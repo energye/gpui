@@ -1054,8 +1054,8 @@ W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者
 | S64 | 第二压缩转码 | S02 | game_tex重验 | 已完成（2026-10-02：ASTC冻死＋路由粉块异步，单测6项全绿，1/8和1/4，tex远近自动600~601帧人工1797帧双金0差；p95/p99沿用S52豁免，换机空着；详见G16） |
 | S65 | 过滤图集写死 | S32/S27 | tex/sprite重验 | 已完成（2026-10-02：写实/像素预设＋告警＋留白扩边＋UV反算，单测全绿，tex/sprite自动人工双金0差；p95/p99沿用S52豁免，换机空着；详见G16） |
 | S66 | 可选亮暗管线 | S62–S65 | light/fx重验 | 已完成（2026-10-02：FloatTarget新分支＋Filmic冻Reinhard默认＋降级标记日志，单测10项全绿，light/fx自动人工双金0差；p95/p99沿用S52豁免，换机空着；详见G17） |
-| S67 | 追车关门 | W12 | game_stage_chase | 未开工 |
-| S68 | 夜战立项 | S67 | 只接口无窗 | 未开工 |
+| S67 | 追车关门 | W12 | game_stage_chase | 已完成（2026-10-02：120秒自动presents7193、fps59.83、p95 17.22、dirty_max1、full0、双金0差；人工30秒ptr25 key8、presents1799；p95沿用S52豁免，换机空着；2小时长跑另起；详见G18） |
+| S68 | 夜战立项 | S67 | 只接口无窗 | 已完成（2026-10-02：game_stage_night/doc.go冻五接口，老调用方零改编过；建窗后另补数；详见G19） |
 | S69 | 图集工具 | W13 | tools | 未开工 |
 | S70 | 资产断链 | W13 | game_asset | 未开工 |
 | S71 | 预览录帧 | W13 | tools双预览 | 未开工 |
@@ -1420,6 +1420,7 @@ W24总指标：三项全正式包三遍最差，存读/掉率/拦截三数全过
 | 2026-10-01（S52改门加跟屏） | 追车窗跟屏修拖拽闪跳66a0a0c4（只动examples/game_stage_chase/main.go：EventResize只记尺寸、Tick每帧开头统一排版加世界盒Push/ClipRect/Pop夹边；探针全绿、离屏金0、窗金33400像素0差；真拖1200到1290十帧标题81不动、世界一比一跟、高361不动）；人工已跑（2026-10-01真窗37.6秒key10加ptr710加resize25，probe_ok=1，presents2243正常；拖窗至1354x827本轮窗金不对尺寸）；改门（用户拍板）：p95按60Hz屏豁免，换机按单机空着（有真实环境再测）；S52记有条件关门，G13放行可开工，W10仍未关门（待S53/S54）。 |
 | 2026-10-01（S53进行中） | S53开工（不动引擎只重测）：anim/light单测逐文件复跑全PASS＋vet净；正式包出/tmp/s53_anim＋/tmp/s53_light；fsm/normal自动10秒×3数全对双金0差；shadow60秒×3数全对但最差遍hitch5/分超3/分门（另两遍2.0/0，判机况挤待静机重跑）；fsm人工23.3秒ptr96切换11双金0差已收；p95沿用S52豁免（用户拍板不改§5），换机空着；G13转进行中，S53未关门。 |
 | 2026-10-01（S53有条件关门） | S53收尾（用户拍板可关，残留交别的线）：shadow次轮60秒×3带负载记录取最差presents3491、fps58.18、p95 20.31、p99 23.29、hitch14/分（负载1.7涨到3.9对上卡顿，数全对moved639双金0差mirror真，判机况挤非算法）；fsm人工一段已收录，normal/shadow人工各60秒交别的线；p95沿用S52豁免不改§5，换机空着；S53记有条件关门，G14放行可开工，W10仍未关门（待S54）。 |
+| 2026-10-02（W13追车夜战） | S67追车120秒自动（presents7193、fps59.83、dirty_max1、full0、双金0差）＋人工30秒（ptr25 key8、presents1799），p95沿用S52豁免，2小时长跑另起；S68夜战只冻五接口不建窗，老调用方零改编过；G18/G19已绿，S78排队。 |
 | 2026-10-02（W12关门） | S66串行收尾＋W12关门：render/render加FloatTarget新文件（8位PixmapTarget不动，Format新枚举值，老调用方按旧值走进不去，软件渲染器拒收），fx/lut.go只放宽校验（认Filmic）＋加Filmic/DefaultTonemap/降级标记/日志，HBD肩曲线单调有穷；单测render4＋fx6全绿＋vet净；正式包trimpath -s -w、RUN_SECONDS=10自动（light598~601、fx600）＋人工30秒XTEST同协议（ptr非0、backend=x11、1798~1800）双金0差；HDR解释（2倍白231非255片）；p95/p99沿用S52豁免不改§5，换机空着；G17已绿，W12关门，W13可开。 |
 | 2026-10-02（W12四项验窗） | S62–S65并行实现＋串行验窗：rough/softshadow/ASTC/预设扩边四路只做加法，老文件render主路不动；单测light/tex/asset三包全绿；正式包trimpath -s -w、RUN_SECONDS=10自动（light三case600、tex600~601、sprite601）＋人工30秒XTEST同协议（ptr非0、backend=x11、presents1797~1800）双金0差；p95/p99沿用S52豁免不改§5，换机空着；G16已绿，S66排队。 |
 | 2026-10-02（W11关门） | S79收尾＋W11关门：engine/camera加Basis25D/YSort25D/ShadowMath25D三件套＋core.Vec3（只加法，老文件不动）；单测camera全包30项全绿＋vet净；正式包go build -trimpath -ldflags="-s -w"、RUN_SECONDS=10自动×3取最差presents599、fps59.34、p95 17.91、p99 19.33、hitch1、views6、双金0差；人工30秒XTEST同协议ptr25 key8、presents1798、backend=x11；影子简化版（落点数学全对，撞点以后喂，接口已留）；p95/p99沿用S52豁免不改§5，换机空着；G15/G16同步，W11关门，W12可开。 |
