@@ -47,6 +47,14 @@ type GPUTextureDrawCommand struct {
 	Opacity        float32
 	ViewportWidth  uint32
 	ViewportHeight uint32
+	// YUV planes variant (P3-A layer 4): when IsYUV is set this command
+	// draws an NV12 frame (View = Y=R8 full height, UVView = RG8
+	// interleaved half height, same normalized UVs) through the YUV
+	// convert pipeline instead of the single-texture path. View keeps
+	// its shared queue role (counts, seals, damage, Y resolve); the UV
+	// view rides alongside and resolves at flush time.
+	UVView res.View
+	IsYUV  bool
 }
 
 // scissorSegment records a scissor state change along with the cumulative

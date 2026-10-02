@@ -2446,6 +2446,23 @@ func (s *GPURenderSession) ensureImagePipeline() error {
 	return nil
 }
 
+// ensureYUVSessionPipelines builds the YUV convert variants for this
+// frame's video draws plus the matching blit variant. Missing variants
+// skip the draw (CPU fallback), never silently change pixels.
+func (s *GPURenderSession) ensureYUVSessionPipelines() error {
+	if s == nil || s.device == nil {
+		return fmt.Errorf("ensure yuv: nil session or device")
+	}
+	if s.imagePipeline == nil {
+		s.imagePipeline = NewTexturedQuadPipeline(s.device, s.queue, s.sampleCount)
+	}
+	s.imagePipeline.SetClipBindLayout(s.clipBindLayout)
+	if err := s.imagePipeline.ensureYUVPipelines(); err != nil {
+		return err
+	}
+	return s.imagePipeline.ensureYUVBlitPipeline()
+}
+
 // ensureImageBlitPipeline creates only the blit compositor pipeline.
 func (s *GPURenderSession) ensureImageBlitPipeline() error {
 	if s.device == nil {
@@ -4288,6 +4305,50 @@ func (c *gpuTexBGSlotCache) getOrCreate(
 	return bg, nil
 }
 
+// getOrCreateYUV builds the YUV bind group (uniform + Y + UV + sampler)
+// for one video plane draw. Same 4-slot cache shape as getOrCreate; the
+// key is the Y view identity (one draw per video quad, no cross-draw
+// sharing). Nil-safe: any missing arg errors to the CPU fallback.
+func (c *gpuTexBGSlotCache) getOrCreateYUV(
+	device hal.Device,
+	layout hal.BindGroupLayout,
+	uniform hal.Buffer,
+	uniformOffset uint64,
+	yView, uvView hal.TextureView,
+	sampler hal.Sampler,
+	pendingRelease *[]hal.BindGroup,
+) (hal.BindGroup, error) {
+	if c == nil || device == nil || layout == nil || uniform == nil || yView == nil || uvView == nil || sampler == nil {
+		return nil, fmt.Errorf("gpu yuv bg: nil arg")
+	}
+	for i := range c.entries {
+		if c.entries[i].view == yView && c.entries[i].bg != nil {
+			return c.entries[i].bg, nil
+		}
+	}
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
+		Label:  "video_yuv_bind_cached",
+		Layout: layout,
+		Entries: []hal.BindGroupEntry{
+			{Binding: 0, Buffer: uniform, Offset: uniformOffset, Size: imageUniformSize},
+			{Binding: 1, TextureView: yView},
+			{Binding: 2, TextureView: uvView},
+			{Binding: 3, Sampler: sampler},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	slot := c.next % len(c.entries)
+	c.next++
+	if old := c.entries[slot].bg; old != nil && pendingRelease != nil {
+		*pendingRelease = append(*pendingRelease, old)
+	}
+	c.entries[slot].view = yView
+	c.entries[slot].bg = bg
+	return bg, nil
+}
+
 func (c *gpuTexBGSlotCache) releaseAll() {
 	if c == nil {
 		return
@@ -4527,6 +4588,8 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 	type gpuTexSlot struct {
 		opacity              float32
 		texView              hal.TextureView
+		uvView               hal.TextureView
+		isYUV                bool
 		firstVertex, vertCnt uint32
 	}
 	slots := make([]gpuTexSlot, 0, len(cmds))
@@ -4553,12 +4616,22 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			i = j
 			continue
 		}
-		slots = append(slots, gpuTexSlot{
+		slot := gpuTexSlot{
 			opacity:     cmd.Opacity,
 			texView:     texView,
 			firstVertex: uint32(i * 6),       //nolint:gosec
 			vertCnt:     uint32((j - i) * 6), //nolint:gosec
-		})
+		}
+		if cmd.IsYUV {
+			uvView, ok := s.ResolveCommandView(&cmd.UVView)
+			if !ok {
+				i = j
+				continue
+			}
+			slot.uvView = uvView
+			slot.isYUV = true
+		}
+		slots = append(slots, slot)
 		i = j
 	}
 
@@ -4656,10 +4729,23 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			s.gpuTexBGCaches = append(s.gpuTexBGCaches, gpuTexBGSlotCache{})
 		}
 		off := uint64(poolIdx) * imageUniformSlotStride //nolint:gosec
-		bg, err := s.gpuTexBGCaches[poolIdx].getOrCreate(
-			s.device, s.imagePipeline.uniformLayout, s.gpuTexUniformSlab, off,
-			slot.texView, s.imagePipeline.SamplerFor(false), &s.pendingBindGroupRelease,
-		)
+		var bg hal.BindGroup
+		var err error
+		isYUV := slot.isYUV
+		if isYUV {
+			if err := s.ensureYUVSessionPipelines(); err != nil {
+				continue
+			}
+			bg, err = s.gpuTexBGCaches[poolIdx].getOrCreateYUV(
+				s.device, s.imagePipeline.yuvLayout, s.gpuTexUniformSlab, off,
+				slot.texView, slot.uvView, s.imagePipeline.SamplerFor(false), &s.pendingBindGroupRelease,
+			)
+		} else {
+			bg, err = s.gpuTexBGCaches[poolIdx].getOrCreate(
+				s.device, s.imagePipeline.uniformLayout, s.gpuTexUniformSlab, off,
+				slot.texView, s.imagePipeline.SamplerFor(false), &s.pendingBindGroupRelease,
+			)
+		}
 		if err != nil || bg == nil {
 			continue
 		}
@@ -4668,6 +4754,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			bindGroup:   bg,
 			firstVertex: slot.firstVertex,
 			vertexCount: slot.vertCnt,
+			yuv:         isYUV,
 		})
 	}
 	s.gpuTexDrawCallScratch = drawCalls

@@ -24,8 +24,9 @@ import (
 // P2 direct upload: in-place rewrite via hal.Queue.WriteTexture + upload
 // counting + zero-upload quad via Context.DrawVideoSlot (context_image.go).
 // P3-A planes: NV12 Y (R8) + UV (RG8) slots, one upload group per frame,
-// GPU convert via Context.DrawVideoPlanes (layer 4 wires it; until then it
-// fails closed and the bridge converts on CPU into the fallback buffer).
+// GPU convert via Context.DrawVideoPlanes (layer 4: YUV convert pipeline,
+// one WGSL source for both backends; missing variants keep the CPU
+// fallback instead of dropping the frame).
 //
 // Video textures live outside the 64MB generic image cache and never take part
 // in its eviction. One video route owns one slot, rewritten in place.
@@ -956,9 +957,9 @@ func (b *VideoBridge) UploadFrame(w, h int, pix []byte) bool {
 
 // DrawCurrent draws the last uploaded frame. Call it in Paint with the
 // display rect: zero-upload quad on the fast path, generic fallback
-// (block copy, counted) otherwise. NV12 shape converts on the GPU once
-// layer 4 wires DrawVideoPlanes; until then it converts into the owned
-// fallback buffer on CPU. ok=false means nothing was drawn.
+// (block copy, counted) otherwise. NV12 shape converts on the GPU via
+// DrawVideoPlanes; when the GPU entry is unavailable it converts into
+// the owned fallback buffer on CPU. ok=false means nothing was drawn.
 func (b *VideoBridge) DrawCurrent(c *Context, opts VideoDrawOptions) (direct, ok bool) {
 	if b == nil || c == nil {
 		return false, false

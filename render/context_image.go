@@ -851,14 +851,71 @@ func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y fl
 }
 
 // DrawVideoPlanes composites one uploaded NV12 plane slot with GPU-side
-// YUV→RGB conversion (layer 4 wires the quad; until then it fails closed
-// and the bridge converts on CPU into the fallback buffer). Same
-// fail-closed contract as DrawVideoSlot: false draws nothing.
+// YUV→RGB conversion (P3-A layer 4: uniform + Y + UV + sampler through
+// the YUV convert pipeline, both backends from one WGSL source). Same
+// fail-closed contract as DrawVideoSlot: false draws nothing and the
+// caller keeps the CPU fallback (bridge converts into its owned buffer).
 func (c *Context) DrawVideoPlanes(slot *VideoPlaneSlot, opts VideoDrawOptions) bool {
 	if c == nil || slot == nil || slot.YView == nil || slot.UVView == nil {
 		return false
 	}
-	return false
+	if slot.W <= 0 || slot.H <= 0 {
+		return false
+	}
+	if opts.Opacity < 0 {
+		return false
+	}
+	yView, uvView := slot.packedPlaneViews()
+	if yView.IsNil() || uvView.IsNil() {
+		return false
+	}
+	c.syncPublishedFilterBeforeDraw()
+	rc := c.gpuCtxOps()
+	if rc == nil {
+		return false
+	}
+	// No-device gate (same as DrawVideoSlot): only claim the draw when
+	// the GPU session can execute it.
+	if dr, ok := rc.(interface{ IsDeviceReady() bool }); ok && !dr.IsDeviceReady() {
+		return false
+	}
+	// Optional queue port: sessions without the YUV entry keep the CPU
+	// fallback instead of breaking older implementers.
+	qp, ok := rc.(interface {
+		QueueGPUVideoPlanesDraw(target GPURenderTarget, yView, uvView gpucontext.TextureView, videoW, videoH int, dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32) bool
+	})
+	if !ok {
+		return false
+	}
+	dw, dh := opts.DstWidth, opts.DstHeight
+	if dw <= 0 {
+		dw = float64(slot.W)
+	}
+	if dh <= 0 {
+		dh = float64(slot.H)
+	}
+	opacity := float32(opts.Opacity)
+	if opacity == 0 {
+		opacity = 1.0
+	}
+	ctm := c.totalMatrix()
+	tl := ctm.TransformPoint(Pt(opts.X, opts.Y))
+	br := ctm.TransformPoint(Pt(opts.X+dw, opts.Y+dh))
+	target := c.gpuRenderTarget()
+	defer c.setGPUClipRect()()
+	if mul := c.layerOpacityMul(); mul < 1 {
+		opacity *= float32(mul)
+	}
+	ok = qp.QueueGPUVideoPlanesDraw(target, yView, uvView, slot.W, slot.H,
+		float32(tl.X), float32(tl.Y),
+		float32(br.X-tl.X), float32(br.Y-tl.Y),
+		opacity, uint32(target.Width), uint32(target.Height)) //nolint:gosec // viewport fits uint32
+	if !ok {
+		return false
+	}
+	c.recordGPUOp()
+	c.TrackDamageRect(image.Rect(int(opts.X), int(opts.Y), int(opts.X+dw), int(opts.Y+dh)))
+	return true
 }
 
 // DrawVideoSlot composites one uploaded video slot as a textured quad.

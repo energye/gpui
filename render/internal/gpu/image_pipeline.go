@@ -169,6 +169,21 @@ type TexturedQuadPipeline struct {
 	// Nearest-neighbor sampler (I.03).
 	nearestSampler hal.Sampler
 
+	// Video YUV convert variants (P3-A layer 4): same vertex layout,
+	// uniform block, and clip group as image quads; fragment samples
+	// NV12 planes (Y=R8, UV=RG8) with the BT.601 matrix. Lazily built
+	// by ensureYUVPipelines / ensureYUVBlitPipeline in
+	// video_yuv_pipeline.go; destroyed with the pipeline.
+	yuvShader            hal.ShaderModule
+	yuvLayout            hal.BindGroupLayout
+	yuvPipeLayout        hal.PipelineLayout
+	yuvPipeLayoutHasClip bool
+	yuvPipeStencil       hal.RenderPipeline
+	yuvPipeDepthClip     hal.RenderPipeline
+	yuvPipeBlit          hal.RenderPipeline
+	yuvBlitLayout        hal.PipelineLayout
+	yuvBlitLayoutHasClip bool
+
 	// filterSamplers caches R3 per-picture samplers by effective key.
 	// Default keys reuse sampler/nearestSampler above (never cached here);
 	// only mipmap-linear or aniso>1 keys allocate. Lazily created by
@@ -376,6 +391,9 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 // pipelineForDraw returns the render pipeline for a draw call, honoring
 // bicubic sampling and the depth-clip variant (GPU-CLIP-003a).
 func (p *TexturedQuadPipeline) pipelineForDraw(dc imageDrawCall, useDepthClip bool) hal.RenderPipeline {
+	if dc.yuv {
+		return p.yuvPipelineForDraw(useDepthClip, false)
+	}
 	if dc.bicubic {
 		if useDepthClip && p.pipelineWithBicubicDepthClip != nil {
 			return p.pipelineWithBicubicDepthClip
@@ -461,16 +479,37 @@ func (p *TexturedQuadPipeline) ensureBlitPipeline() error {
 
 // RecordBlitDraws records draw calls using the non-MSAA blit pipeline.
 // Used for compositor fast path when no vector shapes need MSAA.
+// YUV draws switch per call to the YUV blit variant (same switch shape
+// as RecordDraws); a missing variant skips that draw and keeps the CPU
+// fallback instead of silently changing pixels.
 func (p *TexturedQuadPipeline) RecordBlitDraws(rp hal.RenderPassEncoder, res *imageFrameResources, clipBG hal.BindGroup) {
-	if p.blitPipeline == nil || res == nil {
+	if res == nil {
 		return
 	}
-	rp.SetPipeline(p.blitPipeline)
+	clearPassBindGroups(rp)
 	if p.blitLayoutHasClip && clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)
 	}
 	rp.SetVertexBuffer(0, res.vertBuf, 0)
+	var lastPipe hal.RenderPipeline
 	for _, dc := range res.drawCalls {
+		var pipe hal.RenderPipeline
+		if dc.yuv {
+			pipe = p.yuvPipelineForDraw(false, true)
+		} else {
+			pipe = p.blitPipeline
+		}
+		if pipe == nil {
+			continue
+		}
+		if pipe != lastPipe {
+			clearPassBindGroups(rp)
+			rp.SetPipeline(pipe)
+			if p.blitLayoutHasClip && clipBG != nil {
+				rp.SetBindGroup(1, clipBG, nil)
+			}
+			lastPipe = pipe
+		}
 		rp.SetBindGroup(0, dc.bindGroup, nil)
 		rp.Draw(imageDrawVertexCount(dc), 1, dc.firstVertex, 0)
 	}
@@ -612,6 +651,7 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 	if p.device == nil {
 		return
 	}
+	p.destroyYUV()
 	if p.pipelineWithDepthClip != nil {
 		p.pipelineWithDepthClip.Destroy()
 		p.pipelineWithDepthClip = nil
@@ -672,6 +712,7 @@ type imageDrawCall struct {
 	firstVertex uint32
 	vertexCount uint32 // 0 means 6 (single quad, backward compatible)
 	bicubic     bool   // uses bicubic pipeline variant (I.03), no merge with linear
+	yuv         bool   // video plane quad: YUV pipeline variant, no merge with linear
 }
 
 // imageDrawVertexCount returns the vertex count for a draw call.
@@ -832,6 +873,12 @@ func canMergeGPUTextureDraw(a, b *GPUTextureDrawCommand) bool {
 		return false
 	}
 	if a.ViewportWidth != b.ViewportWidth || a.ViewportHeight != b.ViewportHeight {
+		return false
+	}
+	// YUV plane draws carry their own texture pair and pipeline: never
+	// merge with linear draws or each other (one draw per video quad,
+	// the steady-state norm).
+	if a.IsYUV || b.IsYUV {
 		return false
 	}
 	return true

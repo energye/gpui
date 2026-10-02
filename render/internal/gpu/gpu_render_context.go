@@ -1497,6 +1497,37 @@ func (rc *GPURenderContext) QueueGPUTextureDrawUV(target render.GPURenderTarget,
 	rc.hasPendingTarget = true
 }
 
+// QueueGPUVideoPlanesDraw queues one NV12 frame (Y + interleaved UV views)
+// for GPU-side YUV→RGB compositing (P3-A layer 4). Same tier, damage, and
+// fail-closed contract as QueueGPUTextureDraw: false draws nothing, the
+// caller keeps the CPU fallback. Nil views report false without queueing.
+func (rc *GPURenderContext) QueueGPUVideoPlanesDraw(target render.GPURenderTarget,
+	yView, uvView gpucontext.TextureView, videoW, videoH int,
+	dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32,
+) bool {
+	if rc == nil || yView.IsNil() || uvView.IsNil() || videoW <= 0 || videoH <= 0 {
+		return false
+	}
+	if err := rc.prepareTarget(target); err != nil {
+		slogger().Warn("auto-flush failed", "err", err)
+	}
+	y := rc.viewToResView(yView)
+	uv := rc.viewToResView(uvView)
+	if y.IsNil() || uv.IsNil() {
+		return false
+	}
+	rc.ensureDrawOrder(drawTierGPUTex)
+	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
+		View: y, UVView: uv, IsYUV: true,
+		DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
+		U0: 0, V0: 0, U1: 1, V1: 1,
+		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+	})
+	rc.pendingTarget = target
+	rc.hasPendingTarget = true
+	return true
+}
+
 // QueueGlyphMask accumulates a glyph mask batch for dispatch.
 // Adjacent batches with identical visual properties (transform, color, LCD mode,
 // atlas page) are coalesced into a single batch to minimize GPU draw calls (ADR-031).

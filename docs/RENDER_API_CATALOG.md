@@ -204,7 +204,7 @@
 | `VideoUploadTotal()` | 全进程直传上传计数（平面组计 1，和整块口径一致） | 上传计数 | ✅（门禁） |
 | `Context.DrawVideoFrame(img, opts)` | 通用图片路保底绘制（回落用） | 视频保底画 | ✅（桥回落） |
 | `Context.DrawVideoSlot(slot, opts)` | 零上传纹理四边形（无 GPU 会话失败闭合） | 视频快画 | ✅（桥快路） |
-| `Context.DrawVideoPlanes(slot, opts)` | NV12 平面四边形 + 显卡转色（layer 4 接线前失败闭合，走 CPU 转回落） | 平面快画 | 🧪 仅测试（layer 4 接线） |
+| `Context.DrawVideoPlanes(slot, opts)` | NV12 平面四边形 + 显卡转色（一份 WGSL 两后端通用，无会话/坏参/变体缺失时失败闭合走 CPU 转回落） | 平面快画 | ✅（桥绘制，缺变体回落） |
 | `VideoBridge` + `NewVideoBridge/EnsureDevice/Close` + `BridgeStats`（Frames/Uploads/Fallbacks/Redraws/Live/Idle/Evictions） | 一路视频收敛：tick 上传 + paint 绘制；上传+回落==帧数；无新帧不传 | 视频桥 | ✅（17 扇窗在用） |
 | `VideoBridge.Show/ShowSeq/UploadFrame/DrawCurrent/UploadPlanesFrame` | 整块上传绘制 + 同帧多视图免费重画 + 平面上传统一计数 | 桥上传绘制 | ✅（窗 tick/paint） |
 | `VideoPlaneSlot`（W/H/YTex/YView/UVTex/UVView/垫行暂存） | 一路视频一组平面纹理（Y 用 R8、UV 用 RG8），原地重写 | 平面纹理槽 | ✅（桥持有） |
@@ -338,7 +338,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `DrawMesh`（网格绘制，Context.DrawMesh） | 无生产调用点（仅测试 render/p1_capability_matrix_closers_test.go:2918） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |
 | 视频直传地基 P0（2026-09-30：`VideoBackendCaps/QueryVideoBackend/BorrowVideoBackend/VideoSlot/VideoTexturePool(+Acquire/Release/Stats/Close/VideoPoolStats)/RecordVideoFallback/VideoFallbackTotal`，render/video_direct.go） | 仅测试（video_direct_test.go 四用例绿：双拷贝模式查询/无窗借用/池借还零泄漏零淘汰/回落记 cpu_fallback_ops）；P2 接直传后转生产 |
-| 视频直传 P2+P3-A（2026-10-02：`VideoDrawOptions/VideoUploadTotal/Context.DrawVideoFrame/DrawVideoSlot/VideoBridge(+New/Ensure/Show/ShowSeq/UploadFrame/DrawCurrent/Stats/Close/BridgeStats)`；P3-A 加 `VideoPlaneSlot/VideoPlanePool(+Acquire/Release/Stats/Close/AcquireForFrame/UploadPlanes)/Context.DrawVideoPlanes/VideoBridge.UploadPlanesFrame`，render/video_direct.go + context_image.go） | 生产在用（17 扇窗 tick 上传 + paint 绘制：上传+回落==帧数；render 20 单测绿含平面池借还/紧凑与垫行上传/三原色±1/解码器对拍 mean≤2；DrawVideoPlanes 在 layer 4 接线前失败闭合走 CPU 转回落） |
+| 视频直传 P2+P3-A（2026-10-02：`VideoDrawOptions/VideoUploadTotal/Context.DrawVideoFrame/DrawVideoSlot/VideoBridge(+New/Ensure/Show/ShowSeq/UploadFrame/DrawCurrent/Stats/Close/BridgeStats)`；P3-A 加 `VideoPlaneSlot/VideoPlanePool(+Acquire/Release/Stats/Close/AcquireForFrame/UploadPlanes)/Context.DrawVideoPlanes/VideoBridge.UploadPlanesFrame`，render/video_direct.go + context_image.go；layer 4 加 YUV 转色管线 `render/internal/gpu/shaders/video_yuv.wgsl` + `video_yuv_pipeline.go`，一份 WGSL 两后端通用） | 生产在用（17 扇窗 tick 上传 + paint 绘制：上传+回落==帧数；render 单测绿含平面池借还/紧凑与垫行上传/三原色±1/解码器对拍 mean≤2；YUV 着色器 WebGPU 真编译绿 + GLES 翻译双纹理映射绿，无会话走 CPU 转回落） |
 | `ui.SetMask` widget API（antd 文献提及） | 未实现（非 render 层） |
 
 ### 7.3 ⚠️ 半成品 / GPU 未生效（重点：真窗实测）
