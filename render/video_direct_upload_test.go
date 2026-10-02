@@ -12,9 +12,12 @@ package render
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
+
+	ffmpeg "github.com/energye/gpui/video/ffmpeg"
 )
 
 type videoUploadSize struct {
@@ -338,5 +341,223 @@ func TestVideoBridgeEnsureDevice(t *testing.T) {
 	}
 	if st := br.Stats(); st.Uploads != 1 {
 		t.Fatalf("stats=%+v, want uploads=1", st)
+	}
+}
+
+func TestVideoPlanePoolBorrowReturnNoLeak(t *testing.T) {
+	dev := openNoopVideoDevice(t)
+	pool := NewVideoPlanePool(dev)
+	defer pool.Close()
+	s, err := pool.Acquire(1280, 720)
+	if err != nil {
+		t.Fatalf("Acquire 1280x720: %v", err)
+	}
+	if _, _, err := pool.AcquireForFrame(s, 1280, 720); err != nil {
+		t.Fatalf("reuse: %v", err)
+	}
+	if _, _, err := pool.AcquireForFrame(s, 1920, 1080); err != nil {
+		t.Fatalf("size change: %v", err)
+	}
+	pool.Release(s)
+	st := pool.Stats()
+	if st.Evictions != 0 {
+		t.Fatalf("Evictions=%d, want 0", st.Evictions)
+	}
+	if _, err := pool.Acquire(127, 64); err == nil {
+		t.Fatal("Acquire odd width ok=true, want error")
+	}
+}
+
+func TestVideoPlaneUploadTightAndPadded(t *testing.T) {
+	dev := openNoopVideoDevice(t)
+	pool := NewVideoPlanePool(dev)
+	defer pool.Close()
+	// 1280 rows are 256-aligned: direct upload, no scratch.
+	s, err := pool.Acquire(1280, 720)
+	if err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
+	before := VideoUploadTotal()
+	if err := pool.UploadPlanes(s, make([]byte, 1280*720), make([]byte, 1280*720/2)); err != nil {
+		t.Fatalf("UploadPlanes tight: %v", err)
+	}
+	if s.padY != nil || s.padUV != nil {
+		t.Fatal("tight upload allocated scratch, want direct")
+	}
+	// 1920 rows need padding: scratch once, reused after.
+	p, err := pool.Acquire(1920, 1080)
+	if err != nil {
+		t.Fatalf("Acquire 1080p: %v", err)
+	}
+	y, uv := make([]byte, 1920*1080), make([]byte, 1920*1080/2)
+	if err := pool.UploadPlanes(p, y, uv); err != nil {
+		t.Fatalf("UploadPlanes padded: %v", err)
+	}
+	if len(p.padY) != 2048*1080 || len(p.padUV) != 2048*540 {
+		t.Fatalf("scratch y=%d uv=%d, want %d/%d", len(p.padY), len(p.padUV), 2048*1080, 2048*540)
+	}
+	if err := pool.UploadPlanes(p, y, uv); err != nil {
+		t.Fatalf("UploadPlanes reuse: %v", err)
+	}
+	if got := VideoUploadTotal() - before; got != 3 {
+		t.Fatalf("total uploads delta=%d, want 3", got)
+	}
+	if err := pool.UploadPlanes(p, make([]byte, 10), uv); err == nil {
+		t.Fatal("short Y ok=true, want error")
+	}
+	pool.Release(s)
+	pool.Release(p)
+}
+
+func TestNV12ConvertPrimaries(t *testing.T) {
+	w, h := 4, 2
+	n, un := w*h, w*h/2
+	// Black: Y=16, UV=128.
+	y := make([]byte, n)
+	uv := make([]byte, un)
+	for i := range y {
+		y[i] = 16
+	}
+	for i := range uv {
+		uv[i] = 128
+	}
+	dst := make([]byte, n*4)
+	nv12ToRGBA(dst, y, uv, w, h)
+	for i := 0; i < n; i++ {
+		if dst[4*i] > 1 || dst[4*i+1] > 1 || dst[4*i+2] > 1 || dst[4*i+3] != 255 {
+			t.Fatalf("black pixel %d = %v, want ~0,0,0,255", i, dst[4*i:4*i+4])
+		}
+	}
+	// White: Y=235, UV=128.
+	for i := range y {
+		y[i] = 235
+	}
+	nv12ToRGBA(dst, y, uv, w, h)
+	for i := 0; i < n; i++ {
+		if dst[4*i] < 254 || dst[4*i+1] < 254 || dst[4*i+2] < 254 {
+			t.Fatalf("white pixel %d = %v, want ~255", i, dst[4*i:4*i+4])
+		}
+	}
+	// Red: Y=81, U=90, V=240.
+	for i := range y {
+		y[i] = 81
+	}
+	for i := 0; i < un; i += 2 {
+		uv[i], uv[i+1] = 90, 240
+	}
+	nv12ToRGBA(dst, y, uv, w, h)
+	for i := 0; i < n; i++ {
+		if dst[4*i] < 250 || dst[4*i+1] > 5 || dst[4*i+2] > 5 {
+			t.Fatalf("red pixel %d = %v, want ~255,0,0", i, dst[4*i:4*i+4])
+		}
+	}
+}
+
+func TestVideoBridgePlanesFallback(t *testing.T) {
+	dev := openNoopVideoDevice(t)
+	br := NewVideoBridge(dev)
+	defer br.Close()
+	w, h := 64, 36
+	y := make([]byte, w*h)
+	uv := make([]byte, w*h/2)
+	for i := range y {
+		y[i] = 180
+	}
+	for i := range uv {
+		uv[i] = 128
+	}
+	if !br.UploadPlanesFrame(w, h, y, uv) {
+		t.Fatal("UploadPlanesFrame = false, want true")
+	}
+	dc := NewContext(64, 64)
+	direct, ok := br.DrawCurrent(dc, VideoDrawOptions{X: 0, Y: 0, DstWidth: 32, DstHeight: 18})
+	if !ok || direct {
+		t.Fatalf("DrawCurrent direct=%v ok=%v, want false/true (GPU entry fails closed)", direct, ok)
+	}
+	st := br.Stats()
+	if st.Frames != 1 || st.Uploads != 1 || st.Fallbacks != 1 {
+		t.Fatalf("stats=%+v, want frames=1 uploads=1 fallbacks=1", st)
+	}
+	if len(dc.FrameDamage()) == 0 {
+		t.Fatal("planes fallback left no damage")
+	}
+	if br.UploadPlanesFrame(127, 36, y, uv) {
+		t.Fatal("odd width ok=true, want false")
+	}
+	var nilBridge *VideoBridge
+	if nilBridge.UploadPlanesFrame(w, h, y, uv) {
+		t.Fatal("nil bridge ok=true, want false")
+	}
+}
+
+func TestNV12ConvertMatchesDecoder(t *testing.T) {
+	// End-to-end parity, test-only oracle: decode one tracked clip both
+	// shapes and compare decoder RGBA against nv12ToRGBA. Pinned from
+	// measurement (mean ~1.1, over25 ~0.5% on edge pixels): mean <= 2,
+	// over25 fraction <= 1%.
+	path := "../video/testdata/vr2_720p.mp4"
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("clip absent: %v", err)
+	}
+	dr, err := ffmpeg.Open(path)
+	if err != nil {
+		t.Skipf("open: %v", err)
+	}
+	var rgb []byte
+	w, h := 0, 0
+	for i := 0; i < 3; i++ {
+		fr, err := dr.Next()
+		if err != nil {
+			dr.Close()
+			t.Fatalf("rgba Next: %v", err)
+		}
+		if i == 0 {
+			w, h = fr.Width, fr.Height
+			rgb = append([]byte(nil), fr.Pix...)
+		}
+		fr.Release()
+	}
+	dr.Close()
+	dn, err := ffmpeg.Open(path)
+	if err != nil {
+		t.Skipf("reopen: %v", err)
+	}
+	defer dn.Close()
+	dn.SetNV12(true)
+	var y, uv []byte
+	for i := 0; i < 3; i++ {
+		fr, err := dn.Next()
+		if err != nil {
+			t.Fatalf("nv12 Next: %v", err)
+		}
+		if i == 0 {
+			y, uv = append([]byte(nil), fr.Y...), append([]byte(nil), fr.UV...)
+		}
+		fr.Release()
+	}
+	out := make([]byte, w*h*4)
+	nv12ToRGBA(out, y, uv, w, h)
+	n := w * h
+	var sum, over25 float64
+	for i := 0; i < n; i++ {
+		worst := 0.0
+		for c := 0; c < 3; c++ {
+			d := math.Abs(float64(out[4*i+c]) - float64(rgb[4*i+c]))
+			sum += d
+			if d > worst {
+				worst = d
+			}
+		}
+		if worst > 25 {
+			over25++
+		}
+	}
+	mean, frac := sum/float64(3*n), over25/float64(n)
+	t.Logf("nv12 convert parity: meanAbsDiff=%.3f over25=%.4f%%", mean, 100*frac)
+	if mean > 2 {
+		t.Fatalf("meanAbsDiff=%.3f, want <= 2", mean)
+	}
+	if frac > 0.01 {
+		t.Fatalf("over25 fraction=%.4f%%, want <= 1%%", 100*frac)
 	}
 }

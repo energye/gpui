@@ -190,16 +190,25 @@
 | `SetDither/Dither` | 启用/关闭解析后有序抖动 | 抖动 | 🧪 仅测试 |
 | `DrawImageQuad` / `PushBackdropLayer` | 见 §3.5 / §3.4 | — | — |
 
-### 3.11 video_direct.go（9）· 视频直传地基族（2026-09-30 视频P0）
+### 3.11 video_direct.go（9+16）· 视频直传地基族（2026-09-30 视频P0；2026-10-02 P2/P3-A 同步）
 | API | 功能 | 精简 | 状态 |
 |------|------|------|------|
-| `VideoBackendCaps`（HasDevice/AdapterName/SupportsCommandCopies/MaxTexture2D/MaxStagingBytes/RowPitchAlignment） | 当前共享设备的后端中性能力（名字只做诊断，分支只看能力） | 视频后端能力 | 🧪 仅测试（P2 接直传） |
-| `QueryVideoBackend(device)` | 由借入设备算能力（空设备返回 HasDevice=false，不崩） | 查视频能力 | 🧪 仅测试（P2 接直传） |
-| `BorrowVideoBackend()`（device/queue/adapter/caps/ok） | 只借当前窗口那套共享设备（不拥有不释放，无窗返回 ok=false） | 借视频设备 | 🧪 仅测试（P2 接直传） |
-| `VideoSlot`（W/H/Texture/View） | 一路视频一块纹理，每帧原地重写，尺寸变了才重建 | 视频纹理槽 | 🧪 仅测试（P2 接直传） |
-| `VideoTexturePool` + `NewVideoTexturePool(device)` | 视频纹理独立池（另列，不进 64MB 通用图缓存，不参与其淘汰） | 视频独立池 | 🧪 仅测试（P2 接直传） |
-| `VideoTexturePool.Acquire/Release/Stats/Close` + `VideoPoolStats`（Live/Idle/Peak/Evictions） | 按 exact 尺寸借还（健康态零淘汰，超 8 槽淘汰最旧并计数） | 视频池借还 | 🧪 仅测试（P2 接直传） |
-| `Context.RecordVideoFallback(reason)` + `VideoFallbackTotal()` | 直传走不通回落通用 DrawImage，保证有画面，同时记 cpu_fallback_ops（+ 全局计数） | 视频回落计数 | 🧪 仅测试（P2 接线后转 🔗） |
+| `VideoBackendCaps`（HasDevice/AdapterName/SupportsCommandCopies/MaxTexture2D/MaxStagingBytes/RowPitchAlignment） | 当前共享设备的后端中性能力（名字只做诊断，分支只看能力） | 视频后端能力 | ✅（17 扇窗借用） |
+| `QueryVideoBackend(device)` | 由借入设备算能力（空设备返回 HasDevice=false，不崩） | 查视频能力 | ✅（桥借用） |
+| `BorrowVideoBackend()`（device/queue/adapter/caps/ok） | 只借当前窗口那套共享设备（不拥有不释放，无窗返回 ok=false） | 借视频设备 | ✅（17 扇窗借用） |
+| `VideoSlot`（W/H/Texture/View） | 一路视频一块纹理，每帧原地重写，尺寸变了才重建 | 视频纹理槽 | ✅（桥持有） |
+| `VideoTexturePool` + `NewVideoTexturePool(device)` | 视频纹理独立池（另列，不进 64MB 通用图缓存，不参与其淘汰） | 视频独立池 | ✅（桥持有） |
+| `VideoTexturePool.Acquire/Release/Stats/Close/AcquireForFrame/Upload` + `VideoPoolStats`（Live/Idle/Peak/Evictions/Uploads） | 按 exact 尺寸借还（健康态零淘汰，超 8 槽淘汰最旧并计数）；整块一次上传计 1（P2 证据：上传数对帧数） | 视频池借还 | ✅（桥持有，20 单测绿） |
+| `Context.RecordVideoFallback(reason)` + `VideoFallbackTotal()` | 直传走不通回落通用 DrawImage，保证有画面，同时记 cpu_fallback_ops（+ 全局计数） | 视频回落计数 | ✅（桥回落） |
+| `VideoDrawOptions`（X/Y/DstWidth/DstHeight/Opacity/Interpolation） | 解码分辨率不动，显示只看目标矩形 | 视频画参 | ✅（桥绘制） |
+| `VideoUploadTotal()` | 全进程直传上传计数（平面组计 1，和整块口径一致） | 上传计数 | ✅（门禁） |
+| `Context.DrawVideoFrame(img, opts)` | 通用图片路保底绘制（回落用） | 视频保底画 | ✅（桥回落） |
+| `Context.DrawVideoSlot(slot, opts)` | 零上传纹理四边形（无 GPU 会话失败闭合） | 视频快画 | ✅（桥快路） |
+| `Context.DrawVideoPlanes(slot, opts)` | NV12 平面四边形 + 显卡转色（layer 4 接线前失败闭合，走 CPU 转回落） | 平面快画 | 🧪 仅测试（layer 4 接线） |
+| `VideoBridge` + `NewVideoBridge/EnsureDevice/Close` + `BridgeStats`（Frames/Uploads/Fallbacks/Redraws/Live/Idle/Evictions） | 一路视频收敛：tick 上传 + paint 绘制；上传+回落==帧数；无新帧不传 | 视频桥 | ✅（17 扇窗在用） |
+| `VideoBridge.Show/ShowSeq/UploadFrame/DrawCurrent/UploadPlanesFrame` | 整块上传绘制 + 同帧多视图免费重画 + 平面上传统一计数 | 桥上传绘制 | ✅（窗 tick/paint） |
+| `VideoPlaneSlot`（W/H/YTex/YView/UVTex/UVView/垫行暂存） | 一路视频一组平面纹理（Y 用 R8、UV 用 RG8），原地重写 | 平面纹理槽 | ✅（桥持有） |
+| `VideoPlanePool` + `NewVideoPlanePool(device)` + `Acquire/Release/Stats/Close/AcquireForFrame/UploadPlanes` | 平面独立池；两平面各整块一次计 1 组上传；非 256 对齐行垫进槽暂存（memcpy，无算术） | 平面池上传 | ✅（桥持有，单测绿） |
 
 ---
 
@@ -329,6 +338,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `DrawMesh`（网格绘制，Context.DrawMesh） | 无生产调用点（仅测试 render/p1_capability_matrix_closers_test.go:2918） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |
 | 视频直传地基 P0（2026-09-30：`VideoBackendCaps/QueryVideoBackend/BorrowVideoBackend/VideoSlot/VideoTexturePool(+Acquire/Release/Stats/Close/VideoPoolStats)/RecordVideoFallback/VideoFallbackTotal`，render/video_direct.go） | 仅测试（video_direct_test.go 四用例绿：双拷贝模式查询/无窗借用/池借还零泄漏零淘汰/回落记 cpu_fallback_ops）；P2 接直传后转生产 |
+| 视频直传 P2+P3-A（2026-10-02：`VideoDrawOptions/VideoUploadTotal/Context.DrawVideoFrame/DrawVideoSlot/VideoBridge(+New/Ensure/Show/ShowSeq/UploadFrame/DrawCurrent/Stats/Close/BridgeStats)`；P3-A 加 `VideoPlaneSlot/VideoPlanePool(+Acquire/Release/Stats/Close/AcquireForFrame/UploadPlanes)/Context.DrawVideoPlanes/VideoBridge.UploadPlanesFrame`，render/video_direct.go + context_image.go） | 生产在用（17 扇窗 tick 上传 + paint 绘制：上传+回落==帧数；render 20 单测绿含平面池借还/紧凑与垫行上传/三原色±1/解码器对拍 mean≤2；DrawVideoPlanes 在 layer 4 接线前失败闭合走 CPU 转回落） |
 | `ui.SetMask` widget API（antd 文献提及） | 未实现（非 render 层） |
 
 ### 7.3 ⚠️ 半成品 / GPU 未生效（重点：真窗实测）

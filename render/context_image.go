@@ -850,6 +850,17 @@ func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y fl
 	c.recordGPUOp()
 }
 
+// DrawVideoPlanes composites one uploaded NV12 plane slot with GPU-side
+// YUV→RGB conversion (layer 4 wires the quad; until then it fails closed
+// and the bridge converts on CPU into the fallback buffer). Same
+// fail-closed contract as DrawVideoSlot: false draws nothing.
+func (c *Context) DrawVideoPlanes(slot *VideoPlaneSlot, opts VideoDrawOptions) bool {
+	if c == nil || slot == nil || slot.YView == nil || slot.UVView == nil {
+		return false
+	}
+	return false
+}
+
 // DrawVideoSlot composites one uploaded video slot as a textured quad.
 // Fast path for P2 direct upload: the slot texture was rewritten in place
 // by VideoTexturePool.Upload, so this call queues zero-upload GPU-to-GPU

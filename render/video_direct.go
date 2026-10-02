@@ -23,6 +23,9 @@ import (
 // P0 video foundation: backend query + independent texture pool + fallback count.
 // P2 direct upload: in-place rewrite via hal.Queue.WriteTexture + upload
 // counting + zero-upload quad via Context.DrawVideoSlot (context_image.go).
+// P3-A planes: NV12 Y (R8) + UV (RG8) slots, one upload group per frame,
+// GPU convert via Context.DrawVideoPlanes (layer 4 wires it; until then it
+// fails closed and the bridge converts on CPU into the fallback buffer).
 //
 // Video textures live outside the 64MB generic image cache and never take part
 // in its eviction. One video route owns one slot, rewritten in place.
@@ -430,6 +433,349 @@ func (s *VideoSlot) packedView() gpucontext.TextureView {
 	return gpucontext.PackTextureView(s.View)
 }
 
+// nv12ToRGBA converts NV12 planes to packed RGBA (BT.601 limited range,
+// the decoder default): R=1.164(Y-16)+1.596(V-128),
+// G=1.164(Y-16)-0.391(U-128)-0.813(V-128), B=1.164(Y-16)+2.018(U-128),
+// A=255. CPU fallback and shader-parity oracle only: the fast path
+// converts on the GPU (layer 4). dst must hold w*h*4.
+func nv12ToRGBA(dst, y, uv []byte, w, h int) {
+	for r := 0; r < h; r++ {
+		uvRow := uv[(r/2)*w : (r/2)*w+w]
+		yRow := y[r*w : r*w+w]
+		dRow := dst[r*w*4 : r*w*4+w*4]
+		for x := 0; x < w; x++ {
+			yy := float64(yRow[x])
+			u := float64(uvRow[(x/2)*2]) - 128
+			v := float64(uvRow[(x/2)*2+1]) - 128
+			c := yy - 16
+			rf := 1.164*c + 1.596*v
+			gf := 1.164*c - 0.391*u - 0.813*v
+			bf := 1.164*c + 2.018*u
+			dRow[4*x] = clampU8(rf)
+			dRow[4*x+1] = clampU8(gf)
+			dRow[4*x+2] = clampU8(bf)
+			dRow[4*x+3] = 255
+		}
+	}
+}
+
+func clampU8(v float64) byte {
+	if v <= 0 {
+		return 0
+	}
+	if v >= 255 {
+		return 255
+	}
+	return byte(v + 0.5)
+}
+
+// VideoPlaneSlot is one video route's NV12 texture pair (Y + interleaved
+// UV), rewritten in place. Y is R8, UV is RG8; both share W×H addressing
+// (UV has H/2 rows of W bytes).
+type VideoPlaneSlot struct {
+	W      int
+	H      int
+	YTex   hal.Texture
+	YView  hal.TextureView
+	UVTex  hal.Texture
+	UVView hal.TextureView
+	device hal.Device
+	// padY/padUV stage unaligned widths (row pitch to 256): allocated
+	// once per size, reused every frame. Tight widths upload directly.
+	padY  []byte
+	padUV []byte
+}
+
+func (s *VideoPlaneSlot) destroy(device hal.Device) {
+	if s == nil {
+		return
+	}
+	for _, v := range []hal.TextureView{s.YView, s.UVView} {
+		if v == nil {
+			continue
+		}
+		if device != nil {
+			device.DestroyTextureView(v)
+		} else {
+			v.Destroy()
+		}
+	}
+	s.YView, s.UVView = nil, nil
+	for _, t := range []hal.Texture{s.YTex, s.UVTex} {
+		if t == nil {
+			continue
+		}
+		if device != nil {
+			device.DestroyTexture(t)
+		} else {
+			t.Destroy()
+		}
+	}
+	s.YTex, s.UVTex = nil, nil
+	s.padY, s.padUV = nil, nil
+}
+
+// packedPlaneViews boxes the plane views for Context.DrawVideoPlanes.
+// Either nil yields the zero handle (fail closed).
+func (s *VideoPlaneSlot) packedPlaneViews() (gpucontext.TextureView, gpucontext.TextureView) {
+	if s == nil || s.YView == nil || s.UVView == nil {
+		return gpucontext.TextureView{}, gpucontext.TextureView{}
+	}
+	return gpucontext.PackTextureView(s.YView), gpucontext.PackTextureView(s.UVView)
+}
+
+// VideoPlanePool holds NV12 plane slots apart from the image cache.
+type VideoPlanePool struct {
+	mu        sync.Mutex
+	device    hal.Device
+	idle      []*VideoPlaneSlot
+	live      map[*VideoPlaneSlot]struct{}
+	peak      int
+	evictions uint64
+	uploads   uint64
+	maxSlots  int
+}
+
+// NewVideoPlanePool creates an independent NV12 plane pool on device.
+// Device is borrowed, not owned; Close destroys textures, not the device.
+func NewVideoPlanePool(device hal.Device) *VideoPlanePool {
+	return &VideoPlanePool{
+		device:   device,
+		live:     make(map[*VideoPlaneSlot]struct{}),
+		maxSlots: videoPoolMaxSlots,
+	}
+}
+
+// videoPlaneTexture builds one plane texture (R8 or RG8, copy-dst bound).
+func videoPlaneTexture(device hal.Device, label string, w, h int, format types.TextureFormat) (hal.Texture, hal.TextureView, error) {
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
+		Label:         label,
+		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // video dims fit uint32
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     types.TextureDimension2D,
+		Format:        format,
+		Usage:         types.TextureUsageCopyDst | types.TextureUsageTextureBinding,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("render: video plane CreateTexture %dx%d: %w", w, h, err)
+	}
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
+		Label:         label + "-view",
+		Format:        format,
+		Dimension:     types.TextureViewDimension2D,
+		Aspect:        types.TextureAspectAll,
+		MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Destroy()
+		return nil, nil, fmt.Errorf("render: video plane CreateTextureView: %w", err)
+	}
+	return tex, view, nil
+}
+
+// Acquire returns an exact-size idle plane slot or creates one.
+// NV12 needs even width and height; anything else reports an error so
+// the caller falls back to the RGBA path.
+func (p *VideoPlanePool) Acquire(w, h int) (*VideoPlaneSlot, error) {
+	if p == nil || p.device == nil {
+		return nil, fmt.Errorf("render: video plane pool has no device")
+	}
+	if w < 2 || h < 2 || w%2 != 0 || h%2 != 0 {
+		return nil, fmt.Errorf("render: video plane size %dx%d invalid (NV12 needs even)", w, h)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for i, s := range p.idle {
+		if s.W == w && s.H == h {
+			p.idle = append(p.idle[:i], p.idle[i+1:]...)
+			p.live[s] = struct{}{}
+			if len(p.live) > p.peak {
+				p.peak = len(p.live)
+			}
+			return s, nil
+		}
+	}
+	if len(p.live)+len(p.idle) >= p.maxSlots && len(p.idle) > 0 {
+		old := p.idle[0]
+		p.idle = p.idle[1:]
+		old.destroy(p.device)
+		p.evictions++
+	}
+	yTex, yView, err := videoPlaneTexture(p.device, "video-plane-y", w, h, types.TextureFormatR8Unorm)
+	if err != nil {
+		return nil, err
+	}
+	uvTex, uvView, err := videoPlaneTexture(p.device, "video-plane-uv", w, h/2, types.TextureFormatRG8Unorm)
+	if err != nil {
+		if yView != nil {
+			p.device.DestroyTextureView(yView)
+		}
+		if yTex != nil {
+			p.device.DestroyTexture(yTex)
+		}
+		return nil, err
+	}
+	s := &VideoPlaneSlot{W: w, H: h, YTex: yTex, YView: yView, UVTex: uvTex, UVView: uvView, device: p.device}
+	p.live[s] = struct{}{}
+	if len(p.live) > p.peak {
+		p.peak = len(p.live)
+	}
+	return s, nil
+}
+
+// Release returns a plane slot to idle for in-place rewrite reuse.
+func (p *VideoPlanePool) Release(s *VideoPlaneSlot) {
+	if p == nil || s == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, ok := p.live[s]; !ok {
+		return
+	}
+	delete(p.live, s)
+	p.idle = append(p.idle, s)
+}
+
+// Stats snapshots plane pool health.
+func (p *VideoPlanePool) Stats() VideoPoolStats {
+	if p == nil {
+		return VideoPoolStats{}
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return VideoPoolStats{
+		Live:      len(p.live),
+		Idle:      len(p.idle),
+		Peak:      p.peak,
+		Evictions: p.evictions,
+		Uploads:   p.uploads,
+	}
+}
+
+// Close destroys idle and live plane textures. Borrowed device untouched.
+func (p *VideoPlanePool) Close() {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, s := range p.idle {
+		s.destroy(p.device)
+	}
+	for s := range p.live {
+		s.destroy(p.device)
+	}
+	p.idle = nil
+	p.live = make(map[*VideoPlaneSlot]struct{})
+}
+
+// AcquireForFrame reuses cur when the size matches, otherwise releases it
+// and acquires the new size. Nil pool or bad size errors to RGBA fallback.
+func (p *VideoPlanePool) AcquireForFrame(cur *VideoPlaneSlot, w, h int) (*VideoPlaneSlot, bool, error) {
+	if p == nil {
+		return nil, false, fmt.Errorf("render: video plane pool has no device")
+	}
+	if w < 2 || h < 2 || w%2 != 0 || h%2 != 0 {
+		return nil, false, fmt.Errorf("render: video plane size %dx%d invalid (NV12 needs even)", w, h)
+	}
+	if cur != nil && cur.W == w && cur.H == h {
+		return cur, false, nil
+	}
+	if cur != nil {
+		p.Release(cur)
+	}
+	s, err := p.Acquire(w, h)
+	if err != nil {
+		return nil, false, err
+	}
+	return s, true, nil
+}
+
+// videoPlanePitch aligns one plane row to the backend row rule.
+func videoPlanePitch(w int) (uint32, bool) {
+	if w <= 0 {
+		return 0, false
+	}
+	pitch := (w + videoRowPitchAlignment - 1) &^ (videoRowPitchAlignment - 1)
+	if pitch <= 0 || int64(pitch) > int64(^uint32(0)) {
+		return 0, false
+	}
+	return uint32(pitch), true
+}
+
+// padPlaneRows copies tight rows into pitch-strided scratch (reused).
+func padPlaneRows(scratch []byte, pix []byte, w, rows, pitch int) []byte {
+	need := pitch * rows
+	if len(scratch) != need {
+		scratch = make([]byte, need)
+	}
+	for r := 0; r < rows; r++ {
+		copy(scratch[r*pitch:r*pitch+w], pix[r*w:r*w+w])
+	}
+	return scratch
+}
+
+// UploadPlanes rewrites the slot pair in place: Y (R8, w×h) plus UV
+// (RG8 interleaved, w×h/2). One call counts one upload unit, so the
+// upload discipline stays one upload per frame like the RGBA path.
+// Tight widths upload directly; other widths pad rows into slot-owned
+// scratch (memcpy only, no arithmetic). Any failure errors to the
+// RGBA fallback path.
+func (p *VideoPlanePool) UploadPlanes(s *VideoPlaneSlot, y, uv []byte) error {
+	if p == nil || p.device == nil {
+		return fmt.Errorf("render: video plane upload has no device")
+	}
+	if s == nil || s.YTex == nil || s.UVTex == nil {
+		return fmt.Errorf("render: video plane upload has no slot")
+	}
+	w, h := s.W, s.H
+	if w < 2 || h < 2 || w%2 != 0 || h%2 != 0 {
+		return fmt.Errorf("render: video plane slot size %dx%d invalid", w, h)
+	}
+	if int64(len(y)) < int64(w)*int64(h) || int64(len(uv)) < int64(w)*int64(h)/2 {
+		return fmt.Errorf("render: video plane pixels short y=%d uv=%d want %dx%d", len(y), len(uv), w, h)
+	}
+	if int64(w)*int64(h) > int64(videoDefaultMaxStaging) {
+		return fmt.Errorf("render: video plane frame %dx%d exceeds staging", w, h)
+	}
+	pitch, ok := videoPlanePitch(w)
+	if !ok {
+		return fmt.Errorf("render: video plane width %d breaks pitch", w)
+	}
+	queue := p.device.Queue()
+	if queue == nil {
+		return fmt.Errorf("render: video plane upload has no queue")
+	}
+	yp, uvs := y, uv
+	if int(pitch) != w {
+		s.padY = padPlaneRows(s.padY, y, w, h, int(pitch))
+		s.padUV = padPlaneRows(s.padUV, uv, w, h/2, int(pitch))
+		yp, uvs = s.padY, s.padUV
+	}
+	upload := func(tex hal.Texture, pix []byte, rows int) error {
+		dst := &hal.ImageCopyTexture{Texture: tex, MipLevel: 0, Aspect: types.TextureAspectAll}
+		layout := &hal.ImageDataLayout{Offset: 0, BytesPerRow: pitch, RowsPerImage: uint32(rows)}
+		size := &hal.Extent3D{Width: uint32(w), Height: uint32(rows), DepthOrArrayLayers: 1}
+		if err := queue.WriteTexture(dst, pix[:int(pitch)*rows], layout, size); err != nil {
+			return fmt.Errorf("render: video plane WriteTexture %dx%d: %w", w, rows, err)
+		}
+		return nil
+	}
+	if err := upload(s.YTex, yp, h); err != nil {
+		return err
+	}
+	if err := upload(s.UVTex, uvs, h/2); err != nil {
+		return err
+	}
+	p.mu.Lock()
+	p.uploads++
+	p.mu.Unlock()
+	videoUploadTotal.Add(1)
+	return nil
+}
+
 // VideoBridge converges one video route: pool + current slot + owned
 // fallback buffer. Windows call Show per new frame; Show uploads once then
 // draws via the zero-upload quad, falling back to the generic path with a
@@ -463,6 +809,14 @@ type VideoBridge struct {
 	shadow []byte
 	// hasFrame reports an uploaded frame ready for DrawCurrent.
 	hasFrame bool
+	// ppool/pslot carry the NV12 shape (layer 3); pshadow retains the
+	// last planes for the fallback convert. hasPlanes selects the
+	// shape DrawCurrent draws.
+	ppool     *VideoPlanePool
+	pslot     *VideoPlaneSlot
+	pshadowY  []byte
+	pshadowU  []byte
+	hasPlanes bool
 }
 
 // NewVideoBridge creates one route on the borrowed device.
@@ -472,21 +826,24 @@ func NewVideoBridge(device hal.Device) *VideoBridge {
 	if device == nil {
 		return &VideoBridge{}
 	}
-	return &VideoBridge{pool: NewVideoTexturePool(device)}
+	return &VideoBridge{pool: NewVideoTexturePool(device), ppool: NewVideoPlanePool(device)}
 }
 
 // EnsureDevice attaches the pool device when the window device opens after
 // the bridge was created fallback-only. No-op when already attached.
+// Both the RGBA pool and the NV12 plane pool share the device.
 func (b *VideoBridge) EnsureDevice(device hal.Device) {
 	if b == nil || device == nil {
 		return
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.pool != nil {
-		return
+	if b.pool == nil {
+		b.pool = NewVideoTexturePool(device)
 	}
-	b.pool = NewVideoTexturePool(device)
+	if b.ppool == nil {
+		b.ppool = NewVideoPlanePool(device)
+	}
 }
 
 // Show uploads one new frame and draws it. It returns direct=true when the
@@ -599,13 +956,34 @@ func (b *VideoBridge) UploadFrame(w, h int, pix []byte) bool {
 
 // DrawCurrent draws the last uploaded frame. Call it in Paint with the
 // display rect: zero-upload quad on the fast path, generic fallback
-// (block copy, counted) otherwise. ok=false means nothing was drawn.
+// (block copy, counted) otherwise. NV12 shape converts on the GPU once
+// layer 4 wires DrawVideoPlanes; until then it converts into the owned
+// fallback buffer on CPU. ok=false means nothing was drawn.
 func (b *VideoBridge) DrawCurrent(c *Context, opts VideoDrawOptions) (direct, ok bool) {
 	if b == nil || c == nil {
 		return false, false
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.hasPlanes && b.pslot != nil {
+		if c.DrawVideoPlanes(b.pslot, opts) {
+			return true, true
+		}
+		w, h := b.pslot.W, b.pslot.H
+		if len(b.pshadowY) == 0 || !b.ensureFallbackLocked(w, h) {
+			return false, false
+		}
+		dst := b.fallback.Data()
+		need := int64(w) * int64(h) * 4
+		if int64(len(dst)) < need {
+			return false, false
+		}
+		nv12ToRGBA(dst[:need], b.pshadowY, b.pshadowU, w, h)
+		b.fallback.MarkPixelsDirty()
+		b.fallbacks++
+		c.RecordVideoFallback("direct-fallback-planes")
+		return false, c.DrawVideoFrame(b.fallback, opts)
+	}
 	if !b.hasFrame || b.slot == nil {
 		return false, false
 	}
@@ -673,6 +1051,12 @@ func (b *VideoBridge) Stats() BridgeStats {
 		ps := b.pool.Stats()
 		st.Live, st.Idle, st.Evictions = ps.Live, ps.Idle, ps.Evictions
 	}
+	if b.ppool != nil {
+		ps := b.ppool.Stats()
+		st.Live += ps.Live
+		st.Idle += ps.Idle
+		st.Evictions += ps.Evictions
+	}
 	return st
 }
 
@@ -687,10 +1071,60 @@ func (b *VideoBridge) Close() {
 		b.pool.Release(b.slot)
 		b.slot = nil
 	}
+	if b.ppool != nil && b.pslot != nil {
+		b.ppool.Release(b.pslot)
+		b.pslot = nil
+	}
 	if b.fallback != nil {
 		b.fallback.Dispose()
 		b.fallback = nil
 	}
 	b.shadow = nil
+	b.pshadowY, b.pshadowU = nil, nil
+	b.hasFrame, b.hasPlanes = false, false
+}
+
+// UploadPlanesFrame uploads one new NV12 frame into the plane slot
+// without drawing. Same tick/paint split and ownership as UploadFrame:
+// y (w*h) plus uv (w*h/2) are copied synchronously and may be recycled
+// after it returns. Even sizes only; anything else reports false so the
+// caller falls back to the RGBA shape.
+func (b *VideoBridge) UploadPlanesFrame(w, h int, y, uv []byte) bool {
+	if b == nil {
+		return false
+	}
+	if w < 2 || h < 2 || w%2 != 0 || h%2 != 0 {
+		return false
+	}
+	if int64(len(y)) < int64(w)*int64(h) || int64(len(uv)) < int64(w)*int64(h)/2 {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.ppool == nil {
+		return false
+	}
+	slot, _, err := b.ppool.AcquireForFrame(b.pslot, w, h)
+	if err != nil {
+		return false
+	}
+	b.pslot = slot
+	b.lastW, b.lastH = w, h
+	if uerr := b.ppool.UploadPlanes(slot, y, uv); uerr != nil {
+		return false
+	}
+	b.frames++
+	b.uploads++
+	b.hasPlanes = true
 	b.hasFrame = false
+	yN, uvN := w*h, w*h/2
+	if len(b.pshadowY) != yN {
+		b.pshadowY = make([]byte, yN)
+	}
+	if len(b.pshadowU) != uvN {
+		b.pshadowU = make([]byte, uvN)
+	}
+	copy(b.pshadowY, y[:yN])
+	copy(b.pshadowU, uv[:uvN])
+	return true
 }
