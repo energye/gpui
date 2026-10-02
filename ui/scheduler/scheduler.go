@@ -82,6 +82,11 @@ type FrameScheduler struct {
 	// the software floor already covers — firing per stamp would over-render).
 	lastStampAt       time.Time
 	lastStampInterval time.Duration
+	// lastVSyncShadow mirrors lastVSync under s.mu (stampVSyncLocked keeps
+	// both) so the pacing gate can anchor the next boundary to the vsync
+	// phase without taking vsyncMu while holding mu (FrameDue already holds
+	// vsyncMu outer, mu inner — same order, no new nesting).
+	lastVSyncShadow time.Time
 	// displayPeriod is the learned display refresh interval (EMA of stamp
 	// intervals). Wayland/X11 software-boundary pacing uses it instead of
 	// the hardcoded DefaultAnimTick so the UI commit cadence matches the
@@ -157,6 +162,10 @@ func clampPeriod(p, ref time.Duration) time.Duration {
 // stampVSyncLocked records a vsync arrival with its interval. Caller holds
 // vsyncMu. Compositor intervals also feed learnCompositorPeriod; the DRM
 // path additionally feeds the fast hardware EMA in learnDisplayPeriod.
+// The stamp is the display's horn: the pacing gate opens the next frame off
+// this timestamp (horn time + period), not off its own clock, so production
+// walks the display's cadence. The stamp only opens the gate (demand stays
+// with events/tickers); phase comes free.
 func (s *FrameScheduler) stampVSyncLocked(now time.Time) {
 	if !s.lastStampAt.IsZero() {
 		iv := now.Sub(s.lastStampAt)
@@ -165,6 +174,11 @@ func (s *FrameScheduler) stampVSyncLocked(now time.Time) {
 	}
 	s.lastStampAt = now
 	s.lastVSync = now
+	// Mirror under s.mu for the pacing gate (same vsyncMu→mu order as
+	// learnCompositorPeriod above, so no lock inversion).
+	s.mu.Lock()
+	s.lastVSyncShadow = now
+	s.mu.Unlock()
 }
 
 // learnCompositorPeriod feeds one compositor-notice interval into the
@@ -312,12 +326,35 @@ func (s *FrameScheduler) vsyncFresh() bool {
 	return !last.IsZero() && time.Since(last) <= vsyncFreshWindow
 }
 
-// nextFrameBoundaryLocked is the wall time the next frame may render: the
-// software interval (animTick) after the last rendered frame. Fast vsync
-// sources (stamps closer than animTick) pace via the per-stamp path in
-// FrameDue instead. Caller must hold s.mu.
-func (s *FrameScheduler) nextFrameBoundaryLocked() time.Time {
-	return s.lastFrameAt.Add(s.boundaryPeriodLocked())
+// nextFrameBoundaryLocked is the wall time the next frame may render.
+// Display phase lock: the boundary walks the display grid (last stamp +
+// whole periods), never the render clock, so production holds exactly one
+// frame per period and can never overproduce frames the display then drops.
+// Flutter parity (vsync_waiter_fallback.cc SnapToNextTick +
+// kSingleFrameInterval; animator.cc target walks forward, deadline separate):
+// ticks snap FORWARD to the next grid point in full-period steps — the waiter
+// never fires early and the target is never clamped back to now. Behind
+// stamps jump whole periods (a missed slot stays missed, phase preserved),
+// and the boundary never lands closer than 3/4 period to the last render
+// (polled gate: consecutive FrameDue calls must not double-fire on one grid
+// point — TestFrameDue_SlowStampsDoNotThrottleBelowSoftwareInterval locks
+// this). Stale stamp (window hidden/minimized, horn silent) falls back to
+// the last-render grid. Returns the boundary and the period it was built
+// from (single source — callers must not recompute). Caller must hold s.mu.
+func (s *FrameScheduler) nextFrameBoundaryLocked(now time.Time) (time.Time, time.Duration) {
+	period := s.boundaryPeriodLocked()
+	minGap := period * 3 / 4
+	if !s.lastVSyncShadow.IsZero() && now.Sub(s.lastVSyncShadow) <= vsyncFreshWindow {
+		b := s.lastVSyncShadow
+		for !b.After(s.lastFrameAt) {
+			b = b.Add(period)
+		}
+		for b.Sub(s.lastFrameAt) < minGap {
+			b = b.Add(period)
+		}
+		return b, period
+	}
+	return s.lastFrameAt.Add(period), period
 }
 
 // FrameDue is the non-blocking frame-pacing gate (Flutter frame callback
@@ -365,8 +402,8 @@ func (s *FrameScheduler) FrameDue() bool {
 	// WaitEvents oversleep (~0.1ms) into a random walk with positive bias
 	// (avg +0.1ms/frame → a missed vsync every ~2.5s at 0.9s/rev animation).
 	// Major stalls (>= period) resync to now to avoid spiral.
-	if boundary := s.nextFrameBoundaryLocked(); !now.Before(boundary) {
-		if period := s.boundaryPeriodLocked(); period > 0 && now.Sub(boundary) < period {
+	if boundary, period := s.nextFrameBoundaryLocked(now); !now.Before(boundary) {
+		if period > 0 && now.Sub(boundary) < period {
 			s.lastFrameAt = boundary
 		} else {
 			s.lastFrameAt = now
@@ -536,7 +573,8 @@ func (s *FrameScheduler) WaitTimeout() time.Duration {
 			d = p
 		}
 		if !s.lastFrameAt.IsZero() {
-			switch left := time.Until(s.nextFrameBoundaryLocked()); {
+			boundary, _ := s.nextFrameBoundaryLocked(time.Now())
+			switch left := time.Until(boundary); {
 			case left > 0 && left < d:
 				d = left
 			case left <= 0:
@@ -604,10 +642,11 @@ func (s *FrameScheduler) Tick() bool {
 	if s.lastTargetAt.IsZero() {
 		s.lastTargetAt = now
 	} else {
+		// Flutter Animator parity: the target only walks forward by one
+		// display period per tick and is never clamped back to now. A late
+		// wake keeps the same step (no double advance) and the phase stays
+		// locked to the display cadence instead of resyncing every jitter.
 		s.lastTargetAt = s.lastTargetAt.Add(period)
-		if s.lastTargetAt.After(now) {
-			s.lastTargetAt = now
-		}
 	}
 	dt := period.Seconds()
 	s.lastTick = now
