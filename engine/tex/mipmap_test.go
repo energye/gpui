@@ -512,3 +512,125 @@ func nameOf(linear bool) string {
 	}
 	return "nearest"
 }
+
+type s65WarnDef struct {
+	Name     string `json:"name"`
+	Near     string `json:"near"`
+	Far      string `json:"far"`
+	Mip      string `json:"mip"`
+	Aniso    int    `json:"aniso"`
+	WantWarn bool   `json:"want_warn"`
+}
+
+type s65SnapDef struct {
+	In      float64 `json:"in"`
+	Want    float64 `json:"want"`
+	Aligned bool    `json:"aligned"`
+}
+
+type s65Cases struct {
+	Realistic samplerDef   `json:"realistic"`
+	Pixel     samplerDef   `json:"pixel"`
+	Warnings  []s65WarnDef `json:"warnings"`
+	Snaps     []s65SnapDef `json:"pixel_snaps"`
+}
+
+func loadMipmapS65Cases(t *testing.T) s65Cases {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", "mipmap_s65_cases.json"))
+	if err != nil {
+		t.Fatalf("read mipmap_s65_cases.json: %v", err)
+	}
+	var c s65Cases
+	if err := json.Unmarshal(raw, &c); err != nil {
+		t.Fatalf("decode mipmap_s65_cases.json: %v", err)
+	}
+	if len(c.Warnings) == 0 || len(c.Snaps) == 0 {
+		t.Fatal("mipmap_s65_cases.json missing warnings or snaps")
+	}
+	return c
+}
+
+// S65写实预设: mipmap加三线性加4x各向异性, 旧采样开关不动.
+func TestMipmapS65Presets(t *testing.T) {
+	c := loadMipmapS65Cases(t)
+	got := RealisticFilter()
+	if got.Near != KindLinear || got.Far != KindLinear || got.Mip != MipLinear || got.MaxAniso != RealisticAniso {
+		t.Fatalf("RealisticFilter = %+v, want linear/linear/linear/4", got)
+	}
+	if RealisticAniso != 4 {
+		t.Fatalf("RealisticAniso = %d, want 4", RealisticAniso)
+	}
+	want := Filter{Near: ParseKind(c.Realistic.Near), Far: ParseKind(c.Realistic.Far), Mip: ParseMipMode(c.Realistic.Mip), MaxAniso: uint16(c.Realistic.Aniso)} //nolint:gosec // data-driven, validated below
+	if got != want {
+		t.Errorf("RealisticFilter = %+v, want file %+v", got, want)
+	}
+	mag, min, mip, aniso := got.SamplerParams()
+	if nameOf(mag) != c.Realistic.Mag || nameOf(min) != c.Realistic.Min || nameOf(mip) != c.Realistic.Mipmap || int(aniso) != c.Realistic.EffAniso {
+		t.Errorf("realistic params = %s/%s/%s/%d, want %s/%s/%s/%d",
+			nameOf(mag), nameOf(min), nameOf(mip), aniso,
+			c.Realistic.Mag, c.Realistic.Min, c.Realistic.Mipmap, c.Realistic.EffAniso)
+	}
+	if w := got.AnisoWarning(); w != "" {
+		t.Errorf("realistic warns %q, want empty", w)
+	}
+	px := PixelArtFilter()
+	if px.Near != KindNearest || px.Far != KindNearest || px.Mip != MipNearest || px.MaxAniso != DefaultAniso {
+		t.Fatalf("PixelArtFilter = %+v, want nearest/nearest/nearest/1", px)
+	}
+	pwant := Filter{Near: ParseKind(c.Pixel.Near), Far: ParseKind(c.Pixel.Far), Mip: ParseMipMode(c.Pixel.Mip), MaxAniso: uint16(c.Pixel.Aniso)} //nolint:gosec // data-driven
+	if px != pwant {
+		t.Errorf("PixelArtFilter = %+v, want file %+v", px, pwant)
+	}
+	mag, min, mip, aniso = px.SamplerParams()
+	if nameOf(mag) != c.Pixel.Mag || nameOf(min) != c.Pixel.Min || nameOf(mip) != c.Pixel.Mipmap || int(aniso) != c.Pixel.EffAniso {
+		t.Errorf("pixel params = %s/%s/%s/%d, want %s/%s/%s/%d",
+			nameOf(mag), nameOf(min), nameOf(mip), aniso,
+			c.Pixel.Mag, c.Pixel.Min, c.Pixel.Mipmap, c.Pixel.EffAniso)
+	}
+	if w := px.AnisoWarning(); w != "" {
+		t.Errorf("pixel warns %q, want empty", w)
+	}
+	t.Logf("s65-presets: realistic=%+v pixel=%+v", got, px)
+}
+
+// S65无效配置告警: 无mipmap开各向异性必告警并记日志.
+func TestMipmapS65AnisoWarning(t *testing.T) {
+	c := loadMipmapS65Cases(t)
+	for _, w := range c.Warnings {
+		f := Filter{Near: ParseKind(w.Near), Far: ParseKind(w.Far), Mip: ParseMipMode(w.Mip), MaxAniso: uint16(w.Aniso)} //nolint:gosec // data-driven
+		got := f.AnisoWarning()
+		if (got != "") != w.WantWarn {
+			t.Errorf("%s: warn=%q want_warn=%v", w.Name, got, w.WantWarn)
+		}
+		if f.IsAnisoValid() == w.WantWarn {
+			t.Errorf("%s: IsAnisoValid=%v want_warn=%v", w.Name, f.IsAnisoValid(), w.WantWarn)
+		}
+		if logged := f.LogAnisoWarning(); logged != got {
+			t.Errorf("%s: LogAnisoWarning=%q want %q", w.Name, logged, got)
+		}
+	}
+}
+
+// S65像素风整数坐标: Nearest配SnapPixel对齐.
+func TestMipmapS65PixelSnap(t *testing.T) {
+	c := loadMipmapS65Cases(t)
+	px := PixelArtFilter()
+	if px.Near != KindNearest || px.Far != KindNearest {
+		t.Fatalf("pixel preset not nearest: %+v", px)
+	}
+	for _, s := range c.Snaps {
+		if got := SnapPixel(s.In); got != s.Want {
+			t.Errorf("SnapPixel(%v) = %v, want %v", s.In, got, s.Want)
+		}
+		if got := IsPixelAligned(s.In); got != s.Aligned {
+			t.Errorf("IsPixelAligned(%v) = %v, want %v", s.In, got, s.Aligned)
+		}
+		if !IsPixelAligned(s.Want) {
+			t.Errorf("want %v not aligned", s.Want)
+		}
+		if got := SnapPixelInt(s.In); got != int(s.Want) {
+			t.Errorf("SnapPixelInt(%v) = %d, want %d", s.In, got, int(s.Want))
+		}
+	}
+}

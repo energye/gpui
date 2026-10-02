@@ -21,21 +21,46 @@ import (
 )
 
 // Frozen block geometry for FormatBC1RGBAUnorm.
+// S64 (2026-10-02, additive): FormatASTC_RGBA_4x4 frozen as the second
+// kind (ASTC picked over ETC2, one kind only). ASTC 4x4 is the top ASTC
+// tier (16 bytes per 4x4 block, 1/4 of RGBA8); Go carries and validates
+// the blocks and never ships an ASTC software decoder.
 const (
 	blockW = 4
 	blockH = 4
 	// blockBytesBC1 is 8 bytes per 4x4 block (2 RGB565 ends + 4 index bytes).
 	blockBytesBC1 = 8
+	// blockBytesASTC is 16 bytes per 4x4 ASTC block.
+	blockBytesASTC = 16
 	// vkBC1RGBAUnorm is VK_FORMAT_BC1_RGBA_UNORM_BLOCK (Khronos Vulkan enum).
 	vkBC1RGBAUnorm = 133
+	// vkASTC4x4Unorm is VK_FORMAT_ASTC_4x4_UNORM_BLOCK (Khronos Vulkan enum).
+	vkASTC4x4Unorm = 157
 	// MaxDimension caps one side; MaxPixels caps the area. Beyond either
 	// the file is well-formed but beyond budget: OutOfMemory, never a guess.
 	MaxDimension = 8192
 	MaxPixels    = 8192 * 8192
+	// LargeTranscodePixels marks a big picture: at or above this pixel
+	// count callers must use TranscodeAsync so transcode never runs on
+	// the play thread. 256x256 sits exactly on the line.
+	LargeTranscodePixels = 256 * 256
 )
 
-// Format names the frozen block kind. Only BC1 is built; the rest are
-// reserved and report Unsupported through ParseKTX2.
+// KTX2 supercompressionScheme values (header offset 44). Only SchemeNone
+// uploads as-is; the rest are rejected with the scheme named in the cause.
+const (
+	// SchemeNone means no supercompression: level bytes are blocks as-is.
+	SchemeNone = 0
+	// SchemeBasisLZ is Basis Universal / BasisLZ supercompression.
+	SchemeBasisLZ = 1
+	// SchemeZstd is Zstd supercompression.
+	SchemeZstd = 2
+	// SchemeZlib is Zlib supercompression.
+	SchemeZlib = 3
+)
+
+// Format names the frozen block kind. BC1 plus ASTC 4x4 are built; the
+// rest are reserved and report Unsupported through ParseKTX2.
 type Format int
 
 const (
@@ -43,6 +68,9 @@ const (
 	FormatUnknown Format = iota
 	// FormatBC1RGBAUnorm is KTX2 + BC1 RGBA (8 bytes per 4x4 block).
 	FormatBC1RGBAUnorm
+	// FormatASTCRGBA4x4 is KTX2 + ASTC 4x4 RGBA (16 bytes per 4x4 block).
+	// S64 second kind: ETC2 stays reserved.
+	FormatASTCRGBA4x4
 )
 
 // String returns the stable log name of f.
@@ -50,34 +78,60 @@ func (f Format) String() string {
 	switch f {
 	case FormatBC1RGBAUnorm:
 		return "BC1_RGBA_UNORM"
+	case FormatASTCRGBA4x4:
+		return "ASTC_RGBA_4x4"
 	default:
 		return "unknown"
 	}
 }
 
-// BlockBytes returns the GPU upload bytes per block (8 for BC1, 0 unknown).
+// BlockBytes returns the GPU upload bytes per block (8 BC1, 16 ASTC,
+// 0 unknown).
 func (f Format) BlockBytes() int {
-	if f == FormatBC1RGBAUnorm {
+	switch f {
+	case FormatBC1RGBAUnorm:
 		return blockBytesBC1
+	case FormatASTCRGBA4x4:
+		return blockBytesASTC
 	}
 	return 0
 }
 
-// BlockExtent returns the block footprint (4x4 for BC1, 0 unknown).
+// BlockExtent returns the block footprint (4x4 for both kinds, 0 unknown).
 func (f Format) BlockExtent() (w, h int) {
-	if f == FormatBC1RGBAUnorm {
+	switch f {
+	case FormatBC1RGBAUnorm, FormatASTCRGBA4x4:
 		return blockW, blockH
 	}
 	return 0, 0
 }
 
-// VkFormat returns the Vulkan enum carried in the KTX2 header (133 for
-// BC1 RGBA, 0 unknown).
+// VkFormat returns the Vulkan enum carried in the KTX2 header (133 BC1
+// RGBA, 157 ASTC 4x4, 0 unknown).
 func (f Format) VkFormat() uint32 {
-	if f == FormatBC1RGBAUnorm {
+	switch f {
+	case FormatBC1RGBAUnorm:
 		return vkBC1RGBAUnorm
+	case FormatASTCRGBA4x4:
+		return vkASTC4x4Unorm
 	}
 	return 0
+}
+
+// schemeName names a supercompressionScheme for the reject reason.
+func schemeName(s uint32) string {
+	switch s {
+	case SchemeNone:
+		return "none"
+	case SchemeBasisLZ:
+		return "basis-lz"
+	case SchemeZstd:
+		return "zstd"
+	case SchemeZlib:
+		return "zlib"
+	default:
+		return u32name(s)
+	}
 }
 
 // ktx2Identifier is the 12-byte KTX2 magic.
@@ -85,6 +139,10 @@ var ktx2Identifier = [12]byte{0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, 0xBB, 0x
 
 // Image is one decoded KTX2 picture: the block bytes that upload to the
 // GPU as-is plus the CPU-decoded RGBA8 pixels for the offscreen comparison.
+// BC1 pixels are decoded from the blocks. ASTC is GPU-only in Go (no ASTC
+// software decoder ships here): pixels hold the tiled magenta proxy so the
+// picture still measures honestly and shows pink on CPU; real colors come
+// from Transcode with a driver hook.
 type Image struct {
 	format Format
 	width  int
@@ -117,12 +175,16 @@ func (im *Image) Height() int {
 	return im.height
 }
 
-// BlockCount returns the number of 4x4 blocks.
+// BlockCount returns the number of 4x4 blocks (format-aware: BC1
+// divides by 8, ASTC by 16).
 func (im *Image) BlockCount() int {
 	if im == nil {
 		return 0
 	}
-	return len(im.blocks) / blockBytesBC1
+	if bb := im.format.BlockBytes(); bb > 0 {
+		return len(im.blocks) / bb
+	}
+	return 0
 }
 
 // UploadSize returns the GPU upload bytes (blocks as-is).
@@ -186,8 +248,10 @@ func (im *Image) Equal(o *Image) bool {
 		bytes.Equal(im.blocks, o.blocks) && bytes.Equal(im.pixels, o.pixels)
 }
 
-// ParseKTX2 validates a KTX2 file image and decodes its BC1 blocks.
-// See doc.go for the frozen subset; anything else is Unsupported or BadData.
+// ParseKTX2 validates a KTX2 file image and carries its blocks.
+// BC1 blocks also decode to RGBA8; ASTC blocks ride as-is with the pink
+// CPU proxy (see Image). See doc.go for the frozen subset; anything else
+// is Unsupported or BadData.
 func ParseKTX2(data []byte) (*Image, error) {
 	const op = "tex.ParseKTX2"
 	if len(data) == 0 {
@@ -215,17 +279,23 @@ func ParseKTX2(data []byte) (*Image, error) {
 	sgdOff := u64at(data, 64)
 	sgdLen := u64at(data, 72)
 
-	if vk != vkBC1RGBAUnorm {
+	if vk != vkBC1RGBAUnorm && vk != vkASTC4x4Unorm {
 		return nil, core.Unsupported(op, u32name(vk), errors.New("unfrozen vkFormat"))
 	}
+	format := FormatBC1RGBAUnorm
+	blockBytes := blockBytesBC1
+	if vk == vkASTC4x4Unorm {
+		format = FormatASTCRGBA4x4
+		blockBytes = blockBytesASTC
+	}
 	if typeSize != 1 {
-		return nil, core.BadData(op, "typeSize", errors.New("want 1 for bc1"))
+		return nil, core.BadData(op, "typeSize", errors.New("want 1 for block format"))
 	}
 	if w == 0 || h == 0 {
 		return nil, core.BadData(op, "dimensions", errors.New("zero size"))
 	}
 	if w%blockW != 0 || h%blockH != 0 {
-		return nil, core.BadData(op, "dimensions", errors.New("want multiple of 4 for bc1"))
+		return nil, core.BadData(op, "dimensions", errors.New("want multiple of 4"))
 	}
 	if w > MaxDimension || h > MaxDimension || uint64(w)*uint64(h) > MaxPixels {
 		return nil, core.OutOfMemory(op, "dimensions", errors.New("beyond budget"))
@@ -242,8 +312,9 @@ func ParseKTX2(data []byte) (*Image, error) {
 	if levels != 1 {
 		return nil, core.Unsupported(op, "levelCount", errors.New("mipmaps go to 3.2"))
 	}
-	if super != 0 {
-		return nil, core.Unsupported(op, "supercompression", errors.New("basis/zstd reserved for 3.3"))
+	if super != SchemeNone {
+		return nil, core.Unsupported(op, "supercompression",
+			errors.New("scheme "+schemeName(super)+" needs transcode, only none uploads as-is"))
 	}
 	if dfdLen > 0 && !rangeOK(uint64(dfdOff), uint64(dfdLen), len(data)) {
 		return nil, core.BadData(op, "dfd", errors.New("out of range"))
@@ -262,7 +333,7 @@ func ParseKTX2(data []byte) (*Image, error) {
 	lvlUnc := u64at(data, 96)
 	bw := uint64(w) / blockW
 	bh := uint64(h) / blockH
-	want := bw * bh * blockBytesBC1
+	want := bw * bh * uint64(blockBytes)
 	if lvlLen != want {
 		return nil, core.BadData(op, "levelLength", errors.New("block bytes mismatch"))
 	}
@@ -273,8 +344,13 @@ func ParseKTX2(data []byte) (*Image, error) {
 		return nil, core.BadData(op, "levelData", errors.New("out of range"))
 	}
 	blocks := cloneBytes(data[lvlOff : lvlOff+lvlLen])
+	if format == FormatASTCRGBA4x4 {
+		// GPU-only: carry the blocks, show pink on CPU. No ASTC
+		// decoder lives in Go; colors arrive via Transcode.
+		return &Image{format: format, width: int(w), height: int(h), blocks: blocks, pixels: pinkPixels(int(w), int(h))}, nil
+	}
 	pixels := decodeBC1(blocks, int(w), int(h))
-	return &Image{format: FormatBC1RGBAUnorm, width: int(w), height: int(h), blocks: blocks, pixels: pixels}, nil
+	return &Image{format: format, width: int(w), height: int(h), blocks: blocks, pixels: pixels}, nil
 }
 
 // LoadKTX2 reads path and parses it as KTX2.
@@ -317,6 +393,235 @@ func LoadBasis(path string) (*Image, error) {
 // u32at reads one little-endian uint32. Callers already checked the
 // 80-byte header, so the slice cannot run short.
 func u32at(b []byte, off int) uint32 { return binary.LittleEndian.Uint32(b[off : off+4]) }
+
+// pinkBlock is the frozen opaque-magenta BC1 block (endpoints equal take
+// the transparent branch by design; index 0 still decodes to one opaque
+// magenta, same bytes as the Stream placeholder).
+var pinkBlock = [8]byte{0x1F, 0xF8, 0x1F, 0xF8, 0, 0, 0, 0}
+
+// pinkPixels tiles opaque magenta over w*h. Callers already validated the
+// budget, so the make cannot run wild.
+func pinkPixels(w, h int) []byte {
+	out := make([]byte, w*h*4)
+	for i := 0; i < len(out); i += 4 {
+		out[i], out[i+1], out[i+2], out[i+3] = 255, 0, 255, 255
+	}
+	return out
+}
+
+// pinkImage builds a same-size BC1 magenta stand-in. Bad sizes fall back
+// to the shared 4x4 placeholder; never nil, never a panic.
+func pinkImage(w, h int) *Image {
+	if w <= 0 || h <= 0 || w%blockW != 0 || h%blockH != 0 ||
+		w > MaxDimension || h > MaxDimension || uint64(w)*uint64(h) > MaxPixels {
+		return PlaceholderImage()
+	}
+	nb := (w / blockW) * (h / blockH)
+	blocks := make([]byte, nb*blockBytesBC1)
+	for i := range nb {
+		copy(blocks[i*blockBytesBC1:], pinkBlock[:])
+	}
+	return &Image{format: FormatBC1RGBAUnorm, width: w, height: h, blocks: blocks, pixels: pinkPixels(w, h)}
+}
+
+// IsPink reports whether im is all-magenta (transcode fallback or ASTC
+// CPU proxy). Nil is never pink.
+func IsPink(im *Image) bool {
+	if im == nil {
+		return false
+	}
+	if len(im.pixels) == 0 || len(im.pixels) != im.width*im.height*4 {
+		return false
+	}
+	for i := 0; i < len(im.pixels); i += 4 {
+		if im.pixels[i] != 255 || im.pixels[i+1] != 0 || im.pixels[i+2] != 255 || im.pixels[i+3] != 255 {
+			return false
+		}
+	}
+	return true
+}
+
+// Usage names what a picture is sampled as. Normal maps need precision:
+// the lowest block tier stays color-only.
+type Usage int
+
+const (
+	// UsageColor is base color / diffuse: any frozen format may sample it.
+	UsageColor Usage = iota
+	// UsageNormal is a tangent-space normal map: BC1 is refused.
+	UsageNormal
+)
+
+// String returns the stable log name of u.
+func (u Usage) String() string {
+	if u == UsageNormal {
+		return "normal"
+	}
+	return "color"
+}
+
+// CheckUsage refuses a format/usage pair that would smear. BC1 is the
+// lowest tier (4-color 4x4 blocks) and is color-only; ASTC 4x4 is the top
+// ASTC tier and may carry normals. Anything unknown is refused loudly.
+func CheckUsage(f Format, u Usage) error {
+	const op = "tex.CheckUsage"
+	if u != UsageColor && u != UsageNormal {
+		return core.InvalidArg(op, u.String())
+	}
+	switch f {
+	case FormatBC1RGBAUnorm:
+		if u == UsageNormal {
+			return core.InvalidArg(op, "normal",
+				errors.New("bc1 is the lowest tier, normals need astc-4x4 or better"))
+		}
+		return nil
+	case FormatASTCRGBA4x4:
+		return nil
+	default:
+		return core.Unsupported(op, f.String(), errors.New("unfrozen format"))
+	}
+}
+
+// GPUCaps names what the card decodes natively. Go routes on this table;
+// the driver owns the pixels.
+type GPUCaps struct {
+	// Name is the stable log name (e.g. "desktop-bc1").
+	Name string
+	// BC1 decodes VK 133 natively.
+	BC1 bool
+	// ASTC decodes VK 157 natively.
+	ASTC bool
+}
+
+// Frozen per-card profiles. Desktop GL/DX without ASTC lands on
+// desktop-bc1; ASTC phones land on mobile-astc; universal keeps both.
+var (
+	// CapsDesktopBC1 decodes BC1 only: ASTC must transcode or go pink.
+	CapsDesktopBC1 = GPUCaps{Name: "desktop-bc1", BC1: true}
+	// CapsMobileASTC decodes ASTC only.
+	CapsMobileASTC = GPUCaps{Name: "mobile-astc", ASTC: true}
+	// CapsUniversal decodes both frozen kinds.
+	CapsUniversal = GPUCaps{Name: "universal", BC1: true, ASTC: true}
+	// CapsNone decodes neither: every compressed picture goes pink.
+	CapsNone = GPUCaps{Name: "none"}
+)
+
+// TranscodeTarget is the routing decision for one picture on one card.
+type TranscodeTarget int
+
+const (
+	// TargetNative uploads the blocks as-is; the card decodes them.
+	TargetNative TranscodeTarget = iota
+	// TargetBC1 re-packs to BC1 (driver hook); Go only validates.
+	TargetBC1
+	// TargetPink serves the magenta stand-in; no pixels are guessed.
+	TargetPink
+)
+
+// String returns the stable log name of t.
+func (t TranscodeTarget) String() string {
+	switch t {
+	case TargetNative:
+		return "native"
+	case TargetBC1:
+		return "bc1"
+	default:
+		return "pink"
+	}
+}
+
+// TranscodeTargetFor routes format f on caps: native where the card
+// decodes, ASTC falls back to BC1 where only BC1 exists, everything else
+// falls back to pink. Pure table, never touches pixels.
+func TranscodeTargetFor(f Format, caps GPUCaps) TranscodeTarget {
+	switch f {
+	case FormatBC1RGBAUnorm:
+		if caps.BC1 {
+			return TargetNative
+		}
+		return TargetPink
+	case FormatASTCRGBA4x4:
+		if caps.ASTC {
+			return TargetNative
+		}
+		if caps.BC1 {
+			return TargetBC1
+		}
+		return TargetPink
+	default:
+		return TargetPink
+	}
+}
+
+// Transcoder is the driver hook that re-packs ASTC blocks to BC1 blocks
+// (same geometry, 8 bytes per 4x4 block). Nil means no driver here: the
+// caller gets pink plus Unsupported. Engine ships no ASTC decoder, so a
+// test or driver must supply this.
+type Transcoder func(blocks []byte, w, h int) (bc1Blocks []byte, err error)
+
+// Transcode routes im for caps. Native returns im as-is. BC1 routes run
+// fn and decode the result with the frozen BC1 decoder; fn missing,
+// failing, or short returns a same-size pink image plus the cause, never
+// a panic and never nil. Nil im returns the shared placeholder.
+func Transcode(im *Image, caps GPUCaps, fn Transcoder) (*Image, error) {
+	const op = "tex.Transcode"
+	if im == nil {
+		return PlaceholderImage(), core.InvalidArg(op, "image")
+	}
+	switch TranscodeTargetFor(im.format, caps) {
+	case TargetNative:
+		return im, nil
+	case TargetBC1:
+		if fn == nil {
+			return pinkImage(im.width, im.height),
+				core.Unsupported(op, caps.Name, errors.New("astc needs a driver transcoder, have none"))
+		}
+		out, err := fn(im.blocks, im.width, im.height)
+		if err != nil {
+			return pinkImage(im.width, im.height), err
+		}
+		nb := (im.width / blockW) * (im.height / blockH)
+		if len(out) != nb*blockBytesBC1 {
+			return pinkImage(im.width, im.height), core.BadData(op, "transcoder",
+				errors.New("want bc1 block bytes for geometry"))
+		}
+		blocks := cloneBytes(out)
+		return &Image{format: FormatBC1RGBAUnorm, width: im.width, height: im.height,
+			blocks: blocks, pixels: decodeBC1(blocks, im.width, im.height)}, nil
+	default:
+		return pinkImage(im.width, im.height),
+			core.Unsupported(op, caps.Name, errors.New("no route for "+im.format.String()))
+	}
+}
+
+// TranscodeResult is one background transcode outcome. Fallback is true
+// exactly when Err is non-nil (pink served); Image is never nil.
+type TranscodeResult struct {
+	Image    *Image
+	Err      error
+	Fallback bool
+}
+
+// NeedsAsync reports whether im is a big picture whose transcode must go
+// through TranscodeAsync instead of the play thread.
+func NeedsAsync(im *Image) bool {
+	if im == nil {
+		return false
+	}
+	return uint64(im.width)*uint64(im.height) >= LargeTranscodePixels
+}
+
+// TranscodeAsync runs Transcode off the caller thread and delivers one
+// TranscodeResult on the returned buffered channel. The call itself never
+// blocks; a failing transcode still delivers pink, never a panic.
+func TranscodeAsync(im *Image, caps GPUCaps, fn Transcoder) <-chan TranscodeResult {
+	ch := make(chan TranscodeResult, 1)
+	go func() {
+		out, err := Transcode(im, caps, fn)
+		ch <- TranscodeResult{Image: out, Err: err, Fallback: err != nil}
+	}()
+	return ch
+}
 
 // u64at reads one little-endian uint64 (level index, sgd range).
 func u64at(b []byte, off int) uint64 { return binary.LittleEndian.Uint64(b[off : off+8]) }

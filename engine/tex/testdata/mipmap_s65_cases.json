@@ -1,0 +1,18 @@
+{
+  "realistic": {"near": "linear", "far": "linear", "mip": "linear", "aniso": 4, "mag": "linear", "min": "linear", "mipmap": "linear", "eff_aniso": 4},
+  "pixel": {"near": "nearest", "far": "nearest", "mip": "nearest", "aniso": 1, "mag": "nearest", "min": "nearest", "mipmap": "nearest", "eff_aniso": 1},
+  "warnings": [
+    {"name": "no-mip-with-aniso", "near": "linear", "far": "linear", "mip": "nearest", "aniso": 4, "want_warn": true},
+    {"name": "realistic-ok", "near": "linear", "far": "linear", "mip": "linear", "aniso": 4, "want_warn": false},
+    {"name": "pixel-ok", "near": "nearest", "far": "nearest", "mip": "nearest", "aniso": 1, "want_warn": false},
+    {"name": "nearest-masks-aniso", "near": "nearest", "far": "nearest", "mip": "linear", "aniso": 8, "want_warn": true},
+    {"name": "no-mip-aniso8", "near": "linear", "far": "linear", "mip": "nearest", "aniso": 8, "want_warn": true}
+  ],
+  "pixel_snaps": [
+    {"in": 0.2, "want": 0.0, "aligned": false},
+    {"in": 1.0, "want": 1.0, "aligned": true},
+    {"in": 2.6, "want": 3.0, "aligned": false},
+    {"in": -1.2, "want": -1.0, "aligned": false},
+    {"in": 5.0, "want": 5.0, "aligned": true}
+  ]
+}

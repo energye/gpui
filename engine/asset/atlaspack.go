@@ -556,3 +556,281 @@ func Load(path string) (*Atlas, error) {
 	}
 	return Parse(raw)
 }
+
+// S65 gutter and extrude budgets. Gutter is the transparent seam kept
+// beyond the bleed ring, extrude is the edge-pixel bleed into the seam.
+const (
+	// MinAtlasGutter floors the transparent seam.
+	MinAtlasGutter = 2
+	// MaxAtlasGutter caps the transparent seam.
+	MaxAtlasGutter = 4
+	// MinAtlasExtrude floors the edge bleed.
+	MinAtlasExtrude = 1
+	// MaxAtlasExtrude caps the edge bleed.
+	MaxAtlasExtrude = 2
+	// DefaultAtlasGutter is the S65 default seam.
+	DefaultAtlasGutter = 2
+	// DefaultAtlasExtrude is the S65 default bleed.
+	DefaultAtlasExtrude = 1
+)
+
+// PackOptions names the S65 seam switch: Gutter 2..4 transparent px,
+// Extrude 1..2 bleed px. Zero means the default, so the zero value
+// packs with gutter 2 extrude 1.
+type PackOptions struct {
+	Gutter  int
+	Extrude int
+}
+
+// DefaultPackOptions returns gutter 2 extrude 1.
+func DefaultPackOptions() PackOptions {
+	return PackOptions{Gutter: DefaultAtlasGutter, Extrude: DefaultAtlasExtrude}
+}
+
+// Normalized maps zero fields to the defaults.
+func (o PackOptions) Normalized() PackOptions {
+	if o.Gutter == 0 {
+		o.Gutter = DefaultAtlasGutter
+	}
+	if o.Extrude == 0 {
+		o.Extrude = DefaultAtlasExtrude
+	}
+	return o
+}
+
+// Validate rejects gutter outside 2..4 and extrude outside 1..2.
+func (o PackOptions) Validate() error {
+	const op = "atlaspack.PackWithOptions"
+	n := o.Normalized()
+	if n.Gutter < MinAtlasGutter || n.Gutter > MaxAtlasGutter {
+		return core.InvalidArg(op, "gutter")
+	}
+	if n.Extrude < MinAtlasExtrude || n.Extrude > MaxAtlasExtrude {
+		return core.InvalidArg(op, "extrude")
+	}
+	return nil
+}
+
+// PackWithOptions shelves inputs with a parameterized seam: gutter
+// transparent px stay clear beyond an extrude bleed ring that repeats
+// edge texels. Spacing between rects is gutter plus bleed on both
+// sides, the outer border keeps gutter plus one bleed, so the seam
+// beyond the ring stays fully transparent (maxDiff 0). Sort order and
+// error codes match Pack. Only core numbers are used.
+func PackWithOptions(inputs []Input, maxW, maxH int, opts PackOptions) (*Atlas, error) {
+	const op = "atlaspack.PackWithOptions"
+	if maxW < 1 || maxH < 1 || maxW > MaxAtlasSize || maxH > MaxAtlasSize {
+		return nil, core.InvalidArg(op, "max")
+	}
+	if len(inputs) == 0 {
+		return nil, core.InvalidArg(op, "inputs")
+	}
+	if len(inputs) > MaxSprites {
+		return nil, core.OutOfMemory(op, "inputs")
+	}
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	n := opts.Normalized()
+	gutter, extrude := n.Gutter, n.Extrude
+	need := 2*gutter + 2*extrude
+	seen := make(map[core.AssetID]bool, len(inputs))
+	for i := range inputs {
+		in := &inputs[i]
+		if err := checkAtlasID(in.ID); err != nil {
+			return nil, err
+		}
+		if seen[in.ID] {
+			return nil, core.InvalidArg(op, string(in.ID))
+		}
+		seen[in.ID] = true
+		if in.W < 1 || in.H < 1 || in.W > MaxAtlasSize || in.H > MaxAtlasSize {
+			return nil, core.InvalidArg(op, string(in.ID))
+		}
+		if in.W+need > maxW || in.H+need > maxH {
+			return nil, core.OutOfMemory(op, string(in.ID))
+		}
+		if len(in.Pixels) != in.W*in.H*4 {
+			return nil, core.InvalidArg(op, string(in.ID))
+		}
+		if !checkPivot(in.PivotX, in.PivotY) {
+			return nil, core.InvalidArg(op, string(in.ID))
+		}
+		if !checkNine(in.Nine, in.W, in.H) {
+			return nil, core.InvalidArg(op, string(in.ID))
+		}
+	}
+	order := make([]int, len(inputs))
+	for i := range order {
+		order[i] = i
+	}
+	sort.Slice(order, func(i, j int) bool {
+		a, b := inputs[order[i]], inputs[order[j]]
+		if a.H != b.H {
+			return a.H > b.H
+		}
+		if a.W != b.W {
+			return a.W > b.W
+		}
+		return a.ID < b.ID
+	})
+	xs := make([]int, len(inputs))
+	ys := make([]int, len(inputs))
+	x := gutter + extrude
+	y := gutter + extrude
+	rowH := 0
+	maxRight := 0
+	maxBottom := 0
+	step := gutter + 2*extrude
+	for _, idx := range order {
+		w, h := inputs[idx].W, inputs[idx].H
+		if x+w+extrude+gutter > maxW {
+			x = gutter + extrude
+			y += rowH + step
+			rowH = 0
+		}
+		if y+h+extrude+gutter > maxH {
+			return nil, core.OutOfMemory(op, string(inputs[idx].ID))
+		}
+		xs[idx] = x
+		ys[idx] = y
+		x += w + step
+		if h > rowH {
+			rowH = h
+		}
+		if xs[idx]+w > maxRight {
+			maxRight = xs[idx] + w
+		}
+		if ys[idx]+h > maxBottom {
+			maxBottom = ys[idx] + h
+		}
+	}
+	atlasW := maxRight + extrude + gutter
+	atlasH := maxBottom + extrude + gutter
+	pix := make([]byte, atlasW*atlasH*4)
+	for i, in := range inputs {
+		px, py := xs[i], ys[i]
+		for row := 0; row < in.H; row++ {
+			src := row * in.W * 4
+			dst := ((py+row)*atlasW + px) * 4
+			copy(pix[dst:dst+in.W*4], in.Pixels[src:src+in.W*4])
+		}
+		extrudeRing(pix, atlasW, atlasH, px, py, in.W, in.H, extrude)
+	}
+	entries := make([]Entry, len(inputs))
+	for i, in := range inputs {
+		entries[i] = Entry{
+			name: in.ID, x: xs[i], y: ys[i], w: in.W, h: in.H,
+			pivotX: in.PivotX, pivotY: in.PivotY, nine: in.Nine,
+		}
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].name < entries[j].name })
+	return &Atlas{version: CurrentAtlasVersion, width: atlasW, height: atlasH, entries: entries, pixels: pix}, nil
+}
+
+func copyAtlasPixel(pix []byte, atlasW, dstX, dstY, srcX, srcY int) {
+	dst := (dstY*atlasW + dstX) * 4
+	src := (srcY*atlasW + srcX) * 4
+	pix[dst], pix[dst+1], pix[dst+2], pix[dst+3] = pix[src], pix[src+1], pix[src+2], pix[src+3]
+}
+
+// extrudeRing repeats edge texels outward by extrude px, corners copy
+// the corner texel. Caller keeps spacing so rings never overlap rects.
+func extrudeRing(pix []byte, atlasW, atlasH, x, y, w, h, extrude int) {
+	if extrude < 1 {
+		return
+	}
+	for k := 1; k <= extrude; k++ {
+		for i := 0; i < w; i++ {
+			copyAtlasPixel(pix, atlasW, x+i, y-k, x+i, y)
+			copyAtlasPixel(pix, atlasW, x+i, y+h+k-1, x+i, y+h-1)
+		}
+		for j := 0; j < h; j++ {
+			copyAtlasPixel(pix, atlasW, x-k, y+j, x, y+j)
+			copyAtlasPixel(pix, atlasW, x+w+k-1, y+j, x+w-1, y+j)
+		}
+		for ky := 1; ky <= extrude; ky++ {
+			for kx := 1; kx <= extrude; kx++ {
+				copyAtlasPixel(pix, atlasW, x-kx, y-ky, x, y)
+				copyAtlasPixel(pix, atlasW, x+w+kx-1, y-ky, x+w-1, y)
+				copyAtlasPixel(pix, atlasW, x-kx, y+h+ky-1, x, y+h-1)
+				copyAtlasPixel(pix, atlasW, x+w+kx-1, y+h+ky-1, x+w-1, y+h-1)
+			}
+		}
+	}
+	_, _ = atlasH, y
+}
+
+// SpriteToAtlasUV maps sprite-local u,v (0..1, top-left origin) to atlas
+// u,v. Rotated selects the 90-degree clockwise store where the stored
+// rect is already w-by-h swapped. Nil-safe through Entry zero values.
+func SpriteToAtlasUV(e Entry, atlasW, atlasH int, u, v float64, rotated bool) (au, av float64) {
+	if atlasW <= 0 || atlasH <= 0 {
+		return 0, 0
+	}
+	if !rotated {
+		return (float64(e.x) + u*float64(e.w)) / float64(atlasW),
+			(float64(e.y) + v*float64(e.h)) / float64(atlasH)
+	}
+	sw, sh := float64(e.w), float64(e.h)
+	return (float64(e.x) + (1-v)*sw) / float64(atlasW),
+		(float64(e.y) + u*sh) / float64(atlasH)
+}
+
+// AtlasToSpriteUV is the inverse of SpriteToAtlasUV: atlas u,v back to
+// sprite-local u,v for the same rotated switch. Round-trips to the
+// input within float error.
+func AtlasToSpriteUV(e Entry, atlasW, atlasH int, au, av float64, rotated bool) (u, v float64) {
+	if atlasW <= 0 || atlasH <= 0 || e.w <= 0 || e.h <= 0 {
+		return 0, 0
+	}
+	if !rotated {
+		return (au*float64(atlasW) - float64(e.x)) / float64(e.w),
+			(av*float64(atlasH) - float64(e.y)) / float64(e.h)
+	}
+	sw, sh := float64(e.w), float64(e.h)
+	return (av*float64(atlasH) - float64(e.y)) / sh,
+		1 - (au*float64(atlasW)-float64(e.x))/sw
+}
+
+// SeamTransparentMaxDiff returns the max channel distance from
+// transparent over seam pixels: pixels outside every entry rect grown
+// by extrude. Zero means the seam is fully transparent. Nil or parsed
+// atlases report 0.
+func SeamTransparentMaxDiff(a *Atlas, extrude int) int {
+	if a == nil || len(a.pixels) == 0 {
+		return 0
+	}
+	if extrude < 0 {
+		extrude = 0
+	}
+	maxD := 0
+	for yy := 0; yy < a.height; yy++ {
+		for xx := 0; xx < a.width; xx++ {
+			inside := false
+			for _, e := range a.entries {
+				if xx >= e.x-extrude && xx < e.x+e.w+extrude &&
+					yy >= e.y-extrude && yy < e.y+e.h+extrude {
+					inside = true
+					break
+				}
+			}
+			if inside {
+				continue
+			}
+			off := (yy*a.width + xx) * 4
+			for k := 0; k < 4; k++ {
+				if v := int(a.pixels[off+k]); v > maxD {
+					maxD = v
+				}
+			}
+		}
+	}
+	return maxD
+}
+
+// IsSeamTransparent reports whether the seam beyond the bleed ring is
+// fully transparent.
+func IsSeamTransparent(a *Atlas, extrude int) bool {
+	return SeamTransparentMaxDiff(a, extrude) == 0
+}

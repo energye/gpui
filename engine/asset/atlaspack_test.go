@@ -727,3 +727,215 @@ func TestAtlasPackOffscreenGolden(t *testing.T) {
 		}
 	}
 }
+
+type atlasS65Sprite struct {
+	Name   string  `json:"name"`
+	W      int     `json:"w"`
+	H      int     `json:"h"`
+	Color  [4]int  `json:"color"`
+	PivotX float64 `json:"pivotX"`
+	PivotY float64 `json:"pivotY"`
+	Nine   [4]int  `json:"nine"`
+}
+
+type atlasS65Option struct {
+	Gutter  int  `json:"gutter"`
+	Extrude int  `json:"extrude"`
+	Valid   bool `json:"valid"`
+}
+
+type atlasS65UV struct {
+	Name    string  `json:"name"`
+	X       int     `json:"x"`
+	Y       int     `json:"y"`
+	W       int     `json:"w"`
+	H       int     `json:"h"`
+	AtlasW  int     `json:"atlas_w"`
+	AtlasH  int     `json:"atlas_h"`
+	U       float64 `json:"u"`
+	V       float64 `json:"v"`
+	Rotated bool    `json:"rotated"`
+	Au      float64 `json:"au"`
+	Av      float64 `json:"av"`
+}
+
+type atlasS65Cases struct {
+	Defaults struct {
+		Gutter  int `json:"gutter"`
+		Extrude int `json:"extrude"`
+	} `json:"defaults"`
+	Limits struct {
+		MinGutter  int `json:"min_gutter"`
+		MaxGutter  int `json:"max_gutter"`
+		MinExtrude int `json:"min_extrude"`
+		MaxExtrude int `json:"max_extrude"`
+	} `json:"limits"`
+	MaxW    int              `json:"max_w"`
+	MaxH    int              `json:"max_h"`
+	Options []atlasS65Option `json:"option_cases"`
+	Sprites []atlasS65Sprite `json:"sprites"`
+	UVs     []atlasS65UV     `json:"uv_cases"`
+}
+
+func loadAtlasS65Cases(t *testing.T) atlasS65Cases {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", "atlas_s65_cases.json"))
+	if err != nil {
+		t.Fatalf("read atlas_s65_cases.json: %v", err)
+	}
+	var c atlasS65Cases
+	if err := json.Unmarshal(raw, &c); err != nil {
+		t.Fatalf("decode atlas_s65_cases.json: %v", err)
+	}
+	if len(c.Options) == 0 || len(c.Sprites) == 0 || len(c.UVs) == 0 {
+		t.Fatal("atlas_s65_cases.json missing options/sprites/uvs")
+	}
+	return c
+}
+
+func buildAtlasS65Inputs(c atlasS65Cases) []Input {
+	ins := make([]Input, len(c.Sprites))
+	for i, s := range c.Sprites {
+		ins[i] = Input{
+			ID: core.AssetID(s.Name), W: s.W, H: s.H,
+			Pixels: fillSolid(s.W, s.H, s.Color),
+			PivotX: s.PivotX, PivotY: s.PivotY, Nine: s.Nine,
+		}
+	}
+	return ins
+}
+
+// S65留白扩边参数化: 默认留白2扩边1, 留白2-4扩边1-2, 越界拒收.
+func TestAtlasS65PackOptions(t *testing.T) {
+	c := loadAtlasS65Cases(t)
+	def := DefaultPackOptions()
+	if def.Gutter != c.Defaults.Gutter || def.Extrude != c.Defaults.Extrude {
+		t.Fatalf("DefaultPackOptions = %+v, want %+v", def, c.Defaults)
+	}
+	if MinAtlasGutter != c.Limits.MinGutter || MaxAtlasGutter != c.Limits.MaxGutter ||
+		MinAtlasExtrude != c.Limits.MinExtrude || MaxAtlasExtrude != c.Limits.MaxExtrude {
+		t.Fatalf("limits diverge from atlas_s65_cases.json")
+	}
+	zero := PackOptions{}.Normalized()
+	if zero != def {
+		t.Fatalf("zero Normalized = %+v, want default %+v", zero, def)
+	}
+	ins := buildAtlasS65Inputs(c)
+	for _, o := range c.Options {
+		opts := PackOptions{Gutter: o.Gutter, Extrude: o.Extrude}
+		err := opts.Validate()
+		if o.Valid && err != nil {
+			t.Errorf("gutter=%d extrude=%d: Validate=%v, want nil", o.Gutter, o.Extrude, err)
+		}
+		if !o.Valid && err == nil {
+			t.Errorf("gutter=%d extrude=%d: Validate=nil, want error", o.Gutter, o.Extrude)
+		}
+		a, perr := PackWithOptions(buildAtlasS65Inputs(c), c.MaxW, c.MaxH, opts)
+		if o.Valid && perr != nil {
+			t.Errorf("gutter=%d extrude=%d: Pack=%v, want nil", o.Gutter, o.Extrude, perr)
+		}
+		if !o.Valid && perr == nil {
+			t.Errorf("gutter=%d extrude=%d: Pack=nil, want error", o.Gutter, o.Extrude)
+		}
+		if o.Valid && perr == nil && a.Count() != len(ins) {
+			t.Errorf("gutter=%d extrude=%d: count=%d, want %d", o.Gutter, o.Extrude, a.Count(), len(ins))
+		}
+		if !o.Valid && perr != nil && core.CodeOf(perr) != core.CodeInvalidArg {
+			t.Errorf("gutter=%d extrude=%d: code=%v, want invalid-arg", o.Gutter, o.Extrude, core.CodeOf(perr))
+		}
+	}
+	// Old Pack stays on AtlasPad 1 and keeps its golden.
+	old := mustPackCases(t, loadAtlasCases(t))
+	if !IsSeamTransparent(old, 0) {
+		t.Error("old Pack seam breaks with extrude 0")
+	}
+}
+
+// S65缝边全透明maxDiff0加扩边无黑线: 缝边透明, bleed环复刻边色.
+func TestAtlasS65SeamTransparent(t *testing.T) {
+	c := loadAtlasS65Cases(t)
+	def := DefaultPackOptions()
+	a, err := PackWithOptions(buildAtlasS65Inputs(c), c.MaxW, c.MaxH, def)
+	if err != nil {
+		t.Fatalf("PackWithOptions default: %v", err)
+	}
+	if got := SeamTransparentMaxDiff(a, def.Extrude); got != 0 {
+		t.Fatalf("seam maxDiff=%d, want 0", got)
+	}
+	if !IsSeamTransparent(a, def.Extrude) {
+		t.Fatal("IsSeamTransparent=false, want true")
+	}
+	byColor := map[string][4]int{}
+	for _, s := range c.Sprites {
+		byColor[s.Name] = s.Color
+	}
+	maxDiff := 0
+	for i := 0; i < a.Count(); i++ {
+		e, _ := a.Entry(i)
+		want := byColor[string(e.Name())]
+		rings := [][2]int{}
+		for dx := 0; dx < e.W(); dx++ {
+			rings = append(rings, [2]int{e.X() + dx, e.Y() - 1}, [2]int{e.X() + dx, e.Y() + e.H()})
+		}
+		for dy := 0; dy < e.H(); dy++ {
+			rings = append(rings, [2]int{e.X() - 1, e.Y() + dy}, [2]int{e.X() + e.W(), e.Y() + dy})
+		}
+		rings = append(rings,
+			[2]int{e.X() - 1, e.Y() - 1}, [2]int{e.X() + e.W(), e.Y() - 1},
+			[2]int{e.X() - 1, e.Y() + e.H()}, [2]int{e.X() + e.W(), e.Y() + e.H()})
+		for _, p := range rings {
+			r, g, b, al, ok := a.At(p[0], p[1])
+			if !ok {
+				t.Fatalf("%s ring (%d,%d): At ok=false", e.Name(), p[0], p[1])
+			}
+			for k, v := range []uint8{r, g, b, al} {
+				d := diffByte(v, byte(want[k]))
+				if d > maxDiff {
+					maxDiff = d
+				}
+				if d != 0 {
+					t.Errorf("%s ring (%d,%d) ch%d=%d want %d", e.Name(), p[0], p[1], k, v, want[k])
+				}
+			}
+		}
+	}
+	t.Logf("s65-seam: maxDiff=%d sheet=%dx%d gutter=%d extrude=%d", maxDiff, a.Width(), a.Height(), def.Gutter, def.Extrude)
+	if maxDiff != 0 {
+		t.Fatalf("bleed maxDiff=%d, want 0", maxDiff)
+	}
+	big, err := PackWithOptions(buildAtlasS65Inputs(c), c.MaxW, c.MaxH, PackOptions{Gutter: 4, Extrude: 2})
+	if err != nil {
+		t.Fatalf("PackWithOptions 4/2: %v", err)
+	}
+	if got := SeamTransparentMaxDiff(big, 2); got != 0 {
+		t.Fatalf("big seam maxDiff=%d, want 0", got)
+	}
+}
+
+// S65旋转图UV反算: 正反算对, 描边不串色由缝边用例覆盖.
+func TestAtlasS65RotatedUV(t *testing.T) {
+	c := loadAtlasS65Cases(t)
+	const eps = 1e-9
+	for _, u := range c.UVs {
+		e := Entry{name: core.AssetID(u.Name), x: u.X, y: u.Y, w: u.W, h: u.H}
+		au, av := SpriteToAtlasUV(e, u.AtlasW, u.AtlasH, u.U, u.V, u.Rotated)
+		if math.Abs(au-u.Au) > eps || math.Abs(av-u.Av) > eps {
+			t.Errorf("%s: forward=(%v,%v) want (%v,%v)", u.Name, au, av, u.Au, u.Av)
+		}
+		ru, rv := AtlasToSpriteUV(e, u.AtlasW, u.AtlasH, au, av, u.Rotated)
+		if math.Abs(ru-u.U) > eps || math.Abs(rv-u.V) > eps {
+			t.Errorf("%s: inverse=(%v,%v) want (%v,%v)", u.Name, ru, rv, u.U, u.V)
+		}
+		gu, gv := AtlasToSpriteUV(e, u.AtlasW, u.AtlasH, u.Au, u.Av, u.Rotated)
+		if math.Abs(gu-u.U) > eps || math.Abs(gv-u.V) > eps {
+			t.Errorf("%s: golden inverse=(%v,%v) want (%v,%v)", u.Name, gu, gv, u.U, u.V)
+		}
+	}
+	ze := Entry{name: "s65/zero", x: 1, y: 1, w: 4, h: 4}
+	if au, av := SpriteToAtlasUV(ze, 0, 0, 0.5, 0.5, false); au != 0 || av != 0 {
+		t.Errorf("zero atlas forward=(%v,%v) want 0,0", au, av)
+	}
+	if u, v := AtlasToSpriteUV(ze, 0, 0, 0.5, 0.5, false); u != 0 || v != 0 {
+		t.Errorf("zero atlas inverse=(%v,%v) want 0,0", u, v)
+	}
+}

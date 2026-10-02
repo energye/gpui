@@ -11,6 +11,7 @@
 package tex
 
 import (
+	"log"
 	"math"
 	"sync"
 
@@ -351,4 +352,58 @@ func (t *Table) Clear() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.m = map[core.AssetID]Filter{}
+}
+
+// RealisticAniso is the S65写实 default aniso for 45-degree ground.
+const RealisticAniso = 4
+
+// RealisticFilter is the one-click写实 default: mipmap plus trilinear
+// plus 4x aniso. Render sampling switch stays on the old path.
+func RealisticFilter() Filter {
+	return Filter{Near: KindLinear, Far: KindLinear, Mip: MipLinear, MaxAniso: RealisticAniso}
+}
+
+// PixelArtFilter is the像素风 preset: Nearest plus integer coords.
+// Pair it with SnapPixel/IsPixelAligned on positions and UVs.
+func PixelArtFilter() Filter {
+	return Filter{Near: KindNearest, Far: KindNearest, Mip: MipNearest, MaxAniso: DefaultAniso}
+}
+
+// SnapPixel rounds v to the nearest integer pixel center.
+func SnapPixel(v float64) float64 { return math.Round(v) }
+
+// SnapPixelInt rounds v to the nearest integer pixel index.
+func SnapPixelInt(v float64) int { return int(math.Round(v)) }
+
+// IsPixelAligned reports whether v sits on an integer pixel.
+func IsPixelAligned(v float64) bool { return v == math.Trunc(v) }
+
+// AnisoWarning names the S65 invalid config: aniso above 1 without
+// mipmap-linear, or aniso carried by a fully nearest picture (masked
+// by the sampler). Empty means valid, non-empty is the warning text.
+func (f Filter) AnisoWarning() string {
+	n := f.Normalized()
+	if n.MaxAniso <= AnisoMin {
+		return ""
+	}
+	if n.Near == KindNearest && n.Far == KindNearest {
+		return "tex.Filter: aniso masked by nearest sampling is invalid configuration"
+	}
+	if n.Mip != MipLinear {
+		return "tex.Filter: aniso without mipmap-linear is invalid configuration"
+	}
+	return ""
+}
+
+// IsAnisoValid reports whether f carries a usable aniso switch.
+func (f Filter) IsAnisoValid() bool { return f.AnisoWarning() == "" }
+
+// LogAnisoWarning emits the invalid-config warning through the std log
+// and returns it. Empty means valid and logs nothing.
+func (f Filter) LogAnisoWarning() string {
+	w := f.AnisoWarning()
+	if w != "" {
+		log.Printf("%s", w)
+	}
+	return w
 }

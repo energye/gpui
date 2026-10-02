@@ -1,0 +1,28 @@
+{
+  "defaults": {"gutter": 2, "extrude": 1},
+  "limits": {"min_gutter": 2, "max_gutter": 4, "min_extrude": 1, "max_extrude": 2},
+  "max_w": 64,
+  "max_h": 64,
+  "option_cases": [
+    {"gutter": 2, "extrude": 1, "valid": true},
+    {"gutter": 4, "extrude": 2, "valid": true},
+    {"gutter": 3, "extrude": 1, "valid": true},
+    {"gutter": 0, "extrude": 0, "valid": true},
+    {"gutter": 1, "extrude": 1, "valid": false},
+    {"gutter": 5, "extrude": 1, "valid": false},
+    {"gutter": 2, "extrude": 0, "valid": true},
+    {"gutter": 2, "extrude": 3, "valid": false}
+  ],
+  "sprites": [
+    {"name": "s65/red", "w": 16, "h": 16, "color": [255, 0, 0, 255], "pivotX": 0.5, "pivotY": 0.5, "nine": [0, 0, 0, 0]},
+    {"name": "s65/green", "w": 8, "h": 16, "color": [0, 255, 0, 255], "pivotX": 0.5, "pivotY": 0.5, "nine": [0, 0, 0, 0]},
+    {"name": "s65/blue", "w": 12, "h": 8, "color": [0, 0, 255, 255], "pivotX": 0.5, "pivotY": 0.5, "nine": [0, 0, 0, 0]}
+  ],
+  "uv_cases": [
+    {"name": "plain-center", "x": 3, "y": 3, "w": 16, "h": 16, "atlas_w": 32, "atlas_h": 32, "u": 0.5, "v": 0.5, "rotated": false, "au": 0.34375, "av": 0.34375},
+    {"name": "plain-corner", "x": 3, "y": 3, "w": 16, "h": 16, "atlas_w": 32, "atlas_h": 32, "u": 0.0, "v": 0.0, "rotated": false, "au": 0.09375, "av": 0.09375},
+    {"name": "rotated-center", "x": 3, "y": 3, "w": 8, "h": 16, "atlas_w": 32, "atlas_h": 32, "u": 0.5, "v": 0.5, "rotated": true, "au": 0.21875, "av": 0.34375},
+    {"name": "rotated-00", "x": 3, "y": 3, "w": 8, "h": 16, "atlas_w": 32, "atlas_h": 32, "u": 0.0, "v": 0.0, "rotated": true, "au": 0.34375, "av": 0.09375},
+    {"name": "rotated-11", "x": 3, "y": 3, "w": 8, "h": 16, "atlas_w": 32, "atlas_h": 32, "u": 1.0, "v": 1.0, "rotated": true, "au": 0.09375, "av": 0.59375}
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "format": "ASTC_RGBA_4x4",
+  "vk_format": 157,
+  "block_w": 4,
+  "block_h": 4,
+  "block_bytes": 16,
+  "tolerance": 0,
+  "max_dimension": 8192,
+  "max_pixels": 67108864,
+  "files": [
+    {"name": "astc_red_4x4.ktx2", "width": 4, "height": 4, "blocks": 1, "upload": 16, "pixels": 64},
+    {"name": "astc_checker_8x8.ktx2", "width": 8, "height": 8, "blocks": 4, "upload": 64, "pixels": 256},
+    {"name": "astc_red_256x256.ktx2", "width": 256, "height": 256, "blocks": 4096, "upload": 65536, "pixels": 262144}
+  ],
+  "proxy_rgba": [255, 0, 255, 255],
+  "pink_block_hex": "1ff81ff800000000",
+  "scheme_reasons": {
+    "basis-lz": "scheme basis-lz needs transcode, only none uploads as-is",
+    "zstd": "scheme zstd needs transcode, only none uploads as-is",
+    "zlib": "scheme zlib needs transcode, only none uploads as-is"
+  }
+}
