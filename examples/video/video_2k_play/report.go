@@ -106,8 +106,11 @@ func buildReport(snap scheduler.FrameMetrics, presents int64, elapsed float64, i
 	heapMB := float64(memStats.HeapAlloc) / (1 << 20)
 	gcP99 := gcPauseP99(&memStats)
 	_ = hotTick
+	// GPU convert proof: last upload took the planes path (not the
+	// RGBA fallback shape). Testsrc is bright by construction, so
+	// yuvReady also implies the node saw real frame bytes.
 	yuvReady := 0
-	if liveShown > 0 {
+	if liveShown > 0 && nst.PlanesLast {
 		yuvReady = 1
 	}
 	return report{

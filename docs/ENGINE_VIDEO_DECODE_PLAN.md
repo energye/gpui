@@ -264,3 +264,4 @@ ui/kit video_*            组件层：调 video 拿帧，调 render 画画，不
 | v2.3（2026-09-30） | P1 跨平台收口：硬解只走 ffmpeg（设备/协商/回传/转色全是库函数，Go 只做接线）；选型按系统分路（Linux vaapi，Windows d3d11va→dxva2，macOS videotoolbox 占位，安卓 mediacodec 占位）+ 32 位守卫 + 上下文布局自检 + dxva2 补齐 + DLL 加载分 Unix/Windows 双实现；Linux x64 vaapi 在流，其余系统老实回落；跨平台格一次填齐。 |
 | v2.4（2026-10-01） | P3-A 五层口径落文档：video 出 NV12 平面 + 线程化解码、池按平面建、render 加平面槽口 + YUV 画口（老整块口留回落）、两后端对称 YUV 程序、17 扇窗换传参 + 对拍单测；跟不上的快片只慢播不报错，独显路不通老实回落。 |
 | v2.5（2026-10-02） | 3.0 第 4 层落地：YUV 转色搬进显卡，一份 WGSL（`render/internal/gpu/shaders/video_yuv.wgsl` + `video_yuv_pipeline.go`）两后端通用（WebGPU 真编译绿，GLES 翻译双纹理映射绿，绑定形状沿用生产双纹理先例）；`DrawVideoPlanes` 真排队，无会话/坏参/变体缺失照样失败闭合走 CPU 转回落，计数口径不变。 |
+| v2.6（2026-10-02） | 3.0 第 5 层落地：窗口只调节点单新口 `RenderVideo.UploadPlanes`（平面走 GPU 转色，奇数/异形帧走桥老口兜底记数），17 扇 19 处全换并逐个编译；2K 真窗 80/80 上传零回落、首尾亮 111.8/110.2、`yuv_ready=1`，p95 31.7 随整机抖动（帧率 59.1 达标，p95 门待压）；离屏逐像素对拍因 1x 适配器无 MSAA 解析路走不通，已删，改由 2K 真窗作证。 |

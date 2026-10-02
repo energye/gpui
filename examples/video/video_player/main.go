@@ -763,7 +763,7 @@ func (st *state) tick() {
 	if f != nil {
 		st.shown++
 		st.lastPTS = f.PTSMs
-		st.vid.UploadFrame(f.Width, f.Height, f.Pix)
+		st.vid.UploadPlanes(f.Width, f.Height, f.Y, f.UV, f.Pix)
 		st.dirtyFrame = true
 		if st.ended {
 			st.ended = false

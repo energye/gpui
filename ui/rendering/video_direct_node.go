@@ -15,8 +15,8 @@ import (
 )
 
 // RenderVideo shows one decoded stream through the P2 direct bridge.
-// Upload happens on the tick (UploadFrame copies synchronously, so the
-// Poll pix may be recycled right after); Paint only draws the uploaded
+// Upload happens on the tick (UploadPlanes copies synchronously, so the
+// Poll planes may be recycled right after); Paint only draws the uploaded
 // frame (DrawCurrent, zero-upload quad, fallback counted). It never
 // decodes, never imports video/ffmpeg, never runs per-pixel loops.
 //
@@ -34,6 +34,7 @@ type RenderVideo struct {
 	drewOK        bool
 	directLast    bool
 	smallDrew     bool
+	planesLast    bool
 	firstMean     float64
 	firstSet      bool
 	lastMean      float64
@@ -55,12 +56,28 @@ func NewRenderVideoPiP(w, h, smallW, smallH float64, bridge *render.VideoBridge)
 	return v
 }
 
-// UploadFrame uploads one new frame on the tick and marks paint dirty.
-// pix is copied synchronously into the texture (and the fallback shadow),
-// so Poll may recycle it right after this returns.
-func (v *RenderVideo) UploadFrame(fw, fh int, pix []byte) bool {
+// UploadPlanes uploads one new frame on the tick and marks paint dirty.
+// This is the only window-facing feed (P3-A layer 5): y/uv carry NV12
+// planes, pix carries the RGBA fallback for odd-size or exotic frames
+// (nil-safe, shapes the decoder never emits together). Planes go
+// through the GPU YUV convert; the fallback shape goes through the
+// bridge RGBA route and counts one fallback. All slices are copied
+// synchronously, so Poll may recycle them right after this returns.
+func (v *RenderVideo) UploadPlanes(fw, fh int, y, uv, pix []byte) bool {
 	if v == nil || v.bridge == nil || fw < 1 || fh < 1 {
 		return false
+	}
+	if len(y) > 0 && len(uv) > 0 {
+		yN, uvN := fw*fh, fw*fh/2
+		if yN <= 0 || uvN <= 0 || len(y) < yN || len(uv) < uvN {
+			return false
+		}
+		if !v.bridge.UploadPlanesFrame(fw, fh, y[:yN], uv[:uvN]) {
+			return false
+		}
+		v.planesLast = true
+		v.noteFrame(fw, fh, y[:yN])
+		return true
 	}
 	need := fw * fh * 4
 	if need <= 0 || len(pix) < need {
@@ -69,21 +86,21 @@ func (v *RenderVideo) UploadFrame(fw, fh int, pix []byte) bool {
 	if !v.bridge.UploadFrame(fw, fh, pix[:need]) {
 		return false
 	}
+	v.planesLast = false
+	v.noteFrame(fw, fh, pix[:need])
+	return true
+}
+
+// noteFrame records size, brightness gate, and paint dirtiness.
+func (v *RenderVideo) noteFrame(fw, fh int, sample []byte) {
 	v.fw, v.fh = fw, fh
 	v.hasFrame = true
-	m := sampleMean(pix[:need])
+	m := sampleMean(sample)
 	if !v.firstSet {
 		v.firstMean, v.firstSet = m, true
 	}
 	v.lastMean = m
 	v.MarkNeedsPaint()
-	return true
-}
-
-// SetFrame keeps the old Paint-fed shape: it uploads immediately.
-// Prefer UploadFrame (same cost, clearer tick/paint split).
-func (v *RenderVideo) SetFrame(fw, fh int, pix []byte) bool {
-	return v.UploadFrame(fw, fh, pix)
 }
 
 // sampleMean estimates frame brightness by strided sampling (cheap
@@ -107,13 +124,15 @@ func sampleMean(pix []byte) float64 {
 
 // VideoNodeStats snapshots what Paint proved: drewOK (something drawn),
 // directLast (fast path), smallDrew (PiP second view), first/last frame
-// brightness (non-black gate), seq (distinct frames fed).
+// brightness (non-black gate), seq (distinct frames fed), planesLast
+// (last upload took the NV12 planes path, not the RGBA fallback shape).
 type VideoNodeStats struct {
 	DrewOK     bool
 	DirectLast bool
 	SmallDrew  bool
 	FirstMean  float64
 	LastMean   float64
+	PlanesLast bool
 }
 
 // NodeStats snapshots the node.
@@ -123,7 +142,7 @@ func (v *RenderVideo) NodeStats() VideoNodeStats {
 	}
 	return VideoNodeStats{
 		DrewOK: v.drewOK, DirectLast: v.directLast, SmallDrew: v.smallDrew,
-		FirstMean: v.firstMean, LastMean: v.lastMean,
+		FirstMean: v.firstMean, LastMean: v.lastMean, PlanesLast: v.planesLast,
 	}
 }
 
@@ -141,8 +160,8 @@ func (v *RenderVideo) Layout(c Constraints) Size {
 
 // Paint implements RenderObject — draws the latest frame via the bridge.
 // No new frame fed means Paint still runs (steady damage comes from the
-// bridge draws); frames below are skipped by the caller (no SetFrame, no
-// upload, damage stays clean).
+// bridge draws); frames below are skipped by the caller (no UploadPlanes,
+// no upload, damage stays clean).
 func (v *RenderVideo) Paint(pc *PaintContext) {
 	if pc == nil {
 		return

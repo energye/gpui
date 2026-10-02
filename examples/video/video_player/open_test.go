@@ -232,7 +232,7 @@ func TestVideoNodeFrameFlow(t *testing.T) {
 		if f, _ := st.player.Poll(); f != nil {
 			// Headless bridge has no device: upload refuses honestly;
 			// the window run proves the true path with a borrowed device.
-			if st.vid.UploadFrame(f.Width, f.Height, f.Pix) {
+			if st.vid.UploadPlanes(f.Width, f.Height, f.Y, f.UV, f.Pix) {
 				t.Fatal("headless UploadFrame = true without a device, want false")
 			}
 			fed = true
