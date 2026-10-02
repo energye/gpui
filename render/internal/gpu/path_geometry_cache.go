@@ -213,7 +213,8 @@ func (c *PathGeometryCache) GetOrTessellateAAKeyed(preHash uint64, fillRule rend
 	if r == nil || r.NumVerbs() == 0 {
 		return nil, cover, nil, nil, false
 	}
-	tess := NewFanTessellator()
+	tess := acquireFanTessellator()
+	defer releaseFanTessellator(tess)
 	tess.SetUserScale(userScale)
 	tess.TessellatePath(r)
 	fv := tess.Vertices()
@@ -239,9 +240,10 @@ func (c *PathGeometryCache) GetOrTessellateAAKeyed(preHash uint64, fillRule rend
 }
 
 // tessellateAALocked generates the analytic-AA fringe bands into an existing
-// entry. Caller holds c.mu.
+// entry. Caller holds c.mu. Pooled tessellator: results copied before release.
 func (c *PathGeometryCache) tessellateAALocked(e *pathTessEntry, path *render.Path, userScale float64) {
-	tess := NewFanTessellator()
+	tess := acquireFanTessellator()
+	defer releaseFanTessellator(tess)
 	tess.SetUserScale(userScale)
 	tess.TessellateAA(path)
 	if len(tess.bandVerts) == 0 {

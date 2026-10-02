@@ -65,6 +65,9 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 					hal.Logger().Warn("gles: GL error after command", "error", fmt.Sprintf("0x%x", glErr), "index", i, "command", fmt.Sprintf("%T", cmd))
 				}
 			}
+			// Same pool release as queue_linux.go (cross-platform parity).
+			releasePooledCommand(cmd)
+			cmdBuf.commands[i] = nil
 		}
 		if !cmdDbg {
 			if glErr := glCtx.GetError(); glErr != 0 {

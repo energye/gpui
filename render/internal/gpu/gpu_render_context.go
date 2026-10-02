@@ -1893,18 +1893,21 @@ func (rc *GPURenderContext) stencilTess(path *render.Path, matrix render.Matrix,
 			return v, cq, ba, iba, render.Identity(), true
 		}
 	}
-	tess := NewFanTessellator()
+	tess := acquireFanTessellator()
+	defer releaseFanTessellator(tess)
 	tess.TessellatePath(path)
 	fv := tess.Vertices()
 	if len(fv) == 0 {
 		return nil, quad, nil, nil, render.Identity(), false
 	}
+	fanVerts := append([]float32(nil), fv...)
 	cq := tess.CoverQuad()
 	if useAA {
 		tess.TessellateAA(path)
-		ba, iba = tess.bandVerts, tess.innerBandVerts
+		ba = append([]float32(nil), tess.bandVerts...)
+		iba = append([]float32(nil), tess.innerBandVerts...)
 	}
-	return fv, cq, ba, iba, render.Identity(), true
+	return fanVerts, cq, ba, iba, render.Identity(), true
 }
 
 // StrokePath renders a stroked path by expanding to filled outline.
@@ -2120,17 +2123,22 @@ func (rc *GPURenderContext) tessUser(raw *render.Path, userScale float64, useAA 
 }
 
 // tessellateUser tessellates raw in user space (scale rule, no cache).
+// Pooled tessellator: results are copied out before release because queued
+// commands outlive the call (QueueStencil keeps the slices).
 func tessellateUser(raw *render.Path, userScale float64, useAA bool) (fan, ba, iba []float32, ok bool) {
-	tess := NewFanTessellator()
+	tess := acquireFanTessellator()
+	defer releaseFanTessellator(tess)
 	tess.SetUserScale(userScale)
 	tess.TessellatePath(raw)
-	fan = tess.Vertices()
-	if len(fan) == 0 {
+	fv := tess.Vertices()
+	if len(fv) == 0 {
 		return nil, nil, nil, false
 	}
+	fan = append([]float32(nil), fv...)
 	if useAA {
 		tess.TessellateAA(raw)
-		ba, iba = tess.bandVerts, tess.innerBandVerts
+		ba = append([]float32(nil), tess.bandVerts...)
+		iba = append([]float32(nil), tess.innerBandVerts...)
 	}
 	return fan, ba, iba, true
 }

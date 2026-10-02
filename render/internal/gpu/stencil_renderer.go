@@ -526,7 +526,9 @@ func (sr *StencilRenderer) RenderPath(target render.GPURenderTarget, path *rende
 	}
 
 	// Tessellate path into fan triangles.
-	tess := NewFanTessellator()
+	// Pooled tessellator: buffers copy the bytes synchronously below.
+	tess := acquireFanTessellator()
+	defer releaseFanTessellator(tess)
 	tess.TessellatePath(path)
 	fanVerts := tess.Vertices()
 	if len(fanVerts) == 0 {

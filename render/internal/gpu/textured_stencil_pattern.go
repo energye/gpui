@@ -514,7 +514,10 @@ func texturedStencilCoverPatternEx(
 		return nil, nil, nil, err
 	}
 
-	tess := NewFanTessellator()
+	// Pooled tessellator: fan/cover bytes are consumed synchronously below
+	// (float32SliceToBytes + WriteBuffer before return), no escape.
+	tess := acquireFanTessellator()
+	defer releaseFanTessellator(tess)
 	tess.TessellatePath(localPath)
 	fan := tess.Vertices()
 	if len(fan) == 0 {

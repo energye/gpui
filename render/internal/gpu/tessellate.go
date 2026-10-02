@@ -14,6 +14,7 @@ package gpu
 
 import (
 	"math"
+	"sync"
 
 	"github.com/energye/gpui/render"
 )
@@ -112,7 +113,40 @@ func NewFanTessellator() *FanTessellator {
 	}
 }
 
+// fanTessellatorPool reuses tessellators across miss-path tessellations so
+// per-frame deforming paths don't regrow the five scratch slices every time.
+// Stdlib parity: sync.Pool per-request objects. Take with Reset() applied;
+// every use site must copy results out before Put (queued commands and cache
+// entries keep owned copies — see below), because the next take overwrites.
+var fanTessellatorPool = sync.Pool{
+	New: func() any {
+		return &FanTessellator{
+			vertices: make([]float32, 0, fanInitialVertexCapacity),
+		}
+	},
+}
+
+// acquireFanTessellator takes a pooled tessellator, Reset and scaled.
+// Results (Vertices/BandVerts/CoverQuad) are only valid until the next take:
+// callers must copy before releaseFanTessellator.
+func acquireFanTessellator() *FanTessellator {
+	t := fanTessellatorPool.Get().(*FanTessellator) //nolint:forcetypeassert
+	t.Reset()
+	return t
+}
+
+// releaseFanTessellator returns a tessellator after its results were copied out.
+func releaseFanTessellator(t *FanTessellator) {
+	if t == nil {
+		return
+	}
+	fanTessellatorPool.Put(t)
+}
+
 // Reset clears the tessellator state for reuse without releasing memory.
+// userScale is intentionally preserved: it is a session-stable pixel rule,
+// not per-path state (same convention as depth_clip.go's pooled tessellator,
+// which also keeps its scale across Reset).
 func (ft *FanTessellator) Reset() {
 	ft.vertices = ft.vertices[:0]
 	ft.bounds = [4]float32{}

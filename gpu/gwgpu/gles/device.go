@@ -789,11 +789,11 @@ func (d *Device) DestroyQuerySet(qs hal.QuerySet) {
 
 // CreateCommandEncoder creates a command encoder.
 func (d *Device) CreateCommandEncoder(_ *CommandEncoderDescriptor) (hal.CommandEncoder, error) {
-	return &CommandEncoder{
-		glCtx:           d.ctx.GL(),
-		vao:             d.vao,
-		maxTextureUnits: d.maxTextureUnits,
-	}, nil
+	enc := acquireCommandEncoder()
+	enc.glCtx = d.ctx.GL()
+	enc.vao = d.vao
+	enc.maxTextureUnits = d.maxTextureUnits
+	return enc, nil
 }
 
 // CreateFence creates a synchronization fence.

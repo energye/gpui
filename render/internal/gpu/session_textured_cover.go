@@ -340,13 +340,17 @@ func (rc *GPURenderContext) queueSessionTexturedCover(
 		}
 	}
 	if fanVerts == nil {
-		tess := NewFanTessellator()
+		// Pooled tessellator: queued command outlives the call, copy out.
+		tess := acquireFanTessellator()
 		tess.TessellatePath(path)
-		fanVerts = tess.Vertices()
-		if len(fanVerts) == 0 {
+		fv := tess.Vertices()
+		if len(fv) == 0 {
+			releaseFanTessellator(tess)
 			return nil
 		}
+		fanVerts = append([]float32(nil), fv...)
 		coverQuad = tess.CoverQuad()
+		releaseFanTessellator(tess)
 	}
 	if len(fanVerts) == 0 {
 		return nil
@@ -681,13 +685,17 @@ func (rc *GPURenderContext) queueSessionPatternCover(
 		}
 	}
 	if fanVerts == nil {
-		tess := NewFanTessellator()
+		// Pooled tessellator: queued command outlives the call, copy out.
+		tess := acquireFanTessellator()
 		tess.TessellatePath(path)
-		fanVerts = tess.Vertices()
-		if len(fanVerts) == 0 {
+		fv := tess.Vertices()
+		if len(fv) == 0 {
+			releaseFanTessellator(tess)
 			return nil
 		}
+		fanVerts = append([]float32(nil), fv...)
 		coverQuad = tess.CoverQuad()
+		releaseFanTessellator(tess)
 	}
 	if len(fanVerts) == 0 {
 		return nil

@@ -68,6 +68,11 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 					hal.Logger().Warn("gles: GL error after command", "error", fmt.Sprintf("0x%x", glErr), "index", i, "command", detail)
 				}
 			}
+			// Return hot-path commands to their pools now that Execute has
+			// consumed them; detached from the buffer so Destroy can't
+			// double-release. Cold-path types are dropped for the GC.
+			releasePooledCommand(cmd)
+			cmdBuf.commands[i] = nil
 		}
 		if !cmdDbg {
 			if glErr := glCtx.GetError(); glErr != 0 {

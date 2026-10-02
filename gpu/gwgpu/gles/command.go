@@ -15,6 +15,7 @@ package gles
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
@@ -47,10 +48,156 @@ type CommandEncoder struct {
 	maxTextureUnits int32  // Hardware limit passed from Device
 }
 
+// Hot-command pools: the per-draw command structs below are recorded every
+// frame (hundreds per submit) and must not heap-allocate per record.
+// Stdlib parity: sync.Pool per-request objects (net/http, encoding/json
+// buffer pools). Each pool holds *T with all fields caller-initialized at
+// acquire — acquire helpers take every field, so no stale payload can leak
+// across frames. Release happens once, in Queue.Submit after Execute (and in
+// DiscardEncoding for never-submitted records); CommandBuffer.Destroy only
+// drops headers. Same-OS-thread only (GL context affinity).
+var (
+	drawCommandPool             = sync.Pool{New: func() any { return &DrawCommand{} }}
+	drawIndexedCommandPool      = sync.Pool{New: func() any { return &DrawIndexedCommand{} }}
+	setBindGroupCommandPool     = sync.Pool{New: func() any { return &SetBindGroupCommand{} }}
+	setVertexBufferCommandPool  = sync.Pool{New: func() any { return &SetVertexBufferCommand{} }}
+	useProgramCommandPool       = sync.Pool{New: func() any { return &UseProgramCommand{} }}
+	setPipelineStateCommandPool = sync.Pool{New: func() any { return &SetPipelineStateCommand{} }}
+)
+
+// acquireDrawCommand takes a pooled DrawCommand with all fields set.
+func acquireDrawCommand(vertexCount, instanceCount, firstVertex, firstInstance uint32, topology gputypes.PrimitiveTopology) *DrawCommand {
+	c := drawCommandPool.Get().(*DrawCommand) //nolint:forcetypeassert
+	c.vertexCount = vertexCount
+	c.instanceCount = instanceCount
+	c.firstVertex = firstVertex
+	c.firstInstance = firstInstance
+	c.topology = topology
+	return c
+}
+
+// acquireDrawIndexedCommand takes a pooled DrawIndexedCommand with all fields set.
+func acquireDrawIndexedCommand(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32, indexFormat gputypes.IndexFormat, topology gputypes.PrimitiveTopology) *DrawIndexedCommand {
+	c := drawIndexedCommandPool.Get().(*DrawIndexedCommand) //nolint:forcetypeassert
+	c.indexCount = indexCount
+	c.instanceCount = instanceCount
+	c.firstIndex = firstIndex
+	c.baseVertex = baseVertex
+	c.firstInstance = firstInstance
+	c.indexFormat = indexFormat
+	c.topology = topology
+	return c
+}
+
+// acquireSetBindGroupCommand takes a pooled SetBindGroupCommand with all fields set.
+func acquireSetBindGroupCommand(index uint32, group *BindGroup, offsets []uint32, maxUnits int32, infos []BindGroupLayoutInfo, smap *[maxTextureSlots]int8) *SetBindGroupCommand {
+	c := setBindGroupCommandPool.Get().(*SetBindGroupCommand) //nolint:forcetypeassert
+	c.index = index
+	c.group = group
+	c.dynamicOffsets = offsets
+	c.maxTextureUnits = maxUnits
+	c.groupInfos = infos
+	c.samplerBindMap = smap
+	return c
+}
+
+// acquireSetVertexBufferCommand takes a pooled SetVertexBufferCommand with all fields set.
+func acquireSetVertexBufferCommand(slot uint32, buffer *Buffer, offset uint64, layout *gputypes.VertexBufferLayout) *SetVertexBufferCommand {
+	c := setVertexBufferCommandPool.Get().(*SetVertexBufferCommand) //nolint:forcetypeassert
+	c.slot = slot
+	c.buffer = buffer
+	c.offset = offset
+	c.layout = layout
+	return c
+}
+
+// acquireUseProgramCommand takes a pooled UseProgramCommand with all fields set.
+func acquireUseProgramCommand(programID uint32) *UseProgramCommand {
+	c := useProgramCommandPool.Get().(*UseProgramCommand) //nolint:forcetypeassert
+	c.programID = programID
+	return c
+}
+
+// acquireSetPipelineStateCommand takes a pooled SetPipelineStateCommand with all fields set.
+func acquireSetPipelineStateCommand(topology gputypes.PrimitiveTopology, cullMode gputypes.CullMode, frontFace gputypes.FrontFace, depthStencil *hal.DepthStencilState, colorTargets []ColorTargetDesc, stencilRef uint32) *SetPipelineStateCommand {
+	c := setPipelineStateCommandPool.Get().(*SetPipelineStateCommand) //nolint:forcetypeassert
+	c.topology = topology
+	c.cullMode = cullMode
+	c.frontFace = frontFace
+	c.depthStencil = depthStencil
+	c.colorTargets = colorTargets
+	c.stencilRef = stencilRef
+	return c
+}
+
+// releasePooledCommand returns a hot-path command to its pool after Execute.
+// Unknown (cold-path) types are dropped for the GC: pooling covers only the
+// six per-draw types above. Field clearing is unnecessary — every acquire
+// helper overwrites all fields — except reference fields, which are cleared
+// here so a pooled struct never pins buffers/groups/pipelines across frames.
+func releasePooledCommand(cmd Command) {
+	switch c := cmd.(type) {
+	case *DrawCommand:
+		drawCommandPool.Put(c)
+	case *DrawIndexedCommand:
+		drawIndexedCommandPool.Put(c)
+	case *SetBindGroupCommand:
+		c.group = nil
+		c.dynamicOffsets = nil
+		c.groupInfos = nil
+		c.samplerBindMap = nil
+		setBindGroupCommandPool.Put(c)
+	case *SetVertexBufferCommand:
+		c.buffer = nil
+		c.layout = nil
+		setVertexBufferCommandPool.Put(c)
+	case *UseProgramCommand:
+		useProgramCommandPool.Put(c)
+	case *SetPipelineStateCommand:
+		c.depthStencil = nil
+		c.colorTargets = nil
+		setPipelineStateCommandPool.Put(c)
+	}
+}
+
+// CommandEncoder pool: per-frame recording reuses backing instead of
+// regrowing the command slice every frame. Stdlib parity: sync.Pool for
+// per-request scratch (net/http bufio reuse) — Get/Put own the object while
+// checked out; Submit/Finish returns it. Same-OS-thread only (GL context
+// affinity): take/return run on the raster/encode thread, no cross-thread
+// sharing while recording.
+var commandEncoderPool = sync.Pool{
+	New: func() any { return &CommandEncoder{} },
+}
+
+// acquireCommandEncoder takes a pooled encoder and resets it for recording.
+// The backing (commands slice) is reused, so steady frames stay alloc-free.
+func acquireCommandEncoder() *CommandEncoder {
+	return commandEncoderPool.Get().(*CommandEncoder) //nolint:forcetypeassert
+}
+
+// releaseCommandEncoder returns an encoder after Finish/Discard: clears the
+// headers (interface words only — pointed-to payloads belong to the frame
+// and are released with their own owners) and keeps the backing.
+func releaseCommandEncoder(e *CommandEncoder) {
+	if e == nil {
+		return
+	}
+	for i := range e.commands {
+		e.commands[i] = nil
+	}
+	e.commands = e.commands[:0]
+	e.label = ""
+	e.glCtx = nil
+	e.vao = 0
+	e.maxTextureUnits = 0
+	commandEncoderPool.Put(e)
+}
+
 // BeginEncoding begins command recording.
 func (e *CommandEncoder) BeginEncoding(label string) error {
 	e.label = label
-	e.commands = nil
+	e.commands = e.commands[:0]
 	return nil
 }
 
@@ -60,6 +207,7 @@ func (e *CommandEncoder) EndEncoding() (hal.CommandBuffer, error) {
 		commands: e.commands,
 	}
 	e.commands = nil
+	releaseCommandEncoder(e)
 	return cmdBuf, nil
 }
 
@@ -70,7 +218,8 @@ func (e *CommandEncoder) Finish() (hal.CommandBuffer, error) {
 
 // DiscardEncoding discards the encoder.
 func (e *CommandEncoder) DiscardEncoding() {
-	e.commands = nil
+	e.commands = e.commands[:0]
+	releaseCommandEncoder(e)
 }
 
 // ResetAll resets command buffers for reuse.
@@ -575,16 +724,11 @@ func (e *RenderPassEncoder) SetPipeline(pipeline hal.RenderPipeline) {
 	}
 	e.pipeline = p
 	e.encoder.commands = append(e.encoder.commands,
-		&UseProgramCommand{programID: p.programID},
-		&SetPipelineStateCommand{
-			topology:     p.primitiveTopology,
-			cullMode:     p.cullMode,
-			frontFace:    p.frontFace,
-			depthStencil: p.depthStencil,
-			colorTargets: p.colorTargets,
-			stencilRef:   e.stencilRef,
-		},
-	)
+		acquireUseProgramCommand(p.programID),
+		acquireSetPipelineStateCommand(
+			p.primitiveTopology, p.cullMode, p.frontFace,
+			p.depthStencil, p.colorTargets, e.stencilRef,
+		))
 	// Vertex setup follows the consuming pipeline: tiers bind the buffer
 	// before switching pipelines, so re-emit with this pipeline's layout.
 	for slot, buf := range e.vertexBuffers {
@@ -599,12 +743,8 @@ func (e *RenderPassEncoder) SetPipeline(pipeline hal.RenderPipeline) {
 		if slot < len(e.vertexOffsets) {
 			off = e.vertexOffsets[slot]
 		}
-		e.encoder.commands = append(e.encoder.commands, &SetVertexBufferCommand{
-			slot:   uint32(slot),
-			buffer: buf,
-			offset: off,
-			layout: layout,
-		})
+		e.encoder.commands = append(e.encoder.commands, acquireSetVertexBufferCommand(
+			uint32(slot), buf, off, layout))
 	}
 }
 
@@ -622,14 +762,8 @@ func (e *RenderPassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offs
 			groupInfos = e.pipeline.layout.groupInfos
 		}
 	}
-	e.encoder.commands = append(e.encoder.commands, &SetBindGroupCommand{
-		index:           index,
-		group:           bg,
-		dynamicOffsets:  offsets,
-		maxTextureUnits: e.encoder.maxTextureUnits,
-		groupInfos:      groupInfos,
-		samplerBindMap:  samplerMap,
-	})
+	e.encoder.commands = append(e.encoder.commands, acquireSetBindGroupCommand(
+		index, bg, offsets, e.encoder.maxTextureUnits, groupInfos, samplerMap))
 }
 
 // SetVertexBuffer sets a vertex buffer and configures vertex attributes.
@@ -660,12 +794,8 @@ func (e *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer hal.Buffer, offs
 		layout = &e.pipeline.vertexBuffers[slot]
 	}
 
-	e.encoder.commands = append(e.encoder.commands, &SetVertexBufferCommand{
-		slot:   slot,
-		buffer: buf,
-		offset: offset,
-		layout: layout,
-	})
+	e.encoder.commands = append(e.encoder.commands, acquireSetVertexBufferCommand(
+		slot, buf, offset, layout))
 }
 
 // SetIndexBuffer sets the index buffer.
@@ -729,13 +859,8 @@ func (e *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstI
 	if e.pipeline != nil {
 		topology = e.pipeline.primitiveTopology
 	}
-	e.encoder.commands = append(e.encoder.commands, &DrawCommand{
-		vertexCount:   vertexCount,
-		instanceCount: instanceCount,
-		firstVertex:   firstVertex,
-		firstInstance: firstInstance,
-		topology:      topology,
-	})
+	e.encoder.commands = append(e.encoder.commands, acquireDrawCommand(
+		vertexCount, instanceCount, firstVertex, firstInstance, topology))
 }
 
 // DrawIndexed draws indexed primitives.
@@ -744,15 +869,9 @@ func (e *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex ui
 	if e.pipeline != nil {
 		topology = e.pipeline.primitiveTopology
 	}
-	e.encoder.commands = append(e.encoder.commands, &DrawIndexedCommand{
-		indexCount:    indexCount,
-		instanceCount: instanceCount,
-		firstIndex:    firstIndex,
-		baseVertex:    baseVertex,
-		firstInstance: firstInstance,
-		indexFormat:   e.indexFormat,
-		topology:      topology,
-	})
+	e.encoder.commands = append(e.encoder.commands, acquireDrawIndexedCommand(
+		indexCount, instanceCount, firstIndex, baseVertex, firstInstance,
+		e.indexFormat, topology))
 }
 
 // DrawIndirect draws a single indirect record.
@@ -810,9 +929,8 @@ func (e *ComputePassEncoder) SetPipeline(pipeline hal.ComputePipeline) {
 		return
 	}
 	e.pipeline = p
-	e.encoder.commands = append(e.encoder.commands, &UseProgramCommand{
-		programID: p.programID,
-	})
+	e.encoder.commands = append(e.encoder.commands, acquireUseProgramCommand(
+		p.programID))
 }
 
 // SetBindGroup sets a bind group.
@@ -825,13 +943,8 @@ func (e *ComputePassEncoder) SetBindGroup(index uint32, group hal.BindGroup, off
 	if e.pipeline != nil && e.pipeline.layout != nil {
 		groupInfos = e.pipeline.layout.groupInfos
 	}
-	e.encoder.commands = append(e.encoder.commands, &SetBindGroupCommand{
-		index:           index,
-		group:           bg,
-		dynamicOffsets:  offsets,
-		maxTextureUnits: e.encoder.maxTextureUnits,
-		groupInfos:      groupInfos,
-	})
+	e.encoder.commands = append(e.encoder.commands, acquireSetBindGroupCommand(
+		index, bg, offsets, e.encoder.maxTextureUnits, groupInfos, nil))
 }
 
 // Dispatch dispatches compute work.

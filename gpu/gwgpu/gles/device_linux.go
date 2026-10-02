@@ -769,11 +769,11 @@ func (d *Device) CreateCommandEncoder(_ *CommandEncoderDescriptor) (hal.CommandE
 		glCtx.BindVertexArray(d.vao)
 		hal.Logger().Debug("gles: lazy VAO created", "vao", d.vao)
 	}
-	return &CommandEncoder{
-		glCtx:           glCtx,
-		vao:             d.vao,
-		maxTextureUnits: d.maxTextureUnits,
-	}, nil
+	enc := acquireCommandEncoder()
+	enc.glCtx = glCtx
+	enc.vao = d.vao
+	enc.maxTextureUnits = d.maxTextureUnits
+	return enc, nil
 }
 
 // CreateFence creates a synchronization fence.
