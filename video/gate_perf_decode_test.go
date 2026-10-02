@@ -6,7 +6,7 @@ package video
 // against Player Stats.DecodeMsP95 (Stats caliber, convert segment today).
 // Pass line: ours <= ffmpeg same-clip utime/frame. Miss goes to S1/S2,
 // never by lowering the budget. The VR7 window's old 50ms self budget in
-// examples/video_vr7_perf stays as is in this step (no window change).
+// examples/video/video_vr7_perf stays as is in this step (no window change).
 // Clip is local-only (gen_vr2.sh gen vr2_1080p, not in git): absent files SKIP.
 
 import (

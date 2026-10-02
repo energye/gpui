@@ -7,7 +7,7 @@
 // reports back honestly. video/ stays device-free, so every device
 // handle below lives window-side only.
 //
-// The A4 gate window (examples/video_a4_sink) keeps its own copy with
+// The A4 gate window (examples/video/video_a4_sink) keeps its own copy with
 // gate extras (unplug-drill hooks, WAV chain proof, null sink); this
 // package is the shared speaker path for windows that just play.
 // Behavior matches A4's: paplay-pulse preferred, aplay-alsa fallback,

@@ -4,7 +4,7 @@
 > **性质：** `gpui` 里的视频整机立项：解码 + 上墙 + 播放组件一次做完。需求、计划、验收只认这一份。
 > **范围：** 解析处理全走 ffmpeg（含硬解，软解只做回落）；上墙走 `render` 新增的视频直传路，经 `hal` 通用口调显卡，应用配哪套后端视频就跟哪套；播放控件做成 `ui/kit video_*` 组件。
 > **一句话链路：** `video`（ffmpeg 解出 RGBA）→ `render`（视频纹理直传 + 缩放合成）→ `hal`（通用显卡口）→ `webgpu` / `gwgpu/gles`（两套实现，调用方不点名）。
-> **旧版处理：** v1.x（含 VW0–VW3、VR0–VR9、§11–§14）整体作废，只留一条：历史实现与数据以 git 历史为准（`git log -- docs/ENGINE_VIDEO_DECODE_PLAN.md` 可查）。现有 `video/`、`video/ffmpeg/decode.go`、`video/backend_ffmpeg.go`、各 `examples/video_*` 桥接代码允许按本架构推翻重写，不保结构兼容，只保对外行为（打开、取帧、跳进度、关闭、状态事件）语义不变。
+> **旧版处理：** v1.x（含 VW0–VW3、VR0–VR9、§11–§14）整体作废，只留一条：历史实现与数据以 git 历史为准（`git log -- docs/ENGINE_VIDEO_DECODE_PLAN.md` 可查）。现有 `video/`、`video/ffmpeg/decode.go`、`video/backend_ffmpeg.go`、各 `examples/video/video_*` 桥接代码允许按本架构推翻重写，不保结构兼容，只保对外行为（打开、取帧、跳进度、关闭、状态事件）语义不变。
 > **并读：** [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)（`ui → render → gpu`）· [`ENGINE_CODING_RULES.md`](./ENGINE_CODING_RULES.md)（禁止 CGO）· [`ENGINE_FLUTTER_SKIA_ARCH.md`](./ENGINE_FLUTTER_SKIA_ARCH.md) · [`UI_PIXEL_ASSERTION_STANDARD.md`](./UI_PIXEL_ASSERTION_STANDARD.md)（画面断言三证据）· [`ENGINE_UI_WIDGET_RENDER.md`](./ENGINE_UI_WIDGET_RENDER.md)（真窗纪律）。
 
 ---
@@ -219,9 +219,9 @@ ui/kit video_*            组件层：调 video 拿帧，调 render 画画，不
 
 | 窗 | 演什么 | 时长 | 过线 |
 |---|---|---|---|
-| `examples/video_hw_play` | 同一片硬解 vs 软解：画面一致（容差比对 + 软解对照），`hw_active` 如实，断硬解自动回落不断播 | 30s | 硬解帧与软解帧差分布达标 + fps/p95 双绿 |
-| `examples/video_2k_play` | 2K 真片循环播 + 缩放 + 浮层同屏 | 30s | §7 的 2K 行全绿 + 三证据 |
-| `examples/video_4k_play` | 4K 真片循环播 + 缩放 + 同源大小窗 | 60s | §7 的 4K 行全绿 + 三证据 |
+| `examples/video/video_hw_play` | 同一片硬解 vs 软解：画面一致（容差比对 + 软解对照），`hw_active` 如实，断硬解自动回落不断播 | 30s | 硬解帧与软解帧差分布达标 + fps/p95 双绿 |
+| `examples/video/video_2k_play` | 2K 真片循环播 + 缩放 + 浮层同屏 | 30s | §7 的 2K 行全绿 + 三证据 |
+| `examples/video/video_4k_play` | 4K 真片循环播 + 缩放 + 同源大小窗 | 60s | §7 的 4K 行全绿 + 三证据 |
 | `examples/kit_video` | kit 组件独立窗：摆位、播控、事件、主题，不占 VR 名额 | 30s | 组件播控全绿 + 三证据 |
 
 每扇窗结束输出全族 JSON（帧时、管线、播放、CPU、内存、GPU、解码、首帧、回归、合规十族，字段口径沿 §7 门禁 + V-U9 三证据），不达标 `FAIL:` + `exit 1`，README 写人眼可见效果。大片不进仓库：`video/testdata/` 只放小片与 2K/4K 生成脚本（大二进制不提交，本地与 CI 均由脚本现场生成后跑窗）。
@@ -245,7 +245,7 @@ ui/kit video_*            组件层：调 video 拿帧，调 render 画画，不
 | P0 | `render` 视频地基：后端查询口 + 视频纹理独立池骨架 + 通用路回落计数 | `render` 新增视频文件 + 单测 | 查询口双后端绿 + 池借还零泄漏 + `go vet` 过 + 合入前 grep 门禁（§5 口径，创建入口与注册行除外零命中） |
 | P1 | `video` 硬解接线：设备选择 + 解码绑硬解 + 回传 + 统计 + 回落 | `video/ffmpeg/decode.go`、`video/backend_ffmpeg.go` 重写 + 单测 | 真机硬解帧断言或软解回落断言 + 旧回归逐文件绿 |
 | P2 | 直传打通：画视频帧口 + 原地重写 + 显卡缩放 + 没新帧不传 | `render` 直传实现 + 一扇旧窗改直传 | 1080p 窗 fps/p95 双绿 + 上传次数等于显示新帧数（无多余重传） |
-| P3 | 2K/4K 达标：单次整拷（或零拷包）+ 预乘跳过 + 预算单列 + 两扇新窗 | 桥接收敛 + `examples/video_2k_play` + `examples/video_4k_play` | §7 的 2K/4K 行全绿 + 三证据 |
+| P3 | 2K/4K 达标：单次整拷（或零拷包）+ 预乘跳过 + 预算单列 + 两扇新窗 | 桥接收敛 + `examples/video/video_2k_play` + `examples/video/video_4k_play` | §7 的 2K/4K 行全绿 + 三证据 |
 | P3-A | 平面直传（只做 A）：NV12 两小块上传 + 显卡转色 + 线程化解码，17 扇窗换传参 | `video` 出平面 + `render` 平面槽口 + 两后端 YUV 程序 + 窗节点换参 | 2K30/1080P60 全绿 + 新老路对拍误差达标 + 三证据；跟不上的快片只慢播不报错，丢帧如实记 |
 | P4 | kit 组件：扁平五件 + `BuildVideo` + `examples/kit_video` 窗 | `ui/kit/video_*.go` + `examples/kit_video` | 组件播控全绿 + 不碰 `gpu` 包合规过 |
 | P5 | 回归收口：旧窗全重跑 + 文档 API 目录同步 + 跨平台格补齐 | 全量回归 + 本文件修订行 | 所有窗绿 + 机器校验过 + 提交清单干净 |
