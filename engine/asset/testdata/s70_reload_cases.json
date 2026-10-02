@@ -1,0 +1,22 @@
+{
+  "sets": [
+    {
+      "name": "ui",
+      "members": [
+        {"id": "tex/red", "kind": "ktx2", "file": "tex_red_4x4.ktx2", "version": "1.0", "hash": 16942742255593044567, "size": 112, "deps": []},
+        {"id": "tex/checker", "kind": "ktx2", "file": "tex_checker_8x8.ktx2", "version": "1.0", "hash": 7475831939817489811, "size": 136, "deps": []}
+      ]
+    },
+    {
+      "name": "map",
+      "members": [
+        {"id": "map/level1", "kind": "raw", "file": "raw_level1.bin", "version": "1.0", "hash": 1146714789404643373, "size": 52, "deps": ["tex/red", "tex/checker"]}
+      ]
+    }
+  ],
+  "swap": {"set": "ui", "id": "tex/red", "from": "tex_red_4x4.ktx2", "to": "tex_checker_8x8.ktx2", "from_hash": 16942742255593044567, "to_hash": 7475831939817489811},
+  "bad": {"set": "ui", "id": "tex/red", "file": "bad_truncated.ktx2", "kind": "ktx2", "want_code": "bad-data"},
+  "missing_id": {"set": "ui", "id": "tex/ghost", "want_code": "not-found"},
+  "missing_file": "no_such_s70.ktx2",
+  "logic": {"set": "ui", "id": "tex/red", "kind": "raw", "want_code": "invalid-arg"}
+}

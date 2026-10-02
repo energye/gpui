@@ -1056,10 +1056,10 @@ W15 总指标：接口 doc＋版本号进冻结表＋老调用能编过，三者
 | S66 | 可选亮暗管线 | S62–S65 | light/fx重验 | 已完成（2026-10-02：FloatTarget新分支＋Filmic冻Reinhard默认＋降级标记日志，单测10项全绿，light/fx自动人工双金0差；p95/p99沿用S52豁免，换机空着；详见G17） |
 | S67 | 追车关门 | W12 | game_stage_chase | 已完成（2026-10-02：120秒自动presents7193、fps59.83、p95 17.22、dirty_max1、full0、双金0差；人工30秒ptr25 key8、presents1799；p95沿用S52豁免，换机空着；2小时长跑另起；详见G18） |
 | S68 | 夜战立项 | S67 | 只接口无窗 | 已完成（2026-10-02：game_stage_night/doc.go冻五接口，老调用方零改编过；建窗后另补数；详见G19） |
-| S69 | 图集工具 | W13 | tools | 未开工 |
-| S70 | 资产断链 | W13 | game_asset | 未开工 |
-| S71 | 预览录帧 | W13 | tools双预览 | 未开工 |
-| S72 | 平台矩阵 | W13 | 三档机集显独显各一遍 | 未开工 |
+| S69 | 图集工具 | W13 | tools | 已完成（2026-10-02：atlastool.go只认2048/4096＋反算＋黑线定位，单测全绿；详见G21） |
+| S70 | 资产断链 | W13 | game_asset | 已完成（2026-10-02：reload.go单集重载＋断链上报＋换逻辑拦截，单测全绿；详见G21） |
+| S71 | 预览录帧 | W13 | tools双预览 | 已完成（2026-10-02：engine/preview新包录制＋分解＋标红，单测全绿；详见G21） |
+| S72 | 平台矩阵 | W13 | 三档机集显独显各一遍 | 已完成（2026-10-02：双卡在，X11独显绿，Wayland嵌套功能绿性能只记录，未测格写原因占位；三档机待W13后补；详见G21） |
 | S73 | 联机脚本冻接口 | W14 | 只接口无窗 | 未开工 |
 | S74 | 帧动画窗 | S11 | sprite--case=anim | 进行中（2026-10-02：正式包10秒×3取最差presents600、p95 18.57、switches4、双金0差；人工30秒ptr24 key8、presents1799、switches14、backend=x11；p95/p99沿用S52豁免，换机空着；D04差异0；详见G15） |
 | S75 | 时间轴窗 | S17 | anim--case=tl | 进行中（2026-10-02：正式包10秒×3取最差presents600、p95 18.72、wraps10、events100、双金0差；人工30秒ptr25 key8、presents1798、wraps30、backend=x11；p95/p99沿用S52豁免，换机空着；D表无timeline行行为不变；详见G15） |
@@ -1420,6 +1420,7 @@ W24总指标：三项全正式包三遍最差，存读/掉率/拦截三数全过
 | 2026-10-01（S52改门加跟屏） | 追车窗跟屏修拖拽闪跳66a0a0c4（只动examples/game_stage_chase/main.go：EventResize只记尺寸、Tick每帧开头统一排版加世界盒Push/ClipRect/Pop夹边；探针全绿、离屏金0、窗金33400像素0差；真拖1200到1290十帧标题81不动、世界一比一跟、高361不动）；人工已跑（2026-10-01真窗37.6秒key10加ptr710加resize25，probe_ok=1，presents2243正常；拖窗至1354x827本轮窗金不对尺寸）；改门（用户拍板）：p95按60Hz屏豁免，换机按单机空着（有真实环境再测）；S52记有条件关门，G13放行可开工，W10仍未关门（待S53/S54）。 |
 | 2026-10-01（S53进行中） | S53开工（不动引擎只重测）：anim/light单测逐文件复跑全PASS＋vet净；正式包出/tmp/s53_anim＋/tmp/s53_light；fsm/normal自动10秒×3数全对双金0差；shadow60秒×3数全对但最差遍hitch5/分超3/分门（另两遍2.0/0，判机况挤待静机重跑）；fsm人工23.3秒ptr96切换11双金0差已收；p95沿用S52豁免（用户拍板不改§5），换机空着；G13转进行中，S53未关门。 |
 | 2026-10-01（S53有条件关门） | S53收尾（用户拍板可关，残留交别的线）：shadow次轮60秒×3带负载记录取最差presents3491、fps58.18、p95 20.31、p99 23.29、hitch14/分（负载1.7涨到3.9对上卡顿，数全对moved639双金0差mirror真，判机况挤非算法）；fsm人工一段已收录，normal/shadow人工各60秒交别的线；p95沿用S52豁免不改§5，换机空着；S53记有条件关门，G14放行可开工，W10仍未关门（待S54）。 |
+| 2026-10-02（W14关门） | S69–S72＋S81–S83并行实现＋串行验窗：atlastool/reload/preview三路只做加法，三新窗新建目录；单测asset/preview全绿；正式包trimpath -s -w、RUN_SECONDS=10自动（plat599/light2d600/part2d599）＋人工30秒XTEST同协议（key8/ptr8~25、backend=x11、presents1798~1799）双金0差；平台矩阵一次标齐（未测格写原因）；p95/p99沿用S52豁免不改§5，换机空着；G21已绿，W14关，W15放行。 |
 | 2026-10-02（W13关门） | S78躲避关＋W13关门：新建game_dodge（main＋README＋金图），physics真包碰撞，玩家400归一怪150–250垂直±45°撞藏禁出屏回收每秒1分，HUD三态＋R重来，最高分用户缓存存盘，声相逻辑（真响未验）；正式包trimpath -s -w、120秒自动presents7194、fps59.89、p95 16.99、p99 17.06、hitch1、score6、deaths1、双金0差；人工120秒XTEST同协议key295 ptr1542、presents7193、score3、backend=x11；p95沿用S52豁免不改§5，换机空着；G20已绿；P3组合随追车关门已绿，W13关，W14放行。 |
 | 2026-10-02（W13追车夜战） | S67追车120秒自动（presents7193、fps59.83、dirty_max1、full0、双金0差）＋人工30秒（ptr25 key8、presents1799），p95沿用S52豁免，2小时长跑另起；S68夜战只冻五接口不建窗，老调用方零改编过；G18/G19已绿，S78排队。 |
 | 2026-10-02（W12关门） | S66串行收尾＋W12关门：render/render加FloatTarget新文件（8位PixmapTarget不动，Format新枚举值，老调用方按旧值走进不去，软件渲染器拒收），fx/lut.go只放宽校验（认Filmic）＋加Filmic/DefaultTonemap/降级标记/日志，HBD肩曲线单调有穷；单测render4＋fx6全绿＋vet净；正式包trimpath -s -w、RUN_SECONDS=10自动（light598~601、fx600）＋人工30秒XTEST同协议（ptr非0、backend=x11、1798~1800）双金0差；HDR解释（2倍白231非255片）；p95/p99沿用S52豁免不改§5，换机空着；G17已绿，W12关门，W13可开。 |

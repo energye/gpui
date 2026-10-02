@@ -1,0 +1,24 @@
+{
+  "sizes": [
+    {"w": 2048, "h": 2048, "valid": true},
+    {"w": 4096, "h": 4096, "valid": true},
+    {"w": 2048, "h": 4096, "valid": true},
+    {"w": 1024, "h": 1024, "valid": false},
+    {"w": 2048, "h": 1024, "valid": false},
+    {"w": 3000, "h": 3000, "valid": false},
+    {"w": 0, "h": 2048, "valid": false},
+    {"w": 4096, "h": 8192, "valid": false}
+  ],
+  "sprites": [
+    {"name": "s69/red", "w": 16, "h": 16, "color": [255, 0, 0, 255], "pivotX": 0.5, "pivotY": 0.5, "nine": [0, 0, 0, 0]},
+    {"name": "s69/green", "w": 8, "h": 16, "color": [0, 255, 0, 255], "pivotX": 0.5, "pivotY": 0.5, "nine": [0, 0, 0, 0]},
+    {"name": "s69/blue", "w": 12, "h": 8, "color": [0, 0, 255, 255], "pivotX": 0.5, "pivotY": 0.5, "nine": [0, 0, 0, 0]}
+  ],
+  "uv_cases": [
+    {"name": "plain", "x": 100, "y": 200, "w": 64, "h": 32, "atlas_w": 2048, "atlas_h": 2048, "u": 0.25, "v": 0.75, "rotated": false, "au": 0.056640625, "av": 0.109375},
+    {"name": "rotated", "x": 100, "y": 200, "w": 64, "h": 32, "atlas_w": 2048, "atlas_h": 2048, "u": 0.25, "v": 0.75, "rotated": true, "au": 0.056640625, "av": 0.1015625},
+    {"name": "rotated-10", "x": 100, "y": 200, "w": 64, "h": 32, "atlas_w": 2048, "atlas_h": 2048, "u": 1.0, "v": 0.0, "rotated": true, "au": 0.080078125, "av": 0.11328125},
+    {"name": "plain-4096", "x": 200, "y": 300, "w": 128, "h": 64, "atlas_w": 4096, "atlas_h": 4096, "u": 0.5, "v": 0.5, "rotated": false, "au": 0.064453125, "av": 0.0810546875}
+  ],
+  "black_probe": [0, 0, 0, 255]
+}
