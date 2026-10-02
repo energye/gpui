@@ -35,7 +35,40 @@ type CommandBuffer struct {
 
 // Destroy releases the command buffer resources.
 func (c *CommandBuffer) Destroy() {
+	recycleCommandList(c.commands)
 	c.commands = nil
+}
+
+// commandListPool recycles recorded-command slice backings across submits.
+// Rationale: EndEncoding hands the encoder's slice to the buffer, so without
+// a pool the backing regrows every frame (profile: Draw/SetBindGroup/SetPipe
+// append lines dominate steady alloc). Stdlib parity: sync.Pool scratch.
+// Same backing never aliases two live buffers: recycle happens after Execute
+// consumed every header (Submit nils as it releases) or in Destroy.
+var commandListPool = sync.Pool{
+	New: func() any { return make([]Command, 0, 256) },
+}
+
+// maxRecycledCommandList caps pooled backing so an outlier frame (huge
+// one-off record) can't pin unbounded memory across frames.
+const maxRecycledCommandList = 4096
+
+// recycleCommandList returns a consumed command slice backing to the pool.
+// Headers must already be cleared (all nil): Submit nils each header as it
+// releases the command, Destroy callers have no live references.
+func recycleCommandList(cmds []Command) {
+	if cmds == nil || cap(cmds) > maxRecycledCommandList {
+		return
+	}
+	for i := range cmds {
+		cmds[i] = nil
+	}
+	commandListPool.Put(cmds[:0])
+}
+
+// acquireCommandList takes a recycled command slice backing.
+func acquireCommandList() []Command {
+	return commandListPool.Get().([]Command) //nolint:forcetypeassert
 }
 
 // CommandEncoder implements hal.CommandEncoder for OpenGL.
@@ -171,9 +204,16 @@ var commandEncoderPool = sync.Pool{
 }
 
 // acquireCommandEncoder takes a pooled encoder and resets it for recording.
-// The backing (commands slice) is reused, so steady frames stay alloc-free.
+// The backing (commands slice) is reused — either the encoder's own kept
+// backing or a command-list pool take — so steady frames stay alloc-free.
 func acquireCommandEncoder() *CommandEncoder {
-	return commandEncoderPool.Get().(*CommandEncoder) //nolint:forcetypeassert
+	e := commandEncoderPool.Get().(*CommandEncoder) //nolint:forcetypeassert
+	if e.commands == nil {
+		e.commands = acquireCommandList()
+	} else {
+		e.commands = e.commands[:0]
+	}
+	return e
 }
 
 // releaseCommandEncoder returns an encoder after Finish/Discard: clears the

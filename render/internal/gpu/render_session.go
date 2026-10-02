@@ -633,6 +633,10 @@ type GPURenderSession struct {
 	stencilVertSlab    hal.Buffer
 	stencilVertSlabCap uint64 // bytes
 	stencilVertScratch []byte
+	// stencilSpanScratch stages the pack spans (path idx + kind + view) so
+	// the per-flush span list isn't regrown every frame. Same-thread only
+	// (raster/encode path), matching the other scratch* reuses above.
+	stencilSpanScratch []spanEntry
 
 	// In-flight command buffers from the previous frame. Freed at the
 	// start of the next frame, when VSync guarantees the GPU is done.
@@ -3193,6 +3197,15 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 	}, nil
 }
 
+// spanEntry stages one pack span: path index + stream kind + byte view.
+// Session-owned scratch element (see stencilSpanScratch): views alias the
+// queued command slices, never outlive the pack call.
+type spanEntry struct {
+	idx  int
+	kind int // 0 fan, 1 band, 2 inner
+	data []byte
+}
+
 // packStencilVertexSlabs packs fan (vec2, 8B/vert) + bands (vec3,
 // 12B/vert) contiguously into the session vertex slab and uploads once.
 // Returns per-path byte offsets into the slab (missing key = empty
@@ -3200,26 +3213,25 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 func (s *GPURenderSession) packStencilVertexSlabs(paths []StencilPathCommand) (fanOff, bandOff, innerOff map[int]uint64) {
 	fanOff, bandOff, innerOff = map[int]uint64{}, map[int]uint64{}, map[int]uint64{}
 	var total uint64
-	type span struct {
-		idx  int
-		kind int // 0 fan, 1 band, 2 inner
-		data []byte
-	}
-	var spans []span
+	// Reuse the session span staging: the per-flush list growth was a
+	// steady alloc source (profile). Views alias command slices; the list
+	// itself is the only thing reused — safe: consumed below before return.
+	spans := s.stencilSpanScratch[:0]
 	for i := range paths {
 		if b := float32SliceToBytes(paths[i].Vertices); len(b) > 0 {
-			spans = append(spans, span{i, 0, b})
+			spans = append(spans, spanEntry{i, 0, b})
 			total += uint64(len(b))
 		}
 		if b := float32SliceToBytes(paths[i].BandAA); len(b) > 0 {
-			spans = append(spans, span{i, 1, b})
+			spans = append(spans, spanEntry{i, 1, b})
 			total += uint64(len(b))
 		}
 		if b := float32SliceToBytes(paths[i].InnerBandAA); len(b) > 0 {
-			spans = append(spans, span{i, 2, b})
+			spans = append(spans, spanEntry{i, 2, b})
 			total += uint64(len(b))
 		}
 	}
+	s.stencilSpanScratch = spans[:0]
 	if total == 0 {
 		return fanOff, bandOff, innerOff
 	}

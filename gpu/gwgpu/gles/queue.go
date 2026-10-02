@@ -69,6 +69,9 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 			releasePooledCommand(cmd)
 			cmdBuf.commands[i] = nil
 		}
+		// Recycle the command slice backing (see commandListPool).
+		recycleCommandList(cmdBuf.commands)
+		cmdBuf.commands = nil
 		if !cmdDbg {
 			if glErr := glCtx.GetError(); glErr != 0 {
 				hal.Logger().Warn("gles: GL error in submit", "error", fmt.Sprintf("0x%x", glErr))
