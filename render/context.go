@@ -2139,6 +2139,16 @@ type gpuContextOps interface {
 	QueueColoredMeshIndexed(target GPURenderTarget, positions []Point, colors []RGBA, indices []uint16)
 	QueueGPUTextureDraw(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
+	// QueueGPUTextureDrawQuad is QueueGPUTextureDraw with explicit CTM quad
+	// corners (TL/TR/BR/BL in device pixels). Same as QueueImageDraw corner
+	// handling: axis-aligned is the special case, rotation/scale/shear ride
+	// the corners. Dst rect stays the AABB for damage/scissor.
+	QueueGPUTextureDrawQuad(target GPURenderTarget, view gpucontext.TextureView,
+		dstX, dstY, dstW, dstH, tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, vpW, vpH uint32)
+	// QueueGPUTextureDrawQuadUV is the Quad variant with explicit source UVs.
+	QueueGPUTextureDrawQuadUV(target GPURenderTarget, view gpucontext.TextureView,
+		dstX, dstY, dstW, dstH, tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, vpW, vpH uint32,
+		u0, v0, u1, v1 float32)
 	QueueBaseLayer(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
 	Flush(target GPURenderTarget) error

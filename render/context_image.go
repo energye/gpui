@@ -787,7 +787,39 @@ type gpuTextureDrawGeom struct {
 	target     GPURenderTarget
 	dstX, dstY float32
 	dstW, dstH float32
+	tlX, tlY   float32
+	trX, trY   float32
+	brX, brY   float32
+	blX, blY   float32
 	vpW, vpH   uint32
+}
+
+func min4(a, b, c, d float64) float64 {
+	m := a
+	if b < m {
+		m = b
+	}
+	if c < m {
+		m = c
+	}
+	if d < m {
+		m = d
+	}
+	return m
+}
+
+func max4(a, b, c, d float64) float64 {
+	m := a
+	if b > m {
+		m = b
+	}
+	if c > m {
+		m = c
+	}
+	if d > m {
+		m = d
+	}
+	return m
 }
 
 // prepareGPUTextureDraw shares sync/validate/CTM/viewport setup for DrawGPUTexture*.
@@ -798,17 +830,33 @@ func (c *Context) prepareGPUTextureDraw(view gpucontext.TextureView, x, y float6
 	if rc == nil || view.IsNil() {
 		return g, false
 	}
+	// Full CTM quad (same as tryGPUDrawImage): rotation/scale/shear ride
+	// the four corners, Dst rect stays the AABB for damage/scissor.
 	ctm := c.totalMatrix()
 	tl := ctm.TransformPoint(Pt(x, y))
+	tr := ctm.TransformPoint(Pt(x+float64(width), y))
 	br := ctm.TransformPoint(Pt(x+float64(width), y+float64(height)))
+	bl := ctm.TransformPoint(Pt(x, y+float64(height)))
+	minX := min4(tl.X, tr.X, br.X, bl.X)
+	maxX := max4(tl.X, tr.X, br.X, bl.X)
+	minY := min4(tl.Y, tr.Y, br.Y, bl.Y)
+	maxY := max4(tl.Y, tr.Y, br.Y, bl.Y)
 	target := c.gpuRenderTarget()
 	return gpuTextureDrawGeom{
 		rc:     rc,
 		target: target,
-		dstX:   float32(tl.X),
-		dstY:   float32(tl.Y),
-		dstW:   float32(br.X - tl.X),
-		dstH:   float32(br.Y - tl.Y),
+		dstX:   float32(minX),
+		dstY:   float32(minY),
+		dstW:   float32(maxX - minX),
+		dstH:   float32(maxY - minY),
+		tlX:    float32(tl.X),
+		tlY:    float32(tl.Y),
+		trX:    float32(tr.X),
+		trY:    float32(tr.Y),
+		brX:    float32(br.X),
+		brY:    float32(br.Y),
+		blX:    float32(bl.X),
+		blY:    float32(bl.Y),
 		vpW:    uint32(target.Width),  //nolint:gosec // viewport fits uint32
 		vpH:    uint32(target.Height), //nolint:gosec // viewport fits uint32
 	}, true
@@ -846,7 +894,8 @@ func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y fl
 	if mul := c.layerOpacityMul(); mul < 1 {
 		opacity *= float32(mul)
 	}
-	g.rc.QueueGPUTextureDraw(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH, opacity, g.vpW, g.vpH)
+	g.rc.QueueGPUTextureDrawQuad(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH,
+		g.tlX, g.tlY, g.trX, g.trY, g.brX, g.brY, g.blX, g.blY, opacity, g.vpW, g.vpH)
 	c.recordGPUOp()
 }
 
@@ -999,12 +1048,13 @@ func (c *Context) DrawGPUTextureWithOpacityUV(view gpucontext.TextureView, x, y 
 	}
 
 	type uvDrawer interface {
-		QueueGPUTextureDrawUV(target GPURenderTarget, view gpucontext.TextureView,
-			dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32,
+		QueueGPUTextureDrawQuadUV(target GPURenderTarget, view gpucontext.TextureView,
+			dstX, dstY, dstW, dstH, tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, vpW, vpH uint32,
 			u0, v0, u1, v1 float32)
 	}
 	if ud, ok := g.rc.(uvDrawer); ok {
-		ud.QueueGPUTextureDrawUV(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH, opacity, g.vpW, g.vpH, u0, v0, u1, v1)
+		ud.QueueGPUTextureDrawQuadUV(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH,
+			g.tlX, g.tlY, g.trX, g.trY, g.brX, g.brY, g.blX, g.blY, opacity, g.vpW, g.vpH, u0, v0, u1, v1)
 	} else {
 		g.rc.QueueGPUTextureDraw(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH, opacity, g.vpW, g.vpH)
 	}

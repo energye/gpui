@@ -1475,6 +1475,47 @@ func (rc *GPURenderContext) QueueGPUTextureDraw(target render.GPURenderTarget, v
 	rc.hasPendingTarget = true
 }
 
+// QueueGPUTextureDrawQuad queues a GPU texture quad with explicit corners.
+// Zero corners fall back to the axis-aligned Dst rect (bit-identical).
+func (rc *GPURenderContext) QueueGPUTextureDrawQuad(target render.GPURenderTarget, view gpucontext.TextureView,
+	dstX, dstY, dstW, dstH, tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, vpW, vpH uint32,
+) {
+	if err := rc.prepareTarget(target); err != nil {
+		slogger().Warn("auto-flush failed", "err", err)
+	}
+	rc.ensureDrawOrder(drawTierGPUTex)
+	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
+		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
+		TLX: tlX, TLY: tlY, TRX: trX, TRY: trY, BRX: brX, BRY: brY, BLX: blX, BLY: blY,
+		U0: 0, V0: 0, U1: 1, V1: 1,
+		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+	})
+	rc.pendingTarget = target
+	rc.hasPendingTarget = true
+}
+
+// QueueGPUTextureDrawQuadUV is the Quad variant with explicit source UVs.
+func (rc *GPURenderContext) QueueGPUTextureDrawQuadUV(target render.GPURenderTarget, view gpucontext.TextureView,
+	dstX, dstY, dstW, dstH, tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, vpW, vpH uint32,
+	u0, v0, u1, v1 float32,
+) {
+	if err := rc.prepareTarget(target); err != nil {
+		slogger().Warn("auto-flush failed", "err", err)
+	}
+	rc.ensureDrawOrder(drawTierGPUTex)
+	if u1 <= u0 || v1 <= v0 {
+		u0, v0, u1, v1 = 0, 0, 1, 1
+	}
+	rc.pendingGPUTextureCommands = append(rc.pendingGPUTextureCommands, GPUTextureDrawCommand{
+		View: rc.viewToResView(view), DstX: dstX, DstY: dstY, DstW: dstW, DstH: dstH,
+		TLX: tlX, TLY: tlY, TRX: trX, TRY: trY, BRX: brX, BRY: brY, BLX: blX, BLY: blY,
+		U0: u0, V0: v0, U1: u1, V1: v1,
+		Opacity: opacity, ViewportWidth: vpW, ViewportHeight: vpH,
+	})
+	rc.pendingTarget = target
+	rc.hasPendingTarget = true
+}
+
 // QueueGPUTextureDrawUV is QueueGPUTextureDraw with an explicit source UV rect
 // (normalized 0..1). Empty/invalid UV falls back to the full texture.
 func (rc *GPURenderContext) QueueGPUTextureDrawUV(target render.GPURenderTarget, view gpucontext.TextureView,

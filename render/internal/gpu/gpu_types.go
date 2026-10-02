@@ -55,6 +55,14 @@ type GPUTextureDrawCommand struct {
 	// view rides alongside and resolves at flush time.
 	UVView res.View
 	IsYUV  bool
+	// Rigid quad corners (transform compositing): CTM-transformed TL/TR/BR/BL
+	// in device pixels. Zero corners = axis-aligned fallback using Dst rect
+	// (bit-identical to before). Lets rigid bodies record once and replay
+	// rotated/scaled every frame instead of re-recording vector content.
+	TLX, TLY float32
+	TRX, TRY float32
+	BRX, BRY float32
+	BLX, BLY float32
 }
 
 // scissorSegment records a scissor state change along with the cumulative

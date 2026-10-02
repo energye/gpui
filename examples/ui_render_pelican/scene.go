@@ -8,6 +8,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"math"
 	"os"
 	"strconv"
@@ -46,6 +47,12 @@ const (
 )
 
 var hudW = hudPadLR*2 + hudBtnSize + hudGap + hudSliderW + hudGap + hudLabelW // ≈258
+
+var sunRaysUnit = [8][4]float64{
+	{0, -60, 0, -84}, {0, 60, 0, 84}, {-60, 0, -84, 0}, {60, 0, 84, 0},
+	{-43, -43, -59, -59}, {43, 43, 59, 59}, {-43, 43, -59, 59}, {43, -43, 59, -59},
+}
+
 const hudH = 48.0
 
 // 视差层参数（JS layers）：系数 f、平铺周期 p
@@ -259,6 +266,13 @@ type pelicanScene struct {
 	tuftImg *render.ImageBuf // 草丛瓦片（600×60，覆盖 y 640..700）
 	clouds  []cloudTile      // 三朵云各一块（漂移只改贴图位置）
 
+	// 变换合成验证：光芒/辐条烘一次，帧内只转着贴（刚体复用）；
+	// 药丸底烘一张，帧内九宫格拉（尺寸变不重录）。
+	sunRaysImg *render.ImageBuf // 太阳光芒（180×180，心在 90,90）
+	spokeImg   *render.ImageBuf // 轮辐条（120×120，心在 60,60）
+	pillImg    *render.ImageBuf // HUD 药丸底（hudW×48）
+	pillCenter image.Rectangle  // 药丸拉伸中心（角不动）
+
 	title    titleLine            // 主标题行图块（替代逐字节点）
 	sub      titleLine            // 副标题行图块
 	titleBox *rendering.RenderBox // 标题图块盒（全窗，stageBox 之后绘制）
@@ -386,6 +400,31 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	for i, c := range cloudDefs {
 		sc.clouds[i] = bakeCloudTile(c)
 	}
+
+	// 光芒烘成 180 图块：8 线以心 (90,90) 原样画，帧内绕太阳心转着贴。
+	sc.sunRaysImg = bakeTile(180, 180, func(pc *rendering.PaintContext) {
+		rendering.SetStrokeStyle(pc, 0, render.LineCapRound, render.LineJoinRound)
+		cr, cg, cb := rgb(0xffd93b)
+		for _, ln := range sunRaysUnit {
+			rendering.StrokeLine(pc, 90+ln[0], 90+ln[1], 90+ln[2], 90+ln[3], 7, cr, cg, cb, 1)
+		}
+	})
+	// 辐条烘成 120 图块：单位形状平移到心 (60,60) 原样画，帧内绕轴心转着贴。
+	sc.spokeImg = bakeTile(120, 120, func(pc *rendering.PaintContext) {
+		rendering.SetStrokeStyle(pc, 0, render.LineCapRound, render.LineJoinRound)
+		sr, sg, sb := rgb(0xb9bfc7)
+		pc.PushTransform(render.Translate(60, 60))
+		rendering.StrokePath(pc, sc.spokeUnit, 3, sr, sg, sb, 1)
+		pc.PopTransform()
+	})
+	// 药丸底烘一张：与 paintHUD 原来同一句 FillRoundRect，帧内九宫格拉。
+	// 中心按圆角半径留边：角不动，边单向拉。
+	pillW := int(math.Ceil(hudW))
+	pillR := int(hudH / 2)
+	sc.pillImg = bakeTile(pillW, int(hudH), func(pc *rendering.PaintContext) {
+		rendering.FillRoundRect(pc, 0, 0, float64(pillW), hudH, hudH/2, 1, 1, 1, .85)
+	})
+	sc.pillCenter = image.Rect(pillR, pillR, pillW-pillR, pillR+1)
 
 	sc.relayout(winW, winH)
 	return sc
@@ -782,16 +821,21 @@ func (sc *pelicanScene) paintSky(pc *rendering.PaintContext) {
 }
 
 func (sc *pelicanScene) paintSunRays(pc *rendering.PaintContext, t float64) {
+	// 烘过：转着贴一张（与原来 8 线绕太阳心旋转同位）。
+	if sc.sunRaysImg != nil {
+		pc.Save()
+		pc.Translate(sunX, sunY)
+		pc.Rotate(rad(360 * frac01(t/60)))
+		rendering.DrawImageBuf(pc, sc.sunRaysImg, -90, -90, 180, 180)
+		pc.RestoreCanvas()
+		return
+	}
 	cr, cg, cb := rgb(0xffd93b)
 
 	// 光芒整组绕太阳心旋转（SMIL rotate 0→360 / 60s）
 	pc.Save()
 	pc.RotateAbout(rad(360*frac01(t/60)), sunX, sunY)
-	rays := [8][4]float64{
-		{0, -60, 0, -84}, {0, 60, 0, 84}, {-60, 0, -84, 0}, {60, 0, 84, 0},
-		{-43, -43, -59, -59}, {43, 43, 59, 59}, {-43, 43, -59, 59}, {43, -43, 59, -59},
-	}
-	for _, ln := range rays {
+	for _, ln := range sunRaysUnit {
 		rendering.StrokeLine(pc, sunX+ln[0], sunY+ln[1], sunX+ln[2], sunY+ln[3], 7, cr, cg, cb, 1)
 	}
 	pc.RestoreCanvas()
@@ -982,11 +1026,15 @@ func (sc *pelicanScene) paintBike(pc *rendering.PaintContext, sim *pelicanSim) {
 		ax, ay := wheel[0], wheel[1]
 		rendering.StrokeCircle(pc, ax, ay, 72, 11, tireR, tireG, tireB, 1)
 		rendering.StrokeCircle(pc, ax, ay, 56, 4, rimR, rimG, rimB, 1)
-		// 辐条只建一次的单位形状，帧内平移到轴心再转（等价于原来的绝对坐标 + RotateAbout）。
+		// 辐条烘过：转着贴一张（与原来平移到轴心再转同位）。
 		pc.Save()
 		pc.Translate(ax, ay)
 		pc.Rotate(rad(sim.wheelDeg))
-		rendering.StrokePath(pc, sc.spokeUnit, 3, spokeR, spokeG, spokeB, 1)
+		if sc.spokeImg != nil {
+			rendering.DrawImageBuf(pc, sc.spokeImg, -60, -60, 120, 120)
+		} else {
+			rendering.StrokePath(pc, sc.spokeUnit, 3, spokeR, spokeG, spokeB, 1)
+		}
 		pc.RestoreCanvas()
 		hubR, hubG, hubB := rgb(0x333333)
 		rendering.FillCircle(pc, ax, ay, 7, hubR, hubG, hubB, 1)
@@ -1173,8 +1221,12 @@ func (sc *pelicanScene) renderGolden(path string) {
 }
 
 func (sc *pelicanScene) paintHUD(pc *rendering.PaintContext, size rendering.Size) {
-	// 药丸底
-	rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, size.Height/2, 1, 1, 1, .85)
+	// 药丸底烘过：九宫格拉（与原来 FillRoundRect 同位，角不动）。
+	if sc.pillImg != nil {
+		rendering.DrawImageNine(pc, sc.pillImg, sc.pillCenter, 0, 0, size.Width, size.Height)
+	} else {
+		rendering.FillRoundRect(pc, 0, 0, size.Width, size.Height, size.Height/2, 1, 1, 1, .85)
+	}
 
 	// 暂停 / 播放按钮（hover 变红，对应 button:hover）
 	bcx, bcy := hudPadLR+hudBtnSize/2, size.Height/2

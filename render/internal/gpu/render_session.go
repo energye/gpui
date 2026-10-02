@@ -4529,6 +4529,8 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		}
 		imgCmd := ImageDrawCommand{
 			DstX: cmd.DstX, DstY: cmd.DstY, DstW: cmd.DstW, DstH: cmd.DstH,
+			TLX: cmd.TLX, TLY: cmd.TLY, TRX: cmd.TRX, TRY: cmd.TRY,
+			BRX: cmd.BRX, BRY: cmd.BRY, BLX: cmd.BLX, BLY: cmd.BLY,
 			Opacity: cmd.Opacity, ViewportWidth: cmd.ViewportWidth, ViewportHeight: cmd.ViewportHeight,
 			U0: u0, V0: v0, U1: u1, V1: v1,
 		}

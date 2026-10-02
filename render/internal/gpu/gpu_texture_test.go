@@ -190,6 +190,24 @@ func TestQueueGPUTextureDraw_OpacityZero(t *testing.T) {
 	assertFloat(t, cmd.Opacity, 0.0, "opacity zero")
 }
 
+func TestQueueGPUTextureDrawQuad_CornersPassthrough(t *testing.T) {
+	rc := &GPURenderContext{shared: NewGPUShared()}
+	target := makeTestTarget(600, 400)
+	view := gpucontext.NewTextureView(unsafe.Pointer(new(int)))
+
+	rc.QueueGPUTextureDrawQuad(target, view,
+		10, 10, 50, 50,
+		10, 20, 50, 10, 60, 50, 20, 60,
+		1.0, 600, 400)
+
+	cmd := rc.pendingGPUTextureCommands[0]
+	assertFloat(t, cmd.DstX, 10, "DstX AABB")
+	assertFloat(t, cmd.TLX, 10, "TLX")
+	assertFloat(t, cmd.TLY, 20, "TLY")
+	assertFloat(t, cmd.BRX, 60, "BRX")
+	assertFloat(t, cmd.BRY, 50, "BRY")
+}
+
 func TestQueueBaseLayer_FullScreen(t *testing.T) {
 	rc := &GPURenderContext{shared: NewGPUShared()}
 	target := makeTestTarget(600, 400)
