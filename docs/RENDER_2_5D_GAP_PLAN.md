@@ -1501,8 +1501,10 @@ S129 手柄库＋视口事件路由（等 S07/S23，G32，窗game_input重验）
 手柄 DB 映射＋键位表，视口 push/gui/shortcut/unhandled/drag 路由，旧 Map 保留做强度计算。
 详见 `docs/2.5D/G36.md`（S129原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
-S130 形状关节全套（等 S113，G23/G24，窗game_physics--case=shapes，接管S100）：
-capsule/多边形/线段＋ShapeCast用体扫掠＋Pin/Groove/Spring，静态 Query 只读保留；
+S130 形状体关节全套（等 S113，G23/G24，窗game_physics--case=shapes，接管S100）：
+形状：capsule/多边形/线段/世界边界/分离射线＋凹多边形分解（Godot scene/resources/2d 全家）；
+体：AnimatableBody移动平台＋PhysicalBone布娃娃骨（刚体求解器上）；
+扫掠：ShapeCast用体扫掠；关节：Pin/Groove/Spring；静态 Query 只读保留；
 S100先行小套，S130随新物理全套整体接管。
 详见 `docs/2.5D/G36.md`（S130原话见组文件；状态以本文件能力行为准，门槛只认§5）。
 
@@ -1555,7 +1557,7 @@ W31总指标：单测＋自动＋人工＋8小时报表＋三遍最差全贴，�
 | S127 | HDR全套 | S66 | game_fx--case=hdr | 未开工 |
 | S128 | 多总线混音 | S13/S14/S89 | 复用不新建 | 未开工，接管S89 |
 | S129 | 手柄库＋事件路由 | S07/S23 | game_input重验 | 未开工 |
-| S130 | 形状关节全套 | S113 | game_physics--case=shapes | 未开工，含用体扫掠，接管S100 |
+| S130 | 形状体关节全套 | S113 | game_physics--case=shapes | 未开工，含形状全家＋移动平台＋布娃娃骨＋用体扫掠，接管S100 |
 | S131 | 线程模型＋大包关门 | W25–W30＋S90 | 追车siege | 未开工 |
 
 #### V7 门禁挂波（W25靠W24，W26靠W25，W27靠W26，W28靠W27，W29靠W28，W30靠W29，W31靠W30串行）
