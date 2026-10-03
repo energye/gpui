@@ -688,6 +688,66 @@ type RenderPassEncoder struct {
 	// End-of-pass timestamp write (deferred to End()).
 	endTimestampQuerySet hal.QuerySet
 	endTimestampIndex    *uint32
+
+	// B2 录制侧去重（webgpu renderpass.go 对等规则）：完全重复才跳过，
+	// 像素不可能变。模板/混合只在值变时下发，共享状态语义不动。
+	// 三组：当前管线；槽位绑定（组/顶点/索引）；纯值状态（视口/裁剪/混合/模板）。
+	curPipeline *RenderPipeline
+	boundGroups [4]glBindGroupEntry
+	boundVerts  [8]glBoundVertEntry
+	indexEntry  glIndexEntry
+	stateVals   glStateVals
+}
+
+// glBindGroupEntry 记住一个槽位的绑定（webgpu boundGroupEntry 对等）。
+// 管线也记：同组在不同管线下烘出的采样映射不同，换管线必须重发。
+type glBindGroupEntry struct {
+	set     bool
+	group   *BindGroup
+	pipe    *RenderPipeline
+	offsets []uint32
+}
+
+// glBoundVertEntry 记住一个槽位的顶点缓冲（webgpu boundVertEntry + layout 对等）。
+type glBoundVertEntry struct {
+	set    bool
+	buf    *Buffer
+	offset uint64
+	layout *gputypes.VertexBufferLayout
+}
+
+// glIndexEntry 记住索引缓冲。
+type glIndexEntry struct {
+	set    bool
+	buf    *Buffer
+	format gputypes.IndexFormat
+	offset uint64
+}
+
+// glStateVals 纯值状态去重（webgpu viewport/scissor/stencil/blend 对等）。
+// 管线/布局引用放在槽位键里（换管线重发），这里只记值。
+type glStateVals struct {
+	viewport   [6]float32
+	viewportOK bool
+	scissor    [4]uint32
+	scissorOK  bool
+	blend      [4]float32
+	blendOK    bool
+	stencilRef uint32
+	stencilDS  *hal.DepthStencilState
+	stencilOK  bool
+}
+
+func glOffsetsEqual(a, b []uint32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // resolveTargetSurface extracts the *Surface owning the resolve target (if the
@@ -756,12 +816,17 @@ func (e *RenderPassEncoder) End() error {
 	return nil
 }
 
-// SetPipeline sets the render pipeline.
+// SetPipeline sets the render pipeline. Same pointer twice emits once
+// (webgpu SetPipeline 对等：顶点重打也是同一布局，跳过无损).
 func (e *RenderPassEncoder) SetPipeline(pipeline hal.RenderPipeline) {
 	p, ok := pipeline.(*RenderPipeline)
 	if !ok {
 		return
 	}
+	if p == e.curPipeline {
+		return
+	}
+	e.curPipeline = p
 	e.pipeline = p
 	e.encoder.commands = append(e.encoder.commands,
 		acquireUseProgramCommand(p.programID),
@@ -788,11 +853,24 @@ func (e *RenderPassEncoder) SetPipeline(pipeline hal.RenderPipeline) {
 	}
 }
 
-// SetBindGroup sets a bind group.
+// SetBindGroup sets a bind group. Exact duplicates on the same index emit
+// once (webgpu SetBindGroup 对等）；显式空组永远下发，不记缓存.
 func (e *RenderPassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offsets []uint32) {
 	bg, ok := group.(*BindGroup)
 	if !ok {
 		return
+	}
+	if index < uint32(len(e.boundGroups)) {
+		if bg == nil {
+			e.boundGroups[index] = glBindGroupEntry{}
+		} else if prev := &e.boundGroups[index]; prev.set && prev.group == bg && prev.pipe == e.pipeline && glOffsetsEqual(prev.offsets, offsets) {
+			return
+		} else {
+			e.boundGroups[index] = glBindGroupEntry{set: true, group: bg, pipe: e.pipeline}
+			if len(offsets) != 0 {
+				e.boundGroups[index].offsets = append(e.boundGroups[index].offsets[:0], offsets...)
+			}
+		}
 	}
 	var samplerMap *[maxTextureSlots]int8
 	var groupInfos []BindGroupLayoutInfo
@@ -834,16 +912,28 @@ func (e *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer hal.Buffer, offs
 		layout = &e.pipeline.vertexBuffers[slot]
 	}
 
+	// 同槽位同缓冲同偏移同布局只发一次（布局跟着管线走，管线变则布局变，不误跳）.
+	if slot < uint32(len(e.boundVerts)) {
+		if prev := &e.boundVerts[slot]; prev.set && prev.buf == buf && prev.offset == offset && prev.layout == layout {
+			return
+		}
+		e.boundVerts[slot] = glBoundVertEntry{set: true, buf: buf, offset: offset, layout: layout}
+	}
+
 	e.encoder.commands = append(e.encoder.commands, acquireSetVertexBufferCommand(
 		slot, buf, offset, layout))
 }
 
-// SetIndexBuffer sets the index buffer.
+// SetIndexBuffer sets the index buffer. Same buffer+format+offset emits once.
 func (e *RenderPassEncoder) SetIndexBuffer(buffer hal.Buffer, format gputypes.IndexFormat, offset uint64) {
 	buf, ok := buffer.(*Buffer)
 	if !ok {
 		return
 	}
+	if e.indexEntry.set && e.indexEntry.buf == buf && e.indexEntry.format == format && e.indexEntry.offset == offset {
+		return
+	}
+	e.indexEntry = glIndexEntry{set: true, buf: buf, format: format, offset: offset}
 	e.indexBuffer = buf
 	e.indexFormat = format
 
@@ -854,8 +944,13 @@ func (e *RenderPassEncoder) SetIndexBuffer(buffer hal.Buffer, format gputypes.In
 	})
 }
 
-// SetViewport sets the viewport.
+// SetViewport sets the viewport. Identical values emit once.
 func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth float32) {
+	vp := [6]float32{x, y, width, height, minDepth, maxDepth}
+	if e.stateVals.viewportOK && e.stateVals.viewport == vp {
+		return
+	}
+	e.stateVals.viewport, e.stateVals.viewportOK = vp, true
 	e.encoder.commands = append(e.encoder.commands, &SetViewportCommand{
 		x: x, y: y, width: width, height: height,
 		minDepth: minDepth, maxDepth: maxDepth,
@@ -864,14 +959,25 @@ func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth 
 
 // SetScissorRect sets the scissor rectangle.
 // With ADJUST_COORDINATE_SPACE, no Y-flip is needed — coordinates pass through directly.
+// Identical values emit once.
 func (e *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) {
+	box := [4]uint32{x, y, width, height}
+	if e.stateVals.scissorOK && e.stateVals.scissor == box {
+		return
+	}
+	e.stateVals.scissor, e.stateVals.scissorOK = box, true
 	e.encoder.commands = append(e.encoder.commands, &SetScissorCommand{
 		x: x, y: y, width: width, height: height,
 	})
 }
 
-// SetBlendConstant sets the blend constant.
+// SetBlendConstant sets the blend constant. Identical values emit once.
 func (e *RenderPassEncoder) SetBlendConstant(color *gputypes.Color) {
+	c := [4]float32{float32(color.R), float32(color.G), float32(color.B), float32(color.A)}
+	if e.stateVals.blendOK && e.stateVals.blend == c {
+		return
+	}
+	e.stateVals.blend, e.stateVals.blendOK = c, true
 	e.encoder.commands = append(e.encoder.commands, &SetBlendConstantCommand{
 		r: float32(color.R),
 		g: float32(color.G),
@@ -880,13 +986,18 @@ func (e *RenderPassEncoder) SetBlendConstant(color *gputypes.Color) {
 	})
 }
 
-// SetStencilReference sets the stencil reference value.
+// SetStencilReference sets the stencil reference value. Same ref on the same
+// depth-stencil state emits once; ref 或管线变都照发，模板语义不动。
 func (e *RenderPassEncoder) SetStencilReference(ref uint32) {
-	e.stencilRef = ref
 	var ds *hal.DepthStencilState
 	if e.pipeline != nil {
 		ds = e.pipeline.depthStencil
 	}
+	e.stencilRef = ref
+	if e.stateVals.stencilOK && e.stateVals.stencilRef == ref && e.stateVals.stencilDS == ds {
+		return
+	}
+	e.stateVals.stencilRef, e.stateVals.stencilDS, e.stateVals.stencilOK = ref, ds, true
 	e.encoder.commands = append(e.encoder.commands, &SetStencilRefCommand{
 		ref:          ref,
 		depthStencil: ds,

@@ -993,6 +993,9 @@ func (a *PipelineApp) Close() {
 	if a.loop != nil {
 		a.loop.Stop()
 	}
+	// Raster loop drained: no parallel scan in flight; release B1 pool
+	// workers so Close leaves no background threads (idle-exit is backup).
+	scene.CloseRasterPool()
 	// Raster is drained: no purge can be in flight; drop the layer-texture
 	// cache from the OOM purge chain before its device goes away.
 	if a.pictureTex != nil {

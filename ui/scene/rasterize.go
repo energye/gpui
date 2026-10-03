@@ -49,6 +49,32 @@ func RasterizeDirtyToContext(pkt *FramePacket, dc *render.Context) RasterStats {
 		dirty[id] = struct{}{}
 	}
 
+	// B1 并行光栅：先收脏 PictureLayer（串行走树，便宜），分路只读扫可见性，
+	// 再按层序串行清旗 + 重放。重放仍单线程碰 dc，顺序和统计与原来一字不差。
+	var dirtyPics []*PictureLayer
+	var walkCollect func(Layer)
+	walkCollect = func(l Layer) {
+		if l == nil {
+			return
+		}
+		if pl, ok := l.(*PictureLayer); ok {
+			if _, isDirty := dirty[pl.LayerID()]; isDirty || pl.NeedsRaster {
+				dirtyPics = append(dirtyPics, pl)
+			}
+		}
+		for _, ch := range l.Children() {
+			walkCollect(ch)
+		}
+	}
+	walkCollect(pkt.Root)
+	if pkt.Overlay != nil {
+		walkCollect(pkt.Overlay)
+	}
+	scanByLayer := make(map[*PictureLayer]bool, len(dirtyPics))
+	for i, vis := range ParallelScanVisible(dirtyPics) {
+		scanByLayer[dirtyPics[i]] = vis
+	}
+
 	var walk func(Layer)
 	walk = func(l Layer) {
 		if l == nil {
@@ -63,7 +89,12 @@ func RasterizeDirtyToContext(pkt *FramePacket, dc *render.Context) RasterStats {
 				t.Picture.Valid = true
 				if dc != nil && len(t.Picture.Ops) > 0 {
 					n := t.Picture.OpCount()
-					t.Picture.Replay(dc)
+					// 不可见层一笔都落不下去（hasVisibleOps 与重放跳过条件同构），
+					// 跳过重放但计数照记：统计与原来一致，省下逐笔空转。
+					// 没扫到就重放（保守走老路）。
+					if vis, found := scanByLayer[t]; !found || vis {
+						t.Picture.Replay(dc)
+					}
 					st.ReplayedOps += n
 				}
 			} else {
