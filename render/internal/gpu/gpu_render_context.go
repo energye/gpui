@@ -407,9 +407,12 @@ func (rc *GPURenderContext) SubmitEncoder(encoder gpucontext.CommandEncoder) err
 	if err != nil {
 		return fmt.Errorf("finish shared encoder: %w", err)
 	}
-	if _, err := rc.session.queue.Submit(cmdBuf); err != nil {
+	rc.shared.LockSubmit()
+	_, serr := rc.session.queue.Submit(cmdBuf)
+	rc.shared.UnlockSubmit()
+	if serr != nil {
 		rc.session.device.FreeCommandBuffer(cmdBuf)
-		return fmt.Errorf("submit shared encoder: %w", err)
+		return fmt.Errorf("submit shared encoder: %w", serr)
 	}
 	// Retain until next session.BeginFrame (matches finishSurfaceSubmit).
 	rc.session.prevCmdBufs = append(rc.session.prevCmdBufs, cmdBuf)
@@ -2469,6 +2472,8 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	sdfPipeline := rc.shared.sdfRenderPipeline
 	convexRend := rc.shared.convexRenderer
 	stencilRend := rc.shared.stencilRenderer
+	sharedClip := rc.shared.clipBindLayout
+	sharedMask := rc.shared.maskBindLayout
 	textEng := rc.shared.textEngine
 	glyphEng := rc.shared.glyphMaskEngine
 	sharedGen := rc.shared.deviceGen
@@ -2483,6 +2488,24 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		rc.session = nil
 		rc.frameRendered = false
 		rc.lastView = nil
+	}
+
+	// Borrow the shared clip/mask layouts into the session before any
+	// ensure runs: window sessions must never create their own layouts
+	// while using shared pipelines (per-session handles baked into shared
+	// pipeline layouts forced destroy+recreate across windows — the
+	// multi-window abort). Effect/offscreen sessions (preferSampleCount1)
+	// and rasterAtlas fallbacks keep session-owned layouts.
+	borrowSharedLayouts := func() {
+		if rc.preferSampleCount1 {
+			return
+		}
+		if rc.session.clipBindLayout == nil && sharedClip != nil {
+			rc.session.clipBindLayout = sharedClip
+		}
+		if rc.session.maskBindLayout == nil && sharedMask != nil {
+			rc.session.maskBindLayout = sharedMask
+		}
 	}
 
 	// Ensure session exists with all renderers.
@@ -2523,6 +2546,9 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			rc.session.SetStencilRenderer(stencilRend)
 		}
 	}
+	borrowSharedLayouts()
+	// Serializes Queue.Submit + error-scope Push/Pop on the shared device.
+	rc.session.submitLock = &rc.shared.submitMu
 
 	// Propagate per-frame anti-aliasing state to session.
 	rc.session.antiAlias = rc.antiAlias
@@ -3347,7 +3373,7 @@ func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, pay
 		return err
 	} else if cmdBuf, err := enc.Finish(); err != nil {
 		return err
-	} else if _, err := queue.Submit(cmdBuf); err != nil {
+	} else if _, err := rc.shared.submitLocked(func() (uint64, error) { return queue.Submit(cmdBuf) }); err != nil {
 		return err
 	} else {
 		// wgpu-native does not drop the CB ref on Submit; release manually.
@@ -3423,7 +3449,7 @@ func (rc *GPURenderContext) uploadPixmapToView(target render.GPURenderTarget) er
 		return err
 	} else if cmdBuf, err := enc.Finish(); err != nil {
 		return err
-	} else if _, err := queue.Submit(cmdBuf); err != nil {
+	} else if _, err := rc.shared.submitLocked(func() (uint64, error) { return queue.Submit(cmdBuf) }); err != nil {
 		return err
 	} else {
 		// wgpu-native does not drop the CB ref on Submit; release manually.

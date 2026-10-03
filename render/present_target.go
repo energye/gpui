@@ -234,6 +234,15 @@ var (
 	shareRefs    int
 )
 
+// shareOpenMu serializes present-target construction (buildPresentTarget's
+// instance/adapter/device creation, surface creation, swapchain configure).
+// wgpu-native Instance/Adapter/Surface creation is not thread-safe on all
+// backends (see gpu/rwgpu/thread_safety_test.go), and Xlib calls ride the
+// same path. Borrows (buildSharedSurface) still run concurrently: the share
+// pin keeps the device alive, only opens serialize. Per-window Run loops
+// stay concurrent; only window creation waits here.
+var shareOpenMu sync.Mutex
+
 // AcquireSharedPresentDevice reports the share state for diagnostics.
 // Borrowable windows go through buildSharedSurface directly; standalone
 // (probe/offscreen) devices borrow through here so only one device is live
@@ -358,7 +367,12 @@ func NewPresentTargetWithBackend(ns PresentNativeSurface, logicalW, logicalH int
 // own surface + swapchain on the shared device (Skia GrDirectContext: one
 // device, N surfaces). Any step's failure releases that level's resources
 // (Close() reverse order) before returning.
+//
+// Construction is serialized by shareOpenMu (concurrent opens abort inside
+// wgpu-native/Xlib on some backends; borrows still run concurrently).
 func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale float64, lv presentLevel, backend Backend) (*PresentTarget, error) {
+	shareOpenMu.Lock()
+	defer shareOpenMu.Unlock()
 	if _, _, _, borrowable, _ := peekShared(); borrowable {
 		if t, err := buildSharedSurface(ns, logicalW, logicalH, scale); err == nil {
 			return t, nil

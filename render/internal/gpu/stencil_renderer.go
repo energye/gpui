@@ -16,6 +16,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sync"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
@@ -43,6 +44,16 @@ type StencilRenderer struct {
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// mu serializes pipeline-layout lifecycle (create/destroy) on this
+	// shared renderer across windows. Entries lock it; leaves
+	// (createPipelines, destroyPipelines, EnsureTextures, create* helpers)
+	// assume it is held or run where no other thread shares the object
+	// (session-owned renderers, shared teardown under GPUShared.mu).
+	// Per-frame record/draw only reads pipeline handles and stays lock-free:
+	// handles are immutable once built and die only on shared teardown or
+	// device loss — never on window close.
+	mu sync.Mutex
+
 	// Shared MSAA color + depth/stencil + resolve textures.
 	textures textureSet
 
@@ -57,10 +68,13 @@ type StencilRenderer struct {
 	coverPipeLayout   hal.PipelineLayout
 	// pipelineEpoch increments on every destroyPipelines. Pooled bind groups
 	// that reference a released uniformLayout must be recreated when epochs differ
-	// (shared StencilRenderer can be torn down by another session's DetachExternalLayouts).
+	// (shared teardown or device loss rebuilds the pipelines; a window close
+	// never does).
 	pipelineEpoch uint64
 
-	// Session-owned when set via SetMaskBindLayout.
+	// Layouts baked into the pipelines. For the GPUShared renderer these are
+	// the shared layouts (owned by GPUShared, never destroyed on window
+	// close); session-owned renderers hold their session's layouts.
 	maskBindLayout  hal.BindGroupLayout
 	maskLayoutOwned bool
 
@@ -81,8 +95,9 @@ type StencilRenderer struct {
 	// clipBindLayout included. If clip is set after creation, pipelines must
 	// be recreated to avoid SetBindGroup(1) crashes on AMD/NVIDIA.
 	coverPipeLayoutHasClip bool
-	// pipelines were created. Session must recreate when it injects a different
-	// mask layout; after session Destroy the pointer may be freed — DetachExternalLayouts.
+	// coverPipeMaskLayout records which mask layout the pipelines were
+	// created with. Session-owned renderers recreate when it changes; the
+	// shared renderer only ever sees the one shared mask layout.
 	coverPipeMaskLayout hal.BindGroupLayout
 
 	// Render pipelines.
@@ -155,27 +170,6 @@ func (sr *StencilRenderer) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	}
 	sr.maskBindLayout = layout
 	sr.maskLayoutOwned = false
-}
-
-// DetachExternalLayouts drops session-owned clip/mask layout pointers and
-// destroys pipelines so the next ensureReady rebuilds with owned layouts.
-// Must be called before a session releases its BindGroupLayouts while this
-// StencilRenderer is shared via GPUShared (Context.Close path).
-//
-// Note: destroying shared pipelines is intentional (coverPipeLayout embeds the
-// session's BGL handles). Other sessions that still hold this StencilRenderer
-// must re-run ensurePipelines (fast path checks nonZeroStencilPipeline) and
-// recreate pooled bind groups via pipelineEpoch.
-func (sr *StencilRenderer) DetachExternalLayouts() {
-	sr.releaseNoMask()
-	hadExternal := sr.clipBindLayout != nil || !sr.maskLayoutOwned
-	sr.clipBindLayout = nil
-	if !sr.maskLayoutOwned {
-		sr.maskBindLayout = nil
-	}
-	if hadExternal || sr.nonZeroStencilPipeline != nil {
-		sr.destroyPipelines()
-	}
 }
 
 // EnsureTextures creates or recreates the MSAA color, stencil, and resolve textures
@@ -546,8 +540,24 @@ func (sr *StencilRenderer) RenderPath(target render.GPURenderTarget, path *rende
 	return sr.encodeAndReadback(w, h, bufs, target, fillRule)
 }
 
+// EnsureSharedBase builds the base stencil/cover pipelines once for the
+// shared renderer. Sessions call it instead of bespoke destroy+create:
+// missing pipelines are created under the creation lock, present ones are
+// left untouched (a window close never destroys them). Safe for concurrent
+// windows; lock ordering is renderer-only (never takes GPUShared.mu).
+func (sr *StencilRenderer) EnsureSharedBase() error {
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+	if sr.nonZeroStencilPipeline != nil && sr.uniformLayout != nil {
+		return nil
+	}
+	return sr.createPipelines()
+}
+
 // ensureReady ensures textures and pipelines are created for the given dimensions.
 func (sr *StencilRenderer) ensureReady(w, h uint32) error {
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
 	if err := sr.EnsureTextures(w, h); err != nil {
 		return fmt.Errorf("ensure textures: %w", err)
 	}
@@ -598,11 +608,11 @@ func (sr *StencilRenderer) updateRenderBuffersSticky(
 	}
 	b.fanVertexCount = uint32(len(fanVerts) / 2) //nolint:gosec // len/2 fits uint32
 
-	// Shared StencilRenderer pipelines may have been destroyed/recreated by
-	// another session (DetachExternalLayouts on Context.Close). Drop bind groups
-	// that still point at the old uniformLayout before creating new ones.
-	// Session-slab stencil bind groups are session-owned: nil without release
-	// (the session drops its own on epoch change).
+	// Shared layouts are pinned process-wide by GPUShared: pipelines are
+	// immutable once built and die only on shared teardown or device loss —
+	// never on window close. A mismatch here means the caller holds a stale
+	// renderer (device loss raced with EnsureSharedBase); fail the frame so
+	// the session rebuilds instead of destroying live pipelines mid-frame.
 	if b.layoutEpoch != sr.pipelineEpoch {
 		if b.stencilBindGroup != nil {
 			if !b.slabStencilBG {
@@ -624,9 +634,7 @@ func (sr *StencilRenderer) updateRenderBuffersSticky(
 	}
 
 	if sr.uniformLayout == nil {
-		if err := sr.createPipelines(); err != nil {
-			return nil, fmt.Errorf("ensure stencil pipelines for bind groups: %w", err)
-		}
+		return nil, fmt.Errorf("ensure stencil pipelines for bind groups: shared pipelines torn down, retry frame")
 	}
 
 	// Vertex buffers. Slab views (session batch path) bypass per-entry
@@ -789,13 +797,13 @@ func (sr *StencilRenderer) ensureNoMaskBindGroup() error {
 	if sr.noMaskBG != nil {
 		return nil
 	}
+	// Shared renderer always carries the shared mask layout (pinned by
+	// GPUShared before EnsureSharedBase): no per-session layout is ever
+	// created here. Session-owned renderers without a layout are broken
+	// configuration — fail instead of baking a private layout into a
+	// pipeline another window might share.
 	if sr.maskBindLayout == nil {
-		layout, err := createMaskBindGroupLayout(sr.device, "stencil_standalone_mask_layout")
-		if err != nil {
-			return err
-		}
-		sr.maskBindLayout = layout
-		sr.maskLayoutOwned = true
+		return fmt.Errorf("stencil no-mask: no mask layout")
 	}
 	tex, err := sr.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "stencil_nomask_r8",
@@ -927,10 +935,13 @@ func (sr *StencilRenderer) encodeAndReadback(
 		encoder.DiscardEncoding()
 		return fmt.Errorf("stencil cover clip layout is nil")
 	}
-	if err := sr.ensureNoMaskBindGroup(); err != nil {
+	sr.mu.Lock()
+	noMaskErr := sr.ensureNoMaskBindGroup()
+	sr.mu.Unlock()
+	if noMaskErr != nil {
 		_ = rp.End()
 		encoder.DiscardEncoding()
-		return fmt.Errorf("stencil no-mask bind: %w", err)
+		return fmt.Errorf("stencil no-mask bind: %w", noMaskErr)
 	}
 	noClipBuf, err := sr.device.CreateBuffer(&hal.BufferDescriptor{
 		Label: "stencil_no_clip_uniform",
@@ -1190,6 +1201,11 @@ func (sr *StencilRenderer) RecordPath(rp hal.RenderPassEncoder, bufs *stencilCov
 }
 
 func (sr *StencilRenderer) coverPipelineForBlend(mode render.BlendMode) hal.RenderPipeline {
+	// Whole body under the creation lock: the blend-pipeline map is written
+	// on first use and cleared on shared teardown, so even the lookup must
+	// not race a concurrent destroy. Uncontended after warmup.
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
 	if mode == render.BlendNormal || mode == 0 {
 		return sr.nonZeroCoverPipeline
 	}

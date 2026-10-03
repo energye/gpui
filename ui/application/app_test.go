@@ -2,6 +2,7 @@ package application
 
 import (
 	"testing"
+	"time"
 
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
@@ -152,4 +153,121 @@ func TestWindowNilSafety(t *testing.T) {
 	}
 	w.Close() // no panic
 	w.ScheduleFrame()
+	if w.Pipeline() != nil {
+		t.Fatal("nil window Pipeline should be nil")
+	}
+	w.SetEventObserver(nil) // no panic
+}
+
+func TestSpawnRegistersBeforeRun(t *testing.T) {
+	app := newTestApp(t)
+	if app.Running() {
+		t.Fatal("app should not be running before Run")
+	}
+	w1, err := app.SpawnWindow(WindowOptions{Title: "A"}, testRoot())
+	if err != nil {
+		t.Fatalf("SpawnWindow: %v", err)
+	}
+	w2, err := app.SpawnWindow(WindowOptions{Title: "B"}, testRoot())
+	if err != nil {
+		t.Fatalf("SpawnWindow: %v", err)
+	}
+	if app.WindowCount() != 2 {
+		t.Fatalf("count = %d, want 2", app.WindowCount())
+	}
+	if !w1.Main() || w2.Main() {
+		t.Fatal("only the first window is main")
+	}
+	if w1.Pipeline() == nil || w2.Pipeline() == nil {
+		t.Fatal("spawned windows should have pipelines after SetRoot")
+	}
+	if app.Running() {
+		t.Fatal("SpawnWindow must not start loops before Run")
+	}
+}
+
+func TestSpawnNilRoot(t *testing.T) {
+	app := newTestApp(t)
+	if _, err := app.SpawnWindow(WindowOptions{Title: "A"}, nil); err == nil {
+		t.Fatal("SpawnWindow(nil root) should error")
+	}
+	if app.WindowCount() != 0 {
+		t.Fatal("failed spawn must not register a window")
+	}
+}
+
+func TestSpawnAfterQuit(t *testing.T) {
+	app := newTestApp(t)
+	if _, err := app.SpawnWindow(WindowOptions{Title: "A"}, testRoot()); err != nil {
+		t.Fatalf("SpawnWindow: %v", err)
+	}
+	app.Quit()
+	if _, err := app.SpawnWindow(WindowOptions{Title: "B"}, testRoot()); err == nil {
+		t.Fatal("SpawnWindow after Quit should error")
+	}
+}
+
+func TestSetEventObserver(t *testing.T) {
+	app := newTestApp(t)
+	w, err := app.NewWindow(WindowOptions{Title: "A"})
+	if err != nil {
+		t.Fatalf("NewWindow: %v", err)
+	}
+	if err := w.SetRoot(testRoot()); err != nil {
+		t.Fatalf("SetRoot: %v", err)
+	}
+	w.SetEventObserver(func(ev platform.Event) {})
+	w.SetEventObserver(nil) // clear, no panic
+	var nilWin *Window
+	nilWin.SetEventObserver(nil) // no panic
+}
+
+func TestPipelineNilBeforeRoot(t *testing.T) {
+	app := newTestApp(t)
+	w, err := app.NewWindow(WindowOptions{Title: "A"})
+	if err != nil {
+		t.Fatalf("NewWindow: %v", err)
+	}
+	if w.Pipeline() != nil {
+		t.Fatal("Pipeline should be nil before SetRoot")
+	}
+}
+
+// TestRunClosesExitedWindows: every window whose loop exits must be
+// destroyed right away — a closed secondary window must not stay mapped
+// while the main window keeps running. StubHost loops end via Quit;
+// GPU absence surfaces as loop error, which must not skip the close.
+func TestRunClosesExitedWindows(t *testing.T) {
+	app := newTestApp(t)
+	w1, _ := app.NewWindow(WindowOptions{Title: "A"})
+	w2, _ := app.NewWindow(WindowOptions{Title: "B"})
+	_ = w1.SetRoot(testRoot())
+	_ = w2.SetRoot(testRoot())
+	// Quit from another goroutine once both loops are up.
+	go func() {
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			if app.Running() {
+				time.Sleep(200 * time.Millisecond)
+				app.Quit()
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	done := make(chan error, 1)
+	go func() { done <- app.Run() }()
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Run did not return after Quit")
+	}
+	if !w1.Closed() || !w2.Closed() {
+		t.Fatalf("exited loops must destroy windows: w1=%v w2=%v", w1.Closed(), w2.Closed())
+	}
+	// Closed windows stay registered (never resurrected, never double freed).
+	if app.WindowCount() != 2 {
+		t.Fatalf("count = %d, want 2", app.WindowCount())
+	}
+	app.Close() // idempotent after per-loop closes
 }

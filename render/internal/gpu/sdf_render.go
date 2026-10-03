@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sync"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
@@ -65,6 +66,11 @@ type SDFRenderPipeline struct {
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// mu serializes pipeline lifecycle (create/destroy) on this shared
+	// pipeline across windows — same contract as StencilRenderer.mu.
+	// Record/draw stays lock-free; handles are immutable once built.
+	mu sync.Mutex
+
 	// GPU objects for the render pipeline.
 	shader        hal.ShaderModule
 	uniformLayout hal.BindGroupLayout
@@ -107,14 +113,10 @@ type SDFRenderPipeline struct {
 	resolveView hal.TextureView
 
 	width, height uint32
-
-	// Session-owned per-pass bind ledger: a Draw with a bit-identical set
-	// skips Set* and only Draws (see PassBindLedger for the rules).
-	ledger *PassBindLedger
 }
 
-// uniform. Must be called before ensurePipelineWithStencil. The layout is
-// owned by the session and must not be destroyed by the pipeline.
+// uniform. Layouts baked into shared pipelines are owned by GPUShared (or by
+// the session for session-owned pipelines) and must not be destroyed here.
 func (p *SDFRenderPipeline) SetClipBindLayout(layout hal.BindGroupLayout) {
 	p.clipBindLayout = layout
 }
@@ -124,10 +126,16 @@ func (p *SDFRenderPipeline) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	p.maskLayoutOwned = false
 }
 
-// SetSDFLedger attaches the session-owned per-pass bind ledger. Called by
-// the session before encoding; nil detaches (full bind path always).
-func (p *SDFRenderPipeline) SetSDFLedger(l *PassBindLedger) {
-	p.ledger = l
+// EnsureSharedBase builds the base SDF pipelines once for the shared
+// pipeline. Same contract as StencilRenderer.EnsureSharedBase: sessions call
+// it instead of bespoke create, present pipelines are left untouched.
+func (p *SDFRenderPipeline) EnsureSharedBase() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.pipelineWithStencil != nil {
+		return nil
+	}
+	return p.ensurePipelineWithStencil()
 }
 
 // NewSDFRenderPipeline creates a new SDF render pipeline with the given device
@@ -206,6 +214,8 @@ func (p *SDFRenderPipeline) RenderShapes(target render.GPURenderTarget, shapes [
 
 // ensureReady creates textures and the pipeline if needed.
 func (p *SDFRenderPipeline) ensureReady(w, h uint32) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if err := p.ensureTextures(w, h); err != nil {
 		return fmt.Errorf("ensure textures: %w", err)
 	}
@@ -345,6 +355,9 @@ func (p *SDFRenderPipeline) createPipeline() error {
 	clipLayout := p.clipBindLayout
 	hasClip := clipLayout != nil
 	if clipLayout == nil {
+		// Same rule as stencil: shared pipelines only ever use the shared
+		// layouts pinned by GPUShared. Session-owned pipelines (effect
+		// offscreens, standalone paths) keep the owned fallback below.
 		if p.defaultClipBindLayout == nil {
 			layout, err := createClipBindGroupLayout(p.device, "sdf_render_default_clip_layout")
 			if err != nil {
@@ -355,12 +368,7 @@ func (p *SDFRenderPipeline) createPipeline() error {
 		clipLayout = p.defaultClipBindLayout
 	}
 	if p.maskBindLayout == nil {
-		layout, err := createMaskBindGroupLayout(p.device, "sdf_render_mask_layout")
-		if err != nil {
-			return fmt.Errorf("create mask layout: %w", err)
-		}
-		p.maskBindLayout = layout
-		p.maskLayoutOwned = true
+		return fmt.Errorf("sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)")
 	}
 	pipeLayout, err := p.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "sdf_render_pipe_layout",
@@ -464,6 +472,8 @@ func (p *SDFRenderPipeline) ensurePipelineWithStencil() error { // Ensure base r
 // already created. This variant uses DepthCompare=GreaterEqual for depth-based
 // arbitrary path clipping (GPU-CLIP-003a).
 func (p *SDFRenderPipeline) ensureDepthClipPipeline() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.pipelineWithDepthClip != nil {
 		return nil
 	}
@@ -513,9 +523,16 @@ func (p *SDFRenderPipeline) ensureDepthClipPipeline() error {
 // When depthClipped is true (GPU-CLIP-003a), the depth-clipped pipeline
 // variant is used instead, which tests fragments against the depth clip buffer.
 //
+// ledger carries the pass bind-dedup state explicitly: the surface pass
+// passes its own ledger (shared across its groups), offscreen record passes
+// pass nil and always take the full bind path. The ledger used to live on
+// this shared pipeline object — every window overwrote it with its own,
+// which is a cross-window data race with wrong-skip fallout. Explicit
+// threading keeps shared state immutable.
+//
 // The resources parameter holds pre-built vertex buffer, uniform buffer,
 // and bind group for the current frame.
-func (p *SDFRenderPipeline) RecordDraws(rp hal.RenderPassEncoder, resources *sdfFrameResources, clipBG hal.BindGroup, maskBG hal.BindGroup, depthClipped ...bool) {
+func (p *SDFRenderPipeline) RecordDraws(rp hal.RenderPassEncoder, resources *sdfFrameResources, clipBG hal.BindGroup, maskBG hal.BindGroup, ledger *PassBindLedger, depthClipped ...bool) {
 	if resources == nil || resources.vertCount == 0 {
 		return
 	}
@@ -533,7 +550,7 @@ func (p *SDFRenderPipeline) RecordDraws(rp hal.RenderPassEncoder, resources *sdf
 		return
 	}
 	// Ledger dedup: identical bound set → Draw only, else full bind path.
-	if p.ledger != nil && p.ledger.skipBind(rp, pipe, resources.bindGroup, clipBG, maskBG, resources.vertBuf) {
+	if ledger != nil && ledger.skipBind(rp, pipe, resources.bindGroup, clipBG, maskBG, resources.vertBuf) {
 		rp.Draw(resources.vertCount, 1, resources.firstVertex, 0)
 		return
 	}
@@ -549,15 +566,13 @@ func (p *SDFRenderPipeline) RecordDraws(rp hal.RenderPassEncoder, resources *sdf
 	}
 	rp.SetVertexBuffer(0, resources.vertBuf, 0)
 	rp.Draw(resources.vertCount, 1, resources.firstVertex, 0)
-	if p.ledger != nil {
-		p.ledger.noteBind(rp, pipe, resources.bindGroup, clipBG, maskBG, resources.vertBuf)
+	if ledger != nil {
+		ledger.noteBind(rp, pipe, resources.bindGroup, clipBG, maskBG, resources.vertBuf)
 	}
 }
 
 // destroyPipeline releases all pipeline resources in reverse creation order.
 func (p *SDFRenderPipeline) destroyPipeline() {
-	// Detach ledger: cached pipeline pointers dangle after Release.
-	p.ledger = nil
 	if p.device == nil {
 		return
 	}

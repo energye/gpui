@@ -176,6 +176,9 @@ func (enc *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderP
 	var depthStencilPtr uintptr
 	var nativeDepthStencil renderPassDepthStencilAttachment
 	if desc.DepthStencilAttachment != nil {
+		if desc.DepthStencilAttachment.View == nil {
+			return nil, &WGPUError{Op: "BeginRenderPass", Message: "depth/stencil view is nil (retired surface texture?)"}
+		}
 		depthRO := False
 		if desc.DepthStencilAttachment.DepthReadOnly {
 			depthRO = True

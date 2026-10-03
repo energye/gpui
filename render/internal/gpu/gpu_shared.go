@@ -82,6 +82,13 @@ func (s gpuRenderStrategy) String() string {
 type GPUShared struct {
 	mu sync.Mutex
 
+	// submitMu serializes present submits (Flutter draws every view on the
+	// raster thread; Chromium funnels GPU work onto one thread). Record
+	// paths stay parallel on their own raster threads; only the submit /
+	// present critical section takes this leaf lock (never hold s.mu
+	// while acquiring it).
+	submitMu sync.Mutex
+
 	instance hal.Instance // standalone mode only; nil when using external device
 	adapter  hal.Adapter  // standalone mode only; must Release on Close
 	device   hal.Device
@@ -91,6 +98,15 @@ type GPUShared struct {
 	sdfRenderPipeline *SDFRenderPipeline
 	convexRenderer    *ConvexRenderer
 	stencilRenderer   *StencilRenderer
+
+	// Shared clip/mask layouts baked into the pipelines above. Owned by
+	// GPUShared, created once under mu, destroyed only on shared teardown
+	// or device loss. Sessions borrow the handles and never destroy them;
+	// a window close only drops its own surface/frame resources. This is
+	// the Skia GrDirectContext rule: one context, immutable shared
+	// pipelines, N surfaces.
+	clipBindLayout hal.BindGroupLayout
+	maskBindLayout hal.BindGroupLayout
 
 	// Text/glyph atlas engines (append-only, shared across contexts).
 	textEngine       *GPUTextEngine    // MSDF atlas (Tier 4)
@@ -617,6 +633,30 @@ func (s *GPUShared) ensureGPU() error {
 	return nil
 }
 
+// ensureSharedLayoutsLocked creates the shared clip/mask layouts once.
+// Must be called with s.mu held and a live device; sessions borrow the
+// handles and never destroy them.
+func (s *GPUShared) ensureSharedLayoutsLocked() error {
+	if s.device == nil {
+		return fmt.Errorf("gpu-shared: no device for shared layouts")
+	}
+	if s.clipBindLayout == nil {
+		layout, err := createClipBindGroupLayout(s.device, "shared_clip_bind_layout")
+		if err != nil {
+			return fmt.Errorf("shared clip bind layout: %w", err)
+		}
+		s.clipBindLayout = layout
+	}
+	if s.maskBindLayout == nil {
+		layout, err := createMaskBindGroupLayout(s.device, "shared_mask_bind_layout")
+		if err != nil {
+			return fmt.Errorf("shared mask bind layout: %w", err)
+		}
+		s.maskBindLayout = layout
+	}
+	return nil
+}
+
 // ensurePipelines lazily creates shape rendering pipelines. Skipped on
 // rasterAtlas — SDF/stencil/convex pipelines hang on software SPIR-V
 // interpreter. Must be called with s.mu held.
@@ -632,6 +672,35 @@ func (s *GPUShared) ensurePipelines() {
 	}
 	if s.stencilRenderer == nil {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
+	}
+	// Base pipelines are built once here under mu: every window's session
+	// then only reads pipeline handles. Lazy per-frame create/destroy on the
+	// shared objects is what let one window's close free handles another
+	// window's frame was creating. Variant pipelines (depth-clip /
+	// cover-blend) stay lazy behind each renderer's own creation lock.
+	// Build failures only log; sessions retry on the next flush through
+	// EnsureSharedBase.
+	if s.device == nil {
+		return
+	}
+	if err := s.ensureSharedLayoutsLocked(); err != nil {
+		slogger().Warn("gpu-shared: shared layouts", "err", err)
+		return
+	}
+	s.sdfRenderPipeline.SetClipBindLayout(s.clipBindLayout)
+	s.sdfRenderPipeline.SetMaskBindLayout(s.maskBindLayout)
+	if err := s.sdfRenderPipeline.EnsureSharedBase(); err != nil {
+		slogger().Warn("gpu-shared: sdf base pipelines", "err", err)
+	}
+	s.convexRenderer.SetClipBindLayout(s.clipBindLayout)
+	s.convexRenderer.SetMaskBindLayout(s.maskBindLayout)
+	if err := s.convexRenderer.EnsureSharedBase(); err != nil {
+		slogger().Warn("gpu-shared: convex base pipelines", "err", err)
+	}
+	s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
+	s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
+	if err := s.stencilRenderer.EnsureSharedBase(); err != nil {
+		slogger().Warn("gpu-shared: stencil base pipelines", "err", err)
 	}
 }
 
@@ -793,6 +862,43 @@ func (s *GPUShared) destroyPipelinesLocked() {
 		s.stencilRenderer.Destroy()
 		s.stencilRenderer = nil
 	}
+	// Shared layouts die with the pipelines that embed them. Sessions that
+	// borrowed the handles re-borrow the recreated ones on the next flush.
+	if s.maskBindLayout != nil {
+		s.maskBindLayout.Destroy()
+		s.maskBindLayout = nil
+	}
+	if s.clipBindLayout != nil {
+		s.clipBindLayout.Destroy()
+		s.clipBindLayout = nil
+	}
+}
+
+// LockSubmit acquires the present-submit serialization lock (leaf lock:
+// never hold s.mu while acquiring it).
+func (s *GPUShared) LockSubmit() {
+	if s == nil {
+		return
+	}
+	s.submitMu.Lock()
+}
+
+// UnlockSubmit releases the present-submit serialization lock.
+func (s *GPUShared) UnlockSubmit() {
+	if s == nil {
+		return
+	}
+	s.submitMu.Unlock()
+}
+
+// submitLocked runs fn with the present-submit serialization held (one
+// Queue.Submit + error-scope Push/Pop at a time on the shared device).
+// Converges the context-level submit sites onto a single lock discipline;
+// the session error-scope path holds the same mutex via submitLock.
+func (s *GPUShared) submitLocked(fn func() (uint64, error)) (uint64, error) {
+	s.LockSubmit()
+	defer s.UnlockSubmit()
+	return fn()
 }
 
 // GPUMemoryStats holds diagnostic information about GPU resource usage.

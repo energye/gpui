@@ -112,7 +112,7 @@ func TestBindGroupLayoutSwitch_StencilThenSDF(t *testing.T) {
 
 	// Order that crashes mem_anim: stencil first (leaves stencil_fill_bind), then SDF.
 	stencil.RecordPath(rp, bufs, render.FillRuleNonZero, session.noClipBindGroup, session.frameMaskBindGroup(), render.BlendNormal)
-	sdf.RecordDraws(rp, sdfRes, session.noClipBindGroup, session.frameMaskBindGroup())
+	sdf.RecordDraws(rp, sdfRes, session.noClipBindGroup, session.frameMaskBindGroup(), nil)
 
 	if err := rp.End(); err != nil {
 		t.Fatalf("end pass: %v", err)

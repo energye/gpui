@@ -136,6 +136,11 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 	clipLayout := sr.clipBindLayout
 	hasClip := clipLayout != nil
 	if clipLayout == nil {
+		// Shared renderer: GPUShared pins the shared layouts before
+		// EnsureSharedBase, so reaching here means broken wiring — fail
+		// instead of baking a private layout into a shared pipeline.
+		// Session-owned renderers (effect offscreens, standalone paths)
+		// keep the legacy owned fallback below.
 		if sr.defaultClipBindLayout == nil {
 			layout, err := createClipBindGroupLayout(sr.device, "stencil_default_clip_layout")
 			if err != nil {
@@ -146,12 +151,7 @@ func (sr *StencilRenderer) createPipelines() error { //nolint:funlen // GPU pipe
 		clipLayout = sr.defaultClipBindLayout
 	}
 	if sr.maskBindLayout == nil {
-		layout, err := createMaskBindGroupLayout(sr.device, "stencil_cover_mask_layout")
-		if err != nil {
-			return fmt.Errorf("create cover mask layout: %w", err)
-		}
-		sr.maskBindLayout = layout
-		sr.maskLayoutOwned = true
+		return fmt.Errorf("stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)")
 	}
 	coverPipeLayout, err := sr.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "cover_pipe_layout",
@@ -464,6 +464,8 @@ func (sr *StencilRenderer) createAABandPipelines() error {
 //
 // Created lazily on first use to avoid unnecessary GPU compilation.
 func (sr *StencilRenderer) ensureDepthClipPipelines() error { //nolint:funlen // GPU pipeline descriptors are inherently verbose
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
 	if sr.pipelineWithDepthClipNZ != nil {
 		return nil // already created
 	}

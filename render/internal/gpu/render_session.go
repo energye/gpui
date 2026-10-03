@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"image"
 	"os"
+	"sync"
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -484,6 +485,12 @@ type GPURenderSession struct {
 	// command buffers to prepend on next surface Submit (dual-tex multi).
 	leadSubmitCBs   []hal.CommandBuffer
 	leadSubmitClean []func()
+	// submitLock serializes Queue.Submit + error-scope Push/Pop on the one
+	// shared device (Flutter draws every view on one raster thread; our
+	// windows run own pumps). Wired per flush from GPUShared.submitMu;
+	// nil means single-window path, lock skipped. Leaf lock: never hold
+	// session/mu state while acquiring it.
+	submitLock *sync.Mutex
 
 	clipBytesScratch    []byte
 	uniformBytesScratch []byte
@@ -683,11 +690,16 @@ type GPURenderSession struct {
 	// RRect clip bind group infrastructure.
 	// clip bind group layout at @group(1) @binding(0). A no-clip bind group
 	// (clip_enabled=0.0) is created once and reused for groups without RRect clip.
+	// Layouts are borrowed from GPUShared for window sessions (owned=false:
+	// never destroy) and created per-session for session-owned pipelines
+	// (effect offscreens, rasterAtlas fallback; owned=true).
 	clipBindLayout   hal.BindGroupLayout
+	clipLayoutOwned  bool
 	noClipUniformBuf hal.Buffer
 	noClipBindGroup  hal.BindGroup
 
-	maskBindLayout  hal.BindGroupLayout // session-owned, shared by pipelines
+	maskBindLayout  hal.BindGroupLayout // borrowed-shared or session-owned (see above)
+	maskLayoutOwned bool
 	noMaskTex       hal.Texture
 	noMaskView      hal.TextureView
 	maskSampler     hal.Sampler
@@ -2037,12 +2049,11 @@ func (s *GPURenderSession) Destroy() {
 			s.stencilRenderer.Destroy()
 		}
 	} else {
-		// GPUShared-owned stencil/convex/SDF: session clip/mask BGLs are about to
-		// be released in destroyPersistentBuffers. Detach so shared pipelines do
-		// not keep dangling BGL handles (N1 field×coverage RenderPath crash).
-		if s.stencilRenderer != nil {
-			s.stencilRenderer.DetachExternalLayouts()
-		}
+		// GPUShared-owned stencil/convex/SDF: shared pipelines embed the
+		// shared clip/mask layouts, which outlive every window — nothing to
+		// detach. A window close only drops this session's references (below)
+		// and its own frame resources; the shared pipelines stay built
+		// for the remaining windows (single shared context, N surfaces).
 	}
 	s.sdfPipeline = nil
 	s.convexRenderer = nil
@@ -2328,10 +2339,15 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.noClipUniformBuf = nil
 	}
 	s.releaseMaskResources()
-	if s.clipBindLayout != nil {
+	if s.clipLayoutOwned && s.clipBindLayout != nil {
 		s.clipBindLayout.Destroy()
 		s.clipBindLayout = nil
+	} else {
+		// Borrowed from GPUShared: just drop the reference, the shared
+		// pipelines still embed the handle for the remaining windows.
+		s.clipBindLayout = nil
 	}
+	s.clipLayoutOwned = false
 }
 
 // sdfFrameResources holds per-frame GPU resources for SDF rendering.
@@ -2369,9 +2385,15 @@ func (s *GPURenderSession) ensurePipelines() error {
 		s.sdfPipeline = NewSDFRenderPipeline(s.device, s.queue, s.sampleCount)
 		s.ownsShapePipelines = true
 	}
-	s.sdfPipeline.SetClipBindLayout(s.clipBindLayout)
-	s.sdfPipeline.SetMaskBindLayout(s.maskBindLayout)
-	if err := s.sdfPipeline.ensurePipelineWithStencil(); err != nil {
+	if s.ownsShapePipelines {
+		s.sdfPipeline.SetClipBindLayout(s.clipBindLayout)
+		s.sdfPipeline.SetMaskBindLayout(s.maskBindLayout)
+		if err := s.sdfPipeline.ensurePipelineWithStencil(); err != nil {
+			return fmt.Errorf("SDF pipeline: %w", err)
+		}
+	} else if err := s.sdfPipeline.EnsureSharedBase(); err != nil {
+		// Shared renderer: layouts were pinned once by GPUShared, never
+		// per-session Set — present pipelines are left untouched.
 		return fmt.Errorf("SDF pipeline: %w", err)
 	}
 
@@ -2379,9 +2401,13 @@ func (s *GPURenderSession) ensurePipelines() error {
 		s.convexRenderer = NewConvexRenderer(s.device, s.queue, s.sampleCount)
 		s.ownsShapePipelines = true
 	}
-	s.convexRenderer.SetClipBindLayout(s.clipBindLayout)
-	s.convexRenderer.SetMaskBindLayout(s.maskBindLayout)
-	if err := s.convexRenderer.ensurePipelineWithStencil(); err != nil {
+	if s.ownsShapePipelines {
+		s.convexRenderer.SetClipBindLayout(s.clipBindLayout)
+		s.convexRenderer.SetMaskBindLayout(s.maskBindLayout)
+		if err := s.convexRenderer.ensurePipelineWithStencil(); err != nil {
+			return fmt.Errorf("convex pipeline: %w", err)
+		}
+	} else if err := s.convexRenderer.EnsureSharedBase(); err != nil {
 		return fmt.Errorf("convex pipeline: %w", err)
 	}
 	if err := s.ensureMaskDefaults(); err != nil {
@@ -2406,21 +2432,27 @@ func (s *GPURenderSession) ensureStencilPipelines() error {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
 		s.ownsShapePipelines = true
 	}
-	stencilMaskMismatch := s.maskBindLayout != nil &&
-		s.stencilRenderer.coverPipeMaskLayout != s.maskBindLayout
-	stencilClipMismatch := s.clipBindLayout != nil && !s.stencilRenderer.coverPipeLayoutHasClip
-	stencilMissing := s.stencilRenderer.nonZeroStencilPipeline == nil || s.stencilRenderer.uniformLayout == nil
-	s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
-	s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
-	if stencilMissing || stencilClipMismatch || stencilMaskMismatch {
-		s.stencilRenderer.destroyPipelines()
+	if s.ownsShapePipelines {
+		stencilMaskMismatch := s.maskBindLayout != nil &&
+			s.stencilRenderer.coverPipeMaskLayout != s.maskBindLayout
+		stencilClipMismatch := s.clipBindLayout != nil && !s.stencilRenderer.coverPipeLayoutHasClip
+		stencilMissing := s.stencilRenderer.nonZeroStencilPipeline == nil || s.stencilRenderer.uniformLayout == nil
 		s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
 		s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
-		if err := s.stencilRenderer.createPipelines(); err != nil {
-			return fmt.Errorf("stencil pipelines: %w", err)
+		if stencilMissing || stencilClipMismatch || stencilMaskMismatch {
+			s.stencilRenderer.destroyPipelines()
+			s.stencilRenderer.SetClipBindLayout(s.clipBindLayout)
+			s.stencilRenderer.SetMaskBindLayout(s.maskBindLayout)
+			if err := s.stencilRenderer.createPipelines(); err != nil {
+				return fmt.Errorf("stencil pipelines: %w", err)
+			}
 		}
+		return nil
 	}
-	return nil
+	// Shared renderer: layouts are pinned process-wide by GPUShared — no
+	// per-session Set, no destroy-on-mismatch. Missing pipelines are built
+	// once under the renderer's creation lock.
+	return s.stencilRenderer.EnsureSharedBase()
 }
 
 // ensureImagePipeline creates textured-quad pipelines for DrawImage / GPU tex.
@@ -2566,15 +2598,17 @@ func (s *GPURenderSession) ensureDepthClipPipelineVariants() error {
 }
 
 func (s *GPURenderSession) ensureClipBindLayout() error {
-	if s.clipBindLayout != nil {
+	if s.clipBindLayout == nil {
+		layout, err := createClipBindGroupLayout(s.device, "clip_bind_layout")
+		if err != nil {
+			return fmt.Errorf("create clip bind layout: %w", err)
+		}
+		s.clipBindLayout = layout
+		s.clipLayoutOwned = true
+	}
+	if s.noClipBindGroup != nil {
 		return nil
 	}
-
-	layout, err := createClipBindGroupLayout(s.device, "clip_bind_layout")
-	if err != nil {
-		return fmt.Errorf("create clip bind layout: %w", err)
-	}
-	s.clipBindLayout = layout
 
 	// Create the no-clip uniform buffer (clip_enabled=0.0).
 	noClip := NoClipParams()
@@ -2669,6 +2703,7 @@ func (s *GPURenderSession) ensureMaskBindLayout() error {
 		return fmt.Errorf("create mask bind layout: %w", err)
 	}
 	s.maskBindLayout = layout
+	s.maskLayoutOwned = true
 	return nil
 }
 
@@ -2852,10 +2887,14 @@ func (s *GPURenderSession) releaseMaskResources() {
 	}
 	s.maskBindGroup = nil
 	s.maskBGOwned = false
-	if s.maskBindLayout != nil {
+	if s.maskLayoutOwned && s.maskBindLayout != nil {
 		s.maskBindLayout.Destroy()
 		s.maskBindLayout = nil
+	} else {
+		// Borrowed from GPUShared (see clip layout above).
+		s.maskBindLayout = nil
 	}
+	s.maskLayoutOwned = false
 	if s.noMaskBindGroup != nil {
 		s.noMaskBindGroup.Destroy()
 		s.noMaskBindGroup = nil
@@ -4141,6 +4180,10 @@ func (s *GPURenderSession) withSubmitErrorScope(label string, fn func() error) e
 		}
 		return nil
 	}
+	if s.submitLock != nil {
+		s.submitLock.Lock()
+		defer s.submitLock.Unlock()
+	}
 	s.device.PushErrorScope(hal.ErrorFilterValidation)
 	err := fn()
 	if gerr := s.device.PopErrorScope(); gerr != nil {
@@ -5222,7 +5265,7 @@ func (s *GPURenderSession) encodeSubmitReadback(
 
 	// Tier 1: SDF shapes (no stencil interaction).
 	if sdfRes != nil && len(sdfShapes) > 0 {
-		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG, s.frameMaskBindGroup())
+		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG, s.frameMaskBindGroup(), nil)
 	}
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
@@ -5462,7 +5505,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 
 	// Tier 1: SDF shapes (no stencil interaction).
 	if sdfRes != nil && len(sdfShapes) > 0 {
-		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG, s.frameMaskBindGroup())
+		s.sdfPipeline.RecordDraws(rp, sdfRes, clipBG, s.frameMaskBindGroup(), nil)
 	}
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
@@ -5518,7 +5561,11 @@ func (s *GPURenderSession) encodeSubmitSurface(
 // recordGroupDraws records all tier draw commands for a single group into
 // the given render pass encoder. This is the inner loop of the grouped
 // encode methods — called once per scissor group within a single render pass.
-func (s *GPURenderSession) recordGroupDraws(rp hal.RenderPassEncoder, gr *groupResources) {
+// recordGroupDraws encodes one scissor group's tiers into the open pass.
+// ledger carries the SDF bind-dedup state: the surface pass threads its own
+// ledger (shared across its groups within the pass), offscreen record passes
+// pass nil and always take the full bind path.
+func (s *GPURenderSession) recordGroupDraws(rp hal.RenderPassEncoder, gr *groupResources, ledger *PassBindLedger) {
 	// AFTER SetPipeline and BEFORE Draw. Vulkan requires a valid pipeline
 	// layout when calling vkCmdBindDescriptorSets.
 	clipBG := gr.clipBindGroup
@@ -5539,10 +5586,10 @@ func (s *GPURenderSession) recordGroupDraws(rp hal.RenderPassEncoder, gr *groupR
 		maskBG = gr.depthClipRes.maskBG
 	}
 
-	// Tier 1: SDF shapes (no stencil interaction). SDF carries the shared
+	// Tier 1: SDF shapes (no stencil interaction). SDF carries the pass
 	// ledger, so its Draws update it; every other tier invalidates below.
 	if gr.sdfRes != nil && len(gr.sdfShapes) > 0 {
-		s.sdfPipeline.RecordDraws(rp, gr.sdfRes, clipBG, maskBG, gr.hasDepthClip)
+		s.sdfPipeline.RecordDraws(rp, gr.sdfRes, clipBG, maskBG, ledger, gr.hasDepthClip)
 	}
 
 	// Tier 2a: Convex polygon fast-path (no stencil interaction).
@@ -5812,7 +5859,7 @@ func (s *GPURenderSession) encodeSubmitReadbackGrouped(
 		if !s.applyGroupScissor(rp, grpRes[i].scissorRect, w, h) {
 			continue
 		}
-		s.recordGroupDraws(rp, &grpRes[i])
+		s.recordGroupDraws(rp, &grpRes[i], nil)
 	}
 
 	if endErr := rp.End(); endErr != nil {
@@ -5995,6 +6042,18 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	return nil
 }
 
+// surfaceTexturesReady rejects encoding against a retired depth view.
+// Another window's purge/resize may retire it between ensure and encode
+// (shared device, N sessions). Fail clean like the offscreen path
+// instead of handing a nil view to BeginRenderPass (native abort /
+// Go panic).
+func (s *GPURenderSession) surfaceTexturesReady() error {
+	if s.textures.stencilView == nil {
+		return fmt.Errorf("surface textures destroyed (concurrent resize/purge?)")
+	}
+	return nil
+}
+
 // encodeSubmitSurfaceGrouped encodes a single render pass with per-group
 // scissor state changes, resolving directly to the given view. No readback
 // occurs. This is the grouped version of encodeSubmitSurface.
@@ -6005,6 +6064,9 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	baseLayerRes *imageFrameResources,
 	damageRects []image.Rectangle,
 ) error {
+	if err := s.surfaceTexturesReady(); err != nil {
+		return err
+	}
 	encoder, err := s.device.CreateCommandEncoder(sessionSurfaceEncoderDesc)
 	if err != nil {
 		return fmt.Errorf("create command encoder: %w", err)
@@ -6057,12 +6119,12 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	}
 	rp.SetViewport(0, 0, float32(w), float32(h), 0, 1)
 
-	// New pass generation; SDF attaches the shared ledger (offscreen record
-	// passes keep it detached and take the full bind path).
+	// New pass generation. The surface pass threads its own ledger through
+	// the groups below (offscreen record passes pass nil and take the full
+	// bind path). The ledger object stays session-local — never stored on
+	// the shared SDF pipeline, so concurrent windows cannot observe or
+	// mutate each other's dedup state.
 	s.passLedger.BeginPassLedger()
-	if s.sdfPipeline != nil {
-		s.sdfPipeline.SetSDFLedger(&s.passLedger)
-	}
 
 	// Base layer: pixmap textured quad drawn FIRST, before all tiers (ADR-015).
 	if baseLayerRes != nil && len(baseLayerRes.drawCalls) > 0 {
@@ -6074,7 +6136,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	// Render each group with its scissor rect applied.
 	for i := range grpRes {
 		if s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects) {
-			s.recordGroupDraws(rp, &grpRes[i])
+			s.recordGroupDraws(rp, &grpRes[i], &s.passLedger)
 		}
 	}
 
@@ -6113,6 +6175,9 @@ func (s *GPURenderSession) encodeToEncoder(
 	baseLayerRes *imageFrameResources,
 	damageRects []image.Rectangle,
 ) error {
+	if err := s.surfaceTexturesReady(); err != nil {
+		return err
+	}
 	if view != s.lastView {
 		s.frameRendered = false
 		s.lastView = view
@@ -6153,7 +6218,7 @@ func (s *GPURenderSession) encodeToEncoder(
 	// per-group relevant damage scissor (not global multi-rect AABB).
 	for i := range grpRes {
 		if s.applyGroupScissorWithDamageRects(rp, grpRes[i].scissorRect, w, h, damageRects) {
-			s.recordGroupDraws(rp, &grpRes[i])
+			s.recordGroupDraws(rp, &grpRes[i], nil)
 		}
 	}
 

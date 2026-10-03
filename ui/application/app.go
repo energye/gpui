@@ -18,6 +18,11 @@
 //	win.SetRoot(rootRenderObject) // kit 控件树
 //	app.Run() // 每窗独立事件泵，主窗关闭 → 全部退出
 //
+// Windows can also be opened while Run is in progress:
+//
+//	win, err := app.SpawnWindow(application.WindowOptions{Title: "B"}, rootB)
+//	// Run returns after the last window's loop exits.
+//
 // Each window owns its platform.Window + PipelineApp and pumps events on its
 // own goroutine (X11/Wayland/Win32 open per-window native connections, so
 // this is thread-safe by construction). The App coordinates lifecycle: the
@@ -56,6 +61,11 @@ type Config struct {
 	// MaxFrames / RunFor stop conditions (per window).
 	MaxFrames int64
 	RunFor    time.Duration
+	// SnapshotPath (optional) saves a GPU readback PNG of each window's
+	// final frame before its loop exits. Single-window verification runs
+	// use it; multi-window runs share the path (last window wins), so
+	// snapshot verification stays single-window.
+	SnapshotPath string
 	// OnEvent is called for each platform event (all windows) before
 	// default handling.
 	OnEvent func(ev platform.Event)
@@ -76,11 +86,20 @@ type WindowOptions struct {
 
 // App is the multi-window application shell.
 type App struct {
-	cfg     Config
-	mu      sync.Mutex
+	cfg Config
+	mu  sync.Mutex
+	// windows holds every registered window (closed ones stay listed).
 	windows []*Window
 	quit    atomic.Bool
-	wg      sync.WaitGroup
+	// running is true while Run owns the window loops. active counts live
+	// loops. notifyCh (capacity 1) wakes the Run waiter on each loop exit.
+	// running/active/notifyCh are guarded by mu. firstErr keeps the first
+	// window loop error (guarded by errMu).
+	running  bool
+	active   int
+	notifyCh chan struct{}
+	errMu    sync.Mutex
+	firstErr error
 }
 
 // New creates an App. No windows are created until NewWindow.
@@ -178,36 +197,179 @@ func (a *App) WindowCount() int {
 // Run starts every window's event loop and blocks until all windows finish
 // (main window close quits the rest, or Quit was called). Windows must have
 // SetRoot called first; otherwise Run returns an error without starting.
+// Windows spawned while Run is in progress (SpawnWindow) join the same wait:
+// Run returns after the last window's loop exits. Concurrent Run calls on
+// the same App are rejected.
 func (a *App) Run() error {
 	if a == nil {
 		return errors.New("application: nil app")
 	}
-	wins := a.Windows()
-	if len(wins) == 0 {
+	a.mu.Lock()
+	if a.running {
+		a.mu.Unlock()
+		return errors.New("application: Run already in progress")
+	}
+	if len(a.windows) == 0 {
+		a.mu.Unlock()
 		return nil
 	}
 	// Guard: every window needs a root before Run.
-	for _, w := range wins {
-		if w.pipe == nil {
-			return fmt.Errorf("application: window %q has no root (call SetRoot before Run)", w.opts.Title)
+	for _, w := range a.windows {
+		w.mu.Lock()
+		noroot := w.pipe == nil
+		title := w.opts.Title
+		w.mu.Unlock()
+		if noroot {
+			a.mu.Unlock()
+			return fmt.Errorf("application: window %q has no root (call SetRoot before Run)", title)
 		}
 	}
-	errs := make(chan error, len(wins))
-	for _, w := range wins {
-		a.wg.Add(1)
-		go func(w *Window) {
-			defer a.wg.Done()
-			if err := w.pipe.Run(); err != nil {
-				errs <- fmt.Errorf("window %q: %w", w.opts.Title, err)
+	if a.notifyCh == nil {
+		a.notifyCh = make(chan struct{}, 1)
+	} else {
+		// Drop a stale wakeup from a previous Run so the waiter below
+		// only sees this generation's completions.
+		select {
+		case <-a.notifyCh:
+		default:
+		}
+	}
+	a.running = true
+	a.mu.Unlock()
+
+	// Drive initial plus late-registered windows until none remain alive.
+	// Each loop runs on its own goroutine; every exit wakes this waiter,
+	// which also picks up windows registered mid-run.
+	for {
+		for _, w := range a.Windows() {
+			a.startWindow(w)
+		}
+		a.mu.Lock()
+		if a.active == 0 {
+			a.running = false
+			for _, w := range a.windows {
+				w.mu.Lock()
+				w.started = false
+				w.mu.Unlock()
 			}
-		}(w)
+			a.mu.Unlock()
+			break
+		}
+		ch := a.notifyCh
+		a.mu.Unlock()
+		<-ch
 	}
-	a.wg.Wait()
-	close(errs)
-	for err := range errs {
-		return err
+	a.errMu.Lock()
+	defer a.errMu.Unlock()
+	return a.firstErr
+}
+
+// startWindow starts w's loop when the App is running and w is startable
+// (has a root, not closed, not already started, app not quitting).
+// Reports whether the loop was started.
+func (a *App) startWindow(w *Window) bool {
+	if a == nil || w == nil {
+		return false
 	}
-	return nil
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.running || a.quit.Load() {
+		return false
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.started || w.closed || w.pipe == nil {
+		return false
+	}
+	w.started = true
+	a.active++
+	go a.runWindow(w)
+	return true
+}
+
+// runWindow pumps one window's loop, then destroys that window, records
+// its error, and wakes Run. The loop exit (close/timeout/error) always
+// destroys the native window right away: otherwise a closed secondary
+// window would stay mapped on screen while the main window keeps running
+// (only App.Close after Run would remove it). Close is idempotent, and
+// startWindow refuses closed windows, so this never restarts or double
+// frees. It never holds App.mu while the loop runs or the window closes.
+func (a *App) runWindow(w *Window) {
+	w.mu.Lock()
+	pipe := w.pipe
+	title := w.opts.Title
+	w.mu.Unlock()
+	var err error
+	if pipe != nil {
+		err = pipe.Run()
+	} else {
+		err = fmt.Errorf("window %q has no root", title)
+	}
+	// The loop is done: drop this window's own surface/frame resources
+	// now (snapshot already saved inside pipe.Run before it returned).
+	w.Close()
+	if err != nil {
+		a.errMu.Lock()
+		if a.firstErr == nil {
+			a.firstErr = fmt.Errorf("window %q: %w", title, err)
+		}
+		a.errMu.Unlock()
+	}
+	a.mu.Lock()
+	a.active--
+	ch := a.notifyCh
+	a.mu.Unlock()
+	if ch != nil {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// SpawnWindow creates a window, attaches root, and joins it to the App.
+// Before Run it only registers (Run starts it with the rest); during Run it
+// starts immediately on its own goroutine. Only the first window is main, so
+// spawned windows never are: closing one closes just itself.
+// Resource exhaustion (more windows than the card holds) surfaces as a clean
+// error from window creation or the GPU downgrade chain — never a black
+// window. A spawn refused by shutdown still returns the registered window
+// with an explaining error.
+func (a *App) SpawnWindow(opts WindowOptions, root rendering.RenderObject) (*Window, error) {
+	if a == nil {
+		return nil, errors.New("application: nil app")
+	}
+	if root == nil {
+		return nil, errors.New("application: nil root")
+	}
+	if a.quit.Load() {
+		return nil, errors.New("application: app quitting")
+	}
+	w, err := a.NewWindow(opts)
+	if err != nil {
+		return nil, err
+	}
+	if err := w.SetRoot(root); err != nil {
+		w.Close()
+		return nil, err
+	}
+	if !a.Running() {
+		return w, nil
+	}
+	if !a.startWindow(w) {
+		return w, errors.New("application: app stopping, window registered but not started")
+	}
+	return w, nil
+}
+
+// Running reports whether Run currently owns the window loops.
+func (a *App) Running() bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.running
 }
 
 // Quit requests all windows to exit their event loops. Safe to call from any
@@ -248,6 +410,11 @@ type Window struct {
 	root   rendering.RenderObject
 	input  *embedder.InputRouter
 	closed bool
+	// started marks a loop started at least once since Run began
+	// (guarded by App.mu; touched with Window.mu held).
+	started bool
+	// onEvent is the per-window event observer (guarded by Window.mu).
+	onEvent func(ev platform.Event)
 }
 
 // Main reports whether this is the first (main) window.
@@ -313,18 +480,25 @@ func (w *Window) SetRoot(root rendering.RenderObject) error {
 	w.root = root
 	cfg := w.app.cfg
 	w.pipe = embedder.NewPipelineApp(w.plat.Host(), root, embedder.PipelineOptions{
-		ClearR:    cfg.ClearR,
-		ClearG:    cfg.ClearG,
-		ClearB:    cfg.ClearB,
-		ClearA:    cfg.ClearA,
-		WarmUp:    cfg.WarmUp,
-		MaxFrames: cfg.MaxFrames,
-		RunFor:    cfg.RunFor,
-		Input:     w.input,
-		IME:       w.plat.IME(),
+		ClearR:       cfg.ClearR,
+		ClearG:       cfg.ClearG,
+		ClearB:       cfg.ClearB,
+		ClearA:       cfg.ClearA,
+		WarmUp:       cfg.WarmUp,
+		MaxFrames:    cfg.MaxFrames,
+		RunFor:       cfg.RunFor,
+		Input:        w.input,
+		IME:          w.plat.IME(),
+		SnapshotPath: cfg.SnapshotPath,
 		OnEvent: func(ev platform.Event) {
 			if cfg.OnEvent != nil {
 				cfg.OnEvent(ev)
+			}
+			w.mu.Lock()
+			fn := w.onEvent
+			w.mu.Unlock()
+			if fn != nil {
+				fn(ev)
 			}
 			// Main window close (requested or destroyed) → quit the whole app.
 			if embedder.EventQuits(ev) && w.main {
@@ -356,6 +530,31 @@ func (w *Window) ScheduleFrame() {
 		return
 	}
 	w.pipe.ScheduleFrame()
+}
+
+// Pipeline returns the window's rendering pipeline (nil before SetRoot).
+// Callers wire per-window content through it (animation tickers, present
+// policy) without the shell guessing content needs.
+func (w *Window) Pipeline() *embedder.PipelineApp {
+	if w == nil {
+		return nil
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.pipe
+}
+
+// SetEventObserver installs a per-window event observer: it runs for every
+// platform event on this window's loop, after the App-wide Config.OnEvent.
+// Nil clears it. The observer runs on the window's event-loop goroutine, so
+// it must be quick and goroutine-safe against the content it touches.
+func (w *Window) SetEventObserver(fn func(ev platform.Event)) {
+	if w == nil {
+		return
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.onEvent = fn
 }
 
 // Close tears this window down: rendering pipeline (GPU present target)

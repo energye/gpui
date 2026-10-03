@@ -40,13 +40,13 @@ const (
 	sunX, sunY = 1072.0, 112.0
 
 	hudPadLR   = 16.0  // HUD 药丸左右内边距
-	hudBtnSize = 30.0  // 暂停按钮直径
+	hudBtnSize = 30.0  // 暂停/开窗按钮直径（两钮同大，+ 号点一下多开一扇窗）
 	hudGap     = 10.0  // 控件间距
 	hudSliderW = 130.0 // 滑条长（与 input[type=range] width 一致）
 	hudLabelW  = 46.0  // 速度标签宽（b{min-width:46px}）
 )
 
-var hudW = hudPadLR*2 + hudBtnSize + hudGap + hudSliderW + hudGap + hudLabelW // ≈258
+var hudW = hudPadLR*2 + hudBtnSize + hudGap + hudSliderW + hudGap + hudLabelW + hudGap + hudBtnSize
 
 var sunRaysUnit = [8][4]float64{
 	{0, -60, 0, -84}, {0, 60, 0, 84}, {-60, 0, -84, 0}, {60, 0, 84, 0},
@@ -238,7 +238,11 @@ type pelicanScene struct {
 
 	hudX, hudY     float64 // HUD 药丸在窗口中的位置（右下 fixed）
 	btnHover       bool
+	openHover      bool
 	draggingSlider bool
+
+	// OnOpenWindow 由外层接入（多开一扇同样的窗）；nil 时开窗钮无动作。
+	OnOpenWindow func()
 
 	// 帧内复用的动态路径：DrawPath 同步回放进 Context 自有路径，
 	// 调用方路径不被保留，帧内 Reset 重填零分配，复用安全。
@@ -251,12 +255,13 @@ type pelicanScene struct {
 
 	// HUD 按需重绘：暂停/速度/悬停/尺寸任一变化才脏，
 	// 平时跳过 hudBox.MarkNeedsPaint（舞台动画不受影响）。
-	hudPainted bool
-	hudPaused  bool
-	hudSpeed   float64
-	hudHover   bool
-	hudPaintW  float64
-	hudPaintH  float64
+	hudPainted   bool
+	hudPaused    bool
+	hudSpeed     float64
+	hudHover     bool
+	hudOpenHover bool
+	hudPaintW    float64
+	hudPaintH    float64
 
 	// 第二批：静态瓦片缓存（启动烘一次，帧内只贴图平移）。
 	// GenerationID 稳定，GPU 只上传一次；CPU 纯光栅烘焙与主画布同算法。
@@ -583,11 +588,13 @@ func (sc *pelicanScene) onTick(dt float64) {
 	// HUD 按需重绘：暂停/速度/悬停/尺寸任一变化才脏。
 	// HUD 平时静止（药丸+按钮+滑条只在交互时变），跟 60 帧陪跑纯属浪费。
 	if !sc.hudPainted || sc.hudPaused != sc.sim.paused || sc.hudSpeed != sc.sim.speed ||
-		sc.hudHover != sc.btnHover || sc.hudPaintW != sc.hudBox.FixedWidth || sc.hudPaintH != sc.hudBox.FixedHeight {
+		sc.hudHover != sc.btnHover || sc.hudOpenHover != sc.openHover ||
+		sc.hudPaintW != sc.hudBox.FixedWidth || sc.hudPaintH != sc.hudBox.FixedHeight {
 		sc.hudPainted = true
 		sc.hudPaused = sc.sim.paused
 		sc.hudSpeed = sc.sim.speed
 		sc.hudHover = sc.btnHover
+		sc.hudOpenHover = sc.openHover
 		sc.hudPaintW = sc.hudBox.FixedWidth
 		sc.hudPaintH = sc.hudBox.FixedHeight
 		sc.hudBox.MarkNeedsPaint()
@@ -618,6 +625,19 @@ func (sc *pelicanScene) btnCenter() (float64, float64) {
 	return sc.hudX + hudPadLR + hudBtnSize/2, sc.hudY + hudH/2
 }
 
+// openBtnCenter 开窗钮圆心（药丸右端内侧）。
+func (sc *pelicanScene) openBtnCenter() (float64, float64) {
+	return sc.hudX + hudW - hudPadLR - hudBtnSize/2, sc.hudY + hudH/2
+}
+
+// requestOpenWindow 请外层多开一扇窗（未接入时静默无动作）。
+func (sc *pelicanScene) requestOpenWindow() {
+	if sc == nil || sc.OnOpenWindow == nil {
+		return
+	}
+	sc.OnOpenWindow()
+}
+
 func (sc *pelicanScene) onKey(ev platform.Event) {
 	if !ev.Pressed {
 		return
@@ -635,6 +655,8 @@ func (sc *pelicanScene) onKey(ev platform.Event) {
 func (sc *pelicanScene) onPointer(ev platform.Event) {
 	bx, by := sc.btnCenter()
 	inBtn := math.Hypot(ev.X-bx, ev.Y-by) <= hudBtnSize/2+4
+	ox, oy := sc.openBtnCenter()
+	inOpen := math.Hypot(ev.X-ox, ev.Y-oy) <= hudBtnSize/2+4
 	inSlider := ev.X >= sc.sliderX0()-8 && ev.X <= sc.sliderX0()+hudSliderW+8 &&
 		ev.Y >= sc.hudY-6 && ev.Y <= sc.hudY+hudH+6
 
@@ -644,12 +666,17 @@ func (sc *pelicanScene) onPointer(ev platform.Event) {
 			sc.togglePause()
 			return
 		}
+		if inOpen {
+			sc.requestOpenWindow()
+			return
+		}
 		if inSlider {
 			sc.draggingSlider = true
 			sc.setSpeed(0.3 + math.Round(clampf((ev.X-sc.sliderX0())/hudSliderW, 0, 1)*22)*0.1)
 		}
 	case platform.PointerMove:
 		sc.btnHover = inBtn
+		sc.openHover = inOpen
 		if sc.draggingSlider {
 			sc.setSpeed(0.3 + math.Round(clampf((ev.X-sc.sliderX0())/hudSliderW, 0, 1)*22)*0.1)
 		}
@@ -1254,4 +1281,16 @@ func (sc *pelicanScene) paintHUD(pc *rendering.PaintContext, size rendering.Size
 	u := (sc.sim.speed - 0.3) / 2.2
 	rendering.FillRoundRect(pc, tx0, ty-2, math.Max(hudSliderW*u, 2), 4, 2, br, bg, bb, 1)
 	rendering.FillCircle(pc, tx0+hudSliderW*u, ty, 7, br, bg, bb, 1)
+
+	// 开窗按钮（药丸右端 + 号，hover 变红，与暂停钮同式）。
+	ocx := size.Width - hudPadLR - hudBtnSize/2
+	ocy := size.Height / 2
+	openCol := int64(0x222233)
+	if sc.openHover {
+		openCol = 0xe63946
+	}
+	or_, og, ob := rgb(openCol)
+	rendering.FillCircle(pc, ocx, ocy, hudBtnSize/2, or_, og, ob, 1)
+	rendering.FillRoundRect(pc, ocx-6, ocy-1.5, 12, 3, 1.5, 1, 1, 1, 1)
+	rendering.FillRoundRect(pc, ocx-1.5, ocy-6, 3, 12, 1.5, 1, 1, 1, 1)
 }

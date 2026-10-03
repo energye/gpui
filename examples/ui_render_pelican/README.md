@@ -12,7 +12,21 @@
 - 双腿两段式逆运动学踩踏（髋-膝-踝，取偏前解）、曲柄踏频 = 轮转速 / 2.6
 - 鹈鹕：身体随踩踏起伏（sin(2θ)·2.6）、翅膀扇动、围巾双片飘动、后轮扬尘三相位
 - 右下 HUD 药丸：暂停/播放按钮（悬停变红）+ 速度滑条（×0.3..×2.5，步进 0.1）
+  + 开窗按钮（右端 + 号，点一下多开一扇同样的窗）
 - 左下提示文字；标题「鹈鹕骑行记 / PELICAN RIDER」逐字排版带 letter-spacing
+
+## 多窗口（标准壳 + 共享 GPU）
+
+经 `ui/application` 标准壳跑：每窗独立系统窗 + 独立渲染循环 + 独立 scene，
+共享同一块 GPU 设备（第一个窗建设备并发布成全进程共享，后面的窗只建自己的
+面和交换链来借设备画；与 Chrome 单 GPU 进程同思路）。关闭主窗退出整个应用，
+关小窗只关自己。
+
+- 点右下药丸右端的 **+** 钮：多开一扇（走 `App.SpawnWindow`，与启动预开同一条路）。
+- 理论无限开，实际到硬件满为止：每窗固定几百 MB 显存（如 1GB 卡两三个独显窗），
+  开不出时报一句人话（关几个窗或腾显存再试），已有的窗不受影响。
+- 预开多窗（自动化验证多窗并发呈现）：`PELICAN_WINDOWS=N`（默认 1）。
+- 快照 `SNAPSHOT=` 只用于单窗验证；多窗同跑时各窗共用同一路径（最后一个窗落盘）。
 
 ## 双时钟模型
 
@@ -30,13 +44,15 @@
 | ↑ / ↓ | 调速 ±0.1（×0.3..×2.5） |
 | 点击圆钮 | 暂停 / 继续 |
 | 点拖滑条 | 连续调速 |
+| 点击 + 钮 | 多开一扇同样的窗 |
 
 ## 运行
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 go run ./examples/ui_render_pelican                  # 不限时长，关窗退出
-RUN_SECONDS=15 go run ./examples/ui_render_pelican   # 定时退出（>=10s 门禁 fps>=30）
+RUN_SECONDS=15 go run ./examples/ui_render_pelican   # 定时退出（>=10s 门禁主窗 fps>=30）
+PELICAN_WINDOWS=2 RUN_SECONDS=12 go run ./examples/ui_render_pelican  # 预开两窗同跑
 SNAPSHOT=tmp/pelican_shot.png RUN_SECONDS=5 go run ./examples/ui_render_pelican
 ```
 

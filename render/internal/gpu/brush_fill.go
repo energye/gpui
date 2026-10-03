@@ -338,8 +338,9 @@ func (rc *GPURenderContext) rasterCoverageMask(
 	}
 
 	// GPU stencil-then-cover coverage (AA on): same algorithm as solid non-convex
-	// fills. Shared StencilRenderer must DetachExternalLayouts on session Destroy
-	// so mask BGL is never dangling across Context.Close.
+	// fills. The shared StencilRenderer embeds only GPUShared-owned layouts,
+	// so no detach is needed on session Destroy — mask BGLs are never
+	// dangling across Context.Close.
 	if rc.antiAlias {
 		rc.shared.mu.Lock()
 		sr := rc.shared.stencilRenderer

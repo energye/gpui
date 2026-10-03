@@ -38,6 +38,8 @@ func (sr *StencilRenderer) ensureTexturedCoverPipeline() error {
 	if sr == nil {
 		return fmt.Errorf("nil stencil renderer")
 	}
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
 	if sr.texturedCoverPipeline != nil {
 		return nil
 	}
@@ -390,6 +392,8 @@ func (sr *StencilRenderer) ensurePatternCoverPipeline() error {
 	if sr == nil {
 		return fmt.Errorf("nil stencil renderer")
 	}
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
 	if sr.patternCoverPipeline != nil {
 		return nil
 	}

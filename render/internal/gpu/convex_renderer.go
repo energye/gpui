@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sync"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
@@ -120,6 +121,11 @@ type ConvexRenderer struct {
 	queue       hal.Queue
 	sampleCount uint32 // MSAA sample count (4 or 1), from GPUShared
 
+	// mu serializes pipeline lifecycle (create/destroy) on this shared
+	// renderer across windows — same contract as StencilRenderer.mu.
+	// Record/draw stays lock-free; handles are immutable once built.
+	mu sync.Mutex
+
 	// GPU objects for the render pipeline.
 	shader        hal.ShaderModule
 	uniformLayout hal.BindGroupLayout
@@ -170,8 +176,21 @@ func (cr *ConvexRenderer) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	cr.maskLayoutOwned = false
 }
 
+// EnsureSharedBase builds the base convex pipelines once for the shared
+// renderer. Same contract as StencilRenderer.EnsureSharedBase.
+func (cr *ConvexRenderer) EnsureSharedBase() error {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
+	if cr.pipelineWithStencil != nil {
+		return nil
+	}
+	return cr.ensurePipelineWithStencil()
+}
+
 // Creates the pipeline base layouts if needed so the layout is available.
 func (cr *ConvexRenderer) MaskBindLayout() hal.BindGroupLayout {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
 	if cr.maskBindLayout == nil {
 		_ = cr.ensurePipeline()
 	}
@@ -267,6 +286,8 @@ func (cr *ConvexRenderer) ensurePipelineWithStencil() error { // Ensure base res
 // bind group for the current frame. This is a no-op if resources is nil.
 // ensureDepthClipPipeline creates the depth-clipped pipeline variant if needed.
 func (cr *ConvexRenderer) ensureDepthClipPipeline() error {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
 	if cr.pipelineWithDepthClip != nil {
 		return nil
 	}
@@ -313,6 +334,12 @@ func (cr *ConvexRenderer) ensureDepthClipPipeline() error {
 
 // Shares pipeLayout/shader with the AA convex path.
 func (cr *ConvexRenderer) ensureMeshPipelineWithStencil() error {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
+	return cr.ensureMeshPipelineWithStencilLocked()
+}
+
+func (cr *ConvexRenderer) ensureMeshPipelineWithStencilLocked() error {
 	if cr.meshPipelineWithStencil != nil {
 		return nil
 	}
@@ -359,10 +386,12 @@ func (cr *ConvexRenderer) ensureMeshPipelineWithStencil() error {
 
 // ensureMeshDepthClipPipeline creates depth-clipped mesh pipeline.
 func (cr *ConvexRenderer) ensureMeshDepthClipPipeline() error {
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
 	if cr.meshPipelineWithDepthClip != nil {
 		return nil
 	}
-	if err := cr.ensureMeshPipelineWithStencil(); err != nil {
+	if err := cr.ensureMeshPipelineWithStencilLocked(); err != nil {
 		return err
 	}
 	premulBlend := types.BlendStatePremultiplied()
@@ -480,6 +509,10 @@ func (cr *ConvexRenderer) RecordDraws(rp hal.RenderPassEncoder, resources *conve
 // Depth-clipped variants currently only exist for SourceOver; non-SO depth-clip
 // falls back to the non-depth-clipped blend pipeline.
 func (cr *ConvexRenderer) pipelineForBlend(mode render.BlendMode, depthClip bool) hal.RenderPipeline {
+	// Same whole-body lock as the stencil blend cache: the map is written
+	// on first use and cleared on shared teardown.
+	cr.mu.Lock()
+	defer cr.mu.Unlock()
 	if mode == render.BlendNormal {
 		if depthClip && cr.pipelineWithDepthClip != nil {
 			return cr.pipelineWithDepthClip
@@ -581,6 +614,9 @@ func (cr *ConvexRenderer) createPipeline() error {
 	clipLayout := cr.clipBindLayout
 	hasClip := clipLayout != nil
 	if clipLayout == nil {
+		// Same rule as stencil: shared pipelines only ever use the shared
+		// layouts pinned by GPUShared. Session-owned pipelines (effect
+		// offscreens, standalone paths) keep the owned fallback below.
 		if cr.defaultClipBindLayout == nil {
 			layout, err := createClipBindGroupLayout(cr.device, "convex_default_clip_layout")
 			if err != nil {
@@ -591,12 +627,7 @@ func (cr *ConvexRenderer) createPipeline() error {
 		clipLayout = cr.defaultClipBindLayout
 	}
 	if cr.maskBindLayout == nil {
-		layout, err := createMaskBindGroupLayout(cr.device, "convex_mask_layout")
-		if err != nil {
-			return fmt.Errorf("create mask layout: %w", err)
-		}
-		cr.maskBindLayout = layout
-		cr.maskLayoutOwned = true
+		return fmt.Errorf("convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)")
 	}
 	pipeLayout, err := cr.device.CreatePipelineLayout(&hal.PipelineLayoutDescriptor{
 		Label:            "convex_pipe_layout",

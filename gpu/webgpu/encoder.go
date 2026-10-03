@@ -89,7 +89,11 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 			if dsa.View != nil {
 				if wv, ok := dsa.View.(*TextureView); ok && wv != nil && wv.r != nil {
 					depthStack.View = wv.r
+				} else {
+					return nil, fmt.Errorf("wgpu: depth/stencil view released (retired surface texture?)")
 				}
+			} else {
+				return nil, fmt.Errorf("wgpu: depth/stencil view is nil (retired surface texture?)")
 			}
 			rDesc.DepthStencilAttachment = &depthStack
 		}
