@@ -209,6 +209,14 @@ type pictureTextureEntry struct {
 	// off is the layer-local blit offset (bounds.Min of the recorded geometry,
 	// nonzero for text bounds whose Min may be negative above the baseline).
 	off image.Point
+	// lastBlit is the previous frame's surface-logical blit footprint for
+	// this entry (transformBounds of bounds under the composite CTM).
+	// A pure offset move reuses the cached texture without re-record, so
+	// the re-record damage path stays silent — without old ∪ new damage
+	// the old pixels survive under LoadOpLoad (ghost/tear). blit damages
+	// the union when the footprint moves; static entries damage nothing.
+	lastBlit image.Rectangle
+	hasBlit  bool
 }
 
 // NewPictureTextureCache creates a cache bound to dc (logical size) with a
@@ -1331,6 +1339,19 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 		oy += (math.Round(dy) - dy) / ky
 	}
 	c.dc.DrawGPUTexture(s.view, ox, oy, s.w, s.h)
+	// Offset-only move damage (Flutter layer-diff semantics): the texture
+	// is reused without re-record, so phase-2 re-record damage stays empty.
+	// Damage old ∪ new footprints or the old pixels survive under LoadOpLoad.
+	if !e.bounds.Empty() {
+		cur := transformBounds(c.dc, e.bounds)
+		if e.hasBlit && cur != e.lastBlit {
+			u := cur.Union(e.lastBlit)
+			if !u.Empty() {
+				c.dc.TrackDamageRect(u)
+			}
+		}
+		e.lastBlit, e.hasBlit = cur, true
+	}
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
 		fmt.Fprintf(os.Stderr, "DBG blit id=%d w=%d h=%d off=%v\n", id, s.w, s.h, e.off)
 	}
