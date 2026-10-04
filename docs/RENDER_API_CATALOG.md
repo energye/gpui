@@ -12,6 +12,8 @@
 > ```
 >
 > 状态词约定：✅ 有生产接线且 GPU/CPU 实测有效 · 🔗 有生产接线（真实链路在用）· ⚠️ 半成品/有实现但 GPU 未生效（详见 §7.3）· 🔌 无生产消费者（未接线，仅测试/示例/demo）· 🧪 仅测试覆盖。
+>
+> **生产与原子验证口径（硬，见 AGENTS.md）**：生产只认两类调用——组件库真正调用，或 2.5D 引擎与模块功能包真正调用（含 `ui/rendering` 这类替模块干活的胶水包）。真窗示例与单元测试只算原子验证（直接调接口、一次只验一个能力），不算生产接线，拿它们当接线证据的行一律降级。通用能力验证过但两类生产都没调，标已验证待接线（正常中间态，禁止当生产标绿）。
 
 ---
 
@@ -20,7 +22,7 @@
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
 | `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 185 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback） |
-| `render/text` | 包级导出 241（含字体/整形/布局/光栅化；go doc 符号段口径，+1 `RuneAdvance`、+1 `SegmentReuse`） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
+| `render/text` | 包级导出 245→250（含字体/整形/布局/光栅化；go doc 符号段口径，+1 `RuneAdvance`、+1 `SegmentReuse`、+3 字距：`ApplySpacing/ApplySpacingDir/SpacingExtra/WrapTextWithSpacing`（字距数学委托第三方 `shaping.AddSpacing`，`WhitespaceRuns` 已删）；`LayoutOptions` 新增 `LetterSpacing/WordSpacing` 字段；+5 6b字重收敛：`WithWeight/FaceEmbolden/EmboldenRadius/EmboldenResult/DeriveFace`；新增 `FontWeight` 类型 + `WeightThin..WeightBlack`/`GlyphMaskFlagBold` 常量；`Face.Embolden` 接口方法 + `MultiFace.WithWeight` 方法） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
 | `render/surface` | 顶层 53 | 🔌 无消费者 | surface 抽象（ImageSurface/GPUSurface）+ 注册表，未接入 render.Context |
@@ -161,7 +163,7 @@
 | `PresentFrameAuto/PresentFrameFull`（frame.go） | 自动选路径 / 强制全帧呈现 | 自动/全帧呈现 | ✅（PresentFrameAuto 内部用） |
 | `PlanFramePresent/PlanPresent/FramePresentPlan/PresentOutcome/PresentMode` | 依据损伤区与 surface 尺寸规划呈现策略 | 呈现策略规划 | ✅（PresentFrameAuto 内部用） |
 | `CoalesceDamageRects` | 把多条损伤矩形合并/裁剪到上限 | 损伤合并 | 🔗 |
-| `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/GPUBackend/Fallbacks/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**；**GPUBackend 🔗 实际显卡类别上报口（discrete/integrated/software），多窗降级链（1.3）复用**） |
+| `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/GPUBackend/Fallbacks/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/WaitIdle/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**；**GPUBackend 🔗 实际显卡类别上报口（discrete/integrated/software），多窗降级链（1.3）复用**；**WaitIdle 🔗 关窗先等 GPU 空闲再清图块缓存（2026-10-04 关窗漏修，ui/embedder PipelineApp.Close 在用）**） |
 | `AdapterPolicy`（PolicyDefault/PolicyHigh/PolicyLow + 别名 PolicyNone/PolicyAuto/PolicyHighPerformance/PolicyLowPower）+ `ResolveAdapterPolicy` + `RequestAdapterWithPolicy` + `DeviceDescriptor/DeviceDescriptorLowVRAM/DeviceDescriptorForAdapter`（adapter_policy.go，2026-09-05 自 render/gpu 搬入，函数名与行为一字不动；2026-09-18 B4：`DeviceDescriptorForAdapter` 加台账水位自动 LowVRAM（≥80% 预算，`GPUI_LOW_VRAM_WATERLINE_PCT` 可调）+ `AcquireSharedPresentDevice`（present_target.go，探针/离屏借共享设备，单设备多表面）） | 选卡策略（GPUI_POWER=high/low，默认混搭优先核显）与设备描述符（核显/CPU/水位超限走 LowVRAM 紧限） | 适配器策略 | 🔗 NewPresentTarget 建窗调用（render/present_target.go）；forceFallback 时 stderr 如实记日志 |
 | `IsGPUOutOfMemory(err)` + `PurgeEvictable` 接口 + `RegisterPurgeEvictable/UnregisterPurgeEvictable/PurgeEvictables`（oom_purge.go，多窗 1.3）+ `PresentTarget.Fallbacks()` + `OOMExitThreshold/OOMExit`（oom_exit.go，2026-09-18 B3：三帧判死与就绪门同一阈值同一文案，ui/embedder 只做委托） | OOM 统一判定（大小写全匹配三短语）与可重建缓存 purge 链（字形/图片/层池注册、teardown 注销）+ 建窗降级次数上报 + 判死阈值 | OOM 判定与 purge | 🔗 建窗降级循环 + 建纹理 OOM 恢复轮 + embedder 退出判定在用 |
 | `Backend`（BackendNative/BackendGo）+ `ResolveBackend`/`ResolveBackendFor` + `SelectBackend` + `NewPresentTargetWithBackend`（backend.go/present_target.go，2026-09-30 P4：后端二选一，`GPUI_BACKEND`环境变量优先，只认native/go，写错报错不瞎猜；带参建窗零值默认，老不带参函数保留转调） | 后端选择（默认WebGPU，加`go`切纯Go GL；创建分支只留建实例和建交换链两句，之后全走hal接口） | 后端二选一 | 🔗 NewPresentTarget 建窗调用（render/present_target.go:ResolveBackend+SelectBackend；render/present_swapchain.go:ResolveBackend建交换链）；真窗双验2026-09-30（go路鹈鹕12秒720帧58fps零回退discrete／默认路723帧58.3fps零回退integrated／写错值直接报错退出） |
@@ -251,20 +253,22 @@
 
 ## 6. 子包目录
 
-### 6.1 render/text（包级导出 240）
+### 6.1 render/text（包级导出 240→250，6a字距+6b字重收敛+第三方库委托）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
 |----|---------|------|------|------|
-| 字体与文件 | `RegisterParser/FontSource/FontSourceID/LoadDefaultFace/LoadDefaultFaceFor/LoadMultiFace/NewFontSourceFromFile/ClearSystemFontPaths/ErrEmptyFontData/ErrUnsupportedFont…`、`MultiFace`（`AtSize`/`WithHinting` 等导出方法） | 字体解析器注册、字体源身份、字体文件加载、多字体链重建（尺寸/渲染选项保留）、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
+| 字体与文件 | `RegisterParser/FontSource/FontSourceID/DeriveFace/LoadDefaultFace/LoadDefaultFaceFor/LoadMultiFace/NewFontSourceFromFile/ClearSystemFontPaths/ErrEmptyFontData/ErrUnsupportedFont…`、`MultiFace`（`AtSize`/`WithHinting`/`WithWeight` 等导出方法，单遍派生收敛） | 字体解析器注册、字体源身份、尺寸+字重单入口派生、字体文件加载、多字体链重建（尺寸/渲染选项保留）、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
 | 整形 | `Shape/ShapedGlyph/RunAdvance/CaretXForCluster/HitTestCluster/…` | 文本整形（复杂文字/阿拉伯、泰文等）、字形序列与簇命中 | 文本整形 | 🔗 |
 | 分段 | `SegmentText/SegmentTextRTL/SegmentReuse/Segment/BuiltinSegmenter/DetectScript` | 双向/脚本分段（UAX#9）与单行击键增量前后缀复用（`SegmentReuse`：`ui/rendering` 单行行内复用经单行分段缓存调用，`render/text/segment_reuse_test.go` 等价锁 + 真窗 `ui_text_m5_anycase` 已验） | 脚本双向分段 | 🔗 |
 | 绘制 | `Draw/DrawAliased/DrawWithEmoji/Measure/MeasureText/RuneAdvance` | 字形到目标图像的绘制（含别名/emoji）、文本度量；`RuneAdvance` 为单字形无分配推进（P7 5000 视口） | 字形绘制 | 🔗 |
+| 布局/换行 | `LayoutText/LayoutOptions/Line/WrapText/WrapTextWithSpacing/ApplySpacing/ApplySpacingDir/SpacingExtra` | 段落布局（`LetterSpacing/WordSpacing` 字距：簇间隙n-1/词分隔符，末簇无拖尾；换行按含距宽度断行）+ 字距经第三方 `shaping.AddSpacing`（半分分布，`WhitespaceRuns` 已删）/宽度增量 | 段落布局/换行 | 🔗（6a：`ui/rendering` 字距布局/量宽/换行在用，`spacing_test.go` 端到端锁；第三方库委托后行为：词距按分隔符个数，tab 不计） |
+| 字重 | `FontWeight/WeightThin..WeightBlack/WithWeight/FaceEmbolden/EmboldenRadius/EmboldenResult/Face.Embolden` | 字重选择（Flutter fontWeight）：可变 wght 轴走真轮廓（`resolveWeight`，显式 wght 优先），静态 ≥600 合成加粗（mask 膨胀，advance 不变；`ui/rendering` `SetFontWeight`+`DeriveFace` 单派生在用，`weight_test.go` 锁收敛单入口） | 字重/合成加粗 | 🔗（6b收敛：`Embolden` 进 `Face` 接口，`FaceEmbolden` 仅 nil 安全分发；`MultiFace` 派生经 `faceOptionsExcept/rederiveComponent/deriveMultiFace` 单 helper；CPU draw 两路 + GPU atlas 两路，`GlyphMaskFlagBold` 分键） |
 | 度量/量化 | `Quantize/QuantizePoint/SubpixelMode/SubpixelConfig` | 子像素量化（LCD/AA 的次像素定位） | 子像素量化 | 🔗 |
 | 缓存 | `ClearShapeResultCache/ClearMultiFaceRunsCache/ClearAutoHintCache/ClearFontScanFallbackCache/ResetShapeResultCacheStats` | 各缓存清理与统计复位（整形/多面/自动 hint/字体扫描） | 缓存管理 | 🔗 |
-| 光栅 | `RasterizeFT26/GlyphMaskFlagAliased/GlyphMaskFlagLCD/GlyphMaskFlagLCDBGR` | 轮廓点阵光栅化、字形掩码标志 | 字形光栅化 | 🔗 |
+| 光栅 | `RasterizeFT26/GlyphMaskFlagAliased/GlyphMaskFlagLCD/GlyphMaskFlagLCDBGR/GlyphMaskFlagBold` | 轮廓点阵光栅化、字形掩码标志（Bold：合成加粗分键） | 字形光栅化 | 🔗 |
 | 特性/角色 | `FontRole/FontFeature/TabularNums/AxisWeight/DefaultMultiFontRoleChain/UnicodeRange/RangeBasicLatin/IsCJK/IsPunctuation/IsWhitespace…` | 字体角色链、OpenType 特性、Unicode 区间/分类判定 | 字体特性/分类 | 🔗 |
 | 错误/变量 | `ErrCFF2Unsupported/ErrUnsupportedFontType/…`、`DefaultTabWidth` 等 | 字体/格式错误、制表符宽默认 | 错误/常量 | — |
 
-> 完整 240 项请以 `go doc ./render/text` 为准（本表为族级归纳，改动文本 API 时在对应族补行）。
+> 完整 240 项请以 `go doc ./render/text` 为准（本表为族级归纳，改动文本 API 时在对应族补行；收敛项：`ui/rendering` 布局单入口 `BuildTextLayoutEx→WithSpacing(0,0)`、`effectiveFace→DeriveFace` 单派生，`BoundaryCache.Store/StorePicture→storeEntryLocked` 单写盘，`ui/scene` 回放经 `setOpFill/setOpStroke/drawRoundRectShape` 单设态；字距数学委托第三方 `shaping.AddSpacing`）。
 
 ### 6.2 render/scene（顶层 143）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
@@ -417,7 +421,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `CubicBez` | Start/End · Eval/Extrema/Inflections/Deriv · Normal/Tangent · BoundingBox · Subdivide/Subsegment | 三次贝塞尔求值/拐点/切线 | 三次贝塞尔 | 🔗 |
 | `Rect` | Width/Height · Contains · Union · (NewRect) | 矩形尺寸/包含/合并 | 矩形 | ✅ |
 | `PathMetric` | IsEmpty · Length · PositionAt/TangentAt | 路径度量查询（取点/切线） | 路径度量 | 🔗 |
-| `PresentTarget` | Context/Resize/SetVsync/Scale · PresentWith/PresentWithAuto/PresentClear · LastPresentOutcome/LastDamageAreaPx/GPUBackend/Fallbacks · InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized · LogicalSize · Close | 呈现目标绘制/呈现/恢复状态（SetOnSwapchainResized：swapchain 换尺寸回调，Wayland 宿主用于 xdg 窗口几何声明；SetVsync：运行时切换 Fifo↔Mailbox/Immediate，embedder 在 resize 风暴期关闭 vsync 让内容帧不被 Fifo 阻塞；运行时切换 Fifo↔Mailbox/Immediate（2026-08-26 修3 起 Wayland 同样生效）） | 呈现目标 | ✅ |
+| `PresentTarget` | Context/Resize/SetVsync/Scale · PresentWith/PresentWithAuto/PresentClear · LastPresentOutcome/LastDamageAreaPx/GPUBackend/Fallbacks · InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized · LogicalSize · WaitIdle · Close | 呈现目标绘制/呈现/恢复状态（SetOnSwapchainResized：swapchain 换尺寸回调，Wayland 宿主用于 xdg 窗口几何声明；SetVsync：运行时切换 Fifo↔Mailbox/Immediate，embedder 在 resize 风暴期关闭 vsync 让内容帧不被 Fifo 阻塞；运行时切换 Fifo↔Mailbox/Immediate（2026-08-26 修3 起 Wayland 同样生效）） | 呈现目标 | ✅ |
 | `VideoTexturePool` | Acquire/Release/Stats/Close | 按 exact 尺寸借还视频纹理（独立池，不进通用图缓存） | 视频独立池 | 🧪 |
 | `FuncPainter`/`SolidPainter` | PaintSpan | 逐像素填色段 | 像素填色器 | 🧪 |
 | 枚举类型通用方法 `String()` | PathVerb / PipelineMode / PresentMode / RasterizerMode / TextMode 均实现 String() 输出枚举名（日志/调试用） | 枚举打印 | 枚举调试 | 🔗 |

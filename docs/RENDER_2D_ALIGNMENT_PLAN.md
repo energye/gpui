@@ -162,6 +162,11 @@ Skia/Flutter 裁剪语义 → 本管线映射（全部已实现，本期只补�
 | 2 | 洞2 Bicubic GPU | `render/` + `internal/gpu` | 高 | `go test ./render/...`（context_image/image 族）+ images 真窗 |
 | 3 | 洞3 排版接通 | `ui/rendering` | 低 | `go test ./ui/...` + ui_wr_* 真窗文本目测 |
 | 4 | 洞4 计算管线裁剪集成 | `render/internal/gpu` | 高 | `go test ./render/internal/gpu/...`（Vello 族）+ compute_clip 真窗（GPU vs CPU 同场景） |
+| 5 | 洞5 边界缓存全集化（已实现，洞8实测后可关） | `ui/scene` + `ui/rendering` | 中 | `go test ./ui/rendering ./ui/scene` + R3/R4/C4/C5/C6 skip 语义 + 鹈鹕静盒 skip |
+| 6a | 洞6a 字距（已合入 2026-10-04） | `render/text` + `ui/rendering` | 高 | `go test ./render/text ./ui/rendering` + M0–M5 文本裁判 + base_text 真窗 |
+| 6b | 洞6b 字重合成加粗（已实现 2026-10-04，洞8实测后可关） | `render/text` + `render/internal/gpu` + `ui/rendering` | 高 | 同上 + GPU字形路 |
+| 7 | 洞7 按钮滑条控件 | `ui/gestures` + `ui/kit` | 低 | `go test ./ui/gestures ./ui/kit/... ./ui/rendering` + kit 真窗 + R13 命中 |
+| 8 | 洞8 鹈鹕瘦身（已实现 2026-10-04：标题/速度标签删手写仿粗改调引擎） | `examples/ui_render_pelican` | 低 | `go build` + p1/p2/openwindow 逐文件 + 冻结帧像素一致 |
 
 每洞完成后：跑该洞回归 → 更新 `RENDER_API_CATALOG.md`（§3.x/§7.3 状态 + 证据行）→ `ENGINE_UI_WIDGET_RENDER.md` §10 追加修订行（版本列写 `API目录同步` 或洞名）。
 
@@ -170,4 +175,10 @@ Skia/Flutter 裁剪语义 → 本管线映射（全部已实现，本期只补�
 - 洞1 收口：`RENDER_API_CATALOG.md` §3.2 `Clip()/ClipPreserve()` ⚠️→✅（真窗名/日期）；§7.3 首行删除；§7.1 加「任意路径裁剪（stencil+depth，Skia 模式）」
 - 洞2 收口：§3.5 `DrawImageEx` 状态注记更新；§7.3 若含 bicubic 相关则更新
 - 洞3 收口：§3.8 文本族状态「MeasureString 🔗 内部用」补 ui 排版接线证据
+- 洞5 收口：`ENGINE_UI_RENDER_BASE.md` §11/§13 状态诚实回写（Picture 全集 + 边界可缓存类型）；`§22.2` 残项减行
+- 洞6a 收口：`RENDER_API_CATALOG.md` render/text 新增符号同步 + §7 状态表；`ENGINE_UI_RENDER_BASE.md` §8 `FT-LETTER-SPACING/FT-WORD-SPACING` 状态诚实回写（`FT-STYLE-WEIGHT` 保持 B，待 6b）
+- 洞6b 收口（已实现 2026-10-04，洞8实测后可关）：字重选择+合成加粗全做（`render/text`：`WithWeight/FontWeight/FaceEmbolden/EmboldenResult` + `MultiFace.WithWeight` + `GlyphMaskFlagBold`；`render/internal/gpu`：三入口 embolden 透传 + 模板键分键；`ui/rendering`：`SetFontWeight/effectiveFace/faceWithWeight` + 量宽/边界分键；`weight_test.go` 两层 10 项绿）+ `FT-STYLE-WEIGHT` B→A/C 回写已落；洞8鹈鹕标题改调实测已过（P1离屏 15.5%<25%、huge 6.0%<10%、零回退；标题烘焙 2627 非空像素）
+- 洞7 收口：所属域控件总账（分类表/统计/状态/速查/修订）同步；跨平台标记一次标齐
+- 洞8 收口（已实现 2026-10-04，实测已过）：`scene.go` 删标题 `dup`/速度 `speedLabelDup` 手写仿粗，改调引擎 `SetFontWeight(700)`（合成加粗宽度不变，总宽稳定；`README.md` 同步）；`go build` 绿 + P1离屏/在线/P2repro/overlapped/开窗4项绿（P2-WebGPU一项系缺 `libwgpu_native.so` 环境失败，干净树同失败）+ 冻结帧 GLvsCPU 15.5%<25%、标题烘焙有墨
+- 收敛优化（已做洞，2026-10-04，未提交）：`Face.Embolden` 接口化 + `DeriveFace` 单派生 + `MultiFace` 单 helper + 布局/缓存/回放单入口（详见 `ENGINE_UI_WIDGET_RENDER.md` §10 收敛行）；鹈鹕 P1 离屏复验数字与收敛前一致（15.5%/6.0%/零回退）
 - 主体文档 `ENGINE_UI_WIDGET_RENDER.md` §10 修订表每洞一行

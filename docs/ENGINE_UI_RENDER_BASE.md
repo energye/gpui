@@ -116,7 +116,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | Scheduler / Vsync | `ui/scheduler` | 接口 A；DRM 真 VSync A/C |
 | 帧/资源指标 | `MetricsStore` + 示例 JSON | 分位/hitch/RSS/**slope**/GPU path/baseline **A/C（D8）** |
 | dirty-rect Present | render + **PipelineApp 稳态 Auto** | **A/C（序13）** 首帧/resize 仍 full；OS damage 可忽略 |
-| Picture 显示列表 | scene PictureRecorder/Replay | **A/C（序13/D7）** rect/path/text/image；≠ Flutter 全量；≠ partial Present |
+| Picture 显示列表 | scene PictureRecorder/Replay | **A/C（序13/D7）** rect/path/circle/oval/arc/roundrect/line/gradient/text/image；≠ Flutter 全量；≠ partial Present |
 
 ```text
 一帧：ScheduleFrame → layout → paint → FramePacket → RasterizeDirty
@@ -164,7 +164,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FC-DRAW-IMAGE-RECT | 源/目标矩形 | Canvas.drawImageRect | 裁剪缩放 | **DrawImageRect** / DrawImageBuf | DrawImageEx | RenderImage | **A** | image_draw.go | |
 | FC-DRAW-IMAGE-NINE | 九宫格 | Canvas.drawImageNine | 可拉伸边框 | **DrawImageNine** | DrawImageNine | — | **A** | image_draw.go · image_draw_test | 均匀 center 矩形；Atlas UI 仍开 |
 | FC-DRAW-PARAGRAPH | 绘段落 | Canvas.drawParagraph | 所有正式文本 | DrawText/Colored 子集 | DrawString* | RenderText | C | ui/rendering/text.go | 非 Paragraph 模型 |
-| FC-DRAW-PICTURE | 回放 Picture | Canvas.drawPicture | 层缓存回放 | Picture.Replay | Context 绘 | PictureLayer+Ops | **A/C** | scene/picture.go · picture_test | rect/path/text/image 回放；**非** dirty-rect Present；非 GPU picture 缓存 |
+| FC-DRAW-PICTURE | 回放 Picture | Canvas.drawPicture | 层缓存回放 | Picture.Replay | Context 绘 | PictureLayer+Ops | **A/C** | scene/picture.go · picture_test · picture_geo_test | rect/path/circle/oval/arc/roundrect/line/gradient/text/image 回放；**非** dirty-rect Present；非 GPU picture 缓存 |
 
 ---
 
@@ -270,10 +270,10 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FT-PAINTER | TextPainter | TextPainter | 通用测量绘 | — | Measure+Draw 组合 | — | B | render/text.go | 可做 ui 门面 |
 | FT-STYLE-SIZE | 字号 | TextStyle.fontSize | 层级 | **SetFontSize** · effectiveFace | Face/Source.Face(pts) | RenderText | **A** | text.go · text_font_ro_test | FontSize 与 Face 尺寸同步；改 size 重测 |
 | FT-STYLE-FAMILY | 字体族 | fontFamily | 品牌/CJK | **SetFontFamily** / LoadFaceByFamily | LoadFontFace | RenderText | **A** | default_font.go · paragraph_style_test | sans/serif/mono + 路径；非完整 CSS 族匹配 |
-| FT-STYLE-WEIGHT | 字重 | fontWeight | 强调 | — | Face/variations 部分 | — | B | LoadFontFaceWithVariations | — |
+| FT-STYLE-WEIGHT | 字重 | fontWeight | 强调 | **SetFontWeight** · faceWithWeight/effectiveFace | WithWeight/FaceEmbolden/EmboldenResult/GlyphMaskFlagBold | RenderText | **A/C** | render/text/weight_test.go · ui/rendering/weight_test.go | 6b：可变 wght 真轮廓（显式优先），静态≥600 合成加粗（advance 不变）；模板/图集/边界三处分键 |
 | FT-STYLE-STYLE | italic | fontStyle | 斜体 | — | — | — | C/D | — | 依赖字体文件 |
-| FT-LETTER-SPACING | 字距 | letterSpacing | 标题微调 | — | — | — | D | — | — |
-| FT-WORD-SPACING | 词距 | wordSpacing | 英文 | — | — | — | D | — | — |
+| FT-LETTER-SPACING | 字距 | letterSpacing | 标题微调 | SetLetterSpacing · BuildTextLayoutExWithSpacing | ApplySpacing/LayoutText/WrapTextWithSpacing（数学委托第三方 `shaping.AddSpacing`） | RenderText | **A/C** | spacing_test.go · ui/rendering/spacing_test.go | 簇间隙n-1/末簇无拖尾/负值收紧/RTL不断形；富文本Runs随后（6c） |
+| FT-WORD-SPACING | 词距 | wordSpacing | 英文 | SetWordSpacing · 同上 | 同上（第三方 CSS 分隔符集，tab 不计） | RenderText | **A/C** | 同上 | 同上 |
 | FT-HEIGHT | 行高 | height | 多行节奏 | *1.25 近似 | lineSpacing 参数 | — | C | DrawStringWrapped | — |
 | FT-STRUT | StrutStyle | StrutStyle | 多行稳定行盒 | — | — | — | D | — | — |
 | FT-ALIGN | 对齐 | TextAlign | 标题居中 | — | Align @ Wrapped | — | B | DrawStringWrapped | 单行 RO 无 |
@@ -301,7 +301,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | ID | Flutter 能力 | Flutter 参考 | UI 场景用途 | gpui.ui | gpui.render | scene/RO | 状态 | 证据 | 缺口/备注 |
 |----|--------------|--------------|------------|---------|-------------|----------|------|------|-----------|
-| FPic-RECORDER | Picture 录制 | PictureRecorder+Canvas | 层缓存 | **PictureRecorder** | — | Picture.Ops | **A/C** | scene/picture.go · picture_test | rect+path+text+image；非全量 Canvas recorder（无 saveLayer/clip 进列表） |
+| FPic-RECORDER | Picture 录制 | PictureRecorder+Canvas | 层缓存 | **PictureRecorder** | — | Picture.Ops | **A/C** | scene/picture.go · picture_test · picture_geo_test | rect/path/circle/oval/arc/roundrect/line/gradient/text/image；非全量 Canvas recorder（无 transform/clip/saveLayer/points/vertices/atlas 进列表） |
 | FPic-PLAYBACK | 回放 | drawPicture | 静态层复用 | **Picture.Replay** · RasterizeDirtyToContext | Context | NeedsRaster+Ops | **A/C** | picture.go · rasterize.go · picture_test | CPU 回放 path/text/image+脏跳过；非 GPU 纹理缓存；非 dirty Present |
 | FPic-TO-IMAGE | 栅格化 | Picture.toImage | 截图 | — | Export/Image | — | B | context | — |
 | FPic-DISPOSE | 释放 | dispose | 防泄漏 | — | — | — | C | — | 规范待补 |
@@ -838,7 +838,7 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 ```text
 1. PipelineApp 默认仍 RO 直绘 Present（PaintPresentTree）
    → CompositeToContext / Picture 能力在，但是「可选/测试路径」，非默认 compositor。
-2. Picture 显示列表 = rect+path+text+image 子集；无列表内 clip/saveLayer；无 GPU 纹理缓存。
+2. Picture 显示列表 = rect/path/circle/oval/arc/roundrect/line/gradient/text/image 子集；无列表内 transform/clip/saveLayer；无 GPU 纹理缓存。
 3. Backdrop / DropShadow / 部分 SaveLayer = 全幅或大区域成本，产品慎用。
 4. VSync：有 DRM 可为 true；否则 fallback — JSON vsync_source 为准。
 5. cpu_ui/raster = 路径 proxy，≠ OS 线程 DevTools %。
