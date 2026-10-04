@@ -124,6 +124,11 @@ func (s *FontSource) Face(size float64, opts ...FaceOption) Face {
 		opt(&config)
 	}
 
+	// Weight resolution (see weight.go): fill the wght axis when present
+	// (explicit wght wins), else synthetic embolden is derived on demand
+	// from weight >= 600 via Embolden().
+	resolveWeight(s, &config)
+
 	// Create face
 	// For now, this is a stub. Full implementation in TASK-043.
 	return &sourceFace{

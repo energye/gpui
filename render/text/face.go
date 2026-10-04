@@ -63,6 +63,17 @@ type Face interface {
 	// Returns nil for faces created without variations.
 	Variations() []FontVariation
 
+	// Weight returns the requested stroke-thickness grade (set via
+	// [WithWeight], 0 = unset/as designed). The resolved rendering is:
+	// wght variation when the font has the axis, else synthetic embolden
+	// for grades >= 600 (see Embolden).
+	Weight() FontWeight
+
+	// Embolden reports whether this face renders with synthetic embolden
+	// (mask dilation, Skia fakeBold class): requested weight >= 600 on a
+	// font without a wght axis. Advances are unchanged by synthetic bold.
+	Embolden() bool
+
 	// Hinting returns the hinting mode configured for this face (set via
 	// [WithHinting], default HintingFull). Both the CPU text.Draw path and the
 	// GPU glyph-mask rasterizer consume the SAME face hinting so their masks
@@ -88,6 +99,47 @@ func RuneAdvance(face Face, r rune) float64 {
 	// Fallback for unknown Face implementations (test mocks).
 	w, _ := Measure(string(r), face)
 	return w
+}
+
+// DeriveFace returns a Face at size points carrying weight grade w.
+// Single entry for size+weight derivation (replaces separate faceForSize +
+// faceWithWeight passes): one src.Face allocation, one MultiFace component
+// pass. Size within 0.25pt and matching weight returns face as-is.
+// Weight 0 means no override (preserve existing grade).
+func DeriveFace(face Face, size float64, w FontWeight) Face {
+	if face == nil {
+		return nil
+	}
+	if size <= 0 {
+		size = 14
+	}
+	sizeOK := false
+	if cur := face.Size(); cur > 0 {
+		d := cur - size
+		if d < 0 {
+			d = -d
+		}
+		sizeOK = d < 0.25
+	}
+	weightOK := w == 0 || face.Weight() == w
+	if sizeOK && weightOK {
+		return face
+	}
+	if mf, ok := face.(*MultiFace); ok {
+		return deriveMultiFace(mf, size, w)
+	}
+	src := face.Source()
+	if src == nil {
+		return face
+	}
+	var base []FaceOption
+	if w != 0 {
+		base = faceOptionsExcept(face, false, true)
+		base = append(base, WithWeight(w))
+	} else {
+		base = faceOptionsOf(face)
+	}
+	return src.Face(size, base...)
 }
 
 // sourceFace is the internal implementation of Face.
@@ -328,6 +380,45 @@ func (f *sourceFace) Language() string {
 // Variations implements Face.Variations.
 func (f *sourceFace) Variations() []FontVariation {
 	return f.config.variations
+}
+
+// Weight implements Face.Weight.
+func (f *sourceFace) Weight() FontWeight {
+	if f == nil {
+		return 0
+	}
+	return f.config.weight
+}
+
+// Embolden reports whether this face renders with synthetic embolden
+// (mask dilation, Skia fakeBold class): requested weight >= 600 on a font
+// without a wght axis. Advances are unchanged by synthetic bold, so
+// layout/measure need no weight keys — only raster caches separate.
+// An explicit wght variation suppresses synthetic bold (user took control).
+func (f *sourceFace) Embolden() bool {
+	if f == nil || f.config.weight < 600 {
+		return false
+	}
+	if hasWghtVariation(f.config.variations) && !weightVariationFromResolve(f) {
+		return false
+	}
+	return !hasWeightAxis(f.source)
+}
+
+// weightVariationFromResolve reports whether the wght entry in config came
+// from resolveWeight (weight-derived) rather than an explicit WithVariations.
+// resolveWeight appends exactly one wght equal to the grade when the font has
+// the axis and no explicit wght was present.
+func weightVariationFromResolve(f *sourceFace) bool {
+	if f == nil || !hasWeightAxis(f.source) {
+		return false
+	}
+	for _, v := range f.config.variations {
+		if v.Tag == weightWghtTag && float64(v.Value) == float64(f.config.weight) {
+			return true
+		}
+	}
+	return false
 }
 
 // private implements the Face interface.

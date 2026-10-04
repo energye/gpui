@@ -67,6 +67,15 @@ type LayoutOptions struct {
 	// Default is WrapWordChar which breaks at word boundaries first,
 	// then falls back to character boundaries for long words.
 	WrapMode WrapMode
+
+	// LetterSpacing adds space between each letter (glyph cluster) in
+	// logical px (negative tightens). Gaps = clusters-1: no trailing
+	// phantom width. Combining marks share their base cluster.
+	LetterSpacing float64
+
+	// WordSpacing adds space at each maximal whitespace run in logical
+	// px (negative tightens).
+	WordSpacing float64
 }
 
 // DefaultLayoutOptions returns sensible default layout options.
@@ -261,7 +270,7 @@ func layoutParagraph(para string, face Face, opts LayoutOptions, metrics Metrics
 	}
 
 	// Shape each segment
-	runs := shapeSegments(segments, face, metrics)
+	runs := shapeSegments(segments, face, metrics, opts)
 
 	// If no wrapping needed or WrapNone, return as single line
 	if opts.MaxWidth <= 0 || opts.WrapMode == WrapNone {
@@ -273,12 +282,17 @@ func layoutParagraph(para string, face Face, opts LayoutOptions, metrics Metrics
 }
 
 // shapeSegments shapes each segment and returns ShapedRuns.
-func shapeSegments(segments []Segment, face Face, metrics Metrics) []ShapedRun {
+// Letter/word spacing delegates to the shaping library per segment
+// (ApplySpacingDir, cluster-rank shifts + trailing-free gaps); inter-segment
+// gaps add one letter space each so multi-segment lines measure exactly
+// clusters-1 (single-segment lines are unaffected). Zero spacing is
+// a no-op fast path with unchanged output.
+func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOptions) []ShapedRun {
 	runs := make([]ShapedRun, 0, len(segments))
 	size := face.Size()
 	var xOffset float64
 
-	for _, seg := range segments {
+	for si, seg := range segments {
 		// Use uncached shape so segment-level RTL reorder is applied once here
 		// without double-reordering a Shape() cache entry that already reordered.
 		glyphs := ShapeUncached(seg.Text, face)
@@ -290,6 +304,25 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics) []ShapedRun {
 			glyphs = ReorderRTLShapedGlyphs(glyphs)
 		}
 
+		// Inter-segment letter gap: every non-first shaped segment starts
+		// one letter space after the previous content (n-1 gaps over the
+		// line; the line-final cluster still carries no trailing).
+		if si > 0 && opts.LetterSpacing != 0 && len(runs) > 0 {
+			xOffset += opts.LetterSpacing
+			runs[len(runs)-1].Advance += opts.LetterSpacing
+		}
+
+		// Spacing shifts are segment-relative here; xOffset applies below.
+		// Base advance is captured BEFORE ApplySpacing mutates X —
+		// adding segExtra to an already-shifted end would double-count
+		// the last glyph's shift.
+		var baseAdvance float64
+		if len(glyphs) > 0 {
+			last := &glyphs[len(glyphs)-1]
+			baseAdvance = last.X + last.XAdvance
+		}
+		segExtra := ApplySpacingDir(glyphs, seg.Text, opts.LetterSpacing, opts.WordSpacing, seg.Direction)
+
 		// Adjust glyph positions by xOffset
 		for i := range glyphs {
 			glyphs[i].X += xOffset
@@ -298,11 +331,7 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics) []ShapedRun {
 		}
 
 		// Calculate run advance
-		var advance float64
-		if len(glyphs) > 0 {
-			lastGlyph := &glyphs[len(glyphs)-1]
-			advance = lastGlyph.X - xOffset + lastGlyph.XAdvance
-		}
+		advance := baseAdvance + segExtra
 
 		run := ShapedRun{
 			Glyphs:    glyphs,

@@ -52,7 +52,18 @@ type RenderText struct {
 	MaxWidth float64
 	// LineSpacing multiplier for wrapped lines (default 1.2).
 	LineSpacing float64
-	Align       render.Align
+	// LetterSpacing adds space between each letter (glyph cluster) in
+	// logical px (negative tightens); single-string path only in 6a
+	// (runs path follows in 6c). Gaps = clusters-1, no trailing phantom.
+	LetterSpacing float64
+	// WordSpacing adds space at each maximal whitespace run in logical px;
+	// same 6a single-string scope as LetterSpacing.
+	WordSpacing float64
+	// FontWeight requests stroke-thickness grade (6b, Flutter FontWeight):
+	// variable font with wght axis resolves to real outlines, otherwise
+	// grade>=600 renders synthetic embolden (advance unchanged).
+	FontWeight text.FontWeight
+	Align      render.Align
 	// MaxLines caps visible lines; 0 = unlimited.
 	MaxLines int
 	// Overflow is applied when content exceeds MaxWidth and/or MaxLines.
@@ -82,9 +93,10 @@ type RenderText struct {
 	lcache *layoutCache
 	// effFace是effectiveFace的记忆值:face 对象不可变,输入不变时
 	// 返回同一对象,增量引擎才能按身份命中(否则每击键全量重建)。
-	effFace     text.Face
-	effFaceFor  text.Face
-	effFaceSize float64
+	effFace       text.Face
+	effFaceFor    text.Face
+	effFaceSize   float64
+	effFaceWeight text.FontWeight
 	// spanHint是SetTextSpan留下的变更区间,ensureLayout消费一次.
 	spanHint editSpan
 
@@ -373,6 +385,48 @@ func (t *RenderText) SetOverflow(o TextOverflow) {
 	t.MarkNeedsPaint()
 }
 
+// SetLetterSpacing sets inter-letter space (logical px, may be negative);
+// dirties layout+paint+measure. Single-string path only in 6a.
+func (t *RenderText) SetLetterSpacing(v float64) {
+	if t == nil || t.LetterSpacing == v {
+		return
+	}
+	t.LetterSpacing = v
+	t.textLayout = nil
+	t.invalidateMeasureCache()
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// SetWordSpacing sets per-whitespace-run space (logical px, may be
+// negative); dirties layout+paint+measure. Same 6a scope as LetterSpacing.
+func (t *RenderText) SetWordSpacing(v float64) {
+	if t == nil || t.WordSpacing == v {
+		return
+	}
+	t.WordSpacing = v
+	t.textLayout = nil
+	t.invalidateMeasureCache()
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
+// SetFontWeight requests a stroke-thickness grade (6b, Flutter FontWeight
+// semantics): 0/unset = as designed; variable wght axis = real outlines;
+// static + >=600 = synthetic embolden. Dirties layout+paint+measure;
+// advances unchanged for synthetic so wrap is stable, raster cache separates.
+func (t *RenderText) SetFontWeight(w text.FontWeight) {
+	if t == nil || t.FontWeight == w {
+		return
+	}
+	t.FontWeight = w
+	t.effFace = nil
+	t.textLayout = nil
+	t.invalidateMeasureCache()
+	t.MarkNeedsLayout()
+	t.MarkNeedsPaint()
+}
+
 func (t *RenderText) fontSize() float64 {
 	if t == nil || t.FontSize <= 0 {
 		return 14
@@ -395,59 +449,37 @@ func (t *RenderText) lineSpacing() float64 {
 }
 
 // faceForSize returns a Face usable at points for measure/paint.
-// Single faces are re-derived from Source(); MultiFace uses AtSize.
-// If size already matches (within 0.25pt) the input face is returned as-is.
+// Thin wrapper over text.DeriveFace preserving existing callers
+// (paragraph runs, size-only paths).
 func faceForSize(face text.Face, points float64) text.Face {
+	return text.DeriveFace(face, points, 0)
+}
+
+// faceWithWeight ensures face carries grade w (6b). Thin wrapper over
+// text.DeriveFace preserving existing callers.
+func faceWithWeight(face text.Face, w text.FontWeight) text.Face {
 	if face == nil {
 		return nil
 	}
-	if points <= 0 {
-		points = 14
-	}
-	cur := face.Size()
-	if cur > 0 {
-		d := cur - points
-		if d < 0 {
-			d = -d
-		}
-		if d < 0.25 {
-			return face
-		}
-	}
-	if mf, ok := face.(*text.MultiFace); ok {
-		return mf.AtSize(points)
-	}
-	src := face.Source()
-	if src == nil {
-		return face
-	}
-	var opts []text.FaceOption
-	if feats := face.Features(); len(feats) > 0 {
-		opts = append(opts, text.WithFeatures(feats...))
-	}
-	if vars := face.Variations(); len(vars) > 0 {
-		opts = append(opts, text.WithVariations(vars...))
-	}
-	if lang := face.Language(); lang != "" {
-		opts = append(opts, text.WithLanguage(lang))
-	}
-	return src.Face(points, opts...)
+	return text.DeriveFace(face, face.Size(), w)
 }
 
 // effectiveFace is Face scaled to FontSize for single-string measure/paint.
 // The derived face is memoized on stable inputs: face objects are immutable,
 // and identity stability is what lets the incremental engine match the live
 // cache across keystrokes instead of fully rebuilding every time.
+// Single derivation (size+weight together): one allocation, one MultiFace
+// component pass via text.DeriveFace.
 func (t *RenderText) effectiveFace() text.Face {
 	if t == nil || t.Face == nil {
 		return nil
 	}
 	pts := t.fontSize()
-	if t.effFace != nil && t.effFaceFor == t.Face && t.effFaceSize == pts {
+	if t.effFace != nil && t.effFaceFor == t.Face && t.effFaceSize == pts && t.effFaceWeight == t.FontWeight {
 		return t.effFace
 	}
-	ef := faceForSize(t.Face, pts)
-	t.effFaceFor, t.effFaceSize, t.effFace = t.Face, pts, ef
+	ef := text.DeriveFace(t.Face, pts, t.FontWeight)
+	t.effFaceFor, t.effFaceSize, t.effFaceWeight, t.effFace = t.Face, pts, t.FontWeight, ef
 	return ef
 }
 
@@ -481,7 +513,13 @@ func (t *RenderText) measureLine(s string) float64 {
 	t.measureMu.Unlock()
 	var w float64
 	if face := t.effectiveFace(); face != nil {
-		w, _ = text.Measure(s, face)
+		if t.LetterSpacing != 0 || t.WordSpacing != 0 {
+			// Same shaped builder the spaced layout uses: measure and
+			// layout share one stream, deviation 0 by construction.
+			_, w, _, _, _ = buildCaretsForLineWithRuns(s, face, t.LetterSpacing, t.WordSpacing)
+		} else {
+			w, _ = text.Measure(s, face)
+		}
 	} else {
 		fs := t.fontSize()
 		w = float64(utf8.RuneCountInString(s)) * fs * t.approxCharW()
@@ -501,8 +539,11 @@ func (t *RenderText) measureCacheKey(s string) string {
 	fs := t.fontSize()
 	aw := t.approxCharW()
 	// Face identity is not stable as a pointer string; invalidateMeasureCache
-	// on SetFace covers face changes. Key is content+size+approx.
-	return s + "\x00" + formatMeasureKey(fs, aw)
+	// on SetFace covers face changes. Key is content+size+approx+spacing+weight.
+	return s + "\x00" + formatMeasureKey(fs, aw) + "\x00" +
+		strconv.FormatInt(int64(t.LetterSpacing*100+0.5), 10) + "/" +
+		strconv.FormatInt(int64(t.WordSpacing*100+0.5), 10) + "/" +
+		strconv.Itoa(int(t.FontWeight))
 }
 
 func formatMeasureKey(fs, aw float64) string {
@@ -537,7 +578,13 @@ func (t *RenderText) ensureLayout() *TextLayout {
 		if t.lcache == nil {
 			t.lcache = newLayoutCache()
 		}
-		if t.spanHint.ok {
+		// Spaced text bypasses the shared row cache (6a): rows are built
+		// fresh with spacing baked in, so unspaced cache keys, incremental
+		// patch paths and M-gates never see spaced content. Faceless
+		// estimate stays unspaced (spacing needs shaped clusters).
+		if (t.LetterSpacing != 0 || t.WordSpacing != 0) && t.effectiveFace() != nil {
+			t.textLayout = BuildTextLayoutExWithSpacing(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow, t.LetterSpacing, t.WordSpacing)
+		} else if t.spanHint.ok {
 			sp := t.spanHint
 			t.spanHint.ok = false
 			t.textLayout = t.lcache.updateSpan(t.Text, t.effectiveFace(), t.fontSize(), t.MaxWidth, t.lineSpacing(), t.approxCharW(), t.MaxLines, t.Overflow, sp)

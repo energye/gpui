@@ -193,24 +193,65 @@ func (m *MultiFace) Size() float64 {
 	return m.faces[0].Size()
 }
 
-// faceOptionsOf returns FaceOptions preserving a face's rendering
-// configuration (direction/hinting/features/variations/language) when the
-// face is re-derived. AtSize previously dropped every option — a MultiFace
-// pinned to HintingVertical (FT light) came back as the engine default
-// HintingFull after a size change.
-func faceOptionsOf(f Face) []FaceOption {
+// faceOptionsExcept returns FaceOptions preserving a face's rendering
+// configuration, optionally skipping hinting and/or weight. Skipping weight
+// also drops any wght variation so the new grade re-resolves cleanly
+// (explicit non-wght variations are kept).
+func faceOptionsExcept(f Face, skipHint, skipWeight bool) []FaceOption {
 	opts := make([]FaceOption, 0, 6)
-	opts = append(opts, WithDirection(f.Direction()), WithHinting(f.Hinting()))
+	opts = append(opts, WithDirection(f.Direction()))
+	if !skipHint {
+		opts = append(opts, WithHinting(f.Hinting()))
+	}
 	if feats := f.Features(); len(feats) > 0 {
 		opts = append(opts, WithFeatures(feats...))
 	}
 	if vars := f.Variations(); len(vars) > 0 {
-		opts = append(opts, WithVariations(vars...))
+		if skipWeight {
+			nonWght := make([]FontVariation, 0, len(vars))
+			for _, v := range vars {
+				if v.Tag != AxisWeight {
+					nonWght = append(nonWght, v)
+				}
+			}
+			if len(nonWght) > 0 {
+				opts = append(opts, WithVariations(nonWght...))
+			}
+		} else {
+			opts = append(opts, WithVariations(vars...))
+		}
+	}
+	if !skipWeight {
+		if w := f.Weight(); w != 0 {
+			opts = append(opts, WithWeight(w))
+		}
 	}
 	if lang := f.Language(); lang != "" {
 		opts = append(opts, WithLanguage(lang))
 	}
 	return opts
+}
+
+// faceOptionsOf preserves a face's full rendering configuration.
+// Kept as thin wrapper over faceOptionsExcept for existing callers.
+func faceOptionsOf(f Face) []FaceOption {
+	return faceOptionsExcept(f, false, false)
+}
+
+// rederiveComponent re-derives one component face at size with base options.
+// Faces without a Source (already composite) pass through unchanged.
+func rederiveComponent(f Face, size float64, base []FaceOption) Face {
+	if f == nil {
+		return nil
+	}
+	src := f.Source()
+	if src == nil {
+		return f
+	}
+	if size <= 0 {
+		size = f.Size()
+	}
+	return src.Face(size, base...)
 }
 
 // AtSize returns a MultiFace with every component face re-derived at size.
@@ -238,8 +279,39 @@ func (m *MultiFace) AtSize(size float64) Face {
 		if f == nil {
 			continue
 		}
-		if src := f.Source(); src != nil {
-			out = append(out, src.Face(size, faceOptionsOf(f)...))
+		out = append(out, rederiveComponent(f, size, faceOptionsOf(f)))
+	}
+	if len(out) == 0 {
+		return m
+	}
+	mf, err := NewMultiFace(out...)
+	if err != nil {
+		return m
+	}
+	return mf
+}
+
+// deriveMultiFace rebuilds all components once at size with weight grade.
+// Single-pass shared by DeriveFace so size+weight changes cost one component
+// pass instead of AtSize followed by WithWeight (two passes).
+func deriveMultiFace(m *MultiFace, size float64, w FontWeight) Face {
+	if m == nil || len(m.faces) == 0 {
+		return m
+	}
+	if size <= 0 {
+		size = m.Size()
+	}
+	out := make([]Face, 0, len(m.faces))
+	for _, f := range m.faces {
+		if f == nil {
+			continue
+		}
+		base := faceOptionsExcept(f, false, w != 0)
+		if w != 0 {
+			base = append(base, WithWeight(w))
+		}
+		if outFace := rederiveComponent(f, size, base); outFace != nil {
+			out = append(out, outFace)
 			continue
 		}
 		out = append(out, f)
@@ -268,8 +340,42 @@ func (m *MultiFace) WithHinting(h Hinting) *MultiFace {
 		if f == nil {
 			continue
 		}
-		if src := f.Source(); src != nil {
-			out = append(out, src.Face(f.Size(), append(faceOptionsOf(f), WithHinting(h))...))
+		base := faceOptionsExcept(f, true, false)
+		base = append(base, WithHinting(h))
+		if outFace := rederiveComponent(f, f.Size(), base); outFace != nil {
+			out = append(out, outFace)
+			continue
+		}
+		out = append(out, f)
+	}
+	if len(out) == 0 {
+		return m
+	}
+	mf, err := NewMultiFace(out...)
+	if err != nil {
+		return m
+	}
+	return mf
+}
+
+// WithWeight returns a new MultiFace with every component face re-derived at
+// its current size with the given weight grade; all other rendering options
+// are preserved. Weight 0 clears to as-designed.
+func (m *MultiFace) WithWeight(w FontWeight) *MultiFace {
+	if m == nil || len(m.faces) == 0 {
+		return m
+	}
+	out := make([]Face, 0, len(m.faces))
+	for _, f := range m.faces {
+		if f == nil {
+			continue
+		}
+		base := faceOptionsExcept(f, false, true)
+		if w != 0 {
+			base = append(base, WithWeight(w))
+		}
+		if outFace := rederiveComponent(f, f.Size(), base); outFace != nil {
+			out = append(out, outFace)
 			continue
 		}
 		out = append(out, f)
@@ -300,6 +406,23 @@ func (m *MultiFace) Language() string {
 // Returns variations from the first face.
 func (m *MultiFace) Variations() []FontVariation {
 	return m.faces[0].Variations()
+}
+
+// Weight implements Face.Weight.
+// Returns the requested grade from the first face.
+func (m *MultiFace) Weight() FontWeight {
+	if m == nil || len(m.faces) == 0 {
+		return 0
+	}
+	return m.faces[0].Weight()
+}
+
+// Embolden reports synthetic embolden for the effective face (first face).
+func (m *MultiFace) Embolden() bool {
+	if m == nil || len(m.faces) == 0 || m.faces[0] == nil {
+		return false
+	}
+	return m.faces[0].Embolden()
 }
 
 // private implements the Face interface.

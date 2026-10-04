@@ -410,6 +410,16 @@ type WrapResult struct {
 // The font size is obtained from face.Size().
 // Returns a slice of wrapped line results.
 func WrapText(text string, face Face, maxWidth float64, mode WrapMode) []WrapResult {
+	return WrapTextWithSpacing(text, face, maxWidth, mode, 0, 0)
+}
+
+// WrapTextWithSpacing is WrapText with letter/word spacing counted in break
+// measurement (same totals as the shaping library: each rune after the line
+// start adds one letter gap; each word separator adds one word gap). Shaped
+// and wrap paths agree whenever shaping preserves rune↔cluster 1:1
+// (no ligature merging); ligature lines may break one cluster earlier or
+// later (same approximation class as the existing per-rune measurement).
+func WrapTextWithSpacing(text string, face Face, maxWidth float64, mode WrapMode, letterSpacing, wordSpacing float64) []WrapResult {
 	if text == "" || maxWidth <= 0 {
 		return []WrapResult{{Text: text, Start: 0, End: len(text)}}
 	}
@@ -439,7 +449,7 @@ func WrapText(text string, face Face, maxWidth float64, mode WrapMode) []WrapRes
 		}
 
 		// Wrap this paragraph
-		paraResults := wrapParagraph(para, face, maxWidth, mode)
+		paraResults := wrapParagraphWithSpacing(para, face, maxWidth, mode, letterSpacing, wordSpacing)
 
 		// Adjust byte offsets relative to original text
 		for i := range paraResults {
@@ -456,6 +466,11 @@ func WrapText(text string, face Face, maxWidth float64, mode WrapMode) []WrapRes
 
 // wrapParagraph wraps a single paragraph (no hard line breaks) to fit within maxWidth.
 func wrapParagraph(para string, face Face, maxWidth float64, mode WrapMode) []WrapResult {
+	return wrapParagraphWithSpacing(para, face, maxWidth, mode, 0, 0)
+}
+
+// wrapParagraphWithSpacing is wrapParagraph with spacing counted per rune.
+func wrapParagraphWithSpacing(para string, face Face, maxWidth float64, mode WrapMode, letterSpacing, wordSpacing float64) []WrapResult {
 	wrapInfo := newWrapTextInfo(para, mode)
 	if len(wrapInfo.runes) == 0 {
 		return []WrapResult{{Text: para, Start: 0, End: len(para)}}
@@ -466,7 +481,7 @@ func wrapParagraph(para string, face Face, maxWidth float64, mode WrapMode) []Wr
 
 	for lineStart < len(wrapInfo.runes) {
 		// Find the end of this line
-		lineEnd := findLineEnd(wrapInfo, lineStart, face, maxWidth, mode)
+		lineEnd := findLineEndWithSpacing(wrapInfo, lineStart, face, maxWidth, mode, letterSpacing, wordSpacing)
 
 		// Create result
 		startByte := wrapInfo.runeToByteOffset(lineStart)
@@ -490,6 +505,13 @@ func wrapParagraph(para string, face Face, maxWidth float64, mode WrapMode) []Wr
 
 // findLineEnd finds the end rune index for a line starting at lineStart.
 func findLineEnd(w *wrapTextInfo, lineStart int, face Face, maxWidth float64, mode WrapMode) int {
+	return findLineEndWithSpacing(w, lineStart, face, maxWidth, mode, 0, 0)
+}
+
+// findLineEndWithSpacing is findLineEnd with spacing counted: each rune
+// after the line start adds one letter gap; each word separator adds one
+// word gap (same totals as the shaping library on 1:1 shaped text).
+func findLineEndWithSpacing(w *wrapTextInfo, lineStart int, face Face, maxWidth float64, mode WrapMode, letterSpacing, wordSpacing float64) int {
 	if lineStart >= len(w.runes) {
 		return lineStart
 	}
@@ -504,9 +526,17 @@ func findLineEnd(w *wrapTextInfo, lineStart int, face Face, maxWidth float64, mo
 			return i
 		}
 
-		// Measure the current rune
+		// Measure the current rune plus spacing gaps owned by extending to it:
+		// one letter gap per rune after the line start, one word gap per
+		// word separator (shaping library CSS set).
 		runeWidth := measureRune(w.runes[i], face)
 		newWidth := width + runeWidth
+		if i > lineStart {
+			newWidth += letterSpacing
+		}
+		if isWordSeparator(w.runes[i]) {
+			newWidth += wordSpacing
+		}
 
 		// Track break opportunities
 		if w.canBreakAt(i) {

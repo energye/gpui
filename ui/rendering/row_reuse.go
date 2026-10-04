@@ -162,7 +162,10 @@ func tryReuseShapedRowSegs(oldRow TextLayoutLine, oldLine string, oldSegs []text
 		for _, r := range newRuns[pre:newEnd] {
 			winRuns = append(winRuns, itemizedRun{face: r.face, start: r.start - winA, end: r.end - winA, rtl: r.rtl})
 		}
-		mc, mw, mg, mgr, ok := buildShapedCarets(newLine[winA:winB], winRuns, prePen, preX)
+		// Incremental window reuse stays unspaced by construction: spaced
+		// text bypasses lcache (ensureLayout fresh path), so this window
+		// never carries spacing — pass explicit zeros, not caller state.
+		mc, mw, mg, mgr, ok := buildShapedCarets(newLine[winA:winB], winRuns, prePen, preX, 0, 0)
 		if !ok || len(mgr) != newEnd-pre {
 			return fail()
 		}

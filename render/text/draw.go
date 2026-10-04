@@ -147,6 +147,9 @@ func drawGlyphs(
 		}
 
 		result, err := rasterize(rast, parsed, glyph.GID, ppem, subpixelX, subpixelY, hinting)
+		if err == nil && result != nil && sf.Embolden() {
+			result = EmboldenResult(result, ppem)
+		}
 		if err != nil || result == nil {
 			if !isVertical {
 				advanceX += adv
@@ -262,10 +265,13 @@ func drawGlyphsVariable(
 
 		// Unified gvar + hinting path.
 		// ExtractOutlineHintedVar applies gvar deltas THEN hinting in one pass.
+		// Empty glyphs (spaces) carry no ink: advance only, same as drawGlyphs.
 		outline, _ := extractor.ExtractOutlineHintedVar(parsed, gid, ppem, hinting, variations)
 		if outline == nil || outline.IsEmpty() {
-			if outline != nil {
-				advanceX += float64(outline.Advance)
+			if vap, vapOK := parsed.(VariableAdvanceProvider); vapOK {
+				advanceX += vap.GlyphAdvanceVar(uint16(gid), ppem, variations)
+			} else {
+				advanceX += parsed.GlyphAdvance(uint16(gid), ppem)
 			}
 			continue
 		}
@@ -296,6 +302,9 @@ func drawGlyphsVariable(
 		if rErr != nil || result == nil {
 			advanceX += float64(outline.Advance)
 			continue
+		}
+		if sf.Embolden() {
+			result = EmboldenResult(result, ppem)
 		}
 
 		maskImg := &image.Alpha{

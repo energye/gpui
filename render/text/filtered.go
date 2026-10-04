@@ -161,6 +161,22 @@ func (f *FilteredFace) Variations() []FontVariation {
 	return f.face.Variations()
 }
 
+// Weight implements Face.Weight.
+func (f *FilteredFace) Weight() FontWeight {
+	if f == nil || f.face == nil {
+		return 0
+	}
+	return f.face.Weight()
+}
+
+// Embolden reports synthetic embolden for the wrapped face.
+func (f *FilteredFace) Embolden() bool {
+	if f == nil || f.face == nil {
+		return false
+	}
+	return f.face.Embolden()
+}
+
 // private implements the Face interface.
 func (f *FilteredFace) Hinting() Hinting {
 	return f.face.Hinting()

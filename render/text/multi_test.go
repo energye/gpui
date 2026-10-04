@@ -35,6 +35,8 @@ func (m *mockFace) Size() float64               { return m.size }
 func (m *mockFace) Features() []FontFeature     { return nil }
 func (m *mockFace) Language() string            { return "en" }
 func (m *mockFace) Variations() []FontVariation { return nil }
+func (m *mockFace) Weight() FontWeight          { return 0 }
+func (m *mockFace) Embolden() bool              { return false }
 func (m *mockFace) Hinting() Hinting            { return HintingNone }
 func (m *mockFace) private()                    {}
 func (m *mockFace) HasGlyph(r rune) bool        { _, ok := m.glyphs[r]; return ok }

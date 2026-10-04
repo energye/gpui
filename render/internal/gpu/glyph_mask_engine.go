@@ -187,6 +187,7 @@ func (e *GlyphMaskEngine) LayoutText(
 	isCJK, hinting := p.isCJK, p.hinting
 	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
 	batchColor := p.batchColor
+	embolden := text.FaceEmbolden(face)
 
 	if cf, ok := colorFontOf(parsed); ok {
 		for _, r := range s {
@@ -199,21 +200,21 @@ func (e *GlyphMaskEngine) LayoutText(
 	// try layout template BEFORE LayoutGlyphs — shaped is unused on hit
 	// (layoutTemplateGet only needs key+origin). Static HUD/list strings skip
 	// shape entirely; dynamic strings still shape on miss.
-	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, false, hinting, matrix); ok {
+	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, false, hinting, matrix, embolden); ok {
 		if batch, hit := e.layoutTemplateGet(key, nil, x, y, batchColor, matrix); hit {
 			return batch, nil
 		}
 		// origin-free layout template + safe quad rebase for scroll/HUD.
 		// Skip template put for high-churn telemetry strings (unique every frame).
 		shaped := text.LayoutGlyphs(face, s)
-		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, false)
+		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, false)
 		if !text.IsHighChurnLabel(s) {
 			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		}
 		return batch, nil
 	}
 	shaped := text.LayoutGlyphs(face, s)
-	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, false), nil
+	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, false), nil
 }
 
 // LayoutTextAliased converts a text string into a GlyphMaskBatch with binary
@@ -250,6 +251,7 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 	isCJK, hinting := p.isCJK, p.hinting
 	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
 	batchColor := p.batchColor
+	embolden := text.FaceEmbolden(face)
 
 	if cf, ok := colorFontOf(parsed); ok {
 		for _, r := range s {
@@ -260,19 +262,19 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 	}
 
 	// template hit before shape (same as LayoutText).
-	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, true, hinting, matrix); ok {
+	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, fontSize, deviceScale, useLCD, true, hinting, matrix, embolden); ok {
 		if batch, hit := e.layoutTemplateGet(key, nil, x, y, batchColor, matrix); hit {
 			return batch, nil
 		}
 		shaped := text.LayoutGlyphs(face, s)
-		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, false)
+		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, embolden, false)
 		if !text.IsHighChurnLabel(s) {
 			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		}
 		return batch, nil
 	}
 	shaped := text.LayoutGlyphs(face, s)
-	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, false), nil
+	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, embolden, false), nil
 }
 
 // LayoutShapedGlyphs lays out pre-shaped glyphs into a GlyphMaskBatch.
@@ -306,6 +308,7 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 	hinting := p.hinting
 	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
 	batchColor := p.batchColor
+	embolden := text.FaceEmbolden(face)
 	if cf, ok := colorFontOf(parsed); ok {
 		for i := range glyphs {
 			if cf.GlyphType(uint16(glyphs[i].GID)) != text.GlyphTypeOutline {
@@ -313,7 +316,7 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 			}
 		}
 	}
-	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, true), nil
+	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, true), nil
 }
 
 // colorFontOf returns the color backend when the font carries CBDT/COLR
@@ -484,6 +487,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 	rasterScale float64,
 	isCJK bool,
 	aliased bool,
+	embolden bool,
 	// honorShapedX places glyphs at their shaped X (kerning, ligatures,
 	// mark attachment) instead of walking hinted advances. True only for
 	// the pre-shaped submit (LayoutShapedGlyphs); the string entries keep
@@ -596,7 +600,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 			key = text.MakeGlyphMaskKey(fontID, glyph.GID, fontSize, fracX, fracY)
 		}
 
-		// Set mode flags in cache key so gray/LCD/aliased masks never collide.
+		// Set mode flags in cache key so gray/LCD/aliased/bold masks never collide.
 		if aliased {
 			key.Flags = text.GlyphMaskFlagAliased
 		} else if useLCD {
@@ -605,8 +609,11 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 				key.Flags |= text.GlyphMaskFlagLCDBGR
 			}
 		}
+		if embolden {
+			key.Flags |= text.GlyphMaskFlagBold
+		}
 
-		region, rErr := e.rasterizeGlyph(key, parsed, glyph.GID, rasterSize, fracX, fracY, hinting, useLCD, aliased, *lcdFilter, lcdLayout)
+		region, rErr := e.rasterizeGlyph(key, parsed, glyph.GID, rasterSize, fracX, fracY, hinting, useLCD, aliased, *lcdFilter, lcdLayout, embolden)
 		if rErr != nil {
 			slogger().Warn("glyph mask rasterize failed", "gid", glyph.GID, "err", rErr)
 			continue
@@ -730,7 +737,8 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 
 // rasterizeGlyph dispatches glyph rasterization to the appropriate method
 // based on rendering mode (LCD, aliased, or standard AA). Must be called
-// with e.mu held.
+// with e.mu held. embolden dilates the AA mask one radius step (synthetic
+// bold, Skia fakeBold class); advances are unchanged by synthetic bold.
 func (e *GlyphMaskEngine) rasterizeGlyph(
 	key text.GlyphMaskKey,
 	parsed text.ParsedFont,
@@ -741,6 +749,7 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 	useLCD, aliased bool,
 	lcdFilter text.LCDFilter,
 	lcdLayout text.LCDLayout,
+	embolden bool,
 ) (text.GlyphMaskRegion, error) {
 	switch {
 	case useLCD:
@@ -764,6 +773,9 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 			}
 			if result == nil {
 				return nil, 0, 0, 0, 0, 0, nil // empty glyph (space)
+			}
+			if embolden {
+				result = text.EmboldenResult(result, size)
 			}
 			return result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, result.Advance, nil
 		})
@@ -1213,6 +1225,7 @@ func makeGlyphLayoutTemplateKey(
 	useLCD, aliased bool,
 	hinting text.Hinting,
 	matrix render.Matrix,
+	embolden bool,
 ) (glyphLayoutTemplateKey, bool) {
 	// Only pure translate (HUD/list scroll). Rotation/scale need full layout.
 	if matrix.A != 1 || matrix.E != 1 || matrix.B != 0 || matrix.D != 0 {
@@ -1224,6 +1237,9 @@ func makeGlyphLayoutTemplateKey(
 	}
 	if aliased {
 		flags |= 2
+	}
+	if embolden {
+		flags |= 1 << 10
 	}
 	flags |= uint16(hinting&0xFF) << 2
 	h := fnv.New64a()

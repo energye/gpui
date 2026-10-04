@@ -271,3 +271,27 @@ func TestRunClosesExitedWindows(t *testing.T) {
 	}
 	app.Close() // idempotent after per-loop closes
 }
+
+// TestWindowCloseReleasesContents: Close keeps the registration (never
+// resurrected, never double freed) but releases the heavy contents
+// (pipeline, scene root, input router, observer) so closed windows retain
+// only their shell. Registration count is unchanged by this.
+func TestWindowCloseReleasesContents(t *testing.T) {
+	app := newTestApp(t)
+	w, _ := app.NewWindow(WindowOptions{Title: "A"})
+	_ = w.SetRoot(testRoot())
+	if w.Pipeline() == nil {
+		t.Fatal("Pipeline should exist after SetRoot")
+	}
+	w.Close()
+	if !w.Closed() {
+		t.Fatal("window should be closed")
+	}
+	if w.Pipeline() != nil {
+		t.Fatal("Pipeline should be released after Close")
+	}
+	if app.WindowCount() != 1 {
+		t.Fatalf("count = %d, want 1 (registration retained)", app.WindowCount())
+	}
+	w.Close() // idempotent, no panic
+}

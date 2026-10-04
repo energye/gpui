@@ -1196,6 +1196,27 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	return out, nil
 }
 
+// WaitIdle blocks until the device has finished all submitted GPU work.
+// Nil-safe and closed-safe: reports nil when there is no device to wait on.
+// Close paths call it before destroying view-bound caches (layer textures)
+// so deferred releases never execute while submissions still reference them.
+// Both backends implement it via hal.Device (native = wgpu wait, go = noop).
+func (t *PresentTarget) WaitIdle() error {
+	if t == nil {
+		return nil
+	}
+	t.mu.Lock()
+	dev := t.device
+	t.mu.Unlock()
+	if dev == nil {
+		_, _, dev, _, _ = peekShared()
+	}
+	if dev == nil {
+		return nil
+	}
+	return dev.WaitIdle()
+}
+
 // Close releases GPU resources. Safe to call multiple times.
 // Windows on the borrowed share release only their own surface/swapchain/
 // context; the shared instance/adapter/device go when the last PresentTarget

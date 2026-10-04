@@ -452,6 +452,30 @@ func (c *PictureTextureCache) Clear() {
 	c.filterCache.Clear()
 }
 
+// Close releases all cached textures and executes every queued deferred
+// release immediately. Call after the raster loop drained with the GPU idle
+// (PipelineApp.Close waits via PresentTarget.WaitIdle first): after Close no
+// frames run, so BeginFrame never drains again — without this every entry
+// and queued release leaks until device death. Shares the deferredFrames
+// hazard discipline with drainDeferred: callers must ensure no submission
+// still references the views (loop stopped + WaitIdle), else destruction
+// races in-flight GPU reads. Idempotent; nil-safe.
+func (c *PictureTextureCache) Close() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ClearLocked()
+	c.filterCache.Clear()
+	for _, d := range c.deferred {
+		if d.release != nil {
+			d.release()
+		}
+	}
+	c.deferred = nil
+}
+
 func (c *PictureTextureCache) ClearLocked() {
 	for id, e := range c.entries {
 		if e != nil {

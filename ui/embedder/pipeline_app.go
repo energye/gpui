@@ -997,9 +997,18 @@ func (a *PipelineApp) Close() {
 	// workers so Close leaves no background threads (idle-exit is backup).
 	scene.CloseRasterPool()
 	// Raster is drained: no purge can be in flight; drop the layer-texture
-	// cache from the OOM purge chain before its device goes away.
+	// cache before its device goes away. WaitIdle first so deferred view
+	// releases never race in-flight submissions; then Close the cache
+	// (Clear + force-drain the deferred queue — no frames run after this,
+	// so BeginFrame can never drain it again) and unregister it.
+	// Best-effort wait: on error still close (device teardown releases).
 	if a.pictureTex != nil {
+		if a.target != nil {
+			_ = a.target.WaitIdle()
+		}
+		a.pictureTex.Close()
 		render.UnregisterPurgeEvictable(a.pictureTex)
+		a.pictureTex = nil
 	}
 	if a.target != nil {
 		_ = a.target.Close()

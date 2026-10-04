@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync/atomic"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/energye/gpui/render/text"
@@ -214,7 +215,20 @@ func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth 
 // BuildTextLayoutEx is BuildTextLayout with an estimate width factor
 // (approxCharW, used only when face == nil) and a MaxLines/Overflow cap
 // applied to the built lines (layout-side truncation, I11).
+// Single implementation: unspaced layout is the zero-spacing case of the
+// spaced builder, so wrap measurement, row geometry and truncation cannot
+// drift apart.
 func BuildTextLayoutEx(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64, approxCharW float64, maxLines int, overflow TextOverflow) *TextLayout {
+	return BuildTextLayoutExWithSpacing(textStr, face, fontSize, maxWidth, lineSpacing, approxCharW, maxLines, overflow, 0, 0)
+}
+
+// BuildTextLayoutExWithSpacing is BuildTextLayoutEx with letter/word spacing
+// baked into break measurement and row geometry (6a single-string fresh
+// path). Rows are built fresh every call — never shared with the row cache —
+// so unspaced cache keys, incremental patch paths and M-gates never see
+// spaced content. Faceless estimate stays unspaced (spacing needs shaped
+// clusters). Zero spacing takes the same code path with no shifts.
+func BuildTextLayoutExWithSpacing(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64, approxCharW float64, maxLines int, overflow TextOverflow, letterSpacing, wordSpacing float64) *TextLayout {
 	if textStr == "" {
 		gen := textLayoutGen.Add(1)
 		return (&TextLayout{Text: textStr, FontSize: fontSize, LineSpacing: lineSpacing, Generation: gen, MaxWidth: maxWidth, Face: face, MaxLines: maxLines, Overflow: overflow}).finishLayout()
@@ -239,21 +253,21 @@ func BuildTextLayoutEx(textStr string, face text.Face, fontSize float64, maxWidt
 			wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
 		}
 	} else if face == nil {
-		// No-face estimate wrap (mirrors the old display-side estimate so
-		// layout and display break identically, I7). Kept in layout so the
-		// estimate path also yields caret geometry.
+		// Faceless estimate stays unspaced (spacing needs shaped clusters).
 		wrapped = estimateWrapResults(textStr, maxWidth, fontSize, approxCharW)
 		if len(wrapped) == 0 {
 			wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
 		}
 	} else {
-		wrapped = text.WrapText(textStr, face, maxWidth, text.WrapWordChar)
+		wrapped = text.WrapTextWithSpacing(textStr, face, maxWidth, text.WrapWordChar, letterSpacing, wordSpacing)
 		if len(wrapped) == 0 {
 			wrapped = []text.WrapResult{{Text: textStr, Start: 0, End: len(textStr)}}
 		}
 	}
 	for _, w := range wrapped {
-		lines = append(lines, materializeWrappedRow(w, face, lh))
+		lineText := w.Text
+		carets, width, glyphs, gruns, runRTL := buildCaretsForLineWithRuns(lineText, face, letterSpacing, wordSpacing)
+		lines = append(lines, assembleRow(w, lineText, w.Start, w.End, carets, width, glyphs, gruns, runRTL, lh))
 	}
 	truncated := false
 	if maxLines > 0 && len(lines) > maxLines {
@@ -431,8 +445,14 @@ func materializeWrappedRow(w text.WrapResult, face text.Face, lh float64) TextLa
 	lineText := w.Text
 	start := w.Start
 	end := w.End
-	carets, width, glyphs, gruns, runRTL := buildCaretsForLineWithRuns(lineText, face)
-	// Adjust glyph X to be relative to line start (already 0) and keep
+	carets, width, glyphs, gruns, runRTL := buildCaretsForLineWithRuns(lineText, face, 0, 0)
+	return assembleRow(w, lineText, start, end, carets, width, glyphs, gruns, runRTL, lh)
+}
+
+// assembleRow finishes a materialized row: trailing caret + TextLayoutLine.
+// Shared by the shared-cache path (unspaced rows) and the spaced fresh path
+// below so both assemble identically.
+func assembleRow(w text.WrapResult, lineText string, start, end int, carets []GlyphCaret, width float64, glyphs []text.ShapedGlyph, gruns []LineGlyphRun, runRTL []bool, lh float64) TextLayoutLine {
 	if len(carets) == 0 {
 		carets = []GlyphCaret{{ByteOff: 0, X: 0}, {ByteOff: len(lineText), X: 0}}
 	} else {
@@ -593,18 +613,19 @@ func (l *TextLayout) LineHeight(idx int) float64 {
 }
 
 func buildCaretsForLine(line string, face text.Face) ([]GlyphCaret, float64, []text.ShapedGlyph) {
-	carets, width, glyphs, _, _ := buildCaretsForLineWithRuns(line, face)
+	carets, width, glyphs, _, _ := buildCaretsForLineWithRuns(line, face, 0, 0)
 	return carets, width, glyphs
 }
 
 // Runs is nil when the line has no batchable glyphs (nil-face estimate or
 // unshaped fallback); callers keep the legacy paint path then.
 // runRTL mirrors the shaping runs (nil unless the shaped path succeeded).
-func buildCaretsForLineWithRuns(line string, face text.Face) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun, []bool) {
+func buildCaretsForLineWithRuns(line string, face text.Face, letterSpacing, wordSpacing float64) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun, []bool) {
 	if line == "" {
 		return []GlyphCaret{{ByteOff: 0, X: 0}}, 0, nil, nil, nil
 	}
 	if face == nil {
+		// No-face estimate stays unspaced (spacing needs shaped clusters).
 		var carets []GlyphCaret
 		var glyphs []text.ShapedGlyph
 		x := 0.0
@@ -627,7 +648,7 @@ func buildCaretsForLineWithRuns(line string, face text.Face) ([]GlyphCaret, floa
 	// shape each run, then stitch carets in a single pass — O(n), no
 	// CaretXForCluster table scan. Any unshapable run falls back below.
 	if runs := itemizeRuns(line, face); len(runs) > 0 {
-		if carets, width, glyphs, gruns, ok := buildShapedCarets(line, runs, 0, 0); ok {
+		if carets, width, glyphs, gruns, ok := buildShapedCarets(line, runs, 0, 0, letterSpacing, wordSpacing); ok {
 			rtl := make([]bool, len(runs))
 			for i, r := range runs {
 				rtl[i] = r.rtl
@@ -639,10 +660,25 @@ func buildCaretsForLineWithRuns(line string, face text.Face) ([]GlyphCaret, floa
 	var sg []text.ShapedGlyph
 	carets = append(carets, GlyphCaret{ByteOff: 0, X: 0})
 	x := 0.0
+	prevRune := -1
+	wsRunOpen := false
 	for byteOff, r := range line {
 		adv := text.RuneAdvance(face, r)
+		// Fallback path mirrors the canonical rule arithmetically: one
+		// letter gap per rune after the first, one word gap per
+		// whitespace run start (1:1 fallback glyphs, so rune == cluster).
+		if prevRune >= 0 {
+			x += letterSpacing
+		}
+		if unicode.IsSpace(r) && !wsRunOpen {
+			x += wordSpacing
+			wsRunOpen = true
+		} else if !unicode.IsSpace(r) {
+			wsRunOpen = false
+		}
 		sg = append(sg, text.ShapedGlyph{GID: 0, Cluster: 0, X: x, XAdvance: adv})
 		x += adv
+		prevRune = 1
 		next := byteOff + utf8.RuneLen(r)
 		carets = append(carets, GlyphCaret{ByteOff: next, X: x})
 		if next >= len(line) {
@@ -751,7 +787,7 @@ func itemizeRunsWithSegs(line string, face text.Face, segs []text.Segment) []ite
 // in a single pass. ok=false when any run shapes empty (caller falls back).
 // cursor0/prevX0 seed the pen for window reuse (full-line builds pass 0,0);
 // Cluster/Caret ByteOff stay relative to line, glyph X absorbs cursor0.
-func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun, bool) {
+func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64, letterSpacing, wordSpacing float64) ([]GlyphCaret, float64, []text.ShapedGlyph, []LineGlyphRun, bool) {
 	runeByte := make([]int, 0)
 	for i := range line {
 		if utf8.RuneStart(line[i]) {
@@ -791,13 +827,6 @@ func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64)
 			if e := g[i].X + g[i].XAdvance; e > end {
 				end = e
 			}
-			c := g[i].Cluster
-			if c >= 0 && c < n {
-				if !filled[c] || g[i].X < xs[c] {
-					xs[c] = g[i].X
-					filled[c] = true
-				}
-			}
 		}
 		gstart := len(glyphs)
 		glyphs = append(glyphs, g...)
@@ -806,6 +835,23 @@ func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64)
 		cursor = end
 		runeBase += utf8.RuneCountInString(seg)
 		runRuneEnd = append(runRuneEnd, runeBase)
+	}
+	// Letter/word spacing (shaping library): advances grow by the exact
+	// returned extra, so the width is the unspaced pen plus extra. A max()
+	// over X+XAdvance would overcount the trailing half-split. xs/filled
+	// (caret minima) derive from shifted X below, so the mid-cluster
+	// interpolation, caret tables, width and paint inherit one stream.
+	if letterSpacing != 0 || wordSpacing != 0 {
+		cursor += text.ApplySpacing(glyphs, line, letterSpacing, wordSpacing)
+	}
+	for i := range glyphs {
+		c := glyphs[i].Cluster
+		if c >= 0 && c < n {
+			if !filled[c] || glyphs[i].X < xs[c] {
+				xs[c] = glyphs[i].X
+				filled[c] = true
+			}
+		}
 	}
 	// Mid-cluster interpolation: runes covered by one multi-rune glyph
 	// (ligatures) get proportional X so every arrow step moves visibly

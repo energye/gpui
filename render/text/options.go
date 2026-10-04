@@ -106,6 +106,23 @@ func NewFontVariation(tag string, value float32) FontVariation {
 	}
 }
 
+// FontWeight is a text stroke thickness grade (CSS/Flutter font-weight).
+// 400 Regular renders the font as designed; 700 Bold selects the bold
+// cut of the family when available.
+type FontWeight int
+
+const (
+	WeightThin       FontWeight = 100
+	WeightExtraLight FontWeight = 200
+	WeightLight      FontWeight = 300
+	WeightRegular    FontWeight = 400
+	WeightMedium     FontWeight = 500
+	WeightSemiBold   FontWeight = 600
+	WeightBold       FontWeight = 700
+	WeightExtraBold  FontWeight = 800
+	WeightBlack      FontWeight = 900
+)
+
 // Standard registered axis tag constants.
 // These are the five axes defined in the OpenType specification.
 // Custom fonts may define additional axes.
@@ -191,6 +208,7 @@ type faceConfig struct {
 	language   string
 	features   []FontFeature   // OpenType features (tnum, liga, etc.)
 	variations []FontVariation // Font variation axes (wght, wdth, etc.)
+	weight     FontWeight      // Requested weight grade, 0 = unset (as designed)
 }
 
 // defaultFaceConfig returns the default face configuration.
@@ -250,6 +268,9 @@ func WithFeatures(features ...FontFeature) FaceOption {
 // Use [FontSource.IsVariable] to check if a font supports variations, and
 // [FontSource.VariationAxes] to discover available axes and their ranges.
 //
+// An explicit wght axis value here takes precedence over [WithWeight]:
+// weight fills the axis only when no wght variation is present.
+//
 // Example — set weight to Bold (700) and width to Condensed (75):
 //
 //	face := source.Face(16, text.WithVariations(
@@ -259,5 +280,23 @@ func WithFeatures(features ...FontFeature) FaceOption {
 func WithVariations(variations ...FontVariation) FaceOption {
 	return func(c *faceConfig) {
 		c.variations = variations
+	}
+}
+
+// WithWeight requests a stroke-thickness grade for the face (CSS/Flutter
+// font-weight). Resolution at Face creation:
+//
+//   - variable font with a wght axis → wght variation set to the grade
+//     (real outlines; advances follow HVAR like any other variation);
+//   - otherwise, grade >= 600 (SemiBold and up) → synthetic embolden
+//     (mask dilation, Skia fakeBold class; advances unchanged);
+//   - grade < 600 on a static font → as designed, no-op.
+//
+// Weight 0 (unset) means as designed. The resolved state is observable via
+// Face.Weight (requested grade) and Face.Variations (effective list,
+// including a weight-derived wght entry when applicable).
+func WithWeight(w FontWeight) FaceOption {
+	return func(c *faceConfig) {
+		c.weight = w
 	}
 }

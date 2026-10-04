@@ -168,10 +168,11 @@ func (e *GPUTextEngine) LayoutText(
 		atlasIndex = cjkAtlasOffset
 	}
 	atlasConfig := activeAtlas.Config()
+	embolden := text.FaceEmbolden(face)
 
 	// Layout template (pure translate): static HUD/list labels hit without reshape.
 	// High-churn telemetry bypasses put (unique keys every frame).
-	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, logicalSize, deviceScale, false, false, text.HintingNone, matrix); ok {
+	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, logicalSize, deviceScale, false, false, text.HintingNone, matrix, embolden); ok {
 		if batch, hit := e.msdfLayoutTemplateGet(key, x, y, color, matrix, atlasIndex, float32(atlasConfig.Size)); hit {
 			return batch, nil
 		}
@@ -273,7 +274,7 @@ func (e *GPUTextEngine) LayoutText(
 		AtlasSize:  float32(atlasConfig.Size),
 	}
 
-	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, logicalSize, deviceScale, false, false, text.HintingNone, matrix); ok {
+	if key, ok := makeGlyphLayoutTemplateKey(s, fontID, logicalSize, deviceScale, false, false, text.HintingNone, matrix, embolden); ok {
 		if !text.IsHighChurnLabel(s) {
 			e.msdfLayoutTemplatePut(key, x, y, batch)
 		}

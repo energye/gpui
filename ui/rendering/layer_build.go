@@ -492,6 +492,13 @@ func recordLeafContent(r *scene.PictureRecorder, n RenderObject) {
 			chh = t.Height
 		}
 		r.FillRect(0, 0, cw, chh, t.R, t.G, t.B, t.A)
+	case *RenderPictureBox:
+		// UI-side recording (no raster-thread RasterExtra defer): the packet
+		// path replays the same ops the FullPaint path caches. Layer-local
+		// origin — the ancestor offset chain positions it at composite time.
+		if t.Record != nil {
+			t.Record(r, 0, 0)
+		}
 	case *RenderText:
 		recordRenderText(r, t, 0, 0)
 	case *RenderImage:
@@ -514,6 +521,8 @@ func typeName(n RenderObject) string {
 	switch n.(type) {
 	case *RenderColorBox:
 		return "color"
+	case *RenderPictureBox:
+		return "picture"
 	case *RenderBox:
 		return "box"
 	case *RenderTransform:

@@ -38,6 +38,27 @@ const (
 	OpDrawShapedGlyphs
 	// OpDrawImage draws an ImageBuf at (X,Y); DstW/DstH >0 scales, else 1:1.
 	OpDrawImage
+	// OpFillCircle fills a circle centered at (X,Y) with Radius.
+	OpFillCircle
+	// OpStrokeCircle strokes a circle centered at (X,Y) with Radius.
+	OpStrokeCircle
+	// OpFillOval fills an ellipse in the box (X,Y,W,H).
+	OpFillOval
+	// OpStrokeOval strokes an ellipse in the box (X,Y,W,H).
+	OpStrokeOval
+	// OpFillArc fills a circular sector centered at (X,Y) from Angle1 to Angle2.
+	OpFillArc
+	// OpStrokeArc strokes a circular arc centered at (X,Y) from Angle1 to Angle2.
+	OpStrokeArc
+	// OpFillRoundRect fills a rounded rect (X,Y,W,H) with uniform Radius.
+	OpFillRoundRect
+	// OpStrokeRoundRect strokes a rounded rect (X,Y,W,H) with uniform Radius.
+	OpStrokeRoundRect
+	// OpStrokeLine strokes a segment from (X,Y) to (X2,Y2).
+	OpStrokeLine
+	// OpFillLinearGradient fills rect (X,Y,W,H) with a two-stop linear
+	// gradient along (GX0,GY0)→(GX1,GY1), stops (R,G,B,A) and (R1,G1,B1,A1).
+	OpFillLinearGradient
 )
 
 // PictureOp is one retained draw command (SkPicture draw-op subset).
@@ -65,6 +86,17 @@ type PictureOp struct {
 	Image *render.ImageBuf
 	// DstW, DstH scale destination for OpDrawImage when both >0; else 1:1 DrawImage.
 	DstW, DstH float64
+	// Radius is the circle/arc radius (OpFillCircle/OpStrokeCircle/OpFillArc/
+	// OpStrokeArc) or the uniform corner radius (OpFillRoundRect/OpStrokeRoundRect).
+	Radius float64
+	// Angle1, Angle2 are the arc endpoints in radians (OpFillArc/OpStrokeArc).
+	Angle1, Angle2 float64
+	// X2, Y2 is the segment end point (OpStrokeLine).
+	X2, Y2 float64
+	// GX0, GY0, GX1, GY1 are the gradient endpoints (OpFillLinearGradient).
+	GX0, GY0, GX1, GY1 float64
+	// R1, G1, B1, A1 is the second gradient stop (OpFillLinearGradient).
+	R1, G1, B1, A1 float64
 }
 
 // Picture is a retained, immutable display list (SkPicture analogue).
@@ -131,6 +163,30 @@ func (p *Picture) hasVisibleOps() bool {
 			if op.Image != nil && !op.Image.Disposed() {
 				return true
 			}
+		case OpFillCircle, OpStrokeCircle:
+			if op.Radius > 0 && op.A != 0 {
+				return true
+			}
+		case OpFillOval, OpStrokeOval:
+			if op.W > 0 && op.H > 0 && op.A != 0 {
+				return true
+			}
+		case OpFillArc, OpStrokeArc:
+			if op.Radius > 0 && op.A != 0 {
+				return true
+			}
+		case OpFillRoundRect, OpStrokeRoundRect:
+			if op.W > 0 && op.H > 0 && op.A != 0 {
+				return true
+			}
+		case OpStrokeLine:
+			if op.A != 0 {
+				return true
+			}
+		case OpFillLinearGradient:
+			if op.W > 0 && op.H > 0 && (op.A != 0 || op.A1 != 0) {
+				return true
+			}
 		}
 	}
 	return false
@@ -169,6 +225,34 @@ func (p *Picture) Replay(dc *render.Context) {
 // applyPictureOp forwards one recorded op onto the Context. Alpha semantics are
 // strict (SkPaint): A==0 paints nothing; callers pass explicit alpha at record
 // time — there is no implicit opaque fallback.
+func opStrokeWidth(lw float64) float64 {
+	if lw <= 0 {
+		return 1
+	}
+	return lw
+}
+
+func setOpFill(dc *render.Context, op *PictureOp) {
+	dc.SetRGBA(op.R, op.G, op.B, op.A)
+}
+
+func setOpStroke(dc *render.Context, op *PictureOp) {
+	dc.SetRGBA(op.R, op.G, op.B, op.A)
+	dc.SetLineWidth(opStrokeWidth(op.LineWidth))
+}
+
+func drawRoundRectShape(dc *render.Context, op *PictureOp) {
+	rad := op.Radius
+	if rad < 0 {
+		rad = 0
+	}
+	if rad <= 0 {
+		dc.DrawRectangle(op.X, op.Y, op.W, op.H)
+	} else {
+		dc.DrawRoundedRectangle(op.X, op.Y, op.W, op.H, rad)
+	}
+}
+
 func applyPictureOp(dc *render.Context, op *PictureOp) {
 	if dc == nil || op == nil {
 		return
@@ -178,37 +262,27 @@ func applyPictureOp(dc *render.Context, op *PictureOp) {
 		if op.W <= 0 || op.H <= 0 || op.A == 0 {
 			return
 		}
-		dc.SetRGBA(op.R, op.G, op.B, op.A)
+		setOpFill(dc, op)
 		dc.DrawRectangle(op.X, op.Y, op.W, op.H)
 		_ = dc.Fill()
 	case OpStrokeRect:
 		if op.W <= 0 || op.H <= 0 || op.A == 0 {
 			return
 		}
-		lw := op.LineWidth
-		if lw <= 0 {
-			lw = 1
-		}
-		dc.SetRGBA(op.R, op.G, op.B, op.A)
-		dc.SetLineWidth(lw)
+		setOpStroke(dc, op)
 		dc.DrawRectangle(op.X, op.Y, op.W, op.H)
 		_ = dc.Stroke()
 	case OpFillPath:
 		if op.Path == nil || op.Path.NumVerbs() == 0 || op.A == 0 {
 			return
 		}
-		dc.SetRGBA(op.R, op.G, op.B, op.A)
+		setOpFill(dc, op)
 		_ = dc.FillPath(op.Path)
 	case OpStrokePath:
 		if op.Path == nil || op.Path.NumVerbs() == 0 || op.A == 0 {
 			return
 		}
-		lw := op.LineWidth
-		if lw <= 0 {
-			lw = 1
-		}
-		dc.SetRGBA(op.R, op.G, op.B, op.A)
-		dc.SetLineWidth(lw)
+		setOpStroke(dc, op)
 		_ = dc.StrokePath(op.Path)
 	case OpDrawString:
 		if op.Text == "" || op.A == 0 {
@@ -246,6 +320,79 @@ func applyPictureOp(dc *render.Context, op *PictureOp) {
 		} else {
 			dc.DrawImage(op.Image, op.X, op.Y)
 		}
+	case OpFillCircle:
+		if op.Radius <= 0 || op.A == 0 {
+			return
+		}
+		setOpFill(dc, op)
+		dc.DrawCircle(op.X, op.Y, op.Radius)
+		_ = dc.Fill()
+	case OpStrokeCircle:
+		if op.Radius <= 0 || op.A == 0 {
+			return
+		}
+		setOpStroke(dc, op)
+		dc.DrawCircle(op.X, op.Y, op.Radius)
+		_ = dc.Stroke()
+	case OpFillOval:
+		if op.W <= 0 || op.H <= 0 || op.A == 0 {
+			return
+		}
+		setOpFill(dc, op)
+		dc.DrawEllipse(op.X+op.W/2, op.Y+op.H/2, op.W/2, op.H/2)
+		_ = dc.Fill()
+	case OpStrokeOval:
+		if op.W <= 0 || op.H <= 0 || op.A == 0 {
+			return
+		}
+		setOpStroke(dc, op)
+		dc.DrawEllipse(op.X+op.W/2, op.Y+op.H/2, op.W/2, op.H/2)
+		_ = dc.Stroke()
+	case OpFillArc:
+		if op.Radius <= 0 || op.A == 0 {
+			return
+		}
+		setOpFill(dc, op)
+		dc.DrawArc(op.X, op.Y, op.Radius, op.Angle1, op.Angle2)
+		_ = dc.Fill()
+	case OpStrokeArc:
+		if op.Radius <= 0 || op.A == 0 {
+			return
+		}
+		setOpStroke(dc, op)
+		dc.DrawArc(op.X, op.Y, op.Radius, op.Angle1, op.Angle2)
+		_ = dc.Stroke()
+	case OpFillRoundRect:
+		if op.W <= 0 || op.H <= 0 || op.A == 0 {
+			return
+		}
+		setOpFill(dc, op)
+		drawRoundRectShape(dc, op)
+		_ = dc.Fill()
+	case OpStrokeRoundRect:
+		if op.W <= 0 || op.H <= 0 || op.A == 0 {
+			return
+		}
+		setOpStroke(dc, op)
+		drawRoundRectShape(dc, op)
+		_ = dc.Stroke()
+	case OpStrokeLine:
+		if op.A == 0 {
+			return
+		}
+		setOpStroke(dc, op)
+		dc.DrawLine(op.X, op.Y, op.X2, op.Y2)
+		_ = dc.Stroke()
+	case OpFillLinearGradient:
+		if op.W <= 0 || op.H <= 0 {
+			return
+		}
+		br := render.NewLinearGradientBrush(op.GX0, op.GY0, op.GX1, op.GY1).
+			AddColorStop(0, render.RGBA{R: op.R, G: op.G, B: op.B, A: op.A}).
+			AddColorStop(1, render.RGBA{R: op.R1, G: op.G1, B: op.B1, A: op.A1})
+		dc.SetFillBrush(br)
+		dc.DrawRectangle(op.X, op.Y, op.W, op.H)
+		_ = dc.Fill()
 	}
 }
 
@@ -432,6 +579,198 @@ func (r *PictureRecorder) DrawImage(img *render.ImageBuf, x, y, dstW, dstH float
 		X:    x, Y: y,
 		Image: img,
 		DstW:  dstW, DstH: dstH,
+	})
+}
+
+// FillCircle records a filled circle centered at (cx,cy). radius<=0 draws
+// nothing (mirrors the UI facade guard).
+func (r *PictureRecorder) FillCircle(cx, cy, radius, red, gre, blu, a float64) {
+	if r == nil || radius <= 0 {
+		return
+	}
+	r.noteGeometry(cx-radius, cy-radius, radius*2, radius*2)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpFillCircle,
+		X:    cx, Y: cy,
+		Radius: radius,
+		R:      clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// StrokeCircle records a stroked circle. Bounds inflate by half the line
+// width to cover the stroke band (effective width ≤0 counts as 1).
+func (r *PictureRecorder) StrokeCircle(cx, cy, radius, lineWidth, red, gre, blu, a float64) {
+	if r == nil || radius <= 0 {
+		return
+	}
+	inflate := lineWidth / 2
+	if inflate <= 0 {
+		inflate = 0.5
+	}
+	r.noteGeometry(cx-radius-inflate, cy-radius-inflate,
+		radius*2+2*inflate, radius*2+2*inflate)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpStrokeCircle,
+		X:    cx, Y: cy,
+		Radius:    radius,
+		LineWidth: lineWidth,
+		R:         clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// FillOval records a filled ellipse in the box (x,y,w,h).
+func (r *PictureRecorder) FillOval(x, y, w, h, red, gre, blu, a float64) {
+	if r == nil || w <= 0 || h <= 0 {
+		return
+	}
+	r.noteGeometry(x, y, w, h)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpFillOval,
+		X:    x, Y: y, W: w, H: h,
+		R: clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// StrokeOval records a stroked ellipse in the box (x,y,w,h).
+func (r *PictureRecorder) StrokeOval(x, y, w, h, lineWidth, red, gre, blu, a float64) {
+	if r == nil || w <= 0 || h <= 0 {
+		return
+	}
+	inflate := lineWidth / 2
+	if inflate <= 0 {
+		inflate = 0.5
+	}
+	r.noteGeometry(x-inflate, y-inflate, w+2*inflate, h+2*inflate)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpStrokeOval,
+		X:    x, Y: y, W: w, H: h,
+		LineWidth: lineWidth,
+		R:         clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// FillArc records a filled circular sector centered at (cx,cy).
+// Bounds stay conservative (full disc): sector-exact bounds would need
+// angle-span analysis at record time.
+func (r *PictureRecorder) FillArc(cx, cy, radius, angle1, angle2, red, gre, blu, a float64) {
+	if r == nil || radius <= 0 {
+		return
+	}
+	r.noteGeometry(cx-radius, cy-radius, radius*2, radius*2)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpFillArc,
+		X:    cx, Y: cy,
+		Radius: radius,
+		Angle1: angle1,
+		Angle2: angle2,
+		R:      clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// StrokeArc records a stroked circular arc centered at (cx,cy).
+func (r *PictureRecorder) StrokeArc(cx, cy, radius, angle1, angle2, lineWidth, red, gre, blu, a float64) {
+	if r == nil || radius <= 0 {
+		return
+	}
+	inflate := lineWidth / 2
+	if inflate <= 0 {
+		inflate = 0.5
+	}
+	r.noteGeometry(cx-radius-inflate, cy-radius-inflate,
+		radius*2+2*inflate, radius*2+2*inflate)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpStrokeArc,
+		X:    cx, Y: cy,
+		Radius:    radius,
+		Angle1:    angle1,
+		Angle2:    angle2,
+		LineWidth: lineWidth,
+		R:         clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// FillRoundRect records a filled rounded rect with uniform corner radius.
+// Negative radius normalizes to 0 (sharp rect, mirrors the UI facade).
+func (r *PictureRecorder) FillRoundRect(x, y, w, h, radius, red, gre, blu, a float64) {
+	if r == nil || w <= 0 || h <= 0 {
+		return
+	}
+	if radius < 0 {
+		radius = 0
+	}
+	r.noteGeometry(x, y, w, h)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpFillRoundRect,
+		X:    x, Y: y, W: w, H: h,
+		Radius: radius,
+		R:      clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// StrokeRoundRect records a stroked rounded rect with uniform corner radius.
+func (r *PictureRecorder) StrokeRoundRect(x, y, w, h, radius, lineWidth, red, gre, blu, a float64) {
+	if r == nil || w <= 0 || h <= 0 {
+		return
+	}
+	if radius < 0 {
+		radius = 0
+	}
+	inflate := lineWidth / 2
+	if inflate <= 0 {
+		inflate = 0.5
+	}
+	r.noteGeometry(x-inflate, y-inflate, w+2*inflate, h+2*inflate)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpStrokeRoundRect,
+		X:    x, Y: y, W: w, H: h,
+		Radius:    radius,
+		LineWidth: lineWidth,
+		R:         clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// StrokeLine records a stroked segment from (x1,y1) to (x2,y2).
+func (r *PictureRecorder) StrokeLine(x1, y1, x2, y2, lineWidth, red, gre, blu, a float64) {
+	if r == nil {
+		return
+	}
+	inflate := lineWidth / 2
+	if inflate <= 0 {
+		inflate = 0.5
+	}
+	minX, maxX := x1, x2
+	if minX > maxX {
+		minX, maxX = maxX, minX
+	}
+	minY, maxY := y1, y2
+	if minY > maxY {
+		minY, maxY = maxY, minY
+	}
+	r.noteGeometry(minX-inflate, minY-inflate,
+		maxX-minX+2*inflate, maxY-minY+2*inflate)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpStrokeLine,
+		X:    x1, Y: y1,
+		X2: x2, Y2: y2,
+		LineWidth: lineWidth,
+		R:         clamp01(red), G: clamp01(gre), B: clamp01(blu), A: clamp01(a),
+	})
+}
+
+// FillLinearGradient records a two-stop linear gradient fill over rect
+// (x,y,w,h) along (x0,y0)→(x1,y1). Coordinates are absolute at record time,
+// matching the UI facade after origin resolution.
+func (r *PictureRecorder) FillLinearGradient(x, y, w, h, x0, y0, x1, y1, r0, g0, b0, a0, r1, g1, b1, a1 float64) {
+	if r == nil || w <= 0 || h <= 0 {
+		return
+	}
+	r.noteGeometry(x, y, w, h)
+	r.ops = append(r.ops, PictureOp{
+		Kind: OpFillLinearGradient,
+		X:    x, Y: y, W: w, H: h,
+		GX0: x0, GY0: y0, GX1: x1, GY1: y1,
+		R: clamp01(r0), G: clamp01(g0), B: clamp01(b0), A: clamp01(a0),
+		R1: clamp01(r1), G1: clamp01(g1), B1: clamp01(b1), A1: clamp01(a1),
 	})
 }
 

@@ -380,8 +380,14 @@ func (a *App) Quit() {
 	}
 	a.quit.Store(true)
 	for _, w := range a.Windows() {
-		if w.pipe != nil {
-			w.pipe.Quit()
+		if w == nil {
+			continue
+		}
+		w.mu.Lock()
+		pipe := w.pipe
+		w.mu.Unlock()
+		if pipe != nil {
+			pipe.Quit()
 		}
 	}
 }
@@ -526,10 +532,16 @@ func (w *Window) SetInput(r *embedder.InputRouter) {
 
 // ScheduleFrame requests a frame on this window.
 func (w *Window) ScheduleFrame() {
-	if w == nil || w.pipe == nil {
+	if w == nil {
 		return
 	}
-	w.pipe.ScheduleFrame()
+	w.mu.Lock()
+	pipe := w.pipe
+	w.mu.Unlock()
+	if pipe == nil {
+		return
+	}
+	pipe.ScheduleFrame()
 }
 
 // Pipeline returns the window's rendering pipeline (nil before SetRoot).
@@ -558,7 +570,10 @@ func (w *Window) SetEventObserver(fn func(ev platform.Event)) {
 }
 
 // Close tears this window down: rendering pipeline (GPU present target)
-// first, then the native platform window. Idempotent.
+// first, then the native platform window. Idempotent. The window stays
+// registered (never resurrected, never double freed), but its heavy
+// contents (pipeline, scene root, input router, observer) are released so
+// closed windows retain only their shell.
 func (w *Window) Close() {
 	if w == nil {
 		return
@@ -571,6 +586,10 @@ func (w *Window) Close() {
 	w.closed = true
 	pipe := w.pipe
 	plat := w.plat
+	w.pipe = nil
+	w.root = nil
+	w.input = nil
+	w.onEvent = nil
 	w.mu.Unlock()
 
 	if pipe != nil {

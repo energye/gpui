@@ -342,33 +342,16 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	return true
 }
 
-// Store records n's own content into the cache after a live paint. No-op for
-// non-boundaries, non-cacheable content, or when caching is disabled.
-// Callers call this only when the boundary itself was dirty (or unrecorded).
-func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
-	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache || !n.IsRepaintBoundary() {
-		return
-	}
-	if !boundaryCacheable(n) {
-		return
-	}
+// storeEntryLocked writes one boundary entry and bumps rerecord counters.
+// Callers hold no lock; single entry point for Store/StorePicture so budget,
+// shell accounting and ancestor policy cannot drift apart.
+func (c *BoundaryCache) storeEntryLocked(n RenderObject, pic scene.Picture, ox, oy float64, valid bool) {
 	b, ok := baseOf(n)
 	if !ok {
 		return
 	}
 	id := b.ensureCacheID()
 	sz := n.Size()
-	ox, oy := pc.OriginX, pc.OriginY
-	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		recordOwnContent(r, n, ox, oy)
-	})
-	// Nothing own to draw (all visual content lives in nested boundaries):
-	// an empty Picture can never replay usefully (tryReplay rejects empty
-	// entries), so do not create an entry — otherwise this boundary would
-	// re-store (and count a rerecord) every frame forever.
-	if pic.IsEmpty() {
-		return
-	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries[id] = &boundaryEntry{
@@ -376,7 +359,7 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 		ox:  ox, oy: oy,
 		w: sz.Width, h: sz.Height,
 		contentKey: contentKeyOf(n, sz.Width, sz.Height),
-		valid:      pic.Valid && !pic.IsEmpty(),
+		valid:      valid,
 		cacheable:  true,
 		lastSeen:   c.frame,
 	}
@@ -388,6 +371,49 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 		c.FrameShellRerecord++
 	}
 	// No ancestor invalidate: parents do not bake nested RB children.
+}
+
+// Store records n's own content into the cache after a live paint. No-op for
+// non-boundaries, non-cacheable content, or when caching is disabled.
+// Callers call this only when the boundary itself was dirty (or unrecorded).
+func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
+	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache || !n.IsRepaintBoundary() {
+		return
+	}
+	if !boundaryCacheable(n) {
+		return
+	}
+	ox, oy := pc.OriginX, pc.OriginY
+	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+		recordOwnContent(r, n, ox, oy)
+	})
+	// Nothing own to draw (all visual content lives in nested boundaries):
+	// an empty Picture can never replay usefully (tryReplay rejects empty
+	// entries), so do not create an entry — otherwise this boundary would
+	// re-store (and count a rerecord) every frame forever.
+	if pic.IsEmpty() {
+		return
+	}
+	c.storeEntryLocked(n, pic, ox, oy, pic.Valid && !pic.IsEmpty())
+}
+
+// StorePicture records a caller-built picture for boundary n (single-build
+// path used by RenderPictureBox.Paint: live paint already replayed these
+// ops, so no second record pass). Same gates as Store plus Valid/non-empty:
+// empty pictures can never replay usefully (tryReplay rejects them), so
+// storing one would re-store every frame forever.
+func (c *BoundaryCache) StorePicture(pc *PaintContext, n RenderObject, pic scene.Picture) {
+	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache || !n.IsRepaintBoundary() {
+		return
+	}
+	if !boundaryCacheable(n) {
+		return
+	}
+	if !pic.Valid || pic.IsEmpty() {
+		return
+	}
+	ox, oy := pc.OriginX, pc.OriginY
+	c.storeEntryLocked(n, pic, ox, oy, true)
 }
 
 // shellOf reports whether n was tagged as window-shell content. A node
@@ -435,8 +461,10 @@ func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *Absolute
 }
 
 // boundaryCacheable reports whether this boundary's own content can be
-// faithfully recorded + fingerprinted by the MVP recorder. Anything else
-// (Viewport, VirtualList, custom RO) must never be cached — Replaying an
+// faithfully recorded + fingerprinted by the recorder. RenderPictureBox
+// carries its own Record closure (pure function of box state; NeedsPaint is
+// the invalidation signal). Anything else unrepresentable (Viewport,
+// VirtualList, custom RO) must never be cached — Replaying an
 // incomplete Picture would drop live content (stale-frame bug).
 func boundaryCacheable(n RenderObject) bool {
 	if n == nil {
@@ -445,6 +473,8 @@ func boundaryCacheable(n RenderObject) bool {
 	switch t := n.(type) {
 	case *RenderColorBox, *RenderText, *RenderImage:
 		return true
+	case *RenderPictureBox:
+		return t.Record != nil
 	case *AbsoluteBox:
 		return absoluteContentCacheable(t)
 	default:
@@ -463,6 +493,11 @@ func absoluteContentCacheable(a *AbsoluteBox) bool {
 		switch t := ch.(type) {
 		case *RenderColorBox, *RenderText, *RenderImage:
 			continue
+		case *RenderPictureBox:
+			// Non-boundary picture boxes carry a caller-owned Record
+			// closure with no content fingerprint — inlining them would
+			// risk a stale parent bake. Use picture boxes as boundaries.
+			return false
 		case *AbsoluteBox:
 			if !absoluteContentCacheable(t) {
 				return false
@@ -489,6 +524,11 @@ func contentKeyOf(n RenderObject, w, h float64) uint64 {
 		return textContentKey(t, w, h)
 	case *RenderImage:
 		return imageContentKey(t, w, h)
+	case *RenderPictureBox:
+		// No fingerprint: Record is a caller-owned closure. NeedsPaint is
+		// the invalidation signal (SetRecord dirties). tryReplay skips the
+		// content-match gate when both keys are 0; origin/size still gate.
+		return 0
 	case *AbsoluteBox:
 		return absoluteContentKey(t, w, h)
 	default:
@@ -536,7 +576,9 @@ func absoluteContentKey(a *AbsoluteBox, w, h float64) uint64 {
 }
 
 // textContentKey fingerprints a RenderText's visible glyph identity:
-// text content, size, face identity, color, wrap/overflow settings.
+// text content, size, face identity, color, wrap/overflow settings,
+// letter/word spacing (6a: spaced pictures must not replay unspaced),
+// font weight (6b: bold masks must not replay regular).
 func textContentKey(t *RenderText, w, h float64) uint64 {
 	if t == nil {
 		return 0
@@ -559,10 +601,27 @@ func textContentKey(t *RenderText, w, h float64) uint64 {
 	if t.MaxWidth > 0 {
 		k ^= uint64(t.MaxWidth*4) << 8
 	}
+	if t.LetterSpacing != 0 || t.WordSpacing != 0 {
+		// Via int64 (float→uint64 of negatives is fragile; int64→uint64
+		// wraps deterministically).
+		k ^= uint64(spacingQuant(t.LetterSpacing)) << 4
+		k ^= uint64(spacingQuant(t.WordSpacing)) << 20
+	}
+	if t.FontWeight != 0 {
+		k ^= uint64(t.FontWeight) << 44
+	}
 	if len(t.Runs) > 0 {
 		k ^= uint64(len(t.Runs)) << 52
 	}
 	return k
+}
+
+// spacingQuant quantizes a spacing value to 1/16px for cache fingerprints.
+func spacingQuant(v float64) int64 {
+	if v >= 0 {
+		return int64(v*16 + 0.5)
+	}
+	return -int64(-v*16 + 0.5)
 }
 
 // imageContentKey fingerprints a RenderImage's visible state: image pointer,
@@ -625,6 +684,10 @@ func recordOwnContent(r *scene.PictureRecorder, n RenderObject, ox, oy float64) 
 			r.DrawImage(t.Img, ox, oy, dw, dh)
 		} else {
 			r.FillRect(ox, oy, dw, dh, t.PR, t.PG, t.PB, 1)
+		}
+	case *RenderPictureBox:
+		if t.Record != nil {
+			t.Record(r, ox, oy)
 		}
 	case *AbsoluteBox:
 		recordAbsoluteOwnContent(r, t, ox, oy)
