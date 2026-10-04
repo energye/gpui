@@ -281,14 +281,11 @@ type pelicanScene struct {
 	title    titleLine            // 主标题行图块（替代逐字节点）
 	sub      titleLine            // 副标题行图块
 	titleBox *rendering.RenderBox // 标题图块盒（全窗，stageBox 之后绘制）
-
-	speedLabelDup *rendering.RenderText // 仿粗体副本：右移重画一遍加浓笔画
 }
 
-// titleGlyph 标题单字节点；dup 为仿粗体副本（右移重画一遍模拟 font-weight:700）。
+// titleGlyph 标题单字节点；字重走引擎 SetFontWeight(700)，不再另建副本描粗。
 type titleGlyph struct {
 	node *rendering.RenderText
-	dup  *rendering.RenderText
 	dx   float64 // 距标题起点的累计步进（含 letter-spacing，舞台 px）
 }
 
@@ -343,7 +340,7 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 
 	// 速度标签（HUD 内动态文本）。原页面是 #hud 内的 <b>（默认加粗）+ #223
 	// 深色，天然盖在药丸上层；这里必须在 hudBox 之后 Place（后画者在上），
-	// 否则被 85% 半透明白药丸压住只剩 15% 墨色，看起来发浅。副本右移重画仿粗体。
+	// 否则被 85% 半透明白药丸压住只剩 15% 墨色，看起来发浅。字重走引擎 700。
 	sc.speedLabel = rendering.NewRenderText("×1.0")
 	sc.speedLabel.FontSize = 14
 	lr, lg, lb := rgb(0x222233)
@@ -351,12 +348,7 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	if faceErr == nil {
 		sc.speedLabel.SetFace(face)
 	}
-	sc.speedLabelDup = rendering.NewRenderText("×1.0")
-	sc.speedLabelDup.FontSize = 14
-	sc.speedLabelDup.R, sc.speedLabelDup.G, sc.speedLabelDup.B, sc.speedLabelDup.A = lr, lg, lb, 1
-	if faceErr == nil {
-		sc.speedLabelDup.SetFace(face)
-	}
+	sc.speedLabel.SetFontWeight(text.WeightBold)
 
 	// HUD 药丸（右下 fixed）
 	sc.hudBox = rendering.NewRenderBox()
@@ -367,7 +359,6 @@ func newPelicanScene(winW, winH float64) *pelicanScene {
 	sc.hudBox.SetRepaintBoundary(true)
 	root.Place(sc.hudBox, winW-18-hudW, winH-18-hudH)
 	root.Place(sc.speedLabel, 0, -100) // 先建后摆：标签必须晚于药丸入树
-	root.Place(sc.speedLabelDup, 0, -100)
 	sc.hudX, sc.hudY = winW-18-hudW, winH-18-hudH
 
 	// 动态路径复用：飞鸟/腿每帧 Reset 重填（保容量零分配），
@@ -471,7 +462,7 @@ func bakeCloudTile(c cloudDef) cloudTile {
 }
 
 // bakeTitleLine 把一行逐字节点烘成图块：节点按 dx 在图块里原样 Paint 一遍，
-// 仿粗副本右移 1.1（与原来 placeLine 的 f.s=1 同值），无字体时节点画空、
+// 字重由节点自身的 SetFontWeight(700) 生效，无字体时节点画空、
 // 图块即空，与原来树节点行为一致。
 func bakeTitleLine(glyphs []titleGlyph, total, fontSize float64) titleLine {
 	const padL = 2.0
@@ -481,34 +472,29 @@ func bakeTitleLine(glyphs []titleGlyph, total, fontSize float64) titleLine {
 	img := bakeTile(tileW, tileH, func(pc *rendering.PaintContext) {
 		for _, gl := range glyphs {
 			gl.node.Paint(pc.WithOrigin(gl.dx+padL, padT))
-			if gl.dup != nil {
-				gl.dup.Paint(pc.WithOrigin(gl.dx+padL+1.1, padT))
-			}
 		}
 	})
 	return titleLine{img: img, total: total, padL: padL, padT: padT, w: float64(tileW), h: float64(tileH)}
 }
 
 // newTitleLine 构建一行带 letter-spacing 的逐字节点并测量总宽（舞台 px）。
+// bold 时节点直接 SetFontWeight(700) 走引擎字重（合成加粗宽度不变，总宽稳定）。
 func newTitleLine(s string, fontSize, letterSpacing float64, hex int64, alpha float64, face text.Face, bold bool) ([]titleGlyph, float64) {
 	r, g, b := rgb(hex)
 	var out []titleGlyph
 	dx := 0.0
 	for _, rn := range s {
 		ch := string(rn)
-		mk := func() *rendering.RenderText {
-			t := rendering.NewRenderText(ch)
-			t.FontSize = fontSize
-			t.R, t.G, t.B, t.A = r, g, b, alpha
-			if face != nil {
-				t.SetFace(face)
-			}
-			return t
+		t := rendering.NewRenderText(ch)
+		t.FontSize = fontSize
+		t.R, t.G, t.B, t.A = r, g, b, alpha
+		if face != nil {
+			t.SetFace(face)
 		}
-		glyph := titleGlyph{node: mk(), dx: dx}
 		if bold {
-			glyph.dup = mk()
+			t.SetFontWeight(text.WeightBold)
 		}
+		glyph := titleGlyph{node: t, dx: dx}
 		out = append(out, glyph)
 		dx += glyph.node.MeasureWidth(ch) + letterSpacing
 	}
@@ -567,9 +553,6 @@ func (sc *pelicanScene) relayout(w, h float64) {
 	sc.Root.Place(sc.hudBox, sc.hudX, sc.hudY)
 	labelX := sc.hudX + hudPadLR + hudBtnSize + hudGap + hudSliderW + hudGap + 8
 	sc.Root.Place(sc.speedLabel, labelX, sc.hudY+15)
-	if sc.speedLabelDup != nil {
-		sc.Root.Place(sc.speedLabelDup, labelX+1.1, sc.hudY+15) // 仿粗体右移 ~8% 字号
-	}
 	sc.Root.Place(sc.tip, 18, h-32)
 	sc.Root.MarkNeedsLayout()
 	// 尺寸变化强制 HUD 下帧重画（onTick 的按需门控会放行一次）。
@@ -612,9 +595,6 @@ func (sc *pelicanScene) setSpeed(v float64) {
 	}
 	sc.sim.speed = v
 	sc.speedLabel.SetText(fmt.Sprintf("×%.1f", v))
-	if sc.speedLabelDup != nil {
-		sc.speedLabelDup.SetText(sc.speedLabel.Text)
-	}
 }
 
 func (sc *pelicanScene) sliderX0() float64 {
