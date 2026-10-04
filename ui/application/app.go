@@ -90,7 +90,13 @@ type App struct {
 	mu  sync.Mutex
 	// windows holds every registered window (closed ones stay listed).
 	windows []*Window
-	quit    atomic.Bool
+	// phaseSeq hands out per-window pacing phase slots (see
+	// scheduler.SetPhaseSeq): window N staggers its frame boundary within
+	// the display period so N windows sharing one display/queue submit
+	// spread out instead of colliding on the same grid point. First window
+	// gets slot 0 = legacy grid (single-window behavior unchanged).
+	phaseSeq atomic.Int64
+	quit     atomic.Bool
 	// running is true while Run owns the window loops. active counts live
 	// loops. notifyCh (capacity 1) wakes the Run waiter on each loop exit.
 	// running/active/notifyCh are guarded by mu. firstErr keeps the first
@@ -162,11 +168,13 @@ func (a *App) NewWindow(opts WindowOptions) (*Window, error) {
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	seq := int(a.phaseSeq.Add(1)) - 1
 	w := &Window{
-		app:  a,
-		plat: plat,
-		opts: opts,
-		main: len(a.windows) == 0,
+		app:      a,
+		plat:     plat,
+		opts:     opts,
+		main:     len(a.windows) == 0,
+		phaseSeq: seq,
 	}
 	a.windows = append(a.windows, w)
 	return w, nil
@@ -410,6 +418,10 @@ type Window struct {
 	plat *platform.Window
 	opts WindowOptions
 	main bool
+	// phaseSeq is the pacing phase slot assigned at spawn (see App.phaseSeq
+	// and scheduler.SetPhaseSeq): the pipeline feeds it to its scheduler
+	// so windows sharing one display submit spread out.
+	phaseSeq int
 
 	mu     sync.Mutex
 	pipe   *embedder.PipelineApp
@@ -485,7 +497,7 @@ func (w *Window) SetRoot(root rendering.RenderObject) error {
 	}
 	w.root = root
 	cfg := w.app.cfg
-	w.pipe = embedder.NewPipelineApp(w.plat.Host(), root, embedder.PipelineOptions{
+	w.pipe = embedder.NewPipelineAppWithPhase(w.plat.Host(), root, w.phaseSeq, embedder.PipelineOptions{
 		ClearR:       cfg.ClearR,
 		ClearG:       cfg.ClearG,
 		ClearB:       cfg.ClearB,

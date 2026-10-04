@@ -542,11 +542,27 @@ func (a *PipelineApp) SetOverlay(st *overlay.State) {
 }
 
 // NewPipelineApp builds a tree-driven app. Call Open then Run.
+// PhaseSeq assigns the pacing phase slot (see scheduler.SetPhaseSeq):
+// windows spawned later stagger their frame boundary within the display
+// period so multi-window submits spread out instead of colliding. 0 =
+// legacy grid (single-window behavior unchanged).
 func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts PipelineOptions) *PipelineApp {
+	return newPipelineApp(host, root, opts, 0)
+}
+
+// NewPipelineAppWithPhase is NewPipelineApp with an explicit pacing phase
+// slot for the window (see NewPipelineApp and scheduler.SetPhaseSeq).
+// Application shells pass each window's spawn-order slot here.
+func NewPipelineAppWithPhase(host platform.Host, root rendering.RenderObject, phaseSeq int, opts PipelineOptions) *PipelineApp {
+	return newPipelineApp(host, root, opts, phaseSeq)
+}
+
+func newPipelineApp(host platform.Host, root rendering.RenderObject, opts PipelineOptions, phaseSeq int) *PipelineApp {
 	if opts.ClearA == 0 && opts.ClearR == 0 && opts.ClearG == 0 && opts.ClearB == 0 {
 		opts.ClearR, opts.ClearG, opts.ClearB, opts.ClearA = 0.10, 0.12, 0.16, 1
 	}
 	s := scheduler.New()
+	s.SetPhaseSeq(phaseSeq)
 	s.Metrics().SetPresentPolicy(scheduler.PresentPolicyRetained)
 	app := &PipelineApp{
 		host:  host,

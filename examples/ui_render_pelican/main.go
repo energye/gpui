@@ -151,6 +151,10 @@ func main() {
 	}
 
 	t0 := time.Now()
+	// 关窗即放重树（Window.Close 清管线）：指标用的管线指针必须在 Run 前
+	// 取好，Run 返回后窗口已关、再取就是空，帧数会报 0（窗本身画得好好的）。
+	mainPipe := mainWin.Pipeline()
+	mainBackend := mainWin.Platform().Backend()
 	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "run:", err)
 		os.Exit(1)
@@ -162,13 +166,12 @@ func main() {
 		elapsed = 0.001
 	}
 	stepDiagReport()
-	mainPipe := mainWin.Pipeline()
 	presents := mainPipe.PresentCount()
 	fps := float64(presents) / elapsed
 
 	m := mainPipe.Metrics().Snapshot()
 	fmt.Fprintf(os.Stderr, "ui_render_pelican: backend=%s windows=%d presents=%d ~%.1f fps\n",
-		mainWin.Platform().Backend(), app.WindowCount(), presents, fps)
+		mainBackend, app.WindowCount(), presents, fps)
 	fmt.Fprintf(os.Stderr, "ui_render_pelican: avg=%.2f p50=%.2f p95=%.2f p99=%.2f hitches=%d gpu_ops=%d cpu_fallback_ops=%d\n",
 		m.AvgFrameIntervalMs, m.P50FrameIntervalMs, m.P95FrameIntervalMs, m.P99FrameIntervalMs,
 		m.HitchCount, m.GPUOps, m.CPUFallbackOps)

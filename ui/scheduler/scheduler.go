@@ -56,11 +56,6 @@ type FrameScheduler struct {
 	metrics  MetricsStore
 	animTick time.Duration
 	lastTick time.Time
-	// lastTargetAt is the previous frame's target time (Flutter Animator
-	// frame_target_time semantics): Tick dt is this frame's target minus
-	// the last one, so a late wake keeps the same step instead of doubling
-	// the visible advance. Zero until the first tick.
-	lastTargetAt time.Time
 	// lastFrameAt is when the last frame was actually rendered (FrameDue
 	// software pacing). Guarded by mu.
 	lastFrameAt time.Time
@@ -105,6 +100,39 @@ type FrameScheduler struct {
 	dispHist      [dispHistSize]time.Duration
 	dispHistIdx   int
 	dispHistCount int
+	// phaseSeq staggers this window's frame boundary within the display
+	// period (Flutter per-VsyncWaiter construction-time phase:
+	// vsync_waiter_fallback.cc gives every waiter its own phase_ from
+	// construction time, so separate views never share a grid point).
+	// Boundary = grid + frac(seq*phi)*period, phi = golden ratio conjugate:
+	// seq 0 = legacy grid (single-window behavior unchanged), seq 1/2/3 =
+	// 0.618/0.236/0.854 of a period. Guarded by mu.
+	phaseSeq int
+}
+
+// phaseFraction maps a phase slot to [0,1): golden-ratio multiples spread
+// any window count without bunching (seq 0 = 0, legacy grid).
+func phaseFraction(seq int) float64 {
+	if seq <= 0 {
+		return 0
+	}
+	const phi = 0.618033988749895
+	x := float64(seq) * phi
+	return x - float64(int(x))
+}
+
+// SetPhaseSeq assigns this scheduler's phase slot (0 = legacy grid, no
+// shift). Called once at window setup; safe for concurrent use.
+func (s *FrameScheduler) SetPhaseSeq(n int) {
+	if s == nil {
+		return
+	}
+	if n < 0 {
+		n = 0
+	}
+	s.mu.Lock()
+	s.phaseSeq = n
+	s.mu.Unlock()
 }
 
 // Compositor-period estimator tuning (E6-A).
@@ -344,17 +372,34 @@ func (s *FrameScheduler) vsyncFresh() bool {
 func (s *FrameScheduler) nextFrameBoundaryLocked(now time.Time) (time.Time, time.Duration) {
 	period := s.boundaryPeriodLocked()
 	minGap := period * 3 / 4
+	var b time.Time
+	var shift time.Duration
+	if s.phaseSeq > 0 && period > 0 {
+		shift = time.Duration(phaseFraction(s.phaseSeq) * float64(period))
+		if shift < 0 {
+			shift = 0
+		}
+		if shift >= period {
+			shift = 0
+		}
+	}
 	if !s.lastVSyncShadow.IsZero() && now.Sub(s.lastVSyncShadow) <= vsyncFreshWindow {
-		b := s.lastVSyncShadow
+		// Flutter SnapToNextTick parity: the phase belongs to the grid
+		// anchor, not post-added. Walk the phase-aligned grid (stamp+shift)
+		// so points stay one period apart and the minGap floor still holds.
+		// Post-adding shift after the walk stretches spacing to
+		// period+shift and halves windows with large shifts to ~30fps.
+		b = s.lastVSyncShadow.Add(shift)
 		for !b.After(s.lastFrameAt) {
 			b = b.Add(period)
 		}
 		for b.Sub(s.lastFrameAt) < minGap {
 			b = b.Add(period)
 		}
-		return b, period
+	} else {
+		b = s.lastFrameAt.Add(period).Add(shift)
 	}
-	return s.lastFrameAt.Add(period), period
+	return b, period
 }
 
 // FrameDue is the non-blocking frame-pacing gate (Flutter frame callback
@@ -625,13 +670,15 @@ func (s *FrameScheduler) WaitFramePace(host platform.Host) {
 	// Non-blocking: frame pacing is gated by FrameDue at the render point.
 }
 
-// Tick advances tickers with the frame target-time step, not the wall gap:
-// dt is this frame's target time minus the previous frame's target time
-// (Flutter Animator frame_target_time semantics). On a healthy cadence the
-// target advances one display period per frame, so dt stays constant and a
-// late wake keeps the same step instead of doubling the visible advance
-// (wall-gap dt turns one late wake into a doubled step). The first tick
-// uses one display period.
+// Tick advances tickers with the wall-clock elapsed time since the last tick
+// (Flutter Ticker semantics: elapsed = timestamp - startTime, where the
+// timestamp is the vsync target snapped forward to wall now via
+// SnapToNextTick — a late wake jumps multiple periods so animation catches
+// up instead of falling behind forever). On a healthy cadence the elapsed
+// time equals one display period, so steps stay uniform. Gaps over 100ms
+// mean time spent hidden/minimized (the loop stops ticking there), not
+// animation time, so they resync with one normal step instead of jumping.
+// The first tick uses one display period.
 func (s *FrameScheduler) Tick() bool {
 	if s == nil {
 		return false
@@ -639,16 +686,21 @@ func (s *FrameScheduler) Tick() bool {
 	now := time.Now()
 	s.mu.Lock()
 	period := s.boundaryPeriodLocked()
-	if s.lastTargetAt.IsZero() {
-		s.lastTargetAt = now
+	const resyncGap = 100 * time.Millisecond
+	var dt float64
+	if s.lastTick.IsZero() {
+		dt = period.Seconds()
 	} else {
-		// Flutter Animator parity: the target only walks forward by one
-		// display period per tick and is never clamped back to now. A late
-		// wake keeps the same step (no double advance) and the phase stays
-		// locked to the display cadence instead of resyncing every jitter.
-		s.lastTargetAt = s.lastTargetAt.Add(period)
+		real := now.Sub(s.lastTick)
+		if real < 0 {
+			real = 0
+		}
+		if real > resyncGap {
+			dt = period.Seconds()
+		} else {
+			dt = real.Seconds()
+		}
 	}
-	dt := period.Seconds()
 	s.lastTick = now
 	s.mu.Unlock()
 	s.tickers.TickAll(dt)
