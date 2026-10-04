@@ -178,26 +178,6 @@ type probeResult struct {
 	Detail                           string
 }
 
-// deadzoneFollow is the example-local dead zone: targets inside the
-// radius never touch the engine; outside ones go through Follow.
-// It returns whether the camera moved.
-func deadzoneFollow(cam *camera.Camera, target core.Vec2, radius float64) (bool, error) {
-	if cam == nil {
-		return false, fmt.Errorf("nil camera")
-	}
-	if radius < 0 {
-		radius = 0
-	}
-	if dist(target, cam.Pos()) <= radius {
-		return false, nil
-	}
-	before := cam.Pos()
-	if err := cam.Follow(target); err != nil {
-		return false, err
-	}
-	return cam.Pos() != before, nil
-}
-
 // probeFollow replays the frozen follow table through the real engine:
 // every step lands on the frozen number, and the lens sticks to the
 // target within max_frames at max_err (0.5s at 60fps).
@@ -366,7 +346,7 @@ func probeParallax(f frozenCases) (bool, string) {
 	return true, fmt.Sprintf("near=%v half=%v sky=%v", screens[0], screens[1], screens[2])
 }
 
-// probeDeadDual checks the example dead zone plus the dual query split:
+// probeDeadDual checks the engine dead zone plus the dual query split:
 // inside the radius the lens holds (target and picture differ), outside
 // it moves.
 func probeDeadDual(f frozenCases) (bool, bool, string) {
@@ -387,19 +367,22 @@ func probeDeadDual(f frozenCases) (bool, bool, string) {
 	if err := cam.SetSmoothing(liveSmoothing); err != nil {
 		return false, false, "restore: " + err.Error()
 	}
-	movedIn, err := deadzoneFollow(&cam, v2(f.Deadzone.Inside), f.Deadzone.Radius)
+	movedIn, err := cam.FollowDeadzone(v2(f.Deadzone.Inside), f.Deadzone.Radius)
 	if err != nil {
 		return false, false, "inside: " + err.Error()
 	}
-	deadOK := !movedIn && cam.Pos() == center
+	deadOK := !movedIn && cam.DualPicture() == center
 	// Dual query: the target sits inside while the picture holds center.
-	tgt, pic := v2(f.Dual.Target), cam.Pos()
+	tgt, pic, ok := cam.DualTarget(v2(f.Dual.Target))
+	if !ok {
+		return false, false, "dual: ok=false"
+	}
 	dualOK := tgt != pic && pic == center
-	movedOut, err := deadzoneFollow(&cam, v2(f.Deadzone.Outside), f.Deadzone.Radius)
+	movedOut, err := cam.FollowDeadzone(v2(f.Deadzone.Outside), f.Deadzone.Radius)
 	if err != nil {
 		return false, false, "outside: " + err.Error()
 	}
-	deadOK = deadOK && movedOut && cam.Pos() != center
+	deadOK = deadOK && movedOut && cam.DualPicture() != center
 	return deadOK, dualOK, fmt.Sprintf("inside_hold=%v outside_moved=%v target=%v picture=%v",
 		!movedIn, movedOut, tgt, pic)
 }
@@ -693,7 +676,7 @@ func (s *camSim) CameraPos() core.Vec2 {
 	if s == nil {
 		return core.Vec2{}
 	}
-	return s.cam.Pos()
+	return s.cam.DualPicture()
 }
 
 type ticker struct{ s *camSim }
@@ -717,7 +700,7 @@ func (t *ticker) Tick(dt float64) bool {
 		s.wpIndex = (s.wpIndex + 1) % len(s.waypoints)
 		s.target = s.waypoints[s.wpIndex]
 	}
-	moved, _ := deadzoneFollow(&s.cam, s.target, liveDeadR)
+	moved, _ := s.cam.FollowDeadzone(s.target, liveDeadR)
 	if moved {
 		s.moves++
 	} else {

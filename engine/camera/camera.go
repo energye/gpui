@@ -193,6 +193,46 @@ func (c *Camera) Follow(target core.Vec2) error {
 	return nil
 }
 
+// FollowDeadzone chases target only outside radius of Pos: inside holds,
+// outside runs Follow (limit plus smoothing still apply). Negative radius
+// clamps to 0 (always chase); NaN/Inf target or radius is InvalidArg and
+// moves nothing. It returns whether the lens moved. The caller keeps the
+// target; DualTarget/DualPicture below report both sides by name.
+func (c *Camera) FollowDeadzone(target core.Vec2, radius float64) (bool, error) {
+	if c == nil {
+		return false, core.InvalidArg("camera.FollowDeadzone", "camera")
+	}
+	if !finiteVec(target) || !finite(radius) {
+		return false, core.InvalidArg("camera.FollowDeadzone", "arg")
+	}
+	if radius < 0 {
+		radius = 0
+	}
+	before := c.pos
+	if c.pos.Sub(target).Length() <= radius {
+		return false, nil
+	}
+	if err := c.Follow(target); err != nil {
+		return false, err
+	}
+	return c.pos != before, nil
+}
+
+// DualPicture is where the picture sits: the clamped center. The caller
+// keeps the target separately (DualTarget), so target and picture stay
+// two queries by construction and never collapse into one number.
+func (c Camera) DualPicture() core.Vec2 { return c.pos }
+
+// DualTarget pairs a caller-kept target with the lens picture in one call:
+// target stays the caller's number (unclamped), picture is the clamped
+// center. It reports ok=false only on bad input, never NaN.
+func (c Camera) DualTarget(target core.Vec2) (tgt, pic core.Vec2, ok bool) {
+	if !finiteVec(target) {
+		return core.Vec2{}, core.Vec2{}, false
+	}
+	return target, c.pos, true
+}
+
 func (c Camera) clampPos(p core.Vec2) core.Vec2 {
 	if c.limit.IsEmpty() {
 		return p

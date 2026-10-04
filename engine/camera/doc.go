@@ -38,6 +38,8 @@ package camera
 // SetShake, DecayShake, SetLimit, SetSmoothing, SetAnchor, Follow,
 // EffectivePos, View, WorldToScreen, ScreenToWorld, VisibleWorldRect,
 // MinZoom. Additive changes only.
+// Frozen 2026-10-04: FollowDeadzone, DualPicture, DualTarget. Additive
+// changes only; old Follow/Pos/EffectivePos paths unchanged.
 //
 // State: Pos center, Zoom scale (>= MinZoom 1e-6), Rotation radians
 // normalized to [-pi, pi], Shake caller-driven offset, Limit center clamp
@@ -78,3 +80,22 @@ package camera
 // Screen subtracts it back out (screen-pinned). Negative mirror is a
 // core InvalidArg error, never a silent wrap. NaN/Inf inputs return
 // ok=false with zero outputs, never NaN and never a panic.
+
+// Basis25D presses a 3D point flat into 2D (S79).
+//
+// Frozen 2026-10-04: BasisScale, View45, ViewIsometric, ViewTopDown,
+// ViewFrontSide, ViewObliqueY, ViewObliqueZ, NewBasis25D, Mode, Project,
+// ProjectPoints. Additive changes only. Six axis sets copy the demo's
+// set_view_mode times BasisScale; matrix asserts stay at 1e-9 (float
+// paths to the same point), golden mask asserts stay bitwise zero.
+
+// YSort25D orders true-2.5D objects back to front (S79).
+//
+// Frozen 2026-10-04: MaxYSort25D, YSortZBase, YSortZStep, YSortKey,
+// YSortLess, YSort, YSortZ. Additive changes only.
+
+// ShadowMath25D lands a true-2.5D shadow on the ground, S79 scope.
+//
+// Frozen 2026-10-04: LandShadow, ShadowVisible. Additive changes only.
+// Simplified scope: landing math only (ground height in, flat point out);
+// the 3D ray hit point feeds in later without changing the signature.

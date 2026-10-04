@@ -49,11 +49,25 @@ type decayCase struct {
 	Want   [][2]float64 `json:"want"`
 }
 
+type deadzoneCase struct {
+	Start     [2]float64 `json:"start"`
+	Radius    float64    `json:"radius"`
+	Inside    [2]float64 `json:"inside"`
+	Outside   [2]float64 `json:"outside"`
+	BadRadius float64    `json:"bad_radius"`
+}
+
+type dualCase struct {
+	Target [2]float64 `json:"target"`
+}
+
 type cameraFile struct {
-	Views      []viewCase `json:"views"`
-	Follow     followCase `json:"follow"`
-	FollowSnap followCase `json:"follow_snap"`
-	Decay      decayCase  `json:"decay"`
+	Views      []viewCase   `json:"views"`
+	Follow     followCase   `json:"follow"`
+	FollowSnap followCase   `json:"follow_snap"`
+	Decay      decayCase    `json:"decay"`
+	Deadzone   deadzoneCase `json:"deadzone"`
+	Dual       dualCase     `json:"dual"`
 }
 
 func loadCameraCases(t *testing.T) cameraFile {
@@ -192,6 +206,65 @@ func TestCameraFollowAndDecay(t *testing.T) {
 		if got := cam.Shake(); !got.ApproxEqual(core.V2(cases.Decay.Want[i][0], cases.Decay.Want[i][1]), epsCamera) {
 			t.Errorf("decay[%d] = %v, want %v", i, got, cases.Decay.Want[i])
 		}
+	}
+}
+
+// A2: deadzone holds inside, chases outside, bad args never move state.
+// Dual query keeps target and picture as two numbers by construction.
+func TestCameraDeadzoneAndDual(t *testing.T) {
+	cases := loadCameraCases(t)
+	dz := cases.Deadzone
+	cam, err := NewCamera(core.V2(800, 600))
+	if err != nil {
+		t.Fatalf("deadzone: NewCamera: %v", err)
+	}
+	mustSet(t, "deadzone", "snap", cam.SetSmoothing(0))
+	mustSet(t, "deadzone", "start", cam.Follow(core.V2(dz.Start[0], dz.Start[1])))
+	center := core.V2(dz.Start[0], dz.Start[1])
+	moved, err := cam.FollowDeadzone(core.V2(dz.Inside[0], dz.Inside[1]), dz.Radius)
+	if err != nil {
+		t.Fatalf("deadzone inside: %v", err)
+	}
+	if moved || cam.DualPicture() != center {
+		t.Errorf("deadzone inside = moved %v pos %v, want hold at %v", moved, cam.DualPicture(), center)
+	}
+	tgt, pic, ok := cam.DualTarget(core.V2(cases.Dual.Target[0], cases.Dual.Target[1]))
+	if !ok || tgt == pic || pic != center {
+		t.Errorf("dual = target %v picture %v ok %v, want split at %v", tgt, pic, ok, center)
+	}
+	moved, err = cam.FollowDeadzone(core.V2(dz.Outside[0], dz.Outside[1]), dz.Radius)
+	if err != nil {
+		t.Fatalf("deadzone outside: %v", err)
+	}
+	if !moved || cam.DualPicture() == center {
+		t.Errorf("deadzone outside = moved %v pos %v, want moved off %v", moved, cam.DualPicture(), center)
+	}
+	// Negative radius chases like zero: the far target moves the lens.
+	before := cam.DualPicture()
+	moved, err = cam.FollowDeadzone(center, dz.BadRadius)
+	if err != nil {
+		t.Fatalf("deadzone bad radius: %v", err)
+	}
+	if !moved || cam.DualPicture() == before {
+		t.Errorf("deadzone bad radius = moved %v pos %v, want chase from %v", moved, cam.DualPicture(), before)
+	}
+	// Bad target and bad radius never move state.
+	before = cam.DualPicture()
+	if _, err := cam.FollowDeadzone(core.Vec2{X: math.NaN()}, dz.Radius); err == nil || core.CodeOf(err) != core.CodeInvalidArg {
+		t.Errorf("deadzone NaN target err = %v, want invalid-arg", err)
+	}
+	if _, err := cam.FollowDeadzone(core.V2(0, 0), math.NaN()); err == nil || core.CodeOf(err) != core.CodeInvalidArg {
+		t.Errorf("deadzone NaN radius err = %v, want invalid-arg", err)
+	}
+	if cam.DualPicture() != before {
+		t.Errorf("deadzone bad args moved state to %v, want %v", cam.DualPicture(), before)
+	}
+	if _, _, ok := cam.DualTarget(core.Vec2{X: math.NaN()}); ok {
+		t.Error("dual NaN target ok=true, want false")
+	}
+	var nilCam *Camera
+	if _, err := nilCam.FollowDeadzone(core.V2(0, 0), 1); err == nil || core.CodeOf(err) != core.CodeInvalidArg {
+		t.Errorf("deadzone nil camera err = %v, want invalid-arg", err)
 	}
 }
 
