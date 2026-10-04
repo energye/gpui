@@ -17,9 +17,11 @@ import (
 )
 
 // Ticker is driven once per active frame (Flutter-style).
-// The dt is the frame target time minus the previous frame's target time
-// (Flutter Animator BeginFrame target-time semantics): constant on a
-// healthy cadence, so sim steps stay uniform even when a wake runs late.
+// The dt is the wall-clock elapsed time since the last tick (Flutter Ticker
+// elapsed = timestamp - startTime, timestamp snapped forward to wall now).
+// Healthy cadence gives one display period; a late wake gives a larger step
+// so animation catches up with a visible jump instead of falling behind.
+// Gaps over 100ms (hidden/minimized) resync with one normal step.
 // Return false to unregister after this tick.
 type Ticker interface {
 	Tick(dt float64) bool

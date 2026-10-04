@@ -131,6 +131,21 @@ type PictureTextureCache struct {
 	// thrash). Key = PictureLayer.CacheKey, cause = "full"/"full-extra"/
 	// "local". Guarded by mu; read via RerecordByKeySnapshot.
 	rerecordBy map[uint64]map[string]int64
+	// stable counts consecutive unchanged sightings per cache key for texture
+	// admission (Flutter RasterCache accesses_since_visible:
+	// DisplayListRasterCacheItem::PrerollFinalize caches only when
+	// accesses_since_visible > access_threshold, default 3 — changed content
+	// replays vector directly). churn counts consecutive changed sightings:
+	// the first dirty frame still records immediately (one-shot changes
+	// keep today's record wave, which R10/R11 gates observe), only
+	// sustained churn replays vector. Guarded by mu; both swept in
+	// BeginFrame against liveKeys so removed layers never pin entries.
+	stable map[uint64]int
+	churn  map[uint64]int
+	// refused holds current-bounds damage for admission-refused layers this
+	// frame (same evict+damage contract as oversized: the replay must reach
+	// the screen under LoadOpLoad present). Reset in BeginFrame.
+	refused map[uint64]image.Rectangle
 }
 
 // noteRerecord attributes one re-record to (key, cause). Callers hold c.mu.
@@ -540,6 +555,22 @@ func (c *PictureTextureCache) BeginFrame() {
 	c.recordFrame++
 	c.stamp++ // advance the LRU clock once per composite frame
 	c.oversized = nil
+	c.refused = nil
+	if len(c.liveKeys) > 0 {
+		// Sweep admission counts for layers that left the tree (no live
+		// info yet — e.g. unit tests compositing without SetLiveKeys —
+		// keeps everything: under-counting only delays admission).
+		for k := range c.stable {
+			if _, ok := c.liveKeys[k]; !ok {
+				delete(c.stable, k)
+			}
+		}
+		for k := range c.churn {
+			if _, ok := c.liveKeys[k]; !ok {
+				delete(c.churn, k)
+			}
+		}
+	}
 	c.drainDeferred(c.recordFrame)
 }
 
@@ -1338,6 +1369,88 @@ func (c *PictureTextureCache) PrevBounds(id uint64) image.Rectangle {
 	return image.Rectangle{}
 }
 
+// admissionThreshold mirrors Flutter RasterCache access_threshold default
+// (flow/raster_cache.h): a picture earns its texture only after more than
+// this many consecutive unchanged sightings; changed content replays vector
+// directly (DisplayListRasterCacheItem::PrerollFinalize ... else kNone).
+const admissionThreshold = 3
+
+// markChanged restarts stability and counts consecutive changed frames.
+// Returns the churn count including this frame: 1 means first-dirty
+// (record immediately — one-shot changes keep today's wave), 2+ means
+// sustained churn (refuse the texture, replay vector with damage).
+func (c *PictureTextureCache) markChanged(id uint64) int {
+	if c == nil || id == 0 {
+		return 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stable == nil {
+		c.stable = make(map[uint64]int)
+	}
+	if c.churn == nil {
+		c.churn = make(map[uint64]int)
+	}
+	c.stable[id] = 0
+	n := c.churn[id] + 1
+	c.churn[id] = n
+	return n
+}
+
+// markStableSight counts one unchanged sighting (and ends any churn);
+// reports true once the count passes admissionThreshold
+// (Flutter accesses_since_visible > threshold).
+func (c *PictureTextureCache) markStableSight(id uint64) bool {
+	if c == nil || id == 0 {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stable == nil {
+		c.stable = make(map[uint64]int)
+	}
+	if c.churn == nil {
+		c.churn = make(map[uint64]int)
+	}
+	c.churn[id] = 0
+	n := c.stable[id] + 1
+	c.stable[id] = n
+	return n > admissionThreshold
+}
+
+// refuseChanged drops any stale entry (a later clean blit would paint it
+// over correct screen content) and notes current bounds for phase-2 damage
+// so the vector replay reaches the screen under LoadOpLoad present. Same
+// evict+damage contract as the oversized refusal: never a hole.
+func (c *PictureTextureCache) refuseChanged(id uint64, b image.Rectangle) {
+	if c == nil || id == 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e := c.entries[id]; e != nil {
+		c.releaseEntryLocked(e)
+		delete(c.entries, id)
+	}
+	if !b.Empty() {
+		if c.refused == nil {
+			c.refused = make(map[uint64]image.Rectangle)
+		}
+		c.refused[id] = b
+	}
+}
+
+// RefusedBounds returns the damage bounds noted for an admission-refused
+// layer this frame (empty when the layer recorded normally).
+func (c *PictureTextureCache) RefusedBounds(id uint64) image.Rectangle {
+	if c == nil {
+		return image.Rectangle{}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.refused[id]
+}
+
 // OversizedBounds returns the bounds refused this frame for exceeding the
 // surface (empty when the layer cached normally).
 func (c *PictureTextureCache) OversizedBounds(id uint64) image.Rectangle {
@@ -1482,6 +1595,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			_, dirtyID := dirty[pl.LayerID()]
 			record := dirtyID || pl.NeedsRaster || !tex.Has(pl.CacheKey)
 			b, haveBounds := pictureRecordBounds(tex, pl)
+			mismatch := false
 			if !record && haveBounds && tex.BoundsMismatch(pl.CacheKey, b) {
 				// Geometry moved without dirt: a resize recovery frame
 				// direct-paints the new sizes live but never refreshes
@@ -1491,8 +1605,31 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				// Only clean layers pay the bounds computation, and only
 				// truly moved layers re-record (static content still skips).
 				record = true
+				mismatch = true
 			}
-			if record {
+			changed := dirtyID || pl.NeedsRaster
+			admit := true
+			if record && !mismatch && haveBounds && !b.Empty() &&
+				(!pl.Picture.IsEmpty() || pl.RasterExtra != nil) {
+				// Texture admission (see admissionThreshold): the first
+				// dirty frame records immediately (one-shot changes keep
+				// today's record wave); sustained churn replays vector
+				// instead; only unchanged sightings past the threshold may
+				// (re)establish the texture. Bounds-less and empty pictures
+				// keep the legacy immediate record (nothing to damage).
+				if changed {
+					admit = tex.markChanged(pl.CacheKey) < 2
+				} else {
+					admit = tex.markStableSight(pl.CacheKey)
+				}
+			}
+			if record && !admit && changed {
+				// Refused: stale entry (if any) must go — a later clean
+				// frame would blit it over correct screen content.
+				// Phase 2 replays vector with current-bounds damage.
+				tex.refuseChanged(pl.CacheKey, b)
+				pl.NeedsRaster = false
+			} else if record && admit {
 				var ok bool
 				// Bounds-sized recordLocal also under clip/rotate CTM
 				// (restr > 0): the texture only covers the picture geometry;
@@ -1590,6 +1727,12 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 					if noTex == 0 {
 						if ob := tex.OversizedBounds(pl.CacheKey); !ob.Empty() {
 							st.DamageRects = append(st.DamageRects, transformBounds(dc, ob))
+						}
+						// Admission-refused layers replay vector the same
+						// way: damage current bounds or the replay never
+						// reaches the screen.
+						if rb := tex.RefusedBounds(pl.CacheKey); !rb.Empty() {
+							st.DamageRects = append(st.DamageRects, transformBounds(dc, rb))
 						}
 					}
 				}
