@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/energye/gpui/examples/wrkit"
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
 )
 
@@ -76,6 +77,9 @@ func (s *particleScene) onTick(dt float64) {
 }
 
 // particleSim 是粒子模拟状态：每帧更新，paint 只读。
+// fireGlow / iceGlow 是烘好的光晕图块（形状不变只跟随位置，烘一次，
+// 帧内按位置贴回——与鹈鹕云图块同一做法；直接每帧 FillRadialGradient
+// 会走 CPU 逐像素采样（512²封顶），单这个就吃掉 60ms）。
 type particleSim struct {
 	winW, winH float64
 	t          float64
@@ -88,6 +92,21 @@ type particleSim struct {
 
 	// 星空：固定种子点（闪烁用 sin(t+seed)）
 	stars [140][2]float64
+
+	fireGlow *render.ImageBuf // 240×240 火球光晕，中心在 (120,120)
+	iceGlow  *render.ImageBuf // 180×180 冰环中心光，中心在 (90,90)
+}
+
+// bakeGlow 把径向渐变光烘成图块：w×h 关卡像素，渐变画在图块坐标里，
+// GenerationID 稳定，GPU 只上传一次，帧内只贴图。
+func bakeGlow(w, h int, paint func(pc *rendering.PaintContext)) *render.ImageBuf {
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+	dc := render.NewContext(w, h)
+	pc := rendering.NewPaintContext(dc, 1)
+	paint(pc)
+	return render.ImageBufFromImage(dc.Image())
 }
 
 func newParticleSim(winW, winH float64) *particleSim {
@@ -97,6 +116,21 @@ func newParticleSim(winW, winH float64) *particleSim {
 		s.stars[i][0] = math.Mod(seed*winW*1.3, winW)
 		s.stars[i][1] = math.Mod(seed*winH*2.1, winH)
 	}
+	// 火球光晕烘一次：240×240，中心 (120,120)，内半径 20，外半径 110，
+	// 与原来帧内 FillRadialGradient(cx-120, cy-120, 240, 240, cx, cy, 20, 110) 同参数。
+	s.fireGlow = bakeGlow(240, 240, func(pc *rendering.PaintContext) {
+		rendering.FillRadialGradient(pc, 0, 0, 240, 240, 120, 120, 20, 110,
+			1, 0.35, 0.05, 0.30, 1, 0.25, 0.04, 0.0)
+	})
+	// 冰环中心光烘一次：180×180，中心 (90,90)，内半径 10，外半径 80，同原参数。
+	// 帧内贴图走单帧纹理（MarkEphemeral）：内容不再变化，genID 置 0，
+	// GPU 只保留一帧、用完即放，不进长效缓存占显存账本（渲染真源：静态
+	// 图块内容稳定才配长效 gen，常动贴图一律单帧）。
+	s.iceGlow = bakeGlow(180, 180, func(pc *rendering.PaintContext) {
+		rendering.FillRadialGradient(pc, 0, 0, 180, 180, 90, 90, 10, 80,
+			0.7, 0.3, 1, 0.35, 0.6, 0.2, 1, 0.0)
+	})
+	s.iceGlow.MarkEphemeral()
 	return s
 }
 
@@ -150,9 +184,13 @@ func (st *particleStage) paintFireball(pc *rendering.PaintContext, sim *particle
 	// 尾迹：火球飞过的弧线（半透明橙）
 	rendering.StrokeArc(pc, cx-150, cy-110, 200, 0.15, 1.15, 10, 0.9, 0.35, 0.05, 0.22)
 
-	// 外层光晕：径向渐变（中心亮橙 → 透明），模拟火光柔光
-	rendering.FillRadialGradient(pc, cx-120, cy-120, 240, 240, cx, cy, 20, 110,
-		1, 0.35, 0.05, 0.30, 1, 0.25, 0.04, 0.0)
+	// 外层光晕：烘好的图块按火球位置贴回（与逐帧渐变同画面，零采样成本）。
+	// 火球每帧都挪位置，贴图走单帧纹理（MarkEphemeral）：GPU 用完即放，
+	// 不进长效缓存（渲染真源：常动贴图一律单帧，静态内容才配长效 gen）。
+	if sim.fireGlow != nil {
+		sim.fireGlow.MarkEphemeral()
+		rendering.DrawImageBuf(pc, sim.fireGlow, cx-120, cy-120, 240, 240)
+	}
 
 	// 球体本体：三层同心盘（亮心→橙→暗红边）= 2D 立体球
 	rendering.FillCircle(pc, cx, cy, 46, 0.55, 0.08, 0.02, 0.9)
@@ -214,9 +252,10 @@ func (st *particleStage) paintVortex(pc *rendering.PaintContext, sim *particleSi
 	cx, cy := 600.0, 400.0
 	t := sim.t
 
-	// 中心紫光（径向渐变光晕）
-	rendering.FillRadialGradient(pc, cx-90, cy-90, 180, 180, cx, cy, 10, 80,
-		0.7, 0.3, 1, 0.35, 0.6, 0.2, 1, 0.0)
+	// 中心紫光：烘好的图块贴回（与逐帧渐变同画面，零采样成本）
+	if sim.iceGlow != nil {
+		rendering.DrawImageBuf(pc, sim.iceGlow, cx-90, cy-90, 180, 180)
+	}
 
 	// 螺旋粒子群：绕中心旋转，越往外越散，色相渐变（紫→蓝→青→绿）
 	n := 90
