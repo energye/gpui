@@ -4,7 +4,7 @@
 >
 > **对齐基准**：洞1 → Skia Ganesh（stencil-then-cover 任意路径裁剪）；洞2 → Skia `SkCubicResampler`（GPU 4×4 卷积，Flutter 无 bicubic，引擎已暴露 API 故以 Skia 为基准）；洞3 → Flutter SkParagraph 语义（UAX#14 断行 + 真实 advance；引擎 `render/text` 已实现该层，ui 层接通）。
 >
-> **实现状态（2026-08-15）**：洞1 ✅ 代码完成（管线激活 + 单测，GPU 真窗复测待有 GPU 环境）；洞2 ✅ 代码完成（shader + 管线变体 + 对照单测 + 负权重 bug 修复）；洞3 ✅ 代码完成（fitRunPrefix 词边界断行 + drawTextWrapped 接 WrapText + 单测）；洞4 ✅ 实现并 GPU 验收（clip_leaf 阶段 + RenderSceneComputeDef 入口 + CPU 参考 even-odd 错位修复；`TestVelloComputeClipGolden`/`TestVelloComputeGolden` 真机 0.00% diff，compute_clip 示例 120000 像素 0 差异）。全仓 `go build ./...` OK。
+> **实现状态（2026-08-15；洞1洞2于 2026-10-04 收尾复验已关）**：洞1 ✅ 代码完成（管线激活 + 单测，GPU 真窗复测待有 GPU 环境；2026-10-04 复验 `TestDepthClip/TestGPURenderSession` + Clip 族全绿，会话构造自带管线已锁单测）；洞2 ✅ 代码完成（shader + 管线变体 + 对照单测 + 负权重 bug 修复；2026-10-04 复验双三次权重对照 + 图像族全绿，主路 GPU 优先、失败回 CPU，目录 §7.1 老话“Bicubic 例外”已改）；洞3 ✅ 代码完成（fitRunPrefix 词边界断行 + drawTextWrapped 接 WrapText + 单测）；洞4 ✅ 实现并 GPU 验收（clip_leaf 阶段 + RenderSceneComputeDef 入口 + CPU 参考 even-odd 错位修复；`TestVelloComputeClipGolden`/`TestVelloComputeGolden` 真机 0.00% diff，compute_clip 示例 120000 像素 0 差异）。全仓 `go build ./...` OK。
 
 ---
 
@@ -180,5 +180,5 @@ Skia/Flutter 裁剪语义 → 本管线映射（全部已实现，本期只补�
 - 洞6b 收口（已实现 2026-10-04，洞8实测后可关）：字重选择+合成加粗全做（`render/text`：`WithWeight/FontWeight/FaceEmbolden/EmboldenResult` + `MultiFace.WithWeight` + `GlyphMaskFlagBold`；`render/internal/gpu`：三入口 embolden 透传 + 模板键分键；`ui/rendering`：`SetFontWeight/effectiveFace/faceWithWeight` + 量宽/边界分键；`weight_test.go` 两层 10 项绿）+ `FT-STYLE-WEIGHT` B→A/C 回写已落；洞8鹈鹕标题改调实测已过（P1离屏 15.5%<25%、huge 6.0%<10%、零回退；标题烘焙 2627 非空像素）
 - 洞7 收口：所属域控件总账（分类表/统计/状态/速查/修订）同步；跨平台标记一次标齐
 - 洞8 收口（已实现 2026-10-04，实测已过）：`scene.go` 删标题 `dup`/速度 `speedLabelDup` 手写仿粗，改调引擎 `SetFontWeight(700)`（合成加粗宽度不变，总宽稳定；`README.md` 同步）；`go build` 绿 + P1离屏/在线/P2repro/overlapped/开窗4项绿（P2-WebGPU一项系缺 `libwgpu_native.so` 环境失败，干净树同失败）+ 冻结帧 GLvsCPU 15.5%<25%、标题烘焙有墨
-- 收敛优化（已做洞，2026-10-04，未提交）：`Face.Embolden` 接口化 + `DeriveFace` 单派生 + `MultiFace` 单 helper + 布局/缓存/回放单入口（详见 `ENGINE_UI_WIDGET_RENDER.md` §10 收敛行）；鹈鹕 P1 离屏复验数字与收敛前一致（15.5%/6.0%/零回退）
+- 收敛优化（已做洞，2026-10-04，已提交）：`Face.Embolden` 接口化 + `DeriveFace` 单派生 + `MultiFace` 单 helper + 布局/缓存/回放单入口（详见 `ENGINE_UI_WIDGET_RENDER.md` §10 收敛行）；鹈鹕 P1 离屏复验数字与收敛前一致（15.5%/6.0%/零回退）
 - 主体文档 `ENGINE_UI_WIDGET_RENDER.md` §10 修订表每洞一行
