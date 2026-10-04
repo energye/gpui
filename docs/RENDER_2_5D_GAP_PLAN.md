@@ -812,12 +812,12 @@ V2 细节我定死（7 块）：
 看法：上一波没绿，下一波别开。W 是开工波，S 是单会话号（S52→S83拿号是V2，S84→S90拿号是V3大型化，S91→S97拿号是V4玩法机制，S98→S105拿号是V5基础设施，S106→S112拿号是V6联机多人，S113→S131拿号是V7全量六波，S132→S141拿号是V8工程手感两波，新会话不干扰）。同一波标可并行的可一起开，标串行的必须一个完再开下一个。W11/W14 的 S 号不连续，拿活按 W 块拿，别按 S 号顺序拿。
 
 ```text
-engine 改名后整（E01–E05，未开工；V2 开工前先做，S52 之前，串行按号做；game→engine 搬家已做，逻辑零改动）
-  E01 core 去 render 引用先做（打底：engine/core/vec.go＋color.go 的 ToRender/FromRender 搬到统一边界小包，不散落各使用者，core 零外部引用；边界往返单测随 helpers 搬家、数不变；验：go list 看 core 无 gpui 引用＋17 包单测全绿）
-  E02 画质分档搬出 save（engine/save/quality.go 另起包或并入设置，路径开工第一步冻，save 只留槽位版本迁移；单测＋testdata 随搬，行为不变；examples/engine/save 跟着换 imports）
-  E03 step 拆三样（fixed/time 留 step，pool 归通用工具，dirty 归渲染优化，路径开工第一步冻；只搬文件不改逻辑，单测随搬；pool_test 4处往返断言跟 E01 新 imports 走，不改语义；examples/engine/step＋game_stage_chase 跟着换 imports）
-  E04 守单向依赖（E01–E03 之后、E05 之前查一次依赖图定基线：particle→sprite、asset→tex 只许单向，新包不许反向引用；E05 完成后复查一次，后面每波复查；验：go list 图＋vet 净）
-  E05 组装入口最后做（等 E03 定 step 路径＋E02 定 quality 位置＋E04 基线绿：通用跑道固定步长＋系统报名表＋顺序＋渲染提交，留联机收包插口；玩法一只不写，入口只按表干活；新包 imports 必须过 E04 规则）
+engine 改名后整（E01–E03/E05代码已做，E04本次补基线；V2 开工前先做，S52 之前，串行按号做；game→engine 搬家已做，逻辑零改动）
+  E01 core 去 render 引用先做（已做：core 零 gpui 引用，边界收 renderconv；打底：engine/core/vec.go＋color.go 的 ToRender/FromRender 搬到统一边界小包，不散落各使用者，core 零外部引用；边界往返单测随 helpers 搬家、数不变；验：go list 看 core 无 gpui 引用＋17 包单测全绿）
+  E02 画质分档搬出 save（已做：quality 另起包，save 只留槽位版本迁移；engine/save/quality.go 另起包或并入设置，路径开工第一步冻，save 只留槽位版本迁移；单测＋testdata 随搬，行为不变；examples/engine/save 跟着换 imports）
+  E03 step 拆三样（已做：fixed/time 留 step，pool/dirty 各另起包；fixed/time 留 step，pool 归通用工具，dirty 归渲染优化，路径开工第一步冻；只搬文件不改逻辑，单测随搬；pool_test 4处往返断言跟 E01 新 imports 走，不改语义；examples/engine/step＋game_stage_chase 跟着换 imports）
+  E04 守单向依赖（本次基线绿：particle→sprite、asset→tex、loop→step 均单向无反向，core 零 gpui 引用，sprite 经 renderconv 边界调 render，vet 净；E01–E03 之后、E05 之前查一次依赖图定基线：particle→sprite、asset→tex 只许单向，新包不许反向引用；E05 完成后复查一次，后面每波复查；验：go list 图＋vet 净）
+  E05 组装入口最后做（已做：loop 通用跑道冻接口；等 E03 定 step 路径＋E02 定 quality 位置＋E04 基线绿：通用跑道固定步长＋系统报名表＋顺序＋渲染提交，留联机收包插口；玩法一只不写，入口只按表干活；新包 imports 必须过 E04 规则）
 
 W10 回炉（S52–S54，靠 V1，串行收尾，先把虚绿变实绿）
   S52 追车减分配＋闲时 3 遍取最差（等追车窗现有，帧门见§5才许关 P3）
@@ -1784,3 +1784,4 @@ W 总指标读法：W22 关门含 S105 的 AA 模式矩阵，W26 关门含 S116 
 | 2026-10-02（W11十一项验窗） | W11除S79外11项正式复验：正式包go build -trimpath -ldflags="-s -w"、RUN_SECONDS=10自动×3取最差（tl600/asset600/tmap600/tchunk600/tlod599/world595/tfar599/tstream598/sprite600/cam599/remap599/combo600/hit600/jump599，fps57＋全过，双金0差）＋人工30秒XTEST同协议（11窗ptr非0、backend=x11、presents1795~1799）；p95/p99沿用S52豁免（59.93Hz同步底16.69ms物理不可达，不改§5），换机空着；S57 chunk人工并发读写崩溃修（engine/tilemap/chunk.go加读写锁＋全指针接收器，两窗字段改指针，tilemap单测18项全绿＋vet净）；G15十一行同步，S79仍挂起，W11未关门。 |
 | 2026-10-01（S54有条件关门） | S54收尾（不动引擎只重测）：dirty/quality/S46单测逐文件全PASS＋vet净；正式包出/tmp/s54_step＋/tmp/s54_save；dirty自动60秒×3取最差presents3595、fps59.88、hitch1/分、moved8393，金0差；q123自动60秒×3取最差presents3597、fps59.95、hitch0、switches29零失败，金0差；人工两段XTEST合成同协议路径（dirty ptr51 key17、q123 ptr180 key17，双backend=x11）；p95沿用豁免不改§5，换机空着；W10三项（S52/S53/S54）皆有条件关门，W10记有条件关门，G15放行可开工，W11可开。 |
 | 2026-10-04（现代画质补项落位） | 10条逐条复审：真缺4（后期顺序/景深三件/软体布料/风场打湿），半缺4（AA模式/输出链/GPU蒙皮/隔墙闷声），已有2（动态分辨率S105/包体审计S134）不新开；落位：S105含AA模式矩阵，S116含风场打湿，S119含GPU蒙皮FFD预算，S125含顺序图与后期三件，S127含输出链，S128含闷声低通，S130含软体Verlet；号段不动，门槛只认§5，G组文件不动。 |
+| 2026-10-04（E04补基线） | E01–E03/E05代码已做与纸面未开工对齐，E04本次补基线绿：逐包 go list 定图（particle→sprite、asset→tex、loop→step 单向无反向，core 零 gpui 引用，sprite 经 renderconv 边界调 render）＋go vet ./engine/... 净；后面每波复查，新包 imports 必须过本基线。 |
