@@ -1561,37 +1561,46 @@ func main() {
 				if ev.Pressed {
 					summary.Key++
 					// Large case: WASD pans the streaming view one chunk
-					// per press, clamped to the map, so manual runs carry
-					// real key-move events.
+					// per press, clamped to the map. wasd pan semantics
+					// match game_camera applyKey: only a press that moves
+					// the view counts.
 					if sim.caseName == "large" && sim.large != nil {
 						moved := false
 						switch ev.Rune {
 						case 'a', 'A':
-							sim.largeView.X -= largeKeyStep
-							moved = true
+							if sim.largeView.X > 0 {
+								sim.largeView.X -= largeKeyStep
+								moved = true
+							}
 						case 'd', 'D':
-							sim.largeView.X += largeKeyStep
-							moved = true
+							if sim.largeView.X < largeWorldPX-largeViewPX {
+								sim.largeView.X += largeKeyStep
+								moved = true
+							}
 						case 'w', 'W':
-							sim.largeView.Y -= largeKeyStep
-							moved = true
+							if sim.largeView.Y > 0 {
+								sim.largeView.Y -= largeKeyStep
+								moved = true
+							}
 						case 's', 'S':
-							sim.largeView.Y += largeKeyStep
-							moved = true
+							if sim.largeView.Y < largeWorldPX-largeViewPX {
+								sim.largeView.Y += largeKeyStep
+								moved = true
+							}
+						}
+						if sim.largeView.X < 0 {
+							sim.largeView.X = 0
+						}
+						if sim.largeView.Y < 0 {
+							sim.largeView.Y = 0
+						}
+						if sim.largeView.X > largeWorldPX-largeViewPX {
+							sim.largeView.X = largeWorldPX - largeViewPX
+						}
+						if sim.largeView.Y > largeWorldPX-largeViewPX {
+							sim.largeView.Y = largeWorldPX - largeViewPX
 						}
 						if moved {
-							if sim.largeView.X < 0 {
-								sim.largeView.X = 0
-							}
-							if sim.largeView.Y < 0 {
-								sim.largeView.Y = 0
-							}
-							if sim.largeView.X > largeWorldPX-largeViewPX {
-								sim.largeView.X = largeWorldPX - largeViewPX
-							}
-							if sim.largeView.Y > largeWorldPX-largeViewPX {
-								sim.largeView.Y = largeWorldPX - largeViewPX
-							}
 							sim.largeKeys++
 						}
 					}
