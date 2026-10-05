@@ -40,6 +40,8 @@ go run ./examples/engine/world --case=large -manual-seconds 60
 RUN_SECONDS=60 go run ./examples/engine/world --case=large -auto-only
 ```
 
+`--maximized` 让窗口管理器最大化打开（视野按同像素密度变大，用于复现大尺寸行为）；独显机用 `GPUI_POWER=high` 跑全速。
+
 - 数据：`engine/world/testdata/large_scene.json`（20008 实体：200x100 网格＋500 挂点＋8 出生点）与 `large_cull.json`（四组视口＋预算），窗只读文件不编数。
 - 画面（1200x800，标题 game_world-large）：整窗全是实体场，按层染色（0 蓝/1 黄/2 紫），挂点黄线相连，出生点品红，白框是被点的 awake 钉子，左上浮一行帧率/active/进出/更新耗时。
 - 自动巡相机：视口每秒走 220 世界单位到头跳回，醒进睡出全计数；WASD/方向键点按加步，点击钉住/松开最近的实体。

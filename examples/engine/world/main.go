@@ -791,13 +791,14 @@ func failJSON(probe probeResult) {
 
 func main() {
 	caseFlag := flag.String("case", "open", "scenario case (open|large)")
+	maximized := flag.Bool("maximized", false, "open the window maximized (WM decides the final size)")
 	autoOnly := flag.Bool("auto-only", false, "probes + short window, JSON gate on stdout")
 	manualSeconds := flag.Int("manual-seconds", 0, "manual phase seconds (0 = until close)")
 	flag.Parse()
 
 	// Large case runs its own flow; the open path below stays untouched.
 	if *caseFlag == "large" {
-		runLarge(*autoOnly, *manualSeconds)
+		runLarge(*autoOnly, *manualSeconds, *maximized)
 		return
 	}
 
@@ -1785,7 +1786,7 @@ func largeFailJSON(p largeProbe) {
 	fmt.Fprintln(os.Stdout, string(b))
 }
 
-func runLarge(autoOnly bool, manualSeconds int) {
+func runLarge(autoOnly bool, manualSeconds int, maximized bool) {
 	wrkit.EnsureUIFace()
 	probe := runLargeProbes()
 	fmt.Fprintf(os.Stderr, "game_world-large: probes ok=%v logic=%v pix=%v golden=%v(wrote=%v changed=%d) active=%d total=%d %s | %s\n",
@@ -1922,7 +1923,7 @@ func runLarge(autoOnly bool, manualSeconds int) {
 	sim.overlay = wrkit.Label("--", 13, 1, 1, 1)
 	root.Place(sim.overlay, 12, 10)
 
-	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_world-large", Decorations: true})
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_world-large", Decorations: true, Maximized: maximized})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
 		os.Exit(1)
