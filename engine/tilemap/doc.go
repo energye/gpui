@@ -26,6 +26,13 @@
 // (VisibleWorldRect center as core.Vec2) and draws each chunk at its
 // returned level. The LOD rule file format stays unfrozen (后冻): no
 // file is read, thresholds come from NewLOD only. Additive changes only.
+// Frozen 2026-10-04 (S84): Large, LargeChunkW, LargeChunkH,
+// MaxLargeTiles, DefaultMergePerFrame, NewLarge, NewLargeSized,
+// Request, MergeBudget, Update, Needed, Visible, Loaded, Pending,
+// IsLoaded, IsMissing, ChunkOf, ChunkBounds, ChunkCount, LoadedCount,
+// PendingCount, Requests, Merges, Reset. Additive changes only.
+// Geometry comes from Chunk; this file owns the loaded/pending sets and
+// the per-frame merge budget. Objects ride the Tilemap list (ObjectsIn).
 //
 // The package draws nothing; the caller draws the returned cells and
 // objects in order with the existing render draws. Only core numbers are

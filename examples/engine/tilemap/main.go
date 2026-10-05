@@ -11,15 +11,22 @@
 //	  load/unload while walking, teleport stability.
 //	lod   (7.3 distance): near/far switch with a hysteresis band so a
 //	  jittering camera never flickers.
+//	large (S84 streaming): million-tile index, 32x32 chunks, budgeted
+//	  background-request/foreground-merge, teleport stability, magenta
+//	  for missing chunks.
 //
 // Modes (same shape as game_step/game_save):
 //
 //	go run ./examples/engine/tilemap --case=map -auto-only
 //	  headless probes + ~8s window (JSON on stdout, exit 1 on fail).
-//	go run ./examples/engine/tilemap --case=map -manual-seconds 60
+//	go run ./examples/engine/tilemap --case=large -manual-seconds 60
 //	  manual for 60s (events logged, title shows the count), then summary.
 //	go run ./examples/engine/tilemap --case=chunk
 //	  probes, then resident until close (RUN_SECONDS sets a timed run).
+//	No --case defaults to large (the S84 directory map).
+//
+// Manual keys (large case): WASD pans the view one chunk per press, so a
+// manual run always carries real key-move events.
 //
 // Window: 1200x800. First run writes the per-case golden baseline into
 // testdata/; later runs compare it with zero tolerance.
@@ -91,6 +98,10 @@ const (
 
 	nearR, nearG, nearB = 0.35, 0.62, 0.40
 	farR, farG, farB    = 0.30, 0.33, 0.42
+
+	// Missing-chunk placeholder (S84): unloaded chunks draw opaque magenta,
+	// the same stand-in as tex.PlaceholderImage, never a guessed tile.
+	missR, missG, missB = 1.00, 0.00, 1.00
 )
 
 // Body-local layout (body is ~904x656 under the shell chrome).
@@ -838,6 +849,185 @@ func probeLODPixels() (bool, string) {
 // Live window state (one ticker, per-case counters feed the gate JSON).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Live window state (one ticker, per-case counters feed the gate JSON).
+// ---------------------------------------------------------------------------
+
+// Large streaming geometry (S84): 1024x1024 tiles over 32px tiles =
+// 32768 world units; 32x32-tile chunks = 1024 world units each; the live
+// view covers 2048x2048 (2x2 chunks); foreground merges at most 4 chunks
+// a frame so walking stays under the 2ms budget.
+const (
+	largeMapTiles  = 1024
+	largeTilePX    = 32.0
+	largeWorldPX   = largeMapTiles * largeTilePX
+	largeViewPX    = 2048.0
+	largeMergeStep = 4
+	largeKeyStep   = 1024.0
+)
+
+// probeLargeLogic checks the million-tile index plus the two-phase merge:
+// build time, per-frame budget, fixture firstgid/objects, teleport.
+func probeLargeLogic() (chunks, merged, dropped int, buildMs, mergeMs float64, ok bool, detail string) {
+	t0 := time.Now()
+	lg, err := tilemap.NewLarge(largeMapTiles, largeMapTiles)
+	buildMs = time.Since(t0).Seconds() * 1000
+	if err != nil {
+		return 0, 0, 0, buildMs, 0, false, "NewLarge: " + err.Error()
+	}
+	chunks = lg.ChunkCount()
+	if chunks != 1024 {
+		return chunks, 0, 0, buildMs, 0, false,
+			fmt.Sprintf("chunks=%d want 1024", chunks)
+	}
+	if buildMs > 2000 {
+		return chunks, 0, 0, buildMs, 0, false,
+			fmt.Sprintf("build %.1fms exceeds 2000ms", buildMs)
+	}
+	view := core.NewRect(0, 0, largeViewPX, largeViewPX)
+	if queued := lg.Request(view); len(queued) != 4 {
+		return chunks, 0, 0, buildMs, 0, false,
+			fmt.Sprintf("request=%d want 4", len(queued))
+	}
+	t1 := time.Now()
+	mergedIDs := lg.MergeBudget(largeMergeStep)
+	mergeMs = time.Since(t1).Seconds() * 1000
+	merged = len(mergedIDs)
+	if merged != 4 || lg.LoadedCount() != 4 || lg.PendingCount() != 0 {
+		return chunks, merged, 0, buildMs, mergeMs, false,
+			fmt.Sprintf("merge=%d loaded=%d pending=%d want 4/4/0",
+				merged, lg.LoadedCount(), lg.PendingCount())
+	}
+	if mergeMs > 2 {
+		return chunks, merged, 0, buildMs, mergeMs, false,
+			fmt.Sprintf("merge %.3fms exceeds 2ms", mergeMs)
+	}
+	// Fixture firstgid exactness plus spawn markers ride the same subset
+	// rules as the small map: misplaced GIDs are zero-tolerance.
+	m, err := loadLargeFixture()
+	if err != nil {
+		return chunks, merged, 0, buildMs, mergeMs, false, "parse large_map: " + err.Error()
+	}
+	if m.W() != 16 || m.H() != 12 {
+		return chunks, merged, 0, buildMs, mergeMs, false, "large fixture shape drifted"
+	}
+	if gid, found := m.At(0, 0, 0); !found || gid != 1 {
+		return chunks, merged, 0, buildMs, mergeMs, false, "large firstgid drifted"
+	}
+	objs := m.Objects()
+	if len(objs) != 3 {
+		return chunks, merged, 0, buildMs, mergeMs, false,
+			fmt.Sprintf("large objects=%d want 3", len(objs))
+	}
+	spawn := false
+	for _, o := range m.ObjectsIn(core.NewRect(32, 32, 96, 96)) {
+		if o.Name() == "hero" && o.Type() == "spawn" {
+			spawn = true
+		}
+	}
+	if !spawn {
+		return chunks, merged, 0, buildMs, mergeMs, false, "large hero spawn not found"
+	}
+	if !m.IsSolidAt(2, 2) || m.IsSolidAt(0, 0) {
+		return chunks, merged, 0, buildMs, mergeMs, false, "large solid mismatch"
+	}
+	// Teleport across the map: stale chunks drop in the same step, the far
+	// corner lands with exactly one chunk, nothing grows.
+	mg, dg := lg.Update(core.NewRect(largeWorldPX-1024, largeWorldPX-1024, 1024, 1024), largeMergeStep)
+	dropped = len(dg)
+	if len(mg) != 1 || dropped != 4 || lg.LoadedCount() != 1 ||
+		!lg.IsLoaded(tilemap.ChunkID{CX: 31, CY: 31}) {
+		return chunks, merged, dropped, buildMs, mergeMs, false,
+			fmt.Sprintf("jump merge=%d drop=%d loaded=%v", len(mg), dropped, lg.Loaded())
+	}
+	if !lg.IsMissing(tilemap.ChunkID{CX: 0, CY: 0}) {
+		return chunks, merged, dropped, buildMs, mergeMs, false, "jumped-away chunk not missing"
+	}
+	detail = fmt.Sprintf("chunks=%d merge=%d drop=%d build=%.1fms frame=%.3fms",
+		chunks, merged, dropped, buildMs, mergeMs)
+	return chunks, merged, dropped, buildMs, mergeMs, true, detail
+}
+
+func loadLargeFixture() (tilemap.Tilemap, error) {
+	raw, err := os.ReadFile("examples/engine/tilemap/testdata/large_map.tmx")
+	if err != nil {
+		return tilemap.Tilemap{}, err
+	}
+	return tilemap.ParseTMX(raw)
+}
+
+// largeLitState replays the deterministic golden setup: the 2x2 origin
+// view merges only 3 of 4 chunks, so the last one stays magenta.
+func largeLitState() (lit map[tilemap.ChunkID]bool, missing tilemap.ChunkID, view core.Rect) {
+	lg, _ := tilemap.NewLarge(largeMapTiles, largeMapTiles)
+	view = core.NewRect(0, 0, largeViewPX, largeViewPX)
+	lg.Request(view)
+	lg.MergeBudget(3)
+	lit = map[tilemap.ChunkID]bool{}
+	for _, id := range lg.Loaded() {
+		lit[id] = true
+	}
+	missing = tilemap.ChunkID{CX: 1, CY: 1}
+	return lit, missing, view
+}
+
+// largePaint draws the deterministic large frame: 2x2 chunk blocks, the
+// missing one magenta, the viewport stroked yellow.
+func largePaint(dc *render.Context, ox, oy, cell float64, lit map[tilemap.ChunkID]bool, missing tilemap.ChunkID) {
+	largePaintGrid(dc, ox, oy, cell, 2, 2, 0, 0, lit, missing, nil)
+}
+
+// largePaintGrid draws a chunk directory grid: loaded green, queued amber,
+// missing magenta, far idle dim, viewport stroked yellow. Amber proves the
+// budget (queued but not yet merged); magenta proves the placeholder;
+// the header carries chunks/pending/loaded so the million scale reads off
+// the picture, not off the code.
+func largePaintGrid(dc *render.Context, ox, oy, cell float64, cols, rows, baseX, baseY int, lit map[tilemap.ChunkID]bool, missing tilemap.ChunkID, pend map[tilemap.ChunkID]bool) {
+	for cy := 0; cy < rows; cy++ {
+		for cx := 0; cx < cols; cx++ {
+			id := tilemap.ChunkID{CX: baseX + cx, CY: baseY + cy}
+			switch {
+			case id == missing:
+				dc.SetRGBA(missR, missG, missB, 1)
+			case pend[id]:
+				dc.SetRGBA(1.0, 0.62, 0.10, 1)
+			case lit[id]:
+				dc.SetRGBA(loadR, loadG, loadB, 1)
+			default:
+				dc.SetRGBA(idleR, idleG, idleB, 1)
+			}
+			dc.DrawRectangle(ox+float64(cx)*cell, oy+float64(cy)*cell, cell-1, cell-1)
+			_ = dc.Fill()
+		}
+	}
+	dc.SetRGBA(1, 0.9, 0.2, 1)
+	dc.SetLineWidth(2)
+	dc.DrawRectangle(ox, oy, float64(cols)*cell, float64(rows)*cell)
+	_ = dc.Stroke()
+}
+
+func probeLargePixels() (bool, string) {
+	var ok bool
+	var detail string
+	withCPURender(func() {
+		dc := render.NewContext(offW, offH)
+		dc.ClearWithColor(render.RGBA{R: bgR, G: bgG, B: bgB, A: 1})
+		lit, missing, _ := largeLitState()
+		const ox, oy, cell = 20.0, 20.0, 64.0
+		largePaint(dc, ox, oy, cell, lit, missing)
+		img := dc.Image()
+		_ = dc.Close()
+		lr, lg_, lb := sample8(img, int(ox+32), int(oy+32))
+		mr, mg, mb := sample8(img, int(ox+cell+32), int(oy+cell+32))
+		okLit := closeEnough(lr, want8(loadR)) && closeEnough(lg_, want8(loadG)) && closeEnough(lb, want8(loadB))
+		okMiss := closeEnough(mr, want8(missR)) && closeEnough(mg, want8(missG)) && closeEnough(mb, want8(missB))
+		ok = okLit && okMiss
+		detail = fmt.Sprintf("lit=(%d,%d,%d) missing=(%d,%d,%d) tol=%d",
+			lr, lg_, lb, mr, mg, mb, probePixelTol)
+	})
+	return ok, detail
+}
+
 type tileSim struct {
 	caseName string
 	app      *embedder.PipelineApp
@@ -873,6 +1063,18 @@ type tileSim struct {
 	nearN    int
 	farN     int
 
+	// large case (S84): real streaming index over the million-tile map.
+	// Pointer: tilemap.Large holds a lock, so the index is never copied
+	// after construction.
+	large       *tilemap.Large
+	largeView   core.Rect
+	largeDir    float64
+	largeLoads  int
+	largeDrops  int
+	largeMerges int64
+	largePendMax int
+	largeKeys   int
+
 	// Thick content shared by all cases: pacing monster + day-night lamp.
 	monX   float64
 	monDir float64
@@ -895,9 +1097,12 @@ func (t *ticker) Tick(dt float64) bool {
 	s.frames++
 	s.clock += dt
 
-	// Thick content: one pacing monster + day-night lamp blink shared by
-	// all cases (live only, probes use frozen copies).
-	s.monX += s.monDir * 120 * dt
+	// Thick content: one pacing monster (position only, always drawn) plus
+	// a day-night lamp state shared by all cases (live only, probes use
+	// frozen copies). No blink hides anything: both extras paint every
+	// frame at fixed world spots, so nothing strobes in place.
+	// monX is a 0..1 fraction across the board: 0.12/s crosses in ~8s.
+	s.monX += s.monDir * 0.12 * dt
 	if s.monX > 1 {
 		s.monX, s.monDir = 1, -1
 	}
@@ -954,6 +1159,25 @@ func (t *ticker) Tick(dt float64) bool {
 			s.farN++
 		}
 		s.board.MarkNeedsPaint()
+	case "large":
+		// Walk right across the million-tile field, then teleport home:
+		// exercises budgeted merges plus jump stability live.
+		nx := s.largeView.X + 2048*dt*s.largeDir
+		if nx > largeWorldPX-largeViewPX {
+			nx = 0
+		}
+		if nx < 0 {
+			nx = 0
+		}
+		s.largeView = core.NewRect(nx, s.largeView.Y, largeViewPX, largeViewPX)
+		gotMerge, gotDrop := s.large.Update(s.largeView, largeMergeStep)
+		s.largeLoads += len(gotMerge)
+		s.largeDrops += len(gotDrop)
+		s.largeMerges = s.large.Merges()
+		if p := s.large.PendingCount(); p > s.largePendMax {
+			s.largePendMax = p
+		}
+		s.board.MarkNeedsPaint()
 	}
 
 	_ = s.phase.Advance(dt)
@@ -976,6 +1200,10 @@ func (t *ticker) Tick(dt float64) bool {
 		case "lod":
 			s.overlay.SetText(fmt.Sprintf("fps %.0f lod %s sw=%d fl=%d near=%d far=%d mon=%.2f",
 				fps, lodLevelName(s.curLevel), s.switches, s.flickers, s.nearN, s.farN, s.monX))
+		case "large":
+			s.overlay.SetText(fmt.Sprintf("fps %.0f large %d/%d pend=%d load=%d vis=%d key=%d",
+				fps, s.large.LoadedCount(), s.large.ChunkCount(),
+				s.large.PendingCount(), s.largeLoads, len(s.large.Visible(s.largeView)), s.largeKeys))
 		}
 	}
 	s.board.MarkNeedsPaint()
@@ -983,57 +1211,129 @@ func (t *ticker) Tick(dt float64) bool {
 	return true
 }
 
-// paintBoard draws the live scene for the active case. The board fills the
-// window; thick extras (pacing monster + lamp) draw over every case.
-func (s *tileSim) paintBoard(pc *rendering.PaintContext) {
+// paintBoard draws the live scene for the active case. The board is the
+// live canvas: size is the current board size (Godot disabled-stretch: a
+// bigger window shows MORE world at the same world scale, never a scaled
+// copy). Every coordinate below is world-on-board: nothing multiplies by
+// the window ratio, so nothing grows when the window grows. The board
+// fills the window and the background covers it fully every paint, so no
+// stale frame can peek through on resize or partial repaint.
+func (s *tileSim) paintBoard(pc *rendering.PaintContext, size rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
 	ax, ay := pc.Abs(0, 0)
 	dc := pc.DC
-	// Window-size scale so the same content fills the full window.
-	bw := float64(winW)
-	sc := bw / boardW
+	bw, bh := size.Width, size.Height
+	if bw <= 0 || bh <= 0 {
+		bw, bh = float64(winW), float64(winH)
+	}	// Opaque full-board background first: world scale stays 1:1, the extra
+	// window area shows more background, not bigger content.
+	dc.SetRGBA(bgR, bgG, bgB, 1)
+	dc.DrawRectangle(ax, ay, bw, bh)
+	_ = dc.Fill()
 	ox, oy := ax, ay
 	switch s.caseName {
 	case "map":
-		mapPaint(dc, ox+20*sc, oy+20*sc, 110*sc)
+		mapPaint(dc, ox+20, oy+20, 110)
 		// Viewport strip over the virtual field.
 		dc.SetRGBA(1, 0.9, 0.2, 1)
 		dc.SetLineWidth(2)
-		vx := ox + 20*sc + s.viewX/3200*(640*sc)
-		dc.DrawRectangle(vx, oy+(boardH-60)*sc, s.viewW/3200*(640*sc), 30*sc)
+		vx := ox + 20 + s.viewX/3200*640
+		dc.DrawRectangle(vx, oy+(boardH-60), s.viewW/3200*640, 30)
 		_ = dc.Stroke()
 	case "chunk":
 		lit := map[tilemap.ChunkID]bool{}
 		for _, id := range s.chunks.Loaded() {
 			lit[id] = true
 		}
-		chunkPaint(dc, ox+40*sc, oy+10*sc, 32*sc, lit, s.view)
+		chunkPaint(dc, ox+40, oy+10, 32, lit, s.view)
 	case "lod":
-		lodPaint(dc, ox+20*sc, oy+30*sc)
+		lodPaint(dc, ox+20, oy+30)
 		// Live focus marker under the band bar.
-		fx := ox + 20*sc + s.focus.X/512*(420*sc)
+		fx := ox + 20 + s.focus.X/512*420
 		if s.curLevel == tilemap.LevelNear {
 			dc.SetRGBA(nearR, nearG, nearB, 1)
 		} else {
 			dc.SetRGBA(farR, farG, farB, 1)
 		}
-		dc.DrawRectangle(fx-4*sc, oy+30*sc+150*sc+22*sc, 8*sc, 8*sc)
+		dc.DrawRectangle(fx-4, oy+30+150+22, 8, 8)
 		_ = dc.Fill()
+	case "large":
+		// Live directory: the whole 32x32 chunk map fills the board, one
+		// cell each, loaded green, queued amber, missing dim, viewport
+		// yellow. The cell comes from the live board size so a bigger
+		// window shows a bigger directory (same 1024 chunks, more area),
+		// never a stretched copy: world scale stays 1 cell per chunk.
+		lit := map[tilemap.ChunkID]bool{}
+		for _, id := range s.large.Loaded() {
+			lit[id] = true
+		}
+		pend := map[tilemap.ChunkID]bool{}
+		for _, id := range s.large.Pending() {
+			pend[id] = true
+		}
+		cell := (bw - 120) / 32
+		if h := (bh - 160) / 32; h < cell {
+			cell = h
+		}
+		if cell < 8 {
+			cell = 8
+		}
+		if cell > 32 {
+			cell = 32
+		}
+		gx, gy := ox+40, oy+60
+		// One idle block for the whole directory, then seams plus only the
+		// live cells on top: 1024 cell fills a frame would cost the
+		// budget the streaming just saved, while one block plus 66 seam
+		// lines keeps every chunk readable.
+		dc.SetRGBA(idleR, idleG, idleB, 1)
+		dc.DrawRectangle(gx, gy, 32*cell, 32*cell)
+		_ = dc.Fill()
+		// Seams in a lighter idle tone so the 32x32 grid reads without
+		// redrawing all 1024 cells: same fill count as one block.
+		dc.SetRGBA(idleR+0.22, idleG+0.24, idleB+0.27, 1)
+		for i := 0; i <= 32; i++ {
+			dc.DrawRectangle(gx+float64(i)*cell, gy, 1, 32*cell)
+			_ = dc.Fill()
+			dc.DrawRectangle(gx, gy+float64(i)*cell, 32*cell, 1)
+			_ = dc.Fill()
+		}
+		for id := range lit {
+			dc.SetRGBA(loadR, loadG, loadB, 1)
+			dc.DrawRectangle(gx+float64(id.CX)*cell, gy+float64(id.CY)*cell, cell-1, cell-1)
+			_ = dc.Fill()
+		}
+		for id := range pend {
+			if lit[id] {
+				continue
+			}
+			dc.SetRGBA(1.0, 0.62, 0.10, 1)
+			dc.DrawRectangle(gx+float64(id.CX)*cell, gy+float64(id.CY)*cell, cell-1, cell-1)
+			_ = dc.Fill()
+		}
+		vx := gx + s.largeView.X/largeWorldPX*(32*cell)
+		vy := gy + s.largeView.Y/largeWorldPX*(32*cell)
+		dc.SetRGBA(1, 0.9, 0.2, 1)
+		dc.SetLineWidth(2)
+		dc.DrawRectangle(vx, vy, largeViewPX/largeWorldPX*(32*cell), largeViewPX/largeWorldPX*(32*cell))
+		_ = dc.Stroke()
 	}
-	// Thick: pacing monster block + day-night lamp dot over the picture.
-	mx := ox + s.monX*(bw-60) + 10
-	my := oy + float64(winH)*0.75
+	// Thick: steady extras at fixed world spots, drawn every frame (no
+	// blink, no alternating hide/show): a pacing monster block plus a
+	// day-night lamp dot over the picture.
+	mx := ox + s.monX*(boardW-60) + 10
+	my := oy + boardH*0.75
 	dc.SetRGBA(solidR, solidG, solidB, 1)
-	dc.DrawRectangle(mx, my, 40*sc, 40*sc)
+	dc.DrawRectangle(mx, my, 40, 40)
 	_ = dc.Fill()
 	if s.lampOn {
 		dc.SetRGBA(1, 0.9, 0.4, 0.9)
 	} else {
 		dc.SetRGBA(0.2, 0.25, 0.45, 0.9)
 	}
-	dc.DrawRectangle(ox+bw-50, oy+40, 24, 24)
+	dc.DrawRectangle(ox+boardW-50, oy+40, 24, 24)
 	_ = dc.Fill()
 }
 
@@ -1065,14 +1365,14 @@ func failJSON(caseName, pixels string, golden int) {
 }
 
 func main() {
-	caseFlag := flag.String("case", "map", "scenario case (map/chunk/lod)")
+	caseFlag := flag.String("case", "large", "scenario case (map/chunk/lod/large)")
 	autoOnly := flag.Bool("auto-only", false, "probes + short window, JSON gate on stdout")
 	manualSeconds := flag.Int("manual-seconds", 0, "manual phase seconds (0 = until close)")
 	flag.Parse()
 
 	caseName := *caseFlag
-	if caseName != "map" && caseName != "chunk" && caseName != "lod" {
-		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want map/chunk/lod\n", caseName)
+	if caseName != "map" && caseName != "chunk" && caseName != "lod" && caseName != "large" {
+		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want map/chunk/lod/large\n", caseName)
 		os.Exit(1)
 	}
 	wrkit.EnsureUIFace()
@@ -1124,6 +1424,22 @@ func main() {
 		extra = map[string]any{
 			"case": "lod", "probe_ok": boolToInt(probeOK),
 			"flickers": flickers, "switches": switches,
+			"pixels": pixDet, "golden": diff,
+		}
+	case "large":
+		chunks, merged, dropped, buildMs, mergeMs, ok, detail := probeLargeLogic()
+		pixOK, pixDet := probeLargePixels()
+		lit, missing, _ := largeLitState()
+		goldOK, diff, wrote := probeGolden("large", func(dc *render.Context) {
+			largePaint(dc, 20, 20, 64, lit, missing)
+		})
+		probeOK, pixDetail, goldDiff = ok && pixOK && goldOK, pixDet, diff
+		fmt.Fprintf(os.Stderr, "game_tilemap/large: ok=%v chunks=%d merged=%d dropped=%d build=%.1fms frame=%.3fms pix=%v golden=%v(wrote=%v diff=%d) %s | %s\n",
+			probeOK, chunks, merged, dropped, buildMs, mergeMs, pixOK, goldOK, wrote, diff, detail, pixDet)
+		extra = map[string]any{
+			"case": "large", "probe_ok": boolToInt(probeOK),
+			"chunks": chunks, "merged": merged, "dropped": dropped,
+			"build_ms": buildMs, "merge_ms": mergeMs,
 			"pixels": pixDet, "golden": diff,
 		}
 	}
@@ -1182,12 +1498,30 @@ func main() {
 		sim.focusDir = 1
 		sim.curLevel = tilemap.LevelNear
 	}
+	if caseName == "large" {
+		lg, err := tilemap.NewLarge(largeMapTiles, largeMapTiles)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: large:", err)
+			os.Exit(1)
+		}
+		sim.large = &lg
+		sim.largeView = core.NewRect(0, 0, largeViewPX, largeViewPX)
+		sim.largeDir = 1
+		// Prime the opening view without a budget so the first frame is
+		// already drawable; streaming frames stay budgeted in Tick.
+		sim.large.Update(sim.largeView, 1024)
+	}
 
 	sim.board = rendering.NewRenderBox()
-	sim.board.FixedWidth, sim.board.FixedHeight = float64(winW), float64(winH)
+	// No fixed size: the board fills whatever the root gives it, so
+	// paintBoard always sees the live window size (Godot
+	// disabled-stretch: a bigger window shows more, never a stretched
+	// copy). The root keeps its 1200x800 opening size for layout math;
+	// the board must not inherit it.
+	sim.board.FixedWidth, sim.board.FixedHeight = 0, 0
 	sim.board.SetRepaintBoundary(true)
 	sim.board.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		sim.paintBoard(pc)
+		sim.paintBoard(pc, size)
 	}
 	root.Place(sim.board, 0, 0)
 
@@ -1226,6 +1560,41 @@ func main() {
 			case platform.EventKey:
 				if ev.Pressed {
 					summary.Key++
+					// Large case: WASD pans the streaming view one chunk
+					// per press, clamped to the map, so manual runs carry
+					// real key-move events.
+					if sim.caseName == "large" && sim.large != nil {
+						moved := false
+						switch ev.Rune {
+						case 'a', 'A':
+							sim.largeView.X -= largeKeyStep
+							moved = true
+						case 'd', 'D':
+							sim.largeView.X += largeKeyStep
+							moved = true
+						case 'w', 'W':
+							sim.largeView.Y -= largeKeyStep
+							moved = true
+						case 's', 'S':
+							sim.largeView.Y += largeKeyStep
+							moved = true
+						}
+						if moved {
+							if sim.largeView.X < 0 {
+								sim.largeView.X = 0
+							}
+							if sim.largeView.Y < 0 {
+								sim.largeView.Y = 0
+							}
+							if sim.largeView.X > largeWorldPX-largeViewPX {
+								sim.largeView.X = largeWorldPX - largeViewPX
+							}
+							if sim.largeView.Y > largeWorldPX-largeViewPX {
+								sim.largeView.Y = largeWorldPX - largeViewPX
+							}
+							sim.largeKeys++
+						}
+					}
 					if manualMode {
 						fmt.Fprintf(os.Stderr, "game_tilemap: key n=%d\n", summary.Pointer+summary.Key+summary.Resize)
 						if ctl != nil {
@@ -1237,8 +1606,15 @@ func main() {
 			case platform.EventResize:
 				summary.Resize++
 				if ev.Width > 0 && ev.Height > 0 {
-					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
-					root.MarkNeedsLayout()
+					// The board has no fixed size (see construction): it
+					// fills whatever the root gives it, so paintBoard
+					// always sees the live window size (Godot
+					// disabled-stretch: a bigger window shows more, never
+					// a stretched copy). Only the board re-lays-out here;
+					// the root keeps its opening size so AbsoluteBox math
+					// stays put.
+					sim.board.MarkNeedsLayout()
+					sim.board.MarkNeedsPaint()
 				}
 				if manualMode {
 					fmt.Fprintf(os.Stderr, "game_tilemap: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
@@ -1289,6 +1665,17 @@ func main() {
 		extra["live_flickers"] = sim.flickers
 		extra["near_frames"] = sim.nearN
 		extra["far_frames"] = sim.farN
+	case "large":
+		extra["live_loaded"] = sim.large.LoadedCount()
+		extra["live_visible"] = len(sim.large.Visible(sim.largeView))
+		extra["live_pending"] = sim.large.PendingCount()
+		extra["live_pending_max"] = sim.largePendMax
+		extra["live_merges"] = sim.large.Merges()
+		extra["live_loads"] = sim.largeLoads
+		extra["live_unloads"] = sim.largeDrops
+		extra["live_key_moves"] = sim.largeKeys
+		extra["view_x"] = sim.largeView.X
+		extra["view_y"] = sim.largeView.Y
 	}
 
 	if *autoOnly {
@@ -1321,6 +1708,9 @@ func main() {
 		case "lod":
 			domOK = presents >= 1 && sim.switches >= 1 && sim.flickers == 0
 			domMsg = fmt.Sprintf("presents=%d switches=%d flickers=%d (want >=1, >=1, 0)", presents, sim.switches, sim.flickers)
+		case "large":
+			domOK = presents >= 1 && sim.largeLoads > 0 && sim.largeDrops > 0
+			domMsg = fmt.Sprintf("presents=%d loads=%d unloads=%d (want >=1, >0, >0)", presents, sim.largeLoads, sim.largeDrops)
 		}
 		if !domOK {
 			fmt.Fprintf(os.Stderr, "FAIL: %s\n", domMsg)

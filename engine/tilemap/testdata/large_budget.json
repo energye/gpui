@@ -1,0 +1,37 @@
+{
+  "grid": {
+    "map_w": 1024,
+    "map_h": 1024,
+    "tile_w": 32,
+    "tile_h": 32,
+    "chunk_w": 32,
+    "chunk_h": 32,
+    "cols": 32,
+    "rows": 32,
+    "count": 1024,
+    "tmx": "large_map.tmx"
+  },
+  "build_ms_max": 2000,
+  "merge_per_frame": 4,
+  "frame_ms_max": 2,
+  "of": [
+    {"col": 0, "row": 0, "cx": 0, "cy": 0},
+    {"col": 31, "row": 0, "cx": 0, "cy": 0},
+    {"col": 32, "row": 0, "cx": 1, "cy": 0},
+    {"col": 1023, "row": 1023, "cx": 31, "cy": 31},
+    {"col": 512, "row": 256, "cx": 16, "cy": 8}
+  ],
+  "views": [
+    {"name": "origin512", "view": [0, 0, 512, 512], "want_chunks": [[0, 0]]},
+    {"name": "wide2048", "view": [0, 0, 2048, 2048], "want_chunks": [[0, 0], [1, 0], [0, 1], [1, 1]]},
+    {"name": "far_single", "view": [32768, 0, 512, 512], "want_chunks": []},
+    {"name": "corner_hit", "view": [31744, 31744, 1024, 1024], "want_chunks": [[31, 31]]}
+  ],
+  "map_checks": {
+    "w": 16,
+    "h": 12,
+    "at_0_0": 1,
+    "objects": 3,
+    "spawn_names": ["hero", "gate"]
+  }
+}
