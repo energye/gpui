@@ -135,6 +135,8 @@ func main() {
 			hotAlign.SetAlignment(0.78, 0.97)
 		}
 		// 相位切换才重录标签层（稳态保持纹理 blit，损伤=文本矩形）。
+		// HOT 块同理：颜色真变了（相位翻转）才标脏重录；纯位置挪动
+		// 走位移贴回，不标脏——否则损伤放大到 Align 整块。
 		if phase != lastPhase {
 			lastPhase = phase
 			switch phase {
@@ -149,8 +151,8 @@ func main() {
 				phaseLabel.SetColor(0.2, 0.8, 1.0, 1)
 			}
 			phaseLabel.MarkNeedsPaint()
+			hot.MarkNeedsPaint()
 		}
-		hot.MarkNeedsPaint()
 		app.ScheduleFrame()
 		proc.Sample()
 
