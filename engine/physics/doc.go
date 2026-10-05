@@ -92,4 +92,12 @@
 // Any invalid slope in Step is InvalidArg; bad feet/vel/dt is InvalidArg
 // with feet unchanged. Tilemap feeds this path as cell top edges, no
 // tilemap import here. Window intent: game_physics --case=jump.
+// Frozen 2026-10-05 (S86): MaxBroadphaseBodies, DefaultBroadphaseCell,
+// DefaultMaxCandidates, DefaultSleepEps, DefaultSleepFrames, Spring,
+// NewSpring, Broadphase, NewBroadphase. Additive changes only. Broadphase
+// is the large-yard index (uniform grid plus sleep plus candidate cap
+// plus one region lookup); Query agrees with Query, QueryRegion answers
+// one viewport box, Ray with CastRay, Spring fires the pad impulse.
+// Window intent: game_physics--case=large; pure index math, offscreen
+// golden only.
 package physics

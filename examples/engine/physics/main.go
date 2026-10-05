@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -53,11 +54,16 @@ const (
 	winW, winH = 1200, 800
 	abilityID  = "game-physics"
 
-	scenarioHit  = "game_physics--case=hit"
-	scenarioJump = "game_physics--case=jump"
+	scenarioHit   = "game_physics--case=hit"
+	scenarioJump  = "game_physics--case=jump"
+	scenarioLarge = "game_physics--case=large"
 
-	goldenHitPath  = "examples/engine/physics/testdata/physics_hit_golden.png"
-	goldenJumpPath = "examples/engine/physics/testdata/physics_jump_golden.png"
+	goldenHitPath   = "examples/engine/physics/testdata/physics_hit_golden.png"
+	goldenJumpPath  = "examples/engine/physics/testdata/physics_jump_golden.png"
+	goldenLargePath = "examples/engine/physics/testdata/physics_large_golden.png"
+
+	largeYardPath = "engine/physics/testdata/large_yard.json"
+	largeRaysPath = "engine/physics/testdata/large_rays.json"
 
 	frozenBodyPath     = "engine/physics/testdata/body_cases.json"
 	frozenRayPath      = "engine/physics/testdata/body_ray_cases.json"
@@ -722,21 +728,21 @@ const (
 const metricStripH = 32.0
 
 type hitSim struct {
-	app      *embedder.PipelineApp
-	root     *rendering.AbsoluteBox
-	phase    *wrkit.PhaseClock
-	fullBox  *rendering.RenderBox
-	metric   *rendering.RenderText
-	arena    *rendering.RenderBox
-	heroX    float64
-	dir      float64
-	moved    float64
-	contact  int64
-	rayHit   int64
-	trig     int64
-	frames   int
-	sparks   int64
-	bumpSnd  int64
+	app     *embedder.PipelineApp
+	root    *rendering.AbsoluteBox
+	phase   *wrkit.PhaseClock
+	fullBox *rendering.RenderBox
+	metric  *rendering.RenderText
+	arena   *rendering.RenderBox
+	heroX   float64
+	dir     float64
+	moved   float64
+	contact int64
+	rayHit  int64
+	trig    int64
+	frames  int
+	sparks  int64
+	bumpSnd int64
 }
 
 type hitTicker struct{ s *hitSim }
@@ -942,6 +948,991 @@ func runSeconds(def int) int {
 	return def
 }
 
+// ================= S86 large case (game_physics--case=large) =================
+//
+// The filed 1200-body yard (engine/physics/testdata/large_yard.json) opens
+// through engine/physics Broadphase: 1000 static boxes plus 200 dynamics
+// fall 60 units, the grid shortlists pairs, sleepers skip integration but
+// still collide and wake on touch, per-frame contacts cap at 40. Filed
+// one-way plus slope plus spring pad ride along (jump/ladder thick extras
+// from the jump case); the hero auto-hops the pad and the one-way.
+//
+//	go run ./examples/engine/physics --case=large -auto-only
+//	  headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+//	go run ./examples/engine/physics --case=large -manual-seconds 60
+//	  manual for 60s (space hops, WASD nudges the hero), then summary.
+//
+// Window: 1200x800, title game_physics-large. First run writes the golden
+// baseline into testdata/physics_large_golden.png; later runs compare it
+// with zero tolerance.
+
+const (
+	largeAbilityID = "game-physics"
+	largeScenario  = "game_physics--case=large"
+
+	largeProbeTol   = 8
+	largeGatePairs  = 1
+	largeGateLands  = 1
+	largeQueryUsMax = 50.0
+	largeRayUsMax   = 30.0
+	// largeQueryFullUsMax is the order-of-magnitude ceiling for the full
+	// yard scan, same as TestBroadphaseBudgetFiled: the full scan is
+	// validation/stats, not the per-frame gameplay query.
+	largeQueryFullUsMax = 4000.0
+	// largeViewHome is the filed gameplay viewport (view_home in
+	// large_rays.json, 154 bodies): the per-frame Godot cull_aabb query.
+	largeViewX, largeViewY, largeViewW, largeViewH = 64.0, 64.0, 640.0, 480.0
+	largeWarmupS    = 2.0
+	largeFallSpeed  = 220.0
+	largeKeyStep    = 48.0
+
+	largeOffW, largeOffH = 480, 300
+
+	largeStaticR, largeStaticG, largeStaticB = 0.35, 0.50, 0.70
+	largeDynR, largeDynG, largeDynB          = 0.95, 0.70, 0.20
+	largeSleepR, largeSleepG, largeSleepB    = 0.45, 0.45, 0.50
+	largePadR, largePadG, largePadB          = 0.95, 0.25, 0.45
+	largeHeroR, largeHeroG, largeHeroB       = 0.90, 0.20, 0.15
+)
+
+// largeYard is the live filed level: bodies in filed order plus slopes,
+// springs, and the broadphase index over them.
+type largeYard struct {
+	bp      physics.Broadphase
+	bodies  []physics.Body
+	slopes  []physics.Slope
+	springs []physics.Spring
+	layout  yardLayoutJSON
+	count   int
+}
+
+type largeProbe struct {
+	LogicOK, PixOK, GoldenOK bool
+	Pairs                    int
+	Total                    int
+	Detail                   string
+	PixDetail                string
+	GoldenChanged            int
+	GoldenWrote              bool
+	QueryUs                  float64
+	RayUs                    float64
+	OK                       bool
+}
+
+func largeFailJSON(p largeProbe) {
+	b, _ := json.Marshal(map[string]any{
+		"ability_id": largeAbilityID,
+		"scenario":   largeScenario,
+		"probe_ok":   0,
+		"pass":       false,
+		"pixels":     p.PixDetail,
+		"golden":     p.GoldenChanged,
+	})
+	fmt.Fprintln(os.Stdout, string(b))
+}
+
+// largeKeyNudge maps platform keysym WASD/arrows to hero nudges.
+// The platform delivers keysyms (ui/platform decodeKey): letters arrive
+// as 'a'/'A' etc, arrows as 0xff51-0xff54, space as 0x20. The old evdev
+// table never matched here (and its D=32 collided with space), so it is
+// gone. Unknown keys still count as events, they just don't move.
+func largeKeyNudge(code int, r rune) (float64, float64) {
+	switch {
+	case r == 'a' || r == 'A' || code == 97 || code == 65 || code == 0xff51:
+		return -largeKeyStep, 0
+	case r == 'd' || r == 'D' || code == 100 || code == 68 || code == 0xff53:
+		return largeKeyStep, 0
+	case r == 'w' || r == 'W' || code == 119 || code == 87 || code == 0xff52:
+		return 0, -largeKeyStep
+	case r == 's' || r == 'S' || code == 115 || code == 83 || code == 0xff54:
+		return 0, largeKeyStep
+	}
+	return 0, 0
+}
+
+// largeIsJump reports the space bar: keysym 0x20, Rune ' '.
+func largeIsJump(code int, r rune) bool {
+	return code == 0x20 || r == ' '
+}
+
+type yardLayoutJSON struct {
+	Cols         int        `json:"cols"`
+	Rows         int        `json:"rows"`
+	Spacing      float64    `json:"spacing"`
+	Origin       [2]float64 `json:"origin"`
+	Half         float64    `json:"half"`
+	StaticCount  int        `json:"static_count"`
+	DynamicCount int        `json:"dynamic_count"`
+	SpringX      float64    `json:"spring_x"`
+	Count        int        `json:"count"`
+}
+
+type yardDynJSON struct {
+	Name string     `json:"name"`
+	X    float64    `json:"x"`
+	Y    float64    `json:"y"`
+	Half [2]float64 `json:"half"`
+}
+
+type yardSlopeJSON struct {
+	Name   string     `json:"name"`
+	A      [2]float64 `json:"a"`
+	B      [2]float64 `json:"b"`
+	Oneway bool       `json:"oneway"`
+}
+
+type yardSpringJSON struct {
+	Name    string  `json:"name"`
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
+	Impulse float64 `json:"impulse"`
+	Damp    float64 `json:"damp"`
+}
+
+type yardFileJSON struct {
+	Layout   yardLayoutJSON   `json:"layout"`
+	Dynamics []yardDynJSON    `json:"dynamics"`
+	Oneways  []yardSlopeJSON  `json:"oneways"`
+	Springs  []yardSpringJSON `json:"springs"`
+}
+
+type yardRayJSON struct {
+	Name    string     `json:"name"`
+	Origin  [2]float64 `json:"origin"`
+	Dir     [2]float64 `json:"dir"`
+	MaxDist float64    `json:"maxdist"`
+	Mask    uint32     `json:"mask"`
+}
+
+type yardRegionJSON struct {
+	Name string     `json:"name"`
+	Rect [4]float64 `json:"rect"`
+	Want []int      `json:"want"`
+}
+
+type yardCullJSON struct {
+	SceneFile string           `json:"scene_file"`
+	Rays      []yardRayJSON    `json:"rays"`
+	Regions   []yardRegionJSON `json:"regions"`
+	Views     map[string]struct {
+		Want [][]string `json:"want_pairs"`
+	} `json:"-"`
+	QueryStatic struct {
+		WantPairs [][]string `json:"want_pairs"`
+		WantCount int        `json:"want_count"`
+	} `json:"query_static"`
+	QueryDrop struct {
+		DY        float64    `json:"dy"`
+		WantPairs [][]string `json:"want_pairs"`
+		WantCount int        `json:"want_count"`
+	} `json:"query_drop"`
+	Budgets struct {
+		Entities    int     `json:"entities"`
+		Reps        int     `json:"reps"`
+		UpdateMsMax float64 `json:"update_ms_max"`
+		QueryUsMax  float64 `json:"query_us_max"`
+		RayUsMax    float64 `json:"ray_us_max"`
+		Cycles      int     `json:"cycles"`
+		Reopens     int     `json:"reopens"`
+	} `json:"budgets"`
+}
+
+func loadLargeYardFiles() (yardFileJSON, yardCullJSON, error) {
+	var yf yardFileJSON
+	var cf yardCullJSON
+	raw, err := os.ReadFile(largeRaysPath)
+	if err != nil {
+		return yf, cf, err
+	}
+	if err := json.Unmarshal(raw, &cf); err != nil {
+		return yf, cf, err
+	}
+	raw, err = os.ReadFile(largeYardPath)
+	if err != nil {
+		return yf, cf, err
+	}
+	if err := json.Unmarshal(raw, &yf); err != nil {
+		return yf, cf, err
+	}
+	return yf, cf, nil
+}
+
+// buildLargeYard stamps the filed yard into a live Broadphase in filed
+// order: statics row-major, dynamics last. The window never invents a
+// number; every position comes from the files.
+func buildLargeYard() (*largeYard, error) {
+	yf, _, err := loadLargeYardFiles()
+	if err != nil {
+		return nil, err
+	}
+	lv := &largeYard{layout: yf.Layout}
+	bp := physics.NewBroadphase()
+	l := yf.Layout
+	n := l.StaticCount
+	for i := 0; i < n; i++ {
+		c, r := i%l.Cols, i/l.Cols
+		pos := core.V2(l.Origin[0]+float64(c)*l.Spacing, l.Origin[1]+float64(r)*l.Spacing)
+		bd, err := physics.NewBox(fmt.Sprintf("s%04d", i), pos, core.V2(l.Half, l.Half), 1, 1, false)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := bp.Track(bd, true); err != nil {
+			return nil, err
+		}
+		lv.bodies = append(lv.bodies, bd)
+	}
+	for _, d := range yf.Dynamics {
+		bd, err := physics.NewBox(d.Name, core.V2(d.X, d.Y), core.V2(d.Half[0], d.Half[1]), 1, 1, false)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := bp.Track(bd, false); err != nil {
+			return nil, err
+		}
+		lv.bodies = append(lv.bodies, bd)
+	}
+	for _, o := range yf.Oneways {
+		var sl physics.Slope
+		if o.Oneway {
+			sl, err = physics.NewOneWay(o.Name, core.V2(o.A[0], o.A[1]), core.V2(o.B[0], o.B[1]))
+		} else {
+			sl, err = physics.NewSlope(o.Name, core.V2(o.A[0], o.A[1]), core.V2(o.B[0], o.B[1]))
+		}
+		if err != nil {
+			return nil, err
+		}
+		lv.slopes = append(lv.slopes, sl)
+	}
+	for _, s := range yf.Springs {
+		sp, err := physics.NewSpring(s.Impulse, s.Damp)
+		if err != nil {
+			return nil, err
+		}
+		lv.springs = append(lv.springs, sp)
+	}
+	lv.bp = bp
+	lv.count = l.Count
+	if bp.Count() != l.Count {
+		return nil, fmt.Errorf("yard count = %d, want %d", bp.Count(), l.Count)
+	}
+	return lv, nil
+}
+
+// probeLargeLogic rebuilds the filed yard and checks the filed static
+// pairs plus the filed rays plus the filed spring pad, all exact.
+// qus is the viewport single query (cull_aabb), not the full scan.
+func probeLargeLogic() (ok bool, pairs, total int, detail string, qus, rus float64) {
+	yf, cf, err := loadLargeYardFiles()
+	if err != nil {
+		return false, 0, 0, "load: " + err.Error(), 0, 0
+	}
+	lv, err := buildLargeYard()
+	if err != nil {
+		return false, 0, 0, "build: " + err.Error(), 0, 0
+	}
+	if err := lv.bp.SetMaxCandidates(0); err != nil {
+		return false, 0, lv.count, "uncap: " + err.Error(), 0, 0
+	}
+	got, err := lv.bp.Query()
+	if err != nil {
+		return false, 0, lv.count, "query: " + err.Error(), 0, 0
+	}
+	if len(got) != len(cf.QueryStatic.WantPairs) {
+		return false, 0, lv.count, fmt.Sprintf("static pairs = %d, want %d", len(got), len(cf.QueryStatic.WantPairs)), 0, 0
+	}
+	for i := range got {
+		if got[i].A != cf.QueryStatic.WantPairs[i][0] || got[i].B != cf.QueryStatic.WantPairs[i][1] {
+			return false, 0, lv.count, fmt.Sprintf("pair[%d] = %s+%s", i, got[i].A, got[i].B), 0, 0
+		}
+	}
+	for _, rc := range cf.Rays {
+		ray, err := physics.NewRay(core.V2(rc.Origin[0], rc.Origin[1]), core.V2(rc.Dir[0], rc.Dir[1]), rc.MaxDist, rc.Mask)
+		if err != nil {
+			return false, 0, lv.count, rc.Name + " ray: " + err.Error(), 0, 0
+		}
+		t1 := time.Now()
+		fh, fok, err := lv.bp.Ray(ray)
+		rus += float64(time.Since(t1).Microseconds())
+		if err != nil {
+			return false, 0, lv.count, rc.Name + " broad: " + err.Error(), 0, 0
+		}
+		sh, sok, err := physics.CastRay(lv.bodies, ray)
+		if err != nil {
+			return false, 0, lv.count, rc.Name + " narrow: " + err.Error(), 0, 0
+		}
+		if fok != sok || (fok && (fh.Name != sh.Name || fh.Dist != sh.Dist)) {
+			return false, 0, lv.count, rc.Name + " ray mismatch", 0, 0
+		}
+	}
+	rus /= float64(len(cf.Rays))
+	// Viewport single query time drives the q gate.
+	t0 := time.Now()
+	if _, err := lv.bp.QueryRegion(core.NewRect(largeViewX, largeViewY, largeViewW, largeViewH)); err != nil {
+		return false, 0, lv.count, "region: " + err.Error(), 0, 0
+	}
+	qus = float64(time.Since(t0).Microseconds())
+	if len(yf.Springs) == 0 || len(yf.Oneways) == 0 {
+		return false, 0, lv.count, "no filed springs/oneways", 0, 0
+	}
+	sp := yf.Springs[0]
+	pad, err := physics.NewSpring(sp.Impulse, sp.Damp)
+	if err != nil {
+		return false, 0, lv.count, "spring: " + err.Error(), 0, 0
+	}
+	if pad.Bounce(300) != -(300*sp.Damp + sp.Impulse) {
+		return false, 0, lv.count, "pad bounce moved", 0, 0
+	}
+	return true, len(got), lv.count,
+		fmt.Sprintf("bodies=%d static_pairs=%d rays=%d springs=%d oneways=%d", lv.count, len(got), len(cf.Rays), len(yf.Springs), len(yf.Oneways)), qus, rus
+}
+
+// largeYardDots snapshots the yard for one deterministic probe frame:
+// statics plus dropped dynamics plus pad plus hero, in track order.
+type largeYardDot struct {
+	px, py float64
+	static bool
+	sleep  bool
+	pad    bool
+	hero   bool
+	layer  int
+}
+
+func largeYardFrame(lv *largeYard) []largeYardDot {
+	sx := float64(largeOffW) / 2080.0
+	sy := float64(largeOffH) / 1280.0
+	dots := make([]largeYardDot, 0, len(lv.bodies)+1)
+	for i, bd := range lv.bodies {
+		dots = append(dots, largeYardDot{
+			px:     bd.Pos.X * sx,
+			py:     bd.Pos.Y * sy,
+			static: i < lv.layout.StaticCount,
+			layer:  i % 3,
+		})
+	}
+	dots = append(dots, largeYardDot{px: yfSpringX(lv) * sx, py: 420 * sy, pad: true})
+	return dots
+}
+
+// largeSpringX reads the filed pad column for the probe frame.
+func yfSpringX(lv *largeYard) float64 {
+	if len(lv.springs) == 0 {
+		return 0
+	}
+	return lv.layout.SpringX
+}
+
+// paintLargeYard draws bg, boxes, pads, hero on top. Box centers keep
+// their band color for the probes.
+func paintLargeYard(dc *render.Context, dots []largeYardDot, box float64) {
+	dc.ClearWithColor(render.RGBA{R: bgR, G: bgG, B: bgB, A: 1})
+	for _, d := range dots {
+		var r, g, b float64
+		switch {
+		case d.pad:
+			r, g, b = largePadR, largePadG, largePadB
+		case d.hero:
+			r, g, b = largeHeroR, largeHeroG, largeHeroB
+		case d.sleep:
+			r, g, b = largeSleepR, largeSleepG, largeSleepB
+		case d.static:
+			r, g, b = largeStaticR, largeStaticG, largeStaticB
+		default:
+			r, g, b = largeDynR, largeDynG, largeDynB
+		}
+		hw := box / 2
+		if d.pad {
+			hw = 5
+		}
+		dc.SetRGB(r, g, b)
+		dc.DrawRectangle(d.px-hw, d.py-hw, hw*2, hw*2)
+		_ = dc.Fill()
+	}
+}
+
+func probeLargePixels() (bool, string) {
+	prev, _ := os.LookupEnv("GOGPU_RENDER_MODE")
+	_ = os.Setenv("GOGPU_RENDER_MODE", "cpu")
+	defer func() {
+		if prev == "" {
+			_ = os.Unsetenv("GOGPU_RENDER_MODE")
+		} else {
+			_ = os.Setenv("GOGPU_RENDER_MODE", prev)
+		}
+	}()
+	lv, err := buildLargeYard()
+	if err != nil {
+		return false, "build: " + err.Error()
+	}
+	dots := largeYardFrame(lv)
+	dc := render.NewContext(largeOffW, largeOffH)
+	paintLargeYard(dc, dots, 12*float64(largeOffW)/2080.0)
+	img := dc.Image()
+	_ = dc.Close()
+	sx := float64(largeOffW) / 2080.0
+	sy := float64(largeOffH) / 1280.0
+	checks := []struct {
+		name    string
+		x, y    int
+		r, g, b float64
+	}{
+		{"static", int(64 * sx), int(64 * sy), largeStaticR, largeStaticG, largeStaticB},
+		{"dyn", int(64 * sx), int(8 * sy), largeDynR, largeDynG, largeDynB},
+		{"pad", int(320 * sx), int(420 * sy), largePadR, largePadG, largePadB},
+		{"bg", int(1500 * sx), int(1100 * sy), bgR, bgG, bgB},
+	}
+	detail := ""
+	for _, ch := range checks {
+		if ch.x < 0 || ch.y < 0 || ch.x >= largeOffW || ch.y >= largeOffH {
+			return false, ch.name + " off frame"
+		}
+		r, g, b := sample8(img, ch.x, ch.y)
+		if !closeEnough(r, want8(ch.r)) || !closeEnough(g, want8(ch.g)) || !closeEnough(b, want8(ch.b)) {
+			return false, fmt.Sprintf("%s=(%d,%d,%d)@(%d,%d) tol=%d", ch.name, r, g, b, ch.x, ch.y, largeProbeTol)
+		}
+		detail += fmt.Sprintf("%s@(%d,%d) ", ch.name, ch.x, ch.y)
+	}
+	return true, detail + fmt.Sprintf("tol=%d", largeProbeTol)
+}
+
+func probeLargeGolden() (ok bool, changed int, wrote bool) {
+	prev, _ := os.LookupEnv("GOGPU_RENDER_MODE")
+	_ = os.Setenv("GOGPU_RENDER_MODE", "cpu")
+	defer func() {
+		if prev == "" {
+			_ = os.Unsetenv("GOGPU_RENDER_MODE")
+		} else {
+			_ = os.Setenv("GOGPU_RENDER_MODE", prev)
+		}
+	}()
+	lv, err := buildLargeYard()
+	if err != nil {
+		return false, 0, false
+	}
+	dc := render.NewContext(largeOffW, largeOffH)
+	paintLargeYard(dc, largeYardFrame(lv), 12*float64(largeOffW)/2080.0)
+	img := dc.Image()
+	_ = dc.Close()
+	f, err := os.Open(goldenLargePath)
+	if err != nil {
+		if err := os.MkdirAll("examples/engine/physics/testdata", 0o755); err != nil {
+			return false, 0, false
+		}
+		out, err := os.Create(goldenLargePath)
+		if err != nil {
+			return false, 0, false
+		}
+		encErr := png.Encode(out, img)
+		_ = out.Close()
+		return encErr == nil, 0, encErr == nil
+	}
+	defer func() { _ = f.Close() }()
+	want, err := png.Decode(f)
+	if err != nil {
+		return false, 0, false
+	}
+	if !img.Bounds().Eq(want.Bounds()) {
+		return false, 1, false
+	}
+	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+			ar, ag, ab, aa := img.At(x, y).RGBA()
+			br, bg, bb, ba := want.At(x, y).RGBA()
+			if ar != br || ag != bg || ab != bb || aa != ba {
+				changed++
+			}
+		}
+	}
+	return changed == 0, changed, false
+}
+
+func runLargeProbes() largeProbe {
+	var p largeProbe
+	var detail string
+	var qus, rus float64
+	p.LogicOK, p.Pairs, p.Total, detail, qus, rus = probeLargeLogic()
+	p.Detail = detail
+	p.QueryUs, p.RayUs = qus, rus
+	p.PixOK, p.PixDetail = probeLargePixels()
+	var wrote bool
+	p.GoldenOK, p.GoldenChanged, wrote = probeLargeGolden()
+	p.GoldenWrote = wrote
+	p.OK = p.LogicOK && p.PixOK && p.GoldenOK
+	return p
+}
+
+// largeSim is the live large window: the filed yard falls and settles
+// while the hero auto-hops the pad and the one-way.
+type largeSim struct {
+	lv      *largeYard
+	view    core.Rect
+	dropDY  float64
+	dots    []largeYardDot
+	hero    core.Vec2
+	heroVel core.Vec2
+	pairs   int
+	evals   int
+	woke    int
+	sleep   int
+	lands   int
+	jumps   int
+	moved   float64
+	maxQus  float64
+	maxQFullUs float64
+	sumQus float64
+	sumQFullUs float64
+	sumRus float64
+	steadyFrames int
+	viewCount  int
+	maxRus  float64
+	elapsed float64
+	keys    int
+	nudgeX  float64
+	nudgeY  float64
+	frames  int
+	app     *embedder.PipelineApp
+	root    *rendering.AbsoluteBox
+	board   *rendering.RenderBox
+	phase   *wrkit.PhaseClock
+	overlay *rendering.RenderText
+}
+
+func (s *largeSim) tickLarge(dt float64) {
+	if dt < 0 {
+		dt = 0
+	}
+	if dt > 0.05 {
+		dt = 0.05
+	}
+	s.frames++
+	s.elapsed += dt
+	// The filed 60-unit drop: dynamics ease from the parked row into the
+	// field over the first seconds, then rest on the statics.
+	step := largeFallSpeed * dt
+	if step > s.dropDY {
+		step = s.dropDY
+	}
+	if s.dropDY > 0 {
+		for h := s.lv.layout.StaticCount; h < s.lv.layout.Count; h++ {
+			if !s.lv.bp.IsActive(h) {
+				continue
+			}
+			bd := s.lv.bodies[h]
+			bd.Pos = core.V2(bd.Pos.X, bd.Pos.Y+step)
+			s.lv.bodies[h] = bd
+			if err := s.lv.bp.Move(h, bd); err != nil {
+				fmt.Fprintf(os.Stderr, "game_physics-large: move: %v\n", err)
+				return
+			}
+		}
+		s.dropDY -= step
+		s.moved += step
+	}
+	// Stillness sleep runs on the same clock as the drop: only settled
+	// frames count, so the falling row never parks mid-air. Sleepers
+	// skip integration below but still collide and wake on touch.
+	// Godot BroadPhase2D口径：每帧玩法只查视口（cull_aabb）+射线
+	// （cull_segment），全量Query只做统计/对数，不进50us门。
+	// The gate stopwatch covers the broadphase only: drop integration,
+	// hero stepping, and overlay stay outside it.
+	s.lv.bp.Update()
+	// Viewport single query drives the q gate: one cull_aabb lookup.
+	// Warmup frames (drop + index build) never enter the stats: the gate
+	// uses steady-state mean (same as the unit 20-rep mean), max is
+	// reported for info only since one scheduling spike is not engine.
+	steady := s.elapsed > largeWarmupS
+	t0 := time.Now()
+	region, rerr := s.lv.bp.QueryRegion(core.NewRect(largeViewX, largeViewY, largeViewW, largeViewH))
+	qus := float64(time.Since(t0).Microseconds())
+	if rerr != nil {
+		fmt.Fprintf(os.Stderr, "game_physics-large: region: %v\n", rerr)
+		return
+	}
+	if steady {
+		if qus > s.maxQus {
+			s.maxQus = qus
+		}
+		s.sumQus += qus
+		s.steadyFrames++
+	}
+	s.viewCount = len(region)
+	// Full yard scan is stats only: pairs/evals/sleep-wake truth plus a
+	// 4000us order-of-magnitude guard (same as the unit test ceiling).
+	tF := time.Now()
+	contacts, err := s.lv.bp.Query()
+	qFull := float64(time.Since(tF).Microseconds())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "game_physics-large: query: %v\n", err)
+		return
+	}
+	if steady {
+		if qFull > s.maxQFullUs {
+			s.maxQFullUs = qFull
+		}
+		s.sumQFullUs += qFull
+	}
+	// Filed rays sweep every tick; worst ray rules the gate.
+	rus := 0.0
+	for _, rc := range []struct {
+		ox, oy, dx, dy, max float64
+		mask                uint32
+	}{
+		{0, 88, 1, 0, 2200, 3},
+		{400, 0, 0, 1, 1200, 3},
+	} {
+		ray, err := physics.NewRay(core.V2(rc.ox, rc.oy), core.V2(rc.dx, rc.dy), rc.max, rc.mask)
+		if err != nil {
+			continue
+		}
+		t1 := time.Now()
+		_, _, _ = s.lv.bp.Ray(ray)
+		if v := float64(time.Since(t1).Microseconds()); v > rus {
+			rus = v
+		}
+	}
+	if steady {
+		if rus > s.maxRus {
+			s.maxRus = rus
+		}
+		s.sumRus += rus
+	}
+	s.pairs = len(contacts)
+	s.evals = s.lv.bp.Evaluations()
+	s.woke += len(s.lv.bp.Woke())
+	s.sleep = s.lv.bp.SleepingCount()
+	// Hero auto-hops the filed pad, then rides the one-way.
+	s.heroVel.Y += 600 * dt
+	s.hero.X += s.nudgeX
+	s.hero.Y += s.nudgeY
+	s.nudgeX, s.nudgeY = 0, 0
+	nx := s.hero.X + 40*dt
+	ny := s.hero.Y + s.heroVel.Y*dt
+	if len(s.lv.springs) > 0 && ny > 420-14 && s.heroVel.Y > 0 && nx > 320-30 && nx < 320+30 {
+		s.heroVel.Y = s.lv.springs[0].Bounce(s.heroVel.Y)
+		s.jumps++
+	}
+	s.hero.X, s.hero.Y = nx, ny
+	if s.hero.X > 1100 {
+		s.hero.X = 60
+		s.hero.Y = 100
+		s.heroVel = core.Vec2{}
+	}
+	for _, sl := range s.lv.slopes {
+		if gy, ok := sl.GroundYAt(s.hero.X); ok && s.hero.Y >= gy-14 && s.hero.Y <= gy+14 {
+			s.lands++
+			break
+		}
+	}
+	s.moved += 40 * dt
+	// Stillness sleep runs on the same clock as the drop: only settled
+	// frames count, so the falling row never parks mid-air.
+	s.lv.bp.Update()
+	// Paint snapshot: yard live spots in track order plus hero.
+	sx := float64(winW) / 2080.0
+	sy := float64(winH) / 1280.0
+	s.dots = s.dots[:0]
+	for h := 0; h < s.lv.count; h++ {
+		bd := s.lv.bodies[h]
+		s.dots = append(s.dots, largeYardDot{
+			px:     bd.Pos.X * sx,
+			py:     bd.Pos.Y * sy,
+			static: h < s.lv.layout.StaticCount,
+			sleep:  !s.lv.bp.IsActive(h),
+			layer:  h % 3,
+		})
+	}
+	// Hero rides on top.
+	{
+		hx := (s.hero.X - 0) * sx
+		hy := (s.hero.Y - 0) * sy
+		s.dots = append(s.dots, largeYardDot{px: hx, py: hy, hero: true})
+	}
+	_ = s.phase.Advance(dt)
+	snap := s.app.Metrics().Snapshot()
+	fps := 0.0
+	if snap.AvgFrameIntervalMs > 1e-6 {
+		fps = 1000.0 / snap.AvgFrameIntervalMs
+	}
+	if s.overlay != nil {
+		s.overlay.SetText(fmt.Sprintf("fps %.0f pairs %d evals %d view %d sleep %d lands %d q %.0fus qfull %.0f r %.0fus",
+			fps, s.pairs, s.evals, s.viewCount, s.sleep, s.lands, qus, qFull, rus))
+	}
+	s.board.MarkNeedsPaint()
+	s.app.ScheduleFrame()
+}
+
+type largeTicker struct{ s *largeSim }
+
+func (t *largeTicker) Tick(dt float64) bool {
+	if t.s == nil {
+		return true
+	}
+	t.s.tickLarge(dt)
+	return true
+}
+
+func runLarge(autoOnly bool, manualSeconds int, maximized bool) {
+	wrkit.EnsureUIFace()
+	probe := runLargeProbes()
+	fmt.Fprintf(os.Stderr, "game_physics-large: probes ok=%v logic=%v pix=%v golden=%v(wrote=%v changed=%d) pairs=%d total=%d %s | q=%.0fus r=%.0fus\n",
+		probe.OK, probe.LogicOK, probe.PixOK, probe.GoldenOK, probe.GoldenWrote,
+		probe.GoldenChanged, probe.Pairs, probe.Total, probe.Detail, probe.QueryUs, probe.RayUs)
+	if !probe.OK {
+		if autoOnly {
+			largeFailJSON(probe)
+		} else {
+			fmt.Fprintln(os.Stderr, "game_physics-large: selftest FAIL, not opening window")
+		}
+		os.Exit(1)
+	}
+
+	var secs int
+	if autoOnly {
+		secs = runSeconds(8)
+		wrkit.RequireMinRun(secs, largeAbilityID)
+	} else if manualSeconds > 0 {
+		secs = manualSeconds
+	} else {
+		secs, _ = wrkit.RunSecondsOpt()
+	}
+	manualMode := !autoOnly
+	var runFor time.Duration
+	if secs > 0 {
+		runFor = time.Duration(secs) * time.Second
+	}
+
+	lv, err := buildLargeYard()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: yard:", err)
+		os.Exit(1)
+	}
+	sim := &largeSim{lv: lv, view: core.NewRect(0, 0, 2080, 1280), hero: core.V2(200, 100), dropDY: 60}
+	if secs > 0 {
+		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
+	} else {
+		sim.phase = wrkit.NewPhaseClock(0, 0)
+	}
+
+	root := rendering.NewAbsoluteBox(float64(winW), float64(winH))
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
+	sim.root = root
+	// Full-window content: one paint board draws the yard in track order.
+	sim.board = rendering.NewRenderBox()
+	sim.board.FixedWidth, sim.board.FixedHeight = float64(winW), float64(winH)
+	sim.board.SetRepaintBoundary(true)
+	sim.board.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		dc := pc.DC
+		ax, ay := pc.Abs(0, 0)
+		dc.SetRGBA(bgR, bgG, bgB, 1)
+		dc.DrawRectangle(ax, ay, float64(size.Width), float64(size.Height))
+		_ = dc.Fill()
+		bw, bh := float64(size.Width), float64(size.Height)
+		for _, d := range sim.dots {
+			if d.px < -16 || d.px > bw+16 || d.py < -16 || d.py > bh+16 {
+				continue
+			}
+			var r, g, b float64
+			switch {
+			case d.pad:
+				r, g, b = largePadR, largePadG, largePadB
+			case d.hero:
+				r, g, b = largeHeroR, largeHeroG, largeHeroB
+			case d.sleep:
+				r, g, b = largeSleepR, largeSleepG, largeSleepB
+			case d.static:
+				r, g, b = largeStaticR, largeStaticG, largeStaticB
+			default:
+				r, g, b = largeDynR, largeDynG, largeDynB
+			}
+			w2 := 9.0
+			if d.pad || d.hero {
+				w2 = 7
+			}
+			dc.SetRGB(r, g, b)
+			dc.DrawRectangle(ax+d.px-w2/2, ay+d.py-w2/2, w2, w2)
+			_ = dc.Fill()
+		}
+	}
+	root.Place(sim.board, 0, 0)
+	// One-line floating overlay at top-left over the picture.
+	sim.overlay = wrkit.Label("--", 13, 1, 1, 1)
+	root.Place(sim.overlay, 12, 10)
+
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_physics-large", Decorations: true, Maximized: maximized})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
+		os.Exit(1)
+	}
+	defer win.Close()
+	ctl := win.Controls()
+
+	var summary manualSummary
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
+		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
+		RunFor: runFor,
+		WarmUp: true,
+		OnEvent: func(ev platform.Event) {
+			switch ev.Type {
+			case platform.EventClose, platform.EventCloseRequested:
+				fmt.Fprintf(os.Stderr, "game_physics-large: close (%s)\n", win.Backend())
+				return
+			case platform.EventPointer:
+				summary.Pointer++
+				if manualMode {
+					fmt.Fprintf(os.Stderr, "game_physics-large: pointer %s (%.0f,%.0f) n=%d\n",
+						ev.Pointer, ev.X, ev.Y, summary.Pointer+summary.Key+summary.Resize)
+					if ctl != nil {
+						ctl.SetTitle(fmt.Sprintf("game_physics-large pairs=%d events=%d",
+							len(sim.dots), summary.Pointer+summary.Key+summary.Resize))
+					}
+				}
+				return
+			case platform.EventKey:
+				if ev.Pressed {
+					summary.Key++
+					sim.keys++
+					if dx, dy := largeKeyNudge(ev.KeyCode, ev.Rune); dx != 0 || dy != 0 {
+						sim.nudgeX += dx
+						sim.nudgeY += dy
+					}
+					if largeIsJump(ev.KeyCode, ev.Rune) {
+						sim.heroVel.Y = -380
+						sim.jumps++
+					}
+					if manualMode {
+						fmt.Fprintf(os.Stderr, "game_physics-large: key code=%d n=%d\n", ev.KeyCode, summary.Pointer+summary.Key+summary.Resize)
+						if ctl != nil {
+							ctl.SetTitle(fmt.Sprintf("game_physics-large pairs=%d events=%d",
+								len(sim.dots), summary.Pointer+summary.Key+summary.Resize))
+						}
+					}
+				}
+				return
+			case platform.EventResize:
+				summary.Resize++
+				if ev.Width > 0 && ev.Height > 0 {
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					sim.board.FixedWidth, sim.board.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsLayout()
+					sim.board.MarkNeedsPaint()
+				}
+				return
+			default:
+				return
+			}
+		},
+	})
+	sim.app = app
+	app.Scheduler().Tickers().Add(&largeTicker{s: sim})
+	app.Scheduler().SetMode(scheduler.ModePersistent)
+
+	if err := app.Open(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
+		os.Exit(1)
+	}
+	root.MarkNeedsPaint()
+	app.ScheduleFrame()
+
+	t0 := time.Now()
+	if err := app.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
+		os.Exit(1)
+	}
+	app.Close()
+	elapsed := time.Since(t0).Seconds()
+	snap := app.Metrics().Snapshot()
+	presents := app.PresentCount()
+	probeOK := 0
+	if probe.OK {
+		probeOK = 1
+	}
+	avgQ, avgQFull, avgR := sim.maxQus, sim.maxQFullUs, sim.maxRus
+	if sim.steadyFrames > 0 {
+		avgQ = sim.sumQus / float64(sim.steadyFrames)
+		avgQFull = sim.sumQFullUs / float64(sim.steadyFrames)
+		avgR = sim.sumRus / float64(sim.steadyFrames)
+	}
+	extra := map[string]any{
+		"case":          "large",
+		"probe_ok":      probeOK,
+		"pairs":         sim.pairs,
+		"total":         sim.lv.count,
+		"evals":         sim.evals,
+		"view_count":    sim.viewCount,
+		"woke_total":    sim.woke,
+		"sleep":         sim.sleep,
+		"lands":         sim.lands,
+		"jumps":         sim.jumps,
+		"query_us":      math.Round(avgQ*10) / 10,
+		"query_us_max":  math.Round(sim.maxQus*10) / 10,
+		"query_full_us": math.Round(avgQFull*10) / 10,
+		"query_full_us_max": math.Round(sim.maxQFullUs*10) / 10,
+		"ray_us":        math.Round(avgR*10) / 10,
+		"ray_us_max":    math.Round(sim.maxRus*10) / 10,
+		"keys":          sim.keys,
+		"pixels":        probe.PixDetail,
+		"golden":        probe.GoldenChanged,
+		"boundary_skip": snap.BoundarySkip,
+	}
+
+	if autoOnly {
+		report := wrgate.BuildReport(wrgate.BuildInput{
+			AbilityID:     largeAbilityID,
+			Scenario:      largeScenario,
+			Snap:          snap,
+			PresentCount:  presents,
+			ElapsedSec:    elapsed,
+			SurfaceAreaPx: winW * winH,
+			Warmup:        true,
+			Extra:         extra,
+		})
+		raw, _ := json.Marshal(report)
+		fmt.Println(string(raw))
+		if err := wrgate.EvaluateGates(report, wrgate.GateOptions{MinPresents: 1}); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL:", err)
+			os.Exit(1)
+		}
+		if presents < 1 || sim.pairs < largeGatePairs || sim.lands < largeGateLands || !probe.OK || avgQ > largeQueryUsMax || avgR > largeRayUsMax || avgQFull > largeQueryFullUsMax {
+			fmt.Fprintf(os.Stderr, "FAIL: presents=%d pairs=%d lands=%d view=%d q=%.1f(qmax=%.1f) qfull=%.1f(qfmax=%.1f) r=%.1f(rmax=%.1f) probe=%v (want >=1, >=%d, >=%d, q<=%.0f, qfull<=%.0f, r<=%.0f, true)\n",
+				presents, sim.pairs, sim.lands, sim.viewCount, avgQ, sim.maxQus, avgQFull, sim.maxQFullUs, avgR, sim.maxRus, probe.OK, largeGatePairs, largeGateLands, largeQueryUsMax, largeQueryFullUsMax, largeRayUsMax)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "game_physics-large: OK presents=%d pairs=%d lands=%d view=%d q=%.1f qfull=%.1f r=%.1f elapsed=%.1fs\n",
+			presents, sim.pairs, sim.lands, sim.viewCount, avgQ, avgQFull, avgR, elapsed)
+		return
+	}
+	summary.Timed = secs > 0
+	b, _ := json.Marshal(map[string]any{
+		"ability_id": largeAbilityID,
+		"scenario":   largeScenario,
+		"backend":    win.Backend().String(),
+		"events": map[string]any{
+			"pointer": summary.Pointer, "key": summary.Key, "resize": summary.Resize,
+		},
+		"presents":    presents,
+		"elapsed_sec": elapsed,
+		"pairs":       sim.pairs,
+		"total":       sim.lv.count,
+		"view_count":  sim.viewCount,
+		"lands":       sim.lands,
+		"jumps":       sim.jumps,
+		"query_us":    math.Round(avgQ*10) / 10,
+		"query_us_max": math.Round(sim.maxQus*10) / 10,
+		"query_full_us": math.Round(avgQFull*10) / 10,
+		"query_full_us_max": math.Round(sim.maxQFullUs*10) / 10,
+		"ray_us":      math.Round(avgR*10) / 10,
+		"ray_us_max":  math.Round(sim.maxRus*10) / 10,
+		"probe_ok":    probeOK,
+		"timed":       summary.Timed,
+		"note":        summary.Note,
+	})
+	fmt.Println(string(b))
+	fmt.Fprintf(os.Stderr, "game_physics-large: backend=%s presents=%d pairs=%d lands=%d view=%d q=%.1f qfull=%.1f r=%.1f elapsed=%.1fs\n",
+		win.Backend(), presents, sim.pairs, sim.lands, sim.viewCount, avgQ, avgQFull, avgR, elapsed)
+}
+
 func failJSON(caseFlag string, probe probeResult) {
 	b, _ := json.Marshal(map[string]any{
 		"ability_id": abilityID,
@@ -1042,7 +2033,7 @@ func paintJumpFullWindow(pc *rendering.PaintContext, w, h float64, s *jumpSim) {
 	dc.SetLineWidth(1)
 	dc.DrawLine(ax+40, ry, ax+w-40, ry)
 	_ = dc.Stroke()
-	px := ax + w/2 + (s.plat.Pos.X-jumpPlatX0)
+	px := ax + w/2 + (s.plat.Pos.X - jumpPlatX0)
 	py := ry - 20
 	dc.SetRGB(jumpBodyR, jumpBodyG, jumpBodyB)
 	dc.DrawRectangle(px-jumpPlatHalfX, py-jumpPlatHalfY, 2*jumpPlatHalfX, 2*jumpPlatHalfY)
@@ -1083,10 +2074,27 @@ func buildJumpScene(shell *wrkit.ShellChrome, sim *jumpSim) {
 // paintJumpFullWindow (full window), not the old slope/carry cards.
 
 func main() {
-	caseFlag := flag.String("case", "hit", "scenario case (hit or jump)")
+	caseFlag := flag.String("case", "hit", "scenario case (hit|jump|large)")
+	maximized := flag.Bool("maximized", false, "open the window maximized (WM decides the final size)")
 	autoOnly := flag.Bool("auto-only", false, "probes + short window, JSON gate on stdout")
 	manualSeconds := flag.Int("manual-seconds", 0, "manual phase seconds (0 = until close)")
 	flag.Parse()
+
+	// Large case runs its own flow; hit/jump below stay untouched.
+	if *caseFlag == "large" {
+		if os.Getenv("GAME_PHYSICS_PROBE_ONLY") == "1" {
+			probe := runLargeProbes()
+			fmt.Fprintf(os.Stderr, "game_physics-large: probes ok=%v logic=%v pix=%v golden=%v(wrote=%v changed=%d) pairs=%d total=%d %s | q=%.0fus r=%.0fus\n",
+				probe.OK, probe.LogicOK, probe.PixOK, probe.GoldenOK, probe.GoldenWrote,
+				probe.GoldenChanged, probe.Pairs, probe.Total, probe.Detail, probe.QueryUs, probe.RayUs)
+			if !probe.OK {
+				os.Exit(1)
+			}
+			return
+		}
+		runLarge(*autoOnly, *manualSeconds, *maximized)
+		return
+	}
 
 	if *caseFlag != "hit" && *caseFlag != "jump" {
 		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want hit or jump\n", *caseFlag)
