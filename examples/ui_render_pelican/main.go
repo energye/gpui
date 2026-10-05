@@ -27,10 +27,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/application"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/scheduler"
@@ -155,6 +159,7 @@ func main() {
 	// 取好，Run 返回后窗口已关、再取就是空，帧数会报 0（窗本身画得好好的）。
 	mainPipe := mainWin.Pipeline()
 	mainBackend := mainWin.Platform().Backend()
+	autoSpawnClose(app)
 	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "run:", err)
 		os.Exit(1)
@@ -221,4 +226,87 @@ func (t *tick) Tick(dt float64) bool {
 		t.on(dt)
 	}
 	return true
+}
+
+// memSnapshot 打印当前进程内存快照：Go 堆（在用/向系统申请）+ RSS + 显存账本。
+// 只观测不干预，关窗释放问题的诊断探针。
+func memSnapshot(tag string) {
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	fmt.Fprintf(os.Stderr, "MEM %s heapAlloc=%.1fMiB heapInuse=%.1fMiB heapSys=%.1fMiB rss=%.1fMiB vramLive=%.1fMiB vramCount=%d\n",
+		tag,
+		float64(ms.HeapAlloc)/(1024*1024),
+		float64(ms.HeapInuse)/(1024*1024),
+		float64(ms.HeapSys)/(1024*1024),
+		float64(procRSS())/(1024*1024),
+		float64(render.VramLiveBytes())/(1024*1024),
+		render.VramLiveCount())
+}
+
+// procRSS 读 /proc/self/stat 第 24 字段（常驻内存，常用来跟用户看到的
+// 任务管理器数字对照）。读不到返回 0，不影响主流程。
+func procRSS() uint64 {
+	b, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		return 0
+	}
+	i := strings.LastIndex(string(b), ")")
+	if i < 0 {
+		return 0
+	}
+	f := strings.Fields(string(b)[i+1:])
+	if len(f) < 22 {
+		return 0
+	}
+	var pages uint64
+	if _, err := fmt.Sscan(f[21], &pages); err != nil {
+		return 0
+	}
+	return pages * 4096
+}
+
+// autoSpawnClose 关窗释放诊断探针（默认关闭）：
+// PELICAN_SPAWN_CLOSE2="openSec,closeSec" 时，运行 openSec 秒后自动多开
+// 一扇同样的窗（走 + 钮同一条 SpawnWindow 路），再过 closeSec-openSec 秒
+// 后自动关闭它，并在开窗前/关窗前/关窗+GC 后各打一张内存快照。
+// 关窗走 Window.Close，与点 X 同一条路。
+func autoSpawnClose(app *application.App) {
+	v := os.Getenv("PELICAN_SPAWN_CLOSE2")
+	if v == "" {
+		return
+	}
+	parts := strings.Split(v, ",")
+	if len(parts) != 2 {
+		fmt.Fprintf(os.Stderr, "ui_render_pelican: bad PELICAN_SPAWN_CLOSE2=%q (want openSec,closeSec)\n", v)
+		return
+	}
+	openSec, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+	closeSec, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err1 != nil || err2 != nil || openSec <= 0 || closeSec <= openSec {
+		fmt.Fprintf(os.Stderr, "ui_render_pelican: bad PELICAN_SPAWN_CLOSE2=%q (want openSec,closeSec)\n", v)
+		return
+	}
+	go func() {
+		time.Sleep(time.Duration(openSec) * time.Second)
+		memSnapshot("pre-open")
+		n := pelicanWins.Add(1)
+		w2, err := openPelicanWindow(app, pelicanTitle(n))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ui_render_pelican: auto open window #%d: %v\n", n, err)
+			return
+		}
+		fmt.Fprintf(os.Stderr, "ui_render_pelican: auto opened window #%d\n", n)
+		time.Sleep(time.Duration(closeSec-openSec) * time.Second)
+		memSnapshot("pre-close")
+		w2.Close()
+		fmt.Fprintf(os.Stderr, "ui_render_pelican: auto closed window #%d\n", n)
+		// 给 GC 一个机会：先只采一次（看自然状态），再强制 GC 采一次
+		// （区分"没回收"和"GC 还没跑"）。
+		time.Sleep(2 * time.Second)
+		memSnapshot("post-close-nogc")
+		runtime.GC()
+		debug.FreeOSMemory()
+		time.Sleep(1 * time.Second)
+		memSnapshot("post-close-forcedgc")
+	}()
 }
