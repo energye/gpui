@@ -442,6 +442,77 @@ func TestBroadphaseSleepWake(t *testing.T) {
 	}
 }
 
+// E2: static rest never wakes: a sleeper parked on a static stays parked
+// across repeated Query (Godot Body sleep convergence). Dynamic touch
+// still wakes, so the yard row turns gray instead of churning.
+func TestBroadphaseStaticRestNoWake(t *testing.T) {
+	var bp = NewBroadphase()
+	if err := bp.SetMaxCandidates(0); err != nil {
+		t.Fatal(err)
+	}
+	wall, _ := NewBox("wall", core.V2(64, 64), core.V2(20, 20), 1, 1, false)
+	drop, _ := NewBox("drop", core.V2(64, 64), core.V2(10, 10), 1, 1, false)
+	hs, err := bp.Track(wall, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hd, err := bp.Track(drop, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = hs
+	if err := bp.Sleep(hd); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		got, err := bp.Query()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("round %d contacts = %d, want 1", i, len(got))
+		}
+		if len(bp.Woke()) != 0 {
+			t.Fatalf("round %d woke = %v, want []", i, bp.Woke())
+		}
+		if bp.IsActive(hd) {
+			t.Fatalf("round %d static rest woke the sleeper", i)
+		}
+	}
+	if bp.SleepingCount() != 1 {
+		t.Errorf("sleeping = %d, want 1", bp.SleepingCount())
+	}
+	// Sleeper-sleeper rest also stays parked: neither side is awake to
+	// push, so repeated Query converges instead of churning.
+	var bp2 = NewBroadphase()
+	if err := bp2.SetMaxCandidates(0); err != nil {
+		t.Fatal(err)
+	}
+	s1, _ := NewBox("s1", core.V2(0, 0), core.V2(10, 10), 1, 1, false)
+	s2, _ := NewBox("s2", core.V2(5, 0), core.V2(10, 10), 1, 1, false)
+	h1, _ := bp2.Track(s1, false)
+	h2, _ := bp2.Track(s2, false)
+	if err := bp2.Sleep(h1); err != nil {
+		t.Fatal(err)
+	}
+	if err := bp2.Sleep(h2); err != nil {
+		t.Fatal(err)
+	}
+	got, err := bp2.Query()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("sleeper pair contacts = %d, want 1", len(got))
+	}
+	if len(bp2.Woke()) != 0 {
+		t.Fatalf("sleeper pair woke = %v, want []", bp2.Woke())
+	}
+	if bp2.SleepingCount() != 2 {
+		t.Errorf("sleeper pair sleeping = %d, want 2", bp2.SleepingCount())
+	}
+}
+
 // F: one-way plus spring: pad impulse formula and top-only pass.
 func TestBroadphaseSpringPad(t *testing.T) {
 	yf, _ := loadYardFiles(t)

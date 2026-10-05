@@ -1600,29 +1600,54 @@ func (s *largeSim) tickLarge(dt float64) {
 	s.woke += len(s.lv.bp.Woke())
 	s.sleep = s.lv.bp.SleepingCount()
 	// Hero auto-hops the filed pad, then rides the one-way.
+	// Pad fires on crossing (falling through 420 inside the pad span),
+	// not on being below it: the old ny>406 stayed true deep underground
+	// so one late bounce buried the hero and it never came back.
+	// Slopes land from above (prev above, next at/below), the floor at
+	// 1220 keeps the hero in view. Start X 270 lands first fall on the
+	// pad (40/s drift covers ~41px during the 1s drop onto 320+-30).
+	prevHX, prevHY := s.hero.X, s.hero.Y
 	s.heroVel.Y += 600 * dt
-	s.hero.X += s.nudgeX
-	s.hero.Y += s.nudgeY
+	nx := prevHX + 60*dt + s.nudgeX
+	ny := prevHY + s.heroVel.Y*dt + s.nudgeY
 	s.nudgeX, s.nudgeY = 0, 0
-	nx := s.hero.X + 40*dt
-	ny := s.hero.Y + s.heroVel.Y*dt
-	if len(s.lv.springs) > 0 && ny > 420-14 && s.heroVel.Y > 0 && nx > 320-30 && nx < 320+30 {
+	if len(s.lv.springs) > 0 && s.heroVel.Y > 0 && prevHY <= 420 && ny >= 420 && nx > 320-30 && nx < 320+30 {
 		s.heroVel.Y = s.lv.springs[0].Bounce(s.heroVel.Y)
+		ny = 420
 		s.jumps++
 	}
-	s.hero.X, s.hero.Y = nx, ny
-	if s.hero.X > 1100 {
-		s.hero.X = 60
-		s.hero.Y = 100
-		s.heroVel = core.Vec2{}
-	}
+	landed := false
 	for _, sl := range s.lv.slopes {
-		if gy, ok := sl.GroundYAt(s.hero.X); ok && s.hero.Y >= gy-14 && s.hero.Y <= gy+14 {
-			s.lands++
+		if gy, ok := sl.GroundYAt(nx); ok && s.heroVel.Y >= 0 && prevHY <= gy+14 && ny >= gy-14 {
+			ny = gy
+			s.heroVel.Y = 0
+			landed = true
 			break
 		}
 	}
-	s.moved += 40 * dt
+	if landed {
+		s.lands++
+	} else {
+		// Ride count: standing on a slope still counts (old window
+		// semantics), so auto-run lands without needing a fresh
+		// crossing every frame.
+		for _, sl := range s.lv.slopes {
+			if gy, ok := sl.GroundYAt(nx); ok && ny >= gy-14 && ny <= gy+14 {
+				s.lands++
+				break
+			}
+		}
+	}
+	s.hero.X, s.hero.Y = nx, ny
+	// Wrap at the world right edge (2080 maps to the window right edge):
+	// the old 1100 cut the run at mid-window, so the hero never reached
+	// the right side. 2000 lands at ~1150/1200px, then restarts.
+	if s.hero.X > 2000 {
+		s.hero.X = 250
+		s.hero.Y = 100
+		s.heroVel = core.Vec2{}
+	}
+	s.moved += 60 * dt
 	// Stillness sleep runs on the same clock as the drop: only settled
 	// frames count, so the falling row never parks mid-air.
 	s.lv.bp.Update()
@@ -1645,6 +1670,15 @@ func (s *largeSim) tickLarge(dt float64) {
 		hx := (s.hero.X - 0) * sx
 		hy := (s.hero.Y - 0) * sy
 		s.dots = append(s.dots, largeYardDot{px: hx, py: hy, hero: true})
+	}
+	// Pads ride with the dots so the bounce spot stays visible: filed
+	// pad (SpringX, 420) in world units, same scale as the bodies.
+	for range s.lv.springs {
+		s.dots = append(s.dots, largeYardDot{
+			px:  s.lv.layout.SpringX * sx,
+			py:  420 * sy,
+			pad: true,
+		})
 	}
 	_ = s.phase.Advance(dt)
 	snap := s.app.Metrics().Snapshot()
@@ -1705,7 +1739,7 @@ func runLarge(autoOnly bool, manualSeconds int, maximized bool) {
 		fmt.Fprintln(os.Stderr, "FAIL: yard:", err)
 		os.Exit(1)
 	}
-	sim := &largeSim{lv: lv, view: core.NewRect(0, 0, 2080, 1280), hero: core.V2(200, 100), dropDY: 60}
+	sim := &largeSim{lv: lv, view: core.NewRect(0, 0, 2080, 1280), hero: core.V2(250, 100), dropDY: 60}
 	if secs > 0 {
 		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
 	} else {
@@ -1729,6 +1763,16 @@ func runLarge(autoOnly bool, manualSeconds int, maximized bool) {
 		dc.DrawRectangle(ax, ay, float64(size.Width), float64(size.Height))
 		_ = dc.Fill()
 		bw, bh := float64(size.Width), float64(size.Height)
+		// Slopes/one-way ride under the dots: filed segments in world
+		// units, same scale as the bodies, so the landing bar is visible.
+		sxW := float64(size.Width) / 2080.0
+		syW := float64(size.Height) / 1280.0
+		for _, sl := range sim.lv.slopes {
+			dc.SetRGB(jumpPlatR, jumpPlatG, jumpPlatB)
+			dc.SetLineWidth(4)
+			dc.DrawLine(ax+sl.A().X*sxW, ay+sl.A().Y*syW, ax+sl.B().X*sxW, ay+sl.B().Y*syW)
+			_ = dc.Stroke()
+		}
 		for _, d := range sim.dots {
 			if d.px < -16 || d.px > bw+16 || d.py < -16 || d.py > bh+16 {
 				continue

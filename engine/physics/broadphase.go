@@ -585,7 +585,9 @@ func fastCollide(ea, eb *bpEntry) bool {
 // pay narrow tests only. Evaluations count
 // every grid pair tested; the cap trims contacts only, never evaluations,
 // so Trimmed plus contacts always reconcile with the pair count.
-// stay collidable and land in Woke (auto-woken with AutoWake on). Past
+// stay collidable and land in Woke when an awake non-static touches
+// them (auto-woken with AutoWake on; static rest and sleeper-sleeper
+// rest never wake).
 // MaxCandidates Query keeps the first contacts and counts Trimmed; the
 // wake scan only sees kept contacts, documented and deterministic.
 func (b *Broadphase) Query() ([]Contact, error) {
@@ -619,8 +621,22 @@ func (b *Broadphase) Query() ([]Contact, error) {
 			continue
 		}
 		b.active = append(b.active, Contact{AI: p.a, BI: p.b, A: ea.body.Name, B: eb.body.Name, Trigger: ea.body.Trigger || eb.body.Trigger})
+		// Wake rule (Godot Body sleep semantics): a parked dynamic
+		// rejoins only when an awake non-static pushes it. Steady rest
+		// on a static is not a wake event, and two sleepers resting on
+		// each other stay parked: without this the yard row would be
+		// re-woken by its own resting contact every Query and never
+		// converge to gray. Sleepers stay collidable either way.
 		for _, h := range []int{p.a, p.b} {
+			o := p.a
+			if h == p.a {
+				o = p.b
+			}
 			e := &b.entries[h]
+			ob := &b.entries[o]
+			if !ob.alive || ob.static || ob.asleep {
+				continue
+			}
 			if e.alive && e.asleep && !e.static {
 				dup := false
 				for _, w := range b.woke {
@@ -647,8 +663,9 @@ func (b *Broadphase) Query() ([]Contact, error) {
 	return append([]Contact(nil), b.active...), nil
 }
 
-// Woke returns the handles parked-asleep but contacted by the last
-// Query, in first-contact order. A fresh slice every call.
+// Woke returns the handles parked-asleep but contacted by an awake
+// non-static in the last Query, in first-contact order. A fresh slice
+// every call.
 func (b *Broadphase) Woke() []int {
 	if b == nil || len(b.woke) == 0 {
 		return nil
