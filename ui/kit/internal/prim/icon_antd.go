@@ -98,7 +98,9 @@ func parsedAntdPaths() map[string][]antdParsedPath {
 
 // PaintAntdIcon draws the official glyph in a size x size local box.
 // Returns false when the icon is unknown (caller falls back).
-// Colors: no-fill paths use main; primaryColor->main, secondaryColor->second.
+// Colors: no-fill paths use main; primaryColor->main;
+// secondaryColor->explicit second, else generate(main)[0] (official
+// getSecondaryColor, opaque — never translucent primary).
 //
 // NOTE (E6 atlas attempt, reverted 2026-09-21): a pixel-level glyph atlas
 // (rasterize once to ImageBuf, blit thereafter) FAILED pixel-identity:
@@ -137,7 +139,8 @@ func paintAntdVector(pc *rendering.PaintContext, size float64, name, th string, 
 			if hasSecond {
 				r, g, b, a = second.R, second.G, second.B, second.A
 			} else {
-				r, g, b, a = main.R, main.G, main.B, 0.15
+				derived := AntdSecondaryForMain(main)
+				r, g, b, a = derived.R, derived.G, derived.B, derived.A
 			}
 		default:
 			r, g, b, a = main.R, main.G, main.B, main.A

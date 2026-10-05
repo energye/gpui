@@ -134,15 +134,59 @@ func TestNested_WheelBubble(t *testing.T) {
 	parentVP, childVP, childSC := nestedPair(t)
 	childVP.SetScrollOffset(0, 0)
 	parentVP.SetScrollOffset(0, 50)
-	// ScrollY=+40 → ScrollBy(0,-40); child at top clamps; residual → parent 10.
+	// Wheel down (ScrollY+) moves content in scroll space: child at top
+	// consumes the whole delta; parent stays put.
 	childSC.HandlePointer(platform.Event{
 		Type: platform.EventPointer, Pointer: platform.PointerScroll, ScrollY: 40,
 	})
-	if childVP.ScrollOffset().Y > 1e-6 {
-		t.Fatalf("child Y=%v", childVP.ScrollOffset().Y)
+	if got := childVP.ScrollOffset().Y; got < 39.5 || got > 40.5 {
+		t.Fatalf("child Y=%v want ~40", got)
 	}
-	if got := parentVP.ScrollOffset().Y; got < 9.5 || got > 10.5 {
-		t.Fatalf("parent Y=%v want ~10", got)
+	if got := parentVP.ScrollOffset().Y; got != 50 {
+		t.Fatalf("parent Y=%v want 50 (child not at edge)", got)
+	}
+}
+
+func TestNested_WheelBubble_AtBottom(t *testing.T) {
+	parentVP, childVP, childSC := nestedPair(t)
+	maxC := childVP.MaxScrollY()
+	childVP.SetScrollOffset(0, maxC)
+	parentVP.SetScrollOffset(0, 50)
+	// Child at bottom: wheel down residual bubbles to parent.
+	childSC.HandlePointer(platform.Event{
+		Type: platform.EventPointer, Pointer: platform.PointerScroll, ScrollY: 40,
+	})
+	if got := childVP.ScrollOffset().Y; got != maxC {
+		t.Fatalf("child Y=%v want max %v", got, maxC)
+	}
+	if got := parentVP.ScrollOffset().Y; got < 89.5 || got > 90.5 {
+		t.Fatalf("parent Y=%v want ~90", got)
+	}
+}
+
+func TestWheel_NotchStepAndDirection(t *testing.T) {
+	parentVP, childVP, childSC := nestedPair(t)
+	_ = parentVP
+	childVP.SetScrollOffset(0, 100)
+	// One discrete notch (exactly ±1, X11 buttons 4/5) = one 48px step.
+	childSC.HandlePointer(platform.Event{
+		Type: platform.EventPointer, Pointer: platform.PointerScroll, ScrollY: 1,
+	})
+	if got := childVP.ScrollOffset().Y; got != 148 {
+		t.Fatalf("notch down Y=%v want 148", got)
+	}
+	childSC.HandlePointer(platform.Event{
+		Type: platform.EventPointer, Pointer: platform.PointerScroll, ScrollY: -1,
+	})
+	if got := childVP.ScrollOffset().Y; got != 100 {
+		t.Fatalf("notch up Y=%v want 100", got)
+	}
+	// Continuous valuators (Wayland/trackpad) pass through unscaled.
+	childSC.HandlePointer(platform.Event{
+		Type: platform.EventPointer, Pointer: platform.PointerScroll, ScrollY: 12.5,
+	})
+	if got := childVP.ScrollOffset().Y; got != 112.5 {
+		t.Fatalf("continuous Y=%v want 112.5", got)
 	}
 }
 

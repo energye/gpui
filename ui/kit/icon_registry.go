@@ -11,7 +11,6 @@
 package kit
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/energye/gpui/ui/theme"
@@ -26,16 +25,13 @@ type iconSource struct {
 var iconRegistryMu sync.Mutex
 var iconSources []iconSource
 
-// iconGlobalTwoTone defaults to the theme primary seed (antd
-// setTwoToneColor default follows colorPrimary); always overridable
-// via SetTwoToneColorGlobal, never a second brand source.
-var iconGlobalTwoTone = iconDefaultTwoTone()
-
-func iconDefaultTwoTone() string {
-	c := theme.DefaultTokens().ColorPrimary
-	return fmt.Sprintf("#%02x%02x%02x",
-		uint8(c.R*255+0.5), uint8(c.G*255+0.5), uint8(c.B*255+0.5))
-}
+// iconGlobalTwoTone follows the official IconBase defaults:
+// primary '#333', secondary '#E6E6E6' (never theme blue).
+// SetTwoToneColorGlobal overrides primary and derives secondary via
+// generate(primary)[0], matching setTwoToneColor(primary).
+var iconGlobalTwoTone = "#333"
+var iconGlobalTwoToneSet = false
+var iconGlobalTwoToneSecondary = "#E6E6E6"
 
 // RegisterIconSource adds an offline source; later sources override
 // same names (matches antd multi scriptUrl order). Same-source
@@ -111,12 +107,27 @@ func (f *IconfontFamily) NewIcon(typeName string) IconProps {
 }
 
 // SetTwoToneColorGlobal sets the global double-color default.
+// Single primary form derives secondary via the official palette
+// generate(primary)[0]; use SetTwoToneColorsGlobal for explicit pair.
 func SetTwoToneColorGlobal(c string) {
 	iconRegistryMu.Lock()
 	defer iconRegistryMu.Unlock()
 	if c != "" {
 		iconGlobalTwoTone = c
+		iconGlobalTwoToneSet = true
+		iconGlobalTwoToneSecondary = ""
 	}
+}
+
+// SetTwoToneColorsGlobal sets an explicit global primary+secondary pair.
+func SetTwoToneColorsGlobal(primary, secondary string) {
+	iconRegistryMu.Lock()
+	defer iconRegistryMu.Unlock()
+	if primary != "" {
+		iconGlobalTwoTone = primary
+		iconGlobalTwoToneSet = true
+	}
+	iconGlobalTwoToneSecondary = secondary
 }
 
 // GetTwoToneColorGlobal returns the global double-color default.
@@ -124,6 +135,13 @@ func GetTwoToneColorGlobal() string {
 	iconRegistryMu.Lock()
 	defer iconRegistryMu.Unlock()
 	return iconGlobalTwoTone
+}
+
+// getTwoToneGlobals returns primary, secondary, explicit-set flag.
+func getTwoToneGlobals() (string, string, bool) {
+	iconRegistryMu.Lock()
+	defer iconRegistryMu.Unlock()
+	return iconGlobalTwoTone, iconGlobalTwoToneSecondary, iconGlobalTwoToneSet
 }
 
 // parseIconColor parses #rgb/#rrggbb; invalid yields zero color.

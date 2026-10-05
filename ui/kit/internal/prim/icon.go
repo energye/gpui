@@ -110,7 +110,7 @@ func PaintIconGlyph(pc *rendering.PaintContext, box rendering.Size, size float64
 	second := spec.Secondary
 	hasSecond := spec.HasSecond
 	if spec.TwoTone && !hasSecond {
-		// Two-tone without explicit secondary uses derived halo.
+		// Two-tone without explicit secondary uses the official palette.
 		hasSecond = false
 	}
 	if PaintAntdIcon(pc, size, spec.Name, th, spec.Main, second, hasSecond) {
@@ -129,8 +129,9 @@ func secondColor(spec IconPaintSpec) (r, g, b, a float64) {
 	if spec.HasSecond {
 		return spec.Secondary.R, spec.Secondary.G, spec.Secondary.B, spec.Secondary.A
 	}
-	// Derived secondary: main at ~15% over transparent (two-tone halo).
-	return spec.Main.R, spec.Main.G, spec.Main.B, 0.15
+	// Derived secondary follows the official palette (opaque lightest step).
+	derived := AntdSecondaryForMain(spec.Main)
+	return derived.R, derived.G, derived.B, derived.A
 }
 
 func drawIconBody(pc *rendering.PaintContext, cx, cy, size float64, spec IconPaintSpec) {
@@ -141,7 +142,8 @@ func drawIconBody(pc *rendering.PaintContext, cx, cy, size float64, spec IconPai
 	if u <= 0 {
 		u = 1
 	}
-	// Two-tone halo: faint disc so the secondary color participates.
+	// Two-tone halo: faint disc so the secondary color participates
+	// (hand-drawn fallback glyphs only; official paths use palette).
 	if spec.TwoTone {
 		rendering.FillCircle(pc, cx, cy, size*0.42, sr, sg, sb, sa)
 	}

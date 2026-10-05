@@ -146,12 +146,17 @@ func (s *Scrollable) applyScrollDelta(dx, dy float64) {
 }
 
 // applyWheel applies wheel deltas (platform ScrollX/Y) with optional bubble.
+// Wheel deltas arrive in scroll space: wheel down (ScrollY+) moves content
+// up (offset+). Do NOT negate (drag uses finger space and negates there;
+// wheel must not copy that convention).
+// Discrete notches (backends report exactly ±1 per notch: X11 buttons
+// 4/5/6/7) convert to WheelStepPx; continuous valuators (Wayland axis
+// values, trackpads) already arrive in logical pixels and pass through.
 func (s *Scrollable) applyWheel(scrollX, scrollY float64) {
 	if s == nil || s.Viewport == nil {
 		return
 	}
-	// Same convention as pre-P5b HandlePointer: ScrollBy(-scrollX, -scrollY).
-	dx, dy := -scrollX, -scrollY
+	dx, dy := wheelToScroll(scrollX), wheelToScroll(scrollY)
 	before := s.Viewport.ScrollOffset()
 	s.Viewport.ScrollBy(dx, dy)
 	after := s.Viewport.ScrollOffset()
@@ -161,6 +166,18 @@ func (s *Scrollable) applyWheel(scrollX, scrollY float64) {
 		// Parent receives residual as ScrollBy (already in scroll space).
 		s.Parent.applyScrollDelta(resX, resY)
 	}
+}
+
+// WheelStepPx converts one discrete wheel notch to logical pixels
+// (3-line convention: 3 × 16px base line). Applies only to exact ±1
+// notches; continuous valuators pass through unscaled.
+const WheelStepPx = 48.0
+
+func wheelToScroll(v float64) float64 {
+	if v == 1 || v == -1 {
+		return v * WheelStepPx
+	}
+	return v
 }
 
 // AtMinY reports scrollY is at the top (cannot scroll further "up" content-wise:

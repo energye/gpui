@@ -399,7 +399,7 @@ import { HomeOutlined } from '@ant-design/icons';
 | --- | --- | --- |
 | 默认单色 | `colorText` | `Color.A==0` 时回落 Theme |
 | 双色主色 | `colorPrimary` 或 `SetTwoToneColor` | antd `twoToneColor` / 全局 `setTwoToneColor` |
-| 双色次色 | 主色半透明或显式 secondary | `SetTwoToneColors(primary, secondary)` |
+| 双色次色 | generate(主色)[0] 不透明浅色，或显式 secondary | `SetTwoToneColors(primary, secondary)`；与官方 `getSecondaryColor` 同算法 |
 | 禁用（适用者） | `colorDisabledText` | Icon 自身可选 `Disabled` 外观 |
 | 强调 / 状态 | `colorError` / `Success` / `Warning` | 业务 `SetColor` 覆盖 |
 
@@ -564,7 +564,7 @@ SetSize(float64)                 // 0 → DefaultIconSize(16)
 SetColor(render.RGBA)            // A==0 → Theme colorText
 SetRotate(deg float64)           // 静态角（度）
 SetSpin(bool)                    // Ticker 旋转
-SetTwoToneColor(primary RGBA)    // 仅主色；次色默认派生
+SetTwoToneColor(primary RGBA)    // 仅主色；次色按官方色板派生 generate(primary)[0]
 SetTwoToneColors(primary, secondary RGBA)
 SetPainter(IconPainter)          // antd component；非 nil 优先
 SetTheme(*core.Theme)

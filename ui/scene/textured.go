@@ -1742,19 +1742,23 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 						dc.Pop()
 					}
 					st.ReplayedOps += n
-					// Refused oversized layers replay every frame without a
-					// texture: damage the refused region or LoadOpLoad
-					// present keeps stale pixels there.
+					// Oversized layers replay vector every frame only while the
+					// replay actually paints inside the surface: stashing the
+					// layer-local bounds would damage the union of the
+					// visible window plus the (possibly huge) off-surface
+					// tail, and a tall scroll list flapping between cached
+					// bands reports near-full-surface damage on steady
+					// spin-only frames. Damage is reported by the replayed
+					// picture bounds below (RecordedThisFrame), clipped to
+					// the surface by PresentWithAuto.
 					if noTex == 0 {
-						if ob := tex.OversizedBounds(pl.CacheKey); !ob.Empty() {
-							st.DamageRects = append(st.DamageRects, transformBounds(dc, ob))
-						}
-						// Admission-refused layers replay vector the same
-						// way: damage current bounds or the replay never
-						// reaches the screen.
-						if rb := tex.RefusedBounds(pl.CacheKey); !rb.Empty() {
-							st.DamageRects = append(st.DamageRects, transformBounds(dc, rb))
-						}
+						_ = tex.OversizedBounds(pl.CacheKey)
+					}
+					// Admission-refused layers replay vector the same
+					// way: damage current bounds or the replay never
+					// reaches the screen.
+					if rb := tex.RefusedBounds(pl.CacheKey); !rb.Empty() {
+						st.DamageRects = append(st.DamageRects, transformBounds(dc, rb))
 					}
 				}
 				// Re-recorded this frame → the layer's region changed. Damage

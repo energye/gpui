@@ -40,7 +40,7 @@
 
 | 波 | 组件 | 源码前缀 | 真窗目录 | 状态 | 验证 commit | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| F1 | Icon | `icon_` | `examples/kit/icon/` | 🟩已绿 | 本次提交 | 五段齐+官方848全量1:1（icons-svg4.6.0 o447/f251/t150）+单测7文件逐文件绿+真窗可滚目录142行全tour+3探针+Golden结构零差异（slow严格0/fast 48LSB/10px声明）+resize回1200x800+retained/damage0.004+slow30s证据fps59/p95-17；E6根因修引擎VirtualList（新行当场布局，5000回放→0，图标代码未动）；旧实现作废未迁移；未动他线文件 |
+| F1 | Icon | `icon_` | `examples/kit/icon/` | ✅已签字 | 本次提交 | 五段齐+官方848全量1:1（icons-svg4.6.0 o447/f251/t150）+单测7文件逐文件绿+真窗可滚目录149行全tour+4探针+Golden结构零差异+resize回1200x800+retained/damage0.0003+8s自检两后端绿（native fps60/p95-18，go fps59.7/p95-17.8）+双色悬停选中走绿+卡片绿底绿边+列表跟窗（list_follows_window）+图标标题14px；用户2026-10-05人工确认通过 |
 | F1 | Typography | `typography_` | `examples/kit/typography/` | ⬜未开 | — | 剪贴板宿主后补 |
 | F1 | Divider | `divider_` | `examples/kit/divider/` | ⬜未开 | — | — |
 | F1 | Tag | `tag_` | `examples/kit/tag/` | ⬜未开 | — | — |

@@ -83,8 +83,10 @@ func (in *IconInstance) ResolveIconPaintSpec() IconPaintSpec {
 }
 
 // IconPainterForSpec returns the L1 painter for a spec. Custom keys
-// resolve as glyph names when known (offline iconfont maps type to a
-// glyph key); unknown custom keys draw a heart stand-in, never blank.
+// resolve first as offline custom SVG (custom.tsx heart/panda,
+// iconfont.cn symbols vendored in prim); then as glyph names when known
+// (offline iconfont maps type to a glyph key); unknown custom keys draw
+// a heart stand-in, never blank.
 func IconPainterForSpec(spec IconPaintSpec) prim.Painter {
 	name := spec.Name
 	variant := spec.Variant
@@ -92,9 +94,11 @@ func IconPainterForSpec(spec IconPaintSpec) prim.Painter {
 		variant = "outlined"
 	}
 	if spec.CustomKey != "" {
-		if prim.IsKnownAntdIcon(spec.CustomKey, "outlined") || prim.IsKnownIconGlyph(spec.CustomKey) {
+		if prim.IsKnownCustomSVG(spec.CustomKey) {
+			return prim.CustomSVGPainterFor(spec.Size, spec.CustomKey, spec.Main, spec.AngleDeg)
+		}
+		if prim.IsKnownAntdIcon(spec.CustomKey, variant) || prim.IsKnownIconGlyph(spec.CustomKey) {
 			name = spec.CustomKey
-			variant = "outlined"
 		} else {
 			name = "heart"
 			variant = "filled"

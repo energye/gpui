@@ -62,6 +62,10 @@ type (
 	PrimPictureSpec = prim.PictureSpec
 	// PrimIconSpec resolves icon size and color.
 	PrimIconSpec = prim.IconSpec
+	// PrimCustomSVGPath is one offline custom subpath.
+	PrimCustomSVGPath = prim.CustomSVGPath
+	// PrimCustomSVGEntry is one offline custom symbol.
+	PrimCustomSVGEntry = prim.CustomSVGEntry
 	// PrimTextStyleScope carries one inherited style level.
 	PrimTextStyleScope = prim.TextStyleScope
 )
@@ -301,4 +305,15 @@ func PrimAntdIconEntry(i int) (key, name, iconTheme string, ok bool) {
 // PrimPaintAntdIcon draws the official glyph (1:1); false when unknown.
 func PrimPaintAntdIcon(pc *rendering.PaintContext, size float64, name, iconTheme string, main, second theme.Color, hasSecond bool) bool {
 	return prim.PaintAntdIcon(pc, size, name, iconTheme, main, second, hasSecond)
+}
+
+// PrimRegisterCustomSVG adds one offline custom symbol; later keys win.
+func PrimRegisterCustomSVG(e PrimCustomSVGEntry) { prim.RegisterCustomSVG(e) }
+
+// PrimIsKnownCustomSVG reports offline custom coverage.
+func PrimIsKnownCustomSVG(key string) bool { return prim.IsKnownCustomSVG(key) }
+
+// PrimPaintCustomSVG fills one offline custom symbol; false when unknown.
+func PrimPaintCustomSVG(pc *rendering.PaintContext, size float64, key string, main theme.Color) bool {
+	return prim.PaintCustomSVG(pc, size, key, main)
 }
