@@ -71,4 +71,15 @@
 // File shape frozen: version "1.0", entity, comps, parent links,
 // referenced asset ids. Window intent: game_world--case=open; pure file
 // math, offscreen golden only (round-trip byte-identical).
+//
+// Frozen 2026-10-05 (S85): MaxCullEntities,
+// Cull, ActiveSnap, NewCull, SetView, View, SetAutoSleep, AutoSleep,
+// SetMaxActive, MaxActive, Track, Update, Untrack, Awake, Release, IsAwake,
+// Refresh, Active, ActiveCount, Snapshot, Entered, Exited, IsActive, InView,
+// Count, Dropped, Trimmed, Refreshes, LastRefreshUs, Reset. Additive changes
+// only. Cull is
+// the large-scene visibility index (in-view plus awake pins, sleep skips
+// matrices, active-only layer/feetY sort, attach fold unbroken, enter/exit
+// events with auto Sleep/Wake). Window intent: game_world--case=large;
+// pure index math, offscreen golden only.
 package world

@@ -1184,7 +1184,7 @@ W18总指标：10分钟JSON＋8小时报表＋三遍最差全贴，不许只贴�
 | 编号 | 能力 | 前置 | 窗 | 状态 |
 |---|---|---|---|---|
 | S84 | 大地图流式与预算 | S05/S20/S26＋S33 | game_tilemap--case=large | 已完成（2026-10-05正式包60秒×3取最差presents3589、fps59.74、p95 17.75、p99 20.83、hitch1、双金0差；索引0.03毫秒、合入0.001毫秒；人工30秒用户已测WASD移动；p95/p99沿用S52豁免；详见G23） |
-| S85 | 大实体裁剪与排序 | S25/S33＋S10/S41 | game_world--case=large | 未开工 |
+| S85 | 大实体裁剪与排序 | S25/S33＋S10/S41 | game_world--case=large | 已完成（2026-10-05正式包60秒×3取最差presents3580、fps59.59、p95 19.16、p99 19.95、hitch5、双金0差；1655更新均值2.38毫秒内；单测engine/world逐文件全绿；人工60秒key126 ptr232、presents3596、backend=x11；p95/p99沿用S52豁免；详见G23） |
 | S86 | 大物理宽阶段与休眠 | S06/S21/S22 | game_physics--case=large | 未开工 |
 | S87 | 寻路转正 | S05/S22 | game_nav | 未开工 |
 | S88 | 大资源包与显存预算 | S19/S27/S33 | game_asset--case=large | 未开工 |
@@ -1788,3 +1788,4 @@ W 总指标读法：W22 关门含 S105 的 AA 模式矩阵，W26 关门含 S116 
 | 2026-10-04（S55死区双查询进引擎） | engine/camera 加 FollowDeadzone＋DualPicture/DualTarget（开发中模块直接新口，老窗同步改调，无兼容包袱）；doc.go 补 Camera 新口与 S79 三件套冻结行，矩阵断言口径定为 1e-9、窗掩膜零容差；单测 camera 全包复跑绿＋vet 净＋game_camera 自动窗复验 probes 全绿金 0 差；G15 原话不动，状态以能力行为准。 |
 | 2026-10-04（S55翻已完成） | S55 回写两处翻绿：G15 成员行＋总账能力行改已完成，证据链为 10-02 正式包三遍最差＋人工双 JSON＋10-04 新口单测与自动复验；S56–S61/S74–S77 维持进行中，待各自主项补齐再翻；G15 原话不动，状态以能力行为准。 |
 | 2026-10-05（S84翻已完成） | S84 收尾：engine/tilemap 加 Large 流式索引（32分区＋预算合入＋跳跃同帧丢旧，几何复用 Chunk，老语义不动）＋large_map.tmx/large_budget.json 数据＋large_test 4 项全绿；真窗加 large 目录分支（默认 large，老三样保留）＋定比画布＋怪速修正＋目录缝；正式包60秒×3取最差presents3589、fps59.74、p95 17.75、p99 20.83、hitch1、双金0差；人工30秒用户已测WASD移动；p95/p99沿用S52豁免；S85/S86可并行开。 |
+| 2026-10-05（S85翻已完成） | S85 收尾：engine/world 加 Cull 可见索引（框里加钉子、睡着跳过矩阵、只排框里按层按脚底、挂点不断链、进出喊声加自动睡醒，老语义不动）＋large_scene/large_cull 数据（20008实体＋四视口）＋cull_test 9项全绿；game_world 加 large 大关（老open不动，厚窗带旧本事）；正式包60秒×3取最差presents3580、fps59.59、p95 19.16、p99 19.95、hitch5、双金0差，1655更新均值2.38毫秒内；人工60秒key126 ptr232、presents3596、backend=x11；p95/p99沿用S52豁免；S86可开。 |

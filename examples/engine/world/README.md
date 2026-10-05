@@ -32,6 +32,22 @@ RUN_SECONDS=8 go run ./examples/engine/world --case=open -auto-only
 
 `wrgate.BuildReport` / `EvaluateGates`，`AbilityID=world-open`，`Scenario=game_world--case=open`，`Extra` 带 `opens` / `entities` / `moved_px` / `parse_ms` / `open_ms` / `bad_codes` / `probe_ok`。
 
+## 大关（S85 裁剪排序，`--case=large`）
+
+```sh
+go run ./examples/engine/world --case=large -auto-only
+go run ./examples/engine/world --case=large -manual-seconds 60
+RUN_SECONDS=60 go run ./examples/engine/world --case=large -auto-only
+```
+
+- 数据：`engine/world/testdata/large_scene.json`（20008 实体：200x100 网格＋500 挂点＋8 出生点）与 `large_cull.json`（四组视口＋预算），窗只读文件不编数。
+- 画面（1200x800，标题 game_world-large）：整窗全是实体场，按层染色（0 蓝/1 黄/2 紫），挂点黄线相连，出生点品红，白框是被点的 awake 钉子，左上浮一行帧率/active/进出/更新耗时。
+- 自动巡相机：视口每秒走 220 世界单位到头跳回，醒进睡出全计数；WASD/方向键点按加步，点击钉住/松开最近的实体。
+- 拉大窗口视野跟着变大（同像素密度，看得更多，块不拉伸），板子铺满窗，屏外钉子只算不画，扩大区不再冒白框。
+- `-auto-only` 门：`presents>=1`，`active>=1000`，视口走过（`view_moved>0`），探针全过，更新均值 `<=3ms`（p95/max 同报，单测另以均值守 3ms）；`RUN_SECONDS>=5`。
+- 三证据：逻辑（四视口数加头八位＋挂点不断链＋出生点对）、像素（层色＋品红＋底色，容差 4）、Golden（`testdata/world_large_golden.png` 零容差）。
+- 门禁 JSON：`AbilityID=world-large`，`Scenario=game_world--case=large`，`Extra` 带 `active` / `total` / `entered_total` / `exited_total` / `view_moved` / `update_ms_mean` / `update_ms_p95` / `update_ms_max` / `keys` / `pixels` / `golden`。
+
 ## 阈值
 
 - `present>=1`，`opens>=3`（8 秒含初开约 4 次重开），`moved_px>0`，`entities==5`，探针全过；`RUN_SECONDS>=5`。
