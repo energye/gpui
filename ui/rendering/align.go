@@ -39,9 +39,11 @@ func NewRenderAlignBox(child RenderObject, ax, ay float64) *RenderAlignBox {
 
 // SetAlignment changes the fractional alignment and repositions the child
 // directly (no layout pass: the parent size is unchanged, only the offset
-// moves). The child is marked for repaint (its pixels move); the align box
-// itself marks paint (not layout) so ancestors above a repaint boundary stay
-// clean. Layout still recomputes the offset on parent resize.
+// moves). Pure offset move marks nothing — like AbsoluteBox.Place, the
+// retained textured path reuses the child's cached texture and damages
+// old ∪ new footprints via blit (see PictureTextureCache.blit, d75dfe86).
+// Content changes still need an explicit MarkNeedsPaint by the caller.
+// Layout still recomputes the offset on parent resize.
 func (a *RenderAlignBox) SetAlignment(ax, ay float64) {
 	if a == nil {
 		return
@@ -50,23 +52,15 @@ func (a *RenderAlignBox) SetAlignment(ax, ay float64) {
 		return
 	}
 	a.AlignX, a.AlignY = ax, ay
-	positioned := false
 	if sz := a.Size(); a.child != nil && sz.Width > 0 && sz.Height > 0 {
 		csz := a.child.Size()
 		a.child.SetOffset(Point{
 			X: (sz.Width - csz.Width) * a.AlignX,
 			Y: (sz.Height - csz.Height) * a.AlignY,
 		})
-		positioned = true
+		return
 	}
-	if !positioned {
-		a.MarkNeedsLayout()
-	} else {
-		a.MarkNeedsPaint()
-	}
-	if a.child != nil {
-		a.child.MarkNeedsPaint()
-	}
+	a.MarkNeedsLayout()
 }
 
 // Layout implements RenderObject: size from constraints, child laid out loose,

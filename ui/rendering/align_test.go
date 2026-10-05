@@ -41,7 +41,10 @@ func TestAlignBox_LayoutDrivenOffset(t *testing.T) {
 }
 
 // TestAlignBox_SetAlignmentDirties ensures alignment change repositions the
-// child (direct offset, no layout pass) and marks paint on the box + child.
+// child directly without paint marks: pure offset moves reuse the cached
+// texture via blit old∪new damage (like AbsoluteBox.Place, d75dfe86), so
+// SetAlignment must NOT dirty paint — content changes need an explicit
+// MarkNeedsPaint by the caller.
 func TestAlignBox_SetAlignmentDirties(t *testing.T) {
 	hot := NewRenderColorBox(100, 100, 1, 0, 0, 1)
 	align := NewRenderAlignBox(hot, 0.5, 0.5)
@@ -54,11 +57,11 @@ func TestAlignBox_SetAlignmentDirties(t *testing.T) {
 	if align.NeedsLayout() {
 		t.Fatal("SetAlignment must NOT mark layout dirty (offset moves directly)")
 	}
-	if !align.NeedsPaint() {
-		t.Fatal("SetAlignment must mark paint dirty (child moved)")
+	if align.NeedsPaint() {
+		t.Fatal("SetAlignment must NOT mark align paint dirty (pure move blits, no re-record)")
 	}
-	if !hot.NeedsPaint() {
-		t.Fatal("SetAlignment must mark child paint dirty (pixels move)")
+	if hot.NeedsPaint() {
+		t.Fatal("SetAlignment must NOT mark child paint dirty (pure move blits; caller marks on content change)")
 	}
 	if off := hot.Offset(); off.X != 720 || off.Y != 250 {
 		t.Fatalf("after SetAlignment offset = %v, want (720,250)", off)
