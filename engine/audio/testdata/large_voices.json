@@ -1,0 +1,1990 @@
+{
+  "listener": [
+    0,
+    0
+  ],
+  "camera": [
+    0,
+    0
+  ],
+  "requests": [
+    {
+      "pos": [
+        10,
+        0
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 1,
+      "explosive": true
+    },
+    {
+      "pos": [
+        0,
+        0
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9,
+      "explosive": false
+    },
+    {
+      "pos": [
+        100,
+        0
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -100,
+        0
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8,
+      "explosive": false
+    },
+    {
+      "pos": [
+        190,
+        0
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7,
+      "explosive": false
+    },
+    {
+      "pos": [
+        500,
+        0
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 1,
+      "explosive": false
+    },
+    {
+      "pos": [
+        79.47580513494529,
+        -17.03006054686398
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8578236479333377,
+      "explosive": false
+    },
+    {
+      "pos": [
+        148.57975316503246,
+        -53.43967738050952
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9806066180797599,
+      "explosive": false
+    },
+    {
+      "pos": [
+        101.61064689148802,
+        41.74239696778238
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5687870191023753,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -5.131443802683464,
+        -6.413531938068132
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9460267058980021,
+      "explosive": false
+    },
+    {
+      "pos": [
+        64.08572400373112,
+        -71.38425329371253
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7117177687248153,
+      "explosive": false
+    },
+    {
+      "pos": [
+        98.73399153701064,
+        95.17677586036777
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.28439702829972613,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -62.4722404735069,
+        5.989508477001991
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7268964713396779,
+      "explosive": false
+    },
+    {
+      "pos": [
+        128.74485660798632,
+        66.50430491098078
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.287554236963256,
+      "explosive": false
+    },
+    {
+      "pos": [
+        68.33210277789286,
+        36.18455336453178
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7981099338804749,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -8.544085051188006,
+        -89.91420482809889
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5094662817544005,
+      "explosive": true
+    },
+    {
+      "pos": [
+        18.613578977435367,
+        89.90062384208662
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5260603616445043,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -22.229713842478006,
+        -94.933926358967
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9564700611213337,
+      "explosive": false
+    },
+    {
+      "pos": [
+        36.48579051511197,
+        -47.654308461096015
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9520850580089337,
+      "explosive": false
+    },
+    {
+      "pos": [
+        69.41031853510577,
+        22.64908110099519
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9047512017204491,
+      "explosive": false
+    },
+    {
+      "pos": [
+        116.96779943284099,
+        -61.552046687991925
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.756298721303234,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -108.7868075923263,
+        -90.60332227917765
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7172597211575611,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -1.0332053101780332,
+        -2.4792785003996585
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8874269064200233,
+      "explosive": false
+    },
+    {
+      "pos": [
+        139.12397331220342,
+        98.8624962504903
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.3293089965591343,
+      "explosive": false
+    },
+    {
+      "pos": [
+        74.83273265015754,
+        -84.9496295866386
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7002143669013658,
+      "explosive": false
+    },
+    {
+      "pos": [
+        74.38254788352569,
+        -44.34489118211709
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.71595218640832,
+      "explosive": false
+    },
+    {
+      "pos": [
+        5.398637008032381,
+        37.88348794493294
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7915120692165523,
+      "explosive": false
+    },
+    {
+      "pos": [
+        93.9433095635791,
+        24.630554322291133
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.24810504260658545,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -136.8713634996642,
+        40.66187893604288
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9090066523062958,
+      "explosive": false
+    },
+    {
+      "pos": [
+        4.8603977723210505,
+        63.252670964
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8172814232816261,
+      "explosive": false
+    },
+    {
+      "pos": [
+        111.84292553346211,
+        -61.08431840746083
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8876874128716328,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -40.77109301815072,
+        94.15254605784202
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5162853093464628,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -98.076768083705,
+        -35.655562343865284
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7585070029140963,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -72.79131471498549,
+        -65.99227142418047
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.4546294783877276,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -40.027646601931266,
+        11.061870918966136
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8256607875361284,
+      "explosive": false
+    },
+    {
+      "pos": [
+        83.50055627105098,
+        62.492030893266985
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7604642031138493,
+      "explosive": false
+    },
+    {
+      "pos": [
+        108.88478060082838,
+        97.50057657779541
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9935243159437002,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -80.78770737729864,
+        37.3625966950909
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.2314018157789639,
+      "explosive": false
+    },
+    {
+      "pos": [
+        73.16769674313636,
+        -83.07851672769296
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.37606616077575067,
+      "explosive": false
+    },
+    {
+      "pos": [
+        25.70968591360071,
+        61.95592456593974
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.28051674630214357,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -104.0105161195517,
+        68.46493091359622
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.26569432854322267,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -134.45517572151348,
+        13.721793493897664
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.20005702135000902,
+      "explosive": false
+    },
+    {
+      "pos": [
+        19.807863391816994,
+        -7.8115920260732
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7063953380650778,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -42.60324795150015,
+        85.09039770122581
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5980398398565514,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -141.56862017961677,
+        -85.54606188645788
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8456838658820109,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -4.870180285811188,
+        -72.57788692174951
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.2667877646747441,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -114.85133503466758,
+        -11.210370627213592
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.556245027732855,
+      "explosive": false
+    },
+    {
+      "pos": [
+        90.28682680092791,
+        32.973093715754885
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.20798696134313632,
+      "explosive": true
+    },
+    {
+      "pos": [
+        147.92984261016068,
+        12.421254128361753
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8576900296160772,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -8.548773474627893,
+        -63.21615984142608
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.33033423792604594,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -117.16229922006497,
+        -88.03741989849463
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.30027461345548306,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -13.685015160013592,
+        -33.61258292123057
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7717553908929216,
+      "explosive": false
+    },
+    {
+      "pos": [
+        35.69072313740298,
+        49.368184204487534
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8070447438148591,
+      "explosive": false
+    },
+    {
+      "pos": [
+        43.063204362933504,
+        -9.684583070118165
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8387975554273932,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -118.1633974564719,
+        -84.8132017909071
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7431829747467407,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -68.41948651676469,
+        0.8171401844655719
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.25801460222315886,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -143.748085768604,
+        -28.29137551344128
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7376572036125426,
+      "explosive": false
+    },
+    {
+      "pos": [
+        43.96591560071616,
+        93.47651999239326
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5720876280469576,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -100.96753147310605,
+        84.91744615037899
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.40588631784846396,
+      "explosive": false
+    },
+    {
+      "pos": [
+        96.57829041058793,
+        91.15125012027485
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.6472664646013162,
+      "explosive": false
+    },
+    {
+      "pos": [
+        75.5287928687656,
+        19.714326825828294
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8007538537029029,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -127.06753429988994,
+        -34.96623478700944
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9537093835496757,
+      "explosive": false
+    },
+    {
+      "pos": [
+        148.37121821982805,
+        -53.61232014359687
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.33905246278499235,
+      "explosive": false
+    },
+    {
+      "pos": [
+        71.03699370389185,
+        97.58675620717867
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.4682563414231029,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -17.295026197227685,
+        86.3659462415693
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9476546932256587,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -89.60345001630114,
+        80.6990819564615
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.6584945423868326,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -27.574191205388246,
+        -79.3529430008698
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7871503798740884,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -20.64851540847019,
+        -29.08781134279738
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.6827265242609856,
+      "explosive": false
+    },
+    {
+      "pos": [
+        26.233499481270513,
+        49.10962727229003
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7458528344148092,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -42.326411102579385,
+        34.79118459721573
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9716133570047576,
+      "explosive": false
+    },
+    {
+      "pos": [
+        131.78899904758714,
+        -74.97504787050964
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7176894265239202,
+      "explosive": false
+    },
+    {
+      "pos": [
+        31.506119450422318,
+        -37.787322341022175
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7509878670301577,
+      "explosive": false
+    },
+    {
+      "pos": [
+        57.39690032935894,
+        -27.11141320116461
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8430237608749391,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -47.551342689497915,
+        -76.26950460920156
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.21831579719863933,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -19.981445401208845,
+        -9.586725604324585
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.36577703373460946,
+      "explosive": false
+    },
+    {
+      "pos": [
+        5.2834725478703035,
+        32.35598040097477
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5396409232761502,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -87.84455725891462,
+        -75.8971371431789
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7031920665697131,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -113.47673766613102,
+        12.066737390225342
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.589975258068185,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -110.40604358832762,
+        -27.359580527639736
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9057959607197759,
+      "explosive": false
+    },
+    {
+      "pos": [
+        54.290667302538736,
+        -68.70479559292366
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8894265143344935,
+      "explosive": true
+    },
+    {
+      "pos": [
+        12.314102906138146,
+        9.13383524886531
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5125857434166048,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -4.911605643147567,
+        78.9142325499827
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.952234069217657,
+      "explosive": false
+    },
+    {
+      "pos": [
+        125.30498390756117,
+        12.900856419398352
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.442834554327509,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -6.1947052498605615,
+        60.67389745150979
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.4804794040386228,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -107.01951272267048,
+        3.7855978318739574
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7431380411352035,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -22.569629799199603,
+        -49.269311446272646
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.28113416988192913,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -61.46413921904907,
+        -16.529736318458802
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.3595770490985344,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -39.20066367064945,
+        -9.418452539631005
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5725360972327946,
+      "explosive": false
+    },
+    {
+      "pos": [
+        88.55851818246174,
+        -74.97153889385154
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.798998757571066,
+      "explosive": false
+    },
+    {
+      "pos": [
+        78.34133763077614,
+        86.68509839216418
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.37278059561305543,
+      "explosive": false
+    },
+    {
+      "pos": [
+        141.68942083927715,
+        54.8994948915732
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.391453578542579,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -25.285243579101035,
+        -47.876787671264374
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.3505797504037122,
+      "explosive": false
+    },
+    {
+      "pos": [
+        134.05938933020292,
+        88.85719882464701
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.43579654461498074,
+      "explosive": false
+    },
+    {
+      "pos": [
+        101.42712660070094,
+        81.5185279709057
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.33824838865036205,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -0.37015802036916057,
+        91.98439808727909
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7254357552045934,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -46.31699516718959,
+        0.32685924118118237
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.686905508742411,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -121.78202200881157,
+        5.073255095256826
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8421824066679979,
+      "explosive": false
+    },
+    {
+      "pos": [
+        106.93524642293227,
+        96.47583673431916
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8508705179601981,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -135.67287539783712,
+        48.08188305645024
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5768654688355352,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -24.87552356531569,
+        -64.19600807804892
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.6370603254997982,
+      "explosive": false
+    },
+    {
+      "pos": [
+        267.5260557967114,
+        -100.60005106896028
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5530334864577535,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -496.18855463642944,
+        -210.79519998882236
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5576999564681671,
+      "explosive": false
+    },
+    {
+      "pos": [
+        253.31560643116177,
+        53.84302044790718
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8522329745907424,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -165.38692144657807,
+        246.46832990935616
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.33068597361448204,
+      "explosive": false
+    },
+    {
+      "pos": [
+        348.8988729231338,
+        -309.9791839779249
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.695354451088588,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -33.14294796658703,
+        89.76500976402883
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.40448378270704277,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -101.50651304275675,
+        186.1099299031498
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8978024376610463,
+      "explosive": false
+    },
+    {
+      "pos": [
+        586.415410324264,
+        -358.3383855653058
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.6769468291080867,
+      "explosive": false
+    },
+    {
+      "pos": [
+        145.40079175425205,
+        -186.30745198177453
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.4727457059768219,
+      "explosive": false
+    },
+    {
+      "pos": [
+        445.88310911266603,
+        118.79573939580575
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.4586795938214621,
+      "explosive": false
+    },
+    {
+      "pos": [
+        496.7604827065493,
+        -122.85254698237463
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5919721822995119,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -132.58180070787313,
+        233.38573263492412
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5447366283154486,
+      "explosive": true
+    },
+    {
+      "pos": [
+        228.05528816246647,
+        83.90434684026775
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.4560543583394543,
+      "explosive": false
+    },
+    {
+      "pos": [
+        486.5103500242767,
+        138.64111211821694
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5361420401295198,
+      "explosive": false
+    },
+    {
+      "pos": [
+        369.5197506878144,
+        -370.9565831075084
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.3964678964659816,
+      "explosive": false
+    },
+    {
+      "pos": [
+        556.1445355635558,
+        -349.18913092966557
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.6965610891877834,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -581.0815483936227,
+        285.30979042407296
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.43234065450084186,
+      "explosive": false
+    },
+    {
+      "pos": [
+        411.77956340376875,
+        43.15646988416307
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5487849841664358,
+      "explosive": false
+    },
+    {
+      "pos": [
+        508.4631906641009,
+        -216.5229736022403
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.24354049629349667,
+      "explosive": false
+    },
+    {
+      "pos": [
+        30.240425224524756,
+        -394.5713362270166
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.7281818043082666,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -452.24769144204475,
+        -71.12144855194157
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.6676549585658429,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -455.35324758115826,
+        -263.9232499494464
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.9801286629150807,
+      "explosive": false
+    },
+    {
+      "pos": [
+        473.6630323533366,
+        375.8257365513789
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.8780955500940333,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -240.93138334629793,
+        32.04876306696002
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.21930962616060354,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -345.6967583918717,
+        -327.4036430191106
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.37596048932555876,
+      "explosive": false
+    },
+    {
+      "pos": [
+        372.3395111780302,
+        339.6085110160054
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.945415620998987,
+      "explosive": false
+    },
+    {
+      "pos": [
+        547.9880504726739,
+        339.6983216683624
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.3921301205204435,
+      "explosive": false
+    },
+    {
+      "pos": [
+        -93.00590229846517,
+        -9.221249135173423
+      ],
+      "range": 200,
+      "attenuation": 1,
+      "pan_strength": 1,
+      "level": 0.5523812275268647,
+      "explosive": false
+    }
+  ],
+  "want": {
+    "channels": 64,
+    "audible": 32,
+    "total": 1,
+    "clipped": true,
+    "has_explosion": true,
+    "audible_indices": [
+      0,
+      1,
+      6,
+      9,
+      12,
+      14,
+      17,
+      18,
+      19,
+      22,
+      26,
+      29,
+      34,
+      42,
+      51,
+      52,
+      53,
+      60,
+      64,
+      66,
+      67,
+      68,
+      69,
+      71,
+      72,
+      75,
+      79,
+      80,
+      81,
+      87,
+      95,
+      99
+    ],
+    "gains": [
+      0.95,
+      0.9,
+      0,
+      0,
+      0,
+      0,
+      0.5092044297021883,
+      0,
+      0,
+      0.9071747390984201,
+      0,
+      0,
+      0.49880106562676096,
+      0,
+      0.48955506539993643,
+      0,
+      0,
+      0.4901820639299177,
+      0.6663744200489011,
+      0.5744620759059614,
+      0,
+      0,
+      0.8755089785691714,
+      0,
+      0,
+      0,
+      0.6400711763893331,
+      0,
+      0,
+      0.5580432905254508,
+      0,
+      0,
+      0,
+      0,
+      0.654220447571685,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.6311905696313558,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.6317139279118099,
+      0.5612255741935441,
+      0.6536801077009364,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.4882224549918768,
+      0,
+      0,
+      0,
+      0.5303046559869663,
+      0,
+      0.45651850971227154,
+      0.560956838966391,
+      0.5382178008356353,
+      0.7054395452412083,
+      0,
+      0.5662495343113737,
+      0.5754572326604986,
+      0,
+      0,
+      0.4511815883687856,
+      0,
+      0,
+      0,
+      0.5000083668155105,
+      0.4732914341242751,
+      0.5757829302061787,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.4571235811274176,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.5278245520265012,
+      0,
+      0,
+      0,
+      0.417761639570771,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "pans": [
+      0.05,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.39737902567472644,
+      0,
+      0,
+      -0.025657219013417318,
+      0,
+      0,
+      -0.3123612023675345,
+      0,
+      0.3416605138894643,
+      0,
+      0,
+      -0.11114856921239002,
+      0.18242895257555986,
+      0.3470515926755289,
+      0,
+      0,
+      -0.005166026550890166,
+      0,
+      0,
+      0,
+      0.026993185040161904,
+      0,
+      0,
+      0.024301988861605252,
+      0,
+      0,
+      0,
+      0,
+      -0.20013823300965633,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.09903931695908497,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -0.06842507580006796,
+      0.17845361568701493,
+      0.21531602181466752,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.377643964343828,
+      0,
+      0,
+      0,
+      -0.08647513098613842,
+      0,
+      -0.13787095602694122,
+      -0.10324257704235094,
+      0.13116749740635256,
+      -0.21163205551289693,
+      0,
+      0.1575305972521116,
+      0.28698450164679473,
+      0,
+      0,
+      0.026417362739351517,
+      0,
+      0,
+      0,
+      0.27145333651269365,
+      0.06157051453069073,
+      -0.024558028215737836,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -0.19600331835324725,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -0.23158497583594795,
+      0,
+      0,
+      0,
+      -0.12437761782657844,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "audibles": [
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "beat": {
+    "bpm": 120,
+    "beats_per_bar": 4,
+    "dts_ms": [
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16,
+      16
+    ],
+    "want_beats": 4,
+    "want_pos_ms": 2080,
+    "want_time_beat4_ms": 2000
+  }
+}

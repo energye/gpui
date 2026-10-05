@@ -922,7 +922,7 @@ func numExtra(m map[string]any, k string) (float64, bool) {
 }
 
 func main() {
-	caseFlag := flag.String("case", "sk", "anim case: sk (walk/run/jump bones), fsm (4.4 blend state machine), or tl (4.2 keyframe timeline)")
+	caseFlag := flag.String("case", "sk", "anim case: sk (walk/run/jump bones), fsm (4.4 blend state machine), tl (4.2 keyframe timeline), or lod (S89 animation LOD)")
 	autoOnly := flag.Bool("auto-only", false, "run selftest + short real window and exit (gate mode)")
 	manualSeconds := flag.Int("manual-seconds", 0, "manual phase timeout in seconds (0 = until window close)")
 	flag.Parse()
@@ -934,8 +934,12 @@ func main() {
 		runTLCase(*autoOnly, *manualSeconds)
 		return
 	}
+	if *caseFlag == "lod" {
+		runLODCase(*autoOnly, *manualSeconds)
+		return
+	}
 	if *caseFlag != "sk" {
-		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want sk, fsm, or tl (one ability per case, no combo)\n", *caseFlag)
+		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want sk, fsm, tl, or lod (one ability per case, no combo)\n", *caseFlag)
 		os.Exit(2)
 	}
 
@@ -2934,4 +2938,568 @@ func runTLCase(autoOnly bool, manualSeconds int) {
 	summary.Timed = secsSet
 	fmt.Fprintf(os.Stderr, "game_anim: case=tl backend=%s presents=%d parity=%v golden=%.4f%% win_golden=%.4f%% wraps=%d events=%d elapsed=%.1fs ptr=%d key=%d rs=%d\n",
 		win.Backend(), app.PresentCount(), extra["parity_ok"], goldenDiff, winGoldenDiff, wraps, evTotal, elapsedSec, summary.Pointer, summary.Key, summary.Resize)
+}
+
+// ---- --case=lod: S89 animation LOD independent window (reuse, no new window) ----
+//
+// Reads engine/anim/testdata/large_lod.json (engine-owned numbers, window
+// only probes). Offscreen paints the frozen viewport map; the live window
+// drifts the viewport deterministically with elapsed so the second run on
+// the same RUN_SECONDS lands on the same snapshot.
+
+const (
+	lodAbilityID = "anim-lod"
+	lodScenario  = "game_anim--case=lod"
+	lodEngineDir = "engine/anim/testdata"
+	lodEngineFn  = "large_lod.json"
+
+	lodOffW, lodOffH = 640, 360
+	lodPerfMaxUs     = 1000 // 1000 bounds classify under 1ms
+)
+
+type lodFile struct {
+	Viewport   [4]float64   `json:"viewport"`
+	NearDist   float64      `json:"near_dist"`
+	Bounds     [][4]float64 `json:"bounds"`
+	WantLevels []int        `json:"want_levels"`
+	WantOff    int          `json:"want_off"`
+	WantFar    int          `json:"want_far"`
+	WantNear   int          `json:"want_near"`
+	WantTick0  int          `json:"want_updates_tick0"`
+	WantTick1  int          `json:"want_updates_tick1"`
+}
+
+func lodRect(r [4]float64) core.Rect { return core.NewRect(r[0], r[1], r[2], r[3]) }
+
+func loadLODFile() (lodFile, error) {
+	var f lodFile
+	raw, err := os.ReadFile(filepath.Join(lodEngineDir, lodEngineFn))
+	if err != nil {
+		return f, err
+	}
+	if err := json.Unmarshal(raw, &f); err != nil {
+		return f, err
+	}
+	if len(f.Bounds) == 0 || len(f.WantLevels) != len(f.Bounds) {
+		return f, fmt.Errorf("lod file bounds/levels mismatch %d/%d", len(f.Bounds), len(f.WantLevels))
+	}
+	return f, nil
+}
+
+func lodSelftest(f lodFile) (map[string]any, bool) {
+	extra := map[string]any{}
+	ok := true
+	fail := func(k string, v any) {
+		extra[k] = v
+		ok = false
+	}
+	pol, err := anim.NewLodPolicy(f.NearDist)
+	if err != nil {
+		fail("policy_err", err.Error())
+		return extra, false
+	}
+	vp := lodRect(f.Viewport)
+	bounds := make([]core.Rect, len(f.Bounds))
+	for i, b := range f.Bounds {
+		bounds[i] = lodRect(b)
+	}
+	levels := pol.Batch(bounds, vp)
+	for i, lv := range levels {
+		if int(lv) != f.WantLevels[i] {
+			fail("level_"+string(rune('0'+i%10)), []int{i, int(lv), f.WantLevels[i]})
+			break
+		}
+	}
+	off, far, near := 0, 0, 0
+	for _, lv := range levels {
+		switch lv {
+		case anim.LodOff:
+			off++
+		case anim.LodFar:
+			far++
+		case anim.LodNear:
+			near++
+		}
+	}
+	extra["lod_off"] = off
+	extra["lod_far"] = far
+	extra["lod_near"] = near
+	if off != f.WantOff || far != f.WantFar || near != f.WantNear {
+		fail("lod_counts", []int{off, far, near})
+	} else {
+		extra["lod_counts_ok"] = true
+	}
+	s0 := anim.NewLodScheduler(pol)
+	fr0 := s0.NextFrame(bounds, vp)
+	s1 := anim.NewLodScheduler(pol)
+	_ = s1.NextFrame(bounds, vp)
+	fr1 := s1.NextFrame(bounds, vp)
+	extra["lod_tick0"] = fr0.Wanted
+	extra["lod_tick1"] = fr1.Wanted
+	if fr0.Wanted != f.WantTick0 || fr1.Wanted != f.WantTick1 {
+		fail("lod_ticks", []int{fr0.Wanted, fr1.Wanted})
+	} else {
+		extra["lod_ticks_ok"] = true
+	}
+	// Replay: batch twice bitwise, scheduler reset replays.
+	again := pol.Batch(bounds, vp)
+	replayOK := len(again) == len(levels)
+	if replayOK {
+		for i := range levels {
+			if again[i] != levels[i] {
+				replayOK = false
+				break
+			}
+		}
+	}
+	extra["parity_ok"] = replayOK
+	if !replayOK {
+		ok = false
+	}
+	// Cull: off entries never want updates on either tick.
+	cullOK := true
+	for i, lv := range levels {
+		if lv == anim.LodOff && (fr0.Updates[i] || fr1.Updates[i]) {
+			cullOK = false
+			break
+		}
+	}
+	extra["cull_ok"] = cullOK
+	if !cullOK {
+		ok = false
+	}
+	// Far half-rate: far updates alternate across ticks.
+	farAltOK := true
+	for i, lv := range levels {
+		if lv == anim.LodFar && fr0.Updates[i] == fr1.Updates[i] {
+			farAltOK = false
+			break
+		}
+	}
+	extra["far_half_ok"] = farAltOK
+	if !farAltOK && far > 0 {
+		ok = false
+	}
+	// Perf: 1000 classify under 1ms.
+	t0 := time.Now()
+	for k := 0; k < 5; k++ {
+		_ = pol.Batch(bounds, vp)
+	}
+	el := time.Since(t0)
+	perBatchUs := float64(el.Microseconds()) / 5
+	extra["lod_batch_us"] = perBatchUs
+	extra["lod_perf_ok"] = perBatchUs <= lodPerfMaxUs
+	if perBatchUs > lodPerfMaxUs {
+		ok = false
+	}
+	extra["probe_ok"] = ok
+	return extra, ok
+}
+
+func lodToOff(vp core.Rect, b core.Rect, x, y, w, h float64) (float64, float64, float64, float64) {
+	sx := w / 800
+	sy := h / 600
+	px := x + (b.X-vp.X)*sx
+	py := y + (b.Y-vp.Y)*sy
+	return px, py, b.W * sx, b.H * sy
+}
+
+func paintLODOffscreen(dc *render.Context, f lodFile, levels []anim.LodLevel) {
+	dc.ClearWithColor(render.RGBA{R: 0.08, G: 0.09, B: 0.11, A: 1})
+	vp := lodRect(f.Viewport)
+	// Viewport field.
+	dc.SetRGB(0.92, 0.93, 0.95)
+	dc.DrawRectangle(20, 20, lodOffW-40, lodOffH-40)
+	_ = dc.Fill()
+	for i, b4 := range f.Bounds {
+		if levels[i] == anim.LodOff {
+			continue
+		}
+		b := lodRect(b4)
+		px, py, pw, ph := lodToOff(vp, b, 20, 20, lodOffW-40, lodOffH-40)
+		if pw < 2 {
+			pw = 2
+		}
+		if ph < 2 {
+			ph = 2
+		}
+		if levels[i] == anim.LodNear {
+			dc.SetRGB(0.2, 0.65, 0.3)
+		} else {
+			dc.SetRGB(0.95, 0.75, 0.2)
+		}
+		dc.DrawRectangle(px, py, pw, ph)
+		_ = dc.Fill()
+	}
+}
+
+func lodRenderOffscreen(f lodFile, levels []anim.LodLevel) image.Image {
+	prev, had := os.LookupEnv("GOGPU_RENDER_MODE")
+	_ = os.Setenv("GOGPU_RENDER_MODE", "cpu")
+	defer func() {
+		if had {
+			_ = os.Setenv("GOGPU_RENDER_MODE", prev)
+		} else {
+			_ = os.Unsetenv("GOGPU_RENDER_MODE")
+		}
+	}()
+	dc := render.NewContext(lodOffW, lodOffH)
+	defer dc.Close()
+	paintLODOffscreen(dc, f, levels)
+	raw := dc.Image()
+	cp := image.NewRGBA(raw.Bounds())
+	if rgba, isRGBA := raw.(*image.RGBA); isRGBA {
+		copy(cp.Pix, rgba.Pix)
+		return cp
+	}
+	for y := 0; y < lodOffH; y++ {
+		for x := 0; x < lodOffW; x++ {
+			cp.Set(x, y, raw.At(x, y))
+		}
+	}
+	return cp
+}
+
+func runLODPixelProbes(img image.Image, f lodFile, levels []anim.LodLevel) (map[string]any, bool) {
+	out := map[string]any{}
+	ok := true
+	vp := lodRect(f.Viewport)
+	nearIdx, farIdx := -1, -1
+	for i, lv := range levels {
+		if lv == anim.LodNear && nearIdx < 0 {
+			nearIdx = i
+		}
+		if lv == anim.LodFar && farIdx < 0 {
+			farIdx = i
+		}
+	}
+	check := func(idx int, wantR, wantG, wantB uint8, key string) {
+		if idx < 0 {
+			out[key] = false
+			ok = false
+			return
+		}
+		b := lodRect(f.Bounds[idx])
+		px, py, pw, ph := lodToOff(vp, b, 20, 20, lodOffW-40, lodOffH-40)
+		cx, cy := int(px+pw/2+0.5), int(py+ph/2+0.5)
+		r, g, bl, valid := sampleByte(img, cx, cy)
+		good := valid && closeByte(r, wantR) && closeByte(g, wantG) && closeByte(bl, wantB)
+		out[key] = []int{int(r), int(g), int(bl)}
+		out[key+"_ok"] = good
+		if !good {
+			ok = false
+		}
+	}
+	check(nearIdx, 51, 166, 77, "near")
+	check(farIdx, 242, 191, 51, "far")
+	if r, g, b, valid := sampleByte(img, 4, 4); !valid || !closeByte(r, 20) || !closeByte(g, 23) || !closeByte(b, 28) {
+		out["field"] = []int{int(r), int(g), int(b)}
+		out["field_ok"] = false
+		ok = false
+	} else {
+		out["field_ok"] = true
+	}
+	out["pixel_ok"] = ok
+	return out, ok
+}
+
+func checkLODGolden(cur image.Image) (float64, int64, bool, bool) {
+	_ = os.MkdirAll(testdataDir, 0o755)
+	basePath := filepath.Join(testdataDir, "lod_golden.png")
+	if _, err := os.Stat(basePath); err != nil {
+		f, err := os.Create(basePath)
+		if err != nil {
+			return 100, 0, false, false
+		}
+		_ = png.Encode(f, cur)
+		_ = f.Close()
+		return 0, 0, true, true
+	}
+	f, err := os.Open(basePath)
+	if err != nil {
+		return 100, 0, false, false
+	}
+	want, err := png.Decode(f)
+	_ = f.Close()
+	if err != nil {
+		return 100, 0, false, false
+	}
+	if !want.Bounds().Eq(cur.Bounds()) {
+		return 100, int64(cur.Bounds().Dx() * cur.Bounds().Dy()), false, false
+	}
+	var diff int64
+	total := int64(cur.Bounds().Dx() * cur.Bounds().Dy())
+	for y := 0; y < cur.Bounds().Dy(); y++ {
+		for x := 0; x < cur.Bounds().Dx(); x++ {
+			ar, ag, ab, aa := cur.At(x, y).RGBA()
+			br, bg, bb, ba := want.At(x, y).RGBA()
+			if ar != br || ag != bg || ab != bb || aa != ba {
+				diff++
+			}
+		}
+	}
+	var pct float64
+	if total > 0 {
+		pct = 100 * float64(diff) / float64(total)
+	}
+	return pct, total, false, diff == 0
+}
+
+func runLODCase(autoOnly bool, manualSeconds int) {
+	secs, secsSet := wrkit.RunSecondsOpt()
+	if autoOnly {
+		if !secsSet {
+			secs = 8
+			secsSet = true
+		}
+	} else if manualSeconds > 0 {
+		secs = manualSeconds
+		secsSet = true
+	}
+	wrkit.EnsureUIFace()
+
+	f, err := loadLODFile()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: load %s: %v\n", filepath.Join(lodEngineDir, lodEngineFn), err)
+		os.Exit(1)
+	}
+	extra, ok := lodSelftest(f)
+	pol, _ := anim.NewLodPolicy(f.NearDist)
+	vp0 := lodRect(f.Viewport)
+	bounds := make([]core.Rect, len(f.Bounds))
+	for i, b := range f.Bounds {
+		bounds[i] = lodRect(b)
+	}
+	levels := pol.Batch(bounds, vp0)
+	cpuImg := lodRenderOffscreen(f, levels)
+	if cpuImg == nil {
+		extra["pixel_ok"] = false
+		ok = false
+	} else {
+		pixMap, pixOK := runLODPixelProbes(cpuImg, f, levels)
+		for k, v := range pixMap {
+			extra[k] = v
+		}
+		if !pixOK {
+			ok = false
+		}
+		_ = os.MkdirAll(testdataDir, 0o755)
+		if fh, err := os.Create(filepath.Join(testdataDir, "lod_last.png")); err == nil {
+			_ = png.Encode(fh, cpuImg)
+			_ = fh.Close()
+		}
+		gd, total, first, gok := checkLODGolden(cpuImg)
+		extra["golden_diff_pct"] = gd
+		extra["golden_total_px"] = total
+		if first {
+			extra["golden_first_run"] = 1
+		}
+		extra["golden_ok"] = gok
+		if !gok && !first {
+			ok = false
+		}
+	}
+	extra["case"] = "lod"
+	if !ok {
+		raw, _ := json.Marshal(map[string]any{"ability_id": lodAbilityID, "scenario": lodScenario, "extra": extra, "pass": false})
+		fmt.Println(string(raw))
+		fmt.Fprintln(os.Stderr, "game_anim: lod selftest FAIL, not opening window")
+		os.Exit(1)
+	}
+	if !autoOnly && !secsSet && manualSeconds <= 0 {
+		fmt.Fprintln(os.Stderr, "game_anim: lod selftest done, entering manual phase (close X to finish)")
+	}
+
+	var proc scheduler.ProcessTracker
+	proc.Start()
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: winTitle, Decorations: true})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
+		os.Exit(1)
+	}
+	host := win.Host()
+	ctl := win.Controls()
+	var summary manualSummary
+	summary.Note = "case=lod"
+	elapsed := 0.0
+	sched := anim.NewLodScheduler(pol)
+	wanted := 0
+	setTitle := func() {
+		if ctl == nil {
+			return
+		}
+		ctl.SetTitle(fmt.Sprintf("%s — lod off=%v far=%v near=%v want=%d ptr=%d key=%d rs=%d t=%.0fs",
+			winTitle, extra["lod_off"], extra["lod_far"], extra["lod_near"], wanted, summary.Pointer, summary.Key, summary.Resize, elapsed))
+	}
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: 0.08, G: 0.09, B: 0.11, A: 1}
+	full := rendering.NewRenderBox()
+	full.FixedWidth, full.FixedHeight = winW, winH
+	boundsC, vpC := bounds, vp0
+	schedC := sched
+	full.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		pc.DC.SetRGB(0.08, 0.09, 0.11)
+		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
+		_ = pc.DC.Fill()
+		// Frozen viewport for golden replay: LOD motion is proven by the
+		// tick counters in the JSON probes, not by drifting the picture.
+		vp := vpC
+		sx := size.Width / vp.W
+		sy := (size.Height - metricStripH) / vp.H
+		sk := sx
+		if sy < sk {
+			sk = sy
+		}
+		ox := ax + (size.Width-vp.W*sk)/2 - vp.X*sk
+		oy := ay + metricStripH + (size.Height-metricStripH-vp.H*sk)/2 - vp.Y*sk
+		for i, b := range boundsC {
+			lv, _ := schedC.Policy().Classify(b, vp)
+			if lv == anim.LodOff {
+				continue
+			}
+			if lv == anim.LodNear {
+				pc.DC.SetRGB(0.2, 0.65, 0.3)
+			} else {
+				pc.DC.SetRGB(0.95, 0.75, 0.2)
+			}
+			px, py := ox+b.X*sk, oy+b.Y*sk
+			pw, ph := b.W*sk, b.H*sk
+			if pw < 2 {
+				pw = 2
+			}
+			if ph < 2 {
+				ph = 2
+			}
+			_ = i
+			pc.DC.DrawRectangle(px, py, pw, ph)
+			_ = pc.DC.Fill()
+		}
+	}
+	root.Place(full, 0, 0)
+	metric := wrkit.Label("anim-lod", 13, 1, 1, 1)
+	root.Place(metric, 8, 8)
+	_ = os.MkdirAll(testdataDir, 0o755)
+	snapPath := filepath.Join(testdataDir, "lod_final.png")
+	app := embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
+		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
+		RunFor:       time.Duration(secs) * time.Second,
+		WarmUp:       true,
+		SnapshotPath: snapPath,
+		OnEvent: func(ev platform.Event) {
+			switch ev.Type {
+			case platform.EventClose, platform.EventCloseRequested:
+				fmt.Fprintf(os.Stderr, "game_anim: lod close (%s)\n", win.Backend())
+			case platform.EventResize:
+				summary.Resize++
+				if ev.Width > 0 && ev.Height > 0 {
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					full.FixedWidth, full.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
+				}
+				setTitle()
+			case platform.EventPointer:
+				summary.Pointer++
+				fmt.Fprintf(os.Stderr, "game_anim: lod pointer kind=%v @(%.0f,%.0f)\n", ev.Pointer, ev.X, ev.Y)
+				setTitle()
+			case platform.EventKey:
+				if ev.Pressed {
+					summary.Key++
+					fmt.Fprintf(os.Stderr, "game_anim: lod key code=%d rune=%q\n", ev.KeyCode, string(ev.Rune))
+					setTitle()
+				}
+			default:
+				fmt.Fprintf(os.Stderr, "game_anim: lod event %s\n", ev.Type)
+			}
+		},
+	})
+	probeOK, _ := numExtra(extra, "probe_ok")
+	pixelOK, _ := numExtra(extra, "pixel_ok")
+	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
+		elapsed += dt
+		vp := vpC
+		fr := sched.NextFrame(bounds, vp)
+		wanted = fr.Wanted
+		metric.SetText(fmt.Sprintf("anim-lod off=%d far=%d near=%d want=%d", fr.Off, fr.Far, fr.Near, fr.Wanted))
+		metric.MarkNeedsPaint()
+		full.MarkNeedsPaint()
+		app.ScheduleFrame()
+		proc.Sample()
+		_ = probeOK
+		_ = pixelOK
+	}})
+	app.Scheduler().SetMode(scheduler.ModePersistent)
+	if err := app.Open(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
+		os.Exit(1)
+	}
+	t0 := time.Now()
+	if err := app.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
+		os.Exit(1)
+	}
+	proc.Stop()
+	app.Close()
+	win.Close()
+	proc.NoteAfterClose()
+	proc.Apply(app.Metrics())
+	elapsedSec := time.Since(t0).Seconds()
+	snap := app.Metrics().Snapshot()
+	wrkit.MergeBoundaryCache(app, &snap)
+	goldenRects := []wrsoak.Rect{{X: 0, Y: metricStripH, W: winW, H: winH - metricStripH}}
+	winGoldenDiff, winGoldenTotal, winGoldenFirst := wrsoak.EvaluateGolden("game_anim", testdataDir, "lod_final.png", "lod_final_base.png", goldenRects, winW)
+	parityContract, _ := numExtra(extra, "parity_ok")
+	goldenDiff, _ := numExtra(extra, "golden_diff_pct")
+	goldenTotal, _ := numExtra(extra, "golden_total_px")
+	extra["win_golden_diff_pct"] = winGoldenDiff
+	extra["win_golden_total_px"] = winGoldenTotal
+	if winGoldenFirst {
+		extra["win_golden_first"] = 1
+	}
+	extra["pointer_events"] = summary.Pointer
+	extra["key_events"] = summary.Key
+	extra["resize_events"] = summary.Resize
+	extra["manual_timed"] = secsSet
+	report := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID: lodAbilityID, Scenario: lodScenario, Snap: snap,
+		PresentCount: app.PresentCount(), ElapsedSec: elapsedSec,
+		SurfaceAreaPx: winW * winH, Warmup: true, Extra: extra,
+	})
+	raw, _ := json.Marshal(report)
+	fmt.Println(string(raw))
+	pass := true
+	mustPass := func(cond bool, msg string, args ...any) {
+		if !cond {
+			fmt.Fprintf(os.Stderr, "FAIL: "+msg+"\n", args...)
+			pass = false
+		}
+	}
+	if err := wrgate.EvaluateGates(report, wrgate.GateOptions{MinPresents: 1}); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL:", err)
+		pass = false
+	}
+	mustPass(parityContract == 1, "parity_ok=%v want 1 (lod replay bitwise)", extra["parity_ok"])
+	mustPass(probeOK == 1, "probe_ok=%v want 1 (lod counts/ticks/perf)", extra["probe_ok"])
+	mustPass(pixelOK == 1, "pixel_ok=%v want 1 (near/far/field probes)", extra["pixel_ok"])
+	if fr, _ := numExtra(extra, "golden_first_run"); fr != 1 {
+		mustPass(goldenDiff == goldenTol, "golden_diff_pct=%.4f want %.1f over %d px", goldenDiff, goldenTol, int64(goldenTotal))
+	}
+	if !winGoldenFirst {
+		mustPass(winGoldenDiff == goldenTol, "win_golden_diff_pct=%.4f want %.1f over %d px", winGoldenDiff, goldenTol, winGoldenTotal)
+	}
+	if autoOnly {
+		summary.Timed = secsSet
+		if !pass {
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "game_anim: OK case=lod presents=%d parity=%v golden=%.4f%% win_golden=%.4f%% off=%v far=%v near=%v elapsed=%.1fs\n",
+			app.PresentCount(), extra["parity_ok"], goldenDiff, winGoldenDiff, extra["lod_off"], extra["lod_far"], extra["lod_near"], elapsedSec)
+		return
+	}
+	summary.Timed = secsSet
+	fmt.Fprintf(os.Stderr, "game_anim: case=lod backend=%s presents=%d parity=%v golden=%.4f%% win_golden=%.4f%% elapsed=%.1fs ptr=%d key=%d rs=%d\n",
+		win.Backend(), app.PresentCount(), extra["parity_ok"], goldenDiff, winGoldenDiff, elapsedSec, summary.Pointer, summary.Key, summary.Resize)
 }

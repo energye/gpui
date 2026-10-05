@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "tier": "balanced",
+  "scale": {
+    "total_images": 3000,
+    "total_sets": 50,
+    "note": "50 atlases about 60 images each. Sets below prove per-set reload on real files; estimates prove VRAM by w/h/format math with no 3000 real pictures stored."
+  },
+  "sets": [
+    {
+      "name": "ui",
+      "members": [
+        {"id": "tex/red", "kind": "ktx2", "format": "bc1", "file": "tex_red_4x4.ktx2", "version": "1.0", "width": 4, "height": 4, "size": 112, "upload": 8, "pixels": 64, "deps": []},
+        {"id": "tex/checker", "kind": "ktx2", "format": "bc1", "file": "tex_checker_8x8.ktx2", "version": "1.0", "width": 8, "height": 8, "size": 136, "upload": 32, "pixels": 256, "deps": []}
+      ]
+    },
+    {
+      "name": "map",
+      "members": [
+        {"id": "map/level1", "kind": "raw", "format": "raw", "file": "raw_level1.bin", "version": "1.0", "width": 0, "height": 0, "size": 52, "upload": 0, "pixels": 0, "deps": ["tex/red", "tex/checker"]}
+      ]
+    }
+  ],
+  "estimates": [
+    {"name": "icon-64-bc1", "format": "bc1", "width": 64, "height": 64, "count": 1200},
+    {"name": "card-128-bc1", "format": "bc1", "width": 128, "height": 128, "count": 900},
+    {"name": "photo-256-astc", "format": "astc4x4", "width": 256, "height": 256, "count": 600},
+    {"name": "bg-512-rgba8", "format": "rgba8", "width": 512, "height": 512, "count": 300}
+  ]
+}

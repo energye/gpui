@@ -1,0 +1,29 @@
+{
+  "name": "nav-small-cases",
+  "w": 10,
+  "h": 10,
+  "cell": 32,
+  "speed": 200,
+  "arrive_tol": 2,
+  "per_frame": 8,
+  "walls": [
+    [4, 0], [4, 1], [4, 2], [4, 3], [4, 4], [4, 5], [4, 6], [4, 7], [4, 8],
+    [7, 2], [8, 2], [9, 2],
+    [7, 3], [9, 3],
+    [7, 4], [8, 4], [9, 4]
+  ],
+  "cases": [
+    {"name": "have_path", "start": [0, 0], "goal": [9, 9], "want_status": "found", "want_min_len": 10},
+    {"name": "no_path", "start": [0, 0], "goal": [8, 3], "want_status": "no_path"},
+    {"name": "start_blocked", "start": [4, 5], "goal": [9, 9], "want_status": "start_blocked"}
+  ],
+  "corner": {
+    "w": 3,
+    "h": 3,
+    "walls": [[1, 0], [0, 1]],
+    "start": [0, 0],
+    "goal": [2, 2],
+    "want_status": "no_path",
+    "note": "diagonal (0,0)->(1,1) cuts the wall corner and must be refused; start is boxed so no path"
+  }
+}

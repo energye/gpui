@@ -1186,9 +1186,9 @@ W18总指标：10分钟JSON＋8小时报表＋三遍最差全贴，不许只贴�
 | S84 | 大地图流式与预算 | S05/S20/S26＋S33 | game_tilemap--case=large | 已完成（2026-10-05正式包60秒×3取最差presents3589、fps59.74、p95 17.75、p99 20.83、hitch1、双金0差；索引0.03毫秒、合入0.001毫秒；人工30秒用户已测WASD移动；p95/p99沿用S52豁免；详见G23） |
 | S85 | 大实体裁剪与排序 | S25/S33＋S10/S41 | game_world--case=large | 已完成（2026-10-05正式包60秒×3取最差presents3580、fps59.59、p95 19.16、p99 19.95、hitch5、双金0差；1655更新均值2.38毫秒内；单测engine/world逐文件全绿；人工60秒key126 ptr232、presents3596、backend=x11；p95/p99沿用S52豁免；详见G23） |
 | S86 | 大物理宽阶段与休眠 | S06/S21/S22 | game_physics--case=large | 已完成（2026-10-05正式包60秒×3取最差presents3593、fps59.88、p95 20.12、p99 20.89、hitch2、双金0差；视口均值46.1us、射线24.8us、全场313.9us、对子40视口173；单测engine/physics整包全绿；人工55秒key260 ptr225、presents3292、backend=x11、jumps38 lands57；p95/p99沿用S52豁免；详见G23） |
-| S87 | 寻路转正 | S05/S22 | game_nav | 未开工 |
-| S88 | 大资源包与显存预算 | S19/S27/S33 | game_asset--case=large | 未开工 |
-| S89 | 大声音复用与动画LOD | S13/S14/S42/S77 | 复用不新建 | 未开工 |
+| S87 | 寻路转正 | S05/S22 | game_nav | 已完成（正式30秒三遍最差presents1798、fps59.94、p95 17.54、p99 18.58、hitch0、金0差；单测6项全绿256烘焙约1ms；人工15.2秒clicks18 ptr908；p95/p99沿用S52豁免；详见G24） |
+| S88 | 大资源包与显存预算 | S19/S27/S33 | game_asset--case=large | 已完成（正式30秒三遍最差presents1777、fps59.18、p95 17.43、p99 17.67、hitch7、金0差；单集重载46.6us、大关卡打开约0秒、3000张断链4条；人工21.1秒key19 ptr589；p95/p99沿用S52豁免；详见G24） |
+| S89 | 大声音复用与动画LOD | S13/S14/S42/S77 | 复用不新建 | 有条件关门（动画正式30秒三遍最差presents1798、fps59.94、p95 17.38、p99 18.40、hitch1、批量84.6us、金0差；声音正式30秒三遍最差presents1797、fps59.90、p95 18.16、p99 21.03、hitch0、ch64/aud32；人工动画42.4秒ptr1205、声音27.5秒ptr899；人耳听与真放音待接声卡后转正归后排音频链；p95/p99沿用S52豁免；详见G24） |
 | S90 | 大包长跑与录帧关门 | W16＋W17全绿 | game_stage_chase--case=large | 未开工 |
 
 #### V3 门禁挂波（每波跑啥谁判）
@@ -1790,3 +1790,6 @@ W 总指标读法：W22 关门含 S105 的 AA 模式矩阵，W26 关门含 S116 
 | 2026-10-05（S84翻已完成） | S84 收尾：engine/tilemap 加 Large 流式索引（32分区＋预算合入＋跳跃同帧丢旧，几何复用 Chunk，老语义不动）＋large_map.tmx/large_budget.json 数据＋large_test 4 项全绿；真窗加 large 目录分支（默认 large，老三样保留）＋定比画布＋怪速修正＋目录缝；正式包60秒×3取最差presents3589、fps59.74、p95 17.75、p99 20.83、hitch1、双金0差；人工30秒用户已测WASD移动；p95/p99沿用S52豁免；S85/S86可并行开。 |
 | 2026-10-05（S85翻已完成） | S85 收尾：engine/world 加 Cull 可见索引（框里加钉子、睡着跳过矩阵、只排框里按层按脚底、挂点不断链、进出喊声加自动睡醒，老语义不动）＋large_scene/large_cull 数据（20008实体＋四视口）＋cull_test 9项全绿；game_world 加 large 大关（老open不动，厚窗带旧本事）；正式包60秒×3取最差presents3580、fps59.59、p95 19.16、p99 19.95、hitch5、双金0差，1655更新均值2.38毫秒内；人工60秒key126 ptr232、presents3596、backend=x11；p95/p99沿用S52豁免；S86可开。 |
 | 2026-10-05（S86翻已完成） | S86 收尾：engine/physics 加 Broadphase 宽阶段索引（128px均匀网格＋动态休眠＋每帧候选40＋视口单查，对子缓存稳态只跑窄判，快判掩码先行盒盒内联，不动body.go/platform.go语义）＋large_yard/large_rays 数据（1000静态＋200动态＋单向＋弹簧）＋broadphase单测8项全绿；game_physics 加 large 大关（老hit/jump不动，厚窗带旧本事，WASD/空格按平台keysym对齐）；正式包60秒×3取最差presents3593、fps59.88、p95 20.12、p99 20.89、hitch2、双金0差，视口均值46.1us射线24.8us全场313.9us；人工55秒key260 ptr225、presents3292、backend=x11、jumps38 lands57；回归physics整包＋hit/jump旧窗全绿；p95/p99沿用S52豁免；W16三项齐，W17可开。 |
+| 2026-10-06（S87翻已完成） | S87 收尾：engine/nav 新建寻路包（bake确定性＋AStar八向拐角禁穿＋智能体＋每帧8条分摊队列，老语义无，纯新包）＋nav_grid/nav_cases 数据（256大网格＋三终态＋拐角）＋nav单测6项全绿；game_nav 新建真窗（点选有路无路皆终态）；正式包30秒×3取最差presents1798、fps59.94、p95 17.54、p99 18.58、hitch0、双金0差，烘焙约1ms；人工15.2秒clicks18 ptr908、presents907、backend=x11；p95/p99沿用S52豁免；S88/S89继续。 |
+| 2026-10-06（S88翻已完成） | S88 收尾：engine/asset 加 budget预算包（宽高格式推显存＋档位只定策略＋按集重载＋断链汇总，不动asset/atlaspack/hotreload语义）＋large_manifest/large_links 数据（集表推算3000张＋断链4条）＋budget_test4项全绿；game_asset 加 large 大关（reload原路不动）；正式包30秒×3取最差presents1777、fps59.18、p95 17.43、p99 17.67、hitch7、双金0差，单集重载46.6us、大关卡打开约0秒；人工21.1秒key19 ptr589、presents1254、backend=x11；p95/p99沿用S52豁免；S89继续。 |
+| 2026-10-06（W17有条件关门） | W17 收尾：S87/S88已完成，S89有条件关门（动画正式30秒三遍最差presents1798、fps59.94、p95 17.38、p99 18.40、hitch1、批量84.6us、金0差，lod2人工最大化污染弃用补跑lod4；声音正式30秒三遍最差presents1797、fps59.90、p95 18.16、p99 21.03、hitch0、ch64/aud32；人工动画42.4秒ptr1205、声音27.5秒ptr899；人耳听与真放音待接声卡，归后排音频链任务；sk旧窗金74.9%系他线遗留；p95/p99沿用S52豁免）；W18可开。 |

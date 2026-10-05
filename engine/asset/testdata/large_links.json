@@ -1,0 +1,8 @@
+{
+  "links": [
+    {"set": "map", "id": "map/level1", "need": "tex/checker", "code": "not-found"},
+    {"set": "map", "id": "map/level1", "need": "tex/red", "code": "not-found"},
+    {"set": "ui", "id": "tex/checker", "need": "", "code": "not-found"},
+    {"set": "ui", "id": "tex/red", "need": "", "code": "not-found"}
+  ]
+}

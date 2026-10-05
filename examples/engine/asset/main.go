@@ -885,14 +885,679 @@ func failJSON(probe probeResult) {
 	fmt.Fprintln(os.Stdout, string(b))
 }
 
+// S88 large constants: set table plus size math, no fixed MB tiers.
+const (
+	largeAbilityID  = "asset-large"
+	largeScenario   = "game_asset--case=large"
+	largeGoldenPath = "examples/engine/asset/testdata/asset_large_golden.png"
+
+	largeManifestPath = "engine/asset/testdata/large_manifest.json"
+	largeLinksPath    = "engine/asset/testdata/large_links.json"
+
+	maxSetReloadUs = 50000.0
+	maxOpenSec     = 3.0
+)
+
+// largeProbeResult is the three-evidence verdict for --case=large.
+type largeProbeResult struct {
+	LogicOK, PixOK, GoldenOK bool
+	ReloadOK                 bool
+	LinksOK                  bool
+	StableOK                 bool
+	SetReloadUs              float64
+	OpenSec                  float64
+	TotalUpload              int64
+	TotalPixels              int64
+	TotalImages              int
+	Broken                   int
+	Detail                   string
+	PixDetail                string
+	GoldenChanged            int
+	GoldenWrote              bool
+	OK                       bool
+}
+
+func loadLargePayloads(m *asset.LargeManifest) (map[string]map[core.AssetID][]byte, error) {
+	out := map[string]map[core.AssetID][]byte{}
+	for _, s := range m.Sets {
+		got := map[core.AssetID][]byte{}
+		for _, mem := range s.Members {
+			raw, err := os.ReadFile(filepath.Join(engineData, mem.File))
+			if err != nil {
+				return nil, err
+			}
+			if len(raw) != mem.Size {
+				return nil, fmt.Errorf("%s: file size = %d, want manifest %d", mem.ID, len(raw), mem.Size)
+			}
+			got[core.AssetID(mem.ID)] = raw
+		}
+		out[s.Name] = got
+	}
+	return out, nil
+}
+
+// probeLargeLogic drives the real Budget: manifest math, one set reload
+// under 50ms, full open under 3s, clean verify, broken file match, five
+// opens with zero drift, torn bytes keep the old art.
+func probeLargeLogic() largeProbeResult {
+	var p largeProbeResult
+	m, err := asset.LoadLargeManifest(largeManifestPath)
+	if err != nil {
+		p.Detail = "manifest: " + err.Error()
+		return p
+	}
+	if m.Scale.TotalImages != asset.LargeScaleImages || m.Scale.TotalSets != asset.LargeScaleSets {
+		p.Detail = "scale is not 3000/50"
+		return p
+	}
+	tier, err := asset.ParseTier(m.Tier)
+	if err != nil {
+		p.Detail = "tier: " + err.Error()
+		return p
+	}
+	_ = tier
+	payloads, err := loadLargePayloads(m)
+	if err != nil {
+		p.Detail = "payloads: " + err.Error()
+		return p
+	}
+	openT0 := time.Now()
+	b := asset.NewBudget(m, asset.TierBalanced)
+	if err := b.RegisterAll(); err != nil {
+		p.Detail = "register: " + err.Error()
+		return p
+	}
+	for set, got := range payloads {
+		res, err := b.ReloadSet(set, got)
+		if err != nil {
+			p.Detail = fmt.Sprintf("reload %s: %v", set, err)
+			return p
+		}
+		if set == "ui" {
+			p.SetReloadUs = float64(res.ElapsedNs) / 1000.0
+		}
+	}
+	openSec := time.Since(openT0).Seconds()
+	p.OpenSec = openSec
+	if openSec > maxOpenSec {
+		p.Detail = fmt.Sprintf("open = %.3fs, want <=%.0fs", openSec, maxOpenSec)
+		return p
+	}
+	if p.SetReloadUs > maxSetReloadUs {
+		p.Detail = fmt.Sprintf("set reload = %.0fus, want <=%.0f", p.SetReloadUs, maxSetReloadUs)
+		return p
+	}
+	p.ReloadOK = true
+	if err := b.CheckBudget(); err != nil {
+		p.Detail = "budget: " + err.Error()
+		return p
+	}
+	up, px, n := b.EstimateTotal()
+	p.TotalUpload, p.TotalPixels, p.TotalImages = up, px, n
+	if n != asset.LargeScaleImages {
+		p.Detail = fmt.Sprintf("total images = %d, want %d", n, asset.LargeScaleImages)
+		return p
+	}
+	// One set swap leaves the neighbour bit-identical.
+	before, err := b.Manager().Wait("map/level1")
+	if err != nil {
+		p.Detail = "neighbour wait: " + err.Error()
+		return p
+	}
+	toRaw, err := os.ReadFile(filepath.Join(engineData, "tex_checker_8x8.ktx2"))
+	if err != nil {
+		p.Detail = "read swap: " + err.Error()
+		return p
+	}
+	uiSwap := map[core.AssetID][]byte{"tex/red": toRaw, "tex/checker": toRaw}
+	swRes, err := b.ReloadSet("ui", uiSwap)
+	if err != nil {
+		p.Detail = fmt.Sprintf("ui swap: %v", err)
+		return p
+	}
+	if float64(swRes.ElapsedNs)/1000.0 > maxSetReloadUs {
+		p.Detail = "ui swap over 50ms"
+		return p
+	}
+	after, err := b.Manager().Wait("map/level1")
+	if err != nil || !before.Equal(after) {
+		p.Detail = "neighbour moved during the ui swap"
+		return p
+	}
+	if got := b.VerifyAll(); len(got) != 0 {
+		// The swap above re-pointed tex/red at the checker bytes but kept
+		// deps satisfied, so any report here is a real break.
+		p.Detail = fmt.Sprintf("clean verify = %d, want 0", len(got))
+		return p
+	}
+	// Broken scenario: only the map set loaded, links must match the file.
+	b2 := asset.NewBudget(m, asset.TierBalanced)
+	if err := b2.RegisterAll(); err != nil {
+		p.Detail = "register2: " + err.Error()
+		return p
+	}
+	mapOnly, err := loadLargePayloads(m)
+	if err != nil {
+		p.Detail = "payloads2: " + err.Error()
+		return p
+	}
+	if _, err := b2.ReloadSet("map", mapOnly["map"]); err != nil {
+		// ReloadSet on map alone succeeds (its own bytes load); the deps
+		// break only at verify time, so an error here is unexpected.
+		p.Detail = fmt.Sprintf("map-only reload: %v", err)
+		return p
+	}
+	found := b2.VerifyAll()
+	want, err := asset.LoadLargeLinks(largeLinksPath)
+	if err != nil {
+		p.Detail = "links: " + err.Error()
+		return p
+	}
+	if len(found) != len(want) {
+		p.Detail = fmt.Sprintf("broken = %d, want %d", len(found), len(want))
+		return p
+	}
+	for i := range want {
+		if found[i].Set != want[i].Set || found[i].ID != want[i].ID || found[i].Need != want[i].Need || found[i].Code != want[i].Code {
+			p.Detail = fmt.Sprintf("broken[%d] mismatch", i)
+			return p
+		}
+	}
+	p.Broken = len(found)
+	p.LinksOK = true
+	// Torn bytes keep the old art.
+	good, err := b.Manager().Wait("tex/red")
+	if err != nil {
+		p.Detail = "good wait: " + err.Error()
+		return p
+	}
+	badRaw, err := os.ReadFile(filepath.Join(engineData, "bad_truncated.ktx2"))
+	if err != nil {
+		p.Detail = "read bad: " + err.Error()
+		return p
+	}
+	badUI := map[core.AssetID][]byte{"tex/red": badRaw, "tex/checker": payloads["ui"]["tex/checker"]}
+	if _, err := b.ReloadSet("ui", badUI); core.CodeOf(err) != core.CodeBadData {
+		p.Detail = fmt.Sprintf("torn code = %v, want bad-data", core.CodeOf(err))
+		return p
+	}
+	if kept, err := b.Manager().Wait("tex/red"); err != nil || !kept.Equal(good) {
+		p.Detail = "torn wiped the art"
+		return p
+	}
+	// Five opens hold bytes steady.
+	var first uint64
+	for i := 0; i < 5; i++ {
+		nb := asset.NewBudget(m, asset.TierBalanced)
+		if err := nb.RegisterAll(); err != nil {
+			p.Detail = fmt.Sprintf("open %d register: %v", i, err)
+			return p
+		}
+		pls, err := loadLargePayloads(m)
+		if err != nil {
+			p.Detail = fmt.Sprintf("open %d payloads: %v", i, err)
+			return p
+		}
+		for set, got := range pls {
+			if _, err := nb.ReloadSet(set, got); err != nil {
+				p.Detail = fmt.Sprintf("open %d reload %s: %v", i, set, err)
+				return p
+			}
+		}
+		cur, err := nb.Manager().Wait("tex/red")
+		if err != nil {
+			p.Detail = fmt.Sprintf("open %d wait: %v", i, err)
+			return p
+		}
+		if i == 0 {
+			first = cur.Hash()
+			continue
+		}
+		if cur.Hash() != first {
+			p.Detail = fmt.Sprintf("open %d drifted", i)
+			return p
+		}
+	}
+	p.StableOK = true
+	p.Detail = fmt.Sprintf("sets=%d images=%d upload=%d pixels=%d reload=%.0fus open=%.3fs broken=%d",
+		len(m.Sets), n, up, px, p.SetReloadUs, openSec, p.Broken)
+	p.LogicOK = true
+	return p
+}
+
+// paintLargeFrame draws the deterministic large probe frame: the red and
+// checker slots plus four budget bars (one per estimate row).
+func paintLargeFrame(dc *render.Context) {
+	dc.ClearWithColor(render.RGBA{R: bgR, G: bgG, B: bgB, A: 1})
+	dc.SetRGBA(redR, redG, redB, 1)
+	dc.DrawRectangle(float64(offRedX), float64(offCardY), float64(offCardW), float64(offCH))
+	_ = dc.Fill()
+	dc.SetRGBA(chkR, chkG, chkB, 1)
+	dc.DrawRectangle(float64(offChkX), float64(offCardY), float64(offCardW), float64(offCH))
+	_ = dc.Fill()
+	dc.SetRGBA(barBgR, barBgG, barBgB, 1)
+	dc.DrawRectangle(10, float64(offBarY), float64(offBarW), float64(offBarH))
+	_ = dc.Fill()
+	// Four estimate bars share the strip: icon/card/photo/bg.
+	dc.SetRGBA(barR, barG, barB, 1)
+	dc.DrawRectangle(10, float64(offBarY), 120, float64(offBarH))
+	_ = dc.Fill()
+	dc.SetRGBA(0.55, 0.75, 0.35, 1)
+	dc.DrawRectangle(130, float64(offBarY), 110, float64(offBarH))
+	_ = dc.Fill()
+	dc.SetRGBA(0.75, 0.55, 0.35, 1)
+	dc.DrawRectangle(240, float64(offBarY), 100, float64(offBarH))
+	_ = dc.Fill()
+	dc.SetRGBA(0.65, 0.45, 0.75, 1)
+	dc.DrawRectangle(340, float64(offBarY), 90, float64(offBarH))
+	_ = dc.Fill()
+}
+
+func probeLargePixels() (bool, string) {
+	prev, _ := os.LookupEnv("GOGPU_RENDER_MODE")
+	_ = os.Setenv("GOGPU_RENDER_MODE", "cpu")
+	defer func() {
+		if prev == "" {
+			_ = os.Unsetenv("GOGPU_RENDER_MODE")
+		} else {
+			_ = os.Setenv("GOGPU_RENDER_MODE", prev)
+		}
+	}()
+	dc := render.NewContext(offW, offH)
+	paintLargeFrame(dc)
+	img := dc.Image()
+	_ = dc.Close()
+	rr, rg, rb := sample8(img, offRedX+offCardW/2, offCardY+offCH/2)
+	cr, cg, cb := sample8(img, offChkX+offCardW/2, offCardY+offCH/2)
+	// Third bar (photo) sits at x=290 inside the strip.
+	br, bg, bb := sample8(img, 290, offBarY+offBarH/2)
+	ok := closeEnough(rr, want8(redR)) && closeEnough(rg, want8(redG)) && closeEnough(rb, want8(redB)) &&
+		closeEnough(cr, want8(chkR)) && closeEnough(cg, want8(chkG)) && closeEnough(cb, want8(chkB)) &&
+		closeEnough(br, want8(0.75)) && closeEnough(bg, want8(0.55)) && closeEnough(bb, want8(0.35))
+	detail := fmt.Sprintf("red=(%d,%d,%d) chk=(%d,%d,%d) bar3=(%d,%d,%d) tol=%d",
+		rr, rg, rb, cr, cg, cb, br, bg, bb, probePixelTol)
+	return ok, detail
+}
+
+func probeLargeGolden() (ok bool, changed int, wrote bool) {
+	prev, _ := os.LookupEnv("GOGPU_RENDER_MODE")
+	_ = os.Setenv("GOGPU_RENDER_MODE", "cpu")
+	defer func() {
+		if prev == "" {
+			_ = os.Unsetenv("GOGPU_RENDER_MODE")
+		} else {
+			_ = os.Setenv("GOGPU_RENDER_MODE", prev)
+		}
+	}()
+	dc := render.NewContext(offW, offH)
+	paintLargeFrame(dc)
+	img := dc.Image()
+	_ = dc.Close()
+	f, err := os.Open(largeGoldenPath)
+	if err != nil {
+		if err := os.MkdirAll("examples/engine/asset/testdata", 0o755); err != nil {
+			return false, 0, false
+		}
+		out, err := os.Create(largeGoldenPath)
+		if err != nil {
+			return false, 0, false
+		}
+		encErr := png.Encode(out, img)
+		_ = out.Close()
+		return encErr == nil, 0, encErr == nil
+	}
+	defer func() { _ = f.Close() }()
+	want, err := png.Decode(f)
+	if err != nil {
+		return false, 0, false
+	}
+	if !img.Bounds().Eq(want.Bounds()) {
+		return false, 1, false
+	}
+	stripPx := int(metricStripH * float64(img.Bounds().Dy()) / float64(winH))
+	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
+		if y-img.Bounds().Min.Y < stripPx {
+			continue
+		}
+		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
+			ar, ag, ab, aa := img.At(x, y).RGBA()
+			br, bg, bb, ba := want.At(x, y).RGBA()
+			if ar != br || ag != bg || ab != bb || aa != ba {
+				changed++
+			}
+		}
+	}
+	return changed == 0, changed, false
+}
+
+func runLargeProbes() largeProbeResult {
+	p := probeLargeLogic()
+	p.PixOK, p.PixDetail = probeLargePixels()
+	var wrote bool
+	p.GoldenOK, p.GoldenChanged, wrote = probeLargeGolden()
+	p.GoldenWrote = wrote
+	p.OK = p.LogicOK && p.ReloadOK && p.LinksOK && p.StableOK &&
+		p.PixOK && p.GoldenOK && p.SetReloadUs <= maxSetReloadUs && p.OpenSec <= maxOpenSec
+	return p
+}
+
+func failLargeJSON(probe largeProbeResult) {
+	b, _ := json.Marshal(map[string]any{
+		"ability_id": largeAbilityID,
+		"scenario":   largeScenario,
+		"probe_ok":   0,
+		"pass":       false,
+		"pixels":     probe.PixDetail,
+		"golden":     probe.GoldenChanged,
+	})
+	fmt.Fprintln(os.Stdout, string(b))
+}
+
+// largeSim is the live large-window state: budget totals plus motion.
+type largeSim struct {
+	budget  *asset.Budget
+	upload  int64
+	pixels  int64
+	images  int
+	broken  int
+	app     *embedder.PipelineApp
+	root    *rendering.AbsoluteBox
+	phase   *wrkit.PhaseClock
+	fullBox *rendering.RenderBox
+	metric  *rendering.RenderText
+	frames  int
+	walkT   float64
+	walkX   float64
+}
+
+type largeTicker struct{ s *largeSim }
+
+func (t *largeTicker) Tick(dt float64) bool {
+	s := t.s
+	if s == nil {
+		return true
+	}
+	s.frames++
+	if dt < 0 {
+		dt = 0
+	}
+	if dt > 0.05 {
+		dt = 0.05
+	}
+	s.walkT += dt
+	s.walkX = float64(int(s.walkT*60) % (winW + 128))
+	s.walkX -= 64
+	s.fullBox.MarkNeedsPaint()
+	if s.metric != nil {
+		snap := s.app.Metrics().Snapshot()
+		fps := 0.0
+		if snap.AvgFrameIntervalMs > 1e-6 {
+			fps = 1000.0 / snap.AvgFrameIntervalMs
+		}
+		s.metric.SetText(fmt.Sprintf("upload=%d px=%d n=%d broken=%d fps=%.0f", s.upload, s.pixels, s.images, s.broken, fps))
+		s.metric.MarkNeedsPaint()
+	}
+	_ = s.phase.Advance(dt)
+	s.app.ScheduleFrame()
+	return true
+}
+
+func runLargeMain(autoOnly bool, manualSeconds int) {
+	wrkit.EnsureUIFace()
+	probe := runLargeProbes()
+	fmt.Fprintf(os.Stderr, "game_asset-large: probes ok=%v logic=%v reload=%v links=%v stable=%v pix=%v golden=%v(wrote=%v changed=%d) reload=%.0fus open=%.3fs %s | %s\n",
+		probe.OK, probe.LogicOK, probe.ReloadOK, probe.LinksOK, probe.StableOK,
+		probe.PixOK, probe.GoldenOK, probe.GoldenWrote, probe.GoldenChanged,
+		probe.SetReloadUs, probe.OpenSec, probe.Detail, probe.PixDetail)
+	if !probe.OK {
+		if autoOnly {
+			failLargeJSON(probe)
+		} else {
+			fmt.Fprintln(os.Stderr, "game_asset-large: selftest FAIL, not opening window")
+		}
+		os.Exit(1)
+	}
+	var secs int
+	if autoOnly {
+		secs = runSeconds(8)
+		wrkit.RequireMinRun(secs, largeAbilityID)
+	} else if manualSeconds > 0 {
+		secs = manualSeconds
+	} else {
+		secs, _ = wrkit.RunSecondsOpt()
+	}
+	manualMode := !autoOnly
+	var runFor time.Duration
+	if secs > 0 {
+		runFor = time.Duration(secs) * time.Second
+	}
+	_ = wrkit.NewShell(winW, winH, "game_asset — S88 大包预算 (asset-large)", []string{
+		"3000图按宽高格式推显存",
+		"档位只定策略不定MB",
+		"改一集只重载该集",
+		"断链单独记哪条链",
+		"单集<=50ms 打开<=3s",
+		"JSON见 ability_extra",
+	})
+	m, err := asset.LoadLargeManifest(largeManifestPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: large manifest:", err)
+		os.Exit(1)
+	}
+	budget := asset.NewBudget(m, asset.TierBalanced)
+	if err := budget.RegisterAll(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: register:", err)
+		os.Exit(1)
+	}
+	payloads, err := loadLargePayloads(m)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: payloads:", err)
+		os.Exit(1)
+	}
+	for set, got := range payloads {
+		if _, err := budget.ReloadSet(set, got); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: reload", set, err)
+			os.Exit(1)
+		}
+	}
+	up, px, n := budget.EstimateTotal()
+	broken := budget.VerifyAll()
+	sim := &largeSim{budget: budget, upload: up, pixels: px, images: n, broken: len(broken)}
+	root := rendering.NewAbsoluteBox(winW, winH)
+	root.Background = &rendering.Color{R: bgR, G: bgG, B: bgB, A: 1}
+	sim.root = root
+	if secs > 0 {
+		sim.phase = wrkit.NewPhaseClock(float64(secs)*0.5, float64(secs)*0.8)
+	} else {
+		sim.phase = wrkit.NewPhaseClock(0, 0)
+	}
+	sim.fullBox = rendering.NewRenderBox()
+	sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = winW, winH
+	sim.fullBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		pc.DC.SetRGBA(redR, redG, redB, 1)
+		pc.DC.DrawRectangle(0, 0, size.Width*0.5, size.Height)
+		_ = pc.DC.Fill()
+		pc.DC.SetRGBA(chkR, chkG, chkB, 1)
+		pc.DC.DrawRectangle(size.Width*0.5, 0, size.Width*0.5, size.Height)
+		_ = pc.DC.Fill()
+		mx, my := sim.walkX, size.Height-140
+		pc.DC.SetRGBA(0.92, 0.90, 0.86, 1)
+		pc.DC.DrawRectangle(mx, my, 56, 84)
+		_ = pc.DC.Fill()
+		pc.DC.SetRGBA(1, 0.72, 0.30, 0.10)
+		pc.DC.DrawRectangle(0, 0, size.Width, size.Height)
+		_ = pc.DC.Fill()
+	}
+	root.Place(sim.fullBox, 0, 0)
+	sim.metric = wrkit.Label("large", 13, 0.92, 0.94, 0.98)
+	root.Place(sim.metric, 8, 8)
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_asset", Decorations: true})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
+		os.Exit(1)
+	}
+	defer win.Close()
+	ctl := win.Controls()
+	var summary manualSummary
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
+		ClearR: bgR, ClearG: bgG, ClearB: bgB, ClearA: 1,
+		RunFor: runFor,
+		WarmUp: true,
+		OnEvent: func(ev platform.Event) {
+			switch ev.Type {
+			case platform.EventClose, platform.EventCloseRequested:
+				fmt.Fprintf(os.Stderr, "game_asset-large: close (%s)\n", win.Backend())
+				return
+			case platform.EventPointer:
+				summary.Pointer++
+				if manualMode {
+					fmt.Fprintf(os.Stderr, "game_asset-large: pointer %s (%.0f,%.0f) n=%d\n",
+						ev.Pointer, ev.X, ev.Y, summary.Pointer+summary.Key+summary.Resize)
+					if ctl != nil {
+						ctl.SetTitle(fmt.Sprintf("game_asset-large events=%d", summary.Pointer+summary.Key+summary.Resize))
+					}
+				}
+				return
+			case platform.EventKey:
+				if ev.Pressed {
+					summary.Key++
+					if manualMode {
+						fmt.Fprintf(os.Stderr, "game_asset-large: key n=%d\n", summary.Pointer+summary.Key+summary.Resize)
+						if ctl != nil {
+							ctl.SetTitle(fmt.Sprintf("game_asset-large events=%d", summary.Pointer+summary.Key+summary.Resize))
+						}
+					}
+				}
+				return
+			case platform.EventResize:
+				summary.Resize++
+				if ev.Width > 0 && ev.Height > 0 {
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					sim.fullBox.FixedWidth, sim.fullBox.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsPaint()
+				}
+				if manualMode {
+					fmt.Fprintf(os.Stderr, "game_asset-large: resize %dx%d n=%d\n", ev.Width, ev.Height, summary.Pointer+summary.Key+summary.Resize)
+					if ctl != nil {
+						ctl.SetTitle(fmt.Sprintf("game_asset-large events=%d", summary.Pointer+summary.Key+summary.Resize))
+					}
+				}
+				return
+			default:
+				return
+			}
+		},
+	})
+	sim.app = app
+	app.Scheduler().Tickers().Add(&largeTicker{s: sim})
+	app.Scheduler().SetMode(scheduler.ModePersistent)
+	if err := app.Open(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
+		os.Exit(1)
+	}
+	root.MarkNeedsPaint()
+	app.ScheduleFrame()
+	t0 := time.Now()
+	if err := app.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
+		os.Exit(1)
+	}
+	app.Close()
+	elapsed := time.Since(t0).Seconds()
+	snap := app.Metrics().Snapshot()
+	presents := app.PresentCount()
+	probeOK := 0
+	if probe.OK {
+		probeOK = 1
+	}
+	extra := map[string]any{
+		"case":            "large",
+		"probe_ok":        probeOK,
+		"reload_ok":       probe.ReloadOK,
+		"links_ok":        probe.LinksOK,
+		"stable_ok":       probe.StableOK,
+		"set_reload_us":   probe.SetReloadUs,
+		"open_sec":        probe.OpenSec,
+		"total_upload":    probe.TotalUpload,
+		"total_pixels":    probe.TotalPixels,
+		"total_images":    probe.TotalImages,
+		"broken":          probe.Broken,
+		"boundary_skip":   snap.BoundarySkip,
+		"pixels":          probe.PixDetail,
+		"golden":          probe.GoldenChanged,
+	}
+	if autoOnly {
+		report := wrgate.BuildReport(wrgate.BuildInput{
+			AbilityID:     largeAbilityID,
+			Scenario:      largeScenario,
+			Snap:          snap,
+			PresentCount:  presents,
+			ElapsedSec:    elapsed,
+			SurfaceAreaPx: winW * winH,
+			Warmup:        true,
+			Extra:         extra,
+		})
+		raw, _ := json.Marshal(report)
+		fmt.Println(string(raw))
+		if err := wrgate.EvaluateGates(report, wrgate.GateOptions{MinPresents: 1}); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL:", err)
+			os.Exit(1)
+		}
+		if presents < 1 || !probe.OK {
+			fmt.Fprintf(os.Stderr, "FAIL: presents=%d probe=%v (want >=1, true)\n", presents, probe.OK)
+			os.Exit(1)
+		}
+		if !probe.ReloadOK || !probe.LinksOK || !probe.StableOK {
+			fmt.Fprintf(os.Stderr, "FAIL: subgates reload=%v links=%v stable=%v (want all true)\n",
+				probe.ReloadOK, probe.LinksOK, probe.StableOK)
+			os.Exit(1)
+		}
+		if probe.SetReloadUs > maxSetReloadUs || probe.OpenSec > maxOpenSec {
+			fmt.Fprintf(os.Stderr, "FAIL: reload=%.0fus open=%.3fs (want <=%.0f/%.0f)\n",
+				probe.SetReloadUs, probe.OpenSec, maxSetReloadUs, maxOpenSec)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "game_asset-large: OK presents=%d upload=%d images=%d broken=%d reload=%.0fus open=%.3fs elapsed=%.1fs\n",
+			presents, probe.TotalUpload, probe.TotalImages, probe.Broken, probe.SetReloadUs, probe.OpenSec, elapsed)
+		return
+	}
+	summary.Timed = secs > 0
+	b, _ := json.Marshal(map[string]any{
+		"ability_id": largeAbilityID,
+		"scenario":   largeScenario,
+		"backend":    win.Backend().String(),
+		"events": map[string]any{
+			"pointer": summary.Pointer, "key": summary.Key, "resize": summary.Resize,
+		},
+		"presents":     presents,
+		"elapsed_sec":  elapsed,
+		"total_upload": probe.TotalUpload,
+		"total_images": probe.TotalImages,
+		"broken":       probe.Broken,
+		"probe_ok":     probeOK,
+		"timed":        summary.Timed,
+		"note":         summary.Note,
+	})
+	fmt.Println(string(b))
+	fmt.Fprintf(os.Stderr, "game_asset-large: backend=%s presents=%d upload=%d elapsed=%.1fs\n",
+		win.Backend(), presents, probe.TotalUpload, elapsed)
+}
+
 func main() {
-	caseFlag := flag.String("case", "reload", "scenario case (only reload)")
+	caseFlag := flag.String("case", "reload", "scenario case (reload|large)")
 	autoOnly := flag.Bool("auto-only", false, "probes + short window, JSON gate on stdout")
 	manualSeconds := flag.Int("manual-seconds", 0, "manual phase seconds (0 = until close)")
 	flag.Parse()
 
+	if *caseFlag == "large" {
+		runLargeMain(*autoOnly, *manualSeconds)
+		return
+	}
 	if *caseFlag != "reload" {
-		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want reload (only hot-reload scene)\n", *caseFlag)
+		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want reload|large\n", *caseFlag)
 		os.Exit(1)
 	}
 	wrkit.EnsureUIFace()

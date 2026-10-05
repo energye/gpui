@@ -778,13 +778,17 @@ func failJSON(probe probeResult) {
 }
 
 func main() {
-	flag.String("case", "follow", "scenario case (only follow)")
+	flag.String("case", "follow", "scenario case (follow lens road, or voices S89 large-voice reuse)")
 	autoOnly := flag.Bool("auto-only", false, "probes + short window, JSON gate on stdout")
 	manualSeconds := flag.Int("manual-seconds", 0, "manual phase seconds (0 = until close)")
 	flag.Parse()
 
+	if flag.Lookup("case").Value.String() == "voices" {
+		runVoicesCase(*autoOnly, *manualSeconds)
+		return
+	}
 	if flag.Lookup("case").Value.String() != "follow" {
-		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want follow (only lens road)\n", flag.Lookup("case").Value.String())
+		fmt.Fprintf(os.Stderr, "FAIL: --case=%q want follow or voices (one ability per case, no combo)\n", flag.Lookup("case").Value.String())
 		os.Exit(1)
 	}
 	wrkit.EnsureUIFace()
@@ -1169,3 +1173,744 @@ func main() {
 	fmt.Fprintf(os.Stderr, "game_camera: backend=%s presents=%d travel=%.0f converge=%d elapsed=%.1fs\n",
 		win.Backend(), presents, sim.camTravel, probe.ConvergeFrames, elapsed)
 }
+
+// ---- --case=voices: S89 large-voice reuse (listener window reuse) ----
+//
+// Reads engine/audio/testdata/large_voices.json (engine-owned numbers).
+// Offscreen paints the frozen mix map; the live window replays the same
+// 128 asks through SelectVoices plus listener-follow-camera plus the
+// explosion duck plus the beat clock. 2.5D摆法：满窗即内容，指标浮左上。
+
+const (
+	voicesAbilityID = "audio-voices"
+	voicesScenario  = "game_camera--case=voices"
+	voicesEngineDir = "engine/audio/testdata"
+	voicesEngineFn  = "large_voices.json"
+
+	voicesOffW, voicesOffH = 640, 360
+	voicesPerfMaxUs        = 500 // 128 select+128 stereo under 0.5ms
+	voicesBarX             = 40.0
+	voicesBarY             = 60.0
+	voicesBarW             = 560.0
+	voicesBarH             = 18.0
+)
+
+type voicesReqJSON struct {
+	Pos         [2]float64 `json:"pos"`
+	Range       float64    `json:"range"`
+	Attenuation float64    `json:"attenuation"`
+	PanStrength float64    `json:"pan_strength"`
+	Level       float64    `json:"level"`
+	Explosive   bool       `json:"explosive"`
+}
+
+type voicesWantJSON struct {
+	Channels       int       `json:"channels"`
+	Audible        int       `json:"audible"`
+	Total          float64   `json:"total"`
+	Clipped        bool      `json:"clipped"`
+	HasExplosion   bool      `json:"has_explosion"`
+	AudibleIndices []int     `json:"audible_indices"`
+	Gains          []float64 `json:"gains"`
+	Pans           []float64 `json:"pans"`
+	Audibles       []bool    `json:"audibles"`
+}
+
+type voicesBeatJSON struct {
+	BPM           float64 `json:"bpm"`
+	BeatsPerBar   int     `json:"beats_per_bar"`
+	DtsMs         []int64 `json:"dts_ms"`
+	WantBeats     int64   `json:"want_beats"`
+	WantPosMs     int64   `json:"want_pos_ms"`
+	WantTimeBeat4 int64   `json:"want_time_beat4_ms"`
+}
+
+type voicesFile struct {
+	Listener [2]float64      `json:"listener"`
+	Camera   [2]float64      `json:"camera"`
+	Requests []voicesReqJSON `json:"requests"`
+	Want     voicesWantJSON  `json:"want"`
+	Beat     voicesBeatJSON  `json:"beat"`
+}
+
+func loadVoicesFile() (voicesFile, error) {
+	var f voicesFile
+	raw, err := os.ReadFile(voicesEngineDir + "/" + voicesEngineFn)
+	if err != nil {
+		return f, err
+	}
+	if err := json.Unmarshal(raw, &f); err != nil {
+		return f, err
+	}
+	if len(f.Requests) == 0 {
+		return f, fmt.Errorf("voices file has no requests")
+	}
+	return f, nil
+}
+
+func buildVoiceReqs(f voicesFile) ([]audio.VoiceRequest, error) {
+	out := make([]audio.VoiceRequest, len(f.Requests))
+	for i, q := range f.Requests {
+		s, err := audio.NewPosSound(v2(q.Pos), q.Range, q.Attenuation, q.PanStrength)
+		if err != nil {
+			return nil, fmt.Errorf("request %d sound: %w", i, err)
+		}
+		vr, err := audio.NewVoiceRequest(s, q.Level, q.Explosive)
+		if err != nil {
+			return nil, fmt.Errorf("request %d level: %w", i, err)
+		}
+		out[i] = vr
+	}
+	return out, nil
+}
+
+func closeVoice(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
+
+func voicesSelftest(f voicesFile) (map[string]any, bool) {
+	extra := map[string]any{}
+	ok := true
+	fail := func(k string, v any) {
+		extra[k] = v
+		ok = false
+	}
+	reqs, err := buildVoiceReqs(f)
+	if err != nil {
+		fail("build_err", err.Error())
+		return extra, false
+	}
+	lis := v2(f.Listener)
+	picks, st, okSel := audio.SelectVoices(lis, reqs)
+	if !okSel {
+		fail("select_ok", false)
+		return extra, false
+	}
+	extra["voices_channels"] = st.Channels
+	extra["voices_audible"] = st.Audible
+	extra["voices_total"] = st.Total
+	extra["voices_clipped"] = st.Clipped
+	extra["voices_boom"] = st.HasExplosion
+	if st.Channels != f.Want.Channels || st.Audible != f.Want.Audible {
+		fail("voices_counts", []int{st.Channels, st.Audible})
+	} else {
+		extra["voices_counts_ok"] = true
+	}
+	if st.Channels > audio.MaxVoiceChannels || st.Audible > audio.AudibleVoices {
+		fail("voices_budget", []int{st.Channels, st.Audible})
+	}
+	if !closeVoice(st.Total, f.Want.Total) || st.Clipped != f.Want.Clipped || st.HasExplosion != f.Want.HasExplosion {
+		fail("voices_mix", []any{st.Total, st.Clipped, st.HasExplosion})
+	} else {
+		extra["voices_mix_ok"] = true
+	}
+	if len(picks) != len(reqs) {
+		fail("picks_len", len(picks))
+		return extra, false
+	}
+	audSet := map[int]bool{}
+	for _, idx := range f.Want.AudibleIndices {
+		audSet[idx] = true
+	}
+	pickOK := true
+	for i, p := range picks {
+		if p.Index != i {
+			pickOK = false
+			break
+		}
+		wantAud := audSet[i]
+		if p.Audible != wantAud || !closeVoice(p.Gain, f.Want.Gains[i]) ||
+			!closeVoice(p.Pan, f.Want.Pans[i]) || p.Audible != f.Want.Audibles[i] {
+			pickOK = false
+			break
+		}
+	}
+	extra["picks_ok"] = pickOK
+	if !pickOK {
+		ok = false
+	}
+	// Loudest-kept: every audible pick outranks every silent ranked one.
+	loudOK := true
+	minAud := math.MaxFloat64
+	maxSil := 0.0
+	for _, p := range picks {
+		if p.Audible {
+			if p.Loud < minAud {
+				minAud = p.Loud
+			}
+		} else if p.Loud > maxSil {
+			maxSil = p.Loud
+		}
+	}
+	if minAud < maxSil {
+		loudOK = false
+	}
+	extra["loudest_ok"] = loudOK
+	if !loudOK {
+		ok = false
+	}
+	// Replay twice bitwise.
+	picks2, st2, _ := audio.SelectVoices(lis, reqs)
+	replayOK := st2 == st && len(picks2) == len(picks)
+	if replayOK {
+		for i := range picks {
+			if picks2[i] != picks[i] {
+				replayOK = false
+				break
+			}
+		}
+	}
+	extra["parity_ok"] = replayOK
+	if !replayOK {
+		ok = false
+	}
+	// Listener-follow-camera: same asks through the rider agree.
+	l, err := audio.NewListener2D(v2(f.Listener))
+	if err != nil {
+		fail("listener_err", err.Error())
+		return extra, false
+	}
+	rp, rst, rok := audio.FollowAndSelect(&l, v2(f.Camera), reqs)
+	followOK := rok && rst == st && len(rp) == len(picks)
+	if followOK {
+		for i := range picks {
+			if rp[i] != picks[i] {
+				followOK = false
+				break
+			}
+		}
+	}
+	extra["follow_ok"] = followOK
+	if !followOK {
+		ok = false
+	}
+	// Explosion ducks music: trigger only when audible boom present.
+	duck, err := audio.NewDucker(audio.DefaultDuckDepth, 250*core.Millisecond, 250*core.Millisecond)
+	if err != nil {
+		fail("duck_err", err.Error())
+		return extra, false
+	}
+	before := duck.Gain()
+	did, err := audio.ApplyExplosionDuck(duck, st, 1)
+	duckOK := err == nil && did == st.HasExplosion && (before == 1 || !did)
+	if did {
+		duckOK = duckOK && duck.Active() && duck.Gain() < 1
+	}
+	quiet := st
+	quiet.HasExplosion = false
+	didQ, errQ := audio.ApplyExplosionDuck(duck, quiet, 1)
+	duckOK = duckOK && errQ == nil && !didQ
+	extra["duck_ok"] = duckOK
+	if !duckOK {
+		ok = false
+	}
+	// Beat clock: frozen dts replay to the frozen beat/pos.
+	bc, err := audio.NewBeatClock(f.Beat.BPM, f.Beat.BeatsPerBar)
+	if err != nil {
+		fail("beat_err", err.Error())
+		return extra, false
+	}
+	var crossed int64
+	for _, d := range f.Beat.DtsMs {
+		crossed += int64(len(bc.Update(core.Duration(d))))
+	}
+	t4, err := bc.TimeOfBeat(4)
+	beatOK := err == nil && bc.Beat() == f.Beat.WantBeats && bc.Pos().Milliseconds() == f.Beat.WantPosMs &&
+		t4.Milliseconds() == f.Beat.WantTimeBeat4 && crossed == f.Beat.WantBeats
+	extra["beat"] = bc.Beat()
+	extra["beat_pos_ms"] = bc.Pos().Milliseconds()
+	extra["beat_ok"] = beatOK
+	if !beatOK {
+		ok = false
+	}
+	// Perf: 128 select + 128 stereo under 0.5ms.
+	t0 := time.Now()
+	for k := 0; k < 20; k++ {
+		ps, _, _ := audio.SelectVoices(lis, reqs)
+		for _, p := range ps {
+			_, _ = audio.Stereo(0.5, audio.Mix{Gain: p.Gain, Pan: p.Pan, Distance: 0, Audible: p.Audible})
+		}
+	}
+	perUs := float64(time.Since(t0).Microseconds()) / 20
+	extra["voices_batch_us"] = perUs
+	extra["voices_perf_ok"] = perUs <= voicesPerfMaxUs
+	if perUs > voicesPerfMaxUs {
+		ok = false
+	}
+	// Waveform guard: full-scale stereo never clips per channel.
+	waveOK := true
+	for _, p := range picks {
+		l, r := audio.Stereo(1, audio.Mix{Gain: p.Gain, Pan: p.Pan, Distance: 0, Audible: p.Audible})
+		if math.Abs(l) > 1 || math.Abs(r) > 1 || math.IsNaN(l) || math.IsNaN(r) {
+			waveOK = false
+			break
+		}
+	}
+	extra["wave_ok"] = waveOK
+	if !waveOK {
+		ok = false
+	}
+	extra["probe_ok"] = ok
+	return extra, ok
+}
+
+func paintVoicesOffscreen(dc *render.Context, f voicesFile, picks []audio.VoicePick) {
+	dc.ClearWithColor(render.RGBA{R: 0.08, G: 0.09, B: 0.11, A: 1})
+	dc.SetRGB(0.92, 0.93, 0.95)
+	dc.DrawRectangle(20, 20, voicesOffW-40, voicesOffH-40)
+	_ = dc.Fill()
+	// Map [-600,600]x[-400,400] into the field. Paint order keeps probes
+	// readable: silent dots first, audible green cells next, explosive
+	// red booms last so the center boom is never buried.
+	silent := func(q voicesReqJSON, p audio.VoicePick) bool { return !q.Explosive && !p.Audible }
+	audible := func(q voicesReqJSON, p audio.VoicePick) bool { return !q.Explosive && p.Audible }
+	boom := func(q voicesReqJSON, p audio.VoicePick) bool { return q.Explosive }
+	_ = boom
+	dot := func(i int) {
+		q := f.Requests[i]
+		p := picks[i]
+		px := 20 + (q.Pos[0]+600)/1200*(voicesOffW-40)
+		py := 20 + (q.Pos[1]+400)/800*(voicesOffH-40)
+		if q.Explosive {
+			dc.SetRGB(0.95, 0.3, 0.2)
+			sz := 3.0 + 4*p.Gain
+			dc.DrawRectangle(px-sz/2, py-sz/2, sz, sz)
+			_ = dc.Fill()
+			return
+		}
+		if p.Audible {
+			dc.SetRGB(0.2, 0.65, 0.3)
+			dc.DrawRectangle(px-4, py-4, 8, 8)
+			_ = dc.Fill()
+			return
+		}
+		dc.SetRGB(0.55, 0.58, 0.62)
+		dc.DrawRectangle(px-1.5, py-1.5, 3, 3)
+		_ = dc.Fill()
+	}
+	for i := range f.Requests {
+		if silent(f.Requests[i], picks[i]) {
+			dot(i)
+		}
+	}
+	for i := range f.Requests {
+		if audible(f.Requests[i], picks[i]) {
+			dot(i)
+		}
+	}
+	for i := range f.Requests {
+		if f.Requests[i].Explosive {
+			dot(i)
+		}
+	}
+	// Listener cross at center.
+	lx := 20 + (f.Listener[0]+600)/1200*(voicesOffW-40)
+	ly := 20 + (f.Listener[1]+400)/800*(voicesOffH-40)
+	dc.SetRGB(0.9, 0.15, 0.12)
+	dc.DrawRectangle(lx-5, ly-1, 10, 2)
+	_ = dc.Fill()
+	dc.DrawRectangle(lx-1, ly-5, 2, 10)
+	_ = dc.Fill()
+}
+
+func voicesRenderOffscreen(f voicesFile, picks []audio.VoicePick) image.Image {
+	prev, had := os.LookupEnv("GOGPU_RENDER_MODE")
+	_ = os.Setenv("GOGPU_RENDER_MODE", "cpu")
+	defer func() {
+		if had {
+			_ = os.Setenv("GOGPU_RENDER_MODE", prev)
+		} else {
+			_ = os.Unsetenv("GOGPU_RENDER_MODE")
+		}
+	}()
+	dc := render.NewContext(voicesOffW, voicesOffH)
+	defer dc.Close()
+	paintVoicesOffscreen(dc, f, picks)
+	raw := dc.Image()
+	cp := image.NewRGBA(raw.Bounds())
+	if rgba, isRGBA := raw.(*image.RGBA); isRGBA {
+		copy(cp.Pix, rgba.Pix)
+		return cp
+	}
+	for y := 0; y < voicesOffH; y++ {
+		for x := 0; x < voicesOffW; x++ {
+			cp.Set(x, y, raw.At(x, y))
+		}
+	}
+	return cp
+}
+
+func runVoicesPixelProbes(img image.Image, f voicesFile, picks []audio.VoicePick) (map[string]any, bool) {
+	out := map[string]any{}
+	ok := true
+	at := func(x, y float64) (uint8, uint8, uint8, bool) {
+		px := 20 + (x+600)/1200*(voicesOffW-40)
+		py := 20 + (y+400)/800*(voicesOffH-40)
+		r32, g32, b32, _ := img.At(int(px+0.5), int(py+0.5)).RGBA()
+		return uint8(r32 >> 8), uint8(g32 >> 8), uint8(b32 >> 8), true
+	}
+	// Center explosive (request 0) reads red. Probe inside its own dot:
+	// +4 world units right stays on the boom while leaving the listener
+	// cross and the neighbor green cell behind.
+	r, g, b, _ := at(f.Requests[0].Pos[0]+4, f.Requests[0].Pos[1])
+	boomOK := r >= 180 && g <= 140 && b <= 140
+	out["boom"] = []int{int(r), int(g), int(b)}
+	out["boom_ok"] = boomOK
+	if !boomOK {
+		ok = false
+	}
+	// An audible non-explosive request reads green. Skip the cell that
+	// collides with the center boom (request 0 sits 5px away and paints
+	// last); the next audible cell probes clean.
+	found := -1
+	bx, by := f.Requests[0].Pos[0], f.Requests[0].Pos[1]
+	for i, p := range picks {
+		if !p.Audible || f.Requests[i].Explosive {
+			continue
+		}
+		dx := f.Requests[i].Pos[0] - bx
+		dy := f.Requests[i].Pos[1] - by
+		if dx*dx+dy*dy < 400 {
+			continue
+		}
+		found = i
+		break
+	}
+	if found < 0 {
+		out["aud_ok"] = false
+		ok = false
+	} else {
+		r, g, b, _ := at(f.Requests[found].Pos[0], f.Requests[found].Pos[1])
+		audOK := g >= 120 && r <= 120 && b <= 150
+		out["aud"] = []int{int(r), int(g), int(b)}
+		out["aud_ok"] = audOK
+		if !audOK {
+			ok = false
+		}
+	}
+	// Listener cross reads red.
+	r, g, b, _ = at(f.Listener[0], f.Listener[1])
+	lisOK := r >= 180 && g <= 90 && b <= 90
+	out["listener"] = []int{int(r), int(g), int(b)}
+	out["listener_ok"] = lisOK
+	if !lisOK {
+		ok = false
+	}
+	out["pixel_ok"] = ok
+	return out, ok
+}
+
+func checkVoicesGolden(cur image.Image) (float64, int64, bool, bool) {
+	_ = os.MkdirAll("examples/engine/camera/testdata", 0o755)
+	basePath := "examples/engine/camera/testdata/voices_golden.png"
+	if _, err := os.Stat(basePath); err != nil {
+		fo, err := os.Create(basePath)
+		if err != nil {
+			return 100, 0, false, false
+		}
+		_ = png.Encode(fo, cur)
+		_ = fo.Close()
+		return 0, 0, true, true
+	}
+	fo, err := os.Open(basePath)
+	if err != nil {
+		return 100, 0, false, false
+	}
+	want, err := png.Decode(fo)
+	_ = fo.Close()
+	if err != nil {
+		return 100, 0, false, false
+	}
+	if !want.Bounds().Eq(cur.Bounds()) {
+		return 100, int64(cur.Bounds().Dx() * cur.Bounds().Dy()), false, false
+	}
+	var diff int64
+	total := int64(cur.Bounds().Dx() * cur.Bounds().Dy())
+	for y := 0; y < cur.Bounds().Dy(); y++ {
+		for x := 0; x < cur.Bounds().Dx(); x++ {
+			ar, ag, ab, aa := cur.At(x, y).RGBA()
+			br, bg, bb, ba := want.At(x, y).RGBA()
+			if ar != br || ag != bg || ab != bb || aa != ba {
+				diff++
+			}
+		}
+	}
+	var pct float64
+	if total > 0 {
+		pct = 100 * float64(diff) / float64(total)
+	}
+	return pct, total, false, diff == 0
+}
+
+func runVoicesCase(autoOnly bool, manualSeconds int) {
+	var secs int
+	if autoOnly {
+		secs = runSeconds(8)
+		wrkit.RequireMinRun(secs, voicesAbilityID)
+	} else if manualSeconds > 0 {
+		secs = manualSeconds
+	} else {
+		secs, _ = wrkit.RunSecondsOpt()
+	}
+	manualMode := !autoOnly
+	wrkit.EnsureUIFace()
+
+	f, err := loadVoicesFile()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "FAIL: load %s: %v\n", voicesEngineFn, err)
+		os.Exit(1)
+	}
+	extra, ok := voicesSelftest(f)
+	reqs, _ := buildVoiceReqs(f)
+	picks, st, _ := audio.SelectVoices(v2(f.Listener), reqs)
+	cpuImg := voicesRenderOffscreen(f, picks)
+	if cpuImg == nil {
+		extra["pixel_ok"] = false
+		ok = false
+	} else {
+		pixMap, pixOK := runVoicesPixelProbes(cpuImg, f, picks)
+		for k, v := range pixMap {
+			extra[k] = v
+		}
+		if !pixOK {
+			ok = false
+		}
+		_ = os.MkdirAll("examples/engine/camera/testdata", 0o755)
+		if fh, err := os.Create("examples/engine/camera/testdata/voices_last.png"); err == nil {
+			_ = png.Encode(fh, cpuImg)
+			_ = fh.Close()
+		}
+		gd, total, first, gok := checkVoicesGolden(cpuImg)
+		extra["golden_diff_pct"] = gd
+		extra["golden_total_px"] = total
+		if first {
+			extra["golden_first_run"] = 1
+		}
+		extra["golden_ok"] = gok
+		if !gok && !first {
+			ok = false
+		}
+	}
+	extra["case"] = "voices"
+	extra["channels"] = st.Channels
+	extra["audible"] = st.Audible
+	if !ok {
+		raw, _ := json.Marshal(map[string]any{"ability_id": voicesAbilityID, "scenario": voicesScenario, "extra": extra, "pass": false})
+		fmt.Println(string(raw))
+		fmt.Fprintln(os.Stderr, "game_camera: voices selftest FAIL, not opening window")
+		os.Exit(1)
+	}
+
+	var runFor time.Duration
+	if secs > 0 {
+		runFor = time.Duration(secs) * time.Second
+	}
+	root := rendering.NewAbsoluteBox(float64(winW), float64(winH))
+	root.Background = &rendering.Color{R: skyR, G: skyG, B: skyB, A: 1}
+	lis, _ := audio.NewListener2D(v2(f.Camera))
+	lis.MakeCurrent()
+	duck, _ := audio.NewDucker(audio.DefaultDuckDepth, 250*core.Millisecond, 250*core.Millisecond)
+	beat, _ := audio.NewBeatClock(f.Beat.BPM, f.Beat.BeatsPerBar)
+	bus, _ := audio.NewBus("master", 0.8)
+	mixer, _ := audio.NewMixer(audio.AudibleVoices)
+	cam, _ := camera.NewCamera(core.V2(float64(winW), float64(winH)))
+	_ = cam.SetSmoothing(liveSmoothing)
+	_ = cam.Follow(v2(f.Camera))
+	road := rendering.NewRenderBox()
+	road.FixedWidth, road.FixedHeight = float64(winW), float64(winH)
+	road.SetRepaintBoundary(true)
+	elapsed := 0.0
+	camX := f.Camera[0]
+	road.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
+		if pc == nil || pc.DC == nil {
+			return
+		}
+		ax, ay := pc.Abs(0, 0)
+		pc.DC.SetRGBA(skyR, skyG, skyB, 1)
+		pc.DC.DrawRectangle(ax, ay, size.Width, size.Height)
+		_ = pc.DC.Fill()
+		// Mix bars: one row per audible pick (engine SelectVoices only).
+		ps, rst, _ := audio.SelectVoices(core.V2(camX, f.Camera[1]), reqs)
+		y := ay + 40.0
+		n := 0
+		for _, p := range ps {
+			if !p.Audible {
+				continue
+			}
+			w := voicesBarW * p.Gain
+			px := ax + voicesBarX + float64((p.Pan+1)/2*40)
+			if p.Gain > 0.7 {
+				pc.DC.SetRGB(0.95, 0.3, 0.2)
+			} else if p.Gain > 0.35 {
+				pc.DC.SetRGB(0.95, 0.75, 0.2)
+			} else {
+				pc.DC.SetRGB(0.2, 0.65, 0.3)
+			}
+			pc.DC.DrawRectangle(px, y, w, voicesBarH)
+			_ = pc.DC.Fill()
+			y += voicesBarH + 4
+			n++
+			if y > ay+size.Height-40 {
+				break
+			}
+		}
+		_ = n
+		_ = rst
+	}
+	root.Place(road, 0, 0)
+	overlay := wrkit.Label("--", 13, 1, 1, 1)
+	root.Place(overlay, 12, 10)
+
+	win, err := platform.Open(platform.Options{Width: winW, Height: winH, Title: "game_camera", Decorations: true})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
+		os.Exit(1)
+	}
+	defer win.Close()
+	ctl := win.Controls()
+	var summary manualSummary
+	summary.Note = "case=voices"
+	frames := 0
+	beats := int64(0)
+	setTitle := func() {
+		if ctl == nil {
+			return
+		}
+		ctl.SetTitle(fmt.Sprintf("game_camera — voices ch=%d aud=%d beats=%d ptr=%d key=%d t=%.0fs",
+			st.Channels, st.Audible, beats, summary.Pointer, summary.Key, elapsed))
+	}
+	app := embedder.NewPipelineApp(win.Host(), root, embedder.PipelineOptions{
+		ClearR: skyR, ClearG: skyG, ClearB: skyB, ClearA: 1,
+		RunFor: runFor,
+		WarmUp: true,
+		OnEvent: func(ev platform.Event) {
+			switch ev.Type {
+			case platform.EventClose, platform.EventCloseRequested:
+				fmt.Fprintf(os.Stderr, "game_camera: voices close (%s)\n", win.Backend())
+				return
+			case platform.EventPointer:
+				summary.Pointer++
+				camX += 20
+				if manualMode {
+					fmt.Fprintf(os.Stderr, "game_camera: voices pointer n=%d\n", summary.Pointer+summary.Key+summary.Resize)
+					if ctl != nil {
+						ctl.SetTitle(fmt.Sprintf("game_camera voices events=%d", summary.Pointer+summary.Key+summary.Resize))
+					}
+				}
+				return
+			case platform.EventKey:
+				if ev.Pressed {
+					summary.Key++
+					camX -= 20
+					if manualMode {
+						fmt.Fprintf(os.Stderr, "game_camera: voices key n=%d\n", summary.Pointer+summary.Key+summary.Resize)
+					}
+				}
+				setTitle()
+				return
+			case platform.EventResize:
+				summary.Resize++
+				if ev.Width > 0 && ev.Height > 0 {
+					root.FixedWidth, root.FixedHeight = float64(ev.Width), float64(ev.Height)
+					root.MarkNeedsLayout()
+				}
+				setTitle()
+				return
+			default:
+				return
+			}
+		},
+	})
+	stC := st
+	// Voices tick owns the frame: no follow-case camSim ticker here (its
+	// car/road pointers are nil on this case and would nil-panic).
+	voicesTick := tickFunc(func(dt float64) bool {
+		if dt < 0 {
+			dt = 0
+		}
+		if dt > 0.05 {
+			dt = 0.05
+		}
+		frames++
+		elapsed += dt
+		camX = f.Camera[0] + 60*math.Sin(elapsed*0.3)
+		_ = cam.Follow(core.V2(camX, f.Camera[1]))
+		ps, rst, _ := audio.FollowAndSelect(&lis, cam.EffectivePos(), reqs)
+		_, _ = audio.ApplyExplosionDuck(duck, rst, 1)
+		duck.Update(core.SecondsFloat(dt))
+		beats += int64(len(beat.Update(core.SecondsFloat(dt))))
+		gains := make([]float64, 0, len(ps))
+		for _, p := range ps {
+			if p.Audible {
+				gains = append(gains, audio.CombineGains(p.Gain, bus.Gain(), duck.Gain()))
+			}
+		}
+		held := mixer.Mix(gains)
+		snap := app.Metrics().Snapshot()
+		fps := 0.0
+		if snap.AvgFrameIntervalMs > 1e-6 {
+			fps = 1000.0 / snap.AvgFrameIntervalMs
+		}
+		overlay.SetText(fmt.Sprintf("fps %.0f ch %d/%d aud %d beats %d duck %.2f 合%.2f",
+			fps, rst.Channels, rst.Audible, stC.Audible, beats, duck.Gain(), held.Total))
+		road.MarkNeedsPaint()
+		app.ScheduleFrame()
+		return true
+	})
+	app.Scheduler().Tickers().Add(&voicesTick)
+	app.Scheduler().SetMode(scheduler.ModePersistent)
+	if err := app.Open(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
+		os.Exit(1)
+	}
+	root.MarkNeedsPaint()
+	app.ScheduleFrame()
+	t0 := time.Now()
+	if err := app.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
+		os.Exit(1)
+	}
+	app.Close()
+	elapsedSec := time.Since(t0).Seconds()
+	snap := app.Metrics().Snapshot()
+	presents := app.PresentCount()
+	extraOut := map[string]any{
+		"case": "voices", "probe_ok": 1, "channels": st.Channels, "audible": st.Audible,
+		"beats": beats, "frames": frames, "pixels": "boom/aud/listener probes",
+		"golden": extra["golden_diff_pct"],
+	}
+	if autoOnly {
+		report := wrgate.BuildReport(wrgate.BuildInput{
+			AbilityID: voicesAbilityID, Scenario: voicesScenario, Snap: snap,
+			PresentCount: presents, ElapsedSec: elapsedSec,
+			SurfaceAreaPx: winW * winH, Warmup: true, Extra: extraOut,
+		})
+		raw, _ := json.Marshal(report)
+		fmt.Println(string(raw))
+		if err := wrgate.EvaluateGates(report, wrgate.GateOptions{MinPresents: 1}); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL:", err)
+			os.Exit(1)
+		}
+		if presents < 1 {
+			fmt.Fprintf(os.Stderr, "FAIL: presents=%d want >=1\n", presents)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "game_camera: OK voices presents=%d ch=%d aud=%d beats=%d elapsed=%.1fs\n",
+			presents, st.Channels, st.Audible, beats, elapsedSec)
+		return
+	}
+	summary.Timed = secs > 0
+	b, _ := json.Marshal(map[string]any{
+		"ability_id": voicesAbilityID, "scenario": voicesScenario,
+		"backend":  win.Backend().String(),
+		"events":   map[string]any{"pointer": summary.Pointer, "key": summary.Key, "resize": summary.Resize},
+		"presents": presents, "elapsed_sec": elapsedSec,
+		"channels": st.Channels, "audible": st.Audible, "beats": beats,
+		"timed": summary.Timed, "note": summary.Note,
+	})
+	fmt.Println(string(b))
+	fmt.Fprintf(os.Stderr, "game_camera: voices backend=%s presents=%d ch=%d aud=%d beats=%d elapsed=%.1fs\n",
+		win.Backend(), presents, st.Channels, st.Audible, beats, elapsedSec)
+}
+
+type tickFunc func(dt float64) bool
+
+func (f *tickFunc) Tick(dt float64) bool { return (*f)(dt) }
