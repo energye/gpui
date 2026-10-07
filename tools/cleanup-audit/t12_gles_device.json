@@ -1,0 +1,74 @@
+{
+ "groups": {
+  "device_gles_create.go": [
+   "Device.Queue",
+   "Device.Features",
+   "Device.Limits",
+   "Device.CreateBuffer",
+   "Device.CreateTexture",
+   "Device.CreateTextureView",
+   "Device.CreateSampler",
+   "Device.CreateShaderModule",
+   "Device.CreateBindGroupLayout",
+   "Device.CreatePipelineLayout",
+   "Device.CreateBindGroup",
+   "Device.CreateRenderPipeline",
+   "Device.CreateComputePipeline",
+   "Device.CreateCommandEncoder",
+   "Device.CreateQuerySet",
+   "Device.CreateRenderBundleEncoder",
+   "Device.CreateAccelerationStructure",
+   "Device.MapBuffer",
+   "Device.HalDevice"
+  ],
+  "device_gles_destroy.go": [
+   "Device.DestroyBuffer",
+   "Device.DestroyTexture",
+   "Device.DestroyTextureView",
+   "Device.DestroySampler",
+   "Device.DestroyBindGroupLayout",
+   "Device.DestroyBindGroup",
+   "Device.DestroyPipelineLayout",
+   "Device.DestroyShaderModule",
+   "Device.DestroyRenderPipeline",
+   "Device.DestroyComputePipeline",
+   "Device.FreeCommandBuffer",
+   "Device.UnmapBuffer",
+   "Device.Release",
+   "Device.DestroyQuerySet",
+   "Device.DestroyRenderBundle",
+   "Device.DestroyAccelerationStructure",
+   "Device.MarkLost",
+   "Device.IsLost",
+   "Device.GetAccelerationStructureBuildSizes",
+   "Device.GetAccelerationStructureDeviceAddress",
+   "<pkg>.compileFragmentShader"
+  ],
+  "device_gles_sync.go": [
+   "Device.CreateFence",
+   "Device.DestroyFence",
+   "Device.ResetFence",
+   "Device.GetFenceStatus",
+   "Device.WaitForFence",
+   "Device.PushErrorScope",
+   "Device.PopErrorScope",
+   "Device.WaitIdle",
+   "Device.Poll",
+   "Device.FlushCallbacks",
+   "Device.SyncLostState",
+   "Device.TlasInstanceToBytes",
+   "<pkg>.maxInt32",
+   "<pkg>.maxUint32",
+   "<pkg>.textureFormatToGL"
+  ]
+ },
+ "known_fail": [
+  "TestStrokeExpansion_ScaledDashedRect",
+  "TestStrokeString_DifferentFromFill"
+ ],
+ "src": "gpu/gwgpu/gles/device.go",
+ "tests": [
+  "TestDevice|TestCreate|TestDestroy|TestFence|TestConvert|TestGles"
+ ],
+ "timeout": 900
+}

@@ -1,6 +1,6 @@
 # RENDER_CLEANUP_PLAN — 框架代码整理方案总账
 
-> **版本：3.4** | 日期：2026-10-07
+> **版本：3.5** | 日期：2026-10-07
 > **状态：T1.1 已完成；T1.1 次刀 software.go 待你点头**
 > **范围：整框架全部源码**：`render/`（999 个 Go 文件）`gpu/`（828）`ui/`（517）`engine/`（165）`video/`（76）；`examples/` `scripts/` `tools/` 为调用方与验证方，拆分不拆它们，但调用改动含它们
 > **真源依据：** `ENGINE_ARCH_OVERVIEW.md` `ENGINE_FLUTTER_SKIA_ARCH.md` `RENDER_API_CATALOG.md` `AGENTS.md`
@@ -122,7 +122,7 @@ T0 → T1.1 → T1.2 → T1.3 → T1.4 → T1.5 → T2 → T3 → T4 → T5，�
 | T0 基线冻结 + 脚本转存 | 全框架清单落 §7 基线表，`/tmp` 脚本转存 `tools/cleanup-audit/` 入库 | 已完成（未提交，你定暂不提交） | §7 基线表 + `tools/cleanup-audit/`（`gpui_audit.py` `gpui_audit2.py` `README.md`）；重跑 `gpui_audit.py` 数字一致（Go 2860，`files` 3649→3652 系新增 3 脚本文件） |
 | T0.1 阻塞窗去留 | `examples/ui_polish_gallery` 缺包问题定去留 | 已完成（挂起移交组件线） | 结论：窗目录原样保留不删；查明引 22 个不存在的 `ui/kit` 子包，实仓 `ui/kit` 为扁平单包，属组件线欠账；T1 起全量构建暂跳过该窗（`go list` 记阻塞项），由组件线认领；直接删会连带炸 `docs/antd` 下 70 余处强制引用，已止损 |
 | T1.1 render 全域拆分 | `render/` 999 文件全过，大文件按榜单逐个拆，签名不动 | 已完成（2026-10-07 你验收，共 13 刀） | 13 刀：context/software/text/present_target/video_direct/curve/filter_ops/m4_extensions/path/path_ops/vertices/context_image/context_layer，接收者口径零丢失零重复；其余顶层文件 REVIEW-PASS（accelerator/shape_detect 单域内聚不过，小文件体量不够）；顶层 119 文件零超 800 行；构建绿，失败面恒为基线两存量洞 |
-| T1.2 gpu 全域拆分 | `gpu/` 828 文件全过，同上 | 待确认 | 搬家全表（待出） |
+| T1.2 gpu 全域拆分 | `gpu/` 828 文件全过，同上 | 已完成（2026-10-07 你验收，共 5 刀） | 5 刀：webgpu/swapchain、webgpu/device、rwgpu/device、gles/command、gles/device（Windows 版拆三组，Linux 版原样保留，双平台构建绿）；其余记通过：naga/dxil/spirv/wgsl/msl/hlsl/glsl 生成代码不动，metal 三文件走 macOS 不碰，gl 绑定与 shader/ir 与 texture 类型与 convert_resources 单域内聚不过，capabilities 单域不过；wasm 断线与 js 不可做记 T5；构建绿，失败面恒为基线存量 |
 | T1.3 ui 全域拆分 | `ui/` 517 文件全过，同上 | 待确认 | 搬家全表（待出） |
 | T1.4 engine 全域拆分 | `engine/` 165 文件全过，同上 | 待确认 | 搬家全表（待出） |
 | T1.5 video 全域拆分 | `video/` 76 文件全过，同上 | 待确认 | 搬家全表（待出） |
@@ -152,7 +152,7 @@ T0 → T1.1 → T1.2 → T1.3 → T1.4 → T1.5 → T2 → T3 → T4 → T5，�
 
 | 版本 | 说明 |
 |---|---|
-| 3.4（2026-10-07） | T1.1 关账（你验收）：13 刀拆完，其余记通过，顶层零超 800 行；下一步 T1.2 gpu 待你点头。 |
+| 3.5（2026-10-07） | T1.2 关账（你验收）：5 刀拆完，其余记通过；Windows 加 Linux 双平台构建绿；下一步 T1.3 ui 待你点头。 |
 | 3.1（2026-10-07） | 按目标复核补齐：脚本 `/tmp` 转存要求写死；T1 补五域分组与主链窗定死规则；T3 创建入口改白名单三处；T4 重复检测方法写死；T6 三条机检命令写死；基线补阻塞项与 HACK 待补；任务表加 T0.1 阻塞窗去留，T0 改部分完成。等你确认后先做 T0 转存与 T0.1。 |
 | 2.1（2026-10-07） | 加任务总表：11 项单任务串行，状态全列，T0 已完成其余待确认。 |
 | 2.0（2026-10-07） | 每步定稿：输入、动作、产物、验收、回滚、走通标准写死；补走通预检。 |

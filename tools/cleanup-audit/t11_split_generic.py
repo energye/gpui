@@ -106,10 +106,11 @@ for f, items in buckets.items():
         cur.extend(body)
         open(outpath, "w", encoding="utf-8").write("".join(cur))
     else:
+        pkgname = next(l.split()[1] for l in lines if l.startswith("package "))
         out = []
         out.extend(header)
         out.append("\n")
-        out.append("package render\n")
+        out.append("package " + pkgname + "\n")
         out.append("\n")
         out.extend(import_block)
         out.append("\n")
