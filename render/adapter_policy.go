@@ -17,7 +17,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-	"github.com/energye/gpui/gpu/webgpu"
 )
 
 // AdapterPolicy controls which GPU is selected.
@@ -260,7 +259,7 @@ const lowVRAMWaterlineFraction = 0.8
 // lowVRAMWaterlineTripped reports whether the process ledger already holds
 // past the waterline of the budget. Budget ≤0 (disabled) never trips.
 func lowVRAMWaterlineTripped() bool {
-	budget := webgpu.VramBudgetMB()
+	budget := hal.VramBudgetMB()
 	if budget <= 0 {
 		return false
 	}
@@ -271,6 +270,6 @@ func lowVRAMWaterlineTripped() bool {
 			fraction = float64(n) / 100.0
 		}
 	}
-	live := webgpu.VramLiveBytes()
+	live := hal.VramLiveBytes()
 	return live >= uint64(float64(budget)*1024*1024*fraction)
 }

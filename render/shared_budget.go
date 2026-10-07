@@ -11,7 +11,7 @@
 package render
 
 import (
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // Shared-window budget coordination and shared-device recovery
@@ -19,8 +19,8 @@ import (
 // shareGen bumps every time the published device changes (publish or
 // shared recovery) so the present path can detect a device swap.
 //
-// Layering: ui/* consults these helpers (ui → render). render already
-// imports gpu/webgpu; ui must never import gpu directly.
+// Layering: ui/* consults these helpers (ui → render). render reads the
+// ledger via gpu/hal; ui must never import gpu directly.
 
 // shareTargets tracks every live PresentTarget on the shared device so a
 // shared recovery can reconfigure all swapchains exactly once. Keyed by
@@ -53,22 +53,22 @@ func SharedDeviceGeneration() uint64 {
 // VramBudgetMB exposes the process VRAM budget in MiB
 // (GPUI_VRAM_BUDGET_MB, default 768, 0 = disabled).
 func VramBudgetMB() int64 {
-	return webgpu.VramBudgetMB()
+	return hal.VramBudgetMB()
 }
 
 // VramLiveBytes reports the process ledger's live estimate in bytes.
 func VramLiveBytes() uint64 {
-	return webgpu.VramLiveBytes()
+	return hal.VramLiveBytes()
 }
 
 // VramLiveCount reports how many allocations the ledger tracks.
 func VramLiveCount() int {
-	return webgpu.VramLiveCount()
+	return hal.VramLiveCount()
 }
 
 // VramPeakBytes reports the high-water mark.
 func VramPeakBytes() uint64 {
-	return webgpu.VramPeakBytes()
+	return hal.VramPeakBytes()
 }
 
 // VramPressureHigh reports whether the process ledger already holds past
@@ -105,7 +105,7 @@ func PictureCacheFairMax(avgEntryBytes, fallbackBytes uint64) int {
 	if !hasShare || windows <= 1 {
 		return 0
 	}
-	return pictureCacheFairMaxN(windows, webgpu.VramBudgetMB(), avgEntryBytes, fallbackBytes)
+	return pictureCacheFairMaxN(windows, hal.VramBudgetMB(), avgEntryBytes, fallbackBytes)
 }
 
 // pictureCacheFairMaxN is the pure fair-share core: budgetMB/(windows×

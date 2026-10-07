@@ -11,13 +11,13 @@
 package render
 
 import (
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 func vramTestReset() {
-	webgpu.VramTestReset()
+	hal.VramTestReset()
 }
 
 func vramTestAdd(handle uintptr, need uint64) {
-	webgpu.VramTestAdd(handle, need)
+	hal.VramTestAdd(handle, need)
 }
