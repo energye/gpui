@@ -13,7 +13,6 @@ package render
 import (
 	"image"
 	"math"
-
 )
 
 // NewContextForPixmap creates a Context backed by an existing Pixmap.
@@ -150,6 +149,7 @@ func NewContextForImage(img image.Image, opts ...ContextOption) *Context {
 //	dc.Width() // 800 (logical)
 //	dc.PixelWidth() // 1600 (physical)
 //	dc.DrawCircle(400, 300, 100) // logical coordinates
+//
 // NewContextWithScale creates a new drawing context with the given logical
 // dimensions and device scale factor. This is a convenience wrapper for:
 //
@@ -260,4 +260,3 @@ func (c *Context) DropGPURenderContext() {
 	}
 	unregisterGPUContext(c)
 }
-

@@ -178,4 +178,3 @@ type RenderPathStats struct {
 	BrushBootstrapOps        int
 	LastBrushBootstrapReason string
 }
-

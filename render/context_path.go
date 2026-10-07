@@ -13,7 +13,6 @@ package render
 import (
 	"image"
 	"math"
-
 )
 
 // Clear resets the entire context to transparent (zero alpha).
@@ -137,6 +136,7 @@ func (c *Context) ClearPath() {
 //	path, _ := render.ParseSVGPath
 //	dc.SetPath(path)
 //	dc.Fill()
+//
 // SetPath replaces the current path with p.
 // The path is copied — subsequent modifications to p do not affect the context.
 // Use this to render pre-built paths (e.g., from ParseSVGPath):
@@ -180,6 +180,7 @@ func (c *Context) AppendPath(p *Path) {
 //	dc.DrawPath(path)
 //	dc.Fill()
 //	dc.Pop()
+//
 // DrawPath replays the elements of p through the current transform matrix,
 // replacing the current path. Unlike SetPath (which copies raw coordinates),
 // DrawPath applies the current matrix (Translate, Scale, Rotate) to all points.

@@ -13,7 +13,6 @@ package render
 import (
 	"fmt"
 	"io"
-
 )
 
 // RenderPathStats returns a copy of the current routing counters.

@@ -12,7 +12,6 @@ package render
 
 import (
 	"image/color"
-
 )
 
 func (c *Context) SetPipelineMode(mode PipelineMode) {
@@ -183,6 +182,7 @@ func (c *Context) SetHexColor(hex string) {
 //	ctx.SetFillBrush(render.Solid(render.Red))
 //	ctx.SetFillBrush(render.SolidHex("#FF5733"))
 //	ctx.SetFillBrush(render.HorizontalGradient(render.Red, render.Blue, 0, 100))
+//
 // SetFillBrush sets the brush used for fill operations.
 // This is the preferred way to set fill styling in new code.
 //
@@ -203,6 +203,7 @@ func (c *Context) SetFillBrush(b Brush) {
 //
 //	ctx.SetStrokeBrush(render.Solid(render.Black))
 //	ctx.SetStrokeBrush(render.SolidRGB(0.5, 0.5, 0.5))
+//
 // SetStrokeBrush sets the brush used for stroke operations.
 // Note: In the current implementation, fill and stroke share the same brush.
 // This method is provided for API symmetry and future extensibility.
@@ -283,6 +284,7 @@ func (c *Context) SetMiterLimit(limit float64) {
 //
 //	ctx.SetStroke(render.DefaultStroke().WithWidth(2).WithCap(render.LineCapRound))
 //	ctx.SetStroke(render.DashedStroke(5, 3))
+//
 // SetStroke sets the complete stroke style.
 // This is the preferred way to configure stroke properties.
 //
@@ -309,6 +311,7 @@ func (c *Context) GetStroke() Stroke {
 //	ctx.SetDash(5, 3) // 5 units dash, 3 units gap
 //	ctx.SetDash(10, 5, 2, 5) // complex pattern
 //	ctx.SetDash() // clear dash (solid line)
+//
 // SetDash sets the dash pattern for stroking.
 // Pass alternating dash and gap lengths.
 // Passing no arguments clears the dash pattern (returns to solid lines).

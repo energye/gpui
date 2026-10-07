@@ -1,7 +1,7 @@
 """T1.1 import 修剪：循环跑 go build，按“imported and not used”删行，直到通过。"""
 import re, subprocess, os
 ROOT = "/home/yanghy/app/projects/gogpu/gpui"
-pat = re.compile(r'(render/context\w*\.go):\d+:\d+: "([^"]+)" imported (?:as \w+ )?and not used')
+pat = re.compile(r'(render/\w+\.go):\d+:\d+: "([^"]+)" imported (?:as \w+ )?and not used')
 for rnd in range(20):
     p = subprocess.run(["go", "build", "./render/"], cwd=ROOT,
                        capture_output=True, text=True)

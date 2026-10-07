@@ -12,7 +12,6 @@ package render
 
 import (
 	"math"
-
 )
 
 // DeviceScale returns the device scale factor (physical pixels per logical pixel).

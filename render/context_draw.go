@@ -13,7 +13,6 @@ package render
 import (
 	"image"
 	"math"
-
 )
 
 // Image returns the context's image.

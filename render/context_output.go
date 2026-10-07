@@ -16,7 +16,6 @@ import (
 	"image/png"
 	"io"
 	"math"
-
 )
 
 // Width returns the logical width of the context.

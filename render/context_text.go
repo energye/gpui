@@ -10,9 +10,7 @@
 
 package render
 
-import (
-
-)
+import ()
 
 func (c *Context) takeBrushBootstrapIfAny() {
 	rc := c.gpuCtxOps()
