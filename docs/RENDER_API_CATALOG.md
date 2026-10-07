@@ -168,6 +168,11 @@
 | `IsGPUOutOfMemory(err)` + `PurgeEvictable` 接口 + `RegisterPurgeEvictable/UnregisterPurgeEvictable/PurgeEvictables`（oom_purge.go，多窗 1.3）+ `PresentTarget.Fallbacks()` + `OOMExitThreshold/OOMExit`（oom_exit.go，2026-09-18 B3：三帧判死与就绪门同一阈值同一文案，ui/embedder 只做委托） | OOM 统一判定（大小写全匹配三短语）与可重建缓存 purge 链（字形/图片/层池注册、teardown 注销）+ 建窗降级次数上报 + 判死阈值 | OOM 判定与 purge | 🔗 建窗降级循环 + 建纹理 OOM 恢复轮 + embedder 退出判定在用 |
 | `Backend`（BackendNative/BackendGo）+ `ResolveBackend`/`ResolveBackendFor` + `SelectBackend` + `NewPresentTargetWithBackend`（backend.go/present_target.go，2026-09-30 P4：后端二选一，`GPUI_BACKEND`环境变量优先，只认native/go，写错报错不瞎猜；带参建窗零值默认，老不带参函数保留转调） | 后端选择（默认WebGPU，加`go`切纯Go GL；创建分支只留建实例和建交换链两句，之后全走hal接口） | 后端二选一 | 🔗 NewPresentTarget 建窗调用（render/present_target.go:ResolveBackend+SelectBackend；render/present_swapchain.go:ResolveBackend建交换链）；真窗双验2026-09-30（go路鹈鹕12秒720帧58fps零回退discrete／默认路723帧58.3fps零回退integrated／写错值直接报错退出） |
 | `PresentNativeSurface` / `PresentPlatform` / var `ErrNilSurfaceView` | 原生表面句柄、平台枚举、空表面错误 | 原生表面/平台 | ✅ |
+| `FrameAcquireWaitMs/FrameFlushMs/FramePresentWaitMs` | 帧获取/提交/呈现等待毫秒统计（帧耗时诊断） | 帧耗时统计 | 🔗 |
+| `PictureCacheFairMax` | 图片缓存公平上限（多窗按下限/平均条目算） | 图片缓存上限 | 🔗 |
+| `RecoverSharedDevice/SharedDeviceGeneration/SharedWindowCount` | 共享设备恢复/代次/窗口计数（多窗共享设备账本） | 共享设备账本 | 🔗 |
+| `VramBudgetMB/VramLiveBytes/VramLiveCount/VramPeakBytes/VramPressureHigh`（shared_budget.go，2026-10-07 T3 收口：转调从 `webgpu` 换 `hal`，同账本数字不变） | 显存预算/存活字节/存活数/峰值/压力判定（进程账本） | 显存账本 | 🔗 |
+| `OOMExit.Note(err)/OOMExit.RunErr()`（oom_exit.go） | 判死记录/取退出错误（连续 OOM 报人话退出） | 判死记录 | 🔗 embedder 在用 |
 
 ### 3.8 text.go（16）+ text_decoration.go（2）+ text_mode.go · 文本族
 | 方法 | 功能 | 精简 | 状态 |
@@ -185,6 +190,11 @@
 | `DrawMesh(mesh)` / `Mesh` | 网格绘制（膨胀路径转三角形） | 网格绘制 | 🧪 仅测试（p1_capability_matrix_closers_test） |
 | `DrawAtlas(img,sprites)` / `AtlasSprite` | 单纹理图集批量精灵绘制 | 图集绘制 | 🔗 |
 | `DrawRegularPolygon(n,x,y,r,rot)` | 正多边形形状追加到路径 | 正多边形 | 🔗 |
+| `DrawVerticesEx/DrawMeshEx/DrawAtlasEx/DrawDepthSprites`（vertices_mesh.go/vertices_atlas.go） | 带回退原因的顶点/网格/图集/深度精灵绘制（返回 CPU 回退原因） | 顶点绘制扩展 | 🔗 |
+| `VertDrawOptions/VertDrawResult/VertCPUFallbackReason` + var `ErrVertsBadIndex/ErrVertsNonFinite` | 顶点绘制选项/结果/回退原因 + 非法索引/非有限坐标错误 | 顶点绘制参数 | 🔗 |
+| `AtlasDrawOptions/AtlasDrawResult/AtlasCPUFallbackReason` + var `ErrAtlasNonFinite/ErrAtlasUnsupportedFilter` | 图集绘制选项/结果/回退原因 + 非有限矩形/不支持过滤错误 | 图集绘制参数 | 🔗 |
+| `DepthSprite` + `NewDepthSprite` + `DepthDrawOptions/DepthDrawResult/DepthCPUFallbackReason` + var `ErrDepthNonFinite` | 深度排序精灵及绘制选项/结果/回退原因 | 深度精灵 | 🔗 |
+| `IsDepthSorted/SortDepthSprites/SetDepth` | 深度排序判定/排序/设深度 | 深度排序 | 🔗 |
 
 ### 3.10 m4_extensions.go（其余）
 | 方法 | 功能 | 精简 | 状态 |
@@ -336,6 +346,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | Path 高级造型 `Trim/WithCorners/Discrete` | 仅测试 |
 | `SetDither`（m4_extensions） | 仅测试 |
 | `Pattern/ImagePattern` 旧图案接口（SetFillPattern 等） | 仅测试/桥接；生产走 Brush |
+| 显存账本 `VramBudgetMB/VramLiveBytes/VramLiveCount/VramPeakBytes/VramPressureHigh` + 共享设备 `RecoverSharedDevice/SharedDeviceGeneration/SharedWindowCount` + 图片缓存 `PictureCacheFairMax` + 帧耗时 `FrameAcquireWaitMs/FrameFlushMs/FramePresentWaitMs` + 顶点扩展 `DrawVerticesEx/DrawMeshEx/DrawAtlasEx/DrawDepthSprites` 及 Vert/Atlas/Depth 选项结果错误族 + `OOMExit.Note/RunErr`（2026-10-07 T6 补录：代码早有、总账漏记，T1 拆分搬家后机检喊出，本次按归属补 §3.7/§3.9） | 代码存量，机检 `go run ./scripts/apidoc` 已绿 |
 | `Painter/SolidPainter/FuncPainter/PainterFromPaint` | 仅测试 |
 | 文本描边/路径 `StrokeString/StrokeStringAnchored/TextPath` | 仅测试 |
 | `DrawShapedGlyphs` | 🔗 生产在用（6 处）：`ui/rendering/text.go:988`（RenderText.Paint 批量主路）· `:1077`（复合分区回退路）· `ui/rendering/text_picture.go:205`（分区提交）· `:232`（彩色段分区）· `:244`（偏移重提交）· `ui/scene/picture.go:225`（录制回放 OpDrawShapedGlyphs）· 另 `render/text.go:158`（描边字形回退）与 `render/scene/gpu_renderer.go:247`（Scene→GPU 解析首选） |
