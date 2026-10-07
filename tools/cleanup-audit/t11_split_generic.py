@@ -30,14 +30,17 @@ pat = re.compile(r'^func\s+(?:\(\s*\w+\s+\*?(\w+)\)\s+)?([A-Za-z_]\w*)')
 idx = [i for i, ln in enumerate(lines) if pat.match(ln)]
 print("FUNCS=" + str(len(idx)))
 
-imp_start = next(i for i, ln in enumerate(lines) if ln.startswith("import ("))
-depth = 0
-imp_end = imp_start
-for i in range(imp_start, len(lines)):
-    depth += lines[i].count("(") - lines[i].count(")")
-    if lines[i].strip() == ")" or (depth == 0 and i > imp_start):
-        imp_end = i
-        break
+imp_start = next(i for i, ln in enumerate(lines) if ln.startswith("import "))
+if lines[imp_start].strip() == "import (":
+    depth = 0
+    imp_end = imp_start
+    for i in range(imp_start, len(lines)):
+        depth += lines[i].count("(") - lines[i].count(")")
+        if lines[i].strip() == ")" or (depth == 0 and i > imp_start):
+            imp_end = i
+            break
+else:
+    imp_end = imp_start
 header = lines[:9]
 import_block = lines[imp_start:imp_end + 1]
 ctx_import_paths = re.findall(r'"([^"]+)"', "".join(import_block))
