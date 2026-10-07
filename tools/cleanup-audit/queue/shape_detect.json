@@ -1,0 +1,28 @@
+{
+ "src": "render/shape_detect.go",
+ "groups": {
+  "shape_detect_package.go": [
+   "<pkg>.DetectShape",
+   "<pkg>.detectCircleOrEllipse",
+   "<pkg>.verifyEllipseCPs",
+   "<pkg>.checkCPXY",
+   "<pkg>.detectRect",
+   "<pkg>.detectRRect",
+   "<pkg>.detectArc",
+   "<pkg>.detectEllipticalArc",
+   "<pkg>.solveEllipseFit",
+   "<pkg>.arcRadiusTolerance",
+   "<pkg>.arcCenterTolerance",
+   "<pkg>.circleFromPoints",
+   "<pkg>.pointsClose"
+  ]
+ },
+ "tests": [
+  "TestDetectShapeWrongElementCounts|TestDetectCircleNotClosed|TestDetectRectNotAxisAligned|TestDetectRectDegenerateSize|TestDetectRRect9Elements|TestDetectRRectWrongPattern|TestDetectRRectInconsistentCornerRadius|TestShapeKindValues|TestDetectedShapeCircleFields|TestDetectedShapeRRectFields|TestDetectShapeMultipleCalls|TestDetectCircle|TestDetectCircleViaContext|TestDetectEllipse|TestDetectRect|TestDetectRRect|TestDetectUnknownArbitraryPath|TestDetectUnknownEmptyPath|TestDetectUnknownNilPath|TestDetectNonAxisAlignedRect|TestDetectSmallCircle"
+ ],
+ "known_fail": [
+  "TestStrokeExpansion_ScaledDashedRect",
+  "TestStrokeString_DifferentFromFill"
+ ],
+ "timeout": 900
+}

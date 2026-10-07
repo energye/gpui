@@ -1,0 +1,36 @@
+{
+ "src": "render/filter_ops_gpu.go",
+ "groups": {
+  "filter_ops_gpu_context.go": [
+   "Context.tryApplyFilterGraphGPU",
+   "Context.ApplyImageFilterGraph",
+   "Context.attachFilterGPUResult",
+   "Context.releaseFilterGPUResult",
+   "Context.GPUFilterTexture",
+   "Context.materializeFilterGPU",
+   "Context.materializeFilterGPUTo",
+   "Context.releaseFilterSrcRT",
+   "Context.ensureFilterSrcRT"
+  ],
+  "filter_ops_gpu_package.go": [
+   "<pkg>.FiltersRegistered",
+   "<pkg>.RegisterGPUFilterGraph",
+   "<pkg>.RegisterGPUFilterGraphTexture",
+   "<pkg>.RegisterGPUFilterGraphFromView",
+   "<pkg>.GPUFilterGraphRegistered",
+   "<pkg>.SwapGPUFilterGraph",
+   "<pkg>.DisableGPUFilterGraphForTest",
+   "<pkg>.coalesceImageFilterNodes",
+   "<pkg>.composeColorMatrix4x5",
+   "<pkg>.imageFilterGraphGPUSupported",
+   "<pkg>.imageFilterNodeRunnable",
+   "<pkg>.applyImageFilterNode"
+  ]
+ },
+ "tests": [],
+ "known_fail": [
+  "TestStrokeExpansion_ScaledDashedRect",
+  "TestStrokeString_DifferentFromFill"
+ ],
+ "timeout": 900
+}

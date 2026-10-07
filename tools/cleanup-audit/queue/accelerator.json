@@ -1,0 +1,25 @@
+{
+ "src": "render/accelerator.go",
+ "groups": {
+  "accelerator_package.go": [
+   "<pkg>.RegisterAccelerator",
+   "<pkg>.Accelerator",
+   "<pkg>.CloseAccelerator",
+   "<pkg>.SetAcceleratorDeviceProvider",
+   "<pkg>.PurgeAcceleratorSurfaceResources",
+   "<pkg>.AbandonAcceleratorDevice",
+   "<pkg>.AcceleratorCanRenderDirect",
+   "<pkg>.renderMode",
+   "<pkg>.CPUOnlyMode",
+   "<pkg>.BeginAcceleratorFrame"
+  ]
+ },
+ "tests": [
+  "TestContextCloseFlushesGPU|TestContextCloseWithoutAccelerator|TestContextWithSDFAcceleratorFillCircle|TestContextWithSDFAcceleratorStrokeCircle|TestContextFallbackToSoftware|TestContextNoAcceleratorSoftwarePath|TestContextFillPreserveWithAccelerator|TestContextStrokePreserveWithAccelerator|TestRegisterAcceleratorNil|TestRegisterAcceleratorInitError|TestRegisterAcceleratorSuccess|TestRegisterAcceleratorReplacesOld|TestAcceleratorReturnsNilWhenNoneRegistered|TestAcceleratedOpBitfield|TestCanAccelerate|TestCloseAcceleratorClosesAndUnregisters|TestCloseAcceleratorIdempotent|TestCloseAcceleratorNoop|TestErrFallbackToCPU|TestAcceleratedOpValues"
+ ],
+ "known_fail": [
+  "TestStrokeExpansion_ScaledDashedRect",
+  "TestStrokeString_DifferentFromFill"
+ ],
+ "timeout": 900
+}

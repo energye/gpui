@@ -1,0 +1,31 @@
+{
+ "src": "render/video_planepool.go",
+ "groups": {
+  "video_planepool_package.go": [
+   "<pkg>.nv12ToRGBA",
+   "<pkg>.clampU8",
+   "<pkg>.NewVideoPlanePool",
+   "<pkg>.videoPlaneTexture",
+   "<pkg>.videoPlanePitch",
+   "<pkg>.padPlaneRows"
+  ],
+  "video_planepool_videoplaneslot.go": [
+   "VideoPlaneSlot.destroy",
+   "VideoPlaneSlot.packedPlaneViews"
+  ],
+  "video_planepool_videoplanepool.go": [
+   "VideoPlanePool.Acquire",
+   "VideoPlanePool.Release",
+   "VideoPlanePool.Stats",
+   "VideoPlanePool.Close",
+   "VideoPlanePool.AcquireForFrame",
+   "VideoPlanePool.UploadPlanes"
+  ]
+ },
+ "tests": [],
+ "known_fail": [
+  "TestStrokeExpansion_ScaledDashedRect",
+  "TestStrokeString_DifferentFromFill"
+ ],
+ "timeout": 900
+}

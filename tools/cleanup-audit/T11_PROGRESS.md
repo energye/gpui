@@ -31,3 +31,96 @@ VERDICT=RED
 (hand-run: residual 0, recv-qualified unique, build+vet clean,
 video batch 19 PASS, path batch only 2 known-fail, deps+examples build ok,
 gofmt clean). VERDICT=GREEN
+# T1.1 队列重建
+QUEUED accelerator.go lines=650 funcs=10 groups=1 tests=20
+REVIEW-PASS adapter_policy.go lines=276 funcs=9 无需拆分
+REVIEW-PASS backend.go lines=108 funcs=4 无需拆分
+REVIEW-PASS blendmode.go lines=34 funcs=0 无需拆分
+REVIEW-PASS brush.go lines=174 funcs=12 无需拆分
+REVIEW-PASS brush_custom.go lines=249 funcs=11 无需拆分
+REVIEW-PASS clip_op.go lines=85 funcs=2 无需拆分
+REVIEW-PASS color.go lines=240 funcs=14 无需拆分
+REVIEW-PASS coverage_filler.go lines=71 funcs=2 无需拆分
+REVIEW-PASS curve.go lines=22 funcs=0 无需拆分
+REVIEW-PASS curve_cubicbez.go lines=207 funcs=12 无需拆分
+REVIEW-PASS curve_line.go lines=86 funcs=10 无需拆分
+REVIEW-PASS curve_quadbez.go lines=162 funcs=9 无需拆分
+REVIEW-PASS curve_rect.go lines=61 funcs=5 无需拆分
+REVIEW-PASS dash.go lines=196 funcs=9 无需拆分
+REVIEW-PASS depth_r5.go lines=169 funcs=6 无需拆分
+REVIEW-PASS device_provider.go lines=78 funcs=5 无需拆分
+REVIEW-PASS doc.go lines=70 funcs=0 无需拆分
+REVIEW-PASS filter_ops.go lines=37 funcs=0 无需拆分
+REVIEW-PASS filter_ops_cpu.go lines=282 funcs=15 无需拆分
+QUEUED filter_ops_gpu.go lines=697 funcs=21 groups=2 tests=0
+REVIEW-PASS frame.go lines=354 funcs=13 无需拆分
+REVIEW-PASS gradient.go lines=194 funcs=7 无需拆分
+REVIEW-PASS gradient_linear.go lines=93 funcs=5 无需拆分
+REVIEW-PASS gradient_radial.go lines=202 funcs=9 无需拆分
+REVIEW-PASS gradient_sweep.go lines=157 funcs=8 无需拆分
+REVIEW-PASS lcd_layout.go lines=37 funcs=0 无需拆分
+REVIEW-PASS logger.go lines=97 funcs=5 无需拆分
+REVIEW-PASS m4_dither.go lines=92 funcs=4 无需拆分
+REVIEW-PASS m4_extensions.go lines=38 funcs=0 无需拆分
+REVIEW-PASS m4_quadclass.go lines=145 funcs=10 无需拆分
+REVIEW-PASS m4_quadimage.go lines=301 funcs=8 无需拆分
+REVIEW-PASS m4_trisampler.go lines=49 funcs=2 无需拆分
+REVIEW-PASS mask.go lines=220 funcs=15 无需拆分
+REVIEW-PASS matrix.go lines=212 funcs=15 无需拆分
+REVIEW-PASS nine_patch.go lines=120 funcs=1 无需拆分
+REVIEW-PASS oom_exit.go lines=73 funcs=2 无需拆分
+REVIEW-PASS oom_purge.go lines=95 funcs=4 无需拆分
+REVIEW-PASS options.go lines=106 funcs=5 无需拆分
+REVIEW-PASS paint.go lines=304 funcs=15 无需拆分
+REVIEW-PASS painter.go lines=73 funcs=3 无需拆分
+REVIEW-PASS path.go lines=29 funcs=0 无需拆分
+REVIEW-PASS path_boolean.go lines=118 funcs=2 无需拆分
+REVIEW-PASS path_build.go lines=262 funcs=16 无需拆分
+REVIEW-PASS path_builder.go lines=158 funcs=14 无需拆分
+REVIEW-PASS path_metrics.go lines=218 funcs=10 无需拆分
+REVIEW-PASS path_ops.go lines=15 funcs=0 无需拆分
+REVIEW-PASS path_query.go lines=78 funcs=5 无需拆分
+REVIEW-PASS path_svg.go lines=692 funcs=28 内聚单域无需拆分
+REVIEW-PASS path_verb.go lines=134 funcs=8 无需拆分
+REVIEW-PASS pathops_area.go lines=81 funcs=4 无需拆分
+REVIEW-PASS pathops_bbox.go lines=187 funcs=9 无需拆分
+REVIEW-PASS pathops_subpath.go lines=576 funcs=14 内聚单域无需拆分
+REVIEW-PASS pathops_winding.go lines=204 funcs=11 无需拆分
+REVIEW-PASS pattern.go lines=32 funcs=2 无需拆分
+REVIEW-PASS pipeline_mode.go lines=92 funcs=2 无需拆分
+REVIEW-PASS pixmap.go lines=486 funcs=26 内聚单域无需拆分
+REVIEW-PASS pixmap_pool.go lines=234 funcs=14 无需拆分
+REVIEW-PASS point.go lines=96 funcs=13 无需拆分
+REVIEW-PASS present.go lines=128 funcs=8 无需拆分
+REVIEW-PASS present_construct.go lines=584 funcs=8 内聚单域无需拆分
+REVIEW-PASS present_frame.go lines=442 funcs=11 内聚单域无需拆分
+REVIEW-PASS present_swapchain.go lines=453 funcs=17 内聚单域无需拆分
+REVIEW-PASS present_swapchain_gl.go lines=30 funcs=1 无需拆分
+REVIEW-PASS present_swapchain_nogl.go lines=23 funcs=1 无需拆分
+REVIEW-PASS rasterizer_mode.go lines=76 funcs=1 无需拆分
+REVIEW-PASS renderer.go lines=22 funcs=0 无需拆分
+REVIEW-PASS sample_count.go lines=58 funcs=2 无需拆分
+REVIEW-PASS sdf.go lines=113 funcs=6 无需拆分
+REVIEW-PASS sdf_accelerator.go lines=366 funcs=19 无需拆分
+QUEUED shape_detect.go lines=737 funcs=13 groups=1 tests=21
+REVIEW-PASS shapes.go lines=35 funcs=1 无需拆分
+REVIEW-PASS shared_budget.go lines=149 funcs=11 无需拆分
+REVIEW-PASS shared_recovery.go lines=180 funcs=3 无需拆分
+REVIEW-PASS solver.go lines=215 funcs=9 无需拆分
+REVIEW-PASS stroke.go lines=158 funcs=17 无需拆分
+REVIEW-PASS stroke_user_expand.go lines=140 funcs=3 无需拆分
+REVIEW-PASS vec.go lines=139 funcs=20 无需拆分
+REVIEW-PASS vertices.go lines=119 funcs=0 无需拆分
+REVIEW-PASS vertices_atlas.go lines=486 funcs=11 内聚单域无需拆分
+QUEUED vertices_mesh.go lines=534 funcs=14 groups=3 tests=0
+REVIEW-PASS video_backend.go lines=157 funcs=6 无需拆分
+REVIEW-PASS video_bridge.go lines=356 funcs=11 无需拆分
+QUEUED video_planepool.go lines=431 funcs=14 groups=3 tests=0
+REVIEW-PASS video_texpool.go lines=301 funcs=10 无需拆分
+REVIEW-PASS vram_ledger_forward.go lines=23 funcs=2 无需拆分
+
+# T1.1 render 顶层收尾（手动验收）
+- accelerator.go: 过（650 行 10 函数，单域内聚加速器开关，不拆）
+- shape_detect.go: 过（737 行 13 函数，单域内聚形状识别，不拆）
+- 其余顶层文件：队列规则 REVIEW-PASS（400 行内或单域小文件）
+- T1.1 render 顶层关账：context/software/text/present/video/curve/filter/m4/path/path_ops/vertices 共 11 刀已拆验收，其余记通过

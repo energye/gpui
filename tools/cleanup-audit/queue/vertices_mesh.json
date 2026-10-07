@@ -1,0 +1,31 @@
+{
+ "src": "render/vertices_mesh.go",
+ "groups": {
+  "vertices_mesh_context.go": [
+   "Context.DrawVertices",
+   "Context.drawVerticesCPU",
+   "Context.drawVerticesGouraudCPU",
+   "Context.DrawVerticesEx",
+   "Context.DrawMeshEx",
+   "Context.drawDeviceTriangle",
+   "Context.DrawMesh"
+  ],
+  "vertices_mesh_package.go": [
+   "<pkg>.newVertTri",
+   "<pkg>.isFiniteRGBA",
+   "<pkg>.uniformVertColor",
+   "<pkg>.mapDegradedReason",
+   "<pkg>.countVertTris"
+  ],
+  "vertices_mesh_verttri.go": [
+   "vertTri.bary",
+   "vertTri.bounds"
+  ]
+ },
+ "tests": [],
+ "known_fail": [
+  "TestStrokeExpansion_ScaledDashedRect",
+  "TestStrokeString_DifferentFromFill"
+ ],
+ "timeout": 900
+}
