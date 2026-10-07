@@ -12,7 +12,7 @@
 
 // viewHandle packing is owned by gpu/context (single encoding for all
 // texture-view handles): pack here, unpack anywhere, including the swapchain
-// frame handle produced in gpu/webgpu. Before the fix this file boxed the
+// frame handle produced by the backend swapchain. Before the fix this file boxed the
 // view locally while the swapchain packed the concrete pointer, and every
 // window went black while presents still counted — see
 // gpu/context/texture_view_box.go.

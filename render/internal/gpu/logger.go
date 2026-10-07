@@ -17,7 +17,7 @@ import (
 	"log/slog"
 	"sync/atomic"
 
-	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // nopHandler silently discards all log records.
@@ -49,5 +49,5 @@ func setLogger(l *slog.Logger) {
 		l = slog.New(nopHandler{})
 	}
 	loggerPtr.Store(l)
-	webgpu.SetLogger(l)
+	hal.SetLogger(l)
 }

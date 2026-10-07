@@ -19,9 +19,9 @@ import (
 // halDeviceProvider adapts any hal.Device/hal.Adapter into
 // gpucontext.DeviceProvider via the boxed encoding (PackDevice/PackQueue/
 // PackAdapter) so every backend travels without concrete asserts. It
-// replaces the webgpu-only provider on the online path: that one asserts
-// *webgpu.Device and returns empty for other backends, which callers
-// silently ignore, leaving the accelerator unbound.
+// replaces the backend-specific provider on the online path: that one
+// asserts a concrete device type and returns empty for other backends,
+// which callers silently ignore, leaving the accelerator unbound.
 type halDeviceProvider struct {
 	Dev    hal.Device
 	Adpt   hal.Adapter
