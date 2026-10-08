@@ -67,7 +67,9 @@ func (c *Context) expandStrokeToPathSpace() *Path {
 	if c.paint.IsDashed() {
 		dash := c.paint.EffectiveDash()
 		if dash != nil && dash.IsDashed() {
-			// Dash periods are specified in user space.
+			// Flutter/Skia convention (SkDashPathEffect): dash periods and
+			// stroke width share user space; the CTM applies to the
+			// expanded outline afterwards. No separate dash scaling here.
 			pathToStroke = ApplyDash(userPath, dash)
 			if pathToStroke == nil || pathToStroke.NumVerbs() == 0 {
 				return nil

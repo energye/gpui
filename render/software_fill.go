@@ -179,7 +179,79 @@ func shouldUseTileRasterizer(p *Path) bool {
 		return false
 	}
 
+	// Strip pipelines need per-strip fill-gap flags for winding
+	// cancellation; SparseStrips has none, so nested closed contours
+	// (stroke-expanded rings, holes) miscount winding and fill the hole
+	// (Skia gates its strip-equivalent paths on isSimpleFill for the same
+	// reason). Route those to the scanline AnalyticFiller instead.
+	if hasNestedContours(p) {
+		return false
+	}
+
 	return nElems > adaptiveThreshold(bboxArea)
+}
+
+// hasNestedContours reports whether any closed contour's bounding box
+// strictly contains another closed contour's. Only closed contours take
+// part: open subpaths cannot contain. O(k^2) on close count; runs only for
+// tile candidates, element counts in the hundreds.
+func hasNestedContours(p *Path) bool {
+	type box struct {
+		x0, y0, x1, y1 float64
+	}
+	var boxes []box
+	var cur box
+	hasPt := false
+	flush := func(closed bool) {
+		if hasPt && closed {
+			boxes = append(boxes, cur)
+		}
+		hasPt = false
+	}
+	p.Iterate(func(verb PathVerb, coords []float64) {
+		switch verb {
+		case MoveTo:
+			flush(false)
+			cur = box{coords[0], coords[1], coords[0], coords[1]}
+			hasPt = true
+		case Close:
+			flush(true)
+		default:
+			for i := 0; i+1 < len(coords); i += 2 {
+				x, y := coords[i], coords[i+1]
+				if !hasPt {
+					cur = box{x, y, x, y}
+					hasPt = true
+					continue
+				}
+				if x < cur.x0 {
+					cur.x0 = x
+				}
+				if x > cur.x1 {
+					cur.x1 = x
+				}
+				if y < cur.y0 {
+					cur.y0 = y
+				}
+				if y > cur.y1 {
+					cur.y1 = y
+				}
+			}
+		}
+	})
+	flush(false)
+	for i := range boxes {
+		for j := range boxes {
+			if i == j {
+				continue
+			}
+			a, b := boxes[i], boxes[j]
+			if a.x0 < b.x0 && a.y0 < b.y0 && a.x1 > b.x1 && a.y1 > b.y1 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // fillWithCoverageFiller rasterizes the path using the tile-based CoverageFiller

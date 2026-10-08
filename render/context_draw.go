@@ -360,10 +360,26 @@ func (c *Context) doStroke() error {
 		devicePath := c.deviceSpacePath()
 		origPath := c.path
 		origScale := c.paint.TransformScale
-		// When TransformScale is unset, propagate HiDPI so GPU stroke width
-		// matches device-space path coordinates.
-		if ds := math.Float64frombits(c.deviceScale.Load()); origScale <= 0 && ds > 0 && ds != 1 {
-			c.paint.TransformScale = ds
+		// Propagate the total baked scale (user CTM x HiDPI deviceScale)
+		// so stroke width and dash periods match device-space path
+		// coordinates (paint.TransformScale contract, paint.go). Only
+		// HiDPI was propagated before: uniform user scale was lost and
+		// every scaled stroke rendered 1/scale too thin
+		// (TestStrokeExpansion_ScaledDashedRect).
+		if origScale <= 0 {
+			baked := 1.0
+			if !c.matrix.IsIdentity() {
+				if sx := math.Hypot(c.matrix.A, c.matrix.D); sx > baked {
+					baked = sx
+				}
+				if sy := math.Hypot(c.matrix.B, c.matrix.E); sy > baked {
+					baked = sy
+				}
+			}
+			if ds := math.Float64frombits(c.deviceScale.Load()); ds > 0 {
+				baked *= ds
+			}
+			c.paint.TransformScale = baked
 		}
 		c.path = devicePath
 		ok, _ := c.tryGPUStrokeWithMode(mode)

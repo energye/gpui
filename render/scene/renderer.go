@@ -13,6 +13,7 @@ package scene
 import (
 	"context"
 	"image"
+	"math"
 	"runtime"
 	"sync"
 	"time"
@@ -719,6 +720,25 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 			if pathActive && !currentPath.IsEmpty() {
 				convertPathInto(currentPath, tileX, tileY, ggPath)
 				paint := convertStrokePaint(brush, style)
+				// SoftwareRenderer.Stroke contract (render/paint.go): path
+				// coordinates arrive baked with currentTransform, so carry
+				// the baked scale in TransformScale; otherwise width and
+				// dash stay in user units on device-space geometry and
+				// every scaled stroke renders 1/scale too thin
+				// (TestStrokeExpansion_ScaledDashedRect). Uniform max-axis
+				// convention matches Context.doStroke.
+				if !currentTransform.IsIdentity() {
+					sx := currentTransform.A*currentTransform.A +
+						currentTransform.D*currentTransform.D
+					sy := currentTransform.B*currentTransform.B +
+						currentTransform.E*currentTransform.E
+					if sy > sx {
+						sx = sy
+					}
+					if sx > 0 {
+						paint.TransformScale = math.Sqrt(float64(sx))
+					}
+				}
 				_ = sr.Stroke(activePM, ggPath, paint)
 			}
 			pathActive = false

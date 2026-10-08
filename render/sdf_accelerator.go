@@ -104,6 +104,12 @@ func (a *SDFAccelerator) Flush(_ GPURenderTarget) error { return nil }
 // Shapes smaller than sdfMinSize in either dimension fall back to CPU scanline,
 // unless forceSDF is enabled (RasterizerSDF mode).
 func (a *SDFAccelerator) StrokeShape(target GPURenderTarget, shape DetectedShape, paint *Paint) error {
+	// Dashed strokes need geometric expansion (dash periods live in user
+	// space, SDF rings can't express dashes). Bail like the GPU route
+	// (GPURenderContext.StrokeShape) so the outline path handles them.
+	if paint != nil && paint.IsDashed() {
+		return ErrFallbackToCPU
+	}
 	if !a.forceSDF && shapeTooSmallForSDF(shape) {
 		return ErrFallbackToCPU
 	}
@@ -165,11 +171,22 @@ func (a *SDFAccelerator) fillCircleSDF(target GPURenderTarget, shape DetectedSha
 	return nil
 }
 
+// sdfHalfStrokeWidth returns half the effective stroke width in the baked
+// (device-space) geometry SDF shapes carry. TransformScale carries the baked
+// scale per the paint contract (paint.go); unset means 1.0.
+func sdfHalfStrokeWidth(paint *Paint) float64 {
+	scale := paint.TransformScale
+	if scale <= 0 {
+		scale = 1.0
+	}
+	return paint.EffectiveLineWidth() * scale / 2
+}
+
 // strokeCircleSDF renders a stroked circle using SDF coverage.
 func (a *SDFAccelerator) strokeCircleSDF(target GPURenderTarget, shape DetectedShape, paint *Paint) error {
 	cx, cy, r := shape.CenterX, shape.CenterY, shape.RadiusX
 	color := getColorFromPaint(paint)
-	halfW := paint.EffectiveLineWidth() / 2
+	halfW := sdfHalfStrokeWidth(paint)
 
 	// Bounding box with stroke width + 1px padding.
 	pad := halfW + 1
@@ -221,7 +238,7 @@ func (a *SDFAccelerator) strokeEllipseSDF(target GPURenderTarget, shape Detected
 	cx, cy := shape.CenterX, shape.CenterY
 	rx, ry := shape.RadiusX, shape.RadiusY
 	color := getColorFromPaint(paint)
-	halfW := paint.EffectiveLineWidth() / 2
+	halfW := sdfHalfStrokeWidth(paint)
 
 	pad := halfW + 1
 	minX := int(math.Max(0, math.Floor(cx-rx-pad)))
@@ -274,7 +291,7 @@ func (a *SDFAccelerator) strokeRRectSDF(target GPURenderTarget, shape DetectedSh
 	halfW, halfH := shape.Width/2, shape.Height/2
 	cr := shape.CornerRadius
 	color := getColorFromPaint(paint)
-	halfStroke := paint.EffectiveLineWidth() / 2
+	halfStroke := sdfHalfStrokeWidth(paint)
 
 	pad := halfStroke + 1
 	minX := int(math.Max(0, math.Floor(cx-halfW-pad)))
