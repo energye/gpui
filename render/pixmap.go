@@ -457,8 +457,11 @@ func (p *Pixmap) FillSpanBlend(x1, x2, y int, c RGBA) {
 		return
 	}
 
-	// For longer spans, use the same scalar blending
-	// TODO: Integrate batch blending without import cycle
+	// For longer spans, use the same scalar blending.
+	// NOTE (T5-01 closed 2026-10-08): kept scalar on purpose. FillSpanBlend
+	// has zero production callers (bench + unit test only), so the >=16px
+	// branch never runs online; wiring the wide.BatchState fast path buys
+	// nothing and risks pixel-formula drift. Revisit if a caller appears.
 	invSa := 255 - a
 	for i := 0; i < length; i++ {
 		idx := startIdx + i*4
