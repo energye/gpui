@@ -7,10 +7,7 @@ import (
 )
 
 func TestCreateBindGroupLayout(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -50,10 +47,7 @@ func TestCreateBindGroupLayout(t *testing.T) {
 }
 
 func TestCreateBindGroup(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -117,10 +111,7 @@ func TestCreateBindGroup(t *testing.T) {
 }
 
 func TestBindGroupWithMultipleBindings(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)

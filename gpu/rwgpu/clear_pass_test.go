@@ -7,10 +7,7 @@ import (
 )
 
 func TestRenderPassClearAndSubmit(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	instance := requireInstance(t)
 	defer instance.Release()
 
 	adapter, err := instance.RequestAdapter(nil)

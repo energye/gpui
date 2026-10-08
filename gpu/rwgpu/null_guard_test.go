@@ -517,10 +517,7 @@ func TestNullGuard_PopErrorScopeAsync(t *testing.T) {
 	}
 
 	var d *Device
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	errType, msg, errResult := d.PopErrorScopeAsync(inst)

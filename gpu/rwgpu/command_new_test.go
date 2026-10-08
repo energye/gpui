@@ -8,10 +8,7 @@ import (
 
 // TestCommandEncoderClearBuffer tests buffer clearing functionality.
 func TestCommandEncoderClearBuffer(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatal("Failed to create instance:", err)
-	}
+	instance := requireInstance(t)
 	defer instance.Release()
 
 	adapter, err := instance.RequestAdapter(nil)
@@ -69,10 +66,7 @@ func TestCommandEncoderClearBuffer(t *testing.T) {
 
 // TestCommandEncoderDebugMarkers tests debug marker functionality.
 func TestCommandEncoderDebugMarkers(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatal("Failed to create instance:", err)
-	}
+	instance := requireInstance(t)
 	defer instance.Release()
 
 	adapter, err := instance.RequestAdapter(nil)
@@ -127,10 +121,7 @@ func TestCommandEncoderDebugMarkers(t *testing.T) {
 
 // TestTextureQueryAPIs tests texture query methods.
 func TestTextureQueryAPIs(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatal("Failed to create instance:", err)
-	}
+	instance := requireInstance(t)
 	defer instance.Release()
 
 	adapter, err := instance.RequestAdapter(nil)
@@ -219,10 +210,7 @@ func TestTextureQueryAPIsNil(t *testing.T) {
 
 // TestClearBufferNil tests ClearBuffer with nil buffer.
 func TestClearBufferNil(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatal("Failed to create instance:", err)
-	}
+	instance := requireInstance(t)
 	defer instance.Release()
 
 	adapter, err := instance.RequestAdapter(nil)
@@ -249,10 +237,7 @@ func TestClearBufferNil(t *testing.T) {
 
 // TestDebugMarkersEmptyStrings tests debug markers with empty strings.
 func TestDebugMarkersEmptyStrings(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatal("Failed to create instance:", err)
-	}
+	instance := requireInstance(t)
 	defer instance.Release()
 
 	adapter, err := instance.RequestAdapter(nil)

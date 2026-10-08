@@ -8,10 +8,7 @@ import (
 )
 
 func TestCreateBuffer(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -54,10 +51,7 @@ func TestCreateBuffer(t *testing.T) {
 }
 
 func TestBufferMappedAtCreation(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -105,10 +99,7 @@ func TestBufferMappedAtCreation(t *testing.T) {
 }
 
 func TestQueueWriteBuffer(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -154,10 +145,7 @@ func TestQueueWriteBuffer(t *testing.T) {
 }
 
 func TestQueueWriteBufferRaw(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)

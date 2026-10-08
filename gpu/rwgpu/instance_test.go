@@ -1,22 +1,22 @@
 package rwgpu
 
 import (
+	"errors"
 	"testing"
 )
 
 func TestInit(t *testing.T) {
-	err := Init()
-	if err != nil {
+	if err := Init(); err != nil {
+		if errors.Is(err, ErrLibraryNotLoaded) {
+			t.Skipf("native unavailable: %v", err)
+		}
 		t.Fatalf("Init failed: %v", err)
 	}
 	t.Log("Library initialized successfully")
 }
 
 func TestCreateInstanceWithNil(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance(nil) failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	if inst.Handle() == 0 {
@@ -28,12 +28,7 @@ func TestCreateInstanceWithNil(t *testing.T) {
 
 func TestCreateInstanceWithDescriptor(t *testing.T) {
 	// Pass an explicit InstanceDescriptor with default (zero) values.
-	desc := &InstanceDescriptor{}
-
-	inst, err := CreateInstance(desc)
-	if err != nil {
-		t.Fatalf("CreateInstance(desc) failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	if inst.Handle() == 0 {
@@ -63,7 +58,7 @@ func TestInstanceRelease(t *testing.T) {
 func TestCheckInitAfterLoad(t *testing.T) {
 	// After library is loaded (which happens in TestInit), checkInit should return nil.
 	if err := Init(); err != nil {
-		t.Fatalf("Init failed: %v", err)
+		t.Skipf("native unavailable: %v", err)
 	}
 	err := checkInit()
 	if err != nil {

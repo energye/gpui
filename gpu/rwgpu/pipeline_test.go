@@ -17,10 +17,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 `
 
 func TestCreatePipelineLayout(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -68,10 +65,7 @@ func TestCreatePipelineLayout(t *testing.T) {
 }
 
 func TestCreateComputePipeline(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -109,10 +103,7 @@ func TestCreateComputePipeline(t *testing.T) {
 }
 
 func TestComputePipelineGetBindGroupLayout(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -153,10 +144,7 @@ func TestComputePipelineGetBindGroupLayout(t *testing.T) {
 }
 
 func TestCreateComputePipelineWithExplicitLayout(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)

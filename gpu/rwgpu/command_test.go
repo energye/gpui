@@ -20,10 +20,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 `
 
 func TestCreateCommandEncoder(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -53,10 +50,7 @@ func TestCreateCommandEncoder(t *testing.T) {
 }
 
 func TestCommandEncoderFinish(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -87,10 +81,7 @@ func TestCommandEncoderFinish(t *testing.T) {
 }
 
 func TestComputePassDispatch(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -201,10 +192,7 @@ func TestComputePassDispatch(t *testing.T) {
 
 func TestFullComputeExample(t *testing.T) {
 	// Full end-to-end compute example with result verification
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -357,10 +345,7 @@ func TestFullComputeExample(t *testing.T) {
 }
 
 func TestCopyBufferToBuffer(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -430,10 +415,7 @@ func TestCopyBufferToBuffer(t *testing.T) {
 }
 
 func TestQueueSubmitMultiple(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)

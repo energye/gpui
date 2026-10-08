@@ -7,10 +7,7 @@ func TestLeakDetection(t *testing.T) {
 	defer SetDebugMode(false)
 	defer ResetLeakTracker()
 
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	inst := requireInstance(t)
 
 	// Before release — should report leak
 	report := ReportLeaks()
@@ -35,10 +32,7 @@ func TestLeakDetectionDisabled(t *testing.T) {
 	SetDebugMode(false)
 	defer ResetLeakTracker()
 
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	// Debug mode off — ReportLeaks returns nil

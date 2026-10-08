@@ -7,10 +7,7 @@ import (
 )
 
 func TestCreateRenderPipelineSimple(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -67,10 +64,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 }
 
 func TestCreateRenderPipelineWithDescriptor(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -140,10 +134,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 }
 
 func TestRenderPipelineGetBindGroupLayout(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -213,10 +204,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 }
 
 func TestRenderPipelineWithDepth(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)

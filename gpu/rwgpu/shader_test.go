@@ -15,10 +15,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 `
 
 func TestCreateShaderModuleWGSL(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -65,10 +62,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 `
 
 func TestCreateShaderModuleVertex(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)

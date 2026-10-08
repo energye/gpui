@@ -42,10 +42,7 @@ func TestStringViewToString_Cases(t *testing.T) {
 // returning, so the Go-side strings must be independent copies. Reads after
 // the return would hit reused memory if any field were still a view.
 func TestAdapterInfo_StringFieldsSurviveFree(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)

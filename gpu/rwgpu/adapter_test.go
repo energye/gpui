@@ -7,10 +7,7 @@ import (
 )
 
 func TestRequestAdapter(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	t.Log("Requesting adapter...")
@@ -28,10 +25,7 @@ func TestRequestAdapter(t *testing.T) {
 }
 
 func TestRequestAdapterWithOptions(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	options := &RequestAdapterOptions{

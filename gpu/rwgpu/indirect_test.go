@@ -8,10 +8,7 @@ import (
 )
 
 func TestDispatchWorkgroupsIndirect(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -205,10 +202,7 @@ func TestDispatchIndirectArgs(t *testing.T) {
 }
 
 func TestRenderBundleDrawIndirect(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)

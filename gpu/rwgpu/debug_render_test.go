@@ -41,10 +41,7 @@ func TestDebugColorTargetState(t *testing.T) {
 }
 
 func TestDebugRenderPipelineBytes(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)

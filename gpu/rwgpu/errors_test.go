@@ -8,10 +8,7 @@ import (
 
 // TestErrorScopeNoError tests pushing and popping error scope with no error.
 func TestErrorScopeNoError(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	instance := requireInstance(t)
 	defer instance.Release()
 
 	adapter, err := instance.RequestAdapter(nil)
@@ -49,10 +46,7 @@ func TestErrorScopeNoError(t *testing.T) {
 
 // TestErrorScopeValidation tests capturing validation errors.
 func TestErrorScopeValidation(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	instance := requireInstance(t)
 	defer instance.Release()
 
 	adapter, err := instance.RequestAdapter(nil)
@@ -97,10 +91,7 @@ func TestErrorScopeValidation(t *testing.T) {
 
 // TestErrorScopeNested tests nested error scopes (LIFO).
 func TestErrorScopeNested(t *testing.T) {
-	instance, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	instance := requireInstance(t)
 	defer instance.Release()
 
 	adapter, err := instance.RequestAdapter(nil)

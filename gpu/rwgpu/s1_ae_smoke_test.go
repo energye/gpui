@@ -17,10 +17,7 @@ import (
 
 func s1Device(t *testing.T) (*Instance, *Adapter, *Device, *Queue) {
 	t.Helper()
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance: %v", err)
-	}
+	inst := requireInstance(t)
 	adapter, err := inst.RequestAdapter(nil)
 	if err != nil {
 		inst.Release()

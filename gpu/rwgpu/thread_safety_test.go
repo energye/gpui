@@ -24,10 +24,7 @@ func TestConcurrentInit(t *testing.T) {
 // Concurrent RequestAdapter on the same Instance is NOT safe on some native
 // backends.
 func TestMultipleAdapterRequests(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	const n = 3
@@ -48,10 +45,7 @@ func TestConcurrentAdapterRequests(t *testing.T) {
 		t.Skip("concurrent RequestAdapter can abort on GLES backends; set RWGPU_CONCURRENT_STRESS=1 to run")
 	}
 
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	var wg sync.WaitGroup

@@ -219,7 +219,8 @@ func Init() error {
 		var err error
 		wgpuLib, err = loadLibrary(libPath)
 		if err != nil {
-			initErr = fmt.Errorf("wgpu: failed to load native library %q: %w (set WGPU_NATIVE_PATH to override)", libPath, err)
+			initErr = fmt.Errorf("%w: failed to load %q: %v (set WGPU_NATIVE_PATH to override)",
+				ErrLibraryNotLoaded, libPath, err)
 			return
 		}
 
@@ -445,9 +446,11 @@ func initSymbols() {
 var ErrLibraryNotLoaded = errors.New("wgpu: native library not loaded or failed to initialize")
 
 // checkInit checks that the library is initialized, returning error if not.
+// Wraps ErrLibraryNotLoaded so errors.Is skips work in tests without the
+// native library (testdata discipline: external toolchain via env).
 func checkInit() error {
 	if err := Init(); err != nil {
-		return ErrLibraryNotLoaded
+		return fmt.Errorf("%w: %v", ErrLibraryNotLoaded, err)
 	}
 	return nil
 }

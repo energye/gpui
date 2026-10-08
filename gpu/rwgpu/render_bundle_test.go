@@ -8,10 +8,7 @@ import (
 )
 
 func TestCreateRenderBundleEncoder(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -42,10 +39,7 @@ func TestCreateRenderBundleEncoder(t *testing.T) {
 }
 
 func TestRenderBundleEncoderFinish(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -81,10 +75,7 @@ func TestRenderBundleEncoderFinish(t *testing.T) {
 }
 
 func TestRenderBundleWithPipeline(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
@@ -155,10 +146,7 @@ fn fs_main() -> @location(0) vec4<f32> {
 }
 
 func TestRenderBundleWithVertexBuffer(t *testing.T) {
-	inst, err := CreateInstance(nil)
-	if err != nil {
-		t.Fatalf("CreateInstance failed: %v", err)
-	}
+	inst := requireInstance(t)
 	defer inst.Release()
 
 	adapter, err := inst.RequestAdapter(nil)
