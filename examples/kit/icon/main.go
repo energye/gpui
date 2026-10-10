@@ -65,23 +65,19 @@ type pixelCheck struct {
 var pixelResult = map[string]bool{}
 
 // iconBox builds one icon render box via kit public API only.
-// size<=0 means the kit default edge; otherwise the size is passed into
-// props so the painter draws exactly edge-sized (box == glyph, centered
-// by placement, never top-left-anchored small paint).
+// Static glyph content lives inside, spin rotation rides the outer
+// transform layer (kit.BuildIconBox); size<=0 means kit default edge.
 func iconBox(ctx kit.ScopeCtx, props kit.IconProps, size float64, debug string) (*rendering.RenderBox, *kit.IconInstance) {
-	if size > 0 {
-		props.Size, props.SizeSet = size, true
-	}
-	in := kit.BuildIcon(ctx, props)
-	spec := in.ResolveIconPaintSpec()
-	painter := kit.IconPainterForSpec(spec)
-	edge := size
-	if edge <= 0 {
-		edge = kit.ResolveIconSize(props)
-	}
-	box := kit.PrimNewCustomPaint(edge, edge, painter, true, nil)
-	box.SetDebugName(debug)
-	return box, in
+	b := kit.BuildIconBox(ctx, props, size, debug)
+	return b.Inner, b.Inst
+}
+
+// spinBox builds the spinning demo icon with its transform host: the
+// caller ticks the instance and syncs the outer layer, never rebuilds
+// the painter.
+func spinBox(ctx kit.ScopeCtx, props kit.IconProps, size float64, debug string) (*kit.IconBox, *kit.IconInstance) {
+	b := kit.BuildIconBox(ctx, props, size, debug)
+	return b, b.Inst
 }
 
 // textLabel builds draw-ready text via kit prim public API (face attached).
@@ -232,18 +228,8 @@ func main() {
 	spinProps := kit.DefaultIconProps("sync")
 	spinProps.Variant = "outlined"
 	spinProps.Spin = true
-	spinBox, spinInst := iconBox(ctx, spinProps, defSize, "f1-icon-basic-sync-spin")
-	// Spin runs on a transform layer (Flutter RotationTransition): the glyph
-	// records once, per-frame rotation only updates the transform — no
-	// spec re-resolve, no OnPaint swap, no re-record.
-	spinRot := kit.PrimNewTransformed(0, 1, 1, spinBox)
-	spinRot.SetDebugName("f1-icon-basic-sync-spin-rot")
-	// Fixed slot mirrors the glyph box (16 default): the rotating corners
-	// stay inside the same boundary the painter rotated in before, so the
-	// damage rect and golden pixels are unchanged.
-	spinRot.FixedWidth, spinRot.FixedHeight = spinBox.FixedWidth, spinBox.FixedHeight
-	spinRot.SetRepaintBoundary(true)
-	root.Place(spinRot, basicX, by)
+	spinHost, spinInst := spinBox(ctx, spinProps, defSize, "f1-icon-basic-sync-spin")
+	root.Place(spinHost.Outer, basicX, by)
 	basicX += 16 + gap
 	rotProps := kit.DefaultIconProps("smile")
 	rotProps.Variant = "outlined"
@@ -889,7 +875,7 @@ func main() {
 		// Blend animation is paint-only (fixed slots, no layout).
 		stepCards(dt)
 		if spinInst.Tick(dt) {
-			spinRot.SetRotation(spinInst.EffectiveAngle() * math.Pi / 180)
+			spinHost.SyncIconTransform()
 		}
 		// Continuous auto tour (timed runs only; manual mode is user-driven
 		// so hover is never fought by auto scroll): human-speed 3px/frame
