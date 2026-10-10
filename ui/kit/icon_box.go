@@ -36,8 +36,12 @@ func IconTransformAngleRad(in *IconInstance) float64 {
 }
 
 // BuildIconBox builds one icon render box: static paint inside, transform
-// outside. Size<=0 means the kit default edge.
+// outside. Size<=0 means the kit default edge; otherwise the size is passed
+// into props so the painter draws exactly edge-sized (box == glyph).
 func BuildIconBox(ctx ScopeCtx, props IconProps, size float64, debug string) *IconBox {
+	if size > 0 {
+		props.Size, props.SizeSet = size, true
+	}
 	edge := size
 	if edge <= 0 {
 		edge = ResolveIconSize(props)

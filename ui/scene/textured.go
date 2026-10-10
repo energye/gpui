@@ -1344,7 +1344,13 @@ func (c *PictureTextureCache) blit(id uint64) bool {
 	// Damage old ∪ new footprints or the old pixels survive under LoadOpLoad.
 	if !e.bounds.Empty() {
 		cur := transformBounds(c.dc, e.bounds)
-		if e.hasBlit && cur != e.lastBlit {
+		// Rotating blits move continuously: integer-AABB equality misses
+		// sub-pixel motion (stuck-then-jump frames), so a rotated blit
+		// always damages old ∪ new. Static rotation still converges: with
+		// no motion the union equals the footprint and later frames carry
+		// no new damage once the ticker stops demanding frames.
+		rotating := math.Abs(xy-dy) >= eps || math.Abs(yx-dx) >= eps
+		if e.hasBlit && (rotating || cur != e.lastBlit) {
 			u := cur.Union(e.lastBlit)
 			if !u.Empty() {
 				c.dc.TrackDamageRect(u)
@@ -1602,8 +1608,8 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// (the CTM stays a pure translate), so recordLocalWith's translation
 	// cancel is exact and the composite-time clip crops the bounds texture
 	// back — this keeps viewport-clipped list cells on cheap textures (C4).
-	var rasterWalk func(l Layer, noTex int, underShell bool)
-	rasterWalk = func(l Layer, noTex int, underShell bool) {
+	var rasterWalk func(l Layer, rotDepth int, noCache bool, underShell bool)
+	rasterWalk = func(l Layer, rotDepth int, noCache bool, underShell bool) {
 		if l == nil {
 			return
 		}
@@ -1611,8 +1617,21 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		if bl, isBnd := l.(*BoundaryLayer); isBnd && bl.Shell {
 			underShell = true
 		}
-		pushCtx := pushCompositeCTM(dc, l)
-		if isPic && noTex == 0 && pl.CacheKey != 0 {
+		// Clip under a rotating/scaling ancestor stays on vector replay:
+		// the record holds untransformed content while the composite clip
+		// would rotate, so the shapes would mismatch.
+		childNoCache := noCache
+		if rotDepth > 0 {
+			if cr, ok := l.(*ClipRectLayer); ok && cr.W > 0 && cr.H > 0 {
+				childNoCache = true
+			}
+			if crr, ok := l.(*ClipRRectLayer); ok && crr.W > 0 && crr.H > 0 {
+				childNoCache = true
+			}
+		}
+		childRot := rotDepth + nonTranslating(l)
+		pushCtx := pushRecordCTM(dc, l)
+		if isPic && !noCache && pl.CacheKey != 0 {
 			_, dirtyID := dirty[pl.LayerID()]
 			record := dirtyID || pl.NeedsRaster || !tex.Has(pl.CacheKey)
 			b, haveBounds := pictureRecordBounds(tex, pl)
@@ -1695,33 +1714,44 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			}
 		}
 		for _, ch := range l.Children() {
-			rasterWalk(ch, noTex+nonTranslating(l), underShell)
+			rasterWalk(ch, childRot, childNoCache, underShell)
 		}
 		popCompositeCTM(dc, pushCtx)
 	}
-	rasterWalk(pkt.Root, 0, false)
-	rasterWalk(pkt.Overlay, 0, false)
+	rasterWalk(pkt.Root, 0, false, false)
+	rasterWalk(pkt.Overlay, 0, false, false)
 
 	// Phase 2: composite paint order — texture blits for cached pictures,
 	// vector replay fallback otherwise, attribute layers via canvas state.
 	// Damage rects for re-recorded layers are emitted here under the composite
 	// CTM (bounds are layer-local; TrackDamageRect needs surface coords).
-	// Restrictive subtrees (noTex > 0: a rotation / non-1 scale ancestor)
-	// always vector-replay (phase 1 never textured them); their damage rect
-	// is the full four-corner CTM transform of the picture bounds so a
-	// rotated layer dirties its rotated footprint.
-	var compositeWalk func(l Layer, noTex int, underShell bool)
-	compositeWalk = func(l Layer, noTex int, underShell bool) {
+	// Rotated cached layers blit their untransformed texture through the
+	// live CTM (DrawGPUTexture full-quad); transformBounds maps all four
+	// corners so a rotated blit dirties its rotated footprint. Only clips
+	// under rotation fall back to vector replay (record/composite clip
+	// shapes would mismatch).
+	var compositeWalk func(l Layer, rotDepth int, noCache bool, underShell bool)
+	compositeWalk = func(l Layer, rotDepth int, noCache bool, underShell bool) {
 		if l == nil {
 			return
 		}
 		if bl, isBnd := l.(*BoundaryLayer); isBnd && bl.Shell {
 			underShell = true
 		}
+		childNoCache := noCache
+		if rotDepth > 0 {
+			if cr, ok := l.(*ClipRectLayer); ok && cr.W > 0 && cr.H > 0 {
+				childNoCache = true
+			}
+			if crr, ok := l.(*ClipRRectLayer); ok && crr.W > 0 && crr.H > 0 {
+				childNoCache = true
+			}
+		}
+		childRot := rotDepth + nonTranslating(l)
 		if pl, ok := l.(*PictureLayer); ok {
 			if len(pl.Picture.Ops) > 0 || pl.RasterExtra != nil {
 				blitOK := false
-				if noTex == 0 && pl.CacheKey != 0 {
+				if !noCache && pl.CacheKey != 0 {
 					if underShell && tex.blit(pl.CacheKey) {
 						frameShellSkip.Add(1)
 						blitOK = true
@@ -1730,7 +1760,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 					}
 				}
 				if !blitOK {
-					// cache miss / no cache key / non-translating ancestor:
+					// cache miss / no cache key / clip under rotation:
 					// vector replay fallback, RasterExtra included:
 					// OnPaint-only layers (input borders) keep empty
 					// pictures, replay alone would leave a hole.
@@ -1751,7 +1781,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 					// spin-only frames. Damage is reported by the replayed
 					// picture bounds below (RecordedThisFrame), clipped to
 					// the surface by PresentWithAuto.
-					if noTex == 0 {
+					if !noCache {
 						_ = tex.OversizedBounds(pl.CacheKey)
 					}
 					// Admission-refused layers replay vector the same
@@ -1761,15 +1791,13 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 						st.DamageRects = append(st.DamageRects, transformBounds(dc, rb))
 					}
 				}
-				// Re-recorded this frame → the layer's region changed. Damage
-				// is previous ∪ current bounds: a shrink must repaint the
-				// cleared tail or LoadOpLoad keeps stale pixels there
-				// (IME backspace stall).
-				// Non-translating ancestor (vector replay): the picture's
-				// rotated / scaled footprint is the four-corner CTM transform
+				// Vector fallback under rotation/scale or clip-under-rotation:
+				// the picture's footprint is the four-corner CTM transform
 				// of its bounds — an axis-aligned bounds transform would
 				// under-dirty the corners and leave stale shards on screen.
-				if noTex > 0 && !pl.Picture.Bounds.Empty() {
+				// Cached rotated blits skip this: blit() already emits
+				// old∪new move damage via four-corner transformBounds.
+				if !blitOK && (rotDepth > 0 || noCache) && !pl.Picture.Bounds.Empty() {
 					st.DamageRects = append(st.DamageRects,
 						transformBounds4(dc, pl.Picture.Bounds))
 				}
@@ -1792,13 +1820,12 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		switch t := l.(type) {
 		case *ContainerLayer:
 			for _, ch := range l.Children() {
-				compositeWalk(ch, noTex, underShell)
+				compositeWalk(ch, rotDepth, childNoCache, underShell)
 			}
 		case *OffsetLayer, *BoundaryLayer, *ClipRectLayer, *ClipRRectLayer,
 			*TransformLayer:
-			r := noTex + nonTranslating(l)
 			for _, ch := range l.Children() {
-				compositeWalk(ch, r, underShell)
+				compositeWalk(ch, childRot, childNoCache, underShell)
 			}
 		case *OpacityLayer:
 			op := t.Opacity
@@ -1810,7 +1837,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			}
 			if op >= 1-1e-9 {
 				for _, ch := range l.Children() {
-					compositeWalk(ch, noTex, underShell)
+					compositeWalk(ch, rotDepth, childNoCache, underShell)
 				}
 				break
 			}
@@ -1821,7 +1848,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			// vector draws) — keeps the frame blit-only.
 			dc.PushLayer(render.BlendNormal, op)
 			for _, ch := range l.Children() {
-				compositeWalk(ch, noTex, underShell)
+				compositeWalk(ch, rotDepth, childNoCache, underShell)
 			}
 			dc.PopLayer()
 		case *ColorFilterLayer, *ImageFilterLayer:
@@ -1901,23 +1928,22 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		popCompositeCTM(dc, pushCtx)
 	}
-	compositeWalk(pkt.Root, 0, false)
-	compositeWalk(pkt.Overlay, 0, false)
+	compositeWalk(pkt.Root, 0, false, false)
+	compositeWalk(pkt.Overlay, 0, false, false)
 	st.ShellSkip = frameShellSkip.Load()
 	st.ShellRerecord = frameShellRerecord.Load()
 	return st
 }
 
 // nonTranslating reports whether a layer applies a NON-translation transform
-// (rotation, or scale ≠ 1) to its subtree. Such subtrees are excluded from
-// the texture cache entirely: the cache records axis-aligned bounds textures
-// and blits them 1:1, which cannot represent rotated/scaled content — the
-// pre-C8 double-transform / cropped-shard bug. the raster cache makes
-// the same call at the same place (RasterCache::CanRasterCachePicture).
-// Clips are NOT in this set: a clip does not bend coordinates, so bounds
-// recording is exact; their mid-frame flush safety is owned by the gpu-side
-// offscreen pass (BeginOffscreenPass), not by refusing to cache (the earlier
-// clip noTextureCache workaround cost viewport-list blit throughput).
+// (rotation, or scale ≠ 1) to its subtree. Callers use it to track rotation
+// depth: record replays untransformed content (pushRecordCTM strips rotation)
+// while composite blits through the live CTM (DrawGPUTexture full-quad), so
+// rotated subtrees stay cached (Flutter TransformLayer parity). Only clips
+// under rotation fall back to vector replay (record/composite clip shapes
+// would mismatch). Clips alone stay cacheable.
+// the raster cache makes the same call at the same place
+// (RasterCache::CanRasterCachePicture).
 func nonTranslating(l Layer) int {
 	switch t := l.(type) {
 	case *TransformLayer:
@@ -2014,6 +2040,26 @@ func pushCompositeCTM(dc *render.Context, l Layer) func() {
 		return dc.Pop
 	}
 	return func() {}
+}
+
+// pushRecordCTM applies the layer's position-only effect for the record
+// walk: rotation/scale ride the composite-time blit quad (DrawGPUTexture
+// full-CTM four corners), so the cached texture holds untransformed
+// content (Flutter TransformLayer parity: content cached once, transform
+// applied at composite). Translate-only for TransformLayer; all other
+// layers identical to pushCompositeCTM.
+func pushRecordCTM(dc *render.Context, l Layer) func() {
+	if dc == nil || l == nil {
+		return func() {}
+	}
+	if t, ok := l.(*TransformLayer); ok {
+		dc.Push()
+		if t.TX != 0 || t.TY != 0 {
+			dc.Translate(t.TX, t.TY)
+		}
+		return dc.Pop
+	}
+	return pushCompositeCTM(dc, l)
 }
 
 // popCompositeCTM restores state after a pushCompositeCTM call.

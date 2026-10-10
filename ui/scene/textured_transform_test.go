@@ -10,14 +10,13 @@ import (
 	"github.com/energye/gpui/ui/scene"
 )
 
-// TestCompositeFramePacketTextured_TransformNoTextureCache pins the C8
-// noTextureCache decision: a PictureLayer under a rotating TransformLayer is
-// NEVER recorded into the texture cache (phase 1 skip) and always vector-
-// replays under the live CTM (phase 2). The texture cache records axis-aligned
-// bounds textures and blits them 1:1 — it cannot represent rotated content
-// (double transform / cropped shards). the raster cache makes the same
-// call at the same place (RasterCache::CanRasterCachePicture: non-translate
-// transforms disqualify the subtree).
+// TestCompositeFramePacketTextured_TransformNoTextureCache pins the rotation
+// caching decision: a PictureLayer under a rotating TransformLayer IS
+// recorded into the texture cache untransformed (phase 1, pushRecordCTM
+// strips rotation) and blitted through the live CTM (phase 2,
+// DrawGPUTexture full-quad). Content cached once, transform applied at
+// composite (Flutter TransformLayer parity). Pixels must match vector
+// replay exactly: center red, outside white, rotated edge red.
 func TestCompositeFramePacketTextured_TransformNoTextureCache(t *testing.T) {
 	scene.ResetLayerIDGen()
 	b := scene.NewLayerBuilder()
@@ -40,15 +39,13 @@ func TestCompositeFramePacketTextured_TransformNoTextureCache(t *testing.T) {
 
 	st := scene.CompositeFramePacketTextured(pkt, dc, tex)
 
-	// No-GPU unit test: record() degrades everywhere; the invariant to pin is
-	// that the restrictive subtree REPLAYED (not blitted) and painted correct
-	// geometry. With GPU present the same walk would leave the cache empty for
-	// this layer (no record attempt at all).
-	if st.ReplayedOps < 1 {
-		t.Fatalf("ReplayedOps=%d want ≥1 (restrictive subtree must vector-replay)", st.ReplayedOps)
+	// Rotated content caches untransformed and blits transformed: no
+	// vector replay, entry present.
+	if st.ReplayedOps != 0 {
+		t.Fatalf("ReplayedOps=%d want 0 (rotated subtree must blit, not replay)", st.ReplayedOps)
 	}
-	if tex.Has(301) {
-		t.Fatalf("rotated picture must not enter the texture cache")
+	if !tex.Has(301) {
+		t.Fatalf("rotated picture must enter the texture cache")
 	}
 
 	img := dc.Image()
@@ -71,8 +68,8 @@ func TestCompositeFramePacketTextured_TransformNoTextureCache(t *testing.T) {
 }
 
 // TestCompositeFramePacketTextured_ScaleNoTextureCache: non-1 scale also
-// disqualifies the subtree from the texture cache (same rationale as
-// rotation); scaled content must land at the scaled geometry.
+// caches untransformed and blits scaled (same rationale as rotation);
+// scaled content must land at the scaled geometry.
 func TestCompositeFramePacketTextured_ScaleNoTextureCache(t *testing.T) {
 	scene.ResetLayerIDGen()
 	b := scene.NewLayerBuilder()
@@ -92,11 +89,11 @@ func TestCompositeFramePacketTextured_ScaleNoTextureCache(t *testing.T) {
 	tex := scene.NewPictureTextureCache(dc, 8)
 	st := scene.CompositeFramePacketTextured(pkt, dc, tex)
 
-	if st.ReplayedOps < 1 {
-		t.Fatalf("ReplayedOps=%d want ≥1 (scaled subtree must vector-replay)", st.ReplayedOps)
+	if st.ReplayedOps != 0 {
+		t.Fatalf("ReplayedOps=%d want 0 (scaled subtree must blit, not replay)", st.ReplayedOps)
 	}
-	if tex.Has(302) {
-		t.Fatalf("scaled picture must not enter the texture cache")
+	if !tex.Has(302) {
+		t.Fatalf("scaled picture must enter the texture cache")
 	}
 	img := dc.Image()
 	inR, inG, inB := sampleAt(img, 25, 25) // inside scaled 20×20 area (10..30)
