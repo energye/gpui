@@ -1628,9 +1628,11 @@ func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
 	if evs := h.poll(); len(evs) > 0 {
 		return evs
 	}
-	if timeout < 0 {
-		timeout = 16 * time.Millisecond
-	}
+	// Idle true-block: timeout<0 means no deadline — park the poll on the
+	// display fd + wake pipe indefinitely instead of slicing into 16ms
+	// quanta (~60 wakeups/s with nothing to do). Compositor events, WakeUp
+	// and destroy still interrupt; EINTR re-polls.
+	infinite := timeout < 0
 	if timeout == 0 {
 		return h.poll()
 	}
@@ -1646,24 +1648,55 @@ func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
 	}
 	if fd <= 0 {
 		// No fd (connection lost?) — fall back to timed poll.
+		// With no deadline, park on the wake pipe (destroy wakes it)
+		// instead of spinning.
+		if infinite {
+			for {
+				if h.destroying.Load() != 0 {
+					return nil
+				}
+				wpfds := []unix.PollFd{
+					{Fd: int32(h.wakePipe[0]), Events: unix.POLLIN},
+				}
+				n, err := unix.Poll(wpfds, -1)
+				if err != nil {
+					if err == unix.EINTR {
+						continue
+					}
+					break
+				}
+				if n == 0 {
+					continue
+				}
+				if h.destroying.Load() != 0 {
+					return nil
+				}
+				h.drainWake()
+				return h.poll()
+			}
+			return h.poll()
+		}
 		select {
 		case <-time.After(timeout):
 		}
 		return h.poll()
 	}
 
-	deadline := time.Now().Add(timeout)
+	var deadline time.Time
+	if !infinite {
+		deadline = time.Now().Add(timeout)
+	}
 	for {
-		left := time.Until(deadline)
-		if left <= 0 {
-			break
-		}
-		if left > 16*time.Millisecond {
-			left = 16 * time.Millisecond
-		}
-		ms := int(left.Milliseconds())
-		if ms < 1 {
-			ms = 1
+		ms := -1
+		if !infinite {
+			left := time.Until(deadline)
+			if left <= 0 {
+				break
+			}
+			ms = int(left.Milliseconds())
+			if ms < 1 {
+				ms = 1
+			}
 		}
 
 		// Acquire the read lock; dispatch anything pending first.

@@ -306,6 +306,7 @@ func (s *FrameScheduler) ensureVsyncListener(host platform.Host) {
 		}
 		go func() {
 			var last time.Time
+			misses := 0
 			for {
 				if err := v.WaitVSync(); err == nil {
 					now := time.Now()
@@ -316,12 +317,24 @@ func (s *FrameScheduler) ensureVsyncListener(host platform.Host) {
 					s.stampVSyncLocked(now)
 					s.vsyncMu.Unlock()
 					last = now
+					misses = 0
 					continue
 				}
+				misses++
 				s.metrics.NoteMissedVSync()
 				s.mu.Lock()
 				d := s.animTick
 				s.mu.Unlock()
+				// A persistently failing vblank source (no DRM device or
+				// permission) must not spin the retry at 60Hz forever:
+				// pacing already falls back to the software interval, so
+				// back the retry off. The first 30 misses keep animTick
+				// cadence (short outages stay responsive).
+				if misses > 120 {
+					d = time.Second
+				} else if misses > 30 {
+					d = 500 * time.Millisecond
+				}
 				time.Sleep(d)
 			}
 		}()

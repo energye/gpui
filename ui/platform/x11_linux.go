@@ -1054,6 +1054,14 @@ func (h *x11Host) RequestFrameNotify() {
 	}
 	st := h.st
 	st.xPresentNotifyMSC(st.display, st.window, 0, 1, 0)
+	// Flush the notify request immediately: the UI thread may be parked
+	// in an infinite (idle true-block) poll, and Xlib would otherwise
+	// buffer this raster-thread request until the next wake — delaying
+	// the PresentCompleteNotify pacing stamp. XFlush is display-locked
+	// (XInitThreads), safe from the raster thread.
+	if st.flush != nil {
+		st.flush()
+	}
 }
 
 // NotifyFrameDrawn advances the _NET_WM_SYNC_REQUEST counter after a frame
@@ -1152,12 +1160,22 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 		deadline = time.Now().Add(timeout)
 	}
 	if h.ensurePollFds() {
-		const pollSliceMs = 16
 		for {
 			if evs := filterXNoise(h.drain()); len(evs) > 0 {
 				return evs
 			}
-			timeoutMs := pollSliceMs
+			// Idle true-block: a single poll with the full remaining
+			// timeout (or -1 infinite when no deadline). Slicing this
+			// into 16ms quanta woke the loop ~60/s with nothing to do
+			// (idle CPU). Display events, WakeUp (self-pipe) and the
+			// RunFor deadline still interrupt; EINTR re-polls.
+			// Flush cross-thread Xlib requests (e.g. raster present-path
+			// notifies) before parking, so nothing waits on a wakeup
+			// that only its own server reply would deliver.
+			if h.st.flush != nil {
+				h.st.flush()
+			}
+			timeoutMs := -1
 			if !deadline.IsZero() {
 				left := time.Until(deadline)
 				if left <= 0 {
@@ -1166,9 +1184,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 					}
 					return filterXNoise(h.drain())
 				}
-				if leftMs := int(left / time.Millisecond); leftMs < timeoutMs {
-					timeoutMs = leftMs
-				}
+				timeoutMs = int(left / time.Millisecond)
 			}
 			fds := []unix.PollFd{
 				{Fd: int32(h.xfd), Events: unix.POLLIN},
@@ -1179,15 +1195,17 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 				if err == unix.EINTR {
 					continue
 				}
-				time.Sleep(time.Duration(pollSliceMs) * time.Millisecond) // degraded safety
+				// Degraded safety: brief backoff, then re-evaluate
+				// deadline/drain (never busy-spin).
+				time.Sleep(16 * time.Millisecond)
 				continue
 			}
 			if n == 0 {
-				// Poll slice elapsed (or deadline) → re-check deadline/drain.
+				// Deadline reached (an infinite poll never returns 0).
 				if h.st.flush != nil {
 					h.st.flush()
 				}
-				continue
+				return filterXNoise(h.drain())
 			}
 			if fds[1].Revents&unix.POLLIN != 0 {
 				h.drainWakePipe()
