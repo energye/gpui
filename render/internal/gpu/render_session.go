@@ -407,6 +407,14 @@ type GPURenderSession struct {
 	sdfVertBufCap uint64
 	sdfUniformBuf hal.Buffer
 	sdfBindGroup  hal.BindGroup
+	// skip vertex/uniform WriteBuffer when packed bytes match last upload
+	// (image/stencil parity: content fingerprint, not rebuild).
+	sdfVertLastHash  uint64
+	sdfVertLastLen   int
+	sdfVertLastValid bool
+	sdfUniLastHash   uint64
+	sdfUniLastLen    int
+	sdfUniLastValid  bool
 	// Convex vertex buffer ring:
 	// WriteBuffer must not overwrite a buffer still referenced by an
 	// unsubmitted leading CB (mid-frame layer RT fills). Ring size covers
@@ -510,9 +518,26 @@ type GPURenderSession struct {
 	textVertBufCap uint64
 	textIdxBuf     hal.Buffer
 	textIdxBufCap  uint64
+	// skip vertex WriteBuffer when packed quads match last upload
+	// (image/stencil parity: content fingerprint, not rebuild).
+	textVertLastHash  uint64
+	textVertLastLen   int
+	textVertLastValid bool
 	// Per-batch uniform buffers and bind groups (pool, grows as needed).
+	// Uniforms ride one slab (imageUniformSlab parity): a single WriteBuffer
+	// uploads every batch slot instead of N per-batch native calls; each
+	// bind group addresses its slot by offset. textUniformBufs is retained
+	// only for teardown of pre-slab buffers (no new ones are created).
 	textUniformBufs []hal.Buffer
 	textBindGroups  []hal.BindGroup
+	// Single slab for all text batch uniforms (stride textUniformSlotStride).
+	textUniformSlab      hal.Buffer
+	textUniformSlabCap   uint64 // bytes
+	textUniformSlots     int    // batch slots addressed in slab
+	textUniformStaging   []byte
+	textUniformLastHash  uint64
+	textUniformLastLen   int
+	textUniformLastValid bool
 	// Stable view keys for text BG reuse — the same view-identity rule as
 	// image (imageBGViews), glyph (glyphMaskBGViews), and gpuTex
 	// (gpuTexBGSlotCache): a rebuilt texture resolves to a different view,
@@ -527,7 +552,6 @@ type GPURenderSession struct {
 	textQuadScratch      []TextQuad
 	textVertStaging      []byte
 	textIdxStaging       []byte
-	textUniformScratch   []byte
 	textIdxUploadedQuads int
 
 	// Tier 6: Glyph mask text persistent buffers.
@@ -2111,6 +2135,8 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.sdfVertBuf = nil
 		s.sdfVertBufCap = 0
 	}
+	s.sdfVertLastValid = false
+	s.sdfUniLastValid = false
 	if s.convexBindGroup != nil {
 		s.convexBindGroup.Destroy()
 		s.convexBindGroup = nil
@@ -2238,6 +2264,13 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		}
 	}
 	s.textUniformBufs = nil
+	if s.textUniformSlab != nil {
+		s.textUniformSlab.Destroy()
+		s.textUniformSlab = nil
+		s.textUniformSlabCap = 0
+	}
+	s.textUniformSlots = 0
+	s.textUniformLastValid = false
 	if s.textIdxBuf != nil {
 		s.textIdxBuf.Destroy()
 		s.textIdxBuf = nil
@@ -2248,6 +2281,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 		s.textVertBuf = nil
 		s.textVertBufCap = 0
 	}
+	s.textVertLastValid = false
 	// Atlas textures are owned by GPUShared (shared across sessions).
 	// Just clear refs, don't Release.
 	s.textAtlasViews = nil
@@ -2968,9 +3002,20 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 		}
 		s.sdfVertBuf = buf
 		s.sdfVertBufCap = allocSize
+		s.sdfVertLastValid = false
 	}
-	if err := s.queueWriteBuffer(s.sdfVertBuf, 0, vertexData); err != nil {
-		return nil, fmt.Errorf("write vertex buffer: %w", err)
+	// Content fingerprint (image/stencil parity): unchanged vertex bytes
+	// skip the native WriteBuffer entirely.
+	vertHash := indexBytesFingerprint(vertexData)
+	if !s.sdfVertLastValid || s.sdfVertLastLen != len(vertexData) || s.sdfVertLastHash != vertHash {
+		if err := s.queueWriteBuffer(s.sdfVertBuf, 0, vertexData); err != nil {
+			return nil, fmt.Errorf("write vertex buffer: %w", err)
+		}
+		s.sdfVertLastHash = vertHash
+		s.sdfVertLastLen = len(vertexData)
+		s.sdfVertLastValid = true
+	} else {
+		s.queueWriteBufferSkipped(len(vertexData))
 	}
 
 	needSDFUniform := !s.sdfUniformValid || s.sdfUniformW != w || s.sdfUniformH != h || s.sdfUniformAA != s.antiAlias || s.sdfUniformBuf == nil
@@ -2995,10 +3040,19 @@ func (s *GPURenderSession) buildSDFResources(shapes []SDFRenderShape, w, h uint3
 			s.sdfBindGroup = nil
 		}
 		needSDFUniform = true
+		s.sdfUniLastValid = false
 	}
 	if needSDFUniform {
-		if err := s.queueWriteBuffer(s.sdfUniformBuf, 0, uniformData); err != nil {
-			return nil, fmt.Errorf("write uniform buffer: %w", err)
+		uniHash := indexBytesFingerprint(uniformData)
+		if !s.sdfUniLastValid || s.sdfUniLastLen != len(uniformData) || s.sdfUniLastHash != uniHash {
+			if err := s.queueWriteBuffer(s.sdfUniformBuf, 0, uniformData); err != nil {
+				return nil, fmt.Errorf("write uniform buffer: %w", err)
+			}
+			s.sdfUniLastHash = uniHash
+			s.sdfUniLastLen = len(uniformData)
+			s.sdfUniLastValid = true
+		} else {
+			s.queueWriteBufferSkipped(len(uniformData))
 		}
 		s.sdfUniformW, s.sdfUniformH, s.sdfUniformAA = w, h, s.antiAlias
 		s.sdfUniformValid = true
@@ -3624,13 +3678,29 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 		if err != nil {
 			s.textVertBuf = nil
 			s.textVertBufCap = 0
+			s.textVertLastValid = false
 			return nil, fmt.Errorf("create text vertex buffer: %w", err)
 		}
 		s.textVertBuf = buf
 		s.textVertBufCap = allocSize
+		s.textVertLastValid = false
 	}
-	if err := s.queue.WriteBuffer(s.textVertBuf, 0, vertexData); err != nil {
-		return nil, fmt.Errorf("write text vertex buffer: %w", err)
+	// Content fingerprint (image/stencil parity): static labels rebuild
+	// identical vertex bytes every frame — skip the native WriteBuffer.
+	textVertHash := indexBytesFingerprint(vertexData)
+	if !s.textVertLastValid || s.textVertLastLen != len(vertexData) || s.textVertLastHash != textVertHash {
+		if err := s.queue.WriteBuffer(s.textVertBuf, 0, vertexData); err != nil {
+			return nil, fmt.Errorf("write text vertex buffer: %w", err)
+		}
+		s.textVertLastHash = textVertHash
+		s.textVertLastLen = len(vertexData)
+		s.textVertLastValid = true
+	} else {
+		// Stats parity with queueWriteBuffer accounting (see
+		// queueWriteBufferSkipped): the direct s.queue.WriteBuffer above
+		// bypasses the session counter, so record the elided bytes here.
+		s.lastSubmitStats.WriteBuffers++
+		s.lastSubmitStats.WriteBytes += int64(len(vertexData))
 	}
 
 	// Index pattern is pure function of quad count — grow-only upload.
@@ -3668,10 +3738,46 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 		s.textIdxUploadedQuads = totalQuads
 	}
 
-	// Grow uniform buffer and bind group pools to match batch count.
+	// Grow bind group pool to match batch count; uniforms ride the slab.
 	s.ensureTextBatchPools(len(batches))
+	if err := s.ensureTextUniformSlab(len(batches)); err != nil {
+		return nil, err
+	}
 
-	// Build per-batch draw calls with individual uniform buffers.
+	// Pack every batch uniform (stable i-based offsets, empty batches
+	// included) and upload once when the packed bytes changed
+	// (imageUniformSlab parity: N WriteBuffers collapse into one).
+	nBatch := len(batches)
+	packBytes := nBatch * textUniformSlotStride
+	if cap(s.textUniformStaging) < packBytes {
+		s.textUniformStaging = make([]byte, packBytes)
+	} else {
+		s.textUniformStaging = s.textUniformStaging[:packBytes]
+	}
+	// Compose ortho projection once per flush (frameW/H fixed for the frame).
+	ortho := render.Matrix{
+		A: 2.0 / float64(s.frameW), B: 0, C: -1.0,
+		D: 0, E: -2.0 / float64(s.frameH), F: 1.0,
+	}
+	for i := range batches {
+		finalTransform := ortho.Multiply(batches[i].Transform)
+		slot := s.textUniformStaging[i*textUniformSlotStride : i*textUniformSlotStride+textUniformSlotStride]
+		_ = makeTextUniformInto(slot, batches[i].Color, finalTransform, batches[i].PxRange, batches[i].AtlasSize)
+	}
+	uniHash := indexBytesFingerprint(s.textUniformStaging)
+	if !s.textUniformLastValid || s.textUniformLastLen != len(s.textUniformStaging) || s.textUniformLastHash != uniHash {
+		if err := s.queueWriteBuffer(s.textUniformSlab, 0, s.textUniformStaging); err != nil {
+			return nil, fmt.Errorf("upload text uniform slab: %w", err)
+		}
+		s.textUniformLastHash = uniHash
+		s.textUniformLastLen = len(s.textUniformStaging)
+		s.textUniformLastValid = true
+	} else {
+		s.queueWriteBufferSkipped(len(s.textUniformStaging))
+	}
+	s.textUniformSlots = nBatch
+
+	// Build per-batch draw calls with slab-offset uniforms.
 	drawCalls := make([]textDrawCall, 0, len(batches))
 	quadOffset := 0
 
@@ -3681,24 +3787,13 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 			continue
 		}
 
-		// Compose ortho projection at flush time.
-		ortho := render.Matrix{
-			A: 2.0 / float64(s.frameW), B: 0, C: -1.0,
-			D: 0, E: -2.0 / float64(s.frameH), F: 1.0,
-		}
-		finalTransform := ortho.Multiply(batch.Transform)
-		uniformData := makeTextUniformInto(s.textUniformScratch, batch.Color, finalTransform, batch.PxRange, batch.AtlasSize)
-		s.textUniformScratch = uniformData
-		if err := s.queue.WriteBuffer(s.textUniformBufs[i], 0, uniformData); err != nil {
-			return nil, fmt.Errorf("write text uniform[%d]: %w", i, err)
-		}
-
 		// Ensure bind group exists for this batch. The batch binds the
 		// atlas page matching its AtlasIndex; fall back to the first
 		// uploaded page if that index hasn't synced yet. View-identity
 		// rule (same as image/glyph/gpuTex): rebuild only when the
 		// resolved view differs — a rebuilt atlas page resolves to a
-		// different view, invalidating the entry naturally.
+		// different view, invalidating the entry naturally. Uniforms
+		// address the shared slab by slot offset.
 		view := s.textAtlasViews[batch.AtlasIndex]
 		if view == nil {
 			for _, v := range s.textAtlasViews {
@@ -3718,11 +3813,12 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 				// referenced by in-flight CBs — same rule as image/glyph).
 				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, old)
 			}
+			off := uint64(i) * textUniformSlotStride //nolint:gosec // bounded by batch count
 			bg, err := s.device.CreateBindGroup(&hal.BindGroupDescriptor{
 				Label:  fmt.Sprintf("session_text_bind_%d", i),
 				Layout: s.textPipeline.uniformLayout,
 				Entries: []hal.BindGroupEntry{
-					{Binding: 0, Buffer: s.textUniformBufs[i], Offset: 0, Size: textUniformSize},
+					{Binding: 0, Buffer: s.textUniformSlab, Offset: off, Size: textUniformSize},
 					{Binding: 1, TextureView: view},
 					{Binding: 2, Sampler: s.textPipeline.sampler},
 				},
@@ -3753,23 +3849,66 @@ func (s *GPURenderSession) buildTextResources(batches []TextBatch) (*textFrameRe
 	}, nil
 }
 
-// ensureTextBatchPools grows the uniform buffer and bind group pools to at
-// least n entries. Existing entries are preserved.
+// ensureTextBatchPools grows the bind group/view pools to at
+// least n entries. Uniforms ride the shared slab (no per-batch buffers);
+// bind groups address slab slots by offset. Existing entries are preserved.
 func (s *GPURenderSession) ensureTextBatchPools(n int) {
-	for len(s.textUniformBufs) < n {
-		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
-			Label: fmt.Sprintf("session_text_uniform_%d", len(s.textUniformBufs)),
-			Size:  textUniformSize,
-			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
-		})
-		if err != nil {
-			slogger().Warn("failed to create text uniform buffer", "err", err)
-			return
-		}
-		s.textUniformBufs = append(s.textUniformBufs, buf)
+	for len(s.textBindGroups) < n {
 		s.textBindGroups = append(s.textBindGroups, nil) // bind group created lazily
 		s.textBGViews = append(s.textBGViews, nil)
 	}
+}
+
+// ensureTextUniformSlab grows the shared batch-uniform slab (image slab
+// parity: one buffer, 256B stride, one upload). Legacy per-batch uniform
+// buffers are retired once; bind groups are invalidated on slab recreate
+// (offsets point into the old slab).
+func (s *GPURenderSession) ensureTextUniformSlab(n int) error {
+	need := uint64(n) * textUniformSlotStride //nolint:gosec // bounded by batch count
+	if n > 0 && (s.textUniformSlab == nil || s.textUniformSlabCap < need) {
+		if s.textUniformSlab != nil {
+			s.RetireBuffer(s.textUniformSlab) // P6 grow fix
+			s.textUniformSlab = nil
+		}
+		alloc := need * 2
+		if alloc < textUniformSlotStride*16 {
+			alloc = textUniformSlotStride * 16
+		}
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
+			Label: "text_uniform_slab",
+			Size:  alloc,
+			Usage: types.BufferUsageUniform | types.BufferUsageCopyDst,
+		})
+		if err != nil {
+			s.textUniformSlab = nil
+			s.textUniformSlabCap = 0
+			return fmt.Errorf("create text uniform slab: %w", err)
+		}
+		s.textUniformSlab = buf
+		s.textUniformSlabCap = alloc
+		s.textUniformLastValid = false
+		// Bind groups hold offsets into the old slab — drop them.
+		for i, bg := range s.textBindGroups {
+			if bg != nil {
+				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
+				s.textBindGroups[i] = nil
+			}
+		}
+		for i := range s.textBGViews {
+			s.textBGViews[i] = nil
+		}
+	}
+	// Retire legacy per-batch uniform buffers once: bind groups now
+	// address the slab, so these would leak.
+	if len(s.textUniformBufs) > 0 {
+		for _, buf := range s.textUniformBufs {
+			if buf != nil {
+				s.RetireBuffer(buf)
+			}
+		}
+		s.textUniformBufs = nil
+	}
+	return nil
 }
 
 // invalidateTextBindGroups destroys all cached text bind groups so they are
@@ -4419,6 +4558,15 @@ func (s *GPURenderSession) gpuTexBGCacheCount() int {
 		}
 	}
 	return n
+}
+
+// queueWriteBufferSkipped records a fingerprint-skipped upload in the
+// submit-path stats so retained second-flush counters stay honest: the
+// bytes were logically produced this frame, only the native call was
+// elided (Skia upload-skip parity in accounting).
+func (s *GPURenderSession) queueWriteBufferSkipped(n int) {
+	s.lastSubmitStats.WriteBuffers++
+	s.lastSubmitStats.WriteBytes += int64(n)
 }
 
 func (s *GPURenderSession) queueWriteBuffer(buf hal.Buffer, offset uint64, data []byte) error {

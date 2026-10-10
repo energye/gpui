@@ -63,6 +63,11 @@ const textVertexStride = 16
 // color (vec4<f32>) = 16 bytes + msdf_params (vec4<f32>) = 16 bytes = 96 bytes.
 const textUniformSize = 96
 
+// textUniformSlotStride is the bytes reserved per batch uniform in the
+// shared slab (imageUniformSlotStride parity: 256 satisfies the WebGPU
+// minimum uniform-buffer-offset alignment).
+const textUniformSlotStride = 256
+
 // MSDFTextPipeline manages GPU resources for MSDF text rendering via a
 // vertex+fragment render pipeline. Each text run is rendered as a set of
 // textured quads using indexed drawing. The fragment shader evaluates the
