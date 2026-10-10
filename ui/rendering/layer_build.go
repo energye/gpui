@@ -75,11 +75,18 @@ func buildLayerTreeWired(root RenderObject, wire *saveLayerWire) (*scene.LayerBu
 	if root == nil {
 		return b, st
 	}
-	appendNode(root, b, wire, 0, &st)
+	appendNode(root, b, wire, 0, &st, make(dirtyMemo, 256))
 	return b, st
 }
 
-// layerSubtreeNeedsPaint is the layer-build dirty check: like
+// dirtyMemo caches one build's subtree-dirty answers so the layer build
+// visits each node once. Without it every appendNode pays its own
+// memoSubtreeNeedsPaint walk (O(depth) per node, O(nodes*depth) per frame
+// at 60fps for one dirty leaf). Fresh per build: NeedsPaint flags mutate
+// between frames and are consumed after the build.
+type dirtyMemo map[RenderObject]bool
+
+// memoSubtreeNeedsPaint is the layer-build dirty check: like
 // SubtreeNeedsPaint but stops at nested repaint boundaries. A child
 // boundary's dirty state produces its own DirtyLayerID — it re-records
 // independently, and the ancestor only re-composites by blitting the child's
@@ -89,22 +96,27 @@ func buildLayerTreeWired(root RenderObject, wire *saveLayerWire) (*scene.LayerBu
 // re-record (texture churn, RSS growth). Paint-walk callers keep the
 // penetrating SubtreeNeedsPaint (they must walk in to inspect child
 // boundaries), so this helper is layer-build only.
-func layerSubtreeNeedsPaint(n RenderObject) bool {
+func memoSubtreeNeedsPaint(n RenderObject, m dirtyMemo) bool {
 	if n == nil {
 		return false
 	}
-	if n.NeedsPaint() {
-		return true
+	if v, ok := m[n]; ok {
+		return v
 	}
-	for _, c := range n.Children() {
-		if c.IsRepaintBoundary() {
-			continue // child boundary re-records itself; ancestor only re-composites
-		}
-		if layerSubtreeNeedsPaint(c) {
-			return true
+	v := n.NeedsPaint()
+	if !v {
+		for _, c := range n.Children() {
+			if c.IsRepaintBoundary() {
+				continue // child boundary re-records itself; ancestor only re-composites
+			}
+			if memoSubtreeNeedsPaint(c, m) {
+				v = true
+				break
+			}
 		}
 	}
-	return false
+	m[n] = v
+	return v
 }
 
 // appendNode walks one render node, counting repaint boundaries and text
@@ -112,7 +124,7 @@ func layerSubtreeNeedsPaint(n RenderObject) bool {
 // Boundary depth only nests at boundaries — same rule as
 // CountRepaintBoundaries. Text stats are read after the node's own content
 // is recorded (see FrameBuildStats).
-func appendNode(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire, bdepth int, st *FrameBuildStats) {
+func appendNode(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire, bdepth int, st *FrameBuildStats, m dirtyMemo) {
 	if n == nil || b == nil {
 		return
 	}
@@ -123,17 +135,17 @@ func appendNode(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire, bdep
 			st.BoundaryMaxDepth = bdepth
 		}
 	}
-	appendNodeInner(n, b, wire, bdepth, st)
+	appendNodeInner(n, b, wire, bdepth, st, m)
 	if st != nil {
 		if t, ok := n.(*RenderText); ok {
-			h, m := t.MeasureCacheStats()
+			h, miss := t.MeasureCacheStats()
 			st.MeasureHits += h
-			st.MeasureMisses += m
+			st.MeasureMisses += miss
 		}
 	}
 }
 
-func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire, bdepth int, st *FrameBuildStats) {
+func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire, bdepth int, st *FrameBuildStats, m dirtyMemo) {
 	off := n.Offset()
 	// One child-list fetch per node (E2): the branches below used to call
 	// Children() twice (len check + range). The tree structure is not
@@ -147,10 +159,10 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 		sz := n.Size()
 		cx, cy := sz.Width*0.5, sz.Height*0.5
 		if n.IsRepaintBoundary() {
-			b.PushBoundary(off.X, off.Y, "transform", n.NeedsPaint() || layerSubtreeNeedsPaint(n))
+			b.PushBoundary(off.X, off.Y, "transform", memoSubtreeNeedsPaint(n, m))
 			b.PushTransform(0, 0, rot, sx, sy).SetPivot(cx, cy)
 			for _, ch := range kids {
-				appendNode(ch, b, wire, bdepth, st)
+				appendNode(ch, b, wire, bdepth, st, m)
 			}
 			if len(kids) == 0 {
 				addLeafPicture(b, n, wire)
@@ -164,7 +176,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range kids {
-			appendNode(ch, b, wire, bdepth, st)
+			appendNode(ch, b, wire, bdepth, st, m)
 		}
 		b.Pop()
 		return
@@ -178,14 +190,14 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 	if ro, ok := n.(*RenderOpacity); ok {
 		op := ro.OpacityParams()
 		pushOp := op > 0 && op < 1
-		dirty := n.NeedsPaint() || layerSubtreeNeedsPaint(n)
+		dirty := memoSubtreeNeedsPaint(n, m)
 		if n.IsRepaintBoundary() {
 			b.PushBoundary(off.X, off.Y, "opacity", dirty)
 			if pushOp {
 				b.PushOpacity(op)
 			}
 			for _, ch := range kids {
-				appendNode(ch, b, wire, bdepth, st)
+				appendNode(ch, b, wire, bdepth, st, m)
 			}
 			if len(kids) == 0 {
 				addLeafPicture(b, n, wire)
@@ -204,7 +216,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range kids {
-			appendNode(ch, b, wire, bdepth, st)
+			appendNode(ch, b, wire, bdepth, st, m)
 		}
 		if pushOp {
 			b.Pop() // opacity
@@ -220,14 +232,14 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 	if cf, ok := n.(*RenderColorFilter); ok {
 		matrix := cf.ColorMatrix()
 		pushFilter := !cf.isIdentity()
-		dirty := n.NeedsPaint() || layerSubtreeNeedsPaint(n)
+		dirty := memoSubtreeNeedsPaint(n, m)
 		if n.IsRepaintBoundary() {
 			b.PushBoundary(off.X, off.Y, "color_filter", dirty)
 			if pushFilter {
 				b.PushColorFilter(matrix).SetCacheKey(cf.EnsureCacheID())
 			}
 			for _, ch := range kids {
-				appendNode(ch, b, wire, bdepth, st)
+				appendNode(ch, b, wire, bdepth, st, m)
 			}
 			if len(kids) == 0 {
 				addLeafPicture(b, n, wire)
@@ -246,7 +258,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range kids {
-			appendNode(ch, b, wire, bdepth, st)
+			appendNode(ch, b, wire, bdepth, st, m)
 		}
 		if pushFilter {
 			b.Pop() // color_filter
@@ -260,14 +272,14 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 	if imf, ok := n.(*RenderImageFilter); ok {
 		radius := imf.BlurParams()
 		pushFilter := radius > 0
-		dirty := n.NeedsPaint() || layerSubtreeNeedsPaint(n)
+		dirty := memoSubtreeNeedsPaint(n, m)
 		if n.IsRepaintBoundary() {
 			b.PushBoundary(off.X, off.Y, "image_filter", dirty)
 			if pushFilter {
 				b.PushImageFilter(radius).SetCacheKey(imf.EnsureCacheID())
 			}
 			for _, ch := range kids {
-				appendNode(ch, b, wire, bdepth, st)
+				appendNode(ch, b, wire, bdepth, st, m)
 			}
 			if len(kids) == 0 {
 				addLeafPicture(b, n, wire)
@@ -286,7 +298,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range kids {
-			appendNode(ch, b, wire, bdepth, st)
+			appendNode(ch, b, wire, bdepth, st, m)
 		}
 		if pushFilter {
 			b.Pop() // image_filter
@@ -299,12 +311,12 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 	// Offset establishes local origin; clip is (0,0,w,h) in that space so children nest under it.
 	if cr, ok := n.(*RenderClipRRect); ok {
 		w, h, radius := cr.ClipRRectParams()
-		dirty := n.NeedsPaint() || layerSubtreeNeedsPaint(n)
+		dirty := memoSubtreeNeedsPaint(n, m)
 		if n.IsRepaintBoundary() {
 			b.PushBoundary(off.X, off.Y, "clip_rrect", dirty)
 			b.PushClipRRect(0, 0, w, h, radius)
 			for _, ch := range kids {
-				appendNode(ch, b, wire, bdepth, st)
+				appendNode(ch, b, wire, bdepth, st, m)
 			}
 			if len(kids) == 0 {
 				addLeafPicture(b, n, wire)
@@ -319,7 +331,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 			addLeafPicture(b, n, wire)
 		}
 		for _, ch := range kids {
-			appendNode(ch, b, wire, bdepth, st)
+			appendNode(ch, b, wire, bdepth, st, m)
 		}
 		b.Pop() // clip_rrect
 		b.Pop() // offset
@@ -333,7 +345,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 	// record into bounds-sized textures under the clip, not the surface.
 	if v, ok := n.(*RenderViewport); ok {
 		sz := n.Size()
-		bl := b.PushBoundary(off.X, off.Y, "viewport", n.NeedsPaint() || layerSubtreeNeedsPaint(n))
+		bl := b.PushBoundary(off.X, off.Y, "viewport", memoSubtreeNeedsPaint(n, m))
 		bl.Shell = v.IsShellBoundary()
 		b.PushClipRect(0, 0, sz.Width, sz.Height)
 		// Scroll translation (Flutter ViewportLayer): content coordinates
@@ -344,7 +356,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 		b.PushTransform(-so.X, -so.Y, 0, 1, 1)
 		addOwnContent(b, n, wire)
 		for _, ch := range kids {
-			appendNode(ch, b, wire, bdepth, st)
+			appendNode(ch, b, wire, bdepth, st, m)
 		}
 		if len(kids) == 0 {
 			addLeafPicture(b, n, wire)
@@ -356,13 +368,13 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 	}
 
 	if n.IsRepaintBoundary() {
-		bl := b.PushBoundary(off.X, off.Y, typeName(n), n.NeedsPaint() || layerSubtreeNeedsPaint(n))
+		bl := b.PushBoundary(off.X, off.Y, typeName(n), memoSubtreeNeedsPaint(n, m))
 		if bse, ok := baseOf(n); ok {
 			bl.Shell = bse.IsShellBoundary()
 		}
 		addOwnContent(b, n, wire)
 		for _, ch := range kids {
-			appendNode(ch, b, wire, bdepth, st)
+			appendNode(ch, b, wire, bdepth, st, m)
 		}
 		// Leaf content inside boundary: ensure a picture slot when no children.
 		if len(kids) == 0 {
@@ -377,7 +389,7 @@ func appendNodeInner(n RenderObject, b *scene.LayerBuilder, wire *saveLayerWire,
 		addLeafPicture(b, n, wire)
 	}
 	for _, ch := range kids {
-		appendNode(ch, b, wire, bdepth, st)
+		appendNode(ch, b, wire, bdepth, st, m)
 	}
 	b.Pop()
 }

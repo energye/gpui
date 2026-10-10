@@ -233,7 +233,17 @@ func main() {
 	spinProps.Variant = "outlined"
 	spinProps.Spin = true
 	spinBox, spinInst := iconBox(ctx, spinProps, defSize, "f1-icon-basic-sync-spin")
-	root.Place(spinBox, basicX, by)
+	// Spin runs on a transform layer (Flutter RotationTransition): the glyph
+	// records once, per-frame rotation only updates the transform — no
+	// spec re-resolve, no OnPaint swap, no re-record.
+	spinRot := kit.PrimNewTransformed(0, 1, 1, spinBox)
+	spinRot.SetDebugName("f1-icon-basic-sync-spin-rot")
+	// Fixed slot mirrors the glyph box (16 default): the rotating corners
+	// stay inside the same boundary the painter rotated in before, so the
+	// damage rect and golden pixels are unchanged.
+	spinRot.FixedWidth, spinRot.FixedHeight = spinBox.FixedWidth, spinBox.FixedHeight
+	spinRot.SetRepaintBoundary(true)
+	root.Place(spinRot, basicX, by)
 	basicX += 16 + gap
 	rotProps := kit.DefaultIconProps("smile")
 	rotProps.Variant = "outlined"
@@ -869,6 +879,7 @@ func main() {
 	app.SetPresentPolicy(scheduler.PresentPolicyRetained)
 
 	var elapsed float64
+	var sampleN int
 	resizeDone, resizeBack := false, false
 	tourSteps := 0
 	scrolledTotal := 0.0
@@ -878,12 +889,7 @@ func main() {
 		// Blend animation is paint-only (fixed slots, no layout).
 		stepCards(dt)
 		if spinInst.Tick(dt) {
-			spec := spinInst.ResolveIconPaintSpec()
-			painter := kit.IconPainterForSpec(spec)
-			spinBox.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-				painter(pc, size)
-			}
-			spinBox.MarkNeedsPaint()
+			spinRot.SetRotation(spinInst.EffectiveAngle() * math.Pi / 180)
 		}
 		// Continuous auto tour (timed runs only; manual mode is user-driven
 		// so hover is never fought by auto scroll): human-speed 3px/frame
@@ -939,7 +945,12 @@ func main() {
 			vb.Viewport.ScrollToIndex(demoRowIdx)
 		}
 		app.ScheduleFrame()
-		proc.Sample()
+		// Process sampling at ~2Hz is plenty (peak RSS decays at 0.5s
+		// already); /proc reads every frame cost measurable CPU at 60fps.
+		sampleN++
+		if sampleN%30 == 0 {
+			proc.Sample()
+		}
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
 
