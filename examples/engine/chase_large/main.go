@@ -93,10 +93,22 @@ const (
 // the car instead of kilometers away.
 const (
 	carW, carH = 48.0, 24.0
-	carY       = 640.0
+	roadY      = 640.0
 	carMinX    = 200.0
 	carMaxX    = 6000.0
 	carSpeed   = 200.0
+
+	// Lane switching: the car eases between these three lanes.
+	laneOff = 40.0
+	laneT   = 4.0
+
+	// Wanderers: at most this many roadside monsters get their own
+	// random heading/speed/turns (seeded, deterministic).
+	wanderMax   = 256
+	wanderSeed  = 0xC0FFEE
+	wanderSpdLo = 20.0
+	wanderSpdHi = 80.0
+	wanderTurn  = 3.0
 
 	trailMax   = 32
 	trailHeadW = 12.0
@@ -104,8 +116,9 @@ const (
 	offW, offH = 480, 270
 
 	largeMergeStep = 4
-	paintWorldCap  = 800
-	paintPhysCap   = 600
+	// NOTE: paintWorldCap/paintPhysCap retired (2026-10-12): the whole
+	// picture is one batched atlas submit, so drawing all culled actives
+	// costs the same submit as a subset; caps only hid content.
 )
 
 const (
@@ -717,6 +730,18 @@ type drawItem struct {
 	rs render.AtlasSprite
 }
 
+// wander is one roadside monster with its own heading, speed and turn
+// rate. Motion integrates per tick and writes back through the world,
+// so cull/snapshot/paint all see it live. Seeded at build: same roster
+// every run; live positions intentionally differ run to run (the frozen
+// golden rebuilds a fresh world, never the live one).
+type wander struct {
+	id    world.ID
+	angle float64
+	speed float64
+	turn  float64
+}
+
 type gameSim struct {
 	cam   camera.Camera
 	trail *particle.Trail
@@ -726,9 +751,15 @@ type gameSim struct {
 	atlas *render.ImageBuf
 
 	carX, carY float64
-	dir        float64
-	movedPx    float64
-	frames     int
+	laneFrom, laneTo float64
+	laneClock        float64
+	laneIdx          int
+	dir              float64
+	movedPx          float64
+	frames           int
+
+	// Wanderers: roadside monsters with their own heading/speed.
+	wand []wander
 
 	large     *tilemap.Large
 	world     world.World
@@ -771,6 +802,12 @@ type gameSim struct {
 
 	items []drawItem
 	flat  []render.AtlasSprite
+	// Reused scratch: the hot path must not allocate per frame (GC
+	// pauses are the hitch source at big windows). Trail points rebuild
+	// into trailPts; pool particles copy into poolPts. Both backings live
+	// on the sim, grown once, reused forever.
+	trailPts []core.Vec2
+	poolPts  []particle.Particle
 
 	elapsed   float64
 	hitch20   int64
@@ -818,10 +855,16 @@ func (t *gameTicker) Tick(dt float64) bool {
 			}
 		}
 	}
-	// Car runs the middle road, camera follows.
+	// Car runs the middle road and eases across three lanes; the camera
+	// follows car + lane. On wrap the camera snaps with the car: a
+	// smoothed fly-back would sweep empty world (black bar on the left
+	// after maximize) while the tile/cull streaming chases a view the
+	// game has already left.
 	nx := s.carX + s.dir*carSpeed*dt
+	wrapped := false
 	if nx >= carMaxX {
 		nx = carMinX + (nx - carMaxX)
+		wrapped = true
 	}
 	moved := nx - s.carX
 	if moved < 0 {
@@ -832,7 +875,52 @@ func (t *gameTicker) Tick(dt float64) bool {
 	}
 	s.movedPx += moved
 	s.carX = nx
-	_ = s.cam.Follow(core.V2(s.carX+carW/2, s.carY+carH/2))
+	// Lane clock: hold 4s, ease 0.5s to the next lane, hold again.
+	s.laneClock += dt
+	if s.laneClock >= laneT {
+		s.laneClock = 0
+		s.laneFrom = s.carY
+		s.laneIdx = (s.laneIdx + 1) % 3
+		s.laneTo = roadY + (float64(s.laneIdx)-1)*laneOff
+	}
+	k := s.laneClock / 0.5
+	if k > 1 {
+		k = 1
+	}
+	k = k * k * (3 - 2*k)
+	s.carY = s.laneFrom + (s.laneTo-s.laneFrom)*k
+	if wrapped {
+		_ = s.cam.SetPos(core.V2(s.carX+carW/2, s.carY+carH/2))
+		if s.trail != nil {
+			s.trail.Clear()
+		}
+	} else {
+		_ = s.cam.Follow(core.V2(s.carX+carW/2, s.carY+carH/2))
+	}
+	// Wanderers: integrate heading/speed, turn by seeded rate, bounce
+	// off the field sides, write back so cull + paint see them live.
+	if len(s.wand) > 0 {
+		for i := range s.wand {
+			w := &s.wand[i]
+			t, err := s.world.Local(w.id)
+			if err != nil {
+				continue
+			}
+			w.angle += w.turn * dt
+			vx := math.Cos(w.angle) * w.speed
+			vy := math.Sin(w.angle) * w.speed
+			np := core.V2(t.Pos.X+vx*dt, t.Pos.Y+vy*dt)
+			if np.X < 120 || np.X > 6480 {
+				w.angle = math.Pi - w.angle
+				np.X = t.Pos.X
+			}
+			if np.Y < 100 || np.Y > 3260 {
+				w.angle = -w.angle
+				np.Y = t.Pos.Y
+			}
+			_ = s.world.SetTransform(w.id, world.Transform{Pos: np, Scale: core.V2(1, 1)})
+		}
+	}
 	view := s.cam.VisibleWorldRect()
 	// Tile ground streams at the live view, 4 merges per tick.
 	if s.large != nil {
@@ -976,16 +1064,19 @@ func paintGame(pc *rendering.PaintContext, size rendering.Size, s *gameSim) {
 			Opacity: a, Tint: render.RGBA{R: r, G: g, B: b, A: a}, Filter: render.InterpNearest,
 		}})
 	}
-	// Ground tiles: visible chunks, drawn at 64px cells (2x2 tiles) with
+	// Ground tiles: visible chunks, drawn at 128px cells (4x4 tiles) with
 	// parity + hash speckle so the ground reads as terrain, not flat
-	// plastic. One batched atlas submit; ~1k rects at design size.
+	// plastic. One batched atlas submit; ~300 rects at design size, and
+	// the count grows only with visible chunks (2x2 at any window size
+	// per axis pair), not with window pixels: a maximized window shows
+	// more world through the same budget instead of more work.
 	if s.large != nil {
 		for _, id := range s.large.Visible(view) {
 			b, ok := s.large.ChunkBounds(id)
 			if !ok {
 				continue
 			}
-			const cell = 64.0
+			const cell = 128.0
 			for gy := b.Y; gy < b.Y+b.H; gy += cell {
 				for gx := b.X; gx < b.X+b.W; gx += cell {
 					tx, ty := int(gx/32), int(gy/32)
@@ -1004,24 +1095,15 @@ func paintGame(pc *rendering.PaintContext, size rendering.Size, s *gameSim) {
 			}
 		}
 	}
-	// Road: dark band across the field at car height.
-	emit(100, s.carY-40, 6400, 80, 0.13, 0.13, 0.15, 1)
-	emit(100, s.carY-40, 6400, 4, 0.85, 0.80, 0.40, 1)
-	emit(100, s.carY+36, 6400, 4, 0.85, 0.80, 0.40, 1)
-	// Roadside objects: culled actives, uniformly stride-sampled to the
-	// paint cap. The snapshot is sorted by (layer, y): a head-cut would
-	// wipe whole layers/rows whenever actives exceed the cap (bigger
-	// window = more actives = purple gone after maximize, bottom rows
-	// gone while driving). Stride keeps every layer and every row band
-	// represented at any count; logic (wactive) stays full.
+	// Road: dark band across the field at the middle lane; the car
+	// eases across lanes above it (lane paint follows roadY).
+	emit(100, roadY-40, 6400, 80, 0.13, 0.13, 0.15, 1)
+	emit(100, roadY-40, 6400, 4, 0.85, 0.80, 0.40, 1)
+	emit(100, roadY+36, 6400, 4, 0.85, 0.80, 0.40, 1)
+	// Roadside objects: ALL culled actives, no paint cap. Wanderers
+	// among them walk across the whole field (see buildSim roster).
 	if s.wcull != nil {
-		snaps := s.wcull.Snapshot()
-		stride := 1
-		if len(snaps) > paintWorldCap {
-			stride = (len(snaps) + paintWorldCap - 1) / paintWorldCap
-		}
-		for i := 0; i < len(snaps); i += stride {
-			sn := snaps[i]
+		for _, sn := range s.wcull.Snapshot() {
 			var r, g, b float64
 			switch sn.Layer % 3 {
 			case 1:
@@ -1034,11 +1116,9 @@ func paintGame(pc *rendering.PaintContext, size rendering.Size, s *gameSim) {
 			emit(sn.X-6, sn.Y-6, 12, 12, r, g, b, 1)
 		}
 	}
-	// Nearby bodies: 8px quads (were 6px dust).
-	for i, bd := range s.ybodies {
-		if i >= paintPhysCap {
-			break
-		}
+	// Nearby bodies: ALL in-view bodies, no paint cap (same reasoning:
+	// one batch, view culling already bounds the work).
+	for _, bd := range s.ybodies {
 		if bd.Pos.X+bd.Half.X < view.X || bd.Pos.X-bd.Half.X > view.X+view.W ||
 			bd.Pos.Y+bd.Half.Y < view.Y || bd.Pos.Y-bd.Half.Y > view.Y+view.H {
 			continue
@@ -1059,9 +1139,25 @@ func paintGame(pc *rendering.PaintContext, size rendering.Size, s *gameSim) {
 	}
 	// Car on top.
 	emit(s.carX, s.carY, carW, carH, carR, carG, carB, 1)
-	// Trail ribbon.
+	// Pool bonfire: reused backing, capped at 64 sprites so a maximized
+	// window pays the same as design size.
+	if s.pool != nil {
+		s.poolPts = s.pool.AppendParticles(s.poolPts[:0])
+		n := len(s.poolPts)
+		if n > 64 {
+			n = 64
+		}
+		for _, pt := range s.poolPts[:n] {
+			if !pt.Alive() {
+				continue
+			}
+			emit(pt.Pos.X-4, pt.Pos.Y-4, 8, 8, 1, 0.82, 0.3, 0.9)
+		}
+	}
+	// Trail ribbon: rebuild into the reused backing (no per-frame alloc).
 	if s.trail != nil {
-		for i, q := range s.trail.AppendPoints(nil) {
+		s.trailPts = s.trail.AppendPoints(s.trailPts[:0])
+		for i, q := range s.trailPts {
 			w, err := s.trail.WidthAt(i)
 			if err != nil || w <= 0 {
 				continue
@@ -1100,25 +1196,55 @@ func captureFinal(s *gameSim) image.Image {
 		}
 	}()
 	frozen := &gameSim{
-		cam: s.cam, large: s.large, world: s.world, wlayers: s.wlayers,
-		wcull: s.wcull, ybp: s.ybp, ybodies: s.ybodies,
-		ngrid: s.ngrid, nagent: s.nagent,
+		cam: s.cam, wlayers: s.wlayers,
+		ybp: s.ybp, ybodies: s.ybodies,
+		ngrid: s.ngrid, ncell: s.ncell, npath: s.npath,
 		lodpol: s.lodpol, lodbnds: s.lodbnds, lodvp: s.lodvp,
 		lodNear: s.lodNear, lodFar: s.lodFar, lodOff: s.lodOff,
 		vreqs: s.vreqs, vlis: s.vlis, vch: s.vch, vaud: s.vaud,
-		atlas: s.atlas, carX: carMinX, carY: carY,
+		atlas: s.atlas, carX: carMinX, carY: roadY,
+	}
+	// Fresh large index at home (never the live one: its pending queue
+	// and loaded set depend on the walked views, which vary run to run).
+	flg, _ := tilemap.NewLarge(1024, 1024)
+	homeView := core.NewRect(0, 0, 2048, 2048)
+	flg.Update(homeView, 1024)
+	frozen.large = &flg
+	// Fresh world at build positions + home cull (never the live world:
+	// wanderers walk it every tick, so live pixels drift run to run).
+	fw, flayers, fl, _ := buildWorldLevel()
+	frozen.world = fw
+	frozen.wlayers = flayers
+	fwc, _ := world.NewCull(core.NewRect(100, 80, 1600, 1000))
+	for id := world.ID(1); id <= world.ID(fw.Count()); id++ {
+		hw, hh := fl.Extent, fl.Extent
+		if fw.HasComp(id, "marker") {
+			hw, hh = 0, 0
+		}
+		_ = fwc.Track(id, flayers[id], 0, hw, hh)
+	}
+	var fsf sceneFile
+	_ = readJSONFile(scenePath, &fsf)
+	for _, p := range fsf.Pins {
+		_ = fwc.Awake(world.ID(p))
+	}
+	fwc.SetAutoSleep(true)
+	_ = fwc.Refresh(&frozen.world, nil)
+	frozen.wcull = &fwc
+	// Fresh hero at route start (never the live agent: it walks).
+	if len(s.npath) > 0 {
+		if ag, err := nav.NewAgent(s.npath[0], nav.DefaultSpeed); err == nil {
+			_ = ag.SetWaypoints(s.npath)
+			frozen.nagent = &ag
+		}
 	}
 	cam, _ := camera.NewCamera(core.V2(float64(winW), float64(winH)))
-	_ = cam.SetPos(core.V2(carMinX+carW/2, carY+carH/2))
+	_ = cam.SetPos(core.V2(carMinX+carW/2, roadY+carH/2))
 	frozen.cam = cam
-	homeView := core.NewRect(0, 0, 2048, 2048)
-	_ = frozen.wcull.SetView(core.NewRect(100, 80, 1600, 1000))
-	_ = frozen.wcull.Refresh(&frozen.world, nil)
-	frozen.large.Update(homeView, 1024)
 	trailCfg, _ := particle.NewTrailConfig(trailMax, trailHeadW, trailTailW,
 		core.RGBA(1, 0.85, 0.3, 1), core.RGBA(0.9, 0.2, 0.1, 0), particle.JointRound)
 	frozen.trail, _ = particle.NewTrail(trailCfg)
-	for _, p := range []core.Vec2{core.V2(carMinX-60, carY + carH/2), core.V2(carMinX-30, carY + carH/2), core.V2(carMinX, carY + carH/2)} {
+	for _, p := range []core.Vec2{core.V2(carMinX-60, roadY + carH/2), core.V2(carMinX-30, roadY + carH/2), core.V2(carMinX, roadY + carH/2)} {
 		_ = frozen.trail.Push(p)
 	}
 	shape, _ := particle.ConeShape(core.V2(0, -1), 25*math.Pi/180)
@@ -1177,13 +1303,13 @@ func runSeconds(def int) int {
 }
 
 func buildSim() (*gameSim, string) {
-	s := &gameSim{carX: carMinX, carY: carY, dir: 1}
+	s := &gameSim{carX: carMinX, carY: roadY, laneFrom: roadY, laneTo: roadY, dir: 1}
 	cam, err := camera.NewCamera(core.V2(float64(winW), float64(winH)))
 	if err != nil {
 		return nil, "camera: " + err.Error()
 	}
 	_ = cam.SetSmoothing(0.12)
-	_ = cam.SetPos(core.V2(carMinX+carW/2, carY+carH/2))
+	_ = cam.SetPos(core.V2(carMinX+carW/2, roadY+carH/2))
 	s.cam = cam
 	tcfg, err := particle.NewTrailConfig(trailMax, trailHeadW, trailTailW,
 		core.RGBA(1, 0.85, 0.3, 1), core.RGBA(0.9, 0.2, 0.1, 0), particle.JointRound)
@@ -1267,6 +1393,44 @@ func buildSim() (*gameSim, string) {
 	}
 	s.wcull = &wc
 	s.wactive = len(wc.Active())
+	// Wanderers: spread across the whole field (not the first IDs, which
+	// are all top rows). Stride over the full roster filtered by position
+	// so above and below the road both walk. IDs are stable, motion is
+	// deterministic per build, so probes stay exact while live walks.
+	{
+		st := uint32(wanderSeed)
+		rnd := func(n uint32) uint32 {
+			st = st*1664525 + 1013904223
+			return (st >> 8) % n
+		}
+		total := int(w.Count())
+		step := total / wanderMax
+		if step < 1 {
+			step = 1
+		}
+		for k := 0; k < wanderMax; k++ {
+			id := world.ID(1 + k*step)
+			if id > world.ID(total) {
+				break
+			}
+			if w.HasComp(id, "marker") {
+				continue
+			}
+			t, err := w.Local(id)
+			if err != nil {
+				continue
+			}
+			if t.Pos.X < 200 || t.Pos.X > 6400 || t.Pos.Y < 200 || t.Pos.Y > 3160 {
+				continue
+			}
+			s.wand = append(s.wand, wander{
+				id:    id,
+				angle: float64(rnd(628)) / 100,
+				speed: wanderSpdLo + float64(rnd(6000))/100,
+				turn:  (float64(rnd(200))/100 - 1) * wanderTurn,
+			})
+		}
+	}
 	// Physics yard.
 	bp, bodies, _, err := buildYard()
 	if err != nil {
