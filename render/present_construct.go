@@ -13,6 +13,7 @@ package render
 import (
 	"errors"
 	"fmt"
+	"image"
 	"os"
 	"strings"
 	"sync"
@@ -219,6 +220,17 @@ type PresentTarget struct {
 	// lastOutcome / lastDamageArea are set by PresentWith / PresentWithAuto for metrics.
 	lastOutcome    PresentOutcome
 	lastDamageArea int64 // physical px² of last FrameDamage union (0 if idle/empty)
+
+	// damageHistory keeps the last few presented frames' clipped damage
+	// unions (physical pixels, oldest first, max damageHistoryDepth). The
+	// swapchain hands images out in rotation, so the image attached this
+	// frame was last written a few presents ago: submitting only the
+	// current frame's damage would leave older trail pixels on it (the
+	// white-ring class). The present damage is the union over the history
+	// (Flutter: join up to buffer-age-1 damages; no age query here so a
+	// fixed depth covers double/triple/quadruple buffering). Cleared with
+	// a full frame on reconfigure/resize (postResizeFull path below).
+	damageHistory []image.Rectangle
 
 	// fallbacks counts downgrade levels retried before this target opened
 	// (0 = first level succeeded). Set once by NewPresentTarget.

@@ -470,7 +470,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `TextMode` | TextModeAuto · TextModeMSDF · TextModeVector · TextModeBitmap · TextModeGlyphMask · TextModeAliased |
 | `VertexMode` | VertexModeTriangles · VertexModeTriangleFan |
 | `MSAASampleCount` | MSAASampleCount1(=1) · MSAASampleCount4(=4) |
-| 阈值/杂项 | MaxTrackedDamageRects · DamageFullCoverageThreshold · DamageMultiWasteRatio |
+| 阈值/杂项 | MaxTrackedDamageRects · DamageFullCoverageThreshold · DamageMultiWasteRatio · DamageHistoryDepth(=4) |
 | var（预置色） | Black · White · Red · Green · Blue · Yellow · Cyan · Magenta · Transparent |
 | var（错误） | ErrFallbackToCPU · ErrNilSurfaceView |
 

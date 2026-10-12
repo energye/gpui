@@ -64,6 +64,15 @@ const (
 	// DamageMultiWasteRatio prefers multi-rect when union area exceeds sum(rect areas)
 	// by this factor (large empty gaps between dirty regions).
 	DamageMultiWasteRatio = 1.35
+
+	// DamageHistoryDepth bounds the present-side damage history (see
+	// PresentTarget.damageHistory): swapchain images rotate, so the image
+	// attached this frame was last written a few presents ago. Submitting
+	// only the current frame's damage would leave older trail pixels on
+	// it; the present damage unions the recent history instead (Flutter:
+	// join up to buffer-age-1 damages; no age query here so a fixed depth
+	// covers double/triple/quadruple buffering).
+	DamageHistoryDepth = 4
 )
 
 // FramePresentPlan is the pure decision result for a set of physical damage rects.

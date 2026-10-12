@@ -291,8 +291,22 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	}
 	// Failed/timeout BeginFrames above return early and do NOT consume the
 	// post-resize full budget: the next frame still owes a full write.
+	// Damage-aware present: push this frame's clipped damage union onto
+	// the history and hand the union-over-history to backends that honor
+	// partial present (EGL swap-with-damage); backends without support
+	// present full (hal contract). History covers swapchain image rotation
+	// (the attached image was last written a few presents ago). A forced
+	// full frame rewrites the whole image: clear the history and present
+	// full (nil damage) so no stale rect survives a reconfigure. A forced
+	// full frame skips the history push entirely (nothing to accumulate).
+	var presentDamage image.Rectangle
+	if forceFull {
+		t.clearDamageHistory()
+	} else {
+		presentDamage = t.pushDamageHistory(clipped)
+	}
 	presentFn := func() error {
-		if err := t.sc.EndFrame(frame); err != nil {
+		if err := t.sc.EndFrameWithDamage(frame, damageToRects(presentDamage)); err != nil {
 			return err
 		}
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
@@ -332,6 +346,46 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	}
 	t.lastOutcome = out
 	return out, nil
+}
+
+// pushDamageHistory records this frame's clipped damage union and returns
+// the union over the recent history (physical pixels). Empty union pushes
+// nothing and returns empty (full present downstream). Called with t.mu
+// held (present critical section). Reconfigure/resize paths clear the
+// history via clearDamageHistory so a fresh-sized buffer always gets a
+// full write first.
+func (t *PresentTarget) pushDamageHistory(clipped image.Rectangle) image.Rectangle {
+	if t == nil || clipped.Empty() {
+		return image.Rectangle{}
+	}
+	t.damageHistory = append(t.damageHistory, clipped)
+	if len(t.damageHistory) > DamageHistoryDepth {
+		t.damageHistory = t.damageHistory[len(t.damageHistory)-DamageHistoryDepth:]
+	}
+	union := t.damageHistory[0]
+	for _, r := range t.damageHistory[1:] {
+		union = union.Union(r)
+	}
+	return union
+}
+
+// clearDamageHistory drops the present-side damage history so the next
+// presents go full until fresh damage accumulates. Called on swapchain
+// reconfigure/resize (buffers undefined) with t.mu held.
+func (t *PresentTarget) clearDamageHistory() {
+	if t == nil {
+		return
+	}
+	t.damageHistory = t.damageHistory[:0]
+}
+
+// damageToRects adapts a damage union for hal EndFrameWithDamage: empty
+// means full present (nil), otherwise a single-rect list.
+func damageToRects(union image.Rectangle) []image.Rectangle {
+	if union.Empty() {
+		return nil
+	}
+	return []image.Rectangle{union}
 }
 
 // WaitIdle blocks until the device has finished all submitted GPU work.

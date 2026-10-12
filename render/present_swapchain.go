@@ -415,6 +415,10 @@ func (t *PresentTarget) applyPendingSwapchainLocked() error {
 		// active stays full even if the 3-frame budget is spent between steps.
 		t.postResizeFull = 3
 		t.lastResizeAt = time.Now()
+		// New-size buffers are undefined: drop the present-side damage
+		// history so the next presents go full until fresh damage
+		// accumulates (Flutter: age unknown → full until history rebuilds).
+		t.clearDamageHistory()
 	}
 	// Runtime present-mode switch (SetVsync), applied at the same boundary so
 	// the surface mode never changes mid-frame. A mode change is also a

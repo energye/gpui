@@ -14,6 +14,7 @@ package gles
 
 import (
 	"fmt"
+	"image"
 	"sync"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -44,6 +45,15 @@ type Swapchain struct {
 	frameOpen  bool
 	curTex     hal.SurfaceTexture
 	curView    hal.TextureView
+
+	// surfaceView caches the surface TextureView so every frame on the
+	// same surface image compares identical upstream (damage scissor
+	// needs a stable identity; a fresh wrapper per acquire reads as a
+	// new image and forces full-surface composite). GL surface views hold
+	// no GL resources (Destroy is a no-op), so caching is free. Cleared
+	// on Configure/Resize/Release (FBO rebuilt) and on EGL surface
+	// recreation (recreateEGLWindowSurface path via Configure).
+	surfaceView hal.TextureView
 
 	acquires uint64
 	presents uint64
@@ -133,6 +143,9 @@ func (sc *Swapchain) Configure() error {
 		return err
 	}
 	sc.configured = true
+	// The FBO may have been rebuilt above: the cached surface view must
+	// not outlive the image it identified.
+	sc.dropSurfaceView()
 	return nil
 }
 
@@ -229,6 +242,16 @@ func (sc *Swapchain) SetPresentModeForce(mode gputypes.PresentMode) error {
 	)
 }
 
+// dropSurfaceView clears the cached surface view so the next BeginFrame
+// creates a fresh one. Call (with sc.mu held) whenever the backing image
+// identity can change: Configure (FBO rebuilt), Resize (via Configure),
+// Release (surface torn down). A stale cached view would read as the same
+// image upstream while the pixels are undefined — the white-ring class of
+// bug in reverse (missing full redraw after reconfigure).
+func (sc *Swapchain) dropSurfaceView() {
+	sc.surfaceView = nil
+}
+
 // BeginFrame acquires the next surface texture and boxes its view.
 func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	if sc == nil {
@@ -276,10 +299,21 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 	if acq == nil || acq.Texture == nil {
 		return nil, fmt.Errorf("gles: AcquireTexture returned nil texture")
 	}
-	view, err := sc.dev.CreateTextureView(acq.Texture, nil)
-	if err != nil {
-		sc.surf.DiscardTexture(acq.Texture)
-		return nil, fmt.Errorf("gles: CreateTextureView(surface): %w", err)
+	// Stable surface view identity: the GL surface is a single persistent
+	// image (same default framebuffer every frame), so one cached view
+	// identifies it across frames. A fresh wrapper per acquire would read
+	// as a new image upstream and force full-surface composite every
+	// frame, defeating damage scissor. Recreated with the FBO on
+	// Configure/Resize/Release (see dropSurfaceView).
+	view := sc.surfaceView
+	if view == nil {
+		var verr error
+		view, verr = sc.dev.CreateTextureView(acq.Texture, nil)
+		if verr != nil {
+			sc.surf.DiscardTexture(acq.Texture)
+			return nil, fmt.Errorf("gles: CreateTextureView(surface): %w", verr)
+		}
+		sc.surfaceView = view
 	}
 	sc.curTex = acq.Texture
 	sc.curView = view
@@ -328,6 +362,45 @@ func (sc *Swapchain) EndFrame(frame *Frame) error {
 	return err
 }
 
+// EndFrameWithDamage presents the frame with a damage hint for partial
+// present (EGL swap-with-damage). Rects are physical pixels, top-left
+// origin; Queue.Present clips to the surface, Y-flips for EGL, and falls
+// back to full SwapBuffers when the extension is missing or rects are
+// empty — so this path is never worse than EndFrame. Frame lifecycle
+// (curTex/curView/frameOpen/presents) mirrors EndFrame exactly.
+func (sc *Swapchain) EndFrameWithDamage(frame *Frame, damage []image.Rectangle) error {
+	if sc == nil {
+		return fmt.Errorf("gles: swapchain is nil")
+	}
+	if frame == nil {
+		return fmt.Errorf("gles: frame is nil")
+	}
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	if !sc.frameOpen {
+		return fmt.Errorf("gles: no frame in flight")
+	}
+	q := sc.dev.Queue()
+	if q == nil {
+		sc.surf.DiscardTexture(frame.SurfaceTexture)
+		sc.curTex = nil
+		sc.curView = nil
+		sc.frameOpen = false
+		return fmt.Errorf("gles: device queue is nil")
+	}
+	err := q.Present(sc.surf, frame.SurfaceTexture, damage)
+	sc.curTex = nil
+	sc.curView = nil
+	sc.frameOpen = false
+	if err == nil {
+		sc.presents++
+		if sc.dev != nil && sc.dev.IsLost() {
+			return hal.ErrDeviceLost
+		}
+	}
+	return err
+}
+
 // DiscardFrame drops an acquired frame without presenting.
 func (sc *Swapchain) DiscardFrame(frame *Frame) {
 	if sc == nil || frame == nil {
@@ -358,6 +431,7 @@ func (sc *Swapchain) Release() {
 	sc.frameOpen = false
 	sc.curTex = nil
 	sc.curView = nil
+	sc.dropSurfaceView()
 }
 
 // PresentModeName labels the active mode for logs.
