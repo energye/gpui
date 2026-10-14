@@ -54,7 +54,7 @@ func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.
 
 	// VAO is created lazily in CreateCommandEncoder — ensures it's allocated
 	// on the window surface (after Configure), not on the pbuffer (during Open).
-	vao := uint32(0)
+	// Device.vao is atomic.Uint32; zero value = not yet created.
 
 	// Query hardware texture unit limit for binding validation.
 	var maxTexUnits int32
@@ -75,11 +75,10 @@ func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.
 	glslVer := GLSLVersionToNaga(a.caps.GLSLVersion, a.caps.IsES)
 
 	device := &Device{
-		ctx:                 a.ctx,
-		displayHandle:       a.displayHandle,
-		windowHandle:        a.windowHandle,
-		vao:                 vao,
-		maxTextureUnits:     maxTexUnits,
+		ctx:             a.ctx,
+		displayHandle:   a.displayHandle,
+		windowHandle:    a.windowHandle,
+		maxTextureUnits: maxTexUnits,
 		maxMSAA:             a.caps.MaxMSAASamples,
 		features:            features,
 		limits:              limits,
@@ -87,9 +86,13 @@ func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.
 		shaderBindingLayout: glslVer.SupportsExplicitLocations(),
 	}
 
+	// Queue-local fence disabled: no caller polls Queue.Poll on the steady
+	// path (pprof: FenceSync+Maintain cost 60ms/1.87s on spin_min with zero
+	// consumers). Submit/Poll both nil-guard fence, so a nil fence simply
+	// skips Signal/Maintain and Poll falls back to submissionIndex.
+	// Device.CreateFence stays for explicit external sync.
 	queue := &Queue{
-		ctx:   a.ctx,
-		fence: NewFence(glCtx),
+		ctx: a.ctx,
 	}
 	device.queue = queue
 

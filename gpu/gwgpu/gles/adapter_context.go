@@ -157,14 +157,22 @@ func (c *AdapterContext) LockForDC(hdc wgl.HDC) *gl.Context {
 // Unlock unmakes the GL context current, unpins the goroutine from the OS
 // thread, and releases the mutex.
 //
-// Guards against double-unmake: only calls wglMakeCurrent(0, 0) if a
-// context is actually current on this thread.
+// The unmake is unconditional: the mutex guarantees this Lock/Unlock pair
+// owns the bind, so no GetCurrentContext query is needed to guard against
+// double-unmake (Linux twin: same change, pprof-driven).
 func (c *AdapterContext) Unlock() {
-	if wgl.GetCurrentContext() != 0 {
-		if err := wgl.MakeCurrent(0, 0); err != nil {
-			slog.Error("gles: AdapterContext.Unlock UnmakeCurrent failed", "err", err)
-		}
+	if err := wgl.MakeCurrent(0, 0); err != nil {
+		slog.Error("gles: AdapterContext.Unlock UnmakeCurrent failed", "err", err)
 	}
+	runtime.UnlockOSThread()
+	c.mu.Unlock()
+}
+
+// UnlockKeepBinding releases the mutex and unpins the goroutine but keeps
+// the GL context current on this OS thread (skips the UnmakeCurrent FFI).
+// Linux twin: same contract (raster Submit→Present on one pinned OS thread,
+// Present re-makes before use). Other callers keep Unlock.
+func (c *AdapterContext) UnlockKeepBinding() {
 	runtime.UnlockOSThread()
 	c.mu.Unlock()
 }

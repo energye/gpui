@@ -14,6 +14,7 @@ package gles
 
 import (
 	"fmt"
+	"image"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 	"github.com/energye/gpui/gpu/hal"
@@ -116,15 +117,30 @@ func destroySwapchainFBO(glCtx *gl.Context, fbo, colorTex uint32) {
 // blitSwapchainToDefaultWith performs the present-time Y-flipping blit from
 // the Surface's swapchain FBO to the default framebuffer (FBO 0).
 // Must be called with GL context current on the user window DC.
+//
+// damage is the union-over-history present damage (physical px, top-left
+// origin; empty = full present). When non-empty and it covers less than the
+// full surface, the blit is scissored to it: the driver only moves the dirty
+// pixels instead of the full frame (spin_min: 8k px of 153k px, ~5%).
+// The default framebuffer is single-buffered from EGL's view here — the
+// destination outside the scissor keeps its previous content, which is
+// exactly what swap-with-damage promises the compositor. Force-full frames
+// (reconfigure/resize) pass empty damage and stay full-blit.
 func (s *Surface) blitSwapchainToDefaultWith(glCtx *gl.Context) {
+	s.blitSwapchainToDefaultDamageWith(glCtx, nil)
+}
+
+// blitSwapchainToDefaultDamageWith is blitSwapchainToDefaultWith plus an
+// optional damage scissor (see above). damage must already be clipped to the
+// surface and unioned over the buffer-age history by the caller (render
+// PresentTarget.pushDamageHistory); empty means full present.
+func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []image.Rectangle) {
 	if glCtx == nil || s.swapchainFBO == 0 {
 		return
 	}
 	if s.fboWidth == 0 || s.fboHeight == 0 {
 		return
 	}
-
-	glCtx.Disable(gl.SCISSOR_TEST)
 
 	glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, s.swapchainFBO)
 	glCtx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
@@ -144,14 +160,74 @@ func (s *Surface) blitSwapchainToDefaultWith(glCtx *gl.Context) {
 		dw, dh = int32(s.config.Width), s.presentHeight()
 	}
 
-	glCtx.BlitFramebuffer(
-		0, h, w, 0, // source Y-flipped
-		0, 0, dw, dh, // dest normal (stretched only while borrowing)
-		gl.COLOR_BUFFER_BIT, gl.NEAREST,
-	)
+	if len(damage) > 0 && dw == w && dh == h {
+		// Scissored blit: only the dirty union moves. One blit per rect —
+		// spin_min steady state is a single rect; multi-rect stays correct
+		// (each rect moves its own pixels), just one blit per rect.
+		// Y-flip: GL scissor uses bottom-left origin, damage is top-left.
+		glCtx.Enable(gl.SCISSOR_TEST)
+		for _, r := range damage {
+			if r.Empty() {
+				continue
+			}
+			sx, sy, sw, sh := damageScissorGL(r, h)
+			if sw <= 0 || sh <= 0 {
+				continue
+			}
+			glCtx.Scissor(sx, sy, sw, sh)
+			glCtx.BlitFramebuffer(
+				0, h, w, 0, // source Y-flipped (full source, scissor clips dest)
+				0, 0, dw, dh,
+				gl.COLOR_BUFFER_BIT, gl.NEAREST,
+			)
+		}
+		glCtx.Disable(gl.SCISSOR_TEST)
+	} else {
+		glCtx.Disable(gl.SCISSOR_TEST)
+		glCtx.BlitFramebuffer(
+			0, h, w, 0, // source Y-flipped
+			0, 0, dw, dh, // dest normal (stretched only while borrowing)
+			gl.COLOR_BUFFER_BIT, gl.NEAREST,
+		)
+	}
 
 	glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
 	glCtx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+}
+
+// damageScissorGL converts a top-left-origin damage rect (physical px) to a
+// bottom-left-origin GL scissor box, clamped to (0,0,w,surfH).
+func damageScissorGL(r image.Rectangle, surfH int32) (x, y, w, h int32) {
+	x = int32(r.Min.X)
+	if x < 0 {
+		x = 0
+	}
+	y = surfH - int32(r.Max.Y)
+	if y < 0 {
+		y = 0
+	}
+	if y > surfH {
+		y = surfH
+	}
+	x1 := int32(r.Max.X)
+	y1 := surfH - int32(r.Min.Y)
+	if x1 < 0 {
+		x1 = 0
+	}
+	if y1 < 0 {
+		y1 = 0
+	}
+	if y1 > surfH {
+		y1 = surfH
+	}
+	w, h = x1-x, y1-y
+	if w < 0 {
+		w = 0
+	}
+	if h < 0 {
+		h = 0
+	}
+	return x, y, w, h
 }
 
 // sameExtentConfigured reports whether the live swapchain FBO already backs

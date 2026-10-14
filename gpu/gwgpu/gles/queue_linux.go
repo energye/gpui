@@ -37,9 +37,12 @@ type Queue struct {
 // Submit submits command buffers to the GPU.
 // One Lock for the whole submit: staged uploads flush first, then all GL
 // commands run under a per-submit state cache that drops repeated setup.
+// Keeps the binding on unlock (UnlockKeepBinding): the raster loop runs
+// Submit→Present on one pinned OS thread and Present re-makes before use,
+// so Submit skips its UnmakeCurrent FFI (pprof: ~half of 170ms/1.87s).
 func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	glCtx := q.ctx.Lock()
-	defer q.ctx.Unlock()
+	defer q.ctx.UnlockKeepBinding()
 	st := newGLExecState()
 	if list := q.batch.drain(); len(list) > 0 {
 		flushWriteBatch(glCtx, st, list)
@@ -257,7 +260,10 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects
 	if list := q.batch.drain(); len(list) > 0 {
 		flushWriteBatch(glCtx, newGLExecState(), list)
 	}
-	surf.blitSwapchainToDefaultWith(glCtx)
+	// Damage-scissored blit: steady frames move only the dirty union
+	// instead of the full surface (see blitSwapchainToDefaultDamageWith).
+	// Empty damage = force-full frame → full blit, same as before.
+	surf.blitSwapchainToDefaultDamageWith(glCtx, damageRects)
 
 	// Use damage-aware swap when the extension is available and rects provided.
 	if len(damageRects) > 0 && egl.HasSwapBuffersWithDamage() {

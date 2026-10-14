@@ -126,16 +126,33 @@ func (c *AdapterContext) LockForSurface(surf egl.EGLSurface) *gl.Context {
 // Unlock unmakes the GL context current, unpins the goroutine from the OS
 // thread, and releases the mutex.
 //
-// Guards against double-unmake: only calls eglMakeCurrent(NO_SURFACE, NO_CONTEXT)
-// if a context is actually current on this thread.
+// The unmake is unconditional: the mutex guarantees this Lock/Unlock pair
+// owns the bind, so no GetCurrentContext query is needed to guard against
+// double-unmake (pprof: the query cost 250ms/2.32s on spin_min — every
+// CreateCommandEncoder/Submit/Present Unlock paid one FFI round trip).
+// Unlock stays safe before egl.Init (unit tests, teardown) via the nil check.
 func (c *AdapterContext) Unlock() {
 	// Check eglCtx first so Unlock is safe before egl.Init (unit tests, teardown).
-	if c.eglCtx != nil && egl.GetCurrentContext() != egl.NoContext {
+	if c.eglCtx != nil {
 		if egl.MakeCurrent(c.eglCtx.Display(), egl.NoSurface, egl.NoSurface, egl.NoContext) == egl.False {
 			slog.Error("gles: AdapterContext.Unlock UnmakeCurrent failed",
 				"err", fmt.Sprintf("0x%x", egl.GetError()))
 		}
 	}
+	runtime.UnlockOSThread()
+	c.mu.Unlock()
+}
+
+// UnlockKeepBinding releases the mutex and unpins the goroutine but keeps
+// the GL context current on this OS thread (skips the UnmakeCurrent FFI).
+// Safe only when the next GL user re-makes before use on the same thread:
+// the raster loop runs Submit→Present on one pinned OS thread (G5), and
+// Present's TryLockForSurface always makes before drawing, so the kept
+// binding is either reused (same thread, EGL cover semantics) or covered.
+// pprof: UnmakeCurrent costs 170ms/1.87s on spin_min (one per Submit and one
+// per Present); Submit keeps, Present still clears (frame-end Unlock,
+// Flutter parity). Other callers keep Unlock.
+func (c *AdapterContext) UnlockKeepBinding() {
 	runtime.UnlockOSThread()
 	c.mu.Unlock()
 }
