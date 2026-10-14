@@ -859,6 +859,12 @@ func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 // canMergeGPUTextureDraw reports whether two GPU-to-GPU texture overlays may share
 // one bind group + multi-quad Draw. Same texture view pointer, opacity, and
 // viewport; never merge across scissor seals (caller enforces batchSeal).
+// Rotation-uniform coherence: a rotated quad rides T(center)*R(angle) in its
+// slot uniform, so it merges only with the identical rotation key (center +
+// size + angle); mixing keys would freeze the wrong transform. The slot
+// aggregation keeps only the head command's rotation, so every command in
+// one slot must ride the exact same key — same angle at a different center
+// (or a different size) draws at the wrong place if merged.
 func canMergeGPUTextureDraw(a, b *GPUTextureDrawCommand) bool {
 	if a == nil || b == nil {
 		return false
@@ -879,6 +885,14 @@ func canMergeGPUTextureDraw(a, b *GPUTextureDrawCommand) bool {
 	// merge with linear draws or each other (one draw per video quad,
 	// the steady-state norm).
 	if a.IsYUV || b.IsYUV {
+		return false
+	}
+	aRot, aHas := gpuTexHasRotation(a)
+	bRot, bHas := gpuTexHasRotation(b)
+	if aHas != bHas {
+		return false
+	}
+	if aHas && (aRot.cx != bRot.cx || aRot.cy != bRot.cy || aRot.w != bRot.w || aRot.h != bRot.h || aRot.angle != bRot.angle) {
 		return false
 	}
 	return true

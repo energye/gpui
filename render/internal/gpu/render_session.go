@@ -190,6 +190,15 @@ type imageUniformLastKey struct {
 	w, h    uint32
 	opacity float32
 	valid   bool
+	// Rotation term for the gpu-tex rotation-uniform path: slots whose
+	// quads ride T(center)*R(angle)*T(-center) in the uniform only skip
+	// re-upload when the full rotation key (center + size + angle) matches
+	// exactly. Zero rotation (hasRot=false) preserves the historic
+	// ortho-only skip semantics.
+	hasRot         bool
+	rotCX, rotCY   float32
+	rotW, rotH     float32
+	rotAngle       float32
 }
 
 // gpuTexBGSlotCache holds up to 4 view→bind-group pairs for one uniform slot
@@ -4718,10 +4727,14 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		if u1 <= u0 || v1 <= v0 {
 			u0, v0, u1, v1 = 0, 0, 1, 1
 		}
+		// Rotation-uniform path: rigid rotations emit the static
+		// axis-aligned base; the angle rides the slot uniform below.
+		// YUV/axis/shear stay baked bit-identically.
+		bx0, by0, bx1, by1, bx2, by2, bx3, by3 := gpuTexBaseCorners(cmd)
 		imgCmd := ImageDrawCommand{
 			DstX: cmd.DstX, DstY: cmd.DstY, DstW: cmd.DstW, DstH: cmd.DstH,
-			TLX: cmd.TLX, TLY: cmd.TLY, TRX: cmd.TRX, TRY: cmd.TRY,
-			BRX: cmd.BRX, BRY: cmd.BRY, BLX: cmd.BLX, BLY: cmd.BLY,
+			TLX: bx0, TLY: by0, TRX: bx1, TRY: by1,
+			BRX: bx2, BRY: by2, BLX: bx3, BLY: by3,
 			Opacity: cmd.Opacity, ViewportWidth: cmd.ViewportWidth, ViewportHeight: cmd.ViewportHeight,
 			U0: u0, V0: v0, U1: u1, V1: v1,
 		}
@@ -4783,6 +4796,8 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		texView              hal.TextureView
 		uvView               hal.TextureView
 		isYUV                bool
+		hasRot               bool
+		rot                  rigidQuadInfo
 		firstVertex, vertCnt uint32
 	}
 	slots := make([]gpuTexSlot, 0, len(cmds))
@@ -4814,6 +4829,13 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			texView:     texView,
 			firstVertex: uint32(i * 6),       //nolint:gosec
 			vertCnt:     uint32((j - i) * 6), //nolint:gosec
+		}
+		// Rotation-uniform coherence: every command in [i, j) merged only
+		// with the identical rotation key, so the head command's rotation
+		// covers the whole slot. YUV never rotates.
+		if rot, ok := gpuTexHasRotation(cmd); ok {
+			slot.hasRot = true
+			slot.rot = rot
 		}
 		if cmd.IsYUV {
 			uvView, ok := s.ResolveCommandView(&cmd.UVView)
@@ -4876,8 +4898,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		needUpload := slabRecreated || s.gpuTexUniformSlots != nSlot
 		if !needUpload {
 			for i := range slots {
-				lastU := &s.gpuTexUniformLast[i]
-				if !lastU.valid || lastU.w != w || lastU.h != h || lastU.opacity != slots[i].opacity {
+				if !imageUniformKeyMatches(&s.gpuTexUniformLast[i], w, h, slots[i].opacity, slots[i].rot, slots[i].hasRot) {
 					needUpload = true
 					break
 				}
@@ -4896,10 +4917,8 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			}
 			for i := range slots {
 				off := i * imageUniformSlotStride
-				putImageUniform(s.gpuTexUniformScratch[off:off+imageUniformSlotStride], w, h, slots[i].opacity)
-				s.gpuTexUniformLast[i].w, s.gpuTexUniformLast[i].h = w, h
-				s.gpuTexUniformLast[i].opacity = slots[i].opacity
-				s.gpuTexUniformLast[i].valid = true
+				writeGpuTexUniform(s.gpuTexUniformScratch[off:off+imageUniformSlotStride], w, h, slots[i].opacity, slots[i].rot, slots[i].hasRot)
+				storeImageUniformKey(&s.gpuTexUniformLast[i], w, h, slots[i].opacity, slots[i].rot, slots[i].hasRot)
 			}
 			if err := s.queueWriteBuffer(s.gpuTexUniformSlab, 0, s.gpuTexUniformScratch[:packBytes]); err != nil {
 				return nil, fmt.Errorf("upload gpu-tex uniform slab: %w", err)
