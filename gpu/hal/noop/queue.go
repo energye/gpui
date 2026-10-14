@@ -69,6 +69,18 @@ func (q *Queue) Present(_ hal.Surface, _ hal.SurfaceTexture, _ []image.Rectangle
 	return nil
 }
 
+// SubmitAndPresent implements hal.Queue: Submit then Present (both no-ops).
+func (q *Queue) SubmitAndPresent(surface hal.Surface, texture hal.SurfaceTexture, damageRects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
+	idx, err := q.Submit(commandBuffers...)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.Present(surface, texture, damageRects); err != nil {
+		return 0, err
+	}
+	return idx, nil
+}
+
 // GetTimestampPeriod returns 1.0 nanosecond timestamp period.
 func (q *Queue) GetTimestampPeriod() float32 {
 	return 1.0

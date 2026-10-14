@@ -19,6 +19,7 @@ import (
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 
 	// Register the pure-Go GL backend for SelectBackend (BackendGo).
@@ -182,6 +183,12 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	}
 
 	t.dc.BeginFrame()
+	// Merged SubmitAndPresent: Flush stores the finished surface CB instead
+	// of submitting; presentFn takes it and hands it to the queue with the
+	// surface in one GL binding. Falls back to separate Submit/Present when
+	// no CB was deferred (offscreen/CPU paths).
+	t.dc.SetDeferPresentSubmit(true)
+	defer t.dc.SetDeferPresentSubmit(false)
 	if draw != nil {
 		draw(t.dc)
 	}
@@ -306,7 +313,29 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		presentDamage = t.pushDamageHistory(clipped)
 	}
 	presentFn := func() error {
-		if err := t.sc.EndFrameWithDamage(frame, damageToRects(presentDamage)); err != nil {
+		// Merged SubmitAndPresent: Flush deferred the surface CB instead of
+		// submitting; hand leads + surface CB to the swapchain in one call
+		// (same set submitWithLeading would send). Empty (offscreen/CPU /
+		// immediate paths) falls back to EndFrameWithDamage. Cleanups run
+		// after the merged attempt, same as submitWithLeading.
+		var leads, mains []hal.CommandBuffer
+		var cleans []func()
+		if t.dc != nil {
+			leads, mains, cleans = t.dc.TakePresentCBs()
+		}
+		all := leads
+		if len(mains) > 0 {
+			all = append(append([]hal.CommandBuffer{}, leads...), mains...)
+		}
+		if len(all) > 0 {
+			subIdx, merr := t.sc.EndFrameMerged(frame, damageToRects(presentDamage), all...)
+			if t.dc != nil {
+				t.dc.FinishPresentSubmit(leads, mains, cleans, subIdx, merr)
+			}
+			if merr != nil {
+				return merr
+			}
+		} else if err := t.sc.EndFrameWithDamage(frame, damageToRects(presentDamage)); err != nil {
 			return err
 		}
 		if os.Getenv("WR_RESIZE_DBG") == "1" {

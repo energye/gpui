@@ -502,6 +502,14 @@ type GPURenderSession struct {
 	// command buffers to prepend on next surface Submit (dual-tex multi).
 	leadSubmitCBs   []hal.CommandBuffer
 	leadSubmitClean []func()
+	// pendingPresentCBs holds the finished surface command buffers deferred
+	// for a merged SubmitAndPresent: finishSurfaceSubmit stores them here
+	// instead of submitting when deferPresentSubmit is set; the Present
+	// path takes them via TakePresentCBs and hands them to the queue together
+	// with the surface. Empty in the normal immediate-submit path.
+	pendingPresentCBs []hal.CommandBuffer
+	// deferPresentSubmit toggles deferred surface submission for merged present.
+	deferPresentSubmit bool
 	// submitLock serializes Queue.Submit + error-scope Push/Pop on the one
 	// shared device (Flutter draws every view on one raster thread; our
 	// windows run own pumps). Wired per flush from GPUShared.submitMu;
@@ -4285,6 +4293,69 @@ func (s *GPURenderSession) SetDeferSurfaceSubmit(v bool) {
 	s.deferSurfaceSubmit = v
 }
 
+// SetDeferPresentSubmit toggles deferred surface submission for merged present.
+// When true, finishSurfaceSubmit stores the finished CB in pendingPresentCBs
+// instead of submitting; the Present path takes it via TakePresentCBs and
+// hands it to Queue.SubmitAndPresent together with the surface.
+func (s *GPURenderSession) SetDeferPresentSubmit(v bool) {
+	if s == nil {
+		return
+	}
+	s.deferPresentSubmit = v
+}
+
+// TakePresentCBs drains the deferred present command buffers (nil when the
+// immediate-submit path ran). Caller owns the returned slice.
+func (s *GPURenderSession) TakePresentCBs() (leads []hal.CommandBuffer, mains []hal.CommandBuffer, cleans []func()) {
+	if s == nil {
+		return nil, nil, nil
+	}
+	leads, s.leadSubmitCBs = s.leadSubmitCBs, nil
+	cleans, s.leadSubmitClean = s.leadSubmitClean, nil
+	s.deferredConvexUses = 0
+	mains, s.pendingPresentCBs = s.pendingPresentCBs, nil
+	return leads, mains, cleans
+}
+
+// FinishPresentSubmit runs the post-submit bookkeeping for a merged
+// SubmitAndPresent: frees leading CBs, retains the surface CB, runs
+// cleanups + imageCache retire — the same tail submitWithLeading runs.
+// Call after EndFrameMerged returns (success or fail; err decides the path).
+func (s *GPURenderSession) FinishPresentSubmit(leads, mains []hal.CommandBuffer, cleans []func(), subIdx uint64, err error) {
+	if s == nil {
+		return
+	}
+	for _, c := range leads {
+		if c != nil {
+			s.device.FreeCommandBuffer(c)
+		}
+	}
+	for _, c := range cleans {
+		if c != nil {
+			c()
+		}
+	}
+	if s.imageCache != nil {
+		s.imageCache.ReleaseEphemeral()
+	}
+	var cmd hal.CommandBuffer
+	if len(mains) > 0 {
+		cmd = mains[len(mains)-1]
+	}
+	if err != nil {
+		if cmd != nil {
+			s.device.FreeCommandBuffer(cmd)
+		}
+		return
+	}
+	if subIdx > 0 {
+		s.lastSubmissionIndex = subIdx
+	}
+	if cmd != nil {
+		s.prevCmdBufs = append(s.prevCmdBufs, cmd)
+	}
+}
+
 // finishSurfaceSubmit either defers the finished surface CB (leading queue)
 // or submits it with any pending leadings. Used by encodeSubmitSurface*.
 func (s *GPURenderSession) finishSurfaceSubmit(cmd hal.CommandBuffer) error {
@@ -4295,6 +4366,10 @@ func (s *GPURenderSession) finishSurfaceSubmit(cmd hal.CommandBuffer) error {
 	if s.deferSurfaceSubmit {
 		s.EnqueueLeadingSubmit(cmd, nil)
 		s.deferredConvexUses++
+		return nil
+	}
+	if s.deferPresentSubmit && cmd != nil {
+		s.pendingPresentCBs = append(s.pendingPresentCBs, cmd)
 		return nil
 	}
 	return s.submitWithLeading(cmd)

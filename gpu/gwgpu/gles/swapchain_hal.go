@@ -75,6 +75,16 @@ func (a *halSwapchainAdapter) EndFrameWithDamage(f *hal.SwapchainFrame, rects []
 	}
 	return a.sc.EndFrameWithDamage(gf, rects)
 }
+func (a *halSwapchainAdapter) EndFrameMerged(f *hal.SwapchainFrame, rects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
+	if f == nil {
+		return a.sc.EndFrameMerged(nil, rects, commandBuffers...)
+	}
+	gf, _ := f.Payload.(*Frame)
+	if gf == nil {
+		return a.sc.EndFrameMerged(nil, rects, commandBuffers...)
+	}
+	return a.sc.EndFrameMerged(gf, rects, commandBuffers...)
+}
 func (a *halSwapchainAdapter) MarkNeedsReconfigure() {}
 func (a *halSwapchainAdapter) Release()              { a.sc.Release() }
 func (a *halSwapchainAdapter) SetPreferVSync()       { a.sc.SetPreferVSync() }

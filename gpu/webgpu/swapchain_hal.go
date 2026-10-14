@@ -74,6 +74,15 @@ func (a *halSwapchainAdapter) EndFrameWithDamage(f *hal.SwapchainFrame, rects []
 	}
 	return a.sc.EndFrameWithDamage(wf, rects)
 }
+func (a *halSwapchainAdapter) EndFrameMerged(f *hal.SwapchainFrame, rects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
+	// No merged path on WebGPU (no per-call GL binding to save): the caller
+	// already submitted via the normal path; just present.
+	_ = commandBuffers
+	if err := a.EndFrameWithDamage(f, rects); err != nil {
+		return 0, err
+	}
+	return 0, nil
+}
 func (a *halSwapchainAdapter) MarkNeedsReconfigure() { a.sc.MarkNeedsReconfigure() }
 func (a *halSwapchainAdapter) Release()              { a.sc.Release() }
 func (a *halSwapchainAdapter) SetPreferVSync()       { a.sc.SetPreferVSync() }

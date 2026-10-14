@@ -471,6 +471,19 @@ func (q *Queue) GetTimestampPeriod() float32 {
 	return 1.0
 }
 
+// SubmitAndPresent implements hal.Queue: no merged path on Metal,
+// so Submit then Present with identical semantics to separate calls.
+func (q *Queue) SubmitAndPresent(surface hal.Surface, texture hal.SurfaceTexture, damageRects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
+	idx, err := q.Submit(commandBuffers...)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.Present(surface, texture, damageRects); err != nil {
+		return 0, err
+	}
+	return idx, nil
+}
+
 // SupportsCommandBufferCopies returns true for Metal.
 // Metal uses command buffers for copy operations — PendingWrites batches them.
 func (q *Queue) SupportsCommandBufferCopies() bool {

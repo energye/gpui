@@ -401,6 +401,42 @@ func (sc *Swapchain) EndFrameWithDamage(frame *Frame, damage []image.Rectangle) 
 	return err
 }
 
+// EndFrameMerged submits command buffers then presents in one GL binding
+// (one Make/Unmake instead of two). Falls back to Submit + EndFrameWithDamage
+// when the queue lacks the merged path. Frame lifecycle mirrors EndFrame.
+func (sc *Swapchain) EndFrameMerged(frame *Frame, damage []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
+	if sc == nil {
+		return 0, fmt.Errorf("gles: swapchain is nil")
+	}
+	if frame == nil {
+		return 0, fmt.Errorf("gles: frame is nil")
+	}
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	if !sc.frameOpen {
+		return 0, fmt.Errorf("gles: no frame in flight")
+	}
+	q := sc.dev.Queue()
+	if q == nil {
+		sc.surf.DiscardTexture(frame.SurfaceTexture)
+		sc.curTex = nil
+		sc.curView = nil
+		sc.frameOpen = false
+		return 0, fmt.Errorf("gles: device queue is nil")
+	}
+	subIdx, err := q.SubmitAndPresent(sc.surf, frame.SurfaceTexture, damage, commandBuffers...)
+	sc.curTex = nil
+	sc.curView = nil
+	sc.frameOpen = false
+	if err == nil {
+		sc.presents++
+		if sc.dev != nil && sc.dev.IsLost() {
+			return subIdx, hal.ErrDeviceLost
+		}
+	}
+	return subIdx, err
+}
+
 // DiscardFrame drops an acquired frame without presenting.
 func (sc *Swapchain) DiscardFrame(frame *Frame) {
 	if sc == nil || frame == nil {

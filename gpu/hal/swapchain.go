@@ -50,6 +50,11 @@ type Swapchain interface {
 	// EndFrameWithDamage forwards damage rects when the backend supports
 	// partial present; backends without support present full.
 	EndFrameWithDamage(frame *SwapchainFrame, rects []image.Rectangle) error
+	// EndFrameMerged submits command buffers then presents in one backend
+	// call (gles holds one GL binding across both). Backends without a
+	// merged path implement it as Submit + EndFrameWithDamage. Returns the
+	// submission index for fence alignment / diagnostics (same as Submit).
+	EndFrameMerged(frame *SwapchainFrame, rects []image.Rectangle, commandBuffers ...CommandBuffer) (uint64, error)
 	// MarkNeedsReconfigure schedules a reconfigure on the next BeginFrame.
 	MarkNeedsReconfigure()
 	Release()

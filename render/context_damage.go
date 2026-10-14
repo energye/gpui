@@ -15,6 +15,7 @@ import (
 	"math"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 // FrameDamage returns the list of damage rectangles from draw operations
@@ -242,6 +243,14 @@ type gpuContextOps interface {
 	QueueBaseLayer(target GPURenderTarget, view gpucontext.TextureView,
 		dstX, dstY, dstW, dstH, opacity float32, vpW, vpH uint32)
 	Flush(target GPURenderTarget) error
+	// SetDeferPresentSubmit/TakePresentCBs drive merged SubmitAndPresent:
+	// Flush stores the finished surface CB instead of submitting; the
+	// Present path takes it and hands it to the queue with the surface.
+	// TakePresentCBs drains leading CBs + main CBs + cleanups together:
+	// the merged submit must see the same set submitWithLeading would send.
+	SetDeferPresentSubmit(v bool)
+	TakePresentCBs() (leads []hal.CommandBuffer, mains []hal.CommandBuffer, cleans []func())
+	FinishPresentSubmit(leads, mains []hal.CommandBuffer, cleans []func(), subIdx uint64, err error)
 	// PrepareTarget switches the GPU command stream to target (F1 present-stash).
 	// Must run before SetClipRect so scissor segments are not recorded on the
 	// wrong stream and later stashed unpaired into the parent.

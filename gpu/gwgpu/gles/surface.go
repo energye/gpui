@@ -165,6 +165,9 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []i
 		// spin_min steady state is a single rect; multi-rect stays correct
 		// (each rect moves its own pixels), just one blit per rect.
 		// Y-flip: GL scissor uses bottom-left origin, damage is top-left.
+		// Source rect matches the damage rect (Chromium partial-blit
+		// parity): the driver reads only dirty pixels instead of the full
+		// source surface.
 		glCtx.Enable(gl.SCISSOR_TEST)
 		for _, r := range damage {
 			if r.Empty() {
@@ -175,9 +178,11 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []i
 				continue
 			}
 			glCtx.Scissor(sx, sy, sw, sh)
+			// Y-flipped source sub-rect mirrors the dest scissor:
+			// src covers the same damage pixels the scissor clips to.
 			glCtx.BlitFramebuffer(
-				0, h, w, 0, // source Y-flipped (full source, scissor clips dest)
-				0, 0, dw, dh,
+				sx, sy+sh, sx+sw, sy, // source Y-flipped damage sub-rect
+				sx, sy, sx+sw, sy+sh, // dest damage rect
 				gl.COLOR_BUFFER_BIT, gl.NEAREST,
 			)
 		}

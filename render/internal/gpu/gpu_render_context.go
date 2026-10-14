@@ -3655,6 +3655,28 @@ func (rc *GPURenderContext) PurgeSurfaceResources() {
 	rc.releaseBrushCoverResults()
 }
 
+// SetDeferPresentSubmit toggles deferred surface submission for merged present.
+func (rc *GPURenderContext) SetDeferPresentSubmit(v bool) {
+	if rc.session != nil {
+		rc.session.SetDeferPresentSubmit(v)
+	}
+}
+
+// TakePresentCBs drains the deferred present command buffers.
+func (rc *GPURenderContext) TakePresentCBs() (leads []hal.CommandBuffer, mains []hal.CommandBuffer, cleans []func()) {
+	if rc.session == nil {
+		return nil, nil, nil
+	}
+	return rc.session.TakePresentCBs()
+}
+
+// FinishPresentSubmit runs the post-submit bookkeeping for a merged present.
+func (rc *GPURenderContext) FinishPresentSubmit(leads, mains []hal.CommandBuffer, cleans []func(), subIdx uint64, err error) {
+	if rc.session != nil {
+		rc.session.FinishPresentSubmit(leads, mains, cleans, subIdx, err)
+	}
+}
+
 func (rc *GPURenderContext) Close() {
 	if rc.shared != nil {
 		rc.shared.unregisterContext(rc)

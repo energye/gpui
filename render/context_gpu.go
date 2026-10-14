@@ -15,6 +15,7 @@ import (
 	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 )
 
 func (c *Context) recordGPUOp() {
@@ -244,6 +245,29 @@ func (c *Context) FlushGPUWithViewDamage(view gpucontext.TextureView, width, hei
 func (c *Context) GPURenderContext() any {
 	c.ensureGPUCtx()
 	return c.gpuCtx
+}
+
+// SetDeferPresentSubmit/TakePresentCBs drive merged SubmitAndPresent.
+// Flush stores the finished surface CB; the Present path takes it.
+func (c *Context) SetDeferPresentSubmit(v bool) {
+	if ops := c.gpuCtxOps(); ops != nil {
+		ops.SetDeferPresentSubmit(v)
+	}
+}
+
+// TakePresentCBs drains the deferred present command buffers.
+func (c *Context) TakePresentCBs() (leads []hal.CommandBuffer, mains []hal.CommandBuffer, cleans []func()) {
+	if ops := c.gpuCtxOps(); ops != nil {
+		return ops.TakePresentCBs()
+	}
+	return nil, nil, nil
+}
+
+// FinishPresentSubmit runs the post-submit bookkeeping for a merged present.
+func (c *Context) FinishPresentSubmit(leads, mains []hal.CommandBuffer, cleans []func(), subIdx uint64, err error) {
+	if ops := c.gpuCtxOps(); ops != nil {
+		ops.FinishPresentSubmit(leads, mains, cleans, subIdx, err)
+	}
 }
 
 // ensureGPUCtx lazily creates the per-context GPU render context.

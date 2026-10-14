@@ -143,6 +143,20 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	return idx, nil
 }
 
+// SubmitAndPresent implements hal.Queue: no merged path on WebGPU
+// (single recording + submit has no per-call GL binding), so Submit
+// then Present with identical semantics to separate calls.
+func (q *Queue) SubmitAndPresent(surface hal.Surface, texture hal.SurfaceTexture, damageRects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
+	idx, err := q.Submit(commandBuffers...)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.Present(surface, texture, damageRects); err != nil {
+		return 0, err
+	}
+	return idx, nil
+}
+
 // Poll returns the last completed submission index. Non-blocking.
 // On the wgpu-native backend, returns 0.
 func (q *Queue) Poll() uint64 {

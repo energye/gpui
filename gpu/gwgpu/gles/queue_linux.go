@@ -48,10 +48,34 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 		flushWriteBatch(glCtx, st, list)
 	}
 
+	if err := q.execCommandBuffers(glCtx, st, commandBuffers); err != nil {
+		return 0, err
+	}
+
+	q.submissionIndex++
+
+	// FenceSync must be inserted BEFORE Flush so the sync object tracks the
+	// commands being flushed. Flushing first would leave the fence un-flushed.
+	if q.fence != nil {
+		q.fence.Maintain()
+		if err := q.fence.Signal(q.submissionIndex); err != nil {
+			return 0, err
+		}
+	}
+
+	glCtx.Flush()
+
+	return q.submissionIndex, nil
+}
+
+// execCommandBuffers runs recorded GL commands under the caller's lock.
+// Shared by Submit (pbuffer-bound) and SubmitAndPresent (surface-bound):
+// the commands draw into FBOs, so the draw surface does not matter.
+func (q *Queue) execCommandBuffers(glCtx *gl.Context, st *glExecState, commandBuffers []hal.CommandBuffer) error {
 	for _, cb := range commandBuffers {
 		cmdBuf, ok := cb.(*CommandBuffer)
 		if !ok {
-			return 0, fmt.Errorf("gles: invalid command buffer type")
+			return fmt.Errorf("gles: invalid command buffer type")
 		}
 
 		// Execute recorded commands with GL error checking.
@@ -80,27 +104,11 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 		// Recycle the command slice backing (see commandListPool).
 		recycleCommandList(cmdBuf.commands)
 		cmdBuf.commands = nil
-		if !cmdDbg {
-			if glErr := glCtx.GetError(); glErr != 0 {
-				hal.Logger().Warn("gles: GL error in submit", "error", fmt.Sprintf("0x%x", glErr))
-			}
-		}
+		// Steady-state skips the per-buffer GetError: it forces a GPU
+		// pipeline sync (Chromium never polls errors per submit). Debug
+		// builds keep the check via cmdDbg above.
 	}
-
-	q.submissionIndex++
-
-	// FenceSync must be inserted BEFORE Flush so the sync object tracks the
-	// commands being flushed. Flushing first would leave the fence un-flushed.
-	if q.fence != nil {
-		q.fence.Maintain()
-		if err := q.fence.Signal(q.submissionIndex); err != nil {
-			return 0, err
-		}
-	}
-
-	glCtx.Flush()
-
-	return q.submissionIndex, nil
+	return nil
 }
 
 // Poll returns the highest submission index known to be completed.
@@ -257,9 +265,67 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects
 	}
 	defer q.ctx.Unlock()
 
-	if list := q.batch.drain(); len(list) > 0 {
-		flushWriteBatch(glCtx, newGLExecState(), list)
+	if err := q.presentLockedGL(glCtx, surf, tex, damageRects); err != nil {
+		return err
 	}
+
+	return nil
+}
+
+// SubmitAndPresent submits command buffers then presents in one GL binding.
+// One TryLockForSurface across both steps: Submit's commands draw into FBOs
+// so the window-surface binding is harmless, and Present reuses it instead
+// of paying a second Make/Unmake round trip (Chromium single-surface frame).
+func (q *Queue) SubmitAndPresent(surface hal.Surface, tex hal.SurfaceTexture, damageRects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
+	surf, ok := surface.(*Surface)
+	if !ok {
+		return 0, fmt.Errorf("gles: invalid surface type")
+	}
+
+	// Same bind-or-stop contract as Present: a dead surface rebuilds once,
+	// still-dead skips the frame (commands stay recorded for the next try).
+	glCtx, err := q.ctx.TryLockForSurface(surf.eglSurface)
+	if err != nil {
+		if rerr := surf.recreateEGLWindowSurface(); rerr == nil {
+			glCtx, err = q.ctx.TryLockForSurface(surf.eglSurface)
+		} else {
+			hal.Logger().Warn("gles: SubmitAndPresent surface dead, recreate failed", "err", rerr)
+		}
+		if err != nil {
+			return 0, fmt.Errorf("gles: SubmitAndPresent bind surface failed (skip frame): %w", err)
+		}
+	}
+	defer q.ctx.Unlock()
+
+	st := newGLExecState()
+	if list := q.batch.drain(); len(list) > 0 {
+		flushWriteBatch(glCtx, st, list)
+	}
+	if err := q.execCommandBuffers(glCtx, st, commandBuffers); err != nil {
+		return 0, err
+	}
+	q.submissionIndex++
+
+	// Same fence contract as Submit: FenceSync goes BEFORE Flush so the sync
+	// object tracks the submitted commands. SubmitAndPresent must not skip it
+	// or Poll/GetLatest observes a stale index on the merged path.
+	if q.fence != nil {
+		q.fence.Maintain()
+		if err := q.fence.Signal(q.submissionIndex); err != nil {
+			return 0, err
+		}
+	}
+	glCtx.Flush()
+
+	if err := q.presentLockedGL(glCtx, surf, tex, damageRects); err != nil {
+		return 0, err
+	}
+	return q.submissionIndex, nil
+}
+
+// presentLockedGL runs the blit + swap under the caller's lock.
+// Shared by Present (own binding) and SubmitAndPresent (merged binding).
+func (q *Queue) presentLockedGL(glCtx *gl.Context, surf *Surface, tex hal.SurfaceTexture, damageRects []image.Rectangle) error {
 	// Damage-scissored blit: steady frames move only the dirty union
 	// instead of the full surface (see blitSwapchainToDefaultDamageWith).
 	// Empty damage = force-full frame → full blit, same as before.

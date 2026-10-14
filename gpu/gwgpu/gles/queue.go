@@ -46,6 +46,29 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 		flushWriteBatch(glCtx, st, list)
 	}
 
+	if err := q.execCommandBuffers(glCtx, st, commandBuffers); err != nil {
+		return 0, err
+	}
+
+	q.submissionIndex++
+
+	// FenceSync must be inserted BEFORE Flush so the sync object tracks the
+	// commands being flushed. Flushing first would leave the fence un-flushed.
+	if q.fence != nil {
+		q.fence.Maintain()
+		if err := q.fence.Signal(q.submissionIndex); err != nil {
+			return 0, err
+		}
+	}
+
+	glCtx.Flush()
+
+	return q.submissionIndex, nil
+}
+
+// execCommandBuffers runs recorded GL commands under the caller's lock.
+// Shared by Submit and SubmitAndPresent (Linux twin: same split).
+func (q *Queue) execCommandBuffers(glCtx *gl.Context, st *glExecState, commandBuffers []hal.CommandBuffer) error {
 	for _, cb := range commandBuffers {
 		cmdBuf, ok := cb.(*CommandBuffer)
 		if !ok {
@@ -73,27 +96,10 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 		// Recycle the command slice backing (see commandListPool).
 		recycleCommandList(cmdBuf.commands)
 		cmdBuf.commands = nil
-		if !cmdDbg {
-			if glErr := glCtx.GetError(); glErr != 0 {
-				hal.Logger().Warn("gles: GL error in submit", "error", fmt.Sprintf("0x%x", glErr))
-			}
-		}
+		// Steady-state skips the per-buffer GetError (Linux twin: same
+		// change — GetError forces a GPU pipeline sync per submit).
 	}
-
-	q.submissionIndex++
-
-	// FenceSync must be inserted BEFORE Flush so the sync object tracks the
-	// commands being flushed. Flushing first would leave the fence un-flushed.
-	if q.fence != nil {
-		q.fence.Maintain()
-		if err := q.fence.Signal(q.submissionIndex); err != nil {
-			return 0, err
-		}
-	}
-
-	glCtx.Flush()
-
-	return q.submissionIndex, nil
+	return nil
 }
 
 // Poll returns the highest submission index known to be completed.
@@ -229,6 +235,51 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, _ []image.R
 	surf.DiscardTexture(tex)
 
 	return nil
+}
+
+// SubmitAndPresent submits command buffers then presents in one WGL binding
+// (Linux twin: same merge). damageRects accepted but ignored (no WGL damage API).
+func (q *Queue) SubmitAndPresent(surface hal.Surface, tex hal.SurfaceTexture, _ []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
+	surf, ok := surface.(*Surface)
+	if !ok {
+		return 0, fmt.Errorf("gles: invalid surface type")
+	}
+
+	hdc := wgl.GetDC(surf.hwnd)
+	if hdc == 0 {
+		return 0, fmt.Errorf("gles: GetDC failed for hwnd 0x%x", surf.hwnd)
+	}
+	defer wgl.ReleaseDC(surf.hwnd, hdc)
+
+	glCtx := q.ctx.LockForDC(hdc)
+	defer q.ctx.Unlock()
+
+	st := newGLExecState()
+	if list := q.batch.drain(); len(list) > 0 {
+		flushWriteBatch(glCtx, st, list)
+	}
+	if err := q.execCommandBuffers(glCtx, st, commandBuffers); err != nil {
+		return 0, err
+	}
+	q.submissionIndex++
+
+	// Same fence contract as Submit (Linux twin: same fix).
+	if q.fence != nil {
+		q.fence.Maintain()
+		if err := q.fence.Signal(q.submissionIndex); err != nil {
+			return 0, err
+		}
+	}
+	glCtx.Flush()
+
+	surf.blitSwapchainToDefaultWith(glCtx)
+
+	if err := wgl.SwapBuffers(hdc); err != nil {
+		return 0, err
+	}
+	surf.DiscardTexture(tex)
+
+	return q.submissionIndex, nil
 }
 
 // GetTimestampPeriod returns the timestamp period in nanoseconds.

@@ -343,6 +343,13 @@ type Queue interface {
 	// The HAL manages its own internal fences/synchronization.
 	Submit(commandBuffers ...CommandBuffer) (submissionIndex uint64, err error)
 
+	// SubmitAndPresent submits command buffers then presents a surface
+	// texture in one backend call. Backends that bind a GL context per call
+	// (gles) hold one binding across both steps instead of Make/Unmake per
+	// step; other backends implement it as Submit + Present. Callers that
+	// do not need the merge keep calling Submit/Present separately.
+	SubmitAndPresent(surface Surface, texture SurfaceTexture, damageRects []image.Rectangle, commandBuffers ...CommandBuffer) (submissionIndex uint64, err error)
+
 	// Poll returns the highest submission index known to be completed
 	// by the GPU. Non-blocking. Returns 0 if no submissions have completed.
 	// Backend divergence: webgpu always returns 0
