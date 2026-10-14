@@ -258,7 +258,9 @@ func main() {
 
 	snapDir := os.Getenv("R15_SNAP_DIR")
 	if snapDir == "" {
-		snapDir = "/tmp/r15_soak"
+		// Baselines live in-repo so CI compares against review; /tmp stays
+		// available via R15_SNAP_DIR for ad-hoc runs.
+		snapDir = filepath.Join("examples", "ui_wr_r15_soak", "golden")
 	}
 	os.MkdirAll(snapDir, 0o755)
 

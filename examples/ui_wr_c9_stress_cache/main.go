@@ -240,7 +240,9 @@ func main() {
 
 	snapDir := os.Getenv("C9_SNAP_DIR")
 	if snapDir == "" {
-		snapDir = "/tmp/c9_stress_cache"
+		// Baselines live in-repo so CI compares against review; /tmp stays
+		// available via C9_SNAP_DIR for ad-hoc runs.
+		snapDir = filepath.Join("examples", "ui_wr_c9_stress_cache", "golden")
 	}
 	os.MkdirAll(snapDir, 0o755)
 

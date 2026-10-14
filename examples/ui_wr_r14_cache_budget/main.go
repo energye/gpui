@@ -230,7 +230,9 @@ func main() {
 
 	snapDir := os.Getenv("R14_SNAP_DIR")
 	if snapDir == "" {
-		snapDir = "/tmp/r14_cache_budget"
+		// Baselines live in-repo so CI compares against review; /tmp stays
+		// available via R14_SNAP_DIR for ad-hoc runs.
+		snapDir = filepath.Join("examples", "ui_wr_r14_cache_budget", "golden")
 	}
 	os.MkdirAll(snapDir, 0o755)
 

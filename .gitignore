@@ -48,3 +48,9 @@ ui/visualtest/testdata/out/*
 examples/ui_wr_c4_shell_overlay/golden/c4_open.png
 examples/ui_wr_c4_shell_overlay/golden/c4_recover.png
 examples/ui_wr_c4_shell_overlay/golden/c4_steady.png
+
+# R6/R14/C9/R15 run-output goldens (rewritten every run; tracked baselines are *_base)
+examples/ui_wr_r6_layer_anim/golden/r6_final.png
+examples/ui_wr_r14_cache_budget/golden/r14_final.png
+examples/ui_wr_c9_stress_cache/golden/c9_final.png
+examples/ui_wr_r15_soak/golden/r15_final.png
