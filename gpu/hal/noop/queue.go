@@ -69,7 +69,8 @@ func (q *Queue) Present(_ hal.Surface, _ hal.SurfaceTexture, _ []image.Rectangle
 	return nil
 }
 
-// SubmitAndPresent implements hal.Queue: Submit then Present (both no-ops).
+// SubmitAndPresent implements hal.Queue for tests: Submit then Present
+// (both no-ops, keeps the submission index contract for merged-path tests).
 func (q *Queue) SubmitAndPresent(surface hal.Surface, texture hal.SurfaceTexture, damageRects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	idx, err := q.Submit(commandBuffers...)
 	if err != nil {

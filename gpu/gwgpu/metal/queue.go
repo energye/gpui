@@ -471,8 +471,11 @@ func (q *Queue) GetTimestampPeriod() float32 {
 	return 1.0
 }
 
-// SubmitAndPresent implements hal.Queue: no merged path on Metal,
-// so Submit then Present with identical semantics to separate calls.
+// SubmitAndPresent implements hal.Queue: no merged path on Metal.
+// Submit commits the work buffers and Present commits a separate
+// presentDrawable: command buffer — Metal requires one commit per buffer,
+// so the two commits cannot share a binding like GLES Make/Unmake.
+// Identical semantics to separate calls.
 func (q *Queue) SubmitAndPresent(surface hal.Surface, texture hal.SurfaceTexture, damageRects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	idx, err := q.Submit(commandBuffers...)
 	if err != nil {

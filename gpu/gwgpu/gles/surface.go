@@ -161,9 +161,9 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []i
 	}
 
 	if len(damage) > 0 && dw == w && dh == h {
-		// Scissored blit: only the dirty union moves. One blit per rect —
-		// spin_min steady state is a single rect; multi-rect stays correct
-		// (each rect moves its own pixels), just one blit per rect.
+		// Scissored blit: only the dirty union moves. The caller passes a
+		// single-rect list today (damageToRects wraps one union); the loop
+		// stays correct if that ever becomes multi-rect.
 		// Y-flip: GL scissor uses bottom-left origin, damage is top-left.
 		// Source rect matches the damage rect (Chromium partial-blit
 		// parity): the driver reads only dirty pixels instead of the full

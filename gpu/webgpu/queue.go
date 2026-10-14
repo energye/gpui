@@ -143,9 +143,11 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	return idx, nil
 }
 
-// SubmitAndPresent implements hal.Queue: no merged path on WebGPU
-// (single recording + submit has no per-call GL binding), so Submit
-// then Present with identical semantics to separate calls.
+// SubmitAndPresent implements hal.Queue: no merged path on WebGPU.
+// Submit records into wgpu-native command buffers and Present drives the
+// surface texture — no per-call GL binding exists to save (unlike GLES
+// Make/Unmake), so the merged call is Submit then Present with identical
+// semantics to separate calls.
 func (q *Queue) SubmitAndPresent(surface hal.Surface, texture hal.SurfaceTexture, damageRects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	idx, err := q.Submit(commandBuffers...)
 	if err != nil {
