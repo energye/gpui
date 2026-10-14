@@ -566,7 +566,12 @@ func textPixels(img image.Image, dpr float64, box rect, base [3]float64) int {
 
 func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int64, firstRun bool) {
 	cur := filepath.Join(snapDir, "c5_final.png")
-	base := filepath.Join(snapDir, "c5_final_base.png")
+	// Per-backend baselines (see R6): GL vs WebGPU rasterize differently.
+	suffix := "native"
+	if os.Getenv("GPUI_BACKEND") == "go" {
+		suffix = "go"
+	}
+	base := filepath.Join(snapDir, "c5_final_base_"+suffix+".png")
 	if _, err := os.Stat(base); err != nil {
 		// R3-6: missing baseline fails closed. Seeding happens only under
 		// GPUI_ACCEPT_GOLDEN=1 (conscious act); the seeded file must then

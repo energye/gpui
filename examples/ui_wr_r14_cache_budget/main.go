@@ -603,7 +603,12 @@ func textPixels(img image.Image, dpr float64, box rect, base [3]float64) int {
 
 func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int64, firstRun bool) {
 	cur := filepath.Join(snapDir, "r14_final.png")
-	base := filepath.Join(snapDir, "r14_final_base.png")
+	// Per-backend baselines (see R6): GL vs WebGPU rasterize differently.
+	suffix := "native"
+	if os.Getenv("GPUI_BACKEND") == "go" {
+		suffix = "go"
+	}
+	base := filepath.Join(snapDir, "r14_final_base_"+suffix+".png")
 	if _, err := os.Stat(base); err != nil {
 		data, err := os.ReadFile(cur)
 		if err != nil {

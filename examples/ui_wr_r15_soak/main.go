@@ -436,7 +436,8 @@ func main() {
 		}
 	}
 
-	goldenDiffPct, goldenTotalPx, goldenFirstRun := wrsoak.EvaluateGolden("ui_wr_r15_soak", snapDir, "r15_final.png", "r15_final_base.png", goldenRects, winW)
+	goldenBase := fmt.Sprintf("r15_final_base_%s.png", wrsoak.BackendSuffix())
+	goldenDiffPct, goldenTotalPx, goldenFirstRun := wrsoak.EvaluateGolden("ui_wr_r15_soak", snapDir, "r15_final.png", goldenBase, goldenRects, winW)
 
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R15",

@@ -205,6 +205,17 @@ func SortedKeys(m map[string]bool) string {
 	return out
 }
 
+// BackendSuffix reports the active render backend for per-backend Golden
+// baselines ("go" vs "native"; GL and WebGPU rasterize text/shading
+// slightly differently, so one shared baseline fails cross-backend).
+// Reads GPUI_BACKEND the same way render.ResolveBackend does.
+func BackendSuffix() string {
+	if v := os.Getenv("GPUI_BACKEND"); v == "go" {
+		return "go"
+	}
+	return "native"
+}
+
 // Ticker adapts a closure to the scheduler ticker interface.
 type Ticker struct{ On func(dt float64) }
 

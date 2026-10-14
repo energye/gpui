@@ -1158,9 +1158,14 @@ func collectGoldenGeo(shell *wrkit.ShellChrome, band, dense *rendering.AbsoluteB
 // reports first_run=true (no verdict — §2.7 golden semantics). Later runs
 // demand ZERO differing pixels (same-engine, zero-tolerance).
 func evaluateGolden(snapDir string, geo goldenGeo) (diffPct float64, totalPx int64, firstRun bool) {
+	// Per-backend baselines (see R6): GL vs WebGPU rasterize differently.
+	suffix := "native"
+	if os.Getenv("GPUI_BACKEND") == "go" {
+		suffix = "go"
+	}
 	pairs := [][2]string{
-		{filepath.Join(snapDir, "c4_steady_base.png"), filepath.Join(snapDir, "c4_steady.png")},
-		{filepath.Join(snapDir, "c4_recover_base.png"), filepath.Join(snapDir, "c4_recover.png")},
+		{filepath.Join(snapDir, "c4_steady_base_"+suffix+".png"), filepath.Join(snapDir, "c4_steady.png")},
+		{filepath.Join(snapDir, "c4_recover_base_"+suffix+".png"), filepath.Join(snapDir, "c4_recover.png")},
 	}
 	n := 0
 	for _, p := range pairs {
