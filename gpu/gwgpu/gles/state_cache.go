@@ -28,6 +28,8 @@ const (
 // (fresh per Lock hold): setup outside Submit (device/resource init,
 // direct actx users, Present surface switch) never poisons it.
 type glExecState struct {
+	dbg bool
+
 	progSet bool
 	prog    uint32
 
@@ -106,6 +108,9 @@ type glExecState struct {
 	fbReadSet bool
 	fbDraw    uint32
 	fbDrawSet bool
+
+	drawBufsSet   bool
+	drawBufsCount int
 
 	attribs map[uint32]attribState
 
@@ -376,11 +381,15 @@ func (s *glExecState) setBlendColor(r, g, b, a float32) bool {
 }
 
 // bindFramebuffer gates one framebuffer target.
+// BindFramebuffer(FRAMEBUFFER) binds both READ and DRAW in GL, so the gate
+// syncs all three records — otherwise the blit path re-binds every frame.
 func (s *glExecState) bindFramebuffer(fbo uint32) bool {
 	if s.fbSet && s.fb == fbo {
 		return false
 	}
 	s.fbSet, s.fb = true, fbo
+	s.fbRead, s.fbReadSet = fbo, true
+	s.fbDraw, s.fbDrawSet = fbo, true
 	return true
 }
 
@@ -399,6 +408,15 @@ func (s *glExecState) bindDraw(fbo uint32) bool {
 		return false
 	}
 	s.fbDraw, s.fbDrawSet = fbo, true
+	return true
+}
+
+// setDrawBuffers gates DrawBuffers by count (steady single-target frames skip it).
+func (s *glExecState) setDrawBuffers(count int) bool {
+	if s.drawBufsSet && s.drawBufsCount == count {
+		return false
+	}
+	s.drawBufsSet, s.drawBufsCount = true, count
 	return true
 }
 

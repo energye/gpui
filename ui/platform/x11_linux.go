@@ -17,6 +17,7 @@ import (
 	"math"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -707,8 +708,9 @@ type x11State struct {
 	pending              func() int
 	nextEvent            func(ev *byte) int
 	peekEvent            func(ev *byte) int // XPeekEvent (nil = no repeat detect)
-	nextRequest          func() uint64      // XNextRequest (nil = no serial gate)
+	nextRequest          func() uint64      // XNextRequest (kept for winctl/tests; not used per frame)
 	flush                func()
+	flushDirty           bool // event-thread X writes owed a flush; no per-frame XNextRequest trampoline
 	keycodeToKeysym      func(dpy uintptr, keycode uint, index int) uintptr
 	translateCoordinates func(dpy uintptr, src uintptr, dest uintptr, srcX int32, srcY int32, destX *int32, destY *int32, child *uintptr) int
 	lib                  *x11Lib
@@ -858,6 +860,23 @@ type x11State struct {
 	dndSrcMimeData  map[string]string // test source role: extra MIME payloads by type name
 }
 
+// flushXIfNeeded flushes Xlib output only when the event thread issued X
+// requests since the last flush (dirty flag, Go-side only — no XNextRequest
+// trampoline per wake; that check alone cost ~140ms/10s steady). Steady
+// 60fps sends none from the event thread, so this is a no-op per frame.
+// Cross-thread X writes (raster RequestFrameNotify) flush on their own
+// thread right after issuing. Nil-safe.
+func (st *x11State) flushXIfNeeded() {
+	if st == nil || st.flush == nil {
+		return
+	}
+	if !st.flushDirty {
+		return
+	}
+	st.flush()
+	st.flushDirty = false
+}
+
 // xConnectionNumberFn is bound at Create/Adopt from libX11. It is package-
 // level because the event pump (WaitEvents) reads the X connection fd for the
 // kernel poll loop, outside the window-creation closure that owns the binding.
@@ -895,6 +914,16 @@ type x11Host struct {
 	xfd      int
 	wakeR    *os.File
 	wakeW    *os.File
+	// wakeFd caches wakeR.Fd(): File.Fd does a fcntl syscall per call
+	// (~110ms/10s steady at 60 wakes/s). Set once in ensurePollFds.
+	wakeFd int
+	// xPrimed tracks the one full X drain after Create: the Open drain
+	// may leave buffered events (map-time resize), so the first
+	// WaitEvents drains X unconditionally. Later calls skip the upfront
+	// XPending round trip (~0.36ms each via trampoline, ~220ms/10s
+	// steady) and drain X solely when poll reports the fd readable.
+	// Event-thread only, no lock needed.
+	xPrimed bool
 
 	// imeMu guards the pending IME event queue drained by WaitEvents.
 	imeMu     sync.Mutex
@@ -915,6 +944,8 @@ type x11Host struct {
 
 	evMu          sync.Mutex
 	pendingEvents []Event
+
+	lastResizeNs atomic.Int64
 }
 
 // ximFocus is a stub after XIM removal in v2.0.
@@ -1074,6 +1105,13 @@ func (h *x11Host) NotifyFrameDrawn() {
 	if h == nil || h.st == nil || h.st.atSyncCounter == 0 {
 		return
 	}
+	now := time.Now().UnixNano()
+	last := h.lastResizeNs.Load()
+	if last == 0 {
+		h.lastResizeNs.Store(now)
+	} else if now-last > 1000000000 {
+		return
+	}
 	st := h.st
 	st.mu.Lock()
 	next := st.syncCounter + 1
@@ -1103,15 +1141,18 @@ func (h *x11Host) setSize(w, ht int) bool {
 		return false
 	}
 	h.st.w, h.st.h = w, ht
+	h.lastResizeNs.Store(time.Now().UnixNano())
 	return true
 }
 
-// drain combines native event drain with the pending IME queue.
-func (h *x11Host) drain() []Event {
+// drainQueues collects queued Go-side events (IME/key/controller) without
+// an X round trip. Timeout/wake paths use it: the X queue is known empty
+// (fd silent), but injected events must not wait a frame.
+func (h *x11Host) drainQueues() []Event {
 	if h == nil {
 		return nil
 	}
-	out := h.drainX()
+	var out []Event
 	h.imeMu.Lock()
 	if len(h.imeEvents) > 0 {
 		out = append(out, h.imeEvents...)
@@ -1133,6 +1174,16 @@ func (h *x11Host) drain() []Event {
 	return out
 }
 
+// drain combines native event drain with the pending IME queue.
+func (h *x11Host) drain() []Event {
+	if h == nil {
+		return nil
+	}
+	out := h.drainX()
+	out = append(out, h.drainQueues()...)
+	return out
+}
+
 // WaitEvents drains X11 events (pointer/key/configure/close) plus queued IME
 // events. Expose is always stripped: the GPU backend owns pixels; Expose is
 // not architectural IDLE. Resize / input / close still flow.
@@ -1149,9 +1200,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 		if evs := filterXNoise(h.drain()); len(evs) > 0 {
 			return evs
 		}
-		if h.st.flush != nil {
-			h.st.flush()
-		}
+		h.st.flushXIfNeeded()
 		return filterXNoise(h.drain())
 	}
 
@@ -1160,36 +1209,40 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 		deadline = time.Now().Add(timeout)
 	}
 	if h.ensurePollFds() {
-		for {
+		// Poll-first: after the first full drain the Xlib queue is empty
+		// at loop entry, so skip the upfront XPending round trip and
+		// drain X solely when poll reports the fd readable. Go-side
+		// queues (IME/key/controller) are cheap — still check them
+		// upfront so injected events never wait a frame.
+		if !h.xPrimed {
+			h.xPrimed = true
 			if evs := filterXNoise(h.drain()); len(evs) > 0 {
 				return evs
 			}
-			// Idle true-block: a single poll with the full remaining
-			// timeout (or -1 infinite when no deadline). Slicing this
-			// into 16ms quanta woke the loop ~60/s with nothing to do
-			// (idle CPU). Display events, WakeUp (self-pipe) and the
-			// RunFor deadline still interrupt; EINTR re-polls.
+		} else if evs := filterXNoise(h.drainQueues()); len(evs) > 0 {
+			return evs
+		}
+		fds := []unix.PollFd{
+			{Fd: int32(h.xfd), Events: unix.POLLIN},
+			{Fd: int32(h.wakeFd), Events: unix.POLLIN},
+		}
+		for {
 			// Flush cross-thread Xlib requests (e.g. raster present-path
 			// notifies) before parking, so nothing waits on a wakeup
 			// that only its own server reply would deliver.
-			if h.st.flush != nil {
-				h.st.flush()
-			}
+			h.st.flushXIfNeeded()
 			timeoutMs := -1
 			if !deadline.IsZero() {
 				left := time.Until(deadline)
 				if left <= 0 {
-					if h.st.flush != nil {
-						h.st.flush()
-					}
+					// Deadline passed while an X event sat in the queue
+					// (poll woke on readable fd after the boundary):
+					// drain it now rather than dropping a frame of input.
 					return filterXNoise(h.drain())
 				}
 				timeoutMs = int(left / time.Millisecond)
 			}
-			fds := []unix.PollFd{
-				{Fd: int32(h.xfd), Events: unix.POLLIN},
-				{Fd: int32(h.wakeR.Fd()), Events: unix.POLLIN},
-			}
+			fds[0].Revents, fds[1].Revents = 0, 0
 			n, err := unix.Poll(fds, timeoutMs)
 			if err != nil {
 				if err == unix.EINTR {
@@ -1202,19 +1255,25 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 			}
 			if n == 0 {
 				// Deadline reached (an infinite poll never returns 0).
-				if h.st.flush != nil {
-					h.st.flush()
-				}
-				return filterXNoise(h.drain())
+				// Fd silent → X queue still empty, skip the X round
+				// trip; still collect queued Go-side events.
+				return filterXNoise(h.drainQueues())
 			}
 			if fds[1].Revents&unix.POLLIN != 0 {
 				h.drainWakePipe()
-				if evs := filterXNoise(h.drain()); len(evs) > 0 {
+				if fds[0].Revents&unix.POLLIN != 0 {
+					if evs := filterXNoise(h.drain()); len(evs) > 0 {
+						return evs
+					}
+				} else if evs := filterXNoise(h.drainQueues()); len(evs) > 0 {
 					return evs
 				}
 				return []Event{{Type: EventWake}}
 			}
 			// X fd readable → the loop drains it on the next iteration.
+			if evs := filterXNoise(h.drain()); len(evs) > 0 {
+				return evs
+			}
 		}
 	}
 
@@ -1228,9 +1287,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 		if !deadline.IsZero() {
 			left := time.Until(deadline)
 			if left <= 0 {
-				if h.st.flush != nil {
-					h.st.flush()
-				}
+				h.st.flushXIfNeeded()
 				return filterXNoise(h.drain())
 			}
 			if left < wait {
@@ -1244,9 +1301,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 			}
 			return []Event{{Type: EventWake}}
 		case <-time.After(wait):
-			if h.st.flush != nil {
-				h.st.flush()
-			}
+			h.st.flushXIfNeeded()
 		}
 	}
 }
@@ -1273,9 +1328,10 @@ func (h *x11Host) ensurePollFds() bool {
 		}
 		h.wakeMu.Lock()
 		h.wakeR, h.wakeW = r, w
+		h.wakeFd = int(r.Fd())
 		h.wakeMu.Unlock()
 	})
-	return h.wakeR != nil && h.wakeW != nil && h.xfd > 0
+	return h.wakeR != nil && h.wakeW != nil && h.xfd > 0 && h.wakeFd > 0
 }
 
 // drainWakePipe consumes the self-pipe wake byte after poll reports it
@@ -1286,7 +1342,7 @@ func (h *x11Host) drainWakePipe() {
 		return
 	}
 	var buf [8]byte
-	_ = unix.SetNonblock(int(h.wakeR.Fd()), true)
+	_ = unix.SetNonblock(h.wakeFd, true)
 	_, _ = h.wakeR.Read(buf[:])
 }
 
@@ -1352,6 +1408,7 @@ func (h *x11Host) drainX() []Event {
 			v[0] = int64(val)
 			v[1] = int64(val >> 32)
 			h.st.xChangeProperty(st.display, st.window, st.atSyncCounter, st.atCardinal, 32, 0, (*byte)(unsafe.Pointer(&v[0])), 2)
+			st.flushDirty = true
 		}
 	}
 	var out []Event

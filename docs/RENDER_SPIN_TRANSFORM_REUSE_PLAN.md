@@ -63,6 +63,8 @@
 
 | 日期 | 内容 |
 |---|---|
+| 2026-10-13 | 第二档 wiring 落地（gpuTex 路径）：`canMergeGPUTextureDraw` 加角度三元组键（不同角度/旋转对烘焙不合并，同三元组合并；YUV/轴对齐/剪切/镜像保持烘焙）；`buildGPUTextureResources` 顶点改发吸附后轴对齐基座（1/256px，跨角度位一致，哈希可复用），uniform 改 `writeGpuTexUniform`（旋转合成/正交回退），`imageUniformLastKey` 加 `hasRot/rotCX/rotCY/rotAngle`；`image` 路径未动。6 wiring 单测全绿；9 相关测试文件逐个绿+race 绿；像素等价 2e-5 内；基准检测+合成约203~218ns 对烘焙约89~91ns（CPU 侧仍贵，省的是顶点上传 WriteBuffer）；损伤/剪刀/上传/YUV 行为不变 |
+| 2026-10-13 | 第二档探针结论（负收益，热路径不接线）：纯数学探针 `render/internal/gpu/image_rotation_uniform.go`（刚性检测+旋转uniform合成+CPU镜像）+ 7单测全绿；像素等价 5角度 NDC 差 2e-5 内，angle=0 与正交uniform逐位一致；基准检测+合成约218~316ns/op，对烘焙约89~94ns/op（约2.5~3倍，负收益）；合并键风险锁死（不同角度同纹理当前合并为真，进uniform必须把角度进键）；6相关测试文件逐个绿+探针race绿；损伤/剪刀/上传/YUV未动。热路径接线暂缓 |
 | 2026-10-12 | 第二档调研：提交路径读完，命令缓冲两家一次性已有结论落文档，未动手 |
 
 | 日期 | 内容 |

@@ -57,6 +57,11 @@ type Surface struct {
 	swapchainFBO        uint32
 	colorTexture        uint32
 	fboWidth, fboHeight uint32
+	// defaultDrawInit caches the default-framebuffer draw buffer: GL stores
+	// draw-buffer state per framebuffer, so BACK needs one set after the
+	// default FB is (re)created, not one per present. Cleared on
+	// Configure/Unconfigure/recreate (new default FB).
+	defaultDrawInit bool
 	// vramHandle is the ledger slot for the swapchain surface bytes
 	// (tagged FBO id; 0 = not charged). Refunded on re-configure.
 	vramHandle uintptr
@@ -174,6 +179,7 @@ func (s *Surface) Configure(_ hal.Device, config *hal.SurfaceConfiguration) erro
 
 	s.configured = true
 	s.config = config
+	s.defaultDrawInit = false
 	return nil
 }
 
@@ -281,6 +287,10 @@ func (s *Surface) recreateEGLWindowSurface() error {
 	if err := s.createEGLWindowSurface(w, h); err != nil {
 		return err
 	}
+	s.defaultDrawInit = false
+	if s.ctx != nil {
+		s.ctx.InvalidateBinding()
+	}
 	hal.Logger().Info("gles: EGL window surface recreated",
 		"eglSurface", fmt.Sprintf("0x%x", s.eglSurface),
 		"window", fmt.Sprintf("0x%x", s.windowHandle),
@@ -293,6 +303,7 @@ func (s *Surface) recreateEGLWindowSurface() error {
 // clears bookkeeping: handles die with the driver.
 func (s *Surface) Unconfigure(_ hal.Device) {
 	if s.ctx != nil {
+		s.ctx.InvalidateBinding()
 		if glCtx, err := s.ctx.TryLock(); err == nil {
 			defer s.ctx.Unlock()
 			destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorTexture)
@@ -320,6 +331,7 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 
 	s.configured = false
 	s.config = nil
+	s.defaultDrawInit = false
 }
 
 // AcquireTexture returns the next surface texture for rendering.

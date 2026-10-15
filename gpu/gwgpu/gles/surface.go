@@ -126,15 +126,15 @@ func destroySwapchainFBO(glCtx *gl.Context, fbo, colorTex uint32) {
 // destination outside the scissor keeps its previous content, which is
 // exactly what swap-with-damage promises the compositor. Force-full frames
 // (reconfigure/resize) pass empty damage and stay full-blit.
-func (s *Surface) blitSwapchainToDefaultWith(glCtx *gl.Context) {
-	s.blitSwapchainToDefaultDamageWith(glCtx, nil)
+func (s *Surface) blitSwapchainToDefaultWith(glCtx *gl.Context, st *glExecState) {
+	s.blitSwapchainToDefaultDamageWith(glCtx, st, nil)
 }
 
 // blitSwapchainToDefaultDamageWith is blitSwapchainToDefaultWith plus an
 // optional damage scissor (see above). damage must already be clipped to the
 // surface and unioned over the buffer-age history by the caller (render
 // PresentTarget.pushDamageHistory); empty means full present.
-func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []image.Rectangle) {
+func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, st *glExecState, damage []image.Rectangle) {
 	if glCtx == nil || s.swapchainFBO == 0 {
 		return
 	}
@@ -142,13 +142,27 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []i
 		return
 	}
 
-	glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, s.swapchainFBO)
-	glCtx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+	if st != nil {
+		if st.bindRead(s.swapchainFBO) {
+			glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, s.swapchainFBO)
+		}
+		if st.bindDraw(0) {
+			glCtx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+		}
+	} else {
+		glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, s.swapchainFBO)
+		glCtx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+	}
 
 	// Default framebuffer only accepts BACK as draw buffer. Render passes
 	// leave COLOR_ATTACHMENT0 in glDrawBuffers state, which silently drops
 	// the blit below (black window, no GL error).
-	glCtx.DrawBuffers([]uint32{gl.BACK})
+	// Draw-buffer state lives per framebuffer: the default FB keeps BACK
+	// once set, so set once per default FB, not per present.
+	if !s.defaultDrawInit {
+		glCtx.DrawBuffers([]uint32{gl.BACK})
+		s.defaultDrawInit = true
+	}
 
 	w := int32(s.fboWidth)
 	h := int32(s.fboHeight)
@@ -168,7 +182,13 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []i
 		// Source rect matches the damage rect (Chromium partial-blit
 		// parity): the driver reads only dirty pixels instead of the full
 		// source surface.
-		glCtx.Enable(gl.SCISSOR_TEST)
+		if st != nil {
+			if st.setScissorTest(true) {
+				glCtx.Enable(gl.SCISSOR_TEST)
+			}
+		} else {
+			glCtx.Enable(gl.SCISSOR_TEST)
+		}
 		for _, r := range damage {
 			if r.Empty() {
 				continue
@@ -177,7 +197,13 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []i
 			if sw <= 0 || sh <= 0 {
 				continue
 			}
-			glCtx.Scissor(sx, sy, sw, sh)
+			if st != nil {
+				if st.setScissor(sx, sy, sw, sh) {
+					glCtx.Scissor(sx, sy, sw, sh)
+				}
+			} else {
+				glCtx.Scissor(sx, sy, sw, sh)
+			}
 			// Y-flipped source sub-rect mirrors the dest scissor:
 			// src covers the same damage pixels the scissor clips to.
 			glCtx.BlitFramebuffer(
@@ -186,9 +212,21 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []i
 				gl.COLOR_BUFFER_BIT, gl.NEAREST,
 			)
 		}
-		glCtx.Disable(gl.SCISSOR_TEST)
+		if st != nil {
+			if st.setScissorTest(false) {
+				glCtx.Disable(gl.SCISSOR_TEST)
+			}
+		} else {
+			glCtx.Disable(gl.SCISSOR_TEST)
+		}
 	} else {
-		glCtx.Disable(gl.SCISSOR_TEST)
+		if st != nil {
+			if st.setScissorTest(false) {
+				glCtx.Disable(gl.SCISSOR_TEST)
+			}
+		} else {
+			glCtx.Disable(gl.SCISSOR_TEST)
+		}
 		glCtx.BlitFramebuffer(
 			0, h, w, 0, // source Y-flipped
 			0, 0, dw, dh, // dest normal (stretched only while borrowing)
@@ -196,8 +234,13 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, damage []i
 		)
 	}
 
-	glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
-	glCtx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+	// Trailing unbinds: only when no state cache (nil st). With st, skip
+	// both FFI calls — next frame's BindSurfaceFramebuffer rebinds anyway,
+	// and syncExecAfterPresent keeps READ/DRAW records exact.
+	if st == nil {
+		glCtx.BindFramebuffer(gl.READ_FRAMEBUFFER, 0)
+		glCtx.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+	}
 }
 
 // damageScissorGL converts a top-left-origin damage rect (physical px) to a

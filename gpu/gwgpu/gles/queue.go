@@ -69,6 +69,7 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 // execCommandBuffers runs recorded GL commands under the caller's lock.
 // Shared by Submit and SubmitAndPresent (Linux twin: same split).
 func (q *Queue) execCommandBuffers(glCtx *gl.Context, st *glExecState, commandBuffers []hal.CommandBuffer) error {
+	st.dbg = hal.Logger().Enabled(context.Background(), slog.LevelDebug)
 	for _, cb := range commandBuffers {
 		cmdBuf, ok := cb.(*CommandBuffer)
 		if !ok {
@@ -81,7 +82,7 @@ func (q *Queue) execCommandBuffers(glCtx *gl.Context, st *glExecState, commandBu
 		// buffer below. Same switch as queue_linux.go (cross-platform
 		// parity): GL errors are sticky, so detection is preserved and only
 		// the per-command index is debug-only detail.
-		cmdDbg := hal.Logger().Enabled(context.Background(), slog.LevelDebug)
+		cmdDbg := st.dbg
 		for i, cmd := range cmdBuf.commands {
 			cmd.Execute(glCtx, st)
 			if cmdDbg {
@@ -227,7 +228,7 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, _ []image.R
 	if list := q.batch.drain(); len(list) > 0 {
 		flushWriteBatch(glCtx, newGLExecState(), list)
 	}
-	surf.blitSwapchainToDefaultWith(glCtx)
+	surf.blitSwapchainToDefaultWith(glCtx, nil)
 
 	if err := wgl.SwapBuffers(hdc); err != nil {
 		return err
@@ -270,9 +271,10 @@ func (q *Queue) SubmitAndPresent(surface hal.Surface, tex hal.SurfaceTexture, _ 
 			return 0, err
 		}
 	}
-	glCtx.Flush()
-
-	surf.blitSwapchainToDefaultWith(glCtx)
+	// No explicit Flush: SwapBuffers performs an implicit flush
+	// (Linux twin: same trim — EGL §3.9 / WGL parity), dispatching
+	// commands + fence above. Saves one driver round trip per frame.
+	surf.blitSwapchainToDefaultWith(glCtx, st)
 
 	if err := wgl.SwapBuffers(hdc); err != nil {
 		return 0, err

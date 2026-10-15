@@ -250,7 +250,7 @@ func TestH4D_SurfaceFrameOffscreenPixel(t *testing.T) {
 
 	// 真 blit 函数空跑不 panic（无窗下 FBO 0 不存在，像素不断言）。
 	plain := actx.Lock()
-	surf.blitSwapchainToDefaultWith(plain)
+	surf.blitSwapchainToDefaultWith(plain, nil)
 	actx.Unlock()
 
 	// 在途帧流转：Discard 放掉，Unconfigure 后 Acquire 报 ErrSurfaceLost。

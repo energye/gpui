@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"runtime"
 	"sync"
+	"syscall"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/egl"
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
@@ -30,6 +31,11 @@ type AdapterContext struct {
 	eglCtx *egl.Context
 	gl     *gl.Context
 	owns   bool // true → Destroy() destroys eglCtx
+
+	boundValid     bool
+	boundIsPbuffer bool
+	boundSurf      egl.EGLSurface
+	boundTid       int
 }
 
 // NewAdapterContext wraps an already-created EGL context and GL function table.
@@ -47,25 +53,74 @@ func NewAdapterContext(eglCtx *egl.Context, glCtx *gl.Context, owns bool) *Adapt
 // no-ops (0 handles, FALSE status, empty info logs).
 var LockMakeCurrentErr = fmt.Errorf("gles: AdapterContext: MakeCurrent failed")
 
-// tryLockWith pins the goroutine, checks the EGL context, and runs bind
-// (MakeCurrent on the pbuffer/surfaceless surface, or MakeCurrentSurface on
-// a window surface). Shared by TryLock and TryLockForSurface so the
-// lock/thread/error flow lives once.
-func (c *AdapterContext) tryLockWith(bind func(*egl.Context) error) (*gl.Context, error) {
-	c.mu.Lock()
-	runtime.LockOSThread()
+// currentTid returns the Linux thread id for the binding cache.
+// Gettid is a raw syscall (~tens of ns) against eglMakeCurrent FFI + driver
+// sync (~us). Only called with mu held and the goroutine pinned.
+func currentTid() int {
+	return syscall.Gettid()
+}
 
+// invalidateLocked clears the binding cache; caller holds c.mu (all binds
+// run serialized under it, so the record is always exact).
+func (c *AdapterContext) invalidateLocked() {
+	c.boundValid = false
+}
+
+// InvalidateBinding drops the binding cache (surface teardown paths that run
+// without holding c.mu). A stale entry could otherwise fast-hit a recycled
+// surface handle; the next bind then remakes. Never blocks frame work: it
+// only takes the short mutex, never waits on GL.
+func (c *AdapterContext) InvalidateBinding() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.boundValid = false
+	c.mu.Unlock()
+}
+
+// bindSurfaceLocked makes the context current on surf (fast path: same OS
+// thread already bound to the same surface). Caller holds c.mu and the
+// OSThread pin. Records the binding on success, clears it on failure.
+func (c *AdapterContext) bindSurfaceLocked(surf egl.EGLSurface) error {
 	if c.eglCtx == nil {
-		c.mu.Unlock()
-		runtime.UnlockOSThread()
-		return nil, fmt.Errorf("gles: AdapterContext: nil egl context")
+		c.boundValid = false
+		return fmt.Errorf("gles: AdapterContext: nil egl context")
 	}
-	if err := bind(c.eglCtx); err != nil {
-		c.mu.Unlock()
-		runtime.UnlockOSThread()
-		return nil, fmt.Errorf("%w: %v", LockMakeCurrentErr, err)
+	if tid := currentTid(); c.boundValid && !c.boundIsPbuffer && c.boundSurf == surf && c.boundTid == tid {
+		return nil
 	}
-	return c.gl, nil
+	if err := c.eglCtx.MakeCurrentSurface(surf); err != nil {
+		c.invalidateLocked()
+		return err
+	}
+	c.boundValid = true
+	c.boundIsPbuffer = false
+	c.boundSurf = surf
+	c.boundTid = currentTid()
+	return nil
+}
+
+// bindPbufferLocked makes the context current on the pbuffer/surfaceless
+// surface (fast path: same OS thread already has ANY binding — resource
+// creation and uploads do not depend on the draw surface). Caller holds c.mu
+// and the OSThread pin. Records the binding on success, clears on failure.
+func (c *AdapterContext) bindPbufferLocked() error {
+	if c.eglCtx == nil {
+		c.boundValid = false
+		return fmt.Errorf("gles: AdapterContext: nil egl context")
+	}
+	if tid := currentTid(); c.boundValid && c.boundTid == tid {
+		return nil
+	}
+	if err := c.eglCtx.MakeCurrent(); err != nil {
+		c.invalidateLocked()
+		return err
+	}
+	c.boundValid = true
+	c.boundIsPbuffer = true
+	c.boundTid = currentTid()
+	return nil
 }
 
 // TryLock is Lock with a usable error: non-nil gl + nil error means ready,
@@ -73,7 +128,14 @@ func (c *AdapterContext) tryLockWith(bind func(*egl.Context) error) (*gl.Context
 // EGL_BAD_ACCESS 0x3002: another thread holds it, or the display went
 // away). Callers stop instead of issuing GL calls into the void.
 func (c *AdapterContext) TryLock() (*gl.Context, error) {
-	return c.tryLockWith(func(ec *egl.Context) error { return ec.MakeCurrent() })
+	c.mu.Lock()
+	runtime.LockOSThread()
+	if err := c.bindPbufferLocked(); err != nil {
+		c.mu.Unlock()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("%w: %v", LockMakeCurrentErr, err)
+	}
+	return c.gl, nil
 }
 
 // Lock acquires the mutex, pins the goroutine to the current OS thread, and
@@ -89,7 +151,7 @@ func (c *AdapterContext) Lock() *gl.Context {
 		slog.Error("gles: AdapterContext.Lock: nil egl context")
 		return c.gl
 	}
-	if err := c.eglCtx.MakeCurrent(); err != nil {
+	if err := c.bindPbufferLocked(); err != nil {
 		slog.Error("gles: AdapterContext.Lock MakeCurrent failed", "err", err)
 	}
 	return c.gl
@@ -102,7 +164,14 @@ func (c *AdapterContext) Lock() *gl.Context {
 // logged and still returned gl, so Present blitted and swapped unbound
 // (transparent stall).
 func (c *AdapterContext) TryLockForSurface(surf egl.EGLSurface) (*gl.Context, error) {
-	return c.tryLockWith(func(ec *egl.Context) error { return ec.MakeCurrentSurface(surf) })
+	c.mu.Lock()
+	runtime.LockOSThread()
+	if err := c.bindSurfaceLocked(surf); err != nil {
+		c.mu.Unlock()
+		runtime.UnlockOSThread()
+		return nil, fmt.Errorf("%w: %v", LockMakeCurrentErr, err)
+	}
+	return c.gl, nil
 }
 
 // LockForSurface acquires the mutex, pins the goroutine to the current OS thread,
@@ -115,7 +184,7 @@ func (c *AdapterContext) LockForSurface(surf egl.EGLSurface) *gl.Context {
 		slog.Error("gles: AdapterContext.LockForSurface: nil egl context")
 		return c.gl
 	}
-	if err := c.eglCtx.MakeCurrentSurface(surf); err != nil {
+	if err := c.bindSurfaceLocked(surf); err != nil {
 		slog.Error("gles: AdapterContext.LockForSurface MakeCurrent failed",
 			"err", err,
 			"surface", fmt.Sprintf("0x%x", surf))
@@ -139,19 +208,18 @@ func (c *AdapterContext) Unlock() {
 				"err", fmt.Sprintf("0x%x", egl.GetError()))
 		}
 	}
+	c.boundValid = false
 	runtime.UnlockOSThread()
 	c.mu.Unlock()
 }
 
 // UnlockKeepBinding releases the mutex and unpins the goroutine but keeps
 // the GL context current on this OS thread (skips the UnmakeCurrent FFI).
-// Safe only when the next GL user re-makes before use on the same thread:
-// the raster loop runs Submit→Present on one pinned OS thread (G5), and
-// Present's TryLockForSurface always makes before drawing, so the kept
-// binding is either reused (same thread, EGL cover semantics) or covered.
-// pprof: UnmakeCurrent costs 170ms/1.87s on spin_min (one per Submit and one
-// per Present); Submit keeps, Present still clears (frame-end Unlock,
-// Flutter parity). Other callers keep Unlock.
+// Exactness comes from the binding cache above: the next bind on the same
+// thread fast-hits only when thread + surface-kind + surface all match, any
+// other-thread bind overwrites the record, and every Unmake/failure/teardown
+// clears it — so a kept binding can never be mistaken for another one.
+// Frame-end paths (Submit/SubmitAndPresent) keep; all other callers keep Unlock.
 func (c *AdapterContext) UnlockKeepBinding() {
 	runtime.UnlockOSThread()
 	c.mu.Unlock()
@@ -173,6 +241,7 @@ func (c *AdapterContext) EGL() *egl.Context {
 func (c *AdapterContext) Destroy() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.boundValid = false
 	if c.owns && c.eglCtx != nil {
 		c.eglCtx.Destroy()
 		c.eglCtx = nil

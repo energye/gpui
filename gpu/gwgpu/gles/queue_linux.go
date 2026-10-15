@@ -32,17 +32,22 @@ type Queue struct {
 	submissionIndex uint64
 	fence           *Fence // signaled at each submit for GPU completion tracking
 	batch           writeBatch
+	execSt          *glExecState
+	execSurf        uintptr
+	execFBO         uint32
+	execInit        bool
 }
 
 // Submit submits command buffers to the GPU.
 // One Lock for the whole submit: staged uploads flush first, then all GL
 // commands run under a per-submit state cache that drops repeated setup.
-// Keeps the binding on unlock (UnlockKeepBinding): the raster loop runs
-// Submit→Present on one pinned OS thread and Present re-makes before use,
-// so Submit skips its UnmakeCurrent FFI (pprof: ~half of 170ms/1.87s).
+// Unmakes on unlock: Submit runs on any thread (UI warmup, offscreen,
+// layer RT), so it must not leave the context current — otherwise the
+// raster merged path hits EGL_BAD_ACCESS on another OS thread. Only
+// SubmitAndPresent (raster steady path) keeps.
 func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	glCtx := q.ctx.Lock()
-	defer q.ctx.UnlockKeepBinding()
+	defer q.ctx.Unlock()
 	st := newGLExecState()
 	if list := q.batch.drain(); len(list) > 0 {
 		flushWriteBatch(glCtx, st, list)
@@ -72,6 +77,7 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 // Shared by Submit (pbuffer-bound) and SubmitAndPresent (surface-bound):
 // the commands draw into FBOs, so the draw surface does not matter.
 func (q *Queue) execCommandBuffers(glCtx *gl.Context, st *glExecState, commandBuffers []hal.CommandBuffer) error {
+	st.dbg = hal.Logger().Enabled(context.Background(), slog.LevelDebug)
 	for _, cb := range commandBuffers {
 		cmdBuf, ok := cb.(*CommandBuffer)
 		if !ok {
@@ -83,7 +89,7 @@ func (q *Queue) execCommandBuffers(glCtx *gl.Context, st *glExecState, commandBu
 		// in debug (hal debug logger on); otherwise one check per command
 		// buffer below. Error detection is preserved, per-command index is
 		// debug-only detail.
-		cmdDbg := hal.Logger().Enabled(context.Background(), slog.LevelDebug)
+		cmdDbg := st.dbg
 		for i, cmd := range cmdBuf.commands {
 			cmd.Execute(glCtx, st)
 			if cmdDbg {
@@ -265,11 +271,36 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects
 	}
 	defer q.ctx.Unlock()
 
-	if err := q.presentLockedGL(glCtx, surf, tex, damageRects); err != nil {
+	if err := q.presentLockedGL(glCtx, nil, surf, tex, damageRects); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// cachedExecState returns the persistent cross-frame GL state cache.
+// Same pipeline/textures/FBO across steady frames collapse repeated setup
+// into no-ops. Reset on surface/FBO change; fb bits reset after present
+// (blit leaves READ/DRAW 0 behind st's back).
+func (q *Queue) cachedExecState(surfHandle uintptr, fbo uint32) *glExecState {
+	if q.execSt == nil || !q.execInit || q.execSurf != surfHandle || q.execFBO != fbo {
+		q.execSt = newGLExecState()
+		q.execSurf = surfHandle
+		q.execFBO = fbo
+		q.execInit = true
+	}
+	return q.execSt
+}
+
+// syncExecAfterPresent resyncs fb bits to post-blit reality (READ=swapchainFBO,
+// DRAW=0 — trailing unbinds are skipped with st). Only the generic fb record is
+// cleared so next frame's BindSurfaceFramebuffer rebinds DRAW for rendering.
+// Other state (program/blend/binds/viewport) persists across frames.
+func (q *Queue) syncExecAfterPresent() {
+	if q.execSt == nil {
+		return
+	}
+	q.execSt.fbSet = false
 }
 
 // SubmitAndPresent submits command buffers then presents in one GL binding.
@@ -295,13 +326,14 @@ func (q *Queue) SubmitAndPresent(surface hal.Surface, tex hal.SurfaceTexture, da
 			return 0, fmt.Errorf("gles: SubmitAndPresent bind surface failed (skip frame): %w", err)
 		}
 	}
-	defer q.ctx.Unlock()
+	defer q.ctx.UnlockKeepBinding()
 
-	st := newGLExecState()
+	st := q.cachedExecState(uintptr(surf.eglSurface), surf.swapchainFBO)
 	if list := q.batch.drain(); len(list) > 0 {
 		flushWriteBatch(glCtx, st, list)
 	}
 	if err := q.execCommandBuffers(glCtx, st, commandBuffers); err != nil {
+		q.ctx.invalidateLocked()
 		return 0, err
 	}
 	q.submissionIndex++
@@ -309,27 +341,37 @@ func (q *Queue) SubmitAndPresent(surface hal.Surface, tex hal.SurfaceTexture, da
 	// Same fence contract as Submit: FenceSync goes BEFORE Flush so the sync
 	// object tracks the submitted commands. SubmitAndPresent must not skip it
 	// or Poll/GetLatest observes a stale index on the merged path.
+	// Maintain is batched every 60 frames: per-frame GetLatest+DeleteSync
+	// costs FFI + driver query each frame, while pending cleanup only needs
+	// periodic draining (60 sync objects max alive, bounded memory).
 	if q.fence != nil {
-		q.fence.Maintain()
+		if q.submissionIndex%60 == 0 {
+			q.fence.Maintain()
+		}
 		if err := q.fence.Signal(q.submissionIndex); err != nil {
+			q.ctx.invalidateLocked()
 			return 0, err
 		}
 	}
-	glCtx.Flush()
-
-	if err := q.presentLockedGL(glCtx, surf, tex, damageRects); err != nil {
+	// No explicit Flush here: eglSwapBuffers performs an implicit flush
+	// (EGL 1.4 §3.9), which dispatches both the commands and the fence
+	// above. Submit (non-merged) keeps its Flush; merged path saves one
+	// driver round trip per frame (~20ms/10s steady).
+	if err := q.presentLockedGL(glCtx, st, surf, tex, damageRects); err != nil {
+		q.ctx.invalidateLocked()
 		return 0, err
 	}
+	q.syncExecAfterPresent()
 	return q.submissionIndex, nil
 }
 
 // presentLockedGL runs the blit + swap under the caller's lock.
 // Shared by Present (own binding) and SubmitAndPresent (merged binding).
-func (q *Queue) presentLockedGL(glCtx *gl.Context, surf *Surface, tex hal.SurfaceTexture, damageRects []image.Rectangle) error {
+func (q *Queue) presentLockedGL(glCtx *gl.Context, st *glExecState, surf *Surface, tex hal.SurfaceTexture, damageRects []image.Rectangle) error {
 	// Damage-scissored blit: steady frames move only the dirty union
 	// instead of the full surface (see blitSwapchainToDefaultDamageWith).
 	// Empty damage = force-full frame → full blit, same as before.
-	surf.blitSwapchainToDefaultDamageWith(glCtx, damageRects)
+	surf.blitSwapchainToDefaultDamageWith(glCtx, st, damageRects)
 
 	// Use damage-aware swap when the extension is available and rects provided.
 	if len(damageRects) > 0 && egl.HasSwapBuffersWithDamage() {

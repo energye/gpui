@@ -195,10 +195,10 @@ type imageUniformLastKey struct {
 	// re-upload when the full rotation key (center + size + angle) matches
 	// exactly. Zero rotation (hasRot=false) preserves the historic
 	// ortho-only skip semantics.
-	hasRot         bool
-	rotCX, rotCY   float32
-	rotW, rotH     float32
-	rotAngle       float32
+	hasRot       bool
+	rotCX, rotCY float32
+	rotW, rotH   float32
+	rotAngle     float32
 }
 
 // gpuTexBGSlotCache holds up to 4 view→bind-group pairs for one uniform slot
@@ -722,6 +722,15 @@ type GPURenderSession struct {
 	// instances rendering to different targets), frameRendered is reset
 	// so the new view gets a LoadOpClear on its first render pass.
 	lastView hal.TextureView
+
+	// prevFrameView/prevFrameFull carry cross-frame surface identity for
+	// stable FBOs (gles reuses one cached surfaceView). When the next
+	// frame acquires the same view and the previous frame fully composited
+	// it, the first pass can LoadOpLoad + damage-scissor instead of full
+	// Clear + full composite. Webgpu rotates fresh views per acquire, so
+	// pointer mismatch forces Clear (R6 round2 correctness preserved).
+	prevFrameView hal.TextureView
+	prevFrameFull bool
 
 	// scissorRect holds the current scissor rect in device pixels.
 	// When non-nil, all draw commands are clipped to this rectangle.
@@ -6192,12 +6201,19 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	// frameScratch via MSAA resolve; overlay-only dual-tex blits must not
 	// clear the whole scratch (was wiping FPS text to black).
 	if view != s.lastView {
-		s.frameRendered = false
+		// Cross-frame stable FBO (gles cached surfaceView): same pointer as
+		// previous frame's fully-composited view carries full content, so
+		// Load + damage-scissor instead of full Clear.
+		if view != nil && s.prevFrameFull && view == s.prevFrameView {
+			s.frameRendered = true
+		} else {
+			s.frameRendered = false
+		}
 		s.lastView = view
 	}
 	hasDamage := len(damageRects) > 0
 	loadOp := types.LoadOpClear
-	if s.frameRendered || hasDamage {
+	if s.frameRendered {
 		loadOp = types.LoadOpLoad
 	}
 
@@ -6280,6 +6296,8 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	}
 	s.frameRendered = true
 	s.lastView = view
+	s.prevFrameView = view
+	s.prevFrameFull = true
 
 	return nil
 }
@@ -6326,7 +6344,11 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 
 	// Per-view frame tracking (same as encodeSubmitSurface).
 	if view != s.lastView {
-		s.frameRendered = false
+		if view != nil && s.prevFrameFull && view == s.prevFrameView {
+			s.frameRendered = true
+		} else {
+			s.frameRendered = false
+		}
 		s.lastView = view
 	}
 
@@ -6401,6 +6423,8 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 
 	// Mark that at least one render pass has been submitted this frame.
 	s.frameRendered = true
+	s.prevFrameView = view
+	s.prevFrameFull = true
 
 	return nil
 }

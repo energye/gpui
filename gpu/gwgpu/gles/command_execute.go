@@ -11,7 +11,6 @@
 package gles
 
 import (
-	"context"
 	"log/slog"
 	"sync"
 	"unsafe"
@@ -287,6 +286,9 @@ type SetDrawColorBuffersCommand struct {
 }
 
 func (c *SetDrawColorBuffersCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st != nil && !st.setDrawBuffers(c.count) {
+		return
+	}
 	bufs := make([]uint32, c.count)
 	for i := range bufs {
 		bufs[i] = gl.COLOR_ATTACHMENT0 + uint32(i)
@@ -651,7 +653,7 @@ func (c *SetBindGroupCommand) Execute(ctx *gl.Context, st *glExecState) {
 			// Determine the correct texture unit for this sampler.
 			// SamplerBindMap provides this mapping.
 			bindUnit := c.resolveSamplerUnit(glBinding)
-			if hal.Logger().Enabled(context.Background(), slog.LevelDebug) {
+			if st.dbg {
 				hal.Logger().Debug("gles: binding sampler",
 					"samplerBinding", glBinding,
 					"textureUnit", bindUnit,

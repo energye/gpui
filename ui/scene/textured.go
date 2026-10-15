@@ -1679,6 +1679,10 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				// textures — 200+ of those exhaust GPU memory (C4 measured
 				// "Not enough memory left" + endless shell re-records).
 				if !b.Empty() {
+					if os.Getenv("GPUI_RECRDDBG") == "1" && b.Dx()*b.Dy() > 50000 {
+						fmt.Fprintf(os.Stderr, "[RECRDDBG] large record id=%d bounds=%v dirtyID=%v needsRaster=%v has=%v\n",
+							pl.CacheKey, b, dirtyID, pl.NeedsRaster, tex.Has(pl.CacheKey))
+					}
 					_, ok = tex.recordLocalWith(pl.CacheKey, &pl.Picture, b, pl.RasterExtra)
 				} else if pl.RasterExtra != nil {
 					// R6-1: a bounds-less OnPaint takes NO texture. These

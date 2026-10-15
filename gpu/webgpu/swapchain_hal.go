@@ -13,6 +13,7 @@
 package webgpu
 
 import (
+	"fmt"
 	"image"
 
 	"github.com/energye/gpui/gpu/hal"
@@ -75,9 +76,28 @@ func (a *halSwapchainAdapter) EndFrameWithDamage(f *hal.SwapchainFrame, rects []
 	return a.sc.EndFrameWithDamage(wf, rects)
 }
 func (a *halSwapchainAdapter) EndFrameMerged(f *hal.SwapchainFrame, rects []image.Rectangle, commandBuffers ...hal.CommandBuffer) (uint64, error) {
-	// No merged path on WebGPU (no per-call GL binding to save): the caller
-	// already submitted via the normal path; just present.
-	_ = commandBuffers
+	// No merged path on WebGPU (no per-call GL binding to save): hal
+	// contract says implement it as Submit + EndFrameWithDamage. The
+	// caller defers the surface CB instead of submitting, so submit it
+	// here before presenting — dropping it presents an unrendered image.
+	if len(commandBuffers) > 0 {
+		dev := a.sc.Device
+		if dev == nil {
+			return 0, fmt.Errorf("wgpu: EndFrameMerged: nil device")
+		}
+		q := dev.Queue()
+		if q == nil {
+			return 0, fmt.Errorf("wgpu: EndFrameMerged: nil queue")
+		}
+		idx, err := q.Submit(commandBuffers...)
+		if err != nil {
+			return 0, err
+		}
+		if err := a.EndFrameWithDamage(f, rects); err != nil {
+			return 0, err
+		}
+		return idx, nil
+	}
 	if err := a.EndFrameWithDamage(f, rects); err != nil {
 		return 0, err
 	}

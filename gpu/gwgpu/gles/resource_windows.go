@@ -38,6 +38,9 @@ type Surface struct {
 	colorTexture uint32
 	fboWidth     uint32
 	fboHeight    uint32
+	// defaultDrawInit caches the default-framebuffer draw buffer
+	// (Linux twin: same trim — BACK set once per default FB).
+	defaultDrawInit bool
 	// vramHandle is the ledger slot for the swapchain surface bytes
 	// (tagged FBO id; 0 = not charged). Refunded on re-configure.
 	vramHandle uintptr
@@ -153,6 +156,7 @@ func (s *Surface) Configure(_ hal.Device, config *hal.SurfaceConfiguration) erro
 
 	s.configured = true
 	s.config = config
+	s.defaultDrawInit = false
 	return nil
 }
 
@@ -173,6 +177,7 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 	s.current = nil
 	s.configured = false
 	s.config = nil
+	s.defaultDrawInit = false
 }
 
 // AcquireTexture returns the next surface texture for rendering.

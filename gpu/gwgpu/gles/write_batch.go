@@ -77,6 +77,79 @@ func (b *writeBatch) drain() []pendingWrite {
 // flushWriteBatch uploads staged writes: one bind per buffer, contiguous
 // ranges merged, later writes winning overlaps (call order preserved).
 func flushWriteBatch(glCtx *gl.Context, st *glExecState, list []pendingWrite) {
+	// Fast path: single valid write avoids map + sort + order alloc.
+	// Steady spin uploads one rotation uniform per frame; the generic
+	// path costs a map, an order slice and a SliceStable per frame.
+	n := 0
+	var single pendingWrite
+	var singleBuf *Buffer
+	multi := false
+	for _, w := range list {
+		if w.buf == nil || w.buf.id == 0 || len(w.data) == 0 {
+			continue
+		}
+		n++
+		if n == 1 {
+			single = w
+			singleBuf = w.buf
+		} else if w.buf != singleBuf {
+			multi = true
+			break
+		}
+	}
+	if n == 1 {
+		if st.bindGeneric(singleBuf.target, singleBuf.id) {
+			glCtx.BindBuffer(singleBuf.target, singleBuf.id)
+		}
+		glCtx.BufferSubData(singleBuf.target, int(single.offset), len(single.data), unsafe.Pointer(&single.data[0]))
+		return
+	}
+	if !multi && n > 1 {
+		// Single buffer, multi-range: skip grouping map, sort in place.
+		ws := list[:0]
+		for _, w := range list {
+			if w.buf == nil || w.buf.id == 0 || len(w.data) == 0 {
+				continue
+			}
+			ws = append(ws, w)
+		}
+		// Insertion sort for tiny n (avoids SliceStable reflection cost).
+		for i := 1; i < len(ws); i++ {
+			for j := i; j > 0 && (ws[j].offset < ws[j-1].offset || (ws[j].offset == ws[j-1].offset && ws[j].seq < ws[j-1].seq)); j-- {
+				ws[j], ws[j-1] = ws[j-1], ws[j]
+			}
+		}
+		buf := singleBuf
+		if st.bindGeneric(buf.target, buf.id) {
+			glCtx.BindBuffer(buf.target, buf.id)
+		}
+		cur := ws[0]
+		curOwned := false
+		emit := func(seg pendingWrite) {
+			if len(seg.data) == 0 {
+				return
+			}
+			glCtx.BufferSubData(buf.target, int(seg.offset), len(seg.data), unsafe.Pointer(&seg.data[0]))
+		}
+		for _, nxt := range ws[1:] {
+			curEnd := cur.offset + uint64(len(cur.data))
+			if nxt.offset <= curEnd {
+				need := nxt.offset + uint64(len(nxt.data)) - cur.offset
+				if !curOwned || uint64(len(cur.data)) < need {
+					ext := make([]byte, need)
+					copy(ext, cur.data)
+					cur.data = ext
+					curOwned = true
+				}
+				copy(cur.data[nxt.offset-cur.offset:], nxt.data)
+				continue
+			}
+			emit(cur)
+			cur = nxt
+		}
+		emit(cur)
+		return
+	}
 	// Group by buffer, preserving first-seen order.
 	order := make([]*Buffer, 0, 8)
 	groups := make(map[*Buffer][]pendingWrite, 8)
