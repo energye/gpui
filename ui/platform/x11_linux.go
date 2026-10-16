@@ -1240,7 +1240,14 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 					// drain it now rather than dropping a frame of input.
 					return filterXNoise(h.drain())
 				}
-				timeoutMs = int(left / time.Millisecond)
+				// Round up to 1ms: truncating sub-ms remainders to 0
+				// turns the last ~1ms before each 60fps boundary into
+				// a zero-timeout poll storm (~8 polls/frame, each with
+				// X round trips). 1ms oversleep max, no spin.
+				timeoutMs = int((left + time.Millisecond - time.Nanosecond) / time.Millisecond)
+				if timeoutMs <= 0 {
+					timeoutMs = 1
+				}
 			}
 			fds[0].Revents, fds[1].Revents = 0, 0
 			n, err := unix.Poll(fds, timeoutMs)

@@ -323,21 +323,27 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		if t.dc != nil {
 			leads, mains, cleans = t.dc.TakePresentCBs()
 		}
-		all := leads
-		if len(mains) > 0 {
-			all = append(append([]hal.CommandBuffer{}, leads...), mains...)
+		all := t.presentAllBuf[:0]
+		if len(leads)+len(mains) > cap(all) {
+			all = make([]hal.CommandBuffer, 0, len(leads)+len(mains))
 		}
+		all = append(all, leads...)
+		all = append(all, mains...)
+		rects := t.damageRects(presentDamage)
 		if len(all) > 0 {
-			subIdx, merr := t.sc.EndFrameMerged(frame, damageToRects(presentDamage), all...)
+			subIdx, merr := t.sc.EndFrameMerged(frame, rects, all...)
+			t.presentAllBuf = all[:0]
 			if t.dc != nil {
 				t.dc.FinishPresentSubmit(leads, mains, cleans, subIdx, merr)
 			}
 			if merr != nil {
 				return merr
 			}
-		} else if err := t.sc.EndFrameWithDamage(frame, damageToRects(presentDamage)); err != nil {
+		} else if err := t.sc.EndFrameWithDamage(frame, rects); err != nil {
+			t.presentAllBuf = all[:0]
 			return err
 		}
+		t.presentAllBuf = all[:0]
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			if d := time.Since(pEnd); d > 20*time.Millisecond {
 				fmt.Fprintf(os.Stderr, "DBG phase endframe=%dms (frame %dx%d)\n", d.Milliseconds(), frame.Width, frame.Height)
@@ -406,6 +412,17 @@ func (t *PresentTarget) clearDamageHistory() {
 		return
 	}
 	t.damageHistory = t.damageHistory[:0]
+}
+
+// damageRects adapts a damage union for hal EndFrameWithDamage using the
+// target's reusable 1-rect buffer (mu-serialized): empty means full
+// present (nil), otherwise the single-rect list without a per-frame alloc.
+func (t *PresentTarget) damageRects(union image.Rectangle) []image.Rectangle {
+	if union.Empty() {
+		return nil
+	}
+	t.damageRectsBuf[0] = union
+	return t.damageRectsBuf[:1]
 }
 
 // damageToRects adapts a damage union for hal EndFrameWithDamage: empty

@@ -232,6 +232,15 @@ type PresentTarget struct {
 	// a full frame on reconfigure/resize (postResizeFull path below).
 	damageHistory []image.Rectangle
 
+	// Reusable per-present scratch (mu-serialized, never shared across
+	// concurrent presents on the same target): avoids per-frame heap
+	// allocs on the 60fps steady path (pprof: newobject + damageToRects
+	// + TakePresentCBs append showed per-frame on spin_min).
+	// damageRectsBuf backs the single-rect damage list (nil = full).
+	damageRectsBuf [1]image.Rectangle
+	// presentAllBuf backs the merged lead+main command-buffer list.
+	presentAllBuf []hal.CommandBuffer
+
 	// fallbacks counts downgrade levels retried before this target opened
 	// (0 = first level succeeded). Set once by NewPresentTarget.
 	fallbacks int

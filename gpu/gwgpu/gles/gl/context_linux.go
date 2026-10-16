@@ -902,16 +902,7 @@ func (c *Context) DrawArrays(mode uint32, first, count int32) {
 		unsafe.Pointer(&ufirst),
 		unsafe.Pointer(&ucount),
 	}
-	// Need a 3-arg void signature
-	var cif3 types.CallInterface
-	_ = ffi.PrepareCallInterface(&cif3, types.DefaultCall,
-		types.VoidTypeDescriptor,
-		[]*types.TypeDescriptor{
-			types.UInt32TypeDescriptor,
-			types.UInt32TypeDescriptor,
-			types.UInt32TypeDescriptor,
-		})
-	_, _ = ffi.CallFunction(&cif3, c.glDrawArrays, nil, args[:])
+	_, _ = ffi.CallFunction(&cifVoid3, c.glDrawArrays, nil, args[:])
 }
 
 func (c *Context) DrawElements(mode uint32, count int32, typ uint32, indices uintptr) {

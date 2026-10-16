@@ -77,6 +77,18 @@ func (b *writeBatch) drain() []pendingWrite {
 // flushWriteBatch uploads staged writes: one bind per buffer, contiguous
 // ranges merged, later writes winning overlaps (call order preserved).
 func flushWriteBatch(glCtx *gl.Context, st *glExecState, list []pendingWrite) {
+	// Steady single-upload fast path: skip the scan loop entirely.
+	if len(list) == 1 {
+		w := list[0]
+		if w.buf == nil || w.buf.id == 0 || len(w.data) == 0 {
+			return
+		}
+		if st.bindGeneric(w.buf.target, w.buf.id) {
+			glCtx.BindBuffer(w.buf.target, w.buf.id)
+		}
+		glCtx.BufferSubData(w.buf.target, int(w.offset), len(w.data), unsafe.Pointer(&w.data[0]))
+		return
+	}
 	// Fast path: single valid write avoids map + sort + order alloc.
 	// Steady spin uploads one rotation uniform per frame; the generic
 	// path costs a map, an order slice and a SliceStable per frame.

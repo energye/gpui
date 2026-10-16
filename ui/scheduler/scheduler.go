@@ -11,7 +11,6 @@
 package scheduler
 
 import (
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -231,16 +230,28 @@ func (s *FrameScheduler) learnCompositorPeriod(iv time.Duration) {
 	if s.dispHistCount < dispHistMin {
 		return
 	}
-	var tmp []time.Duration
-	if s.dispHistCount < dispHistSize {
-		tmp = append([]time.Duration(nil), s.dispHist[:s.dispHistCount]...)
-	} else {
-		tmp = append([]time.Duration(nil), s.dispHist[:]...)
+	// Steady-state hot path (60 calls/s): copy into a stack buffer and
+	// insertion-sort in place. dispHistSize is 32, so O(n²) on tiny n
+	// beats sort.Slice's reflection + allocation (pprof: alloc + sort
+	// showed per-frame on spin_min). No heap alloc after warmup.
+	var tmp [dispHistSize]time.Duration
+	n := s.dispHistCount
+	if n > dispHistSize {
+		n = dispHistSize
 	}
-	sort.Slice(tmp, func(i, j int) bool { return tmp[i] < tmp[j] })
-	med := tmp[len(tmp)/2]
-	p10 := tmp[len(tmp)/10]
-	p90 := tmp[len(tmp)*9/10]
+	if s.dispHistCount < dispHistSize {
+		copy(tmp[:n], s.dispHist[:n])
+	} else {
+		copy(tmp[:n], s.dispHist[:])
+	}
+	for i := 1; i < n; i++ {
+		for j := i; j > 0 && tmp[j] < tmp[j-1]; j-- {
+			tmp[j], tmp[j-1] = tmp[j-1], tmp[j]
+		}
+	}
+	med := tmp[n/2]
+	p10 := tmp[n/10]
+	p90 := tmp[n*9/10]
 	tol := med / 5
 	if tol < 2*time.Millisecond {
 		tol = 2 * time.Millisecond
