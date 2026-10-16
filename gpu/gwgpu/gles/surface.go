@@ -212,13 +212,16 @@ func (s *Surface) blitSwapchainToDefaultDamageWith(glCtx *gl.Context, st *glExec
 				gl.COLOR_BUFFER_BIT, gl.NEAREST,
 			)
 		}
-		if st == nil {
+		// Leave SCISSOR_TEST disabled: blit-only passes that set no scissor
+		// of their own (render_session.go encodeBlitOnlyPass /
+		// encodeBlitToEncoder else branches) rely on entering with it off.
+		if st != nil {
+			if st.setScissorTest(false) {
+				glCtx.Disable(gl.SCISSOR_TEST)
+			}
+		} else {
 			glCtx.Disable(gl.SCISSOR_TEST)
 		}
-		// With st: keep SCISSOR_TEST enabled across present. Next frame's
-		// draw sets its own box, so Enable becomes a no-op — saves one
-		// Disable + one Enable FFI per steady frame. Full frames and
-		// clears disable explicitly when they need it.
 	} else {
 		if st != nil {
 			if st.setScissorTest(false) {

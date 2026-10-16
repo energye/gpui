@@ -1,7 +1,9 @@
 # 60帧变换复用立项（spin_min 线）
 
 > 状态：第一档落地已验证，CPU 目标未达（2026-10-12）。只认代码和实测：三招里第一招已实锤，后两招已实锤缺口，真方案对齐 Flutter/GLFW 损伤加年龄做法。
-> 状态更新（2026-10-16）：CPU 收敛中——16.99%（立项）→ 9.11%（2128225c 调度轮询+损伤复用）→ 约 7.1%（本日等待切片+着色器磁盘缓存，15s 固定命令三轮 7.21/7.10/7.15%）。进程目标 4%（整机 1%）未达。
+> 状态更新（2026-10-16）：CPU 收敛中——16.99%（立项）→ 9.11%（2128225c 调度轮询+损伤复用）→ 约 7.1%（本日等待切片+着色器磁盘缓存，15s 固定命令三轮 7.21/7.10/7.15%，干净树复测 7.21/7.21%）。进程目标 4%（整机 1%）未达。
+> 同日诊断（不改代码）：逐帧 GL 调用清单（稳态 14 次/帧，约 334µs/帧 ≈ 2.0pt）见 §7；残余第二大块 `runtime.sysmon` 空转（约 1.7pt）定位与三路证伪见修订表。
+> 同日标准对齐核查（4 笔「依据不足」收口）：剪刀常驻撤回（前提证伪，`gpu/gwgpu/gles/surface.go` 恢复上屏收尾永远 Disable），单上传快路 / 损伤矩形复用 / 命令缓冲复用补到 Impeller / Flutter 依据留下；撤回后 15s 三轮 7.28/7.07/7.31%（同小时 A/B 常驻 7.16/7.21/7.44%，差约 0.05~0.1pt 噪声内）。两条 blit else 分支的隐含依赖记为新问题待复现，见修订表。
 > 约束：60fps 不动；优化通用能力（任意静内容加旋转变换），不动示例行为；render/gpu 高风险区动手前另行确认。
 
 ## 0. 结论
@@ -64,6 +66,9 @@
 
 | 日期 | 内容 |
 |---|---|
+| 2026-10-16 | 标准对齐核查 4 笔收口（① 撤，②③④ 留+补依据）：① 剪刀常驻撤回——`gpu/gwgpu/gles/surface.go` 上屏收尾恢复永远 Disable（加一行约束注释）。依据：原注释「下一帧绘制自设剪刀」不成立，`render/internal/gpu/render_session.go` 两条 blit else 分支（6253-6255 `encodeBlitOnlyPass`、6548-6550 `encodeBlitToEncoder`）整 pass 不设剪刀、靠进 pass 时 GL 剪刀已关；PresentFrameFull/forceFull→FlushGPUWithView（damage 空）→blit-only 生产可达；Impeller 方向相反（`render_pass_gles.cc:435-445` 每 pass ResetGLState 显式关剪刀）。代价实测：撤回 7.28/7.07/7.31% 对常驻 7.16/7.21/7.44%（+0.07pt 中位差，噪声内）。② 单上传快路留：Impeller `device_buffer_gles.cc:91-134` 直 bind+BufferSubData 不批。③ 损伤矩形复用留：Flutter `flow/surface_frame.h:71-83` SubmitInfo 损伤值成员。④ 命令缓冲复用留：Impeller `render_pass.h:248-251`、`blit_pass_gles.h:27` 成员 vector。新问题归位：两条 else 分支「依赖进 pass 剪刀已关」（归属 render/internal/gpu 上屏路径；现象=blit-only 无损伤帧遇残留剪刀会被旧框裁），现状无可复现坏画面，待复现后再补全幅剪刀，本轮不动 render 主路。验证：gles 34 测试文件逐文件绿（0 红）；6s 窗 360 presents 0 报错；三查干净（CGO_ENABLED=0 本线范围编过；`./...` 全量被别线 `examples/ui_polish_gallery` 引不存在的 kit 包挡住，预先存在非本线） |
+| 2026-10-16 | 每帧 GL 调用清单实测（光栅线程 FFI 计时+命令转储，同二进制两轮）：稳态固定 14 次 FFI/帧，合计约 334µs/帧 ≈ 2.0pt 单核，明细见 §7。判定：uniform 合并上传对本窗无收益（uniform 全链 4 次调用约 35µs ≈ 0.2pt，就算合并成一次上传/一次绑定上限也只有约 0.1pt），不做；清单里唯一属于我们自己的结构开销是 blit+一次 FBO 绑定+blit 剪刀设置（70~90µs/帧 ≈ 0.45~0.55pt），候选做法是 GLES 交换链直接渲窗口默认帧缓冲、上屏只调 eglSwapBuffersWithDamageKHR（对齐 Flutter GLFW embedder 的 buffer-age 损伤），影响面评估与停下报告后再动手 |
+| 2026-10-16 | sysmon 空转定位与三路证伪：干净树 15s 两轮 7.21/7.21%（901 presents），线程账 光栅 2.65% + runtime.sysmon 1.72% + 事件循环 0.80%，其余各 <0.5%。sysmon 栈经 `strace -k` 实锤（`runtime.usleep` ← `runtime.sysmon`），实测约 2,000 次/s 的 20µs nanosleep；按倍增序列（40/80/160µs… 各约 33 次/s）反推约 33 次/s「复位」，每次复位约 1.2ms×20µs 轮询。喂它的原因三路都没坐实：① 关 vblank 阻塞（临时探针 `GPUI_NO_VBLANK_WAIT=1`，A/B 15s：6.83% 对 7.12%，sysmon 线程 1.66% 对 1.73%，探针臂全程无 ≥8ms 系统调用，20µs nanosleep 计数 1,815/s 对 2,036/s）——16.6ms ioctl 不是喂它的，与同日 vblank 撤回记录一致；② 关深睡（`GODEBUG=schedtrace=1000`）反而更差（sysmon 线程 3.05%，总 8.37%）；③ GOMAXPROCS=2 复测 7.26%（sysmon 2.12%），早前 60s 5.91% 不复现。另：最小 Go 探针（60Hz ticker+每拍 3 次 write，12s）同现象但量级小（sysmon 线程 0.37%），量与唤醒密度相关、非本引擎独有。结论：runtime 内部行为，应用层暂无杠杆；待办=若再追先做「帧内等待/跨 goroutine 交接次数减半」的 A/B（预期 0~1pt，不确定） |
 | 2026-10-16 | 第三刀落地：着色器翻译磁盘缓存（`gpu/gwgpu/gles/shader_disk_cache.go` 新文件 + `shader.go` 接线）。进程退出即丢的内存 memo 之外加一层落盘：键 = GLSL 版本+入口点+binding 布局+WGSL（沿用 `shaderCacheKey` 规范化），值 = GLSL 文本+TranslationInfo，严格解码拒未知字段（字段改名/删除退化成 miss 而非半解码），临时文件+原子改名（多进程竞争无害），`shaderDiskFormatVersion` 常量管 naga/codegen 变更失效（对齐 Mesa 驱动版本号口径）；默认目录 `~/.cache/gpui/shaders`，env `GPUI_SHADER_CACHE=0/off/false` 关、`GPUI_SHADER_CACHE_DIR` 换目录。实测：启动 naga 全量命中，首秒 CPU 430→250ms、分配 3.36M→35k、首帧 238→77ms、HitchCount 1→0；15s 固定命令同二进制 A/B 配对（关缓存 8.19/8.44/8.10 对开缓存 7.46/7.13/7.09，每对低 0.7~1.3pt），三轮终值 7.21/7.10/7.15%。测试：`shader_disk_cache_test.go` 9 用例（roundtrip/损坏拒绝/env 解析/跨进程复用）；gles 34 测试文件逐文件绿（1 SKIP，Windows-only 与 integration tag 文件未含）；CGO_ENABLED=0 编过、ui 直引 gpu 与 render 后端解耦两查干净 |
 | 2026-10-16 | 第二刀落地：主循环等待切片（`ui/embedder/pipeline_app.go` `maxHostWait=8ms`）。帧节流期间的主机等待本身 wake-pipe 驱动（输入/跨线程唤醒/帧 deadline 都会打断），切片只多一次重算；把每次阻塞压在 Go runtime 10ms syscall-retake 阈值之下（runtime/proc.go retake 会把手里的 P 交接，并让 sysmon 退回 20us 空转循环）。实测同日回线：pristine 8.70/8.96 对切片 8.11~8.50（六轮中位数 8.25），约省 0.5~0.8pt；空闲窗（负 timeout）保持无限等待不动 |
 | 2026-10-16 | vblank 事件化撤回记录：`ui/platform/vsync_drm_linux.go` 曾改成 DRM_VBLANK_EVENT 排队+poll/read 排空（两种形态：8ms 切片轮询 / 整预算单 poll），内核路径先用仓外探针证实可送（card1 上 type=0x1 seq 连号 tval 差 16.6ms），但同机配对实测两种形态都比原阻塞 ioctl 慢（5 轮配对中位数 A 8.25 对 C 8.54；pprof 里 WaitDRMVBlank 的 poll 栈 5~9ms/s 即代价），且 strace nanosleep 计数显示 sysmon 空转不靠这 16.6ms ioctl 喂（切片版 18501/6s 对 pristine 22120/6s）。结论：不落地，文件还原；vblank 继续用阻塞 ioctl。另记两条既有问题：gles `integration` tag 编译不过（integration_test.go 引 `hal.Instance.Destroy`，2128225c worktree 同错）；`ui/platform/x11_window_linux_test.go` 概率性失败（当日 3/5，pristine 同 3/5） |
@@ -77,3 +82,24 @@
 | 2026-10-12 | 第一档落地：GLES 交换链缓存 surface 视图（同一张纸同一个身份，Configure/Release 失活）；PresentTarget 损伤历史 depth4（重配清历史，forceFull 清历史传空整面上屏）；present 改调 EndFrameWithDamage；GLES 透脏区给 eglSwapBuffersWithDamage（无扩展回退整面），webgpu 保持整面回退。render/present_damage_history_test.go 5 单测全绿；render 损伤相关单测全绿（1 条红系预先存在，干净树同红）；gles 整包绿；真窗 go/native 双 60 帧、损伤 7~8 千、无圈、底深蓝；快照差异仅图标区旋转相位 283 像素，底一致 |
 | 2026-10-12 | 第一档验证结论：接线完成、无回归，但 CPU 目标未达（16.99%→16.49%，基本持平）。损伤剪刀只省填充，提交固定开销还在。真省要靠第二档（提交复用），另行立项 |
 | 2026-10-12 | 第一档收敛：forceFull 整帧跳过历史入栈（清历史传空整面上屏）；最终验证 go 599 presents/10.2s、damage_union 7921、亮像素 1023→1028 无圈，native 同模式干净。已合入 5402484d（仅本线 9 文件） |
+
+## 7. 每帧 GL 调用清单（2026-10-16 实测，光栅线程）
+
+同二进制两轮稳态（t=2..15s 稳定）：固定 14 次 FFI/帧（840 次/s），全部落在光栅线程；每帧驱动内时间合计约 334µs ≈ 2.0pt 单核（FFI 计时口径，含驱动的 C 内时间）。命令序（17 条命令，状态缓存并掉约 3 条）：BindVAO → BindSurfaceFramebuffer → SetViewport → DrawBuffers → Scissor(195,115,89×89) → BindGroup → VertexBuffer → UseProgram → PipelineState → 6 顶点 Draw → 6 顶点 Draw → blit → swap。
+
+| 调用 | 次/帧 | 单次（µs） | 备注 |
+|---|---|---|---|
+| eglSwapBuffersWithDamageKHR | 1 | 105~115 | 上屏，最大单项 |
+| glBindFramebuffer | 2 | 34~44 | 渲染通道绑定 + blit 前切缓冲 |
+| glBlitFramebuffer | 1 | 30~42 | 损伤 blit 到窗口默认帧缓冲 |
+| glDrawArrays | 2 | 19~24 | 两张 6 顶点四边形 |
+| glBufferSubData | 2 | 13 | 小上传（非顶点：顶点已静止命中） |
+| glBindBufferRange | 2 | 4~5 | uniform 绑 |
+| glScissor | 2 | ~4 | 损伤剪刀（常驻已撤回，见修订表） |
+| glBindTexture | 2 | 3.5 | 纹理绑定 |
+
+- 稳态无 glClear、无 glGetError、无 fence 查询；glGetError/着色器类调用只在启动 t=1s 出现。
+- 剪刀常驻已于 2026-10-16 撤回（依据不足+前提证伪）：稳态恢复每帧 1 次 glEnable + 1 次 glDisable，上表 14 次/帧为常驻下的计数，撤回后约 16 次/帧；固定命令 15s 三轮 7.28/7.07/7.31%，同小时 A/B 常驻 7.16/7.21/7.44%（中位差 +0.07pt，噪声内）。
+- uniform 合并上传：对本窗收益 ≈ 0。uniform 全链 glBufferSubData×2 + glBindBufferRange×2 约 35µs/帧 ≈ 0.2pt；就算合并成一次上传/一次绑定，上限也只有约 0.1pt。
+- 唯一属于我们的结构开销：blit（30~42µs）+ 一次 FBO 绑定（34~44µs）+ blit 剪刀设置，合计 70~90µs/帧 ≈ 0.45~0.55pt。候选做法：GLES 交换链直接渲进窗口默认帧缓冲（上屏只调 eglSwapBuffersWithDamageKHR），对齐 Flutter GLFW embedder（engine/src/flutter/examples/glfw_drm/FlutterEmbedderGLFW.cc 的 EGL_BUFFER_AGE+并历史损伤），损伤历史/并集逻辑沿用现有 PresentTarget。动手前先出影响面评估（快照读取路径、resize、多窗、retained 策略、双后端）并停在停下报告点。
+- 其余（swap、draw、bind 的驱动侧时间）是驱动固有成本，§4 结论不变。线程账另见修订表：光栅 2.65% + sysmon 1.72% + 事件循环 0.80%。
