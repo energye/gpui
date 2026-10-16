@@ -82,6 +82,16 @@ var lastFiltersApplied atomic.Int64
 // switches back from Mailbox/Immediate to Fifo (vsync).
 const resizeCalmWindow = 200 * time.Millisecond
 
+// maxHostWait bounds one blocking host wait while the scheduler is pacing
+// frames. The wait is wake-pipe driven (input, cross-thread wakes and the
+// frame deadline all interrupt it), so slicing it costs nothing beyond the
+// re-evaluation itself; keeping every slice under the Go runtime's 10ms
+// syscall-retake threshold (runtime/proc.go retake hands off a P parked in a
+// syscall, which also restarts sysmon's 20us spin loop) measured ~0.5-0.8
+// percentage points of process CPU on the spinning-icon window. IDLE waits
+// (negative timeout) stay unbounded: a static window must not wake on a timer.
+const maxHostWait = 8 * time.Millisecond
+
 // PipelineApp runs layout/paint → FramePacket → async raster present.
 // Steady-state submits never block the UI (SubmitLatest coalesces); open,
 // close, snapshot, warm-up and surface teardown synchronize with the raster
@@ -1092,6 +1102,10 @@ func (a *PipelineApp) Run() error {
 			if timeout < 0 || timeout > left {
 				timeout = left
 			}
+		}
+		// Slice active pacing waits (see maxHostWait).
+		if timeout > maxHostWait {
+			timeout = maxHostWait
 		}
 
 		evs := a.host.WaitEvents(timeout)

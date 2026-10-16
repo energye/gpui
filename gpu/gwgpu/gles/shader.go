@@ -151,6 +151,19 @@ func compileWGSLToGLSL(version glsl.Version, wgsl string, entryPoint string, bin
 	}
 	shaderCache.RUnlock()
 
+	// Disk hit: a previous process already translated this shader.
+	if disk := shaderDiskCacheFor(); disk != nil {
+		if glslCode, diskInfo, ok := disk.get(key); ok {
+			shaderCache.Lock()
+			shaderCache.entries[key] = shaderCacheEntry{glsl: glslCode, info: cloneTranslationInfo(diskInfo)}
+			shaderCache.Unlock()
+			// Still a memo miss (naga never saw it in this process); the disk
+			// layer reports its own hits via shaderDiskCacheStats.
+			shaderCache.misses.Add(1)
+			return glslCode, cloneTranslationInfo(diskInfo), nil
+		}
+	}
+
 	// Parse WGSL to AST.
 	ast, err := naga.Parse(wgsl)
 	if err != nil {
@@ -200,6 +213,11 @@ func compileWGSLToGLSL(version glsl.Version, wgsl string, entryPoint string, bin
 	shaderCache.entries[key] = shaderCacheEntry{glsl: glslCode, info: cloneTranslationInfo(translationInfo)}
 	shaderCache.Unlock()
 	shaderCache.misses.Add(1)
+
+	// Persist for later processes (best effort; a warm start skips naga).
+	if disk := shaderDiskCacheFor(); disk != nil {
+		disk.put(key, glslCode, translationInfo)
+	}
 
 	return glslCode, translationInfo, nil
 }
