@@ -57,6 +57,17 @@ type Surface struct {
 	swapchainFBO        uint32
 	colorTexture        uint32
 	fboWidth, fboHeight uint32
+	// directDefaultFB routes user render passes that target this Surface
+	// straight into the window default framebuffer (FBO 0) instead of
+	// swapchainFBO, which removes the present blit entirely. Set in
+	// createEGLWindowSurface from the window config's depth/stencil bits
+	// (see default_fb_linux.go); false keeps the offscreen swapchain route.
+	directDefaultFB bool
+	// defaultFBStale marks the default framebuffer's depth/stencil buffers as
+	// undefined, which the EGL spec says they are after a swap. Set by Present,
+	// cleared by the first surface pass that clears them (FBO 0 has no texture
+	// to carry the previous frame's depth/stencil the way swapchainFBO does).
+	defaultFBStale bool
 	// defaultDrawInit caches the default-framebuffer draw buffer: GL stores
 	// draw-buffer state per framebuffer, so BACK needs one set after the
 	// default FB is (re)created, not one per present. Cleared on
@@ -190,10 +201,19 @@ func (s *Surface) createEGLWindowSurface(width, height uint32) error {
 	s.eglDisplay = eglCtx.Display()
 	s.isWayland = eglCtx.WindowKind() == egl.WindowKindWayland
 
+	var err error
 	if s.isWayland {
-		return s.createWaylandEGLSurface(width, height)
+		err = s.createWaylandEGLSurface(width, height)
+	} else {
+		err = s.createX11EGLSurface()
 	}
-	return s.createX11EGLSurface()
+	if err != nil {
+		return err
+	}
+	// FBO 0 only serves as the render target when the window carries its own
+	// depth/stencil buffers (default_fb_linux.go).
+	s.enableDirectDefaultFB(eglCtx)
+	return nil
 }
 
 // createWaylandEGLSurface creates a wl_egl_window then an EGL window surface.
@@ -332,6 +352,10 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 	s.configured = false
 	s.config = nil
 	s.defaultDrawInit = false
+	// The window (and with it FBO 0) is gone: the direct route is re-resolved
+	// when the next EGL window surface is created.
+	s.directDefaultFB = false
+	s.defaultFBStale = false
 }
 
 // AcquireTexture returns the next surface texture for rendering.

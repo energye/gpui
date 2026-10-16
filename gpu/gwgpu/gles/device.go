@@ -563,6 +563,12 @@ func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (hal.Rende
 		}
 	}
 
+	// The target adjustment block carries no layout(binding) qualifier (the slot
+	// is a context property), so every linked program that declares it must be
+	// told where to find it — on both the explicit-location path and the runtime
+	// assignment path above.
+	assignTargetAdjustBinding(glCtx, programID, d.ctx.ensureTargetAdjust())
+
 	// Shaders can be deleted after linking
 	glCtx.DeleteShader(vertexID)
 	if fragmentID != 0 {
@@ -701,6 +707,10 @@ func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (hal.Com
 		}
 	}
 
+	// Compute programs never declare the block; the call is a no-op there and
+	// keeps the post-link binding in one place for every program.
+	assignTargetAdjustBinding(glCtx, programID, d.ctx.ensureTargetAdjust())
+
 	glCtx.DeleteShader(computeID)
 
 	if programID != 0 {
@@ -791,6 +801,7 @@ func (d *Device) DestroyQuerySet(qs hal.QuerySet) {
 func (d *Device) CreateCommandEncoder(_ *CommandEncoderDescriptor) (hal.CommandEncoder, error) {
 	enc := acquireCommandEncoder()
 	enc.glCtx = d.ctx.GL()
+	enc.ctx = d.ctx
 	enc.vao = d.vao
 	enc.maxTextureUnits = d.maxTextureUnits
 	return enc, nil

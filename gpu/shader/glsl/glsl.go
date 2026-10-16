@@ -109,6 +109,25 @@ const (
 	// WriterFlagTextureShadowLod enables GL_EXT_texture_shadow_lod extension
 	// for sampling cube/array shadow textures with explicit LOD.
 	WriterFlagTextureShadowLod
+
+	// WriterFlagTargetCoordinateAdjust resolves the coordinate-space
+	// adjustment (WriterFlagAdjustCoordinateSpace) from the uniform block
+	// GpuiTargetAdjust instead of baking the constant -1.0 into the shader.
+	// The block carries vec4(ySign, fragYScale, fragYOffset, 0) and is bound
+	// by the GL backend:
+	//
+	//	render target (texture/FBO)      vec4(-1.0,  1.0, 0.0, 0.0)
+	//	window default framebuffer       vec4( 1.0, -1.0,   H, 0.0)
+	//
+	// A render target whose bottom left is the source of gl_FragCoord keeps
+	// the historical behaviour (Y-negative vertex flip plus identity fragment
+	// read); a window default framebuffer, where the GL bottom-left origin is
+	// the bottom of the display, renders the mirrored geometry instead and
+	// mirrors @builtin(position) back, so fragment math sees the same
+	// top-down Y as it does for a render target. Requires
+	// WriterFlagAdjustCoordinateSpace and applies to vertex and fragment
+	// stages only.
+	WriterFlagTargetCoordinateAdjust
 )
 
 // BoundsCheckPolicy controls how out-of-bounds resource accesses are handled.

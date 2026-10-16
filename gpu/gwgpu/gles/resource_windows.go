@@ -38,6 +38,16 @@ type Surface struct {
 	colorTexture uint32
 	fboWidth     uint32
 	fboHeight    uint32
+	// directDefaultFB routes user render passes into the window default
+	// framebuffer (FBO 0) on the EGL twin (see default_fb_linux.go). The WGL
+	// twin stays on the offscreen swapchain route: the pixel format's
+	// depth/stencil bits are not queried here yet, so this is always false and
+	// the shared encoder/present code below keeps its old behaviour.
+	directDefaultFB bool
+	// defaultFBStale marks the default framebuffer's depth/stencil buffers as
+	// undefined after a swap (EGL twin: default_fb_linux.go). Unused while
+	// directDefaultFB is false.
+	defaultFBStale bool
 	// defaultDrawInit caches the default-framebuffer draw buffer
 	// (Linux twin: same trim — BACK set once per default FB).
 	defaultDrawInit bool

@@ -574,9 +574,7 @@ func (w *Writer) writeDirectReturn(ret ir.StmtReturn) error {
 		w.WriteLine("%s = %s;", outputName, value)
 		// For vertex position output, add coordinate space adjustment and point size
 		if b.Builtin == ir.BuiltinPosition {
-			if w.options.WriterFlags&WriterFlagAdjustCoordinateSpace != 0 {
-				w.WriteLine("gl_Position.yz = vec2(-gl_Position.y, gl_Position.z * 2.0 - gl_Position.w);")
-			}
+			w.writePositionAdjust()
 			if w.options.WriterFlags&WriterFlagForcePointSize != 0 {
 				w.WriteLine("gl_PointSize = 1.0;")
 			}
@@ -659,15 +657,31 @@ func (w *Writer) writeStructReturn(ret ir.StmtReturn, info *epStructInfo) error 
 func (w *Writer) writeCoordinateAdjustIfNeeded(info *epStructInfo) {
 	for _, member := range info.members {
 		if member.isBuiltin && member.builtinName == "gl_Position" {
-			if w.options.WriterFlags&WriterFlagAdjustCoordinateSpace != 0 {
-				w.WriteLine("gl_Position.yz = vec2(-gl_Position.y, gl_Position.z * 2.0 - gl_Position.w);")
-			}
+			w.writePositionAdjust()
 			if w.options.WriterFlags&WriterFlagForcePointSize != 0 {
 				w.WriteLine("gl_PointSize = 1.0;")
 			}
 			return
 		}
 	}
+}
+
+// writePositionAdjust writes the vertex-stage gl_Position epilogue that
+// converts WebGPU clip space (Y down, Z in [0,1]) to GL clip space (Y up, Z in
+// [-1,1]).
+//
+// With WriterFlagTargetCoordinateAdjust the Y sign is read from the target
+// adjustment block, whose value for a render target is -1.0, so the emitted
+// multiply is bit-identical to the literal negation it replaces.
+func (w *Writer) writePositionAdjust() {
+	if w.options.WriterFlags&WriterFlagAdjustCoordinateSpace == 0 {
+		return
+	}
+	ySign := "-gl_Position.y"
+	if w.usesTargetAdjust() {
+		ySign = fmt.Sprintf("%s.x * gl_Position.y", targetAdjustMemberName)
+	}
+	w.WriteLine("gl_Position.yz = vec2(%s, gl_Position.z * 2.0 - gl_Position.w);", ySign)
 }
 
 // writeBarrier writes a control barrier statement.

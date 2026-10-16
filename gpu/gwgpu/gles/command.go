@@ -24,4 +24,10 @@ type Command interface {
 // CommandBuffer holds recorded commands for later execution.
 type CommandBuffer struct {
 	commands []Command
+	// windowSurface is set when this buffer renders into a Surface's window
+	// default framebuffer (default_fb_linux.go). FBO 0 is a drawable only for
+	// the EGL surface the context is bound to, while the pbuffer binding the
+	// plain Submit path uses leaves it without one: Queue.Submit binds the
+	// window before running such a buffer.
+	windowSurface *Surface
 }

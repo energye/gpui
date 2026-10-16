@@ -341,6 +341,9 @@ func (w *Writer) writeModule() error {
 		return err
 	}
 
+	// 6b. Internal target coordinate adjustment block (vertex/fragment only).
+	w.writeTargetAdjustBlock()
+
 	// 7.
 	w.writeVaryingDeclarations()
 
@@ -1189,6 +1192,59 @@ func (w *Writer) writeUniformBlock(name, typeName string, global ir.GlobalVariab
 		w.PopIndent()
 		w.WriteLine("} %s;", name)
 	}
+}
+
+// targetAdjustBlockName is the GLSL block name of the internal coordinate
+// adjustment block emitted for WriterFlagTargetCoordinateAdjust. The GL
+// backend binds it by this name after linking (gles: assignTargetAdjustBinding).
+const targetAdjustBlockName = "GpuiTargetAdjust"
+
+// targetAdjustMemberName is the block member holding the adjustment
+// parameters vec4(ySign, fragYScale, fragYOffset, 0).
+const targetAdjustMemberName = "gpui_target_adjust"
+
+// usesTargetAdjust reports whether this shader resolves the coordinate space
+// adjustment from the target adjustment block.
+func (w *Writer) usesTargetAdjust() bool {
+	if w.options.WriterFlags&WriterFlagTargetCoordinateAdjust == 0 {
+		return false
+	}
+	if w.options.WriterFlags&WriterFlagAdjustCoordinateSpace == 0 {
+		return false
+	}
+	stage := w.currentEntryPointStage()
+	return stage == ir.StageVertex || stage == ir.StageFragment
+}
+
+// writeTargetAdjustBlock writes the internal target adjustment block. The
+// vertex and fragment stages declare it with an identical layout so that the
+// linked program has one block both stages agree on.
+func (w *Writer) writeTargetAdjustBlock() {
+	if !w.usesTargetAdjust() {
+		return
+	}
+	w.WriteLine("layout(std140) uniform %s {", targetAdjustBlockName)
+	w.PushIndent()
+	w.WriteLine("vec4 %s;", targetAdjustMemberName)
+	w.PopIndent()
+	w.WriteLine("};")
+	w.WriteLine("")
+}
+
+// builtinValue returns the GLSL expression that reads a builtin value.
+//
+// A fragment @builtin(position) read goes through the target adjustment block
+// when the flip is uniform-resolved, so every target exposes the same top-down
+// Y: for a render target the bound values make the expression the identity on
+// gl_FragCoord, for a window default framebuffer they mirror the Y axis into
+// that same space.
+func (w *Writer) builtinValue(builtin ir.BuiltinValue, isOutput bool) string {
+	if !isOutput && builtin == ir.BuiltinPosition &&
+		w.currentEntryPointStage() == ir.StageFragment && w.usesTargetAdjust() {
+		return fmt.Sprintf("vec4(gl_FragCoord.x, %s.y * gl_FragCoord.y + %s.z, gl_FragCoord.z, gl_FragCoord.w)",
+			targetAdjustMemberName, targetAdjustMemberName)
+	}
+	return glslBuiltIn(builtin, isOutput)
 }
 
 // Uses the namer-registered type name (not GLSL type name) for block naming.
@@ -2054,7 +2110,7 @@ func (w *Writer) writeStructArgIO(argIdx uint32, typeHandle ir.TypeHandle, quali
 				glslName: name,
 			}
 		case ir.BuiltinBinding:
-			builtinName := glslBuiltIn(b.Builtin, isOutput)
+			builtinName := w.builtinValue(b.Builtin, isOutput)
 			info.members[memberIdx] = epStructMemberInfo{
 				isBuiltin:   true,
 				builtinName: builtinName,
@@ -2268,7 +2324,7 @@ func (w *Writer) writeEntryPointArgLocals(ep *ir.EntryPoint) {
 		if arg.Binding != nil {
 			switch b := (*arg.Binding).(type) {
 			case ir.BuiltinBinding:
-				initValue = glslBuiltIn(b.Builtin, false)
+				initValue = w.builtinValue(b.Builtin, false)
 				// ViewIndex: WebGL uses gl_ViewID_OVR, non-WebGL uses uint(gl_ViewIndex)
 				if b.Builtin == ir.BuiltinViewIndex && !w.options.LangVersion.isWebGL() {
 					initValue = "uint(gl_ViewIndex)"
@@ -2345,7 +2401,7 @@ func (w *Writer) setupEntryPointIO(ep *ir.EntryPoint) {
 					glslName: w.lookupVaryingName(b.Location, ep.Stage, false),
 				}
 			case ir.BuiltinBinding:
-				builtinName := glslBuiltIn(b.Builtin, false)
+				builtinName := w.builtinValue(b.Builtin, false)
 				info.members[memberIdx] = epStructMemberInfo{
 					isBuiltin:   true,
 					builtinName: builtinName,

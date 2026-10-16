@@ -41,10 +41,15 @@ func acquireCommandList() []Command {
 // Platform-specific fields are defined in command_<platform>.go files.
 type CommandEncoder struct {
 	glCtx           *gl.Context
+	ctx             *AdapterContext // owning context: target-adjust publishes through it
 	commands        []Command
 	label           string
 	vao             uint32 // persistent VAO from Device for Core Profile
 	maxTextureUnits int32  // Hardware limit passed from Device
+	// directSurface is the window whose default framebuffer this buffer draws
+	// into (default_fb_linux.go): the submit that runs it must bind that
+	// window's EGL surface (CommandBuffer.windowSurface).
+	directSurface *Surface
 }
 
 // Hot-command pools: the per-draw command structs below are recorded every
@@ -214,6 +219,9 @@ func releaseCommandEncoder(e *CommandEncoder) {
 	e.glCtx = nil
 	e.vao = 0
 	e.maxTextureUnits = 0
+	// Pooled encoders must not carry a previous frame's window surface into a
+	// plain (pbuffer-bound) submit.
+	e.directSurface = nil
 	commandEncoderPool.Put(e)
 }
 
@@ -229,7 +237,8 @@ func (e *CommandEncoder) BeginEncoding(label string) error {
 // EndEncoding finishes command recording and returns a command buffer.
 func (e *CommandEncoder) EndEncoding() (hal.CommandBuffer, error) {
 	cmdBuf := &CommandBuffer{
-		commands: e.commands,
+		commands:      e.commands,
+		windowSurface: e.directSurface,
 	}
 	e.commands = nil
 	releaseCommandEncoder(e)
@@ -469,10 +478,16 @@ func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.Re
 		e.setupColorAttachment(desc, rpe)
 	}
 
-	// Set draw buffers for MRT.
+	// Set draw buffers for MRT. A pass into the window default framebuffer
+	// takes BACK instead: FBO 0 rejects COLOR_ATTACHMENT0 (see
+	// SetDrawColorBuffersCommand).
 	if desc != nil && len(desc.ColorAttachments) > 0 {
+		count := len(desc.ColorAttachments)
+		if defaultFBTargetSurface(desc) != nil {
+			count = drawBuffersBack
+		}
 		e.commands = append(e.commands, &SetDrawColorBuffersCommand{
-			count: len(desc.ColorAttachments),
+			count: count,
 		})
 	}
 
@@ -533,7 +548,6 @@ func (e *CommandEncoder) setupColorAttachment(desc *hal.RenderPassDescriptor, rp
 	if !ok {
 		return
 	}
-
 	if tv.isSurface {
 		e.setupSurfaceTarget(desc, tv, rpe)
 		return
@@ -563,6 +577,10 @@ func (e *CommandEncoder) setupColorAttachment(desc *hal.RenderPassDescriptor, rp
 func (e *CommandEncoder) setupSurfaceTarget(desc *hal.RenderPassDescriptor, tv *TextureView, rpe *RenderPassEncoder) {
 	if tv.surfaceTex != nil && tv.surfaceTex.surface != nil {
 		surf := tv.surfaceTex.surface
+		if surf.directDefaultFB {
+			e.setupDirectDefaultFBTarget(desc, surf, rpe)
+			return
+		}
 		e.commands = append(e.commands, &BindSurfaceFramebufferCommand{surface: surf})
 		if surf.config != nil {
 			cfg := surf.config
@@ -584,11 +602,56 @@ func (e *CommandEncoder) setupSurfaceTarget(desc *hal.RenderPassDescriptor, tv *
 				}
 			}
 		}
+		e.commands = append(e.commands, &SetTargetAdjustCommand{ctx: e.ctx})
 		return
 	}
 	// Fallback: no surface texture (shouldn't normally happen for isSurface=true
 	// views, but preserves prior behavior for tests / degenerate cases).
 	e.commands = append(e.commands, &BindFramebufferCommand{fbo: 0})
+}
+
+// setupDirectDefaultFBTarget records a surface pass that renders straight into
+// the window default framebuffer (default_fb_linux.go). It is the whole
+// difference between that route and the offscreen swapchain one: no offscreen
+// FBO, no depth/stencil attach (FBO 0 takes none), and the window value for the
+// coordinate adjustment, which mirrors the geometry and the fragment position
+// read so the pass produces the same pixels the offscreen route produced.
+func (e *CommandEncoder) setupDirectDefaultFBTarget(
+	desc *hal.RenderPassDescriptor, surf *Surface, rpe *RenderPassEncoder,
+) {
+	e.directSurface = surf
+	e.commands = append(e.commands, &BindDefaultFramebufferCommand{surface: surf})
+	if surf.config != nil {
+		cfg := surf.config
+		rpe.fbHeight = cfg.Height
+		// The window value of the target adjustment draws the scene without
+		// the vertex Y flip, so pixel-space rects stay in GL's bottom-up rows
+		// and the pass mirrors them (SetScissorRect).
+		rpe.flipScissor = true
+		e.commands = append(e.commands, &SetViewportCommand{
+			width:    float32(cfg.Width),
+			height:   float32(cfg.Height),
+			maxDepth: 1,
+		})
+		e.commands = append(e.commands, &SetTargetAdjustCommand{
+			ctx:    e.ctx,
+			window: true,
+			height: cfg.Height,
+		})
+	}
+	// Depth and stencil the pass does not clear itself come from the back
+	// buffer the last swap left behind, whose content EGL leaves undefined:
+	// the first pass of a frame that attaches depth/stencil clears what its
+	// own load ops leave out (ClearDefaultDepthStencilCommand). Passes that
+	// attach neither cannot read either, so they neither clear nor consume
+	// the flag — the next pass that needs it still gets its clear.
+	if dsa := desc.DepthStencilAttachment; dsa != nil {
+		e.commands = append(e.commands, &ClearDefaultDepthStencilCommand{
+			surface: surf,
+			depth:   dsa.DepthLoadOp != gputypes.LoadOpClear,
+			stencil: dsa.StencilLoadOp != gputypes.LoadOpClear,
+		})
+	}
 }
 
 // depthSizeMatches reports whether a depth/stencil texture covers a w×h
@@ -640,6 +703,10 @@ func (e *CommandEncoder) setupOffscreenTarget(
 		height:   float32(tv.texture.size.Height),
 		maxDepth: 1,
 	})
+	// Every pass carries a color attachment, so every pass publishes the
+	// target coordinate adjustment (target_adjust.go): a pass that skipped it
+	// would inherit the previous pass's value and draw with the wrong Y.
+	e.commands = append(e.commands, &SetTargetAdjustCommand{ctx: e.ctx})
 
 	// Record MSAA resolve target if present (attachment 0 only).
 	ca := desc.ColorAttachments[0]
@@ -701,6 +768,11 @@ type RenderPassEncoder struct {
 	indexFormat   gputypes.IndexFormat
 	stencilRef    uint32
 	fbHeight      uint32 // Framebuffer height for MSAA resolve blit Y-flip
+	// flipScissor mirrors pixel-space rects into GL's bottom-up rows. A window
+	// default framebuffer is drawn without the vertex Y flip (target_adjust.go),
+	// so WebGPU's top-left rects do not map to GL scissor boxes directly
+	// (default_fb_linux.go, SetScissorRect).
+	flipScissor bool
 
 	// MSAA resolve state: set during BeginRenderPass when ResolveTarget is present.
 	msaaTexture      *Texture // The MSAA color texture (source for resolve)

@@ -58,6 +58,25 @@ func (e *RenderPassEncoder) resolveTargetSurface() *Surface {
 	return rv.surfaceTex.surface
 }
 
+// defaultFBTargetSurface returns the Surface whose window default framebuffer
+// this pass renders into, or nil when the pass targets an FBO or a Surface that
+// keeps the offscreen swapchain route. Twin of resolveTargetSurface for the
+// color attachment (default_fb_linux.go).
+func defaultFBTargetSurface(desc *hal.RenderPassDescriptor) *Surface {
+	if desc == nil || len(desc.ColorAttachments) == 0 {
+		return nil
+	}
+	tv, ok := desc.ColorAttachments[0].View.(*TextureView)
+	if !ok || tv == nil || tv.surfaceTex == nil || tv.surfaceTex.surface == nil {
+		return nil
+	}
+	surf := tv.surfaceTex.surface
+	if !surf.directDefaultFB {
+		return nil
+	}
+	return surf
+}
+
 // emitMSAAResolve appends the appropriate MSAAResolveCommand when the pass has
 // an MSAA resolve target. Must only be called when e.msaaTexture != nil.
 // emitMSAAResolve appends the appropriate MSAAResolveCommand when the pass has
@@ -275,8 +294,22 @@ func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth 
 // Identical values emit once.
 // SetScissorRect sets the scissor rectangle.
 // With ADJUST_COORDINATE_SPACE, no Y-flip is needed — coordinates pass through directly.
-// Identical values emit once.
+// On a window default framebuffer the vertex Y flip is off instead
+// (target_adjust.go: the window adjustment mirrors the geometry back), so the
+// rect, which is given in top-left pixel space, is mirrored into GL's
+// bottom-left rows (default_fb_linux.go).
 func (e *RenderPassEncoder) SetScissorRect(x, y, width, height uint32) {
+	if e.flipScissor {
+		// GL framebuffer rows run bottom-up: row 0 is the window's bottom.
+		// Rect and target are both validated to fit, so the mirror stays in
+		// range; the clamp keeps a caller's out-of-range rect within GLint
+		// instead of wrapping into a huge scissor box.
+		if m := int64(e.fbHeight) - int64(y) - int64(height); m >= 0 {
+			y = uint32(m)
+		} else {
+			y = 0
+		}
+	}
 	box := [4]uint32{x, y, width, height}
 	if e.stateVals.scissorOK && e.stateVals.scissor == box {
 		return

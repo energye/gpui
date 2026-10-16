@@ -38,6 +38,11 @@ type AdapterContext struct {
 
 	initOnce sync.Once
 	initErr  error
+
+	// targetAdjust is the internal target coordinate adjustment block (see
+	// target_adjust.go). Per GL context, so it lives here rather than on a
+	// Device: several devices may share one context.
+	targetAdjust targetAdjustState
 }
 
 // NewAdapterContext creates an AdapterContext with a hidden window DC.
@@ -188,11 +193,24 @@ func (c *AdapterContext) HGLRC() wgl.HGLRC {
 	return c.hglrc
 }
 
+// allocTargetAdjustStore creates the (empty) 16-byte store of the target
+// adjustment buffer. glBufferData's data parameter is unsafe.Pointer in this
+// context wrapper and uintptr in the EGL one, so this single call cannot be
+// shared (twin: adapter_context_linux.go).
+func allocTargetAdjustStore(glCtx *gl.Context, ubo uint32) {
+	glCtx.BindBuffer(gl.UNIFORM_BUFFER, ubo)
+	glCtx.BufferData(gl.UNIFORM_BUFFER, targetAdjustSize, nil, gl.DYNAMIC_DRAW)
+}
+
 // Destroy deletes the GL context if it was created.
 // Takes the mutex so Destroy cannot race with Lock/Unlock on another goroutine.
 func (c *AdapterContext) Destroy() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// The target adjustment buffer dies with the context (GL objects belong to
+	// their context), so only the stale id has to be dropped: reusing it in a
+	// recreated context would bind a recycled buffer name.
+	c.targetAdjust = targetAdjustState{}
 	if c.hglrc != 0 {
 		_ = wgl.MakeCurrent(0, 0)
 		_ = wgl.DeleteContext(c.hglrc)

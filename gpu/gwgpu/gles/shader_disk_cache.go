@@ -32,7 +32,11 @@ import (
 // BUMP IT whenever naga's parse/lower/codegen or TranslationInfo changes
 // shape: entries keyed by source+options stay valid across those changes
 // otherwise, and a stale translation would be silently served.
-const shaderDiskFormatVersion = 1
+//
+// v2: the coordinate-space flip moved into the GpuiTargetAdjust block
+// (glsl.WriterFlagTargetCoordinateAdjust). A v1 entry has the baked -1.0 and no
+// block declaration, which would silently keep the pre-block behaviour.
+const shaderDiskFormatVersion = 2
 
 // Env knobs for the disk layer (internal defaults, operational overrides):
 //

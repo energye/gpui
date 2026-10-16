@@ -141,6 +141,21 @@ func TestH4C_TriangleOffscreenPixel(t *testing.T) {
 		t.Fatalf("program link failed: %s", glCtx.GetProgramInfoLog(prog))
 	}
 
+	// 目标坐标调整块没有 layout(binding) 限定符（槽位属于上下文），链接后
+	// 必须走与 Device.CreateRenderPipeline 同一条指名路径；不指名则块读出 0，
+	// 顶点 Y 变 0、图元塌陷。用真实现（AdapterContext + assignTargetAdjustBinding）
+	// 而不是在测试里手写一遍。
+	adjustCtx := NewAdapterContext(nil, glCtx, false)
+	defer adjustCtx.Destroy()
+	adjustSlot := adjustCtx.ensureTargetAdjust()
+	if adjustSlot == 0 {
+		t.Fatal("ensureTargetAdjust returned slot 0")
+	}
+	assignTargetAdjustBinding(glCtx, prog, adjustSlot)
+	if idx := glCtx.GetUniformBlockIndex(prog, targetAdjustBlockName); idx == 0xFFFFFFFF {
+		t.Fatalf("linked program does not declare %s", targetAdjustBlockName)
+	}
+
 	// 离屏 FBO（单采样 RGBA8 纹理，无 MSAA，不确定因素为零）。
 	tex := glCtx.GenTextures(1)
 	if tex == 0 {

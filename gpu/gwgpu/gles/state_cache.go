@@ -411,7 +411,15 @@ func (s *glExecState) bindDraw(fbo uint32) bool {
 	return true
 }
 
-// setDrawBuffers gates DrawBuffers by count (steady single-target frames skip it).
+// drawBuffersBack is the setDrawBuffers key for the window default
+// framebuffer, whose only valid draw buffer is BACK (GL_COLOR_ATTACHMENT0 is
+// INVALID_OPERATION there). Distinct from every attachment count so the two
+// variants are never conflated in the cache.
+const drawBuffersBack = -1
+
+// setDrawBuffers gates DrawBuffers by draw-buffer list identity (steady
+// single-target frames skip it). drawBuffersBack keys the default
+// framebuffer's BACK list; every attachment count keys COLOR_ATTACHMENT0..N.
 func (s *glExecState) setDrawBuffers(count int) bool {
 	if s.drawBufsSet && s.drawBufsCount == count {
 		return false

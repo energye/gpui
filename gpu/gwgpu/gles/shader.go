@@ -184,13 +184,19 @@ func compileWGSLToGLSL(version glsl.Version, wgsl string, entryPoint string, bin
 		ForceHighPrecision: true,
 		BindingMap:         bindingMap,
 		// This flips Y and remaps Z from [0,1] to [-1,1].
-		// The scene renders upside-down inside the Surface's swapchain offscreen FBO
-		// (hal/gles/surface.go). Queue.Present performs an explicit Y-flipping
-		// The flip also fixes gl_FragCoord.y convention in fragment shaders: with
-		// the flip, gl_FragCoord.y=0 is at the top, not bottom
-		// (GL convention). Without it, rrect_clip_coverage() in fragment shaders
-		// gets wrong Y values.
-		WriterFlags: glsl.WriterFlagAdjustCoordinateSpace | glsl.WriterFlagForcePointSize,
+		//
+		// The flip is resolved from the internal target adjustment block
+		// (target_adjust.go) rather than baked as -1.0, so one compiled shader
+		// set serves every target. For a render target — the Surface's
+		// swapchain offscreen FBO, offscreen textures — the bound value is
+		// -1.0, which keeps the historical behaviour: the scene lands
+		// upside-down in the FBO (Queue.Present Y-flip blits it to the window),
+		// and gl_FragCoord.y counts logical rows from the top, which is what
+		// rrect_clip_coverage() and the mask UVs expect. For a window default
+		// framebuffer the value is +1.0 with the fragment Y read mirrored.
+		WriterFlags: glsl.WriterFlagAdjustCoordinateSpace |
+			glsl.WriterFlagForcePointSize |
+			glsl.WriterFlagTargetCoordinateAdjust,
 	})
 	if err != nil {
 		return "", glsl.TranslationInfo{}, fmt.Errorf("gles: GLSL compile error for entry point %q: %w", entryPoint, err)

@@ -46,7 +46,22 @@ type Queue struct {
 // raster merged path hits EGL_BAD_ACCESS on another OS thread. Only
 // SubmitAndPresent (raster steady path) keeps.
 func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
-	glCtx := q.ctx.Lock()
+	// A command buffer that draws into a window default framebuffer needs that
+	// window's EGL surface current: FBO 0 belongs to the bound surface, and the
+	// pbuffer binding below has none (default_fb_linux.go). Everything else
+	// runs on the pbuffer as before.
+	directSurf, err := directWindowSurface(commandBuffers)
+	if err != nil {
+		return 0, err
+	}
+	var glCtx *gl.Context
+	if directSurf != nil {
+		if glCtx, err = q.ctx.TryLockForSurface(directSurf.eglSurface); err != nil {
+			return 0, fmt.Errorf("gles: Submit bind window surface failed: %w", err)
+		}
+	} else {
+		glCtx = q.ctx.Lock()
+	}
 	defer q.ctx.Unlock()
 	st := newGLExecState()
 	if list := q.batch.drain(); len(list) > 0 {
@@ -74,8 +89,9 @@ func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 }
 
 // execCommandBuffers runs recorded GL commands under the caller's lock.
-// Shared by Submit (pbuffer-bound) and SubmitAndPresent (surface-bound):
-// the commands draw into FBOs, so the draw surface does not matter.
+// Shared by Submit (pbuffer-bound, or window-bound when the batch draws into a
+// window default framebuffer) and SubmitAndPresent (surface-bound): the
+// remaining commands draw into FBOs, so the draw surface does not matter.
 func (q *Queue) execCommandBuffers(glCtx *gl.Context, st *glExecState, commandBuffers []hal.CommandBuffer) error {
 	st.dbg = hal.Logger().Enabled(context.Background(), slog.LevelDebug)
 	for _, cb := range commandBuffers {
@@ -371,7 +387,13 @@ func (q *Queue) presentLockedGL(glCtx *gl.Context, st *glExecState, surf *Surfac
 	// Damage-scissored blit: steady frames move only the dirty union
 	// instead of the full surface (see blitSwapchainToDefaultDamageWith).
 	// Empty damage = force-full frame → full blit, same as before.
-	surf.blitSwapchainToDefaultDamageWith(glCtx, st, damageRects)
+	//
+	// A Surface that renders straight into the window default framebuffer has
+	// nothing to blit: the pass already wrote the pixels FBO 0 is about to
+	// show (default_fb_linux.go).
+	if !surf.directDefaultFB {
+		surf.blitSwapchainToDefaultDamageWith(glCtx, st, damageRects)
+	}
 
 	// Use damage-aware swap when the extension is available and rects provided.
 	if len(damageRects) > 0 && egl.HasSwapBuffersWithDamage() {
@@ -399,6 +421,7 @@ func (q *Queue) presentLockedGL(glCtx *gl.Context, st *glExecState, surf *Surfac
 			return fmt.Errorf("gles: eglSwapBuffersWithDamageKHR failed: error 0x%x", egl.GetError())
 		}
 		surf.DiscardTexture(tex)
+		surf.markDefaultFBStale()
 		return nil
 	}
 
@@ -408,6 +431,7 @@ func (q *Queue) presentLockedGL(glCtx *gl.Context, st *glExecState, surf *Surfac
 		return fmt.Errorf("gles: eglSwapBuffers failed: error 0x%x", egl.GetError())
 	}
 	surf.DiscardTexture(tex)
+	surf.markDefaultFBStale()
 
 	return nil
 }

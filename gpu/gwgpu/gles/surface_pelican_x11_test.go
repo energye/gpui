@@ -11,11 +11,9 @@ import (
 	"runtime"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"github.com/energye/gpui/gpu/gwgpu/gles/egl"
-	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 	"github.com/energye/gpui/gpu/hal"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
@@ -83,6 +81,7 @@ func h4e3OpenX11Window(t *testing.T, w, h int) *h4e3X11Win {
 	xStoreName(dpy, win, &name[0])
 	xMapWindow(dpy, win)
 	xFlush(dpy)
+	waitUntilViewable(t, lib, dpy, win, 5*time.Second)
 
 	return &h4e3X11Win{lib: lib, display: dpy, window: win}
 }
@@ -194,6 +193,8 @@ func TestH4E3_PelicanWindowPresentX11(t *testing.T) {
 		t.Fatalf("CreateRenderPipeline: %v", err)
 	}
 
+	// drawFrame draws one frame into the acquired surface texture: blue clear
+	// with the triangle on top.
 	drawFrame := func() hal.SurfaceTexture {
 		t.Helper()
 		acq, err := surf.AcquireTexture(nil)
@@ -240,38 +241,10 @@ func TestH4E3_PelicanWindowPresentX11(t *testing.T) {
 		return acq.Texture
 	}
 
-	// 第一帧：画三角 → swapchainFBO 读回做鹈鹕级对照 → Present 换屏。
+	// 第一帧：画三角 → Present 换屏 → 从 X 服务器读窗口内容做鹈鹕级对照。
+	// 直渲路下窗口默认帧缓冲就是被换上的那张，离屏路下窗口内容是生产 blit
+	// 的输出；两条路断言的都是「窗上真显示的那张」。
 	firstTex := drawFrame()
-
-	glCtx := surf.ctx.Lock()
-	glCtx.Finish()
-	glCtx.BindFramebuffer(gl.FRAMEBUFFER, surf.swapchainFBO)
-	pixels := make([]byte, w*h*4)
-	glCtx.ReadPixels(0, 0, int32(w), int32(h), gl.RGBA, gl.UNSIGNED_BYTE, unsafe.Pointer(&pixels[0]))
-	glCtx.BindFramebuffer(gl.FRAMEBUFFER, 0)
-	surf.ctx.Unlock()
-
-	at := func(x, y int) []int {
-		o := (y*w + x) * 4
-		return []int{int(pixels[o]), int(pixels[o+1]), int(pixels[o+2]), int(pixels[o+3])}
-	}
-	eq := func(a, b []int) bool {
-		return len(a) == 4 && len(b) == 4 && a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3]
-	}
-	if got := at(w/2, h/2); !eq(got, golden.Center) {
-		t.Errorf("pelican-size frame center = %v, want %v", got, golden.Center)
-	}
-	for _, p := range [][2]int{{0, 0}, {w - 1, 0}, {0, h - 1}, {w - 1, h - 1}} {
-		if got := at(p[0], p[1]); !eq(got, golden.Corner) {
-			t.Errorf("pelican-size frame corner %v = %v, want %v", p, got, golden.Corner)
-		}
-	}
-	sum := md5.Sum(pixels)
-	if gotMD5 := hex.EncodeToString(sum[:]); gotMD5 != golden.PixelsMD5 {
-		t.Errorf("pelican-size frame pixels md5 = %s, want %s (golden testdata/h4e3_pelican_golden.json)", gotMD5, golden.PixelsMD5)
-	} else {
-		t.Logf("pelican-size frame pixels md5: %s", gotMD5)
-	}
 
 	if err := queue.Present(surfHal, firstTex, nil); err != nil {
 		t.Fatalf("Queue.Present(frame1): %v", err)
@@ -282,6 +255,33 @@ func TestH4E3_PelicanWindowPresentX11(t *testing.T) {
 	if surf.current != nil {
 		t.Error("in-flight frame not dropped after Present(frame1)")
 	}
+
+	// 换屏后的窗口内容由 X 服务器在下一个 vblank 取上新缓冲，等到本帧到位再断言。
+	pixels := pollWindowPixels(t, xw.lib, xw.display, xw.window, w, h, func(p []byte) bool {
+		s := md5.Sum(p)
+		return hex.EncodeToString(s[:]) == golden.PixelsMD5
+	})
+	const source = "X server window copy"
+
+	at := func(x, y int) []int {
+		return pixelsAt(pixels, w, x, y)
+	}
+	eq := pixelsEqual
+	if got := at(w/2, h/2); !eq(got, golden.Center) {
+		t.Errorf("pelican-size frame center = %v, want %v (source %s)", got, golden.Center, source)
+	}
+	for _, p := range [][2]int{{0, 0}, {w - 1, 0}, {0, h - 1}, {w - 1, h - 1}} {
+		if got := at(p[0], p[1]); !eq(got, golden.Corner) {
+			t.Errorf("pelican-size frame corner %v = %v, want %v (source %s)", p, got, golden.Corner, source)
+		}
+	}
+	sum := md5.Sum(pixels)
+	if gotMD5 := hex.EncodeToString(sum[:]); gotMD5 != golden.PixelsMD5 {
+		t.Errorf("pelican-size frame pixels md5 = %s, want %s (golden testdata/h4e3_pelican_golden.json, source %s)", gotMD5, golden.PixelsMD5, source)
+	} else {
+		t.Logf("pelican-size frame pixels md5: %s (source %s)", gotMD5, source)
+	}
+
 	t.Logf("H4-e3 X11 pelican-size frame1 presented (window 0x%x, %dx%d)", xw.window, w, h)
 
 	// 第二帧：再换一次屏，证连续 Present 零报错（换屏亮灯不断）。

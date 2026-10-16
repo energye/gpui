@@ -100,6 +100,49 @@ func (c *BindSurfaceFramebufferCommand) Execute(ctx *gl.Context, st *glExecState
 	}
 }
 
+// BindDefaultFramebufferCommand binds the window default framebuffer (FBO 0),
+// the render target of a surface pass on a Surface whose window carries its own
+// depth/stencil buffers (default_fb_linux.go).
+//
+// Draw-buffer state and depth/stencil handling belong to the pass, not to the
+// bind: the pass emits SetDrawColorBuffersCommand{drawBuffersBack} and clears
+// what FBO 0 cannot inherit from a previous frame.
+type BindDefaultFramebufferCommand struct {
+	surface *Surface
+}
+
+func (c *BindDefaultFramebufferCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if st.bindFramebuffer(0) {
+		ctx.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	}
+}
+
+// SetTargetAdjustCommand publishes the target coordinate adjustment for the
+// target a render pass records into, so the one compiled shader set serves
+// render targets and the window default framebuffer (target_adjust.go).
+//
+// Every pass emits it: the value is GL context state shared by all programs, so
+// a pass that skipped it would inherit whatever the previous pass left.
+type SetTargetAdjustCommand struct {
+	ctx    *AdapterContext
+	window bool   // true = window default framebuffer
+	height uint32 // window height, the mirror axis for window reads
+}
+
+func (c *SetTargetAdjustCommand) Execute(ctx *gl.Context, _ *glExecState) {
+	if c.ctx == nil {
+		return
+	}
+	// Pipelines allocate the block at link time; a pass whose programs were
+	// built before the flag existed still gets the render-target value.
+	c.ctx.ensureTargetAdjust()
+	adjust := targetAdjustRenderTarget
+	if c.window {
+		adjust = targetAdjustWindowValue(float32(c.height))
+	}
+	c.ctx.setTargetAdjust(ctx, adjust)
+}
+
 // EnsureOffscreenFBOCommand lazily creates a framebuffer object for an offscreen
 // texture and binds it. If the texture already has an FBO, it simply binds it.
 type EnsureOffscreenFBOCommand struct {
@@ -186,9 +229,11 @@ func (c *AttachDepthStencilToFBOCommand) Execute(ctx *gl.Context, st *glExecStat
 // ResolveTarget is specified in the color attachment.
 //
 // When resolveToSurface is true, the destination is the Surface's swapchain
-// offscreen FBO (NOT FBO 0). No Y-flip is applied here — the Y-flip is the
-// sole responsibility of Queue.Present, which blits the swapchain FBO to FBO 0
-// with srcY0=height, srcY1=0 before SwapBuffers.
+// offscreen FBO, or the window default framebuffer when the Surface renders
+// direct (default_fb_linux.go). Offscreen, no Y-flip is applied here: the flip
+// is the sole responsibility of Queue.Present, which blits the swapchain FBO to
+// FBO 0 with srcY0=height, srcY1=0 before SwapBuffers. Direct, FBO 0 is the
+// final target, so this blit carries that flip instead.
 type MSAAResolveCommand struct {
 	msaaTexture      *Texture // MSAA source texture (SampleCount > 1)
 	resolveTexture   *Texture // Single-sample resolve target (nil when resolveToSurface)
@@ -211,12 +256,14 @@ func (c *MSAAResolveCommand) Execute(ctx *gl.Context, st *glExecState) {
 	}
 
 	// Bind the draw target.
+	direct := c.resolveToSurface && c.surface != nil && c.surface.directDefaultFB
 	if c.resolveToSurface {
-		// Resolve into the Surface's swapchain offscreen FBO. The Y-flip is
-		// performed at Present time, not here, so the resolve is a straight
-		// (non-flipped) MSAA resolve.
+		// Resolve into the Surface's swapchain offscreen FBO, or straight
+		// into the window default framebuffer on the direct route.
 		var drawFBO uint32
-		if c.surface != nil {
+		if direct {
+			drawFBO = 0
+		} else if c.surface != nil {
 			drawFBO = c.surface.swapchainFBO
 		}
 		if st.bindDraw(drawFBO) {
@@ -229,13 +276,30 @@ func (c *MSAAResolveCommand) Execute(ctx *gl.Context, st *glExecState) {
 		st.bindDraw(c.resolveTexture.fbo)
 	}
 
-	// Straight MSAA resolve — no Y-flip. Both source and destination use the
-	// same upside-down orientation; Queue.Present un-flips at SwapBuffers time.
-	ctx.BlitFramebuffer(
-		0, 0, c.width, c.height,
-		0, 0, c.width, c.height,
-		gl.COLOR_BUFFER_BIT, gl.NEAREST,
-	)
+	// Source and destination share one orientation offscreen (both are engine
+	// textures), so that resolve is straight. The window default framebuffer
+	// is the frame's final target, so the resolve that lands there carries the
+	// flip Queue.Present performs on the offscreen route.
+	if direct {
+		if st.setDrawBuffers(drawBuffersBack) {
+			ctx.DrawBuffers([]uint32{gl.BACK})
+		}
+		dh := c.height
+		if c.surface.config != nil && c.surface.config.Height != 0 {
+			dh = int32(c.surface.config.Height)
+		}
+		ctx.BlitFramebuffer(
+			0, c.height, c.width, 0, // source Y-flipped
+			0, 0, c.width, dh, // dest normal
+			gl.COLOR_BUFFER_BIT, gl.NEAREST,
+		)
+	} else {
+		ctx.BlitFramebuffer(
+			0, 0, c.width, c.height,
+			0, 0, c.width, c.height,
+			gl.COLOR_BUFFER_BIT, gl.NEAREST,
+		)
+	}
 
 	// Restore default framebuffer binding.
 	if st.bindRead(0) {
@@ -280,13 +344,24 @@ func (c *AttachColorCommand) Execute(ctx *gl.Context, st *glExecState) {
 		c.texture.target, c.texture.id, 0)
 }
 
-// SetDrawColorBuffersCommand configures the list of draw buffers for MRT output.
+// SetDrawColorBuffersCommand configures the list of draw buffers for MRT output,
+// or the window default framebuffer's single BACK buffer (drawBuffersBack).
+//
+// The default framebuffer only accepts BACK: the pass below binds FBO 0 and
+// leaves COLOR_ATTACHMENT0 in glDrawBuffers state, which silently drops every
+// draw and clear into FBO 0 (black window, no GL error). Draw-buffer state is
+// per framebuffer, so one set per framebuffer is enough — but it still goes
+// through the cache, whose key distinguishes BACK from the attachment lists.
 type SetDrawColorBuffersCommand struct {
-	count int // number of color attachments
+	count int // number of color attachments, or drawBuffersBack
 }
 
 func (c *SetDrawColorBuffersCommand) Execute(ctx *gl.Context, st *glExecState) {
 	if st != nil && !st.setDrawBuffers(c.count) {
+		return
+	}
+	if c.count == drawBuffersBack {
+		ctx.DrawBuffers([]uint32{gl.BACK})
 		return
 	}
 	bufs := make([]uint32, c.count)
@@ -360,6 +435,61 @@ func (c *ClearStencilCommand) Execute(ctx *gl.Context, st *glExecState) {
 	st.markStencilWMask(true, 0xFF)
 	st.markStencilWMask(false, 0xFF)
 	ctx.Clear(gl.STENCIL_BUFFER_BIT)
+}
+
+// ClearDefaultDepthStencilCommand clears the window default framebuffer's
+// depth and stencil buffers once after each swap.
+//
+// EGL leaves a back buffer's depth/stencil content undefined after
+// SwapBuffers, so the first surface pass of a frame cannot inherit it the way
+// the offscreen swapchain FBO inherits its attached texture. The render layer's
+// own LoadOp only covers passes inside a frame (StencilLoadOp=Load keeps
+// stencil for later passes of the same frame); this covers the frame boundary.
+// Clears are full-surface (scissor off), which is what the LoadOpClear path
+// does as well, and depth/stencil are never damage-scissored.
+//
+// The stencil clear value is GL's default 0, the only value any caller asks
+// for: ClearStencilCommand carries the descriptor's value without using it
+// (no glClearStencil binding), recorded as a follow-up in
+// docs/RENDER_SPIN_TRANSFORM_REUSE_PLAN.md.
+type ClearDefaultDepthStencilCommand struct {
+	surface *Surface
+	depth   bool // the pass does not clear depth itself
+	stencil bool // the pass does not clear stencil itself
+}
+
+func (c *ClearDefaultDepthStencilCommand) Execute(ctx *gl.Context, st *glExecState) {
+	if c.surface == nil || !c.surface.defaultFBStale {
+		return
+	}
+	// Consume the flag whether or not this pass needs a clear: later passes of
+	// the same frame inherit what this one wrote, exactly like the passes of
+	// the offscreen route inherit their attached texture.
+	c.surface.defaultFBStale = false
+	bits := uint32(0)
+	if c.depth {
+		bits |= gl.DEPTH_BUFFER_BIT
+	}
+	if c.stencil {
+		bits |= gl.STENCIL_BUFFER_BIT
+	}
+	if bits == 0 {
+		return
+	}
+	if st.setScissorTest(false) {
+		ctx.Disable(gl.SCISSOR_TEST)
+	}
+	if c.depth {
+		ctx.DepthMask(true)
+		st.markDepthMask(true)
+		ctx.ClearDepth(1.0)
+	}
+	if c.stencil {
+		ctx.StencilMaskSeparate(gl.FRONT_AND_BACK, 0xFF)
+		st.markStencilWMask(true, 0xFF)
+		st.markStencilWMask(false, 0xFF)
+	}
+	ctx.Clear(bits)
 }
 
 // UseProgramCommand activates a shader program.
