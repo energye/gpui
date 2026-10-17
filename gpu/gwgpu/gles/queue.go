@@ -73,7 +73,7 @@ func (q *Queue) execCommandBuffers(glCtx *gl.Context, st *glExecState, commandBu
 	for _, cb := range commandBuffers {
 		cmdBuf, ok := cb.(*CommandBuffer)
 		if !ok {
-			return 0, fmt.Errorf("gles: invalid command buffer type")
+			return fmt.Errorf("gles: invalid command buffer type")
 		}
 
 		// Execute recorded commands with GL error checking.

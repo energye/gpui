@@ -1002,8 +1002,14 @@ func (a *PipelineApp) parkNativeSurface() {
 		}
 	}
 	if a.target != nil {
-		_ = a.target.Close()
-		a.target = nil
+		// Surface + swapchain destroys need the context current, which the GL
+		// thread holds (see runOnGL).
+		a.runOnGL(func() {
+			if a.target != nil {
+				_ = a.target.Close()
+				a.target = nil
+			}
+		})
 	}
 	if hs, ok := a.host.(platform.HiddenSurface); ok {
 		hs.ApplyHiddenDetach()
@@ -1016,29 +1022,85 @@ func (a *PipelineApp) Close() {
 		return
 	}
 	a.quit.Store(true)
+	// Teardown runs on the GL thread while the loop is still alive. It destroys
+	// GL objects (layer textures, swapchain, context), and those calls need a
+	// current context — the loop's last present keeps it bound to the GL
+	// thread, so a UI-thread teardown would bind-fail (0x3002) and silently
+	// no-op, leaking every GL object of the window. RunSync queues behind the
+	// presents already submitted, so nothing is destroyed in flight.
+	a.runOnGL(func() {
+		// Raster is drained: no purge can be in flight; drop the layer-texture
+		// cache before its device goes away. WaitIdle first so deferred view
+		// releases never race in-flight submissions; then Close the cache
+		// (Clear + force-drain the deferred queue — no frames run after this,
+		// so BeginFrame can never drain it again) and unregister it.
+		// Best-effort wait: on error still close (device teardown releases).
+		if a.pictureTex != nil {
+			if a.target != nil {
+				_ = a.target.WaitIdle()
+			}
+			a.pictureTex.Close()
+			render.UnregisterPurgeEvictable(a.pictureTex)
+			a.pictureTex = nil
+		}
+		if a.target != nil {
+			_ = a.target.Close()
+			a.target = nil
+		}
+	})
 	if a.loop != nil {
 		a.loop.Stop()
 	}
 	// Raster loop drained: no parallel scan in flight; release B1 pool
 	// workers so Close leaves no background threads (idle-exit is backup).
 	scene.CloseRasterPool()
-	// Raster is drained: no purge can be in flight; drop the layer-texture
-	// cache before its device goes away. WaitIdle first so deferred view
-	// releases never race in-flight submissions; then Close the cache
-	// (Clear + force-drain the deferred queue — no frames run after this,
-	// so BeginFrame can never drain it again) and unregister it.
-	// Best-effort wait: on error still close (device teardown releases).
-	if a.pictureTex != nil {
-		if a.target != nil {
-			_ = a.target.WaitIdle()
-		}
-		a.pictureTex.Close()
-		render.UnregisterPurgeEvictable(a.pictureTex)
-		a.pictureTex = nil
+}
+
+// warmUpPresents returns how many synchronous full paints the warm-up runs:
+// three cover the swapchain buffers (each full present writes one buffer) and
+// the rest cover the boundary Picture cache's admission latency. That latency
+// is accessThreshold+2 frames of live paint: a boundary that was just painted
+// is will_change, and will_change content never counts as an access (Flutter
+// bails out of PrerollSetup before MarkSeen — display_list_raster_cache_item.cc
+// IsDisplayListWorthRasterizing), so a freshly built tree needs its first
+// (dirty) paint plus accessThreshold+1 clean paints before the cache stores it.
+// Priming with fewer frames defers every eligible picture's first fill onto the
+// first steady-state or swapchain-recovery live paint — the stall the warm-up
+// exists to absorb.
+func (a *PipelineApp) warmUpPresents() int64 {
+	n := int64(3)
+	if a == nil || a.pipe == nil {
+		return n
 	}
-	if a.target != nil {
-		_ = a.target.Close()
-		a.target = nil
+	if c := a.pipe.BoundaryCache(); c != nil {
+		if t := int64(c.AccessThreshold()) + 2; t > n {
+			n = t
+		}
+	}
+	return n
+}
+
+// runOnGL runs GL-thread work (warm-up full presents, snapshot readback,
+// teardown destroys) on the shared GL thread and waits for it.
+//
+// Those paths touch the GL context, and the frame-end present paths keep that
+// context current on the GL thread (gles UnlockKeepBinding — Impeller model).
+// Issued from the UI thread they bind-fail with EGL_BAD_ACCESS (0x3002) and
+// every GL call silently no-ops: warm-up used to strand the binding there and
+// froze the picture (RENDER_SPIN_TRANSFORM_REUSE_PLAN §6).
+func (a *PipelineApp) runOnGL(fn func()) {
+	if a == nil || fn == nil {
+		return
+	}
+	if a.loop == nil {
+		fn()
+		return
+	}
+	if err := a.loop.RunSync(func() error {
+		fn()
+		return nil
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "embedder: GL-thread work failed: %v\n", err)
 	}
 }
 
@@ -1062,15 +1124,27 @@ func (a *PipelineApp) Run() error {
 	}
 	vp := rendering.Size{Width: float64(w), Height: float64(h)}
 
-	// Initial layout + optional warm-up full paint (F11).
+	// Initial layout + optional warm-up full paints (F11). Every warm-up
+	// present is a full paint, so the warm-up is also where the boundary cache
+	// primes: these presents run before the loop's scheduler tickers, so no
+	// steady-state observation window and no steady-state frame carries a
+	// first fill. They run on the GL thread like every other present — a full
+	// present binds the window surface, and a foreign thread cannot take the
+	// context over afterwards (see runOnGL).
 	if a.pipe.FlushLayout(vp, true) {
 		a.layoutFrames.Add(1)
 	}
 	a.forceFullPresent.Store(3) // first presents after open are always full
 	a.firstPresentT0 = time.Now()
 	if a.opts.WarmUp {
-		a.presentSyncFull()
-		a.forceFullPresent.Add(-1) // warm-up covered one buffer, two owed
+		n := a.warmUpPresents()
+		for i := int64(0); i < n; i++ {
+			a.runOnGL(a.presentSyncFull)
+		}
+		// Each warm-up present covered one swapchain buffer.
+		if owed := a.forceFullPresent.Add(-n); owed < 0 {
+			a.forceFullPresent.Store(0)
+		}
 	}
 	a.ScheduleFrame()
 
@@ -1546,6 +1620,12 @@ func (a *PipelineApp) Run() error {
 						metrics.SetVirtualBind(bind, items)
 					}
 					metrics.SetScrollRerecord(rendering.ScrollRerecordTotal())
+					// Worth-caching gate counters are cumulative snapshots, so
+					// every window reports them without merging the cache by hand.
+					if cache := a.pipe.BoundaryCache(); cache != nil {
+						w, wc, cx, lim, ms := cache.PolicyCounts()
+						metrics.SetBoundaryPolicy(w, wc, cx, lim, int64(ms))
+					}
 					metrics.SetCacheBudget(a.cacheEntryCount(), a.cacheEvictions())
 					metrics.SetBudgetRefusals(a.cacheBudgetRefusals())
 					if a.saveStats != nil {
@@ -1635,22 +1715,29 @@ func (a *PipelineApp) Run() error {
 	// path reads back into the pixmap with the same GPU session/MSAA), then
 	// SavePNG the CPU pixmap.
 	if a.opts.SnapshotPath != "" {
-		a.loop.Stop() // wait for queued/in-flight presents before touching dc
-		if dc := a.target.Context(); dc != nil {
-			dc.BeginFrame()
-			// Snapshot repaint must honor the same per-frame SaveLayer
-			// budget/stats as loop frames — otherwise the captured "final
-			// frame" diverges from what actually presented (C6: budgetless
-			// repaint wrongly allowed the second offscreen group).
-			paintPresentTreeWithOpts(dc, a.pipe, a.root, a.opts.Overlay,
-				a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, false,
-				paintPresentTreeOpts{layerStats: a.saveStats, layerBudget: a.saveBudget})
-			if err := dc.SavePNG(a.opts.SnapshotPath); err != nil {
-				fmt.Fprintf(os.Stderr, "snapshot: %v\n", err)
-			} else {
-				fmt.Fprintf(os.Stderr, "snapshot: %s\n", a.opts.SnapshotPath)
+		// Snapshot repaint + readback run on the GL thread, queued behind
+		// every present already submitted (RunSync): the readback needs the
+		// context current, and it is current there. Stopping the loop first and
+		// painting from the UI thread would bind-fail (0x3002) and silently
+		// return a stale pixmap.
+		a.runOnGL(func() {
+			if dc := a.target.Context(); dc != nil {
+				dc.BeginFrame()
+				// Snapshot repaint must honor the same per-frame SaveLayer
+				// budget/stats as loop frames — otherwise the captured "final
+				// frame" diverges from what actually presented (C6: budgetless
+				// repaint wrongly allowed the second offscreen group).
+				paintPresentTreeWithOpts(dc, a.pipe, a.root, a.opts.Overlay,
+					a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, false,
+					paintPresentTreeOpts{layerStats: a.saveStats, layerBudget: a.saveBudget})
+				if err := dc.SavePNG(a.opts.SnapshotPath); err != nil {
+					fmt.Fprintf(os.Stderr, "snapshot: %v\n", err)
+				} else {
+					fmt.Fprintf(os.Stderr, "snapshot: %s\n", a.opts.SnapshotPath)
+				}
 			}
-		}
+		})
+		a.loop.Stop() // snapshot taken: this window presents no more frames
 	}
 	if err := a.oom.runErr(); err != nil {
 		return err

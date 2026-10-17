@@ -149,12 +149,24 @@ func (a *App) Close() {
 	}
 	a.quit.Store(true)
 	if a.loop != nil {
+		// Run the release on the GL thread while the loop is still alive: it
+		// destroys GL objects, and the loop's presents keep the context current
+		// there (raster.Loop.RunSync). A UI-thread release would bind-fail with
+		// EGL_BAD_ACCESS (0x3002) and silently no-op.
+		_ = a.loop.RunSync(a.releaseTarget)
 		a.loop.Stop()
+		return
 	}
+	_ = a.releaseTarget()
+}
+
+// releaseTarget destroys the present target (GPU resources) and clears it.
+func (a *App) releaseTarget() error {
 	if a.target != nil {
 		_ = a.target.Close()
 		a.target = nil
 	}
+	return nil
 }
 
 // Run opens (if needed), starts the raster thread, and runs the UI event loop

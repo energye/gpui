@@ -114,7 +114,7 @@ func (s *FrameScheduler) Metrics() FrameMetrics
 | P0.4 | `render`：NativeSurface→可 Present 目标门面 | render (+gpu) | 单测或 Linux 真窗；ui 仍不 import gpu |
 | P0.5 | `scheduler`：IDLE WaitEvents(-1)；有 schedule 则 vsync/fallback | ui/scheduler | 单测假时钟 |
 | P0.6 | `FrameMetrics` 字段：frame 间隔、missed_vsync、pipeline_depth 占位 | ui/scheduler | JSON 可 Marshal |
-| P0.7 | `raster.Loop`：独立 goroutine+LockOSThread；队列 depth=2；背压 | ui/raster | 单测：满队列不无限涨 |
+| P0.7 | `raster.Loop`：提交句柄（注册到 `ui/raster/hub.go` 的全进程唯一 GL 线程）+ 队列 depth=2；背压 | ui/raster | 单测：满队列不无限涨 |
 | P0.8 | `embedder.App`：事件循环 + 清色 Present 一帧 | ui/embedder | 逻辑通 |
 | P0.9 | 示例 `examples/ui_l1_blank`：X11 窗、注入句柄、清色、跑 3s 退出码 0 | examples | 有 DISPLAY 时人工/脚本可跑 |
 | P0.10 | 依赖守卫：`go test` 失败若 ui 源文件 import gpu | ui | 测试或 `go list` 脚本 |
@@ -384,3 +384,4 @@ P0 句柄+调度+清色
 |------|------|------|
 | 1.0 | 2026-07-26 | 首版：在 ui>render>gpu、句柄注入、清仓仓库约束下的 P0–P3 任务卡 |
 | 1.1 | 2026-07-27 | P0–P3 实现完成；挂链 L1 收口文 |
+| 1.2 | 2026-10-17 | P0.7 行改为现状：`raster.Loop` 不再是「每窗一条独立 goroutine+LockOSThread」，改为注册到 `ui/raster/hub.go` 的**全进程唯一 GL 线程**的提交句柄；新增公开 API `(*Loop).RunSync(fn)` 做非帧 GL 交接（预热同步全画、快照读回、拆机销毁）。依据：EGL 一个上下文同一时刻只能 current 在一个 OS 线程，per-window 线程 + 帧尾 keep 绑定会互相 0x3002 冻结画面（多窗共设备同因），对齐 Flutter SurfaceManager 单 raster 线程模型。见 `docs/RENDER_SPIN_TRANSFORM_REUSE_PLAN.md` §6 首行。 |
