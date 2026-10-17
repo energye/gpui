@@ -66,12 +66,33 @@ type BoundaryCache struct {
 	// (explicit cap via SetMaxEntries) or by generational sweep.
 	Evictions int64
 
+	// Worth-caching policy counters (see the admission policy block above).
+	// AdmissionWaits counts live paints held back until the access threshold
+	// was reached; WillChangeRejects counts content that changed since its last
+	// live paint (Flutter will_change); ComplexityRejects counts scores at or
+	// below the complexity gate; LimitRejects counts admissions deferred by the
+	// per-frame new-cache limit or by the entry budget; MaxScore is the highest
+	// score admitted to the gate so far (calibration aid).
+	AdmissionWaits    int64
+	WillChangeRejects int64
+	ComplexityRejects int64
+	LimitRejects      int64
+	MaxScore          int
+
 	// frame is the present-paint generation (BeginFrame counter); it drives
 	// generational eviction of untouched entries below.
 	frame uint64
 	// maxEntries is the explicit budget cap (R14; 0 = unlimited, the default —
 	// generational sweep still bounds long-run growth).
 	maxEntries int
+	// accessThreshold / maxNewPerFrame / complexityThreshold are the policy
+	// knobs (Flutter raster cache defaults); see the constants above.
+	accessThreshold     int
+	maxNewPerFrame      int
+	complexityThreshold int
+	newThisFrame        int
+	// admissions holds worth-caching state for boundaries that have no entry yet.
+	admissions map[uint64]*admitState
 }
 
 // Generational eviction tuning: an entry untouched for evictFrames presents
@@ -86,6 +107,29 @@ const (
 	evictSweepEvery = 30
 )
 
+// Worth-caching / admission policy, aligned to Flutter's raster cache:
+//
+//   - Worth gate: content that will change is never cached, otherwise the
+//     boundary's own-content complexity score must pass the gate
+//     (flow/layers/display_list_raster_cache_item.cc: IsDisplayListWorthRasterizing
+//     — will_change → false, else complexity_calculator->ShouldBeCached).
+//   - Score: Flutter's naive calculator is the draw-op count with
+//     ShouldBeCached = score > 5 (display_list/benchmarking/dl_complexity.h:39-51).
+//   - Access threshold: an item must be prepared and drawn on
+//     access_threshold+1 consecutive frames before it is cached
+//     (flow/raster_cache.h:141 default 3, raster_cache.cc MarkSeen); 0 disables
+//     caching entirely ("If the number is 0, then no picture will ever be
+//     cached").
+//   - Per-frame limit: at most kDefaultPictureAndDisplayListCacheLimitPerFrame
+//     new caches per frame (flow/raster_cache_util.h:21 default 3,
+//     raster_cache.h GenerateNewCacheInThisFrame), so one frame can never spend
+//     its whole budget recording several new caches.
+const (
+	defaultAccessThreshold     = 3
+	defaultMaxNewPerFrame      = 3
+	defaultComplexityThreshold = 5
+)
+
 type boundaryEntry struct {
 	pic        scene.Picture
 	ox, oy     float64
@@ -96,11 +140,27 @@ type boundaryEntry struct {
 	lastSeen   uint64 // generation of last hit/store (eviction liveness)
 }
 
+// admitState is the per-boundary worth-caching state; it exists while a
+// boundary is still building up its access count (no cache entry yet).
+type admitState struct {
+	key      uint64 // own-content fingerprint of the last live paint generation
+	hasKey   bool
+	frames   uint32 // consecutive live paints of the same content generation
+	lastSeen uint64 // generation of last live paint (eviction liveness)
+}
+
 var nextBoundaryCacheID uint64
 
-// NewBoundaryCache creates an empty cache.
+// NewBoundaryCache creates an empty cache with Flutter's raster-cache policy
+// defaults (access threshold 3, 3 new caches per frame, naive complexity gate 5).
 func NewBoundaryCache() *BoundaryCache {
-	return &BoundaryCache{entries: make(map[uint64]*boundaryEntry)}
+	return &BoundaryCache{
+		entries:             make(map[uint64]*boundaryEntry),
+		admissions:          make(map[uint64]*admitState),
+		accessThreshold:     defaultAccessThreshold,
+		maxNewPerFrame:      defaultMaxNewPerFrame,
+		complexityThreshold: defaultComplexityThreshold,
+	}
 }
 
 // BeginFrame resets per-frame skip/rerecord/miss counters (call once per present paint)
@@ -116,6 +176,7 @@ func (c *BoundaryCache) BeginFrame() {
 	c.FrameMiss = 0
 	c.FrameShellRerecord = 0
 	c.FrameShellSkip = 0
+	c.newThisFrame = 0
 	c.frame++
 	if c.frame%evictSweepEvery == 0 {
 		for id, e := range c.entries {
@@ -124,15 +185,98 @@ func (c *BoundaryCache) BeginFrame() {
 				c.Evictions++
 			}
 		}
+		for id, st := range c.admissions {
+			if c.frame-st.lastSeen > evictFrames {
+				delete(c.admissions, id)
+			}
+		}
 	}
 	c.enforceBudgetLocked()
 }
 
+// SetAccessThreshold sets how many consecutive frames a boundary must be
+// prepared and drawn with unchanged content before it may enter the cache
+// (Flutter raster_cache.h access_threshold; 0 disables caching entirely).
+func (c *BoundaryCache) SetAccessThreshold(n int) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.accessThreshold = n
+}
+
+// AccessThreshold returns the current access threshold (-1 for a nil cache).
+func (c *BoundaryCache) AccessThreshold() int {
+	if c == nil {
+		return -1
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.accessThreshold
+}
+
+// SetMaxNewPerFrame sets the per-frame cap on newly recorded boundary caches
+// (Flutter raster_cache_util.h kDefaultPictureAndDisplayListCacheLimitPerFrame).
+func (c *BoundaryCache) SetMaxNewPerFrame(n int) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.maxNewPerFrame = n
+}
+
+// MaxNewPerFrame returns the current per-frame new-cache cap (-1 for nil).
+func (c *BoundaryCache) MaxNewPerFrame() int {
+	if c == nil {
+		return -1
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.maxNewPerFrame
+}
+
+// SetComplexityThreshold sets the naive complexity gate: a boundary's own
+// content is cached only when its op count is greater than n (Flutter
+// dl_complexity.h naive ShouldBeCached = score > 5; 0 admits any non-empty
+// content).
+func (c *BoundaryCache) SetComplexityThreshold(n int) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.complexityThreshold = n
+}
+
+// ComplexityThreshold returns the current complexity gate (-1 for nil).
+func (c *BoundaryCache) ComplexityThreshold() int {
+	if c == nil {
+		return -1
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.complexityThreshold
+}
+
+// PolicyCounts snapshots the worth-caching policy counters.
+func (c *BoundaryCache) PolicyCounts() (admissionWaits, willChangeRejects, complexityRejects, limitRejects int64, maxScore int) {
+	if c == nil {
+		return 0, 0, 0, 0, 0
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.AdmissionWaits, c.WillChangeRejects, c.ComplexityRejects, c.LimitRejects, c.MaxScore
+}
+
 // SetMaxEntries sets the explicit budget cap. 0 = unlimited (default;
-// generational sweep still bounds long-run growth). A cap below the current
-// entry count takes effect on the next Store: the oldest-lastSeen entries are
-// dropped first until under budget. Correctness never depends on the cache —
-// an evicted boundary simply re-records.
+// generational sweep still bounds long-run growth). The cap binds at admission
+// and in the per-frame sweep: entries used in the current frame are never
+// sacrificed (the retained texture cache's LRU rule; Flutter evicts only
+// entries not encountered this frame), so a cap below the single-frame live
+// set cannot bind — new entries are then refused instead of evicting in-use
+// ones, which keeps the map at the live-set size without re-record thrash.
 func (c *BoundaryCache) SetMaxEntries(n int) {
 	if c == nil {
 		return
@@ -164,9 +308,12 @@ func (c *BoundaryCache) EvictionCount() int64 {
 	return c.Evictions
 }
 
-// enforceBudgetLocked drops oldest-lastSeen entries while over the explicit
-// cap. Runs after sweep/Store so both paths keep the map bounded; a no-op
-// without a cap.
+// enforceBudgetLocked drops entries that were NOT touched in the current frame
+// while over the explicit cap, oldest first. Entries used this frame are never
+// sacrificed (same rule as the retained texture cache; Flutter evicts only
+// entries not encountered this frame). When the live set alone exceeds the cap
+// nothing is evictable here and the cap stops new admissions instead
+// (admitLivePaintLocked), so the map never grows past the live set.
 func (c *BoundaryCache) enforceBudgetLocked() {
 	if c.maxEntries <= 0 || len(c.entries) <= c.maxEntries {
 		return
@@ -175,13 +322,16 @@ func (c *BoundaryCache) enforceBudgetLocked() {
 		var victim uint64
 		oldest := ^uint64(0)
 		for id, e := range c.entries {
-			if e != nil && e.lastSeen < oldest {
+			if e == nil || e.lastSeen >= c.frame {
+				continue // used this frame: never sacrificed
+			}
+			if e.lastSeen < oldest {
 				oldest = e.lastSeen
 				victim = id
 			}
 		}
 		if victim == 0 {
-			break
+			return // nothing evictable this frame
 		}
 		delete(c.entries, victim)
 		c.Evictions++
@@ -214,7 +364,7 @@ func (b *Base) EnsureCacheID() uint64 {
 	return b.ensureCacheID()
 }
 
-// Clear drops all Picture entries.
+// Clear drops all Picture entries and worth-caching state.
 func (c *BoundaryCache) Clear() {
 	if c == nil {
 		return
@@ -222,6 +372,8 @@ func (c *BoundaryCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries = make(map[uint64]*boundaryEntry)
+	c.admissions = make(map[uint64]*admitState)
+	c.newThisFrame = 0
 }
 
 // Len returns the number of cached boundary entries.
@@ -342,6 +494,152 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	return true
 }
 
+// admitLivePaintLocked runs the worth-caching gate for one live paint of
+// boundary id, in Flutter's order (IsDisplayListWorthRasterizing, then MarkSeen,
+// then GenerateNewCacheInThisFrame):
+//
+//  1. content that changed since the last live paint is will_change → never
+//     cached, the previous entry is dropped, access count restarts;
+//  2. the own-content score must beat the complexity gate;
+//  3. the boundary must have been prepared and drawn on accessThreshold+1
+//     consecutive frames;
+//  4. at most maxNewPerFrame new caches per frame;
+//  5. the entry budget must have room, and the budget never sacrifices an
+//     entry used in the current frame (it refuses new entries instead).
+//
+// key is the own-content fingerprint (0 = no fingerprint available, stability
+// then comes from changed alone). Returns true when the caller may record.
+func (c *BoundaryCache) admitLivePaintLocked(id, key uint64, score int, changed bool) bool {
+	if c.accessThreshold <= 0 {
+		// Flutter: access_threshold 0 disables caching entirely
+		// (raster_cache.h: "If the number is 0, then no picture will ever be cached").
+		return false
+	}
+	st := c.admissions[id]
+	if st == nil {
+		st = &admitState{}
+		c.admissions[id] = st
+	}
+	st.lastSeen = c.frame
+	if score > c.MaxScore {
+		c.MaxScore = score
+	}
+	if changed {
+		// will_change: the content is going to change again, no point caching it.
+		// The stored entry belongs to the previous content generation and is now
+		// unreachable — Flutter keys entries by the display list's unique_id, so
+		// a repaint starts a fresh entry. The picture-box path has no content
+		// fingerprint, so without dropping it the next clean frame would replay
+		// the stale Picture (NeedsPaint is a one-frame signal).
+		delete(c.entries, id)
+		c.WillChangeRejects++
+		st.frames = 0
+		st.key, st.hasKey = key, true
+		return false
+	}
+	if score <= c.complexityThreshold {
+		c.ComplexityRejects++
+		st.frames = 0
+		st.key, st.hasKey = key, true
+		return false
+	}
+	switch {
+	case !st.hasKey:
+		st.frames = 1 // first sight: prepared and drawn on this frame
+	case key != 0 && st.key == key:
+		st.frames++ // same content generation continued
+	case key == 0:
+		st.frames++ // no fingerprint: stability signal is !changed
+	default:
+		st.frames = 1 // fingerprint changed since the last live paint
+	}
+	st.key, st.hasKey = key, true
+	if int(st.frames) <= c.accessThreshold {
+		c.AdmissionWaits++
+		return false
+	}
+	if c.newThisFrame >= c.maxNewPerFrame {
+		c.LimitRejects++
+		return false
+	}
+	if c.maxEntries > 0 && len(c.entries) >= c.maxEntries {
+		// Budget: free room by dropping entries not touched this frame. When the
+		// live set alone fills the cap, defer admission (Flutter blocks new
+		// rasterization over budget instead of sacrificing in-use entries).
+		c.enforceBudgetLocked()
+		if len(c.entries) >= c.maxEntries {
+			c.LimitRejects++
+			return false
+		}
+	}
+	c.newThisFrame++
+	return true
+}
+
+// boundaryScore is the naive complexity score of a boundary's own content: the
+// number of draw ops recordOwnContent emits, mirroring Flutter's naive
+// calculator (display_list/benchmarking/dl_complexity.h: Compute = op count).
+// It is computed before recording so gated-out content never pays the record.
+func boundaryScore(n RenderObject) int {
+	switch t := n.(type) {
+	case *RenderColorBox, *RenderImage:
+		return 1
+	case *RenderText:
+		return textScore(t)
+	case *AbsoluteBox:
+		return absoluteOwnScore(t)
+	default:
+		// RenderPictureBox content is opaque until its Record closure runs;
+		// StorePicture scores the built Picture instead.
+		return 0
+	}
+}
+
+// textScore mirrors recordRenderText's op emission: one draw op per visible
+// row (shaped rows and DrawString rows both emit one op per row).
+func textScore(t *RenderText) int {
+	if t == nil {
+		return 0
+	}
+	if t.hasRuns() {
+		if n := len(t.layoutRunLines()); n > 0 {
+			return n
+		}
+	}
+	if lines := t.DisplayLines(); len(lines) > 0 {
+		n := 0
+		for _, ln := range lines {
+			if ln != "" {
+				n++
+			}
+		}
+		if n > 0 {
+			return n
+		}
+	}
+	return 1
+}
+
+// absoluteOwnScore mirrors recordAbsoluteOwnContent: background (one fill) plus
+// every non-RepaintBoundary child's own ops (nested boundaries keep their own
+// caches and are not part of this Picture).
+func absoluteOwnScore(a *AbsoluteBox) int {
+	if a == nil {
+		return 0
+	}
+	score := 0
+	if a.Background != nil {
+		score++
+	}
+	for _, ch := range a.children {
+		if ch == nil || ch.IsRepaintBoundary() {
+			continue
+		}
+		score += boundaryScore(ch)
+	}
+	return score
+}
+
 // storeEntryLocked writes one boundary entry and bumps rerecord counters.
 // Callers hold no lock; single entry point for Store/StorePicture so budget,
 // shell accounting and ancestor policy cannot drift apart.
@@ -377,10 +675,19 @@ func (c *BoundaryCache) storeEntryLocked(n RenderObject, pic scene.Picture, ox, 
 // non-boundaries, non-cacheable content, or when caching is disabled.
 // Callers call this only when the boundary itself was dirty (or unrecorded).
 func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
+	c.storeWithChange(pc, n, false)
+}
+
+// storeWithChange is Store plus the caller's own-content change signal
+// (changed = the boundary was self-dirty this frame; the will_change analog).
+func (c *BoundaryCache) storeWithChange(pc *PaintContext, n RenderObject, changed bool) {
 	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache || !n.IsRepaintBoundary() {
 		return
 	}
 	if !boundaryCacheable(n) {
+		return
+	}
+	if !c.admit(n, boundaryScore(n), changed) {
 		return
 	}
 	ox, oy := pc.OriginX, pc.OriginY
@@ -397,12 +704,32 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 	c.storeEntryLocked(n, pic, ox, oy, pic.Valid && !pic.IsEmpty())
 }
 
+// admit runs the worth-caching gate for one live paint of n.
+func (c *BoundaryCache) admit(n RenderObject, score int, changed bool) bool {
+	b, ok := baseOf(n)
+	if !ok {
+		return false
+	}
+	sz := n.Size()
+	id := b.ensureCacheID()
+	key := contentKeyOf(n, sz.Width, sz.Height)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.admitLivePaintLocked(id, key, score, changed)
+}
+
 // StorePicture records a caller-built picture for boundary n (single-build
 // path used by RenderPictureBox.Paint: live paint already replayed these
 // ops, so no second record pass). Same gates as Store plus Valid/non-empty:
 // empty pictures can never replay usefully (tryReplay rejects them), so
 // storing one would re-store every frame forever.
 func (c *BoundaryCache) StorePicture(pc *PaintContext, n RenderObject, pic scene.Picture) {
+	c.storePictureWithChange(pc, n, pic, false)
+}
+
+// storePictureWithChange is StorePicture plus the caller's content change
+// signal (the picture box was self-dirty this frame).
+func (c *BoundaryCache) storePictureWithChange(pc *PaintContext, n RenderObject, pic scene.Picture, changed bool) {
 	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache || !n.IsRepaintBoundary() {
 		return
 	}
@@ -410,6 +737,11 @@ func (c *BoundaryCache) StorePicture(pc *PaintContext, n RenderObject, pic scene
 		return
 	}
 	if !pic.Valid || pic.IsEmpty() {
+		return
+	}
+	// Score the content that was actually built (RenderPictureBox Record
+	// closures are opaque until they run).
+	if !c.admit(n, pic.OpCount(), changed) {
 		return
 	}
 	ox, oy := pc.OriginX, pc.OriginY
@@ -455,9 +787,10 @@ func (c *BoundaryCache) storeColorBox(pc *PaintContext, box *RenderColorBox) {
 	c.Store(pc, box)
 }
 
-// storeAbsoluteColorChildren is the legacy entry point used by AbsoluteBox.Paint.
-func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *AbsoluteBox) {
-	c.Store(pc, a)
+// storeAbsoluteColorChildren is the entry point used by AbsoluteBox.Paint;
+// changed carries the boundary's own must-change signal (selfDirty).
+func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *AbsoluteBox, changed bool) {
+	c.storeWithChange(pc, a, changed)
 }
 
 // boundaryCacheable reports whether this boundary's own content can be

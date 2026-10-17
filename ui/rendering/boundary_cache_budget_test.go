@@ -7,13 +7,12 @@ import (
 	"github.com/energye/gpui/ui/rendering"
 )
 
-// newBoundedBoundaryTree builds n repaint-boundary color boxes under a plain
-// AbsoluteBox (the boxes' own Paint path stores into the shared cache).
+// newBoundedBoundaryTree builds n complex repaint boundaries under a plain
+// AbsoluteBox (each is worth caching: 1 background + complexFills = 7 ops).
 func newBoundedBoundaryTree(n int) rendering.RenderObject {
 	root := rendering.NewAbsoluteBox(600, 40)
 	for i := 0; i < n; i++ {
-		box := rendering.NewRenderColorBox(20, 20, 0.5, 0.3, 0.2, 1)
-		box.SetRepaintBoundary(true)
+		box := complexBoundary(20, 20, complexFills)
 		root.Place(box, float64(i*22), 10)
 	}
 	return root
@@ -44,66 +43,95 @@ func markAllBoundaryDirty(root rendering.RenderObject) {
 	mark(root)
 }
 
-// TestBoundaryCache_BudgetEvictsOldest: the explicit R14 budget caps the entry
-// map. Under sustained store pressure (3-box tree, cap 2) the invariants are:
-// exactly N stores per frame, Len pinned at the budget, cumulative evictions
-// monotonically increasing. The per-frame eviction count itself is NOT
-// deterministic: mid-walk replays touch survivors and shift the victim set.
-func TestBoundaryCache_BudgetEvictsOldest(t *testing.T) {
+// TestBoundaryCache_BudgetCapsEntries: the explicit R14 budget caps the entry
+// map. Entries enter through the access threshold (warm-up); a dirty frame
+// drops its own entry instead of adding one (will_change); the cap evicts only
+// entries not used in the current frame (the retained texture cache's LRU
+// rule), and when the live set alone fills the cap, new entries are refused —
+// so the map settles at the live-set size with steady replays and no re-record
+// thrash.
+func TestBoundaryCache_BudgetCapsEntries(t *testing.T) {
 	cache := rendering.NewBoundaryCache()
-	cache.SetMaxEntries(2)
-	if cache.MaxEntries() != 2 {
-		t.Fatalf("MaxEntries=%d want 2", cache.MaxEntries())
+	if cache.MaxEntries() != 0 {
+		t.Fatalf("default MaxEntries=%d want 0 (unlimited)", cache.MaxEntries())
 	}
 	root := newBoundedBoundaryTree(3)
 
+	// Warm: all three boundaries enter the cache (dirty frame + 3 held-back
+	// frames + the admitting frame).
+	for i := 0; i < 5; i++ {
+		paintBudgetFrame(t, root, cache, 620, 60)
+	}
+	if got := cache.Len(); got != 3 {
+		t.Fatalf("uncapped Len=%d want 3", got)
+	}
+	if got := cache.Evictions; got != 0 {
+		t.Fatalf("uncapped Evictions=%d want 0", got)
+	}
+	paintBudgetFrame(t, root, cache, 620, 60)
+	if got := cache.FrameSkip; got != 3 {
+		t.Fatalf("uncapped FrameSkip=%d want 3 (clean replays)", got)
+	}
+
+	// Cap below the entry count: entries used in the current frame are never
+	// sacrificed, so the cap binds from the next frame on.
+	cache.SetMaxEntries(2)
+	if got := cache.Len(); got != 3 {
+		t.Fatalf("Len right after the cap=%d want 3 (in-use entries kept)", got)
+	}
 	paintBudgetFrame(t, root, cache, 620, 60)
 	if got := cache.Len(); got != 2 {
-		t.Fatalf("Len after capped frame=%d want 2", got)
+		t.Fatalf("Len after the next frame=%d want 2 (oldest unused entry dropped)", got)
 	}
-	if got := cache.Evictions; got != 1 {
-		t.Fatalf("Evictions=%d want 1", got)
+	if got := cache.Evictions; got < 1 {
+		t.Fatalf("Evictions=%d want >=1 (cap enforced)", got)
 	}
-	if got := cache.Rerecord; got != 3 {
-		t.Fatalf("Rerecord=%d want 3", got)
-	}
-	prev := cache.Evictions
 
-	// All-dirty frames under cap: Len never exceeds the budget and the
-	// eviction counter keeps growing (pressure keeps dropping entries).
+	// Sustained dirty frames must not re-grow the map: every store attempt is
+	// gated by will_change and drops the previous-generation entry.
 	for i := 0; i < 3; i++ {
 		markAllBoundaryDirty(root)
 		paintBudgetFrame(t, root, cache, 620, 60)
-		if got := cache.FrameRerecord; got != 3 {
-			t.Fatalf("frame %d FrameRerecord=%d want 3", i, got)
+		if got := cache.FrameRerecord; got != 0 {
+			t.Fatalf("dirty frame %d FrameRerecord=%d want 0 (changed content is not cached)", i, got)
 		}
-		if got := cache.Len(); got != 2 {
-			t.Fatalf("frame %d Len=%d want 2 (budget enforced)", i, got)
+		if got := cache.Len(); got > 2 {
+			t.Fatalf("dirty frame %d Len=%d exceeds the budget", i, got)
 		}
-		if got := cache.Evictions; got <= prev {
-			t.Fatalf("frame %d Evictions=%d not growing (prev=%d)", i, got, prev)
-		}
-		prev = cache.Evictions
+	}
+	if got := cache.Len(); got != 0 {
+		t.Fatalf("entries after the dirty burst=%d want 0 (changed content drops its entry)", got)
 	}
 
-	// Uncapped default: unlimited (0), existing behavior unchanged — clean
-	// frames replay all three without any drop.
-	free := rendering.NewBoundaryCache()
-	if free.MaxEntries() != 0 {
-		t.Fatalf("default MaxEntries=%d want 0", free.MaxEntries())
+	// Steady frames re-fill at the access threshold; exactly the permitted two
+	// are admitted and the third is refused (live paint, no store, no thrash).
+	for i := 0; i < 4; i++ {
+		paintBudgetFrame(t, root, cache, 620, 60)
+		if got := cache.Len(); got > 2 {
+			t.Fatalf("steady frame %d Len=%d exceeds the budget", i, got)
+		}
 	}
-	paintBudgetFrame(t, root, free, 620, 60)
-	if got := free.Len(); got != 3 {
-		t.Fatalf("uncapped Len=%d want 3", got)
+	if got := cache.Len(); got != 2 {
+		t.Fatalf("steady Len=%d want 2 (capped survivors)", got)
 	}
-	if got := free.Evictions; got != 0 {
-		t.Fatalf("uncapped Evictions=%d want 0", got)
+	_, _, _, limit, _ := cache.PolicyCounts()
+	if limit < 1 {
+		t.Fatalf("limit_rejects=%d want >=1 (budget deferred the third entry)", limit)
 	}
-	paintBudgetFrame(t, root, free, 620, 60)
-	if got := free.FrameSkip; got != 3 {
-		t.Fatalf("uncapped FrameSkip=%d want 3 (clean replays)", got)
-	}
-	if got := free.Evictions; got != 0 {
-		t.Fatalf("uncapped Evictions=%d want 0", got)
+	prevLimit := limit
+	for i := 0; i < 3; i++ {
+		paintBudgetFrame(t, root, cache, 620, 60)
+		rr, sk := cache.FrameRerecord, cache.FrameSkip
+		if rr != 0 || sk != 2 {
+			t.Fatalf("steady frame %d rr=%d sk=%d want 0/2 (survivors replay, third stays live)", i, rr, sk)
+		}
+		if got := cache.Len(); got != 2 {
+			t.Fatalf("steady frame %d Len=%d want 2", i, got)
+		}
+		_, _, _, limit, _ = cache.PolicyCounts()
+		if limit <= prevLimit {
+			t.Fatalf("steady frame %d limit_rejects=%d want > %d (third entry deferred every frame)", i, limit, prevLimit)
+		}
+		prevLimit = limit
 	}
 }

@@ -70,7 +70,7 @@ func main() {
 	// Static labels at each nesting level (mixed content: text + color).
 	for i := 0; i < 3; i++ {
 		t := wrkit.Label(fmt.Sprintf("L%d static text", i+1), 11, 0.72, 0.78, 0.9)
-		outer.Place(t, 5, 205+float64(i)*0)
+		outer.Place(t, 5+float64(i)*78, 205)
 	}
 	tIn := wrkit.Label("inner label", 11, 0.8, 0.85, 0.95)
 	inner.Place(tIn, 5, 5)
@@ -80,6 +80,13 @@ func main() {
 	outer.Place(rendering.NewRenderColorBox(40, 40, 0.4, 0.5, 0.6, 1), 190, 190)
 	mid.Place(rendering.NewRenderColorBox(30, 30, 0.5, 0.4, 0.6, 1), 140, 140)
 	inner.Place(rendering.NewRenderColorBox(20, 20, 0.6, 0.4, 0.5, 1), 90, 90)
+	// Own-content density: the boundary cache admits a boundary only when its
+	// own display list beats the worth-caching complexity gate (Flutter raster
+	// cache), so every level carries a static chip row the way real content
+	// sits inside real boundaries. A purely structural shell would never cache.
+	staticChips(outer, 6, 40, 8, 26)
+	staticChips(mid, 5, 8, 8, 30)
+	staticChips(inner, 6, 5, 100, 13)
 
 	// Second independent nest (sibling of outer): proves isolation between nests.
 	outer2 := rendering.NewAbsoluteBox(180, 180)
@@ -91,6 +98,8 @@ func main() {
 	hot2 := rendering.NewRenderColorBox(50, 50, 0.2, 0.6, 0.95, 1)
 	inner2.Place(hot2, 25, 25)
 	outer2.Place(wrkit.Label("nest2 label", 11, 0.7, 0.8, 0.9), 5, 160)
+	staticChips(outer2, 6, 8, 8, 30)
+	staticChips(inner2, 6, 5, 82, 15)
 	// Third deep chain (depth 4): boundary_count/depth evidence.
 	deep := rendering.NewAbsoluteBox(200, 200)
 	deep.SetRepaintBoundary(true)
@@ -102,6 +111,9 @@ func main() {
 	d3.SetRepaintBoundary(true)
 	d2.Place(d3, 25, 25)
 	deep.Place(wrkit.Label("deep label", 11, 0.8, 0.85, 0.95), 5, 185)
+	staticChips(deep, 7, 8, 8, 25)
+	staticChips(d2, 7, 8, 8, 19)
+	staticChips(d3, 7, 5, 8, 13)
 
 	// Static dense 4x4 grid outside boundaries (content mix).
 	for i := 0; i < 4; i++ {
@@ -216,6 +228,17 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "ui_wr_r3_boundary: OK presents=%d skip=%d rerecord=%d elapsed=%.1fs\n",
 		app.PresentCount(), snap.BoundarySkip, snap.BoundaryRerecord, elapsed)
+}
+
+// staticChips places n small color chips in one row: static own content that
+// lifts a boundary's display list above the worth-caching complexity gate, so
+// each nest level is a real content boundary rather than a structural shell.
+func staticChips(box *rendering.AbsoluteBox, n int, x0, y0, dx float64) {
+	for i := 0; i < n; i++ {
+		c := rendering.NewRenderColorBox(12, 12,
+			0.30+0.06*float64(i%5), 0.42+0.03*float64(i%3), 0.62, 1)
+		box.Place(c, x0+float64(i)*dx, y0)
+	}
 }
 
 type ticker struct{ on func(dt float64) }

@@ -112,10 +112,13 @@ func (a *AbsoluteBox) Paint(pc *PaintContext) {
 			ch.Paint(pc.WithOrigin(pc.OriginX+off.X, pc.OriginY+off.Y))
 		}
 		a.clearPaintDirty()
-		// Re-store own-content Picture only when this boundary itself was dirty
-		// or had no entry. Inner-only dirty must not bump outer boundary_rerecord.
-		if pc.BoundaryCache != nil && a.IsRepaintBoundary() && (selfDirty || !pc.BoundaryCache.HasValid(a)) {
-			pc.BoundaryCache.storeAbsoluteColorChildren(pc, a)
+		// Store own-content Picture through the worth-caching gate: every live
+		// paint is one "prepared and drawn" access, selfDirty is the
+		// will_change signal (content changed → not worth caching). A clean
+		// boundary with a current entry never reaches here — tryReplay
+		// returned early — so this cannot re-store an unchanged boundary.
+		if pc.BoundaryCache != nil && a.IsRepaintBoundary() {
+			pc.BoundaryCache.storeAbsoluteColorChildren(pc, a, selfDirty)
 		}
 		return
 	}

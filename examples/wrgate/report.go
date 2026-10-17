@@ -77,6 +77,17 @@ type Report struct {
 	FilterLayerCount int64 `json:"filter_layer_count"`
 	BoundaryCount    int64 `json:"boundary_count,omitempty"`
 	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
+	// Worth-caching gate counters (cumulative snapshot from the boundary
+	// cache, Flutter raster-cache alignment): live paints held back until the
+	// access threshold was reached, content that changed since its last live
+	// paint, own-content scores at or below the complexity gate, admissions
+	// deferred by the per-frame new-cache limit / entry budget, and the
+	// highest score seen at the gate (calibration aid).
+	BoundaryAdmissionWait    int64 `json:"boundary_admission_wait,omitempty"`
+	BoundaryWillChangeReject int64 `json:"boundary_will_change_reject,omitempty"`
+	BoundaryComplexityReject int64 `json:"boundary_complexity_reject,omitempty"`
+	BoundaryLimitReject      int64 `json:"boundary_limit_reject,omitempty"`
+	BoundaryMaxScore         int64 `json:"boundary_max_score,omitempty"`
 	// W1 R5 / R9 / R12b counters.
 	PictureOpCount    int64 `json:"picture_op_count,omitempty"`
 	MeasureCacheHit   int64 `json:"measure_cache_hit"`
@@ -164,19 +175,24 @@ func BuildReport(in BuildInput) Report {
 		GPUBackend:        in.Snap.GPUBackend,
 		GPUFallbacks:      in.Snap.GPUFallbacks,
 		// R16: warmup 诚实观测 — 仅认 PipelineApp 观测的 Snap.Warmup，禁止用 BuildInput.Warmup 硬写覆盖（R5 假绿修复）
-		Warmup:                 in.Snap.Warmup,
-		TimeToFirstPresentMs:   in.Snap.TimeToFirstPresentMs,
-		FirstPresentPaintCount: in.Snap.FirstPresentPaintCount,
-		ElapsedSec:             el,
-		BoundaryRerecord:       in.Snap.BoundaryRerecord,
-		BoundarySkip:           in.Snap.BoundarySkip,
-		FilterLayerCount:       in.Snap.FilterLayerCount,
-		BoundaryCount:          in.Snap.BoundaryCount,
-		BoundaryMaxDepth:       in.Snap.BoundaryMaxDepth,
-		PictureOpCount:         in.Snap.PictureOpCount,
-		MeasureCacheHit:        in.Snap.MeasureCacheHit,
-		MeasureCacheMiss:       in.Snap.MeasureCacheMiss,
-		AbilityExtra:           in.Extra,
+		Warmup:                   in.Snap.Warmup,
+		TimeToFirstPresentMs:     in.Snap.TimeToFirstPresentMs,
+		FirstPresentPaintCount:   in.Snap.FirstPresentPaintCount,
+		ElapsedSec:               el,
+		BoundaryRerecord:         in.Snap.BoundaryRerecord,
+		BoundarySkip:             in.Snap.BoundarySkip,
+		FilterLayerCount:         in.Snap.FilterLayerCount,
+		BoundaryCount:            in.Snap.BoundaryCount,
+		BoundaryMaxDepth:         in.Snap.BoundaryMaxDepth,
+		BoundaryAdmissionWait:    in.Snap.BoundaryAdmissionWait,
+		BoundaryWillChangeReject: in.Snap.BoundaryWillChangeReject,
+		BoundaryComplexityReject: in.Snap.BoundaryComplexityReject,
+		BoundaryLimitReject:      in.Snap.BoundaryLimitReject,
+		BoundaryMaxScore:         in.Snap.BoundaryMaxScore,
+		PictureOpCount:           in.Snap.PictureOpCount,
+		MeasureCacheHit:          in.Snap.MeasureCacheHit,
+		MeasureCacheMiss:         in.Snap.MeasureCacheMiss,
+		AbilityExtra:             in.Extra,
 	}
 	if r.RSSStartKB == 0 && r.RSSEndKB == 0 && r.RSSPeakKB == 0 {
 		r.RSSUnavailable = true

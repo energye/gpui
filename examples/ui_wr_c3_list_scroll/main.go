@@ -183,8 +183,7 @@ func main() {
 	imgLabel.SetRepaintBoundary(true)
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			c := rendering.NewRenderColorBox(52, 52, 0.14+0.08*float64(i%4), 0.45+0.06*float64(j%4), 0.3+0.08*float64((i+j)%3), 1)
-			c.SetRepaintBoundary(true)
+			c := contentBox(52, 52, 0.14+0.08*float64(i%4), 0.45+0.06*float64(j%4), 0.3+0.08*float64((i+j)%3))
 			right.Place(c, 12+float64(i)*58, 88+float64(j)*58)
 		}
 	}
@@ -472,6 +471,32 @@ func main() {
 		app.PresentCount(), snap.BindCount, snap.ItemCount, snap.ScrollRerecord, rrCap,
 		scrollViolations, loaded, imageSources, snap.BoundarySkip, fpsInterval,
 		snap.P95FrameIntervalMs, snap.HitchRatePerMin, snap.RSSSlopeKBPerMin, snap.VSyncSource, elapsedSec)
+}
+
+// contentBox builds a repaint-boundary region that carries real content: the
+// boundary cache admits a boundary only when its own display list beats the
+// worth-caching complexity gate (Flutter raster cache), and a solid leaf box
+// scores 1 and would never be admitted. bg is the region colour, the chips are
+// its static content blocks.
+func contentBox(w, h, r, g, b float64) *rendering.AbsoluteBox {
+	box := rendering.NewAbsoluteBox(w, h)
+	box.Background = &rendering.Color{R: r, G: g, B: b, A: 1}
+	box.SetRepaintBoundary(true)
+	chipW, chipH := 10.0, 10.0
+	if w/5 < chipW {
+		chipW = w / 5
+	}
+	if h/5 < chipH {
+		chipH = h / 5
+	}
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 2; j++ {
+			c := rendering.NewRenderColorBox(chipW, chipH,
+				0.30+0.06*float64(i), 0.45+0.03*float64(j), 0.62, 1)
+			box.Place(c, 4+float64(i)*(w-8)/3, 4+float64(j)*(h-8)/2)
+		}
+	}
+	return box
 }
 
 type ticker struct{ on func(dt float64) }

@@ -159,6 +159,14 @@ func MergeBoundaryCache(app *embedder.PipelineApp, snap *scheduler.FrameMetrics)
 			snap.BoundarySkip = cache.Skip
 			snap.BoundaryRerecord = cache.Rerecord
 		}
+		// Worth-caching gate counters are cumulative snapshots, so the live
+		// cache value is always the freshest read.
+		w, wc, cx, lim, ms := cache.PolicyCounts()
+		snap.BoundaryAdmissionWait = w
+		snap.BoundaryWillChangeReject = wc
+		snap.BoundaryComplexityReject = cx
+		snap.BoundaryLimitReject = lim
+		snap.BoundaryMaxScore = int64(ms)
 	}
 }
 

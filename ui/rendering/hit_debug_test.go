@@ -3,7 +3,6 @@ package rendering_test
 import (
 	"testing"
 
-	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
 )
 
@@ -37,20 +36,19 @@ func TestHitDebugName_MatchesPaintedBoxes(t *testing.T) {
 }
 
 func TestBoundaryCache_ClearDropsEntries(t *testing.T) {
-	box := rendering.NewRenderColorBox(20, 20, 1, 0, 0, 1)
-	box.SetRepaintBoundary(true)
+	box := complexBoundary(20, 20, complexFills)
 	root := rendering.NewAbsoluteBox(40, 40)
 	root.Place(box, 0, 0)
 	owner := rendering.NewPipelineOwner(root)
 	owner.FlushLayout(rendering.Size{Width: 40, Height: 40}, true)
 	cache := owner.BoundaryCache()
-	dc := render.NewContext(40, 40)
-	pc := rendering.NewPaintContext(dc, 1)
-	pc.BoundaryCache, pc.UseBoundaryCache = cache, true
-	cache.BeginFrame()
-	root.Paint(pc)
+	// Warm-up: the entry appears once the content has been stable for
+	// accessThreshold+1 frames (Flutter raster cache access rule).
+	for i := 0; i < 5; i++ {
+		paintWithCache(t, root, cache, 40, 40)
+	}
 	if cache.Len() < 1 {
-		t.Fatal("expected cache entry after paint")
+		t.Fatal("expected cache entry after warm-up")
 	}
 	cache.Clear()
 	if cache.Len() != 0 {

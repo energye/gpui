@@ -1,6 +1,7 @@
 package rendering_test
 
 import (
+	"image"
 	"image/color"
 	"testing"
 
@@ -11,6 +12,38 @@ import (
 func sampleRGB(c color.Color) (r, g, b uint32) {
 	rr, gg, bb, _ := c.RGBA()
 	return rr, gg, bb
+}
+
+// diffPixels counts pixels whose RGB differs by more than the 8-bit noise
+// floor (0x0808). Cache-replay equivalence checks use it: a stale picture
+// replays with 0 differing pixels, a fresh paint differs.
+func diffPixels(a, b image.Image) int {
+	if a == nil || b == nil {
+		return -1
+	}
+	bd := b.Bounds()
+	ad := a.Bounds()
+	if ad.Dx() != bd.Dx() || ad.Dy() != bd.Dy() {
+		return -1
+	}
+	n := 0
+	for x := 0; x < ad.Dx(); x++ {
+		for y := 0; y < ad.Dy(); y++ {
+			ar, ag, ab := sampleRGB(a.At(ad.Min.X+x, ad.Min.Y+y))
+			br, bg, bb := sampleRGB(b.At(bd.Min.X+x, bd.Min.Y+y))
+			if channelDiff(ar, br) > 0x0808 || channelDiff(ag, bg) > 0x0808 || channelDiff(ab, bb) > 0x0808 {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func channelDiff(a, b uint32) uint32 {
+	if a > b {
+		return a - b
+	}
+	return b - a
 }
 
 // TestPaintContext_PushClipRRect_ClipsOutsideCorners drives the shipped

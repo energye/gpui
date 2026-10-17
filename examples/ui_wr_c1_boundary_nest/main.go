@@ -106,6 +106,14 @@ func main() {
 	// Sibling labels (isolation visual).
 	S.Place(wrkit.Label("sib", 11, 0.75, 0.85, 0.9), 5, 140)
 	L2.Place(rendering.NewRenderColorBox(26, 26, 0.5, 0.35, 0.4, 1), 170, 170)
+	// Own-content density: every level keeps static content of its own so its
+	// display list beats the worth-caching complexity gate (Flutter raster
+	// cache). Thin structural-only boundaries would never be admitted.
+	staticChips(L1, 6, 40, 6, 22)
+	staticChips(L2, 6, 40, 6, 22)
+	staticChips(L3, 6, 40, 6, 20)
+	staticChips(L4, 5, 6, 6, 13)
+	staticChips(S, 7, 6, 6, 18)
 
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
@@ -218,6 +226,17 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "ui_wr_c1_boundary_nest: OK skip=%d rr=%d count=%d depth=%d draws=%d presents=%d\n",
 		snap.BoundarySkip, snap.BoundaryRerecord, snap.BoundaryCount, snap.BoundaryMaxDepth, draws, app.PresentCount())
+}
+
+// staticChips places n small color chips in one row: static own content that
+// lifts a boundary's display list above the worth-caching complexity gate, so
+// each nest level is a real content boundary rather than a structural shell.
+func staticChips(box *rendering.AbsoluteBox, n int, x0, y0, dx float64) {
+	for i := 0; i < n; i++ {
+		c := rendering.NewRenderColorBox(12, 12,
+			0.30+0.06*float64(i%5), 0.42+0.03*float64(i%3), 0.62, 1)
+		box.Place(c, x0+float64(i)*dx, y0)
+	}
 }
 
 type ticker struct{ on func(dt float64) }

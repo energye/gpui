@@ -153,6 +153,18 @@ type FrameMetrics struct {
 	BoundaryCount int64 `json:"boundary_count,omitempty"`
 	// BoundaryMaxDepth is max nesting depth of repaint boundaries (R3b).
 	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
+	// Worth-caching gate counters (cumulative snapshot from the boundary
+	// cache; Flutter raster cache alignment). AdmissionWait = live paints held
+	// back until the access threshold was reached, WillChangeReject = content
+	// that changed since its last live paint, ComplexityReject = own-content
+	// score at or below the complexity gate, LimitReject = admissions deferred
+	// by the per-frame new-cache limit, MaxScore = highest score seen at the
+	// gate (calibration aid).
+	BoundaryAdmissionWait    int64 `json:"boundary_admission_wait,omitempty"`
+	BoundaryWillChangeReject int64 `json:"boundary_will_change_reject,omitempty"`
+	BoundaryComplexityReject int64 `json:"boundary_complexity_reject,omitempty"`
+	BoundaryLimitReject      int64 `json:"boundary_limit_reject,omitempty"`
+	BoundaryMaxScore         int64 `json:"boundary_max_score,omitempty"`
 	// Shell partitioning of the boundary caches (R21 shell/content layering;
 	// cumulative across NoteShellBoundaryFrame calls). A scrolling body must
 	// keep ShellRerecord == 0 while the shell Picture cache Replays.
@@ -637,6 +649,22 @@ func (s *MetricsStore) NoteShellBoundaryFrame(shellRerecord, shellSkip int64) {
 	s.mu.Lock()
 	s.m.ShellRerecord += shellRerecord
 	s.m.ShellSkip += shellSkip
+	s.mu.Unlock()
+}
+
+// SetBoundaryPolicy records the boundary-cache worth-caching gate counters.
+// These are cumulative snapshots (read from BoundaryCache.PolicyCounts), not
+// per-frame deltas, so the store keeps the latest value.
+func (s *MetricsStore) SetBoundaryPolicy(admissionWait, willChangeReject, complexityReject, limitReject, maxScore int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.BoundaryAdmissionWait = admissionWait
+	s.m.BoundaryWillChangeReject = willChangeReject
+	s.m.BoundaryComplexityReject = complexityReject
+	s.m.BoundaryLimitReject = limitReject
+	s.m.BoundaryMaxScore = maxScore
 	s.mu.Unlock()
 }
 

@@ -81,11 +81,11 @@ func main() {
 	areaA := rendering.NewAbsoluteBox(190, 140)
 	areaA.SetRepaintBoundary(true)
 	areaA.Background = &rendering.Color{R: 0.16, G: 0.28, B: 0.44, A: 1}
-	innerA := rendering.NewRenderColorBox(90, 70, 0.45, 0.72, 0.9, 1)
-	innerA.SetRepaintBoundary(true)
+	innerA := contentBox(90, 70, 0.45, 0.72, 0.9)
 	areaA.Place(innerA, 16, 16)
 	areaA.Place(wrkit.Label("RESIZE-A", 11, 0.75, 0.85, 0.95), 16, 100)
 	areaA.Place(wrkit.Label("size@3s", 10, 0.7, 0.8, 0.9), 116, 16)
+	staticChips(areaA, 6, 16, 118, 22, 0)
 	shell.Body.Align(areaA, 0.04, 0.06)
 
 	// ------------------------------------------------------------------
@@ -96,12 +96,12 @@ func main() {
 	areaB.Background = &rendering.Color{R: 0.14, G: 0.32, B: 0.26, A: 1}
 	for i := 0; i < 2; i++ {
 		for j := 0; j < 2; j++ {
-			c := rendering.NewRenderColorBox(60, 42, 0.3+float64(i)*0.2, 0.55, 0.4+float64(j)*0.3, 1)
-			c.SetRepaintBoundary(true)
+			c := contentBox(60, 42, 0.3+float64(i)*0.2, 0.55, 0.4+float64(j)*0.3)
 			areaB.Place(c, 16+float64(i)*72, 16+float64(j)*52)
 		}
 	}
 	areaB.Place(wrkit.Label("DPR-B", 11, 0.75, 0.85, 0.95), 16, 122)
+	staticChips(areaB, 6, 100, 118, 15, 0)
 	shell.Body.Align(areaB, 0.36, 0.06)
 
 	// ------------------------------------------------------------------
@@ -111,15 +111,20 @@ func main() {
 	innerC := rendering.NewAbsoluteBox(70, 70)
 	innerC.SetRepaintBoundary(true)
 	innerC.Place(hot3, 20, 20)
+	staticChips(innerC, 5, 4, 4, 13, 0)
+	staticChips(innerC, 5, 4, 54, 13, 0)
 	midC := rendering.NewAbsoluteBox(110, 110)
 	midC.SetRepaintBoundary(true)
 	midC.Background = &rendering.Color{R: 0.3, G: 0.3, B: 0.5, A: 1}
 	midC.Place(innerC, 20, 20)
+	staticChips(midC, 5, 20, 4, 16, 0)
+	staticChips(midC, 5, 4, 24, 0, 16)
 	areaC := rendering.NewAbsoluteBox(190, 150)
 	areaC.SetRepaintBoundary(true)
 	areaC.Background = &rendering.Color{R: 0.2, G: 0.2, B: 0.38, A: 1}
 	areaC.Place(midC, 16, 16)
 	areaC.Place(wrkit.Label("NEST-C (3层)", 11, 0.75, 0.85, 0.95), 16, 130)
+	staticChips(areaC, 6, 140, 16, 0, 20)
 	shell.Body.Align(areaC, 0.04, 0.52)
 
 	// ------------------------------------------------------------------
@@ -171,8 +176,7 @@ func main() {
 	staticCount := 0
 	for i := 0; i < 3; i++ {
 		for j := 0; j < 3; j++ {
-			c := rendering.NewRenderColorBox(50, 50, 0.25+0.12*float64(i), 0.4+0.1*float64(j), 0.62, 1)
-			c.SetRepaintBoundary(true)
+			c := contentBox(50, 50, 0.25+0.12*float64(i), 0.4+0.1*float64(j), 0.62)
 			shell.Body.Place(c, 700+float64(i)*58, 40+float64(j)*58)
 			staticCount++
 		}
@@ -410,6 +414,29 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "ui_wr_c7_resize_dpr: OK skip=%d rr=%d inv=%d wave1=%d wave2=%d peak1=%d peak2=%d steadyRR=%d dpr=%.1f snap=%v presents=%d elapsed=%.1fs\n",
 		snap.BoundarySkip, snap.BoundaryRerecord, inv, wave1, wave2, peakRR1, peakRR2, steadyRR, dpr, snapOK, app.PresentCount(), elapsedSec)
+}
+
+// contentBox builds a repaint-boundary region that carries real content: the
+// boundary cache admits a boundary only when its own display list beats the
+// worth-caching complexity gate (Flutter raster cache), and a solid leaf box
+// scores 1 and would never be admitted. bg is the region colour, the chips are
+// its static content blocks.
+func contentBox(w, h, r, g, b float64) *rendering.AbsoluteBox {
+	box := rendering.NewAbsoluteBox(w, h)
+	box.Background = &rendering.Color{R: r, G: g, B: b, A: 1}
+	box.SetRepaintBoundary(true)
+	staticChips(box, 6, 6, 6, 16, 16)
+	return box
+}
+
+// staticChips places n small color chips starting at (x0,y0), stepping by
+// (dx,dy) each: static own content for boundaries that must clear the gate.
+func staticChips(box *rendering.AbsoluteBox, n int, x0, y0, dx, dy float64) {
+	for i := 0; i < n; i++ {
+		c := rendering.NewRenderColorBox(10, 10,
+			0.30+0.06*float64(i%3), 0.45+0.03*float64(i%2), 0.62, 1)
+		box.Place(c, x0+float64(i)*dx, y0+float64(i)*dy)
+	}
 }
 
 type ticker struct{ on func(dt float64) }

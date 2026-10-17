@@ -19,67 +19,53 @@ func paintWithCache(t *testing.T, root rendering.RenderObject, cache *rendering.
 	return cache.FrameRerecord, cache.FrameSkip
 }
 
-func TestBoundaryCache_SkipVsRerecord(t *testing.T) {
-	staticB := rendering.NewRenderColorBox(40, 40, 0.1, 0.8, 0.2, 1)
-	staticB.SetRepaintBoundary(true)
-	hotB := rendering.NewRenderColorBox(30, 30, 0.9, 0.2, 0.1, 1)
-	hotB.SetRepaintBoundary(true)
-
-	root := rendering.NewAbsoluteBox(200, 200)
-	root.Background = &rendering.Color{R: 0.05, G: 0.05, B: 0.08, A: 1}
-	root.Place(staticB, 10, 10)
-	root.Place(hotB, 100, 100)
+// TestBoundaryCache_StaticSkipsHotStaysLive: a settled boundary Replays while a
+// sibling whose content changes repaints live; the changed sibling re-enters
+// the cache only after its content stays unchanged (access threshold).
+func TestBoundaryCache_StaticSkipsHotStaysLive(t *testing.T) {
+	staticB := complexBoundary(120, 60, complexFills)
+	hotB := complexBoundary(120, 60, complexFills)
+	root := newPolicyTree(300, 200, staticB, hotB)
 
 	owner := rendering.NewPipelineOwner(root)
-	owner.FlushLayout(rendering.Size{Width: 200, Height: 200}, true)
+	owner.FlushLayout(rendering.Size{Width: 300, Height: 200}, true)
 	cache := owner.BoundaryCache()
 	if cache == nil {
 		t.Fatal("BoundaryCache must be non-nil on PipelineOwner")
 	}
 
-	// Frame 1: both boundaries dirty → rerecord, no skip.
-	rr1, sk1 := paintWithCache(t, root, cache, 200, 200)
-	if rr1 < 2 {
-		t.Fatalf("frame1 rerecord=%d want ≥2 (static+hot)", rr1)
+	// Warm: both boundaries enter the cache after the access threshold.
+	warmBoundaryCache(t, root, cache, 300, 200)
+	if !cache.HasValid(staticB) || !cache.HasValid(hotB) {
+		t.Fatal("both boundaries must be cached after warm-up")
 	}
-	if sk1 != 0 {
-		t.Fatalf("frame1 skip=%d want 0 (cold cache)", sk1)
-	}
-	if !cache.HasValid(staticB) {
-		t.Fatal("static boundary must have valid Picture after first paint")
-	}
-	if !cache.HasValid(hotB) {
-		t.Fatal("hot boundary must have valid Picture after first paint")
+	if rr, sk := paintWithCache(t, root, cache, 300, 200); rr != 0 || sk != 2 {
+		t.Fatalf("steady rr=%d sk=%d want 0/2", rr, sk)
 	}
 
-	// Frame 2: only hot dirty → static skip, hot rerecord.
-	hotB.R, hotB.G, hotB.B = 0.95, 0.4, 0.1
+	// Hot changes content: live paint; its re-store is gated by will_change.
+	hotB.Background.R = 0.95
 	hotB.MarkNeedsPaint()
 	if staticB.NeedsPaint() {
-		t.Fatal("static must stay clean when hot is repaint boundary")
+		t.Fatal("static must stay clean when the hot boundary repaints")
 	}
-	rr2, sk2 := paintWithCache(t, root, cache, 200, 200)
-	if sk2 < 1 {
-		t.Fatalf("frame2 skip=%d want ≥1 (static Replay)", sk2)
+	rr, sk := paintWithCache(t, root, cache, 300, 200)
+	if sk != 1 {
+		t.Fatalf("static must Replay while hot repaints (sk=%d want 1)", sk)
 	}
-	if rr2 < 1 {
-		t.Fatalf("frame2 rerecord=%d want ≥1 (hot)", rr2)
-	}
-	// Cumulative: skip grew.
-	if cache.Skip < 1 {
-		t.Fatalf("lifetime Skip=%d want ≥1", cache.Skip)
-	}
-	if cache.Rerecord < 3 {
-		t.Fatalf("lifetime Rerecord=%d want ≥3 (2 first + ≥1 hot)", cache.Rerecord)
+	if rr != 0 {
+		t.Fatalf("hot re-store must be held back by will_change (rr=%d want 0)", rr)
 	}
 
-	// Frame 3: both clean → both skip, zero rerecord.
-	rr3, sk3 := paintWithCache(t, root, cache, 200, 200)
-	if rr3 != 0 {
-		t.Fatalf("frame3 rerecord=%d want 0 (both clean)", rr3)
+	// The hot boundary settles: 3 held-back frames + the admitting frame.
+	for i := 0; i < 4; i++ {
+		paintWithCache(t, root, cache, 300, 200)
 	}
-	if sk3 < 2 {
-		t.Fatalf("frame3 skip=%d want ≥2", sk3)
+	if !cache.HasValid(hotB) {
+		t.Fatal("hot boundary must be re-cached once its content settles")
+	}
+	if rr, sk := paintWithCache(t, root, cache, 300, 200); rr != 0 || sk != 2 {
+		t.Fatalf("settled rr=%d sk=%d want 0/2", rr, sk)
 	}
 }
 
@@ -87,16 +73,15 @@ func TestBoundaryCache_SkipVsRerecord(t *testing.T) {
 // Replay + walk nested RB children so mid/leaf still paint (mid not baked in outer).
 func TestBoundaryCache_NestedAbsoluteBoxCleanReplayKeepsMidContent(t *testing.T) {
 	const W, H = 200, 200
-	outer := rendering.NewAbsoluteBox(160, 160)
+	outer := complexBoundary(160, 160, complexFills)
 	outer.Background = &rendering.Color{R: 0.1, G: 0.1, B: 0.5, A: 1} // blue outer
-	outer.SetRepaintBoundary(true)
 
-	mid := rendering.NewAbsoluteBox(100, 100)
+	mid := complexBoundary(100, 100, complexFills)
 	mid.Background = &rendering.Color{R: 0.0, G: 0.6, B: 0.6, A: 1} // teal mid
-	mid.SetRepaintBoundary(true)
 
-	leaf := rendering.NewRenderColorBox(40, 40, 0.0, 0.9, 0.1, 1) // bright green
-	leaf.SetRepaintBoundary(true)
+	leaf := complexBoundary(40, 40, complexFills)
+	leaf.Background = &rendering.Color{R: 0.0, G: 0.9, B: 0.1, A: 1} // bright green
+
 	mid.Place(leaf, 20, 20)
 	outer.Place(mid, 20, 20)
 
@@ -108,14 +93,8 @@ func TestBoundaryCache_NestedAbsoluteBoxCleanReplayKeepsMidContent(t *testing.T)
 	owner.FlushLayout(rendering.Size{Width: W, Height: H}, true)
 	cache := owner.BoundaryCache()
 
-	dc1 := render.NewContext(W, H)
-	pc1 := rendering.NewPaintContext(dc1, 1)
-	pc1.BoundaryCache, pc1.UseBoundaryCache = cache, true
-	cache.BeginFrame()
-	root.Paint(pc1)
-	if cache.FrameRerecord < 3 {
-		t.Fatalf("warm rerecord=%d want ≥3 (outer+mid+leaf own caches)", cache.FrameRerecord)
-	}
+	// Warm admits all three (own-content caches, not one outer bake).
+	warmBoundaryCache(t, root, cache, W, H)
 	if !cache.HasValid(outer) || !cache.HasValid(mid) || !cache.HasValid(leaf) {
 		t.Fatal("warm must cache outer, mid, and leaf separately")
 	}
@@ -155,20 +134,18 @@ func TestBoundaryCache_NestedAbsoluteBoxCleanReplayKeepsMidContent(t *testing.T)
 }
 
 // TestBoundaryCache_InnerChangeThenCleanReplayShowsFresh: leaf owns its Picture;
-// outer must not bake leaf. After red→green rerecord, clean Replay shows green
+// outer must not bake leaf. After red→green the clean Replay shows green
 // without ancestor invalidate / outer rerecord.
 func TestBoundaryCache_InnerChangeThenCleanReplayShowsFresh(t *testing.T) {
 	const W, H = 200, 200
-	outer := rendering.NewAbsoluteBox(160, 160)
+	outer := complexBoundary(160, 160, complexFills)
 	outer.Background = &rendering.Color{R: 0.1, G: 0.1, B: 0.5, A: 1}
-	outer.SetRepaintBoundary(true)
 
-	mid := rendering.NewAbsoluteBox(100, 100)
+	mid := complexBoundary(100, 100, complexFills)
 	mid.Background = &rendering.Color{R: 0.0, G: 0.5, B: 0.5, A: 1}
-	mid.SetRepaintBoundary(true)
 
-	leaf := rendering.NewRenderColorBox(40, 40, 0.95, 0.05, 0.05, 1) // red warm
-	leaf.SetRepaintBoundary(true)
+	leaf := complexBoundary(40, 40, complexFills)
+	leaf.Background = &rendering.Color{R: 0.95, G: 0.05, B: 0.05, A: 1} // red warm
 	mid.Place(leaf, 20, 20)
 	outer.Place(mid, 20, 20)
 
@@ -180,34 +157,37 @@ func TestBoundaryCache_InnerChangeThenCleanReplayShowsFresh(t *testing.T) {
 	owner.FlushLayout(rendering.Size{Width: W, Height: H}, true)
 	cache := owner.BoundaryCache()
 
-	dc1 := render.NewContext(W, H)
-	pc1 := rendering.NewPaintContext(dc1, 1)
-	pc1.BoundaryCache, pc1.UseBoundaryCache = cache, true
-	cache.BeginFrame()
-	root.Paint(pc1)
-	if !cache.HasValid(outer) || !cache.HasValid(leaf) {
-		t.Fatal("warm must cache outer and leaf")
+	warmBoundaryCache(t, root, cache, W, H)
+	if !cache.HasValid(outer) || !cache.HasValid(mid) || !cache.HasValid(leaf) {
+		t.Fatal("warm must cache outer, mid, and leaf")
 	}
 	outerRRWarm := cache.Rerecord
 
-	leaf.R, leaf.G, leaf.B, leaf.A = 0.05, 0.95, 0.1, 1 // green
+	leaf.Background.R, leaf.Background.G, leaf.Background.B = 0.05, 0.95, 0.1 // green
 	leaf.MarkNeedsPaint()
 	if outer.NeedsPaint() {
-		t.Fatal("outer must stay clean when only leaf boundary is marked")
+		t.Fatal("outer must stay clean when only the leaf boundary is marked")
 	}
 	dc2 := render.NewContext(W, H)
 	pc2 := rendering.NewPaintContext(dc2, 1)
 	pc2.BoundaryCache, pc2.UseBoundaryCache = cache, true
 	cache.BeginFrame()
 	root.Paint(pc2)
-	if cache.FrameRerecord != 1 {
-		t.Fatalf("leaf dirty frame rerecord=%d want exactly 1 (hot only; outer/mid must not re-store)", cache.FrameRerecord)
+	if cache.FrameRerecord != 0 {
+		t.Fatalf("leaf dirty frame rerecord=%d want 0 (outer/mid must not re-store)", cache.FrameRerecord)
 	}
-	if cache.Rerecord != outerRRWarm+1 {
-		t.Fatalf("lifetime Rerecord=%d want warm(%d)+1", cache.Rerecord, outerRRWarm)
+	if cache.Skip < 2 {
+		t.Fatalf("leaf dirty frame skip=%d want ≥2 (outer+mid own Replay)", cache.Skip)
 	}
 	if !cache.HasValid(outer) {
-		t.Fatal("outer own-content cache must remain valid (not invalidated by leaf store)")
+		t.Fatal("outer own-content cache must remain valid (not invalidated by leaf repaint)")
+	}
+	// The leaf re-enters the cache after three unchanged frames + the admit frame.
+	for i := 0; i < 4; i++ {
+		paintWithCache(t, root, cache, W, H)
+	}
+	if cache.Rerecord != outerRRWarm+1 {
+		t.Fatalf("lifetime Rerecord=%d want warm(%d)+1 (leaf only; outer/mid never re-store)", cache.Rerecord, outerRRWarm)
 	}
 
 	dc3 := render.NewContext(W, H)
@@ -238,14 +218,11 @@ func TestBoundaryCache_InnerChangeThenCleanReplayShowsFresh(t *testing.T) {
 func TestBoundaryCache_NestedOuterNoRerecordWhenInnerDirty(t *testing.T) {
 	// Plan criterion: only-inner-dirty must NOT grow outer lifetime Rerecord.
 	// Own-content Pictures + walk nested RB after tryReplay.
-	outer := rendering.NewAbsoluteBox(120, 120)
+	outer := complexBoundary(120, 120, complexFills)
 	outer.Background = &rendering.Color{R: 0.2, G: 0.2, B: 0.25, A: 1}
-	outer.SetRepaintBoundary(true)
 
-	staticLeaf := rendering.NewRenderColorBox(20, 20, 0.1, 0.7, 0.2, 1)
-	staticLeaf.SetRepaintBoundary(true)
-	hotLeaf := rendering.NewRenderColorBox(20, 20, 0.9, 0.1, 0.1, 1)
-	hotLeaf.SetRepaintBoundary(true)
+	staticLeaf := complexBoundary(20, 20, complexFills)
+	hotLeaf := complexBoundary(20, 20, complexFills)
 	outer.Place(staticLeaf, 8, 8)
 	outer.Place(hotLeaf, 60, 60)
 
@@ -256,40 +233,43 @@ func TestBoundaryCache_NestedOuterNoRerecordWhenInnerDirty(t *testing.T) {
 	owner.FlushLayout(rendering.Size{Width: 200, Height: 200}, true)
 	cache := owner.BoundaryCache()
 
-	rr0, _ := paintWithCache(t, root, cache, 200, 200)
-	if rr0 < 3 {
-		t.Fatalf("warm rerecord=%d want ≥3 (outer+static+hot)", rr0)
-	}
-	if !cache.HasValid(outer) {
-		t.Fatal("outer boundary must be cached after warm")
+	warmBoundaryCache(t, root, cache, 200, 200)
+	if !cache.HasValid(outer) || !cache.HasValid(staticLeaf) || !cache.HasValid(hotLeaf) {
+		t.Fatal("warm must cache outer, static leaf, and hot leaf")
 	}
 	outerRRAfterWarm := cache.Rerecord
 
-	hotLeaf.R = 0.5
+	hotLeaf.Background.R = 0.5
 	hotLeaf.MarkNeedsPaint()
 	if outer.NeedsPaint() {
-		t.Fatal("outer must not be paint-dirty when only inner boundary is marked")
+		t.Fatal("outer must not be paint-dirty when only an inner boundary is marked")
 	}
 	if staticLeaf.NeedsPaint() {
 		t.Fatal("static leaf must stay clean")
 	}
 
 	rr1, sk1 := paintWithCache(t, root, cache, 200, 200)
-	if rr1 != 1 {
-		t.Fatalf("inner dirty frame rerecord=%d want exactly 1 (hot only)", rr1)
+	if rr1 != 0 {
+		t.Fatalf("inner dirty frame rerecord=%d want 0 (changed content is not cached)", rr1)
 	}
-	// Outer own Replay (skip) + static leaf skip while hot rerecords.
+	// Outer own Replay (skip) + static leaf skip while the hot leaf repaints.
 	if sk1 < 2 {
 		t.Fatalf("skip=%d want ≥2 (outer own + static leaf)", sk1)
 	}
-	grew := cache.Rerecord - outerRRAfterWarm
-	if grew != 1 {
-		t.Fatalf("lifetime Rerecord grew by %d want exactly 1 (outer must NOT re-store)", grew)
+	if grew := cache.Rerecord - outerRRAfterWarm; grew != 0 {
+		t.Fatalf("lifetime Rerecord grew by %d want 0 (outer must NOT re-store)", grew)
 	}
 	if !cache.HasValid(outer) {
 		t.Fatal("outer cache must stay valid across inner-only dirty")
 	}
 
+	// Hot leaf settles: only it re-enters, outer/static never re-store.
+	for i := 0; i < 4; i++ {
+		paintWithCache(t, root, cache, 200, 200)
+	}
+	if grew := cache.Rerecord - outerRRAfterWarm; grew != 1 {
+		t.Fatalf("lifetime Rerecord grew by %d want exactly 1 (hot leaf only)", grew)
+	}
 	rr2, sk2 := paintWithCache(t, root, cache, 200, 200)
 	if rr2 != 0 {
 		t.Fatalf("clean frame rerecord=%d want 0", rr2)
@@ -332,30 +312,67 @@ func TestCountRepaintBoundaries_NestedDepth(t *testing.T) {
 }
 
 func TestBoundaryCache_SizeChangeInvalidates(t *testing.T) {
-	box := rendering.NewRenderColorBox(20, 20, 0.3, 0.3, 0.8, 1)
-	box.SetRepaintBoundary(true)
-	root := rendering.NewAbsoluteBox(100, 100)
-	root.Place(box, 0, 0)
+	box := complexBoundary(20, 20, complexFills)
+	root := newPolicyTree(100, 100, box)
 	owner := rendering.NewPipelineOwner(root)
 	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
 	cache := owner.BoundaryCache()
 
-	_, _ = paintWithCache(t, root, cache, 100, 100)
+	warmBoundaryCache(t, root, cache, 100, 100)
 	if !cache.HasValid(box) {
-		t.Fatal("expected valid cache")
+		t.Fatal("expected valid cache after warm-up")
 	}
 
-	// Resize → layout dirties; after layout size differs from entry → no skip, re-record.
-	box.Width, box.Height = 40, 40
+	_, willChangeBefore, _, _, _ := cache.PolicyCounts()
+
+	// Resize: layout marks the resized node paint dirty (Base.setSize →
+	// MarkNeedsPaint), so the frame is will_change — it live-paints, cannot
+	// re-store, and drops the previous-generation entry, leaving nothing stale
+	// to replay at the old size.
+	box.FixedWidth, box.FixedHeight = 40, 40
 	box.MarkNeedsLayout()
 	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
-	box.MarkNeedsPaint()
+	if !box.NeedsPaint() {
+		t.Fatal("resize must mark the boundary paint dirty (the will_change signal)")
+	}
 	rr, sk := paintWithCache(t, root, cache, 100, 100)
 	if sk != 0 {
 		t.Fatalf("after size change skip=%d want 0", sk)
 	}
-	if rr < 1 {
-		t.Fatalf("after size change rerecord=%d want ≥1", rr)
+	if rr != 0 {
+		t.Fatalf("after size change rerecord=%d want 0 (changed content held back)", rr)
+	}
+	if cache.HasValid(box) {
+		t.Fatal("the changed boundary's entry must be dropped")
+	}
+	if _, wc, _, _, _ := cache.PolicyCounts(); wc != willChangeBefore+1 {
+		t.Fatalf("will_change_rejects=%d want %d", wc, willChangeBefore+1)
+	}
+	// Settle: re-admission needs accessThreshold+1 unchanged live paints.
+	settle(t, root, cache, 100, 100, cache.AccessThreshold()+1)
+	if !cache.HasValid(box) {
+		t.Fatal("resized boundary must be re-cached once settled")
+	}
+	if _, sk := paintWithCache(t, root, cache, 100, 100); sk != 1 {
+		t.Fatalf("resized steady skip=%d want 1", sk)
+	}
+
+	// Same cycle again: the drop is per content generation, not a one-shot.
+	box.FixedWidth, box.FixedHeight = 60, 60
+	box.MarkNeedsLayout()
+	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
+	if _, sk := paintWithCache(t, root, cache, 100, 100); sk != 0 {
+		t.Fatalf("second resize skip=%d want 0", sk)
+	}
+	if cache.HasValid(box) {
+		t.Fatal("the re-resized boundary's entry must be dropped")
+	}
+	settle(t, root, cache, 100, 100, cache.AccessThreshold()+1)
+	if !cache.HasValid(box) {
+		t.Fatal("re-resized boundary must be re-cached once settled")
+	}
+	if _, sk := paintWithCache(t, root, cache, 100, 100); sk != 1 {
+		t.Fatalf("re-resized steady skip=%d want 1", sk)
 	}
 }
 
@@ -371,7 +388,9 @@ func TestPipelineOwner_BoundaryCachePersists(t *testing.T) {
 // TestBoundaryCache_NonCacheableNeverReplays: a boundary whose own content
 // contains RO types the MVP recorder cannot capture (here a Viewport) must not
 // be cached — tryReplay must always miss so live content is never dropped from
-// a stale-frame Replay.
+// a stale-frame Replay. The Viewport's parent owns no own content (every draw
+// lives in the nested boundary), so it scores 0 and the complexity gate keeps
+// it out as well — no entry exists for either.
 func TestBoundaryCache_NonCacheableNeverReplays(t *testing.T) {
 	inner := rendering.NewRenderColorBox(10, 10, 1, 0, 0, 1)
 	vp := rendering.NewRenderViewport(inner)
@@ -385,42 +404,48 @@ func TestBoundaryCache_NonCacheableNeverReplays(t *testing.T) {
 	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
 	cache := owner.BoundaryCache()
 
-	_, _ = paintWithCache(t, root, cache, 100, 100)
+	for i := 0; i < 6; i++ {
+		rr, sk := paintWithCache(t, root, cache, 100, 100)
+		if sk != 0 {
+			t.Fatalf("frame %d: non-cacheable boundary skip=%d want 0 (always live)", i, sk)
+		}
+		if rr != 0 {
+			t.Fatalf("frame %d: non-cacheable boundary rerecord=%d want 0 (nothing cached)", i, rr)
+		}
+	}
+	if cache.HasValid(vp) {
+		t.Fatal("viewport must never be cached (would replay stale)")
+	}
 	if cache.HasValid(outer) {
-		t.Fatal("viewport-containing boundary must never be cached (would replay stale)")
+		t.Fatal("parent of a viewport owns no cacheable own content")
 	}
-	// Every subsequent frame must still live-paint (no cache Replay ever).
-	rr, sk := paintWithCache(t, root, cache, 100, 100)
-	if sk != 0 {
-		t.Fatalf("non-cacheable boundary skip=%d want 0 (always live)", sk)
+	if got := cache.Len(); got != 0 {
+		t.Fatalf("entries=%d want 0", got)
 	}
-	if rr != 0 {
-		t.Fatalf("non-cacheable boundary rerecord=%d want 0 (nothing cached)", rr)
+	_, willChange, complexity, _, maxScore := cache.PolicyCounts()
+	if maxScore != 0 {
+		t.Fatalf("max_score=%d want 0 (no cacheable own content anywhere)", maxScore)
+	}
+	if willChange != 1 || complexity < 5 {
+		t.Fatalf("gate must keep the empty-own-content parent out: will_change=%d complexity=%d",
+			willChange, complexity)
 	}
 }
 
 // TestBoundaryCache_DPRInvalidateReRecords: R11 — programmatic full
 // invalidation (DPR change path, PipelineApp.InvalidateBoundaryCache → Clear)
-// must drop all entries: next frame re-records (no skip), then steady frames
-// replay again (skip resumes).
+// must drop all entries and restart the access count: the next frames live-paint
+// (no skip), then steady frames Replay again.
 func TestBoundaryCache_DPRInvalidateReRecords(t *testing.T) {
-	box := rendering.NewRenderColorBox(20, 20, 0.3, 0.8, 0.2, 1)
-	box.SetRepaintBoundary(true)
-	root := rendering.NewAbsoluteBox(100, 100)
-	root.Place(box, 0, 0)
+	box := complexBoundary(20, 20, complexFills)
+	root := newPolicyTree(100, 100, box)
 	owner := rendering.NewPipelineOwner(root)
 	owner.FlushLayout(rendering.Size{Width: 100, Height: 100}, true)
 	cache := owner.BoundaryCache()
 
-	// Frame 1 records; steady skip accumulates from frame 2.
-	if rr, _ := paintWithCache(t, root, cache, 100, 100); rr < 1 {
-		t.Fatalf("initial frame rerecord=%d want ≥1", rr)
-	}
-	if _, sk := paintWithCache(t, root, cache, 100, 100); sk < 1 {
-		t.Fatalf("steady skip=%d want ≥1 before invalidation", sk)
-	}
-	if !cache.HasValid(box) {
-		t.Fatal("expected valid cache before invalidation")
+	warmBoundaryCache(t, root, cache, 100, 100)
+	if _, sk := paintWithCache(t, root, cache, 100, 100); sk != 1 {
+		t.Fatalf("steady skip=%d want 1 before invalidation", sk)
 	}
 
 	// DPR change → Clear() (InvalidateBoundaryCache path): one wave re-record.
@@ -432,14 +457,19 @@ func TestBoundaryCache_DPRInvalidateReRecords(t *testing.T) {
 	if sk != 0 {
 		t.Fatalf("invalidation frame skip=%d want 0", sk)
 	}
-	if rr < 1 {
-		t.Fatalf("invalidation frame rerecord=%d want ≥1 (one wave)", rr)
+	if rr != 0 {
+		t.Fatalf("invalidation frame rerecord=%d want 0 (access count restarts)", rr)
 	}
 
-	// Back to steady: replay resumes.
-	_, sk2 := paintWithCache(t, root, cache, 100, 100)
-	if sk2 < 1 {
-		t.Fatalf("post-invalidation steady skip=%d want ≥1", sk2)
+	// Back to steady: the boundary is re-admitted after the access threshold.
+	for i := 0; i < 2; i++ {
+		paintWithCache(t, root, cache, 100, 100)
+	}
+	if rr, _ := paintWithCache(t, root, cache, 100, 100); rr != 1 {
+		t.Fatalf("re-admit frame rerecord=%d want 1", rr)
+	}
+	if _, sk2 := paintWithCache(t, root, cache, 100, 100); sk2 != 1 {
+		t.Fatalf("post-invalidation steady skip=%d want 1", sk2)
 	}
 }
 
@@ -502,14 +532,12 @@ func TestCompositingBits_IncrementalFlush(t *testing.T) {
 
 // TestBoundaryCache_ShellBodyPartition: shell-tagged boundaries count in the
 // shell bucket separately from body boundaries.
-// Frame 1 cold-records both; frame 2 dirties ONLY the body — the shell boundary
-// Replays (shell skip +1) with shell rerecord staying 0.
+// The body's content change must never re-record the shell; the shell Replays
+// (shell skip +1) with shell rerecord staying 0.
 func TestBoundaryCache_ShellBodyPartition(t *testing.T) {
-	shellB := rendering.NewRenderColorBox(400, 50, 0.2, 0.4, 0.9, 1)
-	shellB.SetRepaintBoundary(true)
+	shellB := complexBoundary(400, 50, complexFills)
 	shellB.SetShellBoundary(true)
-	bodyB := rendering.NewRenderColorBox(400, 300, 0.9, 0.6, 0.2, 1)
-	bodyB.SetRepaintBoundary(true)
+	bodyB := complexBoundary(400, 300, complexFills)
 
 	root := rendering.NewAbsoluteBox(600, 400)
 	root.Place(shellB, 0, 0)
@@ -519,39 +547,50 @@ func TestBoundaryCache_ShellBodyPartition(t *testing.T) {
 	owner.FlushLayout(rendering.Size{Width: 200, Height: 200}, true)
 	cache := owner.BoundaryCache()
 
-	// Frame 1: both dirty → 2 rerecords, 1 of them shell.
-	paintWithCache(t, root, cache, 200, 400)
-	srr, ssk := cache.ShellFrameCounts()
-	if srr != 1 {
-		t.Fatalf("frame1 shell_rerecord=%d want 1", srr)
+	// Warm: both admitted once their content has been stable long enough.
+	warmBoundaryCache(t, root, cache, 200, 400)
+	if cache.ShellRerecord != 1 {
+		t.Fatalf("lifetime shell_rerecord=%d want 1 (cold shell record only)", cache.ShellRerecord)
 	}
-	if ssk != 0 {
-		t.Fatalf("frame1 shell_skip=%d want 0", ssk)
-	}
-	if cache.ShellRerecord != 1 || cache.ShellSkip != 0 {
-		t.Fatalf("lifetime shell rr/sk=%d/%d want 1/0", cache.ShellRerecord, cache.ShellSkip)
+	if !cache.HasValid(shellB) || !cache.HasValid(bodyB) {
+		t.Fatal("both boundaries must be cached after warm-up")
 	}
 
-	// Frame 2: body scrolls (changes color) → body rerecords, shell Replays.
-	bodyB.R, bodyB.G = 0.1, 0.3
+	// Body scrolls (its content changes) → shell Replays, body live-paints.
+	bodyB.Background.R, bodyB.Background.G = 0.1, 0.3
 	bodyB.MarkNeedsPaint()
 	if shellB.NeedsPaint() {
 		t.Fatal("shell must stay clean when the body (sibling boundary) dirties")
 	}
 	paintWithCache(t, root, cache, 200, 400)
-	srr, ssk = cache.ShellFrameCounts()
+	srr, ssk := cache.ShellFrameCounts()
 	if srr != 0 {
-		t.Fatalf("frame2 shell_rerecord=%d want 0 (body scroll must not re-record shell)", srr)
+		t.Fatalf("shell_rerecord=%d want 0 (body scroll must not re-record shell)", srr)
 	}
 	if ssk != 1 {
-		t.Fatalf("frame2 shell_skip=%d want 1 (shell Picture replays)", ssk)
+		t.Fatalf("shell_skip=%d want 1 (shell Picture replays)", ssk)
 	}
-	if cache.FrameRerecord < 1 {
-		t.Fatalf("frame2 body rerecord=%d want ≥1", cache.FrameRerecord)
+	if cache.FrameRerecord != 0 {
+		t.Fatalf("body rerecord=%d want 0 (changed body content is held back)", cache.FrameRerecord)
 	}
 	// Global counters still include shell.
 	if cache.ShellRerecord != 1 {
 		t.Fatalf("lifetime shell_rerecord=%d want 1", cache.ShellRerecord)
+	}
+
+	// The body settles and re-enters; the shell keeps replaying throughout.
+	for i := 0; i < 4; i++ {
+		paintWithCache(t, root, cache, 200, 400)
+	}
+	if !cache.HasValid(bodyB) {
+		t.Fatal("body must be re-cached once its content settles")
+	}
+	_, ssk = cache.ShellFrameCounts()
+	if ssk != 1 {
+		t.Fatalf("shell_skip after body settle=%d want 1", ssk)
+	}
+	if cache.ShellRerecord != 1 {
+		t.Fatalf("lifetime shell_rerecord=%d want 1 (shell never re-recorded)", cache.ShellRerecord)
 	}
 }
 

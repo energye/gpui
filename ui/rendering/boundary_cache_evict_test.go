@@ -11,19 +11,18 @@ import (
 // scrolled-out VirtualList cell must release its recorded Picture instead of
 // being retained forever.
 func TestBoundaryCache_GenerationalEviction(t *testing.T) {
-	b := rendering.NewRenderColorBox(40, 40, 0.2, 0.6, 0.9, 1)
-	b.SetRepaintBoundary(true)
-	root := rendering.NewAbsoluteBox(200, 200)
-	root.Place(b, 10, 10)
+	b := complexBoundary(40, 40, complexFills)
+	root := newPolicyTree(200, 200, b)
 
 	owner := rendering.NewPipelineOwner(root)
 	owner.FlushLayout(rendering.Size{Width: 200, Height: 200}, true)
 	cache := owner.BoundaryCache()
 
-	// Frame 1: cold record.
-	paintWithCache(t, root, cache, 200, 200)
+	// Warm-up: the boundary enters the cache once its content has been stable
+	// for accessThreshold+1 frames.
+	warmBoundaryCache(t, root, cache, 200, 200)
 	if !cache.HasValid(b) {
-		t.Fatal("entry must be valid after first store")
+		t.Fatal("entry must be valid after the access threshold")
 	}
 
 	// Mounted and painted every frame for 200 presents (> eviction window):
@@ -48,10 +47,19 @@ func TestBoundaryCache_GenerationalEviction(t *testing.T) {
 		t.Fatal("evicted entry must not report valid")
 	}
 
-	// Re-entry records once again (honest remount cost, counted as rerecord).
-	b.MarkNeedsPaint()
-	rr, _ := paintWithCache(t, root, cache, 200, 200)
-	if rr < 1 {
-		t.Fatal("re-entered boundary must re-record after eviction")
+	// Re-entry: the boundary live-paints again and re-enters the cache after
+	// the access threshold (honest remount cost, counted as rerecord).
+	rrBefore := cache.Rerecord
+	for i := 0; i < 5; i++ {
+		paintWithCache(t, root, cache, 200, 200)
+	}
+	if !cache.HasValid(b) {
+		t.Fatal("re-entered boundary must be cached again after the access threshold")
+	}
+	if got := cache.Rerecord - rrBefore; got != 1 {
+		t.Fatalf("remount rerecord=%d want 1 (one re-record, then Replay)", got)
+	}
+	if _, sk := paintWithCache(t, root, cache, 200, 200); sk != 1 {
+		t.Fatalf("post-remount skip=%d want 1", sk)
 	}
 }

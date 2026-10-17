@@ -1,6 +1,7 @@
 package rendering_test
 
 import (
+	"image"
 	"testing"
 
 	"github.com/energye/gpui/render"
@@ -82,21 +83,24 @@ func TestRenderText_SpacingPaintShiftsInk(t *testing.T) {
 }
 
 // TestRenderText_SpacingInvalidatesParentCache: text rides parent boundaries;
-// changing spacing must invalidate the parent picture (fingerprint), not
-// replay stale unspaced pixels.
+// changing spacing must invalidate the parent picture (fingerprint), not replay
+// stale unspaced pixels. The parent carries six text rows (6 ops > the naive
+// complexity gate) and is settled past the access threshold first, so clean
+// frames really do Replay.
 func TestRenderText_SpacingInvalidatesParentCache(t *testing.T) {
 	face := loadTestFace(t, 16)
 	cache := rendering.NewBoundaryCache()
-	root := rendering.NewAbsoluteBox(200, 60)
+	root := rendering.NewAbsoluteBox(200, 140)
 	root.SetRepaintBoundary(true)
-	child := rendering.NewRenderText("AB")
+	child := rendering.NewRenderText("AB\nAB\nAB\nAB\nAB\nAB")
 	child.SetFace(face)
 	child.SetFontSize(16)
+	child.R, child.G, child.B, child.A = 0, 0, 0, 1
 	root.Place(child, 10, 10)
-	root.Layout(rendering.Tight(200, 60))
+	root.Layout(rendering.Tight(200, 140))
 
-	paint := func() {
-		dc := render.NewContext(200, 60)
+	paint := func() image.Image {
+		dc := render.NewContext(200, 140)
 		defer dc.Close()
 		dc.BeginFrame()
 		dc.ClearWithColor(render.White)
@@ -104,23 +108,48 @@ func TestRenderText_SpacingInvalidatesParentCache(t *testing.T) {
 		pc.BoundaryCache, pc.UseBoundaryCache = cache, true
 		cache.BeginFrame()
 		root.Paint(pc)
+		return dc.Image()
+	}
+
+	// Frames 1-4 settle (will_change then access hold-backs), frame 5 admits.
+	for i := 0; i < 4; i++ {
+		paint()
 	}
 	paint()
 	rr, skip, _, _ := cache.FrameCounts()
 	if rr != 1 || skip != 0 || !cache.HasValid(root) {
-		t.Fatalf("first paint rr=%d skip=%d valid=%v want 1/0/true", rr, skip, cache.HasValid(root))
+		t.Fatalf("admit frame rr=%d skip=%d valid=%v want 1/0/true", rr, skip, cache.HasValid(root))
 	}
-	paint()
+	plain := paint()
 	if rr, skip, _, _ := cache.FrameCounts(); rr != 0 || skip != 1 {
 		t.Fatalf("clean repaint rr=%d skip=%d want 0/1", rr, skip)
 	}
+
+	// Spacing change: live paint (no stale replay), fresh spaced ink, not
+	// cached (will_change).
 	child.SetLetterSpacing(6)
-	paint()
-	if rr, _, _, _ := cache.FrameCounts(); rr != 1 {
-		t.Fatalf("spacing change must re-record, rr=%d", rr)
+	spaced := paint()
+	if rr, skip, _, _ := cache.FrameCounts(); rr != 0 || skip != 0 {
+		t.Fatalf("spacing-change frame rr=%d skip=%d want 0/0", rr, skip)
 	}
-	if !cache.HasValid(root) {
-		t.Fatal("parent must hold the re-recorded spaced picture")
+	if diffPixels(spaced, plain) == 0 {
+		t.Fatal("spacing-change frame pixel-identical to the unspaced picture")
+	}
+
+	// The spaced generation re-admits only after the access threshold again,
+	// and the cached picture must be the spaced one.
+	for i := 0; i < 3; i++ {
+		paint()
+	}
+	cachedSpaced := paint()
+	if rr, _, _, _ := cache.FrameCounts(); rr != 1 || !cache.HasValid(root) {
+		t.Fatalf("re-admit frame rr=%d valid=%v want 1/true", rr, cache.HasValid(root))
+	}
+	if diffPixels(cachedSpaced, plain) == 0 {
+		t.Fatal("re-admitted picture is the stale unspaced one")
+	}
+	if d := diffPixels(cachedSpaced, spaced); d != 0 {
+		t.Fatalf("re-admitted picture differs from the live spaced frame in %d pixels", d)
 	}
 }
 

@@ -73,20 +73,29 @@ func TestRenderText_WeightPaintAddsInk(t *testing.T) {
 }
 
 // TestRenderText_WeightInvalidatesParentCache: changing weight must
-// re-record the parent boundary, not replay stale regular pixels.
+// re-record the parent boundary, not replay stale regular pixels. The parent
+// carries six text rows (6 ops > the naive complexity gate) and is settled past
+// the access threshold first, so clean frames really do Replay.
+//
+// Pixel evidence is unavailable for weight on this box: the installed sans
+// face has a single grade, so SetFontWeight → DeriveFace → FontSource.Face
+// resolves the same file and bold paints identical ink. The freshness anchors
+// are the fingerprint (TestTextContentKey_DistinguishesState) and the cache
+// decision here — a stale replay would surface as skip=1 on the change frame.
 func TestRenderText_WeightInvalidatesParentCache(t *testing.T) {
 	face := loadTestFace(t, 16)
 	cache := rendering.NewBoundaryCache()
-	root := rendering.NewAbsoluteBox(200, 60)
+	root := rendering.NewAbsoluteBox(200, 140)
 	root.SetRepaintBoundary(true)
-	child := rendering.NewRenderText("AB")
+	child := rendering.NewRenderText("AB\nAB\nAB\nAB\nAB\nAB")
 	child.SetFace(face)
 	child.SetFontSize(16)
+	child.R, child.G, child.B, child.A = 0, 0, 0, 1
 	root.Place(child, 10, 10)
-	root.Layout(rendering.Tight(200, 60))
+	root.Layout(rendering.Tight(200, 140))
 
 	paint := func() {
-		dc := render.NewContext(200, 60)
+		dc := render.NewContext(200, 140)
 		defer dc.Close()
 		dc.BeginFrame()
 		dc.ClearWithColor(render.White)
@@ -95,21 +104,38 @@ func TestRenderText_WeightInvalidatesParentCache(t *testing.T) {
 		cache.BeginFrame()
 		root.Paint(pc)
 	}
+
+	// Frames 1-4 settle (will_change then access hold-backs), frame 5 admits.
+	for i := 0; i < 4; i++ {
+		paint()
+	}
 	paint()
 	rr, skip, _, _ := cache.FrameCounts()
 	if rr != 1 || skip != 0 || !cache.HasValid(root) {
-		t.Fatalf("first paint rr=%d skip=%d valid=%v want 1/0/true", rr, skip, cache.HasValid(root))
+		t.Fatalf("admit frame rr=%d skip=%d valid=%v want 1/0/true", rr, skip, cache.HasValid(root))
 	}
 	paint()
 	if rr, skip, _, _ := cache.FrameCounts(); rr != 0 || skip != 1 {
 		t.Fatalf("clean repaint rr=%d skip=%d want 0/1", rr, skip)
 	}
+
+	// Weight change: live paint (no stale replay), not cached (will_change).
 	child.SetFontWeight(text.WeightBold)
 	paint()
-	if rr, _, _, _ := cache.FrameCounts(); rr != 1 {
-		t.Fatalf("weight change must re-record, rr=%d", rr)
+	if rr, skip, _, _ := cache.FrameCounts(); rr != 0 || skip != 0 {
+		t.Fatalf("weight-change frame rr=%d skip=%d want 0/0", rr, skip)
 	}
-	if !cache.HasValid(root) {
-		t.Fatal("parent must hold the re-recorded bold picture")
+
+	// The bold generation re-admits only after the access threshold again.
+	for i := 0; i < 3; i++ {
+		paint()
+	}
+	paint()
+	if rr, _, _, _ := cache.FrameCounts(); rr != 1 || !cache.HasValid(root) {
+		t.Fatalf("re-admit frame rr=%d valid=%v want 1/true", rr, cache.HasValid(root))
+	}
+	paint()
+	if rr, skip, _, _ := cache.FrameCounts(); rr != 0 || skip != 1 {
+		t.Fatalf("post-change replay rr=%d skip=%d want 0/1", rr, skip)
 	}
 }

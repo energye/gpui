@@ -27,8 +27,10 @@ import (
 // box state. The cache holds no content fingerprint for this type
 // (contentKeyOf returns 0) and relies on NeedsPaint for invalidation —
 // call MarkNeedsPaint whenever the produced ops would change, otherwise
-// clean frames replay a stale Picture. Static content never changes, so it
-// skips forever after the first record. Use as a RepaintBoundary; a
+// clean frames replay a stale Picture. A repaint drops the previous entry and
+// is never cached itself (will_change); static content enters the cache once
+// the access threshold admits it (worth-caching policy in boundary_cache.go),
+// then skips while it stays unchanged. Use as a RepaintBoundary; a
 // non-boundary picture box inside an AbsoluteBox disables that parent's
 // caching (absoluteContentCacheable rejects it) instead of risking a stale
 // bake — same discipline as Viewport (boundaryCacheable).
@@ -99,9 +101,10 @@ func (b *RenderPictureBox) Paint(pc *PaintContext) {
 		}
 	}
 	pc.NoteDebugRepaint(w, h)
+	selfDirty := b.NeedsPaint()
 	b.clearPaintDirty()
 	if pc.BoundaryCache != nil && b.IsRepaintBoundary() && built.Valid && !built.IsEmpty() {
-		pc.BoundaryCache.StorePicture(pc, b, built)
+		pc.BoundaryCache.storePictureWithChange(pc, b, built, selfDirty)
 	}
 }
 
