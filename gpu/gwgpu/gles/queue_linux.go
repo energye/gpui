@@ -384,6 +384,11 @@ func (q *Queue) SubmitAndPresent(surface hal.Surface, tex hal.SurfaceTexture, da
 // presentLockedGL runs the blit + swap under the caller's lock.
 // Shared by Present (own binding) and SubmitAndPresent (merged binding).
 func (q *Queue) presentLockedGL(glCtx *gl.Context, st *glExecState, surf *Surface, tex hal.SurfaceTexture, damageRects []image.Rectangle) error {
+	// Driver pacing must not stack on the framework's: apply the surface's
+	// present mode as the EGL swap interval before the swap it governs (one
+	// enum compare; the FFI only runs when the mode changed).
+	surf.applySwapInterval()
+
 	// Damage-scissored blit: steady frames move only the dirty union
 	// instead of the full surface (see blitSwapchainToDefaultDamageWith).
 	// Empty damage = force-full frame → full blit, same as before.

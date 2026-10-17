@@ -167,6 +167,54 @@ func TestSurface_Destroy_OwnedCallsAdapterContextDestroy(t *testing.T) {
 	// ownership path still invoked (no panic). Covered fully in integration tests.
 }
 
+// TestSurface_Destroy_OwnedContextKeepsNoBind guards the teardown lock order:
+// Destroy must drop the swapchain-FBO bind before AdapterContext.Destroy
+// re-locks the same mutex. Holding it across the whole function (the earlier
+// deferred Unlock) self-deadlocked the GL thread on the owned-context path —
+// on Wayland the window never closed and printed no metrics, while the main
+// goroutine stayed parked in the runOnGL teardown handshake.
+//
+// The fake-context tests above cannot see it: their TryLock fails, so no bind
+// is ever held. This one binds a real context and fails on timeout instead of
+// hanging the suite.
+func TestSurface_Destroy_OwnedContextKeepsNoBind(t *testing.T) {
+	if err := egl.Init(); err != nil {
+		t.Skipf("egl.Init() failed: %v", err)
+	}
+	config := egl.DefaultContextConfig()
+	config.GLES = false
+	eglCtx, err := egl.NewContext(config)
+	if err != nil {
+		t.Skipf("egl.NewContext() failed (no display): %v", err)
+	}
+	glCtx := &gl.Context{}
+	if err := glCtx.Load(egl.GetGLProcAddress); err != nil {
+		eglCtx.Destroy()
+		t.Fatalf("GL load failed: %v", err)
+	}
+	_ = egl.MakeCurrent(eglCtx.Display(), egl.NoSurface, egl.NoSurface, egl.NoContext)
+
+	// Owned context (Wayland shape) with a working bind: TryLock succeeds, so
+	// the bind really is held when the owned-context destroy runs.
+	surf := &Surface{ctx: NewAdapterContext(eglCtx, glCtx, true), ownsContext: true}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		surf.Destroy()
+	}()
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("Surface.Destroy deadlocked on the owned-context path (FBO bind held across AdapterContext.Destroy)")
+	}
+	if surf.ctx != nil {
+		t.Fatal("Surface.Destroy should nil local ctx pointer")
+	}
+	if got := egl.GetCurrentContext(); got != egl.NoContext {
+		t.Fatalf("current EGL context after Destroy = 0x%x, want NoContext (bind not released)", got)
+	}
+}
+
 func TestSurface_GetAdapterInfo_NilCtxReturnsPlaceholder(t *testing.T) {
 	surf := &Surface{}
 	info := surf.GetAdapterInfo()

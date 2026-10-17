@@ -68,7 +68,7 @@ func peekShared() (inst hal.Instance, adapter hal.Adapter, device hal.Device, bo
 // buildSharedSurface opens a window on the borrowed share: own surface +
 // swapchain on the shared device. Non-OOM errors return directly; OOM-class
 // errors return for the downgrade chain to try a lower level.
-func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale float64) (*PresentTarget, error) {
+func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale float64, backend Backend) (*PresentTarget, error) {
 	// R0-3: pin a share ref across the slow ops below. Snapshotting the
 	// pointers without a ref lets the owner Close free them mid-build, so
 	// the borrow continues on a dead device and then resurrects the count.
@@ -88,11 +88,11 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		shareRefs--
 		shareMu.Unlock()
 	}
-	backend := surfaceBackendFor(ns.Platform)
+	surfaceBackend := surfaceBackendFor(ns.Platform)
 	surf, err := inst.CreateSurface(surfaceTargetFor(ns))
 	if err != nil {
 		dropPin()
-		return nil, fmt.Errorf("render: CreateSurface(%s): %w", backend, err)
+		return nil, fmt.Errorf("render: CreateSurface(%s): %w", surfaceBackend, err)
 	}
 	physW, physH := physicalSize(logicalW, logicalH, scale)
 	sc, err := newPresentSwapchain(surf, device, physW, physH)
@@ -102,7 +102,15 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		return nil, err
 	}
 	sc.SetUsage(types.TextureUsageRenderAttachment | types.TextureUsageCopyDst)
-	sc.SetPreferVSync()
+	// Same present policy as the window that published this share
+	// (nonBlockingPresent): a borrower must not reintroduce the driver's
+	// second vblank wait its own present path would add.
+	fixedNoVsync := nonBlockingPresent(ns.Platform, backend)
+	if fixedNoVsync {
+		sc.SetPreferFifoRelaxed()
+	} else {
+		sc.SetPreferVSync()
+	}
 	if err := sc.ConfigureFromCapabilities(adapter); err != nil {
 		surf.Destroy()
 		dropPin()
@@ -143,7 +151,8 @@ func buildSharedSurface(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		sc:                sc,
 		dc:                dc,
 		resizeStormWindow: 300 * time.Millisecond,
-		vsyncOn:           true,
+		vsyncOn:           !fixedNoVsync,
+		fixedNoVsync:      fixedNoVsync,
 	}
 	// R0-6: track every live target so a shared recovery can reconfigure
 	// all swapchains exactly once (the pin above is this borrower's ref).
@@ -320,10 +329,10 @@ func (t *PresentTarget) SetVsync(vsync bool) {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	// fixedNoVsync platforms (Wayland): present is permanently non-blocking
-	// (compositor vblank swap; ENGINE_FRAME_PRESENT_STANDARD.md 块3), so the
-	// Fifo↔low-latency switch is a no-op — the storm path already submits
-	// without waiting.
+	// fixedNoVsync platforms (nonBlockingPresent): the framework pads the
+	// pacing (Linux vblank source) and present is permanently non-blocking,
+	// so the Fifo↔low-latency switch is a no-op — the storm path already
+	// submits without waiting.
 	if t.fixedNoVsync {
 		return
 	}

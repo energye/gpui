@@ -97,12 +97,31 @@ func (sc *Swapchain) SetPreferVSync() {
 	sc.PreferPresentModes = []gputypes.PresentMode{hal.PresentModeFifo, hal.PresentModeImmediate}
 }
 
-// SetPreferFifoRelaxed keeps Fifo steady (no relaxed mode on GL).
+// SetPreferFifoRelaxed asks for a present that does not wait for the driver's
+// vblank (same preference list as the webgpu twin). GL resolves it to
+// Immediate — see pickGLPresentMode.
 func (sc *Swapchain) SetPreferFifoRelaxed() {
 	if sc == nil {
 		return
 	}
-	sc.PreferPresentModes = []gputypes.PresentMode{hal.PresentModeFifo, hal.PresentModeImmediate}
+	sc.PreferPresentModes = []gputypes.PresentMode{hal.PresentModeFifoRelaxed, hal.PresentModeMailbox, hal.PresentModeImmediate}
+}
+
+// pickGLPresentMode resolves a caller's present-mode preference list to a mode
+// this backend implements: Fifo (blocking swap, EGL interval 1) or Immediate
+// (non-blocking, EGL interval 0). FifoRelaxed and Mailbox have no EGL
+// equivalent — the swap interval is a per-surface constant, not a queue
+// discipline — so a preference asking for a non-blocking present lands on
+// Immediate (same "first implementable candidate" rule as the webgpu pick,
+// where FifoRelaxed/Mailbox are supported natively). No preference keeps the
+// Fifo default.
+func pickGLPresentMode(prefer []gputypes.PresentMode) gputypes.PresentMode {
+	for _, m := range prefer {
+		if m == hal.PresentModeFifo || m == hal.PresentModeImmediate {
+			return m
+		}
+	}
+	return hal.PresentModeFifo
 }
 
 // Configure applies the surface configuration.
@@ -154,8 +173,8 @@ type surfaceCapsProvider interface {
 }
 
 // ConfigureFromCapabilities picks a supported format then configures.
-// GL only advertises Fifo/Immediate, so present-mode preference is a no-op
-// beyond keeping Fifo steady.
+// GL implements Fifo and Immediate, so the present mode comes from the
+// caller's preference list (pickGLPresentMode; Fifo when none was set).
 func (sc *Swapchain) ConfigureFromCapabilities(adapter hal.Adapter) error {
 	if sc == nil {
 		return fmt.Errorf("gles: swapchain is nil")
@@ -175,7 +194,7 @@ func (sc *Swapchain) ConfigureFromCapabilities(adapter hal.Adapter) error {
 			}
 		}
 	}
-	sc.PresentMode = hal.PresentModeFifo
+	sc.PresentMode = pickGLPresentMode(sc.PreferPresentModes)
 	return sc.Configure()
 }
 

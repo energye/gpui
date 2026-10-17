@@ -26,6 +26,31 @@ import (
 	_ "github.com/energye/gpui/gpu/gwgpu/gles"
 )
 
+// nonBlockingPresent reports whether this window's present path must not wait
+// for the driver's own vblank — i.e. the framework already owns the frame
+// pacing, so blocking inside the swap would only wait the same vblank twice.
+//
+// One frame has one pacer (ENGINE_FRAME_PRESENT_STANDARD.md 块3). On the Linux
+// window systems the pacing source is the host's real vblank
+// (ui/scheduler vsync listener → ui/platform X11/Wayland WaitVSync → DRM
+// vblank events; when the listener is unavailable, pacing falls back to the
+// display period learned from it). Windows and macOS hosts supply no such
+// source — there the driver's blocking Fifo swap is what locks frames to the
+// display.
+//
+// Scope: the Go/GLES backend only. Its EGL backend implements the
+// non-blocking request as a real swap interval (eglSwapInterval 0 — the gles
+// package's applySwapInterval, the Linux twin of the WGL/metal mapping), and
+// the measurement this decision rests on is that backend's. The WebGPU backend
+// keeps its own present-mode choice: its Linux cell is a separate, separately
+// measured decision (块3 2026-08-26 revision: Wayland Fifo).
+func nonBlockingPresent(platform PresentPlatform, backend Backend) bool {
+	if backend != BackendGo {
+		return false
+	}
+	return platform == PresentPlatformX11 || platform == PresentPlatformWayland
+}
+
 // requestPresentDeviceWithRetry retries device creation when the adapter is
 // temporarily out of GPU memory (multi-window stolen-memory budget on iGPUs).
 // Other windows/processes may release memory between retries; this mirrors
@@ -198,9 +223,12 @@ type PresentTarget struct {
 	// surface.
 	//
 	// fixedNoVsync: platforms where present is permanently non-blocking
-	// (Wayland — the compositor swaps at vblank, a client-side Fifo wait
-	// would only block; ENGINE_FRAME_PRESENT_STANDARD.md 块3). SetVsync is a
-	// no-op there and the initial present mode is FifoRelaxed-preferring.
+	// because the framework, not the driver, owns frame pacing
+	// (nonBlockingPresent below: Linux X11/Wayland on the Go/GLES backend —
+	// ui/scheduler waits for real vblank events, so a driver-side Fifo wait
+	// would only add a second wait for the same edge;
+	// ENGINE_FRAME_PRESENT_STANDARD.md 块3). SetVsync is a no-op there and the
+	// initial present mode is the non-blocking preference.
 	vsyncOn      bool
 	vsyncPending bool
 	fixedNoVsync bool
@@ -412,8 +440,24 @@ func NewPresentTargetWithBackend(ns PresentNativeSurface, logicalW, logicalH int
 func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale float64, lv presentLevel, backend Backend) (*PresentTarget, error) {
 	shareOpenMu.Lock()
 	defer shareOpenMu.Unlock()
+
+	// NewPresentTargetWithBackend threads through; the backend arg selects it.
+	// Resolved before the borrow attempt: the borrowed chain inherits this
+	// window's present policy (nonBlockingPresent), and an invalid
+	// GPUI_BACKEND must be reported instead of silently opening on the share.
+	want, err := ResolveBackendFor(backend)
+	if err != nil {
+		return nil, err
+	}
+	if want == BackendGo {
+		// GL path: X11/Wayland only (Windows/macOS follow their own steps).
+		if ns.Platform != PresentPlatformX11 && ns.Platform != PresentPlatformWayland {
+			return nil, fmt.Errorf("render: Go GL backend only supports X11/Wayland for now (platform=%d)", ns.Platform)
+		}
+	}
+
 	if _, _, _, borrowable, _ := peekShared(); borrowable {
-		if t, err := buildSharedSurface(ns, logicalW, logicalH, scale); err == nil {
+		if t, err := buildSharedSurface(ns, logicalW, logicalH, scale, want); err == nil {
 			return t, nil
 		} else if !IsGPUOutOfMemory(err) {
 			// non-OOM borrow failures return as-is on purpose — a
@@ -427,17 +471,6 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		// the window can still try a lower-power adapter or software.
 	}
 
-	// NewPresentTargetWithBackend threads through; the backend arg selects it.
-	want, err := ResolveBackendFor(backend)
-	if err != nil {
-		return nil, err
-	}
-	if want == BackendGo {
-		// GL path: X11/Wayland only (Windows/macOS follow their own steps).
-		if ns.Platform != PresentPlatformX11 && ns.Platform != PresentPlatformWayland {
-			return nil, fmt.Errorf("render: Go GL backend only supports X11/Wayland for now (platform=%d)", ns.Platform)
-		}
-	}
 	inst, err := SelectBackend(want)
 	if err != nil {
 		return nil, err
@@ -525,14 +558,18 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 	// (uploadPixmapToView — the CPU mode renders shapes on the CPU and the
 	// present no longer depends on the GPU raster pipelines).
 	sc.SetUsage(types.TextureUsageRenderAttachment | types.TextureUsageCopyDst)
-	// 块3 present 策略：Wayland 与 X11 同为 Fifo 稳态（阻塞式 vsync 把提交
-	// 相位锁到显示刷新）。历史上 Wayland 用 FifoRelaxed 恒不阻塞，但实测
-	// （pelican GNOME/mutter 2026-08-26）UI 软件边界 16.0ms 与显示刷新
-	// 16.7ms 自由漂移 → 周期性错过合成 deadline → 上屏内容步距忽大忽小
-	// judder；X11 的 Fifo 阻塞语义天然锁相无此问题。Fifo 在 wayland
-	// 下由 frame callback 节流、raster 线程阻塞在 present（UI 线程异步，
-	// pipeline depth=2 可提前构建），不会卡 UI。
-	fixedNoVsync := false
+	// 块3 present 策略：一帧只有一个节拍源。Linux 两个窗口系统都由框架自己
+	// 等 vblank（ui/scheduler 的 vsync 监听 → ui/platform X11/Wayland
+	// WaitVSync → DRM vblank 事件；监听器停用时退学习到的显示周期），
+	// 驱动再阻塞一次 = 同一个沿等两遍。实测（2026-10-17 spin_min，
+	// GPUI_BACKEND=go，X11 480x320，同 harness 配对）：阻塞交换 7.08/7.16%
+	// 一核 vs 非阻塞 3.48/3.56%，两者都是 60fps、MissedVSync 0 —— 多出来的
+	// CPU 是那 ≥10ms 的 FFI 等待（Go sysmon 从阻塞调用手里抢 P 的风暴）。
+	// 非阻塞 present 也是 Linux embedder 的标准做法（Flutter
+	// engine/src/flutter/shell/platform/linux/fl_subsurface_egl.cc:157
+	// eglSwapInterval(display, 0)）。见 nonBlockingPresent：这只对
+	// Go/GLES 后端生效，WebGPU 后端保持它原有的模式选择。
+	fixedNoVsync := nonBlockingPresent(ns.Platform, want)
 	if fixedNoVsync {
 		sc.SetPreferFifoRelaxed()
 	} else {
@@ -559,7 +596,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		device.Release()
 		adapter.Release()
 		inst.Release()
-		return buildSharedSurface(ns, logicalW, logicalH, scale)
+		return buildSharedSurface(ns, logicalW, logicalH, scale, want)
 	}
 	shareInst, shareAdapter, shareDevice = inst, adapter, device
 	shareRefs = 1
@@ -587,9 +624,11 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 		sc:                sc,
 		dc:                dc,
 		resizeStormWindow: 300 * time.Millisecond,
-		// Fifo (vsync) is the steady-state present mode; SetVsync(false)
-		// switches to Mailbox/Immediate during resize storms. Wayland
-		// (fixedNoVsync) stays non-blocking permanently instead.
+		// Fifo (vsync) is the steady-state present mode where the driver
+		// paces; SetVsync(false) switches to Mailbox/Immediate during resize
+		// storms. Where the framework paces instead (fixedNoVsync /
+		// nonBlockingPresent) the present is non-blocking from the start and
+		// SetVsync is a no-op.
 		vsyncOn:      !fixedNoVsync,
 		fixedNoVsync: fixedNoVsync,
 	}

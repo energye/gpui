@@ -2,6 +2,8 @@
 
 > **状态**：已实现（2026-08-19）。块1/2/3 全部落地：按需渲染 + 合成器通知驱动（Wayland wl_surface.frame / X11 XPresent）+ present 无阻塞（Wayland 恒 FifoRelaxed、X11 稳态 Fifo）。验证见 §6；实现细节见 §3–§4。
 >
+> **块3 修订（2026-10-17，Go/GLES 后端 Linux）**：Linux 两个窗口系统的 present 都改为非阻塞——框架自己等真实 vblank（`ui/scheduler`），驱动不再在交换里把同一个沿等第二遍。X11 同机配对实测 7.08/7.09% → 3.40~3.52%（尺子 2.28~2.40%），60fps 与画面不回归。策略按后端分流与 Wayland 未测口径见 §2.3 修订块，实现见 §3，账见 §9。
+>
 > **背景**：拖拽调整窗口大小时内容与标题栏不同步、窗口越大越明显（内容帧跟不上鼠标）；同时用户要求垂直同步由系统（合成器）保证、客户端不自行算帧率，X11 与 Wayland 两平台行为统一。
 
 ---
@@ -10,7 +12,7 @@
 
 - **块1 按需渲染**：没内容要画就一帧都不画（现在 idle 也 60fps 持续渲染）。
 - **块2 合成器通知驱动**：帧节奏源从「客户端读 DRM vblank」换成「合成器/显示服务器通知帧已显示」；两平台把硬件节拍抽象封装统一（`FrameNotifier` + 事件 `EventFramePresented`），上层（scheduler / embedder）统一使用。
-- **块3 present 无阻塞**：Wayland 恒不阻塞（合成器 vblank 保证不撕裂）；X11 稳态 Fifo 防撕裂、风暴期 Mailbox（沿用现有 `SetVsync`）。
+- **块3 present 无阻塞**：Wayland 恒不阻塞（合成器 vblank 保证不撕裂）；X11 稳态 Fifo 防撕裂、风暴期 Mailbox（沿用现有 `SetVsync`）。**Go/GLES 后端（2026-10-17 起）**：Linux 两个窗口系统都非阻塞（`eglSwapInterval 0`），因为框架已经自己等 vblank 了。
 
 依赖：`ui` → `render` → `gpu` 单向分层不变；本改造不新增 render 公开 API（present 策略用现有 `SetVsync`/present mode 机制组合）。
 
@@ -85,6 +87,17 @@ func HostFrameNotifier(h Host) FrameNotifier
 
 **实现**：render 层 present 模式默认值按平台分流（Wayland → 无阻塞；X11 → Fifo）。复用现有 `SetVsync`/`SetPresentModeForce`，不新增公开 API。
 
+**块3 策略修订（2026-10-17：按后端分流，Go/GLES 的 Linux 格）**：上表是 2026-08-19 的设计口径；后经 2026-08-26 修订（见 §9）Wayland 改回 Fifo 排队。自 2026-10-17 起 **Go/GLES 后端**在 Linux 把「不阻塞」落成真实交换间隔：`SetPreferFifoRelaxed` → `pickGLPresentMode` 选中 Immediate → `eglSwapInterval(display, 0)`。
+
+| 平台 | Go/GLES 后端（2026-10-17 起） | WebGPU 后端（2026-08-26 口径，本次未动） |
+|---|---|---|
+| X11 | 非阻塞（交换间隔 0）；提交点由「框架等真实 vblank 之后再交换」定位 | Fifo 稳态 + 风暴期 Mailbox |
+| Wayland | 非阻塞（交换间隔 0）；撕裂由合成器换帧保证 | Fifo 排队偏好，`SetVsync` 生效 |
+
+**依据（X11 同机同 harness 配对，2026-10-17）**：Go/GLES + spin_min 480×320 交替跑，阻塞交换 7.08/7.09%（一条线程 `nanosleep` 3860~4270 sched/s：Go sysmon 从 ≥10ms 的 `eglSwapBuffers` FFI 手里抢 P 的风暴）对非阻塞 3.40~3.52%；同小时 C 尺子 `glxgears 480×320` 2.28~2.40%（后一时段同二进制漂到 3.96~3.99%，见 §9：跨小时只认同配对，不认绝对值）。两者都是 60fps、`MissedVSync 0`，xwd 连抓 8 张 7/7 有变化。非阻塞同时是 Linux embedder 的标准做法：Flutter `engine/src/flutter/shell/platform/linux/fl_subsurface_egl.cc:157` 在 `eglMakeCurrent` 之后即 `eglSwapInterval(display, 0)`。
+
+**Wayland 格的诚实口径**：Go/GLES 的 Wayland 路在本机只跑得起来嵌套软件合成器（无 vblank 源：`VBlank{Count:0}`、前台 p95 ~60ms），**非阻塞在该端的 pacing 收益与风险都未测**；它按与 X11 同一策略落地，与 webgpu 2026-08-26 的 Wayland 结论（需 Fifo 排队以约束提交相位）方向相反，**原生 Wayland 会话（硬件合成器）上必须重测**，未测前不得标 Wayland 性能绿。
+
 ---
 
 ## 3. 分层改动清单（文件级，已实现）
@@ -101,6 +114,14 @@ func HostFrameNotifier(h Host) FrameNotifier
 
 **明确不改**：`ui/platform/vsync_drm_linux.go`（保留为退路，只改 scheduler 侧调用语义）；CSD 标题栏 subsurface 更新路径（独立即时更新，不进帧节流）。
 
+**2026-10-17 块3 修订（Go/GLES 后端 Linux，文件级）**：
+
+| 文件 | 改动（已落地） |
+|---|---|
+| `gpu/gwgpu/gles/swapchain.go` | ① `SetPreferFifoRelaxed` 与 webgpu twin 对齐（`{FifoRelaxed, Mailbox, Immediate}`）；② 新增 `pickGLPresentMode`：在偏好表里按 `{Fifo, Immediate}` 取首个命中，缺省 Fifo（GL 端只有这两档是「同步/不同步」）；③ `ConfigureFromCapabilities` 由写死 Fifo 改为用该选择 |
+| `gpu/gwgpu/gles/resource_linux.go` + `queue_linux.go` | ① `Surface` 加 `swapIntervalMode`/`swapIntervalDead`：把 present mode 落成 `eglSwapInterval`（Immediate/Mailbox → 0，其余 → 1），只在模式变化时走 FFI；驱动拒绝时闩死并记一次日志（不留每帧 FFI/日志）；② 新建 EGL 窗口面时复位（新面回到 EGL 默认的阻塞间隔 1）；③ `presentLockedGL` 交换前调 `applySwapInterval`；④ `Destroy` 锁顺序修正（§9 Wayland 死锁行） |
+| `render/present_construct.go` + `render/present_swapchain.go` | ① 新增 `nonBlockingPresent(platform, backend)`：Go/GLES 后端 + Linux 窗口系统 → 非阻塞（Windows/macOS 仍靠驱动阻塞 Fifo 锁相）；② 两个建面入口取同一判定（`fixedNoVsync`）；③ `ResolveBackendFor` 提到借用之前（非法 `GPUI_BACKEND` 直接报错，不再静默借用） |
+
 ---
 
 ## 4. 帧闭环时序
@@ -115,7 +136,7 @@ func HostFrameNotifier(h Host) FrameNotifier
 
 ```
 动画 ticker / 事件 → ScheduleFrame → FrameDue（通知或软件间隔开门）→ 渲染一帧
-  → present（Wayland 无阻塞 / X11 Fifo）→ RequestFrameNotify（注册下一个显示完成通知）
+  → present（Go/GLES 的 Linux 格：非阻塞交换；WebGPU：Wayland 无阻塞 / X11 Fifo）→ RequestFrameNotify（注册下一个显示完成通知）
   → 合成器 vblank 显示 → 「帧已显示」通知（Wayland wl_callback.done / X11 PresentCompleteNotify）
   → EventFramePresented → NoteFramePresented（stamp）→ 有需求则下一帧，无需求收工
 ```
@@ -140,6 +161,10 @@ EventResize（连续）→ pendingResize=true + ScheduleFrame（帧门禁旁路�
 | swapchain：FifoRelaxed 偏好（块3） | gpu/webgpu/s6_8_swapchain_test.go `TestS68_Swapchain_PreferPresentModes` | ✅ PASS：`SetPreferFifoRelaxed` → 首候选 FifoRelaxed 且不含 Fifo |
 | 回归 | ui/platform 13 测试文件 + ui/embedder 6 文件 + render present/resize + gpu swapchain | ✅ 全部 PASS（逐个文件跑，禁一次全量）；apidoc exit=0 |
 | x11：XPresent 探测 | （无 XPresent 自动化测试；`presentOK=false` 退 DRM 路径由真窗验证覆盖） | ⏳ 待真机 X11 环境确认 |
+| 非阻塞判定（2026-10-17） | render/present_policy_test.go `TestNonBlockingPresent` | ✅ PASS：Go+Linux 两窗口系统 true；webgpu / Windows / macOS / headless false |
+| GL present mode 选择（2026-10-17） | gpu/gwgpu/gles/swapchain_present_mode_test.go `TestGLPresentModePreference` / `TestSwapchainPreferenceSetters` | ✅ PASS：偏好表含 Immediate 时选中 Immediate，缺省 Fifo；setter 与 webgpu twin 同形 |
+| 交换间隔映射与守卫（2026-10-17） | gpu/gwgpu/gles/swap_interval_linux_test.go `TestSwapIntervalForPresentMode` / `TestApplySwapIntervalGuards` | ✅ PASS：Immediate/Mailbox→0，其余→1；nil display/面、未变模式、闩死三条守卫都不走 FFI |
+| 绑定顺序守卫（2026-10-17） | gpu/gwgpu/gles/adapter_context_linux_test.go `TestSurface_Destroy_OwnedContextKeepsNoBind` | ✅ PASS：真实 EGL 绑定 + 15s 超时；把 `Destroy` 还原成旧写法即 FAIL（自锁），见 §9 |
 
 ---
 
@@ -161,6 +186,7 @@ EventResize（连续）→ pendingResize=true + ScheduleFrame（帧门禁旁路�
 - ✅ `docs/ENGINE_WAYLAND_WINDOW_STANDARD.md` §8：追加 v1.13 行（合成器通知驱动 + 按需渲染 + Wayland 无阻塞 present）。
 - ✅ 本文档 §0 状态「已实现」+ §9 修订表「实现」行。
 - ✅ 机器校验：`go run ./scripts/apidoc` 退出码 0（render 公开 API 无增删）。
+- ✅ **2026-10-17 块3 修订同步**：本文档 §0 / §2.3 / §3 / §4.2 / §5 / §8 / §9；`docs/RENDER_API_CATALOG.md` §3.7 / §7.1（`SetVsync` 的 no-op 平台补上 Go 后端的 Linux X11/Wayland）；`docs/RENDER_SPIN_TRANSFORM_REUSE_PLAN.md` §6 首行（本刀账 + 前刀「3.38/3.49% 只差 0.4~0.6pt」更正）。apidoc 存量红不变（3 个 render 符号来自 `f8acffea`/`2128225c`，本刀无新增公开 API）。
 
 ---
 
@@ -170,7 +196,9 @@ EventResize（连续）→ pendingResize=true + ScheduleFrame（帧门禁旁路�
 |---|---|
 | X11 X server 无 XPresent extension | 不实现 `FrameNotifier` → scheduler 走 DRM vblank 按需模式（仍满足块1：只 stamp 不制造需求） |
 | Wayland 合成器不响应 frame 回调 | 回调永不到达 → 通知不驱动，但事件/ticker 仍 `ScheduleFrame` + 软件间隔兜底（`FrameDue` 走 animTick），功能不冻结 |
-| X11 无阻塞 present 撕裂 | X11 稳态保持 Fifo（本计划默认）；Immediate 仅风暴期经 `SetVsync` 使用 |
+| X11 无阻塞 present 撕裂 | 撕裂拍不到（本机 `:1` 无合成器、`xwd` 只能抓合成结果），退路是 `SetVsync(true)` 回 Fifo，或走 X11 Present 通知路径（下一刀候选） |
+| Go/GLES 的 Wayland 非阻塞未测（2026-10-17 新发现） | 同格策略与 webgpu 2026-08-26 结论方向相反；原生 Wayland 会话复测，若 judder 抬头就回 Fifo 排队（该格是独立判定，不动 X11） |
+| GLES owned 上下文销毁自锁（2026-10-17 新发现，已修） | Wayland 窗永关不掉（无 JSON、无退出）；已收窄锁范围并加超时守卫测试，见 §9 |
 | 节拍源双驱（通知 + DRM 同时 stamp） | `ensureVsyncListener` 检测 `FrameNotifier` 后不启动 DRM listener，单源 |
 | frame 回调堆积（每帧注册未销毁） | `wlFrameDone` 销毁回调 + `frameCB` 归零；`RequestFrameNotify` 仅在 `frameCB==0` 时注册 |
 | 向量回放兜底损伤缩减漏报（2026-09-12 新发现，不修） | `compositeWalk` 里 `noTex > 0` 的向量路径损伤用当前 picture 范围，旋转/超大层的缩减变更同类漏报；本次只修纹理主路径（`PrevBounds` union），向量路径待独立验证后再动 |
@@ -184,6 +212,7 @@ EventResize（连续）→ pendingResize=true + ScheduleFrame（帧门禁旁路�
 ## 9. 修订表
 
 | 版本 | 说明 |
+| 2026-10-17（修6：块3 按后端分流 + Wayland 拆卸自锁） | **Go/GLES 后端在 Linux 把「不阻塞」落成真实交换间隔（gpu/gwgpu/gles + render）**：**根因（同机配对实测钉死）**——`ui/scheduler` 已经在等真实 vblank（DRM 事件），而驱动的 `eglSwapBuffers` 默认又阻塞一整帧（EGL 默认间隔 1）⇒ 同一个沿等两遍：那笔 ≥10ms 的 FFI 不交回 P，Go sysmon 每 10ms retake 抢它手里的 P → ~4200 sched/s `nanosleep` 风暴。**修复（对齐 Flutter Linux embedder：`engine/src/flutter/shell/platform/linux/fl_subsurface_egl.cc:157` 在 `eglMakeCurrent` 后即 `eglSwapInterval(display, 0)`）**——① gles `Surface` 把 present mode 落成交换间隔（Immediate/Mailbox → 0，其余 → 1），只在模式变化时走 FFI、驱动拒绝即闩死并记一次日志；② `pickGLPresentMode` 在偏好表里按 `{Fifo, Immediate}` 取首个（缺省 Fifo；GL 端只有这两档表达同步/不同步）；③ `SetPreferFifoRelaxed` 与 webgpu twin 对齐；④ render 新增 `nonBlockingPresent(platform, backend)`：Go/GLES + Linux 窗口系统 → 非阻塞（Windows/macOS 仍靠驱动阻塞 Fifo 锁相）；⑤ `ResolveBackendFor` 提到借用之前（非法 `GPUI_BACKEND` 直接报错，不再静默借用）。**实测（X11，同 harness ABBA，12s 稳态窗口）**：阻塞 7.08/7.09% 对非阻塞 3.40~3.52%（同小时 C 尺子 `glxgears 480×320` 2.28~2.40%），60.07fps、`MissedVSync 0`、xwd 8 连抓 7/7 有变化（图标照转）；`Present{Over1Ms 600→2, Over10Ms 598→0, MaxMs 19.37→1.62}`、`LastPresentWaitMs 16.93→0.14`。**Wayland 拆卸自锁新洞（本刀验证时挖出，已修）**：Go/GLES 的 Wayland 窗到关闭那一刻永卡死（无 JSON、无退出、17 线程全睡死）；SIGQUIT 栈钉到 `gles/resource_linux.go` `Surface.Destroy` 的 `defer s.ctx.Unlock()` 与随后的 `s.ctx.Destroy()`（`adapter_context_linux.go:289` 再锁同一互斥）自锁——只有 Wayland 犯，因为只有它 `ownsContext=true`（X11/无头共享上下文，Windows twin 无此分支）；干净 HEAD 老码同犯（A-B-B-A 4/4 全卡）。**修法**：把 FBO 绑定的解锁提到 `AdapterContext.Destroy` 之前，其余拆卸步骤的锁窗口保持原样；加「真实 EGL 绑定 + 15s 超时」守卫测试（还原旧写法即 FAIL）。修后 Wayland 真窗出 JSON：`602 presents in 10.139s (wayland)`、`AvgFrameIntervalMs 16.73`、`p95 18.57`、`MissedVSync 0`、`GPUFallbacks 0`、`CPUFallbackOps 9`。**同小时 ABBA（本机）**：pre-fix 3.97/3.96% 对 post-fix 3.96/3.99%（尺子 2.28%）⇒ 拆卸改动不吃 CPU；**跨小时绝对值会漂**（同一二进制前一时段 3.40~3.52%、后一时段 3.96~3.99%），只认同小时配对，不认绝对值。**回归**：`gpu/gwgpu/gles` 逐文件 37/37 PASS、`render` 逐文件 130 PASS / 17 存量 FAIL（干净 HEAD 同挂：缺 `WGPU_NATIVE_PATH` 的 GPU 视觉门 + dash 用例）、`-race`（CGO_ENABLED=1）锁路径绿、三查干净、`CGO_ENABLED=0` 本线包全编过、apidoc 存量红不变（3 个 render 符号来自 `f8acffea`/`2128225c`）。**未测与风险**：撕裂拍不到（本机 `:1` 无合成器——`_NET_WM_CM_S0` 不存在，xwd 只抓得到合成结果）；Go/GLES 的 Wayland 非阻塞本机只跑得起来嵌套软件合成器（无 vblank 源：`VBlank{Count:0}`、前台 p95 ~60ms），pacing 收益与风险均未测，且与 webgpu 2026-08-26 的「Wayland 需 Fifo 排队」方向相反，原生 Wayland 会话必须重测后方可标绿。 |
 | 2026-09-23（修5：显示频率正统化） | **软件节拍用显示器真实频率，不再写死猜（ui/platform + ui/scheduler + ui/embedder）**：**根因**——软件兜底节拍写死 16ms，本机显示 59.88Hz（16.70ms），每帧漂 0.7ms，攒够就错过合成 deadline，多等一整帧（A/B：同窗25秒 16.00组卡6次/p95 27.35，16.68组卡0次/p95 23.75）。且普通用户无 DRM 权限时周期学习器学不到， forever 漂。**修复（对齐 Flutter/Chromium/Gio：内容频率跟显示器）**——① `ui/platform/host.go` 新增可选接口 `DisplayRefreshReporter{DisplayRefreshHz()}`；② Wayland 实现：`wl_output.mode` 回调存 current 模式刷新率（mHz→Hz），entered 输出取最大，未 enter 回退全部输出最大（`wayland_output_linux.go` 原回调是空函数）；wlHost 缓存 + `DisplayRefreshHz()`（`wayland_linux.go`）；③ X11 实现：RandR 取当前 CRTC 模式时序算刷新率（dotClock/(hTotal×vTotal)，20–240Hz 才认），Open 时同步探测一次，RRScreenChangeNotify 失效重探（`x11_randr_linux.go` + `x11_linux.go`，purego 复用存量绑定风格，recover 兜底永不崩）；④ `ui/scheduler`：`SeedDisplayRefreshHz(hz)` 定基准（20–240Hz 才收），`boundaryPeriodLocked` 优先级 学到值 > 上报基准 > 写死16ms，钳制下限跟基准走（120Hz 种不再被 12.8ms 地板误钳）；⑤ `ui/embedder`：Open 播种 + Run 循环补播到 host 报出值（Wayland mode/enter 到得晚）。**效果（Wayland 三窗）**：pelican 25秒 卡6→1、p95 27.35→17.39；icon 卡5→1、p95 18.65→17.54；R7 卡0/p95 20.7→18.19；像素抽样 93600点0差。**诚实留痕**：①中途曾把 DefaultAnimTick 写死 16.68ms（A/B 有效但机器相关，不合标准，已退回 16ms 名义兜底）；②icon 真值 5.9% 与 R7 内存门在干净树同挂，系别线基线未收/存量问题，非本修引入；③platform 全包两失败（seat 帽/X11输入法）干净树同现/单跑绿，与本修无关。回归：scheduler 全绿、embedder 全绿、新单测 8 项绿（播种3 + Wayland2 + XRR3）。 |
 |------|------|
 | 2026-09-15（E3 落位，未修） | **快照队列竞态落位（button 真窗调查带出，ui/embedder）**：`drainSnapshots` 无锁预读 vs `SnapshotAsync` 加锁写，见 §1.2 P5。验证 `TestEVerify_E3_SnapshotQueuePreRead`（`ui/embedder/e_verify_e3_test.go`）：功能过、`-race` 下报 DATA RACE = 成立。修法：预读加锁（一行），风险极低。 |

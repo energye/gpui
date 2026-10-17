@@ -76,6 +76,17 @@ type Surface struct {
 	// vramHandle is the ledger slot for the swapchain surface bytes
 	// (tagged FBO id; 0 = not charged). Refunded on re-configure.
 	vramHandle uintptr
+
+	// swapIntervalMode is the present mode whose EGL swap interval is applied
+	// to the current eglSurface (0 = none applied yet: a freshly created EGL
+	// surface starts at the EGL default, which is the blocking interval 1).
+	// Written and read on the present path only (single GL thread); reset
+	// whenever createEGLWindowSurface builds a new EGL surface.
+	swapIntervalMode gputypes.PresentMode
+	// swapIntervalDead latches a failed eglSwapInterval so a driver that
+	// refuses the call is logged once instead of paying the FFI (and the log)
+	// on every present. See applySwapInterval.
+	swapIntervalDead bool
 }
 
 // GetAdapterInfo returns adapter information from this surface's GL context.
@@ -213,6 +224,11 @@ func (s *Surface) createEGLWindowSurface(width, height uint32) error {
 	// FBO 0 only serves as the render target when the window carries its own
 	// depth/stencil buffers (default_fb_linux.go).
 	s.enableDirectDefaultFB(eglCtx)
+	// A new EGL surface carries the EGL default swap interval (1, blocking) —
+	// whatever the previous surface had. Force the next present to re-apply
+	// the configured present mode (applySwapInterval).
+	s.swapIntervalMode = gputypes.PresentModeUndefined
+	s.swapIntervalDead = false
 	return nil
 }
 
@@ -268,6 +284,68 @@ func (s *Surface) createX11EGLSurface() error {
 		"window", fmt.Sprintf("0x%x", s.windowHandle),
 	)
 	return nil
+}
+
+// swapIntervalForPresentMode maps a surface present mode to the EGL swap
+// interval — the Linux/EGL twin of the WGL mapping in resource_windows.go
+// (Windows) and of setDisplaySyncEnabled: (metal/surface.go). Fifo and
+// FifoRelaxed wait for the display vblank; Mailbox and Immediate do not.
+// GL cannot express the queue disciplines of the middle two modes (the EGL
+// interval is a per-surface constant), so they take their blocking /
+// non-blocking end: see Swapchain.pickGLPresentMode for which modes this
+// backend offers.
+func swapIntervalForPresentMode(mode gputypes.PresentMode) egl.EGLInt {
+	switch mode {
+	case hal.PresentModeImmediate, hal.PresentModeMailbox:
+		return 0
+	default:
+		return 1
+	}
+}
+
+// applySwapInterval hands the surface's present mode to the driver as the EGL
+// swap interval, so driver-side pacing never stacks on the framework's own
+// pacing source. One frame has one pacer: on Linux the scheduler waits for
+// real vblank events (ui/scheduler vsync listener → ui/platform WaitVSync →
+// DRM vblank; ui/embedder presents the frame after that wait), so a blocking
+// Fifo swap behind the same vblank is a second wait for the same edge — and
+// in Go that wait parks in a ≥10ms FFI holding a P, which the runtime's
+// sysmon takes away (retake storm; measured 2026-10-17 on spin_min:
+// 7.08/7.16% vs 3.48/3.56% of one core, both 60fps). Flutter's Linux
+// embedder makes the same call for the same reason
+// (engine/src/flutter/shell/platform/linux/fl_subsurface_egl.cc:157
+// eglSwapInterval(display, 0)).
+//
+// Called from the present path with the window EGL surface already current:
+// eglSwapInterval acts on the current draw surface and the interval takes
+// effect at the eglSwapBuffers that follows. Cost is one enum compare per
+// present; the FFI runs only when the present mode changed or a new EGL
+// surface was created (createEGLWindowSurface).
+//
+// The cache is per Surface: drivers that keep the interval per context (not
+// per surface) would let the newest window win, which is only observable when
+// two windows ask for different modes — every engine UI window asks for the
+// same one (nonBlockingPresent).
+func (s *Surface) applySwapInterval() {
+	if s == nil || s.eglSurface == 0 || s.eglDisplay == 0 || s.config == nil {
+		return
+	}
+	mode := s.config.PresentMode
+	if s.swapIntervalMode == mode || s.swapIntervalDead {
+		return
+	}
+	interval := swapIntervalForPresentMode(mode)
+	if egl.SwapInterval(s.eglDisplay, interval) == egl.False {
+		// Not fatal — the swap still presents, just with the driver's own
+		// pacing (the behavior before this call existed). Latch so the FFI
+		// and this log do not repeat per frame.
+		s.swapIntervalDead = true
+		hal.Logger().Warn("gles: eglSwapInterval refused, keeping driver pacing",
+			"mode", mode, "interval", int32(interval),
+			"err", fmt.Sprintf("0x%x", egl.GetError()))
+		return
+	}
+	s.swapIntervalMode = mode
 }
 
 // recreateEGLWindowSurface destroys a dead EGL window surface and creates
@@ -420,9 +498,16 @@ func (s *Surface) ActualExtent() (width, height uint32) {
 // with the driver.
 func (s *Surface) Destroy() {
 	// Release swapchain FBO before tearing down the GL context.
+	// Released again before the owned context is destroyed below: Destroy
+	// re-locks this same mutex, so holding the bind through the whole function
+	// self-deadlocked the GL thread on the owned-context (Wayland) path — the
+	// window never closed and printed no metrics (SIGQUIT stack: Surface.Destroy
+	// → AdapterContext.Destroy → adapter_context_linux.go Lock, main goroutine
+	// parked in the runOnGL teardown handshake).
+	fboLocked := false
 	if s.ctx != nil {
 		if glCtx, err := s.ctx.TryLock(); err == nil {
-			defer s.ctx.Unlock()
+			fboLocked = true
 			destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorTexture)
 		}
 	}
@@ -444,6 +529,10 @@ func (s *Surface) Destroy() {
 
 	// Only destroy AdapterContext if Surface owns it (Wayland path).
 	// When shared from Instance (X11/headless), Instance.Destroy handles cleanup.
+	// Drop the FBO bind first — AdapterContext.Destroy takes the same mutex.
+	if fboLocked {
+		s.ctx.Unlock()
+	}
 	if s.ownsContext && s.ctx != nil {
 		s.ctx.Destroy()
 	}
