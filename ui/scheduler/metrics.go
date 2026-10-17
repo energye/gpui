@@ -35,6 +35,50 @@ const (
 	PresentPolicyHybrid    = "hybrid"
 )
 
+// WaitSource identifies one blocking wait of the frame path (A3 wait census).
+type WaitSource int
+
+const (
+	// WaitSourceVblank is the scheduler's vsync/vblank wait: one per paced
+	// frame, owned by the vsync listener goroutine.
+	WaitSourceVblank WaitSource = iota
+	// WaitSourceHost is the embedder's host event wait (WaitEvents): one per
+	// event-loop slice, so its count is the loop's wake-up rate.
+	WaitSourceHost
+	// WaitSourcePresent is a frame's present (swap) wait: the time the present
+	// callback spent handing the frame to the display, Fifo blocking included.
+	WaitSourcePresent
+	// WaitSourceAcquire is a frame's swapchain buffer-acquire wait (Fifo
+	// backpressure from a full buffer queue).
+	WaitSourceAcquire
+)
+
+// WaitCensus counts the blocking waits of one frame-path source.
+//
+// Over1Ms counts waits that really blocked instead of polling; Over10Ms counts
+// waits past the Go runtime's syscall-retake horizon (runtime/proc.go retake:
+// a P parked in a syscall for 10ms is handed off, which drops sysmon back to
+// its 20us spin and re-arms ~50 timer wake-ups). The Over10Ms rate is
+// therefore the frame path's share of runtime wake-up storms, and the census
+// is how a storm regression is told apart from pacing jitter in one JSON read.
+type WaitCensus struct {
+	Count    int64   `json:"count"`
+	Over1Ms  int64   `json:"over_1ms"`
+	Over10Ms int64   `json:"over_10ms"`
+	MaxMs    float64 `json:"max_ms,omitempty"`
+}
+
+// WaitCensusSet is the per-source frame-path wait census (A3), keyed by
+// WaitSource. Zero counters mean "no such wait happened in this window" only
+// for sources this build does not wire; every window that renders frames
+// feeds vblank/host/present/acquire.
+type WaitCensusSet struct {
+	Vblank  WaitCensus `json:"vblank"`
+	Host    WaitCensus `json:"host"`
+	Present WaitCensus `json:"present"`
+	Acquire WaitCensus `json:"acquire"`
+}
+
 // FrameMetrics is the L1 observability snapshot (F14).
 // JSON field names are stable for baseline tooling.
 type FrameMetrics struct {
@@ -69,6 +113,13 @@ type FrameMetrics struct {
 	// LastAcquireWaitMs = BeginFrame 等空闲缓冲(Fifo 背压)。F期三段尺子
 	// 之三：干活(Flush) / 等缓冲(Acquire) / 等显示(PresentWait)。
 	LastAcquireWaitMs float64 `json:"frame_acquire_wait_ms,omitempty"`
+
+	// WaitCensus is the frame-path blocking-wait census (A3): every blocking
+	// wait the frame path performs, counted per source with >1ms/>10ms
+	// tallies. The three Last*Ms fields above say how long the last wait was;
+	// the census says how often the frame path blocks at all, which is what
+	// costs runtime wake-ups (see WaitCensus).
+	WaitCensus WaitCensusSet `json:"wait_census"`
 
 	// Layout/paint flush counters (cumulative; wired by PipelineApp)
 	LayoutCount         int64 `json:"layout_count"`
@@ -425,6 +476,48 @@ func (s *MetricsStore) NoteAcquireWaitMs(ms float64) {
 	}
 	s.mu.Lock()
 	s.m.LastAcquireWaitMs = ms
+	s.mu.Unlock()
+}
+
+// NoteWait records one completed frame-path blocking wait of the given source
+// (A3 wait census). Every call counts, including sub-millisecond returns: the
+// count is the census denominator, so callers must record waits they actually
+// performed and must not record a wait that never blocked (e.g. a vsync
+// waiter that returned an error without blocking). Unknown sources are
+// dropped — WaitSource values are compile-time constants.
+func (s *MetricsStore) NoteWait(src WaitSource, d time.Duration) {
+	if s == nil {
+		return
+	}
+	ms := d.Seconds() * 1000
+	if ms < 0 {
+		ms = 0
+	}
+	s.mu.Lock()
+	var c *WaitCensus
+	switch src {
+	case WaitSourceVblank:
+		c = &s.m.WaitCensus.Vblank
+	case WaitSourceHost:
+		c = &s.m.WaitCensus.Host
+	case WaitSourcePresent:
+		c = &s.m.WaitCensus.Present
+	case WaitSourceAcquire:
+		c = &s.m.WaitCensus.Acquire
+	default:
+		s.mu.Unlock()
+		return
+	}
+	c.Count++
+	if ms >= 1 {
+		c.Over1Ms++
+	}
+	if ms >= 10 {
+		c.Over10Ms++
+	}
+	if ms > c.MaxMs {
+		c.MaxMs = ms
+	}
 	s.mu.Unlock()
 }
 

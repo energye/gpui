@@ -695,6 +695,7 @@ func (st *wlDataDeviceState) readOffer(offer uintptr, mime string) ([]byte, erro
 		}
 		// 用 Poll 等待可读，避免忙等；外部粘贴通常 <50ms 内到达
 		fds := []unix.PollFd{{Fd: int32(p[0]), Events: unix.POLLIN}}
+		yieldBeforeBlockingPoll()
 		n, err := unix.Poll(fds, int(remaining.Milliseconds()))
 		if err != nil || n == 0 {
 			break

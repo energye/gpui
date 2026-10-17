@@ -319,8 +319,11 @@ func (s *FrameScheduler) ensureVsyncListener(host platform.Host) {
 			var last time.Time
 			misses := 0
 			for {
-				if err := v.WaitVSync(); err == nil {
+				t0 := time.Now()
+				err := v.WaitVSync()
+				if err == nil {
 					now := time.Now()
+					s.metrics.NoteWait(WaitSourceVblank, now.Sub(t0))
 					s.vsyncMu.Lock()
 					if !last.IsZero() {
 						s.learnDisplayPeriod(now.Sub(last))

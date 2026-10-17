@@ -314,3 +314,62 @@ func TestMetrics_DirtyLayerIDs_DamageMulti(t *testing.T) {
 		}
 	}
 }
+
+// TestMetrics_WaitCensus: A3 wait census — per-source counts, the >1ms/>10ms
+// thresholds (>= inclusive), max, honest denominator over sub-ms waits, and
+// the JSON path tools read.
+func TestMetrics_WaitCensus(t *testing.T) {
+	s := scheduler.New().Metrics()
+	fresh := s.Snapshot()
+	if fresh.WaitCensus.Vblank.Count != 0 || fresh.WaitCensus.Host.Count != 0 {
+		t.Fatalf("fresh census not empty: %+v", fresh.WaitCensus)
+	}
+	// vblank: 3 waits — 0.5ms (counted, below 1ms), 4ms, 16.6ms.
+	s.NoteWait(scheduler.WaitSourceVblank, 500*time.Microsecond)
+	s.NoteWait(scheduler.WaitSourceVblank, 4*time.Millisecond)
+	s.NoteWait(scheduler.WaitSourceVblank, 16667*time.Microsecond)
+	// host: exactly 1ms and exactly 10ms are inside (>= inclusive).
+	s.NoteWait(scheduler.WaitSourceHost, time.Millisecond)
+	s.NoteWait(scheduler.WaitSourceHost, 10*time.Millisecond)
+	// present/acquire keep their own buckets.
+	s.NoteWait(scheduler.WaitSourcePresent, 200*time.Microsecond)
+	s.NoteWait(scheduler.WaitSourceAcquire, 2*time.Millisecond)
+	// unknown source is dropped, never folded into a real bucket.
+	s.NoteWait(scheduler.WaitSource(99), time.Second)
+
+	snap := s.Snapshot()
+	v := snap.WaitCensus.Vblank
+	if v.Count != 3 || v.Over1Ms != 2 || v.Over10Ms != 1 {
+		t.Fatalf("vblank census=%+v want count=3 over1=2 over10=1", v)
+	}
+	if v.MaxMs < 16.6 || v.MaxMs > 16.7 {
+		t.Fatalf("vblank max_ms=%.3f want ~16.667", v.MaxMs)
+	}
+	h := snap.WaitCensus.Host
+	if h.Count != 2 || h.Over1Ms != 2 || h.Over10Ms != 1 {
+		t.Fatalf("host census=%+v want count=2 over1=2 over10=1 (inclusive thresholds)", h)
+	}
+	if snap.WaitCensus.Present.Count != 1 || snap.WaitCensus.Present.Over1Ms != 0 {
+		t.Fatalf("present census=%+v want 1 wait under 1ms", snap.WaitCensus.Present)
+	}
+	if snap.WaitCensus.Acquire.Count != 1 || snap.WaitCensus.Acquire.Over1Ms != 1 {
+		t.Fatalf("acquire census=%+v want 1 wait at 2ms", snap.WaitCensus.Acquire)
+	}
+	if snap.WaitCensus.Vblank.Count+snap.WaitCensus.Host.Count+
+		snap.WaitCensus.Present.Count+snap.WaitCensus.Acquire.Count != 7 {
+		t.Fatalf("unknown source leaked into a bucket: %+v", snap.WaitCensus)
+	}
+	b, err := s.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	for _, k := range []string{`"wait_census"`, `"vblank"`, `"host"`, `"present"`, `"acquire"`, `"over_10ms"`} {
+		if !containsAll(js, k) {
+			t.Fatalf("JSON missing %s: %s", k, js)
+		}
+	}
+	// Nil store must not panic (embedder paths call through a getter).
+	var nilStore *scheduler.MetricsStore
+	nilStore.NoteWait(scheduler.WaitSourceVblank, time.Millisecond)
+}

@@ -1658,6 +1658,7 @@ func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
 				wpfds := []unix.PollFd{
 					{Fd: int32(h.wakePipe[0]), Events: unix.POLLIN},
 				}
+				yieldBeforeBlockingPoll()
 				n, err := unix.Poll(wpfds, -1)
 				if err != nil {
 					if err == unix.EINTR {
@@ -1714,6 +1715,7 @@ func (h *wlHost) WaitEvents(timeout time.Duration) []Event {
 			{Fd: int32(fd), Events: unix.POLLIN},
 			{Fd: int32(h.wakePipe[0]), Events: unix.POLLIN},
 		}
+		yieldBeforeBlockingPoll()
 		n, err := unix.Poll(pfds, ms)
 		if err != nil {
 			w.lib.displayCancelRead(w.display)

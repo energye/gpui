@@ -22,7 +22,7 @@
 
 | 项 | 现状 | 证据 |
 |---|---|---|
-| 帧节奏源 | `x11Host.WaitVSync` / `wlHost.WaitVSync` 都返回 `WaitDRMVBlank()`（客户端读 `/dev/dri` 的 vblank 信号） | ui/platform/x11_linux.go:665、wayland_linux.go:1373 |
+| 帧节奏源 | `x11Host.WaitVSync` / `wlHost.WaitVSync` 都返回 `WaitDRMVBlank()`（客户端读 `/dev/dri` 的 vblank 信号；2026-10-17 起内部改为「请求 `DRM_VBLANK_EVENT` + 在 fd 上等事件」，等待交给 Go 运行时轮询器停车——节奏源、帧率、相位均不变，机制与实测见 `docs/RENDER_SPIN_TRANSFORM_REUSE_PLAN.md` §6 第五刀行） | ui/platform/x11_linux.go:1064、wayland_linux.go:1617、vsync_drm_linux.go:203 |
 | 渲染需求 | scheduler listener 每收到 vblank **stamp + `ScheduleFrame()`** → idle 时也持续渲染 | ui/scheduler/scheduler.go:74-78 |
 | present 模式 | 稳态 Fifo（每帧 present 阻塞 ~16.5ms 等 vblank）；风暴期 `SetVsync(false)` 切 Mailbox→FifoRelaxed→Immediate，平静 200ms 回 Fifo | render/present_target.go `SetVsync`、gpu/webgpu/swapchain.go `PresentModeForVsync`（v1.8） |
 | 风暴期重绘 | 每帧全量重绘，栅格 30–390ms（峰值 2.9s），帧率 3–15fps；标题栏独立 subsurface 成本近零 → 跟手，内容滞后 | docs/ENGINE_UI_WIDGET_RENDER.md §10（resize拖拽延迟行）、ENGINE_WAYLAND_WINDOW_STANDARD.md §8 v1.8 |

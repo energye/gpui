@@ -92,6 +92,15 @@ const resizeCalmWindow = 200 * time.Millisecond
 // (negative timeout) stay unbounded: a static window must not wake on a timer.
 const maxHostWait = 8 * time.Millisecond
 
+// msDur converts one of render's millisecond frame-split timings into a
+// Duration for the A3 wait census (non-positive → 0).
+func msDur(ms float64) time.Duration {
+	if ms <= 0 {
+		return 0
+	}
+	return time.Duration(ms * float64(time.Millisecond))
+}
+
 // PipelineApp runs layout/paint → FramePacket → async raster present.
 // Steady-state submits never block the UI (SubmitLatest coalesces); open,
 // close, snapshot, warm-up and surface teardown synchronize with the raster
@@ -1182,7 +1191,11 @@ func (a *PipelineApp) Run() error {
 			timeout = maxHostWait
 		}
 
+		waitT0 := time.Now()
 		evs := a.host.WaitEvents(timeout)
+		if m := a.sched.Metrics(); m != nil {
+			m.NoteWait(scheduler.WaitSourceHost, time.Since(waitT0))
+		}
 		// Pacing baseline follows the live display refresh: re-seed every
 		// loop so output/mode changes (e.g. window moved to a 120Hz monitor)
 		// update the scheduler baseline. Unknown (0) keeps the last good.
@@ -1676,6 +1689,11 @@ func (a *PipelineApp) Run() error {
 					m.NoteFlushMs(render.FrameFlushMs)
 					m.NotePresentWaitMs(render.FramePresentWaitMs)
 					m.NoteAcquireWaitMs(render.FrameAcquireWaitMs)
+					// A3 census: the same two present-path waits, counted by
+					// how often they block (the Last*Ms setters above only keep
+					// the latest sample).
+					m.NoteWait(scheduler.WaitSourcePresent, msDur(render.FramePresentWaitMs))
+					m.NoteWait(scheduler.WaitSourceAcquire, msDur(render.FrameAcquireWaitMs))
 				}
 				if os.Getenv("HITCH_DIAG") == "1" {
 					FrameDone(jobFrameID)

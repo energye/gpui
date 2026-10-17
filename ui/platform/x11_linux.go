@@ -1250,6 +1250,7 @@ func (h *x11Host) WaitEvents(timeout time.Duration) []Event {
 				}
 			}
 			fds[0].Revents, fds[1].Revents = 0, 0
+			yieldBeforeBlockingPoll()
 			n, err := unix.Poll(fds, timeoutMs)
 			if err != nil {
 				if err == unix.EINTR {
