@@ -1554,6 +1554,8 @@ func (a *PipelineApp) Run() error {
 					if dc := target.Context(); dc != nil {
 						st := dc.RenderPathStats()
 						metrics.NoteGPUPathStats(st.GPUOps, st.CPUFallbackOps, st.FrameFlushes, st.LastCPUFallbackReason)
+						// Upload guard: must stay 0 (see the CPU-1% replay plan §4).
+						metrics.NoteStagedWriteOverlaps(st.StagedWriteOverlaps)
 					}
 				}
 				a.drainSnapshots()

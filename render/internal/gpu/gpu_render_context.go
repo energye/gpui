@@ -183,6 +183,14 @@ func (rc *GPURenderContext) LastSubmitPathStats() SubmitPathStats {
 	return rc.session.LastSubmitPathStats()
 }
 
+// StagedWriteOverlaps reports the backend's same-drain overlapping upload guard.
+func (rc *GPURenderContext) StagedWriteOverlaps() int64 {
+	if rc == nil || rc.session == nil {
+		return 0
+	}
+	return rc.session.StagedWriteOverlaps()
+}
+
 func (rc *GPURenderContext) LastBatchDrawStats() BatchDrawStats {
 	if rc == nil || rc.session == nil {
 		return BatchDrawStats{}

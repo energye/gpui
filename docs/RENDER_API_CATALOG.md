@@ -99,7 +99,7 @@
 | BeginGPUFrame/FlushGPU/FlushGPUWithView/FlushGPUWithViewDamage/FlushGPUWithViewDamageRects/GPURenderContext/DropGPURenderContext | 每帧 GPU 状态重置、把累积 GPU 命令提交并解析到 pixmap/视图（带单/多损伤区）、per-context GPU 会话 | GPU 提交 | ✅ |
 | `BeginOffscreenPass()` | 开离屏子通道并返回还原 func（调用方须 defer）：激活期间队列命令/裁剪时间线/LoadOp 跟踪独占归子目标，主通路状态挂起、还原时恢复；同时挂起画布裁剪防 scissor 泄漏进子视口。使帧中 retained 纹理重录安全（Skia GrRecordingContext / Flutter EntityPass pass-ownership 语义）；无 GPU ops 时返回空 func | 离屏子通道 | ✅ ui/scene/textured.go:430,513 retained 重录消费 |
 | `BeginPassScratch(r)` / `CommitPassScratchToView(view)` | retained 纹理重录子通道内的 CPU 暂存交换：Begin 把画布 pixmap 换成同尺寸透明暂存（CPU 回退像素落暂存而非主画布，半路 GPU 提交读回到暂存，顺序精确）；Commit 把脏区经 WriteTexture 直写视图并标已渲染使收尾提交 Load（干净暂存跳过零开销）。只在 GPU 会话有效时武装，CPU 模式零行为变化 | 离屏子通道 | ✅ ui/scene/textured.go recordWith/recordLocalWith 消费（2026-09-15 修染色混画黑卡） |
-| RenderPathStats/ResetRenderPathStats/LastCPUFallbackReason/MemDigCmdBufs/Close | GPU/CPU 路由计数、最近 CPU 回退原因、残留命令缓冲诊断、关闭释放 | 诊断/资源 | 🔗 |
+| RenderPathStats/ResetRenderPathStats/LastCPUFallbackReason/StagedWriteOverlaps/MemDigCmdBufs/Close | GPU/CPU 路由计数、最近 CPU 回退原因、后台上传守卫（同趟重叠写，0=健康）、残留命令缓冲诊断、关闭释放 | 诊断/资源 | 🔗 |
 | `DebugLayerViews()` | 返回 C5VIEWDBG=1 下跟踪的层视图纹理（临时诊断，R20 滤镜线） | 诊断 | 🔗 ui/scene/textured.go 消费 |
 | `PixmapForTest()` / `RecordCPUFallbackForTest(reason)` | 测试接缝：前者暴露实时 pixmap（含子通道暂存交换期的暂存）；后者走生产回退漏斗标脏暂存。仅 deterministic 模拟 CPU 回退落像素，不依赖设备相关 GPU 拒收路径 | 测试接缝 | 🧪 仅测试（render/pass_scratch_test.go E6 懒暂存契约消费，2026-09-23） |
 
@@ -239,7 +239,7 @@
 | `RasterizerMode`（Auto/Analytic/SparseStrips/TileCompute/SDF） | CPU 栅格化算法选择 | CPU 栅格化模式 | ✅ |
 | `PipelineMode`（Auto/RenderPass/Compute）+ `SelectPipeline` + `SceneStats` | GPU 管线模式选择（自动/渲染通道/计算） | GPU 管线模式 | ✅（SelectPipeline 生产调用：render/internal/gpu/gpu_render_context.go:2820，Auto 模式每帧） |
 | `DetectedShape/ShapeKind/DetectShape` | 从路径检测形状种类（Rect/RRect/Circle/Ellipse/Arc）供 SDF 快速路径 | 形状检测 | 🔗（Arc 检测仅测试） |
-| `RenderPathStats`（方法：LogLine） | GPU/CPU 路由计数快照（P1 门禁诊断，LogLine 输出日志行） | 路由计数 | 🔗 |
+| `RenderPathStats`（方法：LogLine） | GPU/CPU 路由计数快照（P1 门禁诊断；`StagedWriteOverlaps` 于快照时从后端取，见 docs/RENDER_CPU_1PCT_REPLAY_PLAN.md §4） | 路由计数 | 🔗 |
 | `CreateSharedEncoder/SubmitSharedEncoder` | 共享命令编码器创建与提交（ADR-017 单命令缓冲帧） | 共享编码器 | 🔗 |
 
 ---

@@ -311,6 +311,11 @@ func (q *Queue) SupportsCommandBufferCopies() bool {
 	return false
 }
 
+// StagedWriteOverlaps reports how many staged uploads this process coalesced
+// with an earlier staged upload of an overlapping range in the same drain (see
+// write_batch.go). 0 on a healthy run; gate on that.
+func (q *Queue) StagedWriteOverlaps() int64 { return stagedWriteOverlapCount() }
+
 // SetSwapchainSuppressed is a no-op on GLES.
 // GLES uses eglSwapBuffers for presentation, which is not affected by command
 // submission ordering.

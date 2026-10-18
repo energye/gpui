@@ -80,5 +80,9 @@ func (q *Queue) SupportsCommandBufferCopies() bool {
 	return false
 }
 
+// StagedWriteOverlaps implements hal.Queue: the noop backend never uploads to
+// a GPU, so there is no coalescing drain to guard. Always 0.
+func (q *Queue) StagedWriteOverlaps() int64 { return 0 }
+
 // SetSwapchainSuppressed is a no-op on the noop backend.
 func (q *Queue) SetSwapchainSuppressed(_ bool) {}

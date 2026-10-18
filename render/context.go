@@ -177,4 +177,11 @@ type RenderPathStats struct {
 	// Not a hard cpu_fb — GPU still owns the composite; reason is explicit.
 	BrushBootstrapOps        int
 	LastBrushBootstrapReason string
+	// StagedWriteOverlaps samples the backend upload guard at snapshot time
+	// (cumulative per process): the number of uploads a drain collapsed onto
+	// bytes an earlier staged write of the same window already covered. A
+	// healthy run keeps it 0; non-zero means an upload window reused a buffer
+	// region, so earlier command buffers read later bytes (merged-present
+	// regression shape; see docs/RENDER_CPU_1PCT_REPLAY_PLAN.md §4).
+	StagedWriteOverlaps int64
 }

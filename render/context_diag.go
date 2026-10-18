@@ -16,8 +16,16 @@ import (
 )
 
 // RenderPathStats returns a copy of the current routing counters.
+// The upload guard is sampled at snapshot time from the context's GPU ops when
+// one already exists (it lives in the backend queue, not in this per-context
+// accumulator). Reading stats must not create a GPU context, so this reads the
+// field instead of gpuCtxOps()'s lazy ensureGPUCtx.
 func (c *Context) RenderPathStats() RenderPathStats {
-	return c.pathStats
+	s := c.pathStats
+	if c.gpuCtx != nil {
+		s.StagedWriteOverlaps = c.gpuCtx.StagedWriteOverlaps()
+	}
+	return s
 }
 
 // ResetRenderPathStats clears GPU/CPU routing counters.

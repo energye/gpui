@@ -267,4 +267,10 @@ func (q *Queue) GetTimestampPeriod() float32 { return 0 }
 
 func (q *Queue) SupportsCommandBufferCopies() bool { return true }
 
+// StagedWriteOverlaps implements hal.Queue: wgpu owns the staging buffer and
+// applies each writeBuffer before the submission that follows it, so this
+// queue never collapses two engine writes into one destination region. Always 0
+// (the gles write batch is the only coalescing uploader in the tree).
+func (q *Queue) StagedWriteOverlaps() int64 { return 0 }
+
 var _ hal.Queue = (*Queue)(nil)

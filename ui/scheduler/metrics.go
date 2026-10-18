@@ -136,6 +136,12 @@ type FrameMetrics struct {
 	CPUFallbackOps        int64  `json:"cpu_fallback_ops,omitempty"`
 	FrameFlushes          int64  `json:"frame_flushes,omitempty"`
 	LastCPUFallbackReason string `json:"last_cpu_fallback,omitempty"`
+	// StagedWriteOverlaps is the backend upload guard from
+	// render.Context.RenderPathStats (cumulative per process): uploads a drain
+	// collapsed onto bytes an earlier staged write of the same window already
+	// covered. A healthy run keeps it 0; non-zero = an upload window reused a
+	// buffer region and earlier command buffers read later bytes.
+	StagedWriteOverlaps int64 `json:"staged_write_overlaps,omitempty"`
 
 	// GPUBackend is the actual adapter category behind the window
 	// (discrete/integrated/software/gl), reported once at open from
@@ -597,6 +603,17 @@ func (s *MetricsStore) NoteGPUPathStats(gpuOps, cpuFallbackOps, frameFlushes int
 	s.m.CPUFallbackOps = int64(cpuFallbackOps)
 	s.m.FrameFlushes = int64(frameFlushes)
 	s.m.LastCPUFallbackReason = lastFallbackReason
+	s.mu.Unlock()
+}
+
+// NoteStagedWriteOverlaps records the backend upload guard (cumulative).
+// Called with the same RenderPathStats snapshot as NoteGPUPathStats.
+func (s *MetricsStore) NoteStagedWriteOverlaps(n int64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.StagedWriteOverlaps = n
 	s.mu.Unlock()
 }
 

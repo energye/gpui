@@ -4241,6 +4241,17 @@ func (s *GPURenderSession) LastSubmitPathStats() SubmitPathStats {
 	return s.lastSubmitStats
 }
 
+// StagedWriteOverlaps samples the backend's upload guard (hal.Queue). The gles
+// write batch counts same-drain overlapping staged writes: a non-zero value
+// means an upload window reused a buffer region, so earlier command buffers
+// read later bytes (see docs/RENDER_CPU_1PCT_REPLAY_PLAN.md §4).
+func (s *GPURenderSession) StagedWriteOverlaps() int64 {
+	if s == nil || s.queue == nil {
+		return 0
+	}
+	return s.queue.StagedWriteOverlaps()
+}
+
 // allocConvexVertSlot picks a ring slot that is not still referenced by a
 // deferred (leading) command buffer. If the ring is exhausted, drains lead
 // submits first so WriteBuffer cannot race an unsubmitted draw.

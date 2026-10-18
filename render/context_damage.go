@@ -267,6 +267,10 @@ type gpuContextOps interface {
 	HasPendingStash() bool
 	// TakeBrushBootstrapReason returns G.04 ColorAt→GPU blit diagnostic, if any.
 	TakeBrushBootstrapReason() string
+	// StagedWriteOverlaps reports the backend's same-drain overlapping upload
+	// guard (see hal.Queue). 0 = healthy; non-zero = an upload window reused a
+	// buffer region, which makes earlier command buffers read later bytes.
+	StagedWriteOverlaps() int64
 	Close()
 }
 

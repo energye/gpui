@@ -477,6 +477,12 @@ func (q *Queue) SupportsCommandBufferCopies() bool {
 	return true
 }
 
+// StagedWriteOverlaps implements hal.Queue: Metal stages through its own
+// command-buffer copies (PendingWrites batches them as copies, applied in
+// submission order), so this queue never collapses two engine writes into one
+// region and reports 0.
+func (q *Queue) StagedWriteOverlaps() int64 { return 0 }
+
 // SetSwapchainSuppressed is a no-op on Metal.
 // Metal presents via CAMetalDrawable which is not affected by command buffer
 // submission ordering — each presentDrawable: call operates on a specific

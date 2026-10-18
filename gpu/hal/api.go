@@ -391,6 +391,23 @@ type Queue interface {
 	// directly to the HAL without batching.
 	SupportsCommandBufferCopies() bool
 
+	// StagedWriteOverlaps reports how many buffer uploads this queue coalesced
+	// with an earlier still-staged upload of an overlapping range inside one
+	// drain (guard counter, cumulative per process).
+	//
+	// Uploaders that reuse one buffer region per flush stay correct only because
+	// the queue drains once per command buffer; a drain that collapses two
+	// overlapping writes uploads just the later bytes, so every command buffer
+	// before the last one reads the wrong data. Non-zero means that invariant
+	// broke — see docs/RENDER_CPU_1PCT_REPLAY_PLAN.md §4 (the merged-present
+	// regression is exactly this shape).
+	//
+	// Backend divergence: gles counts real overlaps (it is the only backend with
+	// a coalescing write batch); webgpu/metal/noop return 0 because their
+	// staging is library-owned and never collapses two engine writes into one
+	// region.
+	StagedWriteOverlaps() int64
+
 	// SetSwapchainSuppressed temporarily disables swapchain semaphore binding
 	// for subsequent Submit calls. Used for offscreen renders (e.g., RepaintBoundary)
 	// that must not consume acquire/present semaphores intended for the compositor
