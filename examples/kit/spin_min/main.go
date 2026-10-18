@@ -71,6 +71,7 @@ func main() {
 	spin := kit.BuildIconBox(ctx, props, iconEdge, "spin-min-sync")
 	// AbsoluteBox 才保得住居中坐标，RenderBox 排版时会归零。用 Place 摆，和 icon 窗一样。
 	root := rendering.NewAbsoluteBox(float64(winW), float64(winH))
+	root.Background = &rendering.Color{R: 0.10, G: 0.12, B: 0.16, A: 1}
 	center := func(w, h int) {
 		root.Place(spin.Outer,
 			float64(w)/2-iconEdge/2,

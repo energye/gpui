@@ -60,7 +60,7 @@
 | G13 | `caf2eec7` | 4 文件：`gles/surface`、`metal/queue`、`noop/queue`、`webgpu/queue` | 三家透调补合并卡点 + blit 注释对齐 | 无收益声明 | 低 |
 | A1 | `e92c0015`、`c0815112` | 别线 S90 追车 2.5D：`examples/engine/chase_large` 等（基线里**尚不存在**） | — | — | 单独一步带，避免本地分支缺别线产物 |
 | A2 | `05f2b5df`、`e6cea5ad` | 金图基线（R6/R14/C9/R15/C4/C5，分后端）+`.gitignore` | — | — | 必须带；各 C/R 窗门禁凭证 |
-| A3 | `f6a99e87` | `examples/kit/spin_min/main.go`（retained 下补不透底色，消旋转白圈） | — | — | 低 |
+| A3 | `f6a99e87` | `examples/kit/spin_min/main.go`（retained 下补不透底色，消旋转白圈） | — | **已落地**（2026-10-18）：本树重放一行（根盒补 Clear 同色不透底 `Background`）；真窗抓图签名与含 A3 的 `f17e76e1` oracle 全等（`s3/s6 modal=(25,31,41) 98.1%、white≈0.48%`），pre-A3 为 `(0,0,0) 97.9%、white=1.84%`（白环） | 低；留档 `/tmp/opencode/spin_a3_check`（对照 `/tmp/opencode/spin_ring_check/{cur,tip}`） |
 | X | `45d6cdd1`、`44f71758`、`c3d875d3`、`f17e76e1` | 纯文档/诊断（无产品代码） | — | — | 跳过或当资料引用 |
 | ✗ | `f8acffea` | 16 文件（`gles/queue*`、`surface`、`swapchain*`、`hal/api`、`webgpu`、`metal`、`noop`、`render/{context_damage,context_gpu,present_frame,gpu_render_context,render_session}`） | 延迟合并上屏 | ≈0~0.5pt | **剔除**，见 §5 |
 
@@ -131,6 +131,7 @@ DISPLAY=:1 GPUI_BACKEND=go RUN_SECONDS=6 GPUI_WBTRACE=1 /tmp/opencode/ab/bin/<ex
 | 2026-10-18 | G0 落地：上传守卫（严格重叠计数）从 gles 写批次一路接到示例 JSON `staged_write_overlaps`；hal 接口新增 `Queue.StagedWriteOverlaps()`，三后端桩恒 0（注明理由）；新增守卫单测 2 个；目录文档 `docs/RENDER_API_CATALOG.md` 同步；回归：gles/hal/noop/scheduler 绿，webgpu/render/embedder 失败集合与基线一致（既有/抖动），apidoc 绿，基线复测 0 命中 |
 | 2026-10-18 | G1 落地（`c28441d7`）+ G2 不落（`5402484d`）：G1 渲染逐位中性、PresentCount 修成 1:1、单独 CPU ≈0（记账在 G1+G2 组合）；G2 按现状会丢小损伤窗背景、按「窗口整面写」修正后收益仍 ≈0 → 整刀不落，结论与证据入 §3/§5-4 |
 | 2026-10-18 | G10 落地（移植 `dc2733b6`，9 文件）：撤 per-window GL 线程改全进程单 GL 线程 hub（`ui/raster/hub.go` 扫注册窗 + `Loop` 降为提交句柄 + `RunSync` 交接），gles 双端 keep 租约守卫（首帧尾认领 `keepTid`、外来线程强制 unmake + 一次警告、`Destroy` 清认领），embedder 预热/快照/拆机/关窗全走 `runOnGL`。复现=双窗同进程 pre-fix 4 轮全中（`0x3002` 3/4/5/10 条 + 1 次 SIGSEGV）→ 修复 3/3 清洁（0 条、0 崩、两窗各 4/4 帧在动、各 ~840 presents）；单窗浸泡两臂干净；10 窗 GL+native 签名对基线逐窗全对上，无修复专属新分歧；`staged_write_overlaps=0`、`present_count:frame_count` 1:1；reopen 同进程重开各 6 轮：pre 6/6 OK、修复 5/6 OK + 1 轮撞「开窗期偶发 `0x3002`」（同签名与 G10 原会话记录一致——未修存量，归属 gles 建上下文/绑定交接）。CPU 交错 A/B（spin_min 12s×5）：base 中位 15.90 / pre-fix 14.61 / 修复 14.59 ⇒ 与 pre-fix 持平、keep 优化保留。跨平台见 `ENGINE_THREAD_T_PLAN.md` §2 行与 `ENGINE_GL_MIGRATION_PLAN.md` 修订 |
+| 2026-10-18 | A3 重放落树（移植 `f6a99e87`，1 行：`examples/kit/spin_min/main.go` 根盒补 Clear 同色不透底）：真窗签名与含 A3 的 `f17e76e1` oracle 全等（`modal=(25,31,41) 98.1%`、`white≈0.48%`；pre-A3 = `(0,0,0) 97.9%`、`white=1.84%` 白环），539 presents/9.2s、无 `0x3002`、`staged_write_overlaps` 缺省；证据留档 `/tmp/opencode/spin_a3_check/`（对照 `/tmp/opencode/spin_ring_check/{cur,tip}`） |
 
 ## 8. 基线取证留档（2026-10-18，db852552，只读采集）
 
