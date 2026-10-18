@@ -294,15 +294,17 @@ func (s *MetricsStore) NotePresent() {
 
 // NotePresentOutcome records present mode + damage area for the last frame (M-DAMAGE-AREA).
 // mode should be render.PresentMode.String(); areaPx is physical dirty union area.
-// Idle presents carry no drawing: they still count as presents but preserve
-// the last real mode + area so JSON/gates observe the true steady-state
-// (damage_union/damage_multi) instead of event-noise zeros.
+// Does NOT bump PresentCount: the raster loop already counted this frame via
+// NotePresent, so counting here too double-books every frame (spin_min:
+// PresentCount read 2x FrameCount). Idle presents carry no drawing: they
+// still count as presents but preserve the last real mode + area so
+// JSON/gates observe the true steady-state (damage_union/damage_multi)
+// instead of event-noise zeros.
 func (s *MetricsStore) NotePresentOutcome(mode string, areaPx int64) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
-	s.m.PresentCount++
 	// Idle presents carry no drawing and are not the retained steady-state
 	// mode (e.g. an X11 Expose-triggered frame with nothing dirty). Keep the
 	// last real present mode + area so JSON/gates observe the true retained

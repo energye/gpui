@@ -44,8 +44,8 @@
 | 组 | 提交 | 代码面 | 机制 | 声称收益 | 风险/备注 |
 |---|---|---|---|---|---|
 | G0 | 前置（**已落地**） | `gles/write_batch.go`（守卫+纯函数）、`gles/write_batch_overlap_test.go`（新增）、`gles/queue.go`+`queue_linux.go`（`StagedWriteOverlaps`）、`gpu/hal/api.go`（接口）、`metal/noop/webgpu queue`（桩，返 0 并注明理由）、`render/internal/gpu/{render_session,gpu_render_context}.go`、`render/{context.go,context_diag.go,context_damage.go}`、`ui/scheduler/metrics.go`、`ui/embedder/pipeline_app.go` | 同一 drain 内**严格重叠**的暂存写计数（相接不算），一路通到示例 JSON（`staged_write_overlaps`） | 门禁（无收益） | 已落地；含反向验证单测（46 次同 offset → 45） |
-| G1 | `c28441d7` | 9 文件：`gles/{adapter,adapter_context,adapter_context_linux,adapter_linux,device_linux,queue,queue_linux,surface}`、`ui/scheduler/metrics.go` | VAO 原子化+无锁快路、UnlockKeepBinding、损伤剪刀 blit、PresentCount 双记修复 | 提交线固定开销下降 | 中；触及 queue/surface 核心 |
-| G2 | `5402484d` | 6 文件：`gles/swapchain{,_hal}`、`render/{frame,present_construct,present_frame,present_swapchain}` | damage-aware present tier-1、交换链视图缓存、损伤历史 | 16.99%→16.49%（基本持平） | 中；上屏语义 |
+| G1 | `c28441d7` | 9 文件：`gles/{adapter,adapter_context,adapter_context_linux,adapter_linux,device_linux,queue,queue_linux,surface}`、`ui/scheduler/metrics.go`、新测试 `spin_blit_damage_test.go` | VAO 原子化+无锁快路、UnlockKeepBinding、损伤剪刀 blit（后端接线）、PresentCount 双记修复 | **已落地**（2026-10-18，含 3 文件 gofmt 收敛）：渲染逐位中性（配对抓图 R4 s00 0 像素差、c5 在动画噪声地板内）；`present_count/frame_count` 由 2× 修成 1:1（两后端）；单独 CPU ≈0（spin_min 交错 5+5：15.73% vs 基线 15.90%，噪声内；原因＝损伤剪刀的输入要 G2 才接通） | 中；已提交 |
+| G2 | `5402484d` | 9 文件：`gles/swapchain{,_hal}`、`render/{frame,present_construct,present_frame,present_swapchain}`、`render/present_damage_history_test.go`(新)、`docs/RENDER_SPIN_TRANSFORM_REUSE_PLAN.md`(新)、`docs/RENDER_API_CATALOG.md` | damage-aware present tier-1、交换链视图缓存、损伤历史 | 16.99%→16.49%（基本持平） | **处置：整刀不落**（2026-10-18）。① 按现状（窗口按脏区裁剪）实测小损伤窗背景丢失（spinner/spin_min），且 range 顶端同样如此；② 按 §5-4 的「窗口整面写」语义修正后重验：10 窗签名全部回到基线、守卫 0，但收益仍 ≈0（spin_min 交错 5+5：G1 15.726% vs 修正态 15.784%，Δ=−0.06pt）；③ 按「优化必须有实测收益」口径整刀不落，证据与原文留档 |
 | G3 | `95876e57` | 3 文件：`render/internal/gpu/{image_pipeline,image_rotation_uniform,render_session}` | 旋转走 uniform 矩阵（Impeller RSTransform 同款） | 省 12 顶点重算+一次小上传 | 低 |
 | G4a | `15aae17f`（拆） | 上传/后端子集：`gles/{write_batch,state_cache,queue,queue_linux,command_execute,surface,resource_linux,resource_windows,adapter_context_linux}`、`render/internal/gpu/render_session` | 写批次零拷贝暂存、执行期状态缓存扩面、提交路径收口 | 大包（无单刀数字） | **高**；含上传路径核心，必须拆开验 |
 | G4b | `15aae17f`（拆） | 平台/场景子集：`ui/platform/x11_linux.go`、`ui/scene/textured.go`（+`gpu/webgpu/swapchain_hal.go`） | x11 提交路径、场景层纹理 | 同上 | 中 |
@@ -94,6 +94,12 @@ G10 是「前刀引入的冻结画面」的补丁，不能只搬前刀不搬它�
    - `gpu/webgpu/swapchain_hal.go::EndFrameMerged` 必须真提交它拿到的命令缓冲（现在直接丢弃）；
    - `gles` 写批次的零拷贝暂存要与 `gpu/hal/api.go` 里 `WriteBuffer`「立即写入（内部创建 staging）」的措辞对齐
      （slab 自有字节零拷贝；调用方 scratch 一律拷贝或显式移交给队列）。
+4. **【2026-10-18 新发现】G2 的窗口损伤剪刀不能单独落**：range 顶端 `f17e76e1` 的 `render/present_frame.go` 仍是「按脏区裁剪上屏」（`EndFrameWithDamage(frame, damageRects)`）；
+   「窗口必须整面写、damage 只作 raster 提示（Skia/Flutter：层缓存省 CPU，表面每帧整面合成）」的正确语义**只存在于被 reset 掉的 WIP**（原文在 `/tmp/opencode/backup_cpu1pct_20261018/worktree_vs_HEAD.patch` 的 `render/present_frame.go` 段）。
+   实测证据（本轮）：G1+G2 生效后 `ui_l1_spinner` 由「全黑」变为「背景+左上碎片」、`kit/spin_min` 由 `black=98%` 变为 `black=3%`（背景丢失类），其余 7 窗签名不变；
+   剪刀收益：spin_min 交错 5+5，G1 15.890% vs G1+G2 15.796%（Δ=+0.09pt，噪声内）。
+   ⇒ 结论（已执行）：G2 整刀不落，只留 G1。修正态实测：10 窗（GL）签名全部回到基线（spinner 回「全黑」既有态、spin_min 回 `black=98%`）、守卫 0、`present_count/frame_count` 1:1；CPU 交错 5+5 G1 15.726% vs 修正态 15.784%（Δ=−0.06pt，噪声内）→ 窗口侧收益恒 0（修正后窗口上屏＝整面写），其余机制无可测收益。「窗口整面写」这份语义**留给将来任何要重开损伤上屏的刀**作为前置（原文见备份 patch）。
+
 3. **G0 上传守卫已落地**（2026-10-18）：`hal.Queue.StagedWriteOverlaps()` + 示例 JSON `staged_write_overlaps` 字段 + 命中时的 stderr 诊断行；
    纯函数决策表单测 `TestCountStagedWriteOverlaps`（含 46 次同 offset → 45 的反向验证）与 `TestNoteStagedWriteOverlapsCounts` 绿；
    基线复测 0（见 §8 与本次门禁记录）。它是「一刀优化把上传时序搞坏」的通用防线，本轮这条守卫本来就能直接抓到 `f8acffea` 形态。
@@ -153,4 +159,4 @@ G0 落地后的同脚本复跑留档在 `/tmp/opencode/g0_census/`：10 窗签�
    考证：用 `git archive 3387a429`（该示例最后一次改动、且是基线祖先）取旧树重跑，同样是黑窗（ncol=26~31、black=100%）→ **与 CPU 线无关，早于基线数月**；作为独立既有洞记录，不进重放门禁。
 2. `ui_wr_r4_composite` 的 `damage_ratio_avg` 基线就 0.353~0.358（>0.35 报 FAIL），是已记录噪声门，不作判据。
 3. c5/c6 的 FAIL 行是采集时长不足（示例要求 ≥30s / ≥10s），c3 是 6s 内异步出图未完成（10/24），均与渲染正确性无关。
-
+| 2026-10-18 | G1 落地（`c28441d7`）+ G2 不落（`5402484d`）：G1 渲染逐位中性、PresentCount 修成 1:1、单独 CPU ≈0（记账在 G1+G2 组合）；G2 按现状会丢小损伤窗背景、按「窗口整面写」修正后收益仍 ≈0 → 整刀不落，结论与证据入 §3/§5-4 |

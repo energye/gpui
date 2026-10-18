@@ -37,9 +37,10 @@ type Queue struct {
 // Submit submits command buffers to the GPU.
 // One Lock for the whole submit: staged uploads flush first, then all GL
 // commands run under a per-submit state cache that drops repeated setup.
+// Keeps the binding on unlock (Linux twin: same change, pprof-driven).
 func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error) {
 	glCtx := q.ctx.Lock()
-	defer q.ctx.Unlock()
+	defer q.ctx.UnlockKeepBinding()
 	st := newGLExecState()
 	if list := q.batch.drain(); len(list) > 0 {
 		flushWriteBatch(glCtx, st, list)

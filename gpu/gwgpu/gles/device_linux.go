@@ -14,6 +14,7 @@ package gles
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -27,13 +28,18 @@ import (
 // Device implements hal.Device for OpenGL on Linux.
 // Holds a shared *AdapterContext (owned by Instance or Surface). All GL
 // operations acquire the context lock, do MakeCurrent, execute, and unlock.
+// vao access: created lazily under the context lock (Mesa d3d12 gallium
+// invalidates pbuffer-born objects on the window surface, so it must be born
+// on the window surface, not at Open). After creation it is read-only and
+// read via atomic so the steady-state CreateCommandEncoder fast path skips
+// the Lock/Unlock round trip (pprof: 110ms/2.32s on spin_min).
 type Device struct {
 	ctx             *AdapterContext
 	displayHandle   uintptr
 	windowHandle    uintptr
-	vao             uint32 // persistent VAO (Core Profile requires one bound)
-	maxTextureUnits int32  // GL_MAX_TEXTURE_IMAGE_UNITS (queried at init)
-	maxMSAA         int32  // GL_MAX_SAMPLES (validate MSAA in CreateTexture)
+	vao             atomic.Uint32 // persistent VAO (Core Profile requires one bound)
+	maxTextureUnits int32         // GL_MAX_TEXTURE_IMAGE_UNITS (queried at init)
+	maxMSAA         int32         // GL_MAX_SAMPLES (validate MSAA in CreateTexture)
 	features        gputypes.Features
 	limits          gputypes.Limits
 	queue           hal.Queue
@@ -760,18 +766,29 @@ func (d *Device) DestroyQuerySet(qs hal.QuerySet) {
 // VAO is lazily created on first call — ensures it's allocated on the window
 // surface (after Configure), not on the pbuffer (during Open). Mesa d3d12
 // gallium invalidates GL objects when switching from pbuffer to window surface.
+// Steady state skips the Lock/Unlock round trip: the VAO is read-only after
+// creation (atomic load) and the encoder only records commands — GL executes
+// them later under Queue.Submit's lock. Only the first creation takes the lock.
 func (d *Device) CreateCommandEncoder(_ *CommandEncoderDescriptor) (hal.CommandEncoder, error) {
+	if v := d.vao.Load(); v != 0 {
+		enc := acquireCommandEncoder()
+		enc.glCtx = d.ctx.GL()
+		enc.vao = v
+		enc.maxTextureUnits = d.maxTextureUnits
+		return enc, nil
+	}
 	glCtx := d.ctx.Lock()
 	defer d.ctx.Unlock()
 
-	if d.vao == 0 {
-		d.vao = glCtx.GenVertexArrays(1)
-		glCtx.BindVertexArray(d.vao)
-		hal.Logger().Debug("gles: lazy VAO created", "vao", d.vao)
+	if v := d.vao.Load(); v == 0 {
+		v = glCtx.GenVertexArrays(1)
+		glCtx.BindVertexArray(v)
+		d.vao.Store(v)
+		hal.Logger().Debug("gles: lazy VAO created", "vao", v)
 	}
 	enc := acquireCommandEncoder()
 	enc.glCtx = glCtx
-	enc.vao = d.vao
+	enc.vao = d.vao.Load()
 	enc.maxTextureUnits = d.maxTextureUnits
 	return enc, nil
 }
@@ -921,24 +938,23 @@ func (d *Device) PushErrorScope(_ hal.ErrorFilter) {}
 // PopErrorScope returns nil (GLES never captures errors).
 func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 
-// Release releases the device.
+// Release releases the device. Bind failure (driver gone) still clears
+// the VAO bookkeeping: handles die with the driver (Windows twin parity).
 func (d *Device) Release() {
-	if d == nil || d.vao == 0 {
+	if d == nil || d.vao.Load() == 0 {
 		return
 	}
 	if d.ctx == nil || d.ctx.GL() == nil {
-		d.vao = 0
+		d.vao.Store(0)
 		return
 	}
-	glCtx, err := d.ctx.TryLock()
-	if err != nil {
-		return
+	if glCtx, err := d.ctx.TryLock(); err == nil {
+		defer d.ctx.Unlock()
+		if glCtx != nil {
+			glCtx.DeleteVertexArrays(d.vao.Load())
+		}
 	}
-	defer d.ctx.Unlock()
-	if glCtx != nil {
-		glCtx.DeleteVertexArrays(d.vao)
-	}
-	d.vao = 0
+	d.vao.Store(0)
 }
 
 // Type aliases for hal descriptors

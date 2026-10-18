@@ -77,9 +77,11 @@ func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.
 		shaderBindingLayout: glslVer.SupportsExplicitLocations(),
 	}
 
+	// Queue-local fence disabled (Linux twin: same change, pprof-driven):
+	// no caller polls Queue.Poll on the steady path. Submit/Poll nil-guard
+	// fence; Device.CreateFence stays for explicit external sync.
 	queue := &Queue{
-		ctx:   a.ctx,
-		fence: NewFence(glCtx),
+		ctx: a.ctx,
 	}
 	device.queue = queue
 
