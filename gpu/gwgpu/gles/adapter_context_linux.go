@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"runtime"
 	"sync"
+	"syscall"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/egl"
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
@@ -30,6 +31,13 @@ type AdapterContext struct {
 	eglCtx *egl.Context
 	gl     *gl.Context
 	owns   bool // true → Destroy() destroys eglCtx
+
+	// keepTid is the one OS thread allowed to keep the binding current between
+	// calls (0 = unclaimed). EGL admits a single binding thread per context, so
+	// the frame-end keep is only valid on the process-wide GL thread
+	// (ui/raster hub); see UnlockKeepBinding.
+	keepTid            int
+	keepFallbackLogged bool
 }
 
 // NewAdapterContext wraps an already-created EGL context and GL function table.
@@ -123,6 +131,19 @@ func (c *AdapterContext) LockForSurface(surf egl.EGLSurface) *gl.Context {
 	return c.gl
 }
 
+// unmakeCurrent unmakes the GL context on the calling thread (nothing is
+// current on this thread afterwards). Callers hold c.mu and keep their
+// LockOSThread pin.
+func (c *AdapterContext) unmakeCurrent() {
+	// Check eglCtx first so unmake is safe before egl.Init (unit tests, teardown).
+	if c.eglCtx != nil {
+		if egl.MakeCurrent(c.eglCtx.Display(), egl.NoSurface, egl.NoSurface, egl.NoContext) == egl.False {
+			slog.Error("gles: AdapterContext UnmakeCurrent failed",
+				"err", fmt.Sprintf("0x%x", egl.GetError()))
+		}
+	}
+}
+
 // Unlock unmakes the GL context current, unpins the goroutine from the OS
 // thread, and releases the mutex.
 //
@@ -132,13 +153,7 @@ func (c *AdapterContext) LockForSurface(surf egl.EGLSurface) *gl.Context {
 // CreateCommandEncoder/Submit/Present Unlock paid one FFI round trip).
 // Unlock stays safe before egl.Init (unit tests, teardown) via the nil check.
 func (c *AdapterContext) Unlock() {
-	// Check eglCtx first so Unlock is safe before egl.Init (unit tests, teardown).
-	if c.eglCtx != nil {
-		if egl.MakeCurrent(c.eglCtx.Display(), egl.NoSurface, egl.NoSurface, egl.NoContext) == egl.False {
-			slog.Error("gles: AdapterContext.Unlock UnmakeCurrent failed",
-				"err", fmt.Sprintf("0x%x", egl.GetError()))
-		}
-	}
+	c.unmakeCurrent()
 	runtime.UnlockOSThread()
 	c.mu.Unlock()
 }
@@ -152,9 +167,34 @@ func (c *AdapterContext) Unlock() {
 // pprof: UnmakeCurrent costs 170ms/1.87s on spin_min (one per Submit and one
 // per Present); Submit keeps, Present still clears (frame-end Unlock,
 // Flutter parity). Other callers keep Unlock.
+//
+// Only one OS thread may keep it: the first frame-end caller claims keepTid,
+// which is the process-wide GL thread (ui/raster hub) in every windowed app.
+// A keep from any other thread would strand the shared context — the real GL
+// thread's next MakeCurrent fails with EGL_BAD_ACCESS (0x3002) and every GL
+// call of that window silently no-ops (frozen picture, UI keeps ticking), so
+// foreign threads unmake exactly like Unlock.
 func (c *AdapterContext) UnlockKeepBinding() {
+	tid := currentTid()
+	if c.keepTid == 0 {
+		c.keepTid = tid
+	}
+	if c.keepTid != tid {
+		c.unmakeCurrent()
+		if !c.keepFallbackLogged {
+			c.keepFallbackLogged = true
+			slog.Warn("gles: AdapterContext frame-end keep on a foreign thread; unmade instead",
+				"tid", tid, "glTid", c.keepTid)
+		}
+	}
 	runtime.UnlockOSThread()
 	c.mu.Unlock()
+}
+
+// currentTid returns the calling OS thread id for the keep lease.
+// Windows twin: currentTid in adapter_context.go (GetCurrentThreadId).
+func currentTid() int {
+	return syscall.Gettid()
 }
 
 // GL returns the GL function table.
@@ -173,6 +213,9 @@ func (c *AdapterContext) EGL() *egl.Context {
 func (c *AdapterContext) Destroy() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// A recreated context gets a fresh claim: the thread that kept the old
+	// binding has no relationship to the new one's GL thread.
+	c.keepTid = 0
 	if c.owns && c.eglCtx != nil {
 		c.eglCtx.Destroy()
 		c.eglCtx = nil

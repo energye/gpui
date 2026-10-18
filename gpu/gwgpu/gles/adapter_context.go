@@ -20,7 +20,14 @@ import (
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 	"github.com/energye/gpui/gpu/gwgpu/gles/wgl"
+	"golang.org/x/sys/windows"
 )
+
+// currentTid returns the calling OS thread id for the keep lease.
+// Linux twin: currentTid in adapter_context_linux.go (syscall.Gettid).
+func currentTid() int32 {
+	return int32(windows.GetCurrentThreadId())
+}
 
 // AdapterContext wraps a GL context with mutex-protected MakeCurrent switching.
 // Shared by Instance → Adapter → Device → Queue (all hold *AdapterContext).
@@ -38,6 +45,13 @@ type AdapterContext struct {
 
 	initOnce sync.Once
 	initErr  error
+
+	// keepTid is the one OS thread allowed to keep the binding current between
+	// calls (0 = unclaimed): the process-wide GL thread (ui/raster hub). WGL
+	// binds a context to a thread, so a keep from any other thread strands it;
+	// see UnlockKeepBinding.
+	keepTid            int32
+	keepFallbackLogged bool
 }
 
 // NewAdapterContext creates an AdapterContext with a hidden window DC.
@@ -172,7 +186,28 @@ func (c *AdapterContext) Unlock() {
 // the GL context current on this OS thread (skips the UnmakeCurrent FFI).
 // Linux twin: same contract (raster Submit→Present on one pinned OS thread,
 // Present re-makes before use). Other callers keep Unlock.
+//
+// Only one OS thread may keep the binding: the first frame-end caller claims
+// keepTid, the process-wide GL thread (ui/raster hub) in every windowed app.
+// WGL binds a rendering context to its thread, so a keep from any other thread
+// strands the shared context — the real GL thread's MakeCurrent then fails and
+// its GL calls silently no-op (frozen picture, UI keeps ticking). Foreign
+// threads therefore unmake exactly like Unlock.
 func (c *AdapterContext) UnlockKeepBinding() {
+	tid := currentTid()
+	if c.keepTid == 0 {
+		c.keepTid = tid
+	}
+	if c.keepTid != tid {
+		if err := wgl.MakeCurrent(0, 0); err != nil {
+			slog.Error("gles: AdapterContext UnmakeCurrent failed", "err", err)
+		}
+		if !c.keepFallbackLogged {
+			c.keepFallbackLogged = true
+			slog.Warn("gles: AdapterContext frame-end keep on a foreign thread; unmade instead",
+				"tid", tid, "glTid", c.keepTid)
+		}
+	}
 	runtime.UnlockOSThread()
 	c.mu.Unlock()
 }
@@ -193,6 +228,9 @@ func (c *AdapterContext) HGLRC() wgl.HGLRC {
 func (c *AdapterContext) Destroy() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// A recreated context gets a fresh claim: the thread that kept the old
+	// binding has no relationship to the new one's GL thread.
+	c.keepTid = 0
 	if c.hglrc != 0 {
 		_ = wgl.MakeCurrent(0, 0)
 		_ = wgl.DeleteContext(c.hglrc)

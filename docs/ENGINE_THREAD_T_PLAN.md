@@ -17,7 +17,7 @@ button 真窗点按拖拽慢半拍——界面线程建包 + 画纹理（`scene.
 | 线 | 在哪跑 | 干什么 | 铁律 |
 |----|--------|--------|------|
 | 界面线 | `ui/embedder` `Run` 循环 + `ui/rendering` + `ui/scheduler` + `ui/input`/`gestures`/`focus`/`textinput` | 收原生事件、排版、录图、建 `FramePacket`，交完马上回事件循环 | 禁止 gpu Submit / 直接操作 Device；脏旗只在这条读写 |
-| 光栅线 | `ui/raster/Loop`（锁系统线程）+ `ui/scene` 画与合成 + `render` 上下文 + `gpu` | 接包、画脏层纹理、合成、送屏，一次一包、新包顶旧包 | 禁止读可变 RO 树，只读封好包；`ui` 不直调 `gpu` |
+| 光栅线 | `ui/raster/hub.go` 的全进程唯一 GL 线程（pinned，扫注册窗）+ `ui/raster/Loop`（每窗提交句柄）+ `ui/scene` 画与合成 + `render` 上下文 + `gpu` | 接包、画脏层纹理、合成、送屏，一次一包、新包顶旧包 | 禁止读可变 RO 树，只读封好包；`ui` 不直调 `gpu`；非帧 GL（预热/快照/拆机）走 `Loop.RunSync` 排到同一条 GL 线程 |
 | 图片线 | `ui/io` 解码池 | 解图片，不挡前两条，解完跳回界面线挂树 | 排版画画时不许同步解 |
 
 ## 3. 交接规矩
@@ -220,6 +220,7 @@ E2/E3/E5 基线不动。不留双路开关（直接重写，红了 revert）。�
 | 2026-09-16 | 立项：唯一工作文档，三处旧址收敛为指针（`d868b18`） |
 | 2026-09-16 | 扩展+核查：细则/归属/风险/指标/窗单/回滚 + Flutter 表 + D1–D16（`f6b8a6c`） |
 | 2026-09-16 | 收敛：§17 并入 §14 表；D1/D11、D2/D12 合一；D13 只留正确结论；行号去漂移 |
+| 2026-10-18 | §2 光栅线行改现状（G10 重放移植，`dc2733b6`）：每窗一条独立线程（`Loop`+LockOSThread）改为**全进程唯一 GL 线程**（`ui/raster/hub.go` pin 一条，各窗 `Loop` 降为注册句柄），新增公开 API `(*Loop).RunSync`；依据 EGL 单上下文单绑定线程 + 帧尾 keep 绑定互相 0x3002（多窗共设备同因），对齐 Flutter SurfaceManager 单 raster 线程。本树证据（双窗同进程专项）：pre-fix 4 轮全中（`0x3002` 3/4/5/10 条 + 1 次 SIGSEGV 栈落 `gles/queue_linux.go:64`）→ 修复 3/3 清洁（0 条、0 崩、两窗各 4/4 帧在动）；修复臂进程 CPU 24.5~25.5% 对基线 43.7~46.6%（两窗共用一 EGL 上下文，基线逐帧解绑代价随窗数放大）。**跨平台一次标齐**（无空白格）：Linux 已做＝真机 X11 验（GL 线程 id 走 `threadid_linux.go` 的 `syscall.Gettid`，`RunSync` 交接与 gles 租约守卫真跑）／Linux Wayland 已做＝同码共用 `adapter_context_linux.go`，未单独真窗验（步骤见 skill `gpui-wayland-nested`）／Windows 已做＝`threadid_windows.go` 走 `GetCurrentThreadId`、gles WGL 端 `adapter_context.go` 租约守卫镜像同改，`GOOS=windows go build ./gpu/gwgpu/gles/` 绿，待真机复验／macOS 占位＝`threadid_other.go` 返回 -1（线程身份未知⇒任何调用方都不当 GL 线程，退化为不 keep 绑定，与 darwin 无 gles adapter 的现状一致），gles 不接 darwin／Android 不接（同 `ENGINE_GL_MIGRATION_PLAN.md` §2）／browser-wasm 不动（无 GL 线程模型）。 |
 | 2026-09-17 | T4 关门：图片线扶正（§7 记“✅ 已关”，R10 一项违规记基线同红存量） |
 | 2026-09-17 | T5 解冻示例测试 + T 闭项 | ✅ 已关（T 闭项；红项全部基线同红，用户已确认按 T2/T3/T4 办法放行） | 按钮窗按 §6.9.0 摆回 16 段 133 颗（7 自测 + 133 实例行 = 140 行）：悬停/点按/键盘三刀 + wave/渐变/href/插空/语义额外断言，滚轮滚动视口 + 1200×900；T 窗 9 项实数 + X1–X12 全断言：X1 全屏脏重录跳变、X2 16 转圈、X3 10 张真 >2MP 边解边滚（ui/io 大道）+ 点按≤2帧、X4 光栅有数、X5 四连改尺寸恢复、X6/X11 串行遮挡集（600×400 借窗盖主窗后关，主窗 390 出画面 + 借窗 2 出画面，不同尺寸）、X7 200 戳 + 60 移 + 点按后续帧、X8 最小化恢复、X9 缓存有项、X10 快照回调带帧号、X12 重录 + 缺显存分类 + 恢复后出画面；特批引擎 `render/present_target.go` 单设备多表面（首窗发布共享设备，借窗只建自家表面 + 交换链，不重绑加速器，关窗引用计数）。验证：button 140 行零失败；按钮包 45 PASS + 1 SKIP；E2 两道绿；禁令绿；T 窗 14s 全绿（12/12，latency = 1）；窗单 30 绿 + 8 红（c4 金图 11.10%、c6 卡顿 6.02、c8 帧率 54.15/54.38、r20 卡顿 30.06、r22 头晕（基线绿，待跟）、r10 重录 1（基线 2）全部基线同红或同类红 + c10/r15 短版时长拦截）；render 全包 6 FAIL 与干净树一字不差（AA 圆对角、虚线矩形、字形异、混合色相、布尔差、S69 契约）。遗留引擎账：X11 真同跑需可重置 Loop/quit（串行集已证双表面同设备，嵌套 Run 仍死锁）；X12 三连缺退出未真触发（触发器在引擎内）；Hide 真隐藏 present 崩（改走最小化）；C4 金图/R10 重录/r22 头晕待跟。 |
 | 2026-09-18 | T0–T5 重审分档 | ⬜ 只记账不修（用户定“暂时都不修”） | 见 §17：四路分头只读+跑测复核，1 致命 + 10 严重 + 口径/文字/浪费三档；T 仍闭项，分档只排修的先后，不重开 T。 |

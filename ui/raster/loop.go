@@ -10,10 +10,15 @@
 
 // Package raster runs the L1 raster thread: consumes frame jobs, calls render present.
 // Must not import gpu (only render).
+//
+// All loops in a process share one pinned OS thread (hub.go): the GL context is
+// current-on-one-thread and the frame-end present paths keep it that way, so a
+// per-window thread would strand it against the other windows (EGL 0x3002, GL
+// silently no-ops, frozen picture). A Loop is the per-window submission handle
+// on that thread, not a thread of its own.
 package raster
 
 import (
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,19 +37,22 @@ type FrameJob struct {
 	Done chan error
 }
 
-// Loop is a dedicated OS-thread consumer with bounded pipeline depth.
+// Loop is a window's submission handle on the process-wide GL thread
+// (hub.go) with bounded pipeline depth.
 type Loop struct {
 	depth int
 	jobs  chan FrameJob
-	quit  chan struct{}
 
-	// mu serializes Start/Stop lifecycle transitions: Stop closes
-	// quit, so a later Start must create a fresh quit channel — otherwise
-	// the new goroutine sees the closed quit immediately and exits without
-	// ever consuming jobs. jobs is never closed and survives restarts.
+	// mu serializes Start/Stop lifecycle transitions against each other and
+	// against the hub's stop-drain ack. jobs is never closed and survives
+	// restarts, so a job submitted while the loop is stopped still runs on the
+	// next Start.
 	mu      sync.Mutex
 	started atomic.Bool
-	wg      sync.WaitGroup
+	// stopReq asks the hub to drain jobs after Stop, ack closes when the drain
+	// finished (the GL thread is where the remaining jobs have to run).
+	stopReq atomic.Bool
+	ack     chan struct{}
 
 	metrics  *scheduler.MetricsStore
 	inflight atomic.Int32
@@ -52,9 +60,10 @@ type Loop struct {
 	// pending is latest-wins when TrySubmit fails (unstarted frame coalesce).
 	pending PendingSlot
 
-	// inRaster marks raster-thread execution for G5 thread assertions.
-	// Set only by exec on the raster OS thread; UI code must observe false.
-	inRaster atomic.Bool
+	// inRaster is the raster-thread nesting depth for G5 thread assertions
+	// (0 = off the GL thread). Raised only by exec on the GL thread; UI code
+	// must observe 0.
+	inRaster atomic.Int32
 }
 
 // NewLoop creates a raster loop with the given max in-flight jobs (min 1).
@@ -65,25 +74,22 @@ func NewLoop(depth int, metrics *scheduler.MetricsStore) *Loop {
 	return &Loop{
 		depth:   depth,
 		jobs:    make(chan FrameJob, depth),
-		quit:    make(chan struct{}),
 		metrics: metrics,
 	}
 }
 
-// Start launches the raster goroutine locked to an OS thread.
-// Safe to call after Stop: a fresh quit channel is created so the new
-// goroutine does not exit on the previously closed quit. A stale
-// pending latest-wins job is requeued so its Done waiter still fires.
+// Start registers the loop with the process-wide GL thread (starting it if this
+// is the first loop). Safe to call after Stop: A stale pending latest-wins job
+// is requeued so its Done waiter still fires.
 func (l *Loop) Start() {
 	if l == nil {
 		return
 	}
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	if l.started.Load() {
+		l.mu.Unlock()
 		return
 	}
-	l.quit = make(chan struct{})
 	if pj, ok := l.pending.Take(); ok {
 		select {
 		case l.jobs <- pj:
@@ -91,40 +97,19 @@ func (l *Loop) Start() {
 			l.pending.Store(pj)
 		}
 	}
+	l.stopReq.Store(false)
 	l.started.Store(true)
-	l.wg.Add(1)
-	go func() {
-		runtime.LockOSThread()
-		defer runtime.UnlockOSThread()
-		defer l.wg.Done()
-		for {
-			select {
-			case <-l.quit:
-				// Drain remaining jobs so Submit waiters unblock.
-				for {
-					select {
-					case job := <-l.jobs:
-						l.exec(job)
-					default:
-						return
-					}
-				}
-			case job := <-l.jobs:
-				l.exec(job)
-				// Prefer draining pending latest frame after each job.
-				if pj, ok := l.pending.Take(); ok {
-					l.exec(pj)
-				}
-			}
-		}
-	}()
+	l.mu.Unlock()
+	sharedHub.register(l)
 }
 
 func (l *Loop) exec(job FrameJob) {
 	l.inflight.Add(1)
 	// G5: mark raster-thread entry so UI/raster assertions observe it.
-	l.inRaster.Store(true)
-	defer l.inRaster.Store(false)
+	// Nesting-safe: Stop from inside a job drains the queue here, so an inner
+	// exec must not clear the outer job's mark.
+	l.inRaster.Add(1)
+	defer l.inRaster.Add(-1)
 	if l.metrics != nil {
 		l.metrics.SetPipeline(int(l.inflight.Load()), l.depth)
 	}
@@ -149,8 +134,13 @@ func (l *Loop) exec(job FrameJob) {
 	}
 }
 
-// Stop signals the loop to exit and waits.
+// Stop drains the loop's queued jobs on the GL thread and unregisters it.
 // Safe to call twice and to follow with Start.
+//
+// After Stop returns, no job of this loop is running or queued, so the caller
+// may take the GPU over (snapshot readback, teardown destroys). The drain
+// itself runs on the GL thread: only that thread can issue GL work while a
+// context binding is kept.
 func (l *Loop) Stop() {
 	if l == nil {
 		return
@@ -160,14 +150,88 @@ func (l *Loop) Stop() {
 		l.mu.Unlock()
 		return
 	}
-	select {
-	case <-l.quit:
-	default:
-		close(l.quit)
-	}
-	l.mu.Unlock()
-	l.wg.Wait()
 	l.started.Store(false)
+	ack := make(chan struct{})
+	l.ack = ack
+	l.stopReq.Store(true)
+	l.mu.Unlock()
+
+	if sharedHub.isGLThread() {
+		// Called from inside a job: the runner cannot ack work it is already
+		// executing, so drain here instead of waiting for a sweep.
+		l.drainStopped()
+	} else {
+		sharedHub.ping()
+		<-ack
+	}
+	sharedHub.unregister(l)
+}
+
+// tryTake removes one queued job without blocking. GL thread only.
+func (l *Loop) tryTake() (FrameJob, bool) {
+	select {
+	case job := <-l.jobs:
+		return job, true
+	default:
+		return FrameJob{}, false
+	}
+}
+
+// drainStopped runs the jobs a stopped loop still had queued, then acks the
+// Stop caller. GL thread only: those jobs call render present, which needs the
+// GL context current on this thread.
+func (l *Loop) drainStopped() bool {
+	if !l.stopReq.Load() {
+		return false
+	}
+	for {
+		job, ok := l.tryTake()
+		if !ok {
+			l.stopReq.Store(false)
+			l.mu.Lock()
+			if ack := l.ack; ack != nil {
+				l.ack = nil
+				close(ack)
+			}
+			l.mu.Unlock()
+			return true
+		}
+		l.exec(job)
+	}
+}
+
+// RunSync runs fn on the GL thread and waits for it to return.
+//
+// Frame work belongs to FrameJob; this is the handoff path for GL that is not
+// a frame: warm-up full presents, snapshot readback, teardown destroys. The
+// frame-end present paths keep the GL context current on the GL thread
+// (Impeller model), so running such work on the UI thread bind-fails with
+// EGL_BAD_ACCESS (0x3002) and every GL call silently no-ops.
+//
+// On a started loop the job joins the queue, so it runs after the presents
+// already submitted; with no loop running it still reaches the GL thread.
+// Called from the GL thread itself (inside a FrameJob), fn runs inline — the
+// check is by thread id, not by loop state: a loop's own job running on the GL
+// thread does not make the UI thread a GL thread.
+func (l *Loop) RunSync(fn func() error) error {
+	if fn == nil {
+		return nil
+	}
+	if l == nil {
+		return sharedHub.runJob(fn)
+	}
+	if sharedHub.isGLThread() {
+		return fn()
+	}
+	if !l.started.Load() {
+		return sharedHub.runJob(fn)
+	}
+	done := make(chan error, 1)
+	job := FrameJob{Run: fn, Done: done}
+	if !l.TrySubmit(job) {
+		l.Submit(job)
+	}
+	return <-done
 }
 
 // TrySubmit enqueues a job without blocking. Returns false if the pipeline is full (backpressure).
@@ -177,6 +241,8 @@ func (l *Loop) TrySubmit(job FrameJob) bool {
 	}
 	select {
 	case l.jobs <- job:
+		// Wake the GL thread: it parks when the process has no work.
+		sharedHub.ping()
 		return true
 	default:
 		return false
@@ -203,6 +269,7 @@ func (l *Loop) Submit(job FrameJob) {
 		return
 	}
 	l.jobs <- job
+	sharedHub.ping()
 }
 
 // Depth returns the number of frames currently queued in the loop.
@@ -220,13 +287,13 @@ func (l *Loop) OnRasterThread() bool {
 	if l == nil {
 		return false
 	}
-	return l.inRaster.Load()
+	return l.inRaster.Load() > 0
 }
 
 // AssertRasterThread panics when called off the raster thread.
 // Raster-only work (draw/composite/present) calls this first (G5).
 func (l *Loop) AssertRasterThread() {
-	if l != nil && !l.inRaster.Load() {
+	if l != nil && l.inRaster.Load() <= 0 {
 		panic("raster: AssertRasterThread called off raster thread")
 	}
 }

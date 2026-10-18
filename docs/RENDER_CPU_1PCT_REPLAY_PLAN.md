@@ -54,7 +54,7 @@
 | G7 | `e1a1b9d4` | 4 文件：`ui/rendering/{absolute,boundary_cache,picture_box}`、`ui/scheduler/metrics` | 边界缓存 CPU 准入 + 复杂度门（对齐 Flutter dl_complexity） | **本刀 A/B 自认作废，必须重测** | 中 |
 | G8 | `42929d04` | 26 文件：`gles/{adapter_context*,command*,command_encoder,command_renderpass,default_fb_linux(新),device*,queue_linux,resource*,shader*,state_cache,target_adjust(新)}` + `naga/glsl`、`shader/glsl` 各 5 文件 | GLES 直渲窗口默认帧缓冲（目标坐标调整块+窗口 24/8） | 7.1%→6.4% | **最高**；改上屏语义，必须单独验画面 |
 | G9 | `8c386a12` | 5 文件：`gles/{queue_linux,resource_linux,swapchain}`、`render/{present_construct,present_swapchain}` | Linux 窗改非阻塞交换（`eglSwapInterval 0`） | 7.08~7.13%→3.40~3.52% | **高**；交换语义 |
-| G10 | `dc2733b6` | 10 文件：`gles/{adapter_context,adapter_context_linux,queue}`、`ui/embedder/{app,pipeline_app}`、`ui/raster/{hub,loop,threadid_linux,threadid_other,threadid_windows}` | 全进程单 GL 线程 + keep 租约守卫（**修** G1/G8 系列的绑定交接冻结画面） | CPU 与干净 HEAD 持平（噪声内） | 中；**必须与它所修的前刀成对走** |
+| G10 | `dc2733b6` | 9 文件（其 `queue.go` WGL 编译修跳过——本树双端本来就能编过）：`gles/{adapter_context,adapter_context_linux}`、`ui/embedder/{app,pipeline_app}`、`ui/raster/{hub,loop,threadid_linux,threadid_other,threadid_windows}` | 全进程单 GL 线程 + keep 租约守卫（**修** G1 系列的绑定交接冻结画面）；预热同步全画次数保持本树原值（单次），只改走 `RunSync` | **已落地**（2026-10-18）：双窗同进程 pre-fix 4 轮全中（`0x3002` 3/4/5/10 条 + 1 次 SIGSEGV 栈落 `queue_linux.go:64`）→ 修复臂 3/3 清洁（0 条、0 崩、两窗各 4/4 帧在动、各 ~840 presents）；单窗浸泡两臂干净（该洞只多窗暴露）；交错 A/B（spin_min 12s×5）：base 中位 15.90 / pre-fix 14.61 / 修复 14.59 ⇒ 与 pre-fix 持平、keep 优化保留 | 中；**必须与它所修的前刀成对走**（G1 已在树上）；对比留档 `/tmp/opencode/cmp_fix{,_native}`、`/tmp/opencode/ab_fix_results_20261018.log` |
 | G11 | `3a4440a8` | 8 文件：`ui/embedder/pipeline_app`、`ui/platform/{poll_yield_linux,vsync_drm_linux,wayland_clipboard_linux,wayland_linux,x11_linux}`、`ui/scheduler/{metrics,scheduler}` | DRM vblank 事件化 + 轮询器停车 | 4.67~7.29%→3.38/3.49%（尺子 2.86~3.00%） | 中高；平台层 |
 | G12 | `45867530` | 1 文件：`gles/surface` | 撤回「剪刀常驻」（对齐 Impeller 每 pass 复位） | 7.1% 持平（自撤刀） | 低；可与前一刀合并 |
 | G13 | `caf2eec7` | 4 文件：`gles/surface`、`metal/queue`、`noop/queue`、`webgpu/queue` | 三家透调补合并卡点 + blit 注释对齐 | 无收益声明 | 低 |
@@ -129,6 +129,8 @@ DISPLAY=:1 GPUI_BACKEND=go RUN_SECONDS=6 GPUI_WBTRACE=1 /tmp/opencode/ab/bin/<ex
 | 2026-10-18 | 立项：以 db852552 为基线制定重放计划；写入本轮实测（基线画面、破洞真因、收益≈0、五示例冲突普查、native 黑窗）；确定 G0 门禁先行、f8acffea 剔除与两处契约待办 |
 | 2026-10-18 | 基线取证留档（§8）：GL+native 各 10 窗抓图签名与示例 JSON 字段入库；记录 `ui_l1_spinner` 基线黑窗（指标绿）与两处噪声门；采集脚本 `/tmp/opencode/baseline_census.py` 可原地复跑对比 |
 | 2026-10-18 | G0 落地：上传守卫（严格重叠计数）从 gles 写批次一路接到示例 JSON `staged_write_overlaps`；hal 接口新增 `Queue.StagedWriteOverlaps()`，三后端桩恒 0（注明理由）；新增守卫单测 2 个；目录文档 `docs/RENDER_API_CATALOG.md` 同步；回归：gles/hal/noop/scheduler 绿，webgpu/render/embedder 失败集合与基线一致（既有/抖动），apidoc 绿，基线复测 0 命中 |
+| 2026-10-18 | G1 落地（`c28441d7`）+ G2 不落（`5402484d`）：G1 渲染逐位中性、PresentCount 修成 1:1、单独 CPU ≈0（记账在 G1+G2 组合）；G2 按现状会丢小损伤窗背景、按「窗口整面写」修正后收益仍 ≈0 → 整刀不落，结论与证据入 §3/§5-4 |
+| 2026-10-18 | G10 落地（移植 `dc2733b6`，9 文件）：撤 per-window GL 线程改全进程单 GL 线程 hub（`ui/raster/hub.go` 扫注册窗 + `Loop` 降为提交句柄 + `RunSync` 交接），gles 双端 keep 租约守卫（首帧尾认领 `keepTid`、外来线程强制 unmake + 一次警告、`Destroy` 清认领），embedder 预热/快照/拆机/关窗全走 `runOnGL`。复现=双窗同进程 pre-fix 4 轮全中（`0x3002` 3/4/5/10 条 + 1 次 SIGSEGV）→ 修复 3/3 清洁（0 条、0 崩、两窗各 4/4 帧在动、各 ~840 presents）；单窗浸泡两臂干净；10 窗 GL+native 签名对基线逐窗全对上，无修复专属新分歧；`staged_write_overlaps=0`、`present_count:frame_count` 1:1；reopen 同进程重开各 6 轮：pre 6/6 OK、修复 5/6 OK + 1 轮撞「开窗期偶发 `0x3002`」（同签名与 G10 原会话记录一致——未修存量，归属 gles 建上下文/绑定交接）。CPU 交错 A/B（spin_min 12s×5）：base 中位 15.90 / pre-fix 14.61 / 修复 14.59 ⇒ 与 pre-fix 持平、keep 优化保留。跨平台见 `ENGINE_THREAD_T_PLAN.md` §2 行与 `ENGINE_GL_MIGRATION_PLAN.md` 修订 |
 
 ## 8. 基线取证留档（2026-10-18，db852552，只读采集）
 
@@ -159,4 +161,3 @@ G0 落地后的同脚本复跑留档在 `/tmp/opencode/g0_census/`：10 窗签�
    考证：用 `git archive 3387a429`（该示例最后一次改动、且是基线祖先）取旧树重跑，同样是黑窗（ncol=26~31、black=100%）→ **与 CPU 线无关，早于基线数月**；作为独立既有洞记录，不进重放门禁。
 2. `ui_wr_r4_composite` 的 `damage_ratio_avg` 基线就 0.353~0.358（>0.35 报 FAIL），是已记录噪声门，不作判据。
 3. c5/c6 的 FAIL 行是采集时长不足（示例要求 ≥30s / ≥10s），c3 是 6s 内异步出图未完成（10/24），均与渲染正确性无关。
-| 2026-10-18 | G1 落地（`c28441d7`）+ G2 不落（`5402484d`）：G1 渲染逐位中性、PresentCount 修成 1:1、单独 CPU ≈0（记账在 G1+G2 组合）；G2 按现状会丢小损伤窗背景、按「窗口整面写」修正后收益仍 ≈0 → 整刀不落，结论与证据入 §3/§5-4 |
