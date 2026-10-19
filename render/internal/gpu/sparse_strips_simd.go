@@ -27,108 +27,31 @@ type TileWinding16 [16]float32
 // TileCoverage16 holds coverage values for a 4×4 tile.
 type TileCoverage16 [16]uint8
 
-// ProcessSegmentSIMD processes a line segment's contribution to a tile using SIMD.
-// This is a vectorized version of processSegment for the FineRasterizer.
+// ProcessSegmentSIMD processes a line segment's contribution to a tile.
+//
+// The flat 16-value layout is only a storage detail: the winding accumulation
+// itself is delegated to accumulateSegmentWinding so this entry point shares
+// the exact result of the scalar rasterizer.
 func ProcessSegmentSIMD(
 	line LineSegment,
 	tileX, tileY uint16,
 	tileWinding *TileWinding16,
 ) {
-	// Convert tile coordinates to pixel coordinates
-	tileLeftX := float32(tileX) * float32(TileWidth)
-	tileTopY := float32(tileY) * float32(TileHeight)
-
-	// Get line endpoints relative to tile
-	p0x := line.X0 - tileLeftX
-	p0y := line.Y0 - tileTopY
-	p1x := line.X1 - tileLeftX
-	p1y := line.Y1 - tileTopY
-
-	// Skip horizontal segments
-	if p0y == p1y {
-		return
+	// Unpack to the [row][col] accumulator layout
+	var winding [TileSize][TileSize]float32
+	for y := 0; y < TileSize; y++ {
+		for x := 0; x < TileSize; x++ {
+			winding[y][x] = tileWinding[y*TileSize+x]
+		}
 	}
 
-	// Get sign from winding direction
-	sign := float32(line.Winding)
+	accumulateSegmentWinding(line, tileX, tileY, &winding)
 
-	// Line is monotonic, Y0 <= Y1
-	lineTopY := p0y
-	lineTopX := p0x
-	lineBottomY := p1y
-	lineBottomX := p1x
-
-	// Calculate slopes
-	dy := lineBottomY - lineTopY
-	dx := lineBottomX - lineTopX
-
-	var ySlope float32
-	if dx == 0 {
-		if lineBottomY > lineTopY {
-			ySlope = 1e10
-		} else {
-			ySlope = -1e10
+	// Pack back
+	for y := 0; y < TileSize; y++ {
+		for x := 0; x < TileSize; x++ {
+			tileWinding[y*TileSize+x] = winding[y][x]
 		}
-	} else {
-		ySlope = dy / dx
-	}
-	xSlope := 1.0 / ySlope
-
-	// Process all 4 rows using wide operations
-	// Load pixel Y coordinates as F32x8 (2 rows at a time)
-	rows01Y := wide.F32x8{0, 0, 0, 0, 1, 1, 1, 1}
-	rows23Y := wide.F32x8{2, 2, 2, 2, 3, 3, 3, 3}
-	pixelX := wide.F32x8{0, 1, 2, 3, 0, 1, 2, 3}
-
-	// Process rows 0-1
-	processRowsSIMD(tileWinding, 0, rows01Y, pixelX, lineTopX, lineTopY, lineBottomY, xSlope, ySlope, sign)
-
-	// Process rows 2-3
-	processRowsSIMD(tileWinding, 8, rows23Y, pixelX, lineTopX, lineTopY, lineBottomY, xSlope, ySlope, sign)
-}
-
-// processRowsSIMD processes 2 rows (8 pixels) using SIMD operations.
-func processRowsSIMD(
-	tileWinding *TileWinding16,
-	baseIdx int,
-	rowsY, pixelX wide.F32x8,
-	lineTopX, lineTopY, lineBottomY float32,
-	xSlope, ySlope, sign float32,
-) {
-	// For each pixel in the 2x4 block
-	for i := 0; i < 8; i++ {
-		pxTopY := rowsY[i]
-		pxBottomY := pxTopY + 1.0
-
-		// Clamp line Y range to this pixel row
-		yMin := maxf32(lineTopY, pxTopY)
-		yMax := minf32(lineBottomY, pxBottomY)
-
-		if yMin >= yMax {
-			continue // Line doesn't cross this row
-		}
-
-		pxLeftX := pixelX[i]
-		pxRightX := pxLeftX + 1.0
-
-		// Calculate Y coordinates where line intersects pixel edges
-		linePxLeftY := lineTopY + (pxLeftX-lineTopX)*ySlope
-		linePxRightY := lineTopY + (pxRightX-lineTopX)*ySlope
-
-		// Clamp to bounds
-		linePxLeftY = clampf32(linePxLeftY, yMin, yMax)
-		linePxRightY = clampf32(linePxRightY, yMin, yMax)
-
-		// Calculate X at clamped Y
-		linePxLeftYX := lineTopX + (linePxLeftY-lineTopY)*xSlope
-		linePxRightYX := lineTopX + (linePxRightY-lineTopY)*xSlope
-
-		// Height and area
-		pixelH := absf32(linePxRightY - linePxLeftY)
-		area := 0.5 * pixelH * (2*pxRightX - linePxRightYX - linePxLeftYX)
-
-		// Accumulate
-		tileWinding[baseIdx+i] += area * sign
 	}
 }
 

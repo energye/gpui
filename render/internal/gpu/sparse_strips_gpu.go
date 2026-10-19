@@ -14,6 +14,7 @@
 package gpu
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/energye/gpui/gpu/hal"
@@ -30,7 +31,7 @@ type GPURasterizer interface {
 	Rasterize(
 		coarse *CoarseRasterizer,
 		segments *SegmentList,
-		backdrop []int32,
+		backdrop []float32,
 		fillRule scene.FillStyle,
 	) ([]uint8, error)
 
@@ -107,7 +108,7 @@ func NewHybridFineRasterizer(width, height uint16, config HybridFineRasterizerCo
 func (h *HybridFineRasterizer) Rasterize(
 	coarse *CoarseRasterizer,
 	segments *SegmentList,
-	backdrop []int32,
+	backdrop []float32,
 ) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -152,23 +153,9 @@ func (h *HybridFineRasterizer) coverageToGrid(coverage []uint8, coarse *CoarseRa
 
 	h.cpu.Reset()
 
-	// Group entries by tile to build the grid
-	entries := coarse.Entries()
-	type tileKey struct {
-		x, y uint16
-	}
-	tileSet := make(map[tileKey]bool)
-
-	for _, e := range entries {
-		key := tileKey{e.X, e.Y}
-		if !tileSet[key] {
-			tileSet[key] = true
-		}
-	}
-
-	// Populate tile grid from coverage data
-	tileIdx := 0
-	for key := range tileSet {
+	// Coverage is packed in row-major tile order (see buildTileData), so the
+	// grid must be populated in the same deterministic order.
+	for tileIdx, key := range sortedTileCoords(coarse.Entries()) {
 		tile := h.cpu.grid.GetOrCreate(int32(key.x), int32(key.y))
 
 		// Copy coverage for this tile
@@ -181,7 +168,6 @@ func (h *HybridFineRasterizer) coverageToGrid(coverage []uint8, coarse *CoarseRa
 				}
 			}
 		}
-		tileIdx++
 	}
 }
 
@@ -415,7 +401,7 @@ type HybridPipeline struct {
 
 	// Reusable intermediate storage
 	segments *SegmentList
-	backdrop []int32
+	backdrop []float32
 }
 
 // NewHybridPipeline creates a new hybrid pipeline that integrates all GPU stages.
@@ -662,23 +648,9 @@ func (p *HybridPipeline) coverageToFineGrid(coverage []uint8) {
 
 	p.cpuFine.Reset()
 
-	// Group entries by tile to build the grid
-	entries := p.cpuCoarse.Entries()
-	type tileKey struct {
-		x, y uint16
-	}
-	tileSet := make(map[tileKey]bool)
-
-	for _, e := range entries {
-		key := tileKey{e.X, e.Y}
-		if !tileSet[key] {
-			tileSet[key] = true
-		}
-	}
-
-	// Populate tile grid from coverage data
-	tileIdx := 0
-	for key := range tileSet {
+	// Coverage is packed in row-major tile order (see buildTileData), so the
+	// grid must be populated in the same deterministic order.
+	for tileIdx, key := range sortedTileCoords(p.cpuCoarse.Entries()) {
 		tile := p.cpuFine.grid.GetOrCreate(int32(key.x), int32(key.y))
 
 		// Copy coverage for this tile
@@ -691,8 +663,33 @@ func (p *HybridPipeline) coverageToFineGrid(coverage []uint8) {
 				}
 			}
 		}
-		tileIdx++
 	}
+}
+
+// tileKeyXY identifies a tile by its grid coordinates.
+type tileKeyXY struct {
+	x, y uint16
+}
+
+// sortedTileCoords returns the distinct tiles referenced by coarse entries in
+// deterministic row-major order, matching the tile packing of buildTileData.
+func sortedTileCoords(entries []CoarseTileEntry) []tileKeyXY {
+	set := make(map[tileKeyXY]bool, len(entries))
+	for _, e := range entries {
+		set[tileKeyXY{e.X, e.Y}] = true
+	}
+
+	keys := make([]tileKeyXY, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].y != keys[j].y {
+			return keys[i].y < keys[j].y
+		}
+		return keys[i].x < keys[j].x
+	})
+	return keys
 }
 
 // shouldUseGPU determines if GPU should be used for the given stage and workload.

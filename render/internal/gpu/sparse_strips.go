@@ -39,7 +39,7 @@ type SparseStripsRasterizer struct {
 	fillRule scene.FillStyle
 
 	// Computed data
-	backdrop []int32
+	backdrop []float32
 
 	// Pool for reuse
 	pool *SparseStripsPool
@@ -236,17 +236,6 @@ func (ssr *SparseStripsRasterizer) RenderStripsToBuffer(
 		// Calculate strip width in pixels
 		endX := calculateStripEndX(strip, nextStrip)
 
-		// Fill gap if needed
-		if strip.FillGap && i > 0 {
-			prevStrip := strips[i-1]
-			if prevStrip.Y == strip.Y && prevStrip.X != 0xFFFF {
-				prevEndX := strip.X
-				//nolint:gosec // Integer overflow is bounded by viewport dimensions
-				gapStartX := prevStrip.X + uint16((strip.AlphaIdx-prevStrip.AlphaIdx)/TileHeight)
-				fillGap(buffer, stride, int(gapStartX), int(prevEndX), int(strip.Y), TileHeight, color)
-			}
-		}
-
 		// Render strip alphas
 		renderStripAlphas(buffer, stride, int(strip.X), int(strip.Y), int(endX-strip.X), alphas[strip.AlphaIdx:nextStrip.AlphaIdx], color)
 	}
@@ -266,23 +255,6 @@ func calculateStripEndX(strip, nextStrip SparseStrip) uint16 {
 	default:
 		alphaCount := nextStrip.AlphaIdx - strip.AlphaIdx
 		return strip.X + uint16(alphaCount/TileHeight)
-	}
-}
-
-// fillGap fills a solid gap between strips.
-func fillGap(buffer []uint8, stride, startX, endX, y, height int, color [4]uint8) {
-	for py := 0; py < height; py++ {
-		pixelY := y + py
-		rowOffset := pixelY * stride
-		for px := startX; px < endX; px++ {
-			idx := rowOffset + px*4
-			if idx+3 < len(buffer) {
-				buffer[idx+0] = color[0]
-				buffer[idx+1] = color[1]
-				buffer[idx+2] = color[2]
-				buffer[idx+3] = color[3]
-			}
-		}
 	}
 }
 

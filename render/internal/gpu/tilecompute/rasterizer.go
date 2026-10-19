@@ -73,7 +73,10 @@ func (r *Rasterizer) Rasterize(lines []LineSoup, fillRule FillRule) []float32 {
 	}
 	paths := []Path{path}
 
-	pathCountMain(bump, lines, paths, tiles, segCounts)
+	// Per-line DDA parameters shared between the count and tiling stages.
+	ddas := make([]lineDDA, bump.Lines)
+
+	pathCountMain(bump, lines, paths, tiles, segCounts, ddas)
 
 	nextSegIx := uint32(0)
 	for i := range tiles {
@@ -87,7 +90,7 @@ func (r *Rasterizer) Rasterize(lines []LineSoup, fillRule FillRule) []float32 {
 
 	// Step 3: pathTiling — segment clipping + yEdge
 	segments := make([]PathSegment, totalSegments)
-	pathTilingMain(bump, segCounts, lines, paths, tiles, segments)
+	pathTilingMain(bump, segCounts, tiles, segments, ddas)
 
 	bboxW := int(path.BBox[2] - path.BBox[0])
 	bboxH := int(path.BBox[3] - path.BBox[1])
@@ -133,28 +136,25 @@ func (r *Rasterizer) Rasterize(lines []LineSoup, fillRule FillRule) []float32 {
 				}
 			}
 
-			// Clear area
-			for i := range area {
-				area[i] = 0
-			}
-
-			// Fill
+			// Fill (initializes area from the tile backdrop).
 			fillPath(area, tileSegments, tile.Backdrop, fillRule == FillRuleEvenOdd)
 
-			// Write to result
+			// Write to result. The canvas bounds are hoisted out of the pixel
+			// loop; interior tiles copy full rows.
 			globalTileX := (bboxX0 + tx) * TileWidth
 			globalTileY := (bboxY0 + ty) * TileHeight
-			for ly := 0; ly < TileHeight; ly++ {
-				py := globalTileY + ly
-				if py >= r.height {
-					break
-				}
-				for lx := 0; lx < TileWidth; lx++ {
-					px := globalTileX + lx
-					if px >= r.width {
-						break
-					}
-					result[py*r.width+px] = area[ly*TileWidth+lx]
+			maxLy := TileHeight
+			if remain := r.height - globalTileY; remain < maxLy {
+				maxLy = remain
+			}
+			maxLx := TileWidth
+			if remain := r.width - globalTileX; remain < maxLx {
+				maxLx = remain
+			}
+			if maxLy > 0 && maxLx > 0 {
+				for ly := 0; ly < maxLy; ly++ {
+					dstBase := (globalTileY+ly)*r.width + globalTileX
+					copy(result[dstBase:dstBase+maxLx], area[ly*TileWidth:ly*TileWidth+maxLx])
 				}
 			}
 		}

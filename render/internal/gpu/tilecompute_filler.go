@@ -83,12 +83,13 @@ func segmentsToLineSoup(segs *SegmentList) []tilecompute.LineSoup {
 
 	for _, seg := range segs.Segments() {
 		var p0, p1 [2]float32
-		if seg.Winding < 0 {
-			// Original direction was upward — swap back to restore direction
+		if seg.Winding > 0 {
+			// Winding +1 means the original direction was upward — swap back
+			// to restore the original direction for the line soup.
 			p0 = [2]float32{seg.X1, seg.Y1}
 			p1 = [2]float32{seg.X0, seg.Y0}
 		} else {
-			// Original direction was downward — keep as is
+			// Original direction was downward — keep as is.
 			p0 = [2]float32{seg.X0, seg.Y0}
 			p1 = [2]float32{seg.X1, seg.Y1}
 		}

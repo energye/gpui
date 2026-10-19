@@ -110,7 +110,7 @@
 
 ### 3.3 C 组：先修实现/先定案，再建窗
 
-- 布尔路径（差集红测 2026-10-18 实跑 FAIL：`s3c_m3_residual_gate_test.go:242 difference hole expected light, got 255,0,0`）
+- 布尔路径（差集红测 2026-10-18 实跑 FAIL：`s3c_m3_residual_gate_test.go:242 difference hole expected light, got 255,0,0`；2026-10-19 定位为 CPU tile 栅格器缺陷（非布尔实现）并修复，该红测已转绿 — 见 §11 修订表）——**仍待建窗**：布尔实现本身是采样近似（输出碎片化），"先重写布尔几何再建窗"列为下一步
 - clip 差集/绕向、MSAA 中帧 UB、rrect 裁剪恒 1.0、增量呈现断头（见 §6）
 - svg / surface / raster 整包：零消费者 —— 先定「接入还是废弃」
 - DrawImageQuad 死导出：先定「删签名还是补窗」
@@ -196,3 +196,4 @@
 |---|---|
 | 2026-10-18 | v1 落档：三路只读审计合成（基线 `4734888b`） |
 | 2026-10-18 | **v2：§1/§2 按源码逐项复核真窗覆盖（131 真窗 / 28 离屏）；新增 §3 缺真窗清单；布尔差集红测实跑确认 FAIL；发现 `render_*` 家族不产真窗** |
+| 2026-10-19 | **CPU tile 栅格器修复（引擎内部，不开真窗；验收=探针+值级金样+逐文件回归+性能门禁+布尔门禁）**：三处根因 = ①`NewLineSegment` 归一化取反破坏方向语义 ②Sparse 4x4 winding 公式错 ③flatten 丢水平边导致 Tile16（vello 移植）缺承重 winding 载体。修法：方向符号统一对齐 vello（上+1/下-1，`down=-1`）、Sparse `CalculateBackdrop` 改 per-pixel-row、fine 反导数精确积分重写（`accumulateSegmentWinding`/`windingCoverage`）、flatten/`AddLine` 保留水平边、coarse 跳过近水平段（`coarseHorizontalEpsilon`，挡布尔输出的 1e-7 斜率碎片，条目 61730→1600）、`visited` 改复用位图。性能优化两轮：① backdrop 按形状 Y 跨度裁剪+缓冲复用（1920×1080 小形状 0.44→0.035ms、数组 518400→28800；全屏 1.71→1.07ms）② Tile16 `fillPath` 不变量提升+按跨度行区间裁剪+常量行拆分与连续平扫 ③ Tile16 `pathTilingMain` 复用 `pathCountMain` 的 DDA 参数（vello 因 GPU 阶段隔离才在两段各算一遍，CPU 侧按线段缓存；tiling 1.57→0.53ms/帧）④ `Rasterize` 去冗余清零 + 结果拷贝提界。等价性：参考实现（HEAD 版 tiling/fillPath）逐位比对通过——tiling 的 tiles/segCounts/segments、fillPath 合成扫描 23322 段 × 2 填充规则 + 管线真实产出批次。产物：`render/rasterizer_tile_value_test.go`（Analytic 金样容差 8/255 + 手算精确面积像素：菱形 43/229、分数矩形 191/96）、`render/rasterizer_tile_bench_test.go`（20 项基准 = 5 形状 × 4 模式，含 FrameClean「同形状干净输入」对照）。结果：六例四路全对；`TestS3c_M3_PathBooleanDifference` 转绿；布尔差集形状在 Tile16 / Sparse / 干净同形状三方**逐位一致**（maxDiff 0/255）。性能对照 HEAD（3 轮两树交替取中位）：Tile16 Rect 0.94x / Diamond 0.75x / FrameClean 0.65x / ManyRects 0.86x / BooleanDiff 1.16x——该输入 HEAD 渲染错误（230400px 实心，孔洞丢失；正确 128000px），同形状干净输入 Tile16 为 0.65x，差额=1600 条水平边 + 1600 条短竖边的固有处理成本（输入碎片化由布尔几何重写消解）；Sparse BooleanDiff 0.62x / FrameClean 0.57x / ManyRects 0.83x / 简单形状 1.00–1.07x；Auto BooleanDiff 0.68x / ManyRects 0.79x；Analytic 全线 0.98–1.02x（未触及）。B/op：Sparse 线回落（BooleanDiff 540→249KB、FrameClean 407→132KB、Diamond 175→98KB）；Tile16 病态项 1.39→2.30MB（正确多处理 1600 条水平边的 tile segments + 每线段 DDA 缓存 230KB/次）。沉淀子项：`TileGrid` map+逐 tile 分配（简单矩形填充约 1 万 allocs/次）待优化、布尔几何扫描线重写（下一步） |

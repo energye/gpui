@@ -237,13 +237,15 @@ func TestNewLineSegment(t *testing.T) {
 		t.Errorf("Winding = %d, want 1", seg.Winding)
 	}
 
-	// Test reversed segment (Y1 < Y0)
+	// Test reversed segment (Y1 < Y0): endpoints normalize to Y0 <= Y1, but
+	// the winding is the crossing delta of the ORIGINAL direction and must not
+	// be flipped by normalization (vello line-soup convention).
 	seg2 := NewLineSegment(30, 40, 10, 20, 1)
 	if seg2.Y0 > seg2.Y1 {
 		t.Error("Segment should be normalized: Y0 <= Y1")
 	}
-	if seg2.Winding != -1 {
-		t.Errorf("Reversed segment winding = %d, want -1", seg2.Winding)
+	if seg2.Winding != 1 {
+		t.Errorf("Reversed segment winding = %d, want 1 (normalization must not flip)", seg2.Winding)
 	}
 }
 
@@ -344,15 +346,21 @@ func TestSegmentListSkipsDegenerate(t *testing.T) {
 		t.Error("Point segment should be skipped")
 	}
 
-	// Horizontal (doesn't contribute to winding)
-	sl.AddLine(0, 5, 10, 5, 1)
-	if sl.Len() != 0 {
-		t.Error("Horizontal segment should be skipped")
+	// Horizontal (kept: the vello line soup consumed by the 16x16 tilecompute
+	// rasterizer needs the full contour including horizontal edges)
+	sl.AddLine(0, 5, 10, 5, -1)
+	if sl.Len() != 1 {
+		t.Error("Horizontal segment should be kept for the line soup")
+	}
+	horiz := sl.Segments()[0]
+	if !horiz.IsHorizontal() || horiz.X0 != 0 || horiz.X1 != 10 {
+		t.Errorf("Horizontal segment direction not preserved: (%g,%g)->(%g,%g)",
+			horiz.X0, horiz.Y0, horiz.X1, horiz.Y1)
 	}
 
 	// Valid segment
 	sl.AddLine(0, 0, 10, 10, 1)
-	if sl.Len() != 1 {
+	if sl.Len() != 2 {
 		t.Error("Valid segment should be added")
 	}
 }

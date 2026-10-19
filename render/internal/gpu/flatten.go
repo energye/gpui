@@ -114,26 +114,28 @@ func FlattenPath(path *scene.Path, transform scene.Affine, tolerance float32) *S
 // addMonotonicLine adds a line segment, splitting if non-monotonic in Y.
 // A segment is monotonic if it always goes down (Y0 <= Y1).
 func addMonotonicLine(segments *SegmentList, x0, y0, x1, y1 float32) {
-	// Determine winding from original direction
-	// +1 for downward (Y increases), -1 for upward (Y decreases)
-	var winding int8 = 1
+	// Crossing delta of the original direction (vello line-soup convention):
+	// +1 for upward (Y decreases), -1 for downward (Y increases).
+	// Horizontal lines have no vertical crossing; -1 additionally means
+	// "original direction kept" for consumers that rebuild the line soup
+	// (see segmentsToLineSoup).
+	var winding int8 = -1
 	if y1 < y0 {
-		winding = -1
+		winding = 1
 	}
 
-	// Skip degenerate segments (points or horizontal lines)
+	// Skip degenerate segments (points)
 	const epsilon = 1e-6
 	dy := y1 - y0
 	dx := x1 - x0
 	if absf32(dy) < epsilon && absf32(dx) < epsilon {
 		return
 	}
-	// Skip horizontal segments - they don't contribute to winding
-	if absf32(dy) < epsilon {
-		return
-	}
 
-	// Add the segment (constructor will ensure Y0 <= Y1)
+	// Horizontal segments carry no winding for the 4x4 tile pipeline (which
+	// skips them), but they stay in the list: the vello line soup consumed by
+	// the 16x16 tilecompute rasterizer needs the full contour, including
+	// horizontal edges, to accumulate winding on fractional tile rows.
 	segments.AddLine(x0, y0, x1, y1, winding)
 }
 

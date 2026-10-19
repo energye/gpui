@@ -276,8 +276,11 @@ func runPathStages(
 	segCounts := make([]SegmentCount, maxSegCounts)
 	bump := &BumpAllocators{Lines: uint32(len(localLines))}
 
+	// Per-line DDA parameters shared between the count and tiling stages.
+	ddas := make([]lineDDA, bump.Lines)
+
 	// Stage 1: pathCount.
-	pathCountMain(bump, localLines, localPaths, pathTiles, segCounts)
+	pathCountMain(bump, localLines, localPaths, pathTiles, segCounts, ddas)
 
 	// Stage 2: Segment allocation (convert counts to indices).
 	nextSegIx := uint32(0)
@@ -292,7 +295,7 @@ func runPathStages(
 
 	// Stage 3: pathTiling.
 	segments := make([]PathSegment, totalSegments)
-	pathTilingMain(bump, segCounts, localLines, localPaths, pathTiles, segments)
+	pathTilingMain(bump, segCounts, pathTiles, segments, ddas)
 
 	// Stage 4: Backdrop prefix sum.
 	for y := 0; y < bboxH; y++ {

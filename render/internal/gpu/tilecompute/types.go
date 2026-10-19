@@ -52,6 +52,27 @@ type PathSegment struct {
 	YEdge  float32    // Y where segment touches x=0 (tile-relative), or 1e9
 }
 
+// lineDDA holds the per-line DDA parameters shared by path_count (stage 1) and
+// path_tiling (stage 2).
+//
+// vello recomputes these parameters in both compute shaders because separate
+// GPU stages cannot share memory (the recomputation in path_tiling is documented
+// as "identical to path_count"). On the CPU the values are computed once per
+// line and reused for every (line, tile) instance, which is bit-identical to
+// recomputing them.
+type lineDDA struct {
+	xy0, xy1        vec2    // Endpoints ordered top-to-bottom (xy0.y <= xy1.y)
+	isDown          bool    // Original line points downward (p1.y >= p0.y)
+	isPositiveSlope bool    // s1.x >= s0.x in tile space
+	count           uint32  // Tile-crossing segment count (robust DDA estimate)
+	a, b            float32 // DDA slope/intercept in "i" space
+	sign, x0, y0    float32 // DDA walk origin and direction
+	pathIx          uint32  // Index into the paths array
+	pathTiles       int32   // Path.Tiles base offset
+	bboxi           [4]int32
+	stride          int32
+}
+
 // BumpAllocators matches vello_encoding::BumpAllocators (subset).
 type BumpAllocators struct {
 	Lines     uint32

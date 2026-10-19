@@ -167,10 +167,8 @@ func TestBuildTileData(t *testing.T) {
 		t.Skip("no coarse entries generated")
 	}
 
-	backdrop := coarse.CalculateBackdrop()
-
 	r := &GPUFineRasterizer{}
-	tiles, refs := r.buildTileData(coarse, segments, backdrop)
+	tiles, refs := r.buildTileData(coarse)
 
 	if len(tiles) == 0 {
 		t.Error("expected at least one tile")
@@ -178,6 +176,16 @@ func TestBuildTileData(t *testing.T) {
 
 	if len(refs) == 0 {
 		t.Error("expected at least one tile-segment reference")
+	}
+
+	// Verify tiles come back in deterministic row-major order
+	for i := 1; i < len(tiles); i++ {
+		prev, cur := tiles[i-1], tiles[i]
+		if cur.TileY < prev.TileY || (cur.TileY == prev.TileY && cur.TileX < prev.TileX) {
+			t.Errorf("tiles not in row-major order at %d: (%d,%d) after (%d,%d)",
+				i, cur.TileX, cur.TileY, prev.TileX, prev.TileY)
+			break
+		}
 	}
 
 	// Verify tile data consistency

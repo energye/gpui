@@ -24,8 +24,10 @@ type LineSegment struct {
 	// For monotonic segments, Y0 <= Y1 (always going down).
 	X0, Y0, X1, Y1 float32
 
-	// Winding direction: +1 for left-to-right, -1 for right-to-left.
-	// Determined by original path direction before monotonic split.
+	// Winding is the crossing delta of the segment's ORIGINAL direction
+	// (vello line-soup convention): +1 upward (Y decreasing), -1 downward
+	// (Y increasing). It is direction-invariant under the Y0<=Y1
+	// normalization, so the original direction can be recovered from the sign.
 	Winding int8
 
 	// TileY0, TileY1 are the tile row range this segment spans.
@@ -34,7 +36,11 @@ type LineSegment struct {
 }
 
 // NewLineSegment creates a new line segment, ensuring Y0 <= Y1.
-// The winding is adjusted if the segment is flipped.
+//
+// Winding (the crossing delta of the original direction: +1 upward, -1
+// downward) is preserved when the endpoints are swapped for Y-normalization;
+// swapping endpoints does not change which side of the segment carries the
+// winding.
 func NewLineSegment(x0, y0, x1, y1 float32, winding int8) LineSegment {
 	seg := LineSegment{
 		X0:      x0,
@@ -44,11 +50,10 @@ func NewLineSegment(x0, y0, x1, y1 float32, winding int8) LineSegment {
 		Winding: winding,
 	}
 
-	// Ensure Y0 <= Y1 (monotonic going down)
+	// Ensure Y0 <= Y1 (monotonic going down); Winding is direction-invariant.
 	if y1 < y0 {
 		seg.X0, seg.X1 = x1, x0
 		seg.Y0, seg.Y1 = y1, y0
-		seg.Winding = -winding
 	}
 
 	// Precompute tile range
@@ -196,15 +201,15 @@ func (sl *SegmentList) Add(seg LineSegment) {
 }
 
 // AddLine adds a line segment from (x0,y0) to (x1,y1).
+//
+// Horizontal segments are kept: the 4x4 tile pipeline skips them, but the
+// vello line soup (tilecompute) needs the full contour including horizontal
+// edges. The winding passed for a horizontal segment is only meaningful as
+// "direction kept" (<= 0); consumers that need vertical crossings skip it.
 func (sl *SegmentList) AddLine(x0, y0, x1, y1 float32, winding int8) {
-	// Skip degenerate segments
+	// Skip degenerate segments (points)
 	const epsilon = 1e-6
 	if math.Abs(float64(y1-y0)) < epsilon && math.Abs(float64(x1-x0)) < epsilon {
-		return
-	}
-
-	// Skip horizontal segments (they don't contribute to winding)
-	if math.Abs(float64(y1-y0)) < epsilon {
 		return
 	}
 

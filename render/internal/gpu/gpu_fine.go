@@ -17,6 +17,7 @@ import (
 	_ "embed"
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 
 	"github.com/energye/gpui/gpu/hal"
@@ -309,7 +310,7 @@ func (r *GPUFineRasterizer) createPipelines() error {
 func (r *GPUFineRasterizer) Rasterize(
 	coarse *CoarseRasterizer,
 	segments *SegmentList,
-	backdrop []int32,
+	backdropRows []float32,
 	fillRule scene.FillStyle,
 ) ([]uint8, error) {
 	r.mu.Lock()
@@ -329,7 +330,7 @@ func (r *GPUFineRasterizer) Rasterize(
 	}
 
 	// Build tile info from coarse entries
-	tiles, tileSegRefs := r.buildTileData(coarse, segments, backdrop)
+	tiles, tileSegRefs := r.buildTileData(coarse)
 	if len(tiles) == 0 {
 		return nil, nil
 	}
@@ -341,54 +342,75 @@ func (r *GPUFineRasterizer) Rasterize(
 
 	// Phase 6.1: GPU infrastructure is ready, but buffer binding needs webgpu object API support.
 	// For now, compute coverage on CPU using the same algorithm as the shader.
-	coverage := r.computeCoverageCPU(gpuSegments, gpuTileRefs, gpuTiles, fillRule)
+	coverage := r.computeCoverageCPU(gpuSegments, gpuTileRefs, gpuTiles, backdropRows, coarse.BackdropRowOffset(), int(coarse.TileColumns()), fillRule)
 
 	return coverage, nil
 }
 
-// computeCoverageCPU computes coverage using CPU (mirrors GPU shader algorithm).
-// This serves as reference implementation and fallback.
+// computeCoverageCPU computes coverage on the CPU, mirroring the intended GPU
+// shader algorithm (Phase 6.1 fallback while buffer binding is not wired).
+//
+// It reuses the exact accumulation of the CPU fine rasterizer
+// (accumulateSegmentWinding) so both paths stay numerically identical: every
+// pixel starts from the per-pixel-row backdrop and each segment binned into the
+// tile adds its local area contribution.
 func (r *GPUFineRasterizer) computeCoverageCPU(
 	segments []GPUSegment,
 	tileRefs []GPUTileSegmentRef,
 	tiles []GPUTileInfo,
+	backdropRows []float32,
+	backdropRowOffset int,
+	tileColumns int,
 	fillRule scene.FillStyle,
 ) []uint8 {
 	coverageSize := len(tiles) * TileSize * TileSize
 	coverage := make([]uint8, coverageSize)
 
 	for tileIdx, tile := range tiles {
-		// Process each pixel in the tile
-		for py := uint32(0); py < TileSize; py++ {
-			for px := uint32(0); px < TileSize; px++ {
-				winding := float32(tile.Backdrop)
+		//nolint:gosec // Tile coordinates fit in uint16 for any supported viewport
+		tileX := uint16(tile.TileX)
+		//nolint:gosec // Tile coordinates fit in uint16 for any supported viewport
+		tileY := uint16(tile.TileY)
 
-				// Process all segments for this tile
-				for i := tile.StartIdx; i < tile.StartIdx+tile.Count; i++ {
-					if int(i) >= len(tileRefs) {
-						break
-					}
-					ref := tileRefs[i]
-					if int(ref.SegmentIdx) >= len(segments) {
-						continue
-					}
-					seg := segments[ref.SegmentIdx]
+		// Seed the winding accumulator from the per-pixel-row backdrop.
+		var tileWinding [TileSize][TileSize]float32
+		for y := 0; y < TileSize; y++ {
+			idx := (int(tileY)*TileSize+y-backdropRowOffset)*tileColumns + int(tileX)
+			var v float32
+			if backdropRows != nil && idx >= 0 && idx < len(backdropRows) {
+				v = backdropRows[idx]
+			}
+			for x := 0; x < TileSize; x++ {
+				tileWinding[y][x] = v
+			}
+		}
 
-					// Compute segment contribution to this pixel
-					area := r.computePixelArea(
-						seg,
-						float32(tile.TileX*TileSize),
-						float32(tile.TileY*TileSize),
-						px, py,
-					)
-					winding += area
-				}
+		// Local contributions from all segments binned into this tile.
+		for i := tile.StartIdx; i < tile.StartIdx+tile.Count; i++ {
+			if int(i) >= len(tileRefs) {
+				break
+			}
+			ref := tileRefs[i]
+			if int(ref.SegmentIdx) >= len(segments) {
+				continue
+			}
+			seg := segments[ref.SegmentIdx]
+			line := LineSegment{
+				X0:      seg.X0,
+				Y0:      seg.Y0,
+				X1:      seg.X1,
+				Y1:      seg.Y1,
+				Winding: int8(seg.Winding),
+			}
+			accumulateSegmentWinding(line, tileX, tileY, &tileWinding)
+		}
 
-				// Convert winding to coverage
-				cov := r.windingToCoverage(winding, fillRule)
+		// Convert winding to coverage
+		for py := 0; py < TileSize; py++ {
+			for px := 0; px < TileSize; px++ {
+				cov := windingCoverage(fillRule, tileWinding[py][px])
 
-				// Store coverage
-				pixelIdx := tileIdx*TileSize*TileSize + int(py)*TileSize + int(px)
+				pixelIdx := tileIdx*TileSize*TileSize + py*TileSize + px
 				if pixelIdx < len(coverage) {
 					coverage[pixelIdx] = uint8(cov*255 + 0.5)
 				}
@@ -399,111 +421,12 @@ func (r *GPUFineRasterizer) computeCoverageCPU(
 	return coverage
 }
 
-// computePixelArea computes segment's area contribution to a pixel.
-func (r *GPUFineRasterizer) computePixelArea(
-	seg GPUSegment,
-	tileLeftX, tileTopY float32,
-	pxX, pxY uint32,
-) float32 {
-	// Convert to tile-relative coordinates
-	p0x := seg.X0 - tileLeftX
-	p0y := seg.Y0 - tileTopY
-	p1x := seg.X1 - tileLeftX
-	p1y := seg.Y1 - tileTopY
-
-	// Skip horizontal segments
-	if p0y == p1y {
-		return 0
-	}
-
-	sign := float32(seg.Winding)
-
-	// Line is monotonic (Y0 <= Y1)
-	lineTopY := p0y
-	lineTopX := p0x
-	lineBottomY := p1y
-	// lineBottomX := p1x
-
-	// Calculate slopes
-	dy := lineBottomY - lineTopY
-	dx := p1x - p0x
-
-	var ySlope float32
-	if dx == 0 {
-		if lineBottomY > lineTopY {
-			ySlope = 1e10
-		} else {
-			ySlope = -1e10
-		}
-	} else {
-		ySlope = dy / dx
-	}
-	xSlope := 1.0 / ySlope
-
-	// Pixel row bounds
-	pxTopY := float32(pxY)
-	pxBottomY := pxTopY + 1.0
-	pxLeftX := float32(pxX)
-	pxRightX := pxLeftX + 1.0
-
-	// Clamp line Y range to this pixel row
-	yMin := maxf32(lineTopY, pxTopY)
-	yMax := minf32(lineBottomY, pxBottomY)
-
-	// Check if line crosses this row
-	if yMin >= yMax {
-		return 0
-	}
-
-	// Calculate Y coordinates where line intersects pixel left and right edges
-	linePxLeftY := lineTopY + (pxLeftX-lineTopX)*ySlope
-	linePxRightY := lineTopY + (pxRightX-lineTopX)*ySlope
-
-	// Clamp to pixel row bounds and line Y bounds
-	linePxLeftY = clampf32(linePxLeftY, yMin, yMax)
-	linePxRightY = clampf32(linePxRightY, yMin, yMax)
-
-	// Calculate X coordinates at the clamped Y values
-	linePxLeftYX := lineTopX + (linePxLeftY-lineTopY)*xSlope
-	linePxRightYX := lineTopX + (linePxRightY-lineTopY)*xSlope
-
-	// Height of line segment within this pixel
-	pixelH := absf32(linePxRightY - linePxLeftY)
-
-	// Trapezoidal area: area between line and pixel right edge
-	area := 0.5 * pixelH * (2.0*pxRightX - linePxRightYX - linePxLeftYX)
-
-	return area * sign
-}
-
-// windingToCoverage converts winding number to coverage based on fill rule.
-func (r *GPUFineRasterizer) windingToCoverage(winding float32, fillRule scene.FillStyle) float32 {
-	var cov float32
-
-	if fillRule == scene.FillNonZero {
-		// NonZero: coverage = |winding|, clamped to [0, 1]
-		cov = absf32(winding)
-		if cov > 1.0 {
-			cov = 1.0
-		}
-	} else {
-		// EvenOdd: coverage based on fractional part
-		absWinding := absf32(winding)
-		im1 := float32(int32(absWinding*0.5 + 0.5))
-		cov = absf32(absWinding - 2.0*im1)
-		if cov > 1.0 {
-			cov = 1.0
-		}
-	}
-
-	return cov
-}
-
 // buildTileData builds tile info and segment references from coarse entries.
+// Tiles are emitted in row-major order so callers can map packed coverage
+// buffers back onto the tile grid deterministically (Go map iteration order
+// would scramble the mapping).
 func (r *GPUFineRasterizer) buildTileData(
 	coarse *CoarseRasterizer,
-	_ *SegmentList, // segments not used directly, entries contain indices
-	backdrop []int32,
 ) ([]GPUTileInfo, []GPUTileSegmentRef) {
 	entries := coarse.Entries()
 	if len(entries) == 0 {
@@ -523,24 +446,26 @@ func (r *GPUFineRasterizer) buildTileData(
 		tileMap[key] = append(tileMap[key], i)
 	}
 
+	keys := make([]tileKey, 0, len(tileMap))
+	for key := range tileMap {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].y != keys[j].y {
+			return keys[i].y < keys[j].y
+		}
+		return keys[i].x < keys[j].x
+	})
+
 	// Build tile info and segment refs
 	tiles := make([]GPUTileInfo, 0, len(tileMap))
 	refs := make([]GPUTileSegmentRef, 0, len(entries))
 
-	tileColumns := int(coarse.TileColumns())
+	for _, key := range keys {
+		indices := tileMap[key]
 
-	for key, indices := range tileMap {
 		//nolint:gosec // len(refs) is bounded by number of coarse entries
 		startIdx := uint32(len(refs))
-
-		// Get backdrop for this tile
-		var bd int32
-		if backdrop != nil {
-			idx := int(key.y)*tileColumns + int(key.x)
-			if idx >= 0 && idx < len(backdrop) {
-				bd = backdrop[idx]
-			}
-		}
 
 		// Add segment refs for this tile
 		for _, entryIdx := range indices {
@@ -558,8 +483,12 @@ func (r *GPUFineRasterizer) buildTileData(
 			TileY:    uint32(key.y),
 			StartIdx: startIdx,
 			//nolint:gosec // len(indices) is bounded by segment count
-			Count:    uint32(len(indices)),
-			Backdrop: bd,
+			Count: uint32(len(indices)),
+			// The authoritative winding offset is the per-pixel-row backdrop
+			// (CalculateBackdrop), which the CPU mirror reads directly. The
+			// tile-uniform buffer field stays zero until GPU dispatch lands
+			// with a per-row backdrop buffer.
+			Backdrop: 0,
 		})
 	}
 

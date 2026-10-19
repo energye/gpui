@@ -11,12 +11,14 @@
 package tilecompute
 
 // Stage 1: DDA tile walk + backdrop computation + segment counting.
+// The per-line DDA parameters are written to ddas for path_tiling to reuse.
 func pathCountMain(
 	bump *BumpAllocators,
 	lines []LineSoup,
 	paths []Path,
 	tile []Tile,
 	segCounts []SegmentCount,
+	ddas []lineDDA,
 ) {
 	for lineIx := uint32(0); lineIx < bump.Lines; lineIx++ {
 		line := lines[lineIx]
@@ -82,6 +84,27 @@ func pathCountMain(
 		}
 		xmin := min32(s0.x, s1.x)
 		stride := bboxi[2] - bboxi[0]
+
+		// Cache the DDA parameters for path_tiling (see lineDDA). Lines outside
+		// the bounding box emit no tile entries below, so their cached values
+		// are never read.
+		ddas[lineIx] = lineDDA{
+			xy0:             xy0,
+			xy1:             xy1,
+			isDown:          isDown,
+			isPositiveSlope: isPositiveSlope,
+			count:           count,
+			a:               a,
+			b:               b,
+			sign:            sign,
+			x0:              x0,
+			y0:              y0,
+			pathIx:          line.PathIx,
+			pathTiles:       int32(path.Tiles),
+			bboxi:           bboxi,
+			stride:          stride,
+		}
+
 		if s0.y >= float32(bboxi[3]) || s1.y < float32(bboxi[1]) || xmin >= float32(bboxi[2]) || stride == 0 {
 			continue
 		}

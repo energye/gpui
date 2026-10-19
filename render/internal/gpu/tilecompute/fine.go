@@ -226,6 +226,11 @@ func premulToStraightU8(pm [4]float32) [4]uint8 {
 // segments: PathSegments for this tile (tile-relative coordinates)
 // backdrop: accumulated winding number from tiles to the left
 // evenOdd: true for even-odd fill rule, false for non-zero
+// yEdgeSentinel is the "segment does not cross the tile's left edge" marker
+// written by the tiling stage (path_tiling.go). Tile-relative Y values are in
+// [0, TileHeight], so the sentinel is unambiguous.
+const yEdgeSentinel float32 = 1e9
+
 func fillPath(area []float32, segments []PathSegment, backdrop int32, evenOdd bool) {
 	// Initialize area with backdrop
 	backdropF := float32(backdrop)
@@ -238,21 +243,80 @@ func fillPath(area []float32, segments []PathSegment, backdrop int32, evenOdd bo
 			segment.Point1[0] - segment.Point0[0],
 			segment.Point1[1] - segment.Point0[1],
 		}
-		for yi := 0; yi < TileHeight; yi++ {
-			y := segment.Point0[1] - float32(yi)
+		// Loop invariants (constant per segment). Results are bit-identical to
+		// computing them inside the row loop; the division in particular was
+		// repeated for every tile row.
+		p0x := segment.Point0[0]
+		p0y := segment.Point0[1]
+		yEdgeBase := segment.YEdge
+		dxSeg := delta[0]
+		dySeg := delta[1]
+		sgn := signum32(dxSeg)
+		var vecYRecip float32
+		if dySeg != 0 {
+			vecYRecip = 1.0 / dySeg
+		}
+
+		// Rows that can contribute: every row above the segment's Y span has
+		// dy == 0 and yEdge == 0 (the yEdge step begins at the row containing
+		// the left-edge crossing, which lies inside the span). When the segment
+		// does not touch the tile's left edge, rows below the span are zero as
+		// well, so the walk can stop at the span bottom.
+		yLo, yHi := p0y, p0y+dySeg
+		if yHi < yLo {
+			yLo, yHi = yHi, yLo
+		}
+		yiStart := int(floor32(yLo))
+		if yiStart < 0 {
+			yiStart = 0
+		}
+		yiEnd := TileHeight
+		if yEdgeBase >= yEdgeSentinel {
+			yiEnd = int(floor32(yHi)) + 1
+			if yiEnd > TileHeight {
+				yiEnd = TileHeight
+			}
+		}
+
+		// Rows from yiConst on only add the constant yEdge step: the row lies
+		// entirely below the segment's Y span (dy == 0) and at/after the
+		// left-edge crossing, where clamp32(yi-YEdge+1, 0, 1) == 1 and yEdge is
+		// therefore exactly signum(dx). The per-row setup can be skipped for
+		// them. Only meaningful while the segment crosses the tile's left edge
+		// (finite YEdge); rows below the span of a non-crossing segment are
+		// already excluded from yiEnd above.
+		yiConst := TileHeight
+		if yEdgeBase < yEdgeSentinel {
+			yiConst = int(floor32(yHi)) + 1
+			if c := int(ceil32(yEdgeBase)); c > yiConst {
+				yiConst = c
+			}
+			if yiConst > TileHeight {
+				yiConst = TileHeight
+			}
+		}
+		if yiConst < yiStart {
+			yiConst = yiStart
+		}
+		yiMid := yiConst
+		if yiEnd < yiMid {
+			yiMid = yiEnd
+		}
+
+		for yi := yiStart; yi < yiMid; yi++ {
+			y := p0y - float32(yi)
 			y0 := clamp32(y, 0.0, 1.0)
-			y1 := clamp32(y+delta[1], 0.0, 1.0)
+			y1 := clamp32(y+dySeg, 0.0, 1.0)
 			dy := y0 - y1
 
-			yEdge := signum32(delta[0]) * clamp32(float32(yi)-segment.YEdge+1.0, 0.0, 1.0)
+			yEdge := sgn * clamp32(float32(yi)-yEdgeBase+1.0, 0.0, 1.0)
 
 			if dy != 0.0 {
-				vecYRecip := 1.0 / delta[1]
 				t0 := (y0 - y) * vecYRecip
 				t1 := (y1 - y) * vecYRecip
-				startx := segment.Point0[0] // x_tile = 0 for tile-relative
-				x0 := startx + t0*delta[0]
-				x1 := startx + t1*delta[0]
+				startx := p0x // x_tile = 0 for tile-relative
+				x0 := startx + t0*dxSeg
+				x1 := startx + t1*dxSeg
 				xmin0 := min32(x0, x1)
 				xmax0 := max32(x0, x1)
 				for i := 0; i < TileWidth; i++ {
@@ -266,9 +330,22 @@ func fillPath(area []float32, segments []PathSegment, backdrop int32, evenOdd bo
 					area[yi*TileWidth+i] += yEdge + a*dy
 				}
 			} else if yEdge != 0.0 {
-				for i := 0; i < TileWidth; i++ {
-					area[yi*TileWidth+i] += yEdge
+				row := area[yi*TileWidth : (yi+1)*TileWidth]
+				for i := range row {
+					row[i] += yEdge
 				}
+			}
+		}
+
+		// Pure constant rows: uniform yEdge == sgn across the row (see yiConst).
+		// sgn == 0 (vertical segment) writes nothing, matching the yEdge == 0
+		// branch above. The rows are contiguous in area, so this is a single
+		// flat pass that touches each pixel exactly once, like the row walk.
+		if sgn != 0 {
+			start := yiConst * TileWidth
+			end := yiEnd * TileWidth
+			for i := start; i < end; i++ {
+				area[i] += sgn
 			}
 		}
 	}

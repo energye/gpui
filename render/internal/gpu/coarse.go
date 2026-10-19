@@ -23,6 +23,16 @@ const TileWidth = TileSize
 // TileHeight is the height of a tile in pixels (matches TileSize).
 const TileHeight = TileSize
 
+// coarseHorizontalEpsilon bounds the Y-span below which a segment carries no
+// usable winding in the 4x4 tile pipeline: winding is accumulated as d*h over
+// the pixel rows a segment covers, so |dy| < 1e-6 contributes < 1/255000 of a
+// row. Skipping these in the coarse pass also keeps near-horizontal slivers
+// (boolean-op outputs contain thousands with 1e-7-scale slopes) from enumerating
+// one entry per tile column they span, which otherwise floods the entry list.
+// The vello line soup keeps such segments (tilecompute consumes the full
+// contour); only the per-tile-column entry binning skips them.
+const coarseHorizontalEpsilon = 1e-6
+
 // CoarseRasterizer performs coarse rasterization of line segments into tiles.
 // It bins segments into the tiles they intersect and tracks winding information.
 type CoarseRasterizer struct {
@@ -37,6 +47,16 @@ type CoarseRasterizer struct {
 	// Tile dimensions
 	tileColumns uint16
 	tileRows    uint16
+
+	// backdropRowOffset is the first pixel row covered by the most recent
+	// CalculateBackdrop result. Rows outside the segments' Y extent carry zero
+	// winding and are not materialized (see BackdropRowOffset).
+	backdropRowOffset int
+
+	// backdropBuf and backdropMinKBuf are the per-pixel-row backdrop scratch
+	// buffers, reused across fills (see CalculateBackdrop).
+	backdropBuf     []float32
+	backdropMinKBuf []int32
 }
 
 // CoarseTileEntry represents a tile with its associated line segment.
@@ -66,6 +86,7 @@ func (cr *CoarseRasterizer) Reset() {
 	cr.grid.Reset()
 	cr.segments = nil
 	cr.entries = cr.entries[:0]
+	cr.backdropRowOffset = 0
 }
 
 // Rasterize performs coarse rasterization of segments into tiles.
@@ -92,6 +113,12 @@ func (cr *CoarseRasterizer) Rasterize(segments *SegmentList) {
 // rasterizeLine determines which tiles a single line segment intersects.
 // This implements the coarse binning phase from vello.
 func (cr *CoarseRasterizer) rasterizeLine(line LineSegment, lineIdx uint32) {
+	// Segments are Y-normalized (Y0 <= Y1); skip near-horizontal ones before the
+	// tile math (see coarseHorizontalEpsilon).
+	if line.Y1-line.Y0 < coarseHorizontalEpsilon {
+		return
+	}
+
 	// Convert to tile coordinates
 	p0x := line.X0 / float32(TileWidth)
 	p0y := line.Y0 / float32(TileHeight)
@@ -343,91 +370,189 @@ func (cr *CoarseRasterizer) TileRows() uint16 {
 }
 
 // CalculateBackdrop calculates the backdrop winding for fine rasterization.
-// Returns a slice of backdrop values indexed by [y * columns + x].
 //
-// Backdrop represents the accumulated winding number from the left edge of
-// the path's tile extent to each tile. This is computed in three passes:
-//  1. Accumulate winding deltas at tiles that have segment entries.
-//  2. Propagate (prefix-sum) left-to-right within the path's tile bounds,
-//     filling interior tiles that have no segments but are inside a filled
-//     region.
-//  3. Shift right so backdrop[x] represents winding BEFORE tile x.
+// The result is indexed by [pixelY * tileColumns + tileX]: one value per PIXEL
+// row (not per tile row), holding the accumulated winding of all segments
+// strictly to the LEFT of tileX at pixel row pixelY. This is vello's backdrop
+// ("winding state before this tile's own segments"), refined to pixel-row
+// granularity so that shapes whose edges start or end mid-tile stay exact on
+// the rows they do not cover.
 //
-// The prefix sum is bounded to the tile columns that actually contain entries
-// (per-row [minX, maxX] range). This matches Vello's backdrop_dyn.wgsl which
-func (cr *CoarseRasterizer) CalculateBackdrop() []int32 {
+// For every pixel row a segment overlaps, the segment crosses the
+// left-to-right ray of that row with its delta d (Winding: +1 upward, -1
+// downward) times the covered height h. All tiles fully right of the segment
+// accumulate d*h, so the delta is added at the first tile right of the
+// segment's maximum X for that row and prefix-summed to the right edge.
+// Tiles the segment actually crosses get the exact local area from the fine
+// rasterizer instead and are never double counted here.
+func (cr *CoarseRasterizer) CalculateBackdrop() []float32 {
 	if cr.segments == nil || len(cr.entries) == 0 {
+		cr.backdropRowOffset = 0
 		return nil
 	}
 
 	cols := int(cr.tileColumns)
-	rows := int(cr.tileRows)
-	backdrop := make([]int32, cols*rows)
+	pixelRows := int(cr.tileRows) * TileHeight
 
-	cr.SortEntries()
+	// Rows outside the segments' Y extent are identically zero: every
+	// contribution is bounded by the Y span of the segment that produces it.
+	// Crop the per-pixel-row prefix sum to that range so shapes that do not
+	// span the canvas pay only for their own rows.
+	rowStart, rowEnd := cr.backdropRowRange(pixelRows)
+	if rowEnd <= rowStart {
+		cr.backdropRowOffset = 0
+		return nil
+	}
+	cr.backdropRowOffset = rowStart
+	numRows := rowEnd - rowStart
 
+	// Reuse the scratch buffers across fills (rasterizers are pooled and each
+	// fill consumes the returned slice before the next call). Zeroing before the
+	// prefix sum keeps rows that receive no delta at zero.
+	need := cols * numRows
+	if cap(cr.backdropBuf) < need {
+		cr.backdropBuf = make([]float32, need)
+	} else {
+		cr.backdropBuf = cr.backdropBuf[:need]
+	}
+	backdrop := cr.backdropBuf
+	clear(backdrop)
+
+	// Per-pixel-row leftmost tile that received a delta; the prefix sum only
+	// needs to start there.
+	minK := cr.backdropMinKBuf
+	if cap(minK) < numRows {
+		minK = make([]int32, numRows)
+	}
+	minK = minK[:numRows]
+	cr.backdropMinKBuf = minK
+	for i := range minK {
+		minK[i] = int32(cols)
+	}
+
+	width := float32(cr.width)
 	lines := cr.segments.Segments()
 
-	// Per-row tile bounds: track [minX, maxX) for each row that has entries.
-	// Prefix sum will be bounded to this range (Vello backdrop_dyn pattern).
-	type rowBounds struct{ minX, maxX int }
-	rowExtents := make([]rowBounds, rows)
-	for i := range rowExtents {
-		rowExtents[i] = rowBounds{minX: cols, maxX: 0}
-	}
+	for idx := range lines {
+		line := &lines[idx]
+		d := float32(line.Winding)
+		if d == 0 || line.Y1 <= line.Y0 {
+			continue // horizontal/degenerate segments carry no winding
+		}
 
-	// Pass 1: Record winding deltas and compute per-row tile extents.
-	for _, entry := range cr.entries {
-		y := int(entry.Y)
-		x := int(entry.X)
-		if y < 0 || y >= rows || x < 0 || x >= cols {
+		slope := (line.X1 - line.X0) / (line.Y1 - line.Y0)
+
+		yStart := int32(line.Y0)
+		yEnd := int32(line.Y1)
+		if line.Y0 < 0 {
+			yStart = 0
+		}
+		if line.Y0 < float32(rowStart) {
+			yStart = int32(rowStart)
+		}
+		if yEnd >= int32(rowEnd) {
+			yEnd = int32(rowEnd) - 1
+		}
+		if yStart > yEnd {
 			continue
 		}
-		if entry.Winding && int(entry.LineIdx) < len(lines) {
-			line := lines[entry.LineIdx]
-			backdrop[y*cols+x] += int32(line.Winding)
-		}
-		if x < rowExtents[y].minX {
-			rowExtents[y].minX = x
-		}
-		if x+1 > rowExtents[y].maxX {
-			rowExtents[y].maxX = x + 1
+
+		for py := yStart; py <= yEnd; py++ {
+			yTop := line.Y0
+			if yf := float32(py); yTop < yf {
+				yTop = yf
+			}
+			yBot := line.Y1
+			if yf := float32(py) + 1; yBot > yf {
+				yBot = yf
+			}
+			h := yBot - yTop
+			if h <= 0 {
+				continue
+			}
+
+			xTop := line.X0 + (yTop-line.Y0)*slope
+			xBot := line.X0 + (yBot-line.Y0)*slope
+			xhi := xTop
+			if xBot > xhi {
+				xhi = xBot
+			}
+
+			if xhi >= width {
+				continue // segment is right of the viewport on this row
+			}
+
+			// First tile right of the segment's maximum X for this pixel row.
+			k := int32(0)
+			if xhi >= 0 {
+				k = int32(xhi/float32(TileWidth)) + 1
+			}
+			if k >= int32(cols) {
+				continue
+			}
+
+			row := int(py) - rowStart
+			backdrop[row*cols+int(k)] += d * h
+			if k < minK[row] {
+				minK[row] = k
+			}
 		}
 	}
 
-	// Pass 2: Left-to-right prefix sum bounded to per-row entry extents.
-	// Only tiles within [minX, maxX) participate. Tiles outside remain 0,
-	// preventing winding from leaking past the path's actual geometry.
-	for y := 0; y < rows; y++ {
-		ext := rowExtents[y]
-		if ext.minX >= ext.maxX {
+	// Prefix sum per pixel row: every tile right of a segment inherits its delta.
+	for row := 0; row < numRows; row++ {
+		k := minK[row]
+		if k >= int32(cols) {
 			continue
 		}
-		rowBase := y * cols
-		sum := int32(0)
-		for x := ext.minX; x < ext.maxX; x++ {
-			sum += backdrop[rowBase+x]
-			backdrop[rowBase+x] = sum
-		}
-	}
-
-	// Pass 3: Shift right within bounds — backdrop for tile X should be the
-	// accumulated winding from segments strictly to the LEFT of X (tiles
-	// minX..X-1), not including X itself. Vello convention: backdrop
-	// represents the winding state BEFORE processing local segments.
-	for y := 0; y < rows; y++ {
-		ext := rowExtents[y]
-		if ext.minX >= ext.maxX {
-			continue
-		}
-		rowBase := y * cols
-		prev := int32(0)
-		for x := ext.minX; x < ext.maxX; x++ {
-			backdrop[rowBase+x], prev = prev, backdrop[rowBase+x]
+		base := row * cols
+		var sum float32
+		for tx := int(k); tx < cols; tx++ {
+			sum += backdrop[base+tx]
+			backdrop[base+tx] = sum
 		}
 	}
 
 	return backdrop
+}
+
+// BackdropRowOffset returns the first pixel row covered by the slice returned
+// from the most recent CalculateBackdrop call. Rows below it are zero; callers
+// indexing the backdrop must subtract the offset (row 0 of the slice is pixel
+// row backdropRowOffset on the canvas).
+func (cr *CoarseRasterizer) BackdropRowOffset() int {
+	return cr.backdropRowOffset
+}
+
+// backdropRowRange returns the pixel-row range [rowStart, rowEnd) that can hold
+// non-zero backdrop winding: the segments' Y extent, clamped to the viewport.
+// Degenerate bounds (no segments, NaN, inverted) fall back to the full range.
+func (cr *CoarseRasterizer) backdropRowRange(pixelRows int) (int, int) {
+	_, minY, _, maxY := cr.segments.Bounds()
+	if !(minY <= maxY) { // NaN or inverted bounds
+		return 0, pixelRows
+	}
+	fRows := float32(pixelRows)
+
+	rowStart := 0
+	if minY > 0 {
+		if minY > fRows {
+			minY = fRows
+		}
+		rowStart = int(minY) // truncation is floor for positive values
+	}
+
+	rowEnd := pixelRows
+	if maxY < fRows {
+		rowEnd = int(maxY)
+		if float32(rowEnd) < maxY {
+			rowEnd++ // partial bottom row
+		}
+	}
+	if rowEnd < rowStart {
+		rowEnd = rowStart
+	}
+	return rowStart, rowEnd
 }
 
 // clampU16 clamps value to [minVal, maxVal] range and returns as uint16.

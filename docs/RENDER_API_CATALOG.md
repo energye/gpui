@@ -69,7 +69,7 @@
 | `ApplyDash(p, dash)` | 把虚线序列应用到路径、生成带实线段的虚线化路径（描边内部用） | 路径虚线化 | 🔗 software/GPU 两腿都用 |
 | `Dash` + `NewDash(lengths...)` | 虚线间隔序列对象（等长或成对交替） | 虚线序列 | 🔗 |
 | `ParseSVGPath(d) (*Path, error)` | 解析 SVG path 数据串为 Path（`M/L/C/Q/A…`） | 字符串→路径 | 🔌（svg 包内部用，svg 包本身无消费者） |
-| `PathBooleanOp`（Union/Intersect/Difference/Xor）+ `BooleanPath(a,b,op)` / `Path.Op` | 路径布尔并/交/差/异或。**实现为逐像素采样近似**：按整数网格采样 `Winding()` 后拼合像素级矩形（path_boolean.go:70-100），区域 >2048px 静默截断（:62-68），精度受采样网格限制且差集挖洞存在已知失效（红测 TestS3c_M3_PathBooleanDifference）；扫描线重写列入修复计划第四批 | 路径布尔运算（近似） | 🧪 仅测试 |
+| `PathBooleanOp`（Union/Intersect/Difference/Xor）+ `BooleanPath(a,b,op)` / `Path.Op` | 路径布尔并/交/差/异或。**实现为逐像素采样近似**：按整数网格采样 `Winding()` 后拼合像素级矩形（path_boolean.go:70-100），区域 >2048px 静默截断（:62-68），输出高度碎片化（480×480 减 320×320 约 4000 verbs）；差集挖洞曾判为布尔实现失效，2026-10-19 定位为 CPU tile 栅格器缺陷并修复（`TestS3c_M3_PathBooleanDifference` 已转绿）；扫描线重写列入修复计划第四批 | 路径布尔运算（近似） | 🧪 仅测试 |
 | `PathMetric`（IsEmpty/Length/PositionAt/TangentAt 等）+ `Path.ComputeMetrics` | 对路径做度量：总长、某弧长处取点/切线 | 路径度量 | 🔗 |
 | Path 造型：`Trim` / `WithCorners` / `Discrete` / `Flatten` / `Reversed` / `Area` / `Winding` / `Contains` / `BoundingBox` | Flatten 细分为折线/多边形；Area/Winding/Contains/BoundingBox 查询；Trim(子段)/WithCorners(圆角化)/Discrete(随机点化) 高级造型 | 造型与查询 | 前四项内部用；**Trim/WithCorners/Discrete 🔌 仅测试** |
 

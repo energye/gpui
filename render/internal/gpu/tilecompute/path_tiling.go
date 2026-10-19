@@ -11,82 +11,41 @@
 package tilecompute
 
 // Stage 2: Segment clipping to tile boundaries + yEdge computation.
+//
+// The DDA parameters come from path_count via ddas (see lineDDA) instead of
+// being recomputed for every (line, tile) instance.
 func pathTilingMain(
 	bump *BumpAllocators,
 	segCounts []SegmentCount,
-	lines []LineSoup,
-	paths []Path,
 	tiles []Tile,
 	segments []PathSegment,
+	ddas []lineDDA,
 ) {
 	for segIx := uint32(0); segIx < bump.SegCounts; segIx++ {
 		segCount := segCounts[segIx]
-		line := lines[segCount.LineIx]
+		dd := &ddas[segCount.LineIx]
 		counts := segCount.Counts
 		segWithinSlice := counts >> 16
 		segWithinLine := counts & 0xffff
 
-		// Recompute DDA parameters (identical to path_count)
-		p0 := vec2FromArray(line.P0)
-		p1 := vec2FromArray(line.P1)
-		isDown := p1.y >= p0.y
-		var xy0, xy1 vec2
-		if isDown {
-			xy0, xy1 = p0, p1
-		} else {
-			xy0, xy1 = p1, p0
-		}
-		s0 := xy0.mul(tileScale)
-		s1 := xy1.mul(tileScale)
-		countX := span(s0.x, s1.x) - 1
-		count := countX + span(s0.y, s1.y)
-
-		dx := abs32(s1.x - s0.x)
-		dy := s1.y - s0.y
-		idxdy := 1.0 / (dx + dy)
-		a := dx * idxdy
-		isPositiveSlope := s1.x >= s0.x
-		var sign float32
-		if isPositiveSlope {
-			sign = 1.0
-		} else {
-			sign = -1.0
-		}
-		xt0 := floor32(s0.x * sign)
-		c := s0.x*sign - xt0
-		y0 := floor32(s0.y)
-		var ytop float32
-		if s0.y == s1.y {
-			ytop = ceil32(s0.y)
-		} else {
-			ytop = y0 + 1.0
-		}
-		b := min32((dy*c+dx*(ytop-s0.y))*idxdy, oneMinusULP)
-		robustErr := floor32(a*float32(count-1)+b) - float32(countX)
-		if robustErr != 0.0 {
-			a -= copysign32(robustEpsilon, robustErr)
-		}
-		var x0 float32
-		if isPositiveSlope {
-			x0 = xt0 * sign
-		} else {
-			x0 = xt0*sign - 1.0
-		}
+		// DDA parameters computed once per line by path_count.
+		xy0, xy1 := dd.xy0, dd.xy1
+		isDown := dd.isDown
+		count := dd.count
+		a := dd.a
+		b := dd.b
+		isPositiveSlope := dd.isPositiveSlope
+		sign := dd.sign
+		x0 := dd.x0
+		y0 := dd.y0
 
 		z := floor32(a*float32(segWithinLine) + b)
 		x := int32(x0) + int32(sign*z)
 		y := int32(y0 + float32(segWithinLine) - z)
 
-		path := paths[line.PathIx]
-		bbox := path.BBox
-		bboxi := [4]int32{
-			int32(bbox[0]),
-			int32(bbox[1]),
-			int32(bbox[2]),
-			int32(bbox[3]),
-		}
-		stride := bboxi[2] - bboxi[0]
-		tileIx := int32(path.Tiles) + (y-bboxi[1])*stride + x - bboxi[0]
+		bboxi := dd.bboxi
+		stride := dd.stride
+		tileIx := dd.pathTiles + (y-bboxi[1])*stride + x - bboxi[0]
 		tile := tiles[tileIx]
 		segStart := ^tile.SegmentCountOrIx
 		if int32(segStart) < 0 {
