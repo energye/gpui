@@ -214,6 +214,59 @@ func TestStrokeExpander_MiterJoin(t *testing.T) {
 	}
 }
 
+// TestStrokeExpander_MiterJoinTipBothDirections pins the miter tip of a 90
+// degree corner for both turn directions: the tip must be the intersection of
+// the two outer offset lines. Deriving it with |ab x cd| instead of the signed
+// cross flips the tip to the wrong side for one orientation (down -> right),
+// cutting the visible corner off into a wrong-angle bevel - the regression
+// found by the ui_render_base_strokepreset real window.
+func TestStrokeExpander_MiterJoinTipBothDirections(t *testing.T) {
+	style := Stroke{Width: 9.0, Cap: LineCapButt, Join: LineJoinMiter, MiterLimit: 4.0}
+	cases := []struct {
+		name  string
+		path  func() *soaPath
+		tip   Point
+		wrong Point
+	}{
+		{
+			name:  "down-then-right",
+			path:  func() *soaPath { return newSOAPath().moveTo(60.5, 40.5).lineTo(60.5, 140.5).lineTo(170.5, 140.5) },
+			tip:   Point{X: 56, Y: 145},
+			wrong: Point{X: 65, Y: 145},
+		},
+		{
+			name:  "right-then-down",
+			path:  func() *soaPath { return newSOAPath().moveTo(40.5, 60.5).lineTo(140.5, 60.5).lineTo(140.5, 170.5) },
+			tip:   Point{X: 145, Y: 56},
+			wrong: Point{X: 136, Y: 65},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			expander := NewStrokeExpander(style)
+			expander.SetTolerance(0.1)
+			p := tc.path()
+			_, coords := expander.Expand(p.verbs, p.coords)
+
+			hasTip, hasWrong := false, false
+			for i := 0; i+1 < len(coords); i += 2 {
+				if math.Hypot(coords[i]-tc.tip.X, coords[i+1]-tc.tip.Y) < 1e-6 {
+					hasTip = true
+				}
+				if math.Hypot(coords[i]-tc.wrong.X, coords[i+1]-tc.wrong.Y) < 1e-6 {
+					hasWrong = true
+				}
+			}
+			if !hasTip {
+				t.Errorf("miter tip %v missing from expanded outline", tc.tip)
+			}
+			if hasWrong {
+				t.Errorf("mirrored (wrong-side) miter point %v emitted", tc.wrong)
+			}
+		})
+	}
+}
+
 func TestStrokeExpander_BevelJoin(t *testing.T) {
 	style := Stroke{
 		Width:      2.0,

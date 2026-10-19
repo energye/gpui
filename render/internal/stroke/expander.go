@@ -444,11 +444,14 @@ func (e *StrokeExpander) applyOuterMiterJoin(
 ) {
 	miterLimitSq := e.style.MiterLimit * e.style.MiterLimit
 	if 2.0*hypot < (hypot+dot)*miterLimitSq {
-		// Compute miter point: intersection of the two offset lines.
+		// Compute miter point: intersection of the two offset lines,
+		// fpLast+ab*t == fpThis+cd*s. The signed cross must be used: crossAbs
+		// drops the turn direction and puts the tip on the wrong side for one
+		// of the two corner orientations.
 		fpLast := p0.Add(lastNorm)
 		fpThis := p0.Add(norm)
-		h := ab.Cross(fpThis.Sub(fpLast.Vec2().ToPoint())) / crossAbs
-		miterPt := fpThis.Add(cd.Scale(-h))
+		t := fpThis.Sub(fpLast.Vec2().ToPoint()).Cross(cd) / ab.Cross(cd)
+		miterPt := fpLast.Add(ab.Scale(t))
 		outerPath.lineTo(miterPt)
 	}
 	outerPath.lineTo(p0.Add(norm))

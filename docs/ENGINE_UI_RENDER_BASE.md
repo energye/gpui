@@ -777,6 +777,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | `ui_render_base_cliplayer` | 7–8 | Clip/Transform |
 | `ui_render_base_pathlow` | A 组#1 | 路径低频三 API（FillPreserve/StrokePreserve/GetCurrentPoint）+ 像素/Golden |
 | `ui_render_base_pathshape` | A 组#2 | 路径造型三 API（Trim/WithCorners/Discrete）+ 像素/Golden |
+| `ui_render_base_strokepreset` | A 组#3 | 描边预设族（8 预设 + SetStroke）+ 像素/Golden |
 | `ui_l1_scroll` | 12 | 滚动/虚拟列表 |
 | `ui_render_base_perfsoak` | 每项建议 | §20 回归 |
 
@@ -872,6 +873,7 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 
 | 版本 | 说明 |
 |------|------|
+| **1.34（2026-10-19）** | **描边 miter 拐角符号修正 + A 组#3 真窗 `ui_render_base_strokepreset`**：`render/internal/stroke/expander.go:applyOuterMiterJoin` 的 miter 交点分母用无符号 `crossAbs`，丢掉转向符号 → 「下→右」一类拐角的尖点镜像到错误一侧（探针实测尖点应为两外偏移线交点 `(56,145)`、实吐 `(65,145)`），轮廓自交后直角被一条角度不对的斜边切掉（真窗像素同位置纯背景 + 邻格 81% 覆盖，与轮廓打印互证）；按 Skia 带符号 cross 求交点口径改 `t := Δ.Cross(cd)/ab.Cross(cd)`、`miterPt := fpLast + ab*t`，公开签名未变、另一转向输出逐点不变。新增正反转向值级回归 `TestStrokeExpander_MiterJoinTipBothDirections`（修前红→修后绿）；配套真窗三证据（逻辑 12/12、像素 28/28、golden 627200px 逐位零差）并登记 §23；`ui_render_base_pathshape` golden 因本修复重播（0.0002%/1px），`ui_render_base_pathlow` 不受影响 |
 | **1.33（三线 T 立项 2026-09-16，未开工）** | **三线重设计立项（唯一文档 `ENGINE_THREAD_T_PLAN.md`，此处只留指针）** |
 | **1.32（E2 已修 2026-09-15；E1 已撤销）** | **动画帧 CPU 结构问题 E2 闭环、E1 撤销**：E2 一帧多遍 walk 已修——一次建包顺手出四个数（边界数/深度、操作数、字命中），`ConsumeNeedsPaint` 原位不动，包结构不动。实测 120 节点只脏 1 叶老序列 `Children` 603 次 → 新序列 361 次；数诚实 + 包相等由 `TestE2Merged_CountsHonestAndPacketEqual` 锁死，老证据 `TestEVerify_E2_OldEvidence` 仍通过（只调老代码）。E1 证伪撤销：全量重建是对齐 Flutter 的认账现状（同 B1），稀疏包修法丢静按钮已退回作废。E4（任务槽多执行一次）经 20 万次 hammer + 存取时序推演证伪，不修 |
 | **1.31** | **序 14 收口**：F1（淘汰链表化 + 模版粘性上传）与 F2（用户空间几何 + 变换 uniform + 描边快路径）已交付；验收数见 §22.2a；公开 API 未动 |

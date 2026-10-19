@@ -145,8 +145,9 @@ func DashedStroke(lengths ...float64) Stroke {
 	return DefaultStroke().WithDashPattern(lengths...)
 }
 
-// DottedStroke returns a dotted stroke.
-// Uses round caps with equal dash and gap (1, 2 pattern with 2px width).
+// DottedStroke returns a dotted stroke: width 2, round caps and joins, and a
+// 0.1 on / 4 off dash pattern. The round caps turn the near-zero dash into a
+// 2px dot, leaving a 2px gap (Skia's dot idiom).
 func DottedStroke() Stroke {
 	return Stroke{
 		Width:      2.0,
