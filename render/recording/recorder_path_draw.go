@@ -589,7 +589,9 @@ func (r *Recorder) WordWrap(s string, w float64) []string {
 	results := text.WrapText(s, r.fontFace, w, text.WrapWord)
 	lines := make([]string, len(results))
 	for i, res := range results {
-		lines[i] = res.Text
+		// Match Context.WordWrap (and gg): separators at the break point are
+		// not part of the returned line.
+		lines[i] = strings.TrimSpace(res.Text)
 	}
 	return lines
 }
@@ -602,15 +604,18 @@ func (r *Recorder) MeasureMultilineString(s string, lineSpacing float64) (width,
 		return 0, 0
 	}
 	lines := recorderSplitLines(s)
-	fh := r.fontFace.Metrics().LineHeight()
+	metrics := r.fontFace.Metrics()
+	fh := metrics.LineHeight()
 	for _, line := range lines {
 		lw, _ := text.Measure(line, r.fontFace)
 		if lw > width {
 			width = lw
 		}
 	}
+	// Keep the same visual block height as Context.MeasureMultilineString:
+	// first ascent + inter-line gaps + last descent.
 	n := float64(len(lines))
-	height = n*fh*lineSpacing - (lineSpacing-1)*fh
+	height = (n-1)*fh*lineSpacing + metrics.Ascent + metrics.Descent
 	return
 }
 
@@ -622,20 +627,23 @@ func (r *Recorder) DrawStringWrapped(s string, x, y, ax, ay, width, lineSpacing 
 		return
 	}
 
-	var fh float64
+	var fh, ascent, descent float64
 	if r.fontFace != nil {
-		fh = r.fontFace.Metrics().LineHeight()
+		m := r.fontFace.Metrics()
+		fh, ascent, descent = m.LineHeight(), m.Ascent, m.Descent
 	} else {
 		fh = r.fontSize * 1.2
+		ascent, descent = fh, 0
 	}
 
-	// Total height (same formula as MeasureMultilineString)
+	// Total visual height (same formula as MeasureMultilineString).
 	n := float64(len(lines))
-	h := n*fh*lineSpacing - (lineSpacing-1)*fh
+	h := (n-1)*fh*lineSpacing + ascent + descent
 
-	// Adjust starting position by anchor
+	// Adjust starting position by anchor. DrawString records a baseline, so
+	// the first baseline sits one ascent below the block top.
 	x -= ax * width
-	y -= ay * h
+	y = y + ascent - ay*h
 
 	// Adjust x base for alignment
 	switch align {

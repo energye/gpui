@@ -125,9 +125,15 @@ func (e *GlyphMaskEngine) SetLCDLayout(layout text.LCDLayout) {
 	defer e.mu.Unlock()
 	if e.lcdLayout != layout {
 		e.lcdLayout = layout
-		// Clear atlas: existing masks were rasterized for different layout.
-		e.atlas.Clear()
-		// templates reference atlas UVs — drop them with the atlas.
+		// Do NOT clear the atlas. GlyphMaskKey.Flags already separates
+		// grayscale (0), LCD-RGB (FlagLCD) and LCD-BGR (FlagLCD|FlagLCDBGR)
+		// masks, so entries from other layouts are harmless and reusable.
+		// Clearing here wiped masks that were already queued for the current
+		// frame (grayscale batches laid out before an LCD draw), and the LCD
+		// glyphs then re-allocated from (0,0), overwriting those regions —
+		// mixed gray+LCD frames sampled LCD data through grayscale quads.
+		// Layout templates key on LCD mode but not RGB/BGR order, so drop
+		// them; the atlas masks themselves stay.
 		e.dropLayoutTemplateCache()
 	}
 }

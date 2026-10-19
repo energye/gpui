@@ -434,31 +434,43 @@ func WrapTextWithSpacing(text string, face Face, maxWidth float64, mode WrapMode
 	paragraphs := strings.Split(normalized, "\n")
 
 	results := make([]WrapResult, 0, len(paragraphs))
-	byteOffset := 0
+	// Offsets must address the ORIGINAL string. Normalization collapsed CRLF
+	// (2 bytes) to LF (1 byte), so adding len(paragraph)+1 drifts by one byte
+	// per preceding CRLF and makes callers slicing the original text read the
+	// wrong range.
+	origOffset := 0
 
 	for _, para := range paragraphs {
 		if para == "" {
 			// Empty paragraph (blank line) — preserve as empty line
 			results = append(results, WrapResult{
 				Text:  "",
-				Start: byteOffset,
-				End:   byteOffset,
+				Start: origOffset,
+				End:   origOffset,
 			})
-			byteOffset++ // skip the \n
-			continue
+		} else {
+			// Wrap this paragraph
+			paraResults := wrapParagraphWithSpacing(para, face, maxWidth, mode, letterSpacing, wordSpacing)
+
+			// Adjust byte offsets relative to original text
+			for i := range paraResults {
+				paraResults[i].Start += origOffset
+				paraResults[i].End += origOffset
+			}
+
+			results = append(results, paraResults...)
 		}
 
-		// Wrap this paragraph
-		paraResults := wrapParagraphWithSpacing(para, face, maxWidth, mode, letterSpacing, wordSpacing)
-
-		// Adjust byte offsets relative to original text
-		for i := range paraResults {
-			paraResults[i].Start += byteOffset
-			paraResults[i].End += byteOffset
+		// Advance past this paragraph and its original line ending (\n, \r, or
+		// \r\n). The paragraph body itself is unchanged by normalization.
+		origOffset += len(para)
+		if origOffset < len(text) {
+			if text[origOffset] == '\r' && origOffset+1 < len(text) && text[origOffset+1] == '\n' {
+				origOffset += 2
+			} else {
+				origOffset++
+			}
 		}
-
-		results = append(results, paraResults...)
-		byteOffset += len(para) + 1 // +1 for the \n separator
 	}
 
 	return results
@@ -543,8 +555,14 @@ func findLineEndWithSpacing(w *wrapTextInfo, lineStart int, face Face, maxWidth 
 			lastBreakPoint = i
 		}
 
-		// Check if we exceeded maxWidth
+		// Check if we exceeded maxWidth. Whitespace that itself overflows is
+		// a separator, not content: break before it. Otherwise the returned
+		// line text keeps the space and can measure wider than maxWidth even
+		// though the visible word fits.
 		if newWidth > maxWidth && i > lineStart {
+			if unicode.IsSpace(w.runes[i]) {
+				return i
+			}
 			return calculateLineBreakPosition(w, i, lineStart, lastBreakPoint, mode)
 		}
 

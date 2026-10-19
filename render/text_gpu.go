@@ -302,6 +302,9 @@ func (c *Context) tryGPUGlyphMaskTextAliased(s string, x, y float64) bool {
 	target := c.gpuRenderTarget()
 	if rc := c.gpuCtxOps(); rc != nil {
 		if rc.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+			// Same damage contract as every other GPU text path: without it a
+			// view-damage scissor can clip the aliased quads away entirely.
+			c.trackTextDamage(s, x, y)
 			c.recordGPUOp()
 			return true
 		}
@@ -318,6 +321,7 @@ func (c *Context) tryGPUGlyphMaskTextAliased(s string, x, y float64) bool {
 		return false
 	}
 	if ata.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+		c.trackTextDamage(s, x, y)
 		c.recordGPUOp()
 		return true
 	}

@@ -172,15 +172,22 @@ func (g *Generator) processRows(msdf *MSDF, shape *Shape, startRow, endRow int, 
 
 			point := Point{X: ox, Y: oy}
 
-			// Calculate signed distance for each channel
+			// Calculate the closest distance for each channel. The selected
+			// edge only supplies the absolute distance; the inside/outside
+			// sign comes from the whole shape because a concave contour's
+			// nearest edge can report the wrong local side.
 			r := g.channelDistance(shape, point, SelectRed)
 			gDist := g.channelDistance(shape, point, SelectGreen)
 			b := g.channelDistance(shape, point, SelectBlue)
+			sign := -1.0
+			if shape.containsPoint(point) {
+				sign = 1
+			}
 
 			// Normalize distances to [0, 255]
-			rVal := distanceToPixel(r.Distance, pixelRange, msdf.Scale)
-			gVal := distanceToPixel(gDist.Distance, pixelRange, msdf.Scale)
-			bVal := distanceToPixel(b.Distance, pixelRange, msdf.Scale)
+			rVal := distanceToPixel(sign*math.Abs(r.Distance), pixelRange, msdf.Scale)
+			gVal := distanceToPixel(sign*math.Abs(gDist.Distance), pixelRange, msdf.Scale)
+			bVal := distanceToPixel(sign*math.Abs(b.Distance), pixelRange, msdf.Scale)
 
 			msdf.SetPixel(x, y, rVal, gVal, bVal)
 		}

@@ -54,14 +54,25 @@ func (c *Contour) Bounds() Rect {
 
 // CalculateWinding calculates and stores the winding direction.
 // Positive = CCW (outer contour), Negative = CW (inner/hole).
+//
+// Curved edges are sampled before applying the shoelace formula: using only
+// endpoints makes a closed cubic circle (four quarter-arcs) collapse to zero
+// area and lose its orientation.
 func (c *Contour) CalculateWinding() {
-	// Calculate the signed area using the shoelace formula.
-	// Sum up the cross products of consecutive edge endpoints.
+	const curveSteps = 16
 	var area float64
 	for i := range c.Edges {
-		p0 := c.Edges[i].StartPoint()
-		p1 := c.Edges[i].EndPoint()
-		area += p0.Cross(p1)
+		e := &c.Edges[i]
+		steps := 1
+		if e.Type != EdgeLinear {
+			steps = curveSteps
+		}
+		prev := e.PointAt(0)
+		for k := 1; k <= steps; k++ {
+			p := e.PointAt(float64(k) / float64(steps))
+			area += prev.Cross(p)
+			prev = p
+		}
 	}
 	c.Winding = area / 2
 }
@@ -181,15 +192,7 @@ func FromOutline(outline *text.GlyphOutline) *Shape {
 			}
 			// Skip degenerate lines
 			if endPoint.Sub(currentPos).LengthSquared() > 1e-12 {
-				// Edges are built reversed (end → start) so the cross-product
-				// sign convention in SignedDistance (positive = left of the
-				// edge = inside for a CCW outer contour) matches the font
-				// outline orientation. Font outlines are extracted in
-				// FreeType's y-down space, where outer contours wind
-				// clockwise; without this reversal every outside pixel in the
-				// vertical padding band is classified as inside, producing a
-				// solid black box around large glyphs (e.g. 72px CJK MSDF).
-				edge := NewLinearEdge(endPoint, currentPos)
+				edge := NewLinearEdge(currentPos, endPoint)
 				currentContour.AddEdge(edge)
 			}
 			currentPos = endPoint
@@ -206,9 +209,7 @@ func FromOutline(outline *text.GlyphOutline) *Shape {
 				X: float64(seg.Points[1].X),
 				Y: float64(seg.Points[1].Y),
 			}
-			// Reversed as with LineTo (quadratic control point is unchanged
-			// when traversing the curve backwards).
-			edge := NewQuadraticEdge(endPoint, controlPoint, currentPos)
+			edge := NewQuadraticEdge(currentPos, controlPoint, endPoint)
 			currentContour.AddEdge(edge)
 			currentPos = endPoint
 
@@ -228,8 +229,7 @@ func FromOutline(outline *text.GlyphOutline) *Shape {
 				X: float64(seg.Points[2].X),
 				Y: float64(seg.Points[2].Y),
 			}
-			// Reversed as with LineTo; cubic control points swap on reversal.
-			edge := NewCubicEdge(endPoint, control2, control1, currentPos)
+			edge := NewCubicEdge(currentPos, control1, control2, endPoint)
 			currentContour.AddEdge(edge)
 			currentPos = endPoint
 		}
@@ -241,8 +241,91 @@ func FromOutline(outline *text.GlyphOutline) *Shape {
 		shape.AddContour(currentContour)
 	}
 
+	normalizeContourOrientation(shape)
 	shape.CalculateBounds()
 	return shape
+}
+
+// normalizeContourOrientation makes the outer contours consistently positive
+// and the holes negative. TrueType glyf outlines arrive in FreeType's y-down
+// space with positive outer winding, while CFF/OTF outlines arrive with
+// negative outer winding after the same y flip. Per-contour reversal would
+// destroy the hole/outer relationship, so the whole shape is flipped only when
+// the dominant (largest absolute area) contour is negative.
+func normalizeContourOrientation(shape *Shape) {
+	var dominant float64
+	for _, contour := range shape.Contours {
+		if math.Abs(contour.Winding) > math.Abs(dominant) {
+			dominant = contour.Winding
+		}
+	}
+	if dominant >= 0 {
+		return
+	}
+	for _, contour := range shape.Contours {
+		reverseContour(contour)
+	}
+}
+
+// reverseContour reverses the traversal direction while preserving closure and
+// the edge geometry. Winding flips sign exactly; colors are assigned later by
+// AssignColors.
+func reverseContour(c *Contour) {
+	n := len(c.Edges)
+	reversed := make([]Edge, n)
+	for i := 0; i < n; i++ {
+		reversed[i] = reverseEdge(c.Edges[n-1-i])
+	}
+	c.Edges = reversed
+	c.Winding = -c.Winding
+}
+
+func reverseEdge(e Edge) Edge {
+	switch e.Type {
+	case EdgeLinear:
+		e.Points[0], e.Points[1] = e.Points[1], e.Points[0]
+	case EdgeQuadratic:
+		e.Points[0], e.Points[2] = e.Points[2], e.Points[0]
+	case EdgeCubic:
+		e.Points[0], e.Points[3] = e.Points[3], e.Points[0]
+		e.Points[1], e.Points[2] = e.Points[2], e.Points[1]
+	}
+	return e
+}
+
+// containsPoint reports whether p is inside the shape using the nonzero
+// winding rule. The per-edge sign is only local: on a concave contour the
+// closest edge can report the inside side while p is outside the shape. The
+// distance solver therefore uses this global test for the MSDF sign.
+func (s *Shape) containsPoint(p Point) bool {
+	const curveSteps = 16
+	winding := 0
+	for _, contour := range s.Contours {
+		for i := range contour.Edges {
+			e := &contour.Edges[i]
+			steps := 1
+			if e.Type != EdgeLinear {
+				steps = curveSteps
+			}
+			prev := e.PointAt(0)
+			for k := 1; k <= steps; k++ {
+				cur := e.PointAt(float64(k) / float64(steps))
+				if prev.Y <= p.Y {
+					if cur.Y > p.Y && isLeft(prev, cur, p) > 0 {
+						winding++
+					}
+				} else if cur.Y <= p.Y && isLeft(prev, cur, p) < 0 {
+					winding--
+				}
+				prev = cur
+			}
+		}
+	}
+	return winding != 0
+}
+
+func isLeft(a, b, p Point) float64 {
+	return (b.X-a.X)*(p.Y-a.Y) - (p.X-a.X)*(b.Y-a.Y)
 }
 
 // AssignColors assigns edge colors to preserve corners.

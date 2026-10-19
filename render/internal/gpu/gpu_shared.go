@@ -485,8 +485,11 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 	for _, t := range s.msdfAtlasTexes {
 		t.Destroy()
 	}
-	s.msdfAtlasViews = nil
-	s.msdfAtlasTexes = nil
+	// Keep the maps non-nil: syncTextAtlases registers newly created pages
+	// with `s.msdfAtlasTexes[idx] = tex` after a device switch. Nil maps
+	// panicked on the first MSDF glyph following SetDeviceProvider.
+	s.msdfAtlasViews = make(map[int]hal.TextureView)
+	s.msdfAtlasTexes = make(map[int]hal.Texture)
 	if s.glyphMaskEngine != nil {
 		if s.device != nil {
 			s.glyphMaskEngine.Destroy(s.device)

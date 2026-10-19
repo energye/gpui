@@ -567,3 +567,59 @@ func BenchmarkClassifyRune(b *testing.B) {
 		}
 	}
 }
+
+// TestWrapText_CRLFOffsets pins byte ranges against the ORIGINAL string.
+// Offset calculation used to add len(paragraph)+1 after normalizing CRLF to
+// LF, so each preceding CRLF shifted Start/End one byte to the right and
+// callers slicing the original text read the newline instead of the glyph.
+func TestWrapText_CRLFOffsets(t *testing.T) {
+	face := wrapTestFace(t)
+	for _, src := range []string{
+		"a\r\nb\r\nc",
+		"a\r\n\r\nb",
+		"a\rb\nc\rd",
+	} {
+		results := WrapText(src, face, 1000, WrapWord)
+		if len(results) == 0 {
+			t.Fatalf("%q: no results", src)
+		}
+		for i, r := range results {
+			if r.Start < 0 || r.End > len(src) || r.Start > r.End {
+				t.Fatalf("%q line %d: bad range [%d,%d] len=%d", src, i, r.Start, r.End, len(src))
+			}
+			if got := src[r.Start:r.End]; got != r.Text {
+				t.Errorf("%q line %d: src[%d:%d] = %q, Text = %q", src, i, r.Start, r.End, got, r.Text)
+			}
+		}
+	}
+}
+
+// TestWrapText_OverflowingSeparator pins that a whitespace separator which
+// does not fit is not kept at the end of a line. Keeping it made the returned
+// Text measure wider than maxWidth even though the visible word fit.
+func TestWrapText_OverflowingSeparator(t *testing.T) {
+	face := wrapTestFace(t)
+	for _, tc := range []struct {
+		src  string
+		word string
+	}{
+		{"word ", "word"},
+		{"Hello ", "Hello"},
+		{"Hello world", "Hello"},
+	} {
+		wordW, _ := Measure(tc.word, face)
+		spaceW, _ := Measure(" ", face)
+		maxWidth := wordW + spaceW/2
+
+		results := WrapText(tc.src, face, maxWidth, WrapWord)
+		if len(results) == 0 {
+			t.Fatalf("%q: no results", tc.src)
+		}
+		if results[0].Text != tc.word {
+			t.Errorf("%q: first line = %q, want %q", tc.src, results[0].Text, tc.word)
+		}
+		if w, _ := Measure(results[0].Text, face); w > maxWidth {
+			t.Errorf("%q: first line width %.3f > maxWidth %.3f", tc.src, w, maxWidth)
+		}
+	}
+}

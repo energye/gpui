@@ -619,3 +619,89 @@ func TestDrawStringAnchored_AnchorSemantics(t *testing.T) {
 		t.Error("ay=1: no ink found above y=350, text should end AT y=350")
 	}
 }
+
+// TestWordWrap_TrimsSeparators pins gg-compatible line output: a separator
+// that triggered a break must not leak into the returned line, otherwise the
+// measured line can exceed the requested width.
+func TestWordWrap_TrimsSeparators(t *testing.T) {
+	fontPath := findTestFont()
+	if fontPath == "" {
+		t.Skip("No system font available")
+	}
+	dc := NewContext(800, 400)
+	defer dc.Close()
+	source, err := text.NewFontSourceFromFile(fontPath)
+	if err != nil {
+		t.Fatalf("Failed to load font: %v", err)
+	}
+	defer func() { _ = source.Close() }()
+	dc.SetFont(source.Face(20.0))
+
+	cases := []struct {
+		src   string
+		width float64
+		want  []string
+	}{
+		{"word ", 50, []string{"word"}},
+		{"Hello world", 80, []string{"Hello", "world"}},
+		{"The quick brown fox jumps over the lazy dog", 200, nil},
+	}
+	for _, tc := range cases {
+		lines := dc.WordWrap(tc.src, tc.width)
+		if tc.want != nil && strings.Join(lines, "|") != strings.Join(tc.want, "|") {
+			t.Errorf("WordWrap(%q, %.1f) = %q, want %q", tc.src, tc.width, lines, tc.want)
+		}
+		for i, line := range lines {
+			if line != strings.TrimSpace(line) {
+				t.Errorf("WordWrap(%q) line %d = %q, has leading/trailing space", tc.src, i, line)
+			}
+			if w, _ := dc.MeasureString(line); w > tc.width {
+				t.Errorf("WordWrap(%q) line %d width %.3f > %.1f", tc.src, i, w, tc.width)
+			}
+		}
+	}
+}
+
+// TestMeasureMultilineString_VisualBlock pins the documented height model:
+// ascent + (n-1)*lineHeight*lineSpacing + descent. The first ascent and last
+// descent are not scaled; lineSpacing only opens gaps BETWEEN lines.
+func TestMeasureMultilineString_VisualBlock(t *testing.T) {
+	fontPath := findTestFont()
+	if fontPath == "" {
+		t.Skip("No system font available")
+	}
+	dc := NewContext(400, 400)
+	defer dc.Close()
+	source, err := text.NewFontSourceFromFile(fontPath)
+	if err != nil {
+		t.Fatalf("Failed to load font: %v", err)
+	}
+	defer func() { _ = source.Close() }()
+	dc.SetFont(source.Face(20.0))
+
+	const sp = 1.25
+	s := "Hello\nWorld wide\nx"
+	w, h := dc.MeasureMultilineString(s, sp)
+	lines := splitLines(s)
+	var wantW float64
+	for _, line := range lines {
+		if lw, _ := dc.MeasureString(line); lw > wantW {
+			wantW = lw
+		}
+	}
+	m := dc.face.Metrics()
+	wantH := float64(len(lines)-1)*m.LineHeight()*sp + m.Ascent + m.Descent
+	if w != wantW {
+		t.Errorf("width = %.4f, want %.4f", w, wantW)
+	}
+	if h != wantH {
+		t.Errorf("height = %.4f, want %.4f", h, wantH)
+	}
+
+	// A single line has no gaps, so lineSpacing cannot change its height.
+	_, h1 := dc.MeasureMultilineString("Hello", 1.0)
+	_, h2 := dc.MeasureMultilineString("Hello", 3.0)
+	if h1 != m.Ascent+m.Descent || h2 != h1 {
+		t.Errorf("single line height = %.4f / %.4f, want %.4f", h1, h2, m.Ascent+m.Descent)
+	}
+}

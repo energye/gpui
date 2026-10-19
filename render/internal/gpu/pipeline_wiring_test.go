@@ -1076,3 +1076,18 @@ func TestEnsurePipelines_RasterAtlas_Skips(t *testing.T) {
 		t.Fatal("rasterAtlas: stencil renderer should NOT be created")
 	}
 }
+
+func TestGPUShared_AbandonKeepsMSDFAtlasMapsWritable(t *testing.T) {
+	s := NewGPUShared()
+	s.mu.Lock()
+	s.abandonDeviceOwnedLocked(false)
+	s.mu.Unlock()
+
+	if s.msdfAtlasTexes == nil || s.msdfAtlasViews == nil {
+		t.Fatalf("MSDF atlas maps must stay non-nil after abandon: texes=%v views=%v",
+			s.msdfAtlasTexes != nil, s.msdfAtlasViews != nil)
+	}
+	// The exact operation syncTextAtlases performs on a new page.
+	s.msdfAtlasTexes[0] = nil
+	s.msdfAtlasViews[0] = nil
+}

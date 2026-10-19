@@ -94,7 +94,7 @@
 | Width/Height/PixelWidth/PixelHeight/DeviceScale/SetDeviceScale/Resize/ResizeTarget | 画布逻辑/物理尺寸、HiDPI 缩放比、resize（含底层 pixmap） | 尺寸与缩放 | ✅ |
 | Clear/ClearWithColor/SetPixel/WritePixels/Image/EncodePNG/EncodeJPEG/SavePNG | 清空画布、写像素、导出 image/PNG/JPEG/存盘 | 画布输出 | ✅ |
 | SetDamageTracking/FrameDamage/FrameDamageUnion/TrackDamageRect/ResetFrameDamage | 逐操作损伤矩形跟踪（present 决策/增量重绘用） | 损伤跟踪 | ✅ |
-| RasterizerMode/SetRasterizerMode/PipelineMode/SetPipelineMode/SetTextMode/TextMode/SetLCDLayout | 选择 CPU 栅格化器、GPU 管线模式（render pass/compute）、文本策略、LCD 子像素布局 | 渲染模式 | ✅ |
+| RasterizerMode/SetRasterizerMode/PipelineMode/SetPipelineMode/SetTextMode/TextMode/SetLCDLayout | 选择 CPU 栅格化器、GPU 管线模式（render pass/compute）、文本策略、LCD 子像素布局 | 渲染模式 | ✅（`SetTextMode`/`TextMode`/`SetLCDLayout` 另有直调真窗 `ui_render_base_textlow`，2026-10-20 **原子验证**：逻辑 16 + 像素 28 + golden 627200px 零差 + 抓屏同区对照；同批修 `SetLCDLayout` 清空图集致灰度+LCD 同帧花屏） |
 | SetEffectSurface/SetSharedEncoder/CreateSharedEncoder/SubmitSharedEncoder | 特效离屏强制 1x 采样、共享命令编码器（单命令缓冲帧，ADR-017） | 离屏/编码器 | ✅ |
 | BeginGPUFrame/FlushGPU/FlushGPUWithView/FlushGPUWithViewDamage/FlushGPUWithViewDamageRects/GPURenderContext/DropGPURenderContext | 每帧 GPU 状态重置、把累积 GPU 命令提交并解析到 pixmap/视图（带单/多损伤区）、per-context GPU 会话 | GPU 提交 | ✅ |
 | `BeginOffscreenPass()` | 开离屏子通道并返回还原 func（调用方须 defer）：激活期间队列命令/裁剪时间线/LoadOp 跟踪独占归子目标，主通路状态挂起、还原时恢复；同时挂起画布裁剪防 scissor 泄漏进子视口。使帧中 retained 纹理重录安全（Skia GrRecordingContext / Flutter EntityPass pass-ownership 语义）；无 GPU ops 时返回空 func | 离屏子通道 | ✅ ui/scene/textured.go:430,513 retained 重录消费 |
@@ -180,7 +180,7 @@
 | `SetFont/Font/LoadFontFace/LoadFontFaceWithVariations/FontVariationAxes` | 设置字体、读当前字体、加载 TTF/OTF 与可变字体轴 | 字体管理 | ✅ ui/rendering paint_context 在用 |
 | `DrawString/DrawStringAnchored/DrawStringWrapped/DrawShapedGlyphs/DrawShapedColorGlyphs/SetTextDecoration/TextDecoration` | 绘制文本（锚点/自动换行/已整形字形/已整形彩色字形/下划线等装饰） | 文本绘制 | ✅（DrawString/Wrapped 生产在用；**DrawShapedGlyphs 🔗 生产在用（ui/rendering TextLayout 批量主路 + ui/scene 录制回放 + render/scene GPU 解析，见 §7.2 行注）**；**DrawShapedColorGlyphs 🔗 生产在用（ui/rendering 彩色段→GPU 颜色图集/CPU 兜底，GPU 真窗已验：ui_text_m5_anycase 10s 回退 0、B 区真彩）**；**StrokeString/StrokeStringAnchored/TextPath 🧪 仅测试 + 直调真窗 `ui_render_base_textstroke`（2026-10-19，原子验证：逻辑 14 + 像素 21 + golden 627200px 零差 + 抓屏同区对照；同批修描边损伤不按线宽外扩 / 轮廓缓存 key 截断分数磅值 2 缺陷）**） |
 | `SplitColorGlyphs(cf,glyphs)`（text.go 顶层函数） | 按字形类型把已整形字形拆成彩色/描边两子集（保序），供 dispatch 入口分流 | 彩色字形分流 | 🔗（dispatchText 在用） |
-| `MeasureString/MeasureMultilineString/WordWrap` | 度量单行/多行文本、按宽度断词换行 | 文本度量 | 🔗 内部用（UI 布局未接，用自研估算） |
+| `MeasureString/MeasureMultilineString/WordWrap` | 度量单行/多行文本、按宽度断词换行 | 文本度量 | `MeasureString` 🔗 内部用（UI 布局未接，用自研估算）；**`MeasureMultilineString/WordWrap` 🧪 仅测试 + 直调真窗 `ui_render_base_textlow`（2026-10-20，原子验证：逻辑 16 + 像素 28 + golden 627200px 逐位零差 + 抓屏同区 `diff=0.0000%`；同批修 WordWrap 行尾空白/CRLF 偏移 + 多行可视块高度口径 2 缺陷，pin `render/text/wrap_test.go` / `render/text_wrap_test.go`）** |
 | `TextMode`（Auto/MSDF/Vector/Bitmap/GlyphMask/Aliased）/ `LCDLayout`（None/RGB/BGR）/ `Align` | 文本渲染策略 / LCD 子像素布局 / 对齐枚举 | 文本模式 | ✅ |
 
 ### 3.9 vertices.go（3）+ shapes.go（1）· 顶点/网格族
@@ -350,6 +350,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 显存账本 `VramBudgetMB/VramLiveBytes/VramLiveCount/VramPeakBytes/VramPressureHigh` + 共享设备 `RecoverSharedDevice/SharedDeviceGeneration/SharedWindowCount` + 图片缓存 `PictureCacheFairMax` + 帧耗时 `FrameAcquireWaitMs/FrameFlushMs/FramePresentWaitMs` + 顶点扩展 `DrawVerticesEx/DrawMeshEx/DrawAtlasEx/DrawDepthSprites` 及 Vert/Atlas/Depth 选项结果错误族 + `OOMExit.Note/RunErr`（2026-10-07 T6 补录：代码早有、总账漏记，T1 拆分搬家后机检喊出，本次按归属补 §3.7/§3.9） | 代码存量，机检 `go run ./scripts/apidoc` 已绿 |
 | `Painter/SolidPainter/FuncPainter/PainterFromPaint` | 仅测试 |
 | 文本描边/路径 `StrokeString/StrokeStringAnchored/TextPath` | 仅测试 + 直调真窗 `ui_render_base_textstroke`（2026-10-19，**原子验证**：逻辑 14 + 像素 21 + golden 627200px 逐位零差 + 抓屏 vs 快照同区对照；同批修描边损伤不按线宽外扩 + 轮廓缓存 key 截断分数磅值，pin `render/stroke_damage_bounds_test.go`） |
+| 文本低频 `MeasureMultilineString/WordWrap/SetTextMode/SetLCDLayout` | 仅测试 + 直调真窗 `ui_render_base_textlow`（2026-10-20，**原子验证**：逻辑 16 + 像素 28 + golden 627200px 逐位零差 + 抓屏 vs 快照同区 `diff=0.0000%`；同批修 MSDF 轮廓方向 / WordWrap 行尾空白与 CRLF 偏移 / 多行可视块高度 / `SetLCDLayout` 清图集致灰度+LCD 同帧花屏 / Aliased 文本损伤记账 5 缺陷，pin `render/glyphmask_lcd_mix_test.go` + `render/internal/gpu/glyph_mask_lcd_layout_cache_test.go` + `render/text/wrap_test.go` / `render/text_wrap_test.go`） |
 | `DrawShapedGlyphs` | 🔗 生产在用（6 处）：`ui/rendering/text.go:988`（RenderText.Paint 批量主路）· `:1077`（复合分区回退路）· `ui/rendering/text_picture.go:205`（分区提交）· `:232`（彩色段分区）· `:244`（偏移重提交）· `ui/scene/picture.go:225`（录制回放 OpDrawShapedGlyphs）· 另 `render/text.go:158`（描边字形回退）与 `render/scene/gpu_renderer.go:247`（Scene→GPU 解析首选） |
 | `DrawMesh`（网格绘制，Context.DrawMesh） | 无生产调用点（仅测试 render/p1_capability_matrix_closers_test.go:2918） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |

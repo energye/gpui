@@ -542,3 +542,83 @@ func BenchmarkMedianFilter(b *testing.B) {
 		_ = MedianFilter(msdf)
 	}
 }
+
+// twoSquareOutline builds a 100x100 outer square with a centered 40x40 hole.
+// OuterPositive/HolePositive control the winding independently so both
+// TrueType-like (+ outer, - hole) and CFF-like (- outer, + hole) conventions
+// can be exercised.
+func twoSquareOutline(outerPositive, holePositive bool) *text.GlyphOutline {
+	rect := func(x0, y0, x1, y1 float64, positive bool) []text.OutlineSegment {
+		pts := [][2]float64{{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}, {x0, y0}}
+		if !positive {
+			pts = [][2]float64{{x0, y0}, {x0, y1}, {x1, y1}, {x1, y0}, {x0, y0}}
+		}
+		segs := []text.OutlineSegment{{Op: text.OutlineOpMoveTo, Points: [3]text.OutlinePoint{{X: float32(pts[0][0]), Y: float32(pts[0][1])}}}}
+		for _, p := range pts[1:] {
+			segs = append(segs, text.OutlineSegment{Op: text.OutlineOpLineTo, Points: [3]text.OutlinePoint{{X: float32(p[0]), Y: float32(p[1])}}})
+		}
+		return segs
+	}
+	segs := rect(0, 0, 100, 100, outerPositive)
+	segs = append(segs, rect(30, 30, 70, 70, holePositive)...)
+	return &text.GlyphOutline{
+		Segments: segs,
+		Bounds:   text.Rect{MinX: 0, MinY: 0, MaxX: 100, MaxY: 100},
+	}
+}
+
+func pixelAtOutline(m *MSDF, x, y float64) (int, int) {
+	return int(math.Floor((x-m.Bounds.MinX)*m.Scale + m.TranslateX)),
+		int(math.Floor((y-m.Bounds.MinY)*m.Scale + m.TranslateY))
+}
+
+func maxChannelAt(m *MSDF, x, y int) byte {
+	r, g, b := m.GetPixel(x, y)
+	return max(r, max(g, b))
+}
+
+func TestGenerateOrientationIndependent(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		outer, hole   bool
+		wantOuterSign float64
+		wantHoleSign  float64
+	}{
+		{"truetype", true, false, 1, -1},
+		{"cff", false, true, 1, -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			outline := twoSquareOutline(tc.outer, tc.hole)
+			shape := FromOutline(outline)
+			if len(shape.Contours) != 2 {
+				t.Fatalf("contours = %d, want 2", len(shape.Contours))
+			}
+			if got := math.Copysign(1, shape.Contours[0].Winding); got != tc.wantOuterSign {
+				t.Errorf("outer winding = %v, want sign %v", shape.Contours[0].Winding, tc.wantOuterSign)
+			}
+			if got := math.Copysign(1, shape.Contours[1].Winding); got != tc.wantHoleSign {
+				t.Errorf("hole winding = %v, want sign %v", shape.Contours[1].Winding, tc.wantHoleSign)
+			}
+
+			m, err := DefaultGenerator().Generate(outline)
+			if err != nil {
+				t.Fatalf("Generate: %v", err)
+			}
+			// Outside the shape: the MSDF cell corner must be transparent
+			// (median below 0.5), never a solid black block.
+			if v := maxChannelAt(m, 0, 0); v >= 128 {
+				t.Errorf("outside corner value = %d, want < 128", v)
+			}
+			// Hole center is outside the filled glyph.
+			hx, hy := pixelAtOutline(m, 50, 50)
+			if v := maxChannelAt(m, hx, hy); v >= 128 {
+				t.Errorf("hole value = %d at (%d,%d), want < 128", v, hx, hy)
+			}
+			// Ring between the outer square and the hole is inside.
+			ix, iy := pixelAtOutline(m, 15, 50)
+			if v := maxChannelAt(m, ix, iy); v < 128 {
+				t.Errorf("filled ring value = %d at (%d,%d), want >= 128", v, ix, iy)
+			}
+		})
+	}
+}

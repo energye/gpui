@@ -11,6 +11,8 @@
 package render
 
 import (
+	"strings"
+
 	"github.com/energye/gpui/render/text"
 )
 
@@ -162,7 +164,10 @@ func (c *Context) WordWrap(s string, w float64) []string {
 	results := text.WrapText(s, c.face, w, text.WrapWord)
 	lines := make([]string, len(results))
 	for i, r := range results {
-		lines[i] = r.Text
+		// gg trims each wrapped line; without this the trailing separator that
+		// triggered the break leaks into the returned string and its measured
+		// width can exceed the requested width.
+		lines[i] = strings.TrimSpace(r.Text)
 	}
 	return lines
 }
