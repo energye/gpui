@@ -123,15 +123,7 @@ func (c *Context) textOutlinePath(s string, x, y float64) *Path {
 	// Use glyph cache to avoid repeated outline extraction.
 	cache := c.ensureGlyphCache()
 	fontID := computeTextFontID(source)
-	var sizeKey int16
-	switch {
-	case fontSize < 0:
-		sizeKey = 0
-	case fontSize > 32767:
-		sizeKey = 32767
-	default:
-		sizeKey = int16(fontSize) //nolint:gosec // bounds checked above
-	}
+	sizeKey := text.FixedSize(fontSize)
 
 	path := NewPath()
 	hasContour := false

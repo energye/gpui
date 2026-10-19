@@ -110,17 +110,6 @@ func computeSceneTextFontID(source *text.FontSource) uint64 {
 	return h.Sum64()
 }
 
-func computeSizeKey(size float64) int16 {
-	switch {
-	case size < 0:
-		return 0
-	case size > 32767:
-		return 32767
-	default:
-		return int16(size) //nolint:gosec // bounds checked above
-	}
-}
-
 // RenderedGlyph represents a glyph that has been converted to a path.
 type RenderedGlyph struct {
 	// Path is the vector path representing the glyph outline.
@@ -163,7 +152,7 @@ func (r *TextRenderer) RenderGlyph(glyph text.ShapedGlyph, face text.Face) (*Ren
 
 	cache := r.ensureCache()
 	fontID := computeSceneTextFontID(source)
-	sizeKey := computeSizeKey(size)
+	sizeKey := text.FixedSize(size)
 
 	cacheKey := text.OutlineCacheKey{
 		FontID:  fontID,
@@ -225,7 +214,7 @@ func (r *TextRenderer) RenderGlyphs(glyphs []text.ShapedGlyph, face text.Face) (
 
 	cache := r.ensureCache()
 	fontID := computeSceneTextFontID(source)
-	sizeKey := computeSizeKey(size)
+	sizeKey := text.FixedSize(size)
 
 	// Render all glyphs
 	rendered := make([]*RenderedGlyph, len(glyphs))

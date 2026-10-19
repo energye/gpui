@@ -50,8 +50,8 @@ func (c *Context) Fill() error {
 // The RasterizerMode set via SetRasterizerMode controls algorithm selection.
 // Returns an error if the rendering operation fails.
 func (c *Context) Stroke() error {
-
-	c.trackDamage(c.path.Bounds())
+	// Damage is tracked inside doStroke from the stroked outline: line width,
+	// caps, joins (miter spikes) and dashes paint outside the path bounds.
 	err := c.doStroke()
 	c.path.Clear()
 	return err
@@ -396,6 +396,11 @@ func (c *Context) doStroke() error {
 		c.paint.TransformScale = origScale
 		if ok {
 			// Batched with fills until PresentFrame / Image / SavePNG.
+			// The GPU path expands with the same paint state but does not
+			// build a path; expand once here for the damage bounds.
+			if c.damageTrackingEnabled {
+				c.trackStrokeOutlineDamage(c.expandStrokeToPathSpace())
+			}
 			return nil
 		}
 	} else if c.gpuPathAvailable() && (forceCPUClip || userSpaceStroke) {
@@ -410,6 +415,7 @@ func (c *Context) doStroke() error {
 	if outline == nil || outline.NumVerbs() == 0 {
 		return nil
 	}
+	c.trackStrokeOutlineDamage(outline)
 
 	origPath := c.path
 	origRule := c.paint.FillRule

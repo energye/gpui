@@ -163,7 +163,7 @@ func (b *GlyphRunBuilder) Build(createGlyph func(fontID uint64, glyphID GlyphID,
 		key := OutlineCacheKey{
 			FontID:  inst.FontID,
 			GID:     inst.GlyphID,
-			Size:    sizeToInt16(float64(inst.Size)),
+			Size:    FixedSize(float64(inst.Size)),
 			Hinting: HintingNone,
 		}
 
@@ -221,7 +221,7 @@ func (b *GlyphRunBuilder) BuildTransformed(
 		key := OutlineCacheKey{
 			FontID:  inst.FontID,
 			GID:     inst.GlyphID,
-			Size:    sizeToInt16(float64(inst.Size)),
+			Size:    FixedSize(float64(inst.Size)),
 			Hinting: HintingNone,
 		}
 

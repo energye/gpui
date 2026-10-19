@@ -46,9 +46,11 @@ type OutlineCacheKey struct {
 	// GID is the glyph index within the font.
 	GID GlyphID
 
-	// Size is the font size in ppem (pixels per em).
-	// We use int16 for efficiency; sizes above 32K are rare.
-	Size int16
+	// Size is the font size in ppem (pixels per em), quantized to 26.6 fixed
+	// point (Skia's SkScalar cache-key convention). Convert with [FixedSize].
+	// The old int16 ppem key truncated fractional sizes — faces at 20.2 and
+	// 20.8 shared one cached outline (2026-10-19).
+	Size int32
 
 	// Hinting indicates the hinting mode used.
 	Hinting Hinting
@@ -57,6 +59,22 @@ type OutlineCacheKey struct {
 	// Zero means no variations (static font or default instance).
 	// Computed via [VariationHash].
 	VariationHash uint64
+}
+
+// FixedSize converts a ppem size to the 26.6 fixed-point value stored in
+// OutlineCacheKey.Size. Negative sizes clamp to 0. Quantizing to 1/64 px keeps
+// fractional sizes distinct; the previous int16 ppem truncation made faces at
+// 20.2 and 20.8 share one cached outline (Skia uses the same 26.6 convention
+// for glyph-cache keys).
+func FixedSize(size float64) int32 {
+	if size <= 0 {
+		return 0
+	}
+	const maxSize = float64(1<<25 - 1) // ×64 still fits int32
+	if size > maxSize {
+		size = maxSize
+	}
+	return int32(math.Round(size * 64))
 }
 
 // VariationHash computes an FNV-1a hash of font variation settings.

@@ -311,7 +311,8 @@ func (c *Context) StrokeString(s string, x, y float64) {
 
 	// User matrix only — doStroke() applies deviceMatrix via deviceSpacePath().
 	transformedPath := path.Transform(c.matrix)
-	c.trackDamage(transformedPath.Bounds())
+	// Damage is tracked inside doStroke from the stroked outline (caps/joins
+	// and half the line width paint outside the glyph outline bounds).
 
 	// Set GPU scissor rect for rectangular clips.
 	defer c.setGPUClipRect()()

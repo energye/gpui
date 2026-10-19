@@ -132,7 +132,7 @@ func (r *GlyphRenderer) RenderGlyph(
 	key := OutlineCacheKey{
 		FontID:  fontID,
 		GID:     glyph.GID,
-		Size:    sizeToInt16(size),
+		Size:    FixedSize(size),
 		Hinting: HintingNone,
 	}
 
@@ -294,18 +294,6 @@ func computeFontID(font ParsedFont) uint64 {
 	hash *= fnvPrime
 
 	return hash
-}
-
-// sizeToInt16 converts a float64 size to int16 for cache key.
-// Sizes are clamped to the valid int16 range.
-func sizeToInt16(size float64) int16 {
-	if size < 0 {
-		size = 0
-	}
-	if size > 32767 {
-		size = 32767
-	}
-	return int16(size) //#nosec G115 -- bounds checked above
 }
 
 // clampOpacity clamps opacity to [0, 1] range.

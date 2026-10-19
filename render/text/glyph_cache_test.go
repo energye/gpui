@@ -590,7 +590,7 @@ func TestGlyphCache_ShardCapacity(t *testing.T) {
 
 	const n = maxEntries * 200
 	for i := 0; i < n; i++ {
-		key := OutlineCacheKey{FontID: uint64(i%7) + 1, GID: GlyphID(i % 1000), Size: int16(i % 5)}
+		key := OutlineCacheKey{FontID: uint64(i%7) + 1, GID: GlyphID(i % 1000), Size: int32(i % 5)}
 		cache.Set(key, &GlyphOutline{GID: GlyphID(i)})
 	}
 

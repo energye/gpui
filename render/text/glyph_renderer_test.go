@@ -282,25 +282,28 @@ func TestComputeFontID(t *testing.T) {
 	}
 }
 
-func TestSizeToInt16(t *testing.T) {
+func TestFixedSize(t *testing.T) {
 	tests := []struct {
 		name   string
 		input  float64
-		expect int16
+		expect int32
 	}{
-		{"normal size", 16.0, 16},
-		{"fractional size", 16.5, 16},
+		{"normal size", 16.0, 1024},
+		{"fractional kept", 16.5, 1056},
+		{"small fraction rounds", 16.2, 1037},
+		{"nearby fractions stay distinct", 20.2, 1293},
+		{"nearby fraction b", 20.8, 1331},
 		{"zero", 0, 0},
 		{"negative clamped", -5, 0},
-		{"large clamped", 50000, 32767},
-		{"max", 32767, 32767},
+		{"large kept", 50000, 3200000},
+		{"huge clamped", 1e9, 2147483584},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sizeToInt16(tt.input)
+			result := FixedSize(tt.input)
 			if result != tt.expect {
-				t.Errorf("sizeToInt16(%f) = %d, expected %d", tt.input, result, tt.expect)
+				t.Errorf("FixedSize(%f) = %d, expected %d", tt.input, result, tt.expect)
 			}
 		})
 	}

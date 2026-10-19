@@ -180,6 +180,39 @@ func (c *Context) trackDamage(bounds image.Rectangle) {
 	c.noteLayerDamage(bounds)
 }
 
+// trackStrokeOutlineDamage records damage for a stroked outline produced by
+// expandStrokeToPathSpace (path storage space: user CTM applied, device scale
+// not yet). Damage must cover the stroked outline — not the path bounds —
+// because half the line width, caps, join geometry (miter spikes) and the dash
+// pattern paint outside the path. Damage-tight layer composites blit only
+// damage+pad, so under-reporting clipped a thick stroke's outer edge (Skia
+// uses SkStrokeRec::applyToPath bounds here; 2026-10-19).
+//
+// The outline is mapped back to a user-space AABB through the inverse CTM
+// (conservative under rotation/shear) so trackDamage keeps its user-space
+// contract of scaling by deviceScale.
+func (c *Context) trackStrokeOutlineDamage(outline *Path) {
+	if c == nil || outline == nil || !c.damageTrackingEnabled {
+		return
+	}
+	b := outline.Bounds()
+	if b.Empty() {
+		return
+	}
+	inv := Identity()
+	if !c.matrix.IsIdentity() {
+		inv = c.matrix.Invert()
+	}
+	p0 := inv.TransformPoint(Point{X: float64(b.Min.X), Y: float64(b.Min.Y)})
+	p1 := inv.TransformPoint(Point{X: float64(b.Max.X), Y: float64(b.Max.Y)})
+	c.trackDamage(image.Rect(
+		int(math.Floor(math.Min(p0.X, p1.X))),
+		int(math.Floor(math.Min(p0.Y, p1.Y))),
+		int(math.Ceil(math.Max(p0.X, p1.X))),
+		int(math.Ceil(math.Max(p0.Y, p1.Y))),
+	))
+}
+
 // FillRectCPU fills a rectangle directly on the CPU pixmap without engaging
 // the GPU SDF accelerator. Coordinates are in user space (device scale applied
 // automatically). Pending GPU shapes are flushed first for correct z-ordering.

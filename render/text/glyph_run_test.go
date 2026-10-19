@@ -223,7 +223,7 @@ func TestGlyphRunBuilder_Build_CacheHit(t *testing.T) {
 	builder := NewGlyphRunBuilder(cache)
 
 	// Pre-populate cache
-	key := OutlineCacheKey{FontID: 1, GID: 42, Size: 16, Hinting: HintingNone}
+	key := OutlineCacheKey{FontID: 1, GID: 42, Size: FixedSize(16), Hinting: HintingNone}
 	outline := &GlyphOutline{
 		Segments: []OutlineSegment{
 			{Op: OutlineOpMoveTo, Points: [3]OutlinePoint{{X: 0, Y: 0}}},
@@ -254,7 +254,7 @@ func TestGlyphRunBuilder_Build_NilCreate(t *testing.T) {
 	builder := NewGlyphRunBuilder(cache)
 
 	// Pre-populate cache with one outline
-	key := OutlineCacheKey{FontID: 1, GID: 42, Size: 16, Hinting: HintingNone}
+	key := OutlineCacheKey{FontID: 1, GID: 42, Size: FixedSize(16), Hinting: HintingNone}
 	outline := &GlyphOutline{
 		Segments: []OutlineSegment{
 			{Op: OutlineOpMoveTo, Points: [3]OutlinePoint{{X: 0, Y: 0}}},

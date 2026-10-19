@@ -347,7 +347,7 @@ func BenchmarkConcurrentCacheAccess(b *testing.B) {
 
 	// Pre-populate cache
 	for i := 0; i < 1000; i++ {
-		key := OutlineCacheKey{FontID: 1, GID: GlyphID(i % 256), Size: int16(12 + i%10), Hinting: HintingNone}
+		key := OutlineCacheKey{FontID: 1, GID: GlyphID(i % 256), Size: int32(12 + i%10), Hinting: HintingNone}
 		cache.Set(key, createSampleOutline())
 	}
 
@@ -355,7 +355,7 @@ func BenchmarkConcurrentCacheAccess(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
-			key := OutlineCacheKey{FontID: 1, GID: GlyphID(i % 256), Size: int16(12 + i%10), Hinting: HintingNone}
+			key := OutlineCacheKey{FontID: 1, GID: GlyphID(i % 256), Size: int32(12 + i%10), Hinting: HintingNone}
 			_ = cache.Get(key)
 			i++
 		}
