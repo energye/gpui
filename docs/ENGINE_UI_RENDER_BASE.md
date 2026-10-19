@@ -776,6 +776,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | `ui_render_base_image` | 9 | 图/异步/RSS |
 | `ui_render_base_cliplayer` | 7–8 | Clip/Transform |
 | `ui_render_base_pathlow` | A 组#1 | 路径低频三 API（FillPreserve/StrokePreserve/GetCurrentPoint）+ 像素/Golden |
+| `ui_render_base_pathshape` | A 组#2 | 路径造型三 API（Trim/WithCorners/Discrete）+ 像素/Golden |
 | `ui_l1_scroll` | 12 | 滚动/虚拟列表 |
 | `ui_render_base_perfsoak` | 每项建议 | §20 回归 |
 

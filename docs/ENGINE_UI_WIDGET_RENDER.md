@@ -682,6 +682,7 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 
 | API目录同步 | **布尔几何重写（2026-10-19，`render/path_boolean.go`）**：`BooleanPath`/`Path.Op` 由逐像素采样改为 Clipper 扫描线（Vatti）精确几何布尔（新增依赖 `github.com/ctessum/go.clipper v0.1.2`，BSL-1.0 纯 Go、运行期零传递依赖）；曲线按 0.1px 展平、坐标 ×1024 定标（精度 1/1024px）、±1e6px 钳位、删掉 2048px 静默截断；方框减孔 800 轮廓/4000 verbs → 2 轮廓/10 verbs，op 48.3ms → 9µs（两圆并集 379ms → 100µs）；输出方向 NonZero/EvenOdd 双规则渲染一致。公开签名未变，状态仍 🧪 仅测试（新增 `render/path_boolean_test.go` 8 组值级 + 2 基准；`TestS3c_M3_PathBooleanDifference/Intersect` 绿）；`RENDER_API_CATALOG.md` §2/§7.2 与 `RENDER_FEATURE_COVERAGE.md` §1/§3.3/§6/§11 已同步；**真窗仍待建**（实现侧已具备建窗条件）。 |
+| API目录同步 | **路径造型 `Discrete` 行为修正（2026-10-19，`render/pathops_subpath.go`；同一提交含真窗 `ui_render_base_pathshape`）**：实测与自身文档注释不符两处——① 偏移方向：取号用 `step%2`，而 `emitOn`/`step` 每 chunk 同步翻转（画出的 chunk 永远落在奇数 step）→ 画出的段**恒单侧 −deviation**（探针实证：水平线 `Discrete(22,7)` 14 个顶点 y 全为 −7）；② 虚线周期：注释「~segLen/2 drawn then gap」（周期 = segLen），实测「画 segLen、空 segLen」（周期 2×segLen）。按注释 + Skia `SkDiscretePathEffect` 按 `segLength` 切段口径修正（chunk 改 segLen/2、前半画后半空；偏移号改按「已画 chunk 序号」交替），公开签名未变、非测试消费者仍为 0（两个绘制性测试引用只断言「有墨迹 / GPUOps>0」，不受影响）。新增 `render/pathops_subpath_test.go` 值级契约 3 项（Trim 子段契约 / WithCorners 六角+开放端点+r0+夹紧 / Discrete 周期占空+两侧交替+确定性+退化输入）绿；回归 `TestP1_Capability_E02_PathEffectsGPU`、`TestP1_U1_VectorDesignToolDensity` 绿。配套真窗三证据：逻辑 14/14、像素 11/11、golden 627200px 逐位零差。`RENDER_API_CATALOG.md` §2 描述措辞（「随机点化」→ 确定性 ± 交替切段）、`RENDER_FEATURE_COVERAGE.md` §1 #4/§3.1/§11 同步。 |
 
 ---
 

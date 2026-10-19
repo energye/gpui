@@ -489,12 +489,16 @@ func (p *Path) WithCorners(radius float64) *Path {
 
 // Discrete returns a path of short line segments sampled along p at approximately
 // segLen spacing, with optional perpendicular deviation (E.02 DiscretePathEffect / 1D–2D).
-// deviation == 0 yields a dashed polyline of segment length ~segLen/2 drawn then gap.
-// When deviation != 0, sample points are offset perpendicularly by ±deviation (deterministic).
+// One period is segLen: its first half is drawn, the second half is a gap, so
+// deviation == 0 yields a dashed polyline of ~segLen/2 drawn then gap.
+// When deviation != 0, sample points are offset perpendicularly by ±deviation
+// (deterministic, sides alternating per drawn piece).
 // Discrete returns a path of short line segments sampled along p at approximately
 // segLen spacing, with optional perpendicular deviation (E.02 DiscretePathEffect / 1D–2D).
-// deviation == 0 yields a dashed polyline of segment length ~segLen/2 drawn then gap.
-// When deviation != 0, sample points are offset perpendicularly by ±deviation (deterministic).
+// One period is segLen: its first half is drawn, the second half is a gap, so
+// deviation == 0 yields a dashed polyline of ~segLen/2 drawn then gap.
+// When deviation != 0, sample points are offset perpendicularly by ±deviation
+// (deterministic, sides alternating per drawn piece).
 func (p *Path) Discrete(segLen, deviation float64) *Path {
 	out := NewPath()
 	if p == nil || len(p.verbs) == 0 {
@@ -507,12 +511,13 @@ func (p *Path) Discrete(segLen, deviation float64) *Path {
 	if len(pts) < 2 {
 		return out
 	}
-	// Walk cumulative length and emit short segments
+	// Walk cumulative length and emit short segments; chunk is half a period.
+	chunk := segLen / 2
 	var acc float64
-	var emitOn bool
+	emitOn := true
 	var last Point
 	started := false
-	step := 0
+	drawnChunks := 0
 	for i := 0; i < len(pts)-1; i++ {
 		a, b := pts[i], pts[i+1]
 		dx, dy := b.X-a.X, b.Y-a.Y
@@ -525,12 +530,7 @@ func (p *Path) Discrete(segLen, deviation float64) *Path {
 		px, py := -uy, ux
 		pos := 0.0
 		for pos < seg {
-			remain := segLen - acc
-			if remain <= 1e-9 {
-				acc = 0
-				emitOn = !emitOn
-				remain = segLen
-			}
+			remain := chunk - acc
 			take := remain
 			if take > seg-pos {
 				take = seg - pos
@@ -540,9 +540,10 @@ func (p *Path) Discrete(segLen, deviation float64) *Path {
 			x1 := a.X + ux*(pos+take)
 			y1 := a.Y + uy*(pos+take)
 			if deviation != 0 {
-				// deterministic alternate lateral offset
+				// Deterministic two-sided jitter: the perpendicular offset
+				// alternates sides per drawn piece (±deviation).
 				s := 1.0
-				if step%2 == 1 {
+				if drawnChunks%2 == 1 {
 					s = -1
 				}
 				x0 += px * deviation * s
@@ -565,10 +566,12 @@ func (p *Path) Discrete(segLen, deviation float64) *Path {
 			}
 			acc += take
 			pos += take
-			if acc >= segLen-1e-9 {
+			if acc >= chunk-1e-9 {
 				acc = 0
+				if emitOn {
+					drawnChunks++
+				}
 				emitOn = !emitOn
-				step++
 			}
 		}
 	}
