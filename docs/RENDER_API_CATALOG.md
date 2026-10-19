@@ -69,7 +69,7 @@
 | `ApplyDash(p, dash)` | 把虚线序列应用到路径、生成带实线段的虚线化路径（描边内部用） | 路径虚线化 | 🔗 software/GPU 两腿都用 |
 | `Dash` + `NewDash(lengths...)` | 虚线间隔序列对象（等长或成对交替） | 虚线序列 | 🔗 |
 | `ParseSVGPath(d) (*Path, error)` | 解析 SVG path 数据串为 Path（`M/L/C/Q/A…`） | 字符串→路径 | 🔌（svg 包内部用，svg 包本身无消费者） |
-| `PathBooleanOp`（Union/Intersect/Difference/Xor）+ `BooleanPath(a,b,op)` / `Path.Op` | 路径布尔并/交/差/异或。**实现为逐像素采样近似**：按整数网格采样 `Winding()` 后拼合像素级矩形（path_boolean.go:70-100），区域 >2048px 静默截断（:62-68），输出高度碎片化（480×480 减 320×320 约 4000 verbs）；差集挖洞曾判为布尔实现失效，2026-10-19 定位为 CPU tile 栅格器缺陷并修复（`TestS3c_M3_PathBooleanDifference` 已转绿）；扫描线重写列入修复计划第四批 | 路径布尔运算（近似） | 🧪 仅测试 |
+| `PathBooleanOp`（Union/Intersect/Difference/Xor）+ `BooleanPath(a,b,op)` / `Path.Op` | 路径布尔并/交/差/异或。**2026-10-19 重写为 Clipper 扫描线（Vatti）精确几何布尔**：曲线按 0.1px 展平 → `github.com/ctessum/go.clipper v0.1.2`（BSL-1.0、纯 Go、运行期零传递依赖）NonZero/NonZero → 轮廓回写 Path；坐标 ×1024 定标（精度 1/1024px）、±1e6px 钳位、**删掉 2048px 静默截断**；方框减孔 800 轮廓/4000 verbs → **2 轮廓/10 verbs**，op 48.3ms → **9µs**（两圆并集 379ms → 100µs）；输出方向同时满足 NonZero/EvenOdd 填充。差集挖洞曾判为布尔实现失效，2026-10-19 定位为 CPU tile 栅格器缺陷并修复（`TestS3c_M3_PathBooleanDifference` 绿） | 路径布尔运算（精确几何） | 🧪 仅测试 |
 | `PathMetric`（IsEmpty/Length/PositionAt/TangentAt 等）+ `Path.ComputeMetrics` | 对路径做度量：总长、某弧长处取点/切线 | 路径度量 | 🔗 |
 | Path 造型：`Trim` / `WithCorners` / `Discrete` / `Flatten` / `Reversed` / `Area` / `Winding` / `Contains` / `BoundingBox` | Flatten 细分为折线/多边形；Area/Winding/Contains/BoundingBox 查询；Trim(子段)/WithCorners(圆角化)/Discrete(随机点化) 高级造型 | 造型与查询 | 前四项内部用；**Trim/WithCorners/Discrete 🔌 仅测试** |
 
@@ -341,7 +341,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `render/surface` 整包（surface 抽象+注册表） | 全仓无 import；与 render.Context 的集成未落地 |
 | `render/recording` 整包（录制回放） | 仅测试/示例；PDF/SVG 后端仓外 |
 | `render/raster` 独立注册入口 | 功能并入 render/gpu |
-| 路径布尔 `BooleanPath/PathOp*` | 仅测试（s3c_m3_residual_gate_test） |
+| 路径布尔 `BooleanPath/PathOp*` | 仅测试（s3c_m3_residual_gate_test 门禁 + path_boolean_test 值级；2026-10-19 重写为 Clipper 扫描线） |
 | 裁剪运算 `ClipOpDifference/Replace`（ClipRectOp/ClipPathOp） | 仅测试（p12_clip_mask_gpu_test） |
 | Path 高级造型 `Trim/WithCorners/Discrete` | 仅测试 |
 | `SetDither`（m4_extensions） | 仅测试 |

@@ -212,7 +212,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FPath-FILLTYPE | fillType | Path.fillType | evenOdd 镂空 | — | SetFillRule | — | B | render | UI 未暴露 |
 | FPath-TRANSFORM | 路径变换 | Path.transform | 图标旋转缩放 | — | 矩阵作用于 path/CTM | — | B | — | — |
 | FPath-METRICS | 路径度量 | Path.computeMetrics | 虚线动画/沿路径字 | ComputePathMetrics / PathPositionAt / PathTangentAt | ComputeMetrics · TotalLength · PositionAt · TangentAt | — | **A** | path_metrics.go · path_metrics_test | 每轮廓；Close 计入；conic 仍无；非全量 getSegment |
-| FPath-COMBINE | 路径布尔 | Path.combine/op | 镂空合并 | — | Path.Op 布尔 | — | B | path_boolean.go | — |
+| FPath-COMBINE | 路径布尔 | Path.combine/op | 镂空合并 | — | Path.Op 布尔 | — | B | path_boolean.go | Clipper 扫描线（2026-10-19 重写）：精确几何 / 2 轮廓 10 verbs / 无截断；真窗待建 |
 | FPath-BOUNDS | 包围盒 | Path.getBounds | layout/damage | — | Bounds() | — | B | path.go | — |
 | FPath-RESET | reset/clear | Path.reset | 复用 path | — | Clear/Reset | — | B | path.go | — |
 

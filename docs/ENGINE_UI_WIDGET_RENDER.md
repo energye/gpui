@@ -681,6 +681,8 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 | 多窗卡顿 Q3 纹理准入（2026-10-04，未提交） | **持续脏层不再每帧录纹理（`ui/scene/textured.go`，对齐 Flutter RasterCache access_threshold=3：`DisplayListRasterCacheItem::PrerollFinalize` 连续可见超 3 次才缓存，否则直接画）：`stable/churn` 双计数（liveKeys  sweeping，BeginFrame 重置 refused），首脏照录（一拍波形保留，R10/R11 波形门禁不受影响），连脏拒收（逐出旧条目防 stale-blit + 当期损伤，LoadOpLoad 安全），静满 4 帧重建。偏离字面标准的诚实声明：Flutter 门槛统一，本实现一次脏照录（R3/R10/R11/C2/C7 门禁要求脏层重录可观测，全是小区域，准入只动持续脏的纹理路径）。验证——新单测 5 项绿（阈值/逐出损伤/sweep/连脏拒收/静满准入）；`ui/scene` 整包 + `ui/rendering`（299 项，计时抖动 `TestKeystrokeRatio_M5`/`TestCaretBuild_NoQuadratic` 干净树同红，静置重跑绿）+ `ui/embedder` 绿；鹈鹕单窗重录 722→7、光栅 7.4→2.4ms、p95 18.4→17.4；三窗 A/B（同树藏文件对照）主窗 44.3→47.6fps、Flush 4.0→2.2ms、重录 694→个位；R3/R11/C2/C7 重跑全绿（R3 rr=247、C2 fps=60.0、R11/C7 波形门禁全过）；C4 像素逐行一致（仅滚动采样点相位差）、光栅 8.9→1.7ms、重录 4910→500、静态贴回 23 万保留。存量红归位（非本线，不改状态）：C4 Golden 静态掩码 11.1026%（对照组逐位相同，核显基线漂移，归 C4 线）；R10 按批重录 HEAD 同挂 rr_violations=3（归 R10 线，准入跑该门禁反而 0 违例）；R10 内存斜率 23k–59k 全配置抖动（对照组自挂 38k，稳态内存只差 8MB/280MB，归 R10 线重定基线）。** |
 
 
+| API目录同步 | **布尔几何重写（2026-10-19，`render/path_boolean.go`）**：`BooleanPath`/`Path.Op` 由逐像素采样改为 Clipper 扫描线（Vatti）精确几何布尔（新增依赖 `github.com/ctessum/go.clipper v0.1.2`，BSL-1.0 纯 Go、运行期零传递依赖）；曲线按 0.1px 展平、坐标 ×1024 定标（精度 1/1024px）、±1e6px 钳位、删掉 2048px 静默截断；方框减孔 800 轮廓/4000 verbs → 2 轮廓/10 verbs，op 48.3ms → 9µs（两圆并集 379ms → 100µs）；输出方向 NonZero/EvenOdd 双规则渲染一致。公开签名未变，状态仍 🧪 仅测试（新增 `render/path_boolean_test.go` 8 组值级 + 2 基准；`TestS3c_M3_PathBooleanDifference/Intersect` 绿）；`RENDER_API_CATALOG.md` §2/§7.2 与 `RENDER_FEATURE_COVERAGE.md` §1/§3.3/§6/§11 已同步；**真窗仍待建**（实现侧已具备建窗条件）。 |
+
 ---
 
 ## 11. 一句话

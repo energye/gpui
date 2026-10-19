@@ -28,7 +28,7 @@
 | 2 | 路径构建（常用） | MoveTo/LineTo/QuadraticTo/CubicTo/ClosePath/AddRect/AddRRect/AddOval/ArcTo | 17 个真窗直用：engine/{anim,camera,step,world}、ui_render_base_geometry、ui_render_graphics/*、kit_f0_*、ui_textinput_ime、ui_wr_* 等 | ✅ | |
 | 3 | 路径低频 | AppendPath/FillPreserve/StrokePreserve/GetCurrentPoint/ClearPath | 间接：ui/rendering/paint_context.go:154-155（ClearPath/AppendPath）；其余三 API 全仓零调用 | 🔁 | 直调真窗 0 |
 | 4 | 路径造型 | Trim/WithCorners/Discrete | 无（video_player:1126 命中系 strings.Trim 噪音）；全仓非测试零调用 | ⛔ | |
-| 5 | 布尔路径 | BooleanPath/Path.Op | 无消费者；差集测试 2026-10-18 实跑 FAIL：`s3c_m3_residual_gate_test.go:242: difference hole expected light, got 255,0,0` | ⛔ | 逐像素近似，先修后窗 |
+| 5 | 布尔路径 | BooleanPath/Path.Op | 无消费者（仅单测：`s3c_m3_residual_gate_test` 门禁 + `path_boolean_test` 值级）；差集门禁 2026-10-19 绿 | ⛔ | 2026-10-19 已重写为 Clipper 扫描线（精确几何 / 2 轮廓 10 verbs / 无截断），待建真窗 |
 | 6 | 填充/描边/线型 | Fill/Stroke/SetLineWidth/LineCap/LineJoin/AntiAlias | 37 个真窗直用（同 #1 组） | ✅ | |
 | 7 | 描边预设族 | DefaultStroke/Thin/Thick/Bold/Round/Square/Dashed/Dotted/WithDash* | 无（全仓非测试零调用） | ⛔ | |
 | 8 | 渐变（线/径） | FillLinearGradient/FillRadialGradient/New{Linear,Radial}GradientBrush | 直用 6 窗：ui_l1_render_matrix、ui_render_base_geometry、ui_render_graphics/vector、ui_render_jumprope、ui_render_particle、ui_render_pelican（径向 3 窗） | ✅ | |
@@ -110,7 +110,7 @@
 
 ### 3.3 C 组：先修实现/先定案，再建窗
 
-- 布尔路径（差集红测 2026-10-18 实跑 FAIL：`s3c_m3_residual_gate_test.go:242 difference hole expected light, got 255,0,0`；2026-10-19 定位为 CPU tile 栅格器缺陷（非布尔实现）并修复，该红测已转绿 — 见 §11 修订表）——**仍待建窗**：布尔实现本身是采样近似（输出碎片化），"先重写布尔几何再建窗"列为下一步
+- 布尔路径（差集红测 2026-10-18 实跑 FAIL：`s3c_m3_residual_gate_test.go:242 difference hole expected light, got 255,0,0`；2026-10-19 定位为 CPU tile 栅格器缺陷（非布尔实现）并修复，该红测已转绿 — 见 §11 修订表）——**仍待建窗**：「先重写布尔几何再建窗」已于 2026-10-19 完成（Clipper 扫描线：精确几何、2 轮廓/10 verbs、op 48.3ms→9µs、无 2048 截断），实现侧已具备建窗条件，列入下一步
 - clip 差集/绕向、MSAA 中帧 UB、rrect 裁剪恒 1.0、增量呈现断头（见 §6）
 - svg / surface / raster 整包：零消费者 —— 先定「接入还是废弃」
 - DrawImageQuad 死导出：先定「删签名还是补窗」
@@ -142,8 +142,8 @@
 
 | 项 | 现象 | 出处 |
 |---|---|---|
-| **布尔路径差集** | **2026-10-18 实跑 FAIL：difference hole expected light, got 255,0,0** | `render/s3c_m3_residual_gate_test.go:242` |
-| 路径布尔 | 「逐像素近似」、>2048px 静默截断 | RV5:24、CAT §7.2-5 |
+| **布尔路径差集** | ~~2026-10-18 实跑 FAIL：difference hole expected light, got 255,0,0~~ → 2026-10-19 定位为 CPU tile 栅格器缺陷并修复（门禁绿） | `render/s3c_m3_residual_gate_test.go:242` |
+| 路径布尔 | ~~「逐像素近似」、>2048px 静默截断~~ → 2026-10-19 重写为 Clipper 扫描线（精确几何 / 2 轮廓 10 verbs / 无截断） | RV5:24、CAT §7.2-5 |
 | clip 差集/绕向 | even-odd 配对待补 | RV5:31 |
 | 4x MSAA | 中帧 LoadOpLoad 读已 Discard 内存（UB） | RV7:40 |
 | Auto 管线选择 | 死逻辑（ClipDepth/OverlapFactor 生产不填） | RV7:73 |
@@ -197,3 +197,4 @@
 | 2026-10-18 | v1 落档：三路只读审计合成（基线 `4734888b`） |
 | 2026-10-18 | **v2：§1/§2 按源码逐项复核真窗覆盖（131 真窗 / 28 离屏）；新增 §3 缺真窗清单；布尔差集红测实跑确认 FAIL；发现 `render_*` 家族不产真窗** |
 | 2026-10-19 | **CPU tile 栅格器修复（引擎内部，不开真窗；验收=探针+值级金样+逐文件回归+性能门禁+布尔门禁）**：三处根因 = ①`NewLineSegment` 归一化取反破坏方向语义 ②Sparse 4x4 winding 公式错 ③flatten 丢水平边导致 Tile16（vello 移植）缺承重 winding 载体。修法：方向符号统一对齐 vello（上+1/下-1，`down=-1`）、Sparse `CalculateBackdrop` 改 per-pixel-row、fine 反导数精确积分重写（`accumulateSegmentWinding`/`windingCoverage`）、flatten/`AddLine` 保留水平边、coarse 跳过近水平段（`coarseHorizontalEpsilon`，挡布尔输出的 1e-7 斜率碎片，条目 61730→1600）、`visited` 改复用位图。性能优化两轮：① backdrop 按形状 Y 跨度裁剪+缓冲复用（1920×1080 小形状 0.44→0.035ms、数组 518400→28800；全屏 1.71→1.07ms）② Tile16 `fillPath` 不变量提升+按跨度行区间裁剪+常量行拆分与连续平扫 ③ Tile16 `pathTilingMain` 复用 `pathCountMain` 的 DDA 参数（vello 因 GPU 阶段隔离才在两段各算一遍，CPU 侧按线段缓存；tiling 1.57→0.53ms/帧）④ `Rasterize` 去冗余清零 + 结果拷贝提界。等价性：参考实现（HEAD 版 tiling/fillPath）逐位比对通过——tiling 的 tiles/segCounts/segments、fillPath 合成扫描 23322 段 × 2 填充规则 + 管线真实产出批次。产物：`render/rasterizer_tile_value_test.go`（Analytic 金样容差 8/255 + 手算精确面积像素：菱形 43/229、分数矩形 191/96）、`render/rasterizer_tile_bench_test.go`（20 项基准 = 5 形状 × 4 模式，含 FrameClean「同形状干净输入」对照）。结果：六例四路全对；`TestS3c_M3_PathBooleanDifference` 转绿；布尔差集形状在 Tile16 / Sparse / 干净同形状三方**逐位一致**（maxDiff 0/255）。性能对照 HEAD（3 轮两树交替取中位）：Tile16 Rect 0.94x / Diamond 0.75x / FrameClean 0.65x / ManyRects 0.86x / BooleanDiff 1.16x——该输入 HEAD 渲染错误（230400px 实心，孔洞丢失；正确 128000px），同形状干净输入 Tile16 为 0.65x，差额=1600 条水平边 + 1600 条短竖边的固有处理成本（输入碎片化由布尔几何重写消解）；Sparse BooleanDiff 0.62x / FrameClean 0.57x / ManyRects 0.83x / 简单形状 1.00–1.07x；Auto BooleanDiff 0.68x / ManyRects 0.79x；Analytic 全线 0.98–1.02x（未触及）。B/op：Sparse 线回落（BooleanDiff 540→249KB、FrameClean 407→132KB、Diamond 175→98KB）；Tile16 病态项 1.39→2.30MB（正确多处理 1600 条水平边的 tile segments + 每线段 DDA 缓存 230KB/次）。沉淀子项：`TileGrid` map+逐 tile 分配（简单矩形填充约 1 万 allocs/次）待优化、布尔几何扫描线重写（下一步） |
+| 2026-10-19 | **布尔几何重写（引擎内部实现，不开真窗；验收=值级测试 + s3c 门禁 + 栅格器基准确认病态消失）**：`BooleanPath`/`Path.Op` 由「逐像素采样拼矩形」改为 **Clipper 扫描线（Vatti）** —— 新增依赖 `github.com/ctessum/go.clipper v0.1.2`（BSL-1.0、纯 Go、运行期零传递依赖，`geom` 仅其测试用）；适配层 `render/path_boolean.go`：曲线按 0.1px 展平（复用 `flattenQuad`/`flattenCubic`）→ 坐标 ×1024 定标进 Clipper（NonZero/NonZero，语义与旧实现一致）→ 轮廓回写为 MoveTo/LineTo/Close；坐标钳位 ±1e6px，删掉 2048px 静默截断。结果：方框减孔 **800 轮廓/4000 verbs → 2 轮廓/10 verbs**；分数坐标交点精确（菱形∩框 5 顶点：5/5.75/15 等，旧实现量化到像素网格）；输出方向同时满足 NonZero 与 EvenOdd 渲染（嵌套带/孔/岛逐像素一致）。速度（同基准、HEAD 基线树 vs 当前树）：方框差集 48.3–49.8ms → **9.0–11.8µs**（约 4500×，内存 191KB → 3.7KB）；两圆并集 379–385ms → **100–141µs**（约 3000×）。语义覆盖（库对照实验钉死）：重叠子路径=并集面积、反向内环=挖孔、同心同向=实心、自相交蝴蝶结=两瓣都填、共边自动合并、退化/NaN/超大坐标不崩。产物 `render/path_boolean_test.go`（8 组值级测试 + 2 项基准）；`TestS3c_M3_PathBooleanDifference/Intersect` 绿；`TestRasterizerValueMatchesAnalytic/差集(布尔产物)` 两路 maxDiff 0。栅格器 20 项基准确认**病态消失**：Tile16 `BooleanDiff` 与同形状 `FrameClean` 由 1.16x/2.30MB 变为同输入同分配（4.22–4.43ms vs 4.00–4.24ms，均 11 allocs / 1.07MB）；Sparse 两项亦同（132KB / 4114 allocs）。取舍：布尔结果为折线（曲线按 0.1px 展平），Skia pathops 保曲线属另一量级工作，已记录。**真窗仍待建**（本项只关实现，不标 ✅） |
