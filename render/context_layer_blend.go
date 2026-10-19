@@ -46,6 +46,14 @@ func (c *Context) SetBlendMode(mode BlendMode) {
 // 60fps — full-surface SourceOver of 800x600 was ~50ms on Intel HD.
 func (c *Context) compositeLayer(layer *Layer, parent *Pixmap) {
 	r := image.Rect(0, 0, layer.pixmap.Width(), layer.pixmap.Height())
+	if layer.backdrop && layer.backdropBounded {
+		// Skia saveLayer bounds: the backdrop effect lands only inside the clip
+		// captured at push; outside keeps the parent's materialized content.
+		r = r.Intersect(layer.backdropBounds)
+		if r.Empty() {
+			return
+		}
+	}
 	if !layer.fullComposite && !layer.damage.Empty() {
 		// AA / filter soft edge pad (filters that expand bounds should mark fullComposite).
 		const pad = 2
@@ -171,6 +179,124 @@ func (c *Context) markLayerFullComposite() {
 		return
 	}
 	c.layerStack.layers[len(c.layerStack.layers)-1].fullComposite = true
+}
+
+// noteParentCompositeDamage unions a popped child's composite rect into the
+// enclosing isolation layer's damage. Without it a damage-limited parent
+// composite drops nested layer/texture content (nested backdrop inside a layer
+// that also drew vector art was clipped to the vector bounds).
+func (c *Context) noteParentCompositeDamage(rect image.Rectangle) {
+	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 || rect.Empty() {
+		return
+	}
+	top := c.layerStack.layers[len(c.layerStack.layers)-1]
+	if top == nil || top.opacityGroup || top.fullComposite {
+		return
+	}
+	top.damage = top.damage.Union(rect)
+}
+
+// markLayerBackdrop marks the current top layer as a backdrop snapshot layer.
+// bounds/bounded come from the clip active at push (Skia saveLayer bounds): the
+// filtered snapshot may only land inside them; the Pop blit itself stays
+// full-surface so the parent content outside the bounds is not blacked out.
+func (c *Context) markLayerBackdrop(bounds image.Rectangle, bounded bool) {
+	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		return
+	}
+	top := c.layerStack.layers[len(c.layerStack.layers)-1]
+	top.backdrop = true
+	top.backdropBounds = bounds
+	top.backdropBounded = bounded
+}
+
+// cropFilterOutputToLayerBounds restores the pixels outside a bounded backdrop
+// layer's clip after a filter ran over the whole layer content.
+//
+// Skia crops a saveLayer filter's output to the layer bounds; Flutter's
+// BackdropFilterLayer documents the same ("applied to all the area within its
+// parent or ancestor widget's clip"). The layer's outside-bounds pixels must
+// stay identical to the parent's, because the Pop composites the whole layer
+// texture (full-layer blit is what re-materializes the surface on windowed
+// present) — a blurred outside would bleed the effect over the parent.
+//
+// Call after the filter result landed in the layer pixmap and before the layer
+// RT is seeded from it.
+func (c *Context) cropFilterOutputToLayerBounds() {
+	if c == nil || c.pixmap == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		return
+	}
+	layer := c.layerStack.layers[len(c.layerStack.layers)-1]
+	if layer == nil || !layer.backdrop || !layer.backdropBounded || layer.pixmap == nil {
+		return
+	}
+	if layer.pixmap != c.pixmap {
+		return // filter result must live in the active layer pixmap
+	}
+	parent := c.enclosingNonOpacityPixmap()
+	if parent == nil || parent == layer.pixmap {
+		return
+	}
+	w, h := layer.pixmap.Width(), layer.pixmap.Height()
+	if parent.Width() != w || parent.Height() != h {
+		return
+	}
+	b := layer.backdropBounds.Intersect(image.Rect(0, 0, w, h))
+	if b.Empty() {
+		return
+	}
+	lp := layer.pixmap.Data()
+	pp := parent.Data()
+	if len(lp) < w*h*4 || len(pp) < w*h*4 {
+		return
+	}
+	row := w * 4
+	// Full-width bands above and below the bounds.
+	copyRows := func(y0, y1 int) {
+		if y0 < 0 {
+			y0 = 0
+		}
+		if y1 > h {
+			y1 = h
+		}
+		for y := y0; y < y1; y++ {
+			o := y * row
+			copy(lp[o:o+row], pp[o:o+row])
+		}
+	}
+	copyRows(0, b.Min.Y)
+	copyRows(b.Max.Y, h)
+	// Left and right strips inside the bounds rows.
+	left := b.Min.X * 4
+	right := b.Max.X * 4
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		o := y * row
+		if left > 0 {
+			copy(lp[o:o+left], pp[o:o+left])
+		}
+		if right < row {
+			copy(lp[o+right:o+row], pp[o+right:o+row])
+		}
+	}
+	layer.pixmap.NotifyPixelsChanged()
+}
+
+// enclosingNonOpacityPixmap walks past the top layer to the parent surface
+// pixmap (enclosing isolation layer, else the base pixmap recorded at push).
+func (c *Context) enclosingNonOpacityPixmap() *Pixmap {
+	if c == nil || c.layerStack == nil {
+		return nil
+	}
+	for i := len(c.layerStack.layers) - 2; i >= 0; i-- {
+		L := c.layerStack.layers[i]
+		if L == nil || L.opacityGroup {
+			continue
+		}
+		if L.pixmap != nil {
+			return L.pixmap
+		}
+	}
+	return c.basePixmap
 }
 
 // queueLayerAdvancedGPU defers advanced blend to Flush when a present View exists.
@@ -376,6 +502,14 @@ func (c *Context) seedTopLayerGPUFromPixmap() bool {
 	}
 	if err := vu.UploadRGBAToView(top.gpuView, top.pixmap.Data(), top.gpuW, top.gpuH); err != nil {
 		return false
+	}
+	// The upload lands outside a render pass; tell the session the view already
+	// has color content so its first pass loads instead of clearing the seed
+	// (Skia saveLayer-with-backdrop keeps the backdrop image).
+	if mk, ok := raw.(interface {
+		MarkViewSeeded(view gpucontext.TextureView)
+	}); ok && mk != nil {
+		mk.MarkViewSeeded(top.gpuView)
 	}
 	// GPU RT matches pixmap; allow GPU Pop composite again.
 	top.cpuDrew = false

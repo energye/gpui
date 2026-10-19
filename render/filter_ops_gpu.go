@@ -62,6 +62,10 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 		hasLayer := c.layerStack != nil && len(c.layerStack.layers) > 0
 		if hasLayer {
 			if c.materializeFilterGPU() {
+				// Skia crops a saveLayer filter's output to the layer bounds:
+				// restore the parent's pixels outside a bounded backdrop
+				// layer's clip before the RT follows the pixmap.
+				c.cropFilterOutputToLayerBounds()
 				if !c.seedTopLayerGPUFromPixmap() {
 					c.noteLayerCPUDraw()
 				}

@@ -60,6 +60,10 @@ func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
 	copy(src.Data(), dst.Data())
 	src.NotifyPixelsChanged()
 	filterPixmapPool.Put(dst)
+	// Skia crops a saveLayer filter's output to the layer bounds: keep a
+	// bounded backdrop layer's outside-bounds pixels equal to the parent's
+	// before the RT follows the pixmap (see cropFilterOutputToLayerBounds).
+	c.cropFilterOutputToLayerBounds()
 	// Layer RT must follow pixmap mutation (L.05 / filter on layer).
 	if !c.seedTopLayerGPUFromPixmap() {
 		c.noteLayerCPUDraw()

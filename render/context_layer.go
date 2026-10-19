@@ -32,6 +32,21 @@ type Layer struct {
 	damage image.Rectangle
 	// fullComposite forces a full-surface blend (backdrop snapshots, masks).
 	fullComposite bool
+	// backdrop marks a PushBackdropLayer isolation surface: it starts as a
+	// full-surface snapshot, so Pop must blit the whole surface even when a
+	// clip is active. The backdrop consumed the parent queue mid-frame; a
+	// clip-limited blit would leave everything outside the clip black on
+	// screen while the CPU snapshot still looked correct (Skia saveLayer
+	// with backdrop keeps the full backdrop image).
+	backdrop bool
+	// backdropBounds is the device-space clip rect captured at
+	// PushBackdropLayer — Skia's saveLayer bounds, which is also the cull rect
+	// Flutter BackdropFilterLayer documents ("paints everywhere in cull rect").
+	// The layer's filtered snapshot must only land inside it: outside keeps the
+	// parent's materialized content. bounded=false means no clip was active and
+	// the effect covers the full surface.
+	backdropBounds  image.Rectangle
+	backdropBounded bool
 
 	// opacityGroup (F1): Normal/Copy layers without mask skip isolation RT and
 	// multiply paint alpha into subsequent draws instead. Semantically equal for

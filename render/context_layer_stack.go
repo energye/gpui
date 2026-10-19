@@ -382,11 +382,13 @@ func (c *Context) PopLayer() {
 		}
 		// F1: damage-tight GPU composite — only blit the dirty UV rect instead
 		// of the full layer RT (800x600 full-surface was the MULTI_LAYER tax).
+		compositeRect := image.Rect(0, 0, layer.gpuW, layer.gpuH)
 		if !layer.fullComposite && !layer.damage.Empty() && layer.gpuW > 0 && layer.gpuH > 0 {
 			const pad = 2
 			d := layer.damage.Inset(-pad)
 			d = d.Intersect(image.Rect(0, 0, layer.gpuW, layer.gpuH))
 			if !d.Empty() {
+				compositeRect = d
 				c.DrawGPUTextureWithOpacityUV(layer.gpuView,
 					float64(d.Min.X), float64(d.Min.Y), d.Dx(), d.Dy(), op,
 					float32(d.Min.X)/float32(layer.gpuW),
@@ -396,8 +398,22 @@ func (c *Context) PopLayer() {
 				)
 			}
 		} else {
-			c.DrawGPUTextureWithOpacity(layer.gpuView, 0, 0, layer.gpuW, layer.gpuH, op)
+			if layer.backdrop {
+				// Full-layer blit on purpose (see PopLayer notes): the layer is
+				// seeded with the parent's materialized content and a windowed
+				// present replays only the tail once a mid-frame materialize
+				// happened, so the whole-layer blit is what restores the
+				// surface. For a bounded backdrop layer the outside-bounds
+				// pixels are kept equal to the parent's (Skia crops the
+				// saveLayer filter output to the layer bounds —
+				// cropFilterOutputToLayerBounds), so blitting the whole layer
+				// stays pixel-correct without blanking the parent.
+				c.drawGPUTextureWithOpacityFullSurface(layer.gpuView, 0, 0, layer.gpuW, layer.gpuH, op)
+			} else {
+				c.DrawGPUTextureWithOpacity(layer.gpuView, 0, 0, layer.gpuW, layer.gpuH, op)
+			}
 		}
+		c.noteParentCompositeDamage(compositeRect)
 		c.matrix = savedMat
 		c.deviceMatrix = savedDev
 		// Keep the texture alive until the composite command is flushed.
@@ -419,6 +435,11 @@ func (c *Context) PopLayer() {
 		}
 		layer.gpuView = gpucontext.TextureView{}
 		c.compositeLayer(layer, parentPixmap)
+		r := image.Rect(0, 0, layer.pixmap.Width(), layer.pixmap.Height())
+		if !layer.fullComposite && !layer.damage.Empty() {
+			r = layer.damage.Inset(-2).Intersect(r)
+		}
+		c.noteParentCompositeDamage(r)
 	} else {
 		// Masked GPU composite already queued (content lives in the queued
 		// draw); just drop any residual RT.

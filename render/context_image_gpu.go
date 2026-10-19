@@ -204,11 +204,39 @@ func (c *Context) DrawGPUTexture(view gpucontext.TextureView, x, y float64, widt
 // looked correct, masking the split). Skia saveLayer multiplies group alpha
 // into every draw record; same semantics here.
 func (c *Context) DrawGPUTextureWithOpacity(view gpucontext.TextureView, x, y float64, width, height int, opacity float32) {
+	c.drawGPUTextureWithOpacity(view, x, y, width, height, opacity, true)
+}
+
+// drawGPUTextureWithOpacityFullSurface is DrawGPUTextureWithOpacity without the
+// active clip. Backdrop layers are full-surface snapshots; their Pop blit must
+// restore the whole surface even when the layer's children were clipped.
+func (c *Context) drawGPUTextureWithOpacityFullSurface(view gpucontext.TextureView, x, y float64, width, height int, opacity float32) {
+	c.drawGPUTextureWithOpacity(view, x, y, width, height, opacity, false)
+}
+
+// copyGPUTextureToTarget composites src as a plain copy over the whole current
+// target, ignoring the active clip. Backdrop snapshots use it to mirror the
+// current device content (Skia saveLayer-with-backdrop reads the device, not a
+// CPU mirror): the enclosing opacity-group alpha is applied when that group
+// composites, so it must not be folded into the snapshot here.
+func (c *Context) copyGPUTextureToTarget(view gpucontext.TextureView, x, y float64, width, height int) {
 	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
 	if !ok {
 		return
 	}
-	defer c.setGPUClipRect()()
+	g.rc.QueueGPUTextureDrawQuad(g.target, view, g.dstX, g.dstY, g.dstW, g.dstH,
+		g.tlX, g.tlY, g.trX, g.trY, g.brX, g.brY, g.blX, g.blY, 1.0, g.vpW, g.vpH)
+	c.recordGPUOp()
+}
+
+func (c *Context) drawGPUTextureWithOpacity(view gpucontext.TextureView, x, y float64, width, height int, opacity float32, applyClip bool) {
+	g, ok := c.prepareGPUTextureDraw(view, x, y, width, height)
+	if !ok {
+		return
+	}
+	if applyClip {
+		defer c.setGPUClipRect()()
+	}
 	if mul := c.layerOpacityMul(); mul < 1 {
 		opacity *= float32(mul)
 	}

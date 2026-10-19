@@ -274,28 +274,51 @@ func (c *Context) PushBackdropLayer(blendMode BlendMode, opacity float64) {
 	if c == nil {
 		return
 	}
+	// Parent device before the push. Inside a layer the parent content lives on
+	// its GPU RT; its pixmap is an unseeded pooled buffer (stale), so the
+	// snapshot must copy RT→RT — Skia saveLayer-with-backdrop reads the current
+	// device pixels, and a stale mirror let the full-surface Pop blit cover the
+	// enclosing layer's real content (backdrop window: card D bands vanished).
+	parentView := c.gpuRenderTarget().View
 	// Ensure GPU content is resolved into the current pixmap before snapshot.
 	_ = c.FlushGPU()
 	c.applyDitherIfEnabled()
 
+	// Skia saveLayer bounds: the clip active at push limits where the filtered
+	// backdrop may land (Flutter BackdropFilterLayer paints "everywhere in cull
+	// rect"); outside it the parent content stays untouched.
+	backdropBounds, backdropBounded := c.clipDeviceBounds()
+
 	parent := c.pixmap
 	c.pushLayerSurface(blendMode, opacity, false, false)
-	if parent != nil && c.pixmap != nil {
-		dst := c.pixmap.Data()
-		src := parent.Data()
-		n := len(dst)
-		if len(src) < n {
-			n = len(src)
+	if !parentView.IsNil() && !c.gpuRenderTarget().View.IsNil() {
+		// RT→RT snapshot. Skipping the pixmap seed leaves the new RT on its
+		// first-pass clear, so this full-surface copy fully defines the layer.
+		savedMat := c.matrix
+		c.matrix = Identity()
+		c.copyGPUTextureToTarget(parentView, 0, 0, c.width, c.height)
+		c.matrix = savedMat
+	} else {
+		if parent != nil && c.pixmap != nil {
+			dst := c.pixmap.Data()
+			src := parent.Data()
+			n := len(dst)
+			if len(src) < n {
+				n = len(src)
+			}
+			copy(dst[:n], src[:n])
+			c.pixmap.NotifyPixelsChanged()
 		}
-		copy(dst[:n], src[:n])
-		c.pixmap.NotifyPixelsChanged()
+		// R1 L.05: seed layer GPU RT from snapshot so subsequent GPU draws composite
+		// over real backdrop content (not an empty RT).
+		seedOK := c.seedTopLayerGPUFromPixmap()
+		if !seedOK {
+			// If seed fails, mark CPU drew so Pop uses pixmap composite path.
+			c.noteLayerCPUDraw()
+		}
 	}
-	// R1 L.05: seed layer GPU RT from snapshot so subsequent GPU draws composite
-	// over real backdrop content (not an empty RT).
-	if !c.seedTopLayerGPUFromPixmap() {
-		// If seed fails, mark CPU drew so Pop uses pixmap composite path.
-		c.noteLayerCPUDraw()
-	}
-	// Backdrop is a full-surface snapshot; Pop must blend the whole layer.
+	// Backdrop is a full-surface snapshot; Pop must blend the whole layer and
+	// ignore the active clip (the parent queue was consumed mid-frame).
 	c.markLayerFullComposite()
+	c.markLayerBackdrop(backdropBounds, backdropBounded)
 }

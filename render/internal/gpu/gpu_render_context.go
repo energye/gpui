@@ -1430,6 +1430,16 @@ func (rc *GPURenderContext) viewToResView(view gpucontext.TextureView) res.View 
 	return res.View{}
 }
 
+// MarkViewSeeded tells the session the view already holds color content
+// uploaded out-of-band (backdrop snapshot seed). The first pass on that view
+// must load instead of clear so the seeded content survives.
+func (rc *GPURenderContext) MarkViewSeeded(view gpucontext.TextureView) {
+	if rc == nil || rc.session == nil || view.IsNil() {
+		return
+	}
+	rc.session.MarkColorContent(extractTextureView(view))
+}
+
 // QueueBaseLayer queues the full-surface base layer (background blit / LCD
 // base) as a GPU texture draw.
 func (rc *GPURenderContext) QueueBaseLayer(target render.GPURenderTarget, view gpucontext.TextureView,

@@ -126,7 +126,7 @@
 | `PushLayer(blend, opacity)` / `PopLayer()` | 压入/合成渐变层（GPU RT 优先，CPU 损伤合成兜底） | 层合成 | ✅ GPU 有效 |
 | `PushLayerIsolated(opacity)` | 强制创建隔离离屏层（Flutter saveLayer 语义） | 隔离离屏层 | ✅ |
 | `PushMaskLayer(mask)` | 建层并让整个层内容经 mask 调制后合成 | 蒙版层 | 🔌 无生产消费者；2026-10-19 真窗 `ui_render_base_maskops` 验证（图层 RT 经 R8 调制 pass 后排队可重放 blit，无帧中 CPU 读回；CPU 回落保留） |
-| `PushBackdropLayer(blend, opacity)`（m4_extensions.go） | 用父画布快照预填充层（backdrop/毛玻璃底色播种） | 背景快照层 | 🔗 ui/scene/composite + ui/rendering/filter_draw 在用 |
+| `PushBackdropLayer(blend, opacity)`（m4_extensions.go） | 用父画布快照预填充层（backdrop/毛玻璃底色播种）。快照取父 RT 走 RT→RT（`copyGPUTextureToTarget`，忽略裁剪与层组 alpha）；推入时裁剪即层边界（Skia saveLayer bounds），滤镜输出由 `cropFilterOutputToLayerBounds` 裁到层边界；Pop 合成保持整面（`drawGPUTextureWithOpacityFullSurface`，呈现恢复承重机制） | 背景快照层 | 🔗 ui/scene/composite + ui/rendering/filter_draw 在用；2026-10-19 直调真窗 `ui_render_base_backdrop`（原子验证：逻辑 14 + 像素 21 + golden 627200px 逐位零差 + 抓屏 vs 快照同区零差，`gpu_ops>0`/`cpu_fallback_ops=0`） |
 | `LayerPoolStats()/ResetLayerPoolStats()` | 读取/清零层表面池 gets/puts/hits/misses | 层池统计 | 🧪 仅测试（s6_4_layer_filter_test） |
 | `SetBlendMode(mode)` | 设置后续填充/描边的混合模式 | 混合模式 | ✅ |
 

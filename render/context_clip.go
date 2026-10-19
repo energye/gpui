@@ -11,6 +11,7 @@
 package render
 
 import (
+	"image"
 	"math"
 
 	"github.com/energye/gpui/render/internal/clip"
@@ -208,6 +209,26 @@ func (c *Context) applyClipToPaint() {
 // isClipActive reports whether a clip region is currently active.
 func (c *Context) isClipActive() bool {
 	return c.clipStack != nil && c.clipStack.Depth() > 0
+}
+
+// clipDeviceBounds returns the active clip's device-space bounds snapped out to
+// whole pixels. active=false means no clip is set (the full surface).
+func (c *Context) clipDeviceBounds() (image.Rectangle, bool) {
+	if c == nil || !c.isClipActive() {
+		return image.Rectangle{}, false
+	}
+	b := c.clipStack.Bounds()
+	x0 := int(math.Floor(b.X))
+	y0 := int(math.Floor(b.Y))
+	x1 := int(math.Ceil(b.X + b.W))
+	y1 := int(math.Ceil(b.Y + b.H))
+	if x1 < x0 {
+		x1 = x0
+	}
+	if y1 < y0 {
+		y1 = y0
+	}
+	return image.Rect(x0, y0, x1, y1), true
 }
 
 // setGPUClipRect sets the GPU scissor rect, RRect clip, or depth clip path if a

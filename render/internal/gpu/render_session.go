@@ -720,6 +720,20 @@ type GPURenderSession struct {
 	// so the new view gets a LoadOpClear on its first render pass.
 	lastView hal.TextureView
 
+	// colorContentViews holds views whose color content was uploaded
+	// out-of-band (backdrop snapshot seed / filter reseed) before their first
+	// pass this frame. Those passes must load instead of clear, otherwise the
+	// seed is wiped and backdrop layers composite empty content (present-only
+	// black while the CPU pixmap snapshot stays correct).
+	colorContentViews []hal.TextureView
+
+	// renderedViews tracks every view that already had a pass this frame.
+	// lastView only remembers the most recent one; a nested backdrop leaves the
+	// enclosing layer RT, renders the inner RT, then returns — treating the
+	// return as a fresh view cleared the outer layer's content (green band
+	// vanished under the nested backdrop).
+	renderedViews []hal.TextureView
+
 	// scissorRect holds the current scissor rect in device pixels.
 	// When non-nil, all draw commands are clipped to this rectangle.
 	// nil means full framebuffer (default, no clipping).
@@ -1065,6 +1079,8 @@ func (s *GPURenderSession) BeginFrame() {
 
 	s.frameRendered = false
 	s.lastView = nil
+	s.colorContentViews = s.colorContentViews[:0]
+	s.renderedViews = s.renderedViews[:0]
 
 	// R6-2: converge grow-only staging/vertex/uniform buffers back down
 	// after sustained low use (safe point: previous frame completed above).
@@ -1193,6 +1209,52 @@ func (s *GPURenderSession) DigCmdBufStats() (prev int, usedSurface bool) {
 }
 
 // SetFrameState sets the per-context frame tracking state before a render pass.
+// MarkColorContent records that the view already holds color content uploaded
+// out-of-band (backdrop snapshot seed). The next pass on that view must load
+// instead of clear. Cleared per frame (BeginFrame / device reset).
+func (s *GPURenderSession) MarkColorContent(view hal.TextureView) {
+	if s == nil || view == nil {
+		return
+	}
+	for i := range s.colorContentViews {
+		if s.colorContentViews[i] == view {
+			return
+		}
+	}
+	s.colorContentViews = append(s.colorContentViews, view)
+}
+
+func (s *GPURenderSession) hasColorContent(view hal.TextureView) bool {
+	if s == nil || view == nil {
+		return false
+	}
+	for i := range s.colorContentViews {
+		if s.colorContentViews[i] == view {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *GPURenderSession) markViewRendered(view hal.TextureView) {
+	if s == nil || view == nil || s.viewRendered(view) {
+		return
+	}
+	s.renderedViews = append(s.renderedViews, view)
+}
+
+func (s *GPURenderSession) viewRendered(view hal.TextureView) bool {
+	if s == nil || view == nil {
+		return false
+	}
+	for i := range s.renderedViews {
+		if s.renderedViews[i] == view {
+			return true
+		}
+	}
+	return false
+}
+
 // GPURenderContext transfers its frameRendered/lastView into the session so the
 // session can compute the correct LoadOp (Clear vs Load) for this context.
 func (s *GPURenderSession) SetFrameState(frameRendered bool, lastView hal.TextureView) {
@@ -1939,7 +2001,7 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 	// may Load + damage-scissor. Dropping the rects also re-enables full
 	// group scissors via applyGroupScissorWithDamageRects' empty-damage
 	// branch.
-	if !blitOnly && len(target.DamageRects) > 0 && !(s.sampleCount == 1 && s.frameRendered) {
+	if !blitOnly && len(target.DamageRects) > 0 && !(s.sampleCount == 1 && s.viewRendered(activeView)) {
 		target.DamageRects = nil
 	}
 
@@ -2042,6 +2104,8 @@ func (s *GPURenderSession) PurgeSurfaceTextures() {
 	s.surfaceHeight = 0
 	s.lastView = nil
 	s.frameRendered = false
+	s.colorContentViews = s.colorContentViews[:0]
+	s.renderedViews = s.renderedViews[:0]
 }
 
 func (s *GPURenderSession) Destroy() {
@@ -2122,6 +2186,8 @@ func (s *GPURenderSession) Destroy() {
 	s.surfaceWidth = 0
 	s.surfaceHeight = 0
 	s.lastView = nil
+	s.colorContentViews = s.colorContentViews[:0]
+	s.renderedViews = s.renderedViews[:0]
 	// Keep device/queue so Destroy+EnsureTextures can re-create session resources
 	// (TestRenderSessionDestroyAndRecreate; Context may rebuild targets on same device).
 	// Callers that fully release the Device must still Release the Device separately.
@@ -5677,9 +5743,14 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	// Without this, each flush would wipe previously rendered shapes.
 	colorLoadOp := types.LoadOpClear
 	stencilLoadOp := types.LoadOpClear
-	if s.frameRendered {
+	if s.viewRendered(view) {
+		// Returning to a view rendered earlier this frame (nested backdrop /
+		// layer RT round-trip) must preserve its content.
 		colorLoadOp = types.LoadOpLoad
 		stencilLoadOp = types.LoadOpLoad
+	} else if s.hasColorContent(view) {
+		// Backdrop seed / filter reseed uploaded into this view: keep it.
+		colorLoadOp = types.LoadOpLoad
 	}
 	// Depth is ALWAYS cleared — never loaded. DepthStoreOp=Discard means
 	// depth content is undefined after each render pass, so LoadOpLoad would
@@ -5752,6 +5823,7 @@ func (s *GPURenderSession) encodeSubmitSurface(
 	// Mark that at least one render pass has been submitted this frame.
 	// Subsequent mid-frame flushes will use LoadOpLoad to preserve content.
 	s.frameRendered = true
+	s.markViewRendered(view)
 
 	return nil
 }
@@ -6153,7 +6225,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	}
 	hasDamage := len(damageRects) > 0
 	loadOp := types.LoadOpClear
-	if s.frameRendered || hasDamage {
+	if s.viewRendered(view) || hasDamage || s.hasColorContent(view) {
 		loadOp = types.LoadOpLoad
 	}
 	// Offscreen isolation RTs (layer / effect publish) start transparent —
@@ -6188,7 +6260,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	// artifact). Composite the full frame so every image carries the complete
 	// scene (skia/flutter composite-pass semantics); the damage scissor is
 	// only safe once the same image already holds the full composite.
-	fullSurface := !s.frameRendered
+	fullSurface := !s.viewRendered(view)
 	if hasDamage && !fullSurface {
 		for _, dr := range damageRects {
 			dx, dy, dw, dh, valid := computeDamageScissor(nil, w, h, dr)
@@ -6242,6 +6314,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 		return fmt.Errorf("submit blit: %w", err)
 	}
 	s.frameRendered = true
+	s.markViewRendered(view)
 	s.lastView = view
 
 	return nil
@@ -6298,9 +6371,14 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 	// CPU fallback operations (e.g., DrawImage between GPU draw calls).
 	colorLoadOp := types.LoadOpClear
 	stencilLoadOp := types.LoadOpClear
-	if s.frameRendered {
+	if s.viewRendered(view) {
+		// Returning to a view rendered earlier this frame (nested backdrop /
+		// layer RT round-trip) must preserve its content.
 		colorLoadOp = types.LoadOpLoad
 		stencilLoadOp = types.LoadOpLoad
+	} else if s.hasColorContent(view) {
+		// Backdrop seed / filter reseed uploaded into this view: keep it.
+		colorLoadOp = types.LoadOpLoad
 	}
 	// Depth is ALWAYS cleared — never loaded. DepthStoreOp=Discard means
 	// depth content is undefined after each render pass, so LoadOpLoad would
@@ -6364,6 +6442,7 @@ func (s *GPURenderSession) encodeSubmitSurfaceGrouped(
 
 	// Mark that at least one render pass has been submitted this frame.
 	s.frameRendered = true
+	s.markViewRendered(view)
 
 	return nil
 }
@@ -6390,9 +6469,14 @@ func (s *GPURenderSession) encodeToEncoder(
 
 	colorLoadOp := types.LoadOpClear
 	stencilLoadOp := types.LoadOpClear
-	if s.frameRendered {
+	if s.viewRendered(view) {
+		// Returning to a view rendered earlier this frame (nested backdrop /
+		// layer RT round-trip) must preserve its content.
 		colorLoadOp = types.LoadOpLoad
 		stencilLoadOp = types.LoadOpLoad
+	} else if s.hasColorContent(view) {
+		// Backdrop seed / filter reseed uploaded into this view: keep it.
+		colorLoadOp = types.LoadOpLoad
 	}
 	// Depth always cleared (see encodeSubmitSurfaceGrouped comment).
 	depthLoadOp := types.LoadOpClear
@@ -6432,6 +6516,7 @@ func (s *GPURenderSession) encodeToEncoder(
 	}
 
 	s.frameRendered = true
+	s.markViewRendered(view)
 	return nil
 }
 
@@ -6457,7 +6542,7 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 	}
 	hasDamage := len(damageRects) > 0
 	loadOp := types.LoadOpClear
-	if s.frameRendered || hasDamage {
+	if s.viewRendered(view) || hasDamage || s.hasColorContent(view) {
 		loadOp = types.LoadOpLoad
 	}
 	// Same offscreen/surface clear split as encodeBlitOnlyPass.
@@ -6508,6 +6593,7 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 	}
 
 	s.frameRendered = true
+	s.markViewRendered(view)
 	return nil
 }
 
