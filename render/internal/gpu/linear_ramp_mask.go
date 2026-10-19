@@ -41,6 +41,8 @@ struct Params {
     t_min: f32,
     inv_span: f32,
     mode: f32,
+    // sweep tile mode: 0=pad, 1=repeat, 2=reflect (render.ExtendMode)
+    extend: f32,
 }
 
 struct VSOut {
@@ -133,6 +135,22 @@ fn gradient_t(px: f32, py: f32) -> f32 {
     return point_dist / intersect_dist;
 }
 
+// sweep_tile folds the raw sweep parameter into one gradient period before the
+// ramp lookup (Skia tile-mode semantics on t): repeat wraps, reflect mirrors.
+fn sweep_tile(t: f32, tile: f32) -> f32 {
+    if (tile < 0.5) {
+        return t;
+    }
+    if (tile < 1.5) {
+        return t - floor(t);
+    }
+    let m = t - 2.0 * floor(t * 0.5);
+    if (m > 1.0) {
+        return 2.0 - m;
+    }
+    return m;
+}
+
 @fragment
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let xy = vec2<i32>(i32(in.pos.x), i32(in.pos.y));
@@ -145,7 +163,11 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let v = (in.pos.y + 0.5) / max(dims.y, 1.0);
     let px = p.bounds_min.x + u * p.bounds_size.x;
     let py = p.bounds_min.y + v * p.bounds_size.y;
-    let tt = gradient_t(px, py);
+    var tt = gradient_t(px, py);
+    // Sweep only: honor ExtendRepeat/ExtendReflect by folding t into [0,1).
+    if (p.mode > 1.5 && p.mode < 2.5) {
+        tt = sweep_tile(tt, p.extend);
+    }
     var ru = (tt - p.t_min) * p.inv_span;
     ru = clamp(ru, 0.0, 1.0);
     let color = textureSampleLevel(ramp_tex, ramp_samp, vec2<f32>(ru, 0.5), 0.0);
@@ -166,6 +188,7 @@ type linearRampMaskParams struct {
 	tMin    float32
 	invSpan float32
 	mode    float32
+	extend  float32 // sweep tile (0 pad, 1 repeat, 2 reflect); ignored for other modes
 }
 
 type linearRampMaskCache struct {
@@ -323,7 +346,7 @@ func (c *linearRampMaskCache) ensure(device hal.Device) error {
 }
 
 func encodeLinearRampMaskUniform(p linearRampMaskParams) []byte {
-	// 12 × f32 = 48 bytes (+16 pad) = 64, std140-friendly.
+	// 13 × f32 = 52 bytes (+12 pad) = 64, std140-friendly.
 	buf := make([]byte, 64)
 	put := func(i int, v float32) {
 		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(v))
@@ -340,6 +363,7 @@ func encodeLinearRampMaskUniform(p linearRampMaskParams) []byte {
 	put(9, p.tMin)
 	put(10, p.invSpan)
 	put(11, p.mode)
+	put(12, p.extend)
 	return buf
 }
 

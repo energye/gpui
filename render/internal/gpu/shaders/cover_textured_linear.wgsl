@@ -4,7 +4,8 @@
 
 struct CoverUni {
     viewport: vec2<f32>,
-    _pad0: vec2<f32>,
+    // x: sweep tile mode (0=pad, 1=repeat, 2=reflect, render.ExtendMode); y unused (alignment).
+    tile: vec2<f32>,
     // p0/p1/inv_len2/t_min/inv_span/mode match textured_stencil_linear packing.
     p0: vec2<f32>,
     p1: vec2<f32>,
@@ -126,6 +127,23 @@ fn gradient_t(px: f32, py: f32) -> f32 {
     return t_ray;
 }
 
+// sweep_tile folds the raw sweep parameter into one gradient period before the
+// ramp lookup (Skia tile-mode semantics on t): pad clamps later, repeat wraps,
+// reflect mirrors. Only applied when the brush Extend mode requests it.
+fn sweep_tile(t: f32, tile: f32) -> f32 {
+    if (tile < 0.5) {
+        return t;
+    }
+    if (tile < 1.5) {
+        return t - floor(t);
+    }
+    let m = t - 2.0 * floor(t * 0.5);
+    if (m > 1.0) {
+        return 2.0 - m;
+    }
+    return m;
+}
+
 struct CoverVertexOutput {
     @builtin(position) position: vec4<f32>,
 }
@@ -149,7 +167,11 @@ fn fs_main(in: CoverVertexOutput) -> @location(0) vec4<f32> {
     }
     let px = in.position.x;
     let py = in.position.y;
-    let tt = gradient_t(px, py);
+    var tt = gradient_t(px, py);
+    // Sweep only: honor ExtendRepeat/ExtendReflect by folding t into [0,1).
+    if (u.mode > 1.5 && u.mode < 2.5) {
+        tt = sweep_tile(tt, u.tile.x);
+    }
     var ru = (tt - u.t_min) * u.inv_span;
     ru = clamp(ru, 0.0, 1.0);
     let color = textureSampleLevel(ramp_tex, ramp_samp, vec2<f32>(ru, 0.5), 0.0);

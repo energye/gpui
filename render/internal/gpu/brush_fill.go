@@ -562,7 +562,7 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 			target, path, paint, ramp, n,
 			float32(g.Start.X), float32(g.Start.Y),
 			float32(dx), float32(dy),
-			float32(invLen2), float32(tMin), float32(invSpan), 0,
+			float32(invLen2), float32(tMin), float32(invSpan), 0, 0,
 		); err == nil {
 			return nil
 		}
@@ -969,7 +969,7 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	}
 	if err := rc.queueSessionTexturedCover(
 		target, path, paint, ramp, n,
-		p0x, p0y, p1x, p1y, invL, float32(tMin), float32(invSpan), modeF,
+		p0x, p0y, p1x, p1y, invL, float32(tMin), float32(invSpan), modeF, 0,
 	); err == nil {
 		return nil
 	}
@@ -1239,41 +1239,47 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		return render.ErrFallbackToCPU
 	}
 
-	// Parameter range: if center inside AABB, full [0,1]; else corner angles.
+	// Parameter range. Pad clamps t at the ramp edges, so it keeps the
+	// historical range (full [0,1] when the center is inside the AABB, else the
+	// corner-angle span). Repeat/reflect fold t themselves in the cover FS, so
+	// their ramp must hold exactly one gradient period [0,1].
 	tMin, tMax := 0.0, 1.0
+	tileMode := float32(g.Extend)
 	cx, cy := g.Center.X, g.Center.Y
-	inside := cx >= float64(bounds.Min.X) && cx <= float64(bounds.Max.X) &&
-		cy >= float64(bounds.Min.Y) && cy <= float64(bounds.Max.Y)
-	if !inside {
-		corners := [4][2]float64{
-			{float64(bounds.Min.X), float64(bounds.Min.Y)},
-			{float64(bounds.Max.X), float64(bounds.Min.Y)},
-			{float64(bounds.Min.X), float64(bounds.Max.Y)},
-			{float64(bounds.Max.X), float64(bounds.Max.Y)},
-		}
-		invSR := 1.0 / sweepRange
-		for i, c := range corners {
-			ang := math.Atan2(c[1]-cy, c[0]-cx)
-			rel := ang - sweepStart
-			twoPi := 2 * math.Pi
-			if sweepRange > 0 {
-				// Positive: [0, 2π)
-				rel = rel - math.Floor(rel/twoPi)*twoPi
-			} else {
-				// Negative: (-2π, 0] — matches normalizeAngle
-				rel = rel - math.Ceil(rel/twoPi)*twoPi
+	if g.Extend == render.ExtendPad {
+		inside := cx >= float64(bounds.Min.X) && cx <= float64(bounds.Max.X) &&
+			cy >= float64(bounds.Min.Y) && cy <= float64(bounds.Max.Y)
+		if !inside {
+			corners := [4][2]float64{
+				{float64(bounds.Min.X), float64(bounds.Min.Y)},
+				{float64(bounds.Max.X), float64(bounds.Min.Y)},
+				{float64(bounds.Min.X), float64(bounds.Max.Y)},
+				{float64(bounds.Max.X), float64(bounds.Max.Y)},
 			}
-			tt := rel * invSR
-			if i == 0 || tt < tMin {
-				tMin = tt
+			invSR := 1.0 / sweepRange
+			for i, c := range corners {
+				ang := math.Atan2(c[1]-cy, c[0]-cx)
+				rel := ang - sweepStart
+				twoPi := 2 * math.Pi
+				if sweepRange > 0 {
+					// Positive: [0, 2π)
+					rel = rel - math.Floor(rel/twoPi)*twoPi
+				} else {
+					// Negative: (-2π, 0] — matches normalizeAngle
+					rel = rel - math.Ceil(rel/twoPi)*twoPi
+				}
+				tt := rel * invSR
+				if i == 0 || tt < tMin {
+					tMin = tt
+				}
+				if i == 0 || tt > tMax {
+					tMax = tt
+				}
 			}
-			if i == 0 || tt > tMax {
-				tMax = tt
+			// Angle arc may wrap; if span looks inverted/huge, cover full domain.
+			if tMax-tMin < 1e-9 || tMax-tMin > 1.0 {
+				tMin, tMax = 0, 1
 			}
-		}
-		// Angle arc may wrap; if span looks inverted/huge, cover full domain.
-		if tMax-tMin < 1e-9 || tMax-tMin > 1.0 {
-			tMin, tMax = 0, 1
 		}
 	}
 	span := tMax - tMin
@@ -1338,7 +1344,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		target, path, paint, ramp, n,
 		float32(cx), float32(cy),
 		float32(sweepStart), float32(invSR),
-		0, float32(tMin), float32(invSpan), 2,
+		0, float32(tMin), float32(invSpan), 2, tileMode,
 	); err == nil {
 		return nil
 	}
@@ -1348,6 +1354,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		startX: float32(cx), startY: float32(cy),
 		dX: float32(sweepStart), dY: float32(invSR),
 		invLen2: 0, tMin: float32(tMin), invSpan: float32(invSpan), mode: 2,
+		extend: tileMode,
 	}
 	if tex, view, gerr := texturedStencilCoverLinearRetain(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
 		if tex == nil && view == nil {
@@ -1403,6 +1410,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 			tMin:       float32(tMin),
 			invSpan:    float32(invSpan),
 			mode:       2,
+			extend:     tileMode,
 		}
 		pixels, gerr := linearRampMaskExpand(device, queue, rampCache, ramp, n, mask, nw, nh, params)
 		if gerr != nil || len(pixels) != nw*nh*4 {

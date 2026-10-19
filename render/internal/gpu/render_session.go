@@ -275,6 +275,7 @@ type StencilPathCommand struct {
 	TexTMin        float32
 	TexInvSpan     float32
 	TexMode        float32 // 0 linear, 1 radial, 2 sweep, 3 focal
+	TexExtend      float32 // sweep tile: 0 pad, 1 repeat, 2 reflect (ExtendMode); ignored by other modes
 
 	// ImagePattern session-inline (N2). Premul RGBA tile PatW×PatH.
 	PatTile                   []byte

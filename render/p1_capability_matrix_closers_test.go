@@ -68,6 +68,90 @@ func TestP1_Capability_D03_SweepGradientGPU(t *testing.T) {
 	}
 }
 
+// sweepExtendSample renders one sweep config on a circle (non-rect path → 1D
+// ramp textured cover) and samples one angle. want is the brush's own ColorAt at
+// the sampled pixel center (model oracle).
+func sweepExtendSample(t *testing.T, name string, extend render.ExtendMode, endAngle, deg float64) (got, want [3]uint8) {
+	t.Helper()
+	const w, h = 160, 160
+	const cx, cy, rad = 80.0, 80.0, 40.0
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.ResetRenderPathStats()
+	dc.ClearWithColor(render.Black)
+	br := render.NewSweepGradientBrush(cx, cy, 0).
+		SetEndAngle(endAngle).
+		SetExtend(extend).
+		AddColorStop(0, render.Red).
+		AddColorStop(1, render.Blue)
+	dc.SetFillBrush(br)
+	dc.DrawCircle(cx, cy, 64)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("%s fill: %v", name, err)
+	}
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("%s flush: %v", name, err)
+	}
+	stats := dc.RenderPathStats()
+	if stats.GPUOps == 0 || stats.CPUFallbackOps > 0 {
+		t.Fatalf("%s requires GPU path: %s", name, stats.LogLine())
+	}
+	ang := deg * math.Pi / 180
+	px := int(math.Round(cx + rad*math.Cos(ang)))
+	py := int(math.Round(cy + rad*math.Sin(ang)))
+	r, g, b, _ := sampleRGBA(dc, px, py)
+	model := br.ColorAt(float64(px)+0.5, float64(py)+0.5)
+	t.Logf("%s deg=%.0f @(%d,%d) got=(%d,%d,%d) model=(%.0f,%.0f,%.0f)", name, deg, px, py, r, g, b, model.R*255, model.G*255, model.B*255)
+	return [3]uint8{r, g, b}, [3]uint8{uint8(model.R*255 + 0.5), uint8(model.G*255 + 0.5), uint8(model.B*255 + 0.5)}
+}
+
+// TestP1_Capability_D03_SweepGradientTileExtendGPU pins the sweep tile-mode
+// semantics (D.04 extend x D.03 sweep) on a non-rect path: the cover FS must
+// fold the raw angular parameter t into one gradient period for ExtendRepeat /
+// ExtendReflect (Skia tile mode on t) instead of clamping it like pad.
+// Pre-fix the 1D ramp was built over [0,1] only and every sample outside the
+// sweep range returned the end color (repro: repeat@112.5° read (5,0,254)
+// instead of the model's mid-blue (99,0,240); scripted probe 2026-10-19).
+func TestP1_Capability_D03_SweepGradientTileExtendGPU(t *testing.T) {
+	requireNativeGPU(t)
+	const tol = 12 // ramp texel quantization (n≥64 over one period) + pixel-center oracle
+	quarter := math.Pi / 2
+
+	// t(raw) = angle/sweepRange; fold: repeat t→frac(t), reflect triangle.
+	check := func(name string, extend render.ExtendMode, endAngle, deg float64, wantChan byte, minDelta uint8) {
+		got, want := sweepExtendSample(t, name, extend, endAngle, deg)
+		for ch := 0; ch < 3; ch++ {
+			if d := absU8(got[ch], want[ch]); d > tol {
+				t.Errorf("%s ch%d got=%d model=%d diff=%d>%d", name, ch, got[ch], want[ch], d, tol)
+			}
+		}
+		// Independent dominance check (catches pre-fix pad clamp even if the
+		// oracle itself regressed): the wanted channel must dominate by minDelta.
+		other := byte(0)
+		if wantChan == 0 {
+			other = 2
+		}
+		if int(got[wantChan]) < int(got[other])+int(minDelta) {
+			t.Errorf("%s expected ch%d dominant: got=%v minDelta=%d", name, wantChan, got, minDelta)
+		}
+	}
+
+	// Partial sweep 0→π/2: raw t at 112.5° = 1.25, at 157.5° = 1.75.
+	// Repeat keeps the phase (0.25 red-ish / 0.75 blue-ish)…
+	check("repeat@112.5", render.ExtendRepeat, quarter, 112.5, 0, 60)
+	check("repeat@157.5", render.ExtendRepeat, quarter, 157.5, 2, 60)
+	// …reflect mirrors it (0.75 blue-ish / 0.25 red-ish).
+	check("reflect@112.5", render.ExtendReflect, quarter, 112.5, 2, 60)
+	check("reflect@157.5", render.ExtendReflect, quarter, 157.5, 0, 60)
+	// Pad control: outside the range the end color stays (blue).
+	check("pad@112.5", render.ExtendPad, quarter, 112.5, 2, 60)
+	// Negative partial sweep (-π/2): raw t at 112.5° = 2.75 → repeat 0.75.
+	check("neg-repeat@112.5", render.ExtendRepeat, -quarter, 112.5, 2, 60)
+	// Full turn is the unchanged case for every extend mode.
+	check("ft-repeat@112.5", render.ExtendRepeat, 2*math.Pi, 112.5, 0, 60)
+	check("ft-reflect@112.5", render.ExtendReflect, 2*math.Pi, 112.5, 0, 60)
+}
+
 func TestP1_Capability_B03_MultiplyGPU(t *testing.T) {
 	requireNativeGPU(t)
 	dc := render.NewContext(48, 48)

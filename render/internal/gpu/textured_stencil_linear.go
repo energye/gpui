@@ -54,7 +54,8 @@ const texturedStencilCoverLinearWGSL = `
 // mode: 0=linear, 1=radial simple, 2=sweep (signed), 3=focal radial (same packing as linearRampMask)
 struct CoverUni {
     viewport: vec2<f32>,
-    _pad0: vec2<f32>,
+    // x: sweep tile mode (0=pad, 1=repeat, 2=reflect); y unused (alignment).
+    tile: vec2<f32>,
     bounds_min: vec2<f32>,
     bounds_size: vec2<f32>,
     p0: vec2<f32>,
@@ -148,13 +149,33 @@ fn gradient_t(px: f32, py: f32) -> f32 {
     return point_dist / intersect_dist;
 }
 
+// sweep_tile folds the raw sweep parameter into one gradient period before the
+// ramp lookup (Skia tile-mode semantics on t): repeat wraps, reflect mirrors.
+fn sweep_tile(t: f32, tile: f32) -> f32 {
+    if (tile < 0.5) {
+        return t;
+    }
+    if (tile < 1.5) {
+        return t - floor(t);
+    }
+    let m = t - 2.0 * floor(t * 0.5);
+    if (m > 1.0) {
+        return 2.0 - m;
+    }
+    return m;
+}
+
 @fragment
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let u0 = (in.pos.x + 0.5) / max(u.viewport.x, 1.0);
     let v0 = (in.pos.y + 0.5) / max(u.viewport.y, 1.0);
     let px = u.bounds_min.x + u0 * u.bounds_size.x;
     let py = u.bounds_min.y + v0 * u.bounds_size.y;
-    let tt = gradient_t(px, py);
+    var tt = gradient_t(px, py);
+    // Sweep only: honor ExtendRepeat/ExtendReflect by folding t into [0,1).
+    if (u.mode > 1.5 && u.mode < 2.5) {
+        tt = sweep_tile(tt, u.tile.x);
+    }
     var ru = (tt - u.t_min) * u.inv_span;
     ru = clamp(ru, 0.0, 1.0);
     return textureSampleLevel(ramp_tex, ramp_samp, vec2<f32>(ru, 0.5), 0.0);
@@ -173,6 +194,7 @@ type texturedStencilLinearParams struct {
 	tMin                   float32
 	invSpan                float32
 	mode                   float32
+	extend                 float32 // sweep tile (0 pad, 1 repeat, 2 reflect); ignored for other modes
 }
 
 type texturedStencilLinearCache struct {
@@ -476,14 +498,14 @@ func (c *texturedStencilLinearCache) ensure(device hal.Device, sampleCount uint3
 }
 
 func encodeTexturedStencilCoverUniform(w, h uint32, p texturedStencilLinearParams) []byte {
-	// viewport(2)+pad(2)+bounds(4)+start(2)+d(2)+inv_len2+t_min+inv_span+pad = 16 floats
+	// viewport(2)+tile(2)+bounds(4)+start(2)+d(2)+inv_len2+t_min+inv_span+mode = 16 floats
 	buf := make([]byte, 64)
 	put := func(i int, v float32) {
 		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(v))
 	}
 	put(0, float32(w))
 	put(1, float32(h))
-	put(2, 0)
+	put(2, p.extend)
 	put(3, 0)
 	put(4, p.boundsMinX)
 	put(5, p.boundsMinY)

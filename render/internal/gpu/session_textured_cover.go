@@ -29,7 +29,7 @@ var coverTexturedLinearShaderSource string
 //go:embed shaders/cover_textured_pattern.wgsl
 var coverTexturedPatternShaderSource string
 
-// texturedCoverUniformSize: viewport(2)+pad(2)+p0(2)+p1(2)+inv_len2+t_min+inv_span+mode = 12 floats = 48 bytes.
+// texturedCoverUniformSize: viewport(2)+tile(2)+p0(2)+p1(2)+inv_len2+t_min+inv_span+mode = 12 floats = 48 bytes.
 const texturedCoverUniformSize = 48
 
 // ensureTexturedCoverPipeline creates the session-inline textured cover pipeline
@@ -188,7 +188,7 @@ func encodeTexturedCoverUniform(w, h uint32, cmd *StencilPathCommand) []byte {
 	}
 	put(0, float32(w))
 	put(1, float32(h))
-	put(2, 0)
+	put(2, cmd.TexExtend)
 	put(3, 0)
 	put(4, cmd.TexP0X)
 	put(5, cmd.TexP0Y)
@@ -317,13 +317,14 @@ func (sr *StencilRenderer) updateTexturedCoverResources(b *stencilCoverBuffers, 
 
 // queueSessionTexturedCover enqueues a device-space stencil-then-textured-cover
 // path into the session pass (true session-inline, no offscreen result).
+// extend is the sweep tile mode (render.ExtendMode); ignored for other modes.
 func (rc *GPURenderContext) queueSessionTexturedCover(
 	target render.GPURenderTarget,
 	path *render.Path,
 	paint *render.Paint,
 	ramp []byte,
 	rampN int,
-	p0x, p0y, p1x, p1y, invLen2, tMin, invSpan, mode float32,
+	p0x, p0y, p1x, p1y, invLen2, tMin, invSpan, mode, extend float32,
 ) error {
 	if rc == nil || path == nil || paint == nil || rampN < 1 || len(ramp) < rampN*4 {
 		return render.ErrFallbackToCPU
@@ -377,6 +378,7 @@ func (rc *GPURenderContext) queueSessionTexturedCover(
 		TexTMin:    tMin,
 		TexInvSpan: invSpan,
 		TexMode:    mode,
+		TexExtend:  extend,
 	}
 	rc.QueueStencil(target, cmd)
 	rc.sceneStats.PathCount++
