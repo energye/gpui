@@ -491,7 +491,7 @@ func TestScissorSegments_CircleClip_MultipleSDFContent(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		// Setup: setGPUClipPath calls SetClipRect then SetClipPath.
 		rc.SetClipRect(clipRect[0], clipRect[1], clipRect[2], clipRect[3])
-		rc.SetClipPath(circlePath)
+		rc.SetClipPath(circlePath, render.FillRuleNonZero)
 
 		// GPU fill: queue SDF shape.
 		rc.pendingShapes = append(rc.pendingShapes, SDFRenderShape{
@@ -657,7 +657,7 @@ func TestClipPathCoverageMask_AnalyticAA(t *testing.T) {
 	p.Close()
 	// (polygon circle approximation: inside tests tolerate the flat edges)
 
-	mask := clipPathCoverageMask(p, 200, 200)
+	mask := clipPathCoverageMask(p, render.FillRuleNonZero, 200, 200)
 	if mask == nil {
 		t.Fatal("expected non-nil mask")
 	}
@@ -699,11 +699,11 @@ func TestClipPathCoverageMask_AnalyticAA(t *testing.T) {
 
 // TestClipPathCoverageMask_EmptyPath returns nil for empty paths.
 func TestClipPathCoverageMask_EmptyPath(t *testing.T) {
-	mask := clipPathCoverageMask(&render.Path{}, 64, 64)
+	mask := clipPathCoverageMask(&render.Path{}, render.FillRuleNonZero, 64, 64)
 	if mask != nil {
 		t.Error("expected nil mask for empty path")
 	}
-	if clipPathCoverageMask(nil, 64, 64) != nil {
+	if clipPathCoverageMask(nil, render.FillRuleNonZero, 64, 64) != nil {
 		t.Error("expected nil mask for nil path")
 	}
 }
@@ -766,7 +766,7 @@ func TestBuildClipMask_SampleCount1(t *testing.T) {
 	}
 	defer res.Release()
 
-	if err := pipe.BuildClipMask(res, p, 200, 200, layout, samp, ubuf); err != nil {
+	if err := pipe.BuildClipMask(res, p, render.FillRuleNonZero, 200, 200, layout, samp, ubuf); err != nil {
 		t.Fatalf("BuildClipMask: %v", err)
 	}
 	if res.maskTex == nil || res.maskView == nil || res.maskBG == nil {

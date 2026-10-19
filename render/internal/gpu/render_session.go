@@ -72,6 +72,12 @@ type ScissorGroup struct {
 	// nil means no depth clip (default). Independent of ClipRRect.
 	ClipPath *render.Path
 
+	// ClipFillRule is the fill rule of ClipPath (winding/even-odd). The
+	// stencil phase always accumulates winding (a superset of even-odd), and
+	// at sampleCount==1 the R8 coverage mask carries this rule so even-odd
+	// holes are carved out of the winding region.
+	ClipFillRule render.FillRule
+
 	// ClipDepthLevel is the 1-based nesting level for depth clipping.
 	// Level 0 means no depth clip. Level 1..255 maps to depth values
 	// via clipDepthValue(). Nested clips use increasing levels.
@@ -1810,7 +1816,7 @@ func (s *GPURenderSession) RenderFrameGrouped(target render.GPURenderTarget, gro
 					if err := s.ensureMaskDefaults(); err != nil {
 						slogger().Warn("depth clip mask defaults", "err", err)
 					} else if err := s.depthClipPipeline.BuildClipMask(
-						res, groups[i].ClipPath, w, h,
+						res, groups[i].ClipPath, groups[i].ClipFillRule, w, h,
 						s.maskBindLayout, s.maskSampler, s.maskUniform,
 					); err != nil {
 						slogger().Warn("build depth clip mask", "err", err)

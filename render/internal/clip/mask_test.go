@@ -60,7 +60,7 @@ func TestNewMaskClipper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mc, err := NewMaskClipper(tt.verbs, tt.coords, tt.bounds, true)
+			mc, err := NewMaskClipper(tt.verbs, tt.coords, tt.bounds, true, FillRuleNonZero)
 			if tt.wantNil {
 				if err == nil {
 					t.Errorf("NewMaskClipper() expected error, got nil")
@@ -90,7 +90,7 @@ func TestNewMaskClipper(t *testing.T) {
 func TestMaskClipper_Coverage(t *testing.T) {
 	p := newSOAPath().moveTo(5, 5).lineTo(15, 5).lineTo(15, 15).lineTo(5, 15).close()
 	bounds := NewRect(0, 0, 20, 20)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -130,7 +130,7 @@ func TestMaskClipper_Coverage(t *testing.T) {
 func TestMaskClipper_ApplyCoverage(t *testing.T) {
 	p := newSOAPath().moveTo(0, 0).lineTo(10, 0).lineTo(10, 10).lineTo(0, 10).close()
 	bounds := NewRect(0, 0, 10, 10)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -166,7 +166,7 @@ func TestMaskClipper_ApplyCoverage(t *testing.T) {
 func TestMaskClipper_Bounds(t *testing.T) {
 	bounds := NewRect(10, 20, 100, 200)
 	p := newSOAPath().moveTo(10, 20).lineTo(110, 220)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -178,7 +178,7 @@ func TestMaskClipper_Bounds(t *testing.T) {
 func TestMaskClipper_Mask(t *testing.T) {
 	p := newSOAPath().moveTo(0, 0).lineTo(10, 10)
 	bounds := NewRect(0, 0, 10, 10)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -197,7 +197,7 @@ func TestMaskClipper_Mask(t *testing.T) {
 func TestMaskClipper_QuadraticBezier(t *testing.T) {
 	p := newSOAPath().moveTo(0, 10).quadTo(10, 0, 20, 10).lineTo(20, 20).lineTo(0, 20).close()
 	bounds := NewRect(0, 0, 20, 20)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -209,7 +209,7 @@ func TestMaskClipper_QuadraticBezier(t *testing.T) {
 func TestMaskClipper_CubicBezier(t *testing.T) {
 	p := newSOAPath().moveTo(0, 10).cubicTo(5, 0, 15, 0, 20, 10).lineTo(20, 20).lineTo(0, 20).close()
 	bounds := NewRect(0, 0, 20, 20)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -220,7 +220,7 @@ func TestMaskClipper_CubicBezier(t *testing.T) {
 
 func TestMaskClipper_EmptyPath(t *testing.T) {
 	bounds := NewRect(0, 0, 10, 10)
-	mc, err := NewMaskClipper(nil, nil, bounds, true)
+	mc, err := NewMaskClipper(nil, nil, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -236,7 +236,7 @@ func TestMaskClipper_EmptyPath(t *testing.T) {
 func TestMaskClipper_Triangle(t *testing.T) {
 	p := newSOAPath().moveTo(10, 5).lineTo(5, 15).lineTo(15, 15).close()
 	bounds := NewRect(0, 0, 20, 20)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -341,7 +341,7 @@ func pointsEqual(p1, p2 Point, epsilon float64) bool {
 func TestMaskClipper_NonAA(t *testing.T) {
 	p := newSOAPath().moveTo(5, 5).lineTo(45, 5).lineTo(45, 45).lineTo(5, 45).close()
 	bounds := NewRect(0, 0, 50, 50)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, false)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, false, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper(non-AA) error = %v", err)
 	}
@@ -356,7 +356,7 @@ func TestMaskClipper_NonAA(t *testing.T) {
 func TestMaskClipper_LargeTriangle(t *testing.T) {
 	p := newSOAPath().moveTo(50, 10).lineTo(10, 90).lineTo(90, 90).close()
 	bounds := NewRect(0, 0, 100, 100)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -368,7 +368,7 @@ func TestMaskClipper_LargeTriangle(t *testing.T) {
 func TestMaskClipper_ApplyCoverageOutside(t *testing.T) {
 	p := newSOAPath().moveTo(10, 10).lineTo(90, 10).lineTo(90, 90).lineTo(10, 90).close()
 	bounds := NewRect(0, 0, 100, 100)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -383,7 +383,7 @@ func TestMaskClipper_ApplyCoverageOutside(t *testing.T) {
 func TestMaskClipper_HorizontalEdge(t *testing.T) {
 	p := newSOAPath().moveTo(0, 10).lineTo(20, 10).lineTo(20, 20).lineTo(0, 20).close()
 	bounds := NewRect(0, 0, 20, 30)
-	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, err := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("NewMaskClipper() error = %v", err)
 	}
@@ -397,14 +397,14 @@ func BenchmarkNewMaskClipper_Rectangle(b *testing.B) {
 	bounds := NewRect(0, 0, 120, 120)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = NewMaskClipper(p.verbs, p.coords, bounds, true)
+		_, _ = NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	}
 }
 
 func BenchmarkMaskClipper_Coverage(b *testing.B) {
 	p := newSOAPath().moveTo(10, 10).lineTo(110, 10).lineTo(110, 110).lineTo(10, 110).close()
 	bounds := NewRect(0, 0, 120, 120)
-	mc, _ := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, _ := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = mc.Coverage(50, 50)
@@ -414,7 +414,7 @@ func BenchmarkMaskClipper_Coverage(b *testing.B) {
 func BenchmarkMaskClipper_ApplyCoverage(b *testing.B) {
 	p := newSOAPath().moveTo(10, 10).lineTo(110, 10).lineTo(110, 110).lineTo(10, 110).close()
 	bounds := NewRect(0, 0, 120, 120)
-	mc, _ := NewMaskClipper(p.verbs, p.coords, bounds, true)
+	mc, _ := NewMaskClipper(p.verbs, p.coords, bounds, true, FillRuleNonZero)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = mc.ApplyCoverage(50, 50, 128)

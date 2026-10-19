@@ -30,11 +30,12 @@ func (c *Context) Clip() {
 	clipVerbs, clipCoords := convertPathToClipVerbs(devicePath)
 
 	// Push the path as a clip region
-	_ = c.clipStack.PushPath(clipVerbs, clipCoords, c.antiAlias) // C.05: honor SetAntiAlias
+	_ = c.clipStack.PushPath(clipVerbs, clipCoords, c.antiAlias, clipFillRule(c.paint.FillRule)) // C.05: honor SetAntiAlias
 
 	// Store the device-space path for GPU depth clipping (GPU-CLIP-003a).
 	// The GPU DepthClipPipeline fan-tessellates this path at draw time.
 	c.gpuClipPath = devicePath.Clone()
+	c.gpuClipFillRule = c.paint.FillRule
 	c.bumpClipMaskGPUGen()
 
 	// Clear the path
@@ -54,10 +55,11 @@ func (c *Context) ClipPreserve() {
 	clipVerbs, clipCoords := convertPathToClipVerbs(devicePath)
 
 	// Push the path as a clip region
-	_ = c.clipStack.PushPath(clipVerbs, clipCoords, c.antiAlias) // C.05: honor SetAntiAlias
+	_ = c.clipStack.PushPath(clipVerbs, clipCoords, c.antiAlias, clipFillRule(c.paint.FillRule)) // C.05: honor SetAntiAlias
 
 	// Store the device-space path for GPU depth clipping (GPU-CLIP-003a).
 	c.gpuClipPath = devicePath.Clone()
+	c.gpuClipFillRule = c.paint.FillRule
 	c.bumpClipMaskGPUGen()
 	// Path is preserved
 }
@@ -127,6 +129,7 @@ func (c *Context) ResetClip() {
 	bounds := clip.NewRect(0, 0, float64(c.pixmap.Width()), float64(c.pixmap.Height()))
 	c.clipStack.Reset(bounds)
 	c.gpuClipPath = nil
+	c.gpuClipFillRule = FillRuleNonZero
 	c.bumpClipMaskGPUGen()
 }
 
@@ -147,6 +150,13 @@ func convertPathToClipVerbs(p *Path) ([]clip.PathVerb, []float64) {
 	return result, p.Coords()
 }
 
+// clipFillRule maps the paint fill rule onto the clip package's mirrored enum
+// (identical values; clip paths are filled using the paint fill rule, Skia
+// treats a clip path as filled with the path fill type).
+func clipFillRule(rule FillRule) clip.FillRule {
+	return clip.FillRule(rule)
+}
+
 // resetGPUClipForPass suspends the context's active canvas clip for the
 // duration of an offscreen sub-pass: offscreenPassDepth goes true so doFill's
 // setGPUClipRect / applyClipToPaint stay inert, and the canvas clip path is
@@ -161,11 +171,13 @@ func (c *Context) resetGPUClipForPass() func() {
 	}
 	c.offscreenPassDepth++
 	savedPath := c.gpuClipPath
+	savedRule := c.gpuClipFillRule
 	c.gpuClipPath = nil
 	return func() {
 		c.offscreenPassDepth--
 		if c.offscreenPassDepth == 0 {
 			c.gpuClipPath = savedPath
+			c.gpuClipFillRule = savedRule
 		}
 	}
 }
@@ -341,7 +353,7 @@ func (c *Context) setGPUClipPath() func() {
 		rc.SetClipRect(x0, y0, x1-x0, y1-y0)
 	}
 	// Set depth clip path for fine per-pixel clipping.
-	rc.SetClipPath(c.gpuClipPath)
+	rc.SetClipPath(c.gpuClipPath, c.gpuClipFillRule)
 	return func() {
 		rc.ClearClipPath()
 		rc.ClearClipRect()

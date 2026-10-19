@@ -275,6 +275,15 @@ func (c *Context) doFill() error {
 		return nil
 	}
 
+	// CPU fallback: paint.MaskCoverage may hold the combined clip×user mask
+	// installed for the GPU masked fill (installGPUClipMask). The software
+	// renderer also applies paint.ClipCoverage (the clip stack, which already
+	// includes that clip mask), so keeping the combined function would apply
+	// the clip mask twice (fractional AA coverage squared). Normalize back to
+	// the user mask before the CPU draw.
+	c.paint.MaskCoverage = nil
+	c.applyMaskToPaint()
+
 	// CPU path: flush pending GPU, apply mode and AA state to software renderer.
 	// When drawing into a PushLayer surface, do NOT flush GPU here — pending GPU
 	// ops may target the layer's offscreen view (or parent). Flushing would force
@@ -425,6 +434,7 @@ func (c *Context) doStroke() error {
 // mask is active. This allows the renderer to apply per-pixel mask modulation
 // during compositing. Mask and clip compose multiplicatively.
 func (c *Context) applyMaskToPaint() {
+	c.paint.MaskCoverage = nil
 	if c.mask == nil {
 		return
 	}

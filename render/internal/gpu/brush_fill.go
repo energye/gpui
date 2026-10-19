@@ -1933,6 +1933,10 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 	local := paint.Clone()
 	local.BlendMode = render.BlendNormal
 	local.MaskCoverage = nil
+	// Clip is enforced on the GPU side (scissor / clip bind group / depth clip
+	// / combined mask plane): baking ClipCoverage here would apply the clip
+	// mask a second time on top of the combined MaskAware plane below.
+	local.ClipCoverage = nil
 	if err := sr.Fill(pm, path, local); err != nil {
 		return render.ErrFallbackToCPU
 	}
@@ -1998,6 +2002,8 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 		sr2.SetAntiAlias(rc.antiAlias)
 		local2 := paint.Clone()
 		local2.BlendMode = render.BlendNormal
+		local2.MaskCoverage = nil
+		local2.ClipCoverage = nil
 		if err2 := sr2.Fill(pm2, path, local2); err2 != nil {
 			return render.ErrFallbackToCPU
 		}

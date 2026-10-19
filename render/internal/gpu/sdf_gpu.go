@@ -178,11 +178,12 @@ func (a *SDFAccelerator) ClearClipRRect() {
 }
 
 // SetClipPath sets an arbitrary clip path for depth-based clipping (GPU-CLIP-003a).
-func (a *SDFAccelerator) SetClipPath(path *render.Path) {
+// fillRule selects how the path's contour overlaps resolve (winding/even-odd).
+func (a *SDFAccelerator) SetClipPath(path *render.Path, fillRule render.FillRule) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.ensureDefaultCtx()
-	a.defaultCtx.SetClipPath(path)
+	a.defaultCtx.SetClipPath(path, fillRule)
 }
 
 // ClearClipPath removes the arbitrary clip path from the default render context.

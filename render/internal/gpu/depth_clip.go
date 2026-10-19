@@ -444,12 +444,13 @@ func (r *DepthClipResources) Release() {
 
 // clipPathCoverageMask rasterizes the clip path into a full-frame R8 coverage
 // mask using the same analytic-AA scanline algorithm as the CPU reference
-// (render/internal/clip.MaskClipper). Pixels inside the path are 255, outside
+// (render/internal/clip.MaskClipper). fillRule selects how contour overlaps
+// resolve (winding/even-odd). Pixels inside the path are 255, outside
 // are 0, and the boundary band carries a smooth coverage gradient — this is
 // what the depth test alone cannot express at sampleCount==1.
 //
 // Returns a w*h byte slice (row-major) or nil when the path is empty.
-func clipPathCoverageMask(clipPath *render.Path, w, h int) []byte {
+func clipPathCoverageMask(clipPath *render.Path, fillRule render.FillRule, w, h int) []byte {
 	if clipPath == nil || clipPath.NumVerbs() == 0 {
 		return nil
 	}
@@ -477,7 +478,7 @@ func clipPathCoverageMask(clipPath *render.Path, w, h int) []byte {
 		clipVerbs[i] = clip.PathVerb(v)
 	}
 
-	mc, err := clip.NewMaskClipper(clipVerbs, clipPath.Coords(), rect, true)
+	mc, err := clip.NewMaskClipper(clipVerbs, clipPath.Coords(), rect, true, clip.FillRule(fillRule))
 	if err != nil {
 		return nil
 	}
@@ -509,7 +510,11 @@ func clipPathCoverageMask(clipPath *render.Path, w, h int) []byte {
 }
 
 // BuildClipMask generates the analytic-AA coverage mask for the clip path and
-// uploads it as a full-frame R8 texture + bind group on res. This is the
+// uploads it as a full-frame R8 texture + bind group on res. The mask carries
+// the clip's fill rule so even-odd holes are carved out of the winding
+// stencil region. This is the sampleCount==1 half of GPU-CLIP-003a-AA: the
+// binary stencil/depth gate cannot express fractional edge coverage, so
+// content fragments multiply by this mask.
 //
 // Skipped when sampleCount>1 (MSAA sub-sample coverage already softens the
 // depth-test boundary) or when any required resource is nil. Idempotent:
@@ -517,6 +522,7 @@ func clipPathCoverageMask(clipPath *render.Path, w, h int) []byte {
 func (p *DepthClipPipeline) BuildClipMask(
 	res *DepthClipResources,
 	clipPath *render.Path,
+	fillRule render.FillRule,
 	w, h uint32,
 	maskLayout hal.BindGroupLayout,
 	sampler hal.Sampler,
@@ -529,7 +535,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 		return nil
 	}
 
-	mask := clipPathCoverageMask(clipPath, int(w), int(h))
+	mask := clipPathCoverageMask(clipPath, fillRule, int(w), int(h))
 	if mask == nil {
 		return nil
 	}

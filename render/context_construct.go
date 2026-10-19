@@ -224,6 +224,7 @@ func (c *Context) Close() error {
 	c.maskStack = nil
 	c.mask = nil
 	c.gpuClipPath = nil
+	c.gpuClipFillRule = FillRuleNonZero
 
 	return nil
 }

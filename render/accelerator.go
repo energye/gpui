@@ -599,9 +599,11 @@ type RRectClipAware interface {
 // (ClipAware) and SDF rrect (RRectClipAware).
 type PathClipAware interface {
 	// SetClipPath sets an arbitrary clip path for depth-based clipping.
-	// The path is in device-space coordinates. Subsequent GPU draw commands
-	// are clipped to the path region via the depth buffer.
-	SetClipPath(path *Path)
+	// The path is in device-space coordinates. fillRule selects how the
+	// path's own contour overlaps resolve (Skia fills a clip path using
+	// the path fill type: winding or even-odd). Subsequent GPU draw
+	// commands are clipped to the path region via the depth buffer.
+	SetClipPath(path *Path, fillRule FillRule)
 
 	// ClearClipPath removes the arbitrary clip path, restoring full
 	// rendering for subsequent draw commands.

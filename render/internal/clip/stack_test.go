@@ -65,7 +65,7 @@ func TestClipStack_PushPath(t *testing.T) {
 	// Create a simple rectangle path
 	p := newSOAPath().moveTo(10, 10).lineTo(50, 10).lineTo(50, 50).lineTo(10, 50).close()
 
-	err := stack.PushPath(p.verbs, p.coords, true)
+	err := stack.PushPath(p.verbs, p.coords, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("PushPath() error = %v", err)
 	}
@@ -86,7 +86,7 @@ func TestClipStack_PushPath_EmptyBounds(t *testing.T) {
 
 	p := newSOAPath().moveTo(10, 10).lineTo(50, 10)
 
-	err := stack.PushPath(p.verbs, p.coords, true)
+	err := stack.PushPath(p.verbs, p.coords, true, FillRuleNonZero)
 	if err == nil {
 		t.Error("PushPath() expected error for empty bounds, got nil")
 	}
@@ -201,7 +201,7 @@ func TestClipStack_IsVisible_WithMask(t *testing.T) {
 	// Create a triangle path
 	p := newSOAPath().moveTo(50, 20).lineTo(20, 80).lineTo(80, 80).close()
 
-	err := stack.PushPath(p.verbs, p.coords, true)
+	err := stack.PushPath(p.verbs, p.coords, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("PushPath() error = %v", err)
 	}
@@ -284,7 +284,7 @@ func TestClipStack_Coverage_WithMask(t *testing.T) {
 	// Create a simple rectangle path
 	p := newSOAPath().moveTo(20, 20).lineTo(80, 20).lineTo(80, 80).lineTo(20, 80).close()
 
-	err := stack.PushPath(p.verbs, p.coords, true)
+	err := stack.PushPath(p.verbs, p.coords, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("PushPath() error = %v", err)
 	}
@@ -335,7 +335,7 @@ func TestClipStack_Coverage_MultipleMasks(t *testing.T) {
 	// Push first mask - rectangle
 	p1 := newSOAPath().moveTo(10, 10).lineTo(90, 10).lineTo(90, 90).lineTo(10, 90).close()
 
-	err := stack.PushPath(p1.verbs, p1.coords, true)
+	err := stack.PushPath(p1.verbs, p1.coords, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("PushPath(path1) error = %v", err)
 	}
@@ -343,7 +343,7 @@ func TestClipStack_Coverage_MultipleMasks(t *testing.T) {
 	// Push second mask - smaller rectangle
 	p2 := newSOAPath().moveTo(30, 30).lineTo(70, 30).lineTo(70, 70).lineTo(30, 70).close()
 
-	err = stack.PushPath(p2.verbs, p2.coords, true)
+	err = stack.PushPath(p2.verbs, p2.coords, true, FillRuleNonZero)
 	if err != nil {
 		t.Fatalf("PushPath(path2) error = %v", err)
 	}
@@ -549,7 +549,7 @@ func BenchmarkClipStack_PushPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = stack.PushPath(p.verbs, p.coords, true)
+		_ = stack.PushPath(p.verbs, p.coords, true, FillRuleNonZero)
 		stack.Pop()
 	}
 }
@@ -569,7 +569,7 @@ func BenchmarkClipStack_Coverage(b *testing.B) {
 
 	p := newSOAPath().moveTo(10, 10).lineTo(500, 10).lineTo(500, 500).lineTo(10, 500).close()
 
-	_ = stack.PushPath(p.verbs, p.coords, true)
+	_ = stack.PushPath(p.verbs, p.coords, true, FillRuleNonZero)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -744,7 +744,7 @@ func TestClipStack_IsRectOnly_WithMask(t *testing.T) {
 
 	p := newSOAPath().moveTo(10, 10).lineTo(90, 10).lineTo(90, 90).lineTo(10, 90).close()
 
-	_ = stack.PushPath(p.verbs, p.coords, true)
+	_ = stack.PushPath(p.verbs, p.coords, true, FillRuleNonZero)
 	if stack.IsRectOnly() {
 		t.Error("stack with mask should NOT be IsRectOnly")
 	}
@@ -778,7 +778,7 @@ func TestClipStack_IsRRectOnly_WithMask(t *testing.T) {
 
 	p := newSOAPath().moveTo(10, 10).lineTo(90, 10).lineTo(90, 90).close()
 
-	_ = stack.PushPath(p.verbs, p.coords, true)
+	_ = stack.PushPath(p.verbs, p.coords, true, FillRuleNonZero)
 	if stack.IsRRectOnly() {
 		t.Error("stack with mask should NOT be IsRRectOnly")
 	}
@@ -918,7 +918,7 @@ func BenchmarkClipStack_MultipleMasks(b *testing.B) {
 			lineTo(500, 500).
 			lineTo(float64(i*10), 500).
 			close()
-		_ = stack.PushPath(p.verbs, p.coords, true)
+		_ = stack.PushPath(p.verbs, p.coords, true, FillRuleNonZero)
 	}
 
 	b.ResetTimer()

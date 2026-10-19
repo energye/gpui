@@ -110,7 +110,7 @@
 | `ClipRoundRect(x,y,w,h,r)` | 圆角矩形裁剪（GPU scissor+SDF / CPU 逐像素 SDF） | 圆角矩形裁剪 | ✅ GPU 有效（单测） |
 | `Clip()` / `ClipPreserve()` | **任意路径裁剪**（stencil+depth 管线；Preserve 保留路径） | 任意路径裁剪 | ✅ GPU 有效（2026-08-16 修复画穿+真窗复测，§7.3） |
 | `ResetClip()` | 清除全部裁剪，恢复全画布 | 清除裁剪 | ✅ |
-| `ClipRectOp(x,y,w,h,op)` / `ClipPathOp(op)`（ClipOpIntersect/Difference/Replace） | 带 ClipOp 运算的矩形/路径裁剪（非相交运算） | 运算式裁剪 | 🧪 仅测试（默认 intersect 是日常路径） |
+| `ClipRectOp(x,y,w,h,op)` / `ClipPathOp(op)`（ClipOpIntersect/Difference/Replace） | 带 ClipOp 运算的矩形/路径裁剪（非相交运算；difference/replace 走解析覆盖 mask，fill rule 按 `SetFillRule` 透传） | 运算式裁剪 | ✅ 直调真窗 `ui_render_base_clipop`（2026-10-19，14 逻辑 + 23 像素 + golden；同批修 4 缺陷，见 `RENDER_FEATURE_COVERAGE.md` §11） |
 
 ### 3.3 context_mask.go（6）· 掩码族
 | 方法 | 功能 | 精简 | 状态 |
@@ -233,7 +233,7 @@
 | `SDFFilledCircleCoverage/SDFCircleCoverage/SDFFilledRRectCoverage/SDFRRectCoverage` | SDF 覆盖率函数（像素点→形状内覆盖率，填/描边） | SDF 覆盖率 | 🔗（CPU SDF/测试） |
 | `SDFAccelerator`（无构造器 `&render.SDFAccelerator{}`） | 独立注册的 CPU SDF 加速器（形状快速填充） | CPU SDF 加速 | 🧪 生产仅作为 GPU 加速器内部 cpuFallback |
 | `GPUAccelerator` 接口 + `Accelerator()/RegisterAccelerator/CloseAccelerator/SetAcceleratorDeviceProvider/PurgeAcceleratorSurfaceResources/AbandonAcceleratorDevice/AcceleratorCanRenderDirect/BeginAcceleratorFrame/CPUOnlyMode` | GPU 加速器注册/取回/关闭、设备提供者注入、表面资源清理、设备放弃、可直渲判定、帧开始、CPU-only 模式判定（`GOGPU_RENDER_MODE=cpu` → 全部绘制与窗口呈现走 CPU 光栅） | GPU 加速管理 | ✅（gpu 包注册，全部真窗在用） |
-| 加速器能力接口群：`DeviceProviderAware/GPURenderContextProvider/FrameAware/MSAAAware/GPUTextAccelerator/GPUGlyphMaskAccelerator/GPUAliasedTextAccelerator/GPUShapedTextAccelerator/GPUColorGlyphAccelerator/GPUTransformMaskTextAccelerator/DirectRenderCapable/AdapterAware/ComputePipelineAware/PipelineModeAware/ForceSDFAware/ClipAware/RRectClipAware/PathClipAware/LCDLayoutAware/MaskAware/SceneStatsTracker` | 加速器可探测/可选择性实现的各项能力接口（宿主据此选路径） | 能力探测接口 | 🔗 |
+| 加速器能力接口群：`DeviceProviderAware/GPURenderContextProvider/FrameAware/MSAAAware/GPUTextAccelerator/GPUGlyphMaskAccelerator/GPUAliasedTextAccelerator/GPUShapedTextAccelerator/GPUColorGlyphAccelerator/GPUTransformMaskTextAccelerator/DirectRenderCapable/AdapterAware/ComputePipelineAware/PipelineModeAware/ForceSDFAware/ClipAware/RRectClipAware/PathClipAware/LCDLayoutAware/MaskAware/SceneStatsTracker` | 加速器可探测/可选择性实现的各项能力接口（宿主据此选路径）；**`PathClipAware.SetClipPath(path, fillRule)` 于 2026-10-19 增 `fillRule` 参数**（深度裁剪路径按自身 fill type 光栅化，`render/accelerator.go:606`） | 能力探测接口 | 🔗 |
 | `AcceleratedOp`（Fill/Stroke/Scene/Text/Image/Gradient/CircleSDF/RRectSDF） | 加速操作位标记（加速器声明支持哪些 op） | 加速操作位 | 🔗 |
 | `CoverageFiller` + `RegisterCoverageFiller/GetCoverageFiller` + `ForceableFiller`（SparseFiller/ComputeFiller） | 覆盖率填充器接口与注册；AdaptiveFiller（4x4/16x16 tile）在此注册 | 覆盖率填充器 | ✅ |
 | `RasterizerMode`（Auto/Analytic/SparseStrips/TileCompute/SDF） | CPU 栅格化算法选择 | CPU 栅格化模式 | ✅ |
@@ -342,7 +342,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `render/recording` 整包（录制回放） | 仅测试/示例；PDF/SVG 后端仓外 |
 | `render/raster` 独立注册入口 | 功能并入 render/gpu |
 | 路径布尔 `BooleanPath/PathOp*` | 仅测试（s3c_m3_residual_gate_test 门禁 + path_boolean_test 值级；2026-10-19 重写为 Clipper 扫描线） |
-| 裁剪运算 `ClipOpDifference/Replace`（ClipRectOp/ClipPathOp） | 仅测试（p12_clip_mask_gpu_test） |
+| 裁剪运算 `ClipOpDifference/Replace`（ClipRectOp/ClipPathOp） | 仅测试（p12_clip_mask_gpu_test）+ 直调真窗 `ui_render_base_clipop`（2026-10-19，**原子验证**；同批修 4 缺陷，见 §3.2 行与 `RENDER_FEATURE_COVERAGE.md` §11） |
 | Path 高级造型 `Trim/WithCorners/Discrete` | 仅测试（2026-10-19 修 `Discrete` 恒单侧偏移 + 2× 虚线周期，值级契约 `pathops_subpath_test.go`；直调真窗 `ui_render_base_pathshape`） |
 | `SetDither`（m4_extensions） | 仅测试 |
 | `Pattern/ImagePattern` 旧图案接口（SetFillPattern 等） | 仅测试/桥接；生产走 Brush |

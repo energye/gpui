@@ -97,9 +97,10 @@ func (cs *ClipStack) PushRRect(r Rect, radius float64) {
 // PushPath pushes a path-based clip region onto the stack.
 // The path (given as SOA verb+coords) is rasterized into a mask using the current bounds.
 // If antiAlias is true, the mask will use anti-aliased rendering.
-func (cs *ClipStack) PushPath(verbs []PathVerb, coords []float64, antiAlias bool) error {
+// fillRule selects how self-overlapping contours resolve (winding or even-odd).
+func (cs *ClipStack) PushPath(verbs []PathVerb, coords []float64, antiAlias bool, fillRule FillRule) error {
 	// Create mask clipper from path
-	mask, err := NewMaskClipper(verbs, coords, cs.bounds, antiAlias)
+	mask, err := NewMaskClipper(verbs, coords, cs.bounds, antiAlias, fillRule)
 	if err != nil {
 		return err
 	}
@@ -346,16 +347,16 @@ func (cs *ClipStack) ReplaceRect(canvas, r Rect) {
 }
 
 // ReplacePath replaces the clip stack with a single path clip on the canvas.
-func (cs *ClipStack) ReplacePath(canvas Rect, verbs []PathVerb, coords []float64, antiAlias bool) error {
+func (cs *ClipStack) ReplacePath(canvas Rect, verbs []PathVerb, coords []float64, antiAlias bool, fillRule FillRule) error {
 	cs.entries = cs.entries[:0]
 	cs.bounds = canvas
-	return cs.PushPath(verbs, coords, antiAlias)
+	return cs.PushPath(verbs, coords, antiAlias, fillRule)
 }
 
 // PushPathDifference subtracts path coverage from the current clip.
 // Implemented by rasterizing the path and inverting coverage inside current bounds.
-func (cs *ClipStack) PushPathDifference(verbs []PathVerb, coords []float64, antiAlias bool) error {
-	pos, err := NewMaskClipper(verbs, coords, cs.bounds, antiAlias)
+func (cs *ClipStack) PushPathDifference(verbs []PathVerb, coords []float64, antiAlias bool, fillRule FillRule) error {
+	pos, err := NewMaskClipper(verbs, coords, cs.bounds, antiAlias, fillRule)
 	if err != nil {
 		return err
 	}

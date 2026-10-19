@@ -39,11 +39,12 @@ type Context struct {
 	deviceScale atomic.Uint64 // math.Float64bits: physical px per logical px (default 1.0)
 
 	// Current state
-	path        *Path
-	paint       *Paint
-	face        text.Face       // Current font face for text drawing
-	clipStack   *clip.ClipStack // Clipping stack
-	gpuClipPath *Path           // device-space clip path for GPU depth clipping (GPU-CLIP-003a)
+	path            *Path
+	paint           *Paint
+	face            text.Face       // Current font face for text drawing
+	clipStack       *clip.ClipStack // Clipping stack
+	gpuClipPath     *Path           // device-space clip path for GPU depth clipping (GPU-CLIP-003a)
+	gpuClipFillRule FillRule        // fill rule of gpuClipPath (clip paths honor the paint fill rule)
 
 	// Transform and state stack
 	matrix         Matrix // user transform (starts as Identity, user-space only)

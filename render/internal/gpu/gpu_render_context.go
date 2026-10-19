@@ -81,7 +81,8 @@ type GPURenderContext struct {
 	// Per-context clip state.
 	clipRect        *[4]uint32
 	clipRRect       *ClipParams
-	clipPath        *render.Path // arbitrary clip path for depth clipping (GPU-CLIP-003a)
+	clipPath        *render.Path    // arbitrary clip path for depth clipping (GPU-CLIP-003a)
+	clipFillRule    render.FillRule // fill rule of clipPath (winding/even-odd)
 	scissorSegments []scissorSegment
 	scissorGroups   []ScissorGroup
 	scissorRects    [][4]uint32
@@ -270,18 +271,24 @@ func (rc *GPURenderContext) ClearClipRRect() {
 }
 
 // SetClipPath sets an arbitrary clip path for depth-based clipping (GPU-CLIP-003a).
-// The path must be in device-space coordinates. When set, subsequent draws are
-// clipped to the path region via the depth buffer. The path is fan-tessellated
-// and rendered to the depth buffer before content; content fragments test against
-// the clip depth so only pixels within the clipped region pass.
-func (rc *GPURenderContext) SetClipPath(path *render.Path) {
+// The path must be in device-space coordinates. fillRule selects how the
+// path's own contour overlaps resolve (Skia fills a clip path using the path
+// fill type). When set, subsequent draws are clipped to the path region via
+// the depth buffer. The path is fan-tessellated and rendered to the depth
+// buffer before content; content fragments test against the clip depth so
+// only pixels within the clipped region pass. At sampleCount==1 the R8
+// coverage mask also carries the fill rule, carving even-odd holes out of
+// the winding stencil region.
+func (rc *GPURenderContext) SetClipPath(path *render.Path, fillRule render.FillRule) {
 	rc.clipPath = path
+	rc.clipFillRule = fillRule
 	rc.recordScissorSegment(rc.clipRect)
 }
 
 // ClearClipPath removes the arbitrary clip path, restoring full rendering.
 func (rc *GPURenderContext) ClearClipPath() {
 	rc.clipPath = nil
+	rc.clipFillRule = render.FillRuleNonZero
 	rc.recordScissorSegment(rc.clipRect)
 }
 
@@ -336,6 +343,7 @@ func (rc *GPURenderContext) BeginFrame() {
 	}
 	rc.clipRect = nil
 	rc.clipPath = nil
+	rc.clipFillRule = render.FillRuleNonZero
 	rc.frameRendered = false
 	rc.lastView = nil
 	rc.textBatchSealed = false
@@ -542,6 +550,7 @@ type offscreenPass struct {
 	clipRect         *[4]uint32
 	clipRRect        *ClipParams
 	clipPath         *render.Path
+	clipFillRule     render.FillRule
 	scissorSegments  []scissorSegment
 	textBatchSealed  bool
 	glyphBatchSealed bool
@@ -615,6 +624,7 @@ func (rc *GPURenderContext) BeginOffscreenPass(target render.GPURenderTarget) fu
 	o.clipRect, rc.clipRect = rc.clipRect, nil
 	o.clipRRect, rc.clipRRect = rc.clipRRect, nil
 	o.clipPath, rc.clipPath = rc.clipPath, nil
+	o.clipFillRule, rc.clipFillRule = rc.clipFillRule, render.FillRuleNonZero
 	o.scissorSegments = append(o.scissorSegments[:0], rc.scissorSegments...)
 	rc.scissorSegments = rc.scissorSegments[:0]
 
@@ -715,6 +725,7 @@ func (rc *GPURenderContext) EndOffscreenPass() {
 	rc.clipRect, o.clipRect = o.clipRect, nil
 	rc.clipRRect, o.clipRRect = o.clipRRect, nil
 	rc.clipPath, o.clipPath = o.clipPath, nil
+	rc.clipFillRule, o.clipFillRule = o.clipFillRule, render.FillRuleNonZero
 	rc.scissorSegments = append(rc.scissorSegments[:0], o.scissorSegments...)
 	o.scissorSegments = o.scissorSegments[:0]
 
@@ -3697,6 +3708,7 @@ func (rc *GPURenderContext) Close() {
 	rc.clipRect = nil
 	rc.clipRRect = nil
 	rc.clipPath = nil
+	rc.clipFillRule = render.FillRuleNonZero
 	rc.scissorSegments = nil
 	rc.scissorGroups = nil
 	rc.scissorRects = nil
@@ -3805,6 +3817,7 @@ func (rc *GPURenderContext) recordScissorSegment(rect *[4]uint32) {
 		seg.hasClipRRect = true
 	}
 	seg.clipPath = rc.clipPath
+	seg.clipFillRule = rc.clipFillRule
 	rc.scissorSegments = append(rc.scissorSegments, seg)
 }
 
@@ -3936,6 +3949,7 @@ func (rc *GPURenderContext) buildScissorGroups() []ScissorGroup {
 			Rect:               groupRect,
 			ClipRRect:          groupClip,
 			ClipPath:           seg.clipPath,
+			ClipFillRule:       seg.clipFillRule,
 			SDFShapes:          rc.pendingShapes[s0:s1],
 			ConvexCommands:     rc.pendingConvexCommands[c0:c1],
 			StencilPaths:       rc.pendingStencilPaths[t0:t1],

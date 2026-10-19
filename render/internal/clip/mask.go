@@ -31,6 +31,18 @@ const (
 	VerbClose
 )
 
+// FillRule selects how path contour overlaps resolve when a clip mask is
+// rasterized. Values match render.FillRule for zero-cost conversion
+// (Skia: clip paths are filled using the path fill type).
+type FillRule int
+
+const (
+	// FillRuleNonZero keeps pixels where the signed winding number is non-zero.
+	FillRuleNonZero FillRule = iota
+	// FillRuleEvenOdd keeps pixels crossed an odd number of times.
+	FillRuleEvenOdd
+)
+
 // MaskClipper performs alpha mask-based clipping for anti-aliased complex clips.
 // It rasterizes a path into a grayscale mask where each pixel's value represents
 // coverage (0 = outside, 255 = fully inside).
@@ -47,9 +59,10 @@ type MaskClipper struct {
 //   - coords: Path coordinate stream
 //   - bounds: Bounding rectangle for the mask
 //   - antiAlias: Enable anti-aliased rendering (currently always on)
+//   - fillRule: How contour overlaps resolve (winding or even-odd)
 //
 // The mask is stored as FormatGray8 (1 byte per pixel) for memory efficiency.
-func NewMaskClipper(verbs []PathVerb, coords []float64, bounds Rect, antiAlias bool) (*MaskClipper, error) {
+func NewMaskClipper(verbs []PathVerb, coords []float64, bounds Rect, antiAlias bool, fillRule FillRule) (*MaskClipper, error) {
 	// Validate bounds - empty bounds means no clipping needed
 	if bounds.IsEmpty() {
 		return nil, image.ErrInvalidDimensions
@@ -74,7 +87,7 @@ func NewMaskClipper(verbs []PathVerb, coords []float64, bounds Rect, antiAlias b
 	}
 
 	// Rasterize path into mask
-	mc.rasterizePath(verbs, coords, antiAlias)
+	mc.rasterizePath(verbs, coords, antiAlias, fillRule)
 
 	return mc, nil
 }
@@ -137,29 +150,32 @@ func (mc *MaskClipper) Mask() *image.ImageBuf {
 }
 
 // rasterizePath converts path (verb+coords) into a coverage mask.
-func (mc *MaskClipper) rasterizePath(verbs []PathVerb, coords []float64, antiAlias bool) {
+func (mc *MaskClipper) rasterizePath(verbs []PathVerb, coords []float64, antiAlias bool, fillRule FillRule) {
 	if len(verbs) == 0 {
 		return
 	}
 
-	// Flatten path to line segments
-	points := mc.flattenPath(verbs, coords)
-	if len(points) < 2 {
-		return
+	// Flatten path into per-subpath point lists. Edges never connect across
+	// MoveTo boundaries, and every subpath carries its closing edge
+	// (explicit Close or the implicit close used by fill semantics).
+	subpaths := mc.flattenSubpaths(verbs, coords)
+	edgeCap := 0
+	for _, sp := range subpaths {
+		edgeCap += len(sp)
 	}
+	edges := make([]edge, 0, edgeCap)
+	for _, sp := range subpaths {
+		for i := 0; i+1 < len(sp); i++ {
+			p0 := sp[i]
+			p1 := sp[i+1]
 
-	// Build edge list for scanline rasterization
-	edges := make([]edge, 0, len(points))
-	for i := 0; i < len(points)-1; i++ {
-		p0 := points[i]
-		p1 := points[i+1]
+			// Skip horizontal edges
+			if p1.Y == p0.Y {
+				continue
+			}
 
-		// Skip horizontal edges
-		if p1.Y == p0.Y {
-			continue
+			edges = append(edges, mc.makeEdge(p0, p1))
 		}
-
-		edges = append(edges, mc.makeEdge(p0, p1))
 	}
 
 	if len(edges) == 0 {
@@ -169,11 +185,11 @@ func (mc *MaskClipper) rasterizePath(verbs []PathVerb, coords []float64, antiAli
 	// Scanline rasterization
 	if antiAlias {
 		for y := 0; y < mc.mask.Height(); y++ {
-			mc.rasterizeScanlineAA(edges, y)
+			mc.rasterizeScanlineAA(edges, y, fillRule)
 		}
 	} else {
 		for y := 0; y < mc.mask.Height(); y++ {
-			mc.rasterizeScanline(edges, y)
+			mc.rasterizeScanline(edges, y, fillRule)
 		}
 	}
 }
@@ -204,9 +220,11 @@ func (mc *MaskClipper) makeEdge(p0, p1 Point) edge {
 
 // rasterizeScanlineAA fills a single scanline with anti-aliasing using 4x
 // Y-supersampling and fractional X-edge coverage. Each pixel is sampled at 4
-// sub-scanlines (y+0.125, y+0.375, y+0.625, y+0.875) and the coverage is
-// averaged. Edge pixels get fractional coverage based on the exact intersection.
-func (mc *MaskClipper) rasterizeScanlineAA(edges []edge, y int) {
+// sub-scanlines (y+0.125, y+0.375, y+0.625, y+0.875), edge crossings are
+// walked left-to-right accumulating the winding number, and coverage is
+// averaged per pixel. Edge pixels get fractional coverage based on the exact
+// intersection.
+func (mc *MaskClipper) rasterizeScanlineAA(edges []edge, y int, fillRule FillRule) {
 	width := mc.mask.Width()
 	// Accumulate coverage from 4 sub-scanlines (each contributes 0-255/4).
 	coverage := make([]uint16, width)
@@ -215,73 +233,32 @@ func (mc *MaskClipper) rasterizeScanlineAA(edges []edge, y int) {
 	for _, off := range subOffsets {
 		scanY := float64(y) + off
 
-		// Find edge intersections at this sub-scanline.
-		var intersections []float64
+		// Find edge crossings at this sub-scanline.
+		var crossings []crossing
 		for _, e := range edges {
 			if e.y0 <= scanY && scanY < e.y1 {
 				t := (scanY - e.y0) / (e.y1 - e.y0)
-				x := e.x0 + t*(e.x1-e.x0)
-				intersections = append(intersections, x)
+				crossings = append(crossings, crossing{x: e.x0 + t*(e.x1-e.x0), dir: e.dir})
 			}
 		}
-		if len(intersections) == 0 {
+		if len(crossings) == 0 {
 			continue
 		}
-		sortFloats(intersections)
+		sortCrossings(crossings)
 
-		// Fill spans with fractional edge coverage.
-		for i := 0; i+1 < len(intersections); i += 2 {
-			x1 := intersections[i]
-			x2 := intersections[i+1]
-
-			px1 := int(x1)
-			px2 := int(x2)
-			if px1 < 0 {
-				px1 = 0
-			}
-			if px2 >= width {
-				px2 = width - 1
-			}
-
-			if px1 == px2 {
-				// Single pixel span — coverage = span width.
-				frac := x2 - x1
-				if frac > 1.0 {
-					frac = 1.0
-				}
-				coverage[px1] += uint16(frac * 64) // 64 = 255/4 ≈ per-subsample max
-				continue
-			}
-
-			// Left edge pixel: fractional coverage.
-			if px1 >= 0 && px1 < width {
-				leftFrac := 1.0 - (x1 - float64(px1))
-				if leftFrac > 1.0 {
-					leftFrac = 1.0
-				}
-				if leftFrac < 0 {
-					leftFrac = 0
-				}
-				coverage[px1] += uint16(leftFrac * 64)
-			}
-
-			// Interior pixels: full coverage for this subsample.
-			for x := px1 + 1; x < px2; x++ {
-				if x >= 0 && x < width {
-					coverage[x] += 64 // 255/4
-				}
-			}
-
-			// Right edge pixel: fractional coverage.
-			if px2 >= 0 && px2 < width && px2 > px1 {
-				rightFrac := x2 - float64(px2)
-				if rightFrac > 1.0 {
-					rightFrac = 1.0
-				}
-				if rightFrac < 0 {
-					rightFrac = 0
-				}
-				coverage[px2] += uint16(rightFrac * 64)
+		// Fill spans where the winding number is inside the fill area.
+		winding := 0
+		inSpan := false
+		spanStart := 0.0
+		for _, c := range crossings {
+			winding += c.dir
+			inside := spanInside(winding, fillRule)
+			if inside && !inSpan {
+				spanStart = c.x
+				inSpan = true
+			} else if !inside && inSpan {
+				emitSpanAA(coverage, spanStart, c.x, width)
+				inSpan = false
 			}
 		}
 	}
@@ -298,105 +275,256 @@ func (mc *MaskClipper) rasterizeScanlineAA(edges []edge, y int) {
 	}
 }
 
-// rasterizeScanline fills a single scanline using the non-zero winding rule.
-func (mc *MaskClipper) rasterizeScanline(edges []edge, y int) {
-	scanY := float64(y) + 0.5
-
-	// Find edges that intersect this scanline
-	var intersections []float64
-	for _, e := range edges {
-		if e.y0 <= scanY && scanY < e.y1 {
-			// Compute x intersection
-			t := (scanY - e.y0) / (e.y1 - e.y0)
-			x := e.x0 + t*(e.x1-e.x0)
-			intersections = append(intersections, x)
-		}
+// emitSpanAA adds fractional coverage for one subsample of the span [x1, x2]
+// to the coverage row. Each subsample contributes up to 64 per pixel.
+func emitSpanAA(coverage []uint16, x1, x2 float64, width int) {
+	if x2 <= x1 {
+		return
 	}
-
-	if len(intersections) == 0 {
+	// Clip the span to the mask columns.
+	if x1 < 0 {
+		x1 = 0
+	}
+	if x2 > float64(width) {
+		x2 = float64(width)
+	}
+	if x2 <= x1 {
 		return
 	}
 
-	// Sort intersections
-	sortFloats(intersections)
+	px1 := int(x1)
+	px2 := int(x2)
+	if px2 >= width {
+		px2 = width - 1
+	}
 
-	// Fill spans using even-odd rule (pairs of intersections)
-	for i := 0; i+1 < len(intersections); i += 2 {
-		x1 := intersections[i]
-		x2 := intersections[i+1]
-
-		// Convert to pixel coordinates
-		px1 := int(x1)
-		px2 := int(x2)
-
-		// Clamp to mask bounds
-		if px1 < 0 {
-			px1 = 0
+	if px1 == px2 {
+		// Single pixel span — coverage = span width.
+		frac := x2 - x1
+		if frac > 1.0 {
+			frac = 1.0
 		}
-		if px2 >= mc.mask.Width() {
-			px2 = mc.mask.Width() - 1
-		}
+		coverage[px1] += uint16(frac * 64) // 64 = 255/4 ≈ per-subsample max
+		return
+	}
 
-		// Fill pixels
-		for x := px1; x <= px2; x++ {
-			_ = mc.mask.SetRGBA(x, y, 255, 255, 255, 255)
+	// Left edge pixel: fractional coverage.
+	leftFrac := 1.0 - (x1 - float64(px1))
+	if leftFrac > 1.0 {
+		leftFrac = 1.0
+	}
+	if leftFrac < 0 {
+		leftFrac = 0
+	}
+	coverage[px1] += uint16(leftFrac * 64)
+
+	// Interior pixels: full coverage for this subsample.
+	for x := px1 + 1; x < px2; x++ {
+		coverage[x] += 64 // 255/4
+	}
+
+	// Right edge pixel: fractional coverage.
+	if px2 > px1 {
+		rightFrac := x2 - float64(px2)
+		if rightFrac > 1.0 {
+			rightFrac = 1.0
+		}
+		if rightFrac < 0 {
+			rightFrac = 0
+		}
+		coverage[px2] += uint16(rightFrac * 64)
+	}
+}
+
+// crossing is an edge intersection with a scanline, carrying the edge
+// direction so the winding number can be accumulated while walking spans.
+type crossing struct {
+	x   float64
+	dir int
+}
+
+// spanInside reports whether a span with the accumulated winding number is
+// inside the fill area for the given fill rule. Even-odd keeps odd crossing
+// parity; non-zero keeps any non-zero winding sum.
+func spanInside(winding int, rule FillRule) bool {
+	if rule == FillRuleEvenOdd {
+		return winding&1 != 0
+	}
+	return winding != 0
+}
+
+// sortCrossings orders crossings by x. Scanline lists are short, so a
+// simple bubble sort keeps the hot path allocation-free.
+func sortCrossings(cs []crossing) {
+	for i := 0; i < len(cs)-1; i++ {
+		for j := 0; j < len(cs)-i-1; j++ {
+			if cs[j].x > cs[j+1].x {
+				cs[j], cs[j+1] = cs[j+1], cs[j]
+			}
 		}
 	}
 }
 
-// flattenPath converts path (verb+coords) into a sequence of points.
-func (mc *MaskClipper) flattenPath(verbs []PathVerb, coords []float64) []Point {
-	var points []Point
-	var current Point
+// rasterizeScanline fills a single scanline honoring the fill rule: sorted
+// edge crossings are walked left-to-right accumulating the winding number,
+// and every span inside the fill area is filled solid.
+func (mc *MaskClipper) rasterizeScanline(edges []edge, y int, fillRule FillRule) {
+	scanY := float64(y) + 0.5
+
+	// Find edges that cross this scanline
+	var crossings []crossing
+	for _, e := range edges {
+		if e.y0 <= scanY && scanY < e.y1 {
+			t := (scanY - e.y0) / (e.y1 - e.y0)
+			crossings = append(crossings, crossing{x: e.x0 + t*(e.x1-e.x0), dir: e.dir})
+		}
+	}
+
+	if len(crossings) == 0 {
+		return
+	}
+
+	sortCrossings(crossings)
+
+	// Fill spans where the winding number is inside the fill area.
+	winding := 0
+	inSpan := false
+	spanStart := 0.0
+	for _, c := range crossings {
+		winding += c.dir
+		inside := spanInside(winding, fillRule)
+		if inside && !inSpan {
+			spanStart = c.x
+			inSpan = true
+		} else if !inside && inSpan {
+			mc.emitSpanPixel(y, spanStart, c.x)
+			inSpan = false
+		}
+	}
+}
+
+// emitSpanPixel fills the pixels covered by span [x1, x2] on a scanline
+// (non-AA path: every touched pixel gets full coverage).
+func (mc *MaskClipper) emitSpanPixel(y int, x1, x2 float64) {
+	width := mc.mask.Width()
+	if x2 <= x1 {
+		return
+	}
+	// Clip the span to the mask columns.
+	if x1 < 0 {
+		x1 = 0
+	}
+	if x2 > float64(width) {
+		x2 = float64(width)
+	}
+	if x2 <= x1 {
+		return
+	}
+
+	px1 := int(x1)
+	px2 := int(x2)
+	if px2 >= width {
+		px2 = width - 1
+	}
+	if px2 < px1 {
+		return
+	}
+	for x := px1; x <= px2; x++ {
+		_ = mc.mask.SetRGBA(x, y, 255, 255, 255, 255)
+	}
+}
+
+// flattenSubpaths converts path (verb+coords) into per-subpath point lists.
+// Subpaths stay independent: edges never connect across MoveTo boundaries,
+// Close returns to the current subpath start (not the global first point),
+// and an open trailing subpath receives the implicit closing edge used by
+// fill semantics (Skia fills an unclosed contour as if it were closed).
+func (mc *MaskClipper) flattenSubpaths(verbs []PathVerb, coords []float64) [][]Point {
+	var subs [][]Point
+	var cur []Point
+	var pen Point
+	hasPen := false
 	ci := 0
+
+	// closeSubpath finalizes the subpath in progress by closing it back to
+	// its start point, stores it when it forms an area, and parks the pen on
+	// the start point (SVG/Skia: after Close the current point is the
+	// subpath start).
+	closeSubpath := func() {
+		if len(cur) >= 2 {
+			start := cur[0]
+			cur = append(cur, start)
+			subs = append(subs, cur)
+			pen = start
+			hasPen = true
+		}
+		cur = nil
+	}
+
+	// beginOrContinue returns the subpath to append a drawing verb to,
+	// starting one at the pen (or the implicit origin) when needed.
+	beginOrContinue := func() []Point {
+		if len(cur) == 0 {
+			if !hasPen {
+				pen = Point{} // Skia path iterator: implicit moveTo(0, 0)
+				hasPen = true
+			}
+			cur = append(cur, pen)
+		}
+		return cur
+	}
 
 	for _, v := range verbs {
 		switch v {
 		case VerbMoveTo:
-			current = Point{X: coords[ci], Y: coords[ci+1]}
-			points = append(points, current)
+			closeSubpath()
+			pen = Point{X: coords[ci], Y: coords[ci+1]}
+			hasPen = true
+			cur = append(cur, pen)
 			ci += 2
 
 		case VerbLineTo:
-			current = Point{X: coords[ci], Y: coords[ci+1]}
-			points = append(points, current)
+			cur = beginOrContinue()
+			pen = Point{X: coords[ci], Y: coords[ci+1]}
+			cur = append(cur, pen)
 			ci += 2
 
 		case VerbQuadTo:
+			cur = beginOrContinue()
 			ctrl := Point{X: coords[ci], Y: coords[ci+1]}
 			end := Point{X: coords[ci+2], Y: coords[ci+3]}
-			prev := current
+			prev := pen
 			steps := 10
 			for i := 1; i <= steps; i++ {
 				t := float64(i) / float64(steps)
-				pt := evalQuadraticBezier(prev, ctrl, end, t)
-				points = append(points, pt)
+				cur = append(cur, evalQuadraticBezier(prev, ctrl, end, t))
 			}
-			current = end
+			pen = end
 			ci += 4
 
 		case VerbCubicTo:
+			cur = beginOrContinue()
 			c1 := Point{X: coords[ci], Y: coords[ci+1]}
 			c2 := Point{X: coords[ci+2], Y: coords[ci+3]}
 			end := Point{X: coords[ci+4], Y: coords[ci+5]}
-			prev := current
+			prev := pen
 			steps := 16
 			for i := 1; i <= steps; i++ {
 				t := float64(i) / float64(steps)
-				pt := evalCubicBezier(prev, c1, c2, end, t)
-				points = append(points, pt)
+				cur = append(cur, evalCubicBezier(prev, c1, c2, end, t))
 			}
-			current = end
+			pen = end
 			ci += 6
 
 		case VerbClose:
-			if len(points) > 0 {
-				points = append(points, points[0])
-			}
+			closeSubpath()
 		}
 	}
 
-	return points
+	// Trailing open subpath: filled as if closed.
+	closeSubpath()
+
+	return subs
 }
 
 // evalQuadraticBezier evaluates a quadratic Bezier curve at parameter t.

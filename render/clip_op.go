@@ -47,10 +47,12 @@ func (c *Context) ClipRectOp(x, y, w, h float64, op ClipOp) {
 	case ClipOpReplace:
 		c.clipStack.ReplaceRect(canvas, rect)
 		c.gpuClipPath = nil
+		c.gpuClipFillRule = FillRuleNonZero
 	case ClipOpDifference:
 		_ = c.clipStack.PushRectDifference(rect)
 		// Difference uses mask coverage; GPU via R8 MaskAware.
 		c.gpuClipPath = nil
+		c.gpuClipFillRule = FillRuleNonZero
 	default:
 		c.clipStack.PushRect(rect)
 	}
@@ -69,16 +71,20 @@ func (c *Context) ClipPathOp(op ClipOp) {
 	dev := c.path.Transform(c.totalMatrix())
 	verbs, coords := convertPathToClipVerbs(dev)
 	canvas := clip.NewRect(0, 0, float64(c.pixmap.Width()), float64(c.pixmap.Height()))
+	fillRule := clipFillRule(c.paint.FillRule)
 	switch op {
 	case ClipOpReplace:
-		_ = c.clipStack.ReplacePath(canvas, verbs, coords, c.antiAlias)
+		_ = c.clipStack.ReplacePath(canvas, verbs, coords, c.antiAlias, fillRule)
 		c.gpuClipPath = dev
+		c.gpuClipFillRule = c.paint.FillRule
 	case ClipOpDifference:
-		_ = c.clipStack.PushPathDifference(verbs, coords, c.antiAlias)
+		_ = c.clipStack.PushPathDifference(verbs, coords, c.antiAlias, fillRule)
 		c.gpuClipPath = nil
+		c.gpuClipFillRule = FillRuleNonZero
 	default:
-		_ = c.clipStack.PushPath(verbs, coords, c.antiAlias)
+		_ = c.clipStack.PushPath(verbs, coords, c.antiAlias, fillRule)
 		c.gpuClipPath = dev
+		c.gpuClipFillRule = c.paint.FillRule
 	}
 	c.bumpClipMaskGPUGen()
 	c.path.Clear()

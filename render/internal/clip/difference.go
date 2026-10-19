@@ -10,11 +10,17 @@
 
 package clip
 
-import "github.com/energye/gpui/render/internal/image"
+import (
+	"math"
+
+	"github.com/energye/gpui/render/internal/image"
+)
 
 // NewRectDifferenceMask builds a mask covering bounds where pixels inside
 // hole are 0 (clipped out) and outside hole (but in bounds) are 255.
-// Used for ClipOpDifference of a rectangle.
+// Used for ClipOpDifference of a rectangle. Pixels straddling a hole edge
+// receive analytic partial coverage, so the difference clip is anti-aliased
+// at fractional hole coordinates (Skia clip AA semantics).
 func NewRectDifferenceMask(bounds, hole Rect) (*MaskClipper, error) {
 	if bounds.IsEmpty() {
 		return nil, image.ErrInvalidDimensions
@@ -28,33 +34,54 @@ func NewRectDifferenceMask(bounds, hole Rect) (*MaskClipper, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Fill entire mask with full coverage.
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			_ = mask.SetRGBA(x, y, 255, 255, 255, 255)
+
+	// Hole edges in device coordinates.
+	hx0, hy0 := hole.X, hole.Y
+	hx1, hy1 := hole.X+hole.W, hole.Y+hole.H
+
+	// No effective hole: full coverage everywhere.
+	if hole.IsEmpty() || hx1 <= hx0 || hy1 <= hy0 {
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				_ = mask.SetRGBA(x, y, 255, 255, 255, 255)
+			}
 		}
+		return &MaskClipper{mask: mask, bounds: bounds}, nil
 	}
-	// Punch hole: zero coverage inside hole (in mask coordinates).
-	hx0 := int(hole.X - bounds.X + 0.5)
-	hy0 := int(hole.Y - bounds.Y + 0.5)
-	hx1 := int(hole.X + hole.W - bounds.X + 0.5)
-	hy1 := int(hole.Y + hole.H - bounds.Y + 0.5)
-	if hx0 < 0 {
-		hx0 = 0
-	}
-	if hy0 < 0 {
-		hy0 = 0
-	}
-	if hx1 > width {
-		hx1 = width
-	}
-	if hy1 > height {
-		hy1 = height
-	}
-	for y := hy0; y < hy1; y++ {
-		for x := hx0; x < hx1; x++ {
-			_ = mask.SetRGBA(x, y, 0, 0, 0, 255)
+
+	for y := 0; y < height; y++ {
+		py0 := bounds.Y + float64(y)
+		oy := overlap1D(py0, py0+1, hy0, hy1)
+		if oy <= 0 {
+			// Row fully outside the hole: full coverage.
+			for x := 0; x < width; x++ {
+				_ = mask.SetRGBA(x, y, 255, 255, 255, 255)
+			}
+			continue
+		}
+		for x := 0; x < width; x++ {
+			px0 := bounds.X + float64(x)
+			ox := overlap1D(px0, px0+1, hx0, hx1)
+			if ox <= 0 {
+				_ = mask.SetRGBA(x, y, 255, 255, 255, 255)
+				continue
+			}
+			// Coverage = 1 - (fraction of the pixel covered by the hole).
+			cov := (1 - ox*oy) * 255
+			v := uint8(math.Round(cov)) //nolint:gosec // cov is in [0,255]
+			_ = mask.SetRGBA(x, y, v, v, v, 255)
 		}
 	}
 	return &MaskClipper{mask: mask, bounds: bounds}, nil
+}
+
+// overlap1D returns the length of the overlap of the 1D intervals [a0,a1]
+// and [b0,b1], or zero when they do not overlap.
+func overlap1D(a0, a1, b0, b1 float64) float64 {
+	lo := math.Max(a0, b0)
+	hi := math.Min(a1, b1)
+	if hi <= lo {
+		return 0
+	}
+	return hi - lo
 }

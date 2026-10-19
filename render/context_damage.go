@@ -254,7 +254,7 @@ type gpuContextOps interface {
 	ClearClipRect()
 	SetClipRRect(x, y, w, h, radius float32)
 	ClearClipRRect()
-	SetClipPath(path *Path)
+	SetClipPath(path *Path, fillRule FillRule)
 	ClearClipPath()
 	BeginFrame()
 	SetPipelineMode(mode PipelineMode)
