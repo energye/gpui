@@ -223,6 +223,14 @@ type gpuContextOps interface {
 	QueueImageDrawTint(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, nearest bool, contentDirty bool, bicubic ...bool)
+	// QueueImageDrawBlend is QueueImageDrawTint plus a fixed-function Porter-Duff
+	// blend mode (B.02): the quad composites with the mode's blend factors
+	// instead of premultiplied SourceOver (DestinationIn mask draws and other
+	// destination-dependent compositing). Advanced (destination-sampling) modes
+	// have no fixed-function variant and must stay on the CPU path.
+	QueueImageDrawBlend(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
+		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, blendMode BlendMode, nearest bool, contentDirty bool, bicubic ...bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
 	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
 	// QueueColoredMeshIndexed draws unique verts + uint16 indices.

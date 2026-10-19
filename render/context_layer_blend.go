@@ -45,12 +45,7 @@ func (c *Context) SetBlendMode(mode BlendMode) {
 // rectangle is blended (AA pad). This is required for continuous UI layers at
 // 60fps — full-surface SourceOver of 800x600 was ~50ms on Intel HD.
 func (c *Context) compositeLayer(layer *Layer, parent *Pixmap) {
-	// Convert pixmaps to ImageBuf for blending
-	srcImg := c.pixmapToImageBuf(layer.pixmap)
-	dstImg := c.pixmapToImageBuf(parent)
-
-	srcW, srcH := srcImg.Bounds()
-	r := image.Rect(0, 0, srcW, srcH)
+	r := image.Rect(0, 0, layer.pixmap.Width(), layer.pixmap.Height())
 	if !layer.fullComposite && !layer.damage.Empty() {
 		// AA / filter soft edge pad (filters that expand bounds should mark fullComposite).
 		const pad = 2
@@ -61,6 +56,20 @@ func (c *Context) compositeLayer(layer *Layer, parent *Pixmap) {
 		}
 		r = d
 	}
+
+	// Normal layers SourceOver straight on the premultiplied pixmap bytes. The
+	// generic intImage path reads its source as straight colours, which
+	// multiplies partial-alpha layer content by alpha a second time: masked
+	// layers carrying soft content used to read squared on the CPU path while
+	// the GPU composite was already correct.
+	if layer.blendMode == BlendNormal {
+		compositePremulSourceOver(layer.pixmap, parent, r, layer.opacity)
+		return
+	}
+
+	// Convert pixmaps to ImageBuf for blending
+	srcImg := c.pixmapToImageBuf(layer.pixmap)
+	dstImg := c.pixmapToImageBuf(parent)
 
 	srcRect := intImage.Rect{X: r.Min.X, Y: r.Min.Y, Width: r.Dx(), Height: r.Dy()}
 	params := intImage.DrawParams{
@@ -77,6 +86,61 @@ func (c *Context) compositeLayer(layer *Layer, parent *Pixmap) {
 	}
 
 	intImage.DrawImage(dstImg, srcImg, params)
+}
+
+// compositePremulSourceOver does SourceOver in premultiplied space over the
+// given rectangle (physical pixels):
+//
+//	out = src*opacity + dst*(1 - srcA*opacity)
+//
+// Both pixmaps store premultiplied RGBA8 bytes, so no unpremultiply round trip
+// is needed and partial-alpha content keeps its true coverage.
+func compositePremulSourceOver(src, dst *Pixmap, r image.Rectangle, opacity float64) {
+	if src == nil || dst == nil {
+		return
+	}
+	if opacity < 0 {
+		opacity = 0
+	}
+	if opacity > 1 {
+		opacity = 1
+	}
+	sw, sh := src.Width(), src.Height()
+	dw, dh := dst.Width(), dst.Height()
+	r = r.Intersect(image.Rect(0, 0, sw, sh)).Intersect(image.Rect(0, 0, dw, dh))
+	if r.Empty() {
+		return
+	}
+	sd, dd := src.Data(), dst.Data()
+	op := int(opacity*255 + 0.5)
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		srow := y * sw * 4
+		drow := y * dw * 4
+		for x := r.Min.X; x < r.Max.X; x++ {
+			si := srow + x*4
+			di := drow + x*4
+			sa := int(sd[si+3])
+			if op < 255 {
+				sa = sa * op / 255
+			}
+			if sa == 0 {
+				continue
+			}
+			sr := int(sd[si])
+			sg := int(sd[si+1])
+			sb := int(sd[si+2])
+			if op < 255 {
+				sr = sr * op / 255
+				sg = sg * op / 255
+				sb = sb * op / 255
+			}
+			inv := 255 - sa
+			dd[di+0] = uint8(sr + int(dd[di+0])*inv/255)
+			dd[di+1] = uint8(sg + int(dd[di+1])*inv/255)
+			dd[di+2] = uint8(sb + int(dd[di+2])*inv/255)
+			dd[di+3] = uint8(sa + int(dd[di+3])*inv/255)
+		}
+	}
 }
 
 // noteLayerDamage unions a pixmap-space rectangle into the current top layer.
@@ -343,6 +407,60 @@ func (c *Context) compositeLayerMaskedGPU(layer *Layer, parent *Pixmap) bool {
 		return false
 	}
 	c.recordGPUOp()
+	return true
+}
+
+// queueMaskedLayerGPU modulates the layer RT by its PushMaskLayer mask on the
+// GPU and queues a replayable composite draw onto the parent target (Skia
+// saveLayer-with-mask semantics: the mask is coverage in the composite draw,
+// and the frame stays fully replayable for PresentFrame). Returns false when
+// the GPU session cannot take it — the caller then falls back to the CPU
+// readback composite path.
+func (c *Context) queueMaskedLayerGPU(layer *Layer) bool {
+	if c == nil || layer == nil || layer.mask == nil || layer.gpuView.IsNil() {
+		return false
+	}
+	type maskedViewCompositor interface {
+		ModulateMaskedLayerGPU(srcView gpucontext.TextureView, srcW, srcH int, mask *Mask) (gpucontext.TextureView, int, int, func(), error)
+	}
+	raw := c.GPURenderContext()
+	mc, ok := raw.(maskedViewCompositor)
+	if !ok || mc == nil {
+		return false
+	}
+	view, w, h, release, err := mc.ModulateMaskedLayerGPU(layer.gpuView, layer.gpuW, layer.gpuH, layer.mask)
+	if err != nil || view.IsNil() || release == nil || w <= 0 || h <= 0 {
+		return false
+	}
+	// Layer RTs / modulated textures are device-space 1:1 — composite without CTM.
+	savedMat := c.matrix
+	savedDev := c.deviceMatrix
+	c.matrix = Identity()
+	c.deviceMatrix = Identity()
+	op := float32(layer.opacity)
+	if op < 0 {
+		op = 0
+	}
+	if op > 1 {
+		op = 1
+	}
+	rc := c.gpuCtxOps()
+	before := 0
+	if rc != nil {
+		before = rc.PendingCount()
+	}
+	c.DrawGPUTextureWithOpacity(view, 0, 0, w, h, op)
+	c.matrix = savedMat
+	c.deviceMatrix = savedDev
+	// The queued composite still samples the modulated texture; release it only
+	// once the GPU has no outstanding work (same contract as layer RTs).
+	c.layerGPUReleases = append(c.layerGPUReleases, release)
+	if rc == nil || rc.PendingCount() <= before {
+		// Draw did not queue (session refused it) — let the caller fall back.
+		// The registered release rides to the next drain; the queue path simply
+		// never claimed the composite.
+		return false
+	}
 	return true
 }
 

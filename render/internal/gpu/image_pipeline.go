@@ -20,6 +20,7 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
+	"github.com/energye/gpui/render"
 )
 
 //go:embed shaders/textured_quad.wgsl
@@ -115,6 +116,13 @@ type ImageDrawCommand struct {
 	// ContentDirty: GenerationID is stable but pixel bytes changed (ExportImageBuf
 	// reuse). ImageCache re-uploads into the existing GPU texture in place.
 	ContentDirty bool
+
+	// BlendMode is the fixed-function compositing operator for this quad (B.02).
+	// Zero value BlendNormal keeps the historic premultiplied SourceOver quad
+	// bit-identical. Porter-Duff modes (DestinationIn, SourceIn, ...) ride
+	// per-mode pipeline variants created on demand (EnsureBlendPipeline), e.g.
+	// the ApplyMask destination-in mask draw.
+	BlendMode render.BlendMode
 }
 
 // TexturedQuadPipeline manages GPU resources for image rendering (Tier 3).
@@ -156,6 +164,17 @@ type TexturedQuadPipeline struct {
 	// state as their linear counterparts, different fragment shader.
 	pipelineWithBicubic          hal.RenderPipeline
 	pipelineWithBicubicDepthClip hal.RenderPipeline
+
+	// Fixed-function blend variants (B.02 quad compositing): one pipeline per
+	// Porter-Duff blend mode, split into stencil-state and depth-clip versions
+	// mirroring pipelineWithStencil / pipelineWithDepthClip. Created lazily by
+	// EnsureBlendPipeline, released by destroyPipeline. blendPipeLayout pins the
+	// pipeline layout the variants were built with so a rebuilt clip layout
+	// (ensurePipelineWithStencil recreate) drops them instead of reusing stale
+	// pipelines.
+	blendPipelines          map[render.BlendMode]hal.RenderPipeline
+	blendDepthClipPipelines map[render.BlendMode]hal.RenderPipeline
+	blendPipeLayout         hal.PipelineLayout
 
 	// Non-MSAA blit pipeline for compositor fast path (ADR-016).
 	// SampleCount=1, no depth/stencil — used when the frame contains
@@ -388,9 +407,139 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 	return nil
 }
 
+// EnsureBlendPipeline creates (once) the quad pipeline variants for a
+// fixed-function Porter-Duff blend mode (B.02): the stencil-state version and
+// its depth-clip counterpart. The session calls this before recording draw
+// calls that carry a non-Normal BlendMode (e.g. DestinationIn mask draws).
+// Returns an error for modes that need a shader path (advanced separable /
+// non-separable blends) — those must stay off the image quad path.
+func (p *TexturedQuadPipeline) EnsureBlendPipeline(mode render.BlendMode) error {
+	if mode == render.BlendNormal {
+		return nil
+	}
+	bs, ok := gpuBlendStateForPaint(mode)
+	if !ok {
+		return fmt.Errorf("no fixed-function image blend state for mode %v", mode)
+	}
+	if err := p.ensurePipelineWithStencil(); err != nil {
+		return err
+	}
+	if err := p.ensureDepthClipPipeline(); err != nil {
+		return err
+	}
+	// Clip layout rebuild in ensurePipelineWithStencil invalidates variants
+	// built against the previous pipeline layout.
+	if p.blendPipeLayout != nil && p.blendPipeLayout != p.pipeLayout {
+		p.destroyBlendPipelines()
+	}
+	if p.blendPipelines == nil {
+		p.blendPipelines = make(map[render.BlendMode]hal.RenderPipeline)
+	}
+	if _, exists := p.blendPipelines[mode]; exists {
+		return nil
+	}
+	if p.blendDepthClipPipelines == nil {
+		p.blendDepthClipPipelines = make(map[render.BlendMode]hal.RenderPipeline)
+	}
+	pipe, err := p.createBlendPipeline(&bs, stencilPassthroughDepthStencil(),
+		fmt.Sprintf("textured_quad_pipeline_blend_%d", mode))
+	if err != nil {
+		return err
+	}
+	depthPipe, err := p.createBlendPipeline(&bs, depthClipDepthStencil(),
+		fmt.Sprintf("textured_quad_pipeline_blend_%d_depth_clip", mode))
+	if err != nil {
+		pipe.Destroy()
+		return err
+	}
+	p.blendPipelines[mode] = pipe
+	p.blendDepthClipPipelines[mode] = depthPipe
+	p.blendPipeLayout = p.pipeLayout
+	return nil
+}
+
+// createBlendPipeline builds one quad pipeline with the supplied blend state
+// and depth/stencil config, sharing the linear shader and vertex layout.
+func (p *TexturedQuadPipeline) createBlendPipeline(bs *types.BlendState, ds *hal.DepthStencilState, label string) (hal.RenderPipeline, error) {
+	pipeline, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Label:  label,
+		Layout: p.pipeLayout,
+		Vertex: hal.VertexState{
+			Module:     p.shader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    imageVertexLayout(),
+		},
+		Fragment: &hal.FragmentState{
+			Module:     p.shader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					Blend:     bs,
+					WriteMask: types.ColorWriteMaskAll,
+				},
+			},
+		},
+		DepthStencil: ds,
+		Primitive:    triangleListPrimitive(),
+		Multisample:  multisampleState(p.sampleCount),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create %s: %w", label, err)
+	}
+	return pipeline, nil
+}
+
+// blendPipelineFor looks up (creating on demand) the blend variant for a mode.
+// Returns nil when the mode has no fixed-function mapping.
+func (p *TexturedQuadPipeline) blendPipelineFor(mode render.BlendMode, useDepthClip bool) hal.RenderPipeline {
+	if p.blendPipeLayout != nil && p.blendPipeLayout != p.pipeLayout {
+		p.destroyBlendPipelines()
+	}
+	if useDepthClip {
+		if pipe, ok := p.blendDepthClipPipelines[mode]; ok && pipe != nil {
+			return pipe
+		}
+	} else if pipe, ok := p.blendPipelines[mode]; ok && pipe != nil {
+		return pipe
+	}
+	if err := p.EnsureBlendPipeline(mode); err != nil {
+		return nil
+	}
+	if useDepthClip {
+		return p.blendDepthClipPipelines[mode]
+	}
+	return p.blendPipelines[mode]
+}
+
+// destroyBlendPipelines releases all per-blend-mode quad variants.
+func (p *TexturedQuadPipeline) destroyBlendPipelines() {
+	for mode, pipe := range p.blendPipelines {
+		if pipe != nil {
+			pipe.Destroy()
+		}
+		delete(p.blendPipelines, mode)
+	}
+	for mode, pipe := range p.blendDepthClipPipelines {
+		if pipe != nil {
+			pipe.Destroy()
+		}
+		delete(p.blendDepthClipPipelines, mode)
+	}
+	p.blendPipeLayout = nil
+}
+
 // pipelineForDraw returns the render pipeline for a draw call, honoring
 // bicubic sampling and the depth-clip variant (GPU-CLIP-003a).
 func (p *TexturedQuadPipeline) pipelineForDraw(dc imageDrawCall, useDepthClip bool) hal.RenderPipeline {
+	// Fixed-function blend modes take precedence: a blend draw must not
+	// silently render with SourceOver. yuv/bicubic draws never carry blends
+	// (the queue guards reject that combination).
+	if dc.blendMode != render.BlendNormal {
+		if pipe := p.blendPipelineFor(dc.blendMode, useDepthClip); pipe != nil {
+			return pipe
+		}
+	}
 	if dc.yuv {
 		return p.yuvPipelineForDraw(useDepthClip, false)
 	}
@@ -652,6 +801,7 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 		return
 	}
 	p.destroyYUV()
+	p.destroyBlendPipelines()
 	if p.pipelineWithDepthClip != nil {
 		p.pipelineWithDepthClip.Destroy()
 		p.pipelineWithDepthClip = nil
@@ -713,6 +863,7 @@ type imageDrawCall struct {
 	vertexCount uint32 // 0 means 6 (single quad, backward compatible)
 	bicubic     bool   // uses bicubic pipeline variant (I.03), no merge with linear
 	yuv         bool   // video plane quad: YUV pipeline variant, no merge with linear
+	blendMode   render.BlendMode
 }
 
 // imageDrawVertexCount returns the vertex count for a draw call.
@@ -839,6 +990,10 @@ func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 		return false
 	}
 	if a.Nearest != b.Nearest || a.Bicubic != b.Bicubic || a.Opacity != b.Opacity {
+		return false
+	}
+	// Different blend operators need different pipelines: never share a batch.
+	if a.BlendMode != b.BlendMode {
 		return false
 	}
 	// R3 per-picture switch: different effective samplers must not share

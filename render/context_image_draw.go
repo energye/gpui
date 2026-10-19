@@ -197,6 +197,12 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	// Save current state (paint, path, transform).
 	c.Push()
 
+	// Honor the requested compositing operator: SetFillPattern + Fill applies
+	// c.blendMode through the software/GPU brush paths (B.02 fixed-function
+	// Porter-Duff modes included). Previously the option was dropped here, so
+	// e.g. DestinationIn image draws composited as SourceOver.
+	c.SetBlendMode(opts.BlendMode)
+
 	// Set image pattern as fill source.
 	c.SetFillPattern(pattern)
 

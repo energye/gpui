@@ -1288,9 +1288,9 @@ func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelD
 	contentDirty bool,
 	bicubic ...bool,
 ) {
-	rc.QueueImageDrawTint(target, pixelData, genID, imgWidth, imgHeight, imgStride,
+	rc.QueueImageDrawBlend(target, pixelData, genID, imgWidth, imgHeight, imgStride,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity, viewportW, viewportH,
-		u0, v0, u1, v1, 0, 0, 0, 0, nearest, contentDirty, bicubic...)
+		u0, v0, u1, v1, 0, 0, 0, 0, render.BlendNormal, nearest, contentDirty, bicubic...)
 }
 
 // QueueImageDrawTint is QueueImageDraw plus per-quad tint.
@@ -1298,6 +1298,27 @@ func (rc *GPURenderContext) QueueImageDrawTint(target render.GPURenderTarget, pi
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
 	tintR, tintG, tintB, tintA float32,
+	nearest bool,
+	contentDirty bool,
+	bicubic ...bool,
+) {
+	rc.QueueImageDrawBlend(target, pixelData, genID, imgWidth, imgHeight, imgStride,
+		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity, viewportW, viewportH,
+		u0, v0, u1, v1, tintR, tintG, tintB, tintA, render.BlendNormal, nearest, contentDirty, bicubic...)
+}
+
+// QueueImageDrawBlend is QueueImageDrawTint plus a fixed-function Porter-Duff
+// blend mode (B.02): the quad composites with the mode's blend factors instead
+// of premultiplied SourceOver. Used by destination-dependent draws such as the
+// ApplyMask DestinationIn mask quad. Advanced (destination-sampling) modes are
+// not fixed-function and must stay on the CPU path; callers gate with
+// render.IsAdvancedBlendMode. Blend + yuv/bicubic has no pipeline variant and
+// renders as a plain linear quad.
+func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
+	u0, v0, u1, v1 float32,
+	tintR, tintG, tintB, tintA float32,
+	blendMode render.BlendMode,
 	nearest bool,
 	contentDirty bool,
 	bicubic ...bool,
@@ -1339,6 +1360,7 @@ func (rc *GPURenderContext) QueueImageDrawTint(target render.GPURenderTarget, pi
 		Nearest:        nearest,
 		Bicubic:        len(bicubic) > 0 && bicubic[0],
 		ContentDirty:   contentDirty,
+		BlendMode:      blendMode,
 	}
 	rc.queueImageCmd(target, cmd)
 }
@@ -2418,6 +2440,23 @@ func (rc *GPURenderContext) ensureLCDDestBase(target render.GPURenderTarget, has
 }
 
 // Flush dispatches all pending commands for this context via the render session.
+// FlushOffscreen flushes pending GPU ops into an offscreen isolation RT
+// (saveLayer layer view / effect publish view) instead of the window surface.
+// The compositor clears offscreen targets transparent; an opaque clear would
+// paint a fresh layer RT opaque black under its first composite blit (nested
+// isolation). The renderer picks this entry when the flush view is one of its
+// offscreen RTs; surface presents keep Flush.
+func (rc *GPURenderContext) FlushOffscreen(target render.GPURenderTarget) error {
+	if rc == nil {
+		return fmt.Errorf("FlushOffscreen: nil context")
+	}
+	if rc.session != nil {
+		rc.session.SetOffscreenBlitTarget(true)
+		defer rc.session.SetOffscreenBlitTarget(false)
+	}
+	return rc.Flush(target)
+}
+
 func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolint:cyclop,gocognit,gocyclo,funlen // sequential resource setup + group dispatch
 	// Track View-nil flushes that consume pending into pixmap Data so filter
 	// graphs can seed from the full surface (advanced blend mid-flush / D140).

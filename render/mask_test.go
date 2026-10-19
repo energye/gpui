@@ -704,6 +704,60 @@ func TestApplyMask_Basic(t *testing.T) {
 	}
 }
 
+// ApplyMask is a DestinationIn draw of the mask quad: pixels outside the mask
+// rectangle stay untouched (Skia drawImage semantics). The previous CPU-only
+// helper cleared everything outside the mask bounds as well.
+func TestApplyMask_OutsideMaskRectUntouched(t *testing.T) {
+	const size = 100
+	dc := NewContext(size, size)
+	defer func() { _ = dc.Close() }()
+	dc.SetRGBA(1, 0, 0, 1)
+	dc.DrawRectangle(0, 0, size, size)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("Fill failed: %v", err)
+	}
+
+	// Fully opaque mask covering only the top-left 40x40 corner.
+	mask := NewMask(40, 40)
+	mask.Fill(255)
+	dc.ApplyMask(mask)
+
+	img := dc.Image()
+	if r, _, _, a := pixelRGBA(img, 20, 20); r == 0 || a == 0 {
+		t.Errorf("inside mask rect should keep red, got r=%d a=%d", r>>8, a>>8)
+	}
+	if r, _, _, a := pixelRGBA(img, 60, 60); r == 0 || a == 0 {
+		t.Errorf("outside mask rect must stay untouched, got r=%d a=%d", r>>8, a>>8)
+	}
+}
+
+// ApplyMask respects the active clip: clipped-out pixels are not composited,
+// while masked-out pixels inside the clip are cleared (DstIn with srcA=0).
+func TestApplyMask_RespectsClip(t *testing.T) {
+	const size = 100
+	dc := NewContext(size, size)
+	defer func() { _ = dc.Close() }()
+	dc.SetRGBA(1, 0, 0, 1)
+	dc.DrawRectangle(0, 0, size, size)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("Fill failed: %v", err)
+	}
+
+	mask := NewMask(size, size) // all zero: fully masked out
+	dc.Push()
+	dc.ClipRect(0, 0, 50, 50)
+	dc.ApplyMask(mask)
+	dc.Pop()
+
+	img := dc.Image()
+	if a := pixelAlpha(img, 25, 25); a != 0 {
+		t.Errorf("inside clip: mask 0 must clear, got a=%d", a>>8)
+	}
+	if a := pixelAlpha(img, 75, 75); a == 0 {
+		t.Errorf("outside clip must stay untouched, got a=%d", a>>8)
+	}
+}
+
 func TestApplyMask_NilMask(t *testing.T) {
 	dc := NewContext(50, 50)
 	dc.SetRGBA(1, 0, 0, 1)

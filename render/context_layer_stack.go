@@ -235,12 +235,12 @@ func (c *Context) PopLayer() {
 					}
 				}
 				if useDamage {
-					_ = c.FlushGPUWithViewDamage(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), d) //nolint:gosec
+					_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), []image.Rectangle{d}) //nolint:gosec
 				} else {
-					_ = c.FlushGPUWithView(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH)) //nolint:gosec
+					_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), nil) //nolint:gosec
 				}
 			} else {
-				_ = c.FlushGPUWithView(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH)) //nolint:gosec // bounded
+				_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), nil) //nolint:gosec // bounded
 			}
 		}
 	}
@@ -281,47 +281,67 @@ func (c *Context) PopLayer() {
 	}
 
 	// Apply mask to layer content before compositing (PushMaskLayer).
-	// Prefer GPU R8 modulate composite when layer content is on a GPU RT.
+	// GPU path (Skia saveLayer-with-mask): modulate the layer RT by the mask on
+	// the GPU and queue a replayable composite draw onto the parent target — no
+	// CPU readback and no mid-frame nil-view flush, so PresentFrame still
+	// replays the whole frame. The CPU write-back variant materialized the
+	// frame into the pixmap mid-frame; everything drawn before the pop then
+	// never reached the presented frame (windowed GPU present showed only the
+	// tail).
 	maskedGPUDone := false
 	if layer.mask != nil {
 		layer.fullComposite = true
-		// Parent draws may still be present-stashed (queued before PushMaskLayer).
-		// CompositeMaskedLayer / applyMask write into parent.Data — materialize the
-		// stashed base first so final Image/Flush does not paint base over the mask.
-		if parentPixmap != nil {
-			_ = c.FlushGPU()
-		}
-		if !layer.gpuView.IsNil() && !layer.cpuDrew && parentPixmap != nil {
-			if c.compositeLayerMaskedGPU(layer, parentPixmap) {
-				maskedGPUDone = true
-				// CompositeMaskedLayer writes parent.Data (CPU pixmap), not a parent
-				// GPU RT. Nested PushMaskLayer parents still hold an empty gpuView —
-				// mark them cpuDrew so the next Pop uses pixmap + mask path.
-				if c.layerStack != nil {
-					for i := len(c.layerStack.layers) - 1; i >= 0; i-- {
-						L := c.layerStack.layers[i]
-						if L == nil || L.opacityGroup {
-							continue
-						}
-						if L.pixmap == parentPixmap {
-							L.cpuDrew = true
-							break
+		if !layer.gpuView.IsNil() && !layer.cpuDrew && parentPixmap != nil && c.queueMaskedLayerGPU(layer) {
+			maskedGPUDone = true
+			// The queued composite still samples the layer RT; hand its release
+			// to the deferred-release list (freed once the queue has flushed).
+			if layer.gpuRelease != nil {
+				c.layerGPUReleases = append(c.layerGPUReleases, layer.gpuRelease)
+				layer.gpuRelease = nil
+			}
+			layer.gpuView = gpucontext.TextureView{}
+		} else {
+			// CPU fallback (no GPU session / CPU-drawn layer content).
+			// Parent draws may still be present-stashed (queued before
+			// PushMaskLayer). CompositeMaskedLayer / applyMask write into
+			// parent.Data — materialize the stashed base first so the final
+			// Image/Flush does not paint base over the mask.
+			if parentPixmap != nil {
+				_ = c.FlushGPU()
+			}
+			if !layer.gpuView.IsNil() && !layer.cpuDrew && parentPixmap != nil {
+				if c.compositeLayerMaskedGPU(layer, parentPixmap) {
+					maskedGPUDone = true
+					// CompositeMaskedLayer writes parent.Data (CPU pixmap), not a
+					// parent GPU RT. Nested PushMaskLayer parents still hold an
+					// empty gpuView — mark them cpuDrew so the next Pop uses the
+					// pixmap + mask path.
+					if c.layerStack != nil {
+						for i := len(c.layerStack.layers) - 1; i >= 0; i-- {
+							L := c.layerStack.layers[i]
+							if L == nil || L.opacityGroup {
+								continue
+							}
+							if L.pixmap == parentPixmap {
+								L.cpuDrew = true
+								break
+							}
 						}
 					}
+					if layer.gpuRelease != nil {
+						layer.gpuRelease()
+						layer.gpuRelease = nil
+					}
+					layer.gpuView = gpucontext.TextureView{}
 				}
-				if layer.gpuRelease != nil {
-					layer.gpuRelease()
-					layer.gpuRelease = nil
+			}
+			if !maskedGPUDone {
+				// Materialize GPU content into pixmap, then CPU DestinationIn mask.
+				if !layer.gpuView.IsNil() && !layer.cpuDrew {
+					_ = c.materializeLayerGPUToPixmap(layer)
 				}
-				layer.gpuView = gpucontext.TextureView{}
+				c.applyMaskToPixmap(layer.pixmap, layer.mask)
 			}
-		}
-		if !maskedGPUDone {
-			// Materialize GPU content into pixmap, then CPU DestinationIn mask.
-			if !layer.gpuView.IsNil() && !layer.cpuDrew {
-				_ = c.materializeLayerGPUToPixmap(layer)
-			}
-			c.applyMaskToPixmap(layer.pixmap, layer.mask)
 		}
 	}
 
@@ -400,7 +420,8 @@ func (c *Context) PopLayer() {
 		layer.gpuView = gpucontext.TextureView{}
 		c.compositeLayer(layer, parentPixmap)
 	} else {
-		// Masked GPU composite already wrote parent; just drop any residual RT.
+		// Masked GPU composite already queued (content lives in the queued
+		// draw); just drop any residual RT.
 		if layer.gpuRelease != nil {
 			layer.gpuRelease()
 			layer.gpuRelease = nil

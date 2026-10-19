@@ -10,6 +10,8 @@
 
 package render
 
+import "bytes"
+
 // SetMask sets an alpha mask for subsequent drawing operations.
 // The mask modulates the alpha of all Fill and Stroke operations —
 // each pixel's coverage is multiplied by the mask value at that pixel.
@@ -62,18 +64,96 @@ func (c *Context) syncGPUMaskTexture() {
 }
 
 // ApplyMask applies a mask to already-drawn content using DestinationIn blending.
-// For each pixel, the alpha is modulated by the mask value:
+// For each pixel covered by the mask rectangle the premultiplied channels are
+// scaled by the mask value:
 //
-//	pixel.A = pixel.A * mask.At(x,y) / 255
+//	pixel = pixel * mask.At(x,y) / 255
 //
-// RGB channels are also scaled proportionally (premultiplied alpha).
-// This is a post-processing operation — it modifies existing pixel content,
-// not future draws. Pass nil to no-op.
+// Pixels outside the mask rectangle, and pixels outside the active clip, are
+// left untouched. This is a post-processing operation — it modifies existing
+// pixel content, not future draws. Pass nil to no-op.
+//
+// Implementation follows Skia's drawImage(skMask, kDstIn): the mask becomes a
+// premultiplied white image whose alpha channel carries the mask, drawn in
+// device space with the DestinationIn blend operator. It stays an ordinary draw
+// operation — on GPU it rides the image-quad blend pipeline, with no read-back
+// and no frame materialization.
 func (c *Context) ApplyMask(mask *Mask) {
-	if mask == nil {
+	if c == nil || c.pixmap == nil || mask == nil {
 		return
 	}
-	applyMaskToPixmapData(c.pixmap, mask)
+	mw, mh := mask.Width(), mask.Height()
+	if mw <= 0 || mh <= 0 {
+		return
+	}
+	img := c.maskCompositeImage(mask)
+	if img == nil {
+		return
+	}
+	// Device-space quad: the mask maps 1:1 onto the surface origin. The active
+	// clip still applies (a clipped pixel is not composited, matching Skia).
+	// Nearest sampling keeps one mask texel = one device pixel at any dpr.
+	c.Push()
+	c.SetTransform(Identity())
+	c.DrawImageEx(img, DrawImageOptions{
+		X:             0,
+		Y:             0,
+		DstWidth:      float64(mw),
+		DstHeight:     float64(mh),
+		BlendMode:     BlendDestinationIn,
+		Interpolation: InterpNearest,
+	})
+	c.Pop()
+}
+
+// maskCompositeImage returns the cached premultiplied white RGBA image whose
+// alpha channel is the mask. The buffer identity is stable across calls so the
+// GPU image cache reuses one texture; content is refreshed (and the image
+// marked dirty) only when the mask bytes actually changed.
+func (c *Context) maskCompositeImage(mask *Mask) *ImageBuf {
+	if c == nil || mask == nil {
+		return nil
+	}
+	mw, mh := mask.Width(), mask.Height()
+	n := mw * mh
+	src := mask.Data()
+	if n <= 0 || len(src) < n {
+		return nil
+	}
+	if c.maskComposite == nil || c.maskCompositeW != mw || c.maskCompositeH != mh {
+		if c.maskComposite != nil {
+			c.maskComposite.Dispose()
+			c.maskComposite = nil
+		}
+		img, err := NewImageBuf(mw, mh, FormatRGBAPremul)
+		if err != nil {
+			return nil
+		}
+		c.maskComposite = img
+		c.maskCompositeW, c.maskCompositeH = mw, mh
+		c.maskCompositeCopy = nil
+	}
+	if !bytes.Equal(c.maskCompositeCopy, src[:n]) {
+		data := c.maskComposite.Data()
+		if len(data) < n*4 {
+			return nil
+		}
+		for i := 0; i < n; i++ {
+			v := src[i]
+			data[i*4+0] = v
+			data[i*4+1] = v
+			data[i*4+2] = v
+			data[i*4+3] = v
+		}
+		if cap(c.maskCompositeCopy) < n {
+			c.maskCompositeCopy = make([]uint8, n)
+		} else {
+			c.maskCompositeCopy = c.maskCompositeCopy[:n]
+		}
+		copy(c.maskCompositeCopy, src[:n])
+		c.maskComposite.NotifyPixelsChanged()
+	}
+	return c.maskComposite
 }
 
 // AsMask creates a mask from the current unfilled path.

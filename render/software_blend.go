@@ -14,9 +14,24 @@ import (
 	"math"
 )
 
+// blendAppliesAtZeroSrc reports Porter-Duff modes whose result differs from the
+// untouched destination when the source alpha is zero: Clear (out = 0) and the
+// "source defines the result" family — SrcIn, DstIn, SrcOut and DstAtop all
+// produce 0 or D*0 there. Skipping those would leave the destination intact
+// instead of clearing it (breaks DestinationIn mask compositing). For every
+// other mode a zero-alpha source is a no-op and the pixel can be skipped.
+func blendAppliesAtZeroSrc(mode BlendMode) bool {
+	switch mode {
+	case BlendClear, BlendSourceIn, BlendDestinationIn, BlendSourceOut, BlendDestinationAtop:
+		return true
+	default:
+		return false
+	}
+}
+
 func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mode BlendMode) {
 	srcA := color.A * float64(coverage) / 255.0
-	if srcA <= 0 && mode != BlendClear {
+	if srcA <= 0 && !blendAppliesAtZeroSrc(mode) {
 		return
 	}
 	dst := pixmap.GetPixel(x, y)
@@ -71,6 +86,37 @@ func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mod
 			sa*da,
 		)
 		return
+	case BlendDestinationOver:
+		// B.02 DstOver: out = S*(1-Da) + D
+		sa := color.A * cov
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		invDa := 1.0 - da
+		pixmap.setPremul(x, y,
+			color.R*sa*invDa+dr,
+			color.G*sa*invDa+dg,
+			color.B*sa*invDa+db,
+			sa*invDa+da,
+		)
+		return
+	case BlendSourceIn:
+		// B.02 SrcIn: out = S*Da
+		sa := color.A * cov
+		_, _, _, da := pixmap.getPremul(x, y)
+		pixmap.setPremul(x, y, color.R*sa*da, color.G*sa*da, color.B*sa*da, sa*da)
+		return
+	case BlendDestinationIn:
+		// B.02 DstIn: out = D*Sa (ApplyMask family).
+		sa := color.A * cov
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		pixmap.setPremul(x, y, dr*sa, dg*sa, db*sa, da*sa)
+		return
+	case BlendSourceOut:
+		// B.02 SrcOut: out = S*(1-Da)
+		sa := color.A * cov
+		_, _, _, da := pixmap.getPremul(x, y)
+		invDa := 1.0 - da
+		pixmap.setPremul(x, y, color.R*sa*invDa, color.G*sa*invDa, color.B*sa*invDa, sa*invDa)
+		return
 	case BlendDestinationOut:
 		sa := color.A * cov
 		inv := 1.0 - sa
@@ -96,6 +142,18 @@ func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mod
 			color.G*sa*(1-da)+dg*(1-sa),
 			color.B*sa*(1-da)+db*(1-sa),
 			sa*(1-da)+da*(1-sa),
+		)
+		return
+	case BlendDestinationAtop:
+		// B.02 DstAtop: out = S*(1-Da) + D*Sa (alpha = Sa).
+		sa := color.A * cov
+		dr, dg, db, da := pixmap.getPremul(x, y)
+		invDa := 1.0 - da
+		pixmap.setPremul(x, y,
+			color.R*sa*invDa+dr*sa,
+			color.G*sa*invDa+dg*sa,
+			color.B*sa*invDa+db*sa,
+			sa,
 		)
 		return
 	}

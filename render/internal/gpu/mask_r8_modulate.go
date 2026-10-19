@@ -205,6 +205,103 @@ func (c *maskR8Cache) ensure(device hal.Device) error {
 	return nil
 }
 
+// createRGBAUploadTexture creates a w×h RGBA8Unorm texture (+view) and, when
+// data is non-nil, uploads a tight RGBA plane into it. Shared by
+// maskR8Modulate (CPU-sourced modulate) and maskR8ModulateViewToTexture
+// (GPU-sourced modulate).
+func createRGBAUploadTexture(device hal.Device, queue hal.Queue, label string, data []byte, w, h int, usage types.TextureUsage) (hal.Texture, hal.TextureView, error) {
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
+		Label:         label,
+		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
+		Format: types.TextureFormatRGBA8Unorm, Usage: usage,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
+		Label: label + "_view", Format: types.TextureFormatRGBA8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Destroy()
+		return nil, nil, err
+	}
+	if data == nil {
+		return tex, view, nil
+	}
+	tight := uint32(w * 4) //nolint:gosec
+	aligned := alignTextureBytesPerRow(tight)
+	upload := data
+	if aligned != tight && h > 1 {
+		padded := make([]byte, int(aligned)*h)
+		for y := 0; y < h; y++ {
+			copy(padded[y*int(aligned):y*int(aligned)+w*4], data[y*w*4:(y+1)*w*4])
+		}
+		upload = padded
+	}
+	if err := queue.WriteTexture(
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		upload,
+		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(h)},        //nolint:gosec
+		&hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+	); err != nil {
+		view.Destroy()
+		tex.Destroy()
+		return nil, nil, err
+	}
+	return tex, view, nil
+}
+
+// createR8UploadTexture creates a w×h R8Unorm texture (+view) with a tight
+// single-channel plane upload (rows padded to the backend stride).
+func createR8UploadTexture(device hal.Device, queue hal.Queue, label string, data []byte, w, h int) (hal.Texture, hal.TextureView, error) {
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
+		Label:         label,
+		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
+		Format: types.TextureFormatR8Unorm,
+		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
+		Label: label + "_view", Format: types.TextureFormatR8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
+	if err != nil {
+		tex.Destroy()
+		return nil, nil, err
+	}
+	tight := uint32(w) //nolint:gosec
+	aligned := alignTextureBytesPerRow(tight)
+	upload := data
+	if aligned != tight && h > 1 {
+		padded := make([]byte, int(aligned)*h)
+		for y := 0; y < h; y++ {
+			copy(padded[y*int(aligned):y*int(aligned)+w], data[y*w:(y+1)*w])
+		}
+		upload = padded
+	} else if aligned != tight && h == 1 {
+		// single row still needs aligned BytesPerRow for some backends
+		padded := make([]byte, int(aligned))
+		copy(padded, data[:w])
+		upload = padded
+	}
+	if err := queue.WriteTexture(
+		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
+		upload,
+		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(h)},        //nolint:gosec
+		&hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+	); err != nil {
+		view.Destroy()
+		tex.Destroy()
+		return nil, nil, err
+	}
+	return tex, view, nil
+}
+
 // maskR8Modulate multiplies premul RGBA source by R8 mask on GPU.
 // srcRGBA is bw*bh*4, maskR8 is bw*bh (tight). Returns premul RGBA result.
 func maskR8Modulate(
@@ -226,111 +323,22 @@ func maskR8Modulate(
 		return nil, err
 	}
 
-	mkRGBA := func(label string, data []byte, usage types.TextureUsage) (hal.Texture, hal.TextureView, error) {
-		tex, err := device.CreateTexture(&hal.TextureDescriptor{
-			Label:         label,
-			Size:          hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
-			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
-			Format: types.TextureFormatRGBA8Unorm, Usage: usage,
-		})
-		if err != nil {
-			return nil, nil, err
-		}
-		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
-			Label: label + "_view", Format: types.TextureFormatRGBA8Unorm,
-			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
-		})
-		if err != nil {
-			tex.Destroy()
-			return nil, nil, err
-		}
-		if data != nil {
-			tight := uint32(bw * 4) //nolint:gosec
-			aligned := alignTextureBytesPerRow(tight)
-			upload := data
-			if aligned != tight && bh > 1 {
-				padded := make([]byte, int(aligned)*bh)
-				for y := 0; y < bh; y++ {
-					copy(padded[y*int(aligned):y*int(aligned)+bw*4], data[y*bw*4:(y+1)*bw*4])
-				}
-				upload = padded
-			}
-			if err := queue.WriteTexture(
-				&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
-				upload,
-				&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(bh)},        //nolint:gosec
-				&hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
-			); err != nil {
-				view.Destroy()
-				tex.Destroy()
-				return nil, nil, err
-			}
-		}
-		return tex, view, nil
-	}
-
-	mkR8 := func(label string, data []byte) (hal.Texture, hal.TextureView, error) {
-		tex, err := device.CreateTexture(&hal.TextureDescriptor{
-			Label:         label,
-			Size:          hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
-			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
-			Format: types.TextureFormatR8Unorm,
-			Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
-		})
-		if err != nil {
-			return nil, nil, err
-		}
-		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
-			Label: label + "_view", Format: types.TextureFormatR8Unorm,
-			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
-		})
-		if err != nil {
-			tex.Destroy()
-			return nil, nil, err
-		}
-		tight := uint32(bw) //nolint:gosec
-		aligned := alignTextureBytesPerRow(tight)
-		upload := data
-		if aligned != tight && bh > 1 {
-			padded := make([]byte, int(aligned)*bh)
-			for y := 0; y < bh; y++ {
-				copy(padded[y*int(aligned):y*int(aligned)+bw], data[y*bw:(y+1)*bw])
-			}
-			upload = padded
-		} else if aligned != tight && bh == 1 {
-			// single row still needs aligned BytesPerRow for some backends
-			padded := make([]byte, int(aligned))
-			copy(padded, data[:bw])
-			upload = padded
-		}
-		if err := queue.WriteTexture(
-			&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
-			upload,
-			&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(bh)},        //nolint:gosec
-			&hal.Extent3D{Width: uint32(bw), Height: uint32(bh), DepthOrArrayLayers: 1}, //nolint:gosec
-		); err != nil {
-			view.Destroy()
-			tex.Destroy()
-			return nil, nil, err
-		}
-		return tex, view, nil
-	}
-
-	srcTex, srcView, err := mkRGBA("mask_r8_src", srcRGBA, types.TextureUsageTextureBinding|types.TextureUsageCopyDst)
+	srcTex, srcView, err := createRGBAUploadTexture(device, queue, "mask_r8_src", srcRGBA, bw, bh,
+		types.TextureUsageTextureBinding|types.TextureUsageCopyDst)
 	if err != nil {
 		return nil, fmt.Errorf("mask r8 src: %w", err)
 	}
 	defer srcView.Destroy()
 	defer srcTex.Destroy()
 
-	maskTex, maskView, err := mkR8("mask_r8_mask", maskR8)
+	maskTex, maskView, err := createR8UploadTexture(device, queue, "mask_r8_mask", maskR8, bw, bh)
 	if err != nil {
 		return nil, fmt.Errorf("mask r8 mask: %w", err)
 	}
 	defer maskView.Destroy()
 	defer maskTex.Destroy()
 
-	outTex, outView, err := mkRGBA("mask_r8_out", nil,
+	outTex, outView, err := createRGBAUploadTexture(device, queue, "mask_r8_out", nil, bw, bh,
 		types.TextureUsageRenderAttachment|types.TextureUsageCopySrc|types.TextureUsageTextureBinding)
 	if err != nil {
 		return nil, fmt.Errorf("mask r8 out: %w", err)
@@ -416,4 +424,105 @@ func maskR8Modulate(
 	}
 	_ = device.UnmapBuffer(staging)
 	return out, nil
+}
+
+// maskR8ModulateViewToTexture is maskR8Modulate's zero-readback twin: the
+// premul source is an existing filterable texture view (a layer RT) instead of
+// CPU bytes, and the modulated result stays on the GPU as a texture the caller
+// can composite later. This is the Skia saveLayer-with-mask shape: the mask
+// multiplies the layer during compositing, with no CPU round-trip and no
+// mid-frame nil-view flush (the presented frame stays replayable).
+//
+// srcView must be a 2D filterable texture view (BGRA8/RGBA8 layer RT); maskR8
+// is a tight bw*bh plane mapped 1:1 over the source. The caller owns the
+// returned texture + view and must destroy both after the queued composite has
+// been flushed.
+func maskR8ModulateViewToTexture(
+	device hal.Device,
+	queue hal.Queue,
+	cache *maskR8Cache,
+	srcView hal.TextureView,
+	maskR8 []byte,
+	bw, bh int,
+) (hal.Texture, hal.TextureView, error) {
+	if device == nil || queue == nil || cache == nil || srcView == nil {
+		return nil, nil, fmt.Errorf("mask r8 view: nil device/queue/cache/src")
+	}
+	needR8 := bw * bh
+	if bw <= 0 || bh <= 0 || len(maskR8) < needR8 {
+		return nil, nil, fmt.Errorf("mask r8 view: bad sizes")
+	}
+	if err := cache.ensure(device); err != nil {
+		return nil, nil, err
+	}
+
+	maskTex, maskView, err := createR8UploadTexture(device, queue, "mask_r8v_mask", maskR8, bw, bh)
+	if err != nil {
+		return nil, nil, fmt.Errorf("mask r8 view mask: %w", err)
+	}
+	defer maskView.Destroy()
+	defer maskTex.Destroy()
+
+	outTex, outView, err := createRGBAUploadTexture(device, queue, "mask_r8v_out", nil, bw, bh,
+		types.TextureUsageRenderAttachment|types.TextureUsageTextureBinding|types.TextureUsageCopySrc)
+	if err != nil {
+		return nil, nil, fmt.Errorf("mask r8 view out: %w", err)
+	}
+
+	cache.mu.Lock()
+	bgl, pipeline, sampler := cache.bgl, cache.pipeline, cache.sampler
+	cache.mu.Unlock()
+
+	bg, err := device.CreateBindGroup(&hal.BindGroupDescriptor{
+		Label:  "mask_r8v_bg",
+		Layout: bgl,
+		Entries: []hal.BindGroupEntry{
+			{Binding: 0, TextureView: srcView},
+			{Binding: 1, TextureView: maskView},
+			{Binding: 2, Sampler: sampler},
+		},
+	})
+	if err != nil {
+		outView.Destroy()
+		outTex.Destroy()
+		return nil, nil, fmt.Errorf("mask r8 view bg: %w", err)
+	}
+	defer bg.Destroy()
+
+	enc, err := device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "mask_r8v_enc"})
+	if err != nil {
+		outView.Destroy()
+		outTex.Destroy()
+		return nil, nil, err
+	}
+	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
+		Label: "mask_r8v_pass",
+		ColorAttachments: []hal.RenderPassColorAttachment{{
+			View: outView, LoadOp: types.LoadOpClear, StoreOp: types.StoreOpStore,
+			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
+		}},
+	})
+	if err != nil {
+		outView.Destroy()
+		outTex.Destroy()
+		return nil, nil, err
+	}
+	rp.SetPipeline(pipeline)
+	rp.SetBindGroup(0, bg, nil)
+	rp.Draw(3, 1, 0, 0)
+	rp.End()
+
+	cmd, err := enc.Finish()
+	if err != nil {
+		outView.Destroy()
+		outTex.Destroy()
+		return nil, nil, err
+	}
+	defer device.FreeCommandBuffer(cmd)
+	if _, err := queue.Submit(cmd); err != nil {
+		outView.Destroy()
+		outTex.Destroy()
+		return nil, nil, err
+	}
+	return outTex, outView, nil
 }

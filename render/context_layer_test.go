@@ -175,3 +175,44 @@ func abs(x float64) float64 {
 	}
 	return x
 }
+
+// TestLayerPartialAlphaComposite pins premultiplied SourceOver for partial-alpha
+// layer content composited over an opaque background. The CPU composite used to
+// read the premultiplied layer surface as straight colours and multiply by
+// alpha a second time: 50% white over the dark card background read 78 while
+// the correct value (and the GPU composite) is 143.
+//
+// Normal PushLayer is the F1 opacity group (no isolation surface); the masked
+// layer below forces a real layer surface — the same isolation the mask family
+// needs to fade already-drawn content with ApplyMask.
+func TestLayerPartialAlphaComposite(t *testing.T) {
+	const size = 40
+	dc := NewContext(size, size)
+	defer func() { _ = dc.Close() }()
+
+	dc.SetRGBA(0.12, 0.13, 0.16, 1)
+	dc.DrawRectangle(0, 0, size, size)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("background fill: %v", err)
+	}
+
+	full := NewMask(size, size)
+	full.Fill(255)
+	dc.PushMaskLayer(full)
+	dc.SetRGBA(1, 1, 1, 0.5)
+	dc.DrawRectangle(0, 0, size, size)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("layer fill: %v", err)
+	}
+	dc.PopLayer()
+	if err := dc.FlushGPU(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+
+	// out = 0.5*white + 0.5*bg = (0.56, 0.565, 0.58) straight.
+	p := dc.pixmap.GetPixel(size/2, size/2)
+	if abs(p.R-0.56) > 0.01 || abs(p.G-0.565) > 0.01 || abs(p.B-0.58) > 0.01 || abs(p.A-1.0) > 0.01 {
+		t.Fatalf("premultiplied SourceOver: got rgba(%.4f,%.4f,%.4f,%.4f), want ~(0.56,0.565,0.58,1)",
+			p.R, p.G, p.B, p.A)
+	}
+}

@@ -203,6 +203,13 @@ func (c *Context) Close() error {
 	c.releaseFilterSrcRT()
 	c.pixmapFilterStale = false
 
+	// Release the shared ApplyMask composite image.
+	if c.maskComposite != nil {
+		c.maskComposite.Dispose()
+		c.maskComposite = nil
+		c.maskCompositeCopy = nil
+	}
+
 	// Close per-context GPU render context if it was created.
 	if c.gpuCtx != nil {
 		type gpuCtxCloser interface {

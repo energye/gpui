@@ -13,6 +13,57 @@ func imagePixel(dc *Context, x, y int) RGBA {
 	return dc.pixmap.GetPixel(x, y)
 }
 
+// cpuOnlyClaimProbe is a live-looking GPU ops object. It embeds a nil
+// gpuContextOps, so *any* method call panics — a quad claimed through the GPU
+// path in CPU-only mode therefore fails loudly instead of vanishing.
+type cpuOnlyClaimProbe struct{ gpuContextOps }
+
+// TestDrawImageEx_CPUOnlySkipsGPUClaim pins the GOGPU_RENDER_MODE=cpu gate on
+// the textured-quad path: a live GPU ops object must not claim the draw in
+// CPU-only mode. The queued quad never executes there, so image draws used to
+// vanish silently (ApplyMask's DstIn included) whenever a GPU context existed.
+func TestDrawImageEx_CPUOnlySkipsGPUClaim(t *testing.T) {
+	if !CPUOnlyMode() {
+		t.Skip("requires GOGPU_RENDER_MODE=cpu: GOGPU_RENDER_MODE=cpu go test ./render/ -run TestDrawImageEx_CPUOnlySkipsGPUClaim")
+	}
+	const size = 40
+	dc := NewContext(size, size)
+	defer func() { _ = dc.Close() }()
+
+	img, err := NewImageBuf(size, size, FormatRGBAPremul)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	defer img.Dispose()
+	data := img.Data()
+	for i := 0; i < size*size; i++ {
+		data[i*4+0], data[i*4+1], data[i*4+2], data[i*4+3] = 0, 255, 0, 255
+	}
+	img.NotifyPixelsChanged()
+
+	// The claim decision itself: with a GPU ops object installed, the
+	// textured-quad path must still refuse the draw and leave it to the CPU.
+	dc.gpuCtx = &cpuOnlyClaimProbe{}
+	func() {
+		defer func() {
+			dc.gpuCtx = nil // never let teardown poke the probe
+			if r := recover(); r != nil {
+				t.Fatalf("CPU-only mode claimed the draw through the GPU path: %v", r)
+			}
+		}()
+		if dc.tryGPUDrawImage(img, DrawImageOptions{Interpolation: InterpNearest},
+			0, 0, size, size, size, size) {
+			t.Fatalf("CPU-only mode claimed the textured quad")
+		}
+	}()
+
+	// ...and the public entry point paints it on the CPU image-pattern path.
+	dc.DrawImageEx(img, DrawImageOptions{X: 0, Y: 0, DstWidth: size, DstHeight: size, Interpolation: InterpNearest})
+	if got := imagePixel(dc, size/2, size/2); got.G < 0.9 || got.A < 0.9 {
+		t.Fatalf("CPU image-pattern path did not paint, got %+v", got)
+	}
+}
+
 func TestDrawImage(t *testing.T) {
 	// Create a context
 	dc := NewContext(200, 200)
@@ -401,6 +452,53 @@ func TestInterpolationModes(t *testing.T) {
 				t.Errorf("Expected magenta pixel with %s interpolation, got R=%.2f G=%.2f B=%.2f", mode.String(), result.R, result.G, result.B)
 			}
 		})
+	}
+}
+
+// DrawImageOptions.BlendMode is honored by the common image draw paths:
+// a DestinationIn draw with a transparent source region clears the
+// destination there (the formulation ApplyMask is built on). The option used
+// to be dropped by the non-bicubic fast paths, which composited SourceOver.
+func TestDrawImageEx_BlendDestinationIn(t *testing.T) {
+	const size = 64
+	dc := NewContext(size, size)
+	defer func() { _ = dc.Close() }()
+	dc.SetRGBA(1, 0, 0, 1)
+	dc.DrawRectangle(0, 0, size, size)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("Fill failed: %v", err)
+	}
+
+	img, err := NewImageBuf(size, size, FormatRGBAPremul)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	defer img.Dispose()
+	data := img.Data()
+	for i := 0; i < size*size; i++ {
+		if i%size < size/2 {
+			// Left half: opaque white (premultiplied).
+			data[i*4+0], data[i*4+1], data[i*4+2], data[i*4+3] = 255, 255, 255, 255
+		}
+	}
+	img.NotifyPixelsChanged()
+
+	dc.DrawImageEx(img, DrawImageOptions{
+		X:             0,
+		Y:             0,
+		DstWidth:      size,
+		DstHeight:     size,
+		Interpolation: InterpNearest,
+		BlendMode:     BlendDestinationIn,
+	})
+
+	if got := imagePixel(dc, size/4, size/2); got.A == 0 || got.R == 0 {
+		t.Errorf("opaque source half must keep destination, got %+v", got)
+	}
+	// Transparent source half: DstIn writes alpha-0 (clear), it does not skip
+	// or SourceOver-composite.
+	if got := imagePixel(dc, 3*size/4, size/2); got.A != 0 || got.R != 0 {
+		t.Errorf("transparent source half must clear destination, got %+v", got)
 	}
 }
 

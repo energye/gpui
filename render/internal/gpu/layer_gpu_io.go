@@ -263,3 +263,83 @@ func (rc *GPURenderContext) CompositeMaskedLayer(
 	}
 	return nil
 }
+
+// ModulateMaskedLayerGPU is CompositeMaskedLayer's replayable twin: it
+// modulates a GPU layer RT by the R8 mask on the GPU and returns the modulated
+// texture for a *queued* composite draw (no CPU readback, no mid-frame nil-view
+// flush). The command queue stays replayable for PresentFrame — the CPU
+// write-back variant materialized the frame into the pixmap mid-frame, and the
+// presented frame then lost everything drawn before the masked pop (windowed
+// GPU present only showed the tail).
+//
+// The mask plane is built at the full source size; pixels outside the mask
+// bounds modulate to zero, which composites as a no-op — same region semantics
+// as CompositeMaskedLayer's mask crop.
+//
+// release frees the modulated texture + view; call it only after every queued
+// draw sampling the returned view has been flushed.
+func (rc *GPURenderContext) ModulateMaskedLayerGPU(
+	srcView gpucontext.TextureView, srcW, srcH int, mask *render.Mask,
+) (gpucontext.TextureView, int, int, func(), error) {
+	if rc == nil || srcView.IsNil() || mask == nil || srcW <= 0 || srcH <= 0 {
+		return gpucontext.TextureView{}, 0, 0, nil, render.ErrFallbackToCPU
+	}
+	if !rc.shared.gpuReady {
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return gpucontext.TextureView{}, 0, 0, nil, render.ErrFallbackToCPU
+		}
+	}
+	srcHal := unpackView(srcView)
+	if srcHal == nil {
+		return gpucontext.TextureView{}, 0, 0, nil, render.ErrFallbackToCPU
+	}
+	// The layer RT's self-flush may still be sitting in the session's deferred
+	// lead queue (opt21DeferLayerSubmit). The modulate pass samples that RT
+	// immediately, so deferred layer CBs must be submitted first — same contract
+	// as RenderFrameGrouped's drain (C5): otherwise the pass reads an
+	// unsubmitted RT and the masked composite resolves to nothing.
+	if rc.session != nil {
+		if err := rc.session.FlushLeadingSubmitsOnly(); err != nil {
+			return gpucontext.TextureView{}, 0, 0, nil, err
+		}
+	}
+	w, h := srcW, srcH
+	// Full-size R8 plane; rows/cols beyond the mask stay 0 (modulated alpha 0).
+	maskR8 := make([]byte, w*h)
+	cols, rows := w, h
+	if mw := mask.Width(); mw < cols {
+		cols = mw
+	}
+	if mh := mask.Height(); mh < rows {
+		rows = mh
+	}
+	for y := 0; y < rows; y++ {
+		for x := 0; x < cols; x++ {
+			maskR8[y*w+x] = mask.At(x, y)
+		}
+	}
+	rc.shared.mu.Lock()
+	device := rc.shared.device
+	queue := rc.shared.queue
+	cache := &rc.shared.maskR8
+	rc.shared.mu.Unlock()
+	if device == nil || queue == nil {
+		return gpucontext.TextureView{}, 0, 0, nil, render.ErrFallbackToCPU
+	}
+	tex, view, err := maskR8ModulateViewToTexture(device, queue, cache, srcHal, maskR8, w, h)
+	if err != nil {
+		return gpucontext.TextureView{}, 0, 0, nil, err
+	}
+	release := func() {
+		if view != nil {
+			view.Destroy()
+		}
+		if tex != nil {
+			tex.Destroy()
+		}
+	}
+	return packView(view), w, h, release, nil
+}

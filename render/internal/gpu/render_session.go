@@ -435,6 +435,13 @@ type GPURenderSession struct {
 	convexVertSlotLen  [4]int
 	deferredConvexUses int  // builds encoded into leadSubmitCBs since last Submit
 	deferSurfaceSubmit bool // encode+enqueue instead of Queue.Submit
+	// offscreenBlitTarget marks the flush target as an offscreen isolation RT
+	// (layer / effect publish view) instead of the window surface. The
+	// blit-only compositor clears offscreen targets transparent (Skia saveLayer
+	// base semantics); surface targets keep the opaque black frame base.
+	// Set by the renderer per flush (SetOffscreenBlitTarget), read by
+	// encodeBlitOnlyPass / encodeBlitToEncoder.
+	offscreenBlitTarget bool
 	// index buffer ring for DrawIndexed mesh path.
 	convexIndexBufs    [4]hal.Buffer
 	convexIndexBufCaps [4]uint64
@@ -4075,6 +4082,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		texView              hal.TextureView
 		nearest              bool
 		bicubic              bool
+		blendMode            render.BlendMode
 		firstVertex, vertCnt uint32
 	}
 	// Reuse imageUniformScratch as slot meta is small; pack into grow-only staging.
@@ -4097,11 +4105,21 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			i = j
 			continue
 		}
+		if cmd.BlendMode != render.BlendNormal {
+			if err := s.imagePipeline.EnsureBlendPipeline(cmd.BlendMode); err != nil {
+				// Fixed-function variant unavailable (advanced mode or device
+				// failure): keep the historic SourceOver quad rather than
+				// dropping the draw.
+				slogger().Warn("image blend pipeline unavailable", "mode", cmd.BlendMode, "err", err)
+				cmd.BlendMode = render.BlendNormal
+			}
+		}
 		slots = append(slots, imageSlot{
 			opacity:     cmd.Opacity,
 			texView:     texView,
 			nearest:     cmd.Nearest || cmd.Bicubic, // bicubic taps use the nearest sampler
 			bicubic:     cmd.Bicubic,
+			blendMode:   cmd.BlendMode,
 			firstVertex: uint32(i * 6),       //nolint:gosec
 			vertCnt:     uint32((j - i) * 6), //nolint:gosec
 		})
@@ -4226,6 +4244,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			firstVertex: slot.firstVertex,
 			vertexCount: slot.vertCnt,
 			bicubic:     slot.bicubic,
+			blendMode:   slot.blendMode,
 		})
 	}
 
@@ -4292,6 +4311,19 @@ func (s *GPURenderSession) SetDeferSurfaceSubmit(v bool) {
 		v = false
 	}
 	s.deferSurfaceSubmit = v
+}
+
+// SetOffscreenBlitTarget marks the target of the current flush as an offscreen
+// isolation RT (layer / effect publish view) rather than the window surface.
+// encodeBlitOnlyPass then clears it transparent instead of painting the
+// surface's opaque black base: an opaque clear turns a fresh layer RT into
+// opaque black under its first composite blit (nested saveLayer isolation).
+// Callers must reset it to false after the flush (renderer defers the reset).
+func (s *GPURenderSession) SetOffscreenBlitTarget(v bool) {
+	if s == nil {
+		return
+	}
+	s.offscreenBlitTarget = v
 }
 
 // finishSurfaceSubmit either defers the finished surface CB (leading queue)
@@ -6124,6 +6156,13 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 	if s.frameRendered || hasDamage {
 		loadOp = types.LoadOpLoad
 	}
+	// Offscreen isolation RTs (layer / effect publish) start transparent —
+	// Skia saveLayer semantics. The window surface keeps the opaque black
+	// base so uncovered pixels present as the frame background.
+	clearAlpha := 1.0
+	if s.offscreenBlitTarget {
+		clearAlpha = 0
+	}
 
 	rp, err := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "session_blit_pass",
@@ -6131,7 +6170,7 @@ func (s *GPURenderSession) encodeBlitOnlyPass(
 			View:       view,
 			LoadOp:     loadOp,
 			StoreOp:    types.StoreOpStore,
-			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 1},
+			ClearValue: types.Color{R: 0, G: 0, B: 0, A: clearAlpha},
 		}},
 	})
 	if err != nil {
@@ -6421,6 +6460,11 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 	if s.frameRendered || hasDamage {
 		loadOp = types.LoadOpLoad
 	}
+	// Same offscreen/surface clear split as encodeBlitOnlyPass.
+	clearAlpha := 1.0
+	if s.offscreenBlitTarget {
+		clearAlpha = 0
+	}
 
 	rp, err := encoder.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "session_shared_blit_pass",
@@ -6428,7 +6472,7 @@ func (s *GPURenderSession) encodeBlitToEncoder(
 			View:       view,
 			LoadOp:     loadOp,
 			StoreOp:    types.StoreOpStore,
-			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 1},
+			ClearValue: types.Color{R: 0, G: 0, B: 0, A: clearAlpha},
 		}},
 	})
 	if err != nil {

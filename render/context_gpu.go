@@ -73,6 +73,22 @@ func (c *Context) MemDigCmdBufs() (prev int, usedSurface bool) {
 	return -1, false
 }
 
+// gpuFlushOffscreenTarget flushes pending GPU ops whose target View is an
+// offscreen isolation RT (layer / effect publish view) rather than the window
+// surface. Accelerators implementing the offscreen extension clear the target
+// transparent (Skia saveLayer base semantics); an opaque clear would paint a
+// fresh layer RT opaque black under its first composite blit (nested
+// isolation). Accelerators without the extension keep the plain Flush.
+func gpuFlushOffscreenTarget(rc gpuContextOps, t GPURenderTarget) error {
+	type offscreenFlusher interface {
+		FlushOffscreen(GPURenderTarget) error
+	}
+	if of, ok := rc.(offscreenFlusher); ok {
+		return of.FlushOffscreen(t)
+	}
+	return rc.Flush(t)
+}
+
 func (c *Context) FlushGPU() error {
 	c.recordFrameFlush()
 	pending := 0
@@ -83,6 +99,9 @@ func (c *Context) FlushGPU() error {
 		}
 	}
 	t := c.gpuRenderTarget()
+	// A non-nil View here is the top isolated layer's RT (gpuRenderTarget picks
+	// it): that flush is offscreen, so the compositor must clear transparent.
+	offscreen := !t.View.IsNil()
 	var err error
 
 	// F14: effect offscreen — flush into pooled TextureBinding RT and publish for
@@ -94,7 +113,7 @@ func (c *Context) FlushGPU() error {
 			t.ViewWidth = uint32(w)  //nolint:gosec // pixmap dims bounded
 			t.ViewHeight = uint32(h) //nolint:gosec
 			if rc := c.gpuCtxOps(); rc != nil {
-				err = rc.Flush(t)
+				err = gpuFlushOffscreenTarget(rc, t)
 			} else if a := Accelerator(); a != nil {
 				c.warnGPUFallback("FlushGPU")
 				err = a.Flush(t)
@@ -112,11 +131,16 @@ func (c *Context) FlushGPU() error {
 			rel()
 			t.View = gpucontext.TextureView{}
 			t.ViewWidth, t.ViewHeight = 0, 0
+			offscreen = !t.View.IsNil()
 		}
 	}
 
 	if rc := c.gpuCtxOps(); rc != nil {
-		err = rc.Flush(t)
+		if offscreen {
+			err = gpuFlushOffscreenTarget(rc, t)
+		} else {
+			err = rc.Flush(t)
+		}
 	} else if a := Accelerator(); a != nil {
 		c.warnGPUFallback("FlushGPU")
 		err = a.Flush(t)
@@ -149,8 +173,28 @@ func (c *Context) FlushGPU() error {
 // when neither per-context ops nor a global accelerator is available); damage
 // variants leave err nil in that case.
 func (c *Context) flushGPUWithViewCore(view gpucontext.TextureView, width, height uint32, damage []image.Rectangle, opName string, requireAccel bool) error {
+	return c.flushGPUWithViewCoreImpl(view, width, height, damage, opName, requireAccel, false)
+}
+
+// flushLayerViewGPU flushes pending ops into a layer isolation RT (offscreen).
+// PopLayer self-flushes its RT after the layer already left the stack, so the
+// target no longer matches gpuRenderTarget's top layer; the offscreen intent
+// is explicit here so the compositor clears the RT transparent (saveLayer
+// base) instead of the surface's opaque black.
+func (c *Context) flushLayerViewGPU(view gpucontext.TextureView, width, height uint32, damage []image.Rectangle) error {
+	tFlush := time.Now()
+	err := c.flushGPUWithViewCoreImpl(view, width, height, damage, "FlushLayerViewGPU", false, true)
+	noteFlushMs(tFlush)
+	return err
+}
+
+func (c *Context) flushGPUWithViewCoreImpl(view gpucontext.TextureView, width, height uint32, damage []image.Rectangle, opName string, requireAccel, forceOffscreen bool) error {
 	c.recordFrameFlush()
 	t := c.gpuRenderTarget()
+	// Flushing into the currently active isolated layer's own RT is an
+	// offscreen flush (layer self-flush / effect RT), not a surface present:
+	// the compositor must clear it transparent (see gpuFlushOffscreenTarget).
+	offscreen := forceOffscreen || (!view.IsNil() && view == t.View)
 	if !view.IsNil() {
 		t.View = view
 		t.ViewWidth = width
@@ -161,7 +205,11 @@ func (c *Context) flushGPUWithViewCore(view gpucontext.TextureView, width, heigh
 	}
 	var err error
 	if rc := c.gpuCtxOps(); rc != nil {
-		err = rc.Flush(t)
+		if offscreen {
+			err = gpuFlushOffscreenTarget(rc, t)
+		} else {
+			err = rc.Flush(t)
+		}
 	} else if a := Accelerator(); a != nil {
 		c.warnGPUFallback(opName)
 		err = a.Flush(t)
@@ -321,7 +369,13 @@ func (c *Context) warnGPUFallback(op string) {
 // flushGPUAccelerator flushes pending GPU shapes before a CPU fallback operation.
 func (c *Context) flushGPUAccelerator() {
 	if rc := c.gpuCtxOps(); rc != nil {
-		_ = rc.Flush(c.gpuRenderTarget())
+		t := c.gpuRenderTarget()
+		if !t.View.IsNil() {
+			// Top isolated layer RT target: offscreen flush, transparent base.
+			_ = gpuFlushOffscreenTarget(rc, t)
+			return
+		}
+		_ = rc.Flush(t)
 		return
 	}
 	if a := Accelerator(); a != nil {

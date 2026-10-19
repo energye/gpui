@@ -63,6 +63,16 @@ type Context struct {
 	mask      *Mask   // Current alpha mask
 	maskStack []*Mask // Mask stack for Push/Pop
 
+	// ApplyMask composite image cache: one premultiplied white RGBA buffer whose
+	// alpha channel is the mask, reused across calls so the GPU image cache
+	// keeps a stable texture key (content is re-uploaded in place only when the
+	// mask bytes change). maskCompositeCopy shadows the bytes the buffer was
+	// built from — catches mutations made directly through Mask.Data().
+	maskComposite     *ImageBuf
+	maskCompositeW    int
+	maskCompositeH    int
+	maskCompositeCopy []uint8
+
 	// cached R8 plane for mask/difference clips (GPU MaskAware path).
 	// Rebuilt when clipMaskGPUGen or user mask pointer changes.
 	clipMaskGPU     *Mask

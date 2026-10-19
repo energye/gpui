@@ -25,6 +25,14 @@ import (
 // the previous axis-aligned-only gate incorrectly fell back to ImagePattern
 // Fill, which GPU solid-path rendering cannot texture.
 func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, srcY, srcW, srcH int, dstWidth, dstHeight float64) bool {
+	// GOGPU_RENDER_MODE=cpu routes every draw through the CPU rasterizer
+	// (shapes: context_draw.go, text: text_font.go, quads: m4_quadimage.go).
+	// Claiming the textured quad here queues it on a GPU session CPU-only mode
+	// never executes, so the draw silently vanished — ApplyMask's DstIn became a
+	// no-op. Let the CPU image-pattern path paint it instead.
+	if CPUOnlyMode() {
+		return false
+	}
 	rc := c.gpuCtxOps()
 	if rc == nil {
 		if c.gpuPathAvailable() {
@@ -71,6 +79,26 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 
 	nearest := opts.Interpolation == InterpNearest
 	bicubic := opts.Interpolation == InterpBicubic
+	if opts.BlendMode != BlendNormal {
+		// Fixed-function Porter-Duff compositing (B.02) rides per-mode quad
+		// pipeline variants. Advanced (destination-sampling) modes and the
+		// bicubic shader variant have no blend counterpart: keep them on the
+		// CPU path so the operator is never silently dropped.
+		if IsAdvancedBlendMode(opts.BlendMode) || bicubic {
+			c.recordCPUFallbackReason("image:blend")
+			return false
+		}
+		contentDirty := img.TakeGPUDirty()
+		rc.QueueImageDrawBlend(target, pixelData, img.GenerationID(), imgW, imgH, img.Stride(),
+			float32(tl.X), float32(tl.Y),
+			float32(tr.X), float32(tr.Y),
+			float32(br.X), float32(br.Y),
+			float32(bl.X), float32(bl.Y),
+			float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1,
+			0, 0, 0, 0, opts.BlendMode, nearest, contentDirty)
+		c.recordGPUOp()
+		return true
+	}
 	contentDirty := img.TakeGPUDirty()
 	rc.QueueImageDraw(target, pixelData, img.GenerationID(), imgW, imgH, img.Stride(),
 		float32(tl.X), float32(tl.Y),

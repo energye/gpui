@@ -115,17 +115,17 @@
 ### 3.3 context_mask.go（6）· 掩码族
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
-| `SetMask(mask)` / `ClearMask()` / `GetMask()` / `InvertMask()` | 设置/清除/读取/反转后续绘制的 alpha 蒙版（GPU 侧同步上传 R8 纹理） | alpha 蒙版 | ✅ GPU 有效（内部 clip 差集上传在用） |
-| `ApplyMask(mask)` | 对既有像素做 DestinationIn 蒙版合成（后处理帧，非影响未来绘制） | 蒙版后处理 | 🔗 |
+| `SetMask(mask)` / `ClearMask()` / `GetMask()` / `InvertMask()` | 设置/清除/读取/反转后续绘制的 alpha 蒙版（GPU 侧同步上传 R8 纹理） | alpha 蒙版 | 🔌 无生产消费者（内部仅 clip 差集上传复用 R8 管线）；2026-10-19 直调真窗 `ui_render_base_maskops`（原子验证：逻辑 14 + 像素 18 + golden + 抓屏对照，`gpu_ops>0`/`cpu_fallback_ops=0`） |
+| `ApplyMask(mask)` | 对既有像素做 DestinationIn 蒙版合成（后处理帧，非影响未来绘制） | 蒙版后处理 | 🔌 无生产消费者；2026-10-19 真窗 `ui_render_base_maskops` 验证 Skia **DstIn** 语义（掩码矩形外像素不动） |
 | `AsMask()` | 把当前未填充路径栅格化为 Mask（临时光栅化取 alpha） | 路径→掩码 | 🔗 |
-| `Mask` 类型：`NewMask/NewMaskFromAlpha/NewLuminanceMask/NewMaskFromData` + At/Set/Fill/Invert/Clone | 蒙版构造（空/alpha 图/亮度图/裸数据）与读写 | 蒙版构造 | 🔗 内部在用；**ui/examples 无 SetMask 生产调用 🔌** |
+| `Mask` 类型：`NewMask/NewMaskFromAlpha/NewLuminanceMask/NewMaskFromData` + At/Set/Fill/Invert/Clone | 蒙版构造（空/alpha 图/亮度图/裸数据）与读写 | 蒙版构造 | 🔌 无生产消费者（ui/kit、2.5D、视频均未调用；真窗=原子验证，值级契约 14 项覆盖构造/读写/反转/克隆） |
 
 ### 3.4 context_layer.go（7）· 图层族
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
 | `PushLayer(blend, opacity)` / `PopLayer()` | 压入/合成渐变层（GPU RT 优先，CPU 损伤合成兜底） | 层合成 | ✅ GPU 有效 |
 | `PushLayerIsolated(opacity)` | 强制创建隔离离屏层（Flutter saveLayer 语义） | 隔离离屏层 | ✅ |
-| `PushMaskLayer(mask)` | 建层并让整个层内容经 mask 调制后合成 | 蒙版层 | ✅ |
+| `PushMaskLayer(mask)` | 建层并让整个层内容经 mask 调制后合成 | 蒙版层 | 🔌 无生产消费者；2026-10-19 真窗 `ui_render_base_maskops` 验证（图层 RT 经 R8 调制 pass 后排队可重放 blit，无帧中 CPU 读回；CPU 回落保留） |
 | `PushBackdropLayer(blend, opacity)`（m4_extensions.go） | 用父画布快照预填充层（backdrop/毛玻璃底色播种） | 背景快照层 | 🔗 ui/scene/composite + ui/rendering/filter_draw 在用 |
 | `LayerPoolStats()/ResetLayerPoolStats()` | 读取/清零层表面池 gets/puts/hits/misses | 层池统计 | 🧪 仅测试（s6_4_layer_filter_test） |
 | `SetBlendMode(mode)` | 设置后续填充/描边的混合模式 | 混合模式 | ✅ |
@@ -343,6 +343,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `render/raster` 独立注册入口 | 功能并入 render/gpu |
 | 路径布尔 `BooleanPath/PathOp*` | 仅测试（s3c_m3_residual_gate_test 门禁 + path_boolean_test 值级；2026-10-19 重写为 Clipper 扫描线） |
 | 裁剪运算 `ClipOpDifference/Replace`（ClipRectOp/ClipPathOp） | 仅测试（p12_clip_mask_gpu_test）+ 直调真窗 `ui_render_base_clipop`（2026-10-19，**原子验证**；同批修 4 缺陷，见 §3.2 行与 `RENDER_FEATURE_COVERAGE.md` §11） |
+| 掩码写路径 `SetMask/ClearMask/GetMask/InvertMask/ApplyMask` + `PushMaskLayer`（+`Mask` 构造类型） | 仅测试（mask_test / context_layer_test / layer_rt_clear_test）+ 直调真窗 `ui_render_base_maskops`（2026-10-19，**原子验证**：逻辑 14 + 像素 18 + golden 627200px 逐位零差 + 抓屏 vs 快照同区对照；同批修掩码 pop 帧中 CPU 材料化导致的呈现断裂 + 嵌套隔离层 blit-only 离屏清屏不透明黑，见本行 §3.3、`RENDER_FEATURE_COVERAGE.md` §11 与本窗 README） |
 | Path 高级造型 `Trim/WithCorners/Discrete` | 仅测试（2026-10-19 修 `Discrete` 恒单侧偏移 + 2× 虚线周期，值级契约 `pathops_subpath_test.go`；直调真窗 `ui_render_base_pathshape`） |
 | `SetDither`（m4_extensions） | 仅测试 |
 | `Pattern/ImagePattern` 旧图案接口（SetFillPattern 等） | 仅测试/桥接；生产走 Brush |
