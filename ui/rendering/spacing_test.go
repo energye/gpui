@@ -136,3 +136,84 @@ func spacedLineWidth(t *testing.T, txt *rendering.RenderText) float64 {
 	}
 	return w
 }
+
+// TestRenderText_SpacingClusterCountsAndWrap pins the count-based width law
+// (n clusters → n-1 gaps), negative tightening, wrap reflow and the
+// measure-cache invalidation. The GPU real window ui_render_base_textspacing
+// repeats these on screen with pixel/golden evidence.
+func TestRenderText_SpacingClusterCountsAndWrap(t *testing.T) {
+	face := loadTestFace(t, 16)
+	width := func(s string, ls float64) float64 {
+		txt := rendering.NewRenderText(s)
+		txt.SetFace(face)
+		txt.SetFontSize(16)
+		txt.SetLetterSpacing(ls)
+		_ = txt.Layout(rendering.Loose(600, 120))
+		return spacedLineWidth(t, txt)
+	}
+
+	base := width("HHHHHH", 0)
+	if got := width("HHHHHH", 6); got-base != 30 {
+		t.Fatalf("6 clusters +6: bump=%v want 30", got-base)
+	}
+	if got := width("HHHHHH", -4); got-base != -20 {
+		t.Fatalf("6 clusters -4: bump=%v want -20", got-base)
+	}
+	if got := width("H", 12); got != width("H", 0) {
+		t.Fatalf("single cluster must not get a trailing gap: %v vs %v", got, width("H", 0))
+	}
+
+	// A previous unspaced MeasureWidth must not survive SetLetterSpacing.
+	warm := rendering.NewRenderText("HHHHHH")
+	warm.SetFace(face)
+	warm.SetFontSize(16)
+	_ = warm.Layout(rendering.Loose(400, 80))
+	_ = warm.MeasureWidth("HHHHHH")
+	warm.SetLetterSpacing(6)
+	if m, w := warm.MeasureWidth("HHHHHH"), spacedLineWidth(t, warm); m != w || m-base != 30 {
+		t.Fatalf("measure cache after spacing: measure=%v layout=%v want %v", m, w, base+30)
+	}
+
+	// Same budget, same text: negative spacing fits more words per line,
+	// positive spacing forces one word per line.
+	const src = "HHHH HHHH HHHH HHHH HHHH HHHH "
+	mk := func(ls float64) *rendering.RenderText {
+		txt := rendering.NewRenderText(src)
+		txt.SetFace(face)
+		txt.SetFontSize(16)
+		txt.SetMaxWidth(130)
+		txt.SetLetterSpacing(ls)
+		_ = txt.Layout(rendering.Loose(130, 400))
+		return txt
+	}
+	plain, spaced, neg := mk(0), mk(5), mk(-3)
+	pl, sl, nl := plain.TextLayout().LineCount(), spaced.TextLayout().LineCount(), neg.TextLayout().LineCount()
+	if sl <= pl || nl >= pl {
+		t.Fatalf("wrap counts must reflow monotonically: plain=%d spaced=%d neg=%d", pl, sl, nl)
+	}
+	for _, txt := range []*rendering.RenderText{plain, spaced, neg} {
+		for i := 0; i < txt.TextLayout().LineCount(); i++ {
+			if _, _, w, _, ok := txt.TextLayout().Line(i); !ok || w > 130.0001 {
+				t.Fatalf("line %d width=%v over 130px budget (ok=%v)", i, w, ok)
+			}
+		}
+	}
+
+	// Horizontal spacing never changes multi-line height.
+	h0 := func() float64 {
+		txt := rendering.NewRenderText("HH\nHH")
+		txt.SetFace(face)
+		txt.SetFontSize(16)
+		return txt.Layout(rendering.Loose(400, 400)).Height
+	}
+	h1 := func() float64 {
+		txt := rendering.NewRenderText("HH\nHH")
+		txt.SetFace(face)
+		txt.SetFontSize(16)
+		txt.SetLetterSpacing(8)
+		return txt.Layout(rendering.Loose(400, 400)).Height
+	}
+	if h0() != h1() {
+		t.Fatalf("multi-line height changed with letter spacing: %v vs %v", h0(), h1())
+	}
+}
