@@ -317,7 +317,8 @@ func (c *Context) queueLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 	}
 	type advancedLayerQueuer interface {
 		QueueAdvancedLayerComposite(srcView gpucontext.TextureView, srcW, srcH int,
-			damage image.Rectangle, mode BlendMode, opacity float64, release func())
+			damage image.Rectangle, mode BlendMode, opacity float64,
+			dstView gpucontext.TextureView, release func())
 	}
 	var q advancedLayerQueuer
 	if raw := c.GPURenderContext(); raw != nil {
@@ -331,8 +332,24 @@ func (c *Context) queueLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 		damage = image.Rectangle{}
 	}
 	release := layer.gpuRelease
+	// Nested saveLayer: the enclosing isolation RT is the destination. Zero
+	// means base/present surface. This lets FlushOffscreen skip pops that
+	// belong to the parent instead of blending them into the wrong layer.
+	var dstView gpucontext.TextureView
+	if c.layerStack != nil {
+		for i := len(c.layerStack.layers) - 1; i >= 0; i-- {
+			L := c.layerStack.layers[i]
+			if L == nil || L.opacityGroup {
+				continue
+			}
+			if !L.gpuView.IsNil() {
+				dstView = L.gpuView
+			}
+			break
+		}
+	}
 	q.QueueAdvancedLayerComposite(layer.gpuView, layer.gpuW, layer.gpuH,
-		damage, layer.blendMode, layer.opacity, release)
+		damage, layer.blendMode, layer.opacity, dstView, release)
 	return true
 }
 

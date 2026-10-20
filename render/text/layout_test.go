@@ -838,3 +838,36 @@ func TestLayoutText_WrappedMultiParagraphY(t *testing.T) {
 		}
 	}
 }
+
+// TestLayoutText_MultiFace pins paragraph layout through a MultiFace. Before
+// this, HarfBuzz was handed MultiFace directly; its Source() is nil, so a
+// standard UI font chain shaped zero glyphs and DrawParagraph painted nothing.
+func TestLayoutText_MultiFace(t *testing.T) {
+	f1 := layoutTestFace(t)
+	f2 := layoutTestFace(t)
+	mf, err := NewMultiFace(f1, f2)
+	if err != nil {
+		t.Fatalf("NewMultiFace: %v", err)
+	}
+
+	layout := LayoutText("Hello\nWorld", mf, LayoutOptions{MaxWidth: 300, LineSpacing: 1.25})
+	if layout == nil {
+		t.Fatal("LayoutText returned nil")
+	}
+	if len(layout.Lines) != 2 {
+		t.Fatalf("lines = %d, want 2", len(layout.Lines))
+	}
+	for i, line := range layout.Lines {
+		if len(line.Glyphs) == 0 {
+			t.Fatalf("line %d has no glyphs", i)
+		}
+		for j, run := range line.Runs {
+			if run.Face == nil {
+				t.Fatalf("line %d run %d has nil face", i, j)
+			}
+			if len(run.Glyphs) == 0 {
+				t.Fatalf("line %d run %d has no glyphs", i, j)
+			}
+		}
+	}
+}

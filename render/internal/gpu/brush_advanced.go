@@ -250,6 +250,6 @@ func (rc *GPURenderContext) CompositeAdvancedLayer(
 		return nil
 	}
 	// release is attached by queueLayerAdvancedGPU in context_layer.go
-	rc.QueueAdvancedLayerComposite(srcView, srcW, srcH, bounds, mode, opacity, nil)
+	rc.QueueAdvancedLayerComposite(srcView, srcW, srcH, bounds, mode, opacity, gpucontext.TextureView{}, nil)
 	return nil
 }

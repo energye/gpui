@@ -289,21 +289,9 @@ func layoutParagraph(para string, face Face, opts LayoutOptions, metrics Metrics
 // a no-op fast path with unchanged output.
 func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOptions) []ShapedRun {
 	runs := make([]ShapedRun, 0, len(segments))
-	size := face.Size()
 	var xOffset float64
 
 	for si, seg := range segments {
-		// Use uncached shape so segment-level RTL reorder is applied once here
-		// without double-reordering a Shape() cache entry that already reordered.
-		glyphs := ShapeUncached(seg.Text, face)
-		if len(glyphs) == 0 {
-			continue
-		}
-		// RTL segment → visual order (segmenter already split bidi runs).
-		if seg.Direction == DirectionRTL {
-			glyphs = ReorderRTLShapedGlyphs(glyphs)
-		}
-
 		// Inter-segment letter gap: every non-first shaped segment starts
 		// one letter space after the previous content (n-1 gaps over the
 		// line; the line-final cluster still carries no trailing).
@@ -312,42 +300,80 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOp
 			runs[len(runs)-1].Advance += opts.LetterSpacing
 		}
 
-		// Spacing shifts are segment-relative here; xOffset applies below.
-		// Base advance is captured BEFORE ApplySpacing mutates X —
-		// adding segExtra to an already-shifted end would double-count
-		// the last glyph's shift.
-		var baseAdvance float64
-		if len(glyphs) > 0 {
-			last := &glyphs[len(glyphs)-1]
-			baseAdvance = last.X + last.XAdvance
+		// MultiFace.Source() is nil, so HarfBuzz cannot shape it directly.
+		// Split each segment into contiguous per-face runs first; this is the
+		// same split DrawString uses for mixed-script text.
+		parts := []facePart{{face: face, text: seg.Text}}
+		if mf, ok := face.(*MultiFace); ok && seg.Direction != DirectionRTL {
+			if frs := mf.Runs(seg.Text); len(frs) > 0 {
+				parts = parts[:0]
+				start := 0
+				for _, fr := range frs {
+					if fr.Face == nil || fr.Text == "" {
+						continue
+					}
+					parts = append(parts, facePart{face: fr.Face, text: fr.Text, start: start})
+					start += len(fr.Text)
+				}
+			}
 		}
-		segExtra := ApplySpacingDir(glyphs, seg.Text, opts.LetterSpacing, opts.WordSpacing, seg.Direction)
 
-		// Adjust glyph positions by xOffset
-		for i := range glyphs {
-			glyphs[i].X += xOffset
-			// Adjust cluster indices to be relative to paragraph start
-			glyphs[i].Cluster += seg.Start
+		for _, part := range parts {
+			// Use uncached shape so segment-level RTL reorder is applied once
+			// here without double-reordering a Shape() cache entry.
+			glyphs := ShapeUncached(part.text, part.face)
+			if len(glyphs) == 0 {
+				continue
+			}
+			// RTL segment → visual order (segmenter already split bidi runs).
+			if seg.Direction == DirectionRTL {
+				glyphs = ReorderRTLShapedGlyphs(glyphs)
+			}
+
+			// Spacing shifts are segment-relative here; xOffset applies below.
+			// Base advance is captured BEFORE ApplySpacing mutates X —
+			// adding segExtra to an already-shifted end would double-count
+			// the last glyph's shift.
+			var baseAdvance float64
+			if len(glyphs) > 0 {
+				last := &glyphs[len(glyphs)-1]
+				baseAdvance = last.X + last.XAdvance
+			}
+			segExtra := ApplySpacingDir(glyphs, part.text, opts.LetterSpacing, opts.WordSpacing, seg.Direction)
+
+			// Adjust glyph positions by xOffset
+			for i := range glyphs {
+				glyphs[i].X += xOffset
+				// Adjust cluster indices to be relative to paragraph start
+				glyphs[i].Cluster += seg.Start + part.start
+			}
+
+			// Calculate run advance
+			advance := baseAdvance + segExtra
+
+			run := ShapedRun{
+				Glyphs:    glyphs,
+				Advance:   advance,
+				Ascent:    metrics.Ascent,
+				Descent:   metrics.Descent,
+				Direction: seg.Direction,
+				Face:      part.face,
+				Size:      part.face.Size(),
+			}
+			runs = append(runs, run)
+
+			xOffset += advance
 		}
-
-		// Calculate run advance
-		advance := baseAdvance + segExtra
-
-		run := ShapedRun{
-			Glyphs:    glyphs,
-			Advance:   advance,
-			Ascent:    metrics.Ascent,
-			Descent:   metrics.Descent,
-			Direction: seg.Direction,
-			Face:      face,
-			Size:      size,
-		}
-		runs = append(runs, run)
-
-		xOffset += advance
 	}
 
 	return runs
+}
+
+// facePart is one contiguous run of text that resolves to a single face.
+type facePart struct {
+	face  Face
+	text  string
+	start int
 }
 
 // createLine creates a Line from runs.

@@ -83,11 +83,13 @@ func (c *Context) ApplyBlur(radius float64) {
 		return
 	}
 	if c.tryApplyFilterGraphGPU(ImageFilterNode{Kind: ImageFilterBlur, Radius: radius}) {
+		c.markLayerFullComposite()
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		blurApply(src, dst, radius)
 	})
+	c.markLayerFullComposite()
 }
 
 // ApplyBlurXY applies an anisotropic Gaussian blur (L.04).
@@ -99,11 +101,13 @@ func (c *Context) ApplyBlurXY(radiusX, radiusY float64) {
 		return
 	}
 	if c.tryApplyFilterGraphGPU(ImageFilterNode{Kind: ImageFilterBlurXY, RadiusX: radiusX, RadiusY: radiusY}) {
+		c.markLayerFullComposite()
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		blurXYApply(src, dst, radiusX, radiusY)
 	})
+	c.markLayerFullComposite()
 }
 
 // ApplyDropShadow composites a drop shadow under current surface contents (F.02 / L.04).
@@ -118,11 +122,13 @@ func (c *Context) ApplyDropShadow(offsetX, offsetY, blurRadius float64, color RG
 		Kind: ImageFilterDropShadow, OffsetX: offsetX, OffsetY: offsetY,
 		ShadowBlur: blurRadius, ShadowColor: color,
 	}) {
+		c.markLayerFullComposite()
 		return
 	}
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		dropShadowApply(src, dst, offsetX, offsetY, blurRadius, color)
 	})
+	c.markLayerFullComposite()
 }
 
 // ApplyColorMatrix applies a 4x5 color transformation matrix (F.04 / L.04).

@@ -130,6 +130,14 @@ type GPURenderContext struct {
 	// PresentFrameFull). We keep the layer RT and dual-tex at Flush time when
 	// dest View exists — zero mid-draw PollWait readback.
 	pendingAdvancedLayers []pendingAdvancedLayer
+	// offscreenFlush marks a FlushOffscreen self-flush (layer/effect RT). Such a
+	// flush must not consume advanced pops whose destination is the parent
+	// surface; they stay queued until the parent/present flush.
+	offscreenFlush bool
+	// offscreenBase marks a FlushOffscreen whose RT stands in for the base
+	// surface (F14 effect publish). Base-destined advanced pops must resolve
+	// into that RT instead of waiting for a later base flush.
+	offscreenBase bool
 
 	// frameScratch is a BGRA offscreen with CopySrc|TextureBinding used when
 	// advanced blends must sample dest. Swapchain textures are RENDER_ATTACHMENT
@@ -174,6 +182,12 @@ type pendingAdvancedLayer struct {
 	damage  image.Rectangle
 	mode    render.BlendMode
 	opacity float64
+	// dstView is the parent surface the layer must blend into. Zero means the
+	// base/present surface; a non-zero view is an enclosing layer RT (nested
+	// advanced saveLayer). Resolve only pops whose destination is the target
+	// being flushed, otherwise a later layer self-flush would blend them into
+	// the wrong RT and lose earlier blends.
+	dstView gpucontext.TextureView
 	release func()
 }
 
@@ -208,6 +222,27 @@ func (rc *GPURenderContext) PendingCount() int {
 		n++
 	}
 	return n
+}
+
+// HasPendingAdvanced reports whether any advanced saveLayer pop is queued.
+func (rc *GPURenderContext) HasPendingAdvanced() bool {
+	return rc != nil && len(rc.pendingAdvancedLayers) > 0
+}
+
+// HasPendingAdvancedFor reports whether an advanced saveLayer pop targets view.
+// Used by PopLayer before releasing an enclosing layer RT: a nested advanced
+// child may be the only pending work, and its destination must be flushed
+// before the parent view is destroyed.
+func (rc *GPURenderContext) HasPendingAdvancedFor(view gpucontext.TextureView) bool {
+	if rc == nil || view.IsNil() {
+		return false
+	}
+	for i := range rc.pendingAdvancedLayers {
+		if rc.pendingAdvancedLayers[i].dstView == view {
+			return true
+		}
+	}
+	return false
 }
 
 // SetPipelineMode sets the pipeline mode for this context's operations.
@@ -2464,7 +2499,23 @@ func (rc *GPURenderContext) FlushOffscreen(target render.GPURenderTarget) error 
 		rc.session.SetOffscreenBlitTarget(true)
 		defer rc.session.SetOffscreenBlitTarget(false)
 	}
+	prevOffscreen := rc.offscreenFlush
+	rc.offscreenFlush = true
+	defer func() { rc.offscreenFlush = prevOffscreen }()
 	return rc.Flush(target)
+}
+
+// FlushOffscreenBase is FlushOffscreen for an effect-publish RT that stands in
+// for the base surface: advanced pops whose destination is the base must
+// resolve into this RT instead of being kept for a later surface flush.
+func (rc *GPURenderContext) FlushOffscreenBase(target render.GPURenderTarget) error {
+	if rc == nil {
+		return fmt.Errorf("FlushOffscreenBase: nil context")
+	}
+	prevBase := rc.offscreenBase
+	rc.offscreenBase = true
+	defer func() { rc.offscreenBase = prevBase }()
+	return rc.FlushOffscreen(target)
 }
 
 func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolint:cyclop,gocognit,gocyclo,funlen // sequential resource setup + group dispatch
@@ -2746,7 +2797,10 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	// (CopySrc|TextureBinding|RenderAttachment) so dual-tex can sample dest.
 	// Swapchain views lack COPY_SRC and cannot be dual-tex destinations.
 	surfaceView := target.View
-	useScratch := len(rc.pendingAdvancedLayers) > 0 && !surfaceView.IsNil()
+	// Offscreen layer/effect self-flushes render into their own RT. They must
+	// not switch to frameScratch for a parent-surface advanced pop, otherwise
+	// the child flush blits scratch back to itself recursively.
+	useScratch := !rc.offscreenFlush && len(rc.pendingAdvancedLayers) > 0 && !surfaceView.IsNil()
 	if useScratch {
 		sw, sh := target.Width, target.Height
 		if target.ViewWidth > 0 && target.ViewHeight > 0 {
@@ -2992,7 +3046,7 @@ func (rc *GPURenderContext) dropEncodedPendingCommands() {
 func (rc *GPURenderContext) QueueAdvancedLayerComposite(
 	srcView gpucontext.TextureView, srcW, srcH int,
 	damage image.Rectangle, mode render.BlendMode, opacity float64,
-	release func(),
+	dstView gpucontext.TextureView, release func(),
 ) {
 	if rc == nil || srcView.IsNil() {
 		if release != nil {
@@ -3007,6 +3061,7 @@ func (rc *GPURenderContext) QueueAdvancedLayerComposite(
 		damage:  damage,
 		mode:    mode,
 		opacity: opacity,
+		dstView: dstView,
 		release: release,
 	})
 }
@@ -3084,8 +3139,31 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	if rc == nil || len(rc.pendingAdvancedLayers) == 0 {
 		return nil
 	}
-	layers := rc.pendingAdvancedLayers
-	rc.pendingAdvancedLayers = nil
+	// A pop is ready only for its actual destination. In particular an
+	// offscreen layer self-flush must not consume a pop destined for the base
+	// surface: doing so blended the earlier DrawColor overlay into the next
+	// layer's RT, and the final Screen pop then saw transparent pixels (the
+	// overlay vanished). Keep non-ready pops for the parent/present flush.
+	ready := make([]pendingAdvancedLayer, 0, len(rc.pendingAdvancedLayers))
+	keep := rc.pendingAdvancedLayers[:0]
+	for _, pl := range rc.pendingAdvancedLayers {
+		if pl.dstView.IsNil() {
+			if rc.offscreenFlush && !rc.offscreenBase {
+				keep = append(keep, pl)
+				continue
+			}
+		} else if target.View.IsNil() || pl.dstView != target.View {
+			keep = append(keep, pl)
+			continue
+		}
+		ready = append(ready, pl)
+	}
+	if len(ready) == 0 {
+		rc.pendingAdvancedLayers = keep
+		return nil
+	}
+	rc.pendingAdvancedLayers = keep
+	layers := ready
 
 	// View-nil Image/FlushGPU path: dual-tex Multiply with empty alpha was wiping
 	// base (D05 black outside). Materialize each layer RT and CPU-blend into

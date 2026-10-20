@@ -105,8 +105,11 @@ func (cs *ClipStack) PushPath(verbs []PathVerb, coords []float64, antiAlias bool
 		return err
 	}
 
-	// Compute new bounds (intersection with mask bounds)
-	newBounds := cs.bounds.Intersect(mask.Bounds())
+	// MaskClipper allocates a full-canvas coverage buffer, so mask.Bounds()
+	// is the canvas, not the geometric path AABB. Track the path AABB here:
+	// ClipBounds/getLocalClipBounds and the GPU scissor both need the real
+	// conservative bound, and Coverage still uses the full-canvas mask.
+	newBounds := cs.bounds.Intersect(pathCoordsBounds(coords))
 
 	// Push entry onto stack
 	cs.entries = append(cs.entries, clipEntry{
@@ -351,6 +354,34 @@ func (cs *ClipStack) ReplacePath(canvas Rect, verbs []PathVerb, coords []float64
 	cs.entries = cs.entries[:0]
 	cs.bounds = canvas
 	return cs.PushPath(verbs, coords, antiAlias, fillRule)
+}
+
+// pathCoordsBounds returns the conservative AABB of a path's coordinate
+// points. Control points are included, so the box contains every curve. The
+// clip mask itself remains full-canvas (MaskClipper indexes that buffer); this
+// only narrows the stack's reported bounds.
+func pathCoordsBounds(coords []float64) Rect {
+	if len(coords) < 2 {
+		return Rect{}
+	}
+	minX, minY := coords[0], coords[1]
+	maxX, maxY := minX, minY
+	for i := 2; i+1 < len(coords); i += 2 {
+		x, y := coords[i], coords[i+1]
+		if x < minX {
+			minX = x
+		}
+		if x > maxX {
+			maxX = x
+		}
+		if y < minY {
+			minY = y
+		}
+		if y > maxY {
+			maxY = y
+		}
+	}
+	return NewRect(minX, minY, maxX-minX, maxY-minY)
 }
 
 // PushPathDifference subtracts path coverage from the current clip.

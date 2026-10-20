@@ -21,7 +21,7 @@
 
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 185 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback） |
+| `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 201 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback；2026-10-20 A15：+5 Context 方法 DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph，Context 导出方法按 go doc 实测 201） |
 | `render/text` | 包级导出 248（2026-10-19 实测 `go doc -all` 顶层口径；含 +1 `FixedSize` 26.6 缓存键转换；历史行 245→250 为该次估数，本行按命令实测校正。含字体/整形/布局/光栅化；+1 `RuneAdvance`、+1 `SegmentReuse`、+3 字距：`ApplySpacing/ApplySpacingDir/SpacingExtra/WrapTextWithSpacing`（字距数学委托第三方 `shaping.AddSpacing`，`WhitespaceRuns` 已删）；`LayoutOptions` 新增 `LetterSpacing/WordSpacing` 字段；+5 6b字重收敛：`WithWeight/FaceEmbolden/EmboldenRadius/EmboldenResult/DeriveFace`；新增 `FontWeight` 类型 + `WeightThin..WeightBlack`/`GlyphMaskFlagBold` 常量；`Face.Embolden` 接口方法 + `MultiFace.WithWeight` 方法） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
@@ -73,7 +73,7 @@
 | `PathMetric`（IsEmpty/Length/PositionAt/TangentAt 等）+ `Path.ComputeMetrics` | 对路径做度量：总长、某弧长处取点/切线 | 路径度量 | 🔗 |
 | Path 造型：`Trim` / `WithCorners` / `Discrete` / `Flatten` / `Reversed` / `Area` / `Winding` / `Contains` / `BoundingBox` | Flatten 细分为折线/多边形；Area/Winding/Contains/BoundingBox 查询；Trim(子段)/WithCorners(圆角化)/Discrete(切段虚线 + 确定性 ± 交替横偏；2026-10-19 修「恒单侧偏移 + 周期 2×」) 高级造型 | 造型与查询 | 前四项内部用；**Trim/WithCorners/Discrete 🔌 仅测试**（直调真窗 `ui_render_base_pathshape`） |
 
-## 3. 主包：绘制上下文 Context（184 导出方法）
+## 3. 主包：绘制上下文 Context（201 导出方法）
 
 > **构造器与选项**：`NewContext(width,height,opts...)` / `NewContextForPixmap(pm)` / `NewContextForImage(img,opts...)` / `NewContextWithScale(w,h,scale)`；`ContextOption` 模式：`WithRenderer/WithPixmap/WithPipelineMode/WithDeviceScale`。状态 ✅（embedder 生产链路）。
 
@@ -222,6 +222,18 @@
 | `VideoPlaneSlot`（W/H/YTex/YView/UVTex/UVView/垫行暂存） | 一路视频一组平面纹理（Y 用 R8、UV 用 RG8），原地重写 | 平面纹理槽 | ✅（桥持有） |
 | `VideoPlanePool` + `NewVideoPlanePool(device)` + `Acquire/Release/Stats/Close/AcquireForFrame/UploadPlanes` | 平面独立池；两平面各整块一次计 1 组上传；非 256 对齐行垫进槽暂存（memcpy，无算术） | 平面池上传 | ✅（桥持有，单测绿） |
 
+
+### 3.12 context_misc_draw.go（5）· 杂项绘制族（2026-10-20 A 组#15）
+> 五个 `Canvas` 对等入口；全部保留当前路径/Paint 状态（DrawColor/DrawPaint 只改目标 clip），无生产消费者，属**已验证待接线**（原子验证：直调真窗 `ui_render_base_miscdraw` + CPU/GPU 永久回归）。
+
+| 方法 | 功能 | 精简 | 状态 |
+|------|------|------|------|
+| `DrawShadow(path *Path, col RGBA, elevation float64, transparentOccluder bool)` | 按 Impeller/Skia spot 阴影模型画路径海拔阴影：隔离层内把路径平移 `elevation*dpr` 设备像素、以 `(800/600)*elevation*dpr` 模糊、约 25% alpha 的 spot 色；空路径/海拔≤0/全透明色为 no-op。`transparentOccluder` 为签名兼容保留，当前不改变绘制（见 `RENDER_FEATURE_COVERAGE` §6） | 路径海拔阴影 | 🔌 无生产消费者；CPU 契约 + GPU 像素回归 + 真窗 `ui_render_base_miscdraw` A 卡 |
+| `DrawColor(col RGBA, mode BlendMode)` | 用独立 Paint（实色、关 AA、清 `TransformScale`、指定混合模式）填满**当前 clip**，忽略调用方当前画刷/alpha/blend；当前路径与 Paint 状态不变。普通模式直接填，高级混合（Multiply/Screen 等）自动开隔离层走 dual-tex 合成 | 整 clip 着色 | 🔌 无生产消费者；CPU 契约 + GPU 像素回归 + 真窗 B 卡 |
+| `DrawPaint()` | 用当前 Paint 的克隆填满**当前 clip**（含画刷/渐变/alpha/混合模式/填充规则），只把 `TransformScale` 归 1；当前路径与 Paint 状态不变。高级混合同样走隔离层 | 用 Paint 填 clip | 🔌 无生产消费者；CPU 契约 + GPU 像素回归 + 真窗 C 卡 |
+| `ClipBounds() image.Rectangle` | 返回当前裁剪在**本地坐标**下的包围盒：取设备 clip（无裁剪=整画布），反 `totalMatrix` 变换四角再取 AABB；路径裁剪按路径坐标 AABB（含控制点），不再把全画布 mask 当界 | 本地裁剪界 | 🔌 无生产消费者；CPU 契约 + 真窗 D 卡四态 |
+| `DrawParagraph(layout *text.Layout, x, y float64)` | 把已布局段落逐行、逐 run 交给 `DrawShapedGlyphs`：基线 `y+line.Y`，字形位置取 run 内坐标，Face 取 run.Face；nil/空布局 no-op。单色（当前画刷），不接管 Paragraph 样式/装饰/命中模型 | 绘段落布局 | 🔌 无生产消费者；CPU 契约 + GPU 像素回归 + 真窗 E 卡（MultiFace 三段 36/34/10 字形） |
+
 ---
 
 ## 4. 主包：光栅化 / 加速 / 渲染器
@@ -270,7 +282,7 @@
 | 整形 | `Shape/ShapedGlyph/RunAdvance/CaretXForCluster/HitTestCluster/…` | 文本整形（复杂文字/阿拉伯、泰文等）、字形序列与簇命中 | 文本整形 | 🔗 |
 | 分段 | `SegmentText/SegmentTextRTL/SegmentReuse/Segment/BuiltinSegmenter/DetectScript` | 双向/脚本分段（UAX#9）与单行击键增量前后缀复用（`SegmentReuse`：`ui/rendering` 单行行内复用经单行分段缓存调用，`render/text/segment_reuse_test.go` 等价锁 + 真窗 `ui_text_m5_anycase` 已验） | 脚本双向分段 | 🔗 |
 | 绘制 | `Draw/DrawAliased/DrawWithEmoji/Measure/MeasureText/RuneAdvance` | 字形到目标图像的绘制（含别名/emoji）、文本度量；`RuneAdvance` 为单字形无分配推进（P7 5000 视口） | 字形绘制 | 🔗 |
-| 布局/换行 | `LayoutText/LayoutOptions/Line/WrapText/WrapTextWithSpacing/ApplySpacing/ApplySpacingDir/SpacingExtra` | 段落布局（`LetterSpacing/WordSpacing` 字距：簇间隙n-1/词分隔符，末簇无拖尾；换行按含距宽度断行）+ 字距经第三方 `shaping.AddSpacing`（半分分布，`WhitespaceRuns` 已删）/宽度增量 | 段落布局/换行 | 🔗（6a：`ui/rendering` 字距布局/量宽/换行在用，`spacing_test.go` 端到端锁；第三方库委托后行为：词距按分隔符个数，tab 不计） |
+| 布局/换行 | `LayoutText/LayoutOptions/Line/WrapText/WrapTextWithSpacing/ApplySpacing/ApplySpacingDir/SpacingExtra` | 段落布局（`LetterSpacing/WordSpacing` 字距：簇间隙n-1/词分隔符，末簇无拖尾；换行按含距宽度断行）+ 字距经第三方 `shaping.AddSpacing`（半分分布，`WhitespaceRuns` 已删）/宽度增量；2026-10-20 A15：`shapeSegments` 先按 `MultiFace.Runs` 切逐 face 连续段再整形（修 `MultiFace.Source()==nil` 时段落 0 字形），cluster 偏移 `seg.Start+part.start`，RTL+MultiFace 仍走旧单 face（见 `RENDER_FEATURE_COVERAGE` §6） | 段落布局/换行 | 🔗（6a：`ui/rendering` 字距布局/量宽/换行在用，`spacing_test.go` 端到端锁；第三方库委托后行为：词距按分隔符个数，tab 不计） |
 | 字重 | `FontWeight/WeightThin..WeightBlack/WithWeight/FaceEmbolden/EmboldenRadius/EmboldenResult/Face.Embolden` | 字重选择（Flutter fontWeight）：可变 wght 轴走真轮廓（`resolveWeight`，显式 wght 优先），静态 ≥600 合成加粗（mask 膨胀，advance 不变；`ui/rendering` `SetFontWeight`+`DeriveFace` 单派生在用，`weight_test.go` 锁收敛单入口） | 字重/合成加粗 | 🔗（6b收敛：`Embolden` 进 `Face` 接口，`FaceEmbolden` 仅 nil 安全分发；`MultiFace` 派生经 `faceOptionsExcept/rederiveComponent/deriveMultiFace` 单 helper；CPU draw 两路 + GPU atlas 两路，`GlyphMaskFlagBold` 分键） |
 | 度量/量化 | `Quantize/QuantizePoint/SubpixelMode/SubpixelConfig` | 子像素量化（LCD/AA 的次像素定位） | 子像素量化 | 🔗 |
 | 缓存 | `ClearShapeResultCache/ClearMultiFaceRunsCache/ClearAutoHintCache/ClearFontScanFallbackCache/ResetShapeResultCacheStats/FixedSize` | 各缓存清理与统计复位（整形/多面/自动 hint/字体扫描）；`FixedSize` 把 ppem 转 **26.6 定点** `OutlineCacheKey.Size`（字段类型 `int16→int32`，2026-10-19 修分数磅值截断） | 缓存管理/键量化 | 🔗 |
@@ -354,6 +366,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `DrawShapedGlyphs` | 🔗 生产在用（6 处）：`ui/rendering/text.go:988`（RenderText.Paint 批量主路）· `:1077`（复合分区回退路）· `ui/rendering/text_picture.go:205`（分区提交）· `:232`（彩色段分区）· `:244`（偏移重提交）· `ui/scene/picture.go:225`（录制回放 OpDrawShapedGlyphs）· 另 `render/text.go:158`（描边字形回退）与 `render/scene/gpu_renderer.go:247`（Scene→GPU 解析首选） |
 | `DrawVertices/DrawVerticesEx/DrawMesh/DrawMeshEx`（顶点/网格族） | 无生产调用点（仅测试 `p1_capability_matrix_closers_test` + `vertices_mesh_contract_test.go` / `vertices_mesh_gpu_test.go` + 直调真窗 `ui_render_base_verticesmesh`，2026-10-20 **原子验证**：逻辑 19 + 像素 29 + golden 627200px 逐位零差 + 抓屏 vs 快照同区 `diff=0.0000%`；同批修短索引误画 / 越界索引串读邻网格 / 6B 索引上传不对齐 3 缺陷） |
 | 内容滤镜 `ApplyInvert/ApplyBlurXY/ApplyImageFilterGraph/GPUFilterTexture` | 仅测试/真窗（`filter_ops_contract_test.go` 3 例 + `filter_ops_gpu_test.go` 5 例 + 直调真窗 `ui_render_base_filterops`，2026-10-20 **原子验证**：逻辑 16 + 像素 26 + golden 627200px 逐位零差 + 抓屏 vs 快照 `0.0000%`；同批修 GPU 反色预乘 + 零读回滤镜 RT 丢 CPU 底；3 项限界见 `RENDER_FEATURE_COVERAGE` §6） |
+| 杂项绘制 `DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph` | 仅测试/真窗（`context_misc_draw_test.go` CPU 契约 + `context_misc_draw_gpu_test.go` 5 API/连续高混/隔离父层内高混/效果面高级着色 GPU 回归 + 直调真窗 `ui_render_base_miscdraw`，2026-10-20 **原子验证**：逻辑 14 + 像素 17 + golden 737760px 逐位零差 + 抓屏 vs 快照 `0.0000%`；同批修顺序高混层丢合成 / MultiFace 段落 0 字形 / ClipBounds 路径全画布 / HiDPI 图层逻辑尺寸 / 模糊投影未标全量合成 / CPU 模式仍建 GPU 上下文 6 缺陷；3 项限界见 `RENDER_FEATURE_COVERAGE` §6） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |
 | 视频直传地基 P0（2026-09-30：`VideoBackendCaps/QueryVideoBackend/BorrowVideoBackend/VideoSlot/VideoTexturePool(+Acquire/Release/Stats/Close/VideoPoolStats)/RecordVideoFallback/VideoFallbackTotal`，render/video_direct.go） | 仅测试（video_direct_test.go 四用例绿：双拷贝模式查询/无窗借用/池借还零泄漏零淘汰/回落记 cpu_fallback_ops）；P2 接直传后转生产 |
 | 视频直传 P2+P3-A（2026-10-02：`VideoDrawOptions/VideoUploadTotal/Context.DrawVideoFrame/DrawVideoSlot/VideoBridge(+New/Ensure/Show/ShowSeq/UploadFrame/DrawCurrent/Stats/Close/BridgeStats)`；P3-A 加 `VideoPlaneSlot/VideoPlanePool(+Acquire/Release/Stats/Close/AcquireForFrame/UploadPlanes)/Context.DrawVideoPlanes/VideoBridge.UploadPlanesFrame`，render/video_direct.go + context_image.go；layer 4 加 YUV 转色管线 `render/internal/gpu/shaders/video_yuv.wgsl` + `video_yuv_pipeline.go`，一份 WGSL 两后端通用；layer 5 窗口只调节点单新口 `RenderVideo.UploadPlanes`（平面走 GPU 转色，奇数/异形帧走桥老口兜底记数，`PlanesLast` 作证） | 生产在用（17 扇窗 tick 上传 + paint 绘制：上传+回落==帧数；render 单测绿含平面池借还/紧凑与垫行上传/三原色±1/解码器对拍 mean≤2；YUV 着色器 WebGPU 真编译绿 + GLES 翻译双纹理映射绿，无会话走 CPU 转回落；2K 真窗 80/80 上传零回落首尾亮、yuv_ready=1，p95 随整机抖动待压） |
@@ -404,7 +417,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 ## 8. 主包公开类型的导出方法速查（方法级清单，2026-08-15 go/ast）
 
-> Context 的 181 个方法见 §3 全列；下表补齐其余公开类型的导出方法，与 `go doc ./render` 的 `<类型>.<方法>` 一致。状态列同 §0 约定。改动任一方法时同步本表与 §3。
+> Context 的 201 个方法见 §3 全列；下表补齐其余公开类型的导出方法，与 `go doc ./render` 的 `<类型>.<方法>` 一致。状态列同 §0 约定。改动任一方法时同步本表与 §3。
 
 | 类型 | 导出方法 | 功能（做什么） | 精简 | 状态 |
 |------|---------|--------------|------|------|

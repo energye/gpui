@@ -137,8 +137,11 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear, 
 		return
 	}
 
-	// Advanced blend / mask path: isolation RT (GPU preferred).
-	pw, ph := c.width, c.height
+	// Advanced blend / mask path: isolation RT (GPU preferred). Layer surfaces
+	// live in device pixels, matching the base pixmap: using logical c.width/
+	// c.height here clipped every layer (and every DrawShadow) to the top-left
+	// logical quadrant on HiDPI.
+	pw, ph := c.pixmap.Width(), c.pixmap.Height()
 	if pw > 0 && ph > 0 {
 		view, release := c.CreateOffscreenTexture(pw, ph)
 		if !view.IsNil() && release != nil {
@@ -153,12 +156,12 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear, 
 	var layerPixmap *Pixmap
 	if layer.gpuView.IsNil() {
 		if clear {
-			layerPixmap = c.layerStack.pool.Get(c.width, c.height)
+			layerPixmap = c.layerStack.pool.Get(pw, ph)
 		} else {
-			layerPixmap = c.layerStack.pool.GetForOverwrite(c.width, c.height)
+			layerPixmap = c.layerStack.pool.GetForOverwrite(pw, ph)
 		}
 	} else {
-		layerPixmap = c.layerStack.pool.GetForOverwrite(c.width, c.height)
+		layerPixmap = c.layerStack.pool.GetForOverwrite(pw, ph)
 	}
 	layer.pixmap = layerPixmap
 
@@ -218,29 +221,43 @@ func (c *Context) PopLayer() {
 	// Must happen before restoring the parent target so gpuRenderTarget still
 	// points at the layer view if FlushGPU is used as a fallback.
 	if !layer.gpuView.IsNil() {
-		if rc := c.gpuCtxOps(); rc != nil && rc.PendingCount() > 0 {
-			// F1: damage-aware flush when dirty rect is a real subset of the layer.
-			// Near-full damage (e.g. particle mesh covering the stage) falls back to
-			// full flush — damage path has setup cost without reducing encode work.
-			if !layer.fullComposite && !layer.damage.Empty() && layer.gpuW > 0 && layer.gpuH > 0 {
-				const pad = 2
-				full := image.Rect(0, 0, layer.gpuW, layer.gpuH)
-				d := layer.damage.Inset(-pad).Intersect(full)
-				useDamage := !d.Empty()
-				if useDamage {
-					// area ratio; int math avoids float on hot path
-					fullA := layer.gpuW * layer.gpuH
-					if fullA > 0 && d.Dx()*d.Dy()*10 >= fullA*7 { // ≥70%
-						useDamage = false
+		if rc := c.gpuCtxOps(); rc != nil {
+			needFlush := rc.PendingCount() > 0
+			if !needFlush {
+				// A nested advanced child may be the only pending work left
+				// in this layer RT. Resolve it before the parent view is
+				// released, otherwise its dstView goes stale and the child
+				// never composites.
+				if pc, ok := rc.(interface {
+					HasPendingAdvancedFor(gpucontext.TextureView) bool
+				}); ok {
+					needFlush = pc.HasPendingAdvancedFor(layer.gpuView)
+				}
+			}
+			if needFlush {
+				// F1: damage-aware flush when dirty rect is a real subset of the layer.
+				// Near-full damage (e.g. particle mesh covering the stage) falls back to
+				// full flush — damage path has setup cost without reducing encode work.
+				if !layer.fullComposite && !layer.damage.Empty() && layer.gpuW > 0 && layer.gpuH > 0 {
+					const pad = 2
+					full := image.Rect(0, 0, layer.gpuW, layer.gpuH)
+					d := layer.damage.Inset(-pad).Intersect(full)
+					useDamage := !d.Empty()
+					if useDamage {
+						// area ratio; int math avoids float on hot path
+						fullA := layer.gpuW * layer.gpuH
+						if fullA > 0 && d.Dx()*d.Dy()*10 >= fullA*7 { // ≥70%
+							useDamage = false
+						}
 					}
-				}
-				if useDamage {
-					_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), []image.Rectangle{d}) //nolint:gosec
+					if useDamage {
+						_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), []image.Rectangle{d}) //nolint:gosec
+					} else {
+						_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), nil) //nolint:gosec
+					}
 				} else {
-					_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), nil) //nolint:gosec
+					_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), nil) //nolint:gosec // bounded
 				}
-			} else {
-				_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), nil) //nolint:gosec // bounded
 			}
 		}
 	}

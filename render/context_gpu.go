@@ -95,13 +95,31 @@ func gpuFlushOffscreenTarget(rc gpuContextOps, t GPURenderTarget) error {
 	return rc.Flush(t)
 }
 
+// gpuFlushOffscreenBaseTarget is gpuFlushOffscreenTarget for an effect-publish
+// RT that stands in for the base surface. Base-destined advanced layers must
+// resolve into this RT, not remain queued for the (never flushed) base view.
+func gpuFlushOffscreenBaseTarget(rc gpuContextOps, t GPURenderTarget) error {
+	type offscreenBaseFlusher interface {
+		FlushOffscreenBase(GPURenderTarget) error
+	}
+	if bf, ok := rc.(offscreenBaseFlusher); ok {
+		return bf.FlushOffscreenBase(t)
+	}
+	return gpuFlushOffscreenTarget(rc, t)
+}
+
 func (c *Context) FlushGPU() error {
 	c.recordFrameFlush()
+	rc := c.gpuCtxOps()
 	pending := 0
-	if rc := c.gpuCtxOps(); rc != nil {
+	pendingAdvanced := false
+	if rc != nil {
 		type pcounter interface{ PendingCount() int }
 		if pc, ok := rc.(pcounter); ok {
 			pending = pc.PendingCount()
+		}
+		if pa, ok := rc.(interface{ HasPendingAdvanced() bool }); ok {
+			pendingAdvanced = pa.HasPendingAdvanced()
 		}
 	}
 	t := c.gpuRenderTarget()
@@ -113,7 +131,7 @@ func (c *Context) FlushGPU() error {
 	// F14: effect offscreen — flush into pooled TextureBinding RT and publish for
 	// zero-readback DrawGPUTexture. Skip when a layer already owns a GPU view
 	// (P0-1) so we do not steal the layer destination.
-	if pending > 0 && c.effectSurface && t.View.IsNil() {
+	if (pending > 0 || pendingAdvanced) && c.effectSurface && t.View.IsNil() {
 		if view, w, h, rel, ok := c.acquireEffectPublishView(); ok {
 			t.View = view
 			t.ViewWidth = uint32(w)  //nolint:gosec // pixmap dims bounded
@@ -122,8 +140,8 @@ func (c *Context) FlushGPU() error {
 			// effect surface: seed the publish RT before replaying pending draws
 			// instead of clearing the base away.
 			t.SeedFromData = c.pixmapBaseContent
-			if rc := c.gpuCtxOps(); rc != nil {
-				err = gpuFlushOffscreenTarget(rc, t)
+			if rc != nil {
+				err = gpuFlushOffscreenBaseTarget(rc, t)
 			} else if a := Accelerator(); a != nil {
 				c.warnGPUFallback("FlushGPU")
 				err = a.Flush(t)
@@ -313,6 +331,13 @@ func (c *Context) GPURenderContext() any {
 // ensureGPUCtx lazily creates the per-context GPU render context.
 func (c *Context) ensureGPUCtx() {
 	if c.gpuCtx != nil {
+		return
+	}
+	// ADR-020: GOGPU_RENDER_MODE=cpu forces every draw through the CPU
+	// rasterizer. Without this gate, offscreen layers, shaped glyphs and
+	// image/filter paths still create a GPU context and defer pixels until
+	// Image/Flush, so CPU contracts see an untouched pixmap.
+	if CPUOnlyMode() {
 		return
 	}
 	a := Accelerator()
