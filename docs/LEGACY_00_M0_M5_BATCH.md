@@ -8,7 +8,7 @@
 
 | 顺序 | 文档 | 问题 | 前置 |
 |---|---|---|---|
-| 1 | `LEGACY_01_W6_RETAINED_PLAN.md` | W6 整波：默认切 retained，C9/C11 新建，C0–C5 回归 | 无，本批主线先做 |
+| 1 | `LEGACY_01_W6_RETAINED_PLAN.md` | W6 整波已关（2026-10-20）：默认 retained、C9/C11、C0–C3、C4/C5 Golden 重定均完成 | 无 |
 | 2 | `LEGACY_02_SEGMENTTEXT_PLAN.md` | 单行 5 万字分段复用已落地（`segment_reuse.go`，约 24→14ms），余量以新 profile 为准 | 无，可与 1 并行排期但不同会话 |
 | 3 | `LEGACY_03_GOLDEN_BASELINE_PLAN.md` | accept Golden 已按 M5 截图刷新归档（原差 1.48%，现 `baseline_m5.png`） | 无，但**必须独立评审**，禁顺手办 |
 | 4 | `LEGACY_04_R_WINDOWS_PLAN.md` | R22/R15/R1 均已关（R1 于 2026-10-20 关闭，两跑 30s，Golden 0） | 无 |

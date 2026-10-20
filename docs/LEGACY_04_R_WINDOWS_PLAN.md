@@ -47,4 +47,4 @@ R1（局部 NeedsLayout）此前是 §2 唯一 ⬜：改一个子树的高度只
 - `RENDER_FEATURE_COVERAGE.md` §5 目录计数 46/45 与 R 能力 27/27、§11 加行。
 - `LEGACY_00_M0_M5_BATCH.md` 顺序 4 状态更新。
 - `docs/antd/F0_FOUNDATION_PLAN.md` 两处旧状态（R1 未关）改为已关。
-- W6 仍未关：剩 C4/C5 Golden 过期待重定（不属于 R1）。
+- W6 已于 2026-10-20 关闭：C4/C5 Golden 已重定并回写，不属于 R1。

@@ -90,6 +90,10 @@ Recover 关净后），避开相位切换帧与 resize 后 3 帧。Golden 对比
 （TopBar / Legend / 壳层演示带 / 密集面板），动态区域按形态矩阵另行断言；
 同引擎零容差（任一通道差即计差异像素），首跑只产基线不定 PASS。
 
+### 2026-10-20 Golden 重定基线
+
+旧 `c4_steady_base.png`/`c4_recover_base.png` 生成于 2026-08-24，之后 09-03/04 文本线改动让静态掩码出现 4–5% 差异；这不是 present 切换或引擎行为变化。本次用 `C4_SNAP_DIR=/tmp/c4_rebase` 首跑产新基线、次跑逐位 `0.0000%`（steady/recover 各 370680px），把新 `_base` 回写 `golden/` 后再跑默认目录验证仍 `0.0000%`。临时目录两跑 + 回写后默认目录复验均 25s、exit 0；默认目录复验指标：pixel 10/10、shell_rerecord_scroll=0、main_dirty_excess_frames=0、fps_interval 57.9、p95 18.1ms；最终 `golden/` 里的当前三张快照仍与本次渲染一致。
+
 ## Implementation notes（U20 六维）
 
 - **正确性**：壳层演示带整带一个 `SetShellBoundary`；retained Plan C 只脏层重录；浮层合成在主树之上（FramePacket.Root→.Overlay）；密集格每格嵌套 RepaintBoundary。

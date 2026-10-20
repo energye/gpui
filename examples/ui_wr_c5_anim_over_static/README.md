@@ -63,3 +63,7 @@ RUN_SECONDS=30 go run ./examples/ui_wr_c5_anim_over_static
 - **边界条件**：Spike 幅度加大 clamp01 不越界；resize 后探针重解析
 - **失败模式**：动画污染静区 → golden 红/dense_cell 红；全画幅退化 → paint drift 红
 - **窗内如何看出**：HUD 相位/fps 数字；DENSE 区肉眼完全静止而 FLOAT 卡在其上呼吸
+
+## 2026-10-20 Golden 重定基线
+
+旧 `c5_final_base.png` 生成于 2026-08-25，09-03/04 文本线改动后已过期。本次用 `C5_SNAP_DIR=/tmp/c5_rebase GPUI_ACCEPT_GOLDEN=1` 首跑产新基线、次跑静态掩码 `0.0000%/409160px`，把新基线回写 `golden/` 后再跑默认目录验证仍 `0.0000%`。临时目录两跑 + 回写后默认目录复验均 30s、exit 0；默认目录复验指标：pixel 6/6、fps_interval 59.9、p95 17.9ms、hitch 2/min、paint drift 0；`c5_final.png` 是每跑生成物，不提交。
