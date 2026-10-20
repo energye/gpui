@@ -77,7 +77,7 @@
 
 - 上述单测全绿 + 真窗 `-auto-only` 全绿 + 人工看过（布局不错位、滚动不抖、长列表快滑只建可见行，`bind_count≪item_count` 按 R7 口径判，超了即 FAIL）+ Golden 入库。
 - 产品包 `import` 检查：只许调 `prim/behavior/scope` + `ui/theme`，直调 `render/gpu` 即打回。
-- 本窗只证布局，不管 R1/R15 关闭（R1/R15 仍 ⬜，关闭另行立项）。
+- 本窗只证布局，不管 R1 关闭（R1 仍 ⬜；R15 已于 2026-10-20 关闭，另见 `LEGACY_04_R_WINDOWS_PLAN.md`）。
 
 ## 2. P2 装饰绘制（对应 `basic.dart` 装饰段 + `container.dart:63`）
 
@@ -266,7 +266,7 @@
 
 ## 8. 交付清单（F0 做完必须有这些文件；每项状态只认 PROGRESS.md §1，源码对不上即假绿）
 
-F0 六窗与引擎证据关系：复用 R3/R4/R7/R10/R14 的能力与门禁口径，C0–C11 只做参考不代替关闭；R1/R15 本次不关。
+F0 六窗与引擎证据关系：复用 R3/R4/R7/R10/R14 的能力与门禁口径，C0–C11 只做参考不代替关闭；R15 已于 2026-10-20 关闭，R1 本次不关。
 
 ```text
 ui/kit/internal/prim/{layout,decor,content}.go + 各 _test.go + testdata/*.json

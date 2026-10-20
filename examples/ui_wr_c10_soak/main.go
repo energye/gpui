@@ -48,33 +48,33 @@ const (
 	winW, winH   = 1200, 800
 	closeSeconds = 300 // §2.5 Soak 长跑 档：C10 = 300s
 
-	itemCount  = 600
-	rowExtent  = 56.0 // fixed row height
+	itemCount   = 600
+	rowExtent   = 56.0 // fixed row height
 	hitchBudget = 5.0
 	slopeBudget = 30000.0 // §2.2.4 default extreme-climb budget (KB/min)
 	cpuBudget   = 85.0    // §2.2.3 长窗单核折算预算
 	bindCap     = 64      // bind≪item_count (600 行只绑 ≤64)
 
-	cyclePeriod  = 60.0 // soak 相位周期：Steady 20s → Spike 20s → Recover 20s，300s 跑满 5 轮
-	steadyEnd    = 20.0
-	spikeEnd     = 40.0
-	overlayOpen  = 20.0 // 每轮 Spike 起浮层打开…
-	overlayClose = 28.0 // …8s 后关闭（5 轮共 5 次开合）
-	overlayMinOpens = 3 // 300s 关闭跑至少见到 3 次开合
+	cyclePeriod     = 58.0 // soak 相位周期：Steady 20s → Spike 20s → Recover 18s；300s = 5×58s + 10s，终帧稳落 Steady
+	steadyEnd       = 20.0
+	spikeEnd        = 40.0
+	overlayOpen     = 20.0 // 每轮 Spike 起浮层打开…
+	overlayClose    = 28.0 // …8s 后关闭（5 轮共 5 次开合）
+	overlayMinOpens = 3    // 300s 关闭跑至少见到 3 次开合
 
 	// Body-local layout (logical px). resolveGeometry derives probe sites
 	// from the same constants — no hand-computed absolutes.
-	listW = 420.0
-	nestX, nestY     = 440.0, 10.0
-	denseX, denseY   = 440.0, 320.0
-	hotX, hotY       = 680.0, 40.0
-	hotLblY          = 70.0
-	ovLblX, ovLblY   = 660.0, 100.0
-	bannerX, bannerY = 440.0, 540.0
-	ovWinX, ovWinY   = 950.0, 570.0
-	ovW, ovH         = 200.0, 150.0
-	imgX, imgY       = 660.0, 140.0
-	imgTitleY        = 118.0
+	listW              = 420.0
+	nestX, nestY       = 440.0, 10.0
+	denseX, denseY     = 440.0, 320.0
+	hotX, hotY         = 680.0, 40.0
+	hotLblY            = 70.0
+	ovLblX, ovLblY     = 660.0, 100.0
+	bannerX, bannerY   = 440.0, 540.0
+	ovWinX, ovWinY     = 950.0, 570.0
+	ovW, ovH           = 200.0, 150.0
+	imgX, imgY         = 660.0, 140.0
+	imgTitleY          = 118.0
 	imgCellW, imgCellH = 104.0, 64.0
 	imgW, imgH         = 96.0, 56.0
 	imgStepX, imgStepY = 110.0, 70.0
@@ -146,8 +146,9 @@ func decodeStripedCell(idx int, base [3]float64) *render.ImageBuf {
 	}
 }
 
-// cyclicPhase maps elapsed seconds into a repeating 60s Steady→Spike→Recover.
-func cyclicPhase(elapsed float64) (string, float64) {	cycleT := math.Mod(elapsed, cyclePeriod)
+// cyclicPhase maps elapsed seconds into a repeating 58s Steady→Spike→Recover.
+func cyclicPhase(elapsed float64) (string, float64) {
+	cycleT := math.Mod(elapsed, cyclePeriod)
 	switch {
 	case cycleT < steadyEnd:
 		return wrkit.PhaseSteady, cycleT
@@ -189,7 +190,7 @@ func main() {
 		"HOT   每帧变色动态热点（非缓存）",
 		"OVERLAY 浮层每轮 Spike 开 8s 关",
 		"IMG   4 格解码图片 300s 零解码同屏",
-		"相位 60s 周期 Steady→Spike→Recover",
+		"相位 58s 周期 Steady→Spike→Recover",
 		"hitch/CPU/RSS 长窗口径判（见 README）",
 		"终帧像素探针 + Golden 静态掩码",
 		"HUD 实时 fps/p95/skip/bind/img/ov",
@@ -329,7 +330,7 @@ func main() {
 		dx := bodyX + dense.Offset().X
 		capTextBox = wrsoak.Rect{X: dx + 10, Y: bodyY + dense.Offset().Y + 172, W: 180, H: 24}
 		// Overlay closed-state probe: panel zone center shows body bg when
-		// the overlay is closed (final frame is always closed — cycleT=0).
+		// the overlay is closed (300s = 5×58s + 10s → final cycleT=10, Steady).
 		ptOverlayClosed.X = ovWinX + 100
 		ptOverlayClosed.Y = ovWinY + 75
 		// Image cell 0 center: solid fill, decoded once at startup.
@@ -505,8 +506,8 @@ func main() {
 	wrkit.MergeBoundaryCache(app, &snap)
 
 	// ---- Final-frame pixel assertions (§2.7/U21) --------------------------
-	// Final frame is always overlay-closed (300s = 5 full 60s cycles,
-	// cycleT=0 → Steady): deterministic, never a transition frame.
+	// Final frame is always overlay-closed (300s = 5×58s + 10s,
+	// cycleT=10 → Steady): deterministic, 10s away from any transition.
 	resolveGeometry(scrollY)
 	finalChecks := []wrsoak.PixelCheck{
 		{Pt: &ptNestInner, Desc: "nested_inner_intact_over_soak"},
@@ -557,7 +558,7 @@ func main() {
 			"impl_dirty":                  "稳态每帧只重录新挂载 cell + banner + hot + 相位翻转 nest chip + 浮层开合；dense 与 nest 外/中层持续 skip",
 			"impl_cache":                  "600 行只绑一小窗；相位翻转只脏内层 chip；图片启动一次解码后常驻纹理",
 			"impl_interaction":            "滚动 churn、浮层开合、图片纹理同帧合成：图片格全程静止证明合成不污染静态纹理，浮层开合不抬升主带重录",
-			"impl_edge":                   "300s 整 5 个 60s 周期，终帧 cycleT=0 浮层必关，探针避开过渡帧",
+			"impl_edge":                   "300s = 5×58s + 10s，终帧 cycleT=10 落 Steady 且浮层必关，距相位边界 10s",
 			"impl_fail":                   "崩溃、hitch/CPU/RSS 出预算、bind 爆炸、浮层开合不足、像素/Golden 任一失败 → FAIL exit 1",
 			"impl_visible":                "HUD 实时 fps/p95/bind/skip/overlay 开合态；列表 5 轮变速滚动；浮层每轮 Spike 出现 8s",
 		},

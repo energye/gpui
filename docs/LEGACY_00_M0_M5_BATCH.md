@@ -11,8 +11,8 @@
 | 1 | `LEGACY_01_W6_RETAINED_PLAN.md` | W6 整波：默认切 retained，C9/C11 新建，C0–C5 回归 | 无，本批主线先做 |
 | 2 | `LEGACY_02_SEGMENTTEXT_PLAN.md` | 单行 5 万字分段复用已落地（`segment_reuse.go`，约 24→14ms），余量以新 profile 为准 | 无，可与 1 并行排期但不同会话 |
 | 3 | `LEGACY_03_GOLDEN_BASELINE_PLAN.md` | accept Golden 已按 M5 截图刷新归档（原差 1.48%，现 `baseline_m5.png`） | 无，但**必须独立评审**，禁顺手办 |
-| 4 | `LEGACY_04_R_WINDOWS_PLAN.md` | R22 已关，R1/R15 两个单能力窗未关 | 无，建议按 R1→R15 从小到大做 |
-| 5 | `LEGACY_05_C10_SOAK_PLAN.md` | C10 长跑组合窗已建未关（300s 可跑，第三跑金图差 1.728% 卡相位分界） | C10 收尾（R15 首跑已 PASS，次跑待补） |
+| 4 | `LEGACY_04_R_WINDOWS_PLAN.md` | R22/R15 已关，只剩 R1 单能力窗未关 | 无 |
+| 5 | `LEGACY_05_C10_SOAK_PLAN.md` | C10 长跑组合窗已关（2026-10-20，两跑 300s，次跑 Golden 0） | 无（R15 已关） |
 | 6 | `LEGACY_06_M6_TREND_PLAN.md` | M6 验收主窗散表已有 M0–M2，正式 numbers 行待补 | 例行公事，每期收尾时执行 |
 
 ## 每件的固定结构

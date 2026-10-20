@@ -20,7 +20,7 @@ RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak
 
 | Region | Expectation |
 |--------|-------------|
-| LIST 左列 600 行虚拟列表 | Steady 150 / Spike 600 / Recover 50 px/s 变速滚动，60s 周期循环 5 轮，滑块跟随 |
+| LIST 左列 600 行虚拟列表 | Steady 150 / Spike 600 / Recover 50 px/s 变速滚动，58s 周期循环 5 轮 + 10s 稳态收尾，滑块跟随 |
 | NEST 3 层嵌套 boundary | 内层相位芯片只在相位翻转时变色，外/中层全程静止 |
 | DENSE 3×3 静色格 + 静区注记 | 全程静止，300s 后像素不变 |
 | HOT 24×24 动块 | 每帧变色 |
@@ -49,33 +49,31 @@ RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak
 
 ## Measured（同机关闭档实测，非拍脑袋阈值）
 
-2026-09-04，第 1 跑 300s 关闭档 PASS（`exit=0`，首跑产 Golden 基线）：
+历史（60s 相位周期，2026-09-04）：第 1 跑 300s PASS（首跑产 Golden）；未跑第 2 跑。60s 收尾会踩相位分界，旧数据只作历史参考，不再作为关闭依据。
 
-| 指标 | 第 1 跑（PASS） |
-|------|-----|
-| `fps_interval` | 58.4 |
-| `interval_p95_ms` | 17.7 |
-| `hitch_rate_per_min` | 0.2（1 次） |
-| `bind_count` / `item_count` | 16 / 600 |
-| `scroll_rerecord` | 1423 |
-| `overlay_opens` | 5（5 轮每轮 1 次） |
-| `boundary_skip` | 1259972（单调） |
-| `cpu_pct_avg`（ui/raster） | 43.0（3.0/40.0，非双 0） |
-| `rss slope` | 1539 KB/min（预算 30000 内） |
-| `vsync_source` | true |
-| 像素断言 | 4/4 |
-| Golden | 首跑存基线（次跑起逐位比对） |
+2026-10-20 关闭档：相位周期改 58s（300s = 5×58s + 10s，终帧 cycleT=10 落 Steady、浮层关闭、距相位边界 10s）。原备选 55s 会让 300 mod 55=25 落 Spike 浮层开启区间 [20,28)，终帧 `overlay_zone_closed_no_residue` 必红，故弃用。
 
-内存说明：`rss_start≈73MB → 10s 冒烟跑≈380MB → 300s≈384MB`——约 300MB
-是一次性启动分配（GPU 设备/纹理/图集 + 首帧快照），10s 后即 plateau，
-后 290s 仅 +4MB，稳态 slope 1539 远低于预算，非泄漏。次跑对比 `rss_end`
-是否同带可进一步确认（见第 2 跑记录）。
+| 指标 | 第 1 跑（基线） | 第 2 跑（Golden 对比） |
+|------|-----|-----|
+| `fps_interval` | 59.93 | 59.93 |
+| `interval_p95_ms` | 18.05 | 18.06 |
+| `hitch_rate_per_min` | 0 | 0.20（1 次） |
+| `bind_count` / `item_count` | 17 / 600 | 17 / 600 |
+| `scroll_rerecord` | 1442 | 1442 |
+| `overlay_opens` | 5 | 5 |
+| `boundary_skip` / `rerecord` | 1,231,690 / 6,603 | 1,231,674 / 6,605 |
+| `cpu_pct_avg`（ui/raster） | 24.09（2.87/21.22） | 24.05（2.89/21.16） |
+| `rss_slope_kb_per_min` | 1170（预算 30000 内） | 1173（预算 30000 内） |
+| `rss_end` | 303 MB | 303 MB |
+| `vsync_source` | true | true |
+| 像素断言 | 4/4 | 4/4 |
+| Golden | 首跑存基线 | `0.0000%` / 296292 px |
+| `present_count` | 17980 | 17980 |
 
-CPU 门禁说明：上限 85 取 §2.2.3 长窗默认（单核折算），非拍脑袋；
-43.0 为同机回归对照基线——nominal 是“预算内 + 同带”，若后续同机同档
-`cpu_pct_avg` 翻倍以上或 `rss_slope` 出预算，视为回归 FAIL 再议。
+内存说明：`rss_start≈74MB → 300s≈303MB`——约 229MB 是一次性启动分配（GPU 设备/纹理/图集 + 首帧快照），10s 后 plateau；第 2 跑 `rss_end` 同带，slope 1173 远低于预算，非泄漏。
 
-**未关闭项（诚实记录）**：Golden 次跑验证还没跑（R15 状态保持 ⬜）。
-注意 C10 第三跑暴露的同构边界问题同样适用于本窗——300s 收尾踩在 60s
-相位分界上，终帧相位芯片色可能两跑不一致。次跑验证前建议先修相位周期
-（备选 55s），待用户另行确认。
+CPU 门禁说明：上限 85 取 §2.2.3 长窗默认（单核折算），非拍脑袋；24% 为同机回归对照基线。
+
+**关闭结论（2026-10-20）**：两跑 300s 均 `exit=0`，像素 4/4、Golden 次跑 `0.0000%`，相位终帧稳定；R15 转 ✅。两跑均 `vsync_source=true`、`cpu_fallback_ops=0`、`gpu_fallbacks=0`。
+
+**指标口径**：`present_policy=retained` 下 `present_mode=full` / `damage_ratio=1` 是本场景每帧全幅损伤的真实观测（HUD 明示 `retained mode=full`），R15 不用 damage 冒充局部脏区；`frame_raster_ms` 终帧含快照读回尖峰，不作 fps 门禁；`gpu_ops` 是 `RenderPathStats` 累计值，不作每帧 submit 数读。`measure_cache_hit=0/miss=632` 是本场景文本度量的观测，非 R15 能力门禁（命中率门禁归 R9）。

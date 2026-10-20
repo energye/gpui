@@ -3,7 +3,7 @@
 //
 // §2 R15 thesis: 长时间运行不泄漏不崩溃 — 600 行虚拟列表持续滚动（滚动），
 // 3 层嵌套 boundary + 密集静态面板（静态），每帧变色热点（动画），周期性
-// 浮层面板开合（浮层），PhaseClock 60s 周期循环变化 5 轮。结束时判无崩 +
+// 浮层面板开合（浮层），PhaseClock 58s 周期循环 5 轮 + 10s 稳态收尾。结束时判无崩 +
 // hitch_rate 合理 + CPU/RSS 稳定 + 内容始终正确（像素探针/Golden）。
 //
 // Gates (§2 R15 行 + §2.5 Soak 长跑 档 + §2.2 全族；硬，不许放):
@@ -45,23 +45,23 @@ const (
 	winW, winH   = 1200, 800
 	closeSeconds = 300 // §2.5 Soak 长跑 档：R15 = 300s
 
-	itemCount  = 600
-	rowExtent  = 56.0 // fixed row height
+	itemCount   = 600
+	rowExtent   = 56.0 // fixed row height
 	hitchBudget = 5.0
 	slopeBudget = 30000.0 // §2.2.4 default extreme-climb budget (KB/min)
 	cpuBudget   = 85.0    // §2.2.3 长窗单核折算预算
 	bindCap     = 64      // bind≪item_count (600 行只绑 ≤64)
 
-	cyclePeriod  = 60.0 // soak 相位周期：Steady 20s → Spike 20s → Recover 20s，300s 跑满 5 轮
-	steadyEnd    = 20.0
-	spikeEnd     = 40.0
-	overlayOpen  = 20.0 // 每轮 Spike 起浮层打开…
-	overlayClose = 28.0 // …8s 后关闭（5 轮共 5 次开合）
-	overlayMinOpens = 3 // 300s 关闭跑至少见到 3 次开合
+	cyclePeriod     = 58.0 // soak 相位周期：Steady 20s → Spike 20s → Recover 18s；300s = 5×58s + 10s，终帧稳落 Steady
+	steadyEnd       = 20.0
+	spikeEnd        = 40.0
+	overlayOpen     = 20.0 // 每轮 Spike 起浮层打开…
+	overlayClose    = 28.0 // …8s 后关闭（5 轮共 5 次开合）
+	overlayMinOpens = 3    // 300s 关闭跑至少见到 3 次开合
 
 	// Body-local layout (logical px). resolveGeometry derives probe sites
 	// from the same constants — no hand-computed absolutes.
-	listW = 420.0
+	listW            = 420.0
 	nestX, nestY     = 440.0, 10.0
 	denseX, denseY   = 440.0, 320.0
 	hotX, hotY       = 680.0, 40.0
@@ -92,7 +92,7 @@ func rowColor(i int) [3]float64 {
 	}
 }
 
-// cyclicPhase maps elapsed seconds into a repeating 60s Steady→Spike→Recover.
+// cyclicPhase maps elapsed seconds into a repeating 58s Steady→Spike→Recover.
 func cyclicPhase(elapsed float64) (string, float64) {
 	cycleT := math.Mod(elapsed, cyclePeriod)
 	switch {
@@ -135,7 +135,7 @@ func main() {
 		"DENSE 静态色格面板（全程 skip）",
 		"HOT   每帧变色动态热点（非缓存）",
 		"OVERLAY 浮层每轮 Spike 开 8s 关",
-		"相位 60s 周期 Steady→Spike→Recover",
+		"相位 58s 周期 Steady→Spike→Recover",
 		"hitch/CPU/RSS 长窗口径判（见 README）",
 		"终帧像素探针 + Golden 静态掩码",
 		"HUD 实时 fps/p95/skip/bind/overlay",
@@ -243,7 +243,7 @@ func main() {
 		dx := bodyX + dense.Offset().X
 		capTextBox = wrsoak.Rect{X: dx + 10, Y: bodyY + dense.Offset().Y + 172, W: 180, H: 24}
 		// Overlay closed-state probe: panel zone center shows body bg when
-		// the overlay is closed (final frame is always closed — cycleT=0).
+		// the overlay is closed (300s = 5×58s + 10s → final cycleT=10, Steady).
 		ptOverlayClosed.X = ovWinX + 100
 		ptOverlayClosed.Y = ovWinY + 75
 		// Golden static mask: time-invariant BY DESIGN. Excluded: HUD band,
@@ -416,8 +416,8 @@ func main() {
 	wrkit.MergeBoundaryCache(app, &snap)
 
 	// ---- Final-frame pixel assertions (§2.7/U21) --------------------------
-	// Final frame is always overlay-closed (300s = 5 full 60s cycles,
-	// cycleT=0 → Steady): deterministic, never a transition frame.
+	// Final frame is always overlay-closed (300s = 5×58s + 10s,
+	// cycleT=10 → Steady): deterministic, 10s away from any transition.
 	resolveGeometry(scrollY)
 	finalChecks := []wrsoak.PixelCheck{
 		{Pt: &ptNestInner, Desc: "nested_inner_intact_over_soak"},
@@ -460,11 +460,11 @@ func main() {
 			"pixel_golden_diff_pct":       goldenDiffPct,
 			"pixel_golden_total_px":       goldenTotalPx,
 			"pixel_golden_first_run":      goldenFirstRun,
-			"covered":                     "静态 nesting + 持续滚动 + 每帧动画热点 + 周期浮层 + 60s 相位循环 ×5",
+			"covered":                     "静态 nesting + 持续滚动 + 每帧动画热点 + 周期浮层 + 58s 相位循环 ×5 + 10s 稳态收尾",
 			"impl_correctness":            "终帧探针：嵌套内层色不变、滚入行按索引色精确、浮层区关闭无残留、静区文字密度达标",
 			"impl_dirty":                  "稳态每帧只重录新挂载 cell + banner + hot + 相位翻转 nest chip + 浮层开合；dense 与 nest 外/中层持续 skip",
 			"impl_cache":                  "600 行只绑一小窗；相位翻转只脏内层 chip",
-			"impl_edge":                   "300s 整 5 个 60s 周期，终帧 cycleT=0 浮层必关，探针避开过渡帧",
+			"impl_edge":                   "300s = 5×58s + 10s，终帧 cycleT=10 落 Steady 且浮层必关，距相位边界 10s",
 			"impl_fail":                   "崩溃、hitch/CPU/RSS 出预算、bind 爆炸、浮层开合不足、像素/Golden 任一失败 → FAIL exit 1",
 			"impl_visible":                "HUD 实时 fps/p95/bind/skip/overlay 开合态；列表 5 轮变速滚动；浮层每轮 Spike 出现 8s",
 		},
