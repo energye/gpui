@@ -375,7 +375,13 @@ func (c *Context) drawStringBitmap(s string, x, y float64) {
 			face = source.Face(c.face.Size() * c.DeviceScale())
 		}
 	}
-	text.DrawWithEmoji(c.pixmap, s, face, p.X, p.Y, c.currentColor())
+	col := c.currentColor()
+	if c.tryDrawTextWithClip(p.X, p.Y, func(dst draw.Image, x, y float64) {
+		text.DrawWithEmoji(dst, s, face, x, y, col)
+	}) {
+		return
+	}
+	text.DrawWithEmoji(c.pixmap, s, face, p.X, p.Y, col)
 }
 
 // drawStringScaled renders text via bitmap rasterization at the device pixel size.
@@ -394,7 +400,13 @@ func (c *Context) drawStringScaled(s string, x, y float64, deviceSize float64) {
 	deviceFace := source.Face(deviceSize * c.DeviceScale())
 	p := c.totalMatrix().TransformPoint(Pt(x, y))
 	c.flushGPUAccelerator()
-	text.Draw(c.pixmap, s, deviceFace, p.X, p.Y, c.currentColor())
+	col := c.currentColor()
+	if c.tryDrawTextWithClip(p.X, p.Y, func(dst draw.Image, x, y float64) {
+		text.Draw(dst, s, deviceFace, x, y, col)
+	}) {
+		return
+	}
+	text.Draw(c.pixmap, s, deviceFace, p.X, p.Y, col)
 }
 
 // drawStringCPUAliased renders text with binary (non-anti-aliased) coverage on CPU.
@@ -441,7 +453,13 @@ func (c *Context) drawStringCPUAliased(s string, x, y float64) {
 		}
 	}
 
-	text.DrawAliased(c.pixmap, s, face, p.X, p.Y, c.currentColor())
+	col := c.currentColor()
+	if c.tryDrawTextWithClip(p.X, p.Y, func(dst draw.Image, x, y float64) {
+		text.DrawAliased(dst, s, face, x, y, col)
+	}) {
+		return
+	}
+	text.DrawAliased(c.pixmap, s, face, p.X, p.Y, col)
 }
 
 // StrokeString strokes text outlines at position (x, y) where y is the baseline.
