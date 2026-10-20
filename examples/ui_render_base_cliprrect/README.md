@@ -78,21 +78,26 @@ GPU 字形 mask/MSDF 路径已经通过 `setGPUClipRect` 把裁剪传给 shader�
 修法（对齐 Skia save/clip 后所有绘制共享裁剪的语义）：新增
 `Context.tryDrawTextWithClip`，有活动裁剪时先把文本 run 画进临时透明 RGBA，再用
 `ClipStack.Coverage` 生成 alpha 掩码合成回 `c.pixmap`；无裁剪时保持原快路径。
-覆盖 CPU 位图、缩放位图、Aliased 三个入口。
+临时图优先按文本 run 的字形包围盒 + 字体度量余量收紧，不再直接按整块裁剪区分配；
+若字形墨迹碰到非裁剪边，自动丢弃本次结果并回退整块裁剪重画，避免漏字。覆盖 CPU
+位图、缩放位图、Aliased 三个入口。同机 CPU 模式基准（1200×800 全窗矩形裁剪、
+200 次 20px 位图文本）：按整块裁剪分配约 `98.7ms/次`，收紧后约 `12.8ms/次`。
 
-永久回归（`render/cliprrect_consumer_test.go`）：
+永久回归（`render/cliprrect_consumer_test.go` + `render/text_clip_bounds_test.go`）：
 
 - `TestClipRoundRectCPUBitmapText` — CPU 位图文本在 RRect 内可见、框外 0 亮像素。
 - `TestClipRoundRectCPUAliasedText` — CPU 别名文本同契约（修前框外泄漏 1200px）。
 - `TestClipRoundRectCPUScaledText` — CPU 缩放位图文本同契约（2× 设备缩放，修前泄漏 4662px）。
+- `TestTextRunBoundsContainRenderedInk` — 收紧后的字形包围盒必须包住实际渲染墨迹
+  （覆盖行首行尾字形、升降部与侧边距）。
 - `TestClipRRectGPUTextureAndText` — GPU `DrawGPUTexture` 的 RRect 切角/中心，以及
   GPU 字形框外 0 墨。
 
 ## 限界
 
-1. **CPU 文本裁剪按当前裁剪包围盒分配临时图和掩码**：窗口呈现主路是 GPU 字形路径，
-   不受影响；CPU-only/回退路径在整窗大裁剪下每 run 会多一次临时分配。后续可按
-   `text.Measure` 收窄，但当前先保证裁剪正确性。
+1. **CPU 文本裁剪仍有额外合成成本**：临时图/掩码已按 run 字形包围盒收紧，异常
+   越界会回退整块裁剪；窗口呈现主路是 GPU 字形路径不受影响。CPU-only/回退路径在
+   全窗矩形裁剪下仍比无裁剪多一次 scratch + mask 合成，基准见上。
 2. **本窗是原子验证**：直接调 `render.Context` 公开接口，只证明 `ClipRoundRect`
    与图像/文字/GpuTexture 的能力本身；目前没有组件库或 2.5D/视频模块的生产调用方。
 3. **A 卡依赖 GPU 滤镜发布视图**：`GPUFilterTexture` 只在 GPU 图注册时可用；

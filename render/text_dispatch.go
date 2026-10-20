@@ -376,7 +376,7 @@ func (c *Context) drawStringBitmap(s string, x, y float64) {
 		}
 	}
 	col := c.currentColor()
-	if c.tryDrawTextWithClip(p.X, p.Y, func(dst draw.Image, x, y float64) {
+	if c.tryDrawTextWithClip(s, face, p.X, p.Y, func(dst draw.Image, x, y float64) {
 		text.DrawWithEmoji(dst, s, face, x, y, col)
 	}) {
 		return
@@ -401,7 +401,7 @@ func (c *Context) drawStringScaled(s string, x, y float64, deviceSize float64) {
 	p := c.totalMatrix().TransformPoint(Pt(x, y))
 	c.flushGPUAccelerator()
 	col := c.currentColor()
-	if c.tryDrawTextWithClip(p.X, p.Y, func(dst draw.Image, x, y float64) {
+	if c.tryDrawTextWithClip(s, deviceFace, p.X, p.Y, func(dst draw.Image, x, y float64) {
 		text.Draw(dst, s, deviceFace, x, y, col)
 	}) {
 		return
@@ -454,7 +454,7 @@ func (c *Context) drawStringCPUAliased(s string, x, y float64) {
 	}
 
 	col := c.currentColor()
-	if c.tryDrawTextWithClip(p.X, p.Y, func(dst draw.Image, x, y float64) {
+	if c.tryDrawTextWithClip(s, face, p.X, p.Y, func(dst draw.Image, x, y float64) {
 		text.DrawAliased(dst, s, face, x, y, col)
 	}) {
 		return
