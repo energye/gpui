@@ -199,7 +199,7 @@
 ### 3.10 m4_extensions.go（其余）
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
-| `SetDither/Dither` | 启用/关闭解析后有序抖动 | 抖动 | 🧪 仅测试 |
+| `SetDither/Dither` | 启用/关闭解析后有序抖动（`Image`/`FlushGPU` 读回后的整张 pixmap Bayer 后处理；不影响 Present 主路） | 抖动 | 🧪 仅测试 + 直调真窗 `ui_render_base_dither`（2026-10-20，原子验证；16 逻辑 + 29 像素 + golden + 抓屏；3 项限界见 `RENDER_FEATURE_COVERAGE` §6） |
 | `DrawImageQuad` / `PushBackdropLayer` | 见 §3.5 / §3.4 | — | — |
 
 ### 3.11 video_direct.go（9+16）· 视频直传地基族（2026-09-30 视频P0；2026-10-02 P2/P3-A 同步）
@@ -345,7 +345,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 裁剪运算 `ClipOpDifference/Replace`（ClipRectOp/ClipPathOp） | 仅测试（p12_clip_mask_gpu_test）+ 直调真窗 `ui_render_base_clipop`（2026-10-19，**原子验证**；同批修 4 缺陷，见 §3.2 行与 `RENDER_FEATURE_COVERAGE.md` §11） |
 | 掩码写路径 `SetMask/ClearMask/GetMask/InvertMask/ApplyMask` + `PushMaskLayer`（+`Mask` 构造类型） | 仅测试（mask_test / context_layer_test / layer_rt_clear_test）+ 直调真窗 `ui_render_base_maskops`（2026-10-19，**原子验证**：逻辑 14 + 像素 18 + golden 627200px 逐位零差 + 抓屏 vs 快照同区对照；同批修掩码 pop 帧中 CPU 材料化导致的呈现断裂 + 嵌套隔离层 blit-only 离屏清屏不透明黑，见本行 §3.3、`RENDER_FEATURE_COVERAGE.md` §11 与本窗 README） |
 | Path 高级造型 `Trim/WithCorners/Discrete` | 仅测试（2026-10-19 修 `Discrete` 恒单侧偏移 + 2× 虚线周期，值级契约 `pathops_subpath_test.go`；直调真窗 `ui_render_base_pathshape`） |
-| `SetDither`（m4_extensions） | 仅测试 |
+| `SetDither`（m4_extensions） | 仅测试（`dither_contract_test.go` 4 例 CPU+GPU）+ 直调真窗 `ui_render_base_dither`（2026-10-20，**原子验证**：逻辑 16 + 像素 29 + golden 627200px 逐位零差 + 抓屏 vs 快照同区 `diff=0.0000%`；3 项限界：整张 pixmap / 重复读回累加 / 不影响 Present 主路，见 `RENDER_FEATURE_COVERAGE` §6） |
 | `Pattern/ImagePattern` 旧图案接口（SetFillPattern 等） | 仅测试/桥接；生产走 Brush |
 | 显存账本 `VramBudgetMB/VramLiveBytes/VramLiveCount/VramPeakBytes/VramPressureHigh` + 共享设备 `RecoverSharedDevice/SharedDeviceGeneration/SharedWindowCount` + 图片缓存 `PictureCacheFairMax` + 帧耗时 `FrameAcquireWaitMs/FrameFlushMs/FramePresentWaitMs` + 顶点扩展 `DrawVerticesEx/DrawMeshEx/DrawAtlasEx/DrawDepthSprites` 及 Vert/Atlas/Depth 选项结果错误族 + `OOMExit.Note/RunErr`（2026-10-07 T6 补录：代码早有、总账漏记，T1 拆分搬家后机检喊出，本次按归属补 §3.7/§3.9） | 代码存量，机检 `go run ./scripts/apidoc` 已绿 |
 | `Painter/SolidPainter/FuncPainter/PainterFromPaint` | 仅测试 |
