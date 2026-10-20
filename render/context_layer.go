@@ -60,6 +60,10 @@ type Layer struct {
 	gpuView    gpucontext.TextureView
 	gpuRelease func()
 	gpuW, gpuH int
+	// enteredLayerGPU records that this push switched the active GPU context
+	// from baseGpuCtx to layerGpuCtx. Nested GPU layers keep the layer context;
+	// only the outermost GPU layer flips back to the base on Pop.
+	enteredLayerGPU bool
 	// cpuDrew is true when any CPU path wrote into layer.pixmap while the
 	// layer was active (fallback, SetPixel, advanced-blend CPU layers, etc.).
 	cpuDrew bool

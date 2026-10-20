@@ -126,10 +126,14 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 		}
 	}
 	if c.midFrameNilFlush || gpuMid {
-		if pending > 0 {
+		if !hasLayer && pending > 0 {
 			// A prior readback made the pixmap authoritative; fold the new
 			// pending draws there too. FlushGPU is not used here because an
 			// effect surface would instead publish a base-less RT.
+			// With an active layer RT there is no base pixmap to fold into:
+			// folding returned false and the filter fell back to CPU while the
+			// pending commands stayed on the layer. Keep the layer-coherent GPU
+			// path instead (the seed is flushed by the layer session).
 			if !c.foldPendingIntoPixmap() {
 				return false
 			}

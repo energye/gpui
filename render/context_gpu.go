@@ -55,8 +55,15 @@ func (c *Context) recordCPUFallbackReason(reason string) {
 // Not needed for one-shot contexts (NewContext + Close per frame).
 // Not needed when the view changes between frames (auto-reset on view change).
 func (c *Context) BeginGPUFrame() {
-	if rc := c.gpuCtxOps(); rc != nil {
-		rc.BeginFrame()
+	c.ensureGPUCtx()
+	if c.baseGpuCtx != nil {
+		c.baseGpuCtx.BeginFrame()
+	}
+	if c.layerGpuCtx != nil {
+		// Layer textures are pooled and reused across frames; reset the layer
+		// session's LoadOp bookkeeping too, otherwise a recycled layer view can
+		// be treated as already rendered and skip its clear.
+		c.layerGpuCtx.BeginFrame()
 	}
 }
 
@@ -330,8 +337,17 @@ func (c *Context) GPURenderContext() any {
 // ensureGPUCtx lazily creates the per-context GPU render context.
 // ensureGPUCtx lazily creates the per-context GPU render context.
 func (c *Context) ensureGPUCtx() {
-	if c.gpuCtx != nil {
+	if c.baseGpuCtx != nil {
+		if c.gpuCtx == nil {
+			c.gpuCtx = c.baseGpuCtx
+		}
 		return
+	}
+	if c.gpuCtx != nil {
+		// Defensive: active pointer survived a partial teardown, but the base
+		// owner is gone. Rebuild the base instead of treating a layer context as
+		// the window target.
+		c.gpuCtx = nil
 	}
 	// ADR-020: GOGPU_RENDER_MODE=cpu forces every draw through the CPU
 	// rasterizer. Without this gate, offscreen layers, shaped glyphs and
@@ -356,14 +372,55 @@ func (c *Context) ensureGPUCtx() {
 	if !ok {
 		return
 	}
+	c.baseGpuCtx = ops
 	c.gpuCtx = ops
 	registerGPUContext(c)
 }
 
-// gpuCtxOps returns the per-context GPU ops interface, or nil if unavailable.
-// gpuCtxOps returns the per-context GPU ops interface, or nil if unavailable.
+// ensureLayerGPUCtx lazily creates the offscreen-layer GPU context at 1x.
+//
+// Offscreen layer RTs are 1x textures (see CreateOffscreenTexture). Drawing
+// them through the base 4x session would rasterize into a 4x MSAA attachment and
+// resolve over the 1x texture, which drops any CPU-seeded content (backdrop /
+// filter seeds) on the first post-filter draw. A dedicated 1x session keeps
+// the seed and the following tint/child draws on the same 1x target. It also
+// means layer Push/Pop never destroys the base session or changes its sample
+// count.
+func (c *Context) ensureLayerGPUCtx() {
+	if c.layerGpuCtx != nil {
+		return
+	}
+	c.ensureGPUCtx()
+	if c.baseGpuCtx == nil {
+		return
+	}
+	a := Accelerator()
+	if a == nil {
+		return
+	}
+	p, ok := a.(GPURenderContextProvider)
+	if !ok {
+		return
+	}
+	rc := p.NewGPURenderContext()
+	if rc == nil {
+		return
+	}
+	ops, ok := rc.(gpuContextOps)
+	if !ok {
+		return
+	}
+	ops.SetPreferSampleCount1(true)
+	c.layerGpuCtx = ops
+}
+
+// gpuCtxOps returns the active per-context GPU ops interface (base or layer),
+// or nil if unavailable.
 func (c *Context) gpuCtxOps() gpuContextOps {
 	c.ensureGPUCtx()
+	if c.gpuCtx == nil {
+		c.gpuCtx = c.baseGpuCtx
+	}
 	return c.gpuCtx
 }
 

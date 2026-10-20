@@ -96,8 +96,14 @@ func (c *Context) BeginFrame() {
 	// Frame boundary: free previous GPU command buffers + reset LoadOp state.
 	// Apps (e.g. particle_kitchen_sink) call BeginFrame each tick; without this
 	// session.prevCmdBufs never drain on the window present path.
-	if rc := c.gpuCtxOps(); rc != nil {
-		rc.BeginFrame()
+	c.ensureGPUCtx()
+	if c.baseGpuCtx != nil {
+		c.baseGpuCtx.BeginFrame()
+	}
+	if c.layerGpuCtx != nil {
+		// Layer contexts are reused across frames; reset their LoadOp state so
+		// pooled layer textures are not mistaken for already-rendered views.
+		c.layerGpuCtx.BeginFrame()
 	}
 	// C5 fix fallback: releases deferred by the honest lifetime gate in
 	// drainLayerGPUReleases (stashed/pending composite quads) free here if no

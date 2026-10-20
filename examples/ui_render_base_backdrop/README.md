@@ -18,13 +18,19 @@
 每卡都同时承担「能力演示 + 探针位置基准」：像素探针的期望值由调色板常量 + 压暗/模糊解析计算
 （`scene.go` `tolSolid = 8/255` + 独立通道带），不读渲染结果反推期望。
 
+**1x / 4x 双模式**：B 卡额外覆盖「4x MSAA 底图 + 1x 图层 RT + 滤镜后 tint」这条组合路径。
+`GPUI_MSAA=4` 时 base 窗口保持 4x，backdrop/隔离层走独立 1x 层上下文；Golden 用专属
+`showcase_backdrop_msaa4*.png`，不会覆盖默认 1x 基线。
+
 ## 2. 怎么跑
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 
 RUN_SECONDS=6 go run ./examples/ui_render_base_backdrop -auto-only   # 门禁：JSON 一行到 stdout，失败 exit 1
+GPUI_MSAA=4 RUN_SECONDS=6 go run ./examples/ui_render_base_backdrop -auto-only  # 4x 门禁（专属 Golden）
 go run ./examples/ui_render_base_backdrop                            # 人工常驻（关窗结束）
+GPUI_MSAA=4 go run ./examples/ui_render_base_backdrop                 # 人工 4x（关窗结束）
 go run ./examples/ui_render_base_backdrop -manual-seconds 15         # 人工限时
 go run ./examples/ui_render_base_backdrop -logic-only                # 只跑值级逻辑探针（子进程用 CPU 模式）
 ```
@@ -32,6 +38,7 @@ go run ./examples/ui_render_base_backdrop -logic-only                # 只跑值
 - 逻辑探针由窗口自己在**子进程**里跑（`os.Args[0] + GOGPU_RENDER_MODE=cpu`）：GUI 栈初始化后再切软件模式不可靠，
   离屏 CPU 上下文才是纯软件契约（与同族 `ui_render_base_*` 窗一致）。
 - 门禁模式（`-auto-only` / `RUN_SECONDS`）**强制**跑抓屏对照，不能关；`-screencheck=false` 只影响人工模式。
+- `SNAP_DIR=<dir>` 可把当前快照/基线写到临时目录（先拷入对应 `_base.png`），用于 4x 取证时不覆盖提交的 1x Golden。
 
 ## 3. 证据（本轮实测）
 
@@ -39,9 +46,10 @@ go run ./examples/ui_render_base_backdrop -logic-only                # 只跑值
 |------|------|
 | 逻辑探针（CPU 离屏，值级契约） | **14/14** |
 | 像素探针（GPU 快照，解析 oracle，容差 8/255 + 通道带） | **21/21** |
-| Golden（表头 48px + 图例 260×656 + 四卡 430×232 = **627200 px**） | **diff = 0.0000%** |
-| 抓屏 vs 快照（同 627200 px，per-channel tol ±2/255） | **diff = 0.0000%** |
-| GPU 路线 | `gpu_ops ≈ 1.06 万`，`cpu_fallback_ops = 0`（backdrop 全部走 GPU 快照） |
+| Golden（表头 48px + 图例 260×656 + 四卡 430×232 = **627200 px**） | **diff = 0.0000%**（1x / 4x 各自专属基线） |
+| 抓屏 vs 快照（同 627200 px，per-channel tol ±2/255） | **diff = 0.0000%**（1x / 4x 均零差） |
+| 4x MSAA B 卡（黑/白条纹中心，期望 0.575） | **0.588 / 0.561**（容差内；修复前 0.937 / 0.212） |
+| GPU 路线 | `gpu_ops ≈ 1.07 万`，`cpu_fallback_ops = 0`（backdrop 全部走 GPU 快照） |
 | 呈现 | `present_policy = full_paint`，`presents ≈ 62`（6s），`vsync_source = true` |
 | 本机性能参考（不门禁，见 §8） | `fps_wall ≈ 9.0`，`interval_p95 ≈ 116 ms`，1200×800 full_paint |
 
@@ -97,11 +105,34 @@ go run ./examples/ui_render_base_backdrop -logic-only                # 只跑值
 `cropFilterOutputToLayerBounds` / `drawGPUTextureWithOpacityFullSurface`）；
 `markLayerBackdrop` 内部签名加 `(bounds image.Rectangle, bounded bool)`。`scripts/apidoc` exit 0。
 
+### 5.1 4x MSAA 修复（2026-10-20）
+
+4x 下 B 卡的模糊本身已经执行：去掉 tint 时 B 卡实测 0.518 / 0.482，说明 `ApplyBlur` 正确；
+加上 tint 后中心又变回 0.937 / 0.212（锐利条纹 + 15% 白）。调试采样显示滤镜结果已经是 132，
+紧接着的 tint 首 pass 把它清掉。
+
+根因是**目标采样域错配**：图层 RT 是 1x 纹理，却由 base 的 4x 会话绘制；CPU 种子只进 1x
+resolve 目标，4x MSAA attachment 没有种子，tint 首 pass 仍走 `LoadOpClear`。按「采样数属于
+RenderTarget」的标准做法，本次先落第一步：
+
+1. `Context` 拆 `baseGpuCtx`（窗口，保持配置的 4x）与 `layerGpuCtx`（离屏层，固定 1x）。
+   Push/Pop GPU 层只切 active 指针，不销毁 base 会话、不全局改采样；嵌套层共用 1x 层上下文，
+   最外层 Pop 后回 base 合成。
+2. `GPURenderContext` 新增 `seededViews`：会话尚未创建时 `MarkViewSeeded` 先记账，会话创建后
+   重放；`BeginFrame` / 设备重建清空，`PopLayer` 回收视图时 `UnmarkViewSeeded`，避免池化视图
+   继承陈旧 LoadOp。
+3. 嵌套层 filter 的 mid-frame fold 只在 `!hasLayer` 时启用；有图层时走图层相干的 GPU 路径。
+
+4x B 黑/白中心恢复 0.588 / 0.561（期望 0.575，容差内）；1x/4x 均 21/21，4x 专属 Golden
+627200px 零差、抓屏 vs 快照零差。后续「图层可选 4x MSAA + 1x resolve」仍按同一目标模型扩展，
+不回到 Context 全局采样开关。
+
 ## 6. 回归清单
 
 设备模式（`WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so LD_LIBRARY_PATH=$PWD/lib`），**逐测试文件**跑，串行：
 
-- 本域永久钉子：`render/backdrop_layer_present_test.go` 4 例
+- 本域永久钉子：`render/backdrop_layer_present_test.go` 4 例（1x 种子/裁剪/嵌套/有界）
+  + `render/backdrop_layer_msaa_test.go` 2 例（4x 嵌套 filter 种子 / 4x filter 后 tint 保种子）
   - `TestBackdropLayerPresentKeepsSeed` — 种子存活（层 RT 首 pass 不吃掉 CPU 种子）
   - `TestBackdropLayerClipCompositeFullSurface` — 有裁剪的背板 Pop 仍整面合成（父层裁剪外内容上屏）
   - `TestBackdropLayerNestedKeepsParentContent` — 嵌套背板返回父 RT 不清屏
@@ -121,12 +152,15 @@ go run ./examples/ui_render_base_backdrop -logic-only                # 只跑值
 
 ## 7. Golden 基线与重播种记录
 
-- 基线资产：`testdata/showcase_backdrop_base.png`（表头 + 图例 + 四卡逐位，HUD 不参与）；
-  每次改动画面必须**人工评审后**重播种并随窗提交。
+- 基线资产：`testdata/showcase_backdrop_base.png`（1x，表头 + 图例 + 四卡逐位，HUD 不参与）；
+  `testdata/showcase_backdrop_msaa4_base.png`（4x 专属）；每次改动画面必须**人工评审后**重播种并随窗提交。
 - 重播种命令（基线缺失时）：
   ```bash
   rm testdata/showcase_backdrop_base.png
   GPUI_ACCEPT_GOLDEN=1 RUN_SECONDS=6 go run ./examples/ui_render_base_backdrop -auto-only
+
+  rm testdata/showcase_backdrop_msaa4_base.png
+  GPUI_MSAA=4 GPUI_ACCEPT_GOLDEN=1 RUN_SECONDS=6 go run ./examples/ui_render_base_backdrop -auto-only
   ```
 - **2026-10-19 重播种（评审记录）**：旧基线是黑窗缺陷帧（`diff=55.3481%`）；三处引擎修复落地后画面为
   A 面板内压暗 / B 面板内毛玻璃 / C 面板内压暗且面板外条纹原样 / D 嵌套压暗带，人工看图确认 +
@@ -141,14 +175,18 @@ go run ./examples/ui_render_base_backdrop -logic-only                # 只跑值
 | 每次推入/弹出都是全表面拷贝/blit | 推入 = 帧中物化 + RT→RT 全表面快照；弹出 = 全表面贴回（呈现恢复承重机制，不能简单收窄为损伤区）。四卡窗因此约 9fps（对照 maskops 窗约 19fps）；优化方向是把「上屏恢复」从整面贴回改为显式基底层，之后弹出即可收窄到损伤/层边界（记 `RENDER_FEATURE_COVERAGE.md` §6 性能子项） |
 | 有界背板的层边界 | 层边界 = 推入时**设备空间**裁剪（`clipDeviceBounds`），不是 Skia 的 cull rect；未裁剪时 `bounded=false`，模糊输出按全屏处理 |
 | CPU 回退路径 | 无 GPU 会话 / 父层由 CPU 画过时仍走 pixmap 种子 + CPU 合成；本轮修复不改 CPU 合成结果（整面合成与裁剪在 CPU 侧同样生效） |
+| 图层可选 4x 尚未开放 | 本次落「采样数归渲染目标」第一步：base 按配置 4x，离屏图层固定 1x。2.5D 若需要图层内 4x 几何 AA，后续按 `RenderTarget + resolve` 增加 opt-in；当前不要用全局 `SetPreferSampleCount1` 在 Push/Pop 间切换 |
 
 ## 9. 文件
 
-- 窗口：`examples/ui_render_base_backdrop/main.go`（框架/探针/门禁/抓屏）、`scene.go`（四卡与探针定义）、
-  `testdata/showcase_backdrop_base.png`（golden，随窗提交）、`testdata/showcase_backdrop.png`（最近一次快照，随窗提交）
+- 窗口：`examples/ui_render_base_backdrop/main.go`（框架/探针/门禁/抓屏/1x·4x 切换）、`scene.go`（四卡与探针定义）、
+  `testdata/showcase_backdrop_base.png`（1x Golden，随窗提交）、`testdata/showcase_backdrop.png`（最近一次 1x 快照，随窗提交）、
+  `testdata/showcase_backdrop_msaa4_base.png`（4x Golden，随窗提交）、`testdata/showcase_backdrop_msaa4.png`（最近一次 4x 快照，随窗提交）
 - 引擎修复：`render/m4_quadimage.go`（RT→RT 快照 + 层边界）、`render/context_layer_blend.go`
-  （`markLayerBackdrop` / `cropFilterOutputToLayerBounds`）、`render/context_layer_stack.go`（整面 Pop 合成）、
-  `render/context_clip.go`（`clipDeviceBounds`）、`render/context_image_gpu.go`（`copyGPUTextureToTarget` /
-  `drawGPUTextureWithOpacityFullSurface`）、`render/filter_ops_gpu.go` / `render/filter_ops_cpu.go`（裁剪钩子）、
+  （`markLayerBackdrop` / `cropFilterOutputToLayerBounds`）、`render/context_layer_stack.go`（整面 Pop 合成 +
+  1x/4x 上下文切换）、`render/context_gpu.go`（base/layer 双 GPU 上下文）、`render/context_clip.go`
+  （`clipDeviceBounds`）、`render/context_image_gpu.go`（`copyGPUTextureToTarget` /
+  `drawGPUTextureWithOpacityFullSurface`）、`render/filter_ops_gpu.go` / `render/filter_ops_cpu.go`（裁剪钩子 /
+  `hasLayer` fold 条件）、`render/internal/gpu/gpu_render_context.go`（`seededViews` 跨会话记账）、
   `render/internal/gpu/render_session.go`（`MarkColorContent` 记账）
-- 永久回归：`render/backdrop_layer_present_test.go`
+- 永久回归：`render/backdrop_layer_present_test.go`、`render/backdrop_layer_msaa_test.go`

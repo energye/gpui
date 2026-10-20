@@ -104,7 +104,10 @@ func (c *Context) SetEffectSurface(enabled bool) {
 	}
 	c.effectSurface = enabled
 	c.ensureGPUCtx()
-	if rc := c.gpuCtxOps(); rc != nil {
+	// Only the base context follows effectSurface. Offscreen layers are always
+	// 1x targets and must not be switched to 4x when the effect surface is
+	// turned off.
+	if rc := c.baseGpuCtx; rc != nil {
 		type sc1 interface{ SetPreferSampleCount1(bool) }
 		if s, ok := rc.(sc1); ok {
 			s.SetPreferSampleCount1(enabled)

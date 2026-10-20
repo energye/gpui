@@ -4,14 +4,17 @@
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	RUN_SECONDS=5 go run ./examples/ui_render_base_backdrop -auto-only
+//	GPUI_MSAA=4 RUN_SECONDS=5 go run ./examples/ui_render_base_backdrop -auto-only
 //	go run ./examples/ui_render_base_backdrop   # manual: lives until window close
 //	go run ./examples/ui_render_base_backdrop -manual-seconds 15  # manual, auto-close
 //
 // Evidence: 14 logical contract probes (value-level on an offscreen CPU
-// context), 20 pixel probes on the GPU snapshot (oracle = palette constants +
+// context), 21 pixel probes on the GPU snapshot (oracle = palette constants +
 // snapshot-dim math), a bitwise golden over header + legend + the four cards, a
 // GPU-route assertion (gpu_ops > 0, cpu_fallback_ops == 0), and a live screen
-// grab compared with the snapshot over the same rects.
+// grab compared with the snapshot over the same rects. GPUI_MSAA=4 keeps the
+// base surface at 4x while backdrop layers use their own 1x target and selects
+// the 4x golden (testdata/showcase_backdrop_msaa4*.png).
 //
 // The screen check is not optional here: while closing this window the
 // presented path rendered black (the layer RT's first pass cleared the uploaded
@@ -36,6 +39,7 @@ import (
 
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/scheduler"
@@ -88,6 +92,14 @@ func main() {
 	logicOnly := flag.Bool("logic-only", false, "internal: run the value-level probes and exit (child of the window run)")
 	screenCheck := flag.Bool("screencheck", true, "manual mode: grab the live window and compare it with the snapshot (gate mode always runs it)")
 	flag.Parse()
+	if v := os.Getenv("GPUI_MSAA"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || (n != 1 && n != 4) {
+			fmt.Fprintf(os.Stderr, "FAIL: GPUI_MSAA=%q want 1 or 4\n", v)
+			os.Exit(1)
+		}
+		render.SetMSAASampleCount(uint32(n))
+	}
 	if *logicOnly {
 		probes, failed := runLogicProbes()
 		out, _ := json.Marshal(struct {
@@ -155,12 +167,19 @@ func main() {
 	})
 	buildBackdropScene(shell)
 
-	snapDir := filepath.Join("examples", "ui_render_base_backdrop", "testdata")
+	snapDir := os.Getenv("SNAP_DIR")
+	if snapDir == "" {
+		snapDir = filepath.Join("examples", "ui_render_base_backdrop", "testdata")
+	}
 	if err := os.MkdirAll(snapDir, 0o755); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: snap dir:", err)
 		os.Exit(1)
 	}
-	snapPath := filepath.Join(snapDir, "showcase_backdrop.png")
+	snapName := "showcase_backdrop.png"
+	if render.MSAASampleCount() == render.MSAASampleCount4 {
+		snapName = "showcase_backdrop_msaa4.png"
+	}
+	snapPath := filepath.Join(snapDir, snapName)
 
 	resizeEvents := 0
 	manualEvents := 0
@@ -287,7 +306,7 @@ func main() {
 	for _, ca := range cardAt {
 		goldenRects = append(goldenRects, rect{x: bx + ca[0], y: by + ca[1], w: cardW, h: cardH})
 	}
-	goldenDiffPct, goldenTotalPx, goldenFirstRun := evaluateGolden(snapDir, goldenRects)
+	goldenDiffPct, goldenTotalPx, goldenFirstRun := evaluateGolden(snapDir, snapName, goldenRects)
 
 	// Screen check (same rects as the golden): the grab was taken while the
 	// window was on screen; the snapshot is the synthetic Close repaint.
@@ -488,9 +507,9 @@ func loadImage(path string) image.Image {
 	return img
 }
 
-func evaluateGolden(snapDir string, rects []rect) (diffPct float64, totalPx int64, firstRun bool) {
-	cur := filepath.Join(snapDir, "showcase_backdrop.png")
-	base := filepath.Join(snapDir, "showcase_backdrop_base.png")
+func evaluateGolden(snapDir, snapName string, rects []rect) (diffPct float64, totalPx int64, firstRun bool) {
+	cur := filepath.Join(snapDir, snapName)
+	base := strings.TrimSuffix(cur, ".png") + "_base.png"
 	if _, err := os.Stat(base); err != nil {
 		if os.Getenv("GPUI_ACCEPT_GOLDEN") != "1" {
 			fmt.Fprintf(os.Stderr, "golden baseline missing: %s (re-run with GPUI_ACCEPT_GOLDEN=1 to seed, then review + commit)\n", base)

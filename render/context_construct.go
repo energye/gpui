@@ -210,17 +210,11 @@ func (c *Context) Close() error {
 		c.maskCompositeCopy = nil
 	}
 
-	// Close per-context GPU render context if it was created.
-	if c.gpuCtx != nil {
-		type gpuCtxCloser interface {
-			Close()
-		}
-		if closer, ok := c.gpuCtx.(gpuCtxCloser); ok {
-			closer.Close()
-		}
-		c.gpuCtx = nil
-		unregisterGPUContext(c)
-	}
+	// Close both per-context GPU render contexts if they were created. The
+	// layer context is a separate 1x session; closing only the active pointer
+	// would leak its session/textures.
+	c.closeGPUContexts()
+	unregisterGPUContext(c)
 
 	// Clear path to release memory
 	c.ClearPath()
@@ -257,14 +251,37 @@ func (c *Context) DropGPURenderContext() {
 	c.releaseFilterGPUResult()
 	c.releaseFilterSrcRT()
 	c.pixmapFilterStale = false
-	if c.gpuCtx != nil {
-		type gpuCtxCloser interface {
-			Close()
+	c.closeGPUContexts()
+	unregisterGPUContext(c)
+}
+
+// closeGPUContexts closes the active, base and layer GPU contexts, avoiding a
+// double close when the layer context was unavailable and the active pointer is
+// the base.
+func (c *Context) closeGPUContexts() {
+	if c == nil {
+		return
+	}
+	type gpuCtxCloser interface {
+		Close()
+	}
+	closed := make(map[gpuContextOps]struct{}, 2)
+	closeOne := func(rc gpuContextOps) {
+		if rc == nil {
+			return
 		}
-		if closer, ok := c.gpuCtx.(gpuCtxCloser); ok {
+		if _, ok := closed[rc]; ok {
+			return
+		}
+		closed[rc] = struct{}{}
+		if closer, ok := rc.(gpuCtxCloser); ok {
 			closer.Close()
 		}
-		c.gpuCtx = nil
 	}
-	unregisterGPUContext(c)
+	closeOne(c.gpuCtx)
+	closeOne(c.baseGpuCtx)
+	closeOne(c.layerGpuCtx)
+	c.gpuCtx = nil
+	c.baseGpuCtx = nil
+	c.layerGpuCtx = nil
 }

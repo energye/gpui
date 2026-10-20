@@ -127,7 +127,16 @@ type Context struct {
 	// Lazily created when GPURenderContextProvider is available.
 	// Typed as gpuContextOps (defined in this package) to avoid circular import
 	// with internal/gpu while maintaining type safety.
+	//
+	// gpuCtx is the active target context. baseGpuCtx owns the window/base
+	// surface (configured MSAA, usually 4x); layerGpuCtx owns offscreen layer
+	// surfaces (always 1x). Keeping two contexts means entering/leaving a layer
+	// never mutates the base context's sample count or destroys its session.
+	// This is the first step of the per-target sample policy: layers default to
+	// 1x, the base keeps the configured MSAA.
 	gpuCtx            gpuContextOps
+	baseGpuCtx        gpuContextOps
+	layerGpuCtx       gpuContextOps
 	gpuFallbackWarned bool // true after first global fallback warning (avoid log spam)
 
 	pathStats RenderPathStats

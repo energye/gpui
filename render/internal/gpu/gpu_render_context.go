@@ -48,6 +48,13 @@ type GPURenderContext struct {
 	// Per-context render session (owns frame textures: MSAA, depth, resolve).
 	session *GPURenderSession
 
+	// seededViews records views whose content was uploaded out-of-band before a
+	// session existed (the offscreen layer context is created lazily, so the
+	// backdrop/filter seed can arrive before its first flush). The marks are
+	// re-applied when the session is created and cleared at frame boundaries /
+	// device rebuild so pooled views do not inherit stale LoadOp state.
+	seededViews []hal.TextureView
+
 	// Per-context pending command queues.
 	pendingShapes         []SDFRenderShape
 	pendingConvexCommands []ConvexDrawCommand
@@ -376,6 +383,9 @@ func (rc *GPURenderContext) BeginFrame() {
 	if rc.session != nil {
 		rc.session.BeginFrame()
 	}
+	// The layer RT pool is reused per frame; a seed mark belongs to this frame's
+	// upload, not to the next user of the same pooled view.
+	rc.seededViews = rc.seededViews[:0]
 	rc.clipRect = nil
 	rc.clipPath = nil
 	rc.clipFillRule = render.FillRuleNonZero
@@ -1467,12 +1477,50 @@ func (rc *GPURenderContext) viewToResView(view gpucontext.TextureView) res.View 
 
 // MarkViewSeeded tells the session the view already holds color content
 // uploaded out-of-band (backdrop snapshot seed). The first pass on that view
-// must load instead of clear so the seeded content survives.
+// must load instead of clear so the seeded content survives. The mark is kept
+// on the context until the session exists (the 1x layer context is created
+// lazily, so the seed can arrive before its first flush) and is replayed when
+// the session is created.
 func (rc *GPURenderContext) MarkViewSeeded(view gpucontext.TextureView) {
-	if rc == nil || rc.session == nil || view.IsNil() {
+	if rc == nil || view.IsNil() {
 		return
 	}
-	rc.session.MarkColorContent(extractTextureView(view))
+	v := extractTextureView(view)
+	if v == nil {
+		return
+	}
+	known := false
+	for i := range rc.seededViews {
+		if rc.seededViews[i] == v {
+			known = true
+			break
+		}
+	}
+	if !known {
+		rc.seededViews = append(rc.seededViews, v)
+	}
+	if rc.session != nil {
+		rc.session.MarkColorContent(v)
+	}
+}
+
+// UnmarkViewSeeded drops the seed mark once a layer RT has been composited and
+// returned to the pool. Prevents a recycled view from loading stale content on
+// its next first pass.
+func (rc *GPURenderContext) UnmarkViewSeeded(view gpucontext.TextureView) {
+	if rc == nil || view.IsNil() {
+		return
+	}
+	v := extractTextureView(view)
+	if v == nil {
+		return
+	}
+	for i := range rc.seededViews {
+		if rc.seededViews[i] == v {
+			rc.seededViews = append(rc.seededViews[:i], rc.seededViews[i+1:]...)
+			break
+		}
+	}
 }
 
 // QueueBaseLayer queues the full-surface base layer (background blit / LCD
@@ -2605,6 +2653,7 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		rc.session.InvalidateForDeviceLoss()
 		rc.session.Destroy()
 		rc.session = nil
+		rc.seededViews = rc.seededViews[:0]
 		rc.frameRendered = false
 		rc.lastView = nil
 	}
@@ -2634,6 +2683,9 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 			sc = 1
 		}
 		rc.session = NewGPURenderSession(device, queue, sc)
+		for _, v := range rc.seededViews {
+			rc.session.MarkColorContent(v)
+		}
 		// OOM-downgrade wiring: a 4x session texture allocation failure is
 		// non-fatal — drop shared MSAA to 1x and let the next flush rebuild
 		// this session at the lower sample count.

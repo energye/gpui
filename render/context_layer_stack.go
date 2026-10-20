@@ -168,6 +168,19 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear, 
 	// Save current pixmap and switch to layer pixmap
 	c.layerStack.layers = append(c.layerStack.layers, layer)
 	c.pixmap = layerPixmap
+
+	// Layer RTs are 1x textures. Route their draws through the dedicated 1x
+	// layer context instead of the base window context (configured MSAA, usually
+	// 4x): a 4x pass resolving over a 1x layer texture clears CPU seeds (backdrop
+	// / filter) on the first post-filter draw. Nested GPU layers keep the layer
+	// context; only the outermost one flips back on Pop.
+	if !layer.gpuView.IsNil() && c.gpuCtx == c.baseGpuCtx {
+		c.ensureLayerGPUCtx()
+		if c.layerGpuCtx != nil {
+			c.gpuCtx = c.layerGpuCtx
+			layer.enteredLayerGPU = true
+		}
+	}
 }
 
 // PopLayer composites the current layer onto the parent layer/canvas.
@@ -260,6 +273,21 @@ func (c *Context) PopLayer() {
 				}
 			}
 		}
+	}
+	// The layer's pending draws were flushed through layerGpuCtx above. Switch
+	// back to the parent context before restoring the parent target/compositing:
+	// the composite quad must be encoded into the parent target's sample domain
+	// (base 4x or the enclosing 1x layer), and the base session must not inherit
+	// the layer's 1x frame/load state.
+	if !layer.gpuView.IsNil() && c.layerGpuCtx != nil {
+		if u, ok := c.layerGpuCtx.(interface {
+			UnmarkViewSeeded(gpucontext.TextureView)
+		}); ok {
+			u.UnmarkViewSeeded(layer.gpuView)
+		}
+	}
+	if layer.enteredLayerGPU {
+		c.gpuCtx = c.baseGpuCtx
 	}
 	// F1: CPU Normal layers already wrote into layer.pixmap via forceCPULayer.
 	// Do NOT FlushGPU here — parent/stage pending ops would be resolved into the
