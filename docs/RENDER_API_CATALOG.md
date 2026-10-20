@@ -145,7 +145,7 @@
 | `CreateImagePattern/SetFillPattern/SetStrokePattern` | 用图像区域建立可平铺图案并作为填/描画刷 | 图案纹理着色 | 🧪 仅测试（生产走 Brush） |
 | `IsAdvancedBlendMode(mode)` | 判断混合模式是否为高级（非基础 Porter-Duff 集） | 高级混合判定 | 🔗 |
 | `ImagePattern` 类型 + `Pattern`/`SolidPattern`/`PatternFromBrush`/`BrushFromPattern` | 图案类型及其与画刷的双向桥接 | 图案桥接 | 🧪 仅测试/桥接 |
-| `ImageBuffer`：`ImageBuf`(+`NewImageBuf`/`ImageBufFromImage`/`LoadImage`/`LoadWebP`) / `Pixmap`(+`NewPixmap`/`NewPixmapFromBuffer`/`FromImage`，方法见 §8) / 像素格式 | 图像缓冲与 CPU 像素缓冲的构造与加载 | 图像/像素缓冲 | ✅ |
+| `ImageBuffer`：`ImageBuf`(+`NewImageBuf`/`ImageBufFromImage`/`LoadImage`/`LoadWebP`) / `Pixmap`(+`NewPixmap`/`NewPixmapFromBuffer`/`FromImage`，方法见 §8) / 像素格式 | 图像缓冲与 CPU 像素缓冲的构造与加载 | 图像/像素缓冲 | ✅ `LoadWebP` 真窗 `ui_render_base_webp`（2026-10-20：无损 vs PNG 四通道零差 + Alpha / 有损 VP8 / `.webp` 与 `.bin` 内容识别 / 缺失·非法·空数据错误；永久回归 `render/webp_contract_test.go`） |
 
 ### 3.6 filter_ops.go（8）· 滤镜族
 | 方法 | 功能 | 精简 | 状态 |
