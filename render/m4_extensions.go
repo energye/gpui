@@ -17,9 +17,9 @@ import ()
 // CPU 必须按同样拆法逐像素采样，不许再拉成方块，也不许静默画错。
 //
 // 约定：
-//   - 老 DrawImageQuad 签名不动，内部改走正确梯形；退化四边形直接跳过不崩。
-//   - 新 DrawImageQuadEx 带选项加显式报错：退化、自交、非有限数、
-//     非 Normal 混合都返回哨兵错，调用方能判错不背锅。
+//   - 统一入口 DrawImageQuad：零值为 Bilinear + 不透明 + Normal；
+//     退化、自交、非有限数、非 Normal 混合都返回哨兵错，调用方能判错不背锅。
+//   - 旧两参 DrawImageQuad 已删除；同名统一为带 opts 的入口（2026-10-21，接口全量切换制）。
 //   - 源图恒取整张（u/v 0..1），与显卡 QueueImageDraw 一致；
 //     采样按 Interpolation 选项走既有 Sample 实现。
 

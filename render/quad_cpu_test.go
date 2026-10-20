@@ -152,12 +152,12 @@ func newWhiteContext(w, h int) *render.Context {
 // drawQuadCPU draws with Normal opaque, failing on unexpected error.
 func drawQuadCPU(t *testing.T, dc *render.Context, src *render.ImageBuf, corners [4]render.Point, interp string) {
 	t.Helper()
-	if err := dc.DrawImageQuadEx(src, corners, render.QuadDrawOptions{
+	if err := dc.DrawImageQuad(src, corners, render.QuadDrawOptions{
 		Interpolation: quadInterp(interp),
 		Opacity:       1,
 		BlendMode:     render.BlendNormal,
 	}); err != nil {
-		t.Fatalf("DrawImageQuadEx: %v", err)
+		t.Fatalf("DrawImageQuad: %v", err)
 	}
 }
 
@@ -224,7 +224,7 @@ func TestQuadEdgeNoCrash(t *testing.T) {
 	dc := newWhite()
 	defer dc.Close()
 	degen := [4]render.Point{{X: 10, Y: 10}, {X: 10, Y: 10}, {X: 10, Y: 10}, {X: 10, Y: 10}}
-	if err := dc.DrawImageQuadEx(src, degen, render.QuadDrawOptions{Interpolation: render.InterpNearest}); !errors.Is(err, render.ErrQuadDegenerate) {
+	if err := dc.DrawImageQuad(src, degen, render.QuadDrawOptions{Interpolation: render.InterpNearest}); !errors.Is(err, render.ErrQuadDegenerate) {
 		t.Errorf("degenerate err = %v, want ErrQuadDegenerate", err)
 	}
 	if got := sampleAt(t, dc, 20, 20); got != [4]uint8{255, 255, 255, 255} {
@@ -232,37 +232,41 @@ func TestQuadEdgeNoCrash(t *testing.T) {
 	}
 	// Bowtie explicit error.
 	bow := [4]render.Point{{X: 0, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 10, Y: 0}}
-	if err := dc.DrawImageQuadEx(src, bow, render.QuadDrawOptions{}); !errors.Is(err, render.ErrQuadBowTie) {
+	if err := dc.DrawImageQuad(src, bow, render.QuadDrawOptions{}); !errors.Is(err, render.ErrQuadBowTie) {
 		t.Errorf("bowtie err = %v, want ErrQuadBowTie", err)
 	}
 	// NaN explicit error, no panic.
 	nanQ := [4]render.Point{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: math.NaN(), Y: 0}}
-	if err := dc.DrawImageQuadEx(src, nanQ, render.QuadDrawOptions{}); !errors.Is(err, render.ErrQuadNonFinite) {
+	if err := dc.DrawImageQuad(src, nanQ, render.QuadDrawOptions{}); !errors.Is(err, render.ErrQuadNonFinite) {
 		t.Errorf("nan err = %v, want ErrQuadNonFinite", err)
 	}
 	// Unsupported blend/interp explicit error.
 	okQ := [4]render.Point{{X: 5, Y: 5}, {X: 20, Y: 5}, {X: 20, Y: 20}, {X: 5, Y: 20}}
-	if err := dc.DrawImageQuadEx(src, okQ, render.QuadDrawOptions{BlendMode: render.BlendMultiply}); !errors.Is(err, render.ErrQuadUnsupportedBlend) {
+	if err := dc.DrawImageQuad(src, okQ, render.QuadDrawOptions{BlendMode: render.BlendMultiply}); !errors.Is(err, render.ErrQuadUnsupportedBlend) {
 		t.Errorf("blend err = %v, want ErrQuadUnsupportedBlend", err)
 	}
-	if err := dc.DrawImageQuadEx(src, okQ, render.QuadDrawOptions{Interpolation: render.InterpolationMode(99)}); !errors.Is(err, render.ErrQuadUnsupportedInterp) {
+	if err := dc.DrawImageQuad(src, okQ, render.QuadDrawOptions{Interpolation: render.InterpolationMode(99)}); !errors.Is(err, render.ErrQuadUnsupportedInterp) {
 		t.Errorf("interp err = %v, want ErrQuadUnsupportedInterp", err)
 	}
 	// Nil/empty never panic.
-	_ = dc.DrawImageQuadEx(nil, okQ, render.QuadDrawOptions{})
+	_ = dc.DrawImageQuad(nil, okQ, render.QuadDrawOptions{})
 	empty, _ := render.NewImageBuf(4, 4, render.FormatRGBA8)
 	empty.Dispose()
-	_ = dc.DrawImageQuadEx(empty, okQ, render.QuadDrawOptions{})
-	// Compat wrapper no-op on degenerate, draws on ok.
+	_ = dc.DrawImageQuad(empty, okQ, render.QuadDrawOptions{})
+	// Degenerate quad is rejected without polluting the canvas; valid quad draws.
 	dc2 := newWhite()
 	defer dc2.Close()
-	dc2.DrawImageQuad(src, degen)
-	if got := sampleAt(t, dc2, 20, 20); got != [4]uint8{255, 255, 255, 255} {
-		t.Errorf("compat degenerate polluted: %v", got)
+	if err := dc2.DrawImageQuad(src, degen, render.QuadDrawOptions{}); !errors.Is(err, render.ErrQuadDegenerate) {
+		t.Errorf("degenerate err = %v, want ErrQuadDegenerate", err)
 	}
-	dc2.DrawImageQuad(src, okQ)
+	if got := sampleAt(t, dc2, 20, 20); got != [4]uint8{255, 255, 255, 255} {
+		t.Errorf("degenerate polluted: %v", got)
+	}
+	if err := dc2.DrawImageQuad(src, okQ, render.QuadDrawOptions{}); err != nil {
+		t.Errorf("ok quad err = %v", err)
+	}
 	// Opacity zero draws nothing but no error.
-	if err := dc.DrawImageQuadEx(src, okQ, render.QuadDrawOptions{Opacity: -1}); err != nil {
+	if err := dc.DrawImageQuad(src, okQ, render.QuadDrawOptions{Opacity: -1}); err != nil {
 		t.Errorf("opacity clamp err = %v", err)
 	}
 }
@@ -324,7 +328,7 @@ func TestQuadCPUGPUParity(t *testing.T) {
 		withCPUMode(t)
 		dcCPU := newWhiteContext(100, 60)
 		corners := quadToPoints(c.DrawNearest.Corners)
-		if err := dcCPU.DrawImageQuadEx(srcCPU, corners, render.QuadDrawOptions{
+		if err := dcCPU.DrawImageQuad(srcCPU, corners, render.QuadDrawOptions{
 			Interpolation: quadInterp(interpName),
 			Opacity:       1,
 			BlendMode:     render.BlendNormal,
@@ -337,7 +341,7 @@ func TestQuadCPUGPUParity(t *testing.T) {
 		// GPU image.
 		withGPUMode(t)
 		dcGPU := newWhiteContext(100, 60)
-		if err := dcGPU.DrawImageQuadEx(srcGPU, corners, render.QuadDrawOptions{
+		if err := dcGPU.DrawImageQuad(srcGPU, corners, render.QuadDrawOptions{
 			Interpolation: quadInterp(interpName),
 			Opacity:       1,
 			BlendMode:     render.BlendNormal,
@@ -388,7 +392,7 @@ func TestQuadPerfSingle(t *testing.T) {
 	start := time.Now()
 	for i := 0; i < n; i++ {
 		dc.ClearWithColor(render.White)
-		if err := dc.DrawImageQuadEx(src, corners, render.QuadDrawOptions{Interpolation: render.InterpBilinear}); err != nil {
+		if err := dc.DrawImageQuad(src, corners, render.QuadDrawOptions{Interpolation: render.InterpBilinear}); err != nil {
 			t.Fatalf("perf draw: %v", err)
 		}
 	}
@@ -411,7 +415,7 @@ func TestQuadLongRunNoLeak(t *testing.T) {
 		if i%2 == 1 {
 			q = rect
 		}
-		if err := dc.DrawImageQuadEx(src, q, render.QuadDrawOptions{Interpolation: render.InterpNearest}); err != nil {
+		if err := dc.DrawImageQuad(src, q, render.QuadDrawOptions{Interpolation: render.InterpNearest}); err != nil {
 			t.Fatalf("longrun[%d]: %v", i, err)
 		}
 	}

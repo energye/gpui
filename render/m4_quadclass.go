@@ -31,7 +31,7 @@ func (k QuadKind) String() string {
 	}
 }
 
-// QuadDrawOptions 是 DrawImageQuadEx 的选项。
+// QuadDrawOptions 是 DrawImageQuad 的选项。
 type QuadDrawOptions struct {
 	// Interpolation 采样方式，零值按 Bilinear。
 	Interpolation InterpolationMode

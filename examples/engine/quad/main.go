@@ -94,7 +94,7 @@ func main() {
 					{X: ox + cw*0.88, Y: oy + ch*0.82},
 					{X: ox + cw*0.12, Y: oy + ch*0.82},
 				}
-				_ = pc.DC.DrawImageQuadEx(src, corners, render.QuadDrawOptions{
+				_ = pc.DC.DrawImageQuad(src, corners, render.QuadDrawOptions{
 					Interpolation: interp,
 					Opacity:       1,
 					BlendMode:     render.BlendNormal,
@@ -257,7 +257,8 @@ func makeQuadSrc() *render.ImageBuf {
 	return img
 }
 
-func paintQuadCard(pc *rendering.PaintContext, src *render.ImageBuf, interp render.InterpolationMode, tag string) {	if pc == nil || pc.DC == nil {
+func paintQuadCard(pc *rendering.PaintContext, src *render.ImageBuf, interp render.InterpolationMode, tag string) {
+	if pc == nil || pc.DC == nil {
 		return
 	}
 	// Card white background so outside-trapezoid white edge is visible.
@@ -272,7 +273,7 @@ func paintQuadCard(pc *rendering.PaintContext, src *render.ImageBuf, interp rend
 		{X: ax + 300, Y: ay + 180},
 		{X: ax + 40, Y: ay + 180},
 	}
-	_ = pc.DC.DrawImageQuadEx(src, corners, render.QuadDrawOptions{
+	_ = pc.DC.DrawImageQuad(src, corners, render.QuadDrawOptions{
 		Interpolation: interp,
 		Opacity:       1,
 		BlendMode:     render.BlendNormal,
@@ -298,7 +299,7 @@ func quadParityOffscreen() map[string]any {
 	_ = os.Setenv("GOGPU_RENDER_MODE", "cpu")
 	dcCPU := render.NewContext(100, 60)
 	dcCPU.ClearWithColor(render.White)
-	_ = dcCPU.DrawImageQuadEx(srcCPU, corners, render.QuadDrawOptions{Interpolation: render.InterpBilinear})
+	_ = dcCPU.DrawImageQuad(srcCPU, corners, render.QuadDrawOptions{Interpolation: render.InterpBilinear})
 	cpuImg := dcCPU.Image()
 	cpuPix := image.NewRGBA(cpuImg.Bounds())
 	copy(cpuPix.Pix, cpuImg.(*image.RGBA).Pix)
@@ -307,7 +308,7 @@ func quadParityOffscreen() map[string]any {
 	_ = os.Unsetenv("GOGPU_RENDER_MODE")
 	dcGPU := render.NewContext(100, 60)
 	dcGPU.ClearWithColor(render.White)
-	_ = dcGPU.DrawImageQuadEx(srcGPU, corners, render.QuadDrawOptions{Interpolation: render.InterpBilinear})
+	_ = dcGPU.DrawImageQuad(srcGPU, corners, render.QuadDrawOptions{Interpolation: render.InterpBilinear})
 	_ = dcGPU.FlushGPU()
 	gpuOps := dcGPU.RenderPathStats().GPUOps
 	gpuImg := dcGPU.Image()

@@ -3466,7 +3466,9 @@ func TestP1_Capability_T04_ImageQuadGPU(t *testing.T) {
 		{X: 70, Y: 56},
 		{X: 8, Y: 56},
 	}
-	dc.DrawImageQuad(img, corners)
+	if err := dc.DrawImageQuad(img, corners, render.QuadDrawOptions{}); err != nil {
+		t.Fatalf("DrawImageQuad: %v", err)
+	}
 	if err := dc.FlushGPU(); err != nil {
 		t.Fatalf("FlushGPU: %v", err)
 	}

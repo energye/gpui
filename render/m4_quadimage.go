@@ -17,24 +17,10 @@ import (
 	intImage "github.com/energye/gpui/render/internal/image"
 )
 
-// DrawImageQuad draws an image into a free-form destination quad (T.04 non-affine subset).
-// corners are user-space points in order: top-left, top-right, bottom-right, bottom-left.
-// GPU path uses QueueImageDraw with arbitrary corner mapping (perspective-like trapezoids).
-// CPU path uses the same TL-TR-BL + TR-BR-BL split for pixel parity.
-// Compat wrapper: defaults Bilinear + opaque + Normal, degenerate quads no-op.
-func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point) {
-	_ = c.DrawImageQuadEx(img, corners, QuadDrawOptions{
-		Interpolation: InterpBilinear, Opacity: 1, BlendMode: BlendNormal,
-	})
-}
-
-// DrawImageQuadEx draws the full source image into corners with explicit options.
+// DrawImageQuad draws the full source image into corners with explicit options.
 // Returns a sentinel error for degenerate/self-intersecting/non-finite quads
 // or unsupported blend/interp instead of silently drawing wrong.
-// DrawImageQuadEx draws the full source image into corners with explicit options.
-// Returns a sentinel error for degenerate/self-intersecting/non-finite quads
-// or unsupported blend/interp instead of silently drawing wrong.
-func (c *Context) DrawImageQuadEx(img *ImageBuf, corners [4]Point, opts QuadDrawOptions) error {
+func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOptions) error {
 	if c == nil || img == nil {
 		return nil
 	}
@@ -133,14 +119,6 @@ func normalizeQuadOpacity(o float64) float64 {
 func isFinitePt(p Point) bool {
 	return !math.IsNaN(p.X) && !math.IsNaN(p.Y) &&
 		!math.IsInf(p.X, 0) && !math.IsInf(p.Y, 0)
-}
-
-// quadHasNonFinite reports any non-finite corner.
-func (c *Context) drawImageQuadCPU(img *ImageBuf, corners [4]Point) {
-	// Compat: user-space corners in, device split inside Ex.
-	_ = c.DrawImageQuadEx(img, corners, QuadDrawOptions{
-		Interpolation: InterpBilinear, Opacity: 1, BlendMode: BlendNormal,
-	})
 }
 
 // drawImageQuadCPUSplit rasterizes device-space quad with GPU twin split.

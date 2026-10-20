@@ -21,7 +21,7 @@
 
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 201 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback；2026-10-20 A15：+5 Context 方法 DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph，Context 导出方法按 go doc 实测 201） |
+| `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 200 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback；2026-10-20 A15：+5 Context 方法 DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph；2026-10-21 C 组：删除旧两参 Context.DrawImageQuad，Context.DrawImageQuadEx 更名为 Context.DrawImageQuad(img,corners,opts)，Context 导出方法按 go doc 实测 201→200） |
 | `render/text` | 包级导出 248（2026-10-19 实测 `go doc -all` 顶层口径；含 +1 `FixedSize` 26.6 缓存键转换；历史行 245→250 为该次估数，本行按命令实测校正。含字体/整形/布局/光栅化；+1 `RuneAdvance`、+1 `SegmentReuse`、+3 字距：`ApplySpacing/ApplySpacingDir/SpacingExtra/WrapTextWithSpacing`（字距数学委托第三方 `shaping.AddSpacing`，`WhitespaceRuns` 已删）；`LayoutOptions` 新增 `LetterSpacing/WordSpacing` 字段；+5 6b字重收敛：`WithWeight/FaceEmbolden/EmboldenRadius/EmboldenResult/DeriveFace`；新增 `FontWeight` 类型 + `WeightThin..WeightBlack`/`GlyphMaskFlagBold` 常量；`Face.Embolden` 接口方法 + `MultiFace.WithWeight` 方法） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
@@ -73,7 +73,7 @@
 | `PathMetric`（IsEmpty/Length/PositionAt/TangentAt 等）+ `Path.ComputeMetrics` | 对路径做度量：总长、某弧长处取点/切线 | 路径度量 | 🔗 |
 | Path 造型：`Trim` / `WithCorners` / `Discrete` / `Flatten` / `Reversed` / `Area` / `Winding` / `Contains` / `BoundingBox` | Flatten 细分为折线/多边形；Area/Winding/Contains/BoundingBox 查询；Trim(子段)/WithCorners(圆角化)/Discrete(切段虚线 + 确定性 ± 交替横偏；2026-10-19 修「恒单侧偏移 + 周期 2×」) 高级造型 | 造型与查询 | 前四项内部用；**Trim/WithCorners/Discrete 🔌 仅测试**（直调真窗 `ui_render_base_pathshape`） |
 
-## 3. 主包：绘制上下文 Context（201 导出方法）
+## 3. 主包：绘制上下文 Context（200 导出方法）
 
 > **构造器与选项**：`NewContext(width,height,opts...)` / `NewContextForPixmap(pm)` / `NewContextForImage(img,opts...)` / `NewContextWithScale(w,h,scale)`；`ContextOption` 模式：`WithRenderer/WithPixmap/WithPipelineMode/WithDeviceScale`。状态 ✅（embedder 生产链路）。
 
@@ -130,13 +130,12 @@
 | `LayerPoolStats()/ResetLayerPoolStats()` | 读取/清零层表面池 gets/puts/hits/misses | 层池统计 | 🧪 仅测试（s6_4_layer_filter_test） |
 | `SetBlendMode(mode)` | 设置后续填充/描边的混合模式 | 混合模式 | ✅ |
 
-### 3.5 context_image.go（13）· 图像族
+### 3.5 context_image.go（12）· 图像族
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
 | `DrawImage/DrawImageEx` | 绘制图像（GPU QueueImageDraw；Bicubic 走 GPU 4×4 卷积变体 Catmull-Rom，GPU 失败回退 CPU） | 图像绘制 | ✅ GPU 有效 |
 | `DrawImageCircular/DrawImageRounded` | 在圆形/圆角矩形裁剪区内绘制图像 | 裁剪内画图 | 🔗 |
-| `DrawImageQuad(corners)`（m4_extensions.go） | 四角自由变换绘制（透视/梯形；CPU包络兼容） | 透视贴图 | ✅ GPU 有效（真窗game_quad 2026-09-15：parity 0%/golden 0%） |
-| `DrawImageQuadEx(img,corners,opts)` + `QuadDrawOptions{Interpolation,Opacity,BlendMode}`（m4_extensions.go，R1 S01） | 带显式选项的梯形绘制：零值Bilinear/不透明；退化/自交/非有限/非Normal混合返回哨兵错（ErrQuadDegenerate/ErrQuadBowTie/ErrQuadNonFinite/ErrQuadUnsupportedBlend/ErrQuadUnsupportedInterp），不静默画错 | 梯形绘制显式版 | ✅ GPU 有效（真窗game_quad 2026-09-15） |
+| `DrawImageQuad(img,corners,opts)` + `QuadDrawOptions{Interpolation,Opacity,BlendMode}`（m4_extensions.go，R1 S01） | 带显式选项的梯形绘制：零值Bilinear/不透明；退化/自交/非有限/非Normal混合返回哨兵错（ErrQuadDegenerate/ErrQuadBowTie/ErrQuadNonFinite/ErrQuadUnsupportedBlend/ErrQuadUnsupportedInterp），不静默画错 | 梯形绘制 | ✅ GPU 有效（真窗game_quad 2026-09-15） |
 | `ClassifyQuad(corners) QuadKind` + `QuadKind`（QuadOK/QuadDegenerate/QuadBowTie/QuadNonFinite） | 四边形分类：只有OK可画，其余画不得 | 梯形分类 | ✅（quad_cpu_test 2026-09-15） |
 | `DrawImageNine`（nine_patch.go） | 九宫格缩放绘制图像（四角不变、边拉伸） | 九宫格缩放 | 🔗 ui/rendering/image_draw.go 已接门面；**无 Widget 生产调用 🔌** |
 | `DrawGPUTexture` / `DrawGPUTextureBase` / `DrawGPUTextureWithOpacity` / `DrawGPUTextureWithOpacityUV` | GPU 纹理直接合成（Base 作 render pass 背景层零读回；Opacity/UV 带不透明度/子区） | GPU 纹理合成 | ✅ |
@@ -200,7 +199,7 @@
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
 | `SetDither/Dither` | 启用/关闭解析后有序抖动（`Image`/`FlushGPU` 读回后的整张 pixmap Bayer 后处理；不影响 Present 主路） | 抖动 | 🧪 仅测试 + 直调真窗 `ui_render_base_dither`（2026-10-20，原子验证；16 逻辑 + 29 像素 + golden + 抓屏；3 项限界见 `RENDER_FEATURE_COVERAGE` §6） |
-| `DrawImageQuad` / `PushBackdropLayer` | 见 §3.5 / §3.4 | — | — |
+| `PushBackdropLayer` | 见 §3.4 | — | — |
 
 ### 3.11 video_direct.go（9+16）· 视频直传地基族（2026-09-30 视频P0；2026-10-02 P2/P3-A 同步）
 | API | 功能 | 精简 | 状态 |
@@ -417,7 +416,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 ## 8. 主包公开类型的导出方法速查（方法级清单，2026-08-15 go/ast）
 
-> Context 的 201 个方法见 §3 全列；下表补齐其余公开类型的导出方法，与 `go doc ./render` 的 `<类型>.<方法>` 一致。状态列同 §0 约定。改动任一方法时同步本表与 §3。
+> Context 的 200 个方法见 §3 全列；下表补齐其余公开类型的导出方法，与 `go doc ./render` 的 `<类型>.<方法>` 一致。状态列同 §0 约定。改动任一方法时同步本表与 §3。
 
 | 类型 | 导出方法 | 功能（做什么） | 精简 | 状态 |
 |------|---------|--------------|------|------|

@@ -4192,7 +4192,9 @@ func TestP1_S2_StoryboardFilmstripDensity(t *testing.T) {
 			{X: baseX + 96, Y: 200},
 			{X: baseX - 6, Y: 200},
 		}
-		dc.DrawImageQuad(img, corners)
+		if err := dc.DrawImageQuad(img, corners, render.QuadDrawOptions{}); err != nil {
+			t.Fatalf("DrawImageQuad: %v", err)
+		}
 		dc.SetRGB(0.2, 0.22, 0.26)
 		dc.DrawString(fmt.Sprintf("F%02d", i+1), baseX+30, 230)
 	}
@@ -4431,9 +4433,11 @@ func TestP1_U1_VectorDesignToolDensity(t *testing.T) {
 			}
 		}
 		bx := 300 + float64(i)*70
-		dc.DrawImageQuad(img, [4]render.Point{
+		if err := dc.DrawImageQuad(img, [4]render.Point{
 			{X: bx, Y: 90}, {X: bx + 50, Y: 85}, {X: bx + 55, Y: 150}, {X: bx - 5, Y: 155},
-		})
+		}, render.QuadDrawOptions{}); err != nil {
+			t.Fatalf("DrawImageQuad: %v", err)
+		}
 	}
 
 	// Right inspector
