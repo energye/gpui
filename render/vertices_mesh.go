@@ -337,8 +337,6 @@ func uniformVertColor(colors []RGBA) (RGBA, bool) {
 
 // DrawVerticesEx validates then draws via the frozen path, returning degradation.
 // Empty (<3) skips with Skipped=true and nil error; non-finite returns ErrVertsNonFinite.
-// DrawVerticesEx validates then draws via the frozen path, returning degradation.
-// Empty (<3) skips with Skipped=true and nil error; non-finite returns ErrVertsNonFinite.
 func (c *Context) DrawVerticesEx(positions []Point, colors []RGBA, mode VertexMode, _ VertDrawOptions) (VertDrawResult, error) {
 	if c == nil || len(positions) < 3 {
 		return VertDrawResult{Skipped: true}, nil
@@ -368,7 +366,8 @@ func (c *Context) DrawVerticesEx(positions []Point, colors []RGBA, mode VertexMo
 }
 
 // DrawMeshEx validates then draws via the frozen path, returning degradation.
-// DrawMeshEx validates then draws via the frozen path, returning degradation.
+// A non-empty Indices list always selects the indexed path; an incomplete
+// trailing group or a list shorter than three draws nothing (Skipped=true).
 func (c *Context) DrawMeshEx(mesh Mesh, _ VertDrawOptions) (VertDrawResult, error) {
 	if c == nil || len(mesh.Positions) < 3 {
 		return VertDrawResult{Skipped: true}, nil
@@ -387,12 +386,15 @@ func (c *Context) DrawMeshEx(mesh Mesh, _ VertDrawOptions) (VertDrawResult, erro
 			}
 		}
 	}
-	if len(mesh.Indices) >= 3 {
+	if len(mesh.Indices) > 0 {
+		// Validate every supplied index, including an incomplete trailing
+		// group: a bad value is a caller bug even when it would not draw.
+		if !meshIndicesInRange(mesh.Indices, len(mesh.Positions)) {
+			return VertDrawResult{}, ErrVertsBadIndex
+		}
 		n := len(mesh.Indices) / 3 * 3
-		for i := 0; i < n; i++ {
-			if int(mesh.Indices[i]) < 0 || int(mesh.Indices[i]) >= len(mesh.Positions) {
-				return VertDrawResult{}, ErrVertsBadIndex
-			}
+		if n < 3 {
+			return VertDrawResult{Skipped: true}, nil
 		}
 		useGPU := !CPUOnlyMode() && c.gpuCtxOps() != nil
 		c.DrawMesh(mesh)
@@ -401,6 +403,17 @@ func (c *Context) DrawMeshEx(mesh Mesh, _ VertDrawOptions) (VertDrawResult, erro
 	useGPU := !CPUOnlyMode() && c.gpuCtxOps() != nil
 	c.DrawMesh(mesh)
 	return VertDrawResult{Degraded: !useGPU, Reason: mapDegradedReason(!useGPU), Triangles: countVertTris(len(mesh.Positions), VertexModeTriangles)}, nil
+}
+
+// meshIndicesInRange reports whether every supplied index addresses a
+// position. uint16 cannot be negative, so only the upper bound is checked.
+func meshIndicesInRange(indices []uint16, positionCount int) bool {
+	for _, idx := range indices {
+		if int(idx) >= positionCount {
+			return false
+		}
+	}
+	return true
 }
 
 func mapDegradedReason(degraded bool) string {
@@ -422,8 +435,6 @@ func countVertTris(n int, mode VertexMode) int {
 
 // drawDeviceTriangle fills a triangle specified in device pixels by mapping
 // back through the inverse CTM into user space for the existing path fill path.
-// drawDeviceTriangle fills a triangle specified in device pixels by mapping
-// back through the inverse CTM into user space for the existing path fill path.
 func (c *Context) drawDeviceTriangle(p0, p1, p2 Point) {
 	inv := c.totalMatrix().Invert()
 	u0 := inv.TransformPoint(p0)
@@ -437,26 +448,29 @@ func (c *Context) drawDeviceTriangle(p0, p1, p2 Point) {
 	_ = c.Fill()
 }
 
-// DrawAtlas draws multiple sub-rects from a single image.
-// GPU path issues one QueueImageDraw per sprite from the shared ImageBuf.
-// CPU path falls back to DrawImageEx per sprite.
 // DrawMesh draws an indexed (or triangle-list) colored mesh on the GPU path when available.
 // This is the V.03 subset: positions + optional vertex colors + optional indices.
-// Full custom fragment shaders / cubics are deferred.
+// Full custom fragment shaders / texture coordinates are deferred.
 //
-// when Indices is set, the GPU path keeps unique verts + DrawIndexed
-// (no CPU expand). CPU fallback still expands to triangle lists.
+// A non-empty Indices list always selects the indexed path. The GPU path keeps
+// unique verts + DrawIndexed when every supplied index is in range; otherwise
+// (and on the CPU path) complete index groups are expanded to a triangle list
+// and groups containing a bad index are skipped, matching DrawMeshEx's
+// ErrVertsBadIndex contract without letting an out-of-range index reach the GPU.
 func (c *Context) DrawMesh(mesh Mesh) {
 	if c == nil || len(mesh.Positions) < 3 {
 		return
 	}
 	positions := mesh.Positions
 	colors := mesh.Colors
-	hasIdx := len(mesh.Indices) >= 3
+	hasIdx := len(mesh.Indices) > 0
 
 	// GPU indexed path: CTM → unique device verts + indices.
 	if hasIdx {
-		if rc := c.gpuCtxOps(); rc != nil && !CPUOnlyMode() {
+		if len(mesh.Indices) < 3 {
+			return
+		}
+		if rc := c.gpuCtxOps(); rc != nil && !CPUOnlyMode() && meshIndicesInRange(mesh.Indices, len(positions)) {
 			n := len(positions)
 			ctm := c.totalMatrix()
 			var dev []Point

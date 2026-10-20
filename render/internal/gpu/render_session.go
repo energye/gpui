@@ -3323,12 +3323,28 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 			}
 			indexBytes = s.convexIndexStaging
 		}
+		// WebGPU Queue.WriteBuffer requires a 4-byte multiple. uint16 index
+		// bytes are aligned only for an even index count (6 bytes for one
+		// triangle fails), so pad the upload with a non-indexed zero tail;
+		// indexCount below stays the real count.
+		uploadBytes := indexBytes
+		if len(uploadBytes)%4 != 0 {
+			uploadLen := len(uploadBytes) + 4 - len(uploadBytes)%4
+			if cap(s.convexIndexStaging) < uploadLen {
+				s.convexIndexStaging = make([]byte, uploadLen)
+			} else {
+				s.convexIndexStaging = s.convexIndexStaging[:uploadLen]
+			}
+			copy(s.convexIndexStaging, indexBytes)
+			clear(s.convexIndexStaging[len(indexBytes):])
+			uploadBytes = s.convexIndexStaging
+		}
 		// Word-mix fingerprint avoids hash.Hash heap/interface overhead (pprof fnv.Write).
 		sum := indexBytesFingerprint(indexBytes)
 		reused := false
 		for i := 0; i < len(s.convexIndexBufs); i++ {
 			if s.convexIndexBufs[i] != nil && s.convexIndexSlotLen[i] == totalIdx &&
-				s.convexIndexSlotHash[i] == sum && s.convexIndexBufCaps[i] >= uint64(need) {
+				s.convexIndexSlotHash[i] == sum && s.convexIndexBufCaps[i] >= uint64(len(uploadBytes)) {
 				indexBuf = s.convexIndexBufs[i]
 				indexCount = uint32(totalIdx) //nolint:gosec
 				reused = true
@@ -3338,7 +3354,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 		if !reused {
 			s.convexIndexSlot = (s.convexIndexSlot + 1) % len(s.convexIndexBufs)
 			slotI := s.convexIndexSlot
-			idxSize := uint64(need)
+			idxSize := uint64(len(uploadBytes))
 			if s.convexIndexBufs[slotI] == nil || s.convexIndexBufCaps[slotI] < idxSize {
 				if s.convexIndexBufs[slotI] != nil {
 					s.convexIndexBufs[slotI].Destroy()
@@ -3361,7 +3377,7 @@ func (s *GPURenderSession) buildConvexResources(commands []ConvexDrawCommand, w,
 				s.convexIndexBufCaps[slotI] = alloc
 			}
 			indexBuf = s.convexIndexBufs[slotI]
-			if err := s.queueWriteBuffer(indexBuf, 0, indexBytes); err != nil {
+			if err := s.queueWriteBuffer(indexBuf, 0, uploadBytes); err != nil {
 				return nil, fmt.Errorf("write convex index buffer: %w", err)
 			}
 			s.convexIndexSlotHash[slotI] = sum

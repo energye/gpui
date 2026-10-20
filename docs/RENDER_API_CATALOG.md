@@ -186,11 +186,11 @@
 ### 3.9 vertices.go（3）+ shapes.go（1）· 顶点/网格族
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
-| `DrawVertices(pos,cols,mode)` / `VertexMode` | 顶点数组绘制（三角扇/条带/列表） | 顶点数组 | 🔗 |
-| `DrawMesh(mesh)` / `Mesh` | 网格绘制（膨胀路径转三角形） | 网格绘制 | 🧪 仅测试（p1_capability_matrix_closers_test） |
+| `DrawVertices(pos,cols,mode)` / `VertexMode` | 顶点数组绘制（三角扇/条带/列表） | 顶点数组 | 🔌 无生产消费者（仅测试 + 直调真窗 `ui_render_base_verticesmesh`，2026-10-20 原子验证） |
+| `DrawMesh(mesh)` / `Mesh` | 网格绘制（膨胀路径转三角形） | 网格绘制 | 🔌 无生产消费者（仅测试 `p1_capability_matrix_closers_test` + 直调真窗 `ui_render_base_verticesmesh`，2026-10-20 原子验证） |
 | `DrawAtlas(img,sprites)` / `AtlasSprite` | 单纹理图集批量精灵绘制 | 图集绘制 | 🔗 |
 | `DrawRegularPolygon(n,x,y,r,rot)` | 正多边形形状追加到路径 | 正多边形 | 🔗 |
-| `DrawVerticesEx/DrawMeshEx/DrawAtlasEx/DrawDepthSprites`（vertices_mesh.go/vertices_atlas.go） | 带回退原因的顶点/网格/图集/深度精灵绘制（返回 CPU 回退原因） | 顶点绘制扩展 | 🔗 |
+| `DrawVerticesEx/DrawMeshEx/DrawAtlasEx/DrawDepthSprites`（vertices_mesh.go/vertices_atlas.go） | 带回退原因的顶点/网格/图集/深度精灵绘制（返回 CPU 回退原因） | 顶点绘制扩展 | 🔌 无生产消费者（仅测试 + 直调真窗 `ui_render_base_verticesmesh`；Ex→冻结路径自调用属内部路径，非生产接线） |
 | `VertDrawOptions/VertDrawResult/VertCPUFallbackReason` + var `ErrVertsBadIndex/ErrVertsNonFinite` | 顶点绘制选项/结果/回退原因 + 非法索引/非有限坐标错误 | 顶点绘制参数 | 🔗 |
 | `AtlasDrawOptions/AtlasDrawResult/AtlasCPUFallbackReason` + var `ErrAtlasNonFinite/ErrAtlasUnsupportedFilter` | 图集绘制选项/结果/回退原因 + 非有限矩形/不支持过滤错误 | 图集绘制参数 | 🔗 |
 | `DepthSprite` + `NewDepthSprite` + `DepthDrawOptions/DepthDrawResult/DepthCPUFallbackReason` + var `ErrDepthNonFinite` | 深度排序精灵及绘制选项/结果/回退原因 | 深度精灵 | 🔗 |
@@ -352,7 +352,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 文本描边/路径 `StrokeString/StrokeStringAnchored/TextPath` | 仅测试 + 直调真窗 `ui_render_base_textstroke`（2026-10-19，**原子验证**：逻辑 14 + 像素 21 + golden 627200px 逐位零差 + 抓屏 vs 快照同区对照；同批修描边损伤不按线宽外扩 + 轮廓缓存 key 截断分数磅值，pin `render/stroke_damage_bounds_test.go`） |
 | 文本低频 `MeasureMultilineString/WordWrap/SetTextMode/SetLCDLayout` | 仅测试 + 直调真窗 `ui_render_base_textlow`（2026-10-20，**原子验证**：逻辑 16 + 像素 28 + golden 627200px 逐位零差 + 抓屏 vs 快照同区 `diff=0.0000%`；同批修 MSDF 轮廓方向 / WordWrap 行尾空白与 CRLF 偏移 / 多行可视块高度 / `SetLCDLayout` 清图集致灰度+LCD 同帧花屏 / Aliased 文本损伤记账 5 缺陷，pin `render/glyphmask_lcd_mix_test.go` + `render/internal/gpu/glyph_mask_lcd_layout_cache_test.go` + `render/text/wrap_test.go` / `render/text_wrap_test.go`） |
 | `DrawShapedGlyphs` | 🔗 生产在用（6 处）：`ui/rendering/text.go:988`（RenderText.Paint 批量主路）· `:1077`（复合分区回退路）· `ui/rendering/text_picture.go:205`（分区提交）· `:232`（彩色段分区）· `:244`（偏移重提交）· `ui/scene/picture.go:225`（录制回放 OpDrawShapedGlyphs）· 另 `render/text.go:158`（描边字形回退）与 `render/scene/gpu_renderer.go:247`（Scene→GPU 解析首选） |
-| `DrawMesh`（网格绘制，Context.DrawMesh） | 无生产调用点（仅测试 render/p1_capability_matrix_closers_test.go:2918） |
+| `DrawVertices/DrawVerticesEx/DrawMesh/DrawMeshEx`（顶点/网格族） | 无生产调用点（仅测试 `p1_capability_matrix_closers_test` + `vertices_mesh_contract_test.go` / `vertices_mesh_gpu_test.go` + 直调真窗 `ui_render_base_verticesmesh`，2026-10-20 **原子验证**：逻辑 19 + 像素 29 + golden 627200px 逐位零差 + 抓屏 vs 快照同区 `diff=0.0000%`；同批修短索引误画 / 越界索引串读邻网格 / 6B 索引上传不对齐 3 缺陷） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |
 | 视频直传地基 P0（2026-09-30：`VideoBackendCaps/QueryVideoBackend/BorrowVideoBackend/VideoSlot/VideoTexturePool(+Acquire/Release/Stats/Close/VideoPoolStats)/RecordVideoFallback/VideoFallbackTotal`，render/video_direct.go） | 仅测试（video_direct_test.go 四用例绿：双拷贝模式查询/无窗借用/池借还零泄漏零淘汰/回落记 cpu_fallback_ops）；P2 接直传后转生产 |
 | 视频直传 P2+P3-A（2026-10-02：`VideoDrawOptions/VideoUploadTotal/Context.DrawVideoFrame/DrawVideoSlot/VideoBridge(+New/Ensure/Show/ShowSeq/UploadFrame/DrawCurrent/Stats/Close/BridgeStats)`；P3-A 加 `VideoPlaneSlot/VideoPlanePool(+Acquire/Release/Stats/Close/AcquireForFrame/UploadPlanes)/Context.DrawVideoPlanes/VideoBridge.UploadPlanesFrame`，render/video_direct.go + context_image.go；layer 4 加 YUV 转色管线 `render/internal/gpu/shaders/video_yuv.wgsl` + `video_yuv_pipeline.go`，一份 WGSL 两后端通用；layer 5 窗口只调节点单新口 `RenderVideo.UploadPlanes`（平面走 GPU 转色，奇数/异形帧走桥老口兜底记数，`PlanesLast` 作证） | 生产在用（17 扇窗 tick 上传 + paint 绘制：上传+回落==帧数；render 单测绿含平面池借还/紧凑与垫行上传/三原色±1/解码器对拍 mean≤2；YUV 着色器 WebGPU 真编译绿 + GLES 翻译双纹理映射绿，无会话走 CPU 转回落；2K 真窗 80/80 上传零回落首尾亮、yuv_ready=1，p95 随整机抖动待压） |
