@@ -51,7 +51,7 @@
 | `Matrix` + `Identity/Translate/Scale/Rotate/Shear` | 2D 仿射矩阵（x'=a·x+b·y+c，y'=d·x+e·y+f）；构造原语 + TransformPoint/Invert/ScaleFactor | 2D 仿射矩阵 | ✅ |
 | `ColorFunc(x,y) RGBA` | 位置→颜色函数签名（驱动 CustomBrush） | 自定义上色函数 | 🔗 |
 | `TextureView = gpucontext.TextureView` | GPU 纹理视图句柄（离屏 RT/层/滤镜结果） | GPU 纹理句柄 | 🔗 |
-| `GPURenderTarget` | GPU 呈现目标句柄（加速器填充接口参数） | GPU 目标句柄 | 🔗 |
+| `GPURenderTarget` | GPU 呈现目标句柄（加速器填充接口参数）；`SeedFromData` 为真时先把 `Data` 里的预乘 RGBA CPU 底上传进离屏 `View` 再重放待画命令（零读回滤镜/特效发布用，Skia filter-layer 语义） | GPU 目标句柄 | 🔗 |
 | `MaxTrackedDamageRects` | 每帧最多跟踪的损伤区数量上限 | 损伤区上限 | 🔗 |
 | `Logger()/SetLogger(l)` | 全局日志（slog 实例读写）；SetLogger 替换实例 | 全局日志 | 🔗 |
 | `GPUContextCount()` | 活动 GPU 上下文注册数（设备切换/恢复诊断） | GPU 上下文计数 | 🔗 诊断 |
@@ -150,9 +150,9 @@
 ### 3.6 filter_ops.go（8）· 滤镜族
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
-| `ApplyBlur/ApplyBlurXY/ApplyColorMatrix/ApplyDropShadow/ApplyGrayscale/ApplyInvert` | 对当前内容做高斯模糊/颜色矩阵/投影/灰度/反色滤镜 op | 内容滤镜 | 🔗（需 blank-import render/filters 生效，gpu 包已做） |
-| `ApplyImageFilterGraph(nodes...)` / `GPUFilterTexture()` | 建 GPU 图像滤镜图（零读回发布）并取结果纹理 | GPU 滤镜图 | 🔗 有 GPU 图注册时生效；ui 侧 facade 无生产调用 |
-| `ImageFilterKind`（Blur/BlurXY/ColorMatrix/DropShadow/Grayscale/Invert）+ `ImageFilterNode` | 滤镜图节点类型/数据 | 滤镜节点类型 | 🔗 |
+| `ApplyBlur/ApplyBlurXY/ApplyColorMatrix/ApplyDropShadow/ApplyGrayscale/ApplyInvert` | 对当前内容做高斯模糊/颜色矩阵/投影/灰度/反色滤镜 op | 内容滤镜 | 🔌 无生产消费者；真窗 `ui_render_base_filterops`（2026-10-20 **原子验证**：逻辑 16 + 像素 26 + golden 627200px 逐位零差 + 抓屏 vs 快照 0.0000%；同批修 GPU 反色预乘 `1−c` → `a−c`）；需 blank-import `render/filters` 生效 |
+| `ApplyImageFilterGraph(nodes...)` / `GPUFilterTexture()` | 建 GPU 图像滤镜图（零读回发布）并取结果纹理 | GPU 滤镜图 | 🔌 无生产消费者；真窗 D 卡发布 199×130 视图并每帧 `DrawGPUTexture` 直绘（2026-10-20 **原子验证**）；GPU 图注册时生效，CPU 路径返回 `ok=false`；ui 侧 facade 无生产调用 |
+| `ImageFilterKind`（Blur/BlurXY/ColorMatrix/DropShadow/Grayscale/Invert）+ `ImageFilterNode` | 滤镜图节点类型/数据 | 滤镜节点类型 | 🔌 无生产消费者（真窗与永久回归在用） |
 | 注册函数：`RegisterFilterOps` / `RegisterGPUFilterGraph` / `RegisterGPUFilterGraphTexture` / `RegisterGPUFilterGraphFromView` / `SwapGPUFilterGraph` / `FiltersRegistered` / `GPUFilterGraphRegistered` / `FilterPoolStats` / `ResetFilterPoolStats` / `DisableGPUFilterGraphForTest` | 注册滤镜 op 与 GPU 图、统计池、测试开关 | 滤镜注册/统计 | 🔗/🧪 混合（GPU 图注册多为测试/宿主注入） |
 
 ### 3.7 frame.go（6）+ present.go（3）+ present_target.go · 帧与呈现族
@@ -353,6 +353,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 文本低频 `MeasureMultilineString/WordWrap/SetTextMode/SetLCDLayout` | 仅测试 + 直调真窗 `ui_render_base_textlow`（2026-10-20，**原子验证**：逻辑 16 + 像素 28 + golden 627200px 逐位零差 + 抓屏 vs 快照同区 `diff=0.0000%`；同批修 MSDF 轮廓方向 / WordWrap 行尾空白与 CRLF 偏移 / 多行可视块高度 / `SetLCDLayout` 清图集致灰度+LCD 同帧花屏 / Aliased 文本损伤记账 5 缺陷，pin `render/glyphmask_lcd_mix_test.go` + `render/internal/gpu/glyph_mask_lcd_layout_cache_test.go` + `render/text/wrap_test.go` / `render/text_wrap_test.go`） |
 | `DrawShapedGlyphs` | 🔗 生产在用（6 处）：`ui/rendering/text.go:988`（RenderText.Paint 批量主路）· `:1077`（复合分区回退路）· `ui/rendering/text_picture.go:205`（分区提交）· `:232`（彩色段分区）· `:244`（偏移重提交）· `ui/scene/picture.go:225`（录制回放 OpDrawShapedGlyphs）· 另 `render/text.go:158`（描边字形回退）与 `render/scene/gpu_renderer.go:247`（Scene→GPU 解析首选） |
 | `DrawVertices/DrawVerticesEx/DrawMesh/DrawMeshEx`（顶点/网格族） | 无生产调用点（仅测试 `p1_capability_matrix_closers_test` + `vertices_mesh_contract_test.go` / `vertices_mesh_gpu_test.go` + 直调真窗 `ui_render_base_verticesmesh`，2026-10-20 **原子验证**：逻辑 19 + 像素 29 + golden 627200px 逐位零差 + 抓屏 vs 快照同区 `diff=0.0000%`；同批修短索引误画 / 越界索引串读邻网格 / 6B 索引上传不对齐 3 缺陷） |
+| 内容滤镜 `ApplyInvert/ApplyBlurXY/ApplyImageFilterGraph/GPUFilterTexture` | 仅测试/真窗（`filter_ops_contract_test.go` 3 例 + `filter_ops_gpu_test.go` 5 例 + 直调真窗 `ui_render_base_filterops`，2026-10-20 **原子验证**：逻辑 16 + 像素 26 + golden 627200px 逐位零差 + 抓屏 vs 快照 `0.0000%`；同批修 GPU 反色预乘 + 零读回滤镜 RT 丢 CPU 底；3 项限界见 `RENDER_FEATURE_COVERAGE` §6） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |
 | 视频直传地基 P0（2026-09-30：`VideoBackendCaps/QueryVideoBackend/BorrowVideoBackend/VideoSlot/VideoTexturePool(+Acquire/Release/Stats/Close/VideoPoolStats)/RecordVideoFallback/VideoFallbackTotal`，render/video_direct.go） | 仅测试（video_direct_test.go 四用例绿：双拷贝模式查询/无窗借用/池借还零泄漏零淘汰/回落记 cpu_fallback_ops）；P2 接直传后转生产 |
 | 视频直传 P2+P3-A（2026-10-02：`VideoDrawOptions/VideoUploadTotal/Context.DrawVideoFrame/DrawVideoSlot/VideoBridge(+New/Ensure/Show/ShowSeq/UploadFrame/DrawCurrent/Stats/Close/BridgeStats)`；P3-A 加 `VideoPlaneSlot/VideoPlanePool(+Acquire/Release/Stats/Close/AcquireForFrame/UploadPlanes)/Context.DrawVideoPlanes/VideoBridge.UploadPlanesFrame`，render/video_direct.go + context_image.go；layer 4 加 YUV 转色管线 `render/internal/gpu/shaders/video_yuv.wgsl` + `video_yuv_pipeline.go`，一份 WGSL 两后端通用；layer 5 窗口只调节点单新口 `RenderVideo.UploadPlanes`（平面走 GPU 转色，奇数/异形帧走桥老口兜底记数，`PlanesLast` 作证） | 生产在用（17 扇窗 tick 上传 + paint 绘制：上传+回落==帧数；render 单测绿含平面池借还/紧凑与垫行上传/三原色±1/解码器对拍 mean≤2；YUV 着色器 WebGPU 真编译绿 + GLES 翻译双纹理映射绿，无会话走 CPU 转回落；2K 真窗 80/80 上传零回落首尾亮、yuv_ready=1，p95 随整机抖动待压） |

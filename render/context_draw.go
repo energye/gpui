@@ -85,6 +85,7 @@ func (c *Context) StrokePreserve() error {
 // SetPixel sets a single pixel.
 func (c *Context) SetPixel(x, y int, col RGBA) {
 	c.pixmap.SetPixel(x, y, col)
+	c.pixmapBaseContent = true
 	c.noteLayerCPUDraw()
 }
 
@@ -153,6 +154,7 @@ func (c *Context) WritePixels(x, y, width, height int, pixels []byte) {
 		copy(dst[dstOff:dstOff+width*4], pixels[srcOff:srcOff+width*4])
 	}
 	c.pixmap.NotifyPixelsChanged()
+	c.pixmapBaseContent = true
 	c.trackDamage(image.Rect(x, y, x+width, y+height))
 
 	// GPU path: textured blit of the same clipped pixels.

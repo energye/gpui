@@ -22,6 +22,7 @@ func (c *Context) Clear() {
 	c.pixmapFilterStale = false
 	c.clearViewFlushTracking()
 	c.midFrameNilFlush = false
+	c.pixmapBaseContent = false
 	c.pixmap.Clear(Transparent)
 }
 
@@ -34,6 +35,10 @@ func (c *Context) ClearWithColor(col RGBA) {
 	c.pixmapFilterStale = false
 	c.clearViewFlushTracking()
 	c.midFrameNilFlush = false
+	// A fully transparent clear leaves the same zero pixels a fresh RT has, so
+	// the zero-readback GPU paths stay valid (glow clears transparent). Any
+	// visible alpha is base content the GPU must seed before filtering.
+	c.pixmapBaseContent = col.A > 0
 	c.pixmap.Clear(col)
 }
 
@@ -73,6 +78,7 @@ func (c *Context) FillRectCPU(x, y, w, h float64, col RGBA) {
 	pa := uint8(clamp255(col.A * 255))
 
 	c.pixmap.FillRect(image.Rect(px0, py0, px1, py1), pr, pg, pb, pa)
+	c.pixmapBaseContent = true
 }
 
 // SetColor sets the current drawing color.

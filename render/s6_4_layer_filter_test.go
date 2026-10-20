@@ -41,8 +41,6 @@ func TestS64_FilterPool_ReusesIntermediates(t *testing.T) {
 	if !render.FiltersRegistered() {
 		t.Skip("filters not registered")
 	}
-	restore := render.DisableGPUFilterGraphForTest()
-	defer restore()
 
 	render.ResetFilterPoolStats()
 	dc := render.NewContext(64, 64)
@@ -50,6 +48,11 @@ func TestS64_FilterPool_ReusesIntermediates(t *testing.T) {
 	dc.SetRGB(1, 0, 0)
 	dc.DrawRectangle(0, 0, 64, 64)
 	_ = dc.Fill()
+	// Force lazy GPU/graph registration before disabling the hooks; disabling
+	// first lets this Image/Flush reinstall the hooks and poisons later tests.
+	_ = dc.Image()
+	restore := render.DisableGPUFilterGraphForTest()
+	defer restore()
 
 	for i := 0; i < 5; i++ {
 		dc.ApplyBlur(1.5)

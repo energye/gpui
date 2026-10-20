@@ -70,7 +70,8 @@ const (
 // per pixel, laid out row by row with the given Stride.
 type GPURenderTarget struct {
 	// GPU-direct path: resolve directly to this view.
-	// When non-nil, Data/Stride are ignored -- no CPU readback.
+	// When non-nil, Data/Stride are not read back; they are only used when
+	// SeedFromData is set (see below).
 	// Type-assert to *wgpu.TextureView in internal/gpu consumers.
 	View       gpucontext.TextureView
 	ViewWidth  uint32
@@ -81,6 +82,15 @@ type GPURenderTarget struct {
 	// Single rect: one scissor for entire pass.
 	// Multiple rects: per-draw dynamic scissor (ADR-028).
 	DamageRects []image.Rectangle
+
+	// SeedFromData asks an offscreen (View non-nil) flush to upload Data into
+	// View before replaying pending draws. Data is premultiplied RGBA surface
+	// content rasterized on the CPU (ClearWithColor / CPU draws); the upload is
+	// marked as color content so the pass loads it instead of clearing. Used by
+	// the GPU image-filter seed and effect publish RTs (Skia filter-layer
+	// semantics: the filter sees CPU- and GPU-rasterized content alike).
+	// Ignored on the readback path (View nil), which already composites into Data.
+	SeedFromData bool
 
 	// CPU readback path.
 	Data          []uint8

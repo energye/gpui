@@ -23,6 +23,11 @@ import (
 // GPU filter graph on the same command encoder, finishing once and
 // submitting mesh+filter together.
 //
+// seed, when non-nil, is premultiplied RGBA surface content already
+// rasterized on the CPU (pixmap base). It is uploaded into srcView before the
+// pending draws replay, so the filter graph sees the whole surface (Skia
+// image-filter layer semantics) instead of a cleared RT.
+//
 // a single Queue.Submit). On filter failure after mesh is encoded, the open
 // encoder is Finished and submitted so srcView is populated, then FromView
 // recovery re-runs the filter graph.
@@ -30,7 +35,7 @@ import (
 // Returns error when the combined path cannot run; caller should fall back to
 // FlushGPUWithView + FromView.
 func (rc *GPURenderContext) FlushAndFilterFromView(
-	srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode,
+	srcView gpucontext.TextureView, seed []byte, w, h int, nodes []render.ImageFilterNode,
 ) (gpucontext.TextureView, func(), error) {
 	if rc == nil || rc.shared == nil || srcView.IsNil() || w <= 0 || h <= 0 || len(nodes) == 0 {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("flush+filter: invalid args")
@@ -91,6 +96,11 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 		View:       srcView,
 		ViewWidth:  uint32(w), //nolint:gosec
 		ViewHeight: uint32(h), //nolint:gosec
+	}
+	if len(seed) > 0 {
+		// CPU-painted base is part of the surface the filter sees.
+		target.Data = seed
+		target.SeedFromData = true
 	}
 	ferr := rc.Flush(target)
 	rc.sharedEncoder = nil

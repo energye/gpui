@@ -172,6 +172,15 @@ type Context struct {
 	// (D105/D140), not treat remaining pending as the full surface.
 	midFrameNilFlush bool
 
+	// pixmapBaseContent is true when the CPU pixmap holds surface pixels that
+	// pending GPU commands do not encode: a non-transparent Clear/ClearWithColor,
+	// a CPU-rasterized draw, or a GPU readback into the pixmap. Zero-readback
+	// GPU consumers (filter seed RT, effect publish RT) must upload this base
+	// before replaying pending draws; otherwise their first pass clears it away.
+	// Skia semantics: an image filter / effect layer sees the whole surface,
+	// CPU- and GPU-rasterized content alike.
+	pixmapBaseContent bool
+
 	// Lifecycle
 	closed bool // Indicates whether Close has been called
 }

@@ -60,6 +60,8 @@ func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
 	copy(src.Data(), dst.Data())
 	src.NotifyPixelsChanged()
 	filterPixmapPool.Put(dst)
+	// The full surface now lives in the pixmap.
+	c.pixmapBaseContent = true
 	// Skia crops a saveLayer filter's output to the layer bounds: keep a
 	// bounded backdrop layer's outside-bounds pixels equal to the parent's
 	// before the RT follows the pixmap (see cropFilterOutputToLayerBounds).
@@ -250,6 +252,7 @@ func (c *Context) syncViewFlushIntoPixmap() bool {
 	c.pixmap.NotifyPixelsChanged()
 	c.clearViewFlushTracking()
 	c.pixmapFilterStale = false
+	c.pixmapBaseContent = true
 	return true
 }
 

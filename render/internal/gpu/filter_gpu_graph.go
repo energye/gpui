@@ -106,7 +106,12 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         return vec4<f32>(y, y, y, c0.a);
     }
     if p.mode == 2u {
-        return vec4<f32>(1.0 - c0.r, 1.0 - c0.g, 1.0 - c0.b, c0.a);
+        // Invert in straight-alpha space, then store premultiplied:
+        //   straight' = 1 - straight = 1 - c0.rgb / c0.a
+        //   premul'   = c0.a * straight' = c0.a - c0.rgb
+        // Skia/Flutter color filters run on unpremultiplied colors; doing
+        // 1-c0.rgb on premultiplied storage breaks alpha (channels > alpha).
+        return vec4<f32>(c0.a - c0.r, c0.a - c0.g, c0.a - c0.b, c0.a);
     }
     if p.mode == 3u {
         // Color matrix in straight-alpha 0-1; matrix bias already /255.

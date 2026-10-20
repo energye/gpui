@@ -14,6 +14,13 @@ import (
 	gpucontext "github.com/energye/gpui/gpu/context"
 )
 
+// gpuSeededFilterFlusher is implemented by the GPU context's combined
+// mesh-seed + filter encoder when it can upload CPU base pixels into the seed
+// RT before replaying pending draws (see FlushAndFilterFromView).
+type gpuSeededFilterFlusher interface {
+	FlushAndFilterFromView(srcView gpucontext.TextureView, seed []byte, w, h int, nodes []ImageFilterNode) (gpucontext.TextureView, func(), error)
+}
+
 // tryApplyFilterGraphGPU runs nodes on the registered GPU multi-RT filter graph.
 // Returns true when the GPU path fully applied the result (P0-4 / L.04).
 //
@@ -49,6 +56,7 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 	if w <= 0 || h <= 0 {
 		return false
 	}
+	hasLayer := c.layerStack != nil && len(c.layerStack.layers) > 0
 
 	finish := func(view gpucontext.TextureView, release func()) bool {
 		if view.IsNil() {
@@ -59,7 +67,6 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 		}
 		c.attachFilterGPUResult(view, w, h, release)
 		c.pixmapFilterStale = true
-		hasLayer := c.layerStack != nil && len(c.layerStack.layers) > 0
 		if hasLayer {
 			if c.materializeFilterGPU() {
 				// Skia crops a saveLayer filter's output to the layer bounds:
@@ -120,25 +127,49 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 	}
 	if c.midFrameNilFlush || gpuMid {
 		if pending > 0 {
-			_ = c.FlushGPU()
+			// A prior readback made the pixmap authoritative; fold the new
+			// pending draws there too. FlushGPU is not used here because an
+			// effect surface would instead publish a base-less RT.
+			if !c.foldPendingIntoPixmap() {
+				return false
+			}
 			pending = 0
 		}
 		c.midFrameNilFlush = false
 	}
+	// CPU base content is part of the surface an image filter sees (Skia
+	// filter-layer semantics). The zero-readback path must upload it into the
+	// seed RT before replaying pending draws; otherwise its first pass clears
+	// the base (e.g. transparent corners over an opaque ClearWithColor).
+	seedBase := c.pixmapBaseContent && !hasLayer
+	if seedBase && pending > 0 {
+		if raw := c.GPURenderContext(); raw != nil {
+			if _, ok := raw.(gpuSeededFilterFlusher); !ok {
+				// No seeded combined flush: fold pending into the pixmap and
+				// use the pixmap-coherent upload path below.
+				if !c.foldPendingIntoPixmap() {
+					return false
+				}
+				pending = 0
+				seedBase = false
+			}
+		}
+	}
+	var seed []byte
+	if seedBase {
+		seed = src.Data()[:need]
+	}
 	flushedToSrc := false
 	if pending > 0 && gpuFilterGraphApplyFromView != nil {
 		if srcView, ok := c.ensureFilterSrcRT(w, h); ok {
-			// Do NOT unconditional seed from pixmap here: that uploads a full
-			// surface every glow/filter frame. Path-1 assumes pending encodes
-			// the complete surface when no mid-frame materialize occurred.
+			// seed (nil on pure-GPU frames) uploads CPU base pixels into the RT
+			// before pending draws replay; a full-surface upload only happens when
+			// the pixmap actually holds base content (not the glow hot path).
 			// single Queue.Submit for mesh seed + filter (when GPU context
 			// supports FlushAndFilterFromView). Pure submit coalesce; pixels same.
-			type flushFilterer interface {
-				FlushAndFilterFromView(srcView gpucontext.TextureView, w, h int, nodes []ImageFilterNode) (gpucontext.TextureView, func(), error)
-			}
 			if raw := c.GPURenderContext(); raw != nil {
-				if ff, ok := raw.(flushFilterer); ok {
-					view, release, err := ff.FlushAndFilterFromView(srcView, w, h, nodes)
+				if ff, ok := raw.(gpuSeededFilterFlusher); ok {
+					view, release, err := ff.FlushAndFilterFromView(srcView, seed, w, h, nodes)
 					if err == nil && finish(view, release) {
 						// Mesh seed flush is internal to FlushAndFilterFromView (bypasses
 						// FlushGPUWithView); count it for FrameFlushes observability.
@@ -183,44 +214,49 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 					// pending still present — fall through to classic two-submit path
 				}
 			}
-			if err := c.FlushGPUWithView(srcView, uint32(w), uint32(h)); err == nil { //nolint:gosec
-				flushedToSrc = true
-				view, release, err := gpuFilterGraphApplyFromView(srcView, w, h, nodes)
-				if err == nil && finish(view, release) {
-					return true
-				}
-				if release != nil {
-					release()
-				}
-				// FromView failed after a successful seed flush: seed texture/pixel
-				// paths from filterSrcRT (correct content), not from stale pixmap.
-				if c.readbackFilterSrcIntoScratch(srcView, w, h, need) {
-					if gpuFilterGraphApplyTexture != nil {
-						view, release, err := gpuFilterGraphApplyTexture(c.filterSrcScratch, w, h, nodes)
-						if err == nil && finish(view, release) {
-							return true
-						}
-						if release != nil {
-							release()
-						}
+			// Classic two-submit path. When the pixmap holds base content this
+			// flush would clear the seed RT and drop it, so skip straight to the
+			// pixmap-coherent path instead.
+			if !seedBase {
+				if err := c.FlushGPUWithView(srcView, uint32(w), uint32(h)); err == nil { //nolint:gosec
+					flushedToSrc = true
+					view, release, err := gpuFilterGraphApplyFromView(srcView, w, h, nodes)
+					if err == nil && finish(view, release) {
+						return true
 					}
-					if gpuFilterGraphApply != nil {
-						out, err := gpuFilterGraphApply(c.filterSrcScratch, w, h, nodes)
-						if err == nil && len(out) >= need {
-							copy(src.Data(), out[:need])
-							src.NotifyPixelsChanged()
-							c.pixmapFilterStale = false
-							c.releaseFilterGPUResult()
-							if !c.seedTopLayerGPUFromPixmap() {
-								c.noteLayerCPUDraw()
+					if release != nil {
+						release()
+					}
+					// FromView failed after a successful seed flush: seed texture/pixel
+					// paths from filterSrcRT (correct content), not from stale pixmap.
+					if c.readbackFilterSrcIntoScratch(srcView, w, h, need) {
+						if gpuFilterGraphApplyTexture != nil {
+							view, release, err := gpuFilterGraphApplyTexture(c.filterSrcScratch, w, h, nodes)
+							if err == nil && finish(view, release) {
+								return true
 							}
-							c.recordGPUOp()
-							return true
+							if release != nil {
+								release()
+							}
+						}
+						if gpuFilterGraphApply != nil {
+							out, err := gpuFilterGraphApply(c.filterSrcScratch, w, h, nodes)
+							if err == nil && len(out) >= need {
+								copy(src.Data(), out[:need])
+								src.NotifyPixelsChanged()
+								c.pixmapFilterStale = false
+								c.releaseFilterGPUResult()
+								if !c.seedTopLayerGPUFromPixmap() {
+									c.noteLayerCPUDraw()
+								}
+								c.recordGPUOp()
+								return true
+							}
 						}
 					}
+					// Recovery failed — do not fall through to pixmap seed.
+					return false
 				}
-				// Recovery failed — do not fall through to pixmap seed.
-				return false
 			}
 		}
 	}
@@ -228,6 +264,14 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 	// 2) Pixmap-coherent path: only when we did NOT already flush draws solely
 	// to filterSrcRT. FlushGPU may readback pending GPU draws into the pixmap.
 	if !flushedToSrc {
+		if pending > 0 {
+			// Fold remaining draws into the pixmap before uploading, including
+			// effect surfaces (whose FlushGPU publishes instead of reading back).
+			if !c.foldPendingIntoPixmap() {
+				return false
+			}
+			pending = 0
+		}
 		_ = c.FlushGPU()
 		copy(c.filterSrcScratch, src.Data()[:need])
 
@@ -257,6 +301,54 @@ func (c *Context) tryApplyFilterGraphGPU(nodes ...ImageFilterNode) bool {
 			c.noteLayerCPUDraw()
 		}
 		c.recordGPUOp()
+		return true
+	}
+	return false
+}
+
+// foldPendingIntoPixmap resolves pending GPU draws into the CPU pixmap with a
+// nil-view flush, bypassing the effect-surface publish shortcut. The pixmap is
+// then the complete surface (CPU base + GPU draws), which the upload filter
+// path needs. Reports false when pending work could not be resolved.
+func (c *Context) foldPendingIntoPixmap() bool {
+	if c == nil || c.pixmap == nil {
+		return false
+	}
+	if rc := c.gpuCtxOps(); rc != nil {
+		t := c.gpuRenderTarget()
+		if !t.View.IsNil() {
+			// Active layer RT: the layer-coherent path owns the flush target.
+			return false
+		}
+		c.recordFrameFlush()
+		if err := rc.Flush(t); err != nil {
+			return false
+		}
+		if pc, ok := rc.(interface{ PendingCount() int }); ok && pc.PendingCount() != 0 {
+			return false
+		}
+		c.applyDitherIfEnabled()
+		c.clearViewFlushTracking()
+		c.midFrameNilFlush = true
+		c.pixmapBaseContent = true
+		if c.effectSurface {
+			c.pixmapFilterStale = false
+		}
+		return true
+	}
+	if a := Accelerator(); a != nil {
+		t := c.gpuRenderTarget()
+		if !t.View.IsNil() {
+			return false
+		}
+		c.recordFrameFlush()
+		c.warnGPUFallback("foldPendingIntoPixmap")
+		if err := a.Flush(t); err != nil {
+			return false
+		}
+		c.applyDitherIfEnabled()
+		c.midFrameNilFlush = true
+		c.pixmapBaseContent = true
 		return true
 	}
 	return false
@@ -657,6 +749,9 @@ func (c *Context) materializeFilterGPUTo(primary, secondary []byte) bool {
 	if c.pixmap != nil {
 		// Keep gen stable when possible; Notify for consumers keyed on pixmap gen.
 		c.pixmap.NotifyPixelsChanged()
+		// Both callers pass the pixmap as primary/secondary, so the pixmap now
+		// holds the resolved surface.
+		c.pixmapBaseContent = true
 	}
 	c.pixmapFilterStale = false
 	return true

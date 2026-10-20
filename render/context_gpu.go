@@ -34,6 +34,12 @@ func (c *Context) recordCPUFallbackReason(reason string) {
 	if reason != "" {
 		c.pathStats.LastCPUFallbackReason = reason
 	}
+	// The CPU now owns surface pixels the pending GPU queue does not encode;
+	// zero-readback GPU consumers must seed from the pixmap (see
+	// pixmapBaseContent).
+	if c != nil {
+		c.pixmapBaseContent = true
+	}
 	if c != nil && c.passMain != nil {
 		c.passScratchDirty = true
 	}
@@ -112,6 +118,10 @@ func (c *Context) FlushGPU() error {
 			t.View = view
 			t.ViewWidth = uint32(w)  //nolint:gosec // pixmap dims bounded
 			t.ViewHeight = uint32(h) //nolint:gosec
+			// CPU-painted base (ClearWithColor / fallback draws) is part of the
+			// effect surface: seed the publish RT before replaying pending draws
+			// instead of clearing the base away.
+			t.SeedFromData = c.pixmapBaseContent
 			if rc := c.gpuCtxOps(); rc != nil {
 				err = gpuFlushOffscreenTarget(rc, t)
 			} else if a := Accelerator(); a != nil {
@@ -153,6 +163,11 @@ func (c *Context) FlushGPU() error {
 		if pending > 0 {
 			c.clearViewFlushTracking()
 			c.midFrameNilFlush = true
+			if t.View.IsNil() {
+				// GPU pixels were composited into the pixmap: it now holds base
+				// content that a zero-readback consumer must seed from.
+				c.pixmapBaseContent = true
+			}
 			// CPU path overwrote published GPU content.
 			if c.effectSurface {
 				c.pixmapFilterStale = false
@@ -368,6 +383,10 @@ func (c *Context) warnGPUFallback(op string) {
 // flushGPUAccelerator flushes pending GPU shapes before a CPU fallback operation.
 // flushGPUAccelerator flushes pending GPU shapes before a CPU fallback operation.
 func (c *Context) flushGPUAccelerator() {
+	// Callers flush before rasterizing on the CPU (FillRectCPU, bitmap text,
+	// vertices/mesh fallbacks). The pixmap becomes base content the pending GPU
+	// queue no longer describes.
+	c.pixmapBaseContent = true
 	if rc := c.gpuCtxOps(); rc != nil {
 		t := c.gpuRenderTarget()
 		if !t.View.IsNil() {

@@ -2618,6 +2618,22 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	// Serializes Queue.Submit + error-scope Push/Pop on the shared device.
 	rc.session.submitLock = &rc.shared.submitMu
 
+	// Optional CPU base seed: the caller marked target.Data as the surface
+	// content rasterized on the CPU (ClearWithColor / CPU draws). Upload it into
+	// the offscreen view and mark the view as color content so the pass below
+	// loads it instead of clearing (Skia filter layer semantics: the filter sees
+	// CPU- and GPU-rasterized content alike). The queue write is ordered before
+	// this flush's command buffer submit.
+	if target.SeedFromData && !target.View.IsNil() && len(target.Data) > 0 {
+		seedW, seedH := target.Width, target.Height
+		if seedW <= 0 || seedH <= 0 {
+			seedW, seedH = int(target.ViewWidth), int(target.ViewHeight)
+		}
+		if err := rc.seedViewFromRGBA(target.View, target.Data, seedW, seedH); err != nil {
+			return err
+		}
+	}
+
 	// Propagate per-frame anti-aliasing state to session.
 	rc.session.antiAlias = rc.antiAlias
 
@@ -3466,48 +3482,10 @@ func (rc *GPURenderContext) uploadPixmapToView(target render.GPURenderTarget) er
 	if queue == nil || len(target.Data) == 0 {
 		return nil
 	}
-
-	halView := unpackView(target.View)
-	if halView == nil {
+	if unpackView(target.View) == nil {
 		return nil
 	}
-	tex := halView.Texture()
-	if tex == nil {
-		return nil
-	}
-
-	w, h := uint32(target.Width), uint32(target.Height) //nolint:gosec // bounded by pixmap
-
-	// Pixmap is RGBA, offscreen texture is BGRA8Unorm — swizzle R↔B.
-	bgra := make([]byte, len(target.Data))
-	for i := 0; i < len(target.Data); i += 4 {
-		bgra[i+0] = target.Data[i+2]
-		bgra[i+1] = target.Data[i+1]
-		bgra[i+2] = target.Data[i+0]
-		bgra[i+3] = target.Data[i+3]
-	}
-
-	// WebGPU copy pitch must be 256-byte aligned (COPY_BYTES_PER_ROW_ALIGNMENT);
-	// an unaligned BytesPerRow (e.g. 1200×4=4800) makes wgpu reject the upload
-	// and the present target stays black (GOGPU_RENDER_MODE=cpu window path).
-	const copyPitchAlignment = 256
-	bpr := w * 4
-	aligned := (bpr + copyPitchAlignment - 1) &^ (copyPitchAlignment - 1)
-	if aligned != bpr {
-		// Re-pack rows to the aligned pitch (the tail is padding, ignored by
-		// the texture copy extent).
-		packed := make([]byte, uint64(aligned)*uint64(h))
-		for row := uint32(0); row < h; row++ {
-			copy(packed[row*aligned:row*aligned+bpr], bgra[row*bpr:(row+1)*bpr])
-		}
-		bgra = packed
-	}
-	if err := queue.WriteTexture(
-		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
-		bgra,
-		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: h},
-		&hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
-	); err != nil {
+	if err := rc.writeRGBAToView(target.View, target.Data, target.Width, target.Height); err != nil {
 		return err
 	}
 	// The queued texture write only executes on a queue submit; without it the
