@@ -1314,8 +1314,13 @@ func (s *GPURenderSession) colorAttachment(targetView hal.TextureView, loadOp ty
 			View:          s.textures.msaaView,
 			ResolveTarget: targetView,
 			LoadOp:        loadOp,
-			// Multisampled content is not needed after resolve (ADR-021).
-			StoreOp:    types.StoreOpDiscard,
+			// Keep the multisample content: a later mid-frame pass may load
+			// this attachment (backdrop / layer round-trip / damage). WebGPU
+			// makes LoadOpLoad after StoreOpDiscard undefined, and the final
+			// pass of a frame is not knowable at encode time. ADR-021's
+			// Discard optimization is therefore only safe for a frame whose
+			// MSAA attachment is guaranteed single-pass.
+			StoreOp:    types.StoreOpStore,
 			ClearValue: types.Color{R: 0, G: 0, B: 0, A: 0},
 		}
 	}

@@ -2,8 +2,8 @@
 // 在 4x MSAA vs 1x 几何AA（fringe coverage + SDF smoothstep）下的边缘平滑度对比。
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//	RUN_SECONDS=5 go run ./examples/ui_ant_verify   # 默认 4x MSAA（设备探测）
-//	1x 对比：main() 前调 render.SetMSAASampleCount(render.MSAASampleCount1)
+//	RUN_SECONDS=5 GPUI_MSAA=4 go run ./examples/ui_ant_verify   # 4x MSAA
+//	RUN_SECONDS=5 GPUI_MSAA=1 go run ./examples/ui_ant_verify   # 1x 几何AA 对比
 //
 // Window: 1200x800. 用 xwd 截图后对比六宫格边缘过渡带像素：
 //
@@ -42,6 +42,17 @@ func modeName() (name, hint string) {
 }
 
 func main() {
+	switch os.Getenv("GPUI_MSAA") {
+	case "1":
+		render.SetMSAASampleCount(render.MSAASampleCount1)
+	case "4":
+		render.SetMSAASampleCount(render.MSAASampleCount4)
+	case "":
+		// Keep the engine default.
+	default:
+		fmt.Fprintf(os.Stderr, "FAIL: GPUI_MSAA=%q want 1 or 4\n", os.Getenv("GPUI_MSAA"))
+		os.Exit(1)
+	}
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if secsSet {
 		wrkit.RequireMinRun(secs, "ANT")
