@@ -281,6 +281,54 @@ func TestRenderSessionStencilOnly(t *testing.T) {
 	}
 }
 
+func TestRenderSessionStencilPremultipliedColor(t *testing.T) {
+	device, queue, cleanup := createNativeDevice(t)
+	defer cleanup()
+
+	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	defer s.Destroy()
+
+	target := render.GPURenderTarget{
+		Width:  100,
+		Height: 100,
+		Data:   make([]uint8, 100*100*4),
+		Stride: 100 * 4,
+	}
+	// Premultiplied color for straight (0.3, 0.6, 0.9) at 50% alpha. If the
+	// stencil/cover uniform chain premultiplies again, the readback is half
+	// this RGB while alpha stays 0.5 (the color*alpha² regression).
+	paths := []StencilPathCommand{{
+		Matrix: render.Identity(),
+		Vertices: []float32{
+			10, 10, 90, 10, 90, 90,
+			10, 10, 90, 90, 10, 90,
+		},
+		CoverQuad: [12]float32{
+			9, 9, 91, 9, 91, 91,
+			9, 9, 91, 91, 9, 91,
+		},
+		Color:    [4]float32{0.15, 0.30, 0.45, 0.5},
+		FillRule: render.FillRuleNonZero,
+	}}
+	if err := s.RenderFrame(target, nil, nil, paths, nil); err != nil {
+		t.Fatalf("RenderFrame: %v", err)
+	}
+
+	i := (50*100 + 50) * 4
+	got := [3]uint8{target.Data[i], target.Data[i+1], target.Data[i+2]}
+	want := [3]uint8{38, 77, 115} // 0.15, 0.30, 0.45 in 8-bit
+	for c := range want {
+		d := int(got[c]) - int(want[c])
+		if d < 0 {
+			d = -d
+		}
+		if d > 4 {
+			t.Fatalf("center RGB=%v, want ~%v (alpha applied once); full pixel=%v",
+				got, want, target.Data[i:i+4])
+		}
+	}
+}
+
 func TestRenderSessionMixed(t *testing.T) {
 	device, queue, cleanup := createNativeDevice(t)
 	defer cleanup()
@@ -321,7 +369,7 @@ func TestRenderSessionMixed(t *testing.T) {
 				199, 199, 251, 199, 251, 251,
 				199, 199, 251, 251, 199, 251,
 			},
-			Color:    [4]float32{0, 0.5, 0, 0.5},
+			Color:    [4]float32{0, 0.25, 0, 0.5}, // premultiplied 50% green
 			FillRule: render.FillRuleEvenOdd,
 		},
 	}
@@ -415,14 +463,14 @@ func TestStencilPathCommandFields(t *testing.T) {
 			-1, -1, 101, -1, 101, 101,
 			-1, -1, 101, 101, -1, 101,
 		},
-		Color:    [4]float32{1.0, 0.5, 0.25, 0.75},
+		Color:    [4]float32{0.75, 0.375, 0.1875, 0.75}, // premultiplied
 		FillRule: render.FillRuleEvenOdd,
 	}
 
 	if len(cmd.Vertices) != 6 {
 		t.Errorf("expected 6 vertex floats, got %d", len(cmd.Vertices))
 	}
-	if cmd.Color[0] != 1.0 || cmd.Color[3] != 0.75 {
+	if cmd.Color[0] != 0.75 || cmd.Color[3] != 0.75 {
 		t.Errorf("unexpected color: %v", cmd.Color)
 	}
 	if cmd.FillRule != render.FillRuleEvenOdd {

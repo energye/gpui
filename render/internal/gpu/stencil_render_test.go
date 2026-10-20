@@ -302,7 +302,9 @@ func TestMakeStencilFillUniform(t *testing.T) {
 }
 
 func TestMakeCoverUniform(t *testing.T) {
-	color := render.RGBA{R: 1.0, G: 0.5, B: 0.25, A: 0.8}
+	// Callers pass premultiplied color (StencilPathCommand.Color contract).
+	// makeCoverUniform must encode it unchanged, not multiply by alpha again.
+	color := render.RGBA{R: 0.8, G: 0.4, B: 0.2, A: 0.8}
 	buf := makeCoverUniform(1920, 1080, color)
 	if len(buf) != coverUniformSize {
 		t.Fatalf("expected %d bytes, got %d", coverUniformSize, len(buf))
@@ -314,11 +316,6 @@ func TestMakeCoverUniform(t *testing.T) {
 	if got := decodeFloat32(buf[4:8]); got != 1080.0 {
 		t.Errorf("expected height 1080.0, got %v", got)
 	}
-	// Verify premultiplied color.
-	// R = 1.0 * 0.8 = 0.8
-	// G = 0.5 * 0.8 = 0.4
-	// B = 0.25 * 0.8 = 0.2
-	// A = 0.8
 	const tolerance = 1e-6
 	if got := decodeFloat32(buf[16:20]); testAbs32(got-0.8) > tolerance {
 		t.Errorf("expected premul R ~0.8, got %v", got)
@@ -331,6 +328,32 @@ func TestMakeCoverUniform(t *testing.T) {
 	}
 	if got := decodeFloat32(buf[28:32]); testAbs32(got-0.8) > tolerance {
 		t.Errorf("expected premul A ~0.8, got %v", got)
+	}
+}
+
+// TestMakeCoverUniformDoesNotPremultiplyTwice pins the regression that made
+// every semi-transparent stencil path render as color*alpha²: the command
+// color is already premultiplied, so the uniform encoder must preserve RGB.
+func TestMakeCoverUniformDoesNotPremultiplyTwice(t *testing.T) {
+	const a = 0.5
+	color := render.RGBA{R: 0.3 * a, G: 0.6 * a, B: 0.9 * a, A: a}
+	buf := makeCoverUniform(100, 100, color)
+	if got := decodeFloat32(buf[16:20]); testAbs32(got-0.3*a) > 1e-6 {
+		t.Fatalf("cover R=%v, want premultiplied 0.15 (alpha applied once)", got)
+	}
+	if got := decodeFloat32(buf[28:32]); testAbs32(got-a) > 1e-6 {
+		t.Fatalf("cover A=%v, want %v", got, a)
+	}
+}
+
+// TestPremultiplyRGBA pins the standalone RenderPath boundary: its public
+// color is straight RGBA and must be premultiplied exactly once before it
+// enters the stencil renderer's premultiplied internal contract.
+func TestPremultiplyRGBA(t *testing.T) {
+	got := premultiplyRGBA(render.RGBA{R: 0.3, G: 0.6, B: 0.9, A: 0.5})
+	want := render.RGBA{R: 0.15, G: 0.30, B: 0.45, A: 0.5}
+	if got != want {
+		t.Fatalf("premultiplyRGBA=%+v, want %+v", got, want)
 	}
 }
 

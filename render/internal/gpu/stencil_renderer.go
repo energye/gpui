@@ -529,8 +529,12 @@ func (sr *StencilRenderer) RenderPath(target render.GPURenderTarget, path *rende
 		return nil // empty path, nothing to render
 	}
 
-	// Create GPU buffers and bind groups for the render pass.
-	bufs, err := sr.createRenderBuffers(w, h, fanVerts, tess.CoverQuad(), color)
+	// Create GPU buffers and bind groups for the render pass. RenderPath's
+	// public color is straight RGBA; the renderer's internal stencil color
+	// contract is premultiplied (matching StencilPathCommand.Color), so
+	// premultiply exactly once at this standalone entry point.
+	premul := premultiplyRGBA(color)
+	bufs, err := sr.createRenderBuffers(w, h, fanVerts, tess.CoverQuad(), premul)
 	if err != nil {
 		return err
 	}
@@ -578,6 +582,7 @@ func (sr *StencilRenderer) createRenderBuffers(
 }
 
 // updateRenderBuffers creates or updates reusable stencil-then-cover buffers.
+// color is premultiplied RGBA (StencilPathCommand.Color contract).
 // fanVerts are USER-space (transform in the uniform); coverQuad is
 // device-space (pre-placed, shader has no cover transform). matrix maps
 // user → device; Identity reproduces the pre-F2 baked behavior exactly.
@@ -652,15 +657,10 @@ func (sr *StencilRenderer) updateRenderBuffersSticky(
 		return nil, err
 	}
 
-	// Uniform buffers + bind groups.
-	// F2: stencil uniform is viewport + matrix + color (64B, shared by the
-	// fill and AA band pipelines). Upload only when bytes differ from the
-	// entry's last upload — static draws go silent after the first frame.
-	// skipStencilUni (session slab path): the session packs and uploads all
-	// stencil uniforms in one WriteBuffer; per-entry upload is skipped and
-	// the caller assigns the slab bind group afterwards.
-	// Zero-alloc: assemble on a stack array, no per-path heap slice.
-	pmul := [4]float32{float32(color.R * color.A), float32(color.G * color.A), float32(color.B * color.A), float32(color.A)}
+	// color is premultiplied at this layer (StencilPathCommand.Color contract);
+	// do not multiply by alpha again here. Premultiplying twice squares RGB
+	// while leaving alpha unchanged, which darkens every semi-transparent path.
+	pmul := [4]float32{float32(color.R), float32(color.G), float32(color.B), float32(color.A)}
 	var stencilUniArr [stencilFillUniformSize]byte
 	fillStencilUniformInto(stencilUniArr[:], w, h, matrix, pmul)
 	if !skipStencilUni {
@@ -1299,23 +1299,28 @@ func makeStencilFillUniform(w, h uint32) []byte {
 	return buf
 }
 
+// premultiplyRGBA converts straight RGBA to premultiplied RGBA once. The
+// stencil renderer's internal color contract (StencilPathCommand.Color and
+// its uniform buffers) is premultiplied; standalone callers such as
+// RenderPath take straight color and use this at the boundary.
+func premultiplyRGBA(c render.RGBA) render.RGBA {
+	return render.RGBA{R: c.R * c.A, G: c.G * c.A, B: c.B * c.A, A: c.A}
+}
+
 // makeCoverUniform creates the 32-byte uniform buffer for the cover pass.
-// Layout: viewport (vec2<f32>) + padding (vec2<f32>) + color (vec4<f32>, premultiplied alpha).
+// Layout: viewport (vec2<f32>) + padding (vec2<f32>) + color (vec4<f32>).
+// color is already premultiplied; multiplying by alpha here would apply the
+// premultiplication a second time (StencilPathCommand.Color is premultiplied).
 func makeCoverUniform(w, h uint32, color render.RGBA) []byte {
 	buf := make([]byte, coverUniformSize)
 	binary.LittleEndian.PutUint32(buf[0:4], math.Float32bits(float32(w)))
 	binary.LittleEndian.PutUint32(buf[4:8], math.Float32bits(float32(h)))
 	// padding bytes 8..15 are zero
 
-	// Premultiply alpha for GPU blending.
-	premulR := float32(color.R * color.A)
-	premulG := float32(color.G * color.A)
-	premulB := float32(color.B * color.A)
-	premulA := float32(color.A)
-	binary.LittleEndian.PutUint32(buf[16:20], math.Float32bits(premulR))
-	binary.LittleEndian.PutUint32(buf[20:24], math.Float32bits(premulG))
-	binary.LittleEndian.PutUint32(buf[24:28], math.Float32bits(premulB))
-	binary.LittleEndian.PutUint32(buf[28:32], math.Float32bits(premulA))
+	binary.LittleEndian.PutUint32(buf[16:20], math.Float32bits(float32(color.R)))
+	binary.LittleEndian.PutUint32(buf[20:24], math.Float32bits(float32(color.G)))
+	binary.LittleEndian.PutUint32(buf[24:28], math.Float32bits(float32(color.B)))
+	binary.LittleEndian.PutUint32(buf[28:32], math.Float32bits(float32(color.A)))
 	return buf
 }
 

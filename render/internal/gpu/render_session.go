@@ -3601,13 +3601,12 @@ func (s *GPURenderSession) buildStencilResourcesBatch(paths []StencilPathCommand
 		if h0, l0 := s.stencilFanLastHash[i], s.stencilFanLastLen[i]; l0 == len(fanBytes) && h0 == indexBytesFingerprint(fanBytes) {
 			skipFan = true
 		}
-		// Slab pack: stencil fill uniform bytes for this slot (same
-		// viewport+matrix+color formula as updateRenderBuffersSticky).
-		// Zero-alloc: fill the slab slot directly, skipping the per-path
-		// heap slice that makeStencilUniform used to return (the slot only
-		// carries the 64B payload; padding stays zero from slab growth).
-		pmul := [4]float32{float32(color.R * color.A), float32(color.G * color.A), float32(color.B * color.A), float32(color.A)}
-		fillStencilUniformInto(s.stencilUniScratch[i*stencilUniSlabStride:], w, h, cmd.Matrix, pmul)
+		// Slab pack: stencil fill uniform bytes for this slot. cmd.Color is
+		// already premultiplied (StencilPathCommand contract); pass it through
+		// unchanged. Zero-alloc: fill the slab slot directly, skipping the
+		// per-path heap slice that makeStencilUniform used to return (the slot
+		// only carries the 64B payload; padding stays zero from slab growth).
+		fillStencilUniformInto(s.stencilUniScratch[i*stencilUniSlabStride:], w, h, cmd.Matrix, cmd.Color)
 		fanView := slabViewOf(s.stencilVertSlab, fanOff, i)
 		bandView := slabViewOf(s.stencilVertSlab, bandOff, i)
 		innerView := slabViewOf(s.stencilVertSlab, innerOff, i)
