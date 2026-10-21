@@ -402,6 +402,26 @@ func TestRenderMultipleSizes(t *testing.T) {
 	}
 }
 
+func TestRenderInheritedFillNoneWithoutStroke(t *testing.T) {
+	// fill="none" on the root must stay transparent even when the child
+	// specifies neither fill nor stroke; the SVG default black fill must not
+	// override the inherited "none".
+	svg := `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="16" height="16"/>
+</svg>`
+	img, err := Render([]byte(svg), 16, 16)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			if a := alphaOf(img.At(x, y)); a != 0 {
+				t.Fatalf("pixel (%d,%d) alpha = %d, want 0 (inherited fill=none)", x, y, a)
+			}
+		}
+	}
+}
+
 func TestRenderWithColorOverridePreservesNone(t *testing.T) {
 	// SVG with fill="none" on the root — should remain transparent.
 	svg := `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -477,6 +497,30 @@ func TestParseNoViewBox(t *testing.T) {
 	// Should fall back to default viewBox from width/height.
 	if doc.Width != 24 || doc.Height != 24 {
 		t.Errorf("Width/Height = %v/%v, want 24/24", doc.Width, doc.Height)
+	}
+}
+
+func TestParseRootPercentDimensions(t *testing.T) {
+	doc, err := Parse([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="50%" height="25%" viewBox="0 0 16 8"></svg>`))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if doc.Width != 8 || doc.Height != 2 {
+		t.Errorf("Width/Height = %v/%v, want 8/2 (percent of viewBox 16x8)", doc.Width, doc.Height)
+	}
+}
+
+func TestParseInvalidRootDimensionRejected(t *testing.T) {
+	_, err := Parse([]byte(`<svg viewBox="0 0 16 16" width="wide"></svg>`))
+	if err == nil {
+		t.Fatal("Parse accepted invalid root width; want error")
+	}
+}
+
+func TestParseChildPercentLengthRejected(t *testing.T) {
+	_, err := Parse([]byte(`<svg viewBox="0 0 16 16"><rect width="50%" height="10"/></svg>`))
+	if err == nil {
+		t.Fatal("Parse accepted child percentage length; want explicit error")
 	}
 }
 

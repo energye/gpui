@@ -194,8 +194,9 @@ func fillAndStroke(dc *render.Context, a *Attrs, state *renderState, drawShape f
 	hasStroke := shouldStroke(a, state)
 
 	if !hasFill && !hasStroke {
-		// Default SVG behavior: fill with black if no fill/stroke specified.
-		if a.Fill == "" && a.Stroke == "" {
+		// Default SVG behavior is an initial black fill, but an inherited
+		// fill="none" or stroke="none" must not be replaced by that default.
+		if resolveFill(a, state) == "" && resolveStroke(a, state) == "" {
 			hasFill = true
 		}
 	}

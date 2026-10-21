@@ -53,6 +53,7 @@ func Parse(data []byte) (*Document, error) {
 
 // parseSVGRoot extracts viewBox, width, height from the <svg> element attributes.
 func parseSVGRoot(doc *Document, se xml.StartElement) error {
+	// Read viewBox first: percentage width/height resolve against it.
 	for _, attr := range se.Attr {
 		switch attr.Name.Local {
 		case "viewBox":
@@ -61,18 +62,25 @@ func parseSVGRoot(doc *Document, se xml.StartElement) error {
 				return err
 			}
 			doc.ViewBox = vb
-		case "width":
-			v, err := parseDimension(attr.Value)
-			if err == nil {
-				doc.Width = v
-			}
-		case "height":
-			v, err := parseDimension(attr.Value)
-			if err == nil {
-				doc.Height = v
-			}
 		case "fill":
 			doc.RootFill = attr.Value
+		}
+	}
+
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "width":
+			v, err := parseDimension(attr.Value, doc.ViewBox.Width)
+			if err != nil {
+				return fmt.Errorf("svg: <svg> width: %w", err)
+			}
+			doc.Width = v
+		case "height":
+			v, err := parseDimension(attr.Value, doc.ViewBox.Height)
+			if err != nil {
+				return fmt.Errorf("svg: <svg> height: %w", err)
+			}
+			doc.Height = v
 		}
 	}
 
@@ -115,14 +123,45 @@ func parseViewBox(s string) (ViewBox, error) {
 }
 
 // parseDimension parses an SVG dimension value, stripping optional units.
-func parseDimension(s string) (float64, error) {
-	// Strip common units (px, em, pt, etc.)
+// Percentages resolve against ref (the viewport dimension).
+func parseDimension(s string, ref float64) (float64, error) {
 	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "%") {
+		raw := strings.TrimSpace(strings.TrimSuffix(s, "%"))
+		v, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return 0, fmt.Errorf("svg: invalid percentage dimension %q: %w", s, err)
+		}
+		return v * ref / 100, nil
+	}
+	// Strip common absolute units; the icon subset treats them as user units.
 	s = strings.TrimSuffix(s, "px")
 	s = strings.TrimSuffix(s, "pt")
 	s = strings.TrimSuffix(s, "em")
-	s = strings.TrimSuffix(s, "%")
-	return strconv.ParseFloat(strings.TrimSpace(s), 64)
+	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return 0, fmt.Errorf("svg: invalid dimension %q: %w", s, err)
+	}
+	return v, nil
+}
+
+// parseLength parses a child geometry length. Percentage lengths in child
+// geometry are not resolved by this icon subset; reject them instead of
+// silently treating "50%" as zero. Root width/height percentages are handled
+// by parseDimension against the viewBox.
+func parseLength(s string) (float64, error) {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "%") {
+		return 0, fmt.Errorf("percentage length %q is not supported in child geometry", s)
+	}
+	s = strings.TrimSuffix(s, "px")
+	s = strings.TrimSuffix(s, "pt")
+	s = strings.TrimSuffix(s, "em")
+	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid length %q: %w", s, err)
+	}
+	return v, nil
 }
 
 // parseChildren parses child elements until the matching end element is found.
@@ -243,14 +282,23 @@ func parsePathElement(decoder *xml.Decoder, se xml.StartElement) (*PathElement, 
 func parseCircleElement(decoder *xml.Decoder, se xml.StartElement) (*CircleElement, error) {
 	elem := &CircleElement{Attrs: parseAttrs(se)}
 	for _, attr := range se.Attr {
+		var dst *float64
 		switch attr.Name.Local {
 		case "cx":
-			elem.CX, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.CX
 		case "cy":
-			elem.CY, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.CY
 		case "r":
-			elem.R, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.R
 		}
+		if dst == nil {
+			continue
+		}
+		v, err := parseLength(attr.Value)
+		if err != nil {
+			return nil, fmt.Errorf("svg: <circle> %s: %w", attr.Name.Local, err)
+		}
+		*dst = v
 	}
 	if err := decoder.Skip(); err != nil {
 		return nil, fmt.Errorf("svg: error reading <circle>: %w", err)
@@ -262,20 +310,29 @@ func parseCircleElement(decoder *xml.Decoder, se xml.StartElement) (*CircleEleme
 func parseRectElement(decoder *xml.Decoder, se xml.StartElement) (*RectElement, error) {
 	elem := &RectElement{Attrs: parseAttrs(se)}
 	for _, attr := range se.Attr {
+		var dst *float64
 		switch attr.Name.Local {
 		case "x":
-			elem.X, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.X
 		case "y":
-			elem.Y, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.Y
 		case "width":
-			elem.W, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.W
 		case "height":
-			elem.H, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.H
 		case "rx":
-			elem.RX, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.RX
 		case "ry":
-			elem.RY, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.RY
 		}
+		if dst == nil {
+			continue
+		}
+		v, err := parseLength(attr.Value)
+		if err != nil {
+			return nil, fmt.Errorf("svg: <rect> %s: %w", attr.Name.Local, err)
+		}
+		*dst = v
 	}
 	if err := decoder.Skip(); err != nil {
 		return nil, fmt.Errorf("svg: error reading <rect>: %w", err)
@@ -287,16 +344,25 @@ func parseRectElement(decoder *xml.Decoder, se xml.StartElement) (*RectElement, 
 func parseEllipseElement(decoder *xml.Decoder, se xml.StartElement) (*EllipseElement, error) {
 	elem := &EllipseElement{Attrs: parseAttrs(se)}
 	for _, attr := range se.Attr {
+		var dst *float64
 		switch attr.Name.Local {
 		case "cx":
-			elem.CX, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.CX
 		case "cy":
-			elem.CY, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.CY
 		case "rx":
-			elem.RX, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.RX
 		case "ry":
-			elem.RY, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.RY
 		}
+		if dst == nil {
+			continue
+		}
+		v, err := parseLength(attr.Value)
+		if err != nil {
+			return nil, fmt.Errorf("svg: <ellipse> %s: %w", attr.Name.Local, err)
+		}
+		*dst = v
 	}
 	if err := decoder.Skip(); err != nil {
 		return nil, fmt.Errorf("svg: error reading <ellipse>: %w", err)
@@ -308,16 +374,25 @@ func parseEllipseElement(decoder *xml.Decoder, se xml.StartElement) (*EllipseEle
 func parseLineElement(decoder *xml.Decoder, se xml.StartElement) (*LineElement, error) {
 	elem := &LineElement{Attrs: parseAttrs(se)}
 	for _, attr := range se.Attr {
+		var dst *float64
 		switch attr.Name.Local {
 		case "x1":
-			elem.X1, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.X1
 		case "y1":
-			elem.Y1, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.Y1
 		case "x2":
-			elem.X2, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.X2
 		case "y2":
-			elem.Y2, _ = strconv.ParseFloat(attr.Value, 64)
+			dst = &elem.Y2
 		}
+		if dst == nil {
+			continue
+		}
+		v, err := parseLength(attr.Value)
+		if err != nil {
+			return nil, fmt.Errorf("svg: <line> %s: %w", attr.Name.Local, err)
+		}
+		*dst = v
 	}
 	if err := decoder.Skip(); err != nil {
 		return nil, fmt.Errorf("svg: error reading <line>: %w", err)

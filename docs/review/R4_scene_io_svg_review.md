@@ -57,7 +57,9 @@
 ### render/svg（未接线）
 
 - **P2｜fill="none" 继承被黑填充覆盖**（`render/svg/renderer.go:186-191`）：祖先设 `fill="none"`、元素自身无 fill/stroke 属性时，`shouldFill=false` 但兜底逻辑看的是原始字符串 `a.Fill==""&&a.Stroke==""` → 强制 hasFill=true → 黑填充。违反 SVG 规范也违反自家文档"none 保留"承诺（现有测试只盖了带 stroke 的元素，没盖住这条路）。
+  - **2026-10-21 处置**：已修，默认黑填充兜底改看 `resolveFill/resolveStroke`；永久回归 `TestRenderInheritedFillNoneWithoutStroke`。
 - **P3｜百分比单位错解**（`parser.go:114`）：`50%` 剥掉 % 当 50 用；属性解析错误一律静默吞成 0；defs/use/gradients/clipPath 不支持且静默跳过（url(#grad) 填充落黑）；非均匀拉伸渲染、不支持 preserveAspectRatio。
+  - **2026-10-21 处置**：`fill="none"` 继承已修（`renderer.go` 兜底改看 `resolveFill/resolveStroke`）；根 width/height 百分比已按 viewBox 解析；子元素几何改用 `parseLength`，非法值/百分比明确报错。已建直调真窗 `examples/ui_render_base_svg`（逻辑 7/7、像素 9/9、Golden/抓屏 627200px 零差）。defs/use/渐变/clipPath/preserveAspectRatio 仍属图标子集限界，见本窗 README。
 
 ---
 

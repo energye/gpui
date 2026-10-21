@@ -33,6 +33,21 @@
 //   - transform (translate, rotate, scale, matrix)
 //   - opacity
 //
+// # Dimensions and limits
+//
+// Root width/height percentages resolve against the viewBox (for example,
+// width="50%" on a viewBox width of 16 yields 8). Percentage lengths on child
+// geometry are not supported by this icon subset and return a parse error
+// instead of silently becoming zero. Invalid numeric geometry also returns an
+// error naming the element and attribute.
+//
+// An inherited fill="none" is preserved: a child with no fill or stroke draws
+// nothing rather than falling back to the SVG initial black fill.
+//
+// This is intentionally an icon subset. <defs>, <use>, gradients, <clipPath>,
+// <text>, and preserveAspectRatio are not implemented; unsupported elements
+// are skipped. A url(...) paint is not resolved and falls back to black.
+//
 // # Usage
 //
 //	img, err := svg.Render(svgBytes, 64, 64)

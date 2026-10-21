@@ -77,7 +77,7 @@
 | render/filters | ✅ | r20 blank import（main.go:47）+ 滤镜节点路径 |
 | render/text/emoji | 🔁 | render/text 内部（color_font_adapter.go 等）+ ui/rendering/text_layout.go；真窗 ui_text_m5_anycase（emoji 分区，main.go:3/130） |
 | render/gpu | ✅ | blank import 全窗（注册渲染后端） |
-| render/svg | ⛔ | 全仓（非测试）零 import |
+| render/svg | 📄 | 直调真窗 `examples/ui_render_base_svg`（2026-10-21：4 卡 SVG 图标 / fill=none / 嵌套 transform / 主题色；逻辑 7/7、像素 9/9、Golden 627200px 零差、抓屏同区 0.0000%）；生产消费者仍为零 |
 
 ## 3. 缺真窗清单（第一步任务：全功能真窗化）
 
@@ -110,7 +110,7 @@
 ### 3.3 C 组：先修实现/先定案，再建窗
 
 - 增量呈现断头（见 §6）；clip 差集/绕向、4x MSAA 中帧 UB、4x backdrop Blur 已修。rrect 图片/文字裁剪已由 C 组#6 `ui_render_base_cliprrect` 补上真窗证据并关闭，同批修 CPU 位图/缩放/别名文本绕过裁剪栈的缺陷，不再列入本清单
-- svg 整包：零消费者 —— 待修 bug + 建真窗；surface/raster 已于 2026-10-21 裁撤（surface 与主包渲染重复，raster 功能由 render/gpu 注册）
+- ~~svg 整包：零消费者~~ → 2026-10-21 已建真窗 `examples/ui_render_base_svg`（四卡：填充圆 / 根 `fill="none"` 描边圆 / 嵌套 `<g transform>` / `RenderWithColor` 主题色；同批修 `fill="none"` 继承被黑填充覆盖、根 `width/height` 百分比错解、子几何/根尺寸非法值静默吞 0）。surface/raster 已于 2026-10-21 裁撤（surface 与主包渲染重复，raster 功能由 render/gpu 注册）
 
 ## 4. UI 母表「画什么」摘要（文档口径，本轮未逐行源码复核）
 
@@ -201,7 +201,7 @@
 2. `rendering.DrawVertices/FillSweepGradient` 门面：DrawVertices 仍全仓零调用；FillSweepGradient 2026-10-19 起有真窗直调（`ui_render_base_sweepgradient`，原子验证）但仍无生产调用方 → 口径=「门面未接线」（AGENTS.md 生产/原子验证口径：真窗示例只算原子验证），生产接线待后续。
 3. `ui_wr_c12_spin_over_static`（空目录）/`engine/stage_night`（仅 doc.go）按真源是否已排期。
 4. 视频底层 API 口径（经桥用算不算接线）。
-5. `render/svg`：待修 bug + 建真窗。
+5. `render/svg`：已建直调真窗（2026-10-21），仍无生产消费者；后续接入 UI 图标加载前先保持原子验证口径。
 6. Bicubic GPU 化（RENDER_2D_ALIGNMENT 洞2）修复状态需复核。
 
 ## 10. 建议销账顺序
@@ -245,3 +245,4 @@
 | 2026-10-21 | **C 组 API 收敛：删除旧两参 `DrawImageQuad`，并把 `DrawImageQuadEx` 正名为 `DrawImageQuad(img,corners,opts)`**：旧两参入口只剩兼容包装，生产调用为零，仓库内仅 `quad_cpu_test.go` / `p1_capability_matrix_closers_test.go` / `p1_complex_ui_matrix_test.go` 三处测试调用。按开发阶段「接口全量切换制」删除旧方法与未被调用的 `drawImageQuadCPU`；带显式选项的入口去掉非标准 `Ex` 后缀，统一为 `DrawImageQuad`，测试/示例同批改调（显式 `QuadDrawOptions{}` 默认 Bilinear/不透明/Normal；退化四边形仍走 `ErrQuadDegenerate` 且不污染画布）。不补重复真窗：`examples/engine/quad` 已覆盖梯形/parity/golden/gpu_ops，`quad_cpu_test.go` 覆盖值级契约。**公开 API 变更**：Context 导出方法仍 200（删一个、留一个）；`RENDER_API_CATALOG.md` §0/§3.5/§3.10/§8 同步。验证：`go test ./render -run '^TestQuad' -count=3`、`TestQuad* -race`、`TestP1_Capability_T04_ImageQuadGPU`、`TestP1_S2_/T1_/U1_` 与 `go run ./scripts/apidoc` 均绿。**性质=API 收敛，无新增能力**。 |
 | 2026-10-21 | **C 组子包裁撤：删除 `render/raster`**：35 行纯 init 开关包，全仓非测试零 import；`init()` 注册的 `gpuimpl.AdaptiveFiller` 与 `render/gpu` 的 init 完全重复。删除后 CPU 复杂路径分块光栅仍由 `render/gpu` 注册，不需要第二个入口。同步清理 `render/gpu` 注释、`render/internal/gpu/transformed_mask_text.go` 的旧引用与 `scripts/apidoc` 跳过说明；文档 §2 子包表、§3.3、§9 与本行同步。验证：`go build ./render/...`、`go test ./render -run '^TestQuad'`、`go run ./scripts/apidoc` 绿。**性质=死包清理，无能力变化**。 |
 | 2026-10-21 | **C 组子包裁撤：删除 `render/surface`**：整包 53 个公开 API（Surface/ImageSurface/GPUSurface/Registry 及自有 Path/Stroke/Brush 类型），全仓非测试零 import；与 `render.Context` 的 CPU/GPU 渲染及路径/描边实现重复，GPUSurface 也只是外部 backend 壳。按「render 只做通用难事」与「成熟库优先」原则裁撤，不保留第二套渲染目标和注册表；未来第三方后端走 render/hal。同步删除 `scripts/apidoc` 的 surface 扫描与 API 总账 §0/§6.4/§7.2/附录、本文档 §2/§3.3/§9。验证：`go build ./render/...`、`go test ./render -run '^TestQuad'`、`go run ./scripts/apidoc` 绿。**性质=死包清理，无能力变化**。 |
+| 2026-10-21 | **C 组 SVG 真窗 `examples/ui_render_base_svg` + 修 `fill="none"` 继承与根百分比单位**：此前 `render/svg` 整包零真窗、零生产消费者，评审记两个语义 bug。窗=1200×800 四卡：A 红色填充圆（parse→raster→GPU `DrawImageEx`）/ B 根 `fill="none"` + 蓝色描边圆（圆心必须透卡底）/ C 嵌套 `<g transform="translate(2 2)">` 两块绿方块 / D `RenderWithColor` 白色填充替换为主题紫。三证据+抓屏：①逻辑 7/7（子进程 CPU 离屏：fill=none 全透明、根 50%/25% 解析为 8/2、填充圆中心/角、描边圆中心透明+环色、主题色保留 none、嵌套变换两方块+空隙、非法 XML 报错）②像素 9/9（GPU 快照圆心/角/环/两方块/空隙/主题色，容差 0.04）③Golden 表头+图例+四卡 627200px 逐位零差（播种后复跑 `0.0000%`）④抓屏 vs 快照同 627200px `0.0000%`（tol ±2/255）。门禁：`-auto-only`/RUN_SECONDS（≥5s）+ §2.2 A–J JSON（`present_policy=full_paint`、`vsync_source=true`、`gpu_ops=26703`、`cpu_fallback_ops=0`、`gpu_fallbacks=0`、`presents=300`、`fps_gate=off_correctness`；人工档 `-manual-seconds 8` 退出 0（`presents=480`、`gpu_ops=42723`、`cpu_fallback_ops=0`、抓屏 0））。**修法**：`fillAndStroke` 默认黑填充兜底改看有效值 `resolveFill/resolveStroke`；`parseSVGRoot` 先读 viewBox 再按参考轴解析根 width/height 百分比；子元素 `<circle>/<rect>/<ellipse>/<line>` 几何改用 `parseLength`，非法值/子元素百分比/根 width·height 非法值返回带元素/属性名的错误，不再静默吞 0。永久回归 `render/svg/svg_test.go` 四例（`TestRenderInheritedFillNoneWithoutStroke` / `TestParseRootPercentDimensions` / `TestParseChildPercentLengthRejected` / `TestParseInvalidRootDimensionRejected`）。限界：仍是图标子集（defs/use/渐变/clipPath/preserveAspectRatio 未支持），子元素百分比明确报错，本窗为原子验证、无生产消费者。真源同步：§2 子包表、§3.3、§9、本行；`RENDER_API_CATALOG.md` §6.4；本窗 README。**性质=原子验证**，不算生产接线 |
