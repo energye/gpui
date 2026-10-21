@@ -37,6 +37,7 @@ type imageScene struct {
 	phase       float64
 	swapCount   int
 	status      string
+	frozen      bool
 	decodeOnce  sync.Once
 	applyMu     sync.Mutex
 	lastApplied string
@@ -282,9 +283,11 @@ func (s *imageScene) onTick(dt float64, schedule func()) {
 	if s == nil {
 		return
 	}
-	s.phase += dt * 0.7
-	if s.phase > 1 {
-		s.phase -= 1
+	if !s.frozen {
+		s.phase += dt * 0.7
+		if s.phase > 1 {
+			s.phase -= 1
+		}
 	}
 
 	// Hop worker results onto "UI" path: only mutate RO here.

@@ -14,11 +14,15 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/energye/gpui/examples/wrevidence"
+	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/ui/platform"
 	//_ "github.com/energye/gpui/render/gpu"
@@ -30,8 +34,21 @@ import (
 const winW, winH = 1200.0, 800.0
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate run: snapshot + pixel + Golden gate (default 5s)")
+	manualSeconds := flag.Int("manual-seconds", 0, "manual run seconds (0 = until close; manual runs do not seed Golden)")
+	flag.Parse()
+
 	secs, secsSet := wrkit.RunSecondsOpt()
-	if secsSet {
+	gateMode := *autoOnly
+	if *manualSeconds > 0 {
+		secs = *manualSeconds
+		gateMode = false
+	} else if gateMode {
+		if !secsSet {
+			secs = 5
+		}
+	}
+	if gateMode {
 		wrkit.RequireMinRun(secs, "GRX")
 	}
 	wrkit.EnsureUIFace()
@@ -188,11 +205,22 @@ func main() {
 	shell.Body.Place(canvas, 0, 0)
 	shell.Body.Place(wrkit.Label("basic — §1 光栅图元：Point / LineSegment / Triangle", 13, 0.9, 0.92, 0.97), 4, 2*cellH+2*pad+8)
 
+	snapPath := os.Getenv("SNAP_PNG")
+	if snapPath == "" && gateMode {
+		snapPath = filepath.Join("examples", "ui_render_graphics", "basic", "testdata", "showcase_basic.png")
+	}
+	if snapPath != "" {
+		if err := os.MkdirAll(filepath.Dir(snapPath), 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: snap dir:", err)
+			os.Exit(1)
+		}
+	}
+
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
 		WarmUp:       true,
-		SnapshotPath: os.Getenv("SNAP_PNG"),
+		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
 			switch ev.Type {
 			case platform.EventClose:
@@ -210,11 +238,15 @@ func main() {
 		shell.UpdateHUD("GRX", "basic", app, true, "Point/Line/Triangle", "")
 	}})
 	app.Scheduler().SetMode(scheduler.ModePersistent)
+	if gateMode {
+		app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	}
 
 	if err := app.Open(); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
+	t0 := time.Now()
 	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
 		os.Exit(1)
@@ -225,7 +257,103 @@ func main() {
 	proc.NoteAfterClose()
 	proc.Apply(app.Metrics())
 
-	fmt.Fprintf(os.Stderr, "basic: OK presents=%d\n", app.PresentCount())
+	presents := app.PresentCount()
+	if presents < 1 {
+		fmt.Fprintln(os.Stderr, "FAIL: no frames")
+		os.Exit(1)
+	}
+	if !gateMode {
+		fmt.Fprintf(os.Stderr, "basic: OK presents=%d\n", presents)
+		return
+	}
+
+	elapsed := time.Since(t0).Seconds()
+	if elapsed < 0.001 {
+		elapsed = 0.001
+	}
+	m := app.Metrics().Snapshot()
+	img := wrevidence.Load(snapPath)
+	if img == nil {
+		os.Exit(1)
+	}
+	bx, by := shell.Body.X, shell.Body.Y
+	checks := []wrevidence.PixelCheck{
+		{Desc: "cell0_bg", X: bx + 27, Y: by + 27, Want: [3]float64{0.135, 0.15, 0.19}, Tol: 0.05, Kind: wrevidence.KindBG},
+		{Desc: "cell1_bg", X: bx + 334, Y: by + 27, Want: [3]float64{0.11, 0.12, 0.15}, Tol: 0.05, Kind: wrevidence.KindBG},
+		{Desc: "point_r2", X: bx + 47, Y: by + 139, Want: [3]float64{1.0, 0.45, 0.40}, Tol: 0.06, Kind: wrevidence.KindBG},
+		{Desc: "point_r14", X: bx + 233, Y: by + 139, Want: [3]float64{0.40, 0.75, 0.95}, Tol: 0.06, Kind: wrevidence.KindBG},
+		{Desc: "grid_center", X: bx + 469, Y: by + 139, Want: [3]float64{0.95, 0.50, 0.20}, Tol: 0.06, Kind: wrevidence.KindBG},
+		{Desc: "tri_fill", X: bx + 384, Y: by + 384, Want: [3]float64{0.25, 0.80, 0.70}, Tol: 0.06, Kind: wrevidence.KindBG},
+		{Desc: "line_w6", X: bx + 220, Y: by + 334, Want: [3]float64{0.85, 0.57, 0.95}, Tol: 0.08, Kind: wrevidence.KindBG},
+		{Desc: "top_bg", X: 100, Y: 24, Want: [3]float64{0.12, 0.14, 0.18}, Tol: 0.05, Kind: wrevidence.KindBG},
+		{Desc: "legend_bg", X: shell.Legend.X + 20, Y: shell.Legend.Y + shell.Legend.H - 20, Want: [3]float64{0.11, 0.12, 0.15}, Tol: 0.05, Kind: wrevidence.KindBG},
+	}
+	pixelResult := wrevidence.CheckPixels(img, checks, "basic")
+	pixelOK := 0
+	for _, ok := range pixelResult {
+		if ok {
+			pixelOK++
+		}
+	}
+	goldenDiffPct, goldenTotalPx, goldenFirstRun := wrevidence.Golden(
+		snapPath, filepath.Join("examples", "ui_render_graphics", "basic", "testdata", "showcase_basic_base.png"),
+		[]wrevidence.Rect{
+			{X: 0, Y: 0, W: winW, H: 48},
+			{X: shell.Legend.X, Y: shell.Legend.Y, W: shell.Legend.W, H: shell.Legend.H},
+			{X: shell.Body.X, Y: shell.Body.Y, W: shell.Body.W, H: shell.Body.H},
+		}, "basic")
+
+	logic := map[string]bool{
+		"presents_positive": presents >= 1,
+		"paint_positive":    m.PaintCount > 0,
+		"gpu_ops_positive":  m.GPUOps > 0 || m.PictureOpCount > 0,
+		"fallback_zero":     m.CPUFallbackOps == 0,
+		"picture_ops":       m.PictureOpCount > 0,
+	}
+	logicPass := 0
+	for _, ok := range logic {
+		if ok {
+			logicPass++
+		}
+	}
+
+	report := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID: "GRX-BASIC", Scenario: "ui_render_graphics_basic",
+		Backend: win.Backend().String(), Snap: m, PresentCount: presents,
+		ElapsedSec: elapsed, SurfaceAreaPx: winW * winH, Warmup: true,
+		Extra: map[string]any{
+			"logic_probes_total":     len(logic),
+			"logic_probes_ok":        logicPass,
+			"pixel_probes_total":     len(checks),
+			"pixel_probes_ok":        pixelOK,
+			"pixel_golden_diff_pct":  goldenDiffPct,
+			"pixel_golden_total_px":  goldenTotalPx,
+			"pixel_golden_first_run": goldenFirstRun,
+		},
+	})
+	if err := wrgate.EvaluateGates(report, wrgate.GateOptions{
+		MinPresents: 1, RequireFullPaintPolicy: true,
+	}); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if b, err := wrgate.Marshal(report); err == nil {
+		fmt.Println(string(b))
+	}
+	if logicPass != len(logic) {
+		fmt.Fprintf(os.Stderr, "FAIL: logic probes %d/%d\n", logicPass, len(logic))
+		os.Exit(1)
+	}
+	if pixelOK != len(checks) {
+		fmt.Fprintf(os.Stderr, "FAIL: pixel probes %d/%d\n", pixelOK, len(checks))
+		os.Exit(1)
+	}
+	if !goldenFirstRun && goldenDiffPct != 0 {
+		fmt.Fprintf(os.Stderr, "FAIL: golden diff %.4f%% over %d px\n", goldenDiffPct, goldenTotalPx)
+		os.Exit(1)
+	}
+	fmt.Fprintf(os.Stderr, "basic: OK presents=%d logic=%d/%d pixel=%d/%d golden=%.4f%% elapsed=%.1fs\n",
+		presents, logicPass, len(logic), pixelOK, len(checks), goldenDiffPct, elapsed)
 }
 
 type ticker struct{ on func(dt float64) }

@@ -17,6 +17,7 @@ type clipScene struct {
 	Xform      *rendering.RenderTransform
 	phase      float64
 	clipOff    float64
+	frozen     bool
 }
 
 func lbl(s string, size, r, g, b float64, face text.Face) *rendering.RenderText {
@@ -138,6 +139,12 @@ func buildClipLayerScene(winW, winH float64, face text.Face) *clipScene {
 
 func (s *clipScene) onTick(dt float64, schedule func()) {
 	if s == nil {
+		return
+	}
+	if s.frozen {
+		if schedule != nil {
+			schedule()
+		}
 		return
 	}
 	s.phase += dt * 0.8

@@ -66,12 +66,12 @@ L3–L5 Kit                       ← 暂缓
 |----|------|----------------|----------|----------------------|--------------------|-------------------------|------|------|
 | **R0** | **FullPaint 正确性**（静+动同屏，防 Clear 丢静态） | `ui_wr_r0_fullpaint` | **1200×800** | **5**（观察 15） | **§2.2 全族** + policy + 静/动存在；持续 tick 则 **fps 门禁** | 静网+文+动；LiveHUD；相位 | **W0** | **✅** |
 | **R1** | 局部 NeedsLayout | `ui_wr_r1_layout` | **1200×800** | **30**（下限 5） | `layout_delta==height_changes`；零外来脏 | 仅目标子节点高度变，邻域不抖 | W1+ | **✅** |
-| **R2** | 局部 NeedsPaint | `ui_wr_r2_paint` | **1200×800** | **5** | `paint_count`/visits 可解释 | 仅目标节点变色 | **W1** | **✅** |
+| **R2** | 局部 NeedsPaint | `ui_wr_r2_paint` | **1200×800** | **5** | `paint_count`/visits 可解释 | 仅目标节点变色 | **W1** | **✅v2** |
 | **R3** | Boundary 真缓存 | `ui_wr_r3_boundary` | **1200×800** | **10** | `boundary_rerecord` 仅脏；**`boundary_skip>0`** | 静 boundary 不动；脏每帧变 | **W1** | **✅** |
 | **R3b** | Compositing bits / 边界发现 | `ui_wr_r3b_compbits` | **1200×800** | **8** | `boundary_count`；合成链深度 | 嵌套 boundary 只重约定层 | **W1** | **✅** |
 | **R4** | 层 Composite Present | `ui_wr_r4_composite` | **1200×800** | **15** | `present_policy`；`damage_ratio` 门禁 | Retained 下静在、damage≪全屏 | **W2** | **✅** |
 | **R4b** | DirtyLayerID + 多 damage | `ui_wr_r4b_multidamage` | **1200×800** | **15** | `dirty_layer_ids`；rects/并集 | 两远离脏点更新，中间静在 | **W2** | **✅** |
-| **R5** | Picture 录/回放 | `ui_wr_r5_picture` | **1200×800** | **5** | `picture_op_count`；可选像素差 | 回放区≡直绘区 | **W1–W2** | **✅v2** |
+| **R5** | Picture 录/回放 | `ui_wr_r5_picture` | **1200×800** | **5** | `picture_op_count`；配对像素 | 回放区≡直绘区 | **W1–W2** | **✅v2** |
 | **R6** | Opacity/Transform/Clip **层**动画 | `ui_wr_r6_layer_anim` | **1200×800** | **30** | `paint_count` 稳；`hitch_rate`；**fps≥55** | 转/淡/裁流畅；静背景不闪 | **W5** | **✅** |
 | **R7** | 虚拟化宿主 | `ui_wr_r7_virtlist` | **1200×800** | **60** | **`bind_count≪item_count`**；p95/hitch；RSS | 仅视口 cell；快滑约定 | **W3** | **✅** |
 | **R7b** | 滚动少重录 cell | `ui_wr_r7b_scroll_reuse` | **1200×800** | **60** | **`scroll_rerecord` 上限**；fps | 静 cell 保持；新入视口才重录 | **W3** | **✅** |
@@ -86,7 +86,7 @@ L3–L5 Kit                       ← 暂缓
 | **R15** | UI/raster 所有权·长跑 | `ui_wr_r15_soak` | **1200×800** | **300** | 时长、无崩、无读回；hitch/CPU/RSS | soak 不挂 | W2+ | **✅** |
 | **R16** | 首帧/WarmUp/恢复 | `ui_wr_r16_warmup` | **1200×800** | **5** | 首帧 full；`warmup:true`；policy；首帧有内容 | 首帧有内容；恢复不黑 | **W0** | **✅** |
 | **R17** | 不可见降频 | `ui_wr_r17_bg_throttle` | **1200×800** | **30** | 后台锁存段零提交 `bg_presents≤2`（停帧口径，用户确认；原 interval>2x 不适用停帧） | 最小化→后台冻结（窗止于最小化；恢复走单测+用户路径） | 后置（X11 + 嵌套 Wayland 双证据 ✅） | **✅** |
-| **R18** | SaveLayer+预算 | `ui_wr_r18_savelayer` | **1200×800** | **10** | `savelayer_count`/reject | 组内半透明对；超预算可观测 | **W2** | **✅** |
+| **R18** | SaveLayer+预算 | `ui_wr_r18_savelayer` | **1200×800** | **10** | `savelayer_count`/reject | 组内半透明对；超预算可观测 | **W2** | **✅v2** |
 | **R19** | 1px/设备像素对齐 | `ui_wr_r19_snap` | **1200×800** | **5** | 约定 scale 下采样或截图门禁 | 1px 线清晰不糊 | W1–W2 | **✅** |
 | **R20** | Filter 层（可选） | `ui_wr_r20_filter` | **1200×800** | **10** | 局部 rerecord | 子树灰/糊，外不变 | 可选 | **✅** |
 | **R21** | 壳/内容分层 | `ui_wr_r21_shell` | **1200×800** | **15** | 滚体时顶栏 `rerecord=0` | 顶栏静、体滚 | W2–W4 | **✅** |
@@ -420,7 +420,7 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 |---------|----------------------|----------|----------|----------------------|------------------|----------|------|
 | **C0** | R0+R12+R16 | `ui_wr_c0_smoke` | **1200×800** | **5** | 开机即见静+动；指标字段齐（**集成**；**不能**代替 R0/R12/R16 单窗） | policy、presents、首帧 | **W0** ✅ |
 | **C1** | R2+R3+R3b+R12b | `ui_wr_c1_boundary_nest` | **1200×800** | **10** | 嵌套 boundary + 可开关 debug 重绘色 | rerecord/skip/boundary_count | **W1** ✅ |
-| **C2** | R3+R4+R4b+R5 | `ui_wr_c2_retained_scene` | **1200×800** | **15** | Retained 整场景：多 boundary + Picture | damage_ratio、dirty_layers | **W2** ✅ |
+| **C2** | R3+R4+R4b+R5 | `ui_wr_c2_retained_scene` | **1200×800** | **15** | Retained 整场景：多 boundary + Picture | damage_ratio、dirty_layers | **W2** ✅v2 |
 | **C3** | R4+R7+R7b+R10 | `ui_wr_c3_list_scroll` | **1200×800** | **60** | 虚拟列表 + 滚复用 + 异步图格 | bind、scroll_rerecord、p95 | **W3** ✅ |
 | **C4** | R3+R8+R21 | `ui_wr_c4_shell_overlay` | **1200×800** | **25** | 顶栏静 + 体内容 + 浮层面板 | 顶栏 rerecord=0；开 overlay 主 paint | **W4** ✅v2（弃旧重写 + U21 像素断言/Golden，2026-08-24） |
 | **C5** | R6+R3+R4 | `ui_wr_c5_anim_over_static` | **1200×800** | **30** | 层动画盖在静态缓存上 | hitch；静不闪 | **W5** ✅（U21 像素断言/Golden + 双引擎洞根治，2026-08-25） |
@@ -491,8 +491,8 @@ Kit 组件、IME 实现、a11y 桥、多窗产品、系统托盘/菜单深做、
 | W | 状态 | 必须绿的 **单能力窗** | 必须绿的 **组合窗** |
 |---|------|----------------------|---------------------|
 | **W0** | **✅** | **R0✅ · R12✅ · R16✅**（各独立 `ui_wr_*` 真窗） | C0✅（仅集成） |
-| **W1** | **✅** | R2✅ R3✅ R3b✅ R5✅ R9✅ R12b✅ R19✅（各独立 `ui_wr_*` 真窗） | C1✅ |
-| **W2** | **✅** | **R4✅ R4b✅ R5✅v2 R11✅ R13✅ R18✅** · R21(可) R19(可) | **C2✅ C7✅ 组合窗** |
+| **W1** | **🔄** | R2✅v2 R3✅ R3b✅ R5✅v2 R9✅ R12b✅ R19✅（R2/R5 已三证据重关；R3/R3b/R9/R12b/R19 三证据缺口见审计） | C1✅ |
+| **W2** | **🔄** | **R4✅ R4b✅ R5✅v2 R11✅ R13✅ R18✅v2** · R21(可) R19(可)（R5/R18/C2 已三证据重关；R4/R4b/R11/R13/C7 三证据缺口待补） | **C2✅v2 C7✅ 组合窗** |
 | **W3** | **✅** | R7✅ · R7b✅ · R10✅（各独立 `ui_wr_*` 真窗） | C3✅ |
 | **W4** | **✅** | R8✅、R21✅ | C4✅v2（弃旧重写+U21）、C8✅（可选项已补，不代替 R6） |
 | **W5** | ✅（R6✅ R20✅ C5✅ C6✅） | R6✅、R20✅(可) | C5✅、C6✅ |
@@ -553,6 +553,12 @@ G0–G17 / X 横切：需求地图。L0 三平台：预留；真窗本阶段 Lin
 
 | 版本 | 说明 |
 |------|------|
+| P1 首批十窗三证据收口（跨域登记） | **2026-10-21 首批 10 扇全部 ✅v2**：六扇 render-axis（`ui_render_base_text/image/geometry/cliplayer` + `ui_render_graphics/basic/vector`）+ 四扇 R/C（R2/R5/R18/C2）。六窗逻辑 5/5–8/8、像素 5/5–9/9、Golden 403200–821184px 两连 `0.0000%`；gate 统一 `-auto-only` 5s 两连 exit 0，manual 2s 退出 0；新增 `examples/wrevidence` 共享像素/Golden 辅助。R2/R5/R18/C2 的 §2/§3 状态与实测见本表下方四行；六扇 render-axis 的窗口规格/证据登记见 `ENGINE_UI_RENDER_BASE.md` §23/§24 1.60，本表只做跨域同步，不改 W1/W2 其余能力状态。限界：六窗为原子验证、无组件/2.5D/视频生产消费者；graphics 两窗静态、不设 FPS 门禁；image 短窗不设 p95 门禁；geometry 无 face 标签不可见，不声称已断言。 |
+| C2 质量升维 ✅v2 | **C2 retained 整场景三证据返工关窗（`ui_wr_c2_retained_scene` 1200×800·15s·GPU PASS 两连跑）**：gate 档冻结 Steady，manual 跑完整三相位；逻辑/集成门禁全绿：presents=899、paint_count=3、boundary_skip=36365、boundary_rerecord=217、boundary_count=28、depth=3、dirty ids=12/16、damage_multi=892、damage_ratio_sum=0.186875、mode=damage_multi、policy=retained、ops=8、fps=59.94、p95=18.33ms、gpu_ops=56660、fallback=0（15s 窗 hitch=1 为观测，不设硬门禁）。像素 14/14（R3 inner hot、R4 静态 00/11/22、hotA、hot1、hot2、R5 direct/replay tri+img、三面板底色）；Picture direct/replay 同点配对 2/2；Golden header+legend+body = 821184 px 逐位零容差，两连 0.0000%；manual `-manual-seconds 15` 走完 Steady→Spike→Recover 退出 0。**顺带修两处布局重叠**：旧 hotA `.60,.42` 被 R5 replay 框盖住、旧 direct `.34`/replay `.52` 两 190px 框重叠约 61px 导致 direct 图片被 replay 覆盖；改 hotA `.78,.82`、Picture `.22/.50` 留缝并排。§3 C2 🔄→✅v2；§5 W2 C2✅v2（W2 仍 🔄：R4/R4b/R11/R13/C7 三证据缺口待补）。 |
+| R18 质量升维 ✅v2 | **R18 SaveLayer+预算三证据返工关窗（`ui_wr_r18_savelayer` 1200×800·10s·GPU PASS 两连跑）**：gate 档冻结 HOT/计数横幅/组 C，保证快照确定；逻辑 5/5（allow≥1、reject≥1、groups=2、presents>0、paint_count>0）；像素 10/10：A 组红 0.85×0.55→0.514、A 组蓝 0.6×0.55→0.33 过 BG、B 组绿保持裸色 0.35（拒批无组透明）、B 组红框、C 组缺位 BG、D 格、HOT、三面板底色；Golden 821184 px 两连 0.0000%。实测两连（10s）：allow=601/602、reject=601/602、presents=600/601、paint_count=599/600、policy=full_paint、fps=59.97、p95=17.17ms、hitch=0、gpu_ops=60603、fallback=0；manual `-manual-seconds 10` 走完 Spike→Recover 退出 0。§2 R18 🔄→✅v2；§5 W2 R18✅v2（W2 仍 🔄：R4/R4b/R11/R13/C7 三证据缺口待补）。 |
+| R5 质量升维 ✅v2 | **R5 Picture 录/回放三证据返工关窗（`ui_wr_r5_picture` 1200×800·5s·GPU PASS 两连跑）**：把旧硬编码 `direct_replay_eq:true` 换成实测。逻辑 6/6（recorded_ops=8、picture_op_count≥3、direct_replay_eq、presents>0、paint_count>0、静态色格像素）；像素 15/15（直绘/回放各 5 点：三角红、填充绿、图绿、描边蓝、描边黄 + 静态格 + 文字墨迹 + 三面板底色）；direct/replay 同点配对 5/5（容差 0.02，实测 RGB 完全一致）；Golden header+legend+body = 821184 px 逐位零容差，两连 0.0000%。实测两连：presents=299/300、paint_count=298、ops=8、bounds=(18,20 164x210)、policy=full_paint、fps=59.78、p95=18.92ms、hitch=0、gpu_ops=19139、fallback=0。manual `-manual-seconds 2` 退出 0。§2 R5 🔄→✅v2；§5 W1/W2 R5✅v2（W1/W2 仍 🔄：W1 待 R3/R3b/R9/R12b/R19 三证据、W2 待 R4/R4b/R11/R13/C7 三证据）。 |
+| R2 质量升维 ✅v2 | **R2 局部 NeedsPaint 三证据返工关窗（`ui_wr_r2_paint` 1200×800·5s·GPU PASS 两连跑）**：模式 2 反攻；gate 档相位冻结 Steady、manual 保留 Steady→Spike→Recover；场景保留 4×3 静态 boundary 色块 + 4×3 非 boundary 色格 + 12 标签 + 两个独立热点 + HUD。U21 三证据：逻辑 6/6（`paint_count>0`、`paint_count≤presents+20`、`presents>0`、静态 boundary=12、`boundary_skip>0`、`boundary_rerecord>0`）；像素 13/13（4 静态块中心色、3 非 boundary 色格、hot 红 / hot2 橙、标签墨迹、body/legend/top 三块底色）；Golden header 48 + legend 260×656 + body 904×656 = **821184 px** 逐位零容差，播种后两连 **0.0000%**。实测两连：presents=300、paint_count=3、boundary_skip=15221、boundary_rerecord=114、fps_interval=60.12、p95=18.66ms、hitch=0、vsync=true、fallback=0、policy=retained（W6 默认，不强制 full_paint，R2 只验局部隔离）；manual `-manual-seconds 2` 退出 0、无像素/Golden 假 FAIL（manual 只做人工观察）。§2 R2 🔄→✅v2；§5 W1 R2✅v2（W1 仍 🔄 待 R3/R3b/R9/R12b/R19 三证据）。 |
+| R2/R5/R18/C2 质量返工立项 | **四窗三证据返工（2026-10-21，用户确认按 §2.2 模式 2 反攻）**：审计发现 `ui_wr_r2_paint` / `ui_wr_r5_picture` / `ui_wr_r18_savelayer` / `ui_wr_c2_retained_scene` 只有逻辑指标（C2 的 “pixel” 仅为注释），无真实像素断言、无 Golden；按三证据标准属假绿。§2 R2/R5/R18 ✅→🔄、§3 C2 ✅→🔄，§5 W1/W2 同步降 🔄。返工口径：每窗补「逻辑探针 + 真像素断言 + Golden 逐位」，连跑两次 0.0000% 后再升 ✅v2；首批先做 R2，其余按审计 §4 排期。 |
 | API目录同步 | **C 组 SVG 真窗（2026-10-21）**：新增 `examples/ui_render_base_svg`（填充圆 / 根 `fill="none"` 描边圆 / 嵌套 `<g transform>` / `RenderWithColor` 主题色四卡；逻辑 7/7、像素 9/9、Golden 627200px 零差、抓屏同区 0.0000%）。同批修 `fill="none"` 继承被黑填充覆盖、根 width/height 百分比错解、子几何/根尺寸非法值静默吞 0；永久回归 `render/svg/svg_test.go` 四例。`render/svg` 公开签名不变，仍无生产消费者，状态按 API 总账标 🔌（直调真窗已验）。同步 `RENDER_API_CATALOG.md` §6.4、`RENDER_FEATURE_COVERAGE.md` §2/§3.3/§9/§11。 |
 | API目录同步 | **C 组子包裁撤（2026-10-21）**：删除无消费者的 `render/surface` 整包（53 个公开 API，与主包渲染目标/路径/描边重复；未来第三方后端走 render/hal）。同步 `scripts/apidoc`、`RENDER_API_CATALOG.md` §0/§6.4/§7.2/附录、`RENDER_FEATURE_COVERAGE.md` §2/§3.3/§9/§11。验证：`go build ./render/...`、`go test ./render -run '^TestQuad'`、`scripts/apidoc` 绿。 |
 | API目录同步 | **C 组子包裁撤（2026-10-21）**：删除无消费者的 `render/raster` init 开关包（35 行，零公开符号）；其注册的 `AdaptiveFiller` 与 `render/gpu` init 完全重复，删除后 CPU 分块光栅仍由 `render/gpu` 启用。同步清理 `render/gpu`、`render/internal/gpu/transformed_mask_text.go`、`scripts/apidoc` 的旧引用，以及 `RENDER_API_CATALOG.md` §0/§6.7/§7.2、`RENDER_FEATURE_COVERAGE.md` §2/§3.3/§9/§11。验证：`go build ./render/...`、`go test ./render -run '^TestQuad'`、`scripts/apidoc` 绿。 |

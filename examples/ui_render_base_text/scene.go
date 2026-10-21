@@ -13,8 +13,9 @@ type textScene struct {
 	ColorPulse *rendering.RenderText
 	DCPanel    *rendering.RenderBox
 
-	face  text.Face
-	phase float64
+	face   text.Face
+	phase  float64
+	frozen bool
 }
 
 type langSample struct {
@@ -176,6 +177,7 @@ func buildTextScene(winW, winH float64, face text.Face, fontPath string) *textSc
 	s.ColorPulse.FontSize = 15
 	s.ColorPulse.ApproxCharW = 0.7
 	s.ColorPulse.SetRepaintBoundary(true)
+	s.ColorPulse.SetColor(0.5, 0.7, 1, 1) // deterministic phase-0 color for gate snapshots
 	if face != nil {
 		s.ColorPulse.SetFace(face)
 	}
@@ -214,6 +216,12 @@ func buildTextScene(winW, winH float64, face text.Face, fontPath string) *textSc
 
 func (s *textScene) onTick(dt float64, schedule func()) {
 	if s == nil {
+		return
+	}
+	if s.frozen {
+		if schedule != nil {
+			schedule()
+		}
 		return
 	}
 	s.phase += dt * 0.6

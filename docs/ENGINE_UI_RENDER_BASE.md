@@ -778,10 +778,10 @@ go run ./examples/ui_l1_scroll              # 滚动
 
 | 程序 | 施工序 | 作用 |
 |------|--------|------|
-| `ui_render_base_geometry` | 5–6 | 几何/Path + 指标 JSON |
-| `ui_render_base_text` | 10 | 文本 + JSON |
-| `ui_render_base_image` | 9 | 图/异步/RSS |
-| `ui_render_base_cliplayer` | 7–8 | Clip/Transform |
+| `ui_render_base_geometry` | 5–6 | 几何/Path + 逻辑/像素/整窗 Golden（409200px） |
+| `ui_render_base_text` | 10 | 文本 + 逻辑/像素/整窗 Golden（576000px） |
+| `ui_render_base_image` | 9 | 图/异步/RSS + 逻辑/像素/整窗 Golden（499200px） |
+| `ui_render_base_cliplayer` | 7–8 | Clip/Transform + 逻辑/像素/整窗 Golden（403200px） |
 | `ui_render_base_pathlow` | A 组#1 | 路径低频三 API（FillPreserve/StrokePreserve/GetCurrentPoint）+ 像素/Golden |
 | `ui_render_base_pathshape` | A 组#2 | 路径造型三 API（Trim/WithCorners/Discrete）+ 像素/Golden |
 | `ui_render_base_strokepreset` | A 组#3 | 描边预设族（8 预设 + SetStroke）+ 像素/Golden |
@@ -819,6 +819,15 @@ go run ./examples/ui_l1_scroll              # 滚动
 | **按能力加长** | 关闭用时长见 WIDGET §2 主表与 §2.5：正确性 5s · Boundary 8–10s · 层/DPR 15s · 动画 30s · 列表/压力 60s · soak **300s** |
 | **指标** | 结束输出 §20.0 族 A–J + 能力专用字段；不达标 `FAIL:` + `exit 1` |
 | **路径** | `examples/ui_wr_<id>/` only（禁止放进 `ui/`） |
+
+### 23.2 P1 首批 render-axis 真窗（`ui_render_graphics/*`）
+
+| 程序 | 画面 | 三证据 |
+|------|------|--------|
+| `examples/ui_render_graphics/basic` | Point / LineSegment / Triangle 六格（静态） | 逻辑 5/5、像素 9/9、shell 掩码 821184px 两连 0.0000%；full_paint；静态窗不设 FPS 门禁（presents≈15） |
+| `examples/ui_render_graphics/vector` | QuadTo / CubicTo / Arc / EllipticalArc 六格（静态） | 逻辑 5/5、像素 8/8、shell 掩码 821184px 两连 0.0000%；full_paint；静态窗不设 FPS 门禁（presents=300 仅观测） |
+
+六扇共用的像素/Golden 辅助在 `examples/wrevidence/evidence.go`；gate 档统一 `-auto-only` 5s，manual 档 `-manual-seconds N` 且不写快照。
 
 ---
 
@@ -899,6 +908,7 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 
 | 版本 | 说明 |
 |------|------|
+| **1.60（2026-10-21）** | **P1 首批六扇 render-axis 真窗三证据收口（Text / Image / Geometry / ClipLayer / Graphics basic / Graphics vector）**：① `ui_render_base_text` 逻辑 5/5、像素 5/5、整窗 Golden **576000px** 两连 `0.0000%`，gate 5s 两连 exit 0（presents≈300），gate 冻结 ColorPulse/DCPanel phase，manual 2s 保留脉动；② `ui_render_base_image` 逻辑 8/8、像素 8/8、整窗 Golden **499200px** 两连 `0.0000%`，保留异步解码（`async_decode_callbacks=1`、`swaps=1`、`status=ready`），gate 5s 两连 exit 0；首帧解码 hitch 使 p95 曾达 23.34ms，本窗明确不设 p95 硬门禁；③ `ui_render_base_geometry` 逻辑 6/6、像素 9/9、整窗 Golden **409200px** 两连 `0.0000%`，gate 5s 两连 exit 0；gate 冻结三个脉动面板；顶部标签未设 face、实际不显示，像素/Golden 只按实际画面采样，不声称不可见文字已断言；④ `ui_render_base_cliplayer` 逻辑 6/6、像素 9/9、整窗 Golden **403200px** 两连 `0.0000%`，gate 5s 两连 exit 0；gate 冻结 phase/clipOff/rotation/radius；⑤ `ui_render_graphics/basic` 逻辑 5/5、像素 9/9、shell 掩码 Golden **821184px** 两连 `0.0000%`，gate 5s 两连 exit 0，静态画面 `presents≈15`，不设 FPS 门禁；⑥ `ui_render_graphics/vector` 逻辑 5/5、像素 8/8、shell 掩码 Golden **821184px** 两连 `0.0000%`，gate 5s 两连 exit 0，静态画面不设 FPS 门禁。**共同实现**：新增 `examples/wrevidence` 共享像素/Golden 辅助并实际接线；六窗统一 `-auto-only`（默认 5s，gate 档冻结动画/相位）与 `-manual-seconds`（manual 不写快照），gate 档 stdout 输出 §2.2 报告，字段统一为 `logic_probes_ok` / `pixel_probes_ok` / `pixel_golden_*`；四个 base 窗整窗 Golden，两扇 graphics 沿用 header+legend+body 掩码（HUD 不入 Golden）。**公开 API 无变更**。限界：本批为原子验证，无组件/2.5D/视频生产消费者；graphics 两窗是静态画面，不作持续 FPS 结论；image 短窗 p95 不作性能门禁；geometry 标签文字不显示。真源同步：本文件 §23/§24、`RENDER_FEATURE_COVERAGE.md` §1/§11、`docs/review/WINDOW_EVIDENCE_AUDIT_2026-10-21.md` §3.3/§5/§6/附录 A.2、`ENGINE_UI_WIDGET_RENDER.md` §10、六窗 README。**性质=原子验证**，不算生产接线 |
 | **1.59（2026-10-21）** | **资源债复核：B 组四窗 RSS 启动爬坡非泄漏 + M-RSS 指标口径修正**：四窗 + c0 基线 5s/15s 斜率均由启动爬坡主导（c0 5s 回放 ≈699k KB/min），60s 实测 1.9k–8.8k KB/min、180s Scene ≈2.0k，均低于 30k；`smaps` 增长只在 Go 堆，`WR_MEMDIG` live 1.5–2.2MiB / peak 9–34MiB。新增 `rss_slope_steady_kb_per_min` / `rss_slope_valid` / `rss_warmup_sec`；原 `rss_slope_kb_per_min` 保留兼容并明确不作泄漏结论。 |
 | **1.58（2026-10-21）** | **B 组 Scene 真窗 `ui_render_base_scene` + CPU 分块渲染/编码状态六处修复**：1200×800 四卡（A 同一场景 GPU 场景渲染器 / B 同一场景 CPU 64×64 tile 后上屏 A/B 对比 / C `Encoding.Hash`+`LayerCache` / D 文本+图像+损伤增量）。逻辑 21/21、像素 17/17、墨量 1/1、Golden 627200px `0.0000%`（seed 后两次复跑零差）；A/B `mismatch=1.4376%`（tol 10，门限 2%）、`high(>96)=0.0259%`（门限 0.1%）、`worst=111`（AA 边缘，只报告不设门）；auto `presents=300`/`fps_interval=60.02`/`p95=18.71ms`/`hitch=0`/`gpu_ops=15003`/`cpu_fallback_ops=0`/`gpu_fallbacks=0`/`present_policy=full_paint`/`vsync_source=true`，manual 15s `presents=900`/`fps_interval=59.95`/`p95=19.16ms`/`hitch=1`/`gpu_ops=45003`/`cpu_fallback_ops=0`。**引擎修复**：①CPU tile `TagPushLayer` 丢 alpha/blend → 逐层 pixmap + 按 `BlendMode+opacity` 合成（嵌套/安全清栈）；②`TagFillRoundRect` 绕过裁剪且忽略 `Path.Transform` 返回值 → 变换路径后填 `activePM`（多 tile 不再从场景原点重画）；③`Encoding.Hash` 漏 brushes → 纳入 Kind+RGBA；④`Scene.TaggedBounds` 未展开 root layer → `DamageTracker` 零对象，改先 `flattenLayers()`；⑤`Append/AppendWithTranslation/Clone` 丢 `commandBounds` → 搬运/克隆；⑥`TagTransform` 状态泄漏 → `EncodeDrawTransform` 跟踪流内状态并补 identity 重置，append 边界同补。永久回归 `render/scene/paint_correctness_test.go` 八例（修前红→修后绿）；`go test ./render/scene/ -count=1` 全绿。**公开 API 变更**：新增 `Encoding.EncodeDrawTransform(Affine)`（只增方法，顶层计数不变）。限界：原子验证无生产消费者、A/B 不覆盖设备/驱动差异、损伤链只验 CPU 分块、RSS 资源债（5s `82.2MB→287–291MB`、`slope≈130,000–248,000 KB/min`；15s `82.2MB→298.3MB`、`slope≈73,656 KB/min`）、未做抓屏 vs 快照、LayerCache 不验淘汰/并发、文本只验一条 Latin run。真源同步：`RENDER_FEATURE_COVERAGE.md` §1 计数/§2/§6/§11、本文件 §23/§24、`RENDER_API_CATALOG.md` §2/§6.2、本窗 README。**性质=原子验证**，不算生产接线 |
 | **1.57（2026-10-21）** | **B 组 Recording 真窗 `ui_render_base_recording` + raster 回放五处缺陷修复**：1200×800 四卡（A 渐变·`FillRectangle`·圆·圆角描边·虚线·`Push/Translate/Rotate` / B `Clip`·`ResetClip`·`Save/Restore`·`ClipRoundRect` / C `DrawString`+`DrawImageScaled` / D 多次 `FillRect`·旋转圆·`StrokeRectangle`+同一 Recording 重放两次），四卡均由 `Recorder` 录制、`Recording.Playback` 到内置 raster 后端、再 `DrawImageEx` 上屏。逻辑 19/19（22 种命令类型覆盖、contract 23 条命令）、像素 17/17、墨量 1/1、Golden 表头+图例+四卡 627200px `0.0000%`；auto `presents=301`/`fps_interval=60.24`/`p95=17.32ms`/`hitch=0`/`gpu_ops=9936`/`cpu_fallback_ops=0`/`gpu_fallbacks=0`/`present_policy=full_paint`/`vsync_source=true`，manual 15s `presents=898`/`fps_interval=59.92`/`p95=17.15ms`/`hitch=0`/`gpu_ops=29637`/`cpu_fallback_ops=0`。**引擎修复**：①`Playback` 漏 `StrokeRectCommand` → 转矩形路径走 `StrokePath`；②raster `SetClip` 只设路径未 `Clip()`、`ClearClip` 空实现 → 走 `render.Context` 真实裁剪栈 `Clip()/ResetClip()`；③raster `DrawImage` 只发未填充矩形 → `ImageBufFromImage`+`DrawImageEx`（源裁片/目标/插值/alpha）；④`DrawTextCommand`/`StrokeTextCommand` 不带字体、Playback 传 nil → 新增公开字段 `Font FontRef`，录制时 `AddFont`、回放解析 `text.Face`，raster `SetFont`+`DrawString`；⑤`ImageBufFromImage` 归一化子图到 `0,0`，旧回放源矩形又加 `Bounds().Min`，非零原点子图采样错位 → 源矩形改按图像相对坐标裁剪。永久回归 `render/recording/backends/raster/backend_paint_test.go` 七例（含非零原点子图；修前红→修后绿）；`go test ./render/recording/...` 全绿。**公开 API 变更**：`DrawTextCommand.Font`、`StrokeTextCommand.Font` 字段（只增字段，不改签名）。限界：raster 非全量 Canvas（StrokeText 填充近似/SetTransform 已烘焙/SetAntiAlias 无开关/DrawImage 轴对齐/ClipRoundRect 未烘变换）、RSS 资源债（5s `194.8MB→262.2MB`、`slope≈421,273 KB/min`；15s `194.2MB→287.1MB`、`slope≈177,691 KB/min`，留 §7/§8）、未做抓屏 vs 快照、原子验证无生产消费者、仅 raster 后端（PDF/SVG 仓外）。真源同步：`RENDER_FEATURE_COVERAGE.md` §1 计数/§2/§3.2/§6/§11、本文件 §23/§24、`RENDER_API_CATALOG.md` §2/§6.3/§7.2、本窗 README。**性质=原子验证**，不算生产接线 |

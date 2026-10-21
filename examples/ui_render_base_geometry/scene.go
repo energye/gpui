@@ -16,7 +16,8 @@ type geoScene struct {
 	CirclePulse *rendering.RenderBox
 	ClipPulse   *rendering.RenderBox
 
-	phase float64
+	phase  float64
+	frozen bool
 }
 
 func label(s string, size float64, r, g, b float64) *rendering.RenderText {
@@ -183,6 +184,12 @@ func buildGeometryScene(winW, winH float64) *geoScene {
 
 func (s *geoScene) onTick(dt float64, schedule func()) {
 	if s == nil {
+		return
+	}
+	if s.frozen {
+		if schedule != nil {
+			schedule()
+		}
 		return
 	}
 	s.phase += dt * 0.7

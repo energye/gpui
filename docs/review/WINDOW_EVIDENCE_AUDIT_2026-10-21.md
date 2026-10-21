@@ -7,11 +7,12 @@
 ## 0. 先看结论
 
 - **基数钉死**：183 个 `main.go` 目录 = **155 个 WIN + 28 个 OFF**，与总账 §1 的 155/28 一致；此前「计数落后」的判断收回。
-- **证据现状**：155 个 WIN 里，**94 扇同时有 Golden + 像素**，**19 扇只有像素**，**42 扇两样都没有**，**0 扇只有 Golden**。
-- **缺口**：61 扇缺 Golden（19 + 42），42 扇缺像素；其中真正要补三证据的**画面窗 = 42 扇**（26 扇 neither + 16 扇 pixel-only），另外 **17 扇 E1 控制/平台/性能/行为探针 + 2 扇 E2 动画演示**需要书面豁免或补固定帧。
+- **证据现状（2026-10-21 首批返工后，关键字口径）**：155 个 WIN 里，**104 扇同时有 Golden + 像素**，**18 扇只有像素**，**33 扇两样都没有**，**0 扇只有 Golden**。
+- **缺口**：51 扇缺 Golden（18 + 33），33 扇缺像素；P1 还剩 **17 扇画面窗**（§3.3），须逐窗补三证据；另有 **14 扇 E1 控制/平台/性能/行为探针 + 2 扇 E2 动画演示**需书面豁免或补固定帧。
 - **首批**：先补 10 扇（§5），覆盖 4 个 render_base 轴、2 个 graphics 窗、3 个 R 窗、1 个组合窗；其余按 §3/§4 分档排期。
 - **抓屏**：只有 20 扇能扫到抓屏信号，其中 16 扇同时有 Golden+像素；78 扇双证窗没有抓屏信号。抓屏是辅助项，但「真窗自测 + 人工二合一」仍要逐窗补。
 - **旧说法**：review 的「27 个真窗全为逻辑指标单证」是过期/子集口径，不能当当前全量结论；以本文和总账 §7 更正为准。
+- **2026-10-21 返工回填**：首批十窗（六扇 render-axis + R2/R5/R18/C2）已按模式 2 补「逻辑 + 像素 + Golden」并回填（R2/R5/R18/C2 ✅v2，六扇 axis ✅v2，见 §6）。R2/R5/R18 原只有逻辑指标（R5 的 `direct_replay_eq` 是硬编码），C2 的 “pixel” 只是注释误报；按**关键字口径**现为 **双证 104 / 仅像素 18 / 两样都无 33**。这仍不是逐窗运行结论，P1 其余窗必须逐个 `-auto-only` 复核。
 
 ## 1. 口径与扫描方法
 
@@ -27,13 +28,13 @@
 | engine | 22 | 22 | 0 | 0 | 2.5D 窗全部双证 |
 | kit | 16 | 15 | 0 | 1 | 组件窗；`spin_min` 是唯一缺口（动画演示） |
 | video | 21 | 20 | 0 | 1 | 视频窗；`video_player` 是点击 demo，不是门禁窗 |
-| ui | 95 | 37 | 19 | 39 | 主缺口：37 双证 / 19 仅像素 / 39 两样都无 |
+| ui | 95 | 47 | 18 | 30 | 首批十窗返工后：47 双证 / 18 仅像素 / 30 两样都无 |
 | 其他 | 1 | 0 | 0 | 1 | `zz_soak_control` 对照窗 |
-| **合计** | **155** | **94** | **19** | **42** | |
+| **合计** | **155** | **104** | **18** | **33** | |
 
-补充：Golden 命中 94、像素命中 113（94+19）、JSON 输出 137、README 132、抓屏信号 20；`S` 同时有 G+P 的只有 16 扇。
+补充：Golden 命中 104、像素命中 122（104+18）、抓屏信号 20；`S` 同时有 G+P 的只有 16 扇。JSON/README 仍为原静态扫描口径，未逐窗重扫。
 
-## 3. 42 扇「pixel + Golden 两样都没有」分档
+## 3. 33 扇「pixel + Golden 两样都没有」分档
 
 ### 3.1 E1：控制/平台/性能/行为探针（14 扇，无需画面三证据）
 
@@ -61,17 +62,19 @@
 | `examples/kit/spin_min` | 单动态图标 demo/性能控制；若要三证据，必须固定帧 + Golden，否则只能书面豁免。 |
 | `examples/ui_render_jumprope` | 2D 协调动画演示；需固定时间/seed 的冻结帧 + Golden，或书面豁免。 |
 
-### 3.3 P1：画面窗缺口（26 扇，要补像素 + Golden + 逻辑）
+### 3.3 P1：画面窗缺口（26 扇；首批 10 已关闭，余 17）
+
+> 首批 10 扇中 9 扇在本表（六扇 render-axis + R2/R5/R18），已于 2026-10-21 关闭；C2 原属 §4 仅像素档，也已关闭。证据见 §5/§6；下表保留全量历史，已标 ✅v2 的行不再计缺口。
 
 | 目录 | JSON | 抓屏 | 可见内容/缺口 |
 |---|---:|---:|---|
 | `examples/ui_l1_render_matrix` | — | — | M1–M5 多轴渲染烟囱；是可见画面 smoke，但优先级低于 render_base/wr 主能力。 |
-| `examples/ui_render_base_cliplayer` | — | — | ClipLayer 轴四卡（Boundary / Clip / Opacity / Transform）。 |
-| `examples/ui_render_base_geometry` | — | — | Geometry 轴四卡（矩形/圆/圆角/路径/变换）。 |
-| `examples/ui_render_base_image` | — | — | Image 轴四卡（采样/变换/裁剪/透明度）。 |
-| `examples/ui_render_base_text` | — | — | Text 轴四卡（多语言/字距/描边/换行）。 |
-| `examples/ui_render_graphics/basic` | — | — | 光栅基元窗（线/矩形/圆/多边形/混合）。 |
-| `examples/ui_render_graphics/vector` | — | — | 2D 矢量路径窗（贝塞尔/虚线/填充规则/变换）。 |
+| `examples/ui_render_base_cliplayer` | ✅ | — | **已关闭 ✅v2**：逻辑 6/6、像素 9/9、整窗 Golden 403200px 两连 0.0000%（5s gate）；见 §6。 |
+| `examples/ui_render_base_geometry` | ✅ | — | **已关闭 ✅v2**：逻辑 6/6、像素 9/9、整窗 Golden 409200px 两连 0.0000%（5s gate）；顶部无 face 标签不可见，不声称已断言；见 §6。 |
+| `examples/ui_render_base_image` | ✅ | — | **已关闭 ✅v2**：逻辑 8/8、像素 8/8、整窗 Golden 499200px 两连 0.0000%（5s gate）；异步 decode 保留，不设 p95 硬门禁；见 §6。 |
+| `examples/ui_render_base_text` | ✅ | — | **已关闭 ✅v2**：逻辑 5/5、像素 5/5、整窗 Golden 576000px 两连 0.0000%（5s gate）；见 §6。 |
+| `examples/ui_render_graphics/basic` | ✅ | — | **已关闭 ✅v2**：逻辑 5/5、像素 9/9、shell 掩码 Golden 821184px 两连 0.0000%（5s gate）；静态窗不设 FPS 门禁；见 §6。 |
+| `examples/ui_render_graphics/vector` | ✅ | — | **已关闭 ✅v2**：逻辑 5/5、像素 8/8、shell 掩码 Golden 821184px 两连 0.0000%（5s gate）；静态窗不设 FPS 门禁；见 §6。 |
 | `examples/ui_text_m5_anycase` | ✅ | — | 多脚本/emoji/组合字符/富文本 run/多 DPR 的文本 close-out 窗。 |
 | `examples/ui_wr_c0_smoke` | ✅ | — | W0 C0 组合窗（R0+R12+R16 集成）；组合窗也要独立证据。 |
 | `examples/ui_wr_c1_boundary_nest` | ✅ | — | W1 C1 组合窗（嵌套 boundary）。 |
@@ -83,16 +86,16 @@
 | `examples/ui_wr_r12b_debug_repaint` | ✅ | — | R12b debug repaint 可视化；debug overlay 本身可像素断言。 |
 | `examples/ui_wr_r13_hit` | ✅ | — | R13 命中测试 ≡ 绘制身份；命中是行为，但「≡ 绘制」需要像素身份证据。 |
 | `examples/ui_wr_r16_warmup` | ✅ | — | R16 首帧/WarmUp/恢复；首帧内容要像素断言。 |
-| `examples/ui_wr_r18_savelayer` | ✅ | ✅ | R18 SaveLayer + budget；已有抓屏信号，缺像素与 Golden。 |
-| `examples/ui_wr_r2_paint` | ✅ | — | R2 局部 NeedsPaint 隔离；脏区外像素必须不变。 |
+| `examples/ui_wr_r18_savelayer` | ✅ | ✅ | R18 SaveLayer + budget；**已返工 ✅v2**：像素 10/10（A 组 0.55 组透明、B 组裸色+红框、C 组缺位）、Golden 821184px 0.0000%×2；见 §6。 |
+| `examples/ui_wr_r2_paint` | ✅ | — | R2 局部 NeedsPaint 隔离；**已返工 ✅v2**：像素 13/13、Golden 821184px 0.0000%×2、gate 相位冻结；见 §6。 |
 | `examples/ui_wr_r3_boundary` | ✅ | — | R3 嵌套 RepaintBoundary cache。 |
 | `examples/ui_wr_r3b_compbits` | ✅ | — | R3b compositing bits / boundary discovery。 |
-| `examples/ui_wr_r5_picture` | ✅ | — | R5 Picture record/replay；README 标注当前模式 2 返工，Golden 要等返工稳定后再种。 |
+| `examples/ui_wr_r5_picture` | ✅ | — | R5 Picture record/replay；**已返工 ✅v2**：旧 `direct_replay_eq:true` 硬编码换实测 pairs 5/5 + 像素 15/15 + Golden 821184px 0.0000%×2；见 §6。 |
 | `examples/ui_wr_r7b_scroll_reuse` | ✅ | — | R7b 滚动少重录 cell；需确定性冻结帧。 |
 | `examples/ui_wr_r8_overlay` | ✅ | — | R8 overlay 独立脏带；浮层开/关两态像素。 |
 | `examples/ui_wr_r9_text_cache` | ✅ | — | R9 文本 measure cache；缓存命中/失效后的像素一致。 |
 
-## 4. 19 扇「只有像素、没有 Golden」分档
+## 4. 18 扇「只有像素、没有 Golden」分档
 
 ### 4.1 E1：平台/压测探针（3 扇，无需逐位 Golden）
 
@@ -102,14 +105,15 @@
 | `examples/ui_pf_x11_dnd` | X11 XDND 拖放平台探针；像素用于拖放反馈，不做逐位 Golden。 |
 | `examples/ui_wr_t_stress` | T 阶段线程压力窗；性能/稳定性，不是画面正确性。 |
 
-### 4.2 需补 Golden（16 扇）
+### 4.2 需补 Golden（15 扇；C2 已关闭）
+
+> C2 已返工 ✅v2（见 §6），不再计入本档；故 16→15。
 
 | 目录 | 抓屏 | 现状/补法 |
 |---|---:|---|
 | `examples/ui_ant_verify` | ✅ | AA 专项窗（圆角/斜边/细边框），缺 Golden 价值最高；优先补。 |
 | `examples/ui_render_particle` | — | 粒子动画演示；需固定 seed/冻结帧才能种 Golden，否则只能书面豁免。 |
 | `examples/ui_textinput_ime` | — | IME 测试窗；补 Golden（候选/输入框稳定态）。 |
-| `examples/ui_wr_c2_retained_scene` | — | W2 C2 retained 整场景（多 boundary + Picture 回放 + 远离脏点 + damage present）；首批。 |
 | `examples/ui_wr_c7_resize_dpr` | — | W2 C7 两次尺寸/DPR 失效波 + 1px 对齐 + 嵌套 boundary；按 1x/2x 两态补 Golden。 |
 | `examples/ui_wr_c8_hit_overlay_xf` | — | W4+ C8 变换/浮层/层动画下的命中集成；补 Golden。 |
 | `examples/ui_wr_ime_r2_textlayout` | — | IME R2 TextLayout 单一真源；补 Golden。 |
@@ -123,22 +127,22 @@
 | `examples/ui_wr_r4_composite` | ✅ | R4 层 Composite Present（Retained）；已有抓屏信号，补 Golden。 |
 | `examples/ui_wr_r7_virtlist` | — | R7 虚拟化宿主 VirtualList；补 Golden（稳定态）。 |
 
-## 5. P1 首批 10 扇
+## 5. P1 首批 10 扇（2026-10-21 已全部关闭）
 
-顺序按「先主能力轴、后组合窗」排；每扇的验收口径见 §5.1。
+顺序按「先主能力轴、后组合窗」排；每扇的验收口径见 §5.1。下表保留最初补法，实测结果见 §6。
 
 | # | 目录 | 现状 | 补法 |
 |---:|---|---|---|
-| 1 | `examples/ui_render_base_text` | 无像素、无 Golden、无 JSON | 四卡多语言/字距/描边/换行；补像素 + 固定字符串 Golden；顺带复核 `MeasureWidth == TextLayout`。 |
-| 2 | `examples/ui_render_base_image` | 无像素、无 Golden、无 JSON | 图像轴四卡；补像素 + Golden（采样/变换/裁剪/透明度）。 |
-| 3 | `examples/ui_render_base_geometry` | 无像素、无 Golden、无 JSON | 几何轴四卡；补像素 + Golden（矩形/圆/圆角/路径/变换）。 |
-| 4 | `examples/ui_render_base_cliplayer` | 无像素、无 Golden、无 JSON | Boundary / Clip / Opacity / Transform 四卡；补像素 + Golden。 |
-| 5 | `examples/ui_render_graphics/basic` | 无像素、无 Golden、无 JSON | 光栅基元（线/矩形/圆/多边形/混合）；补像素 + Golden。 |
-| 6 | `examples/ui_render_graphics/vector` | 无像素、无 Golden、无 JSON | 2D 路径（贝塞尔/虚线/填充规则/变换）；补像素 + Golden。 |
-| 7 | `examples/ui_wr_r2_paint` | 无像素、无 Golden，有 JSON | 局部 NeedsPaint 隔离；补「脏区外不变」像素 + Golden。 |
-| 8 | `examples/ui_wr_r5_picture` | 无像素、无 Golden，有 JSON；README 标注返工中 | Picture record/replay；先等模式 2 返工稳定，再补像素 + Golden，禁止提前种基线装绿。 |
-| 9 | `examples/ui_wr_r18_savelayer` | 无像素、无 Golden，有 JSON + 抓屏信号 | SaveLayer + budget；已有抓屏信号，补像素 + Golden。 |
-| 10 | `examples/ui_wr_c2_retained_scene` | 有像素、无 Golden，有 JSON | 已有像素；补 Golden（多 boundary + Picture 回放 + 远离脏点 + damage present）。 |
+| 1 | `examples/ui_render_base_text` | ✅v2 | 逻辑 5/5、像素 5/5、整窗 Golden 576000px 两连 0.0000%（5s gate）；gate 冻结 ColorPulse/DCPanel。 |
+| 2 | `examples/ui_render_base_image` | ✅v2 | 逻辑 8/8、像素 8/8、整窗 Golden 499200px 两连 0.0000%（5s gate）；异步 decode=1/swap=1，dist 无 p95 硬门禁。 |
+| 3 | `examples/ui_render_base_geometry` | ✅v2 | 逻辑 6/6、像素 9/9、整窗 Golden 409200px 两连 0.0000%（5s gate）；三个脉动面板冻结。 |
+| 4 | `examples/ui_render_base_cliplayer` | ✅v2 | 逻辑 6/6、像素 9/9、整窗 Golden 403200px 两连 0.0000%（5s gate）；Clip/Opacity/Transform 冻结。 |
+| 5 | `examples/ui_render_graphics/basic` | ✅v2 | 逻辑 5/5、像素 9/9、shell 掩码 Golden 821184px 两连 0.0000%（5s gate）；静态窗 presents≈15，不设 FPS 门禁。 |
+| 6 | `examples/ui_render_graphics/vector` | ✅v2 | 逻辑 5/5、像素 8/8、shell 掩码 Golden 821184px 两连 0.0000%（5s gate）；静态窗不设 FPS 门禁。 |
+| 7 | `examples/ui_wr_r2_paint` | ✅v2 | 逻辑 6/6、像素 13/13、Golden 821184px 两连 0.0000%（5s gate）；见 §6。 |
+| 8 | `examples/ui_wr_r5_picture` | ✅v2 | 逻辑 6/6、像素 15/15、direct/replay 5/5、Golden 821184px 两连 0.0000%（5s gate）；见 §6。 |
+| 9 | `examples/ui_wr_r18_savelayer` | ✅v2 | 逻辑 5/5、像素 10/10、Golden 821184px 两连 0.0000%（10s gate）；见 §6。 |
+| 10 | `examples/ui_wr_c2_retained_scene` | ✅v2 | 逻辑/集成门禁全绿、像素 14/14、Picture 2/2、Golden 821184px 两连 0.0000%（15s gate）；见 §6。 |
 
 ### 5.1 单窗验收口径（硬）
 
@@ -148,16 +152,38 @@
 4. 像素探针必须覆盖「画面对」的形态/颜色/位置/空白，不允许只数墨点；Golden 要盖住指标行，只比内容。
 5. 动画窗先定冻结帧（固定时间/seed/手动暂停），否则只能书面豁免，不能拿「跑一次碰巧一样」当 Golden。
 
-## 6. 对总账 §7 的更正
+## 6. 2026-10-21 十窗返工回填（模式 2 · 首批）
 
-- §7 第 1 条引用的「27 个真窗全为逻辑指标单证」是旧 review 的子集口径，**不是当前 155 扇的全量结论**；按本树实扫，94 扇已有 Golden+像素，19 扇仅像素，42 扇两样都无。U21 仍未清零，缺口按本文 §3/§4 分档。
+| 窗 | 原分档 | 返工后 | 三证据实测 |
+|----|--------|--------|-----------|
+| `examples/ui_wr_r2_paint` | neither | **✅v2** | 逻辑 6/6、像素 13/13、Golden 821184px 两连 0.0000%（5s gate）；gate 相位冻结 Steady，manual 保留动画 |
+| `examples/ui_wr_r5_picture` | neither | **✅v2** | 逻辑 6/6、像素 15/15、direct/replay 配对 5/5、Golden 821184px 两连 0.0000%（5s gate）；旧的硬编码 `direct_replay_eq:true` 已删除 |
+| `examples/ui_wr_r18_savelayer` | neither | **✅v2** | 逻辑 5/5、像素 10/10（A 组 0.55 组透明、B 组裸色+红框、C 组缺位）、Golden 821184px 两连 0.0000%（10s gate） |
+| `examples/ui_wr_c2_retained_scene` | pixel-only（注释误报，实际 neither） | **✅v2** | 逻辑/集成门禁全绿、像素 14/14、Picture 配对 2/2、Golden 821184px 两连 0.0000%（15s gate）；顺带修 hotA 被 replay 遮挡、direct/replay 两框重叠 |
+| `examples/ui_render_base_text` | neither | **✅v2** | 逻辑 5/5、像素 5/5、整窗 Golden 576000px 两连 0.0000%（5s gate）；冻结 ColorPulse/DCPanel phase，manual 2s 保留脉动 |
+| `examples/ui_render_base_image` | neither | **✅v2** | 逻辑 8/8、像素 8/8、整窗 Golden 499200px 两连 0.0000%（5s gate）；async decode=1/swap=1/status=ready，短窗不设 p95 硬门禁 |
+| `examples/ui_render_base_geometry` | neither | **✅v2** | 逻辑 6/6、像素 9/9、整窗 Golden 409200px 两连 0.0000%（5s gate）；冻结三个脉动面板；顶部无 face 标签不可见，不声称已断言 |
+| `examples/ui_render_base_cliplayer` | neither | **✅v2** | 逻辑 6/6、像素 9/9、整窗 Golden 403200px 两连 0.0000%（5s gate）；冻结 phase/clipOff/rotation/radius |
+| `examples/ui_render_graphics/basic` | neither | **✅v2** | 逻辑 5/5、像素 9/9、shell 掩码 Golden 821184px 两连 0.0000%（5s gate）；full_paint，静态 presents≈15，不设 FPS 门禁 |
+| `examples/ui_render_graphics/vector` | neither | **✅v2** | 逻辑 5/5、像素 8/8、shell 掩码 Golden 821184px 两连 0.0000%（5s gate）；full_paint，静态窗不设 FPS 门禁 |
+
+计数修正（关键字口径，不是三证据终判）：
+
+- 原扫描：双证 94 / 仅像素 19 / neither 42。
+- 首批十窗净变化 +10 双证 / -1 仅像素 / -9 neither；其中 C2 的 “pixel” 是注释误报，实际从 neither 移入双证。
+- 返工后：**双证 104 / 仅像素 18 / neither 33**（155 总数不变）。
+- 这仍是静态关键字口径；P1 其余窗必须逐窗 `-auto-only` 复核，不能拿本表直接标绿。
+
+### 6.1 对总账 §7 的更正
+
+- §7 第 1 条引用的「27 个真窗全为逻辑指标单证」是旧 review 的子集口径，**不是当前 155 扇的全量结论**；返工前实扫为 94 双证 / 19 仅像素 / 42 两样都无，首批十窗返工后见 §6 的 104 / 18 / 33。U21 仍未清零，剩余缺口按本文 §3/§4 分档。
 - §7 第 4 条「金图现状两口径待并表」本次已完成静态并表：A2 金图资产「存在但未带进本树」与 review「逻辑单证」的口径，以本文附录 A + 总账 §11 为准；逐窗复跑仍在 P1。
 - 155/28 的计数正确；「计数落后」不再作为缺口。
 
 ## 7. 扫描局限
 
 - 只扫关键字，`S` 可能漏掉用自建 helper/外部脚本抓屏的窗；`G` 可能漏掉非 `testdata` 基线；`P` 可能把「打印像素」误当断言。逐窗以 README + `-auto-only` JSON 为准。
-- 本次没有逐窗跑 155 扇（只跑了 P0.5 涉及的 4 扇：strokepreset / textlow / textspacing / textstroke）；P1 执行时逐扇跑，不拿静态扫描当门禁。
+- 本次没有逐窗跑 155 扇（P0.5 跑了 4 扇，P1 首批又跑了 10 扇）；其余 P1 执行时逐扇跑，不拿静态扫描当门禁。
 - 工作区里 `clipop/dither/maskops/textspacing/textstroke/verticesmesh` 的 PNG 是别线未提交改动；本文与 P0.5 回归没有把它们纳入提交清单。
 
 ## 附录 A：155 个 WIN 全景（自动扫描信号）
@@ -256,14 +282,14 @@
 | `examples/ui_pf_x11_device` | — | ✅ | — | ✅ | E1 |
 | `examples/ui_pf_x11_dnd` | — | ✅ | — | ✅ | E1 |
 | `examples/ui_render_base_backdrop` | ✅ | ✅ | ✅ | ✅ | 双证 |
-| `examples/ui_render_base_cliplayer` | — | — | — | — | P1 |
+| `examples/ui_render_base_cliplayer` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_render_base_clipop` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_render_base_cliprrect` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_render_base_dither` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_render_base_emoji` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_render_base_filterops` | ✅ | ✅ | ✅ | ✅ | 双证 |
-| `examples/ui_render_base_geometry` | — | — | — | — | P1 |
-| `examples/ui_render_base_image` | — | — | — | — | P1 |
+| `examples/ui_render_base_geometry` | ✅ | ✅ | — | ✅ | 双证 |
+| `examples/ui_render_base_image` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_render_base_imagepattern` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_render_base_maskops` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_render_base_miscdraw` | ✅ | ✅ | ✅ | ✅ | 双证 |
@@ -276,15 +302,15 @@
 | `examples/ui_render_base_strokepreset` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_render_base_svg` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_render_base_sweepgradient` | ✅ | ✅ | — | ✅ | 双证 |
-| `examples/ui_render_base_text` | — | — | — | — | P1 |
+| `examples/ui_render_base_text` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_render_base_textlow` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_render_base_textspacing` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_render_base_textstroke` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_render_base_variablefont` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_render_base_verticesmesh` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_render_base_webp` | ✅ | ✅ | ✅ | ✅ | 双证 |
-| `examples/ui_render_graphics/basic` | — | — | — | — | P1 |
-| `examples/ui_render_graphics/vector` | — | — | — | — | P1 |
+| `examples/ui_render_graphics/basic` | ✅ | ✅ | — | ✅ | 双证 |
+| `examples/ui_render_graphics/vector` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_render_jumprope` | — | — | — | — | E2 |
 | `examples/ui_render_particle` | — | ✅ | — | — | 缺 Golden |
 | `examples/ui_render_pelican` | ✅ | ✅ | — | — | 双证 |
@@ -296,7 +322,7 @@
 | `examples/ui_wr_c10_soak` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_wr_c11_policy_switch` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_wr_c1_boundary_nest` | — | — | — | ✅ | P1 |
-| `examples/ui_wr_c2_retained_scene` | — | ✅ | — | ✅ | 缺 Golden |
+| `examples/ui_wr_c2_retained_scene` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_wr_c3_list_scroll` | — | — | — | ✅ | P1 |
 | `examples/ui_wr_c4_shell_overlay` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_wr_c5_anim_over_static` | ✅ | ✅ | — | ✅ | 双证 |
@@ -319,18 +345,18 @@
 | `examples/ui_wr_r15_soak` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_wr_r16_warmup` | — | — | — | ✅ | P1 |
 | `examples/ui_wr_r17_bg_throttle` | — | ✅ | — | ✅ | 缺 Golden |
-| `examples/ui_wr_r18_savelayer` | — | — | ✅ | ✅ | P1 |
+| `examples/ui_wr_r18_savelayer` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_wr_r19_snap` | — | ✅ | — | ✅ | 缺 Golden |
 | `examples/ui_wr_r1_layout` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_wr_r20_filter` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_wr_r21_shell` | — | ✅ | ✅ | ✅ | 缺 Golden |
 | `examples/ui_wr_r22_selection_stub` | ✅ | ✅ | — | ✅ | 双证 |
-| `examples/ui_wr_r2_paint` | — | — | — | ✅ | P1 |
+| `examples/ui_wr_r2_paint` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_wr_r3_boundary` | — | — | — | ✅ | P1 |
 | `examples/ui_wr_r3b_compbits` | — | — | — | ✅ | P1 |
 | `examples/ui_wr_r4_composite` | — | ✅ | ✅ | ✅ | 缺 Golden |
 | `examples/ui_wr_r4b_multidamage` | — | ✅ | — | ✅ | 缺 Golden |
-| `examples/ui_wr_r5_picture` | — | — | — | ✅ | P1 |
+| `examples/ui_wr_r5_picture` | ✅ | ✅ | — | ✅ | 双证 |
 | `examples/ui_wr_r6_layer_anim` | ✅ | ✅ | ✅ | ✅ | 双证 |
 | `examples/ui_wr_r7_virtlist` | — | ✅ | — | ✅ | 缺 Golden |
 | `examples/ui_wr_r7b_scroll_reuse` | — | — | — | ✅ | P1 |

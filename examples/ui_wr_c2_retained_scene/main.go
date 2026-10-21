@@ -30,8 +30,10 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -66,10 +68,21 @@ func sumRatio() float64 {
 }
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: scripted run, JSON on stdout, exit 1 on fail")
+	manualSeconds := flag.Float64("manual-seconds", 0, "manual mode: auto-close after N seconds (0 = stay until window close)")
+	flag.Parse()
+
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if secsSet {
 		wrkit.RequireMinRun(secs, "C2")
+		if secs < 15 {
+			fmt.Fprintln(os.Stderr, "FAIL: C2 close duration must be >=15s (§2.5)")
+			os.Exit(1)
+		}
+	} else if *autoOnly {
+		secs, secsSet = 15, true
 	}
+	gateMode := secsSet
 	face, _, errFace := wrkit.EnsureUIFace()
 	if errFace != nil {
 		fmt.Fprintln(os.Stderr, "wrkit: font:", errFace)
@@ -157,7 +170,9 @@ func main() {
 	// R4 局部动画区 hotA —— Flutter 式 Align 布局驱动（§2.6.1，对标 R4）。
 	hotA := rendering.NewRenderColorBox(hotSize, hotSize, 0.95, 0.2, 0.2, 1)
 	hotA.SetRepaintBoundary(true)
-	hotAAlign := shell.Body.Align(hotA, 0.60, 0.42)
+	// Keep hotA clear of the R5 Picture pair (the old 0.60/0.42 position was
+	// covered by the replay box; the animation was invisible in the snapshot).
+	hotAAlign := shell.Body.Align(hotA, 0.78, 0.82)
 
 	// ------------------------------------------------------------------
 	// 区 C — R4b 两远离脏点：hot1（右上）+ hot2（左下），同帧每帧变脏 →
@@ -250,7 +265,9 @@ func main() {
 			pc.DC.DrawString("c2", ox+120, oy+260)
 		}
 	}
-	shell.Body.Align(direct, 0.34, 0.55)
+	// Side-by-side: 0.34/0.52 with 190px boxes overlapped by ~61px, so the
+	// replay box covered the direct image. Use a gap (0.22/0.50).
+	shell.Body.Align(direct, 0.22, 0.55)
 
 	replay := rendering.NewRenderBox()
 	replay.FixedWidth, replay.FixedHeight = picBox, picBox
@@ -262,15 +279,27 @@ func main() {
 		pc.DC.Translate(pc.OriginX, pc.OriginY)
 		pic.Replay(pc.DC)
 	}
-	shell.Body.Align(replay, 0.52, 0.55)
+	shell.Body.Align(replay, 0.50, 0.55)
 
-	shell.Body.Align(wrkit.Label("DIRECT (直绘)", 11, 0.82, 0.87, 0.92), 0.34, 0.87)
-	shell.Body.Align(wrkit.Label("REPLAY (回放)", 11, 0.82, 0.87, 0.92), 0.52, 0.87)
+	shell.Body.Align(wrkit.Label("DIRECT (直绘)", 11, 0.82, 0.87, 0.92), 0.22, 0.87)
+	shell.Body.Align(wrkit.Label("REPLAY (回放)", 11, 0.82, 0.87, 0.92), 0.50, 0.87)
+
+	snapDir := filepath.Join("examples", "ui_wr_c2_retained_scene", "testdata")
+	if err := os.MkdirAll(snapDir, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: snap dir:", err)
+		os.Exit(1)
+	}
+	snapPath := filepath.Join(snapDir, "showcase_c2_retained_scene.png")
+	runFor := time.Duration(secs) * time.Second
+	if !gateMode && *manualSeconds > 0 {
+		runFor = time.Duration(*manualSeconds * float64(time.Second))
+	}
 
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:       runFor,
+		WarmUp:       true,
+		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
 			switch ev.Type {
 			case platform.EventClose:
@@ -290,9 +319,16 @@ func main() {
 	hotTick := 0
 	clock := wrkit.NewPhaseClock(2, 4)
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
-		phase = clock.Advance(dt)
 		hotTick++
-		t := clock.Elapsed()
+		// Gate mode freezes at the Steady phase (t=0) so the GPU snapshot and
+		// Golden are deterministic. Manual mode runs the full phase clock.
+		var t float64
+		if gateMode {
+			phase = wrkit.PhaseSteady
+		} else {
+			phase = clock.Advance(dt)
+			t = clock.Elapsed()
+		}
 		// PhaseClock 三阶段同时驱动多能力（R3 脏层选择 / R4 动画 / R4b 双热点）。
 		switch phase {
 		case wrkit.PhaseSteady:
@@ -302,7 +338,7 @@ func main() {
 			hotA.R, hotA.G, hotA.B = 0.95, 0.2, 0.2
 			hot1.R, hot1.G, hot1.B = 0.2, 0.5, 0.95
 			hot2.R, hot2.G, hot2.B = 0.25, 0.8, 0.4
-			hotAAlign.SetAlignment(0.60, 0.42)
+			hotAAlign.SetAlignment(0.78, 0.82)
 			hot1Align.SetAlignment(0.90, 0.12)
 			hot2Align.SetAlignment(0.12, 0.85)
 		case wrkit.PhaseSpike:
@@ -312,7 +348,7 @@ func main() {
 			hotA.R, hotA.G, hotA.B = 1.0, 0.85, 0.2
 			hot1.R, hot1.G, hot1.B = 0.95, 0.3, 0.95
 			hot2.R, hot2.G, hot2.B = 1.0, 0.8, 0.2
-			hotAAlign.SetAlignment(0.63, 0.45)
+			hotAAlign.SetAlignment(0.80, 0.84)
 			hot1Align.SetAlignment(0.92, 0.14)
 			hot2Align.SetAlignment(0.10, 0.83)
 		default:
@@ -325,7 +361,7 @@ func main() {
 			hotA.R, hotA.G, hotA.B = 0.2, 0.7, 0.95
 			hot1.R, hot1.G, hot1.B = 0.2, 0.5, 0.95
 			hot2.R, hot2.G, hot2.B = 0.25, 0.8, 0.4
-			hotAAlign.SetAlignment(0.60, 0.42)
+			hotAAlign.SetAlignment(0.78, 0.82)
 			hot1Align.SetAlignment(0.90, 0.12)
 			hot2Align.SetAlignment(0.12, 0.85)
 		}
@@ -408,6 +444,73 @@ func main() {
 	lastMode := app.LastPresentMode()
 	lastIDs := app.LastDirtyLayerIDs()
 	maxIDs := app.MaxDirtyLayerIDCount()
+
+	// C2 evidence (gate mode only): the frozen Steady phase makes nested
+	// boundaries, static grid, hotspots and the direct/replay Picture pair
+	// deterministic while still exercising multi-boundary dirty layers.
+	bx, by := shell.Body.X, shell.Body.Y
+	bodyW, bodyH := shell.Body.W, shell.Body.H
+	hot3x := bx + 16 + 30 + 30 + 25 + 25
+	hot3y := by + 16 + 30 + 30 + 25 + 25
+	static00x, static00y := bx+264+35, by+16+35
+	static11x, static11y := bx+264+76+35, by+16+76+35
+	static22x, static22y := bx+264+152+35, by+16+152+35
+	hotAx := bx + (bodyW-hotSize)*0.78 + hotSize/2
+	hotAy := by + (bodyH-hotSize)*0.82 + hotSize/2
+	hot1x := bx + (bodyW-hotSize)*0.90 + hotSize/2
+	hot1y := by + (bodyH-hotSize)*0.12 + hotSize/2
+	hot2x := bx + (bodyW-hotSize)*0.12 + hotSize/2
+	hot2y := by + (bodyH-hotSize)*0.85 + hotSize/2
+	directX := bx + (bodyW-picBox)*0.22
+	directY := by + (bodyH-picBox)*0.55
+	replayX := bx + (bodyW-picBox)*0.50
+	replayY := by + (bodyH-picBox)*0.55
+
+	var pixelOK, pixelTotal, pairOK, pairTotal int
+	var goldenDiffPct float64
+	var goldenTotalPx int64
+	var goldenFirstRun bool
+	if gateMode {
+		pixelChecks := []pixelCheck{
+			{desc: "r3_inner_hot", x: hot3x, y: hot3y, want: [3]float64{0.95, 0.20, 0.20}, tol: 0.03},
+			{desc: "r4_static_00", x: static00x, y: static00y, want: [3]float64{0.15, 0.42, 0.32}, tol: 0.03},
+			{desc: "r4_static_11", x: static11x, y: static11y, want: [3]float64{0.22, 0.50, 0.50}, tol: 0.03},
+			{desc: "r4_static_22", x: static22x, y: static22y, want: [3]float64{0.29, 0.42, 0.41}, tol: 0.03},
+			{desc: "r4_hotA", x: hotAx, y: hotAy, want: [3]float64{0.95, 0.20, 0.20}, tol: 0.03},
+			{desc: "r4b_hot1", x: hot1x, y: hot1y, want: [3]float64{0.20, 0.50, 0.95}, tol: 0.03},
+			{desc: "r4b_hot2", x: hot2x, y: hot2y, want: [3]float64{0.25, 0.80, 0.40}, tol: 0.03},
+			{desc: "r5_direct_tri", x: directX + 55, y: directY + 40, want: [3]float64{0.90, 0.30, 0.20}, tol: 0.06},
+			{desc: "r5_replay_tri", x: replayX + 55, y: replayY + 40, want: [3]float64{0.90, 0.30, 0.20}, tol: 0.06},
+			{desc: "r5_direct_img", x: directX + 158, y: directY + 28, want: [3]float64{0.20, 0.749, 0.349}, tol: 0.06},
+			{desc: "r5_replay_img", x: replayX + 158, y: replayY + 28, want: [3]float64{0.20, 0.749, 0.349}, tol: 0.06},
+			{desc: "body_bg", x: bx + 800, y: by + 600, want: [3]float64{0.10, 0.11, 0.13}, tol: 0.05, kind: kindBG},
+			{desc: "legend_bg", x: shell.Legend.X + 20, y: shell.Legend.Y + 620, want: [3]float64{0.11, 0.12, 0.15}, tol: 0.05, kind: kindBG},
+			{desc: "top_bg", x: 1000, y: 24, want: [3]float64{0.12, 0.14, 0.18}, tol: 0.05, kind: kindBG},
+		}
+		pairs := []pairCheck{
+			{desc: "r5_tri", ax: directX + 55, ay: directY + 40, bx: replayX + 55, by: replayY + 40, tol: 0.02},
+			{desc: "r5_img", ax: directX + 158, ay: directY + 28, bx: replayX + 158, by: replayY + 28, tol: 0.02},
+		}
+		img := loadImage(snapPath)
+		pixelResult := make(map[string]bool, len(pixelChecks))
+		runPixelChecks(img, pixelChecks, pixelResult)
+		for _, ok := range pixelResult {
+			if ok {
+				pixelOK++
+			}
+		}
+		pixelTotal = len(pixelChecks)
+		pairOK, _ = runPairChecks(img, pairs)
+		pairTotal = len(pairs)
+
+		goldenRects := []rect{
+			{x: 0, y: 0, w: winW, h: 48},
+			{x: shell.Legend.X, y: shell.Legend.Y, w: shell.Legend.W, h: shell.Legend.H},
+			{x: shell.Body.X, y: shell.Body.Y, w: shell.Body.W, h: shell.Body.H},
+		}
+		goldenDiffPct, goldenTotalPx, goldenFirstRun = evaluateGolden(snapDir, goldenRects)
+	}
+
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "C2",
 		Scenario:      "ui_wr_c2_retained_scene",
@@ -427,22 +530,31 @@ func main() {
 				"R4 动画区与 R4b 双热点同帧变脏 → 3 个独立 dirty layer id、独立 scissor；" +
 				"R5 Picture 回放区与静态色格阵共用 retained 稳态（damage 不含静区）——" +
 				"证明 retained 场景下 缓存+多损伤+回放 完整闭环",
-			"present_policy":      "retained",
-			"damage_semantic":     "retained_multi_damage_picture",
-			"damage_ratio_avg":    avgRatio,   // union bbox 口径（观测）
-			"damage_ratio_sum":    sumRatio(), // sum of rects 真实重绘像素（门禁）
-			"damage_ratio_max":    maxRatio,
-			"damage_samples":      samples,
-			"damage_multi_frames": multiFrames,
-			"dirty_layer_id_max":  int64(maxIDs),
-			"dirty_layer_ids":     lastIDs,
-			"last_present_mode":   lastMode,
-			"static_visible":      staticCount,
-			"hot_repaints":        hotTick,
-			"picture_op_count":    int64(opCount),
-			"picture_bounds":      boundsTxt,
-			"boundary_skip":       snap.BoundarySkip,
-			"boundary_rerecord":   snap.BoundaryRerecord,
+			"present_policy":         "retained",
+			"damage_semantic":        "retained_multi_damage_picture",
+			"damage_ratio_avg":       avgRatio,   // union bbox 口径（观测）
+			"damage_ratio_sum":       sumRatio(), // sum of rects 真实重绘像素（门禁）
+			"damage_ratio_max":       maxRatio,
+			"damage_samples":         samples,
+			"damage_multi_frames":    multiFrames,
+			"dirty_layer_id_max":     int64(maxIDs),
+			"dirty_layer_ids":        lastIDs,
+			"last_present_mode":      lastMode,
+			"static_visible":         staticCount,
+			"hot_repaints":           hotTick,
+			"picture_op_count":       int64(opCount),
+			"picture_bounds":         boundsTxt,
+			"boundary_skip":          snap.BoundarySkip,
+			"boundary_rerecord":      snap.BoundaryRerecord,
+			"phase_mode":             "steady-frozen",
+			"evidence_mode":          map[bool]string{true: "gate", false: "manual"}[gateMode],
+			"pixel_probes_ok":        pixelOK,
+			"pixel_probes_total":     pixelTotal,
+			"picture_pairs_ok":       pairOK,
+			"picture_pairs_total":    pairTotal,
+			"pixel_golden_diff_pct":  goldenDiffPct,
+			"pixel_golden_total_px":  goldenTotalPx,
+			"pixel_golden_first_run": goldenFirstRun,
 		},
 	})
 	// R5 门禁字段：picture_op_count 度量保留显示列表本身（scene-side 诚实 op 数）。
@@ -450,43 +562,62 @@ func main() {
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
 
+	fail := func(format string, args ...any) {
+		fmt.Fprintf(os.Stderr, "FAIL: "+format+"\n", args...)
+		if gateMode {
+			os.Exit(1)
+		}
+	}
 	// C2 门禁 = ∪(各 R 门禁)（§3.1.1：C 的 GateOptions = ∪(各 R 门禁)）。
-	errG := wrgate.EvaluateGates(report, wrgate.GateOptions{
-		MinPresents:           1,
-		RequireRetainedPolicy: true, // R4
-		MinBoundarySkip:       3,    // R3
-		MinBoundaryRerecord:   2,    // R3
-		MinDirtyLayerIDs:      2,    // R4b
-		MinDamageMultiFrames:  1,    // R4b
-		MinPictureOpCount:     3,    // R5
-		RequirePersistentFPS:  true, // 持续 tick（R4 动画类）
-		MinFPSWall:            55,
-		MaxP95Ms:              22,
-	})
-	if errG != nil {
-		fmt.Fprintln(os.Stderr, "FAIL:", errG)
-		os.Exit(1)
+	// Gate mode also asserts pixel/Golden; manual mode animates the phases.
+	if gateMode {
+		if pixelOK != pixelTotal {
+			fail("pixel probes %d/%d ok", pixelOK, pixelTotal)
+		}
+		if pairOK != pairTotal {
+			fail("direct/replay picture pairs %d/%d ok", pairOK, pairTotal)
+		}
+		if !goldenFirstRun && goldenDiffPct != 0 {
+			fail("pixel_golden_diff_pct=%.4f want 0 over %d px", goldenDiffPct, goldenTotalPx)
+		}
+		if errG := wrgate.EvaluateGates(report, wrgate.GateOptions{
+			MinPresents:           1,
+			RequireRetainedPolicy: true, // R4
+			MinBoundarySkip:       3,    // R3
+			MinBoundaryRerecord:   2,    // R3
+			MinDirtyLayerIDs:      2,    // R4b
+			MinDamageMultiFrames:  1,    // R4b
+			MinPictureOpCount:     3,    // R5
+			RequirePersistentFPS:  true, // 持续 tick（R4 动画类）
+			MinFPSWall:            55,
+			MaxP95Ms:              22,
+		}); errG != nil {
+			fail("%v", errG)
+		}
+		if lastMode == "" || lastMode == "full" || lastMode == "idle" {
+			fail("present_mode=%q want damage_union/damage_multi (非 full)", lastMode)
+		}
+		if sumRatio() > 0.35 {
+			fail("damage_ratio_sum=%.3f > 0.35 (retained 必须远小于全屏；sum of rects 口径，union bbox 为观测)", sumRatio())
+		}
+		if snap.BoundarySkip <= 0 {
+			fail("boundary_skip=%d want >0 (静态 boundary 必须 Replay)", snap.BoundarySkip)
+		}
+		if opCount < 3 {
+			fail("picture_op_count=%d want >=3", opCount)
+		}
+		if snap.VSyncSource == "" {
+			fail("vsync_source missing")
+		}
 	}
-	if lastMode == "" || lastMode == "full" || lastMode == "idle" {
-		fmt.Fprintf(os.Stderr, "FAIL: present_mode=%q want damage_union/damage_multi (非 full)", lastMode)
-		os.Exit(1)
+	evidence := ""
+	if gateMode {
+		evidence = fmt.Sprintf(" pixel=%d/%d pairs=%d/%d golden=%.4f%%", pixelOK, pixelTotal, pairOK, pairTotal, goldenDiffPct)
 	}
-	if sumRatio() > 0.35 {
-		fmt.Fprintf(os.Stderr, "FAIL: damage_ratio_sum=%.3f > 0.35 (retained 必须远小于全屏；sum of rects 口径，union bbox 为观测)", sumRatio())
-		os.Exit(1)
-	}
-	if snap.BoundarySkip <= 0 {
-		fmt.Fprintf(os.Stderr, "FAIL: boundary_skip=%d want >0 (静态 boundary 必须 Replay)", snap.BoundarySkip)
-		os.Exit(1)
-	}
-	if opCount < 3 {
-		fmt.Fprintf(os.Stderr, "FAIL: picture_op_count=%d want >=3", opCount)
-		os.Exit(1)
-	}
-	fmt.Fprintf(os.Stderr, "ui_wr_c2_retained_scene: OK presents=%d skip=%d rr=%d dmg_avg=%.3f mode=%s ids=%d/%d multi=%d ops=%d fps=%.1f elapsed=%.1fs\n",
+	fmt.Fprintf(os.Stderr, "ui_wr_c2_retained_scene: OK presents=%d skip=%d rr=%d dmg_avg=%.3f mode=%s ids=%d/%d multi=%d ops=%d fps=%.1f%s elapsed=%.1fs\n",
 		app.PresentCount(), snap.BoundarySkip, snap.BoundaryRerecord, avgRatio, lastMode,
 		len(lastIDs), maxIDs, multiFrames, opCount,
-		1000.0/snap.AvgFrameIntervalMs, elapsed)
+		1000.0/snap.AvgFrameIntervalMs, evidence, elapsed)
 }
 
 type ticker struct{ on func(dt float64) }
