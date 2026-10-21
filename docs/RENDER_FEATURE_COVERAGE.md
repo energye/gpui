@@ -6,7 +6,7 @@
 **v2（2026-10-18）：§1/§2 已逐项按源码复核「是否有对应真窗示例」；新增 §3「缺真窗清单（第一步任务）」；§4/§5 中来自其他文档的部分已显式标注「文档口径（本轮未逐行源码复核）」。**
 
 复核方法（全部源码实测）：
-1. **真窗判定**：示例目录源码含 `platform.Open(` / `NewPipelineApp(` / `SpawnWindow(` / `OpenReal(` 记为真窗 → **131 个真窗目录**（2026-10-21 复核：**150**，新增 `ui_render_base_pathlow` / `ui_render_base_pathshape` / `ui_render_base_strokepreset` / `ui_render_base_sweepgradient` / `ui_render_base_clipop` / `ui_render_base_maskops` / `ui_render_base_backdrop` / `ui_render_base_textstroke` / `ui_render_base_textlow` / `ui_render_base_textspacing` / `ui_render_base_verticesmesh` / `ui_render_base_dither` / `ui_render_base_webp` / `ui_render_base_filterops` / `ui_render_base_miscdraw` / `ui_render_base_cliprrect` / `ui_render_base_pathbool` / `ui_wr_r1_layout` / `ui_render_base_svg`）；`examples/render_*`（17）+ `render_visual_*`（10）+ `text_langs_png` 共 28 个为离屏出 PNG，**不产真窗**。
+1. **真窗判定**：示例目录源码含 `platform.Open(` / `NewPipelineApp(` / `SpawnWindow(` / `OpenReal(` 记为真窗 → **131 个真窗目录**（2026-10-21 复核：**151**，新增 `ui_render_base_pathlow` / `ui_render_base_pathshape` / `ui_render_base_strokepreset` / `ui_render_base_sweepgradient` / `ui_render_base_clipop` / `ui_render_base_maskops` / `ui_render_base_backdrop` / `ui_render_base_textstroke` / `ui_render_base_textlow` / `ui_render_base_textspacing` / `ui_render_base_verticesmesh` / `ui_render_base_dither` / `ui_render_base_webp` / `ui_render_base_filterops` / `ui_render_base_miscdraw` / `ui_render_base_cliprrect` / `ui_render_base_pathbool` / `ui_wr_r1_layout` / `ui_render_base_svg` / `ui_render_base_emoji`）；`examples/render_*`（17）+ `render_visual_*`（10）+ `text_langs_png` 共 28 个为离屏出 PNG，**不产真窗**。
    复核命令：`for d in $(find examples -name main.go -printf '%h\n' | sort -u); do grep -qE 'platform\.Open\(|NewPipelineApp\(|SpawnWindow\(|OpenReal\(' $d/*.go && echo "WIN $d" || echo "OFF $d"; done`
 2. **逐功能扫描**：组合 grep 全 `examples/`（真窗 / 离屏分开标注）；示例零命中的再查 `ui/`、`engine/` 层是否有消费者（即“间接路径”）；最后全仓非测试确认「零调用」。
 3. 原始扫描产物：`/tmp/opencode/`（`ex_window.txt` / `ex_other.txt` / `feat_scan_out.txt` / `feat_scan2_out.txt`；脚本 `feat_scan.sh` / `feat_scan2.sh` 可重跑复现）。
@@ -77,7 +77,7 @@
 | render/scene | 📄 | 仅离屏（render_scene、render_scene_gpu、visual×2）与 render 内部（internal/gpu、filters）；无 ui/engine 直用 |
 | render/recording | 📄 | 唯一消费者 examples/render_recording（离屏） |
 | render/filters | ✅ | r20 blank import（main.go:47）+ 滤镜节点路径 |
-| render/text/emoji | 🔁 | render/text 内部（color_font_adapter.go 等）+ ui/rendering/text_layout.go；真窗 ui_text_m5_anycase（emoji 分区，main.go:3/130） |
+| render/text/emoji | ✅ | 直调真窗 `examples/ui_render_base_emoji`（CBDT/CBLC 36 字形 + Segment 六类 + 合成 COLR；2026-10-21：14 逻辑 + 12 像素 + Golden 627200px 零差；字体 SHA 绑定）+ 间接 `ui_text_m5_anycase`（emoji 分区，main.go:3/130）；`render/text` 内部（color_font_adapter.go 等）+ ui/rendering/text_layout.go。**原子验证**，生产消费者仍为零 |
 | render/gpu | ✅ | blank import 全窗（注册渲染后端） |
 | render/svg | ✅ | 直调真窗 `examples/ui_render_base_svg`（2026-10-21：4 卡 SVG 图标 / fill=none / 嵌套 transform / 主题色；逻辑 7/7、像素 9/9、Golden 627200px 零差、抓屏同区 0.0000%）；真窗直用（原子验证），生产消费者仍为零 |
 
@@ -107,7 +107,7 @@
 ### 3.2 B 组：仅离屏出图 —— 需要真窗化
 
 - `render_*`（17）+ `render_visual_*`（10）共 27 个离屏示例本身不产真窗；其中大部分功能在别的真窗有覆盖，但「render 直调层的画面证据」只在离屏（与 §7-U21 金图问题同源），若要求真窗像素证据需窗口化。
-- 点名的四个：图案/画笔旧接口（render_images）、VF 加载（render_variable_font）、Recording（render_recording）、Emoji（render_color_emoji；另有间接窗 ui_text_m5_anycase）。
+- 点名的四个：图案/画笔旧接口（render_images）、VF 加载（render_variable_font）、Recording（render_recording）仍待窗；~~Emoji（render_color_emoji；另有间接窗 ui_text_m5_anycase）~~ → 2026-10-21 已建直调真窗 `examples/ui_render_base_emoji`（详见 §11 本行）。
 
 ### 3.3 C 组：先修实现/先定案，再建窗
 
@@ -131,7 +131,7 @@
 ## 5. R/C 能力与真窗
 
 源码事实（2026-10-18；R1 目录计数 2026-10-20 复核）：
-- `examples/ui_wr_*` 46 个目录：45 个有 `main.go`；`ui_wr_c12_spin_over_static` 为空目录；`ui_wr_r1_layout` 已建（R1 真窗）；`ui_wr_t_stress` 有 `main.go`（不在 §R 表）。
+- `examples/ui_wr_*` 45 个目录：45 个有 `main.go`；`ui_wr_r1_layout` 已建（R1 真窗）；`ui_wr_t_stress` 有 `main.go`（不在 §R 表）。
 - `examples/engine/` 23 个目录：`stage_night` 仅 `doc.go`（无 `main.go`）。
 - `examples/kit/` 9 个 + `kit_f0_*` 7 个。
 
@@ -169,6 +169,7 @@
 | **零字距 `MeasureWidth` 仍走未整形 rune advance**（2026-10-20 记录为独立子项，不属 A10 字距路径） | `RenderText.measureLine` 在 `LetterSpacing==0 && WordSpacing==0` 时走 `text.Measure`→`Face.Advance`（逐 rune 孤立 advance 求和），而 `TextLayout` 走 HarfBuzz shaping；有 kerning/连写的字体两者不一致。DejaVu 20px 实测：`AVATAR` `MeasureWidth=80.840` vs layout `75.176`；`مرحبا` `59.336` vs `47.451`。影响：零字距节点的 `Layout` 宽度偏大（对齐/候选框锚点）；`SetLetterSpacing(≠0)` 已与 layout 共用 shaped builder（本窗 D 卡 + `spacing_measure_equals_layout` 证明字距路径内相等）。修法需让零字距也走 shaping，并回归所有文本窗的 layout 宽度/换行；本轮不扩 A10 范围 | 2026-10-20 `ui_render_base_textspacing` 侦察实测 + `ui/rendering/text.go:500-523` / `render/text/draw.go:506` |
 | **逐点色忽略 Paint alpha / 混合模式**（2026-10-20 记录为限界） | 调用方传入 `colors` 时，GPU 走 `QueueColoredMesh*`（固定 Normal、只读顶点色），CPU Gouraud 也直接按顶点色 Normal 合成，不读当前 `c.paint` 的 alpha/blend。顶点 alpha 本身有效（本窗 `verts_vertex_alpha_blends` 验证插值），但 `SetRGBA(...,0.5)` 不会整体压暗网格；需要整体透明度时调用方先把系数乘进每个顶点 alpha | 2026-10-20 `ui_render_base_verticesmesh` + `render/vertices_mesh.go:118` / `:507` |
 | **网格硬边 + CPU 共享边重复混合**（2026-10-20 记录为限界） | GPU 网格管线 SkipAA（硬边）；CPU Gouraud 按三角形逐个采样，共享边上的像素可能被两侧各合成一次，颜色略重于 GPU。本窗逻辑探针避开共享边取样，像素探针全部取三角形内部；需要像素级 CPU/GPU 对拍时按此限界设计取样点 | 2026-10-20 `ui_render_base_verticesmesh` + `render/vertices_mesh.go:118` |
+| **Emoji 肤色修饰基表仍是简化表**（2026-10-21 记录为限界） | `Segment("👍🏽")` 正确保持一个 emoji run（`ui_render_base_emoji` 逻辑探针覆盖），但 `emoji.Parse("👍🏽")` 返回两个 `SequenceSimple`，`IsEmojiModifierBase(👍)` 为 false；👋 等同族也不在表内（`render/text/emoji/detect_test.go` 已标 “Not in our simplified list”）。需要补全 Unicode `Emoji_Modifier_Base` 数据表并让 `parseExtendedSequenceAt` 产出 `SequenceModified`；本窗不认证修饰序列解析 | 2026-10-21 `ui_render_base_emoji` C 卡 + `render/text/emoji/detect.go:34` / `sequence.go:250` |
 | **Dither 作用于整张 pixmap**（2026-10-20 记录为限界） | `SetDither(true)` 的后处理遍历整张 pixmap，不区分渐变与纯色：本窗 D 卡纯色 off/on 逐像素差异 100%，差异图可见 Bayer 图案。需要「只抖渐变」时调用方需自己限制绘制范围/分图，引擎当前不提供区域参数 | 2026-10-20 `ui_render_base_dither` D 卡 + `render/m4_dither.go:50` |
 | **重复读回累加**（2026-10-20 记录为限界） | 每次 `Image()` / `FlushGPU()` 都会再跑一遍后处理；同一上下文连续读两次像素继续变化（逻辑探针 `dither_repeat_readback_limit` 钉住）。`SetDither(false)` 只停止后续叠加，不能还原已改写像素（`dither_disable_stops` 只证明之后稳定） | 同上，`render/context_gpu.go:149` / `render/context_draw.go:21` |
 | **不影响窗口呈现主路**（2026-10-20 记录为限界） | `FlushGPUWithView` / `PresentWith` 不走 pixmap 后处理，只有 `Image()` / `FlushGPU()` 读回路径生效；本窗展示的是离屏烘焙图，不是「窗口呈现自动抖动」 | 同上，`render/context_gpu.go:250`（有 view 的 flush 不调 `applyDitherIfEnabled`） |
@@ -197,14 +198,14 @@
 - **内存（RSS/显存）**：只有零散实测（原线：启动爬坡 ~70MB 后 0.3~0.5MB/s、GOGC 实验），未进任何门禁；资源生命周期纪律在 `ENGINE_GPU_RESOURCE_LIFECYCLE.md`。
 - 重放计划门禁（`RENDER_CPU_1PCT_REPLAY_PLAN.md` §4）含画面/守卫/性能，不含内存项。
 
-## 9. 待人工确认项
+## 9. 待人工确认项（2026-10-21 已收口）
 
-1. `render_color_emoji` 口径（绕开 render 绘制栈；已被 ui_text_m5_anycase 间接覆盖）。
-2. `rendering.DrawVertices/FillSweepGradient` 门面：DrawVertices 仍全仓零调用；FillSweepGradient 2026-10-19 起有真窗直调（`ui_render_base_sweepgradient`，原子验证）但仍无生产调用方 → 口径=「门面未接线」（AGENTS.md 生产/原子验证口径：真窗示例只算原子验证），生产接线待后续。
-3. `ui_wr_c12_spin_over_static`（空目录）/`engine/stage_night`（仅 doc.go）按真源是否已排期。
-4. 视频底层 API 口径（经桥用算不算接线）。
-5. `render/svg`：已建直调真窗（2026-10-21），仍无生产消费者；后续接入 UI 图标加载前先保持原子验证口径。
-6. Bicubic GPU 化（RENDER_2D_ALIGNMENT 洞2）修复状态需复核。
+1. **Emoji 口径（已定，2026-10-21 已建）**：`render_color_emoji` 是字体提取 demo（直接调 `render/text/emoji` 写 PNG，不走 render 绘制栈）；emoji **渲染** 的间接真窗是 `ui_text_m5_anycase`。B 组直调真窗 `ui_render_base_emoji` 已建（CBDT/CBLC 36 字形 + Segment 六类 + 合成 COLR；14 逻辑 + 12 像素 + Golden 627200px 零差；原子验证，无生产消费者）。已知缺口：`Parse/IsEmojiModifierBase` 修饰基表仍是简化表（见 §6 与窗口 README）；本窗只认证 Segment/CBDT/COLR。
+2. **`rendering.DrawVertices/FillSweepGradient` 门面（已定）**：保持「门面未接线（原子验证）」——DrawVertices 全仓零调用；FillSweepGradient 只有直调真窗 `ui_render_base_sweepgradient`。按 AGENTS「已验证待接线是正常中间态」，不硬造生产消费者；生产接线等真实组件/模块需要时再做。
+3. **C12 空目录 / stage_night（已定）**：C 表无 C12，空目录 `ui_wr_c12_spin_over_static` 已删（`ui_wr_*` 46→45，45/45 有 main.go）；`engine/stage_night` 按 2.5D S68 只冻接口（仅 doc.go，无窗），建窗另排期，保留不算已建窗。
+4. **视频底层 API 口径（已定）**：经 `examples/video/*` 桥接调用只算**原子验证**；生产接线只认 `ui/kit video_*` 组件或 2.5D/模块功能包真正调用（AGENTS 生产/原子验证口径）。视频直传 API 未接组件前保持「已验证待接线」。
+5. **`render/svg` 口径（已定）**：已有直调真窗（2026-10-21），仍无生产消费者；保持原子验证口径，等 UI 图标加载接入后再按生产接线复核。
+6. **Bicubic 复核（已销）**：2026-10-04 已复核关闭——GPU 4×4 卷积变体（`cover_textured_bicubic.wgsl` + `ensureBicubicPipelines`）与对照单测均在，`render/internal/gpu` Bicubic 测试绿；剩余「Bicubic 仅离屏、无 UI 生产消费者」是使用面注记，不是修复缺口。
 
 ## 10. 建议销账顺序
 
@@ -249,3 +250,5 @@
 | 2026-10-21 | **C 组子包裁撤：删除 `render/surface`**：整包 53 个公开 API（Surface/ImageSurface/GPUSurface/Registry 及自有 Path/Stroke/Brush 类型），全仓非测试零 import；与 `render.Context` 的 CPU/GPU 渲染及路径/描边实现重复，GPUSurface 也只是外部 backend 壳。按「render 只做通用难事」与「成熟库优先」原则裁撤，不保留第二套渲染目标和注册表；未来第三方后端走 render/hal。同步删除 `scripts/apidoc` 的 surface 扫描与 API 总账 §0/§6.4/§7.2/附录、本文档 §2/§3.3/§9。验证：`go build ./render/...`、`go test ./render -run '^TestQuad'`、`go run ./scripts/apidoc` 绿。**性质=死包清理，无能力变化**。 |
 | 2026-10-21 | **C 组 SVG 真窗 `examples/ui_render_base_svg` + 修 `fill="none"` 继承与根百分比单位**：此前 `render/svg` 整包零真窗、零生产消费者，评审记两个语义 bug。窗=1200×800 四卡：A 红色填充圆（parse→raster→GPU `DrawImageEx`）/ B 根 `fill="none"` + 蓝色描边圆（圆心必须透卡底）/ C 嵌套 `<g transform="translate(2 2)">` 两块绿方块 / D `RenderWithColor` 白色填充替换为主题紫。三证据+抓屏：①逻辑 7/7（子进程 CPU 离屏：fill=none 全透明、根 50%/25% 解析为 8/2、填充圆中心/角、描边圆中心透明+环色、主题色保留 none、嵌套变换两方块+空隙、非法 XML 报错）②像素 9/9（GPU 快照圆心/角/环/两方块/空隙/主题色，容差 0.04）③Golden 表头+图例+四卡 627200px 逐位零差（播种后复跑 `0.0000%`）④抓屏 vs 快照同 627200px `0.0000%`（tol ±2/255）。门禁：`-auto-only`/RUN_SECONDS（≥5s）+ §2.2 A–J JSON（`present_policy=full_paint`、`vsync_source=true`、`gpu_ops=26703`、`cpu_fallback_ops=0`、`gpu_fallbacks=0`、`presents=300`、`fps_gate=off_correctness`；人工档 `-manual-seconds 8` 退出 0（`presents=480`、`gpu_ops=42723`、`cpu_fallback_ops=0`、抓屏 0））。**修法**：`fillAndStroke` 默认黑填充兜底改看有效值 `resolveFill/resolveStroke`；`parseSVGRoot` 先读 viewBox 再按参考轴解析根 width/height 百分比；子元素 `<circle>/<rect>/<ellipse>/<line>` 几何改用 `parseLength`，非法值/子元素百分比/根 width·height 非法值返回带元素/属性名的错误，不再静默吞 0。永久回归 `render/svg/svg_test.go` 四例（`TestRenderInheritedFillNoneWithoutStroke` / `TestParseRootPercentDimensions` / `TestParseChildPercentLengthRejected` / `TestParseInvalidRootDimensionRejected`）。限界：仍是图标子集（defs/use/渐变/clipPath/preserveAspectRatio 未支持），子元素百分比明确报错，本窗为原子验证、无生产消费者。真源同步：§2 子包表（真窗判定 ✅）、§3.3、§9、本行；`RENDER_API_CATALOG.md` §6.4（无生产消费者 🔌）；`ENGINE_UI_RENDER_BASE.md` §23/§24；本窗 README。真窗计数复核 147→150（补记 pathbool/r1/SVG）。**性质=原子验证**，不算生产接线 |
 | 2026-10-21 | **C 组「OS 级增量呈现链」断头关闭（GL 安全版全接线，原子验证）**：`FrameDamage` → `PresentTarget.present`（裁剪到物理表面）→ `hal.Swapchain.EndFrameWithDamage` → gles `Queue.Present` 已贯通。EGL 补 `eglQuerySurface` / `EGL_BUFFER_AGE_EXT` / `eglSetDamageRegionKHR` 加载与 FFI；三扩展（`EGL_KHR_swap_buffers_with_damage` + `EGL_KHR_partial_update` + `EGL_EXT_buffer_age`）齐备且 FBO 1:1 时，按 buffer age 合并最近 4 帧损伤，走 `eglSetDamageRegionKHR` + 剪刀 blit + `eglSwapBuffersWithDamageKHR`，否则全量 blit + `eglSwapBuffers`；并集 ≥85% 表面 / 首帧无历史 / 无损伤 / 借旧 FBO 拉伸一律全量；EGL damage 当前按单并集提交（多个远离脏区合并成包围盒，per-rect 留后续优化）。修掉「历史记录 blit 并集导致一次全量永久放大」的回归（历史改记实际画进持久 FBO 的当前帧损伤）。真机 X11 窗测试 `TestPresentDamageX11`：全量帧逐帧更新、6 帧局部内部轮换、外部基色不变、`partial=6`；同包 `surface_damage_linux_test.go` 覆盖并集/历史/85% 门/放大回归。wgpu-native 仍全量（平台限界）；Windows WGL 同样全量（无等价增量提交）；macOS metal 不走本链。旧 `DamageRectSetter`/`SetDamageRects` 仓内仍无生产实现者，新链路已绕过它，不再作为缺口。验证：`go test ./gpu/gwgpu/gles -count=1` 绿、`go test ./render -run 'TestClipPresentDamage' -count=1` 绿、`go test ./render/integration/ggcanvas -count=1` 绿；`TestS69_Contract_FromJSON` 性能基线红为本批无关存量。文档同步：§3.3/§6/本行、`ENGINE_FRAME_PRESENT_STANDARD.md` §2.4/§5/§9、`RENDER_API_CATALOG.md` §3.7/§7、`ENGINE_GL_MIGRATION_PLAN.md` §7。**性质=原子验证**（真机窗测试），未在组件/2.5D/视频 GL 窗跑生产损伤证据，不算生产接线。代码未提交。 |
+| 2026-10-21 | **§9 待确认项收口（人工确认：按推荐口径）**：① Emoji 口径定「另建直调真窗 `ui_render_base_emoji`（B 组待建）」；`render_color_emoji` 是提取 demo，不算绘制栈真窗。② DrawVertices/FillSweepGradient 保持「门面未接线（原子验证）」，不硬造生产消费者。③ C12 空目录已删（`ui_wr_*` 46→45，45/45 有 main.go）；`engine/stage_night` 按 S68 只冻接口，建窗另排期。④ 视频口径写死：`examples/video/*` 桥用=原子验证，生产只认 `ui/kit video_*` 或 2.5D/模块功能包真正调用；`ENGINE_VIDEO_DECODE_PLAN.md` §2 同步。⑤ SVG 保持原子验证，等 UI 图标加载。⑥ Bicubic 复核销项：2026-10-04 已关，GPU 4×4 卷积变体 + 测试在，`render/internal/gpu` Bicubic 测试复跑绿；剩余「仅离屏」是使用面注记。下一步 B 组 Emoji 直调真窗（已完成，见下一行）。 |
+| 2026-10-21 | **B 组 Emoji 直调真窗 `examples/ui_render_base_emoji` 建成**：`render/text/emoji` 从 §2 🔁 转 ✅（原子验证）。窗=1200×800 四卡：A 6×6 CBDT 位图网格（36 字形，PPEM 109）/ B 最彩色字形按原始尺寸 136×128 画出（本机 gid=21，字体 SHA-256 前缀 `0f03293ecdd10b89`）/ C 六行语料按 `emoji.Segment` 的 run 画框（混合文本·ZWJ·国旗·肤色·keycap·VS16，蓝=文本·橙=emoji）/ D 合成 COLR 三层红方块→绿圆→蓝三角走真实 `RenderCOLRToImage`。三证据：①逻辑 14/14（Segment 六类 + 字节偏移/回环/无空 run、CBDT PPEM/样本/36 格、COLR 图层顺序/前景层）②像素 12/12（A/B 用 ink 比例 + 色度计数，C 四个 run 框颜色，D 红/绿/蓝/卡底四点；容差 8–12/255）③Golden 表头+图例+四卡 627200px 逐位零差（seed 后复跑 `diff=0.0000%`）。门禁：`-auto-only`/RUN_SECONDS（≥5s）+ §2.2 A–J JSON（`present_policy=full_paint`、`vsync_source=true`、`gpu_ops≈36k`、`cpu_fallback_ops=0`、`gpu_fallbacks=0`、presents≈300、`fps_gate=off_correctness`）；字体缺失时 A/B 逻辑/像素/Golden 显式 skip 并报 `font_missing=true`，C/D 8 个字体无关像素探针仍跑。已知限界 5 项记本窗 README：只烘 CBDT/CBLC（TTC/纯 COLR 不烘）、D 卡 COLR 为合成 glyph、肤色 `Parse/IsEmojiModifierBase` 简化表（见 §6）、不是文本彩色字形全链路（C 卡文本 fallback 单色；分段看 run 框）、原子验证无生产消费者。真源同步：§2 子包表、§3.2 点名项关闭、§9 第 1 项、§6 新增 1 行、真窗计数 150→151、本行；`examples/ui_render_base_emoji/README.md`。**性质=原子验证**，不算生产接线 |

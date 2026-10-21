@@ -1,0 +1,9 @@
+# ui_render_base_emoji mixed text corpus — one case per line.
+# The window segments each line with render/text/emoji.Segment and paints
+# one run box per returned run. Keep the offsets meaningful: no trimming.
+Hi 😀
+Family 👨‍👩‍👧‍👦
+Flags 🇨🇳 🇺🇸
+Tones 👍🏽 👍🏻
+Keycap 1️⃣
+VS16 ©️ ❤️ ❤
