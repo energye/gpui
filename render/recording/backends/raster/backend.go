@@ -131,18 +131,16 @@ func (b *Backend) SetClip(path *render.Path, rule recording.FillRule) {
 		return
 	}
 
-	// Set the path on the context
-	b.ctx.ClearPath()
-	b.setPathFromElements(path)
+	// Recording paths are already in world coordinates; clip through the
+	// context's real clip stack instead of merely leaving the path loaded.
+	b.setPath(path)
 	b.ctx.SetFillRule(convertFillRule(rule))
-	// Note: render.Context doesn't have a direct Clip method, so we use ClipPreserve behavior
-	// by setting path and letting fill/stroke respect it
+	b.ctx.Clip()
 }
 
 // ClearClip removes any clipping region.
 func (b *Backend) ClearClip() {
-	// render.Context doesn't expose ResetClip directly
-	// We handle this by pushing/popping state around clip operations
+	b.ctx.ResetClip()
 }
 
 // FillPath fills the given path with the brush.
@@ -180,57 +178,78 @@ func (b *Backend) FillRect(rect recording.Rect, brush recording.Brush) {
 }
 
 // DrawImage draws an image from source to destination rectangle.
-func (b *Backend) DrawImage(img image.Image, src, dst recording.Rect, _ recording.ImageOptions) {
-	if img == nil {
+func (b *Backend) DrawImage(img image.Image, src, dst recording.Rect, opts recording.ImageOptions) {
+	if img == nil || dst.IsEmpty() {
 		return
 	}
 
-	// Save current state
-	b.ctx.Push()
-	defer b.ctx.Pop()
-
-	// Calculate scale
 	srcW := src.Width()
 	srcH := src.Height()
-	dstW := dst.Width()
-	dstH := dst.Height()
-
-	if srcW == 0 || srcH == 0 {
-		// Use full image bounds
+	if srcW <= 0 || srcH <= 0 {
 		bounds := img.Bounds()
-		srcW = float64(bounds.Dx())
-		srcH = float64(bounds.Dy())
+		src = recording.NewRect(0, 0, float64(bounds.Dx()), float64(bounds.Dy()))
+		srcW = src.Width()
+		srcH = src.Height()
+	}
+	if srcW <= 0 || srcH <= 0 {
+		return
 	}
 
-	scaleX := dstW / srcW
-	scaleY := dstH / srcH
+	// Recording destinations are already in world coordinates.
+	b.ctx.Identity()
 
-	// Apply transform for scaling and positioning
-	b.ctx.Translate(dst.MinX, dst.MinY)
-	b.ctx.Scale(scaleX, scaleY)
-	b.ctx.Translate(-src.MinX, -src.MinY)
-
-	// Draw the image at origin (transform handles positioning)
-	// Note: render.Context.DrawImage takes int coordinates
-	// We need to handle the source rect cropping if specified
-	// For now, draw the full image and let the transform handle it
 	bounds := img.Bounds()
-	b.ctx.DrawRectangle(float64(bounds.Min.X), float64(bounds.Min.Y),
-		float64(bounds.Dx()), float64(bounds.Dy()))
-	// TODO: Implement proper image drawing with cropping
-	// For now, use a simple approach
+	// ImageBufFromImage normalizes the image to a 0,0 origin, while the
+	// recording's src rect is image-relative. Do not add Bounds().Min here;
+	// a sub-image would otherwise sample from the wrong pixels.
+	srcRect := image.Rect(
+		int(src.MinX),
+		int(src.MinY),
+		int(src.MaxX),
+		int(src.MaxY),
+	).Intersect(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
+	if srcRect.Empty() {
+		return
+	}
+
+	interp := render.InterpBilinear
+	if opts.Interpolation == recording.InterpolationNearest {
+		interp = render.InterpNearest
+	}
+	opacity := opts.Alpha
+	if opacity <= 0 {
+		// DrawImageEx treats zero as "unspecified" and uses 1.0; the
+		// recording contract treats zero as fully transparent.
+		return
+	}
+	if opacity > 1 {
+		opacity = 1
+	}
+
+	b.ctx.DrawImageEx(render.ImageBufFromImage(img), render.DrawImageOptions{
+		X:             dst.MinX,
+		Y:             dst.MinY,
+		DstWidth:      dst.Width(),
+		DstHeight:     dst.Height(),
+		SrcRect:       &srcRect,
+		Interpolation: interp,
+		Opacity:       opacity,
+	})
 }
 
 // DrawText draws text at the given position with the specified font face and brush.
-// Note: Text rendering is not fully implemented in this backend.
-// render.Context doesn't have SetFontFace with text.Face interface.
-// A full implementation would need font handling integration.
-func (b *Backend) DrawText(_ string, _, _ float64, _ text.Face, brush recording.Brush) {
-	// Apply brush for text color
-	b.applyBrush(brush, true)
+func (b *Backend) DrawText(s string, x, y float64, face text.Face, brush recording.Brush) {
+	if s == "" || face == nil {
+		return
+	}
 
-	// TODO: Implement text rendering when render.Context supports text.Face
-	// For now, we only apply the brush but don't render text
+	// Recording coordinates already include the recorded transform.
+	b.ctx.Push()
+	defer b.ctx.Pop()
+	b.ctx.Identity()
+	b.applyBrush(brush, true)
+	b.ctx.SetFont(face)
+	b.ctx.DrawString(s, x, y)
 }
 
 // WriteTo writes the rendered content as PNG to the given writer.
@@ -276,19 +295,8 @@ func (b *Backend) Height() int {
 // setPath sets the path on the context with identity transform.
 // The path is assumed to be already in world coordinates.
 func (b *Backend) setPath(path *render.Path) {
-	// Save current transform
-	b.ctx.Push()
-	// Reset transform since path coordinates are already transformed
 	b.ctx.Identity()
-
 	b.ctx.ClearPath()
-	b.setPathFromElements(path)
-
-	// Restore transform for later operations
-	b.ctx.Pop()
-	// But we need to keep the path, so clear and rebuild with identity
-	b.ctx.ClearPath()
-	b.ctx.Identity()
 	b.setPathFromElements(path)
 }
 

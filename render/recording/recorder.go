@@ -177,19 +177,25 @@ func (r *Recording) Playback(backend Backend) error {
 		case FillRectCommand:
 			brush := r.resources.GetBrush(c.Brush)
 			backend.FillRect(c.Rect, brush)
+		case StrokeRectCommand:
+			// The backend contract has no StrokeRect; converting here keeps
+			// rectangle strokes from silently disappearing during playback.
+			path := render.NewPath()
+			path.Rectangle(c.Rect.MinX, c.Rect.MinY, c.Rect.Width(), c.Rect.Height())
+			brush := r.resources.GetBrush(c.Brush)
+			backend.StrokePath(path, brush, c.Stroke)
 		case DrawImageCommand:
 			img := r.resources.GetImage(c.Image)
 			backend.DrawImage(img, c.SrcRect, c.DstRect, c.Options)
 		case DrawTextCommand:
 			brush := r.resources.GetBrush(c.Brush)
-			// Font face lookup would need additional handling
-			backend.DrawText(c.Text, c.X, c.Y, nil, brush)
+			backend.DrawText(c.Text, c.X, c.Y, r.faceFor(c.Font), brush)
 		case StrokeTextCommand:
 			brush := r.resources.GetBrush(c.Brush)
 			// StrokeText is recorded as a stroke text command.
 			// Backends that support text stroking can use the stroke style;
 			// others fall back to DrawText (fill) as an approximation.
-			backend.DrawText(c.Text, c.X, c.Y, nil, brush)
+			backend.DrawText(c.Text, c.X, c.Y, r.faceFor(c.Font), brush)
 		// Style commands are handled by the backend's internal state
 		// during the actual drawing operations
 		case SetFillStyleCommand, SetStrokeStyleCommand,
@@ -201,6 +207,15 @@ func (r *Recording) Playback(backend Backend) error {
 	}
 
 	return backend.End()
+}
+
+// faceFor resolves a recorded font reference. InvalidRef means the recording
+// was made without SetFont; backends then receive nil and may no-op.
+func (r *Recording) faceFor(ref FontRef) text.Face {
+	if !ref.IsValid() {
+		return nil
+	}
+	return r.resources.GetFont(ref)
 }
 
 // --------------------------------------------------------------------------

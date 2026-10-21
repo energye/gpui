@@ -495,6 +495,16 @@ func (r *Recorder) SetFont(face text.Face) {
 	r.fontFace = face
 }
 
+// currentFontRef stores the current face in the resource pool. Text commands
+// carry the reference so playback backends can use the actual face; the old
+// encoder dropped it and playback always passed nil to DrawText.
+func (r *Recorder) currentFontRef() FontRef {
+	if r.fontFace == nil {
+		return FontRef(InvalidRef)
+	}
+	return r.resources.AddFont(r.fontFace)
+}
+
 // SetFontSize sets the current font size in points.
 func (r *Recorder) SetFontSize(size float64) {
 	r.fontSize = size
@@ -518,6 +528,7 @@ func (r *Recorder) DrawString(s string, x, y float64) {
 		Y:          py,
 		FontSize:   r.fontSize,
 		FontFamily: r.fontFamily,
+		Font:       r.currentFontRef(),
 		Brush:      brushRef,
 	})
 }
@@ -552,6 +563,7 @@ func (r *Recorder) StrokeString(s string, x, y float64) {
 		Y:          py,
 		FontSize:   r.fontSize,
 		FontFamily: r.fontFamily,
+		Font:       r.currentFontRef(),
 		Brush:      brushRef,
 		Stroke:     stroke,
 	})

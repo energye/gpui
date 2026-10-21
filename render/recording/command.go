@@ -293,6 +293,9 @@ type DrawTextCommand struct {
 	FontSize float64
 	// FontFamily is the name of the font family.
 	FontFamily string
+	// Font references the recorded text.Face in the resource pool.
+	// InvalidRef means no face was set when the text was recorded.
+	Font FontRef
 	// Brush references the text color/brush in the resource pool.
 	Brush BrushRef
 }
@@ -313,6 +316,9 @@ type StrokeTextCommand struct {
 	FontSize float64
 	// FontFamily is the name of the font family.
 	FontFamily string
+	// Font references the recorded text.Face in the resource pool.
+	// InvalidRef means no face was set when the text was recorded.
+	Font FontRef
 	// Brush references the stroke color/brush in the resource pool.
 	Brush BrushRef
 	// Stroke contains the stroke style (width, cap, join, dash).
