@@ -442,6 +442,13 @@ type Encoding struct {
 	// Used by DamageTracker for frame-to-frame object diff.
 	commandBounds []Rect
 
+	// lastEncodedTransform is the value of the most recent TagTransform in
+	// the stream. Decoders keep transform state across commands, so an
+	// identity draw after a transformed draw must emit an explicit identity
+	// reset; otherwise it inherits the stale transform.
+	lastEncodedTransform Affine
+	hasEncodedTransform  bool
+
 	// bounds tracks cumulative bounding box
 	bounds Rect
 
@@ -478,6 +485,8 @@ func (e *Encoding) Reset() {
 	e.textData = e.textData[:0]
 	e.brushes = e.brushes[:0]
 	e.commandBounds = e.commandBounds[:0]
+	e.lastEncodedTransform = IdentityAffine()
+	e.hasEncodedTransform = false
 	e.bounds = EmptyRect()
 	e.pathBounds = EmptyRect()
 	e.pathCount = 0
@@ -495,10 +504,32 @@ func (e *Encoding) EncodeAntiAlias(enabled bool) {
 	e.drawData = append(e.drawData, val)
 }
 
-// EncodeTransform adds a transform command.
+// EncodeTransform adds a transform command and records it as the stream's
+// current transform state.
 func (e *Encoding) EncodeTransform(t Affine) {
 	e.tags = append(e.tags, TagTransform)
 	e.transforms = append(e.transforms, t)
+	e.lastEncodedTransform = t
+	e.hasEncodedTransform = true
+}
+
+// EncodeDrawTransform emits the transform a draw command depends on, skipping
+// the TagTransform only when the stream is already in that state.
+//
+// TagTransform is stateful in both decoders (GPU SetTransform, CPU
+// currentTransform). Skipping identity transforms without tracking the
+// previous value made every command after a transformed draw inherit the
+// rotation/translation, which moved clips and fills off their intended
+// positions.
+func (e *Encoding) EncodeDrawTransform(t Affine) {
+	if e.hasEncodedTransform {
+		if t == e.lastEncodedTransform {
+			return
+		}
+	} else if t.IsIdentity() {
+		return
+	}
+	e.EncodeTransform(t)
 }
 
 // EncodeTransformFromMatrix adds a transform from a render.Matrix.
@@ -808,6 +839,22 @@ func (e *Encoding) Hash() uint64 {
 		hash *= fnvPrime
 	}
 
+	// Hash brushes. Draw commands reference brushes by index, so identical
+	// geometry with a different colour must not collide: LayerCache keys on
+	// this hash and would otherwise return stale pixels after a recolour.
+	for _, b := range e.brushes {
+		hash ^= uint64(b.Kind)
+		hash *= fnvPrime
+		hash ^= uint64(math.Float32bits(float32(b.Color.R)))
+		hash *= fnvPrime
+		hash ^= uint64(math.Float32bits(float32(b.Color.G)))
+		hash *= fnvPrime
+		hash ^= uint64(math.Float32bits(float32(b.Color.B)))
+		hash *= fnvPrime
+		hash ^= uint64(math.Float32bits(float32(b.Color.A)))
+		hash *= fnvPrime
+	}
+
 	return hash
 }
 
@@ -832,6 +879,14 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 	// Calculate brush index offset for the appended encoding
 	//nolint:gosec // brush slice length is bounded, overflow not possible in practice
 	brushOffset := uint32(len(e.brushes))
+
+	// If the previous encoding ended under a non-identity transform and this
+	// one starts without its own TagTransform, reset to identity at the
+	// boundary so appended content does not inherit the stale transform.
+	if e.hasEncodedTransform && !e.lastEncodedTransform.IsIdentity() &&
+		other.tags[0] != TagTransform {
+		e.EncodeTransform(IdentityAffine())
+	}
 
 	// Append tags directly
 	e.tags = append(e.tags, other.tags...)
@@ -895,6 +950,16 @@ func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32) {
 	// Append brushes
 	e.brushes = append(e.brushes, other.brushes...)
 
+	// Append per-command bounds. DamageTracker compares these across frames;
+	// dropping them on flatten/append would hide every command from object diff.
+	e.commandBounds = append(e.commandBounds, other.commandBounds...)
+
+	// Carry the transform state of the appended stream.
+	if other.hasEncodedTransform {
+		e.lastEncodedTransform = other.lastEncodedTransform
+		e.hasEncodedTransform = true
+	}
+
 	// Union bounds
 	e.bounds = e.bounds.Union(other.bounds)
 
@@ -952,6 +1017,11 @@ func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageO
 
 	//nolint:gosec // brush slice length is bounded
 	brushOffset := uint32(len(e.brushes))
+
+	if e.hasEncodedTransform && !e.lastEncodedTransform.IsIdentity() &&
+		other.tags[0] != TagTransform {
+		e.EncodeTransform(IdentityAffine())
+	}
 
 	e.tags = append(e.tags, other.tags...)
 
@@ -1054,12 +1124,27 @@ func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageO
 
 	e.brushes = append(e.brushes, other.brushes...)
 
+	if other.hasEncodedTransform {
+		e.lastEncodedTransform = other.lastEncodedTransform
+		e.hasEncodedTransform = true
+	}
+
 	ob := other.bounds
 	ob.MinX += dx
 	ob.MinY += dy
 	ob.MaxX += dx
 	ob.MaxY += dy
 	e.bounds = e.bounds.Union(ob)
+
+	// Carry per-command bounds with the same translation so DamageTracker keeps
+	// working on composed scenes (RepaintBoundary append path).
+	for _, cb := range other.commandBounds {
+		cb.MinX += dx
+		cb.MinY += dy
+		cb.MaxX += dx
+		cb.MaxY += dy
+		e.commandBounds = append(e.commandBounds, cb)
+	}
 
 	e.pathCount += other.pathCount
 	e.shapeCount += other.shapeCount
@@ -1115,6 +1200,12 @@ func (e *Encoding) Clone() *Encoding {
 
 	clone.brushes = make([]Brush, len(e.brushes))
 	copy(clone.brushes, e.brushes)
+
+	clone.commandBounds = make([]Rect, len(e.commandBounds))
+	copy(clone.commandBounds, e.commandBounds)
+
+	clone.lastEncodedTransform = e.lastEncodedTransform
+	clone.hasEncodedTransform = e.hasEncodedTransform
 
 	clone.bounds = e.bounds
 	clone.pathBounds = e.pathBounds

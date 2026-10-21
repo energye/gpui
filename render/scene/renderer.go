@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/render"
+	intImage "github.com/energye/gpui/render/internal/image"
 	"github.com/energye/gpui/render/internal/parallel"
 	"github.com/energye/gpui/render/text"
 )
@@ -625,6 +626,15 @@ type tileClipState struct {
 	savedPM *render.Pixmap // the pixmap we were drawing to before this clip
 }
 
+// tileLayerState holds the state for one level of layer nesting during CPU tile
+// rendering. Content between PushLayer/PopLayer renders into an isolated pixmap
+// and composites onto the parent at pop with the recorded opacity and blend mode.
+type tileLayerState struct {
+	savedPM *render.Pixmap // the pixmap we were drawing to before this layer
+	alpha   float32        // layer opacity (0..1)
+	blend   BlendMode      // layer blend mode
+}
+
 // executeEncodingOnTile executes encoding commands on a single tile, delegating
 // rasterization to render.SoftwareRenderer for analytic anti-aliased output.
 //
@@ -645,6 +655,11 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 
 	// clipStack tracks nested clip states for BeginClip/EndClip pairs.
 	var clipStack []tileClipState
+
+	// layerStack tracks nested PushLayer/PopLayer pairs. Each layer renders into
+	// its own pixmap so opacity/blend apply to the isolated group on pop, matching
+	// the GPU path (render.Context.PushLayer/PopLayer).
+	var layerStack []tileLayerState
 
 	// Reusable render.Path for convertPath — avoids per-fill/stroke allocation.
 	ggPath := r.pool.getGGPath()
@@ -712,8 +727,27 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 			pathActive = false
 
 		case TagFillRoundRect:
-			brush, _, rect, rx, ry := dec.FillRoundRect()
-			renderFillRoundRect(pm, currentTransform, brush, rect, rx, ry, tileX, tileY)
+			brush, style, rect, rx, ry := dec.FillRoundRect()
+			ggPath.Reset()
+			ggPath.RoundedRectangle(
+				float64(rect.MinX), float64(rect.MinY),
+				float64(rect.MaxX-rect.MinX), float64(rect.MaxY-rect.MinY),
+				float64(roundRectRadius(rect, rx, ry)))
+			// Path.Transform returns a new path; the receiver is unchanged.
+			p := ggPath
+			if !currentTransform.IsIdentity() {
+				t := currentTransform
+				p = p.Transform(render.Matrix{
+					A: float64(t.A), B: float64(t.B), C: float64(t.C),
+					D: float64(t.D), E: float64(t.E), F: float64(t.F),
+				})
+			}
+			if tileX != 0 || tileY != 0 {
+				p = p.Transform(render.Matrix{A: 1, E: 1, C: -float64(tileX), F: -float64(tileY)})
+			}
+			resetFillPaint(fillPaint, brush, style)
+			_ = sr.Fill(activePM, p, fillPaint)
+			pathActive = false
 
 		case TagStroke:
 			brush, style := dec.Stroke()
@@ -744,11 +778,19 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 			pathActive = false
 
 		case TagPushLayer:
-			_, alpha := dec.PushLayer()
-			_ = alpha // CPU tile renderer: layer alpha applied during compositing (TODO: implement per-layer alpha blending)
+			blend, alpha := dec.PushLayer()
+			savedPM := activePM
+			activePM = r.pool.getPixmap(activePM.Width(), activePM.Height())
+			layerStack = append(layerStack, tileLayerState{savedPM: savedPM, alpha: alpha, blend: blend})
 
 		case TagPopLayer:
-			// CPU tile renderer: layer compositing (TODO: implement proper layer pop with alpha)
+			if len(layerStack) > 0 {
+				state := layerStack[len(layerStack)-1]
+				layerStack = layerStack[:len(layerStack)-1]
+				compositeLayerPixmaps(state.savedPM, activePM, state.alpha, state.blend)
+				r.pool.putPixmap(activePM)
+				activePM = state.savedPM
+			}
 
 		case TagBeginClip:
 			tileW := activePM.Width()
@@ -821,6 +863,15 @@ func (r *Renderer) executeEncodingOnTile(dec *Decoder, tile *parallel.Tile, pm *
 			// inline RGBA data in pathData — advance the decoder past it.
 			dec.Brush()
 		}
+	}
+
+	// Safety: if layer stack is not empty (unbalanced layers), composite them.
+	for len(layerStack) > 0 {
+		state := layerStack[len(layerStack)-1]
+		layerStack = layerStack[:len(layerStack)-1]
+		compositeLayerPixmaps(state.savedPM, activePM, state.alpha, state.blend)
+		r.pool.putPixmap(activePM)
+		activePM = state.savedPM
 	}
 
 	// Safety: if clip stack is not empty (unbalanced clips), composite remaining.
@@ -913,9 +964,68 @@ func compositePixmaps(dst, src *render.Pixmap) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Path and Paint Conversion (scene types -> gg types)
-// ---------------------------------------------------------------------------
+// compositeLayerPixmaps composites an isolated layer pixmap onto its parent.
+// Both pixmaps use premultiplied RGBA8. Normal layers take a direct premultiplied
+// source-over path (with opacity); other modes delegate to the shared image
+// blender so the CPU tile renderer matches the GPU layer composite.
+func compositeLayerPixmaps(dst, src *render.Pixmap, opacity float32, mode BlendMode) {
+	if dst == nil || src == nil || opacity <= 0 {
+		return
+	}
+	if opacity > 1 {
+		opacity = 1
+	}
+	w, h := dst.Width(), dst.Height()
+	if src.Width() != w || src.Height() != h {
+		return
+	}
+	if mode == BlendNormal || mode == BlendSourceOver {
+		compositePremulSourceOverOpacity(dst.Data(), src.Data(), opacity)
+		return
+	}
+	srcImg, err := intImage.FromRaw(src.Data(), w, h, intImage.FormatRGBA8, w*4)
+	if err != nil {
+		return
+	}
+	dstImg, err := intImage.FromRaw(dst.Data(), w, h, intImage.FormatRGBA8, w*4)
+	if err != nil {
+		return
+	}
+	r := intImage.Rect{X: 0, Y: 0, Width: w, Height: h}
+	intImage.DrawImage(dstImg, srcImg, intImage.DrawParams{
+		SrcRect:   &r,
+		DstRect:   r,
+		Interp:    intImage.InterpNearest,
+		Opacity:   float64(opacity),
+		BlendMode: mode.ToPaintBlendMode(),
+	})
+}
+
+// compositePremulSourceOverOpacity blends src over dst in premultiplied space:
+//
+//	out = src*opacity + dst*(1 - srcAlpha*opacity)
+func compositePremulSourceOverOpacity(dstData, srcData []byte, opacity float32) {
+	op := uint32(opacity*255 + 0.5)
+	if op == 0 {
+		return
+	}
+	n := min(len(dstData), len(srcData))
+	for i := 0; i+3 < n; i += 4 {
+		sa := uint32(srcData[i+3])
+		if sa == 0 {
+			continue
+		}
+		a := sa * op / 255
+		if a == 0 {
+			continue
+		}
+		inv := 255 - a
+		dstData[i+0] = uint8(uint32(srcData[i+0])*op/255 + (uint32(dstData[i+0])*inv+127)/255)
+		dstData[i+1] = uint8(uint32(srcData[i+1])*op/255 + (uint32(dstData[i+1])*inv+127)/255)
+		dstData[i+2] = uint8(uint32(srcData[i+2])*op/255 + (uint32(dstData[i+2])*inv+127)/255)
+		dstData[i+3] = uint8(a + (uint32(dstData[i+3])*inv+127)/255)
+	}
+}
 
 // renderTextOnTile renders a TagText glyph run on a CPU tile by extracting
 // glyph outlines and rendering each as a filled path. Uses pre-shaped glyphs
@@ -1007,97 +1117,17 @@ func transformScenePath(p *Path, transform Affine) *Path {
 	return result
 }
 
-// renderFillRoundRect renders a filled rounded rectangle using SDF per-pixel
-// evaluation directly onto the pixmap, bypassing the path pipeline entirely.
-// This is the key performance optimization: no path construction, no edge building,
-// no scanline rasterization — just per-pixel SDF coverage with smoothstep AA.
-//
-//nolint:gosec // G115: Integer conversions are bounded by tile/pixmap dimensions
-func renderFillRoundRect(pm *render.Pixmap, transform Affine, brush Brush, rect Rect, rx, ry float32, tileX, tileY int) {
-	if brush.Kind != BrushSolid {
-		return // Only solid brushes supported for SDF path
-	}
-
-	// Transform the rect corners
-	minX, minY := transform.TransformPoint(rect.MinX, rect.MinY)
-	maxX, maxY := transform.TransformPoint(rect.MaxX, rect.MaxY)
-
-	// Ensure min < max after transform (handles negative scale)
-	if minX > maxX {
-		minX, maxX = maxX, minX
-	}
-	if minY > maxY {
-		minY, maxY = maxY, minY
-	}
-
-	// SDF parameters
-	cx := (minX + maxX) / 2
-	cy := (minY + maxY) / 2
-	halfW := (maxX - minX) / 2
-	halfH := (maxY - minY) / 2
-	radius := min32(min32(rx, ry), min32(halfW, halfH))
-
-	// Compute pixel bounds within the tile (with 1px margin for AA)
-	tileW := pm.Width()
-	tileH := pm.Height()
-	startX := max(int(minX)-tileX-1, 0)
-	startY := max(int(minY)-tileY-1, 0)
-	endX := min(int(maxX)-tileX+2, tileW)
-	endY := min(int(maxY)-tileY+2, tileH)
-
-	// Brush color components
-	br := float32(brush.Color.R)
-	bg := float32(brush.Color.G)
-	bb := float32(brush.Color.B)
-	ba := float32(brush.Color.A)
-
-	pmData := pm.Data()
-	stride := tileW * 4
-
-	for py := startY; py < endY; py++ {
-		canvasY := float32(py+tileY) + 0.5
-		rowOff := py * stride
-		for px := startX; px < endX; px++ {
-			canvasX := float32(px+tileX) + 0.5
-			coverage := sdfRoundRectCoverage(canvasX, canvasY, cx, cy, halfW, halfH, radius)
-			if coverage <= 0 {
-				continue
-			}
-			off := rowOff + px*4
-			if off+3 >= len(pmData) {
-				continue
-			}
-			blendSDF(pmData, off, br, bg, bb, ba, coverage)
-		}
-	}
-}
-
-// blendSDF blends a source color with coverage onto a destination pixel
-// using premultiplied source-over compositing.
-func blendSDF(dst []byte, off int, sr, sg, sb, sa, coverage float32) {
-	alpha := coverage * sa
-	invAlpha := 1.0 - alpha
-
-	dr := float32(dst[off]) / 255.0
-	dg := float32(dst[off+1]) / 255.0
-	db := float32(dst[off+2]) / 255.0
-	da := float32(dst[off+3]) / 255.0
-
-	dst[off] = clampByte((sr*alpha + dr*invAlpha) * 255.0)
-	dst[off+1] = clampByte((sg*alpha + dg*invAlpha) * 255.0)
-	dst[off+2] = clampByte((sb*alpha + db*invAlpha) * 255.0)
-	dst[off+3] = clampByte((alpha + da*invAlpha) * 255.0)
-}
-
-// clampByte clamps a float32 to [0, 255] and converts to byte.
-func clampByte(v float32) byte {
-	if v <= 0 {
+// roundRectRadius clamps the corner radii to the rect's half extents and
+// collapses to the single radius accepted by render.Path.RoundedRectangle.
+func roundRectRadius(rect Rect, rx, ry float32) float32 {
+	halfW := (rect.MaxX - rect.MinX) / 2
+	halfH := (rect.MaxY - rect.MinY) / 2
+	r := min32(rx, ry)
+	r = min32(r, min32(halfW, halfH))
+	if r < 0 {
 		return 0
 	}
-	if v >= 255 {
-		return 255
-	}
-	return byte(v + 0.5)
+	return r
 }
 
 // blitImageToTile composites a scene image onto a tile pixmap using the given

@@ -146,9 +146,7 @@ func (s *Scene) Fill(style FillStyle, transform Affine, brush Brush, shape Shape
 	// Optimization: RoundRectShape uses dedicated SDF encoding
 	// which bypasses path construction entirely.
 	if rr, ok := shape.(*RoundRectShape); ok {
-		if !combinedTransform.IsIdentity() {
-			enc.EncodeTransform(combinedTransform)
-		}
+		enc.EncodeDrawTransform(combinedTransform)
 		enc.EncodeFillRoundRect(brush, style, rr.Rect, rr.RadiusX, rr.RadiusY)
 
 		shapeBounds := rr.Rect
@@ -163,10 +161,9 @@ func (s *Scene) Fill(style FillStyle, transform Affine, brush Brush, shape Shape
 		return
 	}
 
-	// Encode transform if not identity
-	if !combinedTransform.IsIdentity() {
-		enc.EncodeTransform(combinedTransform)
-	}
+	// Encode the accumulated transform (identity included when the stream
+	// previously ended under a non-identity transform).
+	enc.EncodeDrawTransform(combinedTransform)
 
 	// Convert shape to path and encode — use pooled path when possible.
 	path := s.shapeToPath(shape)
@@ -212,10 +209,7 @@ func (s *Scene) Stroke(style *StrokeStyle, transform Affine, brush Brush, shape 
 	// Emit AA state change if needed (delta encoding).
 	s.emitAntiAliasIfNeeded(enc)
 
-	// Encode transform if not identity
-	if !combinedTransform.IsIdentity() {
-		enc.EncodeTransform(combinedTransform)
-	}
+	enc.EncodeDrawTransform(combinedTransform)
 
 	// Convert shape to path and encode — use pooled path when possible.
 	path := s.shapeToPath(shape)
@@ -263,6 +257,10 @@ func (s *Scene) DrawImage(img *Image, transform Affine) {
 
 	// Get the current layer's encoding
 	enc := s.currentEncoding()
+
+	// TagImage carries the full transform inline; reset any transform left
+	// active by a previous draw so the decoder's CTM is identity for it.
+	enc.EncodeDrawTransform(IdentityAffine())
 
 	// Encode image command
 	//nolint:gosec // image index is bounded by slice length
@@ -379,10 +377,7 @@ func (s *Scene) PushClip(shape Shape) {
 	enc := s.currentEncoding()
 	path := s.shapeToPath(shape)
 	if path != nil && !path.IsEmpty() {
-		// Encode transform if not identity
-		if !s.currentTransform.IsIdentity() {
-			enc.EncodeTransform(s.currentTransform)
-		}
+		enc.EncodeDrawTransform(s.currentTransform)
 		s.encodeScenePath(enc, path)
 		s.pathPool.Put(path)
 		enc.EncodeBeginClip()
@@ -510,6 +505,10 @@ func (s *Scene) Version() uint64 {
 // TaggedBounds returns per-draw-command bounding boxes with stable IDs.
 // Used by DamageTracker (ADR-021) for frame-to-frame object diff.
 func (s *Scene) TaggedBounds() []TaggedBounds {
+	// Flatten layers first: content drawn through SceneBuilder lives in the
+	// root layer's encoding until flattened. Without this, DamageTracker sees
+	// zero objects on a freshly built scene and reports no damage.
+	s.flattenLayers()
 	return s.encoding.CommandBounds()
 }
 

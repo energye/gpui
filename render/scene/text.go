@@ -492,11 +492,8 @@ func (s *Scene) encodeTextRun(str string, glyphs []text.ShapedGlyph, face text.F
 	fontID := s.RegisterFont(source)
 	enc := s.currentEncoding()
 
-	// Encode transform if not identity.
-	combinedTransform := s.currentTransform
-	if !combinedTransform.IsIdentity() {
-		enc.EncodeTransform(combinedTransform)
-	}
+	// Encode the accumulated transform (identity resets included).
+	enc.EncodeDrawTransform(s.currentTransform)
 
 	// Register brush.
 	brushIdx := len(enc.brushes)
