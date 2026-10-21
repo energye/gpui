@@ -20,14 +20,17 @@ import (
 // Strokes are expanded to fill paths and rendered with the Fill method,
 // which provides analytic anti-aliased results.
 func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
-	// Get effective line width
-	width := paint.EffectiveLineWidth()
-
-	// Get transform scale for dash pattern scaling
+	// Get transform scale for dash pattern scaling and thin-stroke coverage.
 	transformScale := paint.TransformScale
 	if transformScale <= 0 {
 		transformScale = 1.0
 	}
+	if tp := thinStrokePaint(paint, transformScale); tp != nil {
+		paint = tp
+	}
+
+	// Get effective line width
+	width := paint.EffectiveLineWidth()
 
 	// Apply dash pattern if set
 	// Scale dash pattern by transform scale
@@ -46,8 +49,11 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 	// Create stroke style from paint
 	// Scale line width by transform scale (path coordinates are already transformed)
 	effectiveWidth := width * transformScale
-	if effectiveWidth < 1.0 {
-		effectiveWidth = 1.0 // Minimum 1px stroke for visibility
+	if effectiveWidth <= 0 {
+		// Skia/Flutter hairline semantics: only a zero-width stroke becomes a
+		// one-device-pixel hairline. Positive sub-pixel widths keep their
+		// coverage (0.5px paints ~50% alpha) instead of being promoted to 1px.
+		effectiveWidth = 1.0
 	}
 	strokeStyle := stroke.Stroke{
 		Width:      effectiveWidth,

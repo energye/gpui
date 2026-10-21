@@ -194,11 +194,22 @@ func TestHairlineVerticalLine(t *testing.T) {
 	}
 }
 
-// TestHairlineThinLineVisibility tests that very thin lines are still visible.
+// TestHairlineThinLineVisibility pins the post-clamp contract for thin
+// strokes. Positive sub-pixel solid strokes are normalised to a 1px line at
+// proportional alpha, so 0.5/0.3/0.1 all stay visible while never becoming a
+// full-opacity 1px line (the old clamp bug).
 func TestHairlineThinLineVisibility(t *testing.T) {
-	widths := []float64{0.5, 0.3, 0.1}
+	cases := []struct {
+		width       float64
+		wantVisible bool
+	}{
+		{0.5, true},
+		{0.3, true},
+		{0.1, true},
+	}
 
-	for _, width := range widths {
+	for _, tc := range cases {
+		width := tc.width
 		t.Run("width_"+testFloatStr(width), func(t *testing.T) {
 			gc := NewContext(100, 100)
 			defer func() { _ = gc.Close() }()
@@ -213,9 +224,10 @@ func TestHairlineThinLineVisibility(t *testing.T) {
 				t.Fatalf("Stroke failed: %v", err)
 			}
 
-			// Count non-white pixels
+			// Count non-white pixels and full-opacity dark pixels.
 			img := gc.Image()
 			nonWhiteCount := 0
+			solidDarkCount := 0
 
 			for y := 0; y < 100; y++ {
 				for x := 0; x < 100; x++ {
@@ -224,14 +236,19 @@ func TestHairlineThinLineVisibility(t *testing.T) {
 					if r < 0xFFFF || g < 0xFFFF || b < 0xFFFF {
 						nonWhiteCount++
 					}
+					if r < 0x4000 && g < 0x4000 && b < 0x4000 {
+						solidDarkCount++
+					}
 				}
 			}
 
-			if nonWhiteCount == 0 {
+			if tc.wantVisible && nonWhiteCount == 0 {
 				t.Errorf("Line with width %f should be visible", width)
-			} else {
-				t.Logf("Width %f: %d visible pixels", width, nonWhiteCount)
 			}
+			if solidDarkCount > 0 {
+				t.Errorf("Line with width %f was promoted to a full-opacity 1px line (%d pixels)", width, solidDarkCount)
+			}
+			t.Logf("Width %f: %d visible pixels, %d solid-dark pixels", width, nonWhiteCount, solidDarkCount)
 		})
 	}
 }

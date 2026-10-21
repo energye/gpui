@@ -102,12 +102,13 @@ func snapHairlineStrokePath(path *render.Path) *render.Path {
 	return out
 }
 
-// shouldSnapHairline reports whether effective device stroke width is a hairline
-// (≤1 device px) that benefits from pixel-center alignment.
+// shouldSnapHairline reports whether effective device stroke width is exactly
+// one device pixel (hairline or 1px) and benefits from pixel-center alignment.
+// Sub-pixel widths stay unsnapped so their AA coverage and position are kept.
 func shouldSnapHairline(paint *render.Paint) bool {
 	if paint == nil {
 		return false
 	}
 	w := effectiveStrokeWidth(paint)
-	return w > 0 && w <= 1.0+1e-6
+	return w > 0.999 && w <= 1.0+1e-6
 }

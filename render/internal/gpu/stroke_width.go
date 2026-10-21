@@ -19,7 +19,9 @@ func effectiveStrokeWidth(paint *render.Paint) float64 {
 		transformScale = 1.0
 	}
 	width *= transformScale
-	if width < 1.0 {
+	if width <= 0 {
+		// Hairline (Skia/Flutter: stroke width 0) is one device pixel.
+		// Positive sub-pixel widths stay sub-pixel so AA coverage matches.
 		return 1.0
 	}
 	return width

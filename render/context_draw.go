@@ -335,6 +335,20 @@ func (c *Context) doStroke() error {
 	c.syncPublishedFilterBeforeDraw()
 	mode := c.rasterizerMode
 
+	// Thin solid strokes: render one device pixel with alpha scaled by the
+	// original device width (0.5px -> 50%, 0.1px -> 10%). Applied before the
+	// clip/mask/layer-opacity mutators so their restore closures see the
+	// substituted paint. The deferred restore puts the caller's paint back.
+	thinScale := c.paint.TransformScale
+	if thinScale <= 0 {
+		thinScale = c.strokeDeviceScale()
+	}
+	if tp := thinStrokePaint(c.paint, thinScale); tp != nil {
+		orig := c.paint
+		c.paint = tp
+		defer func() { c.paint = orig }()
+	}
+
 	// Match doFill GPU setup: scissor, clip/mask coverage, AA.
 	defer c.setGPUClipRect()()
 	c.applyClipToPaint()

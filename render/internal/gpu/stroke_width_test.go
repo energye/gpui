@@ -23,13 +23,18 @@ func TestEffectiveStrokeWidthMatchesSoftwareSemantics(t *testing.T) {
 			want: 6,
 		},
 		{
-			name: "hairline_clamp",
+			name: "subpixel_width_kept",
 			p:    render.Paint{LineWidth: 0.5, TransformScale: 1},
-			want: 1,
+			want: 0.5,
 		},
 		{
-			name: "scaled_down_clamp",
+			name: "scaled_down_subpixel_kept",
 			p:    render.Paint{LineWidth: 1, TransformScale: 0.5},
+			want: 0.5,
+		},
+		{
+			name: "zero_width_hairline",
+			p:    render.Paint{LineWidth: 0, TransformScale: 1},
 			want: 1,
 		},
 		{

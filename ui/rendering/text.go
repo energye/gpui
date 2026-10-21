@@ -513,13 +513,11 @@ func (t *RenderText) measureLine(s string) float64 {
 	t.measureMu.Unlock()
 	var w float64
 	if face := t.effectiveFace(); face != nil {
-		if t.LetterSpacing != 0 || t.WordSpacing != 0 {
-			// Same shaped builder the spaced layout uses: measure and
-			// layout share one stream, deviation 0 by construction.
-			_, w, _, _, _ = buildCaretsForLineWithRuns(s, face, t.LetterSpacing, t.WordSpacing)
-		} else {
-			w, _ = text.Measure(s, face)
-		}
+		// Always measure through the same shaped builder the layout uses.
+		// text.Measure sums isolated rune advances, which drops kerning and
+		// ligatures and disagrees with TextLayout for zero-spacing text
+		// (Skia/Flutter measure from the shaped paragraph, not per-rune).
+		_, w, _, _, _ = buildCaretsForLineWithRuns(s, face, t.LetterSpacing, t.WordSpacing)
 	} else {
 		fs := t.fontSize()
 		w = float64(utf8.RuneCountInString(s)) * fs * t.approxCharW()
