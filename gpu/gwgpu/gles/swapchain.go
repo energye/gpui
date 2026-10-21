@@ -14,6 +14,7 @@ package gles
 
 import (
 	"fmt"
+	"image"
 	"sync"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -296,6 +297,17 @@ func (sc *Swapchain) BeginFrame() (*Frame, error) {
 
 // EndFrame presents the frame via Queue.Present (blit + SwapBuffers).
 func (sc *Swapchain) EndFrame(frame *Frame) error {
+	return sc.endFrame(frame, nil)
+}
+
+// EndFrameWithDamage presents the frame, forwarding damage rects (physical
+// pixels, top-left origin) to the backend. Backends that cannot use them
+// present the full surface.
+func (sc *Swapchain) EndFrameWithDamage(frame *Frame, rects []image.Rectangle) error {
+	return sc.endFrame(frame, rects)
+}
+
+func (sc *Swapchain) endFrame(frame *Frame, damageRects []image.Rectangle) error {
 	if sc == nil {
 		return fmt.Errorf("gles: swapchain is nil")
 	}
@@ -315,7 +327,7 @@ func (sc *Swapchain) EndFrame(frame *Frame) error {
 		sc.frameOpen = false
 		return fmt.Errorf("gles: device queue is nil")
 	}
-	err := q.Present(sc.surf, frame.SurfaceTexture, nil)
+	err := q.Present(sc.surf, frame.SurfaceTexture, damageRects)
 	sc.curTex = nil
 	sc.curView = nil
 	sc.frameOpen = false

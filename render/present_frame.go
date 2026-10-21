@@ -138,6 +138,26 @@ func (t *PresentTarget) LastDamageAreaPx() int64 {
 	return t.lastDamageArea
 }
 
+// clipPresentDamage clips physical damage rects to the surface and coalesces
+// touching rects. Returns nil when nothing remains (full present / idle).
+func clipPresentDamage(rects []image.Rectangle, w, h int) []image.Rectangle {
+	if len(rects) == 0 || w <= 0 || h <= 0 {
+		return nil
+	}
+	surface := image.Rect(0, 0, w, h)
+	out := make([]image.Rectangle, 0, len(rects))
+	for _, r := range rects {
+		r = r.Intersect(surface)
+		if !r.Empty() {
+			out = append(out, r)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return CoalesceDamageRects(out, MaxTrackedDamageRects)
+}
+
 func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (PresentOutcome, error) {
 	out := PresentOutcome{}
 	if t == nil {
@@ -198,6 +218,10 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	if t.lastDamageArea < 0 {
 		t.lastDamageArea = 0
 	}
+	// Damage for the OS compositor: every changed rect, clipped to the
+	// physical surface. The backend decides whether it can present partially
+	// (GL: three EGL extensions + buffer age); the others present full.
+	presentRects := clipPresentDamage(t.dc.FrameDamage(), int(pw), int(ph))
 	// Idle frames skip the swapchain entirely: acquiring a buffer and then
 	// discarding it without present leaves the image unrecycled in the
 	// driver, draining the swapchain until acquire times out (~250ms) and
@@ -291,8 +315,14 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	}
 	// Failed/timeout BeginFrames above return early and do NOT consume the
 	// post-resize full budget: the next frame still owes a full write.
-	presentFn := func() error {
-		if err := t.sc.EndFrame(frame); err != nil {
+	presentFn := func(rects []image.Rectangle) error {
+		var err error
+		if len(rects) == 0 {
+			err = t.sc.EndFrame(frame)
+		} else {
+			err = t.sc.EndFrameWithDamage(frame, rects)
+		}
+		if err != nil {
 			return err
 		}
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
@@ -309,7 +339,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// (render boundary owns the gpucontext type, hal does not).
 	view := gpucontext.NewTextureView(unsafe.Pointer(frame.ViewHandle))
 	if forceFull {
-		if err := t.dc.PresentFrameFull(view, frame.Width, frame.Height, presentFn); err != nil {
+		if err := t.dc.PresentFrameFull(view, frame.Width, frame.Height, func() error { return presentFn(nil) }); err != nil {
 			t.sc.DiscardFrame(frame)
 			return out, fmt.Errorf("render: PresentFrameFull: %w", err)
 		}
@@ -317,7 +347,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		t.lastOutcome = out
 		return out, nil
 	}
-	out, err = t.dc.PresentFrameAuto(view, frame.Width, frame.Height, presentFn)
+	out, err = t.dc.PresentFrameAuto(view, frame.Width, frame.Height, func() error { return presentFn(presentRects) })
 	if err != nil {
 		t.sc.DiscardFrame(frame)
 		return out, fmt.Errorf("render: PresentFrameAuto: %w", err)

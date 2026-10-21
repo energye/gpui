@@ -54,9 +54,11 @@ var (
 	symEglGetCurrentDisplay           unsafe.Pointer
 	symEglSwapBuffers                 unsafe.Pointer
 	symEglGetProcAddress              unsafe.Pointer
+	symEglQuerySurface                unsafe.Pointer
 	symEglGetPlatformDisplay          unsafe.Pointer // EGL 1.5, may be nil
 	symEglCreatePlatformWindowSurface unsafe.Pointer // EGL 1.5, may be nil
 	symEglSwapBuffersWithDamageKHR    unsafe.Pointer // EGL_KHR_swap_buffers_with_damage, may be nil
+	symEglSetDamageRegionKHR          unsafe.Pointer // EGL_KHR_partial_update, may be nil
 
 	// CallInterfaces for each function signature
 	cifEglGetError                    types.CallInterface
@@ -78,13 +80,21 @@ var (
 	cifEglGetCurrentDisplay           types.CallInterface
 	cifEglSwapBuffers                 types.CallInterface
 	cifEglGetProcAddress              types.CallInterface
+	cifEglQuerySurface                types.CallInterface
 	cifEglGetPlatformDisplay          types.CallInterface
 	cifEglCreatePlatformWindowSurface types.CallInterface
 	cifEglSwapBuffersWithDamageKHR    types.CallInterface
+	cifEglSetDamageRegionKHR          types.CallInterface
 
 	// hasSwapBuffersWithDamage is true when eglSwapBuffersWithDamageKHR
 	// was successfully loaded (EGL_KHR_swap_buffers_with_damage extension).
 	hasSwapBuffersWithDamage bool
+
+	// hasPartialUpdate is true when eglSetDamageRegionKHR was successfully
+	// loaded (EGL_KHR_partial_update extension). Together with
+	// EGL_EXT_buffer_age it lets Present keep the back buffer region outside
+	// the reported damage intact instead of relying on undefined contents.
+	hasPartialUpdate bool
 
 	// hasPlatformWindowSurface is true when eglCreatePlatformWindowSurface
 	// was loaded (EGL 1.5 or EGL_EXT_platform_base).
@@ -181,6 +191,9 @@ func loadEGLSymbols() error {
 	if symEglGetProcAddress, err = ffi.GetSymbol(eglLib, "eglGetProcAddress"); err != nil {
 		return fmt.Errorf("eglGetProcAddress not found: %w", err)
 	}
+	if symEglQuerySurface, err = ffi.GetSymbol(eglLib, "eglQuerySurface"); err != nil {
+		return fmt.Errorf("eglQuerySurface not found: %w", err)
+	}
 
 	// EGL 1.5 optional
 	symEglGetPlatformDisplay, _ = ffi.GetSymbol(eglLib, "eglGetPlatformDisplay")                   // ignore error, optional
@@ -238,6 +251,19 @@ func prepareEGLCallInterfaces() error {
 		})
 	if err != nil {
 		return fmt.Errorf("failed to prepare eglQueryString: %w", err)
+	}
+
+	// EGLBoolean eglQuerySurface(EGLDisplay, EGLSurface, EGLint, EGLint*)
+	err = ffi.PrepareCallInterface(&cifEglQuerySurface, types.DefaultCall,
+		types.UInt32TypeDescriptor, // EGLBoolean
+		[]*types.TypeDescriptor{
+			types.PointerTypeDescriptor, // EGLDisplay
+			types.PointerTypeDescriptor, // EGLSurface
+			types.UInt32TypeDescriptor,  // EGLint attribute
+			types.PointerTypeDescriptor, // EGLint* value
+		})
+	if err != nil {
+		return fmt.Errorf("failed to prepare eglQuerySurface: %w", err)
 	}
 
 	// EGLBoolean eglChooseConfig(EGLDisplay, EGLint*, EGLConfig*, EGLint, EGLint*)
@@ -490,6 +516,35 @@ func QueryString(dpy EGLDisplay, name EGLInt) string {
 	return goString(ptr)
 }
 
+// QuerySurface returns information about an EGL surface.
+func QuerySurface(dpy EGLDisplay, surface EGLSurface, attribute EGLInt, value *EGLInt) EGLBoolean {
+	var result EGLBoolean
+	valuePtr := uintptr(unsafe.Pointer(value))
+	args := [4]unsafe.Pointer{
+		unsafe.Pointer(&dpy),
+		unsafe.Pointer(&surface),
+		unsafe.Pointer(&attribute),
+		unsafe.Pointer(&valuePtr),
+	}
+	_, _ = ffi.CallFunction(&cifEglQuerySurface, symEglQuerySurface, unsafe.Pointer(&result), args[:])
+	return result
+}
+
+// BufferAge returns EGL_BUFFER_AGE_EXT for the surface: the number of back
+// buffer swaps since the current back buffer was last displayed.
+// ok is false when EGL_EXT_buffer_age is unavailable or the query fails;
+// callers must then present the full surface.
+func BufferAge(dpy EGLDisplay, surface EGLSurface) (age int, ok bool) {
+	var v EGLInt
+	if QuerySurface(dpy, surface, BufferAgeExt, &v) != True {
+		return 0, false
+	}
+	if v < 1 {
+		return 0, false
+	}
+	return int(v), true
+}
+
 // ChooseConfig returns EGL frame buffer configurations that match specified attributes.
 func ChooseConfig(dpy EGLDisplay, attribList *EGLInt, configs *EGLConfig, configSize EGLInt, numConfig *EGLInt) EGLBoolean {
 	var result EGLBoolean
@@ -713,6 +768,27 @@ func loadOptionalExtensions() {
 		}
 	}
 
+	// EGL_KHR_partial_update — marks the back buffer region the frame will
+	// modify and preserves the rest. Required for damage-based present:
+	// swap-with-damage alone does not define the back buffer contents
+	// outside the damage region.
+	addr = GetProcAddress("eglSetDamageRegionKHR")
+	if addr != 0 {
+		symEglSetDamageRegionKHR = u2p(addr)
+		// EGLBoolean eglSetDamageRegionKHR(EGLDisplay, EGLSurface, EGLint*, EGLint)
+		err := ffi.PrepareCallInterface(&cifEglSetDamageRegionKHR, types.DefaultCall,
+			types.UInt32TypeDescriptor, // EGLBoolean
+			[]*types.TypeDescriptor{
+				types.PointerTypeDescriptor, // EGLDisplay
+				types.PointerTypeDescriptor, // EGLSurface
+				types.PointerTypeDescriptor, // EGLint* rects
+				types.UInt32TypeDescriptor,  // EGLint n_rects
+			})
+		if err == nil {
+			hasPartialUpdate = true
+		}
+	}
+
 	// EGL 1.5: eglCreatePlatformWindowSurface — spec-correct void* native window.
 	// Loaded from libEGL symbol table (not via eglGetProcAddress) since it's a core
 	// EGL 1.5 function. CIF prepared here to keep prepareEGLCallInterfaces focused
@@ -736,6 +812,33 @@ func loadOptionalExtensions() {
 // extension was successfully loaded and is available for use.
 func HasSwapBuffersWithDamage() bool {
 	return hasSwapBuffersWithDamage
+}
+
+// HasPartialUpdate reports whether EGL_KHR_partial_update (eglSetDamageRegionKHR)
+// was successfully loaded. Present only takes the damage path when this and
+// HasSwapBuffersWithDamage are both true.
+func HasPartialUpdate() bool {
+	return hasPartialUpdate
+}
+
+// SetDamageRegionKHR tells EGL which surface region the frame will modify so
+// the driver preserves the rest of the back buffer. rects uses the same packed
+// {x, y, width, height} bottom-left layout as SwapBuffersWithDamage.
+// Must be called before modifying the back buffer.
+func SetDamageRegionKHR(dpy EGLDisplay, surface EGLSurface, rects *int32, nRects int32) EGLBoolean {
+	if !hasPartialUpdate || nRects == 0 {
+		return True
+	}
+	var result EGLBoolean
+	rectsPtr := uintptr(unsafe.Pointer(rects))
+	args := [4]unsafe.Pointer{
+		unsafe.Pointer(&dpy),
+		unsafe.Pointer(&surface),
+		unsafe.Pointer(&rectsPtr),
+		unsafe.Pointer(&nRects),
+	}
+	_, _ = ffi.CallFunction(&cifEglSetDamageRegionKHR, symEglSetDamageRegionKHR, unsafe.Pointer(&result), args[:])
+	return result
 }
 
 // SwapBuffersWithDamage presents the EGL surface with damage rectangle hints.

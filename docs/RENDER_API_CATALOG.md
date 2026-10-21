@@ -158,7 +158,7 @@
 |------|------|------|------|
 | `BeginFrame/Invalidate/MarkFullRedraw/ResetFrameDamage` | 帧生命周期：重置统计、标记损伤、强制全量重绘 | 帧生命周期 | ✅ |
 | `PresentFrame/PresentFrameDamage/PresentFrameDamageRects`（present.go） | 提交 GPU 内容到视图并调用 present（带单/多损伤区） | 呈现提交 | ✅ |
-| `PresentFrameAuto/PresentFrameFull`（frame.go） | 自动选路径 / 强制全帧呈现 | 自动/全帧呈现 | ✅（PresentFrameAuto 内部用） |
+| `PresentFrameAuto/PresentFrameFull`（frame.go） | 自动选路径 / 强制全帧呈现 | 自动/全帧呈现 | ✅（PresentFrameAuto 内部用；2026-10-21 GL 后端经 `EndFrameWithDamage` 走 EGL 局部提交——三扩展齐备且 FBO 1:1 时 `SetDamageRegionKHR` + 剪刀 blit + `SwapBuffersWithDamage`，缺一/大损伤/首帧全量兜底；wgpu-native 仍全量。原子验证 `TestPresentDamageX11`） |
 | `PlanFramePresent/PlanPresent/FramePresentPlan/PresentOutcome/PresentMode` | 依据损伤区与 surface 尺寸规划呈现策略 | 呈现策略规划 | ✅（PresentFrameAuto 内部用） |
 | `CoalesceDamageRects` | 把多条损伤矩形合并/裁剪到上限 | 损伤合并 | 🔗 |
 | `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/GPUBackend/Fallbacks/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/WaitIdle/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**；**GPUBackend 🔗 实际显卡类别上报口（discrete/integrated/software），多窗降级链（1.3）复用**；**WaitIdle 🔗 关窗先等 GPU 空闲再清图块缓存（2026-10-04 关窗漏修，ui/embedder PipelineApp.Close 在用）**） |
@@ -378,7 +378,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 4 | 画图体系 | `Context`（即时）↔ `scene.Scene`（保留）↔ `recording.Recorder`（录制） | C | 三套都含 Fill/Stroke/Clip/Image 语义。**仅 Context 接入 ui 产线**；scene 只被 render 内部 GPU 后端消费；recording 无消费者（§7.2）。体系级重复见 §3/§6。 |
 | 5 | 形状轮廓 | `Path.Rectangle/Circle/Ellipse/Arc/RoundedRectangle` ↔ `PathBuilder.Rect/RoundRect/Circle/Ellipse/Polygon/Star` ↔ `Context.Draw*`（DrawRectangle/DrawCircle/…） | D | 前三者都能往一条路径上追加矩形/圆/椭圆，**Path 与 PathBuilder 是两套独立实现、无桥接**（如 PathBuilder.Rect 自己 MoveTo/LineTo/Close，不调 Path.Rectangle）；Context.Draw* 是追加到当前路径的第三处。 |
 | 6 | 文本 | `Context.DrawString/MeasureString/DrawStringWrapped` ↔ `text.Draw/Measure/MeasureText` | W | Context 方法是 text 包的封装（ui 链路走 Context 层）；text 包直连 draw.Image 供底层/工具用。 |
-| 7 | 呈现 | `PresentTarget.PresentWith/PresentWithAuto` ↔ `Context.PresentFrame(+/Damage/DamageRects)` ↔ `frame.PresentFrameAuto/PresentFrameFull/PlanFramePresent` | W | 三层入口：PresentTarget 高层（draw 闭包）→ Context 低层（view+present 回调）→ frame 策略（选路径）。PresentWithAuto 与 PresentFrameAuto 决策语义重叠。 |
+| 7 | 呈现 | `PresentTarget.PresentWith/PresentWithAuto` ↔ `Context.PresentFrame(+/Damage/DamageRects)` ↔ `frame.PresentFrameAuto/PresentFrameFull/PlanFramePresent` | W | 三层入口：PresentTarget 高层（draw 闭包）→ Context 低层（view+present 回调）→ frame 策略（选路径）。PresentWithAuto 与 PresentFrameAuto 决策语义重叠。**2026-10-21：GL 后端已把 `FrameDamage` 接到 EGL `SetDamageRegionKHR` + `SwapBuffersWithDamage`（局部提交，原子验证 `TestPresentDamageX11`）；wgpu-native 仍全量。** |
 | 8 | 滤镜 | `Context.ApplyBlur/ApplyColorMatrix/…/ApplyImageFilterGraph` ↔ `scene.FilterChain/FilterType` | W | 入口不同，底层共用 internal/filter 实现；scene 侧仅保留模式用。 |
 | 9 | 像素缓冲 | `Pixmap` ↔ `ImageBuf` | W | 两种像素缓冲可互转（Pixmap.ToImage/Image()、ImageBufFromImage）；Context 内部持 Pixmap，ImageBuf 用于 GPU/图像绘制。 |
 | 10 | 编解码导出 | `Context.Image()/SavePNG()/EncodePNG()/EncodeJPEG()` ↔ `Pixmap.ToImage()/SavePNG()/EncodePNG()/EncodeJPEG()` | W | Context 方法即包装底层 pixmap 同名方法（Context 内部持 Pixmap）。 |

@@ -131,6 +131,9 @@ const (
 	PixelAspectRatio     EGLInt = 0x3092
 	SwapBehavior         EGLInt = 0x3093
 	MultisampleResolve   EGLInt = 0x3099
+	// BufferAgeExt is EGL_BUFFER_AGE_EXT (EGL_EXT_buffer_age): the number of
+	// back buffer swaps since the current back buffer was last displayed.
+	BufferAgeExt EGLInt = 0x313D
 )
 
 // EGL constants - Context attributes

@@ -226,16 +226,26 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 // an explicit Y-flip, then SwapBuffers.
 //
 // damageRects is an optional list of rectangles (physical pixels, top-left
-// origin) indicating which surface regions changed this frame. When non-empty
-// and EGL_KHR_swap_buffers_with_damage is available, the rects are passed to
-// eglSwapBuffersWithDamageKHR as compositor hints. EGL uses bottom-left
-// origin, so Y coordinates are flipped here. When the extension is unavailable
-// or no rects are provided, the standard eglSwapBuffers path is used.
-func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects []image.Rectangle) error {
+// origin) indicating which surface regions changed this frame.
+//
+// Partial present requires all three pieces: EGL_KHR_swap_buffers_with_damage
+// (compositor hint), EGL_KHR_partial_update (preserve the back buffer outside
+// the written region) and EGL_EXT_buffer_age (union damage until that buffer
+// rotates back). Any missing piece falls back to the full blit + eglSwapBuffers
+// path — the same behavior as before damage was wired through.
+func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects []image.Rectangle) (retErr error) {
 	surf, ok := surface.(*Surface)
 	if !ok {
 		return fmt.Errorf("gles: invalid surface type")
 	}
+	// A failed present can leave the FBO/back buffer state unknown (the
+	// frame may have been drawn but not swapped, or the swap may have
+	// failed halfway). Force the next frame onto the full path.
+	defer func() {
+		if retErr != nil {
+			surf.resetPresentDamageHistory()
+		}
+	}()
 
 	// Bind-or-stop: a failed MakeCurrent(surface) must not fall through
 	// into blit + SwapBuffers with nothing current (the old LockForSurface
@@ -260,45 +270,72 @@ func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects
 	if list := q.batch.drain(); len(list) > 0 {
 		flushWriteBatch(glCtx, newGLExecState(), list)
 	}
-	// Damage-scissored blit: steady frames move only the dirty union
-	// instead of the full surface (see blitSwapchainToDefaultDamageWith).
-	// Empty damage = force-full frame → full blit, same as before.
-	surf.blitSwapchainToDefaultDamageWith(glCtx, damageRects)
 
-	// Use damage-aware swap when the extension is available and rects provided.
-	if len(damageRects) > 0 && egl.HasSwapBuffersWithDamage() {
-		// Convert image.Rectangle (top-left origin) to EGL packed int32 array
-		// (bottom-left origin). Each rect is {x, y, width, height}.
-		// Stack-allocate for up to 8 rects (8 * 4 = 32 ints).
-		var stackInts [32]int32
-		ints := stackInts[:0]
-		// Damage rects arrive in surface (config-size) coordinates; flip
-		// against the config height, which is the window size. Normally it
-		// equals the FBO height; while borrowing an old FBO they differ.
-		surfaceHeight := surf.presentHeight()
-		for _, r := range damageRects {
-			// Y-flip: EGL uses bottom-left origin.
-			// egl_y = surface_height - rect.Max.Y
-			ints = append(ints,
-				int32(r.Min.X),
-				surfaceHeight-int32(r.Max.Y),
-				int32(r.Dx()),
-				int32(r.Dy()),
-			)
+	// Resolve the present damage to one union that is valid for the back
+	// buffer we are about to write: current frame ∪ the damage of the
+	// previous age-1 frames. No history (first frame after configure,
+	// recreate, or age beyond the kept window) means full present.
+	//
+	// History records the damage actually painted into the persistent FBO
+	// for each frame — NOT the union blitted to the rotating back buffer.
+	// Recording the union would amplify a single full frame into full
+	// presents forever.
+	current := presentDamageUnion(damageRects)
+	var presentRect image.Rectangle
+	if !current.Empty() &&
+		egl.HasSwapBuffersWithDamage() && egl.HasPartialUpdate() &&
+		surf.canScissorPresent() {
+		if age, ok := egl.BufferAge(surf.eglDisplay, surf.eglSurface); ok {
+			if u, ok := surf.damageUnionForAge(age, current); ok &&
+				!presentDamageCoversFull(u, int32(surf.fboWidth), int32(surf.fboHeight)) {
+				presentRect = u
+			}
 		}
-		result := egl.SwapBuffersWithDamage(surf.eglDisplay, surf.eglSurface, &ints[0], int32(len(damageRects)))
-		if result == egl.False {
-			return fmt.Errorf("gles: eglSwapBuffersWithDamageKHR failed: error 0x%x", egl.GetError())
-		}
-		surf.DiscardTexture(tex)
-		return nil
 	}
 
-	// Standard full-surface swap.
-	result := egl.SwapBuffers(surf.eglDisplay, surf.eglSurface)
-	if result == egl.False {
+	if !presentRect.Empty() {
+		// EGL surface coordinates are bottom-left; damage is top-left.
+		surfaceHeight := surf.presentHeight()
+		rects := [4]int32{
+			int32(presentRect.Min.X),
+			surfaceHeight - int32(presentRect.Max.Y),
+			int32(presentRect.Dx()),
+			int32(presentRect.Dy()),
+		}
+		// Declare the region before writing it: the driver preserves the
+		// rest of the back buffer, which is what makes the scissored blit
+		// below safe across buffer rotation.
+		if egl.SetDamageRegionKHR(surf.eglDisplay, surf.eglSurface, &rects[0], 1) != egl.False {
+			surf.blitSwapchainToDefaultDamageWith(glCtx, []image.Rectangle{presentRect})
+			if result := egl.SwapBuffersWithDamage(surf.eglDisplay, surf.eglSurface, &rects[0], 1); result == egl.False {
+				return fmt.Errorf("gles: eglSwapBuffersWithDamageKHR failed: error 0x%x", egl.GetError())
+			}
+			surf.recordPresentDamage(current)
+			surf.presentPartialCount++
+			surf.DiscardTexture(tex)
+			return nil
+		}
+		// SetDamageRegion failed before drawing: consume the EGL error and
+		// fall through to the full path with an untouched back buffer.
+		_ = egl.GetError()
+	}
+
+	// Standard full-surface blit + swap.
+	surf.blitSwapchainToDefaultDamageWith(glCtx, nil)
+	if result := egl.SwapBuffers(surf.eglDisplay, surf.eglSurface); result == egl.False {
 		return fmt.Errorf("gles: eglSwapBuffers failed: error 0x%x", egl.GetError())
 	}
+	fullSurface := image.Rect(0, 0, int(surf.fboWidth), int(surf.fboHeight))
+	// First presented frame (or an explicit no-damage full present): the
+	// buffer is valid everywhere, so record the full surface. Later full
+	// presents caused by coverage/age still record only the real frame
+	// damage, otherwise the full entry would keep amplifying.
+	record := current
+	if current.Empty() || surf.presentDamageHistLen == 0 {
+		record = fullSurface
+	}
+	surf.recordPresentDamage(record)
+	surf.presentFullCount++
 	surf.DiscardTexture(tex)
 
 	return nil

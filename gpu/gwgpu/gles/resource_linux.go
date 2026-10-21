@@ -14,6 +14,7 @@ package gles
 
 import (
 	"fmt"
+	"image"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/egl"
 	"github.com/energye/gpui/gpu/hal"
@@ -60,6 +61,18 @@ type Surface struct {
 	// vramHandle is the ledger slot for the swapchain surface bytes
 	// (tagged FBO id; 0 = not charged). Refunded on re-configure.
 	vramHandle uintptr
+
+	// presentDamageHist records the damage actually painted into the
+	// persistent swapchain FBO for the most recent frames (newest first).
+	// Partial present unions it over the EGL buffer age so the rotating back
+	// buffer receives every change since it was last displayed.
+	presentDamageHist    [maxPresentDamageHistory]image.Rectangle
+	presentDamageHistLen int
+
+	// Present path counters (diagnostics/真窗 evidence): full swaps vs
+	// damage-scissored partial swaps. Read under the surface/queue lock.
+	presentFullCount    uint64
+	presentPartialCount uint64
 }
 
 // GetAdapterInfo returns adapter information from this surface's GL context.
@@ -172,6 +185,9 @@ func (s *Surface) Configure(_ hal.Device, config *hal.SurfaceConfiguration) erro
 		return fmt.Errorf("gles: failed to configure swapchain framebuffer: %w", err)
 	}
 
+	// New/reconfigured buffers have undefined contents: the next present must
+	// be full (empty history forces the full path).
+	s.resetPresentDamageHistory()
 	s.configured = true
 	s.config = config
 	return nil
@@ -281,6 +297,8 @@ func (s *Surface) recreateEGLWindowSurface() error {
 	if err := s.createEGLWindowSurface(w, h); err != nil {
 		return err
 	}
+	// Fresh EGL surface: buffer age history is meaningless.
+	s.resetPresentDamageHistory()
 	hal.Logger().Info("gles: EGL window surface recreated",
 		"eglSurface", fmt.Sprintf("0x%x", s.eglSurface),
 		"window", fmt.Sprintf("0x%x", s.windowHandle),

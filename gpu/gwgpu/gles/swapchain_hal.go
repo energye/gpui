@@ -62,9 +62,15 @@ func (a *halSwapchainAdapter) DiscardFrame(f *hal.SwapchainFrame) {
 	}
 	a.sc.DiscardFrame(gf)
 }
-func (a *halSwapchainAdapter) EndFrameWithDamage(f *hal.SwapchainFrame, _ []image.Rectangle) error {
-	// GL has no partial present: damage is accepted and presented full
-	return a.EndFrame(f)
+func (a *halSwapchainAdapter) EndFrameWithDamage(f *hal.SwapchainFrame, rects []image.Rectangle) error {
+	if f == nil {
+		return a.sc.EndFrameWithDamage(nil, rects)
+	}
+	gf, _ := f.Payload.(*Frame)
+	if gf == nil {
+		return a.sc.EndFrameWithDamage(nil, rects)
+	}
+	return a.sc.EndFrameWithDamage(gf, rects)
 }
 func (a *halSwapchainAdapter) MarkNeedsReconfigure() {}
 func (a *halSwapchainAdapter) Release()              { a.sc.Release() }

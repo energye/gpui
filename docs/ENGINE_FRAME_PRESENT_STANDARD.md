@@ -85,6 +85,19 @@ func HostFrameNotifier(h Host) FrameNotifier
 
 **实现**：render 层 present 模式默认值按平台分流（Wayland → 无阻塞；X11 → Fifo）。复用现有 `SetVsync`/`SetPresentModeForce`，不新增公开 API。
 
+### 2.4 损伤上屏（OS 增量提交，2026-10-21 补）
+
+**合同**：
+
+- 损伤矩形一律**物理像素、左上原点**，先裁剪到表面；`Context.FrameDamage` 是唯一来源，`PresentTarget.present` 不再丢参数（`forceFull` / resize 路径传空表强制全量）。
+- **后端能力门**：GL 只有在 `EGL_KHR_swap_buffers_with_damage` + `EGL_KHR_partial_update` + `EGL_EXT_buffer_age` 三个都可用、且 FBO 与窗口 1:1 时才尝试局部提交；缺一即全量 blit + `eglSwapBuffers`。
+- **历史语义**：记录「实际画进持久 FBO 的当前帧损伤」，不记录「blit 到轮转后缓冲的并集」；后者会把一次全量帧放大成永久全量。保留最近 4 帧，当前帧 ∪ 之前 `age-1` 帧；无历史、age 超窗、并集 ≥85% 表面、借旧 FBO 拉伸（resize 风暴）一律全量。
+- **局部提交顺序**：先 `eglSetDamageRegionKHR` 声明区域 → 剪刀 blit（只搬损伤区）→ `eglSwapBuffersWithDamageKHR`；`eglSetDamageRegionKHR` 失败时本帧不画后缓冲，直接回全量。
+- **多矩形限界**：GL 后端当前把一帧损伤并成一个 EGL rect（便于历史/年龄合并）；多个远离脏区会合并成包围盒，覆盖 ≥85% 时提升全量。per-rect 提交留后续优化；wgpu-native / Windows WGL 本来全量，不受此限。
+- **平台覆盖**：wgpu-native 的 `EndFrameWithDamage` 有意忽略矩形（平台限界），行为仍是全量；Windows WGL 同样全量（`gpu/gwgpu/gles/queue.go` 有意忽略，无等价增量提交）；macOS 走 metal，不在本链。
+
+**证据**：`gpu/gwgpu/gles/present_damage_x11_test.go:TestPresentDamageX11`（真机 X11 128×128 窗：全量帧逐帧更新 / 局部帧内部 6 色轮换 / 外部基色不变 / `presentPartialCount=6`）；`surface_damage_linux_test.go` 覆盖并集、历史、85% 门与「一次全量永久放大」回归。性质=原子验证（真机窗测试），不是组件/2.5D/视频生产接线。
+
 ---
 
 ## 3. 分层改动清单（文件级，已实现）
@@ -140,6 +153,7 @@ EventResize（连续）→ pendingResize=true + ScheduleFrame（帧门禁旁路�
 | swapchain：FifoRelaxed 偏好（块3） | gpu/webgpu/s6_8_swapchain_test.go `TestS68_Swapchain_PreferPresentModes` | ✅ PASS：`SetPreferFifoRelaxed` → 首候选 FifoRelaxed 且不含 Fifo |
 | 回归 | ui/platform 13 测试文件 + ui/embedder 6 文件 + render present/resize + gpu swapchain | ✅ 全部 PASS（逐个文件跑，禁一次全量）；apidoc exit=0 |
 | x11：XPresent 探测 | （无 XPresent 自动化测试；`presentOK=false` 退 DRM 路径由真窗验证覆盖） | ⏳ 待真机 X11 环境确认 |
+| 增量呈现：GL 局部提交（X11 真机窗） | `gpu/gwgpu/gles/present_damage_x11_test.go:TestPresentDamageX11` | ✅ PASS：全量帧逐帧更新、6 帧局部内部轮换、外部基色不变、`partial=6`；同包 `surface_damage_linux_test.go` 并集/历史/85%/放大回归绿 |
 
 ---
 
@@ -184,6 +198,7 @@ EventResize（连续）→ pendingResize=true + ScheduleFrame（帧门禁旁路�
 ## 9. 修订表
 
 | 版本 | 说明 |
+| 2026-10-21（增量呈现全接线·原子验证） | **GL 后端 OS 级增量呈现打通**：`Context.FrameDamage` → `PresentTarget.present`（物理像素裁剪）→ `hal.Swapchain.EndFrameWithDamage` → gles `Queue.Present`。EGL 补 `eglQuerySurface` / `EGL_BUFFER_AGE_EXT` / `eglSetDamageRegionKHR`；三扩展齐备且 FBO 1:1 时按 buffer age 合并最近 4 帧损伤，`eglSetDamageRegionKHR` + 剪刀 blit + `eglSwapBuffersWithDamageKHR`，否则全量 blit + `eglSwapBuffers`。并集 ≥85% 表面 / 首帧无历史 / 无损伤 / 借旧 FBO 拉伸全量；历史只记实际画进持久 FBO 的当前帧损伤，修掉「记录 blit 并集导致一次全量永久放大」回归。真机 X11 窗测试 `TestPresentDamageX11`：全量帧逐帧更新、6 帧局部内部轮换、外部基色不变、`partial=6`。wgpu-native 仍全量（平台限界）；Windows WGL 同样全量（无等价增量提交）；macOS metal 不走本链。旧 `DamageRectSetter`/`SetDamageRects` 仓内仍无生产实现者，新链路已绕过。验证：`gles` 整包绿、`render -run TestClipPresentDamage` 绿、`render/integration/ggcanvas` 绿；`TestS69_Contract_FromJSON` 性能基线红为本批无关存量。性质=原子验证，不算生产接线。代码未提交（等人工指令）。 |
 | 2026-09-23（修5：显示频率正统化） | **软件节拍用显示器真实频率，不再写死猜（ui/platform + ui/scheduler + ui/embedder）**：**根因**——软件兜底节拍写死 16ms，本机显示 59.88Hz（16.70ms），每帧漂 0.7ms，攒够就错过合成 deadline，多等一整帧（A/B：同窗25秒 16.00组卡6次/p95 27.35，16.68组卡0次/p95 23.75）。且普通用户无 DRM 权限时周期学习器学不到， forever 漂。**修复（对齐 Flutter/Chromium/Gio：内容频率跟显示器）**——① `ui/platform/host.go` 新增可选接口 `DisplayRefreshReporter{DisplayRefreshHz()}`；② Wayland 实现：`wl_output.mode` 回调存 current 模式刷新率（mHz→Hz），entered 输出取最大，未 enter 回退全部输出最大（`wayland_output_linux.go` 原回调是空函数）；wlHost 缓存 + `DisplayRefreshHz()`（`wayland_linux.go`）；③ X11 实现：RandR 取当前 CRTC 模式时序算刷新率（dotClock/(hTotal×vTotal)，20–240Hz 才认），Open 时同步探测一次，RRScreenChangeNotify 失效重探（`x11_randr_linux.go` + `x11_linux.go`，purego 复用存量绑定风格，recover 兜底永不崩）；④ `ui/scheduler`：`SeedDisplayRefreshHz(hz)` 定基准（20–240Hz 才收），`boundaryPeriodLocked` 优先级 学到值 > 上报基准 > 写死16ms，钳制下限跟基准走（120Hz 种不再被 12.8ms 地板误钳）；⑤ `ui/embedder`：Open 播种 + Run 循环补播到 host 报出值（Wayland mode/enter 到得晚）。**效果（Wayland 三窗）**：pelican 25秒 卡6→1、p95 27.35→17.39；icon 卡5→1、p95 18.65→17.54；R7 卡0/p95 20.7→18.19；像素抽样 93600点0差。**诚实留痕**：①中途曾把 DefaultAnimTick 写死 16.68ms（A/B 有效但机器相关，不合标准，已退回 16ms 名义兜底）；②icon 真值 5.9% 与 R7 内存门在干净树同挂，系别线基线未收/存量问题，非本修引入；③platform 全包两失败（seat 帽/X11输入法）干净树同现/单跑绿，与本修无关。回归：scheduler 全绿、embedder 全绿、新单测 8 项绿（播种3 + Wayland2 + XRR3）。 |
 |------|------|
 | 2026-09-15（E3 落位，未修） | **快照队列竞态落位（button 真窗调查带出，ui/embedder）**：`drainSnapshots` 无锁预读 vs `SnapshotAsync` 加锁写，见 §1.2 P5。验证 `TestEVerify_E3_SnapshotQueuePreRead`（`ui/embedder/e_verify_e3_test.go`）：功能过、`-race` 下报 DATA RACE = 成立。修法：预读加锁（一行），风险极低。 |
