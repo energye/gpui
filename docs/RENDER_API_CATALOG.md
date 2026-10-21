@@ -1,6 +1,6 @@
 # render 公开 API 目录（RENDER_API_CATALOG）
 
-> **一句话**：这是 `render/`（含 `render/text`、`render/scene`、`render/recording`、`render/surface`、`render/svg`、`render/filters`、`render/raster`、`render/gpu`）全部公开 API 的总账，并标注「已接线 / 未接线 / 半成品 / 仅测试」状态。
+> **一句话**：这是 `render/`（含 `render/text`、`render/scene`、`render/recording`、`render/svg`、`render/filters`、`render/gpu`）全部公开 API 的总账，并标注「已接线 / 未接线 / 半成品 / 仅测试」状态。
 >
 > **维护义务（硬）**：**每次增加、修改、删除 render 公开 API（功能或签名），或改变其接线状态，必须同步更新本文件**（新增/变更的行写进对应分类表 + 更新 §7 状态表），并在主体文档 `docs/ENGINE_UI_WIDGET_RENDER.md` §10 修订表追加一行。判定「公开 API」的口径：`go doc ./render`（以及各子包 `go doc ./render/xxx`）可见的顶层符号与导出方法；方法级变更需同步 §3 与 §8 方法速查表。
 >
@@ -8,7 +8,7 @@
 > ```bash
 > cd <repo>/render
 > grep -hE "^(func|type|var|const) [A-Z]" $(ls *.go | grep -v _test.go) > /tmp/api_check.txt   # 主包顶层
-> go doc ./render ./render/text ./render/scene ./render/recording ./render/surface ./render/svg ./render/gpu 2>/dev/null | grep -E "^(func|type|var|const) [A-Z]"  # 包级权威清单
+> go doc ./render ./render/text ./render/scene ./render/recording ./render/svg ./render/gpu 2>/dev/null | grep -E "^(func|type|var|const) [A-Z]"  # 包级权威清单
 > ```
 >
 > 状态词约定：✅ 有生产接线且 GPU/CPU 实测有效 · 🔗 有生产接线（真实链路在用）· ⚠️ 半成品/有实现但 GPU 未生效（详见 §7.3）· 🔌 无生产消费者（未接线，仅测试/示例/demo）· 🧪 仅测试覆盖。
@@ -21,14 +21,12 @@
 
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 200 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback；2026-10-20 A15：+5 Context 方法 DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph；2026-10-21 C 组：删除旧两参 Context.DrawImageQuad，Context.DrawImageQuadEx 更名为 Context.DrawImageQuad(img,corners,opts)，Context 导出方法按 go doc 实测 201→200） |
+| `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 200 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback；2026-10-20 A15：+5 Context 方法 DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph；2026-10-21 C 组：删除旧两参 Context.DrawImageQuad，Context.DrawImageQuadEx 更名为 Context.DrawImageQuad(img,corners,opts)，Context 导出方法按 go doc 实测 201→200；同日删除无消费者的 render/raster init 包，CPU 分块光栅仍由 render/gpu 注册；删除无消费者的 render/surface 整包（53 个公开 API，与主包渲染重复）） |
 | `render/text` | 包级导出 248（2026-10-19 实测 `go doc -all` 顶层口径；含 +1 `FixedSize` 26.6 缓存键转换；历史行 245→250 为该次估数，本行按命令实测校正。含字体/整形/布局/光栅化；+1 `RuneAdvance`、+1 `SegmentReuse`、+3 字距：`ApplySpacing/ApplySpacingDir/SpacingExtra/WrapTextWithSpacing`（字距数学委托第三方 `shaping.AddSpacing`，`WhitespaceRuns` 已删）；`LayoutOptions` 新增 `LetterSpacing/WordSpacing` 字段；+5 6b字重收敛：`WithWeight/FaceEmbolden/EmboldenRadius/EmboldenResult/DeriveFace`；新增 `FontWeight` 类型 + `WeightThin..WeightBlack`/`GlyphMaskFlagBold` 常量；`Face.Embolden` 接口方法 + `MultiFace.WithWeight` 方法） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
-| `render/surface` | 顶层 53 | 🔌 无消费者 | surface 抽象（ImageSurface/GPUSurface）+ 注册表，未接入 render.Context |
 | `render/svg` | 顶层 15 | 🔌 无消费者 | 图标风 SVG 渲染（Render/RenderWithColor/Parse） |
 | `render/filters` | 0（仅 init 副作用注册） | 🔗 经 render/gpu 副作用注册 | 让 DC.ApplyBlur 等可用；ui 侧 facade 无生产调用 |
-| `render/raster` | 0（仅 init 副作用注册） | 🔌 无消费者 | 独立 CPU tile 光栅注册入口；功能已并入 render/gpu |
 | `render/gpu` | 顶层 12（8 函数 + 1 类型 + 3 常量，go doc 实数） | 🔗 真窗/门禁全量接线 | GPU 加速注册 + 设备生命周期（2026-09-05 1.2：适配器策略 AdapterPolicy 等 13 符号搬入 render 主包） |
 
 > text 子树内部还有分层子包（`render/text/hint` 等），非本次快照范围，改动时按其自身文档维护。
@@ -134,6 +132,7 @@
 | 方法 | 功能 | 精简 | 状态 |
 |------|------|------|------|
 | `DrawImage/DrawImageEx` | 绘制图像（GPU QueueImageDraw；Bicubic 走 GPU 4×4 卷积变体 Catmull-Rom，GPU 失败回退 CPU） | 图像绘制 | ✅ GPU 有效 |
+| `DrawImageOptions{X,Y,DstWidth,DstHeight,SrcRect,Interpolation,Opacity,UseMipmaps,BlendMode}`（context_image.go） | 图像绘制的目标位置/缩放/源矩形/插值/透明度/mipmap/混合选项 | 图像绘制选项 | ✅ DrawImageEx 与内部图像路径使用 |
 | `DrawImageCircular/DrawImageRounded` | 在圆形/圆角矩形裁剪区内绘制图像 | 裁剪内画图 | 🔗 |
 | `DrawImageQuad(img,corners,opts)` + `QuadDrawOptions{Interpolation,Opacity,BlendMode}`（m4_extensions.go，R1 S01） | 带显式选项的梯形绘制：零值Bilinear/不透明；退化/自交/非有限/非Normal混合返回哨兵错（ErrQuadDegenerate/ErrQuadBowTie/ErrQuadNonFinite/ErrQuadUnsupportedBlend/ErrQuadUnsupportedInterp），不静默画错 | 梯形绘制 | ✅ GPU 有效（真窗game_quad 2026-09-15） |
 | `ClassifyQuad(corners) QuadKind` + `QuadKind`（QuadOK/QuadDegenerate/QuadBowTie/QuadNonFinite） | 四边形分类：只有OK可画，其余画不得 | 梯形分类 | ✅（quad_cpu_test 2026-09-15） |
@@ -310,27 +309,16 @@
 | 回放 | `Backend/BackendFactory/NewBackend/MustBackend/Register/Unregister/Backends/IsRegistered/Count`；`WriterBackend/FileBackend/PixmapBackend`；`CommandType/Command/InvalidRef`；`backends/raster` 内置 | 后端注册表与按名回放（内置 raster） | 后端回放 | 🔌（无生产消费者；PDF/SVG 后端仓外未接） |
 | 资源 | `ResourcePool/FontRef/PathRef/BrushRef/ImageRef` + 画刷（Solid/Linear/Radial/Sweep/Pattern/gradient stop/RepeatMode/ExtendMode） | 命令引用池与画刷类型 | 资源池/画刷 | 🔌 |
 
-### 6.4 render/surface（顶层 53）
-| 族 | 代表 API | 功能 | 精简 | 状态 |
-|----|---------|------|------|------|
-| Surface | `Surface/SubSurface/ResizableSurface/ClippableSurface/BlendableSurface/CapableSurface/Capabilities` | 渲染目标抽象接口家族（绘制/子面/resize/裁剪/混合/能力） | surface 接口 | 🔌 无消费者 |
-| 实现 | `ImageSurface/NewImageSurface(FromImage)`、`GPUSurface/NewGPUSurface` + `GPUBackend` | CPU 图像面与 GPU 面（需外部 backend） | 面实现 | 🔌 |
-| 注册表 | `Registry/NewRegistry/Register/Unregister/List/Available/Get/NewSurface*/SurfaceFactory/RegistryEntry/BackendNotFoundError/BackendUnavailableError/ErrNoBackendAvailable` | surface 工厂注册与按名创建、可用性查询 | 注册表 | 🔌 |
-| 类型 | `Path/Point/FillRule/LineCap/LineJoin/FillStyle/StrokeStyle/DrawImageOptions/Pattern/SolidPattern/Filter/BlendMode/Options` | surface 绘制所需类型 | 绘制类型 | 🔌 |
-
-### 6.5 render/svg（顶层 15）
+### 6.4 render/svg（顶层 15）
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|
 | `Render(data,w,h)/RenderWithColor(data,w,h,c)` | 解析图标风 SVG 数据并栅格化为 RGBA 图（可选主题色） | SVG→图像 | 🔌 无消费者 |
 | `Parse(data)/Document/ViewBox/Attrs/Element`（具体类型：`PathElement/CircleElement/RectElement/EllipseElement/LineElement/PolygonElement/PolylineElement/GroupElement`） | SVG 文档解析与元素模型 | SVG 解析 | 🔌 |
 
-### 6.6 render/filters（0 顶层）
+### 6.5 render/filters（0 顶层）
 `init()` 副作用：把 internal/filter 的 blur/colormatrix/shadow/grayscale/invert 注册进 `render.RegisterFilterOps`，使 `Context.Apply*` 可用。**精简**：滤镜 op 注册表（DC.ApplyBlur 等的开关）。**状态：🔗**（经 `render/gpu` 的 `_ import` 自动激活）。
 
-### 6.7 render/raster（0 顶层）
-`init()` 副作用注册 AdaptiveFiller（4x4/16x16 tile 光栅）。**精简**：CPU tile 光栅独立注册入口。功能已并入 `render/gpu`（gpu 包 init 同时注册 SDFAccelerator + AdaptiveFiller）；本包是「只要 CPU tile 光栅不要 GPU」的入口，**状态：🔌**（无人走）。
-
-### 6.8 render/gpu（顶层 18）
+### 6.6 render/gpu（顶层 18）
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|
 | `SetDeviceProvider(provider)/ResetAccelerator/AbandonDevice/PurgeSurfaceResources` | 注入共享 GPU 设备、重建加速器、设备放弃、清理表面资源 | 设备生命周期 | 🔗 examples/ggcanvas 注入；**ui/embedder 生产未调 ⚠️** |
@@ -349,9 +337,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 功能 | 证据 |
 |------|------|
 | `render/svg` 整包（SVG 图标渲染） | 全仓无 import |
-| `render/surface` 整包（surface 抽象+注册表） | 全仓无 import；与 render.Context 的集成未落地 |
 | `render/recording` 整包（录制回放） | 仅测试/示例；PDF/SVG 后端仓外 |
-| `render/raster` 独立注册入口 | 功能并入 render/gpu |
 | 路径布尔 `BooleanPath/PathOp*` | 仅测试（s3c_m3_residual_gate_test 门禁 + path_boolean_test 值级；2026-10-19 重写为 Clipper 扫描线）+ 直调真窗 `ui_render_base_pathbool`（2026-10-20，**原子验证**：逻辑 10 + 像素 18 + golden 627200px 逐位零差 + 抓屏同区 `0.0000%`；同批修半透明 stencil path 重复预乘，pin `TestMakeCoverUniformDoesNotPremultiplyTwice` + GPU `TestRenderSessionStencilPremultipliedColor`；输出为折线，曲线按 0.1px 展平） |
 | 裁剪运算 `ClipOpDifference/Replace`（ClipRectOp/ClipPathOp） | 仅测试（p12_clip_mask_gpu_test）+ 直调真窗 `ui_render_base_clipop`（2026-10-19，**原子验证**；同批修 4 缺陷，见 §3.2 行与 `RENDER_FEATURE_COVERAGE.md` §11） |
 | 掩码写路径 `SetMask/ClearMask/GetMask/InvertMask/ApplyMask` + `PushMaskLayer`（+`Mask` 构造类型） | 仅测试（mask_test / context_layer_test / layer_rt_clear_test）+ 直调真窗 `ui_render_base_maskops`（2026-10-19，**原子验证**：逻辑 14 + 像素 18 + golden 627200px 逐位零差 + 抓屏 vs 快照同区对照；同批修掩码 pop 帧中 CPU 材料化导致的呈现断裂 + 嵌套隔离层 blit-only 离屏清屏不透明黑，见本行 §3.3、`RENDER_FEATURE_COVERAGE.md` §11 与本窗 README） |
@@ -389,19 +375,19 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 1 | 纯色上色 | `Context.SetRGB/SetRGBA/SetHexColor/SetColor` ↔ `Solid/SolidRGB/SolidRGBA/SolidHex` + `SetFillBrush/SetStrokeBrush` | D | 旧 fogleman/gg 风格（Set* 内部生成实色 Solid）与画刷体系并存。新代码走 Solid+Set*Brush；Set* 保留兼容。 |
 | 2 | 渐变 | `CustomBrush.LinearGradient/RadialGradient`（函数式）↔ `LinearGradientBrush/RadialGradientBrush`（色标式） | D | 两种实现机制交付同一视觉（两端线性 / 单位圆径向）。径向还多 `SetFocus`、色标 ∞；CustomBrush 仅两 stop。生产已验证走 Brush 数据式。 |
 | 3 | 裁剪 | `Context.ClipRect` ↔ `ClipRectOp(o=ClipOpIntersect)`；`Context.Clip` ↔ ui `PaintContext.PushClipPath`；`scene.ClipState/ClipStack` | D+W | ClipRectOp(Intersect) 是 ClipRect 的带运算泛化（默认相交=同义）；ui PushClipPath 是 Context.Clip 的封装（历史 GPU 画穿已修复，见 §7.3 2026-08-16 条目）；scene 为保留模式第三套。 |
-| 4 | 画图体系 | `Context`（即时）↔ `scene.Scene`（保留）↔ `recording.Recorder`（录制）↔ `surface`（目标抽象） | C | 四套都含 Fill/Stroke/Clip/Image 语义。**仅 Context 接入 ui 产线**；scene 只被 render 内部 GPU 后端消费；recording/surface 无消费者（§7.2）。最大的体系级重复，各自文档见 §3/§6。 |
+| 4 | 画图体系 | `Context`（即时）↔ `scene.Scene`（保留）↔ `recording.Recorder`（录制） | C | 三套都含 Fill/Stroke/Clip/Image 语义。**仅 Context 接入 ui 产线**；scene 只被 render 内部 GPU 后端消费；recording 无消费者（§7.2）。体系级重复见 §3/§6。 |
 | 5 | 形状轮廓 | `Path.Rectangle/Circle/Ellipse/Arc/RoundedRectangle` ↔ `PathBuilder.Rect/RoundRect/Circle/Ellipse/Polygon/Star` ↔ `Context.Draw*`（DrawRectangle/DrawCircle/…） | D | 前三者都能往一条路径上追加矩形/圆/椭圆，**Path 与 PathBuilder 是两套独立实现、无桥接**（如 PathBuilder.Rect 自己 MoveTo/LineTo/Close，不调 Path.Rectangle）；Context.Draw* 是追加到当前路径的第三处。 |
 | 6 | 文本 | `Context.DrawString/MeasureString/DrawStringWrapped` ↔ `text.Draw/Measure/MeasureText` | W | Context 方法是 text 包的封装（ui 链路走 Context 层）；text 包直连 draw.Image 供底层/工具用。 |
 | 7 | 呈现 | `PresentTarget.PresentWith/PresentWithAuto` ↔ `Context.PresentFrame(+/Damage/DamageRects)` ↔ `frame.PresentFrameAuto/PresentFrameFull/PlanFramePresent` | W | 三层入口：PresentTarget 高层（draw 闭包）→ Context 低层（view+present 回调）→ frame 策略（选路径）。PresentWithAuto 与 PresentFrameAuto 决策语义重叠。 |
 | 8 | 滤镜 | `Context.ApplyBlur/ApplyColorMatrix/…/ApplyImageFilterGraph` ↔ `scene.FilterChain/FilterType` | W | 入口不同，底层共用 internal/filter 实现；scene 侧仅保留模式用。 |
-| 9 | 像素缓冲 | `Pixmap` ↔ `ImageBuf` ↔ `surface.ImageSurface` | C | 三种像素缓冲可互转（Pixmap.ToImage/Image()、ImageBufFromImage）；ImageSurface 是 surface 抽象实现，无消费者（§7.2）。 |
+| 9 | 像素缓冲 | `Pixmap` ↔ `ImageBuf` | W | 两种像素缓冲可互转（Pixmap.ToImage/Image()、ImageBufFromImage）；Context 内部持 Pixmap，ImageBuf 用于 GPU/图像绘制。 |
 | 10 | 编解码导出 | `Context.Image()/SavePNG()/EncodePNG()/EncodeJPEG()` ↔ `Pixmap.ToImage()/SavePNG()/EncodePNG()/EncodeJPEG()` | W | Context 方法即包装底层 pixmap 同名方法（Context 内部持 Pixmap）。 |
 | 11 | 画笔/几何副本 | `recording.SolidBrush/Linear/Radial/Sweep/Pattern + Matrix/Rect` ↔ 主包 `Brush` 族/`Matrix`/`Rect` | C | recording 为 SkPicture 移植携带独立副本，无消费者（§7.2）；改动主包 Brush 不影响 recording。 |
 | 12 | SDF 覆盖 | `sdf.SDFFilledCircleCoverage/…`（4 函数）↔ `SDFAccelerator.FillShape/StrokeShape` | W | 独立函数供像素级/测试；加速器实现包装同语义。 |
 
 ### 7.5.1 收敛执行记录（2026-08-15）
 
-> 收敛依据 = 最准确且对齐 skia/flutter（判据：官方注释声明 / skia 参数集与边界对照 / 生产消费者 / 活跃度）× 淘汰方扩展性（有明确扩展目标的保留，如 recording→PDF/SVG、surface→第三方后端 RFC#46、ColorFunc→程序化纹理）。
+> 收敛依据 = 最准确且对齐 skia/flutter（判据：官方注释声明 / skia 参数集与边界对照 / 生产消费者 / 活跃度）× 淘汰方扩展性（有明确扩展目标的保留，如 recording→PDF/SVG、ColorFunc→程序化纹理）。
 
 | # | 动作 | 执行内容 | 验证 |
 |---|------|---------|------|
@@ -409,7 +395,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 2 | 标废弃（已收敛） | `CustomBrush.LinearGradient/RadialGradient/HorizontalGradient/VerticalGradient` 加 `Deprecated:` 指向数据式画刷（缺 focus/extend/多色标，零生产消费者）；`ColorFunc/NewCustomBrush/Checkerboard/Stripes` 保留（程序化纹理扩展点） | go build ✓ + TestCustomBrush ✓ |
 | 3 | 委托统一（已收敛） | `ClipRect` 委托 `ClipRectOp(…, ClipOpIntersect)`（SkClipOp 默认语义；单一实现，clipRect 为便捷别名） | TestS3a_M1_ClipRect / TestPaintContext_PushClipRect ✓ |
 | 5 | 委托统一（已收敛，RoundRect 例外） | `PathBuilder.Rect/Circle/Ellipse` 委托 `Path.Rectangle/Circle/Ellipse`（同一实现）；**RoundRect 保留自身 skia 标准系数 k=0.5522847498**（≠ Path.RoundedRectangle 的精确圆弧公式 alpha≈0.5486，不委托以免改角几何） | TestPath + PathBuilder 相关 ✓ |
-| 4/6/7/8/9/10/11/12 | 不收敛 | 分层依赖（文本/呈现/滤镜/编解码/SDF）或有明确扩展目标（scene 内部在用；recording→PDF/SVG；surface→第三方后端） | — |
+| 4/6/7/8/9/10/11/12 | 不收敛 | 分层依赖（文本/呈现/滤镜/编解码/SDF）或有明确扩展目标（scene 内部在用；recording→PDF/SVG） | — |
 
 > 未动：`ClipPathOp`（clipPath 泛化）、`Path.RoundedRectangle`（Arc 精确公式实现，保留为 Path 方法组一部分）。`Clip/ClipPreserve` 已修复（2026-08-16，见 §7.3）。
 ---
@@ -506,7 +492,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 ## 11. 附录：子包顶层符号完整清单（机器生成，go doc 2026-08-15）
 
-> 本附录由 `go doc ./render/{scene,recording,surface,svg}` 顶层声明提取（含 const 块首行与缩进构造器），与正文 §6 族级归纳互补；**改动子包公开 API 时同步本附录（跑 §0 核对命令后替换对应行）**。`render/text` 包级导出 248 项改以 `go doc -all ./render/text` 为准（正文 §6.1 族级归纳）。
+> 本附录由 `go doc ./render/{scene,recording,svg}` 顶层声明提取（含 const 块首行与缩进构造器），与正文 §6 族级归纳互补；**改动子包公开 API 时同步本附录（跑 §0 核对命令后替换对应行）**。`render/text` 包级导出 248 项改以 `go doc -all ./render/text` 为准（正文 §6.1 族级归纳）。
 
 ```text
 scene      const DefaultMaxSizeMB = 64 ...
@@ -737,59 +723,6 @@ recording  type StrokeTextCommand struct{ ... }
 recording  type SweepGradientBrush struct{ ... }
 recording      func NewSweepGradientBrush(cx, cy, startAngle float64) *SweepGradientBrush
 recording  type WriterBackend interface{ ... }
-surface    var ErrNoBackendAvailable = errors.New("surface: no backend available")
-surface    func Available() []string
-surface    func List() []string
-surface    func Register(name string, priority int, factory SurfaceFactory, available func() bool)
-surface    func Unregister(name string)
-surface    type BackendNotFoundError struct{ ... }
-surface    type BackendUnavailableError struct{ ... }
-surface    type BlendMode uint8
-surface        const BlendModeSourceOver BlendMode = 0 ...
-surface    type BlendableSurface interface{ ... }
-surface    type Capabilities struct{ ... }
-surface    type CapableSurface interface{ ... }
-surface    type ClippableSurface interface{ ... }
-surface    type DrawImageOptions struct{ ... }
-surface        func DefaultDrawImageOptions() *DrawImageOptions
-surface    type FillRule uint8
-surface        const FillRuleNonZero FillRule = iota ...
-surface    type FillStyle struct{ ... }
-surface        func DefaultFillStyle() FillStyle
-surface    type Filter uint8
-surface        const FilterNearest Filter = iota ...
-surface    type GPUBackend interface{ ... }
-surface    type GPUSurface struct{ ... }
-surface        func NewGPUSurface(width, height int, backend GPUBackend) (*GPUSurface, error)
-surface    type ImageSurface struct{ ... }
-surface        func NewImageSurface(width, height int) *ImageSurface
-surface        func NewImageSurfaceFromImage(img *image.RGBA) *ImageSurface
-surface    type LineCap uint8
-surface        const LineCapButt LineCap = iota ...
-surface    type LineJoin uint8
-surface        const LineJoinMiter LineJoin = iota ...
-surface    type Options struct{ ... }
-surface        func DefaultOptions(width, height int) Options
-surface    type Path struct{ ... }
-surface        func NewPath() *Path
-surface    type Pattern interface{ ... }
-surface    type Point struct{ ... }
-surface        func Pt(x, y float64) Point
-surface    type Registry struct{ ... }
-surface        func NewRegistry() *Registry
-surface    type RegistryEntry struct{ ... }
-surface        func Get(name string) (*RegistryEntry, bool)
-surface    type ResizableSurface interface{ ... }
-surface    type SolidPattern struct{ ... }
-surface    type StrokeStyle struct{ ... }
-surface        func DefaultStrokeStyle() StrokeStyle
-surface    type SubSurface interface{ ... }
-surface    type Surface interface{ ... }
-surface        func NewSurface(width, height int) (Surface, error)
-surface        func NewSurfaceByName(name string, width, height int) (Surface, error)
-surface        func NewSurfaceByNameWithOptions(name string, opts Options) (Surface, error)
-surface        func NewSurfaceWithOptions(opts Options) (Surface, error)
-surface    type SurfaceFactory func(opts Options) (Surface, error)
 svg        func Render(data []byte, width, height int) (*image.RGBA, error)
 svg        func RenderWithColor(data []byte, width, height int, c color.Color) (*image.RGBA, error)
 svg        type Attrs struct{ ... }
@@ -829,9 +762,4 @@ svg        type ViewBox struct{ ... }
 [recording] LineCap: LineCapButt LineCapRound LineCapSquare
 [recording] LineJoin: LineJoinBevel LineJoinMiter LineJoinRound
 [recording] RepeatMode: RepeatBoth RepeatNone RepeatX RepeatY
-[surface] BlendMode: BlendModeClear BlendModeCopy BlendModeMultiply BlendModeOverlay BlendModeScreen BlendModeSourceOver
-[surface] FillRule: FillRuleEvenOdd FillRuleNonZero
-[surface] Filter: FilterBilinear FilterNearest
-[surface] LineCap: LineCapButt LineCapRound LineCapSquare
-[surface] LineJoin: LineJoinBevel LineJoinMiter LineJoinRound
 ```

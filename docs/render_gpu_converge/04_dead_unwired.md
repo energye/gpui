@@ -7,8 +7,9 @@
 > 复核依据：调用有无用 01 的入口清单与 02 的转发关系表交叉验证，测试/示例调用不算生产。
 
 - `render/recording`：生产 0 import；仅 `examples/render_recording/main.go:20` + `s3c_m3_gpu_gate_test.go:18` + 文档自提。
-- `render/surface`：生产 0 import（R4 review 也记零命中）；`render.Context` 未接入。
+- `render/surface`：生产 0 import（R4 review 也记零命中）；已于 2026-10-21 删除（与主包渲染重复）。
 - `render/svg`：生产 0 import；`ParseSVGPath` 仅包内用。
+- `render/raster`：生产 0 import；已于 2026-10-21 删除，功能由 `render/gpu` 注册。
 - `Trim/WithCorners/Discrete/BooleanPath`：仅 `p1_capability_matrix_closers_test.go:3299`、`p1_complex_ui_matrix_test.go:4136`、`s3c_m3_residual_gate_test.go:178` 等测试。
 - `render/gpu SetDeviceProvider/AbandonDevice` ⚠️生产未调：仅 `s6_8_window_present_x11_linux_test.go:75`、`auto_recover_depth_test.go:66`，`ui/embedder` 0 命中。
 - 附带：`DrawImageNine` 仅门面（`ui/rendering/image_draw.go:48` 包了一层）+ 示例 `scene.go:199` + 测试，生产 widget 0 调；`DrawMesh` 仅 `p1_capability_matrix_closers_test.go:2918`。

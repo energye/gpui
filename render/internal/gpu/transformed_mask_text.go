@@ -105,10 +105,9 @@ func (rc *GPURenderContext) DrawGlyphMaskTransformText(
 // the CPU Tier2 outline path uses (raster.AnalyticFiller with the same
 // aaShift/clip/flatten settings as SoftwareRenderer's analytic branch). It
 // deliberately bypasses SoftwareRenderer.Fill's Auto mode — that mode may pick
-// the globally-registered AdaptiveFiller (tile supersampling) once any
-// render/gpu or render/raster import is alive, which would diverge from the
-// CPU reference output. Returns the mask row-major and the device-space origin
-// it corresponds to.
+// the globally-registered AdaptiveFiller (tile supersampling) once render/gpu
+// is imported, which would diverge from the CPU reference output. Returns the
+// mask row-major and the device-space origin it corresponds to.
 func rasterizeTransformMask(devicePath *render.Path) (mask []byte, bx, by, bw, bh int, err error) {
 	b := devicePath.Bounds()
 	bw, bh = b.Dx(), b.Dy()

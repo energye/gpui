@@ -20,10 +20,6 @@
 // If GPU initialization fails (no Vulkan/Metal/DX12 available), the
 // registration is silently skipped and rendering falls back to CPU.
 //
-// For tile-based rasterization only (no GPU shapes), use:
-//
-//	import _ "github.com/energye/gpui/render/raster"
-//
 // Usage:
 //
 //	import _ "github.com/energye/gpui/render/gpu" // enable GPU acceleration + tile rasterization

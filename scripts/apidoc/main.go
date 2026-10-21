@@ -17,7 +17,7 @@
 //	go run ./scripts/apidoc
 //
 // 跳过规则：render/text 采用族级归纳（附录以 go doc 为准），不参与逐符号检查；
-// render/filters、render/raster 是纯 init 副作用包（无顶层符号），跳过。
+// render/filters 是纯 init 副作用包（无顶层符号），跳过。
 package main
 
 import (
@@ -140,8 +140,8 @@ func main() {
 		check("method", methods[recv])
 	}
 
-	// 子包顶层（scene/recording/surface/svg；text 族级、filters/raster 无符号）
-	for _, sub := range []string{"scene", "recording", "surface", "svg"} {
+	// 子包顶层（scene/recording/svg；text 族级、filters 无符号）
+	for _, sub := range []string{"scene", "recording", "svg"} {
 		t, _ := scanPkg("render/" + sub)
 		check("subpkg", t)
 	}
@@ -154,7 +154,7 @@ func main() {
 		fmt.Println("→ 请在 docs/RENDER_API_CATALOG.md 对应分类表补齐（增/改/删 API 时同步更新）。")
 		os.Exit(1)
 	}
-	fmt.Println("OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/surface/svg 全部公开符号")
+	fmt.Println("OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg 全部公开符号")
 }
 
 func mapToPrefixed(names []string, prefix string) []string {

@@ -11,7 +11,7 @@
 |---|---|---|---|
 | `ENGINE_UI_RENDER_BASE.md` | 范围：渲染基座（画/排/合/滚/调度 + 帧与资源指标） | `render/` 全包 | 每个能力 A/B/C/D 状态，验收三项 |
 | `ENGINE_FLUTTER_SKIA_ARCH.md` | UI 引擎架构真源 — Flutter 管线 × Skia 光栅（`render`） | `render/` 全包 | 分层与依赖方向 |
-| `RENDER_API_CATALOG.md` | `render/`（含 `render/text`、`render/scene`、`render/recording`、`render/surface`、`render/svg`、`render/filters`、`render/raster`、`render/gpu`）全部公开 API 总账 | `render/`、`render/text`、`render/scene`、`render/recording`、`render/surface`、`render/svg`、`render/filters`、`render/raster`、`render/gpu` | 哪个接口真在用（✅/🔗）、哪个摆设（🔌）、哪个半成品（⚠️） |
+| `RENDER_API_CATALOG.md` | `render/`（含 `render/text`、`render/scene`、`render/recording`、`render/svg`、`render/filters`、`render/gpu`）全部公开 API 总账 | `render/`、`render/text`、`render/scene`、`render/recording`、`render/svg`、`render/filters`、`render/gpu` | 哪个接口真在用（✅/🔗）、哪个摆设（🔌）、哪个半成品（⚠️） |
 | `RENDER_2D_ALIGNMENT_PLAN.md` | 按 Skia/Flutter 工业级渲染语义，修复三个已知 2D 能力洞 | `render/` 主包 2D 能力 | 三个洞补完没 |
 | `ENGINE_UI_WIDGET_RENDER.md` | 自定义控件渲染基座 + 排期 + 真窗验收唯一真源 | `render/` 给控件那一面 | 控件口子齐没齐 |
 | `ENGINE_FRAME_PRESENT_STANDARD.md` | 帧节奏与呈现模式真源 | `render/present_target.go`、调度相关 | 帧模式、空闲帧、呈现切换 |
@@ -76,7 +76,7 @@
 |---|---|
 | `render/` 主包（204 个 go 文件） | UI_RENDER_BASE、FLUTTER_SKIA_ARCH、API_CATALOG、2D_ALIGNMENT、WIDGET_RENDER、FRAME_PRESENT、CODING_RULES、PIXEL_ASSERTION |
 | `render/text/`（220 个 go 文件） | TEXT 系列 7 份 + UI_RENDER_BASE + API_CATALOG |
-| `render/scene/`、`render/recording/`、`render/surface/`、`render/svg/`、`render/filters/`、`render/raster/`、`render/gpu/` | API_CATALOG（接线状态）+ UI_RENDER_BASE（能力行） |
+| `render/scene/`、`render/recording/`、`render/svg/`、`render/filters/`、`render/gpu/` | API_CATALOG（接线状态）+ UI_RENDER_BASE（能力行） |
 | `render/internal/gpu/`（213 个 go 文件） | GPU_RESOURCE_LIFECYCLE、GPU_MULTIWINDOW、FRAME_PRESENT、THREAD_T（循环部分） |
 | `render/internal/blend|cache|clip|color|filter|image|parallel|raster|stroke|wide|testutil/` | UI_RENDER_BASE 对应能力节 |
 | `gpu/rwgpu/`（85 个 go 文件） | GPU_RESOURCE_LIFECYCLE（FFI 防御节）、CODING_RULES（禁 CGO） |

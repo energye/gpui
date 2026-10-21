@@ -78,8 +78,6 @@
 | render/text/emoji | 🔁 | render/text 内部（color_font_adapter.go 等）+ ui/rendering/text_layout.go；真窗 ui_text_m5_anycase（emoji 分区，main.go:3/130） |
 | render/gpu | ✅ | blank import 全窗（注册渲染后端） |
 | render/svg | ⛔ | 全仓（非测试）零 import |
-| render/surface | ⛔ | 全仓（非测试）零 import |
-| render/raster | ⛔ | 无独立入口；仅 render/gpu 内部注册链引用 |
 
 ## 3. 缺真窗清单（第一步任务：全功能真窗化）
 
@@ -112,7 +110,7 @@
 ### 3.3 C 组：先修实现/先定案，再建窗
 
 - 增量呈现断头（见 §6）；clip 差集/绕向、4x MSAA 中帧 UB、4x backdrop Blur 已修。rrect 图片/文字裁剪已由 C 组#6 `ui_render_base_cliprrect` 补上真窗证据并关闭，同批修 CPU 位图/缩放/别名文本绕过裁剪栈的缺陷，不再列入本清单
-- svg / surface / raster 整包：零消费者 —— 先定「接入还是废弃」
+- svg 整包：零消费者 —— 待修 bug + 建真窗；surface/raster 已于 2026-10-21 裁撤（surface 与主包渲染重复，raster 功能由 render/gpu 注册）
 
 ## 4. UI 母表「画什么」摘要（文档口径，本轮未逐行源码复核）
 
@@ -203,7 +201,7 @@
 2. `rendering.DrawVertices/FillSweepGradient` 门面：DrawVertices 仍全仓零调用；FillSweepGradient 2026-10-19 起有真窗直调（`ui_render_base_sweepgradient`，原子验证）但仍无生产调用方 → 口径=「门面未接线」（AGENTS.md 生产/原子验证口径：真窗示例只算原子验证），生产接线待后续。
 3. `ui_wr_c12_spin_over_static`（空目录）/`engine/stage_night`（仅 doc.go）按真源是否已排期。
 4. 视频底层 API 口径（经桥用算不算接线）。
-5. `render/svg`、`render/surface`、`render/raster`：长期未接线 vs 已废弃。
+5. `render/svg`：待修 bug + 建真窗。
 6. Bicubic GPU 化（RENDER_2D_ALIGNMENT 洞2）修复状态需复核。
 
 ## 10. 建议销账顺序
@@ -245,3 +243,5 @@
 | 2026-10-20 | **4x MSAA backdrop Blur 收口（采样数归渲染目标第一步）+ 2 个 4x 永久回归**：B 卡 4x 失败根因为层 RT 是 1x 纹理，却由 base 4x 会话绘制——CPU 种子只进 1x resolve，随后 15% tint 的首个 4x MSAA pass 走 `LoadOpClear`，模糊内容被抹回锐利条纹（无 tint 时模糊正常；1x 同窗正常）。另有嵌套层过滤把 pending 并行折叠进无 pixmap base 的 RT，`foldPendingIntoPixmap` 失败后退 CPU。修法按「采样数属于 RenderTarget」：① `Context` 拆 `baseGpuCtx`（窗口，保持配置的 4x）与 `layerGpuCtx`（离屏层，固定 1x），Push/Pop GPU 层只切 active 指针，不销毁 base 会话、不改全局采样；嵌套层共用 1x 层上下文，最外层 Pop 后回 base 合成。② `GPURenderContext` 新增 `seededViews`：`MarkViewSeeded` 在会话尚未创建时先记账，会话创建后重放；`BeginFrame`/设备重建清空，`PopLayer` 回收视图时 `UnmarkViewSeeded`，避免池化视图继承陈旧 LoadOp。③ `tryApplyFilterGraphGPU` 的 mid-frame fold 只在 `!hasLayer` 时启用；有图层时走图层相干的 GPU 路径。真窗证据：1x/4x `ui_render_base_backdrop` 均 logic 14/14、pixel 21/21、4x 专属 Golden 627200px `0.0000%`、screen vs snapshot `0.0000%`、`gpu_ops≈1.07 万`/`cpu_fallback_ops=0`；4x B 黑/白中心 0.588/0.561（期望 0.575，容差内），4x `ui_ant_verify` 仍 `mode=4x MSAA` 通过。永久回归 `render/backdrop_layer_msaa_test.go` 两例（4x 嵌套 filter 种子 / 4x filter 后 tint 保种子）+ 原 `render/backdrop_layer_present_test.go` 四例；`go test ./render` 失败集合与干净 HEAD 逐项一致，`go test ./ui/embedder/...` 绿，`ui/rendering`/`ui/scene` 与 HEAD 基线一致，`-race` 三例绿，GPU 上下文生命周期用例绿。**公开 API 无签名变更**（仅内部字段/方法）。真源同步：§3.3/§6/§11、`ENGINE_UI_RENDER_BASE.md` §24 修订 1.49、本窗 README；**性质=引擎正确性回归 + 原子真窗验证，不是生产接线** |
 | 2026-10-20 | **C 组#6 真窗 `examples/ui_render_base_cliprrect`（`ClipRoundRect` 裁图片/文字/GpuTexture）+ 同批修 CPU 文本绕过裁剪**：此前 `ClipRoundRect` 已有实现且 `textured_quad.wgsl` 的 RRect 覆盖已接入，但图片/文字消费路径无直调真窗像素证据（§6 记「仍待补」）。窗=1200×800 四卡：A `DrawGPUTexture` 直绘 200×160 GPU 发布视图（`ApplyInvert` → `GPUFilterTexture`）在 184×146 r=38 圆角内 / B `DrawImageEx` 四象限图同几何 / C 三行 40px `DrawString` 起点在裁剪框左侧、字符串越过右边界 / D `Push`→圆角裁图→`Pop` 后同图不裁剪，左边角透卡底、右四角保留图片。三证据+抓屏：①逻辑 11/11（子进程 `GOGPU_RENDER_MODE=cpu` 离屏值级：图片中心/圆角切角/框外、r=0 直角、嵌套 RRect∩Rect 三态、Pop 恢复、文字框内可见/框外无墨/Pop 后恢复）②像素 15/15（GPU 快照：A/B 中心·切角·边·框外、C 框内墨量/框外 0/切角、D 左切角·中心/右切角·中心；容差 8/255 + 通道带）③Golden 表头+图例+四卡 627200px 逐位零差（播种后复跑 `0.0000%`）④抓屏 vs 快照同 627200px `0.0000%`（tol ±2/255；`xwininfo` 取窗口 id + `xwd -id` 读窗口自身像素）。门禁：`-auto-only`/RUN_SECONDS（≥5s）+ §2.2 A–J JSON（`present_policy=full_paint`、`vsync_source=true`、`gpu_ops=25803`、`cpu_fallback_ops=0`、`gpu_fallbacks=0`、`presents=300`、纹理视图 `200×160`/live paints=301、纹理源 `gpu_ops=1`/`cpu_fallback_ops=0`、`fps_gate=off_correctness`）。**引擎缺陷与修法**：CPU `drawStringBitmap`/`drawStringScaled`/`drawStringCPUAliased` 直接调 `text.Draw*` 写 `c.pixmap`，绕过 scissor 与 `ClipStack`；修前 CPU 探针实测 C 卡框外泄漏 1191 个亮像素（GPU 字形 mask 路径本已正常）。新增 `render/text_clip_cpu.go:tryDrawTextWithClip`：有活动裁剪时先把文本 run 画进透明 scratch，再用 `ClipStack.Coverage` 逐像素生成 alpha 掩码合成回 pixmap；无裁剪保持原快路径；三个 CPU 入口同批接入。永久回归五例（CPU 位图 / 别名 / 2× 缩放三入口框外 0，`TestTextRunBoundsContainRenderedInk` 验证收紧后的字形包围盒包住实际墨迹，GPU `DrawGPUTexture` 切角/中心 + GPU 字形框外 0）；修前旧 dispatch 实测框外泄漏分别为 1191 / 1200 / 4662 个亮像素。限界：CPU 文本裁剪优先按 run 字形包围盒 + 字体度量余量分配临时图/掩码，字形墨迹碰到非裁剪边时回退整块裁剪重画（同机 1200×800 全窗矩形裁剪/200 次 20px 位图文本：98.7→12.8ms/次）；窗口主路是 GPU 字形路径不受影响；A 卡依赖 GPU 滤镜发布视图；本窗是原子验证（无组件/2.5D/视频生产调用方）。**公开 API 无签名变更**（仅新增未导出方法）。真源同步：§1 #12、§3.3、§6、§11 本行；`ENGINE_UI_RENDER_BASE.md` §23 登记 + §24 修订 1.50、本窗 README。**性质=原子验证**（直调 render 接口一次验一族），不算生产接线 |
 | 2026-10-21 | **C 组 API 收敛：删除旧两参 `DrawImageQuad`，并把 `DrawImageQuadEx` 正名为 `DrawImageQuad(img,corners,opts)`**：旧两参入口只剩兼容包装，生产调用为零，仓库内仅 `quad_cpu_test.go` / `p1_capability_matrix_closers_test.go` / `p1_complex_ui_matrix_test.go` 三处测试调用。按开发阶段「接口全量切换制」删除旧方法与未被调用的 `drawImageQuadCPU`；带显式选项的入口去掉非标准 `Ex` 后缀，统一为 `DrawImageQuad`，测试/示例同批改调（显式 `QuadDrawOptions{}` 默认 Bilinear/不透明/Normal；退化四边形仍走 `ErrQuadDegenerate` 且不污染画布）。不补重复真窗：`examples/engine/quad` 已覆盖梯形/parity/golden/gpu_ops，`quad_cpu_test.go` 覆盖值级契约。**公开 API 变更**：Context 导出方法仍 200（删一个、留一个）；`RENDER_API_CATALOG.md` §0/§3.5/§3.10/§8 同步。验证：`go test ./render -run '^TestQuad' -count=3`、`TestQuad* -race`、`TestP1_Capability_T04_ImageQuadGPU`、`TestP1_S2_/T1_/U1_` 与 `go run ./scripts/apidoc` 均绿。**性质=API 收敛，无新增能力**。 |
+| 2026-10-21 | **C 组子包裁撤：删除 `render/raster`**：35 行纯 init 开关包，全仓非测试零 import；`init()` 注册的 `gpuimpl.AdaptiveFiller` 与 `render/gpu` 的 init 完全重复。删除后 CPU 复杂路径分块光栅仍由 `render/gpu` 注册，不需要第二个入口。同步清理 `render/gpu` 注释、`render/internal/gpu/transformed_mask_text.go` 的旧引用与 `scripts/apidoc` 跳过说明；文档 §2 子包表、§3.3、§9 与本行同步。验证：`go build ./render/...`、`go test ./render -run '^TestQuad'`、`go run ./scripts/apidoc` 绿。**性质=死包清理，无能力变化**。 |
+| 2026-10-21 | **C 组子包裁撤：删除 `render/surface`**：整包 53 个公开 API（Surface/ImageSurface/GPUSurface/Registry 及自有 Path/Stroke/Brush 类型），全仓非测试零 import；与 `render.Context` 的 CPU/GPU 渲染及路径/描边实现重复，GPUSurface 也只是外部 backend 壳。按「render 只做通用难事」与「成熟库优先」原则裁撤，不保留第二套渲染目标和注册表；未来第三方后端走 render/hal。同步删除 `scripts/apidoc` 的 surface 扫描与 API 总账 §0/§6.4/§7.2/附录、本文档 §2/§3.3/§9。验证：`go build ./render/...`、`go test ./render -run '^TestQuad'`、`go run ./scripts/apidoc` 绿。**性质=死包清理，无能力变化**。 |
