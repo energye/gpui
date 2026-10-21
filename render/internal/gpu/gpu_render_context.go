@@ -2119,6 +2119,17 @@ func (rc *GPURenderContext) stencilTess(path *render.Path, matrix render.Matrix,
 	return fanVerts, cq, ba, iba, render.Identity(), true
 }
 
+// strokeSolidFastPathEligible reports whether a stroke can use the solid-only
+// fillPathUser fast tail. Non-solid paints must go through FillPath so the
+// gradient/image-pattern/custom brush is sampled per pixel; fillPathUser emits
+// a single solid stencil command from getColorFromPaint.
+func strokeSolidFastPathEligible(antiAlias bool, path, pathToStroke *render.Path, paint *render.Paint) bool {
+	if paint == nil || !isGPUSolidPaint(paint) {
+		return false
+	}
+	return antiAlias && pathToStroke == path && !paint.IsDashed() && paint.MaskCoverage == nil
+}
+
 // StrokePath renders a stroked path by expanding to filled outline.
 //
 // path arrives in DEVICE space with the total user→device matrix (see
@@ -2170,11 +2181,11 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 	if shouldSnapHairline(paint) {
 		pathToStroke = snapHairlineStrokePath(pathToStroke)
 	}
-	// Fast path gate: AA on, no snap applied, no dash, no mask,
+	// Fast path gate: AA on, no snap applied, no dash, no mask, solid paint,
 	// similarity matrix. Everything else keeps the baked device-space
 	// expansion below. Masked strokes must keep the FillPath mask routing
 	// (fillMaskedAsImage / cover-inline); the fast tail is stencil-only.
-	fastStroke := rc.antiAlias && pathToStroke == path && !paint.IsDashed() && paint.MaskCoverage == nil
+	fastStroke := strokeSolidFastPathEligible(rc.antiAlias, path, pathToStroke, paint)
 	var userScale float64
 	var userInv render.Matrix
 	if fastStroke {
@@ -2270,9 +2281,14 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 	return rc.FillPath(target, fillPath, &strokePaint, render.Identity())
 }
 
-// fillPathUser fills an already user-space path with its total matrix
-// (fast-path tail shared by FillPath stencil section and StrokePath).
+// fillPathUser fills an already user-space path with its total matrix.
+// It is the solid-only fast-path tail used by StrokePath; non-solid paints
+// must use FillPath so their brush is sampled per pixel.
 func (rc *GPURenderContext) fillPathUser(target render.GPURenderTarget, rawPath *render.Path, paint *render.Paint, matrix render.Matrix, userScale float64) error {
+	// This tail is solid-only by contract; non-solid strokes must use FillPath.
+	if !isGPUSolidPaint(paint) {
+		return render.ErrFallbackToCPU
+	}
 	if !rc.shared.gpuReady {
 		rc.shared.mu.Lock()
 		err := rc.shared.ensureGPU()
