@@ -14,7 +14,7 @@
 | `render/scene` | 40 总数 / 16 非测试 | func67 + type64 + var1 = 132；var 仅 `pool.go:60 DefaultPool` | render 内部吃 Scene |
 | `render/recording` | 12 总数（顶层 11 + backends/raster 1） | func25 + type54；var/const 单行式 0（`InvalidRef` 在块内，漏计） | 🔌仅测试/示例 |
 | `render/surface` | 7 非测试 | func19 + type28；var/const 单行式 0（`ErrNoBackendAvailable` 在 `registry.go:260-262 var()` 块内） | 2026-10-21 已删除（与主包渲染重复） |
-| `render/svg` | 8 总数 / 7 非测试 | func3 + type12（`svg/svg.go:13 Render`、`：24 RenderWithColor`、`parser.go:16 Parse`） | 📄 直调真窗 `ui_render_base_svg`（2026-10-21）；无生产消费者 |
+| `render/svg` | 8 总数 / 7 非测试 | func3 + type12（`svg/svg.go:13 Render`、`：24 RenderWithColor`、`parser.go:16 Parse`） | 🔌 直调真窗 `ui_render_base_svg`（2026-10-21）；无生产消费者 |
 | `render/filters` | 1（`register.go` 仅 init） | 0/0/0 | 经 render/gpu 副作用注册 |
 | `render/raster` | 1（仅 init） | 0/0/0 | 2026-10-21 已删除（功能由 render/gpu 注册） |
 | `render/gpu` | 2（`gpu.go/lifecycle_policy.go`） | func8 + type1 = 9（目录 go doc 12，差 3 是块式常量漏计） | 真窗全量接线 |

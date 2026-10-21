@@ -11,7 +11,7 @@
 > go doc ./render ./render/text ./render/scene ./render/recording ./render/svg ./render/gpu 2>/dev/null | grep -E "^(func|type|var|const) [A-Z]"  # 包级权威清单
 > ```
 >
-> 状态词约定：✅ 有生产接线且 GPU/CPU 实测有效 · 🔗 有生产接线（真实链路在用）· ⚠️ 半成品/有实现但 GPU 未生效（详见 §7.3）· 🔌 无生产消费者（未接线，仅测试/示例/demo）· 🧪 仅测试覆盖。
+> 状态词约定：✅ 有生产接线且 GPU/CPU 实测有效 · 🔗 有生产接线（真实链路在用）· ⚠️ 半成品/有实现但 GPU 未生效（详见 §7.3）· 🔌 无生产消费者（未接线，仅测试/示例/直调真窗/demo）· 🧪 仅测试覆盖。
 >
 > **生产与原子验证口径（硬，见 AGENTS.md）**：生产只认两类调用——组件库真正调用，或 2.5D 引擎与模块功能包真正调用（含 `ui/rendering` 这类替模块干活的胶水包）。真窗示例与单元测试只算原子验证（直接调接口、一次只验一个能力），不算生产接线，拿它们当接线证据的行一律降级。通用能力验证过但两类生产都没调，标已验证待接线（正常中间态，禁止当生产标绿）。
 
@@ -25,7 +25,7 @@
 | `render/text` | 包级导出 248（2026-10-19 实测 `go doc -all` 顶层口径；含 +1 `FixedSize` 26.6 缓存键转换；历史行 245→250 为该次估数，本行按命令实测校正。含字体/整形/布局/光栅化；+1 `RuneAdvance`、+1 `SegmentReuse`、+3 字距：`ApplySpacing/ApplySpacingDir/SpacingExtra/WrapTextWithSpacing`（字距数学委托第三方 `shaping.AddSpacing`，`WhitespaceRuns` 已删）；`LayoutOptions` 新增 `LetterSpacing/WordSpacing` 字段；+5 6b字重收敛：`WithWeight/FaceEmbolden/EmboldenRadius/EmboldenResult/DeriveFace`；新增 `FontWeight` 类型 + `WeightThin..WeightBlack`/`GlyphMaskFlagBold` 常量；`Face.Embolden` 接口方法 + `MultiFace.WithWeight` 方法） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）；ui/examples 零接线 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 仅测试/示例 | SkPicture 式录制回放；PDF/SVG 后端为仓外模块未接线 |
-| `render/svg` | 顶层 15 | 📄 直调真窗 `ui_render_base_svg` | 图标风 SVG 渲染（Render/RenderWithColor/Parse）；生产消费者仍为零 |
+| `render/svg` | 顶层 15 | 🔌 直调真窗 `ui_render_base_svg` | 图标风 SVG 渲染（Render/RenderWithColor/Parse）；生产消费者仍为零 |
 | `render/filters` | 0（仅 init 副作用注册） | 🔗 经 render/gpu 副作用注册 | 让 DC.ApplyBlur 等可用；ui 侧 facade 无生产调用 |
 | `render/gpu` | 顶层 12（8 函数 + 1 类型 + 3 常量，go doc 实数） | 🔗 真窗/门禁全量接线 | GPU 加速注册 + 设备生命周期（2026-09-05 1.2：适配器策略 AdapterPolicy 等 13 符号搬入 render 主包） |
 
@@ -312,8 +312,8 @@
 ### 6.4 render/svg（顶层 15）
 | API | 功能 | 精简 | 状态 |
 |-----|------|------|------|
-| `Render(data,w,h)/RenderWithColor(data,w,h,c)` | 解析图标风 SVG 数据并栅格化为 RGBA 图（可选主题色） | SVG→图像 | 📄 直调真窗 `ui_render_base_svg`（2026-10-21）；生产消费者仍为零 |
-| `Parse(data)/Document/ViewBox/Attrs/Element`（具体类型：`PathElement/CircleElement/RectElement/EllipseElement/LineElement/PolygonElement/PolylineElement/GroupElement`） | SVG 文档解析与元素模型；根 width/height 百分比按 viewBox 解析，子几何非法值报错 | SVG 解析 | 📄 直调真窗 `ui_render_base_svg`；无生产消费者 |
+| `Render(data,w,h)/RenderWithColor(data,w,h,c)` | 解析图标风 SVG 数据并栅格化为 RGBA 图（可选主题色） | SVG→图像 | 🔌 直调真窗 `ui_render_base_svg`（2026-10-21）；生产消费者仍为零 |
+| `Parse(data)/Document/ViewBox/Attrs/Element`（具体类型：`PathElement/CircleElement/RectElement/EllipseElement/LineElement/PolygonElement/PolylineElement/GroupElement`） | SVG 文档解析与元素模型；根 width/height 百分比按 viewBox 解析，子几何非法值报错 | SVG 解析 | 🔌 直调真窗 `ui_render_base_svg`；无生产消费者 |
 
 ### 6.5 render/filters（0 顶层）
 `init()` 副作用：把 internal/filter 的 blur/colormatrix/shadow/grayscale/invert 注册进 `render.RegisterFilterOps`，使 `Context.Apply*` 可用。**精简**：滤镜 op 注册表（DC.ApplyBlur 等的开关）。**状态：🔗**（经 `render/gpu` 的 `_ import` 自动激活）。
