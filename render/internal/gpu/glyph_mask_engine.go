@@ -44,8 +44,9 @@ import (
 type GlyphMaskEngine struct {
 	mu sync.Mutex
 
-	atlas      *text.GlyphMaskAtlas
-	rasterizer *text.GlyphMaskRasterizer
+	atlas              *text.GlyphMaskAtlas
+	rasterizer         *text.GlyphMaskRasterizer
+	variationExtractor *text.OutlineExtractor
 
 	// LCD subpixel rendering configuration.
 	lcdLayout text.LCDLayout
@@ -108,12 +109,13 @@ type glyphLayoutTemplateEntry struct {
 // configuration. LCD subpixel rendering is disabled by default (LCDLayoutNone).
 func NewGlyphMaskEngine() *GlyphMaskEngine {
 	return &GlyphMaskEngine{
-		atlas:           text.NewGlyphMaskAtlasDefault(),
-		rasterizer:      text.NewGlyphMaskRasterizer(),
-		lcdLayout:       text.LCDLayoutNone,
-		lcdFilter:       text.DefaultLCDFilter(),
-		layoutCache:     make(map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry),
-		layoutCacheSoft: 512,
+		atlas:              text.NewGlyphMaskAtlasDefault(),
+		rasterizer:         text.NewGlyphMaskRasterizer(),
+		variationExtractor: text.NewOutlineExtractor(),
+		lcdLayout:          text.LCDLayoutNone,
+		lcdFilter:          text.DefaultLCDFilter(),
+		layoutCache:        make(map[glyphLayoutTemplateKey]*glyphLayoutTemplateEntry),
+		layoutCacheSoft:    512,
 	}
 }
 
@@ -189,6 +191,7 @@ func (e *GlyphMaskEngine) LayoutText(
 		return GlyphMaskBatch{}, err
 	}
 	fontSize, fontID, parsed := p.fontSize, p.fontID, p.parsed
+	variations := p.variations
 	rasterScale := p.rasterScale
 	isCJK, hinting := p.isCJK, p.hinting
 	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
@@ -213,14 +216,14 @@ func (e *GlyphMaskEngine) LayoutText(
 		// origin-free layout template + safe quad rebase for scroll/HUD.
 		// Skip template put for high-churn telemetry strings (unique every frame).
 		shaped := text.LayoutGlyphs(face, s)
-		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, false)
+		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, variations, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, false)
 		if !text.IsHighChurnLabel(s) {
 			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		}
 		return batch, nil
 	}
 	shaped := text.LayoutGlyphs(face, s)
-	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, false), nil
+	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, variations, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, false), nil
 }
 
 // LayoutTextAliased converts a text string into a GlyphMaskBatch with binary
@@ -253,6 +256,7 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 		return GlyphMaskBatch{}, err
 	}
 	fontSize, fontID, parsed := p.fontSize, p.fontID, p.parsed
+	variations := p.variations
 	rasterScale := p.rasterScale
 	isCJK, hinting := p.isCJK, p.hinting
 	useLCD, lcdLayout, lcdFilter := p.useLCD, p.lcdLayout, p.lcdFilter
@@ -273,14 +277,14 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 			return batch, nil
 		}
 		shaped := text.LayoutGlyphs(face, s)
-		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, embolden, false)
+		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, variations, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, embolden, false)
 		if !text.IsHighChurnLabel(s) {
 			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		}
 		return batch, nil
 	}
 	shaped := text.LayoutGlyphs(face, s)
-	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, embolden, false), nil
+	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, variations, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, embolden, false), nil
 }
 
 // LayoutShapedGlyphs lays out pre-shaped glyphs into a GlyphMaskBatch.
@@ -308,6 +312,7 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 		return GlyphMaskBatch{}, err
 	}
 	fontSize, fontID, parsed := p.fontSize, p.fontID, p.parsed
+	variations := p.variations
 	rasterScale := p.rasterScale
 	// p.isCJK was derived from an empty string (the shaped path carries no
 	// source text); the caller's per-batch flag wins.
@@ -322,7 +327,7 @@ func (e *GlyphMaskEngine) LayoutShapedGlyphs(
 			}
 		}
 	}
-	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, true), nil
+	return e.layoutGlyphs(glyphs, x, y, fontSize, fontID, parsed, variations, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, true), nil
 }
 
 // colorFontOf returns the color backend when the font carries CBDT/COLR
@@ -344,6 +349,7 @@ type glyphMaskParams struct {
 	fontSize    float64
 	fontID      uint64
 	parsed      text.ParsedFont
+	variations  []text.FontVariation
 	isCJK       bool
 	hinting     text.Hinting
 	useLCD      bool
@@ -366,7 +372,8 @@ func (e *GlyphMaskEngine) resolveGlyphMaskParams(face text.Face, s string, color
 		// MultiFace and other composites: caller should split runs (X.06).
 		return glyphMaskParams{}, fmt.Errorf("glyph mask: face has no FontSource")
 	}
-	fontID := e.fontID(fontSource)
+	variations := face.Variations()
+	fontID := variationFontID(e.fontID(fontSource), variations)
 	parsed := fontSource.Parsed()
 	if parsed == nil {
 		return glyphMaskParams{}, fmt.Errorf("glyph mask: parsed font unavailable")
@@ -387,6 +394,7 @@ func (e *GlyphMaskEngine) resolveGlyphMaskParams(face text.Face, s string, color
 		fontSize:    fontSize,
 		fontID:      fontID,
 		parsed:      parsed,
+		variations:  variations,
 		isCJK:       isCJK,
 		hinting:     hinting,
 		useLCD:      useLCD,
@@ -483,6 +491,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 	fontSize float64,
 	fontID uint64,
 	parsed text.ParsedFont,
+	variations []text.FontVariation,
 	hinting text.Hinting,
 	useLCD bool,
 	lcdLayout text.LCDLayout,
@@ -619,7 +628,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 			key.Flags |= text.GlyphMaskFlagBold
 		}
 
-		region, rErr := e.rasterizeGlyph(key, parsed, glyph.GID, rasterSize, fracX, fracY, hinting, useLCD, aliased, *lcdFilter, lcdLayout, embolden)
+		region, rErr := e.rasterizeGlyph(key, parsed, variations, glyph.GID, rasterSize, fracX, fracY, hinting, useLCD, aliased, *lcdFilter, lcdLayout, embolden)
 		if rErr != nil {
 			slogger().Warn("glyph mask rasterize failed", "gid", glyph.GID, "err", rErr)
 			continue
@@ -633,7 +642,19 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		// which equals the hinted one for ink-less glyphs. This keeps every
 		// glyph x-position identical to the CPU bitmap on multi-glyph lines.
 		if !shapedSnap && snapX && i+1 < len(glyphs) {
-			if pixelGrid {
+			// Variable-font advances come from HVAR and are already folded
+			// into the shaped X positions. GlyphOutline.Advance is the
+			// default master's hmtx advance, so using region.Advance here
+			// would collapse wght 200..900 onto one run width even though
+			// every mask outline varies. HintedAdvanceWidth has no variation
+			// parameter for the same reason.
+			if len(variations) > 0 {
+				if pixelGrid {
+					pen += math.Round((glyphs[i+1].X - glyphs[i].X) * deviceScale)
+				} else {
+					pen += math.Round((glyphs[i+1].X - glyphs[i].X) * devScaleX)
+				}
+			} else if pixelGrid {
 				adv := region.Advance
 				if region.Width <= 0 || region.Height <= 0 {
 					adv = float32(glyphs[i+1].X - glyphs[i].X)
@@ -748,6 +769,7 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 func (e *GlyphMaskEngine) rasterizeGlyph(
 	key text.GlyphMaskKey,
 	parsed text.ParsedFont,
+	variations []text.FontVariation,
 	gid text.GlyphID,
 	size float64,
 	fracX, fracY float64,
@@ -757,6 +779,10 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 	lcdLayout text.LCDLayout,
 	embolden bool,
 ) (text.GlyphMaskRegion, error) {
+	if len(variations) > 0 {
+		return e.rasterizeVariationGlyph(key, parsed, variations, gid, size, fracX, fracY,
+			hinting, useLCD, aliased, lcdFilter, lcdLayout, embolden)
+	}
 	switch {
 	case useLCD:
 		return e.rasterizeLCDGlyph(key, parsed, gid, size, fracX, fracY, hinting, lcdFilter, lcdLayout)
@@ -786,6 +812,81 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 			return result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, result.Advance, nil
 		})
 	}
+}
+
+// rasterizeVariationGlyph extracts the outline with the face's variation
+// coordinates, then reuses the existing outline rasterizers. The plain
+// RasterizeHinted/RasterizeAliased/RasterizeLCD entry points have no variation
+// parameter and would paint the default master for every weight.
+func (e *GlyphMaskEngine) rasterizeVariationGlyph(
+	key text.GlyphMaskKey,
+	parsed text.ParsedFont,
+	variations []text.FontVariation,
+	gid text.GlyphID,
+	size float64,
+	fracX, fracY float64,
+	hinting text.Hinting,
+	useLCD, aliased bool,
+	lcdFilter text.LCDFilter,
+	lcdLayout text.LCDLayout,
+	embolden bool,
+) (text.GlyphMaskRegion, error) {
+	if e.variationExtractor == nil {
+		// Tests and embedders that build GlyphMaskEngine as a struct literal
+		// may not have run NewGlyphMaskEngine. Callers hold e.mu.
+		e.variationExtractor = text.NewOutlineExtractor()
+	}
+	extract := func() (*text.GlyphOutline, error) {
+		return e.variationExtractor.ExtractOutlineHintedVar(parsed, gid, size, hinting, variations)
+	}
+
+	if useLCD {
+		if region, ok := e.atlas.Get(key); ok {
+			return region, nil
+		}
+		outline, err := extract()
+		if err != nil {
+			return text.GlyphMaskRegion{}, fmt.Errorf("lcd variation glyph outline: %w", err)
+		}
+		if outline == nil || outline.IsEmpty() {
+			return text.GlyphMaskRegion{}, nil
+		}
+		result, err := e.rasterizer.RasterizeLCDOutline(outline, fracX, fracY, lcdFilter, lcdLayout)
+		if err != nil {
+			return text.GlyphMaskRegion{}, fmt.Errorf("lcd variation glyph rasterize: %w", err)
+		}
+		if result == nil {
+			return text.GlyphMaskRegion{}, nil
+		}
+		return e.atlas.PutLCD(key, result.Mask, result.Width, result.Height,
+			result.BearingX, result.BearingY, 0)
+	}
+
+	return e.atlas.GetOrRasterize(key, func() ([]byte, int, int, float32, float32, float32, error) {
+		outline, err := extract()
+		if err != nil {
+			return nil, 0, 0, 0, 0, 0, err
+		}
+		if outline == nil || outline.IsEmpty() {
+			return nil, 0, 0, 0, 0, 0, nil
+		}
+		var result *text.GlyphMaskResult
+		if aliased {
+			result, err = e.rasterizer.RasterizeOutlineAliased(outline, fracX, fracY)
+		} else {
+			result, err = e.rasterizer.RasterizeOutline(outline, fracX, fracY)
+		}
+		if err != nil {
+			return nil, 0, 0, 0, 0, 0, err
+		}
+		if result == nil {
+			return nil, 0, 0, 0, 0, 0, nil
+		}
+		if embolden && !aliased {
+			result = text.EmboldenResult(result, size)
+		}
+		return result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, result.Advance, nil
+	})
 }
 
 // SyncAtlasTextures uploads dirty atlas pages to the GPU as R8 textures.

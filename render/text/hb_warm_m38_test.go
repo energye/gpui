@@ -31,7 +31,7 @@ func TestLoadMultiFace_WarmsHbFonts_M38(t *testing.T) {
 		if src == nil {
 			continue
 		}
-		if _, ok := hs.faces[src]; !ok {
+		if _, ok := hs.faces[hbFontKey{source: src}]; !ok {
 			t.Fatalf("source %p not warmed by LoadMultiFace", src)
 		}
 	}

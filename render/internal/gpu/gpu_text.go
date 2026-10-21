@@ -13,6 +13,7 @@
 package gpu
 
 import (
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"sync"
@@ -151,7 +152,8 @@ func (e *GPUTextEngine) LayoutText(
 		logicalSize = 16 // fallback: never zero
 	}
 	fontSource := face.Source()
-	fontID := computeFontID(fontSource)
+	variations := face.Variations()
+	fontID := variationFontID(computeFontID(fontSource), variations)
 
 	// ADR-027: detect CJK anywhere → select CJK atlas when mixed script.
 	isCJK := false
@@ -218,7 +220,13 @@ func (e *GPUTextEngine) LayoutText(
 		// (dynamic HUD re-layouts unique strings but reuses digit/letter cells).
 		region, ok := glyphAtlas.Lookup(key)
 		if !ok {
-			outline, err := e.extractor.ExtractOutline(fontSource.Parsed(), glyph.GID, glyphRefSize)
+			var outline *text.GlyphOutline
+			var err error
+			if len(variations) > 0 {
+				outline, err = e.extractor.ExtractOutlineHintedVar(fontSource.Parsed(), glyph.GID, glyphRefSize, text.HintingNone, variations)
+			} else {
+				outline, err = e.extractor.ExtractOutline(fontSource.Parsed(), glyph.GID, glyphRefSize)
+			}
 			if err != nil || outline == nil || outline.IsEmpty() {
 				outlineSkip++
 				continue
@@ -449,5 +457,21 @@ func computeFontID(source *text.FontSource) uint64 {
 		fullName = source.Name() // fallback to family name
 	}
 	_, _ = fmt.Fprintf(h, "%s:%d", fullName, parsed.NumGlyphs())
+	return h.Sum64()
+}
+
+// variationFontID folds the face's variation settings into the font atlas key.
+// A variable font shares one FontSource across all weights; without this the
+// width-500 and width-900 strikes would collide on the same MSDF/mask cell.
+func variationFontID(base uint64, vars []text.FontVariation) uint64 {
+	if len(vars) == 0 {
+		return base
+	}
+	h := fnv.New64a()
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], base)
+	_, _ = h.Write(buf[:])
+	binary.LittleEndian.PutUint64(buf[:], text.VariationHash(vars))
+	_, _ = h.Write(buf[:])
 	return h.Sum64()
 }

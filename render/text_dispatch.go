@@ -285,9 +285,10 @@ func (c *Context) drawShapedGlyphsAsOutlines(glyphs []text.ShapedGlyph, face tex
 
 	parsed := source.Parsed()
 	extractor := text.NewOutlineExtractor()
+	variations := face.Variations()
 
 	outlineFunc := func(gid text.GlyphID) *text.GlyphOutline {
-		outline, err := extractor.ExtractOutline(parsed, gid, face.Size())
+		outline, err := extractor.ExtractOutlineHintedVar(parsed, gid, face.Size(), text.HintingNone, variations)
 		if err != nil {
 			return nil
 		}

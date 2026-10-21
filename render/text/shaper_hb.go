@@ -41,16 +41,25 @@ type hbFont struct {
 	hbf  *hb.Font
 }
 
+// hbFontKey identifies one parsed HarfBuzz face. A variable FontSource is
+// shared by every weight; the variation hash keeps each instance's metrics,
+// GSUB/GPOS FeatureVariations and advances separate.
+type hbFontKey struct {
+	source  *FontSource
+	varHash uint64
+}
+
 // HbShaper implements the Shaper interface with the HarfBuzz Go port.
-// It caches parsed fonts per FontSource. Safe for concurrent use.
+// It caches parsed fonts per FontSource + variation instance. Safe for
+// concurrent use.
 type HbShaper struct {
 	mu    sync.RWMutex
-	faces map[*FontSource]*hbFont
+	faces map[hbFontKey]*hbFont
 }
 
 // NewHbShaper creates a new HarfBuzz-backed shaper.
 func NewHbShaper() *HbShaper {
-	return &HbShaper{faces: make(map[*FontSource]*hbFont)}
+	return &HbShaper{faces: make(map[hbFontKey]*hbFont)}
 }
 
 // Shape implements the Shaper interface.
@@ -62,7 +71,7 @@ func (s *HbShaper) Shape(text string, face Face) []ShapedGlyph {
 	if source == nil {
 		return nil
 	}
-	hbf, err := s.getOrCreateHbFont(source)
+	hbf, err := s.getOrCreateHbFont(source, face.Variations())
 	if err != nil || hbf == nil {
 		return nil
 	}
@@ -106,20 +115,26 @@ func (s *HbShaper) Shape(text string, face Face) []ShapedGlyph {
 func (s *HbShaper) ClearCache() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.faces = make(map[*FontSource]*hbFont)
+	s.faces = make(map[hbFontKey]*hbFont)
 }
 
 // RemoveSource removes cached data for a specific FontSource.
 func (s *HbShaper) RemoveSource(source *FontSource) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.faces, source)
+	for key := range s.faces {
+		if key.source == source {
+			delete(s.faces, key)
+		}
+	}
 }
 
-// getOrCreateHbFont parses a FontSource's raw data once per source.
-func (s *HbShaper) getOrCreateHbFont(source *FontSource) (*hbFont, error) {
+// getOrCreateHbFont parses a FontSource's raw data once per source and
+// variation instance.
+func (s *HbShaper) getOrCreateHbFont(source *FontSource, variations []FontVariation) (*hbFont, error) {
+	key := hbFontKey{source: source, varHash: HashFontVariations(variations)}
 	s.mu.RLock()
-	if e, ok := s.faces[source]; ok {
+	if e, ok := s.faces[key]; ok {
 		s.mu.RUnlock()
 		return e, nil
 	}
@@ -127,19 +142,19 @@ func (s *HbShaper) getOrCreateHbFont(source *FontSource) (*hbFont, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if e, ok := s.faces[source]; ok {
+	if e, ok := s.faces[key]; ok {
 		return e, nil
 	}
-	e, err := buildHbFont(source)
+	e, err := buildHbFont(source, variations)
 	if err != nil {
 		return nil, err
 	}
-	s.faces[source] = e
+	s.faces[key] = e
 	return e, nil
 }
 
 // buildHbFont parses raw font bytes with typesetting (TTF/OTF, TTC fallback).
-func buildHbFont(source *FontSource) (*hbFont, error) {
+func buildHbFont(source *FontSource, variations []FontVariation) (*hbFont, error) {
 	if source == nil || len(source.data) == 0 {
 		return nil, errors.New("text: empty font data")
 	}
@@ -156,6 +171,21 @@ func buildHbFont(source *FontSource) (*hbFont, error) {
 			idx = 0
 		}
 		f = faces[idx]
+	}
+	if len(variations) > 0 {
+		// hb.NewFont copies the face, and the shaper may run concurrently for
+		// different weights. Build a private face with its own caches instead
+		// of mutating the shared default face.
+		vf := font.NewFace(f.Font)
+		hbfVars := make([]font.Variation, len(variations))
+		for i, v := range variations {
+			hbfVars[i] = font.Variation{
+				Tag:   font.Tag(binary.BigEndian.Uint32(v.Tag[:])),
+				Value: v.Value,
+			}
+		}
+		vf.SetVariations(hbfVars)
+		f = vf
 	}
 	return &hbFont{face: f, hbf: hb.NewFont(f)}, nil
 }

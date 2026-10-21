@@ -119,10 +119,11 @@ func (c *Context) textOutlinePath(s string, x, y float64) *Path {
 	extractor := c.ensureOutlineExtractor()
 	parsed := source.Parsed()
 	fontSize := c.face.Size()
+	variations := c.face.Variations()
 
 	// Use glyph cache to avoid repeated outline extraction.
 	cache := c.ensureGlyphCache()
-	fontID := computeTextFontID(source)
+	fontID := textFontIDWithVariations(computeTextFontID(source), variations)
 	sizeKey := text.FixedSize(fontSize)
 
 	path := NewPath()
@@ -137,7 +138,7 @@ func (c *Context) textOutlinePath(s string, x, y float64) *Path {
 			Hinting: text.HintingNone,
 		}
 		outline := cache.GetOrCreate(cacheKey, func() *text.GlyphOutline {
-			o, err := extractor.ExtractOutline(parsed, sg.GID, fontSize)
+			o, err := extractor.ExtractOutlineHintedVar(parsed, sg.GID, fontSize, text.HintingNone, variations)
 			if err != nil || o == nil || o.IsEmpty() {
 				return nil
 			}
@@ -224,6 +225,19 @@ func computeTextFontID(source *text.FontSource) uint64 {
 	}
 	h := fnv.New64a()
 	_, _ = fmt.Fprintf(h, "%s:%d", source.Name(), source.Parsed().NumGlyphs())
+	return h.Sum64()
+}
+
+// textFontIDWithVariations separates outline-cache entries for two faces made
+// from the same variable FontSource. The base identity is font name + glyph
+// count; without the variation hash wght 200 and wght 900 share one cached
+// outline (usually the first weight that happened to be rendered).
+func textFontIDWithVariations(base uint64, variations []text.FontVariation) uint64 {
+	if len(variations) == 0 {
+		return base
+	}
+	h := fnv.New64a()
+	_, _ = fmt.Fprintf(h, "%d:%d", base, text.VariationHash(variations))
 	return h.Sum64()
 }
 
