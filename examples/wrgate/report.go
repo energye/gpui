@@ -55,12 +55,17 @@ type Report struct {
 	RSSEndKB          int64    `json:"rss_end_kb"`
 	RSSPeakKB         int64    `json:"rss_peak_kb"`
 	RSSSlopeKBPerMin  float64  `json:"rss_slope_kb_per_min"`
-	RSSAfterCloseKB   int64    `json:"rss_after_close_kb,omitempty"`
-	RSSUnavailable    bool     `json:"rss_unavailable,omitempty"`
-	GPUOps            int64    `json:"gpu_ops"`
-	CPUFallbackOps    int64    `json:"cpu_fallback_ops"`
-	FrameFlushes      int64    `json:"frame_flushes,omitempty"`
-	LastCPUFallback   string   `json:"last_cpu_fallback"`
+	// RSSSlopeSteadyKBPerMin is valid only when RSSSlopeValid; short runs
+	// report the raw startup-inclusive slope above and false here.
+	RSSSlopeSteadyKBPerMin float64 `json:"rss_slope_steady_kb_per_min,omitempty"`
+	RSSSlopeValid          bool    `json:"rss_slope_valid"`
+	RSSWarmupSec           float64 `json:"rss_warmup_sec,omitempty"`
+	RSSAfterCloseKB        int64   `json:"rss_after_close_kb,omitempty"`
+	RSSUnavailable         bool    `json:"rss_unavailable,omitempty"`
+	GPUOps                 int64   `json:"gpu_ops"`
+	CPUFallbackOps         int64   `json:"cpu_fallback_ops"`
+	FrameFlushes           int64   `json:"frame_flushes,omitempty"`
+	LastCPUFallback        string  `json:"last_cpu_fallback"`
 	// Multiwindow 1.3: actual adapter category + open-time downgrade count.
 	GPUBackend   string `json:"gpu_backend"`
 	GPUFallbacks int    `json:"gpu_fallbacks"`
@@ -122,47 +127,50 @@ func BuildReport(in BuildInput) Report {
 		pol = scheduler.PresentPolicyRetained
 	}
 	r := Report{
-		AbilityID:         in.AbilityID,
-		Scenario:          in.Scenario,
-		Backend:           in.Backend,
-		PresentPolicy:     pol,
-		TargetHz:          60,
-		FPSWall:           fpsWall,
-		FPSInterval:       fpsInterval,
-		IntervalAvgMs:     in.Snap.AvgFrameIntervalMs,
-		IntervalP50Ms:     in.Snap.P50FrameIntervalMs,
-		IntervalP95Ms:     in.Snap.P95FrameIntervalMs,
-		IntervalP99Ms:     in.Snap.P99FrameIntervalMs,
-		HitchCount:        in.Snap.HitchCount,
-		HitchRatePerMin:   in.Snap.HitchRatePerMin,
-		VSyncSource:       in.Snap.VSyncSource,
-		FrameBuildMs:      in.Snap.LastBuildMs,
-		FrameRasterMs:     in.Snap.LastRasterMs,
-		PipelineDepth:     in.Snap.PipelineDepth,
-		PipelineMax:       in.Snap.PipelineMax,
-		LayoutCount:       in.Snap.LayoutCount,
-		PaintCount:        in.Snap.PaintCount,
-		DamageAreaPx:      in.Snap.DamageAreaPx,
-		DamageRatio:       dmgRatio,
-		PresentMode:       in.Snap.PresentMode,
-		DirtyLayerIDs:     in.Snap.DirtyLayerIDs,
-		DamageMultiFrames: in.Snap.DamageMultiFrames,
-		PresentCount:      in.PresentCount,
-		FrameCount:        in.Snap.FrameCount,
-		CPUPctAvg:         in.Snap.CPUPctAvg,
-		CPUUIPct:          in.Snap.CPUUIPct,
-		CPURasterPct:      in.Snap.CPURasterPct,
-		RSSStartKB:        in.Snap.RSSStartKB,
-		RSSEndKB:          in.Snap.RSSEndKB,
-		RSSPeakKB:         in.Snap.RSSPeakKB,
-		RSSSlopeKBPerMin:  in.Snap.RSSSlopeKBPerMin,
-		RSSAfterCloseKB:   in.Snap.RSSAfterCloseKB,
-		GPUOps:            in.Snap.GPUOps,
-		CPUFallbackOps:    in.Snap.CPUFallbackOps,
-		FrameFlushes:      in.Snap.FrameFlushes,
-		LastCPUFallback:   in.Snap.LastCPUFallbackReason,
-		GPUBackend:        in.Snap.GPUBackend,
-		GPUFallbacks:      in.Snap.GPUFallbacks,
+		AbilityID:              in.AbilityID,
+		Scenario:               in.Scenario,
+		Backend:                in.Backend,
+		PresentPolicy:          pol,
+		TargetHz:               60,
+		FPSWall:                fpsWall,
+		FPSInterval:            fpsInterval,
+		IntervalAvgMs:          in.Snap.AvgFrameIntervalMs,
+		IntervalP50Ms:          in.Snap.P50FrameIntervalMs,
+		IntervalP95Ms:          in.Snap.P95FrameIntervalMs,
+		IntervalP99Ms:          in.Snap.P99FrameIntervalMs,
+		HitchCount:             in.Snap.HitchCount,
+		HitchRatePerMin:        in.Snap.HitchRatePerMin,
+		VSyncSource:            in.Snap.VSyncSource,
+		FrameBuildMs:           in.Snap.LastBuildMs,
+		FrameRasterMs:          in.Snap.LastRasterMs,
+		PipelineDepth:          in.Snap.PipelineDepth,
+		PipelineMax:            in.Snap.PipelineMax,
+		LayoutCount:            in.Snap.LayoutCount,
+		PaintCount:             in.Snap.PaintCount,
+		DamageAreaPx:           in.Snap.DamageAreaPx,
+		DamageRatio:            dmgRatio,
+		PresentMode:            in.Snap.PresentMode,
+		DirtyLayerIDs:          in.Snap.DirtyLayerIDs,
+		DamageMultiFrames:      in.Snap.DamageMultiFrames,
+		PresentCount:           in.PresentCount,
+		FrameCount:             in.Snap.FrameCount,
+		CPUPctAvg:              in.Snap.CPUPctAvg,
+		CPUUIPct:               in.Snap.CPUUIPct,
+		CPURasterPct:           in.Snap.CPURasterPct,
+		RSSStartKB:             in.Snap.RSSStartKB,
+		RSSEndKB:               in.Snap.RSSEndKB,
+		RSSPeakKB:              in.Snap.RSSPeakKB,
+		RSSSlopeKBPerMin:       in.Snap.RSSSlopeKBPerMin,
+		RSSSlopeSteadyKBPerMin: in.Snap.RSSSlopeSteadyKBPerMin,
+		RSSSlopeValid:          in.Snap.RSSSlopeValid,
+		RSSWarmupSec:           in.Snap.RSSWarmupSec,
+		RSSAfterCloseKB:        in.Snap.RSSAfterCloseKB,
+		GPUOps:                 in.Snap.GPUOps,
+		CPUFallbackOps:         in.Snap.CPUFallbackOps,
+		FrameFlushes:           in.Snap.FrameFlushes,
+		LastCPUFallback:        in.Snap.LastCPUFallbackReason,
+		GPUBackend:             in.Snap.GPUBackend,
+		GPUFallbacks:           in.Snap.GPUFallbacks,
 		// R16: warmup 诚实观测 — 仅认 PipelineApp 观测的 Snap.Warmup，禁止用 BuildInput.Warmup 硬写覆盖（R5 假绿修复）
 		Warmup:                 in.Snap.Warmup,
 		TimeToFirstPresentMs:   in.Snap.TimeToFirstPresentMs,
@@ -203,7 +211,7 @@ var RequiredSchemaKeys = []string{
 	"frame_build_ms", "frame_raster_ms", "layout_count", "paint_count",
 	"damage_area_px", "damage_ratio", "present_mode", "present_count", "frame_count",
 	"cpu_pct_avg", "cpu_ui_pct", "cpu_raster_pct",
-	"rss_start_kb", "rss_end_kb", "rss_peak_kb", "rss_slope_kb_per_min",
+	"rss_start_kb", "rss_end_kb", "rss_peak_kb", "rss_slope_kb_per_min", "rss_slope_valid",
 	"gpu_ops", "cpu_fallback_ops", "elapsed_sec",
 }
 

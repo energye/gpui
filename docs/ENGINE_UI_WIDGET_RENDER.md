@@ -120,7 +120,7 @@ L3–L5 Kit                       ← 暂缓
 | **B 管线** | 是否堵 Present | `frame_build_ms`、`frame_raster_ms`、`pipeline_depth`、`pipeline_max` | M-BUILD-MS、M-RASTER-MS、M-PIPE-* | 深度持续 > 配置上限 → FAIL；build/raster 尖峰记入 p95 观察（有 p99 后升硬） |
 | **C 脏区** | 成本 ∝ 脏？ | `layout_count`、`paint_count`、`damage_area_px`、`damage_ratio`、`present_mode`、`present_policy`；能力相关 `bind_count`/`boundary_*`/`dirty_layer_ids` | M-LAYOUT/PAINT、M-DAMAGE-AREA、M-BIND… | **按该 R 专用门禁**（如 R3 skip>0、R7 bind≪N）；FullPaint 下 `damage_ratio` 可接近 1（**不得**用其冒充 Retained） |
 | **D CPU** | 谁吃 CPU | **`cpu_pct_avg`**（进程）、**`cpu_ui_pct`**、**`cpu_raster_pct`**（路径 proxy） | M-CPU-PROCESS、M-CPU-UI、M-CPU-RASTER | 见 **§2.2.3 CPU** |
-| **E 内存** | 漏不漏 | **`rss_start_kb`、`rss_end_kb`、`rss_peak_kb`、`rss_slope_kb_per_min`、`rss_after_close_kb`**（能采 after_close 则采） | M-RSS-* | 见 **§2.2.4 内存** |
+| **E 内存** | 漏不漏 | **`rss_start_kb`、`rss_end_kb`、`rss_peak_kb`、`rss_slope_kb_per_min`、`rss_slope_steady_kb_per_min`、`rss_slope_valid`、`rss_warmup_sec`、`rss_after_close_kb`**（能采 after_close 则采） | M-RSS-* | 见 **§2.2.4 内存** |
 | **F GPU** | 提交/回退 | `gpu_ops`、`cpu_fallback_ops`、`last_cpu_fallback`、`frame_flushes` | M-GPU-SUBMIT/FALLBACK* | 热路径 `cpu_fallback_ops` 无故暴涨 → FAIL（阈值写在窗 README；默认 soak 可 >0 但须解释） |
 | **G 图/文** | 缓存/解码 | 有则：`measure_cache_hit`、解码不在 UI 的证明字段/日志 | M-ATLAS-*、M-IMG-DECODE | R9/R10 窗强制；其它窗可 `g_metrics=skipped` |
 | **H 启动** | 首帧 | `warmup`、`time_to_first_present_ms`（有则） | M-WARMUP、M-TIME-TO-FIRST-PRESENT | R0/R16/C0：**首帧有内容**；`time_to_first_present_ms` 超预算 FAIL（预算写 README，默认建议 &lt;2000ms 冷启同机） |
@@ -157,7 +157,7 @@ fps_interval = 1000 / interval_avg_ms        // 稳态帧率，门禁优先
 | 指标 | **硬 FAIL 默认** |
 |------|------------------|
 | `rss_start_kb` / `rss_end_kb` / `rss_peak_kb` | **必采**（Linux）；缺失 → FAIL |
-| `rss_slope_kb_per_min` | **soak/压力窗（≥60s 或 R14/C9）**：slope **&gt; 预算** → FAIL（默认建议 **&gt;30000 KB/min** 极端爬升，场景可收紧到更低）；短功能窗必采、默认只告警可在 README 写 `slope_gate=off` **仅短于 15s 的正确性窗** |
+| `rss_slope_kb_per_min` / `rss_slope_steady_kb_per_min` / `rss_slope_valid` | **判漏只认 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`**（≥30s，推荐 60s）：slope **&gt; 预算** → FAIL（默认建议 **&gt;30000 KB/min** 极端爬升，场景可收紧到更低）。短功能窗必采原始 `rss_slope_kb_per_min`，`rss_slope_valid=false` = **不能下结论**，不是没漏；`rss_warmup_sec` 一并输出。禁止把 5s/15s 原始斜率当泄漏结论 |
 | `rss_after_close_kb` | 能采则采；关闭后相对 peak **无故不降** 记 WARN，soak 可升 FAIL |
 
 #### 2.2.5 每个真窗 JSON 最小外壳（实现模板）
@@ -192,6 +192,9 @@ fps_interval = 1000 / interval_avg_ms        // 稳态帧率，门禁优先
   "rss_end_kb": 102000,
   "rss_peak_kb": 105000,
   "rss_slope_kb_per_min": 120.0,
+  "rss_slope_steady_kb_per_min": 100.0,
+  "rss_slope_valid": true,
+  "rss_warmup_sec": 15.0,
   "gpu_ops": 1000,
   "cpu_fallback_ops": 0,
   "ability_extra": {}

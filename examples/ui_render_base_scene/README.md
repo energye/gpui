@@ -53,7 +53,7 @@ B 组「Scene（render_scene / render_scene_gpu）」的真窗。同一份 `scen
 - **原子验证，无生产消费者**：`render/scene` 仍无组件/2.5D/视频调用；本窗是直调渲染接口一次验一族，不算生产接线。
 - **A/B 只比 CPU 分块 vs GPU 场景路径**：两者共享同一编码，能抓图层、裁剪、变换、画刷语义差；不覆盖 GPU 设备丢失/驱动差异，也不替代 GPU stencil/depth 裁剪的独立压测。
 - **损伤链只验 CPU 分块路径**：`RenderWithDamage` 输出损伤矩形后，本窗验证的是 tile 重绘与全量逐字节一致；GPU scissor / OS 级增量呈现（FrameDamage→PresentWithDamage）不在本窗范围。
-- **资源债**：自动档 `rss_start≈82.2MB → rss_end≈287–291MB`、`rss_slope≈130,000–248,000 KB/min`（多次波动）；人工 15s `82.2MB → 298.3MB`、`slope≈73,656 KB/min`，`rss_after_close` 仍约 298MB。与 Pattern/VF/Recording 窗同量级，先按跨窗资源债记入 `RENDER_FEATURE_COVERAGE.md` §6，显存/堆账本留 §7/§8 统一处理。
+- **RSS 启动爬坡（非泄漏，2026-10-21 复核）**：5 秒档 `rss_start≈82.4MB → rss_end≈307.5MB`、`rss_slope≈13–25 万 KB/min`（多次波动） 是窗口/设备初始化爬坡；同批 c0 空白窗 5 秒回放约 69.9 万 KB/min，证明基线同样如此。60 秒实测 `rss_slope≈1,872 KB/min`（前次 3,540）、180 秒 `≈1,992 KB/min`，均低于 30k 预算；`smaps` 增长只在 Go 堆，`WR_MEMDIG` 关窗 live≈2.2MiB / peak≈34MiB。判漏看 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`；短跑 `false` 只表示不能下结论。
 - **未做抓屏 vs 快照**：本窗只有自动快照 + 人工常驻运行，没有把 `xwd/x11grab` 抓屏写进门禁。
 - **缓存卡只验单线程 `LayerCache`**：不覆盖缓存淘汰/并发 Get 的竞争场景；`maxSizeMB=8` 足够放两张 176×150 缩略图，不做逐出压力。
 - **文本只验一条 Latin 字形 run**：CJK/Color/复杂脚本属于文本子系统各窗，本窗只证明 `Scene.DrawText → Encoding → GPU/CPU 解析` 这条链有墨。

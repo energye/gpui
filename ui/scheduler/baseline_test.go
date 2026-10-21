@@ -54,6 +54,31 @@ func TestMetrics_RSSSlope_ZeroWhenNoElapsed(t *testing.T) {
 	}
 }
 
+func TestMetrics_RSSSlopeSteady_Validity(t *testing.T) {
+	s := scheduler.New().Metrics()
+	s.SetRSSSlopeSteady(1234, 15, true)
+	snap := s.Snapshot()
+	if !snap.RSSSlopeValid || snap.RSSSlopeSteadyKBPerMin != 1234 || snap.RSSWarmupSec != 15 {
+		t.Fatalf("valid steady fields = %+v", snap)
+	}
+	// Short run: keep the warmup for explanation, clear the verdict slope.
+	s.SetRSSSlopeSteady(9999, 15, false)
+	snap = s.Snapshot()
+	if snap.RSSSlopeValid || snap.RSSSlopeSteadyKBPerMin != 0 || snap.RSSWarmupSec != 15 {
+		t.Fatalf("invalid steady fields = %+v", snap)
+	}
+	b, err := s.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	for _, key := range []string{`"rss_slope_valid":false`, `"rss_warmup_sec":15`} {
+		if !containsAll(js, key) {
+			t.Fatalf("JSON missing %s: %s", key, js)
+		}
+	}
+}
+
 func TestMetrics_NoteGPUPathStats_JSON(t *testing.T) {
 	s := scheduler.New().Metrics()
 	s.NoteGPUPathStats(100, 3, 2, "no_accelerator")

@@ -114,11 +114,12 @@ RUN_SECONDS=5 go run ./examples/ui_render_base_variablefont -auto-only
 
 ## 已知限界（不冒充完成）
 
-1. **资源指标未绿**：本窗 5 秒自动档 `rss_start≈78.4MB → rss_end≈255.2MB`，
-   `rss_slope≈528,846 KB/min`；15 秒人工档 `rss_end≈274.7MB`，
-   `rss_slope≈136,940 KB/min`，关窗后 `rss_after_close≈255MB`。功能/像素/
-   Golden 虽绿，但不能当资源绿；显存/堆快照与池化账本留 §7/§8 资源门禁处理。
-   同批 Pattern 窗也有同量级现象，先记录为跨窗资源债，不在本窗用降画质掩盖。
+1. **RSS 启动爬坡（非泄漏，2026-10-21 复核）**：5 秒档 `rss_start≈78.7MB →
+   rss_end≈283.0MB`、`rss_slope≈528,846 KB/min` 是窗口/设备初始化爬坡；60 秒
+   实测 `rss_slope≈6,287 KB/min`，稳态在 30k 预算内。`rss_slope_valid` 在
+   5s/15s 为 false、60s 为 true；`smaps` 增长只在 Go 堆。功能/像素/Golden
+   绿；原“资源指标未绿”判断收回，判漏看 `rss_slope_steady_kb_per_min` 且
+   `rss_slope_valid=true`。
 2. **没有抓屏 vs 快照断言**：本窗三证据为逻辑探针 + GPU 快照像素/墨量 + Golden；
    `maskops/backdrop/cliprrect` 那类窗口额外做了 `xwd` 抓屏对比，本窗暂未接。
 3. **仍是原子验证**：`LoadFontFaceWithVariations` / `WithVariations` 目前没有

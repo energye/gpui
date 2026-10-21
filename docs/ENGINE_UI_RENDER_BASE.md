@@ -491,7 +491,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | B | build/raster **last**；分位仍缺 |
 | C | layout/paint/raster_layer **已接**；**damage_area_px 已接** |
 | D | 进程 CPU + **ui/raster 路径 proxy 已接** |
-| E | RSS 起止峰/after_close **已接**；**rss_slope_kb_per_min 自动字段 ✅** |
+| E | RSS 起止峰/after_close **已接**；**rss_slope_kb_per_min 原始 ✅；rss_slope_steady_kb_per_min / rss_slope_valid / rss_warmup_sec 已接** |
 | F | **gpu_ops / cpu_fallback_ops / last_cpu_fallback 进 UI JSON ✅**（PipelineApp Present 后采样）；atlas/VRAM 仍开 |
 | G/H | 部分在 render/示例；首帧统一字段仍开 |
 | I | **CompareToBaseline + Load/SaveBaseline ✅**；CI 机器基线仍手配 |
@@ -569,12 +569,17 @@ go run ./examples/ui_l1_scroll              # 滚动
 | M-RSS-START | 起始 VmRSS | 内存 | ProcessTracker | KB | **A** | — |
 | M-RSS-END | 结束 VmRSS | — | ProcessTracker | KB | **A** | — |
 | M-RSS-PEAK | 峰值 RSS | — | ProcessTracker | KB | **A** | 有解释 |
-| M-RSS-SLOPE | 斜率 KB/min | 泄漏 | **rss_slope_kb_per_min** · ProcessTracker.Apply | KB/min | **A** | soak ≈0；非 Linux stub=0 |
+| M-RSS-SLOPE | 原始斜率 KB/min | 趋势 | **rss_slope_kb_per_min** · ProcessTracker.Apply | KB/min | **A** | 短跑含启动爬坡，不作泄漏结论；非 Linux stub=0 |
+| M-RSS-SLOPE-STEADY | 稳态斜率 KB/min | 泄漏 | **rss_slope_steady_kb_per_min** · ProcessTracker.RSSSlopeSteadyKBPerMin | KB/min | **A** | 预热 max(25%,15s)，≥30s 才有效；60s soak ≈0 |
+| M-RSS-WARMUP | 稳态预热秒数 | 口径 | **rss_warmup_sec** · SetRSSSlopeSteady | s | **A** | 短跑也报，解释 valid=false |
+| M-RSS-VALID | 稳态斜率是否可判漏 | 诚实 | **rss_slope_valid** · SetRSSSlopeSteady | bool | **A** | false=跑太短/无 RSS，不能判漏 |
 | M-RSS-AFTER-CLOSE | 关闭后 RSS | 释放 | ProcessTracker | KB | **A** 观察 | 可解释下降 |
 | M-HEAP | HeapAlloc | runtime | 未进 UI JSON | B | C | soak |
 | M-NUM-GC | GC 次数 | — | **无** | count | D | 稳定 |
 | M-GOROUTINES | 协程数 | 泄漏 | **无** | count | D | 稳定 |
 | M-VRAM | 显存/驱动池 | — | **无** | MB | D | 不爬升 |
+
+> **RSS 判漏口径（2026-10-21 复核）：** `rss_slope_kb_per_min` 是原始趋势，5s/15s 窗包含设备初始化、字体/图片缓存和 Go 堆启动爬坡；**判漏只看 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`**。稳态预热取 `max(25% elapsed, 15s)`，再加至少 15s 采样，所以最小可判漏时长是 30s，推荐 60s soak。`rss_slope_valid=false` 只表示“不能下结论”，不是“没漏”。
 
 #### F. GPU / 提交 / 回退
 
@@ -754,7 +759,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | **Image Nine/Round/Circular/SrcRect/Atlas UI（序9/D1）** | `image_draw.go` · `image_draw_test` · image 轴 | per-corner 仍开 |
 | 真 VSync（DRM）+ vsync_source | platform · exhost · WaitFramePace | 无 DRM→fallback；禁锁 60Hz |
 | p95、hitch_rate、cpu_ui/raster **proxy** | MetricsStore | proxy≠OS 线程 CPU |
-| **指标 D8（§20）** | `rss_slope_kb_per_min` · `gpu_ops`/`cpu_fallback_ops` · `CompareToBaseline` · baseline_test · perfsoak | 非 VRAM/atlas；baseline 容差松；GPU ops 为 Context 累计 |
+| **指标 D8（§20）** | `rss_slope_kb_per_min` + `rss_slope_steady_kb_per_min`/`rss_slope_valid` · `gpu_ops`/`cpu_fallback_ops` · `CompareToBaseline` · baseline_test · perfsoak | 非 VRAM/atlas；baseline 容差松；GPU ops 为 Context 累计；短跑 raw 不作泄漏结论 |
 | VirtualList 可变高前缀和 + **index↔offset/ScrollToIndex** | virtual_list · virtual_list_scroll_test · viewport.ScrollToIndex | **A/C**；完整 multi-sliver 仍开 |
 | **ScrollPhysics clamp+fling（序12/D4）** | `ClampingScrollPhysics` · `Viewport.Fling/TickPhysics` · Scrollable pan end · scroll_physics_test | 无 bounce/glow；需 App 每帧 TickPhysics |
 | **Picture 显示列表（序13/D7）** | `PictureRecorder` Fill/StrokeRect+Path · DrawString · DrawImage · `Replay` · picture_test | path clone + image 引用 + text Face；非全量 Canvas recorder；非 GPU picture 缓存 |
@@ -894,6 +899,7 @@ PlatformView / Texture 视频层 / Leader-Follower / BuildOwner / FragmentShader
 
 | 版本 | 说明 |
 |------|------|
+| **1.59（2026-10-21）** | **资源债复核：B 组四窗 RSS 启动爬坡非泄漏 + M-RSS 指标口径修正**：四窗 + c0 基线 5s/15s 斜率均由启动爬坡主导（c0 5s 回放 ≈699k KB/min），60s 实测 1.9k–8.8k KB/min、180s Scene ≈2.0k，均低于 30k；`smaps` 增长只在 Go 堆，`WR_MEMDIG` live 1.5–2.2MiB / peak 9–34MiB。新增 `rss_slope_steady_kb_per_min` / `rss_slope_valid` / `rss_warmup_sec`；原 `rss_slope_kb_per_min` 保留兼容并明确不作泄漏结论。 |
 | **1.58（2026-10-21）** | **B 组 Scene 真窗 `ui_render_base_scene` + CPU 分块渲染/编码状态六处修复**：1200×800 四卡（A 同一场景 GPU 场景渲染器 / B 同一场景 CPU 64×64 tile 后上屏 A/B 对比 / C `Encoding.Hash`+`LayerCache` / D 文本+图像+损伤增量）。逻辑 21/21、像素 17/17、墨量 1/1、Golden 627200px `0.0000%`（seed 后两次复跑零差）；A/B `mismatch=1.4376%`（tol 10，门限 2%）、`high(>96)=0.0259%`（门限 0.1%）、`worst=111`（AA 边缘，只报告不设门）；auto `presents=300`/`fps_interval=60.02`/`p95=18.71ms`/`hitch=0`/`gpu_ops=15003`/`cpu_fallback_ops=0`/`gpu_fallbacks=0`/`present_policy=full_paint`/`vsync_source=true`，manual 15s `presents=900`/`fps_interval=59.95`/`p95=19.16ms`/`hitch=1`/`gpu_ops=45003`/`cpu_fallback_ops=0`。**引擎修复**：①CPU tile `TagPushLayer` 丢 alpha/blend → 逐层 pixmap + 按 `BlendMode+opacity` 合成（嵌套/安全清栈）；②`TagFillRoundRect` 绕过裁剪且忽略 `Path.Transform` 返回值 → 变换路径后填 `activePM`（多 tile 不再从场景原点重画）；③`Encoding.Hash` 漏 brushes → 纳入 Kind+RGBA；④`Scene.TaggedBounds` 未展开 root layer → `DamageTracker` 零对象，改先 `flattenLayers()`；⑤`Append/AppendWithTranslation/Clone` 丢 `commandBounds` → 搬运/克隆；⑥`TagTransform` 状态泄漏 → `EncodeDrawTransform` 跟踪流内状态并补 identity 重置，append 边界同补。永久回归 `render/scene/paint_correctness_test.go` 八例（修前红→修后绿）；`go test ./render/scene/ -count=1` 全绿。**公开 API 变更**：新增 `Encoding.EncodeDrawTransform(Affine)`（只增方法，顶层计数不变）。限界：原子验证无生产消费者、A/B 不覆盖设备/驱动差异、损伤链只验 CPU 分块、RSS 资源债（5s `82.2MB→287–291MB`、`slope≈130,000–248,000 KB/min`；15s `82.2MB→298.3MB`、`slope≈73,656 KB/min`）、未做抓屏 vs 快照、LayerCache 不验淘汰/并发、文本只验一条 Latin run。真源同步：`RENDER_FEATURE_COVERAGE.md` §1 计数/§2/§6/§11、本文件 §23/§24、`RENDER_API_CATALOG.md` §2/§6.2、本窗 README。**性质=原子验证**，不算生产接线 |
 | **1.57（2026-10-21）** | **B 组 Recording 真窗 `ui_render_base_recording` + raster 回放五处缺陷修复**：1200×800 四卡（A 渐变·`FillRectangle`·圆·圆角描边·虚线·`Push/Translate/Rotate` / B `Clip`·`ResetClip`·`Save/Restore`·`ClipRoundRect` / C `DrawString`+`DrawImageScaled` / D 多次 `FillRect`·旋转圆·`StrokeRectangle`+同一 Recording 重放两次），四卡均由 `Recorder` 录制、`Recording.Playback` 到内置 raster 后端、再 `DrawImageEx` 上屏。逻辑 19/19（22 种命令类型覆盖、contract 23 条命令）、像素 17/17、墨量 1/1、Golden 表头+图例+四卡 627200px `0.0000%`；auto `presents=301`/`fps_interval=60.24`/`p95=17.32ms`/`hitch=0`/`gpu_ops=9936`/`cpu_fallback_ops=0`/`gpu_fallbacks=0`/`present_policy=full_paint`/`vsync_source=true`，manual 15s `presents=898`/`fps_interval=59.92`/`p95=17.15ms`/`hitch=0`/`gpu_ops=29637`/`cpu_fallback_ops=0`。**引擎修复**：①`Playback` 漏 `StrokeRectCommand` → 转矩形路径走 `StrokePath`；②raster `SetClip` 只设路径未 `Clip()`、`ClearClip` 空实现 → 走 `render.Context` 真实裁剪栈 `Clip()/ResetClip()`；③raster `DrawImage` 只发未填充矩形 → `ImageBufFromImage`+`DrawImageEx`（源裁片/目标/插值/alpha）；④`DrawTextCommand`/`StrokeTextCommand` 不带字体、Playback 传 nil → 新增公开字段 `Font FontRef`，录制时 `AddFont`、回放解析 `text.Face`，raster `SetFont`+`DrawString`；⑤`ImageBufFromImage` 归一化子图到 `0,0`，旧回放源矩形又加 `Bounds().Min`，非零原点子图采样错位 → 源矩形改按图像相对坐标裁剪。永久回归 `render/recording/backends/raster/backend_paint_test.go` 七例（含非零原点子图；修前红→修后绿）；`go test ./render/recording/...` 全绿。**公开 API 变更**：`DrawTextCommand.Font`、`StrokeTextCommand.Font` 字段（只增字段，不改签名）。限界：raster 非全量 Canvas（StrokeText 填充近似/SetTransform 已烘焙/SetAntiAlias 无开关/DrawImage 轴对齐/ClipRoundRect 未烘变换）、RSS 资源债（5s `194.8MB→262.2MB`、`slope≈421,273 KB/min`；15s `194.2MB→287.1MB`、`slope≈177,691 KB/min`，留 §7/§8）、未做抓屏 vs 快照、原子验证无生产消费者、仅 raster 后端（PDF/SVG 仓外）。真源同步：`RENDER_FEATURE_COVERAGE.md` §1 计数/§2/§3.2/§6/§11、本文件 §23/§24、`RENDER_API_CATALOG.md` §2/§6.3/§7.2、本窗 README。**性质=原子验证**，不算生产接线 |
 | **1.56（2026-10-21）** | **B 组 VF 变体真窗 `ui_render_base_variablefont` + 变体不到 GPU 文本管线修复**：四卡 A `wght` 200/400/600/900 / B fvar 四命名实例 / C 默认=显式默认 / D 边界钳位+未知轴；逻辑 18/18、背景点 4/4、墨量 17/17、Golden 627200px `0.0000%`；auto `presents=300`/`fps_interval=60.03`/`p95=17.31ms`/`hitch=0`/`gpu_ops=17703`/`cpu_fallback_ops=0`，manual 15s `presents=899`/`p95=17.19ms`/`hitch=0`。**引擎修复**：①MSDF/glyph-mask font ID 组合 `variationFontID`；②glyph-mask 新增 `rasterizeVariationGlyph`，按 `face.Variations()` 抽轮廓后复用 outline 光栅器；③hint pen 改用 shaped X 差（HVAR），不再用静态 hmtx advance；④HarfBuzz face 缓存键改为 `(FontSource, variation hash)` 并建私有 `font.Face`，`TextPath`/CPU outline 缓存组合同一变体哈希。永久回归 `render/internal/gpu/varfont_atlas_test.go`、`render/text/varfont_shape_test.go`、`render/text_variable_path_test.go`（修前红→修后绿）。限界：RSS 资源债（5s `rss_start≈78.4MB→rss_end≈255.2MB`、`slope≈528,846 KB/min`，留 §7/§8）、未做抓屏 vs 快照、原子验证无生产消费者、只覆盖 `wght`、复杂脚本 VF 未独立建窗。**公开 API 无签名变更**。真源同步：`RENDER_FEATURE_COVERAGE.md` §1 #31/§3.2/§6/§11、本文件 §23/§24、本窗 README。**性质=原子验证**，不算生产接线 |

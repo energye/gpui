@@ -110,12 +110,23 @@ type FrameMetrics struct {
 	RSSEndKB        int64 `json:"rss_end_kb,omitempty"`
 	RSSPeakKB       int64 `json:"rss_peak_kb,omitempty"`
 	RSSAfterCloseKB int64 `json:"rss_after_close_kb,omitempty"`
-	// RSSSlopeKBPerMin is the least-squares RSS trend over the steady-state
-	// segment of the run's decimated sample series (samples after 25% of
-	// elapsed; warmup equilibrium ramp discarded) (M-RSS-SLOPE). Positive =
-	// growth. A plateau folds to ~0; a sustained leak keeps its true slope.
-	// Zero when wall span is missing/negligible or RSS samples unavailable.
+	// RSSSlopeKBPerMin is the raw least-squares RSS trend over samples after
+	// 25% of elapsed (M-RSS-SLOPE). Positive = growth. On a short run the
+	// one-time startup ramp is included, so this is NOT a leak verdict; use
+	// RSSSlopeSteadyKBPerMin for that. Zero when wall span is
+	// missing/negligible or RSS samples unavailable.
 	RSSSlopeKBPerMin float64 `json:"rss_slope_kb_per_min,omitempty"`
+	// RSSSlopeSteadyKBPerMin is the least-squares trend after
+	// max(25% elapsed, 15s) warmup. Only meaningful when RSSSlopeValid;
+	// valid requires >=15s of post-warmup samples (a >=30s run).
+	RSSSlopeSteadyKBPerMin float64 `json:"rss_slope_steady_kb_per_min,omitempty"`
+	// RSSSlopeValid reports whether the steady slope has enough post-warmup
+	// span to be a leak verdict. false = cannot conclude (run too short or
+	// RSS unavailable), not "no leak".
+	RSSSlopeValid bool `json:"rss_slope_valid"`
+	// RSSWarmupSec is the warmup discarded by the steady fit; reported even
+	// when invalid so short runs explain why.
+	RSSWarmupSec float64 `json:"rss_warmup_sec,omitempty"`
 	// RSSElapsedSec is wall seconds used for slope (honest denominator).
 	RSSElapsedSec float64 `json:"rss_elapsed_sec,omitempty"`
 	CPUPctAvg     float64 `json:"cpu_pct_avg,omitempty"`
@@ -589,6 +600,25 @@ func (s *MetricsStore) SetRSSSlope(slopeKBPerMin, elapsedSec float64) {
 	} else {
 		s.m.RSSSlopeKBPerMin = slopeKBPerMin
 		s.m.RSSElapsedSec = elapsedSec
+	}
+	s.mu.Unlock()
+}
+
+// SetRSSSlopeSteady records M-RSS-SLOPE-STEADY (KB/min), the warmup actually
+// discarded, and whether the result is valid as a leak verdict. When valid is
+// false the steady slope is cleared but the warmup is kept so short-run JSON
+// explains why (e.g. rss_warmup_sec=15, rss_slope_valid=false on a 5s window).
+func (s *MetricsStore) SetRSSSlopeSteady(slopeKBPerMin, warmupSec float64, valid bool) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.m.RSSSlopeValid = valid
+	s.m.RSSWarmupSec = warmupSec
+	if valid {
+		s.m.RSSSlopeSteadyKBPerMin = slopeKBPerMin
+	} else {
+		s.m.RSSSlopeSteadyKBPerMin = 0
 	}
 	s.mu.Unlock()
 }

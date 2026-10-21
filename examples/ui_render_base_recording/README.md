@@ -51,7 +51,7 @@ B 组「Recording（render_recording）」的真窗。四张卡都由 `recording
 ## 已知限界
 
 - **原子验证，无生产消费者**：`render/recording` 仍无组件/2.5D/视频调用；PDF/SVG 后端在仓外且未接入本窗。
-- **资源债**：自动档 `rss_start≈194.8MB → rss_end≈262.2MB`、`rss_slope≈421,273 KB/min`；人工 15s `194.2MB → 287.1MB`、`slope≈177,691 KB/min`，`rss_after_close` 仍高。`Recording`/raster 后端上下文不是本窗新增，留 §7/§8 统一处理。
+- **RSS 启动爬坡（非泄漏，2026-10-21 复核）**：5 秒档 `rss_start≈193.8MB → rss_end≈296.0MB`、`rss_slope≈421,273 KB/min` 是窗口/设备初始化爬坡；60 秒实测 `rss_slope≈8,784 KB/min`，稳态在 30k 预算内。`rss_slope_valid` 在 5s/15s 为 false、60s 为 true；`smaps` 增长只在 Go 堆。原“资源债”判断收回；判漏看 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`。
 - **未做抓屏 vs 快照**：本窗只有自动快照 + 人工常驻运行，没有像 maskops/backdrop 那样把 `xwd/x11grab` 抓屏写进门禁；这条限界明确记录，不冒充已做。
 - **raster 后端**：`StrokeText` 命令仍按填充文字近似（Backend 接口没有 stroke-text 动词）；`SetTransform` 在录制时已把坐标烘进命令，raster 回放按世界坐标处理；`SetAntiAlias` 没有 raster 开关；`DrawImage` 目标矩形是轴对齐 `Rect`；`ClipRoundRect` 在录制时未烘焙变换，带旋转时只能按原始矩形坐标裁剪。以上均记在 §6。
 - 只覆盖 raster 后端；`FileBackend/PDF/SVG` 不在本窗范围。

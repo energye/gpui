@@ -94,9 +94,12 @@ AA probe、BlendHue）与本次改动无关，见本窗提交说明。
 
 1. **旧 Pattern API 仍无生产消费者**：组件库和 2.5D/视频模块目前没有使用
    `SetFillPattern` / `SetStrokePattern`；本窗是原子验证，不标生产接线。
-2. **资源指标未绿**：本窗 `rss_end` 从约 75MB 升到约 269MB，`rss_slope` 约
-   489,753 KB/min（5 秒档）；修前同窗已观察到同一量级（511,191 KB/min），不是
-   本次 C 修复引入。当前只记录为 §7/§8 资源门禁待办，不拿功能绿冒充资源绿。
+2. **RSS 启动爬坡（非泄漏，2026-10-21 复核）**：5 秒档 `rss_start≈74.4MB →
+   rss_end≈282.7MB`、`rss_slope≈489,753 KB/min` 是窗口/设备初始化爬坡；同批 c0
+   空白窗 5 秒回放约 69.9 万，证明基线同样如此。60 秒实测 `rss_slope≈5,507
+   KB/min`，稳态在 30k 预算内；`smaps` 增长只在 Go 堆，`WR_MEMDIG` live
+   1.75MiB / peak 20.58MiB。原“资源指标未绿”判断收回；判漏看
+   `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`。
 3. **没有抓屏 vs 快照断言**：本窗三证据为逻辑探针 + GPU 快照像素 + Golden；
    `maskops/backdrop` 那类窗口额外做了 `xwd` 抓屏对比，本窗暂未接。
 4. **B3 是旋转 ImagePattern，不是任意自定义 Pattern 的 GPU 场**：D 卡的自定义

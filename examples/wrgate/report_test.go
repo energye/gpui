@@ -10,25 +10,28 @@ import (
 
 func TestBuildReport_AndSchema(t *testing.T) {
 	snap := scheduler.FrameMetrics{
-		PresentPolicy:      scheduler.PresentPolicyFullPaint,
-		FrameCount:         10,
-		PresentCount:       10,
-		AvgFrameIntervalMs: 16.6,
-		P50FrameIntervalMs: 16.5,
-		P95FrameIntervalMs: 17.0,
-		P99FrameIntervalMs: 18.0,
-		VSyncSource:        "fallback",
-		LayoutCount:        1,
-		PaintCount:         10,
-		PresentMode:        "full",
-		CPUPctAvg:          5,
-		CPUUIPct:           50,
-		CPURasterPct:       50,
-		RSSStartKB:         1000,
-		RSSEndKB:           1100,
-		RSSPeakKB:          1200,
-		RSSSlopeKBPerMin:   10,
-		GPUOps:             100,
+		PresentPolicy:          scheduler.PresentPolicyFullPaint,
+		FrameCount:             10,
+		PresentCount:           10,
+		AvgFrameIntervalMs:     16.6,
+		P50FrameIntervalMs:     16.5,
+		P95FrameIntervalMs:     17.0,
+		P99FrameIntervalMs:     18.0,
+		VSyncSource:            "fallback",
+		LayoutCount:            1,
+		PaintCount:             10,
+		PresentMode:            "full",
+		CPUPctAvg:              5,
+		CPUUIPct:               50,
+		CPURasterPct:           50,
+		RSSStartKB:             1000,
+		RSSEndKB:               1100,
+		RSSPeakKB:              1200,
+		RSSSlopeKBPerMin:       10,
+		RSSSlopeSteadyKBPerMin: 8,
+		RSSSlopeValid:          true,
+		RSSWarmupSec:           15,
+		GPUOps:                 100,
 	}
 	r := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R0",
@@ -46,9 +49,46 @@ func TestBuildReport_AndSchema(t *testing.T) {
 	if r.PresentPolicy != "full_paint" {
 		t.Fatalf("policy=%q", r.PresentPolicy)
 	}
+	if r.RSSSlopeSteadyKBPerMin != 8 || !r.RSSSlopeValid || r.RSSWarmupSec != 15 {
+		t.Fatalf("steady fields = %+v", r)
+	}
 	b, err := wrgate.Marshal(r)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if err := wrgate.CheckSchema(b); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{`"rss_slope_steady_kb_per_min":8`, `"rss_slope_valid":true`, `"rss_warmup_sec":15`} {
+		if !strings.Contains(string(b), key) {
+			t.Fatalf("JSON missing %s: %s", key, b)
+		}
+	}
+}
+
+func TestBuildReport_ShortRunSlopeInvalidIsHonest(t *testing.T) {
+	snap := scheduler.FrameMetrics{
+		PresentPolicy:    scheduler.PresentPolicyFullPaint,
+		VSyncSource:      "fallback",
+		RSSStartKB:       1000,
+		RSSEndKB:         200000,
+		RSSPeakKB:        200000,
+		RSSSlopeKBPerMin: 500000,
+		RSSSlopeValid:    false,
+		RSSWarmupSec:     15,
+	}
+	r := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID: "B-scene", Scenario: "short", Snap: snap, PresentCount: 30, ElapsedSec: 5,
+	})
+	b, err := wrgate.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"rss_slope_valid":false`) {
+		t.Fatalf("short-run validity missing/false not emitted: %s", b)
+	}
+	if strings.Contains(string(b), `"rss_slope_steady_kb_per_min"`) {
+		t.Fatalf("invalid steady slope must not claim a value: %s", b)
 	}
 	if err := wrgate.CheckSchema(b); err != nil {
 		t.Fatal(err)
