@@ -173,14 +173,16 @@ type PipelineApp struct {
 	// on the raster thread; only touched by serialized FrameJobs.
 	pictureTex *scene.PictureTextureCache
 
-	damageMu        sync.Mutex
-	damageSumArea   int64
-	damageMaxArea   int64
-	damageSamples   int64
-	damageMultiN    int64 // frames with present_mode damage_multi
-	lastDirtyIDs    []uint64
-	maxDirtyIDCount int
-	lastPresentMode string
+	damageMu          sync.Mutex
+	damageSumArea     int64
+	damageMaxArea     int64
+	damageSumRectArea int64
+	damageMaxRectSum  int64
+	damageSamples     int64
+	damageMultiN      int64 // frames with present_mode damage_multi
+	lastDirtyIDs      []uint64
+	maxDirtyIDCount   int
+	lastPresentMode   string
 	// lastPresentModeAtNs timestamps the last REAL (non-idle) mode above
 	lastPresentModeAtNs int64
 
@@ -314,6 +316,20 @@ func (a *PipelineApp) DamageStats() (sumArea, maxArea, samples, multiModeFrames 
 	return a.damageSumArea, a.damageMaxArea, a.damageSamples, a.damageMultiN
 }
 
+// DamageRectSumStats returns cumulative physical-pixel damage measured as the
+// sum of the coalesced damage rects (not their union bbox). samples is shared
+// with DamageStats. Use this for retained cost when dirty layers are far apart:
+// union bbox also counts the untouched gap, while the rect sum tracks the
+// pixels actually handed to the compositor.
+func (a *PipelineApp) DamageRectSumStats() (sumArea, maxArea, samples int64) {
+	if a == nil {
+		return 0, 0, 0
+	}
+	a.damageMu.Lock()
+	defer a.damageMu.Unlock()
+	return a.damageSumRectArea, a.damageMaxRectSum, a.damageSamples
+}
+
 // LastDirtyLayerIDs returns a copy of the most recent frame's DirtyLayerIDs.
 func (a *PipelineApp) LastDirtyLayerIDs() []uint64 {
 	if a == nil {
@@ -364,7 +380,7 @@ func (a *PipelineApp) LastPresentModeAgeSec() float64 {
 	return time.Since(time.Unix(0, a.lastPresentModeAtNs)).Seconds()
 }
 
-func (a *PipelineApp) noteDamage(area int64, mode string) {
+func (a *PipelineApp) noteDamage(area, rectSum int64, mode string) {
 	if a == nil {
 		return
 	}
@@ -374,6 +390,10 @@ func (a *PipelineApp) noteDamage(area int64, mode string) {
 	a.damageSumArea += area
 	if area > a.damageMaxArea {
 		a.damageMaxArea = area
+	}
+	a.damageSumRectArea += rectSum
+	if rectSum > a.damageMaxRectSum {
+		a.damageMaxRectSum = rectSum
 	}
 	// Idle presents carry no drawing and are not the retained steady-state
 	// mode (e.g. an X11 Expose-triggered frame with nothing dirty). Keep the
@@ -507,7 +527,7 @@ func (a *PipelineApp) cacheEntryCount() int64 {
 func (a *PipelineApp) cacheEvictions() int64 {
 	n := int64(0)
 	if c := a.BoundaryCache(); c != nil {
-		n += c.EvictionCount()
+		n += c.Stats().Evictions
 	}
 	if t := a.PictureTextures(); t != nil {
 		n += t.EvictionCount()
@@ -1381,15 +1401,20 @@ func (a *PipelineApp) Run() error {
 			a.opts.Overlay.Layout(float64(w), float64(h))
 		}
 
-		// Decide the present path before consuming paint flags: full-paint
-		// frames live-paint in the raster job and must keep dirty flags until
-		// FlushPaint clears them (see consumePacketPaintFlags).
+		// Present path decision (before consuming paint flags): a retained
+		// frame composites the packet recorded on the UI thread, and force
+		// frames (first frame / resize / explicit) take that same packet with
+		// a full clear + full present — the raster job never walks the live
+		// tree. FullPaint-policy frames keep the live walk until the display
+		// list covers the whole paint surface (S3), so their "repaint every
+		// frame" semantics probes stay honest.
 		force := false
 		if a.forceFullPresent.Load() > 0 {
 			a.forceFullPresent.Add(-1)
 			force = true
 		}
 		compositeOnly := a.useRetained.Load() && !force && !a.inFullRecovery()
+		packetPath := a.useRetained.Load() && !a.inFullRecovery()
 
 		t0 := time.Now()
 		frameID := a.frameID.Add(1)
@@ -1427,12 +1452,10 @@ func (a *PipelineApp) Run() error {
 		if pkt != nil {
 			a.noteDirtyIDs(pkt.DirtyLayerIDs)
 		}
-		// Only the retained textured path has already captured this frame's
-		// content into pkt and will not live-paint below. Full-paint frames
-		// keep the flags so a dirty boundary with identical content still
-		// re-records (R12b overlay) instead of Replaying from BoundaryCache;
-		// FlushPaint clears them after the live paint.
-		a.consumePacketPaintFlags(compositeOnly && pkt != nil)
+		// The packet captured this frame's content on the UI thread, so the
+		// paint flags are consumed here and never by the raster job. Only the
+		// no-packet fallback live-paints, and it keeps its flags for that walk.
+		a.consumePacketPaintFlags(packetPath && pkt != nil)
 		// T2 main move: RasterizeDirty (dirty walk plus NeedsRaster clear plus
 		// RasterExtra texture record via CompositeFramePacketTextured) now runs
 		// inside the raster FrameJob below. UI builds the packet and returns to
@@ -1507,7 +1530,7 @@ func (a *PipelineApp) Run() error {
 				}
 				// Per-frame texture-cache reset for the retained path,
 				// serialized here with the composite below (see above).
-				if compositeOnly && a.pictureTex != nil && target != nil {
+				if packetPath && pkt != nil && a.pictureTex != nil && target != nil {
 					a.pictureTex.EndFrame()
 				}
 				var frameDraws int64
@@ -1530,8 +1553,12 @@ func (a *PipelineApp) Run() error {
 				if fault != nil {
 					err = fault
 					out = render.PresentOutcome{}
-				} else if compositeOnly && pkt != nil {
-					out, err = presentPacketTextured(target, pkt, a, clearR, clearG, clearB, clearA, opts)
+				} else if packetPath && pkt != nil {
+					// Retained frame: composite the UI-thread recording. Force
+					// retained frames clear first and present the full surface
+					// (see presentPacketTextured); either way the raster job
+					// never reads or clears RenderObject state.
+					out, err = presentPacketTextured(target, pkt, a, clearR, clearG, clearB, clearA, force, opts)
 				} else {
 					out, err = presentTreeOpts(target, pipe, root, ov, clearR, clearG, clearB, clearA, force, opts)
 				}
@@ -1587,7 +1614,7 @@ func (a *PipelineApp) Run() error {
 					area := target.LastDamageAreaPx()
 					metrics.NotePresentOutcome(mode, area)
 					metrics.SetPaintVisits(frameVisits)
-					a.noteDamage(area, mode)
+					a.noteDamage(area, target.LastDamageRectSumPx(), mode)
 					// M-GPU-*: float render path routing into UI JSON (no ui→gpu).
 					if dc := target.Context(); dc != nil {
 						st := dc.RenderPathStats()
@@ -1739,14 +1766,12 @@ func (a *PipelineApp) snapshotPaintOpts() paintPresentTreeOpts {
 	}
 }
 
-// consumePacketPaintFlags clears live dirty flags only for the retained
-// textured path, where BuildFramePacket already captured this frame's content
-// and no live paint runs. Full-paint frames must keep the flags until FlushPaint
-// paints the tree: clearing first would make a dirty boundary with identical
-// content Replay from BoundaryCache instead of live-repainting (and would hide
-// its R12b debug overlay).
-func (a *PipelineApp) consumePacketPaintFlags(compositeOnly bool) {
-	if a == nil || a.pipe == nil || !compositeOnly {
+// consumePacketPaintFlags clears live dirty flags when this frame's content is
+// already captured in the packet built on the UI thread, so the raster job
+// never reads or clears RenderObject flags. A frame without a packet falls back
+// to the live walk and must keep its flags until that walk runs.
+func (a *PipelineApp) consumePacketPaintFlags(packetPath bool) {
+	if a == nil || a.pipe == nil || !packetPath {
 		return
 	}
 	a.pipe.ConsumeNeedsPaint()
@@ -1794,12 +1819,12 @@ func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner,
 		ov.Paint(pc)
 	}
 	// Publish per-frame boundary stats for metrics pickup (NoteBoundaryFrame).
-	rr, sk, shRR, shSk := cache.FrameCounts()
+	st := cache.Stats()
 	lastBoundaryFrame.Store(boundaryFrameSnap{
-		Rerecord:      rr,
-		Skip:          sk,
-		ShellRerecord: shRR,
-		ShellSkip:     shSk,
+		Rerecord:      st.FrameRerecord,
+		Skip:          st.FrameSkip,
+		ShellRerecord: st.FrameShellRerecord,
+		ShellSkip:     st.FrameShellSkip,
 	})
 }
 
@@ -1838,7 +1863,7 @@ func DamageAreaLogical(dc *render.Context) int64 {
 // Degrades to the plain present path when the packet/target is unavailable or
 // textures cannot be created (no GPU) — frame content stays correct, damage
 // reporting is honest (falls back to vector replay + MSAA full clear).
-func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket, a *PipelineApp, cr, cg, cb, ca float64, opts paintPresentTreeOpts) (render.PresentOutcome, error) {
+func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket, a *PipelineApp, cr, cg, cb, ca float64, force bool, opts paintPresentTreeOpts) (render.PresentOutcome, error) {
 	if target == nil || pkt == nil || a == nil || a.pipe == nil {
 		return render.PresentOutcome{}, errors.New("embedder: presentPacketTextured nil")
 	}
@@ -1867,8 +1892,15 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 	tex.EnsureCapacity(liveCount + liveCount/4 + 16)
 	tex.SetLiveKeys(liveKeys)
 	draw := func(d *render.Context) {
-		// Clear: retained steady frames do not clear (LoadOpLoad keeps pixels);
-		// only force frames (handled by presentTreeOpts) full-clear.
+		// Force frames (first frame, resize, recovery) own the whole surface:
+		// clear then composite every layer. Steady retained frames do not clear
+		// (LoadOpLoad keeps the previous pixels) and present by damage only.
+		if force {
+			d.SetRGBA(cr, cg, cb, ca)
+			d.DrawRectangle(0, 0, float64(d.Width()), float64(d.Height()))
+			_ = d.Fill()
+			d.MarkFullRedraw()
+		}
 		st := scene.CompositeFramePacketTextured(pkt, d, tex)
 		lastFiltersApplied.Store(int64(st.FiltersApplied))
 		for _, r := range st.DamageRects {
@@ -1890,6 +1922,10 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 		// No live-paint consume here: the UI thread already consumed the
 		// paint flags when it built this packet (see Run). Touching them
 		// from this raster job would race UI event handling.
+	}
+	if force {
+		err := target.PresentWith(draw)
+		return target.LastPresentOutcome(), err
 	}
 	return target.PresentWithAuto(draw)
 }

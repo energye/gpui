@@ -46,25 +46,25 @@ type BoundaryCache struct {
 	mu      sync.Mutex
 	entries map[uint64]*boundaryEntry
 	// Cumulative counters (process lifetime of this cache).
-	Rerecord int64
-	Skip     int64
+	rerecord int64
+	skip     int64
 	// Per root paint-walk frame counters (reset by BeginFrame).
-	FrameRerecord int64
-	FrameSkip     int64
-	// FrameMiss counts boundaries that wanted a Replay but had none (diagnostics).
-	FrameMiss int64
+	frameRerecord int64
+	frameSkip     int64
+	// frameMiss counts boundaries that wanted a Replay but had none (diagnostics).
+	frameMiss int64
 	// Shell/content partitioning: boundaries tagged with
 	// SetShellBoundary are counted separately, so a scrolling body can prove
 	// the shell's Picture cache is never re-recorded (shell rerecord == 0).
 	// Global counters above still include shell boundaries (backward compat).
-	ShellRerecord      int64
-	ShellSkip          int64
-	FrameShellRerecord int64
-	FrameShellSkip     int64
+	shellRerecord      int64
+	shellSkip          int64
+	frameShellRerecord int64
+	frameShellSkip     int64
 
-	// Evictions is the cumulative count of entries dropped by the budget
+	// evictions is the cumulative count of entries dropped by the budget
 	// (explicit cap via SetMaxEntries) or by generational sweep.
-	Evictions int64
+	evictions int64
 
 	// frame is the present-paint generation (BeginFrame counter); it drives
 	// generational eviction of untouched entries below.
@@ -72,6 +72,25 @@ type BoundaryCache struct {
 	// maxEntries is the explicit budget cap (R14; 0 = unlimited, the default —
 	// generational sweep still bounds long-run growth).
 	maxEntries int
+}
+
+// BoundaryCacheStats is a point-in-time snapshot of every BoundaryCache
+// counter. Counters are written by the paint threads under the cache lock, so
+// off-owner readers must take Stats() — bare field reads race with paint.
+type BoundaryCacheStats struct {
+	Rerecord int64
+	Skip     int64
+
+	FrameRerecord int64
+	FrameSkip     int64
+	FrameMiss     int64
+
+	ShellRerecord      int64
+	ShellSkip          int64
+	FrameShellRerecord int64
+	FrameShellSkip     int64
+
+	Evictions int64
 }
 
 // Generational eviction tuning: an entry untouched for evictFrames presents
@@ -111,17 +130,17 @@ func (c *BoundaryCache) BeginFrame() {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.FrameRerecord = 0
-	c.FrameSkip = 0
-	c.FrameMiss = 0
-	c.FrameShellRerecord = 0
-	c.FrameShellSkip = 0
+	c.frameRerecord = 0
+	c.frameSkip = 0
+	c.frameMiss = 0
+	c.frameShellRerecord = 0
+	c.frameShellSkip = 0
 	c.frame++
 	if c.frame%evictSweepEvery == 0 {
 		for id, e := range c.entries {
 			if c.frame-e.lastSeen > evictFrames {
 				delete(c.entries, id)
-				c.Evictions++
+				c.evictions++
 			}
 		}
 	}
@@ -153,17 +172,6 @@ func (c *BoundaryCache) MaxEntries() int {
 	return c.maxEntries
 }
 
-// EvictionCount reports cumulative evictions (budget + generational sweep).
-// Lock-guarded: read this, not the bare Evictions field, off the owner thread.
-func (c *BoundaryCache) EvictionCount() int64 {
-	if c == nil {
-		return 0
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.Evictions
-}
-
 // enforceBudgetLocked drops oldest-lastSeen entries while over the explicit
 // cap. Runs after sweep/Store so both paths keep the map bounded; a no-op
 // without a cap.
@@ -184,7 +192,7 @@ func (c *BoundaryCache) enforceBudgetLocked() {
 			break
 		}
 		delete(c.entries, victim)
-		c.Evictions++
+		c.evictions++
 	}
 }
 
@@ -299,14 +307,14 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	e := c.entries[id]
 	if e == nil || !e.valid || !e.cacheable || !e.pic.Valid || e.pic.IsEmpty() {
 		if e != nil {
-			c.FrameMiss++
+			c.frameMiss++
 		}
 		return false
 	}
 	sz := n.Size()
 	if e.w != sz.Width || e.h != sz.Height {
 		e.valid = false
-		c.FrameMiss++
+		c.frameMiss++
 		return false
 	}
 	// Content fingerprint must match (content changed → invalidate).
@@ -316,7 +324,7 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	curKey := contentKeyOf(n, sz.Width, sz.Height)
 	if curKey != 0 && e.contentKey != 0 && curKey != e.contentKey {
 		e.valid = false
-		c.FrameMiss++
+		c.frameMiss++
 		return false
 	}
 	if e.ox != pc.OriginX || e.oy != pc.OriginY {
@@ -332,11 +340,11 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 		e.pic.Replay(pc.DC)
 	}
 	e.lastSeen = c.frame
-	c.Skip++
-	c.FrameSkip++
+	c.skip++
+	c.frameSkip++
 	if shellOf(n) {
-		c.ShellSkip++
-		c.FrameShellSkip++
+		c.shellSkip++
+		c.frameShellSkip++
 	}
 	pc.NotePaintVisit()
 	return true
@@ -364,11 +372,11 @@ func (c *BoundaryCache) storeEntryLocked(n RenderObject, pic scene.Picture, ox, 
 		lastSeen:   c.frame,
 	}
 	c.enforceBudgetLocked()
-	c.Rerecord++
-	c.FrameRerecord++
+	c.rerecord++
+	c.frameRerecord++
 	if shellOf(n) {
-		c.ShellRerecord++
-		c.FrameShellRerecord++
+		c.shellRerecord++
+		c.frameShellRerecord++
 	}
 	// No ancestor invalidate: parents do not bake nested RB children.
 }
@@ -428,26 +436,27 @@ func shellOf(n RenderObject) bool {
 	return false
 }
 
-// ShellFrameCounts returns the current frame's shell skip/rerecord.
-func (c *BoundaryCache) ShellFrameCounts() (rerecord, skip int64) {
+// Stats snapshots every counter under the cache lock. The paint threads own
+// these fields; metrics, examples and tests read them from other goroutines,
+// so Stats() is the only sanctioned cross-thread access.
+func (c *BoundaryCache) Stats() BoundaryCacheStats {
 	if c == nil {
-		return 0, 0
+		return BoundaryCacheStats{}
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.FrameShellRerecord, c.FrameShellSkip
-}
-
-// FrameCounts snapshots the per-frame counters (R1: the paint threads write
-// these while metrics/example readers sample them — read the snapshot, not
-// the bare fields).
-func (c *BoundaryCache) FrameCounts() (rerecord, skip, shellRerecord, shellSkip int64) {
-	if c == nil {
-		return 0, 0, 0, 0
+	return BoundaryCacheStats{
+		Rerecord:           c.rerecord,
+		Skip:               c.skip,
+		FrameRerecord:      c.frameRerecord,
+		FrameSkip:          c.frameSkip,
+		FrameMiss:          c.frameMiss,
+		ShellRerecord:      c.shellRerecord,
+		ShellSkip:          c.shellSkip,
+		FrameShellRerecord: c.frameShellRerecord,
+		FrameShellSkip:     c.frameShellSkip,
+		Evictions:          c.evictions,
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.FrameRerecord, c.FrameSkip, c.FrameShellRerecord, c.FrameShellSkip
 }
 
 // storeColorBox is the legacy-specific entry point used by RenderColorBox.Paint.

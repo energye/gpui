@@ -61,29 +61,29 @@ func TestBoundaryCache_BudgetEvictsOldest(t *testing.T) {
 	if got := cache.Len(); got != 2 {
 		t.Fatalf("Len after capped frame=%d want 2", got)
 	}
-	if got := cache.Evictions; got != 1 {
+	if got := cache.Stats().Evictions; got != 1 {
 		t.Fatalf("Evictions=%d want 1", got)
 	}
-	if got := cache.Rerecord; got != 3 {
+	if got := cache.Stats().Rerecord; got != 3 {
 		t.Fatalf("Rerecord=%d want 3", got)
 	}
-	prev := cache.Evictions
+	prev := cache.Stats().Evictions
 
 	// All-dirty frames under cap: Len never exceeds the budget and the
 	// eviction counter keeps growing (pressure keeps dropping entries).
 	for i := 0; i < 3; i++ {
 		markAllBoundaryDirty(root)
 		paintBudgetFrame(t, root, cache, 620, 60)
-		if got := cache.FrameRerecord; got != 3 {
+		if got := cache.Stats().FrameRerecord; got != 3 {
 			t.Fatalf("frame %d FrameRerecord=%d want 3", i, got)
 		}
 		if got := cache.Len(); got != 2 {
 			t.Fatalf("frame %d Len=%d want 2 (budget enforced)", i, got)
 		}
-		if got := cache.Evictions; got <= prev {
+		if got := cache.Stats().Evictions; got <= prev {
 			t.Fatalf("frame %d Evictions=%d not growing (prev=%d)", i, got, prev)
 		}
-		prev = cache.Evictions
+		prev = cache.Stats().Evictions
 	}
 
 	// Uncapped default: unlimited (0), existing behavior unchanged — clean
@@ -96,14 +96,14 @@ func TestBoundaryCache_BudgetEvictsOldest(t *testing.T) {
 	if got := free.Len(); got != 3 {
 		t.Fatalf("uncapped Len=%d want 3", got)
 	}
-	if got := free.Evictions; got != 0 {
+	if got := free.Stats().Evictions; got != 0 {
 		t.Fatalf("uncapped Evictions=%d want 0", got)
 	}
 	paintBudgetFrame(t, root, free, 620, 60)
-	if got := free.FrameSkip; got != 3 {
+	if got := free.Stats().FrameSkip; got != 3 {
 		t.Fatalf("uncapped FrameSkip=%d want 3 (clean replays)", got)
 	}
-	if got := free.Evictions; got != 0 {
+	if got := free.Stats().Evictions; got != 0 {
 		t.Fatalf("uncapped Evictions=%d want 0", got)
 	}
 }

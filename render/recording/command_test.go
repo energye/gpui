@@ -1,7 +1,10 @@
 package recording
 
 import (
+	"image"
 	"testing"
+
+	"github.com/energye/gpui/render"
 )
 
 func TestCommandType_String(t *testing.T) {
@@ -11,7 +14,7 @@ func TestCommandType_String(t *testing.T) {
 	}{
 		{CmdSave, "Save"},
 		{CmdRestore, "Restore"},
-		{CmdSetTransform, "SetTransform"},
+		{CmdConcat, "Concat"},
 		{CmdSetClip, "SetClip"},
 		{CmdClearClip, "ClearClip"},
 		{CmdFillPath, "FillPath"},
@@ -45,14 +48,14 @@ func TestCommandInterface(t *testing.T) {
 	commands := []Command{
 		SaveCommand{},
 		RestoreCommand{},
-		SetTransformCommand{Matrix: Identity()},
+		ConcatCommand{Matrix: Identity()},
 		SetClipCommand{Path: PathRef(0), Rule: FillRuleNonZero},
 		ClearClipCommand{},
 		FillPathCommand{Path: PathRef(0), Brush: BrushRef(0), Rule: FillRuleNonZero},
 		StrokePathCommand{Path: PathRef(0), Brush: BrushRef(0), Stroke: DefaultStroke()},
 		FillRectCommand{Rect: NewRect(0, 0, 100, 100), Brush: BrushRef(0)},
 		StrokeRectCommand{Rect: NewRect(0, 0, 100, 100), Brush: BrushRef(0), Stroke: DefaultStroke()},
-		DrawImageCommand{Image: ImageRef(0), DstRect: NewRect(0, 0, 100, 100)},
+		DrawImageCommand{Image: ImageRef(0), Opts: render.DrawImageOptions{DstWidth: 100, DstHeight: 100}},
 		DrawTextCommand{Text: "Hello", X: 10, Y: 20, FontSize: 12, Brush: BrushRef(0)},
 		SetFillStyleCommand{Brush: BrushRef(0)},
 		SetStrokeStyleCommand{Brush: BrushRef(0)},
@@ -67,7 +70,7 @@ func TestCommandInterface(t *testing.T) {
 	expectedTypes := []CommandType{
 		CmdSave,
 		CmdRestore,
-		CmdSetTransform,
+		CmdConcat,
 		CmdSetClip,
 		CmdClearClip,
 		CmdFillPath,
@@ -223,17 +226,6 @@ func TestStroke_Clone(t *testing.T) {
 	}
 }
 
-func TestDefaultImageOptions(t *testing.T) {
-	opts := DefaultImageOptions()
-
-	if opts.Interpolation != InterpolationBilinear {
-		t.Errorf("DefaultImageOptions().Interpolation = %v, want InterpolationBilinear", opts.Interpolation)
-	}
-	if opts.Alpha != 1.0 {
-		t.Errorf("DefaultImageOptions().Alpha = %v, want 1.0", opts.Alpha)
-	}
-}
-
 func TestFillPathCommand(t *testing.T) {
 	cmd := FillPathCommand{
 		Path:  PathRef(1),
@@ -316,13 +308,17 @@ func TestDrawTextCommand(t *testing.T) {
 }
 
 func TestDrawImageCommand(t *testing.T) {
+	src := image.Rect(0, 0, 50, 50)
 	cmd := DrawImageCommand{
-		Image:   ImageRef(10),
-		SrcRect: NewRect(0, 0, 50, 50),
-		DstRect: NewRect(100, 100, 200, 200),
-		Options: ImageOptions{
-			Interpolation: InterpolationNearest,
-			Alpha:         0.8,
+		Image: ImageRef(10),
+		Opts: render.DrawImageOptions{
+			X:             100,
+			Y:             100,
+			DstWidth:      200,
+			DstHeight:     200,
+			SrcRect:       &src,
+			Interpolation: render.InterpNearest,
+			Opacity:       0.8,
 		},
 	}
 
@@ -332,13 +328,25 @@ func TestDrawImageCommand(t *testing.T) {
 	if cmd.Image != ImageRef(10) {
 		t.Errorf("DrawImageCommand.Image = %v, want 10", cmd.Image)
 	}
-	if cmd.SrcRect.Width() != 50 {
-		t.Errorf("DrawImageCommand.SrcRect.Width() = %v, want 50", cmd.SrcRect.Width())
+	if cmd.Opts.SrcRect == nil || cmd.Opts.SrcRect.Dx() != 50 {
+		t.Errorf("DrawImageCommand.Opts.SrcRect = %v, want 50 wide", cmd.Opts.SrcRect)
 	}
-	if cmd.DstRect.X() != 100 {
-		t.Errorf("DrawImageCommand.DstRect.X() = %v, want 100", cmd.DstRect.X())
+	if cmd.Opts.X != 100 {
+		t.Errorf("DrawImageCommand.Opts.X = %v, want 100", cmd.Opts.X)
 	}
-	if cmd.Options.Alpha != 0.8 {
-		t.Errorf("DrawImageCommand.Options.Alpha = %v, want 0.8", cmd.Options.Alpha)
+	if cmd.Opts.Opacity != 0.8 {
+		t.Errorf("DrawImageCommand.Opts.Opacity = %v, want 0.8", cmd.Opts.Opacity)
+	}
+}
+
+// A recording must not alias the caller's option struct: paint code that reuses
+// one options value (or edits its SrcRect) after the draw cannot rewrite
+// already-recorded commands.
+func TestCloneDrawImageOptionsDetachesSrcRect(t *testing.T) {
+	src := image.Rect(0, 0, 50, 50)
+	cloned := cloneDrawImageOptions(render.DrawImageOptions{SrcRect: &src})
+	src.Max = image.Point{9, 9}
+	if got := cloned.SrcRect.Dx(); got != 50 {
+		t.Errorf("recorded SrcRect changed with the caller's rectangle: width = %d, want 50", got)
 	}
 }

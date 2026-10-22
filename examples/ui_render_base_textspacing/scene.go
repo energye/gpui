@@ -761,12 +761,14 @@ func runLogicProbes() (probes, failed []string) {
 			root.Paint(pc)
 		}
 		paint()
-		rr0, skip0, _, _ := cache.FrameCounts()
+		st0 := cache.Stats()
+		rr0, skip0 := st0.FrameRerecord, st0.FrameSkip
 		paint()
-		rr1, skip1, _, _ := cache.FrameCounts()
+		st1 := cache.Stats()
+		rr1, skip1 := st1.FrameRerecord, st1.FrameSkip
 		child.SetLetterSpacing(6)
 		paint()
-		rr2, _, _, _ := cache.FrameCounts()
+		rr2 := cache.Stats().FrameRerecord
 		setDetail("first=%d/%d clean=%d/%d afterSpacing=%d", rr0, skip0, rr1, skip1, rr2)
 		check("spacing_boundary_cache_invalidates",
 			rr0 == 1 && skip0 == 0 && rr1 == 0 && skip1 == 1 && rr2 > 0)

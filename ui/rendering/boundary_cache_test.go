@@ -16,7 +16,8 @@ func paintWithCache(t *testing.T, root rendering.RenderObject, cache *rendering.
 	pc.UseBoundaryCache = true
 	cache.BeginFrame()
 	root.Paint(pc)
-	return cache.FrameRerecord, cache.FrameSkip
+	st := cache.Stats()
+	return st.FrameRerecord, st.FrameSkip
 }
 
 func TestBoundaryCache_SkipVsRerecord(t *testing.T) {
@@ -66,11 +67,11 @@ func TestBoundaryCache_SkipVsRerecord(t *testing.T) {
 		t.Fatalf("frame2 rerecord=%d want ≥1 (hot)", rr2)
 	}
 	// Cumulative: skip grew.
-	if cache.Skip < 1 {
-		t.Fatalf("lifetime Skip=%d want ≥1", cache.Skip)
+	if life := cache.Stats(); life.Skip < 1 {
+		t.Fatalf("lifetime Skip=%d want ≥1", life.Skip)
 	}
-	if cache.Rerecord < 3 {
-		t.Fatalf("lifetime Rerecord=%d want ≥3 (2 first + ≥1 hot)", cache.Rerecord)
+	if life := cache.Stats(); life.Rerecord < 3 {
+		t.Fatalf("lifetime Rerecord=%d want ≥3 (2 first + ≥1 hot)", life.Rerecord)
 	}
 
 	// Frame 3: both clean → both skip, zero rerecord.
@@ -113,8 +114,8 @@ func TestBoundaryCache_NestedAbsoluteBoxCleanReplayKeepsMidContent(t *testing.T)
 	pc1.BoundaryCache, pc1.UseBoundaryCache = cache, true
 	cache.BeginFrame()
 	root.Paint(pc1)
-	if cache.FrameRerecord < 3 {
-		t.Fatalf("warm rerecord=%d want ≥3 (outer+mid+leaf own caches)", cache.FrameRerecord)
+	if got := cache.Stats().FrameRerecord; got < 3 {
+		t.Fatalf("warm rerecord=%d want ≥3 (outer+mid+leaf own caches)", got)
 	}
 	if !cache.HasValid(outer) || !cache.HasValid(mid) || !cache.HasValid(leaf) {
 		t.Fatal("warm must cache outer, mid, and leaf separately")
@@ -128,11 +129,11 @@ func TestBoundaryCache_NestedAbsoluteBoxCleanReplayKeepsMidContent(t *testing.T)
 	pc2.BoundaryCache, pc2.UseBoundaryCache = cache, true
 	cache.BeginFrame()
 	root.Paint(pc2)
-	if cache.FrameSkip < 3 {
-		t.Fatalf("clean frame skip=%d want ≥3 (outer+mid+leaf)", cache.FrameSkip)
+	if got := cache.Stats().FrameSkip; got < 3 {
+		t.Fatalf("clean frame skip=%d want ≥3 (outer+mid+leaf)", got)
 	}
-	if cache.FrameRerecord != 0 {
-		t.Fatalf("clean frame rerecord=%d want 0", cache.FrameRerecord)
+	if got := cache.Stats().FrameRerecord; got != 0 {
+		t.Fatalf("clean frame rerecord=%d want 0", got)
 	}
 
 	img := dc2.Image()
@@ -188,7 +189,7 @@ func TestBoundaryCache_InnerChangeThenCleanReplayShowsFresh(t *testing.T) {
 	if !cache.HasValid(outer) || !cache.HasValid(leaf) {
 		t.Fatal("warm must cache outer and leaf")
 	}
-	outerRRWarm := cache.Rerecord
+	outerRRWarm := cache.Stats().Rerecord
 
 	leaf.R, leaf.G, leaf.B, leaf.A = 0.05, 0.95, 0.1, 1 // green
 	leaf.MarkNeedsPaint()
@@ -200,11 +201,11 @@ func TestBoundaryCache_InnerChangeThenCleanReplayShowsFresh(t *testing.T) {
 	pc2.BoundaryCache, pc2.UseBoundaryCache = cache, true
 	cache.BeginFrame()
 	root.Paint(pc2)
-	if cache.FrameRerecord != 1 {
-		t.Fatalf("leaf dirty frame rerecord=%d want exactly 1 (hot only; outer/mid must not re-store)", cache.FrameRerecord)
+	if got := cache.Stats().FrameRerecord; got != 1 {
+		t.Fatalf("leaf dirty frame rerecord=%d want exactly 1 (hot only; outer/mid must not re-store)", got)
 	}
-	if cache.Rerecord != outerRRWarm+1 {
-		t.Fatalf("lifetime Rerecord=%d want warm(%d)+1", cache.Rerecord, outerRRWarm)
+	if got := cache.Stats().Rerecord; got != outerRRWarm+1 {
+		t.Fatalf("lifetime Rerecord=%d want warm(%d)+1", got, outerRRWarm)
 	}
 	if !cache.HasValid(outer) {
 		t.Fatal("outer own-content cache must remain valid (not invalidated by leaf store)")
@@ -217,8 +218,8 @@ func TestBoundaryCache_InnerChangeThenCleanReplayShowsFresh(t *testing.T) {
 	pc3.BoundaryCache, pc3.UseBoundaryCache = cache, true
 	cache.BeginFrame()
 	root.Paint(pc3)
-	if cache.FrameRerecord != 0 {
-		t.Fatalf("clean frame rerecord=%d want 0", cache.FrameRerecord)
+	if got := cache.Stats().FrameRerecord; got != 0 {
+		t.Fatalf("clean frame rerecord=%d want 0", got)
 	}
 
 	img := dc3.Image()
@@ -263,7 +264,7 @@ func TestBoundaryCache_NestedOuterNoRerecordWhenInnerDirty(t *testing.T) {
 	if !cache.HasValid(outer) {
 		t.Fatal("outer boundary must be cached after warm")
 	}
-	outerRRAfterWarm := cache.Rerecord
+	outerRRAfterWarm := cache.Stats().Rerecord
 
 	hotLeaf.R = 0.5
 	hotLeaf.MarkNeedsPaint()
@@ -282,7 +283,7 @@ func TestBoundaryCache_NestedOuterNoRerecordWhenInnerDirty(t *testing.T) {
 	if sk1 < 2 {
 		t.Fatalf("skip=%d want ≥2 (outer own + static leaf)", sk1)
 	}
-	grew := cache.Rerecord - outerRRAfterWarm
+	grew := cache.Stats().Rerecord - outerRRAfterWarm
 	if grew != 1 {
 		t.Fatalf("lifetime Rerecord grew by %d want exactly 1 (outer must NOT re-store)", grew)
 	}
@@ -521,15 +522,15 @@ func TestBoundaryCache_ShellBodyPartition(t *testing.T) {
 
 	// Frame 1: both dirty → 2 rerecords, 1 of them shell.
 	paintWithCache(t, root, cache, 200, 400)
-	srr, ssk := cache.ShellFrameCounts()
-	if srr != 1 {
-		t.Fatalf("frame1 shell_rerecord=%d want 1", srr)
+	st1 := cache.Stats()
+	if st1.FrameShellRerecord != 1 {
+		t.Fatalf("frame1 shell_rerecord=%d want 1", st1.FrameShellRerecord)
 	}
-	if ssk != 0 {
-		t.Fatalf("frame1 shell_skip=%d want 0", ssk)
+	if st1.FrameShellSkip != 0 {
+		t.Fatalf("frame1 shell_skip=%d want 0", st1.FrameShellSkip)
 	}
-	if cache.ShellRerecord != 1 || cache.ShellSkip != 0 {
-		t.Fatalf("lifetime shell rr/sk=%d/%d want 1/0", cache.ShellRerecord, cache.ShellSkip)
+	if st1.ShellRerecord != 1 || st1.ShellSkip != 0 {
+		t.Fatalf("lifetime shell rr/sk=%d/%d want 1/0", st1.ShellRerecord, st1.ShellSkip)
 	}
 
 	// Frame 2: body scrolls (changes color) → body rerecords, shell Replays.
@@ -539,19 +540,19 @@ func TestBoundaryCache_ShellBodyPartition(t *testing.T) {
 		t.Fatal("shell must stay clean when the body (sibling boundary) dirties")
 	}
 	paintWithCache(t, root, cache, 200, 400)
-	srr, ssk = cache.ShellFrameCounts()
-	if srr != 0 {
-		t.Fatalf("frame2 shell_rerecord=%d want 0 (body scroll must not re-record shell)", srr)
+	st2 := cache.Stats()
+	if st2.FrameShellRerecord != 0 {
+		t.Fatalf("frame2 shell_rerecord=%d want 0 (body scroll must not re-record shell)", st2.FrameShellRerecord)
 	}
-	if ssk != 1 {
-		t.Fatalf("frame2 shell_skip=%d want 1 (shell Picture replays)", ssk)
+	if st2.FrameShellSkip != 1 {
+		t.Fatalf("frame2 shell_skip=%d want 1 (shell Picture replays)", st2.FrameShellSkip)
 	}
-	if cache.FrameRerecord < 1 {
-		t.Fatalf("frame2 body rerecord=%d want ≥1", cache.FrameRerecord)
+	if st2.FrameRerecord < 1 {
+		t.Fatalf("frame2 body rerecord=%d want ≥1", st2.FrameRerecord)
 	}
 	// Global counters still include shell.
-	if cache.ShellRerecord != 1 {
-		t.Fatalf("lifetime shell_rerecord=%d want 1", cache.ShellRerecord)
+	if st2.ShellRerecord != 1 {
+		t.Fatalf("lifetime shell_rerecord=%d want 1", st2.ShellRerecord)
 	}
 }
 

@@ -10,147 +10,41 @@
 
 package recording
 
-import "math"
+import (
+	"math"
 
-// Matrix represents a 2D affine transformation matrix.
-// It uses a 2x3 matrix in row-major order:
-//
-//	| A B C |
-//	| D E F |
-//
-// This represents the transformation:
-//
-//	x' = A*x + B*y + C
-//	y' = D*x + E*y + F
-//
-// The Matrix type is designed to be compatible with render.Matrix
-// for seamless integration with the gg graphics library.
-type Matrix struct {
-	A, B, C float64
-	D, E, F float64
-}
+	"github.com/energye/gpui/render"
+)
+
+// Matrix is render.Matrix, not a parallel type. A Recorder must satisfy
+// render.Canvas with the same signatures a live *render.Context has, and a
+// playback backend hands a recorded CTM straight to a context; a second
+// matrix algebra would force conversions on both sides without adding
+// anything. The constructors below are thin forwarders kept so recording-side
+// call sites read consistently.
+type Matrix = render.Matrix
 
 // Identity returns the identity transformation matrix.
-// The identity matrix performs no transformation.
-func Identity() Matrix {
-	return Matrix{
-		A: 1, B: 0, C: 0,
-		D: 0, E: 1, F: 0,
-	}
-}
+func Identity() Matrix { return render.Identity() }
 
 // Translate creates a translation matrix.
-func Translate(x, y float64) Matrix {
-	return Matrix{
-		A: 1, B: 0, C: x,
-		D: 0, E: 1, F: y,
-	}
-}
+func Translate(x, y float64) Matrix { return render.Translate(x, y) }
 
 // Scale creates a scaling matrix.
-func Scale(sx, sy float64) Matrix {
-	return Matrix{
-		A: sx, B: 0, C: 0,
-		D: 0, E: sy, F: 0,
-	}
-}
+func Scale(sx, sy float64) Matrix { return render.Scale(sx, sy) }
 
 // Rotate creates a rotation matrix (angle in radians).
-func Rotate(angle float64) Matrix {
-	cos := math.Cos(angle)
-	sin := math.Sin(angle)
-	return Matrix{
-		A: cos, B: -sin, C: 0,
-		D: sin, E: cos, F: 0,
-	}
-}
+func Rotate(angle float64) Matrix { return render.Rotate(angle) }
 
 // Shear creates a shear matrix.
-func Shear(x, y float64) Matrix {
-	return Matrix{
-		A: 1, B: x, C: 0,
-		D: y, E: 1, F: 0,
-	}
-}
+func Shear(x, y float64) Matrix { return render.Shear(x, y) }
 
-// Multiply multiplies two matrices (m * other).
-// This applies the transformation of `other` after `m`.
-func (m Matrix) Multiply(other Matrix) Matrix {
-	return Matrix{
-		A: m.A*other.A + m.B*other.D,
-		B: m.A*other.B + m.B*other.E,
-		C: m.A*other.C + m.B*other.F + m.C,
-		D: m.D*other.A + m.E*other.D,
-		E: m.D*other.B + m.E*other.E,
-		F: m.D*other.C + m.E*other.F + m.F,
-	}
-}
-
-// TransformPoint applies the transformation to a point.
-func (m Matrix) TransformPoint(x, y float64) (float64, float64) {
-	return m.A*x + m.B*y + m.C, m.D*x + m.E*y + m.F
-}
-
-// TransformVector applies the transformation to a vector (no translation).
-func (m Matrix) TransformVector(x, y float64) (float64, float64) {
-	return m.A*x + m.B*y, m.D*x + m.E*y
-}
-
-// Invert returns the inverse matrix.
-// Returns the identity matrix if the matrix is not invertible.
-func (m Matrix) Invert() Matrix {
-	det := m.A*m.E - m.B*m.D
-	if math.Abs(det) < 1e-10 {
-		return Identity()
-	}
-
-	invDet := 1.0 / det
-	return Matrix{
-		A: m.E * invDet,
-		B: -m.B * invDet,
-		C: (m.B*m.F - m.C*m.E) * invDet,
-		D: -m.D * invDet,
-		E: m.A * invDet,
-		F: (m.C*m.D - m.A*m.F) * invDet,
-	}
-}
-
-// IsIdentity returns true if the matrix is the identity matrix.
-func (m Matrix) IsIdentity() bool {
-	const eps = 1e-10
-	return math.Abs(m.A-1) < eps && math.Abs(m.B) < eps && math.Abs(m.C) < eps &&
-		math.Abs(m.D) < eps && math.Abs(m.E-1) < eps && math.Abs(m.F) < eps
-}
-
-// IsTranslation returns true if the matrix is only a translation.
-func (m Matrix) IsTranslation() bool {
-	const eps = 1e-10
-	return math.Abs(m.A-1) < eps && math.Abs(m.B) < eps &&
-		math.Abs(m.D) < eps && math.Abs(m.E-1) < eps
-}
-
-// ScaleFactor returns the maximum scale factor of the transformation.
-// This is useful for determining effective stroke width after transform.
-func (m Matrix) ScaleFactor() float64 {
-	// Calculate the two singular values of the 2x2 part.
-	sx := math.Sqrt(m.A*m.A + m.D*m.D)
-	sy := math.Sqrt(m.B*m.B + m.E*m.E)
-	if sx > sy {
-		return sx
-	}
-	return sy
-}
-
-// Determinant returns the determinant of the 2x2 part of the matrix.
-// A determinant of zero means the matrix is not invertible.
-// A negative determinant means the transformation flips orientation.
-func (m Matrix) Determinant() float64 {
-	return m.A*m.E - m.B*m.D
-}
-
-// Translation returns the translation components of the matrix.
-func (m Matrix) Translation() (x, y float64) {
-	return m.C, m.F
+// TransformPoint applies m to (x, y) and returns the transformed coordinates.
+// render.Matrix works in render.Point; this keeps the recorder's float-pair
+// call sites (and render.Context.TransformPoint's signature) readable.
+func TransformPoint(m Matrix, x, y float64) (float64, float64) {
+	p := m.TransformPoint(render.Pt(x, y))
+	return p.X, p.Y
 }
 
 // Rect represents an axis-aligned rectangle.

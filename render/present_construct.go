@@ -216,9 +216,13 @@ type PresentTarget struct {
 	// restored size to work-area − content).
 	onSwapchainResized func(logicalW, logicalH int)
 
-	// lastOutcome / lastDamageArea are set by PresentWith / PresentWithAuto for metrics.
-	lastOutcome    PresentOutcome
-	lastDamageArea int64 // physical px² of last FrameDamage union (0 if idle/empty)
+	// lastOutcome / lastDamageArea / lastDamageRectSum are set by
+	// PresentWith / PresentWithAuto for metrics. Union is useful for a
+	// single dirty region; the rect sum is the honest retained cost when
+	// dirty regions are far apart (union bbox would count the untouched gap).
+	lastOutcome       PresentOutcome
+	lastDamageArea    int64 // physical px² of last FrameDamage union (0 if idle/empty)
+	lastDamageRectSum int64 // physical px² sum of the coalesced damage rects
 
 	// fallbacks counts downgrade levels retried before this target opened
 	// (0 = first level succeeded). Set once by NewPresentTarget.

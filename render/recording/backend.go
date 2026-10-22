@@ -36,6 +36,16 @@ import (
 //  3. Manage own state stack for Save/Restore
 //  4. Translate coordinates if needed (e.g., PDF Y-flip)
 //
+// # Coordinate contract
+//
+// All geometry handed to a Backend — paths, rects, image destinations and text
+// positions — is in USER space. The active CTM is whatever the replayed
+// ConcatCommand stream composed on top of the matrix the backend already had
+// when playback began (Save/Restore nest it). Backends draw through that
+// matrix instead of resetting it: recordings carry no baked device coordinates,
+// so one recording replays correctly at any device scale and under any layer
+// offset.
+//
 // # Example Backend Registration
 //
 //	func init() {
@@ -68,9 +78,11 @@ type Backend interface {
 
 	// Transform methods
 
-	// SetTransform sets the current transformation matrix.
-	// This replaces any existing transform.
-	SetTransform(m Matrix)
+	// Concat multiplies the given matrix into the current transformation
+	// matrix. Transform ops in a recording are relative: the backend composes
+	// onto the CTM it already has, so a playback context pre-set with a layer
+	// offset and device scale renders the recording in the right place.
+	Concat(m Matrix)
 
 	// Clipping methods
 
@@ -81,6 +93,10 @@ type Backend interface {
 
 	// ClearClip removes any clipping region.
 	ClearClip()
+
+	// ClipRect intersects the clip region with an axis-aligned rectangle given
+	// in user space. It is the cheaper counterpart of SetClip for rects.
+	ClipRect(rect Rect)
 
 	// Drawing methods
 
@@ -95,13 +111,78 @@ type Backend interface {
 	// Backends may implement this more efficiently than FillPath with a rect path.
 	FillRect(rect Rect, brush Brush)
 
-	// DrawImage draws an image from the source rectangle to the destination rectangle.
-	// The opts parameter specifies interpolation quality and alpha.
-	DrawImage(img image.Image, src, dst Rect, opts ImageOptions)
+	// StrokeRect strokes an axis-aligned rectangle kept in user space, the
+	// stroking counterpart of FillRect.
+	StrokeRect(rect Rect, brush Brush, stroke Stroke)
+
+	// DrawImage draws an image buffer through the recorded options. Backends
+	// receive the same render.DrawImageOptions the caller recorded (destination,
+	// source sub-rect, interpolation, opacity, blend mode), so replay reaches the
+	// rasterizer without losing fields the display list never stored.
+	DrawImage(img *render.ImageBuf, opts render.DrawImageOptions)
+
+	// DrawImageNine stretches the edges of img between the centre patch bounds
+	// to fill dst, keeping the corners at native size.
+	DrawImageNine(img *render.ImageBuf, center image.Rectangle, dst Rect)
+
+	// DrawImageQuad maps img onto an arbitrary quad.
+	DrawImageQuad(img *render.ImageBuf, corners [4]render.Point, opts render.QuadDrawOptions)
+
+	// DrawImageRounded draws img clipped to a rounded rectangle.
+	DrawImageRounded(img *render.ImageBuf, x, y, radius float64)
+
+	// DrawImageCircular draws img clipped to a circle.
+	DrawImageCircular(img *render.ImageBuf, cx, cy, radius float64)
+
+	// DrawAtlas draws a batch of sprites sampled from one image.
+	DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSprite, opts render.AtlasDrawOptions)
+
+	// DrawDepthSprites draws a sprite batch carrying per-sprite depth.
+	DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite, opts render.DepthDrawOptions)
+
+	// DrawVertices draws an immediate-mode vertex mesh. brush is the fill paint
+	// recorded with the mesh — the fallback colour when a mesh carries fewer
+	// colours than vertices.
+	DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush)
+
+	// DrawGlyphs draws a shaped-glyph run at the baseline origin. colored selects
+	// the per-glyph colour variant over the single-brush run, which uses brush.
+	DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush)
 
 	// DrawText draws text at the given position with the specified font face and brush.
 	// The position (x, y) is the baseline origin of the text.
 	DrawText(s string, x, y float64, face text.Face, brush Brush)
+
+	// Decoration and post-effect state
+
+	// SetTextDecoration sets the decoration bitset for text drawn afterwards.
+	SetTextDecoration(deco render.TextDecoration)
+
+	// ApplyBlur attaches a blur post-effect to subsequent draws.
+	ApplyBlur(radius float64)
+
+	// ApplyColorMatrix attaches a 4x5 colour matrix post-effect.
+	ApplyColorMatrix(matrix [20]float32)
+
+	// ApplyDropShadow attaches a drop-shadow post-effect.
+	ApplyDropShadow(offsetX, offsetY, blurRadius float64, color render.RGBA)
+
+	// ApplyGrayscale desaturates subsequent draws.
+	ApplyGrayscale()
+
+	// Compositing layers
+
+	// PushLayer opens a layer composited onto the parent with blend and opacity.
+	PushLayer(blend render.BlendMode, opacity float64)
+
+	// PushLayerIsolated opens a forced true save-layer.
+	PushLayerIsolated(opacity float64)
+
+	// PushBackdropLayer opens a layer seeded from the parent's contents.
+	PushBackdropLayer(blend render.BlendMode, opacity float64)
+
+	// PopLayer composites the innermost layer.
+	PopLayer()
 }
 
 // WriterBackend extends Backend with the ability to write output to an io.Writer.

@@ -16,7 +16,6 @@ import (
 	"image"
 	"os"
 	"time"
-	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
@@ -138,6 +137,31 @@ func (t *PresentTarget) LastDamageAreaPx() int64 {
 	return t.lastDamageArea
 }
 
+// LastDamageRectSumPx returns the physical-pixel area sum of the last frame's
+// coalesced damage rects (0 when idle / unknown). This is the honest cost for
+// retained presents with scattered dirty layers: the union bbox would also
+// count the untouched gap between them.
+func (t *PresentTarget) LastDamageRectSumPx() int64 {
+	if t == nil {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastDamageRectSum
+}
+
+// damageRectsAreaSum is the clipped/coalesced rect list's pixel sum.
+func damageRectsAreaSum(rects []image.Rectangle) int64 {
+	var sum int64
+	for _, r := range rects {
+		if r.Dx() <= 0 || r.Dy() <= 0 {
+			continue
+		}
+		sum += int64(r.Dx()) * int64(r.Dy())
+	}
+	return sum
+}
+
 // clipPresentDamage clips physical damage rects to the surface and coalesces
 // touching rects. Returns nil when nothing remains (full present / idle).
 func clipPresentDamage(rects []image.Rectangle, w, h int) []image.Rectangle {
@@ -222,6 +246,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	// physical surface. The backend decides whether it can present partially
 	// (GL: three EGL extensions + buffer age); the others present full.
 	presentRects := clipPresentDamage(t.dc.FrameDamage(), int(pw), int(ph))
+	t.lastDamageRectSum = damageRectsAreaSum(presentRects)
 	// Idle frames skip the swapchain entirely: acquiring a buffer and then
 	// discarding it without present leaves the image unrecycled in the
 	// driver, draining the swapchain until acquire times out (~250ms) and
@@ -337,7 +362,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	}
 	// hal frame carries the view as a word; rebuild the typed handle here
 	// (render boundary owns the gpucontext type, hal does not).
-	view := gpucontext.NewTextureView(unsafe.Pointer(frame.ViewHandle))
+	view := gpucontext.NewTextureView(frame.ViewHandle)
 	if forceFull {
 		if err := t.dc.PresentFrameFull(view, frame.Width, frame.Height, func() error { return presentFn(nil) }); err != nil {
 			t.sc.DiscardFrame(frame)

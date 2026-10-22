@@ -1,8 +1,6 @@
 package recording
 
 import (
-	"image"
-	"image/color"
 	"testing"
 
 	"github.com/energye/gpui/render"
@@ -212,18 +210,22 @@ func TestResourcePool_GetBrush_InvalidRef(t *testing.T) {
 	}
 }
 
-func TestResourcePool_AddImage(t *testing.T) {
+// poolImageBuf builds a real render buffer: the pool stores whatever buffer the
+// caller recorded, by pointer, so tests hand it buffers rather than
+// std-library images.
+func poolImageBuf(t *testing.T, w, h int) *render.ImageBuf {
+	t.Helper()
+	buf, err := render.NewImageBuf(w, h, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("render.NewImageBuf(%d,%d): %v", w, h, err)
+	}
+	return buf
+}
+
+func TestResourcePool_AddImageBuf(t *testing.T) {
 	pool := NewResourcePool()
 
-	// Create a simple test image
-	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
-	for y := 0; y < 10; y++ {
-		for x := 0; x < 10; x++ {
-			img.Set(x, y, color.RGBA{R: 255, G: 0, B: 0, A: 255})
-		}
-	}
-
-	ref := pool.AddImage(img)
+	ref := pool.AddImageBuf(poolImageBuf(t, 10, 10))
 
 	if pool.ImageCount() != 1 {
 		t.Errorf("ImageCount() = %d, want 1", pool.ImageCount())
@@ -231,18 +233,33 @@ func TestResourcePool_AddImage(t *testing.T) {
 
 	got := pool.GetImage(ref)
 	if got == nil {
-		t.Error("GetImage() returned nil")
+		t.Fatal("GetImage() returned nil")
 	}
 
-	bounds := got.Bounds()
-	if bounds.Dx() != 10 || bounds.Dy() != 10 {
-		t.Errorf("Image bounds = %v, want 10x10", bounds)
+	w, h := got.Bounds()
+	if w != 10 || h != 10 {
+		t.Errorf("Image bounds = %vx%v, want 10x10", w, h)
 	}
 }
 
-func TestResourcePool_AddImage_Nil(t *testing.T) {
+// The pool must hand back the very buffer it was given: copying per playback
+// would drop ImageBuf's genID (GPU texture cache key) and re-upload a new
+// texture every frame.
+func TestResourcePool_AddImageBufKeepsIdentity(t *testing.T) {
+	buf, err := render.NewImageBuf(4, 4, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
 	pool := NewResourcePool()
-	ref := pool.AddImage(nil)
+	ref := pool.AddImageBuf(buf)
+	if got := pool.GetImage(ref); got != buf {
+		t.Errorf("GetImage() = %p, want the recorded buffer %p", got, buf)
+	}
+}
+
+func TestResourcePool_AddImageBuf_Nil(t *testing.T) {
+	pool := NewResourcePool()
+	ref := pool.AddImageBuf(nil)
 
 	if pool.ImageCount() != 1 {
 		t.Errorf("ImageCount() = %d, want 1", pool.ImageCount())
@@ -256,7 +273,7 @@ func TestResourcePool_AddImage_Nil(t *testing.T) {
 
 func TestResourcePool_GetImage_InvalidRef(t *testing.T) {
 	pool := NewResourcePool()
-	pool.AddImage(image.NewRGBA(image.Rect(0, 0, 1, 1)))
+	pool.AddImageBuf(poolImageBuf(t, 1, 1))
 
 	got := pool.GetImage(ImageRef(100))
 	if got != nil {
@@ -297,7 +314,7 @@ func TestResourcePool_Clear(t *testing.T) {
 	// Add various resources
 	pool.AddPath(render.NewPath())
 	pool.AddBrush(NewSolidBrush(render.Red))
-	pool.AddImage(image.NewRGBA(image.Rect(0, 0, 1, 1)))
+	pool.AddImageBuf(poolImageBuf(t, 1, 1))
 	pool.AddFont(nil)
 
 	if pool.PathCount() != 1 || pool.BrushCount() != 1 ||
@@ -332,8 +349,7 @@ func TestResourcePool_Clone(t *testing.T) {
 	brush := NewSolidBrush(render.Red)
 	brushRef := pool.AddBrush(brush)
 
-	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
-	imageRef := pool.AddImage(img)
+	imageRef := pool.AddImageBuf(poolImageBuf(t, 10, 10))
 
 	// Clone the pool
 	cloned := pool.Clone()
@@ -466,7 +482,11 @@ func BenchmarkResourcePool_Clone(b *testing.B) {
 		pool.AddBrush(NewSolidBrush(render.RGBA{R: float64(i) / 50, G: 0, B: 0, A: 1}))
 	}
 	for i := 0; i < 10; i++ {
-		pool.AddImage(image.NewRGBA(image.Rect(0, 0, 100, 100)))
+		buf, err := render.NewImageBuf(100, 100, render.FormatRGBA8)
+		if err != nil {
+			b.Fatalf("render.NewImageBuf: %v", err)
+		}
+		pool.AddImageBuf(buf)
 	}
 
 	b.ResetTimer()

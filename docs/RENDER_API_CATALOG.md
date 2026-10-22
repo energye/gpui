@@ -19,12 +19,12 @@
 
 ## 0. 包总览
 
-| 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
+| 包 | 顶层导出规模（逐包标注实测日期，未标日期的仍为 2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
-| `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 200 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback；2026-10-20 A15：+5 Context 方法 DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph；2026-10-21 C 组：删除旧两参 Context.DrawImageQuad，Context.DrawImageQuadEx 更名为 Context.DrawImageQuad(img,corners,opts)，Context 导出方法按 go doc 实测 201→200；同日删除无消费者的 render/raster init 包，CPU 分块光栅仍由 render/gpu 注册；删除无消费者的 render/surface 整包（53 个公开 API，与主包渲染重复）；同日 render/svg 建直调真窗并修 fill="none" 继承/根百分比解析，公开签名不变） |
+| `render`（主包） | 类型 119 · 顶层函数 148 · Context 导出方法 200 · PresentTarget 导出方法 18 · 常量 137 · 变量 24（2026-10-22 go/ast 逐项重测；旧快照 2026-08-15 为 104/131/200/133/16） | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback；2026-10-20 A15：+5 Context 方法 DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph；2026-10-21 C 组：删除旧两参 Context.DrawImageQuad，Context.DrawImageQuadEx 更名为 Context.DrawImageQuad(img,corners,opts)，Context 导出方法按 go doc 实测 201→200；同日删除无消费者的 render/raster init 包，CPU 分块光栅仍由 render/gpu 注册；删除无消费者的 render/surface 整包（53 个公开 API，与主包渲染重复）；同日 render/svg 建直调真窗并修 fill="none" 继承/根百分比解析，公开签名不变；2026-10-22 S2a：+1 类型 `Canvas`（canvas.go，SkCanvas 同位物、89 方法，主包类型 118→119；`*Context` 侧编译期断言 `var _ Canvas = (*Context)(nil)`，Recorder 侧断言在 render/recording），Context 导出方法按 go doc 仍 200；PresentTarget +1 方法 `LastDamageRectSumPx`（present_frame.go，R4 损伤面积账本，方法 17→18）） |
 | `render/text` | 包级导出 252（2026-10-22 实测 `go doc -all` 顶层口径；248→252 为 14/15px 字重模糊修复：新增 `FontRef/FontFamily/NewFontFamily/LoadFontFamily/EmboldenOutline/WeightClassProvider` 六项，删除 `EmboldenRadius/EmboldenResult` 两项；`RasterizeHintedBold/RasterizeAliasedBold/RasterizeLCDBold/FontSource.WeightClass` 为导出方法，不计顶层。含字体/整形/布局/光栅化；+1 `RuneAdvance`、+1 `SegmentReuse`、+3 字距：`ApplySpacing/ApplySpacingDir/SpacingExtra/WrapTextWithSpacing`（字距数学委托第三方 `shaping.AddSpacing`，`WhitespaceRuns` 已删）；`LayoutOptions` 新增 `LetterSpacing/WordSpacing` 字段；6b：`WithWeight/FaceEmbolden/DeriveFace` + `FontFamily` CSS 权重匹配 + `EmboldenOutline` 兜底；新增 `FontWeight` 类型 + `WeightThin..WeightBlack`/`GlyphMaskFlagBold` 常量；`Face.Embolden` 接口方法 + `MultiFace.WithWeight` 方法） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）+ 🔌 直调真窗 `ui_render_base_scene`（2026-10-21：GPU/CPU 双后端、LayerCache、DamageTracker，原子验证）；ui/组件/2.5D/视频生产调用仍为零 | 保留模式场景图（Scene/Encoding/Renderer） |
-| `render/recording` | 顶层 85 | 🔌 直调真窗 `ui_render_base_recording`（2026-10-21） | SkPicture 式录制回放；`DrawTextCommand`/`StrokeTextCommand` 新增 `Font FontRef` 字段；PDF/SVG 后端为仓外模块未接线；生产消费者仍为零 |
+| `render/recording` | 顶层声明 82（2026-10-22 `go doc ./render/recording` 实测口径：类型 70 · 函数 9 · const 2 · var 1；同一时刻 `go/ast` 按符号名展开为 155 = 类型 70 · 函数 28 · 常量 56 · 变量 1。旧记 85 未写口径，按上面两口径重测） | 🔌 直调真窗 `ui_render_base_recording`（2026-10-21）+ 录制面已达成 `render.Canvas` 89/89（2026-10-22 S2a，原子验证：`TestS3c_M3_ReplayParityOnGPU` 逐位实况一致） | SkPicture 式录制回放；`DrawTextCommand`/`StrokeTextCommand` 带 `Font FontRef` 字段；PDF/SVG 后端为仓外模块未接线；生产消费者仍为零（S2b 接线中）。**S2a 变更（2026-10-22）**：`Recorder` 导出方法 86→111（+27：AppendPath/SetPath/DrawPath/FillPath/StrokePath/ClipRect/Font/SetTextDecoration、PushLayer/PushLayerIsolated/PushBackdropLayer/PopLayer、ApplyBlur/ApplyColorMatrix/ApplyDropShadow/ApplyGrayscale、DrawImageEx/DrawImageNine/DrawImageQuad/DrawImageRounded/DrawImageCircular/DrawAtlas/DrawAtlasEx/DrawDepthSprites/DrawVertices/DrawShapedGlyphs/DrawShapedColorGlyphs；-2：DrawImageAnchored/DrawImageScaled，由 Canvas 的 `DrawImage`/`DrawImageEx` 承担），并加 `var _ render.Canvas = (*Recorder)(nil)` 断言；+19 命令类型（Concat/ClipRect/DrawImageNine/DrawImageQuad/DrawImageRounded/DrawImageCircular/DrawAtlas/DrawDepthSprites/DrawVertices/DrawGlyphs/SetTextDecoration/ApplyBlur/ApplyColorMatrix/ApplyDropShadow/ApplyGrayscale/PushLayer/PushLayerIsolated/PushBackdropLayer/PopLayer）+ 对应 19 个 `Cmd*` 常量；+`ContextBackend`（+`NewContextBackend`，31 方法 = `Backend` 契约的 `render.Context` 回放实现）+ `ErrNoContext` + `ApplyBrush`/`ApplyStroke`/`BrushToGG`/`TransformPoint`；**删** `SetTransformCommand`+`CmdSetTransform`（变换算子改由 `ConcatCommand` 原样携带、回放到 CTM 上）、`ImageOptions`+`DefaultImageOptions`+`InterpolationMode`（统一用 `render.DrawImageOptions`/`render.InterpolationMode`）；`ResourcePool.AddImage(image.Image)` 改 `AddImageBuf(*render.ImageBuf)`（方法数 14 不变）；`Matrix`/`FillRule`/`LineCap`/`LineJoin` 由自有类型改为 `render.X` 别名并再导出其成员常量；`Backend` 契约同步扩到 31 方法 |
 | `render/svg` | 顶层 15 | 🔌 直调真窗 `ui_render_base_svg` | 图标风 SVG 渲染（Render/RenderWithColor/Parse）；生产消费者仍为零 |
 | `render/filters` | 0（仅 init 副作用注册） | 🔗 经 render/gpu 副作用注册 | 让 DC.ApplyBlur 等可用；ui 侧 facade 无生产调用 |
 | `render/gpu` | 顶层 12（8 函数 + 1 类型 + 3 常量，go doc 实数） | 🔗 真窗/门禁全量接线 | GPU 加速注册 + 设备生命周期（2026-09-05 1.2：适配器策略 AdapterPolicy 等 13 符号搬入 render 主包） |
@@ -74,6 +74,8 @@
 ## 3. 主包：绘制上下文 Context（200 导出方法）
 
 > **构造器与选项**：`NewContext(width,height,opts...)` / `NewContextForPixmap(pm)` / `NewContextForImage(img,opts...)` / `NewContextWithScale(w,h,scale)`；`ContextOption` 模式：`WithRenderer/WithPixmap/WithPipelineMode/WithDeviceScale`。状态 ✅（embedder 生产链路）。
+
+> **`Canvas`（canvas.go，2026-10-22 S2a）**：绘制面接口，SkCanvas 同位物，**89 个方法**按 canvas.go 注释分 12 组（表面范围与清除 · 状态 · 变换 · 路径构建 · 绘画状态 · 填与描 · 裁剪 · 形状 · 图像与网格 · 文本 · 合成图层 · 后特效；逐方法清单见 §8 的 `Canvas` 行）。两个实现：`*Context`（即时，调用即光栅）与 `recording.Recorder`（将同一批调用存成显示列表），各带编译期断言（`var _ Canvas = (*Context)(nil)`、`var _ render.Canvas = (*Recorder)(nil)`），因此同一段绘画代码可原样跑在实况与录制两侧。故意**不进** Canvas 的是只有拥有 GPU 的那条线程才存在、或结果是回放期事实的方法：GPU 纹理句柄（`DrawGPUTexture*`）、`FlushGPU`/呈现/离屏通道、掩码、编解码导出、`SetPixel`/`WritePixels`、损伤跟踪。状态 🔌（录制侧仅真窗/单测原子验证，生产消费者仍为零；接口本身由 `*Context` 承担现网全部调用）。
 
 > 按文件分组；⚠️/🔌 标注仅为该行方法，未标注行默认 ✅/🔗。
 
@@ -161,7 +163,7 @@
 | `PresentFrameAuto/PresentFrameFull`（frame.go） | 自动选路径 / 强制全帧呈现 | 自动/全帧呈现 | ✅（PresentFrameAuto 内部用；2026-10-21 GL 后端经 `EndFrameWithDamage` 走 EGL 局部提交——三扩展齐备且 FBO 1:1 时 `SetDamageRegionKHR` + 剪刀 blit + `SwapBuffersWithDamage`，缺一/大损伤/首帧全量兜底；wgpu-native 仍全量。原子验证 `TestPresentDamageX11`） |
 | `PlanFramePresent/PlanPresent/FramePresentPlan/PresentOutcome/PresentMode` | 依据损伤区与 surface 尺寸规划呈现策略 | 呈现策略规划 | ✅（PresentFrameAuto 内部用） |
 | `CoalesceDamageRects` | 把多条损伤矩形合并/裁剪到上限 | 损伤合并 | 🔗 |
-| `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/GPUBackend/Fallbacks/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/WaitIdle/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**；**GPUBackend 🔗 实际显卡类别上报口（discrete/integrated/software），多窗降级链（1.3）复用**；**WaitIdle 🔗 关窗先等 GPU 空闲再清图块缓存（2026-10-04 关窗漏修，ui/embedder PipelineApp.Close 在用）**） |
+| `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/LastDamageRectSumPx/GPUBackend/Fallbacks/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/WaitIdle/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机；`LastDamageAreaPx`=末帧损伤**并集框**面积，`LastDamageRectSumPx`=末帧合并后**各损伤矩形面积之和**——散点脏层时并集框会把中间没动的缝隙也算进去，rect-sum 才是真实提交代价，2026-10-22 R4 指标新增，`render/present_frame.go:144`） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**；**GPUBackend 🔗 实际显卡类别上报口（discrete/integrated/software），多窗降级链（1.3）复用**；**WaitIdle 🔗 关窗先等 GPU 空闲再清图块缓存（2026-10-04 关窗漏修，ui/embedder PipelineApp.Close 在用）**） |
 | `AdapterPolicy`（PolicyDefault/PolicyHigh/PolicyLow + 别名 PolicyNone/PolicyAuto/PolicyHighPerformance/PolicyLowPower）+ `ResolveAdapterPolicy` + `RequestAdapterWithPolicy` + `DeviceDescriptor/DeviceDescriptorLowVRAM/DeviceDescriptorForAdapter`（adapter_policy.go，2026-09-05 自 render/gpu 搬入，函数名与行为一字不动；2026-09-18 B4：`DeviceDescriptorForAdapter` 加台账水位自动 LowVRAM（≥80% 预算，`GPUI_LOW_VRAM_WATERLINE_PCT` 可调）+ `AcquireSharedPresentDevice`（present_target.go，探针/离屏借共享设备，单设备多表面）） | 选卡策略（GPUI_POWER=high/low，默认混搭优先核显）与设备描述符（核显/CPU/水位超限走 LowVRAM 紧限） | 适配器策略 | 🔗 NewPresentTarget 建窗调用（render/present_target.go）；forceFallback 时 stderr 如实记日志 |
 | `IsGPUOutOfMemory(err)` + `PurgeEvictable` 接口 + `RegisterPurgeEvictable/UnregisterPurgeEvictable/PurgeEvictables`（oom_purge.go，多窗 1.3）+ `PresentTarget.Fallbacks()` + `OOMExitThreshold/OOMExit`（oom_exit.go，2026-09-18 B3：三帧判死与就绪门同一阈值同一文案，ui/embedder 只做委托） | OOM 统一判定（大小写全匹配三短语）与可重建缓存 purge 链（字形/图片/层池注册、teardown 注销）+ 建窗降级次数上报 + 判死阈值 | OOM 判定与 purge | 🔗 建窗降级循环 + 建纹理 OOM 恢复轮 + embedder 退出判定在用 |
 | `Backend`（BackendNative/BackendGo）+ `ResolveBackend`/`ResolveBackendFor` + `SelectBackend` + `NewPresentTargetWithBackend`（backend.go/present_target.go，2026-09-30 P4：后端二选一，`GPUI_BACKEND`环境变量优先，只认native/go，写错报错不瞎猜；带参建窗零值默认，老不带参函数保留转调） | 后端选择（默认WebGPU，加`go`切纯Go GL；创建分支只留建实例和建交换链两句，之后全走hal接口） | 后端二选一 | 🔗 NewPresentTarget 建窗调用（render/present_target.go:ResolveBackend+SelectBackend；render/present_swapchain.go:ResolveBackend建交换链）；真窗双验2026-09-30（go路鹈鹕12秒720帧58fps零回退discrete／默认路723帧58.3fps零回退integrated／写错值直接报错退出） |
@@ -304,13 +306,22 @@
 | 层/裁剪 | `LayerKind/LayerState/LayerStack/ClipState/ClipStack` | 图层栈与裁剪栈（retained 层绘） | 层/裁剪栈 | 🔗 |
 | 编码类型 | `Brush/SolidBrush/StrokeStyle/BlendMode/Affine/Rect/TextFlags/GlyphRunData/…` | 编码所需画刷/描边/混合/仿射/文本数据类型 | 编码数据类型 | 🔗 |
 
-### 6.3 render/recording（顶层 85）
+### 6.3 render/recording（顶层声明 82 / 符号名 155，2026-10-22 实测，口径见 §0）
+
+> **S2a 定位（2026-10-22）**：`Recorder` 是框架唯一的录制面——它完整实现 `render.Canvas` 的 89 个方法（`var _ render.Canvas = (*Recorder)(nil)`），所以同一段绘制代码既能贴到即时的 `*render.Context` 上，也能录成显示列表。变换算子**原样入列**（`ConcatCommand` 存下调用时的相对矩阵，回放时乘到播放 CTM 上），不再像旧版那样每帧把相对变换折算成绝对 `prev⁻¹·(prev·op)`——折算每帧一次求逆，且末位舍入会让回放和实况差 1/255（GPU 光栅才暴露得出来，CPU 光栅把它掩盖了）。几何一律留在用户空间，设备缩放只在光栅边界折入。
+
 | 族 | 代表 API | 功能 | 精简 | 状态 |
 |----|---------|------|------|------|
-| 录制 | `Recorder/NewRecorder/Recording` | 录制绘制命令 → 不可变 Recording | 命令录制 | 🔌 直调真窗 `ui_render_base_recording`（原子验证）；生产消费者仍为零 |
-| 命令 | `Command 族（Save/Restore/SetTransform/SetClip/ClearClip/ClipRoundRect/FillPath/StrokePath/FillRect/StrokeRect/DrawImage/DrawText/StrokeText/样式命令…）+ FillRule/LineCap/LineJoin/Stroke/ImageOptions` | 可回放的绘制/状态命令行（SkPicture 风格）；`DrawTextCommand`/`StrokeTextCommand` 带 `Font FontRef` | 录制命令 | 🔌（真窗原子验证；生产消费者仍为零） |
-| 回放 | `Backend/BackendFactory/NewBackend/MustBackend/Register/Unregister/Backends/IsRegistered/Count`；`WriterBackend/FileBackend/PixmapBackend`；`CommandType/Command/InvalidRef`；`backends/raster` 内置 | 后端注册表与按名回放（内置 raster） | 后端回放 | 🔌 直调真窗 `ui_render_base_recording`；无生产消费者；PDF/SVG 后端仓外未接 |
-| 资源 | `ResourcePool/FontRef/PathRef/BrushRef/ImageRef` + 画刷（Solid/Linear/Radial/Sweep/Pattern/gradient stop/RepeatMode/ExtendMode） | 命令引用池与画刷类型；`FontRef` 在回放时解析成 `text.Face` | 资源池/画刷 | 🔌（真窗原子验证；生产消费者仍为零） |
+| 录制 | `Recorder/NewRecorder/Recording`；`Recorder` 导出方法 111 = `render.Canvas` 89 + 22 个录制面专有别名与出口（`Save`/`Restore`（= Push/Pop）、`SetColor`/`SetHexColor`/`SetFillRGB`/`SetFillRGBA`/`SetStrokeRGB`/`SetStrokeRGBA`/`SetFillStyle`/`SetStrokeStyle`/`StrokeRectangle`/`FillRectangle`/`FillStroke`/`InvertY`、`SetTransform`（**绝对**替换，仍记相对 delta）/`TransformPoint`、`SetFontSize`/`SetFontFamily`、`FinishRecording`、`*GG` 对接 `SetFillRuleGG`/`SetLineCapGG`/`SetLineJoinGG`） | 录制绘制命令 → 不可变 Recording | 命令录制 | 🔌 直调真窗 `ui_render_base_recording`（原子验证：逻辑 19/19 + 像素 17/17 + ink 1/1 + golden 627200px 零差）；生产消费者待 S2b 接线 |
+| 命令 | 状态：`Save/Restore/Concat/SetClip/ClearClip/ClipRoundRect/ClipRect`；绘制：`FillPath/StrokePath/FillRect/StrokeRect/DrawImage/DrawImageNine/DrawImageQuad/DrawImageRounded/DrawImageCircular/DrawAtlas/DrawDepthSprites/DrawVertices/DrawGlyphs/DrawText/StrokeText/SetTextDecoration`；样式：`SetFillStyle/SetStrokeStyle/SetLineWidth/SetLineCap/SetLineJoin/SetMiterLimit/SetDash/SetFillRule/SetAntiAlias`；图层与特效：`PushLayer/PushLayerIsolated/PushBackdropLayer/PopLayer/ApplyBlur/ApplyColorMatrix/ApplyDropShadow/ApplyGrayscale`（共 40 类，`Cmd*` 常量同名）+ `FillRule/LineCap/LineJoin/Matrix`（= `render.X` 别名）`/Stroke` | 可回放的绘制/状态命令行（SkPicture 风格）；`DrawTextCommand`/`StrokeTextCommand` 带 `Font FontRef`；图像选项直接用 `render.DrawImageOptions` | 录制命令 | 🔌（真窗原子验证；生产消费者待 S2b） |
+| 回放 | `Backend`（31 方法契约）/`BackendFactory/NewBackend/MustBackend/Register/Unregister/Backends/IsRegistered/Count`；`WriterBackend/FileBackend/PixmapBackend`；`ContextBackend/NewContextBackend/ErrNoContext`（`ApplyBrush/ApplyStroke/BrushToGG/TransformPoint` 为其实参助手）；`CommandType/Command/InvalidRef`；`backends/raster` 内置 | 后端注册表与按名回放；`ContextBackend` 把命令流直接打到一个活的 `render.Context` 上（生产回放主路），`backends/raster` 出 `image.RGBA` | 后端回放 | 🔌 直调真窗 `ui_render_base_recording`；无生产消费者（S2b 起 `ui/rendering` 走 `NewContextBackend`）；PDF/SVG 后端仓外未接 |
+| 资源 | `ResourcePool/FontRef/PathRef/BrushRef/ImageRef`（`AddImageBuf`/`GetImage`）+ 画刷（Solid/Linear/Radial/Sweep/Pattern/gradient stop/RepeatMode/ExtendMode） | 命令引用池与画刷类型；`FontRef` 在回放时解析成 `text.Face` | 资源池/画刷 | 🔌（真窗原子验证；生产消费者仍为零） |
+
+> **golden 重出记录（2026-10-22，用户批准「重出 golden，并在总账记明原因」）**：`examples/ui_render_base_recording/testdata/showcase_recording_base.png` 已用与实况逐位一致的新快照替换。旧基线把 **HEAD 回放路径的末位误差录进了基线**——GPU 光栅下卡片 D 旋转圆内一点（窗口坐标 1036,494）实况 19、旧基线 18，即 replay≠live 差 1/255；`ConcatCommand` 原样携带变换算子后该点与实况一致，比对从 1 个像素之差（627200px 里 1px，gate 按 `%.4f%%` 打印为 0.0002%）降到 `0.0000%` 两连。基线本身不再有鉴别力，鉴别力改由 `render/s3c_m3_gpu_gate_test.go` 的 `TestS3c_M3_ReplayParityOnGPU` 守住：CPU 光栅会掩盖这类末位差，该测在 GPU 后端上逐像素比实况 vs 回放，且 GPU 掉回 CPU 时 SKIP 并报原因，不算假绿。
+>
+> **重出前后的逐像素账（2026-10-22 对 HEAD 基线全窗口比对，1200×800）**：共 60 px 不同——**1 px 在 (1036,494)**，落在卡片 D 内，也就是上面那个回放末位差点（18→19），在 golden 比对矩形之内；**其余 59 px 全在 y 741–749 的 LiveHUD 数字带**（header 1200×48 + legend 260×656 + 4 张 430×232 卡片之外的逐帧指标行，本就不进比对）。同批 `showcase_recording.png` 输出件从 HEAD 提交的 1868×1016（别台 HiDPI 机跑出来的产物，与 1× 基线尺寸不符，换机跑会直接 `size mismatch`）归一回 1200×800，与基线同尺寸。
+>
+> **后端口径（2026-10-22 实测）**：native（wgpu-native）臂 `gpu_ops=5 cpu_fallback_ops=0` PASS；同测在 `GPUI_BACKEND=go` 下也 PASS（0.26s）。**限界如实**：离屏 `render.NewContext` 的光栅器由 `render/gpu` 注册的加速器决定，`GPUI_BACKEND` 真正生效处是建窗/建链（`render/backend.go:ResolveBackend` + `present_construct.go`），本刀未单独证明 GL 臂在离屏上下文里确实接管了光栅——要证这一格需给纯 GL 离屏路补一条身份断言，属后续项，不拿「设了环境变量还绿」冒充双后端已验。
 
 ### 6.4 render/svg（顶层 15）
 | API | 功能 | 精简 | 状态 |
@@ -340,7 +351,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 功能 | 证据 |
 |------|------|
 | `render/svg` 整包（SVG 图标渲染） | 已建直调真窗 `ui_render_base_svg`；生产仍无 import |
-| `render/recording` 整包（录制回放） | 仅测试/示例 + 直调真窗 `ui_render_base_recording`（2026-10-21，原子验证：逻辑 19 + 像素 17 + 墨量 1 + Golden 627200px 零差）；PDF/SVG 后端仓外；生产消费者仍为零 |
+| `render/recording` 整包（录制回放） | 仅测试/示例 + 直调真窗 `ui_render_base_recording`（2026-10-21，原子验证：逻辑 19 + 像素 17 + 墨量 1 + Golden 627200px 零差）；PDF/SVG 后端仓外；生产消费者仍为零——**S2b 正在将 `ui/rendering` 的光栅回放接到 `NewContextBackend`，接线前此行不得升 🔗**。2026-10-22 S2a 达成 `render.Canvas` 89/89 录制面（详见 §0/§6.3）；同批按测量结论重出该窗 golden 基线（旧基线录进了 HEAD 回放的 GPU 末位误差） |
 | 路径布尔 `BooleanPath/PathOp*` | 仅测试（s3c_m3_residual_gate_test 门禁 + path_boolean_test 值级；2026-10-19 重写为 Clipper 扫描线）+ 直调真窗 `ui_render_base_pathbool`（2026-10-20，**原子验证**：逻辑 10 + 像素 18 + golden 627200px 逐位零差 + 抓屏同区 `0.0000%`；同批修半透明 stencil path 重复预乘，pin `TestMakeCoverUniformDoesNotPremultiplyTwice` + GPU `TestRenderSessionStencilPremultipliedColor`；输出为折线，曲线按 0.1px 展平） |
 | 裁剪运算 `ClipOpDifference/Replace`（ClipRectOp/ClipPathOp） | 仅测试（p12_clip_mask_gpu_test）+ 直调真窗 `ui_render_base_clipop`（2026-10-19，**原子验证**；同批修 4 缺陷，见 §3.2 行与 `RENDER_FEATURE_COVERAGE.md` §11） |
 | 掩码写路径 `SetMask/ClearMask/GetMask/InvertMask/ApplyMask` + `PushMaskLayer`（+`Mask` 构造类型） | 仅测试（mask_test / context_layer_test / layer_rt_clear_test）+ 直调真窗 `ui_render_base_maskops`（2026-10-19，**原子验证**：逻辑 14 + 像素 18 + golden 627200px 逐位零差 + 抓屏 vs 快照同区对照；同批修掩码 pop 帧中 CPU 材料化导致的呈现断裂 + 嵌套隔离层 blit-only 离屏清屏不透明黑，见本行 §3.3、`RENDER_FEATURE_COVERAGE.md` §11 与本窗 README） |
@@ -378,14 +389,14 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 1 | 纯色上色 | `Context.SetRGB/SetRGBA/SetHexColor/SetColor` ↔ `Solid/SolidRGB/SolidRGBA/SolidHex` + `SetFillBrush/SetStrokeBrush` | D | 旧 fogleman/gg 风格（Set* 内部生成实色 Solid）与画刷体系并存。新代码走 Solid+Set*Brush；Set* 保留兼容。 |
 | 2 | 渐变 | `CustomBrush.LinearGradient/RadialGradient`（函数式）↔ `LinearGradientBrush/RadialGradientBrush`（色标式） | D | 两种实现机制交付同一视觉（两端线性 / 单位圆径向）。径向还多 `SetFocus`、色标 ∞；CustomBrush 仅两 stop。生产已验证走 Brush 数据式。 |
 | 3 | 裁剪 | `Context.ClipRect` ↔ `ClipRectOp(o=ClipOpIntersect)`；`Context.Clip` ↔ ui `PaintContext.PushClipPath`；`scene.ClipState/ClipStack` | D+W | ClipRectOp(Intersect) 是 ClipRect 的带运算泛化（默认相交=同义）；ui PushClipPath 是 Context.Clip 的封装（历史 GPU 画穿已修复，见 §7.3 2026-08-16 条目）；scene 为保留模式第三套。 |
-| 4 | 画图体系 | `Context`（即时）↔ `scene.Scene`（保留）↔ `recording.Recorder`（录制） | C | 三套都含 Fill/Stroke/Clip/Image 语义。**仅 Context 接入 ui 产线**；scene 只被 render 内部 GPU 后端消费（2026-10-21 另有直调真窗 `ui_render_base_scene`，原子验证）；recording 生产无消费者（2026-10-21 另有直调真窗 `ui_render_base_recording`，原子验证；§7.2）。体系级重复见 §3/§6。 |
+| 4 | 画图体系 | `Context`（即时）↔ `scene.Scene`（保留）↔ `recording.Recorder`（录制） | C→**W（2026-10-22 S2a）** | 三套都含 Fill/Stroke/Clip/Image 语义。**仅 Context 接入 ui 产线**；scene 只被 render 内部 GPU 后端消费（2026-10-21 另有直调真窗 `ui_render_base_scene`，原子验证）；recording 生产无消费者（2026-10-21 另有直调真窗 `ui_render_base_recording`，原子验证；§7.2）。**S2a 后 Context 与 Recorder 不再是平行体系：两者同实现 `render.Canvas` 89 方法，绘制代码一份通吃，剩下的只是「即时光栅」与「命令流」两种落点（W 类分层包装）**；scene 仍是独立保留模式副本。体系级细节见 §3/§6。 |
 | 5 | 形状轮廓 | `Path.Rectangle/Circle/Ellipse/Arc/RoundedRectangle` ↔ `PathBuilder.Rect/RoundRect/Circle/Ellipse/Polygon/Star` ↔ `Context.Draw*`（DrawRectangle/DrawCircle/…） | D | 前三者都能往一条路径上追加矩形/圆/椭圆，**Path 与 PathBuilder 是两套独立实现、无桥接**（如 PathBuilder.Rect 自己 MoveTo/LineTo/Close，不调 Path.Rectangle）；Context.Draw* 是追加到当前路径的第三处。 |
 | 6 | 文本 | `Context.DrawString/MeasureString/DrawStringWrapped` ↔ `text.Draw/Measure/MeasureText` | W | Context 方法是 text 包的封装（ui 链路走 Context 层）；text 包直连 draw.Image 供底层/工具用。 |
 | 7 | 呈现 | `PresentTarget.PresentWith/PresentWithAuto` ↔ `Context.PresentFrame(+/Damage/DamageRects)` ↔ `frame.PresentFrameAuto/PresentFrameFull/PlanFramePresent` | W | 三层入口：PresentTarget 高层（draw 闭包）→ Context 低层（view+present 回调）→ frame 策略（选路径）。PresentWithAuto 与 PresentFrameAuto 决策语义重叠。**2026-10-21：GL 后端已把 `FrameDamage` 接到 EGL `SetDamageRegionKHR` + `SwapBuffersWithDamage`（局部提交，原子验证 `TestPresentDamageX11`）；wgpu-native 仍全量。** |
 | 8 | 滤镜 | `Context.ApplyBlur/ApplyColorMatrix/…/ApplyImageFilterGraph` ↔ `scene.FilterChain/FilterType` | W | 入口不同，底层共用 internal/filter 实现；scene 侧仅保留模式用。 |
 | 9 | 像素缓冲 | `Pixmap` ↔ `ImageBuf` | W | 两种像素缓冲可互转（Pixmap.ToImage/Image()、ImageBufFromImage）；Context 内部持 Pixmap，ImageBuf 用于 GPU/图像绘制。 |
 | 10 | 编解码导出 | `Context.Image()/SavePNG()/EncodePNG()/EncodeJPEG()` ↔ `Pixmap.ToImage()/SavePNG()/EncodePNG()/EncodeJPEG()` | W | Context 方法即包装底层 pixmap 同名方法（Context 内部持 Pixmap）。 |
-| 11 | 画笔/几何副本 | `recording.SolidBrush/Linear/Radial/Sweep/Pattern + Matrix/Rect` ↔ 主包 `Brush` 族/`Matrix`/`Rect` | C | recording 为 SkPicture 移植携带独立副本，无消费者（§7.2）；改动主包 Brush 不影响 recording。 |
+| 11 | 画笔/几何副本 | `recording.SolidBrush/Linear/Radial/Sweep/Pattern + Rect` ↔ 主包 `Brush` 族/`Rect`（`Matrix/FillRule/LineCap/LineJoin` 已于 S2a 收敛） | C | **2026-10-22 S2a 半收敛**：`Matrix`/`FillRule`/`LineCap`/`LineJoin` 改为 `= render.X` 别名并再导出成员常量，图像选项直接用 `render.DrawImageOptions`（原 `ImageOptions`/`InterpolationMode` 删除），几何与状态枚举不再有两份真值；仍存副本 = 画刷五型 + `recording.Rect`（命令按值存、与主包解耦，PDF/SVG 后端扩展目标明确）。遗留命名债：包内仍指 fogleman/gg 的命名共 8 处——顶层 `BrushFromGG`/`BrushToGG` 两函数、内部 `linearGradientFromGG`/`radialGradientFromGG`/`sweepGradientFromGG` 三构造、`Recorder.SetFillRuleGG`/`SetLineCapGG`/`SetLineJoinGG` 三方法，待与 S2b 一并改名。改动主包 Brush 不影响 recording 副本。 |
 | 12 | SDF 覆盖 | `sdf.SDFFilledCircleCoverage/…`（4 函数）↔ `SDFAccelerator.FillShape/StrokeShape` | W | 独立函数供像素级/测试；加速器实现包装同语义。 |
 
 ### 7.5.1 收敛执行记录（2026-08-15）
@@ -409,6 +420,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 | 类型 | 导出方法 | 功能（做什么） | 精简 | 状态 |
 |------|---------|--------------|------|------|
+| `Canvas`（**接口**，canvas.go，2026-10-22 S2a） | 89 方法分七族——范围/清除：Width·Height·Clear·ClearWithColor；状态：Push·Pop；变换：Identity·Translate·Scale·Rotate·RotateAbout·Shear·Transform·GetTransform；路径：MoveTo·LineTo·QuadraticTo·CubicTo·ClosePath·ClearPath·NewSubPath·SetPath·AppendPath·DrawPath·GetCurrentPoint；画笔状态：SetRGB·SetRGBA·SetFillBrush·SetStrokeBrush·SetFillRule·SetLineWidth·SetLineCap·SetLineJoin·SetMiterLimit·SetDash·SetDashOffset·ClearDash·SetAntiAlias·AntiAlias；绘制：Fill·Stroke·FillPreserve·StrokePreserve·FillPath·StrokePath；裁剪：Clip·ClipPreserve·ClipRect·ClipRoundRect·ResetClip；形状：DrawPoint·DrawLine·DrawRectangle·DrawRoundedRectangle·DrawCircle·DrawEllipse·DrawArc·DrawEllipticalArc；图像/网格：DrawImage·DrawImageEx·DrawImageNine·DrawImageQuad·DrawImageRounded·DrawImageCircular·DrawAtlas·DrawAtlasEx·DrawDepthSprites·DrawVertices；文本：SetFont·Font·SetTextDecoration·DrawString·DrawStringAnchored·DrawStringWrapped·StrokeString·StrokeStringAnchored·DrawShapedGlyphs·DrawShapedColorGlyphs·MeasureString·MeasureMultilineString·WordWrap；图层：PushLayer·PushLayerIsolated·PushBackdropLayer·PopLayer；特效：ApplyBlur·ApplyColorMatrix·ApplyDropShadow·ApplyGrayscale（逐方法语义同 §3 各族表） | 可录制绘制面（SkCanvas 同位物） | 🔗 两实现：`*Context`（即时光栅，生产主链路）+ `recording.Recorder`（命令流）；两侧各有编译期断言，接口本身无独立消费者 |
 | `Path` | MoveTo/LineTo/QuadraticTo/CubicTo · Arc·Circle·Ellipse·Rectangle·RoundedRectangle · Append · Clone · Transform · Clear/Reset · Close · ComputeMetrics · TotalLength · PositionAt/TangentAt · Length · Area · BoundingBox/Bounds · Contains · Winding · Flatten/FlattenCallback · Reversed · Trim · WithCorners · Discrete · Iterate · Verbs/Coords · NumVerbs · HasCurves/HasCurrentPoint · CurrentPoint · Op | 路径构建、附加形状、克隆/变换、度量、查询与高级造型 | 即时路径全部操作 | ✅（Trim/WithCorners/Discrete/Op 🔌） |
 | `PathBuilder` | MoveTo/LineTo/QuadTo/CubicTo · Rect/RoundRect/Circle/Ellipse/Polygon/Star · Close · Build · Path | 链式声明形状后生成 Path（Rect/Circle/Ellipse 已委托 Path 实现，§7.5.1） | 链式构建器 | ✅ |
 | `Paint` | SolidColor · SetBrush/GetBrush · ColorAt · SetStroke/GetStroke · EffectiveLineWidth · IsSolid/IsDashed · EffectiveDash · EffectiveLineCap/EffectiveLineJoin/EffectiveMiterLimit · Clone | 聚合画刷+描边状态并求生效值 | 绘制状态 | 🔗 |
@@ -493,7 +505,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 5. 改动完成后跑 §0 核对命令（及 `go run ./scripts/apidoc`），确认清单与 `go doc` 一致后再合入。
 6. 状态标注必须可追溯到证据：生产消费者 → 文件:行号；GPU 实测 → 真窗名/日期/现象；禁止凭印象标注。---
 
-## 11. 附录：子包顶层符号完整清单（机器生成，go doc 2026-08-15）
+## 11. 附录：子包顶层符号完整清单（机器生成，go doc；scene/svg 2026-08-15，recording 2026-10-22 S2a 后重出）
 
 > 本附录由 `go doc ./render/{scene,recording,svg}` 顶层声明提取（含 const 块首行与缩进构造器），与正文 §6 族级归纳互补；**改动子包公开 API 时同步本附录（跑 §0 核对命令后替换对应行）**。`render/text` 包级导出 252 项改以 `go doc -all ./render/text` 为准（正文 §6.1 族级归纳）。
 
@@ -641,12 +653,22 @@ scene      type TextShape struct{ ... }
 scene          func NewTextShape(str string, face text.Face, x, y float32) (*TextShape, error)
 scene      type TransformShape struct{ ... }
 scene          func NewTransformShape(shape Shape, transform Affine) *TransformShape
+recording  const FillRuleNonZero = render.FillRuleNonZero ...
 recording  const InvalidRef = ^uint32(0)
+recording  var ErrNoContext = errors.New("recording: ContextBackend has no render.Context")
+recording  func ApplyBrush(dc *render.Context, brush Brush, fill bool)
+recording  func ApplyStroke(dc *render.Context, stroke Stroke)
 recording  func Backends() []string
+recording  func BrushToGG(b Brush) render.Brush
 recording  func Count() int
 recording  func IsRegistered(name string) bool
 recording  func Register(name string, factory BackendFactory)
+recording  func TransformPoint(m Matrix, x, y float64) (float64, float64)
 recording  func Unregister(name string)
+recording  type ApplyBlurCommand struct{ ... }
+recording  type ApplyColorMatrixCommand struct{ ... }
+recording  type ApplyDropShadowCommand struct{ ... }
+recording  type ApplyGrayscaleCommand struct{}
 recording  type Backend interface{ ... }
 recording      func MustBackend(name string) Backend
 recording      func NewBackend(name string) (Backend, error)
@@ -655,33 +677,38 @@ recording  type Brush interface{ ... }
 recording      func BrushFromGG(b render.Brush) Brush
 recording  type BrushRef uint32
 recording  type ClearClipCommand struct{}
+recording  type ClipRectCommand struct{ ... }
 recording  type ClipRoundRectCommand struct{ ... }
 recording  type Command interface{ ... }
 recording  type CommandType uint8
 recording      const CmdSave CommandType = iota ...
+recording  type ConcatCommand struct{ ... }
+recording  type ContextBackend struct{ ... }
+recording      func NewContextBackend(dc *render.Context) *ContextBackend
+recording  type DrawAtlasCommand struct{ ... }
+recording  type DrawDepthSpritesCommand struct{ ... }
+recording  type DrawGlyphsCommand struct{ ... }
+recording  type DrawImageCircularCommand struct{ ... }
 recording  type DrawImageCommand struct{ ... }
+recording  type DrawImageNineCommand struct{ ... }
+recording  type DrawImageQuadCommand struct{ ... }
+recording  type DrawImageRoundedCommand struct{ ... }
 recording  type DrawTextCommand struct{ ... }
+recording  type DrawVerticesCommand struct{ ... }
 recording  type ExtendMode int
 recording      const ExtendPad ExtendMode = iota ...
 recording  type FileBackend interface{ ... }
 recording  type FillPathCommand struct{ ... }
 recording  type FillRectCommand struct{ ... }
-recording  type FillRule uint8
-recording      const FillRuleNonZero FillRule = iota ...
+recording  type FillRule = render.FillRule
 recording  type FontRef uint32
 recording  type GradientStop struct{ ... }
-recording  type ImageOptions struct{ ... }
-recording      func DefaultImageOptions() ImageOptions
 recording  type ImageRef uint32
-recording  type InterpolationMode uint8
-recording      const InterpolationNearest InterpolationMode = iota ...
-recording  type LineCap uint8
-recording      const LineCapButt LineCap = iota ...
-recording  type LineJoin uint8
-recording      const LineJoinMiter LineJoin = iota ...
+recording  type LineCap = render.LineCap
+recording  type LineJoin = render.LineJoin
 recording  type LinearGradientBrush struct{ ... }
 recording      func NewLinearGradientBrush(x0, y0, x1, y1 float64) *LinearGradientBrush
-recording  type Matrix struct{ ... }
+recording  type Matrix = render.Matrix
 recording      func Identity() Matrix
 recording      func Rotate(angle float64) Matrix
 recording      func Scale(sx, sy float64) Matrix
@@ -691,6 +718,10 @@ recording  type PathRef uint32
 recording  type PatternBrush struct{ ... }
 recording      func NewPatternBrush(imageRef ImageRef) *PatternBrush
 recording  type PixmapBackend interface{ ... }
+recording  type PopLayerCommand struct{}
+recording  type PushBackdropLayerCommand struct{ ... }
+recording  type PushLayerCommand struct{ ... }
+recording  type PushLayerIsolatedCommand struct{ ... }
 recording  type RadialGradientBrush struct{ ... }
 recording      func NewRadialGradientBrush(cx, cy, startRadius, endRadius float64) *RadialGradientBrush
 recording  type Recorder struct{ ... }
@@ -715,7 +746,7 @@ recording  type SetLineJoinCommand struct{ ... }
 recording  type SetLineWidthCommand struct{ ... }
 recording  type SetMiterLimitCommand struct{ ... }
 recording  type SetStrokeStyleCommand struct{ ... }
-recording  type SetTransformCommand struct{ ... }
+recording  type SetTextDecorationCommand struct{ ... }
 recording  type SolidBrush struct{ ... }
 recording      func NewSolidBrush(color render.RGBA) SolidBrush
 recording  type Stroke struct{ ... }
@@ -743,7 +774,7 @@ svg        type RectElement struct{ ... }
 svg        type ViewBox struct{ ... }
 ```
 
-### 附录 B：子包枚举/常量成员补充清单（go/ast 2026-08-15）
+### 附录 B：子包枚举/常量成员补充清单（go/ast 2026-08-15；[recording] 各行 2026-10-22 S2a 后重测）
 
 > 附录 A 只含顶层声明；此清单补枚举成员（各类型常量）。正文 §6 族表未逐个列出时以本清单为准；改动子包常量时同步本清单。
 
@@ -758,11 +789,10 @@ svg        type ViewBox struct{ ... }
 [scene] PathVerb: Close CubicTo LineTo MoveTo QuadTo
 [scene] Tag: TagBeginClip TagBeginPath TagBrush TagClosePath TagCubicTo TagEndClip TagEndPath TagFill TagFillRoundRect TagImage TagLineTo TagMoveTo TagPopLayer TagPushLayer TagQuadTo TagSetAntiAlias TagStroke TagText TagTransform
 [scene] TextFlags: TextFlagCJK TextFlagHinting
-[recording] CommandType: CmdClearClip CmdClipRoundRect CmdDrawImage CmdDrawText CmdFillPath CmdFillRect CmdRestore CmdSave CmdSetAntiAlias CmdSetClip CmdSetDash CmdSetFillRule CmdSetFillStyle CmdSetLineCap CmdSetLineJoin CmdSetLineWidth CmdSetMiterLimit CmdSetStrokeStyle CmdSetTransform CmdStrokePath CmdStrokeRect CmdStrokeText
+[recording] CommandType: CmdSave CmdRestore CmdConcat CmdSetClip CmdClearClip CmdClipRoundRect CmdFillPath CmdStrokePath CmdFillRect CmdStrokeRect CmdDrawImage CmdDrawText CmdStrokeText CmdSetFillStyle CmdSetStrokeStyle CmdSetLineWidth CmdSetLineCap CmdSetLineJoin CmdSetMiterLimit CmdSetDash CmdSetFillRule CmdSetAntiAlias CmdClipRect CmdSetTextDecoration CmdDrawImageNine CmdDrawImageQuad CmdDrawImageRounded CmdDrawImageCircular CmdDrawAtlas CmdDrawDepthSprites CmdDrawVertices CmdDrawGlyphs CmdPushLayer CmdPushLayerIsolated CmdPushBackdropLayer CmdPopLayer CmdApplyBlur CmdApplyColorMatrix CmdApplyDropShadow CmdApplyGrayscale
 [recording] ExtendMode: ExtendPad ExtendReflect ExtendRepeat
-[recording] FillRule: FillRuleEvenOdd FillRuleNonZero
-[recording] InterpolationMode: InterpolationBilinear InterpolationNearest
-[recording] LineCap: LineCapButt LineCapRound LineCapSquare
-[recording] LineJoin: LineJoinBevel LineJoinMiter LineJoinRound
+[recording] FillRule: FillRuleEvenOdd FillRuleNonZero（2026-10-22 S2a 起为 `= render.FillRule` 别名，成员从 render 再导出，值同源）
+[recording] LineCap: LineCapButt LineCapRound LineCapSquare（同上，`= render.LineCap` 别名再导出）
+[recording] LineJoin: LineJoinBevel LineJoinMiter LineJoinRound（同上，`= render.LineJoin` 别名再导出）
 [recording] RepeatMode: RepeatBoth RepeatNone RepeatX RepeatY
 ```

@@ -1,6 +1,7 @@
 package raster
 
 import (
+	"image"
 	"testing"
 
 	"github.com/energye/gpui/render"
@@ -134,10 +135,45 @@ func TestBackendDrawImageNil(t *testing.T) {
 	backend := NewBackend()
 	_ = backend.Begin(100, 100)
 
-	// Nil image should not panic
-	backend.DrawImage(nil, recording.NewRect(0, 0, 50, 50), recording.NewRect(0, 0, 50, 50), recording.ImageOptions{})
+	// Nil and disposed images should not panic on any image entry point.
+	backend.DrawImage(nil, render.DrawImageOptions{X: 0, Y: 0, Opacity: 1})
+	backend.DrawImageNine(nil, image.Rect(1, 1, 2, 2), recording.NewRect(0, 0, 50, 50))
+	backend.DrawImageQuad(nil, [4]render.Point{}, render.QuadDrawOptions{})
+	backend.DrawImageRounded(nil, 0, 0, 4)
+	backend.DrawImageCircular(nil, 10, 10, 8)
+	backend.DrawAtlas(nil, []render.AtlasSprite{{DstX: 0, DstY: 0, DstW: 4, DstH: 4}}, render.AtlasDrawOptions{})
+	backend.DrawDepthSprites(nil, []render.DepthSprite{}, render.DepthDrawOptions{})
 
 	_ = backend.End()
+}
+
+func TestBackendCanvasOpsNoPanic(t *testing.T) {
+	backend := NewBackend()
+	if err := backend.Begin(60, 60); err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+
+	backend.ClipRect(recording.NewRect(4, 4, 20, 20))
+	backend.SetTextDecoration(render.TextDecorationUnderline)
+	backend.DrawVertices([]render.Point{{X: 5, Y: 5}, {X: 25, Y: 5}, {X: 5, Y: 25}},
+		[]render.RGBA{{R: 1, A: 1}}, render.VertexModeTriangles, recording.NewSolidBrush(render.Red))
+	backend.DrawVertices([]render.Point{{X: 5, Y: 5}, {X: 25, Y: 5}, {X: 5, Y: 25}},
+		nil, render.VertexModeTriangles, nil)
+	backend.DrawGlyphs(nil, nil, 10, 10, false, nil)
+	backend.ApplyBlur(2)
+	backend.ApplyColorMatrix([20]float32{1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0})
+	backend.ApplyDropShadow(1, 1, 2, render.Black)
+	backend.ApplyGrayscale()
+	backend.PushLayer(render.BlendNormal, 0.5)
+	backend.PushLayerIsolated(0.5)
+	backend.PushBackdropLayer(render.BlendNormal, 1)
+	backend.PopLayer()
+	backend.PopLayer()
+	backend.PopLayer()
+
+	if err := backend.End(); err != nil {
+		t.Fatalf("End: %v", err)
+	}
 }
 
 func TestBackendDrawText(t *testing.T) {
@@ -177,35 +213,16 @@ func TestBackendSavePNG(t *testing.T) {
 	}
 }
 
-func TestBackendConvertFillRule(t *testing.T) {
-	if convertFillRule(recording.FillRuleNonZero) != render.FillRuleNonZero {
-		t.Error("FillRuleNonZero conversion failed")
-	}
-	if convertFillRule(recording.FillRuleEvenOdd) != render.FillRuleEvenOdd {
-		t.Error("FillRuleEvenOdd conversion failed")
-	}
-}
-
-func TestBackendConvertLineCap(t *testing.T) {
-	if convertLineCap(recording.LineCapButt) != render.LineCapButt {
-		t.Error("LineCapButt conversion failed")
-	}
-	if convertLineCap(recording.LineCapRound) != render.LineCapRound {
-		t.Error("LineCapRound conversion failed")
-	}
-	if convertLineCap(recording.LineCapSquare) != render.LineCapSquare {
-		t.Error("LineCapSquare conversion failed")
-	}
-}
-
-func TestBackendConvertLineJoin(t *testing.T) {
-	if convertLineJoin(recording.LineJoinMiter) != render.LineJoinMiter {
-		t.Error("LineJoinMiter conversion failed")
-	}
-	if convertLineJoin(recording.LineJoinRound) != render.LineJoinRound {
-		t.Error("LineJoinRound conversion failed")
-	}
-	if convertLineJoin(recording.LineJoinBevel) != render.LineJoinBevel {
-		t.Error("LineJoinBevel conversion failed")
+// The recording style enums are aliases of render's, not a parallel set: a
+// recorded cap/join/rule reaches a context without any conversion step. These
+// assignments are the check — they fail to compile if the types diverge again.
+func TestBackendStyleEnumsAreRenderTypes(t *testing.T) {
+	var (
+		rule  render.FillRule = recording.FillRuleEvenOdd
+		capit render.LineCap  = recording.LineCapSquare
+		join  render.LineJoin = recording.LineJoinBevel
+	)
+	if rule != render.FillRuleEvenOdd || capit != render.LineCapSquare || join != render.LineJoinBevel {
+		t.Errorf("enum alias mismatch: rule=%v cap=%v join=%v", rule, capit, join)
 	}
 }

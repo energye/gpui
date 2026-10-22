@@ -20,6 +20,15 @@ import (
 // instead of rasterizing pixels. Use FinishRecording to obtain
 // an immutable Recording that can be replayed to different backends.
 //
+// # Coordinate space
+//
+// Geometry is stored in user space: the recorded transforms travel in the
+// command stream as relative concats (ConcatCommand) and each backend applies
+// them onto its own CTM. This matches render.Context, whose path verbs are
+// baked by the user matrix and whose device scale is folded in only at the
+// rasterization boundary (totalMatrix). A recording therefore replays crisp at
+// any device scale and survives layer offsets without being re-recorded.
+//
 // Example:
 //
 //	rec := recording.NewRecorder(800, 600)
@@ -34,8 +43,9 @@ type Recorder struct {
 	commands      []Command
 	resources     *ResourcePool
 
-	// Current path being built
+	// Current path being built, stored in user space relative to pathBasis
 	currentPath *render.Path
+	pathBasis   Matrix
 
 	// Current state
 	fillBrush   Brush
@@ -97,6 +107,7 @@ func NewRecorder(width, height int) *Recorder {
 		fillRule:    FillRuleNonZero,
 		antiAlias:   true,
 		transform:   Identity(),
+		pathBasis:   Identity(),
 		stateStack:  make([]recorderState, 0, 8),
 	}
 }
@@ -154,13 +165,15 @@ func (r *Recording) Playback(backend Backend) error {
 			backend.Save()
 		case RestoreCommand:
 			backend.Restore()
-		case SetTransformCommand:
-			backend.SetTransform(c.Matrix)
+		case ConcatCommand:
+			backend.Concat(c.Matrix)
 		case SetClipCommand:
 			path := r.resources.GetPath(c.Path)
 			backend.SetClip(path, c.Rule)
 		case ClearClipCommand:
 			backend.ClearClip()
+		case ClipRectCommand:
+			backend.ClipRect(c.Rect)
 		case ClipRoundRectCommand:
 			// Convert RRect clip to a path for backends that don't
 			// natively support rounded rectangle clipping.
@@ -178,15 +191,44 @@ func (r *Recording) Playback(backend Backend) error {
 			brush := r.resources.GetBrush(c.Brush)
 			backend.FillRect(c.Rect, brush)
 		case StrokeRectCommand:
-			// The backend contract has no StrokeRect; converting here keeps
-			// rectangle strokes from silently disappearing during playback.
-			path := render.NewPath()
-			path.Rectangle(c.Rect.MinX, c.Rect.MinY, c.Rect.Width(), c.Rect.Height())
 			brush := r.resources.GetBrush(c.Brush)
-			backend.StrokePath(path, brush, c.Stroke)
+			backend.StrokeRect(c.Rect, brush, c.Stroke)
 		case DrawImageCommand:
-			img := r.resources.GetImage(c.Image)
-			backend.DrawImage(img, c.SrcRect, c.DstRect, c.Options)
+			backend.DrawImage(r.resources.GetImage(c.Image), c.Opts)
+		case DrawImageNineCommand:
+			backend.DrawImageNine(r.resources.GetImage(c.Image), c.Center, c.Dst)
+		case DrawImageQuadCommand:
+			backend.DrawImageQuad(r.resources.GetImage(c.Image), c.Corners, c.Opts)
+		case DrawImageRoundedCommand:
+			backend.DrawImageRounded(r.resources.GetImage(c.Image), c.X, c.Y, c.Radius)
+		case DrawImageCircularCommand:
+			backend.DrawImageCircular(r.resources.GetImage(c.Image), c.CX, c.CY, c.Radius)
+		case DrawAtlasCommand:
+			backend.DrawAtlas(r.resources.GetImage(c.Image), c.Sprites, c.Opts)
+		case DrawDepthSpritesCommand:
+			backend.DrawDepthSprites(r.resources.GetImage(c.Image), c.Sprites, c.Opts)
+		case DrawVerticesCommand:
+			backend.DrawVertices(c.Positions, c.Colors, c.Mode, r.resources.GetBrush(c.Brush))
+		case DrawGlyphsCommand:
+			backend.DrawGlyphs(c.Glyphs, r.faceFor(c.Face), c.X, c.Y, c.Colored, r.resources.GetBrush(c.Brush))
+		case SetTextDecorationCommand:
+			backend.SetTextDecoration(c.Deco)
+		case PushLayerCommand:
+			backend.PushLayer(c.Blend, c.Opacity)
+		case PushLayerIsolatedCommand:
+			backend.PushLayerIsolated(c.Opacity)
+		case PushBackdropLayerCommand:
+			backend.PushBackdropLayer(c.Blend, c.Opacity)
+		case PopLayerCommand:
+			backend.PopLayer()
+		case ApplyBlurCommand:
+			backend.ApplyBlur(c.Radius)
+		case ApplyColorMatrixCommand:
+			backend.ApplyColorMatrix(c.Matrix)
+		case ApplyDropShadowCommand:
+			backend.ApplyDropShadow(c.OffsetX, c.OffsetY, c.BlurRadius, c.Color)
+		case ApplyGrayscaleCommand:
+			backend.ApplyGrayscale()
 		case DrawTextCommand:
 			brush := r.resources.GetBrush(c.Brush)
 			backend.DrawText(c.Text, c.X, c.Y, r.faceFor(c.Font), brush)

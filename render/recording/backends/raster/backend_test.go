@@ -197,20 +197,35 @@ func TestBackendSaveRestore(t *testing.T) {
 	}
 }
 
-func TestBackendSetTransform(t *testing.T) {
+// Concat must compose onto the CTM the playback context already carries: a
+// recording replayed into a context pre-transformed by a layer offset and the
+// device scale has to land on top of that base, not replace it.
+func TestBackendConcatComposesOntoExistingCTM(t *testing.T) {
 	backend := NewBackend()
-	err := backend.Begin(100, 100)
-	if err != nil {
+	if err := backend.Begin(100, 100); err != nil {
 		t.Fatalf("Begin failed: %v", err)
 	}
 
-	// Set a transform (translate by 10,10)
-	m := recording.Translate(10, 10)
-	backend.SetTransform(m)
+	backend.ctx.Translate(40, 50)
+	backend.Concat(recording.Translate(10, 10))
 
-	// This should not panic
-	err = backend.End()
-	if err != nil {
+	if got := backend.ctx.GetTransform(); got != recording.Translate(50, 60) {
+		t.Errorf("CTM after Concat = %+v, want %+v", got, recording.Translate(50, 60))
+	}
+
+	backend.Save()
+	backend.Concat(recording.Scale(2, 2))
+	scaled := backend.ctx.GetTransform()
+	backend.Restore()
+
+	if got := backend.ctx.GetTransform(); got != recording.Translate(50, 60) {
+		t.Errorf("CTM after Restore = %+v, want the pre-Save matrix", got)
+	}
+	if want := recording.Translate(50, 60).Multiply(recording.Scale(2, 2)); scaled != want {
+		t.Errorf("CTM inside the layer = %+v, want %+v", scaled, want)
+	}
+
+	if err := backend.End(); err != nil {
 		t.Fatalf("End failed: %v", err)
 	}
 }

@@ -240,7 +240,7 @@ func main() {
 			resized = true
 		}
 		if resized && elapsed < 4.0 {
-			if rr, _, _, _ := app.BoundaryCache().FrameCounts(); rr > peakRR1 {
+			if rr := app.BoundaryCache().Stats().FrameRerecord; rr > peakRR1 {
 				peakRR1 = rr
 			}
 		}
@@ -249,7 +249,7 @@ func main() {
 			wave1Sampled = true
 		}
 		if resized && !steadySampled && elapsed >= 4.0 {
-			steadyRR, _, _, _ = app.BoundaryCache().FrameCounts()
+			steadyRR = app.BoundaryCache().Stats().FrameRerecord
 			steadySampled = true
 		}
 
@@ -260,7 +260,7 @@ func main() {
 			dprInvalidated = true
 		}
 		if dprInvalidated && elapsed < 7.0 {
-			if rr, _, _, _ := app.BoundaryCache().FrameCounts(); rr > peakRR2 {
+			if rr := app.BoundaryCache().Stats().FrameRerecord; rr > peakRR2 {
 				peakRR2 = rr
 			}
 		}

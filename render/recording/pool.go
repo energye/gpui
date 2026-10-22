@@ -11,8 +11,6 @@
 package recording
 
 import (
-	"image"
-
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 )
@@ -32,12 +30,18 @@ func (r FontRef) IsValid() bool {
 // Resources are stored in slices indexed by their reference types.
 // Each Add operation clones mutable resources to ensure immutability.
 //
+// Images are pooled as *render.ImageBuf — the very type render.Context draws
+// from. Holding image.Image instead would force a FromStdImage copy on every
+// playback (per-pixel for exotic types), which is both slow and loses the
+// buffer's GPU texture identity (genID), so a recording would re-upload a new
+// texture each frame.
+//
 // ResourcePool is not safe for concurrent use. If concurrent access is needed,
 // external synchronization must be provided.
 type ResourcePool struct {
 	paths   []*render.Path
 	brushes []Brush
-	images  []image.Image
+	images  []*render.ImageBuf
 	fonts   []text.Face
 }
 
@@ -46,7 +50,7 @@ func NewResourcePool() *ResourcePool {
 	return &ResourcePool{
 		paths:   make([]*render.Path, 0, 64),
 		brushes: make([]Brush, 0, 32),
-		images:  make([]image.Image, 0, 8),
+		images:  make([]*render.ImageBuf, 0, 8),
 		fonts:   make([]text.Face, 0, 4),
 	}
 }
@@ -103,9 +107,11 @@ func (p *ResourcePool) BrushCount() int {
 	return len(p.brushes)
 }
 
-// AddImage adds an image to the pool and returns its reference.
-// Images are stored directly as Go's image.Image is already immutable.
-func (p *ResourcePool) AddImage(img image.Image) ImageRef {
+// AddImageBuf pools a render buffer and returns its reference. The buffer is
+// stored by pointer: recordings do not copy pixels, and playback draws the same
+// buffer the caller recorded (ImageBuf's own copy-on-write/ownership rules
+// apply — callers must not Dispose it while a recording still references it).
+func (p *ResourcePool) AddImageBuf(img *render.ImageBuf) ImageRef {
 	p.images = append(p.images, img)
 	// #nosec G115 -- pool size is bounded by available memory, well under uint32 max
 	return ImageRef(uint32(len(p.images) - 1))
@@ -113,7 +119,7 @@ func (p *ResourcePool) AddImage(img image.Image) ImageRef {
 
 // GetImage returns the image for the given reference.
 // Returns nil if the reference is invalid.
-func (p *ResourcePool) GetImage(ref ImageRef) image.Image {
+func (p *ResourcePool) GetImage(ref ImageRef) *render.ImageBuf {
 	if int(ref) >= len(p.images) {
 		return nil
 	}
@@ -162,7 +168,7 @@ func (p *ResourcePool) Clone() *ResourcePool {
 	clone := &ResourcePool{
 		paths:   make([]*render.Path, len(p.paths)),
 		brushes: make([]Brush, len(p.brushes)),
-		images:  make([]image.Image, len(p.images)),
+		images:  make([]*render.ImageBuf, len(p.images)),
 		fonts:   make([]text.Face, len(p.fonts)),
 	}
 

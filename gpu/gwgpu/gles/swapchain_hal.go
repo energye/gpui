@@ -36,7 +36,7 @@ func (a *halSwapchainAdapter) BeginFrame() (*hal.SwapchainFrame, error) {
 		return nil, err
 	}
 	return &hal.SwapchainFrame{
-		ViewHandle: uintptr(f.Handle.Pointer()),
+		ViewHandle: f.Handle.Pointer(),
 		Width:      f.Width,
 		Height:     f.Height,
 		Payload:    f,

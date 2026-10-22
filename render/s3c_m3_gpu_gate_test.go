@@ -321,6 +321,84 @@ func TestS3c_M3_RecordingPlayback(t *testing.T) {
 	}
 }
 
+// ReplayParityOnGPU is the pixel-exact live-vs-replay contract on the GPU
+// rasterizer. It exists because the software rasterizer hides transform
+// infidelity: a rotated fill lands on different anti-aliased coverage in the
+// last bit, and only the GPU path exposes it. Before the recorder stored
+// transform operations verbatim, this test failed on one pixel of a rotated
+// circle's edge — replay disagreed with live painting by 1/255.
+func TestS3c_M3_ReplayParityOnGPU(t *testing.T) {
+	s3cRequireGPU(t)
+	const w, h = 400, 200
+
+	live := render.NewContext(w, h)
+	defer live.Close()
+	paintRotatedFill(live)
+	s3cFlushGPU(t, live)
+	// A context that quietly fell back to CPU would compare two software
+	// rasters and call that GPU parity, so it is reported, not passed.
+	if st := live.RenderPathStats(); st.CPUFallbackOps != 0 {
+		t.Skipf("GPU rasterizer degraded to CPU (%s), replay parity not exercised", st.LastCPUFallbackReason)
+	}
+	liveImg, ok := live.Image().(*image.RGBA)
+	if !ok {
+		t.Fatalf("live image type = %T, want *image.RGBA", live.Image())
+	}
+
+	rec := recording.NewRecorder(w, h)
+	paintRotatedFill(rec)
+	backend, err := recording.NewBackend("raster")
+	if err != nil {
+		t.Fatalf("NewBackend raster: %v", err)
+	}
+	if err := rec.FinishRecording().Playback(backend); err != nil {
+		t.Fatalf("Playback: %v", err)
+	}
+	imager, ok := backend.(interface{ Image() image.Image })
+	if !ok {
+		t.Fatal("raster backend has no Image()")
+	}
+	played, ok := imager.Image().(*image.RGBA)
+	if !ok {
+		t.Fatalf("playback image type = %T, want *image.RGBA", imager.Image())
+	}
+
+	diff := 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if liveImg.RGBAAt(x, y) != played.RGBAAt(x, y) {
+				if diff < 5 {
+					t.Errorf("(%d,%d) live=%v replay=%v", x, y, liveImg.RGBAAt(x, y), played.RGBAAt(x, y))
+				}
+				diff++
+			}
+		}
+	}
+	if diff != 0 {
+		t.Fatalf("GPU replay differs from live painting in %d of %d pixels", diff, w*h)
+	}
+}
+
+// paintRotatedFill draws the shape whose edge coverage exposes transform
+// rounding: three axis-aligned bars, then one fill under translate+rotate.
+func paintRotatedFill(p render.Canvas) {
+	p.SetRGB(0.06, 0.07, 0.09)
+	p.DrawRectangle(0, 0, 400, 200)
+	_ = p.Fill()
+	for i, col := range [][3]float64{{0.92, 0.22, 0.20}, {0.18, 0.86, 0.42}, {0.22, 0.44, 0.95}} {
+		p.SetRGB(col[0], col[1], col[2])
+		p.DrawRectangle(float64(20+i*80), 40, 60, 100)
+		_ = p.Fill()
+	}
+	p.Push()
+	p.Translate(300, 90)
+	p.Rotate(0.45)
+	p.SetRGB(0.72, 0.35, 1)
+	p.DrawCircle(0, 0, 30)
+	_ = p.Fill()
+	p.Pop()
+}
+
 // --- CS.01 sRGB default smoke (8-bit surface) ---
 
 func TestS3c_M3_DefaultSRGBSurface(t *testing.T) {

@@ -1,15 +1,12 @@
 package recording
 
 import (
-	"image"
 	"testing"
-
-	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 )
 
 // mockBackend is a minimal backend implementation for testing.
 type mockBackend struct {
+	stubBackend
 	name       string
 	beginCalls int
 	endCalls   int
@@ -32,18 +29,6 @@ func (b *mockBackend) End() error {
 	b.endCalls++
 	return nil
 }
-
-func (b *mockBackend) Save()    {}
-func (b *mockBackend) Restore() {}
-
-func (b *mockBackend) SetTransform(_ Matrix)                                 {}
-func (b *mockBackend) SetClip(_ *render.Path, _ FillRule)                    {}
-func (b *mockBackend) ClearClip()                                            {}
-func (b *mockBackend) FillPath(_ *render.Path, _ Brush, _ FillRule)          {}
-func (b *mockBackend) StrokePath(_ *render.Path, _ Brush, _ Stroke)          {}
-func (b *mockBackend) FillRect(_ Rect, _ Brush)                              {}
-func (b *mockBackend) DrawImage(_ image.Image, _, _ Rect, _ ImageOptions)    {}
-func (b *mockBackend) DrawText(_ string, _, _ float64, _ text.Face, _ Brush) {}
 
 // resetRegistry clears all registered backends for test isolation.
 func resetRegistry() {

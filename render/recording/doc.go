@@ -128,22 +128,31 @@
 //
 // # Custom Backends
 //
-// Implement the [Backend] interface to create custom output formats:
+// Implement the [Backend] interface to create custom output formats. The
+// contract is 31 methods — one per command the Recorder can emit; the excerpt
+// below shows the shape, [Backend] is the authority:
 //
 //	type Backend interface {
 //	    Begin(width, height int) error
 //	    End() error
 //	    Save()
 //	    Restore()
-//	    SetTransform(m Matrix)
+//	    Concat(m Matrix)
 //	    SetClip(path *render.Path, rule FillRule)
-//	    ClearClip()
+//	    ClipRect(rect Rect)
 //	    FillPath(path *render.Path, brush Brush, rule FillRule)
 //	    StrokePath(path *render.Path, brush Brush, stroke Stroke)
 //	    FillRect(rect Rect, brush Brush)
-//	    DrawImage(img image.Image, src, dst Rect, opts ImageOptions)
+//	    DrawImage(img *render.ImageBuf, opts render.DrawImageOptions)
+//	    DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush)
 //	    DrawText(s string, x, y float64, face text.Face, brush Brush)
+//	    PushLayer(blend render.BlendMode, opacity float64)
+//	    PopLayer()
+//	    // ... plus the remaining image/mesh/decoration/effect/layer methods
 //	}
+//
+// All geometry arrives in user space under the replayed CTM; backends must not
+// bake device coordinates in.
 //
 // Register custom backends with [Register]:
 //

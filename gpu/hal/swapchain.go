@@ -14,6 +14,7 @@ package hal
 
 import (
 	"image"
+	"unsafe"
 
 	gputypes "github.com/energye/gpui/gpu/types"
 )
@@ -23,8 +24,12 @@ import (
 // unsafe.Pointer): backends store h.Pointer(), render rebuilds the typed
 // handle with gpucontext.NewTextureView. Words (not interface values)
 // cross hal so hal stays free of the context import cycle.
+//
+// The word must stay an unsafe.Pointer, never a uintptr round trip: checkptr
+// (enabled by -race) rejects uintptr→unsafe.Pointer conversions, which used to
+// abort every GPU window under -race at render/present_frame.go.
 type SwapchainFrame struct {
-	ViewHandle uintptr
+	ViewHandle unsafe.Pointer
 	Width      uint32
 	Height     uint32
 	// Suboptimal reports the surface config is usable but not optimal.

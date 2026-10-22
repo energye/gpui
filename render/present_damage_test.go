@@ -47,3 +47,21 @@ func TestClipPresentDamage(t *testing.T) {
 		t.Fatal("fully outside damage must return nil")
 	}
 }
+
+// TestDamageRectsAreaSum pins the retained-cost metric: scattered dirty
+// rects contribute their own pixels, not the untouched gap inside their union.
+func TestDamageRectsAreaSum(t *testing.T) {
+	rects := []image.Rectangle{
+		image.Rect(10, 10, 30, 20),   // 200
+		image.Rect(90, 90, 100, 100), // 100
+	}
+	if got := damageRectsAreaSum(rects); got != 300 {
+		t.Fatalf("damageRectsAreaSum = %d, want 300", got)
+	}
+	if got := damageRectsAreaSum(nil); got != 0 {
+		t.Fatalf("damageRectsAreaSum(nil) = %d, want 0", got)
+	}
+	if got := damageRectsAreaSum([]image.Rectangle{{Min: image.Pt(10, 10), Max: image.Pt(5, 5)}}); got != 0 {
+		t.Fatalf("damageRectsAreaSum(inverted rect) = %d, want 0", got)
+	}
+}

@@ -91,7 +91,7 @@ func TestDebugRepaint_DirtyUnchangedContentLivePaints(t *testing.T) {
 	if draws <= before {
 		t.Fatalf("dirty unchanged content debug draws=%d want >%d", draws, before)
 	}
-	if rr, sk, _, _ := cache.FrameCounts(); rr != 1 || sk != 0 {
-		t.Fatalf("dirty unchanged content cache rr=%d skip=%d want rr=1 skip=0", rr, sk)
+	if st := cache.Stats(); st.FrameRerecord != 1 || st.FrameSkip != 0 {
+		t.Fatalf("dirty unchanged content cache rr=%d skip=%d want rr=1 skip=0", st.FrameRerecord, st.FrameSkip)
 	}
 }

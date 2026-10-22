@@ -3,6 +3,8 @@ package recording
 import (
 	"math"
 	"testing"
+
+	"github.com/energye/gpui/render"
 )
 
 const epsilon = 1e-9
@@ -11,111 +13,68 @@ func almostEqual(a, b float64) bool {
 	return math.Abs(a-b) < epsilon
 }
 
-func TestIdentity(t *testing.T) {
-	m := Identity()
+// Matrix is an alias of render.Matrix, so these tests pin only what the
+// recording package owns: that its constructors forward to render's and that
+// the float-pair TransformPoint helper matches the context-facing signature
+// used by Recorder.TransformPoint. The matrix algebra itself is covered by
+// render/matrix_test.go.
 
-	if m.A != 1 || m.B != 0 || m.C != 0 ||
-		m.D != 0 || m.E != 1 || m.F != 0 {
-		t.Errorf("Identity() = %+v, want identity matrix", m)
+func TestConstructorsForwardToRender(t *testing.T) {
+	tests := []struct {
+		name string
+		got  Matrix
+		want render.Matrix
+	}{
+		{"identity", Identity(), render.Identity()},
+		{"translate", Translate(10, 20), render.Translate(10, 20)},
+		{"scale", Scale(2, 3), render.Scale(2, 3)},
+		{"rotate", Rotate(math.Pi / 3), render.Rotate(math.Pi / 3)},
+		{"shear", Shear(0.5, 0.25), render.Shear(0.5, 0.25)},
 	}
 
-	if !m.IsIdentity() {
-		t.Error("Identity().IsIdentity() = false, want true")
-	}
-}
-
-func TestTranslate(t *testing.T) {
-	m := Translate(10, 20)
-
-	if m.A != 1 || m.B != 0 || m.C != 10 ||
-		m.D != 0 || m.E != 1 || m.F != 20 {
-		t.Errorf("Translate(10, 20) = %+v", m)
-	}
-
-	if !m.IsTranslation() {
-		t.Error("Translate().IsTranslation() = false, want true")
-	}
-
-	// Test transform point
-	x, y := m.TransformPoint(5, 5)
-	if x != 15 || y != 25 {
-		t.Errorf("TransformPoint(5, 5) = (%v, %v), want (15, 25)", x, y)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != tt.want {
+				t.Errorf("%s constructor = %+v, want %+v", tt.name, tt.got, tt.want)
+			}
+		})
 	}
 }
 
-func TestScale(t *testing.T) {
-	m := Scale(2, 3)
+func TestTransformPointHelper(t *testing.T) {
+	m := Translate(100, 100).Multiply(Scale(2, 3))
 
-	if m.A != 2 || m.B != 0 || m.C != 0 ||
-		m.D != 0 || m.E != 3 || m.F != 0 {
-		t.Errorf("Scale(2, 3) = %+v", m)
+	x, y := TransformPoint(m, 10, 10)
+	if !almostEqual(x, 120) || !almostEqual(y, 130) {
+		t.Errorf("TransformPoint(m, 10, 10) = (%v, %v), want (120, 130)", x, y)
 	}
 
-	// Test transform point
-	x, y := m.TransformPoint(10, 10)
-	if x != 20 || y != 30 {
-		t.Errorf("TransformPoint(10, 10) = (%v, %v), want (20, 30)", x, y)
-	}
-
-	// Test scale factor
-	sf := m.ScaleFactor()
-	if sf != 3 {
-		t.Errorf("ScaleFactor() = %v, want 3", sf)
-	}
-}
-
-func TestRotate(t *testing.T) {
-	m := Rotate(math.Pi / 2) // 90 degrees
-
-	// Rotating (1, 0) by 90 degrees should give (0, 1)
-	x, y := m.TransformPoint(1, 0)
+	rot := Rotate(math.Pi / 2)
+	x, y = TransformPoint(rot, 1, 0)
 	if !almostEqual(x, 0) || !almostEqual(y, 1) {
-		t.Errorf("Rotate(90deg).TransformPoint(1, 0) = (%v, %v), want (0, 1)", x, y)
-	}
-
-	// Rotating (0, 1) by 90 degrees should give (-1, 0)
-	x, y = m.TransformPoint(0, 1)
-	if !almostEqual(x, -1) || !almostEqual(y, 0) {
-		t.Errorf("Rotate(90deg).TransformPoint(0, 1) = (%v, %v), want (-1, 0)", x, y)
+		t.Errorf("Rotate(90deg) (1, 0) = (%v, %v), want (0, 1)", x, y)
 	}
 }
 
-func TestShear(t *testing.T) {
-	m := Shear(0.5, 0)
+func TestRecorderTransformPointTracksCTM(t *testing.T) {
+	rec := NewRecorder(100, 100)
+	rec.Translate(30, 40)
+	rec.Scale(2, 2)
 
-	x, y := m.TransformPoint(10, 10)
-	if !almostEqual(x, 15) || !almostEqual(y, 10) {
-		t.Errorf("Shear(0.5, 0).TransformPoint(10, 10) = (%v, %v), want (15, 10)", x, y)
+	x, y := rec.TransformPoint(5, 5)
+	if !almostEqual(x, 40) || !almostEqual(y, 50) {
+		t.Errorf("TransformPoint(5, 5) after translate+scale = (%v, %v), want (40, 50)", x, y)
 	}
 }
 
-func TestMultiply(t *testing.T) {
-	// Test: Scale then Translate
-	scale := Scale(2, 2)
-	translate := Translate(10, 10)
-	combined := translate.Multiply(scale)
-
-	// Point (5, 5) scaled by 2 = (10, 10), then translated by (10, 10) = (20, 20)
-	x, y := combined.TransformPoint(5, 5)
-	if !almostEqual(x, 20) || !almostEqual(y, 20) {
-		t.Errorf("combined.TransformPoint(5, 5) = (%v, %v), want (20, 20)", x, y)
-	}
-}
-
-func TestInvert(t *testing.T) {
-	// Test invertible matrix
+func TestInvertRoundTrip(t *testing.T) {
 	m := Scale(2, 3).Multiply(Translate(10, 20))
 	inv := m.Invert()
 
-	// m * inv should be identity
-	result := m.Multiply(inv)
-	if !result.IsIdentity() {
+	if result := m.Multiply(inv); !result.IsIdentity() {
 		t.Errorf("m.Multiply(m.Invert()) = %+v, want identity", result)
 	}
-
-	// inv * m should also be identity
-	result = inv.Multiply(m)
-	if !result.IsIdentity() {
+	if result := inv.Multiply(m); !result.IsIdentity() {
 		t.Errorf("m.Invert().Multiply(m) = %+v, want identity", result)
 	}
 }
@@ -128,55 +87,6 @@ func TestInvert_Singular(t *testing.T) {
 	// Should return identity for singular matrix
 	if !inv.IsIdentity() {
 		t.Errorf("Singular matrix inversion should return identity, got %+v", inv)
-	}
-}
-
-func TestTransformVector(t *testing.T) {
-	// Transform vector should ignore translation
-	m := Translate(100, 100).Multiply(Scale(2, 3))
-
-	px, py := m.TransformPoint(10, 10)
-	vx, vy := m.TransformVector(10, 10)
-
-	// Point should include translation
-	if !almostEqual(px, 120) || !almostEqual(py, 130) {
-		t.Errorf("TransformPoint(10, 10) = (%v, %v), want (120, 130)", px, py)
-	}
-
-	// Vector should NOT include translation
-	if !almostEqual(vx, 20) || !almostEqual(vy, 30) {
-		t.Errorf("TransformVector(10, 10) = (%v, %v), want (20, 30)", vx, vy)
-	}
-}
-
-func TestDeterminant(t *testing.T) {
-	tests := []struct {
-		name string
-		m    Matrix
-		want float64
-	}{
-		{"identity", Identity(), 1.0},
-		{"scale 2x3", Scale(2, 3), 6.0},
-		{"rotation", Rotate(math.Pi / 4), 1.0},
-		{"shear", Shear(1, 0), 1.0},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.m.Determinant()
-			if !almostEqual(got, tt.want) {
-				t.Errorf("Determinant() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestTranslation(t *testing.T) {
-	m := Translate(15, 25)
-	x, y := m.Translation()
-
-	if x != 15 || y != 25 {
-		t.Errorf("Translation() = (%v, %v), want (15, 25)", x, y)
 	}
 }
 

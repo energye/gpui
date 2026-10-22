@@ -206,7 +206,9 @@ func buildRecC() *recording.Recording {
 	rec.DrawString("record", 20, 48)
 	rec.DrawString("playback", 20, 86)
 	rec.DrawString("raster", 20, 124)
-	rec.DrawImageScaled(rlay.icon, 220, 30, 150, 120)
+	rec.DrawImageEx(render.ImageBufFromImage(rlay.icon), render.DrawImageOptions{
+		X: 220, Y: 30, DstWidth: 150, DstHeight: 120,
+	})
 
 	return rec.FinishRecording()
 }
@@ -267,7 +269,9 @@ func buildRecordingContract() *recording.Recording {
 	rec.ClipRoundRect(4, 4, 24, 24, 5)
 	rec.FillRectangle(0, 0, 20, 10)
 	rec.StrokeRectangle(20, 20, 20, 20)
-	rec.DrawImageScaled(rlay.icon, 0, 0, 8, 8)
+	rec.DrawImageEx(render.ImageBufFromImage(rlay.icon), render.DrawImageOptions{
+		X: 0, Y: 0, DstWidth: 8, DstHeight: 8,
+	})
 	rec.SetFont(rlay.font)
 	rec.DrawString("R", 2, 20)
 	rec.StrokeString("S", 2, 40)
@@ -399,7 +403,7 @@ func runRecordingLogic() (ran, failed []string) {
 	}
 	countCommands(rlay.contract)
 	wantCommands := []string{
-		"Save", "Restore", "SetTransform", "SetClip", "ClearClip", "ClipRoundRect",
+		"Save", "Restore", "Concat", "SetClip", "ClearClip", "ClipRoundRect",
 		"FillPath", "StrokePath", "FillRect", "StrokeRect", "DrawImage",
 		"DrawText", "StrokeText", "SetFillStyle", "SetStrokeStyle", "SetLineWidth",
 		"SetLineCap", "SetLineJoin", "SetMiterLimit", "SetDash", "SetFillRule", "SetAntiAlias",
@@ -466,7 +470,7 @@ func runRecordingLogic() (ran, failed []string) {
 	err := rlay.contract.Playback(spy)
 	add("spy_backend_dispatch", err == nil && spy.begin && spy.end &&
 		spy.calls["Save"] > 0 && spy.calls["Restore"] > 0 &&
-		spy.calls["SetTransform"] > 0 && spy.calls["SetClip"] > 0 &&
+		spy.calls["Concat"] > 0 && spy.calls["SetClip"] > 0 &&
 		spy.calls["ClearClip"] > 0 && spy.calls["FillPath"] > 0 &&
 		spy.calls["StrokePath"] > 0 && spy.calls["FillRect"] > 0 &&
 		spy.calls["DrawImage"] > 0 && spy.calls["DrawText"] > 0 &&
@@ -493,8 +497,8 @@ func (s *recordingSpyBackend) Begin(_, _ int) error { s.begin = true; return nil
 func (s *recordingSpyBackend) End() error           { s.end = true; return nil }
 func (s *recordingSpyBackend) Save()                { s.hit("Save") }
 func (s *recordingSpyBackend) Restore()             { s.hit("Restore") }
-func (s *recordingSpyBackend) SetTransform(_ recording.Matrix) {
-	s.hit("SetTransform")
+func (s *recordingSpyBackend) Concat(_ recording.Matrix) {
+	s.hit("Concat")
 }
 func (s *recordingSpyBackend) SetClip(_ *render.Path, _ recording.FillRule) {
 	s.hit("SetClip")
@@ -509,13 +513,60 @@ func (s *recordingSpyBackend) StrokePath(_ *render.Path, _ recording.Brush, _ re
 func (s *recordingSpyBackend) FillRect(_ recording.Rect, _ recording.Brush) {
 	s.hit("FillRect")
 }
-func (s *recordingSpyBackend) DrawImage(_ image.Image, _, _ recording.Rect, _ recording.ImageOptions) {
+func (s *recordingSpyBackend) StrokeRect(_ recording.Rect, _ recording.Brush, _ recording.Stroke) {
+	s.hit("StrokeRect")
+}
+func (s *recordingSpyBackend) DrawImage(_ *render.ImageBuf, _ render.DrawImageOptions) {
 	s.hit("DrawImage")
 }
 func (s *recordingSpyBackend) DrawText(_ string, _, _ float64, face text.Face, _ recording.Brush) {
 	s.hit("DrawText")
 	s.textFace = face
 }
+
+// The remaining Backend operations only need counting here: this spy proves the
+// command stream reaches a backend, not that it rasterizes correctly (the card
+// pixels and the golden PNG do that).
+func (s *recordingSpyBackend) ClipRect(_ recording.Rect) { s.hit("ClipRect") }
+func (s *recordingSpyBackend) DrawImageNine(_ *render.ImageBuf, _ image.Rectangle, _ recording.Rect) {
+	s.hit("DrawImageNine")
+}
+func (s *recordingSpyBackend) DrawImageQuad(_ *render.ImageBuf, _ [4]render.Point, _ render.QuadDrawOptions) {
+	s.hit("DrawImageQuad")
+}
+func (s *recordingSpyBackend) DrawImageRounded(_ *render.ImageBuf, _, _, _ float64) {
+	s.hit("DrawImageRounded")
+}
+func (s *recordingSpyBackend) DrawImageCircular(_ *render.ImageBuf, _, _, _ float64) {
+	s.hit("DrawImageCircular")
+}
+func (s *recordingSpyBackend) DrawAtlas(_ *render.ImageBuf, _ []render.AtlasSprite, _ render.AtlasDrawOptions) {
+	s.hit("DrawAtlas")
+}
+func (s *recordingSpyBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.DepthSprite, _ render.DepthDrawOptions) {
+	s.hit("DrawDepthSprites")
+}
+func (s *recordingSpyBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ recording.Brush) {
+	s.hit("DrawVertices")
+}
+func (s *recordingSpyBackend) DrawGlyphs(_ []text.ShapedGlyph, _ text.Face, _, _ float64, _ bool, _ recording.Brush) {
+	s.hit("DrawGlyphs")
+}
+func (s *recordingSpyBackend) SetTextDecoration(_ render.TextDecoration) { s.hit("SetTextDecoration") }
+func (s *recordingSpyBackend) ApplyBlur(_ float64)                       { s.hit("ApplyBlur") }
+func (s *recordingSpyBackend) ApplyColorMatrix(_ [20]float32)            { s.hit("ApplyColorMatrix") }
+func (s *recordingSpyBackend) ApplyDropShadow(_, _, _ float64, _ render.RGBA) {
+	s.hit("ApplyDropShadow")
+}
+func (s *recordingSpyBackend) ApplyGrayscale() { s.hit("ApplyGrayscale") }
+func (s *recordingSpyBackend) PushLayer(_ render.BlendMode, _ float64) {
+	s.hit("PushLayer")
+}
+func (s *recordingSpyBackend) PushLayerIsolated(_ float64) { s.hit("PushLayerIsolated") }
+func (s *recordingSpyBackend) PushBackdropLayer(_ render.BlendMode, _ float64) {
+	s.hit("PushBackdropLayer")
+}
+func (s *recordingSpyBackend) PopLayer() { s.hit("PopLayer") }
 
 // ---------------------------------------------------------------------------
 // Snapshot probes and scene

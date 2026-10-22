@@ -255,6 +255,45 @@ func BrushFromGG(b render.Brush) Brush {
 	}
 }
 
+// BrushToGG converts a recording.Brush back to a render.Brush for playback
+// onto a render.Context. PatternBrush has no render equivalent here: building
+// render's image pattern requires a live context (CreateImagePattern) and the
+// recording only holds an image reference, so a pattern brush degrades to
+// solid black — the same limitation the raster backend has always had.
+func BrushToGG(b Brush) render.Brush {
+	switch br := b.(type) {
+	case SolidBrush:
+		return render.Solid(br.Color)
+	case *LinearGradientBrush:
+		grad := render.NewLinearGradientBrush(br.Start.X, br.Start.Y, br.End.X, br.End.Y)
+		for _, stop := range br.Stops {
+			grad.AddColorStop(stop.Offset, stop.Color)
+		}
+		grad.SetExtend(render.ExtendMode(br.Extend))
+		return grad
+	case *RadialGradientBrush:
+		grad := render.NewRadialGradientBrush(br.Center.X, br.Center.Y, br.StartRadius, br.EndRadius)
+		grad.SetFocus(br.Focus.X, br.Focus.Y)
+		for _, stop := range br.Stops {
+			grad.AddColorStop(stop.Offset, stop.Color)
+		}
+		grad.SetExtend(render.ExtendMode(br.Extend))
+		return grad
+	case *SweepGradientBrush:
+		grad := render.NewSweepGradientBrush(br.Center.X, br.Center.Y, br.StartAngle)
+		grad.SetEndAngle(br.EndAngle)
+		for _, stop := range br.Stops {
+			grad.AddColorStop(stop.Offset, stop.Color)
+		}
+		grad.SetExtend(render.ExtendMode(br.Extend))
+		return grad
+	case nil:
+		return render.Solid(render.Black)
+	default:
+		return render.Solid(render.Black)
+	}
+}
+
 // linearGradientFromGG converts a render.LinearGradientBrush to recording.LinearGradientBrush.
 func linearGradientFromGG(g *render.LinearGradientBrush) *LinearGradientBrush {
 	stops := make([]GradientStop, len(g.Stops))

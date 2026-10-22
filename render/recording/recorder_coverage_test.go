@@ -1,11 +1,9 @@
 package recording
 
 import (
-	"image"
 	"testing"
 
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
 )
 
 func TestRecorderRotateAbout(t *testing.T) {
@@ -28,10 +26,30 @@ func TestRecorderShear(t *testing.T) {
 
 func TestRecorderTransformCoverage(t *testing.T) {
 	rec := NewRecorder(100, 100)
-	rec.Transform(Matrix{A: 1, B: 0, C: 0, D: 0, E: 1, F: 0})
+	rec.Transform(Matrix{A: 2, B: 0, C: 10, D: 0, E: 1, F: 0})
 	r := rec.FinishRecording()
-	if len(r.Commands()) == 0 {
-		t.Error("expected commands after Transform")
+	if len(r.Commands()) != 1 {
+		t.Fatalf("command count = %d, want 1 Concat", len(r.Commands()))
+	}
+	concat, ok := r.Commands()[0].(ConcatCommand)
+	if !ok {
+		t.Fatalf("cmds[0] = %T, want ConcatCommand", r.Commands()[0])
+	}
+	want := Matrix{A: 2, B: 0, C: 10, D: 0, E: 1, F: 0}
+	if concat.Matrix != want {
+		t.Errorf("Concat = %+v, want %+v", concat.Matrix, want)
+	}
+}
+
+// A transform that changes nothing must not pollute the stream: relative ops
+// are only emitted when the matrix actually moves.
+func TestRecorderIdentityConcatRecordsNothing(t *testing.T) {
+	rec := NewRecorder(100, 100)
+	rec.Transform(Identity())
+	rec.SetTransform(Identity())
+	rec.Identity()
+	if n := len(rec.FinishRecording().Commands()); n != 0 {
+		t.Errorf("command count = %d, want 0 for no-op transforms", n)
 	}
 }
 
@@ -156,11 +174,14 @@ func TestRecorderMeasureMultilineString(t *testing.T) {
 	// Just verify no panic — without a font loaded, dimensions may be 0
 }
 
-func TestRecorderDrawImageAnchored(t *testing.T) {
+func TestRecorderDrawImageNil(t *testing.T) {
 	rec := NewRecorder(200, 200)
-	// DrawImageAnchored with nil image should not panic
-	rec.DrawImageAnchored(nil, 100, 100, 0.5, 0.5)
-	_ = rec.FinishRecording()
+	// Nil image should not panic and should record nothing.
+	rec.DrawImage(nil, 100, 100)
+	r := rec.FinishRecording()
+	if len(r.Commands()) != 0 {
+		t.Errorf("nil image recorded %d commands, want none", len(r.Commands()))
+	}
 }
 
 func TestRecorderSetFont(t *testing.T) {
@@ -235,22 +256,13 @@ func TestRecordingPlaybackCoverage(t *testing.T) {
 
 // playbackMockBackend implements Backend for testing Playback.
 type playbackMockBackend struct {
+	stubBackend
 	beginCalled bool
 	endCalled   bool
 }
 
-func (m *playbackMockBackend) Begin(_, _ int) error                                  { m.beginCalled = true; return nil }
-func (m *playbackMockBackend) End() error                                            { m.endCalled = true; return nil }
-func (m *playbackMockBackend) Save()                                                 {}
-func (m *playbackMockBackend) Restore()                                              {}
-func (m *playbackMockBackend) SetTransform(_ Matrix)                                 {}
-func (m *playbackMockBackend) SetClip(_ *render.Path, _ FillRule)                    {}
-func (m *playbackMockBackend) ClearClip()                                            {}
-func (m *playbackMockBackend) FillPath(_ *render.Path, _ Brush, _ FillRule)          {}
-func (m *playbackMockBackend) StrokePath(_ *render.Path, _ Brush, _ Stroke)          {}
-func (m *playbackMockBackend) FillRect(_ Rect, _ Brush)                              {}
-func (m *playbackMockBackend) DrawImage(_ image.Image, _, _ Rect, _ ImageOptions)    {}
-func (m *playbackMockBackend) DrawText(_ string, _, _ float64, _ text.Face, _ Brush) {}
+func (m *playbackMockBackend) Begin(_, _ int) error { m.beginCalled = true; return nil }
+func (m *playbackMockBackend) End() error           { m.endCalled = true; return nil }
 
 // --- Additional recorder coverage tests ---
 
@@ -347,9 +359,7 @@ func TestRecorderPlaybackClipCommands(t *testing.T) {
 
 func TestRecorderPlaybackImageCommand(t *testing.T) {
 	rec := NewRecorder(100, 100)
-	// Create a small test image
-	img := image.NewRGBA(image.Rect(0, 0, 10, 10))
-	rec.DrawImage(img, 10, 10)
+	rec.DrawImage(testImageBuf(t, 10, 10, render.Red), 10, 10)
 
 	r := rec.FinishRecording()
 	backend := &playbackMockBackend{}

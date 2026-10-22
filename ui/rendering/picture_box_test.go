@@ -37,7 +37,7 @@ func TestPictureBox_SkipWhenClean(t *testing.T) {
 	box.Layout(rendering.Tight(80, 60))
 
 	img1 := paintPictureBoxWithCache(t, cache, box, 80, 60)
-	rr, skip, _, _ := cache.FrameCounts()
+	rr, skip := cache.Stats().FrameRerecord, cache.Stats().FrameSkip
 	if rr != 1 || skip != 0 {
 		t.Fatalf("first paint rerecord=%d skip=%d want 1/0", rr, skip)
 	}
@@ -46,7 +46,7 @@ func TestPictureBox_SkipWhenClean(t *testing.T) {
 	}
 
 	img2 := paintPictureBoxWithCache(t, cache, box, 80, 60)
-	rr, skip, _, _ = cache.FrameCounts()
+	rr, skip = cache.Stats().FrameRerecord, cache.Stats().FrameSkip
 	if rr != 0 || skip != 1 {
 		t.Fatalf("clean repaint rerecord=%d skip=%d want 0/1", rr, skip)
 	}
@@ -70,7 +70,7 @@ func TestPictureBox_RerecordOnDirty(t *testing.T) {
 
 	box.MarkNeedsPaint()
 	paintPictureBoxWithCache(t, cache, box, 80, 60)
-	rr, skip, _, _ := cache.FrameCounts()
+	rr, skip := cache.Stats().FrameRerecord, cache.Stats().FrameSkip
 	if rr != 1 || skip != 0 {
 		t.Fatalf("dirty repaint rerecord=%d skip=%d want 1/0", rr, skip)
 	}
@@ -113,7 +113,7 @@ func TestPictureBox_NilRecordNeverCaches(t *testing.T) {
 	if cache.HasValid(box) {
 		t.Fatal("nil-Record boundary must never hold an entry")
 	}
-	rr, skip, _, _ := cache.FrameCounts()
+	rr, skip := cache.Stats().FrameRerecord, cache.Stats().FrameSkip
 	if rr != 0 || skip != 0 {
 		t.Fatalf("nil paint rerecord=%d skip=%d want 0/0", rr, skip)
 	}

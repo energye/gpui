@@ -128,7 +128,9 @@ func TestPlaybackSaveRestoreClip(t *testing.T) {
 func TestPlaybackDrawImage(t *testing.T) {
 	img := loadTestImage(t)
 	rec := recording.NewRecorder(80, 80)
-	rec.DrawImageScaled(img, 10, 10, 32, 32)
+	rec.DrawImageEx(render.ImageBufFromImage(img), render.DrawImageOptions{
+		X: 10, Y: 10, DstWidth: 32, DstHeight: 32,
+	})
 	out := playbackRGBA(t, rec.FinishRecording())
 
 	if !pixelIs(out, 14, 14, render.RGBA{R: 1, A: 1}, 24) {
@@ -146,8 +148,9 @@ func TestPlaybackDrawImage(t *testing.T) {
 }
 
 // TestPlaybackDrawImageSubImage pins source coordinates against a non-zero
-// image origin. ImageBufFromImage normalizes the buffer to 0,0, so the
-// recording's image-relative src rect must not be offset by Bounds().Min.
+// image origin. ImageBufFromImage re-origins the buffer at 0,0 with the
+// sub-image's own size, so the recorded src rect stays image-relative and is
+// never offset by Bounds().Min.
 func TestPlaybackDrawImageSubImage(t *testing.T) {
 	base := image.NewRGBA(image.Rect(0, 0, 64, 64))
 	sub := base.SubImage(image.Rect(10, 20, 42, 52)).(*image.RGBA)
@@ -169,7 +172,9 @@ func TestPlaybackDrawImageSubImage(t *testing.T) {
 	}
 
 	rec := recording.NewRecorder(80, 80)
-	rec.DrawImageScaled(sub, 10, 10, 32, 32)
+	rec.DrawImageEx(render.ImageBufFromImage(sub), render.DrawImageOptions{
+		X: 10, Y: 10, DstWidth: 32, DstHeight: 32,
+	})
 	out := playbackRGBA(t, rec.FinishRecording())
 
 	if !pixelIs(out, 14, 14, render.RGBA{R: 1, A: 1}, 24) {

@@ -2,11 +2,11 @@ package recording
 
 import (
 	"image"
-	"image/color"
 	"math"
 	"testing"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/text"
 )
 
 func TestNewRecorder(t *testing.T) {
@@ -512,13 +512,7 @@ func TestRecorderResetClip(t *testing.T) {
 func TestRecorderDrawImage(t *testing.T) {
 	rec := NewRecorder(100, 100)
 
-	// Create a simple test image
-	img := image.NewRGBA(image.Rect(0, 0, 50, 50))
-	for y := 0; y < 50; y++ {
-		for x := 0; x < 50; x++ {
-			img.Set(x, y, color.RGBA{255, 0, 0, 255})
-		}
-	}
+	img := testImageBuf(t, 50, 50, render.RGBA{R: 1, A: 1})
 
 	rec.DrawImage(img, 10, 20)
 
@@ -529,9 +523,14 @@ func TestRecorderDrawImage(t *testing.T) {
 		if cmd.Type() == CmdDrawImage {
 			hasDrawImage = true
 			imgCmd := cmd.(DrawImageCommand)
-			if imgCmd.DstRect.MinX != 10 || imgCmd.DstRect.MinY != 20 {
+			if imgCmd.Opts.X != 10 || imgCmd.Opts.Y != 20 {
 				t.Errorf("DrawImage position = (%f, %f), want (10, 20)",
-					imgCmd.DstRect.MinX, imgCmd.DstRect.MinY)
+					imgCmd.Opts.X, imgCmd.Opts.Y)
+			}
+			// The pool must hold the caller's buffer, not a copy: a copy per
+			// playback would re-upload a GPU texture every frame.
+			if got := recording.Resources().GetImage(imgCmd.Image); got != img {
+				t.Errorf("pooled image = %p, want %p", got, img)
 			}
 			break
 		}
@@ -546,25 +545,88 @@ func TestRecorderDrawImage(t *testing.T) {
 	}
 }
 
-func TestRecorderDrawImageScaled(t *testing.T) {
+func TestRecorderDrawImageEx(t *testing.T) {
 	rec := NewRecorder(100, 100)
 
-	img := image.NewRGBA(image.Rect(0, 0, 50, 50))
-	rec.DrawImageScaled(img, 0, 0, 100, 100)
+	img := testImageBuf(t, 50, 50, render.Red)
+	src := image.Rect(5, 5, 25, 25)
+	rec.DrawImageEx(img, render.DrawImageOptions{
+		X: 1, Y: 2, DstWidth: 100, DstHeight: 100,
+		SrcRect: &src, Opacity: 0.5, Interpolation: render.InterpNearest,
+	})
 
 	recording := rec.FinishRecording()
 
 	for _, cmd := range recording.Commands() {
 		if cmd.Type() == CmdDrawImage {
-			imgCmd := cmd.(DrawImageCommand)
-			if imgCmd.DstRect.Width() != 100 || imgCmd.DstRect.Height() != 100 {
-				t.Errorf("DrawImageScaled dest size = %f x %f, want 100 x 100",
-					imgCmd.DstRect.Width(), imgCmd.DstRect.Height())
+			opts := cmd.(DrawImageCommand).Opts
+			if opts.DstWidth != 100 || opts.DstHeight != 100 {
+				t.Errorf("draw size = %f x %f, want 100 x 100", opts.DstWidth, opts.DstHeight)
+			}
+			if opts.SrcRect == nil || *opts.SrcRect != (image.Rect(5, 5, 25, 25)) {
+				t.Errorf("SrcRect = %v, want (5,5)-(25,25)", opts.SrcRect)
+			}
+			if opts.Opacity != 0.5 || opts.Interpolation != render.InterpNearest {
+				t.Errorf("opts = %+v, want opacity 0.5 nearest", opts)
 			}
 			return
 		}
 	}
-	t.Error("DrawImageScaled should produce DrawImageCommand")
+	t.Error("DrawImageEx should produce DrawImageCommand")
+}
+
+// Recording must not alias the caller's SrcRect.
+func TestRecorderDrawImageExDetachesSrcRect(t *testing.T) {
+	rec := NewRecorder(100, 100)
+	img := testImageBuf(t, 8, 8, render.Red)
+	src := image.Rect(0, 0, 4, 4)
+	rec.DrawImageEx(img, render.DrawImageOptions{SrcRect: &src, Opacity: 1})
+	src.Max = image.Point{9, 9}
+
+	opts := rec.FinishRecording().Commands()[0].(DrawImageCommand).Opts
+	if got := *opts.SrcRect; got != (image.Rect(0, 0, 4, 4)) {
+		t.Errorf("recorded SrcRect = %v, want the value at record time", got)
+	}
+}
+
+func TestRecorderDrawImageIgnoresMissingBuffer(t *testing.T) {
+	rec := NewRecorder(100, 100)
+	rec.DrawImage(nil, 10, 10)
+	rec.DrawImageEx(nil, render.DrawImageOptions{Opacity: 1})
+	rec.DrawImageNine(nil, image.Rect(1, 1, 2, 2), 0, 0, 10, 10)
+	rec.DrawImageQuad(nil, [4]render.Point{}, render.QuadDrawOptions{})
+	rec.DrawImageRounded(nil, 0, 0, 4)
+	rec.DrawImageCircular(nil, 5, 5, 4)
+	if _, err := rec.DrawAtlasEx(nil, []render.AtlasSprite{{DstW: 4, DstH: 4}}, render.AtlasDrawOptions{}); err != nil {
+		t.Fatalf("DrawAtlasEx(nil): %v", err)
+	}
+	if _, err := rec.DrawDepthSprites(nil, []render.DepthSprite{}, render.DepthDrawOptions{}); err != nil {
+		t.Fatalf("DrawDepthSprites(nil): %v", err)
+	}
+
+	buf := testImageBuf(t, 4, 4, render.Red)
+	buf.Dispose()
+	rec.DrawImage(buf, 0, 0)
+
+	if cmds := rec.FinishRecording().Commands(); len(cmds) != 0 {
+		t.Errorf("nil/disposed image recorded %d commands, want none", len(cmds))
+	}
+}
+
+func testImageBuf(t *testing.T, w, h int, col render.RGBA) *render.ImageBuf {
+	t.Helper()
+	buf, err := render.NewImageBuf(w, h, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if err := buf.SetRGBA(x, y, byte(col.R*255), byte(col.G*255), byte(col.B*255), byte(col.A*255)); err != nil {
+				t.Fatalf("SetRGBA(%d,%d): %v", x, y, err)
+			}
+		}
+	}
+	return buf
 }
 
 func TestRecorderDrawString(t *testing.T) {
@@ -686,37 +748,78 @@ func TestRecorderEmptyPathOperations(t *testing.T) {
 	}
 }
 
-func TestRecorderTransformAffectsPath(t *testing.T) {
+// Recording keeps geometry in user space and carries the CTM in the command
+// stream, so one recording replays at any device scale and under any layer
+// offset (Flutter/Skia display-list model). The transform therefore shows up
+// as a ConcatCommand, never baked into the path.
+func TestRecorderStoresUserSpaceGeometryWithPathMatrix(t *testing.T) {
 	rec := NewRecorder(100, 100)
 
-	// Apply transform
 	rec.Translate(10, 20)
-
-	// Draw a point at origin
 	rec.MoveTo(0, 0)
 	rec.LineTo(1, 1)
 	rec.Fill()
 
-	// The path should have transformed coordinates
 	recording := rec.FinishRecording()
+	cmds := recording.Commands()
+	if len(cmds) != 2 {
+		t.Fatalf("command count = %d, want 2 (SetTransform + FillPath)", len(cmds))
+	}
+	transform, ok := cmds[0].(ConcatCommand)
+	if !ok {
+		t.Fatalf("cmds[0] = %T, want ConcatCommand", cmds[0])
+	}
+	if want := Translate(10, 20); transform.Matrix != want {
+		t.Errorf("recorded CTM = %+v, want %+v", transform.Matrix, want)
+	}
+	if _, ok := cmds[1].(FillPathCommand); !ok {
+		t.Fatalf("cmds[1] = %T, want FillPathCommand", cmds[1])
+	}
 
 	path := recording.Resources().GetPath(PathRef(0))
 	if path == nil {
 		t.Fatal("path not found in resources")
 	}
-
-	verbs := path.Verbs()
-	if len(verbs) < 1 {
-		t.Fatal("path has no verbs")
+	coords := path.Coords()
+	if len(coords) < 4 {
+		t.Fatalf("path has %d coords, want >= 4", len(coords))
 	}
+	if coords[0] != 0 || coords[1] != 0 || coords[2] != 1 || coords[3] != 1 {
+		t.Errorf("path coords = %v, want user-space [0 0 1 1]", coords[:4])
+	}
+}
 
-	// First verb should be MoveTo at transformed position
-	if verbs[0] != render.MoveTo {
-		t.Fatal("first verb should be MoveTo")
+// render.Context bakes every verb with the matrix in force at that moment. A
+// transform change while a path is open must not change the painted result, so
+// the recorder remaps the verbs already added into the new matrix space.
+func TestRecorderRebakesPathAcrossMidPathTransform(t *testing.T) {
+	rec := NewRecorder(100, 100)
+
+	rec.Translate(10, 0)
+	rec.MoveTo(0, 0)
+	rec.LineTo(5, 5)
+	rec.Translate(0, 20)
+	rec.LineTo(9, 9)
+	rec.Fill()
+
+	recording := rec.FinishRecording()
+	path := recording.Resources().GetPath(PathRef(0))
+	if path == nil {
+		t.Fatal("path not found in resources")
 	}
 	coords := path.Coords()
-	if coords[0] != 10 || coords[1] != 20 {
-		t.Errorf("MoveTo = (%f, %f), want (10, 20)", coords[0], coords[1])
+	if len(coords) < 6 {
+		t.Fatalf("path has %d coords, want >= 6", len(coords))
+	}
+
+	// Final CTM is Translate(10, 20); Context would have baked (10,0),
+	// (15,5), (19,29). Expressed in the final CTM's space that is
+	// (0,-20), (5,-15), (9,9).
+	want := []float64{0, -20, 5, -15, 9, 9}
+	for i, w := range want {
+		if math.Abs(coords[i]-w) > 1e-9 {
+			t.Fatalf("coords[%d] = %v, want %v (whole path: %v)", i, coords[i], w, coords[:6])
+		}
 	}
 }
 
@@ -753,23 +856,6 @@ func TestRecorderResourceCounting(t *testing.T) {
 	// Brushes include default and explicitly set ones
 	if resources.BrushCount() < 2 {
 		t.Errorf("BrushCount = %d, want >= 2", resources.BrushCount())
-	}
-}
-
-func TestRecorderDrawNilImage(t *testing.T) {
-	rec := NewRecorder(100, 100)
-
-	// Drawing nil image should be a no-op
-	rec.DrawImage(nil, 0, 0)
-	rec.DrawImageAnchored(nil, 0, 0, 0.5, 0.5)
-	rec.DrawImageScaled(nil, 0, 0, 100, 100)
-
-	recording := rec.FinishRecording()
-
-	for _, cmd := range recording.Commands() {
-		if cmd.Type() == CmdDrawImage {
-			t.Error("drawing nil image should not produce DrawImageCommand")
-		}
 	}
 }
 
@@ -940,6 +1026,49 @@ func TestRecorderDrawStringWrapped_ProducesCommands(t *testing.T) {
 	}
 	if !hasDrawText {
 		t.Error("DrawStringWrapped should produce at least one DrawTextCommand")
+	}
+}
+
+// A mesh or glyph run with no per-item colour draws with the context's fill
+// paint, so the paint must be captured at record time: at replay the context
+// still holds whatever the previous command left set.
+func TestRecorderPaintBackedOpsCaptureFillBrush(t *testing.T) {
+	rec := NewRecorder(100, 100)
+	rec.SetRGBA(1, 0.5, 0, 1)
+	rec.DrawVertices([]render.Point{{X: 0, Y: 0}, {X: 9, Y: 0}, {X: 0, Y: 9}}, nil, render.VertexModeTriangles)
+	rec.DrawShapedGlyphs([]text.ShapedGlyph{{GID: 1}}, nil, 1, 2)
+	rec.SetRGBA(0, 1, 0, 1)
+	rec.DrawShapedColorGlyphs([]text.ShapedGlyph{{GID: 2}}, nil, 3, 4)
+
+	orange := SolidBrush{Color: render.RGBA{R: 1, G: 0.5, A: 1}}
+	green := SolidBrush{Color: render.RGBA{G: 1, A: 1}}
+	want := map[CommandType]Brush{
+		CmdDrawVertices: orange,
+		CmdDrawGlyphs:   orange,
+	}
+	seen := map[CommandType]int{}
+
+	r := rec.FinishRecording()
+	for _, cmd := range r.Commands() {
+		switch c := cmd.(type) {
+		case DrawVerticesCommand:
+			seen[CmdDrawVertices]++
+			if got := r.Resources().GetBrush(c.Brush); got != orange {
+				t.Errorf("mesh brush = %v, want %v", got, orange)
+			}
+		case DrawGlyphsCommand:
+			seen[c.Type()]++
+			wantBrush := want[c.Type()]
+			if c.Colored {
+				wantBrush = green
+			}
+			if got := r.Resources().GetBrush(c.Brush); got != wantBrush {
+				t.Errorf("glyph run (colored=%v) brush = %v, want %v", c.Colored, got, wantBrush)
+			}
+		}
+	}
+	if seen[CmdDrawVertices] != 1 || seen[CmdDrawGlyphs] != 2 {
+		t.Errorf("recorded %v, want 1 mesh and 2 glyph runs", seen)
 	}
 }
 

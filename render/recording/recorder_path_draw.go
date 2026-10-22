@@ -11,7 +11,6 @@
 package recording
 
 import (
-	"image"
 	"math"
 	"strings"
 
@@ -23,31 +22,29 @@ import (
 // Path Building
 // --------------------------------------------------------------------------
 
+// Path verbs are recorded in user space: the CTM is carried by the
+// ConcatCommand stream and applied by each backend at playback, exactly
+// like render.Context bakes them with its own matrix. syncPathBasis keeps the
+// invariant even when a transform changes mid-path.
+
 // MoveTo starts a new subpath at the given point.
 func (r *Recorder) MoveTo(x, y float64) {
-	px, py := r.transform.TransformPoint(x, y)
-	r.currentPath.MoveTo(px, py)
+	r.currentPath.MoveTo(x, y)
 }
 
 // LineTo adds a line to the current path.
 func (r *Recorder) LineTo(x, y float64) {
-	px, py := r.transform.TransformPoint(x, y)
-	r.currentPath.LineTo(px, py)
+	r.currentPath.LineTo(x, y)
 }
 
 // QuadraticTo adds a quadratic Bezier curve to the current path.
 func (r *Recorder) QuadraticTo(cx, cy, x, y float64) {
-	cpx, cpy := r.transform.TransformPoint(cx, cy)
-	px, py := r.transform.TransformPoint(x, y)
-	r.currentPath.QuadraticTo(cpx, cpy, px, py)
+	r.currentPath.QuadraticTo(cx, cy, x, y)
 }
 
 // CubicTo adds a cubic Bezier curve to the current path.
 func (r *Recorder) CubicTo(c1x, c1y, c2x, c2y, x, y float64) {
-	cp1x, cp1y := r.transform.TransformPoint(c1x, c1y)
-	cp2x, cp2y := r.transform.TransformPoint(c2x, c2y)
-	px, py := r.transform.TransformPoint(x, y)
-	r.currentPath.CubicTo(cp1x, cp1y, cp2x, cp2y, px, py)
+	r.currentPath.CubicTo(c1x, c1y, c2x, c2y, x, y)
 }
 
 // ClosePath closes the current subpath.
@@ -70,10 +67,12 @@ func (r *Recorder) NewSubPath() {
 // Drawing
 // --------------------------------------------------------------------------
 
-// Fill fills the current path and clears it.
-func (r *Recorder) Fill() {
+// Fill fills the current path and clears it. Recording cannot fail before
+// rasterization, so the error is always nil; it exists to match
+// render.Context.Fill, which lets the same paint code target either surface.
+func (r *Recorder) Fill() error {
 	if r.currentPath.NumVerbs() == 0 {
-		return
+		return nil
 	}
 
 	pathRef := r.resources.AddPath(r.currentPath)
@@ -86,12 +85,19 @@ func (r *Recorder) Fill() {
 	})
 
 	r.currentPath = render.NewPath()
+	r.pathBasis = r.transform
+	return nil
 }
 
 // FillPreserve fills the current path without clearing it.
-func (r *Recorder) FillPreserve() {
+func (r *Recorder) FillPreserve() error {
+	return r.recordFill(false)
+}
+
+// recordFill emits a fill of the current path, optionally clearing it.
+func (r *Recorder) recordFill(clear bool) error {
 	if r.currentPath.NumVerbs() == 0 {
-		return
+		return nil
 	}
 
 	pathRef := r.resources.AddPath(r.currentPath)
@@ -102,39 +108,27 @@ func (r *Recorder) FillPreserve() {
 		Brush: brushRef,
 		Rule:  r.fillRule,
 	})
+	if clear {
+		r.currentPath = render.NewPath()
+		r.pathBasis = r.transform
+	}
+	return nil
 }
 
 // Stroke strokes the current path and clears it.
-func (r *Recorder) Stroke() {
-	if r.currentPath.NumVerbs() == 0 {
-		return
-	}
-
-	pathRef := r.resources.AddPath(r.currentPath)
-	brushRef := r.resources.AddBrush(r.strokeBrush)
-
-	stroke := Stroke{
-		Width:       r.lineWidth,
-		Cap:         r.lineCap,
-		Join:        r.lineJoin,
-		MiterLimit:  r.miterLimit,
-		DashPattern: r.dashPattern,
-		DashOffset:  r.dashOffset,
-	}
-
-	r.commands = append(r.commands, StrokePathCommand{
-		Path:   pathRef,
-		Brush:  brushRef,
-		Stroke: stroke,
-	})
-
-	r.currentPath = render.NewPath()
+func (r *Recorder) Stroke() error {
+	return r.recordStroke(true)
 }
 
 // StrokePreserve strokes the current path without clearing it.
-func (r *Recorder) StrokePreserve() {
+func (r *Recorder) StrokePreserve() error {
+	return r.recordStroke(false)
+}
+
+// recordStroke emits a stroke of the current path, optionally clearing it.
+func (r *Recorder) recordStroke(clear bool) error {
 	if r.currentPath.NumVerbs() == 0 {
-		return
+		return nil
 	}
 
 	pathRef := r.resources.AddPath(r.currentPath)
@@ -154,12 +148,19 @@ func (r *Recorder) StrokePreserve() {
 		Brush:  brushRef,
 		Stroke: stroke,
 	})
+	if clear {
+		r.currentPath = render.NewPath()
+		r.pathBasis = r.transform
+	}
+	return nil
 }
 
 // FillStroke fills and then strokes the current path, then clears it.
-func (r *Recorder) FillStroke() {
-	r.FillPreserve()
-	r.Stroke()
+func (r *Recorder) FillStroke() error {
+	if err := r.FillPreserve(); err != nil {
+		return err
+	}
+	return r.Stroke()
 }
 
 // --------------------------------------------------------------------------
@@ -257,10 +258,8 @@ func (r *Recorder) drawArcPath(cx, cy, radius, angle1, angle2 float64) {
 }
 
 // arcSegment adds a single arc segment using cubic Bezier curves.
-// Endpoints and control handles route through MoveTo/CubicTo (which apply
-// the recorder transform), so rotation/scale apply exactly like Context.
-// Previously the raw user-space points were baked, so a rotated arc
-// painted unrotated (loading spinner never animated via Recorder).
+// Endpoints and control handles route through MoveTo/CubicTo, so the recorded
+// arc follows the same user-space path as Context's own arc construction.
 func (r *Recorder) arcSegment(cx, cy, radius, a1, a2 float64) {
 	alpha := math.Sin(a2-a1) * (math.Sqrt(4+3*math.Tan((a2-a1)/2)*math.Tan((a2-a1)/2)) - 1) / 3
 
@@ -303,6 +302,7 @@ func (r *Recorder) DrawEllipticalArc(x, y, rx, ry, angle1, angle2 float64) {
 		r.dashOffset = state.dashOffset
 		r.fillRule = state.fillRule
 		r.transform = state.transform
+		r.syncPathBasis()
 	}
 	r.commands = append(r.commands, RestoreCommand{})
 }
@@ -314,11 +314,7 @@ func (r *Recorder) DrawEllipticalArc(x, y, rx, ry, angle1, angle2 float64) {
 // FillRectangle fills a rectangle without adding it to the path.
 // This is an optimized operation for the common case of axis-aligned rectangles.
 func (r *Recorder) FillRectangle(x, y, w, h float64) {
-	// Transform corners
-	x1, y1 := r.transform.TransformPoint(x, y)
-	x2, y2 := r.transform.TransformPoint(x+w, y+h)
-
-	rect := NewRectFromPoints(x1, y1, x2, y2)
+	rect := NewRect(x, y, w, h)
 	brushRef := r.resources.AddBrush(r.fillBrush)
 
 	r.commands = append(r.commands, FillRectCommand{
@@ -329,11 +325,7 @@ func (r *Recorder) FillRectangle(x, y, w, h float64) {
 
 // StrokeRectangle strokes a rectangle without adding it to the path.
 func (r *Recorder) StrokeRectangle(x, y, w, h float64) {
-	// Transform corners
-	x1, y1 := r.transform.TransformPoint(x, y)
-	x2, y2 := r.transform.TransformPoint(x+w, y+h)
-
-	rect := NewRectFromPoints(x1, y1, x2, y2)
+	rect := NewRect(x, y, w, h)
 	brushRef := r.resources.AddBrush(r.strokeBrush)
 
 	stroke := Stroke{
@@ -398,95 +390,6 @@ func (r *Recorder) ClipRoundRect(x, y, w, h, radius float64) {
 }
 
 // --------------------------------------------------------------------------
-// Image
-// --------------------------------------------------------------------------
-
-// DrawImage draws an image at the specified position.
-func (r *Recorder) DrawImage(img image.Image, x, y int) {
-	if img == nil {
-		return
-	}
-
-	bounds := img.Bounds()
-	w := bounds.Dx()
-	h := bounds.Dy()
-
-	imageRef := r.resources.AddImage(img)
-
-	// Transform destination rectangle
-	x1, y1 := r.transform.TransformPoint(float64(x), float64(y))
-	x2, y2 := r.transform.TransformPoint(float64(x+w), float64(y+h))
-
-	srcRect := NewRect(0, 0, float64(w), float64(h))
-	dstRect := NewRectFromPoints(x1, y1, x2, y2)
-
-	r.commands = append(r.commands, DrawImageCommand{
-		Image:   imageRef,
-		SrcRect: srcRect,
-		DstRect: dstRect,
-		Options: DefaultImageOptions(),
-	})
-}
-
-// DrawImageAnchored draws an image with an anchor point.
-func (r *Recorder) DrawImageAnchored(img image.Image, x, y int, ax, ay float64) {
-	if img == nil {
-		return
-	}
-
-	bounds := img.Bounds()
-	w := bounds.Dx()
-	h := bounds.Dy()
-
-	// Adjust position based on anchor
-	drawX := float64(x) - float64(w)*ax
-	drawY := float64(y) - float64(h)*ay
-
-	imageRef := r.resources.AddImage(img)
-
-	// Transform destination rectangle
-	x1, y1 := r.transform.TransformPoint(drawX, drawY)
-	x2, y2 := r.transform.TransformPoint(drawX+float64(w), drawY+float64(h))
-
-	srcRect := NewRect(0, 0, float64(w), float64(h))
-	dstRect := NewRectFromPoints(x1, y1, x2, y2)
-
-	r.commands = append(r.commands, DrawImageCommand{
-		Image:   imageRef,
-		SrcRect: srcRect,
-		DstRect: dstRect,
-		Options: DefaultImageOptions(),
-	})
-}
-
-// DrawImageScaled draws an image scaled to fit the specified rectangle.
-func (r *Recorder) DrawImageScaled(img image.Image, x, y, w, h float64) {
-	if img == nil {
-		return
-	}
-
-	bounds := img.Bounds()
-	srcW := bounds.Dx()
-	srcH := bounds.Dy()
-
-	imageRef := r.resources.AddImage(img)
-
-	// Transform destination rectangle
-	x1, y1 := r.transform.TransformPoint(x, y)
-	x2, y2 := r.transform.TransformPoint(x+w, y+h)
-
-	srcRect := NewRect(0, 0, float64(srcW), float64(srcH))
-	dstRect := NewRectFromPoints(x1, y1, x2, y2)
-
-	r.commands = append(r.commands, DrawImageCommand{
-		Image:   imageRef,
-		SrcRect: srcRect,
-		DstRect: dstRect,
-		Options: DefaultImageOptions(),
-	})
-}
-
-// --------------------------------------------------------------------------
 // Text
 // --------------------------------------------------------------------------
 
@@ -517,15 +420,12 @@ func (r *Recorder) SetFontFamily(family string) {
 
 // DrawString draws text at position (x, y) where y is the baseline.
 func (r *Recorder) DrawString(s string, x, y float64) {
-	// Transform position
-	px, py := r.transform.TransformPoint(x, y)
-
 	brushRef := r.resources.AddBrush(r.fillBrush)
 
 	r.commands = append(r.commands, DrawTextCommand{
 		Text:       s,
-		X:          px,
-		Y:          py,
+		X:          x,
+		Y:          y,
 		FontSize:   r.fontSize,
 		FontFamily: r.fontFamily,
 		Font:       r.currentFontRef(),
@@ -544,8 +444,6 @@ func (r *Recorder) DrawStringAnchored(s string, x, y, ax, ay float64) {
 // StrokeString strokes text outlines at position (x, y) where y is the baseline.
 // The stroke width, cap, join, and dash are captured from the current recorder state.
 func (r *Recorder) StrokeString(s string, x, y float64) {
-	px, py := r.transform.TransformPoint(x, y)
-
 	brushRef := r.resources.AddBrush(r.strokeBrush)
 
 	stroke := Stroke{
@@ -559,8 +457,8 @@ func (r *Recorder) StrokeString(s string, x, y float64) {
 
 	r.commands = append(r.commands, StrokeTextCommand{
 		Text:       s,
-		X:          px,
-		Y:          py,
+		X:          x,
+		Y:          y,
 		FontSize:   r.fontSize,
 		FontFamily: r.fontFamily,
 		Font:       r.currentFontRef(),

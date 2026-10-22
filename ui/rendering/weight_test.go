@@ -96,17 +96,17 @@ func TestRenderText_WeightInvalidatesParentCache(t *testing.T) {
 		root.Paint(pc)
 	}
 	paint()
-	rr, skip, _, _ := cache.FrameCounts()
+	rr, skip := cache.Stats().FrameRerecord, cache.Stats().FrameSkip
 	if rr != 1 || skip != 0 || !cache.HasValid(root) {
 		t.Fatalf("first paint rr=%d skip=%d valid=%v want 1/0/true", rr, skip, cache.HasValid(root))
 	}
 	paint()
-	if rr, skip, _, _ := cache.FrameCounts(); rr != 0 || skip != 1 {
-		t.Fatalf("clean repaint rr=%d skip=%d want 0/1", rr, skip)
+	if st := cache.Stats(); st.FrameRerecord != 0 || st.FrameSkip != 1 {
+		t.Fatalf("clean repaint rr=%d skip=%d want 0/1", st.FrameRerecord, st.FrameSkip)
 	}
 	child.SetFontWeight(text.WeightBold)
 	paint()
-	if rr, _, _, _ := cache.FrameCounts(); rr != 1 {
+	if rr := cache.Stats().FrameRerecord; rr != 1 {
 		t.Fatalf("weight change must re-record, rr=%d", rr)
 	}
 	if !cache.HasValid(root) {

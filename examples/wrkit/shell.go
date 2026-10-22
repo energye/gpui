@@ -155,9 +155,12 @@ func MergeBoundaryCache(app *embedder.PipelineApp, snap *scheduler.FrameMetrics)
 		return
 	}
 	if cache := app.BoundaryCache(); cache != nil {
-		if snap.BoundarySkip < cache.Skip {
-			snap.BoundarySkip = cache.Skip
-			snap.BoundaryRerecord = cache.Rerecord
+		// Stats() snapshots under the cache lock: paint writes these on the
+		// raster thread, this reader runs on the UI ticker.
+		st := cache.Stats()
+		if snap.BoundarySkip < st.Skip {
+			snap.BoundarySkip = st.Skip
+			snap.BoundaryRerecord = st.Rerecord
 		}
 	}
 }

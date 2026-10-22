@@ -20,7 +20,7 @@
 // # Architecture
 //
 // Commands capture all drawing operations:
-//   - State commands (Save, Restore, SetTransform, SetClip)
+//   - State commands (Save, Restore, Concat, SetClip)
 //   - Drawing commands (FillPath, StrokePath, FillRect, DrawImage, DrawText)
 //   - Style commands (SetFillStyle, SetStrokeStyle, SetLineWidth, etc.)
 //
@@ -42,6 +42,8 @@
 //	r.Playback(pdfBackend)
 package recording
 
+import "github.com/energye/gpui/render"
+
 // CommandType identifies the type of a command.
 // Each command type corresponds to a specific drawing operation.
 type CommandType uint8
@@ -50,7 +52,7 @@ const (
 	// State commands
 	CmdSave          CommandType = iota // Save current state
 	CmdRestore                          // Restore previous state
-	CmdSetTransform                     // Set transformation matrix
+	CmdConcat                           // Concatenate a matrix onto the CTM
 	CmdSetClip                          // Set clipping region
 	CmdClearClip                        // Clear clipping region
 	CmdClipRoundRect                    // Set rounded rectangle clipping region
@@ -74,13 +76,35 @@ const (
 	CmdSetDash        // Set dash pattern
 	CmdSetFillRule    // Set fill rule
 	CmdSetAntiAlias   // Set anti-aliasing mode
+
+	// Extended drawing commands (render.Canvas parity, S2a)
+	CmdClipRect          // Rectangular clip
+	CmdSetTextDecoration // Text decoration bitset for subsequent text draws
+	CmdDrawImageNine     // Nine-patch image draw
+	CmdDrawImageQuad     // Four-corner image draw
+	CmdDrawImageRounded  // Image clipped to a rounded rect
+	CmdDrawImageCircular // Image clipped to a circle
+	CmdDrawAtlas         // Batched sprite draw from one atlas
+	CmdDrawDepthSprites  // Batched sprite draw with depth ordering
+	CmdDrawVertices      // Triangle/strip/line vertex mesh
+	CmdDrawGlyphs        // Shaped-glyph run (mono or per-glyph colored)
+
+	// Layer and effect commands
+	CmdPushLayer         // Save-layer with blend/opacity
+	CmdPushLayerIsolated // Forced true save-layer
+	CmdPushBackdropLayer // Save-layer that overwrites the parent snapshot
+	CmdPopLayer          // Composite the layer just drawn
+	CmdApplyBlur         // Post-effect: blur
+	CmdApplyColorMatrix  // Post-effect: 4x5+color matrix
+	CmdApplyDropShadow   // Post-effect: drop shadow
+	CmdApplyGrayscale    // Post-effect: grayscale
 )
 
 // commandTypeNames maps CommandType values to their string representation.
 var commandTypeNames = [...]string{
 	CmdSave:           "Save",
 	CmdRestore:        "Restore",
-	CmdSetTransform:   "SetTransform",
+	CmdConcat:         "Concat",
 	CmdSetClip:        "SetClip",
 	CmdClearClip:      "ClearClip",
 	CmdClipRoundRect:  "ClipRoundRect",
@@ -100,6 +124,26 @@ var commandTypeNames = [...]string{
 	CmdSetDash:        "SetDash",
 	CmdSetFillRule:    "SetFillRule",
 	CmdSetAntiAlias:   "SetAntiAlias",
+
+	CmdClipRect:          "ClipRect",
+	CmdSetTextDecoration: "SetTextDecoration",
+	CmdDrawImageNine:     "DrawImageNine",
+	CmdDrawImageQuad:     "DrawImageQuad",
+	CmdDrawImageRounded:  "DrawImageRounded",
+	CmdDrawImageCircular: "DrawImageCircular",
+	CmdDrawAtlas:         "DrawAtlas",
+	CmdDrawDepthSprites:  "DrawDepthSprites",
+	CmdDrawVertices:      "DrawVertices",
+	CmdDrawGlyphs:        "DrawGlyphs",
+
+	CmdPushLayer:         "PushLayer",
+	CmdPushLayerIsolated: "PushLayerIsolated",
+	CmdPushBackdropLayer: "PushBackdropLayer",
+	CmdPopLayer:          "PopLayer",
+	CmdApplyBlur:         "ApplyBlur",
+	CmdApplyColorMatrix:  "ApplyColorMatrix",
+	CmdApplyDropShadow:   "ApplyDropShadow",
+	CmdApplyGrayscale:    "ApplyGrayscale",
 }
 
 // String returns the string representation of a CommandType.
@@ -170,14 +214,21 @@ type RestoreCommand struct{}
 // Type implements Command.
 func (RestoreCommand) Type() CommandType { return CmdRestore }
 
-// SetTransformCommand sets the current transformation matrix.
-type SetTransformCommand struct {
-	// Matrix is the new transformation matrix.
+// ConcatCommand concatenates a matrix onto the playback CTM.
+//
+// Transform ops are relative, not absolute: the matrix maps the CTM the
+// recorder had before the call to the CTM it had after. Playback therefore
+// composes onto whatever CTM the target context already carries (the layer
+// offset and device scale at raster time) instead of clobbering it — the same
+// model Skia's display lists use, and what makes one recording replayable at
+// any scale and offset.
+type ConcatCommand struct {
+	// Matrix is the relative transformation to concatenate.
 	Matrix Matrix
 }
 
 // Type implements Command.
-func (SetTransformCommand) Type() CommandType { return CmdSetTransform }
+func (ConcatCommand) Type() CommandType { return CmdConcat }
 
 // SetClipCommand sets the clipping region.
 type SetClipCommand struct {
@@ -265,17 +316,14 @@ type StrokeRectCommand struct {
 // Type implements Command.
 func (StrokeRectCommand) Type() CommandType { return CmdStrokeRect }
 
-// DrawImageCommand draws an image.
+// DrawImageCommand draws an image. It carries render's own option struct, so
+// replay reaches Context.DrawImageEx with the same fields the caller recorded
+// (destination, source sub-rect, interpolation, opacity, blend mode, mipmaps).
 type DrawImageCommand struct {
-	// Image references the image in the resource pool.
+	// Image references the image buffer in the resource pool.
 	Image ImageRef
-	// SrcRect is the source rectangle in image coordinates.
-	// If zero, uses the entire image.
-	SrcRect Rect
-	// DstRect is the destination rectangle in canvas coordinates.
-	DstRect Rect
-	// Options contains rendering options (interpolation, etc.).
-	Options ImageOptions
+	// Opts is the recorded draw options.
+	Opts render.DrawImageOptions
 }
 
 // Type implements Command.
@@ -420,38 +468,37 @@ func (SetAntiAliasCommand) Type() CommandType { return CmdSetAntiAlias }
 // Supporting Types
 // --------------------------------------------------------------------------
 
-// FillRule specifies how to determine which areas are inside a path.
-type FillRule uint8
+// FillRule, LineCap and LineJoin are render's own enums, not a parallel set:
+// a Recorder must satisfy render.Canvas with the same signatures a live
+// *render.Context has, otherwise paint code written against the Context cannot
+// be recorded unchanged.
+type (
+	// FillRule aliases render.FillRule.
+	FillRule = render.FillRule
+	// LineCap aliases render.LineCap.
+	LineCap = render.LineCap
+	// LineJoin aliases render.LineJoin.
+	LineJoin = render.LineJoin
+)
 
+// Fill rule / line style constants come from render.
 const (
 	// FillRuleNonZero uses the non-zero winding rule.
-	FillRuleNonZero FillRule = iota
+	FillRuleNonZero = render.FillRuleNonZero
 	// FillRuleEvenOdd uses the even-odd rule.
-	FillRuleEvenOdd
-)
-
-// LineCap specifies the shape of line endpoints.
-type LineCap uint8
-
-const (
+	FillRuleEvenOdd = render.FillRuleEvenOdd
 	// LineCapButt specifies a flat line cap.
-	LineCapButt LineCap = iota
+	LineCapButt = render.LineCapButt
 	// LineCapRound specifies a rounded line cap.
-	LineCapRound
+	LineCapRound = render.LineCapRound
 	// LineCapSquare specifies a square line cap.
-	LineCapSquare
-)
-
-// LineJoin specifies the shape of line joins.
-type LineJoin uint8
-
-const (
+	LineCapSquare = render.LineCapSquare
 	// LineJoinMiter specifies a sharp (mitered) join.
-	LineJoinMiter LineJoin = iota
+	LineJoinMiter = render.LineJoinMiter
 	// LineJoinRound specifies a rounded join.
-	LineJoinRound
+	LineJoinRound = render.LineJoinRound
 	// LineJoinBevel specifies a beveled join.
-	LineJoinBevel
+	LineJoinBevel = render.LineJoinBevel
 )
 
 // Stroke defines the style for stroking paths.
@@ -490,28 +537,7 @@ func (s Stroke) Clone() Stroke {
 	return result
 }
 
-// ImageOptions contains options for image rendering.
-type ImageOptions struct {
-	// Interpolation specifies the interpolation mode.
-	Interpolation InterpolationMode
-	// Alpha is the opacity (0.0 to 1.0).
-	Alpha float64
-}
-
-// DefaultImageOptions returns ImageOptions with default settings.
-func DefaultImageOptions() ImageOptions {
-	return ImageOptions{
-		Interpolation: InterpolationBilinear,
-		Alpha:         1.0,
-	}
-}
-
-// InterpolationMode specifies how to interpolate between pixels.
-type InterpolationMode uint8
-
-const (
-	// InterpolationNearest uses nearest-neighbor interpolation.
-	InterpolationNearest InterpolationMode = iota
-	// InterpolationBilinear uses bilinear interpolation.
-	InterpolationBilinear
-)
+// Image draw options are render's own (render.DrawImageOptions), recorded
+// verbatim into DrawImageCommand: a parallel option struct would only add a
+// lossy translation step between what paint code asked for and what playback
+// hands to the rasterizer.
