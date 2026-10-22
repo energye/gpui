@@ -42,7 +42,7 @@ var fullFamilyKeys = []string{
 	// D CPU
 	"cpu_pct_avg", "cpu_ui_pct", "cpu_raster_pct",
 	// E 内存
-	"rss_start_kb", "rss_end_kb", "rss_peak_kb", "rss_slope_kb_per_min", "rss_after_close_kb",
+	"rss_start_kb", "rss_end_kb", "rss_peak_kb", "rss_slope_kb_per_min", "rss_slope_valid", "rss_after_close_kb",
 	// F GPU
 	"gpu_ops", "cpu_fallback_ops", "last_cpu_fallback", "frame_flushes",
 	// G 图/文 (本窗有 measure 数据 → 必采 hit/miss)
