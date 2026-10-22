@@ -301,3 +301,26 @@ func TestEvaluateRetainedExtras_CacheInvalidationGate(t *testing.T) {
 		t.Fatalf("zero thresholds must be off: %v", err)
 	}
 }
+
+// TestBuildReport_DebugRepaintOffStateExplicit: R12b off state must emit
+// debug_repaint_on=false / debug_repaint_draws=0 explicitly. Omitting them
+// looks like missing evidence instead of a measured zero overlay.
+func TestBuildReport_DebugRepaintOffStateExplicit(t *testing.T) {
+	r := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID: "R12b", Scenario: "ui_wr_r12b_debug_repaint",
+		Snap: scheduler.FrameMetrics{
+			PresentPolicy: scheduler.PresentPolicyFullPaint,
+			VSyncSource:   "true",
+		},
+		PresentCount: 10, ElapsedSec: 8,
+	})
+	b, err := wrgate.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{`"debug_repaint_on":false`, `"debug_repaint_draws":0`} {
+		if !strings.Contains(string(b), key) {
+			t.Fatalf("off-state field missing %s: %s", key, b)
+		}
+	}
+}

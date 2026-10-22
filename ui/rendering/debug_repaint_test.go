@@ -57,3 +57,41 @@ func TestDebugRepaint_MarksLivePaintNotReplay(t *testing.T) {
 		t.Fatalf("dirty paint debug draws=%d want >%d", draws, before)
 	}
 }
+
+// TestDebugRepaint_DirtyUnchangedContentLivePaints locks the dirty contract:
+// MarkNeedsPaint must invalidate the cached Picture even when the visible
+// content is identical. A cache hit here would hide the R12b overlay for a real
+// repaint request (dirty flag), and only content-key changes would re-record.
+func TestDebugRepaint_DirtyUnchangedContentLivePaints(t *testing.T) {
+	const W, H = 80, 80
+	hot := rendering.NewRenderColorBox(30, 30, 0.2, 0.7, 0.2, 1)
+	hot.SetRepaintBoundary(true)
+	root := rendering.NewAbsoluteBox(W, H)
+	root.Place(hot, 10, 10)
+	owner := rendering.NewPipelineOwner(root)
+	owner.FlushLayout(rendering.Size{Width: W, Height: H}, true)
+	cache := owner.BoundaryCache()
+
+	var draws int64
+	paint := func() {
+		dc := render.NewContext(W, H)
+		pc := rendering.NewPaintContext(dc, 1)
+		pc.BoundaryCache, pc.UseBoundaryCache = cache, true
+		pc.DebugRepaint = true
+		pc.DebugRepaintDraws = &draws
+		cache.BeginFrame()
+		root.Paint(pc)
+	}
+
+	paint() // cold live paint
+	before := draws
+	hot.MarkNeedsPaint() // same color, only the dirty mark changes
+	paint()
+
+	if draws <= before {
+		t.Fatalf("dirty unchanged content debug draws=%d want >%d", draws, before)
+	}
+	if rr, sk, _, _ := cache.FrameCounts(); rr != 1 || sk != 0 {
+		t.Fatalf("dirty unchanged content cache rr=%d skip=%d want rr=1 skip=0", rr, sk)
+	}
+}

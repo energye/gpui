@@ -1381,6 +1381,16 @@ func (a *PipelineApp) Run() error {
 			a.opts.Overlay.Layout(float64(w), float64(h))
 		}
 
+		// Decide the present path before consuming paint flags: full-paint
+		// frames live-paint in the raster job and must keep dirty flags until
+		// FlushPaint clears them (see consumePacketPaintFlags).
+		force := false
+		if a.forceFullPresent.Load() > 0 {
+			a.forceFullPresent.Add(-1)
+			force = true
+		}
+		compositeOnly := a.useRetained.Load() && !force && !a.inFullRecovery()
+
 		t0 := time.Now()
 		frameID := a.frameID.Add(1)
 		scale = a.host.ScaleFactor()
@@ -1417,12 +1427,12 @@ func (a *PipelineApp) Run() error {
 		if pkt != nil {
 			a.noteDirtyIDs(pkt.DirtyLayerIDs)
 		}
-		// The packet already snapshots this frame's dirty set: consume the
-		// live paint flags here on the UI thread. The raster job below must
-		// not touch them — it runs concurrently with UI event handling, and
-		// clearing there can wipe a mark made after this build (lost update,
-		// e.g. a scroll-band expiry that then never re-records).
-		a.pipe.ConsumeNeedsPaint()
+		// Only the retained textured path has already captured this frame's
+		// content into pkt and will not live-paint below. Full-paint frames
+		// keep the flags so a dirty boundary with identical content still
+		// re-records (R12b overlay) instead of Replaying from BoundaryCache;
+		// FlushPaint clears them after the live paint.
+		a.consumePacketPaintFlags(compositeOnly && pkt != nil)
 		// T2 main move: RasterizeDirty (dirty walk plus NeedsRaster clear plus
 		// RasterExtra texture record via CompositeFramePacketTextured) now runs
 		// inside the raster FrameJob below. UI builds the packet and returns to
@@ -1448,24 +1458,12 @@ func (a *PipelineApp) Run() error {
 		// full_paint: full tree paint every frame (GPU Clear safe).
 		// retained: CompositeOnly paint — only dirty paths; LoadOpLoad keeps static.
 		// Warm-up / resize / open: force=true → full clear + full paint.
-		// Decrement per frame so the owed full presents land on consecutive
-		// frames, one per swapchain buffer.
-		force := false
-		if a.forceFullPresent.Load() > 0 {
-			a.forceFullPresent.Add(-1)
-			force = true
-		}
 		metrics := a.sched.Metrics()
 		if metrics != nil && metrics.PresentPolicy() == "" {
 			metrics.SetPresentPolicy(scheduler.PresentPolicyRetained)
 		}
 		dbgOn := a.debugRepaint.Load()
 		dbgAccum := &a.debugRepaintDraws
-		// Retained steady frames: compositeOnly=true (skip clean boundaries).
-		// Disable during target post-resize full recovery: the new swapchain
-		// buffers are undefined until fully written (render/present_target.go),
-		// and compositeOnly skips clean boundaries → black regions.
-		compositeOnly := a.useRetained.Load() && !force && !a.inFullRecovery()
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			fmt.Fprintf(os.Stderr, "DBG frame %d comp=%v force=%v recov=%v\n", frameID, compositeOnly, force, a.inFullRecovery())
 		}
@@ -1677,7 +1675,7 @@ func (a *PipelineApp) Run() error {
 				// repaint wrongly allowed the second offscreen group).
 				paintPresentTreeWithOpts(dc, a.pipe, a.root, a.opts.Overlay,
 					a.opts.ClearR, a.opts.ClearG, a.opts.ClearB, a.opts.ClearA, true, false,
-					paintPresentTreeOpts{layerStats: a.saveStats, layerBudget: a.saveBudget})
+					a.snapshotPaintOpts())
 				if err := dc.SavePNG(a.opts.SnapshotPath); err != nil {
 					fmt.Fprintf(os.Stderr, "snapshot: %v\n", err)
 				} else {
@@ -1723,6 +1721,35 @@ type paintPresentTreeOpts struct {
 	compositeOnly bool
 	layerStats    *rendering.SaveLayerStats
 	layerBudget   *rendering.SaveLayerBudget
+}
+
+// snapshotPaintOpts mirrors the evidence-relevant flags of a live present.
+// SnapshotPath repaints the final frame into the readback context; without the
+// debug flag an R12b evidence PNG silently loses the magenta live-paint overlay
+// and on/off snapshots become indistinguishable. debugDraws stays nil so the
+// snapshot repaint does not inflate the cumulative live-repaint counter.
+func (a *PipelineApp) snapshotPaintOpts() paintPresentTreeOpts {
+	if a == nil {
+		return paintPresentTreeOpts{}
+	}
+	return paintPresentTreeOpts{
+		debugRepaint: a.debugRepaint.Load(),
+		layerStats:   a.saveStats,
+		layerBudget:  a.saveBudget,
+	}
+}
+
+// consumePacketPaintFlags clears live dirty flags only for the retained
+// textured path, where BuildFramePacket already captured this frame's content
+// and no live paint runs. Full-paint frames must keep the flags until FlushPaint
+// paints the tree: clearing first would make a dirty boundary with identical
+// content Replay from BoundaryCache instead of live-repainting (and would hide
+// its R12b debug overlay).
+func (a *PipelineApp) consumePacketPaintFlags(compositeOnly bool) {
+	if a == nil || a.pipe == nil || !compositeOnly {
+		return
+	}
+	a.pipe.ConsumeNeedsPaint()
 }
 
 func paintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force, compositeOnly bool) {

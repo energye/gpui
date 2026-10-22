@@ -83,11 +83,13 @@ type Report struct {
 	BoundaryCount    int64 `json:"boundary_count,omitempty"`
 	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
 	// W1 R5 / R9 / R12b counters.
-	PictureOpCount    int64 `json:"picture_op_count,omitempty"`
-	MeasureCacheHit   int64 `json:"measure_cache_hit"`
-	MeasureCacheMiss  int64 `json:"measure_cache_miss"`
-	DebugRepaintDraws int64 `json:"debug_repaint_draws,omitempty"`
-	DebugRepaintOn    bool  `json:"debug_repaint_on,omitempty"`
+	PictureOpCount   int64 `json:"picture_op_count,omitempty"`
+	MeasureCacheHit  int64 `json:"measure_cache_hit"`
+	MeasureCacheMiss int64 `json:"measure_cache_miss"`
+	// Always present: R12b's off state must show an explicit 0/false, not an
+	// omitted field that looks like missing evidence.
+	DebugRepaintDraws int64 `json:"debug_repaint_draws"`
+	DebugRepaintOn    bool  `json:"debug_repaint_on"`
 	// AbilityExtra holds R-specific keys (optional).
 	AbilityExtra map[string]any `json:"ability_extra,omitempty"`
 }
