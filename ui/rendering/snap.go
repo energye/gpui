@@ -25,17 +25,17 @@ func SnapCoord(v, scale float64) float64 {
 	return math.Round(v*scale) / scale
 }
 
-// SnapLine returns the device-aligned origin (x for vertical lines, y for
-// horizontal lines) of a 1px stroke so the stroke covers one physical pixel
-// column/row centered on the grid (crisp, not blurred between two pixels).
-// Flutter/Skia hairline practice: a 1px (logical) stroke of width 1/scale must
-// start at a half-pixel offset from a snapped coordinate.
+// SnapLine returns the device-aligned centerline (x for vertical lines, y for
+// horizontal lines) of a 1px stroke so the stroke covers exactly one physical
+// pixel column/row (crisp, not blurred between two pixels). Flutter/Skia
+// hairline practice: a stroke of width 1/scale is centered on the middle of a
+// physical pixel, i.e. (floor(v*scale)+0.5)/scale. Keep SnapCoord (pixel
+// boundaries) for fills; this half-pixel center is only for line strokes.
 func SnapLine(v, scale float64) float64 {
 	if scale <= 0 {
 		scale = 1
 	}
-	half := 1 / scale / 2
-	return (math.Floor(v*scale)+0.5)/scale - half
+	return (math.Floor(v*scale) + 0.5) / scale
 }
 
 // SnapRect snaps a rectangle's origin and size onto the device grid, keeping
