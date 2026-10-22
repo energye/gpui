@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"sync/atomic"
 )
 
 // FontSource represents a loaded font file.
@@ -45,6 +46,11 @@ type FontSource struct {
 
 	// Configuration
 	config sourceConfig
+
+	// family links this source to its weight-family (Regular/Semibold/Bold
+	// cuts of the same typeface). Set once by NewFontFamily; nil for a
+	// standalone source. Atomic so concurrent Face calls stay race-free.
+	family atomic.Pointer[FontFamily]
 }
 
 // NewFontSource creates a FontSource from font data (TTF or OTF).
@@ -124,13 +130,30 @@ func (s *FontSource) Face(size float64, opts ...FaceOption) Face {
 		opt(&config)
 	}
 
+	// Family weight matching first (CSS/Flutter font-family behavior): a
+	// requested grade >= 600 uses the real Semibold/Bold cut when this source
+	// belongs to a configured FontFamily. Explicit wght variations take
+	// precedence and keep the source as-is.
+	source := s
+	if fam := s.family.Load(); fam != nil && config.weight != 0 &&
+		!hasWghtVariation(config.variations) {
+		if picked := fam.pick(config.weight); picked != nil {
+			source = picked
+		}
+	}
+
 	// Weight resolution (see weight.go): fill the wght axis when present
 	// (explicit wght wins), else synthetic embolden is derived on demand
 	// from weight >= 600 via Embolden().
-	resolveWeight(s, &config)
+	return source.faceWithConfig(size, config)
+}
 
-	// Create face
-	// For now, this is a stub. Full implementation in TASK-043.
+// faceWithConfig creates a face on this exact source, without family
+// re-selection. Used by FontSource.Face after family matching so a selected
+// Bold cut cannot bounce back through the family map.
+func (s *FontSource) faceWithConfig(size float64, config faceConfig) Face {
+	resolveWeight(s, &config)
+	config.actualWeight = s.WeightClass()
 	return &sourceFace{
 		source: s,
 		size:   size,
@@ -138,10 +161,28 @@ func (s *FontSource) Face(size float64, opts ...FaceOption) Face {
 	}
 }
 
-// Name returns the font name.
+// Name returns the font name (the OpenType family name).
 func (s *FontSource) Name() string {
 	s.copyCheck()
 	return s.name
+}
+
+// WeightClass returns the OS/2 usWeightClass (1..1000, 400 = Regular).
+// Fonts without OS/2 or custom parsers without WeightClassProvider report
+// Regular, which keeps synthetic-bold fallback behavior for those sources.
+func (s *FontSource) WeightClass() FontWeight {
+	if s == nil {
+		return WeightRegular
+	}
+	s.copyCheck()
+	parsed := s.parsed
+	if provider, ok := parsed.(WeightClassProvider); ok {
+		w := provider.WeightClass()
+		if w >= 1 && w <= 1000 {
+			return FontWeight(w)
+		}
+	}
+	return WeightRegular
 }
 
 // Parsed returns the parsed font for advanced operations.

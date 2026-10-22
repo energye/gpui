@@ -65,6 +65,7 @@ func parseHheaTable(data []byte) (hheaMetrics, bool) {
 type os2Metrics struct {
 	version        uint16
 	xAvgCharWidth  int16
+	usWeightClass  uint16 // CSS/OpenType weight grade, 1..1000 (400 = Regular)
 	sTypoAscender  int16
 	sTypoDescender int16
 	sTypoLineGap   int16
@@ -95,6 +96,7 @@ func parseOS2Table(data []byte) (os2Metrics, bool) {
 	m := os2Metrics{
 		version:        binary.BigEndian.Uint16(data[0:2]),
 		xAvgCharWidth:  int16(binary.BigEndian.Uint16(data[2:4])),
+		usWeightClass:  binary.BigEndian.Uint16(data[4:6]),
 		sTypoAscender:  int16(binary.BigEndian.Uint16(data[68:70])),
 		sTypoDescender: int16(binary.BigEndian.Uint16(data[70:72])),
 		sTypoLineGap:   int16(binary.BigEndian.Uint16(data[72:74])),

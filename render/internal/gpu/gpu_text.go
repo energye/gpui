@@ -171,6 +171,11 @@ func (e *GPUTextEngine) LayoutText(
 	}
 	atlasConfig := activeAtlas.Config()
 	embolden := text.FaceEmbolden(face)
+	if embolden {
+		// Synthetic bold has different glyph planes; keep its MSDF cells
+		// out of the regular cut's atlas slots.
+		fontID = boldFontID(fontID)
+	}
 
 	// Layout template (pure translate): static HUD/list labels hit without reshape.
 	// High-churn telemetry bypasses put (unique keys every frame).
@@ -230,6 +235,9 @@ func (e *GPUTextEngine) LayoutText(
 			if err != nil || outline == nil || outline.IsEmpty() {
 				outlineSkip++
 				continue
+			}
+			if embolden {
+				outline = text.EmboldenOutline(outline, glyphRefSize)
 			}
 			var gerr error
 			region, gerr = glyphAtlas.Get(key, outline)
@@ -473,5 +481,17 @@ func variationFontID(base uint64, vars []text.FontVariation) uint64 {
 	_, _ = h.Write(buf[:])
 	binary.LittleEndian.PutUint64(buf[:], text.VariationHash(vars))
 	_, _ = h.Write(buf[:])
+	return h.Sum64()
+}
+
+// boldFontID separates synthetic-bold MSDF/mask atlas cells from the regular
+// cut. Real bold cuts already have a distinct FontSource full name, so this
+// is only applied when FaceEmbolden is active.
+func boldFontID(base uint64) uint64 {
+	h := fnv.New64a()
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], base)
+	_, _ = h.Write(buf[:])
+	_, _ = h.Write([]byte(":synthetic-bold"))
 	return h.Sum64()
 }

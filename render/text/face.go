@@ -65,13 +65,14 @@ type Face interface {
 
 	// Weight returns the requested stroke-thickness grade (set via
 	// [WithWeight], 0 = unset/as designed). The resolved rendering is:
-	// wght variation when the font has the axis, else synthetic embolden
-	// for grades >= 600 (see Embolden).
+	// a real family cut when available, else wght variation when the font
+	// has the axis, else synthetic outline embolden for grades >= 600
+	// (see Embolden).
 	Weight() FontWeight
 
-	// Embolden reports whether this face renders with synthetic embolden
-	// (mask dilation, Skia fakeBold class): requested weight >= 600 on a
-	// font without a wght axis. Advances are unchanged by synthetic bold.
+	// Embolden reports whether this face still needs synthetic outline
+	// embolden: requested weight >= 600, no wght axis, and no real
+	// SemiBold/Bold cut was selected. Advances are unchanged.
 	Embolden() bool
 
 	// Hinting returns the hinting mode configured for this face (set via
@@ -390,13 +391,18 @@ func (f *sourceFace) Weight() FontWeight {
 	return f.config.weight
 }
 
-// Embolden reports whether this face renders with synthetic embolden
-// (mask dilation, Skia fakeBold class): requested weight >= 600 on a font
-// without a wght axis. Advances are unchanged by synthetic bold, so
-// layout/measure need no weight keys — only raster caches separate.
-// An explicit wght variation suppresses synthetic bold (user took control).
+// Embolden reports whether this face needs synthetic bold (outline expansion,
+// Skia fakeBold class): requested weight >= 600, no wght axis, and the
+// selected source cut is still lighter than SemiBold. A real Bold/Semibold
+// face selected through FontFamily is never emboldened again. Advances are
+// unchanged by synthetic bold, so layout/measure need no weight keys — only
+// raster caches separate. An explicit wght variation suppresses synthetic
+// bold (user took control).
 func (f *sourceFace) Embolden() bool {
 	if f == nil || f.config.weight < 600 {
+		return false
+	}
+	if f.config.actualWeight >= 600 {
 		return false
 	}
 	if hasWghtVariation(f.config.variations) && !weightVariationFromResolve(f) {

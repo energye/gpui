@@ -68,9 +68,9 @@ const GlyphMaskFlagLCD uint8 = 1 << 1
 // GlyphMaskFlagLCDBGR marks LCD data stored in BGR subpixel order (vs RGB).
 const GlyphMaskFlagLCDBGR uint8 = 1 << 2
 
-// GlyphMaskFlagBold marks a synthetically emboldened mask (mask dilation,
-// Skia fakeBold class). Bold and regular masks of the same glyph must never
-// share an atlas entry.
+// GlyphMaskFlagBold marks a mask rasterized from a synthetically expanded
+// outline (FreeType/Skia fakeBold class). Bold and regular masks of the same
+// glyph must never share an atlas entry.
 const GlyphMaskFlagBold uint8 = 1 << 3
 
 // MakeGlyphMaskKey creates a GlyphMaskKey from rendering parameters.

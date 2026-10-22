@@ -412,9 +412,11 @@ func (t *RenderText) SetWordSpacing(v float64) {
 }
 
 // SetFontWeight requests a stroke-thickness grade (6b, Flutter FontWeight
-// semantics): 0/unset = as designed; variable wght axis = real outlines;
-// static + >=600 = synthetic embolden. Dirties layout+paint+measure;
-// advances unchanged for synthetic so wrap is stable, raster cache separates.
+// semantics): 0/unset = as designed; a FontFamily member = closest real
+// Regular/SemiBold/Bold cut; variable wght axis = real outlines; standalone
+// static + >=600 = synthetic outline embolden. Dirties layout+paint+measure.
+// Real cuts may change advances; synthetic outline bold keeps advances
+// unchanged, so wrap only reflows when the selected cut itself is wider.
 func (t *RenderText) SetFontWeight(w text.FontWeight) {
 	if t == nil || t.FontWeight == w {
 		return

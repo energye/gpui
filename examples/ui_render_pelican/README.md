@@ -93,5 +93,5 @@ SNAPSHOT=/tmp/snap.png PELICAN_T=5 RUN_SECONDS=3 go run ./examples/ui_render_pel
  （Skia/Cairo 惯例）；组旋转用 Save/RotateAbout/RestoreCanvas 对应 SVG transform 组语义。
 - 静态路径（山体瓦片、车架、鹈鹕各部位等）只在初始化构建一次；动态路径
  （飞鸟翅形、双腿折线）每帧重建。
-- 标题「鹈鹕骑行记」与速度标签的字重走引擎（`RenderText.SetFontWeight(700)`，
- 合成加粗宽度不变）：示例只摆场景，不再自建副本右移描粗。
+- 标题「鹈鹕骑行记」与速度标签的字重走引擎（`RenderText.SetFontWeight(700)`：
+  字族有真粗体切优先用真切，没有才走标准轮廓兜底）：示例只摆场景，不再自建副本右移描粗。

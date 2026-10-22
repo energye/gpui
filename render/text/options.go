@@ -209,6 +209,10 @@ type faceConfig struct {
 	features   []FontFeature   // OpenType features (tnum, liga, etc.)
 	variations []FontVariation // Font variation axes (wght, wdth, etc.)
 	weight     FontWeight      // Requested weight grade, 0 = unset (as designed)
+	// actualWeight is the selected source's OS/2 usWeightClass. Synthetic
+	// embolden is only applied when the selected face is still lighter than
+	// SemiBold (a real Bold cut must not be dilated again).
+	actualWeight FontWeight
 }
 
 // defaultFaceConfig returns the default face configuration.
@@ -286,10 +290,13 @@ func WithVariations(variations ...FontVariation) FaceOption {
 // WithWeight requests a stroke-thickness grade for the face (CSS/Flutter
 // font-weight). Resolution at Face creation:
 //
+//   - FontFamily member → closest real Regular/SemiBold/Bold cut is selected
+//     first (CSS weight matching), so grade 600/700 uses real outlines;
 //   - variable font with a wght axis → wght variation set to the grade
 //     (real outlines; advances follow HVAR like any other variation);
-//   - otherwise, grade >= 600 (SemiBold and up) → synthetic embolden
-//     (mask dilation, Skia fakeBold class; advances unchanged);
+//   - standalone static font with grade >= 600 → synthetic outline embolden
+//     (EmboldenOutline, size/24 per side, FreeType/Skia fake bold; advances
+//     unchanged);
 //   - grade < 600 on a static font → as designed, no-op.
 //
 // Weight 0 (unset) means as designed. The resolved state is observable via

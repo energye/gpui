@@ -174,6 +174,16 @@ func (f *ownParsedFont) FullName() string {
 	return f.ensureName().full
 }
 
+// WeightClass implements WeightClassProvider using OS/2 usWeightClass.
+// Fonts without an OS/2 table are treated as Regular (400), the CSS default.
+func (f *ownParsedFont) WeightClass() int {
+	m := f.ensureMetrics()
+	if !m.os2OK || m.os2.usWeightClass == 0 {
+		return 400
+	}
+	return int(m.os2.usWeightClass)
+}
+
 // NumGlyphs implements ParsedFont.NumGlyphs.
 func (f *ownParsedFont) NumGlyphs() int {
 	return f.numGlyphs

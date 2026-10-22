@@ -177,8 +177,8 @@ Skia/Flutter 裁剪语义 → 本管线映射（全部已实现，本期只补�
 - 洞3 收口：§3.8 文本族状态「MeasureString 🔗 内部用」补 ui 排版接线证据
 - 洞5 收口：`ENGINE_UI_RENDER_BASE.md` §11/§13 状态诚实回写（Picture 全集 + 边界可缓存类型）；`§22.2` 残项减行
 - 洞6a 收口：`RENDER_API_CATALOG.md` render/text 新增符号同步 + §7 状态表；`ENGINE_UI_RENDER_BASE.md` §8 `FT-LETTER-SPACING/FT-WORD-SPACING` 状态诚实回写（`FT-STYLE-WEIGHT` 保持 B，待 6b）
-- 洞6b 收口（已实现 2026-10-04，洞8实测后可关）：字重选择+合成加粗全做（`render/text`：`WithWeight/FontWeight/FaceEmbolden/EmboldenResult` + `MultiFace.WithWeight` + `GlyphMaskFlagBold`；`render/internal/gpu`：三入口 embolden 透传 + 模板键分键；`ui/rendering`：`SetFontWeight/effectiveFace/faceWithWeight` + 量宽/边界分键；`weight_test.go` 两层 10 项绿）+ `FT-STYLE-WEIGHT` B→A/C 回写已落；洞8鹈鹕标题改调实测已过（P1离屏 15.5%<25%、huge 6.0%<10%、零回退；标题烘焙 2627 非空像素）
+- 洞6b 收口（2026-10-04 落地；2026-10-22 真字重优先+轮廓兜底）：字重选择+兜底全做（`render/text`：`WithWeight/FontWeight/FaceEmbolden/FontRef/FontFamily/NewFontFamily/LoadFontFamily/EmboldenOutline` + `MultiFace.WithWeight` + `GlyphMaskFlagBold`；`render/internal/gpu`：AA/aliased/LCD/MSDF 轮廓加粗 + 模板键分键；`ui/rendering`：`SetFontWeight/DeriveFace` + 量宽/边界分键；`family_test.go/embolden_test.go/weight_test.go` 绿）+ `FT-STYLE-WEIGHT` B→A/C 回写已落；洞8鹈鹕标题改调实测已过（`TestP1OffscreenPelicanGLvsCPU` diff=0.050/840000、huge=0、零回退；R9 14/15px 真字重探针 `Embolden=false`）
 - 洞7 收口：所属域控件总账（分类表/统计/状态/速查/修订）同步；跨平台标记一次标齐
-- 洞8 收口（已实现 2026-10-04，实测已过）：`scene.go` 删标题 `dup`/速度 `speedLabelDup` 手写仿粗，改调引擎 `SetFontWeight(700)`（合成加粗宽度不变，总宽稳定；`README.md` 同步）；`go build` 绿 + P1离屏/在线/P2repro/overlapped/开窗4项绿（P2-WebGPU一项系缺 `libwgpu_native.so` 环境失败，干净树同失败）+ 冻结帧 GLvsCPU 15.5%<25%、标题烘焙有墨
-- 收敛优化（已做洞，2026-10-04，已提交）：`Face.Embolden` 接口化 + `DeriveFace` 单派生 + `MultiFace` 单 helper + 布局/缓存/回放单入口（详见 `ENGINE_UI_WIDGET_RENDER.md` §10 收敛行）；鹈鹕 P1 离屏复验数字与收敛前一致（15.5%/6.0%/零回退）
+- 洞8 收口（2026-10-04 实现；2026-10-22 真字重复验）：`scene.go` 删标题 `dup`/速度 `speedLabelDup` 手写仿粗，改调引擎 `SetFontWeight(700)`（字族有真粗体切优先用真切，没有才走标准轮廓兜底；真切前进会改变总宽，逐字量宽按设置字重后的结果重算；`README.md` 同步）；`go build` 绿 + P1离屏/开窗4项绿（P2-WebGPU一项系缺 `libwgpu_native.so` 环境失败，干净树同失败）+ 冻结帧 GLvsCPU diff=0.050、huge=0、零回退
+- 收敛优化（已做洞，2026-10-04，已提交）：`Face.Embolden` 接口化 + `DeriveFace` 单派生 + `MultiFace` 单 helper + 布局/缓存/回放单入口（详见 `ENGINE_UI_WIDGET_RENDER.md` §10 收敛行）；鹈鹕 P1 离屏复验通过（diff=0.050/840000、huge=0、零回退）
 - 主体文档 `ENGINE_UI_WIDGET_RENDER.md` §10 修订表每洞一行

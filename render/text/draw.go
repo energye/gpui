@@ -62,6 +62,7 @@ type glyphRasterizeFunc func(
 	ppem float64,
 	subpixelX, subpixelY float64,
 	hinting Hinting,
+	bold bool,
 ) (*GlyphMaskResult, error)
 
 // drawGlyphs is the shared per-glyph rendering loop for drawSourceFace and
@@ -146,10 +147,7 @@ func drawGlyphs(
 			subpixelY = 0
 		}
 
-		result, err := rasterize(rast, parsed, glyph.GID, ppem, subpixelX, subpixelY, hinting)
-		if err == nil && result != nil && sf.Embolden() {
-			result = EmboldenResult(result, ppem)
-		}
+		result, err := rasterize(rast, parsed, glyph.GID, ppem, subpixelX, subpixelY, hinting, sf.Embolden())
 		if err != nil || result == nil {
 			if !isVertical {
 				advanceX += adv
@@ -230,6 +228,7 @@ func drawGlyphsVariable(
 	rast := NewGlyphMaskRasterizer()
 	src := image.NewUniform(col)
 	extractor := &OutlineExtractor{}
+	bold := sf.Embolden()
 
 	advanceX := 0.0
 	// Hinted variable text: integer device placement (matches drawGlyphs).
@@ -275,13 +274,19 @@ func drawGlyphsVariable(
 			}
 			continue
 		}
+		if bold {
+			outline = EmboldenOutline(outline, ppem)
+		}
 
 		// A3 直通：hint 非 None 时优先走 hint.LightHintVar 26.6 定点 → ftgrays
 		// 移植（RasterizeFT26），与 FT_Render_Glyph(light) 逐字节一致；不可用
 		// 时回退老 float32 路径。CFF2 变体坐标经 variations 传入。
 		var result *GlyphMaskResult
 		var rErr error
-		if mode == rasterModeAA && hinting != HintingNone {
+		// Fake bold cannot use the FT26 direct path: it rasterizes the
+		// unhinted outline internally, leaving no vector outline to expand.
+		// Fall through to the float outline path when bold is active.
+		if mode == rasterModeAA && hinting != HintingNone && !bold {
 			directRes, direct, dErr := rast.RasterizeHintedFT26(parsed, gid, ppem, hinting, variations)
 			if dErr != nil {
 				advanceX += float64(outline.Advance)
@@ -302,9 +307,6 @@ func drawGlyphsVariable(
 		if rErr != nil || result == nil {
 			advanceX += float64(outline.Advance)
 			continue
-		}
-		if sf.Embolden() {
-			result = EmboldenResult(result, ppem)
 		}
 
 		maskImg := &image.Alpha{
@@ -334,8 +336,9 @@ func rasterizeHintedGlyph(
 	ppem float64,
 	subpixelX, subpixelY float64,
 	hinting Hinting,
+	bold bool,
 ) (*GlyphMaskResult, error) {
-	return rast.RasterizeHinted(pf, gid, ppem, subpixelX, subpixelY, hinting)
+	return rast.RasterizeHintedBold(pf, gid, ppem, subpixelX, subpixelY, hinting, bold)
 }
 
 // rasterizeAliasedGlyph rasterizes a glyph with binary (0 or 255) coverage.
@@ -346,8 +349,9 @@ func rasterizeAliasedGlyph(
 	ppem float64,
 	subpixelX, subpixelY float64,
 	hinting Hinting,
+	bold bool,
 ) (*GlyphMaskResult, error) {
-	return rast.RasterizeAliased(pf, gid, ppem, subpixelX, subpixelY, hinting)
+	return rast.RasterizeAliasedBold(pf, gid, ppem, subpixelX, subpixelY, hinting, bold)
 }
 
 // drawSourceFace renders text using per-glyph rasterization with fractional

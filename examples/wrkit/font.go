@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/energye/gpui/render/text"
@@ -43,20 +44,185 @@ func EnsureUIFace() (text.Face, string, error) {
 }
 
 // loadUIChain builds the ui_wr_* chrome MultiFace: CJK role first so the
-// YaHei-style Source Han Sans SC face drives both Han and Latin text.
+// YaHei-style Source Han Sans SC face drives Han, with real regular/bold
+// weight families for CJK and Latin. Non-Latin script fallbacks stay on the
+// platform candidate lists.
+//
+// Weight selection is a font-family concern (CSS/Flutter model): 600/700 on
+// a family picks the real Semibold/Bold cut, never a post-raster mask
+// dilation. Standalone fonts that have no bold sibling still fall back to the
+// engine's standard outline embolden.
 func loadUIChain() (text.Face, string, error) {
-	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		sc := filepath.Join(home, ".local", "share", "fonts", "NotoSansCJKsc-Regular.otf")
-		text.SetSystemFontPaths(text.FontRoleCJK, sc,
-			"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
+	var faces []text.Face
+	var paths []string
+	add := func(face text.Face, path string) {
+		if face == nil || path == "" {
+			return
+		}
+		for _, p := range paths {
+			if p == path {
+				return
+			}
+		}
+		faces = append(faces, face)
+		paths = append(paths, path)
 	}
-	return text.LoadDefaultFaceFor(14, []text.FontRole{
-		text.FontRoleCJK,
-		text.FontRoleUI,
+
+	// CJK: one real family (Regular + Bold) so Han text at 600/700 stays
+	// crisp. The system TTC stores SC at collection index 2; the user OTF is
+	// single-face.
+	if cjkRefs := cjkFamilyRefs(); len(cjkRefs) > 0 {
+		face, _, path, err := text.LoadFontFamily(14, cjkRefs...)
+		if face != nil {
+			add(face, path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "wrkit: CJK family fallback: %v\n", err)
+			}
+		}
+	}
+	if len(faces) == 0 {
+		if face, path, err := loadRoleFace(text.FontRoleCJK); err == nil {
+			add(face, path)
+		}
+	}
+
+	// Latin: DejaVu/Noto/Liberation regular+bold sibling when installed.
+	if latinRefs := latinFamilyRefs(); len(latinRefs) > 0 {
+		face, _, path, err := text.LoadFontFamily(14, latinRefs...)
+		if face != nil {
+			add(face, path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "wrkit: Latin family fallback: %v\n", err)
+			}
+		}
+	}
+	if len(faces) == 0 {
+		if face, path, err := loadRoleFace(text.FontRoleUI); err == nil {
+			add(face, path)
+		}
+	}
+
+	for _, role := range []text.FontRole{
 		text.FontRoleThai,
 		text.FontRoleDevanagari,
 		text.FontRoleArabic,
+	} {
+		if face, path, err := loadRoleFace(role); err == nil {
+			add(face, path)
+		}
+	}
+
+	if len(faces) == 0 {
+		return text.LoadDefaultFaceFor(14, []text.FontRole{
+			text.FontRoleCJK,
+			text.FontRoleUI,
+			text.FontRoleThai,
+			text.FontRoleDevanagari,
+			text.FontRoleArabic,
+		})
+	}
+	if len(faces) == 1 {
+		return faces[0], paths[0], nil
+	}
+	mf, err := text.NewMultiFace(faces...)
+	if err != nil {
+		return faces[0], paths[0] + " (MultiFace failed: " + err.Error() + ")", nil
+	}
+	return mf, strings.Join(paths, " + ") + " (MultiFace)", nil
+}
+
+// loadRoleFace resolves one script role independently, so the family faces
+// above can be combined with the platform fallbacks without pulling a second
+// copy of CJK/Latin into the chain.
+func loadRoleFace(role text.FontRole) (text.Face, string, error) {
+	resolver := text.NewFontResolver()
+	resolver.SetChain(role)
+	return resolver.Load(14)
+}
+
+// cjkFamilyRefs prefers the single-face SC OTF in the user font dir (the
+// crisp YaHei-style design), with the SC face of the system Noto CJK TTC as
+// regular fallback. Bold comes from Noto CJK Bold TTC index 2 (SC).
+func cjkFamilyRefs() []text.FontRef {
+	var regulars []text.FontRef
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		regulars = append(regulars, text.FontRef{
+			Path: filepath.Join(home, ".local", "share", "fonts", "NotoSansCJKsc-Regular.otf"),
+		})
+	}
+	regulars = append(regulars,
+		text.FontRef{Path: "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", CollectionIndex: 2},
+		text.FontRef{Path: "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc", CollectionIndex: 2},
+		text.FontRef{Path: "/usr/share/fonts/opentype/source-han-sans/SourceHanSansSC-Regular.otf"},
+	)
+	regular := firstExistingRef(regulars)
+	if regular.Path == "" {
+		return nil
+	}
+	bold := firstExistingRef([]text.FontRef{
+		{Path: "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", CollectionIndex: 2},
+		{Path: "/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc", CollectionIndex: 2},
+		{Path: "/usr/share/fonts/opentype/source-han-sans/SourceHanSansSC-Bold.otf"},
 	})
+	if bold.Path == "" {
+		return []text.FontRef{regular}
+	}
+	return []text.FontRef{regular, bold}
+}
+
+// latinFamilyRefs finds the platform UI regular and its -Bold sibling. A
+// missing sibling yields a one-cut family, which still renders through the
+// standard outline fallback.
+func latinFamilyRefs() []text.FontRef {
+	candidates := text.SystemFontCandidates(text.FontRoleUI)
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		refs := []text.FontRef{{Path: path}}
+		if bold := boldSibling(path); bold != "" {
+			refs = append(refs, text.FontRef{Path: bold})
+		}
+		return refs
+	}
+	return nil
+}
+
+// boldSibling returns the conventional -Bold file next to a regular static
+// face. The family constructor still validates that both files report the
+// same typographic family and distinct weights.
+func boldSibling(path string) string {
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(path, ext)
+	for _, suffix := range []string{"-Bold", "Bold"} {
+		candidate := base + suffix + ext
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	// DejaVu/Liberation use "FamilySans.ttf" for regular and
+	// "FamilySans-Bold.ttf" for bold; Noto uses "Family-Regular.ttf" and
+	// "Family-Bold.ttf". Both are covered above. Try replacing "Regular"
+	// with "Bold" for the remaining naming schemes.
+	if strings.HasSuffix(base, "Regular") {
+		candidate := strings.TrimSuffix(base, "Regular") + "Bold" + ext
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func firstExistingRef(refs []text.FontRef) text.FontRef {
+	for _, ref := range refs {
+		if ref.Path == "" {
+			continue
+		}
+		if _, err := os.Stat(ref.Path); err == nil {
+			return ref
+		}
+	}
+	return text.FontRef{}
 }
 
 // FaceAt returns a face scaled to points (falls back to EnsureUIFace base).

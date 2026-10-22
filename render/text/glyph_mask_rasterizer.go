@@ -181,6 +181,20 @@ func (r *GlyphMaskRasterizer) RasterizeHinted(
 	subpixelX, subpixelY float64,
 	hinting Hinting,
 ) (*GlyphMaskResult, error) {
+	return r.RasterizeHintedBold(font, gid, size, subpixelX, subpixelY, hinting, false)
+}
+
+// RasterizeHintedBold is RasterizeHinted with optional standard synthetic
+// bold. When bold is true the outline is expanded by EmboldenOutline(size/24)
+// before analytic-AA rasterization; the advance stays unchanged.
+func (r *GlyphMaskRasterizer) RasterizeHintedBold(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+	hinting Hinting,
+	bold bool,
+) (*GlyphMaskResult, error) {
 	// Extract outline at the target size with hinting.
 	outline, err := r.extractor.ExtractOutlineHinted(font, gid, size, hinting)
 	if err != nil {
@@ -188,6 +202,9 @@ func (r *GlyphMaskRasterizer) RasterizeHinted(
 	}
 	if outline == nil || outline.IsEmpty() {
 		return nil, nil //nolint:nilnil // nil result = empty glyph, not an error
+	}
+	if bold {
+		outline = EmboldenOutline(outline, size)
 	}
 
 	return r.rasterizeOutline(outline, subpixelX, subpixelY)
@@ -240,6 +257,19 @@ func (r *GlyphMaskRasterizer) RasterizeAliased(
 	subpixelX, subpixelY float64,
 	hinting Hinting,
 ) (*GlyphMaskResult, error) {
+	return r.RasterizeAliasedBold(font, gid, size, subpixelX, subpixelY, hinting, false)
+}
+
+// RasterizeAliasedBold is RasterizeAliased with optional standard synthetic
+// bold applied to the outline before binary rasterization.
+func (r *GlyphMaskRasterizer) RasterizeAliasedBold(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+	hinting Hinting,
+	bold bool,
+) (*GlyphMaskResult, error) {
 	// Extract outline at the target size with hinting.
 	outline, err := r.extractor.ExtractOutlineHinted(font, gid, size, hinting)
 	if err != nil {
@@ -247,6 +277,9 @@ func (r *GlyphMaskRasterizer) RasterizeAliased(
 	}
 	if outline == nil || outline.IsEmpty() {
 		return nil, nil //nolint:nilnil // nil result = empty glyph, not an error
+	}
+	if bold {
+		outline = EmboldenOutline(outline, size)
 	}
 
 	return r.rasterizeOutlineAliased(outline, subpixelX, subpixelY)
@@ -437,6 +470,21 @@ func (r *GlyphMaskRasterizer) RasterizeLCD(
 	filter LCDFilter,
 	layout LCDLayout,
 ) (*LCDMaskResult, error) {
+	return r.RasterizeLCDBold(font, gid, size, subpixelX, subpixelY, hinting, filter, layout, false)
+}
+
+// RasterizeLCDBold is RasterizeLCD with optional standard synthetic bold
+// applied to the outline before 3x LCD rasterization.
+func (r *GlyphMaskRasterizer) RasterizeLCDBold(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+	hinting Hinting,
+	filter LCDFilter,
+	layout LCDLayout,
+	bold bool,
+) (*LCDMaskResult, error) {
 	// Extract outline at the target size with hinting.
 	outline, err := r.extractor.ExtractOutlineHinted(font, gid, size, hinting)
 	if err != nil {
@@ -444,6 +492,9 @@ func (r *GlyphMaskRasterizer) RasterizeLCD(
 	}
 	if outline == nil || outline.IsEmpty() {
 		return nil, nil //nolint:nilnil // nil result = empty glyph, not an error
+	}
+	if bold {
+		outline = EmboldenOutline(outline, size)
 	}
 
 	return r.rasterizeLCDOutline(outline, subpixelX, subpixelY, filter, layout)

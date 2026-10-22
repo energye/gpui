@@ -478,7 +478,8 @@ func bakeTitleLine(glyphs []titleGlyph, total, fontSize float64) titleLine {
 }
 
 // newTitleLine 构建一行带 letter-spacing 的逐字节点并测量总宽（舞台 px）。
-// bold 时节点直接 SetFontWeight(700) 走引擎字重（合成加粗宽度不变，总宽稳定）。
+// bold 时节点直接 SetFontWeight(700) 走引擎字重：字族有真粗体切就用真切，
+// 没有才走轮廓兜底；真切的前进会变宽，所以总宽按设置字重后的逐字量宽重算。
 func newTitleLine(s string, fontSize, letterSpacing float64, hex int64, alpha float64, face text.Face, bold bool) ([]titleGlyph, float64) {
 	r, g, b := rgb(hex)
 	var out []titleGlyph

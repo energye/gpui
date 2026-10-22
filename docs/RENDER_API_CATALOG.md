@@ -22,7 +22,7 @@
 | 包 | 顶层导出规模（2026-08-15 快照） | 接线状态 | 说明 |
 |----|------|------|------|
 | `render`（主包） | 类型 104 · 顶层函数 131 · Context 导出方法 200 · 常量 133 · 变量 16 | 🔗 生产主链路 | 即时模式 DC，embedder/真窗全部走这里（2026-09-05 1.2：适配器策略自 render/gpu 搬入主包，+1 类型 +5 函数 +7 常量；1.3：+OOM 判定与 purge 链 1 类型 +4 函数；2026-09-15 R1：+2 类型 QuadKind/QuadDrawOptions +2 函数 ClassifyQuad/DrawImageQuadEx +1 方法 DrawImageQuadEx +4 常量 QuadOK 系 +5 变量 ErrQuad 系；2026-09-30 P4：+1 类型 Backend +2 函数 ResolveBackend/SelectBackend +2 常量 BackendNative/BackendGo，-2 临时函数 p1GLRequested/p1GLInstance；2026-09-30 P4-Config：+2 函数 ResolveBackendFor/NewPresentTargetWithBackend，老 NewPresentTarget 保留转调；2026-09-30 视频P0：+4 类型 VideoBackendCaps/VideoSlot/VideoPoolStats/VideoTexturePool +4 函数 QueryVideoBackend/BorrowVideoBackend/VideoFallbackTotal/NewVideoTexturePool +1 方法 RecordVideoFallback；2026-10-20 A15：+5 Context 方法 DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph；2026-10-21 C 组：删除旧两参 Context.DrawImageQuad，Context.DrawImageQuadEx 更名为 Context.DrawImageQuad(img,corners,opts)，Context 导出方法按 go doc 实测 201→200；同日删除无消费者的 render/raster init 包，CPU 分块光栅仍由 render/gpu 注册；删除无消费者的 render/surface 整包（53 个公开 API，与主包渲染重复）；同日 render/svg 建直调真窗并修 fill="none" 继承/根百分比解析，公开签名不变） |
-| `render/text` | 包级导出 248（2026-10-19 实测 `go doc -all` 顶层口径；含 +1 `FixedSize` 26.6 缓存键转换；历史行 245→250 为该次估数，本行按命令实测校正。含字体/整形/布局/光栅化；+1 `RuneAdvance`、+1 `SegmentReuse`、+3 字距：`ApplySpacing/ApplySpacingDir/SpacingExtra/WrapTextWithSpacing`（字距数学委托第三方 `shaping.AddSpacing`，`WhitespaceRuns` 已删）；`LayoutOptions` 新增 `LetterSpacing/WordSpacing` 字段；+5 6b字重收敛：`WithWeight/FaceEmbolden/EmboldenRadius/EmboldenResult/DeriveFace`；新增 `FontWeight` 类型 + `WeightThin..WeightBlack`/`GlyphMaskFlagBold` 常量；`Face.Embolden` 接口方法 + `MultiFace.WithWeight` 方法） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
+| `render/text` | 包级导出 252（2026-10-22 实测 `go doc -all` 顶层口径；248→252 为 14/15px 字重模糊修复：新增 `FontRef/FontFamily/NewFontFamily/LoadFontFamily/EmboldenOutline/WeightClassProvider` 六项，删除 `EmboldenRadius/EmboldenResult` 两项；`RasterizeHintedBold/RasterizeAliasedBold/RasterizeLCDBold/FontSource.WeightClass` 为导出方法，不计顶层。含字体/整形/布局/光栅化；+1 `RuneAdvance`、+1 `SegmentReuse`、+3 字距：`ApplySpacing/ApplySpacingDir/SpacingExtra/WrapTextWithSpacing`（字距数学委托第三方 `shaping.AddSpacing`，`WhitespaceRuns` 已删）；`LayoutOptions` 新增 `LetterSpacing/WordSpacing` 字段；6b：`WithWeight/FaceEmbolden/DeriveFace` + `FontFamily` CSS 权重匹配 + `EmboldenOutline` 兜底；新增 `FontWeight` 类型 + `WeightThin..WeightBlack`/`GlyphMaskFlagBold` 常量；`Face.Embolden` 接口方法 + `MultiFace.WithWeight` 方法） | 🔗 生产主链路 | 字形子系统，`render` 主包文本 API 的底层 |
 | `render/scene` | 顶层 143 | 🔗 render 内部（GPU 后端吃 Scene）+ 🔌 直调真窗 `ui_render_base_scene`（2026-10-21：GPU/CPU 双后端、LayerCache、DamageTracker，原子验证）；ui/组件/2.5D/视频生产调用仍为零 | 保留模式场景图（Scene/Encoding/Renderer） |
 | `render/recording` | 顶层 85 | 🔌 直调真窗 `ui_render_base_recording`（2026-10-21） | SkPicture 式录制回放；`DrawTextCommand`/`StrokeTextCommand` 新增 `Font FontRef` 字段；PDF/SVG 后端为仓外模块未接线；生产消费者仍为零 |
 | `render/svg` | 顶层 15 | 🔌 直调真窗 `ui_render_base_svg` | 图标风 SVG 渲染（Render/RenderWithColor/Parse）；生产消费者仍为零 |
@@ -273,22 +273,22 @@
 
 ## 6. 子包目录
 
-### 6.1 render/text（包级导出 248，6a字距+6b字重收敛+第三方库委托+26.6 缓存键）
+### 6.1 render/text（包级导出 252，6a字距+6b真字重/轮廓兜底+第三方库委托+26.6 缓存键）
 | 族 | 代表 API | 功能 | 精简 | 状态 |
 |----|---------|------|------|------|
-| 字体与文件 | `RegisterParser/FontSource/FontSourceID/DeriveFace/LoadDefaultFace/LoadDefaultFaceFor/LoadMultiFace/NewFontSourceFromFile/ClearSystemFontPaths/ErrEmptyFontData/ErrUnsupportedFont…`、`MultiFace`（`AtSize`/`WithHinting`/`WithWeight` 等导出方法，单遍派生收敛） | 字体解析器注册、字体源身份、尺寸+字重单入口派生、字体文件加载、多字体链重建（尺寸/渲染选项保留）、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
+| 字体与文件 | `RegisterParser/FontSource/FontSourceID/DeriveFace/LoadDefaultFace/LoadDefaultFaceFor/LoadMultiFace/NewFontSourceFromFile/ClearSystemFontPaths/FontRef/FontFamily/NewFontFamily/LoadFontFamily/WeightClassProvider/ErrEmptyFontData/ErrUnsupportedFont…`、`MultiFace`（`AtSize`/`WithHinting`/`WithWeight` 等导出方法，单遍派生收敛） | 字体解析器注册、字体源身份、尺寸+字重单入口派生、字体文件加载、多字体链重建（尺寸/渲染选项保留）、静态字重族（name ID 16 组族 + CSS 权重匹配）、系统字体路径清理、字体错误 | 字体加载/解析 | 🔗 |
 | 整形 | `Shape/ShapedGlyph/RunAdvance/CaretXForCluster/HitTestCluster/…` | 文本整形（复杂文字/阿拉伯、泰文等）、字形序列与簇命中 | 文本整形 | 🔗 |
 | 分段 | `SegmentText/SegmentTextRTL/SegmentReuse/Segment/BuiltinSegmenter/DetectScript` | 双向/脚本分段（UAX#9）与单行击键增量前后缀复用（`SegmentReuse`：`ui/rendering` 单行行内复用经单行分段缓存调用，`render/text/segment_reuse_test.go` 等价锁 + 真窗 `ui_text_m5_anycase` 已验） | 脚本双向分段 | 🔗 |
 | 绘制 | `Draw/DrawAliased/DrawWithEmoji/Measure/MeasureText/RuneAdvance` | 字形到目标图像的绘制（含别名/emoji）、文本度量；`RuneAdvance` 为单字形无分配推进（P7 5000 视口） | 字形绘制 | 🔗 |
 | 布局/换行 | `LayoutText/LayoutOptions/Line/WrapText/WrapTextWithSpacing/ApplySpacing/ApplySpacingDir/SpacingExtra` | 段落布局（`LetterSpacing/WordSpacing` 字距：簇间隙n-1/词分隔符，末簇无拖尾；换行按含距宽度断行）+ 字距经第三方 `shaping.AddSpacing`（半分分布，`WhitespaceRuns` 已删）/宽度增量；2026-10-20 A15：`shapeSegments` 先按 `MultiFace.Runs` 切逐 face 连续段再整形（修 `MultiFace.Source()==nil` 时段落 0 字形），cluster 偏移 `seg.Start+part.start`，RTL+MultiFace 仍走旧单 face（见 `RENDER_FEATURE_COVERAGE` §6） | 段落布局/换行 | 🔗（6a：`ui/rendering` 字距布局/量宽/换行在用，`spacing_test.go` 端到端锁；第三方库委托后行为：词距按分隔符个数，tab 不计） |
-| 字重 | `FontWeight/WeightThin..WeightBlack/WithWeight/FaceEmbolden/EmboldenRadius/EmboldenResult/Face.Embolden` | 字重选择（Flutter fontWeight）：可变 wght 轴走真轮廓（`resolveWeight`，显式 wght 优先），静态 ≥600 合成加粗（mask 膨胀，advance 不变；`ui/rendering` `SetFontWeight`+`DeriveFace` 单派生在用，`weight_test.go` 锁收敛单入口） | 字重/合成加粗 | 🔗（6b收敛：`Embolden` 进 `Face` 接口，`FaceEmbolden` 仅 nil 安全分发；`MultiFace` 派生经 `faceOptionsExcept/rederiveComponent/deriveMultiFace` 单 helper；CPU draw 两路 + GPU atlas 两路，`GlyphMaskFlagBold` 分键） |
+| 字重 | `FontWeight/WeightThin..WeightBlack/WithWeight/FaceEmbolden/EmboldenOutline/Face.Embolden` | 字重选择（Flutter/CSS fontWeight）：FontFamily 成员优先选真实 Regular/SemiBold/Bold 切（`family.go`，name ID 16 组族，`actualWeight>=600` 不二次加粗）；可变 wght 轴走真轮廓（`resolveWeight`，显式 wght 优先）；无粗体兄弟的独立静态字体 ≥600 才走 `EmboldenOutline`（`ppem/24` 轮廓扩张，advance 不变；`ui/rendering` `SetFontWeight`+`DeriveFace` 单派生在用） | 字重/真字重/轮廓兜底 | 🔗（6b：`Embolden` 进 `Face` 接口，`FaceEmbolden` 仅 nil 安全分发；`MultiFace` 派生经 `faceOptionsExcept/rederiveComponent/deriveMultiFace` 单 helper；CPU AA/aliased/LCD + GPU AA/aliased/LCD/MSDF 全走轮廓加粗，`GlyphMaskFlagBold` 分键） |
 | 度量/量化 | `Quantize/QuantizePoint/SubpixelMode/SubpixelConfig` | 子像素量化（LCD/AA 的次像素定位） | 子像素量化 | 🔗 |
 | 缓存 | `ClearShapeResultCache/ClearMultiFaceRunsCache/ClearAutoHintCache/ClearFontScanFallbackCache/ResetShapeResultCacheStats/FixedSize` | 各缓存清理与统计复位（整形/多面/自动 hint/字体扫描）；`FixedSize` 把 ppem 转 **26.6 定点** `OutlineCacheKey.Size`（字段类型 `int16→int32`，2026-10-19 修分数磅值截断） | 缓存管理/键量化 | 🔗 |
-| 光栅 | `RasterizeFT26/GlyphMaskFlagAliased/GlyphMaskFlagLCD/GlyphMaskFlagLCDBGR/GlyphMaskFlagBold` | 轮廓点阵光栅化、字形掩码标志（Bold：合成加粗分键） | 字形光栅化 | 🔗 |
+| 光栅 | `RasterizeFT26/GlyphMaskRasterizer`（`RasterizeHinted/Aliased/LCD` + `RasterizeHintedBold/RasterizeAliasedBold/RasterizeLCDBold` 方法）/`GlyphMaskFlagAliased/GlyphMaskFlagLCD/GlyphMaskFlagLCDBGR/GlyphMaskFlagBold` | 轮廓点阵光栅化；Bold 三入口先在轮廓上扩张再光栅化（不再栅格后 mask 膨胀），字形掩码标志分键 | 字形光栅化 | 🔗 |
 | 特性/角色 | `FontRole/FontFeature/TabularNums/AxisWeight/DefaultMultiFontRoleChain/UnicodeRange/RangeBasicLatin/IsCJK/IsPunctuation/IsWhitespace…` | 字体角色链、OpenType 特性、Unicode 区间/分类判定 | 字体特性/分类 | 🔗 |
 | 错误/变量 | `ErrCFF2Unsupported/ErrUnsupportedFontType/…`、`DefaultTabWidth` 等 | 字体/格式错误、制表符宽默认 | 错误/常量 | — |
 
-> 完整 248 项请以 `go doc -all ./render/text` 为准（本表为族级归纳，改动文本 API 时在对应族补行；收敛项：`ui/rendering` 布局单入口 `BuildTextLayoutEx→WithSpacing(0,0)`、`effectiveFace→DeriveFace` 单派生，`BoundaryCache.Store/StorePicture→storeEntryLocked` 单写盘，`ui/scene` 回放经 `setOpFill/setOpStroke/drawRoundRectShape` 单设态；字距数学委托第三方 `shaping.AddSpacing`）。
+> 完整 252 项请以 `go doc -all ./render/text` 为准（本表为族级归纳，改动文本 API 时在对应族补行；收敛项：`ui/rendering` 布局单入口 `BuildTextLayoutEx→WithSpacing(0,0)`、`effectiveFace→DeriveFace` 单派生，`BoundaryCache.Store/StorePicture→storeEntryLocked` 单写盘，`ui/scene` 回放经 `setOpFill/setOpStroke/drawRoundRectShape` 单设态；字距数学委托第三方 `shaping.AddSpacing`）。
 
 ### 6.2 render/scene（顶层 143）
 
@@ -495,7 +495,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 ## 11. 附录：子包顶层符号完整清单（机器生成，go doc 2026-08-15）
 
-> 本附录由 `go doc ./render/{scene,recording,svg}` 顶层声明提取（含 const 块首行与缩进构造器），与正文 §6 族级归纳互补；**改动子包公开 API 时同步本附录（跑 §0 核对命令后替换对应行）**。`render/text` 包级导出 248 项改以 `go doc -all ./render/text` 为准（正文 §6.1 族级归纳）。
+> 本附录由 `go doc ./render/{scene,recording,svg}` 顶层声明提取（含 const 块首行与缩进构造器），与正文 §6 族级归纳互补；**改动子包公开 API 时同步本附录（跑 §0 核对命令后替换对应行）**。`render/text` 包级导出 252 项改以 `go doc -all ./render/text` 为准（正文 §6.1 族级归纳）。
 
 ```text
 scene      const DefaultMaxSizeMB = 64 ...

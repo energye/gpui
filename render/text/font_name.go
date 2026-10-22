@@ -24,12 +24,16 @@ import (
 
 // nameIDs for the records we care about.
 const (
-	nameIDFamily   = 1 // Font Family name
-	nameIDFullName = 4 // Full font name
+	nameIDFamily            = 1  // Font Family name (legacy)
+	nameIDFullName          = 4  // Full font name
+	nameIDTypographicFamily = 16 // Typographic Family name (preferred)
 )
 
-// parseNameTable extracts the font family name (nameID 1) and full name
-// (nameID 4) from a raw 'name' table.
+// parseNameTable extracts the font family name and full name (nameID 4) from
+// a raw 'name' table. The typographic family (nameID 16) wins when present:
+// static Semibold/Black cuts often put the style in nameID 1 (for example
+// "Source Sans 3 Semibold"), while nameID 16 keeps the shared family name so
+// regular/semibold/bold files can form one FontFamily.
 //
 // Layout:
 //
@@ -62,7 +66,7 @@ func parseNameTable(data []byte) (family, fullName string) {
 		priority int
 	}
 
-	var familyCand, fullCand nameCandidate
+	var familyCand, typographicFamilyCand, fullCand nameCandidate
 
 	for i := range count {
 		recOff := 6 + i*12
@@ -75,8 +79,9 @@ func parseNameTable(data []byte) (family, fullName string) {
 		length := int(binary.BigEndian.Uint16(data[recOff+8 : recOff+10]))
 		strOffset := int(binary.BigEndian.Uint16(data[recOff+10 : recOff+12]))
 
-		// Only interested in family (1) and full name (4).
-		if nameID != nameIDFamily && nameID != nameIDFullName {
+		// Only interested in family (1), typographic family (16) and full
+		// name (4).
+		if nameID != nameIDFamily && nameID != nameIDTypographicFamily && nameID != nameIDFullName {
 			continue
 		}
 
@@ -93,8 +98,11 @@ func parseNameTable(data []byte) (family, fullName string) {
 		}
 
 		cand := &familyCand
-		if nameID == nameIDFullName {
+		switch nameID {
+		case nameIDFullName:
 			cand = &fullCand
+		case nameIDTypographicFamily:
+			cand = &typographicFamilyCand
 		}
 
 		if pri > cand.priority {
@@ -103,6 +111,9 @@ func parseNameTable(data []byte) (family, fullName string) {
 		}
 	}
 
+	if typographicFamilyCand.value != "" {
+		return typographicFamilyCand.value, fullCand.value
+	}
 	return familyCand.value, fullCand.value
 }
 

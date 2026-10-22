@@ -764,8 +764,8 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 
 // rasterizeGlyph dispatches glyph rasterization to the appropriate method
 // based on rendering mode (LCD, aliased, or standard AA). Must be called
-// with e.mu held. embolden dilates the AA mask one radius step (synthetic
-// bold, Skia fakeBold class); advances are unchanged by synthetic bold.
+// with e.mu held. embolden expands the vector outline by size/24 (standard
+// FreeType/Skia fake bold) before rasterization; advances are unchanged.
 func (e *GlyphMaskEngine) rasterizeGlyph(
 	key text.GlyphMaskKey,
 	parsed text.ParsedFont,
@@ -785,10 +785,10 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 	}
 	switch {
 	case useLCD:
-		return e.rasterizeLCDGlyph(key, parsed, gid, size, fracX, fracY, hinting, lcdFilter, lcdLayout)
+		return e.rasterizeLCDGlyph(key, parsed, gid, size, fracX, fracY, hinting, lcdFilter, lcdLayout, embolden)
 	case aliased:
 		return e.atlas.GetOrRasterize(key, func() ([]byte, int, int, float32, float32, float32, error) {
-			result, err := e.rasterizer.RasterizeAliased(parsed, gid, size, fracX, fracY, hinting)
+			result, err := e.rasterizer.RasterizeAliasedBold(parsed, gid, size, fracX, fracY, hinting, embolden)
 			if err != nil {
 				return nil, 0, 0, 0, 0, 0, err
 			}
@@ -799,15 +799,12 @@ func (e *GlyphMaskEngine) rasterizeGlyph(
 		})
 	default:
 		return e.atlas.GetOrRasterize(key, func() ([]byte, int, int, float32, float32, float32, error) {
-			result, err := e.rasterizer.RasterizeHinted(parsed, gid, size, fracX, fracY, hinting)
+			result, err := e.rasterizer.RasterizeHintedBold(parsed, gid, size, fracX, fracY, hinting, embolden)
 			if err != nil {
 				return nil, 0, 0, 0, 0, 0, err
 			}
 			if result == nil {
 				return nil, 0, 0, 0, 0, 0, nil // empty glyph (space)
-			}
-			if embolden {
-				result = text.EmboldenResult(result, size)
 			}
 			return result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, result.Advance, nil
 		})
@@ -851,6 +848,9 @@ func (e *GlyphMaskEngine) rasterizeVariationGlyph(
 		if outline == nil || outline.IsEmpty() {
 			return text.GlyphMaskRegion{}, nil
 		}
+		if embolden {
+			outline = text.EmboldenOutline(outline, size)
+		}
 		result, err := e.rasterizer.RasterizeLCDOutline(outline, fracX, fracY, lcdFilter, lcdLayout)
 		if err != nil {
 			return text.GlyphMaskRegion{}, fmt.Errorf("lcd variation glyph rasterize: %w", err)
@@ -870,6 +870,9 @@ func (e *GlyphMaskEngine) rasterizeVariationGlyph(
 		if outline == nil || outline.IsEmpty() {
 			return nil, 0, 0, 0, 0, 0, nil
 		}
+		if embolden {
+			outline = text.EmboldenOutline(outline, size)
+		}
 		var result *text.GlyphMaskResult
 		if aliased {
 			result, err = e.rasterizer.RasterizeOutlineAliased(outline, fracX, fracY)
@@ -881,9 +884,6 @@ func (e *GlyphMaskEngine) rasterizeVariationGlyph(
 		}
 		if result == nil {
 			return nil, 0, 0, 0, 0, 0, nil
-		}
-		if embolden && !aliased {
-			result = text.EmboldenResult(result, size)
 		}
 		return result.Mask, result.Width, result.Height, result.BearingX, result.BearingY, result.Advance, nil
 	})
@@ -1193,6 +1193,7 @@ func (e *GlyphMaskEngine) rasterizeLCDGlyph(
 	hinting text.Hinting,
 	filter text.LCDFilter,
 	layout text.LCDLayout,
+	embolden bool,
 ) (text.GlyphMaskRegion, error) {
 	// Fast path: check cache.
 	if region, ok := e.atlas.Get(key); ok {
@@ -1200,7 +1201,7 @@ func (e *GlyphMaskEngine) rasterizeLCDGlyph(
 	}
 
 	// Slow path: rasterize with LCD.
-	result, err := e.rasterizer.RasterizeLCD(parsed, gid, fontSize, fracX, fracY, hinting, filter, layout)
+	result, err := e.rasterizer.RasterizeLCDBold(parsed, gid, fontSize, fracX, fracY, hinting, filter, layout, embolden)
 	if err != nil {
 		return text.GlyphMaskRegion{}, fmt.Errorf("lcd glyph rasterize: %w", err)
 	}

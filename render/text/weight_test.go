@@ -97,40 +97,6 @@ func TestWithWeight_VariableResolvesToWght(t *testing.T) {
 	}
 }
 
-// EmboldenResult grows ink, keeps advance.
-func TestEmboldenResult_GrowsInkKeepsAdvance(t *testing.T) {
-	before := &GlyphMaskResult{
-		Mask:     []byte{0, 0, 0, 0, 255, 0, 0, 0, 0},
-		Width:    3,
-		Height:   3,
-		BearingX: 1,
-		BearingY: 2,
-		Advance:  8,
-	}
-	after := EmboldenResult(before, 16)
-	if after.Advance != before.Advance {
-		t.Fatalf("Advance=%v want %v (synthetic bold never moves advance)", after.Advance, before.Advance)
-	}
-	if after.Width <= before.Width || after.Height <= before.Height {
-		t.Fatalf("grown=%dx%d want larger than %dx%d", after.Width, after.Height, before.Width, before.Height)
-	}
-	ink := 0
-	for _, v := range after.Mask {
-		if v != 0 {
-			ink++
-		}
-	}
-	if ink <= 1 {
-		t.Fatalf("ink pixels=%d want >1 (mask must thicken)", ink)
-	}
-	if after.BearingX != before.BearingX-1 || after.BearingY != before.BearingY+1 {
-		t.Fatalf("bearings=(%v,%v) want (%v,%v)", after.BearingX, after.BearingY, before.BearingX-1, before.BearingY+1)
-	}
-	if got := EmboldenResult(nil, 16); got != nil {
-		t.Fatalf("nil must pass through")
-	}
-}
-
 // Bold and regular masks must not share an atlas key.
 func TestGlyphMaskKey_BoldSeparates(t *testing.T) {
 	a := MakeGlyphMaskKey(1, 2, 16, 0, 0)

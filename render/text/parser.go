@@ -67,6 +67,16 @@ type VariableAdvanceProvider interface {
 	GlyphAdvanceVar(glyphIndex uint16, ppem float64, variations []FontVariation) float64
 }
 
+// WeightClassProvider is an optional interface that ParsedFont
+// implementations may implement to expose the font's OS/2 usWeightClass.
+// Static families use it to select the real Regular/Semibold/Bold cut
+// before falling back to synthetic embolden.
+type WeightClassProvider interface {
+	// WeightClass returns the OS/2 usWeightClass (1..1000). Implementations
+	// return 400 when the table is absent, matching the CSS Regular default.
+	WeightClass() int
+}
+
 // FontMetrics holds font-level metrics at a specific size.
 type FontMetrics struct {
 	// Ascent is the distance from the baseline to the top of the font (positive).
