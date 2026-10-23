@@ -485,7 +485,7 @@ func w2s(ox, oy, sk, x, y float64) (float64, float64) {
 // joint dots (targets draw as hollow markers, never red squares).
 // Probe pixels survive by order: root/head centers end red, the front
 // thigh midline ends dark.
-func paintPose(dc *render.Context, skel *anim.Skeleton, p *anim.Pose, ox, oy, sk float64) {
+func paintPose(dc render.Canvas, skel *anim.Skeleton, p *anim.Pose, ox, oy, sk float64) {
 	if dc == nil || skel == nil || p == nil {
 		return
 	}
@@ -1469,7 +1469,7 @@ func fsmParity(states []fsmStateDef) bool {
 
 // paintFSMBar draws one blend-duration bar: gray track plus blue fill
 // scaled by blend/max. Jump (0ms) leaves the bare track.
-func paintFSMBar(dc *render.Context, x, y, w, h, blendMs, maxMs float64) {
+func paintFSMBar(dc render.Canvas, x, y, w, h, blendMs, maxMs float64) {
 	if dc == nil {
 		return
 	}
@@ -1492,7 +1492,7 @@ func paintFSMBar(dc *render.Context, x, y, w, h, blendMs, maxMs float64) {
 }
 
 // paintFSMSquares draws one dark square per legal target.
-func paintFSMSquares(dc *render.Context, x, y float64, n int) {
+func paintFSMSquares(dc render.Canvas, x, y float64, n int) {
 	if dc == nil {
 		return
 	}
@@ -1506,7 +1506,7 @@ func paintFSMSquares(dc *render.Context, x, y float64, n int) {
 // paintFSMCurve draws the frozen idle->run crossfade: blue fromW falls,
 // orange toW rises, red dot marks the halfway cross, green tick at the
 // right edge marks the jump->idle instant cut.
-func paintFSMCurve(dc *render.Context, ox, oy, w, h float64) {
+func paintFSMCurve(dc render.Canvas, ox, oy, w, h float64) {
 	if dc == nil {
 		return
 	}
@@ -1539,7 +1539,7 @@ func paintFSMCurve(dc *render.Context, ox, oy, w, h float64) {
 
 // paintFSMCard draws one static state card: squares for legal targets on
 // top, the blend bar at the bottom, a green cut tick when blend is zero.
-func paintFSMCard(dc *render.Context, x, y, w, h, blendMs float64, canCount int) {
+func paintFSMCard(dc render.Canvas, x, y, w, h, blendMs float64, canCount int) {
 	if dc == nil {
 		return
 	}
@@ -2389,7 +2389,7 @@ func tlCurveXY(ox, oy, w, h, tMs, v, vMax float64) (float64, float64) {
 // paintTLCurve draws the frozen interpolation read: x in blue, alpha in
 // orange, a red dot on the x=10 key. Slash stays numeric (probes cover
 // it); paint keeps two lines so the probes never fight an overlap.
-func paintTLCurve(dc *render.Context, tl *anim.Timeline, ox, oy, w, h float64) {
+func paintTLCurve(dc render.Canvas, tl *anim.Timeline, ox, oy, w, h float64) {
 	if dc == nil || tl == nil {
 		return
 	}
@@ -2434,7 +2434,7 @@ func paintTLCurve(dc *render.Context, tl *anim.Timeline, ox, oy, w, h float64) {
 
 // paintTLRail draws the frozen cue rail: one dark square per event in
 // file order on a gray track.
-func paintTLRail(dc *render.Context, n int, x, y, w, h float64) {
+func paintTLRail(dc render.Canvas, n int, x, y, w, h float64) {
 	if dc == nil {
 		return
 	}
@@ -2454,7 +2454,7 @@ func paintTLRail(dc *render.Context, n int, x, y, w, h float64) {
 
 // paintTLCard draws one static sequence card: step squares on top, the
 // frozen end x (blue) and alpha (orange) bars at the bottom.
-func paintTLCard(dc *render.Context, seq tlSeqDef, x, y, w, h float64) {
+func paintTLCard(dc render.Canvas, seq tlSeqDef, x, y, w, h float64) {
 	if dc == nil {
 		return
 	}

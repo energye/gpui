@@ -752,13 +752,13 @@ func buildTextStrokeScene(shell *wrkit.ShellChrome) {
 	card(3, "D TextPath 变换（90° 旋转）+ 分数字号 20.2/20.8", paintTransform)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
 }
 
-func fillPlus(dc *render.Context, x, y, arm float64, c [3]float64) {
+func fillPlus(dc render.Canvas, x, y, arm float64, c [3]float64) {
 	dc.SetRGBA(c[0], c[1], c[2], 1)
 	dc.DrawRectangle(x-arm, y-1, arm*2, 2)
 	_ = dc.Fill()
@@ -812,7 +812,13 @@ func paintTextPath(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
+	// TextPath extracts outlines through the context's own glyph cache, so this
+	// card only exists on the live context; a recording walk refuses and counts.
+	dc, ok := pc.RequireLiveContext()
+	if !ok {
+		return
+	}
+	ox, oy := pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	dc.SetFont(lay.face64)
@@ -859,7 +865,10 @@ func paintTransform(pc *rendering.PaintContext, sz rendering.Size) {
 	}
 	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
-	drawCardDInk(dc, ox, oy, true)
+	// Card D is drawn from extracted outlines: live-only, counted refusal.
+	if live, ok := pc.RequireLiveContext(); ok {
+		drawCardDInk(live, ox, oy, true)
+	}
 
 	// Fractional ppem rows: two sizes that used to share one cached outline
 	// (int16 key) and now stay distinct (26.6 fixed point).

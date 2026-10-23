@@ -124,7 +124,7 @@ func dotPos(i int, w, h float64) (float64, float64) {
 
 // paintCard fills one tier card: background, spec.Particles dots, and
 // the resolution scale bar (width = scale * card width).
-func paintCard(dc *render.Context, ox, oy, w, h float64, spec quality.Spec, r, g, b float64, dot int) {
+func paintCard(dc render.Canvas, ox, oy, w, h float64, spec quality.Spec, r, g, b float64, dot int) {
 	dc.SetRGBA(r, g, b, 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()

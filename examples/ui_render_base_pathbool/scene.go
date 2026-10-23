@@ -154,7 +154,7 @@ func buildPathBoolScene(shell *wrkit.ShellChrome) {
 	card(3, "D  Xor at x≈3000 — no 2048 truncation", paintXorCard)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()

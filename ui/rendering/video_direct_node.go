@@ -38,6 +38,9 @@ type RenderVideo struct {
 	firstMean     float64
 	firstSet      bool
 	lastMean      float64
+	// recordSkips counts Paints that hit a recording walk: video draws GPU
+	// texture handles, which a display list cannot describe (see Paint).
+	recordSkips int
 }
 
 // NewRenderVideo creates a single-view video node of logical size w×h.
@@ -125,14 +128,16 @@ func sampleMean(pix []byte) float64 {
 // VideoNodeStats snapshots what Paint proved: drewOK (something drawn),
 // directLast (fast path), smallDrew (PiP second view), first/last frame
 // brightness (non-black gate), seq (distinct frames fed), planesLast
-// (last upload took the NV12 planes path, not the RGBA fallback shape).
+// (last upload took the NV12 planes path, not the RGBA fallback shape),
+// RecordSkips (Paints that met a recording walk and could not draw).
 type VideoNodeStats struct {
-	DrewOK     bool
-	DirectLast bool
-	SmallDrew  bool
-	FirstMean  float64
-	LastMean   float64
-	PlanesLast bool
+	DrewOK      bool
+	DirectLast  bool
+	SmallDrew   bool
+	FirstMean   float64
+	LastMean    float64
+	PlanesLast  bool
+	RecordSkips int
 }
 
 // NodeStats snapshots the node.
@@ -143,6 +148,7 @@ func (v *RenderVideo) NodeStats() VideoNodeStats {
 	return VideoNodeStats{
 		DrewOK: v.drewOK, DirectLast: v.directLast, SmallDrew: v.smallDrew,
 		FirstMean: v.firstMean, LastMean: v.lastMean, PlanesLast: v.planesLast,
+		RecordSkips: v.recordSkips,
 	}
 }
 
@@ -176,14 +182,23 @@ func (v *RenderVideo) Paint(pc *PaintContext) {
 	}
 	sz := v.size
 	ax, ay := pc.Abs(0, 0)
-	direct, ok := v.bridge.DrawCurrent(pc.DC, render.VideoDrawOptions{
+	dc, live := pc.LiveContext()
+	if !live {
+		// Video rides GPU texture handles (bridge → DrawVideoSlot/Planes), which a
+		// display list cannot describe. Counted, never silent: S2b C4 puts video on
+		// a scene.TextureLayer so the retained tree carries it instead.
+		v.recordSkips++
+		v.clearPaintDirty()
+		return
+	}
+	direct, ok := v.bridge.DrawCurrent(dc, render.VideoDrawOptions{
 		X: ax, Y: ay, DstWidth: sz.Width, DstHeight: sz.Height, Opacity: 1,
 	})
 	v.drewOK, v.directLast = ok, direct
 	if ok && v.smallW > 0 && v.smallH > 0 {
 		sx := ax + sz.Width - v.smallW - 12
 		sy := ay + sz.Height - v.smallH - 12
-		_, ok2 := v.bridge.DrawCurrent(pc.DC, render.VideoDrawOptions{
+		_, ok2 := v.bridge.DrawCurrent(dc, render.VideoDrawOptions{
 			X: sx, Y: sy, DstWidth: v.smallW, DstHeight: v.smallH, Opacity: 1,
 		})
 		if ok2 {

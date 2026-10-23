@@ -209,11 +209,12 @@ func (p *Picture) Clear() {
 	p.Valid = false
 }
 
-// Replay applies the display list onto dc (CPU/GPU Context). This is the
-// SkPicture::playback analogue: a pure forward pass — ops carry normalized
-// paint state recorded earlier, replay never re-derives color semantics.
-// No-op if p is nil/empty or dc is nil. Does not change Valid/NeedsRaster flags.
-func (p *Picture) Replay(dc *render.Context) {
+// Replay applies the display list onto dc (any render.Canvas — live Context or
+// a recording.Recorder). This is the SkPicture::playback analogue: a pure
+// forward pass — ops carry normalized paint state recorded earlier, replay never
+// re-derives color semantics. No-op if p is nil/empty or dc is nil.
+// Does not change Valid/NeedsRaster flags.
+func (p *Picture) Replay(dc render.Canvas) {
 	if p == nil || dc == nil || len(p.Ops) == 0 {
 		return
 	}
@@ -232,16 +233,16 @@ func opStrokeWidth(lw float64) float64 {
 	return lw
 }
 
-func setOpFill(dc *render.Context, op *PictureOp) {
+func setOpFill(dc render.Canvas, op *PictureOp) {
 	dc.SetRGBA(op.R, op.G, op.B, op.A)
 }
 
-func setOpStroke(dc *render.Context, op *PictureOp) {
+func setOpStroke(dc render.Canvas, op *PictureOp) {
 	dc.SetRGBA(op.R, op.G, op.B, op.A)
 	dc.SetLineWidth(opStrokeWidth(op.LineWidth))
 }
 
-func drawRoundRectShape(dc *render.Context, op *PictureOp) {
+func drawRoundRectShape(dc render.Canvas, op *PictureOp) {
 	rad := op.Radius
 	if rad < 0 {
 		rad = 0
@@ -253,7 +254,7 @@ func drawRoundRectShape(dc *render.Context, op *PictureOp) {
 	}
 }
 
-func applyPictureOp(dc *render.Context, op *PictureOp) {
+func applyPictureOp(dc render.Canvas, op *PictureOp) {
 	if dc == nil || op == nil {
 		return
 	}

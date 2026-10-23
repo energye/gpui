@@ -528,6 +528,12 @@ func (s *recordingSpyBackend) DrawText(_ string, _, _ float64, face text.Face, _
 // command stream reaches a backend, not that it rasterizes correctly (the card
 // pixels and the golden PNG do that).
 func (s *recordingSpyBackend) ClipRect(_ recording.Rect) { s.hit("ClipRect") }
+func (s *recordingSpyBackend) ClipRectOp(_ recording.Rect, _ render.ClipOp) {
+	s.hit("ClipRectOp")
+}
+func (s *recordingSpyBackend) ClipPathOp(_ *render.Path, _ recording.FillRule, _ render.ClipOp) {
+	s.hit("ClipPathOp")
+}
 func (s *recordingSpyBackend) DrawImageNine(_ *render.ImageBuf, _ image.Rectangle, _ recording.Rect) {
 	s.hit("DrawImageNine")
 }
@@ -549,10 +555,14 @@ func (s *recordingSpyBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.De
 func (s *recordingSpyBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ recording.Brush) {
 	s.hit("DrawVertices")
 }
+func (s *recordingSpyBackend) DrawMesh(_ render.Mesh, _ recording.Brush) { s.hit("DrawMesh") }
 func (s *recordingSpyBackend) DrawGlyphs(_ []text.ShapedGlyph, _ text.Face, _, _ float64, _ bool, _ recording.Brush) {
 	s.hit("DrawGlyphs")
 }
 func (s *recordingSpyBackend) SetTextDecoration(_ render.TextDecoration) { s.hit("SetTextDecoration") }
+func (s *recordingSpyBackend) SetTextMode(_ render.TextMode)             { s.hit("SetTextMode") }
+func (s *recordingSpyBackend) SetLCDLayout(_ render.LCDLayout)           { s.hit("SetLCDLayout") }
+func (s *recordingSpyBackend) SetAntiAlias(_ bool)                       { s.hit("SetAntiAlias") }
 func (s *recordingSpyBackend) ApplyBlur(_ float64)                       { s.hit("ApplyBlur") }
 func (s *recordingSpyBackend) ApplyColorMatrix(_ [20]float32)            { s.hit("ApplyColorMatrix") }
 func (s *recordingSpyBackend) ApplyDropShadow(_, _, _ float64, _ render.RGBA) {

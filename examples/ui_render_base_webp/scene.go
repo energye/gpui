@@ -246,13 +246,13 @@ func buildWebPScene(shell *wrkit.ShellChrome) {
 	}
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
 }
 
-func slotFrame(dc *render.Context, x, y, w, h float64) {
+func slotFrame(dc render.Canvas, x, y, w, h float64) {
 	dc.SetRGBA(colBorder[0], colBorder[1], colBorder[2], 1)
 	dc.DrawRectangle(x, y, w, 1)
 	_ = dc.Fill()
@@ -264,7 +264,7 @@ func slotFrame(dc *render.Context, x, y, w, h float64) {
 	_ = dc.Fill()
 }
 
-func drawChecker(dc *render.Context, x, y, w, h float64) {
+func drawChecker(dc render.Canvas, x, y, w, h float64) {
 	for row := 0; float64(row)*checkerSz < h; row++ {
 		cellY := y + float64(row)*checkerSz
 		cellH := math.Min(checkerSz, y+h-cellY)
@@ -296,7 +296,7 @@ func drawAsset(pc *rendering.PaintContext, a *webpAsset, x, y, w, h float64, nea
 	})
 }
 
-func drawErrorBadge(dc *render.Context, x, y, size float64) {
+func drawErrorBadge(dc render.Canvas, x, y, size float64) {
 	dc.SetRGBA(0.86, 0.20, 0.18, 1)
 	dc.DrawRectangle(x, y, size, size)
 	_ = dc.Fill()

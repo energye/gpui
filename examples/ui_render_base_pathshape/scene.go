@@ -410,7 +410,7 @@ func buildPathShapeScene(shell *wrkit.ShellChrome) {
 	card(3, "D  Discrete(22,7) — ±7 jitter, sides alternate", paintDiscreteJitter)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()

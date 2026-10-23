@@ -100,7 +100,7 @@ func (p *paintProbe) note(key string, pass bool) {
 // checkCurrentPoint asserts GetCurrentPoint() equals the device-space image of
 // logical (lx, ly) under the live DC matrix. Exact equality: the API contract
 // is the raw stored point, not a rounded one.
-func (p *paintProbe) checkCurrentPoint(key string, dc *render.Context, lx, ly float64) {
+func (p *paintProbe) checkCurrentPoint(key string, dc render.Canvas, lx, ly float64) {
 	if dc == nil {
 		return
 	}
@@ -120,7 +120,7 @@ func (p *paintProbe) checkCurrentPoint(key string, dc *render.Context, lx, ly fl
 }
 
 // checkCurrentPointExists asserts only presence/absence of a current point.
-func (p *paintProbe) checkCurrentPointExists(key string, dc *render.Context, want bool) {
+func (p *paintProbe) checkCurrentPointExists(key string, dc render.Canvas, want bool) {
 	if dc == nil {
 		return
 	}
@@ -173,7 +173,7 @@ func buildPathLowScene(shell *wrkit.ShellChrome, probe *paintProbe) {
 	card(3, "D  Fill() consumes path — Stroke() stays empty", paintFillConsumes(probe))
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()

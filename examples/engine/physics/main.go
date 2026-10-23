@@ -516,7 +516,7 @@ func probeJumpLogic() (bool, string, float64) {
 // Shared pixel + golden probes.
 // ---------------------------------------------------------------------------
 
-func paintHitFrame(dc *render.Context, ox, oy, heroX float64) {
+func paintHitFrame(dc render.Canvas, ox, oy, heroX float64) {
 	dc.SetRGB(bgR, bgG, bgB)
 	dc.DrawRectangle(ox, oy, offW, offH)
 	_ = dc.Fill()
@@ -540,7 +540,7 @@ func paintHitFrame(dc *render.Context, ox, oy, heroX float64) {
 	_ = dc.Stroke()
 }
 
-func paintJumpSlope(dc *render.Context, ox, oy, jumpX, jumpY float64) {
+func paintJumpSlope(dc render.Canvas, ox, oy, jumpX, jumpY float64) {
 	dc.SetRGB(bgR, bgG, bgB)
 	dc.DrawRectangle(ox, oy, offW, offH)
 	_ = dc.Fill()

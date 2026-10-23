@@ -126,7 +126,7 @@ func imageColor(c render.RGBA) color.NRGBA {
 	}
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG.R, colCardBG.G, colCardBG.B, colCardBG.A)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()

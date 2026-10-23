@@ -149,7 +149,7 @@ func buildVerticesScene(shell *wrkit.ShellChrome) {
 	card(3, "D 边界：短索引不画 / 颜色不匹配实心 / 坏索引拒绝", paintVertsD)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()

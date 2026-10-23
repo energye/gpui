@@ -50,9 +50,9 @@ func ApplyBlur(pc *PaintContext, radius float64) {
 // (FC-DRAW-SHADOW / FF filter path). offset is in logical px (Y-down);
 // blurRadius is the shadow soft radius; color is 0..1 RGBA.
 //
-// Flushes pending GPU draws first so the filter sees painted content on the
-// CPU/GPU surface (same discipline as PushBackdrop). Full-surface filter —
-// not a path-bound Material elevation API.
+// Full-surface filter — not a path-bound Material elevation API. No explicit
+// GPU flush here: render's own filter paths already drain pending batches before
+// reading back (filter_ops_cpu.go / m4_quadimage.go / filter_ops_gpu.go).
 func ApplyDropShadow(pc *PaintContext, offsetX, offsetY, blurRadius, r, g, b, a float64) {
 	if pc == nil || pc.DC == nil {
 		return
@@ -60,7 +60,6 @@ func ApplyDropShadow(pc *PaintContext, offsetX, offsetY, blurRadius, r, g, b, a 
 	if a <= 0 {
 		a = 1
 	}
-	_ = pc.DC.FlushGPU()
 	pc.DC.ApplyDropShadow(offsetX, offsetY, blurRadius, render.RGBA{R: r, G: g, B: b, A: a})
 }
 

@@ -473,13 +473,13 @@ func buildBackdropScene(shell *wrkit.ShellChrome) {
 	card(3, "D 嵌套背板：外层隔离层内再 Push（隔离卡）", true, paintNestedCard)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
 }
 
-func fillBand(dc *render.Context, x, y, w, h float64, c [3]float64) {
+func fillBand(dc render.Canvas, x, y, w, h float64, c [3]float64) {
 	dc.SetRGBA(c[0], c[1], c[2], 1)
 	dc.DrawRectangle(x, y, w, h)
 	_ = dc.Fill()
@@ -487,7 +487,7 @@ func fillBand(dc *render.Context, x, y, w, h float64, c [3]float64) {
 
 // fillStripes paints the shared teal/blue stripe page the analytic oracle
 // resolves through stripeColorAt.
-func fillStripes(dc *render.Context, x, y, w, h float64) {
+func fillStripes(dc render.Canvas, x, y, w, h float64) {
 	for i := 0; float64(i)*stripeW < w; i++ {
 		bandX := x + float64(i)*stripeW
 		bw := math.Min(stripeW, x+w-bandX)

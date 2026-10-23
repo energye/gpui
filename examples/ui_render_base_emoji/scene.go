@@ -687,7 +687,7 @@ func buildEmojiScene(shell *wrkit.ShellChrome) {
 	card(3, "D  COLR 3 layers — synthetic red / green / blue", paintCOLRCard)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
@@ -814,7 +814,7 @@ func paintCOLRCard(pc *rendering.PaintContext, sz rendering.Size) {
 	}
 }
 
-func drawAssetError(dc *render.Context, ox, oy float64) {
+func drawAssetError(dc render.Canvas, ox, oy float64) {
 	msg := "emoji assets unavailable"
 	if emojiAssets != nil && emojiAssets.err != nil {
 		msg = emojiAssets.err.Error()

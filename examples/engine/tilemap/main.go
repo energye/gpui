@@ -358,7 +358,7 @@ func probeMapLogic() (placed, misplaced, seamBreaks int, ok bool, detail string)
 // mapPaint draws the deterministic map frame: 4x3 ortho ground, red solid
 // ticks, object markers, and the brush stroke row. Window and offscreen
 // share the palette; the layout below is the offscreen golden layout.
-func mapPaint(dc *render.Context, ox, oy, cell float64) {
+func mapPaint(dc render.Canvas, ox, oy, cell float64) {
 	m, err := loadOrthoFixture()
 	if err != nil {
 		return
@@ -627,7 +627,7 @@ func probeChunkLogic() (culled, batches, loads, unloads int, ok bool, detail str
 
 // chunkPaint draws the deterministic chunk frame: the 16x16 field with the
 // streamed-in chunks lit and the rest dim, viewport stroked yellow.
-func chunkPaint(dc *render.Context, ox, oy, cell float64, lit map[tilemap.ChunkID]bool, view core.Rect) {
+func chunkPaint(dc render.Canvas, ox, oy, cell float64, lit map[tilemap.ChunkID]bool, view core.Rect) {
 	for row := 0; row < 16; row++ {
 		for col := 0; col < 16; col++ {
 			id := tilemap.ChunkID{CX: col / 4, CY: row / 4}
@@ -797,7 +797,7 @@ func probeLODLogic() (flickers, switches int, ok bool, detail string) {
 
 // lodPaint draws the deterministic lod frame: near box bright, far box dim,
 // band bar with the 192/320 ticks.
-func lodPaint(dc *render.Context, ox, oy float64) {
+func lodPaint(dc render.Canvas, ox, oy float64) {
 	dc.SetRGBA(nearR, nearG, nearB, 1)
 	dc.DrawRectangle(ox, oy, 200, 120)
 	_ = dc.Fill()

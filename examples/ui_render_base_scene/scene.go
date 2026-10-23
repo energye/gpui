@@ -770,7 +770,11 @@ func paintSceneA(pc *rendering.PaintContext, _ rendering.Size) {
 	paintSceneCardBG(pc)
 	dc.Push()
 	dc.Translate(ox+sceneImgX, oy+sceneImgY)
-	_ = scene.NewGPUSceneRenderer(dc).RenderScene(slay.ab)
+	// The GPU scene renderer talks to the device directly, so it can only run on
+	// the live context; a recording walk refuses and counts the refusal.
+	if live, ok := pc.RequireLiveContext(); ok {
+		_ = scene.NewGPUSceneRenderer(live).RenderScene(slay.ab)
+	}
 	dc.Pop()
 	paintSceneFrame(pc, sceneImgX, sceneImgY, sceneW, sceneH)
 }

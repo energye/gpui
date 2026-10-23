@@ -190,7 +190,7 @@ func drawQuadImage(pc *rendering.PaintContext, dst dstSpec) {
 	})
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG.R, colCardBG.G, colCardBG.B, colCardBG.A)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
@@ -226,9 +226,10 @@ func paintA(pc *rendering.PaintContext, sz rendering.Size) {
 	}
 	dc.Push()
 	dc.ClipRoundRect(ox+aClip.x, oy+aClip.y, aClip.w, aClip.h, aClip.r)
-	dc.DrawGPUTexture(b.texView, ox+aDst.x, oy+aDst.y, int(aDst.w), int(aDst.h))
+	if rendering.DrawGPUTexture(pc, b.texView, ox+aDst.x, oy+aDst.y, int(aDst.w), int(aDst.h)) {
+		liveTex.Add(1)
+	}
 	dc.Pop()
-	liveTex.Add(1)
 }
 
 func paintB(pc *rendering.PaintContext, sz rendering.Size) {

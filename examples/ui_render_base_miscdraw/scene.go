@@ -348,7 +348,7 @@ func buildMiscScene(shell *wrkit.ShellChrome) {
 	card(4, "E DrawParagraph · 预排版多行 / 中英混排 / 对齐", paintMiscE)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()

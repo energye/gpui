@@ -538,13 +538,13 @@ func buildMaskOpsScene(shell *wrkit.ShellChrome) {
 	card(3, "D  PushMaskLayer r=62 circle -> PopLayer composite", paintMaskLayerCard)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
 }
 
-func fillBand(dc *render.Context, x, y, w, h float64, c [3]float64) {
+func fillBand(dc render.Canvas, x, y, w, h float64, c [3]float64) {
 	dc.SetRGBA(c[0], c[1], c[2], 1)
 	dc.DrawRectangle(x, y, w, h)
 	_ = dc.Fill()
@@ -559,7 +559,13 @@ func paintApplyMaskCard(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
+	// Mask post-processes read and modulate the surface directly, so this card
+	// only exists on the live context; a recording walk refuses and counts.
+	live, ok := pc.RequireLiveContext()
+	if !ok {
+		return
+	}
+	dc, ox, oy := live, pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	cxi, cyi := int(math.Round(cx)), int(math.Round(cy))
@@ -591,7 +597,13 @@ func paintSetClearMaskCard(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
+	// Mask post-processes read and modulate the surface directly, so this card
+	// only exists on the live context; a recording walk refuses and counts.
+	live, ok := pc.RequireLiveContext()
+	if !ok {
+		return
+	}
+	dc, ox, oy := live, pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	w, h := dc.Width(), dc.Height()
@@ -614,7 +626,13 @@ func paintInvertMaskCard(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
+	// Mask post-processes read and modulate the surface directly, so this card
+	// only exists on the live context; a recording walk refuses and counts.
+	live, ok := pc.RequireLiveContext()
+	if !ok {
+		return
+	}
+	dc, ox, oy := live, pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	w, h := dc.Width(), dc.Height()
@@ -640,7 +658,13 @@ func paintMaskLayerCard(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
+	// Mask post-processes read and modulate the surface directly, so this card
+	// only exists on the live context; a recording walk refuses and counts.
+	live, ok := pc.RequireLiveContext()
+	if !ok {
+		return
+	}
+	dc, ox, oy := live, pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	w, h := dc.Width(), dc.Height()

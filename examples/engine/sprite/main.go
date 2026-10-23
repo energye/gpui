@@ -1035,7 +1035,7 @@ func loadAnimArt(f animFileDef) ([]*render.ImageBuf, []sprite.Clip, string, bool
 
 // paintAnimStrip draws the four true frames bottom-aligned on one row,
 // shared verbatim by the offscreen golden and the window strip card.
-func paintAnimStrip(dc *render.Context, frames []*render.ImageBuf, ox, baseY, step float64) {
+func paintAnimStrip(dc render.Canvas, frames []*render.ImageBuf, ox, baseY, step float64) {
 	if dc == nil {
 		return
 	}

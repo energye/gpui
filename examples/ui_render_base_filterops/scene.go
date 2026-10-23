@@ -321,13 +321,13 @@ func buildFilterScene(shell *wrkit.ShellChrome) {
 	card(3, "D GPUFilterTexture：发布视图直绘（零读回）/ 底保不透明", paintD)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
 }
 
-func slotFrame(dc *render.Context, x, y, w, h float64) {
+func slotFrame(dc render.Canvas, x, y, w, h float64) {
 	dc.SetRGBA(colBorder[0], colBorder[1], colBorder[2], 1)
 	dc.DrawRectangle(x, y, w, 1)
 	_ = dc.Fill()
@@ -407,8 +407,9 @@ func paintD(pc *rendering.PaintContext, sz rendering.Size) {
 	// stays at the card background and the probes report it.
 	if filterDOK && !filterDView.IsNil() {
 		ax, ay := pc.Abs(contentX0+halfX, contentY0)
-		pc.DC.DrawGPUTexture(filterDView, ax, ay, filterDW, filterDH)
-		dLivePaints.Add(1)
+		if rendering.DrawGPUTexture(pc, filterDView, ax, ay, filterDW, filterDH) {
+			dLivePaints.Add(1)
+		}
 	} else if pc.DC != nil {
 		dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
 		dc.SetRGBA(0.35, 0.06, 0.08, 1)

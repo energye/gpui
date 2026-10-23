@@ -256,13 +256,13 @@ func buildDitherScene(shell *wrkit.ShellChrome) {
 	card(3, "D 纯色：off / on（整张 pixmap 后处理，限界）", paintD)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
 }
 
-func slotFrame(dc *render.Context, x, y, w, h float64) {
+func slotFrame(dc render.Canvas, x, y, w, h float64) {
 	dc.SetRGBA(colBorder[0], colBorder[1], colBorder[2], 1)
 	dc.DrawRectangle(x, y, w, 1)
 	_ = dc.Fill()

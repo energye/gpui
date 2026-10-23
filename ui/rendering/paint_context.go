@@ -11,6 +11,7 @@
 package rendering
 
 import (
+	"reflect"
 	"sync/atomic"
 	"unicode/utf8"
 
@@ -19,12 +20,14 @@ import (
 )
 
 // PaintContext is the UI tree paint-walk cursor (not a second 2D engine).
-// Drawing goes through DC (*render.Context); UI controls order, origin, and CompositeOnly.
+// Drawing goes through DC (a render.Canvas — either a live *render.Context for
+// immediate painting, or a recording.Recorder that captures a display list); UI
+// controls order, origin, and CompositeOnly.
 //
 // Default fonts live in render/text (LoadDefaultFace / SystemFontCandidates),
 // not here — see default_font.go for the thin UI wrapper.
 type PaintContext struct {
-	DC               *render.Context
+	DC               render.Canvas
 	OriginX, OriginY float64
 	Scale            float64
 	CompositeOnly    bool
@@ -46,12 +49,38 @@ type PaintContext struct {
 	DebugRepaintDraws *int64
 }
 
+// normalizeCanvas collapses a typed nil (a nil *render.Context boxed into the
+// interface) into a nil interface value. Paint code all over the tree guards
+// with `pc.DC == nil`; an interface holding a nil pointer is not nil, so the
+// normalisation has to happen at every construction door.
+func normalizeCanvas(c render.Canvas) render.Canvas {
+	if c == nil {
+		return nil
+	}
+	if v := reflect.ValueOf(c); v.Kind() == reflect.Ptr && v.IsNil() {
+		return nil
+	}
+	return c
+}
+
 // NewPaintContext roots a paint walk at (0,0).
-func NewPaintContext(dc *render.Context, scale float64) *PaintContext {
+func NewPaintContext(dc render.Canvas, scale float64) *PaintContext {
 	if scale <= 0 {
 		scale = 1
 	}
-	return &PaintContext{DC: dc, Scale: scale}
+	return &PaintContext{DC: normalizeCanvas(dc), Scale: scale}
+}
+
+// LiveContext returns the underlying live *render.Context, or false when the walk
+// is recording into a display list. GPU-bound draws (texture handles, flushes,
+// offscreen passes) cannot be described by a Recorder, so they must come through
+// this door and must say so — see DrawGPUTexture.
+func (pc *PaintContext) LiveContext() (*render.Context, bool) {
+	if pc == nil || pc.DC == nil {
+		return nil, false
+	}
+	ctx, ok := pc.DC.(*render.Context)
+	return ctx, ok
 }
 
 // WithOrigin returns a child cursor with absolute origin (logical Y-down).

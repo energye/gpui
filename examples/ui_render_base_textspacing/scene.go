@@ -344,19 +344,19 @@ func buildTextSpacingScene(shell *wrkit.ShellChrome) {
 	placeColumn(lay.cSpaced)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
 }
 
-func drawRule(dc *render.Context, x, y, w float64, c [3]float64) {
+func drawRule(dc render.Canvas, x, y, w float64, c [3]float64) {
 	dc.SetRGBA(c[0], c[1], c[2], 1)
 	dc.DrawRectangle(x, y, w, 2)
 	_ = dc.Fill()
 }
 
-func drawTick(dc *render.Context, x, y float64, c [3]float64) {
+func drawTick(dc render.Canvas, x, y float64, c [3]float64) {
 	dc.SetRGBA(c[0], c[1], c[2], 1)
 	dc.DrawRectangle(x-1.5, y-5, 3, 10)
 	_ = dc.Fill()

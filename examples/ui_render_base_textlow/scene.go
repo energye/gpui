@@ -273,19 +273,19 @@ func buildTextLowScene(shell *wrkit.ShellChrome) {
 	card(3, "D SetLCDLayout：None / RGB / BGR 同上下文交错", paintLCD)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
 }
 
-func fillSquare(dc *render.Context, x, y, arm float64, c [3]float64) {
+func fillSquare(dc render.Canvas, x, y, arm float64, c [3]float64) {
 	dc.SetRGBA(c[0], c[1], c[2], 1)
 	dc.DrawRectangle(x-arm/2, y-arm/2, arm, arm)
 	_ = dc.Fill()
 }
 
-func fillPlus(dc *render.Context, x, y, arm float64, c [3]float64) {
+func fillPlus(dc render.Canvas, x, y, arm float64, c [3]float64) {
 	dc.SetRGBA(c[0], c[1], c[2], 1)
 	dc.DrawRectangle(x-arm, y-1, arm*2, 2)
 	_ = dc.Fill()

@@ -83,7 +83,7 @@ func drawQuadImageCPU(dc *render.Context, img *render.ImageBuf, dst dstSpec) {
 	})
 }
 
-func drawTextRows(dc *render.Context, ox, oy float64, face text.Face) {
+func drawTextRows(dc render.Canvas, ox, oy float64, face text.Face) {
 	if dc == nil || face == nil {
 		return
 	}
