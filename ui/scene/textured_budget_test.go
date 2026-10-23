@@ -27,11 +27,9 @@ func TestPictureTextureCache_ExplicitBudget(t *testing.T) {
 		t.Fatalf("Evictions=%d want 0", tex.Evictions)
 	}
 
-	p := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 4, 4, 1, 0, 0, 1)
-	})
+	p := recordFillRect(4, 4, 0, 0, 4, 4, 1, 0, 0, 1)
 	for id := uint64(1); id <= 3; id++ {
-		if _, ok := tex.RecordForTest(id, &p); ok {
+		if _, ok := tex.RecordForTest(id, p); ok {
 			t.Fatalf("record without GPU should fail")
 		}
 	}

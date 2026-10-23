@@ -24,9 +24,7 @@ func TestCompositeFramePacketTextured_TransformNoTextureCache(t *testing.T) {
 	tr := b.PushTransform(50, 50, math.Pi/4, 1, 1)
 	pl := b.AddPicture(true)
 	pl.SetCacheKey(301)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(-20, -20, 40, 40, 1, 0, 0, 1)
-	})
+	pl.SetRecording(recordFillRect(40, 40, -20, -20, 40, 40, 1, 0, 0, 1))
 	_ = tr
 	b.Pop() // transform
 	pkt := b.BuildPacket(1, 1, 100, 100)
@@ -76,9 +74,7 @@ func TestCompositeFramePacketTextured_ScaleNoTextureCache(t *testing.T) {
 	_ = b.PushTransform(10, 10, 0, 2, 2) // 2× scale → 10×10 rect paints as 20×20
 	pl := b.AddPicture(true)
 	pl.SetCacheKey(302)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 10, 10, 0, 0, 1, 1)
-	})
+	pl.SetRecording(recordFillRect(10, 10, 0, 0, 10, 10, 0, 0, 1, 1))
 	b.Pop() // transform
 	pkt := b.BuildPacket(1, 1, 100, 100)
 
@@ -117,9 +113,7 @@ func TestCompositeFramePacketTextured_TranslateStillCacheable(t *testing.T) {
 	_ = b.PushTransform(20, 15, 0, 1, 1)
 	pl := b.AddPicture(true)
 	pl.SetCacheKey(303)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 10, 10, 0, 1, 0, 1)
-	})
+	pl.SetRecording(recordFillRect(10, 10, 0, 0, 10, 10, 0, 1, 0, 1))
 	b.Pop() // transform
 	pkt := b.BuildPacket(1, 1, 60, 60)
 
@@ -131,8 +125,8 @@ func TestCompositeFramePacketTextured_TranslateStillCacheable(t *testing.T) {
 	scene.CompositeFramePacketTextured(pkt, dc, tex)
 
 	// No-GPU: record degrades, but the walk must have ATTEMPTED the cache
-	// path (no extra ReplayedOps from the restrictive bypass). The observable
-	// proxy: replay count stays 0 because phase-2 prefers blit for restr==0.
+	// path (no extra ReplayedOps from a caching-disqualification bypass). The observable
+	// proxy: replay count stays 0 because phase-2 prefers blit for a pure-translate CTM.
 	if st := scene.CountCacheablePictureLayers(pkt); st != 1 {
 		t.Fatalf("cacheable layers=%d want 1", st)
 	}

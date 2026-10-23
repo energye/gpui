@@ -17,6 +17,10 @@ import (
 // 必须给出相同的数，且新老建包的层序列与脏号顺序全等。
 // 老函数留着给别处用，这里只读它们做对照，不走真帧。
 func TestE2Merged_CountsHonestAndPacketEqual(t *testing.T) {
+	face, _, err := rendering.TryLoadDefaultFace(16)
+	if err != nil {
+		t.Skipf("no UI font on this box: %v", err)
+	}
 	buildTree := func() (*rendering.RenderBox, *rendering.PipelineOwner) {
 		root := rendering.NewRenderBox()
 		root.FixedWidth, root.FixedHeight = 800, 600
@@ -24,6 +28,7 @@ func TestE2Merged_CountsHonestAndPacketEqual(t *testing.T) {
 		branchA := rendering.NewRenderBox()
 		branchA.SetRepaintBoundary(true)
 		txtA := rendering.NewRenderText("hello world e2 merged counts")
+		txtA.Face = face
 		txtA.MaxWidth = 400
 		leafA := rendering.NewRenderBox()
 		leafA.FixedWidth, leafA.FixedHeight = 10, 10
@@ -35,6 +40,7 @@ func TestE2Merged_CountsHonestAndPacketEqual(t *testing.T) {
 		nested := rendering.NewRenderBox()
 		nested.SetRepaintBoundary(true)
 		txtB := rendering.NewRenderText("nested boundary text")
+		txtB.Face = face
 		txtB.MaxWidth = 400
 		nested.AddChild(txtB)
 		branchB.AddChild(nested)

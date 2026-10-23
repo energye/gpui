@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/scene"
 )
 
@@ -16,17 +17,17 @@ func mustImageBuf(t *testing.T, w, h int) *render.ImageBuf {
 	return img
 }
 
-func pictureWithImage(t *testing.T, img *render.ImageBuf) scene.Picture {
+func recordingWithImage(t *testing.T, img *render.ImageBuf) *recording.Recording {
 	t.Helper()
-	return scene.RecordPicture(func(r *scene.PictureRecorder) {
-		r.DrawImage(img, 0, 0, 4, 4)
-	})
+	rec := recording.NewRecorder(4, 4)
+	rec.DrawImage(img, 0, 0)
+	return rec.FinishRecording()
 }
 
 // TestPacket_RetainsDrawImageBuffers locks D15: every ImageBuf referenced by
-// display-list ops must ride the packet until drop-after-present — including
-// after the tree drops it (image replace clears the node while the packet
-// is still in flight) and across CloneShallow.
+// display-list commands must ride the packet until drop-after-present —
+// including after the tree drops it (image replace clears the node while the
+// packet is still in flight) and across CloneShallow.
 func TestPacket_RetainsDrawImageBuffers(t *testing.T) {
 	scene.ResetLayerIDGen()
 	imgA := mustImageBuf(t, 4, 4)
@@ -34,13 +35,13 @@ func TestPacket_RetainsDrawImageBuffers(t *testing.T) {
 	b := scene.NewLayerBuilder()
 	pl1 := b.AddPicture(true)
 	pl1.SetCacheKey(401)
-	pl1.Picture = pictureWithImage(t, imgA)
+	pl1.SetRecording(recordingWithImage(t, imgA))
 	pl2 := b.AddPicture(true)
 	pl2.SetCacheKey(402)
-	pl2.Picture = pictureWithImage(t, imgA) // duplicate ref counted once
+	pl2.SetRecording(recordingWithImage(t, imgA)) // duplicate ref counted once
 	pl3 := b.AddPicture(true)
 	pl3.SetCacheKey(403)
-	pl3.Picture = pictureWithImage(t, imgB)
+	pl3.SetRecording(recordingWithImage(t, imgB))
 	pkt := b.BuildPacket(1, 1, 100, 80)
 	if len(pkt.RetainedImages) != 2 {
 		t.Fatalf("RetainedImages=%d want 2 (deduped)", len(pkt.RetainedImages))
@@ -83,9 +84,11 @@ func TestPacket_NoImages_NoRetention(t *testing.T) {
 	b := scene.NewLayerBuilder()
 	pl := b.AddPicture(true)
 	pl.SetCacheKey(404)
-	pl.Picture = scene.RecordPicture(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 10, 10, 1, 0, 0, 1)
-	})
+	rec := recording.NewRecorder(10, 10)
+	rec.SetRGBA(1, 0, 0, 1)
+	rec.DrawRectangle(0, 0, 10, 10)
+	_ = rec.Fill()
+	pl.SetRecording(rec.FinishRecording())
 	pkt := b.BuildPacket(1, 1, 100, 80)
 	if len(pkt.RetainedImages) != 0 {
 		t.Fatalf("RetainedImages=%d want 0", len(pkt.RetainedImages))

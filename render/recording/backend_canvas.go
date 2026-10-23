@@ -18,48 +18,53 @@ import (
 	"github.com/energye/gpui/render/text"
 )
 
-// ErrNoContext is returned by ContextBackend.Begin when the backend was built
-// without a target context.
-var ErrNoContext = errors.New("recording: ContextBackend has no render.Context")
+// ErrNoCanvas is returned by CanvasBackend.Begin when the backend was built
+// without a target canvas.
+var ErrNoCanvas = errors.New("recording: CanvasBackend has no canvas")
 
-// ContextBackend replays a Recording onto a live *render.Context.
+// CanvasBackend replays a Recording onto a render.Canvas.
 //
 // This is the primary playback path — the counterpart of SkPicture::playback
 // (SkCanvas*): the recording is a display list in user space, and the target
-// context supplies the coordinate system it lands in. Playback composes onto
-// the context's existing CTM and clip instead of replacing them, so a picture
+// canvas supplies the coordinate system it lands in. Playback composes onto the
+// canvas's existing CTM and clip instead of replacing them, so a picture
 // recorded on the UI thread in layer-local logical pixels rasterizes correctly
 // under the layer offset and the device scale that the raster thread already
-// set up. Begin pushes the context state and End pops it (plus restores the
+// set up. Begin pushes the canvas state and End pops it (plus restores the
 // brushes, which Context.Pop does not track), so a recording cannot leak into
-// whatever the context paints next.
+// whatever the canvas paints next.
+//
+// Taking the interface rather than the live context is what makes recordings
+// composable: replaying onto a *Recorder folds the commands into the surrounding
+// recording, so one display list can be reused inside another and the same call
+// works while recording and while rasterizing.
 //
 // The raster image backend is a thin wrapper around this type; both share one
 // interpretation of the command stream.
-type ContextBackend struct {
-	dc           *render.Context
+type CanvasBackend struct {
+	dc           render.Canvas
 	fillBrush    render.Brush
 	strokeBrush  render.Brush
 	statePushed  bool
 	savedBrushes bool
 }
 
-// Ensure ContextBackend satisfies the backend contract.
-var _ Backend = (*ContextBackend)(nil)
+// Ensure CanvasBackend satisfies the backend contract.
+var _ Backend = (*CanvasBackend)(nil)
 
-// NewContextBackend returns a backend that draws into dc. The context keeps
-// its own size, scale and clip; the recording is positioned by composing onto
-// them at playback.
-func NewContextBackend(dc *render.Context) *ContextBackend {
-	return &ContextBackend{dc: dc}
+// NewCanvasBackend returns a backend that draws into dc. The canvas keeps its
+// own size, scale and clip; the recording is positioned by composing onto them
+// at playback.
+func NewCanvasBackend(dc render.Canvas) *CanvasBackend {
+	return &CanvasBackend{dc: dc}
 }
 
 // Begin records the state to restore at End and protects the context's CTM
 // and clip. The width/height of the recording is ignored: the target context
 // defines the pixel space.
-func (b *ContextBackend) Begin(_, _ int) error {
+func (b *CanvasBackend) Begin(_, _ int) error {
 	if b.dc == nil {
-		return ErrNoContext
+		return ErrNoCanvas
 	}
 	b.fillBrush, b.strokeBrush = b.dc.FillBrush(), b.dc.StrokeBrush()
 	b.savedBrushes = true
@@ -69,7 +74,7 @@ func (b *ContextBackend) Begin(_, _ int) error {
 }
 
 // End restores the context state Begin captured.
-func (b *ContextBackend) End() error {
+func (b *CanvasBackend) End() error {
 	if b.statePushed {
 		b.dc.Pop()
 		b.statePushed = false
@@ -83,18 +88,18 @@ func (b *ContextBackend) End() error {
 }
 
 // Save pushes the context state.
-func (b *ContextBackend) Save() { b.dc.Push() }
+func (b *CanvasBackend) Save() { b.dc.Push() }
 
 // Restore pops the context state.
-func (b *ContextBackend) Restore() { b.dc.Pop() }
+func (b *CanvasBackend) Restore() { b.dc.Pop() }
 
 // Concat multiplies m into the current CTM, composing with the matrix the
 // context already had rather than replacing it.
-func (b *ContextBackend) Concat(m Matrix) { b.dc.Transform(m) }
+func (b *CanvasBackend) Concat(m Matrix) { b.dc.Transform(m) }
 
 // SetClip intersects the clip region with the path, in user space under the
 // current CTM.
-func (b *ContextBackend) SetClip(path *render.Path, rule FillRule) {
+func (b *CanvasBackend) SetClip(path *render.Path, rule FillRule) {
 	if path == nil {
 		return
 	}
@@ -104,10 +109,10 @@ func (b *ContextBackend) SetClip(path *render.Path, rule FillRule) {
 }
 
 // ClearClip resets the clip to the full context.
-func (b *ContextBackend) ClearClip() { b.dc.ResetClip() }
+func (b *CanvasBackend) ClearClip() { b.dc.ResetClip() }
 
 // FillPath fills the path with the brush.
-func (b *ContextBackend) FillPath(path *render.Path, brush Brush, rule FillRule) {
+func (b *CanvasBackend) FillPath(path *render.Path, brush Brush, rule FillRule) {
 	if path == nil {
 		return
 	}
@@ -118,7 +123,7 @@ func (b *ContextBackend) FillPath(path *render.Path, brush Brush, rule FillRule)
 }
 
 // StrokePath strokes the path with the brush and stroke style.
-func (b *ContextBackend) StrokePath(path *render.Path, brush Brush, stroke Stroke) {
+func (b *CanvasBackend) StrokePath(path *render.Path, brush Brush, stroke Stroke) {
 	if path == nil {
 		return
 	}
@@ -129,14 +134,14 @@ func (b *ContextBackend) StrokePath(path *render.Path, brush Brush, stroke Strok
 }
 
 // FillRect fills an axis-aligned rectangle kept in user space.
-func (b *ContextBackend) FillRect(rect Rect, brush Brush) {
+func (b *CanvasBackend) FillRect(rect Rect, brush Brush) {
 	ApplyBrush(b.dc, brush, true)
 	b.dc.DrawRectangle(rect.MinX, rect.MinY, rect.Width(), rect.Height())
 	_ = b.dc.Fill()
 }
 
 // StrokeRect strokes an axis-aligned rectangle kept in user space.
-func (b *ContextBackend) StrokeRect(rect Rect, brush Brush, stroke Stroke) {
+func (b *CanvasBackend) StrokeRect(rect Rect, brush Brush, stroke Stroke) {
 	ApplyBrush(b.dc, brush, false)
 	ApplyStroke(b.dc, stroke)
 	b.dc.DrawRectangle(rect.MinX, rect.MinY, rect.Width(), rect.Height())
@@ -148,7 +153,7 @@ func (b *ContextBackend) StrokeRect(rect Rect, brush Brush, stroke Stroke) {
 // GPU texture identity loss happens per playback. Option defaults (zero opacity
 // or interpolation meaning "unspecified") are Context's business: forwarding
 // verbatim is what makes replay bit-identical to the live call.
-func (b *ContextBackend) DrawImage(img *render.ImageBuf, opts render.DrawImageOptions) {
+func (b *CanvasBackend) DrawImage(img *render.ImageBuf, opts render.DrawImageOptions) {
 	if img == nil || img.Disposed() {
 		return
 	}
@@ -156,7 +161,7 @@ func (b *ContextBackend) DrawImage(img *render.ImageBuf, opts render.DrawImageOp
 }
 
 // DrawImageNine stretches img's edges between center to fill dst.
-func (b *ContextBackend) DrawImageNine(img *render.ImageBuf, center image.Rectangle, dst Rect) {
+func (b *CanvasBackend) DrawImageNine(img *render.ImageBuf, center image.Rectangle, dst Rect) {
 	if img == nil || img.Disposed() {
 		return
 	}
@@ -164,7 +169,7 @@ func (b *ContextBackend) DrawImageNine(img *render.ImageBuf, center image.Rectan
 }
 
 // DrawImageQuad maps img onto an arbitrary quad.
-func (b *ContextBackend) DrawImageQuad(img *render.ImageBuf, corners [4]render.Point, opts render.QuadDrawOptions) {
+func (b *CanvasBackend) DrawImageQuad(img *render.ImageBuf, corners [4]render.Point, opts render.QuadDrawOptions) {
 	if img == nil || img.Disposed() {
 		return
 	}
@@ -172,7 +177,7 @@ func (b *ContextBackend) DrawImageQuad(img *render.ImageBuf, corners [4]render.P
 }
 
 // DrawImageRounded draws img clipped to a rounded rectangle.
-func (b *ContextBackend) DrawImageRounded(img *render.ImageBuf, x, y, radius float64) {
+func (b *CanvasBackend) DrawImageRounded(img *render.ImageBuf, x, y, radius float64) {
 	if img == nil || img.Disposed() {
 		return
 	}
@@ -180,7 +185,7 @@ func (b *ContextBackend) DrawImageRounded(img *render.ImageBuf, x, y, radius flo
 }
 
 // DrawImageCircular draws img clipped to a circle.
-func (b *ContextBackend) DrawImageCircular(img *render.ImageBuf, cx, cy, radius float64) {
+func (b *CanvasBackend) DrawImageCircular(img *render.ImageBuf, cx, cy, radius float64) {
 	if img == nil || img.Disposed() {
 		return
 	}
@@ -189,7 +194,7 @@ func (b *ContextBackend) DrawImageCircular(img *render.ImageBuf, cx, cy, radius 
 
 // DrawAtlas replays a sprite batch. Context returns a degradation report that
 // only exists once rasterized, so the replay result is dropped here.
-func (b *ContextBackend) DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSprite, opts render.AtlasDrawOptions) {
+func (b *CanvasBackend) DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSprite, opts render.AtlasDrawOptions) {
 	if img == nil || img.Disposed() || len(sprites) == 0 {
 		return
 	}
@@ -197,7 +202,7 @@ func (b *ContextBackend) DrawAtlas(img *render.ImageBuf, sprites []render.AtlasS
 }
 
 // DrawDepthSprites replays a depth-tagged sprite batch.
-func (b *ContextBackend) DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite, opts render.DepthDrawOptions) {
+func (b *CanvasBackend) DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite, opts render.DepthDrawOptions) {
 	if img == nil || img.Disposed() || len(sprites) == 0 {
 		return
 	}
@@ -207,20 +212,20 @@ func (b *ContextBackend) DrawDepthSprites(img *render.ImageBuf, sprites []render
 // DrawVertices replays an immediate-mode mesh under the paint it was recorded
 // with, so the vertex fallback colour does not drift to whatever the previous
 // command left on the context.
-func (b *ContextBackend) DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush) {
+func (b *CanvasBackend) DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush) {
 	ApplyBrush(b.dc, brush, true)
 	b.dc.DrawVertices(positions, colors, mode)
 }
 
 // DrawMesh replays an indexed or triangle-list mesh under the paint it was
 // recorded with, for the same reason as DrawVertices.
-func (b *ContextBackend) DrawMesh(mesh render.Mesh, brush Brush) {
+func (b *CanvasBackend) DrawMesh(mesh render.Mesh, brush Brush) {
 	ApplyBrush(b.dc, brush, true)
 	b.dc.DrawMesh(mesh)
 }
 
 // DrawGlyphs replays a shaped-glyph run.
-func (b *ContextBackend) DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush) {
+func (b *CanvasBackend) DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush) {
 	if len(glyphs) == 0 || face == nil {
 		return
 	}
@@ -233,13 +238,13 @@ func (b *ContextBackend) DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x
 }
 
 // ClipRect intersects the clip region with a user-space rectangle.
-func (b *ContextBackend) ClipRect(rect Rect) {
+func (b *CanvasBackend) ClipRect(rect Rect) {
 	b.dc.ClipRect(rect.MinX, rect.MinY, rect.Width(), rect.Height())
 }
 
 // ClipRectOp combines the clip region with a user-space rectangle using op. The
 // live method takes the same four floats, so replay is the same call.
-func (b *ContextBackend) ClipRectOp(rect Rect, op render.ClipOp) {
+func (b *CanvasBackend) ClipRectOp(rect Rect, op render.ClipOp) {
 	b.dc.ClipRectOp(rect.MinX, rect.MinY, rect.Width(), rect.Height(), op)
 }
 
@@ -247,7 +252,7 @@ func (b *ContextBackend) ClipRectOp(rect Rect, op render.ClipOp) {
 // an argument because Context.ClipPathOp reads it off the paint: replay sets the
 // rule the recorder had, draws the path, then clips — the exact call sequence
 // the live path went through.
-func (b *ContextBackend) ClipPathOp(path *render.Path, rule FillRule, op render.ClipOp) {
+func (b *CanvasBackend) ClipPathOp(path *render.Path, rule FillRule, op render.ClipOp) {
 	if path == nil {
 		return
 	}
@@ -257,51 +262,51 @@ func (b *ContextBackend) ClipPathOp(path *render.Path, rule FillRule, op render.
 }
 
 // SetTextDecoration sets the decoration bitset for text drawn afterwards.
-func (b *ContextBackend) SetTextDecoration(deco render.TextDecoration) {
+func (b *CanvasBackend) SetTextDecoration(deco render.TextDecoration) {
 	b.dc.SetTextDecoration(deco)
 }
 
 // SetTextMode selects the text rendering strategy for subsequent text.
-func (b *ContextBackend) SetTextMode(mode render.TextMode) { b.dc.SetTextMode(mode) }
+func (b *CanvasBackend) SetTextMode(mode render.TextMode) { b.dc.SetTextMode(mode) }
 
 // SetLCDLayout sets the LCD subpixel order for subsequent ClearType text.
-func (b *ContextBackend) SetLCDLayout(layout render.LCDLayout) { b.dc.SetLCDLayout(layout) }
+func (b *CanvasBackend) SetLCDLayout(layout render.LCDLayout) { b.dc.SetLCDLayout(layout) }
 
 // SetAntiAlias toggles anti-aliasing for subsequent geometry and clips.
-func (b *ContextBackend) SetAntiAlias(enabled bool) { b.dc.SetAntiAlias(enabled) }
+func (b *CanvasBackend) SetAntiAlias(enabled bool) { b.dc.SetAntiAlias(enabled) }
 
 // ApplyBlur attaches a blur post-effect.
-func (b *ContextBackend) ApplyBlur(radius float64) { b.dc.ApplyBlur(radius) }
+func (b *CanvasBackend) ApplyBlur(radius float64) { b.dc.ApplyBlur(radius) }
 
 // ApplyColorMatrix attaches a 4x5 colour matrix post-effect.
-func (b *ContextBackend) ApplyColorMatrix(matrix [20]float32) { b.dc.ApplyColorMatrix(matrix) }
+func (b *CanvasBackend) ApplyColorMatrix(matrix [20]float32) { b.dc.ApplyColorMatrix(matrix) }
 
 // ApplyDropShadow attaches a drop-shadow post-effect.
-func (b *ContextBackend) ApplyDropShadow(offsetX, offsetY, blurRadius float64, color render.RGBA) {
+func (b *CanvasBackend) ApplyDropShadow(offsetX, offsetY, blurRadius float64, color render.RGBA) {
 	b.dc.ApplyDropShadow(offsetX, offsetY, blurRadius, color)
 }
 
 // ApplyGrayscale desaturates subsequent draws.
-func (b *ContextBackend) ApplyGrayscale() { b.dc.ApplyGrayscale() }
+func (b *CanvasBackend) ApplyGrayscale() { b.dc.ApplyGrayscale() }
 
 // PushLayer opens a composited layer.
-func (b *ContextBackend) PushLayer(blend render.BlendMode, opacity float64) {
+func (b *CanvasBackend) PushLayer(blend render.BlendMode, opacity float64) {
 	b.dc.PushLayer(blend, opacity)
 }
 
 // PushLayerIsolated opens a forced true save-layer.
-func (b *ContextBackend) PushLayerIsolated(opacity float64) { b.dc.PushLayerIsolated(opacity) }
+func (b *CanvasBackend) PushLayerIsolated(opacity float64) { b.dc.PushLayerIsolated(opacity) }
 
 // PushBackdropLayer opens a layer seeded from the parent's contents.
-func (b *ContextBackend) PushBackdropLayer(blend render.BlendMode, opacity float64) {
+func (b *CanvasBackend) PushBackdropLayer(blend render.BlendMode, opacity float64) {
 	b.dc.PushBackdropLayer(blend, opacity)
 }
 
 // PopLayer composites the innermost layer.
-func (b *ContextBackend) PopLayer() { b.dc.PopLayer() }
+func (b *CanvasBackend) PopLayer() { b.dc.PopLayer() }
 
 // DrawText draws text at the baseline origin (x, y) in user space.
-func (b *ContextBackend) DrawText(s string, x, y float64, face text.Face, brush Brush) {
+func (b *CanvasBackend) DrawText(s string, x, y float64, face text.Face, brush Brush) {
 	if s == "" || face == nil {
 		return
 	}
@@ -319,7 +324,7 @@ func (b *ContextBackend) DrawText(s string, x, y float64, face text.Face, brush 
 // pattern has nothing left to sample — its image was disposed between recording
 // and replay — the paint becomes fully transparent instead of guessing a colour:
 // painting nothing is the honest degradation, painting black is not.
-func ApplyBrush(dc *render.Context, brush Brush, fill bool) {
+func ApplyBrush(dc render.Canvas, brush Brush, fill bool) {
 	if pat, ok := ToRenderPattern(brush); ok {
 		if pat == nil {
 			pat = render.NewSolidPattern(render.Transparent)
@@ -339,7 +344,7 @@ func ApplyBrush(dc *render.Context, brush Brush, fill bool) {
 }
 
 // ApplyStroke copies a recorded stroke style onto the context.
-func ApplyStroke(dc *render.Context, stroke Stroke) {
+func ApplyStroke(dc render.Canvas, stroke Stroke) {
 	dc.SetLineWidth(stroke.Width)
 	dc.SetLineCap(stroke.Cap)
 	dc.SetLineJoin(stroke.Join)

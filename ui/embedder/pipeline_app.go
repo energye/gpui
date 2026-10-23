@@ -1061,9 +1061,6 @@ func (a *PipelineApp) Close() {
 	if a.loop != nil {
 		a.loop.Stop()
 	}
-	// Raster loop drained: no parallel scan in flight; release B1 pool
-	// workers so Close leaves no background threads (idle-exit is backup).
-	scene.CloseRasterPool()
 }
 
 // runOnGL runs GL-thread work (warm-up full presents, snapshot readback,
@@ -1456,9 +1453,11 @@ func (a *PipelineApp) Run() error {
 		// paint flags are consumed here and never by the raster job. Only the
 		// no-packet fallback live-paints, and it keeps its flags for that walk.
 		a.consumePacketPaintFlags(packetPath && pkt != nil)
-		// T2 main move: RasterizeDirty (dirty walk plus NeedsRaster clear plus
-		// RasterExtra texture record via CompositeFramePacketTextured) now runs
-		// inside the raster FrameJob below. UI builds the packet and returns to
+		// T2 main move: RasterizeDirty (dirty walk plus NeedsRaster clear) plus
+		// texture record/replay over the UI-thread recordings (via
+		// CompositeFramePacketTextured) now runs inside the raster FrameJob
+		// below. The raster job only plays immutable recordings — it never
+		// touches live render-tree objects. UI builds the packet and returns to
 		// the event loop immediately — never blocks on Present.
 		buildMs := time.Since(t0).Seconds() * 1000
 		a.sched.Metrics().NoteBuildMs(buildMs)
@@ -1871,11 +1870,10 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 	if dc == nil {
 		return render.PresentOutcome{}, errors.New("embedder: presentPacketTextured no context")
 	}
-	// Per-frame SaveLayer budget reset for the retained packet path: raster-
-	// time OnPaint (RasterExtra) SaveLayer requests are gated during this
-	// composite pass, so the whole frame shares one fresh budget — same
-	// per-frame semantics paintPresentTreeWithOpts gives the direct path.
-	opts.layerBudget.Reset()
+	// The retained path's SaveLayer budget was spent while recording on the
+	// UI thread (each frame builds from a fresh cloneFrameBudget); this job
+	// only replays immutable recordings and never paints live objects, so it
+	// must not touch any budget — resetting one here would race the UI thread.
 	tex := a.pictureTex
 	if tex == nil {
 		tex = scene.NewPictureTextureCache(dc, 0)

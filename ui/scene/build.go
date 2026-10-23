@@ -139,7 +139,6 @@ func (b *LayerBuilder) PushBackdropFilter(blurRadius, opacity float64) *Backdrop
 func (b *LayerBuilder) AddPicture(needsRaster bool) *PictureLayer {
 	p := NewPictureLayer()
 	p.NeedsRaster = needsRaster
-	p.Picture.Valid = !needsRaster
 	b.current().Add(p)
 	return p
 }
@@ -148,9 +147,9 @@ func (b *LayerBuilder) AddPicture(needsRaster bool) *PictureLayer {
 // PictureLayer under the built root during the last BuildPacket call.
 // It is gathered inside the packet-finalize walk that already collects dirty
 // picture layers, so readers pay no extra tree walk (E2: replaces a separate
-// CountPictureOps pass over the finished packet). The overlay band is still
+// counting pass over the finished packet). The overlay band is still
 // an empty reserve at BuildPacket time (attached later), so this equals
-// CountPictureOps on the fresh packet.
+// the op total of the fresh packet.
 func (b *LayerBuilder) PictureOpCount() int {
 	if b == nil {
 		return 0
@@ -191,19 +190,20 @@ func (b *LayerBuilder) BuildPacket(frameID uint64, dpr, w, h float64) *FramePack
 	var seenImg map[*render.ImageBuf]struct{}
 	Walk(b.root, func(l Layer) {
 		if pl, ok := l.(*PictureLayer); ok {
-			ops += pl.Picture.OpCount()
+			ops += pl.Recording.PaintOpCount()
 			if pl.NeedsRaster {
 				pkt.DirtyLayerIDs = append(pkt.DirtyLayerIDs, pl.LayerID())
 			}
-			for i := range pl.Picture.Ops {
-				if op := &pl.Picture.Ops[i]; op.Kind == OpDrawImage && op.Image != nil {
-					if seenImg == nil {
-						seenImg = make(map[*render.ImageBuf]struct{})
-					}
-					if _, dup := seenImg[op.Image]; !dup {
-						seenImg[op.Image] = struct{}{}
-						pkt.RetainedImages = append(pkt.RetainedImages, op.Image)
-					}
+			for _, img := range pl.Recording.ImageBufs() {
+				if img == nil {
+					continue
+				}
+				if seenImg == nil {
+					seenImg = make(map[*render.ImageBuf]struct{})
+				}
+				if _, dup := seenImg[img]; !dup {
+					seenImg[img] = struct{}{}
+					pkt.RetainedImages = append(pkt.RetainedImages, img)
 				}
 			}
 		}

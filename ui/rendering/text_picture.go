@@ -11,12 +11,12 @@
 package rendering
 
 import (
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
-	"github.com/energye/gpui/ui/scene"
 )
 
-// recordRenderText records a RenderText into a PictureRecorder using the same
-// single-source layout Paint uses: single-string content goes through
+// recordRenderText records a RenderText into a display-list canvas using the
+// same single-source layout Paint uses: single-string content goes through
 // DisplayLines (hard breaks plus MaxWidth soft wrap), multi-run content
 // through layoutRunLines spans (per-run face, size and color).
 //
@@ -26,8 +26,40 @@ import (
 // sensitive (kerning, ligatures, script joining), so a re-shaped band drifts
 // from the full-line layout Paint shows (B/C tail sat ~12px off, reading as
 // overflow plus a soft/blur mismatch). Unshaped fallbacks keep DrawString.
-func recordRenderText(r *scene.PictureRecorder, t *RenderText, ox, oy float64) {
-	if r == nil || t == nil {
+// drawStringOn submits one string to a display-list canvas with an explicit
+// face and colour. The face is installed only when there is one, and a canvas
+// left without a face is skipped: text with no face rasterizes nothing, and
+// issuing the call anyway would record a command that can never paint.
+func drawStringOn(dc render.Canvas, s string, x, y float64, face text.Face, r, g, b, a float64) {
+	if dc == nil || s == "" {
+		return
+	}
+	if face != nil {
+		dc.SetFont(face)
+	}
+	if dc.Font() == nil {
+		return
+	}
+	dc.SetRGBA(r, g, b, a)
+	dc.DrawString(s, x, y)
+}
+
+// drawGlyphsOn submits one shaped run: the glyphs already carry final
+// positions, so no face installation is needed — the run brings its own.
+func drawGlyphsOn(dc render.Canvas, glyphs []text.ShapedGlyph, x, y float64, face text.Face, colored bool, r, g, b, a float64) {
+	if dc == nil || len(glyphs) == 0 || face == nil {
+		return
+	}
+	dc.SetRGBA(r, g, b, a)
+	if colored {
+		dc.DrawShapedColorGlyphs(glyphs, face, x, y)
+		return
+	}
+	dc.DrawShapedGlyphs(glyphs, face, x, y)
+}
+
+func recordRenderText(dc render.Canvas, t *RenderText, ox, oy float64) {
+	if dc == nil || t == nil {
 		return
 	}
 	// Fresh recording: rows merge their culled state below (OR semantics —
@@ -35,7 +67,7 @@ func recordRenderText(r *scene.PictureRecorder, t *RenderText, ox, oy float64) {
 	t.noteRecordedBand(false)
 	t.noteRecordedBandY(false)
 	if t.hasRuns() {
-		recordRunsInto(r, t, ox, oy)
+		recordRunsInto(dc, t, ox, oy)
 		return
 	}
 	a := t.A
@@ -74,10 +106,10 @@ func recordRenderText(r *scene.PictureRecorder, t *RenderText, ox, oy float64) {
 		} else if lay != nil {
 			y = oy + ascent + float64(i)*t.lineHeightLogical()
 		}
-		if lay != nil && i < lay.LineCount() && recordShapedRow(r, t, lay, i, ox, y, face, a) {
+		if lay != nil && i < lay.LineCount() && recordShapedRow(dc, t, lay, i, ox, y, face, a) {
 			continue
 		}
-		r.DrawString(line, ox, y, face, t.R, t.G, t.B, a)
+		drawStringOn(dc, line, ox, y, face, t.R, t.G, t.B, a)
 	}
 	t.mergeRecordedBandY(culledY)
 }
@@ -195,7 +227,7 @@ func (t *RenderText) ViewportBandExpiredY(scrollY, visH float64) bool {
 // layer-local pen (ox, y): bulk glyph batch or per-face composite partitions,
 // with the same viewport cull windows. False = row not shaped-routable,
 // caller falls back to DrawString.
-func recordShapedRow(r *scene.PictureRecorder, t *RenderText, lay *TextLayout, row int, ox, y float64, face text.Face, a float64) bool {
+func recordShapedRow(dc render.Canvas, t *RenderText, lay *TextLayout, row int, ox, y float64, face text.Face, a float64) bool {
 	glyphs := lay.LineGlyphs(row)
 	if len(glyphs) == 0 || glyphs[0].GID == 0 {
 		return false
@@ -212,12 +244,12 @@ func recordShapedRow(r *scene.PictureRecorder, t *RenderText, lay *TextLayout, r
 			t.mergeRecordedBand(culled)
 			return true
 		}
-		r.DrawShapedGlyphs(glyphs, ox, y, face, false, t.R, t.G, t.B, a)
+		drawGlyphsOn(dc, glyphs, ox, y, face, false, t.R, t.G, t.B, a)
 		t.mergeRecordedBand(culled)
 		return true
 	}
 	// Composite faces (MultiFace, the B/C case): per-face partitions.
-	if recordCompositeRow(r, t, lay, row, ox, y, a) {
+	if recordCompositeRow(dc, t, lay, row, ox, y, a) {
 		return true
 	}
 	return false
@@ -228,7 +260,7 @@ func recordShapedRow(r *scene.PictureRecorder, t *RenderText, lay *TextLayout, r
 // clips them); mask runs cull per partition then rebase to their own origin
 // (GPU batches lay out from the pen, unrebased partitions stack at the line
 // head). False = not routable, caller falls back to DrawString.
-func recordCompositeRow(r *scene.PictureRecorder, t *RenderText, lay *TextLayout, row int, ox, y float64, a float64) bool {
+func recordCompositeRow(dc render.Canvas, t *RenderText, lay *TextLayout, row int, ox, y float64, a float64) bool {
 	if !lay.LineBulkRoutable(row) {
 		return false
 	}
@@ -239,7 +271,7 @@ func recordCompositeRow(r *scene.PictureRecorder, t *RenderText, lay *TextLayout
 		part := glyphs[run.Start:run.End]
 		if run.IsColor {
 			if len(part) > 0 {
-				r.DrawShapedGlyphs(part, ox, y, run.Face, true, t.R, t.G, t.B, a)
+				drawGlyphsOn(dc, part, ox, y, run.Face, true, t.R, t.G, t.B, a)
 			}
 			continue
 		}
@@ -251,14 +283,14 @@ func recordCompositeRow(r *scene.PictureRecorder, t *RenderText, lay *TextLayout
 			continue
 		}
 		shifted, off := rebaseGlyphs(part)
-		r.DrawShapedGlyphs(shifted, ox+off, y, run.Face, false, t.R, t.G, t.B, a)
+		drawGlyphsOn(dc, shifted, ox+off, y, run.Face, false, t.R, t.G, t.B, a)
 	}
 	t.mergeRecordedBand(cull)
 	return true
 }
 
 // recordRunsInto records multi-run content span by span, mirroring paintRuns.
-func recordRunsInto(r *scene.PictureRecorder, t *RenderText, ox, oy float64) {
+func recordRunsInto(dc render.Canvas, t *RenderText, ox, oy float64) {
 	lines := t.layoutRunLines()
 	if len(lines) == 0 {
 		return
@@ -308,7 +340,7 @@ func recordRunsInto(r *scene.PictureRecorder, t *RenderText, ox, oy float64) {
 			if face == nil {
 				face = t.effectiveFace()
 			}
-			r.DrawString(sp.Text, ox+sp.X, baseline, face, sp.R, sp.G, sp.B, sp.A)
+			drawStringOn(dc, sp.Text, ox+sp.X, baseline, face, sp.R, sp.G, sp.B, sp.A)
 		}
 		lineTop += ln.Height
 	}

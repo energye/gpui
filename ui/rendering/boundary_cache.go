@@ -11,35 +11,37 @@
 package rendering
 
 import (
+	"math"
 	"reflect"
 	"sync"
 	"sync/atomic"
 
-	"github.com/energye/gpui/ui/scene"
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 )
 
-// BoundaryCache holds Picture-backed caches for RepaintBoundary nodes.
-// Clean boundaries Replay the stored Picture (skip re-record); dirty ones
+// BoundaryCache holds display-list-backed caches for RepaintBoundary nodes.
+// Clean boundaries replay the stored Recording (skip re-record); dirty ones
 // re-paint and re-record. Works under FullPaint so skip is observable without
 // Retained Present.
 //
-// Nested model (Flutter layers, Picture MVP):
-//   - Each RepaintBoundary owns a Picture of **own content only**.
-//   - Nested IsRepaintBoundary children are NEVER baked into the parent Picture;
-//     after a container tryReplay the caller still walks nested RB children so
-//     each child can tryReplay/rerecord independently.
+// Nested model (Flutter layers, recording MVP):
+//   - Each RepaintBoundary owns a Recording of **own content only**.
+//   - Nested IsRepaintBoundary children are NEVER baked into the parent
+//     Recording; after a container tryReplay the caller still walks nested RB
+//     children so each child can tryReplay/rerecord independently.
 //   - Therefore only-inner-dirty never forces an outer rerecord, and a clean
-//     outer Replay cannot show stale child colors.
+//     outer replay cannot show stale child colors.
 //
 // Cacheability (correctness-first): a boundary whose own content contains RO
-// types the MVP recorder cannot faithfully capture (e.g. Viewport) is marked
+// types the recorder cannot faithfully capture (e.g. Viewport) is marked
 // not-cacheable — tryReplay/store are no-ops for it, so the subtree always
 // live-paints and stale-frame content loss is impossible.
 type BoundaryCache struct {
-	// mu guards every field below. Paint runs on the UI thread (inline,
-	// snapshot) and the raster thread (retained record) concurrently
-	// post-T2, and Clear arrives on the UI event thread — an unguarded
-	// map is a fatal concurrent read/write, not just a race.
+	// mu guards every field below. tryReplay/Store run on the UI paint
+	// thread (live contexts only) and Clear arrives on the UI event
+	// thread — an unguarded map is a fatal concurrent read/write, not
+	// just a race.
 	// Methods take the lock for their whole body; none call back into
 	// another locked method (recordOwnContent never touches the cache),
 	// so method-scoped locking cannot deadlock.
@@ -55,7 +57,7 @@ type BoundaryCache struct {
 	frameMiss int64
 	// Shell/content partitioning: boundaries tagged with
 	// SetShellBoundary are counted separately, so a scrolling body can prove
-	// the shell's Picture cache is never re-recorded (shell rerecord == 0).
+	// the shell's display-list cache is never re-recorded (shell rerecord == 0).
 	// Global counters above still include shell boundaries (backward compat).
 	shellRerecord      int64
 	shellSkip          int64
@@ -95,7 +97,7 @@ type BoundaryCacheStats struct {
 
 // Generational eviction tuning: an entry untouched for evictFrames presents
 // (~2s at 60Hz) is dropped at the next sweep. Scrolled-out VirtualList cells
-// must release their recorded Pictures — without eviction a long scroll
+// must release their recordings — without eviction a long scroll
 // retains every cell ever seen.
 // Live boundaries (shell, static panels) are touched every frame by
 // tryReplay/Store and are never evicted; a re-entered cell simply records
@@ -106,7 +108,7 @@ const (
 )
 
 type boundaryEntry struct {
-	pic        scene.Picture
+	rec        *recording.Recording
 	ox, oy     float64
 	w, h       float64
 	contentKey uint64
@@ -222,7 +224,7 @@ func (b *Base) EnsureCacheID() uint64 {
 	return b.ensureCacheID()
 }
 
-// Clear drops all Picture entries.
+// Clear drops all display-list entries.
 func (c *BoundaryCache) Clear() {
 	if c == nil {
 		return
@@ -242,7 +244,7 @@ func (c *BoundaryCache) Len() int {
 	return len(c.entries)
 }
 
-// Invalidate drops the Picture for this node (size/content change).
+// Invalidate drops the recording for this node (size/content change).
 func (c *BoundaryCache) Invalidate(n RenderObject) {
 	if c == nil || n == nil {
 		return
@@ -256,7 +258,7 @@ func (c *BoundaryCache) Invalidate(n RenderObject) {
 	delete(c.entries, b.cacheID)
 }
 
-// HasValid reports whether n currently has a reusable Picture entry.
+// HasValid reports whether n currently has a reusable display-list entry.
 func (c *BoundaryCache) HasValid(n RenderObject) bool {
 	if c == nil || n == nil {
 		return false
@@ -268,23 +270,32 @@ func (c *BoundaryCache) HasValid(n RenderObject) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e := c.entries[b.cacheID]
-	if e != nil && e.valid && e.cacheable && e.pic.Valid && !e.pic.IsEmpty() {
+	if e != nil && e.valid && e.cacheable && e.rec.PaintOpCount() > 0 {
 		e.lastSeen = c.frame
 		return true
 	}
 	return false
 }
 
-// tryReplay returns true if this boundary's **own** Picture was drawn from cache.
+// tryReplay returns true if this boundary's **own** display list was drawn from
+// cache.
 //
-// Own content only: nested IsRepaintBoundary children are not in the Picture
+// Own content only: nested IsRepaintBoundary children are not in the recording
 // (see recordOwnContent). Callers of container boundaries must still paint
 // nested RB children after a successful tryReplay (AbsoluteBox.Paint).
 //
-// Self NeedsPaint → miss. Descendant dirtiness does **not** block own Replay
+// Self NeedsPaint → miss. Descendant dirtiness does **not** block own replay
 // (outer can skip while inner rerecords). Non-cacheable boundaries always miss.
+//
+// Live paint only: replaying a recording needs a context to issue its commands
+// on, so a recording pass (pc.DC is a recorder) always misses and the node
+// draws its own content into that recorder instead.
 func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
-	if c == nil || pc == nil || pc.DC == nil || n == nil || !pc.UseBoundaryCache {
+	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache {
+		return false
+	}
+	live, ok := pc.LiveContext()
+	if !ok {
 		return false
 	}
 	if !n.IsRepaintBoundary() {
@@ -299,13 +310,13 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	}
 	id := b.ensureCacheID()
 	// Whole-body lock (see mu doc): entry validation mutates liveness and
-	// counters, and the map itself is shared across threads. Replay draws
-	// but never re-enters the cache, so holding the lock across it cannot
+	// counters, and the map itself is shared with Clear/Stats readers. Replay
+	// draws but never re-enters the cache, so holding the lock across it cannot
 	// deadlock — only serialize with a concurrent paint.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e := c.entries[id]
-	if e == nil || !e.valid || !e.cacheable || !e.pic.Valid || e.pic.IsEmpty() {
+	if e == nil || !e.valid || !e.cacheable || e.rec.PaintOpCount() == 0 {
 		if e != nil {
 			c.frameMiss++
 		}
@@ -319,7 +330,7 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 	}
 	// Content fingerprint must match (content changed → invalidate).
 	// Origin shift is allowed: scroll reuse (R7b) moves the cell without changing
-	// its Picture content. We replay translated to the current origin instead of
+	// its display list. We replay translated to the current origin instead of
 	// invalidating. Static trees have zero shift → behavior unchanged.
 	curKey := contentKeyOf(n, sz.Width, sz.Height)
 	if curKey != 0 && e.contentKey != 0 && curKey != e.contentKey {
@@ -331,13 +342,13 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 		// Translate replay to current origin (scroll reuse / layout pan).
 		// e.ox/e.oy stay frozen at record-time origin so each replay translates
 		// by the FULL record→current delta (correct total displacement), not a
-		// per-frame delta that would drift and misposition the cached Picture.
-		pc.DC.Push()
-		pc.DC.Translate(pc.OriginX-e.ox, pc.OriginY-e.oy)
-		e.pic.Replay(pc.DC)
-		pc.DC.Pop()
+		// per-frame delta that would drift and misposition the cached list.
+		live.Push()
+		live.Translate(pc.OriginX-e.ox, pc.OriginY-e.oy)
+		_ = e.rec.Playback(recording.NewCanvasBackend(live))
+		live.Pop()
 	} else {
-		e.pic.Replay(pc.DC)
+		_ = e.rec.Playback(recording.NewCanvasBackend(live))
 	}
 	e.lastSeen = c.frame
 	c.skip++
@@ -351,9 +362,9 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 }
 
 // storeEntryLocked writes one boundary entry and bumps rerecord counters.
-// Callers hold no lock; single entry point for Store/StorePicture so budget,
+// Callers hold no lock; single entry point for Store/StoreRecording so budget,
 // shell accounting and ancestor policy cannot drift apart.
-func (c *BoundaryCache) storeEntryLocked(n RenderObject, pic scene.Picture, ox, oy float64, valid bool) {
+func (c *BoundaryCache) storeEntryLocked(n RenderObject, rec *recording.Recording, ox, oy float64, valid bool) {
 	b, ok := baseOf(n)
 	if !ok {
 		return
@@ -363,7 +374,7 @@ func (c *BoundaryCache) storeEntryLocked(n RenderObject, pic scene.Picture, ox, 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.entries[id] = &boundaryEntry{
-		pic: pic,
+		rec: rec,
 		ox:  ox, oy: oy,
 		w: sz.Width, h: sz.Height,
 		contentKey: contentKeyOf(n, sz.Width, sz.Height),
@@ -392,36 +403,37 @@ func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject) {
 		return
 	}
 	ox, oy := pc.OriginX, pc.OriginY
-	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		recordOwnContent(r, n, ox, oy)
-	})
+	sz := n.Size()
+	rec := recording.NewRecorder(int(math.Ceil(sz.Width)), int(math.Ceil(sz.Height)))
+	recordOwnContent(rec, n, ox, oy)
+	built := rec.FinishRecording()
 	// Nothing own to draw (all visual content lives in nested boundaries):
-	// an empty Picture can never replay usefully (tryReplay rejects empty
+	// an empty recording can never replay usefully (tryReplay rejects empty
 	// entries), so do not create an entry — otherwise this boundary would
 	// re-store (and count a rerecord) every frame forever.
-	if pic.IsEmpty() {
+	if built.PaintOpCount() == 0 {
 		return
 	}
-	c.storeEntryLocked(n, pic, ox, oy, pic.Valid && !pic.IsEmpty())
+	c.storeEntryLocked(n, built, ox, oy, true)
 }
 
-// StorePicture records a caller-built picture for boundary n (single-build
+// StoreRecording caches a caller-built recording for boundary n (single-build
 // path used by RenderPictureBox.Paint: live paint already replayed these
-// ops, so no second record pass). Same gates as Store plus Valid/non-empty:
-// empty pictures can never replay usefully (tryReplay rejects them), so
+// commands, so no second record pass). Same gates as Store plus non-empty:
+// empty recordings can never replay usefully (tryReplay rejects them), so
 // storing one would re-store every frame forever.
-func (c *BoundaryCache) StorePicture(pc *PaintContext, n RenderObject, pic scene.Picture) {
+func (c *BoundaryCache) StoreRecording(pc *PaintContext, n RenderObject, rec *recording.Recording) {
 	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache || !n.IsRepaintBoundary() {
 		return
 	}
 	if !boundaryCacheable(n) {
 		return
 	}
-	if !pic.Valid || pic.IsEmpty() {
+	if rec.PaintOpCount() == 0 {
 		return
 	}
 	ox, oy := pc.OriginX, pc.OriginY
-	c.storeEntryLocked(n, pic, ox, oy, true)
+	c.storeEntryLocked(n, rec, ox, oy, true)
 }
 
 // shellOf reports whether n was tagged as window-shell content. A node
@@ -473,8 +485,8 @@ func (c *BoundaryCache) storeAbsoluteColorChildren(pc *PaintContext, a *Absolute
 // faithfully recorded + fingerprinted by the recorder. RenderPictureBox
 // carries its own Record closure (pure function of box state; NeedsPaint is
 // the invalidation signal). Anything else unrepresentable (Viewport,
-// VirtualList, custom RO) must never be cached — Replaying an
-// incomplete Picture would drop live content (stale-frame bug).
+// VirtualList, custom RO) must never be cached — replaying an
+// incomplete recording would drop live content (stale-frame bug).
 func boundaryCacheable(n RenderObject) bool {
 	if n == nil {
 		return false
@@ -661,10 +673,10 @@ func reflectValuePointer(p interface{}) uintptr {
 }
 
 // recordOwnContent draws n's own content (background + non-RepaintBoundary
-// descendants) into a PictureRecorder at absolute origin (ox, oy).
+// descendants) into a canvas at absolute origin (ox, oy).
 // IsRepaintBoundary children are omitted (own cache).
-func recordOwnContent(r *scene.PictureRecorder, n RenderObject, ox, oy float64) {
-	if r == nil || n == nil {
+func recordOwnContent(dc render.Canvas, n RenderObject, ox, oy float64) {
+	if dc == nil || n == nil {
 		return
 	}
 	switch t := n.(type) {
@@ -677,9 +689,9 @@ func recordOwnContent(r *scene.PictureRecorder, n RenderObject, ox, oy float64) 
 		if chh <= 0 {
 			chh = t.Height
 		}
-		r.FillRect(ox, oy, cw, chh, t.R, t.G, t.B, t.A)
+		fillRectOn(dc, ox, oy, cw, chh, t.R, t.G, t.B, t.A)
 	case *RenderText:
-		recordRenderText(r, t, ox, oy)
+		recordRenderText(dc, t, ox, oy)
 	case *RenderImage:
 		sz := t.Size()
 		dw, dh := sz.Width, sz.Height
@@ -690,29 +702,29 @@ func recordOwnContent(r *scene.PictureRecorder, n RenderObject, ox, oy float64) 
 			dh = t.Height
 		}
 		if t.Img != nil && !t.Img.Disposed() {
-			r.DrawImage(t.Img, ox, oy, dw, dh)
+			drawImageOn(dc, t.Img, ox, oy, dw, dh)
 		} else {
-			r.FillRect(ox, oy, dw, dh, t.PR, t.PG, t.PB, 1)
+			fillRectOn(dc, ox, oy, dw, dh, t.PR, t.PG, t.PB, 1)
 		}
 	case *RenderPictureBox:
 		if t.Record != nil {
-			t.Record(r, ox, oy)
+			t.Record(dc, ox, oy)
 		}
 	case *AbsoluteBox:
-		recordAbsoluteOwnContent(r, t, ox, oy)
+		recordAbsoluteOwnContent(dc, t, ox, oy)
 	}
 }
 
 // recordAbsoluteOwnContent draws AbsoluteBox bg + non-RepaintBoundary children
-// into a PictureRecorder. IsRepaintBoundary children are omitted (own cache).
-func recordAbsoluteOwnContent(r *scene.PictureRecorder, a *AbsoluteBox, ox, oy float64) {
-	if r == nil || a == nil {
+// into a canvas. IsRepaintBoundary children are omitted (own cache).
+func recordAbsoluteOwnContent(dc render.Canvas, a *AbsoluteBox, ox, oy float64) {
+	if dc == nil || a == nil {
 		return
 	}
 	sz := a.Size()
 	if a.Background != nil {
 		bg := a.Background
-		r.FillRect(ox, oy, sz.Width, sz.Height, bg.R, bg.G, bg.B, bg.A)
+		fillRectOn(dc, ox, oy, sz.Width, sz.Height, bg.R, bg.G, bg.B, bg.A)
 	}
 	for _, ch := range a.children {
 		if ch == nil || ch.IsRepaintBoundary() {
@@ -729,9 +741,9 @@ func recordAbsoluteOwnContent(r *scene.PictureRecorder, a *AbsoluteBox, ox, oy f
 			if chh <= 0 {
 				chh = t.Height
 			}
-			r.FillRect(ax, ay, cw, chh, t.R, t.G, t.B, t.A)
+			fillRectOn(dc, ax, ay, cw, chh, t.R, t.G, t.B, t.A)
 		case *RenderText:
-			recordRenderText(r, t, ax, ay)
+			recordRenderText(dc, t, ax, ay)
 		case *RenderImage:
 			dw, dh := t.Size().Width, t.Size().Height
 			if dw <= 0 {
@@ -741,12 +753,12 @@ func recordAbsoluteOwnContent(r *scene.PictureRecorder, a *AbsoluteBox, ox, oy f
 				dh = t.Height
 			}
 			if t.Img != nil && !t.Img.Disposed() {
-				r.DrawImage(t.Img, ax, ay, dw, dh)
+				drawImageOn(dc, t.Img, ax, ay, dw, dh)
 			} else {
-				r.FillRect(ax, ay, dw, dh, t.PR, t.PG, t.PB, 1)
+				fillRectOn(dc, ax, ay, dw, dh, t.PR, t.PG, t.PB, 1)
 			}
 		case *AbsoluteBox:
-			recordAbsoluteOwnContent(r, t, ax, ay)
+			recordAbsoluteOwnContent(dc, t, ax, ay)
 		default:
 			// Unreachable after boundaryCacheable gate; keep safe no-op.
 		}

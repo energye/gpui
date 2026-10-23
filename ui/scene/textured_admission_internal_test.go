@@ -54,11 +54,9 @@ func TestAdmission_RefuseEvictsAndDamages(t *testing.T) {
 	tex.slotAlloc = alloc
 
 	b := image.Rect(0, 0, 40, 30)
-	pic := RecordPicture(func(r *PictureRecorder) {
-		r.FillRect(0, 0, 40, 30, 1, 0, 0, 1)
-	})
+	rec := fillRecording(b)
 	tex.BeginFrame()
-	if _, ok := tex.recordLocalWith(21, &pic, b, nil); !ok {
+	if _, ok := tex.recordLocal(21, rec, b); !ok {
 		t.Fatal("establishing record must succeed")
 	}
 	// Headless has no device: fake a live view so Has reports the entry
@@ -138,9 +136,7 @@ func TestAdmission_CompositeRefusesSustainedChurn(t *testing.T) {
 		b := NewLayerBuilder()
 		pl := b.AddPicture(true) // needsRaster = changed every frame
 		pl.SetCacheKey(101)
-		pl.Record(func(r *PictureRecorder) {
-			r.FillRect(0, 0, 40, 30, 1, 0, 0, 1)
-		})
+		pl.SetRecording(fillRecording(image.Rect(0, 0, 40, 30)))
 		return b.BuildPacket(1, 1, 100, 80)
 	}
 
@@ -209,15 +205,7 @@ func TestAdmission_CompositeAdmitsStableLayer(t *testing.T) {
 		b := NewLayerBuilder()
 		pl := b.AddPicture(!clean) // needsRaster=false when clean
 		pl.SetCacheKey(102)
-		pl.Record(func(r *PictureRecorder) {
-			r.FillRect(0, 0, 40, 30, 1, 0, 0, 1)
-		})
-		if clean {
-			// Record always marks NeedsRaster (new display list =
-			// changed content); a clean re-sighting keeps the same
-			// picture with no raster demand.
-			pl.NeedsRaster = false
-		}
+		pl.SetRecording(fillRecording(image.Rect(0, 0, 40, 30)))
 		pkt := b.BuildPacket(1, 1, 100, 80)
 		if clean {
 			pkt.DirtyLayerIDs = nil

@@ -11,11 +11,11 @@
 package rendering
 
 import (
-	"image"
 	"math"
 	"time"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/scene"
 )
 
@@ -59,11 +59,11 @@ func BuildLayerTreeStats(root RenderObject) (*scene.LayerBuilder, FrameBuildStat
 }
 
 // saveLayerWire carries the embedder-owned per-frame SaveLayer budget and
-// outcome stats into raster-time OnPaint callbacks (RasterExtra). Retained
-// mode defers RenderBox.OnPaint to texture-record time on the raster thread;
-// without the wire those SaveLayer requests bypass the budget entirely
-// (observed: C6 group B wrongly allowed under MaxOps=1). nil = legacy
-// unlimited path (tests / CPU builds).
+// outcome stats into the OnPaint closures the build records (see
+// recordLayerContent). A node that asks for a save layer is charged where it
+// asks — this frame, this thread — so no request can slip past the budget by
+// being deferred to a later pass. nil = legacy unlimited path (tests / CPU
+// builds).
 type saveLayerWire struct {
 	stats  *SaveLayerStats
 	budget *SaveLayerBudget
@@ -411,8 +411,8 @@ func addOwnContent(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
 		}
 		sz := n.Size()
 		bg := t.Background
-		addOwnPicture(b, n, n.NeedsPaint(), func(r *scene.PictureRecorder) {
-			r.FillRect(0, 0, sz.Width, sz.Height, bg.R, bg.G, bg.B, bg.A)
+		addOwnPicture(b, n, n.NeedsPaint(), sz, wire, func(pc *PaintContext, sz Size) {
+			fillRectOn(pc.DC, 0, 0, sz.Width, sz.Height, bg.R, bg.G, bg.B, bg.A)
 		})
 	default:
 		// OnPaint-only leaves are handled by addLeafPicture (single cache key);
@@ -424,41 +424,30 @@ func addOwnContent(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
 		if !ok || len(n.Children()) == 0 {
 			return
 		}
-		sz := n.Size()
-		// OnPaint needs a live DC (render.Context) which only exists on the
-		// raster thread during texture record — defer it via RasterExtra.
-		pl := addOwnPicture(b, n, n.NeedsPaint(), func(r *scene.PictureRecorder) {
-			// Nothing capturable UI-side; the callback draws at raster time.
+		addOwnPicture(b, n, n.NeedsPaint(), n.Size(), wire, func(pc *PaintContext, sz Size) {
+			onPaint(pc, sz)
 		})
-		if pl != nil {
-			pl.RasterExtra = func(dc *render.Context) {
-				pc := &PaintContext{DC: dc, Scale: 1, LayerStats: wireStats(wire), LayerBudget: wireBudget(wire)}
-				onPaint(pc, sz)
-			}
-			pl.ExtraBounds = image.Rect(0, 0,
-				int(math.Ceil(sz.Width)), int(math.Ceil(sz.Height)))
-		}
 	}
 }
 
 // addOwnPicture adds a PictureLayer holding n's own content and binds n's
 // stable cache key (own content and leaf share the identity — a node never
 // appears twice, so keys cannot collide).
-func addOwnPicture(b *scene.LayerBuilder, n RenderObject, needsRaster bool, record func(r *scene.PictureRecorder)) *scene.PictureLayer {
+func addOwnPicture(b *scene.LayerBuilder, n RenderObject, needsRaster bool, sz Size, wire *saveLayerWire, draw func(pc *PaintContext, sz Size)) *scene.PictureLayer {
 	pl := b.AddPicture(needsRaster)
 	if base, ok := baseOf(n); ok {
 		pl.SetCacheKey(base.EnsureCacheID())
 	}
-	scene.RecordInto(&pl.Picture, record)
+	pl.SetRecording(recordLayerContent(sz, wire, draw))
 	return pl
 }
 
 // addLeafPicture records a leaf node's own content into a PictureLayer and
 // binds its stable cache key. Layer-local coordinates (0-based): the ancestor
-// offset/clip/transform chain positions the picture at composite time.
-// Leaves the layer builder can't faithfully record keep an empty picture and
-// a zero cache key (vector replay fallback paints nothing — the RO type has
-// no layer-tree representation, consistent with Flutter layer semantics).
+// offset/clip/transform chain positions the recording at composite time.
+// Leaves with neither capturable content nor an OnPaint hook keep an empty
+// recording and a zero cache key (vector replay paints nothing — the RO type
+// has no layer-tree representation, consistent with Flutter layer semantics).
 func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
 	pl := b.AddPicture(n.NeedsPaint())
 	if n == nil {
@@ -469,28 +458,50 @@ func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) 
 	} else {
 		pl.SetCacheKey(0)
 	}
-	scene.RecordInto(&pl.Picture, func(r *scene.PictureRecorder) {
-		recordLeafContent(r, n)
-	})
-	// OnPaint-only boxes have nothing the UI-side recorder can capture; defer
-	// their paint to the raster thread during texture record (RasterExtra) so
-	// the retained path renders them instead of leaving a transparent hole.
-	if onPaint, ok := ownBoxPaint(n); ok && len(pl.Picture.Ops) == 0 {
-		sz := n.Size()
-		pl.RasterExtra = func(dc *render.Context) {
-			pc := &PaintContext{DC: dc, Scale: 1, LayerStats: wireStats(wire), LayerBudget: wireBudget(wire)}
+	onPaint, hasOwnPaint := ownBoxPaint(n)
+	pl.SetRecording(recordLayerContent(n.Size(), wire, func(pc *PaintContext, sz Size) {
+		recordLeafContent(pc.DC, n)
+		// The capturable types and OnPaint providers are disjoint (OwnPaint
+		// only exists on RenderBox and its wrappers, never on the color /
+		// text / image / picture leaves above), so at most one of the two
+		// contributes content for any node.
+		if hasOwnPaint {
 			onPaint(pc, sz)
 		}
-		pl.ExtraBounds = image.Rect(0, 0,
-			int(math.Ceil(sz.Width)), int(math.Ceil(sz.Height)))
+	}))
+}
+
+// recordLayerContent runs a node's own draw into a fresh layer-local recorder
+// and returns the sealed recording. The canvas is sized to the node's paint
+// size (ceiled to whole pixels), which is what lets the retained path record a
+// bounds-sized texture instead of a full-window one.
+//
+// The PaintContext carries the embedder's per-frame SaveLayer budget and stats
+// through the wire (see saveLayerWire): the budget is charged where the
+// SaveLayer is recorded — on this thread, in this pass — so a request can never
+// bypass it by arriving from a later raster pass.
+func recordLayerContent(sz Size, wire *saveLayerWire, draw func(pc *PaintContext, sz Size)) *recording.Recording {
+	w := int(math.Ceil(sz.Width))
+	h := int(math.Ceil(sz.Height))
+	if w < 0 {
+		w = 0
 	}
+	if h < 0 {
+		h = 0
+	}
+	rec := recording.NewRecorder(w, h)
+	pc := &PaintContext{DC: rec, Scale: 1, LayerStats: wireStats(wire), LayerBudget: wireBudget(wire)}
+	if draw != nil {
+		draw(pc, sz)
+	}
+	return rec.FinishRecording()
 }
 
 // recordLeafContent records a leaf node's own content in layer-local
 // coordinates. Supports the render types that have a faithful display-list
-// representation; anything else records nothing (empty picture).
-func recordLeafContent(r *scene.PictureRecorder, n RenderObject) {
-	if r == nil || n == nil {
+// representation; anything else records nothing (empty recording).
+func recordLeafContent(dc render.Canvas, n RenderObject) {
+	if dc == nil || n == nil {
 		return
 	}
 	sz := n.Size()
@@ -503,16 +514,16 @@ func recordLeafContent(r *scene.PictureRecorder, n RenderObject) {
 		if chh <= 0 {
 			chh = t.Height
 		}
-		r.FillRect(0, 0, cw, chh, t.R, t.G, t.B, t.A)
+		fillRectOn(dc, 0, 0, cw, chh, t.R, t.G, t.B, t.A)
 	case *RenderPictureBox:
-		// UI-side recording (no raster-thread RasterExtra defer): the packet
-		// path replays the same ops the FullPaint path caches. Layer-local
-		// origin — the ancestor offset chain positions it at composite time.
+		// The box's own closure runs straight into the layer's recording, so
+		// the packet path and the FullPaint path execute the same code and
+		// cannot produce two different display lists for one box.
 		if t.Record != nil {
-			t.Record(r, 0, 0)
+			t.Record(dc, 0, 0)
 		}
 	case *RenderText:
-		recordRenderText(r, t, 0, 0)
+		recordRenderText(dc, t, 0, 0)
 	case *RenderImage:
 		dw, dh := sz.Width, sz.Height
 		if dw <= 0 {
@@ -522,9 +533,9 @@ func recordLeafContent(r *scene.PictureRecorder, n RenderObject) {
 			dh = t.Height
 		}
 		if t.Img != nil && !t.Img.Disposed() {
-			r.DrawImage(t.Img, 0, 0, dw, dh)
+			drawImageOn(dc, t.Img, 0, 0, dw, dh)
 		} else {
-			r.FillRect(0, 0, dw, dh, t.PR, t.PG, t.PB, 1)
+			fillRectOn(dc, 0, 0, dw, dh, t.PR, t.PG, t.PB, 1)
 		}
 	}
 }

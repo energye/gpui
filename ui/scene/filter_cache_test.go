@@ -5,7 +5,18 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 )
+
+// fillRecording records an opaque rect fill so the recording's content bounds
+// are exactly r (fill bounds are tracked at record time).
+func fillRecording(r image.Rectangle) *recording.Recording {
+	rec := recording.NewRecorder(r.Max.X, r.Max.Y)
+	rec.SetRGBA(0.5, 0.5, 0.5, 1)
+	rec.DrawRectangle(float64(r.Min.X), float64(r.Min.Y), float64(r.Dx()), float64(r.Dy()))
+	_ = rec.Fill()
+	return rec.FinishRecording()
+}
 
 func testImageBuf(t *testing.T) *render.ImageBuf {
 	t.Helper()
@@ -27,7 +38,7 @@ func grayMatrixTest() [20]float32 {
 
 func filterTestTree() *ColorFilterLayer {
 	pic := NewPictureLayer()
-	pic.Picture = Picture{Bounds: image.Rect(10, 20, 110, 120)}
+	pic.Recording = fillRecording(image.Rect(10, 20, 110, 120))
 	off := NewOffsetLayer(5, 7)
 	off.Add(pic)
 	cf := NewColorFilterLayer(grayMatrixTest())
@@ -115,7 +126,7 @@ func TestSubtreeHasTransform(t *testing.T) {
 		t.Fatal("no transform in tree — must report false")
 	}
 	pic := NewPictureLayer()
-	pic.Picture = Picture{Bounds: image.Rect(0, 0, 10, 10)}
+	pic.Recording = fillRecording(image.Rect(0, 0, 10, 10))
 	tr := NewTransformLayer(0, 0, 0.5, 1, 1)
 	tr.Add(pic)
 	cf2 := NewColorFilterLayer(grayMatrixTest())

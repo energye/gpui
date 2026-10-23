@@ -10,8 +10,10 @@ import (
 	"github.com/energye/gpui/ui/scene"
 )
 
-func circleRecord(r *scene.PictureRecorder, ox, oy float64) {
-	r.FillCircle(ox+40, oy+30, 15, 1, 0, 0, 1)
+func circleRecord(dc render.Canvas, ox, oy float64) {
+	dc.SetRGBA(1, 0, 0, 1)
+	dc.DrawCircle(ox+40, oy+30, 15)
+	_ = dc.Fill()
 }
 
 func paintPictureBoxWithCache(t *testing.T, cache *rendering.BoundaryCache, n rendering.RenderObject, w, h int) image.Image {
@@ -145,10 +147,13 @@ func TestPictureBox_NonBoundaryDisablesParentCache(t *testing.T) {
 }
 
 // TestPictureBox_LayerRecordsOps: the packet path records picture-box content
-// UI-side (no raster-thread RasterExtra defer) with a stable cache key.
+// UI-side — the layer carries a finished, visible recording (there is no
+// raster-thread closure any more, the carrier itself is the proof).
 func TestPictureBox_LayerRecordsOps(t *testing.T) {
-	box := rendering.NewRenderPictureBox(60, 40, func(r *scene.PictureRecorder, ox, oy float64) {
-		r.FillCircle(ox+30, oy+20, 12, 0, 0, 1, 1)
+	box := rendering.NewRenderPictureBox(60, 40, func(dc render.Canvas, ox, oy float64) {
+		dc.SetRGBA(0, 0, 1, 1)
+		dc.DrawCircle(ox+30, oy+20, 12)
+		_ = dc.Fill()
 	})
 	box.MarkNeedsPaint()
 	pkt := rendering.BuildLayerTree(box).BuildPacket(1, 1, 100, 80)
@@ -159,17 +164,12 @@ func TestPictureBox_LayerRecordsOps(t *testing.T) {
 		if !ok || pl.CacheKey == 0 {
 			return
 		}
-		for _, op := range pl.Picture.Ops {
-			if op.Kind == scene.OpFillCircle {
-				found = true
-			}
-		}
-		if pl.RasterExtra != nil {
-			t.Error("picture-box layer must record UI-side, no RasterExtra defer")
+		if pl.Recording.PaintOpCount() > 0 && pl.Recording.HasVisiblePaint() {
+			found = true
 		}
 	})
 	if !found {
-		t.Fatal("no keyed picture layer carries the recorded circle op")
+		t.Fatal("no keyed picture layer carries the recorded circle content")
 	}
 }
 

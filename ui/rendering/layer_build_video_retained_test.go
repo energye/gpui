@@ -79,7 +79,7 @@ func contentOverVideo(l scene.Layer) bool {
 		return false
 	}
 	if pl, ok := l.(*scene.PictureLayer); ok && pl != nil {
-		if pl.RasterExtra != nil || !pl.Picture.IsEmpty() {
+		if pl.Recording.PaintOpCount() > 0 {
 			return true
 		}
 	}

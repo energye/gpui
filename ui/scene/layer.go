@@ -11,9 +11,7 @@
 package scene
 
 import (
-	"image"
-
-	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 )
 
 // Layer is a retained scene-graph node (Flutter Layer subset).
@@ -275,30 +273,28 @@ func NewBackdropFilterLayer(blurRadius, opacity float64) *BackdropFilterLayer {
 
 func (b *BackdropFilterLayer) Kind() string { return "backdrop_filter" }
 
-// PictureLayer holds a retained picture.
-// When Picture.Ops is non-empty, the display list can be Replay'd onto a Context
-// without re-walking the RO tree. NeedsRaster still tracks dirty vs static reuse
-// in RasterizeDirty (flag/stats path — not dirty-rect Present).
+// PictureLayer holds a retained display list.
+//
+// The content is a recording the UI thread produced and sealed: replayable onto
+// a context without re-walking the render-object tree, and carrying no live
+// object, callback or widget reference. That is what keeps the raster thread
+// out of UI state — a layer hands over immutable data, never a function that
+// reads shared objects when it runs.
+//
+// NeedsRaster still tracks dirty vs static reuse in RasterizeDirty
+// (flag/stats path — not dirty-rect Present).
 type PictureLayer struct {
-	id      uint64
-	Picture Picture
-	// NeedsRaster is true when the picture content must be re-drawn (dirty).
+	id uint64
+	// Recording is this layer's display list in layer-local coordinates at
+	// scale 1; the raster thread's offset and device scale compose onto it at
+	// playback. nil = no content was recorded.
+	Recording *recording.Recording
+	// NeedsRaster is true when the recording content must be re-drawn (dirty).
 	NeedsRaster bool
 	// CacheKey is a stable cross-frame identity for retained texture caching
 	// (boundary cacheID / RO identity). LayerID is per-tree (rebuilt every
 	// frame) so texture caches must key on CacheKey. 0 = not cacheable.
 	CacheKey uint64
-	// RasterExtra is an optional raster-thread paint callback for node content
-	// the UI-thread PictureRecorder cannot capture (RenderBox.OnPaint). It is
-	// executed during texture record (phase 1) in layer-local coordinates,
-	// either alone (empty Picture) or after Picture replay. the
-	// RenderBox.paint semantics: every node's own paint enters the display
-	// list — callbacks that need a live DC are deferred to the raster thread.
-	RasterExtra func(dc *render.Context)
-	// ExtraBounds is the layer-local geometry of RasterExtra content (paint
-	// size). Empty = unconstrained (full-surface record); non-empty enables
-	// bounds-sized recordLocal for cheap OnPaint layers (e.g. HUD band).
-	ExtraBounds image.Rectangle
 }
 
 // NewPictureLayer creates a picture layer.
@@ -318,26 +314,17 @@ func (p *PictureLayer) LayerID() uint64   { return p.id }
 func (p *PictureLayer) Children() []Layer { return nil }
 func (p *PictureLayer) Kind() string      { return "picture" }
 
-// SetPicture installs a recorded Picture. Any new display list (or empty/invalid
-// install) marks NeedsRaster so the next RasterizeDirty / RasterizeDirtyToContext
-// will apply or re-apply content. NeedsRaster is cleared only by RasterizeDirty*
-// after a successful dirty pass — not here — so AddPicture→Record→BuildPacket→
-// RasterizeDirtyToContext replays without a manual dirty workaround.
-func (p *PictureLayer) SetPicture(pic Picture) {
+// SetRecording installs this layer's display list. It is a pure content
+// install and does not touch NeedsRaster: the builder decides dirt when it
+// creates the layer (LayerBuilder.AddPicture(needsRaster), driven by the node's
+// NeedsPaint), which is what lets a frame that re-records every node still
+// report only the changed ones as dirty. A caller installing content outside a
+// builder must mark NeedsRaster itself.
+func (p *PictureLayer) SetRecording(rec *recording.Recording) {
 	if p == nil {
 		return
 	}
-	p.Picture = pic
-	p.NeedsRaster = true
-}
-
-// Record replaces the layer's Picture via a recorder callback and dirties
-// NeedsRaster (see SetPicture).
-func (p *PictureLayer) Record(fn func(*PictureRecorder)) {
-	if p == nil {
-		return
-	}
-	p.SetPicture(RecordPicture(fn))
+	p.Recording = rec
 }
 
 // BoundaryLayer is a repaint-boundary root: independent dirty / raster unit.

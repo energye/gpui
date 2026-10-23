@@ -37,12 +37,12 @@ func isRed(c render.RGBA) bool {
 // A recording replays on top of the target context's own CTM — that is what
 // lets one picture serve a layer at any offset: the raster thread sets the
 // layer transform, the display list composes onto it.
-func TestContextBackendComposesOntoPlaybackCTM(t *testing.T) {
+func TestCanvasBackendComposesOntoPlaybackCTM(t *testing.T) {
 	dc := render.NewContext(120, 120)
 	base := render.Translate(0, 60).Multiply(render.Scale(2, 2))
 	dc.SetTransform(base)
 
-	if err := redSquare(t).Playback(NewContextBackend(dc)); err != nil {
+	if err := redSquare(t).Playback(NewCanvasBackend(dc)); err != nil {
 		t.Fatalf("Playback: %v", err)
 	}
 
@@ -72,11 +72,11 @@ func TestContextBackendComposesOntoPlaybackCTM(t *testing.T) {
 // The point of user-space geometry: the same recording rasterizes at the
 // device resolution instead of being upscaled, so HiDPI edges land on device
 // pixels rather than smearing across two.
-func TestContextBackendReplaysAtDeviceScale(t *testing.T) {
+func TestCanvasBackendReplaysAtDeviceScale(t *testing.T) {
 	dc := render.NewContext(120, 120)
 	dc.SetDeviceScale(2)
 
-	if err := redSquare(t).Playback(NewContextBackend(dc)); err != nil {
+	if err := redSquare(t).Playback(NewCanvasBackend(dc)); err != nil {
 		t.Fatalf("Playback: %v", err)
 	}
 
@@ -105,11 +105,11 @@ func TestContextBackendReplaysAtDeviceScale(t *testing.T) {
 
 // A recording must not decide what the context paints afterwards: the brushes
 // it used are restored at End, since Context.Pop does not track them.
-func TestContextBackendRestoresBrushes(t *testing.T) {
+func TestCanvasBackendRestoresBrushes(t *testing.T) {
 	dc := render.NewContext(60, 60)
 	beforeFill := dc.FillBrush()
 
-	if err := redSquare(t).Playback(NewContextBackend(dc)); err != nil {
+	if err := redSquare(t).Playback(NewCanvasBackend(dc)); err != nil {
 		t.Fatalf("Playback: %v", err)
 	}
 
@@ -120,5 +120,68 @@ func TestContextBackendRestoresBrushes(t *testing.T) {
 	if beforeFill.ColorAt(0, 0) != afterFill.ColorAt(0, 0) {
 		t.Errorf("fill brush after playback = %v, want the pre-playback brush %v",
 			afterFill.ColorAt(0, 0), beforeFill.ColorAt(0, 0))
+	}
+}
+
+// Replaying onto a recorder has to fold the inner content into the outer
+// display list *and* into its derived facts. The retained raster path admits a
+// layer to a texture by HasVisiblePaint, sizes it by Bounds, and decides the CPU
+// scratch swap by NeedsCPUPassScratch; a widget that replays its own cached list
+// from OnPaint therefore cannot be judged by the commands recorded directly.
+// Before the playback surface accepted a canvas, this content could not be
+// folded at all and the raster thread guessed "arbitrary draws, assume
+// everything" — that guess is what this test replaces.
+func TestCanvasBackendPlaybackIntoRecorderFoldsFacts(t *testing.T) {
+	img := newTestImageBuf(t, 8, 6)
+
+	innerRec := NewRecorder(40, 40)
+	innerRec.DrawImage(img, 30, 30)
+	inner := innerRec.FinishRecording()
+
+	outerRec := NewRecorder(100, 100)
+	outerRec.SetRGBA(1, 0, 0, 1)
+	outerRec.FillRectangle(0, 0, 20, 20)
+	if err := inner.Playback(NewCanvasBackend(outerRec)); err != nil {
+		t.Fatalf("playback into recorder: %v", err)
+	}
+	outer := finish(t, outerRec)
+
+	if want := inner.PaintOpCount() + 1; outer.PaintOpCount() != want {
+		t.Errorf("outer ops = %d, want %d (own draw plus the folded list)", outer.PaintOpCount(), want)
+	}
+	if !outer.HasVisiblePaint() {
+		t.Error("folded recording reports no visible paint")
+	}
+	if !outer.NeedsCPUPassScratch() {
+		t.Error("folded image draw did not reach the outer CPU-scratch flag")
+	}
+	if got, want := outer.Bounds(), image.Rect(0, 0, 38, 36); !got.Eq(want) {
+		t.Errorf("outer bounds = %v, want the union %v (the folded image extends past the own rect)", got, want)
+	}
+	var found bool
+	for _, buf := range outer.ImageBufs() {
+		if buf == img {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("folded image buffer is missing from the outer resource pool")
+	}
+}
+
+// Folding must also propagate the negative facts: an inner list of invisible
+// commands cannot make the outer recording look paintable.
+func TestCanvasBackendPlaybackIntoRecorderFoldsInvisibility(t *testing.T) {
+	innerRec := NewRecorder(40, 40)
+	innerRec.SetRGBA(0, 0, 1, 0)
+	innerRec.FillRectangle(5, 5, 10, 10)
+	inner := innerRec.FinishRecording()
+
+	outerRec := NewRecorder(60, 60)
+	if err := inner.Playback(NewCanvasBackend(outerRec)); err != nil {
+		t.Fatalf("playback into recorder: %v", err)
+	}
+	if outer := finish(t, outerRec); outer.HasVisiblePaint() {
+		t.Error("a fully transparent folded list made the outer recording visible")
 	}
 }

@@ -3,14 +3,14 @@ package rendering
 import (
 	"testing"
 
-	"github.com/energye/gpui/ui/scene"
+	"github.com/energye/gpui/render/recording"
 )
 
 // TestRecordOwnContent_TextFaceFollowsFontSize guards against the R21 regression
-// where boundary Pictures recorded the raw SetFace face (wrkit FaceAt falls back
+// where boundary recordings stored the raw SetFace face (wrkit FaceAt falls back
 // to the base 14pt MultiFace because MultiFace.Source() is nil). Replay then drew
 // every label at 14pt regardless of FontSize, and live-paint frames (16pt)
-// alternated with Replay frames (14pt) while dragging → title text toggled size.
+// alternated with replay frames (14pt) while dragging → title text toggled size.
 func TestRecordOwnContent_TextFaceFollowsFontSize(t *testing.T) {
 	base, _, err := LoadFaceByFamily("sans-serif", 14)
 	if err != nil || base == nil {
@@ -23,41 +23,66 @@ func TestRecordOwnContent_TextFaceFollowsFontSize(t *testing.T) {
 		return l
 	}
 
+	// recordedTextFace returns the pooled face of the recording's first text
+	// command (the old Picture op.Face probe on the new carrier).
+	recordedTextFace := func(rec *recording.Recording, wantOps int) (any, bool) {
+		if rec.PaintOpCount() != wantOps {
+			t.Fatalf("want %d ops, got ops=%d", wantOps, rec.PaintOpCount())
+		}
+		for _, cmd := range rec.Commands() {
+			switch c := cmd.(type) {
+			case recording.DrawTextCommand:
+				return rec.Resources().GetFont(c.Font), true
+			case recording.StrokeTextCommand:
+				return rec.Resources().GetFont(c.Font), true
+			case recording.DrawGlyphsCommand:
+				return rec.Resources().GetFont(c.Face), true
+			}
+		}
+		return nil, false
+	}
+
 	// Path 1: boundary node itself is a RenderText (recordOwnContent RenderText case).
 	labelSelf := mkLabel()
-	picSelf := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		recordOwnContent(r, labelSelf, 0, 0)
-	})
-	if picSelf.OpCount() != 1 {
-		t.Fatalf("self: want 1 op, got ops=%d", picSelf.OpCount())
+	recSelf := recording.NewRecorder(120, 40)
+	recordOwnContent(recSelf, labelSelf, 0, 0)
+	faceSelf, ok := recordedTextFace(recSelf.FinishRecording(), 1)
+	if !ok {
+		t.Fatal("self: want text command, got none")
 	}
-	selfOp := picSelf.Ops[0]
-	if selfOp.Kind != scene.OpDrawString && selfOp.Kind != scene.OpDrawShapedGlyphs {
-		t.Fatalf("self: want text op, got kind=%v", selfOp.Kind)
-	}
-	if selfOp.Face == nil || selfOp.Face.Size() != 16 {
-		t.Fatalf("self: recorded face size=%v want 16 (FontSize), Face=%v",
-			faceSize(selfOp.Face), selfOp.Face)
+	if size := faceSize(faceSelf); size != 16 {
+		t.Fatalf("self: recorded face size=%v want 16 (FontSize), Face=%v", size, faceSelf)
 	}
 
 	// Path 2: non-RB child of an AbsoluteBox (recordAbsoluteOwnContent case).
 	box := NewAbsoluteBox(120, 40)
 	labelChild := mkLabel()
 	box.Place(labelChild, 4, 4)
-	picChild := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		recordAbsoluteOwnContent(r, box, 0, 0)
-	})
-	var found bool
-	for _, op := range picChild.Ops {
-		if (op.Kind == scene.OpDrawString || op.Kind == scene.OpDrawShapedGlyphs) && op.Face != nil {
-			found = true
-			if op.Face.Size() != 16 {
-				t.Fatalf("child: recorded face size=%v want 16 (FontSize)", faceSize(op.Face))
-			}
+	recChild := recording.NewRecorder(120, 40)
+	recordAbsoluteOwnContent(recChild, box, 0, 0)
+	built := recChild.FinishRecording()
+	if built.PaintOpCount() == 0 {
+		t.Fatal("child: no text command recorded")
+	}
+	var faceChild any
+	for _, cmd := range built.Commands() {
+		switch c := cmd.(type) {
+		case recording.DrawTextCommand:
+			faceChild = built.Resources().GetFont(c.Font)
+		case recording.StrokeTextCommand:
+			faceChild = built.Resources().GetFont(c.Font)
+		case recording.DrawGlyphsCommand:
+			faceChild = built.Resources().GetFont(c.Face)
+		}
+		if faceChild != nil {
+			break
 		}
 	}
-	if !found {
-		t.Fatal("child: no text op recorded")
+	if faceChild == nil {
+		t.Fatal("child: no text command recorded")
+	}
+	if size := faceSize(faceChild); size != 16 {
+		t.Fatalf("child: recorded face size=%v want 16 (FontSize)", size)
 	}
 }
 

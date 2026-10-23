@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 	_ "github.com/energye/gpui/render/filters"
 	_ "github.com/energye/gpui/render/gpu"
 	"github.com/energye/gpui/ui/scene"
@@ -52,20 +53,24 @@ func TestCompositeFramePacketTextured_ClipReplayPixels(t *testing.T) {
 	}
 	defer release()
 
+	buildPkt := func(dirty bool) *scene.FramePacket {
+		b := scene.NewLayerBuilder()
+		b.PushOffset(10, 10) // outer container (Align-like)
+		b.PushOffset(20, 10) // inner node offset — real windows nest these
+		b.PushClipRRect(0, 0, 40, 40, 8)
+		pl := b.AddPicture(dirty)
+		pl.SetCacheKey(9001)
+		pl.SetRecording(gpuiFillRect(50, 50, 0, 0, 50, 50, 77/255., 204/255., 115/255., 1)) // green
+		b.Pop() // clip
+		b.Pop() // inner offset
+		b.Pop() // outer offset
+		return b.BuildPacket(1, 1, W, H)
+	}
+	// Frame 2 must be built clean: a packet that still names the layer in its
+	// dirty list is sustained churn, and churn is refused a texture by admission
+	// — that would measure the policy, not the steady blit this test pins.
 	scene.ResetLayerIDGen()
-	b := scene.NewLayerBuilder()
-	b.PushOffset(10, 10) // outer container (Align-like)
-	b.PushOffset(20, 10) // inner node offset — real windows nest these
-	b.PushClipRRect(0, 0, 40, 40, 8)
-	pl := b.AddPicture(true)
-	pl.SetCacheKey(9001)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 50, 50, 77/255., 204/255., 115/255., 1) // green
-	})
-	b.Pop() // clip
-	b.Pop() // inner offset
-	b.Pop() // outer offset
-	pkt := b.BuildPacket(1, 1, W, H)
+	pkt := buildPkt(true)
 
 	tex := scene.NewPictureTextureCache(dc, 8)
 
@@ -104,7 +109,7 @@ func TestCompositeFramePacketTextured_ClipReplayPixels(t *testing.T) {
 	}
 
 	// Frame 2: clean — PURE BLIT steady state, zero vector replay.
-	st2 := scene.CompositeFramePacketTextured(pkt, dc, tex)
+	st2 := scene.CompositeFramePacketTextured(buildPkt(false), dc, tex)
 	if st2.ReplayedOps != 0 {
 		t.Fatalf("steady frame replayed %d ops want 0 (pure blit)", st2.ReplayedOps)
 	}
@@ -169,9 +174,7 @@ func TestCompositeFramePacketTextured_TranslateBlitPixels(t *testing.T) {
 	tr := b.PushTransform(30, 30, 0, 1, 1)
 	pl := b.AddPicture(true)
 	pl.SetCacheKey(9002)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 40, 40, 217/255., 77/255., 71/255., 1) // red
-	})
+	pl.SetRecording(gpuiFillRect(40, 40, 0, 0, 40, 40, 217/255., 77/255., 71/255., 1)) // red
 	_ = tr
 	b.Pop()
 	pkt := b.BuildPacket(1, 1, W, H)
@@ -198,4 +201,12 @@ func TestCompositeFramePacketTextured_TranslateBlitPixels(t *testing.T) {
 	if R < 150 || G > 110 || B > 110 {
 		t.Fatalf("transform target center (50,50) rgb=%d,%d,%d want red", R, G, B)
 	}
+}
+
+// gpuiFillRect builds a single-fill-rect recording for these GPU tests.
+func gpuiFillRect(cw, ch int, x, y, w, h, r, g, b, a float64) *recording.Recording {
+	rec := recording.NewRecorder(cw, ch)
+	rec.SetRGBA(r, g, b, a)
+	rec.FillRectangle(x, y, w, h)
+	return rec.FinishRecording()
 }

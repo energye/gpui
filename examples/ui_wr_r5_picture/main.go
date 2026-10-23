@@ -19,10 +19,10 @@ import (
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
-	"github.com/energye/gpui/ui/scene"
 	"github.com/energye/gpui/ui/scheduler"
 
 	_ "github.com/energye/gpui/render/gpu"
@@ -78,15 +78,17 @@ func main() {
 		"picture_op_count + Bounds in HUD",
 	})
 
-	// Build the recorded Picture ONCE (retained display list, 8 ops).
-	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+	// Build the recording ONCE (retained display list, 8 draw commands).
+	rec := recording.NewRecorder(200, 300)
+	{
 		// Path fill (triangle).
 		p := render.NewPath()
 		p.MoveTo(20, 20)
 		p.LineTo(90, 20)
 		p.LineTo(55, 80)
 		p.Close()
-		r.FillPath(p, 0.9, 0.3, 0.2, 1)
+		rec.SetRGBA(0.9, 0.3, 0.2, 1)
+		_ = rec.FillPath(p)
 		// Path stroke (quad).
 		p2 := render.NewPath()
 		p2.MoveTo(20, 120)
@@ -94,22 +96,31 @@ func main() {
 		p2.LineTo(90, 160)
 		p2.LineTo(20, 160)
 		p2.Close()
-		r.StrokePath(p2, 3, 0.2, 0.6, 0.9, 1)
+		rec.SetRGBA(0.2, 0.6, 0.9, 1)
+		rec.SetLineWidth(3)
+		_ = rec.StrokePath(p2)
 		// Filled rect.
-		r.FillRect(20, 190, 80, 40, 0.3, 0.8, 0.4, 1)
+		rec.SetRGBA(0.3, 0.8, 0.4, 1)
+		rec.FillRectangle(20, 190, 80, 40)
 		// Stroke rect.
-		r.StrokeRect(120, 190, 60, 40, 2, 0.9, 0.8, 0.3, 1)
+		rec.SetRGBA(0.9, 0.8, 0.3, 1)
+		rec.SetLineWidth(2)
+		rec.StrokeRectangle(120, 190, 60, 40)
 		// Image 1:1 and scaled (both folded into Bounds by the recorder).
-		r.DrawImage(src, 150, 20, 0, 0)
-		r.DrawImage(src, 150, 100, 32, 32)
+		rec.DrawImage(src, 150, 20)
+		rec.DrawImageEx(src, render.DrawImageOptions{X: 150, Y: 100, DstWidth: 32, DstHeight: 32})
 		// Text.
 		if face != nil {
-			r.DrawString("PIC-REPLAY", 20, 260, face, 0.9, 0.9, 0.95, 1)
-			r.DrawString("v2", 120, 260, face, 0.9, 0.8, 0.4, 1)
+			rec.SetFont(face)
+			rec.SetRGBA(0.9, 0.9, 0.95, 1)
+			rec.DrawString("PIC-REPLAY", 20, 260)
+			rec.SetRGBA(0.9, 0.8, 0.4, 1)
+			rec.DrawString("v2", 120, 260)
 		}
-	})
-	opCount := pic.OpCount()
-	picBounds := pic.Bounds
+	}
+	pic := rec.FinishRecording()
+	opCount := pic.PaintOpCount()
+	picBounds := pic.Bounds()
 	boundsTxt := "no-bounds"
 	if !picBounds.Empty() {
 		boundsTxt = fmt.Sprintf("(%d,%d %dx%d)", picBounds.Min.X, picBounds.Min.Y, picBounds.Dx(), picBounds.Dy())
@@ -168,7 +179,7 @@ func main() {
 			return
 		}
 		pc.DC.Translate(pc.OriginX, pc.OriginY)
-		pic.Replay(pc.DC)
+		_ = pic.Playback(recording.NewCanvasBackend(pc.DC))
 	}
 	shell.Body.Align(replay, 0.55, 0.10)
 

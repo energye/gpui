@@ -17,10 +17,8 @@ func TestPictureTextureCache_CloseReleases(t *testing.T) {
 	dc := render.NewContext(20, 20)
 	defer dc.Close()
 	tex := scene.NewPictureTextureCache(dc, 8)
-	p := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 4, 4, 1, 0, 0, 1)
-	})
-	_, _ = tex.RecordForTest(1, &p)
+	p := recordFillRect(4, 4, 0, 0, 4, 4, 1, 0, 0, 1)
+	_, _ = tex.RecordForTest(1, p)
 	tex.Close()
 	if got := tex.Len(); got != 0 {
 		t.Fatalf("Len=%d after Close, want 0", got)

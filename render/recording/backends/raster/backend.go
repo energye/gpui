@@ -17,7 +17,7 @@
 //   - Pixel-accurate comparison testing
 //   - Caching/buffering of drawing operations
 //
-// All drawing semantics live in recording.ContextBackend — this package owns
+// All drawing semantics live in recording.CanvasBackend — this package owns
 // only the image-sized context and the PNG/pixmap output, so the raster and
 // the live-context playback paths cannot drift apart.
 //
@@ -64,9 +64,9 @@ func init() {
 
 // Backend renders recordings to a pixel image. It owns a render.Context sized
 // to the recording and delegates every drawing operation to
-// recording.ContextBackend.
+// recording.CanvasBackend.
 type Backend struct {
-	*recording.ContextBackend
+	*recording.CanvasBackend
 	ctx    *render.Context
 	width  int
 	height int
@@ -92,14 +92,14 @@ func (b *Backend) Begin(width, height int) error {
 	b.width = width
 	b.height = height
 	b.ctx = render.NewContext(width, height)
-	b.ContextBackend = recording.NewContextBackend(b.ctx)
-	return b.ContextBackend.Begin(width, height)
+	b.CanvasBackend = recording.NewCanvasBackend(b.ctx)
+	return b.CanvasBackend.Begin(width, height)
 }
 
 // End finalizes the rendering.
 // After End is called, output methods (WriteTo, SaveToFile) can be used.
 func (b *Backend) End() error {
-	return b.ContextBackend.End()
+	return b.CanvasBackend.End()
 }
 
 // WriteTo writes the rendered content as PNG to the given writer.

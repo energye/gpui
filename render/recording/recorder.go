@@ -115,19 +115,22 @@ func NewRecorder(width, height int) *Recorder {
 }
 
 // FinishRecording returns an immutable Recording containing all recorded
-// commands. The content footprint and the can-it-paint flag are resolved here,
-// on the recording thread (see bounds.go), so a consumer never has to measure
-// shared font faces or read live commands to size or admit a surface.
+// commands. The content footprint, the can-it-paint flag and the replay facts a
+// retained compositor needs (length, image sampling) are resolved here, on the
+// recording thread (see bounds.go), so a consumer never has to measure shared
+// font faces or read live commands to size, admit or budget a surface.
 // After calling FinishRecording, the Recorder should not be used again.
 func (r *Recorder) FinishRecording() *Recording {
 	s := summarize(r.width, r.height, r.commands, r.resources)
 	return &Recording{
-		width:     r.width,
-		height:    r.height,
-		commands:  r.commands,
-		resources: r.resources,
-		bounds:    s.bounds,
-		visible:   s.visible,
+		width:      r.width,
+		height:     r.height,
+		commands:   r.commands,
+		resources:  r.resources,
+		bounds:     s.bounds,
+		visible:    s.visible,
+		paintOps:   s.paintOps,
+		cpuScratch: s.cpuScratch,
 	}
 }
 
@@ -139,6 +142,8 @@ type Recording struct {
 	resources     *ResourcePool
 	bounds        image.Rectangle
 	visible       bool
+	paintOps      int
+	cpuScratch    bool
 }
 
 // Bounds returns the recording's content footprint in the recording's own
@@ -151,8 +156,12 @@ type Recording struct {
 // The rect is a superset by construction: clips are not intersected, zero-alpha
 // paint still counts as geometry, and a recording carrying a blur or drop
 // shadow reports the whole canvas, because those filters act on the surface
-// rather than on the command that follows. Empty means nothing was recorded.
+// rather than on the command that follows. Empty means nothing was recorded;
+// a nil recording is empty.
 func (r *Recording) Bounds() image.Rectangle {
+	if r == nil {
+		return image.Rectangle{}
+	}
 	return r.bounds
 }
 
@@ -160,16 +169,48 @@ func (r *Recording) Bounds() image.Rectangle {
 // the surface. Command count is not the question: a recording of empty paths,
 // zero-alpha fills and brush-less geometry is legal but invisible, and feeding
 // one to a texture allocator would spend a surface to show nothing.
+// A nil recording paints nothing.
 func (r *Recording) HasVisiblePaint() bool {
+	if r == nil {
+		return false
+	}
 	return r.visible
+}
+
+// PaintOpCount returns the display-list length: the number of commands a
+// replay issues work for. State, clip and layer commands are not counted, so
+// this is what a per-frame op budget should charge a recording for.
+// A nil recording carries no work.
+func (r *Recording) PaintOpCount() int {
+	if r == nil {
+		return 0
+	}
+	return r.paintOps
+}
+
+// NeedsCPUPassScratch reports whether a replay can put pixels on the surface
+// through the CPU: it draws from an image buffer, and an image path without a
+// GPU resource samples on the CPU. A rasterizer recording the replay into a GPU
+// texture must swap in a CPU scratch pixmap for the pass or those pixels miss
+// the texture; a recording with no image commands is provably GPU-only and can
+// skip the swap at zero behavior change.
+// A nil recording needs no scratch.
+func (r *Recording) NeedsCPUPassScratch() bool {
+	if r == nil {
+		return false
+	}
+	return r.cpuScratch
 }
 
 // ImageBufs returns the image buffers the recording draws from, in pool order.
 // A retained packet must hold these for as long as it may replay them: the
 // recording stores buffers by pointer (no pixel copy), so disposing one while a
 // recording still references it leaves a disposed image at playback.
-// The result is read-only.
+// The result is read-only. A nil recording draws from no buffers.
 func (r *Recording) ImageBufs() []*render.ImageBuf {
+	if r == nil {
+		return nil
+	}
 	return r.resources.Images()
 }
 

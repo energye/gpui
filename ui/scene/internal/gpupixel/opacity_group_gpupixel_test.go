@@ -147,28 +147,32 @@ func TestRetained_OpacityBoundaryGroupPixels(t *testing.T) {
 	}
 	defer release()
 
+	// Dirt belongs to the build, not to the content install: the steady frame
+	// must be built with clean layers. Re-using the dirty packet would make the
+	// compositor report sustained churn, and the admission policy is then right
+	// to drop the texture and replay vector (Flutter RasterCache access
+	// threshold — a picture that changes every frame never earns one).
+	buildPkt := func(dirty bool) *scene.FramePacket {
+		b := scene.NewLayerBuilder()
+		b.PushOffset(0, 0)
+		// backdrop picture: cell-blue panel
+		bp := b.AddPicture(dirty)
+		bp.SetCacheKey(9100)
+		bp.SetRecording(gpuiFillRect(W, H, 0, 0, float64(W), float64(H), c5CellBG[0], c5CellBG[1], c5CellBG[2], 1))
+		// boundary > opacity > card picture (floatHost shape)
+		b.PushBoundary(170, 40, "opacity", false)
+		b.PushOpacity(c5CardAlpha)
+		cp := b.AddPicture(dirty)
+		cp.SetCacheKey(9101)
+		cp.SetRecording(gpuiFillRect(130, 80, 0, 0, 130, 80, c5Orange[0], c5Orange[1], c5Orange[2], 1))
+		b.Pop() // opacity
+		b.Pop() // boundary
+		b.Pop() // root offset
+		return b.BuildPacket(1, 1, W, H)
+	}
+
 	scene.ResetLayerIDGen()
-	b := scene.NewLayerBuilder()
-	b.PushOffset(0, 0)
-	// backdrop picture: cell-blue panel
-	bp := b.AddPicture(false)
-	bp.SetCacheKey(9100)
-	bp.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, W, H, c5CellBG[0], c5CellBG[1], c5CellBG[2], 1)
-	})
-	// boundary > opacity > card picture (floatHost shape)
-	b.PushBoundary(170, 40, "opacity", false)
-	b.PushOpacity(c5CardAlpha)
-	cp := b.AddPicture(true)
-	cp.SetCacheKey(9101)
-	cp.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 130, 80, c5Orange[0], c5Orange[1], c5Orange[2], 1)
-	})
-	_ = cp
-	b.Pop() // opacity
-	b.Pop() // boundary
-	b.Pop() // root offset
-	pkt := b.BuildPacket(1, 1, W, H)
+	pkt := buildPkt(true)
 
 	tex := scene.NewPictureTextureCache(dc, 8)
 	for i := 0; i < 3; i++ { // warm-up presents like the real window
@@ -184,8 +188,16 @@ func TestRetained_OpacityBoundaryGroupPixels(t *testing.T) {
 	if !tex.Has(9101) {
 		t.Fatalf("card picture not cached")
 	}
+	if !tex.Has(9100) {
+		t.Fatalf("backdrop picture not cached")
+	}
 	if st.ReplayedOps != 0 {
 		t.Fatalf("frame replayed %d ops want 0 (blit path)", st.ReplayedOps)
+	}
+	// Steady frame: nothing dirty, both layers already have textures → blit-only.
+	st2 := scene.CompositeFramePacketTextured(buildPkt(false), dc, tex)
+	if st2.ReplayedOps != 0 {
+		t.Fatalf("steady frame replayed %d ops want 0 (pure blit)", st2.ReplayedOps)
 	}
 	if err := dc.FlushGPUWithView(view, W, H); err != nil {
 		t.Fatalf("flush: %v", err)

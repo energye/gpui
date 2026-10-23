@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 )
 
 // TestPacket_ImageDisposeRacesComposite locks the R3-1 true-path carrier
@@ -28,9 +29,9 @@ func TestPacket_ImageDisposeRacesComposite(t *testing.T) {
 		b := NewLayerBuilder()
 		pl := b.AddPicture(true)
 		pl.SetCacheKey(501)
-		pl.Picture = RecordPicture(func(r *PictureRecorder) {
-			r.DrawImage(img, 0, 0, 16, 12)
-		})
+		rec := recording.NewRecorder(16, 12)
+		rec.DrawImage(img, 0, 0)
+		pl.Recording = rec.FinishRecording()
 		pkt := b.BuildPacket(1, 1, 100, 80)
 		if len(pkt.RetainedImages) != 1 {
 			t.Fatalf("round %d: RetainedImages=%d want 1", round, len(pkt.RetainedImages))

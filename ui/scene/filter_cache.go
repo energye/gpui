@@ -189,7 +189,7 @@ func filterSubtreeBounds(l Layer) (image.Rectangle, bool) {
 			}
 			switch t := ch.(type) {
 			case *PictureLayer:
-				r := t.Picture.Bounds
+				r := t.Recording.Bounds()
 				r = r.Add(image.Pt(int(dx), int(dy)))
 				union = union.Union(r)
 			case *OffsetLayer:

@@ -11,23 +11,24 @@
 package rendering
 
 import (
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/scene"
 )
 
-// LayerCache holds cross-frame retained layer/Picture objects for the
+// LayerCache holds cross-frame retained layer/display-list objects for the
 // incremental layer build (Flutter RepaintBoundary semantics): a clean
 // boundary reuses its previous BoundaryLayer object (children re-walked) and
-// its display list is not re-recorded — only dirty paths rebuild. Without
+// its recording is not re-recorded — only dirty paths rebuild. Without
 // this, BuildLayerTree allocated the whole layer tree + recorded every
-// Picture every frame.
+// display list every frame.
 //
 // Liveness is bound to the render tree: Prune drops entries whose owner is no
 // longer reachable (scrolled-out VirtualList cells release their caches).
 type LayerCache struct {
 	// subs maps boundary cacheID → the BoundaryLayer object to reuse.
 	subs map[uint64]scene.Layer
-	// pics maps leaf cacheKey → the recorded display list (Picture) to reuse.
-	pics map[uint64]*scene.Picture
+	// pics maps leaf cacheKey → the recorded display list to reuse.
+	pics map[uint64]*recording.Recording
 	// alive marks entries touched this build; Prune drops the rest.
 	aliveSub map[uint64]struct{}
 	alivePic map[uint64]struct{}
@@ -42,7 +43,7 @@ type LayerCache struct {
 func NewLayerCache() *LayerCache {
 	return &LayerCache{
 		subs:     make(map[uint64]scene.Layer),
-		pics:     make(map[uint64]*scene.Picture),
+		pics:     make(map[uint64]*recording.Recording),
 		aliveSub: make(map[uint64]struct{}),
 		alivePic: make(map[uint64]struct{}),
 	}
@@ -83,9 +84,9 @@ func (c *LayerCache) StoreSub(cacheID uint64, l scene.Layer) {
 	c.aliveSub[cacheID] = struct{}{}
 }
 
-// ReusePic returns a cached display list for cacheKey (or nil) and marks it
-// alive.
-func (c *LayerCache) ReusePic(cacheKey uint64) *scene.Picture {
+// ReuseRecording returns a cached display list for cacheKey (or nil) and
+// marks it alive.
+func (c *LayerCache) ReuseRecording(cacheKey uint64) *recording.Recording {
 	if c == nil || cacheKey == 0 {
 		return nil
 	}
@@ -98,8 +99,8 @@ func (c *LayerCache) ReusePic(cacheKey uint64) *scene.Picture {
 	return p
 }
 
-// StorePic caches the display list for cacheKey.
-func (c *LayerCache) StorePic(cacheKey uint64, p *scene.Picture) {
+// StoreRecording caches the display list for cacheKey.
+func (c *LayerCache) StoreRecording(cacheKey uint64, p *recording.Recording) {
 	if c == nil || cacheKey == 0 || p == nil {
 		return
 	}

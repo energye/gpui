@@ -9,7 +9,7 @@ import (
 
 // stubBackend is a do-nothing Backend that test doubles embed so they only
 // write the methods they actually observe. The production interpreter is
-// ContextBackend; this exists so adding an operation to the Backend interface
+// CanvasBackend; this exists so adding an operation to the Backend interface
 // touches one stub here instead of every mock in the tree.
 type stubBackend struct{}
 

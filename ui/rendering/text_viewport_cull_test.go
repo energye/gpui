@@ -4,14 +4,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scene"
 )
 
-// recordedBand aggregates recorded text coverage: glyph-op pens stay absolute
-// (bulk keeps glyph.X at pen ox; partitions rebase to ox+off with shifted
-// glyphs), so op.X+g.X reconstructs the text-origin band the texture covers.
+// recordedBand aggregates recorded text coverage: glyph command pens stay
+// absolute (bulk keeps glyph.X at pen ox; partitions rebase to ox+off with
+// shifted glyphs), so cmd.X+g.X reconstructs the text-origin band.
 type recordedBand struct {
 	glyphs int
 	strs   []string
@@ -25,11 +26,11 @@ func collectRecordedBand(l scene.Layer, b *recordedBand) {
 		return
 	}
 	if pl, ok := l.(*scene.PictureLayer); ok && pl != nil {
-		for _, op := range pl.Picture.Ops {
-			switch op.Kind {
-			case scene.OpDrawShapedGlyphs:
-				for _, g := range op.Glyphs {
-					x0, x1 := op.X+g.X, op.X+g.X+g.XAdvance
+		for _, cmd := range pl.Recording.Commands() {
+			switch c := cmd.(type) {
+			case recording.DrawGlyphsCommand:
+				for _, g := range c.Glyphs {
+					x0, x1 := c.X+g.X, c.X+g.X+g.XAdvance
 					if !b.init || x0 < b.minX {
 						b.minX = x0
 					}
@@ -38,10 +39,10 @@ func collectRecordedBand(l scene.Layer, b *recordedBand) {
 					}
 					b.init = true
 				}
-				b.glyphs += len(op.Glyphs)
-			case scene.OpDrawString:
-				if op.Text != "" {
-					b.strs = append(b.strs, op.Text)
+				b.glyphs += len(c.Glyphs)
+			case recording.DrawTextCommand:
+				if c.Text != "" {
+					b.strs = append(b.strs, c.Text)
 				}
 			}
 		}

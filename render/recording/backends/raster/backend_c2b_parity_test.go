@@ -13,7 +13,7 @@ import (
 // S2b parity contract: every method family the recording surface gained in C2b
 // must replay bit-identically to the live call. Each test paints the same scene
 // twice — once straight onto a render.Context, once through a Recorder and back
-// out via ContextBackend — and compares every byte. A difference means the
+// out via CanvasBackend — and compares every byte. A difference means the
 // display list lost or invented state; ink that is missing from BOTH images is a
 // vacuous test, so the helper refuses those too.
 

@@ -358,6 +358,139 @@ func TestRecordingVisible_CommandCountIsNotPaint(t *testing.T) {
 	}
 }
 
+// TestRecordingPaintOpCount locks the frame-budget length to the work a replay
+// issues: drawing commands count, state commands do not, and a command that
+// paints nothing still counts (recording cannot know a path is empty until the
+// walk, and replay still issues the call).
+func TestRecordingPaintOpCountCountsDrawingCommands(t *testing.T) {
+	rec := NewRecorder(100, 100)
+	rec.SetRGBA(1, 0, 0, 1)
+	rec.Save()
+	rec.ClipRect(0, 0, 90, 90)
+	rec.FillRectangle(10, 10, 20, 20)
+	rec.StrokeRectangle(0, 0, 30, 30)
+	rec.PushLayer(render.BlendMode(0), 0.5)
+	rec.PopLayer()
+	rec.SetFontSize(20)
+	rec.DrawString("no face set", 10, 30) // invisible, still a command to replay
+	rec.Restore()
+	r := finish(t, rec)
+	if got := r.PaintOpCount(); got != 3 {
+		t.Errorf("PaintOpCount=%d want 3 (2 rects + 1 text; state and clips count 0)", got)
+	}
+	if !r.HasVisiblePaint() {
+		t.Error("fills reported no visible paint")
+	}
+
+	empty := finish(t, NewRecorder(10, 10))
+	if empty.PaintOpCount() != 0 {
+		t.Errorf("empty recording PaintOpCount=%d want 0", empty.PaintOpCount())
+	}
+	var nilRec *Recording
+	if nilRec.PaintOpCount() != 0 {
+		t.Error("nil recording must report no work, not panic")
+	}
+}
+
+// TestRecordingCPUScratchFollowsImageCommands locks the offscreen-pass rule:
+// only image commands can put pixels through the CPU, so only they may force
+// the scratch swap (a vector/text pass paying memset+memcmp for nothing is the
+// regression this guards).
+func TestRecordingCPUScratchFollowsImageCommands(t *testing.T) {
+	img := newTestImageBuf(t, 8, 6)
+	yes := []struct {
+		name   string
+		record func(*Recorder)
+	}{
+		{"draw", func(r *Recorder) { r.DrawImage(img, 1, 1) }},
+		{"scaled", func(r *Recorder) {
+			r.DrawImageEx(img, render.DrawImageOptions{X: 1, Y: 1, DstWidth: 20, DstHeight: 20})
+		}},
+		{"nine", func(r *Recorder) { r.DrawImageNine(img, image.Rect(2, 2, 6, 4), 0, 0, 20, 20) }},
+		{"quad", func(r *Recorder) {
+			_ = r.DrawImageQuad(img, [4]render.Point{{X: 0, Y: 0}, {X: 8, Y: 0}, {X: 8, Y: 6}, {X: 0, Y: 6}}, render.QuadDrawOptions{})
+		}},
+		{"rounded", func(r *Recorder) { r.DrawImageRounded(img, 1, 1, 2) }},
+		{"circular", func(r *Recorder) { r.DrawImageCircular(img, 10, 10, 5) }},
+		{"atlas", func(r *Recorder) {
+			r.DrawAtlas(img, []render.AtlasSprite{{SrcX: 0, SrcY: 0, SrcW: 4, SrcH: 4, DstX: 0, DstY: 0, DstW: 4, DstH: 4}})
+		}},
+		{"depth sprites", func(r *Recorder) {
+			r.DrawDepthSprites(img, []render.DepthSprite{
+				{Sprite: render.AtlasSprite{SrcX: 0, SrcY: 0, SrcW: 4, SrcH: 4, DstX: 0, DstY: 0, DstW: 4, DstH: 4}},
+			}, render.DepthDrawOptions{})
+		}},
+		{"pattern brush fill", func(r *Recorder) {
+			r.SetFillStyle(NewPatternBrush(img))
+			r.FillRectangle(0, 0, 10, 10)
+		}},
+		{"pattern brush stroke", func(r *Recorder) {
+			r.SetStrokeStyle(NewPatternBrush(img))
+			r.StrokeRectangle(0, 0, 10, 10)
+		}},
+	}
+	for _, tt := range yes {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := NewRecorder(100, 100)
+			tt.record(rec)
+			if !finish(t, rec).NeedsCPUPassScratch() {
+				t.Error("image content reported no CPU scratch need")
+			}
+		})
+	}
+
+	no := []struct {
+		name   string
+		record func(*Recorder)
+	}{
+		{"vector", func(r *Recorder) {
+			r.SetRGBA(0, 0, 1, 1)
+			r.FillRectangle(0, 0, 10, 10)
+			r.StrokeRectangle(0, 0, 10, 10)
+		}},
+		{"path", func(r *Recorder) {
+			r.MoveTo(1, 1)
+			r.LineTo(9, 1)
+			r.LineTo(5, 9)
+			r.ClosePath()
+			if err := r.Fill(); err != nil {
+				t.Errorf("Fill: %v", err)
+			}
+		}},
+		{"text", func(r *Recorder) {
+			r.SetFontSize(20)
+			r.DrawString("vector glyphs", 10, 30)
+		}},
+		{"gradient", func(r *Recorder) {
+			b := NewLinearGradientBrush(0, 0, 10, 0)
+			b.AddColorStop(0, render.RGBA{R: 1, A: 1})
+			b.AddColorStop(1, render.RGBA{G: 1, A: 1})
+			r.SetFillStyle(b)
+			r.FillRectangle(0, 0, 10, 10)
+		}},
+		{"state only", func(r *Recorder) {
+			r.SetLineWidth(3)
+			r.ClipRect(0, 0, 10, 10)
+			r.PushLayerIsolated(0.5)
+			r.PopLayer()
+		}},
+	}
+	for _, tt := range no {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := NewRecorder(100, 100)
+			tt.record(rec)
+			if finish(t, rec).NeedsCPUPassScratch() {
+				t.Error("non-image content forced a CPU scratch pass")
+			}
+		})
+	}
+
+	var nilRec *Recording
+	if nilRec.NeedsCPUPassScratch() {
+		t.Error("nil recording must need no scratch, not panic")
+	}
+}
+
 func TestRecordingVisible_GradientStopsDecide(t *testing.T) {
 	transparent := NewLinearGradientBrush(0, 0, 10, 0)
 	transparent.AddColorStop(0, render.RGBA{R: 1, A: 0})
@@ -472,7 +605,7 @@ func paintedExtent(t *testing.T, r *Recording, w, h int) image.Rectangle {
 	dc := render.NewContext(w, h)
 	defer dc.Close()
 	dc.Clear()
-	if err := r.Playback(NewContextBackend(dc)); err != nil {
+	if err := r.Playback(NewCanvasBackend(dc)); err != nil {
 		t.Fatalf("playback: %v", err)
 	}
 	img := dc.Image()

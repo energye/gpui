@@ -1,13 +1,12 @@
-// Pass-scratch wiring test: an OnPaint-style RasterExtra mixing GPU draws
+// Pass-scratch wiring test: an OnPaint-style recording mixing GPU draws
 // with a CPU tint fallback must survive the retained bounds-texture record
-// (recordLocalWith). Pixels prove it; geometry and probes are read from
+// (recordLocal). Pixels prove it; geometry and probes are read from
 // testdata/pass_scratch_cases.json (atlas pixels from
 // testdata/pass_scratch_atlas.png), never hardcoded.
 package gpupixel
 
 import (
 	"encoding/json"
-	"image"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/filters"
 	_ "github.com/energye/gpui/render/gpu"
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/scene"
 )
 
@@ -84,11 +84,11 @@ func loadScratchWireAtlas(t *testing.T, name string) *render.ImageBuf {
 	return img
 }
 
-// TestRecordLocalWith_MixedExtraPixels records a bounds layer whose extra
-// callback mixes GPU fill, a GPU plain sprite and a CPU tint sprite (the
+// TestRecordLocal_MixedRecordingPixels records a bounds layer whose
+// recording mixes GPU fill, a GPU plain sprite and a CPU tint sprite (the
 // game_particle / game_sprite black-card shape), composites one textured
 // frame, and asserts the card pixels at the composited offset.
-func TestRecordLocalWith_MixedExtraPixels(t *testing.T) {
+func TestRecordLocal_MixedRecordingPixels(t *testing.T) {
 	requireGPU(t)
 	c := loadScratchWireCases(t)
 	atlas := loadScratchWireAtlas(t, c.Atlas)
@@ -110,23 +110,21 @@ func TestRecordLocalWith_MixedExtraPixels(t *testing.T) {
 	b.PushOffset(offX, offY)
 	pl := b.AddPicture(true)
 	pl.SetCacheKey(9101)
-	pl.ExtraBounds = image.Rect(0, 0, cw, ch)
-	pl.RasterExtra = func(dc *render.Context) {
-		dc.SetRGB(c.Fill.R, c.Fill.G, c.Fill.B)
-		dc.DrawRectangle(0, 0, float64(cw), float64(ch))
-		_ = dc.Fill()
-		_, _ = dc.DrawAtlasEx(atlas, []render.AtlasSprite{{
-			SrcX: c.Plain.Src[0], SrcY: c.Plain.Src[1], SrcW: c.Plain.Src[2], SrcH: c.Plain.Src[3],
-			DstX: c.Plain.Dst[0], DstY: c.Plain.Dst[1], DstW: c.Plain.Dst[2], DstH: c.Plain.Dst[3],
-			Opacity: 1, Filter: render.InterpNearest,
-		}}, render.AtlasDrawOptions{})
-		_, _ = dc.DrawAtlasEx(atlas, []render.AtlasSprite{{
-			SrcX: c.Tint.Src[0], SrcY: c.Tint.Src[1], SrcW: c.Tint.Src[2], SrcH: c.Tint.Src[3],
-			DstX: c.Tint.Dst[0], DstY: c.Tint.Dst[1], DstW: c.Tint.Dst[2], DstH: c.Tint.Dst[3],
-			Opacity: 1, Tint: render.RGBA{R: c.Tint.Tint[0], G: c.Tint.Tint[1], B: c.Tint.Tint[2], A: c.Tint.Tint[3]},
-			Filter: render.InterpNearest,
-		}}, render.AtlasDrawOptions{})
-	}
+	rec := recording.NewRecorder(cw, ch)
+	rec.SetRGB(c.Fill.R, c.Fill.G, c.Fill.B)
+	rec.FillRectangle(0, 0, float64(cw), float64(ch))
+	_, _ = rec.DrawAtlasEx(atlas, []render.AtlasSprite{{
+		SrcX: c.Plain.Src[0], SrcY: c.Plain.Src[1], SrcW: c.Plain.Src[2], SrcH: c.Plain.Src[3],
+		DstX: c.Plain.Dst[0], DstY: c.Plain.Dst[1], DstW: c.Plain.Dst[2], DstH: c.Plain.Dst[3],
+		Opacity: 1, Filter: render.InterpNearest,
+	}}, render.AtlasDrawOptions{})
+	_, _ = rec.DrawAtlasEx(atlas, []render.AtlasSprite{{
+		SrcX: c.Tint.Src[0], SrcY: c.Tint.Src[1], SrcW: c.Tint.Src[2], SrcH: c.Tint.Src[3],
+		DstX: c.Tint.Dst[0], DstY: c.Tint.Dst[1], DstW: c.Tint.Dst[2], DstH: c.Tint.Dst[3],
+		Opacity: 1, Tint: render.RGBA{R: c.Tint.Tint[0], G: c.Tint.Tint[1], B: c.Tint.Tint[2], A: c.Tint.Tint[3]},
+		Filter: render.InterpNearest,
+	}}, render.AtlasDrawOptions{})
+	pl.SetRecording(rec.FinishRecording())
 	b.Pop()
 	pkt := b.BuildPacket(1, 1, W, H)
 

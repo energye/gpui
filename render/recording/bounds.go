@@ -18,13 +18,15 @@ import (
 	"github.com/energye/gpui/render/text"
 )
 
-// A retained compositor needs two facts about a recording before it allocates
+// A retained compositor needs three facts about a recording before it allocates
 // anything: the footprint the content lands in (to size a texture and report
-// damage) and whether the content can paint at all (so invisible layers never
-// get one). Both are computed here, on the UI thread, in one forward pass over
-// the command stream at FinishRecording — measuring them at raster time would
-// mean reading shared font faces and live command data from the raster thread,
-// which is the sharing this layer exists to remove.
+// damage), whether the content can paint at all (so invisible layers never get
+// one), and what a replay of it costs and touches (length for the frame budget,
+// image sampling for the CPU scratch of an offscreen pass). All of it is
+// computed here, on the UI thread, in one forward pass over the command stream
+// at FinishRecording — measuring it at raster time would mean reading shared
+// font faces and live command data from the raster thread, which is the sharing
+// this layer exists to remove.
 //
 // The walk is conservative only in the direction that can waste memory, never
 // clip content:
@@ -44,6 +46,13 @@ import (
 type contentSummary struct {
 	bounds  image.Rectangle
 	visible bool
+	// paintOps counts the drawing commands, which is what a frame budget
+	// reports as display-list length (state commands carry no work).
+	paintOps int
+	// cpuScratch says a replay may produce pixels on the CPU (an image path
+	// can fall back to CPU sampling), so a recorder rasterizing this into a
+	// texture must swap in a scratch pixmap or those pixels miss the texture.
+	cpuScratch bool
 }
 
 // summarize walks the recorded stream with a simulated CTM — the same matrix
@@ -54,7 +63,7 @@ func summarize(width, height int, cmds []Command, pool *ResourcePool) contentSum
 	for _, cmd := range cmds {
 		w.step(cmd)
 	}
-	out := contentSummary{visible: w.visible}
+	out := contentSummary{visible: w.visible, paintOps: w.paintOps, cpuScratch: w.cpuScratch}
 	if w.has {
 		out.bounds = image.Rect(floorInt(w.minX), floorInt(w.minY), ceilInt(w.maxX), ceilInt(w.maxY))
 	}
@@ -66,7 +75,7 @@ func summarize(width, height int, cmds []Command, pool *ResourcePool) contentSum
 
 // contentWalk carries the state the footprint depends on: the simulated CTM with
 // its Save/Restore stack, the accumulated float extent (converted to integers
-// only once, at the end) and the visibility flag.
+// only once, at the end), the visibility flag and the derived replay facts.
 type contentWalk struct {
 	ctm   Matrix
 	stack []Matrix
@@ -76,6 +85,8 @@ type contentWalk struct {
 	has                    bool
 	visible                bool
 	surfaceWide            bool
+	paintOps               int
+	cpuScratch             bool
 }
 
 // step applies one command. Each drawing case states its own visibility rule
@@ -93,44 +104,50 @@ func (w *contentWalk) step(cmd Command) {
 		w.ctm = w.ctm.Multiply(c.Matrix)
 
 	case FillRectCommand:
-		w.note(rectCanFill(c.Rect) && brushCanPaint(w.brush(c.Brush)))
+		w.note(rectCanFill(c.Rect) && brushCanPaint(w.paintBrush(c.Brush)))
 		w.addRect(c.Rect, 0)
 	case StrokeRectCommand:
-		w.note(rectCanStroke(c.Rect) && brushCanPaint(w.brush(c.Brush)))
+		w.note(rectCanStroke(c.Rect) && brushCanPaint(w.paintBrush(c.Brush)))
 		w.addRect(c.Rect, strokeOutset(c.Stroke))
 	case FillPathCommand:
-		w.note(pathPaintable(w.getPath(c.Path)) && brushCanPaint(w.brush(c.Brush)))
+		w.note(pathPaintable(w.getPath(c.Path)) && brushCanPaint(w.paintBrush(c.Brush)))
 		w.addPath(c.Path, 0)
 	case StrokePathCommand:
-		w.note(pathPaintable(w.getPath(c.Path)) && brushCanPaint(w.brush(c.Brush)))
+		w.note(pathPaintable(w.getPath(c.Path)) && brushCanPaint(w.paintBrush(c.Brush)))
 		w.addPath(c.Path, strokeOutset(c.Stroke))
 
 	case DrawImageCommand:
 		img := w.image(c.Image)
 		w.note(imageCanPaint(img))
+		w.noteImage()
 		if r, ok := imageDstRect(img, c.Opts); ok {
 			w.addRect(r, 0)
 		}
 	case DrawImageNineCommand:
 		w.note(imageCanPaint(w.image(c.Image)))
+		w.noteImage()
 		w.addRect(c.Dst, 0)
 	case DrawImageQuadCommand:
 		w.note(imageCanPaint(w.image(c.Image)))
+		w.noteImage()
 		w.addPointsBox(c.Corners)
 	case DrawImageRoundedCommand:
 		img := w.image(c.Image)
 		w.note(imageCanPaint(img))
+		w.noteImage()
 		if iw, ih := img.Bounds(); iw > 0 && ih > 0 {
 			w.addRect(NewRect(c.X, c.Y, float64(iw), float64(ih)), 0)
 		}
 	case DrawImageCircularCommand:
 		img := w.image(c.Image)
 		w.note(imageCanPaint(img))
+		w.noteImage()
 		if c.Radius > 0 {
 			w.addRect(NewRect(c.CX-c.Radius, c.CY-c.Radius, 2*c.Radius, 2*c.Radius), 0)
 		}
 	case DrawAtlasCommand:
 		w.note(imageCanPaint(w.image(c.Image)) && len(c.Sprites) > 0)
+		w.noteImage()
 		w.addSprites(c.Sprites)
 	case DrawDepthSpritesCommand:
 		sprites := make([]render.AtlasSprite, len(c.Sprites))
@@ -138,25 +155,26 @@ func (w *contentWalk) step(cmd Command) {
 			sprites[i] = d.Sprite
 		}
 		w.note(imageCanPaint(w.image(c.Image)) && len(sprites) > 0)
+		w.noteImage()
 		w.addSprites(sprites)
 	case DrawVerticesCommand:
-		w.note(vertexRunCanPaint(c.Positions, c.Colors, w.brush(c.Brush)))
+		w.note(vertexRunCanPaint(c.Positions, c.Colors, w.paintBrush(c.Brush)))
 		w.addPoints(c.Positions)
 	case DrawMeshCommand:
-		w.note(vertexRunCanPaint(c.Positions, c.Colors, w.brush(c.Brush)) && indicesCanDraw(c.Indices))
+		w.note(vertexRunCanPaint(c.Positions, c.Colors, w.paintBrush(c.Brush)) && indicesCanDraw(c.Indices))
 		w.addPoints(c.Positions)
 
 	case DrawTextCommand:
 		face := w.face(c.Font)
-		w.note(c.Text != "" && face != nil && brushCanPaint(w.brush(c.Brush)))
+		w.note(c.Text != "" && face != nil && brushCanPaint(w.paintBrush(c.Brush)))
 		w.addGlyphRun(c.Text, c.X, c.Y, face, 0)
 	case StrokeTextCommand:
 		face := w.face(c.Font)
-		w.note(c.Text != "" && face != nil && brushCanPaint(w.brush(c.Brush)))
+		w.note(c.Text != "" && face != nil && brushCanPaint(w.paintBrush(c.Brush)))
 		w.addGlyphRun(c.Text, c.X, c.Y, face, strokeOutset(c.Stroke))
 	case DrawGlyphsCommand:
 		face := w.face(c.Face)
-		w.note(len(c.Glyphs) > 0 && face != nil && brushCanPaint(w.brush(c.Brush)))
+		w.note(len(c.Glyphs) > 0 && face != nil && brushCanPaint(w.paintBrush(c.Brush)))
 		w.addShapedRun(c.Glyphs, face, c.X, c.Y, 0)
 
 	case ApplyBlurCommand:
@@ -180,11 +198,24 @@ func (w *contentWalk) step(cmd Command) {
 	}
 }
 
-// note records that this command can put a pixel on the surface.
+// note records one drawing command and whether it can put a pixel on the
+// surface. Every drawing case calls it exactly once and no state command does,
+// so the same call is the display-list length.
 func (w *contentWalk) note(canPaint bool) {
+	w.paintOps++
 	if canPaint {
 		w.visible = true
 	}
+}
+
+// noteImage marks that this recording draws from an image buffer. Image replay
+// can fall back to CPU sampling (a buffer without a GPU resource, a tinted
+// atlas run), and those pixels only reach a texture if the rasterizer swapped
+// in a CPU scratch pixmap for the pass, so the flag has to say yes for every
+// image command — never for provably GPU-only vector/text content, whose pass
+// would pay a memset/memcmp for nothing.
+func (w *contentWalk) noteImage() {
+	w.cpuScratch = true
 }
 
 // --------------------------------------------------------------------------
@@ -210,6 +241,28 @@ func (w *contentWalk) brush(ref BrushRef) Brush {
 		return nil
 	}
 	return w.pool.GetBrush(ref)
+}
+
+// paintBrush fetches a drawing command's brush and folds in what it implies for
+// replay: a pattern brush draws from image data, and image sampling can fall
+// back to the CPU, so the pass needs the same scratch pixmap an image command
+// needs.
+func (w *contentWalk) paintBrush(ref BrushRef) Brush {
+	b := w.brush(ref)
+	if brushSamplesImage(b) {
+		w.noteImage()
+	}
+	return b
+}
+
+func brushSamplesImage(b Brush) bool {
+	switch br := b.(type) {
+	case *PatternBrush:
+		return br != nil && br.Image != nil
+	case CustomPatternBrush:
+		return br.Pattern != nil
+	}
+	return false
 }
 
 func (w *contentWalk) getPath(ref PathRef) *render.Path {

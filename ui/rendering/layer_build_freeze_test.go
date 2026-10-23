@@ -24,8 +24,8 @@ func snapshotPacket(t *testing.T, pkt *scene.FramePacket) packetSnapshot {
 	scene.Walk(pkt.Root, func(l scene.Layer) {
 		s.kinds = append(s.kinds, l.Kind())
 		if pl, ok := l.(*scene.PictureLayer); ok && s.bound == ([4]int{}) {
-			s.bound[0] = pl.Picture.Bounds.Dx()
-			s.bound[1] = pl.Picture.Bounds.Dy()
+			s.bound[0] = pl.Recording.Bounds().Dx()
+			s.bound[1] = pl.Recording.Bounds().Dy()
 		}
 	})
 	s.dirty = append([]uint64(nil), pkt.DirtyLayerIDs...)
@@ -85,8 +85,8 @@ func TestBuildFramePacket_SealedReadOnly(t *testing.T) {
 
 // TestBuildFramePacket_MutateTreeKeepsHandedOffPacket: changing the RO tree
 // after the handoff must not rewrite the already-built packet (T1 core).
-// Scope: geometry/color/structure snapshot. RasterExtra live reads (button
-// hover etc.) are the known D1 exception fixed by T2 build snapshots.
+// Scope: geometry/color/structure snapshot. Everything the packet carries is
+// built UI-side (recordings only), so the handoff is fully frozen.
 func TestBuildFramePacket_MutateTreeKeepsHandedOffPacket(t *testing.T) {
 	scene.ResetLayerIDGen()
 	root := rendering.NewRenderBox()

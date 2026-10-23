@@ -231,7 +231,7 @@ func (p *FramePacket) CloneShallow() *FramePacket {
 	return &out
 }
 
-// RetainImagesFrom collects ImageBufs referenced by OpDrawImage ops under l
+// RetainImagesFrom collects the ImageBufs referenced by picture layers under l
 // into the packet (D15). Called at build for the main band and by overlay
 // attach for the overlay band (attached post-Seal, pre-handoff).
 func (p *FramePacket) RetainImagesFrom(l Layer) {
@@ -247,12 +247,13 @@ func (p *FramePacket) RetainImagesFrom(l Layer) {
 		if !ok {
 			return
 		}
-		for i := range pl.Picture.Ops {
-			if op := &pl.Picture.Ops[i]; op.Kind == OpDrawImage && op.Image != nil {
-				if _, dup := seen[op.Image]; !dup {
-					seen[op.Image] = struct{}{}
-					p.RetainedImages = append(p.RetainedImages, op.Image)
-				}
+		for _, img := range pl.Recording.ImageBufs() {
+			if img == nil {
+				continue
+			}
+			if _, dup := seen[img]; !dup {
+				seen[img] = struct{}{}
+				p.RetainedImages = append(p.RetainedImages, img)
 			}
 		}
 	})

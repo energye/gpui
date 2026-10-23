@@ -3,13 +3,13 @@ package rendering_test
 import (
 	"testing"
 
-	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scene"
 )
 
 // twoSavelayerBoxes builds an OnPaint-only RenderBox that requests one
-// SaveLayer per paint (raster-time in the retained path).
+// SaveLayer per paint. Since C3 the paint runs UI-side while the packet is
+// built, so the budget gates the request at build time directly.
 func twoSavelayerBoxes() *rendering.RenderBox {
 	b := rendering.NewRenderBox()
 	b.FixedWidth, b.FixedHeight = 40, 20
@@ -22,24 +22,10 @@ func twoSavelayerBoxes() *rendering.RenderBox {
 	return b
 }
 
-// runRasterExtras executes every RasterExtra callback in layer order — what
-// the retained composite pass does on the raster thread during texture record.
-func runRasterExtras(t *testing.T, dc *render.Context, root scene.Layer) int {
-	t.Helper()
-	n := 0
-	scene.Walk(root, func(l scene.Layer) {
-		if pl, ok := l.(*scene.PictureLayer); ok && pl.RasterExtra != nil {
-			pl.RasterExtra(dc)
-			n++
-		}
-	})
-	return n
-}
-
-// TestBuildFramePacketWithSaveLayer_WiresRasterBudget: the per-frame
-// SaveLayer budget must gate raster-time OnPaint requests (retained path) —
+// TestBuildFramePacketWithSaveLayer_WiresBuildBudget: the per-frame
+// SaveLayer budget must gate build-time OnPaint requests (retained path) —
 // first box allowed, second refused by MaxOps=1, outcomes counted.
-func TestBuildFramePacketWithSaveLayer_WiresRasterBudget(t *testing.T) {
+func TestBuildFramePacketWithSaveLayer_WiresBuildBudget(t *testing.T) {
 	root := rendering.NewAbsoluteBox(120, 60)
 	root.Place(twoSavelayerBoxes(), 0, 0)
 	root.Place(twoSavelayerBoxes(), 50, 0)
@@ -51,12 +37,6 @@ func TestBuildFramePacketWithSaveLayer_WiresRasterBudget(t *testing.T) {
 		t.Fatal("nil packet/root")
 	}
 
-	dc := render.NewContext(120, 60)
-	defer dc.Close()
-
-	if n := runRasterExtras(t, dc, pkt.Root); n != 2 {
-		t.Fatalf("raster extras=%d want 2", n)
-	}
 	if got := stats.Allow.Load(); got != 1 {
 		t.Fatalf("Allow=%d want 1 (first request consumes MaxOps)", got)
 	}
@@ -66,33 +46,44 @@ func TestBuildFramePacketWithSaveLayer_WiresRasterBudget(t *testing.T) {
 
 	// Per-frame reset: a fresh frame allows exactly one again.
 	budget.Reset()
-	if n := runRasterExtras(t, dc, pkt.Root); n != 2 {
-		t.Fatalf("raster extras=%d want 2", n)
-	}
+	rendering.BuildFramePacketWithSaveLayer(root, 2, 1, 120, 60, stats, budget)
 	if got := stats.Allow.Load(); got != 2 {
 		t.Fatalf("Allow=%d want 2 after reset", got)
 	}
 }
 
 // TestBuildFramePacket_LegacyUnwired: the plain BuildFramePacket keeps the
-// legacy behavior — raster-time SaveLayer requests are unlimited and no
+// legacy behavior — SaveLayer requests during the build are unlimited and no
 // outcome counters are touched.
 func TestBuildFramePacket_LegacyUnwired(t *testing.T) {
 	root := rendering.NewAbsoluteBox(120, 60)
 	root.Place(twoSavelayerBoxes(), 0, 0)
 	root.Place(twoSavelayerBoxes(), 50, 0)
+	// Layout first: an unmeasured box reports size 0, and a 0-sized recording
+	// is invisible by definition, which would prove nothing about the build.
+	root.Layout(rendering.Tight(120, 60))
 
 	stats := &rendering.SaveLayerStats{}
 	pkt := rendering.BuildFramePacket(root, 1, 1, 120, 60)
 	if pkt == nil || pkt.Root == nil {
 		t.Fatal("nil packet/root")
 	}
-	dc := render.NewContext(120, 60)
-	defer dc.Close()
-	if n := runRasterExtras(t, dc, pkt.Root); n != 2 {
-		t.Fatalf("raster extras=%d want 2", n)
+	if n := countRecordedPictures(pkt); n != 2 {
+		t.Fatalf("recorded picture layers=%d want 2 (unwired build paints both)", n)
 	}
 	if got := stats.Allow.Load() + stats.Reject.Load(); got != 0 {
 		t.Fatalf("legacy path must not touch stats, got %d", got)
 	}
+}
+
+// countRecordedPictures counts keyed picture layers that carry visible
+// recording content — proof both OnPaint boxes painted into their recordings.
+func countRecordedPictures(pkt *scene.FramePacket) int {
+	n := 0
+	scene.Walk(pkt.Root, func(l scene.Layer) {
+		if pl, ok := l.(*scene.PictureLayer); ok && pl.Recording.HasVisiblePaint() {
+			n++
+		}
+	})
+	return n
 }

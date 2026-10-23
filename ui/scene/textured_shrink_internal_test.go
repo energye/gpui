@@ -33,16 +33,12 @@ func TestRecordLocal_ShrinkKeepsPrevBounds(t *testing.T) {
 	tex.slotAlloc = alloc
 
 	big := image.Rect(0, 0, 80, 20)
-	picBig := RecordPicture(func(r *PictureRecorder) {
-		r.FillRect(0, 0, 80, 20, 1, 0, 0, 1)
-	})
+	recBig := fillRecording(big)
 	small := image.Rect(0, 0, 40, 20)
-	picSmall := RecordPicture(func(r *PictureRecorder) {
-		r.FillRect(0, 0, 40, 20, 1, 0, 0, 1)
-	})
+	recSmall := fillRecording(small)
 
 	tex.BeginFrame()
-	if _, ok := tex.recordLocalWith(7, &picBig, big, nil); !ok {
+	if _, ok := tex.recordLocal(7, recBig, big); !ok {
 		t.Fatal("grow record must succeed")
 	}
 	if got := tex.PrevBounds(7); !got.Empty() {
@@ -50,7 +46,7 @@ func TestRecordLocal_ShrinkKeepsPrevBounds(t *testing.T) {
 	}
 
 	tex.BeginFrame()
-	if _, ok := tex.recordLocalWith(7, &picSmall, small, nil); !ok {
+	if _, ok := tex.recordLocal(7, recSmall, small); !ok {
 		t.Fatal("shrink record must succeed")
 	}
 	if got := tex.Bounds(7); got != small {
@@ -86,20 +82,16 @@ func TestRecordLocal_GrowUnionIsCurrent(t *testing.T) {
 	tex.slotAlloc = alloc
 
 	small := image.Rect(0, 0, 40, 20)
-	picSmall := RecordPicture(func(r *PictureRecorder) {
-		r.FillRect(0, 0, 40, 20, 1, 0, 0, 1)
-	})
+	recSmall := fillRecording(small)
 	big := image.Rect(0, 0, 80, 20)
-	picBig := RecordPicture(func(r *PictureRecorder) {
-		r.FillRect(0, 0, 80, 20, 1, 0, 0, 1)
-	})
+	recBig := fillRecording(big)
 
 	tex.BeginFrame()
-	if _, ok := tex.recordLocalWith(7, &picSmall, small, nil); !ok {
+	if _, ok := tex.recordLocal(7, recSmall, small); !ok {
 		t.Fatal("first record must succeed")
 	}
 	tex.BeginFrame()
-	if _, ok := tex.recordLocalWith(7, &picBig, big, nil); !ok {
+	if _, ok := tex.recordLocal(7, recBig, big); !ok {
 		t.Fatal("grow record must succeed")
 	}
 	if u := tex.Bounds(7).Union(tex.PrevBounds(7)); u != big {
@@ -119,11 +111,9 @@ func TestDropTransparent_KeepsShellForDamage(t *testing.T) {
 	tex.slotAlloc = alloc
 
 	small := image.Rect(0, 0, 40, 20)
-	picSmall := RecordPicture(func(r *PictureRecorder) {
-		r.FillRect(0, 0, 40, 20, 1, 0, 0, 1)
-	})
+	recSmall := fillRecording(small)
 	tex.BeginFrame()
-	if _, ok := tex.recordLocalWith(7, &picSmall, small, nil); !ok {
+	if _, ok := tex.recordLocal(7, recSmall, small); !ok {
 		t.Fatal("first record must succeed")
 	}
 	// Fake a live GPU view so the clear keeps a shell instead of evicting

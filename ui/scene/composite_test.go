@@ -6,12 +6,22 @@ import (
 
 	"github.com/energye/gpui/render"
 	_ "github.com/energye/gpui/render/filters"
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/scene"
 )
 
 func sampleAt(img interface{ At(int, int) color.Color }, x, y int) (r, g, b uint32) {
 	rr, gg, bb, _ := img.At(x, y).RGBA()
 	return rr, gg, bb
+}
+
+// recordFillRect builds a recording with one fill rect on a canvas-sized
+// recorder — the shape a leaf layer's own content takes.
+func recordFillRect(cw, ch int, x, y, w, h, r, g, b, a float64) *recording.Recording {
+	rec := recording.NewRecorder(cw, ch)
+	rec.SetRGBA(r, g, b, a)
+	rec.FillRectangle(x, y, w, h)
+	return rec.FinishRecording()
 }
 
 // TestCompositeToContext_OffsetClipPicture: offset + clip_rect + picture fill
@@ -22,10 +32,8 @@ func TestCompositeToContext_OffsetClipPicture(t *testing.T) {
 	b.PushOffset(20, 10)
 	b.PushClipRect(0, 0, 40, 30)
 	pl := b.AddPicture(true)
-	pl.Record(func(r *scene.PictureRecorder) {
-		// Draw larger than clip so clip must bite.
-		r.FillRect(-5, -5, 80, 80, 1, 0, 0, 1)
-	})
+	// Draw larger than clip so clip must bite.
+	pl.SetRecording(recordFillRect(100, 80, -5, -5, 80, 80, 1, 0, 0, 1))
 	b.Pop() // clip
 	b.Pop() // offset
 
@@ -63,9 +71,7 @@ func TestCompositeToContext_TransformTranslate(t *testing.T) {
 	b := scene.NewLayerBuilder()
 	b.PushTransform(50, 20, 0, 1, 1)
 	pl := b.AddPicture(true)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 20, 20, 0, 0, 1, 1)
-	})
+	pl.SetRecording(recordFillRect(100, 80, 0, 0, 20, 20, 0, 0, 1, 1))
 	b.Pop()
 
 	dc := render.NewContext(100, 80)
@@ -94,9 +100,7 @@ func TestCompositeToContext_ClipRRectRoundsCorner(t *testing.T) {
 	b := scene.NewLayerBuilder()
 	b.PushClipRRect(10, 10, 60, 60, 20)
 	pl := b.AddPicture(true)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(10, 10, 60, 60, 1, 0, 0, 1)
-	})
+	pl.SetRecording(recordFillRect(90, 90, 10, 10, 60, 60, 1, 0, 0, 1))
 	b.Pop()
 
 	dc := render.NewContext(90, 90)
@@ -122,14 +126,10 @@ func TestCompositeFramePacket_OverlayAboveMain(t *testing.T) {
 	scene.ResetLayerIDGen()
 	main := scene.NewLayerBuilder()
 	pl := main.AddPicture(true)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 80, 80, 0, 0, 1, 1) // blue full
-	})
+	pl.SetRecording(recordFillRect(80, 80, 0, 0, 80, 80, 0, 0, 1, 1)) // blue full
 	ov := scene.NewLayerBuilder()
 	opl := ov.AddPicture(true)
-	opl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(20, 20, 20, 20, 1, 0, 0, 1) // red patch
-	})
+	opl.SetRecording(recordFillRect(80, 80, 20, 20, 20, 20, 1, 0, 0, 1)) // red patch
 	pkt := main.BuildPacket(1, 1, 80, 80)
 	pkt.Overlay = ov.Root()
 
@@ -160,9 +160,7 @@ func TestCompositeToContext_OpacityDimsContent(t *testing.T) {
 	b := scene.NewLayerBuilder()
 	b.PushOpacity(0.4)
 	pl := b.AddPicture(true)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(10, 10, 40, 40, 1, 0, 0, 1)
-	})
+	pl.SetRecording(recordFillRect(60, 60, 10, 10, 40, 40, 1, 0, 0, 1))
 	b.Pop()
 
 	dc := render.NewContext(60, 60)
@@ -189,14 +187,10 @@ func TestCompositeToContext_BackdropFilter(t *testing.T) {
 	// container: [picture blue bar, backdrop{picture red patch}]
 	b := scene.NewLayerBuilder()
 	bg := b.AddPicture(true)
-	bg.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(28, 4, 8, 56, 0, 0, 1, 1)
-	})
+	bg.SetRecording(recordFillRect(64, 64, 28, 4, 8, 56, 0, 0, 1, 1))
 	bd := b.PushBackdropFilter(2.5, 1)
 	child := b.AddPicture(true)
-	child.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(10, 10, 44, 44, 1, 0, 0, 0.35)
-	})
+	child.SetRecording(recordFillRect(64, 64, 10, 10, 44, 44, 1, 0, 0, 0.35))
 	b.Pop()
 	_ = bd
 
@@ -223,16 +217,17 @@ func TestCountPictureOps_PacketSum(t *testing.T) {
 	scene.ResetLayerIDGen()
 	b := scene.NewLayerBuilder()
 	p1 := b.AddPicture(true)
-	p1.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 10, 10, 1, 0, 0, 1)
-		r.StrokeRect(0, 0, 10, 10, 2, 0, 0, 1, 1)
-		r.DrawString("pic", 1, 1, nil, 0, 0, 1, 1)
-	})
+	rec := recording.NewRecorder(100, 100)
+	rec.SetRGBA(1, 0, 0, 1)
+	rec.FillRectangle(0, 0, 10, 10)
+	rec.SetStrokeRGBA(0, 0, 1, 1)
+	rec.SetLineWidth(2)
+	rec.StrokeRectangle(0, 0, 10, 10)
+	rec.DrawString("pic", 1, 1)
+	p1.SetRecording(rec.FinishRecording())
 	b.PushBoundary(0, 0, "nest", true)
 	p2 := b.AddPicture(true)
-	p2.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(20, 20, 5, 5, 0, 1, 0, 1)
-	})
+	p2.SetRecording(recordFillRect(100, 100, 20, 20, 5, 5, 0, 1, 0, 1))
 	b.Pop()
 
 	pkt := b.BuildPacket(1, 1, 100, 100)

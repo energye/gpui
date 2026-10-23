@@ -9,26 +9,6 @@ import (
 	"github.com/energye/gpui/ui/scene"
 )
 
-// TestPicture_Bounds accumulates geometry bounds from FillRect/StrokeRect and
-// leaves text-only pictures with empty (unknown) bounds.
-func TestPicture_Bounds(t *testing.T) {
-	p := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		r.FillRect(10, 20, 30, 40, 1, 0, 0, 1)
-		r.StrokeRect(100, 200, 5, 5, 1, 0, 1, 0, 1)
-	})
-	b := p.Bounds
-	if b.Min.X != 10 || b.Min.Y != 20 || b.Max.X != 105 || b.Max.Y != 205 {
-		t.Fatalf("Bounds=%v want (10,20)-(105,205)", b)
-	}
-	// Text-only picture: unknown bounds stay empty.
-	pt := scene.RecordPicture(func(r *scene.PictureRecorder) {
-		r.DrawString("hi", 1, 2, nil, 0, 0, 0, 1)
-	})
-	if !pt.Bounds.Empty() {
-		t.Fatalf("text-only Bounds=%v want empty", pt.Bounds)
-	}
-}
-
 // TestCompositeFramePacketTextured_Fallback matches CompositeToContext output
 // on the no-GPU fallback path (no offscreen textures → vector replay) while
 // collecting dirty-layer damage rects.
@@ -39,9 +19,7 @@ func TestCompositeFramePacketTextured_Fallback(t *testing.T) {
 	b.PushClipRect(0, 0, 40, 30)
 	pl := b.AddPicture(true)
 	pl.SetCacheKey(101)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 40, 30, 1, 0, 0, 1)
-	})
+	pl.SetRecording(recordFillRect(40, 30, 0, 0, 40, 30, 1, 0, 0, 1))
 	b.Pop() // clip
 	b.Pop() // offset
 	pkt := b.BuildPacket(1, 1, 100, 80)
@@ -87,9 +65,7 @@ func TestCompositeFramePacketTextured_OpacityGroup(t *testing.T) {
 	b.PushOpacity(0.5)
 	pl := b.AddPicture(true)
 	pl.SetCacheKey(202)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 10, 10, 1, 0, 0, 1)
-	})
+	pl.SetRecording(recordFillRect(10, 10, 0, 0, 10, 10, 1, 0, 0, 1))
 	b.Pop() // opacity
 	b.Pop() // offset
 	pkt := b.BuildPacket(1, 1, 50, 50)

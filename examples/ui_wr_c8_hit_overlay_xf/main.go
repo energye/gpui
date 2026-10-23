@@ -745,8 +745,8 @@ func saveSnap(app *embedder.PipelineApp, pipe *rendering.PipelineOwner, root ren
 		} else {
 			scene.Walk(pkt.Root, func(l scene.Layer) {
 				if pl, ok := l.(*scene.PictureLayer); ok && pl.CacheKey == 33 {
-					fmt.Fprintf(os.Stderr, "live-probe: C layer ops=%d bounds=%v valid=%v needsRaster=%v\n",
-						pl.Picture.OpCount(), pl.Picture.Bounds, pl.Picture.Valid, pl.NeedsRaster)
+					fmt.Fprintf(os.Stderr, "live-probe: C layer ops=%d bounds=%v visible=%v needsRaster=%v\n",
+						pl.Recording.PaintOpCount(), pl.Recording.Bounds(), pl.Recording.HasVisiblePaint(), pl.NeedsRaster)
 				}
 			})
 			beforeSkip := app.PictureTextures().FrameSkip.Load()

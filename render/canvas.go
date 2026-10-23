@@ -76,6 +76,12 @@ type Canvas interface {
 	SetRGBA(r, g, b, a float64)
 	SetFillBrush(b Brush)
 	SetStrokeBrush(b Brush)
+	// FillBrush / StrokeBrush report the current paint brushes. A display-list
+	// player needs them: it saves the ambient brushes on entry and puts them
+	// back on exit, so replaying onto a canvas cannot leak paint state into
+	// whatever the caller draws next.
+	FillBrush() Brush
+	StrokeBrush() Brush
 	SetFillPattern(pattern Pattern)
 	SetStrokePattern(pattern Pattern)
 	SetFillRule(rule FillRule)

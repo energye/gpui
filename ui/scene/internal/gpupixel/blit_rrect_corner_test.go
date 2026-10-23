@@ -28,20 +28,24 @@ func TestCompositeFramePacketTextured_BlitzRRectCornerPixels(t *testing.T) {
 	}
 	defer release()
 
+	buildPkt := func(dirty bool) *scene.FramePacket {
+		b := scene.NewLayerBuilder()
+		b.PushOffset(10, 10)
+		b.PushOffset(20, 10) // clip lands at (30,30)-(70,70), radius 8
+		b.PushClipRRect(0, 0, 40, 40, 8)
+		pl := b.AddPicture(dirty)
+		pl.SetCacheKey(9101)
+		pl.SetRecording(gpuiFillRect(50, 50, 0, 0, 50, 50, 77/255., 204/255., 115/255., 1)) // green overfill
+		b.Pop() // clip
+		b.Pop() // inner offset
+		b.Pop() // outer offset
+		return b.BuildPacket(1, 1, W, H)
+	}
+	// The steady frame has to be built clean: re-presenting the dirty packet is
+	// sustained churn, and churn is refused a texture by admission, which would
+	// test the policy instead of the blit path this window exists for.
 	scene.ResetLayerIDGen()
-	b := scene.NewLayerBuilder()
-	b.PushOffset(10, 10)
-	b.PushOffset(20, 10) // clip lands at (30,30)-(70,70), radius 8
-	b.PushClipRRect(0, 0, 40, 40, 8)
-	pl := b.AddPicture(true)
-	pl.SetCacheKey(9101)
-	pl.Record(func(r *scene.PictureRecorder) {
-		r.FillRect(0, 0, 50, 50, 77/255., 204/255., 115/255., 1) // green overfill
-	})
-	b.Pop() // clip
-	b.Pop() // inner offset
-	b.Pop() // outer offset
-	pkt := b.BuildPacket(1, 1, W, H)
+	pkt := buildPkt(true)
 
 	tex := scene.NewPictureTextureCache(dc, 8)
 	for i := 0; i < 3; i++ {
@@ -59,7 +63,7 @@ func TestCompositeFramePacketTextured_BlitzRRectCornerPixels(t *testing.T) {
 	} else if st.ReplayedOps != 0 {
 		t.Fatalf("frame1 replayed %d ops want 0", st.ReplayedOps)
 	}
-	if st2 := scene.CompositeFramePacketTextured(pkt, dc, tex); st2.ReplayedOps != 0 {
+	if st2 := scene.CompositeFramePacketTextured(buildPkt(false), dc, tex); st2.ReplayedOps != 0 {
 		t.Fatalf("steady frame replayed %d ops want 0 (pure blit)", st2.ReplayedOps)
 	}
 	if err := dc.FlushGPUWithView(view, W, H); err != nil {

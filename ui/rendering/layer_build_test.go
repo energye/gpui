@@ -23,10 +23,10 @@ func TestBuildLayerTree_LeafPictures(t *testing.T) {
 			if pl.CacheKey != 0 {
 				cacheKeyCount++
 			}
-			if pl.Picture.OpCount() == 0 {
-				t.Fatalf("leaf picture has no ops")
+			if pl.Recording.PaintOpCount() == 0 {
+				t.Fatalf("leaf recording has no paint commands")
 			}
-			b := pl.Picture.Bounds
+			b := pl.Recording.Bounds()
 			if b.Dx() != 60 || b.Dy() != 40 {
 				t.Fatalf("Bounds=%v want 60x40", b)
 			}

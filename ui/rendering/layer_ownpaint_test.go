@@ -13,35 +13,39 @@ type paintWrapper struct {
 	*rendering.RenderBox
 }
 
-func findExtra(l scene.Layer) (found bool, w, h int) {
+// findPaintedPicture returns whether any keyed picture layer carries visible
+// recording content of exactly w×h (the wrapper's own 100×40 border paint).
+func findPaintedPicture(l scene.Layer, w, h int) bool {
 	if l == nil {
-		return false, 0, 0
+		return false
 	}
 	if pl, ok := l.(*scene.PictureLayer); ok && pl != nil {
-		if pl.RasterExtra != nil {
-			return true, pl.ExtraBounds.Dx(), pl.ExtraBounds.Dy()
+		if pl.CacheKey != 0 && pl.Recording.HasVisiblePaint() {
+			b := pl.Recording.Bounds()
+			if b.Dx() == w && b.Dy() == h {
+				return true
+			}
 		}
 	}
 	for _, c := range l.Children() {
-		if ok, w, h := findExtra(c); ok {
-			return ok, w, h
+		if findPaintedPicture(c, w, h) {
+			return true
 		}
 	}
-	return false, 0, 0
+	return false
 }
 
 // TestLayerTree_WrapperOnPaintCaptured locks that a wrapper embedding
-// *RenderBox (InputBox family pattern) gets its OnPaint captured as a
-// RasterExtra picture layer so the retained path renders box borders.
+// *RenderBox (InputBox family pattern) gets its OnPaint captured into the
+// layer's recording during the UI-side build (the retained path draws box
+// borders from it; there is no raster-thread closure any more).
 func TestLayerTree_WrapperOnPaintCaptured(t *testing.T) {
 	inner := rendering.NewRenderBox()
 	w := &paintWrapper{RenderBox: inner}
 	inner.Init(w)
 	w.FixedWidth, w.FixedHeight = 100, 40
-	painted := false
 	w.OnPaint = func(pc *rendering.PaintContext, size rendering.Size) {
-		painted = true
-		_ = painted
+		rendering.FillRect(pc, 0, 0, size.Width, size.Height, 1, 0, 0, 1)
 	}
 	// Wrapper boxes own children (InputBox owns clip/text/caret).
 	kid := rendering.NewRenderColorBox(10, 10, 1, 0, 0, 1)
@@ -54,11 +58,7 @@ func TestLayerTree_WrapperOnPaintCaptured(t *testing.T) {
 	if pkt == nil || pkt.Root == nil {
 		t.Fatal("nil packet/root")
 	}
-	ok, ew, eh := findExtra(pkt.Root)
-	if !ok {
-		t.Fatal("wrapper OnPaint missing from layer tree (no RasterExtra layer)")
-	}
-	if ew != 100 || eh != 40 {
-		t.Fatalf("ExtraBounds=(%d,%d) want (100,40)", ew, eh)
+	if !findPaintedPicture(pkt.Root, 100, 40) {
+		t.Fatal("wrapper OnPaint missing from layer tree (no visible 100x40 recording)")
 	}
 }

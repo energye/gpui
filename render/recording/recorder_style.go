@@ -81,6 +81,16 @@ func (r *Recorder) SetFillBrush(brush render.Brush) {
 	r.SetFillStyle(FromRenderBrush(brush))
 }
 
+// FillBrush reports the recorder's current fill brush, so a playback backend
+// can save and restore ambient paint state through the render.Canvas surface.
+// A pattern brush has no render.Brush form (render.Brush is sealed), so it
+// reads back as solid black here — exactly like Context, whose paint holds one
+// brush and drops a pattern it cannot express.
+func (r *Recorder) FillBrush() render.Brush { return ToRenderBrush(r.fillBrush) }
+
+// StrokeBrush reports the recorder's current stroke brush (see FillBrush).
+func (r *Recorder) StrokeBrush() render.Brush { return ToRenderBrush(r.strokeBrush) }
+
 // SetStrokeBrush sets the stroke brush from a render.Brush.
 func (r *Recorder) SetStrokeBrush(brush render.Brush) {
 	r.SetStrokeStyle(FromRenderBrush(brush))

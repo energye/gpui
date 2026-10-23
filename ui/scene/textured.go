@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/text"
+	"github.com/energye/gpui/render/recording"
 )
 
 // PictureTextureCache keeps offscreen GPU textures for PictureLayers across
@@ -41,24 +41,27 @@ import (
 // RESOURCE/COLOR_TARGET" whenever a re-record coalesced with a stashed blit
 // of the same texture). The other slot keeps serving blits while the written
 // slot is refreshed; slots are reallocated only when their size changes
-// (resize / recordLocal↔recordWith switch), which keeps animated layers at
+// (resize / recordLocal↔record switch), which keeps animated layers at
 // zero GPU allocations per frame (no RSS slope from per-frame churn). The
 // released view stays deferred a couple of frames so in-flight command
 // buffers never see a destroyed texture.
 //
-// Textures are normally bounds-sized (picture geometry + AA pad) for the
-// common pure-translate case, so a large grid of small layers stays far below
-// the GPU's texture budget; layers under clips / transforms / rotation or with
-// text-only pictures fall back to full-window textures. Picture ops are
-// recorded in the same layer-local coordinate space the composite walk
-// establishes (via translate/clip), then blit back 1:1. Entries not used
-// for a frame are evicted (LRU cap). Without GPU (CreateOffscreenTexture
-// returns nil) every operation degrades to a no-op and callers fall back to
-// direct vector replay — correctness never depends on the cache.
+// Textures are normally bounds-sized (recording content bounds + AA pad) for
+// the common pure-translate case, so a large grid of small layers stays far
+// below the GPU's texture budget; recordings without content bounds (filters
+// that report the whole canvas) fall back to full-window textures. Each
+// layer's display list is built once on the UI thread (render/recording) and
+// replayed here as an immutable object — the raster thread never touches live
+// render-tree state. Replay runs in the same layer-local coordinate space the
+// composite walk establishes (via translate/clip), then blits back 1:1.
+// Entries not used for a frame are evicted (LRU cap). Without GPU
+// (CreateOffscreenTexture returns nil) every operation degrades to a no-op
+// and callers fall back to direct vector replay — correctness never depends
+// on the cache.
 //
 // Thread-safety (T3 pinned call sites, Flutter raster-thread pattern): the
 // cache draws only on the raster thread — CompositeFramePacketTextured
-// (phase 1 record + phase 2 blit), record/recordWith/recordLocalWith, blit,
+// (phase 1 record + phase 2 blit), record/recordLocal, blit,
 // BeginFrame, allocEntry, evictForNew all run serialized in the raster
 // FrameJob. Frame-boundary housekeeping is record-only from any thread:
 // Resize stores a pending size applied at the next raster BeginFrame, Clear
@@ -447,8 +450,8 @@ func defaultSlotAlloc(c *PictureTextureCache, w, h int) (*pictureTextureSlot, bo
 
 // Resize records the full-window texture budget (record-only, T3). Any thread
 // may call; the size is applied at the next raster BeginFrame before any
-// record/blit of that frame. Entries are NOT cleared: recordWith/
-// recordLocalWith rebuild a view when its recorded size no longer matches,
+// record/blit of that frame. Entries are NOT cleared: record/
+// recordLocal rebuild a view when its recorded size no longer matches,
 // so unchanged layers keep their textures across a resize and only affected
 // layers re-record. Record-only keeps dimensions from changing mid-frame
 // under a concurrent raster record.
@@ -680,16 +683,6 @@ func (c *PictureTextureCache) releaseEntryLocked(e *pictureTextureEntry) {
 	}
 }
 
-// record re-records picture content into the cached texture for id (or creates
-// the texture on first use). Returns the picture geometry bounds. Degrades to a
-// no-op returning false when GPU textures are unavailable.
-func (c *PictureTextureCache) record(id uint64, pic *Picture) (image.Rectangle, bool) {
-	return c.recordWith(id, pic, nil)
-}
-
-// recordWith is record plus an optional raster-thread extra paint (RenderBox
-// OnPaint layers): when extra is non-nil it draws after pic.Replay (or alone
-// for empty pictures) in the same surface coordinate space.
 // dropTransparentLocked discards the cached texture for a re-record whose
 // replay queues no work: a no-op flush encodes no pass, so the reused slot
 // would keep stale pixels (stuck caret). A discarded live texture leaves a
@@ -712,7 +705,7 @@ func (c *PictureTextureCache) dropTransparentLocked(id uint64, fallback image.Re
 	}
 	e.contentSlot = -1
 	// Keep previous bounds for the damage union (shrink must repaint the
-	// cleared tail; uniform with recordWith/recordLocalWith).
+	// cleared tail; uniform with record/recordLocal).
 	e.prevBounds = e.bounds
 	e.bounds = b
 	e.lastUse = c.stamp
@@ -757,54 +750,20 @@ func passScratchRect(dc *render.Context, b image.Rectangle, tx, ty float64, pad 
 		int(math.Ceil(x1))+pad, int(math.Ceil(y1))+pad)
 }
 
-// passScratchNeeded reports whether a record pass can produce CPU pixels
-// that would miss the texture without the scratch swap: always true with
-// an OnPaint callback (arbitrary draws, e.g. tinted atlas sprites), else
-// true when the picture holds image draws (DrawImageEx can CPU-fallback).
-// Pure vector/text pictures queue GPU only, so the swap is skipped at zero
-// behavior change (hot text bands re-record with memset/memcmp cost ~0).
-func passScratchNeeded(pic *Picture, extra func(dc *render.Context)) bool {
-	if extra != nil {
-		return true
-	}
-	if pic == nil {
-		return false
-	}
-	for i := range pic.Ops {
-		if pic.Ops[i].Kind == OpDrawImage {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc *render.Context)) (image.Rectangle, bool) {
+// record re-records a recording's content into the cached full-window
+// texture for id (or creates the texture on first use). Returns the recorded
+// content bounds. Degrades to a no-op returning false when GPU textures are
+// unavailable.
+func (c *PictureTextureCache) record(id uint64, rec *recording.Recording) (image.Rectangle, bool) {
 	if c == nil || c.dc == nil || id == 0 {
-		return image.Rectangle{}, false
-	}
-	if pic != nil && pic.IsEmpty() && extra == nil {
-		// Fully empty re-record: the stale texture must go, but a viewless
-		// shell keeps the previous region so phase 2 still damages the
-		// cleared area (IME preedit deleted to empty ghosted until an
-		// incidental full repaint without this).
-		var gb image.Rectangle
-		if pic != nil {
-			gb = pic.Bounds
-		}
-		c.mu.Lock()
-		c.dropTransparentLocked(id, gb)
-		c.mu.Unlock()
 		return image.Rectangle{}, false
 	}
 	// A transparent re-record must not keep stale slot pixels: fall back to
 	// (correctly empty) vector replay, keeping damage for the cleared region.
-	if extra == nil && !pic.hasVisibleOps() {
-		var gb image.Rectangle
-		if pic != nil {
-			gb = pic.Bounds
-		}
+	// A recording with no draw commands is transparent by construction.
+	if !rec.HasVisiblePaint() {
 		c.mu.Lock()
-		c.dropTransparentLocked(id, gb)
+		c.dropTransparentLocked(id, rec.Bounds())
 		c.mu.Unlock()
 		return image.Rectangle{}, false
 	}
@@ -820,30 +779,23 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 	// on the surface dc (otherwise every re-record would add layer-local
 	// rects at the origin to the present damage union).
 	//
-	// Isolated sub-pass: same pass-ownership suspension as recordLocalWith —
+	// Isolated sub-pass: same pass-ownership suspension as recordLocal —
 	// the record's commands/flush must not touch the suspended main stream
-	// (C8 root-cause fix; see the longer comment in recordLocalWith).
+	// (C8 root-cause fix; see the longer comment in recordLocal).
 	defer c.dc.BeginOffscreenPass()()
-	// Retained-record CPU scratch (render.ContextPassScratch): OnPaint and
-	// picture CPU fallbacks inside this pass land in a scratch pixmap;
-	// commit uploads them into the view before the closing flush. Skipped
-	// for provably GPU-only passes (zero behavior change, hot path free).
+	// Retained-record CPU scratch (render.ContextPassScratch): image
+	// CPU fallbacks inside this pass land in a scratch pixmap; commit uploads
+	// them into the view before the closing flush. Skipped for provably
+	// GPU-only recordings (zero behavior change, hot path free).
 	restoreScratch := func() {}
 	scratchOK := false
-	if passScratchNeeded(pic, extra) {
+	if rec.NeedsCPUPassScratch() {
 		restoreScratch, scratchOK = c.dc.BeginPassScratch(
 			passScratchRect(c.dc, image.Rect(0, 0, c.width, c.height), 0, 0, 2))
 	}
 	defer restoreScratch()
 	c.dc.SetDamageTracking(false)
-	if pic != nil {
-		pic.Replay(c.dc)
-	}
-	if extra != nil {
-		c.dc.Push()
-		extra(c.dc)
-		c.dc.Pop()
-	}
+	_ = rec.Playback(recording.NewCanvasBackend(c.dc))
 	if scratchOK {
 		if _, err := c.dc.CommitPassScratchToView(e.slots[e.contentSlot].view); err != nil {
 			fmt.Fprintf(os.Stderr, "TXSCRATCHERR id=%d w=%d h=%d err=%#v\n", id, c.width, c.height, err)
@@ -862,34 +814,24 @@ func (c *PictureTextureCache) recordWith(id uint64, pic *Picture, extra func(dc 
 		delete(c.entries, id)
 		return image.Rectangle{}, false
 	}
-	if pic != nil {
-		// Damage must cover the cleared tail on shrink (previous ∪ current).
-		e.prevBounds = e.bounds
-		e.bounds = pic.Bounds
-	} else {
-		e.prevBounds = e.bounds
-		e.bounds = image.Rectangle{}
-	}
+	// Damage must cover the cleared tail on shrink (previous ∪ current).
+	e.prevBounds = e.bounds
+	e.bounds = rec.Bounds()
 	if os.Getenv("WR_RESIZE_DBG") == "1" {
 		fmt.Fprintf(os.Stderr, "DBG record full id=%d w=%d h=%d\n", id, c.width, c.height)
 	}
 	e.lastUse = c.stamp
 	e.recordedIn = c.recordFrame
 	c.usedNow[id] = struct{}{}
-	cause := "full"
-	if extra != nil {
-		cause = "full-extra"
-	}
-	c.noteRerecord(id, cause)
+	c.noteRerecord(id, "full")
 	c.FrameRerecord.Add(1)
 	return e.bounds, true
 }
 
 // logFullWindow names one full-window (bounds-less) record for the
-// WR_TEXDBG=1 probe: each cache key logs once per process — op-kind
-// mix, RasterExtra presence, ExtraBounds and picture Bounds. The why tag
-// tells the phase-1 decision: "skip-extra" (no texture, vector fallback)
-// or "full-record" (~4MB double-buffered texture). Zero cost unless the
+// WR_TEXDBG=1 probe: each cache key logs once per process — recording length,
+// visibility and content bounds. The why tag tells the phase-1 decision
+// ("full-record" = ~4MB double-buffered texture). Zero cost unless the
 // env var is set.
 func (c *PictureTextureCache) logFullWindow(pl *PictureLayer, why string) {
 	if c == nil || pl == nil || os.Getenv("WR_TEXDBG") != "1" {
@@ -904,32 +846,19 @@ func (c *PictureTextureCache) logFullWindow(pl *PictureLayer, why string) {
 		return
 	}
 	c.texDbgSeen[pl.CacheKey] = struct{}{}
-	counts := map[PictureOpKind]int{}
-	for i := range pl.Picture.Ops {
-		counts[pl.Picture.Ops[i].Kind]++
-	}
-	fmt.Fprintf(os.Stderr, "TEXDBG why=%s key=%d nops=%d kinds=%v rasterExtra=%v extraBounds=%v picBounds=%v\n",
-		why, pl.CacheKey, len(pl.Picture.Ops), counts, pl.RasterExtra != nil, pl.ExtraBounds, pl.Picture.Bounds)
+	fmt.Fprintf(os.Stderr, "TEXDBG why=%s key=%d paintOps=%d visible=%v bounds=%v\n",
+		why, pl.CacheKey, pl.Recording.PaintOpCount(), pl.Recording.HasVisiblePaint(), pl.Recording.Bounds())
 }
 
 // pictureRecordBounds resolves the geometry a bounds-sized record of pl
-// would use: tracked picture bounds, measured text bounds, or the OnPaint
-// paint bounds. False when the layer has no bounds (full-surface record).
-func pictureRecordBounds(tex *PictureTextureCache, pl *PictureLayer) (image.Rectangle, bool) {
-	if tex == nil || pl == nil {
+// would use: the recording's content footprint (measured on the UI thread at
+// FinishRecording, text included). False when the recording carries no
+// geometry (full-surface record).
+func pictureRecordBounds(pl *PictureLayer) (image.Rectangle, bool) {
+	if pl == nil {
 		return image.Rectangle{}, false
 	}
-	b := pl.Picture.Bounds
-	if b.Empty() {
-		if tb, ok := tex.measureTextBounds(&pl.Picture); ok {
-			b = tb
-		}
-	}
-	// OnPaint layers (RasterExtra) fall back to their declared paint bounds
-	// so they still get cheap bounds-sized textures.
-	if b.Empty() && !pl.ExtraBounds.Empty() {
-		b = pl.ExtraBounds
-	}
+	b := pl.Recording.Bounds()
 	return b, !b.Empty()
 }
 
@@ -956,32 +885,20 @@ func (c *PictureTextureCache) BoundsMismatch(id uint64, b image.Rectangle) bool 
 	return e.bounds.Dx() != b.Dx() || e.bounds.Dy() != b.Dy()
 }
 
-// recordLocal records a picture into a texture sized to its geometry bounds
-// (plus AA pad) instead of the full window — the common retained case (a cell
-// or block) then costs a tiny RT instead of a full-surface one. The caller must
-// be at a pure-translate CTM (no clips, rotation or scale): the layer-local
-// origin is cancelled with a translate so ops land in the RT starting at
-// b.Min (text bounds may start above the baseline, hence the offset).
-func (c *PictureTextureCache) recordLocal(id uint64, pic *Picture, b image.Rectangle) (image.Rectangle, bool) {
-	return c.recordLocalWith(id, pic, b, nil)
-}
-
-// recordLocalWith is recordLocal plus an optional raster-thread extra paint
-// (RenderBox OnPaint layers, see PictureLayer.RasterExtra). The extra callback
-// draws after pic.Replay in the same layer-local (translated) coordinate space.
-func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.Rectangle, extra func(dc *render.Context)) (image.Rectangle, bool) {
+// recordLocal records a display list into a texture sized to its content
+// bounds (plus AA pad) instead of the full window — the common retained case
+// (a cell or block) then costs a tiny RT instead of a full-surface one. The
+// caller must be at a pure-translate CTM (no clips, rotation or scale): the
+// layer-local origin is cancelled with a translate so commands land in the RT
+// starting at b.Min (text bounds may start above the baseline, hence the
+// offset).
+func (c *PictureTextureCache) recordLocal(id uint64, rec *recording.Recording, b image.Rectangle) (image.Rectangle, bool) {
 	if c == nil || c.dc == nil || id == 0 {
 		return image.Rectangle{}, false
 	}
-	if pic != nil && pic.IsEmpty() && extra == nil {
-		// Same shell contract as recordWith (bounds-sized variant).
-		c.mu.Lock()
-		c.dropTransparentLocked(id, b)
-		c.mu.Unlock()
-		return image.Rectangle{}, false
-	}
-	// Same stale-slot guard as recordWith (bounds-sized variant).
-	if extra == nil && !pic.hasVisibleOps() {
+	// Same stale-slot guards as record (bounds-sized variant): a transparent
+	// re-record drops the texture and keeps damage for the cleared region.
+	if !rec.HasVisiblePaint() {
 		c.mu.Lock()
 		c.dropTransparentLocked(id, b)
 		c.mu.Unlock()
@@ -1044,25 +961,20 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	defer c.dc.BeginOffscreenPass()()
 	ox, oy := c.dc.TransformPoint(0, 0)
 	tx, ty := -ox/scale-float64(b.Min.X), -oy/scale-float64(b.Min.Y)
-	// Retained-record CPU scratch (render.ContextPassScratch): OnPaint and
-	// picture CPU fallbacks inside this pass land in a scratch pixmap;
-	// commit uploads them into the view before the closing flush. Skipped
-	// for provably GPU-only passes (zero behavior change, hot path free).
+	// Retained-record CPU scratch (render.ContextPassScratch): image CPU
+	// fallbacks inside this pass land in a scratch pixmap; commit uploads
+	// them into the view before the closing flush. Skipped for provably
+	// GPU-only recordings (zero behavior change, hot path free).
 	restoreScratch := func() {}
 	scratchOK := false
-	if passScratchNeeded(pic, extra) {
+	if rec.NeedsCPUPassScratch() {
 		restoreScratch, scratchOK = c.dc.BeginPassScratch(passScratchRect(c.dc, b, tx, ty, 2))
 	}
 	defer restoreScratch()
 	c.dc.Push()
 	c.dc.Translate(tx, ty)
 	c.dc.SetDamageTracking(false)
-	if pic != nil {
-		pic.Replay(c.dc)
-	}
-	if extra != nil {
-		extra(c.dc)
-	}
+	_ = rec.Playback(recording.NewCanvasBackend(c.dc))
 	if scratchOK {
 		if _, err := c.dc.CommitPassScratchToView(e.slots[e.contentSlot].view); err != nil {
 			fmt.Fprintf(os.Stderr, "TXSCRATCHERR id=%d w=%d h=%d err=%v\n", id, w, h, err)
@@ -1092,122 +1004,9 @@ func (c *PictureTextureCache) recordLocalWith(id uint64, pic *Picture, b image.R
 	e.lastUse = c.stamp
 	e.recordedIn = c.recordFrame
 	c.usedNow[id] = struct{}{}
-	cause := "local"
-	if extra != nil {
-		cause = "local-extra"
-	}
-	c.noteRerecord(id, cause)
+	c.noteRerecord(id, "local")
 	c.FrameRerecord.Add(1)
 	return e.bounds, true
-}
-
-// measureTextBounds estimates the layer-local bounds of a text-only picture
-// (geometry ops have no tracked bounds, so text layers would otherwise always
-// record full-window textures with an empty damage rect).
-//
-// Bounds are computed per fallback run with each run face's own metrics and
-// glyph ink boxes:
-//   - A MultiFace's aggregate metrics reflect the first face only, and CJK
-//     ink can rise ~0.12em above the Latin ascent (top strokes of 局/屏/重/
-//     景/损 were clipped by the offscreen viewport).
-//   - Latin accents / descenders and right-side-bearing overhang exceed
-//     metrics/advance estimates too, so each glyph's outline bbox (scaled to
-//     pixels, Y-down from the baseline) is unioned in, padded by 2px to
-//     absorb raster pixel-fit and AA spread.
-func (c *PictureTextureCache) measureTextBounds(pic *Picture) (image.Rectangle, bool) {
-	if c == nil || c.dc == nil || pic == nil || pic.IsEmpty() {
-		return image.Rectangle{}, false
-	}
-	var b image.Rectangle
-	found := false
-	union := func(r image.Rectangle) {
-		if r.Empty() {
-			return
-		}
-		if !found {
-			b = r
-			found = true
-		} else {
-			b = b.Union(r)
-		}
-	}
-	for i := range pic.Ops {
-		op := &pic.Ops[i]
-		if op.Kind == OpDrawShapedGlyphs && len(op.Glyphs) > 0 && op.Face != nil {
-			// Glyph ops carry final positions: no reshape, extents come
-			// straight from pen-relative X/XAdvance plus face metrics.
-			m := op.Face.Metrics()
-			minX, maxX := op.Glyphs[0].X, op.Glyphs[0].X+op.Glyphs[0].XAdvance
-			for _, g := range op.Glyphs[1:] {
-				if g.X < minX {
-					minX = g.X
-				}
-				if end := g.X + g.XAdvance; end > maxX {
-					maxX = end
-				}
-			}
-			union(image.Rect(
-				int(math.Floor(op.X+minX)),
-				int(math.Floor(op.Y-m.Ascent)),
-				int(math.Ceil(op.X+maxX)),
-				int(math.Ceil(op.Y+m.Descent)),
-			))
-			continue
-		}
-		if op.Kind != OpDrawString || op.Text == "" {
-			continue
-		}
-		face := op.Face
-		if face == nil {
-			face = c.dc.Font()
-		}
-		if face == nil {
-			continue
-		}
-		runs := []text.FaceRun{{Face: face, Text: op.Text, X: 0}}
-		if mf, ok := face.(*text.MultiFace); ok {
-			runs = mf.Runs(op.Text)
-		}
-		for _, run := range runs {
-			if run.Face == nil || run.Text == "" {
-				continue
-			}
-			m := run.Face.Metrics()
-			// Metrics floor (per-run face) so shaped/glyph-less cases still
-			// have a bound; per-glyph ink boxes below tighten it.
-			union(image.Rect(
-				int(math.Floor(op.X+run.X)),
-				int(math.Floor(op.Y-m.Ascent)),
-				int(math.Ceil(op.X+run.X+run.Face.Advance(run.Text))),
-				int(math.Ceil(op.Y+m.Descent)),
-			))
-			// Exact per-glyph ink bounds (glyf/CFF bbox scaled to pixels,
-			// Y-down from the baseline). The pen advances with the same
-			// per-glyph rounding as the glyph-mask engine (device-pixel grid
-			// snap, Skia strikeToSource), so long strings don't drift out of
-			// the estimate; the 2px inset absorbs raster pixel-fit + AA.
-			scale := c.dc.DeviceScale()
-			if scale <= 0 {
-				scale = 1
-			}
-			pen := 0.0
-			for g := range run.Face.Glyphs(run.Text) {
-				gb := g.Bounds
-				if gb.MinX == 0 && gb.MaxX == 0 && gb.MinY == 0 && gb.MaxY == 0 {
-					pen += math.Round(g.Advance * scale)
-					continue // space / empty glyph
-				}
-				union(image.Rect(
-					int(math.Floor(op.X+run.X+pen+gb.MinX)),
-					int(math.Floor(op.Y+g.Y+gb.MinY)),
-					int(math.Ceil(op.X+run.X+pen+gb.MaxX)),
-					int(math.Ceil(op.Y+g.Y+gb.MaxY)),
-				).Inset(-2))
-				pen += math.Round(g.Advance * scale)
-			}
-		}
-	}
-	return b, found
 }
 
 // evictForNew makes room for a new texture entry when the LRU cap is reached.
@@ -1524,8 +1323,8 @@ func (c *PictureTextureCache) Len() int {
 }
 
 // RecordForTest is the exported record for unit tests (no-GPU degrades).
-func (c *PictureTextureCache) RecordForTest(id uint64, pic *Picture) (image.Rectangle, bool) {
-	return c.record(id, pic)
+func (c *PictureTextureCache) RecordForTest(id uint64, rec *recording.Recording) (image.Rectangle, bool) {
+	return c.record(id, rec)
 }
 
 // TexturedStats mirrors RasterStats for the textured composite path.
@@ -1605,7 +1404,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// RasterCache::CanRasterCachePicture). Those layers vector-replay in
 	// phase 2 under the live CTM, which is always correct.
 	// Clip-only chains stay CACHEABLE: a clip does not bend coordinates
-	// (the CTM stays a pure translate), so recordLocalWith's translation
+	// (the CTM stays a pure translate), so recordLocal's translation
 	// cancel is exact and the composite-time clip crops the bounds texture
 	// back — this keeps viewport-clipped list cells on cheap textures (C4).
 	var rasterWalk func(l Layer, rotDepth int, noCache bool, underShell bool)
@@ -1634,7 +1433,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		if isPic && !noCache && pl.CacheKey != 0 {
 			_, dirtyID := dirty[pl.LayerID()]
 			record := dirtyID || pl.NeedsRaster || !tex.Has(pl.CacheKey)
-			b, haveBounds := pictureRecordBounds(tex, pl)
+			b, haveBounds := pictureRecordBounds(pl)
 			mismatch := false
 			if !record && haveBounds && tex.BoundsMismatch(pl.CacheKey, b) {
 				// Geometry moved without dirt: a resize recovery frame
@@ -1650,12 +1449,12 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			changed := dirtyID || pl.NeedsRaster
 			admit := true
 			if record && !mismatch && haveBounds && !b.Empty() &&
-				(!pl.Picture.IsEmpty() || pl.RasterExtra != nil) {
+				pl.Recording.PaintOpCount() > 0 {
 				// Texture admission (see admissionThreshold): the first
 				// dirty frame records immediately (one-shot changes keep
 				// today's record wave); sustained churn replays vector
 				// instead; only unchanged sightings past the threshold may
-				// (re)establish the texture. Bounds-less and empty pictures
+				// (re)establish the texture. Bounds-less and empty recordings
 				// keep the legacy immediate record (nothing to damage).
 				if changed {
 					admit = tex.markChanged(pl.CacheKey) < 2
@@ -1672,33 +1471,26 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			} else if record && admit {
 				var ok bool
 				// Bounds-sized recordLocal also under clip/rotate CTM
-				// (restr > 0): the texture only covers the picture geometry;
-				// the composite-time scissor/clip crops it back, identical to
-				// what a full-surface texture would show. This keeps scrolled
-				// list cells (viewport clip → restr=1) off full-window
-				// textures — 200+ of those exhaust GPU memory (C4 measured
-				// "Not enough memory left" + endless shell re-records).
+				// (restr > 0): the texture only covers the recording
+				// geometry; the composite-time scissor/clip crops it back,
+				// identical to what a full-surface texture would show. This
+				// keeps scrolled list cells (viewport clip → restr=1) off
+				// full-window textures — 200+ of those exhaust GPU memory
+				// (C4 measured "Not enough memory left" + endless shell
+				// re-records).
 				if !b.Empty() {
-					_, ok = tex.recordLocalWith(pl.CacheKey, &pl.Picture, b, pl.RasterExtra)
-				} else if pl.RasterExtra != nil {
-					// R6-1: a bounds-less OnPaint takes NO texture. These
-					// are zero-size nodes (TEXBLD probe: dozens of 0×0
-					// boxes in the button window, ~4MB of double-buffered
-					// full-window texture each). The callback contract
-					// paints within the passed size, so empty size means no
-					// output; phase 2 runs the same callback on the vector
-					// fallback (no hole), damage stays empty exactly as a
-					// bounds-less record would, and the next build
-					// re-establishes bounds (and the texture) once layout
-					// gives the node a size.
-					tex.logFullWindow(pl, "skip-extra")
-					ok = false
+					_, ok = tex.recordLocal(pl.CacheKey, pl.Recording, b)
 				} else {
 					// R6-1 probe: full-window records are ~4MB each
 					// double-buffered; log each key's shape once so a debug
-					// run names the layers that need bounds.
+					// run names the layers that need bounds. A recording
+					// with no geometry AND no visible paint (zero-size
+					// OnPaint baked empty) is refused inside record: it
+					// takes no texture and phase 2 vector-replays it, which
+					// paints nothing either — same no-hole contract the
+					// bounds-less OnPaint skip upheld.
 					tex.logFullWindow(pl, "full-record")
-					_, ok = tex.recordWith(pl.CacheKey, &pl.Picture, pl.RasterExtra)
+					_, ok = tex.record(pl.CacheKey, pl.Recording)
 				}
 				if ok {
 					st.RasterLayerCount++
@@ -1749,7 +1541,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 		}
 		childRot := rotDepth + nonTranslating(l)
 		if pl, ok := l.(*PictureLayer); ok {
-			if len(pl.Picture.Ops) > 0 || pl.RasterExtra != nil {
+			if pl.Recording.PaintOpCount() > 0 {
 				blitOK := false
 				if !noCache && pl.CacheKey != 0 {
 					if underShell && tex.blit(pl.CacheKey) {
@@ -1761,17 +1553,11 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				}
 				if !blitOK {
 					// cache miss / no cache key / clip under rotation:
-					// vector replay fallback, RasterExtra included:
-					// OnPaint-only layers (input borders) keep empty
-					// pictures, replay alone would leave a hole.
-					n := pl.Picture.OpCount()
-					pl.Picture.Replay(dc)
-					if pl.RasterExtra != nil {
-						dc.Push()
-						pl.RasterExtra(dc)
-						dc.Pop()
-					}
-					st.ReplayedOps += n
+					// vector replay fallback. OnPaint content is part of
+					// the recording (built on the UI thread), so replay
+					// alone leaves no hole.
+					st.ReplayedOps += pl.Recording.PaintOpCount()
+					_ = pl.Recording.Playback(recording.NewCanvasBackend(dc))
 					// Oversized layers replay vector every frame only while the
 					// replay actually paints inside the surface: stashing the
 					// layer-local bounds would damage the union of the
@@ -1792,14 +1578,14 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 					}
 				}
 				// Vector fallback under rotation/scale or clip-under-rotation:
-				// the picture's footprint is the four-corner CTM transform
+				// the recording's footprint is the four-corner CTM transform
 				// of its bounds — an axis-aligned bounds transform would
 				// under-dirty the corners and leave stale shards on screen.
 				// Cached rotated blits skip this: blit() already emits
 				// old∪new move damage via four-corner transformBounds.
-				if !blitOK && (rotDepth > 0 || noCache) && !pl.Picture.Bounds.Empty() {
+				if !blitOK && (rotDepth > 0 || noCache) && !pl.Recording.Bounds().Empty() {
 					st.DamageRects = append(st.DamageRects,
-						transformBounds4(dc, pl.Picture.Bounds))
+						transformBounds4(dc, pl.Recording.Bounds()))
 				}
 			}
 			// Re-recorded layers damage previous ∪ current bounds. This
@@ -1946,33 +1732,6 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 // (RasterCache::CanRasterCachePicture).
 func nonTranslating(l Layer) int {
 	switch t := l.(type) {
-	case *TransformLayer:
-		if t.Rotation != 0 {
-			return 1
-		}
-		sx, sy := t.EffectiveScale()
-		if sx != 1 || sy != 1 {
-			return 1
-		}
-	}
-	return 0
-}
-
-// restrictive reports whether a layer imposes a clip / rotation / scale —
-// i.e. whether its subtree must record into a full-surface texture (pure
-// translate is required for bounds-sized recordLocal). Retained for the
-// full-window-texture sizing decision in recordWith callers; the cache
-// EXCLUSION decision is nonTranslating() above.
-func restrictive(l Layer) int {
-	switch t := l.(type) {
-	case *ClipRectLayer:
-		if t.W > 0 && t.H > 0 {
-			return 1
-		}
-	case *ClipRRectLayer:
-		if t.W > 0 && t.H > 0 {
-			return 1
-		}
 	case *TransformLayer:
 		if t.Rotation != 0 {
 			return 1

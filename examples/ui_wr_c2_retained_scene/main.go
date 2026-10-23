@@ -39,10 +39,10 @@ import (
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
-	"github.com/energye/gpui/ui/scene"
 	"github.com/energye/gpui/ui/scheduler"
 
 	_ "github.com/energye/gpui/render/gpu"
@@ -193,31 +193,42 @@ func main() {
 	// ------------------------------------------------------------------
 	// 区 D — R5 Picture 录/回放：直绘 vs 回放同构图并排（8 ops）。
 	// ------------------------------------------------------------------
-	pic := scene.RecordPicture(func(r *scene.PictureRecorder) {
+	picRec := recording.NewRecorder(int(picBox), int(picBox))
+	{
 		p := render.NewPath()
 		p.MoveTo(20, 20)
 		p.LineTo(90, 20)
 		p.LineTo(55, 80)
 		p.Close()
-		r.FillPath(p, 0.9, 0.3, 0.2, 1)
+		picRec.SetRGBA(0.9, 0.3, 0.2, 1)
+		_ = picRec.FillPath(p)
 		p2 := render.NewPath()
 		p2.MoveTo(20, 120)
 		p2.LineTo(90, 120)
 		p2.LineTo(90, 160)
 		p2.LineTo(20, 160)
 		p2.Close()
-		r.StrokePath(p2, 3, 0.2, 0.6, 0.9, 1)
-		r.FillRect(20, 190, 80, 40, 0.3, 0.8, 0.4, 1)
-		r.StrokeRect(120, 190, 60, 40, 2, 0.9, 0.8, 0.3, 1)
-		r.DrawImage(src, 150, 20, 0, 0)
-		r.DrawImage(src, 150, 100, 32, 32)
+		picRec.SetRGBA(0.2, 0.6, 0.9, 1)
+		picRec.SetLineWidth(3)
+		_ = picRec.StrokePath(p2)
+		picRec.SetRGBA(0.3, 0.8, 0.4, 1)
+		picRec.FillRectangle(20, 190, 80, 40)
+		picRec.SetRGBA(0.9, 0.8, 0.3, 1)
+		picRec.SetLineWidth(2)
+		picRec.StrokeRectangle(120, 190, 60, 40)
+		picRec.DrawImage(src, 150, 20)
+		picRec.DrawImageEx(src, render.DrawImageOptions{X: 150, Y: 100, DstWidth: 32, DstHeight: 32})
 		if face != nil {
-			r.DrawString("PIC-REPLAY", 20, 260, face, 0.9, 0.9, 0.95, 1)
-			r.DrawString("c2", 120, 260, face, 0.9, 0.8, 0.4, 1)
+			picRec.SetFont(face)
+			picRec.SetRGBA(0.9, 0.9, 0.95, 1)
+			picRec.DrawString("PIC-REPLAY", 20, 260)
+			picRec.SetRGBA(0.9, 0.8, 0.4, 1)
+			picRec.DrawString("c2", 120, 260)
 		}
-	})
-	opCount := pic.OpCount()
-	picBounds := pic.Bounds
+	}
+	pic := picRec.FinishRecording()
+	opCount := pic.PaintOpCount()
+	picBounds := pic.Bounds()
 	boundsTxt := "no-bounds"
 	if !picBounds.Empty() {
 		boundsTxt = fmt.Sprintf("(%d,%d %dx%d)", picBounds.Min.X, picBounds.Min.Y, picBounds.Dx(), picBounds.Dy())
@@ -277,7 +288,7 @@ func main() {
 			return
 		}
 		pc.DC.Translate(pc.OriginX, pc.OriginY)
-		pic.Replay(pc.DC)
+		_ = pic.Playback(recording.NewCanvasBackend(pc.DC))
 	}
 	shell.Body.Align(replay, 0.50, 0.55)
 

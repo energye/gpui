@@ -16,11 +16,8 @@ func TestRecordLocal_RefusesOversized(t *testing.T) {
 	tex := NewPictureTextureCache(dc, 0)
 	alloc, allocs, _ := fakeSlotFactory(t)
 	tex.slotAlloc = alloc
-	pic := RecordPicture(func(r *PictureRecorder) {
-		r.FillRect(0, 0, 200, 100, 1, 0, 0, 1)
-	})
 	big := image.Rect(0, 0, 200, 100)
-	if _, ok := tex.recordLocalWith(7, &pic, big, nil); ok {
+	if _, ok := tex.recordLocal(7, fillRecording(big), big); ok {
 		t.Fatalf("oversized bounds must be refused, not clipped")
 	}
 	if *allocs != 0 {
@@ -47,18 +44,15 @@ func TestRecordLocal_RefusalEvictsStaleEntry(t *testing.T) {
 	tex := NewPictureTextureCache(dc, 0)
 	alloc, _, _ := fakeSlotFactory(t)
 	tex.slotAlloc = alloc
-	pic := RecordPicture(func(r *PictureRecorder) {
-		r.FillRect(0, 0, 40, 20, 1, 0, 0, 1)
-	})
 	small := image.Rect(0, 0, 40, 20)
-	if _, ok := tex.recordLocalWith(7, &pic, small, nil); !ok {
+	if _, ok := tex.recordLocal(7, fillRecording(small), small); !ok {
 		t.Fatal("fitting band must record")
 	}
 	if tex.Len() != 1 {
 		t.Fatalf("Len=%d want 1 after fit record", tex.Len())
 	}
 	big := image.Rect(0, 0, 200, 100)
-	if _, ok := tex.recordLocalWith(7, &pic, big, nil); ok {
+	if _, ok := tex.recordLocal(7, fillRecording(small), big); ok {
 		t.Fatal("oversized bounds must be refused, not clipped")
 	}
 	if tex.Len() != 0 {

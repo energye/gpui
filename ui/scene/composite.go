@@ -10,7 +10,10 @@
 
 package scene
 
-import "github.com/energye/gpui/render"
+import (
+	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
+)
 
 // CompositeStats counts layers visited / pictures drawn during CompositeToContext.
 type CompositeStats struct {
@@ -28,7 +31,7 @@ type CompositeStats struct {
 //	Offset / Boundary → Translate
 //	ClipRect / ClipRRect → clip stack
 //	Transform → TX/TY → Rotate → Scale (matches TransformLayer docs)
-//	Picture → Picture.Replay
+//	Picture → recording playback onto dc
 //	Opacity → PushLayer(Normal, opacity) isolation
 //	ColorFilter / ImageFilter → isolate children, Apply*, composite back
 //
@@ -79,13 +82,11 @@ func compositeLayer(l Layer, dc *render.Context, st *CompositeStats) {
 
 	switch t := l.(type) {
 	case *PictureLayer:
-		if len(t.Picture.Ops) > 0 {
-			n := t.Picture.OpCount()
-			t.Picture.Replay(dc)
+		if t.Recording.PaintOpCount() > 0 {
 			st.PicturesDrawn++
-			st.OpsReplayed += n
+			st.OpsReplayed += t.Recording.PaintOpCount()
+			_ = t.Recording.Playback(recording.NewCanvasBackend(dc))
 			t.NeedsRaster = false
-			t.Picture.Valid = true
 		}
 		return // leaf
 

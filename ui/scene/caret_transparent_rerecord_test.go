@@ -71,11 +71,12 @@ func TestCaretTransparentRerecordClearsStale(t *testing.T) {
 			if !ok {
 				return
 			}
-			for i := range pl.Picture.Ops {
-				op := &pl.Picture.Ops[i]
-				if op.Kind == scene.OpFillRect && op.W <= 4 && op.H <= 26 {
-					bar = pl.CacheKey
-				}
+			if pl.Recording.PaintOpCount() == 0 {
+				return
+			}
+			b := pl.Recording.Bounds()
+			if b.Dx() <= 4 && b.Dy() <= 26 {
+				bar = pl.CacheKey
 			}
 		})
 		keys, n := scene.CollectCacheableKeys(pkt)
