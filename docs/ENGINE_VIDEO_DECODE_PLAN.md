@@ -170,6 +170,15 @@ ui/kit video_*            组件层：调 video 拿帧，调 render 画画，不
 
 纹理创建失败、写入失败、无设备，一律回落通用 `DrawImage` 路，保证有画面，同时记 `cpu_fallback_ops`。回退暴涨即红。
 
+### 4.6 未关账登记（2026-10-23 实测，一条现象一条位置，修完勾）
+
+| # | 现象（实测） | 位置 | 归属 | 待办 |
+|---|---|---|---|---|
+| V-1 | **retained 窗上视频整块留白**：同一节点同一帧，实况走查（FullPaint 直绘）能出画面（CPU 收敛取样点 red=32896，清空色 65535），UI 建包出的 retained 封包在该节点矩形上 **0 个可绘制图层**。根因是 retained 建层走查全程不调 `node.Paint()`，视频叶子在层树里没有任何表示 | `ui/embedder/pipeline_app.go:1894-1925`（draw 闭包只 `RasterizeDirty` + `CompositeFramePacketTextured`）、`ui/rendering/video_direct_node.go:165`（`Paint` 无人调）、`ui/rendering/layer_build.go:578`（建层不询问节点）；复现 `ui/rendering/layer_build_video_retained_test.go`（暂以 `TODO(#17/S2b)` SKIP 报数） | 线程线 `ENGINE_THREAD_T_PLAN.md` §18.1 #17 / S2b **C4**（给 `RenderVideo` 建 `scene.TextureLayer`，语义照 Flutter `TextureLayer`：不进纹理缓存、每帧必出损伤子树） | C4 收口：三扇真窗（`video_player` / `video_4k_play` / `video_vr8_embed`）加像素断言（首帧 + 换帧两次采样不同），复现测试从 SKIP 改回 `t.Fatalf` |
+| V-2 | **节点喂帧口没有回落**：`RenderVideo.UploadPlanes` 只要池路不收这帧就直接丢帧（节点连 `hasFrame` 都不置，Paint 无画、回落计数不加）。实测 4 种形状：RGBA 行对齐 64×32 + 有设备 = 收；RGBA 非对齐 32×16（行 128 不满足 256 对齐）+ 有设备 = **丢**；RGBA 64×32 但桥还没挂上设备（`NewVideoBridge(nil)`，各窗要等 ticker 第 30 拍才 `EnsureDevice`）= **丢**；NV12 奇数 33×17 = 丢（`UploadPlanesFrame` 要求宽高皆偶）。同一帧走桥老口 `Show` 则正常收敛（`ok=true fallbacks=1`） | `render/video_bridge.go:167-197`（`UploadFrame` 池 nil / `videoBytesPerRow` 不对齐即 false）、`render/video_bridge.go:318-356`（`UploadPlanesFrame` 偶数门）、`ui/rendering/video_direct_node.go:66-92` | 视频线本线 | §4.1 第 8 条的回落纪律落到节点口：池路不收时走 `Show` 那条 CPU 回落并计数；本文件 v2.6 写的「奇数/异形帧走桥老口兜底记数」实测**在节点口不成立**，随本条一并订正 |
+| V-3 | **跨设备槽失败开放**：槽纹理建在 A 设备、画的却是 B 设备的会话时，`DrawVideoSlot` 照样返回 true、桥记一次 direct 零回落，像素却一个不落（实测取样点仍是清空色 65535，`ctxGPU=true` 证明确有活 GPU 会话）。生产里桥借的是窗口同一共享设备，暂时碰不到；缺的是「槽设备 == 绘制会话设备」这道校验 | `render/context_image_gpu.go:343-397`（只判 `IsDeviceReady`，不判 view 归属）；测量：noop 设备槽 + 真 GPU 上下文，`direct=true ok=true px=65535` | 视频线本线（与 #17/S2b **C4** 的 `TextureSource`/registry 同笔修最省） | C4 的 registry 按 id 解析纹理时把设备一起钉住，归属不符即失败闭合走回落并计数；补一条负向单测 |
+
+
 ---
 
 ## 5. hal 侧：首版够用，加法预留
@@ -267,3 +276,4 @@ ui/kit video_*            组件层：调 video 拿帧，调 render 画画，不
 | v2.4（2026-10-01） | P3-A 五层口径落文档：video 出 NV12 平面 + 线程化解码、池按平面建、render 加平面槽口 + YUV 画口（老整块口留回落）、两后端对称 YUV 程序、17 扇窗换传参 + 对拍单测；跟不上的快片只慢播不报错，独显路不通老实回落。 |
 | v2.5（2026-10-02） | 3.0 第 4 层落地：YUV 转色搬进显卡，一份 WGSL（`render/internal/gpu/shaders/video_yuv.wgsl` + `video_yuv_pipeline.go`）两后端通用（WebGPU 真编译绿，GLES 翻译双纹理映射绿，绑定形状沿用生产双纹理先例）；`DrawVideoPlanes` 真排队，无会话/坏参/变体缺失照样失败闭合走 CPU 转回落，计数口径不变。 |
 | v2.6（2026-10-02） | 3.0 第 5 层落地：窗口只调节点单新口 `RenderVideo.UploadPlanes`（平面走 GPU 转色，奇数/异形帧走桥老口兜底记数），17 扇 19 处全换并逐个编译；2K 真窗 80/80 上传零回落、首尾亮 111.8/110.2、`yuv_ready=1`，p95 31.7 随整机抖动（帧率 59.1 达标，p95 门待压）；离屏逐像素对拍因 1x 适配器无 MSAA 解析路走不通，已删，改由 2K 真窗作证。 |
+| v2.7（2026-10-23） | 新增 §4.6 未关账登记（线程线 S2b/C0 复现顺带查出的三条，全部带实测数字）：V-1 retained 窗视频整块留白（实况走查能出画面、retained 封包 0 图层，根因在建层不调 `node.Paint`，归 #17/S2b C4 的 `TextureLayer`）；V-2 节点喂帧口无回落（非对齐/未挂设备/奇数平面三种形状实测丢帧且不计数，订正 v2.6「奇数/异形帧走桥老口兜底记数」——老口 `Show` 有兜底，节点口没有）；V-3 跨设备槽失败开放（`DrawVideoSlot` 认不出槽不属于当前会话，照记 direct 零回落、像素不落）。本行只登记，不改行为。 |
