@@ -131,6 +131,13 @@ func (p *ResourcePool) ImageCount() int {
 	return len(p.images)
 }
 
+// Images returns the pooled image buffers in insertion order. The result is
+// read-only: a caller that retains the buffers (a packet pinning them against
+// disposal) must not append to or reorder it.
+func (p *ResourcePool) Images() []*render.ImageBuf {
+	return p.images
+}
+
 // AddFont adds a font face to the pool and returns its reference.
 // Font faces are stored directly as they are already immutable and safe to share.
 func (p *ResourcePool) AddFont(face text.Face) FontRef {

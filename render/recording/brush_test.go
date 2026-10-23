@@ -249,13 +249,13 @@ func TestRepeatMode(t *testing.T) {
 	}
 }
 
-func TestBrushFromGG_Solid(t *testing.T) {
-	ggBrush := render.Solid(render.Red)
-	brush := BrushFromGG(ggBrush)
+func TestFromRenderBrush_Solid(t *testing.T) {
+	renderBrush := render.Solid(render.Red)
+	brush := FromRenderBrush(renderBrush)
 
 	solid, ok := brush.(SolidBrush)
 	if !ok {
-		t.Fatalf("BrushFromGG(SolidBrush) returned %T, want SolidBrush", brush)
+		t.Fatalf("FromRenderBrush(SolidBrush) returned %T, want SolidBrush", brush)
 	}
 
 	if solid.Color != render.Red {
@@ -263,17 +263,17 @@ func TestBrushFromGG_Solid(t *testing.T) {
 	}
 }
 
-func TestBrushFromGG_LinearGradient(t *testing.T) {
-	ggBrush := render.NewLinearGradientBrush(0, 0, 100, 0).
+func TestFromRenderBrush_LinearGradient(t *testing.T) {
+	renderBrush := render.NewLinearGradientBrush(0, 0, 100, 0).
 		AddColorStop(0, render.Red).
 		AddColorStop(1, render.Blue).
 		SetExtend(render.ExtendRepeat)
 
-	brush := BrushFromGG(ggBrush)
+	brush := FromRenderBrush(renderBrush)
 
 	linear, ok := brush.(*LinearGradientBrush)
 	if !ok {
-		t.Fatalf("BrushFromGG(LinearGradientBrush) returned %T, want *LinearGradientBrush", brush)
+		t.Fatalf("FromRenderBrush(LinearGradientBrush) returned %T, want *LinearGradientBrush", brush)
 	}
 
 	// Verify conversion
@@ -291,17 +291,17 @@ func TestBrushFromGG_LinearGradient(t *testing.T) {
 	}
 }
 
-func TestBrushFromGG_RadialGradient(t *testing.T) {
-	ggBrush := render.NewRadialGradientBrush(50, 50, 10, 50).
+func TestFromRenderBrush_RadialGradient(t *testing.T) {
+	renderBrush := render.NewRadialGradientBrush(50, 50, 10, 50).
 		SetFocus(30, 30).
 		AddColorStop(0, render.White).
 		AddColorStop(1, render.Black)
 
-	brush := BrushFromGG(ggBrush)
+	brush := FromRenderBrush(renderBrush)
 
 	radial, ok := brush.(*RadialGradientBrush)
 	if !ok {
-		t.Fatalf("BrushFromGG(RadialGradientBrush) returned %T, want *RadialGradientBrush", brush)
+		t.Fatalf("FromRenderBrush(RadialGradientBrush) returned %T, want *RadialGradientBrush", brush)
 	}
 
 	// Verify conversion
@@ -322,16 +322,16 @@ func TestBrushFromGG_RadialGradient(t *testing.T) {
 	}
 }
 
-func TestBrushFromGG_SweepGradient(t *testing.T) {
-	ggBrush := render.NewSweepGradientBrush(50, 50, math.Pi/4).
+func TestFromRenderBrush_SweepGradient(t *testing.T) {
+	renderBrush := render.NewSweepGradientBrush(50, 50, math.Pi/4).
 		AddColorStop(0, render.Red).
 		AddColorStop(1, render.Blue)
 
-	brush := BrushFromGG(ggBrush)
+	brush := FromRenderBrush(renderBrush)
 
 	sweep, ok := brush.(*SweepGradientBrush)
 	if !ok {
-		t.Fatalf("BrushFromGG(SweepGradientBrush) returned %T, want *SweepGradientBrush", brush)
+		t.Fatalf("FromRenderBrush(SweepGradientBrush) returned %T, want *SweepGradientBrush", brush)
 	}
 
 	// Verify conversion
@@ -346,7 +346,7 @@ func TestBrushFromGG_SweepGradient(t *testing.T) {
 	}
 }
 
-func TestBrushFromGG_CustomBrush(t *testing.T) {
+func TestFromRenderBrush_CustomBrush(t *testing.T) {
 	// Create a custom brush via render.CustomBrush
 	// Note: render.CustomBrush implements render.Brush interface
 	custom := render.CustomBrush{
@@ -356,12 +356,12 @@ func TestBrushFromGG_CustomBrush(t *testing.T) {
 		Name: "test-custom",
 	}
 
-	brush := BrushFromGG(custom)
+	brush := FromRenderBrush(custom)
 
 	// Should fallback to SolidBrush with color sampled at origin
 	solid, ok := brush.(SolidBrush)
 	if !ok {
-		t.Fatalf("BrushFromGG(CustomBrush) returned %T, want SolidBrush", brush)
+		t.Fatalf("FromRenderBrush(CustomBrush) returned %T, want SolidBrush", brush)
 	}
 
 	if solid.Color != render.Blue {
@@ -383,17 +383,17 @@ func TestGradientStop(t *testing.T) {
 	}
 }
 
-// BenchmarkBrushFromGG benchmarks brush conversion.
-func BenchmarkBrushFromGG_Solid(b *testing.B) {
+// BenchmarkFromRenderBrush benchmarks brush conversion.
+func BenchmarkFromRenderBrush_Solid(b *testing.B) {
 	brush := render.Solid(render.Red)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = BrushFromGG(brush)
+		_ = FromRenderBrush(brush)
 	}
 }
 
-func BenchmarkBrushFromGG_LinearGradient(b *testing.B) {
+func BenchmarkFromRenderBrush_LinearGradient(b *testing.B) {
 	brush := render.NewLinearGradientBrush(0, 0, 100, 0).
 		AddColorStop(0, render.Red).
 		AddColorStop(0.5, render.Yellow).
@@ -401,6 +401,6 @@ func BenchmarkBrushFromGG_LinearGradient(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = BrushFromGG(brush)
+		_ = FromRenderBrush(brush)
 	}
 }

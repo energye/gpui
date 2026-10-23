@@ -60,12 +60,12 @@ func (r *Recorder) SetStrokeStyle(brush Brush) {
 
 // SetFillBrush sets the fill brush from a render.Brush.
 func (r *Recorder) SetFillBrush(brush render.Brush) {
-	r.SetFillStyle(BrushFromGG(brush))
+	r.SetFillStyle(FromRenderBrush(brush))
 }
 
 // SetStrokeBrush sets the stroke brush from a render.Brush.
 func (r *Recorder) SetStrokeBrush(brush render.Brush) {
-	r.SetStrokeStyle(BrushFromGG(brush))
+	r.SetStrokeStyle(FromRenderBrush(brush))
 }
 
 // SetFillRGB sets the fill color using RGB values (0-1).
@@ -104,22 +104,10 @@ func (r *Recorder) SetLineCap(lc LineCap) {
 	r.commands = append(r.commands, SetLineCapCommand{Cap: lc})
 }
 
-// SetLineCapGG sets the line cap style from render.LineCap.
-func (r *Recorder) SetLineCapGG(lc render.LineCap) {
-	// #nosec G115 -- LineCap enum values are within uint8 range
-	r.SetLineCap(LineCap(lc))
-}
-
 // SetLineJoin sets the line join style.
 func (r *Recorder) SetLineJoin(join LineJoin) {
 	r.lineJoin = join
 	r.commands = append(r.commands, SetLineJoinCommand{Join: join})
-}
-
-// SetLineJoinGG sets the line join style from render.LineJoin.
-func (r *Recorder) SetLineJoinGG(join render.LineJoin) {
-	// #nosec G115 -- LineJoin enum values are within uint8 range
-	r.SetLineJoin(LineJoin(join))
 }
 
 // SetMiterLimit sets the miter limit for line joins.
@@ -161,12 +149,6 @@ func (r *Recorder) ClearDash() {
 func (r *Recorder) SetFillRule(rule FillRule) {
 	r.fillRule = rule
 	r.commands = append(r.commands, SetFillRuleCommand{Rule: rule})
-}
-
-// SetFillRuleGG sets the fill rule from render.FillRule.
-func (r *Recorder) SetFillRuleGG(rule render.FillRule) {
-	// #nosec G115 -- FillRule enum values are within uint8 range
-	r.SetFillRule(FillRule(rule))
 }
 
 // SetAntiAlias enables or disables anti-aliasing for geometry rendering.

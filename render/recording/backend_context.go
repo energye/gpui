@@ -286,7 +286,7 @@ func ApplyBrush(dc *render.Context, brush Brush, fill bool) {
 	if fill {
 		set = dc.SetFillBrush
 	}
-	set(BrushToGG(brush))
+	set(ToRenderBrush(brush))
 }
 
 // ApplyStroke copies a recorded stroke style onto the context.

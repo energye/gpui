@@ -11,6 +11,8 @@
 package recording
 
 import (
+	"image"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/text"
 )
@@ -112,14 +114,20 @@ func NewRecorder(width, height int) *Recorder {
 	}
 }
 
-// FinishRecording returns an immutable Recording containing all recorded commands.
+// FinishRecording returns an immutable Recording containing all recorded
+// commands. The content footprint and the can-it-paint flag are resolved here,
+// on the recording thread (see bounds.go), so a consumer never has to measure
+// shared font faces or read live commands to size or admit a surface.
 // After calling FinishRecording, the Recorder should not be used again.
 func (r *Recorder) FinishRecording() *Recording {
+	s := summarize(r.width, r.height, r.commands, r.resources)
 	return &Recording{
 		width:     r.width,
 		height:    r.height,
 		commands:  r.commands,
 		resources: r.resources,
+		bounds:    s.bounds,
+		visible:   s.visible,
 	}
 }
 
@@ -129,6 +137,40 @@ type Recording struct {
 	width, height int
 	commands      []Command
 	resources     *ResourcePool
+	bounds        image.Rectangle
+	visible       bool
+}
+
+// Bounds returns the recording's content footprint in the recording's own
+// coordinate space — that is, where the geometry lands when playback starts
+// from the identity CTM. It is the layer-local, scale-agnostic space the
+// recorder was drawn in: the raster thread's layer offset and device scale
+// compose onto it at playback, so a consumer sizes and damages a surface by
+// scaling this rect, never by re-measuring the commands.
+//
+// The rect is a superset by construction: clips are not intersected, zero-alpha
+// paint still counts as geometry, and a recording carrying a blur or drop
+// shadow reports the whole canvas, because those filters act on the surface
+// rather than on the command that follows. Empty means nothing was recorded.
+func (r *Recording) Bounds() image.Rectangle {
+	return r.bounds
+}
+
+// HasVisiblePaint reports whether replaying this recording can put a pixel on
+// the surface. Command count is not the question: a recording of empty paths,
+// zero-alpha fills and brush-less geometry is legal but invisible, and feeding
+// one to a texture allocator would spend a surface to show nothing.
+func (r *Recording) HasVisiblePaint() bool {
+	return r.visible
+}
+
+// ImageBufs returns the image buffers the recording draws from, in pool order.
+// A retained packet must hold these for as long as it may replay them: the
+// recording stores buffers by pointer (no pixel copy), so disposing one while a
+// recording still references it leaves a disposed image at playback.
+// The result is read-only.
+func (r *Recording) ImageBufs() []*render.ImageBuf {
+	return r.resources.Images()
 }
 
 // Width returns the width of the recording canvas.

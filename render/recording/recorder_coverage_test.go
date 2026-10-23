@@ -80,21 +80,21 @@ func TestRecorderSetStrokeRGBA(t *testing.T) {
 	}
 }
 
-func TestRecorderSetLineCapGG(t *testing.T) {
+func TestRecorderSetLineCap(t *testing.T) {
 	rec := NewRecorder(100, 100)
-	rec.SetLineCapGG(render.LineCapRound)
+	rec.SetLineCap(render.LineCapRound)
 	r := rec.FinishRecording()
 	if len(r.Commands()) == 0 {
-		t.Error("expected commands after SetLineCapGG")
+		t.Error("expected commands after SetLineCap")
 	}
 }
 
-func TestRecorderSetLineJoinGG(t *testing.T) {
+func TestRecorderSetLineJoin(t *testing.T) {
 	rec := NewRecorder(100, 100)
-	rec.SetLineJoinGG(render.LineJoinBevel)
+	rec.SetLineJoin(render.LineJoinBevel)
 	r := rec.FinishRecording()
 	if len(r.Commands()) == 0 {
-		t.Error("expected commands after SetLineJoinGG")
+		t.Error("expected commands after SetLineJoin")
 	}
 }
 

@@ -250,7 +250,7 @@ func TestRecorderFillRule(t *testing.T) {
 		t.Errorf("fillRule = %v, want FillRuleEvenOdd", rec.fillRule)
 	}
 
-	rec.SetFillRuleGG(render.FillRuleNonZero)
+	rec.SetFillRule(render.FillRuleNonZero)
 	if rec.fillRule != FillRuleNonZero {
 		t.Errorf("fillRule = %v, want FillRuleNonZero", rec.fillRule)
 	}

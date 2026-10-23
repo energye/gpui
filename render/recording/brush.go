@@ -235,18 +235,18 @@ const (
 	RepeatNone
 )
 
-// BrushFromGG converts a render.Brush to a recording.Brush.
+// FromRenderBrush converts a render.Brush to a recording.Brush.
 // This extracts the brush definition for storage in a recording.
-func BrushFromGG(b render.Brush) Brush {
+func FromRenderBrush(b render.Brush) Brush {
 	switch brush := b.(type) {
 	case render.SolidBrush:
 		return SolidBrush{Color: brush.Color}
 	case *render.LinearGradientBrush:
-		return linearGradientFromGG(brush)
+		return linearGradientFromRender(brush)
 	case *render.RadialGradientBrush:
-		return radialGradientFromGG(brush)
+		return radialGradientFromRender(brush)
 	case *render.SweepGradientBrush:
-		return sweepGradientFromGG(brush)
+		return sweepGradientFromRender(brush)
 	default:
 		// For unknown brush types, sample at origin and use as solid color
 		// This is a fallback that preserves color but loses patterns
@@ -255,12 +255,12 @@ func BrushFromGG(b render.Brush) Brush {
 	}
 }
 
-// BrushToGG converts a recording.Brush back to a render.Brush for playback
+// ToRenderBrush converts a recording.Brush back to a render.Brush for playback
 // onto a render.Context. PatternBrush has no render equivalent here: building
 // render's image pattern requires a live context (CreateImagePattern) and the
 // recording only holds an image reference, so a pattern brush degrades to
 // solid black — the same limitation the raster backend has always had.
-func BrushToGG(b Brush) render.Brush {
+func ToRenderBrush(b Brush) render.Brush {
 	switch br := b.(type) {
 	case SolidBrush:
 		return render.Solid(br.Color)
@@ -294,8 +294,8 @@ func BrushToGG(b Brush) render.Brush {
 	}
 }
 
-// linearGradientFromGG converts a render.LinearGradientBrush to recording.LinearGradientBrush.
-func linearGradientFromGG(g *render.LinearGradientBrush) *LinearGradientBrush {
+// linearGradientFromRender converts a render.LinearGradientBrush to recording.LinearGradientBrush.
+func linearGradientFromRender(g *render.LinearGradientBrush) *LinearGradientBrush {
 	stops := make([]GradientStop, len(g.Stops))
 	for i, stop := range g.Stops {
 		stops[i] = GradientStop{Offset: stop.Offset, Color: stop.Color}
@@ -308,8 +308,8 @@ func linearGradientFromGG(g *render.LinearGradientBrush) *LinearGradientBrush {
 	}
 }
 
-// radialGradientFromGG converts a render.RadialGradientBrush to recording.RadialGradientBrush.
-func radialGradientFromGG(g *render.RadialGradientBrush) *RadialGradientBrush {
+// radialGradientFromRender converts a render.RadialGradientBrush to recording.RadialGradientBrush.
+func radialGradientFromRender(g *render.RadialGradientBrush) *RadialGradientBrush {
 	stops := make([]GradientStop, len(g.Stops))
 	for i, stop := range g.Stops {
 		stops[i] = GradientStop{Offset: stop.Offset, Color: stop.Color}
@@ -324,8 +324,8 @@ func radialGradientFromGG(g *render.RadialGradientBrush) *RadialGradientBrush {
 	}
 }
 
-// sweepGradientFromGG converts a render.SweepGradientBrush to recording.SweepGradientBrush.
-func sweepGradientFromGG(g *render.SweepGradientBrush) *SweepGradientBrush {
+// sweepGradientFromRender converts a render.SweepGradientBrush to recording.SweepGradientBrush.
+func sweepGradientFromRender(g *render.SweepGradientBrush) *SweepGradientBrush {
 	stops := make([]GradientStop, len(g.Stops))
 	for i, stop := range g.Stops {
 		stops[i] = GradientStop{Offset: stop.Offset, Color: stop.Color}
