@@ -21,6 +21,21 @@ type ShellChrome struct {
 	HUDH       float64
 }
 
+const (
+	// legendFirstY / legendLineH place legend line i at panel-local
+	// y = legendFirstY + i*legendLineH. Windows that mask a single legend line
+	// out of a golden region read the same numbers through LegendLineY, so the
+	// layout and the mask cannot drift apart.
+	legendFirstY = 36.0
+	legendLineH  = 22.0
+)
+
+// LegendLineY returns the panel-local y of legend line i (0-based).
+func LegendLineY(i int) float64 { return legendFirstY + float64(i)*legendLineH }
+
+// LegendLineH is the vertical pitch of one legend line.
+const LegendLineH = legendLineH
+
 // NewShell builds root + TopBar + Legend + empty Body panel + optional LiveHUD.
 // bodyX is the left edge of the body panel (after legend); legendW default 260.
 func NewShell(winW, winH float64, abilityTitle string, legendLines []string) *ShellChrome {
@@ -45,7 +60,7 @@ func NewShell(winW, winH float64, abilityTitle string, legendLines []string) *Sh
 		if i >= 12 {
 			break
 		}
-		s.Legend.LabelAt(ln, 12, 12, 36+float64(i)*22, 0.70, 0.78, 0.88)
+		s.Legend.LabelAt(ln, 12, 12, LegendLineY(i), 0.70, 0.78, 0.88)
 	}
 
 	bodyX := gap + legendW + gap

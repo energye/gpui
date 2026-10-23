@@ -784,7 +784,7 @@ func TestP1_Capability_D05_ImagePatternGPU(t *testing.T) {
 	defer dc.Close()
 	dc.ResetRenderPathStats()
 	dc.ClearWithColor(render.White)
-	pat := dc.CreateImagePattern(img, 0, 0, 8, 8)
+	pat := render.NewImagePattern(img, 0, 0, 8, 8)
 	dc.SetFillPattern(pat)
 	dc.DrawRectangle(0, 0, 40, 24)
 	_ = dc.Fill()
@@ -836,7 +836,7 @@ func TestP1_Capability_D06_PatternLocalMatrixGPU(t *testing.T) {
 	dc.ResetRenderPathStats()
 	dc.ClearWithColor(render.White)
 
-	pat := dc.CreateImagePattern(img, 0, 0, 16, 16).(*render.ImagePattern)
+	pat := render.NewImagePattern(img, 0, 0, 16, 16)
 	// Local scale 2×: each source pixel covers 2 device pixels.
 	pat.SetScale(2, 2)
 	dc.SetFillPattern(pat)

@@ -126,7 +126,7 @@ func TestP02_ImagePatternNativeGPU(t *testing.T) {
 	defer dc.Close()
 	dc.ResetRenderPathStats()
 	dc.ClearWithColor(render.White)
-	pat := dc.CreateImagePattern(img, 0, 0, 8, 8)
+	pat := render.NewImagePattern(img, 0, 0, 8, 8)
 	dc.SetFillPattern(pat)
 	dc.DrawRectangle(0, 0, 40, 24)
 	_ = dc.Fill()
@@ -441,10 +441,8 @@ func TestP02_NonRectImagePatternFieldMaskedGPU(t *testing.T) {
 	dc.LineTo(56, 56)
 	dc.ClosePath()
 
-	pat := dc.CreateImagePattern(img, 0, 0, 8, 8)
-	if ip, ok := pat.(*render.ImagePattern); ok {
-		ip.SetClamp(false)
-	}
+	pat := render.NewImagePattern(img, 0, 0, 8, 8)
+	pat.SetClamp(false)
 	dc.SetFillPattern(pat)
 	if err := dc.Fill(); err != nil {
 		t.Fatalf("fill: %v", err)

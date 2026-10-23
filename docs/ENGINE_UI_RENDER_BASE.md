@@ -190,7 +190,7 @@ go run ./examples/ui_l1_scroll              # 滚动
 | FS-LINEAR | 线性渐变 | Gradient.linear | AppBar/按钮 | FillLinearGradient | NewLinearGradientBrush | — | **A** | draw.go | 两 stop 便利 API |
 | FS-RADIAL | 径向渐变 | Gradient.radial | 光晕 | FillRadialGradient | NewRadialGradientBrush | — | **A** | draw.go | 两 stop 便利 API |
 | FS-SWEEP | 扫掠渐变 | Gradient.sweep | 圆锥/色轮 | FillSweepGradient | NewSweepGradientBrush | — | **A** | draw.go | 两 stop 便利 API |
-| FS-IMAGE | 图像着色 | ImageShader | 图案填充 | — | CreateImagePattern/SetFillPattern | — | B | context_image.go | — |
+| FS-IMAGE | 图像着色 | ImageShader | 图案填充 | — | NewImagePattern/SetFillPattern（2026-10-23 S2b C2b：原 `Context.CreateImagePattern` 改包级函数，图样要能进显示列表） | — | B | context_image.go | — |
 | FS-FRAGMENT | 片元着色器 | FragmentShader | 自定义特效 | — | — | — | D | — | Impeller/SkSL 级 |
 
 ---

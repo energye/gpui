@@ -239,9 +239,7 @@ func TestDrawImageSrcRect(t *testing.T) {
 	}
 }
 
-func TestCreateImagePattern(t *testing.T) {
-	dc := NewContext(200, 200)
-
+func TestNewImagePattern(t *testing.T) {
 	// Create test image
 	img, err := NewImageBuf(50, 50, FormatRGBA8)
 	if err != nil {
@@ -256,10 +254,7 @@ func TestCreateImagePattern(t *testing.T) {
 	}
 
 	// Create pattern
-	pattern := dc.CreateImagePattern(img, 0, 0, 50, 50)
-	if pattern == nil {
-		t.Fatal("CreateImagePattern returned nil")
-	}
+	pattern := NewImagePattern(img, 0, 0, 50, 50)
 
 	// Test ColorAt
 	col := pattern.ColorAt(10, 10)
@@ -375,7 +370,7 @@ func TestSetFillPattern(t *testing.T) {
 		t.Fatalf("Failed to create image: %v", err)
 	}
 
-	pattern := dc.CreateImagePattern(img, 0, 0, 10, 10)
+	pattern := NewImagePattern(img, 0, 0, 10, 10)
 
 	// Set as fill pattern
 	dc.SetFillPattern(pattern)
@@ -395,7 +390,7 @@ func TestSetStrokePattern(t *testing.T) {
 		t.Fatalf("Failed to create image: %v", err)
 	}
 
-	pattern := dc.CreateImagePattern(img, 0, 0, 10, 10)
+	pattern := NewImagePattern(img, 0, 0, 10, 10)
 
 	// Set as stroke pattern
 	dc.SetStrokePattern(pattern)
@@ -1174,13 +1169,13 @@ func TestDrawImageEx_SrcRectWithRotation(t *testing.T) {
 	}
 }
 
-// TestCreateImagePattern_Compat verifies backward compatibility of
-// CreateImagePattern after the affine transform refactoring.
-func TestCreateImagePattern_Compat(t *testing.T) {
+// TestNewImagePattern_Compat verifies the identity-transform tiling behaviour
+// of an image pattern after the affine transform refactoring.
+func TestNewImagePattern_Compat(t *testing.T) {
 	dc := NewContext(200, 200)
 	img := makeTestImage(t, 20, 20, 255, 0, 0, 255)
 
-	pattern := dc.CreateImagePattern(img, 0, 0, 20, 20)
+	pattern := NewImagePattern(img, 0, 0, 20, 20)
 
 	// Should tile: ColorAt(0,0) = red.
 	col := pattern.ColorAt(0, 0)

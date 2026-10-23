@@ -170,37 +170,98 @@ func (g *SweepGradientBrush) SetExtend(mode ExtendMode) *SweepGradientBrush {
 	return g
 }
 
-// PatternBrush is an image pattern brush.
-// The pattern can be repeated, reflected, or clamped.
+// PatternBrush is an image pattern brush: one sub-rect of a pooled image,
+// tiled across the surface through a fixed sampling inverse. It is the recorded
+// form of render.NewImagePattern — the whole description, so replay rebuilds a
+// pattern that samples exactly the same texels as the live one did.
+//
+// SrcW/SrcH of 0 mean "whole image dimension" and Opacity of 0 means
+// "unspecified" (both are render.ImagePattern's own conventions).
 type PatternBrush struct {
-	Image     ImageRef
-	Repeat    RepeatMode    // How the pattern repeats
-	Transform render.Matrix // Transform applied to the pattern
+	Image   *render.ImageBuf // source image, held by pointer as every pooled resource is
+	SrcX    int              // source region offset within the image
+	SrcY    int
+	SrcW    int // source region size (0 = full image dimension)
+	SrcH    int
+	Inverse render.Matrix // device-space -> image-space, as the pattern stores it
+	Opacity float64       // opacity multiplier (0 = default 1)
+	Clamp   bool          // out-of-range coordinates return transparent instead of tiling
 }
 
 func (PatternBrush) brushMarker() {}
 
-// NewPatternBrush creates a new pattern brush with the given image reference.
-func NewPatternBrush(imageRef ImageRef) *PatternBrush {
+// NewPatternBrush creates a new pattern brush tiling the whole of the image
+// from the origin.
+func NewPatternBrush(img *render.ImageBuf) *PatternBrush {
 	return &PatternBrush{
-		Image:     imageRef,
-		Repeat:    RepeatBoth,
-		Transform: render.Identity(),
+		Image:   img,
+		Inverse: render.Identity(),
 	}
 }
 
-// SetRepeat sets the repeat mode for the pattern.
-// Returns the brush for method chaining.
-func (b *PatternBrush) SetRepeat(mode RepeatMode) *PatternBrush {
-	b.Repeat = mode
+// SetSourceRegion restricts the pattern to a sub-rect of the image. w/h of 0
+// mean the full image dimension. Returns the brush for method chaining.
+func (b *PatternBrush) SetSourceRegion(x, y, w, h int) *PatternBrush {
+	b.SrcX, b.SrcY, b.SrcW, b.SrcH = x, y, w, h
 	return b
 }
 
-// SetTransform sets the transform matrix for the pattern.
+// SetInverse sets the device-space -> image-space sampling matrix, which is
+// what an image pattern actually stores (a forward transform would have to be
+// inverted at replay, and inverting twice is not bit-exact).
 // Returns the brush for method chaining.
-func (b *PatternBrush) SetTransform(m render.Matrix) *PatternBrush {
-	b.Transform = m
+func (b *PatternBrush) SetInverse(m render.Matrix) *PatternBrush {
+	b.Inverse = m
 	return b
+}
+
+// SetOpacity sets the opacity multiplier; 0 means unspecified (1).
+// Returns the brush for method chaining.
+func (b *PatternBrush) SetOpacity(opacity float64) *PatternBrush {
+	b.Opacity = opacity
+	return b
+}
+
+// SetClamp makes coordinates outside the source region transparent instead of
+// tiling. Returns the brush for method chaining.
+func (b *PatternBrush) SetClamp(clamp bool) *PatternBrush {
+	b.Clamp = clamp
+	return b
+}
+
+// Source renders the recorded brush as render's own pattern description, the
+// form replay hands to the context.
+func (b *PatternBrush) Source() render.ImagePatternSource {
+	return render.ImagePatternSource{
+		Image:         b.Image,
+		SrcX:          b.SrcX,
+		SrcY:          b.SrcY,
+		SrcW:          b.SrcW,
+		SrcH:          b.SrcH,
+		Inverse:       b.Inverse,
+		Opacity:       b.Opacity,
+		ClampToSource: b.Clamp,
+	}
+}
+
+// CustomPatternBrush carries a Pattern implementation that is not data —
+// a caller-supplied ColorAt, in other words a closure. It has no exportable
+// description (PDF/SVG backends cannot write one either), so replay hands the
+// very same pattern to the target context.
+//
+// The contract is the one every retained packet already lives under: the
+// pattern becomes read-only when it is recorded, exactly like the text.Face a
+// recording holds. A caller that keeps mutating a live pattern object while the
+// recording may replay it is racing, not painting.
+type CustomPatternBrush struct {
+	Pattern render.Pattern
+}
+
+func (CustomPatternBrush) brushMarker() {}
+
+// NewCustomPatternBrush records an arbitrary render.Pattern by reference.
+func NewCustomPatternBrush(p render.Pattern) CustomPatternBrush {
+	return CustomPatternBrush{Pattern: p}
 }
 
 // GradientStop defines a color stop in a gradient.
@@ -221,19 +282,54 @@ const (
 	ExtendReflect
 )
 
-// RepeatMode defines how patterns repeat.
-type RepeatMode int
+// ToRenderPattern converts a recorded brush back to a render.Pattern for
+// playback onto a live context. It returns false for brushes that are not
+// patterns (solid, gradient), which the caller replays as brushes. A true with a
+// nil Pattern means "this was a pattern, but there is nothing to sample" — the
+// recorded image is gone — and the caller must paint nothing rather than invent
+// a colour.
+func ToRenderPattern(b Brush) (render.Pattern, bool) {
+	switch br := b.(type) {
+	case *PatternBrush:
+		if br.Image == nil || br.Image.Disposed() {
+			// The buffer is gone between recording and replay. Handing back a
+			// zero-sized pattern would divide by zero in the tiling sampler, so
+			// this reports "no pattern" and the caller paints nothing.
+			return nil, true
+		}
+		return render.NewImagePatternFromSource(br.Source()), true
+	case CustomPatternBrush:
+		return br.Pattern, true
+	default:
+		return nil, false
+	}
+}
 
-const (
-	// RepeatBoth repeats in both X and Y directions.
-	RepeatBoth RepeatMode = iota
-	// RepeatX repeats only in X direction.
-	RepeatX
-	// RepeatY repeats only in Y direction.
-	RepeatY
-	// RepeatNone does not repeat (clamps to edge).
-	RepeatNone
-)
+// FromRenderPattern converts a render.Pattern into a recorded brush. render's
+// own paint treats a solid pattern as an inline colour, an image pattern as a
+// data description, and anything else as a live sampler, so the recording splits
+// the same three ways. The pool is where the pattern's image gets registered, so
+// a retained packet keeps sealing it (see Recording.ImageBufs).
+func FromRenderPattern(p render.Pattern, pool *ResourcePool) Brush {
+	switch pat := p.(type) {
+	case nil:
+		return NewSolidBrush(render.Black)
+	case *render.SolidPattern:
+		return SolidBrush{Color: pat.Color}
+	case *render.ImagePattern:
+		src := pat.Source()
+		if src.Image != nil && pool != nil {
+			pool.AddImageBuf(src.Image)
+		}
+		return (&PatternBrush{Image: src.Image}).
+			SetSourceRegion(src.SrcX, src.SrcY, src.SrcW, src.SrcH).
+			SetInverse(src.Inverse).
+			SetOpacity(src.Opacity).
+			SetClamp(src.ClampToSource)
+	default:
+		return NewCustomPatternBrush(pat)
+	}
+}
 
 // FromRenderBrush converts a render.Brush to a recording.Brush.
 // This extracts the brush definition for storage in a recording.
@@ -256,10 +352,11 @@ func FromRenderBrush(b render.Brush) Brush {
 }
 
 // ToRenderBrush converts a recording.Brush back to a render.Brush for playback
-// onto a render.Context. PatternBrush has no render equivalent here: building
-// render's image pattern requires a live context (CreateImagePattern) and the
-// recording only holds an image reference, so a pattern brush degrades to
-// solid black — the same limitation the raster backend has always had.
+// onto a render.Context. Pattern brushes have no render.Brush form at all —
+// render.Brush is sealed and an image pattern is a Pattern, not a Brush — so
+// they return nil here and replay through ToRenderPattern instead. ApplyBrush
+// does that routing; a caller that goes straight to SetFillBrush would paint
+// black, which is exactly the degradation this function refuses to hide.
 func ToRenderBrush(b Brush) render.Brush {
 	switch br := b.(type) {
 	case SolidBrush:
@@ -287,6 +384,11 @@ func ToRenderBrush(b Brush) render.Brush {
 		}
 		grad.SetExtend(render.ExtendMode(br.Extend))
 		return grad
+	case *PatternBrush, CustomPatternBrush:
+		// A pattern is a render.Pattern, not a render.Brush: replay routes it
+		// through SetFillPattern/SetStrokePattern. Handing back a colour here
+		// would silently repaint a textured surface solid black.
+		return nil
 	case nil:
 		return render.Solid(render.Black)
 	default:

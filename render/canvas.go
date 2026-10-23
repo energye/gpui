@@ -29,7 +29,9 @@ import (
 // raster-time fact, stay on *Context and are not part of this contract:
 // GPU texture handles (DrawGPUTexture*), flushing and presentation
 // (FlushGPU/PresentFrame*), offscreen passes, masks, encode/export, SetPixel,
-// WritePixels and damage tracking.
+// WritePixels and damage tracking. Text outlines (TextPath) are live-only too:
+// they need the context's own glyph-outline extractor and mask cache, so a
+// display list cannot produce them.
 //
 // All geometry is user space: the current transform applies to path verbs,
 // shapes, image destinations and text origins, and the device scale folds in
@@ -53,6 +55,7 @@ type Canvas interface {
 	RotateAbout(angle, x, y float64)
 	Shear(x, y float64)
 	Transform(m Matrix)
+	SetTransform(m Matrix)
 	GetTransform() Matrix
 
 	// Path building
@@ -73,11 +76,14 @@ type Canvas interface {
 	SetRGBA(r, g, b, a float64)
 	SetFillBrush(b Brush)
 	SetStrokeBrush(b Brush)
+	SetFillPattern(pattern Pattern)
+	SetStrokePattern(pattern Pattern)
 	SetFillRule(rule FillRule)
 	SetLineWidth(width float64)
 	SetLineCap(lineCap LineCap)
 	SetLineJoin(join LineJoin)
 	SetMiterLimit(limit float64)
+	SetStroke(stroke Stroke)
 	SetDash(lengths ...float64)
 	SetDashOffset(offset float64)
 	ClearDash()
@@ -96,6 +102,8 @@ type Canvas interface {
 	Clip()
 	ClipPreserve()
 	ClipRect(x, y, w, h float64)
+	ClipRectOp(x, y, w, h float64, op ClipOp)
+	ClipPathOp(op ClipOp)
 	ClipRoundRect(x, y, w, h, radius float64)
 	ResetClip()
 
@@ -120,11 +128,16 @@ type Canvas interface {
 	DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, opts AtlasDrawOptions) (AtlasDrawResult, error)
 	DrawDepthSprites(img *ImageBuf, sprites []DepthSprite, opts DepthDrawOptions) (DepthDrawResult, error)
 	DrawVertices(positions []Point, colors []RGBA, mode VertexMode)
+	DrawVerticesEx(positions []Point, colors []RGBA, mode VertexMode, opts VertDrawOptions) (VertDrawResult, error)
+	DrawMesh(mesh Mesh)
+	DrawMeshEx(mesh Mesh, opts VertDrawOptions) (VertDrawResult, error)
 
 	// Text
 	SetFont(face text.Face)
 	Font() text.Face
 	SetTextDecoration(d TextDecoration)
+	SetTextMode(mode TextMode)
+	SetLCDLayout(layout LCDLayout)
 	DrawString(s string, x, y float64)
 	DrawStringAnchored(s string, x, y, ax, ay float64)
 	DrawStringWrapped(s string, x, y, ax, ay, width, lineSpacing float64, align Align)

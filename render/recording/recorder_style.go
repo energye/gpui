@@ -58,6 +58,24 @@ func (r *Recorder) SetStrokeStyle(brush Brush) {
 	r.commands = append(r.commands, SetStrokeStyleCommand{Brush: brushRef})
 }
 
+// SetFillPattern sets the fill style from a render.Pattern. Context keeps fill
+// and stroke in one paint and treats a pattern as a first-class brush, so the
+// recording does the same: an image pattern becomes its full data description,
+// a solid pattern collapses to a colour, and anything else is carried by
+// reference (see CustomPatternBrush).
+func (r *Recorder) SetFillPattern(pattern render.Pattern) {
+	r.fillBrush = FromRenderPattern(pattern, r.resources)
+	brushRef := r.resources.AddBrush(r.fillBrush)
+	r.commands = append(r.commands, SetFillStyleCommand{Brush: brushRef})
+}
+
+// SetStrokePattern sets the stroke style from a render.Pattern.
+func (r *Recorder) SetStrokePattern(pattern render.Pattern) {
+	r.strokeBrush = FromRenderPattern(pattern, r.resources)
+	brushRef := r.resources.AddBrush(r.strokeBrush)
+	r.commands = append(r.commands, SetStrokeStyleCommand{Brush: brushRef})
+}
+
 // SetFillBrush sets the fill brush from a render.Brush.
 func (r *Recorder) SetFillBrush(brush render.Brush) {
 	r.SetFillStyle(FromRenderBrush(brush))
@@ -143,6 +161,42 @@ func (r *Recorder) ClearDash() {
 	r.dashPattern = nil
 	r.dashOffset = 0
 	r.commands = append(r.commands, SetDashCommand{Pattern: nil, Offset: 0})
+}
+
+// SetStroke sets the complete stroke style at once. It routes through the
+// individual setters rather than inventing a stroke-wide command, so recording
+// `SetStroke(s)` produces the same command stream the caller would get from
+// setting each field by hand — and the style still travels inside the draw
+// commands that follow, as it always has.
+func (r *Recorder) SetStroke(stroke render.Stroke) {
+	r.SetLineWidth(stroke.Width)
+	r.SetLineCap(stroke.Cap)
+	r.SetLineJoin(stroke.Join)
+	r.SetMiterLimit(stroke.MiterLimit)
+	if stroke.Dash != nil && len(stroke.Dash.Array) > 0 {
+		r.SetDash(stroke.Dash.Array...)
+		r.SetDashOffset(stroke.Dash.Offset)
+		return
+	}
+	r.ClearDash()
+}
+
+// --------------------------------------------------------------------------
+// Text quality
+// --------------------------------------------------------------------------
+
+// SetTextMode selects the text rendering strategy for text drawn afterwards.
+// Unlike the line style, no draw command carries it, so it replays as a state
+// command in stream order — faithful to the live path, where Context.Push does
+// not save the text mode either.
+func (r *Recorder) SetTextMode(mode render.TextMode) {
+	r.commands = append(r.commands, SetTextModeCommand{Mode: mode})
+}
+
+// SetLCDLayout sets the LCD subpixel order for ClearType text, for the same
+// reason and with the same replay semantics as SetTextMode.
+func (r *Recorder) SetLCDLayout(layout render.LCDLayout) {
+	r.commands = append(r.commands, SetLCDLayoutCommand{Layout: layout})
 }
 
 // SetFillRule sets the fill rule.

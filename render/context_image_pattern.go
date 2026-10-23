@@ -10,19 +10,22 @@
 
 package render
 
-import ()
-
-// CreateImagePattern creates an image pattern from a rectangular region of an image.
-// The pattern can be used with SetFillPattern or SetStrokePattern.
+// NewImagePattern creates an image pattern from a rectangular region of an
+// image. w/h of 0 mean "whole image dimension". The pattern can be used with
+// SetFillPattern or SetStrokePattern.
+//
+// It is a package function, not a Context method: building a pattern from a
+// source region needs no target surface, and a display list has to be able to
+// describe one without holding a live *Context.
 //
 // Example:
 //
 //	img, _ := render.LoadImage("texture.png")
-//	pattern := dc.CreateImagePattern(img, 0, 0, 100, 100)
+//	pattern := render.NewImagePattern(img, 0, 0, 100, 100)
 //	dc.SetFillPattern(pattern)
 //	dc.DrawRectangle(0, 0, 400, 300)
 //	dc.Fill()
-func (c *Context) CreateImagePattern(img *ImageBuf, x, y, w, h int) Pattern {
+func NewImagePattern(img *ImageBuf, x, y, w, h int) *ImagePattern {
 	return &ImagePattern{
 		image:   img,
 		x:       x,
@@ -30,6 +33,69 @@ func (c *Context) CreateImagePattern(img *ImageBuf, x, y, w, h int) Pattern {
 		w:       w,
 		h:       h,
 		inverse: Identity(), // identity transform: device coords = image coords (tiling from origin)
+	}
+}
+
+// ImagePatternSource is the complete description of an ImagePattern: which
+// image, which sub-rect of it, the pre-computed sampling inverse, the opacity
+// multiplier and the clamp flag. It is what lets a pattern travel — into a
+// display list, a cache key, or another thread — without dragging a live
+// Context along. Dimensions and opacity come out normalized (never 0/default),
+// so NewImagePatternFromSource(src) samples identically to the pattern src came
+// from.
+type ImagePatternSource struct {
+	Image         *ImageBuf
+	SrcX, SrcY    int
+	SrcW, SrcH    int
+	Inverse       Matrix
+	Opacity       float64
+	ClampToSource bool
+}
+
+// Source exposes the image-pattern sampling parameters for GPU-native fill
+// (G.03) and for transport. Zero Image means the pattern is empty/invalid.
+func (p *ImagePattern) Source() ImagePatternSource {
+	if p == nil || p.image == nil {
+		return ImagePatternSource{Inverse: Identity(), Opacity: 1}
+	}
+	imgW, imgH := p.image.Bounds()
+	srcW, srcH := p.w, p.h
+	if srcW <= 0 {
+		srcW = imgW
+	}
+	if srcH <= 0 {
+		srcH = imgH
+	}
+	op := p.opacity
+	if op <= 0 {
+		op = 1
+	}
+	return ImagePatternSource{
+		Image:         p.image,
+		SrcX:          p.x,
+		SrcY:          p.y,
+		SrcW:          srcW,
+		SrcH:          srcH,
+		Inverse:       p.inverse,
+		Opacity:       op,
+		ClampToSource: p.clamp,
+	}
+}
+
+// NewImagePatternFromSource rebuilds a pattern from its full description. The
+// inverse is stored as given rather than derived by inverting a forward matrix,
+// so a round trip through Source is bit-exact — inverting twice is not, and a
+// replayed pattern has to sample from the very same texel the live one did.
+func NewImagePatternFromSource(src ImagePatternSource) *ImagePattern {
+	return &ImagePattern{
+		image:   src.Image,
+		x:       src.SrcX,
+		y:       src.SrcY,
+		w:       src.SrcW,
+		h:       src.SrcH,
+		inverse: src.Inverse,
+		opacity: src.Opacity,
+		clamp:   src.ClampToSource,
 	}
 }
 
@@ -145,29 +211,6 @@ func (p *ImagePattern) SetScale(sx, sy float64) {
 // This overrides any anchor/scale settings.
 func (p *ImagePattern) SetTransform(m Matrix) {
 	p.inverse = m.Invert()
-}
-
-// GPUPatternSource exposes image pattern fields for GPU-native fill (G.03).
-// Returns nil image when the pattern is empty/invalid.
-// GPUPatternSource exposes image pattern fields for GPU-native fill (G.03).
-// Returns nil image when the pattern is empty/invalid.
-func (p *ImagePattern) GPUPatternSource() (img *ImageBuf, srcX, srcY, srcW, srcH int, inverse Matrix, opacity float64, clamp bool) {
-	if p == nil || p.image == nil {
-		return nil, 0, 0, 0, 0, Identity(), 1, false
-	}
-	imgW, imgH := p.image.Bounds()
-	srcW, srcH = p.w, p.h
-	if srcW <= 0 {
-		srcW = imgW
-	}
-	if srcH <= 0 {
-		srcH = imgH
-	}
-	op := p.opacity
-	if op <= 0 {
-		op = 1
-	}
-	return p.image, p.x, p.y, srcW, srcH, p.inverse, op, p.clamp
 }
 
 // rebuildInverse computes the inverse transform from the legacy anchor+scale fields.

@@ -1506,7 +1506,8 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	if pat == nil {
 		return render.ErrFallbackToCPU
 	}
-	img, srcX, srcY, srcW, srcH, inv, opacity, clamp := pat.GPUPatternSource()
+	src := pat.Source()
+	img, srcX, srcY, srcW, srcH, inv, opacity, clamp := src.Image, src.SrcX, src.SrcY, src.SrcW, src.SrcH, src.Inverse, src.Opacity, src.ClampToSource
 	if img == nil || srcW <= 0 || srcH <= 0 {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, pat.ColorAt, patternFieldSeed(pat))
 	}

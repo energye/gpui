@@ -89,6 +89,14 @@ const (
 	CmdDrawVertices      // Triangle/strip/line vertex mesh
 	CmdDrawGlyphs        // Shaped-glyph run (mono or per-glyph colored)
 
+	// Canvas parity, second family (S2b): clip operations, text quality state and
+	// indexed meshes.
+	CmdClipRectOp   // Rectangular clip with a SkClipOp
+	CmdClipPathOp   // Path clip with a SkClipOp
+	CmdSetTextMode  // Text rendering strategy
+	CmdSetLCDLayout // LCD subpixel order for ClearType
+	CmdDrawMesh     // Indexed or triangle-list mesh
+
 	// Layer and effect commands
 	CmdPushLayer         // Save-layer with blend/opacity
 	CmdPushLayerIsolated // Forced true save-layer
@@ -135,6 +143,12 @@ var commandTypeNames = [...]string{
 	CmdDrawDepthSprites:  "DrawDepthSprites",
 	CmdDrawVertices:      "DrawVertices",
 	CmdDrawGlyphs:        "DrawGlyphs",
+
+	CmdClipRectOp:   "ClipRectOp",
+	CmdClipPathOp:   "ClipPathOp",
+	CmdSetTextMode:  "SetTextMode",
+	CmdSetLCDLayout: "SetLCDLayout",
+	CmdDrawMesh:     "DrawMesh",
 
 	CmdPushLayer:         "PushLayer",
 	CmdPushLayerIsolated: "PushLayerIsolated",

@@ -98,6 +98,15 @@ type Backend interface {
 	// in user space. It is the cheaper counterpart of SetClip for rects.
 	ClipRect(rect Rect)
 
+	// ClipRectOp combines the clip region with an axis-aligned rectangle in user
+	// space using op — intersect, difference or replace (C.06). ClipRect is the
+	// intersect-only special case.
+	ClipRectOp(rect Rect, op render.ClipOp)
+
+	// ClipPathOp combines the clip region with the path using op and the fill
+	// rule, the operation-complete counterpart of SetClip.
+	ClipPathOp(path *render.Path, rule FillRule, op render.ClipOp)
+
 	// Drawing methods
 
 	// FillPath fills the given path with the brush color/pattern.
@@ -145,6 +154,11 @@ type Backend interface {
 	// colours than vertices.
 	DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush)
 
+	// DrawMesh draws an indexed (or triangle-list) coloured mesh. brush is the
+	// fill paint recorded with it, the fallback when the mesh carries no per
+	// vertex colours.
+	DrawMesh(mesh render.Mesh, brush Brush)
+
 	// DrawGlyphs draws a shaped-glyph run at the baseline origin. colored selects
 	// the per-glyph colour variant over the single-brush run, which uses brush.
 	DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush)
@@ -157,6 +171,16 @@ type Backend interface {
 
 	// SetTextDecoration sets the decoration bitset for text drawn afterwards.
 	SetTextDecoration(deco render.TextDecoration)
+
+	// SetTextMode selects the text rendering strategy for text drawn afterwards.
+	SetTextMode(mode render.TextMode)
+
+	// SetLCDLayout sets the LCD subpixel order for ClearType text.
+	SetLCDLayout(layout render.LCDLayout)
+
+	// SetAntiAlias enables or disables anti-aliasing for the geometry and clips
+	// drawn afterwards.
+	SetAntiAlias(enabled bool)
 
 	// ApplyBlur attaches a blur post-effect to subsequent draws.
 	ApplyBlur(radius float64)

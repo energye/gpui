@@ -175,44 +175,144 @@ func TestSweepGradientBrush_DefaultEndAngle(t *testing.T) {
 }
 
 func TestPatternBrush(t *testing.T) {
-	imageRef := ImageRef(5)
-	transform := render.Translate(10, 20).Multiply(render.Scale(2, 2))
+	img := testImageBuf(t, 16, 16, render.Red)
+	inverse := render.Translate(10, 20).Multiply(render.Scale(2, 2)).Invert()
 
-	brush := NewPatternBrush(imageRef).
-		SetRepeat(RepeatX).
-		SetTransform(transform)
+	brush := NewPatternBrush(img).
+		SetSourceRegion(2, 3, 8, 9).
+		SetInverse(inverse).
+		SetOpacity(0.4).
+		SetClamp(true)
 
-	// Verify image reference
-	if brush.Image != imageRef {
-		t.Errorf("Image = %d, want %d", brush.Image, imageRef)
+	if brush.Image != img {
+		t.Errorf("Image = %p, want %p", brush.Image, img)
+	}
+	if brush.SrcX != 2 || brush.SrcY != 3 || brush.SrcW != 8 || brush.SrcH != 9 {
+		t.Errorf("source region = %v", brush.Source())
+	}
+	if brush.Inverse != inverse {
+		t.Errorf("Inverse = %v, want %v", brush.Inverse, inverse)
+	}
+	if brush.Opacity != 0.4 || !brush.Clamp {
+		t.Errorf("Opacity/Clamp = %v/%v, want 0.4/true", brush.Opacity, brush.Clamp)
 	}
 
-	// Verify repeat mode
-	if brush.Repeat != RepeatX {
-		t.Errorf("Repeat = %v, want RepeatX", brush.Repeat)
+	// A recorded pattern brush is a render.Pattern, not a render.Brush: replay
+	// must route it to SetFillPattern, and ToRenderBrush must refuse to hand back
+	// a colour that would repaint a textured surface black.
+	if got := ToRenderBrush(brush); got != nil {
+		t.Errorf("ToRenderBrush(pattern) = %v, want nil", got)
+	}
+	pat, ok := ToRenderPattern(brush)
+	if !ok || pat == nil {
+		t.Fatalf("ToRenderPattern(pattern) = %v, %v; want a pattern", pat, ok)
 	}
 
-	// Verify transform
-	if brush.Transform != transform {
-		t.Errorf("Transform = %v, want %v", brush.Transform, transform)
+	// The sampled result has to be bit-identical to the live pattern's, which is
+	// what carrying the stored inverse (rather than re-inverting a forward) buys.
+	live := render.NewImagePattern(img, 2, 3, 8, 9)
+	live.SetTransform(render.Translate(10, 20).Multiply(render.Scale(2, 2)))
+	live.SetOpacity(0.4)
+	live.SetClamp(true)
+	for _, p := range []render.Point{{X: 0, Y: 0}, {X: 12.5, Y: 33}, {X: 200, Y: 7}, {X: -40, Y: 90}} {
+		if pat.ColorAt(p.X, p.Y) != live.ColorAt(p.X, p.Y) {
+			t.Errorf("ColorAt(%v) = %v, want %v (live)", p, pat.ColorAt(p.X, p.Y), live.ColorAt(p.X, p.Y))
+		}
 	}
 
-	// Verify it implements Brush interface
 	var _ Brush = brush
 }
 
 func TestPatternBrush_Defaults(t *testing.T) {
-	brush := NewPatternBrush(ImageRef(0))
+	img := testImageBuf(t, 8, 8, render.Red)
+	brush := NewPatternBrush(img)
 
-	// Verify defaults
-	if brush.Repeat != RepeatBoth {
-		t.Errorf("Repeat = %v, want RepeatBoth", brush.Repeat)
+	if brush.SrcW != 0 || brush.SrcH != 0 {
+		t.Errorf("default source size = %d x %d, want 0 x 0 (whole image)", brush.SrcW, brush.SrcH)
 	}
-
-	if !brush.Transform.IsIdentity() {
-		t.Errorf("Transform = %v, want identity", brush.Transform)
+	if !brush.Inverse.IsIdentity() {
+		t.Errorf("Inverse = %v, want identity", brush.Inverse)
+	}
+	if brush.Opacity != 0 || brush.Clamp {
+		t.Errorf("Opacity/Clamp = %v/%v, want 0 (unspecified)/false", brush.Opacity, brush.Clamp)
 	}
 }
+
+// A pattern whose image was disposed between recording and replay cannot sample
+// anything. It must report "no pattern" rather than hand back a zero-sized one,
+// which would divide by zero in the tiling sampler.
+func TestPatternBrush_DisposedImagePaintsNothing(t *testing.T) {
+	img := testImageBuf(t, 8, 8, render.Red)
+	img.Dispose()
+
+	brush := NewPatternBrush(img)
+	pat, ok := ToRenderPattern(brush)
+	if !ok {
+		t.Fatal("disposed pattern brush reported as non-pattern")
+	}
+	if pat != nil {
+		t.Fatalf("disposed pattern brush produced %v, want nil pattern", pat)
+	}
+}
+
+func TestFromRenderPattern_ImagePatternRoundTrip(t *testing.T) {
+	img := testImageBuf(t, 12, 10, render.Blue)
+	live := render.NewImagePattern(img, 1, 2, 5, 4)
+	live.SetTransform(render.Rotate(0.3))
+	live.SetOpacity(0.7)
+	live.SetClamp(true)
+
+	pool := NewResourcePool()
+	brush := FromRenderPattern(live, pool)
+	pb, ok := brush.(*PatternBrush)
+	if !ok {
+		t.Fatalf("FromRenderPattern(ImagePattern) = %T, want *PatternBrush", brush)
+	}
+	if pb.Image != img {
+		t.Errorf("Image = %p, want %p", pb.Image, img)
+	}
+	if pool.ImageCount() != 1 {
+		t.Errorf("pool sealed %d images, want 1 (the pattern's image must be retained)", pool.ImageCount())
+	}
+
+	back, ok := ToRenderPattern(pb)
+	if !ok || back == nil {
+		t.Fatalf("ToRenderPattern round trip failed: %v, %v", back, ok)
+	}
+	for _, p := range []render.Point{{X: 3, Y: 7}, {X: 40, Y: 12}, {X: -9, Y: 25}, {X: 100, Y: 100}} {
+		if back.ColorAt(p.X, p.Y) != live.ColorAt(p.X, p.Y) {
+			t.Errorf("ColorAt(%v) = %v, want %v", p, back.ColorAt(p.X, p.Y), live.ColorAt(p.X, p.Y))
+		}
+	}
+}
+
+func TestFromRenderPattern_SolidAndCustom(t *testing.T) {
+	pool := NewResourcePool()
+
+	solid := FromRenderPattern(render.NewSolidPattern(render.Green), pool)
+	if sb, ok := solid.(SolidBrush); !ok || sb.Color != render.Green {
+		t.Errorf("FromRenderPattern(SolidPattern) = %#v, want SolidBrush{Green}", solid)
+	}
+
+	custom := FromRenderPattern(patternSampler{render.Red}, pool)
+	cp, ok := custom.(CustomPatternBrush)
+	if !ok {
+		t.Fatalf("FromRenderPattern(foreign Pattern) = %T, want CustomPatternBrush", custom)
+	}
+	pat, ok := ToRenderPattern(cp)
+	if !ok || pat != render.Pattern(patternSampler{render.Red}) {
+		t.Errorf("custom pattern replay = %v, %v; want the recorded pattern by reference", pat, ok)
+	}
+	if _, ok := ToRenderPattern(SolidBrush{Color: render.Red}); ok {
+		t.Error("ToRenderPattern claimed a solid brush is a pattern")
+	}
+}
+
+// patternSampler is a caller-supplied render.Pattern: an interface the recording
+// cannot describe as data, so it carries it by reference.
+type patternSampler struct{ col render.RGBA }
+
+func (p patternSampler) ColorAt(_, _ float64) render.RGBA { return p.col }
 
 func TestExtendMode(t *testing.T) {
 	tests := []struct {
@@ -227,24 +327,6 @@ func TestExtendMode(t *testing.T) {
 	for _, tt := range tests {
 		if int(tt.mode) != tt.want {
 			t.Errorf("ExtendMode %v = %d, want %d", tt.mode, int(tt.mode), tt.want)
-		}
-	}
-}
-
-func TestRepeatMode(t *testing.T) {
-	tests := []struct {
-		mode RepeatMode
-		want int
-	}{
-		{RepeatBoth, 0},
-		{RepeatX, 1},
-		{RepeatY, 2},
-		{RepeatNone, 3},
-	}
-
-	for _, tt := range tests {
-		if int(tt.mode) != tt.want {
-			t.Errorf("RepeatMode %v = %d, want %d", tt.mode, int(tt.mode), tt.want)
 		}
 	}
 }

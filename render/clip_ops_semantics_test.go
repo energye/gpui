@@ -3,6 +3,7 @@
 package render_test
 
 import (
+	"image"
 	"testing"
 
 	"github.com/energye/gpui/render"
@@ -180,6 +181,140 @@ func assertRectDifferenceFractionalAA(t *testing.T) {
 	if r, g, b, _ := s3cSample(dc, 60, 45); !(r < 120 && g > r+40 && b < 120) {
 		t.Errorf("right AA edge = %d,%d,%d, want ~(64,178,64)", r, g, b)
 	}
+}
+
+// clipOpsPathCtmScene paints the pinned scene: a full-canvas rect clip, then a
+// box that must land on the device rectangle (70,40)-(110,80) applied as a path
+// clip, then red over the whole canvas. dx/dy/sx/sy describe the CTM the path
+// verbs travel through; the user-space coordinates are derived from them, so
+// every variant resolves to the same device geometry.
+func clipOpsPathCtmScene(dc *render.Context, op render.ClipOp, dx, dy, sx, sy float64) {
+	const w, h = 120, 120
+	dc.ClearWithColor(render.White)
+	dc.ClipRect(0, 0, w, h)
+	dc.Push()
+	if dx != 0 || dy != 0 {
+		dc.Translate(dx, dy)
+	}
+	if sx != 1 || sy != 1 {
+		dc.Scale(sx, sy)
+	}
+	x0, y0 := (70-dx)/sx, (40-dy)/sy
+	cw, ch := 40/sx, 40/sy
+	dc.MoveTo(x0, y0)
+	dc.LineTo(x0+cw, y0)
+	dc.LineTo(x0+cw, y0+ch)
+	dc.LineTo(x0, y0+ch)
+	dc.ClosePath()
+	dc.ClipPathOp(op)
+	dc.SetRGB(1, 0, 0)
+	// Device rect (0,0)-(w,h), expressed in user space.
+	dc.DrawRectangle(-dx/sx, -dy/sy, float64(w)/sx, float64(h)/sy)
+	_ = dc.Fill()
+	dc.Pop()
+}
+
+// TestClipOps_PathCtmInvariance pins the property a path clip must satisfy: the
+// clipped region is the shape as it lands in device space, independent of which
+// CTM put it there. Every variant must match the identity scene bit for bit and
+// carry the same ink the box covers. Regression: ClipPathOp transformed the
+// already-baked verbs by the full matrix, doubling the offset and clipping away
+// the content the clip was meant to keep.
+func TestClipOps_PathCtmInvariance(t *testing.T) {
+	const w, h = 120, 120
+	t.Setenv("GOGPU_RENDER_MODE", "cpu")
+
+	subtests := []struct {
+		name string
+		op   render.ClipOp
+		ink  int
+	}{
+		// The box is 40x40 device pixels; replace and intersect both reduce the
+		// clip to it, difference punches it out of the full canvas.
+		{"replace", render.ClipOpReplace, 40 * 40},
+		{"intersect", render.ClipOpIntersect, 40 * 40},
+		{"difference", render.ClipOpDifference, w*h - 40*40},
+	}
+	variants := []struct {
+		name           string
+		dx, dy, sx, sy float64
+	}{
+		{"identity", 0, 0, 1, 1},
+		{"translate", 40, 25, 1, 1},
+		{"scale", 0, 0, 2, 2},
+		{"translate+scale", 20, 10, 1.25, 1.25},
+	}
+	for _, tt := range subtests {
+		t.Run(tt.name, func(t *testing.T) {
+			var reference *image.RGBA
+			for _, v := range variants {
+				t.Run(v.name, func(t *testing.T) {
+					dc := render.NewContext(w, h)
+					clipOpsPathCtmScene(dc, tt.op, v.dx, v.dy, v.sx, v.sy)
+					img := clipOpsImage(dc)
+					dc.Close()
+
+					if ink := clipOpsRedPixels(img); ink != tt.ink {
+						t.Errorf("%v under %s: %d red pixels, want %d", tt.op, v.name, ink, tt.ink)
+					}
+					if reference == nil {
+						reference = img
+						return
+					}
+					if diff := clipOpsPixelDiff(reference, img); diff != 0 {
+						t.Errorf("%v under %s: %d/%d pixels differ from the identity scene",
+							tt.op, v.name, diff, w*h)
+						for y := 0; y < h; y++ {
+							for x := 0; x < w; x++ {
+								if reference.RGBAAt(x, y) != img.RGBAAt(x, y) {
+									t.Errorf("first diff at (%d,%d): identity=%v variant=%v",
+										x, y, reference.RGBAAt(x, y), img.RGBAAt(x, y))
+									return
+								}
+							}
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+// clipOpsImage copies the context's pixels out so the reference scene survives
+// the context being closed.
+func clipOpsImage(dc *render.Context) *image.RGBA {
+	img, ok := dc.Image().(*image.RGBA)
+	if !ok {
+		panic("context image is not *image.RGBA")
+	}
+	out := image.NewRGBA(image.Rect(0, 0, img.Bounds().Dx(), img.Bounds().Dy()))
+	copy(out.Pix, img.Pix)
+	return out
+}
+
+func clipOpsPixelDiff(a, b *image.RGBA) int {
+	diff := 0
+	for y := 0; y < a.Bounds().Dy(); y++ {
+		for x := 0; x < a.Bounds().Dx(); x++ {
+			if a.RGBAAt(x, y) != b.RGBAAt(x, y) {
+				diff++
+			}
+		}
+	}
+	return diff
+}
+
+func clipOpsRedPixels(img *image.RGBA) int {
+	n := 0
+	for y := 0; y < img.Bounds().Dy(); y++ {
+		for x := 0; x < img.Bounds().Dx(); x++ {
+			r, g, b, _ := img.At(x, y).RGBA()
+			if r>>8 > 200 && g>>8 < 60 && b>>8 < 60 {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // TestClipOps_PathReplace pins ClipPathOp(ClipOpReplace): the previous clip is

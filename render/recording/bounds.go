@@ -140,7 +140,10 @@ func (w *contentWalk) step(cmd Command) {
 		w.note(imageCanPaint(w.image(c.Image)) && len(sprites) > 0)
 		w.addSprites(sprites)
 	case DrawVerticesCommand:
-		w.note(len(c.Positions) > 0)
+		w.note(vertexRunCanPaint(c.Positions, c.Colors, w.brush(c.Brush)))
+		w.addPoints(c.Positions)
+	case DrawMeshCommand:
+		w.note(vertexRunCanPaint(c.Positions, c.Colors, w.brush(c.Brush)) && indicesCanDraw(c.Indices))
 		w.addPoints(c.Positions)
 
 	case DrawTextCommand:
@@ -164,7 +167,9 @@ func (w *contentWalk) step(cmd Command) {
 		w.surfaceWide = true
 
 	case SetClipCommand, ClearClipCommand, ClipRectCommand, ClipRoundRectCommand,
-		SetTextDecorationCommand, PushLayerCommand, PushLayerIsolatedCommand,
+		ClipRectOpCommand, ClipPathOpCommand,
+		SetTextDecorationCommand, SetTextModeCommand, SetLCDLayoutCommand,
+		PushLayerCommand, PushLayerIsolatedCommand,
 		PushBackdropLayerCommand, PopLayerCommand, ApplyColorMatrixCommand,
 		ApplyGrayscaleCommand,
 		SetFillStyleCommand, SetStrokeStyleCommand, SetLineWidthCommand,
@@ -217,7 +222,10 @@ func (w *contentWalk) getPath(ref PathRef) *render.Path {
 // brushCanPaint mirrors the replay's own skip conditions: a zero-alpha solid
 // paints nothing, a gradient needs a non-zero stop, and a nil or pattern brush
 // does paint — ToRenderBrush renders a nil brush as solid black, and a pattern
-// brush degrades to a solid fill rather than to nothing.
+// brush samples its image (replay routes it to SetFillPattern, not to a colour).
+// A pattern whose image is gone paints nothing, and reporting that here would
+// only save a texture nobody can predict at record time, so the safe direction
+// (waste a texture, never drop content) is kept.
 func brushCanPaint(b Brush) bool {
 	switch br := b.(type) {
 	case nil:
@@ -248,6 +256,31 @@ func stopsCanPaint(stops []GradientStop) bool {
 // recording and finishing contributes nothing.
 func imageCanPaint(img *render.ImageBuf) bool {
 	return img != nil && !img.Disposed()
+}
+
+// vertexRunCanPaint mirrors Context.DrawVertices: fewer than three vertices
+// rasterize no triangle, a full colour-per-vertex list paints with those colours
+// and ignores the paint, and a shorter list falls back to the recorded brush.
+func vertexRunCanPaint(positions []render.Point, colors []render.RGBA, brush Brush) bool {
+	if len(positions) < 3 {
+		return false
+	}
+	if len(colors) == len(positions) {
+		for _, c := range colors {
+			if c.A != 0 {
+				return true
+			}
+		}
+		return false
+	}
+	return brushCanPaint(brush)
+}
+
+// indicesCanDraw mirrors the indexed branch of Context.DrawMesh: an empty index
+// list means the positions themselves are the triangle list, and anything short
+// of one complete group draws nothing.
+func indicesCanDraw(indices []uint16) bool {
+	return len(indices) == 0 || len(indices) >= 3
 }
 
 // rectCanFill / rectCanStroke state what the rasterizer has to work with: a fill

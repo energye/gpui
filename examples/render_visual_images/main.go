@@ -133,7 +133,7 @@ func drawExamples(dc *render.Context, img *render.ImageBuf) {
 	dc.Pop()
 
 	drawText(dc, 350, 490)
-	pattern := dc.CreateImagePattern(img, 0, 0, 50, 50)
+	pattern := render.NewImagePattern(img, 0, 0, 50, 50)
 	dc.SetFillPattern(pattern)
 	dc.DrawCircle(450, 540, 60)
 	dc.Fill()

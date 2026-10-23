@@ -137,6 +137,74 @@ type DrawGlyphsCommand struct {
 func (DrawGlyphsCommand) Type() CommandType { return CmdDrawGlyphs }
 
 // --------------------------------------------------------------------------
+// Clipping with operations
+// --------------------------------------------------------------------------
+
+// ClipRectOpCommand intersects, subtracts or replaces the clip with an
+// axis-aligned rectangle in user space. ClipRectCommand is the intersect-only
+// special case; this is the SkClipOp-complete counterpart (C.06).
+type ClipRectOpCommand struct {
+	Rect Rect
+	Op   render.ClipOp
+}
+
+// Type implements Command.
+func (ClipRectOpCommand) Type() CommandType { return CmdClipRectOp }
+
+// ClipPathOpCommand applies the current path to the clip with the given
+// operation. The fill rule is the one recorded at clip time, matching
+// Context.ClipPathOp, which reads paint.FillRule rather than an argument.
+type ClipPathOpCommand struct {
+	Path PathRef
+	Rule FillRule
+	Op   render.ClipOp
+}
+
+// Type implements Command.
+func (ClipPathOpCommand) Type() CommandType { return CmdClipPathOp }
+
+// --------------------------------------------------------------------------
+// Text quality state
+// --------------------------------------------------------------------------
+
+// SetTextModeCommand selects the text rendering strategy for later draws. It is
+// Context state that no draw command carries, so it replays in stream order —
+// which is also how the live path behaves, since Context.Push does not save the
+// text mode.
+type SetTextModeCommand struct {
+	Mode render.TextMode
+}
+
+// Type implements Command.
+func (SetTextModeCommand) Type() CommandType { return CmdSetTextMode }
+
+// SetLCDLayoutCommand sets the LCD subpixel order for ClearType text.
+type SetLCDLayoutCommand struct {
+	Layout render.LCDLayout
+}
+
+// Type implements Command.
+func (SetLCDLayoutCommand) Type() CommandType { return CmdSetLCDLayout }
+
+// --------------------------------------------------------------------------
+// Meshes
+// --------------------------------------------------------------------------
+
+// DrawMeshCommand is an indexed (or triangle-list) mesh. Brush is the fill paint
+// the mesh was recorded with, for the same reason DrawVerticesCommand carries
+// one: the vertex-colour fallback is the current paint, and a replaying context
+// would otherwise inherit whatever the previous command left on it.
+type DrawMeshCommand struct {
+	Positions []render.Point
+	Colors    []render.RGBA
+	Indices   []uint16
+	Brush     BrushRef
+}
+
+// Type implements Command.
+func (DrawMeshCommand) Type() CommandType { return CmdDrawMesh }
+
+// --------------------------------------------------------------------------
 // Layers
 // --------------------------------------------------------------------------
 

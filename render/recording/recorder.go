@@ -216,6 +216,10 @@ func (r *Recording) Playback(backend Backend) error {
 			backend.ClearClip()
 		case ClipRectCommand:
 			backend.ClipRect(c.Rect)
+		case ClipRectOpCommand:
+			backend.ClipRectOp(c.Rect, c.Op)
+		case ClipPathOpCommand:
+			backend.ClipPathOp(r.resources.GetPath(c.Path), c.Rule, c.Op)
 		case ClipRoundRectCommand:
 			// Convert RRect clip to a path for backends that don't
 			// natively support rounded rectangle clipping.
@@ -251,10 +255,22 @@ func (r *Recording) Playback(backend Backend) error {
 			backend.DrawDepthSprites(r.resources.GetImage(c.Image), c.Sprites, c.Opts)
 		case DrawVerticesCommand:
 			backend.DrawVertices(c.Positions, c.Colors, c.Mode, r.resources.GetBrush(c.Brush))
+		case DrawMeshCommand:
+			backend.DrawMesh(render.Mesh{
+				Positions: c.Positions,
+				Colors:    c.Colors,
+				Indices:   c.Indices,
+			}, r.resources.GetBrush(c.Brush))
 		case DrawGlyphsCommand:
 			backend.DrawGlyphs(c.Glyphs, r.faceFor(c.Face), c.X, c.Y, c.Colored, r.resources.GetBrush(c.Brush))
 		case SetTextDecorationCommand:
 			backend.SetTextDecoration(c.Deco)
+		case SetTextModeCommand:
+			backend.SetTextMode(c.Mode)
+		case SetLCDLayoutCommand:
+			backend.SetLCDLayout(c.Layout)
+		case SetAntiAliasCommand:
+			backend.SetAntiAlias(c.Enabled)
 		case PushLayerCommand:
 			backend.PushLayer(c.Blend, c.Opacity)
 		case PushLayerIsolatedCommand:

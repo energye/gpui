@@ -107,6 +107,24 @@ func (r *Recorder) ClipRect(x, y, w, h float64) {
 	r.commands = append(r.commands, ClipRectCommand{Rect: NewRect(x, y, w, h)})
 }
 
+// ClipRectOp sets a rectangular clipping region in user space and combines it
+// with the existing clip using op (intersect / difference / replace).
+func (r *Recorder) ClipRectOp(x, y, w, h float64, op render.ClipOp) {
+	r.commands = append(r.commands, ClipRectOpCommand{Rect: NewRect(x, y, w, h), Op: op})
+}
+
+// ClipPathOp applies the current path to the clip with op, then clears the
+// path — Context.ClipPathOp's behaviour, including its rule coming from the
+// current fill rule rather than from an argument.
+func (r *Recorder) ClipPathOp(op render.ClipOp) {
+	if r.currentPath.NumVerbs() == 0 {
+		return
+	}
+	pathRef := r.resources.AddPath(r.currentPath)
+	r.commands = append(r.commands, ClipPathOpCommand{Path: pathRef, Rule: r.fillRule, Op: op})
+	r.currentPath = render.NewPath()
+}
+
 // --------------------------------------------------------------------------
 // Images
 // --------------------------------------------------------------------------
@@ -230,16 +248,57 @@ func (r *Recorder) DrawDepthSprites(img *render.ImageBuf, sprites []render.Depth
 // current fill paint when colors is shorter than positions, so the paint at
 // record time travels with the command.
 func (r *Recorder) DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode) {
-	pos := make([]render.Point, len(positions))
-	copy(pos, positions)
-	col := make([]render.RGBA, len(colors))
-	copy(col, colors)
 	r.commands = append(r.commands, DrawVerticesCommand{
-		Positions: pos,
-		Colors:    col,
+		Positions: clonePoints(positions),
+		Colors:    cloneColors(colors),
 		Mode:      mode,
 		Brush:     r.resources.AddBrush(r.fillBrush),
 	})
+}
+
+// DrawVerticesEx records the same mesh as DrawVertices. Context's extra return
+// reports which route the rasterizer took, a fact that only exists once the
+// triangles are on a surface, so recording returns the zero result.
+func (r *Recorder) DrawVerticesEx(positions []render.Point, colors []render.RGBA, mode render.VertexMode, opts render.VertDrawOptions) (render.VertDrawResult, error) {
+	r.DrawVertices(positions, colors, mode)
+	return render.VertDrawResult{}, nil
+}
+
+// DrawMesh records an indexed (or triangle-list) mesh. The vertex arrays are
+// copied, so a caller that rebuilds its mesh buffers per frame cannot rewrite
+// an already-recorded command.
+func (r *Recorder) DrawMesh(mesh render.Mesh) {
+	r.commands = append(r.commands, DrawMeshCommand{
+		Positions: clonePoints(mesh.Positions),
+		Colors:    cloneColors(mesh.Colors),
+		Indices:   cloneIndices(mesh.Indices),
+		Brush:     r.resources.AddBrush(r.fillBrush),
+	})
+}
+
+// DrawMeshEx records the mesh and returns the zero result, for the reason given
+// on DrawVerticesEx.
+func (r *Recorder) DrawMeshEx(mesh render.Mesh, opts render.VertDrawOptions) (render.VertDrawResult, error) {
+	r.DrawMesh(mesh)
+	return render.VertDrawResult{}, nil
+}
+
+func clonePoints(in []render.Point) []render.Point {
+	out := make([]render.Point, len(in))
+	copy(out, in)
+	return out
+}
+
+func cloneColors(in []render.RGBA) []render.RGBA {
+	out := make([]render.RGBA, len(in))
+	copy(out, in)
+	return out
+}
+
+func cloneIndices(in []uint16) []uint16 {
+	out := make([]uint16, len(in))
+	copy(out, in)
+	return out
 }
 
 func cloneAtlasSprites(in []render.AtlasSprite) []render.AtlasSprite {

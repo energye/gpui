@@ -24,6 +24,9 @@ func (stubBackend) SetClip(_ *render.Path, _ FillRule) {
 }
 func (stubBackend) ClearClip()      {}
 func (stubBackend) ClipRect(_ Rect) {}
+func (stubBackend) ClipRectOp(_ Rect, _ render.ClipOp)         {}
+func (stubBackend) ClipPathOp(_ *render.Path, _ FillRule, _ render.ClipOp) {
+}
 func (stubBackend) FillPath(_ *render.Path, _ Brush, _ FillRule) {
 }
 func (stubBackend) StrokePath(_ *render.Path, _ Brush, _ Stroke) {}
@@ -42,10 +45,15 @@ func (stubBackend) DrawDepthSprites(_ *render.ImageBuf, _ []render.DepthSprite, 
 }
 func (stubBackend) DrawVertices(_ []render.Point, _ []render.RGBA, _ render.VertexMode, _ Brush) {
 }
+func (stubBackend) DrawMesh(_ render.Mesh, _ Brush) {
+}
 func (stubBackend) DrawGlyphs(_ []text.ShapedGlyph, _ text.Face, _, _ float64, _ bool, _ Brush) {
 }
 func (stubBackend) DrawText(_ string, _, _ float64, _ text.Face, _ Brush) {}
 func (stubBackend) SetTextDecoration(_ render.TextDecoration)             {}
+func (stubBackend) SetTextMode(_ render.TextMode)                         {}
+func (stubBackend) SetLCDLayout(_ render.LCDLayout)                       {}
+func (stubBackend) SetAntiAlias(_ bool)                                   {}
 func (stubBackend) ApplyBlur(_ float64)                                   {}
 func (stubBackend) ApplyColorMatrix(_ [20]float32)                        {}
 func (stubBackend) ApplyDropShadow(_, _, _ float64, _ render.RGBA)        {}

@@ -533,7 +533,8 @@ func patternFieldSeed(pat *render.ImagePattern) uint64 {
 		h ^= v
 		h *= 0x100000001b3
 	}
-	img, sx, sy, sw, sh, inv, op, clamp := pat.GPUPatternSource()
+	src := pat.Source()
+	img, sx, sy, sw, sh, inv, op, clamp := src.Image, src.SrcX, src.SrcY, src.SrcW, src.SrcH, src.Inverse, src.Opacity, src.ClampToSource
 	if img != nil {
 		mix(img.GenerationID())
 	}
@@ -770,7 +771,8 @@ func (rc *GPURenderContext) fillImagePatternNative(
 	paint *render.Paint,
 	pat *render.ImagePattern,
 ) error {
-	img, srcX, srcY, srcW, srcH, inv, opacity, clamp := pat.GPUPatternSource()
+	src := pat.Source()
+	img, srcX, srcY, srcW, srcH, inv, opacity, clamp := src.Image, src.SrcX, src.SrcY, src.SrcW, src.SrcH, src.Inverse, src.Opacity, src.ClampToSource
 	if img == nil || srcW <= 0 || srcH <= 0 {
 		return render.ErrFallbackToCPU
 	}

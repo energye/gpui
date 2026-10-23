@@ -212,6 +212,13 @@ func (b *ContextBackend) DrawVertices(positions []render.Point, colors []render.
 	b.dc.DrawVertices(positions, colors, mode)
 }
 
+// DrawMesh replays an indexed or triangle-list mesh under the paint it was
+// recorded with, for the same reason as DrawVertices.
+func (b *ContextBackend) DrawMesh(mesh render.Mesh, brush Brush) {
+	ApplyBrush(b.dc, brush, true)
+	b.dc.DrawMesh(mesh)
+}
+
 // DrawGlyphs replays a shaped-glyph run.
 func (b *ContextBackend) DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush) {
 	if len(glyphs) == 0 || face == nil {
@@ -230,10 +237,38 @@ func (b *ContextBackend) ClipRect(rect Rect) {
 	b.dc.ClipRect(rect.MinX, rect.MinY, rect.Width(), rect.Height())
 }
 
+// ClipRectOp combines the clip region with a user-space rectangle using op. The
+// live method takes the same four floats, so replay is the same call.
+func (b *ContextBackend) ClipRectOp(rect Rect, op render.ClipOp) {
+	b.dc.ClipRectOp(rect.MinX, rect.MinY, rect.Width(), rect.Height(), op)
+}
+
+// ClipPathOp applies the recorded path to the clip with op. The rule travels as
+// an argument because Context.ClipPathOp reads it off the paint: replay sets the
+// rule the recorder had, draws the path, then clips — the exact call sequence
+// the live path went through.
+func (b *ContextBackend) ClipPathOp(path *render.Path, rule FillRule, op render.ClipOp) {
+	if path == nil {
+		return
+	}
+	b.dc.SetFillRule(rule)
+	b.dc.DrawPath(path)
+	b.dc.ClipPathOp(op)
+}
+
 // SetTextDecoration sets the decoration bitset for text drawn afterwards.
 func (b *ContextBackend) SetTextDecoration(deco render.TextDecoration) {
 	b.dc.SetTextDecoration(deco)
 }
+
+// SetTextMode selects the text rendering strategy for subsequent text.
+func (b *ContextBackend) SetTextMode(mode render.TextMode) { b.dc.SetTextMode(mode) }
+
+// SetLCDLayout sets the LCD subpixel order for subsequent ClearType text.
+func (b *ContextBackend) SetLCDLayout(layout render.LCDLayout) { b.dc.SetLCDLayout(layout) }
+
+// SetAntiAlias toggles anti-aliasing for subsequent geometry and clips.
+func (b *ContextBackend) SetAntiAlias(enabled bool) { b.dc.SetAntiAlias(enabled) }
 
 // ApplyBlur attaches a blur post-effect.
 func (b *ContextBackend) ApplyBlur(radius float64) { b.dc.ApplyBlur(radius) }
@@ -275,13 +310,27 @@ func (b *ContextBackend) DrawText(s string, x, y float64, face text.Face, brush 
 	b.dc.DrawString(s, x, y)
 }
 
-// ApplyBrush sets the dc's fill or stroke brush from a recorded brush.
+// ApplyBrush sets the dc's fill or stroke paint from a recorded brush.
 //
-// PatternBrush is not translated: render's image pattern needs a live context
-// to build (CreateImagePattern) and the recording stores only an image
-// reference. A pattern brush therefore paints solid black, exactly as the
-// raster backend has always done.
+// A recorded pattern brush is replayed as a pattern, not as a brush: an image
+// pattern is a render.Pattern (render.Brush is sealed and has no image form), and
+// Context.SetFillPattern is what the live call went through, so the rebuilt
+// pattern lands in the same paint fields and samples the same texels. When the
+// pattern has nothing left to sample — its image was disposed between recording
+// and replay — the paint becomes fully transparent instead of guessing a colour:
+// painting nothing is the honest degradation, painting black is not.
 func ApplyBrush(dc *render.Context, brush Brush, fill bool) {
+	if pat, ok := ToRenderPattern(brush); ok {
+		if pat == nil {
+			pat = render.NewSolidPattern(render.Transparent)
+		}
+		if fill {
+			dc.SetFillPattern(pat)
+		} else {
+			dc.SetStrokePattern(pat)
+		}
+		return
+	}
 	set := dc.SetStrokeBrush
 	if fill {
 		set = dc.SetFillBrush

@@ -110,17 +110,6 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 	return true
 }
 
-// CreateImagePattern creates an image pattern from a rectangular region of an image.
-// The pattern can be used with SetFillPattern or SetStrokePattern.
-//
-// Example:
-//
-//	img, _ := render.LoadImage("texture.png")
-//	pattern := dc.CreateImagePattern(img, 0, 0, 100, 100)
-//	dc.SetFillPattern(pattern)
-//	dc.DrawRectangle(0, 0, 400, 300)
-//	dc.Fill()
-//
 // prepareGPUTextureDraw shares sync/validate/CTM/viewport setup for DrawGPUTexture*.
 // Returns ok=false when GPU is unavailable or view is nil.
 func (c *Context) prepareGPUTextureDraw(view gpucontext.TextureView, x, y float64, width, height int) (g gpuTextureDrawGeom, ok bool) {

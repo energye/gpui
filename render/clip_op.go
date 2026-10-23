@@ -67,15 +67,18 @@ func (c *Context) ClipPathOp(op ClipOp) {
 	if c.clipStack == nil {
 		c.initClipStack()
 	}
-	// Transform path to device space.
-	dev := c.path.Transform(c.totalMatrix())
+	// Path verbs are already baked by the user matrix at MoveTo/LineTo time, so
+	// the device-space form needs only the device scale — the same conversion
+	// Clip() uses. Transforming by totalMatrix here multiplied the user CTM a
+	// second time and moved the clip off the geometry it was meant to keep.
+	dev := c.deviceSpacePath()
 	verbs, coords := convertPathToClipVerbs(dev)
 	canvas := clip.NewRect(0, 0, float64(c.pixmap.Width()), float64(c.pixmap.Height()))
 	fillRule := clipFillRule(c.paint.FillRule)
 	switch op {
 	case ClipOpReplace:
 		_ = c.clipStack.ReplacePath(canvas, verbs, coords, c.antiAlias, fillRule)
-		c.gpuClipPath = dev
+		c.gpuClipPath = dev.Clone()
 		c.gpuClipFillRule = c.paint.FillRule
 	case ClipOpDifference:
 		_ = c.clipStack.PushPathDifference(verbs, coords, c.antiAlias, fillRule)
@@ -83,7 +86,7 @@ func (c *Context) ClipPathOp(op ClipOp) {
 		c.gpuClipFillRule = FillRuleNonZero
 	default:
 		_ = c.clipStack.PushPath(verbs, coords, c.antiAlias, fillRule)
-		c.gpuClipPath = dev
+		c.gpuClipPath = dev.Clone()
 		c.gpuClipFillRule = c.paint.FillRule
 	}
 	c.bumpClipMaskGPUGen()

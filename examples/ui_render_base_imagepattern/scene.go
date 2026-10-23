@@ -159,6 +159,7 @@ var patternProbeKeys = []string{
 	"imagepattern_opacity",
 	"imagepattern_clamp",
 	"imagepattern_transform",
+	"imagepattern_source_roundtrip",
 	"imagepattern_nil",
 	"solid_pattern",
 	"brush_from_solid",
@@ -177,16 +178,11 @@ func runPatternLogic() (ran, failed []string) {
 			failed = append(failed, key)
 		}
 	}
-	// A throwaway context is only used to obtain the legacy Pattern wrapper;
-	// no drawing happens here and the window owns the real render context.
-	dc := render.NewContext(8, 8)
-
-	p := dc.CreateImagePattern(patternSource, 0, 0, 16, 16)
-	ip, kindOK := p.(*render.ImagePattern)
-	gimg, sx, sy, sw, sh, inv, op, clamp := ip.GPUPatternSource()
-	add("imagepattern_kind", kindOK && gimg == patternSource &&
-		sx == 0 && sy == 0 && sw == 16 && sh == 16 &&
-		inv == render.Identity() && op == 1 && !clamp)
+	ip := render.NewImagePattern(patternSource, 0, 0, 16, 16)
+	src := ip.Source()
+	add("imagepattern_kind", src.Image == patternSource &&
+		src.SrcX == 0 && src.SrcY == 0 && src.SrcW == 16 && src.SrcH == 16 &&
+		src.Inverse == render.Identity() && src.Opacity == 1 && !src.ClampToSource)
 
 	add("imagepattern_tile",
 		nearRGBA(ip.ColorAt(4, 4), srcRed, 1e-6) &&
@@ -195,13 +191,13 @@ func runPatternLogic() (ran, failed []string) {
 			nearRGBA(ip.ColorAt(12, 12), srcYellow, 1e-6) &&
 			nearRGBA(ip.ColorAt(20, 4), srcRed, 1e-6))
 
-	right := dc.CreateImagePattern(patternSource, 16, 0, 16, 16)
+	right := render.NewImagePattern(patternSource, 16, 0, 16, 16)
 	add("imagepattern_srcregion",
 		nearRGBA(right.ColorAt(0, 0), srcMagenta, 1e-6) &&
 			nearRGBA(right.ColorAt(8, 8), srcMagenta, 1e-6) &&
 			nearRGBA(right.ColorAt(16, 0), srcMagenta, 1e-6))
 
-	pa, _ := dc.CreateImagePattern(patternSource, 0, 0, 16, 16).(*render.ImagePattern)
+	pa := render.NewImagePattern(patternSource, 0, 0, 16, 16)
 	pa.SetAnchor(40, 20)
 	add("imagepattern_anchor",
 		nearRGBA(pa.ColorAt(44, 24), srcRed, 1e-6) &&
@@ -225,7 +221,7 @@ func runPatternLogic() (ran, failed []string) {
 	in := pa.ColorAt(80, 24)
 	add("imagepattern_clamp", out.A == 0 && nearRGBA(in, srcRed, 1e-6))
 
-	pt, _ := dc.CreateImagePattern(patternSource, 0, 0, 16, 16).(*render.ImagePattern)
+	pt := render.NewImagePattern(patternSource, 0, 0, 16, 16)
 	m := render.Translate(100, 100).Multiply(render.Rotate(0.3)).Multiply(render.Scale(2, 2))
 	pt.SetTransform(m)
 	transformOK := true
@@ -242,7 +238,19 @@ func runPatternLogic() (ran, failed []string) {
 	}
 	add("imagepattern_transform", transformOK)
 
-	np := dc.CreateImagePattern(nil, 0, 0, 16, 16)
+	// A pattern rebuilt from its own description must sample the same texels:
+	// this is what lets a display list replay a pattern bit-exactly, so the
+	// inverse travels as stored instead of being inverted a second time.
+	back := render.NewImagePatternFromSource(pt.Source())
+	backOK := true
+	for _, q := range []render.Point{{X: 120, Y: 90}, {X: 210, Y: 140}, {X: 305, Y: 260}, {X: 40, Y: 40}} {
+		if back.ColorAt(q.X, q.Y) != pt.ColorAt(q.X, q.Y) {
+			backOK = false
+		}
+	}
+	add("imagepattern_source_roundtrip", backOK && back.Source() == pt.Source())
+
+	np := render.NewImagePattern(nil, 0, 0, 16, 16)
 	nc := np.ColorAt(1, 1)
 	add("imagepattern_nil", nc == (render.RGBA{}))
 
@@ -386,7 +394,7 @@ func buildPatternScene(shell *wrkit.ShellChrome) {
 		shell.Body.Place(wrkit.Label(title, 12, colTitle[0], colTitle[1], colTitle[2]),
 			cardAt[i][0]+12, cardAt[i][1]+10)
 	}
-	cardWithBoundary(0, "A  CreateImagePattern + SetFillPattern", true, paintPatternTile)
+	cardWithBoundary(0, "A  NewImagePattern + SetFillPattern", true, paintPatternTile)
 	cardWithBoundary(1, "B  anchor / scale / opacity / clamp / transform", true, paintPatternTransform)
 	cardWithBoundary(2, "C  SetStrokePattern — ring (non-rect)", true, paintPatternStroke)
 	cardWithBoundary(3, "D  custom Pattern + solid Pattern + Paint", true, paintPatternCustom)
@@ -417,7 +425,7 @@ func buildPatternScene(shell *wrkit.ShellChrome) {
 	label(3, "NewSolidPattern · solid", 10, 210, 30)
 }
 
-func cardBG(dc *render.Context, ox, oy, w, h float64) {
+func cardBG(dc render.Canvas, ox, oy, w, h float64) {
 	dc.SetRGBA(colCardBG[0], colCardBG[1], colCardBG[2], 1)
 	dc.DrawRectangle(ox, oy, w, h)
 	_ = dc.Fill()
@@ -430,10 +438,7 @@ func paintPatternTile(pc *rendering.PaintContext, sz rendering.Size) {
 	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 
-	p, ok := dc.CreateImagePattern(patternSource, 0, 0, 16, 16).(*render.ImagePattern)
-	if !ok || p == nil {
-		return
-	}
+	p := render.NewImagePattern(patternSource, 0, 0, 16, 16)
 	p.SetAnchor(ox+aRectX, oy+aRectY)
 	dc.SetFillPattern(p)
 	dc.DrawRectangle(ox+aRectX, oy+aRectY, aRectSize, aRectSize)
@@ -457,7 +462,7 @@ func paintPatternTransform(pc *rendering.PaintContext, sz rendering.Size) {
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 
 	// B1: anchor + scale + opacity, tiled.
-	p1, _ := dc.CreateImagePattern(patternSource, 0, 0, 16, 16).(*render.ImagePattern)
+	p1 := render.NewImagePattern(patternSource, 0, 0, 16, 16)
 	p1.SetAnchor(ox+b1X, oy+bRectY)
 	p1.SetScale(2, 2)
 	p1.SetOpacity(0.5)
@@ -467,7 +472,7 @@ func paintPatternTransform(pc *rendering.PaintContext, sz rendering.Size) {
 	_ = dc.Fill()
 
 	// B2: clamp=true, only the first 32x32 tile is painted.
-	p2, _ := dc.CreateImagePattern(patternSource, 0, 0, 16, 16).(*render.ImagePattern)
+	p2 := render.NewImagePattern(patternSource, 0, 0, 16, 16)
 	p2.SetAnchor(ox+b2X, oy+bRectY)
 	p2.SetScale(2, 2)
 	p2.SetOpacity(1)
@@ -478,7 +483,7 @@ func paintPatternTransform(pc *rendering.PaintContext, sz rendering.Size) {
 
 	// B3: full affine rotate+scale; non-axis-aligned so the N2 field mask
 	// samples by inverse. The rect stays axis-aligned; the pattern rotates.
-	p3, _ := dc.CreateImagePattern(patternSource, 0, 0, 16, 16).(*render.ImagePattern)
+	p3 := render.NewImagePattern(patternSource, 0, 0, 16, 16)
 	p3.SetTransform(b3Matrix(ox, oy))
 	dc.SetFillPattern(p3)
 	dc.DrawRectangle(ox+b3X, oy+bRectY, bRectW, bRectH)
@@ -500,7 +505,7 @@ func paintPatternStroke(pc *rendering.PaintContext, sz rendering.Size) {
 	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 
-	p, _ := dc.CreateImagePattern(patternSource, 0, 0, 16, 16).(*render.ImagePattern)
+	p := render.NewImagePattern(patternSource, 0, 0, 16, 16)
 	p.SetAnchor(ox, oy)
 	dc.SetStrokePattern(p)
 	dc.SetLineWidth(cWidth)

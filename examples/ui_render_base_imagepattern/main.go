@@ -1,7 +1,9 @@
 // Command ui_render_base_imagepattern is the B-group direct real window for
-// the legacy pattern/brush API: CreateImagePattern, SetFillPattern,
+// the pattern/brush API: render.NewImagePattern (package function since S2b
+// C2b, was Context.CreateImagePattern), SetFillPattern,
 // SetStrokePattern, ImagePattern anchors/scales/opacity/clamp/transform,
-// NewSolidPattern, the Pattern<->Brush helpers, and Paint.
+// NewSolidPattern, the Pattern<->Brush helpers, ImagePattern.Source /
+// NewImagePatternFromSource, and Paint.
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	RUN_SECONDS=5 go run ./examples/ui_render_base_imagepattern -auto-only
@@ -88,13 +90,17 @@ func main() {
 	host := win.Host()
 	ctl := win.Controls()
 
+	// legendProbeLineIdx is the probe-count line: its text is derived from the
+	// suite size, so it moves whenever a probe is added. The golden mask skips
+	// that band (see goldenRects) rather than freezing a number.
+	legendProbeLineIdx := 4
 	shell := wrkit.NewShell(winW, winH, "ui_render_base_imagepattern — legacy Pattern / ImagePattern", []string{
 		"A  image pattern tile (16×16 crop)",
 		"B  anchor / scale / opacity / clamp",
 		"C  stroke pattern (ring, non-rect)",
 		"D  custom + solid Pattern + Paint",
 		fmt.Sprintf("probe: %d logic + %d pixel", len(patternProbeKeys), len(probeSpecs)),
-		"golden: header + legend + 4 cards",
+		"golden: header + legend (probe line masked out) + 4 cards",
 		"gate: -auto-only / RUN_SECONDS",
 	})
 	buildPatternScene(shell)
@@ -204,9 +210,15 @@ func main() {
 		}
 	}
 
+	// The legend is compared in two bands with the probe-count line's band left
+	// out: that line prints len(patternProbeKeys), so freezing it would make
+	// every probe addition look like a pixel regression.
+	probeLineY := shell.Legend.Y + wrkit.LegendLineY(legendProbeLineIdx)
 	goldenRects := []rect{
 		{x: 0, y: 0, w: winW, h: 48},
-		{x: shell.Legend.X, y: shell.Legend.Y, w: shell.Legend.W, h: shell.Legend.H},
+		{x: shell.Legend.X, y: shell.Legend.Y, w: shell.Legend.W, h: probeLineY - shell.Legend.Y},
+		{x: shell.Legend.X, y: probeLineY + wrkit.LegendLineH, w: shell.Legend.W,
+			h: shell.Legend.Y + shell.Legend.H - (probeLineY + wrkit.LegendLineH)},
 	}
 	for _, ca := range cardAt {
 		goldenRects = append(goldenRects, rect{x: bx + ca[0], y: by + ca[1], w: cardW, h: cardH})
@@ -234,7 +246,7 @@ func main() {
 			"pixel_golden_first_run":   goldenFirstRun,
 			"pattern_source":           "./testdata/pattern_atlas.png (32×16; left quadrants, right magenta)",
 			"pattern_source_sha256_16": patternSourceSHA,
-			"apis":                     "CreateImagePattern,SetFillPattern,SetStrokePattern,ImagePattern.SetAnchor/SetScale/SetOpacity/SetClamp/SetTransform/ColorAt,NewSolidPattern,BrushFromPattern,PatternFromBrush,Paint.SetBrush/ColorAt/GetBrush/SolidColor",
+			"apis":                     "render.NewImagePattern,NewImagePatternFromSource,ImagePattern.Source,SetFillPattern,SetStrokePattern,ImagePattern.SetAnchor/SetScale/SetOpacity/SetClamp/SetTransform/ColorAt,NewSolidPattern,BrushFromPattern,PatternFromBrush,Paint.SetBrush/ColorAt/GetBrush/SolidColor",
 			"fps_gate":                 "off_correctness",
 			"slope_gate":               "off",
 			"resize_events":            resizeEvents,
