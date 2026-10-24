@@ -80,6 +80,10 @@ func (q *Queue) SupportsCommandBufferCopies() bool {
 	return false
 }
 
+// SupportsCrossThreadTextureWrites reports true: the noop queue keeps no
+// context or native state, so tests can exercise the worker-upload path.
+func (q *Queue) SupportsCrossThreadTextureWrites() bool { return true }
+
 // StagedWriteOverlaps implements hal.Queue: the noop backend never uploads to
 // a GPU, so there is no coalescing drain to guard. Always 0.
 func (q *Queue) StagedWriteOverlaps() int64 { return 0 }

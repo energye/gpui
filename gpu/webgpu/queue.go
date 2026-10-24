@@ -267,6 +267,11 @@ func (q *Queue) GetTimestampPeriod() float32 { return 0 }
 
 func (q *Queue) SupportsCommandBufferCopies() bool { return true }
 
+// SupportsCrossThreadTextureWrites reports true: every rwgpu call serializes on
+// the process-wide GPU mutex and the native wgpu queue is thread-safe, so a
+// video upload worker may write while the raster thread submits.
+func (q *Queue) SupportsCrossThreadTextureWrites() bool { return true }
+
 // StagedWriteOverlaps implements hal.Queue: wgpu owns the staging buffer and
 // applies each writeBuffer before the submission that follows it, so this
 // queue never collapses two engine writes into one destination region. Always 0

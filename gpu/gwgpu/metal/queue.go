@@ -471,6 +471,11 @@ func (q *Queue) GetTimestampPeriod() float32 {
 	return 1.0
 }
 
+// SupportsCrossThreadTextureWrites reports false until cross-thread ordering
+// between a worker blit and the raster submission is proven; Metal video
+// uploads stay on the raster thread.
+func (q *Queue) SupportsCrossThreadTextureWrites() bool { return false }
+
 // SupportsCommandBufferCopies returns true for Metal.
 // Metal uses command buffers for copy operations — PendingWrites batches them.
 func (q *Queue) SupportsCommandBufferCopies() bool {

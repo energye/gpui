@@ -238,6 +238,13 @@ func (q *Queue) GetTimestampPeriod() float32 {
 	return 1.0
 }
 
+// SupportsCrossThreadTextureWrites reports false: WriteTexture makes the EGL
+// context current on the calling thread, and Submit deliberately keeps that one
+// context bound to the raster thread (UnlockKeepBinding). A foreign-thread
+// MakeCurrent fails with EGL_BAD_ACCESS and the GL calls no-op, so GLES video
+// uploads stay on the raster thread.
+func (q *Queue) SupportsCrossThreadTextureWrites() bool { return false }
+
 // SupportsCommandBufferCopies returns false for GLES.
 // GLES uses direct GL calls (glBufferSubData, glTexSubImage2D) for writes,
 // not command buffer copy operations.

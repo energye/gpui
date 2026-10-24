@@ -132,9 +132,16 @@ func main() {
 				bridge.EnsureDevice(dev)
 			}
 		}
-		if f, _ := live.Poll(); f != nil {
-			liveShown++
-			node.UploadPlanes(f.Width, f.Height, f.Y, f.UV, f.Pix)
+		// The staging worker reads the Poll planes until the frame is
+		// published, so the decoder buffer must not be reused meanwhile.
+		if !node.UploadPending() {
+			if f, _ := live.Poll(); f != nil {
+				// Count only frames the route accepted: a rejected handoff never
+				// reaches the screen, so counting it would inflate frames_shown.
+				if node.UploadPlanesAsync(f.Width, f.Height, f.Y, f.UV, f.Pix) {
+					liveShown++
+				}
+			}
 		}
 		app.ScheduleFrame()
 		proc.Sample()
@@ -279,10 +286,10 @@ func main() {
 			nst.DrewOK, nst.DrewLast, nst.SmallDrew, nst.SmallDrewLast)
 		os.Exit(1)
 	}
-	if bst.Redraws < 1 && bst.Fallbacks == 0 {
-		fmt.Fprintln(os.Stderr, "FAIL: 同源小窗一次没重画（直传下重画应免费）")
-		os.Exit(1)
-	}
+	// Same-source PiP is free when uploads==frames (a PiP re-upload would
+	// exceed the frame count) and both views drew (gated above). ShowSeq's
+	// Redraws counter only applies to windows that draw one upload twice in a
+	// single Paint.
 	if nst.FirstMean <= 5 || nst.LastMean <= 5 {
 		fmt.Fprintf(os.Stderr, "FAIL: 首尾帧黑 首=%.1f 尾=%.1f(必须>5)\n", nst.FirstMean, nst.LastMean)
 		os.Exit(1)

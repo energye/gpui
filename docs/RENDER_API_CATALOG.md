@@ -219,6 +219,7 @@
 | `Context.DrawVideoPlanes(slot, opts)` | NV12 平面四边形 + 显卡转色（一份 WGSL 两后端通用，无会话/坏参/变体缺失时失败闭合走 CPU 转回落） | 平面快画 | ✅（桥绘制，缺变体回落） |
 | `VideoBridge` + `NewVideoBridge/EnsureDevice/Close` + `BridgeStats`（Frames/Uploads/Fallbacks/Redraws/Live/Idle/Evictions） | 一路视频收敛：tick 上传 + paint 绘制；上传+回落==帧数；无新帧不传 | 视频桥 | ✅（17 扇窗在用） |
 | `VideoBridge.Show/ShowSeq/UploadFrame/DrawCurrent/UploadPlanesFrame` | 整块上传绘制 + 同帧多视图免费重画 + 平面上传统一计数 | 桥上传绘制 | ✅（窗 tick/paint） |
+| `VideoBridge.UploadPlanesFrameAsync(w,h,y,uv)` / `UploadPending()` | 异步平面口：调用线程只交接，worker 拷贝（跨线程后端直接上传并双缓冲换槽；GL/metal 在光栅绘制时上传）；交接后平面归路线所有，`UploadPending` 为真期间不得复用/再次 Poll；坏参/已关/无设备/上一帧未发布返回 false | 异步平面上传 | ✅（4K 真窗 30s：uploads=frames=107、p95 19.37ms） |
 | `VideoBridge.PaintTexture(dc, opts)`（`TextureSource` 实现） | 纹理源入口：光栅线程按 `scene.TextureLayer` 的 id 解析后调用，桥锁内绘制当前帧；`ok=false` 表示没画（无帧/已关/无设备），调用方不得把矩形当已覆盖 | 纹理源绘制 | ✅（`ui/scene/composite.go:281` 合成 + `RenderVideo.Paint`） |
 | `VideoBridge.ID()` / `VideoBridge.PaintStats()` + `PaintStats`（Paints/DirectPaints/FallbackPaints/FailedPaints/LastPaintOK/LastPaintDirect/ViewPaints/ViewOK/ViewLastOK/ViewDirect） | 注册 id（0=未注册）与逐视图绘制账本；`ViewOK` 是「曾经画过」、`ViewLastOK` 是「最近一帧画没画」，门禁断当前画面用后者；光栅线程画的也记在这里，生产者/节点只读快照，不靠活对象字段 | 纹理源 id / 绘制账本 | ✅（`RenderVideo.NodeStats` 读，`ui/rendering/video_direct_node.go:153`） |
 | `VideoPlaneSlot`（W/H/YTex/YView/UVTex/UVView/垫行暂存） | 一路视频一组平面纹理（Y 用 R8、UV 用 RG8），原地重写 | 平面纹理槽 | ✅（桥持有） |
@@ -464,7 +465,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | `Rect` | Width/Height · Contains · Union · (NewRect) | 矩形尺寸/包含/合并 | 矩形 | ✅ |
 | `PathMetric` | IsEmpty · Length · PositionAt/TangentAt | 路径度量查询（取点/切线） | 路径度量 | 🔗 |
 | `PresentTarget` | Context/Resize/SetVsync/Scale · PresentWith/PresentWithAuto/PresentClear · LastPresentOutcome/LastDamageAreaPx/GPUBackend/Fallbacks · InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized · LogicalSize · WaitIdle · Close | 呈现目标绘制/呈现/恢复状态（SetOnSwapchainResized：swapchain 换尺寸回调，Wayland 宿主用于 xdg 窗口几何声明；SetVsync：运行时切换 Fifo↔Mailbox/Immediate，embedder 在 resize 风暴期关闭 vsync 让内容帧不被 Fifo 阻塞；运行时切换 Fifo↔Mailbox/Immediate（2026-08-26 修3 起 Wayland 同样生效）） | 呈现目标 | ✅ |
-| `VideoBridge` | EnsureDevice · Show/ShowSeq · UploadFrame/UploadPlanesFrame · DrawCurrent · **PaintTexture** · **ID** · **PaintStats** · Stats · Close | 一路视频收敛：tick 上传 + paint 绘制；纹理源入口/注册 id/逐视图账本供保留窗按 id 绘制与取证 | 视频桥 | ✅（17 扇窗在用；`ui/scene` 纹理层） |
+| `VideoBridge` | EnsureDevice · Show/ShowSeq · UploadFrame/UploadPlanesFrame · **UploadPlanesFrameAsync/UploadPending** · DrawCurrent · **PaintTexture** · **ID** · **PaintStats** · Stats · Close | 一路视频收敛：tick 上传 + paint 绘制；**异步平面口把 NV12 拷贝/上传交给 worker，跨线程后端双缓冲换槽、GL/metal 在光栅绘制时上传，调用方在 `UploadPending` 为真期间保留平面**；纹理源入口/注册 id/逐视图账本供保留窗按 id 绘制与取证 | 视频桥 | ✅（17 扇窗在用；4K 窗走异步口；`ui/scene` 纹理层） |
 | `PaintStats` | —（数据） | 视频桥逐视图绘制账本快照（Paints/DirectPaints/FallbackPaints/FailedPaints/LastPaintOK/LastPaintDirect/ViewPaints/ViewOK/ViewLastOK/ViewDirect） | 绘制账本 | ✅ |
 | `TextureSource`（接口） | PaintTexture | 纹理源契约：保留图层按 id 解析后绘制，源自己负责跨线程同步 | 纹理源 | ✅（`VideoBridge` 实现） |
 | `TexturePaintOptions` | —（数据） | 纹理绘制位置/不透明度/插值/视图号 | 纹理画参 | ✅ |

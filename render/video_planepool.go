@@ -322,20 +322,21 @@ func padPlaneRows(scratch []byte, pix []byte, w, rows, pitch int) []byte {
 	return scratch
 }
 
+// videoUploadChunkBytes bounds one queue write. A full 4K NV12 frame is two
+// multi-megabyte writes; the backend holds its queue lock for the whole call,
+// so the raster thread would wait that long whenever it landed mid-upload.
+// Chunked writes let the raster interleave between them (~1 MiB slices).
+const videoUploadChunkBytes = 1 << 20
+
 // UploadPlanes rewrites the slot pair in place: Y (R8, w×h) plus UV
 // (RG8 interleaved, w/2×h/2). One UV row is w bytes, so the texture width
 // is w/2 texels; using w here samples the zero-padded right half and turns
 // the picture green. One call counts one upload unit, so the upload
 // discipline stays one upload per frame like the RGBA path. Tight widths
 // upload directly; other widths pad rows into slot-owned scratch (memcpy
-// only, no arithmetic). Any failure errors to the RGBA fallback path.
-// UploadPlanes rewrites the slot pair in place: Y (R8, w×h) plus UV
-// (RG8 interleaved, w/2×h/2). One UV row is w bytes, so the texture width
-// is w/2 texels; using w here samples the zero-padded right half and turns
-// the picture green. One call counts one upload unit, so the upload
-// discipline stays one upload per frame like the RGBA path. Tight widths
-// upload directly; other widths pad rows into slot-owned scratch (memcpy
-// only, no arithmetic). Any failure errors to the RGBA fallback path.
+// only, no arithmetic). Writes are sliced so no single queue call holds the
+// backend lock for a whole 4K frame. Any failure errors to the RGBA fallback
+// path.
 func (p *VideoPlanePool) UploadPlanes(s *VideoPlaneSlot, y, uv []byte) error {
 	if p == nil || p.device == nil {
 		return fmt.Errorf("render: video plane upload has no device")
@@ -368,11 +369,26 @@ func (p *VideoPlanePool) UploadPlanes(s *VideoPlaneSlot, y, uv []byte) error {
 		yp, uvs = s.padY, s.padUV
 	}
 	upload := func(tex hal.Texture, pix []byte, rows, width int) error {
-		dst := &hal.ImageCopyTexture{Texture: tex, MipLevel: 0, Aspect: types.TextureAspectAll}
-		layout := &hal.ImageDataLayout{Offset: 0, BytesPerRow: pitch, RowsPerImage: uint32(rows)}
-		size := &hal.Extent3D{Width: uint32(width), Height: uint32(rows), DepthOrArrayLayers: 1}
-		if err := queue.WriteTexture(dst, pix[:int(pitch)*rows], layout, size); err != nil {
-			return fmt.Errorf("render: video plane WriteTexture %dx%d: %w", width, rows, err)
+		rowBytes := int(pitch)
+		chunkRows := videoUploadChunkBytes / rowBytes
+		if chunkRows < 1 {
+			chunkRows = 1
+		}
+		for r := 0; r < rows; r += chunkRows {
+			n := chunkRows
+			if r+n > rows {
+				n = rows - r
+			}
+			dst := &hal.ImageCopyTexture{
+				Texture: tex, MipLevel: 0,
+				Origin: hal.Origin3D{Y: uint32(r)}, //nolint:gosec // video rows fit uint32
+				Aspect: types.TextureAspectAll,
+			}
+			layout := &hal.ImageDataLayout{Offset: 0, BytesPerRow: pitch, RowsPerImage: uint32(n)} //nolint:gosec // chunk rows fit uint32
+			size := &hal.Extent3D{Width: uint32(width), Height: uint32(n), DepthOrArrayLayers: 1}  //nolint:gosec // video dims fit uint32
+			if err := queue.WriteTexture(dst, pix[r*rowBytes:(r+n)*rowBytes], layout, size); err != nil {
+				return fmt.Errorf("render: video plane WriteTexture %dx%d: %w", width, rows, err)
+			}
 		}
 		return nil
 	}
@@ -425,11 +441,30 @@ type VideoBridge struct {
 	// ppool/pslot carry the NV12 shape (layer 3); pshadow retains the
 	// last planes for the fallback convert. hasPlanes selects the
 	// shape DrawCurrent draws.
-	ppool     *VideoPlanePool
-	pslot     *VideoPlaneSlot
+	ppool *VideoPlanePool
+	pslot *VideoPlaneSlot
+	// pback is the slot the copy worker writes while pslot stays drawable
+	// (double buffering): a frame is only ever sampled after its upload
+	// finished and it was swapped into pslot under mu.
+	pback     *VideoPlaneSlot
 	pshadowY  []byte
 	pshadowU  []byte
 	hasPlanes bool
+
+	// Async plane staging (4K p95 fix): the caller hands NV12 planes off and a
+	// worker takes over while the UI thread keeps ticking. A backend that allows
+	// cross-thread queue writes uploads straight into the back slot and swaps it
+	// in; the others copy into pendY/pendU and the next raster draw publishes.
+	// pendDone closes when the worker leaves, so Close can wait instead of
+	// tearing down buffers under it.
+	pendY             []byte
+	pendU             []byte
+	pendW             int
+	pendH             int
+	pendState         int
+	pendDone          chan struct{}
+	closed            bool
+	crossThreadWrites bool
 
 	// id is the registry id assigned at construction. It is never rewritten,
 	// so the raster thread can resolve a retained layer to this bridge without

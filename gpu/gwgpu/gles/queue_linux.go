@@ -348,6 +348,11 @@ func (q *Queue) GetTimestampPeriod() float32 {
 	return 1.0
 }
 
+// SupportsCrossThreadTextureWrites reports false: the Linux frame path keeps the
+// EGL context bound to the raster thread (Submit uses UnlockKeepBinding), and a
+// foreign-thread WriteTexture would MakeCurrent into failure.
+func (q *Queue) SupportsCrossThreadTextureWrites() bool { return false }
+
 // SupportsCommandBufferCopies returns false for GLES on Linux.
 // GLES uses direct GL calls for writes, not command buffer copy operations.
 func (q *Queue) SupportsCommandBufferCopies() bool {

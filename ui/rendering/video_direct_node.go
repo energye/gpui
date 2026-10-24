@@ -58,7 +58,9 @@ func NewRenderVideoPiP(w, h, smallW, smallH float64, bridge *render.VideoBridge)
 	return v
 }
 
-// UploadPlanes uploads one new frame on the tick and marks paint dirty.
+// UploadPlanes uploads one new frame on the tick. Only the first frame marks
+// paint dirty: the retained tree's texture layer repaints the live texture on
+// every composite, so the first build is what has to insert the leaf.
 // This is the only window-facing feed (P3-A layer 5): y/uv carry NV12
 // planes, pix carries the RGBA fallback for odd-size or exotic frames
 // (nil-safe, shapes the decoder never emits together). Planes go
@@ -92,16 +94,61 @@ func (v *RenderVideo) UploadPlanes(fw, fh int, y, uv, pix []byte) bool {
 	return true
 }
 
+// UploadPlanesAsync hands one NV12 frame to the bridge staging worker without
+// copying it on the tick. Ownership of y/uv transfers to the route until
+// UploadPending reports false — do not recycle them before then. Returns false
+// when the route rejects the frame (busy, odd size, no plane device), in which
+// case the caller keeps ownership. Like UploadPlanes, a rejected plane shape
+// falls through to the RGBA route when pix is present.
+func (v *RenderVideo) UploadPlanesAsync(fw, fh int, y, uv, pix []byte) bool {
+	if v == nil || v.bridge == nil || fw < 1 || fh < 1 {
+		return false
+	}
+	if len(y) > 0 && len(uv) > 0 {
+		yN, uvN := fw*fh, fw*fh/2
+		if yN > 0 && uvN > 0 && len(y) >= yN && len(uv) >= uvN &&
+			v.bridge.UploadPlanesFrameAsync(fw, fh, y[:yN], uv[:uvN]) {
+			v.planesLast = true
+			v.noteFrame(fw, fh, y[:yN])
+			return true
+		}
+	}
+	need := fw * fh * 4
+	if need <= 0 || len(pix) < need {
+		return false
+	}
+	if !v.bridge.UploadFrame(fw, fh, pix[:need]) {
+		return false
+	}
+	v.planesLast = false
+	v.noteFrame(fw, fh, pix[:need])
+	return true
+}
+
+// UploadPending reports that the route still owns the planes handed to
+// UploadPlanesAsync: poll the next frame only after this turns false.
+func (v *RenderVideo) UploadPending() bool {
+	return v != nil && v.bridge != nil && v.bridge.UploadPending()
+}
+
 // noteFrame records size, brightness gate, and paint dirtiness.
+// The retained tree carries the picture as a live TextureLayer, which is
+// repainted on every composite (see TextureLeafProvider), so only the first
+// frame has to dirty the node — that build is what puts the leaf in the tree.
+// Dirtying every frame would re-record the enclosing layer for a texture that
+// already shows the new content, and that re-record is measurable frame pacing.
 func (v *RenderVideo) noteFrame(fw, fh int, sample []byte) {
 	v.fw, v.fh = fw, fh
+	first := !v.hasFrame
 	v.hasFrame = true
 	m := sampleMean(sample)
 	if !v.firstSet {
 		v.firstMean, v.firstSet = m, true
 	}
 	v.lastMean = m
-	v.MarkNeedsPaint()
+	if first {
+		v.MarkNeedsPaint()
+	}
 }
 
 // sampleMean estimates frame brightness by strided sampling (cheap

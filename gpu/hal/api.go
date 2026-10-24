@@ -449,3 +449,15 @@ type MaxStagingBufferSizer interface {
 	// staging buffer allocation. Returns 0 to use the default (64MB).
 	MaxStagingBufferSize() uint64
 }
+
+// CrossThreadTextureWriter is an optional interface implemented by HAL queues
+// whose WriteTexture may be called from a goroutine other than the raster
+// thread. Callers ask before handing GPU work to a copy worker.
+//
+// A backend reports false when its queue owns thread-affine state: the GLES
+// context is made current on the calling thread and the frame path keeps that
+// context bound to the raster thread, so a foreign-thread write would silently
+// run without a current context. Absence of this interface means false.
+type CrossThreadTextureWriter interface {
+	SupportsCrossThreadTextureWrites() bool
+}

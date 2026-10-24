@@ -14,6 +14,15 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 )
 
+// Plane staging states for UploadPlanesFrameAsync: idle → copying → ready →
+// (published) idle. A ready frame waits for the draw only on backends whose
+// context belongs to the raster thread.
+const (
+	planeStageIdle = iota
+	planeStageCopying
+	planeStageReady
+)
+
 // DrawVideoFrame draws one frame through the generic image path after the
 // caller uploaded it with Upload. It is the guaranteed-picture fallback:
 // use Context.DrawVideoSlot first for the zero-upload quad, and call this
@@ -54,9 +63,25 @@ func NewVideoBridge(device hal.Device) *VideoBridge {
 	if device != nil {
 		b.pool = NewVideoTexturePool(device)
 		b.ppool = NewVideoPlanePool(device)
+		b.crossThreadWrites = videoCrossThreadWrites(device)
 	}
 	b.id = RegisterTextureSource(b)
 	return b
+}
+
+// videoCrossThreadWrites asks the backend whether a queue write may run on the
+// copy worker. Backends that bind their context to the raster thread (GLES)
+// report false and take the upload when the texture layer paints.
+func videoCrossThreadWrites(device hal.Device) bool {
+	if device == nil {
+		return false
+	}
+	q := device.Queue()
+	if q == nil {
+		return false
+	}
+	w, ok := q.(hal.CrossThreadTextureWriter)
+	return ok && w.SupportsCrossThreadTextureWrites()
 }
 
 // EnsureDevice attaches the pool device when the window device opens after
@@ -76,6 +101,7 @@ func (b *VideoBridge) EnsureDevice(device hal.Device) {
 	}
 	if b.ppool == nil {
 		b.ppool = NewVideoPlanePool(device)
+		b.crossThreadWrites = videoCrossThreadWrites(device)
 	}
 }
 
@@ -111,6 +137,9 @@ func (b *VideoBridge) showImpl(seq uint64, useSeq bool, c *Context, w, h int, pi
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.planeStageBusyLocked() {
+		return false, false
+	}
 	if useSeq && b.hasSeq && seq == b.lastSeq && w == b.lastW && h == b.lastH {
 		// Same frame, second view: no re-upload, just redraw.
 		b.redraws++
@@ -176,6 +205,9 @@ func (b *VideoBridge) UploadFrame(w, h int, pix []byte) bool {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.planeStageBusyLocked() {
+		return false
+	}
 	b.lastW, b.lastH = w, h
 	// One current shape at a time: an RGBA frame replaces a plane frame, so
 	// drawCurrentAt cannot keep painting the old NV12 slot.
@@ -183,7 +215,10 @@ func (b *VideoBridge) UploadFrame(w, h int, pix []byte) bool {
 		if b.ppool != nil && b.pslot != nil {
 			b.ppool.Release(b.pslot)
 		}
-		b.pslot = nil
+		if b.ppool != nil && b.pback != nil {
+			b.ppool.Release(b.pback)
+		}
+		b.pslot, b.pback = nil, nil
 		b.hasPlanes = false
 	}
 	if len(b.shadow) != int(need) {
@@ -235,11 +270,16 @@ func (b *VideoBridge) drawCurrentAt(c *Context, opts VideoDrawOptions, view int)
 	// Runs before the unlock above (defer LIFO), so the accounting needs no
 	// second lock and no separate atomic set.
 	defer func() { b.notePaintLocked(view, direct, ok) }()
-	if b.hasPlanes && b.pslot != nil {
-		if c.DrawVideoPlanes(b.pslot, opts) {
+	// Publish a staged plane frame here when the backend cannot write from the
+	// copy worker (GLES: the context belongs to this thread). On a backend
+	// that supports cross-thread writes the worker already published, so this
+	// is a no-op. Either way the draw only ever sees a complete frame.
+	b.publishPendingPlaneLocked()
+	if b.hasPlanes {
+		if b.pslot != nil && c.DrawVideoPlanes(b.pslot, opts) {
 			return true, true
 		}
-		w, h := b.pslot.W, b.pslot.H
+		w, h := b.lastW, b.lastH
 		if len(b.pshadowY) == 0 || !b.ensureFallbackLocked(w, h) {
 			return false, false
 		}
@@ -415,6 +455,18 @@ func (b *VideoBridge) Close() {
 	}
 	UnregisterTextureSource(b.ID())
 	b.mu.Lock()
+	b.closed = true
+	var staging chan struct{}
+	if b.pendState == planeStageCopying {
+		staging = b.pendDone
+	}
+	b.mu.Unlock()
+	// The worker only takes b.mu briefly; wait so teardown never races a frame
+	// that is about to be installed.
+	if staging != nil {
+		<-staging
+	}
+	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.pool != nil && b.slot != nil {
 		b.pool.Release(b.slot)
@@ -424,13 +476,240 @@ func (b *VideoBridge) Close() {
 		b.ppool.Release(b.pslot)
 		b.pslot = nil
 	}
+	if b.ppool != nil && b.pback != nil {
+		b.ppool.Release(b.pback)
+		b.pback = nil
+	}
 	if b.fallback != nil {
 		b.fallback.Dispose()
 		b.fallback = nil
 	}
 	b.shadow = nil
 	b.pshadowY, b.pshadowU = nil, nil
+	b.pendY, b.pendU = nil, nil
+	b.pendState = planeStageIdle
+	b.pendDone = nil
 	b.hasFrame, b.hasPlanes = false, false
+}
+
+// planeStageBusyLocked reports a frame being copied or a ready frame not yet
+// drawn. The synchronous routes reject frames then: publishing an older staged
+// plane frame over a newer RGBA one would step the picture backwards.
+func (b *VideoBridge) planeStageBusyLocked() bool {
+	return b.closed || b.pendState != planeStageIdle
+}
+
+// UploadPlanesFrameAsync accepts one NV12 frame without copying it on the
+// calling thread. Ownership of y/uv transfers to the route until UploadPending
+// reports false; do not recycle them before then. A worker copies the planes
+// and publishes them straight away when the backend supports cross-thread queue
+// writes; otherwise the next draw publishes on the raster thread. Returns false
+// for bad arguments, a closed route, no plane device, or while an earlier frame
+// is still staged.
+func (b *VideoBridge) UploadPlanesFrameAsync(w, h int, y, uv []byte) bool {
+	if b == nil {
+		return false
+	}
+	if w < 2 || h < 2 || w%2 != 0 || h%2 != 0 {
+		return false
+	}
+	yN, uvN := w*h, w*h/2
+	if int64(len(y)) < int64(yN) || int64(len(uv)) < int64(uvN) {
+		return false
+	}
+	b.mu.Lock()
+	if b.closed || b.ppool == nil || b.pendState != planeStageIdle {
+		b.mu.Unlock()
+		return false
+	}
+	b.pendState = planeStageCopying
+	done := make(chan struct{})
+	b.pendDone = done
+	cross := b.crossThreadWrites
+	b.mu.Unlock()
+	// The current frame stays drawable until the plane frame is published, so a
+	// shape change never blanks the view for a tick.
+	go b.stagePlaneFrame(w, h, y[:yN], uv[:uvN], done, cross)
+	return true
+}
+
+// UploadPending reports a staged plane frame that the route has not drawn yet.
+// While true the caller must keep the planes passed to UploadPlanesFrameAsync
+// alive and must not poll another frame into them.
+func (b *VideoBridge) UploadPending() bool {
+	if b == nil {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.pendState != planeStageIdle
+}
+
+// stagePlaneFrame is the copy worker: it owns the staging planes until it
+// installs them under the route lock. It touches the GPU only when the backend
+// supports cross-thread queue writes.
+func (b *VideoBridge) stagePlaneFrame(w, h int, y, uv []byte, done chan struct{}, cross bool) {
+	defer close(done)
+	if cross {
+		// The write runs without the route lock: the raster job records its
+		// draw from the published slot, so holding mu across a multi-megabyte
+		// queue write would stall every upload tick's paint. The backend copies
+		// the planes during the call, so the caller's slices need no second copy
+		// unless the upload is rejected.
+		b.publishPlaneFrame(w, h, y, uv)
+		return
+	}
+	b.mu.Lock()
+	sy, su := b.pendY, b.pendU
+	b.mu.Unlock()
+	if len(sy) != len(y) {
+		sy = make([]byte, len(y))
+	}
+	if len(su) != len(uv) {
+		su = make([]byte, len(uv))
+	}
+	copy(sy, y)
+	copy(su, uv)
+	b.mu.Lock()
+	b.pendY, b.pendU = sy, su
+	b.pendW, b.pendH = w, h
+	if b.closed {
+		b.pendState = planeStageIdle
+		b.mu.Unlock()
+		return
+	}
+	// Ready stays pending until the raster thread publishes it during the draw
+	// (its context can only be used there).
+	b.pendState = planeStageReady
+	b.mu.Unlock()
+}
+
+// publishPlaneFrame installs a frame on a backend that allows queue writes off
+// the raster thread. The acquire and upload happen before the lock is taken;
+// the lock then only swaps the finished frame in, so a paint can never wait on
+// the GPU write. Only a rejected upload keeps a CPU copy (the draw converts it,
+// V-2); a successful upload leaves the texture drawable, so the planes are not
+// copied a second time.
+func (b *VideoBridge) publishPlaneFrame(w, h int, y, uv []byte) {
+	b.mu.Lock()
+	target := b.pback
+	if target != nil && (target.W != w || target.H != h) {
+		b.ppool.Release(target)
+		b.pback = nil
+		target = nil
+	}
+	b.mu.Unlock()
+	if target == nil {
+		target, _ = b.ppool.Acquire(w, h)
+	}
+	uploaded := target != nil && b.ppool.UploadPlanes(target, y, uv) == nil
+	var sy, su []byte
+	if !uploaded {
+		// The caller recycles its planes once UploadPending clears, so the CPU
+		// fallback copy has to be taken now.
+		b.mu.Lock()
+		sy, su = b.pendY, b.pendU
+		b.mu.Unlock()
+		if len(sy) != len(y) {
+			sy = make([]byte, len(y))
+		}
+		if len(su) != len(uv) {
+			su = make([]byte, len(uv))
+		}
+		copy(sy, y)
+		copy(su, uv)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		if target != nil {
+			b.ppool.Release(target)
+		}
+		b.pendState = planeStageIdle
+		return
+	}
+	if uploaded {
+		// Double buffer: the finished back slot becomes drawable and the slot
+		// that was drawn until now becomes the worker's target for the next
+		// frame. Both stay live, so no draw ever samples a half-written pair.
+		b.pback = b.pslot
+		b.pslot = target
+		b.uploads++
+		// A plane frame replaces any RGBA frame; drop that slot so it cannot
+		// paint stale contents and Close does not double-hold.
+		if b.pool != nil && b.slot != nil {
+			b.pool.Release(b.slot)
+		}
+		b.slot = nil
+	} else {
+		// The upload failed: drop the plane slots so the draw converts the new
+		// shadow and counts the CPU fallback (V-2) instead of showing stale
+		// texture pixels.
+		if target != nil {
+			b.ppool.Release(target)
+		}
+		if b.pslot != nil {
+			b.ppool.Release(b.pslot)
+			b.pslot = nil
+		}
+		if b.pback != nil {
+			b.ppool.Release(b.pback)
+			b.pback = nil
+		}
+		b.pshadowY, b.pendY = sy, b.pshadowY
+		b.pshadowU, b.pendU = su, b.pshadowU
+	}
+	b.pendW, b.pendH = w, h
+	b.pendState = planeStageIdle
+	b.lastW, b.lastH = w, h
+	b.frames++
+	b.hasPlanes = true
+	b.hasFrame = false
+}
+
+// publishPendingPlaneLocked turns a ready staged frame into the current frame:
+// the staged planes become the draw shadow, the plane slot is rewritten in
+// place, and the frame is counted once. Caller holds b.mu. An upload failure
+// keeps the CPU shadow current so the draw converts it and counts the fallback
+// (V-2) instead of dropping the frame.
+func (b *VideoBridge) publishPendingPlaneLocked() {
+	if b.pendState != planeStageReady {
+		return
+	}
+	w, h := b.pendW, b.pendH
+	// Staged planes become the draw shadow; the previous shadow becomes the
+	// worker's scratch for the next frame.
+	b.pshadowY, b.pendY = b.pendY, b.pshadowY
+	b.pshadowU, b.pendU = b.pendU, b.pshadowU
+	b.pendState = planeStageIdle
+	b.lastW, b.lastH = w, h
+	b.frames++
+	b.hasPlanes = true
+	b.hasFrame = false
+
+	uploaded := false
+	if b.ppool != nil {
+		if slot, _, err := b.ppool.AcquireForFrame(b.pslot, w, h); err == nil {
+			if uerr := b.ppool.UploadPlanes(slot, b.pshadowY, b.pshadowU); uerr == nil {
+				b.pslot = slot
+				b.uploads++
+				uploaded = true
+			} else {
+				b.ppool.Release(slot)
+			}
+		}
+	}
+	if !uploaded {
+		b.pslot = nil
+		return
+	}
+	// A plane frame replaces any RGBA frame; drop that slot so it cannot paint
+	// stale contents and Close does not double-hold.
+	if b.pool != nil && b.slot != nil {
+		b.pool.Release(b.slot)
+	}
+	b.slot = nil
 }
 
 // UploadPlanesFrame uploads one new NV12 frame into the plane slot
@@ -455,6 +734,9 @@ func (b *VideoBridge) UploadPlanesFrame(w, h int, y, uv []byte) bool {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.planeStageBusyLocked() {
+		return false
+	}
 	if b.ppool == nil {
 		return false
 	}
@@ -463,6 +745,10 @@ func (b *VideoBridge) UploadPlanesFrame(w, h int, y, uv []byte) bool {
 		return false
 	}
 	b.pslot = slot
+	if b.pback != nil && b.pback != slot {
+		b.ppool.Release(b.pback)
+		b.pback = nil
+	}
 	b.lastW, b.lastH = w, h
 	if uerr := b.ppool.UploadPlanes(slot, y, uv); uerr != nil {
 		return false
