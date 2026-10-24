@@ -913,11 +913,19 @@ func (c *PictureTextureCache) recordLocal(id uint64, rec *recording.Recording, b
 	defer c.mu.Unlock()
 	w := b.Dx() + 2
 	h := b.Dy() + 2
-	if b.Dx() > c.width || b.Dy() > c.height {
-		// Raster-cache miss (Engine RasterCache::CanRasterCachePicture):
-		// a clipped texture would show blank past the surface edge, so
-		// refuse and let phase 2 replay vector with damage. Full-surface
-		// layers still cache (equal fits; only the +2 AA pad is clamped).
+	// The recording's footprint already carries the conservative AA/stroke
+	// outset the UI-thread summary adds (a full-width 1px hairline measures
+	// 2px past each edge), so a layer covering the surface legitimately
+	// measures a few pixels over it. Refusing that footprint replays vector
+	// every frame — C11's HUD band measured 1204×76 on a 1200×800 window and
+	// never cached. Admit it at its exact size: the texture is allocated to
+	// the full footprint and the copy is shifted by -b.Min, so no painted
+	// pixel is cut (an earlier clamp to the surface dropped the far edge).
+	// Footprints beyond oversizeSurfaceMultiple× the surface are refused:
+	// they cost a multiple of the surface for content mostly off-screen, and
+	// a scroll band taller than the window must replay its visible part
+	// (85f7c1db stale-texture-baked-wrong-offset fix).
+	if b.Dx() > oversizeSurfaceMultiple*c.width || b.Dy() > oversizeSurfaceMultiple*c.height {
 		if c.oversized == nil {
 			c.oversized = make(map[uint64]image.Rectangle)
 		}
@@ -933,12 +941,6 @@ func (c *PictureTextureCache) recordLocal(id uint64, rec *recording.Recording, b
 			delete(c.entries, id)
 		}
 		return image.Rectangle{}, false
-	}
-	if w > c.width {
-		w = c.width
-	}
-	if h > c.height {
-		h = c.height
 	}
 	if w <= 0 || h <= 0 {
 		return image.Rectangle{}, false
@@ -1201,6 +1203,13 @@ func (c *PictureTextureCache) PrevBounds(id uint64) image.Rectangle {
 // directly (DisplayListRasterCacheItem::PrerollFinalize ... else kNone).
 const admissionThreshold = 3
 
+// oversizeSurfaceMultiple bounds a bounds-sized layer texture to this many
+// times the surface in each dimension (see recordLocal). The recording pad
+// only puts a full-surface layer a few pixels over; beyond 2× the surface a
+// texture stops buying anything — the content is mostly off-screen and a
+// scroll band must replay its visible part instead.
+const oversizeSurfaceMultiple = 2
+
 // markChanged restarts stability and counts consecutive changed frames.
 // Returns the churn count including this frame: 1 means first-dirty
 // (record immediately — one-shot changes keep today's wave), 2+ means
@@ -1454,7 +1463,7 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 			}
 			changed := dirtyID || pl.NeedsRaster
 			admit := true
-			if record && !mismatch && haveBounds && !b.Empty() &&
+			if !mismatch && haveBounds && !b.Empty() &&
 				pl.Recording.PaintOpCount() > 0 {
 				// Texture admission (see admissionThreshold): the first
 				// dirty frame records immediately (one-shot changes keep
@@ -1462,6 +1471,14 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				// instead; only unchanged sightings past the threshold may
 				// (re)establish the texture. Bounds-less and empty recordings
 				// keep the legacy immediate record (nothing to damage).
+				//
+				// Count EVERY sighting, cached or not — Flutter's
+				// RasterCache::MarkSeen runs in PrerollFinalize each frame
+				// and UpdateCacheEntry only rasterizes when needed. Gating
+				// the accounting on `record` left churn unreset on clean
+				// blit frames, so a layer that changes once every few frames
+				// (a 10 Hz HUD) hit count 2 on its second change and was
+				// refused as sustained churn.
 				if changed {
 					admit = tex.markChanged(pl.CacheKey) < 2
 				} else {
@@ -1573,9 +1590,6 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 					// spin-only frames. Damage is reported by the replayed
 					// picture bounds below (RecordedThisFrame), clipped to
 					// the surface by PresentWithAuto.
-					if !noCache {
-						_ = tex.OversizedBounds(pl.CacheKey)
-					}
 					// Admission-refused layers replay vector the same
 					// way: damage current bounds or the replay never
 					// reaches the screen.

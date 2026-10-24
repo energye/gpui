@@ -44,16 +44,42 @@ func (c *Context) trackTextDamage(s string, x, y float64) {
 		width = m.XHeight * float64(len(s)) //nolint:mnd // conservative fallback
 	}
 	// x is the text baseline origin in user space (Y-down baseline, ascent above).
-	bounds := image.Rect(
+	// Glyphs paint at the CTM-transformed position — a retained-recording
+	// replay carries its own translate/rotate in c.matrix — so map the ink
+	// box through the CTM before it becomes damage. Raw x/y under-reported
+	// the wrong region whenever the CTM was not the identity (a HUD line at
+	// layer-local y=22 replayed under translate(0,728) damaged y=22).
+	ink := image.Rect(
 		int(math.Floor(x))-1,
 		int(math.Floor(y-ascent))-1,
 		int(math.Ceil(x+width))+1,
 		int(math.Ceil(y+descent))+1,
 	)
+	bounds := c.transformDamageRect(ink)
 	if bounds.Empty() {
 		return
 	}
 	c.trackDamage(bounds)
+}
+
+// transformDamageRect maps a user-space damage rectangle through the current
+// CTM, conservatively (four-corner AABB: a rotated ink box is not axis
+// aligned). Identity returns the rect untouched so the common case stays
+// integer-exact.
+func (c *Context) transformDamageRect(r image.Rectangle) image.Rectangle {
+	if c == nil || c.matrix.IsIdentity() {
+		return r
+	}
+	p0 := c.matrix.TransformPoint(Pt(float64(r.Min.X), float64(r.Min.Y)))
+	p1 := c.matrix.TransformPoint(Pt(float64(r.Max.X), float64(r.Min.Y)))
+	p2 := c.matrix.TransformPoint(Pt(float64(r.Max.X), float64(r.Max.Y)))
+	p3 := c.matrix.TransformPoint(Pt(float64(r.Min.X), float64(r.Max.Y)))
+	return image.Rect(
+		int(math.Floor(math.Min(math.Min(p0.X, p1.X), math.Min(p2.X, p3.X)))),
+		int(math.Floor(math.Min(math.Min(p0.Y, p1.Y), math.Min(p2.Y, p3.Y)))),
+		int(math.Ceil(math.Max(math.Max(p0.X, p1.X), math.Max(p2.X, p3.X)))),
+		int(math.Ceil(math.Max(math.Max(p0.Y, p1.Y), math.Max(p2.Y, p3.Y)))),
+	)
 }
 
 // tryGPUGlyphMaskTextAliased attempts to render aliased text via the GPU glyph

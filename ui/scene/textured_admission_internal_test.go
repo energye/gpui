@@ -188,6 +188,56 @@ func TestAdmission_CompositeRefusesSustainedChurn(t *testing.T) {
 	}
 }
 
+// A layer that changes once every few frames (a 10 Hz HUD) must keep its
+// texture: the unchanged frames between changes reset churn, so every change
+// is a first-dirty frame again. Counting sightings only while a record was
+// pending left churn at 1 through the clean blit frames, so the second change
+// came back as sustained churn, dropped the texture, and replayed the band
+// vector on most frames (C11 retained phase).
+func TestAdmission_IntervalChangesKeepTexture(t *testing.T) {
+	dc := render.NewContext(100, 80)
+	defer dc.Close()
+	dc.BeginFrame()
+	tex := NewPictureTextureCache(dc, 0)
+	alloc, _, _ := fakeSlotFactory(t)
+	tex.slotAlloc = alloc
+
+	build := func(dirty bool) *FramePacket {
+		ResetLayerIDGen()
+		b := NewLayerBuilder()
+		pl := b.AddPicture(dirty)
+		pl.SetCacheKey(103)
+		pl.SetRecording(fillRecording(image.Rect(0, 0, 40, 30)))
+		return b.BuildPacket(1, 1, 100, 80)
+	}
+
+	CompositeFramePacketTextured(build(true), dc, tex)
+	// Fake a live view: the clean frames below must see the cached entry
+	// (blit path) instead of a missing texture, like the production cache.
+	tex.mu.Lock()
+	e := tex.entries[103]
+	if e == nil || e.contentSlot < 0 {
+		tex.mu.Unlock()
+		t.Fatal("first dirty frame must establish a texture")
+	}
+	e.slots[e.contentSlot].view = fakeLiveView()
+	tex.mu.Unlock()
+
+	for i := 0; i < 5; i++ {
+		CompositeFramePacketTextured(build(false), dc, tex)
+		if tex.RecordedThisFrame(103) {
+			t.Fatalf("clean sighting %d must blit, not re-record", i+1)
+		}
+	}
+	CompositeFramePacketTextured(build(true), dc, tex)
+	if got := tex.RefusedBounds(103); !got.Empty() {
+		t.Fatalf("second isolated change must be admitted, refused bounds %v", got)
+	}
+	if !tex.RecordedThisFrame(103) {
+		t.Fatal("second isolated change must re-record the texture (churn was not reset by clean frames)")
+	}
+}
+
 // A stable layer earns its texture on the 4th unchanged sighting and
 // blits after: static content keeps the cheap path, delayed by 3 frames
 // exactly like Flutter's first three direct draws. (Headless records

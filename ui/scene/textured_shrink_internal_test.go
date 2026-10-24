@@ -10,7 +10,12 @@ import (
 
 // fakeLiveToken backs fakeLiveView: the pointer only needs to be non-nil so
 // headless cache logic treats the slot as a live GPU view (never sampled).
-var fakeLiveToken byte
+// uint64 rather than byte: with a GPU backend present the blit path hands the
+// handle to gpu/context.UnpackTextureView, which casts it to a pointer-aligned
+// handle box — -race enables checkptr and a 1-byte-aligned token trips
+// "misaligned pointer conversion". The box magic won't match, so the fake
+// view still fails closed (no quad queued).
+var fakeLiveToken uint64
 
 // fakeLiveView fakes a live GPU texture view without a device.
 // Built via render.TextureView (the ui → render boundary alias) + unsafe,
