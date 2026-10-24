@@ -78,6 +78,17 @@ var lastBoundaryFrame atomic.Value // stores boundaryFrameSnap
 // textured composite (raster thread) for metrics pickup.
 var lastFiltersApplied atomic.Int64
 
+// texturePaintSnap is the texture-layer accounting of the most recent retained
+// composite (raster thread) for evidence pickup. A texture layer is never
+// raster-cached, so Painted==0 while a texture layer is in the tree means the
+// source resolved to nothing — the counter is the leak detector for that.
+type texturePaintSnap struct {
+	Painted int64
+	Missed  int64
+}
+
+var lastTexturePaint atomic.Value // stores texturePaintSnap
+
 // resizeCalmWindow: after this long without a resize event the swapchain
 // switches back from Mailbox/Immediate to Fifo (vsync).
 const resizeCalmWindow = 200 * time.Millisecond
@@ -173,6 +184,12 @@ type PipelineApp struct {
 	// on the raster thread; only touched by serialized FrameJobs.
 	pictureTex *scene.PictureTextureCache
 
+	// lastTexturedPkt is the packet of the most recent retained composite.
+	// Written and read only by serialized raster jobs (same confinement as
+	// pictureTex), so it needs no lock; RetainedSnapshot replays it to prove
+	// what the retained path actually put on screen.
+	lastTexturedPkt *scene.FramePacket
+
 	damageMu          sync.Mutex
 	damageSumArea     int64
 	damageMaxArea     int64
@@ -249,6 +266,16 @@ func (a *PipelineApp) SnapshotAsync(fn func()) {
 	if a == nil || fn == nil {
 		return
 	}
+	a.queueSnapshot(fn, 500*time.Millisecond)
+}
+
+// queueSnapshot runs fn on the raster thread within wait and reports whether it
+// finished in time. The bound is the caller's: a lightweight readback of an
+// already-drawn context fits in a few frames, while a retained-packet replay
+// (composite plus PNG write on a large surface) legitimately needs longer than
+// the two-vsync default — timing it out early would only produce a false error
+// line, since the queued closure still runs afterwards.
+func (a *PipelineApp) queueSnapshot(fn func(), wait time.Duration) bool {
 	done := make(chan struct{})
 	a.snapshotMu.Lock()
 	a.snapshotQueue = append(a.snapshotQueue, func() {
@@ -260,16 +287,16 @@ func (a *PipelineApp) SnapshotAsync(fn func()) {
 	// Bounded spin: the raster thread runs independently, but the frame gate
 	// may defer the next present by up to ~2 vsync intervals. Poll instead of
 	// blocking the full wait so a deferred frame cannot stall the UI loop.
-	deadline := time.Now().Add(500 * time.Millisecond)
+	deadline := time.Now().Add(wait)
 	for {
 		select {
 		case <-done:
-			return
+			return true
 		case <-time.After(2 * time.Millisecond):
 		}
 		if time.Now().After(deadline) {
 			fmt.Fprintln(os.Stderr, "embedder: snapshot request timed out")
-			return
+			return false
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
@@ -290,6 +317,74 @@ func (a *PipelineApp) drainSnapshots() {
 	for _, fn := range q {
 		fn()
 	}
+}
+
+// TexturePaintStats returns the texture-layer counts of the most recent
+// retained composite (painted = sources that drew pixels, missed = ids that
+// resolved to nothing). Both are 0 when the last frame carried no texture
+// layer. Safe from any thread: published through an atomic by the raster job.
+func (a *PipelineApp) TexturePaintStats() (painted, missed int64) {
+	v := lastTexturePaint.Load()
+	if v == nil {
+		return 0, 0
+	}
+	s, ok := v.(texturePaintSnap)
+	if !ok {
+		return 0, 0
+	}
+	return s.Painted, s.Missed
+}
+
+// RetainedSnapshot replays the packet of the most recent retained composite on
+// the raster thread and writes it as a PNG to path. It reports false when no
+// retained frame has been composited yet or the write failed.
+//
+// This is the pixel proof for the retained path. SnapshotPath repaints the live
+// tree (force, compositeOnly=false), so its PNG describes what a FullPaint walk
+// would show — not what the sealed packet actually shipped to the screen. Here
+// the same immutable packet is composited again into the same context, so a
+// video texture layer lands through scene.TextureLayer → render.TextureSource
+// exactly as it did on screen. Evidence-only: replaying mid-loop costs one extra
+// composite and re-records cacheable layers into the live cache (measured on
+// VR8: frame interval p95 22.5ms without a replay vs 22.5ms with two).
+//
+// THREADING: the replay is a raster job that the UI thread has to submit, so a
+// caller that occupies the UI thread also blocks the frame carrying its own
+// request — call it from a goroutine, or from the UI thread only when the loop
+// is idle-stopped and the request itself drives the submit.
+func (a *PipelineApp) RetainedSnapshot(path string) bool {
+	if a == nil || path == "" {
+		return false
+	}
+	var done atomic.Bool
+	// A packet replay is a full composite plus a PNG write on the window
+	// surface: give it a longer bound than the two-vsync default, or the caller
+	// would see a timeout line while the replay still lands seconds later.
+	finished := a.queueSnapshot(func() {
+		pkt := a.lastTexturedPkt
+		if a.target == nil {
+			return
+		}
+		dc := a.target.Context()
+		if pkt == nil || dc == nil {
+			return
+		}
+		tex := a.pictureTex
+		if tex == nil {
+			tex = scene.NewPictureTextureCache(dc, 0)
+		}
+		dc.BeginFrame()
+		scene.CompositeFramePacketTextured(pkt, dc, tex)
+		if err := dc.SavePNG(path); err != nil {
+			fmt.Fprintf(os.Stderr, "embedder: retained snapshot %s: %v\n", path, err)
+			return
+		}
+		done.Store(true)
+	}, 3*time.Second)
+	// queueSnapshot can time out while the queued closure is still in flight;
+	// the atomic is what makes that late write safe to observe here. A timeout
+	// reports failure even if the closure lands afterwards.
+	return finished && done.Load()
 }
 
 // SetPresentPolicy sets window present strategy and metrics present_policy.
@@ -1889,6 +1984,10 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 	liveKeys, liveCount := scene.CollectCacheableKeys(pkt)
 	tex.EnsureCapacity(liveCount + liveCount/4 + 16)
 	tex.SetLiveKeys(liveKeys)
+	// Remember the packet this job composites. Raster-thread confined like
+	// pictureTex (only serialized FrameJobs write it), so RetainedSnapshot can
+	// replay the exact content that reached the screen without a lock.
+	a.lastTexturedPkt = pkt
 	draw := func(d *render.Context) {
 		// Force frames (first frame, resize, recovery) own the whole surface:
 		// clear then composite every layer. Steady retained frames do not clear
@@ -1901,6 +2000,10 @@ func presentPacketTextured(target *render.PresentTarget, pkt *scene.FramePacket,
 		}
 		st := scene.CompositeFramePacketTextured(pkt, d, tex)
 		lastFiltersApplied.Store(int64(st.FiltersApplied))
+		lastTexturePaint.Store(texturePaintSnap{
+			Painted: int64(st.TexturesPainted),
+			Missed:  int64(st.TexturesMissed),
+		})
 		for _, r := range st.DamageRects {
 			// Dirty layer geometry → damage rects (logical coords; dc scales
 			// to physical via deviceScale). Overlay-band dirties share the

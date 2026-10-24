@@ -73,22 +73,47 @@ func livePaintedRed(t *testing.T, root rendering.RenderObject, w, h, x, y int) u
 }
 
 // contentOverVideo reports whether the retained layer tree carries anything
-// drawable over the video node's rect.
-func contentOverVideo(l scene.Layer) bool {
+// drawable over the video node's rect — either a non-empty picture or a texture
+// layer resolving to wantID (video's retained representation since S2b C4).
+func contentOverVideo(l scene.Layer, wantID uint64) bool {
 	if l == nil {
 		return false
 	}
-	if pl, ok := l.(*scene.PictureLayer); ok && pl != nil {
-		if pl.Recording.PaintOpCount() > 0 {
+	switch t := l.(type) {
+	case *scene.PictureLayer:
+		if t != nil && t.Recording.PaintOpCount() > 0 {
+			return true
+		}
+	case *scene.TextureLayer:
+		if t != nil && t.TextureID == wantID && t.W > 0 && t.H > 0 {
 			return true
 		}
 	}
 	for _, c := range l.Children() {
-		if contentOverVideo(c) {
+		if contentOverVideo(c, wantID) {
 			return true
 		}
 	}
 	return false
+}
+
+// retainedPaintedRed composites the built packet through the retained texture
+// path and reports the red channel at (x,y) — the retained counterpart of
+// livePaintedRed.
+func retainedPaintedRed(t *testing.T, root rendering.RenderObject, w, h, x, y int) uint32 {
+	t.Helper()
+	pkt := rendering.BuildLayerTree(root).BuildPacket(7, 1, float64(w), float64(h))
+	if pkt == nil || pkt.Root == nil {
+		t.Fatal("nil packet/root")
+	}
+	dc := render.NewContext(w, h)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	tex := scene.NewPictureTextureCache(dc, 0)
+	scene.CompositeFramePacketTextured(pkt, dc, tex)
+	r, _, _, _ := dc.Image().At(x, y).RGBA()
+	return r
 }
 
 // TestLayerTree_VideoLeafRetainedRepresentation locks that a video node with a
@@ -96,11 +121,9 @@ func contentOverVideo(l scene.Layer) bool {
 // FullPaint walk (reference) and the UI-built retained packet (the path every
 // examples/video window actually runs).
 //
-// The retained build walk never calls node.Paint, so a video leaf contributes
-// no layer at all. Until S2b/C4 gives the node a TextureLayer, the retained
-// half reports through t.Skipf with its measurements (repo precedent:
-// render/text/autohint_golden_test.go TODO skips) so the hole stays visible
-// without faking green. When C4 lands, this skip goes back to t.Fatalf.
+// The retained build walk never calls node.Paint — video rides the tree as a
+// scene.TextureLayer naming the route by registry id (S2b C4). This test was the
+// red proof that the layer did not exist while the hole was open.
 func TestLayerTree_VideoLeafRetainedRepresentation(t *testing.T) {
 	t.Setenv("GOGPU_RENDER_MODE", "cpu")
 	br := cpuOnlyVideoBridge(t)
@@ -126,8 +149,105 @@ func TestLayerTree_VideoLeafRetainedRepresentation(t *testing.T) {
 	if pkt == nil || pkt.Root == nil {
 		t.Fatal("nil packet/root")
 	}
-	if !contentOverVideo(pkt.Root) {
-		t.Skipf("TODO(#17/S2b): retained packet carries 0 drawable layers over the video node (%dx%d) while the live walk paints it (red=%d, clear=65535) — video is blank on every retained window until C4 gives RenderVideo a TextureLayer",
-			vw, vh, liveRed)
+	if !contentOverVideo(pkt.Root, br.ID()) {
+		t.Fatalf("retained packet carries nothing drawable over the video node (%dx%d) while the live walk paints it (red=%d, clear=65535): expected a scene.TextureLayer naming route id %d",
+			vw, vh, liveRed, br.ID())
+	}
+	if st := v.NodeStats(); st.RecordSkips != 0 {
+		t.Fatalf("RecordSkips=%d want 0: the retained build must not record a video paint, it must hand over a texture layer", st.RecordSkips)
+	}
+
+	// The retained path must land the same pixels, not just a shape.
+	retainedRed := retainedPaintedRed(t, root, 400, 300, 30, 30)
+	if retainedRed == fullWhite {
+		t.Fatalf("retained composite left the video rect white (live walk red=%d): the texture layer names the route but never reached the screen", liveRed)
+	}
+}
+
+// TestLayerTree_VideoTextureRepaintsInPlace is the reason a texture layer must
+// never raster-cache: the producer rewrites its texture with no UI-tree change,
+// so a cached blit would freeze the frame. Same packet, two composites, new
+// upload in between → the sampled pixel must move.
+func TestLayerTree_VideoTextureRepaintsInPlace(t *testing.T) {
+	t.Setenv("GOGPU_RENDER_MODE", "cpu")
+	br := cpuOnlyVideoBridge(t)
+	defer br.Close()
+
+	const vw, vh = 120, 80
+	v := rendering.NewRenderVideo(vw, vh, br)
+	if !v.UploadPlanes(64, 32, nil, nil, videoFrame(64, 32)) {
+		t.Fatal("UploadPlanes rejected frame 1")
+	}
+	root := rendering.NewRenderBox(v)
+	root.Layout(rendering.Tight(400, 300))
+	pkt := rendering.BuildLayerTree(root).BuildPacket(7, 1, 400, 300)
+
+	dc := render.NewContext(400, 300)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	tex := scene.NewPictureTextureCache(dc, 0)
+
+	scene.CompositeFramePacketTextured(pkt, dc, tex)
+	firstR, firstG, _, _ := dc.Image().At(30, 30).RGBA()
+
+	// Second decoded frame: darker, and no layer-tree change at all.
+	dark := videoFrame(64, 32)
+	for i := 0; i < len(dark); i += 4 {
+		dark[i] = 0x20
+	}
+	if !v.UploadPlanes(64, 32, nil, nil, dark) {
+		t.Fatal("UploadPlanes rejected frame 2")
+	}
+	st := scene.CompositeFramePacketTextured(pkt, dc, tex)
+	secondR, secondG, _, _ := dc.Image().At(30, 30).RGBA()
+
+	if st.TexturesPainted != 1 {
+		t.Fatalf("TexturesPainted=%d want 1 (stats=%+v)", st.TexturesPainted, st)
+	}
+	if firstR == secondR && firstG == secondG {
+		t.Fatalf("video rect unchanged across an in-place texture rewrite: (%d,%d) then (%d,%d) — the retained path cached what it must repaint",
+			firstR>>8, firstG>>8, secondR>>8, secondG>>8)
+	}
+}
+
+// TestLayerTree_VideoTextureMissDamagesRect locks the closed-producer damage
+// contract: a texture layer whose source is gone paints nothing, but its rect
+// must still be damaged. Steady retained frames do not clear, so without the
+// damage the last video frame would stay frozen on screen.
+func TestLayerTree_VideoTextureMissDamagesRect(t *testing.T) {
+	t.Setenv("GOGPU_RENDER_MODE", "cpu")
+	br := cpuOnlyVideoBridge(t)
+
+	const vw, vh = 120, 80
+	v := rendering.NewRenderVideo(vw, vh, br)
+	if !v.UploadPlanes(64, 32, nil, nil, videoFrame(64, 32)) {
+		t.Fatal("UploadPlanes rejected a valid frame")
+	}
+	root := rendering.NewRenderBox(v)
+	root.Layout(rendering.Tight(400, 300))
+	pkt := rendering.BuildLayerTree(root).BuildPacket(7, 1, 400, 300)
+	if pkt == nil || pkt.Root == nil {
+		t.Fatal("nil packet/root")
+	}
+
+	dc := render.NewContext(400, 300)
+	defer dc.Close()
+	dc.BeginFrame()
+	dc.ClearWithColor(render.White)
+	tex := scene.NewPictureTextureCache(dc, 0)
+
+	first := scene.CompositeFramePacketTextured(pkt, dc, tex)
+	if first.TexturesPainted != 1 {
+		t.Fatalf("first composite TexturesPainted=%d want 1 (stats=%+v)", first.TexturesPainted, first)
+	}
+
+	br.Close()
+	second := scene.CompositeFramePacketTextured(pkt, dc, tex)
+	if second.TexturesMissed != 1 {
+		t.Fatalf("after Close TexturesMissed=%d want 1 (stats=%+v)", second.TexturesMissed, second)
+	}
+	if len(second.DamageRects) == 0 {
+		t.Fatal("after Close the texture layer miss added no damage: the last video frame would stay frozen")
 	}
 }

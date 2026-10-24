@@ -113,10 +113,17 @@ func loadEmbed(name, mp4Path string) *embedState {
 	for {
 		fr, done := p.Poll()
 		if fr != nil {
-			if firstPix == nil {
-				firstPix = append([]byte(nil), fr.Pix...)
+			// NV12 frames carry Pix=nil and their picture in Y; the old
+			// Pix-only copy read 0 and failed the non-black gate on a real
+			// picture. Keep the RGBA sample when present, else the luma plane.
+			sample := fr.Pix
+			if len(sample) == 0 {
+				sample = fr.Y
 			}
-			lastPix = append([]byte(nil), fr.Pix...)
+			if firstPix == nil {
+				firstPix = append([]byte(nil), sample...)
+			}
+			lastPix = append([]byte(nil), sample...)
 			if lastPTS >= 0 && fr.PTSMs <= lastPTS {
 				st.ptsMono = false
 			}

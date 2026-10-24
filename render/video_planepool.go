@@ -424,6 +424,25 @@ type VideoBridge struct {
 	pshadowY  []byte
 	pshadowU  []byte
 	hasPlanes bool
+
+	// id is the registry id assigned at construction. It is never rewritten,
+	// so the raster thread can resolve a retained layer to this bridge without
+	// taking mu (Close only unregisters the id; the number stays readable).
+	id uint64
+	// Texture paint accounting, guarded by mu like the rest of the bridge.
+	// A retained window paints from the raster job, so "did this view reach
+	// the screen" cannot be remembered on the render object any more — the
+	// producer is the only place that sees the paint.
+	paints          uint64
+	directPaints    uint64
+	fallbackPaints  uint64
+	failedPaints    uint64
+	lastPaintOK     bool
+	lastPaintDirect bool
+	viewPaints      [videoMaxViews]uint64
+	viewOK          [videoMaxViews]bool
+	viewLastOK      [videoMaxViews]bool
+	viewDirect      [videoMaxViews]bool
 }
 
 // NewVideoBridge creates one route on the borrowed device.

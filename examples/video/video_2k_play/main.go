@@ -113,7 +113,7 @@ func main() {
 		snapH := app.Metrics().Snapshot()
 		bst := bridge.Stats()
 		nst := node.NodeStats()
-		gatePreview := snapH.PresentCount > 0 && nst.DrewOK
+		gatePreview := snapH.PresentCount > 0 && nst.DrewLast
 		shell.UpdateHUD("2K", phaseCN(phase), app, gatePreview,
 			fmt.Sprintf("显示=%d 上传=%d 回落=%d", liveShown, bst.Uploads, bst.Fallbacks),
 			fmt.Sprintf("hw=%s 直接=%v", info.HWName, nst.DirectLast))
@@ -176,8 +176,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: 视频槽淘汰=%d，健康态必须为零\n", bst.Evictions)
 		os.Exit(1)
 	}
-	if !nst.DrewOK {
-		fmt.Fprintln(os.Stderr, "FAIL: 画面一帧没画出来")
+	if !nst.DrewLast {
+		fmt.Fprintf(os.Stderr, "FAIL: 画面最近一帧没画出来（曾画=%v 末次=%v）\n", nst.DrewOK, nst.DrewLast)
 		os.Exit(1)
 	}
 	if nst.FirstMean <= 5 || nst.LastMean <= 5 {

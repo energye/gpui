@@ -233,7 +233,7 @@ func TestVideoNodeFrameFlow(t *testing.T) {
 			// Headless bridge has no device: upload refuses honestly;
 			// the window run proves the true path with a borrowed device.
 			if st.vid.UploadPlanes(f.Width, f.Height, f.Y, f.UV, f.Pix) {
-				t.Fatal("headless UploadFrame = true without a device, want false")
+				t.Fatal("headless UploadPlanes = true without a device, want false")
 			}
 			fed = true
 		} else {
@@ -244,8 +244,8 @@ func TestVideoNodeFrameFlow(t *testing.T) {
 		t.Fatal("no frame to feed the video node")
 	}
 	// Bad frames never touch the current picture.
-	if st.vid.UploadFrame(0, 10, nil) {
-		t.Fatal("UploadFrame(0 width) = true, want false")
+	if st.vid.UploadPlanes(0, 10, nil, nil, nil) {
+		t.Fatal("UploadPlanes(0 width) = true, want false")
 	}
 }
 

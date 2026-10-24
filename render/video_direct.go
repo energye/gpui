@@ -35,6 +35,12 @@ const (
 
 	// videoPoolMaxSlots bounds concurrent video routes per process.
 	videoPoolMaxSlots = 8
+
+	// videoMaxViews bounds the per-view paint accounting of one bridge: the
+	// main view plus picture-in-picture overlays sharing the same uploaded
+	// frame. Paints naming a higher view index fold into the last slot, so the
+	// counters stay a fixed array instead of a map under the route lock.
+	videoMaxViews = 4
 )
 
 // VideoBackendCaps describes the current shared device in backend-neutral terms.

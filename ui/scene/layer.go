@@ -327,6 +327,52 @@ func (p *PictureLayer) SetRecording(rec *recording.Recording) {
 	p.Recording = rec
 }
 
+// TextureLayer paints GPU texture content that no display list can describe
+// (Flutter TextureLayer subset). The layer carries only an id: the producer
+// (a video route, registered in render's texture registry) owns the texture and
+// rewrites it in place, and the raster thread resolves id → source at paint
+// time. A layer whose id no longer resolves paints nothing and reports a miss.
+//
+// Like Flutter's, a texture layer is never raster-cached and repaints every
+// frame it is in: its content can change without the UI tree changing at all,
+// so the honest damage model is "paint, then damage what was painted" — a cached
+// blit of a texture the producer already rewrote would show a stale frame.
+type TextureLayer struct {
+	id uint64
+	// TextureID is render.RegisterTextureSource's id for the source to paint
+	// (0 = no source: paints nothing).
+	TextureID uint64
+	// X, Y, W, H place the quad in the parent's coordinates, like a picture's
+	// geometry — the ancestor offset/clip/transform chain still applies.
+	X, Y, W, H float64
+	// DrawIndex tells the source which of its views this layer shows, in paint
+	// order (0 = first). One route feeding a main view plus a picture-in-picture
+	// overlay emits one layer per view so "did the second view draw" stays
+	// observable per view instead of collapsed into one counter.
+	DrawIndex int
+	// painted records whether this layer's source has ever drawn through it.
+	// A later miss only damages the quad when an earlier frame painted here;
+	// a layer whose producer was already gone never dirtied the surface.
+	painted bool
+}
+
+// NewTextureLayer creates a texture layer for the given source id and rect.
+func NewTextureLayer(textureID uint64, x, y, w, h float64) *TextureLayer {
+	return &TextureLayer{id: NextLayerID(), TextureID: textureID, X: x, Y: y, W: w, H: h}
+}
+
+func (t *TextureLayer) LayerID() uint64   { return t.id }
+func (t *TextureLayer) Children() []Layer { return nil }
+func (t *TextureLayer) Kind() string      { return "texture" }
+
+// Rect returns the layer's quad in parent coordinates (logical px).
+func (t *TextureLayer) Rect() (x, y, w, h float64) {
+	if t == nil {
+		return 0, 0, 0, 0
+	}
+	return t.X, t.Y, t.W, t.H
+}
+
 // BoundaryLayer is a repaint-boundary root: independent dirty / raster unit.
 type BoundaryLayer struct {
 	OffsetLayer

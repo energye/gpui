@@ -19,10 +19,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"time"
 
+	"github.com/energye/gpui/examples/wrevidence"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
@@ -35,6 +37,14 @@ import (
 )
 
 const winW, winH = 1200, 800
+
+// Window clear color: the retained-evidence probes measure video ink against it.
+const (
+	clearR = 0.08
+	clearG = 0.09
+	clearB = 0.11
+	clearA = 1
+)
 
 func main() {
 	secs, secsSet := wrkit.RunSecondsOpt()
@@ -136,7 +146,7 @@ func main() {
 	proc.Start()
 
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
-		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
+		ClearR: clearR, ClearG: clearG, ClearB: clearB, ClearA: clearA,
 		RunFor: time.Duration(secs) * time.Second,
 		WarmUp: true,
 		OnEvent: func(ev platform.Event) {
@@ -159,6 +169,23 @@ func main() {
 	resizeStage := 0
 	resizeNote := "未改尺寸"
 	shownAtShrink := int64(-1)
+	// C4 retained-path pixel evidence: two PNGs replayed from the sealed packet
+	// (embedder.RetainedSnapshot). A window present is zero-readback and
+	// SnapshotPath repaints the LIVE tree, so only the packet replay shows what
+	// the retained path shipped: both video rects must carry ink, and the bridge
+	// must report more paints at the second sample than at the first, which is
+	// what "the texture layer repaints every frame, never a cached blit" looks
+	// like from outside. Samples wait until the texture is actually painting.
+	//
+	// The replay is a raster-thread job, and only the UI thread can submit that
+	// job, so the request runs on its own goroutine: calling it inline would
+	// stall the submit the request is waiting for.
+	retDir := os.TempDir()
+	retAPath := filepath.Join(retDir, "gpui_vr8_retained_a.png")
+	retBPath := filepath.Join(retDir, "gpui_vr8_retained_b.png")
+	var capA, capB wrevidence.RetainedCapture
+	texPaintedMax := int64(0)
+	var paintsA, paintsB uint64
 	clock := wrkit.NewPhaseClock(8, 12)
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
@@ -205,7 +232,33 @@ func main() {
 				} else {
 					liveNode.UploadPlanes(f.Width, f.Height, f.Y, f.UV, f.Pix)
 					smallNode.UploadPlanes(f.Width, f.Height, f.Y, f.UV, f.Pix)
-					lastVar = pixVar(f.Pix)
+					// NV12 frames carry Pix=nil and their picture in Y; sampling
+					// Pix alone reads 0 and falsely calls a live picture black.
+					if len(f.Pix) > 0 {
+						lastVar = pixVar(f.Pix)
+					} else {
+						lastVar = pixVar(f.Y)
+					}
+				}
+			}
+			painted, _ := app.TexturePaintStats()
+			if painted > texPaintedMax {
+				texPaintedMax = painted
+			}
+			// Both samples are taken only once the texture is painting, so the
+			// pair proves "video ink on screen twice, and the second is a
+			// repaint" instead of "nothing yet versus something".
+			if painted >= 1 {
+				// The clip is a 5-frame loop (testsrc 1280x720@5fps, 1s), so the
+				// two samples must not be 5 apart or they replay the same content
+				// and "movement" measures nothing. 3 keeps them different for any
+				// loop length >= 4.
+				if !capA.OK() && liveShown >= 10 {
+					paintsA = bridge.PaintStats().Paints
+					capA.Start(app, retAPath)
+				} else if capA.OK() && !capB.OK() && liveShown >= 13 {
+					paintsB = bridge.PaintStats().Paints
+					capB.Start(app, retBPath)
 				}
 			}
 		}
@@ -228,6 +281,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: 运行失败:", err)
 		os.Exit(1)
 	}
+	// A replay reads the window's own render context: it must land before the
+	// context goes away, and it can only land while the loop still submits jobs.
+	capA.Wait(4 * time.Second)
+	capB.Wait(4 * time.Second)
+	retAOK, retBOK := capA.OK(), capB.OK()
 	proc.Stop()
 	app.Close()
 	win.Close()
@@ -281,7 +339,50 @@ func main() {
 		yuvReady = 0
 	}
 
+	// Video rects are placed in body-panel coordinates; the PNG is the whole
+	// window, so the probes add the body origin back in. Each rect is inset 20
+	// (main) / 15 (picture-in-picture) so the panel border and the overlay band
+	// never enter the sample grid.
+	bodyX, bodyY := shell.Body.X, shell.Body.Y
+	clearCol := [3]float64{clearR, clearG, clearB}
+	pair, retErr := wrevidence.OpenRetainedPair(retAPath, retBPath, retAOK, retBOK, winW)
+	var retInkMainA, retInkMainB, retMoveMain float64
+	var retInkSmallA, retInkSmallB, retMoveSmall float64
+	if pair != nil {
+		retInkMainA, retInkMainB, retMoveMain = pair.RectEvidence(wrevidence.Rect{
+			X: bodyX + 20 + 20, Y: bodyY + 206 + 20, W: 480 - 40, H: 270 - 40}, clearCol)
+		retInkSmallA, retInkSmallB, retMoveSmall = pair.RectEvidence(wrevidence.Rect{
+			X: bodyX + 520 + 15, Y: bodyY + 206 + 15, W: 240 - 30, H: 135 - 30}, clearCol)
+	}
 	rep := buildReport(snap, app.PresentCount(), elapsed, st, gateOK, yuvReady, gateErr, liveShown, lastVar, embedOK, scaleOK, clipOK, overlayOK, resizeOK, liveStats, hotTick)
+	rep.RetainedSnapshotOK = bool01(retAOK && retBOK)
+	rep.RetainedTexPainted = texPaintedMax
+	rep.RetainedPaintsA = paintsA
+	rep.RetainedPaintsB = paintsB
+	rep.RetainedInkMainA = retInkMainA
+	rep.RetainedInkMainB = retInkMainB
+	rep.RetainedMoveMain = retMoveMain
+	rep.RetainedInkSmallA = retInkSmallA
+	rep.RetainedInkSmallB = retInkSmallB
+	rep.RetainedMoveSmall = retMoveSmall
+	rep.RetainedEvidenceErr = retErr
+	// The retained path must carry the video: both replays paint it (ink over
+	// most of the rect), the rect moves between the two samples, and the live
+	// retained composite reported at least one texture layer painted. The
+	// paintsA/paintsB counters are diagnostic only: the replay itself calls
+	// PaintTexture, so paintsB > paintsA would be true by construction and
+	// prove nothing about the on-screen path. Colour is deliberately NOT
+	// asserted here (the video line's chroma bug is a separate parked finding).
+	if retErr == "" && retAOK && retBOK && texPaintedMax >= 1 &&
+		retInkMainA >= 0.5 && retInkMainB >= 0.5 && retMoveMain >= 0.02 &&
+		retInkSmallA >= 0.5 && retInkSmallB >= 0.5 && retMoveSmall >= 0.02 {
+		rep.RetainedVideoOK = 1
+	} else if retErr == "" {
+		retErr = fmt.Sprintf("retained 视频像素不达标 主墨=%.2f/%.2f 动=%.2f 小墨=%.2f/%.2f 动=%.2f 纹理出画峰值=%d 绘制计数=%d/%d",
+			retInkMainA, retInkMainB, retMoveMain, retInkSmallA, retInkSmallB, retMoveSmall, texPaintedMax, paintsA, paintsB)
+	}
+	rep.RetainedEvidenceErr = retErr
+	rep.RetainedColorNote = "只断言 retained 路径出画与换帧，不断言颜色：视频线色度读成 0（偏绿）为已登记的独立问题"
 	raw, _ := json.Marshal(rep)
 	fmt.Println(string(raw))
 
@@ -291,6 +392,10 @@ func main() {
 	}
 	if app.PresentCount() < 1 {
 		fmt.Fprintln(os.Stderr, "FAIL: 一次都没上屏(VR8需要真窗口)")
+		os.Exit(1)
+	}
+	if rep.RetainedVideoOK != 1 {
+		fmt.Fprintf(os.Stderr, "FAIL: retained 窗视频没出画: %s\n", rep.RetainedEvidenceErr)
 		os.Exit(1)
 	}
 	fpsWall := 0.0
@@ -413,6 +518,28 @@ type report struct {
 	ResizeOK  int     `json:"resize_ok"`
 	LastVar   float64 `json:"last_var"`
 
+	// Retained-path pixel evidence (S2b C4): the two packet replays and what
+	// they prove. Ink* is the fraction of grid samples over the video rect that
+	// differ from the window clear color; Move* is the fraction that changed
+	// between the two replays; TexPaintedMax is the highest per-frame count of
+	// texture layers the composite reported painted.
+	RetainedVideoOK     int     `json:"retained_video_ok"`
+	RetainedSnapshotOK  int     `json:"retained_snapshot_ok"`
+	RetainedTexPainted  int64   `json:"retained_tex_painted_max"`
+	RetainedPaintsA     uint64  `json:"retained_paints_a"`
+	RetainedPaintsB     uint64  `json:"retained_paints_b"`
+	RetainedInkMainA    float64 `json:"retained_ink_main_a"`
+	RetainedInkMainB    float64 `json:"retained_ink_main_b"`
+	RetainedMoveMain    float64 `json:"retained_move_main"`
+	RetainedInkSmallA   float64 `json:"retained_ink_small_a"`
+	RetainedInkSmallB   float64 `json:"retained_ink_small_b"`
+	RetainedMoveSmall   float64 `json:"retained_move_small"`
+	RetainedEvidenceErr string  `json:"retained_evidence_error"`
+	// RetainedColorNote records what this evidence does NOT claim: the video
+	// line's chroma bug is registered and parked separately, so C4 only proves
+	// that the retained path ships the video's pixels, not that they are right.
+	RetainedColorNote string `json:"retained_color_note"`
+
 	TimeToFirstFrameMs float64 `json:"time_to_first_frame_ms"`
 
 	PresentCount int64 `json:"present_count"`
@@ -458,6 +585,13 @@ func buildReport(snap scheduler.FrameMetrics, presents int64, elapsed float64, s
 	}
 }
 
+func bool01(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
+}
+
 func gcPauseP99(m *runtime.MemStats) float64 {
 	if m == nil || m.NumGC == 0 {
 		return 0
@@ -482,6 +616,10 @@ var requiredKeys = []string{
 	"sps_ok", "pps_ok", "frames_split", "yuv_ready", "color_diff_per_channel", "pixel_golden_diff_pct",
 	"clips", "profile",
 	"time_to_first_frame_ms", "present_count", "paint_count", "decode_error",
+	"retained_video_ok", "retained_snapshot_ok", "retained_tex_painted_max",
+	"retained_paints_a", "retained_paints_b", "retained_color_note",
+	"retained_ink_main_a", "retained_ink_main_b", "retained_move_main",
+	"retained_ink_small_a", "retained_ink_small_b", "retained_move_small", "retained_evidence_error",
 }
 
 func checkSchema(raw []byte) error {

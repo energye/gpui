@@ -8,15 +8,18 @@
 // Window: 1600x900. GPU window required. One 960x540 view plus one
 // 320x180 PiP of the same 4K frame (second draw reuses the texture).
 // Gate: fps/p95 + upload discipline (uploads+fallbacks==frames, PiP draws
-// free) + first/last frame non-black + memory cap.
+// free) + first/last frame non-black + memory cap + retained-path pixel proof
+// (two sealed-packet replays must both carry video ink and differ).
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/energye/gpui/examples/wrevidence"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
@@ -28,6 +31,26 @@ import (
 )
 
 const winW, winH = 1600, 900
+
+// Window clear color: the shell background and the PipelineOptions agree, and
+// the retained pixel probe measures ink against this exact color.
+const (
+	clearR = 0.08
+	clearG = 0.09
+	clearB = 0.11
+)
+
+// Video layout, shared between the placement and the pixel probe:
+// videoX/videoY are body-local, pipInset is the offset RenderVideo.TextureLeaves
+// uses to place the PiP inside the node, probeInset keeps the sample grid off the
+// rect borders.
+const (
+	videoX, videoY = 20.0, 202.0
+	videoW, videoH = 960.0, 540.0
+	pipW, pipH     = 320.0, 180.0
+	pipInset       = 12.0
+	probeInset     = 20.0
+)
 
 func main() {
 	secs, secsSet := wrkit.RunSecondsOpt()
@@ -66,15 +89,15 @@ func main() {
 
 	bridge := render.NewVideoBridge(nil)
 	defer bridge.Close()
-	node := rendering.NewRenderVideoPiP(960, 540, 320, 180, bridge)
+	node := rendering.NewRenderVideoPiP(videoW, videoH, pipW, pipH, bridge)
 	shell.Body.LabelAt("直播（大窗+右下小窗同帧）", 13, 20, 176, 0.6, 0.8, 0.95)
-	shell.Body.Place(node, 20, 202)
+	shell.Body.Place(node, videoX, videoY)
 
 	var proc scheduler.ProcessTracker
 	proc.Start()
 
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
-		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
+		ClearR: clearR, ClearG: clearG, ClearB: clearB, ClearA: 1,
 		RunFor: time.Duration(secs) * time.Second,
 		WarmUp: true,
 		OnEvent: func(ev platform.Event) {
@@ -92,6 +115,14 @@ func main() {
 	phase := ""
 	hotTick := 0
 	liveShown := int64(0)
+	// Retained-path pixel evidence: two PNGs replayed from sealed packets, ten
+	// shown frames apart. The 4K clip is a 150-frame loop, so a 3-frame gap
+	// cannot land back on the same decoded frame.
+	retAPath := filepath.Join(os.TempDir(), "video_4k_play_retained_a.png")
+	retBPath := filepath.Join(os.TempDir(), "video_4k_play_retained_b.png")
+	var capA, capB wrevidence.RetainedCapture
+	var texPaintedMax int64
+	var uploadsA, uploadsB uint64
 	clock := wrkit.NewPhaseClock(8, 12)
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		phase = clock.Advance(dt)
@@ -111,7 +142,20 @@ func main() {
 		snapH := app.Metrics().Snapshot()
 		bst := bridge.Stats()
 		nst := node.NodeStats()
-		gatePreview := snapH.PresentCount > 0 && nst.DrewOK && nst.SmallDrew
+		gatePreview := snapH.PresentCount > 0 && nst.DrewLast && nst.SmallDrewLast
+		painted, _ := app.TexturePaintStats()
+		if painted > texPaintedMax {
+			texPaintedMax = painted
+		}
+		if painted >= 1 {
+			if !capA.OK() && liveShown >= 10 {
+				uploadsA = bst.Uploads
+				capA.Start(app, retAPath)
+			} else if capA.OK() && !capB.OK() && liveShown >= 13 {
+				uploadsB = bst.Uploads
+				capB.Start(app, retBPath)
+			}
+		}
 		shell.UpdateHUD("4K", phaseCN(phase), app, gatePreview,
 			fmt.Sprintf("显示=%d 上传=%d 回落=%d 重画=%d", liveShown, bst.Uploads, bst.Fallbacks, bst.Redraws),
 			fmt.Sprintf("hw=%s 直接=%v", info.HWName, nst.DirectLast))
@@ -128,6 +172,29 @@ func main() {
 		os.Exit(1)
 	}
 	proc.Stop()
+	// A replay reads the window's own render context, so it must land while the
+	// loop can still submit jobs — wait before closing.
+	capA.Wait(4 * time.Second)
+	capB.Wait(4 * time.Second)
+	retAOK, retBOK := capA.OK(), capB.OK()
+	// The PNG is the whole window while the video rects are laid out in
+	// body-panel coordinates, so the probes add the body origin back in and
+	// inset probeInset to keep the panel border and the PiP edge out of the
+	// sample grid.
+	bodyX, bodyY := shell.Body.X, shell.Body.Y
+	clearCol := [3]float64{clearR, clearG, clearB}
+	pair, retErr := wrevidence.OpenRetainedPair(retAPath, retBPath, retAOK, retBOK, winW)
+	var retInkMainA, retInkMainB, retMoveMain float64
+	var retInkPipA, retInkPipB, retMovePip float64
+	if pair != nil {
+		retInkMainA, retInkMainB, retMoveMain = pair.RectEvidence(wrevidence.Rect{
+			X: bodyX + videoX + probeInset, Y: bodyY + videoY + probeInset,
+			W: videoW - 2*probeInset, H: videoH - 2*probeInset}, clearCol)
+		retInkPipA, retInkPipB, retMovePip = pair.RectEvidence(wrevidence.Rect{
+			X: bodyX + videoX + (videoW - pipW - pipInset) + probeInset,
+			Y: bodyY + videoY + (videoH - pipH - pipInset) + probeInset,
+			W: pipW - 2*probeInset, H: pipH - 2*probeInset}, clearCol)
+	}
 	app.Close()
 	win.Close()
 	proc.NoteAfterClose()
@@ -139,6 +206,35 @@ func main() {
 	bst := bridge.Stats()
 	nst := node.NodeStats()
 	rep := buildReport(snap, app.PresentCount(), elapsed, info, clipPath, pst, bst, nst, liveShown, hotTick)
+	rep.RetainedSnapshotOK = b01(retAOK && retBOK)
+	rep.RetainedTexPainted = texPaintedMax
+	rep.RetainedUploadsA = uploadsA
+	rep.RetainedUploadsB = uploadsB
+	rep.RetainedInkMainA = retInkMainA
+	rep.RetainedInkMainB = retInkMainB
+	rep.RetainedMoveMain = retMoveMain
+	rep.RetainedInkPipA = retInkPipA
+	rep.RetainedInkPipB = retInkPipB
+	rep.RetainedMovePip = retMovePip
+	// The retained path must carry the video: both replays paint it (ink over
+	// most of each rect), each rect's pixels move between the two samples, the
+	// composite reported at least one texture layer painted, and the bridge
+	// uploaded more frames at the second request than at the first. Colour is
+	// deliberately NOT asserted here (the video line's chroma bug is a separate
+	// parked finding).
+	if retErr == "" && retAOK && retBOK && texPaintedMax >= 1 && uploadsB > uploadsA &&
+		retInkMainA >= 0.5 && retInkMainB >= 0.5 && retMoveMain >= 0.02 &&
+		retInkPipA >= 0.5 && retInkPipB >= 0.5 && retMovePip >= 0.02 {
+		rep.RetainedVideoOK = 1
+	} else if retErr == "" {
+		retErr = fmt.Sprintf("retained 视频像素不达标 主墨=%.2f/%.2f 动=%.2f 小窗墨=%.2f/%.2f 动=%.2f 纹理出画峰值=%d 上传=%d/%d",
+			retInkMainA, retInkMainB, retMoveMain, retInkPipA, retInkPipB, retMovePip, texPaintedMax, uploadsA, uploadsB)
+	}
+	rep.RetainedEvidenceErr = retErr
+	rep.RetainedColorNote = "只断言 retained 路径出画与换帧，不断言颜色：视频线色度读成 0（偏绿）为已登记的独立问题"
+	fmt.Fprintf(os.Stderr, "video_4k_play: retained 证据 ok=%v 纹理出画峰值=%d 上传=%d/%d 主墨=%.2f/%.2f 动=%.4f 小窗墨=%.2f/%.2f 动=%.4f 错误=%q\n",
+		rep.RetainedVideoOK == 1, texPaintedMax, uploadsA, uploadsB,
+		retInkMainA, retInkMainB, retMoveMain, retInkPipA, retInkPipB, retMovePip, retErr)
 	raw, _ := json.Marshal(rep)
 	fmt.Println(string(raw))
 
@@ -148,6 +244,10 @@ func main() {
 	}
 	if app.PresentCount() < 1 {
 		fmt.Fprintln(os.Stderr, "FAIL: 一次都没上屏(4K需要真窗口)")
+		os.Exit(1)
+	}
+	if rep.RetainedVideoOK != 1 {
+		fmt.Fprintf(os.Stderr, "FAIL: retained 窗视频没出画: %s\n", rep.RetainedEvidenceErr)
 		os.Exit(1)
 	}
 	fpsWall := 0.0
@@ -174,8 +274,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: 视频槽淘汰=%d，健康态必须为零\n", bst.Evictions)
 		os.Exit(1)
 	}
-	if !nst.DrewOK || !nst.SmallDrew {
-		fmt.Fprintf(os.Stderr, "FAIL: 双窗没画全 大=%v 小=%v\n", nst.DrewOK, nst.SmallDrew)
+	if !nst.DrewLast || !nst.SmallDrewLast {
+		fmt.Fprintf(os.Stderr, "FAIL: 双窗最近一帧没画全 大(曾/末)=%v/%v 小(曾/末)=%v/%v\n",
+			nst.DrewOK, nst.DrewLast, nst.SmallDrew, nst.SmallDrewLast)
 		os.Exit(1)
 	}
 	if bst.Redraws < 1 && bst.Fallbacks == 0 {
@@ -209,6 +310,13 @@ func (t *ticker) Tick(dt float64) bool {
 		t.on(dt)
 	}
 	return true
+}
+
+func b01(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 func phaseCN(phase string) string {

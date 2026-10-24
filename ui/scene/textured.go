@@ -1342,6 +1342,12 @@ type TexturedStats struct {
 	// frame's blits / texture re-records.
 	ShellSkip     int64
 	ShellRerecord int64
+	// TexturesPainted counts texture layers whose source drew pixels this
+	// frame; TexturesMissed counts the ones that resolved to nothing
+	// (unregistered producer / no device). A retained video window with
+	// painted==0 and visited>0 is a hole, not a skip.
+	TexturesPainted int
+	TexturesMissed  int
 	// DamageRects are the dirty layer geometry rects (logical coords) for
 	// PresentFrameDamageRects / TrackDamageRect.
 	DamageRects []image.Rectangle
@@ -1598,6 +1604,29 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 				b := tex.Bounds(pl.CacheKey).Union(tex.PrevBounds(pl.CacheKey))
 				if !b.Empty() {
 					st.DamageRects = append(st.DamageRects, transformBounds(dc, b))
+				}
+			}
+			return // leaf
+		}
+		if tl, ok := l.(*TextureLayer); ok {
+			// Texture leaves never enter the raster cache and damage whenever
+			// they paint: the producer rewrites the texture in place with no
+			// UI-tree change, so there is no dirty flag to wait on — a cached
+			// blit would freeze the frame (Flutter texture_layer.cc paints and
+			// adds its frame every pass). A miss (source gone) damages its rect
+			// only if this layer painted before: steady retained frames do not
+			// clear, so a previously painted region must be repainted after the
+			// producer closes; a layer that never painted covers nothing and
+			// must not dirty the surface. The layers underneath repaint it.
+			_, drawn := paintTextureLayer(tl, dc)
+			if drawn {
+				st.TexturesPainted++
+			} else {
+				st.TexturesMissed++
+			}
+			if drawn || tl.painted {
+				if r := textureLayerDamage(dc, tl); !r.Empty() {
+					st.DamageRects = append(st.DamageRects, r)
 				}
 			}
 			return // leaf

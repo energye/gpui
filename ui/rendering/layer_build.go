@@ -449,10 +449,18 @@ func addOwnPicture(b *scene.LayerBuilder, n RenderObject, needsRaster bool, sz S
 // recording and a zero cache key (vector replay paints nothing — the RO type
 // has no layer-tree representation, consistent with Flutter layer semantics).
 func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) {
-	pl := b.AddPicture(n.NeedsPaint())
 	if n == nil {
 		return
 	}
+	// Live-texture leaves (video) have no display-list representation: the node
+	// hands the tree an id + quad and the raster thread resolves the source at
+	// paint time. Providers that currently have nothing to show (no upload yet,
+	// source closed) fall through to the ordinary picture leaf, which records
+	// empty and keeps the tree shape stable.
+	if tp, ok := n.(TextureLeafProvider); ok && addTextureLeaves(b, tp) {
+		return
+	}
+	pl := b.AddPicture(n.NeedsPaint())
 	if base, ok := baseOf(n); ok {
 		pl.SetCacheKey(base.EnsureCacheID())
 	} else {
@@ -469,6 +477,46 @@ func addLeafPicture(b *scene.LayerBuilder, n RenderObject, wire *saveLayerWire) 
 			onPaint(pc, sz)
 		}
 	}))
+}
+
+// TextureLeaf is one live-texture quad a node hands the retained layer tree, in
+// layer-local coordinates (the ancestor offset/clip/transform chain places it).
+type TextureLeaf struct {
+	// TextureID is the render texture-source registry id of the producer.
+	// 0 = nothing to show, which the builder treats as "no leaf".
+	TextureID uint64
+	X, Y      float64
+	W, H      float64
+	// DrawIndex selects which view of the producer this quad shows, in layer-tree
+	// paint order (0 = first). One producer feeding a main view plus a
+	// picture-in-picture overlay emits one leaf per view so "did the second view
+	// draw" stays observable per view instead of collapsing into one counter.
+	DrawIndex int
+}
+
+// TextureLeafProvider is implemented by render objects whose content is a GPU
+// texture that a display list cannot describe (video). The producer rewrites the
+// texture in place, so the retained tree names it by id and repaints it every
+// frame instead of caching pixels that are already stale (Flutter TextureLayer).
+type TextureLeafProvider interface {
+	// TextureLeaves returns this node's quads for the frame being built (nil =
+	// show nothing). Called on the UI thread during the layer build.
+	TextureLeaves() []TextureLeaf
+}
+
+// addTextureLeaves appends tp's leaves under the current container and reports
+// whether any were added.
+func addTextureLeaves(b *scene.LayerBuilder, tp TextureLeafProvider) bool {
+	added := false
+	for _, lf := range tp.TextureLeaves() {
+		if lf.TextureID == 0 || lf.W <= 0 || lf.H <= 0 {
+			continue
+		}
+		tl := b.AddTexture(lf.TextureID, lf.X, lf.Y, lf.W, lf.H)
+		tl.DrawIndex = lf.DrawIndex
+		added = true
+	}
+	return added
 }
 
 // recordLayerContent runs a node's own draw into a fresh layer-local recorder

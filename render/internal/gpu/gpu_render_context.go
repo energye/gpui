@@ -3681,6 +3681,16 @@ func (rc *GPURenderContext) IsDeviceReady() bool {
 	return rc.shared.deviceReady
 }
 
+// Device returns the shared GPU device this context draws on, or nil when no
+// device is attached. Video slot ownership checks use it to reject textures
+// built on another device (V-3: queueing succeeds but the pixels never land).
+func (rc *GPURenderContext) Device() hal.Device {
+	if rc == nil || rc.shared == nil {
+		return nil
+	}
+	return rc.shared.Device()
+}
+
 // CreateOffscreenTexture allocates a GPU texture for offscreen rendering.
 // Reuses pooled textures by (w,h) to avoid VRAM OOM from per-layer alloc.
 func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func()) {

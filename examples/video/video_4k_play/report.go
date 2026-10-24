@@ -90,6 +90,27 @@ type report struct {
 	HWActive       bool    `json:"hw_active"`
 	HWName         string  `json:"hw_name"`
 	HWFallbacks    int64   `json:"hw_fallbacks"`
+
+	// Retained-path pixel evidence (S2b C4): two PNGs replayed from sealed
+	// packets. Ink* is the fraction of grid samples over a video rect that
+	// differ from the window clear color, Move* the fraction that changed
+	// between the two replays, TexPainted the highest per-frame count of
+	// texture layers the composite reported painted, UploadsA/B the bridge's
+	// uploaded-frame counter when each replay was requested (strict growth is
+	// the source-side half of the 换帧 proof).
+	RetainedVideoOK     int     `json:"retained_video_ok"`
+	RetainedSnapshotOK  int     `json:"retained_snapshot_ok"`
+	RetainedTexPainted  int64   `json:"retained_tex_painted_max"`
+	RetainedUploadsA    uint64  `json:"retained_uploads_a"`
+	RetainedUploadsB    uint64  `json:"retained_uploads_b"`
+	RetainedInkMainA    float64 `json:"retained_ink_main_a"`
+	RetainedInkMainB    float64 `json:"retained_ink_main_b"`
+	RetainedMoveMain    float64 `json:"retained_move_main"`
+	RetainedInkPipA     float64 `json:"retained_ink_pip_a"`
+	RetainedInkPipB     float64 `json:"retained_ink_pip_b"`
+	RetainedMovePip     float64 `json:"retained_move_pip"`
+	RetainedEvidenceErr string  `json:"retained_evidence_error"`
+	RetainedColorNote   string  `json:"retained_color_note"`
 }
 
 func buildReport(snap scheduler.FrameMetrics, presents int64, elapsed float64, info govideo.Info, clipPath string, pst govideo.Stats, bst render.BridgeStats, nst rendering.VideoNodeStats, liveShown int64, hotTick int) report {
@@ -167,6 +188,11 @@ var requiredKeys = []string{
 	"time_to_first_frame_ms", "present_count", "paint_count", "decode_error",
 	"video_frames", "video_uploads", "video_fallbacks", "video_redraws", "video_evictions",
 	"first_frame_mean", "last_frame_mean", "hw_active", "hw_name", "hw_fallbacks",
+	"retained_video_ok", "retained_snapshot_ok", "retained_tex_painted_max",
+	"retained_uploads_a", "retained_uploads_b",
+	"retained_ink_main_a", "retained_ink_main_b", "retained_move_main",
+	"retained_ink_pip_a", "retained_ink_pip_b", "retained_move_pip",
+	"retained_evidence_error", "retained_color_note",
 }
 
 func checkSchema(raw []byte) error {

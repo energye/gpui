@@ -27,10 +27,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/energye/gpui/examples/hostsink"
+	"github.com/energye/gpui/examples/wrevidence"
 	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/embedder"
@@ -43,6 +45,14 @@ import (
 )
 
 const winW, winH = 1200, 800
+
+// Window clear color: the retained-evidence probe measures video ink against it,
+// so it is declared once and shared with PipelineOptions.
+const (
+	playerClearR = 0.08
+	playerClearG = 0.09
+	playerClearB = 0.11
+)
 
 // Layout defaults for 1200x800 (hit math uses st.* at runtime, these are
 // just the first frame before applyLayout runs).
@@ -172,9 +182,19 @@ func main() {
 	if secs, set := wrkit.RunSecondsOpt(); set {
 		runFor = time.Duration(secs) * time.Second
 	}
+	// C4 retained-path pixel evidence: two PNGs replayed from the sealed packet
+	// (embedder.PipelineApp.RetainedSnapshot). A window present is zero-readback
+	// and opts.SnapshotPath repaints the LIVE tree, so only a packet replay shows
+	// what the retained path shipped: the video rect must carry ink in both
+	// replays and must move between them. Samples wait until the texture layer
+	// actually painted.
+	retAPath := filepath.Join(os.TempDir(), "gpui_video_player_retained_a.png")
+	retBPath := filepath.Join(os.TempDir(), "gpui_video_player_retained_b.png")
+	var capA, capB wrevidence.RetainedCapture
+	texPaintedMax := int64(0)
 	var app *embedder.PipelineApp
 	app = embedder.NewPipelineApp(host, root, embedder.PipelineOptions{
-		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
+		ClearR: playerClearR, ClearG: playerClearG, ClearB: playerClearB, ClearA: 1,
 		RunFor: runFor,
 		WarmUp: true,
 		OnEvent: func(ev platform.Event) {
@@ -226,6 +246,28 @@ func main() {
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		_ = dt
 		st.tick()
+		// Retained evidence pickup: only once a texture layer actually painted
+		// on the retained path, so the pair proves "video ink twice, second one
+		// a repaint" instead of "nothing yet versus something".
+		painted, _ := app.TexturePaintStats()
+		if painted > texPaintedMax {
+			texPaintedMax = painted
+		}
+		if painted >= 1 {
+			// An automated run replays the clip when it ends: the default clip
+			// is 5 frames and stops on the last one, so without a replay there
+			// is never a second picture to compare against. The 10 → 13 shown
+			// gap also stays clear of that loop length, so the two replays
+			// cannot alias. Manual runs leave playback to the user.
+			if runFor > 0 && st.ended && st.ticks%15 == 0 {
+				st.replay()
+			}
+			if !capA.OK() && st.shown >= 10 {
+				capA.Start(app, retAPath)
+			} else if capA.OK() && !capB.OK() && st.shown >= 13 {
+				capB.Start(app, retBPath)
+			}
+		}
 		// STEP-1 on-demand present: only schedule a frame when the tick
 		// actually showed a new picture (plus HUD text changes ride the
 		// same tick). Poll returns nil most ticks under vsync pacing;
@@ -268,6 +310,11 @@ func main() {
 	if elapsed > 0.001 {
 		fps = float64(presents) / elapsed
 	}
+	// A replay reads the window's own render context, so it must land while the
+	// loop can still submit jobs — wait before closing.
+	capA.Wait(4 * time.Second)
+	capB.Wait(4 * time.Second)
+	retInkA, retInkB, retMove, retErr := retainedEvidence(capA.OK(), capB.OK(), retAPath, retBPath, st.videoX, st.videoY, st.videoW, st.videoH)
 	app.Close()
 	win.Close()
 	if st.bridge != nil {
@@ -275,6 +322,33 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "video_player: 关窗 %s 显示=%d 上屏=%d fps=%.1f 用时=%.1fs 音频=%s 直传=%+v\n",
 		shortName(clip), st.shown, presents, fps, elapsed, audioLine, st.bridge.Stats())
+	// Only the colour is not asserted here: the video line's chroma bug (green
+	// cast) is a registered, parked finding, so this gate measures whether the
+	// retained path shipped the video's pixels and moved them.
+	retOK := retErr == "" && texPaintedMax >= 1 && retInkA >= 0.5 && retInkB >= 0.5 && retMove >= 0.02
+	fmt.Fprintf(os.Stderr, "video_player: retained 证据 ok=%v 纹理出画峰值=%d 墨=%.2f/%.2f 动=%.2f 错误=%q\n",
+		retOK, texPaintedMax, retInkA, retInkB, retMove, retErr)
+	if runFor > 0 && !retOK {
+		fmt.Fprintln(os.Stderr, "FAIL: retained 窗视频没出画")
+		os.Exit(1)
+	}
+}
+
+// retainedEvidence measures the video rect in the two retained packet replays:
+// the fraction of grid samples carrying ink over the window clear color in each
+// replay, plus the fraction that moved between them. Tolerances live with the
+// measurement that set them (wrevidence.RetainedInkTol / RetainedMoveTol). The
+// rect is inset so the panel edge and the letterbox band never enter the grid.
+func retainedEvidence(aOK, bOK bool, aPath, bPath string, x, y, w, h float64) (inkA, inkB, move float64, err string) {
+	pair, err := wrevidence.OpenRetainedPair(aPath, bPath, aOK, bOK, winW)
+	if err != "" {
+		return 0, 0, 0, err
+	}
+	const inset = 8.0
+	inkA, inkB, move = pair.RectEvidence(wrevidence.Rect{
+		X: x + inset, Y: y + inset, W: w - 2*inset, H: h - 2*inset,
+	}, [3]float64{playerClearR, playerClearG, playerClearB})
+	return inkA, inkB, move, ""
 }
 
 // state is the demo playback state. The engine SeekTo is async by
@@ -754,7 +828,12 @@ func (st *state) tick() {
 		return
 	}
 	st.ticks++
-	if st.ticks%30 == 0 {
+	// This window presents on demand (STEP-1): the ticker goes idle as soon
+	// as the short clip stops asking for frames, so a %30 cadence can never
+	// reach its first attach and the bridge stays device-less (frames dropped,
+	// retained texture never painted). Borrow until the first upload lands,
+	// then stop querying.
+	if st.bridge.Stats().Frames == 0 {
 		if dev, _, _, _, ok := render.BorrowVideoBackend(); ok {
 			st.bridge.EnsureDevice(dev)
 		}

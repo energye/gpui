@@ -14,7 +14,27 @@ import (
 	"image"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	"github.com/energye/gpui/gpu/hal"
 )
+
+// videoDeviceMatches reports whether a video slot's texture belongs to the
+// same device as the drawing session. A slot built on device A and drawn on
+// device B can be queued successfully while its pixels never reach B's target
+// (V-3: direct=true, ok=true, sampled pixel stays at the clear color). A
+// session that does not expose Device() (CPU-only, mocks, optional probes)
+// keeps the previous behavior; a nil device on either side is unknown, not a
+// mismatch.
+func videoDeviceMatches(rc gpuContextOps, slotDevice hal.Device) bool {
+	dp, ok := rc.(interface{ Device() hal.Device })
+	if !ok {
+		return true
+	}
+	drawDevice := dp.Device()
+	if drawDevice == nil || slotDevice == nil {
+		return true
+	}
+	return drawDevice == slotDevice
+}
 
 // tryGPUDrawImage attempts to render the image via GPU Tier 3 (textured quad).
 // Returns true if the image was queued for GPU rendering, false if the caller
@@ -268,6 +288,10 @@ func (c *Context) DrawVideoPlanes(slot *VideoPlaneSlot, opts VideoDrawOptions) b
 	if dr, ok := rc.(interface{ IsDeviceReady() bool }); ok && !dr.IsDeviceReady() {
 		return false
 	}
+	if !videoDeviceMatches(rc, slot.device) {
+		c.recordCPUFallbackReason("video:device-mismatch")
+		return false
+	}
 	// Optional queue port: sessions without the YUV entry keep the CPU
 	// fallback instead of breaking older implementers.
 	qp, ok := rc.(interface {
@@ -352,6 +376,10 @@ func (c *Context) DrawVideoSlot(slot *VideoSlot, opts VideoDrawOptions) bool {
 	// the GPU session can execute it. Without a device the queued quad
 	// never lands in the pixmap while the CPU fallback is skipped.
 	if dr, ok := rc.(interface{ IsDeviceReady() bool }); ok && !dr.IsDeviceReady() {
+		return false
+	}
+	if !videoDeviceMatches(rc, slot.device) {
+		c.recordCPUFallbackReason("video:device-mismatch")
 		return false
 	}
 	dw, dh := opts.DstWidth, opts.DstHeight

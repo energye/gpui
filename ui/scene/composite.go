@@ -11,6 +11,9 @@
 package scene
 
 import (
+	"image"
+	"math"
+
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/recording"
 )
@@ -23,6 +26,12 @@ type CompositeStats struct {
 	ClipsApplied      int
 	TransformsApplied int
 	FiltersApplied    int
+	// TexturesVisited counts texture layers walked; TexturesPainted counts the
+	// ones whose source drew pixels, TexturesMissed the ones that resolved to
+	// nothing (closed producer / no frame). Visited == Painted+Missed.
+	TexturesVisited int
+	TexturesPainted int
+	TexturesMissed  int
 }
 
 // CompositeToContext walks the retained layer tree in paint order and applies
@@ -32,10 +41,11 @@ type CompositeStats struct {
 //	ClipRect / ClipRRect → clip stack
 //	Transform → TX/TY → Rotate → Scale (matches TransformLayer docs)
 //	Picture → recording playback onto dc
+//	Texture → the registered source paints its quad under dc's CTM
 //	Opacity → PushLayer(Normal, opacity) isolation
 //	ColorFilter / ImageFilter → isolate children, Apply*, composite back
 //
-// This does not claim dirty-rect Present, TextureLayer, BackdropFilter product,
+// This does not claim dirty-rect Present, BackdropFilter product,
 // or full Flutter multi-RT compositor. dc must be non-nil.
 func CompositeToContext(root Layer, dc *render.Context) CompositeStats {
 	st := CompositeStats{}
@@ -71,6 +81,9 @@ func addStats(a, b CompositeStats) CompositeStats {
 		ClipsApplied:      a.ClipsApplied + b.ClipsApplied,
 		TransformsApplied: a.TransformsApplied + b.TransformsApplied,
 		FiltersApplied:    a.FiltersApplied + b.FiltersApplied,
+		TexturesVisited:   a.TexturesVisited + b.TexturesVisited,
+		TexturesPainted:   a.TexturesPainted + b.TexturesPainted,
+		TexturesMissed:    a.TexturesMissed + b.TexturesMissed,
 	}
 }
 
@@ -87,6 +100,18 @@ func compositeLayer(l Layer, dc *render.Context, st *CompositeStats) {
 			st.OpsReplayed += t.Recording.PaintOpCount()
 			_ = t.Recording.Playback(recording.NewCanvasBackend(dc))
 			t.NeedsRaster = false
+		}
+		return // leaf
+
+	case *TextureLayer:
+		// Texture content never raster-caches: the producer can rewrite the
+		// texture without the UI tree changing, so the layer repaints every
+		// frame it is in.
+		st.TexturesVisited++
+		if _, drawn := paintTextureLayer(t, dc); drawn {
+			st.TexturesPainted++
+		} else {
+			st.TexturesMissed++
 		}
 		return // leaf
 
@@ -241,4 +266,38 @@ func compositeLayer(l Layer, dc *render.Context, st *CompositeStats) {
 	for _, ch := range l.Children() {
 		compositeLayer(ch, dc, st)
 	}
+}
+
+// paintTextureLayer resolves a texture layer's source and draws its quad under
+// dc's current transform. drawn=false means the rect was NOT covered (source
+// unregistered, no frame yet, or no device), which the caller must report as a
+// miss instead of damaging over stale pixels. Group opacity from an enclosing
+// OpacityLayer is inherited by the source's own draw.
+func paintTextureLayer(t *TextureLayer, dc *render.Context) (direct, drawn bool) {
+	if t == nil || dc == nil || t.TextureID == 0 {
+		return false, false
+	}
+	src, ok := render.GetTextureSource(t.TextureID)
+	if !ok {
+		return false, false
+	}
+	direct, drawn = src.PaintTexture(dc, render.TexturePaintOptions{
+		X: t.X, Y: t.Y, Width: t.W, Height: t.H, DrawIndex: t.DrawIndex,
+	})
+	if drawn {
+		t.painted = true
+	}
+	return direct, drawn
+}
+
+// textureLayerDamage maps a texture layer's quad into logical surface coords
+// under the current transform (TrackDamageRect takes logical, the CTM is
+// device). Ceil on the far edge so a fractional quad never damages short.
+func textureLayerDamage(dc *render.Context, t *TextureLayer) image.Rectangle {
+	if t == nil || t.W <= 0 || t.H <= 0 {
+		return image.Rectangle{}
+	}
+	rect := image.Rect(int(math.Floor(t.X)), int(math.Floor(t.Y)),
+		int(math.Ceil(t.X+t.W)), int(math.Ceil(t.Y+t.H)))
+	return transformBounds(dc, rect)
 }

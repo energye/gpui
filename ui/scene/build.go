@@ -143,6 +143,16 @@ func (b *LayerBuilder) AddPicture(needsRaster bool) *PictureLayer {
 	return p
 }
 
+// AddTexture appends a texture layer (GPU-texture content by source id) to the
+// current container. The builder stays responsible for placement only: the
+// source is resolved at paint time on the raster thread, so nothing here holds
+// a reference to a mutable producer.
+func (b *LayerBuilder) AddTexture(textureID uint64, x, y, w, h float64) *TextureLayer {
+	t := NewTextureLayer(textureID, x, y, w, h)
+	b.current().Add(t)
+	return t
+}
+
 // PictureOpCount returns the display-list op total summed over every
 // PictureLayer under the built root during the last BuildPacket call.
 // It is gathered inside the packet-finalize walk that already collects dirty

@@ -47,11 +47,16 @@ func (c *Context) DrawVideoFrame(img *ImageBuf, opts VideoDrawOptions) bool {
 // NewVideoBridge creates one route on the borrowed device.
 // Nil device yields a fallback-only bridge: Show always takes the generic
 // path and counts fallbacks, never crashes.
+// The bridge registers as a TextureSource so a retained window can name it by
+// id (scene.TextureLayer); Close unregisters again.
 func NewVideoBridge(device hal.Device) *VideoBridge {
-	if device == nil {
-		return &VideoBridge{}
+	b := &VideoBridge{}
+	if device != nil {
+		b.pool = NewVideoTexturePool(device)
+		b.ppool = NewVideoPlanePool(device)
 	}
-	return &VideoBridge{pool: NewVideoTexturePool(device), ppool: NewVideoPlanePool(device)}
+	b.id = RegisterTextureSource(b)
+	return b
 }
 
 // EnsureDevice attaches the pool device when the window device opens after
@@ -201,17 +206,23 @@ func (b *VideoBridge) UploadFrame(w, h int, pix []byte) bool {
 // (block copy, counted) otherwise. NV12 shape converts on the GPU via
 // DrawVideoPlanes; when the GPU entry is unavailable it converts into
 // the owned fallback buffer on CPU. ok=false means nothing was drawn.
-// DrawCurrent draws the last uploaded frame. Call it in Paint with the
-// display rect: zero-upload quad on the fast path, generic fallback
-// (block copy, counted) otherwise. NV12 shape converts on the GPU via
-// DrawVideoPlanes; when the GPU entry is unavailable it converts into
-// the owned fallback buffer on CPU. ok=false means nothing was drawn.
 func (b *VideoBridge) DrawCurrent(c *Context, opts VideoDrawOptions) (direct, ok bool) {
+	return b.drawCurrentAt(c, opts, 0)
+}
+
+// drawCurrentAt is DrawCurrent with the view index that paint accounting is
+// filed under (0 = the only view). Every caller of the bridge's draw lands
+// here, so the "did it reach the screen" evidence does not depend on which
+// present path ran.
+func (b *VideoBridge) drawCurrentAt(c *Context, opts VideoDrawOptions, view int) (direct, ok bool) {
 	if b == nil || c == nil {
 		return false, false
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	// Runs before the unlock above (defer LIFO), so the accounting needs no
+	// second lock and no separate atomic set.
+	defer func() { b.notePaintLocked(view, direct, ok) }()
 	if b.hasPlanes && b.pslot != nil {
 		if c.DrawVideoPlanes(b.pslot, opts) {
 			return true, true
@@ -257,8 +268,107 @@ func (b *VideoBridge) DrawCurrent(c *Context, opts VideoDrawOptions) (direct, ok
 	return false, c.DrawVideoFrame(b.fallback, opts)
 }
 
-// ensureFallbackLocked keeps one owned buffer at the current size.
-// Caller holds b.mu.
+// PaintTexture draws the current frame for one scene.TextureLayer. It is the
+// TextureSource entry point: the retained tree names this bridge by ID and the
+// raster thread calls here, so the draw runs under this bridge's own lock while
+// the producer keeps uploading from the UI thread. ok=false means nothing was
+// drawn (no frame yet, or the route was closed) and the caller must not treat
+// the rect as covered.
+func (b *VideoBridge) PaintTexture(dc *Context, opts TexturePaintOptions) (direct, ok bool) {
+	if b == nil {
+		return false, false
+	}
+	return b.drawCurrentAt(dc, VideoDrawOptions{
+		X: opts.X, Y: opts.Y, DstWidth: opts.Width, DstHeight: opts.Height,
+		Opacity: opts.Opacity, Interpolation: opts.Interp,
+	}, opts.DrawIndex)
+}
+
+// ID returns this route's texture registry id (0 only for a zero-valued
+// bridge, which was never registered). Immutable after construction, so a
+// layer builder on the UI thread can read it without the route lock.
+func (b *VideoBridge) ID() uint64 {
+	if b == nil {
+		return 0
+	}
+	return b.id
+}
+
+// notePaintLocked files one paint outcome. Caller holds b.mu.
+func (b *VideoBridge) notePaintLocked(view int, direct, ok bool) {
+	if view < 0 {
+		view = 0
+	}
+	if view >= videoMaxViews {
+		view = videoMaxViews - 1
+	}
+	b.paints++
+	b.viewPaints[view]++
+	b.lastPaintOK, b.lastPaintDirect = ok, direct
+	b.viewLastOK[view] = ok
+	if !ok {
+		b.failedPaints++
+		return
+	}
+	b.viewOK[view] = true
+	b.viewDirect[view] = direct
+	if direct {
+		b.directPaints++
+	} else {
+		b.fallbackPaints++
+	}
+}
+
+// PaintStats snapshots the draw outcomes. The retained path paints on the
+// raster thread, so a render object cannot remember what reached the screen —
+// probes read it from the source that was actually drawn.
+type PaintStats struct {
+	Paints          uint64
+	DirectPaints    uint64
+	FallbackPaints  uint64
+	FailedPaints    uint64
+	LastPaintOK     bool
+	LastPaintDirect bool
+	ViewPaints      []uint64
+	// ViewOK[i] reports that view i of this route drew successfully at least
+	// once (a picture-in-picture window proves the second view reused one
+	// upload); ViewLastOK[i] reports its most recent paint outcome — a closed
+	// producer turns this false without erasing the ever-drew proof.
+	// ViewDirect[i] reports which path its most recent draw took (true =
+	// zero-upload GPU quad, false = counted fallback). Kept per view so a PiP
+	// window cannot report the small view's path as the main view's.
+	ViewOK     []bool
+	ViewLastOK []bool
+	ViewDirect []bool
+}
+
+// PaintStats snapshots this route's paint accounting.
+func (b *VideoBridge) PaintStats() PaintStats {
+	if b == nil {
+		return PaintStats{}
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	vp := make([]uint64, videoMaxViews)
+	vo := make([]bool, videoMaxViews)
+	vl := make([]bool, videoMaxViews)
+	vd := make([]bool, videoMaxViews)
+	copy(vp, b.viewPaints[:])
+	copy(vo, b.viewOK[:])
+	copy(vl, b.viewLastOK[:])
+	copy(vd, b.viewDirect[:])
+	return PaintStats{
+		Paints: b.paints, DirectPaints: b.directPaints,
+		FallbackPaints: b.fallbackPaints, FailedPaints: b.failedPaints,
+		LastPaintOK: b.lastPaintOK, LastPaintDirect: b.lastPaintDirect,
+		ViewPaints: vp, ViewOK: vo, ViewLastOK: vl, ViewDirect: vd,
+	}
+}
+
+// VideoBridge is a texture source: a retained window gives the layer tree an
+// id, never a pointer to this bridge.
+var _ TextureSource = (*VideoBridge)(nil)
+
 // Stats snapshots the bridge.
 func (b *VideoBridge) Stats() BridgeStats {
 	if b == nil {
@@ -280,12 +390,14 @@ func (b *VideoBridge) Stats() BridgeStats {
 	return st
 }
 
-// Close releases the slot and fallback buffer. Borrowed device untouched.
-// Close releases the slot and fallback buffer. Borrowed device untouched.
+// Close releases the slot and fallback buffer and drops the texture-source
+// registration. Borrowed device untouched. After Close, a retained layer that
+// still names this id resolves to no source and paints nothing (fail closed).
 func (b *VideoBridge) Close() {
 	if b == nil {
 		return
 	}
+	UnregisterTextureSource(b.ID())
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.pool != nil && b.slot != nil {
