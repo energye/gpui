@@ -371,8 +371,9 @@ func main() {
 	// retained composite reported at least one texture layer painted. The
 	// paintsA/paintsB counters are diagnostic only: the replay itself calls
 	// PaintTexture, so paintsB > paintsA would be true by construction and
-	// prove nothing about the on-screen path. Colour is deliberately NOT
-	// asserted here (the video line's chroma bug is a separate parked finding).
+	// prove nothing about the on-screen path. Chroma is covered by the real-GPU
+	// V-4 regression; this window still has no per-pixel colour gate and no
+	// Golden yet, so C4 stays open.
 	if retErr == "" && retAOK && retBOK && texPaintedMax >= 1 &&
 		retInkMainA >= 0.5 && retInkMainB >= 0.5 && retMoveMain >= 0.02 &&
 		retInkSmallA >= 0.5 && retInkSmallB >= 0.5 && retMoveSmall >= 0.02 {
@@ -382,7 +383,7 @@ func main() {
 			retInkMainA, retInkMainB, retMoveMain, retInkSmallA, retInkSmallB, retMoveSmall, texPaintedMax, paintsA, paintsB)
 	}
 	rep.RetainedEvidenceErr = retErr
-	rep.RetainedColorNote = "只断言 retained 路径出画与换帧，不断言颜色：视频线色度读成 0（偏绿）为已登记的独立问题"
+	rep.RetainedColorNote = "只断言 retained 路径出画与换帧，不做逐像素颜色门禁；色度根因已由 V-4 真 GPU 纯红回归修复，Golden 待出"
 	raw, _ := json.Marshal(rep)
 	fmt.Println(string(raw))
 
@@ -536,7 +537,8 @@ type report struct {
 	RetainedMoveSmall   float64 `json:"retained_move_small"`
 	RetainedEvidenceErr string  `json:"retained_evidence_error"`
 	// RetainedColorNote records what this evidence does NOT claim: the video
-	// line's chroma bug is registered and parked separately, so C4 only proves
+	// line's chroma root cause is covered by the real-GPU V-4 regression; this
+	// window still has no per-pixel colour gate and no Golden, so C4 only proves
 	// that the retained path ships the video's pixels, not that they are right.
 	RetainedColorNote string `json:"retained_color_note"`
 

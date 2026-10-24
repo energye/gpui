@@ -219,9 +219,9 @@ func main() {
 	// The retained path must carry the video: both replays paint it (ink over
 	// most of each rect), each rect's pixels move between the two samples, the
 	// composite reported at least one texture layer painted, and the bridge
-	// uploaded more frames at the second request than at the first. Colour is
-	// deliberately NOT asserted here (the video line's chroma bug is a separate
-	// parked finding).
+	// uploaded more frames at the second request than at the first. Chroma is
+	// covered by the real-GPU V-4 regression; this window still has no per-pixel
+	// colour gate and no Golden yet, so C4 stays open.
 	if retErr == "" && retAOK && retBOK && texPaintedMax >= 1 && uploadsB > uploadsA &&
 		retInkMainA >= 0.5 && retInkMainB >= 0.5 && retMoveMain >= 0.02 &&
 		retInkPipA >= 0.5 && retInkPipB >= 0.5 && retMovePip >= 0.02 {
@@ -231,7 +231,7 @@ func main() {
 			retInkMainA, retInkMainB, retMoveMain, retInkPipA, retInkPipB, retMovePip, texPaintedMax, uploadsA, uploadsB)
 	}
 	rep.RetainedEvidenceErr = retErr
-	rep.RetainedColorNote = "只断言 retained 路径出画与换帧，不断言颜色：视频线色度读成 0（偏绿）为已登记的独立问题"
+	rep.RetainedColorNote = "只断言 retained 路径出画与换帧，不做逐像素颜色门禁；色度根因已由 V-4 真 GPU 纯红回归修复，Golden 待出"
 	fmt.Fprintf(os.Stderr, "video_4k_play: retained 证据 ok=%v 纹理出画峰值=%d 上传=%d/%d 主墨=%.2f/%.2f 动=%.4f 小窗墨=%.2f/%.2f 动=%.4f 错误=%q\n",
 		rep.RetainedVideoOK == 1, texPaintedMax, uploadsA, uploadsB,
 		retInkMainA, retInkMainB, retMoveMain, retInkPipA, retInkPipB, retMovePip, retErr)

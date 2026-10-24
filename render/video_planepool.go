@@ -56,8 +56,9 @@ func clampU8(v float64) byte {
 }
 
 // VideoPlaneSlot is one video route's NV12 texture pair (Y + interleaved
-// UV), rewritten in place. Y is R8, UV is RG8; both share W×H addressing
-// (UV has H/2 rows of W bytes).
+// UV), rewritten in place. Y is R8 (W×H); UV is RG8 (W/2×H/2) because one
+// RG8 texel carries a U/V pair and an NV12 UV row is W bytes. The upload
+// width must therefore be W/2 even though the row stride stays W bytes.
 type VideoPlaneSlot struct {
 	W      int
 	H      int
@@ -200,7 +201,10 @@ func (p *VideoPlanePool) Acquire(w, h int) (*VideoPlaneSlot, error) {
 	if err != nil {
 		return nil, err
 	}
-	uvTex, uvView, err := videoPlaneTexture(p.device, "video-plane-uv", w, h/2, types.TextureFormatRG8Unorm)
+	// NV12 UV rows are w bytes; one RG8 texel holds a U/V pair, so the
+	// texture is w/2 texels wide. Creating it w wide leaves the right half
+	// zero, and normalized sampling reads green for every centre pixel.
+	uvTex, uvView, err := videoPlaneTexture(p.device, "video-plane-uv", w/2, h/2, types.TextureFormatRG8Unorm)
 	if err != nil {
 		if yView != nil {
 			p.device.DestroyTextureView(yView)
@@ -319,17 +323,19 @@ func padPlaneRows(scratch []byte, pix []byte, w, rows, pitch int) []byte {
 }
 
 // UploadPlanes rewrites the slot pair in place: Y (R8, w×h) plus UV
-// (RG8 interleaved, w×h/2). One call counts one upload unit, so the
-// upload discipline stays one upload per frame like the RGBA path.
-// Tight widths upload directly; other widths pad rows into slot-owned
-// scratch (memcpy only, no arithmetic). Any failure errors to the
-// RGBA fallback path.
+// (RG8 interleaved, w/2×h/2). One UV row is w bytes, so the texture width
+// is w/2 texels; using w here samples the zero-padded right half and turns
+// the picture green. One call counts one upload unit, so the upload
+// discipline stays one upload per frame like the RGBA path. Tight widths
+// upload directly; other widths pad rows into slot-owned scratch (memcpy
+// only, no arithmetic). Any failure errors to the RGBA fallback path.
 // UploadPlanes rewrites the slot pair in place: Y (R8, w×h) plus UV
-// (RG8 interleaved, w×h/2). One call counts one upload unit, so the
-// upload discipline stays one upload per frame like the RGBA path.
-// Tight widths upload directly; other widths pad rows into slot-owned
-// scratch (memcpy only, no arithmetic). Any failure errors to the
-// RGBA fallback path.
+// (RG8 interleaved, w/2×h/2). One UV row is w bytes, so the texture width
+// is w/2 texels; using w here samples the zero-padded right half and turns
+// the picture green. One call counts one upload unit, so the upload
+// discipline stays one upload per frame like the RGBA path. Tight widths
+// upload directly; other widths pad rows into slot-owned scratch (memcpy
+// only, no arithmetic). Any failure errors to the RGBA fallback path.
 func (p *VideoPlanePool) UploadPlanes(s *VideoPlaneSlot, y, uv []byte) error {
 	if p == nil || p.device == nil {
 		return fmt.Errorf("render: video plane upload has no device")
@@ -361,19 +367,19 @@ func (p *VideoPlanePool) UploadPlanes(s *VideoPlaneSlot, y, uv []byte) error {
 		s.padUV = padPlaneRows(s.padUV, uv, w, h/2, int(pitch))
 		yp, uvs = s.padY, s.padUV
 	}
-	upload := func(tex hal.Texture, pix []byte, rows int) error {
+	upload := func(tex hal.Texture, pix []byte, rows, width int) error {
 		dst := &hal.ImageCopyTexture{Texture: tex, MipLevel: 0, Aspect: types.TextureAspectAll}
 		layout := &hal.ImageDataLayout{Offset: 0, BytesPerRow: pitch, RowsPerImage: uint32(rows)}
-		size := &hal.Extent3D{Width: uint32(w), Height: uint32(rows), DepthOrArrayLayers: 1}
+		size := &hal.Extent3D{Width: uint32(width), Height: uint32(rows), DepthOrArrayLayers: 1}
 		if err := queue.WriteTexture(dst, pix[:int(pitch)*rows], layout, size); err != nil {
-			return fmt.Errorf("render: video plane WriteTexture %dx%d: %w", w, rows, err)
+			return fmt.Errorf("render: video plane WriteTexture %dx%d: %w", width, rows, err)
 		}
 		return nil
 	}
-	if err := upload(s.YTex, yp, h); err != nil {
+	if err := upload(s.YTex, yp, h, w); err != nil {
 		return err
 	}
-	if err := upload(s.UVTex, uvs, h/2); err != nil {
+	if err := upload(s.UVTex, uvs, h/2, w/2); err != nil {
 		return err
 	}
 	p.mu.Lock()

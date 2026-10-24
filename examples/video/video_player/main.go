@@ -322,9 +322,10 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "video_player: 关窗 %s 显示=%d 上屏=%d fps=%.1f 用时=%.1fs 音频=%s 直传=%+v\n",
 		shortName(clip), st.shown, presents, fps, elapsed, audioLine, st.bridge.Stats())
-	// Only the colour is not asserted here: the video line's chroma bug (green
-	// cast) is a registered, parked finding, so this gate measures whether the
-	// retained path shipped the video's pixels and moved them.
+	// This gate measures whether the retained path shipped the video's pixels
+	// and moved them. Chroma is covered by the real-GPU V-4 regression
+	// (render/video_yuv_color_gpu_test.go); this window still has no per-pixel
+	// colour gate and no Golden yet, so C4 stays open.
 	retOK := retErr == "" && texPaintedMax >= 1 && retInkA >= 0.5 && retInkB >= 0.5 && retMove >= 0.02
 	fmt.Fprintf(os.Stderr, "video_player: retained 证据 ok=%v 纹理出画峰值=%d 墨=%.2f/%.2f 动=%.2f 错误=%q\n",
 		retOK, texPaintedMax, retInkA, retInkB, retMove, retErr)
