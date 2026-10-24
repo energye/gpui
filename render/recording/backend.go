@@ -107,6 +107,13 @@ type Backend interface {
 	// rule, the operation-complete counterpart of SetClip.
 	ClipPathOp(path *render.Path, rule FillRule, op render.ClipOp)
 
+	// ClipRoundRect intersects the clip region with a rounded rectangle in user
+	// space. Playback must take the same call the paint walk made: re-expressing
+	// it as a path changes the rasterizer's route (a CPU clip mask instead of
+	// the rounded-corner coverage the live canvas uses), which is both slower and
+	// a fidelity difference between live paint and replay.
+	ClipRoundRect(x, y, w, h, radius float64)
+
 	// Drawing methods
 
 	// FillPath fills the given path with the brush color/pattern.
@@ -207,6 +214,15 @@ type Backend interface {
 
 	// PopLayer composites the innermost layer.
 	PopLayer()
+}
+
+// GPUTextureBackend is the optional capability of replaying a device-owned GPU
+// texture view (DrawGPUTextureCommand). It is separate from Backend because it
+// only makes sense on targets that reach the device the view belongs to: the
+// live context and CanvasBackend do, export backends (image, PDF, SVG) do not
+// and skip the command.
+type GPUTextureBackend interface {
+	DrawGPUTexture(view render.TextureView, x, y float64, width, height int)
 }
 
 // WriterBackend extends Backend with the ability to write output to an io.Writer.

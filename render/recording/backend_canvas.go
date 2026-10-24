@@ -192,6 +192,19 @@ func (b *CanvasBackend) DrawImageCircular(img *render.ImageBuf, cx, cy, radius f
 	b.dc.DrawImageCircular(img, cx, cy, radius)
 }
 
+// DrawGPUTexture replays a device-owned texture view. The target handles the
+// bind: a live context queues the quad, and a nested recorder folds the command
+// into the surrounding recording so the view still reaches the raster thread.
+// A canvas that cannot bind device views drops the command.
+func (b *CanvasBackend) DrawGPUTexture(view render.TextureView, x, y float64, width, height int) {
+	if view.IsNil() || width <= 0 || height <= 0 {
+		return
+	}
+	if target, ok := b.dc.(GPUTextureBackend); ok {
+		target.DrawGPUTexture(view, x, y, width, height)
+	}
+}
+
 // DrawAtlas replays a sprite batch. Context returns a degradation report that
 // only exists once rasterized, so the replay result is dropped here.
 func (b *CanvasBackend) DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSprite, opts render.AtlasDrawOptions) {
@@ -235,6 +248,13 @@ func (b *CanvasBackend) DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x,
 		return
 	}
 	b.dc.DrawShapedGlyphs(glyphs, face, x, y)
+}
+
+// ClipRoundRect intersects the clip region with a rounded rectangle, forwarding
+// to the canvas's native primitive so replay rasterizes the same way the live
+// walk did.
+func (b *CanvasBackend) ClipRoundRect(x, y, w, h, radius float64) {
+	b.dc.ClipRoundRect(x, y, w, h, radius)
 }
 
 // ClipRect intersects the clip region with a user-space rectangle.

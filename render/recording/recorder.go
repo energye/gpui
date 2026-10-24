@@ -262,10 +262,7 @@ func (r *Recording) Playback(backend Backend) error {
 		case ClipPathOpCommand:
 			backend.ClipPathOp(r.resources.GetPath(c.Path), c.Rule, c.Op)
 		case ClipRoundRectCommand:
-			// Convert RRect clip to a path for backends that don't
-			// natively support rounded rectangle clipping.
-			rrPath := render.BuildPath().RoundRect(c.X, c.Y, c.W, c.H, c.Radius).Build()
-			backend.SetClip(rrPath, FillRuleNonZero)
+			backend.ClipRoundRect(c.X, c.Y, c.W, c.H, c.Radius)
 		case FillPathCommand:
 			path := r.resources.GetPath(c.Path)
 			brush := r.resources.GetBrush(c.Brush)
@@ -304,6 +301,12 @@ func (r *Recording) Playback(backend Backend) error {
 			}, r.resources.GetBrush(c.Brush))
 		case DrawGlyphsCommand:
 			backend.DrawGlyphs(c.Glyphs, r.faceFor(c.Face), c.X, c.Y, c.Colored, r.resources.GetBrush(c.Brush))
+		case DrawGPUTextureCommand:
+			// Only device-facing backends can bind the view; export backends
+			// have no texture to sample and skip it.
+			if b, ok := backend.(GPUTextureBackend); ok {
+				b.DrawGPUTexture(c.View, c.X, c.Y, c.W, c.H)
+			}
 		case SetTextDecorationCommand:
 			backend.SetTextDecoration(c.Deco)
 		case SetTextModeCommand:

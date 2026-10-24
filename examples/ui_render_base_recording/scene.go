@@ -527,7 +527,8 @@ func (s *recordingSpyBackend) DrawText(_ string, _, _ float64, face text.Face, _
 // The remaining Backend operations only need counting here: this spy proves the
 // command stream reaches a backend, not that it rasterizes correctly (the card
 // pixels and the golden PNG do that).
-func (s *recordingSpyBackend) ClipRect(_ recording.Rect) { s.hit("ClipRect") }
+func (s *recordingSpyBackend) ClipRoundRect(_, _, _, _, _ float64) { s.hit("ClipRoundRect") }
+func (s *recordingSpyBackend) ClipRect(_ recording.Rect)            { s.hit("ClipRect") }
 func (s *recordingSpyBackend) ClipRectOp(_ recording.Rect, _ render.ClipOp) {
 	s.hit("ClipRectOp")
 }

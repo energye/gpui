@@ -197,6 +197,18 @@ func (r *Recorder) DrawImageCircular(img *render.ImageBuf, cx, cy, radius float6
 	})
 }
 
+// DrawGPUTexture records a live GPU texture view draw. The handle stays opaque
+// to the recording: playback binds it on the raster thread that owns the
+// device (Flutter TextureLayer semantics), so the texture is sampled directly
+// without a readback/upload round trip. Geometry is user-space like every other
+// command, so playback composes it under the target's CTM and clip.
+func (r *Recorder) DrawGPUTexture(view render.TextureView, x, y float64, width, height int) {
+	if view.IsNil() || width <= 0 || height <= 0 {
+		return
+	}
+	r.commands = append(r.commands, DrawGPUTextureCommand{View: view, X: x, Y: y, W: width, H: height})
+}
+
 // cloneDrawImageOptions deep-copies the SrcRect pointer so later mutation of
 // the caller's rectangle cannot rewrite an already-recorded command.
 func cloneDrawImageOptions(opts render.DrawImageOptions) render.DrawImageOptions {

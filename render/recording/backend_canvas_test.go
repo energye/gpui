@@ -3,7 +3,9 @@ package recording
 import (
 	"image"
 	"testing"
+	"unsafe"
 
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
 )
 
@@ -166,6 +168,52 @@ func TestCanvasBackendPlaybackIntoRecorderFoldsFacts(t *testing.T) {
 	}
 	if !found {
 		t.Error("folded image buffer is missing from the outer resource pool")
+	}
+}
+
+// A live GPU texture view must survive the fold the way image content does: the
+// handle is carried through playback, not dropped, so a FullPaint frame recorded
+// on the UI thread still composites its textures on the raster thread.
+func TestCanvasBackendPlaybackIntoRecorderKeepsGPUTexture(t *testing.T) {
+	var token byte
+	view := gpucontext.NewTextureView(unsafe.Pointer(&token))
+
+	innerRec := NewRecorder(40, 40)
+	innerRec.DrawGPUTexture(view, 4, 5, 16, 12)
+	inner := finish(t, innerRec)
+
+	if got := inner.PaintOpCount(); got != 1 {
+		t.Fatalf("inner ops = %d, want 1", got)
+	}
+	if got, want := inner.Bounds(), image.Rect(4, 5, 20, 17); !got.Eq(want) {
+		t.Errorf("inner bounds = %v, want %v", got, want)
+	}
+	if inner.NeedsCPUPassScratch() {
+		t.Error("a texture-view draw is GPU-only and must not request CPU scratch")
+	}
+	if !inner.HasVisiblePaint() {
+		t.Error("a valid texture view must report visible paint")
+	}
+
+	outerRec := NewRecorder(100, 100)
+	if err := inner.Playback(NewCanvasBackend(outerRec)); err != nil {
+		t.Fatalf("playback into recorder: %v", err)
+	}
+	outer := finish(t, outerRec)
+	if got := outer.PaintOpCount(); got != 1 {
+		t.Fatalf("outer ops = %d, want the folded texture draw", got)
+	}
+	if got, want := outer.Bounds(), image.Rect(4, 5, 20, 17); !got.Eq(want) {
+		t.Errorf("outer bounds = %v, want %v", got, want)
+	}
+	var found bool
+	for _, cmd := range outer.Commands() {
+		if c, ok := cmd.(DrawGPUTextureCommand); ok && c.View == view {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("folded recording lost the GPU texture view")
 	}
 }
 

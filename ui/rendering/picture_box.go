@@ -75,14 +75,14 @@ func (b *RenderPictureBox) Layout(c Constraints) Size {
 // Paint implements RenderObject.
 //
 // Clean + valid entry replays from cache (boundary_skip); dirty or missing
-// entry builds via Record, replays the same commands live, and stores them.
+// entry builds via Record, replays the same commands, and stores them.
 // Single build — live paint and cache record can never diverge.
 //
-// On a recording pass (no live context) the closure draws into the parent's
-// recorder directly: the layer's display list IS the content, so there is
-// nothing to splice and no cache entry to keep (the retained path re-records
-// this box only when it is dirty, and the boundary cache only pays off when a
-// live frame can skip the closure).
+// Playback targets any Canvas: a live *render.Context rasters the commands
+// immediately, a recording.Recorder folds them into the enclosing display list
+// (FullPaint frames record on the UI thread). Either way the recording that
+// was replayed is exactly the one cached, so a later clean replay cannot show
+// stale content.
 func (b *RenderPictureBox) Paint(pc *PaintContext) {
 	if pc == nil {
 		return
@@ -100,14 +100,12 @@ func (b *RenderPictureBox) Paint(pc *PaintContext) {
 		h = b.Height
 	}
 	var built *recording.Recording
-	if live, ok := pc.LiveContext(); ok && b.Record != nil {
+	if pc.DC != nil && b.Record != nil {
 		ox, oy := pc.OriginX, pc.OriginY
 		built = recordBoxList(b, w, h, ox, oy)
 		if built.PaintOpCount() > 0 {
-			_ = built.Playback(recording.NewCanvasBackend(live))
+			_ = built.Playback(recording.NewCanvasBackend(pc.DC))
 		}
-	} else if b.Record != nil {
-		b.Record(pc.DC, pc.OriginX, pc.OriginY)
 	}
 	pc.NoteDebugRepaint(w, h)
 	b.clearPaintDirty()

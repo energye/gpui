@@ -176,6 +176,11 @@ func (w *contentWalk) step(cmd Command) {
 		face := w.face(c.Face)
 		w.note(len(c.Glyphs) > 0 && face != nil && brushCanPaint(w.paintBrush(c.Brush)))
 		w.addShapedRun(c.Glyphs, face, c.X, c.Y, 0)
+	case DrawGPUTextureCommand:
+		// A valid view composites a textured quad; whether its texels are
+		// opaque is a raster-time fact, so the footprint stays conservative.
+		w.note(!c.View.IsNil() && c.W > 0 && c.H > 0)
+		w.addRect(NewRect(c.X, c.Y, float64(c.W), float64(c.H)), 0)
 
 	case ApplyBlurCommand:
 		if c.Radius > 0 {

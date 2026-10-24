@@ -39,9 +39,10 @@ import (
 // live-paints and stale-frame content loss is impossible.
 type BoundaryCache struct {
 	// mu guards every field below. tryReplay/Store run on the UI paint
-	// thread (live contexts only) and Clear arrives on the UI event
-	// thread — an unguarded map is a fatal concurrent read/write, not
-	// just a race.
+	// thread — the same thread that owns the render tree — and Clear also
+	// arrives on the UI event thread (an unguarded map is a fatal concurrent
+	// read/write, not just a race). Stats()/Invalidate may come from other
+	// goroutines, so they take the same lock.
 	// Methods take the lock for their whole body; none call back into
 	// another locked method (recordOwnContent never touches the cache),
 	// so method-scoped locking cannot deadlock.
@@ -287,17 +288,15 @@ func (c *BoundaryCache) HasValid(n RenderObject) bool {
 // Self NeedsPaint → miss. Descendant dirtiness does **not** block own replay
 // (outer can skip while inner rerecords). Non-cacheable boundaries always miss.
 //
-// Live paint only: replaying a recording needs a context to issue its commands
-// on, so a recording pass (pc.DC is a recorder) always misses and the node
-// draws its own content into that recorder instead.
+// Any Canvas target works: on a live *render.Context the recording rasters
+// immediately; on a recording.Recorder it folds into the enclosing display list
+// (CanvasBackend nests recordings), which is how a FullPaint frame records on
+// the UI thread without re-recording clean boundaries.
 func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
-	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache {
+	if c == nil || pc == nil || n == nil || !pc.UseBoundaryCache || pc.DC == nil {
 		return false
 	}
-	live, ok := pc.LiveContext()
-	if !ok {
-		return false
-	}
+	canvas := pc.DC
 	if !n.IsRepaintBoundary() {
 		return false
 	}
@@ -343,12 +342,12 @@ func (c *BoundaryCache) tryReplay(pc *PaintContext, n RenderObject) bool {
 		// e.ox/e.oy stay frozen at record-time origin so each replay translates
 		// by the FULL record→current delta (correct total displacement), not a
 		// per-frame delta that would drift and misposition the cached list.
-		live.Push()
-		live.Translate(pc.OriginX-e.ox, pc.OriginY-e.oy)
-		_ = e.rec.Playback(recording.NewCanvasBackend(live))
-		live.Pop()
+		canvas.Push()
+		canvas.Translate(pc.OriginX-e.ox, pc.OriginY-e.oy)
+		_ = e.rec.Playback(recording.NewCanvasBackend(canvas))
+		canvas.Pop()
 	} else {
-		_ = e.rec.Playback(recording.NewCanvasBackend(live))
+		_ = e.rec.Playback(recording.NewCanvasBackend(canvas))
 	}
 	e.lastSeen = c.frame
 	c.skip++

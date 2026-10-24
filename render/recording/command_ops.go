@@ -136,6 +136,22 @@ type DrawGlyphsCommand struct {
 // Type implements Command.
 func (DrawGlyphsCommand) Type() CommandType { return CmdDrawGlyphs }
 
+// DrawGPUTextureCommand composites a live GPU texture view without readback.
+//
+// Canvas deliberately has no DrawGPUTexture (the handle is device-owned), but a
+// recording can carry it: playback runs on the raster thread that owns the
+// device, and the texture is sampled directly instead of being read back and
+// re-uploaded. Backends that cannot reach the device (image/PDF/SVG export)
+// skip the command.
+type DrawGPUTextureCommand struct {
+	View render.TextureView
+	X, Y float64
+	W, H int
+}
+
+// Type implements Command.
+func (DrawGPUTextureCommand) Type() CommandType { return CmdDrawGPUTexture }
+
 // --------------------------------------------------------------------------
 // Clipping with operations
 // --------------------------------------------------------------------------

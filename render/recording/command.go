@@ -88,6 +88,7 @@ const (
 	CmdDrawDepthSprites  // Batched sprite draw with depth ordering
 	CmdDrawVertices      // Triangle/strip/line vertex mesh
 	CmdDrawGlyphs        // Shaped-glyph run (mono or per-glyph colored)
+	CmdDrawGPUTexture    // Direct GPU texture-view quad (zero readback)
 
 	// Canvas parity, second family (S2b): clip operations, text quality state and
 	// indexed meshes.
@@ -143,6 +144,7 @@ var commandTypeNames = [...]string{
 	CmdDrawDepthSprites:  "DrawDepthSprites",
 	CmdDrawVertices:      "DrawVertices",
 	CmdDrawGlyphs:        "DrawGlyphs",
+	CmdDrawGPUTexture:    "DrawGPUTexture",
 
 	CmdClipRectOp:   "ClipRectOp",
 	CmdClipPathOp:   "ClipPathOp",

@@ -2,7 +2,11 @@ package rendering_test
 
 import (
 	"testing"
+	"unsafe"
 
+	// Test seam: ui must not import gpu in production code, but building a
+	// non-nil TextureView handle in a unit test needs the owning package.
+	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/rendering"
@@ -89,20 +93,35 @@ func TestPaintContext_RequireLiveContextCountsRefusals(t *testing.T) {
 	}
 }
 
-func TestDrawGPUTexture_RefusesRecordingWalkWithoutRecording(t *testing.T) {
+// A device-owned texture view is not live-only: the recording stores the
+// command and playback binds the view on the raster thread, so a FullPaint walk
+// that records its frame keeps the texture on screen.
+
+func TestDrawGPUTexture_RecordsOnRecordingWalk(t *testing.T) {
 	rendering.ResetLiveOnlySkips()
 	defer rendering.ResetLiveOnlySkips()
 
+	var token byte
+	view := gpucontext.NewTextureView(unsafe.Pointer(&token))
+
 	rec := recording.NewRecorder(40, 40)
 	pc := rendering.NewPaintContext(rec, 1)
-	if rendering.DrawGPUTexture(pc, render.TextureView{}, 1, 1, 10, 10) {
-		t.Fatal("DrawGPUTexture must report false on a recording walk")
+	if !rendering.DrawGPUTexture(pc, view, 1, 2, 10, 20) {
+		t.Fatal("DrawGPUTexture must report true on a recording walk")
 	}
-	if n := rendering.LiveOnlySkips(); n != 1 {
-		t.Fatalf("refused texture draw must count once, skips=%d", n)
+	if n := rendering.LiveOnlySkips(); n != 0 {
+		t.Fatalf("a recordable texture draw must not count as a refusal, skips=%d", n)
 	}
-	if got := len(rec.FinishRecording().Commands()); got != 0 {
-		t.Fatalf("a refused texture draw must record no command, got %d", got)
+	cmds := rec.FinishRecording().Commands()
+	if len(cmds) != 1 {
+		t.Fatalf("recording must hold exactly one command, got %d", len(cmds))
+	}
+	cmd, ok := cmds[0].(recording.DrawGPUTextureCommand)
+	if !ok {
+		t.Fatalf("recorded command is %T, want recording.DrawGPUTextureCommand", cmds[0])
+	}
+	if cmd.View != view || cmd.X != 1 || cmd.Y != 2 || cmd.W != 10 || cmd.H != 20 {
+		t.Errorf("recorded command = %+v, want the draw's view and geometry", cmd)
 	}
 
 	// On a live cursor the façade hands the draw to render and reports success.
@@ -113,7 +132,7 @@ func TestDrawGPUTexture_RefusesRecordingWalkWithoutRecording(t *testing.T) {
 	if !rendering.DrawGPUTexture(livePC, render.TextureView{}, 1, 1, 10, 10) {
 		t.Error("DrawGPUTexture must report true and delegate on a live cursor")
 	}
-	if n := rendering.LiveOnlySkips(); n != 1 {
+	if n := rendering.LiveOnlySkips(); n != 0 {
 		t.Fatalf("a delegated live draw must not count as a refusal, skips=%d", n)
 	}
 }

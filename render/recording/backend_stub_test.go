@@ -24,6 +24,7 @@ func (stubBackend) SetClip(_ *render.Path, _ FillRule) {
 }
 func (stubBackend) ClearClip()      {}
 func (stubBackend) ClipRect(_ Rect) {}
+func (stubBackend) ClipRoundRect(_, _, _, _, _ float64)        {}
 func (stubBackend) ClipRectOp(_ Rect, _ render.ClipOp)         {}
 func (stubBackend) ClipPathOp(_ *render.Path, _ FillRule, _ render.ClipOp) {
 }

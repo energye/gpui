@@ -123,25 +123,49 @@ go run ./examples/ui_wr_r3_boundary -manual-seconds 15
 
 ## 实测证据
 
-### gate 两连（2026-10-22，最终代码，非 seed）
+### gate 两连（2026-10-24，S3 后最终代码，非 seed）
 
 | 指标 | 第 1 次 | 第 2 次 |
 |------|---------|---------|
 | `presents` / `paint_count` | 600 / 599 | 600 / 599 |
-| `boundary_skip` | 4682 | 4682 |
-| `boundary_rerecord` | 126 | 126 |
+| `boundary_skip` | 3602 | 3602 |
+| `boundary_rerecord` | 1206 | 1206 |
+| `rr_steady` / `rr_spike` / `rr_recover` | 1206 / 0 / 0 | 1206 / 0 / 0 |
 | `boundary_count` / `max_depth` | 9 / 3 | 9 / 3 |
-| `fps_interval` | 60.00 | 60.02 |
-| `interval_p95_ms` | 17.29 | 17.30 |
-| `hitch_count` | 0 | 1（观测，R3 不设 hitch 硬门禁） |
-| `cpu_pct_avg` / `ui` / `raster` | 25.6 / 2.22 / 23.36 | 25.3 / 2.16 / 23.09 |
+| `fps_interval` / `fps_wall` | 60.03 / 58.58 | 60.01 / 58.62 |
+| `interval_p95_ms` | 18.01 | 17.88 |
+| `hitch_count` | 0 | 0（观测，R3 不设 hitch 硬门禁） |
+| `cpu_pct_avg` / `ui` / `raster` | 31.98 / 8.23 / 23.76 | 31.62 / 8.37 / 23.24 |
 | `gpu_ops` / `fallback` | 51603 / 0 | 51603 / 0 |
-| `time_to_first_present_ms` | 75.2 | 74.8 |
+| `time_to_first_present_ms` | 78.4 | 77.0 |
 | 像素 | 33/33 | 33/33 |
 | Golden | **0.0000% / 821184 px** | **0.0000% / 821184 px** |
 | 逻辑 | 17/17 | 17/17 |
 
-### manual 15s（-manual-seconds 15）
+> **计数口径说明（2026-10-24）**：旧表记 `skip=4682 / rr=126`，那是 2026-10-22
+> 更早代码态的数据，已作废。当前 gate 档每 tick 都对 hot/hot2 调
+> `MarkNeedsPaint()`（故意制造内层脏），所以两个内层 boundary 每帧各重录一次：
+> `rr ≈ 2 × 599 = 1206`；父层与兄弟照常回放（`skip=3602`，约 6 个干净 boundary/帧）。
+> 这不是退化——同场景在 **S3 之前的基线工作树（bfe3494e）** 上实测同样是
+> `skip=3602 / rr=1206`，S3 的「UI 录制、光栅只回放」没有改变任何缓存计数。
+
+### gate `-race`（2026-10-24）
+
+- `WARNING: DATA RACE` **0 条**：S3 之前的基线工作树同窗实测 56 条
+  （`/tmp/r3_base_race.err`），S3 开发中间态复现 79 条（`/tmp/r3_race.log`），
+  终态为 0——这是 S3「光栅线程不再碰活树」的关门证据。
+- 逻辑 17/17、像素 33/33、Golden `0.0000% / 821184 px`，全部照绿。
+- `presents=575`、`paint_count=574`、`skip=3452`、`rr=1156`、count=9、depth=3。
+- 退出码 1 只因 `interval_p95_ms=22.44 > 22.00`：race 探针本身的插桩开销
+  （`cpu_raster=101.9%`、`frame_raster_ms≈1514`），不是帧管线回归；非 race 两连
+  p95 为 17.88–18.01ms。race 档的结论只看「有没有 DATA RACE」，不拿插桩后的
+  帧时当性能证据。
+- 必须 `CGO_ENABLED=1` 编译 race 二进制；本机命令见仓库根 `AGENTS.md` 环境段。
+
+### manual 15s（-manual-seconds 15，2026-10-22 旧代码态；本次未重跑）
+
+> 下面这组数字来自 S3 之前的代码，仅供相位脚本参考；S3 后只对 gate 档做了
+> 重跑取证。需要把 manual 数字当现值时，先按 `Run` 段重新跑一遍。
 
 - `presents=899`、`paint_count=898`、`skip=6943`、`rr=249`、`count=9`、`depth=3`。
 - `phases_seen=["Steady","Spike","Recover"]`，`phase_mode=animated`。

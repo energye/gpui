@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/input"
 	"github.com/energye/gpui/ui/overlay"
 	"github.com/energye/gpui/ui/platform"
@@ -1497,9 +1498,10 @@ func (a *PipelineApp) Run() error {
 		// frame composites the packet recorded on the UI thread, and force
 		// frames (first frame / resize / explicit) take that same packet with
 		// a full clear + full present — the raster job never walks the live
-		// tree. FullPaint-policy frames keep the live walk until the display
-		// list covers the whole paint surface (S3), so their "repaint every
-		// frame" semantics probes stay honest.
+		// tree. FullPaint-policy frames run the same live walk, but record it
+		// into a full-window display list on the UI thread and hand the raster
+		// job only that recording (S3); "repaint every frame" semantics probes
+		// stay honest because the walk still paints every node every frame.
 		force := false
 		if a.forceFullPresent.Load() > 0 {
 			a.forceFullPresent.Add(-1)
@@ -1584,6 +1586,25 @@ func (a *PipelineApp) Run() error {
 		if os.Getenv("WR_RESIZE_DBG") == "1" {
 			fmt.Fprintf(os.Stderr, "DBG frame %d comp=%v force=%v recov=%v\n", frameID, compositeOnly, force, a.inFullRecovery())
 		}
+		// FullPaint frames record their whole display list here, on the thread
+		// that owns the tree. The raster job then only clears (force frames)
+		// and replays immutable commands — it never walks live RenderObjects,
+		// so clearPaintDirty/NeedsPaint/boundary-cache state stay UI-thread
+		// confined (Flutter model: UI records, raster executes).
+		var frameDraws, frameVisits int64
+		opts := paintPresentTreeOpts{
+			debugRepaint:  dbgOn,
+			debugDraws:    &frameDraws,
+			paintVisits:   &frameVisits,
+			compositeOnly: compositeOnly,
+			layerStats:    a.saveStats,
+			layerBudget:   frameBudget,
+		}
+		var frameRec *recording.Recording
+		var frameBoundary boundaryFrameSnap
+		if !packetPath {
+			frameRec, frameBoundary = recordFullFrame(pipe, root, ov, w, h, scale, force, compositeOnly, opts)
+		}
 		// Retained textured path: texture-cache frame reset moved into the
 		// raster job (T2: UI never touches pictureTex; raster serializes
 		// EndFrame and BeginFrame with record and composite, so per-frame
@@ -1627,16 +1648,6 @@ func (a *PipelineApp) Run() error {
 				if packetPath && pkt != nil && a.pictureTex != nil && target != nil {
 					a.pictureTex.EndFrame()
 				}
-				var frameDraws int64
-				var frameVisits int64
-				opts := paintPresentTreeOpts{
-					debugRepaint:  dbgOn,
-					debugDraws:    &frameDraws,
-					paintVisits:   &frameVisits,
-					compositeOnly: compositeOnly,
-					layerStats:    a.saveStats,
-					layerBudget:   frameBudget,
-				}
 				var out render.PresentOutcome
 				var err error
 				// X12 fault-injection seam (GPUI_FAULT_OOM="after:count"):
@@ -1653,6 +1664,10 @@ func (a *PipelineApp) Run() error {
 					// (see presentPacketTextured); either way the raster job
 					// never reads or clears RenderObject state.
 					out, err = presentPacketTextured(target, pkt, a, clearR, clearG, clearB, clearA, force, opts)
+				} else if frameRec != nil {
+					// FullPaint frame: replay the display list recorded on the
+					// UI thread (see recordFullFrame).
+					out, err = presentRecordedFrame(target, frameRec, clearR, clearG, clearB, clearA, force, frameBoundary)
 				} else {
 					out, err = presentTreeOpts(target, pipe, root, ov, clearR, clearG, clearB, clearA, force, opts)
 				}
@@ -1885,7 +1900,16 @@ func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner,
 		_ = dc.Fill()
 		dc.MarkFullRedraw()
 	}
-	pc := rendering.NewPaintContext(dc, dc.DeviceScale())
+	publishBoundaryFrame(walkPresentTree(dc, dc.DeviceScale(), pipe, root, ov, force, compositeOnly, opts))
+}
+
+// walkPresentTree runs the paint walk against any Canvas target: a live
+// *render.Context (warm-up / snapshot) or a display-list recorder (FullPaint
+// frames, recorded on the UI thread). All render-tree access — needs-paint
+// flags, boundary cache, layer budget/stats — happens here, on the owning
+// thread; nothing is deferred to the raster thread.
+func walkPresentTree(canvas render.Canvas, scale float64, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, force, compositeOnly bool, opts paintPresentTreeOpts) boundaryFrameSnap {
+	pc := rendering.NewPaintContext(canvas, scale)
 	if opts.layerBudget != nil {
 		opts.layerBudget.Reset()
 	}
@@ -1912,14 +1936,67 @@ func paintPresentTreeWithOpts(dc *render.Context, pipe *rendering.PipelineOwner,
 	if ov != nil {
 		ov.Paint(pc)
 	}
-	// Publish per-frame boundary stats for metrics pickup (NoteBoundaryFrame).
+	// Per-frame boundary stats for metrics pickup (NoteBoundaryFrame).
 	st := cache.Stats()
-	lastBoundaryFrame.Store(boundaryFrameSnap{
+	return boundaryFrameSnap{
 		Rerecord:      st.FrameRerecord,
 		Skip:          st.FrameSkip,
 		ShellRerecord: st.FrameShellRerecord,
 		ShellSkip:     st.FrameShellSkip,
-	})
+	}
+}
+
+func publishBoundaryFrame(snap boundaryFrameSnap) {
+	lastBoundaryFrame.Store(snap)
+}
+
+// recordFullFrame paints the whole tree into a display list on the calling
+// (UI) thread. FullPaint keeps its "repaint every frame" semantics — every
+// node paints, dirty boundaries re-record, clean ones replay — but the result
+// is an immutable Recording; the raster thread only executes it and never
+// reads or clears live RenderObject state.
+func recordFullFrame(pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, w, h int, scale float64, force, compositeOnly bool, opts paintPresentTreeOpts) (*recording.Recording, boundaryFrameSnap) {
+	if pipe == nil || root == nil {
+		return nil, boundaryFrameSnap{}
+	}
+	if w < 0 {
+		w = 0
+	}
+	if h < 0 {
+		h = 0
+	}
+	rec := recording.NewRecorder(w, h)
+	snap := walkPresentTree(rec, scale, pipe, root, ov, force, compositeOnly, opts)
+	return rec.FinishRecording(), snap
+}
+
+// presentRecordedFrame clears (when force) and replays a UI-thread display
+// list. Damage is tracked by the replayed draw commands exactly as the live
+// walk tracked it, so PresentWithAuto keeps reporting full-surface damage for
+// FullPaint frames.
+func presentRecordedFrame(target *render.PresentTarget, rec *recording.Recording, cr, cg, cb, ca float64, force bool, snap boundaryFrameSnap) (render.PresentOutcome, error) {
+	if target == nil || rec == nil {
+		return render.PresentOutcome{}, errors.New("embedder: presentRecordedFrame nil")
+	}
+	dc := target.Context()
+	if dc == nil {
+		return render.PresentOutcome{}, errors.New("embedder: presentRecordedFrame no context")
+	}
+	publishBoundaryFrame(snap)
+	draw := func(d *render.Context) {
+		if force {
+			d.SetRGBA(cr, cg, cb, ca)
+			d.DrawRectangle(0, 0, float64(d.Width()), float64(d.Height()))
+			_ = d.Fill()
+			d.MarkFullRedraw()
+		}
+		_ = rec.Playback(recording.NewCanvasBackend(d))
+	}
+	if force {
+		err := target.PresentWith(draw)
+		return target.LastPresentOutcome(), err
+	}
+	return target.PresentWithAuto(draw)
 }
 
 // PaintPresentLayerTree clears (when force) then composites a retained layer
