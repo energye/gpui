@@ -61,14 +61,14 @@ type report struct {
 	CPUFallbackOps  int64  `json:"cpu_fallback_ops"`
 	LastCPUFallback string `json:"last_cpu_fallback"`
 
-	SPSOk               int     `json:"sps_ok"`
-	PPSOk               int     `json:"pps_ok"`
-	FramesSplit         int64   `json:"frames_split"`
-	YUVReady            int     `json:"yuv_ready"`
-	ColorDiffPerChannel float64 `json:"color_diff_per_channel"`
-	PixelGoldenDiffPct  float64 `json:"pixel_golden_diff_pct"`
-	Clips               string  `json:"clips"`
-	Profile             string  `json:"profile"`
+	SPSOk               int      `json:"sps_ok"`
+	PPSOk               int      `json:"pps_ok"`
+	FramesSplit         int64    `json:"frames_split"`
+	YUVReady            int      `json:"yuv_ready"`
+	ColorDiffPerChannel *float64 `json:"color_diff_per_channel"`
+	PixelGoldenDiffPct  *float64 `json:"pixel_golden_diff_pct"`
+	Clips               string   `json:"clips"`
+	Profile             string   `json:"profile"`
 
 	TimeToFirstFrameMs float64 `json:"time_to_first_frame_ms"`
 
@@ -124,12 +124,12 @@ func buildReport(snap scheduler.FrameMetrics, presents int64, elapsed float64, i
 		RSSStartKB: snap.RSSStartKB, RSSEndKB: snap.RSSEndKB, RSSPeakKB: snap.RSSPeakKB, RSSSlopeKBPerMin: snap.RSSSlopeKBPerMin,
 		MemCapKB: int64(pst.MemCapKB), GCPausesMsP99: gcP99, HeapAllocMB: heapMB,
 		GPUOps: snap.GPUOps, CPUFallbackOps: snap.CPUFallbackOps, LastCPUFallback: snap.LastCPUFallbackReason,
-		SPSOk: 1, PPSOk: 1, FramesSplit: pst.Decoded, YUVReady: yuvReady, ColorDiffPerChannel: 0, PixelGoldenDiffPct: 0,
+		SPSOk: 1, PPSOk: 1, FramesSplit: pst.Decoded, YUVReady: yuvReady,
 		Clips: clipName, Profile: info.Codec,
 		TimeToFirstFrameMs: snap.TimeToFirstPresentMs,
 		PresentCount:       presents, PaintCount: snap.PaintCount,
 		DecodeError: "", Source: clipPath,
-		NANote:         "play-only: seek N/A (VR5); 2K gate is fps/p95 + upload discipline + non-black + cap",
+		NANote:         "play-only: seek N/A (VR5); 2K gate is fps/p95 + upload discipline + non-black + cap; per-pixel color/Golden asserted by examples/video/video_retained_golden on a fixed NV12 fixture",
 		VideoFrames:    bst.Frames,
 		VideoUploads:   bst.Uploads,
 		VideoFallbacks: bst.Fallbacks,

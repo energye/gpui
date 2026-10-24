@@ -383,7 +383,7 @@ func main() {
 			retInkMainA, retInkMainB, retMoveMain, retInkSmallA, retInkSmallB, retMoveSmall, texPaintedMax, paintsA, paintsB)
 	}
 	rep.RetainedEvidenceErr = retErr
-	rep.RetainedColorNote = "只断言 retained 路径出画与换帧，不做逐像素颜色门禁；色度根因已由 V-4 真 GPU 纯红回归修复，Golden 待出"
+	rep.RetainedColorNote = "本窗只断言 retained 出画与换帧；逐像素颜色与 Golden 由确定性窗 examples/video/video_retained_golden（固定 NV12 帧）断言"
 	raw, _ := json.Marshal(rep)
 	fmt.Println(string(raw))
 
