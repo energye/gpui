@@ -6,15 +6,16 @@
 // Window: 1200x800. RUN_SECONDS>=30 (U16, §2.5: 关闭 30s/观察 60). GPU window required.
 //
 // Gates (§2 R10 行 + §2.2 全族):
-//   - 出图后 rerecord 仅一格: 每批到达后的 boundary_rerecord 增量 ≤ 到达格数+1，
-//     违例批数必须为 0（若全局重绘，每批增量≈全部格数即 FAIL）
+//   - 出图后 rerecord 仅一格: 每批到达后的 boundary_rerecord 增量 ≤ 到达格数
+//   - hudBoundaryAllowance，违例批数必须为 0（若全局重绘，每批增量≈全部格数即 FAIL）
 //   - 按格归因总量门（§18.1 #3）: RerecordByKeySnapshot 键级差分同线，
-//     changedKeys ≤ 到达格数+1，违例批数必须为 0（实测 keys==dRR 每批一致）
+//     changedKeys ≤ 到达格数 + hudBoundaryAllowance，违例批数必须为 0（实测 keys==dRR 每批一致）
 //   - 局部脏不触布局: paint-only 契约由引擎单测 TestRenderImage_SetImage_PaintOnly
 //     证明（layout_count 数的是每帧布局趟数，不作窗内逐批观测）
 //   - 滚动/持续 tick 60fps 档: fps_interval>=55 且 interval_p95_ms<=22
 //   - 长 soak hitch 预算: hitch_rate_per_min<=5
-//   - RSS 斜率预算（稳态最小二乘）: rss_slope_kb_per_min<=30000
+//   - RSS 斜率预算（稳态最小二乘）: rss_slope_valid=true 时
+//     rss_slope_steady_kb_per_min<=30000；valid=false 只记账不判
 //   - vsync_source 必须输出（fallback 如实标注，不宣称锁 60Hz）
 package main
 
@@ -46,6 +47,14 @@ const (
 	imageCount   = 20 // 4×5 异步图格
 	hitchBudget  = 5.0
 	slopeBudget  = 30000.0
+
+	// hudBoundaryAllowance 是出图结算窗口内允许的 HUD 边界键数。本场景有
+	// 两个独立 HUD 边界：statusLabel（本批 SetImage 会改它，重绘一次）和
+	// LiveHUD 底带（wrkit 自己按 ~10Hz 刷新）。C11 起底带的 1204×76
+	// footprint（AA pad 比 1200 窗口宽 4px）可以缓存，每次 10Hz 刷新记一次
+	// 重录；撞进出图窗口时增量即 applied+2。7 轮埋点实测：dRR 只出现 2/3，
+	// 每个 3 都恰好含底带键、没有更大的波——全窗重绘仍是 ~22 键，门禁照红。
+	hudBoundaryAllowance = 2
 )
 
 // makeSourcePNGs 生成 imageCount 张互异条纹 PNG 到进程级临时目录（真实文件解码路径）。
@@ -234,13 +243,13 @@ func main() {
 		// 门禁语义（§2 R10 行修订）：逐批记账只在 Steady 非连发相位判定——
 		// Steady 每 0.8s 派发一张、上一批未结算不派发下一批，增量可归因；
 		// Spike 连发相位（0.05s/张）在途多批，单批增量不可归因，只记账不判。
-		// 判定线：dRR ≤ 到达格数 + 1（全局重绘时每批增量≈全部格数必炸）。
+		// 判定线：dRR ≤ 到达格数 + hudBoundaryAllowance（全局重绘时每批增量≈全部格数必炸）。
 		// layout_count 数的是每帧布局趟数——HUD 文本更新等任何脏节点都
 		// 会+1——不构成「SetImage 触发布局」的观测；paint-only 契约由
 		// ui/rendering 引擎单测证明。
 		if pendingApplied >= 0 {
 			dRR := snapH.BoundaryRerecord - pendingRR
-			bound := int64(pendingApplied) + 1
+			bound := int64(pendingApplied) + hudBoundaryAllowance
 			// 按键差分：光栅任务串行改 rerecordBy，但快照读在 UI 侧仍取
 			// 一次一致拷贝；键数增量 = 本轮真正重录的格子数（含 HUD）。
 			curKeys := app.PictureTextures().RerecordByKeySnapshot()
@@ -267,8 +276,8 @@ func main() {
 				if dRR > maxBatchDelta {
 					maxBatchDelta = dRR
 				}
-				// 键级门与总量门同线：重录键数也应 ≤ 到达格数+1
-				// （HUD 键 +1 容忍）；全局重绘时键数≈全部格数必炸。
+				// 键级门与总量门同线：重录键数也应 ≤ 到达格数 +
+				// hudBoundaryAllowance；全局重绘时键数≈全部格数必炸。
 				if changedKeys > bound {
 					keyViolations++
 				}
@@ -392,15 +401,17 @@ func main() {
 			"images_loaded":               loaded,
 			"rr_violations":               rrViolations,
 			"max_batch_rr_delta":          maxBatchDelta,
-			"batch_bound":                 "steady-phase delta <= applied+1 (spike bursts logged only)",
+			"batch_bound":                 "steady-phase delta <= applied+2 (status label + 10Hz HUD band; spike bursts logged only)",
 			"key_violations":              keyViolations,
 			"max_key_delta":               maxKeyDelta,
-			"key_bound":                   "per-key changed-key count <= applied+1, same line as total gate (#3)",
+			"key_bound":                   "per-key changed-key count <= applied+2, same line as total gate (#3)",
 			"avg_decode_ms":               avgDecode,
 			"boundary_skip":               snap.BoundarySkip,
 			"boundary_rerecord":           snap.BoundaryRerecord,
 			"hitch_budget_per_min":        hitchBudget,
 			"rss_slope_budget_kb_per_min": slopeBudget,
+			"rss_slope_steady_kb_per_min": snap.RSSSlopeSteadyKBPerMin,
+			"rss_slope_valid":             snap.RSSSlopeValid,
 		},
 	})
 	raw, _ := json.Marshal(report)
@@ -447,14 +458,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: hitch_rate_per_min=%.1f > %.0f", snap.HitchRatePerMin, hitchBudget)
 		os.Exit(1)
 	}
-	if snap.RSSSlopeKBPerMin > slopeBudget {
-		fmt.Fprintf(os.Stderr, "FAIL: rss_slope_kb_per_min=%.1f > %.0f", snap.RSSSlopeKBPerMin, slopeBudget)
+	// 族 E: RSS 判漏只认稳态最小二乘（§2.2.4：rss_slope_valid=true 才可下
+	// 结论；raw 斜率含启动爬坡，不是泄漏判据）。短跑 valid=false 只记账不判。
+	if snap.RSSSlopeValid && snap.RSSSlopeSteadyKBPerMin > slopeBudget {
+		fmt.Fprintf(os.Stderr, "FAIL: rss_slope_steady_kb_per_min=%.1f > %.0f (valid)", snap.RSSSlopeSteadyKBPerMin, slopeBudget)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r10_async_image: OK presents=%d loaded=%d/%d rrViol=%d maxRRΔ=%d dec=%.0fms skip=%d fps=%.1f p95=%.1f hitch=%.1f/min slope=%.0fKB/min vsync=%s elapsed=%.1fs\n",
+	fmt.Fprintf(os.Stderr, "ui_wr_r10_async_image: OK presents=%d loaded=%d/%d rrViol=%d maxRRΔ=%d dec=%.0fms skip=%d fps=%.1f p95=%.1f hitch=%.1f/min slope=%.0fKB/min slopeRaw=%.0f slopeValid=%v vsync=%s elapsed=%.1fs\n",
 		app.PresentCount(), loaded, imageCount, rrViolations, maxBatchDelta,
 		avgDecode, snap.BoundarySkip, fpsInterval, snap.P95FrameIntervalMs, snap.HitchRatePerMin,
-		snap.RSSSlopeKBPerMin, snap.VSyncSource, elapsedSec)
+		snap.RSSSlopeSteadyKBPerMin, snap.RSSSlopeKBPerMin, snap.RSSSlopeValid, snap.VSyncSource, elapsedSec)
 }
 
 type ticker struct{ on func(dt float64) }

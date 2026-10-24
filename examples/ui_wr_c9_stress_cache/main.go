@@ -8,7 +8,7 @@
 //
 // Gates (§3 C9 行 + §2.5 预算/压力 档): texture_entries 触顶且 ≤ budget,
 // cache_evictions ≥3 且严格单调, bind≪item_count, scroll 有复用观测,
-// rss_slope_kb_per_min ≤30000, cpu_pct_avg ≤85, retained policy,
+// rss_slope_steady_kb_per_min ≤30000（valid=true 才判）, cpu_pct_avg ≤85, retained policy,
 // fps_interval ≥55, p95 ≤22ms, hitch ≤5/min, CPU 非双 0, 像素断言 3/3,
 // Golden 静态掩码零容差（次跑起）。
 //
@@ -43,8 +43,8 @@ const (
 	winW, winH   = 1200, 800
 	closeSeconds = 60 // §2.5 预算/压力 档：C9 = 60s
 
-	itemCount  = 800
-	rowExtent  = 56.0 // fixed row height
+	itemCount   = 800
+	rowExtent   = 56.0 // fixed row height
 	hitchBudget = 5.0
 	slopeBudget = 30000.0 // §2.2.4 default extreme-climb budget (KB/min)
 	cpuBudget   = 85.0    // §2.2.3 长窗单核折算预算
@@ -426,36 +426,38 @@ func main() {
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
 		Extra: map[string]any{
-			"covers":                      []string{"R14", "R3", "R7"},
-			"cache_entries":               snap.CacheEntries,
-			"cache_entries_note":          "combined boundary+texture live entries",
-			"texture_entries_min":         texMin,
-			"texture_entries_max":         texMax,
-			"texture_budget":              texBudget,
-			"cache_evictions":             snap.CacheEvictions,
+			"covers":                       []string{"R14", "R3", "R7"},
+			"cache_entries":                snap.CacheEntries,
+			"cache_entries_note":           "combined boundary+texture live entries",
+			"texture_entries_min":          texMin,
+			"texture_entries_max":          texMax,
+			"texture_budget":               texBudget,
+			"cache_evictions":              snap.CacheEvictions,
 			"cache_evict_monotonic_violat": evMonotonicViolations,
-			"boundary_cache_cap":          boundaryDefaultCap,
-			"ever_at_cap":                 everAtCap,
-			"bind_count":                  snap.BindCount,
-			"item_count":                  snap.ItemCount,
-			"scroll_rerecord":             snap.ScrollRerecord,
-			"hitch_budget_per_min":        hitchBudget,
-			"rss_slope_budget_kb_per_min": slopeBudget,
-			"cpu_budget_pct":              cpuBudget,
-			"phases_seen":                 keysOf(phasesSeen),
-			"scripted_ok":                 scriptedOK,
-			"scripted_total":              scriptedTotal,
-			"pixel_golden_diff_pct":       goldenDiffPct,
-			"pixel_golden_total_px":       goldenTotalPx,
-			"pixel_golden_first_run":      goldenFirstRun,
-			"covered":                     "R14 cache budget/eviction + R3 nested boundary isolation + R7 virtual-list bind window + retained composite",
-			"impl_correctness":            "evicted entries re-record on demand — scrolled-in row shows its exact per-index color and the nested inner panel stays intact under sustained eviction pressure",
-			"impl_dirty":                  "steady frames re-record only newly mounted cells + banner + hot + phase-flip nest chip; dense panel and nest outer/mid keep skipping",
-			"impl_cache":                  "explicit texture-LRU budget above the per-frame live set bounds the scroll-churn accumulation: entries stay ≤ budget while evictions grow monotonically",
-			"impl_interaction":            "the scroll churn (R7) produces the eviction pressure (R14) while the nested panel (R3) proves per-subtree isolation survives the same storm — one run stresses all three at once",
-			"impl_edge":                   "budget applies at first retained frame (idempotent setter); probe geometry re-resolved from the final scroll offset; expectations from frozen per-index colors",
-			"impl_fail":                   "unbounded growth (entries>budget), silent eviction (counter flat), bind explosion, wrong row color, or RSS slope runaway all trip gates → FAIL exit 1",
-			"impl_visible":                "HUD shows live entries/evictions/bind; banner tracks the cap; list scrolls through all 800 rows; nested and dense regions look perfectly still",
+			"boundary_cache_cap":           boundaryDefaultCap,
+			"ever_at_cap":                  everAtCap,
+			"bind_count":                   snap.BindCount,
+			"item_count":                   snap.ItemCount,
+			"scroll_rerecord":              snap.ScrollRerecord,
+			"hitch_budget_per_min":         hitchBudget,
+			"rss_slope_budget_kb_per_min":  slopeBudget,
+			"rss_slope_steady_kb_per_min":  snap.RSSSlopeSteadyKBPerMin,
+			"rss_slope_valid":              snap.RSSSlopeValid,
+			"cpu_budget_pct":               cpuBudget,
+			"phases_seen":                  keysOf(phasesSeen),
+			"scripted_ok":                  scriptedOK,
+			"scripted_total":               scriptedTotal,
+			"pixel_golden_diff_pct":        goldenDiffPct,
+			"pixel_golden_total_px":        goldenTotalPx,
+			"pixel_golden_first_run":       goldenFirstRun,
+			"covered":                      "R14 cache budget/eviction + R3 nested boundary isolation + R7 virtual-list bind window + retained composite",
+			"impl_correctness":             "evicted entries re-record on demand — scrolled-in row shows its exact per-index color and the nested inner panel stays intact under sustained eviction pressure",
+			"impl_dirty":                   "steady frames re-record only newly mounted cells + banner + hot + phase-flip nest chip; dense panel and nest outer/mid keep skipping",
+			"impl_cache":                   "explicit texture-LRU budget above the per-frame live set bounds the scroll-churn accumulation: entries stay ≤ budget while evictions grow monotonically",
+			"impl_interaction":             "the scroll churn (R7) produces the eviction pressure (R14) while the nested panel (R3) proves per-subtree isolation survives the same storm — one run stresses all three at once",
+			"impl_edge":                    "budget applies at first retained frame (idempotent setter); probe geometry re-resolved from the final scroll offset; expectations from frozen per-index colors",
+			"impl_fail":                    "unbounded growth (entries>budget), silent eviction (counter flat), bind explosion, wrong row color, or RSS slope runaway all trip gates → FAIL exit 1",
+			"impl_visible":                 "HUD shows live entries/evictions/bind; banner tracks the cap; list scrolls through all 800 rows; nested and dense regions look perfectly still",
 		},
 	})
 	raw, _ := json.Marshal(report)
@@ -534,9 +536,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: cpu 双 0 装绿嫌疑")
 		os.Exit(1)
 	}
-	// 族 E: RSS 斜率预算。
-	if snap.RSSSlopeKBPerMin > slopeBudget {
-		fmt.Fprintf(os.Stderr, "FAIL: rss_slope_kb_per_min=%.1f > %.0f", snap.RSSSlopeKBPerMin, slopeBudget)
+	// 族 E: RSS 判漏只认稳态最小二乘（§2.2.4：valid=true 才可下结论）。
+	if snap.RSSSlopeValid && snap.RSSSlopeSteadyKBPerMin > slopeBudget {
+		fmt.Fprintf(os.Stderr, "FAIL: rss_slope_steady_kb_per_min=%.1f > %.0f (valid)", snap.RSSSlopeSteadyKBPerMin, slopeBudget)
 		os.Exit(1)
 	}
 	// 像素断言全过。
@@ -550,10 +552,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "ui_wr_c9_stress_cache: OK presents=%d fps=%.1f p95=%.1f hitch=%.2f/min ent=%d(min %d max %d) ev=%d bind=%d/%d scroll_rr=%d slope=%.0fKB/min cpu=%.1f skip=%d scripted=%d/%d golden=%.4f%%(%dpx first=%v) vsync=%s elapsed=%.1fs\n",
+	fmt.Fprintf(os.Stderr, "ui_wr_c9_stress_cache: OK presents=%d fps=%.1f p95=%.1f hitch=%.2f/min ent=%d(min %d max %d) ev=%d bind=%d/%d scroll_rr=%d slope=%.0fKB/min slopeRaw=%.0f slopeValid=%v cpu=%.1f skip=%d scripted=%d/%d golden=%.4f%%(%dpx first=%v) vsync=%s elapsed=%.1fs\n",
 		app.PresentCount(), fpsOf(snap), snap.P95FrameIntervalMs, snap.HitchRatePerMin,
 		snap.CacheEntries, texMin, texMax, snap.CacheEvictions, snap.BindCount, snap.ItemCount,
-		snap.ScrollRerecord, snap.RSSSlopeKBPerMin, snap.CPUPctAvg,
+		snap.ScrollRerecord, snap.RSSSlopeSteadyKBPerMin, snap.RSSSlopeKBPerMin, snap.RSSSlopeValid, snap.CPUPctAvg,
 		snap.BoundarySkip, scriptedOK, scriptedTotal, goldenDiffPct, goldenTotalPx, goldenFirstRun,
 		snap.VSyncSource, elapsedSec)
 }

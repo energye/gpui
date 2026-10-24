@@ -13,7 +13,8 @@
 //     违例 tick 必须为 0（出图重录可能延迟到 cell 重入视口的 tick，由额度吸收）
 //   - 异步出图完成: images_loaded == 24
 //   - 持续 tick 60fps 档: fps_interval>=55 且 interval_p95_ms<=22；hitch<=5/min
-//   - RSS 斜率预算（稳态最小二乘）: rss_slope_kb_per_min<=30000
+//   - RSS 斜率预算（稳态最小二乘）: rss_slope_valid=true 时
+//     rss_slope_steady_kb_per_min<=30000；valid=false 只记账不判
 //   - vsync_source 必须输出；boundary_skip>0（静区/保留 cell 回放）
 package main
 
@@ -332,7 +333,7 @@ func main() {
 		}
 		prevY, prevVpH = y, vpH
 		cacheBoth := 2 * cacheRows * 60 / minRow
-		bound := int64(dy/minRow)+int64(dvh/minRow)+int64(cacheBoth)+2
+		bound := int64(dy/minRow) + int64(dvh/minRow) + int64(cacheBoth) + 2
 		excess := dRR - bound
 		if excess > 0 {
 			if excess <= credit {
@@ -414,6 +415,8 @@ func main() {
 			"boundary_rerecord":           snap.BoundaryRerecord,
 			"hitch_budget_per_min":        hitchBudget,
 			"rss_slope_budget_kb_per_min": slopeBudget,
+			"rss_slope_steady_kb_per_min": snap.RSSSlopeSteadyKBPerMin,
+			"rss_slope_valid":             snap.RSSSlopeValid,
 		},
 	})
 	raw, _ := json.Marshal(report)
@@ -464,14 +467,14 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: hitch_rate_per_min=%.1f > %.0f", snap.HitchRatePerMin, hitchBudget)
 		os.Exit(1)
 	}
-	if snap.RSSSlopeKBPerMin > slopeBudget {
-		fmt.Fprintf(os.Stderr, "FAIL: rss_slope_kb_per_min=%.1f > %.0f", snap.RSSSlopeKBPerMin, slopeBudget)
+	if snap.RSSSlopeValid && snap.RSSSlopeSteadyKBPerMin > slopeBudget {
+		fmt.Fprintf(os.Stderr, "FAIL: rss_slope_steady_kb_per_min=%.1f > %.0f (valid)", snap.RSSSlopeSteadyKBPerMin, slopeBudget)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_c3_list_scroll: OK presents=%d bind=%d/%d srr=%d/%d viol=%d img=%d/%d skip=%d fps=%.1f p95=%.1f hitch=%.1f/min slope=%.0fKB/min vsync=%s elapsed=%.1fs\n",
+	fmt.Fprintf(os.Stderr, "ui_wr_c3_list_scroll: OK presents=%d bind=%d/%d srr=%d/%d viol=%d img=%d/%d skip=%d fps=%.1f p95=%.1f hitch=%.1f/min slope=%.0fKB/min slopeRaw=%.0f slopeValid=%v vsync=%s elapsed=%.1fs\n",
 		app.PresentCount(), snap.BindCount, snap.ItemCount, snap.ScrollRerecord, rrCap,
 		scrollViolations, loaded, imageSources, snap.BoundarySkip, fpsInterval,
-		snap.P95FrameIntervalMs, snap.HitchRatePerMin, snap.RSSSlopeKBPerMin, snap.VSyncSource, elapsedSec)
+		snap.P95FrameIntervalMs, snap.HitchRatePerMin, snap.RSSSlopeSteadyKBPerMin, snap.RSSSlopeKBPerMin, snap.RSSSlopeValid, snap.VSyncSource, elapsedSec)
 }
 
 type ticker struct{ on func(dt float64) }
