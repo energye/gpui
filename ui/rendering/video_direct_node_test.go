@@ -36,13 +36,59 @@ func TestRenderVideoUploadPlanes_FailClosed(t *testing.T) {
 	}
 }
 
-// The RGBA fallback shape still feeds without a device: bridge without
-// device fails the upload, so this asserts the shape routes (not drops
-// silently) — false here comes from the device-less bridge, not the node.
+// The RGBA fallback shape still feeds without a device: the bridge keeps a
+// CPU shadow and DrawCurrent paints it through the counted fallback. V-2:
+// a rejected pool path must not drop the frame.
 func TestRenderVideoUploadPlanes_RGBAShapeRoutes(t *testing.T) {
-	v := NewRenderVideo(64, 36, render.NewVideoBridge(nil))
+	br := render.NewVideoBridge(nil)
+	defer br.Close()
+	v := NewRenderVideo(64, 36, br)
 	pix := make([]byte, 64*36*4)
-	if v.UploadPlanes(64, 36, nil, nil, pix) {
-		t.Fatal("device-less RGBA upload = true, want false (bridge has no pool)")
+	if !v.UploadPlanes(64, 36, nil, nil, pix) {
+		t.Fatal("device-less RGBA upload = false, want true (CPU shadow staged)")
+	}
+	if st := br.Stats(); st.Frames != 1 || st.Uploads != 0 {
+		t.Fatalf("staged stats=%+v, want frames=1 uploads=0", st)
+	}
+	dc := render.NewContext(64, 64)
+	defer dc.Close()
+	direct, ok := br.DrawCurrent(dc, render.VideoDrawOptions{X: 0, Y: 0, DstWidth: 32, DstHeight: 18})
+	if !ok || direct {
+		t.Fatalf("DrawCurrent direct=%v ok=%v, want false/true", direct, ok)
+	}
+	if st := br.Stats(); st.Fallbacks != 1 {
+		t.Fatalf("stats=%+v, want fallbacks=1", st)
+	}
+	if got := dc.LastCPUFallbackReason(); got != "video:direct-fallback" {
+		t.Fatalf("fallback reason=%q, want video:direct-fallback", got)
+	}
+}
+
+// Odd-size NV12 must fall back to the RGBA pix at the node feed port instead
+// of dropping the frame; with a row-pitch-rejecting bridge it reaches the
+// screen through the counted CPU shadow.
+func TestRenderVideoUploadPlanes_OddPlanesFallBackToRGBA(t *testing.T) {
+	br := render.NewVideoBridge(nil)
+	defer br.Close()
+	v := NewRenderVideo(33, 17, br)
+	y := make([]byte, 33*17)
+	uv := make([]byte, 33*17/2)
+	pix := make([]byte, 33*17*4)
+	if !v.UploadPlanes(33, 17, y, uv, pix) {
+		t.Fatal("odd-size planes + RGBA pix = false, want true (RGBA fallback)")
+	}
+	if v.NodeStats().PlanesLast {
+		t.Fatal("odd-size planes reported the NV12 path, want RGBA fallback")
+	}
+	if st := br.Stats(); st.Frames != 1 || st.Uploads != 0 {
+		t.Fatalf("stats=%+v, want frames=1 uploads=0 (33px row is not 256-aligned)", st)
+	}
+	dc := render.NewContext(64, 64)
+	defer dc.Close()
+	if direct, ok := br.DrawCurrent(dc, render.VideoDrawOptions{X: 0, Y: 0, DstWidth: 33, DstHeight: 17}); !ok || direct {
+		t.Fatalf("DrawCurrent direct=%v ok=%v, want false/true", direct, ok)
+	}
+	if st := br.Stats(); st.Fallbacks != 1 {
+		t.Fatalf("stats=%+v, want fallbacks=1", st)
 	}
 }

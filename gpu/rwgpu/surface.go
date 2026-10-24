@@ -158,6 +158,16 @@ func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error 
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
 
+	// wgpu-core keeps the acquired SurfaceTexture in
+	// Surface.presentation.acquired_texture until wgpuSurfacePresent. Drop it
+	// before Configure destroys the old swapchain, otherwise wgpu-hal panics
+	// on the still-referenced acquire semaphore.
+	s.discardCurrentLocked()
+	if dev.IsLost() {
+		s.abandoned = true
+		return ErrDeviceLost
+	}
+
 	// Ledger the presented frame (driver backs Configure with ≥1 surface
 	// image). Re-configure on the same handle refunds the old extent first
 	// (vramAdd replaces stale entries), so resize never double-counts.
@@ -212,6 +222,11 @@ func (s *Surface) Unconfigure() {
 	if s == nil || s.handle == 0 {
 		return
 	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
+	// Release the acquired surface output before native unconfigure destroys
+	// the swapchain (wgpu-hal release_resources panics otherwise).
+	s.discardCurrentLocked()
 	hal.VramForget(s.handle)
 	lost := s.abandoned || isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
 	if lost {
@@ -284,6 +299,7 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 		return nil, false, &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface is nil or released"}
 	}
 	if s.surfaceParentLost() {
+		s.DiscardCurrent()
 		return nil, false, ErrSurfaceDeviceLost
 	}
 	if err := checkInit(); err != nil {
@@ -292,6 +308,12 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 
 	gpuMu.Lock()
 	defer gpuMu.Unlock()
+
+	// One acquired surface output at a time. If a previous acquire was not
+	// presented/released (including an abandoned timeout goroutine), drop it
+	// before touching native; otherwise native returns AlreadyAcquired and the
+	// old output survives into the next Configure.
+	s.discardCurrentLocked()
 
 	// Skia model: sticky lost / pending uncaptured → refuse; else call native
 	// (soft .so returns status/error, does not SIGABRT).
@@ -338,9 +360,13 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 		Status:  surfTex.status,
 	}
 
-	// On non-success statuses, native may still fill a texture pointer.
-	// That SurfaceOutput MUST be dropped (Release) before Configure/re-acquire.
+	// On non-success statuses, native may still fill a texture pointer and/or
+	// keep an acquired SurfaceTexture in presentation.acquired_texture. Release
+	// the user handle and clear the native presentation before the caller
+	// reconfigures; releasing the handle alone leaves the acquire semaphore
+	// referenced and wgpu-hal panics on release_resources.
 	dropTex := func() {
+		s.discardPresentationLocked()
 		if result.Texture != nil && result.Texture.handle != 0 {
 			result.Texture.Release()
 			result.Texture = nil
@@ -349,8 +375,10 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 
 	switch surfTex.status {
 	case SurfaceGetCurrentTextureStatusSuccessOptimal:
+		s.current = result
 		return result, false, nil
 	case SurfaceGetCurrentTextureStatusSuccessSuboptimal:
+		s.current = result
 		return result, true, nil
 	case SurfaceGetCurrentTextureStatusOutdated:
 		dropTex()
@@ -389,6 +417,74 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	}
 }
 
+// DiscardCurrent drops the currently acquired surface texture without
+// presenting it. wgpu-native exposes no surface-texture discard entry point,
+// so wgpuSurfacePresent is the only public operation that removes the
+// SurfaceTexture from Surface.presentation.acquired_texture; callers must use
+// this only on error / reconfigure / close paths, never for a normal frame.
+// Nil-safe and idempotent.
+func (s *Surface) DiscardCurrent() {
+	if s == nil {
+		return
+	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
+	s.discardCurrentLocked()
+}
+
+// DiscardCurrentIf drops st only when it is still this surface's current
+// acquired texture. A timed-out acquire goroutine may return after a newer
+// acquire has replaced current; in that case it must release only its own
+// texture handle and leave the newer output alone.
+// Nil-safe and idempotent.
+func (s *Surface) DiscardCurrentIf(st *SurfaceTexture) {
+	if s == nil {
+		return
+	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
+	if s.current == st {
+		s.discardCurrentLocked()
+		return
+	}
+	if st != nil && st.Texture != nil {
+		st.Texture.Release()
+		st.Texture = nil
+	}
+}
+
+// discardPresentationLocked clears wgpu-core's presentation.acquired_texture
+// via wgpuSurfacePresent. This is the only public drop path in wgpu-native
+// 29.0.4 (wgpu-hal's discard_texture is a no-op for Vulkan). Callers must be
+// on an error / reconfigure / close path; a normal frame uses Present.
+// Must be called under gpuMu. Nil-safe and idempotent.
+func (s *Surface) discardPresentationLocked() {
+	if s == nil || s.handle == 0 || s.device == 0 || s.abandoned ||
+		isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost()) ||
+		s.surfaceParentLost() {
+		return
+	}
+	_, _ = LastUncapturedError()
+	_, _, _ = procSurfacePresent.Call(s.handle)
+	// A no-op present (AlreadyAcquired) is expected when no output is held;
+	// consume it so the next real acquire does not attribute it to itself.
+	_, _ = LastUncapturedError()
+}
+
+// discardCurrentLocked implements DiscardCurrent under gpuMu.
+func (s *Surface) discardCurrentLocked() {
+	if s == nil || s.current == nil {
+		return
+	}
+	st := s.current
+	s.current = nil
+	s.discardPresentationLocked()
+	if st.Texture != nil {
+		st.Texture.Release()
+		st.Texture = nil
+	}
+}
+
 // Present presents the current frame to the surface.
 // The texture argument is accepted for API compatibility with gogpu/wgpu but
 // is unused in the FFI implementation (wgpuSurfacePresent takes no texture arg).
@@ -419,6 +515,9 @@ func (s *Surface) Present(texture ...*SurfaceTexture) error {
 	}
 	_, _ = LastUncapturedError()
 	status, _, _ := procSurfacePresent.Call(s.handle)
+	// wgpu-core takes presentation.acquired_texture before presenting (even on
+	// a failed present), so this surface no longer holds a current output.
+	s.current = nil
 	if typ, msg := LastUncapturedError(); msg != "" {
 		if looksLikeDeviceLost(msg) {
 			noteLostMessage(s.device, msg)
@@ -441,6 +540,11 @@ func (s *Surface) Release() {
 	if s == nil {
 		return
 	}
+	gpuMu.Lock()
+	defer gpuMu.Unlock()
+	// Drop any acquired output before the native surface release. wgpu-core
+	// unconfigures on Surface drop and would panic on a live SurfaceTexture.
+	s.discardCurrentLocked()
 	hal.VramForget(s.handle)
 	lost := s.abandoned || isOwnerDeviceLost(s.device) || (s.deviceRef != nil && s.deviceRef.IsLost())
 	if lost {

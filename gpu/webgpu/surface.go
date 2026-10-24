@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"image"
 	"strings"
+	"sync/atomic"
 
 	"github.com/energye/gpui/gpu/hal"
 	rwgpu "github.com/energye/gpui/gpu/rwgpu"
@@ -81,8 +82,9 @@ func isSkipFrameSurfaceErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, ErrSurfaceOccluded) || errors.Is(err, hal.ErrTimeout) ||
-		errors.Is(err, rwgpu.ErrSurfaceOccluded) || errors.Is(err, rwgpu.ErrSurfaceTimeout)
+	return errors.Is(err, ErrSurfaceOccluded) || errors.Is(err, ErrAcquireTimeout) ||
+		errors.Is(err, hal.ErrTimeout) || errors.Is(err, rwgpu.ErrSurfaceOccluded) ||
+		errors.Is(err, rwgpu.ErrSurfaceTimeout)
 }
 
 // isOutdatedSurfaceErr is true when the surface needs reconfiguration.
@@ -116,6 +118,12 @@ type Surface struct {
 	// Used by DiscardTexture so Configure never runs with a live SurfaceOutput
 	// (native: "SurfaceOutput must be dropped before a new Surface is made").
 	current *SurfaceTexture
+
+	// acquireEpoch invalidates a GetCurrentTexture that was abandoned by the
+	// swapchain acquire timeout. The late goroutine compares its captured
+	// epoch after the native call and discards only its own result; it can
+	// never become current after a newer acquire.
+	acquireEpoch atomic.Uint64
 
 	// Cached configuration for texture creation.
 	configFormat TextureFormat
@@ -283,12 +291,30 @@ func (s *Surface) Unconfigure(_ hal.Device) {
 	}
 }
 
+// BumpAcquireEpoch invalidates every GetCurrentTexture already in flight.
+// The swapchain calls it when an acquire times out; the abandoned goroutine
+// will discard its own late result instead of installing it as current.
+func (s *Surface) BumpAcquireEpoch() {
+	if s == nil {
+		return
+	}
+	s.acquireEpoch.Add(1)
+}
+
+func (s *Surface) acquireEpochStale(epoch uint64) bool {
+	if s == nil {
+		return true
+	}
+	return s.acquireEpoch.Load() != epoch
+}
+
 // GetCurrentTexture acquires the next texture for rendering.
 // Returns the surface texture and whether the surface is suboptimal.
 func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	if err := prepareSurfaceCall(s); err != nil {
 		return nil, false, err
 	}
+	epoch := s.acquireEpoch.Load()
 	if s.device == nil {
 		return nil, false, fmt.Errorf("wgpu: surface not configured")
 	}
@@ -311,6 +337,13 @@ func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error) {
 	rst, suboptimal, err := s.r.GetCurrentTexture()
 	if err != nil {
 		return nil, false, mapSurfaceAcquireErr(err)
+	}
+	if s.acquireEpochStale(epoch) {
+		// The swapchain already timed out this acquire and may have configured
+		// a newer swapchain. Drop only this late result; never touch a newer
+		// current that another acquire may have installed.
+		s.r.DiscardCurrentIf(rst)
+		return nil, false, ErrAcquireTimeout
 	}
 
 	st := &SurfaceTexture{
@@ -376,7 +409,17 @@ func (s *Surface) SetPrepareFrame(_ any) {}
 // Safe to call when no texture is held. Must run before Configure if a previous
 // GetCurrentTexture succeeded and the texture was not Released.
 func (s *Surface) DiscardTexture(_ hal.SurfaceTexture) {
-	if s == nil || s.current == nil {
+	if s == nil {
+		return
+	}
+	// rwgpu owns the native current (including an output acquired by an
+	// abandoned timeout goroutine that has not reached Surface.current yet).
+	// It clears presentation.acquired_texture via wgpuSurfacePresent before
+	// Configure/Unconfigure/Release.
+	if s.r != nil {
+		s.r.DiscardCurrent()
+	}
+	if s.current == nil {
 		return
 	}
 	st := s.current

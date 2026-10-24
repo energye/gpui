@@ -29,5 +29,22 @@ func TestSurfaceGetCapabilities_NilAdapter(t *testing.T) {
 	}
 }
 
+// TestSurfaceDiscardCurrent_NilSafe pins the no-native, no-panic bookkeeping
+// paths used by webgpu.Surface.DiscardTexture and the acquire-timeout cleanup.
+func TestSurfaceDiscardCurrent_NilSafe(t *testing.T) {
+	var nilSurface *Surface
+	nilSurface.DiscardCurrent()
+	nilSurface.DiscardCurrentIf(nil)
+
+	empty := &Surface{}
+	empty.DiscardCurrent()
+	empty.DiscardCurrentIf(nil)
+	empty.DiscardCurrentIf(&SurfaceTexture{})
+
+	if empty.current != nil {
+		t.Fatal("DiscardCurrentIf must not install a current texture")
+	}
+}
+
 // Note: Full integration testing of GetCapabilities requires a real window surface,
 // which is tested in the examples (e.g., examples/triangle).

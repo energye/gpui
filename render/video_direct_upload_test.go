@@ -292,6 +292,32 @@ func TestVideoBridgeTickUploadPaintDraw(t *testing.T) {
 	}
 }
 
+// V-2: a device exists but the RGBA row pitch (32*4=128) misses the 256
+// alignment. The frame must stay staged in the CPU shadow instead of being
+// dropped; DrawCurrent then counts one fallback and still paints.
+func TestVideoBridgeMisalignedRGBAStagesCPUShadow(t *testing.T) {
+	dev := openNoopVideoDevice(t)
+	br := NewVideoBridge(dev)
+	defer br.Close()
+	w, h := 32, 16
+	pix := make([]byte, w*h*4)
+	if !br.UploadFrame(w, h, pix) {
+		t.Fatal("UploadFrame misaligned = false, want true (CPU shadow staged)")
+	}
+	if st := br.Stats(); st.Frames != 1 || st.Uploads != 0 {
+		t.Fatalf("staged stats=%+v, want frames=1 uploads=0", st)
+	}
+	dc := NewContext(64, 64)
+	defer dc.Close()
+	direct, ok := br.DrawCurrent(dc, VideoDrawOptions{X: 0, Y: 0, DstWidth: 16, DstHeight: 8})
+	if !ok || direct {
+		t.Fatalf("DrawCurrent direct=%v ok=%v, want false/true", direct, ok)
+	}
+	if st := br.Stats(); st.Fallbacks != 1 {
+		t.Fatalf("stats=%+v, want fallbacks=1", st)
+	}
+}
+
 func TestVideoBridgeShowSeqUploadsOnce(t *testing.T) {
 	cases := loadVideoUploadCases(t)
 	c := cases.Aligned[0]

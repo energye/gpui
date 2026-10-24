@@ -291,6 +291,12 @@ func (sc *Swapchain) acquireSurfaceTexture() (*SurfaceTexture, bool, error) {
 	case r := <-ch:
 		return r.st, r.sub, r.err
 	case <-time.After(acquireTimeout):
+		// The acquire goroutine may still return a texture later. Invalidate
+		// its epoch so it discards that texture instead of installing it after
+		// a newer acquire/Configure.
+		if sc.Surface != nil {
+			sc.Surface.BumpAcquireEpoch()
+		}
 		sc.acquireHung.Store(true)
 		sc.hungMarkedAt = time.Now()
 		sc.acquireTimeouts++

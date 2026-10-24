@@ -155,20 +155,17 @@ func (b *VideoBridge) showImpl(seq uint64, useSeq bool, c *Context, w, h int, pi
 	return false, c.DrawVideoFrame(b.fallback, opts)
 }
 
-// UploadFrame uploads one new frame into the slot without drawing.
+// UploadFrame stages one new frame without drawing.
 // Call it on the tick with the Poll pix (valid until the next Poll):
-// the upload copies synchronously, so the pix may be recycled right
-// after it returns. Draw with DrawCurrent in Paint. No-new-frame means
-// the caller skips UploadFrame, so uploads stay equal to shown frames.
-// It returns false when there is no device yet or the upload failed —
-// the Paint draw then falls back and counts one fallback.
-// UploadFrame uploads one new frame into the slot without drawing.
-// Call it on the tick with the Poll pix (valid until the next Poll):
-// the upload copies synchronously, so the pix may be recycled right
-// after it returns. Draw with DrawCurrent in Paint. No-new-frame means
-// the caller skips UploadFrame, so uploads stay equal to shown frames.
-// It returns false when there is no device yet or the upload failed —
-// the Paint draw then falls back and counts one fallback.
+// the copy is synchronous, so the pix may be recycled right after it
+// returns. Draw with DrawCurrent in Paint. No-new-frame means the caller
+// skips UploadFrame, so frames stay equal to shown frames.
+//
+// A rejected GPU upload (no device yet, row-pitch alignment, allocation
+// failure) must not drop the frame: the pixels are kept in the CPU shadow
+// and DrawCurrent takes the counted fallback. Returns false only for bad
+// arguments; true means "staged, draw me", with Stats().Uploads telling
+// whether the fast path was available.
 func (b *VideoBridge) UploadFrame(w, h int, pix []byte) bool {
 	if b == nil {
 		return false
@@ -179,25 +176,40 @@ func (b *VideoBridge) UploadFrame(w, h int, pix []byte) bool {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.pool == nil {
-		return false
-	}
-	slot, _, err := b.pool.AcquireForFrame(b.slot, w, h)
-	if err != nil {
-		return false
-	}
-	b.slot = slot
 	b.lastW, b.lastH = w, h
-	if uerr := b.pool.Upload(slot, pix[:need]); uerr != nil {
-		return false
+	// One current shape at a time: an RGBA frame replaces a plane frame, so
+	// drawCurrentAt cannot keep painting the old NV12 slot.
+	if b.hasPlanes {
+		if b.ppool != nil && b.pslot != nil {
+			b.ppool.Release(b.pslot)
+		}
+		b.pslot = nil
+		b.hasPlanes = false
 	}
-	b.frames++
-	b.uploads++
-	b.hasFrame = true
 	if len(b.shadow) != int(need) {
 		b.shadow = make([]byte, need)
 	}
 	copy(b.shadow, pix[:need])
+	b.frames++
+	b.hasFrame = true
+	if b.pool == nil {
+		b.slot = nil
+		return true
+	}
+	slot, _, err := b.pool.AcquireForFrame(b.slot, w, h)
+	if err != nil {
+		b.slot = nil
+		return true
+	}
+	if uerr := b.pool.Upload(slot, pix[:need]); uerr != nil {
+		// The acquired slot was not uploaded; do not let Paint queue stale
+		// contents. Release it and let the shadow path carry this frame.
+		b.pool.Release(slot)
+		b.slot = nil
+		return true
+	}
+	b.slot = slot
+	b.uploads++
 	return true
 }
 
@@ -242,10 +254,14 @@ func (b *VideoBridge) drawCurrentAt(c *Context, opts VideoDrawOptions, view int)
 		c.RecordVideoFallback("direct-fallback-planes")
 		return false, c.DrawVideoFrame(b.fallback, opts)
 	}
-	if !b.hasFrame || b.slot == nil {
+	if !b.hasFrame {
 		return false, false
 	}
-	if c.DrawVideoSlot(b.slot, opts) {
+	// A slot is optional: no device yet or a rejected row pitch leaves only
+	// the CPU shadow, which must still reach the screen through the counted
+	// fallback (V-2). A live slot that fails DrawVideoSlot (device mismatch,
+	// no GPU session) also falls through to the same shadow.
+	if b.slot != nil && c.DrawVideoSlot(b.slot, opts) {
 		return true, true
 	}
 	w, h := b.lastW, b.lastH
@@ -453,6 +469,12 @@ func (b *VideoBridge) UploadPlanesFrame(w, h int, y, uv []byte) bool {
 	}
 	b.frames++
 	b.uploads++
+	// A plane frame replaces any RGBA frame; drop the old slot so a later
+	// RGBA fallback cannot paint stale contents and Close does not double-hold.
+	if b.pool != nil && b.slot != nil {
+		b.pool.Release(b.slot)
+	}
+	b.slot = nil
 	b.hasPlanes = true
 	b.hasFrame = false
 	yN, uvN := w*h, w*h/2

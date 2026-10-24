@@ -201,6 +201,14 @@ type Surface struct {
 	// After abandon: Unconfigure/Release skip native calls when parent is lost;
 	// cleared only by a successful Configure with a healthy device.
 	abandoned bool
+	// current is the last successfully acquired surface texture that has not
+	// been presented or discarded. wgpu-core keeps the same SurfaceTexture in
+	// Surface.presentation.acquired_texture until wgpuSurfacePresent; releasing
+	// only the user WGPUTexture handle is not enough to clear it. Configure /
+	// Unconfigure / Release must clear this first or wgpu-hal panics on the
+	// still-referenced SwapchainAcquireSemaphore.
+	// Protected by gpuMu.
+	current *SurfaceTexture
 }
 
 // QuerySet holds a set of GPU queries (occlusion or timestamp).

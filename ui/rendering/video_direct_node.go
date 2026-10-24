@@ -71,15 +71,14 @@ func (v *RenderVideo) UploadPlanes(fw, fh int, y, uv, pix []byte) bool {
 	}
 	if len(y) > 0 && len(uv) > 0 {
 		yN, uvN := fw*fh, fw*fh/2
-		if yN <= 0 || uvN <= 0 || len(y) < yN || len(uv) < uvN {
-			return false
+		if yN > 0 && uvN > 0 && len(y) >= yN && len(uv) >= uvN &&
+			v.bridge.UploadPlanesFrame(fw, fh, y[:yN], uv[:uvN]) {
+			v.planesLast = true
+			v.noteFrame(fw, fh, y[:yN])
+			return true
 		}
-		if !v.bridge.UploadPlanesFrame(fw, fh, y[:yN], uv[:uvN]) {
-			return false
-		}
-		v.planesLast = true
-		v.noteFrame(fw, fh, y[:yN])
-		return true
+		// Plane route rejected (odd size / no plane device / upload error):
+		// fall through to the RGBA shape instead of dropping the frame.
 	}
 	need := fw * fh * 4
 	if need <= 0 || len(pix) < need {
