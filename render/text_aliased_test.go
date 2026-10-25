@@ -163,14 +163,14 @@ func TestGlyphMaskKey_AliasedFlag(t *testing.T) {
 		t.Error("AA and aliased keys should differ (Flags field)")
 	}
 
-	// AA key has Flags=0.
-	if aaKey.Flags != 0 {
-		t.Errorf("AA key Flags = %d, want 0", aaKey.Flags)
+	// AA key carries only the hinting bits (A3: hinting lives in Flags 4-5).
+	if aaKey.Flags&^text.GlyphMaskFlagHintingMask != 0 {
+		t.Errorf("AA key Flags = %d, want only hinting bits (%d)", aaKey.Flags, aaKey.Flags&^text.GlyphMaskFlagHintingMask)
 	}
 
-	// Aliased key has GlyphMaskFlagAliased set.
-	if aliasedKey.Flags != text.GlyphMaskFlagAliased {
-		t.Errorf("Aliased key Flags = %d, want %d", aliasedKey.Flags, text.GlyphMaskFlagAliased)
+	// Aliased key = hinting bits + GlyphMaskFlagAliased.
+	if aliasedKey.Flags != text.GlyphMaskFlagAliased|aaKey.Flags&text.GlyphMaskFlagHintingMask {
+		t.Errorf("Aliased key Flags = %d, want aliased bit + hinting bits (%d)", aliasedKey.Flags, text.GlyphMaskFlagAliased|aaKey.Flags&text.GlyphMaskFlagHintingMask)
 	}
 }
 

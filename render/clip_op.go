@@ -29,11 +29,26 @@ const (
 )
 
 // ClipRectOp clips to a rectangle using the given clip operation.
+// B1: with a rotated/sheared CTM the transformed rect is a QUADRILATERAL —
+// clipping to the AABB of two transformed corners would leave the four
+// corner regions visible (Skia clips via the exact transformed quad). The
+// axis-aligned fast path is unchanged.
 func (c *Context) ClipRectOp(x, y, w, h float64, op ClipOp) {
 	if c.clipStack == nil {
 		c.initClipStack()
 	}
 	tm := c.totalMatrix()
+	if tm.B != 0 || tm.C != 0 {
+		// Non-axis-aligned: clip to the transformed quad as a path.
+		c.deviceQuadClipPath(
+			tm.TransformPoint(Pt(x, y)),
+			tm.TransformPoint(Pt(x+w, y)),
+			tm.TransformPoint(Pt(x+w, y+h)),
+			tm.TransformPoint(Pt(x, y+h)),
+			op,
+		)
+		return
+	}
 	p1 := tm.TransformPoint(Pt(x, y))
 	p2 := tm.TransformPoint(Pt(x+w, y+h))
 	devX := math.Min(p1.X, p2.X)
@@ -91,4 +106,35 @@ func (c *Context) ClipPathOp(op ClipOp) {
 	}
 	c.bumpClipMaskGPUGen()
 	c.path.Clear()
+}
+
+// deviceQuadClipPath pushes an exact clip of the transformed quadrilateral
+// (corners given in device space) — the B1 non-axis-aligned branch shared by
+// ClipRectOp and ClipRoundRect. Mirrors ClipPathOp's device-space handling:
+// the GPU clip stores the device-space path as-is.
+func (c *Context) deviceQuadClipPath(p0, p1, p2, p3 Point, op ClipOp) {
+	quad := NewPath()
+	quad.MoveTo(p0.X, p0.Y)
+	quad.LineTo(p1.X, p1.Y)
+	quad.LineTo(p2.X, p2.Y)
+	quad.LineTo(p3.X, p3.Y)
+	quad.Close()
+
+	verbs, coords := convertPathToClipVerbs(quad)
+	canvas := clip.NewRect(0, 0, float64(c.pixmap.Width()), float64(c.pixmap.Height()))
+	switch op {
+	case ClipOpReplace:
+		_ = c.clipStack.ReplacePath(canvas, verbs, coords, c.antiAlias, clipFillRule(FillRuleNonZero))
+		c.gpuClipPath = quad.Clone()
+		c.gpuClipFillRule = FillRuleNonZero
+	case ClipOpDifference:
+		_ = c.clipStack.PushPathDifference(verbs, coords, c.antiAlias, clipFillRule(FillRuleNonZero))
+		c.gpuClipPath = nil
+		c.gpuClipFillRule = FillRuleNonZero
+	default:
+		_ = c.clipStack.PushPath(verbs, coords, c.antiAlias, clipFillRule(FillRuleNonZero))
+		c.gpuClipPath = quad.Clone()
+		c.gpuClipFillRule = FillRuleNonZero
+	}
+	c.bumpClipMaskGPUGen()
 }

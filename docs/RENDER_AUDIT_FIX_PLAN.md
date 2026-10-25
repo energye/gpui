@@ -264,6 +264,10 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 - **`ui_render_base_textstroke` 抓屏 vs 快照 17.1543% 恒定差（HEAD 存量，非 A1）**：四步隔离实证——A1 工作区复现 → 临时还原 LayoutGlyphs 复现 → **干净 HEAD（3524f68e）逐位同值 17.1543%** → 背景/前景采样点全同但文字行错位 ±11px 级。金图 0.0000%（快照重绘路自洽），差异只在「屏上活帧」——指向抓屏时机抓到合成器过渡帧或窗内容局部刷新未完成（该窗 C 卡 TextPath 粉/橙元素屏上错位）。归 presentation/抓屏域跟进（与 R10 斜率同类存量），不归 A1；A1 按自身验收口径继续。
 
+## 0.4 第三批进度（2026-10-25）
+
+- **B1 ✅ 已修**：`ClipRectOp`/`ClipRoundRect` 非轴对齐 CTM（`tm.B|C != 0`）改走 `deviceQuadClipPath`（四角精确四边形→既有 path 裁剪，镜像 ClipPathOp 的设备空间语义），轴对齐快路径不变。红灯（45° CTM 角点 (110,110) 泄漏红）→绿→变异反证（禁用分支→中心都不裁剪，双证）。回归：`Clip|Mask` 过滤族红项与干净 HEAD 一致（存量）；真窗 `cliprrect`/`clipop` 各两连 0.0000% 零漂移。连带修正 A3 过期的 `TestGlyphMaskKey_AliasedFlag` 期望（hint 位在 Flags 4-5 是新语义）。
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。

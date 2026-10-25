@@ -96,6 +96,19 @@ func (c *Context) ClipRoundRect(x, y, w, h, radius float64) {
 
 	// Transform the rectangle corners to device coordinates.
 	tm := c.totalMatrix()
+	if tm.B != 0 || tm.C != 0 {
+		// B1: rotated/sheared CTM — clip to the transformed rounded rect as
+		// an exact path (the AABB of two corners would leave corner regions
+		// visible).
+		c.deviceQuadClipPath(
+			tm.TransformPoint(Pt(x, y)),
+			tm.TransformPoint(Pt(x+w, y)),
+			tm.TransformPoint(Pt(x+w, y+h)),
+			tm.TransformPoint(Pt(x, y+h)),
+			ClipOpIntersect,
+		)
+		return
+	}
 	p1 := tm.TransformPoint(Pt(x, y))
 	p2 := tm.TransformPoint(Pt(x+w, y+h))
 
