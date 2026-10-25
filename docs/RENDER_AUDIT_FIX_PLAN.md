@@ -1,0 +1,254 @@
+# 渲染层审计修复方案（RENDER_AUDIT_FIX_PLAN）
+
+日期：2026-10-25 ｜ 来源：四域源码审计（GPU 后端/渲染核心/文本/性能，结论见会话审计）＋ 逐项源码复核
+性质：**修复方案文档（未动手）**。每一项都满足「动手修门槛」两件套：真实问题（源码 file:line 复核钉死）＋ 对齐标准方案（Skia/Flutter/HarfBuzz/OpenGL ES 规范的具体出处）。
+
+> 纪律：每项修复前先落红灯测试（值级或像素级，证明洞存在），修后转绿 + 所属域回归 + 相关真窗 Golden 复跑；基线漂移须归因后经批准重出。本文档只登记方案，不改代码。
+
+## 0. 总览与优先级
+
+| # | 问题 | 域 | 严重度 | 标准依据 | 预估工作量 |
+|---|---|---|---|---|---|
+| A1 | render 层默认文本路径 cmap-only 不整形 | 文本 | 高（正确性） | Skia SkShaper / Flutter txt | 中 |
+| A2 | RTL + MultiFace 整段丢字 | 文本 | 高（正确性） | Flutter txt run itemize | 中 |
+| A3 | GlyphMaskKey 缺 hinting 位（键互踩） | 文本 | 高（正确性） | Skia SkDescriptor 全状态键 | 小 |
+| B1 | 旋转 CTM 下 ClipRect 取两角 AABB | 几何 | 中（正确性） | Skia 精确四边形裁剪 | 小 |
+| B2 | dash 相位每子路径重置 + 缩放只放大不缩小 | 几何 | 中（正确性） | WHATWG canvas / Skia SkDashPath | 小 |
+| C1 | AA 矩形渐变 ColorAt 场每帧 CPU 重建 | 性能 | 中（已登记 §6 性能子项） | Skia ramp 表 + shader 求值 | 中 |
+| C2 | 彩色字形图集无淘汰 + 前景色进键 | 资源 | 中 | Skia GrStrikeCache LRU / 绘制期着色 | 小-中 |
+| D1 | Windows/WGL 上传缺 UNPACK_ROW_LENGTH | 后端 | 中（Windows 正确性） | OpenGL ES 3.0 规范 | 小 |
+| D2 | HbShaper 无锁改共享 hbFont scale | 线程 | 高（数据竞争候选） | HarfBuzz 对象线程语义 | 小 |
+
+---
+
+## A1. render 层默认文本路径 cmap-only（不整形）
+
+### 现象
+直接调 `render.Context` 的 `DrawString`（以及 TextMode 位图/MSDF 路径）时，文本按 cmap 逐字符排：**无 GSUB/GPOS/kern/连字**——Arabic/Indic 呈孤立字形，同一字符串在不同路径下形状不一致。UI 组件产线不受影响（`ui/rendering` 走 `text.Shape`→`DrawShapedGlyphs`，`ui/rendering/text.go:1014,1078`），但 2.5D/视频等直接调 render 的消费方拿到的是未整形文本。
+
+### 源码证据（逐行复核）
+- GPU 主路：`render/internal/gpu/gpu_render_context.go:1778,1814,1852`（DrawString→`engine.LayoutText/LayoutTextAliased`）
+- 引擎默认：`render/internal/gpu/glyph_mask_engine.go:221,228,286`（`shaped := text.LayoutGlyphs(face, s)`）
+- `LayoutGlyphs` 的实现是 cmap 迭代：`render/text/shape_result_cache.go:405-419`（`for glyph := range face.Glyphs(s)`）→ `render/text/face.go:245` `iterGlyphs`（cmap+hmtx，无 HarfBuzz）
+- MSDF 路径同样：`render/internal/gpu/gpu_text.go:196`（`for glyph := range face.Glyphs(s)`）
+- 对照：vector 路径 `render/text_outline.go:132` 与 `LayoutShapedGlyphs`（`glyph_mask_engine.go:290` 起）走 `text.Shape`（HarfBuzz）——四路里只有这条整形。
+
+### 标准依据
+- **Skia**：`SkCanvas` 不做字符级 cmap 排版——现代 Skia 只接受 glyph ID（SkTextBlob/SkGlyphRun），字符串→glyph 一律经 `SkShaper`（HarfBuzz+ICU）整形；legacy `SkCanvas::drawText` 已废弃。Skia 的口径：**绘制端要么拿到整形结果，要么自己调 Shaper，不存在"画字符串但跳过整形"的默认路径**。
+- **Flutter**：engine `txt/`（SkParagraph）所有文本先 `shapeFull`（HarfBuzz）再进 raster，无 cmap-only 分支。
+
+### 对齐方案
+1. `GlyphMaskEngine.LayoutText/LayoutTextAliased` 把 `text.LayoutGlyphs(face, s)` 换成 `text.Shape(s, face)`（HarfBuzz，已有缓存 `shape_result_cache`，键已含方向/变体/语言）；`LayoutGlyphs` 降级为「shaper 不可用（无 HB 构建/face 不支持）」的显式回退，并在回退时打点计数。
+   **前置依赖（A2 先行的原因）**：`text.Shape` 对 MultiFace 返回 nil（`shaper_hb.go:70-72`，`Source()==nil`）。A1 落地时必须同时给默认路径接 **per-face 拆段**（复用 A2 的 `mf.Runs` 拆段机具，抽成 text 包共享助手），否则 MultiFace 消费方从「cmap 可画」退化为整段空白——那是引入回归，不是修洞。
+2. MSDF 路径 `gpu_text.go:196` 同批切换 `text.Shape`。
+3. CPU 位图路径（`text.Draw*` 派发）同口径。
+4. 高频 HUD 字符串（`IsHighChurnLabel`）不跳过整形（Latin 数字整形开销可忽略，缓存兜底），只保留不进 layout 模板缓存的现状。
+5. 接口不动（`DrawString` 签名不变），行为对齐「SkShaper 一站式」。
+
+### 验证口径
+- 红灯：值级测试——Arabic 连写字串（如 "لمّا"）经 `LayoutText` 产出的 GID 序列 ≠ cmap 序列（修前相同=cmap-only 实证；修后不同=整形生效）；kern 对（"AV"）宽度对比 `text.Measure`。
+- 绿后回归：`render/internal/gpu` 文本测试逐文件 + `ui_render_base_text/textlow/textspacing/textstroke` 四窗 Golden（Latin 部分应零差——shaped Latin 与 cmap Latin 同形；若 AA 边有差须归因）。
+
+### 风险
+Latin/数字路径字形序列改变（ kern 进来）会使部分既有 Golden 的文本宽度变化 → 属于「修正确」的基线漂移，按纪律归因重出（预期只影响含 kerning 对的文本窗）。
+
+---
+
+## A2. RTL + MultiFace 整段丢字
+
+### 现象
+RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字形**（空白）。
+
+### 源码证据
+- `render/text/layout.go:307`：`if mf, ok := face.(*MultiFace); ok && seg.Direction != DirectionRTL` ——按 face 拆段的逻辑**显式跳过 RTL**；
+- `render/text/shaper_hb.go:70-72`：`source := face.Source(); if source == nil { return nil }` ——MultiFace 的 `Source()` 为 nil，HarfBuzz 整形直接返回空 → 整段 0 字形。
+
+### 标准依据
+**Flutter txt/ParagraphImpl::shapeFull**：按 script **和** 字体回退双向 itemize 成 runs（`FontCollection::matchForFallback`），**每个 run 用解析出的单字体整形**，LTR/RTL 同一套规则，不存在"RTL 不拆字体"的分支。
+
+### 对齐方案
+1. 去掉 `Direction != RTL` 守卫：RTL 段同样走 `mf.Runs(seg.Text)` 拆成 per-face 连续段（LTR 拆段机具已在 `layout.go:308-320` 现成）。
+2. 每段用 `facePart.face`（单 face，`Source()` 非 nil）整形，方向传 RTL。
+3. 段序：RTL 的 parts 在行内按**视觉序**（与 LTR 相反）拼接；cluster 偏移已由 `seg.Start+part.start` 支持。
+4. `MultiFace.Source()` 保持 nil 语义（它不是可整形字体），但在 `HbShaper.Shape` 入口对 MultiFace 显式报错而不是静默 nil（防再次静默丢字）。
+
+### 验证口径
+- 红灯：`مرحبا` + emoji 混排（emoji 需要第二 face）经 RTL 段整形，修前 0 字形、修后非零且含两 face 的 GID；`TestLayoutText_MultiFace` 扩 RTL 用例。
+- 回归：`ui_render_base_textspacing`（B 卡 RTL 标尺）Golden；m5_anycase A 区。
+
+---
+
+## A3. GlyphMaskKey 缺 hinting 位（缓存互踩）
+
+### 现象
+字形掩码的 alpha 内容随 hinting 变（提取轮廓时传入），但缓存键不含 hinting → 同字体同字号不同 hinting 配置的两个 face **共用同一掩码条目**，后到的配置读 到先到的掩码。
+
+### 源码证据
+- 键结构：`render/text/glyph_mask_atlas.go:27-46`——`{FontID, GlyphID, SizeQ4, SubpixelXQ2, SubpixelYQ2, Flags(Aliased/LCD/BGR/Bold)}`，**无 hint 位**；
+- 掩码内容吃 hinting：`render/internal/gpu/glyph_mask_engine.go:837` `ExtractOutlineHintedVar(parsed, gid, size, hinting, variations)`（非变体走 `glyph_outline.go:326 ExtractOutlineHinted(parsed, gid, size, hinting)`）；
+- 自相矛盾的证据：引擎自己的 layout 模板键**含** hint 位（`glyph_mask_engine.go:92` 注释 `flags // lcd/aliased/hint bits`）——同引擎两套键一套记得一套忘。
+- 触发面：UI 把某些 face 钉 `HintingVertical`，默认 face 是 Full——同源同字号两配置并存即互踩。
+
+### 标准依据
+**Skia 字形缓存键 = SkDescriptor**：把**所有影响 scaler 输出的状态**（字号、矩阵、flags、**hinting**、LCD 序）全部纳入描述符，"任何影响生成掩码的状态都必须进键" 是 SkGlyphCache 的铁律（skia/src/core/SkDescriptor.h / SkScalerContext）。
+
+### 对齐方案
+1. `GlyphMaskKey.Flags` 增加 2 位 hinting（None/Vertical/Full 三态，`text.Hinting` 就 3 值；Flags 目前用 4 位、宽度足够）。
+2. `MakeGlyphMaskKey/…Bucketed` 加 hinting 参数；引擎侧构键点（`glyph_mask_engine.go:609-622` 等）传入已算好的 `hinting`。
+3. 布局模板键与掩码键从此同口径。
+
+### 验证口径
+- 红灯：同 fontID+GID+size，hinting=Full 与 None 各光栅一次，断言得到**不同**的图集条目（修前同一条目）；`glyph_mask_hinting_test.go` 扩用例。
+- 回归：`glyphmask_lcd_mix_test`、三文本窗 Golden。
+
+---
+
+## B1. 旋转 CTM 下 ClipRect 取两角 AABB 当裁剪框
+
+### 现象
+`ClipRectOp`/`ClipRoundRect` 在带旋转/斜切的 CTM 下，把变换后的**两个对角点**取 min/max 当轴对齐矩形——实际是外接框，**该裁掉的四个角区域没裁掉**（多画）。
+
+### 源码证据
+- `render/clip_op.go:36-41`：`p1 := tm.TransformPoint(...); p2 := tm.TransformPoint(...); devX := min(p1.X,p2.X) …` ——只变两角；
+- `render/context_clip.go:96-118`（ClipRoundRect 同构问题）。
+
+### 标准依据
+**Skia**：`SkCanvas::clipRect` 把 rect 经 CTM 变换后按**精确四边形**裁剪（raster 端解析扫变换四边形的边），绝不取外接框；`clipRRect` 同理（变换后作 path 裁剪）。
+
+### 对齐方案
+1. 检测 `totalMatrix` 非轴对齐（`B != 0 || C != 0`，引擎已有同款判定 `glyph_mask_engine.go:1248`）：
+   - `ClipRectOp`：把四角变换成 `Path`（MoveTo+3×LineTo+Close），走**既有路径裁剪**（clipStack 支持 path + AA + fillRule——`internal/clip` 已具备）。
+   - `ClipRoundRect`：变换非轴对齐时同样降级为 path（圆角矩形轮廓 path）。
+2. 轴对齐快路径保持不变（scissor/矩形栈零成本）。
+3. GPU 深度裁剪侧（`gpuClipPath`）沿用 path 管线，无需新机制。
+
+### 验证口径
+- 红灯：45° 旋转 CTM 下 ClipRect(100×100)，角落点（变换后落在原矩形外、AABB 内）修前画出、修后不画；`render/clip_ops_semantics_test.go` 加用例（复用既有 oracle 框架）。
+- 回归：`ui_render_base_cliprrect`/`clipop` 两窗 Golden。
+
+---
+
+## B2. dash 相位每子路径重置（+ 缩放只放大不缩小）
+
+### 现象
+多轮廓路径的虚线，每个子路径都从**同一个初始相位**重新起跑——轮廓间虚线节距错位；另外虚线周期只在放大 CTM（scale>1）下按比例缩放，缩小 CTM 下周期偏长。
+
+### 源码证据
+- `render/software_stroke.go:200-203`（MoveTo 分支）：注释明写 "Reset pattern state for new subpath"，`patternIdx, patternPos, inDash = dashStateAtOffset(pattern, offset)` 重置回原始 offset；
+- `render/software_stroke.go:40-42`：`if transformScale > 1.0 { dash = dash.Scale(transformScale) }` ——缩小不缩放；对照 T.03 路径 `stroke_user_expand.go:53-64` 是两边都缩（口径不一）。
+
+### 标准依据
+- **WHATWG HTML canvas 规范**（lineDashOffset/stroke）：dash 模式**跨子路径连续**（"the dash pattern continues across sub-paths"）；
+- **Skia SkDashPath**：同一 path 的各 contour 相位连续推进；dash 长度按**设备空间**（CTM 全量）缩放。
+
+### 对齐方案
+1. MoveTo 分支不再重置：`patternIdx/patternPos/inDash` 沿用上一子路径结束时的状态（即删掉那次 `dashStateAtOffset` 重置；`offset` 只在路径起点应用一次）。
+2. dash 缩放对齐 T.03 口径：`transformScale != 1.0` 一律 `dash.Scale(transformScale)`（双向）。
+3. GPU 侧 stroke 展开若独立实现 dash（`internal/stroke/expander`），核对同口径。
+
+### 验证口径
+- 红灯：两段共线等距子路径（间隔 10px）虚线 period=20，修后第二段相位应接续（+10 即半个 period），修前重置——点采样断言 on/off 相位；
+- 回归：`pathshape` 窗 C/D 卡（Discrete 不受影响）、`render/pathops_subpath_test.go`。
+
+---
+
+## C1. AA 矩形渐变 ColorAt 场每帧 CPU 重建（已登记 §6 性能子项，本方案细化）
+
+### 现象
+带 AA 的矩形面 + 自定义/扫掠/径向渐变走「CPU 逐像素采样 ColorAt 场」路径：**每次调用** `make` ≤512² 的 RGBA 数组并逐像素调 `ColorAt`（≤26 万次/帧），动画层每帧重录即每帧中招（~1-3ms/帧 + 1MB 分配/帧）。genID 只省 GPU 重复上传，不省 CPU 采样。
+
+### 源码证据
+- `render/internal/gpu/brush_fill.go:158-318`（`fillColorAtFieldMaskedGPU`）：`:229` `field := make([]byte, nw*nh*4)` + 逐像素 `colorAt(...)` 循环；`:305` genID 组合只用于 `QueueImageDraw` 跳过重复上传；
+- 调用点：`:476`（linear）、`:773,776,950,1060`（radial/sweep 族）——AA 矩形优先走此路（既有 §6 登记的 `brush_native` 场路径的 GPU 化后裔，采样仍在 CPU）。
+
+### 标准依据
+- **Skia**：渐变从不建 CPU 颜色场——`SkGradientShader` 把色标预处理成**一份缓存的区间表**（fCached，随 shader 生命周期），像素值在 shader/GPU 端求值（GPU：1D ramp 纹理 + 片元着色器按坐标采样/数学）；
+- **Impeller/Flutter**：渐变参数进 uniform，片元着色器求值，CPU 零逐像素工作。
+
+### 对齐方案（两刀，按标准终态设计）
+1. **终态**：AA 矩形 sweep/radial/自定义 ColorAt 全面改走**既有 1D ramp + textured cover 管线**（圆/非矩形已经在用，`brush_fill` 的 textured cover 路径现成）——色标进 ramp 纹理一次、片元着色器按 UV 求值，CPU 场路径仅保留给「无法表达为 ramp 的真自定义 brush」（用户闭包 ColorAt），且该路径加 `render.Canvas` 级显式标注（性能口径如实）。
+2. **过渡刀（同批可落）**：`fillColorAtFieldMaskedGPU` 的场按 `(brush genID, 几何 genID, 场分辨率)` 记忆化——同帧/同 brush 复用上一场，只重算 mask；genID 失效（色标变）才重采样。动画期 brush 不变时 CPU 成本归零。
+3. 落地时同步把覆盖总账 §6 的对应性能子项标「已修/部分」。
+
+### 验证口径
+- 基准：`go test -bench` 对 AA 矩形 sweep 填充（新增 bench：固定 brush 重复 fill 100 帧）修前/修后 CPU 时间与 allocs（预期 allocs/帧 1MB→0、时间 1-3ms→<50µs 过渡刀 / →0 终态）；
+- 正确性：`ui_render_base_sweepgradient` B 卡像素探针 + Golden（同参数 ColorAt oracle 12/255 容差既有）不回归。
+
+---
+
+## C2. 彩色字形图集无淘汰 + 前景色进键
+
+### 现象
+彩色字形（CBDT/COLR）图集写满 maxPages 后**永久** `ErrColorAtlasFull`→该字形永远回退 CPU 路径；且**前景色进缓存键**——每种文字颜色都占一份图集空间，加速耗尽。
+
+### 源码证据
+- `render/internal/gpu/glyph_color_atlas.go:22-24,107`：满页返回 `ErrColorAtlasFull`，entries map 无任何 evict/LRU（grep 零命中）；
+- 键：`ColorGlyphKey{FontID, GlyphID, PPEM, Palette, FG}`（`:27-33`），`FG color.RGBA` 进键——引擎构键点 `glyph_color_engine.go:111`。
+
+### 标准依据
+- **Skia GrStrikeCache/GrAtlasProvider**：图集满时按 **LRU 逐出**最久未用字形并回收页空间（purge when full），绝不永久拒绝；
+- **着色位置**：Skia 的 glyph 掩码/彩色位图**不带画笔前景色**——tint/currentColor 在**绘制期**用 SkPaint/着色器应用，缓存键只有影响位图内容的状态（COLR 的 currentColor 经 CPAL 调色板索引表达，不把任意 FG 塞进键）。
+
+### 对齐方案
+1. **LRU 逐出**：`ColorGlyphAtlas` 记 lastUse 戳；满页时先逐出最久未用条目（整页回收重建或条目级 shelf 重排——对齐 Skia「页级回收」的最小实现：淘汰最冷整页并从该页迁出仍热的条目）。
+2. **FG 出键**：核查 `FG` 在光栅里的实际用途——CBDT 位图自带颜色（FG 应无影响，直接删）；COLR 若用 FG 当 currentColor 调色板，改为「中性调色板光栅 + 绘制期 tint」（着色器乘 FG），`Palette` 字段保留。若确有 FG 影响像素的用例，量化 FG（如 4bit/通道）缩小键空间并登记限界。
+3. 满页行为改为「逐出后重试一次，仍满才回退 CPU」。
+
+### 验证口径
+- 红灯：灌满图集（>maxPages×条目）后请求新字形，修前 ErrColorAtlasFull、修后成功且最冷条目被逐出（Get 旧冷键 miss）；
+- FG：同字形两个前景色绘制，修后共享图集条目且两色均正确（tint 后像素断言）；
+- 回归：`ui_render_base_emoji` A/B/D 卡 Golden。
+
+---
+
+## D1. Windows/WGL 纹理上传缺 UNPACK_ROW_LENGTH
+
+### 现象
+带行距（BytesPerRow > 紧宽）的上传（如字形图集脏矩形）在 Windows 端会**逐行错位**——Linux 端设了 `UNPACK_ROW_LENGTH`，Windows 端没设。
+
+### 源码证据
+- Windows：`gpu/gwgpu/gles/queue.go:165-184` 只设 `UNPACK_ALIGNMENT`（R8 时），**无 UNPACK_ROW_LENGTH**（注释自认 "Windows 真机待复验"）；
+- Linux 对照：`gpu/gwgpu/gles/queue_linux.go:178-191` 按 `layout.BytesPerRow/pixelBytes` 设 `UNPACK_ROW_LENGTH` 并 defer 复位。
+
+### 标准依据
+**OpenGL ES 3.0 / OpenGL 规范**（glPixelStorei）：`GL_UNPACK_ROW_LENGTH` 指定源图像行距（像素），未设时行距=图像宽——padded 行必须显式告知，双端一致是规范要求，不是平台风格差异。
+
+### 对齐方案
+把 Linux 的行距块原样移植到 `queue.go`（含 `defer` 复位与 pixelBytes 换算）；顺手核查该文件其余 `TexSubImage2D`/`TexImage2D` 调用点同口径。
+
+### 验证口径
+- 单测：构造 BytesPerRow=width+pad 的上传，读回断言像素无错位（无 Windows 真机时以 GL 语义单测 + 代码对齐为准，真机验证登记为验收项）；
+- 回归：`gles` 包逐文件测试。
+
+---
+
+## D2. HbShaper 无锁改共享 hbFont 的 scale（数据竞争候选）
+
+### 现象
+`HbShaper.Shape` 每次整形都改**共享缓存**的 hbFont 实例的 `XScale/YScale`（按当前字号），且不持锁——两个 goroutine 用**同字体不同字号**并发整形时，互相覆盖 scale，字形位置/advance 错乱。
+
+### 源码证据
+- 共享缓存：`render/text/shaper_hb.go:134-141` `getOrCreateHbFont` 按 `(source, variations)` 缓存 `*hbFont`；
+- 无锁突变：`shaper_hb.go:82-84` `hbf.hbf.XScale = int32(...); hbf.hbf.YScale = hbf.hbf.XScale`——发生在 `Shape`（`:66`）体内，**不在** `s.mu` 临界区（锁只用于 ClearCache/RemoveSource/字体表读写 `:116-141`）。
+
+### 标准依据
+**HarfBuzz**：`hb_font_t` 单个调用内部线程安全，但**修改属性（set scale）与使用是两次调用**，并发改属性行为未定义——需要外部同步或按状态分实例（go-text/typesetting 的做法：每 (font, size) 独立 font 实例或整体加锁）。
+
+### 对齐方案（二选一，推荐 1）
+1. **锁扩大**：`Shape` 全程持 `s.mu`（整形已被 `globalShapeResultCache` 前置缓存挡住，临界区冲突低；改动最小）。
+2. **实例分键**：`hbFontKey` 加 size，按 `(source, variations, size)` 各建实例，无共享突变（内存略增，无锁竞争）。
+
+### 验证口径
+- 红灯：并发整形测试——两个 goroutine 同字体分别 12px/48px 循环 `Shape`，`-race` 修前报 DATA RACE（或断言结果串号），修后 0；
+- 回归：`render/text` 逐文件 + `-race`；`ui_text_m5_anycase` Golden。
+
+---
+
+## 1. 执行顺序建议
+
+1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。
+2. **第二批（文本线，一条线做完）**：**A2 先行 → A1 随后**。依赖方向：A1 要把默认路径切到 `text.Shape`，而 `text.Shape` 对 MultiFace 返回 nil——A2 落的 per-face 拆段机具（抽成 text 包共享助手）正是 A1 支持 MultiFace 的前置；A1 若先行会让 MultiFace 消费方从 cmap 可画退化成整段空白。两刀同批回归、文本窗 Golden 只重定一次（kerning 宽度变化 + RTL 拆段的变化合并归因）。
+3. **第三批**：B1 → C2（互独立；与文本线无交集，各自窗 Golden）。
+4. **第四批（性能刀，带基准）**：C1 过渡刀 → 终态（ramp 化）。
+
+顺序要点复核（2026-10-25）：A3 先于 A1——两者都改 `glyph_mask_engine.go`，键修正先行避免同文件冲突；A1 的基线重出放在 B1/C2/C1 之前——后续批次在新基线上跑，避免二次重定；C1 收尾——影响面是像素路径本身，需带基准数据且与其它项零耦合。每项修完：所属域总账（`RENDER_FEATURE_COVERAGE.md` §6/§11、`RENDER_API_CATALOG.md` 如有公开 API 变化）+ 相关真窗 README 同步；本文档对应条目标 ✅ 并记提交号。
