@@ -147,5 +147,6 @@ glxgears -info 2>&1 | grep -E "FPS"
 
 | 日期 | 内容 |
 |---|---|
+| 2026-10-25 | **P1 阻塞登记：Flutter master 3.50 Impeller OpenGLESDF 黑屏**。Flutter 对照尺三模式（spin/list/text）窗口打开但**内容区全黑**（x11grab 截屏证实），26-31% CPU 为引擎空转——像素未到达屏幕。本机 NVIDIA GeForce 940MX（非 Intel），NVIDIA 580.178.04（OpenGL 4.6），Impeller OpenGLESDF 后端与 NVIDIA 专有 EGL 不兼容。三种绕行均失败：`FLUTTER_ENGINE_SWITCHES=--disable-impeller`（编译期决定）、`LIBGL_ALWAYS_SOFTWARE=1`（EGL 上下文独立于桌面 GL）、`CMAKE_CXX_COMPILER=g++`（Impeller 是引擎编译期选项）。`flutter channel stable` 切换卡在网络（GitHub 不可达）。**Flutter 对照数字无效，P1 Flutter 部分搁置**，等 stable SDK 到位后重测。gpui 自身数字（spin_min 15.46%、C3 31.98%、m5 29.20%、glxgears 3.30%）有效已入 §5.5。用户决策三选一：①配镜像切 stable ②git checkout 可用 tag ③先跳 Flutter 尺推进 P2/P3 |
 | 2026-10-25 | 重审修正（用户复核要求）：行 13 拆双模式（图元批处理+矢量路径密集）；新增行 17 显存压力/设备恢复（注入缝+预算拒增已在源码，缺资源场景窗）；§3.4 补公开参考数字锚（sanity 非验收线）。矩阵 16→**17 行** |
 | 2026-10-25 | 立项：底座资源场景矩阵 16 行封闭 + 三层对照尺（Flutter 主尺/Godot 第二尺/glxgears 地板尺）+ 指标两段制（健康线+对齐线，系数数据后置）+ 三扇新窗规格（idle/batch_cap/multiwin_cap）+ 尾账 13 扇 Golden 与 E1/E2 豁免。决策记录：Godot 允许下载/编译、Flutter 允许构建/取产物、系数后置（用户定）。状态：P1 未开工 |
