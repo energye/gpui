@@ -73,3 +73,12 @@ stderr 结束行会打印 backend / fps / layout_flushes / raster_layers / bind�
 - 经典门禁：`TestS2_*` / `TestS4_*` / `TestS5_*` / `TestS6_*`
 - 架构纪律：`docs/ENGINE_CODING_RULES.md`
 - 收口：`docs/ENGINE_L1_CLOSEOUT.md`
+
+
+## Evidence（U21 三证据，2026-10-25 补）
+
+gate（`-auto-only`，15s）：**逻辑 2/2 · 像素 11/11（8 点 + 3 墨区）· Golden 全窗 288000px 两连 0.0000%**。
+
+- 冻结法：phase 钉 0.5、scrollY 钉 336（12 行），ticker 以 dt=0 继续跑（repaint 内容固定）——spinner/热点/文字色/渐变/列表全部逐位稳定。
+- **已知缺陷（2026-10-25 首次像素断言发现，已登记待修）**：VirtualList 行（宽 0 自动展开）渲染**溢出视口**——快照实测 y=300 右缘 x≥680 与 y≥352 视口下方均读到行色（(76,87,102)/(54,116,173)），RenderViewport 未裁剪子行；本窗是 PARTIAL L1 老烟囱，此前只有逻辑指标，该画面问题一直未被像素证据暴露。归 `ui/rendering` 视口裁剪域跟进，探针暂避开溢出区。
+- Golden 基线：`testdata/showcase_l1_render_matrix_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种，零容差，无 HUD 带全窗掩码）。

@@ -5,15 +5,27 @@
 // click drives the same HitTestPointer path and highlights the target.
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//	RUN_SECONDS=5 go run ./examples/ui_wr_r13_hit
+//	RUN_SECONDS=5 go run ./examples/ui_wr_r13_hit -auto-only
+//	go run ./examples/ui_wr_r13_hit                 # manual: animate until close
+//	go run ./examples/ui_wr_r13_hit -manual-seconds 15
 //
-// Window: 1200x800. RUN_SECONDS>=5 (U16). GPU window required.
+// Window: 1200x800. RUN_SECONDS>=5 (§2.5). GPU window required.
+//
+// Evidence (U21): logic probes (scripted hit set), color/ink probes on the GPU
+// snapshot, and a bitwise Golden over header + legend + body (821184 logical
+// px). Gate mode keeps the deterministic script (probes fire once, Spike glow
+// then Recover restore) and only freezes the HOT hue (60-tick ramp then hold),
+// so the snapshot shows the restored base colours bit-stably. Manual mode
+// keeps the animated HOT spot and does not assert pixels.
 package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -26,7 +38,10 @@ import (
 	_ "github.com/energye/gpui/render/gpu"
 )
 
-const winW, winH = 1200, 800
+const (
+	winW, winH = 1200, 800
+	closeSecs  = 5
+)
 
 // probe is one scripted click: a point relative to a laid-out (Align-placed)
 // target, in window logical coordinates, with the expected hit debug name.
@@ -42,10 +57,17 @@ type probe struct {
 }
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: freeze HOT, snapshot + pixel/Golden evidence, exit 1 on fail")
+	manualSeconds := flag.Float64("manual-seconds", 0, "manual mode: auto-close after N seconds (0 = stay until window close)")
+	flag.Parse()
+
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if secsSet {
 		wrkit.RequireMinRun(secs, "R13")
+	} else if *autoOnly {
+		secs, secsSet = closeSecs, true
 	}
+	gateMode := secsSet
 	_, _, errFace := wrkit.EnsureUIFace()
 	if errFace != nil {
 		fmt.Fprintln(os.Stderr, "wrkit: font:", errFace)
@@ -180,6 +202,7 @@ func main() {
 		spikeDone     bool
 		lastPtrHit    string
 		lastScriptHit string
+		hotTicks      int64
 	)
 
 	highlight := func(c *rendering.RenderColorBox, name string) {
@@ -191,11 +214,31 @@ func main() {
 		lastPtrHit = name
 	}
 
+	// Gate snapshot + Golden base live under testdata/ (committed evidence).
+	snapDir := filepath.Join("examples", "ui_wr_r13_hit", "testdata")
+	if err := os.MkdirAll(snapDir, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: snap dir:", err)
+		os.Exit(1)
+	}
+	snapPath := filepath.Join(snapDir, snapshotPNG)
+	// Manual mode animates, so its frame is not evidence. Keep the gate
+	// snapshot path empty there: otherwise a later manual run would overwrite
+	// the committed gate PNG that the Golden baseline was seeded from.
+	snapshotPath := snapPath
+	if !gateMode {
+		snapshotPath = ""
+	}
+	runFor := time.Duration(secs) * time.Second
+	if !gateMode && *manualSeconds > 0 {
+		runFor = time.Duration(*manualSeconds * float64(time.Second))
+	}
+
 	var app *embedder.PipelineApp
 	app = embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:       runFor,
+		WarmUp:       true,
+		SnapshotPath: snapshotPath,
 		OnEvent: func(ev platform.Event) {
 			switch ev.Type {
 			case platform.EventClose:
@@ -295,9 +338,23 @@ func main() {
 			}
 		}
 
-		// HOT spot repaints itself every frame.
-		hotHue := float64(int(elapsed*8)%16) / 16
-		hot.R, hot.G, hot.B = 0.85+0.1*hotHue, 0.25+0.4*(1-hotHue), 0.3+0.5*hotHue
+		// HOT spot repaints itself every frame. Gate mode ramps the hue once
+		// over 60 ticks to its frozen final value so the end-of-run snapshot
+		// is bit-stable.
+		if gateMode {
+			if n := hotTicks; n <= 60 {
+				t := float64(n) / 60
+				if t > 1 {
+					t = 1
+				}
+				hotHue := 0.5 * t
+				hot.R, hot.G, hot.B = 0.85+0.1*hotHue, 0.25+0.4*(1-hotHue), 0.3+0.5*hotHue
+			}
+			hotTicks++
+		} else {
+			hotHue := float64(int(elapsed*8)%16) / 16
+			hot.R, hot.G, hot.B = 0.85+0.1*hotHue, 0.25+0.4*(1-hotHue), 0.3+0.5*hotHue
+		}
 		hot.MarkNeedsPaint()
 
 		hitBanner.SetText(fmt.Sprintf("HIT: %s  %d/%d   ptr: %s", lastScriptHit, scriptedOK, len(probes), lastPtrHit))
@@ -331,49 +388,197 @@ func main() {
 
 	elapsedSec := time.Since(t0).Seconds()
 	snap := app.Metrics().Snapshot()
+	presents := app.PresentCount()
+	fpsInterval := 0.0
+	if snap.AvgFrameIntervalMs > 1e-6 {
+		fpsInterval = 1000.0 / snap.AvgFrameIntervalMs
+	}
+
+	// Pixel probes are anchored to the body panel origin; Align offsets are
+	// ax*(parent-child) fractions. The gate snapshot shows the Recover state:
+	// every hit target restored to its base colour after the Spike glow.
+	bx, by := shell.Body.X, shell.Body.Y
+	pixelChecks := []pixelCheck{
+		{desc: "target_red", x: bx + 64, y: by + 60, want: [3]float64{0.85, 0.30, 0.28}, tol: 0.06},
+		{desc: "target_blue", x: bx + 64, y: by + 209, want: [3]float64{0.28, 0.45, 0.88}, tol: 0.06},
+		{desc: "target_round", x: bx + 162, y: by + 55, want: [3]float64{0.30, 0.80, 0.45}, tol: 0.06},
+		{desc: "target_xf", x: bx + 167, y: by + 209, want: [3]float64{0.72, 0.35, 0.82}, tol: 0.06},
+		{desc: "target_clipped", x: bx + 259, y: by + 50, want: [3]float64{0.90, 0.75, 0.30}, tol: 0.06},
+		{desc: "beyond_clip_bg", x: bx + 289, y: by + 80, want: [3]float64{0.10, 0.11, 0.13}, tol: 0.05, kind: kindBG},
+		{desc: "target_top", x: bx + 269, y: by + 221, want: [3]float64{0.95, 0.85, 0.35}, tol: 0.06},
+		{desc: "dense_bg", x: bx + 430, y: by + 210, want: [3]float64{0.13, 0.15, 0.21}, tol: 0.05, kind: kindBG},
+		{desc: "dense_00", x: bx + 355, y: by + 46, want: [3]float64{0.25, 0.40, 0.62}, tol: 0.06},
+		{desc: "dense_33", x: bx + 553, y: by + 166, want: [3]float64{0.61, 0.70, 0.62}, tol: 0.06},
+		{desc: "hot_spot", x: bx + 786, y: by + 45, want: [3]float64{0.90, 0.45, 0.55}, tol: 0.06},
+		{desc: "body_bg", x: bx + 450, y: by + 640, want: [3]float64{0.10, 0.11, 0.13}, tol: 0.05, kind: kindBG},
+		{desc: "legend_bg", x: shell.Legend.X + 20, y: shell.Legend.Y + 620, want: [3]float64{0.11, 0.12, 0.15}, tol: 0.05, kind: kindBG},
+		{desc: "top_bg", x: 1000, y: 24, want: [3]float64{0.12, 0.14, 0.18}, tol: 0.05, kind: kindBG},
+	}
+	inkRegions := []inkRegion{
+		{desc: "hit_banner_ink", x: bx + 33, y: by + 350, w: 260, h: 16, bg: [3]float64{0.10, 0.11, 0.13}, tol: 0.04, minPx: 20},
+		{desc: "dense_labels_ink", x: bx + 326, y: by + 199, w: 240, h: 36, bg: [3]float64{0.13, 0.15, 0.21}, tol: 0.04, minPx: 20},
+	}
+
+	// Pixel + Golden evidence only makes sense for the frozen gate phase.
+	// Manual mode intentionally animates; its evidence is human observation.
+	var pixelOK int
+	pixelBad := make([]string, 0, len(pixelChecks)+len(inkRegions))
+	var goldenDiffPct float64
+	var goldenTotalPx int64
+	var goldenFirstRun bool
+	pixelTotal := 0
+	if gateMode {
+		img := loadImage(snapPath)
+		pixelResult := make(map[string]bool, len(pixelChecks)+len(inkRegions))
+		runPixelChecks(img, pixelChecks, pixelResult)
+		runInkRegions(img, inkRegions, pixelResult)
+		for desc, ok := range pixelResult {
+			if ok {
+				pixelOK++
+			} else {
+				pixelBad = append(pixelBad, desc)
+			}
+		}
+		sort.Strings(pixelBad)
+		pixelTotal = len(pixelChecks) + len(inkRegions)
+
+		goldenRects := []rect{
+			{x: 0, y: 0, w: winW, h: 48},
+			{x: shell.Legend.X, y: shell.Legend.Y, w: shell.Legend.W, h: shell.Legend.H},
+			{x: shell.Body.X, y: shell.Body.Y, w: shell.Body.W, h: shell.Body.H},
+		}
+		goldenDiffPct, goldenTotalPx, goldenFirstRun = evaluateGolden(snapDir, goldenRects)
+	}
+	pixelGoldenValue := any(goldenDiffPct)
+	if !gateMode {
+		pixelGoldenValue = nil
+	}
+
+	logicProbes := []string{
+		"presents_positive",
+		"fps_interval_ge_55",
+		"present_policy_full",
+		"cpu_fallback_zero",
+		"vsync_source_present",
+		"scripted_ok_all",
+		"scripted_hit_ge_4",
+	}
+	logicFailed := make([]string, 0, len(logicProbes))
+	if presents < 1 {
+		logicFailed = append(logicFailed, "presents_positive")
+	}
+	if fpsInterval < 55 {
+		logicFailed = append(logicFailed, "fps_interval_ge_55")
+	}
+	if snap.PresentPolicy != scheduler.PresentPolicyFullPaint {
+		logicFailed = append(logicFailed, "present_policy_full")
+	}
+	if snap.CPUFallbackOps != 0 {
+		logicFailed = append(logicFailed, "cpu_fallback_zero")
+	}
+	if snap.VSyncSource == "" {
+		logicFailed = append(logicFailed, "vsync_source_present")
+	}
+	if scriptedOK != len(probes) {
+		logicFailed = append(logicFailed, "scripted_ok_all")
+	}
+	if scriptedHit < 4 {
+		logicFailed = append(logicFailed, "scripted_hit_ge_4")
+	}
+	logicPass := len(logicFailed) == 0
 
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R13",
 		Scenario:      "ui_wr_r13_hit",
+		Backend:       win.Backend().String(),
 		Snap:          snap,
-		PresentCount:  app.PresentCount(),
+		PresentCount:  presents,
 		ElapsedSec:    elapsedSec,
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
 		Extra: map[string]any{
-			"scripted_total":     len(probes),
-			"scripted_ok":        scriptedOK,
-			"scripted_hit":       scriptedHit,
-			"scripted_miss":      len(probes) - scriptedOK,
-			"probe_kinds":        "plain_box,plain_box,rounded_clip,rotated_xf,clip_inside,clip_outside,overlap_top,empty_area",
-			"targets":            len(colors),
-			"hit_via_engine":     "PipelineApp.HitTestPointer",
-			"real_pointer_path":  "X11 EventPointer+PointerDown → HitTestPointer",
-			"static_dense_cells": 16,
-			"static_labels":      8,
+			"scripted_total":         len(probes),
+			"scripted_ok":            scriptedOK,
+			"scripted_hit":           scriptedHit,
+			"scripted_miss":          len(probes) - scriptedOK,
+			"probe_kinds":            "plain_box,plain_box,rounded_clip,rotated_xf,clip_inside,clip_outside,overlap_top,empty_area",
+			"targets":                len(colors),
+			"hit_via_engine":         "PipelineApp.HitTestPointer",
+			"real_pointer_path":      "X11 EventPointer+PointerDown → HitTestPointer",
+			"static_dense_cells":     16,
+			"static_labels":          8,
+			"phase_mode":             map[bool]string{true: "script-frozen-hot", false: "animated"}[gateMode],
+			"evidence_mode":          map[bool]string{true: "gate", false: "manual"}[gateMode],
+			"pixel_evidence":         map[bool]string{true: "gate_snapshot", false: "manual_not_asserted"}[gateMode],
+			"fps_gate":               "persistent_tick_ge_55",
+			"slope_gate":             "off_5s_correctness",
+			"rss_slope_note":         "rss_slope_valid=false for 5s < rss_warmup_sec; slope_gate=off per §2.2.4",
+			"golden_mask":            "header 1200x48 + legend 260x656 + body 904x656",
+			"golden_tolerance_pct":   0,
+			"logic_probes_ok":        len(logicProbes) - len(logicFailed),
+			"logic_probes_total":     len(logicProbes),
+			"logic_bad":              logicFailed,
+			"pixel_probes_ok":        pixelOK,
+			"pixel_probes_total":     pixelTotal,
+			"pixel_bad":              pixelBad,
+			"pixel_golden_diff_pct":  pixelGoldenValue,
+			"pixel_golden_total_px":  goldenTotalPx,
+			"pixel_golden_first_run": goldenFirstRun,
+			"snapshot_png":           snapshotPath,
+			"snapshot_note":          map[bool]string{true: "gate snapshot (GPU readback) used for pixel/Golden evidence", false: "manual mode does not write the gate snapshot; committed evidence is not overwritten"}[gateMode],
+			"impl_correctness":       "scripted probes hit exactly the drawn target under plain boxes, rounded clip, 30° rotation and overlap; beyond-clip and empty-area probes miss",
+			"impl_dirty":             "gate: same elapsed script (probes once, Spike glow 2–3.5s, Recover restore), only HOT hue frozen; manual: HOT hue cycles",
+			"impl_cache":             "hit testing walks the same paint tree identity (HitDebugName); no cache involvement beyond paint identity",
+			"impl_edge":              "8 probes across 6 target kinds + dense 4×4 grid + 8 labels; real pointer clicks share HitTestPointer",
+			"impl_fail":              "scripted_ok != total (hit ≠ paint), scripted_hit < 4, pixel probe mismatch, golden diff!=0, or policy!=full_paint → FAIL",
+			"impl_visible":           "click highlights the hit target (yellow flash); hit banner shows ok/total; gate pixel/Golden evidence over the restored state",
 		},
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
 
-	// R13 gates (§2 主表: scripted_ok == scripted_total, all probes hit).
-	if err := wrgate.EvaluateGates(report, wrgate.GateOptions{
-		MinPresents:            1,
-		RequireFullPaintPolicy: true,
-	}); err != nil {
-		fmt.Fprintln(os.Stderr, "FAIL:", err)
-		os.Exit(1)
+	fail := func(format string, args ...any) {
+		fmt.Fprintf(os.Stderr, "FAIL: "+format+"\n", args...)
+		if gateMode {
+			os.Exit(1)
+		}
 	}
-	if scriptedOK != len(probes) {
-		fmt.Fprintf(os.Stderr, "FAIL: scripted_ok=%d want %d (hit testing must match paint identity)\n", scriptedOK, len(probes))
-		os.Exit(1)
+	if !logicPass {
+		fail("logic probes %d/%d bad=%v", len(logicProbes)-len(logicFailed), len(logicProbes), logicFailed)
 	}
-	if scriptedHit < 4 {
-		fmt.Fprintf(os.Stderr, "FAIL: scripted_hit=%d want >=4 (§2.6 probe count)\n", scriptedHit)
-		os.Exit(1)
+	if gateMode {
+		if pixelOK != pixelTotal {
+			fail("pixel probes %d/%d ok bad=%v", pixelOK, pixelTotal, pixelBad)
+		}
+		if !goldenFirstRun && goldenDiffPct != 0 {
+			fail("pixel_golden_diff_pct=%.4f want 0 over %d px", goldenDiffPct, goldenTotalPx)
+		}
+		// R13 gates (§2 主表: scripted_ok == scripted_total, all probes hit).
+		if err := wrgate.EvaluateGates(report, wrgate.GateOptions{
+			MinPresents:            1,
+			RequireFullPaintPolicy: true,
+			RequirePersistentFPS:   true,
+		}); err != nil {
+			fail("%v", err)
+		}
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r13_hit: OK probes=%d ok=%d hit=%d targets=%d presents=%d elapsed=%.1fs\n",
-		len(probes), scriptedOK, scriptedHit, len(colors), app.PresentCount(), elapsedSec)
+
+	status := "OK"
+	if !logicPass {
+		status = "WARN"
+	}
+	if gateMode && goldenFirstRun {
+		status = "SEEDED"
+	}
+	evidence := ""
+	if gateMode {
+		evidence = fmt.Sprintf(" pixel=%d/%d golden=%.4f%%", pixelOK, pixelTotal, goldenDiffPct)
+	}
+	fmt.Fprintf(os.Stderr,
+		"ui_wr_r13_hit: %s probes=%d ok=%d hit=%d targets=%d logic=%d/%d%s mode=%s elapsed=%.1fs\n",
+		status, len(probes), scriptedOK, scriptedHit, len(colors),
+		len(logicProbes)-len(logicFailed), len(logicProbes), evidence,
+		map[bool]string{true: "gate", false: "manual"}[gateMode], elapsedSec)
 }
 
 type ticker struct{ on func(dt float64) }

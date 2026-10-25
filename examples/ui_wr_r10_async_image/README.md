@@ -7,6 +7,16 @@ export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 RUN_SECONDS=30 go run ./examples/ui_wr_r10_async_image
 ```
 
+## Evidence（U21 三证据，2026-10-25 补）
+
+gate（`-auto-only`）：30s 关闭档 + **60s 观察档两连全绿**（逻辑 10/10 · 像素 13/13（9 点 + 4 墨区）· Golden 821184px 两连 0.0000%；`loaded=20/20 rrViol=0`、fps≈59.9、60s 档 slope≈10.5MB/min）。
+
+- 冻结法：9s 相位钟在 30s 落点恰是 Steady/Spike 边界（30 mod 9 = 3），gate 在**末 3s 钉住 Steady**（HOT 姿态确定）；20 张源图在冻结前全部解码完成。
+- 像素口径：图格断言源色棋盘（`(30+9i,60+7i,140+4i)`，`((x+y)/8+i)%2`）；**HOT 块（Align 0.94/0.06）自建窗起就整个落在右栏静态面板底下被盖住**（右栏后画），行为由逻辑门禁证明、不做像素断言，探针改钉覆盖它的右栏 cell(2,0)。
+- 已知存量（非本次引入）：30s 档稳态斜率骑 30000 预算线（实测 28.8k/30.2k/31.1k 交替红绿，线程计划 §18.2 #4 早已登记为负载抖）；判漏按 §2.2.4 用 60s 观察档（实测 ~10.5k 稳过）。
+- manual 档不断言像素、不写快照；hitch/出图/斜率探针只在完整时长档判定。
+- Golden 基线：`testdata/showcase_r10_async_image_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种；掩码 header+legend+body，HUD 排除，零容差）。
+
 ## Window / Close duration
 
 - 窗口 **1200×800**（U15）

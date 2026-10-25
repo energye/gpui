@@ -192,7 +192,7 @@
 
 ## 7. 证据体系缺口（“正确渲染”这条轴）
 
-1. **U21 Golden 逐位规范落地缺口（2026-10-21 实扫，2026-10-22 R0/R16/C0 回填）**：旧 review 的「27 个真窗全为逻辑指标单证」是过期/子集口径，不能当当前全量结论。本树 155 个 WIN 实扫：**107 扇同时有 Golden+像素、18 扇只有像素、30 扇两样都没有、0 扇只有 Golden**；P1 画面窗余 **14 扇**（R0/R16/C0 已于 2026-10-22 补三证据关闭）。完整分档、P1 首批 10 扇 + R0/R16/C0、155 窗全景见 `docs/review/WINDOW_EVIDENCE_AUDIT_2026-10-21.md`。**U21 仍未清零**。
+1. **U21 Golden 逐位规范落地缺口（2026-10-21 实扫，2026-10-22 R0/R16/C0 回填，2026-10-25 P1 清零）**：旧 review 的「27 个真窗全为逻辑指标单证」是过期/子集口径，不能当当前全量结论。本树 155 个 WIN 实扫起点：107 扇双证、18 扇仅像素、30 扇两样皆无；R0/R16/C0（10-22）与 **P1 余 14 扇（10-25，§11）** 逐窗补三证据关闭后：**双证 121 / 仅像素 18 / neither 16、P1 档清零**。完整分档与 155 窗全景见 `docs/review/WINDOW_EVIDENCE_AUDIT_2026-10-21.md`（§6.4）。**U21 的 P1 档清零；§4 的 15 扇「仅像素」与 E1/E2 豁免档仍在**。
 2. GPU vs SoftwareRenderer 像素差对照未纳入 wr 真窗门禁族（RV1:31）。
 3. 渲染诊断严格档默认 Skip（clipping/scene/images/basic_gpu_visual，GC 05:7/30）；文本变换无真金图（GC 05:31）。
 4. 金图现状两口径已完成静态并表（2026-10-21）：A2 金图资产「存在但未带进本树」与 review「逻辑单证」的口径，按 155 个 WIN 实扫结果以 `docs/review/WINDOW_EVIDENCE_AUDIT_2026-10-21.md` 附录 A + 本表 §11 为准；逐窗复跑仍属 P1。
@@ -226,6 +226,7 @@
 
 | 日期 | 内容 |
 |---|---|
+| 2026-10-25 | **U21 P1 档清零：余 14 扇画面窗三证据收口（审计文档 §6.4）**：4 扇（r3/r3b/r9/r12b）已有证据链只差逐窗复核，两连 0.0000% 全过；10 扇补模式 2 gate 实现——c1_boundary_nest（hot 60 tick 收敛后停脏；非边界叶断言 R12b 品红混合色）、r8_overlay（`R8_GATE_STATE` open/closed 两态，照 r12b 两态先例）、r11_dpr（两波脚本原样只冻结 hot）、r13_hit（Recover 终态）、r7b/c3（滚动窗末 3s 钉死偏移 y=1234，行内容由行高表在代码内推导探针）、r10_async_image（末 3s 钉 Steady——30 mod 9 踩相位钟边界；60s 观察档两连收口，30s 档稳态斜率骑 30000 线属线程计划 §18.2 #4 存量）、ime_r1_editor（caret 不翻转/形变钉 t=0；`text:color-layout` CPU 回落按 r1_layout 先例只记不判）、text_m5_anycase（静态窗天然确定；旧 `golden/` 基线保留作 M5 线历史）、l1_render_matrix（phase/scroll/dt 冻结，全窗 288000px）。每扇均 `-auto-only` 播种后两连 0.0000% + manual 档人工路径保留。**新发现并登记缺陷 2 项**：① `ui_l1_render_matrix` 的 VirtualList 行（宽 0 自动展开）渲染溢出 RenderViewport 右/下边缘不裁剪（快照实测行色越界，该窗此前只有逻辑指标从未被像素断言）——归 `ui/rendering` 视口裁剪域跟进；② `ui_wr_r10_async_image` 的 HOT 块（Align 0.94/0.06）建窗起即整个被右栏静态面板盖住（右栏后画）——行为由逻辑门禁证明、不做像素断言，README 登记。**性质=原子验证（真窗自测+人工路径），不是生产接线**。 |
 | 2026-10-21 | **P1 首批六扇 render-axis 真窗三证据收口**：`ui_render_base_text`（逻辑 5/5、像素 5/5、整窗 Golden 576000px 两连 0.0000%）、`ui_render_base_image`（8/8、8/8、499200px，异步 decode 保留）、`ui_render_base_geometry`（6/6、9/9、409200px）、`ui_render_base_cliplayer`（6/6、9/9、403200px）、`ui_render_graphics/basic`（5/5、9/9、shell 掩码 821184px）、`ui_render_graphics/vector`（5/5、8/8、821184px）；六窗 gate 均 `-auto-only` 5s 两连 exit 0，manual 2s 退出 0。新增 `examples/wrevidence` 共享像素/Golden 辅助；四扇 base 窗整窗 Golden，两扇 graphics 用 header+legend+body 掩码（HUD 不入 Golden）。限界：原子验证无生产消费者；graphics 静态窗不设 FPS 门禁（basic presents≈15）；image 短窗不设 p95 门禁；geometry 顶部无 face 标签不可见，不声称已断言。真源同步：`ENGINE_UI_RENDER_BASE.md` §23/§24 1.60、审计文档 §3.3/§5/§6/附录 A.2、`ENGINE_UI_WIDGET_RENDER.md` §10、六窗 README。**性质=原子验证**，不算生产接线 |
 | 2026-10-21 | **RSS 资源债复核（指标 + 文档）**：四扇 B 窗 + c0 基线 5s/15s 斜率均由启动爬坡主导（c0 5s 回放≈699k KB/min），60s 实测 1.9k–8.8k KB/min、180s Scene≈2.0k，均低于 30k；`smaps` 增长只在 Go 堆，`WR_MEMDIG` live 1.5–2.2MiB / peak 9–34MiB。新增 `rss_slope_steady_kb_per_min` / `rss_slope_valid` / `rss_warmup_sec`，原 `rss_slope_kb_per_min` 保留为原始趋势；原“资源债”判断收回。 |
 | 2026-10-18 | v1 落档：三路只读审计合成（基线 `4734888b`） |

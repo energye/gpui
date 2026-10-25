@@ -7,6 +7,14 @@ export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 RUN_SECONDS=60 go run ./examples/ui_wr_c3_list_scroll
 ```
 
+## Evidence（U21 三证据，2026-10-25 补）
+
+gate（`-auto-only`，60s）：**逻辑 11/11 · 像素 16/16 · Golden 821184px 两连 0.0000%**；`bind=14/1200 srr=1096/3600 viol=0 img=24/24`、fps≈59.9 两跑一致。
+
+- 冻结法：滚动偏移按 dt 积分不逐位确定，gate 在**末 3s 钉死 y=1234**；可见行、异步源棋盘色（`(30+9s, 60+7s, 140+4s)`，`((x+y)/8+s)%2`）与 thumb 全部从构造表推导。
+- manual 档不断言像素、不写快照；`images_loaded_all` 与稳态斜率探针只在 gate 或 ≥60s 档判定（短跑出图/斜率未走完属时长伪影）。
+- Golden 基线：`testdata/showcase_c3_list_scroll_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种；掩码 header+legend+body，HUD 排除，零容差）。
+
 ## Window / Close duration
 
 - 窗口 **1200×800**（U15）

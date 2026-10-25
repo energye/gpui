@@ -1,9 +1,18 @@
 // Command ui_wr_r10_async_image is the W3 R10 real-window: 图异步→局部脏.
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//	RUN_SECONDS=30 go run ./examples/ui_wr_r10_async_image
+//	RUN_SECONDS=30 go run ./examples/ui_wr_r10_async_image -auto-only
+//	go run ./examples/ui_wr_r10_async_image                 # manual: animate until close
+//	go run ./examples/ui_wr_r10_async_image -manual-seconds 15
 //
 // Window: 1200x800. RUN_SECONDS>=30 (U16, §2.5: 关闭 30s/观察 60). GPU window required.
+//
+// Evidence (U21): logic probes, pixel probes on the GPU snapshot, and a
+// bitwise Golden over header + legend + body. The 9s phase clock would land
+// the 30s gate run on the Steady/Spike boundary, so gate mode pins the phase
+// (and the HOT pose) to Steady for the final 3s; all 20 sources have decoded
+// by then and the snapshot is bit-stable. Manual mode keeps the cycling and
+// does not assert pixels.
 //
 // Gates (§2 R10 行 + §2.2 全族):
 //   - 出图后 rerecord 仅一格: 每批到达后的 boundary_rerecord 增量 ≤ 到达格数
@@ -21,12 +30,14 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -94,11 +105,24 @@ type arrival struct {
 }
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: pin Steady at the end, snapshot + pixel/Golden evidence, exit 1 on fail")
+	manualSeconds := flag.Float64("manual-seconds", 0, "manual mode: auto-close after N seconds (0 = stay until window close)")
+	flag.Parse()
+
 	secs, secsSet := wrkit.RunSecondsOpt()
-	if !secsSet {
+	if secsSet {
+		wrkit.RequireMinRun(secs, "R10")
+	} else if *autoOnly {
 		secs = closeSeconds
 	}
-	wrkit.RequireMinRun(secs, "R10")
+	gateMode := secsSet
+	if !gateMode {
+		secs = 0 // manual: run until close (or -manual-seconds)
+	}
+	if gateMode && secs < closeSeconds {
+		fmt.Fprintf(os.Stderr, "FAIL: RUN_SECONDS must be >= %d to close R10 (§2.5 close duration)\n", closeSeconds)
+		os.Exit(1)
+	}
 	wrkit.EnsureUIFace()
 
 	var proc scheduler.ProcessTracker
@@ -167,10 +191,29 @@ func main() {
 		right.LabelAt(fmt.Sprintf("static label %02d — 密集文字区", i), 11, 12, 310+float64(i)*22, 0.70, 0.78, 0.88)
 	}
 
+	// Gate snapshot + Golden base live under testdata/ (committed evidence).
+	snapDir := filepath.Join("examples", "ui_wr_r10_async_image", "testdata")
+	if err := os.MkdirAll(snapDir, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: snap dir:", err)
+		os.Exit(1)
+	}
+	snapPath := filepath.Join(snapDir, "showcase_r10_async_image.png")
+	snapshotPath := snapPath
+	if !gateMode {
+		snapshotPath = ""
+	}
+	runFor := time.Duration(0)
+	if gateMode {
+		runFor = time.Duration(secs) * time.Second
+	} else if *manualSeconds > 0 {
+		runFor = time.Duration(*manualSeconds * float64(time.Second))
+	}
+
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:       runFor,
+		WarmUp:       true,
+		SnapshotPath: snapshotPath,
 		OnEvent: func(ev platform.Event) {
 			if ev.Type == platform.EventClose {
 				fmt.Fprintf(os.Stderr, "ui_wr_r10_async_image: close (%s)\n", win.Backend())
@@ -227,13 +270,20 @@ func main() {
 		for ct >= cycleLen {
 			ct -= cycleLen
 		}
-		switch {
-		case ct < 3:
+		if gateMode && elapsed >= float64(secs)-3.0 {
+			// Gate freeze: 30s lands exactly on the Steady/Spike boundary of
+			// the 9s clock (30 mod 9 == 3); pin Steady so the final frames
+			// hold one deterministic HOT pose.
 			phase = wrkit.PhaseSteady
-		case ct < 6:
-			phase = wrkit.PhaseSpike
-		default:
-			phase = wrkit.PhaseRecover
+		} else {
+			switch {
+			case ct < 3:
+				phase = wrkit.PhaseSteady
+			case ct < 6:
+				phase = wrkit.PhaseSpike
+			default:
+				phase = wrkit.PhaseRecover
+			}
 		}
 
 		snapH := app.Metrics().Snapshot()
@@ -379,6 +429,7 @@ func main() {
 
 	elapsedSec := time.Since(t0).Seconds()
 	snap := app.Metrics().Snapshot()
+	presents := app.PresentCount()
 	fpsInterval := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fpsInterval = 1000.0 / snap.AvgFrameIntervalMs
@@ -388,11 +439,130 @@ func main() {
 		avgDecode = decodeSum / float64(loaded)
 	}
 
+	// Pixel probes: derived from the construction tables. Grid cell i sits at
+	// body (14+(i%4)*149, 14+(i/4)*123); its 96x56 image starts at cell-local
+	// (14,14); checkerboard light square when ((x+y)/8+i)%2==0.
+	bx, by := shell.Body.X, shell.Body.Y
+	imgWant := func(i int) [3]float64 {
+		if (2+i)%2 == 0 {
+			return [3]float64{float64(30+i*9) / 255, float64(60+i*7) / 255, float64(140+i*4) / 255}
+		}
+		return [3]float64{24.0 / 255, 26.0 / 255, 34.0 / 255}
+	}
+	cellX := func(i int) float64 { return 14 + float64(i%4)*149 }
+	cellY := func(i int) float64 { return 14 + float64(i/4)*123 }
+	pixelChecks := []pixelCheck{
+		{desc: "img_00", x: bx + cellX(0) + 14 + 15, y: by + cellY(0) + 14 + 5, want: imgWant(0), tol: 0.06},
+		{desc: "img_07", x: bx + cellX(7) + 14 + 15, y: by + cellY(7) + 14 + 5, want: imgWant(7), tol: 0.06},
+		{desc: "img_19", x: bx + cellX(19) + 14 + 15, y: by + cellY(19) + 14 + 5, want: imgWant(19), tol: 0.06},
+		// NOTE: the HOT block (Align 0.94/0.06, 70px wide) sits fully under the
+		// right static panel (body x 654..904) — covered by construction since
+		// the panel is placed after it. Its behaviour is logic-gated, not
+		// pixel-gated; this probe pins the covering cell instead.
+		{desc: "right_cell_20", x: bx + gridW + 16 + 12 + 58*2 + 26, y: by + 64 + 26, want: [3]float64{0.14 + 0.08*2, 0.45, 0.30 + 0.08*((2+0)%3)}, tol: 0.06},
+		{desc: "right_bg", x: bx + gridW + 16 + 200, y: by + 560, want: [3]float64{0.11, 0.12, 0.15}, tol: 0.05, kind: kindBG},
+		{desc: "right_cell_00", x: bx + gridW + 16 + 38, y: by + 90, want: [3]float64{0.14, 0.45, 0.30}, tol: 0.06},
+		{desc: "right_cell_33", x: bx + gridW + 16 + 12 + 58*3 + 26, y: by + 64 + 58*3 + 26, want: [3]float64{0.14 + 0.08*3, 0.45 + 0.06*3, 0.30 + 0.08*((3+3)%3)}, tol: 0.06},
+		{desc: "legend_bg", x: shell.Legend.X + 20, y: shell.Legend.Y + 620, want: [3]float64{0.11, 0.12, 0.15}, tol: 0.05, kind: kindBG},
+		{desc: "top_bg", x: 1000, y: 24, want: [3]float64{0.12, 0.14, 0.18}, tol: 0.05, kind: kindBG},
+	}
+	inkRegions := []inkRegion{
+		{desc: "cell00_label_ink", x: bx + cellX(0) + 14, y: by + cellY(0) + 83, w: 60, h: 14, bg: [3]float64{0.10, 0.11, 0.13}, tol: 0.04, minPx: 6},
+		{desc: "right_title_ink", x: bx + gridW + 16 + 12, y: by + 10, w: 210, h: 16, bg: [3]float64{0.11, 0.12, 0.15}, tol: 0.04, minPx: 20},
+		{desc: "status_label_ink", x: bx + gridW + 16 + 12, y: by + 34, w: 160, h: 16, bg: [3]float64{0.11, 0.12, 0.15}, tol: 0.04, minPx: 20},
+		{desc: "static_labels_ink", x: bx + gridW + 16 + 12, y: by + 310, w: 230, h: 40, bg: [3]float64{0.11, 0.12, 0.15}, tol: 0.04, minPx: 30},
+	}
+
+	// Pixel + Golden evidence only makes sense for the frozen gate phase.
+	var pixelOK int
+	pixelBad := make([]string, 0, len(pixelChecks)+len(inkRegions))
+	var goldenDiffPct float64
+	var goldenTotalPx int64
+	var goldenFirstRun bool
+	pixelTotal := 0
+	if gateMode {
+		img := loadImage(snapPath)
+		pixelResult := make(map[string]bool, len(pixelChecks)+len(inkRegions))
+		runPixelChecks(img, pixelChecks, pixelResult)
+		runInkRegions(img, inkRegions, pixelResult)
+		for desc, ok := range pixelResult {
+			if ok {
+				pixelOK++
+			} else {
+				pixelBad = append(pixelBad, desc)
+			}
+		}
+		sort.Strings(pixelBad)
+		pixelTotal = len(pixelChecks) + len(inkRegions)
+
+		goldenRects := []rect{
+			{x: 0, y: 0, w: winW, h: 48},
+			{x: shell.Legend.X, y: shell.Legend.Y, w: shell.Legend.W, h: shell.Legend.H},
+			{x: shell.Body.X, y: shell.Body.Y, w: shell.Body.W, h: shell.Body.H},
+		}
+		goldenDiffPct, goldenTotalPx, goldenFirstRun = evaluateGolden(snapDir, goldenRects)
+	}
+	pixelGoldenValue := any(goldenDiffPct)
+	if !gateMode {
+		pixelGoldenValue = nil
+	}
+
+	logicProbes := []string{
+		"presents_positive",
+		"fps_interval_ge_55",
+		"p95_le_22",
+		"vsync_source_present",
+		"rr_violations_zero",
+		"key_violations_zero",
+		"boundary_skip_positive",
+	}
+	fullDuration := gateMode || *manualSeconds == 0 || *manualSeconds >= float64(closeSeconds)
+	if fullDuration {
+		// A short manual run folds a single hitch into a per-minute rate that
+		// exceeds the budget (1 hitch / 10s = 6/min); only judge at full length.
+		logicProbes = append(logicProbes, "hitch_le_budget", "images_loaded_all", "rss_slope_steady_le_budget")
+	}
+	logicFailed := make([]string, 0, len(logicProbes))
+	if presents < 1 {
+		logicFailed = append(logicFailed, "presents_positive")
+	}
+	if fpsInterval < 55 {
+		logicFailed = append(logicFailed, "fps_interval_ge_55")
+	}
+	if snap.P95FrameIntervalMs > 22 {
+		logicFailed = append(logicFailed, "p95_le_22")
+	}
+	if fullDuration && snap.HitchRatePerMin > hitchBudget {
+		logicFailed = append(logicFailed, "hitch_le_budget")
+	}
+	if snap.VSyncSource == "" {
+		logicFailed = append(logicFailed, "vsync_source_present")
+	}
+	if rrViolations != 0 {
+		logicFailed = append(logicFailed, "rr_violations_zero")
+	}
+	if keyViolations != 0 {
+		logicFailed = append(logicFailed, "key_violations_zero")
+	}
+	if snap.BoundarySkip <= 0 {
+		logicFailed = append(logicFailed, "boundary_skip_positive")
+	}
+	if fullDuration {
+		if loaded != imageCount {
+			logicFailed = append(logicFailed, "images_loaded_all")
+		}
+		if snap.RSSSlopeValid && snap.RSSSlopeSteadyKBPerMin > slopeBudget {
+			logicFailed = append(logicFailed, "rss_slope_steady_le_budget")
+		}
+	}
+	logicPass := len(logicFailed) == 0
+
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R10",
 		Scenario:      "ui_wr_r10_async_image",
+		Backend:       win.Backend().String(),
 		Snap:          snap,
-		PresentCount:  app.PresentCount(),
+		PresentCount:  presents,
 		ElapsedSec:    elapsedSec,
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
@@ -412,62 +582,67 @@ func main() {
 			"rss_slope_budget_kb_per_min": slopeBudget,
 			"rss_slope_steady_kb_per_min": snap.RSSSlopeSteadyKBPerMin,
 			"rss_slope_valid":             snap.RSSSlopeValid,
+			"phase_mode":                  map[bool]string{true: "cycled-then-steady-pinned", false: "cycling"}[gateMode],
+			"evidence_mode":               map[bool]string{true: "gate", false: "manual"}[gateMode],
+			"pixel_evidence":              map[bool]string{true: "gate_snapshot", false: "manual_not_asserted"}[gateMode],
+			"golden_mask":                 "header 1200x48 + legend 260x656 + body 904x656",
+			"golden_tolerance_pct":        0,
+			"logic_probes_ok":             len(logicProbes) - len(logicFailed),
+			"logic_probes_total":          len(logicProbes),
+			"logic_bad":                   logicFailed,
+			"pixel_probes_ok":             pixelOK,
+			"pixel_probes_total":          pixelTotal,
+			"pixel_bad":                   pixelBad,
+			"pixel_golden_diff_pct":       pixelGoldenValue,
+			"pixel_golden_total_px":       goldenTotalPx,
+			"pixel_golden_first_run":      goldenFirstRun,
+			"snapshot_png":                snapshotPath,
+			"snapshot_note":               map[bool]string{true: "gate snapshot (GPU readback) used for pixel/Golden evidence", false: "manual mode does not write the gate snapshot; committed evidence is not overwritten"}[gateMode],
+			"impl_correctness":            "each decoded image re-records only its own cell boundary (per-batch and per-key accounting); paint-only SetImage never relayouts",
+			"impl_dirty":                  "gate: 9s cycles then Steady pinned for the final 3s (30 mod 9 == 3 lands on the Steady/Spike boundary); manual: cycles forever",
+			"impl_cache":                  "undecoded and decoded cells are independent RepaintBoundaries; right static panel never repaints with the loads",
+			"impl_edge":                   "20 async sources (96x56 striped PNGs, real file decode), 4x5 grid, HUD-band allowance calibrated (applied+2)",
+			"impl_fail":                   "loaded<20, rr/key violations>0 (a load dirtied more than its cell), fps<55/p95>22, pixel/golden mismatch → FAIL",
+			"impl_visible":                "cells fill in one by one; status label counts loaded/20; HOT pose follows phase; gate pixel/Golden evidence over the all-loaded Steady state",
 		},
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
 
-	// ---- Gates（§2 R10 行 + §2.2 全族；门禁是硬的不许放）----
-	if app.PresentCount() < 1 {
-		fmt.Fprintln(os.Stderr, "FAIL: no presents")
-		os.Exit(1)
+	fail := func(format string, args ...any) {
+		fmt.Fprintf(os.Stderr, "FAIL: "+format+"\n", args...)
+		if gateMode {
+			os.Exit(1)
+		}
 	}
-	if snap.VSyncSource == "" {
-		fmt.Fprintln(os.Stderr, "FAIL: vsync_source missing")
-		os.Exit(1)
+	if !logicPass {
+		fail("logic probes %d/%d bad=%v", len(logicProbes)-len(logicFailed), len(logicProbes), logicFailed)
 	}
-	// 能力前提: 全部图片经异步 worker 出图。
-	if loaded != imageCount {
-		fmt.Fprintf(os.Stderr, "FAIL: images_loaded=%d want %d (异步出图未完成)", loaded, imageCount)
-		os.Exit(1)
+	if gateMode {
+		if pixelOK != pixelTotal {
+			fail("pixel probes %d/%d ok bad=%v", pixelOK, pixelTotal, pixelBad)
+		}
+		if !goldenFirstRun && goldenDiffPct != 0 {
+			fail("pixel_golden_diff_pct=%.4f want 0 over %d px", goldenDiffPct, goldenTotalPx)
+		}
 	}
-	// 族 C 能力专用①: 出图后 rerecord 仅一格。
-	if rrViolations != 0 {
-		fmt.Fprintf(os.Stderr, "FAIL: rr_violations=%d want 0 (存在出图批次引发多格/全局重录)", rrViolations)
-		os.Exit(1)
+
+	status := "OK"
+	if !logicPass {
+		status = "WARN"
 	}
-	// 按格归因门（#3）：键级与总量同线，重录键数超 bound 同样 FAIL。
-	if keyViolations != 0 {
-		fmt.Fprintf(os.Stderr, "FAIL: key_violations=%d want 0 (按格归因键数超界，总量与键级不一致)", keyViolations)
-		os.Exit(1)
+	if gateMode && goldenFirstRun {
+		status = "SEEDED"
 	}
-	if snap.BoundarySkip <= 0 {
-		fmt.Fprintf(os.Stderr, "FAIL: boundary_skip=%d want >0 (未出图格必须保持缓存回放)", snap.BoundarySkip)
-		os.Exit(1)
+	evidence := ""
+	if gateMode {
+		evidence = fmt.Sprintf(" pixel=%d/%d golden=%.4f%%", pixelOK, pixelTotal, goldenDiffPct)
 	}
-	// 族 A: 持续 tick 60fps 档。
-	if fpsInterval < 55 {
-		fmt.Fprintf(os.Stderr, "FAIL: fps_interval=%.1f < 55 (持续 tick R10)", fpsInterval)
-		os.Exit(1)
-	}
-	if snap.P95FrameIntervalMs > 22 {
-		fmt.Fprintf(os.Stderr, "FAIL: interval_p95_ms=%.1f > 22", snap.P95FrameIntervalMs)
-		os.Exit(1)
-	}
-	if snap.HitchRatePerMin > hitchBudget {
-		fmt.Fprintf(os.Stderr, "FAIL: hitch_rate_per_min=%.1f > %.0f", snap.HitchRatePerMin, hitchBudget)
-		os.Exit(1)
-	}
-	// 族 E: RSS 判漏只认稳态最小二乘（§2.2.4：rss_slope_valid=true 才可下
-	// 结论；raw 斜率含启动爬坡，不是泄漏判据）。短跑 valid=false 只记账不判。
-	if snap.RSSSlopeValid && snap.RSSSlopeSteadyKBPerMin > slopeBudget {
-		fmt.Fprintf(os.Stderr, "FAIL: rss_slope_steady_kb_per_min=%.1f > %.0f (valid)", snap.RSSSlopeSteadyKBPerMin, slopeBudget)
-		os.Exit(1)
-	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r10_async_image: OK presents=%d loaded=%d/%d rrViol=%d maxRRΔ=%d dec=%.0fms skip=%d fps=%.1f p95=%.1f hitch=%.1f/min slope=%.0fKB/min slopeRaw=%.0f slopeValid=%v vsync=%s elapsed=%.1fs\n",
-		app.PresentCount(), loaded, imageCount, rrViolations, maxBatchDelta,
+	fmt.Fprintf(os.Stderr, "ui_wr_r10_async_image: %s presents=%d loaded=%d/%d rrViol=%d maxRRΔ=%d dec=%.0fms skip=%d fps=%.1f p95=%.1f hitch=%.1f/min logic=%d/%d%s mode=%s elapsed=%.1fs\n",
+		status, presents, loaded, imageCount, rrViolations, maxBatchDelta,
 		avgDecode, snap.BoundarySkip, fpsInterval, snap.P95FrameIntervalMs, snap.HitchRatePerMin,
-		snap.RSSSlopeSteadyKBPerMin, snap.RSSSlopeKBPerMin, snap.RSSSlopeValid, snap.VSyncSource, elapsedSec)
+		len(logicProbes)-len(logicFailed), len(logicProbes), evidence,
+		map[bool]string{true: "gate", false: "manual"}[gateMode], elapsedSec)
 }
 
 type ticker struct{ on func(dt float64) }

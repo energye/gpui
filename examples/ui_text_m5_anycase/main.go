@@ -4,17 +4,20 @@
 // Texts come from testdata/*.txt; main.go never invents corpus.
 //
 //	GPUI_M5_SELFTEST=1 go run ./examples/ui_text_m5_anycase  # headless baseline, no GPU window
-//	RUN_SECONDS=30 go run ./examples/ui_text_m5_anycase      # interactive window
+//	RUN_SECONDS=30 go run ./examples/ui_text_m5_anycase -auto-only   # gate：三证据（内容静态，快照天然确定）
+//	go run ./examples/ui_text_m5_anycase                     # manual：常驻观察
 //
 // Window: 1200x800. Headless probes print one JSON line (see README).
 package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -208,10 +211,17 @@ func main() {
 		selftest()
 		return
 	}
+	autoOnly := flag.Bool("auto-only", false, "gate mode: snapshot + pixel/Golden evidence, exit 1 on fail")
+	flag.Parse()
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if !secsSet {
-		secs = 30
+		if *autoOnly {
+			secs, secsSet = 5, true
+		} else {
+			secs = 30
+		}
 	}
+	gateMode := secsSet
 	wrkit.EnsureUIFace()
 	face := wrkit.FaceAt(16)
 	multi := loadText("multiscript.txt")
@@ -290,12 +300,21 @@ func main() {
 		bodyY += sz + 18
 	}
 
+	// Gate snapshot + Golden base live under testdata/ (committed evidence);
+	// GPUI_M5_SNAP stays available for ad-hoc dumps.
+	snapPath := os.Getenv("GPUI_M5_SNAP")
+	if gateMode {
+		snapPath = filepath.Join("examples", "ui_text_m5_anycase", "testdata", "showcase_text_m5.png")
+		if err := os.MkdirAll(filepath.Dir(snapPath), 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: snap dir:", err)
+			os.Exit(1)
+		}
+	}
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
-		// GPUI_M5_SNAP=path saves a GPU-readback PNG of the final frame.
-		SnapshotPath: os.Getenv("GPUI_M5_SNAP"),
+		RunFor:       time.Duration(secs) * time.Second,
+		WarmUp:       true,
+		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
 			if ev.Type == platform.EventResize && ev.Width > 0 && ev.Height > 0 {
 				shell.Resize(float64(ev.Width), float64(ev.Height))
@@ -331,19 +350,101 @@ func main() {
 
 	elapsedSec := time.Since(t0).Seconds()
 	snap := app.Metrics().Snapshot()
+	presents := app.PresentCount()
+
+	// Pixel + Golden evidence (gate). The window is fully static (no
+	// animation), so probes pin the four zones' ink and the shell panels.
+	bx, by := shell.Body.X, shell.Body.Y
+	bodyBG := [3]float64{0.10, 0.11, 0.13}
+	pixelChecks := []pixelCheck{
+		{desc: "body_bg", x: bx + 600, y: by + 640, want: bodyBG, tol: 0.05, kind: kindBG},
+		{desc: "legend_bg", x: shell.Legend.X + 20, y: shell.Legend.Y + 620, want: [3]float64{0.11, 0.12, 0.15}, tol: 0.05, kind: kindBG},
+		{desc: "top_bg", x: 1000, y: 24, want: [3]float64{0.12, 0.14, 0.18}, tol: 0.05, kind: kindBG},
+	}
+	inkRegions := []inkRegion{
+		{desc: "zone_a_label_ink", x: bx + 12, y: by + 0, w: 260, h: 14, bg: bodyBG, tol: 0.04, minPx: 20},
+		{desc: "zone_a_text_ink", x: bx + 12, y: by + 20, w: 540, h: 170, bg: bodyBG, tol: 0.04, minPx: 200},
+		{desc: "zone_b_label_ink", x: bx + 12, y: by + 196, w: 300, h: 14, bg: bodyBG, tol: 0.04, minPx: 20},
+		{desc: "zone_b_text_ink", x: bx + 12, y: by + 216, w: 540, h: 130, bg: bodyBG, tol: 0.04, minPx: 100},
+		{desc: "zone_c_label_ink", x: bx + 12, y: by + 354, w: 340, h: 14, bg: bodyBG, tol: 0.04, minPx: 20},
+		{desc: "zone_c_text_ink", x: bx + 12, y: by + 372, w: 540, h: 112, bg: bodyBG, tol: 0.04, minPx: 150},
+		{desc: "zone_d_label_ink", x: bx + 12, y: by + 490, w: 260, h: 14, bg: bodyBG, tol: 0.04, minPx: 20},
+		{desc: "zone_d_text_ink", x: bx + 12, y: by + 508, w: 420, h: 140, bg: bodyBG, tol: 0.04, minPx: 150},
+	}
+	var pixelOK, pixelTotal int
+	pixelBad := make([]string, 0, len(pixelChecks)+len(inkRegions))
+	var goldenDiffPct float64
+	var goldenTotalPx int64
+	var goldenFirstRun bool
+	if gateMode {
+		img := loadImage(snapPath)
+		res := make(map[string]bool, len(pixelChecks)+len(inkRegions))
+		runPixelChecks(img, pixelChecks, res)
+		runInkRegions(img, inkRegions, res)
+		for d, ok := range res {
+			if ok {
+				pixelOK++
+			} else {
+				pixelBad = append(pixelBad, d)
+			}
+		}
+		sort.Strings(pixelBad)
+		pixelTotal = len(pixelChecks) + len(inkRegions)
+		goldenDiffPct, goldenTotalPx, goldenFirstRun = evaluateGolden(
+			filepath.Dir(snapPath),
+			[]rect{
+				{x: 0, y: 0, w: winW, h: 48},
+				{x: shell.Legend.X, y: shell.Legend.Y, w: shell.Legend.W, h: shell.Legend.H},
+				{x: shell.Body.X, y: shell.Body.Y, w: shell.Body.W, h: shell.Body.H},
+			})
+	}
+	pixelGoldenValue := any(goldenDiffPct)
+	if !gateMode {
+		pixelGoldenValue = nil
+	}
+
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "text_m5_anycase",
 		Scenario:      "ui_text_m5_anycase",
+		Backend:       win.Backend().String(),
 		Snap:          snap,
-		PresentCount:  app.PresentCount(),
+		PresentCount:  presents,
 		ElapsedSec:    elapsedSec,
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
 		Extra: map[string]any{
-			"first_screen_ms": firstMs,
-			"layout_lines":    lines,
+			"first_screen_ms":        firstMs,
+			"layout_lines":           lines,
+			"evidence_mode":          map[bool]string{true: "gate", false: "manual"}[gateMode],
+			"pixel_evidence":         map[bool]string{true: "gate_snapshot", false: "manual_not_asserted"}[gateMode],
+			"golden_mask":            "header 1200x48 + legend 260x656 + body 904x656",
+			"golden_tolerance_pct":   0,
+			"pixel_probes_ok":        pixelOK,
+			"pixel_probes_total":     pixelTotal,
+			"pixel_bad":              pixelBad,
+			"pixel_golden_diff_pct":  pixelGoldenValue,
+			"pixel_golden_total_px":  goldenTotalPx,
+			"pixel_golden_first_run": goldenFirstRun,
+			"snapshot_png":           snapPath,
 		},
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
+
+	if gateMode {
+		if pixelOK != pixelTotal {
+			fmt.Fprintf(os.Stderr, "FAIL: pixel probes %d/%d ok bad=%v\n", pixelOK, pixelTotal, pixelBad)
+			os.Exit(1)
+		}
+		if !goldenFirstRun && goldenDiffPct != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: pixel_golden_diff_pct=%.4f want 0 over %d px\n", goldenDiffPct, goldenTotalPx)
+			os.Exit(1)
+		}
+	}
+	status := map[bool]string{true: "OK", false: "WARN"}[presents > 0 && snap.PaintCount > 0]
+	if gateMode && goldenFirstRun {
+		status = "SEEDED"
+	}
+	fmt.Fprintf(os.Stderr, "ui_text_m5_anycase: %s presents=%d first=%.1fms lines=%d mode=%s\n",
+		status, presents, firstMs, lines, map[bool]string{true: "gate", false: "manual"}[gateMode])
 }

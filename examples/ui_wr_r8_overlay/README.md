@@ -13,14 +13,26 @@ W4 R8 单能力真窗：浮层（弹窗/菜单/Tooltip 类）开/关时**只脏�
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-RUN_SECONDS=15 go run ./examples/ui_wr_r8_overlay    # 关闭用时长
-RUN_SECONDS=600 go run ./examples/ui_wr_r8_overlay   # 10 分钟泄漏/衰减压测
+RUN_SECONDS=15 go run ./examples/ui_wr_r8_overlay -auto-only                       # gate：open 态
+R8_GATE_STATE=closed RUN_SECONDS=15 go run ./examples/ui_wr_r8_overlay -auto-only  # gate：closed 态
+go run ./examples/ui_wr_r8_overlay                    # manual：循环动画直到关窗
+go run ./examples/ui_wr_r8_overlay -manual-seconds 15
+RUN_SECONDS=600 go run ./examples/ui_wr_r8_overlay -auto-only   # 10 分钟泄漏/衰减压测
 ```
+
+## Evidence（U21 三证据，2026-10-25 补）
+
+两态 gate（`R8_GATE_STATE=open|closed`，照 r12b on/off 两态先例）：
+
+- **open 态**：逻辑 10/10、像素 16/16、Golden 821184px 两连 0.0000%；冻结法 = 相位钉 Steady、hot 前 60 tick 收敛后停脏、1.2s 基线窗后开**固定 kind 0 模态**（面板+按钮+菜单叠层）不再循环——主带脏隔离门（`main_dirty_excess=0`）对着真实开浮层帧照常生效。像素口径：主带原色（屏障内容是 1×1 盒不拉伸，不罩全窗）、面板/按钮/菜单原色。
+- **closed 态**：逻辑 7/7、像素 12/12（含被面板遮住的 grid(3,3)）、Golden 821184px 两连 0.0000%。
+- Golden 基线两份：`testdata/showcase_r8_overlay_{open,closed}_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种；掩码 header+legend+body，HUD 排除，零容差）。
+- manual 档不断言像素（`pixel_evidence=manual_not_asserted`、golden=null）、不写快照；`-manual-seconds` 低于 15s 时「退出时浮层已关」探针自动省略（脚本 Recover 在 10s 后，短跑属时长伪影非回归）。
 
 ## Window / Close duration
 
 - 1200×800 逻辑像素（U15）
-- 关闭用 **15s**；`RUN_SECONDS` 可覆盖但 `<5 → FAIL`（U16）
+- 关闭用 **15s**；`RUN_SECONDS` 可覆盖但 `<15 → FAIL`（§2.5：循环走不完属时长误用）
 
 ## Visible effect
 

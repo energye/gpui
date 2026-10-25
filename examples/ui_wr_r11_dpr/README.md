@@ -4,14 +4,24 @@
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-RUN_SECONDS=15 go run ./examples/ui_wr_r11_dpr
+RUN_SECONDS=15 go run ./examples/ui_wr_r11_dpr -auto-only   # gate：三证据
+go run ./examples/ui_wr_r11_dpr                              # manual：动画直到关窗
+go run ./examples/ui_wr_r11_dpr -manual-seconds 15
 ```
+
+## Evidence（U21 三证据，2026-10-25 补）
+
+gate（`-auto-only`，15s）：**逻辑 11/11 · 像素 21/21（16 点 + 5 墨区）· Golden 821184px 两连 0.0000%**；波计数 `wave1=1 wave2=11 steadyRR=0` 两跑一致。
+
+- 冻结法：两波脚本原样保留（~3s 尺寸变更、~6s 全量失效，时间驱动确定性），只把 HOT 色相收敛（60 tick 到 0.5 后钉住）；快照断言**终态**（areaA 已 250×170、各区回 skip）。
+- 像素口径：四区背景/色格/嵌套叶/图（绿 51,191,89）/HOT 终色 (0.90,0.45,0.55) 全为原色（边界缓存 Replay 干净）；areaC 与 areaD 摆位有重叠带，探针避开。
+- manual 档不断言像素、不写快照；短于 15s 时 wave 探针自动省略（脚本 ~6s/8.5s 事件未走完属时长伪影）。
+- Golden 基线：`testdata/showcase_r11_dpr_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种；掩码 header+legend+body，HUD 排除，零容差）。
 
 ## Window / Close duration
 
 - 窗口：**1200×800**（`winW/winH`，JSON `client_px=1200x800`）
-- 关闭用时长：**15s**（§2.5；观察窗 30s）
-- `RUN_SECONDS<5` → `FAIL: RUN_SECONDS must be >= 5 ... (U16)` + exit 1
+- 关闭用时长：**15s**（§2.5；观察窗 30s）；gate `RUN_SECONDS<15 → FAIL`
 - GPU 真窗（X11 + wgpu）；无 GPU 环境 → `FAIL: window open (needs_gpu_window)` + exit 1
 
 ## Visible effect

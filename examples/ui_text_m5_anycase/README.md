@@ -51,3 +51,11 @@
 - F7（细线/光标）：本窗无光标，不适用。
 - 诚实项：B 区 emoji 字形本身无墨（wrkit 字体链无 emoji 字体，显示为空白/方框）——`IsColor` 标记与旁路由单测覆盖（DejaVu+NotoColorEmoji），端到端彩色像素待补彩色字体的链。
 - CBDT 实测（2026-09-04，真机，不可用结论）：曾把 NotoColorEmoji（CBDT 位图）接进 B 区链——① 先崩：`DrawWithEmoji` 对 `face.Source()==nil`（MultiFace 复合脸）无 guard 空指针崩溃，已修（`render/text/draw_emoji.go` 加空回退，范式同 `tab.go`；回归 `render/m5_emoji_draw_test.go` 守卫摘掉即红、装回即绿）；② 修完仍不可用：CBDT 进 GPU 字形布局整段回退（`cpu_fallback_ops` 0→19 万、`last_cpu_fallback=text:glyphmask-layout`、hitch 0→4/min、CPU 42%→127%、光栅 4→33ms），且字形依旧空白。已回退（B 区用回公共链），回退跑重回全绿（fps 58.8/p95 17.4/hitch 0/零回退）。结论：端到端彩色像素需独立颜色管线，CPU 逐帧兜底此路不通。
+
+
+## Evidence（U21 三证据，2026-10-25 补）
+
+gate（`-auto-only`，5s，内容静态无动画、快照天然确定）：**像素 11/11（3 背景 + 8 墨区）· Golden 821184px 两连 0.0000%**。
+
+- 像素口径：A 多脚本 / B emoji / C 富文本 run / D 多DPR 四区标题与正文墨区（minPx 100–200）+ shell 三背景。
+- Golden 基线：`testdata/showcase_text_m5_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种；掩码 header+legend+body，HUD 排除，零容差）。`golden/` 目录下 2026-09 的 `baseline_igpu/m5.png` 是 M5 文本线的历史产物，保留作历史参照，U21 口径以 testdata 基线为准。

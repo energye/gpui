@@ -1,9 +1,18 @@
 // Command ui_wr_r7b_scroll_reuse is the W3 R7b real-window: 滚动少重录 cell.
 //
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-//	RUN_SECONDS=60 go run ./examples/ui_wr_r7b_scroll_reuse
+//	RUN_SECONDS=60 go run ./examples/ui_wr_r7b_scroll_reuse -auto-only
+//	go run ./examples/ui_wr_r7b_scroll_reuse                 # manual: scroll until close
+//	go run ./examples/ui_wr_r7b_scroll_reuse -manual-seconds 15
 //
 // Window: 1200x800. RUN_SECONDS>=60 (U16, §2.5: 关闭 60s/观察 120). GPU window required.
+//
+// Evidence (U21): logic probes, pixel probes on the GPU snapshot, and a
+// bitwise Golden over header + legend + body. The scroll position integrates
+// dt (not bit-stable), so gate mode freezes the offset at a fixed y for the
+// final 3s; the visible rows are then a pure function of the rowHeight table
+// and every probe want is derived from the construction constants. Manual
+// mode keeps scrolling and does not assert pixels.
 //
 // Gates (§2 R7b 行 + §2.2 全族):
 //   - scroll_rerecord 有上限: 累计 ≤ 3×item_count（每 cell 进入窗口只录一次）
@@ -18,10 +27,13 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
 	"os"
+	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -38,10 +50,12 @@ import (
 const (
 	winW, winH   = 1200, 800
 	closeSeconds = 60
+	freezeY      = 1234.0 // gate 冻结的确定性滚动偏移（< maxY，行内容纯由 rowHeight 推出）
+	freezeTail   = 3.0    // 末段冻结秒数
 	itemCount    = 1200
 	vpW          = 620.0
 	rightW       = 250.0
-	cacheRows    = 2.0 // CacheExtent = 2×fallback 行高
+	cacheRows    = 2.0  // CacheExtent = 2×fallback 行高
 	minRow       = 44.0 // 最小行高（变高行的下界，用于进入行数上界）
 	hitchBudget  = 5.0
 	slopeBudget  = 30000.0
@@ -103,11 +117,24 @@ func buildCell(i int, w float64, chip *render.ImageBuf) rendering.RenderObject {
 }
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: freeze scroll at the end, snapshot + pixel/Golden evidence, exit 1 on fail")
+	manualSeconds := flag.Float64("manual-seconds", 0, "manual mode: auto-close after N seconds (0 = stay until window close)")
+	flag.Parse()
+
 	secs, secsSet := wrkit.RunSecondsOpt()
-	if !secsSet {
+	if secsSet {
+		wrkit.RequireMinRun(secs, "R7b")
+	} else if *autoOnly {
 		secs = closeSeconds
 	}
-	wrkit.RequireMinRun(secs, "R7b")
+	gateMode := secsSet
+	if !gateMode {
+		secs = 0 // manual: run until close (or -manual-seconds)
+	}
+	if gateMode && secs < closeSeconds {
+		fmt.Fprintf(os.Stderr, "FAIL: RUN_SECONDS must be >= %d to close R7b (§2.5 close duration)\n", closeSeconds)
+		os.Exit(1)
+	}
 	wrkit.EnsureUIFace()
 
 	var proc scheduler.ProcessTracker
@@ -166,10 +193,32 @@ func main() {
 		right.LabelAt(fmt.Sprintf("static label %02d — 密集文字区", i), 11, 12, 310+float64(i)*22, 0.70, 0.78, 0.88)
 	}
 
+	// Gate snapshot + Golden base live under testdata/ (committed evidence).
+	snapDir := filepath.Join("examples", "ui_wr_r7b_scroll_reuse", "testdata")
+	if err := os.MkdirAll(snapDir, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, "FAIL: snap dir:", err)
+		os.Exit(1)
+	}
+	snapPath := filepath.Join(snapDir, "showcase_r7b_scroll_reuse.png")
+	// Manual mode scrolls forever, so its frame is not evidence. Keep the
+	// gate snapshot path empty there: otherwise a later manual run would
+	// overwrite the committed gate PNG that the Golden baseline was seeded from.
+	snapshotPath := snapPath
+	if !gateMode {
+		snapshotPath = ""
+	}
+	runFor := time.Duration(0)
+	if gateMode {
+		runFor = time.Duration(secs) * time.Second
+	} else if *manualSeconds > 0 {
+		runFor = time.Duration(*manualSeconds * float64(time.Second))
+	}
+
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:       runFor,
+		WarmUp:       true,
+		SnapshotPath: snapshotPath,
 		OnEvent: func(ev platform.Event) {
 			if ev.Type == platform.EventClose {
 				fmt.Fprintf(os.Stderr, "ui_wr_r7b_scroll_reuse: close (%s)\n", win.Backend())
@@ -201,24 +250,32 @@ func main() {
 		}
 		var phase string
 		var speed float64
-		switch {
-		case ct < 3:
-			phase, speed = wrkit.PhaseSteady, 160
-		case ct < 6:
-			phase, speed = wrkit.PhaseSpike, 2600
-		default:
-			phase = wrkit.PhaseRecover
-			speed = 2600 * (1 - (ct-6)/3)
-			if speed < 40 {
-				speed = 40
+		freezeNow := gateMode && elapsed >= float64(secs)-freezeTail
+		if freezeNow {
+			// Gate freeze: pin the offset at a fixed y so the visible rows are
+			// a pure function of the rowHeight table (bit-stable snapshot).
+			phase, speed = wrkit.PhaseRecover, 0
+			y = freezeY
+		} else {
+			switch {
+			case ct < 3:
+				phase, speed = wrkit.PhaseSteady, 160
+			case ct < 6:
+				phase, speed = wrkit.PhaseSpike, 2600
+			default:
+				phase = wrkit.PhaseRecover
+				speed = 2600 * (1 - (ct-6)/3)
+				if speed < 40 {
+					speed = 40
+				}
 			}
-		}
-		y += dir * speed * dt
-		if y >= maxY {
-			y, dir = maxY, -1
-		}
-		if y <= 0 {
-			y, dir = 0, 1
+			y += dir * speed * dt
+			if y >= maxY {
+				y, dir = maxY, -1
+			}
+			if y <= 0 {
+				y, dir = 0, 1
+			}
 		}
 		vp.SetScrollOffset(0, y)
 
@@ -246,7 +303,7 @@ func main() {
 		}
 		prevY, prevVpH = y, vpH
 		cacheBoth := 2 * cacheRows * 60 / minRow // cache 两侧以最小行高计
-		bound := int64(dy/minRow)+int64(dvh/minRow)+int64(cacheBoth)+2
+		bound := int64(dy/minRow) + int64(dvh/minRow) + int64(cacheBoth) + 2
 		if bound > maxTickBound {
 			maxTickBound = bound
 		}
@@ -286,17 +343,167 @@ func main() {
 
 	elapsedSec := time.Since(t0).Seconds()
 	snap := app.Metrics().Snapshot()
+	presents := app.PresentCount()
 	fpsInterval := 0.0
 	if snap.AvgFrameIntervalMs > 1e-6 {
 		fpsInterval = 1000.0 / snap.AvgFrameIntervalMs
 	}
 	rrCap := int64(3 * itemCount)
 
+	// Pixel probes: derived from the construction constants at the frozen
+	// offset. rowTop(i) is the cumulative row offset; the visible rows at
+	// freezeY are a pure function of the rowHeight table.
+	rowTop := func(i int) float64 {
+		t := 0.0
+		for k := 0; k < i; k++ {
+			t += rowHeight(k)
+		}
+		return t
+	}
+	bx, by := shell.Body.X, shell.Body.Y
+	pixelChecks := []pixelCheck{
+		{desc: "track_bg", x: bx + listW - 9, y: by + 400, want: [3]float64{0.05, 0.06, 0.08}, tol: 0.05, kind: kindBG},
+		{desc: "gap_body_bg", x: bx + listW + 8, y: by + 300, want: [3]float64{0.10, 0.11, 0.13}, tol: 0.05, kind: kindBG},
+		{desc: "right_bg", x: bx + listW + 16 + 200, y: by + 560, want: [3]float64{0.11, 0.12, 0.15}, tol: 0.05, kind: kindBG},
+		{desc: "right_cell_00", x: bx + listW + 16 + 38, y: by + 90, want: [3]float64{0.14, 0.45, 0.30}, tol: 0.06},
+		{desc: "right_cell_33", x: bx + listW + 16 + 12 + 58*3 + 26, y: by + 64 + 58*3 + 26, want: [3]float64{0.14 + 0.08*3, 0.45 + 0.06*3, 0.30 + 0.08*((3+3)%3)}, tol: 0.06},
+		{desc: "legend_bg", x: shell.Legend.X + 20, y: shell.Legend.Y + 620, want: [3]float64{0.11, 0.12, 0.15}, tol: 0.05, kind: kindBG},
+		{desc: "top_bg", x: 1000, y: 24, want: [3]float64{0.12, 0.14, 0.18}, tol: 0.05, kind: kindBG},
+	}
+	inkRegions := []inkRegion{
+		{desc: "right_title_ink", x: bx + listW + 16 + 12, y: by + 10, w: 210, h: 16, bg: [3]float64{0.11, 0.12, 0.15}, tol: 0.04, minPx: 20},
+		{desc: "range_label_ink", x: bx + listW + 16 + 12, y: by + 34, w: 200, h: 16, bg: [3]float64{0.11, 0.12, 0.15}, tol: 0.04, minPx: 20},
+		{desc: "static_labels_ink", x: bx + listW + 16 + 12, y: by + 310, w: 230, h: 40, bg: [3]float64{0.11, 0.12, 0.15}, tol: 0.04, minPx: 30},
+	}
+	if gateMode {
+		// Scrollbar thumb: Align(0.5, y/maxY) in the 10-wide track.
+		frac := 0.0
+		if maxY > 0 {
+			frac = freezeY / maxY
+		}
+		thumbY := frac*(bodyH-56) + 28
+		pixelChecks = append(pixelChecks, pixelCheck{desc: "thumb", x: bx + listW - 14 + 5, y: by + thumbY + 3, want: [3]float64{0.45, 0.75, 0.95}, tol: 0.06})
+		// Visible rows at freezeY: probe one row of each kind (text / color /
+		// image). The list viewport sits at body (0,0).
+		kindProbe := func(wantKind int) *probeRow {
+			for i := 0; i < itemCount; i++ {
+				top := rowTop(i)
+				if top+rowHeight(i) <= freezeY || top >= freezeY+bodyH {
+					continue
+				}
+				if i%4 == wantKind {
+					return &probeRow{idx: i, top: top}
+				}
+			}
+			return nil
+		}
+		if r := kindProbe(0); r != nil {
+			inkRegions = append(inkRegions, inkRegion{desc: fmt.Sprintf("row%04d_text_ink", r.idx), x: bx + 14, y: by + (r.top - freezeY) + 12, w: 240, h: 16, bg: [3]float64{0.10, 0.11, 0.13}, tol: 0.04, minPx: 20})
+		}
+		if r := kindProbe(1); r != nil {
+			i := r.idx
+			baseWant := [3]float64{0.16 + 0.05*float64(i%7), 0.35 + 0.04*float64(i%5), 0.55}
+			h := rowHeight(i)
+			pixelChecks = append(pixelChecks, pixelCheck{desc: fmt.Sprintf("row%04d_base", i), x: bx + 14 + (listW-28)/2, y: by + (r.top - freezeY) + 10 + (h-20)/2, want: baseWant, tol: 0.06})
+		}
+		if r := kindProbe(3); r != nil {
+			// chip checkerboard light square: ((x+y)/10)%2==0 with cell-local
+			// image offset (14,10); (15,5) lands on a light square.
+			pixelChecks = append(pixelChecks, pixelCheck{desc: fmt.Sprintf("row%04d_chip", r.idx), x: bx + 14 + 15, y: by + (r.top - freezeY) + 10 + 5, want: [3]float64{30.0 / 255, 160.0 / 255, 200.0 / 255}, tol: 0.06})
+		}
+	}
+
+	// Pixel + Golden evidence only makes sense for the frozen gate phase.
+	// Manual mode scrolls forever; its evidence is human observation.
+	var pixelOK int
+	pixelBad := make([]string, 0, len(pixelChecks)+len(inkRegions))
+	var goldenDiffPct float64
+	var goldenTotalPx int64
+	var goldenFirstRun bool
+	pixelTotal := 0
+	if gateMode {
+		img := loadImage(snapPath)
+		pixelResult := make(map[string]bool, len(pixelChecks)+len(inkRegions))
+		runPixelChecks(img, pixelChecks, pixelResult)
+		runInkRegions(img, inkRegions, pixelResult)
+		for desc, ok := range pixelResult {
+			if ok {
+				pixelOK++
+			} else {
+				pixelBad = append(pixelBad, desc)
+			}
+		}
+		sort.Strings(pixelBad)
+		pixelTotal = len(pixelChecks) + len(inkRegions)
+
+		goldenRects := []rect{
+			{x: 0, y: 0, w: winW, h: 48},
+			{x: shell.Legend.X, y: shell.Legend.Y, w: shell.Legend.W, h: shell.Legend.H},
+			{x: shell.Body.X, y: shell.Body.Y, w: shell.Body.W, h: shell.Body.H},
+		}
+		goldenDiffPct, goldenTotalPx, goldenFirstRun = evaluateGolden(snapDir, goldenRects)
+	}
+	pixelGoldenValue := any(goldenDiffPct)
+	if !gateMode {
+		pixelGoldenValue = nil
+	}
+
+	logicProbes := []string{
+		"presents_positive",
+		"fps_interval_ge_55",
+		"p95_le_22",
+		"hitch_le_budget",
+		"vsync_source_present",
+		"scroll_rerecord_le_cap",
+		"rr_violations_zero",
+		"boundary_skip_positive",
+		"bind_ratio_ok",
+	}
+	// The RSS slope budget is a steady-state judgement (§2.2.4): a short
+	// manual run is startup-ramp dominated and cannot judge it.
+	slopeJudgeable := gateMode || *manualSeconds == 0 || *manualSeconds >= float64(closeSeconds)
+	if slopeJudgeable {
+		logicProbes = append(logicProbes, "rss_slope_le_budget")
+	}
+	logicFailed := make([]string, 0, len(logicProbes))
+	if presents < 1 {
+		logicFailed = append(logicFailed, "presents_positive")
+	}
+	if fpsInterval < 55 {
+		logicFailed = append(logicFailed, "fps_interval_ge_55")
+	}
+	if snap.P95FrameIntervalMs > 22 {
+		logicFailed = append(logicFailed, "p95_le_22")
+	}
+	if snap.HitchRatePerMin > hitchBudget {
+		logicFailed = append(logicFailed, "hitch_le_budget")
+	}
+	if slopeJudgeable && snap.RSSSlopeKBPerMin > slopeBudget {
+		logicFailed = append(logicFailed, "rss_slope_le_budget")
+	}
+	if snap.VSyncSource == "" {
+		logicFailed = append(logicFailed, "vsync_source_present")
+	}
+	if snap.ScrollRerecord > rrCap {
+		logicFailed = append(logicFailed, "scroll_rerecord_le_cap")
+	}
+	if rrViolations != 0 {
+		logicFailed = append(logicFailed, "rr_violations_zero")
+	}
+	if snap.BoundarySkip <= 0 {
+		logicFailed = append(logicFailed, "boundary_skip_positive")
+	}
+	if !(snap.ItemCount >= itemCount && snap.BindCount > 0 && snap.BindCount*10 <= snap.ItemCount) {
+		logicFailed = append(logicFailed, "bind_ratio_ok")
+	}
+	logicPass := len(logicFailed) == 0
+
 	report := wrgate.BuildReport(wrgate.BuildInput{
 		AbilityID:     "R7b",
 		Scenario:      "ui_wr_r7b_scroll_reuse",
+		Backend:       win.Backend().String(),
 		Snap:          snap,
-		PresentCount:  app.PresentCount(),
+		PresentCount:  presents,
 		ElapsedSec:    elapsedSec,
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
@@ -313,56 +520,75 @@ func main() {
 			"boundary_rerecord":           snap.BoundaryRerecord,
 			"hitch_budget_per_min":        hitchBudget,
 			"rss_slope_budget_kb_per_min": slopeBudget,
+			"freeze_y":                    freezeY,
+			"freeze_tail_sec":             freezeTail,
+			"phase_mode":                  map[bool]string{true: "scroll-then-frozen", false: "scrolling"}[gateMode],
+			"evidence_mode":               map[bool]string{true: "gate", false: "manual"}[gateMode],
+			"pixel_evidence":              map[bool]string{true: "gate_snapshot", false: "manual_not_asserted"}[gateMode],
+			"golden_mask":                 "header 1200x48 + legend 260x656 + body 904x656",
+			"golden_tolerance_pct":        0,
+			"logic_probes_ok":             len(logicProbes) - len(logicFailed),
+			"logic_probes_total":          len(logicProbes),
+			"logic_bad":                   logicFailed,
+			"pixel_probes_ok":             pixelOK,
+			"pixel_probes_total":          pixelTotal,
+			"pixel_bad":                   pixelBad,
+			"pixel_golden_diff_pct":       pixelGoldenValue,
+			"pixel_golden_total_px":       goldenTotalPx,
+			"pixel_golden_first_run":      goldenFirstRun,
+			"snapshot_png":                snapshotPath,
+			"snapshot_note":               map[bool]string{true: "gate snapshot (GPU readback) used for pixel/Golden evidence", false: "manual mode does not write the gate snapshot; committed evidence is not overwritten"}[gateMode],
+			"impl_correctness":            "retained cells replay from cache; only rows entering viewport(+cache) record once; per-tick Δrr stays under the entering-row bound",
+			"impl_dirty":                  "gate: 9s scroll cycles for ~57s then offset frozen at y=1234 for the final 3s; manual: cycles forever",
+			"impl_cache":                  "VariableVirtualList CacheExtent=2 rows; boundary_skip grows while retained cells replay",
+			"impl_edge":                   "1200 variable-height rows (44/92/60/76), 4 cell kinds (text/color+accent/text+chip/image+label), right static panel with 16 boundary cells + 8 labels, Align-driven thumb",
+			"impl_fail":                   "rr_violations>0 (retained cells re-recorded), scroll_rerecord>3×items, fps<55/p95>22, hitch>5/min, slope>30000, pixel/golden mismatch → FAIL",
+			"impl_visible":                "HUD rr/Δ/bound + skip/bind; rows scroll then hold; range label settles at the frozen range; gate pixel/Golden evidence",
 		},
 	})
 	raw, _ := json.Marshal(report)
 	fmt.Println(string(raw))
 
-	// ---- Gates（§2 R7b 行 + §2.2 全族；门禁是硬的不许放）----
-	if app.PresentCount() < 1 {
-		fmt.Fprintln(os.Stderr, "FAIL: no presents")
-		os.Exit(1)
+	fail := func(format string, args ...any) {
+		fmt.Fprintf(os.Stderr, "FAIL: "+format+"\n", args...)
+		if gateMode {
+			os.Exit(1)
+		}
 	}
-	if snap.VSyncSource == "" {
-		fmt.Fprintln(os.Stderr, "FAIL: vsync_source missing")
-		os.Exit(1)
+	if !logicPass {
+		fail("logic probes %d/%d bad=%v", len(logicProbes)-len(logicFailed), len(logicProbes), logicFailed)
 	}
-	// 族 C 能力专用①: scroll_rerecord 累计上限。
-	if snap.ScrollRerecord > rrCap {
-		fmt.Fprintf(os.Stderr, "FAIL: scroll_rerecord=%d > cap=%d (=3×item_count)", snap.ScrollRerecord, rrCap)
-		os.Exit(1)
+	if gateMode {
+		if pixelOK != pixelTotal {
+			fail("pixel probes %d/%d ok bad=%v", pixelOK, pixelTotal, pixelBad)
+		}
+		if !goldenFirstRun && goldenDiffPct != 0 {
+			fail("pixel_golden_diff_pct=%.4f want 0 over %d px", goldenDiffPct, goldenTotalPx)
+		}
 	}
-	// 族 C 能力专用②: 静 cell 保持的结构证明——逐 tick 增量不超进入上界。
-	if rrViolations != 0 {
-		fmt.Fprintf(os.Stderr, "FAIL: rr_violations=%d want 0 (存在 tick 重录数超过新进入行数上界 — 静 cell 未保持)", rrViolations)
-		os.Exit(1)
+
+	status := "OK"
+	if !logicPass {
+		status = "WARN"
 	}
-	if snap.BoundarySkip <= 0 {
-		fmt.Fprintf(os.Stderr, "FAIL: boundary_skip=%d want >0 (保留 cell 必须走缓存回放)", snap.BoundarySkip)
-		os.Exit(1)
+	if gateMode && goldenFirstRun {
+		status = "SEEDED"
 	}
-	// 族 A: 滚动/持续 tick 60fps 档。
-	if fpsInterval < 55 {
-		fmt.Fprintf(os.Stderr, "FAIL: fps_interval=%.1f < 55 (持续 tick R7b)", fpsInterval)
-		os.Exit(1)
+	evidence := ""
+	if gateMode {
+		evidence = fmt.Sprintf(" pixel=%d/%d golden=%.4f%%", pixelOK, pixelTotal, goldenDiffPct)
 	}
-	if snap.P95FrameIntervalMs > 22 {
-		fmt.Fprintf(os.Stderr, "FAIL: interval_p95_ms=%.1f > 22", snap.P95FrameIntervalMs)
-		os.Exit(1)
-	}
-	if snap.HitchRatePerMin > hitchBudget {
-		fmt.Fprintf(os.Stderr, "FAIL: hitch_rate_per_min=%.1f > %.0f", snap.HitchRatePerMin, hitchBudget)
-		os.Exit(1)
-	}
-	// 族 E: RSS 斜率预算（稳态语义）。
-	if snap.RSSSlopeKBPerMin > slopeBudget {
-		fmt.Fprintf(os.Stderr, "FAIL: rss_slope_kb_per_min=%.1f > %.0f", snap.RSSSlopeKBPerMin, slopeBudget)
-		os.Exit(1)
-	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r7b_scroll_reuse: OK presents=%d rr=%d/%d viol=%d maxTick=%d/%d skip=%d fps=%.1f p95=%.1f hitch=%.1f/min slope=%.0fKB/min vsync=%s elapsed=%.1fs\n",
-		app.PresentCount(), snap.ScrollRerecord, rrCap, rrViolations, maxTickRR, maxTickBound,
-		snap.BoundarySkip, fpsInterval, snap.P95FrameIntervalMs, snap.HitchRatePerMin,
-		snap.RSSSlopeKBPerMin, snap.VSyncSource, elapsedSec)
+	fmt.Fprintf(os.Stderr, "ui_wr_r7b_scroll_reuse: %s presents=%d rr=%d/%d viol=%d maxTick=%d/%d skip=%d fps=%.1f p95=%.1f hitch=%.1f/min slope=%.0fKB/min logic=%d/%d%s mode=%s elapsed=%.1fs\n",
+		status, presents, snap.ScrollRerecord, rrCap, rrViolations, maxTickRR, maxTickBound,
+		snap.BoundarySkip, fpsInterval, snap.P95FrameIntervalMs, snap.HitchRatePerMin, snap.RSSSlopeKBPerMin,
+		len(logicProbes)-len(logicFailed), len(logicProbes), evidence,
+		map[bool]string{true: "gate", false: "manual"}[gateMode], elapsedSec)
+}
+
+// probeRow names a visible row at the frozen offset (index + list top).
+type probeRow struct {
+	idx int
+	top float64
 }
 
 type ticker struct{ on func(dt float64) }

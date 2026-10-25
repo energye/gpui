@@ -7,6 +7,15 @@ export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 RUN_SECONDS=60 go run ./examples/ui_wr_r7b_scroll_reuse
 ```
 
+## Evidence（U21 三证据，2026-10-25 补）
+
+gate（`-auto-only`，60s）：**逻辑 10/10 · 像素 14/14 · Golden 821184px 两连 0.0000%**；`rr=1096/3600 viol=0`、fps≈59.9、p95≈20ms、hitch=1/min、slope≈19–20MB/min 两跑一致。
+
+- 冻结法：滚动偏移按 dt 积分不逐位确定，gate 在**末 3s 把偏移钉死 y=1234**；可见行变成 rowHeight 表的纯函数，探针 want 全部从构造常量推导（i%4 各行型：文本墨区 / 色带基色 / 图像行棋盘点 (30,160,200)；右栏 4×4 静格；thumb 按 Align(0.5, y/maxY) 计算）。
+- 逐 tick 结构门禁（Δrr ≤ 新进入行数上界）与累计上限在冻结前照常跑满 57s 滚动。
+- manual 档不断言像素、不写快照；RSS 斜率探针只在 gate 或 ≥60s 档判定（短跑启动爬坡不作泄漏结论，§2.2.4）。
+- Golden 基线：`testdata/showcase_r7b_scroll_reuse_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种；掩码 header+legend+body，HUD 排除，零容差）。
+
 ## Window / Close duration
 
 - 窗口 **1200×800**（U15）

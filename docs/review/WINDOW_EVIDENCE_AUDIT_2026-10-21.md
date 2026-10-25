@@ -68,32 +68,32 @@
 
 | 目录 | JSON | 抓屏 | 可见内容/缺口 |
 |---|---:|---:|---|
-| `examples/ui_l1_render_matrix` | — | — | M1–M5 多轴渲染烟囱；是可见画面 smoke，但优先级低于 render_base/wr 主能力。 |
+| `examples/ui_l1_render_matrix` | — | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）：M1–M5 多轴渲染烟囱；顺带暴露 VirtualList 行溢出视口不裁剪的缺陷（已登记）。 |
 | `examples/ui_render_base_cliplayer` | ✅ | — | **已关闭 ✅v2**：逻辑 6/6、像素 9/9、整窗 Golden 403200px 两连 0.0000%（5s gate）；见 §6。 |
 | `examples/ui_render_base_geometry` | ✅ | — | **已关闭 ✅v2**：逻辑 6/6、像素 9/9、整窗 Golden 409200px 两连 0.0000%（5s gate）；顶部无 face 标签不可见，不声称已断言；见 §6。 |
 | `examples/ui_render_base_image` | ✅ | — | **已关闭 ✅v2**：逻辑 8/8、像素 8/8、整窗 Golden 499200px 两连 0.0000%（5s gate）；异步 decode 保留，不设 p95 硬门禁；见 §6。 |
 | `examples/ui_render_base_text` | ✅ | — | **已关闭 ✅v2**：逻辑 5/5、像素 5/5、整窗 Golden 576000px 两连 0.0000%（5s gate）；见 §6。 |
 | `examples/ui_render_graphics/basic` | ✅ | — | **已关闭 ✅v2**：逻辑 5/5、像素 9/9、shell 掩码 Golden 821184px 两连 0.0000%（5s gate）；静态窗不设 FPS 门禁；见 §6。 |
 | `examples/ui_render_graphics/vector` | ✅ | — | **已关闭 ✅v2**：逻辑 5/5、像素 8/8、shell 掩码 Golden 821184px 两连 0.0000%（5s gate）；静态窗不设 FPS 门禁；见 §6。 |
-| `examples/ui_text_m5_anycase` | ✅ | — | 多脚本/emoji/组合字符/富文本 run/多 DPR 的文本 close-out 窗。 |
+| `examples/ui_text_m5_anycase` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；多脚本/emoji/组合字符/富文本 run/多 DPR 的文本 close-out 窗。 |
 | `examples/ui_wr_c0_smoke` | ✅ | — | **已关闭 ✅v2**：pre/post 两档逻辑 15/15、像素 16/16 & 17/17、Golden 821184px 两档各两连 0.0000%（5s gate）；pre 冻结 R0+R12+R16 集成态，post 保持恢复态；组合窗不代替单窗；见 §6.4。 |
-| `examples/ui_wr_c1_boundary_nest` | ✅ | — | W1 C1 组合窗（嵌套 boundary）。 |
-| `examples/ui_wr_c3_list_scroll` | ✅ | — | W3 C3 组合窗（列表滚动）；需确定性冻结帧。 |
-| `examples/ui_wr_ime_r1_editor` | ✅ | — | IME R1 Editor 四元组；可见编辑器内容。 |
+| `examples/ui_wr_c1_boundary_nest` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；W1 C1 组合窗（嵌套 boundary）。 |
+| `examples/ui_wr_c3_list_scroll` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；W3 C3 组合窗（列表滚动）；需确定性冻结帧。 |
+| `examples/ui_wr_ime_r1_editor` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；IME R1 Editor 四元组；可见编辑器内容。 |
 | `examples/ui_wr_r0_fullpaint` | ✅ | — | **已关闭 ✅v2**：逻辑 11/11、像素 14/14、Golden 821184px 两连 0.0000%（5s gate）；gate 冻结 Steady，manual 保留三相位；见 §6.2。 |
-| `examples/ui_wr_r10_async_image` | ✅ | — | R10 图片异步→局部脏。 |
-| `examples/ui_wr_r11_dpr` | ✅ | — | R11 DPR / size cache。 |
-| `examples/ui_wr_r12b_debug_repaint` | ✅ | — | R12b debug repaint 可视化；debug overlay 本身可像素断言。 |
-| `examples/ui_wr_r13_hit` | ✅ | — | R13 命中测试 ≡ 绘制身份；命中是行为，但「≡ 绘制」需要像素身份证据。 |
+| `examples/ui_wr_r10_async_image` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；R10 图片异步→局部脏。 |
+| `examples/ui_wr_r11_dpr` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；R11 DPR / size cache。 |
+| `examples/ui_wr_r12b_debug_repaint` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；R12b debug repaint 可视化；debug overlay 本身可像素断言。 |
+| `examples/ui_wr_r13_hit` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；R13 命中测试 ≡ 绘制身份；命中是行为，但「≡ 绘制」需要像素身份证据。 |
 | `examples/ui_wr_r16_warmup` | ✅ | — | **已关闭 ✅v2**：pre/post 两档逻辑 13/13、像素 14/14 & 15/15、Golden 821184px 两档各两连 0.0000%（5s gate）；pre 冻结首帧内容，post 保持恢复态；见 §6.3。 |
 | `examples/ui_wr_r18_savelayer` | ✅ | ✅ | R18 SaveLayer + budget；**已返工 ✅v2**：像素 10/10（A 组 0.55 组透明、B 组裸色+红框、C 组缺位）、Golden 821184px 0.0000%×2；见 §6。 |
 | `examples/ui_wr_r2_paint` | ✅ | — | R2 局部 NeedsPaint 隔离；**已返工 ✅v2**：像素 13/13、Golden 821184px 0.0000%×2、gate 相位冻结；见 §6。 |
-| `examples/ui_wr_r3_boundary` | ✅ | — | R3 嵌套 RepaintBoundary cache。 |
-| `examples/ui_wr_r3b_compbits` | ✅ | — | R3b compositing bits / boundary discovery。 |
+| `examples/ui_wr_r3_boundary` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；R3 嵌套 RepaintBoundary cache。 |
+| `examples/ui_wr_r3b_compbits` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；R3b compositing bits / boundary discovery。 |
 | `examples/ui_wr_r5_picture` | ✅ | — | R5 Picture record/replay；**已返工 ✅v2**：旧 `direct_replay_eq:true` 硬编码换实测 pairs 5/5 + 像素 15/15 + Golden 821184px 0.0000%×2；见 §6。 |
-| `examples/ui_wr_r7b_scroll_reuse` | ✅ | — | R7b 滚动少重录 cell；需确定性冻结帧。 |
-| `examples/ui_wr_r8_overlay` | ✅ | — | R8 overlay 独立脏带；浮层开/关两态像素。 |
-| `examples/ui_wr_r9_text_cache` | ✅ | — | R9 文本 measure cache；缓存命中/失效后的像素一致。 |
+| `examples/ui_wr_r7b_scroll_reuse` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；R7b 滚动少重录 cell；需确定性冻结帧。 |
+| `examples/ui_wr_r8_overlay` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；R8 overlay 独立脏带；浮层开/关两态像素。 |
+| `examples/ui_wr_r9_text_cache` | ✅ | — | **已关闭 ✅v2**（2026-10-25，见 §6.4）；R9 文本 measure cache；缓存命中/失效后的像素一致。 |
 
 ## 4. 18 扇「只有像素、没有 Golden」分档
 
@@ -175,6 +175,7 @@
 - 2026-10-22 追加 R0 后：**双证 105 / 仅像素 18 / neither 32**（P1 余 16）。
 - 2026-10-22 追加 R16 后：**双证 106 / 仅像素 18 / neither 31**（P1 余 15）。
 - 2026-10-22 追加 C0 后：**双证 107 / 仅像素 18 / neither 30**（P1 余 14）。
+- 2026-10-25 P1 十四扇全关后：**双证 121 / 仅像素 18 / neither 16**（P1 余 0；U21 P1 档清零，§4 的 15 扇「仅像素」与 E1/E2 豁免档另列）。
 - 这仍是静态关键字口径；P1 其余窗必须逐窗 `-auto-only` 复核，不能拿本表直接标绿。
 
 ### 6.1 对总账 §7 的更正
@@ -436,3 +437,27 @@
 ---
 
 对账人：OpenCode（DeepSeek V4.1 Flash Free）｜日期：2026-10-21｜数据源：`/tmp/opencode/win_evidence.csv`（本次扫描）
+
+
+## 6.4 2026-10-25 P1 余 14 扇三证据收口（全关）
+
+逐窗 `-auto-only` 实跑两连 0.0000%（R10 另以 60s 观察档收口），全部按模式 2（gate 冻结 + 像素 + Golden）：
+
+| 窗 | 结果 | 备注 |
+|---|---|---|
+| `ui_wr_r3_boundary` | 逻辑 17/17 · 像素 33/33 · Golden 821184px 两连 0 | 证据代码+基线已在（S3 线），本轮复核 |
+| `ui_wr_r3b_compbits` | 逻辑 26/26 · 像素 54/54 · 两连 0 | 同上复核 |
+| `ui_wr_r9_text_cache` | 逻辑 28/28 · 像素 29/29 · 两连 0 | 同上复核 |
+| `ui_wr_r12b_debug_repaint` | 逻辑 25/25 · 像素 36/36 · on/off 两态各两连 0 | 同上复核 |
+| `ui_wr_c1_boundary_nest` | 逻辑 15/15 · 像素 23/23 · 两连 0 | 本轮补实现：hot 60 tick 收敛后停脏；grid/strip 断言 R12b 品红混合色；L2 静态块挪出 L3 覆盖带 |
+| `ui_wr_r8_overlay` | open 10/10·16/16 / closed 7/7·12/12，两态各两连 0 | 补实现：`R8_GATE_STATE` 两态；1.2s 基线窗后开固定模态；屏障 1×1 不拉伸→主带原色 |
+| `ui_wr_r11_dpr` | 逻辑 11/11 · 像素 21/21 · 两连 0 | 补实现：两波脚本原样、只冻结 hot 色相；`wave1=1 wave2=11 steadyRR=0` |
+| `ui_wr_r13_hit` | 逻辑 7/7 · 像素 16/16 · 两连 0 | 补实现：脚本原样、只冻结 hot；快照断言 Recover 终态 |
+| `ui_wr_r7b_scroll_reuse` | 逻辑 10/10 · 像素 14/14 · 两连 0 | 补实现：末 3s 钉 y=1234，行内容从 rowHeight 表推导 |
+| `ui_wr_c3_list_scroll` | 逻辑 11/11 · 像素 16/16 · 两连 0 | 补实现：同上 + 异步源棋盘色推导 |
+| `ui_wr_r10_async_image` | 60s 档两连：逻辑 10/10 · 像素 13/13 · 0 | 补实现：末 3s 钉 Steady（30 mod 9 踩边界）；30s 档稳态斜率骑 30000 线属 §18.2 #4 存量；HOT 块建窗起即被右栏盖住（登记） |
+| `ui_wr_ime_r1_editor` | 逻辑 5/5 · 像素 17/17 · 813312px 两连 0 | 补实现：caret 不翻转/形变钉 t=0；`text:color-layout` CPU 回落按 r1_layout 先例只记不判 |
+| `ui_text_m5_anycase` | 像素 11/11 · 821184px 两连 0 | 补实现：内容静态天然确定；`golden/` 旧基线保留作 M5 线历史参照 |
+| `ui_l1_render_matrix` | 逻辑 2/2 · 像素 11/11 · 全窗 288000px 两连 0 | 补实现：phase=0.5/scrollY=336/dt=0 冻结。**发现并登记新缺陷**：VirtualList 行（宽 0 自动展开）溢出 RenderViewport 右/下边缘不裁剪（快照实测 y=300 x≥680、y≥352 下方为行色），归 `ui/rendering` 视口裁剪域跟进 |
+
+判定口径：seed 跑不算 PASS；上表「两连 0」均为播种后两次复跑。

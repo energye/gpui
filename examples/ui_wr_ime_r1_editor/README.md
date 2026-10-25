@@ -46,3 +46,6 @@ go run ./examples/ui_wr_ime_r1_editor
 **Gates (§10.4.1 R1):** 同前表，A仅告警，其余按10.4.1阈值
 
 **Extra JSON:** `probe_count`, `probes[]`, `surround_probes`, `layout="左中文族测试|中纯文本|右异形边框"`
+
+## Evidence（U21 三证据，2026-10-25 补）
+gate（`-auto-only`，5s）：逻辑 5/5 · 像素 17/17 · Golden 813312px 两连 0.0000%；冻结 caret/形变/标签，基线 `testdata/showcase_ime_r1_editor_base.png`。

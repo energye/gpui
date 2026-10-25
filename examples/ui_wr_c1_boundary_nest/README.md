@@ -4,13 +4,14 @@
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-go run ./examples/ui_wr_c1_boundary_nest                     # 默认无限运行，手动关窗退出
-RUN_SECONDS=10 go run ./examples/ui_wr_c1_boundary_nest      # 10s 后自动关闭并输出门禁 JSON
+go run ./examples/ui_wr_c1_boundary_nest                     # manual：动画直到关窗
+go run ./examples/ui_wr_c1_boundary_nest -manual-seconds 15  # manual：15s 后自动关
+RUN_SECONDS=10 go run ./examples/ui_wr_c1_boundary_nest -auto-only   # gate：冻结 Steady + 三证据
 ```
 
 ## Window / Close duration
 
-1200×800 · 默认**无限运行**（手动关窗退出）；传 `RUN_SECONDS` 按指定秒数自动关闭（`<5 → FAIL (U16)`）。
+1200×800 · gate 关门时长 **10s**（§2.5，`<10 → FAIL`；`-auto-only` 未传 `RUN_SECONDS` 时默认 10s）；manual 默认无限运行（手动关窗退出）。
 
 ## 界面布局与预期效果
 
@@ -58,3 +59,13 @@ RUN_SECONDS=10 go run ./examples/ui_wr_c1_boundary_nest      # 10s 后自动关�
 - 内脏→只内 rerecord、外脏→只外 rerecord（人眼 + skip/rr 数字对照）
 - `present_policy = full_paint`
 - §2.2 全族 A–J JSON 输出
+
+## Evidence（U21 三证据，2026-10-25 补）
+
+gate（`-auto-only`，冻结 Steady）：**逻辑 15/15 · 像素 23/23（17 点 + 6 墨区）· Golden 821184px 两连 0.0000%**；计数两跑逐位一致（presents=600、skip=2878、rr=127、draws=14528）。
+
+- 冻结法：hot/hotS 前 60 tick 颜色收敛预热（内层真实重录），之后停标脏——干净边界 Replay 不带 debug 色，快照逐位稳定。
+- 像素口径：嵌套层背景/hot/静态块为**原色**（边界缓存 Replay 干净）；grid/strip 是非边界叶子，FullPaint 每帧活绘带 R12b 品红混合，断言**混合色** `c*0.65+(0.95,0.15,0.85)*0.35`（同 r12b gateLive 口径）。
+- 场景修正：L2 静态块原摆位 (170,170) 被 L3 不透明边界盖住（仅露 6px 角），挪到 L2 右空白带 (192,100)。
+- manual 档不写快照、不断言像素（JSON `pixel_evidence=manual_not_asserted`、golden=null），三相位动画 Steady/Spike/Recover 照常（6s 档实测 rr_spike=181）。
+- Golden 基线：`testdata/showcase_c1_boundary_nest_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种，掩码 header 1200×48 + legend 260×656 + body 904×656，HUD 排除，零容差）。

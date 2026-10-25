@@ -7,8 +7,18 @@ W2 R13 独立真窗：证明**控件命中测试 ≡ 绘制身份**——脚本�
 
 ```bash
 export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-RUN_SECONDS=5 go run ./examples/ui_wr_r13_hit
+RUN_SECONDS=5 go run ./examples/ui_wr_r13_hit -auto-only   # gate：三证据
+go run ./examples/ui_wr_r13_hit                             # manual：动画直到关窗
+go run ./examples/ui_wr_r13_hit -manual-seconds 15
 ```
+
+## Evidence（U21 三证据，2026-10-25 补）
+
+gate（`-auto-only`，5s）：**逻辑 7/7 · 像素 16/16（14 点 + 2 墨区）· Golden 821184px 两连 0.0000%**；`probes=8 ok=8 hit=6` 两跑一致。
+
+- 冻结法：命中脚本原样（探针一次性注入、Spike 高亮 2–3.5s、Recover 恢复底色），只把 HOT 色相收敛（60 tick 到 0.5 后钉住）；快照断言**恢复后的终态**（各目标底色 + 裁剪外露 body 底 + 重叠取最上层）。
+- manual 档不断言像素、不写快照；真指针点击链路（EventPointer→HitTestPointer→黄色高亮）保留。
+- Golden 基线：`testdata/showcase_r13_hit_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种；掩码 header+legend+body，HUD 排除，零容差）。
 
 ## Window / Close duration
 
