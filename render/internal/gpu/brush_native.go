@@ -121,7 +121,14 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		if err := rc.fillLinearGradientSpanNative(target, path, paint, b); err == nil {
 			return nil
 		}
-		// Diagonal (or any orientation) linear + AA rect: 2D ColorAt field.
+		// C1 terminus cut 2: diagonal (or any orientation) linear + AA rect
+		// goes through the GPU ramp×mask pipeline first — the 2D ColorAt
+		// field rebuilds a full sample grid per call; the ramp samples a 1D
+		// texture. Field stays as the fallback when the ramp rejects.
+		if err := rc.fillLinearGradientFieldMasked(target, path, paint, b); err == nil {
+			rc.noteBrushBootstrapIfGPUStar("brush:ramp-first")
+			return nil
+		}
 		if err := rc.fillLinearGradientFieldNative(target, path, paint, b); err == nil {
 			return nil
 		}

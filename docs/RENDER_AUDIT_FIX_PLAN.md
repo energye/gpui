@@ -288,6 +288,8 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 - **C1 终态第一刀 ✅**：`brush_native.go` radial/sweep 分支重排——GPU ramp×mask 提升为**所有形状（含 AA 矩形）首选**（原顺序把矩形优先派给 CPU 场，即 §6 登记的性能项真凶），场降为 ramp 拒绝形状后的兜底。**归因与批准**：`sweepgradient`（B 卡矩形 sweep）金图漂移 2.2565%、`geometry`（Row4 径向卡）0.3783%，全部为 ±1-2/255 ramp 量化差（1D ramp n≤2048 步进 vs 精确 ColorAt；Skia `SkGradientShader` 位图表同行为），像素探针 12/255 全过、两跑逐位确定——**经用户批准两窗重出**，各两连 0.0000%；`imagepattern` 零漂移两连过；`Brush|Sweep|Radial|Gradient|Glyph` 族回归绿。live 路径每帧 CPU 场重建就此消除（ramp 命中时不建场）。剩余：linear 对角 2D 场的 ramp 化（同构，另刀）。
 
+- **C1 终态第二刀 ✅**：linear 分支重排——对角/任意方向 linear 的 GPU ramp masked 提到 2D 场前（H/V span 快路径不变）。值级新增 `linear_diagonal_ramp_test.go`（对角矩形 ramp vs ColorAt oracle ±2/255 + 背景 不越界）——修前无此覆盖（对角只有动画窗 M5 无 golden）；真窗：`dither` 7.48%/`miscdraw` 0.99% 漂移为 ramp 量化 ±1/255 被 Bayer 抖动放大（dither 窗语义即输入量化可视化探针；探针全过、两跑确定），同批归因经批准重出各两连 0.0000%；`geometry`/`recording` 零漂移。live 路径 2D ColorAt 场就此全部退出常规渐变（仅剩 ramp 拒绝的形状与真自定义 brush）。
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。
