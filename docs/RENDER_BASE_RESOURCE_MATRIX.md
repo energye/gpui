@@ -92,6 +92,25 @@
 
 - 13 扇 Golden（清单 §2 尾账）各两连 0.0000%；E1/E2 豁免书面裁决入审计文档。
 
+## 5.5 P1 基线数字（2026-10-25 本机实测，对照尺已立）
+
+**对照尺（Flutter release AOT，同机同尺寸同语义）**：
+| 场景 | Flutter | gpui | 比值 |
+|---|---|---|---|
+| 旋转图标 480×320 | 26.28%/31.03%（两次），RSS 146→151MB | 15.46%（同口径 /proc），自报 15.77%，RSS 135MB | **gpui ≈ 0.5×**（优） |
+| 滚动列表 1200×800 | **109.68%**（>1 核！），RSS 184→287MB | C3: 31.98%，RSS 387MB | **gpui ≈ 0.3×**（显著优） |
+| 密集文本 1200×800 | 0.00%（首帧后 idle，Flutter 按需模型静态不渲染） | m5: 29.20%（retained+damage 9.25%，HUD 60fps tick 税） | **Flutter ≈ 0**（此项 Flutter 优——它的静态页真 idle） |
+| 地板 glxgears 60fps | — | 3.30%，RSS 55MB | — |
+
+**分析**：① 旋转/滚动两场景 gpui 已显著优于 Flutter（滚动的差距 3.4× 尤其大——Flutter GTK embedder 的 ListView 逐帧全量重排是已知开销）；② 密集文本 Flutter 0% 是其按需模型的正确行为——gpui m5 29.2% 反映的是 retained+HUD tick 的每帧成本，不是文本渲染本身的成本（文本整形/图集已缓存），降低它要走 R15/C10 的 further-tuning 方向；③ 地板 3.3% 与文档口径一致。
+
+**P1 工程细节**（构建链验证结论）：
+- Flutter linux-desktop 构建链缺口 = cmake+ninja（无 sudo）；`pip3 install --user cmake ninja` 解决；CXX 编译器注入 flutter 工具链用 `CMAKE_CXX_COMPILER=g++` 预播 build 目录缓存绕过；
+- Flutter release AOT 构建 ✓（kernel + engine + runner 三阶段全通）；
+- 采样器 `/tmp/ruler_flutter/sample.sh`（/proc utime+stime 差分、3s 预热排除、RSS>50MB 校验、kill 双发 SIGTERM+SIGKILL）；
+- **陷阱**：`cd "$DIR" && ./$EXE &` 的 `$!` 是 bash 中转壳（wchan=do_wait、RSS 2MB、CPU 永远 0%）——exe 必须单独一行后台，`$!` 才是应用本体；
+- m5 golden 漂移 0.1036% = #2 CPU 位图整形重排（同 textlow 归因），已重播种两连 0.0000%。
+
 ## 6. 实施阶段与 DoD
 
 | 阶段 | 内容 | DoD | 量级 |
