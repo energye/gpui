@@ -270,6 +270,8 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 - **C2 ✅ 已修**：① 图集页级 LRU——满时逐最冷页重试一次（`evictColdestPageLocked`，lastUse 戳随 Get/Put 刷新，页重索引），`ErrColorAtlasFull` 从「永久失败」变「可回收」；红灯（填满后 Put 永久失败）→绿→变异反证（禁逐出→红）。② CBDT 键出 FG——位图不吃前景色（`rasterizeColorBitmap` 无 fg 参数），同字形每种文字色一份条目纯属碎片化；COLR 保留 FG（currentColor 烘进光栅）。连带发现并登记：上游 `ColorRasterCache`（`color_raster.go:53`）键同样含 fg 且对 CBDT 也进键（同类碎片化 + 满 maxSize 随机驱逐），属后续子项。真窗 `emoji` 两连 0.0000%（0.0548% legend 文本 A1 重排漂移，同批 A1 批准归因）。
 
+- **C1 ✅ 过渡刀已修（终态 ramp 化留后续）**：`fillColorAtFieldMaskedGPU` 的 ColorAt 场按 `(brush seed, 场几何, 分辨率)` 记忆化（`brush_field_cache.go` fieldCache，容量 8 drop-oldest，挂 GPUShared），稳态 brush 复用已建场、覆盖仍每帧从 mask 现算。**基准（同 brush 连填，512×320）**：修前 58.8ms/op、1.56MB/op、140 allocs/op → 修后 **5.9ms/op（10×）、1.23MB/op**（剩余分配在 staging 上传/覆盖路径，登记后续）；变异反证（禁 memo→57.7ms）过。真窗：`sweepgradient`（B 卡 ColorAt oracle）与 `geometry` 各两连 0.0000% 零漂移；`render/internal/gpu` 全包绿。终态（AA 矩形 sweep/radial 全面 ramp 化+shader 求值，CPU 场仅留真自定义 brush）按 §C1.1 留独立刀。
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。

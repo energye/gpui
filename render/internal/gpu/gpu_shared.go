@@ -177,6 +177,10 @@ type GPUShared struct {
 	// AbandonExternalDevice must Destroy these *before* Device.Release or VRAM
 	// stays pinned → CreateTexture OOM on the recovered device (minimize recover).
 	liveCtxs map[*GPURenderContext]struct{}
+
+	// fieldCache memoizes ColorAt gradient fields (C1): stable brushes stop
+	// rebuilding a ≤512² RGBA buffer every fill.
+	fieldCache fieldCache
 }
 
 // NewGPUShared creates a new shared GPU resource holder. GPU initialization

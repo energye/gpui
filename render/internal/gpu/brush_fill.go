@@ -234,30 +234,51 @@ func (rc *GPURenderContext) fillColorAtFieldMaskedGPU(
 		return nil
 	}
 
-	field := make([]byte, nw*nh*4)
-	any := false
-	bx := float64(bounds.Min.X)
-	by := float64(bounds.Min.Y)
+	// C1 memoization: the field depends only on (brush seed, geometry
+	// bounds, field resolution). A stable brush re-sampled every frame paid
+	// the full nw*nh ColorAt sweep plus a fresh buffer per call (measured
+	// 1.56MB/140 allocs per fill at 512x320). Cache the field by
+	// (genSeed, bounds, nw, nh) — coverage still applies per frame from the
+	// cached field × current mask.
 	fw := float64(bw)
 	fh := float64(bh)
-	for y := 0; y < nh; y++ {
-		py := by + (float64(y)+0.5)/float64(nh)*fh
-		row := y * nw * 4
-		mrow := y * nw
-		for x := 0; x < nw; x++ {
-			aCov := mask[mrow+x]
-			if aCov == 0 {
-				continue
+	geomKey := fieldGeomGenID(float64(bounds.Min.X), float64(bounds.Min.Y), fw, fh, nw, nh)
+	fieldKey := brushFieldCacheKey{seed: genSeed, geom: geomKey, w: nw, h: nh}
+	var field []byte
+	if cached, ok := rc.shared.fieldCache.get(fieldKey, nw*nh*4); ok {
+		field = cached
+	} else {
+		field = make([]byte, nw*nh*4)
+		bx := float64(bounds.Min.X)
+		by := float64(bounds.Min.Y)
+		for y := 0; y < nh; y++ {
+			py := by + (float64(y)+0.5)/float64(nh)*fh
+			row := y * nw * 4
+			mrow := y * nw
+			for x := 0; x < nw; x++ {
+				aCov := mask[mrow+x]
+				if aCov == 0 {
+					continue
+				}
+				px := bx + (float64(x)+0.5)/float64(nw)*fw
+				c := colorAt(px, py)
+				a := c.A
+				off := row + x*4
+				field[off+0] = uint8(clamp255(c.R * a * 255))
+				field[off+1] = uint8(clamp255(c.G * a * 255))
+				field[off+2] = uint8(clamp255(c.B * a * 255))
+				field[off+3] = uint8(clamp255(a * 255))
 			}
+		}
+		rc.shared.fieldCache.put(fieldKey, field)
+	}
+	// Any-ink check reads the fresh coverage mask (not the cached field):
+	// a fully transparent frame still short-circuits.
+	any := false
+	for _, aCov := range mask {
+		if aCov != 0 {
 			any = true
-			px := bx + (float64(x)+0.5)/float64(nw)*fw
-			c := colorAt(px, py)
-			a := c.A
-			off := row + x*4
-			field[off+0] = uint8(clamp255(c.R * a * 255))
-			field[off+1] = uint8(clamp255(c.G * a * 255))
-			field[off+2] = uint8(clamp255(c.B * a * 255))
-			field[off+3] = uint8(clamp255(a * 255))
+			break
 		}
 	}
 	if !any {
@@ -302,7 +323,7 @@ func (rc *GPURenderContext) fillColorAtFieldMaskedGPU(
 	if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
 		vpW, vpH = target.ViewWidth, target.ViewHeight
 	}
-	genID := genSeed ^ fieldGeomGenID(bx, by, fw, fh, nw, nh) ^ 0xF1E1DA5A50001
+	genID := genSeed ^ geomKey ^ 0xF1E1DA5A50001
 	if usedGPUMod {
 		genID ^= 0x00000000A11C0001
 	}
