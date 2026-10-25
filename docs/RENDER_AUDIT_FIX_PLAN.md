@@ -255,6 +255,11 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 遗留观察（已定性为存量）：`render/text` 全包单跑默认 600s 超时系 B1 全字集扫描聚合慢（`zz_b1_ttf_scan_test.go`，2026-09-30 存量：WqyFull 216s + Indic 173s + Latin 58s + Myanmar 28s，B1 族单独 ~475s，全包需 >600s）；单跑 `-timeout=900s` 全 PASS（B1 过滤组 `ok 702.785s`），逐文件/过滤跑绿，非本批回归。
 
+## 0.2 第二批进度（2026-10-25）
+
+- **A2 ✅ 已修（已提交）**：`layout.go` 去掉 RTL 拆段守卫 + RTL parts 视觉序反转。红灯（RTL+MultiFace 0 字形/无行）→绿→变异反证→`Layout|Wrap|Segment|Multi|Shape` 族回归绿（含 `-race`）→真窗 `textspacing`/`m5_anycase` 两连 0.0000% 零漂移。
+- **A1 🔄 进行中（未提交，代码在工作区）**：`text.ShapeForDraw`（整形优先+MultiFace 拆段+cmap 显式回退计数）落地，引擎 `LayoutText/LayoutTextAliased` 与 MSDF 路径已切换；fi 连字红灯→绿→变异反证过；`render/internal/gpu` 文本族回归绿。**阻塞点**：`ui_render_base_textstroke` 出现确定性「抓屏 vs 快照 17.15%」不匹配（金图 0.0000%、逐像素采样背景全同、差异分布在文字行）——活路（MSDF，已切整形）与快照重绘路（TextPath/vector，本就整形）位置不同步，疑似 MSDF 切换的 glyph.X 语义问题而非正确字距重排，需根因（对拍 MSDF quad 位置 vs text.Shape 位置）后才能谈基线重出。`base_text` 7.19%/`textlow` 0.02% 的金图漂移（像素探针全过）为预期 kerning 重排，待阻塞点解决后一并归因处置。CPU 位图路径（`text/draw.go` drawGlyphs hinted-advance 机具）登记为 A1 后续子项。
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。

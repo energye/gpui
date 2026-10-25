@@ -871,3 +871,36 @@ func TestLayoutText_MultiFace(t *testing.T) {
 		}
 	}
 }
+
+// TestLayoutText_MultiFaceRTL pins the A2 fix: RTL segments through a
+// MultiFace must split into per-face runs exactly like LTR segments.
+// Pre-fix the split was skipped for DirectionRTL, the whole segment went to
+// the shaper as a MultiFace (whose Source() is nil), shaped to zero glyphs
+// and the line rendered blank (Flutter txt itemizes runs by script AND font
+// for both directions).
+func TestLayoutText_MultiFaceRTL(t *testing.T) {
+	f1 := layoutTestFace(t)
+	f2 := layoutTestFace(t)
+	mf, err := NewMultiFace(f1, f2)
+	if err != nil {
+		t.Fatalf("NewMultiFace: %v", err)
+	}
+
+	layout := LayoutText("مرحبا", mf, LayoutOptions{MaxWidth: 300, LineSpacing: 1.25})
+	if layout == nil {
+		t.Fatal("LayoutText returned nil")
+	}
+	if len(layout.Lines) == 0 {
+		t.Fatal("no lines")
+	}
+	total := 0
+	for _, run := range layout.Lines[0].Runs {
+		total += len(run.Glyphs)
+		if run.Face == nil {
+			t.Fatal("run has nil face")
+		}
+	}
+	if total == 0 {
+		t.Fatal("RTL line through MultiFace shaped ZERO glyphs (blank line)")
+	}
+}

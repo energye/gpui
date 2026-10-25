@@ -302,9 +302,12 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOp
 
 		// MultiFace.Source() is nil, so HarfBuzz cannot shape it directly.
 		// Split each segment into contiguous per-face runs first; this is the
-		// same split DrawString uses for mixed-script text.
+		// same split DrawString uses for mixed-script text. A2: RTL segments
+		// split too (Flutter txt itemizes by script AND font in both
+		// directions) — skipping the split handed the MultiFace to the shaper
+		// wholesale, which shaped zero glyphs and blanked the line.
 		parts := []facePart{{face: face, text: seg.Text}}
-		if mf, ok := face.(*MultiFace); ok && seg.Direction != DirectionRTL {
+		if mf, ok := face.(*MultiFace); ok {
 			if frs := mf.Runs(seg.Text); len(frs) > 0 {
 				parts = parts[:0]
 				start := 0
@@ -315,6 +318,14 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOp
 					parts = append(parts, facePart{face: fr.Face, text: fr.Text, start: start})
 					start += len(fr.Text)
 				}
+			}
+		}
+		if seg.Direction == DirectionRTL {
+			// RTL visual order: the logically-first face run belongs
+			// rightmost, so lay the parts out right-to-left (reverse the
+			// logical-order parts before the left-to-right accumulator).
+			for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
+				parts[i], parts[j] = parts[j], parts[i]
 			}
 		}
 
