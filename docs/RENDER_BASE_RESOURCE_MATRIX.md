@@ -39,6 +39,14 @@
 | 16 | 首帧/恢复（t2fp、遮挡恢复） | 冷启/遮挡回来 | R16/R17 | ✅ | Flutter 首帧 | 补对照 |
 | 17 | 显存压力/设备恢复（资源纪律验收） | 多窗 VRAM 预算压力、`GPUI_FAULT_OOM` 注入 | 故障注入缝在（`ui/embedder/fault_oom.go`）、预算拒增计数在（textured `budgetRefusals`） | ❌ 无专项资源场景窗（恢复正确性有注入测试、资源账无） | Godot 压力场景 | **立账**（预算拒增曲线 + OOM 恢复后 VramLiveBytes 回落断言） |
 
+**P2 冻结结论（2026-10-25）**：17 行逐行核对完毕——
+- ✅ 真窗已有 + 资源指标已有（不需新窗）：行 2/4/5/6/7/8/11/16（8 行）——只需 P4 补对照数字；
+- ✅ 真窗已有 + 资源指标需立账（窗在但没有专项 CPU/RSS JSON）：行 3/12/15（3 行）——P4 立账；
+- ❌ 需新窗：行 1（idle）/10（multiwin_cap）/13（batch_cap）（3 行）→ **P3 建**；
+- ❌ 跨线依赖：行 14（视频吞吐 V-5）/17（显存压力资源账）（2 行）→ **挂视频线与资源纪律域**；
+- ⚠️ 证据尾账：13 扇 Golden + E1/E2 豁免——**P3 尾账**；
+- ⚠️ Flutter 对照尺：P1 阻塞（Impeller 黑屏），等 stable SDK 到位后补——不影响 gpui 自身数字立账。
+
 尾账（不属于矩阵行，属证据域）：13 扇仅像素补 Golden（`ui_ant_verify`、`ui_render_particle`、`ui_textinput_ime`、`ui_wr_c7_resize_dpr`、`ui_wr_c8_hit_overlay_xf`、`ui_wr_ime_r2/r3/r4/r5_control`、`ui_wr_r17_bg_throttle`、`ui_wr_r21_shell`、`ui_wr_r4b_multidamage`、`ui_wr_r7_virtlist`）+ E1（14 扇）/E2（2 扇）豁免书面定案。
 
 ## 3. 工业级对照尺（三层）
