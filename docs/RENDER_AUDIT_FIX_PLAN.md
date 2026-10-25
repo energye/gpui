@@ -252,3 +252,20 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 4. **第四批（性能刀，带基准）**：C1 过渡刀 → 终态（ramp 化）。
 
 顺序要点复核（2026-10-25）：A3 先于 A1——两者都改 `glyph_mask_engine.go`，键修正先行避免同文件冲突；A1 的基线重出放在 B1/C2/C1 之前——后续批次在新基线上跑，避免二次重定；C1 收尾——影响面是像素路径本身，需带基准数据且与其它项零耦合。每项修完：所属域总账（`RENDER_FEATURE_COVERAGE.md` §6/§11、`RENDER_API_CATALOG.md` 如有公开 API 变化）+ 相关真窗 README 同步；本文档对应条目标 ✅ 并记提交号。
+
+## 2. 每项验收标准（销账判据，2026-10-25 定版）
+
+每项销账 = ① 红灯测试（修前必红、期望值来自独立 oracle 非 implementation 自身输出）+ ② 修后转绿 + ③ 变异反证（撤修复必再红）+ ④ 指定包逐文件回归 + ⑤ 指定真窗 `-auto-only` 两连 0.0000%。缺一不算关。
+
+| 项 | ① 红灯测试落点 | ② 绿灯判据 | ④ 包回归 | ⑤ 真窗（两连 0.0000%） | 特别说明 |
+|---|---|---|---|---|---|
+| A3 | `render/internal/gpu/glyph_mask_hinting_test.go` 扩例：同源两 face 仅 `WithHinting` 不同→引擎 `AtlasStats().entries` 必须新增条目 | 两 hinting 各自条目数正确；同 hinting 仍复用（不爆图集） | `render/text`、`render/internal/gpu` 逐文件 | `ui_render_base_textlow`（六 TextMode）、`ui_text_m5_anycase`（多 DPR） | Latin 掩码不变，**基线不应漂移**（漂了=修错） |
+| D2 | 新 `render/text/shaper_hb_race_test.go`：双 goroutine 同源 12/48px 并发 Shape ×200，`-race` | 修前 race detector 报 DATA RACE；修后 0 条且两字号 advance 与单线程基准一致 | `render/text` 逐文件 + 全包 `-race` | `ui_render_base_textspacing -race`、`ui_text_m5_anycase -race` | 锁方案先于 A1/A2 放量 |
+| D1 | 无 Windows 真机：交叉编译（`GOOS=windows`）+ 与 `queue_linux.go` **逐行对齐**审查；真机验收**登记待做** | 双端上传代码同构（ROW_LENGTH+复位）；Linux 全绿 | `gpu/gwgpu/gles` 逐文件 | Windows 真机（待验收，不假绿） | 诚实口径：代码级验证≠真机验证 |
+| B2 | 新 dash 连续性测试（`render` 包）：双共线子路径间隔 10px、period {20,20}，oracle=累计距离公式断言第二子路径首 dash 相位=10 | 修前相位=0（重置）必红；修后=10；dash 缩放双向对齐 T.03 口径 | `render` 的 `Stroke\|Dash\|Subpixel` 过滤 + `pathops_subpath_test` | `ui_render_base_strokepreset`（D 卡 Dashed/Dotted） | Discrete/Trim 不受影响照跑 |
+| A2 | `render/text/layout_test.go` 的 `TestLayoutText_MultiFace` 扩 RTL：阿语+emoji 混排→字形数>0 且含两 face 的 GID | 修前 0 字形必红；修后非零且视觉序正确（段序反转断言） | `render/text` 逐文件 + `-race` | `ui_render_base_textspacing`（B 卡 RTL）、`m5_anycase`（A 区） | 与 A1 同批回归、Golden 只重定一次 |
+| A1 | 新测试（`render/internal/gpu`）：`LayoutText("لمّا")` GID 序列≠cmap 序列；`AV` 宽度==`text.Shape` 基准 | 序列含 GSUB 连字 GID；宽度逐位等于整形基准 | `render/internal/gpu` 文本测试逐文件 | `ui_render_base_text/textlow/textspacing/textstroke` + `m5_anycase` | **预期 kerning 基线漂移→归因后经用户批准重出**；MultiFace 走 A2 拆段不退化成空白 |
+| B1 | `render/clip_ops_semantics_test.go` 扩例：45° CTM `ClipRect`，oracle=旋转四边形解析覆盖；AABB 内、四边形外的角点必须背景 | 修前角点画出必红；修后纯背景；轴对齐快路径行为不变 | `render` clip 族逐文件 | `ui_render_base_cliprrect`、`clipop` | 旋转矩形→path 裁剪带 AA |
+| C2 | `render/internal/gpu/glyph_color_atlas_test.go` 扩例：灌满 maxPages→新 Put 成功且最冷条目被逐出；同字形双前景色→一条目 | 修前 `ErrColorAtlasFull` 必红；修后 LRU 生效；两色像素各自正确（tint 后断言） | `render/internal/gpu` 逐文件 | `ui_render_base_emoji`（A/B/D 卡） | FG 出键前先核查 COLR currentColor 用途（方案 C2.2） |
+| C1 | 新 bench（`render/internal/gpu`）：同 brush 连填 100 帧，记 allocs/耗时 | 过渡刀：稳态 0 分配/帧、CPU<50µs；终态：场路径仅剩真自定义 brush 且有显式标注 | `render/internal/gpu` 逐文件 | `ui_render_base_sweepgradient`（B 卡 oracle 12/255）、`ui_render_base_geometry` | 基准数据入文档；总账 §6 对应性能子项同批销账 |
+
