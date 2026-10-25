@@ -272,6 +272,18 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 - **C1 ✅ 过渡刀已修（终态 ramp 化留后续）**：`fillColorAtFieldMaskedGPU` 的 ColorAt 场按 `(brush seed, 场几何, 分辨率)` 记忆化（`brush_field_cache.go` fieldCache，容量 8 drop-oldest，挂 GPUShared），稳态 brush 复用已建场、覆盖仍每帧从 mask 现算。**基准（同 brush 连填，512×320）**：修前 58.8ms/op、1.56MB/op、140 allocs/op → 修后 **5.9ms/op（10×）、1.23MB/op**（剩余分配在 staging 上传/覆盖路径，登记后续）；变异反证（禁 memo→57.7ms）过。真窗：`sweepgradient`（B 卡 ColorAt oracle）与 `geometry` 各两连 0.0000% 零漂移；`render/internal/gpu` 全包绿。终态（AA 矩形 sweep/radial 全面 ramp 化+shader 求值，CPU 场仅留真自定义 brush）按 §C1.1 留独立刀。
 
+## 3. 后续开线清单（2026-10-25 定版，一期一议）
+
+9 项审计修复全部收口后的遗留线，按建议顺序排；每条线的源码位置、方案与验收口径都已在前文对应章节。
+
+| # | 线 | 范围 | 依据章节 | 验收口径 | 预估 |
+|---|---|---|---|---|---|
+| 1 | **C1 终态：AA 矩形渐变 ramp 化** | AA 矩形 sweep/radial 全面走 1D ramp 纹理 + 片元/调制 shader 求值（复用圆卡既有 textured-cover 管线，maskR8Modulate 扩 ramp 采样），CPU 场路径仅留真自定义 ColorAt brush 且加显式标注；顺带消掉过渡刀剩余的 1.23MB/op staging 分配 | §C1 方案第 1 条 | bench（过渡刀同款）稳态 ≈0 分配/op；`sweepgradient` B 卡 oracle 探针 + Golden 两连 0.0000%；`geometry` 两连 | 大 |
+| 2 | **CPU 位图路径整形（A1 后续）** | `render/text/draw.go` 的 `drawGlyphs`（cmap 迭代 + hinted-advance/TT bytecode 吸附机具）切 `ShapeForDraw`；hinted advance 需从整形结果取（HVAR/hint pen 口径，同 VF 修复先例） | §0.2 A1 行 | 红灯：CPU 路径 "fi" 连字（与 A1 红灯同构）；`text.Draw*` 族回归；CPU 位图真窗（`miscdraw` E 卡等）两连 | 中 |
+| 3 | **ColorRasterCache fg 键出键（C2 后续）** | `render/text/color_raster.go:53` 的 `colorRasterKey` 对 CBDT 位图同样带 fg（位图不吃 fg）→ 同字形每文字色一份条目 + 满 maxSize 随机驱逐；按 C2 同口径：CBDT 键清 fg、COLR 保留 | §0.4 C2 行 | 红灯：同字形双色两键→修后一键；`emoji` 真窗两连 | 小 |
+| 4 | **D1 Windows 真机验收** | 行距上传在真机 WGL 上复验（字形图集脏矩形）；需 Windows 真机环境 | §0.1 D1 行 + §2 验收表 | 真机上传读回无错位 | 小（待机器） |
+| 5 | **textstroke 抓屏 17.15% 存量** | 活帧 vs 快照重绘路差异（四步隔离实证与 A1 无关）；疑抓屏时机抓到合成器过渡帧或局部刷新未完成，归 presentation/抓屏域 | §0.3 | 定位根因后按所属域口径关账（本方案只登记归属） | 中 |
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。
