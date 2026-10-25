@@ -100,6 +100,11 @@ func (e *ColorGlyphEngine) LayoutColorGlyphs(face text.Face, glyphs []text.Shape
 		if cf.GlyphType(uint16(glyph.GID)) == text.GlyphTypeOutline {
 			continue
 		}
+		// C2: the atlas entry must key only on what changes the rasterized
+		// BITMAP. CBDT/sbix bitmaps are self-colored — fg never touches the
+		// pixels, so keying on it fragmented the atlas by text color and
+		// accelerated the full-atlas stall. COLR keeps fg (currentColor
+		// bakes into the raster below).
 		img, err := e.raster.Image(parsed, uint16(glyph.GID), ppem, 0, fg)
 		if err != nil {
 			slogger().Warn("color glyph rasterize failed", "gid", uint16(glyph.GID), "err", err)
@@ -108,7 +113,11 @@ func (e *ColorGlyphEngine) LayoutColorGlyphs(face text.Face, glyphs []text.Shape
 		if img.Pix == nil || img.Pix.Bounds().Dx() <= 0 || img.Pix.Bounds().Dy() <= 0 {
 			continue
 		}
-		key := ColorGlyphKey{FontID: fontID, GlyphID: uint16(glyph.GID), PPEM: ppem, Palette: 0, FG: fg}
+		atlasFG := struct{ R, G, B, A uint8 }{}
+		if cf.GlyphType(uint16(glyph.GID)) == text.GlyphTypeCOLR {
+			atlasFG = fg
+		}
+		key := ColorGlyphKey{FontID: fontID, GlyphID: uint16(glyph.GID), PPEM: ppem, Palette: 0, FG: atlasFG}
 		region, ok := e.atlas.Get(key)
 		if !ok {
 			var err error

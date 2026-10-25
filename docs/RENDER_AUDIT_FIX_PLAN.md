@@ -268,6 +268,8 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 - **B1 ✅ 已修**：`ClipRectOp`/`ClipRoundRect` 非轴对齐 CTM（`tm.B|C != 0`）改走 `deviceQuadClipPath`（四角精确四边形→既有 path 裁剪，镜像 ClipPathOp 的设备空间语义），轴对齐快路径不变。红灯（45° CTM 角点 (110,110) 泄漏红）→绿→变异反证（禁用分支→中心都不裁剪，双证）。回归：`Clip|Mask` 过滤族红项与干净 HEAD 一致（存量）；真窗 `cliprrect`/`clipop` 各两连 0.0000% 零漂移。连带修正 A3 过期的 `TestGlyphMaskKey_AliasedFlag` 期望（hint 位在 Flags 4-5 是新语义）。
 
+- **C2 ✅ 已修**：① 图集页级 LRU——满时逐最冷页重试一次（`evictColdestPageLocked`，lastUse 戳随 Get/Put 刷新，页重索引），`ErrColorAtlasFull` 从「永久失败」变「可回收」；红灯（填满后 Put 永久失败）→绿→变异反证（禁逐出→红）。② CBDT 键出 FG——位图不吃前景色（`rasterizeColorBitmap` 无 fg 参数），同字形每种文字色一份条目纯属碎片化；COLR 保留 FG（currentColor 烘进光栅）。连带发现并登记：上游 `ColorRasterCache`（`color_raster.go:53`）键同样含 fg 且对 CBDT 也进键（同类碎片化 + 满 maxSize 随机驱逐），属后续子项。真窗 `emoji` 两连 0.0000%（0.0548% legend 文本 A1 重排漂移，同批 A1 批准归因）。
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。

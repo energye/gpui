@@ -68,6 +68,9 @@ type ColorGlyphAtlas struct {
 	pageSize int
 	maxPages int
 	entries  map[ColorGlyphKey]ColorGlyphRegion
+	// lastUse[key] is the put/get stamp; eviction picks the coldest page.
+	lastUse map[ColorGlyphKey]uint64
+	useStamp uint64
 }
 
 // NewColorGlyphAtlas creates an atlas with pageSize×pageSize RGBA pages.
@@ -82,12 +85,18 @@ func NewColorGlyphAtlas(pageSize, maxPages int) *ColorGlyphAtlas {
 		pageSize: pageSize,
 		maxPages: maxPages,
 		entries:  make(map[ColorGlyphKey]ColorGlyphRegion),
+		lastUse:  make(map[ColorGlyphKey]uint64),
 	}
 }
 
-// Get returns the packed region for a cached glyph.
+// Get returns the packed region for a cached glyph and refreshes its LRU
+// stamp.
 func (a *ColorGlyphAtlas) Get(key ColorGlyphKey) (ColorGlyphRegion, bool) {
 	a.mu.Lock()
+	if _, ok := a.entries[key]; ok {
+		a.useStamp++
+		a.lastUse[key] = a.useStamp
+	}
 	defer a.mu.Unlock()
 	region, ok := a.entries[key]
 	return region, ok
@@ -99,6 +108,8 @@ func (a *ColorGlyphAtlas) Put(key ColorGlyphKey, img *image.RGBA, bearingX, bear
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if region, ok := a.entries[key]; ok {
+		a.useStamp++
+		a.lastUse[key] = a.useStamp
 		return region, nil
 	}
 	w := img.Bounds().Dx()
@@ -112,6 +123,18 @@ func (a *ColorGlyphAtlas) Put(key ColorGlyphKey, img *image.RGBA, bearingX, bear
 		}
 	}
 	if len(a.pages) >= a.maxPages {
+		// C2: evict the coldest page and retry once (Skia GrStrikeCache
+		// purges when full) instead of failing forever. The mask atlas's
+		// evictTail does the same for alpha glyphs.
+		if a.evictColdestPageLocked() {
+			for i, page := range a.pages {
+				if region, ok := a.putOnPage(i, page, key, img, w, h, bearingX, bearingY); ok {
+					a.useStamp++
+					a.lastUse[key] = a.useStamp
+					return region, nil
+				}
+			}
+		}
 		return ColorGlyphRegion{}, ErrColorAtlasFull
 	}
 	page := &colorGlyphPage{
@@ -121,9 +144,51 @@ func (a *ColorGlyphAtlas) Put(key ColorGlyphKey, img *image.RGBA, bearingX, bear
 	}
 	a.pages = append(a.pages, page)
 	if region, ok := a.putOnPage(len(a.pages)-1, page, key, img, w, h, bearingX, bearingY); ok {
+		a.useStamp++
+		a.lastUse[key] = a.useStamp
 		return region, nil
 	}
 	return ColorGlyphRegion{}, ErrColorAtlasFull
+}
+
+// evictColdestPageLocked drops the page whose entries have the coldest
+// lastUse stamps and removes their keys. Reports whether a page was evicted.
+// Caller must hold a.mu.
+func (a *ColorGlyphAtlas) evictColdestPageLocked() bool {
+	if len(a.pages) == 0 {
+		return false
+	}
+	// Sum lastUse per page; coldest sum loses.
+	pageStamp := make([]uint64, len(a.pages))
+	for key, region := range a.entries {
+		st := a.lastUse[key]
+		if int(region.Page) < len(pageStamp) {
+			pageStamp[region.Page] += st
+		}
+	}
+	victim := 0
+	for i := 1; i < len(pageStamp); i++ {
+		if pageStamp[i] < pageStamp[victim] {
+			victim = i
+		}
+	}
+	for key, region := range a.entries {
+		if int(region.Page) == victim {
+			delete(a.entries, key)
+			delete(a.lastUse, key)
+		}
+	}
+	// Drop the page (pending dirty uploads for it become stale — the region
+	// is gone, so the uploader must skip by page index).
+	a.pages = append(a.pages[:victim], a.pages[victim+1:]...)
+	// Reindex remaining regions/pages.
+	for key, region := range a.entries {
+		if int(region.Page) > victim {
+			region.Page--
+			a.entries[key] = region
+		}
+	}
+	return true
 }
 
 func (a *ColorGlyphAtlas) putOnPage(index int, page *colorGlyphPage, key ColorGlyphKey, img *image.RGBA, w, h int, bearingX, bearingY float32) (ColorGlyphRegion, bool) {

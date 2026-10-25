@@ -87,3 +87,55 @@ func TestColorAtlasFull(t *testing.T) {
 		t.Fatal("no placement succeeded before full")
 	}
 }
+
+// TestColorGlyphAtlasEvictsCold pins the C2 fix: when every page is full the
+// atlas must evict the coldest entries and retry, not return
+// ErrColorAtlasFull forever (Skia GrStrikeCache purges when full). Pre-fix
+// the Nth distinct glyph permanently fell back to CPU rendering.
+func TestColorGlyphAtlasEvictsCold(t *testing.T) {
+	// Two pages: hot glyph lands on page 0 and stays freshly touched; page 1
+	// fills with COLD glyphs. The next demand must evict the coldest page
+	// (page 1's cold set loses) instead of returning ErrColorAtlasFull
+	// forever, and the hot glyph must survive.
+	a := NewColorGlyphAtlas(256, 2)
+	img := func() *image.RGBA {
+		m := image.NewRGBA(image.Rect(0, 0, 16, 16))
+		for i := range m.Pix {
+			m.Pix[i] = 255
+		}
+		return m
+	}()
+	hot := ColorGlyphKey{FontID: 1, GlyphID: 1, PPEM: 16}
+	if _, err := a.Put(hot, img, 0, 0); err != nil {
+		t.Fatalf("Put hot: %v", err)
+	}
+	if _, ok := a.Get(hot); !ok {
+		t.Fatal("Get hot after Put")
+	}
+	fullSeen := false
+	for i := 0; i < 5000; i++ {
+		k := ColorGlyphKey{FontID: 2, GlyphID: uint16(100 + i), PPEM: 16}
+		if _, err := a.Put(k, img, 0, 0); err != nil {
+			fullSeen = true
+			break
+		}
+		// Keep the hot glyph's stamp fresh while filling.
+		if i%50 == 0 {
+			if _, ok := a.Get(hot); !ok {
+				t.Fatal("hot glyph vanished during fill")
+			}
+		}
+	}
+	if !fullSeen {
+		t.Fatal("pages never filled; test premise broken")
+	}
+	// One more glyph: the atlas must evict cold entries instead of failing.
+	extra := ColorGlyphKey{FontID: 3, GlyphID: 7, PPEM: 16}
+	if _, err := a.Put(extra, img, 0, 0); err != nil {
+		t.Fatalf("Put after full: %v (atlas must evict cold entries)", err)
+	}
+	// The hot glyph must survive.
+	if _, ok := a.Get(hot); !ok {
+		t.Fatal("hot glyph was evicted; LRU must keep recently used entries")
+	}
+}
