@@ -258,7 +258,11 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 ## 0.2 第二批进度（2026-10-25）
 
 - **A2 ✅ 已修（已提交）**：`layout.go` 去掉 RTL 拆段守卫 + RTL parts 视觉序反转。红灯（RTL+MultiFace 0 字形/无行）→绿→变异反证→`Layout|Wrap|Segment|Multi|Shape` 族回归绿（含 `-race`）→真窗 `textspacing`/`m5_anycase` 两连 0.0000% 零漂移。
-- **A1 🔄 进行中（未提交，代码在工作区）**：`text.ShapeForDraw`（整形优先+MultiFace 拆段+cmap 显式回退计数）落地，引擎 `LayoutText/LayoutTextAliased` 与 MSDF 路径已切换；fi 连字红灯→绿→变异反证过；`render/internal/gpu` 文本族回归绿。**阻塞点**：`ui_render_base_textstroke` 出现确定性「抓屏 vs 快照 17.15%」不匹配（金图 0.0000%、逐像素采样背景全同、差异分布在文字行）——活路（MSDF，已切整形）与快照重绘路（TextPath/vector，本就整形）位置不同步，疑似 MSDF 切换的 glyph.X 语义问题而非正确字距重排，需根因（对拍 MSDF quad 位置 vs text.Shape 位置）后才能谈基线重出。`base_text` 7.19%/`textlow` 0.02% 的金图漂移（像素探针全过）为预期 kerning 重排，待阻塞点解决后一并归因处置。CPU 位图路径（`text/draw.go` drawGlyphs hinted-advance 机具）登记为 A1 后续子项。
+- **A1 ✅ 已修（提交待落）**：`text.ShapeForDraw`（整形优先+MultiFace 拆段+cmap 显式回退计数）落地，引擎 `LayoutText/LayoutTextAliased` 与 MSDF 路径已切换；fi 连字红灯→绿→变异反证过；`render/internal/gpu` 文本族回归绿。四步隔离实证定性「textstroke 17.15% 屏差」为 **HEAD 存量**（干净 HEAD 逐位同值；A1 还原后仍复现）——与 A1 无关，见 §0.3 跨线归位。mask 路位置对拍 text.Shape 一致（quad 起点=整形 X+bounds）；基线处置经用户批准：`base_text` 7.19% / `textlow` 0.02% 为 kerning 重排漂移，重出后各两连 0.0000%；`textspacing`/`m5_anycase`/`recording`/`miscdraw` 零漂移两连过。CPU 位图路径（`text/draw.go` drawGlyphs hinted-advance 机具）登记为 A1 后续子项。
+
+## 0.3 存量登记（2026-10-25，跨线归位）
+
+- **`ui_render_base_textstroke` 抓屏 vs 快照 17.1543% 恒定差（HEAD 存量，非 A1）**：四步隔离实证——A1 工作区复现 → 临时还原 LayoutGlyphs 复现 → **干净 HEAD（3524f68e）逐位同值 17.1543%** → 背景/前景采样点全同但文字行错位 ±11px 级。金图 0.0000%（快照重绘路自洽），差异只在「屏上活帧」——指向抓屏时机抓到合成器过渡帧或窗内容局部刷新未完成（该窗 C 卡 TextPath 粉/橙元素屏上错位）。归 presentation/抓屏域跟进（与 R10 斜率同类存量），不归 A1；A1 按自身验收口径继续。
 
 ## 1. 执行顺序建议
 

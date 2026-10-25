@@ -10,7 +10,10 @@
 
 package text
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // Shaper converts text to positioned glyphs.
 // Implementations provide different levels of text shaping support:
@@ -80,4 +83,59 @@ func Shape(textStr string, face Face) []ShapedGlyph {
 // Useful for tests and one-shot offline work.
 func ShapeUncached(textStr string, face Face) []ShapedGlyph {
 	return GetShaper().Shape(textStr, face)
+}
+
+// shapeForDrawFallbacks counts ShapeForDraw calls that fell back to the
+// cmap+hmtx iteration (no HarfBuzz build / shaper returned nothing). The
+// fallback is explicit and observable, never silent.
+var shapeForDrawFallbacks atomic.Uint64
+
+// ShapeForDrawFallbacks reports how many ShapeForDraw calls used the cmap
+// fallback (observability for the A1 fix).
+func ShapeForDrawFallbacks() uint64 { return shapeForDrawFallbacks.Load() }
+
+// ShapeForDraw shapes s for direct-draw consumers (the render layer's
+// default string path). Skia SkShaper posture: shape first, then draw.
+//   - MultiFace inputs split into per-face runs first (Source() is nil, the
+//     shaper cannot take a MultiFace wholesale) — the same rule layout uses.
+//   - Falls back to the cmap+hmtx iteration (LayoutGlyphs) when shaping
+//     yields nothing, and counts it via ShapeForDrawFallbacks.
+func ShapeForDraw(s string, face Face) []ShapedGlyph {
+	if face == nil || s == "" {
+		return nil
+	}
+	if mf, ok := face.(*MultiFace); ok {
+		frs := mf.Runs(s)
+		if len(frs) == 0 {
+			shapeForDrawFallbacks.Add(1)
+			return LayoutGlyphs(face, s)
+		}
+		var out []ShapedGlyph
+		xOff := 0.0
+		for _, fr := range frs {
+			if fr.Face == nil || fr.Text == "" {
+				continue
+			}
+			gs := Shape(fr.Text, fr.Face)
+			if len(gs) == 0 {
+				shapeForDrawFallbacks.Add(1)
+				gs = LayoutGlyphs(fr.Face, fr.Text)
+			}
+			if len(gs) == 0 {
+				continue
+			}
+			for i := range gs {
+				gs[i].X += xOff
+			}
+			xOff = gs[len(gs)-1].X + gs[len(gs)-1].XAdvance
+			out = append(out, gs...)
+		}
+		return out
+	}
+	gs := Shape(s, face)
+	if len(gs) == 0 {
+		shapeForDrawFallbacks.Add(1)
+		return LayoutGlyphs(face, s)
+	}
+	return gs
 }

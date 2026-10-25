@@ -215,14 +215,14 @@ func (e *GlyphMaskEngine) LayoutText(
 		}
 		// origin-free layout template + safe quad rebase for scroll/HUD.
 		// Skip template put for high-churn telemetry strings (unique every frame).
-		shaped := text.LayoutGlyphs(face, s)
+		shaped := text.ShapeForDraw(s, face)
 		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, variations, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, false)
 		if !text.IsHighChurnLabel(s) {
 			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		}
 		return batch, nil
 	}
-	shaped := text.LayoutGlyphs(face, s)
+	shaped := text.ShapeForDraw(s, face)
 	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, variations, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, false, embolden, false), nil
 }
 
@@ -276,14 +276,14 @@ func (e *GlyphMaskEngine) LayoutTextAliased(
 		if batch, hit := e.layoutTemplateGet(key, nil, x, y, batchColor, matrix); hit {
 			return batch, nil
 		}
-		shaped := text.LayoutGlyphs(face, s)
+		shaped := text.ShapeForDraw(s, face)
 		batch := e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, variations, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, embolden, false)
 		if !text.IsHighChurnLabel(s) {
 			e.layoutTemplatePut(key, shaped, x, y, deviceScale, hinting, useLCD, batch)
 		}
 		return batch, nil
 	}
-	shaped := text.LayoutGlyphs(face, s)
+	shaped := text.ShapeForDraw(s, face)
 	return e.layoutGlyphs(shaped, x, y, fontSize, fontID, parsed, variations, hinting, useLCD, lcdLayout, &lcdFilter, batchColor, matrix, deviceScale, rasterScale, isCJK, true, embolden, false), nil
 }
 

@@ -194,7 +194,11 @@ func (e *GPUTextEngine) LayoutText(
 	refSizeCJK := float64(e.msdfSizeCJK)
 	var ratio float64
 
-	for glyph := range face.Glyphs(s) {
+	// A1: shape before draw (Skia SkShaper posture) — the cmap+hmtx
+	// iteration missed GSUB/GPOS (ligatures, kerning). ShapedGlyph.IsCJK
+	// carries the script routing the Rune check used to do; the cmap
+	// fallback (and its counter) live inside ShapeForDraw.
+	for _, glyph := range text.ShapeForDraw(s, face) {
 		glyphCount++
 
 		// Match CPU text.Draw: GID 0 is .notdef — advance-only, no ink.
@@ -206,7 +210,7 @@ func (e *GPUTextEngine) LayoutText(
 		glyphRefSize := refSize
 		glyphAtlas := activeAtlas
 		glyphMsdfSize := e.msdfSize
-		if text.IsCJKRune(glyph.Rune) {
+		if glyph.IsCJK {
 			glyphRefSize = refSizeCJK
 			glyphAtlas = e.cjkAtlasManager
 			glyphMsdfSize = e.msdfSizeCJK
