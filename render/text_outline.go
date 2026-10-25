@@ -115,35 +115,69 @@ func (c *Context) textOutlinePath(s string, x, y float64) *Path {
 	if source == nil {
 		return nil
 	}
+	// The context keeps a glyph cache for the hot path; extraction semantics
+	// are identical to the pure function below.
+	return textOutlinePathFrom(source, c.face, s, x, y, c.ensureOutlineExtractor(), c.ensureGlyphCache())
+}
 
-	extractor := c.ensureOutlineExtractor()
+// TextOutlinePath builds a user-space Path containing glyph outlines for text
+// s at user-space position (x, baseline). Pure function: it needs only the
+// face (single FontSource — MultiFace has none) and a per-call outline
+// extractor, owns no GPU or window state, and is safe on any thread. This is
+// what makes TextPath-style content RECORDABLE: a display-list walk computes
+// the path on the UI thread and records FillPath/StrokePath commands; the
+// Context method above is its cache-backed twin.
+//
+// Shaping uses text.Shape (GSUB/GPOS — ligatures and kerning apply), matching
+// the GPU mask path since A1.
+func TextOutlinePath(face text.Face, s string, x, y float64) *Path {
+	if face == nil || s == "" {
+		return nil
+	}
+	source := face.Source()
+	if source == nil {
+		return nil
+	}
+	return textOutlinePathFrom(source, face, s, x, y, text.NewOutlineExtractor(), nil)
+}
+
+// textOutlinePathFrom is the shared outline-path builder. cache may be nil
+// (per-call extraction).
+func textOutlinePathFrom(source *text.FontSource, face text.Face, s string, x, y float64, extractor *text.OutlineExtractor, cache *text.GlyphCache) *Path {
 	parsed := source.Parsed()
-	fontSize := c.face.Size()
-	variations := c.face.Variations()
+	fontSize := face.Size()
+	variations := face.Variations()
 
-	// Use glyph cache to avoid repeated outline extraction.
-	cache := c.ensureGlyphCache()
 	fontID := textFontIDWithVariations(computeTextFontID(source), variations)
 	sizeKey := text.FixedSize(fontSize)
 
 	path := NewPath()
 	hasContour := false
 
-	shaped := text.Shape(s, c.face)
+	shaped := text.Shape(s, face)
 	for _, sg := range shaped {
-		cacheKey := text.OutlineCacheKey{
-			FontID:  fontID,
-			GID:     sg.GID,
-			Size:    sizeKey,
-			Hinting: text.HintingNone,
-		}
-		outline := cache.GetOrCreate(cacheKey, func() *text.GlyphOutline {
+		var outline *text.GlyphOutline
+		if cache != nil {
+			cacheKey := text.OutlineCacheKey{
+				FontID:  fontID,
+				GID:     sg.GID,
+				Size:    sizeKey,
+				Hinting: text.HintingNone,
+			}
+			outline = cache.GetOrCreate(cacheKey, func() *text.GlyphOutline {
+				o, err := extractor.ExtractOutlineHintedVar(parsed, sg.GID, fontSize, text.HintingNone, variations)
+				if err != nil || o == nil || o.IsEmpty() {
+					return nil
+				}
+				return o
+			})
+		} else {
 			o, err := extractor.ExtractOutlineHintedVar(parsed, sg.GID, fontSize, text.HintingNone, variations)
 			if err != nil || o == nil || o.IsEmpty() {
-				return nil
+				continue
 			}
-			return o
-		})
+			outline = o
+		}
 		if outline == nil {
 			continue
 		}

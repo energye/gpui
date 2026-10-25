@@ -812,23 +812,22 @@ func paintTextPath(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	// TextPath extracts outlines through the context's own glyph cache, so this
-	// card only exists on the live context; a recording walk refuses and counts.
-	dc, ok := pc.RequireLiveContext()
-	if !ok {
-		return
-	}
-	ox, oy := pc.OriginX, pc.OriginY
+	// Roster #5 fix: text outlines come from the pure render.TextOutlinePath
+	// (UI-thread-safe, shaped, same extractor semantics as Context.TextPath),
+	// so this card RECORDS under the S3 full-frame walk instead of refusing
+	// (pre-fix the live screen lost card C entirely while the snapshot
+	// re-render had it — a 17.15% screen-vs-snapshot split).
+	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	dc.SetFont(lay.face64)
 
 	dc.SetRGBA(colPathFill[0], colPathFill[1], colPathFill[2], 1)
-	_ = dc.FillPath(dc.TextPath("O", cx+lay.cFill.x, cy+lay.cFill.baseline))
+	_ = dc.FillPath(render.TextOutlinePath(lay.face64, "O", cx+lay.cFill.x, cy+lay.cFill.baseline))
 
 	dc.SetRGBA(colPathStroke[0], colPathStroke[1], colPathStroke[2], 1)
 	dc.SetLineWidth(lay.cStrk.width)
-	_ = dc.StrokePath(dc.TextPath("O", cx+lay.cStrk.x, cy+lay.cStrk.baseline))
+	_ = dc.StrokePath(render.TextOutlinePath(lay.face64, "O", cx+lay.cStrk.x, cy+lay.cStrk.baseline))
 
 	dc.SetTextMode(render.TextModeVector)
 	dc.SetRGBA(colDrawRef[0], colDrawRef[1], colDrawRef[2], 1)
@@ -837,7 +836,7 @@ func paintTextPath(pc *rendering.PaintContext, sz rendering.Size) {
 }
 
 // drawCardDInk paints card D's glyphs (no card background) at the given
-// origin. Shared by the paint callback and the offscreen probe-point oracle.
+// origin on a live context. Shared by the offscreen probe-point oracle.
 func drawCardDInk(dc *render.Context, ox, oy float64, rotated bool) {
 	cx, cy := ox+contentX0, oy+contentY0
 	dc.SetFont(lay.face64)
@@ -859,16 +858,38 @@ func drawCardDInk(dc *render.Context, ox, oy float64, rotated bool) {
 	dc.Pop()
 }
 
+// drawCardDInkDC is the Canvas form of drawCardDInk: outlines come from the
+// pure render.TextOutlinePath so the card records under a display-list walk.
+// Transform note: the recorded Push/Translate/Rotate applies at replay; the
+// path itself is built untransformed at the same user-space anchor.
+func drawCardDInkDC(dc render.Canvas, ox, oy float64, rotated bool) {
+	cx, cy := ox+contentX0, oy+contentY0
+	dc.SetFont(lay.face64)
+	dc.SetRGBA(colUpright[0], colUpright[1], colUpright[2], 1)
+	_ = dc.FillPath(render.TextOutlinePath(lay.face64, "I", cx+dIX, cy+dIBaseline))
+	if !rotated {
+		return
+	}
+	b := lay.iBnds
+	mcx, mcy := float64(b.Min.X+b.Max.X)/2, float64(b.Min.Y+b.Max.Y)/2
+	dc.Push()
+	dc.Translate(cx+mcx, cy+mcy)
+	dc.Rotate(math.Pi / 2)
+	dc.Translate(-(cx + mcx), -(cy + mcy))
+	dc.SetRGBA(colRotated[0], colRotated[1], colRotated[2], 1)
+	_ = dc.FillPath(render.TextOutlinePath(lay.face64, "I", cx+dIX, cy+dIBaseline))
+	dc.Pop()
+}
+
 func paintTransform(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
 	dc, ox, oy := pc.DC, pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
-	// Card D is drawn from extracted outlines: live-only, counted refusal.
-	if live, ok := pc.RequireLiveContext(); ok {
-		drawCardDInk(live, ox, oy, true)
-	}
+	// Card D is drawn from extracted outlines via the pure helper — records
+	// under the S3 full-frame walk (see paintTextPath).
+	drawCardDInkDC(dc, ox, oy, true)
 
 	// Fractional ppem rows: two sizes that used to share one cached outline
 	// (int16 key) and now stay distinct (26.6 fixed point).

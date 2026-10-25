@@ -294,6 +294,8 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 - **#2 CPU 位图整形 ✅（A1 收尾）**：`drawGlyphs` 弃 cmap 迭代+hinted-advance 手动走笔，切 `ShapeForDraw` 整形 run（位置取整形 X、hinting 只管轮廓栅格、hinted 字形逐个整数吸附对齐 GPU glyphPlacement snapX；弃 ttCache 定位机具——它正是 kerning 被 GPOS 覆盖、与 GPU 分叉的根源）。红灯：镜像 oracle（同栅格化器按 shaped GID+位置合成参考图，与 `Draw("ffi")` 逐像素比，修前差 77px=ffi 连字缺位）→绿→变异反证（换回 LayoutGlyphs→红）。回归：Draw/Measure/Wrap 族绿；真窗 `miscdraw`/`emoji`/`recording` 零漂移（门禁走 GPU 路，CPU 位图路只在 Aliased/回退触发）、`textlow` 0.0371%（C 卡 Aliased 行整形移位，A1 收尾同类归因）重出两连 0.0000%。顺带澄清：`render/text` 全包 FAIL 系 zz_* 慢扫描家族（wqy/b2/ftgrays/tt_full）聚合超时，排除后 503s 全绿（既有存量口径）。
 
+- **#5 textstroke 抓屏 17.15% ✅ 已修（两刀）**：二分断代（S3 前 0.0000% / S3 提交起 17.1543%）+ 逐卡定位。**第一刀**：`render.TextOutlinePath` 纯函数（face+shaper+每次独立 extractor，UI 线程安全，与 Context.TextPath 同 extractor/hinting/shaping 语义）——textstroke 卡 C/D 弃 `RequireLiveContext` 改用它，TextPath 型内容录成 `FillPath/StrokePath` 命令；parity 红测（录制回放 vs live 逐位）绿。17.15%→1.2449%。**第二刀**：剩余 1.24% 归因卡 A/B 描边文字——`StrokeTextCommand` 回放是 DrawText 填充近似（C2b 限界）+ `DrawStringAnchored/StrokeStringAnchored` 录制期丢锚点（simplification）；修为回放真描边（TextOutlinePath+StrokePath 带录制的 Stroke 线型）+ 录制期锚点换算（text.Measure+metrics，镜像 live 语义），parity 红测两项 + 双变异反证。**收口**：textstroke 两连 golden 0.0000% + **抓屏 0.0000%**；`recording` 窗零漂移；`render/recording` 全绿；`ui/rendering` 仅既存 TestRenderOpacity 红（#ff8080/#ff7f7f，2026-10-21 登记）。新公开 API `render.TextOutlinePath` 入目录（apidoc OK）。**顺带销账**：C2b 的「StrokeText 按填充近似」限界与本窗 screen-check 存量同时关闭。
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。

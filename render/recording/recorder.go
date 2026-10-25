@@ -336,10 +336,19 @@ func (r *Recording) Playback(backend Backend) error {
 			backend.DrawText(c.Text, c.X, c.Y, r.faceFor(c.Font), brush)
 		case StrokeTextCommand:
 			brush := r.resources.GetBrush(c.Brush)
-			// StrokeText is recorded as a stroke text command.
-			// Backends that support text stroking can use the stroke style;
-			// others fall back to DrawText (fill) as an approximation.
-			backend.DrawText(c.Text, c.X, c.Y, r.faceFor(c.Font), brush)
+			face := r.faceFor(c.Font)
+			// Roster #5: replay stroked text as a REAL stroke — outline path
+			// via render.TextOutlinePath (the same builder the live
+			// Context.StrokeString uses) + backend.StrokePath with the
+			// recorded stroke style. The old DrawText fallback painted filled
+			// glyphs where the live walk drew hollow outlines.
+			if face != nil {
+				if path := render.TextOutlinePath(face, c.Text, c.X, c.Y); path != nil {
+					backend.StrokePath(path, brush, c.Stroke)
+					continue
+				}
+			}
+			backend.DrawText(c.Text, c.X, c.Y, face, brush)
 		// Style commands are handled by the backend's internal state
 		// during the actual drawing operations
 		case SetFillStyleCommand, SetStrokeStyleCommand,

@@ -436,8 +436,18 @@ func (r *Recorder) DrawString(s string, x, y float64) {
 // DrawStringAnchored draws text with an anchor point.
 // The anchor point is specified by ax and ay, which are in the range [0, 1].
 func (r *Recorder) DrawStringAnchored(s string, x, y, ax, ay float64) {
-	// For recording, we store the base position and let the backend handle anchoring
-	// This is a simplification; a full implementation would measure text
+	// Roster #5: anchor at RECORD time with the same measure the live
+	// Context.DrawStringAnchored uses, so the recorded command carries the
+	// final base position and replay matches the live walk bit for bit.
+	// (The old "backend handles anchoring" simplification silently dropped
+	// the anchor — replayed text sat up to a text-width off.)
+	if face := r.fontFace; face != nil {
+		w, _ := text.Measure(s, face)
+		metrics := face.Metrics()
+		h := metrics.Ascent + metrics.Descent
+		x -= w * ax
+		y = y + metrics.Ascent - ay*h
+	}
 	r.DrawString(s, x, y)
 }
 
@@ -470,8 +480,16 @@ func (r *Recorder) StrokeString(s string, x, y float64) {
 // StrokeStringAnchored strokes text outlines with an anchor point.
 // The anchor point is specified by ax and ay, which are in the range [0, 1].
 func (r *Recorder) StrokeStringAnchored(s string, x, y, ax, ay float64) {
-	// For recording, we store the base position and let the backend handle anchoring
-	// This is a simplification; a full implementation would measure text
+	// Roster #5: anchor at RECORD time, mirroring
+	// Context.StrokeStringAnchored's measure (text.Measure + metrics box), so
+	// the recorded base position matches the live walk.
+	if face := r.fontFace; face != nil {
+		w, _ := text.Measure(s, face)
+		metrics := face.Metrics()
+		h := metrics.Ascent + metrics.Descent
+		x -= w * ax
+		y = y + metrics.Ascent - ay*h
+	}
 	r.StrokeString(s, x, y)
 }
 
