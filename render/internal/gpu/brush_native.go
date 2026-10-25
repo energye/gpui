@@ -151,25 +151,30 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		}
 		return render.ErrFallbackToCPU
 	case *render.RadialGradientBrush, *render.SweepGradientBrush:
-		// Radial/sweep on AA rect: 2D field (all Extend); else Pad convex Gouraud.
-		if err := rc.fillRadialSweepFieldNative(target, path, paint, brush); err == nil {
-			return nil
-		}
-		if err := rc.fillGradientConvexNative(target, path, paint, brush); err == nil {
-			return nil
-		}
-		// Non-rect / non-convex: GPU 1D ramp×mask (radial simple / sweep+) then ColorAt field.
+		// C1 terminus: GPU 1D ramp×mask FIRST for every shape including AA
+		// rects — the old order preferred the CPU 2D ColorAt field for rects
+		// and rebuilt it every frame (measured 1.56MB/140 allocs per fill at
+		// 512x320; the ramp path samples a 1D texture instead). The ColorAt
+		// field stays as the fallback for shapes the ramp pipeline rejects.
 		switch gb := brush.(type) {
 		case *render.RadialGradientBrush:
 			if err := rc.fillRadialGradientFieldMasked(target, path, paint, gb); err == nil {
-				rc.noteBrushBootstrapIfGPUStar("brush:nonconvex-path")
+				rc.noteBrushBootstrapIfGPUStar("brush:ramp-first")
 				return nil
 			}
 		case *render.SweepGradientBrush:
 			if err := rc.fillSweepGradientFieldMasked(target, path, paint, gb); err == nil {
-				rc.noteBrushBootstrapIfGPUStar("brush:nonconvex-path")
+				rc.noteBrushBootstrapIfGPUStar("brush:ramp-first")
 				return nil
 			}
+		}
+		if err := rc.fillGradientConvexNative(target, path, paint, brush); err == nil {
+			return nil
+		}
+		// Ramp rejected the shape: CPU 2D field (all Extend), then coverage
+		// passes.
+		if err := rc.fillRadialSweepFieldNative(target, path, paint, brush); err == nil {
+			return nil
 		}
 		if colorAt, seed, ok := gradientColorAtSeed(brush); ok {
 			if err := rc.fillGradientFieldMasked(target, path, paint, colorAt, seed); err == nil {
