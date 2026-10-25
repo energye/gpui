@@ -11,7 +11,7 @@ func TestDPRQuantNoExplosion_M5(t *testing.T) {
 		seen := map[GlyphMaskKey]bool{}
 		for _, dpr := range []float64{1, 1.25, 2, 3} {
 			for _, frac := range offsets {
-				seen[MakeGlyphMaskKey(7, 65, 16*dpr, frac, 0)] = true
+				seen[MakeGlyphMaskKey(7, 65, 16*dpr, frac, 0, HintingFull)] = true
 			}
 		}
 		return len(seen)

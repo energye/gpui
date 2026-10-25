@@ -51,7 +51,11 @@ type GlyphMaskKey struct {
 	// Bit 0 (GlyphMaskFlagAliased): binary coverage (0/255 only, NoAAFiller).
 	// Bit 1 (GlyphMaskFlagLCD): LCD/ClearType 3x horizontal mask.
 	// Bit 2 (GlyphMaskFlagLCDBGR): LCD BGR order (with FlagLCD).
-	// Bits 3-7: reserved for future use.
+	// Bit 3 (GlyphMaskFlagBold): synthetic bold (expanded outline).
+	// Bits 4-5 (GlyphMaskFlagHintingShift): hinting mode (Skia SkDescriptor
+	// rule — the rasterized outline depends on hinting via
+	// ExtractOutlineHinted, so it MUST be part of the key).
+	// Bits 6-7: reserved for future use.
 	Flags uint8
 }
 
@@ -73,9 +77,29 @@ const GlyphMaskFlagLCDBGR uint8 = 1 << 2
 // glyph must never share an atlas entry.
 const GlyphMaskFlagBold uint8 = 1 << 3
 
+// GlyphMaskFlagHintingShift / GlyphMaskFlagHintingMask encode the hinting
+// mode (text.Hinting, 0..2) in Flags bits 4-5. Two faces from the same source
+// configured with different hinting produce different outlines and must not
+// share an atlas entry (Skia puts every scaler-affecting state in the
+// SkDescriptor for the same reason).
+const (
+	GlyphMaskFlagHintingShift uint8 = 4
+	GlyphMaskFlagHintingMask  uint8 = 0x3 << GlyphMaskFlagHintingShift
+)
+
+// hintingFlags encodes h into the flag bits. Unknown values clamp into the
+// 2-bit field (distinct from the known modes is not representable).
+func hintingFlags(h Hinting) uint8 {
+	if h < 0 || h > HintingFull {
+		h = HintingFull
+	}
+	return uint8(h) << GlyphMaskFlagHintingShift
+}
+
 // MakeGlyphMaskKey creates a GlyphMaskKey from rendering parameters.
 // The size is in pixels (ppem). The subpixelX/Y are fractional pixel offsets [0, 1).
-func MakeGlyphMaskKey(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64) GlyphMaskKey {
+// The hinting mode is part of the key: the rasterized outline depends on it.
+func MakeGlyphMaskKey(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64, hinting Hinting) GlyphMaskKey {
 	// Quantize size to 1/16 pixel (Q4 fixed-point).
 	sizeQ4 := int16(size * 16) //nolint:gosec // intentional truncation for quantization
 	sizeQ4 = max(sizeQ4, 1)
@@ -97,15 +121,16 @@ func MakeGlyphMaskKey(fontID uint64, glyphID GlyphID, size float64, subpixelX, s
 		SizeQ4:      sizeQ4,
 		SubpixelXQ2: spxQ2,
 		SubpixelYQ2: spyQ2,
+		Flags:       hintingFlags(hinting),
 	}
 }
 
 // MakeGlyphMaskKeyAliased creates a GlyphMaskKey with the aliased flag set.
 // The resulting cache entry is distinct from the anti-aliased version of the
 // same glyph — different rasterization modes produce different coverage data.
-func MakeGlyphMaskKeyAliased(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64) GlyphMaskKey {
-	key := MakeGlyphMaskKey(fontID, glyphID, size, subpixelX, subpixelY)
-	key.Flags = GlyphMaskFlagAliased
+func MakeGlyphMaskKeyAliased(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64, hinting Hinting) GlyphMaskKey {
+	key := MakeGlyphMaskKey(fontID, glyphID, size, subpixelX, subpixelY, hinting)
+	key.Flags = GlyphMaskFlagAliased | (key.Flags & GlyphMaskFlagHintingMask)
 	return key
 }
 
@@ -119,7 +144,7 @@ var sizeBuckets = [...]float64{16, 24, 32, 48}
 // buckets. Use this when atlas pressure is detected (zoom scenarios with many
 // unique sizes). The GPU scales the rasterized glyph from bucket size to actual
 // size — quality loss is negligible.
-func MakeGlyphMaskKeyBucketed(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64) GlyphMaskKey {
+func MakeGlyphMaskKeyBucketed(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64, hinting Hinting) GlyphMaskKey {
 	bucketSize := sizeBuckets[len(sizeBuckets)-1]
 	for _, b := range sizeBuckets {
 		if size <= b {
@@ -127,7 +152,7 @@ func MakeGlyphMaskKeyBucketed(fontID uint64, glyphID GlyphID, size float64, subp
 			break
 		}
 	}
-	return MakeGlyphMaskKey(fontID, glyphID, bucketSize, subpixelX, subpixelY)
+	return MakeGlyphMaskKey(fontID, glyphID, bucketSize, subpixelX, subpixelY, hinting)
 }
 
 // GlyphMaskRegion describes a glyph mask's location and metrics in the atlas.

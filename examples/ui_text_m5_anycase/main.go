@@ -80,7 +80,7 @@ func dprKeyCardinality() (keys int, detail string) {
 	// Same glyph at DPR 1/1.25/2/3 with a sweep of fractional offsets.
 	for _, dpr := range []float64{1, 1.25, 2, 3} {
 		for _, frac := range []float64{0, 0.1, 0.24, 0.25, 0.49, 0.5, 0.74, 0.75, 0.99} {
-			k := text.MakeGlyphMaskKey(7, 65, 16*dpr, frac, 0)
+			k := text.MakeGlyphMaskKey(7, 65, 16*dpr, frac, 0, text.HintingFull)
 			seen[k] = true
 		}
 	}

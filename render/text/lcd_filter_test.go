@@ -356,7 +356,7 @@ func TestGlyphMaskAtlas_PutLCD(t *testing.T) {
 		rgbMask[i] = 128
 	}
 
-	key := MakeGlyphMaskKey(123, 42, 14.0, 0, 0)
+	key := MakeGlyphMaskKey(123, 42, 14.0, 0, 0, HintingFull)
 	region, err := atlas.PutLCD(key, rgbMask, logicalW, maskH, -1.0, 10.0, 0)
 	if err != nil {
 		t.Fatalf("PutLCD error = %v", err)
@@ -387,7 +387,7 @@ func TestGlyphMaskAtlas_PutLCD(t *testing.T) {
 
 func TestGlyphMaskAtlas_PutLCD_InvalidDimensions(t *testing.T) {
 	atlas := NewGlyphMaskAtlasDefault()
-	key := MakeGlyphMaskKey(1, 1, 12.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 1, 12.0, 0, 0, HintingFull)
 
 	_, err := atlas.PutLCD(key, nil, 0, 0, 0, 0, 0)
 	if err == nil {

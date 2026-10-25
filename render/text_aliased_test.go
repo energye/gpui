@@ -155,8 +155,8 @@ func TestTextModeAliased_BinaryAlpha(t *testing.T) {
 // TestGlyphMaskKey_AliasedFlag verifies that the Flags field properly
 // distinguishes aliased from anti-aliased cache keys.
 func TestGlyphMaskKey_AliasedFlag(t *testing.T) {
-	aaKey := text.MakeGlyphMaskKey(42, 1, 16.0, 0, 0)
-	aliasedKey := text.MakeGlyphMaskKeyAliased(42, 1, 16.0, 0, 0)
+	aaKey := text.MakeGlyphMaskKey(42, 1, 16.0, 0, 0, text.HintingFull)
+	aliasedKey := text.MakeGlyphMaskKeyAliased(42, 1, 16.0, 0, 0, text.HintingFull)
 
 	// Same font, glyph, size, subpixel — but different flags.
 	if aaKey == aliasedKey {

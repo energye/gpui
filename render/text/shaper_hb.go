@@ -71,7 +71,15 @@ func (s *HbShaper) Shape(text string, face Face) []ShapedGlyph {
 	if source == nil {
 		return nil
 	}
-	hbf, err := s.getOrCreateHbFont(source, face.Variations())
+	// D2: the cached hbFont is SHARED per (source, variations); Shape sets its
+	// scale for the current face size and then shapes with it. HarfBuzz treats
+	// property mutation + use as two calls, so concurrent Shape calls on the
+	// same source at different sizes race on XScale/YScale. Serialize the
+	// whole shape (the external shape-result cache front-runs this in
+	// production, so the critical section is cold).
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	hbf, err := s.getOrCreateHbFontLocked(source, face.Variations())
 	if err != nil || hbf == nil {
 		return nil
 	}
@@ -129,19 +137,11 @@ func (s *HbShaper) RemoveSource(source *FontSource) {
 	}
 }
 
-// getOrCreateHbFont parses a FontSource's raw data once per source and
-// variation instance.
-func (s *HbShaper) getOrCreateHbFont(source *FontSource, variations []FontVariation) (*hbFont, error) {
+// getOrCreateHbFontLocked parses a FontSource's raw data once per source and
+// variation instance. Caller must hold s.mu (Shape serializes the shared
+// hbFont scale mutation + shaping under the same lock).
+func (s *HbShaper) getOrCreateHbFontLocked(source *FontSource, variations []FontVariation) (*hbFont, error) {
 	key := hbFontKey{source: source, varHash: HashFontVariations(variations)}
-	s.mu.RLock()
-	if e, ok := s.faces[key]; ok {
-		s.mu.RUnlock()
-		return e, nil
-	}
-	s.mu.RUnlock()
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if e, ok := s.faces[key]; ok {
 		return e, nil
 	}

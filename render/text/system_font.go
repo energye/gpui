@@ -321,7 +321,9 @@ func warmHbFonts(faces []Face) {
 			continue
 		}
 		seen[src] = struct{}{}
-		_, _ = hs.getOrCreateHbFont(src, nil)
+		hs.mu.Lock()
+		_, _ = hs.getOrCreateHbFontLocked(src, nil)
+		hs.mu.Unlock()
 	}
 }
 

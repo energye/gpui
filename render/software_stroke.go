@@ -37,7 +37,11 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 	pathToDraw := p
 	if paint.IsDashed() {
 		dash := paint.EffectiveDash()
-		if transformScale > 1.0 {
+		// B2: dash lengths live in device space — scale by the full CTM
+		// factor in BOTH directions (zoom-in and zoom-out), matching
+		// stroke_user_expand.go's T.03 treatment. Scaling only when >1 left
+		// minified CTMs with over-long periods.
+		if transformScale != 1.0 {
 			dash = dash.Scale(transformScale)
 		}
 		pathToDraw = dashPath(p, dash)
@@ -199,8 +203,10 @@ func dashPath(p *Path, dash *Dash) *Path {
 		case MoveTo:
 			currentX, currentY = coords[0], coords[1]
 			startX, startY = currentX, currentY
-			// Reset pattern state for new subpath
-			patternIdx, patternPos, inDash = dashStateAtOffset(pattern, offset)
+			// B2 (WHATWG canvas / Skia SkDashPath): the dash pattern
+			// CONTINUES across subpaths — each subpath resumes where the
+			// previous one left off. Do NOT reset the pattern state here; a
+			// reset misplaces every dash after the first contour.
 			if inDash {
 				result.MoveTo(currentX, currentY)
 			}

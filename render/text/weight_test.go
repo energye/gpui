@@ -99,7 +99,7 @@ func TestWithWeight_VariableResolvesToWght(t *testing.T) {
 
 // Bold and regular masks must not share an atlas key.
 func TestGlyphMaskKey_BoldSeparates(t *testing.T) {
-	a := MakeGlyphMaskKey(1, 2, 16, 0, 0)
+	a := MakeGlyphMaskKey(1, 2, 16, 0, 0, HintingFull)
 	b := a
 	b.Flags |= GlyphMaskFlagBold
 	if a == b {

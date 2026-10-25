@@ -4,6 +4,8 @@ package gpu
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/energye/gpui/render"
@@ -99,5 +101,60 @@ func TestGlyphMaskEvenSpacing(t *testing.T) {
 					i, a[i], b[i], base)
 			}
 		}
+	}
+}
+
+// glyphMaskTestSource loads one TTF source for hinting-key tests (two faces
+// from the SAME source differing only in WithHinting).
+func glyphMaskTestSource(t *testing.T) *text.FontSource {
+	t.Helper()
+	for _, p := range []string{
+		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+		"/usr/share/fonts/TTF/DejaVuSans.ttf",
+		"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+		"/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+		filepath.Join("testdata", "test.ttf"),
+	} {
+		if _, err := os.Stat(p); err == nil {
+			src, err := text.NewFontSourceFromFile(p)
+			if err != nil {
+				continue
+			}
+			return src
+		}
+	}
+	t.Skip("no TTF font available")
+	return nil
+}
+
+// TestGlyphMaskHintingSeparatesAtlasEntries pins the A3 fix (Skia
+// SkDescriptor rule: every state that changes the generated mask must be in
+// the cache key). Two faces from the same source differing ONLY in hinting
+// must produce separate atlas entries — pre-fix they collided on one entry
+// because GlyphMaskKey carried no hinting bits while the rasterized outline
+// depends on hinting (ExtractOutlineHinted).
+func TestGlyphMaskHintingSeparatesAtlasEntries(t *testing.T) {
+	src := glyphMaskTestSource(t)
+	const size = 24
+	faceFull := src.Face(size, text.WithHinting(text.HintingFull))
+	faceNone := src.Face(size, text.WithHinting(text.HintingNone))
+	// Single glyph at an integer origin: both hinting modes resolve the same
+	// subpixel phase (fracX=0), so the ONLY key discriminator left is
+	// hinting. (Multi-glyph strings let HintingNone's continuous positioning
+	// leak into the subpixel key bits and mask the collision.)
+	const s = "H"
+	engine := NewGlyphMaskEngine()
+	if _, err := engine.LayoutText(faceFull, s, 0, 0, render.RGBA{A: 1}, render.Identity(), 1); err != nil {
+		t.Fatalf("LayoutText(full): %v", err)
+	}
+	_, _, entries1, _ := engine.AtlasStats()
+
+	if _, err := engine.LayoutText(faceNone, s, 0, 0, render.RGBA{A: 1}, render.Identity(), 1); err != nil {
+		t.Fatalf("LayoutText(none): %v", err)
+	}
+	_, _, entries2, _ := engine.AtlasStats()
+
+	if entries2 == entries1 {
+		t.Fatalf("hinting key collision: atlas entries stayed %d after switching HintingFull→HintingNone on the same source; masks must key on hinting", entries1)
 	}
 }

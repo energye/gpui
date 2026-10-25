@@ -606,20 +606,20 @@ func (e *GlyphMaskEngine) layoutGlyphs(
 		bucketScale := 1.0
 		var key text.GlyphMaskKey
 		if e.atlas.UnderPressure() && !isCJK {
-			key = text.MakeGlyphMaskKeyBucketed(fontID, glyph.GID, fontSize, fracX, fracY)
+			key = text.MakeGlyphMaskKeyBucketed(fontID, glyph.GID, fontSize, fracX, fracY, hinting)
 			rasterSize = float64(key.SizeQ4) / 16.0
 			if rasterSize > 0 {
 				bucketScale = fontSize / rasterSize
 			}
 		} else {
-			key = text.MakeGlyphMaskKey(fontID, glyph.GID, fontSize, fracX, fracY)
+			key = text.MakeGlyphMaskKey(fontID, glyph.GID, fontSize, fracX, fracY, hinting)
 		}
 
 		// Set mode flags in cache key so gray/LCD/aliased/bold masks never collide.
 		if aliased {
-			key.Flags = text.GlyphMaskFlagAliased
+			key.Flags |= text.GlyphMaskFlagAliased
 		} else if useLCD {
-			key.Flags = text.GlyphMaskFlagLCD
+			key.Flags |= text.GlyphMaskFlagLCD
 			if lcdLayout == text.LCDLayoutBGR {
 				key.Flags |= text.GlyphMaskFlagLCDBGR
 			}

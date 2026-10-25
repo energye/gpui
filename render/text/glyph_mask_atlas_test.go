@@ -53,7 +53,7 @@ func TestMakeGlyphMaskKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			key := MakeGlyphMaskKey(tt.fontID, tt.glyphID, tt.size, tt.subpixelX, tt.subpixelY)
+			key := MakeGlyphMaskKey(tt.fontID, tt.glyphID, tt.size, tt.subpixelX, tt.subpixelY, HintingFull)
 			if key.SizeQ4 != tt.wantQ4 {
 				t.Errorf("SizeQ4 = %d, want %d", key.SizeQ4, tt.wantQ4)
 			}
@@ -76,7 +76,7 @@ func TestGlyphMaskAtlas_PutGet(t *testing.T) {
 		mask[i] = uint8(i * 4) //nolint:gosec // test data
 	}
 
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 
 	// Put
 	region, err := atlas.Put(key, mask, 8, 8, -1.0, 10.0, 0)
@@ -100,7 +100,7 @@ func TestGlyphMaskAtlas_PutGet(t *testing.T) {
 	}
 
 	// Different key — should miss
-	key2 := MakeGlyphMaskKey(1, 66, 13.0, 0, 0)
+	key2 := MakeGlyphMaskKey(1, 66, 13.0, 0, 0, HintingFull)
 	_, ok = atlas.Get(key2)
 	if ok {
 		t.Error("Get() returned true for uncached glyph")
@@ -111,7 +111,7 @@ func TestGlyphMaskAtlas_DuplicatePut(t *testing.T) {
 	atlas := NewGlyphMaskAtlasDefault()
 
 	mask := make([]byte, 16)
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 
 	// Put twice — should return same region
 	r1, err := atlas.Put(key, mask, 4, 4, 0, 0, 0)
@@ -149,7 +149,7 @@ func TestGlyphMaskAtlas_LRUEviction(t *testing.T) {
 
 	// Fill to capacity
 	for i := range 3 {
-		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0)
+		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0, HintingFull)
 		_, err := atlas.Put(key, mask, 2, 2, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("Put(%d) error = %v", i, err)
@@ -161,14 +161,14 @@ func TestGlyphMaskAtlas_LRUEviction(t *testing.T) {
 	}
 
 	// Access glyph 0 to make it recently used
-	key0 := MakeGlyphMaskKey(1, 0, 13.0, 0, 0)
+	key0 := MakeGlyphMaskKey(1, 0, 13.0, 0, 0, HintingFull)
 	_, ok := atlas.Get(key0)
 	if !ok {
 		t.Fatal("Get(0) failed")
 	}
 
 	// Add a 4th entry — should evict glyph 1 (LRU)
-	key3 := MakeGlyphMaskKey(1, 3, 13.0, 0, 0)
+	key3 := MakeGlyphMaskKey(1, 3, 13.0, 0, 0, HintingFull)
 	_, err = atlas.Put(key3, mask, 2, 2, 0, 0, 0)
 	if err != nil {
 		t.Fatalf("Put(3) error = %v", err)
@@ -181,14 +181,14 @@ func TestGlyphMaskAtlas_LRUEviction(t *testing.T) {
 	}
 
 	// Glyph 1 should have been evicted (LRU)
-	key1 := MakeGlyphMaskKey(1, 1, 13.0, 0, 0)
+	key1 := MakeGlyphMaskKey(1, 1, 13.0, 0, 0, HintingFull)
 	_, ok = atlas.Get(key1)
 	if ok {
 		t.Error("glyph 1 should have been evicted")
 	}
 
 	// Glyph 2 should still be cached
-	key2 := MakeGlyphMaskKey(1, 2, 13.0, 0, 0)
+	key2 := MakeGlyphMaskKey(1, 2, 13.0, 0, 0, HintingFull)
 	_, ok = atlas.Get(key2)
 	if !ok {
 		t.Error("glyph 2 was evicted but shouldn't have been")
@@ -199,7 +199,7 @@ func TestGlyphMaskAtlas_Stats(t *testing.T) {
 	atlas := NewGlyphMaskAtlasDefault()
 
 	mask := make([]byte, 4)
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 
 	// Miss
 	_, _ = atlas.Get(key)
@@ -227,7 +227,7 @@ func TestGlyphMaskAtlas_Clear(t *testing.T) {
 	atlas := NewGlyphMaskAtlasDefault()
 
 	mask := make([]byte, 4)
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 	_, _ = atlas.Put(key, mask, 2, 2, 0, 0, 0)
 
 	atlas.Clear()
@@ -244,7 +244,7 @@ func TestGlyphMaskAtlas_DirtyPages(t *testing.T) {
 	atlas := NewGlyphMaskAtlasDefault()
 
 	mask := make([]byte, 4)
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 	_, _ = atlas.Put(key, mask, 2, 2, 0, 0, 0)
 
 	dirty := atlas.DirtyPages()
@@ -263,7 +263,7 @@ func TestGlyphMaskAtlas_DirtyPages(t *testing.T) {
 func TestGlyphMaskAtlas_InvalidMask(t *testing.T) {
 	atlas := NewGlyphMaskAtlasDefault()
 
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 
 	// Empty mask
 	_, err := atlas.Put(key, nil, 0, 0, 0, 0, 0)
@@ -281,7 +281,7 @@ func TestGlyphMaskAtlas_InvalidMask(t *testing.T) {
 
 func TestGlyphMaskAtlas_GetOrRasterize(t *testing.T) {
 	atlas := NewGlyphMaskAtlasDefault()
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 
 	callCount := 0
 	rasterize := func() ([]byte, int, int, float32, float32, float32, error) {
@@ -335,7 +335,7 @@ func TestGlyphMaskAtlas_MemoryUsage(t *testing.T) {
 	}
 
 	mask := make([]byte, 4)
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 	_, _ = atlas.Put(key, mask, 2, 2, 0, 0, 0)
 
 	// One 64x64 R8 page = 4096 bytes
@@ -350,7 +350,7 @@ func TestGlyphMaskAtlas_SubpixelVariants(t *testing.T) {
 
 	// Same glyph, 4 different subpixel X positions should produce 4 distinct cache entries
 	for i := range 4 {
-		key := MakeGlyphMaskKey(1, 65, 13.0, float64(i)*0.25, 0)
+		key := MakeGlyphMaskKey(1, 65, 13.0, float64(i)*0.25, 0, HintingFull)
 		_, err := atlas.Put(key, mask, 2, 2, 0, 0, 0)
 		if err != nil {
 			t.Fatalf("Put(subpixel=%d) error = %v", i, err)
@@ -438,9 +438,9 @@ func TestMakeGlyphMaskKeyBucketed(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		key := MakeGlyphMaskKeyBucketed(1, 65, tt.size, 0, 0)
+		key := MakeGlyphMaskKeyBucketed(1, 65, tt.size, 0, 0, HintingFull)
 		if key.SizeQ4 != tt.wantQ4 {
-			t.Errorf("MakeGlyphMaskKeyBucketed(size=%f): SizeQ4=%d, want %d (bucket=%fpx)",
+			t.Errorf("MakeGlyphMaskKeyBucketed(size=%f, HintingFull): SizeQ4=%d, want %d (bucket=%fpx)",
 				tt.size, key.SizeQ4, tt.wantQ4, tt.wantSize)
 		}
 	}
@@ -453,8 +453,8 @@ func TestBucketedKey_ReducesEntries(t *testing.T) {
 
 	for i := range 17 { // 14.0, 14.0625, ..., 15.0
 		size := 14.0 + float64(i)/16.0
-		uniqueNormal[MakeGlyphMaskKey(1, 65, size, 0, 0)] = struct{}{}
-		uniqueBucket[MakeGlyphMaskKeyBucketed(1, 65, size, 0, 0)] = struct{}{}
+		uniqueNormal[MakeGlyphMaskKey(1, 65, size, 0, 0, HintingFull)] = struct{}{}
+		uniqueBucket[MakeGlyphMaskKeyBucketed(1, 65, size, 0, 0, HintingFull)] = struct{}{}
 	}
 
 	if len(uniqueNormal) <= 1 {
@@ -488,7 +488,7 @@ func TestGlyphMaskAtlas_UnderPressure_Hysteresis(t *testing.T) {
 
 	// Fill to 50% → should enter bucketed mode.
 	for i := range 50 {
-		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0)
+		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0, HintingFull)
 		_, _ = atlas.Put(key, mask, 8, 8, 0, -8, 0)
 	}
 
@@ -500,13 +500,13 @@ func TestGlyphMaskAtlas_UnderPressure_Hysteresis(t *testing.T) {
 	// bucketedMode should STAY true (hysteresis: exit at 25%, not 50%).
 	atlas.Clear()
 	for i := range 30 {
-		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0)
+		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0, HintingFull)
 		_, _ = atlas.Put(key, mask, 8, 8, 0, -8, 0)
 	}
 
 	// First: re-enter pressure mode.
 	for i := 30; i < 50; i++ {
-		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0)
+		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0, HintingFull)
 		_, _ = atlas.Put(key, mask, 8, 8, 0, -8, 0)
 	}
 	if !atlas.UnderPressure() {
@@ -516,7 +516,7 @@ func TestGlyphMaskAtlas_UnderPressure_Hysteresis(t *testing.T) {
 	// Now simulate clearing down to 24 entries (< 25%).
 	atlas.Clear()
 	for i := range 24 {
-		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0)
+		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0, HintingFull)
 		_, _ = atlas.Put(key, mask, 8, 8, 0, -8, 0)
 	}
 	// Force re-check — but Clear() resets bucketedMode=false implicitly
@@ -545,7 +545,7 @@ func TestGlyphMaskAtlas_Compact_StalePages(t *testing.T) {
 	}
 
 	// Add a glyph
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 	_, err = atlas.Put(key, mask, 10, 10, 0, -10, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -582,7 +582,7 @@ func TestGlyphMaskAtlas_EvictTail_ResetsEmptyPage(t *testing.T) {
 
 	// Fill to capacity.
 	for i := range 3 {
-		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0)
+		key := MakeGlyphMaskKey(1, GlyphID(i), 13.0, 0, 0, HintingFull)
 		_, err = atlas.Put(key, mask, 10, 10, 0, -10, 0)
 		if err != nil {
 			t.Fatalf("Put %d failed: %v", i, err)
@@ -591,7 +591,7 @@ func TestGlyphMaskAtlas_EvictTail_ResetsEmptyPage(t *testing.T) {
 
 	// Adding one more should evict the tail and eventually reset the page
 	// when all its entries are gone.
-	key := MakeGlyphMaskKey(1, 99, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 99, 13.0, 0, 0, HintingFull)
 	_, err = atlas.Put(key, mask, 10, 10, 0, -10, 0)
 	if err != nil {
 		t.Fatalf("Put after eviction failed: %v", err)
@@ -604,8 +604,8 @@ func TestGlyphMaskAtlas_EvictTail_ResetsEmptyPage(t *testing.T) {
 
 func TestS42_DirtyRegionPartialUnion(t *testing.T) {
 	atlas := NewGlyphMaskAtlasDefault()
-	key1 := MakeGlyphMaskKey(1, 10, 16, 0, 0)
-	key2 := MakeGlyphMaskKey(1, 11, 16, 0, 0)
+	key1 := MakeGlyphMaskKey(1, 10, 16, 0, 0, HintingFull)
+	key2 := MakeGlyphMaskKey(1, 11, 16, 0, 0, HintingFull)
 	mask := make([]byte, 8*8)
 	for i := range mask {
 		mask[i] = 255
@@ -649,7 +649,7 @@ func TestS42_DirtyRegionFullWhenLarge(t *testing.T) {
 	// Fill roughly half+ of page with one big mask via copyMask path (Put).
 	// 48x48 = 2304, page=4096 → >50%
 	big := make([]byte, 48*48)
-	key := MakeGlyphMaskKey(2, 1, 40, 0, 0)
+	key := MakeGlyphMaskKey(2, 1, 40, 0, 0, HintingFull)
 	if _, err := atlas.Put(key, big, 48, 48, 0, 0, 0); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
@@ -673,14 +673,14 @@ func TestGlyphMaskAtlas_Generation_BumpsOnClearAndReset(t *testing.T) {
 	for i := range mask {
 		mask[i] = 200
 	}
-	if _, err := atlas.Put(MakeGlyphMaskKey(1, 1, 13, 0, 0), mask, 10, 10, 0, -10, 0); err != nil {
+	if _, err := atlas.Put(MakeGlyphMaskKey(1, 1, 13, 0, 0, HintingFull), mask, 10, 10, 0, -10, 0); err != nil {
 		t.Fatal(err)
 	}
 	// Fill and force eviction → empty-page reset bumps generation.
-	if _, err := atlas.Put(MakeGlyphMaskKey(1, 2, 13, 0, 0), mask, 10, 10, 0, -10, 0); err != nil {
+	if _, err := atlas.Put(MakeGlyphMaskKey(1, 2, 13, 0, 0, HintingFull), mask, 10, 10, 0, -10, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := atlas.Put(MakeGlyphMaskKey(1, 3, 13, 0, 0), mask, 10, 10, 0, -10, 0); err != nil {
+	if _, err := atlas.Put(MakeGlyphMaskKey(1, 3, 13, 0, 0, HintingFull), mask, 10, 10, 0, -10, 0); err != nil {
 		t.Fatal(err)
 	}
 	if atlas.Generation() == g0 {
@@ -703,7 +703,7 @@ func TestGlyphMaskAtlas_Get_KeepsPageAlive(t *testing.T) {
 	for i := range mask {
 		mask[i] = 255
 	}
-	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0)
+	key := MakeGlyphMaskKey(1, 65, 13.0, 0, 0, HintingFull)
 	if _, err := atlas.Put(key, mask, 10, 10, 0, -10, 0); err != nil {
 		t.Fatal(err)
 	}

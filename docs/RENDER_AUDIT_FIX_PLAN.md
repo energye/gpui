@@ -244,6 +244,17 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 ---
 
+## 0.1 第一批修复落地记录（2026-10-25）
+
+| 项 | 状态 | 证据 |
+|---|---|---|
+| A3 | ✅ 已修 | 红灯：`TestGlyphMaskHintingSeparatesAtlasEntries` 修前 entries 停在 1（碰撞实锤）→ 修复后分离 → 变异反证（hint 位清零再红）。键位 Flags 4-5 编码 hinting，构造器三件套加参全量切换，引擎手工旗标改 `\|=` 防冲。回归：render/text + render/internal/gpu Mask/Hint/LCD 族绿。真窗：`ui_text_m5_anycase` 两连 0.0000%；`ui_render_base_textlow` 出现 0.0883% **纠错性漂移**（混 hinting 配置修前共享掩码，Full/None/Vertical 轮廓实测互异 + 两跑逐位一致 + 抓屏 0.0000%）——**经用户批准重出**，两连 0.0000%。连带：`ui_render_base_textspacing` 同机制 0.5958% 漂移，同批准归因重出，两连 0.0000%（`-race` 档） |
+| D2 | ✅ 已修 | 红灯：`TestHbShaperConcurrentSizes`（新文件 `shaper_hb_race_test.go`）`-race` 修前 11 条 DATA RACE 命中 `shaper_hb.go:82` → `Shape` 全程持 `s.mu`、`getOrCreateHbFont` 改持锁前置（`system_font.go` 预热线同批适配）→ 0 条且并发结果与单线程基准逐位一致 → 变异反证（撤锁再红）。回归：render/text 全包 + Shape/Layout/Wrap 族 `-race` 绿。真窗：`textspacing -race` 两连 0.0000%、`m5_anycase -race` OK |
+| D1 | ✅ 已修（代码级） | `gles/queue.go` 补 `UNPACK_ROW_LENGTH`（与 `queue_linux.go` 逐行同构，含 defer 复位与 pixelBytes 换算）；`GOOS=windows` 交叉编译过 + Linux `gles` 包全绿。**Windows 真机验收登记待做**（无真机不假绿） |
+| B2 | ✅ 已修 | 红灯：`TestDashPhaseContinuesAcrossSubpaths`（新文件 `software_stroke_dash_test.go`）修前第二子路径首 dash=[60,80]（每子路径重置相位）→ oracle [60,70]（WHATWG 跨子路径连续）→ 修复后绿 → 变异反证（恢复重置再红）。附带：dash 缩放 `>1.0` 改 `!=1.0` 双向（对齐 T.03）。回归：render 的 Stroke/Dash/PathEffects 族绿。真窗：`ui_render_base_strokepreset` 两连 0.0000%（单轮廓虚线窗，无基线漂移符合预期） |
+
+遗留观察（已定性为存量）：`render/text` 全包单跑默认 600s 超时系 B1 全字集扫描聚合慢（`zz_b1_ttf_scan_test.go`，2026-09-30 存量：WqyFull 216s + Indic 173s + Latin 58s + Myanmar 28s，B1 族单独 ~475s，全包需 >600s）；单跑 `-timeout=900s` 全 PASS（B1 过滤组 `ok 702.785s`），逐文件/过滤跑绿，非本批回归。
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。

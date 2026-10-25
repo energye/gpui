@@ -168,12 +168,26 @@ func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal
 	glCtx.BindTexture(tex.target, tex.id)
 
 	if tex.target == gl.TEXTURE_2D {
+		// Padded sources arrive with BytesPerRow > tight width; tell GL the
+		// row length in pixels (UNPACK_ROW_LENGTH) so TexSubImage2D reads the
+		// right row starts — mirrors queue_linux.go (D1: both ends must honor
+		// the same GL ES 3.0 pixel-storage semantics).
+		if layout != nil && layout.BytesPerRow > 0 {
+			pixelBytes := uint32(4)
+			switch tex.format {
+			case gputypes.TextureFormatR8Unorm:
+				pixelBytes = 1
+			}
+			if rowLen := layout.BytesPerRow / pixelBytes; rowLen > size.Width {
+				glCtx.PixelStorei(gl.UNPACK_ROW_LENGTH, int32(rowLen))
+				defer glCtx.PixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+			}
+		}
 		if tex.format == gputypes.TextureFormatR8Unorm {
 			glCtx.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
 		}
 		// Honor Origin: dirty-rect uploads (glyph atlas pages) arrive with a
 		// non-zero origin — writing at (0,0) misplaces ink into wrong cells.
-		// Windows 真机待复验.
 		glCtx.TexSubImage2D(tex.target, int32(dst.MipLevel),
 			int32(dst.Origin.X), int32(dst.Origin.Y),
 			int32(size.Width), int32(size.Height), format, dataType,
