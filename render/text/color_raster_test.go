@@ -105,3 +105,39 @@ func colorRasterNonBlank(img *ColorRasterImage) int {
 	}
 	return n
 }
+
+// TestColorRaster_CBDT_FgNotInKey pins the C2 follow-up: CBDT bitmaps are
+// self-colored — the foreground never touches their pixels — so the same
+// glyph drawn in different text colors must share ONE cache entry. Pre-fix
+// the key carried fg, so every text color held its own copy (fragmentation
+// plus random eviction at maxSize).
+func TestColorRaster_CBDT_FgNotInKey(t *testing.T) {
+	pf := loadGoRegularFont(t)
+	opf := pf.(*ownParsedFont)
+	gid := pf.GlyphIndex('A')
+	tables := make(map[string][]byte, len(opf.tables)+2)
+	for k, v := range opf.tables {
+		tables[k] = v
+	}
+	tables["CBDT"] = syntheticCBDT()
+	tables["CBLC"] = syntheticCBLC(gid)
+	font := &ownParsedFont{rawData: opf.rawData, tables: tables, upem: opf.upem, numGlyphs: opf.numGlyphs}
+
+	cache := NewColorRasterCache(64)
+	if _, err := cache.Image(font, gid, 16, 0, color.RGBA{255, 0, 0, 255}); err != nil {
+		t.Fatalf("Image(red): %v", err)
+	}
+	img2, err := cache.Image(font, gid, 16, 0, color.RGBA{0, 255, 0, 255})
+	if err != nil {
+		t.Fatalf("Image(green): %v", err)
+	}
+	// The green request must reuse the red request's rasterization: same
+	// pointer = one cache entry for the self-colored bitmap.
+	first, err := cache.Image(font, gid, 16, 0, color.RGBA{255, 0, 0, 255})
+	if err != nil {
+		t.Fatalf("Image(red) again: %v", err)
+	}
+	if img2 != first {
+		t.Fatalf("CBDT entry keyed on fg: two text colors produced two cache entries")
+	}
+}

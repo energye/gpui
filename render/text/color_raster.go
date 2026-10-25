@@ -74,7 +74,15 @@ func (c *ColorRasterCache) Image(font ParsedFont, glyphID uint16, ppem uint16, p
 	if !ok {
 		return nil, ErrNotColorGlyph
 	}
-	key := colorRasterKey{font: font, glyphID: glyphID, ppem: ppem, palette: palette, fg: fg}
+	// C2 follow-up: key only on what changes the rasterized bitmap. CBDT/
+	// sbix bitmaps are self-colored (rasterizeColorBitmap ignores fg), so
+	// keying on fg gave every text color its own copy of the same bitmap.
+	// COLR keeps fg: currentColor bakes into the flattened layers.
+	keyFG := fg
+	if cf.GlyphType(glyphID) == GlyphTypeBitmap {
+		keyFG = color.RGBA{}
+	}
+	key := colorRasterKey{font: font, glyphID: glyphID, ppem: ppem, palette: palette, fg: keyFG}
 	c.mu.Lock()
 	if img, ok := c.entries[key]; ok {
 		c.mu.Unlock()

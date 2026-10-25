@@ -290,6 +290,8 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 - **C1 终态第二刀 ✅**：linear 分支重排——对角/任意方向 linear 的 GPU ramp masked 提到 2D 场前（H/V span 快路径不变）。值级新增 `linear_diagonal_ramp_test.go`（对角矩形 ramp vs ColorAt oracle ±2/255 + 背景 不越界）——修前无此覆盖（对角只有动画窗 M5 无 golden）；真窗：`dither` 7.48%/`miscdraw` 0.99% 漂移为 ramp 量化 ±1/255 被 Bayer 抖动放大（dither 窗语义即输入量化可视化探针；探针全过、两跑确定），同批归因经批准重出各两连 0.0000%；`geometry`/`recording` 零漂移。live 路径 2D ColorAt 场就此全部退出常规渐变（仅剩 ramp 拒绝的形状与真自定义 brush）。
 
+- **#3 ColorRasterCache fg 出键 ✅**：`color_raster.go` 的 `colorRasterKey` 按 `GlyphTypeBitmap` 清 fg（CBDT 位图自着色，rasterizeColorBitmap 本就不吃 fg；COLR 保留 currentColor）。红灯（同字形红/绿两色两份缓存条目）→绿→变异反证→`ColorRaster` 族回归绿 + `render/text` 排除 zz_* 慢族后全包 503s 绿（zz_* 慢扫描族聚合超时为既有存量口径，与 B1 同族登记）+ `emoji` 真窗两连 0.0000% 零漂移。位图同字形各文字色共享一份光栅，缓存碎片化与随机驱逐面消除。
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。
