@@ -91,50 +91,33 @@ func drawGlyphs(
 	ppem := sf.size
 	hinting := sf.config.hinting
 
-	// Check if TT bytecode hinting is available for this font.
-	// When it is, we need to use hinted advances for glyph positioning
-	// to match the hinted outlines. Without this, the outline shape
-	// (grid-fitted by TT interpreter) disagrees with the cursor advance
-	// (raw hmtx), causing letters to merge or gap at certain sizes.
-	var ttCache *ttHintCache
-	if hinting != HintingNone {
-		if ownFont, ok := parsed.(*ownParsedFont); ok {
-			ttCache = ownFont.loadTTHintCache()
-		}
-	}
-
 	rast := NewGlyphMaskRasterizer()
 	src := image.NewUniform(col)
 
-	// Vertical text (TTB/BTT): the face iterator already carries the vertical
-	// position in glyph.Y (advance = vmtx height); adding the same advance to
-	// advanceX would shift each glyph diagonally. Only horizontal runs advance X.
+	// Vertical text (TTB/BTT): the shaper carries the vertical position in
+	// glyph.Y (advance = vmtx height). Only horizontal runs advance X.
 	isVertical := sf.Direction().IsVertical()
 
-	advanceX := 0.0
+	// Roster #2 (A1 completion): walk the SHAPED run (GSUB ligatures + GPOS
+	// kerning) — the same source the GPU mask path consumes since A1. The
+	// old cmap iteration with per-glyph hinted advances diverged from the
+	// GPU path on kerned/ligated text and could not produce ligature glyphs
+	// at all. Hinting still applies to the OUTLINE rasterization; positions
+	// come from the shaper, snapped per glyph.
+	//
 	// Hinted text must be placed at integer device pixels (Skia pattern,
-	// matches GPU glyphPlacement): fractional X splits 1px vertical stems
-	// into two half-coverage columns in the rasterizer (FreeType shows the
-	// same break at fracX=0.5), and hinted outlines are already grid-fitted
-	// so Y must never be re-shifted. X snaps to the rounded-advance grid so
-	// stems stay crisp while spacing stays even.
-	snapPen := math.Round(x)
-	for glyph := range sf.Glyphs(text) {
-		adv := hintedOrRawAdvance(ttCache, glyph, ppem)
+	// matches GPU glyphPlacement snapX): fractional X splits 1px vertical
+	// stems into two half-coverage columns, and hinted outlines are already
+	// grid-fitted so Y must never be re-shifted.
+	shaped := ShapeForDraw(text, sf)
+	for _, glyph := range shaped {
 		if glyph.GID == 0 {
-			// Space and other no-outline glyphs: use unhinted advance.
-			// These have no TT bytecode and phantom points would be trivial.
-			if !isVertical {
-				advanceX += adv
-				if hinting != HintingNone {
-					snapPen += math.Round(adv)
-				}
-			}
+			// Space and other no-outline glyphs: the shaper already carried
+			// their advance into subsequent positions.
 			continue
 		}
 
-		// Position glyph using our tracked advance (which may be hinted).
-		glyphX := x + advanceX
+		glyphX := x + glyph.X
 		glyphY := y + glyph.Y
 
 		intX := math.Floor(glyphX)
@@ -142,19 +125,13 @@ func drawGlyphs(
 		subpixelX := glyphX - intX
 		subpixelY := glyphY - intY
 		if hinting != HintingNone && !isVertical {
-			intX = snapPen
+			intX = math.Round(glyphX)
 			subpixelX = 0
 			subpixelY = 0
 		}
 
 		result, err := rasterize(rast, parsed, glyph.GID, ppem, subpixelX, subpixelY, hinting, sf.Embolden())
 		if err != nil || result == nil {
-			if !isVertical {
-				advanceX += adv
-				if hinting != HintingNone {
-					snapPen += math.Round(adv)
-				}
-			}
 			continue
 		}
 
@@ -169,14 +146,6 @@ func drawGlyphs(
 
 		destRect := image.Rect(dstX, dstY, dstX+result.Width, dstY+result.Height)
 		draw.DrawMask(dst, destRect, src, image.Point{}, maskImg, image.Point{}, draw.Over)
-
-		// Advance cursor using hinted advance when TT hinting is active.
-		if !isVertical {
-			advanceX += adv
-			if hinting != HintingNone {
-				snapPen += math.Round(adv)
-			}
-		}
 	}
 }
 

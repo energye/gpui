@@ -292,6 +292,8 @@ RTL 方向的段落遇到 MultiFace（多字体回退链）时**整段没有字�
 
 - **#3 ColorRasterCache fg 出键 ✅**：`color_raster.go` 的 `colorRasterKey` 按 `GlyphTypeBitmap` 清 fg（CBDT 位图自着色，rasterizeColorBitmap 本就不吃 fg；COLR 保留 currentColor）。红灯（同字形红/绿两色两份缓存条目）→绿→变异反证→`ColorRaster` 族回归绿 + `render/text` 排除 zz_* 慢族后全包 503s 绿（zz_* 慢扫描族聚合超时为既有存量口径，与 B1 同族登记）+ `emoji` 真窗两连 0.0000% 零漂移。位图同字形各文字色共享一份光栅，缓存碎片化与随机驱逐面消除。
 
+- **#2 CPU 位图整形 ✅（A1 收尾）**：`drawGlyphs` 弃 cmap 迭代+hinted-advance 手动走笔，切 `ShapeForDraw` 整形 run（位置取整形 X、hinting 只管轮廓栅格、hinted 字形逐个整数吸附对齐 GPU glyphPlacement snapX；弃 ttCache 定位机具——它正是 kerning 被 GPOS 覆盖、与 GPU 分叉的根源）。红灯：镜像 oracle（同栅格化器按 shaped GID+位置合成参考图，与 `Draw("ffi")` 逐像素比，修前差 77px=ffi 连字缺位）→绿→变异反证（换回 LayoutGlyphs→红）。回归：Draw/Measure/Wrap 族绿；真窗 `miscdraw`/`emoji`/`recording` 零漂移（门禁走 GPU 路，CPU 位图路只在 Aliased/回退触发）、`textlow` 0.0371%（C 卡 Aliased 行整形移位，A1 收尾同类归因）重出两连 0.0000%。顺带澄清：`render/text` 全包 FAIL 系 zz_* 慢扫描家族（wqy/b2/ftgrays/tt_full）聚合超时，排除后 503s 全绿（既有存量口径）。
+
 ## 1. 执行顺序建议
 
 1. **第一批（小改高价值，先红后绿）**：A3 → D2 → D1 → B2（互独立，可并行开线）。D2 必须在 A1/A2 之前——两者都会加大过 `HbShaper` 的整形流量，先锁再放量。
