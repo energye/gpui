@@ -12,9 +12,12 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
+	"image/png"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -36,8 +39,12 @@ const topBarH = 64.0
 var proc scheduler.ProcessTracker
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: freeze scroll/hot state, snapshot + pixel/Golden evidence")
+	flag.Parse()
 	secs, secsSet := wrkit.RunSecondsOpt()
-	if secsSet {
+	if *autoOnly {
+		secs = 5
+	} else if secsSet {
 		wrkit.RequireMinRun(secs, "R21")
 	}
 	_, _, errFace := wrkit.EnsureUIFace()
@@ -149,10 +156,20 @@ func main() {
 	shell.Root.Place(hot, 800, topBarH+14)
 	shell.Root.Place(wrkit.Label("HOT", 10, 0.95, 0.7, 0.6), 800, topBarH+48)
 
+	snapDir := filepath.Join("examples", "ui_wr_r21_shell", "testdata")
+	snapPath := ""
+	if *autoOnly {
+		if err := os.MkdirAll(snapDir, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: testdata dir:", err)
+			os.Exit(1)
+		}
+		snapPath = filepath.Join(snapDir, "r21_shell.png")
+	}
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:       time.Duration(secs) * time.Second,
+		WarmUp:       true,
+		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
 			switch ev.Type {
 			case platform.EventClose:
@@ -175,6 +192,7 @@ func main() {
 	var warmFrames int
 	var scrollY float64
 	phase := wrkit.PhaseSteady
+	frozen := false
 
 	var elapsed float64
 	var lastWinW, lastWinH int
@@ -194,32 +212,47 @@ func main() {
 		if resizeSkip > 0 {
 			resizeSkip--
 		}
-		switch {
-		case elapsed >= 5.0 && elapsed < 8.0:
-			phase = "Spike"
-		case elapsed >= 8.0:
-			phase = wrkit.PhaseRecover
+		if *autoOnly && elapsed >= 2.0 && !frozen {
+			// Gate snapshot: pin the body at a whole-row offset and the hot
+			// color to fixed values. The remaining frames present this same
+			// state, so the final SnapshotPath is deterministic.
+			frozen = true
+			phase = wrkit.PhaseSteady
+			scrollY = 3 * 44
+			viewport.SetScrollOffset(0, scrollY)
+			hot.R, hot.G, hot.B = 0.95, 0.30, 0.25
+			hot.MarkNeedsPaint()
+			bodyPhase.SetText("PHASE=Steady bodyScr=132")
+			bodyPhase.MarkNeedsPaint()
 		}
+		if !frozen {
+			switch {
+			case elapsed >= 5.0 && elapsed < 8.0:
+				phase = "Spike"
+			case elapsed >= 8.0:
+				phase = wrkit.PhaseRecover
+			}
 
-		// Body scroll: rate changes with phase (Steady slow, Spike fast,
-		// Recover slow again) — content motion only, shell untouched.
-		rate := 0.5
-		if phase == "Spike" {
-			rate = 8.0
-		}
-		scrollY += rate
-		// Infinite scroll: wrap back to the top when reaching content end so
-		// the list keeps scrolling without ever sticking at the bottom.
-		// (maxScrollY = content - viewport; a bounce clamp pins there.)
-		if scrollY >= 60*44 {
-			scrollY = 0
-		}
-		viewport.SetScrollOffset(0, scrollY)
+			// Body scroll: rate changes with phase (Steady slow, Spike fast,
+			// Recover slow again) — content motion only, shell untouched.
+			rate := 0.5
+			if phase == "Spike" {
+				rate = 8.0
+			}
+			scrollY += rate
+			// Infinite scroll: wrap back to the top when reaching content end so
+			// the list keeps scrolling without ever sticking at the bottom.
+			// (maxScrollY = content - viewport; a bounce clamp pins there.)
+			if scrollY >= 60*44 {
+				scrollY = 0
+			}
+			viewport.SetScrollOffset(0, scrollY)
 
-		// HOT spot repaints itself every frame.
-		hotHue := float64(int(elapsed*8)%16) / 16
-		hot.R, hot.G, hot.B = 0.85+0.1*hotHue, 0.25+0.4*(1-hotHue), 0.3+0.5*hotHue
-		hot.MarkNeedsPaint()
+			// HOT spot repaints itself every frame.
+			hotHue := float64(int(elapsed*8)%16) / 16
+			hot.R, hot.G, hot.B = 0.85+0.1*hotHue, 0.25+0.4*(1-hotHue), 0.3+0.5*hotHue
+			hot.MarkNeedsPaint()
+		}
 
 		// Sample shell partition on every frame after warm-up.
 		srr, ssk := embedder.LastShellBoundaryFrame()
@@ -230,8 +263,10 @@ func main() {
 			warmFrames++
 		}
 
-		bodyPhase.SetText(fmt.Sprintf("PHASE=%s bodyScr=%.0f", phase, scrollY))
-		bodyPhase.MarkNeedsPaint()
+		if !frozen {
+			bodyPhase.SetText(fmt.Sprintf("PHASE=%s bodyScr=%.0f", phase, scrollY))
+			bodyPhase.MarkNeedsPaint()
+		}
 
 		app.ScheduleFrame()
 		proc.Sample()
@@ -315,8 +350,100 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: shell_skip_scroll=%d want >0 (shell Picture must replay during body scroll)\n", scrollShellSkip)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r21_shell: OK shell_rr_scroll=%d shell_skip_scroll=%d shell_rr_total=%d presents=%d elapsed=%.1fs\n",
-		scrollShellRerecord, scrollShellSkip, snap.ShellRerecord, app.PresentCount(), elapsedSec)
+	goldenSuffix := ""
+	if *autoOnly {
+		basePath := filepath.Join(snapDir, "r21_shell_base.png")
+		if _, err := os.Stat(basePath); err != nil {
+			if os.Getenv("GPUI_ACCEPT_GOLDEN") != "1" {
+				fmt.Fprintf(os.Stderr, "FAIL: golden baseline missing: %s (re-run with GPUI_ACCEPT_GOLDEN=1 to seed, then review + commit)\n", basePath)
+				os.Exit(1)
+			}
+			if err := wrkit.SeedGoldenPNG(snapPath, basePath); err != nil {
+				fmt.Fprintln(os.Stderr, "FAIL: seed golden:", err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "ui_wr_r21_shell: SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)\n", basePath, snapPath)
+			return
+		} else {
+			diff, total, err := wrkit.CompareGoldenPNG(snapPath, basePath, []wrkit.GoldenRect{{X: 0, Y: 0, W: 1200, H: 736}})
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "FAIL: golden:", err)
+				os.Exit(1)
+			}
+			if diff != 0 {
+				fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s\n", diff, int64(diff*float64(total)/100), total, basePath)
+				os.Exit(1)
+			}
+			probes := []pxProbe{
+				{name: "magenta_marker", x: 5, y: 5, r: 1, g: 0, b: 1},
+				{name: "shell_topbar_bg", x: 920, y: 60, r: 0.16, g: 0.18, b: 0.26},
+				{name: "body_row_bg", x: 250, y: 190, r: 0.13, g: 0.15, b: 0.20},
+				{name: "dense_cell", x: 508, y: 102, r: 0.25, g: 0.40, b: 0.62},
+				{name: "hot_spot", x: 813, y: 91, r: 0.95, g: 0.30, b: 0.25},
+				{name: "cyan_marker", x: 1195, y: 795, r: 0, g: 1, b: 1},
+			}
+			ok, err := checkPixels(snapPath, probes)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "FAIL: pixel:", err)
+				os.Exit(1)
+			}
+			if ok != len(probes) {
+				fmt.Fprintf(os.Stderr, "FAIL: pixel probes %d/%d\n", ok, len(probes))
+				os.Exit(1)
+			}
+			goldenSuffix = fmt.Sprintf(" pixel=%d/%d golden=0.0000%% px=%d", ok, len(probes), total)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "ui_wr_r21_shell: OK shell_rr_scroll=%d shell_skip_scroll=%d shell_rr_total=%d presents=%d elapsed=%.1fs%s\n",
+		scrollShellRerecord, scrollShellSkip, snap.ShellRerecord, app.PresentCount(), elapsedSec, goldenSuffix)
+}
+
+type pxProbe struct {
+	name    string
+	x, y    int
+	r, g, b float64
+}
+
+// checkPixels decodes a client-space PNG and checks the named probes with a
+// ±3/255 channel tolerance. The Golden comparison remains the exact gate.
+func checkPixels(path string, probes []pxProbe) (int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	img, err := png.Decode(f)
+	if err != nil {
+		return 0, err
+	}
+	b := img.Bounds()
+	dpr := float64(b.Dx()) / float64(winW)
+	if dpr <= 0 {
+		dpr = 1
+	}
+	ok := 0
+	for _, p := range probes {
+		px := b.Min.X + int(float64(p.x)*dpr+0.5)
+		py := b.Min.Y + int(float64(p.y)*dpr+0.5)
+		if px < b.Min.X || px >= b.Max.X || py < b.Min.Y || py >= b.Max.Y {
+			return ok, fmt.Errorf("%s probe outside %v", p.name, b)
+		}
+		cr, cg, cb, _ := img.At(px, py).RGBA()
+		gotR, gotG, gotB := uint8(cr>>8), uint8(cg>>8), uint8(cb>>8)
+		wantR, wantG, wantB := uint8(p.r*255+0.5), uint8(p.g*255+0.5), uint8(p.b*255+0.5)
+		if abs8(gotR, wantR) > 3 || abs8(gotG, wantG) > 3 || abs8(gotB, wantB) > 3 {
+			return ok, fmt.Errorf("%s at (%d,%d) got=(%d,%d,%d) want=(%d,%d,%d)", p.name, p.x, p.y, gotR, gotG, gotB, wantR, wantG, wantB)
+		}
+		ok++
+	}
+	return ok, nil
+}
+
+func abs8(a, b uint8) int {
+	if a > b {
+		return int(a - b)
+	}
+	return int(b - a)
 }
 
 type ticker struct{ on func(dt float64) }

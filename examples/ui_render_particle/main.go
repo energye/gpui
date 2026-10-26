@@ -14,11 +14,14 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
+	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/scheduler"
@@ -29,7 +32,12 @@ import (
 const winW, winH = 1200, 800
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: freeze sim.t at a fixed frame, snapshot + pixel/Golden evidence")
+	flag.Parse()
 	secs := runSeconds(20)
+	if *autoOnly {
+		secs = 10
+	}
 	fmt.Fprintf(os.Stderr, "ui_render_particle: 粒子特效真窗 — %ds（RUN_SECONDS 可调）\n", secs)
 
 	var proc scheduler.ProcessTracker
@@ -51,6 +59,15 @@ func main() {
 	host := win.Host()
 
 	snapshot := os.Getenv("SNAPSHOT")
+	snapDir := ""
+	if *autoOnly {
+		snapDir = filepath.Join("examples", "ui_render_particle", "testdata")
+		if err := os.MkdirAll(snapDir, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: testdata dir:", err)
+			os.Exit(1)
+		}
+		snapshot = filepath.Join(snapDir, "particle.png")
+	}
 
 	app := embedder.NewPipelineApp(host, sc.Root, embedder.PipelineOptions{
 		ClearR: 0.04, ClearG: 0.05, ClearB: 0.09, ClearA: 1,
@@ -64,8 +81,37 @@ func main() {
 		},
 	})
 
+	frozen := false
+	simElapsed := 0.0
 	app.Scheduler().Tickers().Add(&tick{on: func(dt float64) {
-		sc.onTick(dt)
+		simElapsed += dt
+		if *autoOnly && simElapsed >= 1.0 && !frozen {
+			// Freeze on a known sim frame; every later present paints the
+			// identical particles, so SnapshotPath is bitwise deterministic.
+			frozen = true
+			sc.freezeAt(2.0)
+		}
+		if !frozen {
+			sc.onTick(dt)
+		}
+		m := app.Metrics().Snapshot()
+		fpsLive := 0.0
+		if m.AvgFrameIntervalMs > 1e-6 {
+			fpsLive = 1000.0 / m.AvgFrameIntervalMs
+		}
+		sc.hud.NoteTick(dt)
+		sc.hud.Update(wrkit.Snap{
+			AbilityID:   "particles",
+			Phase:       "Particles",
+			FPS:         fpsLive,
+			P95Ms:       m.P95FrameIntervalMs,
+			Policy:      "persistent",
+			PresentMode: m.PresentMode,
+			PaintCount:  m.PaintCount,
+			Presents:    app.PresentCount(),
+			Core:        fmt.Sprintf("p95=%.1f hitches=%d", m.P95FrameIntervalMs, m.HitchCount),
+			GateOK:      fpsLive >= 30,
+		})
 		app.ScheduleFrame()
 		proc.Sample()
 	}})
@@ -114,6 +160,34 @@ func main() {
 	if secs >= 10 && fps < 30 {
 		fmt.Fprintf(os.Stderr, "FAIL: fps too low ~%.1f (<30 over %ds)\n", fps, secs)
 		os.Exit(1)
+	}
+	if *autoOnly {
+		basePath := filepath.Join(snapDir, "particle_base.png")
+		diff, total, seeded, err := wrkit.GoldenGate(snapshot, basePath, []wrkit.GoldenRect{{X: 0, Y: 0, W: 1200, H: 736}})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL:", err)
+			os.Exit(1)
+		}
+		if seeded {
+			fmt.Fprintf(os.Stderr, "ui_render_particle: SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)\n", basePath, snapshot)
+			return
+		}
+		if diff != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s\n", diff, int64(diff*float64(total)/100), total, basePath)
+			os.Exit(1)
+		}
+		probes := []wrkit.PixelProbe{
+			{Name: "fireball_highlight", X: 842, Y: 474, R: 1.0, G: 0.85, B: 0.40},
+			{Name: "fireball_core", X: 850, Y: 500, R: 249.0 / 255, G: 110.0 / 255, B: 20.0 / 255},
+			{Name: "ice_core", X: 210, Y: 210, R: 1.0, G: 1.0, B: 1.0},
+			{Name: "vortex_core", X: 600, Y: 400, R: 1.0, G: 0.90, B: 1.0},
+		}
+		if err := wrkit.CheckPixelProbes(snapshot, winW, probes); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: pixel:", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "ui_render_particle: OK presents=%d ~%.1f fps pixel=%d/%d golden=0.0000%% px=%d\n",
+			presents, fps, len(probes), len(probes), total)
 	}
 
 	if b, err := app.Metrics().JSON(); err == nil {

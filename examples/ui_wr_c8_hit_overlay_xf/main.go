@@ -30,6 +30,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"image"
 	"image/png"
@@ -75,8 +76,12 @@ type probe struct {
 }
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: freeze recovered transforms for a zero-tolerance Golden")
+	flag.Parse()
 	secs, secsSet := wrkit.RunSecondsOpt()
-	if secsSet {
+	if *autoOnly {
+		secs = 15
+	} else if secsSet {
 		wrkit.RequireMinRun(secs, "C8")
 	}
 	if _, _, errFace := wrkit.EnsureUIFace(); errFace != nil {
@@ -293,10 +298,19 @@ func main() {
 
 	// §2.7 snapshot schedule: one mid-steady shot + one after recovery.
 	snapDir := os.Getenv("C8_SNAP_DIR")
+	if *autoOnly {
+		snapDir = filepath.Join("examples", "ui_wr_c8_hit_overlay_xf", "testdata")
+		if err := os.MkdirAll(snapDir, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: testdata dir:", err)
+			os.Exit(1)
+		}
+	}
 	snapSteadyPath := filepath.Join(snapDir, "c8_steady.png")
 	snapRecoverPath := filepath.Join(snapDir, "c8_recover.png")
 	snapSteadyAt := 2.5 // seconds into Steady phase
 	snapRecoverAt := -1.0
+	freezeAt := -1.0
+	frozen := false
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
@@ -313,15 +327,30 @@ func main() {
 			phase = wrkit.PhaseSteady
 		}
 
-		// ===== R6 layer animation: continuous rotation + breathing scale =====
-		if phase == wrkit.PhaseSpike {
-			animSpeed = 2.0
-		} else {
-			animSpeed = 1.0
+		if *autoOnly && freezeAt > 0 && elapsed >= freezeAt && !frozen {
+			// Recover has restored main-tree hit identity. Pin the two
+			// transform targets and the hot spot before the recovery Golden.
+			frozen = true
+			xfA.SetRotation(0.35)
+			xfB.SetScale(1, 1)
+			pulse = 1.0
+			hot.R, hot.G, hot.B = 0.95, 0.30, 0.25
+			hot.MarkNeedsPaint()
+			hitBanner.SetText("HIT: frozen  restored  ov:111 rst:true   ptr: -")
+			hitBanner.MarkNeedsPaint()
 		}
-		xfA.SetRotation(elapsed * 0.9 * animSpeed) // angle advances every frame → HitTest must follow live rotation
-		pulse = 1.0 + 0.15*math.Sin(elapsed*2.4*animSpeed)
-		xfB.SetScale(pulse, pulse)
+
+		// ===== R6 layer animation: continuous rotation + breathing scale =====
+		if !frozen {
+			if phase == wrkit.PhaseSpike {
+				animSpeed = 2.0
+			} else {
+				animSpeed = 1.0
+			}
+			xfA.SetRotation(elapsed * 0.9 * animSpeed) // angle advances every frame → HitTest must follow live rotation
+			pulse = 1.0 + 0.15*math.Sin(elapsed*2.4*animSpeed)
+			xfB.SetScale(pulse, pulse)
+		}
 
 		// ===== Phase transitions =====
 		if phase != lastPhase {
@@ -425,7 +454,12 @@ func main() {
 			restoredProbeDone = true
 			restoredProbeOK = band == overlay.BandMain && rendering.HitDebugName(obj) == "lbl-7"
 			logProbe("restore", band, obj)
-			snapRecoverAt = elapsed + 0.5 // shot ~0.5s after restore
+			if *autoOnly {
+				freezeAt = elapsed + 0.3
+				snapRecoverAt = elapsed + 1.0 // frozen recovery shot
+			} else {
+				snapRecoverAt = elapsed + 0.5 // shot ~0.5s after restore
+			}
 		}
 
 		// §2.7/U21 snapshots: steady mid-run + post-recovery. SavePNG runs on
@@ -439,7 +473,7 @@ func main() {
 				runPixelChecks(app.Target().Context().Image(), probes)
 			})
 		}
-		if snapRecoverAt > 0 && restoredProbeDone {
+		if snapRecoverAt > 0 && restoredProbeDone && elapsed >= snapRecoverAt {
 			snapRecoverAt = 0
 			path := snapRecoverPath
 			app.SnapshotAsync(func() {
@@ -466,17 +500,21 @@ func main() {
 		}
 
 		// HOT spot repaints itself every frame.
-		hue := float64(int(elapsed*8)%16) / 16
-		hot.R, hot.G, hot.B = 0.85+0.1*hue, 0.25+0.4*(1-hue), 0.3+0.5*hue
-		hot.MarkNeedsPaint()
+		if !frozen {
+			hue := float64(int(elapsed*8)%16) / 16
+			hot.R, hot.G, hot.B = 0.85+0.1*hue, 0.25+0.4*(1-hue), 0.3+0.5*hue
+			hot.MarkNeedsPaint()
+		}
 
 		scriptedTotal := len(probes) + 3 // + barrier / entry-child / fallthrough (+ restore below)
 		scriptedOK := countOK(probes) + boolToInt(ovBarrierConsumed) + boolToInt(ovEntryHitOK) + boolToInt(ovFallthroughOK) + boolToInt(restoredProbeOK)
-		hitBanner.SetText(fmt.Sprintf("HIT: %s  %d/%d   ov:%d%d%d rst:%v   ptr: %s",
-			orDash(lastScriptHit), scriptedOK, scriptedTotal+1,
-			boolToInt(ovBarrierConsumed), boolToInt(ovEntryHitOK), boolToInt(ovFallthroughOK),
-			restoredProbeOK || !restoredProbeDone, lastPtrHit))
-		hitBanner.MarkNeedsPaint()
+		if !frozen {
+			hitBanner.SetText(fmt.Sprintf("HIT: %s  %d/%d   ov:%d%d%d rst:%v   ptr: %s",
+				orDash(lastScriptHit), scriptedOK, scriptedTotal+1,
+				boolToInt(ovBarrierConsumed), boolToInt(ovEntryHitOK), boolToInt(ovFallthroughOK),
+				restoredProbeOK || !restoredProbeDone, lastPtrHit))
+			hitBanner.MarkNeedsPaint()
+		}
 
 		app.ScheduleFrame()
 		proc.Sample()
@@ -602,8 +640,37 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: overlay still open at exit (Recover phase must remove it)")
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_c8_hit_overlay_xf: OK scripted=%d/%d main_dirty_base=%d excess=%d cycles=%d presents=%d elapsed=%.1fs\n",
-		okCount, total, baseMainDirty, ovFramesMainDirtyExcess, cycleKind, app.PresentCount(), elapsedSec)
+	goldenSuffix := ""
+	if *autoOnly {
+		basePath := filepath.Join(snapDir, "c8_recover_base.png")
+		diff, totalPx, seeded, err := wrkit.GoldenGate(snapRecoverPath, basePath, wrkit.ShellFullRects())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL:", err)
+			os.Exit(1)
+		}
+		if seeded {
+			fmt.Fprintf(os.Stderr, "ui_wr_c8_hit_overlay_xf: SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)\n", basePath, snapRecoverPath)
+			return
+		}
+		if diff != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s\n", diff, int64(diff*float64(totalPx)/100), totalPx, basePath)
+			os.Exit(1)
+		}
+		probes := []wrkit.PixelProbe{
+			{Name: "rot_target_center", X: 350, Y: 122, R: 0.85, G: 0.30, B: 0.28},
+			{Name: "scale_target_center", X: 449, Y: 120, R: 0.28, G: 0.45, B: 0.88},
+			{Name: "static_dense_cell", X: 615, Y: 225, R: 0.25, G: 0.40, B: 0.62},
+			{Name: "hot_spot", X: 330, Y: 420, R: 0.95, G: 0.30, B: 0.25},
+			{Name: "overlap_top", X: 735, Y: 105, R: 0.95, G: 0.85, B: 0.35},
+		}
+		if err := wrkit.CheckPixelProbes(snapRecoverPath, winW, probes); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: pixel:", err)
+			os.Exit(1)
+		}
+		goldenSuffix = fmt.Sprintf(" pixel=%d/%d golden=0.0000%% px=%d", len(probes), len(probes), totalPx)
+	}
+	fmt.Fprintf(os.Stderr, "ui_wr_c8_hit_overlay_xf: OK scripted=%d/%d main_dirty_base=%d excess=%d cycles=%d presents=%d elapsed=%.1fs%s\n",
+		okCount, total, baseMainDirty, ovFramesMainDirtyExcess, cycleKind, app.PresentCount(), elapsedSec, goldenSuffix)
 }
 
 // ===== helpers =====

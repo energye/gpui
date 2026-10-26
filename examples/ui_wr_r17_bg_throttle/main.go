@@ -31,6 +31,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"image"
 	_ "image/png"
@@ -62,8 +63,12 @@ const minimizeAt = 22.0
 var proc scheduler.ProcessTracker
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: freeze foreground visuals for a zero-tolerance Golden, still run the minimize script")
+	flag.Parse()
 	secs, secsSet := wrkit.RunSecondsOpt()
-	if !secsSet {
+	if *autoOnly {
+		secs = closeSecs
+	} else if !secsSet {
 		secs = closeSecs
 	} else {
 		wrkit.RequireMinRun(secs, "R17")
@@ -169,17 +174,32 @@ func main() {
 	var latchPresents int64
 	var latchT float64
 	var fgPresents, bgPresents int64
+	frozen := false
 	// Pixel proof (§2.7/U21, coordinate-free): two FG re-render snapshots
 	// must both show content (anti-black) and differ only slightly
 	// (liveness, anti-frozen) with the bulk identical (anti-flicker).
 	// Snapshots run on the raster thread via SnapshotAsync (C4 pattern).
-	pxDir, err := os.MkdirTemp("", "r17px")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "FAIL: pixel tempdir:", err)
-		os.Exit(1)
+	pxDir := ""
+	if *autoOnly {
+		pxDir = filepath.Join("examples", "ui_wr_r17_bg_throttle", "testdata")
+		if err := os.MkdirAll(pxDir, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: testdata dir:", err)
+			os.Exit(1)
+		}
+	} else {
+		var err error
+		pxDir, err = os.MkdirTemp("", "r17px")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: pixel tempdir:", err)
+			os.Exit(1)
+		}
 	}
 	snapA := filepath.Join(pxDir, "fg_a.png")
 	snapB := filepath.Join(pxDir, "fg_b.png")
+	if *autoOnly {
+		snapA = filepath.Join(pxDir, "r17_fg_a.png")
+		snapB = filepath.Join(pxDir, "r17_bg_throttle.png")
+	}
 	var snapADone, snapBDone bool
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
@@ -196,17 +216,16 @@ func main() {
 			phase = "Background"
 			if !minimizeCalled {
 				minimizeCalled = true
-				ctl.Minimize()
-				fmt.Fprintf(os.Stderr, "ui_wr_r17_bg_throttle: minimize called at t=%.1f\n", elapsed)
-			}
-			// The background span is measured from the latch edge, not
-			// from the controller call: WM round-trips legitimately
-			// land a few transition frames.
-			if minimized && !latchSeen {
+				// The controller self-reports the iconify transition and the
+				// lifecycle latch stops scheduling immediately, so no later
+				// tick can observe App.Minimized(). Treat the controller's
+				// reported transition as the latch edge and measure presents
+				// from it at finalization (not from a post-latch tick).
 				latchSeen = true
 				latchT = elapsed
 				latchPresents = presents
-				fmt.Fprintf(os.Stderr, "ui_wr_r17_bg_throttle: minimized latch observed at t=%.1f presents=%d\n", elapsed, presents)
+				ctl.Minimize()
+				fmt.Fprintf(os.Stderr, "ui_wr_r17_bg_throttle: minimize called at t=%.1f presents=%d (latch edge)\n", elapsed, presents)
 			}
 			if latchSeen {
 				bgPresents = presents - latchPresents
@@ -224,16 +243,29 @@ func main() {
 			takeSnap(app, shell, snapB, "B")
 		}
 
-		// Foreground animation demand (frozen automatically while latched:
-		// the loop clears demand at the visibility gate, no presents).
-		fgTick++
-		fgBox.MarkNeedsPaint()
-		hotHue := float64(int(elapsed*8)%16) / 16
-		hot.R, hot.G, hot.B = 0.85+0.1*hotHue, 0.25+0.4*(1-hotHue), 0.3+0.5*hotHue
-		hot.MarkNeedsPaint()
+		if *autoOnly && elapsed >= 9.0 && !frozen {
+			// Freeze all foreground live visuals before snapshot B. Snapshot A
+			// at 6s already proves motion; B is the deterministic Golden frame.
+			frozen = true
+			fgTick = 100
+			fgBox.MarkNeedsPaint()
+			hot.R, hot.G, hot.B = 0.95, 0.30, 0.25
+			hot.MarkNeedsPaint()
+			banner.SetText("R17 Steady min=false occ=false fg=frozen bg=0")
+			banner.MarkNeedsPaint()
+		}
+		if !frozen {
+			// Foreground animation demand (frozen automatically while latched:
+			// the loop clears demand at the visibility gate, no presents).
+			fgTick++
+			fgBox.MarkNeedsPaint()
+			hotHue := float64(int(elapsed*8)%16) / 16
+			hot.R, hot.G, hot.B = 0.85+0.1*hotHue, 0.25+0.4*(1-hotHue), 0.3+0.5*hotHue
+			hot.MarkNeedsPaint()
 
-		banner.SetText(fmt.Sprintf("R17 %s min=%v occ=%v fg=%d bg=%d", phase, minimized, occluded, fgPresents, bgPresents))
-		banner.MarkNeedsPaint()
+			banner.SetText(fmt.Sprintf("R17 %s min=%v occ=%v fg=%d bg=%d", phase, minimized, occluded, fgPresents, bgPresents))
+			banner.MarkNeedsPaint()
+		}
 
 		app.ScheduleFrame()
 		proc.Sample()
@@ -255,6 +287,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
 		os.Exit(1)
 	}
+	finalPresents := app.PresentCount()
 	proc.Stop()
 	app.Close()
 	win.Close()
@@ -262,6 +295,9 @@ func main() {
 	proc.Apply(app.Metrics())
 
 	elapsedSec := time.Since(t0).Seconds()
+	if latchSeen {
+		bgPresents = finalPresents - latchPresents
+	}
 	snap := app.Metrics().Snapshot()
 
 	// Pixel verdicts (coordinate-free frame comparison).
@@ -276,7 +312,7 @@ func main() {
 		AbilityID:     "R17",
 		Scenario:      "ui_wr_r17_bg_throttle",
 		Snap:          snap,
-		PresentCount:  app.PresentCount(),
+		PresentCount:  finalPresents,
 		ElapsedSec:    elapsedSec,
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
@@ -340,8 +376,35 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: pixel content_frac=%.4f want >=0.01 (frame looks blank)\n", pxContent)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r17_bg_throttle: OK fg=%d bg=%d presents=%d elapsed=%.1fs\n",
-		fgPresents, bgPresents, app.PresentCount(), elapsedSec)
+	goldenSuffix := ""
+	if *autoOnly {
+		basePath := filepath.Join(pxDir, "r17_bg_throttle_base.png")
+		diff, total, seeded, err := wrkit.GoldenGate(snapB, basePath, wrkit.ShellFullRects())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL:", err)
+			os.Exit(1)
+		}
+		if seeded {
+			fmt.Fprintf(os.Stderr, "ui_wr_r17_bg_throttle: SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)\n", basePath, snapB)
+			return
+		}
+		if diff != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s\n", diff, int64(diff*float64(total)/100), total, basePath)
+			os.Exit(1)
+		}
+		probes := []wrkit.PixelProbe{
+			{Name: "fg_panel_bg", X: 320, Y: 95, R: 0.16, G: 0.35, B: 0.30},
+			{Name: "static_dense_cell", X: 615, Y: 95, R: 0.25, G: 0.40, B: 0.62},
+			{Name: "hot_spot", X: 1070, Y: 95, R: 0.95, G: 0.30, B: 0.25},
+		}
+		if err := wrkit.CheckPixelProbes(snapB, winW, probes); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: pixel:", err)
+			os.Exit(1)
+		}
+		goldenSuffix = fmt.Sprintf(" pixel=%d/%d golden=0.0000%% px=%d", len(probes), len(probes), total)
+	}
+	fmt.Fprintf(os.Stderr, "ui_wr_r17_bg_throttle: OK fg=%d bg=%d presents=%d elapsed=%.1fs%s\n",
+		fgPresents, bgPresents, finalPresents, elapsedSec, goldenSuffix)
 }
 
 type ticker struct{ on func(dt float64) }

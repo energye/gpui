@@ -19,10 +19,12 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -109,9 +111,23 @@ func buildCell(i int, w float64, chip *render.ImageBuf) rendering.RenderObject {
 }
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: freeze scroll + bitwise golden")
+	flag.Parse()
 	secs, secsSet := wrkit.RunSecondsOpt()
 	if !secsSet {
 		secs = closeSeconds // 未设 RUN_SECONDS → 默认关闭用值
+	}
+	if *autoOnly {
+		// Freeze at a fixed scroll offset and keep the 60s close-run so the RSS
+		// slope sample is valid. The snapshot is the final frame; only the
+		// body/legend participate (the HUD carries live FPS text).
+		secs = closeSeconds
+		os.Setenv("SNAPSHOT", filepath.Join(os.TempDir(), "gpui_ui_wr_r7_virtlist_snapshot.png"))
+		os.Setenv("R7_FREEZE_Y", "1234")
+		if err := os.MkdirAll(filepath.Join("examples", "ui_wr_r7_virtlist", "testdata"), 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: testdata dir:", err)
+			os.Exit(1)
+		}
 	}
 	wrkit.RequireMinRun(secs, "R7")
 	wrkit.EnsureUIFace()
@@ -365,10 +381,37 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: rss_slope_kb_per_min=%.1f > %.0f", snap.RSSSlopeKBPerMin, slopeBudget)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r7_virtlist: OK presents=%d bind=%d/%d rr=%d maxBind=%d fps=%.1f p95=%.1f hitch=%.1f/min slope=%.0fKB/min vsync=%s elapsed=%.1fs\n",
+	goldenSuffix := ""
+	if *autoOnly {
+		base := filepath.Join("examples", "ui_wr_r7_virtlist", "testdata", "r7_virtlist_base.png")
+		snapPath := os.Getenv("SNAPSHOT")
+		if _, err := os.Stat(base); err != nil {
+			if os.Getenv("GPUI_ACCEPT_GOLDEN") != "1" {
+				fmt.Fprintf(os.Stderr, "FAIL: golden baseline missing: %s (re-run with GPUI_ACCEPT_GOLDEN=1 to seed, then review + commit)\n", base)
+				os.Exit(1)
+			}
+			if err := wrkit.SeedGoldenPNG(snapPath, base); err != nil {
+				fmt.Fprintln(os.Stderr, "FAIL: seed golden:", err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "ui_wr_r7_virtlist: SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)\n", base, snapPath)
+			return
+		}
+		diff, total, err := wrkit.CompareGoldenPNG(snapPath, base, wrkit.ShellContentRects())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: golden:", err)
+			os.Exit(1)
+		}
+		if diff != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s\n", diff, int64(diff*float64(total)/100), total, base)
+			os.Exit(1)
+		}
+		goldenSuffix = fmt.Sprintf(" golden=0.0000%% px=%d", total)
+	}
+	fmt.Fprintf(os.Stderr, "ui_wr_r7_virtlist: OK presents=%d bind=%d/%d rr=%d maxBind=%d fps=%.1f p95=%.1f hitch=%.1f/min slope=%.0fKB/min vsync=%s elapsed=%.1fs%s\n",
 		app.PresentCount(), snap.BindCount, snap.ItemCount, snap.ScrollRerecord, maxBind,
 		fpsInterval, snap.P95FrameIntervalMs, snap.HitchRatePerMin, snap.RSSSlopeKBPerMin,
-		snap.VSyncSource, elapsedSec)
+		snap.VSyncSource, elapsedSec, goldenSuffix)
 }
 
 type ticker struct{ on func(dt float64) }

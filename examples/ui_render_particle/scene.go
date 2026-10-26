@@ -42,8 +42,8 @@ func newParticleScene(winW, winH float64) *particleScene {
 	// 说明标签（需要默认字体；无字体时节点仍存在但不绘制文字）
 	face, _, faceErr := wrkit.EnsureUIFace()
 	labels := []struct {
-		x, y float64
-		text string
+		x, y       float64
+		text       string
 		r, g, b, a float64
 	}{
 		{20, 28, "火球术 — 同心盘立体球 + 径向渐变光晕 + 拖尾火花", 1, 0.55, 0.2, 0.95},
@@ -73,6 +73,17 @@ func (s *particleScene) onTick(dt float64) {
 		return
 	}
 	s.stage.sim.tick(dt)
+	s.stage.box.MarkNeedsPaint()
+}
+
+// freezeAt pins the simulation to a known time and recomputes the derived
+// positions. gate mode calls this once, then stops ticking the sim.
+func (s *particleScene) freezeAt(t float64) {
+	if s == nil || s.stage == nil || s.stage.sim == nil {
+		return
+	}
+	s.stage.sim.t = t
+	s.stage.sim.tick(0)
 	s.stage.box.MarkNeedsPaint()
 }
 

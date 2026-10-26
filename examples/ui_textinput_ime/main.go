@@ -26,11 +26,13 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/energye/gpui/examples/wrkit"
 	"github.com/energye/gpui/render/text"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/focus"
@@ -316,12 +318,15 @@ func (b *inputBox) OnIME(ev input.IMEEvent) {
 }
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: drive deterministic IME steps, freeze caret, snapshot + pixel/Golden evidence")
+	flag.Parse()
 	selftest := os.Getenv("GPUI_IME_DEMO_SELFTEST") == "1"
 	// Caret verification scenes (M1.5): GPUI_IME_CARET_SCENE=<multiline|composing|click>
 	// seeds a deterministic state so the snapshot pixel probe can assert the
 	// caret bar's actual position against the expected line/column.
 	caretScene := os.Getenv("GPUI_IME_CARET_SCENE")
-	logf("stage=init selftest=%v scene=%q", selftest, caretScene)
+	drive := selftest || *autoOnly
+	logf("stage=init selftest=%v auto_only=%v scene=%q", selftest, *autoOnly, caretScene)
 
 	ed := textinput.New()
 
@@ -382,10 +387,23 @@ func main() {
 		IME:    win.IME(), // automatic session management (I4)
 	}
 	snapPath := ""
-	if selftest || caretScene != "" {
+	var snapDir string
+	switch {
+	case *autoOnly:
+		// Bounded deterministic run: the same normalized IME steps as the
+		// selftest, caret frozen ON, final frame read back as pixel evidence.
+		opts.RunFor = 5 * time.Second
+		snapDir = filepath.Join("examples", "ui_textinput_ime", "testdata")
+		if err := os.MkdirAll(snapDir, 0o755); err != nil {
+			logf("FAILED: testdata dir: %v", err)
+			os.Exit(1)
+		}
+		snapPath = filepath.Join(snapDir, "textinput_ime.png")
+		opts.SnapshotPath = snapPath
+	case selftest || caretScene != "":
 		// Bounded run; final-frame snapshot = render evidence.
 		opts.RunFor = 3 * time.Second
-		snapDir := os.Getenv("IME_SNAP_DIR")
+		snapDir = os.Getenv("IME_SNAP_DIR")
 		if snapDir == "" {
 			snapDir = "/tmp/ime_textinput_ime"
 		}
@@ -434,7 +452,7 @@ func main() {
 	}
 
 	pass := true
-	if selftest {
+	if drive {
 		// Leg A (router path): production events platform.Event →
 		// FromPlatform → InputRouter → Editor.
 		steps := []platform.Event{
@@ -492,7 +510,7 @@ func main() {
 	// Caret verification scenes freeze the bar ON (blink would make the
 	// snapshot probe flaky — 3s run × 0.53s period lands ~50% off states).
 	app.Scheduler().Tickers().Add(&caretTicker{box: box})
-	if caretScene != "" {
+	if caretScene != "" || *autoOnly {
 		box.caretOn = true
 		caretTickerEnabled = false
 	}
@@ -645,7 +663,43 @@ func main() {
 	if b, err := json.Marshal(out); err == nil {
 		fmt.Println(string(b))
 	}
-	if selftest && !pass {
+	if *autoOnly {
+		basePath := filepath.Join(snapDir, "textinput_ime_base.png")
+		diff, total, seeded, err := wrkit.GoldenGateW(snapPath, basePath, winW,
+			[]wrkit.GoldenRect{{X: 0, Y: 0, W: winW, H: winH}})
+		if err != nil {
+			logf("FAIL: golden: %v", err)
+			os.Exit(1)
+		}
+		if seeded {
+			logf("SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)", basePath, snapPath)
+			return
+		}
+		if diff != 0 {
+			logf("FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s", diff, int64(diff*float64(total)/100), total, basePath)
+			os.Exit(1)
+		}
+		probes := []wrkit.PixelProbe{
+			{Name: "window_bg", X: 10, Y: 10, R: 0.09, G: 0.10, B: 0.12},
+			{Name: "title_text", X: 203, Y: 23, R: 0.70, G: 0.70, B: 0.75},
+			{Name: "hint_text", X: 301, Y: 119, R: 0.55, G: 0.58, B: 0.62},
+			{Name: "committed_cjk_ink", X: 64, Y: 58, R: 0.05, G: 0.75, B: 0.95},
+		}
+		if cx, top, bottom, ok := box.caretAnchor(); ok {
+			// The bar is 1 logical px wide, left edge at penX-0.5: sample that
+			// pixel (rounding penX itself lands on the anti-aliased neighbor).
+			probes = append(probes, wrkit.PixelProbe{
+				Name: "caret_bar", X: boxX + cx - 0.5, Y: boxY + (top+bottom)/2,
+				R: 0.808, G: 0.455, B: 0.106,
+			})
+		}
+		if err := wrkit.CheckPixelProbes(snapPath, winW, probes); err != nil {
+			logf("FAIL: pixel: %v", err)
+			os.Exit(1)
+		}
+		logf("OK pixel=%d/%d golden=0.0000%% px=%d text=%q", len(probes), len(probes), total, ed.Text())
+	}
+	if drive && !pass {
 		win.Close()
 		os.Exit(1)
 	}

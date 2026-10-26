@@ -15,8 +15,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/energye/gpui/examples/wrkit"
@@ -42,6 +44,8 @@ func modeName() (name, hint string) {
 }
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: deterministic snapshot + bitwise golden")
+	flag.Parse()
 	switch os.Getenv("GPUI_MSAA") {
 	case "1":
 		render.SetMSAASampleCount(render.MSAASampleCount1)
@@ -54,12 +58,35 @@ func main() {
 		os.Exit(1)
 	}
 	secs, secsSet := wrkit.RunSecondsOpt()
+	if *autoOnly && !secsSet {
+		secs = 5
+	}
 	if secsSet {
 		wrkit.RequireMinRun(secs, "ANT")
 	}
 	wrkit.EnsureUIFace()
 
 	mode, hint := modeName()
+
+	// Gate mode freezes the static six-cell canvas and compares the full shell
+	// (top bar + legend + body) bitwise. The bottom HUD is excluded because its
+	// FPS text changes every second. GPUI_ACCEPT_GOLDEN=1 seeds the reviewed
+	// baseline once; the next run must be 0.0000% with the env unset.
+	snapPath := os.Getenv("SNAP_PNG")
+	basePath := ""
+	if *autoOnly {
+		tag := "msaa4"
+		if render.MSAASampleCount() == render.MSAASampleCount1 {
+			tag = "msaa1"
+		}
+		dir := filepath.Join("examples", "ui_ant_verify", "testdata")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: testdata dir:", err)
+			os.Exit(1)
+		}
+		snapPath = filepath.Join(os.TempDir(), "gpui_ui_ant_verify_snapshot.png")
+		basePath = filepath.Join(dir, "ant_verify_"+tag+"_base.png")
+	}
 
 	var proc scheduler.ProcessTracker
 	proc.Start()
@@ -217,7 +244,7 @@ func main() {
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
 		RunFor:       time.Duration(secs) * time.Second,
 		WarmUp:       true,
-		SnapshotPath: os.Getenv("SNAP_PNG"),
+		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
 			switch ev.Type {
 			case platform.EventClose:
@@ -252,6 +279,33 @@ func main() {
 	win.Close()
 	proc.NoteAfterClose()
 	proc.Apply(app.Metrics())
+
+	if *autoOnly {
+		if _, err := os.Stat(basePath); err != nil {
+			if os.Getenv("GPUI_ACCEPT_GOLDEN") != "1" {
+				fmt.Fprintf(os.Stderr, "FAIL: golden baseline missing: %s (re-run with GPUI_ACCEPT_GOLDEN=1 to seed, then review + commit)\n", basePath)
+				os.Exit(1)
+			}
+			if err := wrkit.SeedGoldenPNG(snapPath, basePath); err != nil {
+				fmt.Fprintln(os.Stderr, "FAIL: seed golden:", err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "ui_ant_verify: SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)\n", basePath, snapPath)
+			return
+		}
+		diff, total, err := wrkit.CompareGoldenPNG(snapPath, basePath, wrkit.ShellFullRects())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: golden:", err)
+			os.Exit(1)
+		}
+		if diff != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s\n", diff, int64(diff*float64(total)/100), total, basePath)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "ui_ant_verify: OK mode=%s presents=%d px=%d golden=0.0000%%\n",
+			mode, app.PresentCount(), total)
+		return
+	}
 
 	fmt.Fprintf(os.Stderr, "ui_ant_verify: OK mode=%s presents=%d\n",
 		mode, app.PresentCount())

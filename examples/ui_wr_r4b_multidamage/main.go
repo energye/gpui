@@ -17,8 +17,10 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -47,8 +49,12 @@ func realRepaintRatio() float64 {
 }
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: freeze Steady hotspots, keep two dirty layers, snapshot + pixel/Golden evidence")
+	flag.Parse()
 	secs, secsSet := wrkit.RunSecondsOpt()
-	if secsSet {
+	if *autoOnly {
+		secs = 15
+	} else if secsSet {
 		wrkit.RequireMinRun(secs, "R4b")
 	}
 	wrkit.EnsureUIFace()
@@ -103,10 +109,20 @@ func main() {
 	phaseLabel.SetRepaintBoundary(true)
 	shell.Body.Place(phaseLabel, 360, 30)
 
+	snapDir := filepath.Join("examples", "ui_wr_r4b_multidamage", "testdata")
+	snapPath := ""
+	if *autoOnly {
+		if err := os.MkdirAll(snapDir, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: testdata dir:", err)
+			os.Exit(1)
+		}
+		snapPath = filepath.Join(snapDir, "r4b_multidamage.png")
+	}
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:       time.Duration(secs) * time.Second,
+		WarmUp:       true,
+		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
 			if ev.Type == platform.EventClose {
 				fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: close (%s)\n", win.Backend())
@@ -121,8 +137,34 @@ func main() {
 	var phase string
 	lastPhase := ""
 	hotTick := 0
+	elapsed := 0.0
+	frozen := false
 	clock := wrkit.NewPhaseClock(2, 4)
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
+		elapsed += dt
+		if *autoOnly && elapsed >= 9.0 && !frozen {
+			// Pin the Steady visuals but keep both hot boundaries dirty every
+			// frame so the final frame still carries two layer ids and
+			// multi-damage evidence. Pixels stay identical across these frames.
+			frozen = true
+			phase = wrkit.PhaseSteady
+			hotTL.R, hotTL.G, hotTL.B = 0.95, 0.2, 0.2
+			hotBR.R, hotBR.G, hotBR.B = 0.2, 0.5, 0.95
+			hotTLAlign.SetAlignment(0.0246, 0.0353)
+			hotBRAlign.SetAlignment(0.926, 0.894)
+			phaseLabel.SetText("PHASE: STEADY")
+			phaseLabel.SetColor(0.95, 0.95, 0.4, 1)
+			phaseLabel.MarkNeedsPaint()
+		}
+		if frozen {
+			hotTick++
+			hotTL.MarkNeedsPaint()
+			hotBR.MarkNeedsPaint()
+			app.ScheduleFrame()
+			proc.Sample()
+			shell.NoteHUDTick(dt)
+			return
+		}
 		phase = clock.Advance(dt)
 		hotTick++
 		// 两脏点同帧变脏：每帧都变，两独立 boundary 各自记 id。
@@ -205,7 +247,7 @@ func main() {
 	proc.NoteAfterClose()
 	proc.Apply(app.Metrics())
 
-	elapsed := time.Since(t0).Seconds()
+	elapsedSec := time.Since(t0).Seconds()
 	snap := app.Metrics().Snapshot()
 	avgArea, maxArea, samples, multiFrames := app.DamageStats()
 	var avgRatio, maxRatio float64
@@ -221,7 +263,7 @@ func main() {
 		Scenario:      "ui_wr_r4b_multidamage",
 		Snap:          snap,
 		PresentCount:  app.PresentCount(),
-		ElapsedSec:    elapsed,
+		ElapsedSec:    elapsedSec,
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
 		Extra: map[string]any{
@@ -277,9 +319,36 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: fps_interval=%.1f < 55 (持续 tick R4b)", 1000.0/snap.AvgFrameIntervalMs)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: OK presents=%d ids_max=%d ids=%v multi=%d dmg_avg=%.3f mode=%s skip=%d fps=%.1f elapsed=%.1fs\n",
+	goldenSuffix := ""
+	if *autoOnly {
+		basePath := filepath.Join(snapDir, "r4b_multidamage_base.png")
+		diff, total, seeded, err := wrkit.GoldenGate(snapPath, basePath, wrkit.ShellFullRects())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL:", err)
+			os.Exit(1)
+		}
+		if seeded {
+			fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)\n", basePath, snapPath)
+			return
+		}
+		if diff != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s\n", diff, int64(diff*float64(total)/100), total, basePath)
+			os.Exit(1)
+		}
+		probes := []wrkit.PixelProbe{
+			{Name: "hot_top_left", X: 320, Y: 100, R: 0.95, G: 0.20, B: 0.20},
+			{Name: "hot_bottom_right", X: 1050, Y: 580, R: 0.20, G: 0.50, B: 0.95},
+			{Name: "static_cell", X: 540, Y: 190, R: 0.16, G: 0.40, B: 0.30},
+		}
+		if err := wrkit.CheckPixelProbes(snapPath, winW, probes); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: pixel:", err)
+			os.Exit(1)
+		}
+		goldenSuffix = fmt.Sprintf(" pixel=%d/%d golden=0.0000%% px=%d", len(probes), len(probes), total)
+	}
+	fmt.Fprintf(os.Stderr, "ui_wr_r4b_multidamage: OK presents=%d ids_max=%d ids=%v multi=%d dmg_avg=%.3f mode=%s skip=%d fps=%.1f elapsed=%.1fs%s\n",
 		app.PresentCount(), maxIDs, lastIDs, multiFrames, avgRatio, lastMode,
-		snap.BoundarySkip, 1000.0/snap.AvgFrameIntervalMs, elapsed)
+		snap.BoundarySkip, 1000.0/snap.AvgFrameIntervalMs, elapsedSec, goldenSuffix)
 }
 
 type ticker struct{ on func(dt float64) }

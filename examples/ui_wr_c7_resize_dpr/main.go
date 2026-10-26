@@ -31,8 +31,10 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/energye/gpui/examples/wrgate"
@@ -48,8 +50,12 @@ import (
 const winW, winH = 1200, 800
 
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: complete both invalidation waves, freeze Recover, snapshot + pixel/Golden evidence")
+	flag.Parse()
 	secs, secsSet := wrkit.RunSecondsOpt()
-	if secsSet {
+	if *autoOnly {
+		secs = 15
+	} else if secsSet {
 		wrkit.RequireMinRun(secs, "C7")
 	}
 	wrkit.EnsureUIFace()
@@ -184,10 +190,20 @@ func main() {
 	shell.Body.Align(hot, 0.90, 0.92)
 	shell.Body.Align(wrkit.Label("HOT", 10, 0.95, 0.7, 0.6), 0.90, 1.04)
 
+	snapDir := filepath.Join("examples", "ui_wr_c7_resize_dpr", "testdata")
+	snapPath := ""
+	if *autoOnly {
+		if err := os.MkdirAll(snapDir, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: testdata dir:", err)
+			os.Exit(1)
+		}
+		snapPath = filepath.Join(snapDir, "c7_resize_dpr.png")
+	}
 	app := embedder.NewPipelineApp(host, shell.Root, embedder.PipelineOptions{
 		ClearR: 0.08, ClearG: 0.09, ClearB: 0.11, ClearA: 1,
-		RunFor: time.Duration(secs) * time.Second,
-		WarmUp: true,
+		RunFor:       time.Duration(secs) * time.Second,
+		WarmUp:       true,
+		SnapshotPath: snapPath,
 		OnEvent: func(ev platform.Event) {
 			switch ev.Type {
 			case platform.EventClose:
@@ -213,6 +229,7 @@ func main() {
 		peakRR1, peakRR2 int64
 		steadyRR         int64
 		steadySampled    bool
+		frozen           bool
 	)
 	hotHue := 0.0
 	dpr := 1.0
@@ -220,6 +237,28 @@ func main() {
 
 	app.Scheduler().Tickers().Add(&ticker{on: func(dt float64) {
 		elapsed += dt
+		if *autoOnly && elapsed >= 9.5 && !frozen {
+			// Gate snapshot: both invalidation waves are complete, Recover is
+			// active, and every live-painted patch is pinned. The remaining
+			// frames present this same state so SnapshotPath is deterministic.
+			frozen = true
+			areaA.FixedWidth, areaA.FixedHeight = 250, 170
+			hot.R, hot.G, hot.B = 0.95, 0.30, 0.25
+			hot.MarkNeedsPaint()
+			hot3.R, hot3.G, hot3.B = 0.65, 0.40, 0.55
+			hot3.MarkNeedsPaint()
+		}
+		if frozen {
+			app.ScheduleFrame()
+			proc.Sample()
+			shell.NoteHUDTick(dt)
+			snapH := app.Metrics().Snapshot()
+			wrkit.MergeBoundaryCache(app, &snapH)
+			shell.UpdateHUD("C7", wrkit.PhaseRecover, app, true,
+				fmt.Sprintf("skip=%d rr=%d inv=%d dpr=%.1f", snapH.BoundarySkip, snapH.BoundaryRerecord, app.CacheInvalidations(), dpr),
+				fmt.Sprintf("wave1=%d wave2=%d frozen", wave1, wave2))
+			return
+		}
 
 		// PhaseClock（§3.1.1：同时影响 R11 失效波 + R3 内层 hot + R19 grid）。
 		phase := wrkit.PhaseSteady
@@ -408,8 +447,38 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: SnapCoord(1.3,%.1f)=%.4f not on device-pixel grid (R19)", dpr, v)
 		os.Exit(1)
 	}
-	fmt.Fprintf(os.Stderr, "ui_wr_c7_resize_dpr: OK skip=%d rr=%d inv=%d wave1=%d wave2=%d peak1=%d peak2=%d steadyRR=%d dpr=%.1f snap=%v presents=%d elapsed=%.1fs\n",
-		snap.BoundarySkip, snap.BoundaryRerecord, inv, wave1, wave2, peakRR1, peakRR2, steadyRR, dpr, snapOK, app.PresentCount(), elapsedSec)
+	goldenSuffix := ""
+	if *autoOnly {
+		basePath := filepath.Join(snapDir, "c7_resize_dpr_base.png")
+		diff, total, seeded, err := wrkit.GoldenGate(snapPath, basePath, wrkit.ShellFullRects())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL:", err)
+			os.Exit(1)
+		}
+		if seeded {
+			fmt.Fprintf(os.Stderr, "ui_wr_c7_resize_dpr: SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)\n", basePath, snapPath)
+			return
+		}
+		if diff != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s\n", diff, int64(diff*float64(total)/100), total, basePath)
+			os.Exit(1)
+		}
+		probes := []wrkit.PixelProbe{
+			{Name: "resize_a_bg", X: 320, Y: 100, R: 0.16, G: 0.28, B: 0.44},
+			{Name: "dpr_b_bg", X: 545, Y: 95, R: 0.14, G: 0.32, B: 0.26},
+			{Name: "nest_c_bg", X: 320, Y: 330, R: 0.20, G: 0.20, B: 0.38},
+			{Name: "nest_inner_hot", X: 375, Y: 390, R: 0.65, G: 0.40, B: 0.55},
+			{Name: "static_cell", X: 1000, Y: 110, R: 0.25, G: 0.40, B: 0.62},
+			{Name: "live_hot", X: 1080, Y: 646, R: 0.95, G: 0.30, B: 0.25},
+		}
+		if err := wrkit.CheckPixelProbes(snapPath, winW, probes); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: pixel:", err)
+			os.Exit(1)
+		}
+		goldenSuffix = fmt.Sprintf(" pixel=%d/%d golden=0.0000%% px=%d", len(probes), len(probes), total)
+	}
+	fmt.Fprintf(os.Stderr, "ui_wr_c7_resize_dpr: OK skip=%d rr=%d inv=%d wave1=%d wave2=%d peak1=%d peak2=%d steadyRR=%d dpr=%.1f snap=%v presents=%d elapsed=%.1fs%s\n",
+		snap.BoundarySkip, snap.BoundaryRerecord, inv, wave1, wave2, peakRR1, peakRR2, steadyRR, dpr, snapOK, app.PresentCount(), elapsedSec, goldenSuffix)
 }
 
 type ticker struct{ on func(dt float64) }
