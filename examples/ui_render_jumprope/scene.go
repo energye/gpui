@@ -199,6 +199,19 @@ func newRopeSim(freeze float64) *ropeSim {
 	return s
 }
 
+// freezeAt pins the loop phase for a deterministic snapshot: simT/count go
+// back to zero so every later paint is the identical frame.
+func (s *ropeSim) freezeAt(phase float64) {
+	if s == nil {
+		return
+	}
+	s.freeze = phase
+	s.phi = phase * 2 * math.Pi
+	s.prevPhiMod = s.phi
+	s.simT = 0
+	s.count = 0
+}
+
 func (s *ropeSim) tick(dt float64) {
 	if s == nil || s.freeze >= 0 {
 		return

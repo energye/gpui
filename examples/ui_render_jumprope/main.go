@@ -13,14 +13,17 @@
 //	export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
 //	RUN_SECONDS=15 go run ./examples/ui_render_jumprope          # 默认 20s，可调
 //	SNAPSHOT=tmp/jumprope_shot.png RUN_SECONDS=5 go run ./examples/ui_render_jumprope
+//	go run ./examples/ui_render_jumprope -auto-only              # 冻结相位 + Golden/像素门禁
 //
 // 指标：结束打印 JSON（fps / p50 / p95 / hitch / gpu_ops / cpu_fallback / rss / cpu），
-// 门禁：有帧即过；RUN_SECONDS>=10 时 fps>=30。
+// 门禁：有帧即过；RUN_SECONDS>=10 时 fps>=30；-auto-only 另加零容差 Golden + 像素探针。
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -34,8 +37,17 @@ import (
 
 const winW, winH = 1200, 800
 
+// autoFreezePhase is the loop phase frozen by -auto-only: 0.25 = rope on the
+// hand line in front (stable midpoint/limb geometry, no layer flip).
+const autoFreezePhase = 0.25
+
 func main() {
+	autoOnly := flag.Bool("auto-only", false, "gate mode: freeze the loop phase, snapshot + pixel/Golden evidence")
+	flag.Parse()
 	secs := runSeconds(20)
+	if *autoOnly {
+		secs = 10
+	}
 	fmt.Fprintf(os.Stderr, "ui_render_jumprope: 跳绳协调动画真窗 — %.1fs（RUN_SECONDS 可调）\n", secs)
 
 	var proc scheduler.ProcessTracker
@@ -54,9 +66,23 @@ func main() {
 	}
 
 	sc := newJumpropeScene(winW, winH)
+	if *autoOnly {
+		// Freeze before the first paint so the counter text and rope wobble
+		// stay at simT=0; the LiveHUD band is excluded from the Golden rect.
+		sc.sim.freezeAt(autoFreezePhase)
+	}
 	host := win.Host()
 
 	snapshot := os.Getenv("SNAPSHOT")
+	snapDir := ""
+	if *autoOnly {
+		snapDir = filepath.Join("examples", "ui_render_jumprope", "testdata")
+		if err := os.MkdirAll(snapDir, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: testdata dir:", err)
+			os.Exit(1)
+		}
+		snapshot = filepath.Join(snapDir, "jumprope.png")
+	}
 
 	app := embedder.NewPipelineApp(host, sc.Root, embedder.PipelineOptions{
 		ClearR: 0.62, ClearG: 0.80, ClearB: 0.95, ClearA: 1,
@@ -149,6 +175,37 @@ func main() {
 	if secs >= 10 && fps < 30 {
 		fmt.Fprintf(os.Stderr, "FAIL: fps too low ~%.1f (<30 over %.1fs)\n", fps, secs)
 		os.Exit(1)
+	}
+
+	if *autoOnly {
+		basePath := filepath.Join(snapDir, "jumprope_base.png")
+		// Bottom 64px is the LiveHUD (live fps text) — excluded from the Golden.
+		diff, total, seeded, err := wrkit.GoldenGate(snapshot, basePath, []wrkit.GoldenRect{{X: 0, Y: 0, W: 1200, H: 736}})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL:", err)
+			os.Exit(1)
+		}
+		if seeded {
+			fmt.Fprintf(os.Stderr, "ui_render_jumprope: SEEDED %s from %s (not a PASS; rerun without GPUI_ACCEPT_GOLDEN)\n", basePath, snapshot)
+			return
+		}
+		if diff != 0 {
+			fmt.Fprintf(os.Stderr, "FAIL: golden diff=%.4f%% (%d/%d px) baseline=%s\n", diff, int64(diff*float64(total)/100), total, basePath)
+			os.Exit(1)
+		}
+		probes := []wrkit.PixelProbe{
+			{Name: "floor", X: 1100, Y: 700, R: 0.788, G: 0.706, B: 0.557},
+			{Name: "turner_head", X: 212, Y: 420, R: 0.949, G: 0.788, B: 0.604},
+			{Name: "jumper_head", X: 600, Y: 363, R: 0.949, G: 0.788, B: 0.604},
+			{Name: "jumper_torso", X: 600, Y: 455, R: 0.290, G: 0.565, B: 0.851},
+			{Name: "rope_handline", X: 600, Y: 459, R: 0.478, G: 0.290, B: 0.129},
+		}
+		if err := wrkit.CheckPixelProbes(snapshot, winW, probes); err != nil {
+			fmt.Fprintln(os.Stderr, "FAIL: pixel:", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "ui_render_jumprope: OK presents=%d ~%.1f fps pixel=%d/%d golden=0.0000%% px=%d\n",
+			presents, fps, len(probes), len(probes), total)
 	}
 
 	if b, err := app.Metrics().JSON(); err == nil {

@@ -29,12 +29,19 @@ SNAPSHOT=tmp/jumprope_shot.png RUN_SECONDS=5 go run ./examples/ui_render_jumprop
 
 # 冻结循环相位取单帧（0..1）：0=绳贴地+人最高，0.25=绳在手线(前层)，0.5=绳过顶，0.75=绳在手线(后层)
 FREEZE_PHASE=0 SNAPSHOT=tmp/jr_p0.png RUN_SECONDS=1 go run ./examples/ui_render_jumprope
+
+# 门禁档：冻结相位 0.25（绳在手线前层），零容差 Golden + 5 条像素探针
+GPUI_ACCEPT_GOLDEN=1 go run ./examples/ui_render_jumprope -auto-only   # 仅首次播种，不算 PASS
+go run ./examples/ui_render_jumprope -auto-only                        # 连跑两次应全 PASS
 ```
 
 ## 指标与门禁
 
 - JSON：fps / interval p50·p95·p99 / hitch / gpu_ops / cpu_fallback_ops / rss / cpu。
 - 门禁：有帧即过；`RUN_SECONDS>=10` 时 fps>=30（实测 ~59fps、0 hitch、0 CPU 回退）。
+- `-auto-only`：`simT=0` 冻结相位 0.25，LiveHUD 底带（1200×64）排除在 Golden 外，
+  逐位对比 `testdata/jumprope_base.png`（883200px，零容差），并断言 5 条语义探针
+  （地板 / 左摇绳人头 / 跳绳人头 / 跳绳人躯干 / 手线绳段）。
 - 底部 LiveHUD 实时显示 fps / 呈现策略 / 圈数。
 
 ## 说明

@@ -28,8 +28,9 @@ const (
 )
 
 type ticker struct {
-	box *kit.IconBox
-	app *embedder.PipelineApp
+	box  *kit.IconBox
+	app  *embedder.PipelineApp
+	proc *scheduler.ProcessTracker
 }
 
 func (t *ticker) Tick(dt float64) bool {
@@ -37,6 +38,7 @@ func (t *ticker) Tick(dt float64) bool {
 		t.box.SyncIconTransform()
 	}
 	t.app.ScheduleFrame()
+	t.proc.Sample()
 	return true
 }
 
@@ -107,7 +109,7 @@ func main() {
 	}
 
 	t0 := time.Now()
-	app.Scheduler().Tickers().Add(&ticker{box: spin, app: app})
+	app.Scheduler().Tickers().Add(&ticker{box: spin, app: app, proc: &proc})
 
 	runErr := app.Run()
 	elapsed := time.Since(t0)
@@ -135,6 +137,9 @@ func main() {
 	if !ok {
 		fmt.Fprintln(os.Stderr, "FAIL: --auto-only=false")
 		os.Exit(1)
+	}
+	if b, err := app.Metrics().JSON(); err == nil {
+		fmt.Println(string(b))
 	}
 	fmt.Fprintln(os.Stderr, "spin_min: OK")
 }
