@@ -159,16 +159,46 @@
 
 **门语义对齐（真源 `ENGINE_TEXT_X11_IME_REQUIREMENT.md` §10.4.2/3/4/5 G）**：`measure_cache_hit` 的口径是"必采"而不是"≥1"——retained/composite-only 帧与已缓存排版不重新量，`PaintVisits`（末帧节点访问）在复合帧恒 0。六扇 IME 窗的像素/逻辑证据统一改为 `first_present_paint_count>0 && (measure_cache_hit+measure_cache_miss)>0`，同时撤掉 R9 专用的 `MinMeasureCacheHit:1`。auto-only 的 5–6s 有界档短于 15s RSS 预热、启动单次卡顿在短窗口会放大：仅 auto-only 放宽为 WARN（斜率必须 `!valid`；hitch 需 >2 次且 >2.5/min），≥10s 人工档维持硬门。
 
+### 5.4.1 六扇 IME 真机人工验收（2026-10-26）
+
+六扇 IME 窗逐扇开常驻人工档（X11 真窗，XTEST 真按键/真拖选，≥10s 硬门），从空窗开始走真实交互，边操作边采像素探针；全程帧率、hitch、CPU fallback、RSS 斜率同档采集。
+
+| 窗 | 时长 / 帧率 | 交互实测（像素探针） | 资源 / 门禁 | 结论 |
+|---|---|---|---|---|
+| `ui_wr_ime_r1_editor` | —（修复后复验） | 光标 38px、选区 4056px（修复前两者皆 0） | 活窗像素复验 | PASS（修复后复验） |
+| `ui_wr_ime_r2_textlayout` | 81.7s / 59.8fps | 深排版 9/9 探针真；光标 5px 呼吸（闪烁节奏）；选区 817px + 滚动盒 3169px | hitch 2（1.47/min）、fallback 0、RSS 斜率 7350KB/min（valid） | PASS |
+| `ui_wr_ime_r3_channel` | 33.6s / 59.7fps | 渠道 9/9 探针真；光标 38px（6/12 帧亮灭）；选区 2253px | hitch 0、fallback 0、RSS 48862KB（WARN 软线，<90k 硬线） | PASS |
+| `ui_wr_ime_r4_selection` | 106.4s / 59.8fps | 拖选 2621px、双击取词 1568px、跨行选区 4968px；密码框光标 48px、无选区高亮（引擎设计，见下） | 10/10 探针、hitch 0、fallback 0、RSS 5595KB | PASS |
+| `ui_wr_ime_r5_control` | 51.0s / 59.8fps | 两段选区 1956px + 2780px；单行/多行/省略号控制态按预期 | 9/9 探针、hitch 0、fallback 0、RSS 46895KB（WARN 软线） | PASS |
+| `ui_textinput_ime` | —（常驻人工） | 逐字输入生效；光标 24px（x=75）50 帧中亮 32 帧；该示例本身不画选区 | 交互路径正常 | PASS（仅输入/光标） |
+
 **观察项（登记，不判缺陷）**：
+- **密码框不画选区高亮**：`ui/textinput/box.go:934` 的 `syncHighlight` 对 `IsPassword()` 直接返回——选区高亮会泄露口令长度，按设计抑制；光标照常显示。
+- **`ui_textinput_ime` 示例空区点击不触发 OnPointer**：自定义 inputBox 的空白区命中的是内嵌 `*rendering.RenderBox`，换行/定位点击落不到外层 handler；生产用的 `textinput.Box` 不受影响（示例层命中写法问题，不属引擎缺陷）。
+- **`ui_render_base_maskops` 活窗红（跨线，非本修复引入）**：活窗屏幕检查 `diff=63.2419%`（`screen=false`），四张 masked 卡片全部不显示；快照/golden/像素全绿。临时计数实测 `liveOnlySkips=2872` / 360 presents；回退本修复后逐位同值，证明基线即红。根因：掩码后处理挂在 `RequireLiveContext()` 上，retained 录制通道（Recorder）拒绝后整卡内容丢失。归属线程计划 S2b/C3「可录制掩码后处理」，已记入 `ENGINE_UI_RENDER_BASE.md` A-maskops 行。
 - **R17 最小化闩**：生命周期闩落下的瞬间调度即停，后续 tick 永远观察不到 `App.Minimized()`；窗把控制器报告的调用点当闩沿（本轮 t=22.0 / presents 1309–1311），最终化时算 bg 增量。将来若要读闩后状态，tick 路径拿不到。
 - **C8 恢复快照时序**：恢复截图按 elapsed 排队（auto +1.0s / manual +0.5s），不是按"恢复帧已呈现"确认；慢机上可能早于恢复帧。auto 档 +0.3s 冻结把窗口压窄，但根缝仍是时间而非呈现计数。
+
+### 5.4.2 光标/选区不显示——引擎修复（2026-10-26）
+
+**现象**：`ui_wr_ime_r1_editor`（及其余 IME 窗）焦点正常切换、字形与背景都正常，唯独**光标和选区高亮不显示**——两者都是 `rendering.NewRenderColorBox` 画出的纯色块，字形不受影响。
+
+**根因**：祖先的 mask/difference 裁剪被提升到离屏录制通道上。mask 平面按**整面坐标**存放，而录制通道按**录制局部坐标**绘制，提升后整幅采样恒为 0，纯色块 Fill 被静默丢弃；字形走另一条路径所以看不出来。
+
+**修复（通用层，未在示例绕）**：
+- `render/context_clip_mask_gpu.go` 新增 `maskClipPromotionAllowed()`：离屏子通道（`offscreenPassSuspended()`）内一律不提升，祖先掩码改由合成时生效，与 `setGPUClipRect` / `applyClipToPaint` 的既有契约一致。
+- `render/context_draw.go` 两处 `forceCPUClip`（Fill/Stroke）改用该判定。
+- `applyMaskToPaint` 在离屏子通道内直接返回——录制**完整画面**，祖先掩码不在子通道里烘焙。
+- 回归护栏：`render/offscreen_record_mask_test.go` 的 `TestOffscreenPassSkipsAncestorClipMask` 固定三件事——子通道外允许提升、`offscreenPassDepth=1` 时禁止、`MaskCoverage` 子通道内为 nil / 外面非 nil。PASS。
+
+**门禁盲区（为什么 auto-only 看不到）**：`-auto-only` 的快照是**合成的一次 live-context 重绘**，走不到 retained 录制通道，这个洞只会在常驻真窗出现；所以本缺陷必须靠人工档抓，快照绿不能替代。
 
 **既有红（2026-10-26 定案并落地，非 P3 引入）**：
 - `ui/scene` 旋转/缩放纹理两例（原 `ReplayedOps=1 want 0`）：根因是**GPU 像素契约放在了无 GPU 的测试包**——headless 下 `CreateOffscreenTexture` 不可用，`recordLocal` 按设计降级为向量回放，`ReplayedOps=1` 是诚实兜底，不是引擎缺陷。已迁到 `ui/scene/internal/gpupixel/textured_transform_gpupixel_test.go`（`requireGPU` + 离屏纹理，本机 headless 走 SKIP）；无 GPU 的缓存决策改由 `ui/scene/textured_transform_internal_test.go` 用假槽固定：旋转/缩放都录**未变形内容**、bounds-sized 纹理（42×42 / 12×12）、干净帧零向量回放。
 - `ui/rendering` opacity（原期望 `#ff8080`、实得 `#ff7f7f`）：`#ff8080` 是直线 alpha 四舍五入；引擎按预乘 unorm8 存 127（`render/pixmap.go` 的 `setPremul` 截断 127.5），8-bit GPU 混合同值（S3b GPU 契约允许 ±20）。断言已改为 `#ff7f7f` 并注明口径；不改像素管线（改舍入会波及所有 CPU 像素与 Golden 基线）。
 - 本机验证：`go test ./ui/scene`、opacity 用例、`go test ./ui/scene/internal/gpupixel` 全绿；GPU 像素契约待真机 GPU 窗复跑（本机 `CreateOffscreenTexture unavailable` → SKIP）。
 
-**未收口项**：E1（14 扇）已豁免（§5.6）；E2（2 扇）已定案（§5.7）；六扇 IME 窗人工档待真机目视（冻结门仅 `-auto-only` 生效，交互路径不变）；Flutter/Godot 对照尺仍阻塞。**P3 未收口，暂不进入 P4。**
+**未收口项**：E1（14 扇）已豁免（§5.6）；E2（2 扇）已定案（§5.7）；六扇 IME 窗真机人工验收已完成（§5.4.1，光标/选区引擎缺陷已修并复验，§5.4.2）；`ui_render_base_maskops` 活窗红为跨线项（可录制掩码后处理，S2b/C3），未收；Flutter/Godot 对照尺仍阻塞。**P3 未收口，暂不进入 P4。**
 
 ## 5.5 P1 基线数字（2026-10-25 本机实测，对照尺已立）
 
@@ -256,7 +286,7 @@ E2 是两扇常驻动画窗：画面一直在动，原先都没有 Golden。按�
 | **P3 缺窗补齐** | idle / batch_cap / multiwin_cap 三扇 + 13 扇尾账 + E1/E2 豁免 | 每扇 `-auto-only` 两连 + manual 档；逐文件回归；触及共享数据跑 `-race` | 2-3 天 |
 | **P4 全矩阵跑账** | 17 行逐行资源账（5s 档 + 长跑行 300s）、对照系数定稿、wrgate 对照字段落地、覆盖文档 §11 同步 | 17 行 JSON 齐全、对照比成立、文档标 ✅ | 1-2 天 |
 
-**P3 进度（2026-10-26）**：三扇新窗（idle/batch_cap/multiwin_cap）两连 gate + manual 已完成（§5.1–5.3）；多窗 `-race` 清零；13 扇尾账 Golden 两连全 PASS（§5.4，13→0）；IME 颜色字形分类引擎修复落地；两处既有红已定案（用例迁移 + 断言口径，§5.4）；E1 14 扇机器证据已补（§5.6，其中 appkit/win32 本机诚实 SKIP、待真机）。E2 已定案（jumprope 冻结 Golden 两连 PASS、spin_min 豁免）；人工目视与对照尺仍欠，故 **P3 未收口，暂不进入 P4**。
+**P3 进度（2026-10-26）**：三扇新窗（idle/batch_cap/multiwin_cap）两连 gate + manual 已完成（§5.1–5.3）；多窗 `-race` 清零；13 扇尾账 Golden 两连全 PASS（§5.4，13→0）；IME 颜色字形分类引擎修复落地；两处既有红已定案（用例迁移 + 断言口径，§5.4）；E1 14 扇机器证据已补（§5.6，其中 appkit/win32 本机诚实 SKIP、待真机）。E2 已定案（jumprope 冻结 Golden 两连 PASS、spin_min 豁免）；六扇 IME 真机人工验收已完成并修掉光标/选区引擎缺陷（§5.4.1/§5.4.2）；对照尺仍阻塞、maskops 活窗红跨线待收，故 **P3 未收口，暂不进入 P4**。
 
 ## 7. 风险与边界
 
@@ -309,6 +339,7 @@ RUN_SECONDS=15 go run ./examples/ui_wr_ime_r5_control
 
 | 日期 | 内容 |
 |---|---|
+| 2026-10-26 | **六扇 IME 真机人工验收 + 光标/选区引擎修复**：六窗常驻人工档逐扇走真实输入——r2 81.7s/59.8fps/hitch 2/fallback 0/RSS 7350KB/min；r3 33.6s/59.7fps/hitch 0/RSS 48862KB；r4 106.4s/59.8fps/10探针/拖选 2621px/双击 1568px/跨行 4968px；r5 51.0s/59.8fps/两段选区 1956+2780px；`ui_textinput_ime` 逐字输入 + 光标 24px 呼吸。发现并修复通用层缺陷：祖先 mask/difference 裁剪被提升进离屏录制通道（整面 mask 对录制局部坐标采样恒 0），光标/选区纯色块被静默丢弃——`maskClipPromotionAllowed()` 闸住 `forceCPUClip` + `applyMaskToPaint` 子通道内返回，新增 `TestOffscreenPassSkipsAncestorClipMask` 护栏；r1 复验光标 38px、选区 4056px。门禁盲区：auto-only 快照是 live-context 合成重绘，走不到录制通道，此类洞只能靠人工档抓。登记跨线红：maskops 活窗 `diff=63.2419%`、四卡不显示（liveOnlySkips=2872，基线同值），归属 S2b/C3 可录制掩码后处理。详见 §5.4.1/§5.4.2。P3 仍因对照尺与跨线红未收口 |
 | 2026-10-26 | **E2 定案**：`ui_render_jumprope` 补冻结相位门禁——`-auto-only` 冻结 `sim.freezeAt(0.25)`（绳在手线前层、`simT=0`），LiveHUD 底带排除，零容差 Golden 883200px + 5 条像素探针；两连 PASS（presents 600/599、58.4/58.2fps、hitch 0、pixel 5/5、golden 0.0000%）。`kit/spin_min` 书面豁免 Golden（持续旋转是心跳税语义，冻结即改变被测目标）；60s 档 presents=3592、CPU 15.92%、稳态 RSS 511.9KB/min（valid）、fallback 0。顺带修证据链：spin_min 每帧 `proc.Sample()`（原先稳态斜率永远 invalid）+ 补 JSON 输出 + README 对齐。详见 §5.7 |
 | 2026-10-26 | **E1 14 扇机器证据补齐（豁免已签收）**：按"先补机器证据再豁免"逐扇实跑——l1_blank presents=180/hitch 0；l1_scroll 5s presents=301/bind 17/1000，40s 稳态 RSS 575.6KB/min（valid）；l1_spinner presents=301/layout=1/damage=144px；l2_shell 静态 presents=2 + 交互单测；perfsoak presents=302/fallback 0；m4_virtual 首屏 5.71ms/物化 42 行/真窗 bind 45/1e6；r12 schema 42 键全；pf_x11 19/19、pf_wayland 19/19（backend=wayland 嵌套，协议禁止项诚实 unsupported）；pf_appkit/pf_win32 本机诚实 SKIP（待 macOS/Windows 真机，不标绿）；video_player 出帧 27/fallback 0；zz_soak_control 3 窗 ~56–57fps；ime_probe IME 可用 + 合成按键全到。残留：真机跨平台、真人 IME 合成、真人交互。详见 §5.6。用户当日签收豁免：14 扇不补 Golden。P3 仍因 E2/人工目视/对照尺未收口 |
 | 2026-10-26 | **既有红定案落地**：`ui/scene` 两例根因是 GPU 像素契约放在无 GPU 测试包（`CreateOffscreenTexture` 不可用时录制按设计降级向量回放），已迁到 `ui/scene/internal/gpupixel/textured_transform_gpupixel_test.go`，并在 `ui/scene/textured_transform_internal_test.go` 补无 GPU 缓存决策断言（未变形 bounds 42×42 / 12×12、干净帧零回放）；opacity 断言改为预乘 unorm8 的 `#ff7f7f`（`setPremul` 截断 127.5，8-bit GPU 同值），不动像素管线。本机 `ui/scene` 全包 + opacity 用例 + gpupixel 包全绿，GPU 像素档待真机复跑。P3 仍因 E1/E2、人工目视与对照尺未收口 |

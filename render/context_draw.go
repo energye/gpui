@@ -232,7 +232,7 @@ func (c *Context) doFill() error {
 
 	// Mask/difference clips without gpuClipPath: prefer GPU R8 mask
 	// over full-surface CPU; only fall back if MaskAware install fails.
-	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
+	forceCPUClip := c.maskClipPromotionAllowed()
 	clipMaskCleanup := func() {}
 	if forceCPUClip {
 		if cleanup, okInstall := c.installGPUClipMask(); okInstall {
@@ -363,7 +363,7 @@ func (c *Context) doStroke() error {
 	}
 
 	// Mask/difference clips: GPU R8 mask when possible, else CPU reason.
-	forceCPUClip := c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
+	forceCPUClip := c.maskClipPromotionAllowed()
 	clipMaskCleanup := func() {}
 	if forceCPUClip {
 		if cleanup, okInstall := c.installGPUClipMask(); okInstall {
@@ -457,6 +457,11 @@ func (c *Context) doStroke() error {
 // during compositing. Mask and clip compose multiplicatively.
 func (c *Context) applyMaskToPaint() {
 	c.paint.MaskCoverage = nil
+	// Offscreen sub-pass: record the FULL picture — the ancestor mask lives in
+	// surface coordinates and applies at composite time, exactly like the clip.
+	if c.offscreenPassSuspended() {
+		return
+	}
 	if c.mask == nil {
 		return
 	}

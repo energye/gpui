@@ -14,6 +14,20 @@ import (
 	"math"
 )
 
+// maskClipPromotionAllowed reports whether the active mask/difference clip may
+// be promoted onto the MaskAware R8 plane for the current draw. Offscreen
+// record passes must stay free of the ancestor clip: its mask plane lives in
+// surface coordinates, while the pass draws at record-local coordinates, so
+// promoting it there yields zero coverage for the whole picture. The clip
+// applies when the layer is composited (same contract as setGPUClipRect /
+// applyClipToPaint).
+func (c *Context) maskClipPromotionAllowed() bool {
+	if c.offscreenPassSuspended() {
+		return false
+	}
+	return c.clipStack != nil && c.clipStack.HasMaskClip() && c.gpuClipPath == nil
+}
+
 // installGPUClipMask promotes a mask/difference clip (HasMaskClip without
 // gpuClipPath) onto the MaskAware R8 plane so Fill/Stroke can stay on GPU
 // instead of forceCPUClip.
