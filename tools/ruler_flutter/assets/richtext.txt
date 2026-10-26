@@ -1,0 +1,4 @@
+Run0-title: M5 anycase rich paragraph
+Run1-body: The quick brown fox 敏捷的棕色狐狸 مرحبا بالعالم
+Run2-small: footnote small 8pt with Thai กขฃ and Myanmar ကခ
+Run3-code: const x = 42; // emoji 🎉 code span

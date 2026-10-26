@@ -1,7 +1,7 @@
 # 底座资源场景矩阵（RENDER_BASE_RESOURCE_MATRIX）
 
 日期：2026-10-26 ｜ 仓库：`/home/yanghy/app/projects/gogpu/gpui` ｜ 分支：`feat/框架代码整理`
-状态：**实施中——P2 已冻结；P3 尾账 Golden 已清零（13→0），maskops 活窗红已收（2026-10-26），P3 未收口只剩 Flutter/Godot 对照尺阻塞**（E1 已豁免、机器证据在 §5.6；E2 已定案、§5.7；两处既有红已定案）；P4 未开工。范围：支撑三栋楼（任意图形渲染 / UI 组件库 / 2.5D 引擎）的**共用底座能力**的资源场景真窗覆盖，指标对齐**工业级产品同机实测**（Flutter/Godot 对照尺）。上层业务场景（组件交互全集、引擎玩法全集、视频业务）归各自域真源，本矩阵只管底座。
+状态：**实施中——P2 已冻结；P3 已收口（2026-10-26：尾账 Golden 13→0、maskops 活窗红已收、Flutter/Godot 对照尺已立）**（E1 已豁免、机器证据在 §5.6；E2 已定案、§5.7；两处既有红已定案；对照尺实测 §5.5）；P4 未开工。范围：支撑三栋楼（任意图形渲染 / UI 组件库 / 2.5D 引擎）的**共用底座能力**的资源场景真窗覆盖，指标对齐**工业级产品同机实测**（Flutter/Godot 对照尺）。上层业务场景（组件交互全集、引擎玩法全集、视频业务）归各自域真源，本矩阵只管底座。
 
 ## 0. 一句话与做成算完口径
 
@@ -21,19 +21,19 @@
 
 | # | 底座场景 | 触发模式 | 真窗现状 | 资源指标现状 | 对照场景（尺） | 缺口动作 |
 |---|---|---|---|---|---|---|
-| 1 | 空闲（无脏零帧） | 开窗静止 60s | **`ui_base_idle`** | ✅ 两连 gate + 60s manual：presents=1、warmup 后增量=0、CPU 0.6–0.8%、golden 0（873600px） | Flutter 静止页 | 补对照（Flutter 尺 P1 阻塞） |
-| 2 | 常驻最小动画（心跳税地板） | 单 64px 旋转 60fps | **spin_min** | ✅ CPU 有账（现态 14.59% / 终态 3.4~3.5%） | Flutter 同尺寸旋转图标 | 补对照 |
-| 3 | 滚动（retained 主场景） | 列表连续滚动 | C3/C9/R7/R7b | ✅ R7 60s close-run 两连：fps 59.9、p95 19.8ms、hitch 1.0–2.0/min、CPU 18.27%（ui 7.93 + raster 10.33）、RSS 斜率 3458/4435KB/min（valid）、damage 9.25%、bind 14/1200、scroll 重录 14、golden 0；C3 31.98% 已有 | Flutter ListView 同规模 | 补对照（Flutter 尺 P1 阻塞） |
+| 1 | 空闲（无脏零帧） | 开窗静止 60s | **`ui_base_idle`** | ✅ 两连 gate + 60s manual：presents=1、warmup 后增量=0、CPU 0.6–0.8%、golden 0（873600px） | Flutter 静止页 | ✅ 已对照：Flutter text 页首帧后 idle 0.02%（§5.5） |
+| 2 | 常驻最小动画（心跳税地板） | 单 64px 旋转 60fps | **spin_min** | ✅ CPU 有账（现态 14.59% / 终态 3.4~3.5%） | Flutter 同尺寸旋转图标 | ✅ 已对照：Flutter 25.41% / gpui 15.92%，1.60×（§5.5） |
+| 3 | 滚动（retained 主场景） | 列表连续滚动 | C3/C9/R7/R7b | ✅ R7 60s close-run 两连：fps 59.9、p95 19.8ms、hitch 1.0–2.0/min、CPU 18.27%（ui 7.93 + raster 10.33）、RSS 斜率 3458/4435KB/min（valid）、damage 9.25%、bind 14/1200、scroll 重录 14、golden 0；C3 31.98% 已有 | Flutter ListView 同规模 | ✅ 已对照：Flutter 71.38%，对 C3 2.23× / 对 R7 3.91×（§5.5） |
 | 4 | 全幅重建上限 | full_paint 全窗每帧变 | R0 | ✅ | Flutter 全幅动画页 | 补对照 |
 | 5 | 异步资源→局部脏 | 解码完成逐格点亮 | R10/C3 | ✅ | Flutter 异步图片列表 | 补对照 |
 | 6 | 缓存命中/失效 | 边界/纹理命中与失效 | R3/R3b/R9/C9 | ✅ | Flutter RepaintBoundary 开关 | 补对照 |
 | 7 | resize/DPR 失效波 | 改尺寸/DPR | R11/C7 | ✅ | Flutter 窗口 resize | 补对照 |
 | 8 | 浮层/覆盖带脏 | overlay 开关 | R8 | ✅ | Flutter Overlay/Dialog | 补对照 |
-| 9 | 后台/前台节流 | 遮挡/最小化 | R17 | ✅ 两连 gate + Golden + 资源账：最小化后 fg=1308–1310、bg=1、presents=1310–1312/30.1s、pixel 3/3、golden 0；FG 双快照 live（diff 0.92% / content 13.81%） | Flutter 同内容最小化 | 补对照（Flutter 尺 P1 阻塞） |
-| 10 | 多窗共享上限 | 1/2/4/8 窗同动画 | **`ui_base_multiwin_cap`** | ✅ 1/2/4/8 曲线：平均 60fps 上限 **4 窗**；8 窗 31fps、总呈现 ≈250 帧/秒；p95 稳态在 1–2 窗间抖动 | Flutter 多实例 | 补对照（Flutter 尺 P1 阻塞） |
+| 9 | 后台/前台节流 | 遮挡/最小化 | R17 | ✅ 两连 gate + Golden + 资源账：最小化后 fg=1308–1310、bg=1、presents=1310–1312/30.1s、pixel 3/3、golden 0；FG 双快照 live（diff 0.92% / content 13.81%） | Flutter 同内容最小化 | P4 补对照（Flutter 尺已立） |
+| 10 | 多窗共享上限 | 1/2/4/8 窗同动画 | **`ui_base_multiwin_cap`** | ✅ 1/2/4/8 曲线：平均 60fps 上限 **4 窗**；8 窗 31fps、总呈现 ≈250 帧/秒；p95 稳态在 1–2 窗间抖动 | Flutter 多实例 | P4 补对照（Flutter 尺已立） |
 | 11 | 长跑稳态（泄漏） | 300s soak | R15/C10 | ✅ 最完整 | Flutter 300s 同内容 | 补对照 |
-| 12 | 文本密集（整形+图集） | 密集多脚本文本页 | m5/文本族 | ⚠️ CPU 未专项立账 | Flutter 密集文本页 | 立账+对照 |
-| 13 | 大量图元/矢量密集上限（2.5D 底座，**双模式**） | ①同屏图元阶梯 1k/5k/10k（atlas 精灵）；②矢量路径密集（设计工具类，复杂路径重分格成本） | **`ui_base_batch_cap`**（engine 精灵/粒子窗、P1 矢量密度测试为前身） | ✅ 图元 1k/5k/10k 全 60fps（CPU 22/44/78%）；矢量 100@60fps、300→38fps、600→24fps；两连 gate + 200s manual | Godot 2d demo（bullet_shower 类）/ Flutter CustomPaint | 补对照（Godot 未到位） |
+| 12 | 文本密集（整形+图集） | 密集多脚本文本页 | m5/文本族 | ⚠️ CPU/RSS 未专项立账；本轮复核 m5 CPU 22.64%，RSS 1.09→1.63GB/60s 异常增长（§5.5） | Flutter 密集文本页（静态 idle） | ✅ idle 对照 0.02%；m5 CPU/RSS 立账 + RSS 异常定位留 P4 |
+| 13 | 大量图元/矢量密集上限（2.5D 底座，**双模式**） | ①同屏图元阶梯 1k/5k/10k（atlas 精灵）；②矢量路径密集（设计工具类，复杂路径重分格成本） | **`ui_base_batch_cap`**（engine 精灵/粒子窗、P1 矢量密度测试为前身） | ✅ 图元 1k/5k/10k 全 60fps（CPU 22.9/46.3/80.7%）；矢量 100@60fps、300→38fps、600→24fps；两连 gate + 200s manual | Godot 2d demo（bullet_shower 类）/ Flutter CustomPaint | ✅ Godot 默认 500 发 19.1%/60fps；1k/5k/10k 容量探针见 §5.5；Flutter CustomPaint P4 |
 | 14 | 视频/纹理流 | 持续喂帧 | video C4 | ❌ 解码吞吐（V-5 挂视频线） | ffplay/Flutter video | 挂视频线 |
 | 15 | 呈现策略对照 | 同场景 full vs retained | 分散各窗 | ⚠️ 未成表 | — | 成表（R0 vs R4 同内容 A/B） |
 | 16 | 首帧/恢复（t2fp、遮挡恢复） | 冷启/遮挡回来 | R16/R17 | ✅ | Flutter 首帧 | 补对照 |
@@ -45,28 +45,31 @@
 - ❌ 需新窗：行 1（idle）/10（multiwin_cap）/13（batch_cap）（3 行）→ **P3 已建（§5.1–5.3）**；
 - ❌ 跨线依赖：行 14（视频吞吐 V-5）/17（显存压力资源账）（2 行）→ **挂视频线与资源纪律域**；
 - ✅ 证据尾账：13 扇仅像素补 Golden 已全部补齐（两连 `-auto-only` 全 PASS、golden 0.0000%，§5.4）；E1（14 扇）已豁免（§5.6）；E2（2 扇）已定案（jumprope 冻结 Golden、spin_min 豁免，§5.7）；
-- ⚠️ Flutter 对照尺：P1 阻塞（Impeller 黑屏），等 stable SDK 到位后补——不影响 gpui 自身数字立账。
+- ✅ Flutter 对照尺：stable 3.47.8 已立（Impeller OpenGLESSDF 在 940MX 实际出画，§5.5）；Godot 4.5.1 `bullet_shower` 已立（§5.5）——P3 收口。
 
 尾账（不属于矩阵行，属证据域）：13 扇仅像素补 Golden（`ui_ant_verify`、`ui_render_particle`、`ui_textinput_ime`、`ui_wr_c7_resize_dpr`、`ui_wr_c8_hit_overlay_xf`、`ui_wr_ime_r2/r3/r4/r5_control`、`ui_wr_r17_bg_throttle`、`ui_wr_r21_shell`、`ui_wr_r4b_multidamage`、`ui_wr_r7_virtlist`）**已清零（13→0）**；E1（14 扇）已豁免（§5.6）；E2（2 扇）已定案（§5.7）。
 
 ## 3. 工业级对照尺（三层）
 
-### 3.1 Flutter 尺（主尺，P1 先立）
+### 3.1 Flutter 尺（主尺，stable 3.47.8 已立）
 
-- SDK：`/home/yanghy/app/projects/gogpu/flutter`（`bin/flutter` 已验存在）。允许本机构建或取现成产物（§1.2）。
-- 对照窗三个，对位本矩阵行 2/3/12：**旋转图标**（480×320，同 spin_min 内容语义）、**滚动列表**（1200×800，列表项规模对齐 C3）、**密集文本页**（多脚本文本量对齐 m5）。
-- 前置验证：`flutter config --enable-linux-desktop` + `flutter doctor`；linux-desktop 构建链（GTK3/ninja/clang）本机未验证，P1 第一步跑通；跑不通按 §7.1 降级。
-- 测量：与 gpui 窗同口径（见 §4）。
+- SDK：`/home/yanghy/app/projects/gogpu/flutter` stable **3.47.8**（engine `cf636b1dfb`，Dart 3.13.7）。2026-10-26 在 NVIDIA 940MX / X11 实际 release 出画，Impeller 走 `OpenGLESSDF`；截图非黑。
+- 构建环境：本机没有 clang，用 `/tmp/opencode/flutter_toolchain/{clang,clang++}` 薄包装转调 gcc/g++；`flutter doctor -v` 退出 0，`flutter build linux --release` 成功。master 3.50 的黑屏结论不适用于 stable 3.47.8；未来升 SDK 必须重跑出画验证。
+- 对照窗三个，对位本矩阵行 2/3/12：**旋转图标**（480×320，同 spin_min 64px/60fps 语义）、**滚动列表**（1200×800，1200 项变高行、44/92/60/76 行高、四类行型、24 图、Steady/Spike/Recover 相位、列表宽 620，对齐 C3）、**密集文本页**（1200×800，复用 m5 的 multiscript/emoji/richtext 语料，首帧后静止）。
+- 代码：`tools/ruler_flutter/`（Dart UI、linux runner 客户区、`scripts/measure.py`、Makefile、README），数据在 `assets/`。
+- 实测：§5.5；三跑取中位，原产物 `/tmp/opencode/ruler_runs/final_*`（可重跑）。文本臂首帧后无 ticker，只作静态 idle 对照，不能拿来宣称文本整形比 m5 快。
 
-### 3.2 Godot 尺（第二尺，用户已授权下载或编译）
+### 3.2 Godot 尺（第二尺，4.5.1-stable 已立）
 
-- demo 现成：`/home/yanghy/app/projects/gogpu/godot-demo-projects/2d/`（bullet_shower、dynamic_tilemap_layers 等）。
-- 二进制：下载官方预编译（首选，版本对齐 demo 要求）或源码编译本机 godot 检出。
-- 定位：行 13（图元上限）与 2.5D 底座的主对照。
+- demo：上游 `godotengine/godot-demo-projects` 的 `2d/bullet_shower`，本机 checkout `a3b5c113112f77291d5f3d1360f33a882fdc52f7`；上游目录不改，`tools/ruler_godot/setup.sh` 复制到 `$GODOT_WORK/bullet_shower` 后打补丁。
+- 二进制：官方 `Godot_v4.5.1-stable_linux.x86_64`；sha256 `db07cae7de644278a1884d4552bdf2bca3f5d30131b18faf3a0c4d730080b199`；engine `f62fdbde1`；`gl_compatibility` / OpenGL 3.3 NVIDIA 580.178.04。`project.godot` 标 `config/features=4.7`，但 4.5.1 实测能 import 并出画；升级版本需重验。
+- 窗口 1200×800；默认 500 发（上游语义：每发一个 PhysicsServer2D body + 碰撞圆 + 逐帧 `draw_texture`）。`GODOT_BULLETS` 只作容量探针，含逐对象物理开销，不能当纯图元 parity 去和 gpui `ui_base_batch_cap` 1:1 比较。
+- 代码：`tools/ruler_godot/`（setup/patch/fps_probe/run/measure/README）；实测 §5.5。
 
 ### 3.3 glxgears 尺（地板尺，已在用）
 
-- 空转地板 2.3~3.0%（本机实测）；任何 60fps 呈现的 CPU 下限参照。
+- 本轮 60s 实测 **2.74%**（300×300 客户区，RSS 50.1→58.1MB，59.93fps）；历史 3.30%，同机范围 2.3–3.3%。齿轮画在黑底上，不能拿黑底占比判全黑。
+- 任何 60fps 呈现的 CPU 下限参照；只作地板，不与业务场景比值。
 
 ### 3.4 公开参考数字锚（第二重 sanity，非验收线）
 
@@ -74,7 +77,10 @@
 
 ### 3.5 测量口径（三尺统一，公平性硬约束）
 
-同机、同窗客户区尺寸、同帧率目标（60）、同动画语义（内容变化量对齐）、同测量法：进程 `/proc` CPU%（含内核态，**不含 Xorg/合成器侧**）+ RSS + `fps_interval`/`p95`/`hitch` + 60s 或 300s 档；窗内容语义差异在报告注明；每次对照三跑取中位。
+- 同机（X11 :0，NVIDIA 940MX，580.178.04）、同窗客户区尺寸（Flutter/Godot 1200×800，spin 480×320）、同帧率目标（60）、同动画语义（内容变化量对齐；差异在 §5.5 注明）。
+- 统一采数器 `tools/ruler_flutter/scripts/measure.py`：Popen 起真实应用 → 等 `xwininfo` 窗口 → 5s/20s 预热 → 60s 从 `/proc/<pid>/stat` 采进程 CPU（utime+stime，含内核态，**不含 Xorg/合成器侧**）、`/proc/<pid>/status` VmRSS → 通过 `xwininfo` 客户区 + `ffmpeg x11grab` 截当前窗 → 汇总 fps/p95/hitch 与截图统计。
+- 对照场景三跑取中位；glxgears 地板单跑 60s。Flutter spin/text 预热 5s，list 预热 20s（让 Flutter 图像解码/缓存进稳态）；Godot 5s；glxgears 5s。原图与 `report.json` 落指定 `--out`，不提交仓库。
+- FPS 来源：Flutter 由页面帧回调自己打 `RULER_METRIC` 行；Godot 由 `fps_probe.gd` 每 2s 打 `GODOT_FPS=... t=...`，采数器按 `t>=warmup` 丢启动样本；gpui 的 fps/p95 取该窗自己的 60s 指标 JSON，`measure.py` 对 gpui 只做 CPU/RSS/截图交叉复核。`hitch` 定义见各自输出。
 
 ## 4. 指标规范
 
@@ -198,26 +204,64 @@
 - `ui/rendering` opacity（原期望 `#ff8080`、实得 `#ff7f7f`）：`#ff8080` 是直线 alpha 四舍五入；引擎按预乘 unorm8 存 127（`render/pixmap.go` 的 `setPremul` 截断 127.5），8-bit GPU 混合同值（S3b GPU 契约允许 ±20）。断言已改为 `#ff7f7f` 并注明口径；不改像素管线（改舍入会波及所有 CPU 像素与 Golden 基线）。
 - 本机验证：`go test ./ui/scene`、opacity 用例、`go test ./ui/scene/internal/gpupixel` 全绿；GPU 像素契约待真机 GPU 窗复跑（本机 `CreateOffscreenTexture unavailable` → SKIP）。
 
-**未收口项**：E1（14 扇）已豁免（§5.6）；E2（2 扇）已定案（§5.7）；六扇 IME 窗真机人工验收已完成（§5.4.1，光标/选区引擎缺陷已修并复验，§5.4.2）；`ui_render_base_maskops` 活窗红已收（§5.4.1，2026-10-26 两连全绿，`live_only_skips=0`/`mask_skips=0`）。**P3 未收口只剩 Flutter/Godot 对照尺阻塞，暂不进入 P4。**
+**未收口项**：E1（14 扇）已豁免（§5.6）；E2（2 扇）已定案（§5.7）；六扇 IME 窗真机人工验收已完成（§5.4.1，光标/选区引擎缺陷已修并复验，§5.4.2）；`ui_render_base_maskops` 活窗红已收（§5.4.1，2026-10-26 两连全绿，`live_only_skips=0`/`mask_skips=0`）。**P3 已收口（2026-10-26）：上述证据 + Flutter/Godot 对照尺（§5.5）；P4 未开工。**
 
-## 5.5 P1 基线数字（2026-10-25 本机实测，对照尺已立）
+## 5.5 P3 对照尺实测（2026-10-26 本机，stable 3.47.8 / Godot 4.5.1 / glxgears）
 
-**对照尺（Flutter release AOT，同机同尺寸同语义）**：
-| 场景 | Flutter | gpui | 比值 |
+**纪律**：Flutter/Godot/gpui 同机（X11 :0，NVIDIA 940MX，580.178.04）、同客户区（Flutter/Godot 1200×800，spin 480×320）、60s 测量窗（Flutter list 预热 20s，其余 5s）；Flutter/Godot 基准三跑取中位，gpui 取既有 60s 证据并用同采数器复核 CPU/RSS，glxgears 单跑。CPU 是整个进程 `/proc/<pid>/stat` 的 utime+stime（含内核态，不含 Xorg/合成器）。原始 `report.json`/截图在 `/tmp/opencode/ruler_runs/final_*`，可用 §8 命令重跑，不入库。
+
+### 5.5.1 Flutter 臂（stable 3.47.8，engine `cf636b1dfb`，Dart 3.13.7）
+
+- 构建：本机无 clang，用 `/tmp/opencode/flutter_toolchain/{clang,clang++}` 包装 gcc/g++；`flutter doctor -v` 退出 0，`flutter build linux --release` 成功，`flutter analyze` 无 issue。
+- 出画：Impeller 后端 `OpenGLESSDF`，NVIDIA 940MX 上三场景截图均**非黑**（black_fraction=0，色数 207/1921/2639）。这解除了 P1 的 master 3.50 黑屏阻塞；stable 3.47.8 是有效尺。
+- 布局：header 48、body 656、HUD 72；text 页所有文本区含 3x 行可见（最终二进制就是下表数据来源）。
+
+| 场景 | CPU 中位 | RSS 起→止（峰值） | RSS 斜率中位（范围） | fps 中位（min） | p95 中位 | hitch |
+|---|---:|---:|---:|---:|---:|---:|
+| spin 480×320 | **25.41%** | 152.4→151.2MB（152.7） | 81.9（70.6–99.1）KB/min | 61.0（60.0） | 16.67ms | 0 |
+| list 1200×800 | **71.38%** | 190.0→193.8MB（197.7） | 707.1（135.6–2259.0）KB/min | 52.4（17.5） | 33.33ms | 810/60s（801–842） |
+| text 1200×800 | **0.02%** | 209.7→209.8MB（209.8） | 101.8（101.0–105.0）KB/min | 0（首帧后无 ticker） | — | 0 |
+
+- list 三跑 CPU 71.64/71.38/71.32，fps 52.5/48.7/52.4，p95 均 33.33ms；hitch 801–842 是 60s 总次数，即约 13.5 次/分钟。RSS 斜率有一次 2259KB/min 的波动，中位 707KB/min，仍远低于 30000 的健康线。**Flutter list 自身不达 60fps 健康线**（fps<55、p95>22ms、hitch>5/min）；这里只把它当对照尺，不拿它当 Flutter 验收。
+- text 的 0.02% 只说明**静态 idle**：首帧后没有动画/没有新帧，与 m5 的 HUD 60fps tick 不是同一语义；不能拿它宣称 Flutter 文本整形快。
+
+### 5.5.2 Godot 臂（4.5.1-stable，`f62fdbde1`，`gl_compatibility`）
+
+| 场景（`GODOT_BULLETS`） | CPU | RSS | fps | 说明 |
+|---|---:|---:|---:|---|
+| **500（上游默认）** | **19.1%** | 160.3→160.3MB | **60（59–61）** | 3×60s 中位；1200×800；截图非黑 |
+| 1000 | 28.94% | 163.6MB | 60（59–60） | 10s 容量探针（预热 5s） |
+| 5000 | 102.6% | 190.2MB | 6–7 | 单线程物理饱和，过载探针 |
+| 10000 | 102.66% | 225.5MB | 3（t=6.3–12.5s，之后探针停更） | 严重过载 |
+
+- CPU 是整进程 utime+stime，可超过 100%（多核累加）；5k/10k 约等于单核跑满。
+- 500 发是上游 demo 语义：每发一个 `PhysicsServer2D` body + 碰撞圆 + 逐帧 `draw_texture`；`GODOT_BULLETS` 只改对象数，物理服务器仍逐对象更新。因此 1k/5k/10k 是**含物理的容量探针**，不是纯图元 parity。
+- 500 发三跑 CPU 19.1/18.95/19.6，RSS 全程 160.3MB，fps 中位 60；1200×800 截图有 290 色、非黑。
+
+### 5.5.3 gpui 对照臂与比值
+
+| 场景 | 对照数字 | gpui 数字 | 比值 / 结论 |
 |---|---|---|---|
-| 旋转图标 480×320 | 26.28%/31.03%（两次），RSS 146→151MB | 15.46%（同口径 /proc），自报 15.77%，RSS 135MB | **gpui ≈ 0.5×**（优） |
-| 滚动列表 1200×800 | **109.68%**（>1 核！），RSS 184→287MB | C3: 31.98%，RSS 387MB | **gpui ≈ 0.3×**（显著优） |
-| 密集文本 1200×800 | 0.00%（首帧后 idle，Flutter 按需模型静态不渲染） | m5: 29.20%（retained+damage 9.25%，HUD 60fps tick 税） | **Flutter ≈ 0**（此项 Flutter 优——它的静态页真 idle） |
-| 地板 glxgears 60fps | — | 3.30%，RSS 55MB | — |
+| spin 480×320 | Flutter **25.41%** | spin_min **15.92%**（§5.7）；本轮同采数器复核 15.02% | Flutter / gpui = **1.60×**（用 15.02 则 1.69×）；RSS 152.4 vs 137.7MB = 1.11× |
+| list 1200×800 | Flutter **71.38%** | C3 **31.98%**（本轮复核 30.19%）；R7 18.27% | 对 C3 **2.23×**（用 30.19 则 2.36×）；对 R7 **3.91×**。RSS：Flutter 190→194MB，C3 355→365MB——**Flutter RSS 反而更低**，CPU 才是 gpui 的优势 |
+| text 1200×800 | Flutter **0.02%**（静态 idle） | m5 **29.20%**（HUD 60fps tick；本轮复核 CPU 22.64%） | 只作静态 idle 对照；m5 的 CPU 含 tick 税，不是文本整形成本。RSS 见下方观察项 |
+| Godot 2D demo 500 发 | **19.1%/60fps** | 无同语义 gpui 臂 | 作 2.5D 2D demo 锚，不做 1:1 图元比值 |
+| Godot 1k vs gpui 1k | Godot 28.94% | batch_cap 1k 22.9–23.2% | 1.26×，两者都 60fps；仅作量级参照 |
+| Godot 5k/10k | 102.6% / 6–7fps；102.66% / 3fps | batch_cap 10k 80.7–80.9% / 60fps | **不可直接比**：Godot 有逐对象物理，gpui 是 atlas 图元；只说明 Godot 这档被单线程物理压垮 |
+| 地板 glxgears | **2.74%**（300×300，60s） | — | 60fps 呈现地板；历史 3.30% 仅作参考 |
 
-**分析**：① 旋转/滚动两场景 gpui 已显著优于 Flutter（滚动的差距 3.4× 尤其大——Flutter GTK embedder 的 ListView 逐帧全量重排是已知开销）；② 密集文本 Flutter 0% 是其按需模型的正确行为——gpui m5 29.2% 反映的是 retained+HUD tick 的每帧成本，不是文本渲染本身的成本（文本整形/图集已缓存），降低它要走 R15/C10 的 further-tuning 方向；③ 地板 3.3% 与文档口径一致。
+**语义差异（必须随数字一起读）**：
+- list：同 1200 项变高行、同 44/92/60/76 行高、四类行型、24 图、Steady/Spike/Recover 相位、列表宽 620；Flutter 用 lazy `ListView`，gpui C3 是 retained/virtual 列表，不是同一实现。CPU 2.23× 是真实差距，但不能归因到单一 API。
+- idle/text：Flutter text 页是密集静态页，首帧后零帧；行 1 只比“零脏 idle”属性，不比页面内容。
+- spin：同 64px/60fps 旋转；Flutter 用 Material `sync` 图标，gpui 用 kit 图标，字形不同。
+- text：同 m5 的 multiscript/emoji/richtext 语料；Flutter 首帧后静止，m5 有 HUD tick，故只比 idle，不比文本整形吞吐。
+- Godot：500 发是官方 demo 默认；5k/10k 的 6–7/3fps 是物理过载，不是 Godot 渲染器对 10k 图元的上限。
 
-**P1 工程细节**（构建链验证结论）：
-- Flutter linux-desktop 构建链缺口 = cmake+ninja（无 sudo）；`pip3 install --user cmake ninja` 解决；CXX 编译器注入 flutter 工具链用 `CMAKE_CXX_COMPILER=g++` 预播 build 目录缓存绕过；
-- Flutter release AOT 构建 ✓（kernel + engine + runner 三阶段全通）；
-- 采样器 `/tmp/ruler_flutter/sample.sh`（/proc utime+stime 差分、3s 预热排除、RSS>50MB 校验、kill 双发 SIGTERM+SIGKILL）；
-- **陷阱**：`cd "$DIR" && ./$EXE &` 的 `$!` 是 bash 中转壳（wchan=do_wait、RSS 2MB、CPU 永远 0%）——exe 必须单独一行后台，`$!` 才是应用本体；
-- m5 golden 漂移 0.1036% = #2 CPU 位图整形重排（同 textlow 归因），已重播种两连 0.0000%。
+**旧 §5.5 数字作废**：旧表（Flutter 26.28/31.03%、list 109.68%、text 0.00%）来自 P1 的黑屏/未验证阶段，和旧 §3.1 的“Impeller 黑屏”直接矛盾，且本轮 stable 3.47.8 无法复现 109.68% 的 list 值（真实为 71.38%，截图为可见列表）。旧表整节不再作为基线；以本节三跑中位为唯一依据。
+
+**本轮新发现（登记，不并入对照基线）**：m5 60s 复核 CPU 22.64%、RSS **1.09GB→1.63GB**（约 0.5GB/min）；独立 35s 复核 1.09→1.73GB，增长更快、未收敛。旧基线只记 CPU 29.20%、未记 RSS。该异常归 row 12 / P4，在立账前先定位，不拿 m5 RSS 作文本对照。本轮 Flutter 尺只证明静态 idle，不影响该判断。
+
+**P3 收口结论**：Flutter/Godot 基准各三跑取中位，glxgears 单跑地板，三臂均真实出画；旧 P1 黑屏阻塞已由 stable 3.47.8 解除；Flutter/Godot 尺的语义边界已写明。P3 只收口“对照尺 + 三扇新窗 + 尾账”，不把 row 12 的 m5 CPU/RSS 立账算绿；P4 接全矩阵对照与 m5 RSS 定位。
 
 ## 5.6 E1 机器证据（14 扇，2026-10-26 本机实测）
 
@@ -281,34 +325,65 @@ E2 是两扇常驻动画窗：画面一直在动，原先都没有 Golden。按�
 
 | 阶段 | 内容 | DoD | 量级 |
 |---|---|---|---|
-| **P1 尺先立** | Flutter 构建链验证 + 三对照窗 + 采数；glxgears 复测；Godot 二进制到位（下载或编译） | 三对照场景基线数字入表（§2 对照列） | 1 天 |
-| **P2 矩阵冻结** | 本文档 §2 表定稿（真窗/指标/对照/状态四项逐行落实） | 每行四项齐全，缺行显式列出 | 0.5 天 |
-| **P3 缺窗补齐** | idle / batch_cap / multiwin_cap 三扇 + 13 扇尾账 + E1/E2 豁免 | 每扇 `-auto-only` 两连 + manual 档；逐文件回归；触及共享数据跑 `-race` | 2-3 天 |
+| **P1 尺先立（✅ 2026-10-26）** | Flutter stable 3.47.8 构建链 + 三对照窗 + 采数；glxgears 复测；Godot 4.5.1 二进制到位 | ✅ 三对照场景基线数字入表（§2 对照列、§5.5） | 1 天 |
+| **P2 矩阵冻结（✅ 2026-10-25）** | 本文档 §2 表定稿（真窗/指标/对照/状态四项逐行落实） | 每行四项齐全，缺行显式列出 | 0.5 天 |
+| **P3 缺窗补齐（✅ 2026-10-26）** | idle / batch_cap / multiwin_cap 三扇 + 13 扇尾账 + E1/E2 豁免 + 对照尺 | 每扇 `-auto-only` 两连 + manual 档；逐文件回归；触及共享数据跑 `-race`；三臂真实出画 | 2-3 天 |
 | **P4 全矩阵跑账** | 17 行逐行资源账（5s 档 + 长跑行 300s）、对照系数定稿、wrgate 对照字段落地、覆盖文档 §11 同步 | 17 行 JSON 齐全、对照比成立、文档标 ✅ | 1-2 天 |
 
-**P3 进度（2026-10-26）**：三扇新窗（idle/batch_cap/multiwin_cap）两连 gate + manual 已完成（§5.1–5.3）；多窗 `-race` 清零；13 扇尾账 Golden 两连全 PASS（§5.4，13→0）；IME 颜色字形分类引擎修复落地；两处既有红已定案（用例迁移 + 断言口径，§5.4）；E1 14 扇机器证据已补（§5.6，其中 appkit/win32 本机诚实 SKIP、待真机）。E2 已定案（jumprope 冻结 Golden 两连 PASS、spin_min 豁免）；六扇 IME 真机人工验收已完成并修掉光标/选区引擎缺陷（§5.4.1/§5.4.2）；maskops 可录制掩码后处理已收，两连 `screen=0.0000%`/`pixel=18/18`/`golden=0.0000%`/`live_only_skips=0`/`mask_skips=0`（§5.4.1、线程计划 §18.1 #19）；对照尺仍阻塞，故 **P3 未收口只剩对照尺，暂不进入 P4**。
+**P3 进度（2026-10-26）**：三扇新窗（idle/batch_cap/multiwin_cap）两连 gate + manual 已完成（§5.1–5.3）；多窗 `-race` 清零；13 扇尾账 Golden 两连全 PASS（§5.4，13→0）；IME 颜色字形分类引擎修复落地；两处既有红已定案（用例迁移 + 断言口径，§5.4）；E1 14 扇机器证据已补（§5.6，其中 appkit/win32 本机诚实 SKIP、待真机）。E2 已定案（jumprope 冻结 Golden 两连 PASS、spin_min 豁免）；六扇 IME 真机人工验收已完成并修掉光标/选区引擎缺陷（§5.4.1/§5.4.2）；maskops 可录制掩码后处理已收，两连 `screen=0.0000%`/`pixel=18/18`/`golden=0.0000%`/`live_only_skips=0`/`mask_skips=0`（§5.4.1、线程计划 §18.1 #19）；**Flutter stable 3.47.8 与 Godot 4.5.1 对照尺已立，三臂真实出画；Flutter/Godot 基准各三跑取中位（§5.5）**；旧 P1 黑屏阻塞解除。故 **P3 收口（2026-10-26），P4 未开工**；P4 接手全矩阵对照、系数定稿、m5 RSS 异常定位。
 
 ## 7. 风险与边界
 
-1. **Flutter linux-desktop 构建链**未验证（GTK3/ninja/clang）：P1 第一步验证；跑不通降级为"引用公开基准数字 + 注明"，Godot 尺升主尺；
-2. **Godot 编译耗时**：源码编译大工程优先下载官方预编译；
+1. **Flutter 构建链**：stable 3.47.8 已在 940MX 验证（无 clang，wrapper 转 gcc/g++；Impeller OpenGLESSDF 出画，§5.5）。master 3.50 的 Impeller 黑屏仍存在，不得拿 master 当尺；升 SDK 必须重跑三窗出画与三跑采数。
+2. **Godot 版本/预编译包**：固定官方 4.5.1-stable + sha256（§3.2）；demo 的 `config/features=4.7` 在 4.5.1 实测可 import，但换版本需重验；不源码编译大工程。
 3. **系数后置**：对齐线系数在 P4 基线出来前不得当验收线用（防新的自拍阈值）；
 4. **换机门**：阈值随机器重标（照 2.5D GAP_PLAN §5 先例），本矩阵数字绑定本机；
 5. **范围边界**：2D 桌面底座（不含 3D、不含移动端）；CPU 口径不含合成器侧；多窗单 GL 线程天花板是观察项不是缺陷。实测：4 窗平均 60fps，8 窗 31fps，总呈现 ≈250 帧/秒；单帧 CPU 成本 2.65–3.23ms 稳定，CPU 未饱和（71.7%）——瓶颈是共享呈现串行吞吐。
 
-## 8. 复现命令（P1）
+## 8. 复现命令（P1 尺 + P3 实测）
 
 ```bash
-# Flutter 构建链验证
-/home/yanghy/app/projects/gogpu/flutter/bin/flutter config --enable-linux-desktop
-/home/yanghy/app/projects/gogpu/flutter/bin/flutter doctor
-# Flutter 对照窗（tools/ruler_flutter/ 三窗，P1 建）
-cd tools/ruler_flutter && FLUTTER_SDK=/home/yanghy/app/projects/gogpu/flutter make run-spin
-# gpui 侧同场景（对照臂）
-export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
-RUN_SECONDS=60 examples/kit/spin_min   # proc CPU% / RSS / p95 / hitch
-# glxgears 地板
-glxgears -info 2>&1 | grep -E "FPS"
+# 本机无 clang：用包装脚本转 gcc/g++（新机器可直接装 clang）
+export PATH=/tmp/opencode/flutter_toolchain:$PATH
+export FLUTTER_SDK=/home/yanghy/app/projects/gogpu/flutter
+
+# Flutter stable 3.47.8：构建链 + 三窗（使用 tools/ruler_flutter）
+$FLUTTER_SDK/bin/flutter doctor -v
+cd tools/ruler_flutter
+make analyze && make build
+make measure-spin DURATION=60
+make measure-list DURATION=60
+make measure-text DURATION=60
+# 三跑取中位（原产物落 out/，已 gitignore）
+for s in spin list text; do for i in 1 2 3; do
+  python3 scripts/measure.py --scene "$s" --window-match "RULER_$(echo $s | tr a-z A-Z)" \
+    --duration 60 --warmup $([ "$s" = list ] && echo 20 || echo 5) --out "out/${s}_$i"
+done; done
+
+# Godot 4.5.1-stable：复制 bullet_shower 副本，不改上游
+export GODOT_DEMO_ROOT=/home/yanghy/app/projects/gogpu/godot-demo-projects
+tools/ruler_godot/setup.sh
+for i in 1 2 3; do
+  GODOT_BULLETS=500 DURATION=60 WARMUP=5 \
+    tools/ruler_godot/measure.sh /tmp/opencode/ruler_runs/godot_500_$i
+done
+# 容量探针（含逐对象物理，不能当纯图元 parity）
+GODOT_BULLETS=1000 DURATION=10 WARMUP=5 tools/ruler_godot/measure.sh /tmp/opencode/ruler_runs/godot_1000
+GODOT_BULLETS=5000 DURATION=10 WARMUP=5 tools/ruler_godot/measure.sh /tmp/opencode/ruler_runs/godot_5000
+GODOT_BULLETS=10000 DURATION=20 WARMUP=15 tools/ruler_godot/measure.sh /tmp/opencode/ruler_runs/godot_10000
+
+# gpui 同采数器复核 CPU/RSS/截图（示例：spin；C3/m5 换 --app 和 --window-match）
+# fps/p95 用该窗自身 60s 指标 JSON，不从进程 stdout 猜
+go build -o /tmp/gpui_spin ./examples/kit/spin_min
+python3 tools/ruler_flutter/scripts/measure.py --app /tmp/gpui_spin \
+  --env LD_LIBRARY_PATH=$PWD/lib --env WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so \
+  --env RUN_SECONDS=90 --window-match spin_min --duration 60 --warmup 5 \
+  --out /tmp/opencode/ruler_runs/gpui_spin
+
+# glxgears 地板（300×300）
+python3 tools/ruler_flutter/scripts/measure.py --app /usr/bin/glxgears \
+  --window-match glxgears --duration 60 --warmup 5 --out /tmp/opencode/ruler_runs/glxgears
+
 # P3 三扇新窗（gate 两连命令重复执行两次）
 RUN_SECONDS=60 go run ./examples/ui_base_idle -auto-only
 RUN_SECONDS=200 go run ./examples/ui_base_batch_cap -auto-only
@@ -339,6 +414,7 @@ RUN_SECONDS=15 go run ./examples/ui_wr_ime_r5_control
 
 | 日期 | 内容 |
 |---|---|
+| 2026-10-26 | **P3 对照尺落地 + P3 收口**：Flutter stable 3.47.8（engine `cf636b1dfb` / Dart 3.13.7）在 940MX 实际出画（Impeller `OpenGLESSDF`，三窗截图非黑）；三窗 3×60s 中位 spin **25.41%**、list **71.38%**、text **0.02%**（首帧后静态 idle）；Godot 4.5.1-stable `bullet_shower` 500 发 **19.1%/60fps**，1k 28.94%，5k/10k **102.6%/6–7fps**、**102.66%/3fps**（含逐对象物理，容量探针）；glxgears **2.74%**。旧 §5.5（26.28/31.03%、109.68%、0.00%）与旧 §3.1 黑屏记录矛盾，整节作废。m5 复核 RSS **1.09→1.63GB/60s**（独立 35s 1.09→1.73GB），异常增长归 row 12/P4。P3 收口，P4 未开工。详见 §5.5。 |
 | 2026-10-26 | **maskops 可录制掩码后处理收口（活窗红→绿）**：`ui_render_base_maskops` 常驻真窗复核曾 `screen diff=63.2419%`、四卡不显示（`liveOnlySkips=2872`/360 presents），快照/golden/像素全绿属假绿；根因=掩码后处理只挂 `RequireLiveContext()`，retained 全帧录制通道（Recorder）拒绝后整卡丢失。修法：新增 `render.MaskCanvas` 侧接口（不塞进 `Canvas` 用户空间契约）+ `render/recording` 5 条设备空间命令/`MaskBackend`；录制时 `Mask.Clone()` 快照、回放每次再克隆；`CanvasBackend` 仅在同尺寸目标上执行，尺寸/能力不符计 `MaskSkips`，`PushMaskLayer` 退化普通层保 `PopLayer` 平衡，`End` 清理并给活 Context 重装外层掩码；`PaintContext.MaskCanvas()` 为正口，不支持计 `LiveOnlySkips`。证据：`render/recording/mask_test.go` 六测 + `-race` 绿；maskops `-auto-only` 两连 `screen=0.0000%`（627200px，±2/255）、`pixel=18/18`、`golden=0.0000%`、`live_only_skips=0`、`mask_skips=0`、presents=247/229；5.5s 档 fps 44.6/41.4、frame_raster_ms 132/141、hitch 0/11，`fps_gate=off_correctness` 只记账不判绿。边界：只打通 full_paint 全帧录制；retained 图层/局部录制遇掩码按尺寸不匹配计数跳过，完整用户空间掩码留后续。详见线程计划 §18.1 #19、`ENGINE_UI_RENDER_BASE.md` A 组#6/§24 1.63、`RENDER_API_CATALOG.md` 掩码族/§6.3/§8。P3 只剩对照尺阻塞 |
 | 2026-10-26 | **六扇 IME 真机人工验收 + 光标/选区引擎修复**：六窗常驻人工档逐扇走真实输入——r2 81.7s/59.8fps/hitch 2/fallback 0/RSS 7350KB/min；r3 33.6s/59.7fps/hitch 0/RSS 48862KB；r4 106.4s/59.8fps/10探针/拖选 2621px/双击 1568px/跨行 4968px；r5 51.0s/59.8fps/两段选区 1956+2780px；`ui_textinput_ime` 逐字输入 + 光标 24px 呼吸。发现并修复通用层缺陷：祖先 mask/difference 裁剪被提升进离屏录制通道（整面 mask 对录制局部坐标采样恒 0），光标/选区纯色块被静默丢弃——`maskClipPromotionAllowed()` 闸住 `forceCPUClip` + `applyMaskToPaint` 子通道内返回，新增 `TestOffscreenPassSkipsAncestorClipMask` 护栏；r1 复验光标 38px、选区 4056px。门禁盲区：auto-only 快照是 live-context 合成重绘，走不到录制通道，此类洞只能靠人工档抓。登记跨线红：maskops 活窗 `diff=63.2419%`、四卡不显示（liveOnlySkips=2872，基线同值），归属 S2b/C3 可录制掩码后处理。详见 §5.4.1/§5.4.2。P3 仍因对照尺与跨线红未收口 |
 | 2026-10-26 | **E2 定案**：`ui_render_jumprope` 补冻结相位门禁——`-auto-only` 冻结 `sim.freezeAt(0.25)`（绳在手线前层、`simT=0`），LiveHUD 底带排除，零容差 Golden 883200px + 5 条像素探针；两连 PASS（presents 600/599、58.4/58.2fps、hitch 0、pixel 5/5、golden 0.0000%）。`kit/spin_min` 书面豁免 Golden（持续旋转是心跳税语义，冻结即改变被测目标）；60s 档 presents=3592、CPU 15.92%、稳态 RSS 511.9KB/min（valid）、fallback 0。顺带修证据链：spin_min 每帧 `proc.Sample()`（原先稳态斜率永远 invalid）+ 补 JSON 输出 + README 对齐。详见 §5.7 |
