@@ -47,6 +47,14 @@ type CanvasBackend struct {
 	strokeBrush  render.Brush
 	statePushed  bool
 	savedBrushes bool
+
+	// Device-space mask replay. A mask plane is in target device pixels, so
+	// it may only run when the playback target has the recording's extent.
+	// sawMask makes End clean up the target's mask even if the recording set
+	// one without clearing it, so playback cannot leak state into the next
+	// paint.
+	maskSpaceOK bool
+	sawMask     bool
 }
 
 // Ensure CanvasBackend satisfies the backend contract.
@@ -60,12 +68,15 @@ func NewCanvasBackend(dc render.Canvas) *CanvasBackend {
 }
 
 // Begin records the state to restore at End and protects the context's CTM
-// and clip. The width/height of the recording is ignored: the target context
-// defines the pixel space.
-func (b *CanvasBackend) Begin(_, _ int) error {
+// and clip. User-space geometry composes onto whatever pixel space the target
+// defines; device-space masks are stricter and are only enabled when the
+// target extent equals the recorded extent.
+func (b *CanvasBackend) Begin(w, h int) error {
 	if b.dc == nil {
 		return ErrNoCanvas
 	}
+	b.maskSpaceOK = w == b.dc.Width() && h == b.dc.Height()
+	b.sawMask = false
 	b.fillBrush, b.strokeBrush = b.dc.FillBrush(), b.dc.StrokeBrush()
 	b.savedBrushes = true
 	b.dc.Push()
@@ -73,11 +84,27 @@ func (b *CanvasBackend) Begin(_, _ int) error {
 	return nil
 }
 
-// End restores the context state Begin captured.
+// End restores the context state Begin captured. A recording that touched the
+// mask clears it before Pop so the save/restore pair also cleans up nested
+// playback; a live target then re-installs the mask Pop restored, because
+// Context.Pop restores the pointer but not the GPU plane.
 func (b *CanvasBackend) End() error {
+	if b.sawMask {
+		if mc, ok := b.dc.(render.MaskCanvas); ok {
+			mc.ClearMask()
+		}
+	}
 	if b.statePushed {
 		b.dc.Pop()
 		b.statePushed = false
+	}
+	if b.sawMask {
+		if mc, ok := b.dc.(render.MaskCanvas); ok {
+			if mg, ok := b.dc.(interface{ GetMask() *render.Mask }); ok {
+				mc.SetMask(mg.GetMask())
+			}
+		}
+		b.sawMask = false
 	}
 	if b.savedBrushes {
 		b.dc.SetFillBrush(b.fillBrush)
@@ -86,6 +113,91 @@ func (b *CanvasBackend) End() error {
 	}
 	return nil
 }
+
+// maskTarget resolves the mask-capable target for a device-space command.
+// A target with a different extent cannot reproduce the plane's pixel space;
+// callers treat that as a skip and count it.
+func (b *CanvasBackend) maskTarget() (render.MaskCanvas, bool) {
+	if b.dc == nil || !b.maskSpaceOK {
+		return nil, false
+	}
+	mc, ok := b.dc.(render.MaskCanvas)
+	return mc, ok
+}
+
+// SetMask replays a device-space mask installation.
+func (b *CanvasBackend) SetMask(mask *render.Mask) {
+	if mask == nil {
+		// Clearing without a size match is safe only as cleanup; no mask
+		// pixels are being introduced, so a mismatch is not a visible skip.
+		if mc, ok := b.maskTarget(); ok {
+			mc.ClearMask()
+			b.sawMask = true
+		}
+		return
+	}
+	mc, ok := b.maskTarget()
+	if !ok {
+		maskSkips.Add(1)
+		return
+	}
+	mc.SetMask(mask)
+	b.sawMask = true
+}
+
+// ClearMask replays mask removal. It adds no mask pixels, so an unsupported
+// target or mismatched extent does not count as a visible skip.
+func (b *CanvasBackend) ClearMask() {
+	if mc, ok := b.maskTarget(); ok {
+		mc.ClearMask()
+		b.sawMask = true
+	}
+}
+
+// InvertMask replays an in-place mask inversion.
+func (b *CanvasBackend) InvertMask() {
+	mc, ok := b.maskTarget()
+	if !ok {
+		maskSkips.Add(1)
+		return
+	}
+	mc.InvertMask()
+	b.sawMask = true
+}
+
+// ApplyMask replays a destructive DestinationIn post-process.
+func (b *CanvasBackend) ApplyMask(mask *render.Mask) {
+	if mask == nil {
+		return
+	}
+	mc, ok := b.maskTarget()
+	if !ok {
+		maskSkips.Add(1)
+		return
+	}
+	mc.ApplyMask(mask)
+	b.sawMask = true
+}
+
+// PushMaskLayer replays a masked save-layer. A nil mask is a plain layer; a
+// target that cannot carry masks still gets a plain layer so the matching
+// PopLayer stays balanced (the skip is counted).
+func (b *CanvasBackend) PushMaskLayer(mask *render.Mask) {
+	if mask == nil {
+		b.dc.PushLayer(render.BlendNormal, 1.0)
+		return
+	}
+	mc, ok := b.maskTarget()
+	if !ok {
+		maskSkips.Add(1)
+		b.dc.PushLayer(render.BlendNormal, 1.0)
+		return
+	}
+	mc.PushMaskLayer(mask)
+	b.sawMask = true
+}
+
+var _ MaskBackend = (*CanvasBackend)(nil)
 
 // Save pushes the context state.
 func (b *CanvasBackend) Save() { b.dc.Push() }

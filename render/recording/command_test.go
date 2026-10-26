@@ -31,6 +31,11 @@ func TestCommandType_String(t *testing.T) {
 		{CmdSetMiterLimit, "SetMiterLimit"},
 		{CmdSetDash, "SetDash"},
 		{CmdSetFillRule, "SetFillRule"},
+		{CmdSetMask, "SetMask"},
+		{CmdClearMask, "ClearMask"},
+		{CmdInvertMask, "InvertMask"},
+		{CmdApplyMask, "ApplyMask"},
+		{CmdPushMaskLayer, "PushMaskLayer"},
 		{CommandType(254), "Unknown"},
 	}
 
@@ -65,6 +70,11 @@ func TestCommandInterface(t *testing.T) {
 		SetMiterLimitCommand{Limit: 4.0},
 		SetDashCommand{Pattern: []float64{5, 3}, Offset: 0},
 		SetFillRuleCommand{Rule: FillRuleEvenOdd},
+		SetMaskCommand{},
+		ClearMaskCommand{},
+		InvertMaskCommand{},
+		ApplyMaskCommand{},
+		PushMaskLayerCommand{},
 	}
 
 	expectedTypes := []CommandType{
@@ -87,6 +97,11 @@ func TestCommandInterface(t *testing.T) {
 		CmdSetMiterLimit,
 		CmdSetDash,
 		CmdSetFillRule,
+		CmdSetMask,
+		CmdClearMask,
+		CmdInvertMask,
+		CmdApplyMask,
+		CmdPushMaskLayer,
 	}
 
 	if len(commands) != len(expectedTypes) {

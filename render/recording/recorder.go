@@ -331,6 +331,36 @@ func (r *Recording) Playback(backend Backend) error {
 			backend.ApplyDropShadow(c.OffsetX, c.OffsetY, c.BlurRadius, c.Color)
 		case ApplyGrayscaleCommand:
 			backend.ApplyGrayscale()
+		case SetMaskCommand:
+			if b, ok := backend.(MaskBackend); ok {
+				b.SetMask(cloneMask(c.Mask))
+			} else {
+				maskSkips.Add(1)
+			}
+		case ClearMaskCommand:
+			if b, ok := backend.(MaskBackend); ok {
+				b.ClearMask()
+			} else {
+				maskSkips.Add(1)
+			}
+		case InvertMaskCommand:
+			if b, ok := backend.(MaskBackend); ok {
+				b.InvertMask()
+			} else {
+				maskSkips.Add(1)
+			}
+		case ApplyMaskCommand:
+			if b, ok := backend.(MaskBackend); ok {
+				b.ApplyMask(cloneMask(c.Mask))
+			} else {
+				maskSkips.Add(1)
+			}
+		case PushMaskLayerCommand:
+			if b, ok := backend.(MaskBackend); ok {
+				b.PushMaskLayer(cloneMask(c.Mask))
+			} else {
+				maskSkips.Add(1)
+			}
 		case DrawTextCommand:
 			brush := r.resources.GetBrush(c.Brush)
 			backend.DrawText(c.Text, c.X, c.Y, r.faceFor(c.Font), brush)

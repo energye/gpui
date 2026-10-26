@@ -28,10 +28,11 @@ import (
 // arguments only exist on the thread that owns the GPU, or whose result is a
 // raster-time fact, stay on *Context and are not part of this contract:
 // GPU texture handles (DrawGPUTexture*), flushing and presentation
-// (FlushGPU/PresentFrame*), offscreen passes, masks, encode/export, SetPixel,
+// (FlushGPU/PresentFrame*), offscreen passes, encode/export, SetPixel,
 // WritePixels and damage tracking. Text outlines (TextPath) are live-only too:
 // they need the context's own glyph-outline extractor and mask cache, so a
-// display list cannot produce them.
+// display list cannot produce them. Device-space mask post-processes are a
+// separate capability: see MaskCanvas.
 //
 // All geometry is user space: the current transform applies to path verbs,
 // shapes, image destinations and text origins, and the device scale folds in

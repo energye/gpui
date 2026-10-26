@@ -559,13 +559,14 @@ func paintApplyMaskCard(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	// Mask post-processes read and modulate the surface directly, so this card
-	// only exists on the live context; a recording walk refuses and counts.
-	live, ok := pc.RequireLiveContext()
+	// Masks are device-space post-processes: a recorder carries them as
+	// commands, the live context executes them directly. A walk whose target
+	// has no mask capability refuses and counts.
+	dc, ok := pc.MaskCanvas()
 	if !ok {
 		return
 	}
-	dc, ox, oy := live, pc.OriginX, pc.OriginY
+	ox, oy := pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	cxi, cyi := int(math.Round(cx)), int(math.Round(cy))
@@ -597,13 +598,14 @@ func paintSetClearMaskCard(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	// Mask post-processes read and modulate the surface directly, so this card
-	// only exists on the live context; a recording walk refuses and counts.
-	live, ok := pc.RequireLiveContext()
+	// Masks are device-space post-processes: a recorder carries them as
+	// commands, the live context executes them directly. A walk whose target
+	// has no mask capability refuses and counts.
+	dc, ok := pc.MaskCanvas()
 	if !ok {
 		return
 	}
-	dc, ox, oy := live, pc.OriginX, pc.OriginY
+	ox, oy := pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	w, h := dc.Width(), dc.Height()
@@ -626,13 +628,14 @@ func paintInvertMaskCard(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	// Mask post-processes read and modulate the surface directly, so this card
-	// only exists on the live context; a recording walk refuses and counts.
-	live, ok := pc.RequireLiveContext()
+	// Masks are device-space post-processes: a recorder carries them as
+	// commands, the live context executes them directly. A walk whose target
+	// has no mask capability refuses and counts.
+	dc, ok := pc.MaskCanvas()
 	if !ok {
 		return
 	}
-	dc, ox, oy := live, pc.OriginX, pc.OriginY
+	ox, oy := pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	w, h := dc.Width(), dc.Height()
@@ -658,13 +661,14 @@ func paintMaskLayerCard(pc *rendering.PaintContext, sz rendering.Size) {
 	if pc == nil || pc.DC == nil {
 		return
 	}
-	// Mask post-processes read and modulate the surface directly, so this card
-	// only exists on the live context; a recording walk refuses and counts.
-	live, ok := pc.RequireLiveContext()
+	// Masks are device-space post-processes: a recorder carries them as
+	// commands, the live context executes them directly. A walk whose target
+	// has no mask capability refuses and counts.
+	dc, ok := pc.MaskCanvas()
 	if !ok {
 		return
 	}
-	dc, ox, oy := live, pc.OriginX, pc.OriginY
+	ox, oy := pc.OriginX, pc.OriginY
 	cardBG(dc, ox, oy, sz.Width, sz.Height)
 	cx, cy := ox+contentX0, oy+contentY0
 	w, h := dc.Width(), dc.Height()

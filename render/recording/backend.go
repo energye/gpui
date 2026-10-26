@@ -225,6 +225,26 @@ type GPUTextureBackend interface {
 	DrawGPUTexture(view render.TextureView, x, y float64, width, height int)
 }
 
+// MaskBackend is the optional capability of replaying device-space mask
+// post-processes (SetMask/ClearMask/InvertMask/ApplyMask/PushMaskLayer).
+//
+// It is separate from Backend because a mask plane lives in target device
+// pixels: only a target that can reproduce the recording's device space may
+// execute it (the live context and CanvasBackend do; export backends cannot).
+// Playback skips mask commands on backends that do not implement this
+// interface and counts the skip in MaskSkips.
+//
+// The mask passed to SetMask/ApplyMask/PushMaskLayer is a fresh snapshot owned
+// by the backend; implementations may retain or mutate it without affecting
+// the recording or a later playback.
+type MaskBackend interface {
+	SetMask(mask *render.Mask)
+	ClearMask()
+	InvertMask()
+	ApplyMask(mask *render.Mask)
+	PushMaskLayer(mask *render.Mask)
+}
+
 // WriterBackend extends Backend with the ability to write output to an io.Writer.
 // This is useful for streaming output or writing to network connections.
 type WriterBackend interface {

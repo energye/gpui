@@ -16,14 +16,16 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// Live-only draws.
+// Live-only draws and device-space capabilities.
 //
-// A display list cannot describe everything: masks, glyph-outline extraction and
-// offscreen passes ride handles that only exist on the thread owning the device.
+// A display list cannot describe everything: glyph-outline extraction and
+// offscreen passes ride handles that only exist on the thread owning the
+// device. Masks are different: they are device-space planes, so a display list
+// can carry them as commands, but they are not Canvas user-space geometry.
 // Paint code must route such draws through the façades here rather than
-// type-asserting pc.DC — on a recording walk a façade returns false and counts,
-// so "painted nothing because the target cannot hold it" always leaves a number
-// behind instead of an invisible hole.
+// type-asserting pc.DC — on a walk whose target cannot hold the operation a
+// façade returns false and counts, so "painted nothing because the target
+// cannot hold it" always leaves a number behind instead of an invisible hole.
 var liveOnlySkips atomic.Int64
 
 // LiveOnlySkips returns how many live-only draws met a recording walk and were
@@ -35,8 +37,8 @@ func LiveOnlySkips() int64 { return liveOnlySkips.Load() }
 func ResetLiveOnlySkips() { liveOnlySkips.Store(0) }
 
 // RequireLiveContext hands paint code the live *render.Context for a draw a
-// display list cannot describe: masks, GPU flushes, glyph-outline extraction.
-// On a recording walk it returns nil, false and counts the refusal in
+// display list cannot describe: GPU flushes and glyph-outline extraction. On a
+// recording walk it returns nil, false and counts the refusal in
 // LiveOnlySkips, so "skipped because unrecordable" always leaves a number
 // instead of an invisible hole.
 func (pc *PaintContext) RequireLiveContext() (*render.Context, bool) {
@@ -45,6 +47,26 @@ func (pc *PaintContext) RequireLiveContext() (*render.Context, bool) {
 		liveOnlySkips.Add(1)
 	}
 	return dc, live
+}
+
+// MaskCanvas hands paint code the mask-capable canvas for this walk: the live
+// *render.Context or the display-list Recorder (FullPaint frames). Masks are
+// device-space post-processes; routing them through this façade instead of
+// Canvas keeps device-space planes out of the user-space Canvas contract while
+// still letting the recorder carry them. A target without the capability is
+// refused and counted in LiveOnlySkips, so a dropped mask always leaves a
+// number instead of an invisible hole.
+func (pc *PaintContext) MaskCanvas() (render.MaskCanvas, bool) {
+	if pc == nil || pc.DC == nil {
+		liveOnlySkips.Add(1)
+		return nil, false
+	}
+	mc, ok := pc.DC.(render.MaskCanvas)
+	if !ok {
+		liveOnlySkips.Add(1)
+		return nil, false
+	}
+	return mc, true
 }
 
 // gpuTextureCanvas is a draw target that can take a device-owned texture view:

@@ -34,8 +34,10 @@ import (
 
 	"github.com/energye/gpui/examples/wrgate"
 	"github.com/energye/gpui/examples/wrkit"
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
+	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
 
 	_ "github.com/energye/gpui/render/gpu"
@@ -218,6 +220,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
 	}
+	// Mask evidence starts from zero: the four cards must reach the recording
+	// target, and every playback must execute its mask commands (no live-only
+	// refusal, no extent-mismatch skip).
+	rendering.ResetLiveOnlySkips()
+	recording.ResetMaskSkips()
 	t0 := time.Now()
 	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: run:", err)
@@ -297,6 +304,10 @@ func main() {
 		} else if pct, n, cmpErr := compareScreenToSnapshot(screenGrabPath, snapPath, goldenRects, screenTol); cmpErr != nil {
 			screenRes.Detail = cmpErr.Error()
 		} else if pct > screenMaxDiffPct {
+			// Keep the numeric evidence even when the verdict is FAIL: a zero
+			// here contradicts the detail string and hides the real delta.
+			screenRes.DiffPct = pct
+			screenRes.Compared = n
 			screenRes.Detail = fmt.Sprintf("diff=%.4f%% over %d px > %.2f%% (grab vs snapshot)", pct, n, screenMaxDiffPct)
 		} else {
 			screenRes.OK = true
@@ -337,6 +348,8 @@ func main() {
 			"screen_check_diff_pct":  screenRes.DiffPct,
 			"screen_check_px":        screenRes.Compared,
 			"screen_check_detail":    screenRes.Detail,
+			"live_only_skips":        rendering.LiveOnlySkips(),
+			"mask_skips":             recording.MaskSkips(),
 			"resize_events":          resizeEvents,
 			"client_px":              fmt.Sprintf("%dx%d", finalW, finalH),
 		},
@@ -361,6 +374,12 @@ func main() {
 	}
 	if screenRes.Attempted && !screenRes.OK {
 		fail("screen check: %s", screenRes.Detail)
+	}
+	if skips := rendering.LiveOnlySkips(); skips != 0 {
+		fail("live_only_skips=%d: a mask card never reached a recordable target", skips)
+	}
+	if skips := recording.MaskSkips(); skips != 0 {
+		fail("mask_skips=%d: playback dropped a mask command (extent mismatch or no mask target)", skips)
 	}
 	// Mask family GPU route: every masked draw must ride the fixed-function
 	// mask plane — a CPU fallback here would mean the window validates a

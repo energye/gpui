@@ -107,6 +107,14 @@ const (
 	CmdApplyColorMatrix  // Post-effect: 4x5+color matrix
 	CmdApplyDropShadow   // Post-effect: drop shadow
 	CmdApplyGrayscale    // Post-effect: grayscale
+
+	// Device-space mask post-processes (render.MaskCanvas). The mask plane is
+	// in target device pixels; playback requires the same device extent.
+	CmdSetMask       // Install an alpha mask for subsequent draws
+	CmdClearMask     // Remove the current mask
+	CmdInvertMask    // Invert the current mask in place
+	CmdApplyMask     // DestinationIn post-process over the current surface
+	CmdPushMaskLayer // Masked save-layer composited at PopLayer
 )
 
 // commandTypeNames maps CommandType values to their string representation.
@@ -160,6 +168,12 @@ var commandTypeNames = [...]string{
 	CmdApplyColorMatrix:  "ApplyColorMatrix",
 	CmdApplyDropShadow:   "ApplyDropShadow",
 	CmdApplyGrayscale:    "ApplyGrayscale",
+
+	CmdSetMask:       "SetMask",
+	CmdClearMask:     "ClearMask",
+	CmdInvertMask:    "InvertMask",
+	CmdApplyMask:     "ApplyMask",
+	CmdPushMaskLayer: "PushMaskLayer",
 }
 
 // String returns the string representation of a CommandType.

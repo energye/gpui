@@ -1,7 +1,7 @@
 # 底座资源场景矩阵（RENDER_BASE_RESOURCE_MATRIX）
 
 日期：2026-10-26 ｜ 仓库：`/home/yanghy/app/projects/gogpu/gpui` ｜ 分支：`feat/框架代码整理`
-状态：**实施中——P2 已冻结；P3 尾账 Golden 已清零（13→0），但 P3 未收口**（E1 已豁免、机器证据在 §5.6；E2 已定案、§5.7；两处既有红已定案、Flutter 尺阻塞）；P4 未开工。范围：支撑三栋楼（任意图形渲染 / UI 组件库 / 2.5D 引擎）的**共用底座能力**的资源场景真窗覆盖，指标对齐**工业级产品同机实测**（Flutter/Godot 对照尺）。上层业务场景（组件交互全集、引擎玩法全集、视频业务）归各自域真源，本矩阵只管底座。
+状态：**实施中——P2 已冻结；P3 尾账 Golden 已清零（13→0），maskops 活窗红已收（2026-10-26），P3 未收口只剩 Flutter/Godot 对照尺阻塞**（E1 已豁免、机器证据在 §5.6；E2 已定案、§5.7；两处既有红已定案）；P4 未开工。范围：支撑三栋楼（任意图形渲染 / UI 组件库 / 2.5D 引擎）的**共用底座能力**的资源场景真窗覆盖，指标对齐**工业级产品同机实测**（Flutter/Godot 对照尺）。上层业务场景（组件交互全集、引擎玩法全集、视频业务）归各自域真源，本矩阵只管底座。
 
 ## 0. 一句话与做成算完口径
 
@@ -175,7 +175,7 @@
 **观察项（登记，不判缺陷）**：
 - **密码框不画选区高亮**：`ui/textinput/box.go:934` 的 `syncHighlight` 对 `IsPassword()` 直接返回——选区高亮会泄露口令长度，按设计抑制；光标照常显示。
 - **`ui_textinput_ime` 示例空区点击不触发 OnPointer**：自定义 inputBox 的空白区命中的是内嵌 `*rendering.RenderBox`，换行/定位点击落不到外层 handler；生产用的 `textinput.Box` 不受影响（示例层命中写法问题，不属引擎缺陷）。
-- **`ui_render_base_maskops` 活窗红（跨线，非本修复引入）**：活窗屏幕检查 `diff=63.2419%`（`screen=false`），四张 masked 卡片全部不显示；快照/golden/像素全绿。临时计数实测 `liveOnlySkips=2872` / 360 presents；回退本修复后逐位同值，证明基线即红。根因：掩码后处理挂在 `RequireLiveContext()` 上，retained 录制通道（Recorder）拒绝后整卡内容丢失。归属线程计划 S2b/C3「可录制掩码后处理」，已记入 `ENGINE_UI_RENDER_BASE.md` A-maskops 行。
+- **`ui_render_base_maskops` 活窗红→绿（2026-10-26 当日收口）**：复核曾发现活窗屏幕检查 `diff=63.2419%`（`screen=false`）、四张 masked 卡片全部不显示，而快照/golden/像素全绿；临时计数 `liveOnlySkips=2872`/360 presents，回退当日 IME 修复后逐位同值，证明基线即红。根因：掩码后处理只挂 `RequireLiveContext()`，retained 全帧录制通道（Recorder）拒绝，整卡内容丢失。修复见线程计划 §18.1 #19：新增 `render.MaskCanvas` 侧接口 + 5 条录制命令 + `MaskBackend`，`CanvasBackend` 按设备尺寸门回放并计 `MaskSkips`，`PaintContext.MaskCanvas()` 统一正口。复跑两连：`screen diff=0.0000%`（627200px、±2/255）、`pixel=18/18`、`golden=0.0000%`、`live_only_skips=0`、`mask_skips=0`，presents=247/229；该窗 `fps_gate=off_correctness`，5.5s 档 fps 44.6/41.4、frame_raster_ms 132/141、hitch 0/11，性能只记账不判绿。边界：目前只覆盖 full_paint 全帧录制（录制尺寸=回放尺寸）；retained 图层/局部录制遇掩码按尺寸不匹配计数跳过，完整用户空间掩码留后续。
 - **R17 最小化闩**：生命周期闩落下的瞬间调度即停，后续 tick 永远观察不到 `App.Minimized()`；窗把控制器报告的调用点当闩沿（本轮 t=22.0 / presents 1309–1311），最终化时算 bg 增量。将来若要读闩后状态，tick 路径拿不到。
 - **C8 恢复快照时序**：恢复截图按 elapsed 排队（auto +1.0s / manual +0.5s），不是按"恢复帧已呈现"确认；慢机上可能早于恢复帧。auto 档 +0.3s 冻结把窗口压窄，但根缝仍是时间而非呈现计数。
 
@@ -198,7 +198,7 @@
 - `ui/rendering` opacity（原期望 `#ff8080`、实得 `#ff7f7f`）：`#ff8080` 是直线 alpha 四舍五入；引擎按预乘 unorm8 存 127（`render/pixmap.go` 的 `setPremul` 截断 127.5），8-bit GPU 混合同值（S3b GPU 契约允许 ±20）。断言已改为 `#ff7f7f` 并注明口径；不改像素管线（改舍入会波及所有 CPU 像素与 Golden 基线）。
 - 本机验证：`go test ./ui/scene`、opacity 用例、`go test ./ui/scene/internal/gpupixel` 全绿；GPU 像素契约待真机 GPU 窗复跑（本机 `CreateOffscreenTexture unavailable` → SKIP）。
 
-**未收口项**：E1（14 扇）已豁免（§5.6）；E2（2 扇）已定案（§5.7）；六扇 IME 窗真机人工验收已完成（§5.4.1，光标/选区引擎缺陷已修并复验，§5.4.2）；`ui_render_base_maskops` 活窗红为跨线项（可录制掩码后处理，S2b/C3），未收；Flutter/Godot 对照尺仍阻塞。**P3 未收口，暂不进入 P4。**
+**未收口项**：E1（14 扇）已豁免（§5.6）；E2（2 扇）已定案（§5.7）；六扇 IME 窗真机人工验收已完成（§5.4.1，光标/选区引擎缺陷已修并复验，§5.4.2）；`ui_render_base_maskops` 活窗红已收（§5.4.1，2026-10-26 两连全绿，`live_only_skips=0`/`mask_skips=0`）。**P3 未收口只剩 Flutter/Godot 对照尺阻塞，暂不进入 P4。**
 
 ## 5.5 P1 基线数字（2026-10-25 本机实测，对照尺已立）
 
@@ -286,7 +286,7 @@ E2 是两扇常驻动画窗：画面一直在动，原先都没有 Golden。按�
 | **P3 缺窗补齐** | idle / batch_cap / multiwin_cap 三扇 + 13 扇尾账 + E1/E2 豁免 | 每扇 `-auto-only` 两连 + manual 档；逐文件回归；触及共享数据跑 `-race` | 2-3 天 |
 | **P4 全矩阵跑账** | 17 行逐行资源账（5s 档 + 长跑行 300s）、对照系数定稿、wrgate 对照字段落地、覆盖文档 §11 同步 | 17 行 JSON 齐全、对照比成立、文档标 ✅ | 1-2 天 |
 
-**P3 进度（2026-10-26）**：三扇新窗（idle/batch_cap/multiwin_cap）两连 gate + manual 已完成（§5.1–5.3）；多窗 `-race` 清零；13 扇尾账 Golden 两连全 PASS（§5.4，13→0）；IME 颜色字形分类引擎修复落地；两处既有红已定案（用例迁移 + 断言口径，§5.4）；E1 14 扇机器证据已补（§5.6，其中 appkit/win32 本机诚实 SKIP、待真机）。E2 已定案（jumprope 冻结 Golden 两连 PASS、spin_min 豁免）；六扇 IME 真机人工验收已完成并修掉光标/选区引擎缺陷（§5.4.1/§5.4.2）；对照尺仍阻塞、maskops 活窗红跨线待收，故 **P3 未收口，暂不进入 P4**。
+**P3 进度（2026-10-26）**：三扇新窗（idle/batch_cap/multiwin_cap）两连 gate + manual 已完成（§5.1–5.3）；多窗 `-race` 清零；13 扇尾账 Golden 两连全 PASS（§5.4，13→0）；IME 颜色字形分类引擎修复落地；两处既有红已定案（用例迁移 + 断言口径，§5.4）；E1 14 扇机器证据已补（§5.6，其中 appkit/win32 本机诚实 SKIP、待真机）。E2 已定案（jumprope 冻结 Golden 两连 PASS、spin_min 豁免）；六扇 IME 真机人工验收已完成并修掉光标/选区引擎缺陷（§5.4.1/§5.4.2）；maskops 可录制掩码后处理已收，两连 `screen=0.0000%`/`pixel=18/18`/`golden=0.0000%`/`live_only_skips=0`/`mask_skips=0`（§5.4.1、线程计划 §18.1 #19）；对照尺仍阻塞，故 **P3 未收口只剩对照尺，暂不进入 P4**。
 
 ## 7. 风险与边界
 
@@ -339,6 +339,7 @@ RUN_SECONDS=15 go run ./examples/ui_wr_ime_r5_control
 
 | 日期 | 内容 |
 |---|---|
+| 2026-10-26 | **maskops 可录制掩码后处理收口（活窗红→绿）**：`ui_render_base_maskops` 常驻真窗复核曾 `screen diff=63.2419%`、四卡不显示（`liveOnlySkips=2872`/360 presents），快照/golden/像素全绿属假绿；根因=掩码后处理只挂 `RequireLiveContext()`，retained 全帧录制通道（Recorder）拒绝后整卡丢失。修法：新增 `render.MaskCanvas` 侧接口（不塞进 `Canvas` 用户空间契约）+ `render/recording` 5 条设备空间命令/`MaskBackend`；录制时 `Mask.Clone()` 快照、回放每次再克隆；`CanvasBackend` 仅在同尺寸目标上执行，尺寸/能力不符计 `MaskSkips`，`PushMaskLayer` 退化普通层保 `PopLayer` 平衡，`End` 清理并给活 Context 重装外层掩码；`PaintContext.MaskCanvas()` 为正口，不支持计 `LiveOnlySkips`。证据：`render/recording/mask_test.go` 六测 + `-race` 绿；maskops `-auto-only` 两连 `screen=0.0000%`（627200px，±2/255）、`pixel=18/18`、`golden=0.0000%`、`live_only_skips=0`、`mask_skips=0`、presents=247/229；5.5s 档 fps 44.6/41.4、frame_raster_ms 132/141、hitch 0/11，`fps_gate=off_correctness` 只记账不判绿。边界：只打通 full_paint 全帧录制；retained 图层/局部录制遇掩码按尺寸不匹配计数跳过，完整用户空间掩码留后续。详见线程计划 §18.1 #19、`ENGINE_UI_RENDER_BASE.md` A 组#6/§24 1.63、`RENDER_API_CATALOG.md` 掩码族/§6.3/§8。P3 只剩对照尺阻塞 |
 | 2026-10-26 | **六扇 IME 真机人工验收 + 光标/选区引擎修复**：六窗常驻人工档逐扇走真实输入——r2 81.7s/59.8fps/hitch 2/fallback 0/RSS 7350KB/min；r3 33.6s/59.7fps/hitch 0/RSS 48862KB；r4 106.4s/59.8fps/10探针/拖选 2621px/双击 1568px/跨行 4968px；r5 51.0s/59.8fps/两段选区 1956+2780px；`ui_textinput_ime` 逐字输入 + 光标 24px 呼吸。发现并修复通用层缺陷：祖先 mask/difference 裁剪被提升进离屏录制通道（整面 mask 对录制局部坐标采样恒 0），光标/选区纯色块被静默丢弃——`maskClipPromotionAllowed()` 闸住 `forceCPUClip` + `applyMaskToPaint` 子通道内返回，新增 `TestOffscreenPassSkipsAncestorClipMask` 护栏；r1 复验光标 38px、选区 4056px。门禁盲区：auto-only 快照是 live-context 合成重绘，走不到录制通道，此类洞只能靠人工档抓。登记跨线红：maskops 活窗 `diff=63.2419%`、四卡不显示（liveOnlySkips=2872，基线同值），归属 S2b/C3 可录制掩码后处理。详见 §5.4.1/§5.4.2。P3 仍因对照尺与跨线红未收口 |
 | 2026-10-26 | **E2 定案**：`ui_render_jumprope` 补冻结相位门禁——`-auto-only` 冻结 `sim.freezeAt(0.25)`（绳在手线前层、`simT=0`），LiveHUD 底带排除，零容差 Golden 883200px + 5 条像素探针；两连 PASS（presents 600/599、58.4/58.2fps、hitch 0、pixel 5/5、golden 0.0000%）。`kit/spin_min` 书面豁免 Golden（持续旋转是心跳税语义，冻结即改变被测目标）；60s 档 presents=3592、CPU 15.92%、稳态 RSS 511.9KB/min（valid）、fallback 0。顺带修证据链：spin_min 每帧 `proc.Sample()`（原先稳态斜率永远 invalid）+ 补 JSON 输出 + README 对齐。详见 §5.7 |
 | 2026-10-26 | **E1 14 扇机器证据补齐（豁免已签收）**：按"先补机器证据再豁免"逐扇实跑——l1_blank presents=180/hitch 0；l1_scroll 5s presents=301/bind 17/1000，40s 稳态 RSS 575.6KB/min（valid）；l1_spinner presents=301/layout=1/damage=144px；l2_shell 静态 presents=2 + 交互单测；perfsoak presents=302/fallback 0；m4_virtual 首屏 5.71ms/物化 42 行/真窗 bind 45/1e6；r12 schema 42 键全；pf_x11 19/19、pf_wayland 19/19（backend=wayland 嵌套，协议禁止项诚实 unsupported）；pf_appkit/pf_win32 本机诚实 SKIP（待 macOS/Windows 真机，不标绿）；video_player 出帧 27/fallback 0；zz_soak_control 3 窗 ~56–57fps；ime_probe IME 可用 + 合成按键全到。残留：真机跨平台、真人 IME 合成、真人交互。详见 §5.6。用户当日签收豁免：14 扇不补 Golden。P3 仍因 E2/人工目视/对照尺未收口 |
