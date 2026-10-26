@@ -1409,15 +1409,15 @@ func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *Pic
 	// Shell-tagged boundary — re-records/blits there count into the shell
 	// partition instead of the main totals only.
 	//
-	// Restrictive subtrees (rotation / non-1 scale, tracked by the noTex
-	// counter below) never touch the texture cache: the cache records
-	// axis-aligned bounds textures and blits them 1:1, which cannot
-	// represent rotated/scaled content (double transform / cropped shards).
-	// the raster cache makes the same decision at the same place —
-	// caching is decided while walking the layer tree, and a transform that
-	// is not a pure 2D translation disqualifies the subtree (Engine
-	// RasterCache::CanRasterCachePicture). Those layers vector-replay in
-	// phase 2 under the live CTM, which is always correct.
+	// Rotation / non-1 scale do NOT disqualify a picture: phase 1 records
+	// the untransformed content (pushRecordCTM strips rotation/scale) into
+	// a bounds texture, and phase 2 blits it through the live CTM
+	// (DrawGPUTexture full quad), so one recording serves every transform
+	// frame. Only a clip under a rotating/scaling ancestor falls back to
+	// vector replay (the record holds untransformed content while the
+	// composite clip would rotate, so the shapes would mismatch) — decided
+	// at the same place the raster cache decides it
+	// (RasterCache::CanRasterCachePicture).
 	// Clip-only chains stay CACHEABLE: a clip does not bend coordinates
 	// (the CTM stays a pure translate), so recordLocal's translation
 	// cancel is exact and the composite-time clip crops the bounds texture
