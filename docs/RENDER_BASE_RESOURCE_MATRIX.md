@@ -88,6 +88,7 @@
 
 - 真窗：`examples/ui_base_idle`，1200×800 静态页；开窗画完一帧后不再改任何节点。
 - 量法：warm-up 只允许 1 帧引导呈现；之后 60s 断 `presents` 增量、进程 CPU（`/proc` utime+stime）、RSS 稳态斜率、`vsync_source`。三证据 = 4 条逻辑探针 + 5 条像素探针 + Golden 1200×728 逐位。
+- 引擎侧：warm-up 结束时只有 `sched.Tickers().MayWantFrames()` 为真才 `ScheduleFrame()`（`ui/embedder/pipeline_app.go`）；静态窗不再以 60Hz 重复呈现同一帧。
 - 2026-10-25 两连 gate（最终代码）：`presents=1`、`after_warmup=0`、CPU **0.807%**，RSS 斜率 **3400.9 / 905.3 KB/min**（valid），peak **245.6 / 245.3 MB**，logic **4/4**、pixel **5/5**、golden **0.0000%**（873600px）。
 - manual 60s：`presents=1`、`after_warmup=0`、CPU **0.6%**、logic **4/4**。
 - 复现：`RUN_SECONDS=60 go run ./examples/ui_base_idle -auto-only`；人工档 `go run ./examples/ui_base_idle -manual-seconds 60`。
@@ -251,6 +252,7 @@ RUN_SECONDS=15 go run ./examples/ui_wr_ime_r5_control
 | 日期 | 内容 |
 |---|---|
 | 2026-10-26 | **P3 尾账 Golden 清零（13 → 0）**：13 扇逐扇补「固定冻结 + 零容差 Golden + 像素/逻辑证据」，`-auto-only` 两连全 PASS——ant presents=301/golden 0；particle 58.1–58.2fps/p95 19.2–19.4ms/CPU 25.0–25.7%/pixel 4/4；c7 wave1=1/wave2=19/dpr=1.0/pixel 6/6；c8 scripted 11/11/excess=0/pixel 5/5；r17 fg=1308–1310/bg=1/pixel 3/3；r21 rr_scroll=0/skip=296/pixel 6/6；r4b damage_multi/fps 59.9–60.0/pixel 3/3；r7 presents=3589–3591/fps 59.9/p95 19.8ms/hitch 1.0–2.0/min/RSS 3458/4435KB/min/CPU 18.27%；textinput 5/5（270000px）；r2 4/4；r3 5/5；r4 5/5；r5 6/6。全部 golden 0.0000%。行 3（R7）标绿、行 9（R17）补齐。详见 §5.4 |
+| 2026-10-26 | **R7 裁剪/掩码复用 + idle 调度修复**：滚动帧原先每个 scissor 组重建全幅 mask，改为共享 mask path 缓存（FNV-1a 键，`render/internal/clip/mask_cache.go`）+ 锁外缓存 Gray8 视图 + 跨组复用已细分裁剪几何（`render/internal/gpu/depth_clip.go`、`brush_fill.go`）；R7 60s close-run 达标（fps 59.9、CPU 18.27%，行 3）。idle：warm-up 后仅 `sched.Tickers().MayWantFrames()` 为真才排帧，静态窗呈现数归 1（行 1）。 |
 | 2026-10-26 | **IME 引擎修复 + 门语义对齐**：颜色字形分类从「Unicode 区段」改为「字体说算」（`text.GlyphsHaveColor` 逐字形读 `GlyphType`，Skia 口径），`buildShapedCarets` 闸住 `isColorText`；R2–R5 `cpu_fallback_ops` 1220 → 0，✓/✗ 恢复可见，回归 `TestColorRunOutlineDingbat_M5` 绿。六扇 IME 窗证据改为真源 §10.4.x G「必采」口径（首帧绘制 + hit/miss>0），撤掉 R9 专用 `MinMeasureCacheHit:1`；auto-only 短档斜率/启动 hitch 仅 WARN，≥10s 人工档硬门不变。观察项登记：R17 最小化闩后 tick 不可见、C8 恢复快照按 elapsed 而非呈现确认。详见 §5.4 |
 | 2026-10-26 | **batch_cap 两段预热屏障**：60s RSS 窗口原先落在 GPU/heap 爬坡段（预热前 ~45MB/min、一轮预热后 24–29MB/min 贴线），改为 gate 先跑 2 轮不计入测量的 prewarm 再测，稳态落到 6–8MB/min；两连 gate + 200s manual PASS（§5.2） |
 | 2026-10-25 | **P3 三扇新窗落地**：idle 两连 gate + 60s manual（presents=1 / after_warmup=0 / CPU 0.807% / golden 0）；batch_cap 图元 10k@60fps、矢量 100@60fps、RSS 稳态 6.7/8.0MB/min、golden 0；multiwin 1/2/4 窗 60fps、8 窗 31fps/≈250 presents/s、平均上限 4 窗、8 张 golden 全 0、pixel 16/16。详见 §5.1–5.3 |
