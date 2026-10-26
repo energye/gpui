@@ -82,6 +82,32 @@ func (info ColorFontInfo) HasAnyColorTable() bool {
 	return info.HasCBDT || info.HasSbix || info.HasCOLR || info.HasSVG
 }
 
+// GlyphsHaveColor reports whether any shaped glyph is a color glyph
+// (CBDT/COLR) in face's font. Unicode emoji ranges alone cannot decide the
+// paint route: text-presentation dingbats and emoji without a color face
+// shape to ordinary outline glyphs, so sending them to the color atlas only
+// produces a CPU fallback and drops the glyph. Classification follows the
+// font's glyph type (Skia: typeface decides, not the codepoint).
+func GlyphsHaveColor(face Face, glyphs []ShapedGlyph) bool {
+	if face == nil || len(glyphs) == 0 {
+		return false
+	}
+	src := face.Source()
+	if src == nil {
+		return false
+	}
+	cf, ok := src.Parsed().(ColorFont)
+	if !ok || !cf.HasColorTables() {
+		return false
+	}
+	for i := range glyphs {
+		if cf.GlyphType(uint16(glyphs[i].GID)) != GlyphTypeOutline {
+			return true
+		}
+	}
+	return false
+}
+
 // DetectGlyphType determines the glyph type for rendering.
 // This is a helper function that checks for color tables.
 //

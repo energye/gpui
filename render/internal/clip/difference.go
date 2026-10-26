@@ -46,7 +46,9 @@ func NewRectDifferenceMask(bounds, hole Rect) (*MaskClipper, error) {
 				_ = mask.SetRGBA(x, y, 255, 255, 255, 255)
 			}
 		}
-		return &MaskClipper{mask: mask, bounds: bounds}, nil
+		mc := &MaskClipper{mask: mask, bounds: bounds}
+		mc.cacheView()
+		return mc, nil
 	}
 
 	for y := 0; y < height; y++ {
@@ -72,7 +74,9 @@ func NewRectDifferenceMask(bounds, hole Rect) (*MaskClipper, error) {
 			_ = mask.SetRGBA(x, y, v, v, v, 255)
 		}
 	}
-	return &MaskClipper{mask: mask, bounds: bounds}, nil
+	mc := &MaskClipper{mask: mask, bounds: bounds}
+	mc.cacheView()
+	return mc, nil
 }
 
 // overlap1D returns the length of the overlap of the 1D intervals [a0,a1]

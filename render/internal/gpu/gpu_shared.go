@@ -17,6 +17,7 @@ import (
 	"log/slog"
 
 	"sync"
+	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
@@ -149,6 +150,9 @@ type GPUShared struct {
 	maskTex    hal.Texture
 	maskView   hal.TextureView
 	maskActive bool
+	maskKeyPtr uintptr
+	maskKeyW   int
+	maskKeyH   int
 
 	// CPU SDF fallback accelerator.
 	cpuFallback render.SDFAccelerator
@@ -954,24 +958,65 @@ func (s *GPUShared) clearMaskLocked() {
 	s.maskW = 0
 	s.maskH = 0
 	s.maskActive = false
+	s.maskKeyPtr = 0
+	s.maskKeyW = 0
+	s.maskKeyH = 0
+}
+
+// deactivateMaskLocked stops sampling the mask without destroying its R8
+// texture/plane. Clip masks are installed around every masked fill and removed
+// in the cleanup callback; keeping the upload lets the next fill with the same
+// clip (R7 replays one viewport clip across many pictures) reactivate the
+// existing texture instead of copying ~1MB and re-uploading it each time.
+// Caller must hold s.mu.
+func (s *GPUShared) deactivateMaskLocked() {
+	s.maskActive = false
+}
+
+// maskDataKey identifies the caller-owned plane. A new upload is required when
+// the pointer or dimensions change. Mutating a Mask in place and re-setting it
+// must go through Context.SetMask, which invalidates this cache explicitly.
+func maskDataKey(data []byte) uintptr {
+	if len(data) == 0 {
+		return 0
+	}
+	return uintptr(unsafe.Pointer(&data[0]))
 }
 
 // SetMaskTexture uploads a full-surface R8 alpha mask (L.06 MaskAware).
-// data is width*height bytes; nil clears the mask.
+// data is width*height bytes; nil deactivates the mask but keeps its texture
+// for cheap reactivation. Pass through ClearMaskTexture to release memory.
 func (s *GPUShared) SetMaskTexture(data []byte, width, height int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.clearMaskLocked()
 	if data == nil || width <= 0 || height <= 0 {
+		s.deactivateMaskLocked()
 		return
 	}
 	need := width * height
 	if len(data) < need {
+		s.deactivateMaskLocked()
 		return
 	}
+
+	key := maskDataKey(data)
+	samePlane := s.maskData != nil &&
+		s.maskKeyPtr == key && s.maskKeyW == width && s.maskKeyH == height
+	if samePlane {
+		// Reactivate a retained mask without copying or re-uploading. If the
+		// earlier GPU upload failed, maskTex stays nil and HasGPUMask reports
+		// false; fillMaskedAsImage then uses the CPU plane.
+		s.maskActive = true
+		return
+	}
+
+	s.clearMaskLocked()
 	s.maskData = append([]byte(nil), data[:need]...)
 	s.maskW = width
 	s.maskH = height
+	s.maskKeyPtr = key
+	s.maskKeyW = width
+	s.maskKeyH = height
 	s.maskActive = true
 
 	if err := s.ensureGPU(); err != nil || s.device == nil || s.queue == nil {
@@ -1028,23 +1073,24 @@ func (s *GPUShared) SetMaskTexture(data []byte, width, height int) {
 	s.maskView = view
 }
 
-// ClearMaskTexture removes the GPU-resident alpha mask.
+// ClearMaskTexture removes the GPU-resident alpha mask and releases its plane.
 func (s *GPUShared) ClearMaskTexture() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.clearMaskLocked()
 }
 
-// MaskPlane returns a copy of the active R8 mask plane when set.
-// ok is false when no mask is active.
+// MaskPlane returns a borrowed view of the active R8 mask plane when set.
+// The slice is read-only and valid until the next SetMaskTexture /
+// ClearMaskTexture on this shared context (same raster thread). ok is false
+// when no mask is active.
 func (s *GPUShared) MaskPlane() (data []byte, w, h int, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.maskActive || s.maskW <= 0 || s.maskH <= 0 || len(s.maskData) < s.maskW*s.maskH {
 		return nil, 0, 0, false
 	}
-	out := append([]byte(nil), s.maskData[:s.maskW*s.maskH]...)
-	return out, s.maskW, s.maskH, true
+	return s.maskData[:s.maskW*s.maskH], s.maskW, s.maskH, true
 }
 
 // HasGPUMask reports whether a native R8 mask texture is currently bound.

@@ -58,7 +58,11 @@ func (c *Context) installGPUClipMask() (func(), bool) {
 }
 
 // ensureClipMaskGPU returns a full-surface R8 mask = clip coverage × user mask.
-// Cached while clip stack depth/bounds and user mask pointer are unchanged.
+// Cached while the clip stack content signature and user mask pointer are
+// unchanged. Signature caching matters even when the clip stack generation
+// changes: picture replay pushes/pops the same viewport clip around each
+// picture, and rebuilding the full-surface plane for every picture was the
+// dominant R7 cost.
 func (c *Context) ensureClipMaskGPU() *Mask {
 	if c.clipStack == nil || c.pixmap == nil {
 		return nil
@@ -68,9 +72,10 @@ func (c *Context) ensureClipMaskGPU() *Mask {
 		return nil
 	}
 	b := c.clipStack.Bounds()
+	sig := c.clipStack.Signature()
 	if c.clipMaskGPU != nil &&
 		c.clipMaskGPU.Width() == w && c.clipMaskGPU.Height() == h &&
-		c.clipMaskGPUAt == c.clipMaskGPUGen &&
+		c.clipMaskGPUSig == sig &&
 		c.clipMaskGPUUser == c.mask {
 		return c.clipMaskGPU
 	}
@@ -115,14 +120,14 @@ func (c *Context) ensureClipMaskGPU() *Mask {
 	}
 
 	c.clipMaskGPU = m
-	c.clipMaskGPUAt = c.clipMaskGPUGen
+	c.clipMaskGPUSig = sig
 	c.clipMaskGPUUser = user
 	return m
 }
 
-// bumpClipMaskGPUGen invalidates the cached clip→R8 plane.
+// bumpClipMaskGPUGen records a clip stack mutation. The cached plane is kept:
+// ensureClipMaskGPU compares the clip content signature, so a mutation that
+// reconstructs the same clip (push/pop around picture replay) reuses it.
 func (c *Context) bumpClipMaskGPUGen() {
 	c.clipMaskGPUGen++
-	c.clipMaskGPU = nil
-	c.clipMaskGPUUser = nil
 }

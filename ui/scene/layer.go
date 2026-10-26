@@ -11,6 +11,8 @@
 package scene
 
 import (
+	"sync/atomic"
+
 	"github.com/energye/gpui/render/recording"
 )
 
@@ -25,20 +27,24 @@ type Layer interface {
 	Kind() string
 }
 
-// layerIDGen allocates monotonic ids for boundary / picture layers.
-var layerIDGen uint64
+// layerIDGen allocates monotonic ids for boundary / picture layers. It is
+// process-global because multiple window Run loops build layer trees
+// concurrently (multi-window); a plain uint64 here is a data race and can
+// hand out duplicate ids, which corrupts retained dirty tracking.
+var layerIDGen atomic.Uint64
 
 // NextLayerID returns a new non-zero layer id.
 func NextLayerID() uint64 {
-	layerIDGen++
-	if layerIDGen == 0 {
-		layerIDGen = 1
+	for {
+		id := layerIDGen.Add(1)
+		if id != 0 {
+			return id
+		}
 	}
-	return layerIDGen
 }
 
 // ResetLayerIDGen is for tests only.
-func ResetLayerIDGen() { layerIDGen = 0 }
+func ResetLayerIDGen() { layerIDGen.Store(0) }
 
 // ContainerLayer holds ordered children.
 type ContainerLayer struct {

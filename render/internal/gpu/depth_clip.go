@@ -16,7 +16,10 @@ import (
 	_ "embed"
 	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"math"
+	"sync"
+	"time"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -123,13 +126,69 @@ type DepthClipPipeline struct {
 
 	tessellator  *FanTessellator
 	uniformBuf   hal.Buffer
+	uniformW     uint32
+	uniformH     uint32
 	bindGroup    hal.BindGroup
 	vertBuf      hal.Buffer
 	vertBufCap   uint64
 	coverBuf     hal.Buffer // vertex buffer for cover quad (6 vertices)
 	coverBufCap  uint64     // capacity of cover buffer in bytes
 	vertexStaged []byte     // CPU staging buffer for vertex data
+
+	// geomCache shares one tessellated fan/cover/band vertex set across all
+	// groups that clip to the same path in a frame. R7 splits one viewport
+	// clip into ~23 scissor groups; before this cache each group tessellated
+	// the path and uploaded its own buffers (BuildClipResources was ~4.3s of
+	// a 60s run). Entries are released after frame encoding via
+	// releaseFrameGeom, so they cannot outlive an in-flight command buffer.
+	geomMu    sync.Mutex
+	geomCache map[uint64]*depthClipGeom
+
+	// maskCache reuses the full-frame R8 coverage mask for identical clip
+	// paths. A scene can split one clip into many scissor groups (R7: ~23
+	// groups sharing the 620x656 viewport clip). Without reuse, each group
+	// rasterized and uploaded its own full-frame mask every frame, turning
+	// one visual clip into ~140ms of raster work per frame. Entries are
+	// read-only after upload and shared by groupResources; DepthClipResources
+	// marks them non-owned so Release does not destroy a shared mask.
+	maskCacheMu    sync.Mutex
+	maskCache      []*depthMaskEntry
+	maskCacheBytes int
 }
+
+// depthMaskEntry caches one uploaded coverage mask. All fields are owned by
+// the pipeline's maskCache; group resources borrow them until Release.
+type depthMaskEntry struct {
+	key      uint64
+	tex      hal.Texture
+	view     hal.TextureView
+	bg       hal.BindGroup
+	bytes    int
+	lastUsed time.Time
+}
+
+// depthClipGeom is the frame-local tessellation for one clip path. All groups
+// using the same path borrow these buffers; the pipeline owns them until
+// releaseFrameGeom runs after the frame's command buffer has been submitted.
+type depthClipGeom struct {
+	vertBuf    hal.Buffer
+	coverBuf   hal.Buffer
+	bandBuf    hal.Buffer
+	vertCount  uint32
+	coverCount uint32
+	bandCount  uint32
+}
+
+const (
+	// maskCacheTTL bounds how long an unused mask may keep GPU memory. It is
+	// far longer than the raster pipeline depth, so an in-flight frame can
+	// never reference an entry we evict.
+	maskCacheTTL = 5 * time.Second
+	// maskCacheMaxBytes/maxEntries bound the cache; 16 MiB covers ~17
+	// full-HD R8 masks. R7's shared viewport clip needs one entry.
+	maskCacheMaxBytes   = 16 << 20
+	maskCacheMaxEntries = 24
+)
 
 // NewDepthClipPipeline creates a new depth clip pipeline for the given device.
 // The pipelines are not created until ensurePipeline() is called.
@@ -388,7 +447,11 @@ type DepthClipResources struct {
 	bindGroup  hal.BindGroup // uniform bind group (viewport)
 	vertCount  uint32        // number of fan vertices (Phase 1)
 	coverCount uint32        // number of cover quad vertices (Phase 2, always 6)
-	owned      bool          // if true, vertBuf and coverBuf are per-call (must be released)
+	owned      bool          // if true, mask fields must be released
+	// geomShared means vertBuf/coverBuf/bandBuf are borrowed from
+	// DepthClipPipeline.geomCache. Release must not destroy them; the
+	// pipeline drops the whole frame cache after encoding.
+	geomShared bool
 
 	// maskTex / maskView / maskBG hold the analytic-AA coverage mask for the
 	// clip path when rendering at sampleCount==1 (Skia kCoverage / Flutter
@@ -400,6 +463,10 @@ type DepthClipResources struct {
 	maskTex  hal.Texture
 	maskView hal.TextureView
 	maskBG   hal.BindGroup
+	// maskShared means the texture/view/bind group are borrowed from
+	// DepthClipPipeline.maskCache. Release must not destroy them; the cache
+	// owns their lifetime.
+	maskShared bool
 
 	// bandBuf / bandCount hold the analytic-AA exterior fringe mesh
 	// (stride-12 x,y,d triples) for the stencil-expansion pass at
@@ -415,31 +482,40 @@ func (r *DepthClipResources) Release() {
 	if r == nil || !r.owned {
 		return
 	}
-	if r.vertBuf != nil {
-		r.vertBuf.Destroy()
-		r.vertBuf = nil
+	if !r.geomShared {
+		if r.vertBuf != nil {
+			r.vertBuf.Destroy()
+		}
+		if r.coverBuf != nil {
+			r.coverBuf.Destroy()
+		}
+		if r.bandBuf != nil {
+			r.bandBuf.Destroy()
+		}
 	}
-	if r.coverBuf != nil {
-		r.coverBuf.Destroy()
-		r.coverBuf = nil
-	}
-	if r.bandBuf != nil {
-		r.bandBuf.Destroy()
-		r.bandBuf = nil
-		r.bandCount = 0
-	}
+	r.vertBuf = nil
+	r.coverBuf = nil
+	r.bandBuf = nil
+	r.bandCount = 0
 	if r.maskBG != nil {
-		r.maskBG.Destroy()
+		if !r.maskShared {
+			r.maskBG.Destroy()
+		}
 		r.maskBG = nil
 	}
 	if r.maskView != nil {
-		r.maskView.Destroy()
+		if !r.maskShared {
+			r.maskView.Destroy()
+		}
 		r.maskView = nil
 	}
 	if r.maskTex != nil {
-		r.maskTex.Destroy()
+		if !r.maskShared {
+			r.maskTex.Destroy()
+		}
 		r.maskTex = nil
 	}
+	r.maskShared = false
 }
 
 // clipPathCoverageMask rasterizes the clip path into a full-frame R8 coverage
@@ -491,34 +567,45 @@ func clipPathCoverageMask(clipPath *render.Path, fillRule render.FillRule, w, h 
 	mask := make([]byte, w*h) // outside bbox → 0 coverage (depth test rejects anyway)
 	offX := int(rect.X)
 	offY := int(rect.Y)
-	for y := 0; y < mh; y++ {
-		gy := offY + y
-		if gy < 0 || gy >= h {
-			continue
-		}
-		row := gy * w
-		for x := 0; x < mw; x++ {
-			gx := offX + x
-			if gx < 0 || gx >= w {
-				continue
-			}
-			gray, _, _, _ := m.GetRGBA(x, y)
-			mask[row+gx] = gray
-		}
+	// The mask is a local Gray8 buffer; read its backing bytes once instead of
+	// calling GetRGBA per pixel. GetRGBA takes an RWMutex for every pixel via
+	// PixelBytes, which turned a 1200x800 full-frame mask into ~1M lock/unlock
+	// pairs (R7 measured 1fps; the raster thread was stuck here). The buffer
+	// cannot be Disposed concurrently because MaskClipper is local to this
+	// call, so the bulk read is safe and byte-identical to GetRGBA for Gray8.
+	src := m.Data()
+	stride := m.Stride()
+	if src == nil || stride < mw || len(src) < (mh-1)*stride+mw {
+		return nil
+	}
+	// Clip the mask bbox to the destination and copy whole row spans. R7's
+	// clip is fully inside the surface, so this is one memmove per row rather
+	// than a bounds-checked byte loop over 640x658 pixels.
+	x0, x1 := max(0, offX), min(w, offX+mw)
+	y0, y1 := max(0, offY), min(h, offY+mh)
+	for y := y0; y < y1; y++ {
+		srcRow := (y - offY) * stride
+		dstRow := y * w
+		copy(mask[dstRow+x0:dstRow+x1], src[srcRow+x0-offX:srcRow+x1-offX])
 	}
 	return mask
 }
 
-// BuildClipMask generates the analytic-AA coverage mask for the clip path and
-// uploads it as a full-frame R8 texture + bind group on res. The mask carries
+// BuildClipMask ensures the analytic-AA coverage mask for the clip path is
+// uploaded as a full-frame R8 texture + bind group on res. The mask carries
 // the clip's fill rule so even-odd holes are carved out of the winding
 // stencil region. This is the sampleCount==1 half of GPU-CLIP-003a-AA: the
 // binary stencil/depth gate cannot express fractional edge coverage, so
 // content fragments multiply by this mask.
 //
+// Identical clip paths share one cached mask texture/bind group. A scene can
+// split a single visual clip into many scissor groups; rasterizing and
+// uploading a fresh 620x656 mask for each group cost R7 ~23 masks/frame and
+// capped it at 8fps. Skia's clip mask cache has the same shape: the clip
+// element owns the mask, all draws under it borrow it.
+//
 // Skipped when sampleCount>1 (MSAA sub-sample coverage already softens the
-// depth-test boundary) or when any required resource is nil. Idempotent:
-// re-calling replaces the previous mask.
+// depth-test boundary) or when any required resource is nil.
 func (p *DepthClipPipeline) BuildClipMask(
 	res *DepthClipResources,
 	clipPath *render.Path,
@@ -535,12 +622,59 @@ func (p *DepthClipPipeline) BuildClipMask(
 		return nil
 	}
 
+	key := clipPathCoverageMaskKey(clipPath, fillRule, int(w), int(h))
+	now := time.Now()
+
+	p.maskCacheMu.Lock()
+	if entry := p.lookupMaskLocked(key, now); entry != nil {
+		p.installMaskLocked(res, entry)
+		p.maskCacheMu.Unlock()
+		return nil
+	}
+	p.maskCacheMu.Unlock()
+
 	mask := clipPathCoverageMask(clipPath, fillRule, int(w), int(h))
 	if mask == nil {
 		return nil
 	}
+	tex, view, bg, err := p.uploadCoverageMask(mask, w, h, maskLayout, sampler, uniformOn)
+	if err != nil {
+		return err
+	}
+	entry := &depthMaskEntry{
+		key: key, tex: tex, view: view, bg: bg,
+		bytes: int(w) * int(h), lastUsed: now,
+	}
 
-	// Full-frame R8 texture. BytesPerRow must be aligned for upload.
+	p.maskCacheMu.Lock()
+	// Re-check: a concurrent build may have inserted the same key while we
+	// rasterized. Reuse it and drop our duplicate upload.
+	if existing := p.lookupMaskLocked(key, now); existing != nil {
+		p.installMaskLocked(res, existing)
+		p.maskCacheMu.Unlock()
+		bg.Destroy()
+		view.Destroy()
+		tex.Destroy()
+		return nil
+	}
+	p.pruneMaskCacheLocked(now)
+	p.addMaskLocked(entry)
+	p.installMaskLocked(res, entry)
+	p.maskCacheMu.Unlock()
+	return nil
+}
+
+// uploadCoverageMask creates the full-frame R8 mask texture, uploads the
+// coverage bytes (row-padded to the backend alignment) and builds the mask
+// bind group. Ownership transfers to the caller; on error all partial
+// resources are destroyed.
+func (p *DepthClipPipeline) uploadCoverageMask(
+	mask []byte,
+	w, h uint32,
+	maskLayout hal.BindGroupLayout,
+	sampler hal.Sampler,
+	uniformOn hal.Buffer,
+) (hal.Texture, hal.TextureView, hal.BindGroup, error) {
 	tight := uint32(w) //nolint:gosec // bounded by caller
 	aligned := alignTextureBytesPerRow(tight)
 	upload := mask
@@ -560,7 +694,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 		Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
 	})
 	if err != nil {
-		return fmt.Errorf("create depth clip mask texture: %w", err)
+		return nil, nil, nil, fmt.Errorf("create depth clip mask texture: %w", err)
 	}
 	view, err := p.device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label: "depth_clip_mask_view", Format: types.TextureFormatR8Unorm,
@@ -568,7 +702,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 	})
 	if err != nil {
 		tex.Destroy()
-		return fmt.Errorf("create depth clip mask view: %w", err)
+		return nil, nil, nil, fmt.Errorf("create depth clip mask view: %w", err)
 	}
 	if err := p.queue.WriteTexture(
 		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
@@ -578,7 +712,7 @@ func (p *DepthClipPipeline) BuildClipMask(
 	); err != nil {
 		view.Destroy()
 		tex.Destroy()
-		return fmt.Errorf("upload depth clip mask: %w", err)
+		return nil, nil, nil, fmt.Errorf("upload depth clip mask: %w", err)
 	}
 
 	bg, err := p.device.CreateBindGroup(&hal.BindGroupDescriptor{
@@ -593,21 +727,136 @@ func (p *DepthClipPipeline) BuildClipMask(
 	if err != nil {
 		view.Destroy()
 		tex.Destroy()
-		return fmt.Errorf("create depth clip mask bind group: %w", err)
+		return nil, nil, nil, fmt.Errorf("create depth clip mask bind group: %w", err)
 	}
+	return tex, view, bg, nil
+}
 
-	// Replace previous mask (idempotent re-call).
+// installMaskLocked points res at a cached mask. Existing non-shared mask
+// resources on res are destroyed; shared ones belong to the cache.
+// maskCacheMu must be held.
+func (p *DepthClipPipeline) installMaskLocked(res *DepthClipResources, entry *depthMaskEntry) {
+	if res == nil || entry == nil {
+		return
+	}
 	if res.maskBG != nil {
-		res.maskBG.Destroy()
+		if !res.maskShared {
+			res.maskBG.Destroy()
+		}
+		res.maskBG = nil
 	}
 	if res.maskView != nil {
-		res.maskView.Destroy()
+		if !res.maskShared {
+			res.maskView.Destroy()
+		}
+		res.maskView = nil
 	}
 	if res.maskTex != nil {
-		res.maskTex.Destroy()
+		if !res.maskShared {
+			res.maskTex.Destroy()
+		}
+		res.maskTex = nil
 	}
-	res.maskTex, res.maskView, res.maskBG = tex, view, bg
+	res.maskTex, res.maskView, res.maskBG = entry.tex, entry.view, entry.bg
+	res.maskShared = true
+}
+
+// lookupMaskLocked returns the cached mask for key and marks it recently
+// used (LRU). maskCacheMu must be held.
+func (p *DepthClipPipeline) lookupMaskLocked(key uint64, now time.Time) *depthMaskEntry {
+	for i, entry := range p.maskCache {
+		if entry.key != key {
+			continue
+		}
+		entry.lastUsed = now
+		if i != len(p.maskCache)-1 {
+			copy(p.maskCache[i:], p.maskCache[i+1:])
+			p.maskCache[len(p.maskCache)-1] = entry
+		}
+		return entry
+	}
 	return nil
+}
+
+// pruneMaskCacheLocked drops masks unused beyond maskCacheTTL. Capacity is
+// enforced after addMaskLocked so the freshly added entry survives.
+// maskCacheMu must be held.
+func (p *DepthClipPipeline) pruneMaskCacheLocked(now time.Time) {
+	if len(p.maskCache) == 0 {
+		return
+	}
+	keep := p.maskCache[:0]
+	for _, entry := range p.maskCache {
+		if now.Sub(entry.lastUsed) > maskCacheTTL {
+			p.maskCacheBytes -= entry.bytes
+			p.destroyMaskLocked(entry)
+			continue
+		}
+		keep = append(keep, entry)
+	}
+	p.maskCache = keep
+}
+
+// addMaskLocked appends entry and evicts least-recently-used masks until the
+// cache is within its count/byte budget. The last entry is never evicted.
+// maskCacheMu must be held.
+func (p *DepthClipPipeline) addMaskLocked(entry *depthMaskEntry) {
+	p.maskCache = append(p.maskCache, entry)
+	p.maskCacheBytes += entry.bytes
+	for (len(p.maskCache) > maskCacheMaxEntries || p.maskCacheBytes > maskCacheMaxBytes) && len(p.maskCache) > 1 {
+		victim := p.maskCache[0]
+		copy(p.maskCache, p.maskCache[1:])
+		p.maskCache[len(p.maskCache)-1] = nil
+		p.maskCache = p.maskCache[:len(p.maskCache)-1]
+		p.maskCacheBytes -= victim.bytes
+		p.destroyMaskLocked(victim)
+	}
+}
+
+// destroyMaskLocked releases one cached mask. maskCacheMu must be held.
+func (p *DepthClipPipeline) destroyMaskLocked(entry *depthMaskEntry) {
+	if entry == nil {
+		return
+	}
+	if entry.bg != nil {
+		entry.bg.Destroy()
+		entry.bg = nil
+	}
+	if entry.view != nil {
+		entry.view.Destroy()
+		entry.view = nil
+	}
+	if entry.tex != nil {
+		entry.tex.Destroy()
+		entry.tex = nil
+	}
+}
+
+// clipPathCoverageMaskKey hashes everything that changes mask pixels: path
+// verbs/coords, fill rule and surface dimensions. FNV-1a is cheap relative to
+// rasterizing, and a 64-bit collision is not a practical correctness risk for
+// an internal cache.
+func clipPathCoverageMaskKey(clipPath *render.Path, fillRule render.FillRule, w, h int) uint64 {
+	hsh := fnv.New64a()
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], uint64(fillRule))
+	hsh.Write(buf[:])
+	binary.LittleEndian.PutUint64(buf[:], uint64(uint32(w))<<32|uint64(uint32(h))) //nolint:gosec
+	hsh.Write(buf[:])
+	verbs := clipPath.Verbs()
+	binary.LittleEndian.PutUint64(buf[:], uint64(len(verbs)))
+	hsh.Write(buf[:])
+	for _, v := range verbs {
+		hsh.Write([]byte{byte(v)})
+	}
+	coords := clipPath.Coords()
+	binary.LittleEndian.PutUint64(buf[:], uint64(len(coords)))
+	hsh.Write(buf[:])
+	for _, c := range coords {
+		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(c))
+		hsh.Write(buf[:])
+	}
+	return hsh.Sum64()
 }
 
 // BuildClipResources tessellates the clip path and uploads vertices + uniforms
@@ -621,6 +870,77 @@ func (p *DepthClipPipeline) BuildClipResources(
 	clipPath *render.Path,
 	w, h uint32,
 ) (*DepthClipResources, error) {
+	if clipPath == nil || clipPath.NumVerbs() == 0 {
+		return nil, nil //nolint:nilnil // empty clip path, nothing to draw
+	}
+
+	// Geometry depends only on the path and the fixed sample count. R7 pushes
+	// the same viewport clip around every picture it replays, producing ~23
+	// scissor groups per frame; sharing the tessellation drops 22 redundant
+	// tessellate+upload passes per frame.
+	key := clipPathCoverageMaskKey(clipPath, render.FillRuleNonZero, 0, 0)
+	p.geomMu.Lock()
+	geom := p.geomCache[key]
+	p.geomMu.Unlock()
+	if geom == nil {
+		built, err := p.buildClipGeom(clipPath)
+		if err != nil {
+			return nil, err
+		}
+		if built == nil {
+			return nil, nil //nolint:nilnil // empty clip path
+		}
+		p.geomMu.Lock()
+		if existing := p.geomCache[key]; existing != nil {
+			p.geomMu.Unlock()
+			destroyDepthClipGeom(built)
+			geom = existing
+		} else {
+			if p.geomCache == nil {
+				p.geomCache = make(map[uint64]*depthClipGeom)
+			}
+			p.geomCache[key] = built
+			p.geomMu.Unlock()
+			geom = built
+		}
+	}
+
+	// Upload uniforms (viewport dimensions). Skip the cgo write when the
+	// viewport is unchanged; the bind group points at the same buffer.
+	if err := p.uploadUniforms(w, h); err != nil {
+		return nil, err
+	}
+
+	// Ensure bind group (uniform buffer is fixed-size for the pipeline life).
+	if p.bindGroup == nil {
+		bg, err := p.device.CreateBindGroup(&hal.BindGroupDescriptor{
+			Label:  "depth_clip_bind",
+			Layout: p.uniformBGL,
+			Entries: []hal.BindGroupEntry{
+				{Binding: 0, Buffer: p.uniformBuf, Offset: 0, Size: depthClipUniformSize},
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create depth clip bind group: %w", err)
+		}
+		p.bindGroup = bg
+	}
+
+	return &DepthClipResources{
+		vertBuf:    geom.vertBuf,
+		coverBuf:   geom.coverBuf,
+		bindGroup:  p.bindGroup,
+		vertCount:  geom.vertCount,
+		coverCount: geom.coverCount,
+		bandBuf:    geom.bandBuf,
+		bandCount:  geom.bandCount,
+		owned:      true,
+		geomShared: true,
+	}, nil
+}
+
+// buildClipGeom tessellates one clip path into the frame-local geometry cache.
+func (p *DepthClipPipeline) buildClipGeom(clipPath *render.Path) (*depthClipGeom, error) {
 	// Tessellate clip path into fan triangles.
 	p.tessellator.Reset()
 	vertCount := p.tessellator.TessellatePath(clipPath)
@@ -638,109 +958,103 @@ func (p *DepthClipPipeline) BuildClipResources(
 		bandCount = p.tessellator.TessellateAA(clipPath)
 	}
 
-	// Upload fan vertices (Phase 1: stencil fill).
-	if err := p.uploadFanVertices(); err != nil {
-		return nil, err
-	}
-
-	// Upload cover quad vertices (Phase 2: depth write via stencil test).
-	if err := p.uploadCoverQuad(); err != nil {
-		return nil, err
-	}
-
-	// Upload uniforms (viewport dimensions).
-	if err := p.uploadUniforms(w, h); err != nil {
-		return nil, err
-	}
-
-	// Ensure bind group (recreated if uniform buffer changed).
-	if p.bindGroup == nil {
-		bg, err := p.device.CreateBindGroup(&hal.BindGroupDescriptor{
-			Label:  "depth_clip_bind",
-			Layout: p.uniformBGL,
-			Entries: []hal.BindGroupEntry{
-				{Binding: 0, Buffer: p.uniformBuf, Offset: 0, Size: depthClipUniformSize},
-			},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("create depth clip bind group: %w", err)
-		}
-		p.bindGroup = bg
-	}
-
-	// Create per-call vertex buffers so multiple groups don't overwrite each other.
-	// The pipeline-level buffers (p.vertBuf, p.coverBuf) are staging — copy to owned buffers.
-	ownedVertBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
-		Label: "depth_clip_fan_owned",
-		Size:  uint64(len(p.tessellator.Vertices())) * 4, //nolint:gosec // bounded
+	// Upload fan vertices (Phase 1: stencil fill) into a shared frame buffer.
+	verts := p.tessellator.Vertices()
+	vertBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
+		Label: "depth_clip_fan_shared",
+		Size:  uint64(len(verts)) * 4, //nolint:gosec // bounded by tessellator
 		Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create owned fan buffer: %w", err)
+		return nil, fmt.Errorf("create shared fan buffer: %w", err)
 	}
-	fanData := make([]byte, len(p.tessellator.Vertices())*4)
-	for i, v := range p.tessellator.Vertices() {
+	fanData := make([]byte, len(verts)*4)
+	for i, v := range verts {
 		binary.LittleEndian.PutUint32(fanData[i*4:], math.Float32bits(v))
 	}
-	if wErr := p.queue.WriteBuffer(ownedVertBuf, 0, fanData); wErr != nil {
-		ownedVertBuf.Destroy()
-		return nil, fmt.Errorf("write owned fan buffer: %w", wErr)
+	if wErr := p.queue.WriteBuffer(vertBuf, 0, fanData); wErr != nil {
+		vertBuf.Destroy()
+		return nil, fmt.Errorf("write shared fan buffer: %w", wErr)
 	}
 
+	// Cover quad vertices (Phase 2: depth write via stencil test).
 	coverQuad := p.tessellator.CoverQuad()
-	ownedCoverBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
-		Label: "depth_clip_cover_owned",
+	coverBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
+		Label: "depth_clip_cover_shared",
 		Size:  12 * 4,
 		Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
 	})
 	if err != nil {
-		ownedVertBuf.Destroy()
-		return nil, fmt.Errorf("create owned cover buffer: %w", err)
+		vertBuf.Destroy()
+		return nil, fmt.Errorf("create shared cover buffer: %w", err)
 	}
 	coverData := make([]byte, 12*4)
 	for i, v := range coverQuad {
 		binary.LittleEndian.PutUint32(coverData[i*4:], math.Float32bits(v))
 	}
-	if wErr := p.queue.WriteBuffer(ownedCoverBuf, 0, coverData); wErr != nil {
-		ownedVertBuf.Destroy()
-		ownedCoverBuf.Destroy()
-		return nil, fmt.Errorf("write owned cover buffer: %w", wErr)
+	if wErr := p.queue.WriteBuffer(coverBuf, 0, coverData); wErr != nil {
+		vertBuf.Destroy()
+		coverBuf.Destroy()
+		return nil, fmt.Errorf("write shared cover buffer: %w", wErr)
 	}
 
-	// Owned band buffer (sampleCount==1 stencil expansion). Band verts are
-	// (x, y, d) float32 triples, stride 12.
-	res := &DepthClipResources{
-		vertBuf:    ownedVertBuf,
-		coverBuf:   ownedCoverBuf,
-		bindGroup:  p.bindGroup,
+	geom := &depthClipGeom{
+		vertBuf:    vertBuf,
+		coverBuf:   coverBuf,
 		vertCount:  uint32(vertCount), //nolint:gosec // bounded by tessellator
 		coverCount: 6,
-		owned:      true, // mark for cleanup
 	}
 	if bandCount > 0 {
 		band := p.tessellator.BandVerts()
-		ownedBandBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
-			Label: "depth_clip_band_owned",
+		bandBuf, err := p.device.CreateBuffer(&hal.BufferDescriptor{
+			Label: "depth_clip_band_shared",
 			Size:  uint64(len(band)) * 4, //nolint:gosec // bounded by tessellator
 			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
 		})
 		if err != nil {
-			res.Release()
-			return nil, fmt.Errorf("create owned band buffer: %w", err)
+			destroyDepthClipGeom(geom)
+			return nil, fmt.Errorf("create shared band buffer: %w", err)
 		}
 		bandData := make([]byte, len(band)*4)
 		for i, v := range band {
 			binary.LittleEndian.PutUint32(bandData[i*4:], math.Float32bits(v))
 		}
-		if wErr := p.queue.WriteBuffer(ownedBandBuf, 0, bandData); wErr != nil {
-			ownedBandBuf.Destroy()
-			res.Release()
-			return nil, fmt.Errorf("write owned band buffer: %w", wErr)
+		if wErr := p.queue.WriteBuffer(bandBuf, 0, bandData); wErr != nil {
+			bandBuf.Destroy()
+			destroyDepthClipGeom(geom)
+			return nil, fmt.Errorf("write shared band buffer: %w", wErr)
 		}
-		res.bandBuf = ownedBandBuf
-		res.bandCount = uint32(bandCount) //nolint:gosec // bounded by tessellator
+		geom.bandBuf = bandBuf
+		geom.bandCount = uint32(bandCount) //nolint:gosec // bounded by tessellator
 	}
-	return res, nil
+	return geom, nil
+}
+
+func destroyDepthClipGeom(geom *depthClipGeom) {
+	if geom == nil {
+		return
+	}
+	if geom.vertBuf != nil {
+		geom.vertBuf.Destroy()
+	}
+	if geom.coverBuf != nil {
+		geom.coverBuf.Destroy()
+	}
+	if geom.bandBuf != nil {
+		geom.bandBuf.Destroy()
+	}
+}
+
+// releaseFrameGeom drops the frame-local tessellation cache after the frame's
+// command buffer has been submitted. Group resources are released first.
+func (p *DepthClipPipeline) releaseFrameGeom() {
+	p.geomMu.Lock()
+	cache := p.geomCache
+	p.geomCache = nil
+	p.geomMu.Unlock()
+	for _, geom := range cache {
+		destroyDepthClipGeom(geom)
+	}
 }
 
 // uploadFanVertices ensures the fan vertex buffer is large enough and uploads
@@ -831,6 +1145,10 @@ func (p *DepthClipPipeline) uploadUniforms(w, h uint32) error {
 			return fmt.Errorf("create depth clip uniform buffer: %w", err)
 		}
 		p.uniformBuf = buf
+		p.uniformW, p.uniformH = 0, 0
+	}
+	if p.uniformW == w && p.uniformH == h {
+		return nil
 	}
 
 	uniformData := make([]byte, depthClipUniformSize)
@@ -840,6 +1158,7 @@ func (p *DepthClipPipeline) uploadUniforms(w, h uint32) error {
 	if err := p.queue.WriteBuffer(p.uniformBuf, 0, uniformData); err != nil {
 		return fmt.Errorf("write depth clip uniforms: %w", err)
 	}
+	p.uniformW, p.uniformH = w, h
 	return nil
 }
 
@@ -900,6 +1219,15 @@ func (p *DepthClipPipeline) RecordDraw(rp hal.RenderPassEncoder, res *DepthClipR
 
 // Destroy releases all GPU resources held by the depth clip pipeline.
 func (p *DepthClipPipeline) Destroy() {
+	p.releaseFrameGeom()
+	p.maskCacheMu.Lock()
+	for _, entry := range p.maskCache {
+		p.destroyMaskLocked(entry)
+	}
+	p.maskCache = nil
+	p.maskCacheBytes = 0
+	p.maskCacheMu.Unlock()
+
 	if p.bindGroup != nil {
 		p.bindGroup.Destroy()
 		p.bindGroup = nil

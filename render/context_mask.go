@@ -23,6 +23,14 @@ import "bytes"
 // Pass nil to clear the mask.
 func (c *Context) SetMask(mask *Mask) {
 	c.mask = mask
+	if mask == nil {
+		c.clearGPUMaskTexture()
+		return
+	}
+	// The Mask may have been mutated in place since the last upload; drop the
+	// retained R8 texture before re-uploading so the cache cannot reuse stale
+	// pixels.
+	c.clearGPUMaskTexture()
 	c.syncGPUMaskTexture()
 }
 
@@ -36,6 +44,7 @@ func (c *Context) GetMask() *Mask {
 func (c *Context) InvertMask() {
 	if c.mask != nil {
 		c.mask.Invert()
+		c.clearGPUMaskTexture()
 		c.syncGPUMaskTexture()
 	}
 }
@@ -43,10 +52,20 @@ func (c *Context) InvertMask() {
 // ClearMask removes the current mask.
 func (c *Context) ClearMask() {
 	c.mask = nil
-	c.syncGPUMaskTexture()
+	c.clearGPUMaskTexture()
 }
 
-// syncGPUMaskTexture uploads or clears the MaskAware R8 plane on the accelerator.
+// clearGPUMaskTexture releases the MaskAware R8 plane and retained CPU copy.
+func (c *Context) clearGPUMaskTexture() {
+	if a := Accelerator(); a != nil {
+		if ma, ok := a.(MaskAware); ok {
+			ma.ClearMaskTexture()
+		}
+	}
+}
+
+// syncGPUMaskTexture uploads the MaskAware R8 plane, or deactivates it while
+// retaining its texture for a cheap reactivation (temporary clip masks).
 func (c *Context) syncGPUMaskTexture() {
 	a := Accelerator()
 	if a == nil {
@@ -57,7 +76,7 @@ func (c *Context) syncGPUMaskTexture() {
 		return
 	}
 	if c.mask == nil {
-		ma.ClearMaskTexture()
+		ma.SetMaskTexture(nil, 0, 0)
 		return
 	}
 	ma.SetMaskTexture(c.mask.Data(), c.mask.Width(), c.mask.Height())

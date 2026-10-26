@@ -2043,6 +2043,9 @@ func (s *GPURenderSession) releaseDepthClipResources(grpRes []groupResources) {
 			grpRes[i].depthClipRes = nil
 		}
 	}
+	if s.depthClipPipeline != nil {
+		s.depthClipPipeline.releaseFrameGeom()
+	}
 }
 
 // prepareTextResources builds text GPU resources if there are text batches.

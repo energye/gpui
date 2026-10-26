@@ -831,7 +831,7 @@ func buildShapedCarets(line string, runs []itemizedRun, cursor0, prevX0 float64,
 		gstart := len(glyphs)
 		glyphs = append(glyphs, g...)
 		gruns = append(gruns, LineGlyphRun{Face: r.face, Start: gstart, End: len(glyphs),
-			IsColor: isColorText(seg), TextStart: r.start, TextEnd: r.end})
+			IsColor: isColorText(seg) && text.GlyphsHaveColor(r.face, g), TextStart: r.start, TextEnd: r.end})
 		cursor = end
 		runeBase += utf8.RuneCountInString(seg)
 		runRuneEnd = append(runRuneEnd, runeBase)

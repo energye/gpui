@@ -85,6 +85,28 @@ func TestColorRunMarked_M5(t *testing.T) {
 	}
 }
 
+// TestColorRunOutlineDingbat_M5 locks glyph-level color classification:
+// Unicode marks ✓ as an emoji-class codepoint, but DejaVu renders it as an
+// ordinary outline glyph, so the run must stay on the mask pipeline. Routing
+// it to the color atlas produces a CPU fallback (text:color-layout) and drops
+// the glyph (Skia: the typeface decides, not the codepoint).
+func TestColorRunOutlineDingbat_M5(t *testing.T) {
+	mf := m5ColorFace(t)
+	line := "✓ 完成"
+	if !isColorText("✓") {
+		t.Fatal("premise: isColorText(✓) should be true (Unicode emoji-class)")
+	}
+	lay := BuildTextLayout(line, mf, 16, 0, 1.2)
+	if lay == nil || lay.LineCount() == 0 {
+		t.Fatal("no layout")
+	}
+	for _, r := range lay.LineGlyphRuns(0) {
+		if r.IsColor {
+			t.Fatalf("outline run %q marked IsColor", line[r.TextStart:r.TextEnd])
+		}
+	}
+}
+
 func TestColorRunBypassesMask_M5(t *testing.T) {
 	mf := m5ColorFace(t)
 	rt := NewRenderText("hi 🎉 bye")

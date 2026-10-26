@@ -1215,7 +1215,17 @@ func (a *PipelineApp) Run() error {
 		a.runOnGL(a.presentSyncFull)
 		a.forceFullPresent.Add(-1) // warm-up covered one buffer, two owed
 	}
-	a.ScheduleFrame()
+	// Base-idle discovery (2026-10-25): this unconditional ScheduleFrame
+	// after warm-up put the scheduler into a 60Hz continuous frame loop
+	// even in ModeIdle with no tickers — a static window burned 14% CPU
+	// presenting ~3600 identical frames. On-demand rendering must start
+	// from zero demand: the warm-up present itself is the first frame;
+	// subsequent frames come from ScheduleFrame calls by tickers/events.
+	// (Windows with tickers/animation call ScheduleFrame themselves and
+	// are unaffected.)
+	if a.sched.Tickers().MayWantFrames() {
+		a.ScheduleFrame()
+	}
 
 	deadline := time.Time{}
 	if a.opts.RunFor > 0 {

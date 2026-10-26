@@ -74,10 +74,13 @@ type Context struct {
 	maskCompositeCopy []uint8
 
 	// cached R8 plane for mask/difference clips (GPU MaskAware path).
-	// Rebuilt when clipMaskGPUGen or user mask pointer changes.
+	// Rebuilt when the clip stack content signature or user mask pointer
+	// changes. A mutation counter is not enough: picture replay pushes and
+	// pops the same viewport clip around every picture, and rebuilding the
+	// full-surface mask each time was R7's dominant cost.
 	clipMaskGPU     *Mask
-	clipMaskGPUGen  int // bumped on every clip stack mutation
-	clipMaskGPUAt   int // gen when cache was built
+	clipMaskGPUGen  int // bumped on every clip stack mutation (debug/legacy)
+	clipMaskGPUSig  uint64
 	clipMaskGPUUser *Mask
 
 	// Per-frame damage tracking (ADR-021 Level 1).

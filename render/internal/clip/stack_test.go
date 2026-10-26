@@ -74,8 +74,10 @@ func TestClipStack_PushPath(t *testing.T) {
 		t.Errorf("Depth() = %d, want 1", stack.Depth())
 	}
 
-	// Bounds should be intersection of canvas and path bounds
-	expectedBounds := NewRect(0, 0, 100, 100) // Path bounds are within canvas
+	// PushPath tracks the geometric path AABB (see stack.go: the mask buffer
+	// is canvas-sized, but ClipBounds/scissor need the real conservative
+	// bound), so the stack bounds intersect to the path's 10,10..50,50 box.
+	expectedBounds := NewRect(10, 10, 40, 40)
 	if stack.Bounds() != expectedBounds {
 		t.Errorf("Bounds() = %v, want %v", stack.Bounds(), expectedBounds)
 	}

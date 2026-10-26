@@ -30,12 +30,21 @@ type RRectClip struct {
 type ClipStack struct {
 	entries []clipEntry
 	bounds  Rect
+
+	// maskCache reuses rasterized path masks across identical clips. A
+	// recording can push the same viewport clip for every picture it
+	// replays; rasterizing a full-canvas mask each time made R7's picture
+	// cache recording CPU-bound. Keys include bounds/AA/fill rule, so
+	// entries are self-validating when the canvas changes.
+	maskCache      map[uint64]*MaskClipper
+	maskCacheOrder []uint64
 }
 
 // clipEntry represents a single clip operation in the stack.
 type clipEntry struct {
 	prevBounds Rect
 	mask       *MaskClipper
+	maskKey    uint64
 	rrect      *RRectClip // non-nil for rounded rectangle clips
 	antiAlias  bool
 }
@@ -99,10 +108,15 @@ func (cs *ClipStack) PushRRect(r Rect, radius float64) {
 // If antiAlias is true, the mask will use anti-aliased rendering.
 // fillRule selects how self-overlapping contours resolve (winding or even-odd).
 func (cs *ClipStack) PushPath(verbs []PathVerb, coords []float64, antiAlias bool, fillRule FillRule) error {
-	// Create mask clipper from path
-	mask, err := NewMaskClipper(verbs, coords, cs.bounds, antiAlias, fillRule)
-	if err != nil {
-		return err
+	key := maskPathKey(verbs, coords, cs.bounds, antiAlias, fillRule, maskKindPath)
+	mask := cs.lookupMask(key)
+	if mask == nil {
+		var err error
+		mask, err = NewMaskClipper(verbs, coords, cs.bounds, antiAlias, fillRule)
+		if err != nil {
+			return err
+		}
+		cs.storeMask(key, mask)
 	}
 
 	// MaskClipper allocates a full-canvas coverage buffer, so mask.Bounds()
@@ -115,6 +129,7 @@ func (cs *ClipStack) PushPath(verbs []PathVerb, coords []float64, antiAlias bool
 	cs.entries = append(cs.entries, clipEntry{
 		prevBounds: cs.bounds,
 		mask:       mask,
+		maskKey:    key,
 		antiAlias:  antiAlias,
 	})
 
@@ -328,14 +343,21 @@ func (cs *ClipStack) Reset(bounds Rect) {
 // PushRectDifference subtracts rectangle r from the current clip.
 // Coverage becomes zero inside r while remaining clip outside r is preserved.
 func (cs *ClipStack) PushRectDifference(r Rect) error {
-	mask, err := NewRectDifferenceMask(cs.bounds, r)
-	if err != nil {
-		return err
+	key := maskRectDifferenceKey(cs.bounds, r)
+	mask := cs.lookupMask(key)
+	if mask == nil {
+		var err error
+		mask, err = NewRectDifferenceMask(cs.bounds, r)
+		if err != nil {
+			return err
+		}
+		cs.storeMask(key, mask)
 	}
 	// Bounds stay the same (difference does not shrink AABB in general).
 	cs.entries = append(cs.entries, clipEntry{
 		prevBounds: cs.bounds,
 		mask:       mask,
+		maskKey:    key,
 		antiAlias:  false,
 	})
 	return nil
@@ -387,33 +409,41 @@ func pathCoordsBounds(coords []float64) Rect {
 // PushPathDifference subtracts path coverage from the current clip.
 // Implemented by rasterizing the path and inverting coverage inside current bounds.
 func (cs *ClipStack) PushPathDifference(verbs []PathVerb, coords []float64, antiAlias bool, fillRule FillRule) error {
-	pos, err := NewMaskClipper(verbs, coords, cs.bounds, antiAlias, fillRule)
-	if err != nil {
-		return err
-	}
-	// Invert: coverage' = 255 - coverage for each pixel in pos mask, then
-	// combine into a new mask over cs.bounds.
-	w := int(cs.bounds.W + 0.5)
-	h := int(cs.bounds.H + 0.5)
-	if w <= 0 || h <= 0 {
-		return image.ErrInvalidDimensions
-	}
-	inv, err := image.NewImageBuf(w, h, image.FormatGray8)
-	if err != nil {
-		return err
-	}
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			px := cs.bounds.X + float64(x) + 0.5
-			py := cs.bounds.Y + float64(y) + 0.5
-			cov := pos.Coverage(px, py)
-			v := uint8(255 - int(cov))
-			_ = inv.SetRGBA(x, y, v, v, v, 255)
+	key := maskPathKey(verbs, coords, cs.bounds, antiAlias, fillRule, maskKindPathDifference)
+	mask := cs.lookupMask(key)
+	if mask == nil {
+		pos, err := NewMaskClipper(verbs, coords, cs.bounds, antiAlias, fillRule)
+		if err != nil {
+			return err
 		}
+		// Invert: coverage' = 255 - coverage for each pixel in pos mask,
+		// then combine into a new mask over cs.bounds.
+		w := int(cs.bounds.W + 0.5)
+		h := int(cs.bounds.H + 0.5)
+		if w <= 0 || h <= 0 {
+			return image.ErrInvalidDimensions
+		}
+		inv, err := image.NewImageBuf(w, h, image.FormatGray8)
+		if err != nil {
+			return err
+		}
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				px := cs.bounds.X + float64(x) + 0.5
+				py := cs.bounds.Y + float64(y) + 0.5
+				cov := pos.Coverage(px, py)
+				v := uint8(255 - int(cov))
+				_ = inv.SetRGBA(x, y, v, v, v, 255)
+			}
+		}
+		mask = &MaskClipper{mask: inv, bounds: cs.bounds}
+		mask.cacheView()
+		cs.storeMask(key, mask)
 	}
 	cs.entries = append(cs.entries, clipEntry{
 		prevBounds: cs.bounds,
-		mask:       &MaskClipper{mask: inv, bounds: cs.bounds},
+		mask:       mask,
+		maskKey:    key,
 		antiAlias:  antiAlias,
 	})
 	return nil

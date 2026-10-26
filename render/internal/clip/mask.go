@@ -49,6 +49,16 @@ const (
 type MaskClipper struct {
 	mask   *image.ImageBuf
 	bounds Rect
+
+	// Cached raw Gray8 view of mask. Coverage is called once per destination
+	// pixel by ensureClipMaskGPU; going through ImageBuf.Width/Height/GetRGBA
+	// per pixel took an RWMutex three times per pixel and dominated the
+	// full-surface clip plane build (R7). The mask is immutable after
+	// NewMaskClipper returns, so the raw slice is a safe read-only view.
+	data   []byte
+	stride int
+	width  int
+	height int
 }
 
 // NewMaskClipper creates a mask clipper by rasterizing the given path
@@ -88,37 +98,46 @@ func NewMaskClipper(verbs []PathVerb, coords []float64, bounds Rect, antiAlias b
 
 	// Rasterize path into mask
 	mc.rasterizePath(verbs, coords, antiAlias, fillRule)
+	mc.cacheView()
 
 	return mc, nil
+}
+
+// cacheView captures the raw Gray8 mask once so Coverage can index it without
+// per-pixel ImageBuf lock traffic. Call after the mask is fully rasterized.
+func (mc *MaskClipper) cacheView() {
+	if mc == nil || mc.mask == nil {
+		return
+	}
+	mc.data = mc.mask.Data()
+	mc.stride = mc.mask.Stride()
+	mc.width, mc.height = mc.mask.Width(), mc.mask.Height()
 }
 
 // Coverage returns the coverage value (0-255) at the given point.
 // Points outside the mask bounds return 0 (no coverage).
 func (mc *MaskClipper) Coverage(x, y float64) byte {
-	// Convert to mask coordinates
+	if mc == nil {
+		return 0
+	}
+	// Convert to mask coordinates.
 	mx := x - mc.bounds.X
 	my := y - mc.bounds.Y
 
-	// Check bounds
-	if mx < 0 || my < 0 || mx >= float64(mc.mask.Width()) || my >= float64(mc.mask.Height()) {
+	// Check bounds using the cached dimensions (avoids three RWMutex reads
+	// per pixel that ImageBuf.Width/Height/GetRGBA would take).
+	if mx < 0 || my < 0 || mx >= float64(mc.width) || my >= float64(mc.height) {
 		return 0
 	}
-
-	// Get pixel value (bilinear interpolation for smoother results)
 	ix := int(mx)
 	iy := int(my)
-
-	// Simple nearest-neighbor for now (can be enhanced with bilinear later)
-	if ix >= mc.mask.Width() {
-		ix = mc.mask.Width() - 1
+	if mc.data == nil || mc.stride < mc.width || len(mc.data) < (mc.height-1)*mc.stride+mc.width {
+		// Defensive fallback for a clipper constructed without the cached
+		// view (should not happen; NewMaskClipper always fills it).
+		gray, _, _, _ := mc.mask.GetRGBA(ix, iy) //nolint:dogsled // Gray8 format has r=g=b
+		return gray
 	}
-	if iy >= mc.mask.Height() {
-		iy = mc.mask.Height() - 1
-	}
-
-	// GetRGBA returns (r, g, b, a), but for Gray8 format r=g=b=gray value
-	gray, _, _, _ := mc.mask.GetRGBA(ix, iy) //nolint:dogsled // Gray8 format has r=g=b
-	return gray
+	return mc.data[iy*mc.stride+ix]
 }
 
 // ApplyCoverage modulates the source alpha by the mask coverage at the given point.
@@ -263,14 +282,20 @@ func (mc *MaskClipper) rasterizeScanlineAA(edges []edge, y int, fillRule FillRul
 		}
 	}
 
-	// Write accumulated coverage to mask.
+	// Write accumulated coverage to mask. Fetch the Gray8 row once: SetRGBA
+	// takes PixelOffset's RLock plus premul-cache locks for every pixel, which
+	// made a full-screen clip mask spend most of its time in lock traffic.
+	row := mc.mask.RowBytes(y)
+	if len(row) < width {
+		return
+	}
 	for x := 0; x < width; x++ {
 		if coverage[x] > 0 {
 			c := coverage[x]
 			if c > 255 {
 				c = 255
 			}
-			_ = mc.mask.SetRGBA(x, y, byte(c), byte(c), byte(c), byte(c))
+			row[x] = byte(c)
 		}
 	}
 }
@@ -429,8 +454,12 @@ func (mc *MaskClipper) emitSpanPixel(y int, x1, x2 float64) {
 	if px2 < px1 {
 		return
 	}
+	row := mc.mask.RowBytes(y)
+	if len(row) < width {
+		return
+	}
 	for x := px1; x <= px2; x++ {
-		_ = mc.mask.SetRGBA(x, y, 255, 255, 255, 255)
+		row[x] = 255
 	}
 }
 

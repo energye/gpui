@@ -1861,6 +1861,34 @@ func (rc *GPURenderContext) fillBrushAsImage(target render.GPURenderTarget, path
 	return nil
 }
 
+// maskPreMulRGBAInPlace multiplies premultiplied RGBA by 8-bit coverage.
+// The result matches the mask R8 shader: nearest sampling and an 8-bit unorm
+// target round the float product to the nearest integer step.
+func maskPreMulRGBAInPlace(rgba, mask []byte) {
+	n := len(mask)
+	if len(rgba) < n*4 {
+		n = len(rgba) / 4
+	}
+	for i := 0; i < n; i++ {
+		m := uint32(mask[i])
+		o := i * 4
+		if m == 255 {
+			continue
+		}
+		if m == 0 {
+			rgba[o] = 0
+			rgba[o+1] = 0
+			rgba[o+2] = 0
+			rgba[o+3] = 0
+			continue
+		}
+		rgba[o] = uint8((uint32(rgba[o])*m + 127) / 255)
+		rgba[o+1] = uint8((uint32(rgba[o+1])*m + 127) / 255)
+		rgba[o+2] = uint8((uint32(rgba[o+2])*m + 127) / 255)
+		rgba[o+3] = uint8((uint32(rgba[o+3])*m + 127) / 255)
+	}
+}
+
 // detectedShapeToPath builds a path for a detected shape (device space).
 func detectedShapeToPath(shape render.DetectedShape) *render.Path {
 	path := render.NewPath()
@@ -1947,10 +1975,17 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 		return render.ErrFallbackToCPU
 	}
 
-	// Source-only raster: geometry coverage without mask bake.
-	pm := render.NewPixmap(tw, th)
-	pm.Clear(render.Transparent)
-	sr := render.NewSoftwareRenderer(tw, th)
+	// Source-only raster over the path bounds, not the full target. R7 paints
+	// many small masked shapes inside 1200x800 pictures; allocating and
+	// clearing a full-surface pixmap for every shape dominated the frame
+	// (2.7s of Pixmap.Clear in a 60s profile). Translation is integral, so
+	// coverage/AA is bit-identical to rendering at the original position.
+	localPath := path
+	if bounds.Min.X != 0 || bounds.Min.Y != 0 {
+		localPath = path.Transform(render.Translate(-float64(bounds.Min.X), -float64(bounds.Min.Y)))
+	}
+	pm := render.NewPixmap(bw, bh)
+	sr := render.NewSoftwareRenderer(bw, bh)
 	sr.SetAntiAlias(rc.antiAlias)
 	local := paint.Clone()
 	local.BlendMode = render.BlendNormal
@@ -1959,14 +1994,14 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 	// / combined mask plane): baking ClipCoverage here would apply the clip
 	// mask a second time on top of the combined MaskAware plane below.
 	local.ClipCoverage = nil
-	if err := sr.Fill(pm, path, local); err != nil {
+	if err := sr.Fill(pm, localPath, local); err != nil {
 		return render.ErrFallbackToCPU
 	}
 	pm.NotifyPixelsChanged()
 
 	srcFull := pm.Data()
-	stride := tw * 4
 	srcRegion := make([]byte, bw*bh*4)
+	copy(srcRegion, srcFull)
 	maskRegion := make([]byte, bw*bh)
 
 	// Prefer GPU-uploaded full-surface R8 plane (MaskAware / L.06) when size matches.
@@ -1985,9 +2020,7 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 	any := false
 	for row := 0; row < bh; row++ {
 		py := bounds.Min.Y + row
-		srcOff := py*stride + bounds.Min.X*4
 		dstOff := row * bw * 4
-		copy(srcRegion[dstOff:dstOff+bw*4], srcFull[srcOff:srcOff+bw*4])
 		for col := 0; col < bw; col++ {
 			px := bounds.Min.X + col
 			var m uint8
@@ -2006,35 +2039,43 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 		return nil
 	}
 
-	rc.shared.mu.Lock()
-	device := rc.shared.device
-	queue := rc.shared.queue
-	cache := &rc.shared.maskR8
-	rc.shared.mu.Unlock()
-	if device == nil || queue == nil {
-		return render.ErrFallbackToCPU
-	}
-
-	pixelData, err := maskR8Modulate(device, queue, cache, srcRegion, maskRegion, bw, bh)
-	if err != nil {
-		// Fallback: CPU bake mask then blit (legacy bootstrap).
-		pm2 := render.NewPixmap(tw, th)
-		pm2.Clear(render.Transparent)
-		sr2 := render.NewSoftwareRenderer(tw, th)
-		sr2.SetAntiAlias(rc.antiAlias)
-		local2 := paint.Clone()
-		local2.BlendMode = render.BlendNormal
-		local2.MaskCoverage = nil
-		local2.ClipCoverage = nil
-		if err2 := sr2.Fill(pm2, path, local2); err2 != nil {
+	// Small masks: multiplying the premul source by the 8-bit coverage on the
+	// CPU is bit-identical to the nearest-sampled R8 shader (round-to-nearest
+	// on an 8-bit unorm target), and avoids a per-shape texture upload +
+	// render pass + submit + map/readback round trip. R7 paints ~30 small
+	// masked shapes/s inside cached row pictures; the round trips were the
+	// remaining GPU submission jitter on the scroll gate. Larger masks keep
+	// the native R8 sampling path.
+	const maskCPUMaxPixels = 128 * 1024
+	var pixelData []byte
+	if bw*bh <= maskCPUMaxPixels {
+		maskPreMulRGBAInPlace(srcRegion, maskRegion)
+		pixelData = srcRegion
+	} else {
+		rc.shared.mu.Lock()
+		device := rc.shared.device
+		queue := rc.shared.queue
+		cache := &rc.shared.maskR8
+		rc.shared.mu.Unlock()
+		if device == nil || queue == nil {
 			return render.ErrFallbackToCPU
 		}
-		pm2.NotifyPixelsChanged()
-		pixelData = make([]byte, bw*bh*4)
-		for row := 0; row < bh; row++ {
-			srcOff := (bounds.Min.Y+row)*stride + bounds.Min.X*4
-			dstOff := row * bw * 4
-			copy(pixelData[dstOff:dstOff+bw*4], pm2.Data()[srcOff:srcOff+bw*4])
+		var err error
+		pixelData, err = maskR8Modulate(device, queue, cache, srcRegion, maskRegion, bw, bh)
+		if err != nil {
+			// Fallback: CPU bake mask then blit (legacy bootstrap).
+			pm2 := render.NewPixmap(bw, bh)
+			sr2 := render.NewSoftwareRenderer(bw, bh)
+			sr2.SetAntiAlias(rc.antiAlias)
+			local2 := paint.Clone()
+			local2.BlendMode = render.BlendNormal
+			local2.MaskCoverage = nil
+			local2.ClipCoverage = nil
+			if err2 := sr2.Fill(pm2, localPath, local2); err2 != nil {
+				return render.ErrFallbackToCPU
+			}
+			pm2.NotifyPixelsChanged()
+			pixelData = append([]byte(nil), pm2.Data()...)
 		}
 	}
 
