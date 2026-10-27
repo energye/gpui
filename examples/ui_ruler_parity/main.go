@@ -296,6 +296,7 @@ func main() {
 		ElapsedSec:    elapsed,
 		SurfaceAreaPx: int64(spec.winW * spec.winH),
 		Warmup:        true,
+		Ruler:         wrgate.RulerFromEnv(),
 		Extra:         extra,
 	})
 	raw, err := wrgate.Marshal(report)

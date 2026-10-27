@@ -529,6 +529,7 @@ func main() {
 		ElapsedSec:    elapsed,
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
+		Ruler:         wrgate.RulerFromEnv(),
 		Extra: map[string]any{
 			"client_px":              "1200x800",
 			"run_seconds":            secs,

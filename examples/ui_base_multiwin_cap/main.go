@@ -609,6 +609,7 @@ func main() {
 		ElapsedSec:    elapsed,
 		SurfaceAreaPx: winW * winH * maxWindows,
 		Warmup:        true,
+		Ruler:         wrgate.RulerFromEnv(),
 		Extra:         extra,
 	})
 	raw, _ := json.Marshal(report)

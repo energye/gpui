@@ -360,6 +360,7 @@ func main() {
 		ElapsedSec:    elapsed,
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
+		Ruler:         wrgate.RulerFromEnv(),
 		Extra: map[string]any{
 			"present_policy":                  snap.PresentPolicy,
 			"static_visible":                  staticCount,

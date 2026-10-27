@@ -530,6 +530,7 @@ func main() {
 		ElapsedSec:    elapsed,
 		SurfaceAreaPx: winW * winH,
 		Warmup:        true,
+		Ruler:         wrgate.RulerFromEnv(),
 		Extra: map[string]any{
 			// §3.1.1：covers + 每能力集成验证 + impl_interaction。
 			"covers":                []string{"R3", "R4", "R4b", "R5"},
