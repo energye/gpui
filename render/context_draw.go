@@ -218,6 +218,10 @@ func (c *Context) doFill() error {
 	c.applyMaskToPaint()
 	defer func() { c.paint.MaskCoverage = nil }()
 
+	// Brush geometry must live in the same device space as the baked path.
+	// Runs before the F1 wrapper so that wrapper wraps the device-space brush.
+	defer c.applyDeviceSpaceBrush()()
+
 	// F1 opacity-group: multiply paint alpha by open Normal layer opacities.
 	defer c.applyLayerOpacityMul()()
 
@@ -410,7 +414,9 @@ func (c *Context) doStroke() error {
 			c.paint.TransformScale = baked
 		}
 		c.path = devicePath
+		restoreBrush := c.applyDeviceSpaceBrush()
 		ok, _ := c.tryGPUStrokeWithMode(mode)
+		restoreBrush()
 		c.path = origPath
 		c.paint.TransformScale = origScale
 		if ok {

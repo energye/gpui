@@ -32,7 +32,7 @@ func NewImagePattern(img *ImageBuf, x, y, w, h int) *ImagePattern {
 		y:       y,
 		w:       w,
 		h:       h,
-		inverse: Identity(), // identity transform: device coords = image coords (tiling from origin)
+		inverse: Identity(), // identity transform: drawing coords = image coords (tiling from origin)
 	}
 }
 
@@ -138,9 +138,13 @@ func (c *Context) SetStrokePattern(pattern Pattern) {
 }
 
 // ImagePattern represents an image-based pattern with full affine transform support.
-// The pattern stores a pre-computed inverse matrix that maps device-space coordinates
-// back to image-space for sampling. This enables correct rendering under rotation,
-// scale, skew, and any combination of affine transforms.
+// The pattern stores a pre-computed inverse matrix that maps drawing-space
+// (user-space) coordinates back to image-space for sampling. This enables correct
+// rendering under rotation, scale, skew, and any combination of affine transforms.
+//
+// Like gradient brushes, the pattern lives in drawing space: the canvas CTM is
+// composed into the sampling transform at fill time (Context.applyDeviceSpaceBrush),
+// not baked into the pattern.
 //
 // For backward compatibility, SetAnchor/SetScale convenience methods rebuild
 // the inverse from anchor+scale parameters. For full affine control, the inverse
@@ -149,7 +153,7 @@ type ImagePattern struct {
 	image   *ImageBuf
 	x, y    int     // source region offset within the image
 	w, h    int     // source region size (0 = full image dimension)
-	inverse Matrix  // maps device-space -> image-space (pre-computed)
+	inverse Matrix  // maps drawing-space -> image-space (pre-computed)
 	opacity float64 // opacity multiplier (0=transparent, 1=opaque; 0 means default=1)
 	clamp   bool    // when true, out-of-bounds returns transparent instead of tiling
 
@@ -203,10 +207,10 @@ func (p *ImagePattern) SetScale(sx, sy float64) {
 	p.rebuildInverse()
 }
 
-// SetTransform sets the full forward transform (image-space to device-space)
+// SetTransform sets the full forward transform (image-space to drawing-space)
 // for the pattern. The inverse is computed and cached for sampling.
 // This overrides any anchor/scale settings.
-// SetTransform sets the full forward transform (image-space to device-space)
+// SetTransform sets the full forward transform (image-space to drawing-space)
 // for the pattern. The inverse is computed and cached for sampling.
 // This overrides any anchor/scale settings.
 func (p *ImagePattern) SetTransform(m Matrix) {
@@ -215,10 +219,10 @@ func (p *ImagePattern) SetTransform(m Matrix) {
 
 // rebuildInverse computes the inverse transform from the legacy anchor+scale fields.
 // The forward transform is: Translate(anchorX, anchorY) * Scale(scaleX, scaleY),
-// mapping image coordinates to device coordinates.
+// mapping image coordinates to drawing coordinates.
 // rebuildInverse computes the inverse transform from the legacy anchor+scale fields.
 // The forward transform is: Translate(anchorX, anchorY) * Scale(scaleX, scaleY),
-// mapping image coordinates to device coordinates.
+// mapping image coordinates to drawing coordinates.
 func (p *ImagePattern) rebuildInverse() {
 	sx := p.scaleX
 	if sx == 0 {

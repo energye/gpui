@@ -166,19 +166,16 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	scaleX := dstWidth / float64(srcW)
 	scaleY := dstHeight / float64(srcH)
 
-	// Compose the full forward transform: image-space -> device-space.
+	// Compose the pattern's forward transform in drawing space: image -> user.
 	//
-	// The transform chain is:
 	//   1. Scale source pixels to destination size: Scale(scaleX, scaleY)
 	//   2. Position at destination: Translate(opts.X, opts.Y)
-	//   3. Apply current CTM to device space: totalMatrix()
 	//
-	// Forward: device = totalMatrix * Translate(x,y) * Scale(sx,sy) * imageCoord
-	// Inverse: imageCoord = inverse(totalMatrix * Translate(x,y) * Scale(sx,sy)) * device
-	//
-	// This follows the Cairo/Skia/tiny-skia pattern (see IMAGE-PATTERN-TRANSFORM-RESEARCH.md).
-	patternTransform := c.totalMatrix().
-		Multiply(Translate(opts.X, opts.Y)).
+	// The canvas CTM is NOT composed here. Patterns are user-space brushes like
+	// gradients; the fill pipeline maps device samples back through the total
+	// matrix (Context.applyDeviceSpaceBrush). Baking it here too would apply the
+	// transform twice once the CTM is non-identity.
+	patternTransform := Translate(opts.X, opts.Y).
 		Multiply(Scale(scaleX, scaleY))
 	inverse := patternTransform.Invert()
 

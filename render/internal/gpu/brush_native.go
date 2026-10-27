@@ -97,7 +97,11 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 		}
 		// Custom / other ColorAt on EvenOdd: field×R8 before denser coverage pass.
 		if !paint.IsSolid() {
-			if err := rc.fillColorAtFieldMaskedGPU(target, path, paint, paint.ColorAt, 0x61205a12E0E0E0E1); err == nil {
+			seed := render.BrushFieldSeed(paint.GetBrush())
+			if seed == 0 {
+				seed = 0x61205a12E0E0E0E1
+			}
+			if err := rc.fillColorAtFieldMaskedGPU(target, path, paint, paint.ColorAt, seed); err == nil {
 				rc.noteBrushBootstrap("brush:evenodd")
 				return nil
 			}
@@ -223,7 +227,14 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 	default:
 		// Other ColorAt brushes (unknown) — field×R8 then coverage/full bootstrap.
 		if brush != nil {
-			if err := rc.fillColorAtFieldMaskedGPU(target, path, paint, brush.ColorAt, 0x61205a1100000001); err == nil {
+			// Wrapper brushes (device-space inverse sampling, F1 group opacity)
+			// sample through state the concrete types do not expose; a constant
+			// seed would let two of them share one cached field.
+			seed := render.BrushFieldSeed(brush)
+			if seed == 0 {
+				seed = 0x61205a1100000001
+			}
+			if err := rc.fillColorAtFieldMaskedGPU(target, path, paint, brush.ColorAt, seed); err == nil {
 				rc.noteBrushBootstrap("brush:colorat")
 				return nil
 			}

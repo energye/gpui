@@ -163,6 +163,34 @@ func (m Matrix) IsScaleOnly() bool {
 	return m.B == 0 && m.D == 0
 }
 
+// SimilarityScale reports whether the matrix is a similarity transform
+// (translation, rotation, uniform scale, optionally mirrored) and returns the
+// uniform scale factor. A similarity preserves angles and aspect ratio, so
+// circles stay circles and gradient parameters survive the transform directly.
+//
+// Returns false for non-uniform scale, skew, or a degenerate (zero-scale)
+// matrix.
+func (m Matrix) SimilarityScale() (scale float64, ok bool) {
+	c0 := m.A*m.A + m.D*m.D
+	c1 := m.B*m.B + m.E*m.E
+	if !(c0 > 1e-18) || !(c1 > 1e-18) {
+		return 0, false
+	}
+	// Column norms must match and columns must be orthogonal. The relative
+	// tolerance covers float64 rounding at coordinate magnitudes around 1e3.
+	if math.Abs(c0-c1)/(c0+c1) > 1e-9 {
+		return 0, false
+	}
+	if math.Abs(m.A*m.B+m.D*m.E)/(c0+c1) > 1e-9 {
+		return 0, false
+	}
+	s := math.Sqrt(c0)
+	if math.IsNaN(s) || math.IsInf(s, 0) {
+		return 0, false
+	}
+	return s, true
+}
+
 // MaxScaleFactor returns the maximum axis scale factor of the transformation.
 // This is the largest singular value of the 2x2 linear portion of the matrix,
 // representing the maximum stretch in any direction.

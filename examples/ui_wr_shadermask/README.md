@@ -20,8 +20,9 @@ go run ./examples/ui_wr_shadermask -manual-seconds 15         # 人工：限时
 两列 × 四行，左列与右列是同一份绘制代码的两条路径：
 
 - 左列 `RETAINED`：`PaintContext.DrawShaderMask`，在 retained UI 走查里录制。
-- 右列 `DIRECT`：`recording.Recorder` + `render.DrawShaderMask`，按窗口绝对坐标
-  录成 Picture，每帧原样回放（不再 Translate 到格位）。
+- 右列 `DIRECT`：`recording.Recorder` + `render.DrawShaderMask`，按格内局部坐标
+  录成 Picture，每帧在 `Translate(格原点的窗口绝对坐标)` 下回放（渐变画笔跟随
+  回放 CTM）。
 
 四种掩码（每行一格）：
 
@@ -58,12 +59,16 @@ GPUI_POWER=high GPUI_ACCEPT_GOLDEN=1 RUN_SECONDS=5 go run ./examples/ui_wr_shade
 播种后人工看一遍 `testdata/showcase_shadermask.png`，再连跑两次确认 0.0000%
 才可提交 baseline。GPU 相关用例无设备时如实跳过/失败，不静默假绿。
 
+> 门禁必须带 `GPUI_POWER=high`（基线在独显播种）。默认集显跑虽然像素探针
+> 18/18、成对 9/9、抓屏 vs 快照 0.0000%、`cpu_fallback_ops=0` 全绿，但 Golden
+> 纯画面区会差约 4.28%，逐点最大 ±1/255（集显/独显取整差），不是画面回归。
+
 ## 已知边界
 
 - 掩码不要嵌在 `PushLayer(Normal, opacity<1)` 的 F1 透明组里：组透明会二次
   缩放源 alpha。需要外层组透明度时用 `PushLayerIsolated`。
 - 设备空间掩码通道（`SetMask`/`ApplyMask`/`PushMaskLayer`）不变，由
   `examples/ui_render_base_maskops` 覆盖。
-- 直录列按绝对坐标录制，因为引擎存量缺陷：渐变画刷忽略 CTM（平移后仍按
-  绝对坐标出画）。归属渲染渐变域，待单独修；本窗不绕过引擎，只用绝对坐标
-  避免该缺陷干扰掩码本身的对比。
+- 渐变/图案画笔几何已跟随 CTM（`render/brush_device_space.go`）：相似变换直接
+  折算渐变几何，非相似变换走逆矩阵取样；`ImagePattern` 为绘制空间逆变换。
+  直录列因此按格内局部坐标录制 + 平移回放，与 retained 列同像素。

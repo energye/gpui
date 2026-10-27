@@ -36,27 +36,7 @@ import (
 // Only similarities preserve stroke width and AA band shape under a single
 // scalar, so only they may use the transform-uniform fast path.
 func uniformSimilarityOK(m render.Matrix) (s float64, ok bool) {
-	// Column norms must match (uniform scale), columns must be orthogonal
-	// (no skew), and the scale must be finite and non-degenerate.
-	c0 := m.A*m.A + m.D*m.D
-	c1 := m.B*m.B + m.E*m.E
-	if !(c0 > 1e-18) || !(c1 > 1e-18) {
-		return 0, false
-	}
-	s0 := math.Sqrt(c0)
-	// Relative tolerance: coordinates span ~1e3 px, float64 gives ~1e-13.
-	rel := math.Abs(c0-c1) / (c0 + c1)
-	if rel > 1e-9 {
-		return 0, false
-	}
-	dot := m.A*m.B + m.D*m.E
-	if math.Abs(dot)/(c0+c1) > 1e-9 {
-		return 0, false
-	}
-	if math.IsNaN(s0) || math.IsInf(s0, 0) {
-		return 0, false
-	}
-	return s0, true
+	return m.SimilarityScale()
 }
 
 // invertAffine inverts m, reporting false for singular matrices.

@@ -154,11 +154,10 @@ func setRGBA(c render.Canvas, col [3]float64, a float64) {
 // column through render.DrawShaderMask on its recording canvas.
 type maskDraw func(x, y, w, h float64, mask render.Brush, draw func())
 
-// paintCell draws one cell at (x,y) in the canvas' user space. Both columns use
-// window-absolute coordinates: the retained walk passes pc.Abs(0,0), and the
-// direct column records its picture in the same space (gradient brushes are
-// positional, so the two paths must share one coordinate system to be
-// comparable at all).
+// paintCell draws one cell at (x,y) in the canvas' user space. The retained
+// walk passes pc.Abs(0,0) because its DC is not translated per box; the direct
+// column records cell-local (0,0) and Playback runs under a Translate to the
+// cell origin, so its gradient brushes follow the replay CTM.
 func paintCell(c render.Canvas, kind cellKind, x, y, w, h float64, img *render.ImageBuf, face text.Face, mask maskDraw) {
 	if c == nil {
 		return
@@ -347,16 +346,17 @@ func main() {
 	}
 	root.Place(header, 0, 0)
 
-	// Direct column: one picture per cell, recorded once at its window-absolute
-	// position, replayed each frame. Playback composes onto the canvas' CTM and
-	// clip, so no extra translation is applied.
+	// Direct column: one cell-local picture per cell, recorded once and replayed
+	// each frame under Translate(cell origin). Playback composes onto the
+	// canvas' CTM, so mask gradients recorded in cell-local space land on the
+	// cell — the same placement the retained walk gets from pc.Abs(0,0).
 	pictures := make([]*recording.Recording, len(cells()))
 	for i, cell := range cells() {
 		if cell.retained {
 			continue
 		}
-		rec := recording.NewRecorder(winW, winH)
-		paintCell(rec, cell.kind, cell.x, cell.y, cellW, cellH, img, face,
+		rec := recording.NewRecorder(int(cellW), int(cellH))
+		paintCell(rec, cell.kind, 0, 0, cellW, cellH, img, face,
 			func(x, y, w, h float64, m render.Brush, draw func()) {
 				render.DrawShaderMask(rec, x, y, w, h, m, draw)
 			})
@@ -385,7 +385,11 @@ func main() {
 				if pc == nil || pc.DC == nil || pic == nil {
 					return
 				}
+				ax, ay := pc.Abs(0, 0)
+				pc.DC.Push()
+				pc.DC.Translate(ax, ay)
 				_ = pic.Playback(recording.NewCanvasBackend(pc.DC))
+				pc.DC.Pop()
 			}
 		}
 		root.Place(box, cell.x, cell.y)
