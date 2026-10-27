@@ -1,9 +1,16 @@
-// P3 Flutter comparison ruler.
+// P3/P4 Flutter comparison ruler.
 //
-// Three scenes, selected with RULER_SCENE:
-//   spin  — 480x320, one 64px rotating icon (matrix row 2 / spin_min)
-//   list  — 1200x800, 1200 variable-height rows + static panels (matrix row 3)
-//   text  — 1200x800, multiscript/emoji/rich/multi-size dense page (row 12)
+// Scenes, selected with RULER_SCENE:
+//   spin     — 480x320, one 64px rotating icon (matrix row 2 / spin_min)
+//   list     — 1200x800, 1200 variable-height rows + static panels (matrix row 3)
+//   text     — 1200x800, multiscript/emoji/rich/multi-size dense page (row 12)
+//   full     — 1200x800, full-window repaint every frame (row 4 / R0)
+//   grid     — 1200x800, 4x5 async-decoded tiles light up (row 5 / R10)
+//   boundary — 1200x800, 4x4 RepaintBoundary grid, rotating hot cells (row 6 / R3b)
+//   overlay  — 1200x800, dimming panel opens at 1.2s and holds (row 8 / R8)
+//   resize   — 1200x800, responsive layout; runner resize waves via RULER_ACTIONS (row 7 / R11)
+//   min      — 1200x800, FG panel + static grid; runner self-minimizes @22 (row 9 / R17)
+//   cp       — 1200x800, 100 animated bezier strokes (row 13 vector arm)
 //
 // The process prints machine-readable RULER_METRIC lines. CPU/RSS are sampled
 // externally from /proc (see scripts/sample.sh), matching the gpui ruler.
@@ -13,6 +20,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show FramePhase;
+import 'dart:ui' as ruler_ui show Image, instantiateImageCodec;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -74,6 +82,27 @@ class RulerApp extends StatelessWidget {
         break;
       case 'text':
         home = TextScene(corpus: corpus);
+        break;
+      case 'full':
+        home = const FullScene();
+        break;
+      case 'grid':
+        home = const GridScene();
+        break;
+      case 'boundary':
+        home = const BoundaryScene();
+        break;
+      case 'overlay':
+        home = const OverlayScene();
+        break;
+      case 'resize':
+        home = const ResizeScene();
+        break;
+      case 'min':
+        home = const MinScene();
+        break;
+      case 'cp':
+        home = const CPScene();
         break;
       default:
         home = const SpinScene();
@@ -682,6 +711,791 @@ class _Legend extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Scene 4: full-window repaint (1200x800, row 4 / R0 mirror)
+// ---------------------------------------------------------------------------
+
+/// Row 4 arm: every frame repaints >=90% of the 1200x800 client area. The
+/// full-bleed animated gradient keeps no static band, mirroring R0's
+/// full_paint full-tree repaint (damage ~1.0 every frame).
+class FullScene extends StatefulWidget {
+  const FullScene({super.key});
+
+  @override
+  State<FullScene> createState() => _FullSceneState();
+}
+
+class _FullSceneState extends State<FullScene>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _tick =
+      AnimationController(vsync: this, duration: const Duration(seconds: 2))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _tick.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _tick,
+      builder: (context, _) => CustomPaint(
+        size: MediaQuery.of(context).size,
+        painter: _FullRepaintPainter(_tick.value),
+      ),
+    );
+  }
+}
+
+class _FullRepaintPainter extends CustomPainter {
+  const _FullRepaintPainter(this.t);
+
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Animated gradient filling the whole surface — no static band survives.
+    final rect = Offset.zero & size;
+    final grad = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment(-1 + 2 * t, 0),
+        end: Alignment(1 + 2 * t, 0),
+        colors: [
+          HSLColor.fromAHSL(1, (t * 90) % 360, 0.5, 0.35).toColor(),
+          HSLColor.fromAHSL(1, (t * 90 + 120) % 360, 0.5, 0.25).toColor(),
+          HSLColor.fromAHSL(1, (t * 90 + 240) % 360, 0.5, 0.15).toColor(),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, grad);
+
+    // Moving shapes on top keep every frame's pixel content distinct.
+    final w = size.width;
+    final h = size.height;
+    for (var i = 0; i < 6; i++) {
+      final p = (t + i * 0.166) % 1.0;
+      final cx = w * p;
+      final cy = h * (0.2 + 0.6 * (0.5 + 0.5 * math.sin(p * math.pi * 2)));
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: Offset(cx, cy),
+          width: 90,
+          height: 60,
+        ),
+        Paint()..color = Color.fromRGBO(255, 255, 255, 0.16),
+      );
+    }
+    final bar = Paint()..color = const Color(0x66E2E7F2);
+    canvas.drawRect(
+      Rect.fromLTWH(0, h - 14, w * 0.15 + w * 0.7 * t % w, 8),
+      bar,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _FullRepaintPainter old) =>
+      old.t != t; // changes every frame by design.
+}
+
+// ---------------------------------------------------------------------------
+// Scene 5: async decode grid (1200x800, row 5 / R10 mirror)
+// ---------------------------------------------------------------------------
+
+const int kGridCols = 4;
+const int kGridRows = 5;
+const int kGridTiles = kGridCols * kGridRows;
+
+class GridScene extends StatefulWidget {
+  const GridScene({super.key});
+
+  @override
+  State<GridScene> createState() => _GridSceneState();
+}
+
+class _GridSceneState extends State<GridScene>
+    with SingleTickerProviderStateMixin {
+  final List<ruler_ui.Image?> _imgs = List<ruler_ui.Image?>.filled(kGridTiles, null);
+  late final AnimationController _hot =
+      AnimationController(vsync: this, duration: const Duration(seconds: 2))
+        ..repeat();
+
+  @override
+  void initState() {
+    super.initState();
+    // Decode all 20 real files concurrently (same arrival semantics as R10:
+    // per-source goroutine, each cell lights up exactly when its decode done).
+    for (var i = 0; i < kGridTiles; i++) {
+      _decode(i);
+    }
+  }
+
+  Future<void> _decode(int i) async {
+    final data =
+        await rootBundle.load('assets/grid/async_${i.toString().padLeft(2, '0')}.png');
+    final codec = await ruler_ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    if (!mounted) return;
+    setState(() => _imgs[i] = frame.image);
+  }
+
+  @override
+  void dispose() {
+    _hot.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Header('Flutter ruler — async decode grid (R10 semantic)'),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, c) {
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Stack(
+                  children: [
+                    Column(
+                      children: [
+                        for (var r = 0; r < kGridRows; r++)
+                          Expanded(
+                            child: Row(
+                              children: [
+                                for (var cc = 0; cc < kGridCols; cc++)
+                                  Expanded(
+                                    child: _TileCell(
+                                      index: r * kGridCols + cc,
+                                      img: _imgs[r * kGridCols + cc],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    Align(
+                      alignment: const Alignment(0.92, 0.94),
+                      child: RepaintBoundary(
+                        child: AnimatedBuilder(
+                          animation: _hot,
+                          builder: (context, _) => Container(
+                            width: 70,
+                            height: 70,
+                            color: Color.fromARGB(
+                              255,
+                              (150 + 100 * _hot.value).round(),
+                              60,
+                              60,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const _StaticHud('grid: each tile its own RepaintBoundary; decodes light per tile'),
+      ],
+    );
+  }
+}
+
+class _TileCell extends StatelessWidget {
+  const _TileCell({required this.index, required this.img});
+
+  final int index;
+  final ruler_ui.Image? img;
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Container(
+          color: const Color(0xFF23283A),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('cell ${index.toString().padLeft(2, '0')}',
+                    style: const TextStyle(fontSize: 11, color: kMuted)),
+                Expanded(
+                  child: Center(
+                    // RULER_GRID_NOIMG=1 是隔离实验开关：占位不换图但解码照跑，
+                    // 用于把「20 张纹理层的合成成本」和其余内容分开定位。
+                    child: (img == null ||
+                            Platform.environment['RULER_GRID_NOIMG'] == '1')
+                        ? Container(color: const Color(0xFF14171F))
+                        : RawImage(image: img, fit: BoxFit.contain),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Scene 6: boundary grid (1200x800, row 6 / R3 semantics mirror)
+// ---------------------------------------------------------------------------
+
+/// Row 6 arm: 4x4 grid of RepaintBoundary cells. Each cell has a nested inner
+/// boundary with a hot spot; a rotating index repaints 1 cell + 1 inner spot
+/// per beat while the other 15 cells stay cached (Replay semantics), mirroring
+/// R3/R3b's boundary replay + dirty re-record mix at the same 16-cell scale.
+class BoundaryScene extends StatefulWidget {
+  const BoundaryScene({super.key});
+
+  @override
+  State<BoundaryScene> createState() => _BoundarySceneState();
+}
+
+class _BoundarySceneState extends State<BoundaryScene>
+    with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
+  int _beat = 0;
+  int _shownBeat = -1;
+  Duration _last = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker(_tick)..start();
+  }
+
+  void _tick(Duration now) {
+    final dt = (now - _last).inMicroseconds / 1e6;
+    _last = now;
+    if (dt <= 0 || dt > 0.25) return;
+    _beat += (dt * 60).round(); // frame-beat counter at 60fps target
+    // Rebuild only when the beat index actually moves (30 frames/beat at
+    // 60fps): per-frame setState would churn all 16 cells' build+layout for
+    // nothing — the ruler measures boundary replay/re-record cost, not
+    // framework rebuild tax.
+    final b = _beat ~/ 30;
+    if (b != _shownBeat) {
+      _shownBeat = b;
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Header('Flutter ruler — boundary grid (R3/R3b semantic)'),
+        Expanded(
+          child: GridView.count(
+            crossAxisCount: 4,
+            childAspectRatio: (300 / 170),
+            children: [
+              for (var i = 0; i < 16; i++)
+                _BoundaryCell(index: i, beat: _beat ~/ 30),
+            ],
+          ),
+        ),
+        const _StaticHud('boundary: 1 cell + 1 inner spot repaint per beat, rest cached'),
+      ],
+    );
+  }
+}
+
+class _BoundaryCell extends StatelessWidget {
+  const _BoundaryCell({required this.index, required this.beat});
+
+  final int index;
+  final int beat;
+
+  @override
+  Widget build(BuildContext context) {
+    final outerHot = (beat % 16) == index;
+    final innerHot = ((beat ~/ 2) % 16) == index;
+    return RepaintBoundary(
+      child: Container(
+        margin: const EdgeInsets.all(6),
+        color: outerHot ? const Color(0xFF4A3B2E) : const Color(0xFF23283A),
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('b${index.toString().padLeft(2, '0')}',
+                style: const TextStyle(fontSize: 11, color: kMuted)),
+            const SizedBox(height: 6),
+            Expanded(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: RepaintBoundary(
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    color: innerHot
+                        ? const Color(0xFFE0A34C)
+                        : const Color(0xFF2E3548),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Scene 8: overlay (1200x800, row 8 / R8 mirror)
+// ---------------------------------------------------------------------------
+
+/// Row 8 arm: base band keeps one per-frame hot box; a dimming barrier +
+/// floating panel stack opens at t=1.2s (R8 gate timeline) and stays open, so
+/// the measured window runs the overlay-on steady state with the same open
+/// cost amortized outside the sampled window.
+class OverlayScene extends StatefulWidget {
+  const OverlayScene({super.key});
+
+  @override
+  State<OverlayScene> createState() => _OverlaySceneState();
+}
+
+class _OverlaySceneState extends State<OverlayScene>
+    with SingleTickerProviderStateMixin {
+  bool _open = false;
+  late final AnimationController _hot =
+      AnimationController(vsync: this, duration: const Duration(seconds: 2))
+        ..repeat();
+
+  @override
+  void initState() {
+    super.initState();
+    Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _open = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _hot.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Stack(
+      children: [
+        GridView.count(
+          crossAxisCount: 8,
+          childAspectRatio: 2.0,
+          children: [
+            for (var i = 0; i < 32; i++)
+              Container(
+                margin: const EdgeInsets.all(6),
+                color: i.isOdd ? const Color(0xFF2A3142) : const Color(0xFF1E2430),
+              ),
+          ],
+        ),
+        Align(
+          alignment: const Alignment(0.86, 0.2),
+          child: RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: _hot,
+              builder: (context, _) => Container(
+                width: 70,
+                height: 70,
+                color: Color.fromARGB(
+                  255,
+                  (150 + 100 * _hot.value).round(),
+                  60,
+                  90,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Header('Flutter ruler — overlay stack (R8 semantic)'),
+        Expanded(
+          child: Stack(
+            children: [
+              Positioned.fill(child: base),
+              if (_open) ...[
+                // RULER_OVERLAY_NOBARRIER=1 是隔离实验开关：去掉全屏调光层，
+                // 把「半透明全屏混合层」的成本单独定位。
+                if (Platform.environment['RULER_OVERLAY_NOBARRIER'] != '1')
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: ColoredBox(
+                        color: Color(0x73000000),
+                      ),
+                    ),
+                  ),
+                Center(
+                  child: RepaintBoundary(
+                    child: Container(
+                      width: 480,
+                      height: 340,
+                      color: const Color(0xFF2E3548),
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'OVERLAY PANEL',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: kInk,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'R8 mirror: barrier + panel opened at 1.2s, held.',
+                            style: TextStyle(fontSize: 12, color: kMuted),
+                          ),
+                          const Spacer(),
+                          Align(
+                            alignment: Alignment.bottomRight,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              color: const Color(0xFF3A4560),
+                              child: const Text('OK',
+                                  style: TextStyle(fontSize: 13, color: kInk)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const _StaticHud('overlay: opened at 1.2s and held; only base HOT ticks per frame'),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Scene 7: resize responsive layout (1200x800, row 7 / R11 mirror)
+// ---------------------------------------------------------------------------
+
+/// Row 7 arm: window resize waves are delivered by the runner via
+/// RULER_ACTIONS (e.g. "r1@8:1000x700;r2@16:1200x800" — scheduled inside the
+/// measured window). The content intentionally reflows on every size pulse
+/// (responsive row heights + rewrapped text), so each wave invalidates the
+/// full layout like R11's size/DPR cache waves.
+class ResizeScene extends StatelessWidget {
+  const ResizeScene({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Header('Flutter ruler — resize waves (R11 semantic)'),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final w = c.maxWidth;
+                final h = c.maxHeight;
+                final boxH = h * 0.30;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: boxH,
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < 6; i++)
+                            Expanded(
+                              child: Container(
+                                margin: const EdgeInsets.all(6),
+                                color: Color.fromARGB(
+                                  255,
+                                  40 + i * 18,
+                                  60,
+                                  90 + i * 14,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            width: w * 0.62,
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (var i = 0; i < 8; i++)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Text(
+                                        'resize reflow block $i — '
+                                        'width ${w.toStringAsFixed(0)} drives '
+                                        'full re-layout + re-wrap of this text '
+                                        'layer; each wave invalidates caches.',
+                                        style: const TextStyle(
+                                            fontSize: 13, color: kInk),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: GridView.count(
+                              crossAxisCount: 4,
+                              children: [
+                                for (var i = 0; i < 16; i++)
+                                  Container(
+                                    margin: const EdgeInsets.all(4),
+                                    color: const Color(0xFF23283A),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+        const _StaticHud('resize: waves arrive via RULER_ACTIONS (runner GTK resize)'),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Scene 9: FG/BG (1200x800, row 9 / R17 mirror)
+// ---------------------------------------------------------------------------
+
+/// Row 9 arm: same content scale as R17 — an FG panel whose progress bar and
+/// frame counter advance every frame plus a static 4x4 color grid and 8
+/// labels. The runner minimizes the window via RULER_ACTIONS at t=22 (R17's
+/// FG→BG boundary); Flutter/Impeller will keep consuming compositor callbacks
+/// while hidden, which is exactly what the ruler wants to expose next to
+/// gpui's zero-submit latch.
+class MinScene extends StatefulWidget {
+  const MinScene({super.key});
+
+  @override
+  State<MinScene> createState() => _MinSceneState();
+}
+
+class _MinSceneState extends State<MinScene>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin =
+      AnimationController(vsync: this, duration: const Duration(seconds: 2))
+        ..repeat();
+
+  int get _fgTick => (_spin.value * 99).round();
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget label(String s) => Padding(
+          padding: const EdgeInsets.all(4),
+          child: Text('label $s',
+              style: const TextStyle(fontSize: 12, color: kMuted)),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Header('Flutter ruler — FG/BG minimize (R17 semantic)'),
+        Expanded(
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.topRight,
+                child: SizedBox(
+                  width: 420,
+                  child: GridView.count(
+                    crossAxisCount: 4,
+                    childAspectRatio: 1.0,
+                    children: [
+                      for (var i = 0; i < 16; i++)
+                        Container(
+                          margin: const EdgeInsets.all(6),
+                          color: Color.fromARGB(
+                            255,
+                            30 + (i * 7) % 90,
+                            45 + (i * 5) % 80,
+                            80 + (i * 11) % 120,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: RepaintBoundary(
+                    child: AnimatedBuilder(
+                      animation: _spin,
+                      builder: (context, _) => Container(
+                        width: 260,
+                        height: 150,
+                        color: const Color(0xFF2A5550),
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('FG frame $_fgTick',
+                                style: const TextStyle(
+                                    fontSize: 13, color: kInk)),
+                            const SizedBox(height: 10),
+                            Container(
+                              height: 24,
+                              color: const Color(0xFF16211E),
+                              child: FractionallySizedBox(
+                                alignment: Alignment.centerLeft,
+                                widthFactor: (_spin.value % 1.0),
+                                child: Container(
+                                    color: const Color(0xFF4CD98C)),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text('前台流动 / 后台冻结',
+                                style: TextStyle(
+                                    fontSize: 12, color: Color(0xFFBFE0C6))),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Wrap(
+          children: [for (var i = 0; i < 8; i++) label('$i')],
+        ),
+        const _StaticHud('min: runner minimizes @t=22 (RULER_ACTIONS=minimize:22)'),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Scene 13: vector density via CustomPaint (1200x800, row 13 arm)
+// ---------------------------------------------------------------------------
+
+/// Row 13 arm for the Flutter ruler: 100 animated cubic bezier strokes at
+/// 60fps, mirroring `ui_base_batch_cap` vector mode's 100-curve steady band
+/// (300/600 curves are capacity probes, not the comparison band).
+class CPScene extends StatefulWidget {
+  const CPScene({super.key});
+
+  @override
+  State<CPScene> createState() => _CPSceneState();
+}
+
+class _CPSceneState extends State<CPScene>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _tick =
+      AnimationController(vsync: this, duration: const Duration(seconds: 3))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _tick.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _tick,
+      builder: (context, _) => CustomPaint(
+        size: MediaQuery.of(context).size,
+        painter: _VectorPainter(_tick.value),
+      ),
+    );
+  }
+}
+
+class _VectorPainter extends CustomPainter {
+  const _VectorPainter(this.t);
+
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    for (var i = 0; i < 100; i++) {
+      final p = (t + i / 100.0) % 1.0;
+      final y0 = h * (i % 10 + 1) / 11.0;
+      final path = Path()
+        ..moveTo(12, y0)
+        ..cubicTo(
+          w * 0.30,
+          y0 + (p - 0.5) * h * 0.18,
+          w * 0.70,
+          y0 - (p - 0.5) * h * 0.18,
+          w - 12,
+          y0 + ((i % 3) - 1) * h * 0.02,
+        );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = HSLColor.fromAHSL(1, (p * 360) % 360, 0.6, 0.55).toColor(),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _VectorPainter old) => old.t != t;
 }
 
 class _LiveHud extends StatelessWidget {

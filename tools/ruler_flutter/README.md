@@ -39,10 +39,30 @@ cd tools/ruler_flutter
 > **安全（硬）**：批量测量和长循环压测必须在隔离显示里跑（Wayland/XWayland、独立 Xorg 或嵌套 X server）；单窗验收/测量可走当前桌面，但必须先通过隔离验证，按“一轮一窗、跑完查 Xorg”执行。当前桌面只用于单窗验收/测量和看结果。
 
 ```bash
-export RULER_SCENE=spin       # spin | list | text
+export RULER_SCENE=spin       # spin | list | text | full | grid | boundary | overlay | resize | min | cp
 export RULER_SECONDS=0        # 0 = 常驻；>0 自退出
 ./build/linux/x64/release/bundle/ruler_flutter
 ```
+
+## P4 对照臂（2026-10-27）
+
+矩阵 A 步新增四类能力，全部不依赖 xdotool/wmctrl：
+
+1. **七个新场景**（对应矩阵行 4/5/6/7/8/9/13，与 gpui 对位窗同内容同规模）：
+   `full`（全幅重建）、`grid`（20 格异步解码）、`boundary`（16 格边界热轮转）、
+   `overlay`（t=1.2s 开盖层保持）、`resize`（响应式布局，GPU 侧两波失效）、
+   `min`（FG 面板 + 静格，t=22 最小化）、`cp`（100 条动画贝塞尔）。
+2. **runner 动作** `RULER_ACTIONS="<spec>@<t>[,...]"`：GTK 定时执行，
+   `minimize` = iconify（行 9），`res:WxH` = 改尺寸（行 7）。时间相对**进程启动**，
+   采样器 geo 序列时间相对**测量窗起点**（≈启动+warmup+3s），比对时注意口径
+   （实例定位 `RULER_INSTANCE_INDEX`：标题 `RULER_<SCENE>_<i>`，摆位与 gpui
+   multiwin 相同 col=i%4 / row=i/4 / X=col*480 / Y=row*380）。
+3. **采数器扩展** `measure.py`：`--scene` 七场景、`--instances N`（行 10 多实例臂，
+   合计+逐例 CPU/RSS，多窗并发禁止在桌面跑，走隔离显示）、`map_ms`（行 16
+   首帧代理 = 进程启动→X 客户区 mapped，0.2s 扫描粒度）、`geo_series`
+   （1Hz 几何+隐藏态序列，resize/min 臂的生效铁证）。
+4. **诊断开关**（定成本源用，不影响正式臂语义）：`RULER_GRID_NOIMG=1`
+   （grid 占位不换图，解码照跑）、`RULER_OVERLAY_NOBARRIER=1`（去全屏调光层）。
 
 应用 stdout 每 2s 打一行：
 
@@ -89,6 +109,26 @@ WM_DELETE_WINDOW 走应用正常关闭，5s 未退再 SIGTERM，10s 仍未退默
   HUD 60fps tick 税分开说。
 - `shot.png` 只证明画面非黑/内容可见，不是 Golden；资源矩阵不把对照尺
   截图当引擎像素门禁。
+
+### Wayland 会话（行 10 隔离环境）的取证口径
+
+行 10 多实例批量按安全口径必须跑在隔离显示；当前隔离环境是「登录真 GNOME
+Wayland 会话 + `GDK_BACKEND=x11` 走 XWayland」。该环境机器抓合成像素三条路
+都不通（2026-10-27 实测）：
+
+- GNOME Shell 截图 D-Bus（`org.gnome.Shell.Screenshot.Screenshot`）把外部
+  调用拒于白名单之外（`AccessDenied: Screenshot is not allowed`）；
+- 系统未装 Shell 白名单内的官方工具 `gnome-screenshot`；
+- rootless XWayland 的 root 帧缓冲没有合成内容：`ffmpeg x11grab` 抓根窗
+  全黑（非应用故障）；对 GL 呈现的窗口本体 `XGetImage` 返回 `BadMatch`
+  （像素在 GPU 侧缓冲，X server 无拷贝）。
+
+因此多实例臂里 `measure.py` 把截图记为 `"source":"unavailable"` 并注明
+原因，**不炸轮**；行 10 的机器证据 =
+「进程存活 + X11 窗映射（标题/几何）+ 应用侧逐窗 `RULER_METRIC` 帧统计」，
+像素证据按「自测 + 人工二合一」转人工目击：正账入表前人工目击确认
+（窗口在屏上可见旋转），目录中该轮截图为黑图占位不作为内容证据。
+桌面 Xorg 会话的单窗轮仍走 x11grab 截图证据，口径不变。
 
 ## 依赖
 

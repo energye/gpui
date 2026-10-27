@@ -254,9 +254,19 @@ func main() {
 		col, row := i%4, i/4
 		pos := &platform.Point{X: col * winW, Y: row * (winH + 60)}
 		winTitle := fmt.Sprintf("gpui ui_base_multiwin_cap %d/%d IDLE", i+1, maxWindows)
+		backend := platform.DisplayAuto
+		// Measurement glue (matrix row 10): under a real GNOME Wayland session
+		// the ruler harness samples via Xlib on :0 (XWayland). Auto would pick
+		// native Wayland and be invisible to the sampler, so the harness sets
+		// GPUI_RULER_BACKEND=x11 to force the XWayland branch for BOTH arms.
+		// Window behavior semantics are unchanged.
+		if os.Getenv("GPUI_RULER_BACKEND") == "x11" {
+			backend = platform.DisplayX11
+		}
 		w, err := platform.Open(platform.Options{
 			Width: winW, Height: winH, Title: winTitle,
 			Position: pos, Decorations: true, Resizable: false,
+			Backend: backend,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "FAIL: window %d open (needs_gpu_window): %v\n", i+1, err)
