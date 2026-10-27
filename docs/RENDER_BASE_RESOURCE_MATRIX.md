@@ -9,13 +9,13 @@
 
 > **真窗 + 资源指标 JSON（CPU/RSS/显存/fps/p95/hitch）+ 同机工业级对照数字 + 比值**——四项齐全、逐行可审计、无一行无数据或无书面豁免。
 
-指标分两段：**健康线**（现有自定阈值，防退化）+ **对齐线**（新增，≤ 同机工业级对照 × 系数，系数数据后置定稿）。"通用/对齐"的宣布权在这张矩阵的量门数字上。
+指标分两段：**健康线**（现有自定阈值，防退化）+ **对齐线**（新增，≤ 同机工业级对照 × 系数，系数已定稿：CPU 1.5× / RSS 2.0×，2026-10-28 拍板，依据与豁免见 §5.9）。"通用/对齐"的宣布权在这张矩阵的量门数字上。
 
 ## 1. 决策记录（2026-10-25，用户已定）
 
 1. **Godot 二进制**：允许下载官方预编译或从本机源码编译（`/home/yanghy/app/projects/gogpu/godot`；GAP_PLAN 的"只读不编译"指不改其源码做参考，编译出可执行体做对照尺不违反该约束，编译产物只用于测量）；
 2. **Flutter**：允许本机构建（SDK 已在 `/home/yanghy/app/projects/gogpu/flutter`，`bin/flutter` 已验存在）或取现成产物；
-3. **对照系数**：**数据后置**——先跑出基线再定稿系数（建议初值 CPU 1.2×、RSS 1.5×，仅作占位，禁直接当验收线）。
+3. **对照系数**：**已定稿（2026-10-28 用户拍板；P4 实测分布依据见 §5.9）**——CPU **1.5×**、RSS **2.0×** + 书面豁免条款（idle 行绝对差、Flutter 臂未满 60fps 行带 fps 注、text 族 RSS）。占位初值 CPU 1.2×/RSS 1.5× 作废（1.2× 过最紧恶劣样本 Godot 0.94× 后余量仅 ~13pp，扛不住 ±2pp 中位波动）。
 
 ## 2. 场景矩阵（17 行封闭集，本表冻结；新增场景走 §7 增量登记）
 
@@ -24,20 +24,20 @@
 | 1 | 空闲（无脏零帧） | 开窗静止 60s | **`ui_base_idle`** | ✅ 两连 gate + 60s manual：presents=1、warmup 后增量=0、CPU 0.6–0.8%、golden 0（873600px） | Flutter 静止页 | ✅ 已对照：Flutter text 页首帧后 idle 0.02%（§5.5） |
 | 2 | 常驻最小动画（心跳税地板） | 单 64px 旋转 60fps | **spin_min** | ✅ CPU 有账（现态 14.59% / 终态 3.4~3.5%） | Flutter 同尺寸旋转图标 | ✅ 已对照：Flutter 25.41% / spin_min 15.92%，1.60×（§5.5）；同语义 parity **14.16%**，**1.79×**（§5.5.3） |
 | 3 | 滚动（retained 主场景） | 列表连续滚动 | C3/C9/R7/R7b | ✅ R7 60s close-run 两连：fps 59.9、p95 19.8ms、hitch 1.0–2.0/min、CPU 18.27%（ui 7.93 + raster 10.33）、RSS 斜率 3458/4435KB/min（valid）、damage 9.25%、bind 14/1200、scroll 重录 14、golden 0；C3 31.98% 已有 | Flutter ListView 同规模 | ✅ 已对照：Flutter 71.38%，对 C3 2.23× / 对 R7 3.91×（§5.5）；同语义 parity **22.99%**，**3.10×**（§5.5.3） |
-| 4 | 全幅重建上限 | full_paint 全窗每帧变 | R0 | ✅ | Flutter 全幅动画页 | ✅ Flutter 臂 73.91%/53.2fps/167.5MB（§5.8.4，**Flutter 未满 60**，比值非同帧率等价）；gpui R0 资源账待 C 步带出 |
-| 5 | 异步资源→局部脏 | 解码完成逐格点亮 | R10/C3 | ✅ | Flutter 异步图片列表 | ✅ Flutter 臂 70.35%/58.4fps/184.8MB（§5.8.4，解码突发 20s 预热吸收，稳态 hitch 高 245–681/60s 为逐格热点）；gpui R10 资源账待 C 步带出 |
-| 6 | 缓存命中/失效 | 边界/纹理命中与失效 | R3/R3b/R9/C9 | ✅ | Flutter RepaintBoundary 开关 | ✅ Flutter 臂 68.77%/55.0fps/182.7MB（§5.8.4）；gpui R3 族资源账待 C 步带出 |
-| 7 | resize/DPR 失效波 | 改尺寸/DPR | R11/C7 | ✅ | Flutter 窗口 resize | ✅ Flutter 臂静页双波：两跳几何铁证（t3/t11 尺寸生效）、页后静止 0.15%（§5.8.4）；波级成本需细采样，C 步定 |
-| 8 | 浮层/覆盖带脏 | overlay 开关 | R8 | ✅ | Flutter Overlay/Dialog | ✅ Flutter 臂 67.47%/49.1fps/185.4MB（§5.8.4，**未满 60**）；gpui R8 资源账待 C 步带出 |
+| 4 | 全幅重建上限 | full_paint 全窗每帧变 | R0 | ✅ | Flutter 全幅动画页 | ✅ 已对照（§5.8.5）：R0 26.92%/59.94fps 对 Flutter 73.91%/53.2fps → **2.75×**（双侧 full 重绘策略同款；内容不同源、R0 侧静态网格+HUD 便宜，读数加内容注） |
+| 5 | 异步资源→局部脏 | 解码完成逐格点亮 | R10/C3 | ✅ | Flutter 异步图片列表 | ✅ Flutter 臂 70.35%/58.4fps/184.8MB（§5.8.4，解码突发 20s 预热吸收，稳态 hitch 高 245–681/60s 为逐格热点）；gpui R10 同行资源账挂 §6 遗留 |
+| 6 | 缓存命中/失效 | 边界/纹理命中与失效 | R3/R3b/R9/C9 | ✅ | Flutter RepaintBoundary 开关 | ✅ Flutter 臂 68.77%/55.0fps/182.7MB（§5.8.4）；gpui R3 族同行资源账挂 §6 遗留 |
+| 7 | resize/DPR 失效波 | 改尺寸/DPR | R11/C7 | ✅ | Flutter 窗口 resize | ✅ Flutter 臂静页双波：两跳几何铁证（t3/t11 尺寸生效）、页后静止 0.15%（§5.8.4）；波级细采样挂 §6 遗留 |
+| 8 | 浮层/覆盖带脏 | overlay 开关 | R8 | ✅ | Flutter Overlay/Dialog | ✅ Flutter 臂 67.47%/49.1fps/185.4MB（§5.8.4，**未满 60**）；gpui R8 同行资源账挂 §6 遗留 |
 | 9 | 后台/前台节流 | 遮挡/最小化 | R17 | ✅ 两连 gate + Golden + 资源账：最小化后 fg=1308–1310、bg=1、presents=1310–1312/30.1s、pixel 3/3、golden 0；FG 双快照 live（diff 0.92% / content 13.81%） | Flutter 同内容最小化 | ✅ 已对照（§5.8.4）：Flutter 最小化后 t≥24 fps=0 帧休眠（对 R17 bg=1 同港语义）、hidden 铁证在案；30s 聚合 CPU 36.19%（FG22+BG8 混窗），FG 段 53–61fps |
 | 10 | 多窗共享上限 | 1/2/4/8 窗同动画 | **`ui_base_multiwin_cap`** | ✅ 1/2/4/8 曲线（2026-10-27 XWayland 重测）：60fps 上限 **4 窗**、steady60 上限 2 窗；8 窗 39.6fps、总呈现 ≈317 帧/秒；golden 0.0000%、像素 16/16（§5.8；桌面 Xorg 期为 31fps/~250 帧/秒，饱和点随会话环境漂移） | Flutter 多实例（N 进程×1 窗，480×320） | ✅ 已对照（§5.8）：三跑中位 CPU 27.2/62.2/131.3/176.2% vs gpui 22.4/43.8/81.3/111.0%，CPU 比值 1.21–1.61×；RSS 窗均摊 163MB/进程 vs 八窗常驻 234MB（5.6×）；8 窗总吞吐两侧同为机器饱和 ~316–328fps |
-| 11 | 长跑稳态（泄漏） | 300s soak | R15/C10 | ✅ 最完整 | Flutter 300s 同内容 | ✅ 已对照（§5.8.4）：Flutter list 300s×3 CPU 中位 72.23%、RSS 平稳 196.5MB（稳态斜率 535.5KB/min valid，线 30000）、fps 55.3；gpui R15/C10 资源账待 C 步带出成比值 |
-| 12 | 文本密集（整形+图集） | 密集多脚本文本页 | m5/文本族 | ⚠️ 2026-10-27 已定位并修复 RSS 暴涨根因：缺字回退按 `(rune,size)` 缓存导致 75 次整份字体加载（只覆盖 4 个文件、集中在开窗 0.8s），存活堆 805MB；改字体源按文件进程级共享后 60s：加载 75→10（10 个不同文件各一次）、存活堆 144MB 平台、RSS 464MB 稳态（原 1.67–1.75GB），CPU 23.0%、fallback 0（§5.5 末段） | Flutter 密集文本页（静态 idle） | ✅ idle 对照 0.02%；同语义 parity text 0.42%/RSS 628.5MB（静态 idle，§5.5.3）；m5 golden 基线 2026-10-27 已在独显重出（旧基线 10-25 陈旧，干净 HEAD 亦 3.1822%；新基线含藏文合簇修正），`GPUI_POWER=high -auto-only` 两连 golden 0.0000%（821184px）+ 像素 11/11 + 回退 0 |
+| 11 | 长跑稳态（泄漏） | 300s soak | R15/C10 | ✅ 最完整 | Flutter 300s 同内容 | ✅ 已对照（§5.8.4）：Flutter list 300s×3 CPU 中位 72.23%、RSS 平稳 196.5MB（稳态斜率 535.5KB/min valid，线 30000）、fps 55.3；gpui R15/C10 同窗资源账挂 §6 遗留成比值 |
+| 12 | 文本密集（整形+图集） | 密集多脚本文本页 | m5/文本族 | ✅ RSS 暴涨已修复已归档（2026-10-27，§5.5 末段/§9）：根因=缺字回退按 `(rune,size)` 缓存致 75 次整份字体加载（只 4 文件、0.8s 集中），存活堆 805MB；`render/text/source_cache` 按文件进程级共享（LRU 32 条/256MB + singleflight）后 60s：加载 **75→10**、存活堆 **144MB**、RSS **464MB 稳态**（原 1.67–1.75GB）、CPU 23.0%、fallback 0；m5 golden 独显重出两连 0.0000%（821184px）+ 像素 11/11，藏文随共享 face 合簇修正 | Flutter 密集文本页（静态 idle） | ✅ idle 对照 0.02%；同语义 parity text 0.42%/RSS 628.5MB（静态 idle，§5.5.3）；m5 CPU 23.0% 含 HUD 60fps tick 税不直比整形吞吐 |
 | 13 | 大量图元/矢量密集上限（2.5D 底座，**双模式**） | ①同屏图元阶梯 1k/5k/10k（atlas 精灵）；②矢量路径密集（设计工具类，复杂路径重分格成本） | **`ui_base_batch_cap`**（engine 精灵/粒子窗、P1 矢量密度测试为前身） | ✅ 图元 1k/5k/10k 全 60fps（CPU 22.9/46.3/80.7%）；矢量 100@60fps、300→38fps、600→24fps；两连 gate + 200s manual | Godot 2d demo（bullet_shower 类）/ Flutter CustomPaint | ✅ Godot 默认 500 发 19.1%/60fps；同语义 gpui parity **20.33%/59.9fps**（0.94× CPU，§5.5.3）；1k/5k/10k 容量探针见 §5.5；Flutter 臂 cp=100 动画贝塞尔 **69.90%/58.5fps/172.4MB**（§5.8.4），对工具类语义、不做 1:1 梯对位 |
 | 14 | 视频/纹理流 | 持续喂帧 | video C4 | ❌ 解码吞吐（V-5 挂视频线） | ffplay/Flutter video | 挂视频线 |
-| 15 | 呈现策略对照 | 同场景 full vs retained | 分散各窗 | ⚠️ 未成表 | — | 成表（R0 vs R4 同内容 A/B） |
-| 16 | 首帧/恢复（t2fp、遮挡恢复） | 冷启/遮挡回来 | R16/R17 | ✅ | Flutter 首帧 | ✅ Flutter 臂 map_ms（进程启动→X 客户区 mapped，三跑中位）270–292ms（§5.8.4：min 276.6 / grid 277.4 / resize 280.6 / boundary 281.6 / cp 284.8 / full 291.8 / overlay 275.3）；遮挡恢复 Flutter 臂协议只能人工恢复路径，C 步成表时定 |
-| 17 | 显存压力/设备恢复（资源纪律验收） | 多窗 VRAM 预算压力、`GPUI_FAULT_OOM` 注入 | 故障注入缝在（`ui/embedder/fault_oom.go`）、预算拒增计数在（textured `budgetRefusals`） | ❌ 无专项资源场景窗（恢复正确性有注入测试、资源账无） | Godot 压力场景 | **立账**（预算拒增曲线 + OOM 恢复后 VramLiveBytes 回落断言） |
+| 15 | 呈现策略对照 | 同场景 full vs retained | R0/C2/R4 | ✅ 已对照（§5.8.5）：R0 26.92% vs C2 集成壳 25.22%（retained 省 ~6.3% CPU、damage_sum 0.187≪0.35 线）、R4 局部地板 24.02%；全部 59.94–59.97fps 满拍；严格逐字同内容可切策略窗挂 §6 遗留 | Godot 视口/Flutter | ✅ Flutter 臂同触发语义见 §5.8.4 各行 |
+| 16 | 首帧/恢复（t2fp、遮挡恢复） | 冷启/遮挡回来 | R16/R17 | ✅ | Flutter 首帧 | ✅ Flutter 臂 map_ms（进程启动→X 客户区 mapped，三跑中位）270–292ms（§5.8.4：min 276.6 / grid 277.4 / resize 280.6 / boundary 281.6 / cp 284.8 / full 291.8 / overlay 275.3）；遮挡恢复 Flutter 臂协议缺口挂 §6 遗留 |
+| 17 | 显存压力/设备恢复（资源纪律验收） | 多窗 VRAM 预算压力、`GPUI_FAULT_OOM` 注入 | 故障注入缝在（`ui/embedder/fault_oom.go`）、预算拒增计数在（`ui/scheduler/metrics.BudgetRefusals` + `ui/embedder/pipeline_app` cacheBudgetRefusals）、`hud_hal.vram_ledger` 账本在（`gpu/hal/vram_ledger.go` + 单测） | ❌ 无专项资源场景窗（恢复正确性有注入测试、压力资源账无） | Godot 压力场景 | **立账计划已登记（2026-10-27，窗未立）**：①多窗 VRAM 预算阶梯开窗（2/4/8 窗纹理负载递增）取 `BudgetRefusals` 拒增曲线；②`GPUI_FAULT_OOM` 注入后断言 `hal.VramLiveBytes()` 恢复回落至注前账；③Godot 臂后置。窗建成前不标绿 |
 
 **P2 冻结结论（2026-10-25）**：17 行逐行核对完毕——
 - ✅ 真窗已有 + 资源指标已有（不需新窗）：行 2/4/5/6/7/8/11/16（8 行）——只需 P4 补对照数字；
@@ -85,7 +85,7 @@
 ## 4. 指标规范
 
 1. **健康线（保留现状，防退化）**：fps_interval≥55、interval_p95≤22ms、hitch≤5/min、RSS 稳态斜率 ≤30000KB/min（valid=true）、CPU≤85%。
-2. **对齐线（新增）**：行指标 ≤ 同机对照 × 系数。`wrgate` 报文追加字段：`ruler_name`、`ruler_cpu_pct`、`ruler_rss_mb`、`ruler_ratio_cpu`、`ruler_ratio_rss`——**跑过尺才填，没跑如实 null（禁假绿）**。系数 §1.3 数据后置。**2026-10-27 D 步已落地**：`wrgate.RulerInput`（尺臂 id/测得 CPU%/rss_end_mb）+ `BuildInput.Ruler` + `wrgate.RulerFromEnv()`（读 `GPUI_RULER_NAME/CPU_PCT/RSS_MB`，P4 跑批流程三跑取中位后导出）；五键列入 `RequiredSchemaKeys` 硬检查，比值=窗值/尺值（分子分母同口径：`/proc` utime+stime 占单核百分比、run 末 RSS），任一侧没量到该比值保持 null，半截环境变量按「没跑」处理并在 stderr 报因。窗口 JSON 逐一嵌尺值在 P4-A 逐行落（未实测的行比值仍是 null，不得借字段装绿）。
+2. **对齐线（新增）**：行指标 ≤ 同机对照 × 系数。`wrgate` 报文追加字段：`ruler_name`、`ruler_cpu_pct`、`ruler_rss_mb`、`ruler_ratio_cpu`、`ruler_ratio_rss`——**跑过尺才填，没跑如实 null（禁假绿）**。系数已定稿（§1.3：**CPU 1.5× / RSS 2.0×**，豁免条款见 §5.9；判红 = `gpui值 > 尺臂值 × 系数`，三跑中位对三跑中位）。**2026-10-27 D 步已落地**：`wrgate.RulerInput`（尺臂 id/测得 CPU%/rss_end_mb）+ `BuildInput.Ruler` + `wrgate.RulerFromEnv()`（读 `GPUI_RULER_NAME/CPU_PCT/RSS_MB`，P4 跑批流程三跑取中位后导出）；五键列入 `RequiredSchemaKeys` 硬检查，比值=窗值/尺值（分子分母同口径：`/proc` utime+stime 占单核百分比、run 末 RSS），任一侧没量到该比值保持 null，半截环境变量按「没跑」处理并在 stderr 报因。窗口 JSON 逐一嵌尺值在 P4-A 逐行落（未实测的行比值仍是 null，不得借字段装绿）。
 3. 现有各域真源 §5 阈值矩阵不动；本矩阵只在资源轴加对齐线。
 
 ## 5. 新建窗规格（3 扇，模式 2：gate + manual 二合一 + 三证据）
@@ -351,34 +351,6 @@ E2 是两扇常驻动画窗：画面一直在动，原先都没有 Golden。按�
 
 **E2 残留**：`spin_min` 无 Golden 属书面豁免；若将来组件域要求图标形态回归，应在 `ui/kit` 的组件测试里冻结，不在本矩阵补。
 
-### 5.8.4 行 4/5/6/7/8/9/13/16 Flutter 单窗臂（桌面 Xorg `:1`，60s/30s × 3 跑取中位，2026-10-27）
-
-口径与 §5.5 同款：桌面 Xorg 单窗、标准关闭（十二跑全数 `close_request=wm_delete`、
-`exit_during_run=false`，宿主 Xorg PID/log 轮间检查未变）、整进程 CPU、
-`x11grab` 客户区截屏通过（画面非黑）。
-
-| 场景（对行） | 三跑 CPU（%） | 中位 CPU | fps 中位 | RSS 末（MB） | 备注 |
-|---|---|---:|---:|---:|---|
-| full（行 4） | 72.75 / 73.91 / 73.98 | **73.91%** | 53.2 | 167.5 | 全窗重绘未满 60，比值非同帧率等价 |
-| cp（行 13 矢量，100 动画贝塞尔） | 74.63 / 69.80 / 69.90 | **69.90%** | 58.5 | 172.4 | 工具类矢量语义，不与 batch_cap 梯 1:1 对位 |
-| boundary（行 6） | 68.66 / 68.77 / 70.36 | **68.77%** | 55.0 | 182.7 | damage 传播/边界开关族 |
-| overlay（行 8） | 69.77 / 67.16 / 67.47 | **67.47%** | 49.1 | 185.4 | 全屏调光层开关，未满 60 |
-| grid（行 5，异步解码逐格点亮） | 70.35 / 75.75 / 70.15 | **70.35%** | 58.4 | 184.8 | 20s 预热吸收解码突发；稳态 hitch 245–681/60s = 逐格热点 |
-| resize（行 7） | 0.15 / 0.15 / 0.13 | **0.15%** | 0（静页） | 177.6 | 双波几何铁证（测量窗 t=3/11 两跳 1200×800→1000×700→1200×800）；页后静止；波级成本 C 步细采样定 |
-| min（行 9，30s 窗） | 37.45 / 35.95 / 36.19 | **36.19%** | FG 段 53–61 | 183.6 | `minimize@22` 生效：t≥24 fps=0 帧休眠（对 R17 bg 零帧同港）；hidden 铁证在案；30s 聚合 CPU 为 FG22+BG8 混窗 |
-| map_ms（行 16 首帧代理，进程启动→X 客户区 mapped） | — | **270–292ms** 七场中位区间 | — | — | overlay 275.3 / min 276.6 / grid 277.4 / resize 280.6 / boundary 281.6 / cp 284.8 / full 291.8 |
-| list 300s soak（行 11 长跑稳态） | 72.23 / 72.38 / 72.19 | **72.23%** | 55.3 | 196.5 | 稳态斜率（t≥75s，225s 样本）348.8/535.5/541.1 → 中位 **535.5KB/min（valid，线 30000）**；RSS 平稳 194.6→196.5MB（peak 201.8）；hitch ≈12/min 为 list 周期降幅语义；首批采数（P4B）因单窗路径缺 valid 标记作废，同口径重采（P4B2）入账 |
-
-- 与 gpui 同行窗口的比值**不在本节成账**：gpui 侧同场景资源账（R0/R10/R3 族/
-  R8/C7/R11/R17 FG 段/batch_cap vector 段 CPU）要 C 步统一带出后写入 §2 对照
-  列，避免单边比值假绿。
-- Flutter 满帧与否如实带注（full 53.2 / overlay 49.1 / boundary 55.0 未满 60），
-  这些行 CPU 比值读数时必须并排写明两侧 fps。
-- min 的 36.19% 是 30s 混窗聚合（FG 22.1s + BG 12.9s），不可直接对 R17 的 FG
-  段 CPU；FG 段拆分要 C 步按时窗带出。
-- grid 的 decode 段（20s 预热内）不进测量窗；稳态指示 245–681 hitch/60s 属
-  逐格点亮热点的语义成本，gpui R10 对照读数时同语义逐格对齐。
-
 ## 5.8 P4 对照实测——行 10 多实例（2026-10-27，隔离 Wayland 会话 / XWayland `:1`）
 
 按安全口径批量多窗在隔离显示跑：真 GNOME Wayland 会话，Flutter 臂强制
@@ -467,6 +439,89 @@ gpui 门禁日志/JSON）；Flutter 臂逐轮命令见 `tools/ruler_flutter/READ
 RULER_SPIN`）；gpui 臂 `RUN_SECONDS=90 GPUI_RULER_BACKEND=x11 go run
 ./examples/ui_base_multiwin_cap -auto-only`（门禁下限 75s）。
 
+### 5.8.4 行 4/5/6/7/8/9/13/16 Flutter 单窗臂（桌面 Xorg `:1`，60s/30s × 3 跑取中位，2026-10-27）
+
+口径与 §5.5 同款：桌面 Xorg 单窗、标准关闭（十二跑全数 `close_request=wm_delete`、
+`exit_during_run=false`，宿主 Xorg PID/log 轮间检查未变）、整进程 CPU、
+`x11grab` 客户区截屏通过（画面非黑）。
+
+| 场景（对行） | 三跑 CPU（%） | 中位 CPU | fps 中位 | RSS 末（MB） | 备注 |
+|---|---|---:|---:|---:|---|
+| full（行 4） | 72.75 / 73.91 / 73.98 | **73.91%** | 53.2 | 167.5 | 全窗重绘未满 60，比值非同帧率等价 |
+| cp（行 13 矢量，100 动画贝塞尔） | 74.63 / 69.80 / 69.90 | **69.90%** | 58.5 | 172.4 | 工具类矢量语义，不与 batch_cap 梯 1:1 对位 |
+| boundary（行 6） | 68.66 / 68.77 / 70.36 | **68.77%** | 55.0 | 182.7 | damage 传播/边界开关族 |
+| overlay（行 8） | 69.77 / 67.16 / 67.47 | **67.47%** | 49.1 | 185.4 | 全屏调光层开关，未满 60 |
+| grid（行 5，异步解码逐格点亮） | 70.35 / 75.75 / 70.15 | **70.35%** | 58.4 | 184.8 | 20s 预热吸收解码突发；稳态 hitch 245–681/60s = 逐格热点 |
+| resize（行 7） | 0.15 / 0.15 / 0.13 | **0.15%** | 0（静页） | 177.6 | 双波几何铁证（测量窗 t=3/11 两跳 1200×800→1000×700→1200×800）；页后静止；波级细采样挂 §6 遗留 |
+| min（行 9，30s 窗） | 37.45 / 35.95 / 36.19 | **36.19%** | FG 段 53–61 | 183.6 | `minimize@22` 生效：t≥24 fps=0 帧休眠（对 R17 bg 零帧同港）；hidden 铁证在案；30s 聚合 CPU 为 FG22+BG8 混窗 |
+| map_ms（行 16 首帧代理，进程启动→X 客户区 mapped） | — | **270–292ms** 七场中位区间 | — | — | overlay 275.3 / min 276.6 / grid 277.4 / resize 280.6 / boundary 281.6 / cp 284.8 / full 291.8 |
+| list 300s soak（行 11 长跑稳态） | 72.23 / 72.38 / 72.19 | **72.23%** | 55.3 | 196.5 | 稳态斜率（t≥75s，225s 样本）348.8/535.5/541.1 → 中位 **535.5KB/min（valid，线 30000）**；RSS 平稳 194.6→196.5MB（peak 201.8）；hitch ≈12/min 为 list 周期降幅语义；首批采数（P4B）因单窗路径缺 valid 标记作废，同口径重采（P4B2）入账 |
+
+- 与 gpui 同行窗口的比值**不在本节成账**（行 4 已携 R0 同策略对位成账于
+  §5.8.5；行 5/6/8/11 的 gpui 同窗资源账挂 §6 遗留清单）——避免单边比值假绿。
+- Flutter 满帧与否如实带注（full 53.2 / overlay 49.1 / boundary 55.0 未满 60），
+  这些行 CPU 比值读数时必须并排写明两侧 fps。
+- min 的 36.19% 是 30s 混窗聚合（FG 22.1s + BG 12.9s），不可直接对 R17 的 FG
+  段 CPU；FG 段拆分挂 §6 遗留。
+- grid 的 decode 段（20s 预热内）不进测量窗；稳态指示 245–681 hitch/60s 属
+  逐格点亮热点的语义成本，gpui R10 对照读数时同语义逐格对齐。
+
+### 5.8.5 行 15 呈现策略对照：R0（full_paint）/ C2（retained 集成壳）/ R4（retained 局部热点）（桌面 Xorg `:1`，60s × 3 跑取中位，2026-10-27）
+
+三窗同为 `-auto-only` 门禁自退、wrgate JSON 出账；C2 先遇 08:34 陈旧基线红
+（golden 0.0235%，row 12 字体共享涟漪），按已批准口径重播种收口（备份 + 量化 +
+两连全绿）后取数；R0/R4 基线现行全绿直取。
+
+| 窗（策略） | 三跑 CPU（%） | 中位 | fps 中位 | p95 中位 | RSS 50→（MB） | 稳态斜率中位（KB/min） | golden | 像素 | 备注 |
+|---|---|---:|---:|---:|---:|---:|---|---|---|
+| R0（full_paint 全树 paint） | 27.95 / 26.92 / 26.57 | **26.92%** | 59.94 | 17.17 | 50.0→289.8 | 2243.8（valid） | 0×3 | 14/14×3 | 每帧全树 paint，U16 线 ≥5s |
+| C2（retained 集成壳 R3+R4+R4b+R5） | 25.22 / 24.84 / 25.22 | **25.22%** | 59.94 | 18.55 | 50.0→300.8 | 8449.8（valid） | 0 两连+复位 1 跑 | 14/14×3 | damage_sum=0.187（<0.35 线）；重播种后三连 rc=0 |
+| R4（retained 局部热点层） | 23.99 / 24.28 / 24.02 | **24.02%** | 59.97 | 18.42 | 49.9→295.5 | 5166.2（valid） | 0×3 | 15/15×3 | 纯局部 HOT 层对照 |
+
+**读数（三句）**：
+1. **同壳族策略 A/B**：R0（full_paint）26.92% vs C2（retained 集成）25.22%——
+   retained 在本负载省约 6.3% CPU（相对值 0.94×），且 damage_sum 0.187 ≪ 0.35
+   线（真实重绘像素受控）；RSS 差 ~11MB 属内容差（C2 多 R5 回放区两块位图）。
+2. **三窗全部 60fps 满拍**（59.94–59.97），呈现策略不降帧；斜率全 valid 且
+   1871–9745KB/min 远低于 30000 线（R0 全树 paint 每帧触碰全资产，斜率波动
+   4993/2243/1871 大属采样承载，如实带注）。
+3. **R4 的 24.02% 是「局部热点 retained」地板参考**：它只重绘 5x3 静态格中的
+   HOT 层，负载本来就轻，不能拿它与 R0 差值宣称「retained 省 X%」——同壳同内容
+   的严格 A/B 需可切策略对照窗（C2 是集成本、非逐字同内容），挂 §6 遗留。
+
+复现：`RUN_SECONDS=60 <bin> -auto-only`（bin = `go build -o /tmp/p4c_{r0,r4,c2}
+./examples/{ui_wr_r0_fullpaint,ui_wr_r4_composite,ui_wr_c2_retained_scene}`）；
+原三跑 JSON：`/tmp/opencode/ruler_runs/P4C/{r0,c2,r4}_run{1..3}.stdout`、
+C2 复位三连 `P4C/c2v_run{1..3}.stdout`；旧 C2 基线备份
+`/tmp/opencode/old_c2_golden_backup/`。
+
+### 5.9 E 步：`GPUI_RULER_*` 窗口接线 + 系数定稿（2026-10-27 实测 / 2026-10-28 拍板）
+
+**接线（D 步字段的消费端落地）**：五窗 `BuildReport` 挂 `Ruler: wrgate.RulerFromEnv()`——
+`ui_ruler_parity`（live 模式 JSON）、`ui_wr_r0_fullpaint` / `ui_wr_c2_retained_scene` /
+`ui_wr_r4_composite` / `ui_base_multiwin_cap`（门禁 JSON）。env 三件套
+`GPUI_RULER_NAME` / `GPUI_RULER_CPU_PCT` / `GPUI_RULER_RSS_MB` 齐才生效，缺任一字段
+JSON 五对齐线键保持 null（禁假绿语义，`report.go` L268–283）。
+
+**接线实证（wire-probe）**：臂侧数值用假值注名 `*-wire-probe`，只证管道不为账：
+- parity live（`RUN_SECONDS=8` 自关）：`ruler_name/ruler_cpu_pct/ruler_rss_mb` 全种、
+  `ruler_ratio_cpu=0.65` / `ruler_ratio_rss=0.82` 自动成算（JSON：
+  `/tmp/opencode/ruler_runs/parity_wire_live.stdout`）。注意 parity 的
+  `-auto-only` 门禁路径走自家 `RULER_GATE` JSON（`runGate` 后即退），不走
+  wrgate 报告——尺比值在 live 模式 JSON，两模态分工如实注明。
+- 门禁窗三连 rc=0 + 比值成算 + 门禁零失败（`/tmp/opencode/ruler_runs/wire_{r0,c2,r4}.stdout`）。
+- multiwin 接线实证挂 §6 遗留（隔离会话窗活，桌面不跑 8 窗）。
+
+**系数定稿（§1.3 占位数字 → 数据定稿；P4 依实测分布，2026-10-28 用户拍板）**：
+
+| 指标 | 定稿系数 | 当前最紧 adverse 样本（gpui 高于尺臂） | 豁免/注 |
+|---|---:|---|---|
+| CPU | **1.5×**（占位 1.2 紧：现账最紧恶劣样本后余量仅 ~13pp，扛不住两跑中位的 ±2pp 波动） | Godot 0.94×（gpui 高 6.4%，行 13） | ①双侧 CPU < 1% 的 idle 级行不走系数，走绝对差 Δ≤0.5pp 判红（text idle 0.02 vs 0.42 的 21× 是假信号）；②Flutter 臂未满 60fps 的行（full 53.2 / overlay 49.1 / boundary 55.0 / soak 55.3）CPU 比值必须双侧带 fps 注，不单独作对齐判据 |
+| RSS | **2.0×** | 行 4 对 R0 **1.73×**（289.8 vs 167.5MB）；multiwin N1 1.43× | text 族（m5/parity text）豁免：字体位图图集进程级共享粒度与臂结构不同源，row 12 已把真实泄漏修掉（1.67GB→464MB），剩余差值是常驻图集粒度语义，写豁免注不抬系数；多窗 N≥2 的 gpui 长期大幅更省（2.80–5.57×）不改条款 |
+
+规则落点：系数入 §1.3 与 §4 对齐线公式；判红 = `gpui值 > 尺臂值 × 系数`
+（三跑中位对三跑中位）；任何豁免行必须书面挂号（本节 + §2 该行）。
+
 ## 6. 实施阶段与 DoD
 
 | 阶段 | 内容 | DoD | 量级 |
@@ -478,13 +533,22 @@ RULER_SPIN`）；gpui 臂 `RUN_SECONDS=90 GPUI_RULER_BACKEND=x11 go run
 
 **P3 进度（2026-10-27 更新）**：三扇新窗（idle/batch_cap/multiwin_cap）两连 gate + manual 已完成（§5.1–5.3）；多窗 `-race` 清零；13 扇尾账 Golden 两连全 PASS（§5.4，13→0）；IME 颜色字形分类引擎修复落地；两处既有红已定案（用例迁移 + 断言口径，§5.4）；E1 14 扇机器证据已补（§5.6，其中 appkit/win32 本机诚实 SKIP、待真机）。E2 已定案（jumprope 冻结 Golden 两连 PASS、spin_min 豁免）；六扇 IME 真机人工验收已完成并修掉光标/选区引擎缺陷（§5.4.1/§5.4.2）；maskops 可录制掩码后处理已收，两连 `screen=0.0000%`/`pixel=18/18`/`golden=0.0000%`/`live_only_skips=0`/`mask_skips=0`（§5.4.1、线程计划 §18.1 #19）；**Flutter stable 3.47.8 与 Godot 4.5.1 对照尺已立，三臂真实出画；Flutter/Godot 基准各三跑取中位；gpui 同语义 parity 四场景各三跑中位（spin 14.16% / list 22.99% / text 0.42% / godot 20.33%），四张 Golden 重出两连零差异（§5.5.3）**；旧 P1 黑屏阻塞解除。故 **P3 收口（2026-10-27），P4 未开工**；P4 接手全矩阵对照、系数定稿、m5/parity text RSS 异常定位。
 
-**P4 进度（2026-10-27 更新）**：**D 步完成（wrgate 对照字段落地，§4）**——`Report` 五对齐线字段（未接尺显式 `null`）+ `RulerInput`/`RulerFromEnv` + `RequiredSchemaKeys` 纳检，单测五测绿、全仓编译过；行 1/2/3 对照沿用 P3 成果。接下来 A 步（行 4/5/6/7/8/9/10/11/16 逐行建对位臂采数）→ B（行 11 长跑 300s）→ C（行 12/15/17 立账）→ E（系数定稿）；行 14 挂视频线不进本轮验收；行 17 尺臂（Godot 压力场景）后置作观察项。
+**P4 进度（2026-10-27 更新）**：**D 步完成（wrgate 对照字段落地，§4）**——`Report` 五对齐线字段（未接尺显式 `null`）+ `RulerInput`/`RulerFromEnv` + `RequiredSchemaKeys` 纳检，单测五测绿、全仓编译过；行 1/2/3 对照沿用 P3 成果。**A 步完成**：行 10 多实例（隔离 Wayland 会话 12 轮，§5.8/§5.8.3）+ 行 4/5/6/7/8/9/13/16 七场单窗臂（桌面 Xorg 12 轮，§5.8.4）。**B 步完成**：行 11 长跑 300s×3（稳态斜率 535.5KB/min valid，§5.8.4）。**C 步完成**：行 12 修复归档、行 15 R0/C2/R4 策略对照成表（§5.8.5）、行 17 立账计划登记（§2 行 17）。**E 步完成**：五窗 `GPUI_RULER_*` 接线（multiwin 接线实证挂 §6 遗留 7）、C2/parity 陈旧金基线收口（row 12 字体共享 + `dc5248de` 壳对齐涟漪，§5.8.5/§9）、系数定稿（2026-10-28 拍板：CPU 1.5×/RSS 2.0× + 双豁免 + text 族 RSS 豁免，§5.9）。行 14 挂视频线不进本轮验收；行 17 尺臂（Godot 压力场景）后置作观察项。
+
+**P4 遗留清单（§2 各行指向，2026-10-27 登记）**：
+1. 行 5/6/8/11 的 gpui 同窗资源账带出成比值写回 §2（R15/C10 等门禁 JSON 自带 cpu/rss 的可复用既有两连记录；缺字段的窗跑 60s 对照口径补采数）；
+2. 行 7 resize/DPR 双臂波级成本细采样（60s 整段聚合分不出单波成本，两臂同口径）；
+3. 行 9 最小化的 FG/BG 段 CPU 拆分（Flutter 臂 36.19% 是 FG22+BG8 混窗聚合，不可直比 R17 FG 段）；
+4. 行 16 遮挡恢复：Flutter 臂 WM 协议无「遮挡→恢复」事件路径，恢复臂暂缺（人工恢复路径可选）；
+5. 行 15 严格同内容 full vs retained「可切策略」对照窗（现 R0/C2 为同壳族策略对照、非逐字同内容）；
+6. 行 17 专项资源场景窗：预算拒增曲线（`BudgetRefusals`）+ `GPUI_FAULT_OOM` 注入后 `hal.VramLiveBytes()` 回落断言——窗未立不标绿；
+7. multiwin 接线实证 + 行 10 臂 wrgate JSON 复跑（`GPUI_RULER_*` 带 env）在隔离 Wayland 会话补（桌面不跑 8 窗）。
 
 ## 7. 风险与边界
 
 1. **Flutter 构建链**：stable 3.47.8 已在 940MX 验证（无 clang，wrapper 转 gcc/g++；Impeller OpenGLESSDF 出画，§5.5）。master 3.50 的 Impeller 黑屏仍存在，不得拿 master 当尺；升 SDK 必须重跑三窗出画与三跑采数。
 2. **Godot 版本/预编译包**：固定官方 4.5.1-stable + sha256（§3.2）；demo 的 `config/features=4.7` 在 4.5.1 实测可 import，但换版本需重验；不源码编译大工程。
-3. **系数后置**：对齐线系数在 P4 基线出来前不得当验收线用（防新的自拍阈值）；
+3. **系数防自拍条款（已按期解除）**：占位期（P4 基线出来前）系数不得当验收线用的约束已随 2026-10-28 定稿解除；此后改系数必须带新实测依据并走 §9 修订表，防新的自拍阈值；
 4. **换机门**：阈值随机器重标（照 2.5D GAP_PLAN §5 先例），本矩阵数字绑定本机；
 5. **范围边界**：2D 桌面底座（不含 3D、不含移动端）；CPU 口径不含合成器侧；多窗单 GL 线程天花板是观察项不是缺陷。实测：4 窗平均 60fps，8 窗 31fps，总呈现 ≈250 帧/秒；单帧 CPU 成本 2.65–3.23ms 稳定，CPU 未饱和（71.7%）——瓶颈是共享呈现串行吞吐。
 
@@ -605,6 +669,8 @@ RUN_SECONDS=90 GPUI_RULER_BACKEND=x11 go run ./examples/ui_base_multiwin_cap -au
 
 | 日期 | 内容 |
 |---|---|
+| 2026-10-28 | **P4-E 对齐线系数定稿（2026-10-28 拍板）+ 五窗 `GPUI_RULER_*` 接线落地 + 行 15 策略对照成表（§5.8.5/§5.9）**：**系数定稿 CPU 1.5× / RSS 2.0× 入 §1.3/§4**（判红 = gpui 值 > 尺臂值 × 系数，三跑中位对三跑中位；占位 1.2×/1.5× 作废——1.2× 过最紧恶劣样本 Godot 0.94× 后余量仅 ~13pp 扛不住 ±2pp 中位波动；RSS 2.0× 罩最紧行 4 对 R0 1.73× 与 multiwin N1 1.43×）。豁免两条 + 一注：①双侧 CPU < 1% 的 idle 级行不走系数走绝对差 Δ≤0.5pp（text idle 0.02 vs 0.42 的 21× 是假信号）；②Flutter 臂未满 60fps 的行（full 53.2 / overlay 49.1 / boundary 55.0 / soak 55.3）CPU 比值必须双侧带 fps 注、不单独作对齐判据；③text 族 RSS 豁免（字体位图图集进程级共享粒度与臂结构不同源，row 12 已把真实泄漏修掉 1.67GB→464MB，剩余差值是常驻图集粒度语义）。**接线**：五窗 `BuildReport` 挂 `Ruler: wrgate.RulerFromEnv()`——parity（live 模式 JSON；其 `-auto-only` 走自家 RULER_GATE 不走 wrgate 报告，两模态分工注 §5.9）+ r0/c2/r4/multiwin（门禁 JSON）；env 三件套不齐五键保持 null 禁假绿。wire-probe 实证：parity live 五 ruler 字段全非 null、比值自动成算 0.65×/0.82×（臂值假值注名 `*-wire-probe` 只证管道）；r0/c2/r4 门禁三连 rc=0+比值成算+零失败；multiwin 接线实证挂 §6 遗留 7（隔离 Wayland 会话补，桌面不跑 8 窗）。**行 15 成表（§5.8.5）**：R0 full_paint 26.92%/59.94fps/289.8MB vs C2 retained 集成壳 25.22%/300.8MB（damage_sum 0.187≪0.35 线，省 ~6.3% CPU）、R4 局部地板 24.02%；三窗满拍、斜率全 valid 低于 30000 线；严格逐字同内容可切策略对照窗挂 §6 遗留 5。§0/§1.3/§2 行 4/15/§4/§6/§7 同步。 |
+| 2026-10-28 | **P4-E C2/parity 陈旧金基线收口（六窗九文件重播种：备份+量化+两连全绿）**：row 12 字体源共享（`32a68b64`，10-27 11:22）与壳对齐（`dc5248de`，10-27 10:07）两笔合法引擎提交把 08:34 前的旧基线甩陈旧。铁证链：`evidence.go` L117 `evaluateGolden` 以 `_base.png` 对拍、旧基线 mtime 10-27 08:19/08:34（提交 `7c4885c6`）、两笔引擎提交 10:07/11:22，时间全对上。量化与处置：C2 `showcase_c2_retained_scene{,_base}.png` 旧基线 diff 内容区 0.0235%（821184px 门禁口径）/整幅 0.2595%，重播种后三连 rc=0、golden=0（`P4C/c2v_run1..3`）；parity 四张 golden + 四张 showcase 量化 spin 154px/0.1003%（图标边 AA ±1）、text 30806px/3.2090%、list 24266px/2.5277%、godot 16042px/1.6710%，每场景先播种（rc=1 为设计——seed 不算 PASS）再两连验收 rc=0、golden=0.0000%、pass=true（12 份门禁 JSON `/tmp/opencode/ruler_runs/parity_reseed.*`）。旧基线备份 `/tmp/opencode/old_c2_golden_backup/`、`/tmp/opencode/old_parity_goldens_p4e/`（/tmp 重启即失，量化数字已在此存档）。 |
 | 2026-10-27 | **P4-B 行 11 长跑（300s×3）收官（§5.8.4 补 soak 行）**：Flutter list 300s 三跑 CPU 中位 72.23%、RSS 194.6→196.5MB 平稳（peak 201.8）、稳态窗口斜率中位 535.5KB/min（**valid**，稳态窗 t≥75s/225s 样本，健康线 30000）、fps 55.3、hitch≈12/min（list 周期降幅）。工程：`measure.py` 单窗路径补 `rss_slope_steady_kb_per_min` + `rss_slope_valid`/`rss_slope_scope`（与 wrgate 同语义：剔 max(25% 时长,15s) 预热爬坡、样本窗 <30s 判 invalid）——首批三跑因缺 valid 标记作废，同口径重采入账。§2 行 11 对照列更新（gpui R15/C10 资源账比值留 C 步）。 |
 | 2026-10-27 | **P4-A 桌面单窗 12 轮收官（cp/resize/min/grid 各 3）+ 七场 Flutter 臂成表（§5.8.4）**：cp 69.90%/58.5fps、resize 静页双波（0.15%，两跳几何铁证）、min 36.19%（FG 53–61fps→t≥24 零帧休眠，对 R17 bg 同港）、grid 70.35%（解码突发预热吸收、稳态 hitch 逐格热点）、+ 前批 full/boundary/overlay；行 16 map_ms 七场 270–292ms。十二条标准关闭全绿、Xorg 轮间检查未变。§2 行 4/5/6/7/8/9/13/16 对照列更新（比值留 C 步带出 gpui 资源账后成账）；发现并修复 grid 素材未进 bundle（pubspec `assets/` 不递归子目录，补 `assets/grid/` 重 build，md5 同公式不动）。 |
 | 2026-10-27 | **P4-A 行 10 对照成表（Flutter 多实例臂 + gpui 臂，隔离 Wayland 会话/XWayland）**：Flutter N=1/2/4/8 各 3×60s 全效（CPU 中位 27.19/62.16/131.27/176.16%，fps 61.0/60.9/59.2/41.0，RSS 162.5/326.5/653.0/1305.3MB）；gpui `ui_base_multiwin_cap -auto-only`（RUN_SECONDS=90，XWayland）门禁全绿：阶梯 CPU 22.42/43.83/81.33/111.0%、单窗摊销 13.87%（8 窗）、max60=4/maxsteady60=2、golden 逐窗 0.0000%（XWayland 上与桌面基线逐位一致）+ 像素 16/16 + RSS 斜率 valid。比值 CPU 1.21→1.61×、8 窗 RSS 5.57×、同时 8 窗总吞吐贴同一机器饱和 ~316–328fps（Flutter 8×41 / gpui 8×39.6）。环境限制如实记账：Wayland 会话机器取像素三条路不通（Shell 截图 API 白名单/gnome-screenshot 缺装/GL 窗 XGetImage BadMatch），`measure.py` 截图记 unavailable 不炸轮，行 10 像素证据转人工目击（用户确认全程在动）；桌面单窗轮口径不变。N=1 走单窗路径发现并修复单窗截图块缺回退链（此前 XWayland 三跑全废，重跑三效）。工具改动：`measure.py` 回退链、`/tmp` 批跑脚本；证据目录 `/tmp/opencode/ruler_runs/P4A_multi/`。详见 §5.8。 |
