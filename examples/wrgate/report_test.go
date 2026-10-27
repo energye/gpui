@@ -324,3 +324,134 @@ func TestBuildReport_DebugRepaintOffStateExplicit(t *testing.T) {
 		}
 	}
 }
+
+// TestRuler_NullWhenNotRun: 对齐线 fields must exist in every report and stay
+// JSON null when no ruler arm was measured ("跑过尺才填，没跑如实 null").
+// Null is evidence of "not run"; an omitted key would look like lost data.
+func TestRuler_NullWhenNotRun(t *testing.T) {
+	r := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID: "R2", Scenario: "ui_wr_r2_spin_idle",
+		Snap: scheduler.FrameMetrics{
+			PresentPolicy: scheduler.PresentPolicyFullPaint,
+			VSyncSource:   "fallback",
+			CPUPctAvg:     14.16, RSSEndKB: 450560,
+		},
+		PresentCount: 60, ElapsedSec: 8,
+	})
+	b, err := wrgate.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{
+		`"ruler_name":null`, `"ruler_cpu_pct":null`, `"ruler_rss_mb":null`,
+		`"ruler_ratio_cpu":null`, `"ruler_ratio_rss":null`,
+	} {
+		if !strings.Contains(string(b), key) {
+			t.Fatalf("ruler field must be explicit null when not run, missing %s:\n%s", key, b)
+		}
+	}
+	if err := wrgate.CheckSchema(b); err != nil {
+		t.Fatalf("schema must pass with null ruler fields: %v", err)
+	}
+}
+
+// TestRuler_FilledAndRatios: with a real RulerInput, name/numbers fill and
+// ratio = window value / ruler value (matrix §4 alignment rule: ratio <= 系数).
+// CPU numerator/denominator share the /proc utime+stime percent-of-one-core
+// scope; RSS pairs the window run-end rss_end_kb with the ruler rss_end_mb.
+func TestRuler_FilledAndRatios(t *testing.T) {
+	r := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID: "R2", Scenario: "ui_wr_r2_spin_idle",
+		Snap: scheduler.FrameMetrics{
+			PresentPolicy: scheduler.PresentPolicyFullPaint,
+			VSyncSource:   "fallback",
+			CPUPctAvg:     14.16, RSSEndKB: 450560, // 440.0 MB end RSS
+		},
+		PresentCount: 60, ElapsedSec: 8,
+		Ruler: &wrgate.RulerInput{Name: "flutter_spin", CPUPct: 25.41, RSSMB: 300.0},
+	})
+	if r.RulerName == nil || *r.RulerName != "flutter_spin" {
+		t.Fatalf("ruler_name=%v", r.RulerName)
+	}
+	if r.RulerCPUPct == nil || *r.RulerCPUPct != 25.41 {
+		t.Fatalf("ruler_cpu_pct=%v", r.RulerCPUPct)
+	}
+	if r.RulerRSSMB == nil || *r.RulerRSSMB != 300.0 {
+		t.Fatalf("ruler_rss_mb=%v", r.RulerRSSMB)
+	}
+	if r.RulerRatioCPU == nil {
+		t.Fatal("ruler_ratio_cpu must be computed when both sides measured")
+	}
+	wantCPU := 14.16 / 25.41
+	if diff := *r.RulerRatioCPU - wantCPU; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("ruler_ratio_cpu=%v want %v", *r.RulerRatioCPU, wantCPU)
+	}
+	if r.RulerRatioRSS == nil {
+		t.Fatal("ruler_ratio_rss must be computed when both sides measured")
+	}
+	wantRSS := (450560.0 / 1024.0) / 300.0
+	if *r.RulerRatioRSS != wantRSS {
+		t.Fatalf("ruler_ratio_rss=%v want %v", *r.RulerRatioRSS, wantRSS)
+	}
+	b, err := wrgate.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wrgate.CheckSchema(b); err != nil {
+		t.Fatalf("schema must pass with filled ruler fields: %v", err)
+	}
+}
+
+// TestRuler_ZeroSideKeepsNullRatio: a ruler arm measured but with an
+// unusable value (0) on one side keeps that ratio null — no 0, no +Inf, no
+// fabricated number. The measured ruler numbers themselves still fill.
+func TestRuler_ZeroSideKeepsNullRatio(t *testing.T) {
+	r := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID: "R2", Scenario: "ui_wr_r2_spin_idle",
+		Snap: scheduler.FrameMetrics{
+			PresentPolicy: scheduler.PresentPolicyFullPaint,
+			VSyncSource:   "fallback",
+			CPUPctAvg:     14.16, // rss_end_kb left 0 → no process sample path
+		},
+		PresentCount: 60, ElapsedSec: 8,
+		Ruler: &wrgate.RulerInput{Name: "flutter_spin", CPUPct: 0, RSSMB: 300.0},
+	})
+	if r.RulerRatioCPU != nil {
+		t.Fatalf("ruler_ratio_cpu=%v want null (ruler CPU unmeasured)", *r.RulerRatioCPU)
+	}
+	if r.RulerRatioRSS != nil {
+		t.Fatalf("ruler_ratio_rss=%v want null (window rss_end_kb=0)", *r.RulerRatioRSS)
+	}
+	if r.RulerName == nil || *r.RulerName != "flutter_spin" || r.RulerRSSMB == nil || *r.RulerRSSMB != 300.0 {
+		t.Fatalf("measured ruler numbers must still fill: %+v", r)
+	}
+}
+
+// TestRulerFromEnv: P4 runners export GPUI_RULER_* after the ruler median;
+// unset → nil (not run); partial/garbage → nil + stderr warning (never half a
+// ruler); complete → parsed RulerInput.
+func TestRulerFromEnv(t *testing.T) {
+	t.Setenv("GPUI_RULER_NAME", "")
+	t.Setenv("GPUI_RULER_CPU_PCT", "")
+	t.Setenv("GPUI_RULER_RSS_MB", "")
+	if got := wrgate.RulerFromEnv(); got != nil {
+		t.Fatalf("unset exports must yield nil, got %+v", got)
+	}
+
+	t.Setenv("GPUI_RULER_NAME", "flutter_spin")
+	if got := wrgate.RulerFromEnv(); got != nil {
+		t.Fatalf("partial export (no numbers) must yield nil, got %+v", got)
+	}
+
+	t.Setenv("GPUI_RULER_CPU_PCT", "not-a-number")
+	t.Setenv("GPUI_RULER_RSS_MB", "300.0")
+	if got := wrgate.RulerFromEnv(); got != nil {
+		t.Fatalf("garbage export must yield nil, got %+v", got)
+	}
+
+	t.Setenv("GPUI_RULER_CPU_PCT", "25.41")
+	got := wrgate.RulerFromEnv()
+	if got == nil || got.Name != "flutter_spin" || got.CPUPct != 25.41 || got.RSSMB != 300.0 {
+		t.Fatalf("complete export must parse, got %+v", got)
+	}
+}

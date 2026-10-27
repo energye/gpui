@@ -7,6 +7,8 @@ package wrgate
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/energye/gpui/ui/scheduler"
@@ -90,8 +92,66 @@ type Report struct {
 	// omitted field that looks like missing evidence.
 	DebugRepaintDraws int64 `json:"debug_repaint_draws"`
 	DebugRepaintOn    bool  `json:"debug_repaint_on"`
+	// 对齐线 (RENDER_BASE_RESOURCE_MATRIX §4): same-machine comparison-ruler
+	// fields. All five keys are always present in the JSON; pointer fields are
+	// nil until a ruler run actually happened, marshaling as JSON null —
+	// "没跑如实 null（禁假绿）". Ratio = window value / ruler value, so the
+	// matrix alignment rule reads 行指标 ≤ 同机对照 × 系数 as ratio ≤ 系数.
+	RulerName     *string  `json:"ruler_name"`
+	RulerCPUPct   *float64 `json:"ruler_cpu_pct"`
+	RulerRSSMB    *float64 `json:"ruler_rss_mb"`
+	RulerRatioCPU *float64 `json:"ruler_ratio_cpu"`
+	RulerRatioRSS *float64 `json:"ruler_ratio_rss"`
 	// AbilityExtra holds R-specific keys (optional).
 	AbilityExtra map[string]any `json:"ability_extra,omitempty"`
+}
+
+// RulerInput is one ruler-arm measurement feeding the 对齐线 fields
+// (RENDER_BASE_RESOURCE_MATRIX §4). Produced by tools/ruler_flutter
+// scripts/measure.py against the ruler arm (three-run median, P4 procedure);
+// runners re-export the median value and wrgate.RulerFromEnv hands it to the
+// window's BuildInput.
+type RulerInput struct {
+	// Name is the ruler arm id recorded by measure.py (e.g. "flutter_spin",
+	// "godot_bullet_shower"); empty means "not measured" — never fabricate.
+	Name string
+	// CPUPct is the ruler arm's whole-process mean CPU%, percent of one core
+	// (/proc utime+stime, no Xorg/compositor side — same scope as this
+	// window's cpu_pct_avg). measure.py report key: "cpu_pct".
+	CPUPct float64
+	// RSSMB is the ruler arm's run-end resident MB (measure.py "rss_end_mb"),
+	// paired with this window's rss_end_kb.
+	RSSMB float64
+}
+
+// RulerFromEnv reads optional GPUI_RULER_NAME / GPUI_RULER_CPU_PCT /
+// GPUI_RULER_RSS_MB environment exports set by P4 runners after measuring the
+// ruler arm (three-run median). No GPUI_RULER_NAME → (nil report, ruler not
+// run). A partially set or unparseable export is an orchestrator bug: it is
+// reported on stderr and treated as "not measured", so no ratio is ever
+// fabricated from half a ruler.
+func RulerFromEnv() *RulerInput {
+	name := os.Getenv("GPUI_RULER_NAME")
+	if name == "" {
+		return nil
+	}
+	r := &RulerInput{Name: name}
+	var bad []string
+	if v, err := strconv.ParseFloat(os.Getenv("GPUI_RULER_CPU_PCT"), 64); err == nil {
+		r.CPUPct = v
+	} else {
+		bad = append(bad, "GPUI_RULER_CPU_PCT")
+	}
+	if v, err := strconv.ParseFloat(os.Getenv("GPUI_RULER_RSS_MB"), 64); err == nil {
+		r.RSSMB = v
+	} else {
+		bad = append(bad, "GPUI_RULER_RSS_MB")
+	}
+	if len(bad) > 0 {
+		fmt.Fprintf(os.Stderr, "wrgate: GPUI_RULER_%s unset/unparseable; ruler metrics stay null (no fabricated ratio)\n", strings.Join(bad, ","))
+		return nil
+	}
+	return r
 }
 
 // BuildInput is everything needed to assemble a Report from a finished run.
@@ -105,6 +165,10 @@ type BuildInput struct {
 	SurfaceAreaPx int64 // logical w*h; 0 → damage_ratio 0
 	Warmup        bool
 	Extra         map[string]any
+	// Ruler feeds the 对齐线 fields (RENDER_BASE_RESOURCE_MATRIX §4): set from
+	// wrgate.RulerFromEnv when P4 runners measured the ruler arm for this row.
+	// nil = no ruler run — five ruler_* JSON keys stay null (禁假绿).
+	Ruler *RulerInput
 }
 
 // BuildReport maps a metrics snapshot into the §2.2 shell.
@@ -198,6 +262,27 @@ func BuildReport(in BuildInput) Report {
 	if r.VSyncSource == "" {
 		r.VSyncSource = "unknown"
 	}
+	// 对齐线: fill ruler fields only from a real RulerInput (BuildInput.Ruler
+	// via wrgate.RulerFromEnv). Without a ruler run everything above stays a
+	// nil pointer so the JSON carries explicit nulls — the honest "not run".
+	// Ratios need both sides measured (>0); a missing side keeps that single
+	// ratio null instead of inventing 0 or +Inf.
+	if in.Ruler != nil && in.Ruler.Name != "" {
+		name := in.Ruler.Name
+		r.RulerName = &name
+		cpu := in.Ruler.CPUPct
+		r.RulerCPUPct = &cpu
+		rss := in.Ruler.RSSMB
+		r.RulerRSSMB = &rss
+		if cpu > 0 && r.CPUPctAvg > 0 {
+			ratio := r.CPUPctAvg / cpu
+			r.RulerRatioCPU = &ratio
+		}
+		if rss > 0 && r.RSSEndKB > 0 {
+			ratio := (float64(r.RSSEndKB) / 1024.0) / rss
+			r.RulerRatioRSS = &ratio
+		}
+	}
 	return r
 }
 
@@ -215,6 +300,9 @@ var RequiredSchemaKeys = []string{
 	"cpu_pct_avg", "cpu_ui_pct", "cpu_raster_pct",
 	"rss_start_kb", "rss_end_kb", "rss_peak_kb", "rss_slope_kb_per_min", "rss_slope_valid",
 	"gpu_ops", "cpu_fallback_ops", "elapsed_sec",
+	// 对齐线 (matrix §4): keys must exist in every report; nil ruler marshals
+	// them as JSON null ("没跑如实 null"), never as missing evidence.
+	"ruler_name", "ruler_cpu_pct", "ruler_rss_mb", "ruler_ratio_cpu", "ruler_ratio_rss",
 }
 
 // CheckSchema ensures the marshaled JSON contains required keys (string search).
