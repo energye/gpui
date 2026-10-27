@@ -738,6 +738,27 @@ def main() -> int:
             den = sum((x - mx) ** 2 for x in xs)
             slope_kb_s = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / den if den else 0.0
             result["rss_slope_kb_per_min"] = round(slope_kb_s * 60.0, 1)
+            # 稳态窗口斜率 + 有效性标记:与 wrgate 同语义——剔除
+            # max(25% 时长, 15s) 的预热爬坡段后再拟合;样本窗口 <30s 判 invalid。
+            steady_t0 = max(0.25 * args.duration, 15.0)
+            pairs = list(rss_series)
+            spairs = [(t, y) for t, y in pairs if t >= steady_t0]
+            if len(spairs) >= 2 and spairs[-1][0] - spairs[0][0] >= 30.0:
+                sx = [p[0] for p in spairs]
+                sy = [p[1] for p in spairs]
+                smx = sum(sx) / len(sx)
+                smy = sum(sy) / len(sy)
+                sden = sum((x - smx) ** 2 for x in sx)
+                sslope = sum((x - smx) * (y - smy) for x, y in zip(sx, sy)) / sden if sden else 0.0
+                result["rss_slope_steady_kb_per_min"] = round(sslope * 60.0, 1)
+                result["rss_slope_valid"] = True
+                result["rss_slope_scope"] = (
+                    f"steady window t>={steady_t0:.0f}s "
+                    f"({spairs[-1][0] - spairs[0][0]:.0f}s of samples)"
+                )
+            else:
+                result["rss_slope_valid"] = False
+                result["rss_slope_scope"] = f"steady window t>={steady_t0:.0f}s too short"
         result["app_metrics"] = parse_app_metrics(stdout_path, measured_t0=args.warmup)
         result["exit_during_run"] = proc.poll() is not None
     except Exception as e:
