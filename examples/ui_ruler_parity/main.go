@@ -63,6 +63,14 @@ type sceneSpec struct {
 	tick func(dt float64) bool
 	// onEvent is optional input handling (Godot player follows the pointer).
 	onEvent func(platform.Event)
+	// onResize is optional live-content resizing (Godot's viewport follows
+	// the window; the Flutter rulers stay fixed at their reference size).
+	onResize func(w, h int)
+	// cursor selects the initial pointer shape; Godot hides it like the
+	// upstream Input.set_mouse_mode(MOUSE_MODE_HIDDEN).
+	cursor platform.Cursor
+	// resizable matches the reference window; false keeps a fixed ruler.
+	resizable bool
 
 	goldenRects []wrkit.GoldenRect
 	probes      []wrkit.PixelProbe
@@ -138,7 +146,7 @@ func main() {
 
 	win, err := platform.Open(platform.Options{
 		Width: spec.winW, Height: spec.winH, Title: spec.title,
-		Decorations: true, Resizable: false,
+		Decorations: true, Resizable: spec.resizable, Cursor: spec.cursor,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: window open (needs_gpu_window):", err)
@@ -173,6 +181,9 @@ func main() {
 		OnEvent: func(ev platform.Event) {
 			if ev.Type == platform.EventCloseRequested || ev.Type == platform.EventClose {
 				fmt.Fprintf(os.Stderr, "ui_ruler_parity: close (%s)\n", win.Backend())
+			}
+			if ev.Type == platform.EventResize && ev.Width > 0 && ev.Height > 0 && spec.onResize != nil {
+				spec.onResize(ev.Width, ev.Height)
 			}
 			if spec.onEvent != nil {
 				spec.onEvent(ev)

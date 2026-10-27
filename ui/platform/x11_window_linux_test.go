@@ -150,9 +150,10 @@ func TestX11RealWindowControls(t *testing.T) {
 	ctl.Show()
 	pumpUntil(t, host, func() bool { return ctl.IsVisible() }, "reshown after Show")
 
-	// Cursors — each shape must not panic (XCreateFontCursor path).
+	// Cursors — each shape must not panic (XCreateFontCursor path; hidden
+	// uses a 1x1 transparent pixmap cursor instead).
 	for _, c := range []Cursor{CursorDefault, CursorText, CursorPointer, CursorCrosshair,
-		CursorWait, CursorResizeH, CursorResizeV, CursorResizeNE, CursorResizeNW} {
+		CursorWait, CursorResizeH, CursorResizeV, CursorResizeNE, CursorResizeNW, CursorHidden} {
 		ctl.SetCursor(c)
 	}
 

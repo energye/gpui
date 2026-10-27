@@ -1,6 +1,6 @@
 # Wayland 标准窗口（完整 CSD+交互）— 设计真源
 
-> **版本：v1.5** | 日期：2026-08-19  
+> **版本：v1.19** | 日期：2026-10-27  
 > **地位：** `ui/platform` Wayland 窗口标准实现唯一设计真源。  
 > **并读：** [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)（分层）· [`ENGINE_INPUT_IME_PLAN.md`](./ENGINE_INPUT_IME_PLAN.md)（输入/IME 已落地）  
 > **参照实现：** sctk `shell/xdg/window`（状态机）· gogpu `internal/platform/wayland/csd*.go`（CSD 绘制）· GTK4 `gtkimcontextwayland.c`（输入）· winit wayland。
@@ -97,6 +97,7 @@ state 值：1=maximized 2=fullscreen 3=resizing 4=activated
 - `wl_cursor_theme_load(NULL, 24, shm)` → theme；`wl_cursor_theme_get_cursor(theme, name)` → cursor image（含 `wl_buffer`）。
 - `wl_pointer.set_cursor(serial, surface, hotspot_x, hotspot_y)`（opcode 0，签名 `ouii`；`release`=1）。
 - 光标名：`sb_v_double_arrow`（N/S）、`sb_h_double_arrow`（E/W）、`top_left_corner`（NW/SE）、`top_right_corner`（NE/SW）、默认 `left_ptr`。
+- 隐藏指针：`CursorHidden` 发 `set_cursor(serial, NULL, 0, 0)`——协议里 NULL surface 就是“无光标”，mutter 按隐藏处理；**恢复可见必须显式重放主题 `left_ptr`，不能再用 NULL**（v1.8 踩过“把 NULL 当恢复默认”的坑）。
 - 创建专用 cursor wl_surface，attach cursor buffer + commit。
 
 ### 2.4 Options 全量接线（与主文档 §2.1 对齐）
@@ -110,7 +111,7 @@ state 值：1=maximized 2=fullscreen 3=resizing 4=activated
 | Resizable=false | ✅ min==max 锁（waylandCreate + SetResizable） |
 | Position | ⛔ 协议无客户端定位 |
 | Fullscreen | ✅ 创建后 set_fullscreen(NULL→当前输出) |
-| Cursor | ✅ 首选 cursor-shape 协议（§2.3），无才回主题（win.cursor，9 形状映射） |
+| Cursor | ✅ 首选 cursor-shape 协议（§2.3），无才回主题（win.cursor，10 形状映射；hidden→`set_cursor(NULL)` 隐藏指针） |
 | Maximized | ✅ 首 commit 前 set_maximized |
 | Visible | ✅ 创建后隐藏：hideNative（§6.2；false=不可见启动） |
 
@@ -252,6 +253,7 @@ WindowState: Maximized | Fullscreen | Resizing | Activated | TiledL | TiledR | T
 
 ## 8. 修订
 
+- v1.19（2026-10-27）：**`CursorHidden`（10 形状）**——`windowctl.go` 新增 `CursorHidden`；本文件 §2.3 明确 hidden 走 `set_cursor(serial, NULL, 0, 0)` 隐藏指针，恢复可见必须显式重放主题 `left_ptr`（不重复 v1.8 的 NULL 误用）；§2.4 Cursor 行改为 10 形状映射。首个消费方为 `examples/ui_ruler_parity` 的 Godot 臂（对齐上游隐藏鼠标）；CSD 标题栏/边缘保持系统/resize 光标。X11 侧另用 1×1 透明 pixmap 光标实现，见窗口 API 真源 v2.31。验证（2026-10-27）：嵌套 GNOME 42.9（软件渲染，`backend=wayland`）下隐藏光标生效——同会话默认光标 scene 截图有箭头、godot 隐藏 scene 无箭头；该场景截屏黑底为 HEAD 也复现的独立呈现观察，已登记资源矩阵 §5.5.3，待真 Wayland 会话定位。
 - v1.18（2026-08-20）：**标题栏中英文字号统一（字体链渲染，GTK/Flutter 对齐）**——v1.17 后标题栏 ASCII 走内嵌位图字体（字形内容仅 5-7px 高）、非 ASCII 走系统字体 13px em（汉字占满 12px），混排时中文比英文大 1.7 倍（实测 'e' 内容 5px / 'C' 7px / '层' 12px），视觉不协调。修复=标题栏文本整体走系统字体链（font fallback）：字体候选按优先级加载为多个 face（全能 CJK 字体自带 Latin，如 Noto Sans CJK → 纯 CJK：WQY/UMing → 纯拉丁兜底：DejaVu），每个 rune 用链上第一个含其字形的 face 栅格化（`GlyphBounds` 判定 fallback），字形缓存 key 改为 (face, rune)；所有字符同一字号同一度量，英文 cap 10px、中文 12px（1.2:1，GTK 标准方块字比例）；统一基线按链首 face 的 metrics 公式垂直居中（Pango 同款：baseline = 中心 − (ascent+descent)/2 + ascent，不用裸 hhea ascent——Noto CJK 13px 下 Ascent=16px 会把整行推到条底）；位图字体降级为「系统无任何字体」时的兜底（英文位图 + '?'）；字形缓存带防御性上限（>2048 条目清空，标题字符集实际远小于此）。验证（2026-08-20）：真窗 `ui_wr_r4_composite` dump 逐字形测量——'C' 内容 10px 高（y 12..21）、'层' 12px 高（y 11..22）、同一基线（descender 对齐）、文字整体 y 11..25 居中（条 32px 中心 16）；新增 `TestCSDSysGlyphLatin`（ASCII 也走系统抗锯齿灰度字形）；`TestDrawTitleTextMixed` 改为全系统字形断言；painter/behavior/hover/font 回归全 PASS。
 - v1.17（2026-08-20）：**标题栏非 ASCII 乱码修复（中文等 → '?'）**——现象：Wayland 自绘标题栏（CSD）标题含中文等多语言字符时显示为 '?'（em dash 变成 '-'），如 `ui_wr_r4_composite` 的标题「— 层 Composite Present」实显「- ? Composite Present」。根因：`drawTitleText` 用内嵌位图字体 `csdFont`（仅 95 个可打印 ASCII 字形，6×13），`switch` 的 `default` 分支把一切非 ASCII（除 – — 映射 '-'）回退成 '?'。修复=`ui/platform` 新增 `wayland_csd_font.go`：非 ASCII rune 用系统字体（`golang.org/x/image/font/opentype`，纯 Go 无 cgo；候选 Noto Sans CJK ttc / WQY / AR PL UMing / 用户字体目录 OTF / DejaVu 兜底）栅格化灰度位图，按 rune 缓存（`csdGlyph`），alpha 混合进标题栏 ARGB8888 buffer（GTK parity：CSD 标题支持 UTF-8）；ASCII（含 – — 的 '-' 映射）继续走内嵌位图字体；宽度按 rune 累计（ASCII 7px + CJK ≈13px advance）保证 ASCII+CJK 混排居中；找不到系统字体时回退 '?'（不崩）。字形放置偏移取 `GlyphBounds`（baseline 相对 fixed 坐标）而非 `Glyph` 的 dr 矩形——dr 的整数坐标空间跨字体不稳定（实测 Noto CJK 13px 下 `dr.Min.Y=1013` 与 `Metrics.Ascent=16px` 不匹配）。验证（2026-08-20）：真窗 `ui_wr_r4_composite`（标题「gpui ui_wr_r4_composite — 层 Composite Present」）`GPUI_WL_DUMP_CSD` dump 逐字形解码——'层' 由 13×13 汉字笔画位图（非零 alpha ≥15 像素）替代原 '?' 占位，em dash 保持 '-'，ASCII 部分与位图字体一致；新增单测 `TestCSDSysGlyphCJK`/`TestCSDSysGlyphCache`/`TestBlendCSDGlyph`/`TestDrawTitleTextMixed`；ui/platform 相关回归（painter/behavior/hover/font 各文件）全 PASS，`go build ./ui/...` 绿。
 - v1.16（2026-08-20）：**resize 时标题栏文本闪烁 + 位置窜动修复（先填充后提交）**——现象：拖拽调整窗口大小时标题栏文本（标题）闪烁、位置跳动，松手后恢复正常。根因=`wlCSD.resizeSurface` 的 buffer 交换顺序：**先** `attach(NULL)+commit`（desync 立即应用）→ 合成器把该 subsurface 置为无 buffer（标题栏区域变空/显示父表面 → 每步 resize 闪烁一次），**再** destroy 旧 buffer/pool/mmap、重建新 buffer，最后 `paint()` 才填充并提交 → 文本位置随"消失→恢复"跳动。修复=**先创建新 buffer → 立即填充正确内容（新增 `fillSurface`：top 画标题栏、border 清透明）→ set position → attach+commit（desync 立即生效且内容正确，无空窗/垃圾帧）→ 最后销毁旧 buffer/pool**；`createBufferWith` 失败时销毁已分配部分并恢复旧 buffer（仍 attach 在 surface 上继续显示）。验证（2026-08-20）：DIAG_STORM 风暴 `GPUI_WL_DUMP_CSD` 标题栏 dump 序列（400/760/1200/1868 宽）每帧文本位置正确（400 窄窗左对齐 x=12、760+ 居中 285/505/839，与 `(w-textW)/2` 计算一致）、无空白/垃圾帧、背景色正确；风暴 fps=60.3 无回归；新增白盒测试 `TestWaylandCSDResizeFillsBeforeCommit`（resize 后新 buffer 已含标题字形、旧 buffer 存活到提交后）；ui/platform 18 测试文件全 PASS。

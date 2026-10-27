@@ -251,7 +251,8 @@
 
 - 12 次 60s 全部走 `measure.py` 标准关闭：`close_request:"wm_delete"`、`exit_during_run:false`，应用 stderr 为 `ui_ruler_parity: close (x11)` / `OK`；宿主 Xorg PID 4612 与 `Xorg.1.log` 大小/mtime 全程未变。四张 Golden 于 2026-10-27 重出（旧标题/ HUD 基线作废），seed 后各连续两次零差异；旧基线留档 `/tmp/opencode/old_parity_goldens/`，不入库。
 - list 的 RSS 斜率 8920.5KB/min 仍远低于 30000KB/min 健康线；text 的 0.42% 是首帧后静止的 idle 成本，不代表文本整形吞吐。
-- Godot 臂的 `report.json` 里 `scene` 字段是 app basename `ui_ruler_parity_sig`（未传 `--scene`，采数器按 app basename 取），窗口标题/参数确认场景是 Godot；不要按 `scene` 字段误判。
+- Godot 臂的 `report.json` 里 `scene` 字段是 app basename `ui_ruler_parity_sig`（未传 `--scene`，采数器按 app basename 取），窗口标题/参数确认场景是 Godot；不要按 `scene` 字段误判。2026-10-27 三跑时窗口标题还是 `gpui ruler parity`；随后 Godot 臂已把外壳对齐上游（标题 `Bullet Shower`、可缩放且内容跟随、客户区隐藏鼠标），复跑时 `--window-match` 用 `'Bullet Shower'`。外壳改动不触及内容渲染与进程 CPU 口径，上表三跑数字保留。
+- **Golden 是独显口径**：四张 Golden 基线在 940MX 上生成。默认适配器策略在混合机优先核显，2026-10-27 用同一 HEAD 代码在核显复跑得到 godot **1.6710%** 差异（全部为 ±1 灰度、最大通道差 2、16042px，精灵边缘纹理过滤舍入差）；`GPUI_POWER=high` 下当前代码两连 **0.0000%**、快照与基线逐字节一致。门禁/重出必须带 `GPUI_POWER=high`；核显差异不是内容回归，不要用重新 seed 的方式“修绿”。
 - 三跑原始值、截图与 `report.json`：`/tmp/opencode/parity_runs/p3_{spin,list,text,godot}_{1,2,3}`；复跑命令见 §8。
 
 **同语义比值（对照 / gpui；CPU >1 表示 gpui 更低，RSS >1 表示 gpui 更低）**
@@ -285,6 +286,8 @@
 **旧 §5.5 数字作废**：旧表（Flutter 26.28/31.03%、list 109.68%、text 0.00%）来自 P1 的黑屏/未验证阶段，和旧 §3.1 的“Impeller 黑屏”直接矛盾，且本轮 stable 3.47.8 无法复现 109.68% 的 list 值（真实为 71.38%，截图为可见列表）。旧表整节不再作为基线；以本节三跑中位为唯一依据。
 
 **本轮新发现（登记，不并入对照基线）**：m5 60s 复核 CPU 22.64%、RSS **1.09GB→1.63GB**（约 0.5GB/min）；独立 35s 复核 1.09→1.73GB，增长更快、未收敛。旧基线只记 CPU 29.20%、未记 RSS。该异常归 row 12 / P4，在立账前先定位，不拿 m5 RSS 作文本对照。gpui parity text 的 RSS 627.5→628.5MB 也只作静态页常驻记录，不当作文本整形基线；P4 一并定位字体/图集常驻。
+
+**嵌套 Wayland 呈现观察（2026-10-27，待定位，不并入对照）**：在嵌套 GNOME 42.9（软件渲染，`WAYLAND_DISPLAY=gpui-nested`）下复验 godot 臂：`backend=wayland` 确认；隐藏光标与默认光标对照成立（同会话 spin 截图有箭头、godot 无箭头）。但 godot 内容区在 x11grab 截屏里呈**黑色**，sprites 正常；app 侧 `RULER_SNAP` 是正确灰底 `#4D4D4D`（窗口被合成器约束为 748×541），同会话 list（同为 fullPaint）与 spin 背景均正常，HEAD 二进制也复现黑底。绘制侧无异常，疑点在 Wayland 呈现/合成路径；需真 Wayland 会话复验后再定性，暂不修、不标绿。
 
 **P3 收口结论**：Flutter/Godot 基准各三跑取中位，gpui 同语义对照臂四场景各三跑取中位，glxgears 单跑地板，三臂均真实出画；四张 parity Golden 重出后两连零差异；旧 P1 黑屏阻塞已由 stable 3.47.8 解除；Flutter/Godot/gpui 的语义边界已写明。P3 只收口“对照尺 + 三扇新窗 + 尾账”，不把 row 12 的 m5 CPU/RSS 立账算绿；P4 接全矩阵对照与 m5/parity text RSS 定位。
 
@@ -424,17 +427,18 @@ done
 for i in 1 2 3; do
   python3 tools/ruler_flutter/scripts/measure.py \
     --app /tmp/opencode/ui_ruler_parity \
-    --window-match 'gpui ruler parity' --duration 60 --warmup 5 \
+    --window-match 'Bullet Shower' --duration 60 --warmup 5 \
     --arg=-scene --arg=godot --env RULER_SCENE=godot --env RUN_SECONDS=80 \
     --out "/tmp/opencode/parity_runs/p3_godot_$i"
 done
 # Golden 重出：先把 testdata/golden_*.png 备份到仓库外；有旧文件时只比较不覆盖。
+# 基线在独显（940MX）上生成；混合机默认策略优先核显，会出 ±1 LSB 差异，必须带 GPUI_POWER=high。
 # seed 运行 rc=1 且 golden_seeded=true 是预期，不算 PASS；随后两连必须 pass=true。
 for s in spin list text godot; do
-  GPUI_ACCEPT_GOLDEN=1 RULER_SCENE=$s RUN_SECONDS=5 \
+  GPUI_POWER=high GPUI_ACCEPT_GOLDEN=1 RULER_SCENE=$s RUN_SECONDS=5 \
     /tmp/opencode/ui_ruler_parity -auto-only || true
   for i in 1 2; do
-    RULER_SCENE=$s RUN_SECONDS=5 /tmp/opencode/ui_ruler_parity -auto-only || exit 1
+    GPUI_POWER=high RULER_SCENE=$s RUN_SECONDS=5 /tmp/opencode/ui_ruler_parity -auto-only || exit 1
   done
 done
 

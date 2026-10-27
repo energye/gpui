@@ -34,30 +34,44 @@ type x11CtlLib struct {
 	openOnce sync.Once
 	lib      uintptr
 
-	moveWindow        func(dpy uintptr, w uintptr, x, y int) int
-	resizeWindow      func(dpy uintptr, w uintptr, wd, ht uint) int
-	mapWindow         func(dpy uintptr, w uintptr) int
-	unmapWindow       func(dpy uintptr, w uintptr) int
-	iconifyWindow     func(dpy uintptr, w uintptr, screen int) int
-	raiseWindow       func(dpy uintptr, w uintptr) int
-	setInputFocus     func(dpy uintptr, w uintptr, revertTo int, tm uintptr) int
-	sendEvent         func(dpy uintptr, w uintptr, propagate int, mask int64, ev *byte) int
-	internAtom        func(dpy uintptr, name *byte, onlyIf int) uintptr
-	changeProperty    func(dpy uintptr, w, prop, typ uintptr, format, mode int, data unsafe.Pointer, n int) int
-	createFontCursor  func(dpy uintptr, shape uint) uintptr
-	defineCursor      func(dpy uintptr, w uintptr, cur uintptr) int
-	undefineCursor    func(dpy uintptr, w uintptr) int
-	freeCursor        func(dpy uintptr, cur uintptr) int
-	translateCoords   func(dpy uintptr, src, dst uintptr, sx, sy int, dx, dy *int, child *uintptr) int
-	setWMNormalHints  func(dpy uintptr, w uintptr, hints *xSizeHints) int
-	rootWindow        func(dpy uintptr, screen int) uintptr
-	defaultScreen     func(dpy uintptr) int
-	getWindowProperty func(dpy uintptr, w, prop uintptr, longOffset, longLength int64, del int, reqType uintptr,
+	moveWindow         func(dpy uintptr, w uintptr, x, y int) int
+	resizeWindow       func(dpy uintptr, w uintptr, wd, ht uint) int
+	mapWindow          func(dpy uintptr, w uintptr) int
+	unmapWindow        func(dpy uintptr, w uintptr) int
+	iconifyWindow      func(dpy uintptr, w uintptr, screen int) int
+	raiseWindow        func(dpy uintptr, w uintptr) int
+	setInputFocus      func(dpy uintptr, w uintptr, revertTo int, tm uintptr) int
+	sendEvent          func(dpy uintptr, w uintptr, propagate int, mask int64, ev *byte) int
+	internAtom         func(dpy uintptr, name *byte, onlyIf int) uintptr
+	changeProperty     func(dpy uintptr, w, prop, typ uintptr, format, mode int, data unsafe.Pointer, n int) int
+	createFontCursor   func(dpy uintptr, shape uint) uintptr
+	createBitmap       func(dpy, drawable uintptr, data *byte, width, height uint) uintptr
+	createPixmapCursor func(dpy, source, mask uintptr, fg, bg *x11Color, x, y uint) uintptr
+	defineCursor       func(dpy uintptr, w uintptr, cur uintptr) int
+	undefineCursor     func(dpy uintptr, w uintptr) int
+	freeCursor         func(dpy uintptr, cur uintptr) int
+	freePixmap         func(dpy, pixmap uintptr) int
+	translateCoords    func(dpy uintptr, src, dst uintptr, sx, sy int, dx, dy *int, child *uintptr) int
+	setWMNormalHints   func(dpy uintptr, w uintptr, hints *xSizeHints) int
+	rootWindow         func(dpy uintptr, screen int) uintptr
+	defaultScreen      func(dpy uintptr) int
+	getWindowProperty  func(dpy uintptr, w, prop uintptr, longOffset, longLength int64, del int, reqType uintptr,
 		actualType *uintptr, actualFormat *int, nitems, bytesAfter *uint64, propReturn **byte) int
 	freeData func(ptr unsafe.Pointer) int
 	// queryPointer locates the pointer for drag-source discovery
 	// (XQueryPointer: root/child + root coords + mask).
 	queryPointer func(dpy uintptr, w uintptr, root, child *uintptr, rootX, rootY, winX, winY *int32, mask *uint) int
+}
+
+// x11Color mirrors Xlib's XColor (LP64 layout). Only the fields needed by
+// XCreatePixmapCursor are read; the transparent hidden cursor ignores colour.
+type x11Color struct {
+	Pixel uint64
+	Red   uint16
+	Green uint16
+	Blue  uint16
+	Flags uint8
+	Pad   uint8
 }
 
 var ctlLib x11CtlLib
@@ -83,9 +97,12 @@ func (l *x11CtlLib) open() *x11CtlLib {
 		purego.RegisterLibFunc(&l.internAtom, lib, "XInternAtom")
 		purego.RegisterLibFunc(&l.changeProperty, lib, "XChangeProperty")
 		purego.RegisterLibFunc(&l.createFontCursor, lib, "XCreateFontCursor")
+		purego.RegisterLibFunc(&l.createBitmap, lib, "XCreateBitmapFromData")
+		purego.RegisterLibFunc(&l.createPixmapCursor, lib, "XCreatePixmapCursor")
 		purego.RegisterLibFunc(&l.defineCursor, lib, "XDefineCursor")
 		purego.RegisterLibFunc(&l.undefineCursor, lib, "XUndefineCursor")
 		purego.RegisterLibFunc(&l.freeCursor, lib, "XFreeCursor")
+		purego.RegisterLibFunc(&l.freePixmap, lib, "XFreePixmap")
 		purego.RegisterLibFunc(&l.translateCoords, lib, "XTranslateCoordinates")
 		purego.RegisterLibFunc(&l.setWMNormalHints, lib, "XSetWMNormalHints")
 		purego.RegisterLibFunc(&l.rootWindow, lib, "XRootWindow")
@@ -710,20 +727,38 @@ var x11CursorMu sync.Mutex // guards per-window cursor lifetime
 func (c *x11Controller) SetCursor(cur Cursor) {
 	s := c.st()
 	lib := c.lib()
-	if s == nil || !lib.ok() || lib.createFontCursor == nil {
+	if s == nil || !lib.ok() {
 		return
 	}
-	shape, _ := c.cursorShape(cur)
 	x11CursorMu.Lock()
 	old := s.cursor
 	s.cursor = 0
-	if shape == 68 {
-		lib.undefineCursor(s.display, s.window)
-	} else {
-		curp := lib.createFontCursor(s.display, shape)
-		if curp != 0 {
-			lib.defineCursor(s.display, s.window, curp)
-			s.cursor = curp
+	if cur == CursorHidden {
+		// A fully transparent 1x1 bitmap cursor: mask=0 makes every pixel
+		// invisible, while XDefineCursor still applies to the client content.
+		if lib.createBitmap != nil && lib.createPixmapCursor != nil && lib.freePixmap != nil {
+			var bit byte
+			pix := lib.createBitmap(s.display, s.window, &bit, 1, 1)
+			if pix != 0 {
+				var fg, bg x11Color
+				hidden := lib.createPixmapCursor(s.display, pix, pix, &fg, &bg, 0, 0)
+				lib.freePixmap(s.display, pix)
+				if hidden != 0 {
+					lib.defineCursor(s.display, s.window, hidden)
+					s.cursor = hidden
+				}
+			}
+		}
+	} else if lib.createFontCursor != nil {
+		shape, _ := c.cursorShape(cur)
+		if shape == 68 {
+			lib.undefineCursor(s.display, s.window)
+		} else {
+			curp := lib.createFontCursor(s.display, shape)
+			if curp != 0 {
+				lib.defineCursor(s.display, s.window, curp)
+				s.cursor = curp
+			}
 		}
 	}
 	x11CursorMu.Unlock()

@@ -7,7 +7,7 @@ P3 对照尺的 gpui 臂。一个二进制里放四个场景，按 `RULER_SCENE`
 | `spin` / `flutter_spin` | Flutter `RULER_SCENE=spin` | 480×320 | 单 64px 白色旋转图标，2s 一圈，无文本 |
 | `list` / `flutter_list` | Flutter `RULER_SCENE=list` | 1200×800 | 48 header + 12 body + 260 legend + 620 列表 + 16 缝 + 268 静态右栏 + 72 HUD；1200 项变高行（44/92/60/76），24 张 96×56 图，Steady/Spike/Recover 160→2600 px/s |
 | `text` / `flutter_text` | Flutter `RULER_SCENE=text` | 1200×800 | 560px 文本列；m5 的 multiscript/emoji/richtext 语料；首帧后静止，无 ticker |
-| `godot` / `godot_bullets` | Godot 4.5.1 `2d/bullet_shower` | 1200×800 | 500 发 32×32 子弹，20–80 px/s，x<-16 回绕；27px 玩家圆跟随鼠标，碰 8px 子弹换哭脸 |
+| `godot` / `godot_bullets` | Godot 4.5.1 `2d/bullet_shower` | 1200×800（可缩放，内容跟随） | 500 发 32×32 子弹，20–80 px/s，x<-16 回绕；27px 玩家圆跟随鼠标，碰 8px 子弹换哭脸；标题与上游 `config/name` 同为 `Bullet Shower`，客户区隐藏鼠标 |
 
 这些窗只做“同尺寸、同布局、同内容、同动画、同负载”的对照；**不宣称跨引擎逐像素一致**。差异见下文，实测与比值见 `docs/RENDER_BASE_RESOURCE_MATRIX.md` §5.5。
 
@@ -38,7 +38,9 @@ RULER_SCENE=text  RUN_SECONDS=60 go run ./examples/ui_ruler_parity
 RULER_SCENE=godot RUN_SECONDS=60 go run ./examples/ui_ruler_parity
 ```
 
-`RUN_SECONDS` 是 live 时长；`RULER_SECONDS` 与 Flutter 的 `measure.py --scene` 契约相同（采数时长 + 预热 + 余量）。`RULER_SNAP` 可指定 live 快照路径；`RULER_BULLETS` 只改 Godot 场景的发数，默认 500（改它后 Golden 不再适用）。
+`RUN_SECONDS` 是 live 时长；`RULER_SECONDS` 与 Flutter 的 `measure.py --scene` 契约相同（采数时长 + 预热 + 余量）。`RULER_SNAP` 可指定 live 快照路径；`RULER_BULLETS` 只改 Godot 场景的发数，默认 500（改它后 Golden 不再适用）。用 `measure.py` 复跑时，godot 场景的 `--window-match` 是 `'Bullet Shower'`（标题与上游一致），其余三场景仍是 `'gpui ruler parity'`。
+
+**Golden 的显卡口径**：基线是在本机独显（NVIDIA 940MX）上出的。默认适配器策略在混合机优先核显，同一份代码在核显上复跑会出现纹理边缘 ±1 LSB 差异（godot 实测 1.67% 像素、最大通道差 2），门禁会红；核对/重出 Golden 时加 `GPUI_POWER=high`。
 
 ## 三证据与冻结点
 
@@ -50,13 +52,19 @@ RULER_SCENE=godot RUN_SECONDS=60 go run ./examples/ui_ruler_parity
 
 冻结点：list 为 `y=1234`；Godot 为 30s 物理步进后的固定弹云；spin 为初始旋转相；text 本身静止。冻结仅用于门禁，live 60s 资源测量另行进行。
 
+## 真窗验证（2026-10-27）
+
+- **X11（`DISPLAY=:1`）**：godot `-auto-only` 在 `GPUI_POWER=high` 下两连 `golden_diff_pct=0.0000%`、`pass=true`。live 25s 正常关闭（`APP_EXIT=0`，Xorg PID 4612 未变）：1200×800 窗口把指针移入内容区后截屏**无箭头**；同位置默认光标的 spin 对照窗**有箭头**；`XResizeWindow` 到 900×600 后 `layout_count=2`、`damage_area_px=540000`，子弹场与玩家铺满新客户区。
+- **嵌套 GNOME 42.9 Wayland（软件渲染）**：`backend=wayland` 确认；godot 隐藏光标截屏无箭头，spin 对照有箭头。godot 内容区在 x11grab 截屏里是黑色，但 app 侧 `RULER_SNAP` 是正确灰底（窗口被合成器约束为 748×541），HEAD 二进制同样复现；该现象已登记为待定位项（`docs/RENDER_BASE_RESOURCE_MATRIX.md` §5.5.3），不影响隐藏光标结论。
+- 证据图在 `/tmp/opencode/`（不入库）：`godot_hidden_cursor.png`、`spin_control_cursor.png`、`godot_hidden_cursor_900x600.png`、`wl_godot_hidden_cursor.png`、`wl_spin_control_cursor.png`。
+
 ## 与参考尺的差异（必须随数字一起读）
 
 - **跨引擎像素**：字体整形/栅格化、AA、emoji 字体版本、GPU 后端都不同，逐像素全等不是目标；对齐的是客户区、区块几何、语料、颜色、字号、动画相位和负载。
 - **spin**：Flutter 用 Material `sync`，gpui 用 kit `sync`，轮廓不同；尺寸/中心/颜色/2s 周期相同。spin 场景不加载 CJK 字体链，避免给无文本臂虚增 RSS。
 - **list**：Flutter 用 lazy `ListView.builder`，gpui 用 retained `VariableVirtualList`；gpui 在开窗前加载 24 张源图（共享给可见行），Flutter 走 `Image.asset` 的异步解码。滚动条为 6px、无轨道的近似，位置/比例对齐。两边都不是同一实现，CPU 差不能归因到单一 API。
 - **text**：gpui 和 Flutter 的 shaper/rasterizer 不同，字形轮廓不保证一致；语料、560px 列宽、字号/颜色/行高对齐。Flutter 每行是一个 `TextSpan`；gpui 也按行建 `RenderText` 节点，行高显式取 `1.2`（避免把跨行混合字号塞进一个最小 paragraph 的父行高）。这是行导向语料的显示等价，不是文本整形吞吐对照。
-- **Godot**：这是官方 demo 的绘制/回绕/玩家碰撞语义，不是 Godot PhysicsServer2D 的 1:1 性能复制。gpui 侧用 27px/8px 圆做玩家-子弹碰撞，没有逐对象物理 body；500 发可用于绘制负载对照，5k/10k 的物理过载数字不能拿来和 gpui atlas 图元直接比值。随机弹云用固定种子，分布与上游同规则但具体落点不同。
+- **Godot**：这是官方 demo 的绘制/回绕/玩家碰撞语义，不是 Godot PhysicsServer2D 的 1:1 性能复制。gpui 侧用 27px/8px 圆做玩家-子弹碰撞，没有逐对象物理 body；500 发可用于绘制负载对照，5k/10k 的物理过载数字不能拿来和 gpui atlas 图元直接比值。随机弹云用固定种子，分布与上游同规则但具体落点不同。窗口外壳对齐上游：标题 `Bullet Shower`、可缩放且内容随客户区重排（对应 Godot `canvas_items` 拉伸）、客户区隐藏鼠标（CSD 标题栏/边缘仍显示系统光标）；`showcase_godot_bullets.png` 与 `golden_godot_bullets.png` 都是 gpui 这扇窗自己出的图，不是 Godot 原版截图，Golden 只是 gpui 的回归基线。
 - **HUD**：list 的 HUD 是动态文本，不进入 Golden；text 的 HUD 静态但同样排除，避免把状态文案冻结进画面基线。
 
 ## 资产

@@ -111,17 +111,35 @@ func (c *wlCursors) setCursor(serial uintptr, hit csdHit) {
 	if c == nil || c.lib == nil || serial == 0 {
 		return
 	}
+	cur := c.win.activeCursor()
+	if cur == CursorHidden && hit.act == csdActNone {
+		// wl_pointer.set_cursor(serial, NULL, 0, 0) hides the pointer.
+		wlSetNullCursor(c.win, serial)
+		return
+	}
 	if c.dev != 0 {
-		shape := hitCursorShape(hit, c.win.activeCursor())
+		shape := hitCursorShape(hit, cur)
 		csLog("set_shape dev=%d serial=%d shape=%d act=%d edge=%d", c.dev, serial, shape, hit.act, hit.edge)
 		args := []wlArg{argU(uint32(serial)), argU(shape)}
 		c.lib.proxyMarshalArrayFlags(c.dev, 1, uintptr(unsafe.Pointer(&ifaceCursorShapeDevice)), 1, 0, &args[0])
 		c.lib.displayFlush(c.win.display)
 		return
 	}
-	shape := hitCursorShape(hit, c.win.activeCursor())
+	shape := hitCursorShape(hit, cur)
 	csLog("theme set_cursor serial=%d shape=%d act=%d edge=%d", serial, shape, hit.act, hit.edge)
 	c.applyTheme(serial, shape)
+}
+
+// wlSetNullCursor hides the compositor pointer for the current enter serial.
+// The protocol treats a NULL surface as "no cursor"; unlike an empty cursor
+// surface, this is the supported hide operation (mutter/GTK both use it).
+func wlSetNullCursor(w *wlWin, serial uintptr) {
+	if w == nil || w.lib == nil || w.ptr == nil || w.ptr.ptr == 0 || w.display == 0 || serial == 0 {
+		return
+	}
+	args := []wlArg{argU(uint32(serial)), argO(0), argU(0), argU(0)}
+	w.lib.proxyMarshalArrayFlags(w.ptr.ptr, wlPtrSetCursor, 0, 0, 0, &args[0])
+	w.lib.displayFlush(w.display)
 }
 
 // csLog prints cursor-path diagnostics when GPUI_WL_CURSOR_LOG=1 (default

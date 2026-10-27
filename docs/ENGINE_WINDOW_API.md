@@ -1,6 +1,6 @@
 # 平台窗口统一 API — 设计真源
 
-> **版本：v2.30** | 日期：2026-09-13  
+> **版本：v2.31** | 日期：2026-10-27  
 > **地位：** `ui/platform` 窗口接口（Options / Window / Host / WindowController / Event）唯一设计真源，**口径：四平台统一语义**。
 > **并读：** [`ENGINE_WAYLAND_WINDOW_STANDARD.md`](./ENGINE_WAYLAND_WINDOW_STANDARD.md)（Wayland 标准窗口 CSD）· [`ENGINE_ARCH_OVERVIEW.md`](./ENGINE_ARCH_OVERVIEW.md)（分层）· [`ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md`](./ENGINE_TEXT_WAYLAND_IME_REQUIREMENT.md) / [`ENGINE_TEXT_X11_IME_REQUIREMENT.md`](./ENGINE_TEXT_X11_IME_REQUIREMENT.md)（输入法需求；原 `ENGINE_INPUT_IME_PLAN.md` 不存在，入口改指这两份）  
 > **对标参考：** winit（Rust 窗口库）· GTK4（GtkWindow/GdkToplevel）· sctk（wayland-client 壳）· Zed gpui · Flutter（WindowOptions）。
@@ -61,7 +61,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | Min/Max*Size | int | 尺寸约束；0=不限 | ✅ XSizeHints | ✅ set_min/max_size | ⬜ WM_GETMINMAXINFO | ⬜ contentMin/MaxSize |
 | Position | *Point | 初始位置（客户区左上，屏幕坐标）；nil=系统决定 | ✅ | ⛔ | ⬜ SetWindowPos | ⬜ setFrameOrigin: |
 | Fullscreen | bool | 初始全屏 | ✅ EWMH | ✅ 创建后 set_fullscreen | ⬜ 屏幕铺满 | ⬜ toggleFullScreen: |
-| Cursor | Cursor | 初始光标（9 形状） | ✅ XCreateFontCursor | ✅ 首选 cursor-shape 协议（合成器自绘），无才回 wl_cursor_theme | ⬜ LoadCursor | ⬜ NSCursor |
+| Cursor | Cursor | 初始光标（10 形状，含 `CursorHidden` 隐藏指针） | ✅ XCreateFontCursor；hidden=1×1 全透明 pixmap 光标 | ✅ 首选 cursor-shape 协议（合成器自绘），无才回 wl_cursor_theme；hidden=`set_cursor(NULL)` | ⬜ LoadCursor | ⬜ NSCursor |
 | Resizable | bool | 用户可否调整尺寸；false（缺省）=固定（min==max） | ✅ | ✅ min==max 锁 | ⬜ WS_THICKFRAME | ⬜ styleMask Resizable |
 | **Maximized** | bool | 初始最大化（新） | ✅ EWMH 初始 | ✅ 首 commit 前 set_maximized | ⬜ SW_MAXIMIZE | ⬜ zoom: |
 | **Visible** | *bool | 初始可见（nil=默认 true；&false=初始隐藏）（新） | ✅ map 控制 | ✅ destroy/重建栈 + EventHidden（原⛔已过期） | ⬜ SW_SHOW/SW_HIDE | ⬜ orderFront:/orderOut: |
@@ -102,7 +102,7 @@ ui/platform                      ── Window（门面）+ Host（事件泵）+
 | 显隐 | `Show()/Hide()/IsVisible()` | 映射/取消映射（Wayland 真实现：destroy/重建栈 + EventHidden） | ✅ | ✅ | ⬜ SW_SHOW/HIDE | ⬜ orderFront:/orderOut: |
 | 焦点 | `Focus() error/IsFocused()` | 请求焦点 + 查询 | ✅ | ⛔（查=activated） | ⬜ SetForegroundWindow/GetForegroundWindow | ⬜ makeKeyAndOrderFront:/isKeyWindow |
 | 置顶 | `SetAlwaysOnTop(on) error` | 置顶切换 | ✅ EWMH ABOVE | ⛔ | ⬜ HWND_TOPMOST | ⬜ setLevel: NSFloatingWindowLevel |
-| 光标 | `SetCursor(c Cursor)` | 形状切换（9 形状） | ✅ | ✅ | ⬜ | ⬜ |
+| 光标 | `SetCursor(c Cursor)` | 形状切换（10 形状；`CursorHidden` 在客户区隐藏指针，CSD 标题栏/边缘仍显示系统光标，等同一个原生装饰窗） | ✅ 1×1 透明 pixmap | ✅ `set_cursor(NULL)` | ⬜ | ⬜ |
 | 穿透热区 | `SetIgnoreCursorEvents(ignore) error` | 指针穿透（覆盖层/点击穿透） | ⛔ XShape 未落地 | ✅ set_input_region | ⬜ WS_EX_TRANSPARENT | ⬜ ignoresMouseEvents |
 | 拖拽启动 | `RequestMove() error` | 按当前指针启动窗口拖动（无框窗必需；Wayland 无合法 enter serial 时诚实 ErrUnsupported） | ✅ _NET_WM_MOVERESIZE | ✅ xdg move | ⬜ WM_NCLBUTTONDOWN HTCAPTION | ⬜ performWindowDragWithEvent: |
 | resize 启动 | `RequestResize(edge) error` | 按当前指针启动边缘 resize（无框窗必需；Wayland edge=None 或无 serial 时诚实 ErrUnsupported） | ✅ _NET_WM_MOVERESIZE | ✅ xdg resize | ⬜ WM_NCLBUTTONDOWN HT* | ⬜ performWindowDragWithEvent: |
@@ -356,6 +356,7 @@ H 设备热插拔（P1）：
 
 ## 5. 修订
 
+- v2.31（2026-10-27）：**`CursorHidden` 落地（10 形状）**——`windowctl.go` 新增 `CursorHidden`，用于复刻“上游 demo 隐藏鼠标”的窗口语义（首个消费方 `examples/ui_ruler_parity` 的 Godot `bullet_shower` 臂，对齐原版 `Input.set_mouse_mode(MOUSE_MODE_HIDDEN)`）。X11：`XCreateBitmapFromData` 造 1×1 全透明 pixmap + `XCreatePixmapCursor` 定义到窗口，客户区指针不可见；Wayland：`set_cursor(serial, NULL, 0, 0)`（协议约定 NULL surface = 无光标）；CSD 标题栏/边缘仍走系统/resize 光标，与原生装饰窗一致。`Options.Cursor` 两端均接线。验证（2026-10-27）：X11 :1 真窗——1200×800 指针移入内容区无箭头，默认光标对照窗同位置有箭头；`XResizeWindow` 到 900×600 后 `layout_count=2`、`damage_area_px=540000` 画面铺满；godot Golden 在 `GPUI_POWER=high` 下两连 0.0000%。嵌套 GNOME 42.9（软件渲染）`backend=wayland` 下同法对照确认隐藏生效；嵌套下该场景截屏黑底是 HEAD 也复现的独立呈现观察，已登记待定位（见资源矩阵 §5.5.3），不影响隐藏光标结论。
 - v2.30（2026-09-13）：**Wayland 座位设备上报**——源码为准：`wlSeatState` 新增 `seatName/wantKeys/wantPtrs/wantTouch`（`wayland_seat_linux.go`；`bindSeat` 视合成器版本绑 v2 拿 `name` 当 `DeviceName`，v1 无名则空）；`wlSeatCapCB` 首包静默记底（开窗不刷 Added），后续包按位差分经 `seatCapsToEvents`（纯函数，键/鼠/触固定序）报 Added/Removed 进 `w.devEvents`（`wayland_linux.go` 泵透出）；迟到能力经 `want*` 迟绑定（移除不清旧代理，免事件线程销毁竞态）；笔走 tablet 二期（仍占位）。§2.4 设备行与 §4.4 H 组 Wayland 格翻绿，§3 S6-P1 仍 🔨（剩手势/主题/语言/显示器/笔二期等）。回归按文件逐个：新 `wayland_seat_device_linux_test.go` 7 例（纯差分 4 + 首包静默/名透传/空安全 + 嵌套稳态安静）+ `ui/input` 设备映射 + embedder/pfkit 恒绿，B 层 `TestWaylandRealWindow*`/`TestWaylandHideShow` 嵌套全绿，A 层嵌套 GNOME（软件渲染）下 `ui_pf_wayland` 19/19（`backend=wayland`）+ X11 对照 `ui_pf_x11` 19/19 与 `ui_pf_x11_device -auto-only` 4/4；真插拔需硬件（嵌套座位能力可读但无热插拔）。
 - v2.29（2026-09-13）：**本窗外发拖放（当拖源）**——源码为准：`WindowController` 新增 `StartDrag(offer)/StartDragTo(target, offer)` + `DragOffer{Files,Data}`（`windowctl.go`；`MIMETypes()` 按 uri-list 优先+其余排序，`URIList()` 按 file:// URL 编码，`OfferPayload()` 显式 uri-list 覆盖 Files 派生、无载荷走 `fmt.Errorf` 非 `ErrUnsupported`）；X11 侧 `x11_dnd_linux.go` 追加源端（`StartDragTo` 显式编程落下：payload 进 SelectionRequest 服务槽 + `OwnSelection` + Enter/Position/Drop 连发，>3 类型走 XdndTypeList，落点优先目标内 +50,50；`StartDrag` 经 `XQueryPointer` 快照找 XdndAware 窗再落下，无 grab/取消手势；泵收 `XdndFinished` 清 staged、`XdndStatus` 忽略；`x11_winctl_linux.go` 加 `XQueryPointer` 绑定）；Wayland 侧 `wl_data_source` 复用 `sourceListener`（`wayland_clipboard_linux.go`：`dragSource/dragData` 状态，`send` 按 MIME 供拖载荷、与剪贴板源端二选一，`cancelled` 分侧清理，`destroyNow` 同清；`wayland_winctl_linux.go`：`StartDrag` 走真 `start_drag(source,origin,NULL icon,serial)`，serial 0 诚实 `ErrUnsupported`，`StartDragTo` 恒 `ErrUnsupported`）。§2.3 增外发拖放行 + `DragOffer` 注 + 边界注补显式目标，§4.4 G 组增源端行（无新 Kind）+ Drop 行注源端静默，§3 S6-P1 剩座位上报一项。回归按文件逐个：X11 双窗 6 例（存量 5 + 公开 API 显式落下含 Files+文本双载）+ 拒绝/空安全/Aware 探针 + `DragOffer` 纯形 3 例 + Wayland 源端 4 例（To 恒 ⛔、空窗/空载、无 data-device、send 按 MIME 二选一、cancelled 分侧清）+ 悬停存量 6 例 + `ui/input` 映射 + embedder/pfkit 恒绿，A 层 `ui_pf_x11` 19/19 + `ui_pf_x11_dnd -auto-only` 4/4；Wayland 真拖待嵌套人工（双窗对拉）。
 

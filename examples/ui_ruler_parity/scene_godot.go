@@ -128,14 +128,27 @@ func buildGodotScene(gate bool) (*sceneSpec, error) {
 
 	acc := 0.0
 	return &sceneSpec{
-		name:   sceneGodot,
-		ref:    "godot-demo-projects 2d/bullet_shower @ a3b5c11 (Godot 4.5.1)",
-		winW:   winListW,
-		winH:   winListH,
-		title:  fmt.Sprintf("gpui ruler parity — Godot bullet_shower (%d)", n),
+		name: sceneGodot,
+		ref:  "godot-demo-projects 2d/bullet_shower @ a3b5c11 (Godot 4.5.1)",
+		winW: winListW,
+		winH: winListH,
+		// Upstream project.godot config/name is "Bullet Shower"; keep the
+		// title identical instead of advertising the local parity harness.
+		title:  "Bullet Shower",
 		root:   root,
 		clearR: godotGray, clearG: godotGray, clearB: godotGray,
 		fullPaint: true,
+		cursor:    platform.CursorHidden,
+		resizable: true,
+		onResize: func(w, h int) {
+			sim.winW, sim.winH = float64(w), float64(h)
+			root.FixedWidth, root.FixedHeight = float64(w), float64(h)
+			box.FixedWidth, box.FixedHeight = float64(w), float64(h)
+			root.MarkNeedsLayout()
+			box.MarkNeedsLayout()
+			root.MarkNeedsPaint()
+			box.MarkNeedsPaint()
+		},
 		tick: func(dt float64) bool {
 			if dt > 0 && dt <= 0.25 {
 				acc += dt

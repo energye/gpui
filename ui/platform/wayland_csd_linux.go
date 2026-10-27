@@ -1109,6 +1109,11 @@ func (c *wlCSD) setCursor(serial uintptr, hit csdHit) {
 	if c == nil || c.win == nil || c.win.lib == nil || c.win.ptr == nil {
 		return
 	}
+	if c.win.ptr.inWindow && c.win.activeCursor() == CursorHidden && hit.act == csdActNone {
+		wlSetNullCursor(c.win, serial)
+		c.curName = "__hidden"
+		return
+	}
 	names := cursorNamesForEdge(hit.edge)
 	if len(names) == 0 {
 		// No resize-edge cursor: apply the controller-set active cursor

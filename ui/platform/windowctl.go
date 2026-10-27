@@ -39,6 +39,11 @@ const (
 	CursorResizeNE
 	// CursorResizeNW is the top-left / bottom-right diagonal cursor (╲).
 	CursorResizeNW
+	// CursorHidden hides the pointer while it is over the window content.
+	// X11 draws a 1x1 transparent cursor; Wayland uses
+	// wl_pointer.set_cursor(NULL). CSD title-bar/edge regions may still show
+	// their system/resize cursor, matching a native decorated window.
+	CursorHidden
 )
 
 // String implements fmt.Stringer.
@@ -60,6 +65,8 @@ func (c Cursor) String() string {
 		return "resize-ne"
 	case CursorResizeNW:
 		return "resize-nw"
+	case CursorHidden:
+		return "hidden"
 	default:
 		return "default"
 	}

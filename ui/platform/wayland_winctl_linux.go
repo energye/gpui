@@ -577,11 +577,14 @@ func (c *waylandController) SetCursor(cur Cursor) {
 	w.ctlMu.Lock()
 	w.cursor = cur
 	w.ctlMu.Unlock()
-	if w.ptr == nil || w.ptr.surface == 0 || w.ptr.enterSerial == 0 || w.csd == nil {
+	if w.ptr == nil || w.ptr.surface == 0 || w.ptr.enterSerial == 0 {
 		return
 	}
-	hit := w.csd.hitTest(w.ptr.surface, w.ptr.lastX, w.ptr.lastY)
-	w.csd.setCursor(w.ptr.enterSerial, hit)
+	hit := csdHit{}
+	if w.csd != nil {
+		hit = w.csd.hitTest(w.ptr.surface, w.ptr.lastX, w.ptr.lastY)
+	}
+	w.ptr.applyCursor(w.ptr.enterSerial, hit)
 }
 
 // cursorThemeName maps the cross-platform Cursor set to the X cursor theme
