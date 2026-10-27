@@ -64,7 +64,7 @@
 | 路径布尔 | 像素采样近似（path_boolean.go） | SkOpBuilder 精确布尔 | **P0 级差距** |
 | 路径 clip 栅格化 | even-odd 配对（internal/clip/mask.go:220） | 非零绕向 | **P1** |
 | 渐变插值色彩空间 | 默认线性光（gradient.go:98-133） | 默认 sRGB（CSS/SVG 同） | P2，效果更"物理"但不合默认规范 |
-| 渐变空间 | 设备空间采样，不随 CTM | 本地空间随 CTM | **P1** |
+| 渐变空间 | ~~设备空间采样，不随 CTM~~（2026-10-27 已修：填充/描边入口按设备空间重述画笔，相似变换折几何、非相似逆取样） | 本地空间随 CTM | ~~P1~~ 已对齐 |
 | hairline | 钳到 1px | 专用 hairline 管线 | P2 |
 | dash 相位 | 每子路径重置 | 跨子路径连续（SVG 语义） | P2 |
 | 圆角矩形 | 两套系数并存：builder k=0.5523 vs Path.RoundedRectangle α≈0.5486【已核实 path_builder.go:56-59 注释自认】 | 单一 addRRect | P3 冗余 |

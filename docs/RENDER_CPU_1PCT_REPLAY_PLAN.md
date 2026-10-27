@@ -94,6 +94,7 @@ G10 是「前刀引入的冻结画面」的补丁，不能只搬前刀不搬它�
    - `gpu/webgpu/swapchain_hal.go::EndFrameMerged` 必须真提交它拿到的命令缓冲（现在直接丢弃）；
    - `gles` 写批次的零拷贝暂存要与 `gpu/hal/api.go` 里 `WriteBuffer`「立即写入（内部创建 staging）」的措辞对齐
      （slab 自有字节零拷贝；调用方 scratch 一律拷贝或显式移交给队列）。
+     **2026-10-27 进展**：双后端真窗回验抓到两处「调用方 scratch 复用到不同 buffer」的实害（glyph 每批 uniform、clip 每池位 uniform），已在 `render/internal/gpu/render_session.go` 改为每次上传独占字节（glyph 每趟一块连续 slab、clip 每次拷贝 32B），slab 大上传保持零拷贝；回归 `render/internal/gpu/glyph_mask_uniform_staging_test.go`（延后写队列 fake，修前红/修后绿）。剩余：`staged_write_overlaps` 仍只数同缓冲重叠，跨缓冲同源别名未进守卫（可加 pointer-range 判定），其余单目标 scratch 依赖每趟一次上传（同批延迟 CB 纪律见 `ENGINE_UI_WIDGET_RENDER.md` C5 洞 B）。
 4. **【2026-10-18 新发现】G2 的窗口损伤剪刀不能单独落**：range 顶端 `f17e76e1` 的 `render/present_frame.go` 仍是「按脏区裁剪上屏」（`EndFrameWithDamage(frame, damageRects)`）；
    「窗口必须整面写、damage 只作 raster 提示（Skia/Flutter：层缓存省 CPU，表面每帧整面合成）」的正确语义**只存在于被 reset 掉的 WIP**（原文在 `/tmp/opencode/backup_cpu1pct_20261018/worktree_vs_HEAD.patch` 的 `render/present_frame.go` 段）。
    实测证据（本轮）：G1+G2 生效后 `ui_l1_spinner` 由「全黑」变为「背景+左上碎片」、`kit/spin_min` 由 `black=98%` 变为 `black=3%`（背景丢失类），其余 7 窗签名不变；
