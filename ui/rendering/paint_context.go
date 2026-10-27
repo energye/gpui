@@ -247,6 +247,33 @@ func (pc *PaintContext) RestoreLayer() {
 // Does not pop CTM/clip — use RestoreCanvas for that.
 func (pc *PaintContext) Restore() { pc.RestoreLayer() }
 
+// DrawShaderMask draws draw() masked by mask over the given user-space bounds
+// (engine form: render.DrawShaderMask). It consumes one SaveLayerBudget op and
+// returns false when the budget refuses, in which case nothing is drawn.
+func (pc *PaintContext) DrawShaderMask(x, y, w, h float64, mask render.Brush, draw func()) bool {
+	if pc == nil || pc.DC == nil {
+		return false
+	}
+	if mask == nil {
+		draw()
+		return true
+	}
+	if draw == nil || w <= 0 || h <= 0 {
+		return false
+	}
+	if pc.LayerBudget != nil && !pc.LayerBudget.Allow(w, h) {
+		if pc.LayerStats != nil {
+			pc.LayerStats.Reject.Add(1)
+		}
+		return false
+	}
+	if pc.LayerStats != nil {
+		pc.LayerStats.Allow.Add(1)
+	}
+	render.DrawShaderMask(pc.DC, x, y, w, h, mask, draw)
+	return true
+}
+
 // SaveLayerDepth returns unmatched SaveLayer count (tests / diagnostics).
 func (pc *PaintContext) SaveLayerDepth() int {
 	if pc == nil {

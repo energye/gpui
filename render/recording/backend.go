@@ -117,19 +117,21 @@ type Backend interface {
 	// Drawing methods
 
 	// FillPath fills the given path with the brush color/pattern.
-	// The rule determines how to handle self-intersecting paths.
-	FillPath(path *render.Path, brush Brush, rule FillRule)
+	// The rule determines how to handle self-intersecting paths. blend is the
+	// Porter-Duff mode the recording captured for this draw; backends apply it
+	// for this call only.
+	FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode)
 
 	// StrokePath strokes the given path with the brush and stroke style.
-	StrokePath(path *render.Path, brush Brush, stroke Stroke)
+	StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode)
 
 	// FillRect is an optimized method for filling axis-aligned rectangles.
 	// Backends may implement this more efficiently than FillPath with a rect path.
-	FillRect(rect Rect, brush Brush)
+	FillRect(rect Rect, brush Brush, blend render.BlendMode)
 
 	// StrokeRect strokes an axis-aligned rectangle kept in user space, the
 	// stroking counterpart of FillRect.
-	StrokeRect(rect Rect, brush Brush, stroke Stroke)
+	StrokeRect(rect Rect, brush Brush, stroke Stroke, blend render.BlendMode)
 
 	// DrawImage draws an image buffer through the recorded options. Backends
 	// receive the same render.DrawImageOptions the caller recorded (destination,

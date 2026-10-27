@@ -82,6 +82,7 @@ func (r *Recorder) Fill() error {
 		Path:  pathRef,
 		Brush: brushRef,
 		Rule:  r.fillRule,
+		Blend: r.blendMode,
 	})
 
 	r.currentPath = render.NewPath()
@@ -107,6 +108,7 @@ func (r *Recorder) recordFill(clear bool) error {
 		Path:  pathRef,
 		Brush: brushRef,
 		Rule:  r.fillRule,
+		Blend: r.blendMode,
 	})
 	if clear {
 		r.currentPath = render.NewPath()
@@ -147,6 +149,7 @@ func (r *Recorder) recordStroke(clear bool) error {
 		Path:   pathRef,
 		Brush:  brushRef,
 		Stroke: stroke,
+		Blend:  r.blendMode,
 	})
 	if clear {
 		r.currentPath = render.NewPath()
@@ -320,6 +323,7 @@ func (r *Recorder) FillRectangle(x, y, w, h float64) {
 	r.commands = append(r.commands, FillRectCommand{
 		Rect:  rect,
 		Brush: brushRef,
+		Blend: r.blendMode,
 	})
 }
 
@@ -341,6 +345,7 @@ func (r *Recorder) StrokeRectangle(x, y, w, h float64) {
 		Rect:   rect,
 		Brush:  brushRef,
 		Stroke: stroke,
+		Blend:  r.blendMode,
 	})
 }
 

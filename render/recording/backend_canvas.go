@@ -223,41 +223,63 @@ func (b *CanvasBackend) SetClip(path *render.Path, rule FillRule) {
 // ClearClip resets the clip to the full context.
 func (b *CanvasBackend) ClearClip() { b.dc.ResetClip() }
 
+// withBlend applies blend to the target for one draw and puts the ambient mode
+// back afterwards. The recording carries the mode per command, so replay never
+// depends on, or leaks into, the target's paint state.
+func (b *CanvasBackend) withBlend(blend render.BlendMode, draw func()) {
+	prev := b.dc.BlendMode()
+	if blend != prev {
+		b.dc.SetBlendMode(blend)
+	}
+	draw()
+	if blend != prev {
+		b.dc.SetBlendMode(prev)
+	}
+}
+
 // FillPath fills the path with the brush.
-func (b *CanvasBackend) FillPath(path *render.Path, brush Brush, rule FillRule) {
+func (b *CanvasBackend) FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode) {
 	if path == nil {
 		return
 	}
 	ApplyBrush(b.dc, brush, true)
 	b.dc.SetFillRule(rule)
-	b.dc.DrawPath(path)
-	_ = b.dc.Fill()
+	b.withBlend(blend, func() {
+		b.dc.DrawPath(path)
+		_ = b.dc.Fill()
+	})
 }
 
 // StrokePath strokes the path with the brush and stroke style.
-func (b *CanvasBackend) StrokePath(path *render.Path, brush Brush, stroke Stroke) {
+func (b *CanvasBackend) StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode) {
 	if path == nil {
 		return
 	}
 	ApplyBrush(b.dc, brush, false)
 	ApplyStroke(b.dc, stroke)
-	b.dc.DrawPath(path)
-	_ = b.dc.Stroke()
+	b.withBlend(blend, func() {
+		b.dc.DrawPath(path)
+		_ = b.dc.Stroke()
+	})
 }
 
 // FillRect fills an axis-aligned rectangle kept in user space.
-func (b *CanvasBackend) FillRect(rect Rect, brush Brush) {
+func (b *CanvasBackend) FillRect(rect Rect, brush Brush, blend render.BlendMode) {
 	ApplyBrush(b.dc, brush, true)
-	b.dc.DrawRectangle(rect.MinX, rect.MinY, rect.Width(), rect.Height())
-	_ = b.dc.Fill()
+	b.withBlend(blend, func() {
+		b.dc.DrawRectangle(rect.MinX, rect.MinY, rect.Width(), rect.Height())
+		_ = b.dc.Fill()
+	})
 }
 
 // StrokeRect strokes an axis-aligned rectangle kept in user space.
-func (b *CanvasBackend) StrokeRect(rect Rect, brush Brush, stroke Stroke) {
+func (b *CanvasBackend) StrokeRect(rect Rect, brush Brush, stroke Stroke, blend render.BlendMode) {
 	ApplyBrush(b.dc, brush, false)
 	ApplyStroke(b.dc, stroke)
-	b.dc.DrawRectangle(rect.MinX, rect.MinY, rect.Width(), rect.Height())
-	_ = b.dc.Stroke()
+	b.withBlend(blend, func() {
+		b.dc.DrawRectangle(rect.MinX, rect.MinY, rect.Width(), rect.Height())
+		_ = b.dc.Stroke()
+	})
 }
 
 // DrawImage replays the recorded options onto the context unchanged. The image

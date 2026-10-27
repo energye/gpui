@@ -96,6 +96,11 @@ type Canvas interface {
 	ClearDash()
 	SetAntiAlias(enabled bool)
 	AntiAlias() bool
+	// SetBlendMode selects the Porter-Duff blend used by subsequent fills and
+	// strokes. BlendMode reports it, so a display-list player can put the
+	// ambient blend back after a replay that changes it.
+	SetBlendMode(mode BlendMode)
+	BlendMode() BlendMode
 
 	// Draw
 	Fill() error

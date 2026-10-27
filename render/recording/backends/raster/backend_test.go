@@ -76,7 +76,7 @@ func TestBackendFillRect(t *testing.T) {
 	// Fill a red rectangle
 	rect := recording.NewRect(10, 10, 50, 50)
 	brush := recording.NewSolidBrush(render.Red)
-	backend.FillRect(rect, brush)
+	backend.FillRect(rect, brush, render.BlendNormal)
 
 	err = backend.End()
 	if err != nil {
@@ -113,7 +113,7 @@ func TestBackendFillPath(t *testing.T) {
 	path.Close()
 
 	brush := recording.NewSolidBrush(render.Blue)
-	backend.FillPath(path, brush, recording.FillRuleNonZero)
+	backend.FillPath(path, brush, recording.FillRuleNonZero, render.BlendNormal)
 
 	err = backend.End()
 	if err != nil {
@@ -153,7 +153,7 @@ func TestBackendStrokePath(t *testing.T) {
 		Join:       recording.LineJoinRound,
 		MiterLimit: 4.0,
 	}
-	backend.StrokePath(path, brush, stroke)
+	backend.StrokePath(path, brush, stroke, render.BlendNormal)
 
 	err = backend.End()
 	if err != nil {
@@ -240,7 +240,7 @@ func TestBackendWriteTo(t *testing.T) {
 	// Draw something
 	rect := recording.NewRect(0, 0, 50, 50)
 	brush := recording.NewSolidBrush(render.Red)
-	backend.FillRect(rect, brush)
+	backend.FillRect(rect, brush, render.BlendNormal)
 
 	err = backend.End()
 	if err != nil {
@@ -320,7 +320,7 @@ func TestBackendLinearGradient(t *testing.T) {
 		AddColorStop(1, render.Blue)
 
 	rect := recording.NewRect(0, 0, 100, 100)
-	backend.FillRect(rect, grad)
+	backend.FillRect(rect, grad, render.BlendNormal)
 
 	err = backend.End()
 	if err != nil {
@@ -367,7 +367,7 @@ func TestBackendRadialGradient(t *testing.T) {
 		AddColorStop(1, render.Black)
 
 	rect := recording.NewRect(0, 0, 100, 100)
-	backend.FillRect(rect, grad)
+	backend.FillRect(rect, grad, render.BlendNormal)
 
 	err = backend.End()
 	if err != nil {
@@ -488,7 +488,7 @@ func TestBackendDashedStroke(t *testing.T) {
 		DashPattern: []float64{10, 5}, // 10px dash, 5px gap
 		DashOffset:  0,
 	}
-	backend.StrokePath(path, brush, stroke)
+	backend.StrokePath(path, brush, stroke, render.BlendNormal)
 
 	err = backend.End()
 	if err != nil {

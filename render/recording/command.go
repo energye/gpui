@@ -303,6 +303,8 @@ type FillPathCommand struct {
 	Brush BrushRef
 	// Rule specifies the fill rule (non-zero or even-odd).
 	Rule FillRule
+	// Blend is the Porter-Duff mode captured at draw time.
+	Blend render.BlendMode
 }
 
 // Type implements Command.
@@ -316,6 +318,8 @@ type StrokePathCommand struct {
 	Brush BrushRef
 	// Stroke contains the stroke style (width, cap, join, dash).
 	Stroke Stroke
+	// Blend is the Porter-Duff mode captured at draw time.
+	Blend render.BlendMode
 }
 
 // Type implements Command.
@@ -328,6 +332,8 @@ type FillRectCommand struct {
 	Rect Rect
 	// Brush references the fill brush in the resource pool.
 	Brush BrushRef
+	// Blend is the Porter-Duff mode captured at draw time.
+	Blend render.BlendMode
 }
 
 // Type implements Command.
@@ -341,6 +347,8 @@ type StrokeRectCommand struct {
 	Brush BrushRef
 	// Stroke contains the stroke style.
 	Stroke Stroke
+	// Blend is the Porter-Duff mode captured at draw time.
+	Blend render.BlendMode
 }
 
 // Type implements Command.

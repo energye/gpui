@@ -26,10 +26,18 @@ import (
 // Example:
 //
 //	dc.SetBlendMode(render.BlendMultiply)
-//	dc.Fill() // Future: will use multiply blend mode
+//	dc.Fill()
 func (c *Context) SetBlendMode(mode BlendMode) {
 
 	c.paint.BlendMode = mode
+}
+
+// BlendMode reports the blend mode used by subsequent fills and strokes.
+func (c *Context) BlendMode() BlendMode {
+	if c == nil || c.paint == nil {
+		return BlendNormal
+	}
+	return c.paint.BlendMode
 }
 
 // compositeLayer composites a layer onto a parent pixmap using the layer's
@@ -404,6 +412,12 @@ func (c *Context) applyLayerOpacityMul() func() {
 	if c == nil || c.paint == nil {
 		return func() {}
 	}
+	// Destination-dependent operators take their source alpha literally (DstIn
+	// is a mask), so a group opacity must not scale it here. Normal/Copy place
+	// src over the group and keep the alpha multiply.
+	if c.paint.BlendMode != BlendNormal && c.paint.BlendMode != BlendCopy {
+		return func() {}
+	}
 	mul := c.layerOpacityMul()
 	if mul == 1 {
 		return func() {}
@@ -497,8 +511,22 @@ func (c *Context) materializeLayerGPUToPixmap(layer *Layer) bool {
 	return true
 }
 
-// seedTopLayerGPUFromPixmap uploads the top layer pixmap into its GPU RT (L.05).
-// Keeps GPU RT coherent after CPU snapshot / filter writes.
+// materializeLayerForCPU folds pending GPU content of the top isolation layer
+// into its CPU pixmap before a software fallback draws into that pixmap.
+// Without it PopLayer would CPU-composite a surface that never saw the GPU
+// draws (e.g. a gradient DstIn mask that fell back), losing that content.
+func (c *Context) materializeLayerForCPU() {
+	if c == nil || c.layerStack == nil || len(c.layerStack.layers) == 0 {
+		return
+	}
+	layer := c.layerStack.layers[len(c.layerStack.layers)-1]
+	if layer == nil || layer.gpuView.IsNil() || layer.cpuDrew {
+		return
+	}
+	_ = c.flushLayerViewGPU(layer.gpuView, uint32(layer.gpuW), uint32(layer.gpuH), nil) //nolint:gosec // bounded
+	_ = c.materializeLayerGPUToPixmap(layer)
+}
+
 // seedTopLayerGPUFromPixmap uploads the top layer pixmap into its GPU RT (L.05).
 // Keeps GPU RT coherent after CPU snapshot / filter writes.
 func (c *Context) seedTopLayerGPUFromPixmap() bool {

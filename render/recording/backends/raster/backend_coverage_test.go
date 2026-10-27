@@ -21,7 +21,7 @@ func TestBackendApplyBrushLinearGradient(t *testing.T) {
 		AddColorStop(1, render.Blue)
 
 	rect := recording.NewRect(0, 0, 100, 100)
-	backend.FillRect(rect, grad)
+	backend.FillRect(rect, grad, render.BlendNormal)
 
 	err = backend.End()
 	if err != nil {
@@ -41,7 +41,7 @@ func TestBackendApplyBrushRadialGradient(t *testing.T) {
 		AddColorStop(1, render.Black)
 
 	rect := recording.NewRect(0, 0, 100, 100)
-	backend.FillRect(rect, grad)
+	backend.FillRect(rect, grad, render.BlendNormal)
 
 	_ = backend.End()
 }
@@ -59,7 +59,7 @@ func TestBackendApplyBrushSweepGradient(t *testing.T) {
 		AddColorStop(1, render.Blue)
 
 	rect := recording.NewRect(0, 0, 100, 100)
-	backend.FillRect(rect, grad)
+	backend.FillRect(rect, grad, render.BlendNormal)
 
 	_ = backend.End()
 }
@@ -86,7 +86,7 @@ func TestBackendApplyStrokeBrush(t *testing.T) {
 		Join:       recording.LineJoinBevel,
 		MiterLimit: 4.0,
 	}
-	backend.StrokePath(path, grad, stroke)
+	backend.StrokePath(path, grad, stroke, render.BlendNormal)
 
 	_ = backend.End()
 }
@@ -116,7 +116,7 @@ func TestBackendFillPathNil(t *testing.T) {
 	_ = backend.Begin(100, 100)
 
 	// Nil path should not panic
-	backend.FillPath(nil, recording.NewSolidBrush(render.Red), recording.FillRuleNonZero)
+	backend.FillPath(nil, recording.NewSolidBrush(render.Red), recording.FillRuleNonZero, render.BlendNormal)
 
 	_ = backend.End()
 }
@@ -126,7 +126,7 @@ func TestBackendStrokePathNil(t *testing.T) {
 	_ = backend.Begin(100, 100)
 
 	// Nil path should not panic
-	backend.StrokePath(nil, recording.NewSolidBrush(render.Red), recording.Stroke{Width: 2})
+	backend.StrokePath(nil, recording.NewSolidBrush(render.Red), recording.Stroke{Width: 2}, render.BlendNormal)
 
 	_ = backend.End()
 }
@@ -192,7 +192,7 @@ func TestBackendFillRuleEvenOdd(t *testing.T) {
 
 	path := render.NewPath()
 	path.Rectangle(10, 10, 80, 80)
-	backend.FillPath(path, recording.NewSolidBrush(render.Red), recording.FillRuleEvenOdd)
+	backend.FillPath(path, recording.NewSolidBrush(render.Red), recording.FillRuleEvenOdd, render.BlendNormal)
 
 	_ = backend.End()
 }
@@ -202,7 +202,7 @@ func TestBackendSavePNG(t *testing.T) {
 	_ = backend.Begin(10, 10)
 
 	rect := recording.NewRect(0, 0, 10, 10)
-	backend.FillRect(rect, recording.NewSolidBrush(render.Red))
+	backend.FillRect(rect, recording.NewSolidBrush(render.Red), render.BlendNormal)
 
 	_ = backend.End()
 

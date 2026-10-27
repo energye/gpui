@@ -100,7 +100,7 @@
 //
 //   - Path operations: MoveTo, LineTo, QuadraticTo, CubicTo, ClosePath
 //   - Shape helpers: DrawRectangle, DrawRoundedRectangle, DrawCircle, DrawEllipse, DrawArc, DrawEllipticalArc
-//   - Fill and stroke with solid colors and gradients
+//   - Fill and stroke with solid colors and gradients, each carrying its blend mode
 //   - Line styles: width, cap, join, miter limit, dash patterns
 //   - Transformations: Translate, Rotate, Scale, matrix operations
 //   - Clipping: path-based clipping with fill rules
@@ -129,7 +129,7 @@
 // # Custom Backends
 //
 // Implement the [Backend] interface to create custom output formats. The
-// contract is 31 methods — one per command the Recorder can emit; the excerpt
+// contract is 38 methods — one per command the Recorder can emit; the excerpt
 // below shows the shape, [Backend] is the authority:
 //
 //	type Backend interface {
@@ -140,9 +140,9 @@
 //	    Concat(m Matrix)
 //	    SetClip(path *render.Path, rule FillRule)
 //	    ClipRect(rect Rect)
-//	    FillPath(path *render.Path, brush Brush, rule FillRule)
-//	    StrokePath(path *render.Path, brush Brush, stroke Stroke)
-//	    FillRect(rect Rect, brush Brush)
+//	    FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode)
+//	    StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode)
+//	    FillRect(rect Rect, brush Brush, blend render.BlendMode)
 //	    DrawImage(img *render.ImageBuf, opts render.DrawImageOptions)
 //	    DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush)
 //	    DrawText(s string, x, y float64, face text.Face, brush Brush)
@@ -150,6 +150,11 @@
 //	    PopLayer()
 //	    // ... plus the remaining image/mesh/decoration/effect/layer methods
 //	}
+//
+// Fill and stroke commands carry the blend mode that was ambient when they were
+// recorded (Skia draws store their own paint). Replay sets it for that single
+// call and restores the target canvas' blend afterward, so a DestinationIn fill
+// used by render.DrawShaderMask cannot leak into later text or image commands.
 //
 // All geometry arrives in user space under the replayed CTM; backends must not
 // bake device coordinates in.

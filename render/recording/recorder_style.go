@@ -226,3 +226,16 @@ func (r *Recorder) SetAntiAlias(enabled bool) {
 func (r *Recorder) AntiAlias() bool {
 	return r.antiAlias
 }
+
+// SetBlendMode sets the blend mode recorded into subsequent fill and stroke
+// commands. Like Context.Push, Save does not stash the blend: the mode is a
+// draw-time property that each command carries, so replay is independent of
+// the target's ambient state.
+func (r *Recorder) SetBlendMode(mode render.BlendMode) {
+	r.blendMode = mode
+}
+
+// BlendMode returns the blend mode subsequent fills and strokes will carry.
+func (r *Recorder) BlendMode() render.BlendMode {
+	return r.blendMode
+}

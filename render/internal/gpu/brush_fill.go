@@ -23,6 +23,21 @@ import (
 // Above this, fall back to pure CPU on the context pixmap.
 const maxBrushFillPixels = 8 * 1024 * 1024
 
+// stagedBlendUnsupported reports whether a non-Normal blend cannot ride the
+// staged rect blit. Destination-sampling modes have no fixed pipeline, and any
+// geometry that does not fully cover its bounds would let DestinationIn erase
+// pixels the quad covers but the path does not.
+func stagedBlendUnsupported(paint *render.Paint, path *render.Path) bool {
+	if paint == nil || paint.BlendMode == render.BlendNormal {
+		return false
+	}
+	if !paintSupportsGPUFixedBlend(paint) {
+		return true
+	}
+	_, _, _, _, ok := pathAxisAlignedRect(path)
+	return !ok
+}
+
 // dualTexTileMax is the max pixels per dual-tex tile (G.07).
 const dualTexTileMax = 512 * 512
 
@@ -48,7 +63,7 @@ func (rc *GPURenderContext) fillBrushCoverageColorAt(target render.GPURenderTarg
 			return render.ErrFallbackToCPU
 		}
 	}
-	if paint.BlendMode != render.BlendNormal {
+	if stagedBlendUnsupported(paint, path) {
 		return render.ErrFallbackToCPU
 	}
 
@@ -131,10 +146,11 @@ func (rc *GPURenderContext) fillBrushCoverageColorAt(target render.GPURenderTarg
 	genID := pm.GenerationID() ^ 0xC0A7_C01A_0000_0001
 
 	rc.markBrushGPUStar()
-	rc.QueueImageDraw(target, pixelData, genID, bw, bh, bw*4,
+	rc.QueueImageDrawBlend(target, pixelData, genID, bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
+		0, 0, 0, 0, paint.BlendMode,
 		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
@@ -173,7 +189,7 @@ func (rc *GPURenderContext) fillColorAtFieldMaskedGPU(
 			return render.ErrFallbackToCPU
 		}
 	}
-	if paint.BlendMode != render.BlendNormal {
+	if stagedBlendUnsupported(paint, path) {
 		return render.ErrFallbackToCPU
 	}
 
@@ -336,10 +352,11 @@ func (rc *GPURenderContext) fillColorAtFieldMaskedGPU(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDraw(target, pixelData, genID, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, pixelData, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
+		0, 0, 0, 0, paint.BlendMode,
 		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
@@ -445,7 +462,7 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 			return render.ErrFallbackToCPU
 		}
 	}
-	if paint.BlendMode != render.BlendNormal {
+	if stagedBlendUnsupported(paint, path) {
 		return render.ErrFallbackToCPU
 	}
 
@@ -590,7 +607,9 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	}
 
 	// 1) True textured stencil cover: prefer no-readback retain + GPUTextureDraw.
-	if device != nil && queue != nil {
+	// The retained GPU-to-GPU blit has no blend variant, so fixed blends skip it
+	// and take the readback cover below (the final staged blit carries the blend).
+	if device != nil && queue != nil && paint.BlendMode == render.BlendNormal {
 		tp := texturedStencilLinearParams{
 			boundsMinX: float32(bx),
 			boundsMinY: float32(by),
@@ -764,10 +783,11 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDraw(target, pixelData, genID, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, pixelData, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
+		0, 0, 0, 0, paint.BlendMode,
 		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
@@ -804,7 +824,7 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 			return render.ErrFallbackToCPU
 		}
 	}
-	if paint.BlendMode != render.BlendNormal {
+	if stagedBlendUnsupported(paint, path) {
 		return render.ErrFallbackToCPU
 	}
 
@@ -1014,26 +1034,30 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 			invLen2: float32(g.EndRadius), tMin: float32(tMin), invSpan: float32(invSpan), mode: 3,
 		}
 	}
-	if tex, view, gerr := texturedStencilCoverLinearRetain(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
-		if tex == nil && view == nil {
-			return nil
-		}
-		if view != nil {
-			rc.retainBrushCoverResult(tex, view)
-			vpW := uint32(tw) //nolint:gosec
-			vpH := uint32(th) //nolint:gosec
-			if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
-				vpW, vpH = target.ViewWidth, target.ViewHeight
+	// The retained GPU-to-GPU blit has no blend variant; fixed blends fall
+	// through to the readback cover so the staged blit can carry them.
+	if paint.BlendMode == render.BlendNormal {
+		if tex, view, gerr := texturedStencilCoverLinearRetain(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
+			if tex == nil && view == nil {
+				return nil
 			}
-			x0 := float32(bounds.Min.X)
-			y0 := float32(bounds.Min.Y)
-			x1 := float32(bounds.Max.X)
-			y1 := float32(bounds.Max.Y)
-			rc.markBrushGPUStar()
-			rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
-			rc.sceneStats.PathCount++
-			rc.sceneStats.ShapeCount++
-			return nil
+			if view != nil {
+				rc.retainBrushCoverResult(tex, view)
+				vpW := uint32(tw) //nolint:gosec
+				vpH := uint32(th) //nolint:gosec
+				if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
+					vpW, vpH = target.ViewWidth, target.ViewHeight
+				}
+				x0 := float32(bounds.Min.X)
+				y0 := float32(bounds.Min.Y)
+				x1 := float32(bounds.Max.X)
+				y1 := float32(bounds.Max.Y)
+				rc.markBrushGPUStar()
+				rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
+				rc.sceneStats.PathCount++
+				rc.sceneStats.ShapeCount++
+				return nil
+			}
 		}
 	}
 	// Fallback: readback cover.
@@ -1103,10 +1127,11 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDraw(target, out, genID, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, out, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
+		0, 0, 0, 0, paint.BlendMode,
 		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
@@ -1218,7 +1243,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 			return render.ErrFallbackToCPU
 		}
 	}
-	if paint.BlendMode != render.BlendNormal {
+	if stagedBlendUnsupported(paint, path) {
 		return render.ErrFallbackToCPU
 	}
 
@@ -1377,26 +1402,30 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 		invLen2: 0, tMin: float32(tMin), invSpan: float32(invSpan), mode: 2,
 		extend: tileMode,
 	}
-	if tex, view, gerr := texturedStencilCoverLinearRetain(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
-		if tex == nil && view == nil {
-			return nil
-		}
-		if view != nil {
-			rc.retainBrushCoverResult(tex, view)
-			vpW := uint32(tw) //nolint:gosec
-			vpH := uint32(th) //nolint:gosec
-			if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
-				vpW, vpH = target.ViewWidth, target.ViewHeight
+	// The retained GPU-to-GPU blit has no blend variant; fixed blends fall
+	// through to the readback cover so the staged blit can carry them.
+	if paint.BlendMode == render.BlendNormal {
+		if tex, view, gerr := texturedStencilCoverLinearRetain(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
+			if tex == nil && view == nil {
+				return nil
 			}
-			x0 := float32(bounds.Min.X)
-			y0 := float32(bounds.Min.Y)
-			x1 := float32(bounds.Max.X)
-			y1 := float32(bounds.Max.Y)
-			rc.markBrushGPUStar()
-			rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
-			rc.sceneStats.PathCount++
-			rc.sceneStats.ShapeCount++
-			return nil
+			if view != nil {
+				rc.retainBrushCoverResult(tex, view)
+				vpW := uint32(tw) //nolint:gosec
+				vpH := uint32(th) //nolint:gosec
+				if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
+					vpW, vpH = target.ViewWidth, target.ViewHeight
+				}
+				x0 := float32(bounds.Min.X)
+				y0 := float32(bounds.Min.Y)
+				x1 := float32(bounds.Max.X)
+				y1 := float32(bounds.Max.Y)
+				rc.markBrushGPUStar()
+				rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
+				rc.sceneStats.PathCount++
+				rc.sceneStats.ShapeCount++
+				return nil
+			}
 		}
 	}
 	if pixels, gerr := texturedStencilCoverLinear(device, queue, texCache, localPath, paint.FillRule, nw, nh, ramp, n, tp, sc); gerr == nil {
@@ -1457,10 +1486,11 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDraw(target, out, genID, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, out, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
+		0, 0, 0, 0, paint.BlendMode,
 		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
@@ -1540,7 +1570,7 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 			return render.ErrFallbackToCPU
 		}
 	}
-	if paint.BlendMode != render.BlendNormal {
+	if stagedBlendUnsupported(paint, path) {
 		return render.ErrFallbackToCPU
 	}
 
@@ -1670,26 +1700,30 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	var out []byte
 	covGPU := false
 	usedTexCover := false
-	if tex, view, gerr := texturedStencilCoverPatternRetain(device, queue, patCoverCache, localPath, paint.FillRule, nw, nh, tile, srcW, srcH, tp, sc); gerr == nil {
-		if tex == nil && view == nil {
-			return nil
-		}
-		if view != nil {
-			rc.retainBrushCoverResult(tex, view)
-			vpW := uint32(tw) //nolint:gosec
-			vpH := uint32(th) //nolint:gosec
-			if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
-				vpW, vpH = target.ViewWidth, target.ViewHeight
+	// The retained GPU-to-GPU blit has no blend variant; fixed blends fall
+	// through to the readback cover so the staged blit can carry them.
+	if paint.BlendMode == render.BlendNormal {
+		if tex, view, gerr := texturedStencilCoverPatternRetain(device, queue, patCoverCache, localPath, paint.FillRule, nw, nh, tile, srcW, srcH, tp, sc); gerr == nil {
+			if tex == nil && view == nil {
+				return nil
 			}
-			x0 := float32(bounds.Min.X)
-			y0 := float32(bounds.Min.Y)
-			x1 := float32(bounds.Max.X)
-			y1 := float32(bounds.Max.Y)
-			rc.markBrushGPUStar()
-			rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
-			rc.sceneStats.PathCount++
-			rc.sceneStats.ShapeCount++
-			return nil
+			if view != nil {
+				rc.retainBrushCoverResult(tex, view)
+				vpW := uint32(tw) //nolint:gosec
+				vpH := uint32(th) //nolint:gosec
+				if !target.View.IsNil() && target.ViewWidth > 0 && target.ViewHeight > 0 {
+					vpW, vpH = target.ViewWidth, target.ViewHeight
+				}
+				x0 := float32(bounds.Min.X)
+				y0 := float32(bounds.Min.Y)
+				x1 := float32(bounds.Max.X)
+				y1 := float32(bounds.Max.Y)
+				rc.markBrushGPUStar()
+				rc.queueBrushCoverTexture(target, view, x0, y0, x1, y1, vpW, vpH)
+				rc.sceneStats.PathCount++
+				rc.sceneStats.ShapeCount++
+				return nil
+			}
 		}
 	}
 	if pixels, gerr := texturedStencilCoverPattern(device, queue, patCoverCache, localPath, paint.FillRule, nw, nh, tile, srcW, srcH, tp, sc); gerr == nil {
@@ -1751,10 +1785,11 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDraw(target, out, genID, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, out, genID, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
+		0, 0, 0, 0, paint.BlendMode,
 		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
@@ -1777,7 +1812,7 @@ func (rc *GPURenderContext) fillBrushAsImage(target render.GPURenderTarget, path
 		}
 	}
 	// Non-SourceOver needs destination pixels → full CPU on context pixmap.
-	if paint.BlendMode != render.BlendNormal {
+	if stagedBlendUnsupported(paint, path) {
 		return render.ErrFallbackToCPU
 	}
 
@@ -1851,10 +1886,11 @@ func (rc *GPURenderContext) fillBrushAsImage(target render.GPURenderTarget, path
 	vpH := uint32(th) //nolint:gosec
 
 	rc.markBrushGPUStar()
-	rc.QueueImageDraw(target, pixelData, pm.GenerationID(), bw, bh, bw*4,
+	rc.QueueImageDrawBlend(target, pixelData, pm.GenerationID(), bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
+		0, 0, 0, 0, paint.BlendMode,
 		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++
@@ -1948,7 +1984,9 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 			return render.ErrFallbackToCPU
 		}
 	}
-	// Non-SourceOver + mask: keep full CPU for now.
+	// A device-space mask only restricts where the path may draw; blending the
+	// staged quad with a destination-dependent mode would instead erase pixels
+	// the mask merely skipped. Keep full CPU for now.
 	if paint.BlendMode != render.BlendNormal {
 		return render.ErrFallbackToCPU
 	}
@@ -2087,10 +2125,11 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 	vpH := uint32(th) //nolint:gosec
 
 	rc.markBrushGPUStar()
-	rc.QueueImageDraw(target, pixelData, pm.GenerationID(), bw, bh, bw*4,
+	rc.QueueImageDrawBlend(target, pixelData, pm.GenerationID(), bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
+		0, 0, 0, 0, paint.BlendMode,
 		false, false)
 	rc.sceneStats.PathCount++
 	rc.sceneStats.ShapeCount++

@@ -35,7 +35,7 @@ func (rc *GPURenderContext) fillBrushNative(target render.GPURenderTarget, path 
 	if path == nil || path.NumVerbs() == 0 || paint == nil {
 		return nil
 	}
-	if paint.BlendMode != render.BlendNormal {
+	if stagedBlendUnsupported(paint, path) {
 		return render.ErrFallbackToCPU
 	}
 	if !rc.shared.gpuReady {
@@ -251,6 +251,10 @@ func (rc *GPURenderContext) fillGradientConvexNative(
 	if gradientExtend(brush) != render.ExtendPad {
 		return render.ErrFallbackToCPU
 	}
+	// Gouraud writes straight into the target with SourceOver only.
+	if paint.BlendMode != render.BlendNormal {
+		return render.ErrFallbackToCPU
+	}
 
 	var points []render.Point
 	var ok bool
@@ -454,17 +458,19 @@ func (rc *GPURenderContext) fillLinearGradientSpanNative(
 	fy1 := float32(ry + rh)
 	if horizontal {
 		// n x 1 ramp stretched over rect.
-		rc.QueueImageDraw(target, ramp, genID, n, 1, n*4,
+		rc.QueueImageDrawBlend(target, ramp, genID, n, 1, n*4,
 			fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 			1, vpW, vpH,
 			0, 0, 1, 1,
+			0, 0, 0, 0, paint.BlendMode,
 			false, false)
 	} else {
 		// 1 x n ramp.
-		rc.QueueImageDraw(target, ramp, genID, 1, n, 4,
+		rc.QueueImageDrawBlend(target, ramp, genID, 1, n, 4,
 			fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 			1, vpW, vpH,
 			0, 0, 1, 1,
+			0, 0, 0, 0, paint.BlendMode,
 			false, false)
 	}
 	rc.sceneStats.PathCount++
@@ -634,6 +640,11 @@ func (rc *GPURenderContext) fillColorAtFieldNative(
 	if colorAt == nil || path == nil {
 		return render.ErrFallbackToCPU
 	}
+	// The field blit has no blend variant; let the staged path handle fixed
+	// blends (it rasterizes coverage and composites with the paint's mode).
+	if paint == nil || paint.BlendMode != render.BlendNormal {
+		return render.ErrFallbackToCPU
+	}
 	rx, ry, rw, rh, ok := pathAxisAlignedRect(path)
 	if !ok || rw < 1 || rh < 1 {
 		return render.ErrFallbackToCPU
@@ -783,6 +794,10 @@ func (rc *GPURenderContext) fillImagePatternNative(
 	paint *render.Paint,
 	pat *render.ImagePattern,
 ) error {
+	// The pattern blit has no blend variant; staged paths own fixed blends.
+	if paint == nil || paint.BlendMode != render.BlendNormal {
+		return render.ErrFallbackToCPU
+	}
 	src := pat.Source()
 	img, srcX, srcY, srcW, srcH, inv, opacity, clamp := src.Image, src.SrcX, src.SrcY, src.SrcW, src.SrcH, src.Inverse, src.Opacity, src.ClampToSource
 	if img == nil || srcW <= 0 || srcH <= 0 {

@@ -289,9 +289,12 @@ func (c *Context) doFill() error {
 	// CPU path: flush pending GPU, apply mode and AA state to software renderer.
 	// When drawing into a PushLayer surface, do NOT flush GPU here — pending GPU
 	// ops may target the layer's offscreen view (or parent). Flushing would force
-	// a costly full-surface resolve and break 60fps UI.
+	// a costly full-surface resolve and break 60fps UI. The pixmap does need the
+	// layer's GPU content first, otherwise PopLayer composites without it.
 	if !(c.layerStack != nil && len(c.layerStack.layers) > 0) {
 		c.flushGPUAccelerator()
+	} else {
+		c.materializeLayerForCPU()
 	}
 	if sr, ok := c.renderer.(*SoftwareRenderer); ok {
 		sr.rasterizerMode = cpuMode
