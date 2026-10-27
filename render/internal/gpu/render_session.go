@@ -583,7 +583,6 @@ type GPURenderSession struct {
 	glyphMaskQuadScratch      []GlyphMaskQuad
 	glyphMaskVertStaging      []byte
 	glyphMaskIdxStaging       []byte
-	glyphMaskUniformScratch   []byte
 	glyphMaskIdxUploadedQuads int // skip index WriteBuffer when capacity already covers N
 
 	// Tier 3b: GPU texture compositing persistent buffers.
@@ -2773,9 +2772,14 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (hal.BindGroup, 
 	// Reuse from pool if available.
 	idx := s.clipPoolUsed
 	s.clipBytesScratch = params.BytesInto(s.clipBytesScratch)
+	// Each clip owns its bytes until the queue drains: GLES stages
+	// WriteBuffer payloads by reference and reads them at Submit, so handing
+	// the shared scratch to several pool buffers made every clip read the
+	// last group's rect.
+	clipData := append([]byte(nil), s.clipBytesScratch...)
 	if idx < len(s.clipUniformPool) {
 		// Reuse existing buffer, just update its contents.
-		if err := s.queueWriteBuffer(s.clipUniformPool[idx], 0, s.clipBytesScratch); err != nil {
+		if err := s.queueWriteBuffer(s.clipUniformPool[idx], 0, clipData); err != nil {
 			return nil, fmt.Errorf("write clip uniform: %w", err)
 		}
 		s.clipPoolUsed++
@@ -2791,7 +2795,7 @@ func (s *GPURenderSession) getClipBindGroup(params *ClipParams) (hal.BindGroup, 
 	if err != nil {
 		return nil, fmt.Errorf("create clip uniform buffer: %w", err)
 	}
-	if err := s.queueWriteBuffer(buf, 0, s.clipBytesScratch); err != nil {
+	if err := s.queueWriteBuffer(buf, 0, clipData); err != nil {
 		buf.Destroy()
 		return nil, fmt.Errorf("write clip uniform: %w", err)
 	}
@@ -5307,6 +5311,13 @@ func (s *GPURenderSession) buildGlyphMaskDrawCalls(batches []GlyphMaskBatch, vie
 		D: 0, E: -2.0 / vh, F: 1.0,
 	}
 
+	// Every batch needs its own bytes until the queue drains: GLES stages
+	// WriteBuffer payloads by reference and reads them at Submit, so one
+	// shared scratch would hand every batch the last batch's transform and
+	// colour. One slab per call keeps the uploads distinct without a
+	// per-batch allocation.
+	uniformSlab := make([]byte, len(batches)*glyphMaskLCDUniformSize)
+
 	for i, batch := range batches {
 		nQuads := len(batch.Quads)
 		if nQuads == 0 {
@@ -5323,14 +5334,12 @@ func (s *GPURenderSession) buildGlyphMaskDrawCalls(batches []GlyphMaskBatch, vie
 		}
 
 		// Write uniform data for this batch.
+		slot := uniformSlab[i*glyphMaskLCDUniformSize : (i+1)*glyphMaskLCDUniformSize] //nolint:mnd // per-batch slot
 		var uniformData []byte
 		if batch.IsLCD {
-			// share session scratch (LCD 96B ≥ grayscale 80B).
-			uniformData = makeGlyphMaskLCDUniformInto(s.glyphMaskUniformScratch, finalTransform, batch.Color, batch.AtlasWidth, batch.AtlasHeight)
-			s.glyphMaskUniformScratch = uniformData
+			uniformData = makeGlyphMaskLCDUniformInto(slot, finalTransform, batch.Color, batch.AtlasWidth, batch.AtlasHeight)
 		} else {
-			uniformData = makeGlyphMaskUniformInto(s.glyphMaskUniformScratch, finalTransform, batch.Color)
-			s.glyphMaskUniformScratch = uniformData
+			uniformData = makeGlyphMaskUniformInto(slot, finalTransform, batch.Color)
 		}
 		if err := s.queueWriteBuffer(s.glyphMaskUniformBufs[i], 0, uniformData); err != nil {
 			return nil, fmt.Errorf("write glyph mask uniform[%d]: %w", i, err)
