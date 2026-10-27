@@ -36,6 +36,8 @@ cd tools/ruler_flutter
 
 ## 运行
 
+> **安全（硬）**：批量测量和长循环压测必须在隔离显示里跑（Wayland/XWayland、独立 Xorg 或嵌套 X server）；单窗验收/测量可走当前桌面，但必须先通过隔离验证，按“一轮一窗、跑完查 Xorg”执行。当前桌面只用于单窗验收/测量和看结果。
+
 ```bash
 export RULER_SCENE=spin       # spin | list | text
 export RULER_SECONDS=0        # 0 = 常驻；>0 自退出
@@ -72,8 +74,9 @@ python3 scripts/measure.py --scene text --window-match RULER_TEXT \
 
 每个 `out` 目录有 `report.json`、`shot.png`、`shot_root.png`（整屏原图）、
 `app.stdout`、`app.stderr`。
-`--duration` 之外另加 15s 余量给应用自退出（`RULER_SECONDS`）；采数结束
-统一 SIGTERM，超时 SIGKILL。
+`--duration` 之外另加 15s 余量给应用自退出（`RULER_SECONDS`）；采数结束先发
+WM_DELETE_WINDOW 走应用正常关闭，5s 未退再 SIGTERM，10s 仍未退默认报错收尾
+（只有隔离显示可显式 `GPUI_ALLOW_GPU_HARD_KILL=1` 用 SIGKILL 兜底）。
 
 注意事项：
 

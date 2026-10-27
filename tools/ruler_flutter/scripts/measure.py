@@ -5,7 +5,8 @@ The measurement window is:
   * wait for the real X11 window (not just the process);
   * warm up (default 5 s);
   * sample /proc/<pid>/stat + /proc/<pid>/status for `--duration` seconds;
-  * screenshot the client area and check that it is not an all-black window.
+  * screenshot the client area and check that it is not an all-black window;
+  * request a normal close with WM_DELETE_WINDOW (SIGTERM is only a fallback).
 
 CPU% is process-wide utime+stime over the measured wall window. RSS slope is
 a linear fit in KB/min over the same window. FPS/p95/hitch come from the
@@ -37,9 +38,10 @@ except Exception:  # pragma: no cover - only used by the evidence path
     Image = None
 
 try:
-    from Xlib import X, display
+    from Xlib import X, display, protocol
 except Exception:  # pragma: no cover
     display = None
+    protocol = None
 
 
 def client_geometry(win):
@@ -127,6 +129,26 @@ def raise_window(root, win):
             win.raise_window()
         except Exception:
             pass
+
+
+def request_close(d, win) -> bool:
+    """Send WM_DELETE_WINDOW so the app can run its normal close path."""
+    if d is None or win is None or protocol is None:
+        return False
+    try:
+        wm_protocols = d.intern_atom("WM_PROTOCOLS")
+        wm_delete = d.intern_atom("WM_DELETE_WINDOW")
+        ev = protocol.event.ClientMessage(
+            window=win,
+            client_type=wm_protocols,
+            data=(32, [wm_delete, X.CurrentTime, 0, 0, 0]),
+        )
+        win.send_event(ev, event_mask=X.NoEventMask, propagate=False)
+        d.flush()
+        return True
+    except Exception as e:
+        print(f"WM_DELETE_WINDOW failed: {e}", file=sys.stderr)
+        return False
 
 
 def read_ticks(pid: int) -> int:
@@ -320,6 +342,8 @@ def main() -> int:
         "duration_s": args.duration,
         "warmup_s": args.warmup,
     }
+    d = None
+    win = None
     try:
         found = find_window(args.window_match, timeout_s=20.0)
         if not found:
@@ -399,13 +423,45 @@ def main() -> int:
             stderr_f.flush()
         except Exception:
             pass
-        if proc.poll() is None:
-            proc.terminate()
+        close_requested = False
+        if proc.poll() is None and d is not None and win is not None:
+            close_requested = request_close(d, win)
+            if close_requested:
+                result["close_request"] = "wm_delete"
+        if proc.poll() is None and close_requested:
             try:
+                # WM_DELETE_WINDOW is the normal title-bar close path: the app
+                # sees EventCloseRequested and runs Quit -> Close -> win.Close.
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
+                pass
+        if proc.poll() is None:
+            # Fallback for apps that do not implement WM_DELETE_WINDOW. SIGTERM
+            # is a request, not a force-kill: a GPU app must trap it and run the
+            # normal Close path. Hard-killing a GPU window can crash the Xorg
+            # server (nvidia_drv.so nvidiaUnlock on the 940MX test box).
+            result["close_request"] = (
+                "wm_delete+sigterm" if close_requested else "sigterm"
+            )
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                # Last resort only. On a desktop Xorg a SIGKILL can leave the
+                # GPU surface alive long enough to crash the server; require an
+                # explicit opt-in reserved for isolated test displays.
+                if os.environ.get("GPUI_ALLOW_GPU_HARD_KILL") == "1":
+                    print("app ignored SIGTERM; hard-killing (isolated display opt-in)", file=sys.stderr)
+                    result["close_request"] += "+sigkill"
+                    proc.kill()
+                    proc.wait()
+                else:
+                    result["error"] = "app did not exit after SIGTERM; refusing hard kill"
+                    print(
+                        "app ignored SIGTERM; refusing hard kill. "
+                        "Use an isolated display and set GPUI_ALLOW_GPU_HARD_KILL=1 only there.",
+                        file=sys.stderr,
+                    )
         stdout_f.close()
         stderr_f.close()
 

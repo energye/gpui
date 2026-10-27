@@ -149,9 +149,17 @@
 - **回归按测试文件逐个跑，禁止一次全量**：对每个 `*_test.go` 文件单独执行，一个文件跑完（PASS/SKIP/FAIL 记录）再跑下一个文件；长跑文件单独给足 `-timeout`。
 - 依赖外部数据的用例，数据缺失时用 `t.Skipf` 提示原因，**禁止静默假绿**。
 
+## GPU 真窗与压测安全（硬，对所有会话生效）
+
+- **批量开关窗、长循环压测禁止直接跑在当前桌面 Xorg 上**：先切到隔离显示环境（GNOME Wayland / XWayland、独立 Xorg、嵌套 X server），确认驱动崩溃只影响测试会话、不影响用户桌面，再开窗。**单窗验收/测量**必须先通过隔离环境的标准关闭验证，之后才可在当前桌面按“一轮一窗、WM_DELETE 正常关闭、每轮查 Xorg”执行，禁止并发或加速循环；当前桌面只用于单窗验收/测量和看结果，不用于批量压窗。
+- **测量脚本必须走标准正常关闭**：结束测量时先发 WM_DELETE_WINDOW（窗口关闭请求），应用走 `EventCloseRequested` → `Quit()` → `app.Close()` → `win.Close()`；不支持窗口关闭协议再发 SIGTERM/SIGINT 兜底。脚本等进程自己退出，禁止直接 `kill -9`、禁止 `pkill` / `killall` / `loginctl terminate-session` 清场。只有隔离显示允许用 `GPUI_ALLOW_GPU_HARD_KILL=1` 作为最后兜底；当前桌面绝不硬杀。
+- **关 GPU 资源前必须等 GPU 空闲**：销毁 swapchain/surface/window 前先 `WaitIdle`，顺序固定为“停帧 → WaitIdle → 释放 surface/swapchain → 关窗口”，禁止在 present 还在飞行时直接销毁。
+- **批量脚本必须串行且带健康检查**：每轮开始前检查 Xorg/显示连接是否还在；发现 `nvidia_drv.so (nvidiaUnlock+...)`、`Xorg` 段错误、`Invalid MIT-MAGIC-COOKIE-1 key` 或会话消失，立即停批并报告，禁止在已崩的显示上继续跑下一轮。
+- **已知事故基线**：2026-10-27 的注销来自 Xorg 在 `nvidia_drv.so (nvidiaUnlock+0x45b5d6)` 段错误，触发点是 gpui parity 窗口被 `measure.py` 的 SIGTERM 强杀；940MX + NVIDIA 580 + Xorg 的 Present/DRI3 路径有同类崩溃。以后遇到同栈，按本条停测并走隔离环境。
+
 ## 当前环境（硬）
 
-- 有真机环境时，可运行真窗测试。
+- 有真机环境时，可运行真窗测试；但 GPU 真窗与压测必须先遵守上一条“GPU 真窗与压测安全”。
 - **X11 环境要测 Wayland 真窗，走 `/gpui-wayland-nested`**：这条只负责提醒，具体步骤与坑归 skill + `docs/ENGINE_WAYLAND_NESTED_TEST.md` 管，不在这里展开。
 - **真窗必须自测 + 人工二合一**：需人工看效果的真窗，先跑自动自检（断言 + 出 JSON，门禁用 `-auto-only` 直接判 PASS/FAIL），再常驻等人工操作（收真事件即打日志并改标题显示状态，关窗或 `-manual-seconds` 超时后出汇总 + JSON）；**跑完即关的一次性验收窗不能代替常驻人工窗**。
 

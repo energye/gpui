@@ -1108,6 +1108,11 @@ func (a *PipelineApp) parkNativeSurface() {
 		}
 	}
 	if a.target != nil {
+		// Drain in-flight presents before the surface/swapchain goes away.
+		// Closing them while the GPU still references the window lets the
+		// NVIDIA Xorg driver touch a freed pixmap (nvidiaUnlock crash on
+		// 940MX). WaitIdle is nil/closed-safe.
+		_ = a.target.WaitIdle()
 		// Surface + swapchain destroys need the context current, which the GL
 		// thread holds (see runOnGL).
 		a.runOnGL(func() {
@@ -1135,16 +1140,19 @@ func (a *PipelineApp) Close() {
 	// behind the presents already submitted, so nothing is destroyed in
 	// flight.
 	a.runOnGL(func() {
-		// Raster is drained: no purge can be in flight; drop the layer-texture
-		// cache before its device goes away. WaitIdle first so deferred view
-		// releases never race in-flight submissions; then Close the cache
-		// (Clear + force-drain the deferred queue — no frames run after this,
-		// so BeginFrame can never drain it again) and unregister it.
-		// Best-effort wait: on error still close (device teardown releases).
+		// Raster is drained, but GPU submissions may still be in flight.
+		// WaitIdle before tearing anything down so deferred view releases and
+		// the swapchain/surface destroy never race a present. On the 940MX/
+		// NVIDIA Xorg path an in-flight present during surface teardown crashes
+		// the X server (nvidia_drv.so nvidiaUnlock). Best-effort wait: on error
+		// still close (device teardown releases).
+		if a.target != nil {
+			_ = a.target.WaitIdle()
+		}
+		// Drop the layer-texture cache before its device goes away; then Close
+		// the cache (Clear + force-drain the deferred queue — no frames run
+		// after this, so BeginFrame can never drain it again) and unregister it.
 		if a.pictureTex != nil {
-			if a.target != nil {
-				_ = a.target.WaitIdle()
-			}
 			a.pictureTex.Close()
 			render.UnregisterPurgeEvictable(a.pictureTex)
 			a.pictureTex = nil
