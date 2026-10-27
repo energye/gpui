@@ -235,6 +235,14 @@ func main() {
 	}
 	host := win.Host()
 
+	// 自动档门禁若含抓屏对比：置顶 + 聚焦，避免 GNOME 防抢占把新窗压在
+	// 当前活动窗口之下，抓屏被遮挡产生假 screen 差异。
+	if ctl := win.Controls(); ctl != nil {
+		if err := ctl.SetAlwaysOnTop(true); err == nil {
+			_ = ctl.Focus()
+		}
+	}
+
 	var proc scheduler.ProcessTracker
 	proc.Start()
 

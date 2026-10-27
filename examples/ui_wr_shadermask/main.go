@@ -320,6 +320,12 @@ func main() {
 	host := win.Host()
 	ctl := win.Controls()
 
+	// 自动档门禁含抓屏对比：置顶 + 聚焦，避免 GNOME 防抢占把新窗压在当前
+	// 活动窗口（往往是被测时段的终端）之下，抓屏被遮挡产生假 screen 差异。
+	if err := ctl.SetAlwaysOnTop(true); err == nil {
+		_ = ctl.Focus()
+	}
+
 	root := rendering.NewAbsoluteBox(winW, winH)
 	root.Background = &rendering.Color{R: rootBG[0], G: rootBG[1], B: rootBG[2], A: 1}
 
