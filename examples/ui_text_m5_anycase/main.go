@@ -426,6 +426,7 @@ func main() {
 			"pixel_golden_total_px":  goldenTotalPx,
 			"pixel_golden_first_run": goldenFirstRun,
 			"snapshot_png":           snapPath,
+			"font_source_cache":      text.FontSourceCacheSnapshot(),
 		},
 	})
 	raw, _ := json.Marshal(report)

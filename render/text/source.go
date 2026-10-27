@@ -20,7 +20,11 @@ import (
 
 // FontSource represents a loaded font file.
 // One FontSource can create multiple Face instances at different sizes.
-// FontSource is heavyweight and should be shared across the application.
+// FontSource is heavyweight and shared across the application: sources loaded
+// from a file are cached per (path, collection index, parser), so every
+// loader (UI chain, system resolver, weight family, rune fallback) reuses the
+// same object. Close on a cached source is a no-op; release shared sources
+// with PurgeFontSourceCache.
 //
 // FontSource is safe for concurrent use.
 // FontSource must not be copied after creation (enforced by copyCheck).
@@ -47,10 +51,16 @@ type FontSource struct {
 	// Configuration
 	config sourceConfig
 
-	// family links this source to its weight-family (Regular/Semibold/Bold
-	// cuts of the same typeface). Set once by NewFontFamily; nil for a
-	// standalone source. Atomic so concurrent Face calls stay race-free.
-	family atomic.Pointer[FontFamily]
+	// cached marks sources owned by globalFontSourceCache. Their bytes are
+	// shared by every caller, so Close cannot release them.
+	cached atomic.Bool
+
+	// families links this source to the weight-families it belongs to
+	// (Regular/Semibold/Bold cuts of the same typeface). A shared source can
+	// be registered in several families; Face picks the first family (in
+	// registration order) that resolves the requested weight. Atomic
+	// immutable slice so concurrent Face calls stay race-free.
+	families atomic.Pointer[[]*FontFamily]
 }
 
 // NewFontSource creates a FontSource from font data (TTF or OTF).
@@ -62,14 +72,20 @@ func NewFontSource(data []byte, opts ...SourceOption) (*FontSource, error) {
 		return nil, ErrEmptyFontData
 	}
 
-	// Apply options first to get parser name
 	config := defaultSourceConfig()
 	for _, opt := range opts {
 		opt(&config)
 	}
 
-	// Get parser and parse the font.
-	// If collection index is set (or data is a .ttc/.otc), use ParseIndex.
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
+	return newFontSourceOwned(dataCopy, config)
+}
+
+// newFontSourceOwned parses data and takes ownership of the slice: callers
+// must not mutate or reuse it. Used by the in-memory constructor (after its
+// defensive copy) and by the cache (which owns the bytes it read).
+func newFontSourceOwned(data []byte, config sourceConfig) (*FontSource, error) {
 	parser := getParser(config.parserName)
 	var parsed ParsedFont
 	var err error
@@ -84,13 +100,8 @@ func NewFontSource(data []byte, opts ...SourceOption) (*FontSource, error) {
 		return nil, err
 	}
 
-	// Copy the data
-	dataCopy := make([]byte, len(data))
-	copy(dataCopy, data)
-
-	// Create FontSource
 	s := &FontSource{
-		data:   dataCopy,
+		data:   data,
 		parsed: parsed,
 		config: config,
 	}
@@ -103,14 +114,25 @@ func NewFontSource(data []byte, opts ...SourceOption) (*FontSource, error) {
 }
 
 // NewFontSourceFromFile loads a FontSource from a font file path.
+//
+// Loads are shared process-wide per (absolute path, collection index,
+// parser): every caller gets the same FontSource, and each file is read and
+// parsed once. File updates on disk are not picked up until
+// PurgeFontSourceCache is called. Close on the returned source is a no-op.
 func NewFontSourceFromFile(path string, opts ...SourceOption) (*FontSource, error) {
-	// #nosec G304 -- Font file path is provided by the user
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("text: failed to read font file: %w", err)
+	config := defaultSourceConfig()
+	for _, opt := range opts {
+		opt(&config)
 	}
-
-	return NewFontSource(data, opts...)
+	key := fontSourceKeyFor(path, config)
+	return globalFontSourceCache.getOrLoad(key, func() (*FontSource, error) {
+		// #nosec G304 -- Font file path is provided by the user
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("text: failed to read font file: %w", err)
+		}
+		return newFontSourceOwned(data, config)
+	})
 }
 
 // Face creates a Face at the specified size (in points).
@@ -135,10 +157,13 @@ func (s *FontSource) Face(size float64, opts ...FaceOption) Face {
 	// belongs to a configured FontFamily. Explicit wght variations take
 	// precedence and keep the source as-is.
 	source := s
-	if fam := s.family.Load(); fam != nil && config.weight != 0 &&
+	if fams := s.families.Load(); fams != nil && config.weight != 0 &&
 		!hasWghtVariation(config.variations) {
-		if picked := fam.pick(config.weight); picked != nil {
-			source = picked
+		for _, fam := range *fams {
+			if picked := fam.pick(config.weight); picked != nil {
+				source = picked
+				break
+			}
 		}
 	}
 
@@ -194,8 +219,16 @@ func (s *FontSource) Parsed() ParsedFont {
 
 // Close releases resources associated with the FontSource.
 // All faces created from this source become invalid after Close.
+//
+// Sources loaded from a file are shared process-wide, so Close on them is a
+// no-op: the shared data stays valid for every other holder. Use
+// PurgeFontSourceCache to release cached sources.
 func (s *FontSource) Close() error {
 	s.copyCheck()
+
+	if s.cached.Load() {
+		return nil
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -207,6 +240,32 @@ func (s *FontSource) Close() error {
 	// Clear caches (when implemented in TASK-044)
 
 	return nil
+}
+
+// addFamily registers fam on this source. Registration order is the tie-break
+// when a shared source belongs to several families.
+func (s *FontSource) addFamily(fam *FontFamily) {
+	if s == nil || fam == nil {
+		return
+	}
+	for {
+		old := s.families.Load()
+		var cur []*FontFamily
+		if old != nil {
+			cur = *old
+		}
+		for _, f := range cur {
+			if f == fam {
+				return
+			}
+		}
+		next := make([]*FontFamily, len(cur)+1)
+		copy(next, cur)
+		next[len(cur)] = fam
+		if s.families.CompareAndSwap(old, &next) {
+			return
+		}
+	}
 }
 
 // VariationAxis describes a design variation axis in a variable font.

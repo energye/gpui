@@ -30,7 +30,7 @@ import (
 //   - Selection: uses FontMap (SetScript + ResolveFace) — the go-text
 //     full matching semantics (family substitution copied from fontconfig,
 //     per-script fallback candidates), NOT a hand-rolled score. Results
-//     cached per rune and per (rune, size) face on top of FontMap's own
+//     cached per rune and per (font path, size) face on top of FontMap's own
 //     LRU. (M7: switched from bestLocation to FontMap to match fc-match
 //     script-aware selection, e.g. Thai → Loma, Devanagari → Lohit.)
 //   - Failure: scan errors degrade to no fallback (missing glyph stays
@@ -41,11 +41,13 @@ type fontScanFallback struct {
 	fontMap    *fontscan.FontMap    // nil if system scan failed
 	footprints []fontscan.Footprint // family lookup data (SystemFontForFamily)
 	pathCache  map[rune]string      // rune → font file path ("" = not found)
-	faceCache  map[fallbackKey]Face
+	faceCache  map[fallbackFaceKey]Face
 }
 
-type fallbackKey struct {
-	r    rune
+// fallbackFaceKey keys faces by file path, not rune: many runes resolve to
+// the same system font, and one Face per (file, size) is all we need.
+type fallbackFaceKey struct {
+	path string
 	size float64
 }
 
@@ -82,7 +84,7 @@ func (f *fontScanFallback) ensure() {
 		f.fontMap = fm
 		f.footprints = fps
 		f.pathCache = make(map[rune]string, 512)
-		f.faceCache = make(map[fallbackKey]Face, 64)
+		f.faceCache = make(map[fallbackFaceKey]Face, 64)
 		f.mu.Unlock()
 	})
 }
@@ -95,11 +97,10 @@ func (f *fontScanFallback) resolvePath(r rune) string {
 	if p, ok := f.pathCache[r]; ok {
 		return p
 	}
-	best := f.bestLocation(f.fontMap, r)
-	if best == "" {
-		f.pathCache[r] = ""
+	if f.fontMap == nil {
 		return ""
 	}
+	best := f.bestLocation(f.fontMap, r)
 	f.pathCache[r] = best
 	return best
 }
@@ -107,30 +108,37 @@ func (f *fontScanFallback) resolvePath(r rune) string {
 // resolveFace returns a Face for r at size, built from the covering system
 // font; nil if none covers r.
 func (f *fontScanFallback) resolveFace(r rune, size float64) Face {
-	key := fallbackKey{r: r, size: size}
-	f.ensure()
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if fc, ok := f.faceCache[key]; ok {
-		return fc
-	}
-	if fc, ok := f.faceCache[fallbackKey{r: r, size: -1}]; ok && fc != nil {
-		// a size-agnostic face is cached
-		return fc
-	}
-	path := f.pathCache[r]
-	if path == "" && f.fontMap != nil {
-		path = f.bestLocation(f.fontMap, r)
-		f.pathCache[r] = path
-	}
+	path := f.resolvePath(r)
 	if path == "" {
 		return nil
 	}
+	key := fallbackFaceKey{path: path, size: size}
+
+	f.mu.Lock()
+	fc, ok := f.faceCache[key]
+	f.mu.Unlock()
+	if ok {
+		return fc
+	}
+
+	// Load outside f.mu: file I/O and parsing block other runes. The font
+	// source cache dedupes the actual read, so this is a cheap lookup once
+	// any rune has loaded the file.
 	src, err := NewFontSourceFromFile(path)
 	if err != nil {
 		return nil
 	}
 	face := src.Face(size)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if fc, ok := f.faceCache[key]; ok {
+		// another goroutine won the race
+		return fc
+	}
+	if f.faceCache == nil {
+		f.faceCache = make(map[fallbackFaceKey]Face, 64)
+	}
 	f.faceCache[key] = face
 	return face
 }
@@ -178,7 +186,7 @@ func ClearFontScanFallbackCache() {
 	globalFallback.mu.Lock()
 	defer globalFallback.mu.Unlock()
 	globalFallback.pathCache = make(map[rune]string, 512)
-	globalFallback.faceCache = make(map[fallbackKey]Face, 64)
+	globalFallback.faceCache = make(map[fallbackFaceKey]Face, 64)
 }
 
 // Family matching.

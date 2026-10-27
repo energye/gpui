@@ -31,6 +31,38 @@
    参考：FreeType raster/smooth + lcd.c（LCD 滤镜）/ msdfgen（MSDF 算法）
 ```
 
+## 1.5 字体源共享（进程级缓存，2026-10-27）
+
+字体文件是重型对象（一个 CJK/彩色字体几十 MB，解析表再翻倍），
+`FontSource` 的注释从诞生起就写明“应全应用共享”，但此前没有任何按文件
+共享的机制：每次 `NewFontSourceFromFile` 都重新读盘 + 解析，逐字符回退
+（`fontScanFallback.resolveFace`）又只按 `(rune, size)` 缓存，同一文件按
+字符被反复整份加载。m5 任意脚本窗实测 **75 次加载只覆盖 4 个文件**
+（0.8s 内），存活堆 805MB 中有约 460MB 来自这里。
+
+现在的模型对齐 Skia `SkTypefaceCache` / Flutter font manager：
+
+- `NewFontSourceFromFile` 一律走 `globalFontSourceCache`（`source_cache.go`），
+  键为 `(绝对路径, TTC index, 解析器)`；同一键只读盘、只解析一次，
+  所有加载路径（UI 字体链、系统解析器、权重家族、缺字回退）拿到同一个
+  `*FontSource`。并发未命中用 singleflight 合流。
+- 缓存是 LRU，上限 32 条 / 256MB 文件字节；条目随进程存活。
+  磁盘上字体更新不会自动生效，需要 `PurgeFontSourceCache()` 刷新
+  （同时清掉回退/整形/摘要等会钉住源的全局缓存）。
+- 缓存持有的源 `Close()` 是 no-op（共享数据不能由单个持有者释放）；
+  `NewFontSource` 创建的内存源自持所有权，`Close()` 语义不变。
+- 一个源可加入多个 `FontFamily`（`families` 不可变切片 + CAS 追加）；
+  `Face` 按注册顺序取第一个能解析目标字重的家族（与 Skia 一个
+  typeface 属于多个 style set 的歧义处理一致）。
+- 缺字回退的 face 缓存键为 `(字体路径, 字号)`，不再按 rune 逐字符建
+  face：同一文件的连续字符因此共享同一个 `Face`，`MultiFace.Runs`
+  才能把它们合成一个整形段（此前逐字符拆段，藏文等簇脚本会退化成
+  带虚线圈的孤立组合符）。
+- 统计口：`FontSourceCacheSnapshot()` / `ResetFontSourceCacheStats()`。
+
+m5 改后实测（60s，`GODEBUG=gctrace=1`）：加载 75→10 次（10 个不同文件，
+每个恰一次）、存活堆 805MB→144MB 平台、RSS 1.67–1.75GB→464MB 稳态。
+
 ## 2. 引擎分派树（③ 的核心对应关系）
 
 ```

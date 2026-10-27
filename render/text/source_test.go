@@ -190,19 +190,43 @@ func TestFontSourceName(t *testing.T) {
 func TestFontSourceClose(t *testing.T) {
 	fontPath := testFontPath(t)
 
+	// In-memory sources are owned by the caller: Close releases them.
+	data, err := os.ReadFile(fontPath)
+	if err != nil {
+		t.Fatalf("failed to read font: %v", err)
+	}
+	memSrc, err := NewFontSource(data)
+	if err != nil {
+		t.Fatalf("NewFontSource failed: %v", err)
+	}
+	if err := memSrc.Close(); err != nil {
+		t.Errorf("Close() failed: %v", err)
+	}
+	if memSrc.data != nil {
+		t.Error("expected data to be nil after Close() on an in-memory source")
+	}
+
+	// Cached file sources are shared process-wide: Close is a no-op and the
+	// data stays usable for every holder.
 	source, err := NewFontSourceFromFile(fontPath)
 	if err != nil {
 		t.Fatalf("NewFontSourceFromFile failed: %v", err)
 	}
-
-	err = source.Close()
-	if err != nil {
-		t.Errorf("Close() failed: %v", err)
+	if err := source.Close(); err != nil {
+		t.Errorf("Close() on cached source failed: %v", err)
 	}
-
-	// After close, data should be nil
-	if source.data != nil {
-		t.Error("expected data to be nil after Close()")
+	if source.data == nil {
+		t.Fatal("expected cached source data to survive Close()")
+	}
+	if face := source.Face(16); face == nil {
+		t.Error("expected Face() to work after Close() on a cached source")
+	}
+	again, err := NewFontSourceFromFile(fontPath)
+	if err != nil {
+		t.Fatalf("NewFontSourceFromFile (second) failed: %v", err)
+	}
+	if again != source {
+		t.Error("expected the same shared FontSource for the same file")
 	}
 }
 

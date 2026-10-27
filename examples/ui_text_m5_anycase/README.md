@@ -39,8 +39,21 @@
 | `rss_end_kb`（30s） | 1554MB | 1561MB | 1548MB | — | 存量现象，改前同量级（见下） |
 
 - 光栅说明：三跑 raster 为 4.42/8.03/3.13ms，首跑含冷图集填充；改前改后无系统差，彩色旁路无回归。
-- 内存说明：三跑终点内存同为约 1.5GB，改前对照同量级——是存量一次性图集填充行为，非 M5 引入；E 族 30s 口径下超预算，记遗留（与 M3 同口径注释）。
+- 内存说明：三跑终点内存同为约 1.5GB，改前对照同量级——**2026-10-27 已定位，不是图集填充**：缺字回退按 `(rune,size)` 缓存，75 次整份字体加载只覆盖 4 个文件；引擎改为字体源按文件进程级共享后，60s 存活堆 805MB→144MB、RSS 1.67–1.75GB→464MB（见下节）。
 - A/B 方法：`git stash` 引擎四文件后同窗重跑，`pop` 恢复；对照日志 `/tmp/m5_window_base.log`。
+
+## 内存定位与修复（2026-10-27，60s 真窗）
+
+| 指标 | 改前 | 改后 | 判据 |
+|---|---|---|---|
+| 字体文件加载次数 | 75（4 个文件、0.8s 内） | 10（10 个不同文件各一次） | `FontSourceCacheSnapshot().Loads` |
+| 存活堆（gctrace 第三次 GC 后） | 805MB 平台（13s 起） | 144MB 平台（29–58s） | ≤250MB |
+| RSS | 1.67–1.75GB | 464MB 稳态（53–60s） | ≤500MB（退出瞬间 549MB 单采样为进程内 golden 比对分配） |
+| `cpu_fallback_ops` | 0 | 0 | == 0 |
+
+- 根因：`fontScanFallback.resolveFace` 只按 `(rune, size)` 缓存 face，每个未命中 rune 都重新 `ReadFile` + 解析整份字体（每次两份字节 + 解析表/位图表）。
+- 修法：`NewFontSourceFromFile` 统一走进程级 `fontSourceCache`（键=绝对路径+TTC index+解析器，LRU + singleflight），缓存源 `Close` no-op，磁盘更新用 `PurgeFontSourceCache()`；回退 face 改键 `(路径,字号)`。落点 `render/text/source_cache.go`、架构说明见 `render/text/ARCHITECTURE.md §1.5`。
+- 像素：11/11 探针通过；藏文一行随“同文件连续字符合成一个整形段”由虚线圈占位变为正确合簇。旧 golden 基线（2026-10-25）已陈旧（干净 HEAD 复跑亦 3.1822%），2026-10-27 经确认用当前代码在独显重出 `testdata/showcase_text_m5_base.png`；重出后 `GPUI_POWER=high -auto-only` 两连 **golden 0.0000%（821184px）**、像素 11/11、`cpu_fallback_ops=0`。
 
 ## 像素与 Golden（2026-09-04）
 
@@ -55,7 +68,7 @@
 
 ## Evidence（U21 三证据，2026-10-25 补）
 
-gate（`-auto-only`，5s，内容静态无动画、快照天然确定）：**像素 11/11（3 背景 + 8 墨区）· Golden 821184px 两连 0.0000%**。
+gate（`GPUI_POWER=high -auto-only`，5s，内容静态无动画、快照天然确定）：**像素 11/11（3 背景 + 8 墨区）· Golden 821184px 两连 0.0000%**（基线 2026-10-27 独显重出；不带 `GPUI_POWER=high` 会落在核显，与独显基线的差异是适配器舍入，不是内容回归）。
 
 - 像素口径：A 多脚本 / B emoji / C 富文本 run / D 多DPR 四区标题与正文墨区（minPx 100–200）+ shell 三背景。
 - Golden 基线：`testdata/showcase_text_m5_base.png`（`GPUI_ACCEPT_GOLDEN=1` 播种；掩码 header+legend+body，HUD 排除，零容差）。`golden/` 目录下 2026-09 的 `baseline_igpu/m5.png` 是 M5 文本线的历史产物，保留作历史参照，U21 口径以 testdata 基线为准。

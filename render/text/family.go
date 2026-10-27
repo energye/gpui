@@ -87,7 +87,7 @@ func NewFontFamily(sources ...*FontSource) (*FontFamily, error) {
 		fam.regular = fam.sources[0]
 	}
 	for _, src := range fam.sources {
-		src.family.Store(fam)
+		src.addFamily(fam)
 	}
 	return fam, nil
 }
