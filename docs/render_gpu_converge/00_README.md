@@ -24,6 +24,7 @@
 |---|---|---|
 | `docs/ENGINE_RENDER_GPU_CONVERGE_PLAN.md` | 标准选型、去重/合并决策、包组织目标、双后端矩阵、缺失/半成品登记、批次与门禁 | 不含代码改动 |
 | `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` | **任务状态唯一真源**：可执行任务清单、依赖、开工/完成标准、统一门禁、证据目录、即时同步规则、状态流水 | 不重复 PLAN 的方案论证 |
+| `baseline/thresholds.md` | **P0.1 验收阈值与环境清单**：首帧、滚动帧率、p95/p99、显存上限、金图容差的写死数字与来源；基线机实测配置 | 不装逐窗金图清单（归 P0.2 `baseline/windows.md`） |
 
 ## 先看哪个
 
