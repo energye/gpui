@@ -201,8 +201,9 @@
 
 ## 8. CPU / 内存轴现状
 
-- **CPU**：目前只有 spin_min 一条 A/B 线（本树实测：基线中位 15.90% → G1+G10 后 14.59%；原线终态约 3.4~3.5%，尺子 glxgears ≈2.3~3.0%）。组件窗、2.5D 窗的 CPU 未测。
-- **内存（RSS/显存）**：2026-10-21 四扇 B 窗 + c0 基线复核：5s/15s 的 RSS 斜率由启动爬坡主导（c0 空白窗 5s 回放≈699k KB/min），60s `rss_slope` 1.9k–8.8k KB/min、180s Scene≈2.0k，均在 30k 预算内；`smaps` 增长只在 Go 堆，`WR_MEMDIG` live 1.5–2.2MiB / peak 9–34MiB。判漏只认 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`（≥30s，推荐 60s）；短跑 false = 不能下结论，不是没漏。资源生命周期纪律在 `ENGINE_GPU_RESOURCE_LIFECYCLE.md`。
+- **CPU / 内存全量资源账已立（2026-10-25 立项 → 2026-10-28 收口测量轴）**：真源 [`RENDER_BASE_RESOURCE_MATRIX.md`](./RENDER_BASE_RESOURCE_MATRIX.md) 17 行场景矩阵——每行「真窗 + 资源指标 JSON + 同机工业级对照（Flutter/Godot/glxgears 三尺）+ 比值」四项齐全；对齐线系数已定稿（CPU 1.5×/RSS 2.0×，§5.9），wrgate 五对齐线字段已接线五窗。行 14 挂视频线、行 17 专项窗未立（立账计划已登记）。本节以下旧单点记录保留作历史。
+- **CPU（历史单点）**：spin_min 一条 A/B 线（本树实测：基线中位 15.90% → G1+G10 后 14.59%；原线终态约 3.4~3.5%，尺子 glxgears ≈2.3~3.0%）。
+- **内存（RSS/显存，历史单点）**：2026-10-21 四扇 B 窗 + c0 基线复核：5s/15s 的 RSS 斜率由启动爬坡主导（c0 空白窗 5s 回放≈699k KB/min），60s `rss_slope` 1.9k–8.8k KB/min、180s Scene≈2.0k，均在 30k 预算内；`smaps` 增长只在 Go 堆，`WR_MEMDIG` live 1.5–2.2MiB / peak 9–34MiB。判漏只认 `rss_slope_steady_kb_per_min` 且 `rss_slope_valid=true`（≥30s，推荐 60s）；短跑 false = 不能下结论，不是没漏。资源生命周期纪律在 `ENGINE_GPU_RESOURCE_LIFECYCLE.md`。
 - 重放计划门禁（`RENDER_CPU_1PCT_REPLAY_PLAN.md` §4）含画面/守卫/性能，不含内存项。
 
 ## 9. 待人工确认项（2026-10-21 已收口）
@@ -223,6 +224,11 @@
 5. **与重放计划衔接**：G3–G13 每刀按「正确窗 + 组件/2.5D 对照窗」双窗 A/B；产物回写各域总账。
 
 ## 11. 修订表
+
+| 日期 | 内容 |
+|---|---|
+| 2026-10-28 | **P4 资源矩阵测量轴收口（对齐线系数定稿 + 五窗接线 + 遗留 1/7 清账，真源 `RENDER_BASE_RESOURCE_MATRIX.md` §5.8.5/§5.8.6/§5.9/§9）**：①对齐线系数定稿 CPU 1.5×/RSS 2.0×（2026-10-28 拍板，P4 实测分布依据；豁免：idle 行绝对差 Δ≤0.5pp、Flutter 臂未满 60fps 行带 fps 注、text 族 RSS 粒度语义）；②五窗 `BuildReport` 挂 `wrgate.RulerFromEnv()`（parity/r0/c2/r4/multiwin）全实证——multiwin 于隔离 GNOME Wayland 会话补齐（wire-probe + ladder 口径真值三连 rc=0，标量比值 CPU 0.67×/RSS 0.41×）；③C2/parity 陈旧金基线重播种收口（row12 字体共享 + 壳对齐涟漪，备份+量化+两连全绿）；④行 5/6/8/11 gpui 资源账补采成比值（CPU 0.27–0.50×/RSS 1.57–1.65× 全线内）。渲染层无代码改动（接线为示例层消费 D 步 wrgate 字段）。 |
+| 2026-10-27 | **P3 收口（三层对照尺落地）+ row12 m5 RSS 暴涨引擎修复（真源 `RENDER_BASE_RESOURCE_MATRIX.md` §5.5/§5.5.3/§9）**：①对照尺三层立齐——Flutter stable 3.47.8（940MX 实出画，Impeller OpenGLESSDF）三窗三跑中位、Godot 4.5.1-stable `bullet_shower` 500 发 19.1%/60fps、glxgears 地板 2.74%；gpui 同语义 parity 四场景三跑中位（spin 14.16%/list 22.99%/text 0.42%/godot 20.33%）+ 四张 Golden 两连零差异。②row12 文本密集窗 RSS 1.09→1.73GB 定位为缺字回退按 `(rune,size)` 缓存 face 致 75 次整份字体加载（存活堆 805MB）；引擎修复 `render/text/source_cache.go`——`NewFontSourceFromFile` 统一走进程级字体源缓存（键=(绝对路径,TTC index,解析器)，LRU 32 条/256MB + singleflight，对齐 Skia `SkTypefaceCache`/Flutter font manager），改后 RSS 464MB 稳态、加载 75→10、m5 golden 独显重出两连 0.0000%（821184px）。单测 `source_cache_test.go`/`fontscan_fallback_share_test.go`/`family_multi_test.go` 等 `-race` 绿。P3 收口、P4 开工。 |
 
 | 日期 | 内容 |
 |---|---|
