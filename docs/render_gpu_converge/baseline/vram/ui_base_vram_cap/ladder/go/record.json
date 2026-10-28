@@ -1,0 +1,22 @@
+{
+  "window": "ui_base_vram_cap",
+  "variant": "ladder",
+  "backend": "go",
+  "run_kind": "run",
+  "status": "NO_JSON",
+  "rc": 1,
+  "timed_out": false,
+  "tolerance": "0",
+  "run": "RUN_SECONDS=300",
+  "run_seconds": 300,
+  "elapsed_s": 15.3,
+  "head": "a4d4045d",
+  "worktree": "/home/yanghy/app/projects/gogpu/gpui-p14",
+  "started_at": "2026-10-28T23:20:26.178951+00:00",
+  "notes": [
+    "no parseable JSON on stdout"
+  ],
+  "json": null,
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

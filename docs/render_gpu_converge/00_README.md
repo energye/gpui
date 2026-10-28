@@ -34,8 +34,9 @@
 | `baseline/tests/` | **P1.3 逐测试文件基线**：`summary.md`（结论/失败分组/P2 交接）、`summary.tsv`（1398 行）、`failures.tsv`（48 行）、`skips.tsv`（239 行）、`logs/`（逐文件原始日志 + `clean-rerun/` + `crosscheck/`）、`failures/`（T1/app/integration/opt24/28/29 原始栈）；1398 文件逐文件执行，1264 PASS / 48 FAIL / 86 SKIP；46 个 `RequestDevice` SKIP 首轮与干净重跑均复现 | 不装 vet（归 P1.2）；不装真窗（归 P1.4） |
 | `baseline/windows/` | **P1.4 全部真窗基线**：162 窗 / 183 变体，native + `GPUI_BACKEND=go` 两档；逐窗 JSON/stdout/stderr、GPU readback/冻结金图、金图 diff、容差、p95/p99、vsync；8 张运行期基线归档到 `default/native/snapshots/`；FAIL/SKIP/BUILD/TIMEOUT 逐条原因；全局 `summary.md`/`summary.tsv` + 逐窗 `README.md` | 不装阈值数字（归 P0.1）；不装专项显存账本（归 P1.6）；不改代码、不修 FAIL |
 | `baseline/api/` | **P1.5 每包公开 API 快照 + 测试计数**：`summary.md`（口径/数字/对账/机器校验）、`packages.txt`（352 包，P1.2 vet 同尺）、`doc/`（351 份逐包 `go doc -all`，gpupixel 登记例外、16 个 main 空输出）、`doc_empty_main.txt`（空输出白名单）、`test_counts.tsv`（逐包静态测试函数计数，1397 文件 / 14388 函数）、`tools/`（随仓再生成 + 机器校验脚本） | 不装阈值（归 P0.1）；不装运行期动态发现数（归 P1.3 `baseline/tests/`） |
+| `baseline/vram/` | **P1.6 显存账本快照**：`summary.md`（三 cap 窗 8 轮 + K1 复核 + RSS 盘点 + P2 移交）、`ui_base_{vram,multiwin,batch}_cap/<变体>/<后端>/`（record.json 原始 JSON + stdout/stderr）、`conformance/`（K1 复跑 6 份 report/frame/run + summary）、`rss_settle.tsv`（223 条全窗 RSS 盘点）、`tools/`（verify_vram 机器校验 + rss_settle 重生成） | 不装阈值（归 P0.1 §4）；不装逐窗金图（归 P1.4）；不修 FAIL（归 P2） |
 
-## 当前进度（P0 已收口；P1 基线冻结进行中，下一任务 P1.6）
+## 当前进度（P0 已收口；P1 基线冻结进行中，下一任务 P1.7）
 
 > 状态真源是 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2；本表只是索引镜像，两边不一致以台账为准。
 
@@ -52,6 +53,7 @@
 | P1.3 | 逐测试文件运行 | ✅ 2026-10-28 | `baseline/tests/`：1398 文件逐文件执行；1264 PASS / 48 FAIL / 86 SKIP；0 缺失/0 重复/0 多余；48 条失败逐条分类并给 P2 归属；T1 原始栈；46 个 `RequestDevice` SKIP 首轮与干净重跑均复现；`ui/scene`/`video` 整包交叉复核 |
 | P1.4 | 全部真窗采集 | ✅ 2026-10-29 | `baseline/windows/`：162 窗 / 183 变体，native 191 轮（PASS 111 / FAIL 60 / NO_JSON 8 / SEED 8 / BUILD_FAIL 1 / PROBE 1 / SKIP 2）+ go 183 轮（PASS 108 / FAIL 51 / NO_JSON 20 / BUILD_FAIL 1 / PROBE 1 / SKIP 2），`summary.tsv` 374 行无 MISSING；8 张运行期金图播种→次遍 diff=0，基线归档 `default/native/snapshots/`、容差回填 `0`；逐窗 JSON/PNG/goldens/README + 全局 `summary.md`；FAIL/SKIP/BUILD/NO_JSON 逐条原因登记不修（14 窗 x11grab 黑图环境 FAIL、`ui_wr_t_stress` BUILD_FAIL、r6 金图真源不一致移交 P2），修复归 P2 |
 | P1.5 | 每包公开 API 快照 + 测试计数快照 | ✅ 2026-10-29 | `baseline/api/`：352 包（P1.2 vet 同尺）逐包 `go doc -all`（351 文件；gpupixel 仅测试文件登记例外；16 个 main 示例包空输出白名单）；静态测试计数 1397 文件 / 14388 函数（Test 13602 / Bench 753 / Example 18 / Fuzz 15）；磁盘 1468 = 352 包内 1397 + 1 stress 标签 + 70 third_party（独立模块）逐项对账零缺口；机器校验随仓脚本 ALL PASS 幂等 |
+| P1.6 | 显存账本快照 | ✅ 2026-10-29 | `baseline/vram/`：三 cap 窗全协议 × 双后端 8 轮（隔离 :3 串行标准关闭）；ladder native 账本峰值 372.0MB 未破 0.9 水线、拒增曲线 4/8 窗触发；oom 注入后账本精确回落 delta 0.00（双后端一致）；batch 双后端 p95 FAIL（55.7/62.1ms，同 P1.4 登记）；ladder go 档 GL 4 窗 MakeCurrent 跑不了（stderr 证据在案）；K1 复核逐位复现每轮 +2 条/+131072B；RSS 盘点 223 条、10 条 PASS 过 30000 泄漏线登记 P2；机器校验 14 断言 ALL PASS |
 
 ## 先看哪个
 

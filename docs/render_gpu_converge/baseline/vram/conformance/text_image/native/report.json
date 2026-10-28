@@ -1,0 +1,157 @@
+{
+  "backend": "native",
+  "scene": "text_image",
+  "status": "ok",
+  "width": 160,
+  "height": 96,
+  "image_sha256": "618a13ac5daca947fae20851a044735f183a66a5c7bb27170cac2492005987c5",
+  "samples": [
+    {
+      "name": "image_tl_red",
+      "x": 100,
+      "y": 20,
+      "want_rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "got_rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "image_tr_green",
+      "x": 108,
+      "y": 20,
+      "want_rgba": [
+        0,
+        255,
+        0,
+        255
+      ],
+      "got_rgba": [
+        0,
+        255,
+        0,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "image_bl_blue",
+      "x": 100,
+      "y": 28,
+      "want_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "got_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "image_br_white",
+      "x": 108,
+      "y": 28,
+      "want_rgba": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "got_rgba": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    }
+  ],
+  "regions": [
+    {
+      "name": "glyph_coverage",
+      "kind": "coverage",
+      "got_ratio": 0.3472222222222222,
+      "min_ratio": 0.3,
+      "max_ratio": 0.4,
+      "tol_pp": 5,
+      "ok": true
+    },
+    {
+      "name": "glyph_bbox",
+      "kind": "bbox",
+      "got_bbox": [
+        8,
+        24,
+        87,
+        63
+      ],
+      "expect_bbox": [
+        8,
+        24,
+        87,
+        63
+      ],
+      "bbox_tol": 1,
+      "ok": true
+    },
+    {
+      "name": "image_white_quadrant",
+      "kind": "coverage",
+      "got_ratio": 1,
+      "min_ratio": 1,
+      "max_ratio": 1,
+      "ok": true
+    }
+  ],
+  "path": {
+    "gpu_ops": 2,
+    "cpu_fallback_ops": 0,
+    "frame_flushes": 1,
+    "min_gpu_ops": 1,
+    "max_cpu_fallback_ops": 0,
+    "gpu_ops_ok": true,
+    "fallback_ok": true,
+    "ok": true
+  },
+  "resource": {
+    "repeats": 3,
+    "live_count": [
+      20,
+      22,
+      24
+    ],
+    "live_bytes": [
+      2232320,
+      2363392,
+      2494464
+    ],
+    "steady_count_delta": 2,
+    "steady_bytes_delta": 131072,
+    "max_steady_count_delta": 2,
+    "max_steady_bytes_delta": 131072,
+    "gpu_contexts_after": [
+      0,
+      0,
+      0
+    ],
+    "ok": true
+  },
+  "ok": true
+}
