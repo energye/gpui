@@ -47,21 +47,21 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无
-- 下一任务：P1.2 `go vet ./...`
-- 最近完成：P1.1b 跨平台构建修复（2026-10-28）
+- 当前进行中：P1.3 逐测试文件运行
+- 下一任务：P1.4 全部真窗采集
+- 最近完成：P1.2 `go vet`（2026-10-28，`baseline/vet.txt`）+ P1.2b nogpu 测试标签修复（2026-10-28，`evidence/P1.2b/`）
 - 阻塞项：无
 
 **下一任务验证载体（开工前必须填，不填不得开工）**
 
-- 任务：P1.2 `go vet ./...`
-- 能力单测：无（静态检查任务）；判据是 `go vet ./...` 与 `go vet -tags nogpu ./...` 各跑一次，输出逐包落盘，既有告警逐条登记为基线已知问题
-- 真窗：无（不改代码、不跑窗）
+- 任务：P1.3 逐测试文件运行
+- 能力单测：无（基线采集任务）；判据是每个 `*_test.go` 文件单独执行并记录 PASS/SKIP/FAIL，SKIP 必须带 `t.Skipf` 原因，禁止一次全量只记总数
+- 真窗：无（不改代码、不跑真窗；GPU 测试按测试自身要求建不呈现上下文）
 - 金图：N/A（不产出图像）
-- 双后端：vet 覆盖默认（含 gles/webgpu 注册）与 `-tags nogpu` 两种标签组合，确保两种组合都能完成分析
-- 负向对照：本任务不注入破坏；P1.1b 已用「修复前红 → 修复后绿」的六目标矩阵做过一次真实转红/转绿对照
-- 证据：`baseline/vet.txt`（默认段 + nogpu 段 + 告警登记表）
-- 边界：不改代码；告警登记后由 P2 对应条目修复，不在 P1 冻结期内动
+- 双后端：本任务不切后端；测试自身决定是否用 GPU（native 需 `WGPU_NATIVE_PATH`，缺失按 SKIP 原因记录；go 后端按测试内既有入口）
+- 负向对照：本任务不注入破坏；P1.8 统一做
+- 证据：`baseline/tests/`（逐文件日志 + 汇总表；已知问题 T1 保留原始栈）
+- 边界：不改代码；FAIL/SKIP 逐条登记，修复留给 P2 对应条目
 
 > 每次状态变更必须同时更新本小节；新会话从这里接着做，开工前先把上面这块换成新任务的载体登记。
 
@@ -75,7 +75,8 @@
 | P0.4 | 双后端一致性测试台（同场景 webgpu/gles/metal 逻辑断言，不比像素只比语义） | — | ✅ | `baseline/conformance/` |
 | P1.1 | 六目标交叉编译 + `-tags nogpu` | P0.1–P0.3 | ✅ | `baseline/build/` |
 | P1.1b | 跨平台构建修复（B1–B6，用户决定插队：P1.2 前完成并复跑 P1.1） | P1.1 | ✅ | `evidence/P1.1b/` |
-| P1.2 | `go vet ./...` | P0.1–P0.3 | ⬜ | `baseline/vet.txt` |
+| P1.2 | `go vet ./...` | P0.1–P0.3 | ✅ | `baseline/vet.txt` |
+| P1.2b | nogpu 测试标签修复（P1.2 采集发现：20 个测试文件补 `//go:build !nogpu`，用户决定插队） | P1.2 | ✅ | `evidence/P1.2b/` |
 | P1.3 | 逐测试文件运行，记录 PASS/SKIP/FAIL（SKIP 带原因） | P0.1–P0.3 | ⬜ | `baseline/tests/` |
 | P1.4 | 全部真窗：JSON 探针 + PNG + 金图 diff 计数 + 容差声明 | P0.1、P0.2 | ⬜ | `baseline/windows/` |
 | P1.5 | 每包公开 API 快照（`go doc -all`）+ 测试计数快照 | P0.1–P0.3 | ⬜ | `baseline/api/` |
@@ -187,7 +188,22 @@
   - js/wasm 口径（2026-10-28 用户决定：登记为不支持）：纯 Go FFI 库 `../purego` 只支持 `darwin || freebsd || linux || netbsd || windows`，无 wasm 实现（`struct_other.go:21: undefined: syscallArgs`）；`gpu/render/ui/engine/video` 栈 302 个包传递依赖它，只有 44 个叶子包能在 wasm 下单独编译。wasm 不再是基线必绿目标；将来要做须为浏览器 WebGPU 新写 `syscall/js` 后端（等同新增后端能力，单独立项）。原始输出 `evidence/P1.1b/js-wasm.txt`。
   - 执行结果（2026-10-28，修复后）：linux/amd64、linux/arm64 默认 351 / nogpu 347 / 库范围 141 包全 PASS；windows/amd64 357 / 353 / 140 全 PASS；darwin/amd64、darwin/arm64 349 / 345 / 140 全 PASS；默认与 nogpu 加载失败计数（去已知问题包）均为 0。一致性复跑 3 场景 × native/go 全 PASS，6 份 `report.json` 与 `summary.md` 与 P0.4 基线逐字节一致。
   - 证据：`evidence/P1.1b/`（`summary.md` + 6 份目标输出 + `js-wasm.txt` + `conformance-rerun.txt`），并已把 `baseline/build/` 与 `summary.md` 刷新为修复后基线。
-- **P1.2 `go vet ./...`**：输出落盘；既有告警逐条登记为基线已知问题。
+- **P1.2 `go vet ./...`**
+  - 命令口径：默认与 `-tags nogpu` 各跑一次；`./...` 原始输出落盘，再按「去掉已知加载失败包 + 保留有 Go 文件或测试文件的包」过滤后逐包采集。
+  - 完成标准：两种标签组合都能完成分析；输出与逐包状态落盘；既有告警逐条登记为基线已知问题。
+  - 执行结果（2026-10-28，P1.2b 修复后）：默认 352 包完成分析（351 个有 Go 文件的包 + 仅有 7 个测试文件的 `ui/scene/internal/gpupixel`），3 包 61 条诊断；nogpu 348 包完成分析，2 包 58 条诊断；两模式类型错误 0。
+    - 默认诊断：59 条 `possible misuse of unsafe.Pointer`（`ui/platform` 56、`render/internal/gpu` 1、`render/internal/gpu/res` 2）+ 2 条 `unreachable code`（`render/internal/gpu/gpu_render_context.go:4296,4344`）。
+    - nogpu 诊断：58 条 unsafe.Pointer（`ui/platform` 56 + `render/internal/gpu/res` 2），无 unreachable（该文件为 `!nogpu`）。
+    - 原始 `go vet ./...` 与 `go vet -tags nogpu ./...` 均只剩 `examples/ui_wr_t_stress` 的已知加载错误（`ui/kit/button`、`ui/kit/icon` 不存在），该包无法分析，按 P0.3/P1.1 已登记问题保留。
+    - 告警归属：`ui/platform` 56 条为 FFI 指针写法（本收敛线外，只登记）；测试伪造指针 3 条归 P2.5 测试卫生；2 条死代码归 P2.5 零行为变化清理。逐条清单见 `baseline/vet.txt` §4/§5。
+  - 采集时发现的红项：nogpu 下 `render/internal/gpu` 与 `render` 共 20 个测试文件缺 `//go:build !nogpu`，引用 `GPURenderContext`/`requireNativeGPU`/`sampleRGBA` 等 `!nogpu` 符号，导致 vet/测试无法编译。用户决定插队修复 → P1.2b，修完两模式均完成分析。
+  - 证据：`baseline/vet.txt`（环境、命令、原始输出、逐包状态、61 条告警登记、已知问题）；`evidence/P1.2b/`（修复前后对照与 348 包测试编译验证）。
+- **P1.2b nogpu 测试标签修复（P1.2 采集发现，用户决定插队）**
+  - 开工依据：P1.2 实测 `go vet -tags nogpu` 在 `render/internal/gpu`、`render` 两包无法编译测试代码，共 20 个测试文件缺 `//go:build !nogpu`，引用只在 `!nogpu` 下存在的 GPU 类型/辅助函数。
+  - 范围：只给 20 个测试文件补 `//go:build !nogpu`（9 个在 `render/internal/gpu`，11 个在 `render`）；不改生产代码、不改测试内容、不改默认标签行为。
+  - 完成标准：`go vet -tags nogpu <348 包>` 完成分析且 0 类型错误；`go test -tags nogpu -run '^$' <348 包>` 全部测试包编译通过；默认标签 vet 结果除预期行号位移外不变。
+  - 执行结果（2026-10-28）：nogpu vet 348 包完成，58 条 unsafe 告警、0 类型错误；nogpu 测试编译 137 ok / 211 no test files / 0 FAIL；默认 vet 61 条诊断不变（仅 `view_raw_attack_test.go` 行号 11→13）。
+  - 证据：`evidence/P1.2b/summary.md` + 修复前后原始输出 + 两模式包清单。
 - **P1.3 逐测试文件**：每个 `*_test.go` 单独执行并记录 PASS/SKIP/FAIL；SKIP 必须带原因（缺数据、缺 GPU、平台不支持等）；禁止一次全量后只记总数。
   - 已知问题 T1（P1.1b 复跑时发现，修复前后一致，非本线引入）：`gpu/rwgpu` 的 `TestQueue_OnSubmittedWorkDone` 在本机先 `queue_workdone_test.go:45` 失败——`wgpu: Queue.OnSubmittedWorkDone: wgpu returned null future`；随后 cleanup 的 `device.Release()` 在 native `wgpuDeviceRelease` 内 SIGSEGV（`PC=0x1`，栈 `unixProc.Call → releaseNativeHandle → Device.Release`）。在 HEAD `0b97eeb3` 的隔离 worktree 复跑同一用例，栈帧与偏移完全一致（`loader_unix.go:96`、`safety.go:285`、`device_misc.go:313/314`），故与 B5 的 `resolvedFnPtr` 改动无关。P1.3 按 FAIL 记录并保留原始栈；native 释放路径的健壮性归 P2.4c/P2.4e 生命周期收敛时处理，P1 不改。
 - **P1.4 全部真窗**：按 P0.2 清单逐个跑；每个窗口三证据齐；金图 diff 给像素计数并对照容差；批量压测遵守 `AGENTS.md` 的 GPU 真窗安全条。
@@ -247,6 +263,8 @@
 | P2.4 每子步 | 上述 + 生命周期测试台 + `-race` + 真窗三证据 |
 | P2.6 | 基线全量重放一致；差异逐条对白名单 |
 | P3 / P4 每项 | 三证据 + 双后端分别验 + 不支持端显式标注 + 公开 API 总账同步 |
+
+> P1.2 的 vet 基线不是「零告警」：61 条既有告警已逐条登记到 `baseline/vet.txt` §4/§5 并写明归属；门禁判的是「默认与 nogpu 两模式都能完成分析 + 告警有账」，不是把既有告警当新红项。
 
 ### 4.1 能力验证要求（每个任务必带，硬）
 
@@ -344,6 +362,9 @@ docs/render_gpu_converge/
 | 2026-10-28 | P1.1 | ⬜→✅ 六目标交叉编译基线落盘（4 个目标存在红项） | `baseline/build/`：summary + 6 份原始输出。linux/amd64、linux/arm64 默认主体 351 包 PASS、nogpu 库范围 PASS；windows/amd64、darwin/amd64、darwin/arm64、js/wasm 红项 B1–B6 登记：gles 未限 `linux || windows`、render 无条件注册 gles（wasm 214 包断链）、rwgpu Windows 缺 unix 调用层、ffishim 用 purego.Dlopen、wayland_csd_font 缺 linux 标签、163 个消费方无条件导入 render/gpu。用户决定插队修 → P1.1b，P1.2 前完成并复跑 |
 | 2026-10-28 | P1.1b | ⬜→🟡 用户决定插队修复 B1–B6 | 范围与验收见 §3 P1.1b；证据 `evidence/P1.1b/`；修完复跑六目标并刷新 `baseline/build/`，P0.4 一致性测试台作 Linux 零变化守卫 |
 | 2026-10-28 | P1.1b | 🟡→✅ B1–B6 修完，五目标全绿；js/wasm 登记不支持 | 改动：`render/gpu/gpu_nogpu.go`（B1 引擎层空包，163 消费方不动）、`wayland_csd_font{,_test}.go` 补 linux（B2）、gles 五个未打标签文件补平台标签（B3）、四处 gles 注册合并为 `render/register_gles.go`（B4）、rwgpu `loader_windows.go` 补 `call1..call6`/`resolvedFnPtr` 且共享代码去 `*unixProc` 断言 + mrt 示例 `rrwgpu` 拼写（B5）、ffishim 拆 `libload_unix/windows.go`（B6）。实测：linux×2 351/347/141、windows 357/353/140、darwin×2 349/345/140 全 PASS，默认/nogpu 加载失败 0。P0.4 复跑 6 份 report 与 summary 逐字节一致。js/wasm：`../purego` 无 wasm 实现（345 包中 302 包传递依赖），用户决定登记不支持，将来需 `syscall/js` 后端单独立项。`baseline/build/` 已刷新，修复前红基线留在 `0b97eeb3` |
+| 2026-10-28 | P1.2 | ⬜→🟡 开始采集；发现 nogpu 2 包测试缺标签 | 默认 352 包 61 条诊断；nogpu 2 包类型检查失败（`render/internal/gpu`、`render`，20 个测试文件缺 `//go:build !nogpu`，引用 `GPURenderContext`/`requireNativeGPU`/`sampleRGBA` 等 `!nogpu` 符号），用户决定插队修 → P1.2b |
+| 2026-10-28 | P1.2b | ⬜→✅ 20 个测试文件补 `//go:build !nogpu`（插队当日完成） | nogpu vet 348 包完成、58 条 unsafe、0 类型错误；nogpu 测试编译 137 ok / 211 no test files / 0 FAIL；默认 vet 61 条诊断不变（仅 `view_raw_attack_test.go` 行号 11→13）。证据 `evidence/P1.2b/` |
+| 2026-10-28 | P1.2 | 🟡→✅ 两模式完成分析，告警逐条登记 | `baseline/vet.txt`：默认 352 包 / 3 包 61 条（59 unsafe + 2 unreachable）；nogpu 348 包 / 2 包 58 条 unsafe；原始 `./...` 仅剩 `ui_wr_t_stress` 已知加载错误；告警归属：ui/platform 线外 56、P2.5 测试卫生 3、P2.5 死代码 2 |
 
 ## 8 修订记录
 

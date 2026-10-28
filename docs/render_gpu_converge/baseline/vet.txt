@@ -1,0 +1,1354 @@
+# P1.2 `go vet` 基线（2026-10-28，P1.2b 修复后）
+
+> 环境：go1.25.5 linux/amd64，`CGO_ENABLED=0`，模块 `github.com/energye/gpui`。
+> 采集点：`4d9081b9` + P1.2b 工作区改动（20 个测试文件补 `//go:build !nogpu`，只动测试标签）。
+> 本文件即原始输出存档：两轮原始命令输出 + 逐包状态 + 61 条告警逐条登记。
+> P1.2b 修复前的 nogpu 红项留在 `evidence/P1.2b/`（before-* 文件），本文件只装修复后基线。
+
+## 0 结论
+
+| 模式 | 命令 | 完成分析包数 | 有诊断包数 | 诊断条数 | 类型错误 | 结论 |
+|---|---|---|---|---|---|---|
+| 默认标签 | `go vet <过滤清单>` | 352 | 3 | 61 | 0 | 完成；告警登记 |
+| `-tags nogpu` | `go vet -tags nogpu <过滤清单>` | 348 | 2 | 58 | 0 | 完成；告警登记 |
+
+- 默认标签：59 条 `possible misuse of unsafe.Pointer` + 2 条 `unreachable code`。
+- `-tags nogpu`：58 条 `possible misuse of unsafe.Pointer`，无 `unreachable code`（该文件是 `!nogpu`）。
+- 两轮原始 `./...` 均只报 `examples/ui_wr_t_stress` 的已知加载错误（`ui/kit/button`、`ui/kit/icon` 不存在），该包无法分析，按 P1.1 已登记问题保留。
+- `ui/scene/internal/gpupixel` 没有非测试 Go 文件，但有 7 个测试文件；本任务按 `len(TestGoFiles) > 0` 纳入 vet，两模式都干净。构建基线（P1.1）仍按「无非测试 Go 文件」跳过该包，两个口径不冲突。
+- 除 `view_raw_attack_test.go` 的诊断行号因顶部加标签后移 2 行（11→13）外，默认标签结果与 P1.2b 修复前逐字节一致。
+- `-tags nogpu` 在 P1.2b 前有 2 个包无法完成类型检查（`render/internal/gpu`、`render`，共 20 个测试文件），P1.2b 修完后已能完整分析。
+
+## 1 执行命令与过滤口径
+
+```bash
+# 1) 原始两轮（预期只剩已知问题包）
+go vet ./...
+go vet -tags nogpu ./...
+
+# 2) 枚举包；TODO 过滤：
+#    - 去掉 examples/ui_wr_t_stress（已知加载失败，无法分析）
+#    - 保留 len(GoFiles)+len(CgoFiles) > 0 的包
+#    - 额外保留 len(TestGoFiles)+len(XTestGoFiles) > 0 的包（ui/scene/internal/gpupixel）
+go list -e -f '{{.ImportPath}}|{{len .GoFiles}}|{{len .CgoFiles}}|{{len .TestGoFiles}}|{{len .XTestGoFiles}}' ./...
+
+# 3) 过滤后逐包分析（包清单见 evidence/P1.2b/packages-default.txt / packages-nogpu.txt）
+go vet $(cat packages-default.txt)
+go vet -tags nogpu $(cat packages-nogpu.txt)
+
+# 4) nogpu 测试编译验证（不跑测试，只编译测试二进制）
+go test -tags nogpu -run '^$' $(cat packages-nogpu.txt)
+```
+
+- 默认清单 352 包，nogpu 清单 348 包；差值 4 是只在默认标签下存在的 GPU 示例包：
+  `examples/render_gpu`、`examples/render_scene_gpu`、`render/examples/compute_clip`、`render/examples/compute_pipeline`。
+- `go vet` 默认包含测试文件（`-tests` 未关闭），所以测试辅助代码的问题也在本基线内。
+- `go vet` 是静态检查，不执行测试、不开窗、不建 GPU 设备。
+
+## 2 默认标签
+
+### 2.1 `go vet ./...` 原始输出（含已知问题包）
+
+```text
+examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
+	go get github.com/energye/gpui/ui/kit/button
+examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
+	go get github.com/energye/gpui/ui/kit/icon
+```
+
+### 2.2 过滤后逐包状态（352 包）
+
+> PASS = 该包在本轮 `go vet` 输出中无诊断；FAIL(n) = 该包有 n 条诊断（诊断原文见 §2.3）。
+
+```text
+SKIP(load)  github.com/energye/gpui/examples/ui_wr_t_stress
+PASS     github.com/energye/gpui/engine
+PASS     github.com/energye/gpui/engine/anim
+PASS     github.com/energye/gpui/engine/asset
+PASS     github.com/energye/gpui/engine/audio
+PASS     github.com/energye/gpui/engine/camera
+PASS     github.com/energye/gpui/engine/core
+PASS     github.com/energye/gpui/engine/debug
+PASS     github.com/energye/gpui/engine/dirty
+PASS     github.com/energye/gpui/engine/fx
+PASS     github.com/energye/gpui/engine/input
+PASS     github.com/energye/gpui/engine/light
+PASS     github.com/energye/gpui/engine/loop
+PASS     github.com/energye/gpui/engine/nav
+PASS     github.com/energye/gpui/engine/particle
+PASS     github.com/energye/gpui/engine/physics
+PASS     github.com/energye/gpui/engine/pool
+PASS     github.com/energye/gpui/engine/preview
+PASS     github.com/energye/gpui/engine/quality
+PASS     github.com/energye/gpui/engine/renderconv
+PASS     github.com/energye/gpui/engine/save
+PASS     github.com/energye/gpui/engine/sprite
+PASS     github.com/energye/gpui/engine/step
+PASS     github.com/energye/gpui/engine/tex
+PASS     github.com/energye/gpui/engine/tilemap
+PASS     github.com/energye/gpui/engine/world
+PASS     github.com/energye/gpui/examples/engine/25d_basis
+PASS     github.com/energye/gpui/examples/engine/anim
+PASS     github.com/energye/gpui/examples/engine/asset
+PASS     github.com/energye/gpui/examples/engine/camera
+PASS     github.com/energye/gpui/examples/engine/dodge
+PASS     github.com/energye/gpui/examples/engine/fx
+PASS     github.com/energye/gpui/examples/engine/input
+PASS     github.com/energye/gpui/examples/engine/light
+PASS     github.com/energye/gpui/examples/engine/light2d
+PASS     github.com/energye/gpui/examples/engine/nav
+PASS     github.com/energye/gpui/examples/engine/particle
+PASS     github.com/energye/gpui/examples/engine/particles2d
+PASS     github.com/energye/gpui/examples/engine/physics
+PASS     github.com/energye/gpui/examples/engine/platformer
+PASS     github.com/energye/gpui/examples/engine/quad
+PASS     github.com/energye/gpui/examples/engine/save
+PASS     github.com/energye/gpui/examples/engine/sprite
+PASS     github.com/energye/gpui/examples/engine/stage_chase
+PASS     github.com/energye/gpui/examples/engine/stage_night
+PASS     github.com/energye/gpui/examples/engine/step
+PASS     github.com/energye/gpui/examples/engine/tex
+PASS     github.com/energye/gpui/examples/engine/tilemap
+PASS     github.com/energye/gpui/examples/engine/world
+PASS     github.com/energye/gpui/examples/hostsink
+PASS     github.com/energye/gpui/examples/kit/color-model
+PASS     github.com/energye/gpui/examples/kit/date-engine
+PASS     github.com/energye/gpui/examples/kit/icon
+PASS     github.com/energye/gpui/examples/kit/modal-host
+PASS     github.com/energye/gpui/examples/kit/notice-queue
+PASS     github.com/energye/gpui/examples/kit/qrcode
+PASS     github.com/energye/gpui/examples/kit/spin_min
+PASS     github.com/energye/gpui/examples/kit/tour-mask
+PASS     github.com/energye/gpui/examples/kit/upload
+PASS     github.com/energye/gpui/examples/kit_f0_content
+PASS     github.com/energye/gpui/examples/kit_f0_decor
+PASS     github.com/energye/gpui/examples/kit_f0_interact
+PASS     github.com/energye/gpui/examples/kit_f0_layout
+PASS     github.com/energye/gpui/examples/kit_f0_motion
+PASS     github.com/energye/gpui/examples/kit_f0_scope
+PASS     github.com/energye/gpui/examples/kit_f0_theme
+PASS     github.com/energye/gpui/examples/pfkit
+PASS     github.com/energye/gpui/examples/render_basic
+PASS     github.com/energye/gpui/examples/render_bezier_test
+PASS     github.com/energye/gpui/examples/render_cjk_text
+PASS     github.com/energye/gpui/examples/render_clipping
+PASS     github.com/energye/gpui/examples/render_color_emoji
+PASS     github.com/energye/gpui/examples/render_gpu
+PASS     github.com/energye/gpui/examples/render_images
+PASS     github.com/energye/gpui/examples/render_pixel_perfect
+PASS     github.com/energye/gpui/examples/render_recording
+PASS     github.com/energye/gpui/examples/render_scene
+PASS     github.com/energye/gpui/examples/render_scene_gpu
+PASS     github.com/energye/gpui/examples/render_sdf
+PASS     github.com/energye/gpui/examples/render_shapes
+PASS     github.com/energye/gpui/examples/render_text
+PASS     github.com/energye/gpui/examples/render_text_fallback
+PASS     github.com/energye/gpui/examples/render_text_transform
+PASS     github.com/energye/gpui/examples/render_variable_font
+PASS     github.com/energye/gpui/examples/render_visual_basic
+PASS     github.com/energye/gpui/examples/render_visual_cjk_text
+PASS     github.com/energye/gpui/examples/render_visual_clipping
+PASS     github.com/energye/gpui/examples/render_visual_gpu
+PASS     github.com/energye/gpui/examples/render_visual_images
+PASS     github.com/energye/gpui/examples/render_visual_scene
+PASS     github.com/energye/gpui/examples/render_visual_scene_gpu
+PASS     github.com/energye/gpui/examples/render_visual_shapes
+PASS     github.com/energye/gpui/examples/render_visual_text
+PASS     github.com/energye/gpui/examples/render_visual_text_transform
+PASS     github.com/energye/gpui/examples/text_langs_png
+PASS     github.com/energye/gpui/examples/ui_ant_verify
+PASS     github.com/energye/gpui/examples/ui_base_batch_cap
+PASS     github.com/energye/gpui/examples/ui_base_idle
+PASS     github.com/energye/gpui/examples/ui_base_multiwin_cap
+PASS     github.com/energye/gpui/examples/ui_base_vram_cap
+PASS     github.com/energye/gpui/examples/ui_ime_probe
+PASS     github.com/energye/gpui/examples/ui_l1_blank
+PASS     github.com/energye/gpui/examples/ui_l1_render_matrix
+PASS     github.com/energye/gpui/examples/ui_l1_scroll
+PASS     github.com/energye/gpui/examples/ui_l1_spinner
+PASS     github.com/energye/gpui/examples/ui_l2_shell
+PASS     github.com/energye/gpui/examples/ui_pf_appkit
+PASS     github.com/energye/gpui/examples/ui_pf_wayland
+PASS     github.com/energye/gpui/examples/ui_pf_win32
+PASS     github.com/energye/gpui/examples/ui_pf_x11
+PASS     github.com/energye/gpui/examples/ui_pf_x11_device
+PASS     github.com/energye/gpui/examples/ui_pf_x11_dnd
+PASS     github.com/energye/gpui/examples/ui_render_base_backdrop
+PASS     github.com/energye/gpui/examples/ui_render_base_cliplayer
+PASS     github.com/energye/gpui/examples/ui_render_base_clipop
+PASS     github.com/energye/gpui/examples/ui_render_base_cliprrect
+PASS     github.com/energye/gpui/examples/ui_render_base_dither
+PASS     github.com/energye/gpui/examples/ui_render_base_emoji
+PASS     github.com/energye/gpui/examples/ui_render_base_filterops
+PASS     github.com/energye/gpui/examples/ui_render_base_geometry
+PASS     github.com/energye/gpui/examples/ui_render_base_image
+PASS     github.com/energye/gpui/examples/ui_render_base_imagepattern
+PASS     github.com/energye/gpui/examples/ui_render_base_maskops
+PASS     github.com/energye/gpui/examples/ui_render_base_miscdraw
+PASS     github.com/energye/gpui/examples/ui_render_base_pathbool
+PASS     github.com/energye/gpui/examples/ui_render_base_pathlow
+PASS     github.com/energye/gpui/examples/ui_render_base_pathshape
+PASS     github.com/energye/gpui/examples/ui_render_base_perfsoak
+PASS     github.com/energye/gpui/examples/ui_render_base_recording
+PASS     github.com/energye/gpui/examples/ui_render_base_scene
+PASS     github.com/energye/gpui/examples/ui_render_base_strokepreset
+PASS     github.com/energye/gpui/examples/ui_render_base_svg
+PASS     github.com/energye/gpui/examples/ui_render_base_sweepgradient
+PASS     github.com/energye/gpui/examples/ui_render_base_text
+PASS     github.com/energye/gpui/examples/ui_render_base_textlow
+PASS     github.com/energye/gpui/examples/ui_render_base_textspacing
+PASS     github.com/energye/gpui/examples/ui_render_base_textstroke
+PASS     github.com/energye/gpui/examples/ui_render_base_variablefont
+PASS     github.com/energye/gpui/examples/ui_render_base_verticesmesh
+PASS     github.com/energye/gpui/examples/ui_render_base_webp
+PASS     github.com/energye/gpui/examples/ui_render_graphics/basic
+PASS     github.com/energye/gpui/examples/ui_render_graphics/vector
+PASS     github.com/energye/gpui/examples/ui_render_jumprope
+PASS     github.com/energye/gpui/examples/ui_render_particle
+PASS     github.com/energye/gpui/examples/ui_render_pelican
+PASS     github.com/energye/gpui/examples/ui_ruler_parity
+PASS     github.com/energye/gpui/examples/ui_text_edit_accept
+PASS     github.com/energye/gpui/examples/ui_text_m4_virtual
+PASS     github.com/energye/gpui/examples/ui_text_m5_anycase
+PASS     github.com/energye/gpui/examples/ui_textinput_ime
+PASS     github.com/energye/gpui/examples/ui_wr_c0_smoke
+PASS     github.com/energye/gpui/examples/ui_wr_c10_soak
+PASS     github.com/energye/gpui/examples/ui_wr_c11_policy_switch
+PASS     github.com/energye/gpui/examples/ui_wr_c1_boundary_nest
+PASS     github.com/energye/gpui/examples/ui_wr_c2_retained_scene
+PASS     github.com/energye/gpui/examples/ui_wr_c3_list_scroll
+PASS     github.com/energye/gpui/examples/ui_wr_c4_shell_overlay
+PASS     github.com/energye/gpui/examples/ui_wr_c5_anim_over_static
+PASS     github.com/energye/gpui/examples/ui_wr_c6_savelayer_group
+PASS     github.com/energye/gpui/examples/ui_wr_c7_resize_dpr
+PASS     github.com/energye/gpui/examples/ui_wr_c8_hit_overlay_xf
+PASS     github.com/energye/gpui/examples/ui_wr_c9_stress_cache
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r1_editor
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r2_textlayout
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r3_channel
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r4_selection
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r5_control
+PASS     github.com/energye/gpui/examples/ui_wr_r0_fullpaint
+PASS     github.com/energye/gpui/examples/ui_wr_r10_async_image
+PASS     github.com/energye/gpui/examples/ui_wr_r11_dpr
+PASS     github.com/energye/gpui/examples/ui_wr_r12_metrics
+PASS     github.com/energye/gpui/examples/ui_wr_r12b_debug_repaint
+PASS     github.com/energye/gpui/examples/ui_wr_r13_hit
+PASS     github.com/energye/gpui/examples/ui_wr_r14_cache_budget
+PASS     github.com/energye/gpui/examples/ui_wr_r15_soak
+PASS     github.com/energye/gpui/examples/ui_wr_r16_warmup
+PASS     github.com/energye/gpui/examples/ui_wr_r17_bg_throttle
+PASS     github.com/energye/gpui/examples/ui_wr_r18_savelayer
+PASS     github.com/energye/gpui/examples/ui_wr_r19_snap
+PASS     github.com/energye/gpui/examples/ui_wr_r1_layout
+PASS     github.com/energye/gpui/examples/ui_wr_r20_filter
+PASS     github.com/energye/gpui/examples/ui_wr_r21_shell
+PASS     github.com/energye/gpui/examples/ui_wr_r22_selection_stub
+PASS     github.com/energye/gpui/examples/ui_wr_r2_paint
+PASS     github.com/energye/gpui/examples/ui_wr_r3_boundary
+PASS     github.com/energye/gpui/examples/ui_wr_r3b_compbits
+PASS     github.com/energye/gpui/examples/ui_wr_r4_composite
+PASS     github.com/energye/gpui/examples/ui_wr_r4b_multidamage
+PASS     github.com/energye/gpui/examples/ui_wr_r5_picture
+PASS     github.com/energye/gpui/examples/ui_wr_r6_layer_anim
+PASS     github.com/energye/gpui/examples/ui_wr_r7_virtlist
+PASS     github.com/energye/gpui/examples/ui_wr_r7b_scroll_reuse
+PASS     github.com/energye/gpui/examples/ui_wr_r8_overlay
+PASS     github.com/energye/gpui/examples/ui_wr_r9_text_cache
+PASS     github.com/energye/gpui/examples/ui_wr_shadermask
+PASS     github.com/energye/gpui/examples/video/video_2k_play
+PASS     github.com/energye/gpui/examples/video/video_4k_play
+PASS     github.com/energye/gpui/examples/video/video_a2_sync
+PASS     github.com/energye/gpui/examples/video/video_a4_sink
+PASS     github.com/energye/gpui/examples/video/video_b1_frag
+PASS     github.com/energye/gpui/examples/video/video_player
+PASS     github.com/energye/gpui/examples/video/video_retained_golden
+PASS     github.com/energye/gpui/examples/video/video_s8_index
+PASS     github.com/energye/gpui/examples/video/video_vc0_fullplay
+PASS     github.com/energye/gpui/examples/video/video_vc1_seek_fault
+PASS     github.com/energye/gpui/examples/video/video_vc2_soak
+PASS     github.com/energye/gpui/examples/video/video_vc3_embed_extend
+PASS     github.com/energye/gpui/examples/video/video_vr0_demux
+PASS     github.com/energye/gpui/examples/video/video_vr1_params
+PASS     github.com/energye/gpui/examples/video/video_vr2_decode
+PASS     github.com/energye/gpui/examples/video/video_vr3_color
+PASS     github.com/energye/gpui/examples/video/video_vr4_play
+PASS     github.com/energye/gpui/examples/video/video_vr5_seek
+PASS     github.com/energye/gpui/examples/video/video_vr6_fault
+PASS     github.com/energye/gpui/examples/video/video_vr7_perf
+PASS     github.com/energye/gpui/examples/video/video_vr8_embed
+PASS     github.com/energye/gpui/examples/video/video_vr9_registry
+PASS     github.com/energye/gpui/examples/wrevidence
+PASS     github.com/energye/gpui/examples/wrgate
+PASS     github.com/energye/gpui/examples/wrkit
+PASS     github.com/energye/gpui/examples/wrsoak
+PASS     github.com/energye/gpui/examples/zz_soak_control
+PASS     github.com/energye/gpui/gpu/context
+PASS     github.com/energye/gpui/gpu/gwgpu
+PASS     github.com/energye/gpui/gpu/gwgpu/ffishim
+PASS     github.com/energye/gpui/gpu/gwgpu/gles
+PASS     github.com/energye/gpui/gpu/gwgpu/gles/egl
+PASS     github.com/energye/gpui/gpu/gwgpu/gles/gl
+PASS     github.com/energye/gpui/gpu/gwgpu/gles/wgl
+PASS     github.com/energye/gpui/gpu/gwgpu/indirect
+PASS     github.com/energye/gpui/gpu/gwgpu/metal
+PASS     github.com/energye/gpui/gpu/gwgpu/metal/mslmap
+PASS     github.com/energye/gpui/gpu/gwgpu/naga
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/glsl
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/backend
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/registry
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/textutil
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/ir
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/msl
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/wgsl
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/parser
+PASS     github.com/energye/gpui/gpu/hal
+PASS     github.com/energye/gpui/gpu/hal/noop
+PASS     github.com/energye/gpui/gpu/rwgpu
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/adapter_info
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/buffer_introspection
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/compute
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/error_handling
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/instanced
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/render_debug_markers
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/timestamp_query
+PASS     github.com/energye/gpui/gpu/shader
+PASS     github.com/energye/gpui/gpu/shader/dxil
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/bitcode
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/container
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/emit
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/module
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/passes/dce
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/passes/mem2reg
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/passes/sroa
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/viewid
+PASS     github.com/energye/gpui/gpu/shader/glsl
+PASS     github.com/energye/gpui/gpu/shader/glsl/internal/codegen
+PASS     github.com/energye/gpui/gpu/shader/hlsl
+PASS     github.com/energye/gpui/gpu/shader/hlsl/internal/codegen
+PASS     github.com/energye/gpui/gpu/shader/internal/backend
+PASS     github.com/energye/gpui/gpu/shader/internal/dxcvalidator
+PASS     github.com/energye/gpui/gpu/shader/internal/dxcvalidator/bitcheck
+PASS     github.com/energye/gpui/gpu/shader/internal/registry
+PASS     github.com/energye/gpui/gpu/shader/internal/textutil
+PASS     github.com/energye/gpui/gpu/shader/ir
+PASS     github.com/energye/gpui/gpu/shader/msl
+PASS     github.com/energye/gpui/gpu/shader/msl/internal/codegen
+PASS     github.com/energye/gpui/gpu/shader/spirv
+PASS     github.com/energye/gpui/gpu/shader/spirv/internal/codegen
+PASS     github.com/energye/gpui/gpu/shader/wgsl
+PASS     github.com/energye/gpui/gpu/shader/wgsl/internal/lower
+PASS     github.com/energye/gpui/gpu/shader/wgsl/internal/parser
+PASS     github.com/energye/gpui/gpu/types
+PASS     github.com/energye/gpui/gpu/webgpu
+PASS     github.com/energye/gpui/gpu/webgpu/internal/browser
+PASS     github.com/energye/gpui/gpu/webgpu/internal/thread
+PASS     github.com/energye/gpui/render
+PASS     github.com/energye/gpui/render/examples/compute_clip
+PASS     github.com/energye/gpui/render/examples/compute_pipeline
+PASS     github.com/energye/gpui/render/filters
+PASS     github.com/energye/gpui/render/gpu
+PASS     github.com/energye/gpui/render/integration/ggcanvas
+PASS     github.com/energye/gpui/render/internal/blend
+PASS     github.com/energye/gpui/render/internal/cache
+PASS     github.com/energye/gpui/render/internal/clip
+PASS     github.com/energye/gpui/render/internal/color
+PASS     github.com/energye/gpui/render/internal/conformance
+PASS     github.com/energye/gpui/render/internal/filter
+FAIL(3)  github.com/energye/gpui/render/internal/gpu
+FAIL(2)  github.com/energye/gpui/render/internal/gpu/res
+PASS     github.com/energye/gpui/render/internal/gpu/tilecompute
+PASS     github.com/energye/gpui/render/internal/image
+PASS     github.com/energye/gpui/render/internal/parallel
+PASS     github.com/energye/gpui/render/internal/raster
+PASS     github.com/energye/gpui/render/internal/stroke
+PASS     github.com/energye/gpui/render/internal/testutil/imagediff
+PASS     github.com/energye/gpui/render/internal/wide
+PASS     github.com/energye/gpui/render/recording
+PASS     github.com/energye/gpui/render/recording/backends/raster
+PASS     github.com/energye/gpui/render/render
+PASS     github.com/energye/gpui/render/scene
+PASS     github.com/energye/gpui/render/svg
+PASS     github.com/energye/gpui/render/text
+PASS     github.com/energye/gpui/render/text/cache
+PASS     github.com/energye/gpui/render/text/emoji
+PASS     github.com/energye/gpui/render/text/hint
+PASS     github.com/energye/gpui/render/text/hint/cmd/fdiff
+PASS     github.com/energye/gpui/render/text/msdf
+PASS     github.com/energye/gpui/render/text/tools/gen_autohint_scripts
+PASS     github.com/energye/gpui/scripts/apidoc
+PASS     github.com/energye/gpui/tools/ffmpeg-recipe
+PASS     github.com/energye/gpui/tools/levelprev
+PASS     github.com/energye/gpui/tools/particleprev
+PASS     github.com/energye/gpui/tools/ruler_flutter/gen_grid_png
+PASS     github.com/energye/gpui/ui
+PASS     github.com/energye/gpui/ui/animation
+PASS     github.com/energye/gpui/ui/application
+PASS     github.com/energye/gpui/ui/embedder
+PASS     github.com/energye/gpui/ui/focus
+PASS     github.com/energye/gpui/ui/gestures
+PASS     github.com/energye/gpui/ui/imeutil
+PASS     github.com/energye/gpui/ui/input
+PASS     github.com/energye/gpui/ui/io
+PASS     github.com/energye/gpui/ui/kit
+PASS     github.com/energye/gpui/ui/kit/internal/behavior
+PASS     github.com/energye/gpui/ui/kit/internal/gate
+PASS     github.com/energye/gpui/ui/kit/internal/prim
+PASS     github.com/energye/gpui/ui/kit/internal/scope
+PASS     github.com/energye/gpui/ui/overlay
+FAIL(56)  github.com/energye/gpui/ui/platform
+PASS     github.com/energye/gpui/ui/raster
+PASS     github.com/energye/gpui/ui/rendering
+PASS     github.com/energye/gpui/ui/scene
+PASS     github.com/energye/gpui/ui/scheduler
+PASS     github.com/energye/gpui/ui/semantics
+PASS     github.com/energye/gpui/ui/textbuffer
+PASS     github.com/energye/gpui/ui/textinput
+PASS     github.com/energye/gpui/ui/theme
+PASS     github.com/energye/gpui/video
+PASS     github.com/energye/gpui/video/clock
+PASS     github.com/energye/gpui/video/ffmpeg
+PASS     github.com/energye/gpui/ui/scene/internal/gpupixel
+```
+
+### 2.3 默认标签诊断原文（61 条）
+
+```text
+render/internal/gpu/res/view_test.go:12:8: possible misuse of unsafe.Pointer
+render/internal/gpu/res/view_test.go:13:8: possible misuse of unsafe.Pointer
+render/internal/gpu/gpu_render_context.go:4296:2: unreachable code
+render/internal/gpu/gpu_render_context.go:4344:2: unreachable code
+render/internal/gpu/view_raw_attack_test.go:13:55: possible misuse of unsafe.Pointer
+ui/platform/wayland_clipboard_linux.go:172:30: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_linux.go:1211:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_linux.go:1215:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_linux.go:1219:27: possible misuse of unsafe.Pointer
+ui/platform/wayland_cursor_linux.go:274:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_cursor_linux.go:279:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_cursor_linux.go:284:30: possible misuse of unsafe.Pointer
+ui/platform/wayland_keyboard_linux.go:223:28: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1025:27: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1366:21: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1367:22: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1372:19: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1424:17: possible misuse of unsafe.Pointer
+ui/platform/wayland_output_linux.go:66:26: possible misuse of unsafe.Pointer
+ui/platform/wayland_pointer_linux.go:187:27: possible misuse of unsafe.Pointer
+ui/platform/wayland_seat_linux.go:120:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_textinput_linux.go:489:22: possible misuse of unsafe.Pointer
+ui/platform/wayland_textinput_linux.go:600:21: possible misuse of unsafe.Pointer
+ui/platform/wayland_touch_linux.go:117:25: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:157:30: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:210:33: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:217:30: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:223:35: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:228:26: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:352:33: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:356:30: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:363:35: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:368:22: possible misuse of unsafe.Pointer
+ui/platform/x11_linux.go:1919:44: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:113:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:114:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:115:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:116:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:266:31: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:267:31: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:271:26: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:272:26: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:277:23: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:285:22: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:292:18: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:295:22: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:296:21: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:297:21: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:173:27: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:176:31: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:222:33: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:228:30: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:234:38: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:303:33: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:310:30: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:316:38: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:427:31: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:439:36: possible misuse of unsafe.Pointer
+ui/platform/probe_cursor_theme_test.go:43:25: possible misuse of unsafe.Pointer
+ui/platform/probe_cursor_theme_test.go:44:37: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_behavior_test.go:455:20: possible misuse of unsafe.Pointer
+```
+
+## 3 `-tags nogpu`
+
+### 3.1 `go vet -tags nogpu ./...` 原始输出（含已知问题包）
+
+```text
+examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
+	go get github.com/energye/gpui/ui/kit/button
+examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
+	go get github.com/energye/gpui/ui/kit/icon
+```
+
+### 3.2 过滤后逐包状态（348 包）
+
+> PASS = 该包在本轮 `go vet` 输出中无诊断；FAIL(n) = 该包有 n 条诊断（诊断原文见 §3.3）。
+
+```text
+SKIP(load)  github.com/energye/gpui/examples/ui_wr_t_stress
+PASS     github.com/energye/gpui/engine
+PASS     github.com/energye/gpui/engine/anim
+PASS     github.com/energye/gpui/engine/asset
+PASS     github.com/energye/gpui/engine/audio
+PASS     github.com/energye/gpui/engine/camera
+PASS     github.com/energye/gpui/engine/core
+PASS     github.com/energye/gpui/engine/debug
+PASS     github.com/energye/gpui/engine/dirty
+PASS     github.com/energye/gpui/engine/fx
+PASS     github.com/energye/gpui/engine/input
+PASS     github.com/energye/gpui/engine/light
+PASS     github.com/energye/gpui/engine/loop
+PASS     github.com/energye/gpui/engine/nav
+PASS     github.com/energye/gpui/engine/particle
+PASS     github.com/energye/gpui/engine/physics
+PASS     github.com/energye/gpui/engine/pool
+PASS     github.com/energye/gpui/engine/preview
+PASS     github.com/energye/gpui/engine/quality
+PASS     github.com/energye/gpui/engine/renderconv
+PASS     github.com/energye/gpui/engine/save
+PASS     github.com/energye/gpui/engine/sprite
+PASS     github.com/energye/gpui/engine/step
+PASS     github.com/energye/gpui/engine/tex
+PASS     github.com/energye/gpui/engine/tilemap
+PASS     github.com/energye/gpui/engine/world
+PASS     github.com/energye/gpui/examples/engine/25d_basis
+PASS     github.com/energye/gpui/examples/engine/anim
+PASS     github.com/energye/gpui/examples/engine/asset
+PASS     github.com/energye/gpui/examples/engine/camera
+PASS     github.com/energye/gpui/examples/engine/dodge
+PASS     github.com/energye/gpui/examples/engine/fx
+PASS     github.com/energye/gpui/examples/engine/input
+PASS     github.com/energye/gpui/examples/engine/light
+PASS     github.com/energye/gpui/examples/engine/light2d
+PASS     github.com/energye/gpui/examples/engine/nav
+PASS     github.com/energye/gpui/examples/engine/particle
+PASS     github.com/energye/gpui/examples/engine/particles2d
+PASS     github.com/energye/gpui/examples/engine/physics
+PASS     github.com/energye/gpui/examples/engine/platformer
+PASS     github.com/energye/gpui/examples/engine/quad
+PASS     github.com/energye/gpui/examples/engine/save
+PASS     github.com/energye/gpui/examples/engine/sprite
+PASS     github.com/energye/gpui/examples/engine/stage_chase
+PASS     github.com/energye/gpui/examples/engine/stage_night
+PASS     github.com/energye/gpui/examples/engine/step
+PASS     github.com/energye/gpui/examples/engine/tex
+PASS     github.com/energye/gpui/examples/engine/tilemap
+PASS     github.com/energye/gpui/examples/engine/world
+PASS     github.com/energye/gpui/examples/hostsink
+PASS     github.com/energye/gpui/examples/kit/color-model
+PASS     github.com/energye/gpui/examples/kit/date-engine
+PASS     github.com/energye/gpui/examples/kit/icon
+PASS     github.com/energye/gpui/examples/kit/modal-host
+PASS     github.com/energye/gpui/examples/kit/notice-queue
+PASS     github.com/energye/gpui/examples/kit/qrcode
+PASS     github.com/energye/gpui/examples/kit/spin_min
+PASS     github.com/energye/gpui/examples/kit/tour-mask
+PASS     github.com/energye/gpui/examples/kit/upload
+PASS     github.com/energye/gpui/examples/kit_f0_content
+PASS     github.com/energye/gpui/examples/kit_f0_decor
+PASS     github.com/energye/gpui/examples/kit_f0_interact
+PASS     github.com/energye/gpui/examples/kit_f0_layout
+PASS     github.com/energye/gpui/examples/kit_f0_motion
+PASS     github.com/energye/gpui/examples/kit_f0_scope
+PASS     github.com/energye/gpui/examples/kit_f0_theme
+PASS     github.com/energye/gpui/examples/pfkit
+PASS     github.com/energye/gpui/examples/render_basic
+PASS     github.com/energye/gpui/examples/render_bezier_test
+PASS     github.com/energye/gpui/examples/render_cjk_text
+PASS     github.com/energye/gpui/examples/render_clipping
+PASS     github.com/energye/gpui/examples/render_color_emoji
+PASS     github.com/energye/gpui/examples/render_images
+PASS     github.com/energye/gpui/examples/render_pixel_perfect
+PASS     github.com/energye/gpui/examples/render_recording
+PASS     github.com/energye/gpui/examples/render_scene
+PASS     github.com/energye/gpui/examples/render_sdf
+PASS     github.com/energye/gpui/examples/render_shapes
+PASS     github.com/energye/gpui/examples/render_text
+PASS     github.com/energye/gpui/examples/render_text_fallback
+PASS     github.com/energye/gpui/examples/render_text_transform
+PASS     github.com/energye/gpui/examples/render_variable_font
+PASS     github.com/energye/gpui/examples/render_visual_basic
+PASS     github.com/energye/gpui/examples/render_visual_cjk_text
+PASS     github.com/energye/gpui/examples/render_visual_clipping
+PASS     github.com/energye/gpui/examples/render_visual_gpu
+PASS     github.com/energye/gpui/examples/render_visual_images
+PASS     github.com/energye/gpui/examples/render_visual_scene
+PASS     github.com/energye/gpui/examples/render_visual_scene_gpu
+PASS     github.com/energye/gpui/examples/render_visual_shapes
+PASS     github.com/energye/gpui/examples/render_visual_text
+PASS     github.com/energye/gpui/examples/render_visual_text_transform
+PASS     github.com/energye/gpui/examples/text_langs_png
+PASS     github.com/energye/gpui/examples/ui_ant_verify
+PASS     github.com/energye/gpui/examples/ui_base_batch_cap
+PASS     github.com/energye/gpui/examples/ui_base_idle
+PASS     github.com/energye/gpui/examples/ui_base_multiwin_cap
+PASS     github.com/energye/gpui/examples/ui_base_vram_cap
+PASS     github.com/energye/gpui/examples/ui_ime_probe
+PASS     github.com/energye/gpui/examples/ui_l1_blank
+PASS     github.com/energye/gpui/examples/ui_l1_render_matrix
+PASS     github.com/energye/gpui/examples/ui_l1_scroll
+PASS     github.com/energye/gpui/examples/ui_l1_spinner
+PASS     github.com/energye/gpui/examples/ui_l2_shell
+PASS     github.com/energye/gpui/examples/ui_pf_appkit
+PASS     github.com/energye/gpui/examples/ui_pf_wayland
+PASS     github.com/energye/gpui/examples/ui_pf_win32
+PASS     github.com/energye/gpui/examples/ui_pf_x11
+PASS     github.com/energye/gpui/examples/ui_pf_x11_device
+PASS     github.com/energye/gpui/examples/ui_pf_x11_dnd
+PASS     github.com/energye/gpui/examples/ui_render_base_backdrop
+PASS     github.com/energye/gpui/examples/ui_render_base_cliplayer
+PASS     github.com/energye/gpui/examples/ui_render_base_clipop
+PASS     github.com/energye/gpui/examples/ui_render_base_cliprrect
+PASS     github.com/energye/gpui/examples/ui_render_base_dither
+PASS     github.com/energye/gpui/examples/ui_render_base_emoji
+PASS     github.com/energye/gpui/examples/ui_render_base_filterops
+PASS     github.com/energye/gpui/examples/ui_render_base_geometry
+PASS     github.com/energye/gpui/examples/ui_render_base_image
+PASS     github.com/energye/gpui/examples/ui_render_base_imagepattern
+PASS     github.com/energye/gpui/examples/ui_render_base_maskops
+PASS     github.com/energye/gpui/examples/ui_render_base_miscdraw
+PASS     github.com/energye/gpui/examples/ui_render_base_pathbool
+PASS     github.com/energye/gpui/examples/ui_render_base_pathlow
+PASS     github.com/energye/gpui/examples/ui_render_base_pathshape
+PASS     github.com/energye/gpui/examples/ui_render_base_perfsoak
+PASS     github.com/energye/gpui/examples/ui_render_base_recording
+PASS     github.com/energye/gpui/examples/ui_render_base_scene
+PASS     github.com/energye/gpui/examples/ui_render_base_strokepreset
+PASS     github.com/energye/gpui/examples/ui_render_base_svg
+PASS     github.com/energye/gpui/examples/ui_render_base_sweepgradient
+PASS     github.com/energye/gpui/examples/ui_render_base_text
+PASS     github.com/energye/gpui/examples/ui_render_base_textlow
+PASS     github.com/energye/gpui/examples/ui_render_base_textspacing
+PASS     github.com/energye/gpui/examples/ui_render_base_textstroke
+PASS     github.com/energye/gpui/examples/ui_render_base_variablefont
+PASS     github.com/energye/gpui/examples/ui_render_base_verticesmesh
+PASS     github.com/energye/gpui/examples/ui_render_base_webp
+PASS     github.com/energye/gpui/examples/ui_render_graphics/basic
+PASS     github.com/energye/gpui/examples/ui_render_graphics/vector
+PASS     github.com/energye/gpui/examples/ui_render_jumprope
+PASS     github.com/energye/gpui/examples/ui_render_particle
+PASS     github.com/energye/gpui/examples/ui_render_pelican
+PASS     github.com/energye/gpui/examples/ui_ruler_parity
+PASS     github.com/energye/gpui/examples/ui_text_edit_accept
+PASS     github.com/energye/gpui/examples/ui_text_m4_virtual
+PASS     github.com/energye/gpui/examples/ui_text_m5_anycase
+PASS     github.com/energye/gpui/examples/ui_textinput_ime
+PASS     github.com/energye/gpui/examples/ui_wr_c0_smoke
+PASS     github.com/energye/gpui/examples/ui_wr_c10_soak
+PASS     github.com/energye/gpui/examples/ui_wr_c11_policy_switch
+PASS     github.com/energye/gpui/examples/ui_wr_c1_boundary_nest
+PASS     github.com/energye/gpui/examples/ui_wr_c2_retained_scene
+PASS     github.com/energye/gpui/examples/ui_wr_c3_list_scroll
+PASS     github.com/energye/gpui/examples/ui_wr_c4_shell_overlay
+PASS     github.com/energye/gpui/examples/ui_wr_c5_anim_over_static
+PASS     github.com/energye/gpui/examples/ui_wr_c6_savelayer_group
+PASS     github.com/energye/gpui/examples/ui_wr_c7_resize_dpr
+PASS     github.com/energye/gpui/examples/ui_wr_c8_hit_overlay_xf
+PASS     github.com/energye/gpui/examples/ui_wr_c9_stress_cache
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r1_editor
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r2_textlayout
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r3_channel
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r4_selection
+PASS     github.com/energye/gpui/examples/ui_wr_ime_r5_control
+PASS     github.com/energye/gpui/examples/ui_wr_r0_fullpaint
+PASS     github.com/energye/gpui/examples/ui_wr_r10_async_image
+PASS     github.com/energye/gpui/examples/ui_wr_r11_dpr
+PASS     github.com/energye/gpui/examples/ui_wr_r12_metrics
+PASS     github.com/energye/gpui/examples/ui_wr_r12b_debug_repaint
+PASS     github.com/energye/gpui/examples/ui_wr_r13_hit
+PASS     github.com/energye/gpui/examples/ui_wr_r14_cache_budget
+PASS     github.com/energye/gpui/examples/ui_wr_r15_soak
+PASS     github.com/energye/gpui/examples/ui_wr_r16_warmup
+PASS     github.com/energye/gpui/examples/ui_wr_r17_bg_throttle
+PASS     github.com/energye/gpui/examples/ui_wr_r18_savelayer
+PASS     github.com/energye/gpui/examples/ui_wr_r19_snap
+PASS     github.com/energye/gpui/examples/ui_wr_r1_layout
+PASS     github.com/energye/gpui/examples/ui_wr_r20_filter
+PASS     github.com/energye/gpui/examples/ui_wr_r21_shell
+PASS     github.com/energye/gpui/examples/ui_wr_r22_selection_stub
+PASS     github.com/energye/gpui/examples/ui_wr_r2_paint
+PASS     github.com/energye/gpui/examples/ui_wr_r3_boundary
+PASS     github.com/energye/gpui/examples/ui_wr_r3b_compbits
+PASS     github.com/energye/gpui/examples/ui_wr_r4_composite
+PASS     github.com/energye/gpui/examples/ui_wr_r4b_multidamage
+PASS     github.com/energye/gpui/examples/ui_wr_r5_picture
+PASS     github.com/energye/gpui/examples/ui_wr_r6_layer_anim
+PASS     github.com/energye/gpui/examples/ui_wr_r7_virtlist
+PASS     github.com/energye/gpui/examples/ui_wr_r7b_scroll_reuse
+PASS     github.com/energye/gpui/examples/ui_wr_r8_overlay
+PASS     github.com/energye/gpui/examples/ui_wr_r9_text_cache
+PASS     github.com/energye/gpui/examples/ui_wr_shadermask
+PASS     github.com/energye/gpui/examples/video/video_2k_play
+PASS     github.com/energye/gpui/examples/video/video_4k_play
+PASS     github.com/energye/gpui/examples/video/video_a2_sync
+PASS     github.com/energye/gpui/examples/video/video_a4_sink
+PASS     github.com/energye/gpui/examples/video/video_b1_frag
+PASS     github.com/energye/gpui/examples/video/video_player
+PASS     github.com/energye/gpui/examples/video/video_retained_golden
+PASS     github.com/energye/gpui/examples/video/video_s8_index
+PASS     github.com/energye/gpui/examples/video/video_vc0_fullplay
+PASS     github.com/energye/gpui/examples/video/video_vc1_seek_fault
+PASS     github.com/energye/gpui/examples/video/video_vc2_soak
+PASS     github.com/energye/gpui/examples/video/video_vc3_embed_extend
+PASS     github.com/energye/gpui/examples/video/video_vr0_demux
+PASS     github.com/energye/gpui/examples/video/video_vr1_params
+PASS     github.com/energye/gpui/examples/video/video_vr2_decode
+PASS     github.com/energye/gpui/examples/video/video_vr3_color
+PASS     github.com/energye/gpui/examples/video/video_vr4_play
+PASS     github.com/energye/gpui/examples/video/video_vr5_seek
+PASS     github.com/energye/gpui/examples/video/video_vr6_fault
+PASS     github.com/energye/gpui/examples/video/video_vr7_perf
+PASS     github.com/energye/gpui/examples/video/video_vr8_embed
+PASS     github.com/energye/gpui/examples/video/video_vr9_registry
+PASS     github.com/energye/gpui/examples/wrevidence
+PASS     github.com/energye/gpui/examples/wrgate
+PASS     github.com/energye/gpui/examples/wrkit
+PASS     github.com/energye/gpui/examples/wrsoak
+PASS     github.com/energye/gpui/examples/zz_soak_control
+PASS     github.com/energye/gpui/gpu/context
+PASS     github.com/energye/gpui/gpu/gwgpu
+PASS     github.com/energye/gpui/gpu/gwgpu/ffishim
+PASS     github.com/energye/gpui/gpu/gwgpu/gles
+PASS     github.com/energye/gpui/gpu/gwgpu/gles/egl
+PASS     github.com/energye/gpui/gpu/gwgpu/gles/gl
+PASS     github.com/energye/gpui/gpu/gwgpu/gles/wgl
+PASS     github.com/energye/gpui/gpu/gwgpu/indirect
+PASS     github.com/energye/gpui/gpu/gwgpu/metal
+PASS     github.com/energye/gpui/gpu/gwgpu/metal/mslmap
+PASS     github.com/energye/gpui/gpu/gwgpu/naga
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/glsl
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/backend
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/registry
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/internal/textutil
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/ir
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/msl
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/wgsl
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower
+PASS     github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/parser
+PASS     github.com/energye/gpui/gpu/hal
+PASS     github.com/energye/gpui/gpu/hal/noop
+PASS     github.com/energye/gpui/gpu/rwgpu
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/adapter_info
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/buffer_introspection
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/compute
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/error_handling
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/instanced
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/render_debug_markers
+PASS     github.com/energye/gpui/gpu/rwgpu/examples/timestamp_query
+PASS     github.com/energye/gpui/gpu/shader
+PASS     github.com/energye/gpui/gpu/shader/dxil
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/bitcode
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/container
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/emit
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/module
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/passes/dce
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/passes/mem2reg
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/passes/sroa
+PASS     github.com/energye/gpui/gpu/shader/dxil/internal/viewid
+PASS     github.com/energye/gpui/gpu/shader/glsl
+PASS     github.com/energye/gpui/gpu/shader/glsl/internal/codegen
+PASS     github.com/energye/gpui/gpu/shader/hlsl
+PASS     github.com/energye/gpui/gpu/shader/hlsl/internal/codegen
+PASS     github.com/energye/gpui/gpu/shader/internal/backend
+PASS     github.com/energye/gpui/gpu/shader/internal/dxcvalidator
+PASS     github.com/energye/gpui/gpu/shader/internal/dxcvalidator/bitcheck
+PASS     github.com/energye/gpui/gpu/shader/internal/registry
+PASS     github.com/energye/gpui/gpu/shader/internal/textutil
+PASS     github.com/energye/gpui/gpu/shader/ir
+PASS     github.com/energye/gpui/gpu/shader/msl
+PASS     github.com/energye/gpui/gpu/shader/msl/internal/codegen
+PASS     github.com/energye/gpui/gpu/shader/spirv
+PASS     github.com/energye/gpui/gpu/shader/spirv/internal/codegen
+PASS     github.com/energye/gpui/gpu/shader/wgsl
+PASS     github.com/energye/gpui/gpu/shader/wgsl/internal/lower
+PASS     github.com/energye/gpui/gpu/shader/wgsl/internal/parser
+PASS     github.com/energye/gpui/gpu/types
+PASS     github.com/energye/gpui/gpu/webgpu
+PASS     github.com/energye/gpui/gpu/webgpu/internal/browser
+PASS     github.com/energye/gpui/gpu/webgpu/internal/thread
+PASS     github.com/energye/gpui/render
+PASS     github.com/energye/gpui/render/filters
+PASS     github.com/energye/gpui/render/gpu
+PASS     github.com/energye/gpui/render/integration/ggcanvas
+PASS     github.com/energye/gpui/render/internal/blend
+PASS     github.com/energye/gpui/render/internal/cache
+PASS     github.com/energye/gpui/render/internal/clip
+PASS     github.com/energye/gpui/render/internal/color
+PASS     github.com/energye/gpui/render/internal/conformance
+PASS     github.com/energye/gpui/render/internal/filter
+PASS     github.com/energye/gpui/render/internal/gpu
+FAIL(2)  github.com/energye/gpui/render/internal/gpu/res
+PASS     github.com/energye/gpui/render/internal/gpu/tilecompute
+PASS     github.com/energye/gpui/render/internal/image
+PASS     github.com/energye/gpui/render/internal/parallel
+PASS     github.com/energye/gpui/render/internal/raster
+PASS     github.com/energye/gpui/render/internal/stroke
+PASS     github.com/energye/gpui/render/internal/testutil/imagediff
+PASS     github.com/energye/gpui/render/internal/wide
+PASS     github.com/energye/gpui/render/recording
+PASS     github.com/energye/gpui/render/recording/backends/raster
+PASS     github.com/energye/gpui/render/render
+PASS     github.com/energye/gpui/render/scene
+PASS     github.com/energye/gpui/render/svg
+PASS     github.com/energye/gpui/render/text
+PASS     github.com/energye/gpui/render/text/cache
+PASS     github.com/energye/gpui/render/text/emoji
+PASS     github.com/energye/gpui/render/text/hint
+PASS     github.com/energye/gpui/render/text/hint/cmd/fdiff
+PASS     github.com/energye/gpui/render/text/msdf
+PASS     github.com/energye/gpui/render/text/tools/gen_autohint_scripts
+PASS     github.com/energye/gpui/scripts/apidoc
+PASS     github.com/energye/gpui/tools/ffmpeg-recipe
+PASS     github.com/energye/gpui/tools/levelprev
+PASS     github.com/energye/gpui/tools/particleprev
+PASS     github.com/energye/gpui/tools/ruler_flutter/gen_grid_png
+PASS     github.com/energye/gpui/ui
+PASS     github.com/energye/gpui/ui/animation
+PASS     github.com/energye/gpui/ui/application
+PASS     github.com/energye/gpui/ui/embedder
+PASS     github.com/energye/gpui/ui/focus
+PASS     github.com/energye/gpui/ui/gestures
+PASS     github.com/energye/gpui/ui/imeutil
+PASS     github.com/energye/gpui/ui/input
+PASS     github.com/energye/gpui/ui/io
+PASS     github.com/energye/gpui/ui/kit
+PASS     github.com/energye/gpui/ui/kit/internal/behavior
+PASS     github.com/energye/gpui/ui/kit/internal/gate
+PASS     github.com/energye/gpui/ui/kit/internal/prim
+PASS     github.com/energye/gpui/ui/kit/internal/scope
+PASS     github.com/energye/gpui/ui/overlay
+FAIL(56)  github.com/energye/gpui/ui/platform
+PASS     github.com/energye/gpui/ui/raster
+PASS     github.com/energye/gpui/ui/rendering
+PASS     github.com/energye/gpui/ui/scene
+PASS     github.com/energye/gpui/ui/scheduler
+PASS     github.com/energye/gpui/ui/semantics
+PASS     github.com/energye/gpui/ui/textbuffer
+PASS     github.com/energye/gpui/ui/textinput
+PASS     github.com/energye/gpui/ui/theme
+PASS     github.com/energye/gpui/video
+PASS     github.com/energye/gpui/video/clock
+PASS     github.com/energye/gpui/video/ffmpeg
+PASS     github.com/energye/gpui/ui/scene/internal/gpupixel
+```
+
+### 3.3 nogpu 诊断原文（58 条）
+
+```text
+render/internal/gpu/res/view_test.go:12:8: possible misuse of unsafe.Pointer
+render/internal/gpu/res/view_test.go:13:8: possible misuse of unsafe.Pointer
+ui/platform/wayland_clipboard_linux.go:172:30: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_linux.go:1211:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_linux.go:1215:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_linux.go:1219:27: possible misuse of unsafe.Pointer
+ui/platform/wayland_cursor_linux.go:274:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_cursor_linux.go:279:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_cursor_linux.go:284:30: possible misuse of unsafe.Pointer
+ui/platform/wayland_keyboard_linux.go:223:28: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1025:27: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1366:21: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1367:22: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1372:19: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1424:17: possible misuse of unsafe.Pointer
+ui/platform/wayland_output_linux.go:66:26: possible misuse of unsafe.Pointer
+ui/platform/wayland_pointer_linux.go:187:27: possible misuse of unsafe.Pointer
+ui/platform/wayland_seat_linux.go:120:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_textinput_linux.go:489:22: possible misuse of unsafe.Pointer
+ui/platform/wayland_textinput_linux.go:600:21: possible misuse of unsafe.Pointer
+ui/platform/wayland_touch_linux.go:117:25: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:157:30: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:210:33: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:217:30: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:223:35: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:228:26: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:352:33: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:356:30: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:363:35: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:368:22: possible misuse of unsafe.Pointer
+ui/platform/x11_linux.go:1919:44: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:113:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:114:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:115:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:116:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:266:31: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:267:31: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:271:26: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:272:26: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:277:23: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:285:22: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:292:18: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:295:22: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:296:21: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:297:21: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:173:27: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:176:31: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:222:33: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:228:30: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:234:38: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:303:33: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:310:30: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:316:38: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:427:31: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:439:36: possible misuse of unsafe.Pointer
+ui/platform/probe_cursor_theme_test.go:43:25: possible misuse of unsafe.Pointer
+ui/platform/probe_cursor_theme_test.go:44:37: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_behavior_test.go:455:20: possible misuse of unsafe.Pointer
+```
+
+### 3.4 nogpu 测试编译验证
+
+```text
+?   	github.com/energye/gpui/engine	[no test files]
+ok  	github.com/energye/gpui/engine/anim	0.011s [no tests to run]
+ok  	github.com/energye/gpui/engine/asset	0.006s [no tests to run]
+ok  	github.com/energye/gpui/engine/audio	0.008s [no tests to run]
+ok  	github.com/energye/gpui/engine/camera	0.015s [no tests to run]
+ok  	github.com/energye/gpui/engine/core	0.016s [no tests to run]
+ok  	github.com/energye/gpui/engine/debug	0.011s [no tests to run]
+ok  	github.com/energye/gpui/engine/dirty	0.012s [no tests to run]
+ok  	github.com/energye/gpui/engine/fx	0.006s [no tests to run]
+ok  	github.com/energye/gpui/engine/input	0.012s [no tests to run]
+ok  	github.com/energye/gpui/engine/light	0.006s [no tests to run]
+ok  	github.com/energye/gpui/engine/loop	0.009s [no tests to run]
+ok  	github.com/energye/gpui/engine/nav	0.006s [no tests to run]
+ok  	github.com/energye/gpui/engine/particle	0.011s [no tests to run]
+ok  	github.com/energye/gpui/engine/physics	0.009s [no tests to run]
+ok  	github.com/energye/gpui/engine/pool	0.009s [no tests to run]
+ok  	github.com/energye/gpui/engine/preview	0.007s [no tests to run]
+ok  	github.com/energye/gpui/engine/quality	0.004s [no tests to run]
+ok  	github.com/energye/gpui/engine/renderconv	0.011s [no tests to run]
+ok  	github.com/energye/gpui/engine/save	0.008s [no tests to run]
+ok  	github.com/energye/gpui/engine/sprite	0.017s [no tests to run]
+ok  	github.com/energye/gpui/engine/step	0.005s [no tests to run]
+ok  	github.com/energye/gpui/engine/tex	0.006s [no tests to run]
+ok  	github.com/energye/gpui/engine/tilemap	0.022s [no tests to run]
+ok  	github.com/energye/gpui/engine/world	0.024s [no tests to run]
+?   	github.com/energye/gpui/examples/engine/25d_basis	[no test files]
+?   	github.com/energye/gpui/examples/engine/anim	[no test files]
+?   	github.com/energye/gpui/examples/engine/asset	[no test files]
+?   	github.com/energye/gpui/examples/engine/camera	[no test files]
+?   	github.com/energye/gpui/examples/engine/dodge	[no test files]
+?   	github.com/energye/gpui/examples/engine/fx	[no test files]
+?   	github.com/energye/gpui/examples/engine/input	[no test files]
+?   	github.com/energye/gpui/examples/engine/light	[no test files]
+?   	github.com/energye/gpui/examples/engine/light2d	[no test files]
+?   	github.com/energye/gpui/examples/engine/nav	[no test files]
+?   	github.com/energye/gpui/examples/engine/particle	[no test files]
+?   	github.com/energye/gpui/examples/engine/particles2d	[no test files]
+?   	github.com/energye/gpui/examples/engine/physics	[no test files]
+?   	github.com/energye/gpui/examples/engine/platformer	[no test files]
+?   	github.com/energye/gpui/examples/engine/quad	[no test files]
+?   	github.com/energye/gpui/examples/engine/save	[no test files]
+?   	github.com/energye/gpui/examples/engine/sprite	[no test files]
+?   	github.com/energye/gpui/examples/engine/stage_chase	[no test files]
+?   	github.com/energye/gpui/examples/engine/stage_night	[no test files]
+?   	github.com/energye/gpui/examples/engine/step	[no test files]
+?   	github.com/energye/gpui/examples/engine/tex	[no test files]
+?   	github.com/energye/gpui/examples/engine/tilemap	[no test files]
+?   	github.com/energye/gpui/examples/engine/world	[no test files]
+ok  	github.com/energye/gpui/examples/hostsink	0.006s [no tests to run]
+?   	github.com/energye/gpui/examples/kit/color-model	[no test files]
+?   	github.com/energye/gpui/examples/kit/date-engine	[no test files]
+?   	github.com/energye/gpui/examples/kit/icon	[no test files]
+?   	github.com/energye/gpui/examples/kit/modal-host	[no test files]
+?   	github.com/energye/gpui/examples/kit/notice-queue	[no test files]
+?   	github.com/energye/gpui/examples/kit/qrcode	[no test files]
+?   	github.com/energye/gpui/examples/kit/spin_min	[no test files]
+?   	github.com/energye/gpui/examples/kit/tour-mask	[no test files]
+?   	github.com/energye/gpui/examples/kit/upload	[no test files]
+?   	github.com/energye/gpui/examples/kit_f0_content	[no test files]
+?   	github.com/energye/gpui/examples/kit_f0_decor	[no test files]
+?   	github.com/energye/gpui/examples/kit_f0_interact	[no test files]
+?   	github.com/energye/gpui/examples/kit_f0_layout	[no test files]
+?   	github.com/energye/gpui/examples/kit_f0_motion	[no test files]
+?   	github.com/energye/gpui/examples/kit_f0_scope	[no test files]
+?   	github.com/energye/gpui/examples/kit_f0_theme	[no test files]
+ok  	github.com/energye/gpui/examples/pfkit	0.010s [no tests to run]
+?   	github.com/energye/gpui/examples/render_basic	[no test files]
+?   	github.com/energye/gpui/examples/render_bezier_test	[no test files]
+?   	github.com/energye/gpui/examples/render_cjk_text	[no test files]
+?   	github.com/energye/gpui/examples/render_clipping	[no test files]
+?   	github.com/energye/gpui/examples/render_color_emoji	[no test files]
+?   	github.com/energye/gpui/examples/render_images	[no test files]
+?   	github.com/energye/gpui/examples/render_pixel_perfect	[no test files]
+?   	github.com/energye/gpui/examples/render_recording	[no test files]
+?   	github.com/energye/gpui/examples/render_scene	[no test files]
+?   	github.com/energye/gpui/examples/render_sdf	[no test files]
+?   	github.com/energye/gpui/examples/render_shapes	[no test files]
+ok  	github.com/energye/gpui/examples/render_text	0.007s [no tests to run]
+ok  	github.com/energye/gpui/examples/render_text_fallback	0.015s [no tests to run]
+?   	github.com/energye/gpui/examples/render_text_transform	[no test files]
+?   	github.com/energye/gpui/examples/render_variable_font	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_basic	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_cjk_text	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_clipping	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_gpu	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_images	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_scene	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_scene_gpu	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_shapes	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_text	[no test files]
+?   	github.com/energye/gpui/examples/render_visual_text_transform	[no test files]
+?   	github.com/energye/gpui/examples/text_langs_png	[no test files]
+?   	github.com/energye/gpui/examples/ui_ant_verify	[no test files]
+?   	github.com/energye/gpui/examples/ui_base_batch_cap	[no test files]
+?   	github.com/energye/gpui/examples/ui_base_idle	[no test files]
+?   	github.com/energye/gpui/examples/ui_base_multiwin_cap	[no test files]
+?   	github.com/energye/gpui/examples/ui_base_vram_cap	[no test files]
+?   	github.com/energye/gpui/examples/ui_ime_probe	[no test files]
+?   	github.com/energye/gpui/examples/ui_l1_blank	[no test files]
+?   	github.com/energye/gpui/examples/ui_l1_render_matrix	[no test files]
+?   	github.com/energye/gpui/examples/ui_l1_scroll	[no test files]
+?   	github.com/energye/gpui/examples/ui_l1_spinner	[no test files]
+ok  	github.com/energye/gpui/examples/ui_l2_shell	0.011s [no tests to run]
+?   	github.com/energye/gpui/examples/ui_pf_appkit	[no test files]
+?   	github.com/energye/gpui/examples/ui_pf_wayland	[no test files]
+?   	github.com/energye/gpui/examples/ui_pf_win32	[no test files]
+?   	github.com/energye/gpui/examples/ui_pf_x11	[no test files]
+?   	github.com/energye/gpui/examples/ui_pf_x11_device	[no test files]
+?   	github.com/energye/gpui/examples/ui_pf_x11_dnd	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_backdrop	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_cliplayer	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_clipop	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_cliprrect	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_dither	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_emoji	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_filterops	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_geometry	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_image	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_imagepattern	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_maskops	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_miscdraw	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_pathbool	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_pathlow	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_pathshape	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_perfsoak	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_recording	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_scene	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_strokepreset	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_svg	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_sweepgradient	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_text	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_textlow	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_textspacing	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_textstroke	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_variablefont	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_verticesmesh	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_base_webp	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_graphics/basic	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_graphics/vector	[no test files]
+ok  	github.com/energye/gpui/examples/ui_render_jumprope	0.015s [no tests to run]
+?   	github.com/energye/gpui/examples/ui_render_particle	[no test files]
+?   	github.com/energye/gpui/examples/ui_render_pelican	[no test files]
+?   	github.com/energye/gpui/examples/ui_ruler_parity	[no test files]
+?   	github.com/energye/gpui/examples/ui_text_edit_accept	[no test files]
+?   	github.com/energye/gpui/examples/ui_text_m4_virtual	[no test files]
+?   	github.com/energye/gpui/examples/ui_text_m5_anycase	[no test files]
+?   	github.com/energye/gpui/examples/ui_textinput_ime	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c0_smoke	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c10_soak	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c11_policy_switch	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c1_boundary_nest	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c2_retained_scene	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c3_list_scroll	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c4_shell_overlay	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c5_anim_over_static	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c6_savelayer_group	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c7_resize_dpr	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c8_hit_overlay_xf	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_c9_stress_cache	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_ime_r1_editor	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_ime_r2_textlayout	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_ime_r3_channel	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_ime_r4_selection	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_ime_r5_control	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r0_fullpaint	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r10_async_image	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r11_dpr	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r12_metrics	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r12b_debug_repaint	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r13_hit	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r14_cache_budget	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r15_soak	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r16_warmup	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r17_bg_throttle	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r18_savelayer	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r19_snap	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r1_layout	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r20_filter	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r21_shell	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r22_selection_stub	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r2_paint	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r3_boundary	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r3b_compbits	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r4_composite	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r4b_multidamage	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r5_picture	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r6_layer_anim	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r7_virtlist	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r7b_scroll_reuse	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r8_overlay	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_r9_text_cache	[no test files]
+?   	github.com/energye/gpui/examples/ui_wr_shadermask	[no test files]
+?   	github.com/energye/gpui/examples/video/video_2k_play	[no test files]
+?   	github.com/energye/gpui/examples/video/video_4k_play	[no test files]
+?   	github.com/energye/gpui/examples/video/video_a2_sync	[no test files]
+ok  	github.com/energye/gpui/examples/video/video_a4_sink	0.013s [no tests to run]
+?   	github.com/energye/gpui/examples/video/video_b1_frag	[no test files]
+ok  	github.com/energye/gpui/examples/video/video_player	0.033s [no tests to run]
+?   	github.com/energye/gpui/examples/video/video_retained_golden	[no test files]
+?   	github.com/energye/gpui/examples/video/video_s8_index	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vc0_fullplay	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vc1_seek_fault	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vc2_soak	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vc3_embed_extend	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr0_demux	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr1_params	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr2_decode	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr3_color	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr4_play	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr5_seek	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr6_fault	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr7_perf	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr8_embed	[no test files]
+?   	github.com/energye/gpui/examples/video/video_vr9_registry	[no test files]
+?   	github.com/energye/gpui/examples/wrevidence	[no test files]
+ok  	github.com/energye/gpui/examples/wrgate	0.011s [no tests to run]
+?   	github.com/energye/gpui/examples/wrkit	[no test files]
+?   	github.com/energye/gpui/examples/wrsoak	[no test files]
+?   	github.com/energye/gpui/examples/zz_soak_control	[no test files]
+ok  	github.com/energye/gpui/gpu/context	0.009s [no tests to run]
+?   	github.com/energye/gpui/gpu/gwgpu	[no test files]
+ok  	github.com/energye/gpui/gpu/gwgpu/ffishim	0.008s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/gles	0.007s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/gles/egl	0.006s [no tests to run]
+?   	github.com/energye/gpui/gpu/gwgpu/gles/gl	[no test files]
+?   	github.com/energye/gpui/gpu/gwgpu/gles/wgl	[no test files]
+ok  	github.com/energye/gpui/gpu/gwgpu/indirect	0.003s [no tests to run]
+?   	github.com/energye/gpui/gpu/gwgpu/metal	[no test files]
+ok  	github.com/energye/gpui/gpu/gwgpu/metal/mslmap	0.006s [no tests to run]
+?   	github.com/energye/gpui/gpu/gwgpu/naga	[no test files]
+?   	github.com/energye/gpui/gpu/gwgpu/naga/glsl	[no test files]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	0.006s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/internal/backend	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	0.007s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/internal/registry	0.005s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/internal/textutil	0.009s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/ir	0.007s [no tests to run]
+?   	github.com/energye/gpui/gpu/gwgpu/naga/msl	[no test files]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/wgsl	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	0.009s [no tests to run]
+ok  	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/parser	0.005s [no tests to run]
+ok  	github.com/energye/gpui/gpu/hal	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/hal/noop	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/rwgpu	0.007s [no tests to run]
+?   	github.com/energye/gpui/gpu/rwgpu/examples/adapter_info	[no test files]
+?   	github.com/energye/gpui/gpu/rwgpu/examples/buffer_introspection	[no test files]
+?   	github.com/energye/gpui/gpu/rwgpu/examples/compute	[no test files]
+?   	github.com/energye/gpui/gpu/rwgpu/examples/error_handling	[no test files]
+?   	github.com/energye/gpui/gpu/rwgpu/examples/instanced	[no test files]
+?   	github.com/energye/gpui/gpu/rwgpu/examples/render_debug_markers	[no test files]
+?   	github.com/energye/gpui/gpu/rwgpu/examples/timestamp_query	[no test files]
+ok  	github.com/energye/gpui/gpu/shader	0.009s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/dxil	0.012s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/dxil/internal/bitcode	0.008s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/dxil/internal/container	0.008s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/dxil/internal/emit	0.005s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/dxil/internal/module	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/dxil/internal/passes/dce	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/dxil/internal/passes/mem2reg	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/dxil/internal/passes/sroa	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/dxil/internal/viewid	0.009s [no tests to run]
+?   	github.com/energye/gpui/gpu/shader/glsl	[no test files]
+ok  	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	0.012s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/hlsl	0.010s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	0.012s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/internal/backend	0.008s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/internal/dxcvalidator	0.007s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/internal/dxcvalidator/bitcheck	0.016s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/internal/registry	0.004s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/internal/textutil	0.007s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/ir	0.005s [no tests to run]
+?   	github.com/energye/gpui/gpu/shader/msl	[no test files]
+ok  	github.com/energye/gpui/gpu/shader/msl/internal/codegen	0.008s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/spirv	0.006s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	0.006s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/wgsl	0.006s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	0.011s [no tests to run]
+ok  	github.com/energye/gpui/gpu/shader/wgsl/internal/parser	0.012s [no tests to run]
+ok  	github.com/energye/gpui/gpu/types	0.005s [no tests to run]
+ok  	github.com/energye/gpui/gpu/webgpu	0.007s [no tests to run]
+ok  	github.com/energye/gpui/gpu/webgpu/internal/browser	0.007s [no tests to run]
+ok  	github.com/energye/gpui/gpu/webgpu/internal/thread	0.004s [no tests to run]
+ok  	github.com/energye/gpui/render	0.026s [no tests to run]
+?   	github.com/energye/gpui/render/filters	[no test files]
+?   	github.com/energye/gpui/render/gpu	[no test files]
+ok  	github.com/energye/gpui/render/integration/ggcanvas	0.008s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/blend	0.010s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/cache	0.007s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/clip	0.007s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/color	0.007s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/conformance	0.012s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/filter	0.016s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/gpu	0.010s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/gpu/res	0.014s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/gpu/tilecompute	0.016s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/image	0.010s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/parallel	0.010s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/raster	0.008s [no tests to run]
+ok  	github.com/energye/gpui/render/internal/stroke	0.010s [no tests to run]
+?   	github.com/energye/gpui/render/internal/testutil/imagediff	[no test files]
+ok  	github.com/energye/gpui/render/internal/wide	0.006s [no tests to run]
+ok  	github.com/energye/gpui/render/recording	0.013s [no tests to run]
+ok  	github.com/energye/gpui/render/recording/backends/raster	0.012s [no tests to run]
+ok  	github.com/energye/gpui/render/render	0.008s [no tests to run]
+ok  	github.com/energye/gpui/render/scene	0.012s [no tests to run]
+ok  	github.com/energye/gpui/render/svg	0.013s [no tests to run]
+ok  	github.com/energye/gpui/render/text	0.014s [no tests to run]
+ok  	github.com/energye/gpui/render/text/cache	0.014s [no tests to run]
+ok  	github.com/energye/gpui/render/text/emoji	0.004s [no tests to run]
+ok  	github.com/energye/gpui/render/text/hint	0.010s [no tests to run]
+?   	github.com/energye/gpui/render/text/hint/cmd/fdiff	[no test files]
+ok  	github.com/energye/gpui/render/text/msdf	0.009s [no tests to run]
+?   	github.com/energye/gpui/render/text/tools/gen_autohint_scripts	[no test files]
+?   	github.com/energye/gpui/scripts/apidoc	[no test files]
+?   	github.com/energye/gpui/tools/ffmpeg-recipe	[no test files]
+ok  	github.com/energye/gpui/tools/levelprev	0.013s [no tests to run]
+ok  	github.com/energye/gpui/tools/particleprev	0.019s [no tests to run]
+?   	github.com/energye/gpui/tools/ruler_flutter/gen_grid_png	[no test files]
+ok  	github.com/energye/gpui/ui	0.005s [no tests to run]
+ok  	github.com/energye/gpui/ui/animation	0.027s [no tests to run]
+ok  	github.com/energye/gpui/ui/application	0.014s [no tests to run]
+ok  	github.com/energye/gpui/ui/embedder	0.015s [no tests to run]
+ok  	github.com/energye/gpui/ui/focus	0.011s [no tests to run]
+ok  	github.com/energye/gpui/ui/gestures	0.011s [no tests to run]
+?   	github.com/energye/gpui/ui/imeutil	[no test files]
+ok  	github.com/energye/gpui/ui/input	0.016s [no tests to run]
+ok  	github.com/energye/gpui/ui/io	0.019s [no tests to run]
+ok  	github.com/energye/gpui/ui/kit	0.013s [no tests to run]
+ok  	github.com/energye/gpui/ui/kit/internal/behavior	0.012s [no tests to run]
+ok  	github.com/energye/gpui/ui/kit/internal/gate	0.006s [no tests to run]
+ok  	github.com/energye/gpui/ui/kit/internal/prim	0.016s [no tests to run]
+ok  	github.com/energye/gpui/ui/kit/internal/scope	0.009s [no tests to run]
+ok  	github.com/energye/gpui/ui/overlay	0.011s [no tests to run]
+ok  	github.com/energye/gpui/ui/platform	0.007s [no tests to run]
+ok  	github.com/energye/gpui/ui/raster	0.007s [no tests to run]
+ok  	github.com/energye/gpui/ui/rendering	0.015s [no tests to run]
+ok  	github.com/energye/gpui/ui/scene	0.023s [no tests to run]
+ok  	github.com/energye/gpui/ui/scheduler	0.008s [no tests to run]
+ok  	github.com/energye/gpui/ui/semantics	0.004s [no tests to run]
+ok  	github.com/energye/gpui/ui/textbuffer	0.007s [no tests to run]
+ok  	github.com/energye/gpui/ui/textinput	0.014s [no tests to run]
+ok  	github.com/energye/gpui/ui/theme	0.005s [no tests to run]
+ok  	github.com/energye/gpui/video	0.009s [no tests to run]
+ok  	github.com/energye/gpui/video/clock	0.006s [no tests to run]
+ok  	github.com/energye/gpui/video/ffmpeg	0.005s [no tests to run]
+ok  	github.com/energye/gpui/ui/scene/internal/gpupixel	0.009s [no tests to run]
+```
+
+汇总：`ok` 137 包、`no test files` 211 包、`FAIL` 0 包，命令退出码 0。
+这一步证明 P1.2b 后 nogpu 模式下所有测试文件都能编译；测试是否通过归 P1.3（默认标签）与后续 P2 门禁。
+
+## 4 告警逐条登记（默认标签 61 条）
+
+类型码：U = `ui/platform` FFI 指针（unsafe.Pointer）；T = 测试伪造指针（unsafe.Pointer）；D = `unreachable code`。
+
+| # | 位置 | 类型 | 诊断 | 归属 / 处置 |
+|---|---|---|---|---|
+| 1 | `render/internal/gpu/res/view_test.go:12` | T | possible misuse of unsafe.Pointer | P2.5（测试指针卫生） |
+| 2 | `render/internal/gpu/res/view_test.go:13` | T | possible misuse of unsafe.Pointer | P2.5（测试指针卫生） |
+| 3 | `render/internal/gpu/gpu_render_context.go:4296` | D | unreachable code | P2.5（零行为变化死代码清理） |
+| 4 | `render/internal/gpu/gpu_render_context.go:4344` | D | unreachable code | P2.5（零行为变化死代码清理） |
+| 5 | `render/internal/gpu/view_raw_attack_test.go:13` | T | possible misuse of unsafe.Pointer | P2.5（测试指针卫生） |
+| 6 | `ui/platform/wayland_clipboard_linux.go:172` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 7 | `ui/platform/wayland_csd_linux.go:1211` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 8 | `ui/platform/wayland_csd_linux.go:1215` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 9 | `ui/platform/wayland_csd_linux.go:1219` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 10 | `ui/platform/wayland_cursor_linux.go:274` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 11 | `ui/platform/wayland_cursor_linux.go:279` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 12 | `ui/platform/wayland_cursor_linux.go:284` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 13 | `ui/platform/wayland_keyboard_linux.go:223` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 14 | `ui/platform/wayland_linux.go:1025` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 15 | `ui/platform/wayland_linux.go:1366` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 16 | `ui/platform/wayland_linux.go:1367` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 17 | `ui/platform/wayland_linux.go:1372` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 18 | `ui/platform/wayland_linux.go:1424` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 19 | `ui/platform/wayland_output_linux.go:66` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 20 | `ui/platform/wayland_pointer_linux.go:187` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 21 | `ui/platform/wayland_seat_linux.go:120` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 22 | `ui/platform/wayland_textinput_linux.go:489` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 23 | `ui/platform/wayland_textinput_linux.go:600` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 24 | `ui/platform/wayland_touch_linux.go:117` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 25 | `ui/platform/x11_device_linux.go:157` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 26 | `ui/platform/x11_device_linux.go:210` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 27 | `ui/platform/x11_device_linux.go:217` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 28 | `ui/platform/x11_device_linux.go:223` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 29 | `ui/platform/x11_device_linux.go:228` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 30 | `ui/platform/x11_device_linux.go:352` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 31 | `ui/platform/x11_device_linux.go:356` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 32 | `ui/platform/x11_device_linux.go:363` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 33 | `ui/platform/x11_device_linux.go:368` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 34 | `ui/platform/x11_linux.go:1919` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 35 | `ui/platform/x11_randr_linux.go:113` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 36 | `ui/platform/x11_randr_linux.go:114` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 37 | `ui/platform/x11_randr_linux.go:115` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 38 | `ui/platform/x11_randr_linux.go:116` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 39 | `ui/platform/x11_randr_linux.go:266` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 40 | `ui/platform/x11_randr_linux.go:267` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 41 | `ui/platform/x11_randr_linux.go:271` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 42 | `ui/platform/x11_randr_linux.go:272` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 43 | `ui/platform/x11_randr_linux.go:277` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 44 | `ui/platform/x11_randr_linux.go:285` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 45 | `ui/platform/x11_randr_linux.go:292` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 46 | `ui/platform/x11_randr_linux.go:295` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 47 | `ui/platform/x11_randr_linux.go:296` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 48 | `ui/platform/x11_randr_linux.go:297` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 49 | `ui/platform/x11_stylus_linux.go:173` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 50 | `ui/platform/x11_stylus_linux.go:176` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 51 | `ui/platform/x11_stylus_linux.go:222` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 52 | `ui/platform/x11_stylus_linux.go:228` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 53 | `ui/platform/x11_stylus_linux.go:234` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 54 | `ui/platform/x11_stylus_linux.go:303` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 55 | `ui/platform/x11_stylus_linux.go:310` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 56 | `ui/platform/x11_stylus_linux.go:316` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 57 | `ui/platform/x11_stylus_linux.go:427` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 58 | `ui/platform/x11_stylus_linux.go:439` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 59 | `ui/platform/probe_cursor_theme_test.go:43` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 60 | `ui/platform/probe_cursor_theme_test.go:44` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+| 61 | `ui/platform/wayland_csd_behavior_test.go:455` | U | possible misuse of unsafe.Pointer | ui/platform（本收敛线外） |
+
+## 5 已知问题登记
+
+| 编号 | 现象 | 位置 | 根因 / 判定 | 归属 / 处置 |
+|---|---|---|---|---|
+| V-0 | `go vet ./...` 与 `go vet -tags nogpu ./...` 原始命令报加载失败，该包无法分析 | `examples/ui_wr_t_stress/main.go:38-39` | 引用不存在的 `ui/kit/button`、`ui/kit/icon`；P0.3/P1.1 已登记，非本任务引入 | 基线已知问题；修复需单列任务（先补组件或改示例导入） |
+| W-U | 56 条 unsafe.Pointer 告警 | `ui/platform/*_linux.go` 等 56 处 | Wayland/X11 FFI 把外部 C 指针/句柄存成 `uintptr` 再转回 `unsafe.Pointer`，vet 按指针来源规则报嫌疑；属该层既有写法 | `ui/platform` 线（本收敛线外），只登记不修；若后续做 FFI 指针治理再统一处理 |
+| W-T | 3 条 unsafe.Pointer 告警 | `render/internal/gpu/res/view_test.go:12,13`、`render/internal/gpu/view_raw_attack_test.go:13` | 测试故意用 `unsafe.Pointer(uintptr(0x1000))` 伪造指针验证 raw 回退/攻击面，属测试夹具 | P2.5 测试卫生：改成真实分配对象或等价的类型安全夹具 |
+| W-D | 2 条 unreachable code | `render/internal/gpu/gpu_render_context.go:4296,4344` | 两个 `tryFillMasked*Inline` 入口先 `return false` 暂时关闭 R8 路径，后面的实现成为死代码；行为符合当前预期 | P2.5 零行为变化清理：删除死代码；若 P4 恢复 R8 路径则删掉 early return 并恢复实现 |
+| V-1 | P1.2b 前 nogpu 下 `render/internal/gpu` 测试无法编译（9 个文件引用 `GPURenderContext` 等 `!nogpu` 符号） | `render/internal/gpu/{empty_clip_skip,glyph_placement,image_bicubic,offscreen_pool_r6,opt41_surface_rp_reuse,opt42_dualtex_scratch,retire_queue,tex_shrink_r6,view_raw_attack}_test.go` | 测试文件缺 `//go:build !nogpu`；与同包其余 GPU 测试的既有做法不一致 | **P1.2b 已修**（补标签），证据 `evidence/P1.2b/` |
+| V-2 | P1.2b 前 nogpu 下 `render` 测试无法编译（11 个文件引用 `requireNativeGPU`/`sampleRGBA`/`p1Sample`/`residualFont` 等 `!nogpu` 符号） | `render/{f1_adv_layer_present,filter_present_coherence,layer_rt_clear,m5_color_glyph_api,p01_layer_gpu,p02_brush_native,p03_advanced_blend,p04_filter_gpu,p11_text_shape_cache,p12_clip_mask_gpu,p13_frame_flush}_test.go` | 同上 | **P1.2b 已修**（补标签），证据 `evidence/P1.2b/` |
+
+## 6 与 P1.2b 的关系
+
+- P1.2b 只给 20 个测试文件补 `//go:build !nogpu`，不改生产代码、不改测试逻辑、不改默认标签行为。
+- 默认标签修复前后 `go vet` 输出逐字节一致，唯一行号位移来自 `view_raw_attack_test.go` 顶部新增的 2 行标签。
+- nogpu 修复前：2 包类型检查失败（原始输出见 `evidence/P1.2b/before-vet-nogpu.txt`、`before-test-compile-nogpu.txt`）；修复后：0 类型错误，58 条告警与默认标签同源。

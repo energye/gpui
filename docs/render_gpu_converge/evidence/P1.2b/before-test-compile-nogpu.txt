@@ -1,0 +1,27 @@
+# github.com/energye/gpui/render/internal/gpu [github.com/energye/gpui/render/internal/gpu.test]
+render/internal/gpu/empty_clip_skip_test.go:18:9: undefined: GPURenderContext
+render/internal/gpu/empty_clip_skip_test.go:18:34: undefined: NewGPUShared
+render/internal/gpu/empty_clip_skip_test.go:19:12: undefined: makeTestTarget
+render/internal/gpu/empty_clip_skip_test.go:55:8: undefined: GPURenderSession
+render/internal/gpu/glyph_placement_test.go:16:30: undefined: glyphPlacement
+render/internal/gpu/glyph_placement_test.go:33:27: undefined: glyphPlacement
+render/internal/gpu/glyph_placement_test.go:46:27: undefined: glyphPlacement
+render/internal/gpu/glyph_placement_test.go:62:27: undefined: glyphPlacement
+render/internal/gpu/glyph_placement_test.go:76:30: undefined: glyphPlacement
+render/internal/gpu/glyph_placement_test.go:92:24: undefined: glyphPlacement
+render/internal/gpu/glyph_placement_test.go:92:24: too many errors
+FAIL	github.com/energye/gpui/render/internal/gpu [build failed]
+# github.com/energye/gpui/render_test [github.com/energye/gpui/render.test]
+render/f1_adv_layer_present_test.go:14:2: undefined: requireNativeGPU
+render/f1_adv_layer_present_test.go:65:2: undefined: requireNativeGPU
+render/f1_adv_layer_present_test.go:113:2: undefined: requireNativeGPU
+render/filter_present_coherence_test.go:13:2: undefined: p1RequireGPU
+render/filter_present_coherence_test.go:28:16: undefined: p1Sample
+render/filter_present_coherence_test.go:32:19: undefined: p1Sample
+render/filter_present_coherence_test.go:40:2: undefined: p1RequireGPU
+render/filter_present_coherence_test.go:52:16: undefined: p1Sample
+render/filter_present_coherence_test.go:56:20: undefined: p1Sample
+render/filter_present_coherence_test.go:64:2: undefined: p1RequireGPU
+render/filter_present_coherence_test.go:64:2: too many errors
+FAIL	github.com/energye/gpui/render [build failed]
+FAIL
