@@ -1,0 +1,93 @@
+{
+  "window": "ui_pf_x11_dnd",
+  "path": "examples/ui_pf_x11_dnd",
+  "family": "base",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "native",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": null,
+    "batch": false
+  },
+  "run_column": "A",
+  "tolerance": "—",
+  "effective_tolerance": null,
+  "golden_cell": "—",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/ui_pf_x11_dnd.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_RULER_BACKEND": "x11"
+  },
+  "start_utc": "2026-10-28T11:55:49.270457+00:00",
+  "elapsed_sec": 0.20103669166564941,
+  "rc": 0,
+  "timed_out": false,
+  "status": "PASS",
+  "notes": [
+    "missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "backend": "x11",
+    "manual": {
+      "drop": 0,
+      "enter": 0,
+      "files": null,
+      "leave": 0,
+      "over": 0,
+      "timed": false
+    },
+    "pass": true,
+    "rows": [
+      {
+        "Name": "MapDragEnter",
+        "OK": true,
+        "Detail": "kind=drag-enter drag={X:10 Y:20 MIMETypes:[text/uri-list] Files:[] Data:map[]}"
+      },
+      {
+        "Name": "MapDragOver",
+        "OK": true,
+        "Detail": "kind=drag-over drag={X:30 Y:40 MIMETypes:[text/uri-list text/plain] Files:[] Data:map[]}"
+      },
+      {
+        "Name": "MapDragLeave",
+        "OK": true,
+        "Detail": "kind=drag-leave"
+      },
+      {
+        "Name": "MapDrop",
+        "OK": true,
+        "Detail": "kind=drop drag={X:50 Y:60 MIMETypes:[] Files:[/tmp/a] Data:map[]}"
+      }
+    ]
+  },
+  "metrics": {
+    "backend": "x11",
+    "pass": true
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

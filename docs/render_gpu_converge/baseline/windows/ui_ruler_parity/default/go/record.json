@@ -1,0 +1,87 @@
+{
+  "window": "ui_ruler_parity",
+  "path": "examples/ui_ruler_parity",
+  "family": "render",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 60,
+    "batch": false
+  },
+  "run_column": "A/60s",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "`testdata/golden_{flutter_list,flutter_spin,flutter_text,godot_bullets}.png`",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/ui_ruler_parity.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "60"
+  },
+  "start_utc": "2026-10-28T12:38:23.895059+00:00",
+  "elapsed_sec": 60.64352202415466,
+  "rc": 0,
+  "timed_out": false,
+  "status": "PASS",
+  "notes": [
+    "missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [
+    "testdata/showcase_flutter_spin.png"
+  ],
+  "goldens": [
+    "testdata/golden_flutter_list.png",
+    "testdata/golden_flutter_spin.png",
+    "testdata/golden_flutter_text.png",
+    "testdata/golden_godot_bullets.png"
+  ],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "elapsed_sec": 60.3,
+    "event": "RULER_GATE",
+    "golden_diff_pct": 0,
+    "golden_ok": true,
+    "golden_seeded": false,
+    "golden_total_px": 153600,
+    "logic": "presents=1 frames=0 cpu_fallback=0 warmup=true first_present_ms=206.45",
+    "logic_ok": true,
+    "pass": true,
+    "pixel_ok": true,
+    "presents": 1,
+    "scene": "flutter_spin",
+    "snapshot": "examples/ui_ruler_parity/testdata/showcase_flutter_spin.png"
+  },
+  "metrics": {
+    "elapsed_sec": 60.3,
+    "offscreen_golden_diff_pct": 0.0,
+    "golden_diff_pct": 0.0,
+    "offscreen_golden_total_px": 153600.0,
+    "golden_total_px": 153600.0,
+    "pass": true
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

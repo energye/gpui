@@ -1,0 +1,100 @@
+{
+  "window": "video_a2_sync",
+  "path": "examples/video/video_a2_sync",
+  "family": "video",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 15,
+    "batch": false
+  },
+  "run_column": "A/15s",
+  "tolerance": "—",
+  "effective_tolerance": null,
+  "golden_cell": "—",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/video__video_a2_sync.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "15"
+  },
+  "start_utc": "2026-10-28T13:14:32.728565+00:00",
+  "elapsed_sec": 9.585330724716187,
+  "rc": 1,
+  "timed_out": false,
+  "status": "FAIL",
+  "notes": [
+    "JSON pass/ok=false"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "ability_id": "A2",
+    "failed_items": 2,
+    "gate_error": "identity:本该静音却有声",
+    "groups": [
+      {
+        "name": "identity",
+        "passed": 0,
+        "total": 1,
+        "note": "本该静音却有声"
+      },
+      {
+        "name": "play",
+        "passed": 0,
+        "total": 1,
+        "note": "主钟不对(要静音video)"
+      },
+      {
+        "name": "seek",
+        "passed": 5,
+        "total": 5,
+        "note": "回声跳同序号 最大差0"
+      },
+      {
+        "name": "silent",
+        "passed": 1,
+        "total": 1,
+        "note": "静音回落"
+      }
+    ],
+    "item_count": 8,
+    "pass": false,
+    "passed": 6,
+    "probe_ok": 0,
+    "scenario": "video_a2_sync",
+    "stage": "probes",
+    "total_items": 8
+  },
+  "metrics": {
+    "pass": false,
+    "ability_id": "A2",
+    "scenario": "video_a2_sync"
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

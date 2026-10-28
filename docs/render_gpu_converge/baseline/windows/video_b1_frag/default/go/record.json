@@ -1,0 +1,100 @@
+{
+  "window": "video_b1_frag",
+  "path": "examples/video/video_b1_frag",
+  "family": "video",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 15,
+    "batch": false
+  },
+  "run_column": "A/15s",
+  "tolerance": "—",
+  "effective_tolerance": null,
+  "golden_cell": "—",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/video__video_b1_frag.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "15"
+  },
+  "start_utc": "2026-10-28T13:14:47.641931+00:00",
+  "elapsed_sec": 0.8025109767913818,
+  "rc": 1,
+  "timed_out": false,
+  "status": "FAIL",
+  "notes": [
+    "JSON pass/ok=false"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "ability_id": "B1",
+    "failed_items": 1,
+    "gate_error": "play：b1_frag5.mp4：没播到尾",
+    "groups": [
+      {
+        "name": "header",
+        "passed": 2,
+        "total": 2,
+        "note": "分段头全对"
+      },
+      {
+        "name": "decode",
+        "passed": 105,
+        "total": 105,
+        "note": "逐字节全对"
+      },
+      {
+        "name": "play",
+        "passed": 1,
+        "total": 2,
+        "note": "b1_frag5.mp4：没播到尾"
+      },
+      {
+        "name": "seek",
+        "passed": 5,
+        "total": 5,
+        "note": "落地板全对"
+      }
+    ],
+    "item_count": 114,
+    "pass": false,
+    "passed": 113,
+    "probe_ok": 0,
+    "scenario": "video_b1_frag",
+    "stage": "probes",
+    "total_items": 114
+  },
+  "metrics": {
+    "pass": false,
+    "ability_id": "B1",
+    "scenario": "video_b1_frag"
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

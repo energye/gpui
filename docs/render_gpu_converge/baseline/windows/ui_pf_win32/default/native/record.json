@@ -1,0 +1,69 @@
+{
+  "window": "ui_pf_win32",
+  "path": "examples/ui_pf_win32",
+  "family": "base",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "native",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "M",
+    "seconds": null,
+    "batch": false
+  },
+  "run_column": "M",
+  "tolerance": "—",
+  "effective_tolerance": null,
+  "golden_cell": "—",
+  "args": [],
+  "cmd": [
+    "/tmp/p14/bin/ui_pf_win32.bin"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_RULER_BACKEND": "x11"
+  },
+  "start_utc": "2026-10-28T11:55:45.823252+00:00",
+  "elapsed_sec": 0.10108447074890137,
+  "rc": 0,
+  "timed_out": false,
+  "status": "SKIP",
+  "notes": [
+    "window reports SKIP"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "backend": "win32",
+    "mode": "skip",
+    "pass": true,
+    "rows": [
+      {
+        "Name": "Controller",
+        "OK": false,
+        "Detail": "SKIP: Win32 real-window verification runs on Windows (this is linux)"
+      }
+    ]
+  },
+  "metrics": {
+    "backend": "win32",
+    "pass": true,
+    "mode": "skip"
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

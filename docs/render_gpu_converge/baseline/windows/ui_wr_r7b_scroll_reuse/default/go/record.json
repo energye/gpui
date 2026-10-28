@@ -1,0 +1,61 @@
+{
+  "window": "ui_wr_r7b_scroll_reuse",
+  "path": "examples/ui_wr_r7b_scroll_reuse",
+  "family": "ui_wr",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 60,
+    "batch": false
+  },
+  "run_column": "A/60s",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "`testdata/showcase_r7b_scroll_reuse_base.png`",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/ui_wr_r7b_scroll_reuse.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "60"
+  },
+  "start_utc": "2026-10-28T12:42:47.692533+00:00",
+  "elapsed_sec": 0.4021952152252197,
+  "rc": 1,
+  "timed_out": false,
+  "status": "NO_JSON",
+  "notes": [
+    "no parseable JSON on stdout"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [
+    "testdata/showcase_r7b_scroll_reuse_base.png"
+  ],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": false,
+  "json": null,
+  "metrics": {},
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

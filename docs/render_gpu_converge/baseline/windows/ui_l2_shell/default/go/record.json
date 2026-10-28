@@ -1,0 +1,64 @@
+{
+  "window": "ui_l2_shell",
+  "path": "examples/ui_l2_shell",
+  "family": "base",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "R",
+    "seconds": 120,
+    "batch": false
+  },
+  "run_column": "R=120s",
+  "tolerance": "—",
+  "effective_tolerance": null,
+  "golden_cell": "—",
+  "args": [],
+  "cmd": [
+    "/tmp/p14/bin/ui_l2_shell.bin"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "120"
+  },
+  "start_utc": "2026-10-28T13:04:39.172438+00:00",
+  "elapsed_sec": 120.5820984840393,
+  "rc": 0,
+  "timed_out": false,
+  "status": "PASS",
+  "notes": [
+    "missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "taps": 0,
+    "pan_starts": 0,
+    "pan_updates": 0,
+    "overlay_count": 0,
+    "focus_id": "",
+    "gesture_arena_depth": 0,
+    "focus_changes": 0
+  },
+  "metrics": {},
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

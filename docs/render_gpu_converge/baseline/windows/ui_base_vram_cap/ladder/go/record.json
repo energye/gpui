@@ -1,0 +1,69 @@
+{
+  "window": "ui_base_vram_cap",
+  "path": "examples/ui_base_vram_cap",
+  "family": "base",
+  "variant": "ladder",
+  "variant_note": "8-window ladder",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 60,
+    "batch": true
+  },
+  "run_column": "批量(8 窗+OOM) A/60s",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "`testdata/vram_win{1..8}_base.png`、`testdata/vram_oom_probe_base.png`",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/ui_base_vram_cap.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "60"
+  },
+  "start_utc": "2026-10-28T13:24:07.202447+00:00",
+  "elapsed_sec": 0.10118770599365234,
+  "rc": 1,
+  "timed_out": false,
+  "status": "NO_JSON",
+  "notes": [
+    "no parseable JSON on stdout"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [
+    "testdata/vram_oom_probe_base.png",
+    "testdata/vram_win1_base.png",
+    "testdata/vram_win2_base.png",
+    "testdata/vram_win3_base.png",
+    "testdata/vram_win4_base.png",
+    "testdata/vram_win5_base.png",
+    "testdata/vram_win6_base.png",
+    "testdata/vram_win7_base.png",
+    "testdata/vram_win8_base.png"
+  ],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": false,
+  "json": null,
+  "metrics": {},
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

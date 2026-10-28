@@ -22,7 +22,7 @@
 
 - **仓内基线**：`testdata/*_base.png`、`testdata/*golden*.png`、`golden/*.png` 中作为基线的那张。
 - **运行产物**：`*_final.png`、`*_last.png`、非 `_base` 的快照（如 `c4_open.png`、`c5_final.png`）是当次输出，不是基线。
-- **运行期基线**：部分窗首跑在 `/tmp/<窗名>` 产出基线、次跑起逐位对比，仓内没有提交基线。本表标 **「运行期」**，P1.4 必须把 `/tmp` 基线归档到 `baseline/windows/<窗名>/`，否则 P2.6 无法重放。
+- **运行期基线**：部分窗首跑在 `/tmp/<窗名>` 产出基线、次跑起逐位对比，仓内没有提交基线。本表标 **「运行期」**，P1.4 已把 `/tmp` 基线归档到 `baseline/windows/<窗名>/default/native/snapshots/`，P2.6 可直接重放。
 
 ### 0.3 容差口径
 
@@ -64,17 +64,17 @@
 |---|---:|---:|---:|---:|
 | 2.5D 引擎 `engine/*` | 22 | 22 | 0 | 0 |
 | render 原子真窗 `ui_render_base_*` / `ui_render_graphics/*` / `ui_ant_verify` / `ui_ruler_parity` | 32 | 31 | 0 | 1（perfsoak） |
-| UI 能力窗 `ui_wr_*` | 46 | 35 | 8 | 3（r12/r20? 见下） |
+| UI 能力窗 `ui_wr_*` | 46 | 43 | 0 | 3（r12/r20? 见下） |
 | UI 基座/平台 `ui_base_*` / `ui_pf_*` / `ui_l1_*` / `ui_l2_*` / `ui_text*` / `ui_ime_probe` | 20 | 8 | 0 | 12 |
 | 组件 `kit_f0_*` / `kit/*` | 16 | 15 | 0 | 1（spin_min） |
 | 视频 `video/*` | 22 | 1 | 0 | 21 |
 | 演示/对照 | 4 | 2 | 0 | 2（pelican / zz_soak_control） |
-| **合计** | **162** | **114** | **8** | **40** |
+| **合计** | **162** | **122** | **0** | **40** |
 
 > 逐族核对（与 §2–§3.6 表格逐行相减，2026-10-28 脚本复核）：
-> - UI 能力窗 46 = 35 仓内 + 8 运行期 + 3 无（`ui_wr_r12_metrics`、`ui_wr_c11_policy_switch`、`ui_wr_t_stress`）。
+> - UI 能力窗 46 = 43 仓内 + 0 运行期 + 3 无（`ui_wr_r12_metrics`、`ui_wr_c11_policy_switch`、`ui_wr_t_stress`）。
 > - UI 基座/平台 20 = 8 仓内 + 12 无（4 扇 L1/L2 平台窗、5 扇 `ui_pf_*` 平台探针、`ui_ime_probe`、`ui_text_m4_virtual`）。
-> - 全表 114 + 8 + 40 = 162，与 §0.1 的真窗总数一致。
+> - 全表 122 + 0 + 40 = 162，与 §0.1 的真窗总数一致。
 
 ---
 
@@ -157,7 +157,7 @@
 | 窗（`examples/…`） | 金图（窗内相对路径） | Golden | 运行 | 能力标签 |
 |---|---|---|---|---|
 | `ui_wr_r0_fullpaint` | `testdata/showcase_r0_fullpaint_base.png` | 0 | A/5s | 缓存/边界 · FullPaint 正确性 |
-| `ui_wr_r1_layout` | 运行期 `/tmp/r1_layout/r1_final_base.png`（`R1_SNAP_DIR`） | 0* | R=30s | 缓存/边界 · 局部 NeedsLayout |
+| `ui_wr_r1_layout` | `docs/render_gpu_converge/baseline/windows/ui_wr_r1_layout/default/native/snapshots/r1_final_base.png` | 0 | R=30s | 缓存/边界 · 局部 NeedsLayout |
 | `ui_wr_r2_paint` | `testdata/showcase_r2_paint_base.png` | 0 | A/5s | 缓存/边界 · 局部 NeedsPaint |
 | `ui_wr_r3_boundary` | `testdata/showcase_r3_boundary_base.png` | 0 | A/10s | 缓存/边界 · 嵌套 Boundary |
 | `ui_wr_r3b_compbits` | `testdata/showcase_r3b_compbits_base.png` | 0 | A/8s | 缓存/边界 · 合成位/边界发现 |
@@ -174,26 +174,26 @@
 | `ui_wr_r12_metrics` | — | — | R=5s | 帧时/调度 · A–J 指标字段完备（无金图：指标窗） |
 | `ui_wr_r12b_debug_repaint` | `testdata/showcase_r12b_debug_{on,off}_base.png` | 0 | A/8s | 缓存/边界 · 重绘调试 on/off |
 | `ui_wr_r13_hit` | `testdata/showcase_r13_hit_base.png` | 0 | A/5s | 命中/交互 · Hit ≡ 绘 |
-| `ui_wr_r14_cache_budget` | 运行期 `/tmp/r14_cache_budget/r14_final_base.png`（`R14_SNAP_DIR`） | 0* | R=60s | 缓存/边界 · 预算/淘汰 |
-| `ui_wr_r15_soak` | 运行期 `/tmp/r15_soak/r15_final_base.png`（`R15_SNAP_DIR`） | 0* | R=300s | 帧时/调度 · 全主路径长跑 |
+| `ui_wr_r14_cache_budget` | `docs/render_gpu_converge/baseline/windows/ui_wr_r14_cache_budget/default/native/snapshots/r14_final_base.png` | 0 | R=60s | 缓存/边界 · 预算/淘汰 |
+| `ui_wr_r15_soak` | `docs/render_gpu_converge/baseline/windows/ui_wr_r15_soak/default/native/snapshots/r15_final_base.png` | 0 | R=300s | 帧时/调度 · 全主路径长跑 |
 | `ui_wr_r16_warmup` | `testdata/showcase_r16_warmup_{pre,post}_base.png` | 0 | A/5s | 窗口/平台 · 首帧/WarmUp/恢复 |
 | `ui_wr_r17_bg_throttle` | `testdata/r17_bg_throttle_base.png` | 0 | A/30s | 帧时/调度 · 不可见停帧 |
 | `ui_wr_r18_savelayer` | `testdata/showcase_r18_savelayer_base.png` | 0 | A/10s | 混合/滤镜 · SaveLayer 预算 |
 | `ui_wr_r19_snap` | `testdata/showcase_r19_snap_base.png` | 0 | A/5s | 矢量 · 1px/设备像素对齐 |
-| `ui_wr_r20_filter` | 运行期 `/tmp/r20_filter/r20_final_base.png`（`R20_SNAP_DIR`） | 0* | R=10s | 滤镜 · 模糊/灰度滤镜子树 |
+| `ui_wr_r20_filter` | `docs/render_gpu_converge/baseline/windows/ui_wr_r20_filter/default/native/snapshots/r20_final_base.png` | 0 | R=10s | 滤镜 · 模糊/灰度滤镜子树 |
 | `ui_wr_r21_shell` | `testdata/r21_shell_base.png` | 0 | A/15s | 缓存/边界 · 壳/内容分层 |
-| `ui_wr_r22_selection_stub` | 运行期 `/tmp/r22_selection_stub/r22_final_base.png`（`R22_SNAP_DIR`） | 0* | R=5s | 缓存/边界/文本 · 选区光标局部脏 |
+| `ui_wr_r22_selection_stub` | `docs/render_gpu_converge/baseline/windows/ui_wr_r22_selection_stub/default/native/snapshots/r22_final_base.png` | 0 | R=5s | 缓存/边界/文本 · 选区光标局部脏 |
 | `ui_wr_c0_smoke` | `testdata/showcase_c0_smoke_{pre,post}_base.png` | 0 | A/5s | 缓存/边界/帧时 · R0+R12+R16 集成 |
 | `ui_wr_c1_boundary_nest` | `testdata/showcase_c1_boundary_nest_base.png` | 0 | A/10s | 缓存/边界 · R2+R3+R3b+R12b |
 | `ui_wr_c2_retained_scene` | `testdata/showcase_c2_retained_scene_base.png` | 0 | A/15s | 缓存/录制 · R3+R4+R4b+R5 |
 | `ui_wr_c3_list_scroll` | `testdata/showcase_c3_list_scroll_base.png` | 0 | A/60s | 缓存/图片 · 虚拟列表+滚复用+异步图 |
 | `ui_wr_c4_shell_overlay` | `golden/c4_{steady,recover}_base.png` | 0 | R=25s | 混合/缓存 · R3+R8+R21 壳浮层 |
 | `ui_wr_c5_anim_over_static` | `golden/c5_final_base.png` | 0 | R=30s | 混合/缓存 · R6+R3+R4 动画盖静态 |
-| `ui_wr_c6_savelayer_group` | 运行期 `/tmp/c6_savelayer_group/c6_final_base.png`（`C6_SNAP_DIR`） | 0* | R=10s | 混合/显存 · R18+R3 离屏组拒批 |
+| `ui_wr_c6_savelayer_group` | `docs/render_gpu_converge/baseline/windows/ui_wr_c6_savelayer_group/default/native/snapshots/c6_final_base.png` | 0 | R=10s | 混合/显存 · R18+R3 离屏组拒批 |
 | `ui_wr_c7_resize_dpr` | `testdata/c7_resize_dpr_base.png` | 0 | A/15s | 缓存/DPR · R11+R19+R3 |
 | `ui_wr_c8_hit_overlay_xf` | `testdata/c8_recover_base.png` | 0 | A/15s | 命中/混合 · R13+R6+R8 |
-| `ui_wr_c9_stress_cache` | 运行期 `/tmp/c9_stress_cache/c9_final_base.png`（`C9_SNAP_DIR`） | 0* | R=60s | 缓存/显存 · R14+R3+R7 压测 |
-| `ui_wr_c10_soak` | 运行期 `/tmp/c10_soak/c10_final_base.png`（`C10_SNAP_DIR`） | 0* | R=300s | 帧时/显存 · 全能力长跑 |
+| `ui_wr_c9_stress_cache` | `docs/render_gpu_converge/baseline/windows/ui_wr_c9_stress_cache/default/native/snapshots/c9_final_base.png` | 0 | R=60s | 缓存/显存 · R14+R3+R7 压测 |
+| `ui_wr_c10_soak` | `docs/render_gpu_converge/baseline/windows/ui_wr_c10_soak/default/native/snapshots/c10_final_base.png` | 0 | R=300s | 帧时/显存 · 全能力长跑 |
 | `ui_wr_c11_policy_switch` | — | — | R=15s | 缓存/帧时 · full↔retained 热切换（无金图：策略窗） |
 | `ui_wr_ime_r1_editor` | `testdata/showcase_ime_r1_editor_base.png` | 0 | A/5s | IME/文本 · 编辑器四元组 |
 | `ui_wr_ime_r2_textlayout` | `testdata/r2_textlayout_base.png` | 0 | A | IME/文本 · 文本布局单源 |
@@ -369,7 +369,7 @@
 
 1. **顺序**：按 §2 → §3.1 → §3.2 → §3.3 → §3.4 → §3.5 → §3.6 逐窗跑，一个跑完再跑下一个；批量窗（multiwin/vram/zz_soak）单独排最后。
 2. **每窗产物**：JSON 探针、稳态 PNG、Recover PNG、金图 diff 计数、`p95/p99`、`vsync_source`、显存账本；落 `baseline/windows/<窗名>/`。
-3. **运行期金图**（`0*` 8 扇）：先带 `<族>_SNAP_DIR=baseline/windows/<窗名>` 跑首遍播种，再跑第二遍确认 `diff=0`；不把 `/tmp` 当永久基线。环境变量逐窗为 `R1_SNAP_DIR`/`R14_SNAP_DIR`/`R15_SNAP_DIR`/`R20_SNAP_DIR`/`R22_SNAP_DIR`/`C6_SNAP_DIR`/`C9_SNAP_DIR`/`C10_SNAP_DIR`（表内已逐行标注）。
+3. **运行期金图**（8 扇；P1.4 已归档、表内容差回填 `0`）：先带 `<族>_SNAP_DIR=baseline/windows/<窗名>/default/native/snapshots` 跑首遍播种，再跑第二遍确认 `diff=0`；不把 `/tmp` 当永久基线。环境变量逐窗为 `R1_SNAP_DIR`/`R14_SNAP_DIR`/`R15_SNAP_DIR`/`R20_SNAP_DIR`/`R22_SNAP_DIR`/`C6_SNAP_DIR`/`C9_SNAP_DIR`/`C10_SNAP_DIR`（表内已逐行标注）。
 4. **两后端**：默认 `native` 跑一遍；`GPUI_BACKEND=go` 再跑一遍，失败档记录「后端不支持/未实现 + 现象」，不静默跳过。
 5. **平台例外**：`ui_pf_win32` / `ui_pf_appkit` 本机只验「明确拒绝、不崩」；`ui_pf_wayland` 与 Wayland 抽验走隔离环境。
 6. **无金图窗**：按 §4 的替代判定跑（逻辑探针/像素断言/性能门禁），并在 `baseline/windows/<窗名>/README.md` 写清「为什么无金图」。
@@ -391,7 +391,7 @@ w=[d for d in dirs if win(d)]
 print("windows=%d headless=%d total=%d"%(len(w),len(dirs)-len(w),len(dirs)))
 PY
 
-# 2) 表内行数、分族计数、仓内金图路径存在性（应输出 rows=162 inrepo=114 runtime=8 none=40 且 missing=0，
+# 2) 表内行数、分族计数、仓内金图路径存在性（应输出 rows=162 inrepo=122 runtime=0 none=40 且 missing=0，
 #    分族计数须与 §1 汇总表逐行相等）
 python3 - <<'PY'
 import os,re
@@ -424,7 +424,13 @@ for sec,rs in rows.items():
                 for q0 in re.findall(r'`([^`]*)`',part):
                     if '…' in q0: continue
                     for q in exp(q0):
-                        if not os.path.exists(os.path.join(pre[sec]+win,q)): miss.append((win,q))
+                        if q.startswith('docs/render_gpu_converge/'):
+                            p=q
+                        elif q.startswith('baseline/'):
+                            p=os.path.join('docs/render_gpu_converge',q)
+                        else:
+                            p=os.path.join(pre[sec]+win,q)
+                        if not os.path.exists(p): miss.append((win,q))
 print("rows=%d inrepo=%d runtime=%d none=%d"%(n,sum(v[1] for v in stat.values()),sum(v[2] for v in stat.values()),sum(v[3] for v in stat.values())))
 for sec in sorted(stat): print(sec, stat[sec])
 print("missing=%d"%len(miss))
@@ -432,7 +438,7 @@ for w,q in miss: print("  MISS",w,q)
 PY
 ```
 
-`0*` 行的 `/tmp` 文件名已对代码逐个核过（2026-10-28），不随仓校验；P1.4 归档到 `baseline/windows/` 后改回 `0` 并纳入脚本。
+`0*` 行的 `/tmp` 文件名已对代码逐个核过（2026-10-28）；P1.4 已把 8 张运行期基线归档到 `baseline/windows/<窗名>/default/native/snapshots/`，容差回填为 `0` 并纳入本脚本。
 
 ---
 
@@ -441,4 +447,7 @@ PY
 | 日期 | 修订 |
 |---|---|
 | 2026-10-28 | 首版：162 真窗 + 28 非真窗全量清点；金图 114 仓内 / 8 运行期 / 40 无；能力标签与 PLAN §5/§6 逐项映射；P1.4 采集规则与自校验命令 |
+| 2026-10-28 | P1.4 收口：8 张运行期基线归档到 `baseline/windows/<窗名>/default/native/snapshots/`，容差 `0*`→`0`，汇总 114+8+40→122+0+40；§6 自校验支持归档路径解析 |
+| 2026-10-28 | P1.4 采集发现：`ui_wr_r6_layer_anim` 表内金图 `golden/baseline_igpu.png` 与代码实际使用的 `R6_SNAP_DIR` 不一致（仓内图未被读取）；14 个窗自带 `x11grab` screen check，在 rootless Xwayland 抓到黑图，相关 FAIL 属采集环境口径；`ui_wr_t_stress` 当前 HEAD 构建失败（缺 `ui/kit/button`/`ui/kit/icon`）；`ui_text_edit_accept` 需要 `GPUI_ACCEPT_RUN_SECONDS`，按普通 R 档会超时。上述均登记 P2，不在 P1.4 修 |
 | 2026-10-28 | 复核修正：汇总表基座族 8/12（原误写 10/10）；r1 运行期基线改 `r1_final_base.png`；8 扇 `0*` 补精确 `/tmp` 路径与环境变量；OOM 金图补 `testdata/` 前缀；§6 换为可执行脚本（行数/分族/存在性一次核完，实测 162 行、114/8/40、缺图 0） |
+| 2026-10-29 | P1.4 采集最终计数：native 191 轮（PASS 111 / FAIL 60 / NO_JSON 8 / SEED 8 / BUILD_FAIL 1 / PROBE 1 / SKIP 2）+ go 183 轮（PASS 108 / FAIL 51 / NO_JSON 20 / BUILD_FAIL 1 / PROBE 1 / SKIP 2），汇总 374 行无 MISSING；`ui_text_edit_accept` 按 `GPUI_ACCEPT_RUN_SECONDS=30` 补跑两后端 PASS（script 金图自动模式不逐位比较，是否补 script 模式留 P2）；`ui_ime_probe` 记 PROBE；`ui_wr_r6_layer_anim`/`ui_wr_c11_policy_switch` 基线与参考金图补齐到双后端证据目录。自校验保持 162 行、122 仓内 / 0 运行期 / 40 无、缺图 0；表内 r6 金图路径按真源问题原样保留（P2 对齐，不为好看改表） |

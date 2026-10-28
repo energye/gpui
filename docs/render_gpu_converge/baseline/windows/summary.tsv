@@ -1,0 +1,375 @@
+window	variant	backend	run_kind	status	rc	tolerance	golden_diff	golden_total_px	golden_first	p95_ms	p99_ms	fps_interval	fps_wall	vsync_source	gpu_backend	cpu_fallback_ops	snapshots	goldens	notes
+25d_basis	default	native	run	PASS	0	0	0 px changed			19.29	20.17	57.39	56.87	true	integrated	0	0	1	p99=20.17; vsync_source=true (not a source name)
+25d_basis	default	go	run	PASS	0	0	0 px changed			19.05	21.25	57.66	56.02	true	integrated	0	0	1	p99=21.25; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+anim	sk	native	run	FAIL	1	0	74.9220%	921600		20.17	22.71	57.46	55.96	true	integrated	0	2	8	exit code 1; p99=22.71; vsync_source=true (not a source name)
+anim	sk	go	run	FAIL	1	0	74.9220%	921600		19.17	23.51	57.82	55.31	true	integrated	0	2	8	exit code 1; p99=23.51; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+anim	fsm	native	run	FAIL	1	0	73.6752%	921600		19.26	20.66	57.43	56.03	true	integrated	0	3	8	exit code 1; p99=20.66; vsync_source=true (not a source name)
+anim	fsm	go	run	FAIL	1	0	73.6752%	921600		18.54	19.27	57.60	55.18	true	integrated	0	3	8	exit code 1; p99=19.27; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+anim	tl	native	run	FAIL	1	0	25.7695%	128000									2	8	JSON pass/ok=false; missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+anim	tl	go	run	FAIL	1	0	25.7695%	128000									2	8	JSON pass/ok=false; missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+anim	lod	native	run	PASS	0	0	0.0000%	921600		18.97	19.47	57.59	56.14	true	integrated	0	4	8	p99=19.47; vsync_source=true (not a source name)
+anim	lod	go	run	PASS	0	0	0.0000%	921600		18.63	20.28	57.77	55.29	true	integrated	0	4	8	p99=20.28; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+asset	reload	native	run	PASS	0	0	0 px changed			19.27	19.85	57.55	56.82	true	integrated	0	0	2	p99=19.85; vsync_source=true (not a source name)
+asset	reload	go	run	PASS	0	0	0 px changed			18.78	21.00	57.71	55.73	true	integrated	0	0	2	p99=21.00; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+asset	large	native	run	PASS	0	0	0 px changed			19.07	20.28	57.56	56.82	true	integrated	0	0	2	p99=20.28; vsync_source=true (not a source name)
+asset	large	go	run	PASS	0	0	0 px changed			18.58	19.72	57.71	55.85	true	integrated	0	0	2	p99=19.72; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+camera	follow	native	run	PASS	0	0	0 px changed			19.42	22.16	57.53	56.71	true	integrated	0	0	2	p99=22.16; vsync_source=true (not a source name)
+camera	follow	go	run	PASS	0	0	0 px changed			18.72	20.64	57.83	55.08	true	integrated	0	0	2	p99=20.64; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+camera	voices	native	run	PASS	0	0	0 px changed			19.80	22.73	57.39	56.42	true	integrated	0	1	2	p99=22.73; vsync_source=true (not a source name)
+camera	voices	go	run	PASS	0	0	0 px changed			18.73	20.19	57.72	55.84	true	integrated	0	1	2	p99=20.19; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+dodge	default	native	run	PASS	0	0	0 px changed			19.30	20.17	57.53	56.69	true	integrated	0	1	1	p99=20.17; vsync_source=true (not a source name)
+dodge	default	go	run	PASS	0	0	0 px changed			18.63	21.04	57.66	55.71	true	integrated	0	1	1	p99=21.04; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+fx	all	native	run	FAIL	1	0	100.0000%	921600	false	19.09	19.58	57.58	55.72	true	integrated	0	1	4	exit code 1; p99=19.58; vsync_source=true (not a source name)
+fx	all	go	run	FAIL	1	0	100.0000%	921600	false	18.40	19.67	57.72	54.92	true	integrated	0	1	4	exit code 1; p99=19.67; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+input	remap	native	run	PASS	0	0				19.14	19.88	57.32	56.64	true	integrated	0	0	2	p99=19.88; vsync_source=true (not a source name)
+input	remap	go	run	PASS	0	0				18.80	21.87	57.79	56.10	true	integrated	0	0	2	p99=21.87; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+input	combo	native	run	PASS	0	0				19.19	20.01	57.49	56.75	true	integrated	0	0	2	p99=20.01; vsync_source=true (not a source name)
+input	combo	go	run	PASS	0	0				18.43	20.20	57.67	55.92	true	integrated	0	0	2	p99=20.20; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+light	torch	native	run	FAIL	1	0	99.8429%	916800	false	19.44	20.56	57.57	55.91	true	integrated	0	1	6	exit code 1; p99=20.56; vsync_source=true (not a source name)
+light	torch	go	run	FAIL	1	0	99.8429%	916800	false	18.40	18.93	57.60	54.80	true	integrated	0	1	6	exit code 1; p99=18.93; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+light	shadow	native	run	FAIL	1	0	99.8429%	916800	false	19.56	20.63	57.42	55.54	true	integrated	0	2	6	exit code 1; p99=20.63; vsync_source=true (not a source name)
+light	shadow	go	run	FAIL	1	0	99.8429%	916800	false	18.30	18.93	57.94	55.33	true	integrated	0	2	6	exit code 1; p99=18.93; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+light	normal	native	run	FAIL	1	0	99.6451%	916800	false	19.11	20.00	57.39	54.79	true	integrated	0	2	6	exit code 1; p99=20.00; vsync_source=true (not a source name)
+light	normal	go	run	FAIL	1	0	99.6451%	916800	false	18.59	20.78	57.65	53.95	true	integrated	0	2	6	exit code 1; p99=20.78; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+light2d	shadow	native	run	FAIL	1	0			false	19.35	21.90	57.45	55.77	true	integrated	0	1	4	exit code 1; p99=21.90; vsync_source=true (not a source name)
+light2d	shadow	go	run	NO_JSON	1	0											0	4	no parseable JSON on stdout
+nav	default	native	run	PASS	0	0	0 px changed			19.23	19.98	57.55	56.76	true	integrated	0	1	1	p99=19.98; vsync_source=true (not a source name)
+nav	default	go	run	PASS	0	0	0 px changed			18.36	19.08	57.81	55.79	true	integrated	0	1	1	p99=19.08; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+particle	fire	native	run	PASS	0	0				21.28	25.47	57.31	56.64	true	integrated	0	1	2	p99=25.47; vsync_source=true (not a source name)
+particle	fire	go	run	PASS	0	0				19.04	19.95	57.78	56.02	true	integrated	0	1	2	p99=19.95; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+particle	trail	native	run	PASS	0	0				19.24	21.01	57.36	56.70	true	integrated	0	1	2	p99=21.01; vsync_source=true (not a source name)
+particle	trail	go	run	PASS	0	0				18.57	19.97	57.79	56.01	true	integrated	0	1	2	p99=19.97; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+particles2d	default	native	run	PASS	0	0				21.38	23.78	57.18	56.54	true	integrated	0	1	1	p99=23.78; vsync_source=true (not a source name)
+particles2d	default	go	run	PASS	0	0				19.16	22.55	57.83	56.04	true	integrated	0	1	1	p99=22.55; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+physics	hit	native	run	PASS	0	0	0 px changed			19.13	20.38	57.38	56.73	true	integrated	0	0	3	p99=20.38; vsync_source=true (not a source name)
+physics	hit	go	run	PASS	0	0	0 px changed			18.36	18.93	57.77	55.98	true	integrated	0	0	3	p99=18.93; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+physics	jump	native	run	PASS	0	0	0 px changed			19.27	20.94	57.41	56.76	true	integrated	0	0	3	p99=20.94; vsync_source=true (not a source name)
+physics	jump	go	run	PASS	0	0	0 px changed			18.40	19.75	57.89	55.72	true	integrated	0	0	3	p99=19.75; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+physics	large	native	run	PASS	0	0	0 px changed			19.91	22.60	57.47	56.73	true	integrated	0	0	3	p99=22.60; vsync_source=true (not a source name)
+physics	large	go	run	PASS	0	0	0 px changed			19.25	24.07	57.69	55.83	true	integrated	0	0	3	p99=24.07; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+platformer	default	native	run	PASS	0	0	0 px changed			19.58	20.43	57.46	56.56	true	integrated	0	1	1	p99=20.43; vsync_source=true (not a source name)
+platformer	default	go	run	PASS	0	0	0 px changed			18.99	20.15	57.67	54.56	true	integrated	0	1	1	p99=20.15; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+quad	default	native	run	PASS	0	0	0.0000%			19.28	21.03	57.16	56.45	true	integrated	0	0	1	p99=21.03; vsync_source=true (not a source name)
+quad	default	go	run	PASS	0	0	0.0000%			18.42	18.72	57.72	55.86	true	integrated	0	0	1	p99=18.72; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+save	default	native	run	PASS	0	0	0 px changed			19.61	23.24	57.40	56.63	true	integrated	0	0	1	p99=23.24; vsync_source=true (not a source name)
+save	default	go	run	PASS	0	0	0 px changed			19.74	22.78	57.63	55.94	true	integrated	0	0	1	p99=22.78; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+sprite	all	native	run	PASS	0	0	0.0000%			19.40	20.38	57.39	56.68	true	integrated	0	1	3	p99=20.38; vsync_source=true (not a source name)
+sprite	all	go	run	PASS	0	0	0.0000%			18.59	20.05	57.73	55.85	true	integrated	0	1	3	p99=20.05; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+stage_chase	default	native	run	FAIL	1	0	99.1429%	240000		19.65	21.85	57.14	57.03	true	integrated	0	2	2	exit code 1; p99=21.85; vsync_source=true (not a source name)
+stage_chase	default	go	run	FAIL	1	0	99.1429%	240000		18.46	19.31	57.62	57.43	true	integrated	0	2	2	exit code 1; p99=19.31; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+step	default	native	run	PASS	0	0				19.36	20.33	57.43	56.64	true	integrated	0	0	1	p99=20.33; vsync_source=true (not a source name)
+step	default	go	run	PASS	0	0				18.51	19.34	57.78	56.07	true	integrated	0	0	1	p99=19.34; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+tex	far	native	run	PASS	0	0	0 px changed			25.13	30.41	56.35	55.26	true	integrated	0	0	2	p95=25.13 > 22 (P1.7 metric); p99=30.41; vsync_source=true (not a source name)
+tex	far	go	run	PASS	0	0	0 px changed			25.31	33.48	57.00	55.08	true	integrated	0	0	2	p95=25.31 > 22 (P1.7 metric); p99=33.48; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+tex	stream	native	run	PASS	0	0	0 px changed			19.01	19.56	57.49	56.81	true	integrated	0	0	2	p99=19.56; vsync_source=true (not a source name)
+tex	stream	go	run	PASS	0	0	0 px changed			18.44	18.99	57.78	56.06	true	integrated	0	0	2	p99=18.99; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+tilemap	map	native	run	PASS	0	0	0 px changed			19.03	20.64	57.51	56.86	true	integrated	0	0	4	p99=20.64; vsync_source=true (not a source name)
+tilemap	map	go	run	NO_JSON	1	0											0	4	no parseable JSON on stdout
+tilemap	chunk	native	run	PASS	0	0	0 px changed			19.80	22.57	57.56	56.89	true	integrated	0	0	4	p99=22.57; vsync_source=true (not a source name)
+tilemap	chunk	go	run	PASS	0	0	0 px changed			18.46	19.41	57.99	56.14	true	integrated	0	0	4	p99=19.41; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+tilemap	lod	native	run	PASS	0	0	0 px changed			19.07	19.55	57.55	56.82	true	integrated	0	0	4	p99=19.55; vsync_source=true (not a source name)
+tilemap	lod	go	run	PASS	0	0	0 px changed			18.62	19.64	57.83	56.21	true	integrated	0	0	4	p99=19.64; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+tilemap	large	native	run	PASS	0	0	0 px changed			19.48	20.45	57.43	56.72	true	integrated	0	0	4	p99=20.45; vsync_source=true (not a source name)
+tilemap	large	go	run	PASS	0	0	0 px changed			18.34	19.85	57.95	56.29	true	integrated	0	0	4	p99=19.85; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+world	open	native	run	PASS	0	0	0 px changed			19.72	20.48	57.44	56.72	true	integrated	0	0	2	p99=20.48; vsync_source=true (not a source name)
+world	open	go	run	PASS	0	0	0 px changed			18.42	19.97	57.80	56.08	true	integrated	0	0	2	p99=19.97; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+world	large	native	run	PASS	0	0	0 px changed			21.52	26.65	57.20	56.43	true	integrated	0	0	2	p99=26.65; vsync_source=true (not a source name)
+world	large	go	run	NO_JSON	1	0											0	2	no parseable JSON on stdout
+ui_render_base_backdrop	msaa1	native	run	FAIL	1	0	0.0000%	627200	false	137.18	146.14	8.49	7.61	true	integrated	0	1	2	exit code 1; p95=137.18 > 22 (P1.7 metric); p99=146.14; vsync_source=true (not a source name)
+ui_render_base_backdrop	msaa1	go	run	FAIL	1	0	1.2583%	627200	false	151.58	161.51	7.27	6.33	true	integrated	0	1	2	exit code 1; p95=151.58 > 22 (P1.7 metric); p99=161.51; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_backdrop	msaa4	native	run	FAIL	1	0	0.0000%	627200	false	132.60	143.28	8.42	7.41	true	integrated	0	2	2	exit code 1; p95=132.60 > 22 (P1.7 metric); p99=143.28; vsync_source=true (not a source name)
+ui_render_base_backdrop	msaa4	go	run	FAIL	1	0	52.7042%	627200	false	154.91	161.80	7.19	6.05	true	integrated	0	2	2	exit code 1; p95=154.91 > 22 (P1.7 metric); p99=161.80; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_cliplayer	default	native	run	PASS	0	0	0.0000%	403200	false	18.25	21.92	59.67	58.80	true	integrated	0	1	1	p99=21.92; vsync_source=true (not a source name)
+ui_render_base_cliplayer	default	go	run	PASS	0	0	0.0000%	403200	false	17.13	18.24	60.05	58.56	true	integrated	0	1	1	p99=18.24; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_clipop	default	native	run	PASS	0	0	0.0000%	627200	false	29.90	35.24	47.28	44.65	true	integrated	0	1	1	p95=29.90 > 22 (P1.7 metric); p99=35.24; vsync_source=true (not a source name)
+ui_render_base_clipop	default	go	run	FAIL	1	0	0.0078%	627200	false	31.93	39.76	44.33	40.58	true	integrated	0	1	1	exit code 1; p95=31.93 > 22 (P1.7 metric); p99=39.76; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_cliprrect	default	native	run	FAIL	1	0	0.0000%	627200	false	19.63	22.35	57.69	52.87	true	integrated	0	1	1	exit code 1; p99=22.35; vsync_source=true (not a source name)
+ui_render_base_cliprrect	default	go	run	FAIL	1	0	0.0000%	627200	false	18.73	19.94	57.94	51.56	true	integrated	0	1	1	exit code 1; p99=19.94; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_dither	default	native	run	FAIL	1	0	0.0000%	627200	false	19.33	20.82	57.75	51.94	true	integrated	0	1	1	exit code 1; p99=20.82; vsync_source=true (not a source name)
+ui_render_base_dither	default	go	run	FAIL	1	0	0.0000%	627200	false	19.12	20.98	57.94	50.14	true	integrated	0	1	1	exit code 1; p99=20.98; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_emoji	default	native	run	PASS	0	0	0.0000%	627200	false	19.77	23.07	57.62	54.52	true	integrated	0	1	1	p99=23.07; vsync_source=true (not a source name)
+ui_render_base_emoji	default	go	run	PASS	0	0	0.0000%	627200	false	18.43	19.42	57.91	53.21	true	integrated	0	1	1	p99=19.42; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_filterops	default	native	run	FAIL	1	0	0.0000%	627200	false	20.03	25.80	57.64	52.55	true	integrated	0	1	1	exit code 1; p99=25.80; vsync_source=true (not a source name)
+ui_render_base_filterops	default	go	run	FAIL	1	0	9.4798%	627200	false	18.87	20.29	57.83	51.11	true	integrated	0	1	1	exit code 1; p99=20.29; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_geometry	default	native	run	PASS	0	0	0.0000%	409200	false	17.44	18.49	59.94	59.25	true	integrated	0	1	1	p99=18.49; vsync_source=true (not a source name)
+ui_render_base_geometry	default	go	run	PASS	0	0	0.0000%	409200	false	17.16	18.03	59.95	58.69	true	integrated	0	1	1	p99=18.03; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_image	default	native	run	PASS	0	0	0.0000%	499200	false	19.48	21.65	57.38	56.49	true	integrated	0	1	1	p99=21.65; vsync_source=true (not a source name)
+ui_render_base_image	default	go	run	FAIL	1	0	0.2877%	499200	false	18.64	19.60	57.71	56.44	true	integrated	0	1	1	exit code 1; p99=19.60; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_imagepattern	default	native	run	PASS	0	0	0.0000%	621480	false	20.69	26.40	57.62	55.15	true	integrated	0	1	1	p99=26.40; vsync_source=true (not a source name)
+ui_render_base_imagepattern	default	go	run	PASS	0	0	0.0000%	621480	false	18.44	19.99	57.76	53.27	true	integrated	0	1	1	p99=19.99; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_maskops	default	native	run	FAIL	1	0	0.0000%	627200	false	34.61	38.31	41.71	37.77	true	integrated	0	1	1	exit code 1; p95=34.61 > 22 (P1.7 metric); p99=38.31; vsync_source=true (not a source name)
+ui_render_base_maskops	default	go	run	FAIL	1	0	0.0000%	627200	false	33.03	43.96	41.78	36.72	true	integrated	0	1	1	exit code 1; p95=33.03 > 22 (P1.7 metric); p99=43.96; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_miscdraw	default	native	run	FAIL	1	0	0.0000%	737760	false	19.29	20.29	57.62	51.65	true	integrated	0	1	1	exit code 1; p99=20.29; vsync_source=true (not a source name)
+ui_render_base_miscdraw	default	go	run	FAIL	1	0	0.0003%	737760	false	19.49	23.61	57.72	50.14	true	integrated	0	1	1	exit code 1; p99=23.61; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_pathbool	default	native	run	FAIL	1	0	0.0000%	627200	false	19.93	25.03	57.72	52.87	true	integrated	0	1	1	exit code 1; p99=25.03; vsync_source=true (not a source name)
+ui_render_base_pathbool	default	go	run	FAIL	1	0	0.0000%	627200	false	18.61	22.66	57.84	51.96	true	integrated	0	1	1	exit code 1; p99=22.66; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_pathlow	default	native	run	PASS	0	0	0.0000%	627200	false	19.34	23.92	57.53	55.17	true	integrated	0	1	1	p99=23.92; vsync_source=true (not a source name)
+ui_render_base_pathlow	default	go	run	PASS	0	0	0.0000%	627200	false	18.55	20.79	58.03	54.05	true	integrated	0	1	1	p99=20.79; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_pathshape	default	native	run	PASS	0	0	0.0000%	627200	false	19.73	21.69	57.53	55.06	true	integrated	0	1	1	p99=21.69; vsync_source=true (not a source name)
+ui_render_base_pathshape	default	go	run	PASS	0	0	0.0000%	627200	false	19.12	22.83	57.70	53.73	true	integrated	0	1	1	p99=22.83; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_perfsoak	default	native	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,target_hz
+ui_render_base_perfsoak	default	go	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,target_hz
+ui_render_base_recording	default	native	run	PASS	0	0	0.0000%	627200	false	19.29	20.16	57.70	55.36	true	integrated	0	1	1	p99=20.16; vsync_source=true (not a source name)
+ui_render_base_recording	default	go	run	PASS	0	0	0.0000%	627200	false	18.71	19.25	58.05	54.03	true	integrated	0	1	1	p99=19.25; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_scene	default	native	run	PASS	0	0	0.0000%	627200	false	19.53	24.73	57.61	54.81	true	integrated	0	1	1	p99=24.73; vsync_source=true (not a source name)
+ui_render_base_scene	default	go	run	FAIL	1	0	0.0032%	627200	false	18.52	21.37	58.07	52.59	true	integrated	0	1	1	exit code 1; p99=21.37; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_strokepreset	default	native	run	PASS	0	0	0.0000%	627200	false	19.71	22.28	57.39	55.04	true	integrated	0	1	1	p99=22.28; vsync_source=true (not a source name)
+ui_render_base_strokepreset	default	go	run	PASS	0	0	0.0000%	627200	false	18.62	21.11	57.96	54.30	true	integrated	0	1	1	p99=21.11; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_svg	default	native	run	FAIL	1	0	0.0000%	627200	false	19.33	19.82	57.69	52.72	true	integrated	0	1	1	exit code 1; p99=19.82; vsync_source=true (not a source name)
+ui_render_base_svg	default	go	run	FAIL	1	0	0.0000%	627200	false	18.47	19.59	57.88	51.90	true	integrated	0	1	1	exit code 1; p99=19.59; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_sweepgradient	default	native	run	PASS	0	0	0.0000%	627200	false	20.01	26.02	57.68	54.50	true	integrated	0	1	1	p99=26.02; vsync_source=true (not a source name)
+ui_render_base_sweepgradient	default	go	run	PASS	0	0	0.0000%	627200	false	18.60	22.28	57.53	52.73	true	integrated	0	1	1	p99=22.28; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_text	default	native	run	NO_JSON	1	0											1	1	no parseable JSON on stdout
+ui_render_base_text	default	go	run	PASS	0	0	0.0000%	576000	false	19.62	26.29	59.91	58.20	true	integrated	0	1	1	p99=26.29; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_textlow	default	native	run	FAIL	1	0	0.0000%	627200	false	38.97	45.43	34.80	31.16	true	integrated	0	1	1	exit code 1; p95=38.97 > 22 (P1.7 metric); p99=45.43; vsync_source=true (not a source name)
+ui_render_base_textlow	default	go	run	FAIL	1	0	0.0000%	627200	false	48.44	51.22	27.40	23.72	true	integrated	0	1	1	exit code 1; p95=48.44 > 22 (P1.7 metric); p99=51.22; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_textspacing	default	native	run	FAIL	1	0	0.0000%	627200	false	19.28	20.08	57.72	52.87	true	integrated	0	1	1	exit code 1; p99=20.08; vsync_source=true (not a source name)
+ui_render_base_textspacing	default	go	run	FAIL	1	0	0.0000%	627200	false	19.20	27.21	57.86	51.99	true	integrated	0	1	1	exit code 1; p99=27.21; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_textstroke	default	native	run	FAIL	1	0	0.0000%	627200	false	19.68	20.77	57.49	52.38	true	integrated	0	1	1	exit code 1; p99=20.77; vsync_source=true (not a source name)
+ui_render_base_textstroke	default	go	run	NO_JSON	1	0											0	1	no parseable JSON on stdout
+ui_render_base_variablefont	default	native	run	FAIL	1	0	0.9517%	627200	false	19.43	20.08	57.71	54.54	true	integrated	0	1	1	exit code 1; p99=20.08; vsync_source=true (not a source name)
+ui_render_base_variablefont	default	go	run	FAIL	1	0	0.9517%	627200	false	18.90	21.19	58.01	53.82	true	integrated	0	1	1	exit code 1; p99=21.19; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_verticesmesh	default	native	run	FAIL	1	0	0.0000%	627200	false	19.05	20.18	57.74	53.00	true	integrated	0	1	1	exit code 1; p99=20.18; vsync_source=true (not a source name)
+ui_render_base_verticesmesh	default	go	run	FAIL	1	0	5.6751%	627200	false	18.69	21.73	58.04	52.01	true	integrated	0	1	1	exit code 1; p99=21.73; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_base_webp	default	native	run	FAIL	1	0	0.0000%	627200	false	20.20	24.21	57.54	52.78	true	integrated	0	1	1	exit code 1; p99=24.21; vsync_source=true (not a source name)
+ui_render_base_webp	default	go	run	FAIL	1	0	0.0000%	627200	false	19.27	22.27	57.89	51.66	true	integrated	0	1	1	exit code 1; p99=22.27; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_graphics/basic	default	native	run	PASS	0	0	0.0000%	821184	false	0	0		5.21	true	integrated	0	1	1	p99=0.00; vsync_source=true (not a source name)
+ui_render_graphics/basic	default	go	run	PASS	0	0	0.0000%	821184	false	0	0		12.58	true	integrated	0	1	1	p99=0.00; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_graphics/vector	default	native	run	FAIL	1	0	0.0005%	821184	false	19.71	21.09	57.58	54.42	true	integrated	0	1	1	exit code 1; p99=21.09; vsync_source=true (not a source name)
+ui_render_graphics/vector	default	go	run	FAIL	1	0	0.0005%	821184	false	18.70	22.77	57.73	53.21	true	integrated	0	1	1	exit code 1; p99=22.77; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_ant_verify	msaa1	native	run	NO_JSON	0	0											1	2	no parseable JSON on stdout
+ui_ant_verify	msaa1	go	run	NO_JSON	0	0											1	2	no parseable JSON on stdout
+ui_ant_verify	msaa4	native	run	NO_JSON	0	0											1	2	no parseable JSON on stdout
+ui_ant_verify	msaa4	go	run	NO_JSON	1	0											1	2	no parseable JSON on stdout
+ui_ruler_parity	default	native	run	PASS	0	0	0.0000%	153600									1	4	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_ruler_parity	default	go	run	PASS	0	0	0.0000%	153600									1	4	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_wr_r0_fullpaint	default	native	run	PASS	0	0	0.0000%	821184	false	19.30	26.47	57.66	55.02	true	integrated	0	1	1	p99=26.47; vsync_source=true (not a source name)
+ui_wr_r0_fullpaint	default	go	run	PASS	0	0	0.0000%	821184	false	19.13	21.84	58.06	54.08	true	integrated	0	1	1	p99=21.84; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r1_layout	default	native	seed	SEED	1	0*	0.0000%	0	true	19.25	22.65	57.07	56.69	true	integrated	0	4	1	exit code 1; p99=22.65; vsync_source=true (not a source name)
+ui_wr_r1_layout	default	native	confirm	FAIL	1	0*	0.0000%	421120	false	19.46	21.05	57.12	56.73	true	integrated	0	4	1	exit code 1; p99=21.05; vsync_source=true (not a source name)
+ui_wr_r1_layout	default	go	confirm	FAIL	1	0*	0.0000%	421120	false	18.35	18.84	57.35	56.61	true	integrated	0	4	1	exit code 1; p99=18.84; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r2_paint	default	native	run	PASS	0	0	0.0000%	821184	false	19.18	20.48	57.72	55.18	true	integrated	0	1	1	p99=20.48; vsync_source=true (not a source name)
+ui_wr_r2_paint	default	go	run	PASS	0	0	0.0000%	821184	false	18.31	18.99	57.85	53.44	true	integrated	0	1	1	p99=18.99; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r3_boundary	default	native	run	PASS	0	0	0.0000%	821184	false	19.43	20.52	57.43	56.13	true	integrated	0	1	1	p99=20.52; vsync_source=true (not a source name)
+ui_wr_r3_boundary	default	go	run	PASS	0	0	0.0000%	821184	false	18.52	20.06	57.67	55.63	true	integrated	0	1	1	p99=20.06; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r3b_compbits	default	native	run	PASS	0	0	0.0000%	821184	false	19.38	20.48	57.33	55.66	true	integrated	0	1	1	p99=20.48; vsync_source=true (not a source name)
+ui_wr_r3b_compbits	default	go	run	PASS	0	0	0.0000%	821184	false	19.16	20.48	57.81	55.21	true	integrated	0	1	1	p99=20.48; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r4_composite	default	native	run	PASS	0	0	0.0000%	821184	false	19.40	20.71	57.28	56.24	true	integrated	0	1	1	p99=20.71; vsync_source=true (not a source name)
+ui_wr_r4_composite	default	go	run	PASS	0	0	0.0000%	821184	false	18.56	19.87	57.67	55.94	true	integrated	0	1	1	p99=19.87; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r4b_multidamage	default	native	run	PASS	0	0				19.57	20.91	57.21	56.18	true	integrated	0	1	1	p99=20.91; vsync_source=true (not a source name)
+ui_wr_r4b_multidamage	default	go	run	PASS	0	0				18.48	19.94	57.53	55.96	true	integrated	0	1	1	p99=19.94; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r5_picture	default	native	run	FAIL	1	0	0.0217%	821184	false	19.65	22.24	57.50	55.05	true	integrated	0	1	1	exit code 1; p99=22.24; vsync_source=true (not a source name)
+ui_wr_r5_picture	default	go	run	FAIL	1	0	0.0217%	821184	false	19.57	21.33	57.71	53.47	true	integrated	0	1	1	exit code 1; p99=21.33; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r6_layer_anim	default	native	run	PASS	0	0	0.0000%	306280	false	19.62	20.50	57.29	56.69	true	integrated	0	2	1	p99=20.50; vsync_source=true (not a source name)
+ui_wr_r6_layer_anim	default	go	run	PASS	0	0	0.0000%	306280	false	18.64	19.56	57.58	56.67	true	integrated	0	2	1	p99=19.56; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r7_virtlist	default	native	run	FAIL	1	0				24.89	25.18	59.94	59.62	true	integrated	0	1	1	exit code 1; p95=24.89 > 22 (P1.7 metric); p99=25.18; vsync_source=true (not a source name)
+ui_wr_r7_virtlist	default	go	run	FAIL	1	0				22.66	27.36	59.95	59.45	true	integrated	0	1	1	exit code 1; p95=22.66 > 22 (P1.7 metric); p99=27.36; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r7b_scroll_reuse	default	native	run	FAIL	1	0	0.0000%	821184	false	22.42	28.12	57.76	57.46	true	integrated	0	1	1	exit code 1; p95=22.42 > 22 (P1.7 metric); p99=28.12; vsync_source=true (not a source name)
+ui_wr_r7b_scroll_reuse	default	go	run	NO_JSON	1	0											0	1	no parseable JSON on stdout
+ui_wr_r8_overlay	open	native	run	PASS	0	0	0.0000%	821184	false	20.75	24.94	59.93	58.88	true	integrated	0	1	2	p99=24.94; vsync_source=true (not a source name)
+ui_wr_r8_overlay	open	go	run	FAIL	1	0	0.0000%	821184	false	22.24	25.14	60.04	58.32	true	integrated	0	1	2	exit code 1; p95=22.24 > 22 (P1.7 metric); p99=25.14; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r8_overlay	closed	native	run	FAIL	1	0	0.0000%	821184	false	22.07	25.19	60.02	58.95	true	integrated	0	2	2	exit code 1; p95=22.07 > 22 (P1.7 metric); p99=25.19; vsync_source=true (not a source name)
+ui_wr_r8_overlay	closed	go	run	PASS	0	0	0.0000%	821184	false	19.84	22.32	60.00	58.36	true	integrated	0	2	2	p99=22.32; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r9_text_cache	default	native	run	PASS	0	0	0.0000%	821184	false	19.54	20.47	57.36	54.54	true	integrated	0	1	1	p99=20.47; vsync_source=true (not a source name)
+ui_wr_r9_text_cache	default	go	run	PASS	0	0	0.0000%	821184	false	18.72	21.36	57.84	53.84	true	integrated	0	1	1	p99=21.36; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r10_async_image	default	native	run	PASS	0	0	0.0000%	821184	false	19.55	20.42	57.10	56.47	true	integrated	0	1	1	p99=20.42; vsync_source=true (not a source name)
+ui_wr_r10_async_image	default	go	run	PASS	0	0	0.0000%	821184	false	18.58	19.19	57.68	56.83	true	integrated	0	1	1	p99=19.19; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r11_dpr	default	native	run	PASS	0	0	0.0000%	821184	false	19.16	20.51	57.31	56.39	true	integrated	0	1	1	p99=20.51; vsync_source=true (not a source name)
+ui_wr_r11_dpr	default	go	run	PASS	0	0	0.0000%	821184	false	18.61	19.37	57.61	56.09	true	integrated	0	1	1	p99=19.37; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r12_metrics	default	native	run	PASS	0	—				19.27	23.34	57.63	56.00	true	integrated	0	0	0	p99=23.34; vsync_source=true (not a source name)
+ui_wr_r12_metrics	default	go	run	PASS	0	—				18.50	19.26	57.89	54.52	true	integrated	0	0	0	p99=19.26; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r12b_debug_repaint	on	native	run	PASS	0	0	0.0000%	821184	false	19.68	22.42	57.35	55.34	true	integrated	0	1	2	p99=22.42; vsync_source=true (not a source name)
+ui_wr_r12b_debug_repaint	on	go	run	PASS	0	0	0.0000%	821184	false	18.47	20.41	57.69	55.13	true	integrated	0	1	2	p99=20.41; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r12b_debug_repaint	off	native	run	PASS	0	0	0.0000%	821184	false	19.88	24.76	57.07	55.41	true	integrated	0	2	2	p99=24.76; vsync_source=true (not a source name)
+ui_wr_r12b_debug_repaint	off	go	run	PASS	0	0	0.0000%	821184	false	19.15	20.91	57.84	55.19	true	integrated	0	2	2	p99=20.91; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r13_hit	default	native	run	PASS	0	0	0.0000%	821184	false	19.80	25.10	57.74	55.08	true	integrated	0	1	1	p99=25.10; vsync_source=true (not a source name)
+ui_wr_r13_hit	default	go	run	PASS	0	0	0.0000%	821184	false	18.54	19.71	57.93	53.87	true	integrated	0	1	1	p99=19.71; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r14_cache_budget	default	native	seed	SEED	0	0*	0.0000%	0	true	18.16	20.48	57.12	56.84	true	integrated	0	2	1	runtime golden seeded; p99=20.48; vsync_source=true (not a source name)
+ui_wr_r14_cache_budget	default	native	confirm	PASS	0	0*	0.0000%	331928	false	18.20	19.83	57.35	57.10	true	integrated	0	2	1	p99=19.83; vsync_source=true (not a source name)
+ui_wr_r14_cache_budget	default	go	confirm	PASS	0	0*	0.0000%	331928	false	18.61	20.78	57.55	57.10	true	integrated	0	2	1	p99=20.78; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r15_soak	default	native	seed	SEED	0	0*	0.0000%	0	true	18.29	18.56	57.24	57.19	true	integrated	0	2	1	runtime golden seeded; p99=18.56; vsync_source=true (not a source name)
+ui_wr_r15_soak	default	native	confirm	PASS	0	0*	0.0000%	296292	false	18.27	19.57	57.24	57.19	true	integrated	0	2	1	p99=19.57; vsync_source=true (not a source name)
+ui_wr_r15_soak	default	go	confirm	NO_JSON	1	0*											1	1	no parseable JSON on stdout
+ui_wr_r16_warmup	default	native	run	PASS	0	0	0.0000%	821184	false	17.97	20.09	57.86	55.49	true	integrated	0	1	2	p99=20.09; vsync_source=true (not a source name)
+ui_wr_r16_warmup	default	go	run	PASS	0	0	0.0000%	821184	false	18.77	20.69	57.99	53.79	true	integrated	0	1	2	p99=20.69; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r17_bg_throttle	default	native	run	PASS	0	0				19.49	25.22	57.44	43.14	true	integrated	0	2	1	p99=25.22; vsync_source=true (not a source name)
+ui_wr_r17_bg_throttle	default	go	run	PASS	0	0				20.90	25.08	57.52	42.91	true	integrated	0	2	1	p99=25.08; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r18_savelayer	default	native	run	PASS	0	0	0.0000%	821184	false	17.96	20.21	57.55	56.29	true	integrated	0	1	1	p99=20.21; vsync_source=true (not a source name)
+ui_wr_r18_savelayer	default	go	run	PASS	0	0	0.0000%	821184	false	18.51	19.49	57.85	55.49	true	integrated	0	1	1	p99=19.49; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r19_snap	default	native	run	PASS	0	0	0.0000%	821184	false	18.32	20.59	57.90	55.62	true	integrated	0	1	1	p99=20.59; vsync_source=true (not a source name)
+ui_wr_r19_snap	default	go	run	PASS	0	0	0.0000%	821184	false	19.65	21.88	57.61	53.79	true	integrated	0	1	1	p99=21.88; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r20_filter	default	native	seed	SEED	1	0*	0.0000%	0	true	18.32	19.19	57.49	55.62	true	integrated	0	4	1	exit code 1; p99=19.19; vsync_source=true (not a source name)
+ui_wr_r20_filter	default	native	confirm	FAIL	1	0*	0.0000%	306280	false	18.36	18.60	57.44	55.56	true	integrated	0	4	1	exit code 1; p99=18.60; vsync_source=true (not a source name)
+ui_wr_r20_filter	default	go	confirm	FAIL	1	0*	0.0000%	306280	false	18.63	20.11	57.74	54.23	true	integrated	0	4	1	exit code 1; p99=20.11; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r21_shell	default	native	run	PASS	0	0				18.82	24.52	57.35	54.84	true	integrated	0	1	1	p99=24.52; vsync_source=true (not a source name)
+ui_wr_r21_shell	default	go	run	PASS	0	0				20.15	22.81	57.62	53.02	true	integrated	0	1	1	p99=22.81; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_r22_selection_stub	default	native	seed	SEED	1	0*	0.0000%	0	true	18.04	24.36	57.97	55.56	true	integrated	0	4	1	exit code 1; p99=24.36; vsync_source=true (not a source name)
+ui_wr_r22_selection_stub	default	native	confirm	FAIL	1	0*	0.0000%	318160	false	18.02	32.29	57.81	55.36	true	integrated	0	4	1	exit code 1; p99=32.29; vsync_source=true (not a source name)
+ui_wr_r22_selection_stub	default	go	confirm	FAIL	1	0*	0.0000%	318160	false	18.96	22.87	57.67	53.65	true	integrated	0	4	1	exit code 1; p99=22.87; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c0_smoke	default	native	run	PASS	0	0	0.0000%	821184	false	18.02	19.50	57.82	55.47	true	integrated	0	1	2	p99=19.50; vsync_source=true (not a source name)
+ui_wr_c0_smoke	default	go	run	PASS	0	0	0.0000%	821184	false	18.53	20.57	57.91	53.87	true	integrated	0	1	2	p99=20.57; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c1_boundary_nest	default	native	run	PASS	0	0	0.0000%	821184	false	17.92	18.82	57.55	56.40	true	integrated	0	1	1	p99=18.82; vsync_source=true (not a source name)
+ui_wr_c1_boundary_nest	default	go	run	NO_JSON	1	0											0	1	no parseable JSON on stdout
+ui_wr_c2_retained_scene	default	native	run	PASS	0	0	0.0000%	821184	false	18.07	18.51	57.29	56.43	true	integrated	0	1	1	p99=18.51; vsync_source=true (not a source name)
+ui_wr_c2_retained_scene	default	go	run	PASS	0	0	0.0000%	821184	false	18.49	19.74	57.72	56.18	true	integrated	0	1	1	p99=19.74; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c3_list_scroll	default	native	run	FAIL	1	0	0.0000%	821184	false	26.43	32.04	54.66	54.26	true	integrated	0	1	1	exit code 1; p95=26.43 > 22 (P1.7 metric); p99=32.04; vsync_source=true (not a source name)
+ui_wr_c3_list_scroll	default	go	run	PASS	0	0	0.0000%	821184	false	18.95	20.87	57.57	57.20	true	integrated	0	1	1	p99=20.87; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c4_shell_overlay	default	native	run	PASS	0	0	0.0000%		false	21.82	24.67	55.95	55.43	true	integrated	0	3	2	p99=24.67; vsync_source=true (not a source name)
+ui_wr_c4_shell_overlay	default	go	run	PASS	0	0	0.0000%		false	19.66	27.68	56.52	55.68	true	integrated	0	3	2	p99=27.68; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c5_anim_over_static	default	native	run	PASS	0	0	0.0000%	409160	false	19.93	21.61	57.21	56.65	true	integrated	0	1	1	p99=21.61; vsync_source=true (not a source name)
+ui_wr_c5_anim_over_static	default	go	run	PASS	0	0	0.0000%	409160	false	18.57	20.66	57.68	56.85	true	integrated	0	1	1	p99=20.66; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c6_savelayer_group	default	native	seed	SEED	1	0*	0.0000%	0	true	19.13	19.86	57.19	55.66	true	integrated	0	2	1	exit code 1; p99=19.86; vsync_source=true (not a source name)
+ui_wr_c6_savelayer_group	default	native	confirm	FAIL	1	0*	0.0000%	529400	false	19.67	21.58	57.35	55.68	true	integrated	0	2	1	exit code 1; p99=21.58; vsync_source=true (not a source name)
+ui_wr_c6_savelayer_group	default	go	confirm	NO_JSON	1	0*											1	1	no parseable JSON on stdout
+ui_wr_c7_resize_dpr	default	native	run	PASS	0	0				19.25	19.73	57.28	56.29	true	integrated	0	1	1	p99=19.73; vsync_source=true (not a source name)
+ui_wr_c7_resize_dpr	default	go	run	PASS	0	0				18.49	19.32	57.76	56.36	true	integrated	0	1	1	p99=19.32; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c8_hit_overlay_xf	default	native	run	PASS	0	0				19.23	24.51	56.95	56.26	true	integrated	0	2	1	p99=24.51; vsync_source=true (not a source name)
+ui_wr_c8_hit_overlay_xf	default	go	run	PASS	0	0				18.66	20.64	57.24	55.93	true	integrated	0	2	1	p99=20.64; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c9_stress_cache	default	native	seed	SEED	0	0*	0.0000%	0	true	19.61	20.91	57.06	56.76	true	integrated	0	2	1	runtime golden seeded; p99=20.91; vsync_source=true (not a source name)
+ui_wr_c9_stress_cache	default	native	confirm	PASS	0	0*	0.0000%	296292	false	19.57	20.43	57.05	56.74	true	integrated	0	2	1	p99=20.43; vsync_source=true (not a source name)
+ui_wr_c9_stress_cache	default	go	confirm	PASS	0	0*	0.0000%	296292	false	18.70	20.08	57.56	57.11	true	integrated	0	2	1	p99=20.08; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c10_soak	default	native	seed	SEED	0	0*	0.0000%	0	true	19.81	21.18	57.01	56.94	true	integrated	0	2	1	runtime golden seeded; p99=21.18; vsync_source=true (not a source name)
+ui_wr_c10_soak	default	native	confirm	PASS	0	0*	0.0000%	296292	false	20.37	21.56	56.99	56.93	true	integrated	0	2	1	p99=21.56; vsync_source=true (not a source name)
+ui_wr_c10_soak	default	go	confirm	PASS	0	0*	0.0000%	296292	false	18.61	20.67	57.50	57.41	true	integrated	0	2	1	p99=20.67; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_c11_policy_switch	default	native	run	PASS	0	—	0.0000%	390176	false	19.01	19.84	57.32	56.40	true	integrated	0	2	0	p99=19.84; vsync_source=true (not a source name)
+ui_wr_c11_policy_switch	default	go	run	FAIL	1	—	0.0000%	390176	false	18.51	20.59	57.67	55.94	true	integrated	0	2	0	exit code 1; p99=20.59; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_ime_r1_editor	default	native	run	FAIL	1	0	0.0847%	813312	false	19.36	20.19	57.69	53.35	true	integrated	0	1	1	exit code 1; p99=20.19; vsync_source=true (not a source name)
+ui_wr_ime_r1_editor	default	go	run	FAIL	1	0	0.0847%	813312	false	18.69	21.17	57.53	51.86	true	integrated	0	1	1	exit code 1; p99=21.17; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_ime_r2_textlayout	default	native	run	PASS	0	0				20.01	21.48	57.55	54.63	true	integrated	0	1	1	p99=21.48; vsync_source=true (not a source name)
+ui_wr_ime_r2_textlayout	default	go	run	NO_JSON	1	0											0	1	no parseable JSON on stdout
+ui_wr_ime_r3_channel	default	native	run	PASS	0	0				19.41	20.32	57.55	54.85	true	integrated	0	1	1	p99=20.32; vsync_source=true (not a source name)
+ui_wr_ime_r3_channel	default	go	run	PASS	0	0				18.57	18.97	57.77	53.22	true	integrated	0	1	1	p99=18.97; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_ime_r4_selection	default	native	run	PASS	0	0				19.38	20.83	57.59	54.41	true	integrated	0	1	1	p99=20.83; vsync_source=true (not a source name)
+ui_wr_ime_r4_selection	default	go	run	NO_JSON	1	0											0	1	no parseable JSON on stdout
+ui_wr_ime_r5_control	default	native	run	PASS	0	0				19.18	19.46	57.60	54.77	true	integrated	0	1	1	p99=19.46; vsync_source=true (not a source name)
+ui_wr_ime_r5_control	default	go	run	PASS	0	0				18.68	19.28	57.68	53.10	true	integrated	0	1	1	p99=19.28; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_wr_shadermask	default	native	run	FAIL	1	0	4.2822%	912000	false	24.34	27.31	54.58	47.98	true	integrated	0	1	1	exit code 1; p95=24.34 > 22 (P1.7 metric); p99=27.31; vsync_source=true (not a source name)
+ui_wr_shadermask	default	go	run	NO_JSON	1	0											0	1	no parseable JSON on stdout
+ui_wr_t_stress	default	native	run	BUILD_FAIL		—											0	0	
+ui_wr_t_stress	default	go	run	BUILD_FAIL		—											0	0	
+ui_base_batch_cap	default	native	run	FAIL	1	0	0.0000%		false	53.11	56.38	47.20	47.13	true	integrated	0	2	2	exit code 1; p95=53.11 > 22 (P1.7 metric); p99=56.38; vsync_source=true (not a source name)
+ui_base_batch_cap	default	go	run	FAIL	1	0	0.0169%		false	63.15	70.18	47.08	46.96	true	integrated	0	2	2	exit code 1; p95=63.15 > 22 (P1.7 metric); p99=70.18; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_base_idle	default	native	run	PASS	0	0	0.0000%	873600	false	0	0		0.02	unknown	integrated	0	1	1	p99=0.00
+ui_base_idle	default	go	run	PASS	0	0	0.0000%	873600	false	0	0		0.02	unknown	integrated	0	1	1	p99=0.00; GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_base_multiwin_cap	default	native	run	PASS	0	0	0.0000%	1075200	false	26.85	29.03	53.42	224.47	true	integrated	0	8	8	p95=26.85 > 22 (P1.7 metric); p99=29.03; vsync_source=true (not a source name)
+ui_base_multiwin_cap	default	go	run	PASS	0	0	0.0000%	1075200	false	21.97	26.35	56.94	250.00	true	integrated	0	8	8	p99=26.35; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_base_vram_cap	ladder	native	run	NO_JSON	1	0											0	9	no parseable JSON on stdout
+ui_base_vram_cap	ladder	go	run	NO_JSON	1	0											0	9	no parseable JSON on stdout
+ui_base_vram_cap	oom	native	run	PASS	0	0	0.0000%		false	19.25	21.07	57.41	57.02	true	integrated	0	1	9	p99=21.07; vsync_source=true (not a source name)
+ui_base_vram_cap	oom	go	run	PASS	0	0	0.0000%		false	18.59	20.02	57.76	56.93	true	integrated	0	1	9	p99=20.02; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_l1_blank	default	native	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_rate_per_min,target_hz
+ui_l1_blank	default	go	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_rate_per_min,target_hz
+ui_l1_render_matrix	default	native	run	FAIL	1	0								true	integrated		1	1	exit code 1; vsync_source=true (not a source name); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_rate_per_min,target_hz
+ui_l1_render_matrix	default	go	run	FAIL	1	0								true	integrated		1	1	exit code 1; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,target_hz
+ui_l1_scroll	default	native	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,target_hz
+ui_l1_scroll	default	go	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_rate_per_min,target_hz
+ui_l1_spinner	default	native	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_rate_per_min,target_hz
+ui_l1_spinner	default	go	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,target_hz
+ui_l2_shell	default	native	run	PASS	0	—											0	0	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_l2_shell	default	go	run	PASS	0	—											0	0	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_ime_probe	default	native	run	PROBE	-15	—											0	0	manual probe: WM_DELETE not honored; SIGTERM fallback used; process did not self-close; WM_DELETE/SIGTERM fallback used; manual probe: classified PROBE (no JSON gate)
+ui_ime_probe	default	go	run	PROBE	-15	—											0	0	manual probe: WM_DELETE not honored; SIGTERM fallback used; process did not self-close; WM_DELETE/SIGTERM fallback used; manual probe: classified PROBE (no JSON gate)
+ui_pf_x11	default	native	run	PASS	0	—											0	0	
+ui_pf_x11	default	go	run	PASS	0	—											0	0	
+ui_pf_wayland	default	native	run	PASS	0	—											0	0	
+ui_pf_wayland	default	go	run	PASS	0	—											0	0	
+ui_pf_win32	default	native	run	SKIP	0	—											0	0	window reports SKIP
+ui_pf_win32	default	go	run	SKIP	0	—											0	0	window reports SKIP
+ui_pf_appkit	default	native	run	SKIP	0	—											0	0	window reports SKIP
+ui_pf_appkit	default	go	run	SKIP	0	—											0	0	window reports SKIP
+ui_pf_x11_device	default	native	run	PASS	0	—											0	0	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_pf_x11_device	default	go	run	PASS	0	—											0	0	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_pf_x11_dnd	default	native	run	PASS	0	—											0	0	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_pf_x11_dnd	default	go	run	PASS	0	—											0	0	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_textinput_ime	default	native	run	PASS	0	0											1	1	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_textinput_ime	default	go	run	PASS	0	0											1	1	missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz
+ui_text_edit_accept	default	native	run	PASS	0	0				0	0		0.07	fallback	integrated	0	1	5	p99=0.00
+ui_text_edit_accept	default	go	run	PASS	0	0				0	0		0.07	fallback	integrated	0	1	5	p99=0.00; GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_text_m4_virtual	default	native	run	PASS	0	—				21.39	27.49	57.56	57.15	true	integrated	0	0	0	p99=27.49; vsync_source=true (not a source name)
+ui_text_m4_virtual	default	go	run	PASS	0	—				18.38	18.85	57.95	57.17	true	integrated	0	0	0	p99=18.85; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_text_m5_anycase	default	native	run	FAIL	1	0	3.1630%	821184	false	25.06	29.08	59.98	59.33	true	integrated	0	1	1	exit code 1; p95=25.06 > 22 (P1.7 metric); p99=29.08; vsync_source=true (not a source name)
+ui_text_m5_anycase	default	go	run	FAIL	1	0	3.1630%	821184	false	24.97	29.86	59.96	59.05	true	integrated	0	1	1	exit code 1; p95=24.97 > 22 (P1.7 metric); p99=29.86; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit_f0_content	default	native	run	PASS	0	0	0.0000%	237160	false	19.16	19.80	57.90	57.07	true	integrated	0	1	1	p99=19.80; vsync_source=true (not a source name)
+kit_f0_content	default	go	run	PASS	0	0	0.0000%	237160	false	18.77	20.41	57.72	56.45	true	integrated	0	1	1	p99=20.41; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit_f0_decor	default	native	run	PASS	0	0	0.0000%	252160	false	25.15	30.76	58.57	55.83	true	integrated	0	1	1	p95=25.15 > 22 (P1.7 metric); p99=30.76; vsync_source=true (not a source name)
+kit_f0_decor	default	go	run	PASS	0	0	0.0000%	252160	false	19.71	23.82	57.92	53.77	true	integrated	0	1	1	p99=23.82; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit_f0_interact	default	native	run	PASS	0	0	0.0000%	266240	false	18.99	19.92	57.80	57.01	true	integrated	0	1	1	p99=19.92; vsync_source=true (not a source name)
+kit_f0_interact	default	go	run	PASS	0	0	0.0000%	266240	false	18.68	19.56	57.68	56.51	true	integrated	0	1	1	p99=19.56; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit_f0_layout	default	native	run	FAIL	1	0	0.0000%	255040	false	25.28	34.69	58.70	56.36	true	integrated	0	1	1	exit code 1; p95=25.28 > 22 (P1.7 metric); p99=34.69; vsync_source=true (not a source name)
+kit_f0_layout	default	go	run	PASS	0	0	0.0000%	255040	false	19.72	23.67	57.68	54.31	true	integrated	0	1	1	p99=23.67; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit_f0_motion	default	native	run	PASS	0	0	0.0000%	256640	false	19.38	20.69	57.73	57.40	true	integrated	0	1	1	p99=20.69; vsync_source=true (not a source name)
+kit_f0_motion	default	go	run	PASS	0	0	0.0000%	256640	false	18.25	19.06	58.13	57.44	true	integrated	0	1	1	p99=19.06; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit_f0_scope	default	native	run	FAIL	1	0	0.0000%	311680	false	25.06	30.62	58.94	56.58	true	integrated	0	1	1	exit code 1; p95=25.06 > 22 (P1.7 metric); p99=30.62; vsync_source=true (not a source name)
+kit_f0_scope	default	go	run	NO_JSON	1	0											0	1	no parseable JSON on stdout
+kit_f0_theme	default	native	run	PASS	0	0	0.0000%	249280	false	19.17	20.18	58.18	57.14	true	integrated	0	1	3	p99=20.18; vsync_source=true (not a source name)
+kit_f0_theme	default	go	run	PASS	0	0	0.0000%	249280	false	18.33	19.10	57.74	55.99	true	integrated	0	1	3	p99=19.10; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit/color-model	default	native	run	FAIL	1	0	0.0000%	353300	false	25.63	27.10	59.02	56.71	true	integrated	0	1	1	exit code 1; p95=25.63 > 22 (P1.7 metric); p99=27.10; vsync_source=true (not a source name)
+kit/color-model	default	go	run	PASS	0	0	0.0000%	353300	false	18.74	21.15	57.90	54.23	true	integrated	0	1	1	p99=21.15; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit/date-engine	default	native	run	FAIL	1	0	0.0000%	303680	false	26.54	34.33	58.98	56.51	true	integrated	0	1	1	exit code 1; p95=26.54 > 22 (P1.7 metric); p99=34.33; vsync_source=true (not a source name)
+kit/date-engine	default	go	run	PASS	0	0	0.0000%	303680	false	18.69	20.72	57.73	53.98	true	integrated	0	1	1	p99=20.72; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit/icon	default	native	run	FAIL	1	0	0.0000%	1024	false	20.71	27.03	58.13	54.31	true	integrated	0	1	1	exit code 1; p99=27.03; vsync_source=true (not a source name)
+kit/icon	default	go	run	FAIL	1	0	3.3203%	1024	false	18.91	21.76	57.83	52.81	true	integrated	0	1	1	exit code 1; p99=21.76; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit/modal-host	default	native	run	PASS	0	0	0.0000%	262160	false	20.94	34.91	59.36	57.07	true	integrated	0	1	1	p99=34.91; vsync_source=true (not a source name)
+kit/modal-host	default	go	run	PASS	0	0	0.0000%	262160	false	19.37	23.34	57.94	54.51	true	integrated	0	1	1	p99=23.34; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit/notice-queue	default	native	run	FAIL	1	0	0.0000%	281960	false	25.94	32.05	58.55	56.27	true	integrated	0	1	1	exit code 1; p95=25.94 > 22 (P1.7 metric); p99=32.05; vsync_source=true (not a source name)
+kit/notice-queue	default	go	run	PASS	0	0	0.0000%	281960	false	19.50	23.13	57.72	54.17	true	integrated	0	1	1	p99=23.13; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit/qrcode	default	native	run	FAIL	1	0	0.0000%	285296	false	24.89	28.98	59.13	56.42	true	integrated	0	1	1	exit code 1; p95=24.89 > 22 (P1.7 metric); p99=28.98; vsync_source=true (not a source name)
+kit/qrcode	default	go	run	PASS	0	0	0.0000%	285296	false	19.91	23.57	58.00	53.64	true	integrated	0	1	1	p99=23.57; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit/spin_min	default	native	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_rate_per_min,target_hz
+kit/spin_min	default	go	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch); missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,target_hz
+kit/tour-mask	default	native	run	FAIL	1	0	0.0000%	310064	false	25.55	29.52	59.07	56.84	true	integrated	0	1	1	exit code 1; p95=25.55 > 22 (P1.7 metric); p99=29.52; vsync_source=true (not a source name)
+kit/tour-mask	default	go	run	PASS	0	0	0.0000%	310064	false	18.61	21.80	58.05	54.45	true	integrated	0	1	1	p99=21.80; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+kit/upload	default	native	run	FAIL	1	0	0.0000%	303160	false	25.79	33.73	59.21	56.85	true	integrated	0	1	1	exit code 1; p95=25.79 > 22 (P1.7 metric); p99=33.73; vsync_source=true (not a source name)
+kit/upload	default	go	run	PASS	0	0	0.0000%	303160	false	19.28	22.89	57.94	54.35	true	integrated	0	1	1	p99=22.89; vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+video_retained_golden	default	native	run	PASS	0	0	0.0000%	589908	false				55.32				2	1	
+video_retained_golden	default	go	run	FAIL	1	0	78.9469%	589908	false				53.01				2	1	exit code 1
+video_player	default	native	run	NO_JSON	0	—											2	0	no parseable JSON on stdout
+video_player	default	go	run	NO_JSON	0	—											2	0	no parseable JSON on stdout
+video_2k_play	default	native	run	NO_JSON	1	—											0	0	no parseable JSON on stdout
+video_2k_play	default	go	run	NO_JSON	1	—											0	0	no parseable JSON on stdout
+video_4k_play	default	native	run	NO_JSON	1	—											0	0	no parseable JSON on stdout
+video_4k_play	default	go	run	NO_JSON	1	—											0	0	no parseable JSON on stdout
+video_a2_sync	default	native	run	FAIL	1	—											0	0	JSON pass/ok=false
+video_a2_sync	default	go	run	FAIL	1	—											0	0	JSON pass/ok=false
+video_a4_sink	default	native	run	FAIL	1	—											0	0	JSON pass/ok=false
+video_a4_sink	default	go	run	FAIL	1	—											0	0	JSON pass/ok=false
+video_b1_frag	default	native	run	FAIL	1	—											0	0	JSON pass/ok=false
+video_b1_frag	default	go	run	FAIL	1	—											0	0	JSON pass/ok=false
+video_s8_index	default	native	run	FAIL	1	—											0	0	JSON pass/ok=false
+video_s8_index	default	go	run	FAIL	1	—											0	0	JSON pass/ok=false
+video_vc0_fullplay	default	native	run	FAIL	1	—	0.0000%			19.02			57.03	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vc0_fullplay	default	go	run	FAIL	1	—	0.0000%			18.44			57.12	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vc1_seek_fault	default	native	run	FAIL	1	—	0.0000%			19.29			57.09	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vc1_seek_fault	default	go	run	FAIL	1	—	0.0000%			18.60			57.08	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vc2_soak	default	native	run	FAIL	1	—	0.0000%			19.58			57.13	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vc2_soak	default	go	run	FAIL	1	—	0.0000%			18.64			57.44	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vc3_embed_extend	default	native	run	FAIL	1	—	0.0000%			19.54			56.96	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vc3_embed_extend	default	go	run	FAIL	1	—	0.0000%			18.51			57.15	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vr0_demux	default	native	run	PASS	0	—	0.0000%			19.55			55.94	true		0	0	0	vsync_source=true (not a source name)
+video_vr0_demux	default	go	run	PASS	0	—	0.0000%			18.44			54.32	true		0	0	0	vsync_source=true (not a source name)
+video_vr1_params	default	native	run	PASS	0	—	0.0000%			19.40			55.82	true		0	0	0	vsync_source=true (not a source name)
+video_vr1_params	default	go	run	NO_JSON	1	—											0	0	no parseable JSON on stdout
+video_vr2_decode	default	native	run	PASS	0	—	0.0000%			20.63			59.28	true		0	0	0	vsync_source=true (not a source name)
+video_vr2_decode	default	go	run	PASS	0	—	0.0000%			18.80			58.74	true		0	0	0	vsync_source=true (not a source name)
+video_vr3_color	default	native	run	FAIL	1	—	0.0000%			20.70			57.50	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vr3_color	default	go	run	FAIL	1	—	0.0000%			20.31			55.98	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vr4_play	default	native	run	PASS	0	—	0.0000%			19.15			56.94	true		0	0	0	vsync_source=true (not a source name)
+video_vr4_play	default	go	run	PASS	0	—	0.0000%			18.54			57.11	true		0	0	0	vsync_source=true (not a source name)
+video_vr5_seek	default	native	run	FAIL	1	—	0.0000%			20.48			59.17	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vr5_seek	default	go	run	FAIL	1	—	0.0000%			18.47			58.72	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vr6_fault	default	native	run	PASS	0	—	0.0000%			20.35			59.16	true		0	0	0	vsync_source=true (not a source name)
+video_vr6_fault	default	go	run	PASS	0	—	0.0000%			18.37			58.69	true		0	0	0	vsync_source=true (not a source name)
+video_vr7_perf	default	native	run	FAIL	1	—	0.0000%			19.31			57.09	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vr7_perf	default	go	run	FAIL	1	—	0.0000%			18.44			57.34	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vr8_embed	default	native	run	PASS	0	—	0.0000%			19.58			56.71	true		0	0	0	vsync_source=true (not a source name)
+video_vr8_embed	default	go	run	PASS	0	—	0.0000%			18.24			56.77	true		0	0	0	vsync_source=true (not a source name)
+video_vr9_registry	default	native	run	FAIL	1	—	0.0000%			19.24			56.83	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+video_vr9_registry	default	go	run	FAIL	1	—	0.0000%			18.75			56.28	true		0	0	0	exit code 1; vsync_source=true (not a source name)
+ui_render_jumprope	default	native	run	PASS	0	0								true	integrated		1	1	vsync_source=true (not a source name)
+ui_render_jumprope	default	go	run	PASS	0	0								true	integrated		1	1	vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_particle	default	native	run	PASS	0	0								true	integrated		1	1	vsync_source=true (not a source name)
+ui_render_particle	default	go	run	PASS	0	0								true	integrated		1	1	vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+ui_render_pelican	default	native	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name)
+ui_render_pelican	default	go	run	PASS	0	—								true	integrated		0	0	vsync_source=true (not a source name); GPUI_BACKEND=go: gpu_backend still integrated (present-only switch)
+zz_soak_control	default	native	run	NO_JSON	0	—											0	0	no parseable JSON on stdout
+zz_soak_control	default	go	run	NO_JSON	0	—											0	0	no parseable JSON on stdout

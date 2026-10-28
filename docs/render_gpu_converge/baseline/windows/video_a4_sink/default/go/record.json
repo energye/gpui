@@ -1,0 +1,107 @@
+{
+  "window": "video_a4_sink",
+  "path": "examples/video/video_a4_sink",
+  "family": "video",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 15,
+    "batch": false
+  },
+  "run_column": "A/15s",
+  "tolerance": "—",
+  "effective_tolerance": null,
+  "golden_cell": "—",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/video__video_a4_sink.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "15"
+  },
+  "start_utc": "2026-10-28T13:14:43.323769+00:00",
+  "elapsed_sec": 3.3070216178894043,
+  "rc": 1,
+  "timed_out": false,
+  "status": "FAIL",
+  "notes": [
+    "JSON pass/ok=false"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "ability_id": "A4",
+    "failed_items": 1,
+    "gate_error": "identity:本该静音却有声",
+    "groups": [
+      {
+        "name": "identity",
+        "passed": 0,
+        "total": 1,
+        "note": "本该静音却有声"
+      },
+      {
+        "name": "convert",
+        "passed": 11,
+        "total": 11,
+        "note": "11向量逐位对"
+      },
+      {
+        "name": "wav",
+        "passed": 1,
+        "total": 1,
+        "note": "头3包WAV逐位对"
+      },
+      {
+        "name": "pump",
+        "passed": 1,
+        "total": 1,
+        "note": "声领画随 画71 音74 差0"
+      },
+      {
+        "name": "device",
+        "passed": 1,
+        "total": 1,
+        "note": "paplay-pulse就绪"
+      }
+    ],
+    "item_count": 15,
+    "pass": false,
+    "passed": 14,
+    "probe_ok": 0,
+    "scenario": "video_a4_sink",
+    "stage": "probes",
+    "total_items": 15,
+    "verdict": "fail"
+  },
+  "metrics": {
+    "pass": false,
+    "ability_id": "A4",
+    "scenario": "video_a4_sink"
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

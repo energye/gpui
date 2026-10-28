@@ -32,15 +32,16 @@
 | `baseline/vet.txt` | **P1.2 `go vet` 基线（P1.2b 修复后）**：环境/命令/过滤口径、默认与 nogpu 两轮原始输出、352/348 包逐包状态、61 条告警逐条登记、已知问题 V-0/W-U/W-T/W-D | 不装测试执行结果（归 P1.3 `baseline/tests/`） |
 | `evidence/P1.2b/` | **P1.2b nogpu 测试标签修复证据**：`summary.md`（20 个文件根因/改动/验证）、修复前后 vet 与测试编译原始输出、两模式包清单 | 不重复 `baseline/vet.txt` 的基线表 |
 | `baseline/tests/` | **P1.3 逐测试文件基线**：`summary.md`（结论/失败分组/P2 交接）、`summary.tsv`（1398 行）、`failures.tsv`（48 行）、`skips.tsv`（239 行）、`logs/`（逐文件原始日志 + `clean-rerun/` + `crosscheck/`）、`failures/`（T1/app/integration/opt24/28/29 原始栈）；1398 文件逐文件执行，1264 PASS / 48 FAIL / 86 SKIP；46 个 `RequestDevice` SKIP 首轮与干净重跑均复现 | 不装 vet（归 P1.2）；不装真窗（归 P1.4） |
+| `baseline/windows/` | **P1.4 全部真窗基线**：162 窗 / 183 变体，native + `GPUI_BACKEND=go` 两档；逐窗 JSON/stdout/stderr、GPU readback/冻结金图、金图 diff、容差、p95/p99、vsync；8 张运行期基线归档到 `default/native/snapshots/`；FAIL/SKIP/BUILD/TIMEOUT 逐条原因；全局 `summary.md`/`summary.tsv` + 逐窗 `README.md` | 不装阈值数字（归 P0.1）；不装专项显存账本（归 P1.6）；不改代码、不修 FAIL |
 
-## 当前进度（P0 已收口；P1 基线冻结进行中，下一任务 P1.4）
+## 当前进度（P0 已收口；P1 基线冻结进行中，下一任务 P1.5）
 
 > 状态真源是 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2；本表只是索引镜像，两边不一致以台账为准。
 
 | 编号 | 任务 | 状态 | 证据 / 产出 |
 |---|---|---|---|
 | P0.1 | 验收阈值与环境清单 | ✅ 2026-10-28 | `baseline/thresholds.md` |
-| P0.2 | 真窗与金图清单 | ✅ 2026-10-28 | `baseline/windows.md`（自校验实测：162 真窗 / 28 headless；金图 114 仓内 / 8 运行期 / 40 无；缺图 0） |
+| P0.2 | 真窗与金图清单 | ✅ 2026-10-28 | `baseline/windows.md`（自校验实测：162 真窗 / 28 headless；P1.4 归档后金图 122 仓内 / 0 运行期 / 40 无；缺图 0） |
 | P0.3 | 归档与回滚演练 | ✅ 2026-10-28 | `baseline/rollback.md`：R1–R8 全 PASS——回退点 `876b7835` 可辨认（`baseline/` 不存在、台账下一任务 P0.1），恢复后树哈希与三文件 sha1 逐位一致、status 不变、演练 tag/worktree 清零；R5 按「相对起点无新增失败」口径（首轮两次红与原因保留在文档内）；发现 `ui_wr_t_stress` 引用不存在的包，移交 P1.1 |
 | P0.4 | 双后端一致性测试台 | ✅ 2026-10-28 | `baseline/conformance/`：3 场景（`solid_gradient`/`clip_blend`/`text_image`）× 2 后端（native/go）全 PASS，`gpu_ops` 3/3/2、CPU 回退 0，跨后端像素差 ≤2/255（text_image 逐字节一致）；负向对照转红；比较器单测 PASS。已知差异 K1（每轮 +2 条/+131072 字节，双后端一致）登记 P1.6/P2.4c；metal/Win32 未验（无真机）。入口 `render/conformance_test.go`，用例 `render/testdata/conformance/` |
 | P1.1 | 六目标交叉编译 + `-tags nogpu` | ✅ 2026-10-28（采集完成，修复前 4 目标有红项） | `baseline/build/`（现已由 P1.1b 刷新为修复后基线，修复前输出留在 `0b97eeb3`）：修复前 linux×2 默认 351 包 PASS、windows/darwin×2/js 红项 B1–B6 逐条登记 |
@@ -48,6 +49,7 @@
 | P1.2 | `go vet ./...` | ✅ 2026-10-28 | `baseline/vet.txt`：默认 352 包（含仅有测试文件的 `ui/scene/internal/gpupixel`）/ 3 包 61 条（59 unsafe + 2 unreachable）；nogpu 348 包 / 2 包 58 条 unsafe；两模式类型错误 0；原始 `./...` 仅剩 `ui_wr_t_stress` 已知加载错误；告警逐条登记（ui/platform 线外 56、P2.5 测试卫生 3、P2.5 死代码 2） |
 | P1.2b | nogpu 测试标签修复 | ✅ 2026-10-28 | `evidence/P1.2b/`：20 个测试文件补 `//go:build !nogpu`（`render/internal/gpu` 9 + `render` 11）；nogpu vet 348 包完成、0 类型错误；nogpu 测试编译 137 ok / 211 no test / 0 FAIL；默认 vet 61 条不变（仅 `view_raw_attack` 行号 11→13） |
 | P1.3 | 逐测试文件运行 | ✅ 2026-10-28 | `baseline/tests/`：1398 文件逐文件执行；1264 PASS / 48 FAIL / 86 SKIP；0 缺失/0 重复/0 多余；48 条失败逐条分类并给 P2 归属；T1 原始栈；46 个 `RequestDevice` SKIP 首轮与干净重跑均复现；`ui/scene`/`video` 整包交叉复核 |
+| P1.4 | 全部真窗采集 | ✅ 2026-10-29 | `baseline/windows/`：162 窗 / 183 变体，native 191 轮（PASS 111 / FAIL 60 / NO_JSON 8 / SEED 8 / BUILD_FAIL 1 / PROBE 1 / SKIP 2）+ go 183 轮（PASS 108 / FAIL 51 / NO_JSON 20 / BUILD_FAIL 1 / PROBE 1 / SKIP 2），`summary.tsv` 374 行无 MISSING；8 张运行期金图播种→次遍 diff=0，基线归档 `default/native/snapshots/`、容差回填 `0`；逐窗 JSON/PNG/goldens/README + 全局 `summary.md`；FAIL/SKIP/BUILD/NO_JSON 逐条原因登记不修（14 窗 x11grab 黑图环境 FAIL、`ui_wr_t_stress` BUILD_FAIL、r6 金图真源不一致移交 P2），修复归 P2 |
 
 ## 先看哪个
 

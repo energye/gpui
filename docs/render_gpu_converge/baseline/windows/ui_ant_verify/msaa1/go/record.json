@@ -1,0 +1,65 @@
+{
+  "window": "ui_ant_verify",
+  "path": "examples/ui_ant_verify",
+  "family": "render",
+  "variant": "msaa1",
+  "variant_note": "MSAA 1x golden",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 5,
+    "batch": false
+  },
+  "run_column": "A/5s",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "`testdata/ant_verify_msaa{1,4}_base.png`",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/ui_ant_verify.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_MSAA": "1",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "5"
+  },
+  "start_utc": "2026-10-28T12:38:10.349351+00:00",
+  "elapsed_sec": 5.781293630599976,
+  "rc": 0,
+  "timed_out": false,
+  "status": "NO_JSON",
+  "notes": [
+    "no parseable JSON on stdout"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [
+    "gpui_ui_ant_verify_snapshot.png"
+  ],
+  "goldens": [
+    "testdata/ant_verify_msaa1_base.png",
+    "testdata/ant_verify_msaa4_base.png"
+  ],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": false,
+  "json": null,
+  "metrics": {},
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

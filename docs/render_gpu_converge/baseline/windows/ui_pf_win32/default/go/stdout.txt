@@ -1,0 +1,1 @@
+{"backend":"win32","mode":"skip","pass":true,"rows":[{"Name":"Controller","OK":false,"Detail":"SKIP: Win32 real-window verification runs on Windows (this is linux)"}]}

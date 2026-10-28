@@ -1,0 +1,15 @@
+{
+  "window": "ui_wr_t_stress",
+  "path": "examples/ui_wr_t_stress",
+  "variant": "default",
+  "backend": "native",
+  "run_kind": "run",
+  "status": "BUILD_FAIL",
+  "rc": null,
+  "error": "binary missing: /tmp/p14/bin/ui_wr_t_stress.bin",
+  "tolerance": "—",
+  "run": "A/8s",
+  "snapshots": [],
+  "goldens": [],
+  "metrics": {}
+}

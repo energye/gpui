@@ -1,0 +1,1 @@
+{"taps":0,"pan_starts":0,"pan_updates":0,"overlay_count":0,"focus_id":"","gesture_arena_depth":0,"focus_changes":0}

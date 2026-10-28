@@ -1,0 +1,61 @@
+{
+  "window": "ui_wr_r15_soak",
+  "path": "examples/ui_wr_r15_soak",
+  "family": "ui_wr",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "go",
+  "run_kind": "confirm",
+  "run_mode": {
+    "mode": "R",
+    "seconds": 300,
+    "batch": false
+  },
+  "run_column": "R=300s",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "运行期 `/tmp/r15_soak/r15_final_base.png`（`R15_SNAP_DIR`）",
+  "args": [],
+  "cmd": [
+    "/tmp/p14/bin/ui_wr_r15_soak.bin"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "R15_SNAP_DIR": "/home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/baseline/windows/ui_wr_r15_soak/default/go/snapshots",
+    "RUN_SECONDS": "300"
+  },
+  "start_utc": "2026-10-28T12:45:53.947964+00:00",
+  "elapsed_sec": 0.40236759185791016,
+  "rc": 1,
+  "timed_out": false,
+  "status": "NO_JSON",
+  "notes": [
+    "no parseable JSON on stdout"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [
+    "r15_final_base.png"
+  ],
+  "goldens": [
+    "r15_final_base.png"
+  ],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": false,
+  "json": null,
+  "metrics": {},
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

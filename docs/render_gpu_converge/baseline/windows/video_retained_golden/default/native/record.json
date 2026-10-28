@@ -1,0 +1,116 @@
+{
+  "window": "video_retained_golden",
+  "path": "examples/video/video_retained_golden",
+  "family": "video",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "native",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": null,
+    "batch": false
+  },
+  "run_column": "A",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "`testdata/showcase_retained_golden_dpr1_base.png`",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/video__video_retained_golden.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_RULER_BACKEND": "x11"
+  },
+  "start_utc": "2026-10-28T12:02:47.027740+00:00",
+  "elapsed_sec": 6.7404539585113525,
+  "rc": 0,
+  "timed_out": false,
+  "status": "PASS",
+  "notes": [],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [
+    "video_retained_golden_a.png",
+    "video_retained_golden_b.png"
+  ],
+  "goldens": [
+    "testdata/showcase_retained_golden_dpr1_base.png"
+  ],
+  "missing_a_fields": [
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "ability_id": "video_retained_golden",
+    "scenario": "one committed NV12 frame -> RenderVideo -> scene.TextureLayer -> retained composite",
+    "elapsed_sec": 6.164405561,
+    "fixture": "video/testdata/c4_golden_904x656_nv12.yuv",
+    "fps_wall": 55.317580361257484,
+    "present_count": 341,
+    "paint_count": 1,
+    "video_frames": 1,
+    "video_uploads": 1,
+    "video_fallbacks": 0,
+    "uploaded": true,
+    "upload_pending": false,
+    "video_drew_ok": true,
+    "video_drew_last": true,
+    "retained_tex_painted_max": 1,
+    "video_record_skips": 0,
+    "retained_snapshot_a_ok": true,
+    "retained_snapshot_b_ok": true,
+    "retained_stability_error": "",
+    "pixel_color_ok": 4,
+    "pixel_color_total": 4,
+    "pixel_probes": [
+      {
+        "desc": "red",
+        "ok": true
+      },
+      {
+        "desc": "green",
+        "ok": true
+      },
+      {
+        "desc": "blue",
+        "ok": true
+      },
+      {
+        "desc": "magenta",
+        "ok": true
+      }
+    ],
+    "retained_stability_diff_pct": 0,
+    "pixel_golden_diff_pct": 0,
+    "pixel_golden_total_px": 589908,
+    "pixel_golden_mask_px": 589908,
+    "pixel_golden_first_run": false,
+    "pixel_golden_base_ok": true,
+    "pixel_golden_base": "examples/video/video_retained_golden/testdata/showcase_retained_golden_dpr1_base.png"
+  },
+  "metrics": {
+    "fps_wall": 55.317580361257484,
+    "present_count": 341,
+    "paint_count": 1,
+    "elapsed_sec": 6.164405561,
+    "golden_diff_pct": 0.0,
+    "golden_total_px": 589908.0,
+    "golden_first_run": false,
+    "ability_id": "video_retained_golden",
+    "scenario": "one committed NV12 frame -> RenderVideo -> scene.TextureLayer -> retained composite"
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

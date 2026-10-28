@@ -1,0 +1,71 @@
+{
+  "window": "ui_textinput_ime",
+  "path": "examples/ui_textinput_ime",
+  "family": "base",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "native",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": null,
+    "batch": false
+  },
+  "run_column": "A",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "`testdata/textinput_ime_base.png`",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/ui_textinput_ime.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_RULER_BACKEND": "x11"
+  },
+  "start_utc": "2026-10-28T11:55:50.487588+00:00",
+  "elapsed_sec": 5.875490188598633,
+  "rc": 0,
+  "timed_out": false,
+  "status": "PASS",
+  "notes": [
+    "missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [
+    "testdata/textinput_ime.png"
+  ],
+  "goldens": [
+    "testdata/textinput_ime_base.png"
+  ],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "backend": "x11",
+    "blink_ticks": 0,
+    "compose_active": false,
+    "preedit_events": 0,
+    "selftest": false,
+    "snapshot": "examples/ui_textinput_ime/testdata/textinput_ime.png",
+    "text": "你好ba"
+  },
+  "metrics": {
+    "backend": "x11"
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

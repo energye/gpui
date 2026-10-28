@@ -1,0 +1,1 @@
+{"backend":"appkit","mode":"skip","pass":true,"rows":[{"Name":"Controller","OK":false,"Detail":"SKIP: AppKit real-window verification runs on macOS (this is linux)"}]}

@@ -1,0 +1,57 @@
+{
+  "window": "ui_ime_probe",
+  "path": "examples/ui_ime_probe",
+  "family": "base",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "M",
+    "seconds": null,
+    "batch": false
+  },
+  "run_column": "M",
+  "tolerance": "—",
+  "effective_tolerance": null,
+  "golden_cell": "—",
+  "args": [],
+  "cmd": [
+    "/tmp/p14/bin/ui_ime_probe.bin"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11"
+  },
+  "start_utc": "2026-10-28T13:06:40.768419+00:00",
+  "elapsed_sec": 23.016074895858765,
+  "rc": -15,
+  "timed_out": true,
+  "status": "PROBE",
+  "notes": [
+    "manual probe: WM_DELETE not honored; SIGTERM fallback used",
+    "process did not self-close; WM_DELETE/SIGTERM fallback used",
+    "manual probe: classified PROBE (no JSON gate)"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": false,
+  "json": null,
+  "metrics": {},
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

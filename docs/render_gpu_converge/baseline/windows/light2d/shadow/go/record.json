@@ -1,0 +1,66 @@
+{
+  "window": "light2d",
+  "path": "examples/engine/light2d",
+  "family": "engine",
+  "variant": "shadow",
+  "variant_note": "engine case shadow",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 8,
+    "batch": false
+  },
+  "run_column": "A/8s",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "`testdata/soft_{none,pcf5,pcf13}_golden.png`",
+  "args": [
+    "--case=shadow",
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/engine__light2d.bin",
+    "--case=shadow",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "8"
+  },
+  "start_utc": "2026-10-28T12:23:56.755791+00:00",
+  "elapsed_sec": 0.4015686511993408,
+  "rc": 1,
+  "timed_out": false,
+  "status": "NO_JSON",
+  "notes": [
+    "no parseable JSON on stdout"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [
+    "testdata/light2d_final_base.png",
+    "testdata/soft_none_golden.png",
+    "testdata/soft_pcf13_golden.png",
+    "testdata/soft_pcf5_golden.png"
+  ],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": false,
+  "json": null,
+  "metrics": {},
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

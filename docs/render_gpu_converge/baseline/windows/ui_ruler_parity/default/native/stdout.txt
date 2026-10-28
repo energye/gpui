@@ -1,0 +1,2 @@
+{"event":"RULER_FINAL","fps_avg":0.02,"frames":1,"p95_ms":0,"raster_p95_ms":42.85,"scene":"flutter_spin","t_s":"60.2"}
+{"elapsed_sec":60.17,"event":"RULER_GATE","golden_diff_pct":0,"golden_ok":true,"golden_seeded":false,"golden_total_px":153600,"logic":"presents=1 frames=0 cpu_fallback=0 warmup=true first_present_ms=84.17","logic_ok":true,"pass":true,"pixel_ok":true,"presents":1,"scene":"flutter_spin","snapshot":"examples/ui_ruler_parity/testdata/showcase_flutter_spin.png"}

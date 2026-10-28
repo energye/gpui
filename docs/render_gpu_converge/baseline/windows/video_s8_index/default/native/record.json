@@ -1,0 +1,93 @@
+{
+  "window": "video_s8_index",
+  "path": "examples/video/video_s8_index",
+  "family": "video",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "native",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 15,
+    "batch": false
+  },
+  "run_column": "A/15s",
+  "tolerance": "—",
+  "effective_tolerance": null,
+  "golden_cell": "—",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/video__video_s8_index.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "15"
+  },
+  "start_utc": "2026-10-28T12:03:30.688505+00:00",
+  "elapsed_sec": 0.6032404899597168,
+  "rc": 1,
+  "timed_out": false,
+  "status": "FAIL",
+  "notes": [
+    "JSON pass/ok=false"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "ability_id": "S8",
+    "failed_items": 2,
+    "gate_error": "seek:vr_stream_long.mp4/100000:跳后黑屏: 落点100000没播出来",
+    "groups": [
+      {
+        "name": "seek",
+        "passed": 7,
+        "total": 8,
+        "note": "vr_stream_long.mp4/100000:跳后黑屏: 落点100000没播出来"
+      },
+      {
+        "name": "show",
+        "passed": 7,
+        "total": 8,
+        "note": "vr_stream_long.mp4/100000没播出来"
+      },
+      {
+        "name": "path",
+        "passed": 2,
+        "total": 2,
+        "note": "全片流式"
+      }
+    ],
+    "item_count": 18,
+    "pass": false,
+    "passed": 16,
+    "probe_ok": 0,
+    "scenario": "video_s8_index",
+    "stage": "probes",
+    "total_items": 18
+  },
+  "metrics": {
+    "pass": false,
+    "ability_id": "S8",
+    "scenario": "video_s8_index"
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

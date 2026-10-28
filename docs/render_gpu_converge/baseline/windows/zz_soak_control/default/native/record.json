@@ -1,0 +1,56 @@
+{
+  "window": "zz_soak_control",
+  "path": "examples/zz_soak_control",
+  "family": "demo",
+  "variant": "default",
+  "variant_note": "three-window control",
+  "backend": "native",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "R",
+    "seconds": 180,
+    "batch": true
+  },
+  "run_column": "批量(3 窗) R=180s",
+  "tolerance": "—",
+  "effective_tolerance": null,
+  "golden_cell": "—",
+  "args": [],
+  "cmd": [
+    "/tmp/p14/bin/zz_soak_control.bin"
+  ],
+  "env_subset": {
+    "CTRL_WINDOWS": "3",
+    "DISPLAY": ":3",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "180"
+  },
+  "start_utc": "2026-10-28T12:13:13.937380+00:00",
+  "elapsed_sec": 180.74324250221252,
+  "rc": 0,
+  "timed_out": false,
+  "status": "NO_JSON",
+  "notes": [
+    "no parseable JSON on stdout"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [],
+  "goldens": [],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": false,
+  "json": null,
+  "metrics": {},
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

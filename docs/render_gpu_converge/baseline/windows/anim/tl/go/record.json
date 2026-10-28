@@ -1,0 +1,117 @@
+{
+  "window": "anim",
+  "path": "examples/engine/anim",
+  "family": "engine",
+  "variant": "tl",
+  "variant_note": "engine case tl",
+  "backend": "go",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 8,
+    "batch": false
+  },
+  "run_column": "A/8s",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "`testdata/{fsm,lod,sk,tl}_golden.png`（4）",
+  "args": [
+    "--case=tl",
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/engine__anim.bin",
+    "--case=tl",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_BACKEND": "go",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "8"
+  },
+  "start_utc": "2026-10-28T12:21:56.631215+00:00",
+  "elapsed_sec": 0.10109639167785645,
+  "rc": 1,
+  "timed_out": false,
+  "status": "FAIL",
+  "notes": [
+    "JSON pass/ok=false",
+    "missing A fields: fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [
+    "testdata/fsm_final.png",
+    "testdata/tl_last.png"
+  ],
+  "goldens": [
+    "testdata/fsm_final_base.png",
+    "testdata/fsm_golden.png",
+    "testdata/lod_final_base.png",
+    "testdata/lod_golden.png",
+    "testdata/sk_final_base.png",
+    "testdata/sk_golden.png",
+    "testdata/tl_final_base.png",
+    "testdata/tl_golden.png"
+  ],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": true,
+  "json": {
+    "ability_id": "anim-tl",
+    "extra": {
+      "alpha_mid_ok": true,
+      "duration_ok": true,
+      "event_order": [
+        "slash_show",
+        "sfx_swing",
+        "call_spawn",
+        "hide",
+        "exit"
+      ],
+      "event_order_ok": true,
+      "events_ok": true,
+      "field_ok": true,
+      "golden_diff_pct": 25.76953125,
+      "golden_ok": false,
+      "golden_total_px": 128000,
+      "key_dot_ok": true,
+      "key_ok": true,
+      "parity_changed_pct": 0,
+      "parity_mean_abs": 0,
+      "parity_ok": true,
+      "parity_replay_ok": true,
+      "pixel_ok": true,
+      "probe_ok": true,
+      "pure_ok": true,
+      "seq_ok": true,
+      "tick_ok": true,
+      "tracks_ok": true,
+      "wrap_ok": true,
+      "x_mid_ok": true
+    },
+    "pass": false,
+    "scenario": "game_anim--case=tl"
+  },
+  "metrics": {
+    "offscreen_golden_diff_pct": 25.76953125,
+    "golden_diff_pct": 25.76953125,
+    "offscreen_golden_total_px": 128000.0,
+    "golden_total_px": 128000.0,
+    "pass": false,
+    "ability_id": "anim-tl",
+    "scenario": "game_anim--case=tl"
+  },
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

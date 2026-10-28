@@ -1,0 +1,62 @@
+{
+  "window": "ui_render_base_text",
+  "path": "examples/ui_render_base_text",
+  "family": "render",
+  "variant": "default",
+  "variant_note": "default case",
+  "backend": "native",
+  "run_kind": "run",
+  "run_mode": {
+    "mode": "A",
+    "seconds": 15,
+    "batch": false
+  },
+  "run_column": "A/15s",
+  "tolerance": "0",
+  "effective_tolerance": 0,
+  "golden_cell": "`testdata/showcase_text_base.png`",
+  "args": [
+    "-auto-only"
+  ],
+  "cmd": [
+    "/tmp/p14/bin/ui_render_base_text.bin",
+    "-auto-only"
+  ],
+  "env_subset": {
+    "DISPLAY": ":3",
+    "GPUI_RULER_BACKEND": "x11",
+    "RUN_SECONDS": "15"
+  },
+  "start_utc": "2026-10-28T11:05:51.283496+00:00",
+  "elapsed_sec": 16.205435276031494,
+  "rc": 1,
+  "timed_out": false,
+  "status": "NO_JSON",
+  "notes": [
+    "no parseable JSON on stdout"
+  ],
+  "screen_ok": false,
+  "screen_png": null,
+  "snapshots": [
+    "testdata/showcase_text.png"
+  ],
+  "goldens": [
+    "testdata/showcase_text_base.png"
+  ],
+  "missing_a_fields": [
+    "fps_wall",
+    "interval_avg_ms",
+    "interval_p50_ms",
+    "interval_p95_ms",
+    "interval_p99_ms",
+    "hitch_count",
+    "hitch_rate_per_min",
+    "vsync_source",
+    "target_hz"
+  ],
+  "json_ok": false,
+  "json": null,
+  "metrics": {},
+  "stdout": "stdout.txt",
+  "stderr": "stderr.log"
+}

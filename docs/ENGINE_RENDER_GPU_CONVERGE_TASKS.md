@@ -47,21 +47,21 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：P1.4 全部真窗采集
-- 下一任务：P1.5 每包公开 API 快照 + 测试计数快照
-- 最近完成：P1.3 逐测试文件运行（2026-10-28，`baseline/tests/`）：1398 文件逐文件执行，1264 PASS / 48 FAIL / 86 SKIP；46 个 `RequestDevice` SKIP 首轮与干净重跑均复现；T1 原始栈保留
+- 当前进行中：P1.5 每包公开 API 快照 + 测试计数快照
+- 下一任务：P1.6 开窗/关窗/压测后显存账本快照
+- 最近完成：P1.4 全部真窗采集（2026-10-29，`baseline/windows/`）：162 窗 / 183 变体两后端采集完成，native 191 轮（PASS 111 / FAIL 60 / NO_JSON 8 / SEED 8 / BUILD_FAIL 1 / PROBE 1 / SKIP 2）+ go 183 轮（PASS 108 / FAIL 51 / NO_JSON 20 / BUILD_FAIL 1 / PROBE 1 / SKIP 2），汇总 374 行无 MISSING；8 张运行期金图基线归档 `default/native/snapshots/`，容差回填 `0`；全部 FAIL/SKIP/BUILD/NO_JSON 逐条登记 `summary.md`，修复归 P2
 - 阻塞项：无
 
 **下一任务验证载体（开工前必须填，不填不得开工）**
 
-- 任务：P1.4 全部真窗采集
-- 能力单测：无（基线采集任务）；判据是按 `baseline/windows.md` 的逐窗执行表采集，每窗产出 JSON 探针 + PNG + 金图 diff 计数 + 容差声明，并按 §2.2 指标族 A–J 检查字段完备性与诚实性
-- 真窗：`baseline/windows.md` 的 162 真窗 + 28 headless（合计 190）；按清单 §5 顺序执行，覆盖 `examples/engine/`、`examples/video/`、`examples/ui_wr_*` 等
-- 金图：仓内 114 张 + 运行期 8 张 + 无金图 40 张；运行期基线归档到 `baseline/windows/<窗名>/` 并把容差回填为 `0`；无金图逐窗写原因与替代判定
-- 双后端：按 `baseline/windows.md` 的平台/后端列采集；native 与 `GPUI_BACKEND=go` 两档都跑，跑不了的档写原因，不静默标绿
+- 任务：P1.5 每包公开 API 快照（`go doc -all`）+ 测试计数快照
+- 能力单测：无（基线快照任务）；判据是每包 `go doc -all` 落盘、测试函数计数统计落盘，两份清单对包集合零缺失零多余
+- 真窗：无（不开真窗）
+- 金图：无
+- 双后端：主快照按默认构建标签采集；nogpu 侧差异沿用 P1.2b 登记的 20 个带标签测试文件清单说明，不另采
 - 负向对照：本任务不注入破坏；P1.8 统一做
-- 证据：`baseline/windows/`（逐窗 JSON、PNG、diff 计数、容差、运行日志）
-- 边界：不改代码；真窗 FAIL/SKIP 逐条登记，修复留给 P2 对应条目
+- 证据：`baseline/api/`（逐包 doc 快照 + 测试计数汇总）
+- 边界：不改代码；只做快照与计数，作为 P2 对账的尺子
 
 > 每次状态变更必须同时更新本小节；新会话从这里接着做，开工前先把上面这块换成新任务的载体登记。
 
@@ -78,7 +78,7 @@
 | P1.2 | `go vet ./...` | P0.1–P0.3 | ✅ | `baseline/vet.txt` |
 | P1.2b | nogpu 测试标签修复（P1.2 采集发现：20 个测试文件补 `//go:build !nogpu`，用户决定插队） | P1.2 | ✅ | `evidence/P1.2b/` |
 | P1.3 | 逐测试文件运行，记录 PASS/SKIP/FAIL（SKIP 带原因） | P0.1–P0.3 | ✅ | `baseline/tests/` |
-| P1.4 | 全部真窗：JSON 探针 + PNG + 金图 diff 计数 + 容差声明 | P0.1、P0.2 | ⬜ | `baseline/windows/` |
+| P1.4 | 全部真窗：JSON 探针 + PNG + 金图 diff 计数 + 容差声明 | P0.1、P0.2 | ✅ | `baseline/windows/` |
 | P1.5 | 每包公开 API 快照（`go doc -all`）+ 测试计数快照 | P0.1–P0.3 | ⬜ | `baseline/api/` |
 | P1.6 | 开窗/关窗/压测后显存账本快照 | P0.1、P0.2 | ⬜ | `baseline/vram/` |
 | P1.7 | 首帧、滚动帧率、p95/p99 性能基线 | P0.1、P0.2 | ⬜ | `baseline/perf/` |
@@ -366,6 +366,7 @@ docs/render_gpu_converge/
 | 2026-10-28 | P1.2b | ⬜→✅ 20 个测试文件补 `//go:build !nogpu`（插队当日完成） | nogpu vet 348 包完成、58 条 unsafe、0 类型错误；nogpu 测试编译 137 ok / 211 no test files / 0 FAIL；默认 vet 61 条诊断不变（仅 `view_raw_attack_test.go` 行号 11→13）。证据 `evidence/P1.2b/` |
 | 2026-10-28 | P1.2 | 🟡→✅ 两模式完成分析，告警逐条登记 | `baseline/vet.txt`：默认 352 包 / 3 包 61 条（59 unsafe + 2 unreachable）；nogpu 348 包 / 2 包 58 条 unsafe；原始 `./...` 仅剩 `ui_wr_t_stress` 已知加载错误；告警归属：ui/platform 线外 56、P2.5 测试卫生 3、P2.5 死代码 2 |
 | 2026-10-28 | P1.3 | ⬜→✅ 1398 文件逐文件跑完，T1 原始栈保留 | `baseline/tests/`：1264 PASS / 48 FAIL / 86 SKIP；1398 行 0 缺失、0 重复、0 多余；失败 48 条逐条分类并给 P2 归属；46 个 `RequestDevice` SKIP 首轮与干净重跑均复现（不是瞬跳）；长跑 `zz_b2_bitmap_scan` 1256.2s、`zz_b1_ttf_scan` 704.2s、`zz_b1_vf` 484.7s PASS；`ui/scene`/`video` 整包交叉复核日志在 `logs/crosscheck/` |
+| 2026-10-29 | P1.4 | ⬜→✅ 162 窗 / 183 变体两后端采集完成 | `baseline/windows/`：native 191 轮（PASS 111 / FAIL 60 / NO_JSON 8 / SEED 8 / BUILD_FAIL 1 / PROBE 1 / SKIP 2）+ go 183 轮（PASS 108 / FAIL 51 / NO_JSON 20 / BUILD_FAIL 1 / PROBE 1 / SKIP 2），`summary.tsv` 374 行无 MISSING。8 张运行期金图先 `GPUI_ACCEPT_GOLDEN=1` 播种、次遍 diff=0，基线归档 `default/native/snapshots/`、容差回填 `0`；逐窗 JSON/stdout/stderr/GPU readback 快照/goldens + 全局与逐窗 README。FAIL/SKIP/BUILD/NO_JSON 逐条原因登记（不修，归 P2）：14 窗自带 x11grab screen check 在 rootless Xwayland 抓黑图为环境 FAIL；`ui_wr_t_stress` 引用不存在的 `ui/kit/button`、`ui/kit/icon` BUILD_FAIL；`ui_ime_probe` 人工探针 WM_DELETE 不响应按兜底 SIGTERM 记 PROBE；`ui_text_edit_accept` 需 `GPUI_ACCEPT_RUN_SECONDS=30`，补跑后两后端 PASS（script 金图自动模式不逐位比较，登记 P2 决策）；`ui_pf_win32`/`ui_pf_appkit` 平台例外 SKIP；`ui_l1_blank`/`ui_pf_x11_device`/`ui_pf_x11_dnd` 等缺 A 族字段移交 P1.7；`ui_wr_r6_layer_anim` 表内金图与代码真源不一致（代码读 `R6_SNAP_DIR`，仓内 `golden/baseline_igpu.png` 仅归档参考）登记 P2 对齐 |
 
 ## 8 修订记录
 
@@ -377,3 +378,4 @@ docs/render_gpu_converge/
 | 2026-10-28 | 新增 §4.1 能力验证硬要求：每个任务必须带能力单测 + 真窗；开工前在 §2.1 登记四类载体，完成交五份证据；同步规则加第 9、10 条 |
 | 2026-10-28 | P0.4 收口：按 §4.1 一致性测试台口径（自带单测 + 3 场景双后端）标 ✅；资源断言以 K1 上界显式放宽（非静默跳过，已知差异表可见），收紧条件挂到 P1.6/P2.4c；修正「`GPUI_BACKEND` 切后端」「headless 不开窗」两处旧描述 |
 | 2026-10-28 | P1.3 收口：1398 文件逐文件跑完，1264 PASS / 48 FAIL / 86 SKIP；T1 原始栈保留；46 个 RequestDevice SKIP 复现；证据 `baseline/tests/`；§2.1 焦点切到 P1.4 |
+| 2026-10-29 | P1.4 收口：162 窗 / 183 变体 native+go 两档采集完成，native 191 轮 / go 183 轮，汇总 374 行无 MISSING；8 张运行期金图归档；FAIL/SKIP/BUILD/NO_JSON 逐条登记不修，修复归 P2；r6 金图真源不一致移交 P2；证据 `baseline/windows/`；§2.1 焦点切到 P1.5 |
