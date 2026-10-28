@@ -47,20 +47,21 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无
-- 下一任务：P1.1 六目标交叉编译 + `-tags nogpu`
-- 最近完成：P0.4（2026-10-28）
+- 当前进行中：P1.1b 跨平台构建修复（B1–B6）
+- 下一任务：P1.2 `go vet ./...`（P1.1b 之后）
+- 最近完成：P1.1（2026-10-28）
 - 阻塞项：无
 
-**下一任务验证载体（开工前必须填，不填不得开工）**
+**当前任务验证载体（开工前必须填，不填不得开工）**
 
-- 任务：P1.1 六目标交叉编译 + `-tags nogpu`
-- 能力单测：无（构建类任务，不新增单测）；判据为六目标 `go build ./...` 各一次 + `-tags nogpu` 一次，逐目标记录成功/失败
-- 真窗：无（不改代码、不跑窗）
-- 金图：N/A（不产出图像）
-- 双后端：默认构建（含 `render/gpu` native + `gwgpu/gles` 注册）与 `-tags nogpu` 各编一遍，确保两种后端组合都能交叉编译
-- 负向对照：本任务不注入破坏；已知红项（`examples/ui_wr_t_stress` 引用不存在包、`ui/scene/internal/gpupixel` 无非测试文件）逐条登记为基线已知问题，不隐藏
-- 证据：`baseline/build/`
+- 任务：P1.1b 跨平台构建修复（B1–B6）
+- 能力单测：无新增单测；判据是六目标构建矩阵由红转绿（对照 `baseline/build/` 修复前输出）+ P0.4 一致性测试台复跑（3 场景 × native/go）证明 Linux 行为零变化
+- 真窗：无新增；P0.4 测试台作行为守卫（GL 用不呈现的 X11 上下文窗）；真窗全量重放留给 P1.4
+- 金图：N/A（不改绘制路径）
+- 双后端：`native` 与 `go` 一致性测试台复跑，像素差与修复前一致（≤2/255，text_image 逐字节一致）
+- 负向对照：修复前六目标红项即对照基线；修复后同一矩阵逐项转绿，任何一项未转绿不得标 ✅
+- 证据：`evidence/P1.1b/`（修复后六目标输出 + 一致性复跑），并把 `baseline/build/` 刷新为修复后基线
+- 边界：只动构建标签/平台门禁与 Windows 加载层，不改 Linux 绘制、缓存、释放路径；已知问题包 `ui_wr_t_stress`、`gpupixel` 不在本任务范围
 
 > 每次状态变更必须同时更新本小节；新会话从这里接着做，开工前先把上面这块换成新任务的载体登记。
 
@@ -72,7 +73,8 @@
 | P0.2 | 真窗与金图清单（窗口名 → 金图 → 平台 → 容差 → 单窗/批量 → 覆盖能力标签） | — | ✅ | `baseline/windows.md` |
 | P0.3 | 归档与回滚演练（打 tag/建分支，实际回退一次证明可回） | — | ✅ | `baseline/rollback.md` |
 | P0.4 | 双后端一致性测试台（同场景 webgpu/gles/metal 逻辑断言，不比像素只比语义） | — | ✅ | `baseline/conformance/` |
-| P1.1 | 六目标交叉编译 + `-tags nogpu` | P0.1–P0.3 | ⬜ | `baseline/build/` |
+| P1.1 | 六目标交叉编译 + `-tags nogpu` | P0.1–P0.3 | ✅ | `baseline/build/` |
+| P1.1b | 跨平台构建修复（B1–B6，用户决定插队：P1.2 前完成并复跑 P1.1） | P1.1 | 🟡 | `evidence/P1.1b/` |
 | P1.2 | `go vet ./...` | P0.1–P0.3 | ⬜ | `baseline/vet.txt` |
 | P1.3 | 逐测试文件运行，记录 PASS/SKIP/FAIL（SKIP 带原因） | P0.1–P0.3 | ⬜ | `baseline/tests/` |
 | P1.4 | 全部真窗：JSON 探针 + PNG + 金图 diff 计数 + 容差声明 | P0.1、P0.2 | ⬜ | `baseline/windows/` |
@@ -159,6 +161,30 @@
   - 命令口径：`linux/amd64`、`linux/arm64`、`windows/amd64`、`darwin/amd64`、`darwin/arm64`、`js/wasm` 各跑一次 `go build ./...`；另跑 `-tags nogpu`。
   - 完成标准：每个目标的结果（成功/失败 + 失败包与错误）逐条落盘；失败项登记为基线已知问题，不隐藏。
   - 已知问题（P0.3 移交）：`examples/ui_wr_t_stress/main.go:38-39` 引用不存在的 `ui/kit/button`、`ui/kit/icon`，起点 `go build ./...` 即红（`876b7835` 与 `404d8e75` 同错）；`ui/scene/internal/gpupixel` 只有测试文件，显式列出构建时报告 `no non-test Go files`。P1.1 落盘时按此登记，修复另立任务。
+  - 执行结果（2026-10-28）：六目标 × 默认/nogpu × 原始/过滤/库范围全部落盘，详见 `baseline/build/summary.md` 与 `<os>-<arch>.txt`（go1.25.5，`CGO_ENABLED=0`，仓库 `1bd1a06e`）。
+    - linux/amd64、linux/arm64：默认主体 351 包 PASS；nogpu 主体 163 包加载失败；nogpu 库范围 140 包 PASS。
+    - windows/amd64：默认主体 3 包编译失败；nogpu 主体 163 包加载失败；库范围 2 包编译失败。
+    - darwin/amd64、darwin/arm64：默认主体 2 包编译失败；nogpu 主体 163 包加载失败；库范围 2 包编译失败。
+    - js/wasm：默认主体 214 包加载失败；nogpu 主体 209 包加载失败；库范围 134 包加载失败。
+  - 基线红项（P1 不改代码，逐条登记；修复需单列任务）：
+    - **B1** `-tags nogpu` 下 163 包（161 examples + 2 tools）加载失败：各 `main.go` 无条件 `import _ "…/render/gpu"`；`render_visual_*` 的 `gpu_enabled.go` 标签化导入只做了一半。
+    - **B2** `ui/platform/wayland_csd_font.go:36,203,207` 缺 `//go:build linux`，引用 Linux 专属 `csdBitmapGlyphH` → darwin/windows 编译失败。
+    - **B3** `gpu/gwgpu/gles` 未约束到 `linux || windows`：`command_encoder.go:43` 等未打标签文件引用 `gl.Context`/`Command`/`RenderPipeline`/`Buffer`/`Texture`/`BindGroup`，`gl` 只有 linux/windows 上下文 → darwin 编译失败；wasm 下 `gl` 无文件。
+    - **B4** `render/backend.go:23`、`present_construct.go:25`、`present_frame.go:24`、`present_target.go:16`、`present_swapchain_gl.go:18` 无条件注册/导入 gles → wasm 下 214 包断链。
+    - **B5** `gpu/rwgpu` Windows 缺 `unixProc`/`call1..call5`（`adapter.go:203`、`bindgroup.go:288,364`、`buffer.go:311,342`、`command.go:360,379,509,557,583`）；这些只在 `loader_unix.go`（`linux || darwin`）定义，`loader_windows.go` 无等价实现。webgpu facade 依赖 rwgpu，故 Windows webgpu 无法编译。
+    - **B6** `gpu/gwgpu/ffishim/ffishim.go:113,122,131` 使用 `purego.Dlopen/Dlsym/Dlclose`（仅 unix），Windows 需 `LoadLibrary/GetProcAddress` 或按平台拆文件。
+  - 归属（2026-10-28 用户决定）：B1–B6 插队修，列为 **P1.1b**，在 P1.2 之前完成并复跑 P1.1，使基线 tag 全绿；不塞进 P2.5。任务细则见下。
+- **P1.1b 跨平台构建修复（B1–B6）**
+  - 开工依据：P1.1 红项 B1–B6（见上）；用户决定插队到 P1.2 之前，修完复跑六目标并把 `baseline/build/` 刷新为修复后基线。
+  - 范围：
+    - **B1** 163 个消费方（161 examples + 2 tools）的无条件 `render/gpu` 导入按标签生效：默认仍注册 GPU，`-tags nogpu` 下不导入；优先复用既有 `gpu_enabled.go` 模式，不改变默认构建行为。
+    - **B2** `ui/platform/wayland_csd_font.go` 及其测试补 `//go:build linux`。
+    - **B3** `gpu/gwgpu/gles` 未打标签文件统一补 `(linux || windows) && !(js && wasm)`，与已打标签文件一致。
+    - **B4** `render` 的 gles 注册/导入按平台门禁（`linux || windows`，排除 js/wasm）；wasm 只走 webgpu。
+    - **B5** `gpu/rwgpu` Windows 加载层补齐 `unixProc`/`call1..call5` 等价实现（走 `loader_windows.go` 的 Library/Proc），不改 unix 路径。
+    - **B6** `gpu/gwgpu/ffishim` 按平台拆加载实现：Windows 走 `purego.LoadLibrary`/`GetProcAddress`，unix 保持 `Dlopen`。
+  - 完成标准：六目标默认 + nogpu 库范围全绿（两个已登记问题包 `ui_wr_t_stress`、`gpupixel` 除外，单独登记）；P0.4 一致性测试台 native/go 复跑与修复前一致（≤2/255，text_image 逐字节一致）；Linux `go build ./...` 除两个已登记问题包外全绿。
+  - 证据：`evidence/P1.1b/`（修复后六目标输出 + P0.4 复跑报告），并刷新 `baseline/build/` 与 `summary.md`。
 - **P1.2 `go vet ./...`**：输出落盘；既有告警逐条登记为基线已知问题。
 - **P1.3 逐测试文件**：每个 `*_test.go` 单独执行并记录 PASS/SKIP/FAIL；SKIP 必须带原因（缺数据、缺 GPU、平台不支持等）；禁止一次全量后只记总数。
 - **P1.4 全部真窗**：按 P0.2 清单逐个跑；每个窗口三证据齐；金图 diff 给像素计数并对照容差；批量压测遵守 `AGENTS.md` 的 GPU 真窗安全条。
@@ -312,6 +338,8 @@ docs/render_gpu_converge/
 | 2026-10-28 | P0.3 | 演练模板落盘，**未执行**（状态仍 ⬜） | `docs/render_gpu_converge/baseline/rollback.md`：R1–R8 判据、8 条边界、起点 `404d8e75` / 回退点 `876b7835` / `/tmp/gpui-p0.3-drill` 隔离 worktree / 演练 tag 用完即删；R8 与边界 5 明确 4 个既有 prunable worktree 原样保留；§6 结果列待执行回填 |
 | 2026-10-28 | P0.3 | ⬜→✅ 归档与回滚演练执行完毕 | `baseline/rollback.md` §6：R1–R8 全 PASS；回退点 `876b7835` 树 `893b1c9d…`≠起点 `eee499f5…`、`baseline/` 不存在且台账「下一任务：P0.1」；恢复后树哈希与三文件 sha1 逐位一致、status 7 行不变；演练 tag/隔离 worktree/`/tmp/purego` 软链全部清干净。R5 首轮两次 FAIL 保留：`/tmp` 下 `../purego` 不存在（环境）、`ui_wr_t_stress` 引用不存在的包（起点同错），判据改为「相对起点无新增失败」，350 包构建通过。既有缺陷移交 P1.1 |
 | 2026-10-28 | P0.4 | ⬜→✅ 双后端一致性测试台建成并跑绿 | `render/conformance_test.go` + `render/internal/conformance/{case,run,report}.go` + `render/testdata/conformance/`；3 场景 × native/go 全 PASS，`gpu_ops` 3/3/2、回退 0，跨后端像素差 ≤2/255（text_image 逐字节一致），比较器单测 PASS；负向对照转红；证据 `baseline/conformance/`（summary + 12 组 report/frame/run + negative 一套）。口径修正三条：`GPUI_BACKEND` 只切呈现层（测试台改用 `GPUI_CONFORMANCE_BACKEND` + 装箱设备）、GL 需不呈现的 X11 上下文窗、native 缺 `WGPU_NATIVE_PATH` 会静默回落 CPU。新登记 K1（每轮 +2 条/+131072 字节，双后端一致）→ P1.6/P2.4c；metal/Win32 未验（无真机） |
+| 2026-10-28 | P1.1 | ⬜→✅ 六目标交叉编译基线落盘（4 个目标存在红项） | `baseline/build/`：summary + 6 份原始输出。linux/amd64、linux/arm64 默认主体 351 包 PASS、nogpu 库范围 PASS；windows/amd64、darwin/amd64、darwin/arm64、js/wasm 红项 B1–B6 登记：gles 未限 `linux || windows`、render 无条件注册 gles（wasm 214 包断链）、rwgpu Windows 缺 unix 调用层、ffishim 用 purego.Dlopen、wayland_csd_font 缺 linux 标签、163 个消费方无条件导入 render/gpu。用户决定插队修 → P1.1b，P1.2 前完成并复跑 |
+| 2026-10-28 | P1.1b | ⬜→🟡 用户决定插队修复 B1–B6 | 范围与验收见 §3 P1.1b；证据 `evidence/P1.1b/`；修完复跑六目标并刷新 `baseline/build/`，P0.4 一致性测试台作 Linux 零变化守卫 |
 
 ## 8 修订记录
 
