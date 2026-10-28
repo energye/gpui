@@ -36,7 +36,7 @@
 | P0.1 | 验收阈值与环境清单 | ✅ 2026-10-28 | `baseline/thresholds.md` |
 | P0.2 | 真窗与金图清单 | ✅ 2026-10-28 | `baseline/windows.md`（自校验实测：162 真窗 / 28 headless；金图 114 仓内 / 8 运行期 / 40 无；缺图 0） |
 | P0.3 | 归档与回滚演练 | ✅ 2026-10-28 | `baseline/rollback.md`：R1–R8 全 PASS——回退点 `876b7835` 可辨认（`baseline/` 不存在、台账下一任务 P0.1），恢复后树哈希与三文件 sha1 逐位一致、status 不变、演练 tag/worktree 清零；R5 按「相对起点无新增失败」口径（首轮两次红与原因保留在文档内）；发现 `ui_wr_t_stress` 引用不存在的包，移交 P1.1 |
-| P0.4 | 双后端一致性测试台 | ⬜ 下一任务（2026-10-28 登记） | 产出 `baseline/conformance/`；至少 3 个代表场景（纯色/渐变、裁剪+混合、文本/位图）在 webgpu 与 gwgpu 上做语义断言，不比像素；测试台自带断言比较器单测 + 负向对照 |
+| P0.4 | 双后端一致性测试台 | ⬜ 已登记，待开工（2026-10-28 建细则） | 产出 `baseline/conformance/`；3 个场景（`solid_gradient` 纯色/渐变、`clip_blend` 裁剪+混合、`text_image` 文本/位图）在 `native` 与 `go` 上跑语义断言（采样通道 ±2/255、覆盖率 ±5pp、纹理创建=释放），不比像素；断言器自带单测 + 负向对照；用例数据入 `render/testdata/conformance/`，测试台落 `render/internal/conformance/` |
 
 ## 先看哪个
 

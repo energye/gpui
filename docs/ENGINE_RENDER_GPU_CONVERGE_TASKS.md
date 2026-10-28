@@ -56,7 +56,7 @@
 
 - 任务：P0.4 双后端一致性测试台
 - 能力单测：测试台自带 ≥1 个单测，覆盖断言比较器本身（同输入 PASS、改一项即 FAIL）；逐文件 `go test`
-- 真窗：无（headless 场景，不开窗）；3 个代表场景：纯色/渐变、裁剪+混合、文本/位图
+- 真窗：无（headless 场景，不开窗）；3 个代表场景：`solid_gradient`（纯色/渐变）、`clip_blend`（裁剪+混合）、`text_image`（文本/位图），断言口径见 §3 P0.4
 - 金图：无金图，不做像素相等；容差口径写「N/A（语义断言）」，只在证据里记断言语义
 - 双后端：`GPUI_BACKEND=native` 与 `GPUI_BACKEND=go` 各跑同一场景，落断言 JSON；跑不起来的后端记「不支持/未实现 + 现象」，不静默跳过
 - 负向对照：故意改错一个期望值或注入一次错误绘制，确认对应断言转红
@@ -128,6 +128,18 @@
 - **P0.4 双后端一致性测试台**
   - 内容：同一场景分别跑 webgpu 与 gwgpu（gles/metal），对语义做逻辑断言（几何覆盖、颜色通道、绘制次数、资源计数），不做像素相等。
   - 完成标准：至少 3 个代表场景（纯色/渐变、裁剪+混合、文本/位图）双后端可跑；不支持的后端显式标原因；用例集可一条命令回归。
+  - 开工条件：P0.1–P0.3 无硬依赖（P0.3 已完成）；**不改引擎行为**，只加测试代码与 testdata。
+  - 测试台落点：断言器 + 场景运行器放 `render/internal/conformance/`（测试专用，不进公开 API）；用例数据放 `render/testdata/conformance/*.json` + 输入图/文本（数据入 testdata，测试代码不硬编码标准数据）；入口测试放 `render/conformance_test.go`。
+  - 后端切换：用子进程带 `GPUI_BACKEND=native|go` 跑同一入口（参照 `render/p1_gl_present_x11_test.go`、`examples/ui_render_pelican/p1_online_test.go` 的既有做法）；若想同进程切换，必须先证明设备/缓存隔离，否则不用。
+  - 场景与断言（三个场景各一份用例 JSON，期望值写在数据里）：
+    1. `solid_gradient`：纯色矩形 + 线性/径向渐变 → 采样点通道 ±2/255、区域覆盖率 ±5 个百分点、无裁剪。
+    2. `clip_blend`：矩形/圆角裁剪 + 半透明图层 → 裁剪内外采样点、混合结果通道 ±2/255、边界重绘计数。
+    3. `text_image`：文本字形 + testdata 位图 → 字形覆盖率 >0 且包围盒在预期内、图片采样颜色 ±2/255、纹理创建与释放配平。
+  - 双后端格：`native` 必跑、`go` 必跑；`metal` / Win32 本机不可验（Linux），写「未验（无 macOS/Windows 真机）」；某后端建设备失败要写错误与原因，禁止静默 skip。
+  - 负向对照：改一个期望值（或注入 1px 偏移）→ 对应用例必须红，输出留证据；断言器自带单测（同输入 PASS、改一项 FAIL）。
+  - 证据：`baseline/conformance/summary.md`（含一条回归命令）+ `<scene>/<backend>/report.json` + `run.txt`。
+  - 环境前提：`replace ../purego` 是相对路径，测试机需存在 sibling 模块（本机 `/home/yanghy/app/projects/gogpu/purego`），否则先补路径再判失败。
+  - 下游义务：P2.6 用本测试台做语义层「零变化」复核；像素与金图层仍归 P1.4 真窗，二者不互相替代。
 
 ### P1 基线冻结（不改代码）
 
@@ -285,6 +297,7 @@ docs/render_gpu_converge/
 | 2026-10-28 | P0.2 | ⬜→✅ 真窗与金图清单落盘 | `docs/render_gpu_converge/baseline/windows.md`：162 真窗 + 28 headless，逐窗金图/容差/运行档/能力标签；仓内金图 114、运行期 8、无金图 40（均写原因与替代判定）；PLAN §5/§6 能力逐项映射，无窗项给替代 + 计划窗名；§6 自校验脚本实测 rows=162、114/8/40、missing=0 |
 | 2026-10-28 | P0.3 | 演练模板落盘，**未执行**（状态仍 ⬜） | `docs/render_gpu_converge/baseline/rollback.md`：R1–R8 判据、8 条边界、起点 `404d8e75` / 回退点 `876b7835` / `/tmp/gpui-p0.3-drill` 隔离 worktree / 演练 tag 用完即删；R8 与边界 5 明确 4 个既有 prunable worktree 原样保留；§6 结果列待执行回填 |
 | 2026-10-28 | P0.3 | ⬜→✅ 归档与回滚演练执行完毕 | `baseline/rollback.md` §6：R1–R8 全 PASS；回退点 `876b7835` 树 `893b1c9d…`≠起点 `eee499f5…`、`baseline/` 不存在且台账「下一任务：P0.1」；恢复后树哈希与三文件 sha1 逐位一致、status 7 行不变；演练 tag/隔离 worktree/`/tmp/purego` 软链全部清干净。R5 首轮两次 FAIL 保留：`/tmp` 下 `../purego` 不存在（环境）、`ui_wr_t_stress` 引用不存在的包（起点同错），判据改为「相对起点无新增失败」，350 包构建通过。既有缺陷移交 P1.1 |
+| 2026-10-28 | P0.4 | 台账条目扩为可开工细则，**未开工**（状态仍 ⬜） | 落点 `render/internal/conformance/` + `render/testdata/conformance/*.json` + `render/conformance_test.go`；3 场景断言口径（`solid_gradient`/`clip_blend`/`text_image`）、子进程切后端、双后端格、负向对照、证据结构、`../purego` 环境前提；见 §3 P0.4 与 §2.1 载体登记 |
 
 ## 8 修订记录
 
