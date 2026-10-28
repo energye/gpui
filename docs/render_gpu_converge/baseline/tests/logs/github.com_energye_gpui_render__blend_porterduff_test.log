@@ -1,0 +1,5 @@
+=== RUN   TestPorterDuffModes_SolidFill
+--- PASS: TestPorterDuffModes_SolidFill (0.29s)
+=== RUN   TestPorterDuffModes_SourceIn
+--- PASS: TestPorterDuffModes_SourceIn (0.00s)
+PASS

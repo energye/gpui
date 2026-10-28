@@ -1,0 +1,3 @@
+=== RUN   TestSharedSourceInMultipleFamilies
+--- PASS: TestSharedSourceInMultipleFamilies (0.06s)
+PASS

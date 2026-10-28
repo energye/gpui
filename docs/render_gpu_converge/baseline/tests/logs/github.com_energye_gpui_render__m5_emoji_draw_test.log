@@ -1,0 +1,3 @@
+=== RUN   TestColorEmojiDrawStringNoCrash_M5
+--- PASS: TestColorEmojiDrawStringNoCrash_M5 (0.32s)
+PASS

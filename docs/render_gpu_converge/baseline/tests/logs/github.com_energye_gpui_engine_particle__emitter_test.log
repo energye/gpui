@@ -1,0 +1,14 @@
+=== RUN   TestEmitterCasesFromFile
+--- PASS: TestEmitterCasesFromFile (0.00s)
+=== RUN   TestEmitterEdgesNoCrash
+--- PASS: TestEmitterEdgesNoCrash (0.00s)
+=== RUN   TestEmitterBoundaryIdentical
+--- PASS: TestEmitterBoundaryIdentical (0.00s)
+=== RUN   TestEmitterPerfThousand
+    emitter_test.go:595: emitter-1000: spawn 191.018µs update 24.324µs append 323.655µs flush 88.729µs (1 draws)
+--- PASS: TestEmitterPerfThousand (0.00s)
+=== RUN   TestEmitterLongRunStable
+--- PASS: TestEmitterLongRunStable (0.04s)
+=== RUN   TestEmitterOffscreenGolden
+--- PASS: TestEmitterOffscreenGolden (0.00s)
+PASS

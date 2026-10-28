@@ -1,0 +1,15 @@
+=== RUN   TestH2B_QueueSubmitWrongTypeAtomic
+--- PASS: TestH2B_QueueSubmitWrongTypeAtomic (0.00s)
+=== RUN   TestH2B_QueueWriteBufferWrongType
+--- PASS: TestH2B_QueueWriteBufferWrongType (0.00s)
+=== RUN   TestH2B_QueuePresentGuards
+--- PASS: TestH2B_QueuePresentGuards (0.00s)
+=== RUN   TestH2B_DeviceFreePushPopNoop
+--- PASS: TestH2B_DeviceFreePushPopNoop (0.00s)
+=== RUN   TestH2B_EncoderCopyWrongTypeNoop
+--- PASS: TestH2B_EncoderCopyWrongTypeNoop (0.00s)
+=== RUN   TestH2B_PassGuardsNoop
+--- PASS: TestH2B_PassGuardsNoop (0.00s)
+=== RUN   TestH2B_RenderPassDescriptorAliasCompiles
+--- PASS: TestH2B_RenderPassDescriptorAliasCompiles (0.00s)
+PASS

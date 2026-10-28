@@ -1,0 +1,209 @@
+=== RUN   TestNewBuffer
+--- PASS: TestNewBuffer (0.18s)
+=== RUN   TestNewBuffer_MappedAtCreation
+--- PASS: TestNewBuffer_MappedAtCreation (0.06s)
+=== RUN   TestBuffer_MapAsync_Success
+--- PASS: TestBuffer_MapAsync_Success (0.08s)
+=== RUN   TestBuffer_MapAsync_WriteMode
+--- PASS: TestBuffer_MapAsync_WriteMode (0.08s)
+=== RUN   TestBuffer_MapAsync_AlreadyMapped
+--- PASS: TestBuffer_MapAsync_AlreadyMapped (0.11s)
+=== RUN   TestBuffer_MapAsync_UsageMismatch
+    buffer_test.go:190: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_MapAsync_UsageMismatch (0.07s)
+=== RUN   TestBuffer_MapAsync_RangeValidation
+    buffer_test.go:216: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_MapAsync_RangeValidation (0.06s)
+=== RUN   TestBuffer_MapAsync_NilCallback
+    buffer_test.go:272: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_MapAsync_NilCallback (0.06s)
+=== RUN   TestBuffer_MapAsync_AfterDestroy
+    buffer_test.go:292: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_MapAsync_AfterDestroy (0.06s)
+=== RUN   TestBuffer_GetMappedRange_Success
+    buffer_test.go:317: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_GetMappedRange_Success (0.06s)
+=== RUN   TestBuffer_GetMappedRange_PartialMap
+    buffer_test.go:344: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_GetMappedRange_PartialMap (0.06s)
+=== RUN   TestBuffer_GetMappedRange_NotMapped
+    buffer_test.go:377: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_GetMappedRange_NotMapped (0.06s)
+=== RUN   TestBuffer_GetMappedRange_Pending
+    buffer_test.go:397: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_GetMappedRange_Pending (0.07s)
+=== RUN   TestBuffer_Unmap_Success
+    buffer_test.go:424: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_Unmap_Success (0.07s)
+=== RUN   TestBuffer_Unmap_Pending
+    buffer_test.go:451: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_Unmap_Pending (0.06s)
+=== RUN   TestBuffer_Unmap_AlreadyUnmapped
+    buffer_test.go:482: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_Unmap_AlreadyUnmapped (0.06s)
+=== RUN   TestBuffer_Unmap_AfterDestroy
+    buffer_test.go:502: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_Unmap_AfterDestroy (0.06s)
+=== RUN   TestBuffer_Destroy
+    buffer_test.go:527: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_Destroy (0.06s)
+=== RUN   TestBuffer_Destroy_Idempotent
+    buffer_test.go:549: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_Destroy_Idempotent (0.06s)
+=== RUN   TestBuffer_Destroy_WhilePending
+    buffer_test.go:572: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_Destroy_WhilePending (0.06s)
+=== RUN   TestBuffer_ConcurrentMapUnmap
+    buffer_test.go:602: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_ConcurrentMapUnmap (0.07s)
+=== RUN   TestBuffer_ConcurrentGetMappedRange
+    buffer_test.go:638: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_ConcurrentGetMappedRange (0.07s)
+=== RUN   TestCreateBuffer
+    buffer_test.go:681: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateBuffer (0.07s)
+=== RUN   TestCreateBuffer_NilDevice
+--- PASS: TestCreateBuffer_NilDevice (0.00s)
+=== RUN   TestCreateBuffer_NilDescriptor
+    buffer_test.go:716: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateBuffer_NilDescriptor (0.06s)
+=== RUN   TestCreateBuffer_ZeroSize
+    buffer_test.go:726: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateBuffer_ZeroSize (0.07s)
+=== RUN   TestCreateBuffer_ZeroUsage
+    buffer_test.go:742: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateBuffer_ZeroUsage (0.06s)
+=== RUN   TestCreateBuffer_SizeAlignment
+    buffer_test.go:758: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateBuffer_SizeAlignment (0.06s)
+=== RUN   TestCreateBufferSimple
+    buffer_test.go:779: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateBufferSimple (0.06s)
+=== RUN   TestCreateStagingBuffer_Upload
+    buffer_test.go:798: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateStagingBuffer_Upload (0.06s)
+=== RUN   TestCreateStagingBuffer_Readback
+    buffer_test.go:818: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateStagingBuffer_Readback (0.07s)
+=== RUN   TestBufferMapState_String
+--- PASS: TestBufferMapState_String (0.00s)
+=== RUN   TestBufferMapAsyncStatus_String
+--- PASS: TestBufferMapAsyncStatus_String (0.00s)
+=== RUN   TestBuffer_Descriptor
+    buffer_test.go:888: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_Descriptor (0.06s)
+=== RUN   TestBuffer_Raw_AfterDestroy
+    buffer_test.go:913: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_Raw_AfterDestroy (0.06s)
+=== RUN   TestBuffer_MapAsync_InvalidMode
+    buffer_test.go:939: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_MapAsync_InvalidMode (0.08s)
+=== RUN   TestBuffer_PollMapAsync_NotPending
+    buffer_test.go:965: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_PollMapAsync_NotPending (0.06s)
+=== RUN   TestBuffer_PollMapAsync_DestroyedDuringPending
+    buffer_test.go:984: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_PollMapAsync_DestroyedDuringPending (0.07s)
+=== RUN   TestBuffer_GetMappedRange_AfterDestroy
+    buffer_test.go:1024: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestBuffer_GetMappedRange_AfterDestroy (0.06s)
+=== RUN   TestCreateBuffer_MappedAtCreationValidation
+    buffer_test.go:1051: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateBuffer_MappedAtCreationValidation (0.06s)
+PASS

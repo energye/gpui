@@ -1,0 +1,39 @@
+=== RUN   TestProbeTTC_4FaceMixedGPURender
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=-1.0 y0=22.0 x1=10.0 y1=33.0 u0=0.0005 u1=0.0103 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=9.0 y0=22.0 x1=18.0 y1=33.0 u0=0.0122 u1=0.0200 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=16.0 y0=22.0 x1=27.0 y1=33.0 u0=0.0220 u1=0.0317 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=26.0 y0=22.0 x1=35.0 y1=33.0 u0=0.0337 u1=0.0415 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=35.0 y0=22.0 x1=43.0 y1=33.0 u0=0.0435 u1=0.0503 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=41.0 y0=27.0 x1=47.0 y1=30.0 u0=0.0522 u1=0.0571 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=45.0 y0=22.0 x1=56.0 y1=33.0 u0=0.0591 u1=0.0688 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=57.0 y0=24.0 x1=66.0 y1=33.0 u0=0.0708 u1=0.0786 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=65.0 y0=21.0 x1=69.0 y1=33.0 u0=0.0806 u1=0.0835 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=68.0 y0=21.0 x1=72.0 y1=33.0 u0=0.0806 u1=0.0835 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=70.0 y0=24.0 x1=79.0 y1=33.0 u0=0.0854 u1=0.0933 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=77.0 y0=24.0 x1=89.0 y1=33.0 u0=0.0952 u1=0.1060 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=87.0 y0=24.0 x1=96.0 y1=33.0 u0=0.1079 u1=0.1157 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=94.0 y0=21.0 x1=103.0 y1=33.0 u0=0.1177 u1=0.1255 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="GROUP-A allowed (" x0=107.0 y0=21.0 x1=112.0 y1=34.0 u0=0.1274 u1=0.1313 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="合成" x0=113.0 y0=20.0 x1=127.0 y1=35.0 u0=0.1333 u1=0.1460 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="合成" x0=125.0 y0=20.0 x1=139.0 y1=35.0 u0=0.1479 u1=0.1606 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=137.0 y0=21.0 x1=143.0 y1=34.0 u0=0.1626 u1=0.1675 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=147.0 y0=22.0 x1=156.0 y1=33.0 u0=0.1694 u1=0.1772 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=155.0 y0=22.0 x1=164.0 y1=33.0 u0=0.0337 u1=0.0415 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=164.0 y0=22.0 x1=174.0 y1=33.0 u0=0.1792 u1=0.1880 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=172.0 y0=22.0 x1=183.0 y1=33.0 u0=0.0005 u1=0.0103 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=182.0 y0=22.0 x1=190.0 y1=33.0 u0=0.1899 u1=0.1968 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=188.0 y0=22.0 x1=199.0 y1=33.0 u0=0.1987 u1=0.2085 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=201.0 y0=22.0 x1=210.0 y1=33.0 u0=0.0122 u1=0.0200 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=209.0 y0=22.0 x1=217.0 y1=33.0 u0=0.1899 u1=0.1968 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=215.0 y0=22.0 x1=221.0 y1=35.0 u0=0.2104 u1=0.2153 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=221.0 y0=22.0 x1=229.0 y1=33.0 u0=0.1899 u1=0.1968 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=228.0 y0=22.0 x1=238.0 y1=33.0 u0=0.2173 u1=0.2261 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run=") BUDGET REJECT " x0=235.0 y0=22.0 x1=246.0 y1=33.0 u0=0.1987 u1=0.2085 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="预算" x0=246.0 y0=20.0 x1=260.0 y1=34.0 u0=0.2280 u1=0.2407 pg=0
+    ttc_4face_mixed_repro_test.go:74: DBG engine quad run="预算" x0=258.0 y0=19.0 x1=272.0 y1=34.0 u0=0.2427 u1=0.2554 pg=0
+    ttc_4face_mixed_repro_test.go:85: batches=4 cjkQuads=4
+    ttc_4face_mixed_repro_test.go:122: cjk region x=[113,272) y=[19,35)
+    ttc_4face_mixed_repro_test.go:145: cjk region dark px=453  full frame dark px=495
+    ttc_4face_mixed_repro_test.go:160: sample_count=1
+--- PASS: TestProbeTTC_4FaceMixedGPURender (0.47s)
+PASS

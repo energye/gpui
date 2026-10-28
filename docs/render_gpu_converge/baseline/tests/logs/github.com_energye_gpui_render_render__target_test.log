@@ -1,0 +1,29 @@
+=== RUN   TestNewPixmapTarget
+=== RUN   TestNewPixmapTarget/small
+=== RUN   TestNewPixmapTarget/medium
+=== RUN   TestNewPixmapTarget/large
+=== RUN   TestNewPixmapTarget/wide
+=== RUN   TestNewPixmapTarget/tall
+--- PASS: TestNewPixmapTarget (0.00s)
+    --- PASS: TestNewPixmapTarget/small (0.00s)
+    --- PASS: TestNewPixmapTarget/medium (0.00s)
+    --- PASS: TestNewPixmapTarget/large (0.00s)
+    --- PASS: TestNewPixmapTarget/wide (0.00s)
+    --- PASS: TestNewPixmapTarget/tall (0.00s)
+=== RUN   TestPixmapTargetFromImage
+--- PASS: TestPixmapTargetFromImage (0.00s)
+=== RUN   TestPixmapTargetClear
+--- PASS: TestPixmapTargetClear (0.00s)
+=== RUN   TestPixmapTargetSetGetPixel
+--- PASS: TestPixmapTargetSetGetPixel (0.00s)
+=== RUN   TestPixmapTargetResize
+--- PASS: TestPixmapTargetResize (0.00s)
+=== RUN   TestPixmapTargetImage
+--- PASS: TestPixmapTargetImage (0.00s)
+=== RUN   TestTextureTarget
+--- PASS: TestTextureTarget (0.00s)
+=== RUN   TestSurfaceTarget
+--- PASS: TestSurfaceTarget (0.00s)
+=== RUN   TestRenderTargetInterface
+--- PASS: TestRenderTargetInterface (0.00s)
+PASS

@@ -1,0 +1,25 @@
+=== RUN   TestVertsMeshShortIndicesDrawNothingCPU
+=== RUN   TestVertsMeshShortIndicesDrawNothingCPU/one
+=== RUN   TestVertsMeshShortIndicesDrawNothingCPU/two
+--- PASS: TestVertsMeshShortIndicesDrawNothingCPU (0.00s)
+    --- PASS: TestVertsMeshShortIndicesDrawNothingCPU/one (0.00s)
+    --- PASS: TestVertsMeshShortIndicesDrawNothingCPU/two (0.00s)
+=== RUN   TestVertsMeshExBadIndexRejectedCPU
+=== RUN   TestVertsMeshExBadIndexRejectedCPU/full_group
+=== RUN   TestVertsMeshExBadIndexRejectedCPU/partial_tail
+=== RUN   TestVertsMeshExBadIndexRejectedCPU/short_bad
+--- PASS: TestVertsMeshExBadIndexRejectedCPU (0.00s)
+    --- PASS: TestVertsMeshExBadIndexRejectedCPU/full_group (0.00s)
+    --- PASS: TestVertsMeshExBadIndexRejectedCPU/partial_tail (0.00s)
+    --- PASS: TestVertsMeshExBadIndexRejectedCPU/short_bad (0.00s)
+=== RUN   TestVertsMeshOldBadIndexSkipsBadGroupsCPU
+--- PASS: TestVertsMeshOldBadIndexSkipsBadGroupsCPU (0.00s)
+=== RUN   TestVertsMeshExPartialTailIgnoredCPU
+--- PASS: TestVertsMeshExPartialTailIgnoredCPU (0.00s)
+=== RUN   TestVertsMeshMismatchedColorsSolidCPU
+--- PASS: TestVertsMeshMismatchedColorsSolidCPU (0.00s)
+=== RUN   TestVertsMeshIndexedMatchesExpandedCPU
+--- PASS: TestVertsMeshIndexedMatchesExpandedCPU (0.00s)
+=== RUN   TestVertsMeshNilIndicesTriangleListCPU
+--- PASS: TestVertsMeshNilIndicesTriangleListCPU (0.00s)
+PASS

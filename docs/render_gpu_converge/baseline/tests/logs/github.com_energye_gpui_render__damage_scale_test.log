@@ -1,0 +1,23 @@
+=== RUN   TestTrackDamage_HiDPI_ScalesToPhysical
+--- PASS: TestTrackDamage_HiDPI_ScalesToPhysical (0.30s)
+=== RUN   TestTrackDamage_Scale1_NoScaling
+--- PASS: TestTrackDamage_Scale1_NoScaling (0.00s)
+=== RUN   TestTrackDamage_HiDPI_PartialRect
+--- PASS: TestTrackDamage_HiDPI_PartialRect (0.01s)
+=== RUN   TestTrackDamageRect_HiDPI_PublicAPI
+--- PASS: TestTrackDamageRect_HiDPI_PublicAPI (0.00s)
+=== RUN   TestTrackDamage_Scale3
+--- PASS: TestTrackDamage_Scale3 (0.02s)
+=== RUN   TestTrackDamage_HiDPI_Stroke
+--- PASS: TestTrackDamage_HiDPI_Stroke (0.01s)
+=== RUN   TestTrackDamage_FractionalScale
+--- PASS: TestTrackDamage_FractionalScale (0.00s)
+=== RUN   TestTrackDamage_FractionalCoords
+--- PASS: TestTrackDamage_FractionalCoords (0.01s)
+=== RUN   TestTrackDamage_MultipleRectsScaled
+--- PASS: TestTrackDamage_MultipleRectsScaled (0.01s)
+=== RUN   TestTrackDamage_TextAppliesCTM
+--- PASS: TestTrackDamage_TextAppliesCTM (0.00s)
+=== RUN   TestTrackDamage_StrokeOutlineUsesPathSpace
+--- PASS: TestTrackDamage_StrokeOutlineUsesPathSpace (0.00s)
+PASS

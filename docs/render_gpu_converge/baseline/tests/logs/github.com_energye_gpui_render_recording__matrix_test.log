@@ -1,0 +1,63 @@
+=== RUN   TestConstructorsForwardToRender
+=== RUN   TestConstructorsForwardToRender/identity
+=== RUN   TestConstructorsForwardToRender/translate
+=== RUN   TestConstructorsForwardToRender/scale
+=== RUN   TestConstructorsForwardToRender/rotate
+=== RUN   TestConstructorsForwardToRender/shear
+--- PASS: TestConstructorsForwardToRender (0.00s)
+    --- PASS: TestConstructorsForwardToRender/identity (0.00s)
+    --- PASS: TestConstructorsForwardToRender/translate (0.00s)
+    --- PASS: TestConstructorsForwardToRender/scale (0.00s)
+    --- PASS: TestConstructorsForwardToRender/rotate (0.00s)
+    --- PASS: TestConstructorsForwardToRender/shear (0.00s)
+=== RUN   TestTransformPointHelper
+--- PASS: TestTransformPointHelper (0.00s)
+=== RUN   TestRecorderTransformPointTracksCTM
+--- PASS: TestRecorderTransformPointTracksCTM (0.00s)
+=== RUN   TestInvertRoundTrip
+--- PASS: TestInvertRoundTrip (0.00s)
+=== RUN   TestInvert_Singular
+--- PASS: TestInvert_Singular (0.00s)
+=== RUN   TestNewRect
+--- PASS: TestNewRect (0.00s)
+=== RUN   TestNewRectFromPoints
+--- PASS: TestNewRectFromPoints (0.00s)
+=== RUN   TestRect_IsEmpty
+=== RUN   TestRect_IsEmpty/normal
+=== RUN   TestRect_IsEmpty/zero_width
+=== RUN   TestRect_IsEmpty/zero_height
+=== RUN   TestRect_IsEmpty/negative_width
+=== RUN   TestRect_IsEmpty/negative_height
+--- PASS: TestRect_IsEmpty (0.00s)
+    --- PASS: TestRect_IsEmpty/normal (0.00s)
+    --- PASS: TestRect_IsEmpty/zero_width (0.00s)
+    --- PASS: TestRect_IsEmpty/zero_height (0.00s)
+    --- PASS: TestRect_IsEmpty/negative_width (0.00s)
+    --- PASS: TestRect_IsEmpty/negative_height (0.00s)
+=== RUN   TestRect_Contains
+=== RUN   TestRect_Contains/inside
+=== RUN   TestRect_Contains/top-left_corner
+=== RUN   TestRect_Contains/bottom-right_corner
+=== RUN   TestRect_Contains/outside_left
+=== RUN   TestRect_Contains/outside_right
+=== RUN   TestRect_Contains/outside_top
+=== RUN   TestRect_Contains/outside_bottom
+--- PASS: TestRect_Contains (0.00s)
+    --- PASS: TestRect_Contains/inside (0.00s)
+    --- PASS: TestRect_Contains/top-left_corner (0.00s)
+    --- PASS: TestRect_Contains/bottom-right_corner (0.00s)
+    --- PASS: TestRect_Contains/outside_left (0.00s)
+    --- PASS: TestRect_Contains/outside_right (0.00s)
+    --- PASS: TestRect_Contains/outside_top (0.00s)
+    --- PASS: TestRect_Contains/outside_bottom (0.00s)
+=== RUN   TestRect_Union
+--- PASS: TestRect_Union (0.00s)
+=== RUN   TestRect_Intersect
+--- PASS: TestRect_Intersect (0.00s)
+=== RUN   TestRect_Intersect_NoOverlap
+--- PASS: TestRect_Intersect_NoOverlap (0.00s)
+=== RUN   TestRect_Inset
+--- PASS: TestRect_Inset (0.00s)
+=== RUN   TestRect_Offset
+--- PASS: TestRect_Offset (0.00s)
+PASS

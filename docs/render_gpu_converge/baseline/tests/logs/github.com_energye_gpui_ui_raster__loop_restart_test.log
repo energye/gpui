@@ -1,0 +1,5 @@
+=== RUN   TestLoop_RestartRunsJobs
+--- PASS: TestLoop_RestartRunsJobs (0.00s)
+=== RUN   TestLoop_RestartDoubleStopStartSafe
+--- PASS: TestLoop_RestartDoubleStopStartSafe (0.00s)
+PASS

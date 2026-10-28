@@ -1,0 +1,13 @@
+=== RUN   TestGLSL_UnsupportedRayQuery
+--- PASS: TestGLSL_UnsupportedRayQuery (0.00s)
+=== RUN   TestGLSL_UnsupportedMeshShader
+--- PASS: TestGLSL_UnsupportedMeshShader (0.00s)
+=== RUN   TestGLSL_UnsupportedTaskShader
+--- PASS: TestGLSL_UnsupportedTaskShader (0.00s)
+=== RUN   TestGLSL_UnsupportedBindingArray
+--- PASS: TestGLSL_UnsupportedBindingArray (0.00s)
+=== RUN   TestGLSL_ContinueCtxExitLoopError_Integration
+--- PASS: TestGLSL_ContinueCtxExitLoopError_Integration (0.00s)
+=== RUN   TestGLSL_ContinueCtxExitSwitchError_Integration
+--- PASS: TestGLSL_ContinueCtxExitSwitchError_Integration (0.00s)
+PASS

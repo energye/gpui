@@ -1,0 +1,3 @@
+=== RUN   TestPictureCache_EnsureCapacity_SingleWindowUncapped
+--- PASS: TestPictureCache_EnsureCapacity_SingleWindowUncapped (0.00s)
+PASS

@@ -1,0 +1,41 @@
+=== RUN   TestFlattenScalarFields_Scalar
+--- PASS: TestFlattenScalarFields_Scalar (0.00s)
+=== RUN   TestFlattenScalarFields_Vector
+--- PASS: TestFlattenScalarFields_Vector (0.00s)
+=== RUN   TestFlattenScalarFields_MixedStruct
+--- PASS: TestFlattenScalarFields_MixedStruct (0.00s)
+=== RUN   TestHasMixedScalarTypes_HomogeneousStruct
+--- PASS: TestHasMixedScalarTypes_HomogeneousStruct (0.00s)
+=== RUN   TestHasMixedScalarTypes_SintUintHomogeneous
+--- PASS: TestHasMixedScalarTypes_SintUintHomogeneous (0.00s)
+=== RUN   TestHasMixedScalarTypes_FloatIntMixed
+--- PASS: TestHasMixedScalarTypes_FloatIntMixed (0.00s)
+=== RUN   TestHasMixedScalarTypes_DifferentWidths
+--- PASS: TestHasMixedScalarTypes_DifferentWidths (0.00s)
+=== RUN   TestScalarsShareDXILType
+=== RUN   TestScalarsShareDXILType/sint+uint_same_width
+=== RUN   TestScalarsShareDXILType/uint+uint_same_width
+=== RUN   TestScalarsShareDXILType/float+float_same_width
+=== RUN   TestScalarsShareDXILType/sint+uint_different_width
+=== RUN   TestScalarsShareDXILType/float+sint_same_width
+=== RUN   TestScalarsShareDXILType/bool+bool
+=== RUN   TestScalarsShareDXILType/bool+sint
+--- PASS: TestScalarsShareDXILType (0.00s)
+    --- PASS: TestScalarsShareDXILType/sint+uint_same_width (0.00s)
+    --- PASS: TestScalarsShareDXILType/uint+uint_same_width (0.00s)
+    --- PASS: TestScalarsShareDXILType/float+float_same_width (0.00s)
+    --- PASS: TestScalarsShareDXILType/sint+uint_different_width (0.00s)
+    --- PASS: TestScalarsShareDXILType/float+sint_same_width (0.00s)
+    --- PASS: TestScalarsShareDXILType/bool+bool (0.00s)
+    --- PASS: TestScalarsShareDXILType/bool+sint (0.00s)
+=== RUN   TestResolvePointerAddrSpace_WorkgroupRoot
+--- PASS: TestResolvePointerAddrSpace_WorkgroupRoot (0.00s)
+=== RUN   TestResolvePointerAddrSpace_PrivateRoot
+--- PASS: TestResolvePointerAddrSpace_PrivateRoot (0.00s)
+=== RUN   TestResolvePointerAddrSpace_LocalVar
+--- PASS: TestResolvePointerAddrSpace_LocalVar (0.00s)
+=== RUN   TestWorkgroupElemRoot_RoundTrip
+--- PASS: TestWorkgroupElemRoot_RoundTrip (0.00s)
+=== RUN   TestWorkgroupElemRoot_NilMap
+--- PASS: TestWorkgroupElemRoot_NilMap (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestShrinkDue_Matrix
+--- PASS: TestShrinkDue_Matrix (0.00s)
+=== RUN   TestSessionFrameBufferShrink
+--- PASS: TestSessionFrameBufferShrink (0.00s)
+=== RUN   TestSessionShrinkViaBeginFrame
+--- PASS: TestSessionShrinkViaBeginFrame (0.00s)
+PASS

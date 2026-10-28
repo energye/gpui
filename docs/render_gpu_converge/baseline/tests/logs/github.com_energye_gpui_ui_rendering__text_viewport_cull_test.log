@@ -1,0 +1,5 @@
+=== RUN   TestRecordViewportCullsLongLine
+--- PASS: TestRecordViewportCullsLongLine (0.07s)
+=== RUN   TestRecordViewportCullsCompositeFace
+--- PASS: TestRecordViewportCullsCompositeFace (0.32s)
+PASS

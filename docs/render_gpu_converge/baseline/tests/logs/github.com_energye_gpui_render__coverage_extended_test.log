@@ -1,0 +1,33 @@
+=== RUN   TestPixmap_ColorModel
+--- PASS: TestPixmap_ColorModel (0.00s)
+=== RUN   TestPixmap_At
+--- PASS: TestPixmap_At (0.00s)
+=== RUN   TestPixmap_GetPremul_OutOfBounds
+--- PASS: TestPixmap_GetPremul_OutOfBounds (0.00s)
+=== RUN   TestRegisterCoverageFiller
+--- PASS: TestRegisterCoverageFiller (0.00s)
+=== RUN   TestContext_ResizeTarget
+--- PASS: TestContext_ResizeTarget (0.00s)
+=== RUN   TestContext_FlushGPU
+--- PASS: TestContext_FlushGPU (0.00s)
+=== RUN   TestContext_setForceSDF
+--- PASS: TestContext_setForceSDF (0.00s)
+=== RUN   TestContext_SetBlendMode
+--- PASS: TestContext_SetBlendMode (0.00s)
+=== RUN   TestPointLineDistance
+=== RUN   TestPointLineDistance/point_on_line
+=== RUN   TestPointLineDistance/point_above_horizontal_line
+=== RUN   TestPointLineDistance/point_left_of_vertical_line
+=== RUN   TestPointLineDistance/45_degree_line
+=== RUN   TestPointLineDistance/degenerate_line_(point)
+--- PASS: TestPointLineDistance (0.00s)
+    --- PASS: TestPointLineDistance/point_on_line (0.00s)
+    --- PASS: TestPointLineDistance/point_above_horizontal_line (0.00s)
+    --- PASS: TestPointLineDistance/point_left_of_vertical_line (0.00s)
+    --- PASS: TestPointLineDistance/45_degree_line (0.00s)
+    --- PASS: TestPointLineDistance/degenerate_line_(point) (0.00s)
+=== RUN   TestSetAcceleratorDeviceProvider
+--- PASS: TestSetAcceleratorDeviceProvider (0.00s)
+=== RUN   TestAcceleratorCanRenderDirect
+--- PASS: TestAcceleratorCanRenderDirect (0.00s)
+PASS

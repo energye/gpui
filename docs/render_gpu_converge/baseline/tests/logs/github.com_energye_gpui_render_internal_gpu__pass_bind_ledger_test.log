@@ -1,0 +1,5 @@
+=== RUN   TestPassBindLedger_SkipIdenticalInvalidatesOnChange
+--- PASS: TestPassBindLedger_SkipIdenticalInvalidatesOnChange (0.00s)
+=== RUN   TestPassBindLedger_NilSafe
+--- PASS: TestPassBindLedger_NilSafe (0.00s)
+PASS

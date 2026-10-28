@@ -1,0 +1,5 @@
+=== RUN   TestRenderTransform_SetRotationPaintOnly
+--- PASS: TestRenderTransform_SetRotationPaintOnly (0.00s)
+=== RUN   TestBuildLayerTree_TransformLayer
+--- PASS: TestBuildLayerTree_TransformLayer (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestRecordLocal_ShrinkKeepsPrevBounds
+--- PASS: TestRecordLocal_ShrinkKeepsPrevBounds (0.28s)
+=== RUN   TestRecordLocal_GrowUnionIsCurrent
+--- PASS: TestRecordLocal_GrowUnionIsCurrent (0.00s)
+=== RUN   TestDropTransparent_KeepsShellForDamage
+--- PASS: TestDropTransparent_KeepsShellForDamage (0.00s)
+PASS

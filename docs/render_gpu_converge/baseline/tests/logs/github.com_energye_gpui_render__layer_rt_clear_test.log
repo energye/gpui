@@ -1,0 +1,5 @@
+=== RUN   TestLayerRT_NestedIsolatedStartsTransparent
+--- PASS: TestLayerRT_NestedIsolatedStartsTransparent (0.30s)
+=== RUN   TestLayerRT_NestedMaskedStartsTransparent
+--- PASS: TestLayerRT_NestedMaskedStartsTransparent (0.01s)
+PASS

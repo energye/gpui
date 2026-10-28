@@ -1,0 +1,111 @@
+=== RUN   TestParseSVGPath_Empty
+--- PASS: TestParseSVGPath_Empty (0.00s)
+=== RUN   TestParseSVGPath_WhitespaceOnly
+--- PASS: TestParseSVGPath_WhitespaceOnly (0.00s)
+=== RUN   TestParseSVGPath_MoveTo
+=== RUN   TestParseSVGPath_MoveTo/absolute_space
+=== RUN   TestParseSVGPath_MoveTo/absolute_comma
+=== RUN   TestParseSVGPath_MoveTo/absolute_no_sep
+=== RUN   TestParseSVGPath_MoveTo/negative_coords
+=== RUN   TestParseSVGPath_MoveTo/float_coords
+--- PASS: TestParseSVGPath_MoveTo (0.00s)
+    --- PASS: TestParseSVGPath_MoveTo/absolute_space (0.00s)
+    --- PASS: TestParseSVGPath_MoveTo/absolute_comma (0.00s)
+    --- PASS: TestParseSVGPath_MoveTo/absolute_no_sep (0.00s)
+    --- PASS: TestParseSVGPath_MoveTo/negative_coords (0.00s)
+    --- PASS: TestParseSVGPath_MoveTo/float_coords (0.00s)
+=== RUN   TestParseSVGPath_RelativeMoveTo
+--- PASS: TestParseSVGPath_RelativeMoveTo (0.00s)
+=== RUN   TestParseSVGPath_LineTo
+--- PASS: TestParseSVGPath_LineTo (0.00s)
+=== RUN   TestParseSVGPath_RelativeLineTo
+--- PASS: TestParseSVGPath_RelativeLineTo (0.00s)
+=== RUN   TestParseSVGPath_HorizontalLine
+--- PASS: TestParseSVGPath_HorizontalLine (0.00s)
+=== RUN   TestParseSVGPath_RelativeHorizontalLine
+--- PASS: TestParseSVGPath_RelativeHorizontalLine (0.00s)
+=== RUN   TestParseSVGPath_VerticalLine
+--- PASS: TestParseSVGPath_VerticalLine (0.00s)
+=== RUN   TestParseSVGPath_RelativeVerticalLine
+--- PASS: TestParseSVGPath_RelativeVerticalLine (0.00s)
+=== RUN   TestParseSVGPath_CubicBezier
+--- PASS: TestParseSVGPath_CubicBezier (0.00s)
+=== RUN   TestParseSVGPath_RelativeCubicBezier
+--- PASS: TestParseSVGPath_RelativeCubicBezier (0.00s)
+=== RUN   TestParseSVGPath_SmoothCubic
+--- PASS: TestParseSVGPath_SmoothCubic (0.00s)
+=== RUN   TestParseSVGPath_SmoothCubicNoPrec
+--- PASS: TestParseSVGPath_SmoothCubicNoPrec (0.00s)
+=== RUN   TestParseSVGPath_QuadBezier
+--- PASS: TestParseSVGPath_QuadBezier (0.00s)
+=== RUN   TestParseSVGPath_SmoothQuad
+--- PASS: TestParseSVGPath_SmoothQuad (0.00s)
+=== RUN   TestParseSVGPath_SmoothQuadNoPrec
+--- PASS: TestParseSVGPath_SmoothQuadNoPrec (0.00s)
+=== RUN   TestParseSVGPath_Close
+--- PASS: TestParseSVGPath_Close (0.00s)
+=== RUN   TestParseSVGPath_CloseMoveTo
+--- PASS: TestParseSVGPath_CloseMoveTo (0.00s)
+=== RUN   TestParseSVGPath_ImplicitRepeat
+--- PASS: TestParseSVGPath_ImplicitRepeat (0.00s)
+=== RUN   TestParseSVGPath_ImplicitLineToAfterMoveTo
+--- PASS: TestParseSVGPath_ImplicitLineToAfterMoveTo (0.00s)
+=== RUN   TestParseSVGPath_ImplicitHRepeat
+--- PASS: TestParseSVGPath_ImplicitHRepeat (0.00s)
+=== RUN   TestParseSVGPath_NegativeAsSeparator
+--- PASS: TestParseSVGPath_NegativeAsSeparator (0.00s)
+=== RUN   TestParseSVGPath_ScientificNotation
+--- PASS: TestParseSVGPath_ScientificNotation (0.00s)
+=== RUN   TestParseSVGPath_ScientificNotationNegativeExponent
+--- PASS: TestParseSVGPath_ScientificNotationNegativeExponent (0.00s)
+=== RUN   TestParseSVGPath_LeadingDot
+--- PASS: TestParseSVGPath_LeadingDot (0.00s)
+=== RUN   TestParseSVGPath_Arc
+--- PASS: TestParseSVGPath_Arc (0.00s)
+=== RUN   TestParseSVGPath_ArcZeroRadius
+--- PASS: TestParseSVGPath_ArcZeroRadius (0.00s)
+=== RUN   TestParseSVGPath_ArcSameEndpoints
+--- PASS: TestParseSVGPath_ArcSameEndpoints (0.00s)
+=== RUN   TestParseSVGPath_ArcFlagsNoSeparator
+--- PASS: TestParseSVGPath_ArcFlagsNoSeparator (0.00s)
+=== RUN   TestParseSVGPath_ArcLargeArcSweep
+--- PASS: TestParseSVGPath_ArcLargeArcSweep (0.00s)
+=== RUN   TestParseSVGPath_RelativeArc
+--- PASS: TestParseSVGPath_RelativeArc (0.00s)
+=== RUN   TestParseSVGPath_CurrentPoint
+--- PASS: TestParseSVGPath_CurrentPoint (0.00s)
+=== RUN   TestParseSVGPath_CloseIcon
+--- PASS: TestParseSVGPath_CloseIcon (0.00s)
+=== RUN   TestParseSVGPath_RefreshIcon
+--- PASS: TestParseSVGPath_RefreshIcon (0.00s)
+=== RUN   TestParseSVGPath_SearchIcon
+--- PASS: TestParseSVGPath_SearchIcon (0.00s)
+=== RUN   TestParseSVGPath_ComplexMultiCommand
+--- PASS: TestParseSVGPath_ComplexMultiCommand (0.00s)
+=== RUN   TestParseSVGPath_WhitespaceVariants
+=== RUN   TestParseSVGPath_WhitespaceVariants/spaces
+=== RUN   TestParseSVGPath_WhitespaceVariants/commas
+=== RUN   TestParseSVGPath_WhitespaceVariants/tabs
+=== RUN   TestParseSVGPath_WhitespaceVariants/newlines
+=== RUN   TestParseSVGPath_WhitespaceVariants/mixed
+=== RUN   TestParseSVGPath_WhitespaceVariants/extra_spaces
+--- PASS: TestParseSVGPath_WhitespaceVariants (0.00s)
+    --- PASS: TestParseSVGPath_WhitespaceVariants/spaces (0.00s)
+    --- PASS: TestParseSVGPath_WhitespaceVariants/commas (0.00s)
+    --- PASS: TestParseSVGPath_WhitespaceVariants/tabs (0.00s)
+    --- PASS: TestParseSVGPath_WhitespaceVariants/newlines (0.00s)
+    --- PASS: TestParseSVGPath_WhitespaceVariants/mixed (0.00s)
+    --- PASS: TestParseSVGPath_WhitespaceVariants/extra_spaces (0.00s)
+=== RUN   TestParseSVGPath_ErrorInvalidCommand
+--- PASS: TestParseSVGPath_ErrorInvalidCommand (0.00s)
+=== RUN   TestParseSVGPath_ErrorMissingNumber
+--- PASS: TestParseSVGPath_ErrorMissingNumber (0.00s)
+=== RUN   TestParseSVGPath_ErrorMissingArcParams
+--- PASS: TestParseSVGPath_ErrorMissingArcParams (0.00s)
+=== RUN   TestParseSVGPath_ErrorInvalidFlag
+--- PASS: TestParseSVGPath_ErrorInvalidFlag (0.00s)
+=== RUN   TestParseSVGPath_ErrorInvalidNumber
+--- PASS: TestParseSVGPath_ErrorInvalidNumber (0.00s)
+=== RUN   TestParseSVGPath_ErrorTrailingCommand
+--- PASS: TestParseSVGPath_ErrorTrailingCommand (0.00s)
+PASS

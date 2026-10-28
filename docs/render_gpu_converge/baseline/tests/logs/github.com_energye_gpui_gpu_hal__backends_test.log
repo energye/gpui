@@ -1,0 +1,19 @@
+=== RUN   TestRegisterBackendFactory
+--- PASS: TestRegisterBackendFactory (0.00s)
+=== RUN   TestCreateBackend
+--- PASS: TestCreateBackend (0.00s)
+=== RUN   TestCreateBackendNotRegistered
+--- PASS: TestCreateBackendNotRegistered (0.00s)
+=== RUN   TestCreateBackendFactoryError
+--- PASS: TestCreateBackendFactoryError (0.00s)
+=== RUN   TestProbeBackendRegistered
+--- PASS: TestProbeBackendRegistered (0.00s)
+=== RUN   TestProbeBackendViaFactory
+--- PASS: TestProbeBackendViaFactory (0.00s)
+=== RUN   TestProbeBackendNotFound
+--- PASS: TestProbeBackendNotFound (0.00s)
+=== RUN   TestSelectBestBackend
+--- PASS: TestSelectBestBackend (0.00s)
+=== RUN   TestBackendInfo
+--- PASS: TestBackendInfo (0.00s)
+PASS

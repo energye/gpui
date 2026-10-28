@@ -1,0 +1,41 @@
+=== RUN   TestNewDecoder
+=== RUN   TestNewDecoder/nil_encoding_returns_nil
+=== RUN   TestNewDecoder/empty_encoding
+=== RUN   TestNewDecoder/encoding_with_content
+--- PASS: TestNewDecoder (0.00s)
+    --- PASS: TestNewDecoder/nil_encoding_returns_nil (0.00s)
+    --- PASS: TestNewDecoder/empty_encoding (0.00s)
+    --- PASS: TestNewDecoder/encoding_with_content (0.00s)
+=== RUN   TestDecoder_Next
+--- PASS: TestDecoder_Next (0.00s)
+=== RUN   TestDecoder_MoveTo
+--- PASS: TestDecoder_MoveTo (0.00s)
+=== RUN   TestDecoder_LineTo
+--- PASS: TestDecoder_LineTo (0.00s)
+=== RUN   TestDecoder_QuadTo
+--- PASS: TestDecoder_QuadTo (0.00s)
+=== RUN   TestDecoder_CubicTo
+--- PASS: TestDecoder_CubicTo (0.00s)
+=== RUN   TestDecoder_Transform
+--- PASS: TestDecoder_Transform (0.00s)
+=== RUN   TestDecoder_Fill
+--- PASS: TestDecoder_Fill (0.00s)
+=== RUN   TestDecoder_Stroke
+--- PASS: TestDecoder_Stroke (0.00s)
+=== RUN   TestDecoder_PushLayer
+--- PASS: TestDecoder_PushLayer (0.00s)
+=== RUN   TestDecoder_Reset
+--- PASS: TestDecoder_Reset (0.00s)
+=== RUN   TestDecoder_HasMore
+--- PASS: TestDecoder_HasMore (0.00s)
+=== RUN   TestDecoder_Peek
+--- PASS: TestDecoder_Peek (0.00s)
+=== RUN   TestDecoder_CollectPath
+--- PASS: TestDecoder_CollectPath (0.00s)
+=== RUN   TestDecoder_SkipPath
+--- PASS: TestDecoder_SkipPath (0.00s)
+=== RUN   TestDecoder_ComplexScene
+--- PASS: TestDecoder_ComplexScene (0.00s)
+=== RUN   TestDecoder_Encoding
+--- PASS: TestDecoder_Encoding (0.00s)
+PASS

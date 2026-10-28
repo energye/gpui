@@ -1,0 +1,11 @@
+=== RUN   TestFillToBufferNoAA_BinaryPixels
+--- PASS: TestFillToBufferNoAA_BinaryPixels (0.00s)
+=== RUN   TestFillToBufferNoAA_Rectangle
+--- PASS: TestFillToBufferNoAA_Rectangle (0.00s)
+=== RUN   TestFillToBufferNoAA_EmptyPath
+--- PASS: TestFillToBufferNoAA_EmptyPath (0.00s)
+=== RUN   TestFillToBufferNoAA_SmallBuffer
+--- PASS: TestFillToBufferNoAA_SmallBuffer (0.00s)
+=== RUN   TestFillToBufferNoAA_VsFillToBuffer_Diagonal
+--- PASS: TestFillToBufferNoAA_VsFillToBuffer_Diagonal (0.00s)
+PASS

@@ -1,0 +1,11 @@
+=== RUN   TestCSDSysGlyphCJK
+--- PASS: TestCSDSysGlyphCJK (0.05s)
+=== RUN   TestCSDSysGlyphCache
+--- PASS: TestCSDSysGlyphCache (0.00s)
+=== RUN   TestBlendCSDGlyph
+--- PASS: TestBlendCSDGlyph (0.00s)
+=== RUN   TestCSDSysGlyphLatin
+--- PASS: TestCSDSysGlyphLatin (0.00s)
+=== RUN   TestDrawTitleTextMixed
+--- PASS: TestDrawTitleTextMixed (0.00s)
+PASS

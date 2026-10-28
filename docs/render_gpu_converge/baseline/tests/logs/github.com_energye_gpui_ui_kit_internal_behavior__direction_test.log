@@ -1,0 +1,5 @@
+=== RUN   TestDirection_MirrorAndArrows
+--- PASS: TestDirection_MirrorAndArrows (0.00s)
+=== RUN   TestDirection_EmptyText
+--- PASS: TestDirection_EmptyText (0.00s)
+PASS

@@ -1,0 +1,99 @@
+=== RUN   TestComputePassEncoder_State
+=== RUN   TestComputePassEncoder_State/recording_state_on_creation
+=== RUN   TestComputePassEncoder_State/ended_state_after_End
+=== RUN   TestComputePassEncoder_State/nil_pass_returns_ended
+--- PASS: TestComputePassEncoder_State (0.00s)
+    --- PASS: TestComputePassEncoder_State/recording_state_on_creation (0.00s)
+    --- PASS: TestComputePassEncoder_State/ended_state_after_End (0.00s)
+    --- PASS: TestComputePassEncoder_State/nil_pass_returns_ended (0.00s)
+=== RUN   TestComputePassEncoder_IsEnded
+=== RUN   TestComputePassEncoder_IsEnded/recording
+=== RUN   TestComputePassEncoder_IsEnded/ended
+--- PASS: TestComputePassEncoder_IsEnded (0.00s)
+    --- PASS: TestComputePassEncoder_IsEnded/recording (0.00s)
+    --- PASS: TestComputePassEncoder_IsEnded/ended (0.00s)
+=== RUN   TestComputePassEncoder_SetPipeline
+=== RUN   TestComputePassEncoder_SetPipeline/success
+=== RUN   TestComputePassEncoder_SetPipeline/nil_pipeline_error
+=== RUN   TestComputePassEncoder_SetPipeline/ended_pass_error
+--- PASS: TestComputePassEncoder_SetPipeline (0.00s)
+    --- PASS: TestComputePassEncoder_SetPipeline/success (0.00s)
+    --- PASS: TestComputePassEncoder_SetPipeline/nil_pipeline_error (0.00s)
+    --- PASS: TestComputePassEncoder_SetPipeline/ended_pass_error (0.00s)
+=== RUN   TestComputePassEncoder_SetBindGroup
+=== RUN   TestComputePassEncoder_SetBindGroup/valid_bind_group_index_0
+=== RUN   TestComputePassEncoder_SetBindGroup/valid_bind_group_index_3
+=== RUN   TestComputePassEncoder_SetBindGroup/index_out_of_range
+=== RUN   TestComputePassEncoder_SetBindGroup/nil_bind_group
+=== RUN   TestComputePassEncoder_SetBindGroup/ended_pass_error
+--- PASS: TestComputePassEncoder_SetBindGroup (0.00s)
+    --- PASS: TestComputePassEncoder_SetBindGroup/valid_bind_group_index_0 (0.00s)
+    --- PASS: TestComputePassEncoder_SetBindGroup/valid_bind_group_index_3 (0.00s)
+    --- PASS: TestComputePassEncoder_SetBindGroup/index_out_of_range (0.00s)
+    --- PASS: TestComputePassEncoder_SetBindGroup/nil_bind_group (0.00s)
+    --- PASS: TestComputePassEncoder_SetBindGroup/ended_pass_error (0.00s)
+=== RUN   TestComputePassEncoder_DispatchWorkgroups
+=== RUN   TestComputePassEncoder_DispatchWorkgroups/success
+=== RUN   TestComputePassEncoder_DispatchWorkgroups/multiple_dispatches
+=== RUN   TestComputePassEncoder_DispatchWorkgroups/zero_workgroups_allowed
+=== RUN   TestComputePassEncoder_DispatchWorkgroups/ended_pass_error
+--- PASS: TestComputePassEncoder_DispatchWorkgroups (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchWorkgroups/success (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchWorkgroups/multiple_dispatches (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchWorkgroups/zero_workgroups_allowed (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchWorkgroups/ended_pass_error (0.00s)
+=== RUN   TestComputePassEncoder_DispatchWorkgroupsIndirect
+=== RUN   TestComputePassEncoder_DispatchWorkgroupsIndirect/success
+=== RUN   TestComputePassEncoder_DispatchWorkgroupsIndirect/aligned_offset
+=== RUN   TestComputePassEncoder_DispatchWorkgroupsIndirect/nil_buffer_error
+=== RUN   TestComputePassEncoder_DispatchWorkgroupsIndirect/unaligned_offset_error
+=== RUN   TestComputePassEncoder_DispatchWorkgroupsIndirect/ended_pass_error
+--- PASS: TestComputePassEncoder_DispatchWorkgroupsIndirect (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchWorkgroupsIndirect/success (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchWorkgroupsIndirect/aligned_offset (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchWorkgroupsIndirect/nil_buffer_error (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchWorkgroupsIndirect/unaligned_offset_error (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchWorkgroupsIndirect/ended_pass_error (0.00s)
+=== RUN   TestComputePassEncoder_End
+=== RUN   TestComputePassEncoder_End/success
+=== RUN   TestComputePassEncoder_End/idempotent
+--- PASS: TestComputePassEncoder_End (0.00s)
+    --- PASS: TestComputePassEncoder_End/success (0.00s)
+    --- PASS: TestComputePassEncoder_End/idempotent (0.00s)
+=== RUN   TestComputePassEncoder_DispatchCount
+=== RUN   TestComputePassEncoder_DispatchCount/zero_initially
+=== RUN   TestComputePassEncoder_DispatchCount/tracks_dispatches
+--- PASS: TestComputePassEncoder_DispatchCount (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchCount/zero_initially (0.00s)
+    --- PASS: TestComputePassEncoder_DispatchCount/tracks_dispatches (0.00s)
+=== RUN   TestComputePassState_String
+=== RUN   TestComputePassState_String/Recording
+=== RUN   TestComputePassState_String/Ended
+=== RUN   TestComputePassState_String/Unknown(99)
+--- PASS: TestComputePassState_String (0.00s)
+    --- PASS: TestComputePassState_String/Recording (0.00s)
+    --- PASS: TestComputePassState_String/Ended (0.00s)
+    --- PASS: TestComputePassState_String/Unknown(99) (0.00s)
+=== RUN   TestComputePipeline_Methods
+=== RUN   TestComputePipeline_Methods/ID
+=== RUN   TestComputePipeline_Methods/Label
+=== RUN   TestComputePipeline_Methods/WorkgroupSize
+=== RUN   TestComputePipeline_Methods/IsDestroyed_before_destroy
+=== RUN   TestComputePipeline_Methods/Destroy
+--- PASS: TestComputePipeline_Methods (0.00s)
+    --- PASS: TestComputePipeline_Methods/ID (0.00s)
+    --- PASS: TestComputePipeline_Methods/Label (0.00s)
+    --- PASS: TestComputePipeline_Methods/WorkgroupSize (0.00s)
+    --- PASS: TestComputePipeline_Methods/IsDestroyed_before_destroy (0.00s)
+    --- PASS: TestComputePipeline_Methods/Destroy (0.00s)
+=== RUN   TestDispatchIndirectArgs_Size
+--- PASS: TestDispatchIndirectArgs_Size (0.00s)
+=== RUN   TestDrawIndirectArgs_Size
+--- PASS: TestDrawIndirectArgs_Size (0.00s)
+=== RUN   TestDrawIndexedIndirectArgs_Size
+--- PASS: TestDrawIndexedIndirectArgs_Size (0.00s)
+=== RUN   TestComputePass_TypicalWorkflow
+--- PASS: TestComputePass_TypicalWorkflow (0.00s)
+=== RUN   TestComputePass_MultipleDispatches
+--- PASS: TestComputePass_MultipleDispatches (0.00s)
+PASS

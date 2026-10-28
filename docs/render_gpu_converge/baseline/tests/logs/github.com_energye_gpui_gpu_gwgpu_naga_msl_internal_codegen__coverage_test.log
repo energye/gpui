@@ -1,0 +1,271 @@
+=== RUN   TestVersion_Less
+=== RUN   TestVersion_Less/same_version
+=== RUN   TestVersion_Less/minor_less
+=== RUN   TestVersion_Less/minor_greater
+=== RUN   TestVersion_Less/major_less
+=== RUN   TestVersion_Less/major_greater
+=== RUN   TestVersion_Less/major_dominates_minor
+--- PASS: TestVersion_Less (0.00s)
+    --- PASS: TestVersion_Less/same_version (0.00s)
+    --- PASS: TestVersion_Less/minor_less (0.00s)
+    --- PASS: TestVersion_Less/minor_greater (0.00s)
+    --- PASS: TestVersion_Less/major_less (0.00s)
+    --- PASS: TestVersion_Less/major_greater (0.00s)
+    --- PASS: TestVersion_Less/major_dominates_minor (0.00s)
+=== RUN   TestBoundsCheckPolicies_Contains
+=== RUN   TestBoundsCheckPolicies_Contains/index_matches
+=== RUN   TestBoundsCheckPolicies_Contains/buffer_matches
+=== RUN   TestBoundsCheckPolicies_Contains/image_matches
+=== RUN   TestBoundsCheckPolicies_Contains/binding_array_ignored
+=== RUN   TestBoundsCheckPolicies_Contains/no_match
+=== RUN   TestBoundsCheckPolicies_Contains/all_match
+--- PASS: TestBoundsCheckPolicies_Contains (0.00s)
+    --- PASS: TestBoundsCheckPolicies_Contains/index_matches (0.00s)
+    --- PASS: TestBoundsCheckPolicies_Contains/buffer_matches (0.00s)
+    --- PASS: TestBoundsCheckPolicies_Contains/image_matches (0.00s)
+    --- PASS: TestBoundsCheckPolicies_Contains/binding_array_ignored (0.00s)
+    --- PASS: TestBoundsCheckPolicies_Contains/no_match (0.00s)
+    --- PASS: TestBoundsCheckPolicies_Contains/all_match (0.00s)
+=== RUN   TestDefaultBoundsCheckPolicies
+--- PASS: TestDefaultBoundsCheckPolicies (0.00s)
+=== RUN   TestBlockEndsWithReturn
+=== RUN   TestBlockEndsWithReturn/empty_block
+=== RUN   TestBlockEndsWithReturn/ends_with_return
+=== RUN   TestBlockEndsWithReturn/ends_with_kill
+=== RUN   TestBlockEndsWithReturn/ends_with_break
+=== RUN   TestBlockEndsWithReturn/ends_with_continue
+=== RUN   TestBlockEndsWithReturn/nested_block_returns
+=== RUN   TestBlockEndsWithReturn/nested_block_no_return
+=== RUN   TestBlockEndsWithReturn/if_both_return
+=== RUN   TestBlockEndsWithReturn/if_only_accept_returns
+=== RUN   TestBlockEndsWithReturn/if_only_reject_returns
+=== RUN   TestBlockEndsWithReturn/switch_all_cases_return
+=== RUN   TestBlockEndsWithReturn/switch_empty_cases
+=== RUN   TestBlockEndsWithReturn/switch_fallthrough_case
+=== RUN   TestBlockEndsWithReturn/store_at_end
+--- PASS: TestBlockEndsWithReturn (0.00s)
+    --- PASS: TestBlockEndsWithReturn/empty_block (0.00s)
+    --- PASS: TestBlockEndsWithReturn/ends_with_return (0.00s)
+    --- PASS: TestBlockEndsWithReturn/ends_with_kill (0.00s)
+    --- PASS: TestBlockEndsWithReturn/ends_with_break (0.00s)
+    --- PASS: TestBlockEndsWithReturn/ends_with_continue (0.00s)
+    --- PASS: TestBlockEndsWithReturn/nested_block_returns (0.00s)
+    --- PASS: TestBlockEndsWithReturn/nested_block_no_return (0.00s)
+    --- PASS: TestBlockEndsWithReturn/if_both_return (0.00s)
+    --- PASS: TestBlockEndsWithReturn/if_only_accept_returns (0.00s)
+    --- PASS: TestBlockEndsWithReturn/if_only_reject_returns (0.00s)
+    --- PASS: TestBlockEndsWithReturn/switch_all_cases_return (0.00s)
+    --- PASS: TestBlockEndsWithReturn/switch_empty_cases (0.00s)
+    --- PASS: TestBlockEndsWithReturn/switch_fallthrough_case (0.00s)
+    --- PASS: TestBlockEndsWithReturn/store_at_end (0.00s)
+=== RUN   TestBlockEndsWithTerminator
+=== RUN   TestBlockEndsWithTerminator/empty
+=== RUN   TestBlockEndsWithTerminator/return
+=== RUN   TestBlockEndsWithTerminator/kill
+=== RUN   TestBlockEndsWithTerminator/break
+=== RUN   TestBlockEndsWithTerminator/continue
+=== RUN   TestBlockEndsWithTerminator/store
+=== RUN   TestBlockEndsWithTerminator/emit
+--- PASS: TestBlockEndsWithTerminator (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/empty (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/return (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/kill (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/break (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/continue (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/store (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/emit (0.00s)
+=== RUN   TestNeedsPassThrough
+--- PASS: TestNeedsPassThrough (0.00s)
+=== RUN   TestNeedsCustomTypeName
+=== RUN   TestNeedsCustomTypeName/struct
+=== RUN   TestNeedsCustomTypeName/array
+=== RUN   TestNeedsCustomTypeName/scalar
+=== RUN   TestNeedsCustomTypeName/vector
+=== RUN   TestNeedsCustomTypeName/matrix
+=== RUN   TestNeedsCustomTypeName/sampler
+=== RUN   TestNeedsCustomTypeName/image
+=== RUN   TestNeedsCustomTypeName/atomic
+=== RUN   TestNeedsCustomTypeName/pointer
+--- PASS: TestNeedsCustomTypeName (0.00s)
+    --- PASS: TestNeedsCustomTypeName/struct (0.00s)
+    --- PASS: TestNeedsCustomTypeName/array (0.00s)
+    --- PASS: TestNeedsCustomTypeName/scalar (0.00s)
+    --- PASS: TestNeedsCustomTypeName/vector (0.00s)
+    --- PASS: TestNeedsCustomTypeName/matrix (0.00s)
+    --- PASS: TestNeedsCustomTypeName/sampler (0.00s)
+    --- PASS: TestNeedsCustomTypeName/image (0.00s)
+    --- PASS: TestNeedsCustomTypeName/atomic (0.00s)
+    --- PASS: TestNeedsCustomTypeName/pointer (0.00s)
+=== RUN   TestBuiltinInputAttribute
+=== RUN   TestBuiltinInputAttribute/position_vertex
+=== RUN   TestBuiltinInputAttribute/position_fragment
+=== RUN   TestBuiltinInputAttribute/vertex_index
+=== RUN   TestBuiltinInputAttribute/instance_index
+=== RUN   TestBuiltinInputAttribute/front_facing
+=== RUN   TestBuiltinInputAttribute/sample_index
+=== RUN   TestBuiltinInputAttribute/sample_mask
+=== RUN   TestBuiltinInputAttribute/local_invocation_id
+=== RUN   TestBuiltinInputAttribute/local_invocation_index
+=== RUN   TestBuiltinInputAttribute/global_invocation_id
+=== RUN   TestBuiltinInputAttribute/workgroup_id
+=== RUN   TestBuiltinInputAttribute/num_workgroups
+=== RUN   TestBuiltinInputAttribute/barycentric
+=== RUN   TestBuiltinInputAttribute/view_index
+=== RUN   TestBuiltinInputAttribute/primitive_index
+=== RUN   TestBuiltinInputAttribute/num_subgroups
+=== RUN   TestBuiltinInputAttribute/subgroup_size
+=== RUN   TestBuiltinInputAttribute/subgroup_id
+=== RUN   TestBuiltinInputAttribute/subgroup_invocation_id
+--- PASS: TestBuiltinInputAttribute (0.00s)
+    --- PASS: TestBuiltinInputAttribute/position_vertex (0.00s)
+    --- PASS: TestBuiltinInputAttribute/position_fragment (0.00s)
+    --- PASS: TestBuiltinInputAttribute/vertex_index (0.00s)
+    --- PASS: TestBuiltinInputAttribute/instance_index (0.00s)
+    --- PASS: TestBuiltinInputAttribute/front_facing (0.00s)
+    --- PASS: TestBuiltinInputAttribute/sample_index (0.00s)
+    --- PASS: TestBuiltinInputAttribute/sample_mask (0.00s)
+    --- PASS: TestBuiltinInputAttribute/local_invocation_id (0.00s)
+    --- PASS: TestBuiltinInputAttribute/local_invocation_index (0.00s)
+    --- PASS: TestBuiltinInputAttribute/global_invocation_id (0.00s)
+    --- PASS: TestBuiltinInputAttribute/workgroup_id (0.00s)
+    --- PASS: TestBuiltinInputAttribute/num_workgroups (0.00s)
+    --- PASS: TestBuiltinInputAttribute/barycentric (0.00s)
+    --- PASS: TestBuiltinInputAttribute/view_index (0.00s)
+    --- PASS: TestBuiltinInputAttribute/primitive_index (0.00s)
+    --- PASS: TestBuiltinInputAttribute/num_subgroups (0.00s)
+    --- PASS: TestBuiltinInputAttribute/subgroup_size (0.00s)
+    --- PASS: TestBuiltinInputAttribute/subgroup_id (0.00s)
+    --- PASS: TestBuiltinInputAttribute/subgroup_invocation_id (0.00s)
+=== RUN   TestBuiltinOutputAttribute
+=== RUN   TestBuiltinOutputAttribute/position
+=== RUN   TestBuiltinOutputAttribute/position_invariant
+=== RUN   TestBuiltinOutputAttribute/frag_depth
+=== RUN   TestBuiltinOutputAttribute/sample_mask
+=== RUN   TestBuiltinOutputAttribute/point_size
+=== RUN   TestBuiltinOutputAttribute/unknown
+--- PASS: TestBuiltinOutputAttribute (0.00s)
+    --- PASS: TestBuiltinOutputAttribute/position (0.00s)
+    --- PASS: TestBuiltinOutputAttribute/position_invariant (0.00s)
+    --- PASS: TestBuiltinOutputAttribute/frag_depth (0.00s)
+    --- PASS: TestBuiltinOutputAttribute/sample_mask (0.00s)
+    --- PASS: TestBuiltinOutputAttribute/point_size (0.00s)
+    --- PASS: TestBuiltinOutputAttribute/unknown (0.00s)
+=== RUN   TestResolveInterpolationString
+=== RUN   TestResolveInterpolationString/nil_default
+=== RUN   TestResolveInterpolationString/flat
+=== RUN   TestResolveInterpolationString/linear_center
+=== RUN   TestResolveInterpolationString/linear_centroid
+=== RUN   TestResolveInterpolationString/linear_sample
+=== RUN   TestResolveInterpolationString/perspective_center
+=== RUN   TestResolveInterpolationString/perspective_centroid
+=== RUN   TestResolveInterpolationString/perspective_sample
+--- PASS: TestResolveInterpolationString (0.00s)
+    --- PASS: TestResolveInterpolationString/nil_default (0.00s)
+    --- PASS: TestResolveInterpolationString/flat (0.00s)
+    --- PASS: TestResolveInterpolationString/linear_center (0.00s)
+    --- PASS: TestResolveInterpolationString/linear_centroid (0.00s)
+    --- PASS: TestResolveInterpolationString/linear_sample (0.00s)
+    --- PASS: TestResolveInterpolationString/perspective_center (0.00s)
+    --- PASS: TestResolveInterpolationString/perspective_centroid (0.00s)
+    --- PASS: TestResolveInterpolationString/perspective_sample (0.00s)
+=== RUN   TestWriteBindingAttribute
+=== RUN   TestWriteBindingAttribute/builtin_position
+=== RUN   TestWriteBindingAttribute/builtin_frag_depth
+=== RUN   TestWriteBindingAttribute/location_0
+=== RUN   TestWriteBindingAttribute/location_3
+--- PASS: TestWriteBindingAttribute (0.00s)
+    --- PASS: TestWriteBindingAttribute/builtin_position (0.00s)
+    --- PASS: TestWriteBindingAttribute/builtin_frag_depth (0.00s)
+    --- PASS: TestWriteBindingAttribute/location_0 (0.00s)
+    --- PASS: TestWriteBindingAttribute/location_3 (0.00s)
+=== RUN   TestOutputMemberAttribute
+=== RUN   TestOutputMemberAttribute/builtin_position_vertex
+=== RUN   TestOutputMemberAttribute/builtin_invariant_position
+=== RUN   TestOutputMemberAttribute/location_0_vertex
+=== RUN   TestOutputMemberAttribute/location_2_fragment
+--- PASS: TestOutputMemberAttribute (0.00s)
+    --- PASS: TestOutputMemberAttribute/builtin_position_vertex (0.00s)
+    --- PASS: TestOutputMemberAttribute/builtin_invariant_position (0.00s)
+    --- PASS: TestOutputMemberAttribute/location_0_vertex (0.00s)
+    --- PASS: TestOutputMemberAttribute/location_2_fragment (0.00s)
+=== RUN   TestLocationInputAttribute
+=== RUN   TestLocationInputAttribute/vertex_loc0
+=== RUN   TestLocationInputAttribute/vertex_loc3
+=== RUN   TestLocationInputAttribute/fragment_float_default_interp
+=== RUN   TestLocationInputAttribute/fragment_sint_flat
+=== RUN   TestLocationInputAttribute/fragment_uint_flat
+--- PASS: TestLocationInputAttribute (0.00s)
+    --- PASS: TestLocationInputAttribute/vertex_loc0 (0.00s)
+    --- PASS: TestLocationInputAttribute/vertex_loc3 (0.00s)
+    --- PASS: TestLocationInputAttribute/fragment_float_default_interp (0.00s)
+    --- PASS: TestLocationInputAttribute/fragment_sint_flat (0.00s)
+    --- PASS: TestLocationInputAttribute/fragment_uint_flat (0.00s)
+=== RUN   TestLiteralScalarTypeName
+=== RUN   TestLiteralScalarTypeName/i32
+=== RUN   TestLiteralScalarTypeName/u32
+=== RUN   TestLiteralScalarTypeName/f32
+=== RUN   TestLiteralScalarTypeName/bool
+=== RUN   TestLiteralScalarTypeName/f64
+--- PASS: TestLiteralScalarTypeName (0.00s)
+    --- PASS: TestLiteralScalarTypeName/i32 (0.00s)
+    --- PASS: TestLiteralScalarTypeName/u32 (0.00s)
+    --- PASS: TestLiteralScalarTypeName/f32 (0.00s)
+    --- PASS: TestLiteralScalarTypeName/bool (0.00s)
+    --- PASS: TestLiteralScalarTypeName/f64 (0.00s)
+=== RUN   TestCompile_WorkgroupZeroInit
+--- PASS: TestCompile_WorkgroupZeroInit (0.00s)
+=== RUN   TestCompile_PrivateGlobalVariable
+--- PASS: TestCompile_PrivateGlobalVariable (0.00s)
+=== RUN   TestCompile_ForLoopStatement
+--- PASS: TestCompile_ForLoopStatement (0.00s)
+=== RUN   TestCompile_AllowAndForcePointSize
+--- PASS: TestCompile_AllowAndForcePointSize (0.00s)
+=== RUN   TestCompile_DualSourceBlending
+--- PASS: TestCompile_DualSourceBlending (0.00s)
+=== RUN   TestCompile_StorageBufferAsEntryParam
+--- PASS: TestCompile_StorageBufferAsEntryParam (0.00s)
+=== RUN   TestCompile_BindingArrayType
+--- PASS: TestCompile_BindingArrayType (0.00s)
+=== RUN   TestCompile_MultipleEntryPoints_Info
+--- PASS: TestCompile_MultipleEntryPoints_Info (0.00s)
+=== RUN   TestCompile_WorkgroupAtomicZeroInit
+--- PASS: TestCompile_WorkgroupAtomicZeroInit (0.00s)
+=== RUN   TestCompile_FakeMissingBindings
+--- PASS: TestCompile_FakeMissingBindings (0.00s)
+=== RUN   TestCompile_PerEntryPointMap
+--- PASS: TestCompile_PerEntryPointMap (0.00s)
+=== RUN   TestScalarCastTypeName_Width8
+=== RUN   TestScalarCastTypeName_Width8/sint_64
+=== RUN   TestScalarCastTypeName_Width8/uint_64
+=== RUN   TestScalarCastTypeName_Width8/float_default
+=== RUN   TestScalarCastTypeName_Width8/unknown_default
+--- PASS: TestScalarCastTypeName_Width8 (0.00s)
+    --- PASS: TestScalarCastTypeName_Width8/sint_64 (0.00s)
+    --- PASS: TestScalarCastTypeName_Width8/uint_64 (0.00s)
+    --- PASS: TestScalarCastTypeName_Width8/float_default (0.00s)
+    --- PASS: TestScalarCastTypeName_Width8/unknown_default (0.00s)
+=== RUN   TestCompile_MultipleFunctionsWithSharedGlobals
+--- PASS: TestCompile_MultipleFunctionsWithSharedGlobals (0.00s)
+=== RUN   TestCompile_ImageSampleExpression
+--- PASS: TestCompile_ImageSampleExpression (0.00s)
+=== RUN   TestCompile_NamedConstants
+--- PASS: TestCompile_NamedConstants (0.00s)
+=== RUN   TestIsEntryPointFunction
+--- PASS: TestIsEntryPointFunction (0.00s)
+=== RUN   TestWriteScalarZeroLiteral
+=== RUN   TestWriteScalarZeroLiteral/float_zero
+=== RUN   TestWriteScalarZeroLiteral/uint_zero
+=== RUN   TestWriteScalarZeroLiteral/bool_zero
+=== RUN   TestWriteScalarZeroLiteral/sint_zero
+--- PASS: TestWriteScalarZeroLiteral (0.00s)
+    --- PASS: TestWriteScalarZeroLiteral/float_zero (0.00s)
+    --- PASS: TestWriteScalarZeroLiteral/uint_zero (0.00s)
+    --- PASS: TestWriteScalarZeroLiteral/bool_zero (0.00s)
+    --- PASS: TestWriteScalarZeroLiteral/sint_zero (0.00s)
+=== RUN   TestCompile_EmptyBlock
+--- PASS: TestCompile_EmptyBlock (0.00s)
+=== RUN   TestAddressSpaceName_PushConstant
+--- PASS: TestAddressSpaceName_PushConstant (0.00s)
+=== RUN   TestCompile_StructWithPadding
+--- PASS: TestCompile_StructWithPadding (0.00s)
+PASS

@@ -1,0 +1,8 @@
+=== RUN   TestS2PlayerParallelExact
+    playback_parallel_test.go:92: s2 ffmpeg parity: par=199 seq=200 common=199
+--- PASS: TestS2PlayerParallelExact (0.94s)
+=== RUN   TestS2PlayerSeekParity
+--- PASS: TestS2PlayerSeekParity (0.26s)
+=== RUN   TestS2PlayerSmallClipUntouched
+--- PASS: TestS2PlayerSmallClipUntouched (0.03s)
+PASS

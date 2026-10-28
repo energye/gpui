@@ -1,0 +1,5 @@
+=== RUN   TestEmptyClipSegment_BuildsSkippableGroup
+--- PASS: TestEmptyClipSegment_BuildsSkippableGroup (0.00s)
+=== RUN   TestApplyGroupScissor_EmptyRectSkips
+--- PASS: TestApplyGroupScissor_EmptyRectSkips (0.00s)
+PASS

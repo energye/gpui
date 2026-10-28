@@ -1,0 +1,17 @@
+=== RUN   TestInlineEmitRangeEnd
+--- PASS: TestInlineEmitRangeEnd (0.00s)
+=== RUN   TestInlineNamedExpressionsPrefixed
+--- PASS: TestInlineNamedExpressionsPrefixed (0.00s)
+=== RUN   TestInlineArgLoadExpressionTypes
+--- PASS: TestInlineArgLoadExpressionTypes (0.00s)
+=== RUN   TestInlineExpressionsArrayContiguous
+--- PASS: TestInlineExpressionsArrayContiguous (0.00s)
+=== RUN   TestInlineEarlyReturnWrap
+--- PASS: TestInlineEarlyReturnWrap (0.00s)
+=== RUN   TestInlineEarlyReturnVoid
+--- PASS: TestInlineEarlyReturnVoid (0.00s)
+=== RUN   TestInlineTailReturnNoWrap
+--- PASS: TestInlineTailReturnNoWrap (0.00s)
+=== RUN   TestInlineEmitsArgLoadExpressions
+--- PASS: TestInlineEmitsArgLoadExpressions (0.00s)
+PASS

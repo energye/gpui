@@ -1,0 +1,50 @@
+=== RUN   TestBackendName
+--- PASS: TestBackendName (0.00s)
+=== RUN   TestBackendInit
+    backend_test.go:57: GPU: 580.178.04 (DiscreteGPU, Vulkan)
+--- PASS: TestBackendInit (0.22s)
+=== RUN   TestBackendClose
+--- PASS: TestBackendClose (0.18s)
+=== RUN   TestBackendNewRenderer
+--- PASS: TestBackendNewRenderer (0.19s)
+=== RUN   TestBackendNewRendererInvalidDimensions
+=== RUN   TestBackendNewRendererInvalidDimensions/zero_width
+=== RUN   TestBackendNewRendererInvalidDimensions/zero_height
+=== RUN   TestBackendNewRendererInvalidDimensions/negative_width
+=== RUN   TestBackendNewRendererInvalidDimensions/negative_height
+=== RUN   TestBackendNewRendererInvalidDimensions/both_zero
+=== RUN   TestBackendNewRendererInvalidDimensions/both_negative
+--- PASS: TestBackendNewRendererInvalidDimensions (0.18s)
+    --- PASS: TestBackendNewRendererInvalidDimensions/zero_width (0.00s)
+    --- PASS: TestBackendNewRendererInvalidDimensions/zero_height (0.00s)
+    --- PASS: TestBackendNewRendererInvalidDimensions/negative_width (0.00s)
+    --- PASS: TestBackendNewRendererInvalidDimensions/negative_height (0.00s)
+    --- PASS: TestBackendNewRendererInvalidDimensions/both_zero (0.00s)
+    --- PASS: TestBackendNewRendererInvalidDimensions/both_negative (0.00s)
+=== RUN   TestBackendRenderScene
+    backend_test.go:219: RenderScene() with empty scene: GPU render failed: wgpu: empty scene (expected for empty scene)
+--- PASS: TestBackendRenderScene (0.67s)
+=== RUN   TestGPURendererFillStroke
+--- PASS: TestGPURendererFillStroke (0.18s)
+=== RUN   TestBackendConcurrency
+--- PASS: TestBackendConcurrency (0.18s)
+=== RUN   TestGPUInfo
+    backend_test.go:339: GPUInfo: Test GPU (DiscreteGPU, Vulkan)
+--- PASS: TestGPUInfo (0.00s)
+=== RUN   TestErrors
+=== RUN   TestErrors/ErrNotInitialized
+=== RUN   TestErrors/ErrNoGPU
+=== RUN   TestErrors/ErrDeviceLost
+=== RUN   TestErrors/ErrNotImplemented
+=== RUN   TestErrors/ErrInvalidDimensions
+=== RUN   TestErrors/ErrNilTarget
+=== RUN   TestErrors/ErrNilScene
+--- PASS: TestErrors (0.00s)
+    --- PASS: TestErrors/ErrNotInitialized (0.00s)
+    --- PASS: TestErrors/ErrNoGPU (0.00s)
+    --- PASS: TestErrors/ErrDeviceLost (0.00s)
+    --- PASS: TestErrors/ErrNotImplemented (0.00s)
+    --- PASS: TestErrors/ErrInvalidDimensions (0.00s)
+    --- PASS: TestErrors/ErrNilTarget (0.00s)
+    --- PASS: TestErrors/ErrNilScene (0.00s)
+PASS

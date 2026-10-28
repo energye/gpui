@@ -1,0 +1,9 @@
+=== RUN   TestDitherContractNilAndToggle
+--- PASS: TestDitherContractNilAndToggle (0.00s)
+=== RUN   TestDitherContractGradientReadback
+--- PASS: TestDitherContractGradientReadback (0.28s)
+=== RUN   TestDitherContractDeterministic
+--- PASS: TestDitherContractDeterministic (0.00s)
+=== RUN   TestDitherContractBayer4Period
+--- PASS: TestDitherContractBayer4Period (0.00s)
+PASS

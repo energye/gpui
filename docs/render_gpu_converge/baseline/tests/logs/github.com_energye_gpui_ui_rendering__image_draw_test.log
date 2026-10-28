@@ -1,0 +1,13 @@
+=== RUN   TestDrawImageRounded_ClipsCorners
+--- PASS: TestDrawImageRounded_ClipsCorners (0.00s)
+=== RUN   TestDrawImageNine_CornersUnscaledCenterStretches
+--- PASS: TestDrawImageNine_CornersUnscaledCenterStretches (0.00s)
+=== RUN   TestDrawImageBuf_Basic
+--- PASS: TestDrawImageBuf_Basic (0.00s)
+=== RUN   TestDrawImageCircular_ClipsOutsideCircle
+--- PASS: TestDrawImageCircular_ClipsOutsideCircle (0.00s)
+=== RUN   TestDrawImageRect_SrcCrop
+--- PASS: TestDrawImageRect_SrcCrop (0.00s)
+=== RUN   TestDrawAtlas_TwoSprites
+--- PASS: TestDrawAtlas_TwoSprites (0.00s)
+PASS

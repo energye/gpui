@@ -1,0 +1,283 @@
+=== RUN   TestIntegration_VertexEntryPoint
+--- PASS: TestIntegration_VertexEntryPoint (0.00s)
+=== RUN   TestIntegration_FragmentEntryPoint
+--- PASS: TestIntegration_FragmentEntryPoint (0.00s)
+=== RUN   TestIntegration_ComputeEntryPoint
+--- PASS: TestIntegration_ComputeEntryPoint (0.00s)
+=== RUN   TestIntegration_ArithmeticExpressions
+--- PASS: TestIntegration_ArithmeticExpressions (0.00s)
+=== RUN   TestIntegration_IntegerDivisionAndModulo
+--- PASS: TestIntegration_IntegerDivisionAndModulo (0.00s)
+=== RUN   TestIntegration_UnsignedDivMod
+--- PASS: TestIntegration_UnsignedDivMod (0.00s)
+=== RUN   TestIntegration_ComparisonOperators
+--- PASS: TestIntegration_ComparisonOperators (0.00s)
+=== RUN   TestIntegration_BitwiseOperators
+--- PASS: TestIntegration_BitwiseOperators (0.00s)
+=== RUN   TestIntegration_LogicalOperators
+--- PASS: TestIntegration_LogicalOperators (0.00s)
+=== RUN   TestIntegration_UnaryNegate
+--- PASS: TestIntegration_UnaryNegate (0.00s)
+=== RUN   TestIntegration_MathFunctions1Arg
+=== RUN   TestIntegration_MathFunctions1Arg/abs_float
+=== RUN   TestIntegration_MathFunctions1Arg/ceil
+=== RUN   TestIntegration_MathFunctions1Arg/floor
+=== RUN   TestIntegration_MathFunctions1Arg/round
+=== RUN   TestIntegration_MathFunctions1Arg/trunc
+=== RUN   TestIntegration_MathFunctions1Arg/sqrt
+=== RUN   TestIntegration_MathFunctions1Arg/inverseSqrt
+=== RUN   TestIntegration_MathFunctions1Arg/exp
+=== RUN   TestIntegration_MathFunctions1Arg/exp2
+=== RUN   TestIntegration_MathFunctions1Arg/log
+=== RUN   TestIntegration_MathFunctions1Arg/log2
+=== RUN   TestIntegration_MathFunctions1Arg/sin
+=== RUN   TestIntegration_MathFunctions1Arg/cos
+=== RUN   TestIntegration_MathFunctions1Arg/tan
+=== RUN   TestIntegration_MathFunctions1Arg/asin
+=== RUN   TestIntegration_MathFunctions1Arg/acos
+=== RUN   TestIntegration_MathFunctions1Arg/atan
+=== RUN   TestIntegration_MathFunctions1Arg/sinh
+=== RUN   TestIntegration_MathFunctions1Arg/cosh
+=== RUN   TestIntegration_MathFunctions1Arg/tanh
+=== RUN   TestIntegration_MathFunctions1Arg/asinh
+=== RUN   TestIntegration_MathFunctions1Arg/acosh
+=== RUN   TestIntegration_MathFunctions1Arg/atanh
+=== RUN   TestIntegration_MathFunctions1Arg/fract
+=== RUN   TestIntegration_MathFunctions1Arg/saturate
+=== RUN   TestIntegration_MathFunctions1Arg/sign_float
+--- PASS: TestIntegration_MathFunctions1Arg (0.01s)
+    --- PASS: TestIntegration_MathFunctions1Arg/abs_float (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/ceil (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/floor (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/round (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/trunc (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/sqrt (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/inverseSqrt (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/exp (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/exp2 (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/log (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/log2 (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/sin (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/cos (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/tan (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/asin (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/acos (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/atan (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/sinh (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/cosh (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/tanh (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/asinh (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/acosh (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/atanh (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/fract (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/saturate (0.00s)
+    --- PASS: TestIntegration_MathFunctions1Arg/sign_float (0.00s)
+=== RUN   TestIntegration_MathFunctions2Arg
+=== RUN   TestIntegration_MathFunctions2Arg/min_f32
+=== RUN   TestIntegration_MathFunctions2Arg/max_f32
+=== RUN   TestIntegration_MathFunctions2Arg/pow
+=== RUN   TestIntegration_MathFunctions2Arg/atan2
+=== RUN   TestIntegration_MathFunctions2Arg/step
+--- PASS: TestIntegration_MathFunctions2Arg (0.00s)
+    --- PASS: TestIntegration_MathFunctions2Arg/min_f32 (0.00s)
+    --- PASS: TestIntegration_MathFunctions2Arg/max_f32 (0.00s)
+    --- PASS: TestIntegration_MathFunctions2Arg/pow (0.00s)
+    --- PASS: TestIntegration_MathFunctions2Arg/atan2 (0.00s)
+    --- PASS: TestIntegration_MathFunctions2Arg/step (0.00s)
+=== RUN   TestIntegration_MathFunctions3Arg
+=== RUN   TestIntegration_MathFunctions3Arg/clamp
+=== RUN   TestIntegration_MathFunctions3Arg/mix
+=== RUN   TestIntegration_MathFunctions3Arg/smoothstep
+=== RUN   TestIntegration_MathFunctions3Arg/fma
+--- PASS: TestIntegration_MathFunctions3Arg (0.00s)
+    --- PASS: TestIntegration_MathFunctions3Arg/clamp (0.00s)
+    --- PASS: TestIntegration_MathFunctions3Arg/mix (0.00s)
+    --- PASS: TestIntegration_MathFunctions3Arg/smoothstep (0.00s)
+    --- PASS: TestIntegration_MathFunctions3Arg/fma (0.00s)
+=== RUN   TestIntegration_IntegerMathFunctions
+=== RUN   TestIntegration_IntegerMathFunctions/countOneBits
+=== RUN   TestIntegration_IntegerMathFunctions/reverseBits
+=== RUN   TestIntegration_IntegerMathFunctions/countLeadingZeros
+=== RUN   TestIntegration_IntegerMathFunctions/countTrailingZeros
+--- PASS: TestIntegration_IntegerMathFunctions (0.00s)
+    --- PASS: TestIntegration_IntegerMathFunctions/countOneBits (0.00s)
+    --- PASS: TestIntegration_IntegerMathFunctions/reverseBits (0.00s)
+    --- PASS: TestIntegration_IntegerMathFunctions/countLeadingZeros (0.00s)
+    --- PASS: TestIntegration_IntegerMathFunctions/countTrailingZeros (0.00s)
+=== RUN   TestIntegration_SignInteger
+--- PASS: TestIntegration_SignInteger (0.00s)
+=== RUN   TestIntegration_AbsInteger
+--- PASS: TestIntegration_AbsInteger (0.00s)
+=== RUN   TestIntegration_VectorConstruction
+--- PASS: TestIntegration_VectorConstruction (0.00s)
+=== RUN   TestIntegration_VectorSwizzle
+--- PASS: TestIntegration_VectorSwizzle (0.00s)
+=== RUN   TestIntegration_VectorSplat
+--- PASS: TestIntegration_VectorSplat (0.00s)
+=== RUN   TestIntegration_MatrixConstruction
+--- PASS: TestIntegration_MatrixConstruction (0.00s)
+=== RUN   TestIntegration_MatrixTimesVector
+--- PASS: TestIntegration_MatrixTimesVector (0.00s)
+=== RUN   TestIntegration_TypeCasts
+=== RUN   TestIntegration_TypeCasts/f32_to_i32
+=== RUN   TestIntegration_TypeCasts/i32_to_f32
+=== RUN   TestIntegration_TypeCasts/u32_to_i32
+=== RUN   TestIntegration_TypeCasts/i32_to_u32
+--- PASS: TestIntegration_TypeCasts (0.00s)
+    --- PASS: TestIntegration_TypeCasts/f32_to_i32 (0.00s)
+    --- PASS: TestIntegration_TypeCasts/i32_to_f32 (0.00s)
+    --- PASS: TestIntegration_TypeCasts/u32_to_i32 (0.00s)
+    --- PASS: TestIntegration_TypeCasts/i32_to_u32 (0.00s)
+=== RUN   TestIntegration_IfElseChain
+--- PASS: TestIntegration_IfElseChain (0.00s)
+=== RUN   TestIntegration_ForLoop
+--- PASS: TestIntegration_ForLoop (0.00s)
+=== RUN   TestIntegration_SwitchStatement
+--- PASS: TestIntegration_SwitchStatement (0.00s)
+=== RUN   TestIntegration_LoopBreakContinue
+--- PASS: TestIntegration_LoopBreakContinue (0.00s)
+=== RUN   TestIntegration_LocalVariables
+--- PASS: TestIntegration_LocalVariables (0.00s)
+=== RUN   TestIntegration_PrivateGlobals
+--- PASS: TestIntegration_PrivateGlobals (0.00s)
+=== RUN   TestIntegration_WorkgroupVariable
+--- PASS: TestIntegration_WorkgroupVariable (0.00s)
+=== RUN   TestIntegration_StructDefinition
+--- PASS: TestIntegration_StructDefinition (0.00s)
+=== RUN   TestIntegration_NestedStructs
+--- PASS: TestIntegration_NestedStructs (0.00s)
+=== RUN   TestIntegration_FixedArray
+--- PASS: TestIntegration_FixedArray (0.00s)
+=== RUN   TestIntegration_UniformBuffer
+--- PASS: TestIntegration_UniformBuffer (0.00s)
+=== RUN   TestIntegration_StorageBuffer
+--- PASS: TestIntegration_StorageBuffer (0.00s)
+=== RUN   TestIntegration_ReadOnlyStorage
+--- PASS: TestIntegration_ReadOnlyStorage (0.00s)
+=== RUN   TestIntegration_TextureSample
+--- PASS: TestIntegration_TextureSample (0.00s)
+=== RUN   TestIntegration_TextureSampleLevel
+--- PASS: TestIntegration_TextureSampleLevel (0.00s)
+=== RUN   TestIntegration_Derivatives
+=== RUN   TestIntegration_Derivatives/dpdx
+=== RUN   TestIntegration_Derivatives/dpdy
+=== RUN   TestIntegration_Derivatives/fwidth
+--- PASS: TestIntegration_Derivatives (0.00s)
+    --- PASS: TestIntegration_Derivatives/dpdx (0.00s)
+    --- PASS: TestIntegration_Derivatives/dpdy (0.00s)
+    --- PASS: TestIntegration_Derivatives/fwidth (0.00s)
+=== RUN   TestIntegration_Relational
+=== RUN   TestIntegration_Relational/any
+=== RUN   TestIntegration_Relational/all
+--- PASS: TestIntegration_Relational (0.00s)
+    --- PASS: TestIntegration_Relational/any (0.00s)
+    --- PASS: TestIntegration_Relational/all (0.00s)
+=== RUN   TestIntegration_SelectVector
+--- PASS: TestIntegration_SelectVector (0.00s)
+=== RUN   TestIntegration_SelectScalar
+--- PASS: TestIntegration_SelectScalar (0.00s)
+=== RUN   TestIntegration_FunctionCall
+--- PASS: TestIntegration_FunctionCall (0.00s)
+=== RUN   TestIntegration_FunctionCallWithGlobal
+--- PASS: TestIntegration_FunctionCallWithGlobal (0.00s)
+=== RUN   TestIntegration_ConstantDeclaration
+--- PASS: TestIntegration_ConstantDeclaration (0.00s)
+=== RUN   TestIntegration_WorkgroupBarrier
+--- PASS: TestIntegration_WorkgroupBarrier (0.00s)
+=== RUN   TestIntegration_StorageBarrier
+--- PASS: TestIntegration_StorageBarrier (0.00s)
+=== RUN   TestIntegration_AtomicAdd
+--- PASS: TestIntegration_AtomicAdd (0.00s)
+=== RUN   TestIntegration_AtomicStore
+--- PASS: TestIntegration_AtomicStore (0.00s)
+=== RUN   TestIntegration_AtomicLoad
+--- PASS: TestIntegration_AtomicLoad (0.00s)
+=== RUN   TestIntegration_AtomicCompareExchangeWeak
+--- PASS: TestIntegration_AtomicCompareExchangeWeak (0.00s)
+=== RUN   TestIntegration_Modf
+--- PASS: TestIntegration_Modf (0.00s)
+=== RUN   TestIntegration_Frexp
+--- PASS: TestIntegration_Frexp (0.00s)
+=== RUN   TestIntegration_QuantizeToF16
+--- PASS: TestIntegration_QuantizeToF16 (0.00s)
+=== RUN   TestIntegration_QuantizeToF16_Vector
+--- PASS: TestIntegration_QuantizeToF16_Vector (0.00s)
+=== RUN   TestIntegration_IntDot
+--- PASS: TestIntegration_IntDot (0.00s)
+=== RUN   TestIntegration_WorkgroupZeroInit
+--- PASS: TestIntegration_WorkgroupZeroInit (0.00s)
+=== RUN   TestIntegration_HeaderContents
+--- PASS: TestIntegration_HeaderContents (0.00s)
+=== RUN   TestIntegration_PackedVec3InStruct
+--- PASS: TestIntegration_PackedVec3InStruct (0.00s)
+=== RUN   TestIntegration_Bitcast
+--- PASS: TestIntegration_Bitcast (0.00s)
+=== RUN   TestIntegration_Texture3D
+--- PASS: TestIntegration_Texture3D (0.00s)
+=== RUN   TestIntegration_TextureCube
+--- PASS: TestIntegration_TextureCube (0.00s)
+=== RUN   TestIntegration_Texture2DArray
+--- PASS: TestIntegration_Texture2DArray (0.00s)
+=== RUN   TestIntegration_TextureTypeSint
+--- PASS: TestIntegration_TextureTypeSint (0.00s)
+=== RUN   TestIntegration_TextureTypeUint
+--- PASS: TestIntegration_TextureTypeUint (0.00s)
+=== RUN   TestIntegration_DepthTexture
+--- PASS: TestIntegration_DepthTexture (0.00s)
+=== RUN   TestIntegration_MultisampledTexture
+--- PASS: TestIntegration_MultisampledTexture (0.00s)
+=== RUN   TestIntegration_ImageStorageRead
+--- PASS: TestIntegration_ImageStorageRead (0.00s)
+=== RUN   TestIntegration_TextureDimensions
+--- PASS: TestIntegration_TextureDimensions (0.00s)
+=== RUN   TestIntegration_TextureNumLevels
+--- PASS: TestIntegration_TextureNumLevels (0.00s)
+=== RUN   TestIntegration_TextureNumSamples
+--- PASS: TestIntegration_TextureNumSamples (0.00s)
+=== RUN   TestIntegration_SamplerComparison
+--- PASS: TestIntegration_SamplerComparison (0.00s)
+=== RUN   TestIntegration_Discard
+--- PASS: TestIntegration_Discard (0.00s)
+=== RUN   TestIntegration_NamedExpressions
+--- PASS: TestIntegration_NamedExpressions (0.00s)
+=== RUN   TestIntegration_ComplexVertexShader
+--- PASS: TestIntegration_ComplexVertexShader (0.00s)
+=== RUN   TestIntegration_MultipleEntryPoints
+--- PASS: TestIntegration_MultipleEntryPoints (0.00s)
+=== RUN   TestIntegration_VertexFragmentIO
+--- PASS: TestIntegration_VertexFragmentIO (0.00s)
+=== RUN   TestIntegration_ComputeBuiltins
+--- PASS: TestIntegration_ComputeBuiltins (0.00s)
+=== RUN   TestIntegration_Unpack4x8Unorm
+--- PASS: TestIntegration_Unpack4x8Unorm (0.00s)
+=== RUN   TestIntegration_Unpack4x8Snorm
+--- PASS: TestIntegration_Unpack4x8Snorm (0.00s)
+=== RUN   TestIntegration_Pack4x8Unorm
+--- PASS: TestIntegration_Pack4x8Unorm (0.00s)
+=== RUN   TestIntegration_Pack4x8Snorm
+--- PASS: TestIntegration_Pack4x8Snorm (0.00s)
+=== RUN   TestIntegration_Unpack2x16Float
+--- PASS: TestIntegration_Unpack2x16Float (0.00s)
+=== RUN   TestIntegration_Pack2x16Float
+--- PASS: TestIntegration_Pack2x16Float (0.00s)
+=== RUN   TestIntegration_PipelineConstantsBasic
+--- PASS: TestIntegration_PipelineConstantsBasic (0.00s)
+=== RUN   TestIntegration_ScalarTypes
+--- PASS: TestIntegration_ScalarTypes (0.00s)
+=== RUN   TestIntegration_AtomicInStruct
+--- PASS: TestIntegration_AtomicInStruct (0.00s)
+=== RUN   TestIntegration_WorkgroupUniformLoad
+--- PASS: TestIntegration_WorkgroupUniformLoad (0.00s)
+=== RUN   TestIntegration_AddressSpaces
+--- PASS: TestIntegration_AddressSpaces (0.00s)
+=== RUN   TestIntegration_F2ISafeConversion
+--- PASS: TestIntegration_F2ISafeConversion (0.00s)
+=== RUN   TestIntegration_Version10
+--- PASS: TestIntegration_Version10 (0.00s)
+=== RUN   TestIntegration_ForceLoopBounding
+--- PASS: TestIntegration_ForceLoopBounding (0.00s)
+=== RUN   TestIntegration_LiteralTypes
+--- PASS: TestIntegration_LiteralTypes (0.00s)
+=== RUN   TestIntegration_KeywordEscaping
+--- PASS: TestIntegration_KeywordEscaping (0.00s)
+PASS

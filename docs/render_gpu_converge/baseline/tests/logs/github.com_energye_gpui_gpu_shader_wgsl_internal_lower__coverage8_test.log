@@ -1,0 +1,101 @@
+=== RUN   TestLowerConstFoldFirstTrailingBit
+--- PASS: TestLowerConstFoldFirstTrailingBit (0.00s)
+=== RUN   TestLowerConstFoldFirstLeadingBit
+--- PASS: TestLowerConstFoldFirstLeadingBit (0.00s)
+=== RUN   TestLowerConstFoldCountOneBits
+--- PASS: TestLowerConstFoldCountOneBits (0.00s)
+=== RUN   TestLowerConstFoldReverseBits
+--- PASS: TestLowerConstFoldReverseBits (0.00s)
+=== RUN   TestLowerConstFoldQuantizeToF16
+--- PASS: TestLowerConstFoldQuantizeToF16 (0.00s)
+=== RUN   TestLowerConstFoldComposeVec
+--- PASS: TestLowerConstFoldComposeVec (0.00s)
+=== RUN   TestLowerResolveTargetScalarInBinary
+--- PASS: TestLowerResolveTargetScalarInBinary (0.00s)
+=== RUN   TestLowerConcretizeConstScalarVec
+--- PASS: TestLowerConcretizeConstScalarVec (0.00s)
+=== RUN   TestLowerEvalConstantArgExprFloat
+--- PASS: TestLowerEvalConstantArgExprFloat (0.00s)
+=== RUN   TestLowerEvalConstantArgExprInt
+--- PASS: TestLowerEvalConstantArgExprInt (0.00s)
+=== RUN   TestLowerCreateZeroComponentsAllTypes
+--- PASS: TestLowerCreateZeroComponentsAllTypes (0.00s)
+=== RUN   TestLowerAbstractScalarKindAllSuffixes
+--- PASS: TestLowerAbstractScalarKindAllSuffixes (0.00s)
+=== RUN   TestLowerGroupMatrixConstColumns3x3
+--- PASS: TestLowerGroupMatrixConstColumns3x3 (0.00s)
+=== RUN   TestLowerInferCompositeConstTypeArray
+--- PASS: TestLowerInferCompositeConstTypeArray (0.00s)
+=== RUN   TestLowerLiteralScalarTypesAllKinds
+--- PASS: TestLowerLiteralScalarTypesAllKinds (0.00s)
+=== RUN   TestLowerAbstractConstantUsageMultipleContexts
+--- PASS: TestLowerAbstractConstantUsageMultipleContexts (0.00s)
+=== RUN   TestLowerExtractConstVecLiteralsAllSwizzles
+--- PASS: TestLowerExtractConstVecLiteralsAllSwizzles (0.00s)
+=== RUN   TestLowerBuildConstGlobalExprComposite
+--- PASS: TestLowerBuildConstGlobalExprComposite (0.00s)
+=== RUN   TestLowerEvalConstantIdentAbstract
+--- PASS: TestLowerEvalConstantIdentAbstract (0.00s)
+=== RUN   TestLowerEvalConstantIdentConcrete
+--- PASS: TestLowerEvalConstantIdentConcrete (0.00s)
+=== RUN   TestLowerConstIntExprNested
+--- PASS: TestLowerConstIntExprNested (0.00s)
+=== RUN   TestLowerTypeNameResolutionAll
+--- PASS: TestLowerTypeNameResolutionAll (0.00s)
+=== RUN   TestLowerConstFoldMixHalf
+--- PASS: TestLowerConstFoldMixHalf (0.00s)
+=== RUN   TestLowerConstFoldFmaMulAdd
+--- PASS: TestLowerConstFoldFmaMulAdd (0.00s)
+=== RUN   TestLowerConstFoldStepEdge
+--- PASS: TestLowerConstFoldStepEdge (0.00s)
+=== RUN   TestLowerConstFoldSmoothstepHalf
+--- PASS: TestLowerConstFoldSmoothstepHalf (0.00s)
+=== RUN   TestLowerConstFoldSaturateClamp
+--- PASS: TestLowerConstFoldSaturateClamp (0.00s)
+=== RUN   TestLowerConstFoldDegrees
+--- PASS: TestLowerConstFoldDegrees (0.00s)
+=== RUN   TestLowerConstFoldRadians
+--- PASS: TestLowerConstFoldRadians (0.00s)
+=== RUN   TestLowerCompoundAssignVecElement
+--- PASS: TestLowerCompoundAssignVecElement (0.00s)
+=== RUN   TestLowerGlobalVarInitZeroValue
+--- PASS: TestLowerGlobalVarInitZeroValue (0.00s)
+=== RUN   TestLowerNestedStructs
+--- PASS: TestLowerNestedStructs (0.00s)
+=== RUN   TestLowerArrayIndexRuntimeAndConst
+--- PASS: TestLowerArrayIndexRuntimeAndConst (0.00s)
+=== RUN   TestLowerOverrideInitComplexExpr
+--- PASS: TestLowerOverrideInitComplexExpr (0.00s)
+=== RUN   TestLowerAliasAll
+--- PASS: TestLowerAliasAll (0.00s)
+=== RUN   TestLowerConstFoldAtan2
+--- PASS: TestLowerConstFoldAtan2 (0.00s)
+=== RUN   TestLowerConstFoldLdexp
+--- PASS: TestLowerConstFoldLdexp (0.00s)
+=== RUN   TestLowerBitwiseOpsRuntime
+--- PASS: TestLowerBitwiseOpsRuntime (0.00s)
+=== RUN   TestLowerConstFoldComparisonOps
+--- PASS: TestLowerConstFoldComparisonOps (0.00s)
+=== RUN   TestLowerMultisampledTexture
+--- PASS: TestLowerMultisampledTexture (0.00s)
+=== RUN   TestLowerStorageTextureWrite
+--- PASS: TestLowerStorageTextureWrite (0.00s)
+=== RUN   TestLowerDepthTexture
+--- PASS: TestLowerDepthTexture (0.00s)
+=== RUN   TestLowerAbstractConstBinaryAllOps
+--- PASS: TestLowerAbstractConstBinaryAllOps (0.00s)
+=== RUN   TestLowerAbstractConstUnaryNegLiteral
+--- PASS: TestLowerAbstractConstUnaryNegLiteral (0.00s)
+=== RUN   TestLowerAbstractConstUnaryBangLiteral
+--- PASS: TestLowerAbstractConstUnaryBangLiteral (0.00s)
+=== RUN   TestLowerNegateScalarBitsU32
+--- PASS: TestLowerNegateScalarBitsU32 (0.00s)
+=== RUN   TestLowerExpressionForRefArray
+--- PASS: TestLowerExpressionForRefArray (0.00s)
+=== RUN   TestLowerContinueStatement
+--- PASS: TestLowerContinueStatement (0.00s)
+=== RUN   TestLowerBreakStatement
+--- PASS: TestLowerBreakStatement (0.00s)
+=== RUN   TestLowerMultipleReturnTypes
+--- PASS: TestLowerMultipleReturnTypes (0.00s)
+PASS

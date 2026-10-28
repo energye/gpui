@@ -1,0 +1,13 @@
+=== RUN   TestR75_LayoutTemplate_ScrollRebase
+--- PASS: TestR75_LayoutTemplate_ScrollRebase (0.01s)
+=== RUN   TestR75_LayoutTemplate_ColorIndependent
+--- PASS: TestR75_LayoutTemplate_ColorIndependent (0.00s)
+=== RUN   TestR75_LayoutTemplate_MatchesFreshLayout
+--- PASS: TestR75_LayoutTemplate_MatchesFreshLayout (0.01s)
+=== RUN   TestR75_LayoutTextAliased_UsesTemplate
+--- PASS: TestR75_LayoutTextAliased_UsesTemplate (0.00s)
+=== RUN   TestR75_LayoutTemplate_AtlasCompactInvalidatesUVs
+--- PASS: TestR75_LayoutTemplate_AtlasCompactInvalidatesUVs (0.01s)
+=== RUN   TestR75_LayoutTemplate_TouchKeepsPageAlive
+--- PASS: TestR75_LayoutTemplate_TouchKeepsPageAlive (0.00s)
+PASS

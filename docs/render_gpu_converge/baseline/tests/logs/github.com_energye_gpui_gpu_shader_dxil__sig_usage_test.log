@@ -1,0 +1,13 @@
+=== RUN   TestComputeInputUsedMasks_EmptyBody
+--- PASS: TestComputeInputUsedMasks_EmptyBody (0.00s)
+=== RUN   TestComputeInputUsedMasks_DirectScalarArg
+--- PASS: TestComputeInputUsedMasks_DirectScalarArg (0.00s)
+=== RUN   TestComputeInputUsedMasks_StructMemberFullUse
+--- PASS: TestComputeInputUsedMasks_StructMemberFullUse (0.00s)
+=== RUN   TestComputeInputUsedMasks_SwizzleAccess
+--- PASS: TestComputeInputUsedMasks_SwizzleAccess (0.00s)
+=== RUN   TestComputeInputUsedMasks_UnusedVSInput
+--- PASS: TestComputeInputUsedMasks_UnusedVSInput (0.00s)
+=== RUN   TestComputeInputUsedMasks_MultipleArgs
+--- PASS: TestComputeInputUsedMasks_MultipleArgs (0.00s)
+PASS

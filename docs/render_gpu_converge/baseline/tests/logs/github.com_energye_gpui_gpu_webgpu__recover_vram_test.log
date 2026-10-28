@@ -1,0 +1,3 @@
+=== RUN   TestDeviceRecover_CreateTextureAfterRelease
+--- PASS: TestDeviceRecover_CreateTextureAfterRelease (0.32s)
+PASS

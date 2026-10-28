@@ -1,0 +1,8 @@
+=== RUN   TestOpt36_FilterSeedSharedEncoder_OneFinish
+    opt36_filter_seed_shared_encoder_test.go:69: seed encode: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestOpt36_FilterSeedSharedEncoder_OneFinish (0.19s)
+=== RUN   TestOpt36_FilterFromView_StillOneFinish
+--- PASS: TestOpt36_FilterFromView_StillOneFinish (0.20s)
+=== RUN   TestOpt36_FilterSeedSharedEncoder_StaticDescs
+--- PASS: TestOpt36_FilterSeedSharedEncoder_StaticDescs (0.00s)
+FAIL

@@ -1,0 +1,89 @@
+=== RUN   TestOutlineOp_String
+=== RUN   TestOutlineOp_String/MoveTo
+=== RUN   TestOutlineOp_String/LineTo
+=== RUN   TestOutlineOp_String/QuadTo
+=== RUN   TestOutlineOp_String/CubicTo
+=== RUN   TestOutlineOp_String/Unknown
+--- PASS: TestOutlineOp_String (0.00s)
+    --- PASS: TestOutlineOp_String/MoveTo (0.00s)
+    --- PASS: TestOutlineOp_String/LineTo (0.00s)
+    --- PASS: TestOutlineOp_String/QuadTo (0.00s)
+    --- PASS: TestOutlineOp_String/CubicTo (0.00s)
+    --- PASS: TestOutlineOp_String/Unknown (0.00s)
+=== RUN   TestGlyphOutline_IsEmpty
+=== RUN   TestGlyphOutline_IsEmpty/nil_segments
+=== RUN   TestGlyphOutline_IsEmpty/empty_segments
+=== RUN   TestGlyphOutline_IsEmpty/has_segments
+--- PASS: TestGlyphOutline_IsEmpty (0.00s)
+    --- PASS: TestGlyphOutline_IsEmpty/nil_segments (0.00s)
+    --- PASS: TestGlyphOutline_IsEmpty/empty_segments (0.00s)
+    --- PASS: TestGlyphOutline_IsEmpty/has_segments (0.00s)
+=== RUN   TestGlyphOutline_SegmentCount
+=== RUN   TestGlyphOutline_SegmentCount/nil_segments
+=== RUN   TestGlyphOutline_SegmentCount/two_segments
+--- PASS: TestGlyphOutline_SegmentCount (0.00s)
+    --- PASS: TestGlyphOutline_SegmentCount/nil_segments (0.00s)
+    --- PASS: TestGlyphOutline_SegmentCount/two_segments (0.00s)
+=== RUN   TestGlyphOutline_Clone
+=== RUN   TestGlyphOutline_Clone/nil_outline
+=== RUN   TestGlyphOutline_Clone/normal_outline
+--- PASS: TestGlyphOutline_Clone (0.00s)
+    --- PASS: TestGlyphOutline_Clone/nil_outline (0.00s)
+    --- PASS: TestGlyphOutline_Clone/normal_outline (0.00s)
+=== RUN   TestGlyphOutline_Scale
+=== RUN   TestGlyphOutline_Scale/nil_outline
+=== RUN   TestGlyphOutline_Scale/scale_by_2
+--- PASS: TestGlyphOutline_Scale (0.00s)
+    --- PASS: TestGlyphOutline_Scale/nil_outline (0.00s)
+    --- PASS: TestGlyphOutline_Scale/scale_by_2 (0.00s)
+=== RUN   TestGlyphOutline_Translate
+=== RUN   TestGlyphOutline_Translate/nil_outline
+=== RUN   TestGlyphOutline_Translate/translate_by_10,20
+--- PASS: TestGlyphOutline_Translate (0.00s)
+    --- PASS: TestGlyphOutline_Translate/nil_outline (0.00s)
+    --- PASS: TestGlyphOutline_Translate/translate_by_10,20 (0.00s)
+=== RUN   TestAffineTransform
+=== RUN   TestAffineTransform/identity
+=== RUN   TestAffineTransform/scale
+=== RUN   TestAffineTransform/translate
+=== RUN   TestAffineTransform/multiply
+--- PASS: TestAffineTransform (0.00s)
+    --- PASS: TestAffineTransform/identity (0.00s)
+    --- PASS: TestAffineTransform/scale (0.00s)
+    --- PASS: TestAffineTransform/translate (0.00s)
+    --- PASS: TestAffineTransform/multiply (0.00s)
+=== RUN   TestGlyphOutline_Transform
+=== RUN   TestGlyphOutline_Transform/nil_outline
+=== RUN   TestGlyphOutline_Transform/nil_transform
+=== RUN   TestGlyphOutline_Transform/scale_transform
+--- PASS: TestGlyphOutline_Transform (0.00s)
+    --- PASS: TestGlyphOutline_Transform/nil_outline (0.00s)
+    --- PASS: TestGlyphOutline_Transform/nil_transform (0.00s)
+    --- PASS: TestGlyphOutline_Transform/scale_transform (0.00s)
+=== RUN   TestOutlineExtractor_New
+--- PASS: TestOutlineExtractor_New (0.00s)
+=== RUN   TestFontError
+--- PASS: TestFontError (0.00s)
+=== RUN   TestErrUnsupportedFontType
+--- PASS: TestErrUnsupportedFontType (0.00s)
+=== RUN   TestExtractOutlineHinted_AllGlyphs_Portable
+=== RUN   TestExtractOutlineHinted_AllGlyphs_Portable/A/None
+    glyph_outline_test.go:468: A (GID=1, hinting=None): 765 segments, advance=13.54
+=== RUN   TestExtractOutlineHinted_AllGlyphs_Portable/A/Vertical
+    glyph_outline_test.go:468: A (GID=1, hinting=Vertical): 765 segments, advance=14.00
+=== RUN   TestExtractOutlineHinted_AllGlyphs_Portable/A/Full
+    glyph_outline_test.go:468: A (GID=1, hinting=Full): 765 segments, advance=14.00
+=== RUN   TestExtractOutlineHinted_AllGlyphs_Portable/Aacute/None
+    glyph_outline_test.go:468: Aacute (GID=2, hinting=None): 755 segments, advance=13.54
+=== RUN   TestExtractOutlineHinted_AllGlyphs_Portable/Aacute/Vertical
+    glyph_outline_test.go:468: Aacute (GID=2, hinting=Vertical): 755 segments, advance=14.00
+=== RUN   TestExtractOutlineHinted_AllGlyphs_Portable/Aacute/Full
+    glyph_outline_test.go:468: Aacute (GID=2, hinting=Full): 755 segments, advance=14.00
+--- PASS: TestExtractOutlineHinted_AllGlyphs_Portable (0.01s)
+    --- PASS: TestExtractOutlineHinted_AllGlyphs_Portable/A/None (0.00s)
+    --- PASS: TestExtractOutlineHinted_AllGlyphs_Portable/A/Vertical (0.00s)
+    --- PASS: TestExtractOutlineHinted_AllGlyphs_Portable/A/Full (0.00s)
+    --- PASS: TestExtractOutlineHinted_AllGlyphs_Portable/Aacute/None (0.00s)
+    --- PASS: TestExtractOutlineHinted_AllGlyphs_Portable/Aacute/Vertical (0.00s)
+    --- PASS: TestExtractOutlineHinted_AllGlyphs_Portable/Aacute/Full (0.00s)
+PASS

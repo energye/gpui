@@ -1,0 +1,7 @@
+=== RUN   TestNeedsIndicShaping
+--- PASS: TestNeedsIndicShaping (0.00s)
+=== RUN   TestSplitIndicDesired_StageOrder
+--- PASS: TestSplitIndicDesired_StageOrder (0.00s)
+=== RUN   TestGSUB_StagedIndic_AppliesInStageOrder
+--- PASS: TestGSUB_StagedIndic_AppliesInStageOrder (0.00s)
+PASS

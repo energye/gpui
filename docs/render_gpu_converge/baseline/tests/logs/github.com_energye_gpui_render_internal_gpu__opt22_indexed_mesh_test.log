@@ -1,0 +1,5 @@
+=== RUN   TestOpt22_IndexedMesh_FewerUploadBytes
+--- PASS: TestOpt22_IndexedMesh_FewerUploadBytes (0.19s)
+=== RUN   TestOpt22_StashPreservesPackedVerts
+--- PASS: TestOpt22_StashPreservesPackedVerts (0.16s)
+PASS

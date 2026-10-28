@@ -1,0 +1,9 @@
+=== RUN   TestDbgWhichPath
+hasPostScriptOutlines: true
+hasCFF: true hasCFF2: false hasGlyf: false
+cffLightHintOutline ok: true
+cffLightHint 输出 Y∈[-13.75,1.83]
+ExtractOutlineHinted err: <nil>
+ExtractOutlineHinted Y∈[-13.75,1.83]
+--- PASS: TestDbgWhichPath (0.02s)
+PASS

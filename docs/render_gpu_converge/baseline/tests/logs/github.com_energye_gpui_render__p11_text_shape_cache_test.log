@@ -1,0 +1,6 @@
+=== RUN   TestP11_CJKDrawString_ShapeCacheWarm
+    p11_text_shape_cache_test.go:72: path gpu_ops=5 cpu_fallback_ops=0 frame_flushes=2 baseGPU=1 shape={Hits:0 Misses:3 Entries:3 SoftLimit:4096 Evictions:0}
+    p11_text_shape_cache_test.go:95: ink at 22,14 = 25,25,38
+    p11_text_shape_cache_test.go:118: warm2 path gpu_ops=5 cpu_fallback_ops=0 frame_flushes=1 shape={Hits:0 Misses:0 Entries:3 SoftLimit:4096 Evictions:0}
+--- PASS: TestP11_CJKDrawString_ShapeCacheWarm (0.43s)
+PASS

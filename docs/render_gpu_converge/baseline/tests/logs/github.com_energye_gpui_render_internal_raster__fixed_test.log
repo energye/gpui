@@ -1,0 +1,269 @@
+=== RUN   TestFDot6FromInt
+=== RUN   TestFDot6FromInt/zero
+=== RUN   TestFDot6FromInt/one
+=== RUN   TestFDot6FromInt/negative_one
+=== RUN   TestFDot6FromInt/ten
+=== RUN   TestFDot6FromInt/large_positive
+=== RUN   TestFDot6FromInt/large_negative
+--- PASS: TestFDot6FromInt (0.00s)
+    --- PASS: TestFDot6FromInt/zero (0.00s)
+    --- PASS: TestFDot6FromInt/one (0.00s)
+    --- PASS: TestFDot6FromInt/negative_one (0.00s)
+    --- PASS: TestFDot6FromInt/ten (0.00s)
+    --- PASS: TestFDot6FromInt/large_positive (0.00s)
+    --- PASS: TestFDot6FromInt/large_negative (0.00s)
+=== RUN   TestFDot6FromFloat32
+=== RUN   TestFDot6FromFloat32/zero
+=== RUN   TestFDot6FromFloat32/one
+=== RUN   TestFDot6FromFloat32/half
+=== RUN   TestFDot6FromFloat32/quarter
+=== RUN   TestFDot6FromFloat32/negative
+=== RUN   TestFDot6FromFloat32/small_fraction
+--- PASS: TestFDot6FromFloat32 (0.00s)
+    --- PASS: TestFDot6FromFloat32/zero (0.00s)
+    --- PASS: TestFDot6FromFloat32/one (0.00s)
+    --- PASS: TestFDot6FromFloat32/half (0.00s)
+    --- PASS: TestFDot6FromFloat32/quarter (0.00s)
+    --- PASS: TestFDot6FromFloat32/negative (0.00s)
+    --- PASS: TestFDot6FromFloat32/small_fraction (0.00s)
+=== RUN   TestFDot6FromFloat64
+=== RUN   TestFDot6FromFloat64/zero
+=== RUN   TestFDot6FromFloat64/one
+=== RUN   TestFDot6FromFloat64/half
+=== RUN   TestFDot6FromFloat64/negative
+--- PASS: TestFDot6FromFloat64 (0.00s)
+    --- PASS: TestFDot6FromFloat64/zero (0.00s)
+    --- PASS: TestFDot6FromFloat64/one (0.00s)
+    --- PASS: TestFDot6FromFloat64/half (0.00s)
+    --- PASS: TestFDot6FromFloat64/negative (0.00s)
+=== RUN   TestFDot6ToFloat32
+=== RUN   TestFDot6ToFloat32/zero
+=== RUN   TestFDot6ToFloat32/one
+=== RUN   TestFDot6ToFloat32/half
+=== RUN   TestFDot6ToFloat32/negative
+--- PASS: TestFDot6ToFloat32 (0.00s)
+    --- PASS: TestFDot6ToFloat32/zero (0.00s)
+    --- PASS: TestFDot6ToFloat32/one (0.00s)
+    --- PASS: TestFDot6ToFloat32/half (0.00s)
+    --- PASS: TestFDot6ToFloat32/negative (0.00s)
+=== RUN   TestFDot6ToFloat64
+=== RUN   TestFDot6ToFloat64/zero
+=== RUN   TestFDot6ToFloat64/one
+=== RUN   TestFDot6ToFloat64/negative_half
+--- PASS: TestFDot6ToFloat64 (0.00s)
+    --- PASS: TestFDot6ToFloat64/zero (0.00s)
+    --- PASS: TestFDot6ToFloat64/one (0.00s)
+    --- PASS: TestFDot6ToFloat64/negative_half (0.00s)
+=== RUN   TestFDot6Floor
+=== RUN   TestFDot6Floor/zero
+=== RUN   TestFDot6Floor/one
+=== RUN   TestFDot6Floor/one_and_a_half
+=== RUN   TestFDot6Floor/just_above_zero
+=== RUN   TestFDot6Floor/just_below_one
+=== RUN   TestFDot6Floor/negative
+=== RUN   TestFDot6Floor/negative_fraction
+--- PASS: TestFDot6Floor (0.00s)
+    --- PASS: TestFDot6Floor/zero (0.00s)
+    --- PASS: TestFDot6Floor/one (0.00s)
+    --- PASS: TestFDot6Floor/one_and_a_half (0.00s)
+    --- PASS: TestFDot6Floor/just_above_zero (0.00s)
+    --- PASS: TestFDot6Floor/just_below_one (0.00s)
+    --- PASS: TestFDot6Floor/negative (0.00s)
+    --- PASS: TestFDot6Floor/negative_fraction (0.00s)
+=== RUN   TestFDot6Ceil
+=== RUN   TestFDot6Ceil/zero
+=== RUN   TestFDot6Ceil/one
+=== RUN   TestFDot6Ceil/just_above_zero
+=== RUN   TestFDot6Ceil/half
+=== RUN   TestFDot6Ceil/negative
+=== RUN   TestFDot6Ceil/negative_fraction
+--- PASS: TestFDot6Ceil (0.00s)
+    --- PASS: TestFDot6Ceil/zero (0.00s)
+    --- PASS: TestFDot6Ceil/one (0.00s)
+    --- PASS: TestFDot6Ceil/just_above_zero (0.00s)
+    --- PASS: TestFDot6Ceil/half (0.00s)
+    --- PASS: TestFDot6Ceil/negative (0.00s)
+    --- PASS: TestFDot6Ceil/negative_fraction (0.00s)
+=== RUN   TestFDot6Round
+=== RUN   TestFDot6Round/zero
+=== RUN   TestFDot6Round/one
+=== RUN   TestFDot6Round/half_rounds_up
+=== RUN   TestFDot6Round/just_below_half
+=== RUN   TestFDot6Round/one_and_a_quarter
+=== RUN   TestFDot6Round/one_and_three_quarters
+--- PASS: TestFDot6Round (0.00s)
+    --- PASS: TestFDot6Round/zero (0.00s)
+    --- PASS: TestFDot6Round/one (0.00s)
+    --- PASS: TestFDot6Round/half_rounds_up (0.00s)
+    --- PASS: TestFDot6Round/just_below_half (0.00s)
+    --- PASS: TestFDot6Round/one_and_a_quarter (0.00s)
+    --- PASS: TestFDot6Round/one_and_three_quarters (0.00s)
+=== RUN   TestFDot6RoundTrip
+--- PASS: TestFDot6RoundTrip (0.00s)
+=== RUN   TestFDot6Div
+=== RUN   TestFDot6Div/simple_division
+=== RUN   TestFDot6Div/half
+=== RUN   TestFDot6Div/division_by_zero_positive
+=== RUN   TestFDot6Div/division_by_zero_negative
+=== RUN   TestFDot6Div/small_numerator_fast_path
+=== RUN   TestFDot6Div/large_numerator_slow_path
+--- PASS: TestFDot6Div (0.00s)
+    --- PASS: TestFDot6Div/simple_division (0.00s)
+    --- PASS: TestFDot6Div/half (0.00s)
+    --- PASS: TestFDot6Div/division_by_zero_positive (0.00s)
+    --- PASS: TestFDot6Div/division_by_zero_negative (0.00s)
+    --- PASS: TestFDot6Div/small_numerator_fast_path (0.00s)
+    --- PASS: TestFDot6Div/large_numerator_slow_path (0.00s)
+=== RUN   TestFDot6CanConvertToFDot16
+=== RUN   TestFDot6CanConvertToFDot16/zero
+=== RUN   TestFDot6CanConvertToFDot16/one
+=== RUN   TestFDot6CanConvertToFDot16/small_positive
+=== RUN   TestFDot6CanConvertToFDot16/large_positive
+=== RUN   TestFDot6CanConvertToFDot16/overflow_positive
+=== RUN   TestFDot6CanConvertToFDot16/overflow_negative
+--- PASS: TestFDot6CanConvertToFDot16 (0.00s)
+    --- PASS: TestFDot6CanConvertToFDot16/zero (0.00s)
+    --- PASS: TestFDot6CanConvertToFDot16/one (0.00s)
+    --- PASS: TestFDot6CanConvertToFDot16/small_positive (0.00s)
+    --- PASS: TestFDot6CanConvertToFDot16/large_positive (0.00s)
+    --- PASS: TestFDot6CanConvertToFDot16/overflow_positive (0.00s)
+    --- PASS: TestFDot6CanConvertToFDot16/overflow_negative (0.00s)
+=== RUN   TestFDot6SmallScale
+=== RUN   TestFDot6SmallScale/zero_scale
+=== RUN   TestFDot6SmallScale/full_scale
+=== RUN   TestFDot6SmallScale/half_scale
+=== RUN   TestFDot6SmallScale/quarter_scale
+=== RUN   TestFDot6SmallScale/zero_value
+--- PASS: TestFDot6SmallScale (0.00s)
+    --- PASS: TestFDot6SmallScale/zero_scale (0.00s)
+    --- PASS: TestFDot6SmallScale/full_scale (0.00s)
+    --- PASS: TestFDot6SmallScale/half_scale (0.00s)
+    --- PASS: TestFDot6SmallScale/quarter_scale (0.00s)
+    --- PASS: TestFDot6SmallScale/zero_value (0.00s)
+=== RUN   TestFDot16FromFloat32
+=== RUN   TestFDot16FromFloat32/zero
+=== RUN   TestFDot16FromFloat32/one
+=== RUN   TestFDot16FromFloat32/half
+=== RUN   TestFDot16FromFloat32/negative
+=== RUN   TestFDot16FromFloat32/very_large_saturates
+=== RUN   TestFDot16FromFloat32/very_negative_saturates
+--- PASS: TestFDot16FromFloat32 (0.00s)
+    --- PASS: TestFDot16FromFloat32/zero (0.00s)
+    --- PASS: TestFDot16FromFloat32/one (0.00s)
+    --- PASS: TestFDot16FromFloat32/half (0.00s)
+    --- PASS: TestFDot16FromFloat32/negative (0.00s)
+    --- PASS: TestFDot16FromFloat32/very_large_saturates (0.00s)
+    --- PASS: TestFDot16FromFloat32/very_negative_saturates (0.00s)
+=== RUN   TestFDot16FromFloat64
+=== RUN   TestFDot16FromFloat64/zero
+=== RUN   TestFDot16FromFloat64/one
+=== RUN   TestFDot16FromFloat64/negative
+--- PASS: TestFDot16FromFloat64 (0.00s)
+    --- PASS: TestFDot16FromFloat64/zero (0.00s)
+    --- PASS: TestFDot16FromFloat64/one (0.00s)
+    --- PASS: TestFDot16FromFloat64/negative (0.00s)
+=== RUN   TestFDot16FloorCeilRound
+=== RUN   TestFDot16FloorCeilRound/zero
+=== RUN   TestFDot16FloorCeilRound/one
+=== RUN   TestFDot16FloorCeilRound/one_and_half
+=== RUN   TestFDot16FloorCeilRound/just_above_one
+=== RUN   TestFDot16FloorCeilRound/negative_one
+--- PASS: TestFDot16FloorCeilRound (0.00s)
+    --- PASS: TestFDot16FloorCeilRound/zero (0.00s)
+    --- PASS: TestFDot16FloorCeilRound/one (0.00s)
+    --- PASS: TestFDot16FloorCeilRound/one_and_half (0.00s)
+    --- PASS: TestFDot16FloorCeilRound/just_above_one (0.00s)
+    --- PASS: TestFDot16FloorCeilRound/negative_one (0.00s)
+=== RUN   TestFDot16Mul
+=== RUN   TestFDot16Mul/zero
+=== RUN   TestFDot16Mul/one_times_one
+=== RUN   TestFDot16Mul/two_times_three
+=== RUN   TestFDot16Mul/half_times_half
+=== RUN   TestFDot16Mul/negative
+--- PASS: TestFDot16Mul (0.00s)
+    --- PASS: TestFDot16Mul/zero (0.00s)
+    --- PASS: TestFDot16Mul/one_times_one (0.00s)
+    --- PASS: TestFDot16Mul/two_times_three (0.00s)
+    --- PASS: TestFDot16Mul/half_times_half (0.00s)
+    --- PASS: TestFDot16Mul/negative (0.00s)
+=== RUN   TestFDot16Div
+=== RUN   TestFDot16Div/simple
+=== RUN   TestFDot16Div/half
+=== RUN   TestFDot16Div/div_by_zero_positive
+=== RUN   TestFDot16Div/div_by_zero_negative
+--- PASS: TestFDot16Div (0.00s)
+    --- PASS: TestFDot16Div/simple (0.00s)
+    --- PASS: TestFDot16Div/half (0.00s)
+    --- PASS: TestFDot16Div/div_by_zero_positive (0.00s)
+    --- PASS: TestFDot16Div/div_by_zero_negative (0.00s)
+=== RUN   TestFDot16FastDiv
+=== RUN   TestFDot16FastDiv/simple
+=== RUN   TestFDot16FastDiv/half
+=== RUN   TestFDot16FastDiv/div_by_zero_pos
+=== RUN   TestFDot16FastDiv/div_by_zero_neg
+--- PASS: TestFDot16FastDiv (0.00s)
+    --- PASS: TestFDot16FastDiv/simple (0.00s)
+    --- PASS: TestFDot16FastDiv/half (0.00s)
+    --- PASS: TestFDot16FastDiv/div_by_zero_pos (0.00s)
+    --- PASS: TestFDot16FastDiv/div_by_zero_neg (0.00s)
+=== RUN   TestFDot8FromFDot16
+=== RUN   TestFDot8FromFDot16/zero
+=== RUN   TestFDot8FromFDot16/one
+=== RUN   TestFDot8FromFDot16/half
+=== RUN   TestFDot8FromFDot16/small
+=== RUN   TestFDot8FromFDot16/just_below_rounding
+--- PASS: TestFDot8FromFDot16 (0.00s)
+    --- PASS: TestFDot8FromFDot16/zero (0.00s)
+    --- PASS: TestFDot8FromFDot16/one (0.00s)
+    --- PASS: TestFDot8FromFDot16/half (0.00s)
+    --- PASS: TestFDot8FromFDot16/small (0.00s)
+    --- PASS: TestFDot8FromFDot16/just_below_rounding (0.00s)
+=== RUN   TestLeftShift
+=== RUN   TestLeftShift/positive_shift
+=== RUN   TestLeftShift/zero_shift
+=== RUN   TestLeftShift/negative_shift_(right_shift)
+=== RUN   TestLeftShift/negative_value_positive_shift
+--- PASS: TestLeftShift (0.00s)
+    --- PASS: TestLeftShift/positive_shift (0.00s)
+    --- PASS: TestLeftShift/zero_shift (0.00s)
+    --- PASS: TestLeftShift/negative_shift_(right_shift) (0.00s)
+    --- PASS: TestLeftShift/negative_value_positive_shift (0.00s)
+=== RUN   TestLeftShift64
+=== RUN   TestLeftShift64/positive_shift
+=== RUN   TestLeftShift64/zero_shift
+=== RUN   TestLeftShift64/negative_shift
+=== RUN   TestLeftShift64/large_value
+--- PASS: TestLeftShift64 (0.00s)
+    --- PASS: TestLeftShift64/positive_shift (0.00s)
+    --- PASS: TestLeftShift64/zero_shift (0.00s)
+    --- PASS: TestLeftShift64/negative_shift (0.00s)
+    --- PASS: TestLeftShift64/large_value (0.00s)
+=== RUN   TestSaturateInt32
+=== RUN   TestSaturateInt32/zero
+=== RUN   TestSaturateInt32/positive_fits
+=== RUN   TestSaturateInt32/negative_fits
+=== RUN   TestSaturateInt32/max_int32
+=== RUN   TestSaturateInt32/min_int32
+=== RUN   TestSaturateInt32/overflow_positive
+=== RUN   TestSaturateInt32/overflow_negative
+=== RUN   TestSaturateInt32/very_large
+=== RUN   TestSaturateInt32/very_negative
+--- PASS: TestSaturateInt32 (0.00s)
+    --- PASS: TestSaturateInt32/zero (0.00s)
+    --- PASS: TestSaturateInt32/positive_fits (0.00s)
+    --- PASS: TestSaturateInt32/negative_fits (0.00s)
+    --- PASS: TestSaturateInt32/max_int32 (0.00s)
+    --- PASS: TestSaturateInt32/min_int32 (0.00s)
+    --- PASS: TestSaturateInt32/overflow_positive (0.00s)
+    --- PASS: TestSaturateInt32/overflow_negative (0.00s)
+    --- PASS: TestSaturateInt32/very_large (0.00s)
+    --- PASS: TestSaturateInt32/very_negative (0.00s)
+=== RUN   TestFDot6ToFixedDiv2
+=== RUN   TestFDot6ToFixedDiv2/zero
+=== RUN   TestFDot6ToFixedDiv2/one_in_fdot6_/_2
+=== RUN   TestFDot6ToFixedDiv2/two_in_fdot6_/_2
+--- PASS: TestFDot6ToFixedDiv2 (0.00s)
+    --- PASS: TestFDot6ToFixedDiv2/zero (0.00s)
+    --- PASS: TestFDot6ToFixedDiv2/one_in_fdot6_/_2 (0.00s)
+    --- PASS: TestFDot6ToFixedDiv2/two_in_fdot6_/_2 (0.00s)
+PASS

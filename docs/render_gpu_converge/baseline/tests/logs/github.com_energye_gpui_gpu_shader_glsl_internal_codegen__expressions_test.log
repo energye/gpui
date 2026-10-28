@@ -1,0 +1,493 @@
+=== RUN   TestGLSL_ScalarTypes
+=== RUN   TestGLSL_ScalarTypes/bool
+=== RUN   TestGLSL_ScalarTypes/int32
+=== RUN   TestGLSL_ScalarTypes/int64
+=== RUN   TestGLSL_ScalarTypes/uint32
+=== RUN   TestGLSL_ScalarTypes/uint64
+=== RUN   TestGLSL_ScalarTypes/float16
+=== RUN   TestGLSL_ScalarTypes/float32
+=== RUN   TestGLSL_ScalarTypes/float64
+=== RUN   TestGLSL_ScalarTypes/int8_as_int
+=== RUN   TestGLSL_ScalarTypes/int16_as_int
+=== RUN   TestGLSL_ScalarTypes/uint8_as_uint
+=== RUN   TestGLSL_ScalarTypes/uint16_as_uint
+--- PASS: TestGLSL_ScalarTypes (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/bool (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/int32 (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/int64 (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/uint32 (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/uint64 (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/float16 (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/float32 (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/float64 (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/int8_as_int (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/int16_as_int (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/uint8_as_uint (0.00s)
+    --- PASS: TestGLSL_ScalarTypes/uint16_as_uint (0.00s)
+=== RUN   TestGLSL_VectorTypes
+=== RUN   TestGLSL_VectorTypes/vec2
+=== RUN   TestGLSL_VectorTypes/vec3
+=== RUN   TestGLSL_VectorTypes/vec4
+=== RUN   TestGLSL_VectorTypes/ivec2
+=== RUN   TestGLSL_VectorTypes/ivec3
+=== RUN   TestGLSL_VectorTypes/ivec4
+=== RUN   TestGLSL_VectorTypes/uvec2
+=== RUN   TestGLSL_VectorTypes/uvec3
+=== RUN   TestGLSL_VectorTypes/uvec4
+=== RUN   TestGLSL_VectorTypes/bvec2
+=== RUN   TestGLSL_VectorTypes/bvec3
+=== RUN   TestGLSL_VectorTypes/bvec4
+=== RUN   TestGLSL_VectorTypes/dvec2
+=== RUN   TestGLSL_VectorTypes/dvec3
+=== RUN   TestGLSL_VectorTypes/dvec4
+=== RUN   TestGLSL_VectorTypes/invalid_size_clamps
+=== RUN   TestGLSL_VectorTypes/default_kind
+--- PASS: TestGLSL_VectorTypes (0.00s)
+    --- PASS: TestGLSL_VectorTypes/vec2 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/vec3 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/vec4 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/ivec2 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/ivec3 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/ivec4 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/uvec2 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/uvec3 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/uvec4 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/bvec2 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/bvec3 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/bvec4 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/dvec2 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/dvec3 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/dvec4 (0.00s)
+    --- PASS: TestGLSL_VectorTypes/invalid_size_clamps (0.00s)
+    --- PASS: TestGLSL_VectorTypes/default_kind (0.00s)
+=== RUN   TestGLSL_MatrixTypes
+=== RUN   TestGLSL_MatrixTypes/mat2x2
+=== RUN   TestGLSL_MatrixTypes/mat3x3
+=== RUN   TestGLSL_MatrixTypes/mat4x4
+=== RUN   TestGLSL_MatrixTypes/mat2x3
+=== RUN   TestGLSL_MatrixTypes/mat3x4
+=== RUN   TestGLSL_MatrixTypes/mat4x2
+=== RUN   TestGLSL_MatrixTypes/dmat2x2
+=== RUN   TestGLSL_MatrixTypes/dmat3x3
+=== RUN   TestGLSL_MatrixTypes/dmat4x4
+=== RUN   TestGLSL_MatrixTypes/dmat2x3
+=== RUN   TestGLSL_MatrixTypes/invalid_cols_clamp
+=== RUN   TestGLSL_MatrixTypes/invalid_rows_clamp
+=== RUN   TestGLSL_MatrixTypes/non_float_default
+--- PASS: TestGLSL_MatrixTypes (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/mat2x2 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/mat3x3 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/mat4x4 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/mat2x3 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/mat3x4 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/mat4x2 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/dmat2x2 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/dmat3x3 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/dmat4x4 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/dmat2x3 (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/invalid_cols_clamp (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/invalid_rows_clamp (0.00s)
+    --- PASS: TestGLSL_MatrixTypes/non_float_default (0.00s)
+=== RUN   TestGLSL_ImageTypes
+=== RUN   TestGLSL_ImageTypes/sampler1D
+=== RUN   TestGLSL_ImageTypes/sampler2D
+=== RUN   TestGLSL_ImageTypes/sampler3D
+=== RUN   TestGLSL_ImageTypes/samplerCube
+=== RUN   TestGLSL_ImageTypes/sampler2DShadow
+=== RUN   TestGLSL_ImageTypes/samplerCubeShadow
+=== RUN   TestGLSL_ImageTypes/sampler1DArray
+=== RUN   TestGLSL_ImageTypes/sampler2DArray
+=== RUN   TestGLSL_ImageTypes/sampler2DMS
+=== RUN   TestGLSL_ImageTypes/sampler2DMSArray
+=== RUN   TestGLSL_ImageTypes/samplerCubeArray
+=== RUN   TestGLSL_ImageTypes/image2D
+=== RUN   TestGLSL_ImageTypes/depth1D
+--- PASS: TestGLSL_ImageTypes (0.00s)
+    --- PASS: TestGLSL_ImageTypes/sampler1D (0.00s)
+    --- PASS: TestGLSL_ImageTypes/sampler2D (0.00s)
+    --- PASS: TestGLSL_ImageTypes/sampler3D (0.00s)
+    --- PASS: TestGLSL_ImageTypes/samplerCube (0.00s)
+    --- PASS: TestGLSL_ImageTypes/sampler2DShadow (0.00s)
+    --- PASS: TestGLSL_ImageTypes/samplerCubeShadow (0.00s)
+    --- PASS: TestGLSL_ImageTypes/sampler1DArray (0.00s)
+    --- PASS: TestGLSL_ImageTypes/sampler2DArray (0.00s)
+    --- PASS: TestGLSL_ImageTypes/sampler2DMS (0.00s)
+    --- PASS: TestGLSL_ImageTypes/sampler2DMSArray (0.00s)
+    --- PASS: TestGLSL_ImageTypes/samplerCubeArray (0.00s)
+    --- PASS: TestGLSL_ImageTypes/image2D (0.00s)
+    --- PASS: TestGLSL_ImageTypes/depth1D (0.00s)
+=== RUN   TestGLSL_AtomicTypes
+=== RUN   TestGLSL_AtomicTypes/sint
+=== RUN   TestGLSL_AtomicTypes/uint
+=== RUN   TestGLSL_AtomicTypes/default
+--- PASS: TestGLSL_AtomicTypes (0.00s)
+    --- PASS: TestGLSL_AtomicTypes/sint (0.00s)
+    --- PASS: TestGLSL_AtomicTypes/uint (0.00s)
+    --- PASS: TestGLSL_AtomicTypes/default (0.00s)
+=== RUN   TestGLSL_StructsEqual
+=== RUN   TestGLSL_StructsEqual/equal
+=== RUN   TestGLSL_StructsEqual/diff_name
+=== RUN   TestGLSL_StructsEqual/diff_type
+=== RUN   TestGLSL_StructsEqual/diff_len
+=== RUN   TestGLSL_StructsEqual/both_empty
+--- PASS: TestGLSL_StructsEqual (0.00s)
+    --- PASS: TestGLSL_StructsEqual/equal (0.00s)
+    --- PASS: TestGLSL_StructsEqual/diff_name (0.00s)
+    --- PASS: TestGLSL_StructsEqual/diff_type (0.00s)
+    --- PASS: TestGLSL_StructsEqual/diff_len (0.00s)
+    --- PASS: TestGLSL_StructsEqual/both_empty (0.00s)
+=== RUN   TestGLSL_ScalarKindToGLSL
+--- PASS: TestGLSL_ScalarKindToGLSL (0.00s)
+=== RUN   TestGLSL_GetInverseScalarKind
+--- PASS: TestGLSL_GetInverseScalarKind (0.00s)
+=== RUN   TestGLSL_DerivativeExpressions
+=== RUN   TestGLSL_DerivativeExpressions/dFdxFine
+=== RUN   TestGLSL_DerivativeExpressions/dFdxCoarse
+=== RUN   TestGLSL_DerivativeExpressions/dFdyFine
+=== RUN   TestGLSL_DerivativeExpressions/dFdyCoarse
+=== RUN   TestGLSL_DerivativeExpressions/fwidthFine
+=== RUN   TestGLSL_DerivativeExpressions/fwidthCoarse
+--- PASS: TestGLSL_DerivativeExpressions (0.00s)
+    --- PASS: TestGLSL_DerivativeExpressions/dFdxFine (0.00s)
+    --- PASS: TestGLSL_DerivativeExpressions/dFdxCoarse (0.00s)
+    --- PASS: TestGLSL_DerivativeExpressions/dFdyFine (0.00s)
+    --- PASS: TestGLSL_DerivativeExpressions/dFdyCoarse (0.00s)
+    --- PASS: TestGLSL_DerivativeExpressions/fwidthFine (0.00s)
+    --- PASS: TestGLSL_DerivativeExpressions/fwidthCoarse (0.00s)
+=== RUN   TestGLSL_Statements
+=== RUN   TestGLSL_Statements/break
+=== RUN   TestGLSL_Statements/continue
+=== RUN   TestGLSL_Statements/discard
+=== RUN   TestGLSL_Statements/return_void
+--- PASS: TestGLSL_Statements (0.00s)
+    --- PASS: TestGLSL_Statements/break (0.00s)
+    --- PASS: TestGLSL_Statements/continue (0.00s)
+    --- PASS: TestGLSL_Statements/discard (0.00s)
+    --- PASS: TestGLSL_Statements/return_void (0.00s)
+=== RUN   TestGLSL_LoopWithBreakIf
+--- PASS: TestGLSL_LoopWithBreakIf (0.00s)
+=== RUN   TestGLSL_SwitchStatements
+--- PASS: TestGLSL_SwitchStatements (0.00s)
+=== RUN   TestGLSL_BarrierStatements
+=== RUN   TestGLSL_BarrierStatements/workgroup
+=== RUN   TestGLSL_BarrierStatements/storage
+=== RUN   TestGLSL_BarrierStatements/texture
+=== RUN   TestGLSL_BarrierStatements/pure_exec
+--- PASS: TestGLSL_BarrierStatements (0.00s)
+    --- PASS: TestGLSL_BarrierStatements/workgroup (0.00s)
+    --- PASS: TestGLSL_BarrierStatements/storage (0.00s)
+    --- PASS: TestGLSL_BarrierStatements/texture (0.00s)
+    --- PASS: TestGLSL_BarrierStatements/pure_exec (0.00s)
+=== RUN   TestGLSL_BarrierVersionRequirement
+--- PASS: TestGLSL_BarrierVersionRequirement (0.00s)
+=== RUN   TestGLSL_RayQueryUnsupported
+--- PASS: TestGLSL_RayQueryUnsupported (0.00s)
+=== RUN   TestGLSL_JoinStrings
+=== RUN   TestGLSL_JoinStrings/empty
+=== RUN   TestGLSL_JoinStrings/single
+=== RUN   TestGLSL_JoinStrings/multiple
+=== RUN   TestGLSL_JoinStrings/no_sep
+--- PASS: TestGLSL_JoinStrings (0.00s)
+    --- PASS: TestGLSL_JoinStrings/empty (0.00s)
+    --- PASS: TestGLSL_JoinStrings/single (0.00s)
+    --- PASS: TestGLSL_JoinStrings/multiple (0.00s)
+    --- PASS: TestGLSL_JoinStrings/no_sep (0.00s)
+=== RUN   TestGLSL_Literals
+=== RUN   TestGLSL_Literals/bool_true
+=== RUN   TestGLSL_Literals/bool_false
+=== RUN   TestGLSL_Literals/i32
+=== RUN   TestGLSL_Literals/i32_neg
+=== RUN   TestGLSL_Literals/u32
+=== RUN   TestGLSL_Literals/f32
+--- PASS: TestGLSL_Literals (0.00s)
+    --- PASS: TestGLSL_Literals/bool_true (0.00s)
+    --- PASS: TestGLSL_Literals/bool_false (0.00s)
+    --- PASS: TestGLSL_Literals/i32 (0.00s)
+    --- PASS: TestGLSL_Literals/i32_neg (0.00s)
+    --- PASS: TestGLSL_Literals/u32 (0.00s)
+    --- PASS: TestGLSL_Literals/f32 (0.00s)
+=== RUN   TestGLSL_BinaryOperators
+=== RUN   TestGLSL_BinaryOperators/add
+=== RUN   TestGLSL_BinaryOperators/sub
+=== RUN   TestGLSL_BinaryOperators/mul
+=== RUN   TestGLSL_BinaryOperators/div
+=== RUN   TestGLSL_BinaryOperators/mod
+=== RUN   TestGLSL_BinaryOperators/eq
+=== RUN   TestGLSL_BinaryOperators/ne
+=== RUN   TestGLSL_BinaryOperators/lt
+=== RUN   TestGLSL_BinaryOperators/le
+=== RUN   TestGLSL_BinaryOperators/gt
+=== RUN   TestGLSL_BinaryOperators/ge
+=== RUN   TestGLSL_BinaryOperators/and
+=== RUN   TestGLSL_BinaryOperators/xor
+=== RUN   TestGLSL_BinaryOperators/or
+=== RUN   TestGLSL_BinaryOperators/logical_and
+=== RUN   TestGLSL_BinaryOperators/logical_or
+=== RUN   TestGLSL_BinaryOperators/shift_left
+=== RUN   TestGLSL_BinaryOperators/shift_right
+--- PASS: TestGLSL_BinaryOperators (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/add (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/sub (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/mul (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/div (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/mod (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/eq (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/ne (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/lt (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/le (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/gt (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/ge (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/and (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/xor (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/or (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/logical_and (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/logical_or (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/shift_left (0.00s)
+    --- PASS: TestGLSL_BinaryOperators/shift_right (0.00s)
+=== RUN   TestGLSL_UnaryOperators
+=== RUN   TestGLSL_UnaryOperators/negate
+=== RUN   TestGLSL_UnaryOperators/not
+=== RUN   TestGLSL_UnaryOperators/bitwise_not
+--- PASS: TestGLSL_UnaryOperators (0.00s)
+    --- PASS: TestGLSL_UnaryOperators/negate (0.00s)
+    --- PASS: TestGLSL_UnaryOperators/not (0.00s)
+    --- PASS: TestGLSL_UnaryOperators/bitwise_not (0.00s)
+=== RUN   TestGLSL_VersionDirective
+--- PASS: TestGLSL_VersionDirective (0.00s)
+=== RUN   TestGLSL_VersionDirective450
+--- PASS: TestGLSL_VersionDirective450 (0.00s)
+=== RUN   TestGLSL_IfStatement
+--- PASS: TestGLSL_IfStatement (0.00s)
+=== RUN   TestGLSL_IfElseStatement
+--- PASS: TestGLSL_IfElseStatement (0.00s)
+=== RUN   TestGLSL_StoreStatement
+--- PASS: TestGLSL_StoreStatement (0.00s)
+=== RUN   TestGLSL_MathExpressions
+=== RUN   TestGLSL_MathExpressions/cos
+=== RUN   TestGLSL_MathExpressions/sin
+=== RUN   TestGLSL_MathExpressions/tan
+=== RUN   TestGLSL_MathExpressions/acos
+=== RUN   TestGLSL_MathExpressions/asin
+=== RUN   TestGLSL_MathExpressions/atan
+=== RUN   TestGLSL_MathExpressions/cosh
+=== RUN   TestGLSL_MathExpressions/sinh
+=== RUN   TestGLSL_MathExpressions/tanh
+=== RUN   TestGLSL_MathExpressions/exp
+=== RUN   TestGLSL_MathExpressions/exp2
+=== RUN   TestGLSL_MathExpressions/log
+=== RUN   TestGLSL_MathExpressions/log2
+=== RUN   TestGLSL_MathExpressions/sqrt
+=== RUN   TestGLSL_MathExpressions/inversesqrt
+=== RUN   TestGLSL_MathExpressions/abs
+=== RUN   TestGLSL_MathExpressions/sign
+=== RUN   TestGLSL_MathExpressions/floor
+=== RUN   TestGLSL_MathExpressions/ceil
+=== RUN   TestGLSL_MathExpressions/trunc
+=== RUN   TestGLSL_MathExpressions/round
+=== RUN   TestGLSL_MathExpressions/fract
+=== RUN   TestGLSL_MathExpressions/length
+=== RUN   TestGLSL_MathExpressions/normalize
+=== RUN   TestGLSL_MathExpressions/saturate
+=== RUN   TestGLSL_MathExpressions/transpose
+=== RUN   TestGLSL_MathExpressions/determinant
+=== RUN   TestGLSL_MathExpressions/inverse
+=== RUN   TestGLSL_MathExpressions/countOneBits
+=== RUN   TestGLSL_MathExpressions/reverseBits
+=== RUN   TestGLSL_MathExpressions/firstLeadingBit
+=== RUN   TestGLSL_MathExpressions/firstTrailingBit
+=== RUN   TestGLSL_MathExpressions/countLeadingZeros
+=== RUN   TestGLSL_MathExpressions/countTrailingZeros
+=== RUN   TestGLSL_MathExpressions/radians
+=== RUN   TestGLSL_MathExpressions/degrees
+=== RUN   TestGLSL_MathExpressions/pack4x8snorm
+=== RUN   TestGLSL_MathExpressions/pack4x8unorm
+=== RUN   TestGLSL_MathExpressions/pack2x16snorm
+=== RUN   TestGLSL_MathExpressions/pack2x16unorm
+=== RUN   TestGLSL_MathExpressions/pack2x16float
+=== RUN   TestGLSL_MathExpressions/unpack4x8snorm
+=== RUN   TestGLSL_MathExpressions/unpack4x8unorm
+=== RUN   TestGLSL_MathExpressions/unpack2x16snorm
+=== RUN   TestGLSL_MathExpressions/unpack2x16unorm
+=== RUN   TestGLSL_MathExpressions/unpack2x16float
+--- PASS: TestGLSL_MathExpressions (0.00s)
+    --- PASS: TestGLSL_MathExpressions/cos (0.00s)
+    --- PASS: TestGLSL_MathExpressions/sin (0.00s)
+    --- PASS: TestGLSL_MathExpressions/tan (0.00s)
+    --- PASS: TestGLSL_MathExpressions/acos (0.00s)
+    --- PASS: TestGLSL_MathExpressions/asin (0.00s)
+    --- PASS: TestGLSL_MathExpressions/atan (0.00s)
+    --- PASS: TestGLSL_MathExpressions/cosh (0.00s)
+    --- PASS: TestGLSL_MathExpressions/sinh (0.00s)
+    --- PASS: TestGLSL_MathExpressions/tanh (0.00s)
+    --- PASS: TestGLSL_MathExpressions/exp (0.00s)
+    --- PASS: TestGLSL_MathExpressions/exp2 (0.00s)
+    --- PASS: TestGLSL_MathExpressions/log (0.00s)
+    --- PASS: TestGLSL_MathExpressions/log2 (0.00s)
+    --- PASS: TestGLSL_MathExpressions/sqrt (0.00s)
+    --- PASS: TestGLSL_MathExpressions/inversesqrt (0.00s)
+    --- PASS: TestGLSL_MathExpressions/abs (0.00s)
+    --- PASS: TestGLSL_MathExpressions/sign (0.00s)
+    --- PASS: TestGLSL_MathExpressions/floor (0.00s)
+    --- PASS: TestGLSL_MathExpressions/ceil (0.00s)
+    --- PASS: TestGLSL_MathExpressions/trunc (0.00s)
+    --- PASS: TestGLSL_MathExpressions/round (0.00s)
+    --- PASS: TestGLSL_MathExpressions/fract (0.00s)
+    --- PASS: TestGLSL_MathExpressions/length (0.00s)
+    --- PASS: TestGLSL_MathExpressions/normalize (0.00s)
+    --- PASS: TestGLSL_MathExpressions/saturate (0.00s)
+    --- PASS: TestGLSL_MathExpressions/transpose (0.00s)
+    --- PASS: TestGLSL_MathExpressions/determinant (0.00s)
+    --- PASS: TestGLSL_MathExpressions/inverse (0.00s)
+    --- PASS: TestGLSL_MathExpressions/countOneBits (0.00s)
+    --- PASS: TestGLSL_MathExpressions/reverseBits (0.00s)
+    --- PASS: TestGLSL_MathExpressions/firstLeadingBit (0.00s)
+    --- PASS: TestGLSL_MathExpressions/firstTrailingBit (0.00s)
+    --- PASS: TestGLSL_MathExpressions/countLeadingZeros (0.00s)
+    --- PASS: TestGLSL_MathExpressions/countTrailingZeros (0.00s)
+    --- PASS: TestGLSL_MathExpressions/radians (0.00s)
+    --- PASS: TestGLSL_MathExpressions/degrees (0.00s)
+    --- PASS: TestGLSL_MathExpressions/pack4x8snorm (0.00s)
+    --- PASS: TestGLSL_MathExpressions/pack4x8unorm (0.00s)
+    --- PASS: TestGLSL_MathExpressions/pack2x16snorm (0.00s)
+    --- PASS: TestGLSL_MathExpressions/pack2x16unorm (0.00s)
+    --- PASS: TestGLSL_MathExpressions/pack2x16float (0.00s)
+    --- PASS: TestGLSL_MathExpressions/unpack4x8snorm (0.00s)
+    --- PASS: TestGLSL_MathExpressions/unpack4x8unorm (0.00s)
+    --- PASS: TestGLSL_MathExpressions/unpack2x16snorm (0.00s)
+    --- PASS: TestGLSL_MathExpressions/unpack2x16unorm (0.00s)
+    --- PASS: TestGLSL_MathExpressions/unpack2x16float (0.00s)
+=== RUN   TestGLSL_MathTwoArgs
+=== RUN   TestGLSL_MathTwoArgs/min
+=== RUN   TestGLSL_MathTwoArgs/max
+=== RUN   TestGLSL_MathTwoArgs/pow
+=== RUN   TestGLSL_MathTwoArgs/step
+=== RUN   TestGLSL_MathTwoArgs/distance
+=== RUN   TestGLSL_MathTwoArgs/dot
+=== RUN   TestGLSL_MathTwoArgs/cross
+=== RUN   TestGLSL_MathTwoArgs/reflect
+=== RUN   TestGLSL_MathTwoArgs/atan2
+=== RUN   TestGLSL_MathTwoArgs/outer
+--- PASS: TestGLSL_MathTwoArgs (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/min (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/max (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/pow (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/step (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/distance (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/dot (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/cross (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/reflect (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/atan2 (0.00s)
+    --- PASS: TestGLSL_MathTwoArgs/outer (0.00s)
+=== RUN   TestGLSL_MathThreeArgs
+=== RUN   TestGLSL_MathThreeArgs/clamp
+=== RUN   TestGLSL_MathThreeArgs/mix
+=== RUN   TestGLSL_MathThreeArgs/smoothstep
+=== RUN   TestGLSL_MathThreeArgs/fma
+=== RUN   TestGLSL_MathThreeArgs/faceforward
+=== RUN   TestGLSL_MathThreeArgs/refract
+=== RUN   TestGLSL_MathThreeArgs/extractBits
+--- PASS: TestGLSL_MathThreeArgs (0.00s)
+    --- PASS: TestGLSL_MathThreeArgs/clamp (0.00s)
+    --- PASS: TestGLSL_MathThreeArgs/mix (0.00s)
+    --- PASS: TestGLSL_MathThreeArgs/smoothstep (0.00s)
+    --- PASS: TestGLSL_MathThreeArgs/fma (0.00s)
+    --- PASS: TestGLSL_MathThreeArgs/faceforward (0.00s)
+    --- PASS: TestGLSL_MathThreeArgs/refract (0.00s)
+    --- PASS: TestGLSL_MathThreeArgs/extractBits (0.00s)
+=== RUN   TestGLSL_SelectExpression
+--- PASS: TestGLSL_SelectExpression (0.00s)
+=== RUN   TestGLSL_RelationalExpressions
+=== RUN   TestGLSL_RelationalExpressions/isnan
+=== RUN   TestGLSL_RelationalExpressions/isinf
+--- PASS: TestGLSL_RelationalExpressions (0.00s)
+    --- PASS: TestGLSL_RelationalExpressions/isnan (0.00s)
+    --- PASS: TestGLSL_RelationalExpressions/isinf (0.00s)
+=== RUN   TestGLSL_AsExpression
+=== RUN   TestGLSL_AsExpression/convert
+=== RUN   TestGLSL_AsExpression/bitcast
+--- PASS: TestGLSL_AsExpression (0.00s)
+    --- PASS: TestGLSL_AsExpression/convert (0.00s)
+    --- PASS: TestGLSL_AsExpression/bitcast (0.00s)
+=== RUN   TestGLSL_ZeroValueExpression
+--- PASS: TestGLSL_ZeroValueExpression (0.00s)
+=== RUN   TestGLSL_ReturnWithValue
+--- PASS: TestGLSL_ReturnWithValue (0.00s)
+=== RUN   TestGLSL_CallStatement
+--- PASS: TestGLSL_CallStatement (0.00s)
+=== RUN   TestGLSL_ImageStoreStatement
+--- PASS: TestGLSL_ImageStoreStatement (0.00s)
+=== RUN   TestGLSL_AtomicStatement
+--- PASS: TestGLSL_AtomicStatement (0.00s)
+=== RUN   TestGLSL_AtomicVersionRequirement
+--- PASS: TestGLSL_AtomicVersionRequirement (0.00s)
+=== RUN   TestGLSL_WorkGroupUniformLoadStatement
+--- PASS: TestGLSL_WorkGroupUniformLoadStatement (0.00s)
+=== RUN   TestGLSL_ComputeEntryPoint
+--- PASS: TestGLSL_ComputeEntryPoint (0.00s)
+=== RUN   TestGLSL_LocalVariableAndLoad
+--- PASS: TestGLSL_LocalVariableAndLoad (0.00s)
+=== RUN   TestGLSL_SplatExpression
+--- PASS: TestGLSL_SplatExpression (0.00s)
+=== RUN   TestGLSL_VertexEntryPoint
+--- PASS: TestGLSL_VertexEntryPoint (0.00s)
+=== RUN   TestGLSL_FragmentEntryPoint
+--- PASS: TestGLSL_FragmentEntryPoint (0.00s)
+=== RUN   TestGLSL_ConstantExpression
+--- PASS: TestGLSL_ConstantExpression (0.00s)
+=== RUN   TestGLSL_GlobalVariable
+--- PASS: TestGLSL_GlobalVariable (0.00s)
+=== RUN   TestGLSL_QuantizeToF16_Scalar
+--- PASS: TestGLSL_QuantizeToF16_Scalar (0.00s)
+=== RUN   TestGLSL_QuantizeToF16_Vec2
+--- PASS: TestGLSL_QuantizeToF16_Vec2 (0.00s)
+=== RUN   TestGLSL_QuantizeToF16_Vec3
+--- PASS: TestGLSL_QuantizeToF16_Vec3 (0.00s)
+=== RUN   TestGLSL_QuantizeToF16_Vec4
+--- PASS: TestGLSL_QuantizeToF16_Vec4 (0.00s)
+=== RUN   TestGLSL_ImageQuery_SizeUintWrap
+=== RUN   TestGLSL_ImageQuery_SizeUintWrap/1D_uint
+=== RUN   TestGLSL_ImageQuery_SizeUintWrap/2D_uvec2
+=== RUN   TestGLSL_ImageQuery_SizeUintWrap/3D_uvec3
+=== RUN   TestGLSL_ImageQuery_SizeUintWrap/cube_uvec2
+--- PASS: TestGLSL_ImageQuery_SizeUintWrap (0.00s)
+    --- PASS: TestGLSL_ImageQuery_SizeUintWrap/1D_uint (0.00s)
+    --- PASS: TestGLSL_ImageQuery_SizeUintWrap/2D_uvec2 (0.00s)
+    --- PASS: TestGLSL_ImageQuery_SizeUintWrap/3D_uvec3 (0.00s)
+    --- PASS: TestGLSL_ImageQuery_SizeUintWrap/cube_uvec2 (0.00s)
+=== RUN   TestGLSL_ImageQuery_NumLevels
+--- PASS: TestGLSL_ImageQuery_NumLevels (0.00s)
+=== RUN   TestGLSL_ImageQuery_NumSamples
+--- PASS: TestGLSL_ImageQuery_NumSamples (0.00s)
+=== RUN   TestGLSL_ImageAtomic
+=== RUN   TestGLSL_ImageAtomic/add
+=== RUN   TestGLSL_ImageAtomic/and
+=== RUN   TestGLSL_ImageAtomic/or
+=== RUN   TestGLSL_ImageAtomic/xor
+=== RUN   TestGLSL_ImageAtomic/min
+=== RUN   TestGLSL_ImageAtomic/max
+=== RUN   TestGLSL_ImageAtomic/exchange
+--- PASS: TestGLSL_ImageAtomic (0.00s)
+    --- PASS: TestGLSL_ImageAtomic/add (0.00s)
+    --- PASS: TestGLSL_ImageAtomic/and (0.00s)
+    --- PASS: TestGLSL_ImageAtomic/or (0.00s)
+    --- PASS: TestGLSL_ImageAtomic/xor (0.00s)
+    --- PASS: TestGLSL_ImageAtomic/min (0.00s)
+    --- PASS: TestGLSL_ImageAtomic/max (0.00s)
+    --- PASS: TestGLSL_ImageAtomic/exchange (0.00s)
+=== RUN   TestGLSL_ImageAtomic_Subtract
+--- PASS: TestGLSL_ImageAtomic_Subtract (0.00s)
+=== RUN   TestGLSL_ImageAtomic_WithArrayIndex
+--- PASS: TestGLSL_ImageAtomic_WithArrayIndex (0.00s)
+=== RUN   TestGLSL_TextureGather
+--- PASS: TestGLSL_TextureGather (0.00s)
+=== RUN   TestGLSL_TextureGatherOffset
+--- PASS: TestGLSL_TextureGatherOffset (0.00s)
+=== RUN   TestGLSL_TextureGather_DepthComparison
+--- PASS: TestGLSL_TextureGather_DepthComparison (0.00s)
+=== RUN   TestGLSL_ShadowLodWorkaround_CubeShadow
+--- PASS: TestGLSL_ShadowLodWorkaround_CubeShadow (0.00s)
+=== RUN   TestGLSL_ShadowLodWorkaround_2DArrayShadow
+--- PASS: TestGLSL_ShadowLodWorkaround_2DArrayShadow (0.00s)
+=== RUN   TestGLSL_ShadowLod_NoWorkaround_WithExtension
+--- PASS: TestGLSL_ShadowLod_NoWorkaround_WithExtension (0.00s)
+PASS

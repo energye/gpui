@@ -1,0 +1,90 @@
+=== RUN   TestIsConvex
+=== RUN   TestIsConvex/triangle_CCW
+=== RUN   TestIsConvex/triangle_CW
+=== RUN   TestIsConvex/square
+=== RUN   TestIsConvex/regular_pentagon
+=== RUN   TestIsConvex/regular_hexagon
+=== RUN   TestIsConvex/regular_octagon
+=== RUN   TestIsConvex/L-shape_(concave)
+=== RUN   TestIsConvex/5-pointed_star_(concave)
+=== RUN   TestIsConvex/arrow_shape_(concave)
+=== RUN   TestIsConvex/single_point
+=== RUN   TestIsConvex/two_points
+=== RUN   TestIsConvex/collinear_3_points
+=== RUN   TestIsConvex/collinear_5_points
+=== RUN   TestIsConvex/nil_slice
+=== RUN   TestIsConvex/empty_slice
+=== RUN   TestIsConvex/rectangle_with_collinear_midpoints_(still_convex)
+=== RUN   TestIsConvex/diamond
+=== RUN   TestIsConvex/T-shape_(concave)
+=== RUN   TestIsConvex/U-shape_(concave)
+--- PASS: TestIsConvex (0.00s)
+    --- PASS: TestIsConvex/triangle_CCW (0.00s)
+    --- PASS: TestIsConvex/triangle_CW (0.00s)
+    --- PASS: TestIsConvex/square (0.00s)
+    --- PASS: TestIsConvex/regular_pentagon (0.00s)
+    --- PASS: TestIsConvex/regular_hexagon (0.00s)
+    --- PASS: TestIsConvex/regular_octagon (0.00s)
+    --- PASS: TestIsConvex/L-shape_(concave) (0.00s)
+    --- PASS: TestIsConvex/5-pointed_star_(concave) (0.00s)
+    --- PASS: TestIsConvex/arrow_shape_(concave) (0.00s)
+    --- PASS: TestIsConvex/single_point (0.00s)
+    --- PASS: TestIsConvex/two_points (0.00s)
+    --- PASS: TestIsConvex/collinear_3_points (0.00s)
+    --- PASS: TestIsConvex/collinear_5_points (0.00s)
+    --- PASS: TestIsConvex/nil_slice (0.00s)
+    --- PASS: TestIsConvex/empty_slice (0.00s)
+    --- PASS: TestIsConvex/rectangle_with_collinear_midpoints_(still_convex) (0.00s)
+    --- PASS: TestIsConvex/diamond (0.00s)
+    --- PASS: TestIsConvex/T-shape_(concave) (0.00s)
+    --- PASS: TestIsConvex/U-shape_(concave) (0.00s)
+=== RUN   TestAnalyzeConvexity
+=== RUN   TestAnalyzeConvexity/CCW_triangle
+=== RUN   TestAnalyzeConvexity/CW_triangle
+=== RUN   TestAnalyzeConvexity/CCW_square
+=== RUN   TestAnalyzeConvexity/CW_square
+=== RUN   TestAnalyzeConvexity/CCW_regular_hexagon
+=== RUN   TestAnalyzeConvexity/CW_regular_hexagon
+=== RUN   TestAnalyzeConvexity/L-shape_(concave)
+=== RUN   TestAnalyzeConvexity/degenerate_collinear
+=== RUN   TestAnalyzeConvexity/single_point
+=== RUN   TestAnalyzeConvexity/two_points
+--- PASS: TestAnalyzeConvexity (0.00s)
+    --- PASS: TestAnalyzeConvexity/CCW_triangle (0.00s)
+    --- PASS: TestAnalyzeConvexity/CW_triangle (0.00s)
+    --- PASS: TestAnalyzeConvexity/CCW_square (0.00s)
+    --- PASS: TestAnalyzeConvexity/CW_square (0.00s)
+    --- PASS: TestAnalyzeConvexity/CCW_regular_hexagon (0.00s)
+    --- PASS: TestAnalyzeConvexity/CW_regular_hexagon (0.00s)
+    --- PASS: TestAnalyzeConvexity/L-shape_(concave) (0.00s)
+    --- PASS: TestAnalyzeConvexity/degenerate_collinear (0.00s)
+    --- PASS: TestAnalyzeConvexity/single_point (0.00s)
+    --- PASS: TestAnalyzeConvexity/two_points (0.00s)
+=== RUN   TestIsConvexRegularPolygons
+--- PASS: TestIsConvexRegularPolygons (0.00s)
+=== RUN   TestIsConvexStarPolygons
+--- PASS: TestIsConvexStarPolygons (0.00s)
+=== RUN   TestIsConvexIdenticalPoints
+--- PASS: TestIsConvexIdenticalPoints (0.00s)
+=== RUN   TestAnalyzeConvexityNumPoints
+--- PASS: TestAnalyzeConvexityNumPoints (0.00s)
+=== RUN   TestStrokeExpandedSineWaveNotConvex
+    convexity_test.go:445: direction flips: x=1 y=8 (threshold=3)
+--- PASS: TestStrokeExpandedSineWaveNotConvex (0.00s)
+=== RUN   TestDirectionFlipCheckPreservesConvexPolygons
+=== RUN   TestDirectionFlipCheckPreservesConvexPolygons/triangle
+=== RUN   TestDirectionFlipCheckPreservesConvexPolygons/square
+=== RUN   TestDirectionFlipCheckPreservesConvexPolygons/pentagon
+=== RUN   TestDirectionFlipCheckPreservesConvexPolygons/hexagon
+=== RUN   TestDirectionFlipCheckPreservesConvexPolygons/dodecagon
+=== RUN   TestDirectionFlipCheckPreservesConvexPolygons/circle_100
+=== RUN   TestDirectionFlipCheckPreservesConvexPolygons/axis_aligned_rect
+--- PASS: TestDirectionFlipCheckPreservesConvexPolygons (0.00s)
+    --- PASS: TestDirectionFlipCheckPreservesConvexPolygons/triangle (0.00s)
+    --- PASS: TestDirectionFlipCheckPreservesConvexPolygons/square (0.00s)
+    --- PASS: TestDirectionFlipCheckPreservesConvexPolygons/pentagon (0.00s)
+    --- PASS: TestDirectionFlipCheckPreservesConvexPolygons/hexagon (0.00s)
+    --- PASS: TestDirectionFlipCheckPreservesConvexPolygons/dodecagon (0.00s)
+    --- PASS: TestDirectionFlipCheckPreservesConvexPolygons/circle_100 (0.00s)
+    --- PASS: TestDirectionFlipCheckPreservesConvexPolygons/axis_aligned_rect (0.00s)
+PASS

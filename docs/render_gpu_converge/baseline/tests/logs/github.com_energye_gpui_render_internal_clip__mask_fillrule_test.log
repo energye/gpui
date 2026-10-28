@@ -1,0 +1,19 @@
+=== RUN   TestMaskClipper_FillRuleWinding
+--- PASS: TestMaskClipper_FillRuleWinding (0.00s)
+=== RUN   TestMaskClipper_DisjointSubpaths
+--- PASS: TestMaskClipper_DisjointSubpaths (0.00s)
+=== RUN   TestMaskClipper_OpenSubpathImplicitClose
+--- PASS: TestMaskClipper_OpenSubpathImplicitClose (0.00s)
+=== RUN   TestRectDifferenceMask_FractionalAA
+=== RUN   TestRectDifferenceMask_FractionalAA/hole_center
+=== RUN   TestRectDifferenceMask_FractionalAA/solid_outside
+=== RUN   TestRectDifferenceMask_FractionalAA/left_edge_pixel
+=== RUN   TestRectDifferenceMask_FractionalAA/right_edge_pixel
+=== RUN   TestRectDifferenceMask_FractionalAA/corner_pixel
+--- PASS: TestRectDifferenceMask_FractionalAA (0.00s)
+    --- PASS: TestRectDifferenceMask_FractionalAA/hole_center (0.00s)
+    --- PASS: TestRectDifferenceMask_FractionalAA/solid_outside (0.00s)
+    --- PASS: TestRectDifferenceMask_FractionalAA/left_edge_pixel (0.00s)
+    --- PASS: TestRectDifferenceMask_FractionalAA/right_edge_pixel (0.00s)
+    --- PASS: TestRectDifferenceMask_FractionalAA/corner_pixel (0.00s)
+PASS

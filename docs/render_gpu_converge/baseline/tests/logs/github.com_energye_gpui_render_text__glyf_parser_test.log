@@ -1,0 +1,171 @@
+=== RUN   TestParseGlyfContours_GoRegular_H
+    glyf_parser_test.go:33: 'H' glyph: 12 points, 1 contours, bbox=[165,0]-[1313,1480]
+    glyf_parser_test.go:56:   contour[0]: 12 points (12 on-curve, 0 off-curve)
+--- PASS: TestParseGlyfContours_GoRegular_H (0.00s)
+=== RUN   TestParseGlyfContours_GoRegular_o
+    glyf_parser_test.go:105: 'o' glyph: 20 points, 2 contours
+--- PASS: TestParseGlyfContours_GoRegular_o (0.00s)
+=== RUN   TestParseGlyfContours_SpaceGlyph
+--- PASS: TestParseGlyfContours_SpaceGlyph (0.00s)
+=== RUN   TestParseGlyfContours_GlyphZero
+    glyf_parser_test.go:158: glyph 0 (.notdef): contours=true
+--- PASS: TestParseGlyfContours_GlyphZero (0.00s)
+=== RUN   TestParseGlyfContours_OutOfRange
+--- PASS: TestParseGlyfContours_OutOfRange (0.00s)
+=== RUN   TestParseGlyfContours_EmptyData
+--- PASS: TestParseGlyfContours_EmptyData (0.00s)
+=== RUN   TestParseGlyfContours_InvalidData
+--- PASS: TestParseGlyfContours_InvalidData (0.00s)
+=== RUN   TestGlyfContours_ContourPoints
+--- PASS: TestGlyfContours_ContourPoints (0.00s)
+=== RUN   TestCachedGlyfParser
+    glyf_parser_test.go:246: Go Regular: 712 glyphs
+--- PASS: TestCachedGlyfParser (0.00s)
+=== RUN   TestCachedGlyfParser_MultipleGlyphs
+    glyf_parser_test.go:317: 'A' (gid=36): 11 points, 2 contours
+    glyf_parser_test.go:317: 'B' (gid=37): 32 points, 3 contours
+    glyf_parser_test.go:317: 'H' (gid=43): 12 points, 1 contours
+    glyf_parser_test.go:317: 'I' (gid=44): 12 points, 1 contours
+    glyf_parser_test.go:317: 'o' (gid=82): 20 points, 2 contours
+    glyf_parser_test.go:317: 'p' (gid=83): 25 points, 2 contours
+    glyf_parser_test.go:317: 'x' (gid=91): 12 points, 1 contours
+    glyf_parser_test.go:317: 'z' (gid=93): 10 points, 1 contours
+--- PASS: TestCachedGlyfParser_MultipleGlyphs (0.00s)
+=== RUN   TestCachedGlyfParser_InvalidData
+--- PASS: TestCachedGlyfParser_InvalidData (0.00s)
+=== RUN   TestParseGlyfContours_VsOutlineExtractor
+    glyf_parser_test.go:380: 'H': raw contour points=12, pen segment points=13
+    glyf_parser_test.go:380: 'o': raw contour points=20, pen segment points=26
+    glyf_parser_test.go:380: 'v': raw contour points=7, pen segment points=8
+    glyf_parser_test.go:380: 'A': raw contour points=11, pen segment points=13
+    glyf_parser_test.go:380: 'x': raw contour points=12, pen segment points=13
+--- PASS: TestParseGlyfContours_VsOutlineExtractor (0.00s)
+=== RUN   TestParseGlyfContours_CoordinatesInBBox
+--- PASS: TestParseGlyfContours_CoordinatesInBBox (0.00s)
+=== RUN   TestParseGlyfContoursFromSource
+--- PASS: TestParseGlyfContoursFromSource (0.00s)
+=== RUN   TestParseGlyfContoursFromSource_NilSource
+--- PASS: TestParseGlyfContoursFromSource_NilSource (0.00s)
+=== RUN   TestParseGlyfContoursFromSource_ClosedSource
+--- PASS: TestParseGlyfContoursFromSource_ClosedSource (0.00s)
+=== RUN   TestParseGlyfContours_OnCurveFlags_Rectangle
+--- PASS: TestParseGlyfContours_OnCurveFlags_Rectangle (0.00s)
+=== RUN   TestParseGlyfContours_OnCurveFlags_Curved
+    glyf_parser_test.go:553: 'o': 8 on-curve, 12 off-curve (total 20)
+--- PASS: TestParseGlyfContours_OnCurveFlags_Curved (0.00s)
+=== RUN   TestParseGlyfContours_AllLatinLetters
+--- PASS: TestParseGlyfContours_AllLatinLetters (0.00s)
+=== RUN   TestParseGlyfContours_NotoSerifHebrew_Glyph9_PointCount
+    glyf_parser_test.go:646: glyph 9: 32 points, 1 contours, bbox=[15,-240]-[205,647]
+    glyf_parser_test.go:656:   pt[ 0]: (  123,  -240) ON 
+    glyf_parser_test.go:656:   pt[ 1]: (  123,   299) ON 
+    glyf_parser_test.go:656:   pt[ 2]: (  123,   360) OFF
+    glyf_parser_test.go:656:   pt[ 3]: (  139,   448) OFF
+    glyf_parser_test.go:656:   pt[ 4]: (  152,   480) ON 
+    glyf_parser_test.go:656:   pt[ 5]: (  152,   483) ON 
+    glyf_parser_test.go:656:   pt[ 6]: (   64,   483) ON 
+    glyf_parser_test.go:656:   pt[ 7]: (   41,   483) OFF
+    glyf_parser_test.go:656:   pt[ 8]: (   15,   515) OFF
+    glyf_parser_test.go:656:   pt[ 9]: (   15,   552) ON 
+    glyf_parser_test.go:656:   pt[10]: (   15,   565) OFF
+    glyf_parser_test.go:656:   pt[11]: (   17,   587) OFF
+    glyf_parser_test.go:656:   pt[12]: (   24,   619) OFF
+    glyf_parser_test.go:656:   pt[13]: (   29,   647) ON 
+    glyf_parser_test.go:656:   pt[14]: (   56,   647) ON 
+    glyf_parser_test.go:656:   pt[15]: (   56,   644) ON 
+    glyf_parser_test.go:656:   pt[16]: (   56,   619) OFF
+    glyf_parser_test.go:656:   pt[17]: (   84,   592) OFF
+    glyf_parser_test.go:656:   pt[18]: (  109,   592) ON 
+    glyf_parser_test.go:656:   pt[19]: (  175,   592) ON 
+    glyf_parser_test.go:656:   pt[20]: (  192,   592) OFF
+    glyf_parser_test.go:656:   pt[21]: (  205,   578) OFF
+    glyf_parser_test.go:656:   pt[22]: (  205,   559) ON 
+    glyf_parser_test.go:656:   pt[23]: (  205,   493) ON 
+    glyf_parser_test.go:656:   pt[24]: (  195,   476) OFF
+    glyf_parser_test.go:656:   pt[25]: (  184,   441) OFF
+    glyf_parser_test.go:656:   pt[26]: (  180,   384) OFF
+    glyf_parser_test.go:656:   pt[27]: (  181,   333) ON 
+    glyf_parser_test.go:656:   pt[28]: (  192,  -204) ON 
+    glyf_parser_test.go:656:   pt[29]: (  181,  -215) OFF
+    glyf_parser_test.go:656:   pt[30]: (  155,  -232) OFF
+    glyf_parser_test.go:656:   pt[31]: (  138,  -240) ON 
+    glyf_parser_test.go:661:   contour[0] ends at point 31
+--- PASS: TestParseGlyfContours_NotoSerifHebrew_Glyph9_PointCount (0.00s)
+=== RUN   TestParseGlyfContours_NotoSerifHebrew_Glyph9_Coordinates
+    glyf_parser_test.go:707: Raw font-unit coordinates for glyph 9 (32 points):
+    glyf_parser_test.go:709:   pt[ 0]: X=  123  Y= -240  OnCurve=true
+    glyf_parser_test.go:709:   pt[ 1]: X=  123  Y=  299  OnCurve=true
+    glyf_parser_test.go:709:   pt[ 2]: X=  123  Y=  360  OnCurve=false
+    glyf_parser_test.go:709:   pt[ 3]: X=  139  Y=  448  OnCurve=false
+    glyf_parser_test.go:709:   pt[ 4]: X=  152  Y=  480  OnCurve=true
+    glyf_parser_test.go:709:   pt[ 5]: X=  152  Y=  483  OnCurve=true
+    glyf_parser_test.go:709:   pt[ 6]: X=   64  Y=  483  OnCurve=true
+    glyf_parser_test.go:709:   pt[ 7]: X=   41  Y=  483  OnCurve=false
+    glyf_parser_test.go:709:   pt[ 8]: X=   15  Y=  515  OnCurve=false
+    glyf_parser_test.go:709:   pt[ 9]: X=   15  Y=  552  OnCurve=true
+    glyf_parser_test.go:709:   pt[10]: X=   15  Y=  565  OnCurve=false
+    glyf_parser_test.go:709:   pt[11]: X=   17  Y=  587  OnCurve=false
+    glyf_parser_test.go:709:   pt[12]: X=   24  Y=  619  OnCurve=false
+    glyf_parser_test.go:709:   pt[13]: X=   29  Y=  647  OnCurve=true
+    glyf_parser_test.go:709:   pt[14]: X=   56  Y=  647  OnCurve=true
+    glyf_parser_test.go:709:   pt[15]: X=   56  Y=  644  OnCurve=true
+    glyf_parser_test.go:709:   pt[16]: X=   56  Y=  619  OnCurve=false
+    glyf_parser_test.go:709:   pt[17]: X=   84  Y=  592  OnCurve=false
+    glyf_parser_test.go:709:   pt[18]: X=  109  Y=  592  OnCurve=true
+    glyf_parser_test.go:709:   pt[19]: X=  175  Y=  592  OnCurve=true
+    glyf_parser_test.go:709:   pt[20]: X=  192  Y=  592  OnCurve=false
+    glyf_parser_test.go:709:   pt[21]: X=  205  Y=  578  OnCurve=false
+    glyf_parser_test.go:709:   pt[22]: X=  205  Y=  559  OnCurve=true
+    glyf_parser_test.go:709:   pt[23]: X=  205  Y=  493  OnCurve=true
+    glyf_parser_test.go:709:   pt[24]: X=  195  Y=  476  OnCurve=false
+    glyf_parser_test.go:709:   pt[25]: X=  184  Y=  441  OnCurve=false
+    glyf_parser_test.go:709:   pt[26]: X=  180  Y=  384  OnCurve=false
+    glyf_parser_test.go:709:   pt[27]: X=  181  Y=  333  OnCurve=true
+    glyf_parser_test.go:709:   pt[28]: X=  192  Y= -204  OnCurve=true
+    glyf_parser_test.go:709:   pt[29]: X=  181  Y= -215  OnCurve=false
+    glyf_parser_test.go:709:   pt[30]: X=  155  Y= -232  OnCurve=false
+    glyf_parser_test.go:709:   pt[31]: X=  138  Y= -240  OnCurve=true
+--- PASS: TestParseGlyfContours_NotoSerifHebrew_Glyph9_Coordinates (0.00s)
+=== RUN   TestParseGlyfContours_NotoSerifHebrew_VsOutlineExtractor
+    glyf_parser_test.go:746: NotoSerifHebrew glyph 9:
+    glyf_parser_test.go:747:   Raw contour points (glyf table): 32
+    glyf_parser_test.go:748:   Pen-command points (outline):     42
+    glyf_parser_test.go:749:   Difference:                        10 extra pen points
+--- PASS: TestParseGlyfContours_NotoSerifHebrew_VsOutlineExtractor (0.00s)
+=== RUN   TestParseGlyfContours_CompositeGlyph
+    glyf_parser_test.go:795: 'é' (gid=171): 26 points, 3 contours
+    glyf_parser_test.go:795: 'ñ' (gid=179): 37 points, 2 contours
+    glyf_parser_test.go:795: 'ü' (gid=190): 25 points, 3 contours
+    glyf_parser_test.go:795: 'à' (gid=162): 41 points, 3 contours
+    glyf_parser_test.go:795: 'ô' (gid=182): 28 points, 3 contours
+--- PASS: TestParseGlyfContours_CompositeGlyph (0.00s)
+=== RUN   TestParseGlyfContours_CompositeGlyph_SystemFont
+    glyf_parser_test.go:826: no system font with composites available
+--- SKIP: TestParseGlyfContours_CompositeGlyph_SystemFont (0.00s)
+=== RUN   TestParseGlyfContours_Portable_AllGlyphs
+    glyf_parser_test.go:965: A (GID=1): 624 points, 141 contours
+    glyf_parser_test.go:965: Aacute (GID=2): 616 points, 139 contours
+--- PASS: TestParseGlyfContours_Portable_AllGlyphs (0.00s)
+=== RUN   TestParseGlyfContours_CompositeGlyph_Portable
+    glyf_parser_test.go:1008: 'A' (gid=36): 11 points, 2 contours
+    glyf_parser_test.go:1008: 'i' (gid=76): 8 points, 2 contours
+    glyf_parser_test.go:1008: 'j' (gid=77): 17 points, 2 contours
+    glyf_parser_test.go:1008: 'é' (gid=171): 26 points, 3 contours
+    glyf_parser_test.go:1008: 'ñ' (gid=179): 37 points, 2 contours
+    glyf_parser_test.go:1008: 'ü' (gid=190): 25 points, 3 contours
+    glyf_parser_test.go:1008: 'à' (gid=162): 41 points, 3 contours
+    glyf_parser_test.go:1008: 'ô' (gid=182): 28 points, 3 contours
+--- PASS: TestParseGlyfContours_CompositeGlyph_Portable (0.00s)
+=== RUN   TestParseGlyfContours_Composite_IJ_Visible
+    glyf_parser_test.go:1032: no system font available for composite i/j test
+--- SKIP: TestParseGlyfContours_Composite_IJ_Visible (0.00s)
+=== RUN   TestParseGlyfContours_CompositeRecursionLimit
+--- PASS: TestParseGlyfContours_CompositeRecursionLimit (0.00s)
+=== RUN   TestCachedGlyfParser_CompositeGlyphs
+    glyf_parser_test.go:1100: no system font with composites available
+--- SKIP: TestCachedGlyfParser_CompositeGlyphs (0.00s)
+=== RUN   TestCachedGlyfParser_Portable
+    glyf_parser_test.go:1207: GID=1: cached=624 pts, single=624 pts — match
+    glyf_parser_test.go:1207: GID=2: cached=616 pts, single=616 pts — match
+--- PASS: TestCachedGlyfParser_Portable (0.00s)
+PASS

@@ -1,0 +1,13 @@
+=== RUN   TestF2_SimilarityGate
+--- PASS: TestF2_SimilarityGate (0.00s)
+=== RUN   TestF2_UnbakeRoundTrip
+--- PASS: TestF2_UnbakeRoundTrip (0.00s)
+=== RUN   TestF2_StencilUniformLayout
+--- PASS: TestF2_StencilUniformLayout (0.00s)
+=== RUN   TestF2_CacheScaleKeying
+--- PASS: TestF2_CacheScaleKeying (0.00s)
+=== RUN   TestF2_StrokeKeyedHashConsistent
+--- PASS: TestF2_StrokeKeyedHashConsistent (0.00s)
+=== RUN   TestF2_UserScaleTolerance
+--- PASS: TestF2_UserScaleTolerance (0.00s)
+PASS

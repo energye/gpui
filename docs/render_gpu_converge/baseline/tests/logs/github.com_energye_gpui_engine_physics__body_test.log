@@ -1,0 +1,14 @@
+=== RUN   TestBodyOverlapsFromCases
+--- PASS: TestBodyOverlapsFromCases (0.00s)
+=== RUN   TestBodyEdgesNoCrash
+--- PASS: TestBodyEdgesNoCrash (0.00s)
+=== RUN   TestBodyBoundaryIdentical
+--- PASS: TestBodyBoundaryIdentical (0.00s)
+=== RUN   TestBodyPerfHundred
+    body_test.go:423: body-100: 2000 queries x 100 boxes in 542.165134ms (271.1 us/query, 10000 pairs total)
+--- PASS: TestBodyPerfHundred (0.54s)
+=== RUN   TestBodyLongRunStable
+--- PASS: TestBodyLongRunStable (0.01s)
+=== RUN   TestBodyOffscreenGolden
+--- PASS: TestBodyOffscreenGolden (0.00s)
+PASS

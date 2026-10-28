@@ -1,0 +1,14 @@
+=== RUN   TestAssetLoadFromCases
+--- PASS: TestAssetLoadFromCases (0.00s)
+=== RUN   TestAssetEdgesNoCrash
+--- PASS: TestAssetEdgesNoCrash (0.00s)
+=== RUN   TestAssetBoundaryIdentical
+--- PASS: TestAssetBoundaryIdentical (0.00s)
+=== RUN   TestAssetPerfMany
+    asset_test.go:606: asset-many: 100 loads 5200B total in 189.321µs (1.9 us/load)
+--- PASS: TestAssetPerfMany (0.00s)
+=== RUN   TestAssetLongRunStable
+--- PASS: TestAssetLongRunStable (0.01s)
+=== RUN   TestAssetOffscreenGolden
+--- PASS: TestAssetOffscreenGolden (0.00s)
+PASS

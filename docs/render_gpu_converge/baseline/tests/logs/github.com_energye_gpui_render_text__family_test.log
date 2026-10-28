@@ -1,0 +1,9 @@
+=== RUN   TestFontFamily_RealWeightSelection
+--- PASS: TestFontFamily_RealWeightSelection (0.01s)
+=== RUN   TestFontFamily_StandaloneStaticStillUsesOutlineFallback
+--- PASS: TestFontFamily_StandaloneStaticStillUsesOutlineFallback (0.00s)
+=== RUN   TestNewFontFamily_RejectsMismatchAndDuplicateWeight
+--- PASS: TestNewFontFamily_RejectsMismatchAndDuplicateWeight (0.00s)
+=== RUN   TestLoadFontFamily_MissingBoldFallsBackToOutline
+--- PASS: TestLoadFontFamily_MissingBoldFallsBackToOutline (0.00s)
+PASS

@@ -1,0 +1,101 @@
+=== RUN   TestLRUList_New
+--- PASS: TestLRUList_New (0.00s)
+=== RUN   TestLRUList_PushFront
+--- PASS: TestLRUList_PushFront (0.00s)
+=== RUN   TestLRUList_MoveToFront
+--- PASS: TestLRUList_MoveToFront (0.00s)
+=== RUN   TestLRUList_MoveToFront_Nil
+--- PASS: TestLRUList_MoveToFront_Nil (0.00s)
+=== RUN   TestLRUList_Remove
+--- PASS: TestLRUList_Remove (0.00s)
+=== RUN   TestLRUList_Remove_Nil
+--- PASS: TestLRUList_Remove_Nil (0.00s)
+=== RUN   TestLRUList_RemoveOldest
+--- PASS: TestLRUList_RemoveOldest (0.00s)
+=== RUN   TestLRUList_Oldest
+--- PASS: TestLRUList_Oldest (0.00s)
+=== RUN   TestLRUList_Clear
+--- PASS: TestLRUList_Clear (0.00s)
+=== RUN   TestShapingKey_New
+--- PASS: TestShapingKey_New (0.00s)
+=== RUN   TestShapingKey_DifferentText
+--- PASS: TestShapingKey_DifferentText (0.00s)
+=== RUN   TestShapingKey_DifferentSize
+--- PASS: TestShapingKey_DifferentSize (0.00s)
+=== RUN   TestShapingKey_DifferentDirection
+--- PASS: TestShapingKey_DifferentDirection (0.00s)
+=== RUN   TestShapingKey_DifferentFont
+--- PASS: TestShapingKey_DifferentFont (0.00s)
+=== RUN   TestShapingKey_DifferentFeatures
+--- PASS: TestShapingKey_DifferentFeatures (0.00s)
+=== RUN   TestShapingKey_KeyHash
+--- PASS: TestShapingKey_KeyHash (0.00s)
+=== RUN   TestHashFeatures_Empty
+--- PASS: TestHashFeatures_Empty (0.00s)
+=== RUN   TestHashFeatures_Single
+--- PASS: TestHashFeatures_Single (0.00s)
+=== RUN   TestHashFeatures_Multiple
+--- PASS: TestHashFeatures_Multiple (0.00s)
+=== RUN   TestHashFeatures_OrderIndependent
+--- PASS: TestHashFeatures_OrderIndependent (0.00s)
+=== RUN   TestShapingCache_New
+--- PASS: TestShapingCache_New (0.00s)
+=== RUN   TestShapingCache_NewDefault
+--- PASS: TestShapingCache_NewDefault (0.00s)
+=== RUN   TestShapingCache_NewZeroCapacity
+--- PASS: TestShapingCache_NewZeroCapacity (0.00s)
+=== RUN   TestShapingCache_NewNegativeCapacity
+--- PASS: TestShapingCache_NewNegativeCapacity (0.00s)
+=== RUN   TestShapingCache_SetGet
+--- PASS: TestShapingCache_SetGet (0.00s)
+=== RUN   TestShapingCache_SetNil
+--- PASS: TestShapingCache_SetNil (0.00s)
+=== RUN   TestShapingCache_GetMiss
+--- PASS: TestShapingCache_GetMiss (0.00s)
+=== RUN   TestShapingCache_SetOverwrite
+--- PASS: TestShapingCache_SetOverwrite (0.00s)
+=== RUN   TestShapingCache_Delete
+--- PASS: TestShapingCache_Delete (0.00s)
+=== RUN   TestShapingCache_Clear
+--- PASS: TestShapingCache_Clear (0.00s)
+=== RUN   TestShapingCache_Eviction
+--- PASS: TestShapingCache_Eviction (0.00s)
+=== RUN   TestShapingCache_LRUOrder
+--- PASS: TestShapingCache_LRUOrder (0.00s)
+=== RUN   TestShapingCache_GetOrCreate_Miss
+--- PASS: TestShapingCache_GetOrCreate_Miss (0.00s)
+=== RUN   TestShapingCache_GetOrCreate_Hit
+--- PASS: TestShapingCache_GetOrCreate_Hit (0.00s)
+=== RUN   TestShapingCache_GetOrCreate_NilCreate
+--- PASS: TestShapingCache_GetOrCreate_NilCreate (0.00s)
+=== RUN   TestShapingCache_Stats
+--- PASS: TestShapingCache_Stats (0.00s)
+=== RUN   TestShapingCache_HitRate
+--- PASS: TestShapingCache_HitRate (0.00s)
+=== RUN   TestShapingCache_ResetStats
+--- PASS: TestShapingCache_ResetStats (0.00s)
+=== RUN   TestShapingCache_ShardLen
+--- PASS: TestShapingCache_ShardLen (0.00s)
+=== RUN   TestShapingCache_ConcurrentSetGet
+--- PASS: TestShapingCache_ConcurrentSetGet (0.01s)
+=== RUN   TestShapingCache_ConcurrentGetOrCreate
+--- PASS: TestShapingCache_ConcurrentGetOrCreate (0.00s)
+=== RUN   TestShapingCache_ConcurrentClear
+--- PASS: TestShapingCache_ConcurrentClear (0.00s)
+=== RUN   TestShapingCache_ConcurrentDelete
+--- PASS: TestShapingCache_ConcurrentDelete (0.00s)
+=== RUN   TestShapingCache_EmptyString
+--- PASS: TestShapingCache_EmptyString (0.00s)
+=== RUN   TestShapingCache_LongString
+--- PASS: TestShapingCache_LongString (0.02s)
+=== RUN   TestShapingCache_UnicodeString
+--- PASS: TestShapingCache_UnicodeString (0.00s)
+=== RUN   TestShapingCache_ZeroFontID
+--- PASS: TestShapingCache_ZeroFontID (0.00s)
+=== RUN   TestShapingCache_ZeroSize
+--- PASS: TestShapingCache_ZeroSize (0.00s)
+=== RUN   TestShapingCache_AllDirections
+--- PASS: TestShapingCache_AllDirections (0.00s)
+=== RUN   TestShapingCache_RealWorldUsage
+--- PASS: TestShapingCache_RealWorldUsage (0.00s)
+PASS

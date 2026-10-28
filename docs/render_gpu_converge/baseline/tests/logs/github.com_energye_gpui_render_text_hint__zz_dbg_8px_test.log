@@ -1,0 +1,5 @@
+=== RUN   TestDbg8pxCJK
+dbg8px: bad@8px=0 (npt=0) of 3000
+dbg8px: bad@9px=0 (npt=0) of 3000
+--- PASS: TestDbg8pxCJK (1.93s)
+PASS

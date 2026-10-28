@@ -1,0 +1,35 @@
+=== RUN   TestAdaptiveThreshold
+=== RUN   TestAdaptiveThreshold/zero_area
+=== RUN   TestAdaptiveThreshold/negative_area
+=== RUN   TestAdaptiveThreshold/100x100
+=== RUN   TestAdaptiveThreshold/50x50
+=== RUN   TestAdaptiveThreshold/10x10
+=== RUN   TestAdaptiveThreshold/1000x1000
+=== RUN   TestAdaptiveThreshold/very_large
+--- PASS: TestAdaptiveThreshold (0.00s)
+    --- PASS: TestAdaptiveThreshold/zero_area (0.00s)
+    --- PASS: TestAdaptiveThreshold/negative_area (0.00s)
+    --- PASS: TestAdaptiveThreshold/100x100 (0.00s)
+    --- PASS: TestAdaptiveThreshold/50x50 (0.00s)
+    --- PASS: TestAdaptiveThreshold/10x10 (0.00s)
+    --- PASS: TestAdaptiveThreshold/1000x1000 (0.00s)
+    --- PASS: TestAdaptiveThreshold/very_large (0.00s)
+=== RUN   TestPathBounds
+=== RUN   TestPathBounds/empty_path
+=== RUN   TestPathBounds/simple_rectangle
+=== RUN   TestPathBounds/with_quadratic
+=== RUN   TestPathBounds/with_cubic
+--- PASS: TestPathBounds (0.00s)
+    --- PASS: TestPathBounds/empty_path (0.00s)
+    --- PASS: TestPathBounds/simple_rectangle (0.00s)
+    --- PASS: TestPathBounds/with_quadratic (0.00s)
+    --- PASS: TestPathBounds/with_cubic (0.00s)
+=== RUN   TestShouldUseTileRasterizer
+--- PASS: TestShouldUseTileRasterizer (0.00s)
+=== RUN   TestDashedStroke_Lines
+--- PASS: TestDashedStroke_Lines (0.19s)
+=== RUN   TestContext_SavePNG
+--- PASS: TestContext_SavePNG (0.10s)
+=== RUN   TestPixmap_SavePNG
+--- PASS: TestPixmap_SavePNG (0.00s)
+PASS

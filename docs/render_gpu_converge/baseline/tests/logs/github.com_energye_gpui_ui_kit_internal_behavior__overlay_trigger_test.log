@@ -1,0 +1,5 @@
+=== RUN   TestTrigger_Placement
+--- PASS: TestTrigger_Placement (0.00s)
+=== RUN   TestTrigger_OutsideAndEsc
+--- PASS: TestTrigger_OutsideAndEsc (0.00s)
+PASS

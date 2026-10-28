@@ -1,0 +1,29 @@
+=== RUN   TestGPUSceneRenderer_FillAppliesCTM
+--- PASS: TestGPUSceneRenderer_FillAppliesCTM (0.00s)
+=== RUN   TestGPUSceneRenderer_StrokeAppliesCTM
+--- PASS: TestGPUSceneRenderer_StrokeAppliesCTM (0.00s)
+=== RUN   TestGPUSceneRenderer_TransformPreservesParentCTM
+--- PASS: TestGPUSceneRenderer_TransformPreservesParentCTM (0.00s)
+=== RUN   TestGPUSceneRenderer_FillRoundRect
+--- PASS: TestGPUSceneRenderer_FillRoundRect (0.00s)
+=== RUN   TestGPUSceneRenderer_MultipleTransformsNoStackCorruption
+--- PASS: TestGPUSceneRenderer_MultipleTransformsNoStackCorruption (0.00s)
+=== RUN   TestGPUSceneRenderer_ClipAppliedToContent
+--- PASS: TestGPUSceneRenderer_ClipAppliedToContent (0.00s)
+=== RUN   TestGPUSceneRenderer_ClipWithTransformInside
+--- PASS: TestGPUSceneRenderer_ClipWithTransformInside (0.00s)
+=== RUN   TestGPUSceneRenderer_ClipWithMultipleChildTransforms
+--- PASS: TestGPUSceneRenderer_ClipWithMultipleChildTransforms (0.00s)
+=== RUN   TestGPUSceneRenderer_TransformRestoredAfterRender
+--- PASS: TestGPUSceneRenderer_TransformRestoredAfterRender (0.00s)
+=== RUN   TestGPUSceneRenderer_NilScene
+--- PASS: TestGPUSceneRenderer_NilScene (0.00s)
+=== RUN   TestGPUSceneRenderer_EmptyScene
+--- PASS: TestGPUSceneRenderer_EmptyScene (0.00s)
+=== RUN   TestGPUSceneRenderer_ImageRespectsAffineScale
+--- PASS: TestGPUSceneRenderer_ImageRespectsAffineScale (0.00s)
+=== RUN   TestGPUSceneRenderer_ImageIdentityScale
+--- PASS: TestGPUSceneRenderer_ImageIdentityScale (0.00s)
+=== RUN   TestGPUSceneRenderer_ImageScale2x
+--- PASS: TestGPUSceneRenderer_ImageScale2x (0.00s)
+PASS

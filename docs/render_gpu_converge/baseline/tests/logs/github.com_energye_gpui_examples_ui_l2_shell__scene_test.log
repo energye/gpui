@@ -1,0 +1,8 @@
+=== RUN   TestScene_Integration_TapPanFocusOverlay
+    scene_test.go:45: overlay after close=2
+--- FAIL: TestScene_Integration_TapPanFocusOverlay (0.00s)
+=== RUN   TestScene_KeyO_TogglesOverlay
+--- PASS: TestScene_KeyO_TogglesOverlay (0.00s)
+=== RUN   TestScene_PanHandle_ClampedInsideSlate
+--- PASS: TestScene_PanHandle_ClampedInsideSlate (0.00s)
+FAIL

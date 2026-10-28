@@ -1,0 +1,71 @@
+=== RUN   TestHLSLTypeSize
+=== RUN   TestHLSLTypeSize/f32
+=== RUN   TestHLSLTypeSize/i32
+=== RUN   TestHLSLTypeSize/bool
+=== RUN   TestHLSLTypeSize/float2
+=== RUN   TestHLSLTypeSize/float3
+=== RUN   TestHLSLTypeSize/float4
+=== RUN   TestHLSLTypeSize/float4x4
+--- PASS: TestHLSLTypeSize (0.00s)
+    --- PASS: TestHLSLTypeSize/f32 (0.00s)
+    --- PASS: TestHLSLTypeSize/i32 (0.00s)
+    --- PASS: TestHLSLTypeSize/bool (0.00s)
+    --- PASS: TestHLSLTypeSize/float2 (0.00s)
+    --- PASS: TestHLSLTypeSize/float3 (0.00s)
+    --- PASS: TestHLSLTypeSize/float4 (0.00s)
+    --- PASS: TestHLSLTypeSize/float4x4 (0.00s)
+=== RUN   TestScalarTypeHLSL
+=== RUN   TestScalarTypeHLSL/f32
+=== RUN   TestScalarTypeHLSL/f16
+=== RUN   TestScalarTypeHLSL/f64
+=== RUN   TestScalarTypeHLSL/i32
+=== RUN   TestScalarTypeHLSL/u32
+=== RUN   TestScalarTypeHLSL/bool
+--- PASS: TestScalarTypeHLSL (0.00s)
+    --- PASS: TestScalarTypeHLSL/f32 (0.00s)
+    --- PASS: TestScalarTypeHLSL/f16 (0.00s)
+    --- PASS: TestScalarTypeHLSL/f64 (0.00s)
+    --- PASS: TestScalarTypeHLSL/i32 (0.00s)
+    --- PASS: TestScalarTypeHLSL/u32 (0.00s)
+    --- PASS: TestScalarTypeHLSL/bool (0.00s)
+=== RUN   TestIsDynamicallySized
+--- PASS: TestIsDynamicallySized (0.00s)
+=== RUN   TestTypePredicates
+--- PASS: TestTypePredicates (0.00s)
+=== RUN   TestIsMatCx2
+--- PASS: TestIsMatCx2 (0.00s)
+=== RUN   TestFloat32FromBits
+--- PASS: TestFloat32FromBits (0.00s)
+=== RUN   TestVectorTypeNameMethod
+=== RUN   TestVectorTypeNameMethod/float2
+=== RUN   TestVectorTypeNameMethod/float3
+=== RUN   TestVectorTypeNameMethod/float4
+=== RUN   TestVectorTypeNameMethod/int4
+=== RUN   TestVectorTypeNameMethod/uint3
+=== RUN   TestVectorTypeNameMethod/bool2
+--- PASS: TestVectorTypeNameMethod (0.00s)
+    --- PASS: TestVectorTypeNameMethod/float2 (0.00s)
+    --- PASS: TestVectorTypeNameMethod/float3 (0.00s)
+    --- PASS: TestVectorTypeNameMethod/float4 (0.00s)
+    --- PASS: TestVectorTypeNameMethod/int4 (0.00s)
+    --- PASS: TestVectorTypeNameMethod/uint3 (0.00s)
+    --- PASS: TestVectorTypeNameMethod/bool2 (0.00s)
+=== RUN   TestWriteConstantValue_Scalar
+=== RUN   TestWriteConstantValue_Scalar/f32_pi
+=== RUN   TestWriteConstantValue_Scalar/i32_42
+=== RUN   TestWriteConstantValue_Scalar/u32_100
+=== RUN   TestWriteConstantValue_Scalar/bool_true
+=== RUN   TestWriteConstantValue_Scalar/bool_false
+--- PASS: TestWriteConstantValue_Scalar (0.00s)
+    --- PASS: TestWriteConstantValue_Scalar/f32_pi (0.00s)
+    --- PASS: TestWriteConstantValue_Scalar/i32_42 (0.00s)
+    --- PASS: TestWriteConstantValue_Scalar/u32_100 (0.00s)
+    --- PASS: TestWriteConstantValue_Scalar/bool_true (0.00s)
+    --- PASS: TestWriteConstantValue_Scalar/bool_false (0.00s)
+=== RUN   TestCompile_StructWithPadding
+--- PASS: TestCompile_StructWithPadding (0.00s)
+=== RUN   TestCompile_ArrayInStruct
+--- PASS: TestCompile_ArrayInStruct (0.00s)
+=== RUN   TestCompile_ComplexShader
+--- PASS: TestCompile_ComplexShader (0.00s)
+PASS

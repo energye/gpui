@@ -1,0 +1,10 @@
+=== RUN   TestProbeTTC_CJKGlyphMaskGPURender
+    ttc_cjk_gpu_repro_test.go:45: sampleCount=1
+    ttc_cjk_gpu_repro_test.go:53: filler quads=2000 page=0
+    ttc_cjk_gpu_repro_test.go:65: line "GROUP-A allowed" quads=14 page=1
+    ttc_cjk_gpu_repro_test.go:65: line "合成" quads=2 page=1
+    ttc_cjk_gpu_repro_test.go:65: line "BUDGET REJECT" quads=12 page=1
+    ttc_cjk_gpu_repro_test.go:78: batches on page>0: 3
+    ttc_cjk_gpu_repro_test.go:99: nil atlas view for batch 0
+--- FAIL: TestProbeTTC_CJKGlyphMaskGPURender (0.83s)
+FAIL

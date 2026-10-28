@@ -1,0 +1,143 @@
+=== RUN   TestMSL_StructEmission
+--- PASS: TestMSL_StructEmission (0.00s)
+=== RUN   TestMSL_ArrayType
+--- PASS: TestMSL_ArrayType (0.00s)
+=== RUN   TestMSL_ScalarTypeName_Extended
+=== RUN   TestMSL_ScalarTypeName_Extended/bool
+=== RUN   TestMSL_ScalarTypeName_Extended/float16
+=== RUN   TestMSL_ScalarTypeName_Extended/float32
+=== RUN   TestMSL_ScalarTypeName_Extended/float64
+=== RUN   TestMSL_ScalarTypeName_Extended/int8
+=== RUN   TestMSL_ScalarTypeName_Extended/int16
+=== RUN   TestMSL_ScalarTypeName_Extended/int32
+=== RUN   TestMSL_ScalarTypeName_Extended/int64
+=== RUN   TestMSL_ScalarTypeName_Extended/uint8
+=== RUN   TestMSL_ScalarTypeName_Extended/uint16
+=== RUN   TestMSL_ScalarTypeName_Extended/uint32
+=== RUN   TestMSL_ScalarTypeName_Extended/uint64
+--- PASS: TestMSL_ScalarTypeName_Extended (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/bool (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/float16 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/float32 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/float64 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/int8 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/int16 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/int32 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/int64 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/uint8 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/uint16 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/uint32 (0.00s)
+    --- PASS: TestMSL_ScalarTypeName_Extended/uint64 (0.00s)
+=== RUN   TestMSL_VectorTypeName_Extended
+=== RUN   TestMSL_VectorTypeName_Extended/float2
+=== RUN   TestMSL_VectorTypeName_Extended/float3
+=== RUN   TestMSL_VectorTypeName_Extended/float4
+=== RUN   TestMSL_VectorTypeName_Extended/int2
+=== RUN   TestMSL_VectorTypeName_Extended/int3
+=== RUN   TestMSL_VectorTypeName_Extended/int4
+=== RUN   TestMSL_VectorTypeName_Extended/uint2
+=== RUN   TestMSL_VectorTypeName_Extended/uint3
+=== RUN   TestMSL_VectorTypeName_Extended/uint4
+=== RUN   TestMSL_VectorTypeName_Extended/bool2
+=== RUN   TestMSL_VectorTypeName_Extended/half2
+=== RUN   TestMSL_VectorTypeName_Extended/half4
+--- PASS: TestMSL_VectorTypeName_Extended (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/float2 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/float3 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/float4 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/int2 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/int3 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/int4 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/uint2 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/uint3 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/uint4 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/bool2 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/half2 (0.00s)
+    --- PASS: TestMSL_VectorTypeName_Extended/half4 (0.00s)
+=== RUN   TestMSL_MatrixTypeName_Extended
+=== RUN   TestMSL_MatrixTypeName_Extended/float2x2
+=== RUN   TestMSL_MatrixTypeName_Extended/float3x3
+=== RUN   TestMSL_MatrixTypeName_Extended/float4x4
+=== RUN   TestMSL_MatrixTypeName_Extended/float2x3
+=== RUN   TestMSL_MatrixTypeName_Extended/float3x4
+=== RUN   TestMSL_MatrixTypeName_Extended/half2x2
+=== RUN   TestMSL_MatrixTypeName_Extended/half4x4
+--- PASS: TestMSL_MatrixTypeName_Extended (0.00s)
+    --- PASS: TestMSL_MatrixTypeName_Extended/float2x2 (0.00s)
+    --- PASS: TestMSL_MatrixTypeName_Extended/float3x3 (0.00s)
+    --- PASS: TestMSL_MatrixTypeName_Extended/float4x4 (0.00s)
+    --- PASS: TestMSL_MatrixTypeName_Extended/float2x3 (0.00s)
+    --- PASS: TestMSL_MatrixTypeName_Extended/float3x4 (0.00s)
+    --- PASS: TestMSL_MatrixTypeName_Extended/half2x2 (0.00s)
+    --- PASS: TestMSL_MatrixTypeName_Extended/half4x4 (0.00s)
+=== RUN   TestMSL_SamplerType
+--- PASS: TestMSL_SamplerType (0.00s)
+=== RUN   TestMSL_TypeInCompile
+=== RUN   TestMSL_TypeInCompile/vec4_in_struct
+--- PASS: TestMSL_TypeInCompile (0.00s)
+    --- PASS: TestMSL_TypeInCompile/vec4_in_struct (0.00s)
+=== RUN   TestMSL_LocalVariableType
+--- PASS: TestMSL_LocalVariableType (0.00s)
+=== RUN   TestMSL_ComputeEntryPoint
+--- PASS: TestMSL_ComputeEntryPoint (0.00s)
+=== RUN   TestMSL_FragmentEntryPoint
+--- PASS: TestMSL_FragmentEntryPoint (0.00s)
+=== RUN   TestMSL_GlobalVariableAsEntryParam
+--- PASS: TestMSL_GlobalVariableAsEntryParam (0.00s)
+=== RUN   TestMSL_AddressSpaceName_Extended
+--- PASS: TestMSL_AddressSpaceName_Extended (0.00s)
+=== RUN   TestMSL_ImageType
+=== RUN   TestMSL_ImageType/texture2d_sampled
+=== RUN   TestMSL_ImageType/texture3d_sampled
+=== RUN   TestMSL_ImageType/texture1d_sampled
+=== RUN   TestMSL_ImageType/texturecube_sampled
+=== RUN   TestMSL_ImageType/depth2d
+=== RUN   TestMSL_ImageType/depth2d_ms
+=== RUN   TestMSL_ImageType/depthcube
+=== RUN   TestMSL_ImageType/texture2d_ms
+=== RUN   TestMSL_ImageType/texture2d_array
+=== RUN   TestMSL_ImageType/texturecube_array
+=== RUN   TestMSL_ImageType/texture1d_array
+=== RUN   TestMSL_ImageType/storage_rw
+=== RUN   TestMSL_ImageType/storage_read
+=== RUN   TestMSL_ImageType/storage_write
+--- PASS: TestMSL_ImageType (0.00s)
+    --- PASS: TestMSL_ImageType/texture2d_sampled (0.00s)
+    --- PASS: TestMSL_ImageType/texture3d_sampled (0.00s)
+    --- PASS: TestMSL_ImageType/texture1d_sampled (0.00s)
+    --- PASS: TestMSL_ImageType/texturecube_sampled (0.00s)
+    --- PASS: TestMSL_ImageType/depth2d (0.00s)
+    --- PASS: TestMSL_ImageType/depth2d_ms (0.00s)
+    --- PASS: TestMSL_ImageType/depthcube (0.00s)
+    --- PASS: TestMSL_ImageType/texture2d_ms (0.00s)
+    --- PASS: TestMSL_ImageType/texture2d_array (0.00s)
+    --- PASS: TestMSL_ImageType/texturecube_array (0.00s)
+    --- PASS: TestMSL_ImageType/texture1d_array (0.00s)
+    --- PASS: TestMSL_ImageType/storage_rw (0.00s)
+    --- PASS: TestMSL_ImageType/storage_read (0.00s)
+    --- PASS: TestMSL_ImageType/storage_write (0.00s)
+=== RUN   TestMSL_AtomicTypeName
+=== RUN   TestMSL_AtomicTypeName/sint32
+=== RUN   TestMSL_AtomicTypeName/sint64
+=== RUN   TestMSL_AtomicTypeName/uint32
+=== RUN   TestMSL_AtomicTypeName/uint64
+=== RUN   TestMSL_AtomicTypeName/float32
+--- PASS: TestMSL_AtomicTypeName (0.00s)
+    --- PASS: TestMSL_AtomicTypeName/sint32 (0.00s)
+    --- PASS: TestMSL_AtomicTypeName/sint64 (0.00s)
+    --- PASS: TestMSL_AtomicTypeName/uint32 (0.00s)
+    --- PASS: TestMSL_AtomicTypeName/uint64 (0.00s)
+    --- PASS: TestMSL_AtomicTypeName/float32 (0.00s)
+=== RUN   TestMSL_PackedVectorTypeName
+--- PASS: TestMSL_PackedVectorTypeName (0.00s)
+=== RUN   TestMSL_ConstantEmission
+--- PASS: TestMSL_ConstantEmission (0.00s)
+=== RUN   TestMSL_VertexEntryPointWithInputs
+--- PASS: TestMSL_VertexEntryPointWithInputs (0.00s)
+=== RUN   TestMSL_FragmentEntryPointWithInputs
+--- PASS: TestMSL_FragmentEntryPointWithInputs (0.00s)
+=== RUN   TestMSL_ComputeEntryPointWithBuiltins
+--- PASS: TestMSL_ComputeEntryPointWithBuiltins (0.00s)
+=== RUN   TestMSL_VertexStructOutput
+--- PASS: TestMSL_VertexStructOutput (0.00s)
+PASS

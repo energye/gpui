@@ -1,0 +1,14 @@
+=== RUN   TestRayPlatformFromCases
+--- PASS: TestRayPlatformFromCases (0.00s)
+=== RUN   TestRayEdgesNoCrash
+--- PASS: TestRayEdgesNoCrash (0.00s)
+=== RUN   TestRayBoundaryIdentical
+--- PASS: TestRayBoundaryIdentical (0.00s)
+=== RUN   TestRayPerfHundred
+    body_ray_test.go:473: ray-100: 2000 casts x 100 boxes in 7.100642ms (3.5 us/cast, 2000 hits)
+--- PASS: TestRayPerfHundred (0.01s)
+=== RUN   TestRayLongRunStable
+--- PASS: TestRayLongRunStable (0.00s)
+=== RUN   TestRayOffscreenGolden
+--- PASS: TestRayOffscreenGolden (0.00s)
+PASS

@@ -1,0 +1,14 @@
+=== RUN   TestS66_PathTess_ZeroCopyHit
+--- PASS: TestS66_PathTess_ZeroCopyHit (0.00s)
+=== RUN   TestS66_StrokeCache_SharedPathHit
+--- PASS: TestS66_StrokeCache_SharedPathHit (0.00s)
+=== RUN   TestS66_DashGeometryCache_Hit
+--- PASS: TestS66_DashGeometryCache_Hit (0.00s)
+=== RUN   TestS66_ConvexCache_HitAndNegative
+--- PASS: TestS66_ConvexCache_HitAndNegative (0.00s)
+=== RUN   TestS66_StrokePath_DashAndStrokeCachesHot
+    s6_6_path_geometry_test.go:171: geom stats: dash hits=1 misses=1 stroke hits=2
+--- PASS: TestS66_StrokePath_DashAndStrokeCachesHot (0.21s)
+=== RUN   TestS66_ComplexPolygon_TessReuse
+--- PASS: TestS66_ComplexPolygon_TessReuse (0.00s)
+PASS

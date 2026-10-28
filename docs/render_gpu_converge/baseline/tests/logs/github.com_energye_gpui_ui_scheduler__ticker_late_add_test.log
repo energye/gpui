@@ -1,0 +1,3 @@
+=== RUN   TestTickers_LateAddSurvives
+--- PASS: TestTickers_LateAddSurvives (0.00s)
+PASS

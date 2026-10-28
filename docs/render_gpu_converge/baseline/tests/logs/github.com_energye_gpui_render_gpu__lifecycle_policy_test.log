@@ -1,0 +1,5 @@
+=== RUN   TestResolveSurfaceLifecycle_EnvAndOOM
+--- PASS: TestResolveSurfaceLifecycle_EnvAndOOM (0.00s)
+=== RUN   TestNoteTextureOOM_Increments
+--- PASS: TestNoteTextureOOM_Increments (0.00s)
+PASS

@@ -1,0 +1,167 @@
+=== RUN   TestTTGolden_PhantomPointAdvance
+=== RUN   TestTTGolden_PhantomPointAdvance/tthint_subset_A_at_16ppem
+    tt_golden_test.go:78: gid=1 ppem=16: hinted advance = 896 (26.6) = 14 px (OK)
+=== RUN   TestTTGolden_PhantomPointAdvance/tthint_subset_A_at_12ppem
+    tt_golden_test.go:78: gid=1 ppem=12: hinted advance = 640 (26.6) = 10 px (OK)
+=== RUN   TestTTGolden_PhantomPointAdvance/cousine_at_16ppem
+    tt_golden_test.go:78: gid=1 ppem=16: hinted advance = 640 (26.6) = 10 px (OK)
+--- PASS: TestTTGolden_PhantomPointAdvance (0.01s)
+    --- PASS: TestTTGolden_PhantomPointAdvance/tthint_subset_A_at_16ppem (0.00s)
+    --- PASS: TestTTGolden_PhantomPointAdvance/tthint_subset_A_at_12ppem (0.00s)
+    --- PASS: TestTTGolden_PhantomPointAdvance/cousine_at_16ppem (0.00s)
+=== RUN   TestTTGolden_HintedCoordinates
+    tt_golden_test.go:138: A@16ppem: advance = 896 (26.6) = 14 px, 624 contour points
+    tt_golden_test.go:144:   point[0]: (0, -320) flags=0x05
+    tt_golden_test.go:144:   point[1]: (0, 1024) flags=0x05
+    tt_golden_test.go:144:   point[2]: (866, 1024) flags=0x05
+    tt_golden_test.go:144:   point[3]: (866, 1024) flags=0x05
+    tt_golden_test.go:144:   point[4]: (793, 1024) flags=0x05
+--- PASS: TestTTGolden_HintedCoordinates (0.00s)
+=== RUN   TestTTGolden_BackwardCompatibility
+    tt_golden_test.go:173: backward compatibility: smooth=true, normal=false
+--- PASS: TestTTGolden_BackwardCompatibility (0.00s)
+=== RUN   TestTTGolden_MultiSize
+    tt_golden_test.go:233: ppem= 8: advance = 448 (26.6) =  7 px
+    tt_golden_test.go:233: ppem=10: advance = 512 (26.6) =  8 px
+    tt_golden_test.go:233: ppem=12: advance = 640 (26.6) = 10 px
+    tt_golden_test.go:233: ppem=14: advance = 768 (26.6) = 12 px
+    tt_golden_test.go:233: ppem=16: advance = 896 (26.6) = 14 px
+    tt_golden_test.go:233: ppem=18: advance = 960 (26.6) = 15 px
+    tt_golden_test.go:233: ppem=20: advance = 1088 (26.6) = 17 px
+    tt_golden_test.go:233: ppem=24: advance = 1280 (26.6) = 20 px
+    tt_golden_test.go:233: ppem=32: advance = 1728 (26.6) = 27 px
+    tt_golden_test.go:233: ppem=48: advance = 2624 (26.6) = 41 px
+--- PASS: TestTTGolden_MultiSize (0.03s)
+=== RUN   TestTTGolden_SystemFonts
+    tt_golden_test.go:241: system font test only on Windows
+--- SKIP: TestTTGolden_SystemFonts (0.00s)
+=== RUN   TestTTGolden_FpgmPrepExecution
+    tt_golden_test.go:324: fpgm: 3596 bytes
+    tt_golden_test.go:325: prep: 167 bytes
+    tt_golden_test.go:326: CVT: 29 entries
+    tt_golden_test.go:327: maxFunctionDefs: 141
+    tt_golden_test.go:328: maxStorage: 1854
+    tt_golden_test.go:329: maxStack: 4039
+    tt_golden_test.go:330: maxTwilight: 1220
+    tt_golden_test.go:331: unitsPerEm: 1040
+    tt_golden_test.go:365: active function definitions: 140
+    tt_golden_test.go:371: scaled CVT[0] = 0 (26.6)
+--- PASS: TestTTGolden_FpgmPrepExecution (0.00s)
+=== RUN   TestTTGolden_CVTScaling
+=== RUN   TestTTGolden_CVTScaling/ppem_12
+=== RUN   TestTTGolden_CVTScaling/ppem_16
+=== RUN   TestTTGolden_CVTScaling/ppem_24
+=== RUN   TestTTGolden_CVTScaling/ppem_48
+--- PASS: TestTTGolden_CVTScaling (0.00s)
+    --- PASS: TestTTGolden_CVTScaling/ppem_12 (0.00s)
+    --- PASS: TestTTGolden_CVTScaling/ppem_16 (0.00s)
+    --- PASS: TestTTGolden_CVTScaling/ppem_24 (0.00s)
+    --- PASS: TestTTGolden_CVTScaling/ppem_48 (0.00s)
+=== RUN   TestTTGolden_IntegrationWithRendering
+    tt_golden_test.go:472: A@16ppem: hinted advance = 14.00 px
+    tt_golden_test.go:509: A@16ppem outline: 765 segments, advance=14.00, bounds={0 -16 13.53125 5}
+--- PASS: TestTTGolden_IntegrationWithRendering (0.00s)
+=== RUN   TestTTGolden_HintingMovesPoints
+    tt_golden_test.go:571: hinting moved 561/624 points, total delta = 4375 (26.6 units)
+    tt_golden_test.go:578: phantom advance: pre=896, post=896 (26.6), delta=0
+--- PASS: TestTTGolden_HintingMovesPoints (0.00s)
+=== RUN   TestTTGolden_NoInstructions
+    tt_golden_test.go:607: notoserifhebrew TT cache: true
+--- PASS: TestTTGolden_NoInstructions (0.00s)
+=== RUN   TestTTGolden_CousineMonospace
+    tt_golden_test.go:635: not enough glyphs to verify monospace consistency
+--- SKIP: TestTTGolden_CousineMonospace (0.00s)
+=== RUN   TestTTGolden_CVTCount
+--- PASS: TestTTGolden_CVTCount (0.00s)
+=== RUN   TestTTGolden_ScaleComputation
+=== RUN   TestTTGolden_ScaleComputation/ppem_16_upem_1040
+    tt_golden_test.go:699: ppem=16 upem=1040 -> scale=0x0000FC0F (64527)
+=== RUN   TestTTGolden_ScaleComputation/ppem_12_upem_1040
+    tt_golden_test.go:699: ppem=12 upem=1040 -> scale=0x0000BD0B (48395)
+=== RUN   TestTTGolden_ScaleComputation/ppem_16_upem_1000
+    tt_golden_test.go:699: ppem=16 upem=1000 -> scale=0x00010624 (67108)
+=== RUN   TestTTGolden_ScaleComputation/ppem_16_upem_2048
+    tt_golden_test.go:699: ppem=16 upem=2048 -> scale=0x00008000 (32768)
+=== RUN   TestTTGolden_ScaleComputation/ppem_72_upem_1040
+    tt_golden_test.go:699: ppem=72 upem=1040 -> scale=0x00046E46 (290374)
+--- PASS: TestTTGolden_ScaleComputation (0.00s)
+    --- PASS: TestTTGolden_ScaleComputation/ppem_16_upem_1040 (0.00s)
+    --- PASS: TestTTGolden_ScaleComputation/ppem_12_upem_1040 (0.00s)
+    --- PASS: TestTTGolden_ScaleComputation/ppem_16_upem_1000 (0.00s)
+    --- PASS: TestTTGolden_ScaleComputation/ppem_16_upem_2048 (0.00s)
+    --- PASS: TestTTGolden_ScaleComputation/ppem_72_upem_1040 (0.00s)
+=== RUN   TestTTGolden_CacheDeduplication
+--- PASS: TestTTGolden_CacheDeduplication (0.00s)
+=== RUN   TestTTGolden_PointOrderPreserved
+--- PASS: TestTTGolden_PointOrderPreserved (0.00s)
+=== RUN   TestTTGolden_HmtxMetrics
+--- PASS: TestTTGolden_HmtxMetrics (0.00s)
+=== RUN   TestTTGolden_MultiFontRobustness
+=== RUN   TestTTGolden_MultiFontRobustness/tthint_subset.ttf
+    tt_golden_test.go:865: tthint_subset.ttf: all sizes hinted without panic
+=== RUN   TestTTGolden_MultiFontRobustness/cousine_hint_subset.ttf
+    tt_golden_test.go:865: cousine_hint_subset.ttf: all sizes hinted without panic
+=== RUN   TestTTGolden_MultiFontRobustness/ahem.ttf
+    tt_golden_test.go:854: ahem.ttf: no TT instructions (OK)
+=== RUN   TestTTGolden_MultiFontRobustness/notoserifhebrew_autohint_metrics.ttf
+    tt_golden_test.go:865: notoserifhebrew_autohint_metrics.ttf: all sizes hinted without panic
+=== RUN   TestTTGolden_MultiFontRobustness/cantarell_vf_trimmed.ttf
+    tt_golden_test.go:854: cantarell_vf_trimmed.ttf: no TT instructions (OK)
+=== RUN   TestTTGolden_MultiFontRobustness/vazirmatn_var_trimmed.ttf
+    tt_golden_test.go:854: vazirmatn_var_trimmed.ttf: no TT instructions (OK)
+--- PASS: TestTTGolden_MultiFontRobustness (0.03s)
+    --- PASS: TestTTGolden_MultiFontRobustness/tthint_subset.ttf (0.03s)
+    --- PASS: TestTTGolden_MultiFontRobustness/cousine_hint_subset.ttf (0.00s)
+    --- PASS: TestTTGolden_MultiFontRobustness/ahem.ttf (0.00s)
+    --- PASS: TestTTGolden_MultiFontRobustness/notoserifhebrew_autohint_metrics.ttf (0.00s)
+    --- PASS: TestTTGolden_MultiFontRobustness/cantarell_vf_trimmed.ttf (0.00s)
+    --- PASS: TestTTGolden_MultiFontRobustness/vazirmatn_var_trimmed.ttf (0.00s)
+=== RUN   TestTTGolden_TwilightZone
+    tt_golden_test.go:904: twilight zone: 0/1220 points are non-zero after fpgm+prep
+--- PASS: TestTTGolden_TwilightZone (0.00s)
+=== RUN   TestTTGolden_TargetModes
+=== RUN   TestTTGolden_TargetModes/Normal
+    tt_golden_test.go:952: target=Normal: advance=896 (26.6) = 14 px, backwardCompat=false
+=== RUN   TestTTGolden_TargetModes/Smooth
+    tt_golden_test.go:952: target=Smooth: advance=896 (26.6) = 14 px, backwardCompat=true
+=== RUN   TestTTGolden_TargetModes/LCD
+    tt_golden_test.go:952: target=LCD: advance=896 (26.6) = 14 px, backwardCompat=true
+=== RUN   TestTTGolden_TargetModes/LCDV
+    tt_golden_test.go:952: target=LCDV: advance=896 (26.6) = 14 px, backwardCompat=true
+--- PASS: TestTTGolden_TargetModes (0.01s)
+    --- PASS: TestTTGolden_TargetModes/Normal (0.00s)
+    --- PASS: TestTTGolden_TargetModes/Smooth (0.00s)
+    --- PASS: TestTTGolden_TargetModes/LCD (0.00s)
+    --- PASS: TestTTGolden_TargetModes/LCDV (0.00s)
+=== RUN   TestTTGolden_EdgeCasePPEM
+--- PASS: TestTTGolden_EdgeCasePPEM (0.00s)
+=== RUN   TestTTGolden_BackwardCompatXPreserved
+=== RUN   TestTTGolden_BackwardCompatXPreserved/ppem_12
+    tt_golden_test.go:1063: ppem=12: 624/624 X coords preserved, 0 zeroed
+=== RUN   TestTTGolden_BackwardCompatXPreserved/ppem_16
+    tt_golden_test.go:1063: ppem=16: 624/624 X coords preserved, 0 zeroed
+=== RUN   TestTTGolden_BackwardCompatXPreserved/ppem_24
+    tt_golden_test.go:1063: ppem=24: 624/624 X coords preserved, 0 zeroed
+--- PASS: TestTTGolden_BackwardCompatXPreserved (0.01s)
+    --- PASS: TestTTGolden_BackwardCompatXPreserved/ppem_12 (0.00s)
+    --- PASS: TestTTGolden_BackwardCompatXPreserved/ppem_16 (0.00s)
+    --- PASS: TestTTGolden_BackwardCompatXPreserved/ppem_24 (0.00s)
+=== RUN   TestTTGolden_SkrifaParity_16ppem
+    tt_golden_test.go:1083: skrifa parity ppem=16: X=624/624 diff=0, Y=624/624 diff=0
+--- PASS: TestTTGolden_SkrifaParity_16ppem (0.00s)
+=== RUN   TestTTGolden_SkrifaParity_12ppem
+    tt_golden_test.go:1090: skrifa parity ppem=12: X=624/624 diff=0, Y=624/624 diff=0
+--- PASS: TestTTGolden_SkrifaParity_12ppem (0.00s)
+=== RUN   TestTTGolden_SkrifaParity_24ppem
+    tt_golden_test.go:1097: skrifa parity ppem=24: X=624/624 diff=0, Y=624/624 diff=0
+--- PASS: TestTTGolden_SkrifaParity_24ppem (0.00s)
+=== RUN   TestTTGolden_SkrifaParity_PreHinting_16ppem
+    tt_golden_test.go:1258: PASS: pre-hinting coordinates match skrifa (first 20 + phantoms)
+--- PASS: TestTTGolden_SkrifaParity_PreHinting_16ppem (0.00s)
+=== RUN   TestTTHint_SpaceAdvance
+    tt_golden_test.go:1278: system font test only on Windows (Segoe UI)
+--- SKIP: TestTTHint_SpaceAdvance (0.00s)
+=== RUN   TestTTHint_SpaceAdvanceIntegerPixel
+    tt_golden_test.go:1339: system font test only on Windows
+--- SKIP: TestTTHint_SpaceAdvanceIntegerPixel (0.00s)
+PASS

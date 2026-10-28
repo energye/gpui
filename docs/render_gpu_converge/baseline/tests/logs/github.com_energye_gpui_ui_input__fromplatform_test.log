@@ -1,0 +1,53 @@
+=== RUN   TestFromPlatform_KeyASCII
+--- PASS: TestFromPlatform_KeyASCII (0.00s)
+=== RUN   TestFromPlatform_KeySpecial
+--- PASS: TestFromPlatform_KeySpecial (0.00s)
+=== RUN   TestFromPlatform_EnterKeys
+--- PASS: TestFromPlatform_EnterKeys (0.00s)
+=== RUN   TestFromPlatform_KeyModifiers
+--- PASS: TestFromPlatform_KeyModifiers (0.00s)
+=== RUN   TestFromPlatform_Pointer
+--- PASS: TestFromPlatform_Pointer (0.00s)
+=== RUN   TestFromPlatform_PointerMoveIsMove
+--- PASS: TestFromPlatform_PointerMoveIsMove (0.00s)
+=== RUN   TestFromPlatform_Scroll
+--- PASS: TestFromPlatform_Scroll (0.00s)
+=== RUN   TestFromPlatform_Lifecycle
+--- PASS: TestFromPlatform_Lifecycle (0.00s)
+=== RUN   TestFromPlatform_CloseSplit
+--- PASS: TestFromPlatform_CloseSplit (0.00s)
+=== RUN   TestFromPlatform_KeyRepeat
+--- PASS: TestFromPlatform_KeyRepeat (0.00s)
+=== RUN   TestFromPlatform_PointerPhases
+--- PASS: TestFromPlatform_PointerPhases (0.00s)
+=== RUN   TestFromPlatform_HorizontalScroll
+--- PASS: TestFromPlatform_HorizontalScroll (0.00s)
+=== RUN   TestFromPlatform_LifecycleStates
+--- PASS: TestFromPlatform_LifecycleStates (0.00s)
+=== RUN   TestFromPlatform_StateChanged
+--- PASS: TestFromPlatform_StateChanged (0.00s)
+=== RUN   TestFromPlatform_Touch
+--- PASS: TestFromPlatform_Touch (0.00s)
+=== RUN   TestFromPlatform_ResizeDefaultScale
+--- PASS: TestFromPlatform_ResizeDefaultScale (0.00s)
+=== RUN   TestFromPlatform_WindowEvents
+--- PASS: TestFromPlatform_WindowEvents (0.00s)
+=== RUN   TestFromTouch
+--- PASS: TestFromTouch (0.00s)
+=== RUN   TestFromText
+--- PASS: TestFromText (0.00s)
+=== RUN   TestFromIME
+--- PASS: TestFromIME (0.00s)
+=== RUN   TestFromPlatform_IME
+--- PASS: TestFromPlatform_IME (0.00s)
+=== RUN   TestKeySingleLetter
+--- PASS: TestKeySingleLetter (0.00s)
+=== RUN   TestKeyFunct
+--- PASS: TestKeyFunct (0.00s)
+=== RUN   TestEventKindString
+--- PASS: TestEventKindString (0.00s)
+=== RUN   TestFromPlatform_ModifiersChanged
+--- PASS: TestFromPlatform_ModifiersChanged (0.00s)
+=== RUN   TestFromPlatform_PointerCancelCarriesPos
+--- PASS: TestFromPlatform_PointerCancelCarriesPos (0.00s)
+PASS

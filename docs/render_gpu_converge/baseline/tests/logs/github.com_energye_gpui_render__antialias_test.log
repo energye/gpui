@@ -1,0 +1,9 @@
+=== RUN   TestSetAntiAlias_BinaryPixelsOnly
+--- PASS: TestSetAntiAlias_BinaryPixelsOnly (0.00s)
+=== RUN   TestSetAntiAlias_AAHasGrayPixels
+--- PASS: TestSetAntiAlias_AAHasGrayPixels (0.00s)
+=== RUN   TestSetAntiAlias_PushPop
+--- PASS: TestSetAntiAlias_PushPop (0.00s)
+=== RUN   TestSetAntiAlias_RectNoCoverage
+--- PASS: TestSetAntiAlias_RectNoCoverage (0.00s)
+PASS

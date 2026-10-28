@@ -1,0 +1,13 @@
+=== RUN   TestRegisterParser
+--- PASS: TestRegisterParser (0.00s)
+=== RUN   TestGetParserDefault
+--- PASS: TestGetParserDefault (0.00s)
+=== RUN   TestGetParserXImage
+--- PASS: TestGetParserXImage (0.00s)
+=== RUN   TestFontMetricsHeight
+--- PASS: TestFontMetricsHeight (0.00s)
+=== RUN   TestRectEmpty
+--- PASS: TestRectEmpty (0.00s)
+=== RUN   TestDirectionMismatchError
+--- PASS: TestDirectionMismatchError (0.00s)
+PASS

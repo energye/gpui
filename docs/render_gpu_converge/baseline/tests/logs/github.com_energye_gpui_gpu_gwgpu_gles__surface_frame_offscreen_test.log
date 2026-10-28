@@ -1,0 +1,5 @@
+=== RUN   TestH4D_SurfaceFrameOffscreenPixel
+    surface_frame_offscreen_test.go:66: GL surface-chain: 3.3.0 NVIDIA 580.178.04
+    surface_frame_offscreen_test.go:202: surface frame pixels md5: 59ca40337ff5e016579ea53a09549824
+--- PASS: TestH4D_SurfaceFrameOffscreenPixel (0.11s)
+PASS

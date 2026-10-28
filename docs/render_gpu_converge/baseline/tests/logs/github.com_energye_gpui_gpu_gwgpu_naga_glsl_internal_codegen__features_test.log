@@ -1,0 +1,71 @@
+=== RUN   TestFeaturesManager_RequestContains
+--- PASS: TestFeaturesManager_RequestContains (0.00s)
+=== RUN   TestFeaturesManager_MultipleFlags
+--- PASS: TestFeaturesManager_MultipleFlags (0.00s)
+=== RUN   TestWriteExtensions_ComputeShader
+--- PASS: TestWriteExtensions_ComputeShader (0.00s)
+=== RUN   TestWriteExtensions_BufferStorage
+--- PASS: TestWriteExtensions_BufferStorage (0.00s)
+=== RUN   TestWriteExtensions_DoubleType
+--- PASS: TestWriteExtensions_DoubleType (0.00s)
+=== RUN   TestWriteExtensions_CubeTexturesArray
+--- PASS: TestWriteExtensions_CubeTexturesArray (0.00s)
+=== RUN   TestWriteExtensions_MultisampledTexArrays
+--- PASS: TestWriteExtensions_MultisampledTexArrays (0.00s)
+=== RUN   TestWriteExtensions_ImageLoadStore
+--- PASS: TestWriteExtensions_ImageLoadStore (0.00s)
+=== RUN   TestWriteExtensions_ConservativeDepth
+--- PASS: TestWriteExtensions_ConservativeDepth (0.00s)
+=== RUN   TestWriteExtensions_ClipCullDistance
+--- PASS: TestWriteExtensions_ClipCullDistance (0.00s)
+=== RUN   TestWriteExtensions_SampleVariables
+--- PASS: TestWriteExtensions_SampleVariables (0.00s)
+=== RUN   TestWriteExtensions_MultiView
+--- PASS: TestWriteExtensions_MultiView (0.00s)
+=== RUN   TestWriteExtensions_TextureSamples
+--- PASS: TestWriteExtensions_TextureSamples (0.00s)
+=== RUN   TestWriteExtensions_TextureLevels
+--- PASS: TestWriteExtensions_TextureLevels (0.00s)
+=== RUN   TestWriteExtensions_DualSourceBlending
+--- PASS: TestWriteExtensions_DualSourceBlending (0.00s)
+=== RUN   TestWriteExtensions_SubgroupOperations
+--- PASS: TestWriteExtensions_SubgroupOperations (0.00s)
+=== RUN   TestWriteExtensions_TextureAtomics
+--- PASS: TestWriteExtensions_TextureAtomics (0.00s)
+=== RUN   TestWriteExtensions_ShaderBarycentrics
+--- PASS: TestWriteExtensions_ShaderBarycentrics (0.00s)
+=== RUN   TestCollectFeatures_WorkgroupGlobal
+--- PASS: TestCollectFeatures_WorkgroupGlobal (0.00s)
+=== RUN   TestCollectFeatures_StorageGlobal
+--- PASS: TestCollectFeatures_StorageGlobal (0.00s)
+=== RUN   TestCollectFeatures_DoubleType
+--- PASS: TestCollectFeatures_DoubleType (0.00s)
+=== RUN   TestCollectFeatures_CubeArrayImage
+--- PASS: TestCollectFeatures_CubeArrayImage (0.00s)
+=== RUN   TestCollectFeatures_MultisampledImage
+--- PASS: TestCollectFeatures_MultisampledImage (0.00s)
+=== RUN   TestCollectFeatures_MultisampledArrayImage
+--- PASS: TestCollectFeatures_MultisampledArrayImage (0.00s)
+=== RUN   TestCollectFeatures_EarlyDepthTest
+=== RUN   TestCollectFeatures_EarlyDepthTest/unchanged
+=== RUN   TestCollectFeatures_EarlyDepthTest/conservative
+--- PASS: TestCollectFeatures_EarlyDepthTest (0.00s)
+    --- PASS: TestCollectFeatures_EarlyDepthTest/unchanged (0.00s)
+    --- PASS: TestCollectFeatures_EarlyDepthTest/conservative (0.00s)
+=== RUN   TestCollectFeatures_NoEntryPoint
+--- PASS: TestCollectFeatures_NoEntryPoint (0.00s)
+=== RUN   TestScanVaryingFeatures_NoPerspective
+--- PASS: TestScanVaryingFeatures_NoPerspective (0.00s)
+=== RUN   TestScanVaryingFeatures_SampleQualifier
+--- PASS: TestScanVaryingFeatures_SampleQualifier (0.00s)
+=== RUN   TestScanVaryingFeatures_DualSourceBlending
+--- PASS: TestScanVaryingFeatures_DualSourceBlending (0.00s)
+=== RUN   TestScanVaryingFeatures_BuiltinSampleIndex
+--- PASS: TestScanVaryingFeatures_BuiltinSampleIndex (0.00s)
+=== RUN   TestScanVaryingFeatures_BuiltinInstanceIndex
+--- PASS: TestScanVaryingFeatures_BuiltinInstanceIndex (0.00s)
+=== RUN   TestScanVaryingFeatures_BuiltinBarycentric
+--- PASS: TestScanVaryingFeatures_BuiltinBarycentric (0.00s)
+=== RUN   TestScanStatementsForFeatures_ImageAtomic
+--- PASS: TestScanStatementsForFeatures_ImageAtomic (0.00s)
+PASS

@@ -1,0 +1,403 @@
+=== RUN   TestVersion_String
+=== RUN   TestVersion_String/330_core
+=== RUN   TestVersion_String/400_core
+=== RUN   TestVersion_String/410_core
+=== RUN   TestVersion_String/420_core
+=== RUN   TestVersion_String/430_core
+=== RUN   TestVersion_String/450_core
+=== RUN   TestVersion_String/460_core
+=== RUN   TestVersion_String/300_es
+=== RUN   TestVersion_String/310_es
+=== RUN   TestVersion_String/320_es
+--- PASS: TestVersion_String (0.00s)
+    --- PASS: TestVersion_String/330_core (0.00s)
+    --- PASS: TestVersion_String/400_core (0.00s)
+    --- PASS: TestVersion_String/410_core (0.00s)
+    --- PASS: TestVersion_String/420_core (0.00s)
+    --- PASS: TestVersion_String/430_core (0.00s)
+    --- PASS: TestVersion_String/450_core (0.00s)
+    --- PASS: TestVersion_String/460_core (0.00s)
+    --- PASS: TestVersion_String/300_es (0.00s)
+    --- PASS: TestVersion_String/310_es (0.00s)
+    --- PASS: TestVersion_String/320_es (0.00s)
+=== RUN   TestVersion_VersionNumber
+=== RUN   TestVersion_VersionNumber/330
+=== RUN   TestVersion_VersionNumber/450
+=== RUN   TestVersion_VersionNumber/300
+=== RUN   TestVersion_VersionNumber/310
+--- PASS: TestVersion_VersionNumber (0.00s)
+    --- PASS: TestVersion_VersionNumber/330 (0.00s)
+    --- PASS: TestVersion_VersionNumber/450 (0.00s)
+    --- PASS: TestVersion_VersionNumber/300 (0.00s)
+    --- PASS: TestVersion_VersionNumber/310 (0.00s)
+=== RUN   TestVersion_SupportsCompute
+=== RUN   TestVersion_SupportsCompute/330_core
+=== RUN   TestVersion_SupportsCompute/400_core
+=== RUN   TestVersion_SupportsCompute/420_core
+=== RUN   TestVersion_SupportsCompute/430_core
+=== RUN   TestVersion_SupportsCompute/450_core
+=== RUN   TestVersion_SupportsCompute/460_core
+=== RUN   TestVersion_SupportsCompute/300_es
+=== RUN   TestVersion_SupportsCompute/310_es
+=== RUN   TestVersion_SupportsCompute/320_es
+--- PASS: TestVersion_SupportsCompute (0.00s)
+    --- PASS: TestVersion_SupportsCompute/330_core (0.00s)
+    --- PASS: TestVersion_SupportsCompute/400_core (0.00s)
+    --- PASS: TestVersion_SupportsCompute/420_core (0.00s)
+    --- PASS: TestVersion_SupportsCompute/430_core (0.00s)
+    --- PASS: TestVersion_SupportsCompute/450_core (0.00s)
+    --- PASS: TestVersion_SupportsCompute/460_core (0.00s)
+    --- PASS: TestVersion_SupportsCompute/300_es (0.00s)
+    --- PASS: TestVersion_SupportsCompute/310_es (0.00s)
+    --- PASS: TestVersion_SupportsCompute/320_es (0.00s)
+=== RUN   TestVersion_versionLessThan
+=== RUN   TestVersion_versionLessThan/330_core
+=== RUN   TestVersion_versionLessThan/400_core
+=== RUN   TestVersion_versionLessThan/410_core
+=== RUN   TestVersion_versionLessThan/420_core
+=== RUN   TestVersion_versionLessThan/450_core
+=== RUN   TestVersion_versionLessThan/460_core
+=== RUN   TestVersion_versionLessThan/300_es
+=== RUN   TestVersion_versionLessThan/310_es
+--- PASS: TestVersion_versionLessThan (0.00s)
+    --- PASS: TestVersion_versionLessThan/330_core (0.00s)
+    --- PASS: TestVersion_versionLessThan/400_core (0.00s)
+    --- PASS: TestVersion_versionLessThan/410_core (0.00s)
+    --- PASS: TestVersion_versionLessThan/420_core (0.00s)
+    --- PASS: TestVersion_versionLessThan/450_core (0.00s)
+    --- PASS: TestVersion_versionLessThan/460_core (0.00s)
+    --- PASS: TestVersion_versionLessThan/300_es (0.00s)
+    --- PASS: TestVersion_versionLessThan/310_es (0.00s)
+=== RUN   TestVersion_SupportsStorageBuffers
+=== RUN   TestVersion_SupportsStorageBuffers/330_core
+=== RUN   TestVersion_SupportsStorageBuffers/430_core
+=== RUN   TestVersion_SupportsStorageBuffers/450_core
+=== RUN   TestVersion_SupportsStorageBuffers/300_es
+=== RUN   TestVersion_SupportsStorageBuffers/310_es
+--- PASS: TestVersion_SupportsStorageBuffers (0.00s)
+    --- PASS: TestVersion_SupportsStorageBuffers/330_core (0.00s)
+    --- PASS: TestVersion_SupportsStorageBuffers/430_core (0.00s)
+    --- PASS: TestVersion_SupportsStorageBuffers/450_core (0.00s)
+    --- PASS: TestVersion_SupportsStorageBuffers/300_es (0.00s)
+    --- PASS: TestVersion_SupportsStorageBuffers/310_es (0.00s)
+=== RUN   TestDefaultOptions
+--- PASS: TestDefaultOptions (0.00s)
+=== RUN   TestScalarToGLSL
+=== RUN   TestScalarToGLSL/bool
+=== RUN   TestScalarToGLSL/int
+=== RUN   TestScalarToGLSL/int#01
+=== RUN   TestScalarToGLSL/int64_t
+=== RUN   TestScalarToGLSL/uint
+=== RUN   TestScalarToGLSL/uint64_t
+=== RUN   TestScalarToGLSL/float16_t
+=== RUN   TestScalarToGLSL/float
+=== RUN   TestScalarToGLSL/double
+--- PASS: TestScalarToGLSL (0.00s)
+    --- PASS: TestScalarToGLSL/bool (0.00s)
+    --- PASS: TestScalarToGLSL/int (0.00s)
+    --- PASS: TestScalarToGLSL/int#01 (0.00s)
+    --- PASS: TestScalarToGLSL/int64_t (0.00s)
+    --- PASS: TestScalarToGLSL/uint (0.00s)
+    --- PASS: TestScalarToGLSL/uint64_t (0.00s)
+    --- PASS: TestScalarToGLSL/float16_t (0.00s)
+    --- PASS: TestScalarToGLSL/float (0.00s)
+    --- PASS: TestScalarToGLSL/double (0.00s)
+=== RUN   TestVectorToGLSL
+=== RUN   TestVectorToGLSL/vec2
+=== RUN   TestVectorToGLSL/vec3
+=== RUN   TestVectorToGLSL/vec4
+=== RUN   TestVectorToGLSL/ivec2
+=== RUN   TestVectorToGLSL/ivec3
+=== RUN   TestVectorToGLSL/ivec4
+=== RUN   TestVectorToGLSL/uvec2
+=== RUN   TestVectorToGLSL/uvec3
+=== RUN   TestVectorToGLSL/uvec4
+=== RUN   TestVectorToGLSL/bvec2
+=== RUN   TestVectorToGLSL/bvec3
+=== RUN   TestVectorToGLSL/bvec4
+=== RUN   TestVectorToGLSL/dvec4
+--- PASS: TestVectorToGLSL (0.00s)
+    --- PASS: TestVectorToGLSL/vec2 (0.00s)
+    --- PASS: TestVectorToGLSL/vec3 (0.00s)
+    --- PASS: TestVectorToGLSL/vec4 (0.00s)
+    --- PASS: TestVectorToGLSL/ivec2 (0.00s)
+    --- PASS: TestVectorToGLSL/ivec3 (0.00s)
+    --- PASS: TestVectorToGLSL/ivec4 (0.00s)
+    --- PASS: TestVectorToGLSL/uvec2 (0.00s)
+    --- PASS: TestVectorToGLSL/uvec3 (0.00s)
+    --- PASS: TestVectorToGLSL/uvec4 (0.00s)
+    --- PASS: TestVectorToGLSL/bvec2 (0.00s)
+    --- PASS: TestVectorToGLSL/bvec3 (0.00s)
+    --- PASS: TestVectorToGLSL/bvec4 (0.00s)
+    --- PASS: TestVectorToGLSL/dvec4 (0.00s)
+=== RUN   TestMatrixToGLSL
+=== RUN   TestMatrixToGLSL/mat2x2
+=== RUN   TestMatrixToGLSL/mat3x3
+=== RUN   TestMatrixToGLSL/mat4x4
+=== RUN   TestMatrixToGLSL/mat2x3
+=== RUN   TestMatrixToGLSL/mat3x4
+=== RUN   TestMatrixToGLSL/dmat4x4
+=== RUN   TestMatrixToGLSL/dmat2x3
+--- PASS: TestMatrixToGLSL (0.00s)
+    --- PASS: TestMatrixToGLSL/mat2x2 (0.00s)
+    --- PASS: TestMatrixToGLSL/mat3x3 (0.00s)
+    --- PASS: TestMatrixToGLSL/mat4x4 (0.00s)
+    --- PASS: TestMatrixToGLSL/mat2x3 (0.00s)
+    --- PASS: TestMatrixToGLSL/mat3x4 (0.00s)
+    --- PASS: TestMatrixToGLSL/dmat4x4 (0.00s)
+    --- PASS: TestMatrixToGLSL/dmat2x3 (0.00s)
+=== RUN   TestEscapeKeyword
+=== RUN   TestEscapeKeyword/foo
+=== RUN   TestEscapeKeyword/myVariable
+=== RUN   TestEscapeKeyword/color_out
+=== RUN   TestEscapeKeyword/main
+=== RUN   TestEscapeKeyword/gl_Position
+=== RUN   TestEscapeKeyword/gl_FragCoord
+=== RUN   TestEscapeKeyword/in
+=== RUN   TestEscapeKeyword/out
+=== RUN   TestEscapeKeyword/uniform
+=== RUN   TestEscapeKeyword/texture
+=== RUN   TestEscapeKeyword/void
+=== RUN   TestEscapeKeyword/float
+=== RUN   TestEscapeKeyword/int
+=== RUN   TestEscapeKeyword/bool
+=== RUN   TestEscapeKeyword/vec2
+=== RUN   TestEscapeKeyword/vec3
+=== RUN   TestEscapeKeyword/vec4
+=== RUN   TestEscapeKeyword/mat4
+=== RUN   TestEscapeKeyword/if
+=== RUN   TestEscapeKeyword/else
+=== RUN   TestEscapeKeyword/for
+=== RUN   TestEscapeKeyword/while
+=== RUN   TestEscapeKeyword/return
+=== RUN   TestEscapeKeyword/discard
+=== RUN   TestEscapeKeyword/#00
+--- PASS: TestEscapeKeyword (0.00s)
+    --- PASS: TestEscapeKeyword/foo (0.00s)
+    --- PASS: TestEscapeKeyword/myVariable (0.00s)
+    --- PASS: TestEscapeKeyword/color_out (0.00s)
+    --- PASS: TestEscapeKeyword/main (0.00s)
+    --- PASS: TestEscapeKeyword/gl_Position (0.00s)
+    --- PASS: TestEscapeKeyword/gl_FragCoord (0.00s)
+    --- PASS: TestEscapeKeyword/in (0.00s)
+    --- PASS: TestEscapeKeyword/out (0.00s)
+    --- PASS: TestEscapeKeyword/uniform (0.00s)
+    --- PASS: TestEscapeKeyword/texture (0.00s)
+    --- PASS: TestEscapeKeyword/void (0.00s)
+    --- PASS: TestEscapeKeyword/float (0.00s)
+    --- PASS: TestEscapeKeyword/int (0.00s)
+    --- PASS: TestEscapeKeyword/bool (0.00s)
+    --- PASS: TestEscapeKeyword/vec2 (0.00s)
+    --- PASS: TestEscapeKeyword/vec3 (0.00s)
+    --- PASS: TestEscapeKeyword/vec4 (0.00s)
+    --- PASS: TestEscapeKeyword/mat4 (0.00s)
+    --- PASS: TestEscapeKeyword/if (0.00s)
+    --- PASS: TestEscapeKeyword/else (0.00s)
+    --- PASS: TestEscapeKeyword/for (0.00s)
+    --- PASS: TestEscapeKeyword/while (0.00s)
+    --- PASS: TestEscapeKeyword/return (0.00s)
+    --- PASS: TestEscapeKeyword/discard (0.00s)
+    --- PASS: TestEscapeKeyword/#00 (0.00s)
+=== RUN   TestIsKeyword
+--- PASS: TestIsKeyword (0.00s)
+=== RUN   TestNamer_UniqueNames
+--- PASS: TestNamer_UniqueNames (0.00s)
+=== RUN   TestNamer_EscapesKeywords
+--- PASS: TestNamer_EscapesKeywords (0.00s)
+=== RUN   TestNamer_MultipleKeywords
+--- PASS: TestNamer_MultipleKeywords (0.00s)
+=== RUN   TestFormatFloat
+--- PASS: TestFormatFloat (0.00s)
+=== RUN   TestFormatFloat64
+--- PASS: TestFormatFloat64 (0.00s)
+=== RUN   TestCompile_DefaultOptions
+--- PASS: TestCompile_DefaultOptions (0.00s)
+=== RUN   TestCompile_ES300
+--- PASS: TestCompile_ES300 (0.00s)
+=== RUN   TestCompile_ES310
+--- PASS: TestCompile_ES310 (0.00s)
+=== RUN   TestCompile_Version450
+--- PASS: TestCompile_Version450 (0.00s)
+=== RUN   TestCompile_Version410
+--- PASS: TestCompile_Version410 (0.00s)
+=== RUN   TestCompile_SimpleStruct
+--- PASS: TestCompile_SimpleStruct (0.00s)
+=== RUN   TestCompile_StructWithVectors
+--- PASS: TestCompile_StructWithVectors (0.00s)
+=== RUN   TestCompile_UniformBuffer
+--- PASS: TestCompile_UniformBuffer (0.00s)
+=== RUN   TestCompile_ScalarConstants
+--- PASS: TestCompile_ScalarConstants (0.00s)
+=== RUN   TestImageToGLSL
+=== RUN   TestImageToGLSL/sampler2D
+=== RUN   TestImageToGLSL/sampler3D
+=== RUN   TestImageToGLSL/samplerCube
+=== RUN   TestImageToGLSL/sampler2DArray
+=== RUN   TestImageToGLSL/sampler2DMS
+=== RUN   TestImageToGLSL/sampler2DShadow
+=== RUN   TestImageToGLSL/samplerCubeShadow
+=== RUN   TestImageToGLSL/image2D
+--- PASS: TestImageToGLSL (0.00s)
+    --- PASS: TestImageToGLSL/sampler2D (0.00s)
+    --- PASS: TestImageToGLSL/sampler3D (0.00s)
+    --- PASS: TestImageToGLSL/samplerCube (0.00s)
+    --- PASS: TestImageToGLSL/sampler2DArray (0.00s)
+    --- PASS: TestImageToGLSL/sampler2DMS (0.00s)
+    --- PASS: TestImageToGLSL/sampler2DShadow (0.00s)
+    --- PASS: TestImageToGLSL/samplerCubeShadow (0.00s)
+    --- PASS: TestImageToGLSL/image2D (0.00s)
+=== RUN   TestAtomicToGLSL
+=== RUN   TestAtomicToGLSL/uint
+=== RUN   TestAtomicToGLSL/int
+--- PASS: TestAtomicToGLSL (0.00s)
+    --- PASS: TestAtomicToGLSL/uint (0.00s)
+    --- PASS: TestAtomicToGLSL/int (0.00s)
+=== RUN   TestStructsEqual
+--- PASS: TestStructsEqual (0.00s)
+=== RUN   TestTranslationInfo
+--- PASS: TestTranslationInfo (0.00s)
+=== RUN   TestCompile_ZeroVersion
+--- PASS: TestCompile_ZeroVersion (0.00s)
+=== RUN   TestVectorToGLSL_InvalidSize
+--- PASS: TestVectorToGLSL_InvalidSize (0.00s)
+=== RUN   TestMatrixToGLSL_InvalidSize
+--- PASS: TestMatrixToGLSL_InvalidSize (0.00s)
+=== RUN   TestNamer_BasicNames
+--- PASS: TestNamer_BasicNames (0.00s)
+=== RUN   TestNamer_DigitEnding
+--- PASS: TestNamer_DigitEnding (0.00s)
+=== RUN   TestNamer_Keywords
+--- PASS: TestNamer_Keywords (0.00s)
+=== RUN   TestNamer_PerNameCounters
+--- PASS: TestNamer_PerNameCounters (0.00s)
+=== RUN   TestSanitizeName
+=== RUN   TestSanitizeName/foo
+=== RUN   TestSanitizeName/#00
+=== RUN   TestSanitizeName/abc123
+=== RUN   TestSanitizeName/v3____
+=== RUN   TestSanitizeName/__ab__
+=== RUN   TestSanitizeName/123abc
+=== RUN   TestSanitizeName/a_b_c
+--- PASS: TestSanitizeName (0.00s)
+    --- PASS: TestSanitizeName/foo (0.00s)
+    --- PASS: TestSanitizeName/#00 (0.00s)
+    --- PASS: TestSanitizeName/abc123 (0.00s)
+    --- PASS: TestSanitizeName/v3____ (0.00s)
+    --- PASS: TestSanitizeName/__ab__ (0.00s)
+    --- PASS: TestSanitizeName/123abc (0.00s)
+    --- PASS: TestSanitizeName/a_b_c (0.00s)
+=== RUN   TestNamer_StructMemberNamespace
+--- PASS: TestNamer_StructMemberNamespace (0.00s)
+=== RUN   TestZeroInitValue
+--- PASS: TestZeroInitValue (0.00s)
+=== RUN   TestVersionSupportsDerivativeControl
+--- PASS: TestVersionSupportsDerivativeControl (0.00s)
+=== RUN   TestVersionSupportsExplicitLocations
+--- PASS: TestVersionSupportsExplicitLocations (0.00s)
+=== RUN   TestVersionSupportsIOLocations
+--- PASS: TestVersionSupportsIOLocations (0.00s)
+=== RUN   TestIsSingleBodySwitch
+--- PASS: TestIsSingleBodySwitch (0.00s)
+=== RUN   TestFeatureDetection_ComputeShader
+--- PASS: TestFeatureDetection_ComputeShader (0.00s)
+=== RUN   TestFeatureDetection_MultiView
+--- PASS: TestFeatureDetection_MultiView (0.00s)
+=== RUN   TestVaryingName
+--- PASS: TestVaryingName (0.00s)
+=== RUN   TestFeatureDetection_TextureShadowLod
+--- PASS: TestFeatureDetection_TextureShadowLod (0.00s)
+=== RUN   TestCoordinateAdjustInStructReturn
+--- PASS: TestCoordinateAdjustInStructReturn (0.00s)
+=== RUN   TestForcePointSizeInReturn
+--- PASS: TestForcePointSizeInReturn (0.00s)
+=== RUN   TestInvariantOnlyForOutput
+--- PASS: TestInvariantOnlyForOutput (0.00s)
+=== RUN   TestVaryingInterpolationSampling
+--- PASS: TestVaryingInterpolationSampling (0.00s)
+=== RUN   TestScalarVecPrefix
+--- PASS: TestScalarVecPrefix (0.00s)
+=== RUN   TestFormatLiteral_F64NoDoubleSuffix
+--- PASS: TestFormatLiteral_F64NoDoubleSuffix (0.00s)
+=== RUN   TestSanitizeName_TemplateChars
+--- PASS: TestSanitizeName_TemplateChars (0.00s)
+=== RUN   TestSupportsFma
+--- PASS: TestSupportsFma (0.00s)
+=== RUN   TestWriteConstExpr_Splat
+--- PASS: TestWriteConstExpr_Splat (0.00s)
+=== RUN   TestWriteConstExpr_Compose
+--- PASS: TestWriteConstExpr_Compose (0.00s)
+=== RUN   TestWriteArrayLength_UintWrap
+--- PASS: TestWriteArrayLength_UintWrap (0.00s)
+=== RUN   TestArrayToGLSL_NestedDimOrder
+--- PASS: TestArrayToGLSL_NestedDimOrder (0.00s)
+=== RUN   TestBooleanBinaryOps
+--- PASS: TestBooleanBinaryOps (0.00s)
+=== RUN   TestSupportsPack4x8
+--- PASS: TestSupportsPack4x8 (0.00s)
+=== RUN   TestVectorComparisonDetection
+--- PASS: TestVectorComparisonDetection (0.00s)
+=== RUN   TestFloatModuloDetection
+--- PASS: TestFloatModuloDetection (0.00s)
+=== RUN   TestScanNeedBakeExpressions_RefCounting
+--- PASS: TestScanNeedBakeExpressions_RefCounting (0.00s)
+=== RUN   TestScanNeedBakeExpressions_AccessNeverBaked
+--- PASS: TestScanNeedBakeExpressions_AccessNeverBaked (0.00s)
+=== RUN   TestScanNeedBakeExpressions_SingleUseNotBaked
+--- PASS: TestScanNeedBakeExpressions_SingleUseNotBaked (0.00s)
+=== RUN   TestScanNeedBakeExpressions_MathQuantizeForced
+--- PASS: TestScanNeedBakeExpressions_MathQuantizeForced (0.00s)
+=== RUN   TestScanNeedBakeExpressions_StmtRefCounting
+--- PASS: TestScanNeedBakeExpressions_StmtRefCounting (0.00s)
+=== RUN   TestScanNeedBakeExpressions_Dot4PackedForced
+--- PASS: TestScanNeedBakeExpressions_Dot4PackedForced (0.00s)
+=== RUN   TestBindingMap_LookupBinding
+=== RUN   TestBindingMap_LookupBinding/found
+=== RUN   TestBindingMap_LookupBinding/found_group1
+=== RUN   TestBindingMap_LookupBinding/not_found
+=== RUN   TestBindingMap_LookupBinding/nil_binding
+=== RUN   TestBindingMap_LookupBinding/nil_map
+=== RUN   TestBindingMap_LookupBinding/version_too_low
+--- PASS: TestBindingMap_LookupBinding (0.00s)
+    --- PASS: TestBindingMap_LookupBinding/found (0.00s)
+    --- PASS: TestBindingMap_LookupBinding/found_group1 (0.00s)
+    --- PASS: TestBindingMap_LookupBinding/not_found (0.00s)
+    --- PASS: TestBindingMap_LookupBinding/nil_binding (0.00s)
+    --- PASS: TestBindingMap_LookupBinding/nil_map (0.00s)
+    --- PASS: TestBindingMap_LookupBinding/version_too_low (0.00s)
+=== RUN   TestBindingMap_StorageLayoutPrefix
+=== RUN   TestBindingMap_StorageLayoutPrefix/with_binding
+=== RUN   TestBindingMap_StorageLayoutPrefix/without_binding
+--- PASS: TestBindingMap_StorageLayoutPrefix (0.00s)
+    --- PASS: TestBindingMap_StorageLayoutPrefix/with_binding (0.00s)
+    --- PASS: TestBindingMap_StorageLayoutPrefix/without_binding (0.00s)
+=== RUN   TestPredeclaredHelpers_Modf
+--- PASS: TestPredeclaredHelpers_Modf (0.00s)
+=== RUN   TestPredeclaredHelpers_Frexp
+--- PASS: TestPredeclaredHelpers_Frexp (0.00s)
+=== RUN   TestPredeclaredHelpers_VecVariants
+=== RUN   TestPredeclaredHelpers_VecVariants/modf_vec2
+=== RUN   TestPredeclaredHelpers_VecVariants/modf_vec3
+=== RUN   TestPredeclaredHelpers_VecVariants/modf_vec4
+=== RUN   TestPredeclaredHelpers_VecVariants/frexp_vec2
+=== RUN   TestPredeclaredHelpers_VecVariants/frexp_vec4
+=== RUN   TestPredeclaredHelpers_VecVariants/modf_f64
+=== RUN   TestPredeclaredHelpers_VecVariants/frexp_vec3_f64
+--- PASS: TestPredeclaredHelpers_VecVariants (0.00s)
+    --- PASS: TestPredeclaredHelpers_VecVariants/modf_vec2 (0.00s)
+    --- PASS: TestPredeclaredHelpers_VecVariants/modf_vec3 (0.00s)
+    --- PASS: TestPredeclaredHelpers_VecVariants/modf_vec4 (0.00s)
+    --- PASS: TestPredeclaredHelpers_VecVariants/frexp_vec2 (0.00s)
+    --- PASS: TestPredeclaredHelpers_VecVariants/frexp_vec4 (0.00s)
+    --- PASS: TestPredeclaredHelpers_VecVariants/modf_f64 (0.00s)
+    --- PASS: TestPredeclaredHelpers_VecVariants/frexp_vec3_f64 (0.00s)
+=== RUN   TestPredeclaredHelpers_SkipsUnrelated
+--- PASS: TestPredeclaredHelpers_SkipsUnrelated (0.00s)
+=== RUN   TestWriteWorkgroupZeroInit_SmallArray
+--- PASS: TestWriteWorkgroupZeroInit_SmallArray (0.00s)
+=== RUN   TestWriteWorkgroupZeroInit_LargeArray
+--- PASS: TestWriteWorkgroupZeroInit_LargeArray (0.00s)
+=== RUN   TestWriteWorkgroupZeroInit_NestedLargeArray
+--- PASS: TestWriteWorkgroupZeroInit_NestedLargeArray (0.00s)
+=== RUN   TestWriteWorkgroupZeroInit_NonArray
+--- PASS: TestWriteWorkgroupZeroInit_NonArray (0.00s)
+PASS

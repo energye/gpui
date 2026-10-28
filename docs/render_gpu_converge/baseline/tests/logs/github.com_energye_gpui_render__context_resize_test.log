@@ -1,0 +1,37 @@
+=== RUN   TestContextResize
+=== RUN   TestContextResize/grow_width
+=== RUN   TestContextResize/grow_height
+=== RUN   TestContextResize/grow_both
+=== RUN   TestContextResize/shrink_width
+=== RUN   TestContextResize/shrink_height
+=== RUN   TestContextResize/shrink_both
+=== RUN   TestContextResize/same_size_noop
+=== RUN   TestContextResize/zero_width
+=== RUN   TestContextResize/zero_height
+=== RUN   TestContextResize/negative_width
+=== RUN   TestContextResize/negative_height
+=== RUN   TestContextResize/both_zero
+--- PASS: TestContextResize (0.00s)
+    --- PASS: TestContextResize/grow_width (0.00s)
+    --- PASS: TestContextResize/grow_height (0.00s)
+    --- PASS: TestContextResize/grow_both (0.00s)
+    --- PASS: TestContextResize/shrink_width (0.00s)
+    --- PASS: TestContextResize/shrink_height (0.00s)
+    --- PASS: TestContextResize/shrink_both (0.00s)
+    --- PASS: TestContextResize/same_size_noop (0.00s)
+    --- PASS: TestContextResize/zero_width (0.00s)
+    --- PASS: TestContextResize/zero_height (0.00s)
+    --- PASS: TestContextResize/negative_width (0.00s)
+    --- PASS: TestContextResize/negative_height (0.00s)
+    --- PASS: TestContextResize/both_zero (0.00s)
+=== RUN   TestContextResizeSameSizeIsNoop
+--- PASS: TestContextResizeSameSizeIsNoop (0.29s)
+=== RUN   TestContextResizeReallocatesPixmap
+--- PASS: TestContextResizeReallocatesPixmap (0.00s)
+=== RUN   TestContextResizePreservesTransformStack
+--- PASS: TestContextResizePreservesTransformStack (0.00s)
+=== RUN   TestContextResizeClearsPath
+--- PASS: TestContextResizeClearsPath (0.00s)
+=== RUN   TestContextResizeResetsClip
+--- PASS: TestContextResizeResetsClip (0.00s)
+PASS

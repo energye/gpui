@@ -1,0 +1,7 @@
+=== RUN   TestDbgNoneHint
+合 16px hint=None: Y∈[-13.41,1.30] 高14.7
+合 24px hint=None: Y∈[-20.11,1.94] 高22.0
+合 16px hint=Vertical: Y∈[-13.75,1.83] 高15.6
+合 24px hint=Vertical: Y∈[-20.41,2.59] 高23.0
+--- PASS: TestDbgNoneHint (0.02s)
+PASS

@@ -1,0 +1,65 @@
+=== RUN   TestUnicodeRangeContains
+=== RUN   TestUnicodeRangeContains/start_boundary
+=== RUN   TestUnicodeRangeContains/end_boundary
+=== RUN   TestUnicodeRangeContains/inside_range
+=== RUN   TestUnicodeRangeContains/before_range
+=== RUN   TestUnicodeRangeContains/after_range
+--- PASS: TestUnicodeRangeContains (0.00s)
+    --- PASS: TestUnicodeRangeContains/start_boundary (0.00s)
+    --- PASS: TestUnicodeRangeContains/end_boundary (0.00s)
+    --- PASS: TestUnicodeRangeContains/inside_range (0.00s)
+    --- PASS: TestUnicodeRangeContains/before_range (0.00s)
+    --- PASS: TestUnicodeRangeContains/after_range (0.00s)
+=== RUN   TestCommonUnicodeRanges
+=== RUN   TestCommonUnicodeRanges/BasicLatin_A
+=== RUN   TestCommonUnicodeRanges/BasicLatin_z
+=== RUN   TestCommonUnicodeRanges/BasicLatin_beyond
+=== RUN   TestCommonUnicodeRanges/Cyrillic_А
+=== RUN   TestCommonUnicodeRanges/Cyrillic_я
+=== RUN   TestCommonUnicodeRanges/Greek_α
+=== RUN   TestCommonUnicodeRanges/CJK_中
+=== RUN   TestCommonUnicodeRanges/Hiragana_あ
+=== RUN   TestCommonUnicodeRanges/Katakana_ア
+=== RUN   TestCommonUnicodeRanges/Emoji_smile
+--- PASS: TestCommonUnicodeRanges (0.00s)
+    --- PASS: TestCommonUnicodeRanges/BasicLatin_A (0.00s)
+    --- PASS: TestCommonUnicodeRanges/BasicLatin_z (0.00s)
+    --- PASS: TestCommonUnicodeRanges/BasicLatin_beyond (0.00s)
+    --- PASS: TestCommonUnicodeRanges/Cyrillic_А (0.00s)
+    --- PASS: TestCommonUnicodeRanges/Cyrillic_я (0.00s)
+    --- PASS: TestCommonUnicodeRanges/Greek_α (0.00s)
+    --- PASS: TestCommonUnicodeRanges/CJK_中 (0.00s)
+    --- PASS: TestCommonUnicodeRanges/Hiragana_あ (0.00s)
+    --- PASS: TestCommonUnicodeRanges/Katakana_ア (0.00s)
+    --- PASS: TestCommonUnicodeRanges/Emoji_smile (0.00s)
+=== RUN   TestNewFilteredFace
+=== RUN   TestNewFilteredFace/no_ranges
+=== RUN   TestNewFilteredFace/with_ranges
+--- PASS: TestNewFilteredFace (0.00s)
+    --- PASS: TestNewFilteredFace/no_ranges (0.00s)
+    --- PASS: TestNewFilteredFace/with_ranges (0.00s)
+=== RUN   TestFilteredFaceHasGlyph
+--- PASS: TestFilteredFaceHasGlyph (0.00s)
+=== RUN   TestFilteredFaceNoRanges
+--- PASS: TestFilteredFaceNoRanges (0.00s)
+=== RUN   TestFilteredFaceMultipleRanges
+--- PASS: TestFilteredFaceMultipleRanges (0.00s)
+=== RUN   TestFilteredFaceAdvance
+--- PASS: TestFilteredFaceAdvance (0.00s)
+=== RUN   TestFilteredFaceGlyphs
+--- PASS: TestFilteredFaceGlyphs (0.00s)
+=== RUN   TestFilteredFaceAppendGlyphs
+--- PASS: TestFilteredFaceAppendGlyphs (0.00s)
+=== RUN   TestFilteredFaceMetrics
+--- PASS: TestFilteredFaceMetrics (0.00s)
+=== RUN   TestFilteredFaceDirection
+--- PASS: TestFilteredFaceDirection (0.00s)
+=== RUN   TestFilteredFaceSource
+--- PASS: TestFilteredFaceSource (0.00s)
+=== RUN   TestFilteredFaceSize
+--- PASS: TestFilteredFaceSize (0.00s)
+=== RUN   TestFilteredFaceLanguage
+--- PASS: TestFilteredFaceLanguage (0.00s)
+=== RUN   TestFilteredFaceWithMultiFace
+--- PASS: TestFilteredFaceWithMultiFace (0.00s)
+PASS

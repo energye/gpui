@@ -1,0 +1,127 @@
+=== RUN   TestNewImagePattern
+--- PASS: TestNewImagePattern (0.00s)
+=== RUN   TestNewImagePattern_NilImage
+--- PASS: TestNewImagePattern_NilImage (0.00s)
+=== RUN   TestImagePattern_BuilderChaining
+--- PASS: TestImagePattern_BuilderChaining (0.00s)
+=== RUN   TestImagePattern_SpreadModePad
+=== RUN   TestImagePattern_SpreadModePad/top-left_corner
+=== RUN   TestImagePattern_SpreadModePad/top-right_corner
+=== RUN   TestImagePattern_SpreadModePad/bottom-left_corner
+=== RUN   TestImagePattern_SpreadModePad/bottom-right_corner
+=== RUN   TestImagePattern_SpreadModePad/left_of_image
+=== RUN   TestImagePattern_SpreadModePad/right_of_image
+=== RUN   TestImagePattern_SpreadModePad/above_image
+=== RUN   TestImagePattern_SpreadModePad/below_image
+--- PASS: TestImagePattern_SpreadModePad (0.00s)
+    --- PASS: TestImagePattern_SpreadModePad/top-left_corner (0.00s)
+    --- PASS: TestImagePattern_SpreadModePad/top-right_corner (0.00s)
+    --- PASS: TestImagePattern_SpreadModePad/bottom-left_corner (0.00s)
+    --- PASS: TestImagePattern_SpreadModePad/bottom-right_corner (0.00s)
+    --- PASS: TestImagePattern_SpreadModePad/left_of_image (0.00s)
+    --- PASS: TestImagePattern_SpreadModePad/right_of_image (0.00s)
+    --- PASS: TestImagePattern_SpreadModePad/above_image (0.00s)
+    --- PASS: TestImagePattern_SpreadModePad/below_image (0.00s)
+=== RUN   TestImagePattern_SpreadModeRepeat
+=== RUN   TestImagePattern_SpreadModeRepeat/first_tile_TL
+=== RUN   TestImagePattern_SpreadModeRepeat/first_tile_TR
+=== RUN   TestImagePattern_SpreadModeRepeat/first_tile_BL
+=== RUN   TestImagePattern_SpreadModeRepeat/first_tile_BR
+=== RUN   TestImagePattern_SpreadModeRepeat/second_tile_TL
+=== RUN   TestImagePattern_SpreadModeRepeat/second_tile_TR
+=== RUN   TestImagePattern_SpreadModeRepeat/negative_tile
+--- PASS: TestImagePattern_SpreadModeRepeat (0.00s)
+    --- PASS: TestImagePattern_SpreadModeRepeat/first_tile_TL (0.00s)
+    --- PASS: TestImagePattern_SpreadModeRepeat/first_tile_TR (0.00s)
+    --- PASS: TestImagePattern_SpreadModeRepeat/first_tile_BL (0.00s)
+    --- PASS: TestImagePattern_SpreadModeRepeat/first_tile_BR (0.00s)
+    --- PASS: TestImagePattern_SpreadModeRepeat/second_tile_TL (0.00s)
+    --- PASS: TestImagePattern_SpreadModeRepeat/second_tile_TR (0.00s)
+    --- PASS: TestImagePattern_SpreadModeRepeat/negative_tile (0.00s)
+=== RUN   TestImagePattern_SpreadModeReflect
+=== RUN   TestImagePattern_SpreadModeReflect/period_0_start
+=== RUN   TestImagePattern_SpreadModeReflect/period_0_mid
+=== RUN   TestImagePattern_SpreadModeReflect/period_0_end
+=== RUN   TestImagePattern_SpreadModeReflect/period_1_start
+=== RUN   TestImagePattern_SpreadModeReflect/period_1_mid
+=== RUN   TestImagePattern_SpreadModeReflect/period_1_end
+=== RUN   TestImagePattern_SpreadModeReflect/period_2_start
+=== RUN   TestImagePattern_SpreadModeReflect/period_2_mid
+--- PASS: TestImagePattern_SpreadModeReflect (0.00s)
+    --- PASS: TestImagePattern_SpreadModeReflect/period_0_start (0.00s)
+    --- PASS: TestImagePattern_SpreadModeReflect/period_0_mid (0.00s)
+    --- PASS: TestImagePattern_SpreadModeReflect/period_0_end (0.00s)
+    --- PASS: TestImagePattern_SpreadModeReflect/period_1_start (0.00s)
+    --- PASS: TestImagePattern_SpreadModeReflect/period_1_mid (0.00s)
+    --- PASS: TestImagePattern_SpreadModeReflect/period_1_end (0.00s)
+    --- PASS: TestImagePattern_SpreadModeReflect/period_2_start (0.00s)
+    --- PASS: TestImagePattern_SpreadModeReflect/period_2_mid (0.00s)
+=== RUN   TestImagePattern_Transform
+--- PASS: TestImagePattern_Transform (0.00s)
+=== RUN   TestImagePattern_Opacity
+=== RUN   TestImagePattern_Opacity/full_opacity
+=== RUN   TestImagePattern_Opacity/half_opacity
+=== RUN   TestImagePattern_Opacity/quarter_opacity
+=== RUN   TestImagePattern_Opacity/zero_opacity
+=== RUN   TestImagePattern_Opacity/over_1.0_clamped
+=== RUN   TestImagePattern_Opacity/negative_clamped
+--- PASS: TestImagePattern_Opacity (0.00s)
+    --- PASS: TestImagePattern_Opacity/full_opacity (0.00s)
+    --- PASS: TestImagePattern_Opacity/half_opacity (0.00s)
+    --- PASS: TestImagePattern_Opacity/quarter_opacity (0.00s)
+    --- PASS: TestImagePattern_Opacity/zero_opacity (0.00s)
+    --- PASS: TestImagePattern_Opacity/over_1.0_clamped (0.00s)
+    --- PASS: TestImagePattern_Opacity/negative_clamped (0.00s)
+=== RUN   TestImagePattern_WithMipmaps
+=== RUN   TestImagePattern_WithMipmaps/full_size
+=== RUN   TestImagePattern_WithMipmaps/half_size
+=== RUN   TestImagePattern_WithMipmaps/quarter_size
+=== RUN   TestImagePattern_WithMipmaps/eighth_size
+--- PASS: TestImagePattern_WithMipmaps (0.00s)
+    --- PASS: TestImagePattern_WithMipmaps/full_size (0.00s)
+    --- PASS: TestImagePattern_WithMipmaps/half_size (0.00s)
+    --- PASS: TestImagePattern_WithMipmaps/quarter_size (0.00s)
+    --- PASS: TestImagePattern_WithMipmaps/eighth_size (0.00s)
+=== RUN   TestImagePattern_SampleWithScale_NoMipmaps
+--- PASS: TestImagePattern_SampleWithScale_NoMipmaps (0.00s)
+=== RUN   TestImagePattern_NilPattern
+--- PASS: TestImagePattern_NilPattern (0.00s)
+=== RUN   TestReflectCoord
+=== RUN   TestReflectCoord/period_0_start
+=== RUN   TestReflectCoord/period_0_mid
+=== RUN   TestReflectCoord/period_0_end
+=== RUN   TestReflectCoord/period_1_start
+=== RUN   TestReflectCoord/period_1_quarter
+=== RUN   TestReflectCoord/period_1_half
+=== RUN   TestReflectCoord/period_1_end
+=== RUN   TestReflectCoord/period_2_start
+=== RUN   TestReflectCoord/period_2_mid
+=== RUN   TestReflectCoord/period_3_start
+=== RUN   TestReflectCoord/period_3_mid
+=== RUN   TestReflectCoord/negative_period_-1
+=== RUN   TestReflectCoord/negative_period_-2
+--- PASS: TestReflectCoord (0.00s)
+    --- PASS: TestReflectCoord/period_0_start (0.00s)
+    --- PASS: TestReflectCoord/period_0_mid (0.00s)
+    --- PASS: TestReflectCoord/period_0_end (0.00s)
+    --- PASS: TestReflectCoord/period_1_start (0.00s)
+    --- PASS: TestReflectCoord/period_1_quarter (0.00s)
+    --- PASS: TestReflectCoord/period_1_half (0.00s)
+    --- PASS: TestReflectCoord/period_1_end (0.00s)
+    --- PASS: TestReflectCoord/period_2_start (0.00s)
+    --- PASS: TestReflectCoord/period_2_mid (0.00s)
+    --- PASS: TestReflectCoord/period_3_start (0.00s)
+    --- PASS: TestReflectCoord/period_3_mid (0.00s)
+    --- PASS: TestReflectCoord/negative_period_-1 (0.00s)
+    --- PASS: TestReflectCoord/negative_period_-2 (0.00s)
+=== RUN   TestSpreadMode_String
+=== RUN   TestSpreadMode_String/Pad
+=== RUN   TestSpreadMode_String/Repeat
+=== RUN   TestSpreadMode_String/Reflect
+=== RUN   TestSpreadMode_String/Unknown
+--- PASS: TestSpreadMode_String (0.00s)
+    --- PASS: TestSpreadMode_String/Pad (0.00s)
+    --- PASS: TestSpreadMode_String/Repeat (0.00s)
+    --- PASS: TestSpreadMode_String/Reflect (0.00s)
+    --- PASS: TestSpreadMode_String/Unknown (0.00s)
+PASS

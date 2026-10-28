@@ -1,0 +1,37 @@
+=== RUN   TestMSLInt64AtomicPolicy
+=== RUN   TestMSLInt64AtomicPolicy/allows_result-discarded_storage_min_max
+=== RUN   TestMSLInt64AtomicPolicy/allows_nested_storage_min_max
+=== RUN   TestMSLInt64AtomicPolicy/rejects_load
+=== RUN   TestMSLInt64AtomicPolicy/rejects_store
+=== RUN   TestMSLInt64AtomicPolicy/rejects_add
+=== RUN   TestMSLInt64AtomicPolicy/rejects_subtract
+=== RUN   TestMSLInt64AtomicPolicy/rejects_and
+=== RUN   TestMSLInt64AtomicPolicy/rejects_or
+=== RUN   TestMSLInt64AtomicPolicy/rejects_xor
+=== RUN   TestMSLInt64AtomicPolicy/rejects_exchange
+=== RUN   TestMSLInt64AtomicPolicy/rejects_compare_exchange
+=== RUN   TestMSLInt64AtomicPolicy/rejects_result-producing_min
+=== RUN   TestMSLInt64AtomicPolicy/rejects_result-producing_max
+=== RUN   TestMSLInt64AtomicPolicy/rejects_workgroup_min
+=== RUN   TestMSLInt64AtomicPolicy/rejects_workgroup_max
+=== RUN   TestMSLInt64AtomicPolicy/rejects_signed_add
+=== RUN   TestMSLInt64AtomicPolicy/preserves_32-bit_atomics
+--- PASS: TestMSLInt64AtomicPolicy (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/allows_result-discarded_storage_min_max (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/allows_nested_storage_min_max (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_load (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_store (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_add (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_subtract (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_and (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_or (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_xor (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_exchange (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_compare_exchange (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_result-producing_min (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_result-producing_max (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_workgroup_min (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_workgroup_max (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/rejects_signed_add (0.00s)
+    --- PASS: TestMSLInt64AtomicPolicy/preserves_32-bit_atomics (0.00s)
+PASS

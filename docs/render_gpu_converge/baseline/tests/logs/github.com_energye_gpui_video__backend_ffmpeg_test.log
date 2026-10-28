@@ -1,0 +1,4 @@
+=== RUN   TestFFmpegPlaySeekClose
+    backend_ffmpeg_test.go:43: frame pix 0
+--- FAIL: TestFFmpegPlaySeekClose (0.09s)
+FAIL

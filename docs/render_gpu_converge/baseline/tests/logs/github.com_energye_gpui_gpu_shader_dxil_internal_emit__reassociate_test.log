@@ -1,0 +1,20 @@
+=== RUN   TestShlAndCombineDetectsAndMul
+    reassociate_test.go:53: use counts correct for tryShlAndCombine detection
+--- PASS: TestShlAndCombineDetectsAndMul (0.00s)
+=== RUN   TestComputeExprUseCount
+--- PASS: TestComputeExprUseCount (0.00s)
+=== RUN   TestComputeExprUseCountMultiUse
+--- PASS: TestComputeExprUseCountMultiUse (0.00s)
+=== RUN   TestFlattenBinaryChain
+--- PASS: TestFlattenBinaryChain (0.00s)
+=== RUN   TestFlattenBinaryChainMultiUse
+--- PASS: TestFlattenBinaryChainMultiUse (0.00s)
+=== RUN   TestFlattenBinaryChainAlreadyEmitted
+--- PASS: TestFlattenBinaryChainAlreadyEmitted (0.00s)
+=== RUN   TestBuildChainSkipSet
+--- PASS: TestBuildChainSkipSet (0.00s)
+=== RUN   TestBuildChainSkipSetMultiUse
+--- PASS: TestBuildChainSkipSetMultiUse (0.00s)
+=== RUN   TestBuildChainSkipSetDifferentOps
+--- PASS: TestBuildChainSkipSetDifferentOps (0.00s)
+PASS

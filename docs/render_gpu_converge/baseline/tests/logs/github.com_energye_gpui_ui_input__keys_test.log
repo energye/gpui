@@ -1,0 +1,5 @@
+=== RUN   TestKeyTableStable
+--- PASS: TestKeyTableStable (0.00s)
+=== RUN   TestKeyString
+--- PASS: TestKeyString (0.00s)
+PASS

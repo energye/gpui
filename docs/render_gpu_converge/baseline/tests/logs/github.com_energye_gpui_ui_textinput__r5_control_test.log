@@ -1,0 +1,11 @@
+=== RUN   TestScroll_Single5000_Horizontal
+--- PASS: TestScroll_Single5000_Horizontal (0.00s)
+=== RUN   TestScroll_ComposingScroll
+--- PASS: TestScroll_ComposingScroll (0.01s)
+=== RUN   TestBaseEditable_PlaceholderAndDisabled
+--- PASS: TestBaseEditable_PlaceholderAndDisabled (0.00s)
+=== RUN   TestScroll_MaxLinesEllipsisNotEditable
+--- PASS: TestScroll_MaxLinesEllipsisNotEditable (0.00s)
+=== RUN   TestScroll_SingleRejectMultiAllow
+--- PASS: TestScroll_SingleRejectMultiAllow (0.00s)
+PASS

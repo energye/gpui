@@ -1,0 +1,10 @@
+=== RUN   TestSplitColorGlyphs_Mixed
+--- PASS: TestSplitColorGlyphs_Mixed (0.00s)
+=== RUN   TestSplitColorGlyphs_AllOutline
+--- PASS: TestSplitColorGlyphs_AllOutline (0.00s)
+=== RUN   TestDrawShapedColorGlyphsCPU_Emoji
+    m5_color_glyph_api_test.go:94: no ink from DrawShapedColorGlyphs CPU fallback on NotoColorEmoji
+--- FAIL: TestDrawShapedColorGlyphsCPU_Emoji (0.46s)
+=== RUN   TestDrawShapedColorGlyphs_SkipsOutline
+--- PASS: TestDrawShapedColorGlyphs_SkipsOutline (0.00s)
+FAIL

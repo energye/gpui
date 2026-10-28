@@ -1,0 +1,29 @@
+=== RUN   TestCompressedDecodeFromCases
+--- PASS: TestCompressedDecodeFromCases (0.00s)
+=== RUN   TestCompressedEdgesNoCrash
+--- PASS: TestCompressedEdgesNoCrash (0.00s)
+=== RUN   TestCompressedPixelsWithinTolerance
+    compressed_test.go:373: tex-tolerance: maxDiff=0 bad=0/65616 tolerance=0
+--- PASS: TestCompressedPixelsWithinTolerance (0.01s)
+=== RUN   TestCompressedPerfLarge
+    compressed_test.go:396: tex-256: 20 parses 256x256 (upload 32768B decoded 262144B ratio 8) in 14.199199ms (0.7 ms/parse)
+--- PASS: TestCompressedPerfLarge (0.01s)
+=== RUN   TestCompressedLongRunStable
+--- PASS: TestCompressedLongRunStable (0.00s)
+=== RUN   TestCompressedOffscreenGolden
+--- PASS: TestCompressedOffscreenGolden (0.00s)
+=== RUN   TestS64ASTCDecodeFromCases
+--- PASS: TestS64ASTCDecodeFromCases (0.00s)
+=== RUN   TestS64RejectMagicAndScheme
+--- PASS: TestS64RejectMagicAndScheme (0.00s)
+=== RUN   TestS64VramRatioQuarterToEighth
+    compressed_test.go:653: tex-s64-vram: bc1 32768B astc 65536B decoded 262144B (1/8 and 1/4)
+--- PASS: TestS64VramRatioQuarterToEighth (0.00s)
+=== RUN   TestS64NormalLowestTierBlocked
+--- PASS: TestS64NormalLowestTierBlocked (0.00s)
+=== RUN   TestS64TranscodeRouteAndPink
+--- PASS: TestS64TranscodeRouteAndPink (0.00s)
+=== RUN   TestS64LargeAsyncOffMainThread
+    compressed_test.go:844: tex-s64-offscreen: 3 astc pictures all-pink proxy, grid 4x4 exact
+--- PASS: TestS64LargeAsyncOffMainThread (0.00s)
+PASS

@@ -1,0 +1,83 @@
+=== RUN   TestNewTexture
+--- PASS: TestNewTexture (0.28s)
+=== RUN   TestTexture_GetDefaultView
+--- PASS: TestTexture_GetDefaultView (0.10s)
+=== RUN   TestTexture_GetDefaultView_Concurrent
+--- PASS: TestTexture_GetDefaultView_Concurrent (0.09s)
+=== RUN   TestTexture_CreateView
+    texture_test.go:149: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestTexture_CreateView (0.10s)
+=== RUN   TestTexture_CreateView_NilDescriptor
+    texture_test.go:206: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestTexture_CreateView_NilDescriptor (0.10s)
+=== RUN   TestTexture_Destroy
+    texture_test.go:233: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestTexture_Destroy (0.08s)
+=== RUN   TestTexture_Destroy_Idempotent
+    texture_test.go:261: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestTexture_Destroy_Idempotent (0.10s)
+=== RUN   TestTexture_GetDefaultView_AfterDestroy
+    texture_test.go:285: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestTexture_GetDefaultView_AfterDestroy (0.09s)
+=== RUN   TestTextureView_Destroy_NonDefault
+    texture_test.go:312: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestTextureView_Destroy_NonDefault (0.09s)
+=== RUN   TestTextureView_Destroy_Default_NoOp
+    texture_test.go:339: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestTextureView_Destroy_Default_NoOp (0.09s)
+=== RUN   TestCreateCoreTexture
+    texture_test.go:368: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateCoreTexture (0.10s)
+=== RUN   TestCreateCoreTexture_NilDevice
+--- PASS: TestCreateCoreTexture_NilDevice (0.00s)
+=== RUN   TestCreateCoreTexture_NilDescriptor
+    texture_test.go:417: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateCoreTexture_NilDescriptor (0.09s)
+=== RUN   TestCreateCoreTexture_InvalidSize
+    texture_test.go:427: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateCoreTexture_InvalidSize (0.10s)
+=== RUN   TestCreateCoreTexture_DefaultValues
+    texture_test.go:460: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateCoreTexture_DefaultValues (0.09s)
+=== RUN   TestCreateCoreTextureSimple
+    texture_test.go:494: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestCreateCoreTextureSimple (0.08s)
+=== RUN   TestTextureViewDimensionFromTexture
+--- PASS: TestTextureViewDimensionFromTexture (0.00s)
+PASS

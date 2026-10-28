@@ -1,0 +1,9 @@
+=== RUN   TestPaintContextDrawShaderMaskPaints
+--- PASS: TestPaintContextDrawShaderMaskPaints (0.00s)
+=== RUN   TestPaintContextDrawShaderMaskBudgetAllowReject
+--- PASS: TestPaintContextDrawShaderMaskBudgetAllowReject (0.00s)
+=== RUN   TestPaintContextDrawShaderMaskNilMaskPassthrough
+--- PASS: TestPaintContextDrawShaderMaskNilMaskPassthrough (0.00s)
+=== RUN   TestPaintContextDrawShaderMaskKeepsTransformAndDepth
+--- PASS: TestPaintContextDrawShaderMaskKeepsTransformAndDepth (0.00s)
+PASS

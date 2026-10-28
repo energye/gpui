@@ -1,0 +1,37 @@
+=== RUN   TestErrorKind_String
+=== RUN   TestErrorKind_String/UnsupportedFeature
+=== RUN   TestErrorKind_String/MissingBinding
+=== RUN   TestErrorKind_String/InvalidShaderModel
+=== RUN   TestErrorKind_String/InternalError
+=== RUN   TestErrorKind_String/InvalidModule
+=== RUN   TestErrorKind_String/UnsupportedType
+=== RUN   TestErrorKind_String/EntryPointNotFound
+=== RUN   TestErrorKind_String/Unknown
+--- PASS: TestErrorKind_String (0.00s)
+    --- PASS: TestErrorKind_String/UnsupportedFeature (0.00s)
+    --- PASS: TestErrorKind_String/MissingBinding (0.00s)
+    --- PASS: TestErrorKind_String/InvalidShaderModel (0.00s)
+    --- PASS: TestErrorKind_String/InternalError (0.00s)
+    --- PASS: TestErrorKind_String/InvalidModule (0.00s)
+    --- PASS: TestErrorKind_String/UnsupportedType (0.00s)
+    --- PASS: TestErrorKind_String/EntryPointNotFound (0.00s)
+    --- PASS: TestErrorKind_String/Unknown (0.00s)
+=== RUN   TestError_Error
+--- PASS: TestError_Error (0.00s)
+=== RUN   TestNewError
+--- PASS: TestNewError (0.00s)
+=== RUN   TestNewErrorWithSpan
+--- PASS: TestNewErrorWithSpan (0.00s)
+=== RUN   TestError_Predicates
+=== RUN   TestError_Predicates/unsupported_feature
+=== RUN   TestError_Predicates/missing_binding
+=== RUN   TestError_Predicates/internal_error
+=== RUN   TestError_Predicates/other_error
+--- PASS: TestError_Predicates (0.00s)
+    --- PASS: TestError_Predicates/unsupported_feature (0.00s)
+    --- PASS: TestError_Predicates/missing_binding (0.00s)
+    --- PASS: TestError_Predicates/internal_error (0.00s)
+    --- PASS: TestError_Predicates/other_error (0.00s)
+=== RUN   TestSpan
+--- PASS: TestSpan (0.00s)
+PASS

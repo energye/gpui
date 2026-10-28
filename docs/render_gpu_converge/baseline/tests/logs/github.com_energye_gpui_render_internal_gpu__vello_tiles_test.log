@@ -1,0 +1,58 @@
+=== RUN   TestNewTileRasterizer
+--- PASS: TestNewTileRasterizer (0.00s)
+=== RUN   TestTileRasterizerReset
+--- PASS: TestTileRasterizerReset (0.00s)
+=== RUN   TestPathSegment
+--- PASS: TestPathSegment (0.00s)
+=== RUN   TestPathSegmentYEdgeSentinel
+--- PASS: TestPathSegmentYEdgeSentinel (0.00s)
+=== RUN   TestTileRasterizerFillEmpty
+--- PASS: TestTileRasterizerFillEmpty (0.00s)
+=== RUN   TestTileRasterizerFillSimpleRect
+--- PASS: TestTileRasterizerFillSimpleRect (0.00s)
+=== RUN   TestFillPathWithBackdrop
+--- PASS: TestFillPathWithBackdrop (0.00s)
+=== RUN   TestAbs32
+--- PASS: TestAbs32 (0.00s)
+=== RUN   TestTileLeftEdgeCrossing
+=== RUN   TestTileLeftEdgeCrossing/segment_crosses_left_edge
+=== RUN   TestTileLeftEdgeCrossing/segment_starts_at_left_edge
+=== RUN   TestTileLeftEdgeCrossing/segment_entirely_inside_tile
+=== RUN   TestTileLeftEdgeCrossing/segment_entirely_to_the_right
+--- PASS: TestTileLeftEdgeCrossing (0.00s)
+    --- PASS: TestTileLeftEdgeCrossing/segment_crosses_left_edge (0.00s)
+    --- PASS: TestTileLeftEdgeCrossing/segment_starts_at_left_edge (0.00s)
+    --- PASS: TestTileLeftEdgeCrossing/segment_entirely_inside_tile (0.00s)
+    --- PASS: TestTileLeftEdgeCrossing/segment_entirely_to_the_right (0.00s)
+=== RUN   TestGoldenPixelFormat
+    vello_tiles_test.go:226: golden file not found
+--- SKIP: TestGoldenPixelFormat (0.00s)
+=== RUN   TestVelloTileConstants
+--- PASS: TestVelloTileConstants (0.00s)
+=== RUN   TestVelloLineCoordinateValidation
+=== RUN   TestVelloLineCoordinateValidation/square_10,10_to_30,30
+    vello_tiles_test.go:413: VelloLine count: 2
+    vello_tiles_test.go:414: raster.LineEdge count:  2
+    vello_tiles_test.go:432:   vello[0]: (10.0000,10.0000)-(10.0000,30.0000) down=false
+    vello_tiles_test.go:432:   vello[1]: (30.0000,10.0000)-(30.0000,30.0000) down=true
+    vello_tiles_test.go:436:   line[0]:  (10.0000,10.0000)-(10.0000,30.0000) down=false
+    vello_tiles_test.go:436:   line[1]:  (30.0000,10.0000)-(30.0000,30.0000) down=true
+    vello_tiles_test.go:506: All 2 LineEdges matched VelloLines (yTol=0.0001, xTol=0.0001)
+    vello_tiles_test.go:509: Max X deviation: x0=0.000000, x1=0.000000
+=== RUN   TestVelloLineCoordinateValidation/diagonal_polygon
+    vello_tiles_test.go:413: VelloLine count: 4
+    vello_tiles_test.go:414: raster.LineEdge count:  4
+    vello_tiles_test.go:432:   vello[0]: (10.0000,10.0000)-(10.0000,30.0000) down=false
+    vello_tiles_test.go:432:   vello[1]: (30.0000,10.0000)-(190.0000,170.0000) down=true
+    vello_tiles_test.go:432:   vello[2]: (10.0000,30.0000)-(170.0000,190.0000) down=false
+    vello_tiles_test.go:432:   vello[3]: (190.0000,170.0000)-(190.0000,190.0000) down=true
+    vello_tiles_test.go:436:   line[0]:  (10.0000,10.0000)-(10.0000,30.0000) down=false
+    vello_tiles_test.go:436:   line[1]:  (30.1250,10.0000)-(190.1250,170.0000) down=true
+    vello_tiles_test.go:436:   line[2]:  (10.1250,30.0000)-(170.1250,190.0000) down=false
+    vello_tiles_test.go:436:   line[3]:  (190.0000,170.0000)-(190.0000,190.0000) down=true
+    vello_tiles_test.go:506: All 4 LineEdges matched VelloLines (yTol=0.0001, xTol=0.2500)
+    vello_tiles_test.go:509: Max X deviation: x0=0.125000, x1=0.125000
+--- PASS: TestVelloLineCoordinateValidation (0.00s)
+    --- PASS: TestVelloLineCoordinateValidation/square_10,10_to_30,30 (0.00s)
+    --- PASS: TestVelloLineCoordinateValidation/diagonal_polygon (0.00s)
+PASS

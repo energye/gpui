@@ -1,0 +1,30 @@
+=== RUN   TestCheck_ValidEntryPoint
+--- PASS: TestCheck_ValidEntryPoint (0.00s)
+=== RUN   TestCheck_NullEntryPointFunction
+--- PASS: TestCheck_NullEntryPointFunction (0.00s)
+=== RUN   TestCheck_NullMetadataValue
+--- PASS: TestCheck_NullMetadataValue (0.00s)
+=== RUN   TestCheck_MissingEntryPoints
+--- PASS: TestCheck_MissingEntryPoints (0.00s)
+=== RUN   TestCheck_EmptyEntryPointTuple
+--- PASS: TestCheck_EmptyEntryPointTuple (0.00s)
+=== RUN   TestCheck_NoBitcode
+--- PASS: TestCheck_NoBitcode (0.00s)
+=== RUN   TestCheck_MalformedTruncatedBitcode
+--- PASS: TestCheck_MalformedTruncatedBitcode (0.00s)
+=== RUN   TestCheck_NagaFixture
+    bitcheck_test.go:175: skipping: cannot read ../../../tmp/min1_final.dxil: open ../../../tmp/min1_final.dxil: no such file or directory
+--- SKIP: TestCheck_NagaFixture (0.00s)
+=== RUN   TestCheck_GoldenDXCBlobs
+=== RUN   TestCheck_GoldenDXCBlobs/triangle_VS
+=== RUN   TestCheck_GoldenDXCBlobs/triangle_FS
+--- PASS: TestCheck_GoldenDXCBlobs (0.00s)
+    --- PASS: TestCheck_GoldenDXCBlobs/triangle_VS (0.00s)
+    --- PASS: TestCheck_GoldenDXCBlobs/triangle_FS (0.00s)
+=== RUN   TestCheck_DXCFixture
+    bitcheck_test.go:224: skipping: cannot read ../../../tmp/dxc_trivial_vs.dxil: open ../../../tmp/dxc_trivial_vs.dxil: no such file or directory
+--- SKIP: TestCheck_DXCFixture (0.00s)
+=== RUN   TestCheck_CorpusSmoke
+    bitcheck_test.go:252: no tmp/*.dxil fixtures present
+--- SKIP: TestCheck_CorpusSmoke (0.00s)
+PASS

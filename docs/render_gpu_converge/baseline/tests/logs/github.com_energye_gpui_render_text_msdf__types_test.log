@@ -1,0 +1,39 @@
+=== RUN   TestDefaultConfig
+--- PASS: TestDefaultConfig (0.00s)
+=== RUN   TestConfigValidate
+=== RUN   TestConfigValidate/default_config_is_valid
+=== RUN   TestConfigValidate/size_too_small
+=== RUN   TestConfigValidate/size_too_large
+=== RUN   TestConfigValidate/range_zero
+=== RUN   TestConfigValidate/range_negative
+=== RUN   TestConfigValidate/angle_threshold_zero
+=== RUN   TestConfigValidate/angle_threshold_too_large
+=== RUN   TestConfigValidate/edge_threshold_too_small
+=== RUN   TestConfigValidate/valid_custom_config
+--- PASS: TestConfigValidate (0.00s)
+    --- PASS: TestConfigValidate/default_config_is_valid (0.00s)
+    --- PASS: TestConfigValidate/size_too_small (0.00s)
+    --- PASS: TestConfigValidate/size_too_large (0.00s)
+    --- PASS: TestConfigValidate/range_zero (0.00s)
+    --- PASS: TestConfigValidate/range_negative (0.00s)
+    --- PASS: TestConfigValidate/angle_threshold_zero (0.00s)
+    --- PASS: TestConfigValidate/angle_threshold_too_large (0.00s)
+    --- PASS: TestConfigValidate/edge_threshold_too_small (0.00s)
+    --- PASS: TestConfigValidate/valid_custom_config (0.00s)
+=== RUN   TestMSDFPixelOperations
+--- PASS: TestMSDFPixelOperations (0.00s)
+=== RUN   TestMSDFPixelOffset
+--- PASS: TestMSDFPixelOffset (0.00s)
+=== RUN   TestMSDFCoordinateConversion
+--- PASS: TestMSDFCoordinateConversion (0.00s)
+=== RUN   TestPointOperations
+--- PASS: TestPointOperations (0.00s)
+=== RUN   TestAngleBetween
+--- PASS: TestAngleBetween (0.00s)
+=== RUN   TestRectOperations
+--- PASS: TestRectOperations (0.00s)
+=== RUN   TestSignedDistance
+--- PASS: TestSignedDistance (0.00s)
+=== RUN   TestConfigError
+--- PASS: TestConfigError (0.00s)
+PASS

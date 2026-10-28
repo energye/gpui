@@ -1,0 +1,5 @@
+=== RUN   TestScanWqyCJKFullComposite
+    zz_tt_full_scan_test.go:91: composite full px12: bad=0/3000 badR=[]
+    zz_tt_full_scan_test.go:91: composite full px16: bad=0/3000 badR=[]
+--- PASS: TestScanWqyCJKFullComposite (2.00s)
+PASS

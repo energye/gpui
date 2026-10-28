@@ -1,0 +1,6 @@
+=== RUN   TestS67_PresentImageGrid_NoRegress
+    s6_7_resources_test.go:60: S6.7 image grid present p50=0.23ms budget=16.70
+--- PASS: TestS67_PresentImageGrid_NoRegress (0.30s)
+=== RUN   TestS67_L0_HelpersStillGreen
+--- PASS: TestS67_L0_HelpersStillGreen (0.00s)
+PASS

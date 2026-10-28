@@ -1,0 +1,4 @@
+=== RUN   TestOpt18_ApplyBlur_MeshSeedGPUFilter
+    opt18_filter_submit_coalesce_test.go:55: opt18 blur gpu_ops=3 cpu_fallback_ops=0 frame_flushes=1 gpu_tex=96x72
+--- PASS: TestOpt18_ApplyBlur_MeshSeedGPUFilter (0.29s)
+PASS

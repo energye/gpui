@@ -1,0 +1,7 @@
+=== RUN   TestOpt26_ComputeGlyphMaskFontID_MatchesLegacyFmt
+--- PASS: TestOpt26_ComputeGlyphMaskFontID_MatchesLegacyFmt (0.00s)
+=== RUN   TestOpt26_IndexBytesFingerprint_Stable
+--- PASS: TestOpt26_IndexBytesFingerprint_Stable (0.00s)
+=== RUN   TestOpt26_DualTexMultiBindGroup_ReusesSlot
+--- PASS: TestOpt26_DualTexMultiBindGroup_ReusesSlot (0.30s)
+PASS

@@ -1,0 +1,14 @@
+=== RUN   TestDrawShaderMaskGPU_SolidHalf
+    draw_shader_mask_gpu_test.go:50: path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestDrawShaderMaskGPU_SolidHalf (0.29s)
+=== RUN   TestDrawShaderMaskGPU_LinearHorizontal
+    draw_shader_mask_gpu_test.go:68: path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+    draw_shader_mask_gpu_test.go:73: linear g=11,130,246
+--- PASS: TestDrawShaderMaskGPU_LinearHorizontal (0.02s)
+=== RUN   TestDrawShaderMaskGPU_LinearDiagonal
+    draw_shader_mask_gpu_test.go:95: path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestDrawShaderMaskGPU_LinearDiagonal (0.02s)
+=== RUN   TestDrawShaderMaskGPU_RadialVignette
+    draw_shader_mask_gpu_test.go:117: path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestDrawShaderMaskGPU_RadialVignette (0.02s)
+PASS

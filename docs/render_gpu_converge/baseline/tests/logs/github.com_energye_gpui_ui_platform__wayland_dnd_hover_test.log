@@ -1,0 +1,13 @@
+=== RUN   TestWlDDHover_EnterMotionLeave
+--- PASS: TestWlDDHover_EnterMotionLeave (0.00s)
+=== RUN   TestWlDDHover_MotionWithoutEnter
+--- PASS: TestWlDDHover_MotionWithoutEnter (0.00s)
+=== RUN   TestWlDDHover_StrayLeaveQuiet
+--- PASS: TestWlDDHover_StrayLeaveQuiet (0.00s)
+=== RUN   TestWlDDHover_EnterReplacesOffer
+--- PASS: TestWlDDHover_EnterReplacesOffer (0.00s)
+=== RUN   TestWlDndFetchOrderURIListFirst
+--- PASS: TestWlDndFetchOrderURIListFirst (0.00s)
+=== RUN   TestWlDndFetchCapsDropOversize
+--- PASS: TestWlDndFetchCapsDropOversize (0.00s)
+PASS

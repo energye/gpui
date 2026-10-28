@@ -1,0 +1,7 @@
+=== RUN   TestDragOfferMIMETypes
+--- PASS: TestDragOfferMIMETypes (0.00s)
+=== RUN   TestDragOfferURIList
+--- PASS: TestDragOfferURIList (0.00s)
+=== RUN   TestDragOfferPayload
+--- PASS: TestDragOfferPayload (0.00s)
+PASS

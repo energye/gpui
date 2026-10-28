@@ -1,0 +1,149 @@
+=== RUN   TestVisual_BasicLatin
+=== RUN   TestVisual_BasicLatin/size_12
+=== RUN   TestVisual_BasicLatin/size_24
+=== RUN   TestVisual_BasicLatin/size_48
+=== RUN   TestVisual_BasicLatin/size_72
+--- PASS: TestVisual_BasicLatin (0.00s)
+    --- PASS: TestVisual_BasicLatin/size_12 (0.00s)
+    --- PASS: TestVisual_BasicLatin/size_24 (0.00s)
+    --- PASS: TestVisual_BasicLatin/size_48 (0.00s)
+    --- PASS: TestVisual_BasicLatin/size_72 (0.00s)
+=== RUN   TestVisual_ScaledText
+=== RUN   TestVisual_ScaledText/scale_1
+=== RUN   TestVisual_ScaledText/scale_2
+=== RUN   TestVisual_ScaledText/scale_4
+--- PASS: TestVisual_ScaledText (0.00s)
+    --- PASS: TestVisual_ScaledText/scale_1 (0.00s)
+    --- PASS: TestVisual_ScaledText/scale_2 (0.00s)
+    --- PASS: TestVisual_ScaledText/scale_4 (0.00s)
+=== RUN   TestVisual_RotatedText
+=== RUN   TestVisual_RotatedText/45_degrees
+=== RUN   TestVisual_RotatedText/90_degrees
+=== RUN   TestVisual_RotatedText/180_degrees
+--- PASS: TestVisual_RotatedText (0.00s)
+    --- PASS: TestVisual_RotatedText/45_degrees (0.00s)
+    --- PASS: TestVisual_RotatedText/90_degrees (0.00s)
+    --- PASS: TestVisual_RotatedText/180_degrees (0.00s)
+=== RUN   TestVisual_TransformedText
+=== RUN   TestVisual_TransformedText/scale_rotate_translate
+=== RUN   TestVisual_TransformedText/identity_transform
+=== RUN   TestVisual_TransformedText/quadratic_curve_transform
+=== RUN   TestVisual_TransformedText/cubic_curve_transform
+--- PASS: TestVisual_TransformedText (0.00s)
+    --- PASS: TestVisual_TransformedText/scale_rotate_translate (0.00s)
+    --- PASS: TestVisual_TransformedText/identity_transform (0.00s)
+    --- PASS: TestVisual_TransformedText/quadratic_curve_transform (0.00s)
+    --- PASS: TestVisual_TransformedText/cubic_curve_transform (0.00s)
+=== RUN   TestVisual_ColoredText
+=== RUN   TestVisual_ColoredText/black
+=== RUN   TestVisual_ColoredText/red
+=== RUN   TestVisual_ColoredText/green
+=== RUN   TestVisual_ColoredText/blue
+=== RUN   TestVisual_ColoredText/transparent_50
+=== RUN   TestVisual_ColoredText/opacity_0
+=== RUN   TestVisual_ColoredText/opacity_0_2
+=== RUN   TestVisual_ColoredText/opacity_0_5
+=== RUN   TestVisual_ColoredText/opacity_0_7
+=== RUN   TestVisual_ColoredText/opacity_1
+=== RUN   TestVisual_ColoredText/opacity_clamping
+--- PASS: TestVisual_ColoredText (0.00s)
+    --- PASS: TestVisual_ColoredText/black (0.00s)
+    --- PASS: TestVisual_ColoredText/red (0.00s)
+    --- PASS: TestVisual_ColoredText/green (0.00s)
+    --- PASS: TestVisual_ColoredText/blue (0.00s)
+    --- PASS: TestVisual_ColoredText/transparent_50 (0.00s)
+    --- PASS: TestVisual_ColoredText/opacity_0 (0.00s)
+    --- PASS: TestVisual_ColoredText/opacity_0_2 (0.00s)
+    --- PASS: TestVisual_ColoredText/opacity_0_5 (0.00s)
+    --- PASS: TestVisual_ColoredText/opacity_0_7 (0.00s)
+    --- PASS: TestVisual_ColoredText/opacity_1 (0.00s)
+    --- PASS: TestVisual_ColoredText/opacity_clamping (0.00s)
+=== RUN   TestVisual_LongText
+=== RUN   TestVisual_LongText/The_quick_...
+=== RUN   TestVisual_LongText/Pack_my_bo...
+=== RUN   TestVisual_LongText/How_vexing...
+--- PASS: TestVisual_LongText (0.00s)
+    --- PASS: TestVisual_LongText/The_quick_... (0.00s)
+    --- PASS: TestVisual_LongText/Pack_my_bo... (0.00s)
+    --- PASS: TestVisual_LongText/How_vexing... (0.00s)
+=== RUN   TestVisual_SpecialCharacters
+=== RUN   TestVisual_SpecialCharacters/punctuation
+=== RUN   TestVisual_SpecialCharacters/numbers
+=== RUN   TestVisual_SpecialCharacters/symbols
+=== RUN   TestVisual_SpecialCharacters/brackets
+=== RUN   TestVisual_SpecialCharacters/quotes
+=== RUN   TestVisual_SpecialCharacters/mixed
+--- PASS: TestVisual_SpecialCharacters (0.00s)
+    --- PASS: TestVisual_SpecialCharacters/punctuation (0.00s)
+    --- PASS: TestVisual_SpecialCharacters/numbers (0.00s)
+    --- PASS: TestVisual_SpecialCharacters/symbols (0.00s)
+    --- PASS: TestVisual_SpecialCharacters/brackets (0.00s)
+    --- PASS: TestVisual_SpecialCharacters/quotes (0.00s)
+    --- PASS: TestVisual_SpecialCharacters/mixed (0.00s)
+=== RUN   TestVisual_EmptyAndWhitespace
+=== RUN   TestVisual_EmptyAndWhitespace/empty_string
+=== RUN   TestVisual_EmptyAndWhitespace/single_space
+=== RUN   TestVisual_EmptyAndWhitespace/multiple_spaces
+=== RUN   TestVisual_EmptyAndWhitespace/tabs
+=== RUN   TestVisual_EmptyAndWhitespace/mixed_whitespace
+=== RUN   TestVisual_EmptyAndWhitespace/leading_trailing_spaces
+--- PASS: TestVisual_EmptyAndWhitespace (0.00s)
+    --- PASS: TestVisual_EmptyAndWhitespace/empty_string (0.00s)
+    --- PASS: TestVisual_EmptyAndWhitespace/single_space (0.00s)
+    --- PASS: TestVisual_EmptyAndWhitespace/multiple_spaces (0.00s)
+    --- PASS: TestVisual_EmptyAndWhitespace/tabs (0.00s)
+    --- PASS: TestVisual_EmptyAndWhitespace/mixed_whitespace (0.00s)
+    --- PASS: TestVisual_EmptyAndWhitespace/leading_trailing_spaces (0.00s)
+=== RUN   TestVisual_CacheConsistency
+=== RUN   TestVisual_CacheConsistency/iteration_0
+=== RUN   TestVisual_CacheConsistency/iteration_1
+=== RUN   TestVisual_CacheConsistency/iteration_2
+=== RUN   TestVisual_CacheConsistency/get_or_create_consistency
+--- PASS: TestVisual_CacheConsistency (0.00s)
+    --- PASS: TestVisual_CacheConsistency/iteration_0 (0.00s)
+    --- PASS: TestVisual_CacheConsistency/iteration_1 (0.00s)
+    --- PASS: TestVisual_CacheConsistency/iteration_2 (0.00s)
+    --- PASS: TestVisual_CacheConsistency/get_or_create_consistency (0.00s)
+=== RUN   TestVisual_MultipleRenderers
+=== RUN   TestVisual_MultipleRenderers/concurrent_cache_access
+=== RUN   TestVisual_MultipleRenderers/concurrent_writes_and_reads
+=== RUN   TestVisual_MultipleRenderers/concurrent_get_or_create
+=== RUN   TestVisual_MultipleRenderers/concurrent_maintain
+--- PASS: TestVisual_MultipleRenderers (0.00s)
+    --- PASS: TestVisual_MultipleRenderers/concurrent_cache_access (0.00s)
+    --- PASS: TestVisual_MultipleRenderers/concurrent_writes_and_reads (0.00s)
+    --- PASS: TestVisual_MultipleRenderers/concurrent_get_or_create (0.00s)
+    --- PASS: TestVisual_MultipleRenderers/concurrent_maintain (0.00s)
+=== RUN   TestVisual_GlyphRenderer
+=== RUN   TestVisual_GlyphRenderer/create_with_custom_cache
+=== RUN   TestVisual_GlyphRenderer/set_cache
+=== RUN   TestVisual_GlyphRenderer/render_params_immutability
+--- PASS: TestVisual_GlyphRenderer (0.00s)
+    --- PASS: TestVisual_GlyphRenderer/create_with_custom_cache (0.00s)
+    --- PASS: TestVisual_GlyphRenderer/set_cache (0.00s)
+    --- PASS: TestVisual_GlyphRenderer/render_params_immutability (0.00s)
+=== RUN   TestVisual_OutlineOperations
+=== RUN   TestVisual_OutlineOperations/clone_independence
+=== RUN   TestVisual_OutlineOperations/translate_preserves_advance
+=== RUN   TestVisual_OutlineOperations/scale_updates_advance
+=== RUN   TestVisual_OutlineOperations/bounds_update_on_transform
+--- PASS: TestVisual_OutlineOperations (0.00s)
+    --- PASS: TestVisual_OutlineOperations/clone_independence (0.00s)
+    --- PASS: TestVisual_OutlineOperations/translate_preserves_advance (0.00s)
+    --- PASS: TestVisual_OutlineOperations/scale_updates_advance (0.00s)
+    --- PASS: TestVisual_OutlineOperations/bounds_update_on_transform (0.00s)
+=== RUN   TestVisual_EdgeCases
+=== RUN   TestVisual_EdgeCases/zero_scale
+=== RUN   TestVisual_EdgeCases/negative_scale
+=== RUN   TestVisual_EdgeCases/very_small_advance
+=== RUN   TestVisual_EdgeCases/very_large_advance
+=== RUN   TestVisual_EdgeCases/empty_outline_transform
+=== RUN   TestVisual_EdgeCases/nil_outline_operations
+--- PASS: TestVisual_EdgeCases (0.00s)
+    --- PASS: TestVisual_EdgeCases/zero_scale (0.00s)
+    --- PASS: TestVisual_EdgeCases/negative_scale (0.00s)
+    --- PASS: TestVisual_EdgeCases/very_small_advance (0.00s)
+    --- PASS: TestVisual_EdgeCases/very_large_advance (0.00s)
+    --- PASS: TestVisual_EdgeCases/empty_outline_transform (0.00s)
+    --- PASS: TestVisual_EdgeCases/nil_outline_operations (0.00s)
+PASS

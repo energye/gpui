@@ -1,0 +1,9 @@
+=== RUN   ExampleMat4_basic
+--- PASS: ExampleMat4_basic (0.00s)
+=== RUN   ExampleMat4Perspective
+--- PASS: ExampleMat4Perspective (0.00s)
+=== RUN   ExampleVec3_cross
+--- PASS: ExampleVec3_cross (0.00s)
+=== RUN   ExampleMat4_rotation
+--- PASS: ExampleMat4_rotation (0.00s)
+PASS

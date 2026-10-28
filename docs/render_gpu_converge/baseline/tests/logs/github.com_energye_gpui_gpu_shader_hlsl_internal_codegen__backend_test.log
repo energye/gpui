@@ -1,0 +1,41 @@
+=== RUN   TestDefaultOptions
+--- PASS: TestDefaultOptions (0.00s)
+=== RUN   TestFeatureFlags_Has
+=== RUN   TestFeatureFlags_Has/none_has_none
+=== RUN   TestFeatureFlags_Has/wave_has_wave
+=== RUN   TestFeatureFlags_Has/wave_has_none
+=== RUN   TestFeatureFlags_Has/combined_has_wave
+=== RUN   TestFeatureFlags_Has/combined_has_ray
+=== RUN   TestFeatureFlags_Has/combined_no_mesh
+--- PASS: TestFeatureFlags_Has (0.00s)
+    --- PASS: TestFeatureFlags_Has/none_has_none (0.00s)
+    --- PASS: TestFeatureFlags_Has/wave_has_wave (0.00s)
+    --- PASS: TestFeatureFlags_Has/wave_has_none (0.00s)
+    --- PASS: TestFeatureFlags_Has/combined_has_wave (0.00s)
+    --- PASS: TestFeatureFlags_Has/combined_has_ray (0.00s)
+    --- PASS: TestFeatureFlags_Has/combined_no_mesh (0.00s)
+=== RUN   TestFeatureFlags_String
+=== RUN   TestFeatureFlags_String/none
+=== RUN   TestFeatureFlags_String/wave_ops
+=== RUN   TestFeatureFlags_String/ray_tracing
+=== RUN   TestFeatureFlags_String/mesh_shaders
+=== RUN   TestFeatureFlags_String/64-bit_ints
+=== RUN   TestFeatureFlags_String/combined
+--- PASS: TestFeatureFlags_String (0.00s)
+    --- PASS: TestFeatureFlags_String/none (0.00s)
+    --- PASS: TestFeatureFlags_String/wave_ops (0.00s)
+    --- PASS: TestFeatureFlags_String/ray_tracing (0.00s)
+    --- PASS: TestFeatureFlags_String/mesh_shaders (0.00s)
+    --- PASS: TestFeatureFlags_String/64-bit_ints (0.00s)
+    --- PASS: TestFeatureFlags_String/combined (0.00s)
+=== RUN   TestCompile_NilModule
+--- PASS: TestCompile_NilModule (0.00s)
+=== RUN   TestCompile_EmptyModule
+--- PASS: TestCompile_EmptyModule (0.00s)
+=== RUN   TestCompile_SimpleModule
+--- PASS: TestCompile_SimpleModule (0.00s)
+=== RUN   TestCompile_WithEntryPoint
+--- PASS: TestCompile_WithEntryPoint (0.00s)
+=== RUN   TestCompile_BindingMap
+--- PASS: TestCompile_BindingMap (0.00s)
+PASS

@@ -1,0 +1,191 @@
+=== RUN   TestValidateSemantic_TypeNilInner
+--- PASS: TestValidateSemantic_TypeNilInner (0.00s)
+=== RUN   TestValidateSemantic_ScalarInvalidWidth
+=== RUN   TestValidateSemantic_ScalarInvalidWidth/width_0
+=== RUN   TestValidateSemantic_ScalarInvalidWidth/width_3
+=== RUN   TestValidateSemantic_ScalarInvalidWidth/width_5
+=== RUN   TestValidateSemantic_ScalarInvalidWidth/width_7
+=== RUN   TestValidateSemantic_ScalarInvalidWidth/width_16
+--- PASS: TestValidateSemantic_ScalarInvalidWidth (0.00s)
+    --- PASS: TestValidateSemantic_ScalarInvalidWidth/width_0 (0.00s)
+    --- PASS: TestValidateSemantic_ScalarInvalidWidth/width_3 (0.00s)
+    --- PASS: TestValidateSemantic_ScalarInvalidWidth/width_5 (0.00s)
+    --- PASS: TestValidateSemantic_ScalarInvalidWidth/width_7 (0.00s)
+    --- PASS: TestValidateSemantic_ScalarInvalidWidth/width_16 (0.00s)
+=== RUN   TestValidateSemantic_VectorInvalidScalarWidth
+--- PASS: TestValidateSemantic_VectorInvalidScalarWidth (0.00s)
+=== RUN   TestValidateSemantic_MatrixInvalidDimensions
+=== RUN   TestValidateSemantic_MatrixInvalidDimensions/invalid_columns
+=== RUN   TestValidateSemantic_MatrixInvalidDimensions/invalid_rows
+=== RUN   TestValidateSemantic_MatrixInvalidDimensions/both_invalid
+--- PASS: TestValidateSemantic_MatrixInvalidDimensions (0.00s)
+    --- PASS: TestValidateSemantic_MatrixInvalidDimensions/invalid_columns (0.00s)
+    --- PASS: TestValidateSemantic_MatrixInvalidDimensions/invalid_rows (0.00s)
+    --- PASS: TestValidateSemantic_MatrixInvalidDimensions/both_invalid (0.00s)
+=== RUN   TestValidateSemantic_ArrayCircularReference
+--- PASS: TestValidateSemantic_ArrayCircularReference (0.00s)
+=== RUN   TestValidateSemantic_StructMembers
+=== RUN   TestValidateSemantic_StructMembers/empty_member_name
+=== RUN   TestValidateSemantic_StructMembers/duplicate_member_name
+=== RUN   TestValidateSemantic_StructMembers/invalid_member_type
+=== RUN   TestValidateSemantic_StructMembers/circular_member_reference
+--- PASS: TestValidateSemantic_StructMembers (0.00s)
+    --- PASS: TestValidateSemantic_StructMembers/empty_member_name (0.00s)
+    --- PASS: TestValidateSemantic_StructMembers/duplicate_member_name (0.00s)
+    --- PASS: TestValidateSemantic_StructMembers/invalid_member_type (0.00s)
+    --- PASS: TestValidateSemantic_StructMembers/circular_member_reference (0.00s)
+=== RUN   TestValidateSemantic_PointerInvalidBase
+--- PASS: TestValidateSemantic_PointerInvalidBase (0.00s)
+=== RUN   TestValidateSemantic_ConstantInvalidType
+--- PASS: TestValidateSemantic_ConstantInvalidType (0.00s)
+=== RUN   TestValidateSemantic_GlobalVariables
+=== RUN   TestValidateSemantic_GlobalVariables/duplicate_name
+=== RUN   TestValidateSemantic_GlobalVariables/invalid_type
+=== RUN   TestValidateSemantic_GlobalVariables/invalid_init_constant
+--- PASS: TestValidateSemantic_GlobalVariables (0.00s)
+    --- PASS: TestValidateSemantic_GlobalVariables/duplicate_name (0.00s)
+    --- PASS: TestValidateSemantic_GlobalVariables/invalid_type (0.00s)
+    --- PASS: TestValidateSemantic_GlobalVariables/invalid_init_constant (0.00s)
+=== RUN   TestValidateSemantic_EntryPoints
+=== RUN   TestValidateSemantic_EntryPoints/empty_name
+=== RUN   TestValidateSemantic_EntryPoints/duplicate_name
+=== RUN   TestValidateSemantic_EntryPoints/vertex_without_result
+=== RUN   TestValidateSemantic_EntryPoints/compute_partial_zero_workgroup
+=== RUN   TestValidateSemantic_EntryPoints/vertex_with_struct_position_builtin
+--- PASS: TestValidateSemantic_EntryPoints (0.00s)
+    --- PASS: TestValidateSemantic_EntryPoints/empty_name (0.00s)
+    --- PASS: TestValidateSemantic_EntryPoints/duplicate_name (0.00s)
+    --- PASS: TestValidateSemantic_EntryPoints/vertex_without_result (0.00s)
+    --- PASS: TestValidateSemantic_EntryPoints/compute_partial_zero_workgroup (0.00s)
+    --- PASS: TestValidateSemantic_EntryPoints/vertex_with_struct_position_builtin (0.00s)
+=== RUN   TestValidateSemantic_FunctionArgInvalidType
+--- PASS: TestValidateSemantic_FunctionArgInvalidType (0.00s)
+=== RUN   TestValidateSemantic_FunctionResultInvalidType
+--- PASS: TestValidateSemantic_FunctionResultInvalidType (0.00s)
+=== RUN   TestValidateSemantic_LocalVariables
+=== RUN   TestValidateSemantic_LocalVariables/invalid_type
+=== RUN   TestValidateSemantic_LocalVariables/invalid_init_expression
+--- PASS: TestValidateSemantic_LocalVariables (0.00s)
+    --- PASS: TestValidateSemantic_LocalVariables/invalid_type (0.00s)
+    --- PASS: TestValidateSemantic_LocalVariables/invalid_init_expression (0.00s)
+=== RUN   TestValidateSemantic_ExpressionNilKind
+--- PASS: TestValidateSemantic_ExpressionNilKind (0.00s)
+=== RUN   TestValidateSemantic_ExprConstantInvalid
+--- PASS: TestValidateSemantic_ExprConstantInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprZeroValueInvalidType
+--- PASS: TestValidateSemantic_ExprZeroValueInvalidType (0.00s)
+=== RUN   TestValidateSemantic_ExprComposeInvalid
+=== RUN   TestValidateSemantic_ExprComposeInvalid/invalid_type
+=== RUN   TestValidateSemantic_ExprComposeInvalid/invalid_component
+--- PASS: TestValidateSemantic_ExprComposeInvalid (0.00s)
+    --- PASS: TestValidateSemantic_ExprComposeInvalid/invalid_type (0.00s)
+    --- PASS: TestValidateSemantic_ExprComposeInvalid/invalid_component (0.00s)
+=== RUN   TestValidateSemantic_ExprAccessInvalid
+--- PASS: TestValidateSemantic_ExprAccessInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprAccessIndexInvalid
+--- PASS: TestValidateSemantic_ExprAccessIndexInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprSplatInvalid
+=== RUN   TestValidateSemantic_ExprSplatInvalid/invalid_size
+=== RUN   TestValidateSemantic_ExprSplatInvalid/invalid_value_expression
+--- PASS: TestValidateSemantic_ExprSplatInvalid (0.00s)
+    --- PASS: TestValidateSemantic_ExprSplatInvalid/invalid_size (0.00s)
+    --- PASS: TestValidateSemantic_ExprSplatInvalid/invalid_value_expression (0.00s)
+=== RUN   TestValidateSemantic_ExprSwizzleInvalid
+=== RUN   TestValidateSemantic_ExprSwizzleInvalid/invalid_size
+=== RUN   TestValidateSemantic_ExprSwizzleInvalid/invalid_vector
+=== RUN   TestValidateSemantic_ExprSwizzleInvalid/invalid_pattern_component
+--- PASS: TestValidateSemantic_ExprSwizzleInvalid (0.00s)
+    --- PASS: TestValidateSemantic_ExprSwizzleInvalid/invalid_size (0.00s)
+    --- PASS: TestValidateSemantic_ExprSwizzleInvalid/invalid_vector (0.00s)
+    --- PASS: TestValidateSemantic_ExprSwizzleInvalid/invalid_pattern_component (0.00s)
+=== RUN   TestValidateSemantic_ExprFunctionArgOutOfRange
+--- PASS: TestValidateSemantic_ExprFunctionArgOutOfRange (0.00s)
+=== RUN   TestValidateSemantic_ExprGlobalVariableInvalid
+--- PASS: TestValidateSemantic_ExprGlobalVariableInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprLocalVariableOutOfRange
+--- PASS: TestValidateSemantic_ExprLocalVariableOutOfRange (0.00s)
+=== RUN   TestValidateSemantic_ExprLoadInvalidPointer
+--- PASS: TestValidateSemantic_ExprLoadInvalidPointer (0.00s)
+=== RUN   TestValidateSemantic_ExprBinaryInvalid
+--- PASS: TestValidateSemantic_ExprBinaryInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprUnaryInvalid
+--- PASS: TestValidateSemantic_ExprUnaryInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprSelectInvalid
+--- PASS: TestValidateSemantic_ExprSelectInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprCallResultInvalid
+--- PASS: TestValidateSemantic_ExprCallResultInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprArrayLengthInvalid
+--- PASS: TestValidateSemantic_ExprArrayLengthInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprDerivativeInvalid
+--- PASS: TestValidateSemantic_ExprDerivativeInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprRelationalInvalid
+--- PASS: TestValidateSemantic_ExprRelationalInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprMathInvalid
+--- PASS: TestValidateSemantic_ExprMathInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprAsInvalid
+--- PASS: TestValidateSemantic_ExprAsInvalid (0.00s)
+=== RUN   TestValidateSemantic_StatementNilKind
+--- PASS: TestValidateSemantic_StatementNilKind (0.00s)
+=== RUN   TestValidateSemantic_ContinueOutsideLoop
+--- PASS: TestValidateSemantic_ContinueOutsideLoop (0.00s)
+=== RUN   TestValidateSemantic_BreakInContinuingBlock
+--- PASS: TestValidateSemantic_BreakInContinuingBlock (0.00s)
+=== RUN   TestValidateSemantic_ContinueInContinuingBlock
+--- PASS: TestValidateSemantic_ContinueInContinuingBlock (0.00s)
+=== RUN   TestValidateSemantic_ReturnInContinuingBlock
+--- PASS: TestValidateSemantic_ReturnInContinuingBlock (0.00s)
+=== RUN   TestValidateSemantic_KillInContinuingBlock
+--- PASS: TestValidateSemantic_KillInContinuingBlock (0.00s)
+=== RUN   TestValidateSemantic_EmitRangeInvalid
+=== RUN   TestValidateSemantic_EmitRangeInvalid/start_out_of_range
+=== RUN   TestValidateSemantic_EmitRangeInvalid/end_out_of_range
+=== RUN   TestValidateSemantic_EmitRangeInvalid/start_>=_end
+--- PASS: TestValidateSemantic_EmitRangeInvalid (0.00s)
+    --- PASS: TestValidateSemantic_EmitRangeInvalid/start_out_of_range (0.00s)
+    --- PASS: TestValidateSemantic_EmitRangeInvalid/end_out_of_range (0.00s)
+    --- PASS: TestValidateSemantic_EmitRangeInvalid/start_>=_end (0.00s)
+=== RUN   TestValidateSemantic_StmtIfInvalidCondition
+--- PASS: TestValidateSemantic_StmtIfInvalidCondition (0.00s)
+=== RUN   TestValidateSemantic_StmtStoreInvalid
+--- PASS: TestValidateSemantic_StmtStoreInvalid (0.00s)
+=== RUN   TestValidateSemantic_StmtCallInvalid
+=== RUN   TestValidateSemantic_StmtCallInvalid/invalid_function
+=== RUN   TestValidateSemantic_StmtCallInvalid/invalid_argument_expression
+=== RUN   TestValidateSemantic_StmtCallInvalid/invalid_result_expression
+--- PASS: TestValidateSemantic_StmtCallInvalid (0.00s)
+    --- PASS: TestValidateSemantic_StmtCallInvalid/invalid_function (0.00s)
+    --- PASS: TestValidateSemantic_StmtCallInvalid/invalid_argument_expression (0.00s)
+    --- PASS: TestValidateSemantic_StmtCallInvalid/invalid_result_expression (0.00s)
+=== RUN   TestValidateSemantic_SwitchMultipleDefaults
+--- PASS: TestValidateSemantic_SwitchMultipleDefaults (0.00s)
+=== RUN   TestValidateSemantic_StmtSwitchInvalidSelector
+--- PASS: TestValidateSemantic_StmtSwitchInvalidSelector (0.00s)
+=== RUN   TestValidateSemantic_LoopBreakIfInvalid
+--- PASS: TestValidateSemantic_LoopBreakIfInvalid (0.00s)
+=== RUN   TestValidateSemantic_StmtImageStoreInvalid
+--- PASS: TestValidateSemantic_StmtImageStoreInvalid (0.00s)
+=== RUN   TestValidateSemantic_StmtAtomicInvalid
+--- PASS: TestValidateSemantic_StmtAtomicInvalid (0.00s)
+=== RUN   TestValidateSemantic_StmtWorkGroupUniformLoadInvalid
+--- PASS: TestValidateSemantic_StmtWorkGroupUniformLoadInvalid (0.00s)
+=== RUN   TestValidateSemantic_StmtRayQueryInvalid
+--- PASS: TestValidateSemantic_StmtRayQueryInvalid (0.00s)
+=== RUN   TestValidateSemantic_ReturnInvalidValue
+--- PASS: TestValidateSemantic_ReturnInvalidValue (0.00s)
+=== RUN   TestValidateSemantic_ExprImageSampleInvalid
+--- PASS: TestValidateSemantic_ExprImageSampleInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprImageLoadInvalid
+--- PASS: TestValidateSemantic_ExprImageLoadInvalid (0.00s)
+=== RUN   TestValidateSemantic_ExprImageQueryInvalid
+--- PASS: TestValidateSemantic_ExprImageQueryInvalid (0.00s)
+=== RUN   TestValidateSemantic_ValidScalarWidths
+--- PASS: TestValidateSemantic_ValidScalarWidths (0.00s)
+=== RUN   TestValidateSemantic_ValidBreakInsideLoop
+--- PASS: TestValidateSemantic_ValidBreakInsideLoop (0.00s)
+=== RUN   TestValidateSemantic_ValidContinueInsideLoop
+--- PASS: TestValidateSemantic_ValidContinueInsideLoop (0.00s)
+=== RUN   TestValidateSemantic_NestedLoopBreakContinue
+--- PASS: TestValidateSemantic_NestedLoopBreakContinue (0.00s)
+=== RUN   TestValidateSemantic_ValidComputeWorkgroup
+--- PASS: TestValidateSemantic_ValidComputeWorkgroup (0.00s)
+PASS

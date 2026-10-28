@@ -1,0 +1,8 @@
+=== RUN   TestDbgFTGraysScanCJK3000
+8px: 3000/3000 字逐字节一致 (FT light)
+12px: 3000/3000 字逐字节一致 (FT light)
+16px: 3000/3000 字逐字节一致 (FT light)
+24px: 3000/3000 字逐字节一致 (FT light)
+32px: 3000/3000 字逐字节一致 (FT light)
+--- PASS: TestDbgFTGraysScanCJK3000 (69.11s)
+PASS

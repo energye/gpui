@@ -1,0 +1,61 @@
+=== RUN   TestAtomicAllRMWOperations
+--- PASS: TestAtomicAllRMWOperations (0.00s)
+=== RUN   TestAtomicI32AllOps
+--- PASS: TestAtomicI32AllOps (0.00s)
+=== RUN   TestSelectScalarBoolVecOperands
+--- PASS: TestSelectScalarBoolVecOperands (0.00s)
+=== RUN   TestAccessDynamicIndex
+--- PASS: TestAccessDynamicIndex (0.00s)
+=== RUN   TestConversionAllPaths
+--- PASS: TestConversionAllPaths (0.00s)
+=== RUN   TestVectorConversions
+--- PASS: TestVectorConversions (0.00s)
+=== RUN   TestConstExpressionNested
+--- PASS: TestConstExpressionNested (0.00s)
+=== RUN   TestFunctionCallWithStructArg
+--- PASS: TestFunctionCallWithStructArg (0.00s)
+=== RUN   TestGlobalVarLoadWithSampler
+--- PASS: TestGlobalVarLoadWithSampler (0.00s)
+=== RUN   TestMultipleStorageBuffers
+--- PASS: TestMultipleStorageBuffers (0.00s)
+=== RUN   TestDeeperArrayAccess
+--- PASS: TestDeeperArrayAccess (0.00s)
+=== RUN   TestMaybeCopyLogical
+--- PASS: TestMaybeCopyLogical (0.00s)
+=== RUN   TestCompareExpressions
+--- PASS: TestCompareExpressions (0.00s)
+=== RUN   TestIntegerCompareExpressions
+--- PASS: TestIntegerCompareExpressions (0.00s)
+=== RUN   TestSignedIntegerCompare
+--- PASS: TestSignedIntegerCompare (0.00s)
+=== RUN   TestUnaryOperations
+--- PASS: TestUnaryOperations (0.00s)
+=== RUN   TestBitwiseNotOperation
+--- PASS: TestBitwiseNotOperation (0.00s)
+=== RUN   TestDeepSwitch
+--- PASS: TestDeepSwitch (0.00s)
+=== RUN   TestSwizzlePatterns
+--- PASS: TestSwizzlePatterns (0.00s)
+=== RUN   TestDepthTextureSampling
+--- PASS: TestDepthTextureSampling (0.00s)
+=== RUN   TestTextureGather
+--- PASS: TestTextureGather (0.00s)
+=== RUN   TestF16PolyfillPath
+--- PASS: TestF16PolyfillPath (0.00s)
+=== RUN   TestScalarConstantEmission
+--- PASS: TestScalarConstantEmission (0.00s)
+=== RUN   TestStorageTextureMultipleFormats
+=== RUN   TestStorageTextureMultipleFormats/r32uint
+=== RUN   TestStorageTextureMultipleFormats/r32sint
+=== RUN   TestStorageTextureMultipleFormats/r32float
+=== RUN   TestStorageTextureMultipleFormats/rgba8unorm
+=== RUN   TestStorageTextureMultipleFormats/rgba16float
+=== RUN   TestStorageTextureMultipleFormats/rgba32float
+--- PASS: TestStorageTextureMultipleFormats (0.00s)
+    --- PASS: TestStorageTextureMultipleFormats/r32uint (0.00s)
+    --- PASS: TestStorageTextureMultipleFormats/r32sint (0.00s)
+    --- PASS: TestStorageTextureMultipleFormats/r32float (0.00s)
+    --- PASS: TestStorageTextureMultipleFormats/rgba8unorm (0.00s)
+    --- PASS: TestStorageTextureMultipleFormats/rgba16float (0.00s)
+    --- PASS: TestStorageTextureMultipleFormats/rgba32float (0.00s)
+PASS

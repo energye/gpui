@@ -1,0 +1,599 @@
+=== RUN   TestABIStructSizes
+=== RUN   TestABIStructSizes/StringView
+=== RUN   TestABIStructSizes/ChainedStruct
+=== RUN   TestABIStructSizes/Color
+=== RUN   TestABIStructSizes/gputypes.Extent3D
+=== RUN   TestABIStructSizes/gputypes.Origin3D
+=== RUN   TestABIStructSizes/instanceDescriptorWire
+=== RUN   TestABIStructSizes/InstanceLimits
+=== RUN   TestABIStructSizes/requestAdapterOptionsWire
+=== RUN   TestABIStructSizes/limitsWire
+=== RUN   TestABIStructSizes/AdapterInfo
+=== RUN   TestABIStructSizes/bufferDescriptorWire
+=== RUN   TestABIStructSizes/QueueDescriptor
+=== RUN   TestABIStructSizes/DeviceLostCallbackInfo
+=== RUN   TestABIStructSizes/UncapturedErrorCallbackInfo
+=== RUN   TestABIStructSizes/samplerDescriptorWire
+=== RUN   TestABIStructSizes/pipelineLayoutDescriptorWire
+=== RUN   TestABIStructSizes/ProgrammableStageDescriptor
+=== RUN   TestABIStructSizes/computePipelineDescriptorWire
+=== RUN   TestABIStructSizes/bindGroupLayoutEntryWire
+=== RUN   TestABIStructSizes/bindGroupEntryWire
+=== RUN   TestABIStructSizes/BlendComponent
+=== RUN   TestABIStructSizes/BlendState
+=== RUN   TestABIStructSizes/NativeLimits
+=== RUN   TestABIStructSizes/PipelineLayoutExtras
+=== RUN   TestABIStructSizes/passTimestampWrites_(wire)
+=== RUN   TestABIStructSizes/renderPassColorAttachment_(wire)
+=== RUN   TestABIStructSizes/vertexAttributeWire
+=== RUN   TestABIStructSizes/vertexBufferLayoutWire
+=== RUN   TestABIStructSizes/primitiveState
+=== RUN   TestABIStructSizes/colorTargetStateWire_(wire)
+--- PASS: TestABIStructSizes (0.00s)
+    --- PASS: TestABIStructSizes/StringView (0.00s)
+    --- PASS: TestABIStructSizes/ChainedStruct (0.00s)
+    --- PASS: TestABIStructSizes/Color (0.00s)
+    --- PASS: TestABIStructSizes/gputypes.Extent3D (0.00s)
+    --- PASS: TestABIStructSizes/gputypes.Origin3D (0.00s)
+    --- PASS: TestABIStructSizes/instanceDescriptorWire (0.00s)
+    --- PASS: TestABIStructSizes/InstanceLimits (0.00s)
+    --- PASS: TestABIStructSizes/requestAdapterOptionsWire (0.00s)
+    --- PASS: TestABIStructSizes/limitsWire (0.00s)
+    --- PASS: TestABIStructSizes/AdapterInfo (0.00s)
+    --- PASS: TestABIStructSizes/bufferDescriptorWire (0.00s)
+    --- PASS: TestABIStructSizes/QueueDescriptor (0.00s)
+    --- PASS: TestABIStructSizes/DeviceLostCallbackInfo (0.00s)
+    --- PASS: TestABIStructSizes/UncapturedErrorCallbackInfo (0.00s)
+    --- PASS: TestABIStructSizes/samplerDescriptorWire (0.00s)
+    --- PASS: TestABIStructSizes/pipelineLayoutDescriptorWire (0.00s)
+    --- PASS: TestABIStructSizes/ProgrammableStageDescriptor (0.00s)
+    --- PASS: TestABIStructSizes/computePipelineDescriptorWire (0.00s)
+    --- PASS: TestABIStructSizes/bindGroupLayoutEntryWire (0.00s)
+    --- PASS: TestABIStructSizes/bindGroupEntryWire (0.00s)
+    --- PASS: TestABIStructSizes/BlendComponent (0.00s)
+    --- PASS: TestABIStructSizes/BlendState (0.00s)
+    --- PASS: TestABIStructSizes/NativeLimits (0.00s)
+    --- PASS: TestABIStructSizes/PipelineLayoutExtras (0.00s)
+    --- PASS: TestABIStructSizes/passTimestampWrites_(wire) (0.00s)
+    --- PASS: TestABIStructSizes/renderPassColorAttachment_(wire) (0.00s)
+    --- PASS: TestABIStructSizes/vertexAttributeWire (0.00s)
+    --- PASS: TestABIStructSizes/vertexBufferLayoutWire (0.00s)
+    --- PASS: TestABIStructSizes/primitiveState (0.00s)
+    --- PASS: TestABIStructSizes/colorTargetStateWire_(wire) (0.00s)
+=== RUN   TestABIStructFieldOffsets
+=== RUN   TestABIStructFieldOffsets/limitsWire
+=== RUN   TestABIStructFieldOffsets/limitsWire/NextInChain
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxTextureDimension1D
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxTextureDimension2D
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxTextureDimension3D
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxTextureArrayLayers
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxBindGroups
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxBindGroupsPlusVertexBuffers
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxBindingsPerBindGroup
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxDynamicUniformBuffersPerPipelineLayout
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxDynamicStorageBuffersPerPipelineLayout
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxSampledTexturesPerShaderStage
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxSamplersPerShaderStage
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxStorageBuffersPerShaderStage
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxStorageTexturesPerShaderStage
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxUniformBuffersPerShaderStage
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxUniformBufferBindingSize
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxStorageBufferBindingSize
+=== RUN   TestABIStructFieldOffsets/limitsWire/MinUniformBufferOffsetAlignment
+=== RUN   TestABIStructFieldOffsets/limitsWire/MinStorageBufferOffsetAlignment
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxVertexBuffers
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxBufferSize
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxVertexAttributes
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxVertexBufferArrayStride
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxInterStageShaderVariables
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxColorAttachments
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxColorAttachmentBytesPerSample
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupStorageSize
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxComputeInvocationsPerWorkgroup
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupSizeX
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupSizeY
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupSizeZ
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupsPerDimension
+=== RUN   TestABIStructFieldOffsets/limitsWire/MaxImmediateSize
+=== RUN   TestABIStructFieldOffsets/instanceDescriptorWire
+=== RUN   TestABIStructFieldOffsets/instanceDescriptorWire/NextInChain
+=== RUN   TestABIStructFieldOffsets/instanceDescriptorWire/RequiredFeatureCount
+=== RUN   TestABIStructFieldOffsets/instanceDescriptorWire/RequiredFeatures
+=== RUN   TestABIStructFieldOffsets/instanceDescriptorWire/RequiredLimits
+=== RUN   TestABIStructFieldOffsets/requestAdapterOptionsWire
+=== RUN   TestABIStructFieldOffsets/requestAdapterOptionsWire/NextInChain
+=== RUN   TestABIStructFieldOffsets/requestAdapterOptionsWire/FeatureLevel
+=== RUN   TestABIStructFieldOffsets/requestAdapterOptionsWire/PowerPreference
+=== RUN   TestABIStructFieldOffsets/requestAdapterOptionsWire/ForceFallbackAdapter
+=== RUN   TestABIStructFieldOffsets/requestAdapterOptionsWire/BackendType
+=== RUN   TestABIStructFieldOffsets/requestAdapterOptionsWire/CompatibleSurface
+=== RUN   TestABIStructFieldOffsets/AdapterInfo
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/NextInChain
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/Vendor
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/Architecture
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/Device
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/Description
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/BackendType
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/AdapterType
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/VendorID
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/DeviceID
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/SubgroupMinSize
+=== RUN   TestABIStructFieldOffsets/AdapterInfo/SubgroupMaxSize
+=== RUN   TestABIStructFieldOffsets/bufferDescriptorWire
+=== RUN   TestABIStructFieldOffsets/bufferDescriptorWire/NextInChain
+=== RUN   TestABIStructFieldOffsets/bufferDescriptorWire/Label
+=== RUN   TestABIStructFieldOffsets/bufferDescriptorWire/Usage
+=== RUN   TestABIStructFieldOffsets/bufferDescriptorWire/Size
+=== RUN   TestABIStructFieldOffsets/bufferDescriptorWire/MappedAtCreation
+=== RUN   TestABIStructFieldOffsets/passTimestampWrites_wire
+=== RUN   TestABIStructFieldOffsets/passTimestampWrites_wire/nextInChain
+=== RUN   TestABIStructFieldOffsets/passTimestampWrites_wire/querySet
+=== RUN   TestABIStructFieldOffsets/passTimestampWrites_wire/beginningOfPassWriteIndex
+=== RUN   TestABIStructFieldOffsets/passTimestampWrites_wire/endOfPassWriteIndex
+=== RUN   TestABIStructFieldOffsets/renderPassColorAttachment_wire
+=== RUN   TestABIStructFieldOffsets/renderPassColorAttachment_wire/nextInChain
+=== RUN   TestABIStructFieldOffsets/renderPassColorAttachment_wire/view
+=== RUN   TestABIStructFieldOffsets/renderPassColorAttachment_wire/depthSlice
+=== RUN   TestABIStructFieldOffsets/renderPassColorAttachment_wire/resolveTarget
+=== RUN   TestABIStructFieldOffsets/renderPassColorAttachment_wire/loadOp
+=== RUN   TestABIStructFieldOffsets/renderPassColorAttachment_wire/storeOp
+=== RUN   TestABIStructFieldOffsets/renderPassColorAttachment_wire/clearValue
+--- PASS: TestABIStructFieldOffsets (0.00s)
+    --- PASS: TestABIStructFieldOffsets/limitsWire (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/NextInChain (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxTextureDimension1D (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxTextureDimension2D (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxTextureDimension3D (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxTextureArrayLayers (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxBindGroups (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxBindGroupsPlusVertexBuffers (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxBindingsPerBindGroup (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxDynamicUniformBuffersPerPipelineLayout (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxDynamicStorageBuffersPerPipelineLayout (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxSampledTexturesPerShaderStage (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxSamplersPerShaderStage (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxStorageBuffersPerShaderStage (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxStorageTexturesPerShaderStage (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxUniformBuffersPerShaderStage (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxUniformBufferBindingSize (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxStorageBufferBindingSize (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MinUniformBufferOffsetAlignment (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MinStorageBufferOffsetAlignment (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxVertexBuffers (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxBufferSize (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxVertexAttributes (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxVertexBufferArrayStride (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxInterStageShaderVariables (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxColorAttachments (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxColorAttachmentBytesPerSample (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupStorageSize (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxComputeInvocationsPerWorkgroup (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupSizeX (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupSizeY (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupSizeZ (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxComputeWorkgroupsPerDimension (0.00s)
+        --- PASS: TestABIStructFieldOffsets/limitsWire/MaxImmediateSize (0.00s)
+    --- PASS: TestABIStructFieldOffsets/instanceDescriptorWire (0.00s)
+        --- PASS: TestABIStructFieldOffsets/instanceDescriptorWire/NextInChain (0.00s)
+        --- PASS: TestABIStructFieldOffsets/instanceDescriptorWire/RequiredFeatureCount (0.00s)
+        --- PASS: TestABIStructFieldOffsets/instanceDescriptorWire/RequiredFeatures (0.00s)
+        --- PASS: TestABIStructFieldOffsets/instanceDescriptorWire/RequiredLimits (0.00s)
+    --- PASS: TestABIStructFieldOffsets/requestAdapterOptionsWire (0.00s)
+        --- PASS: TestABIStructFieldOffsets/requestAdapterOptionsWire/NextInChain (0.00s)
+        --- PASS: TestABIStructFieldOffsets/requestAdapterOptionsWire/FeatureLevel (0.00s)
+        --- PASS: TestABIStructFieldOffsets/requestAdapterOptionsWire/PowerPreference (0.00s)
+        --- PASS: TestABIStructFieldOffsets/requestAdapterOptionsWire/ForceFallbackAdapter (0.00s)
+        --- PASS: TestABIStructFieldOffsets/requestAdapterOptionsWire/BackendType (0.00s)
+        --- PASS: TestABIStructFieldOffsets/requestAdapterOptionsWire/CompatibleSurface (0.00s)
+    --- PASS: TestABIStructFieldOffsets/AdapterInfo (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/NextInChain (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/Vendor (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/Architecture (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/Device (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/Description (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/BackendType (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/AdapterType (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/VendorID (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/DeviceID (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/SubgroupMinSize (0.00s)
+        --- PASS: TestABIStructFieldOffsets/AdapterInfo/SubgroupMaxSize (0.00s)
+    --- PASS: TestABIStructFieldOffsets/bufferDescriptorWire (0.00s)
+        --- PASS: TestABIStructFieldOffsets/bufferDescriptorWire/NextInChain (0.00s)
+        --- PASS: TestABIStructFieldOffsets/bufferDescriptorWire/Label (0.00s)
+        --- PASS: TestABIStructFieldOffsets/bufferDescriptorWire/Usage (0.00s)
+        --- PASS: TestABIStructFieldOffsets/bufferDescriptorWire/Size (0.00s)
+        --- PASS: TestABIStructFieldOffsets/bufferDescriptorWire/MappedAtCreation (0.00s)
+    --- PASS: TestABIStructFieldOffsets/passTimestampWrites_wire (0.00s)
+        --- PASS: TestABIStructFieldOffsets/passTimestampWrites_wire/nextInChain (0.00s)
+        --- PASS: TestABIStructFieldOffsets/passTimestampWrites_wire/querySet (0.00s)
+        --- PASS: TestABIStructFieldOffsets/passTimestampWrites_wire/beginningOfPassWriteIndex (0.00s)
+        --- PASS: TestABIStructFieldOffsets/passTimestampWrites_wire/endOfPassWriteIndex (0.00s)
+    --- PASS: TestABIStructFieldOffsets/renderPassColorAttachment_wire (0.00s)
+        --- PASS: TestABIStructFieldOffsets/renderPassColorAttachment_wire/nextInChain (0.00s)
+        --- PASS: TestABIStructFieldOffsets/renderPassColorAttachment_wire/view (0.00s)
+        --- PASS: TestABIStructFieldOffsets/renderPassColorAttachment_wire/depthSlice (0.00s)
+        --- PASS: TestABIStructFieldOffsets/renderPassColorAttachment_wire/resolveTarget (0.00s)
+        --- PASS: TestABIStructFieldOffsets/renderPassColorAttachment_wire/loadOp (0.00s)
+        --- PASS: TestABIStructFieldOffsets/renderPassColorAttachment_wire/storeOp (0.00s)
+        --- PASS: TestABIStructFieldOffsets/renderPassColorAttachment_wire/clearValue (0.00s)
+=== RUN   TestABIEnumValues
+=== RUN   TestABIEnumValues/FeatureLevel
+=== RUN   TestABIEnumValues/FeatureLevel/Undefined
+=== RUN   TestABIEnumValues/FeatureLevel/Compatibility
+=== RUN   TestABIEnumValues/FeatureLevel/Core
+=== RUN   TestABIEnumValues/FeatureName
+=== RUN   TestABIEnumValues/FeatureName/CoreFeaturesAndLimits
+=== RUN   TestABIEnumValues/FeatureName/DepthClipControl
+=== RUN   TestABIEnumValues/FeatureName/Depth32FloatStencil8
+=== RUN   TestABIEnumValues/FeatureName/TextureCompressionBC
+=== RUN   TestABIEnumValues/FeatureName/TextureCompressionBCSliced3D
+=== RUN   TestABIEnumValues/FeatureName/TextureCompressionETC2
+=== RUN   TestABIEnumValues/FeatureName/TextureCompressionASTC
+=== RUN   TestABIEnumValues/FeatureName/TextureCompressionASTCSliced3D
+=== RUN   TestABIEnumValues/FeatureName/TimestampQuery
+=== RUN   TestABIEnumValues/FeatureName/IndirectFirstInstance
+=== RUN   TestABIEnumValues/FeatureName/ShaderF16
+=== RUN   TestABIEnumValues/FeatureName/RG11B10UfloatRenderable
+=== RUN   TestABIEnumValues/FeatureName/BGRA8UnormStorage
+=== RUN   TestABIEnumValues/FeatureName/Float32Filterable
+=== RUN   TestABIEnumValues/FeatureName/Float32Blendable
+=== RUN   TestABIEnumValues/FeatureName/ClipDistances
+=== RUN   TestABIEnumValues/FeatureName/DualSourceBlending
+=== RUN   TestABIEnumValues/FeatureName/Subgroups
+=== RUN   TestABIEnumValues/FeatureName/TextureFormatsTier1
+=== RUN   TestABIEnumValues/FeatureName/TextureFormatsTier2
+=== RUN   TestABIEnumValues/FeatureName/PrimitiveIndex
+=== RUN   TestABIEnumValues/FeatureName/TextureComponentSwizzle
+=== RUN   TestABIEnumValues/BackendType
+=== RUN   TestABIEnumValues/BackendType/Undefined
+=== RUN   TestABIEnumValues/BackendType/Null
+=== RUN   TestABIEnumValues/BackendType/WebGPU
+=== RUN   TestABIEnumValues/BackendType/D3D11
+=== RUN   TestABIEnumValues/BackendType/D3D12
+=== RUN   TestABIEnumValues/BackendType/Metal
+=== RUN   TestABIEnumValues/BackendType/Vulkan
+=== RUN   TestABIEnumValues/BackendType/OpenGL
+=== RUN   TestABIEnumValues/BackendType/OpenGLES
+=== RUN   TestABIEnumValues/AdapterType
+=== RUN   TestABIEnumValues/AdapterType/DiscreteGPU
+=== RUN   TestABIEnumValues/AdapterType/IntegratedGPU
+=== RUN   TestABIEnumValues/AdapterType/CPU
+=== RUN   TestABIEnumValues/AdapterType/Unknown
+=== RUN   TestABIEnumValues/SurfaceGetCurrentTextureStatus
+=== RUN   TestABIEnumValues/SurfaceGetCurrentTextureStatus/SuccessOptimal
+=== RUN   TestABIEnumValues/SurfaceGetCurrentTextureStatus/SuccessSuboptimal
+=== RUN   TestABIEnumValues/SurfaceGetCurrentTextureStatus/Timeout
+=== RUN   TestABIEnumValues/SurfaceGetCurrentTextureStatus/Outdated
+=== RUN   TestABIEnumValues/SurfaceGetCurrentTextureStatus/Lost
+=== RUN   TestABIEnumValues/SurfaceGetCurrentTextureStatus/Error
+=== RUN   TestABIEnumValues/SurfaceGetCurrentTextureStatus/Occluded_(native)
+=== RUN   TestABIEnumValues/RequestAdapterStatus
+=== RUN   TestABIEnumValues/RequestAdapterStatus/Success
+=== RUN   TestABIEnumValues/RequestAdapterStatus/CallbackCancelled
+=== RUN   TestABIEnumValues/RequestAdapterStatus/Unavailable
+=== RUN   TestABIEnumValues/RequestAdapterStatus/Error
+=== RUN   TestABIEnumValues/RequestDeviceStatus
+=== RUN   TestABIEnumValues/RequestDeviceStatus/Success
+=== RUN   TestABIEnumValues/RequestDeviceStatus/CallbackCancelled
+=== RUN   TestABIEnumValues/RequestDeviceStatus/Error
+=== RUN   TestABIEnumValues/BufferMapState
+=== RUN   TestABIEnumValues/BufferMapState/Unmapped
+=== RUN   TestABIEnumValues/BufferMapState/Pending
+=== RUN   TestABIEnumValues/BufferMapState/Mapped
+=== RUN   TestABIEnumValues/WGPUStatus
+=== RUN   TestABIEnumValues/WGPUStatus/Success
+=== RUN   TestABIEnumValues/WGPUStatus/Error
+=== RUN   TestABIEnumValues/SType_standard
+=== RUN   TestABIEnumValues/SType_standard/ShaderSourceSPIRV
+=== RUN   TestABIEnumValues/SType_standard/ShaderSourceWGSL
+=== RUN   TestABIEnumValues/SType_standard/RenderPassMaxDrawCount
+=== RUN   TestABIEnumValues/SType_standard/SurfaceSourceMetalLayer
+=== RUN   TestABIEnumValues/SType_standard/SurfaceSourceWindowsHWND
+=== RUN   TestABIEnumValues/SType_standard/SurfaceSourceXlibWindow
+=== RUN   TestABIEnumValues/SType_standard/SurfaceSourceWaylandSurface
+=== RUN   TestABIEnumValues/SType_standard/SurfaceSourceAndroidNativeWindow
+=== RUN   TestABIEnumValues/SType_standard/SurfaceSourceXCBWindow
+=== RUN   TestABIEnumValues/SType_standard/SurfaceColorManagement
+=== RUN   TestABIEnumValues/SType_native
+=== RUN   TestABIEnumValues/SType_native/DeviceExtras
+=== RUN   TestABIEnumValues/SType_native/NativeLimits
+=== RUN   TestABIEnumValues/SType_native/ShaderSourceGLSL
+=== RUN   TestABIEnumValues/SType_native/InstanceExtras
+=== RUN   TestABIEnumValues/SType_native/BindGroupEntryExtras
+=== RUN   TestABIEnumValues/SType_native/BindGroupLayoutEntryExtras
+=== RUN   TestABIEnumValues/SType_native/QuerySetDescriptorExtras
+=== RUN   TestABIEnumValues/SType_native/SamplerDescriptorExtras
+=== RUN   TestABIEnumValues/NativeFeature
+=== RUN   TestABIEnumValues/NativeFeature/Immediates
+=== RUN   TestABIEnumValues/NativeFeature/TextureAdapterSpecificFormatFeatures
+=== RUN   TestABIEnumValues/NativeFeature/MultiDrawIndirectCount
+=== RUN   TestABIEnumValues/NativeFeature/VertexWritableStorage
+=== RUN   TestABIEnumValues/NativeFeature/TextureBindingArray
+=== RUN   TestABIEnumValues/InstanceBackend_bitflags
+=== RUN   TestABIEnumValues/InstanceBackend_bitflags/All_(zero)
+=== RUN   TestABIEnumValues/InstanceBackend_bitflags/Vulkan
+=== RUN   TestABIEnumValues/InstanceBackend_bitflags/GL
+=== RUN   TestABIEnumValues/InstanceBackend_bitflags/Metal
+=== RUN   TestABIEnumValues/InstanceBackend_bitflags/DX12
+=== RUN   TestABIEnumValues/InstanceBackend_bitflags/BrowserWebGPU
+=== RUN   TestABIEnumValues/InstanceBackend_bitflags/Secondary_(GL_only)
+=== RUN   TestABIEnumValues/InstanceBackend_bitflags/Primary
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/Empty_(zero)
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/Debug
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/Validation
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/DiscardHalLabels
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/AllowUnderlyingNoncompliantAdapter
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/GPUBasedValidation
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/ValidationIndirectCall
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/AutomaticTimestampNormalization
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/Default
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/Debugging
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/AdvancedDebugging
+=== RUN   TestABIEnumValues/InstanceFlag_bitflags/WithEnv
+--- PASS: TestABIEnumValues (0.00s)
+    --- PASS: TestABIEnumValues/FeatureLevel (0.00s)
+        --- PASS: TestABIEnumValues/FeatureLevel/Undefined (0.00s)
+        --- PASS: TestABIEnumValues/FeatureLevel/Compatibility (0.00s)
+        --- PASS: TestABIEnumValues/FeatureLevel/Core (0.00s)
+    --- PASS: TestABIEnumValues/FeatureName (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/CoreFeaturesAndLimits (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/DepthClipControl (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/Depth32FloatStencil8 (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/TextureCompressionBC (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/TextureCompressionBCSliced3D (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/TextureCompressionETC2 (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/TextureCompressionASTC (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/TextureCompressionASTCSliced3D (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/TimestampQuery (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/IndirectFirstInstance (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/ShaderF16 (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/RG11B10UfloatRenderable (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/BGRA8UnormStorage (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/Float32Filterable (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/Float32Blendable (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/ClipDistances (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/DualSourceBlending (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/Subgroups (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/TextureFormatsTier1 (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/TextureFormatsTier2 (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/PrimitiveIndex (0.00s)
+        --- PASS: TestABIEnumValues/FeatureName/TextureComponentSwizzle (0.00s)
+    --- PASS: TestABIEnumValues/BackendType (0.00s)
+        --- PASS: TestABIEnumValues/BackendType/Undefined (0.00s)
+        --- PASS: TestABIEnumValues/BackendType/Null (0.00s)
+        --- PASS: TestABIEnumValues/BackendType/WebGPU (0.00s)
+        --- PASS: TestABIEnumValues/BackendType/D3D11 (0.00s)
+        --- PASS: TestABIEnumValues/BackendType/D3D12 (0.00s)
+        --- PASS: TestABIEnumValues/BackendType/Metal (0.00s)
+        --- PASS: TestABIEnumValues/BackendType/Vulkan (0.00s)
+        --- PASS: TestABIEnumValues/BackendType/OpenGL (0.00s)
+        --- PASS: TestABIEnumValues/BackendType/OpenGLES (0.00s)
+    --- PASS: TestABIEnumValues/AdapterType (0.00s)
+        --- PASS: TestABIEnumValues/AdapterType/DiscreteGPU (0.00s)
+        --- PASS: TestABIEnumValues/AdapterType/IntegratedGPU (0.00s)
+        --- PASS: TestABIEnumValues/AdapterType/CPU (0.00s)
+        --- PASS: TestABIEnumValues/AdapterType/Unknown (0.00s)
+    --- PASS: TestABIEnumValues/SurfaceGetCurrentTextureStatus (0.00s)
+        --- PASS: TestABIEnumValues/SurfaceGetCurrentTextureStatus/SuccessOptimal (0.00s)
+        --- PASS: TestABIEnumValues/SurfaceGetCurrentTextureStatus/SuccessSuboptimal (0.00s)
+        --- PASS: TestABIEnumValues/SurfaceGetCurrentTextureStatus/Timeout (0.00s)
+        --- PASS: TestABIEnumValues/SurfaceGetCurrentTextureStatus/Outdated (0.00s)
+        --- PASS: TestABIEnumValues/SurfaceGetCurrentTextureStatus/Lost (0.00s)
+        --- PASS: TestABIEnumValues/SurfaceGetCurrentTextureStatus/Error (0.00s)
+        --- PASS: TestABIEnumValues/SurfaceGetCurrentTextureStatus/Occluded_(native) (0.00s)
+    --- PASS: TestABIEnumValues/RequestAdapterStatus (0.00s)
+        --- PASS: TestABIEnumValues/RequestAdapterStatus/Success (0.00s)
+        --- PASS: TestABIEnumValues/RequestAdapterStatus/CallbackCancelled (0.00s)
+        --- PASS: TestABIEnumValues/RequestAdapterStatus/Unavailable (0.00s)
+        --- PASS: TestABIEnumValues/RequestAdapterStatus/Error (0.00s)
+    --- PASS: TestABIEnumValues/RequestDeviceStatus (0.00s)
+        --- PASS: TestABIEnumValues/RequestDeviceStatus/Success (0.00s)
+        --- PASS: TestABIEnumValues/RequestDeviceStatus/CallbackCancelled (0.00s)
+        --- PASS: TestABIEnumValues/RequestDeviceStatus/Error (0.00s)
+    --- PASS: TestABIEnumValues/BufferMapState (0.00s)
+        --- PASS: TestABIEnumValues/BufferMapState/Unmapped (0.00s)
+        --- PASS: TestABIEnumValues/BufferMapState/Pending (0.00s)
+        --- PASS: TestABIEnumValues/BufferMapState/Mapped (0.00s)
+    --- PASS: TestABIEnumValues/WGPUStatus (0.00s)
+        --- PASS: TestABIEnumValues/WGPUStatus/Success (0.00s)
+        --- PASS: TestABIEnumValues/WGPUStatus/Error (0.00s)
+    --- PASS: TestABIEnumValues/SType_standard (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/ShaderSourceSPIRV (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/ShaderSourceWGSL (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/RenderPassMaxDrawCount (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/SurfaceSourceMetalLayer (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/SurfaceSourceWindowsHWND (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/SurfaceSourceXlibWindow (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/SurfaceSourceWaylandSurface (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/SurfaceSourceAndroidNativeWindow (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/SurfaceSourceXCBWindow (0.00s)
+        --- PASS: TestABIEnumValues/SType_standard/SurfaceColorManagement (0.00s)
+    --- PASS: TestABIEnumValues/SType_native (0.00s)
+        --- PASS: TestABIEnumValues/SType_native/DeviceExtras (0.00s)
+        --- PASS: TestABIEnumValues/SType_native/NativeLimits (0.00s)
+        --- PASS: TestABIEnumValues/SType_native/ShaderSourceGLSL (0.00s)
+        --- PASS: TestABIEnumValues/SType_native/InstanceExtras (0.00s)
+        --- PASS: TestABIEnumValues/SType_native/BindGroupEntryExtras (0.00s)
+        --- PASS: TestABIEnumValues/SType_native/BindGroupLayoutEntryExtras (0.00s)
+        --- PASS: TestABIEnumValues/SType_native/QuerySetDescriptorExtras (0.00s)
+        --- PASS: TestABIEnumValues/SType_native/SamplerDescriptorExtras (0.00s)
+    --- PASS: TestABIEnumValues/NativeFeature (0.00s)
+        --- PASS: TestABIEnumValues/NativeFeature/Immediates (0.00s)
+        --- PASS: TestABIEnumValues/NativeFeature/TextureAdapterSpecificFormatFeatures (0.00s)
+        --- PASS: TestABIEnumValues/NativeFeature/MultiDrawIndirectCount (0.00s)
+        --- PASS: TestABIEnumValues/NativeFeature/VertexWritableStorage (0.00s)
+        --- PASS: TestABIEnumValues/NativeFeature/TextureBindingArray (0.00s)
+    --- PASS: TestABIEnumValues/InstanceBackend_bitflags (0.00s)
+        --- PASS: TestABIEnumValues/InstanceBackend_bitflags/All_(zero) (0.00s)
+        --- PASS: TestABIEnumValues/InstanceBackend_bitflags/Vulkan (0.00s)
+        --- PASS: TestABIEnumValues/InstanceBackend_bitflags/GL (0.00s)
+        --- PASS: TestABIEnumValues/InstanceBackend_bitflags/Metal (0.00s)
+        --- PASS: TestABIEnumValues/InstanceBackend_bitflags/DX12 (0.00s)
+        --- PASS: TestABIEnumValues/InstanceBackend_bitflags/BrowserWebGPU (0.00s)
+        --- PASS: TestABIEnumValues/InstanceBackend_bitflags/Secondary_(GL_only) (0.00s)
+        --- PASS: TestABIEnumValues/InstanceBackend_bitflags/Primary (0.00s)
+    --- PASS: TestABIEnumValues/InstanceFlag_bitflags (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/Empty_(zero) (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/Debug (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/Validation (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/DiscardHalLabels (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/AllowUnderlyingNoncompliantAdapter (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/GPUBasedValidation (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/ValidationIndirectCall (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/AutomaticTimestampNormalization (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/Default (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/Debugging (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/AdvancedDebugging (0.00s)
+        --- PASS: TestABIEnumValues/InstanceFlag_bitflags/WithEnv (0.00s)
+=== RUN   TestABIGputypesEnumAlignment
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/Undefined
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/R8Unorm
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/R8Snorm
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/R8Uint
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/R8Sint
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/BGRA8Unorm
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/BGRA8UnormSrgb
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/Depth16Unorm
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/Depth24Plus
+=== RUN   TestABIGputypesEnumAlignment/TextureFormat_common/Depth32Float
+=== RUN   TestABIGputypesEnumAlignment/TextureUsage_bitflags
+=== RUN   TestABIGputypesEnumAlignment/TextureUsage_bitflags/None
+=== RUN   TestABIGputypesEnumAlignment/TextureUsage_bitflags/CopySrc
+=== RUN   TestABIGputypesEnumAlignment/TextureUsage_bitflags/CopyDst
+=== RUN   TestABIGputypesEnumAlignment/TextureUsage_bitflags/TextureBinding
+=== RUN   TestABIGputypesEnumAlignment/TextureUsage_bitflags/StorageBinding
+=== RUN   TestABIGputypesEnumAlignment/TextureUsage_bitflags/RenderAttachment
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/None
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/MapRead
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/MapWrite
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/CopySrc
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/CopyDst
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/Index
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/Vertex
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/Uniform
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/Storage
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/Indirect
+=== RUN   TestABIGputypesEnumAlignment/BufferUsage_bitflags/QueryResolve
+=== RUN   TestABIGputypesEnumAlignment/ShaderStage_bitflags
+=== RUN   TestABIGputypesEnumAlignment/ShaderStage_bitflags/None
+=== RUN   TestABIGputypesEnumAlignment/ShaderStage_bitflags/Vertex
+=== RUN   TestABIGputypesEnumAlignment/ShaderStage_bitflags/Fragment
+=== RUN   TestABIGputypesEnumAlignment/ShaderStage_bitflags/Compute
+--- PASS: TestABIGputypesEnumAlignment (0.00s)
+    --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/Undefined (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/R8Unorm (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/R8Snorm (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/R8Uint (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/R8Sint (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/BGRA8Unorm (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/BGRA8UnormSrgb (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/Depth16Unorm (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/Depth24Plus (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureFormat_common/Depth32Float (0.00s)
+    --- PASS: TestABIGputypesEnumAlignment/TextureUsage_bitflags (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureUsage_bitflags/None (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureUsage_bitflags/CopySrc (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureUsage_bitflags/CopyDst (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureUsage_bitflags/TextureBinding (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureUsage_bitflags/StorageBinding (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/TextureUsage_bitflags/RenderAttachment (0.00s)
+    --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/None (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/MapRead (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/MapWrite (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/CopySrc (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/CopyDst (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/Index (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/Vertex (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/Uniform (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/Storage (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/Indirect (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/BufferUsage_bitflags/QueryResolve (0.00s)
+    --- PASS: TestABIGputypesEnumAlignment/ShaderStage_bitflags (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/ShaderStage_bitflags/None (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/ShaderStage_bitflags/Vertex (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/ShaderStage_bitflags/Fragment (0.00s)
+        --- PASS: TestABIGputypesEnumAlignment/ShaderStage_bitflags/Compute (0.00s)
+=== RUN   TestABIEnumConversions
+=== RUN   TestABIEnumConversions/PrimitiveTopology
+=== RUN   TestABIEnumConversions/PrimitiveTopology/TriangleList
+=== RUN   TestABIEnumConversions/PrimitiveTopology/PointList
+=== RUN   TestABIEnumConversions/PrimitiveTopology/LineList
+=== RUN   TestABIEnumConversions/PrimitiveTopology/LineStrip
+=== RUN   TestABIEnumConversions/PrimitiveTopology/TriangleStrip
+=== RUN   TestABIEnumConversions/PrimitiveTopology/Unknown
+=== RUN   TestABIEnumConversions/FrontFace
+=== RUN   TestABIEnumConversions/FrontFace/CCW
+=== RUN   TestABIEnumConversions/FrontFace/CW
+=== RUN   TestABIEnumConversions/FrontFace/Unknown
+=== RUN   TestABIEnumConversions/CullMode
+=== RUN   TestABIEnumConversions/CullMode/None
+=== RUN   TestABIEnumConversions/CullMode/Front
+=== RUN   TestABIEnumConversions/CullMode/Back
+=== RUN   TestABIEnumConversions/CullMode/Unknown
+--- PASS: TestABIEnumConversions (0.00s)
+    --- PASS: TestABIEnumConversions/PrimitiveTopology (0.00s)
+        --- PASS: TestABIEnumConversions/PrimitiveTopology/TriangleList (0.00s)
+        --- PASS: TestABIEnumConversions/PrimitiveTopology/PointList (0.00s)
+        --- PASS: TestABIEnumConversions/PrimitiveTopology/LineList (0.00s)
+        --- PASS: TestABIEnumConversions/PrimitiveTopology/LineStrip (0.00s)
+        --- PASS: TestABIEnumConversions/PrimitiveTopology/TriangleStrip (0.00s)
+        --- PASS: TestABIEnumConversions/PrimitiveTopology/Unknown (0.00s)
+    --- PASS: TestABIEnumConversions/FrontFace (0.00s)
+        --- PASS: TestABIEnumConversions/FrontFace/CCW (0.00s)
+        --- PASS: TestABIEnumConversions/FrontFace/CW (0.00s)
+        --- PASS: TestABIEnumConversions/FrontFace/Unknown (0.00s)
+    --- PASS: TestABIEnumConversions/CullMode (0.00s)
+        --- PASS: TestABIEnumConversions/CullMode/None (0.00s)
+        --- PASS: TestABIEnumConversions/CullMode/Front (0.00s)
+        --- PASS: TestABIEnumConversions/CullMode/Back (0.00s)
+        --- PASS: TestABIEnumConversions/CullMode/Unknown (0.00s)
+=== RUN   TestABIWireStructAlignment
+=== RUN   TestABIWireStructAlignment/primitiveState
+=== RUN   TestABIWireStructAlignment/primitiveState/nextInChain
+=== RUN   TestABIWireStructAlignment/primitiveState/topology
+=== RUN   TestABIWireStructAlignment/primitiveState/stripIndexFormat
+=== RUN   TestABIWireStructAlignment/primitiveState/frontFace
+=== RUN   TestABIWireStructAlignment/primitiveState/cullMode
+=== RUN   TestABIWireStructAlignment/primitiveState/unclippedDepth
+=== RUN   TestABIWireStructAlignment/vertexBufferLayoutWire
+=== RUN   TestABIWireStructAlignment/vertexBufferLayoutWire/NextInChain
+=== RUN   TestABIWireStructAlignment/vertexBufferLayoutWire/StepMode
+=== RUN   TestABIWireStructAlignment/vertexBufferLayoutWire/ArrayStride
+=== RUN   TestABIWireStructAlignment/vertexBufferLayoutWire/AttributeCount
+=== RUN   TestABIWireStructAlignment/vertexBufferLayoutWire/Attributes
+=== RUN   TestABIWireStructAlignment/vertexAttributeWire
+=== RUN   TestABIWireStructAlignment/bindGroupLayoutEntryWire
+=== RUN   TestABIWireStructAlignment/colorTargetStateWire
+=== RUN   TestABIWireStructAlignment/colorTargetStateWire/nextInChain
+=== RUN   TestABIWireStructAlignment/colorTargetStateWire/format
+=== RUN   TestABIWireStructAlignment/colorTargetStateWire/blend
+=== RUN   TestABIWireStructAlignment/colorTargetStateWire/writeMask
+=== RUN   TestABIWireStructAlignment/bindGroupLayoutEntryWire_visibility_uint64
+--- PASS: TestABIWireStructAlignment (0.00s)
+    --- PASS: TestABIWireStructAlignment/primitiveState (0.00s)
+        --- PASS: TestABIWireStructAlignment/primitiveState/nextInChain (0.00s)
+        --- PASS: TestABIWireStructAlignment/primitiveState/topology (0.00s)
+        --- PASS: TestABIWireStructAlignment/primitiveState/stripIndexFormat (0.00s)
+        --- PASS: TestABIWireStructAlignment/primitiveState/frontFace (0.00s)
+        --- PASS: TestABIWireStructAlignment/primitiveState/cullMode (0.00s)
+        --- PASS: TestABIWireStructAlignment/primitiveState/unclippedDepth (0.00s)
+    --- PASS: TestABIWireStructAlignment/vertexBufferLayoutWire (0.00s)
+        --- PASS: TestABIWireStructAlignment/vertexBufferLayoutWire/NextInChain (0.00s)
+        --- PASS: TestABIWireStructAlignment/vertexBufferLayoutWire/StepMode (0.00s)
+        --- PASS: TestABIWireStructAlignment/vertexBufferLayoutWire/ArrayStride (0.00s)
+        --- PASS: TestABIWireStructAlignment/vertexBufferLayoutWire/AttributeCount (0.00s)
+        --- PASS: TestABIWireStructAlignment/vertexBufferLayoutWire/Attributes (0.00s)
+    --- PASS: TestABIWireStructAlignment/vertexAttributeWire (0.00s)
+    --- PASS: TestABIWireStructAlignment/bindGroupLayoutEntryWire (0.00s)
+    --- PASS: TestABIWireStructAlignment/colorTargetStateWire (0.00s)
+        --- PASS: TestABIWireStructAlignment/colorTargetStateWire/nextInChain (0.00s)
+        --- PASS: TestABIWireStructAlignment/colorTargetStateWire/format (0.00s)
+        --- PASS: TestABIWireStructAlignment/colorTargetStateWire/blend (0.00s)
+        --- PASS: TestABIWireStructAlignment/colorTargetStateWire/writeMask (0.00s)
+    --- PASS: TestABIWireStructAlignment/bindGroupLayoutEntryWire_visibility_uint64 (0.00s)
+PASS

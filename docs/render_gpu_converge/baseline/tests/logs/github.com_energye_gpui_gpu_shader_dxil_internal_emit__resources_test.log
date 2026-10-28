@@ -1,0 +1,93 @@
+=== RUN   TestCBVStructTypeMat4x4
+--- PASS: TestCBVStructTypeMat4x4 (0.00s)
+=== RUN   TestCBVStructTypeStructWithMatAndVec
+--- PASS: TestCBVStructTypeStructWithMatAndVec (0.00s)
+=== RUN   TestCBVStructTypeMatAndVecU32
+--- PASS: TestCBVStructTypeMatAndVecU32 (0.00s)
+=== RUN   TestCBVStructTypeAllScalars
+--- PASS: TestCBVStructTypeAllScalars (0.00s)
+=== RUN   TestCBVStructTypeMat4x3
+--- PASS: TestCBVStructTypeMat4x3 (0.00s)
+=== RUN   TestCBVStructTypeThreeMatrices
+--- PASS: TestCBVStructTypeThreeMatrices (0.00s)
+=== RUN   TestAnalyzeResourcesBindingMapSingleSRV
+--- PASS: TestAnalyzeResourcesBindingMapSingleSRV (0.00s)
+=== RUN   TestAnalyzeResourcesBindingMapMultiClass
+--- PASS: TestAnalyzeResourcesBindingMapMultiClass (0.00s)
+=== RUN   TestClassifyStorageBufferAccessMode
+--- PASS: TestClassifyStorageBufferAccessMode (0.00s)
+=== RUN   TestAnalyzeResourcesBindingMapNilBackwardCompat
+--- PASS: TestAnalyzeResourcesBindingMapNilBackwardCompat (0.00s)
+=== RUN   TestAnalyzeResourcesBindingMapPartialMiss
+--- PASS: TestAnalyzeResourcesBindingMapPartialMiss (0.00s)
+=== RUN   TestEmitBindingMapEndToEndCreateHandleIndex
+--- PASS: TestEmitBindingMapEndToEndCreateHandleIndex (0.00s)
+=== RUN   TestUAVStoreStructElemFlattenedComponentCount
+=== RUN   TestUAVStoreStructElemFlattenedComponentCount/scalar_f32
+=== RUN   TestUAVStoreStructElemFlattenedComponentCount/vec2<f32>
+=== RUN   TestUAVStoreStructElemFlattenedComponentCount/Particle_struct_{vec2,vec2}
+=== RUN   TestUAVStoreStructElemFlattenedComponentCount/mixed_struct_{f32,vec2,f32}
+--- PASS: TestUAVStoreStructElemFlattenedComponentCount (0.00s)
+    --- PASS: TestUAVStoreStructElemFlattenedComponentCount/scalar_f32 (0.00s)
+    --- PASS: TestUAVStoreStructElemFlattenedComponentCount/vec2<f32> (0.00s)
+    --- PASS: TestUAVStoreStructElemFlattenedComponentCount/Particle_struct_{vec2,vec2} (0.00s)
+    --- PASS: TestUAVStoreStructElemFlattenedComponentCount/mixed_struct_{f32,vec2,f32} (0.00s)
+=== RUN   TestGetResourceComponentType
+=== RUN   TestGetResourceComponentType/sampled_f32_→_F32
+=== RUN   TestGetResourceComponentType/sampled_u32_→_U32
+=== RUN   TestGetResourceComponentType/sampled_i32_→_I32
+=== RUN   TestGetResourceComponentType/depth_cube_array_→_F32_regardless_of_zero_SampledKind
+=== RUN   TestGetResourceComponentType/depth_2D_→_F32_regardless_of_zero_SampledKind
+=== RUN   TestGetResourceComponentType/storage_2D_→_F32_default_(storage_comp_type_goes_elsewhere)
+--- PASS: TestGetResourceComponentType (0.00s)
+    --- PASS: TestGetResourceComponentType/sampled_f32_→_F32 (0.00s)
+    --- PASS: TestGetResourceComponentType/sampled_u32_→_U32 (0.00s)
+    --- PASS: TestGetResourceComponentType/sampled_i32_→_I32 (0.00s)
+    --- PASS: TestGetResourceComponentType/depth_cube_array_→_F32_regardless_of_zero_SampledKind (0.00s)
+    --- PASS: TestGetResourceComponentType/depth_2D_→_F32_regardless_of_zero_SampledKind (0.00s)
+    --- PASS: TestGetResourceComponentType/storage_2D_→_F32_default_(storage_comp_type_goes_elsewhere) (0.00s)
+=== RUN   TestSamplerHeapBothKinds
+--- PASS: TestSamplerHeapBothKinds (0.00s)
+=== RUN   TestSamplerHeapDisabledByBindingArray
+--- PASS: TestSamplerHeapDisabledByBindingArray (0.00s)
+=== RUN   TestClassifyDxOpAttrReadOnly
+--- PASS: TestClassifyDxOpAttrReadOnly (0.00s)
+=== RUN   TestClassifyDxOpAttrReadNone
+--- PASS: TestClassifyDxOpAttrReadNone (0.00s)
+=== RUN   TestClassifyDxOpAttrNounwind
+--- PASS: TestClassifyDxOpAttrNounwind (0.00s)
+=== RUN   TestSamplerIndexBufferInsertionOrder
+--- PASS: TestSamplerIndexBufferInsertionOrder (0.00s)
+=== RUN   TestTryResolveConstInt
+=== RUN   TestTryResolveConstInt/direct_i32_literal
+=== RUN   TestTryResolveConstInt/direct_u32_literal
+=== RUN   TestTryResolveConstInt/alias_chain_to_i32
+=== RUN   TestTryResolveConstInt/non-constant_expression
+=== RUN   TestTryResolveConstInt/float_literal
+=== RUN   TestTryResolveConstInt/out_of_range_handle
+--- PASS: TestTryResolveConstInt (0.00s)
+    --- PASS: TestTryResolveConstInt/direct_i32_literal (0.00s)
+    --- PASS: TestTryResolveConstInt/direct_u32_literal (0.00s)
+    --- PASS: TestTryResolveConstInt/alias_chain_to_i32 (0.00s)
+    --- PASS: TestTryResolveConstInt/non-constant_expression (0.00s)
+    --- PASS: TestTryResolveConstInt/float_literal (0.00s)
+    --- PASS: TestTryResolveConstInt/out_of_range_handle (0.00s)
+=== RUN   TestBuildHandleEmitOrder
+=== RUN   TestBuildHandleEmitOrder/single_class_UAV_descending
+=== RUN   TestBuildHandleEmitOrder/mixed_UAV_SRV_CBV_boids_pattern
+=== RUN   TestBuildHandleEmitOrder/interleaved_UAV_CBV
+=== RUN   TestBuildHandleEmitOrder/SRV_CBV_Sampler_shadow_pattern
+=== RUN   TestBuildHandleEmitOrder/skip_binding_arrays_and_virtual
+=== RUN   TestBuildHandleEmitOrder/empty
+=== RUN   TestBuildHandleEmitOrder/all_four_classes
+--- PASS: TestBuildHandleEmitOrder (0.00s)
+    --- PASS: TestBuildHandleEmitOrder/single_class_UAV_descending (0.00s)
+    --- PASS: TestBuildHandleEmitOrder/mixed_UAV_SRV_CBV_boids_pattern (0.00s)
+    --- PASS: TestBuildHandleEmitOrder/interleaved_UAV_CBV (0.00s)
+    --- PASS: TestBuildHandleEmitOrder/SRV_CBV_Sampler_shadow_pattern (0.00s)
+    --- PASS: TestBuildHandleEmitOrder/skip_binding_arrays_and_virtual (0.00s)
+    --- PASS: TestBuildHandleEmitOrder/empty (0.00s)
+    --- PASS: TestBuildHandleEmitOrder/all_four_classes (0.00s)
+=== RUN   TestCreateHandleLegacyName
+--- PASS: TestCreateHandleLegacyName (0.00s)
+PASS

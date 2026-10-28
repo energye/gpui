@@ -1,0 +1,29 @@
+=== RUN   TestNewDropShadowFilter
+--- PASS: TestNewDropShadowFilter (0.00s)
+=== RUN   TestNewSimpleDropShadow
+--- PASS: TestNewSimpleDropShadow (0.00s)
+=== RUN   TestDropShadowExpandBounds
+=== RUN   TestDropShadowExpandBounds/positive_offset
+=== RUN   TestDropShadowExpandBounds/negative_offset
+=== RUN   TestDropShadowExpandBounds/no_blur
+--- PASS: TestDropShadowExpandBounds (0.00s)
+    --- PASS: TestDropShadowExpandBounds/positive_offset (0.00s)
+    --- PASS: TestDropShadowExpandBounds/negative_offset (0.00s)
+    --- PASS: TestDropShadowExpandBounds/no_blur (0.00s)
+=== RUN   TestDropShadowApplyNilPixmaps
+--- PASS: TestDropShadowApplyNilPixmaps (0.00s)
+=== RUN   TestDropShadowApplyBasic
+--- PASS: TestDropShadowApplyBasic (0.00s)
+=== RUN   TestDropShadowApplyNoBlur
+--- PASS: TestDropShadowApplyNoBlur (0.00s)
+=== RUN   TestDropShadowApplyTransparentColor
+--- PASS: TestDropShadowApplyTransparentColor (0.00s)
+=== RUN   TestDropShadowApplyColoredShadow
+--- PASS: TestDropShadowApplyColoredShadow (0.00s)
+=== RUN   TestExtractAlpha
+--- PASS: TestExtractAlpha (0.00s)
+=== RUN   TestExtractAlphaWithOffset
+--- PASS: TestExtractAlphaWithOffset (0.00s)
+=== RUN   TestBlurAlphaChannel
+--- PASS: TestBlurAlphaChannel (0.00s)
+PASS

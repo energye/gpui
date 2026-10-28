@@ -1,0 +1,13 @@
+=== RUN   TestGSUB_ContextFormat3_NestedSingle
+--- PASS: TestGSUB_ContextFormat3_NestedSingle (0.00s)
+=== RUN   TestGSUB_ChainFormat3_Lookahead
+--- PASS: TestGSUB_ChainFormat3_Lookahead (0.00s)
+=== RUN   TestGSUB_ReverseChainFormat1
+--- PASS: TestGSUB_ReverseChainFormat1 (0.00s)
+=== RUN   TestGSUB_Type6_RealFont_Smoke
+    gsub_context_test.go:242: DejaVuSans.ttf Shape("office")=4 glyphs
+    gsub_context_test.go:242: DejaVuSans.ttf Shape("ffi")=1 glyphs
+    gsub_context_test.go:242: DejaVuSans.ttf Shape("中文")=2 glyphs
+    gsub_context_test.go:242: DejaVuSans.ttf Shape("A.V")=3 glyphs
+--- PASS: TestGSUB_Type6_RealFont_Smoke (0.00s)
+PASS

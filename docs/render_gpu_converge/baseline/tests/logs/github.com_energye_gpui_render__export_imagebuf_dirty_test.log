@@ -1,0 +1,3 @@
+=== RUN   TestExportImageBuf_StableGenMarksDirty
+--- PASS: TestExportImageBuf_StableGenMarksDirty (0.00s)
+PASS

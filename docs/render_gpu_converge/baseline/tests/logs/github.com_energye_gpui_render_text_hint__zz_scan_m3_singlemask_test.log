@@ -1,0 +1,10 @@
+=== RUN   TestScanM3SingleMask
+    zz_scan_m3_singlemask_test.go:36: single-mask 窗：共 786 字（其中 hintmaskCount==1 的单 mask 字 2 个）
+singlemask: bad@10px=0 (npt=0, sel=786)
+singlemask: bad@12px=0 (npt=0, sel=786)
+singlemask: bad@14px=0 (npt=0, sel=786)
+singlemask: bad@16px=0 (npt=0, sel=786)
+singlemask: bad@20px=0 (npt=0, sel=786)
+singlemask: bad@24px=0 (npt=0, sel=786)
+--- PASS: TestScanM3SingleMask (1.60s)
+PASS

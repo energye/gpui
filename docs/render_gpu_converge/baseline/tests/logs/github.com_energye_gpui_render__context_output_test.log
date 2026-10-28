@@ -1,0 +1,37 @@
+=== RUN   TestGetCurrentPoint
+--- PASS: TestGetCurrentPoint (0.00s)
+=== RUN   TestGetCurrentPointWithQuadraticTo
+--- PASS: TestGetCurrentPointWithQuadraticTo (0.00s)
+=== RUN   TestGetCurrentPointWithCubicTo
+--- PASS: TestGetCurrentPointWithCubicTo (0.00s)
+=== RUN   TestEncodePNG
+--- PASS: TestEncodePNG (0.28s)
+=== RUN   TestEncodeJPEG
+--- PASS: TestEncodeJPEG (0.00s)
+=== RUN   TestEncodeJPEGQuality
+--- PASS: TestEncodeJPEGQuality (0.00s)
+=== RUN   TestPixmapEncodePNG
+--- PASS: TestPixmapEncodePNG (0.00s)
+=== RUN   TestPixmapEncodeJPEG
+--- PASS: TestPixmapEncodeJPEG (0.00s)
+=== RUN   TestPathHasCurrentPoint
+--- PASS: TestPathHasCurrentPoint (0.00s)
+=== RUN   TestContextClose
+--- PASS: TestContextClose (0.00s)
+=== RUN   TestContextImplementsCloser
+--- PASS: TestContextImplementsCloser (0.00s)
+=== RUN   TestContextCloseReleasesResources
+--- PASS: TestContextCloseReleasesResources (0.00s)
+=== RUN   TestSetPath
+--- PASS: TestSetPath (0.00s)
+=== RUN   TestSetPathNil
+--- PASS: TestSetPathNil (0.00s)
+=== RUN   TestAppendPath
+--- PASS: TestAppendPath (0.00s)
+=== RUN   TestSetPathFromSVG
+--- PASS: TestSetPathFromSVG (0.00s)
+=== RUN   TestDrawPathWithTransform
+--- PASS: TestDrawPathWithTransform (0.00s)
+=== RUN   TestFillPath
+--- PASS: TestFillPath (0.00s)
+PASS

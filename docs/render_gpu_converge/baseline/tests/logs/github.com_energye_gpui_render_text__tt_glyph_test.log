@@ -1,0 +1,103 @@
+=== RUN   TestLoadTTFontProgram
+=== RUN   TestLoadTTFontProgram/tthint_subset_has_TT_instructions
+=== RUN   TestLoadTTFontProgram/cousine_has_TT_instructions
+=== RUN   TestLoadTTFontProgram/ahem_has_no_TT_instructions
+--- PASS: TestLoadTTFontProgram (0.00s)
+    --- PASS: TestLoadTTFontProgram/tthint_subset_has_TT_instructions (0.00s)
+    --- PASS: TestLoadTTFontProgram/cousine_has_TT_instructions (0.00s)
+    --- PASS: TestLoadTTFontProgram/ahem_has_no_TT_instructions (0.00s)
+=== RUN   TestNewTTGlyphLoader
+--- PASS: TestNewTTGlyphLoader (0.00s)
+=== RUN   TestLoadGlyphOutline
+    tt_glyph_test.go:181: gid=0: 4 points, 0 contours (phantom-only), advance=384 (26.6)
+    tt_glyph_test.go:186: gid=1: 624 points, 141 contours, advance=896 (26.6), 12233 instruction bytes
+    tt_glyph_test.go:186: gid=2: 616 points, 139 contours, advance=896 (26.6), 11941 instruction bytes
+--- PASS: TestLoadGlyphOutline (0.00s)
+=== RUN   TestNewTTHintInstance_WithRealFont
+=== RUN   TestNewTTHintInstance_WithRealFont/12px
+    tt_glyph_test.go:232: ppem=12: enabled=true, backwardCompat=true, scale=48396, cvtLen=29
+=== RUN   TestNewTTHintInstance_WithRealFont/16px
+    tt_glyph_test.go:232: ppem=16: enabled=true, backwardCompat=true, scale=64528, cvtLen=29
+=== RUN   TestNewTTHintInstance_WithRealFont/24px
+    tt_glyph_test.go:232: ppem=24: enabled=true, backwardCompat=true, scale=96792, cvtLen=29
+=== RUN   TestNewTTHintInstance_WithRealFont/48px
+    tt_glyph_test.go:232: ppem=48: enabled=true, backwardCompat=true, scale=193583, cvtLen=29
+--- PASS: TestNewTTHintInstance_WithRealFont (0.00s)
+    --- PASS: TestNewTTHintInstance_WithRealFont/12px (0.00s)
+    --- PASS: TestNewTTHintInstance_WithRealFont/16px (0.00s)
+    --- PASS: TestNewTTHintInstance_WithRealFont/24px (0.00s)
+    --- PASS: TestNewTTHintInstance_WithRealFont/48px (0.00s)
+=== RUN   TestHintGlyph_PhantomPoints
+    tt_glyph_test.go:282: gid=0: preAdvance=384, hintedAdvance=384 (26.6), delta=0
+    tt_glyph_test.go:282: gid=1: preAdvance=896, hintedAdvance=896 (26.6), delta=0
+    tt_glyph_test.go:282: gid=2: preAdvance=896, hintedAdvance=896 (26.6), delta=0
+    tt_glyph_test.go:291: successfully hinted 3 glyphs
+--- PASS: TestHintGlyph_PhantomPoints (0.01s)
+=== RUN   TestTTHintCache
+    tt_glyph_test.go:313: ppem=12: instance created
+    tt_glyph_test.go:313: ppem=16: instance created
+    tt_glyph_test.go:313: ppem=24: instance created
+--- PASS: TestTTHintCache (0.00s)
+=== RUN   TestTTHintCache_NoInstructions
+--- PASS: TestTTHintCache_NoInstructions (0.00s)
+=== RUN   TestHintedAdvanceWidth
+    tt_glyph_test.go:356: gid=0: hinted advance = 6.00 px
+    tt_glyph_test.go:356: gid=1: hinted advance = 14.00 px
+    tt_glyph_test.go:356: gid=2: hinted advance = 14.00 px
+    tt_glyph_test.go:363: 3 glyphs returned hinted advances
+--- PASS: TestHintedAdvanceWidth (0.00s)
+=== RUN   TestTTHintedOutlineToGlyphOutline
+    tt_glyph_test.go:396: gid=0: phantom-only outline, advance=6.00
+    tt_glyph_test.go:409: gid=1: 765 segments, advance=14.00, bounds={0 -16 13.53125 5}
+    tt_glyph_test.go:409: gid=2: 755 segments, advance=14.00, bounds={0 -16 13.53125 5}
+--- PASS: TestTTHintedOutlineToGlyphOutline (0.01s)
+=== RUN   TestParseGlyfFlags
+=== RUN   TestParseGlyfFlags/simple_flags
+=== RUN   TestParseGlyfFlags/repeat_flag
+=== RUN   TestParseGlyfFlags/truncated
+--- PASS: TestParseGlyfFlags (0.00s)
+    --- PASS: TestParseGlyfFlags/simple_flags (0.00s)
+    --- PASS: TestParseGlyfFlags/repeat_flag (0.00s)
+    --- PASS: TestParseGlyfFlags/truncated (0.00s)
+=== RUN   TestParseHmtx
+--- PASS: TestParseHmtx (0.00s)
+=== RUN   TestParseLocaOffsets
+--- PASS: TestParseLocaOffsets (0.00s)
+=== RUN   TestTTHintCache_CousineFont
+    tt_glyph_test.go:577: gid=0: hinted advance = 10.00 px
+    tt_glyph_test.go:577: gid=1: hinted advance = 10.00 px
+--- PASS: TestTTHintCache_CousineFont (0.00s)
+=== RUN   TestConvertContourToSegments
+--- PASS: TestConvertContourToSegments (0.00s)
+=== RUN   TestConvertContourToSegments_WithCurves
+--- PASS: TestConvertContourToSegments_WithCurves (0.00s)
+=== RUN   TestF26dot6ToPixels
+--- PASS: TestF26dot6ToPixels (0.00s)
+=== RUN   TestGlyphMetrics
+    tt_glyph_test.go:700: gid=0: advance=400, lsb=0
+--- PASS: TestGlyphMetrics (0.00s)
+=== RUN   TestTTHintInstance_IsEnabled
+    tt_glyph_test.go:723: hinting enabled (expected)
+--- PASS: TestTTHintInstance_IsEnabled (0.00s)
+=== RUN   TestTTHintInstance_BackwardCompatibility
+    tt_glyph_test.go:741: backward compatibility (smooth target): true
+    tt_glyph_test.go:750: backward compatibility (normal target): false
+--- PASS: TestTTHintInstance_BackwardCompatibility (0.00s)
+=== RUN   TestLoadGlyphOutline_OutOfRange
+--- PASS: TestLoadGlyphOutline_OutOfRange (0.00s)
+=== RUN   TestLoadGlyphOutline_AllGlyphs_Portable
+    tt_glyph_test.go:825: .notdef (GID=0): 0 contour pts, advance=384 (26.6), isComposite=false
+    tt_glyph_test.go:825: A (GID=1): 624 contour pts, advance=896 (26.6), isComposite=false
+    tt_glyph_test.go:825: Aacute (GID=2): 616 contour pts, advance=896 (26.6), isComposite=false
+--- PASS: TestLoadGlyphOutline_AllGlyphs_Portable (0.00s)
+=== RUN   TestLoadCompositeGlyphOutline_SystemFont
+    tt_glyph_test.go:849: no system font with composites available
+--- SKIP: TestLoadCompositeGlyphOutline_SystemFont (0.00s)
+=== RUN   TestHintGlyphOutline_AllGlyphs_Portable
+    tt_glyph_test.go:939: GID=0: hinted advance=6.00 px at 16ppem
+    tt_glyph_test.go:939: GID=1: hinted advance=14.00 px at 16ppem
+    tt_glyph_test.go:939: GID=2: hinted advance=14.00 px at 16ppem
+--- PASS: TestHintGlyphOutline_AllGlyphs_Portable (0.01s)
+=== RUN   TestHintedAdvanceIntegerPixels
+--- PASS: TestHintedAdvanceIntegerPixels (0.00s)
+PASS

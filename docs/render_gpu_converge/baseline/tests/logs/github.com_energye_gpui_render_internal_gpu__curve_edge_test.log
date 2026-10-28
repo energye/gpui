@@ -1,0 +1,141 @@
+=== RUN   TestFDot6Conversion
+=== RUN   TestFDot6Conversion/zero
+=== RUN   TestFDot6Conversion/one
+=== RUN   TestFDot6Conversion/half
+=== RUN   TestFDot6Conversion/negative
+=== RUN   TestFDot6Conversion/fractional
+=== RUN   TestFDot6Conversion/large
+--- PASS: TestFDot6Conversion (0.00s)
+    --- PASS: TestFDot6Conversion/zero (0.00s)
+    --- PASS: TestFDot6Conversion/one (0.00s)
+    --- PASS: TestFDot6Conversion/half (0.00s)
+    --- PASS: TestFDot6Conversion/negative (0.00s)
+    --- PASS: TestFDot6Conversion/fractional (0.00s)
+    --- PASS: TestFDot6Conversion/large (0.00s)
+=== RUN   TestFDot6Rounding
+=== RUN   TestFDot6Rounding/zero
+=== RUN   TestFDot6Rounding/one
+=== RUN   TestFDot6Rounding/half
+=== RUN   TestFDot6Rounding/quarter
+=== RUN   TestFDot6Rounding/three-quarters
+=== RUN   TestFDot6Rounding/negative-half
+=== RUN   TestFDot6Rounding/negative-one
+=== RUN   TestFDot6Rounding/one-point-five
+--- PASS: TestFDot6Rounding (0.00s)
+    --- PASS: TestFDot6Rounding/zero (0.00s)
+    --- PASS: TestFDot6Rounding/one (0.00s)
+    --- PASS: TestFDot6Rounding/half (0.00s)
+    --- PASS: TestFDot6Rounding/quarter (0.00s)
+    --- PASS: TestFDot6Rounding/three-quarters (0.00s)
+    --- PASS: TestFDot6Rounding/negative-half (0.00s)
+    --- PASS: TestFDot6Rounding/negative-one (0.00s)
+    --- PASS: TestFDot6Rounding/one-point-five (0.00s)
+=== RUN   TestFDot16Conversion
+=== RUN   TestFDot16Conversion/zero
+=== RUN   TestFDot16Conversion/one
+=== RUN   TestFDot16Conversion/half
+=== RUN   TestFDot16Conversion/negative
+=== RUN   TestFDot16Conversion/fractional
+=== RUN   TestFDot16Conversion/small
+--- PASS: TestFDot16Conversion (0.00s)
+    --- PASS: TestFDot16Conversion/zero (0.00s)
+    --- PASS: TestFDot16Conversion/one (0.00s)
+    --- PASS: TestFDot16Conversion/half (0.00s)
+    --- PASS: TestFDot16Conversion/negative (0.00s)
+    --- PASS: TestFDot16Conversion/fractional (0.00s)
+    --- PASS: TestFDot16Conversion/small (0.00s)
+=== RUN   TestFDot6ToFDot16
+=== RUN   TestFDot6ToFDot16/zero
+=== RUN   TestFDot6ToFDot16/one
+=== RUN   TestFDot6ToFDot16/half
+=== RUN   TestFDot6ToFDot16/quarter
+=== RUN   TestFDot6ToFDot16/negative
+--- PASS: TestFDot6ToFDot16 (0.00s)
+    --- PASS: TestFDot6ToFDot16/zero (0.00s)
+    --- PASS: TestFDot6ToFDot16/one (0.00s)
+    --- PASS: TestFDot6ToFDot16/half (0.00s)
+    --- PASS: TestFDot6ToFDot16/quarter (0.00s)
+    --- PASS: TestFDot6ToFDot16/negative (0.00s)
+=== RUN   TestFDot16Mul
+=== RUN   TestFDot16Mul/one_times_one
+=== RUN   TestFDot16Mul/half_times_half
+=== RUN   TestFDot16Mul/two_times_half
+=== RUN   TestFDot16Mul/negative
+=== RUN   TestFDot16Mul/small
+--- PASS: TestFDot16Mul (0.00s)
+    --- PASS: TestFDot16Mul/one_times_one (0.00s)
+    --- PASS: TestFDot16Mul/half_times_half (0.00s)
+    --- PASS: TestFDot16Mul/two_times_half (0.00s)
+    --- PASS: TestFDot16Mul/negative (0.00s)
+    --- PASS: TestFDot16Mul/small (0.00s)
+=== RUN   TestFDot6Div
+=== RUN   TestFDot6Div/one_over_one
+=== RUN   TestFDot6Div/two_over_one
+=== RUN   TestFDot6Div/one_over_two
+=== RUN   TestFDot6Div/large_numerator
+=== RUN   TestFDot6Div/zero_numerator
+=== RUN   TestFDot6Div/zero_denominator
+--- PASS: TestFDot6Div (0.00s)
+    --- PASS: TestFDot6Div/one_over_one (0.00s)
+    --- PASS: TestFDot6Div/two_over_one (0.00s)
+    --- PASS: TestFDot6Div/one_over_two (0.00s)
+    --- PASS: TestFDot6Div/large_numerator (0.00s)
+    --- PASS: TestFDot6Div/zero_numerator (0.00s)
+    --- PASS: TestFDot6Div/zero_denominator (0.00s)
+=== RUN   TestLineEdge
+=== RUN   TestLineEdge/downward_line
+=== RUN   TestLineEdge/upward_line
+=== RUN   TestLineEdge/horizontal_line_(should_be_nil)
+=== RUN   TestLineEdge/vertical_line
+=== RUN   TestLineEdge/with_AA_shift
+--- PASS: TestLineEdge (0.00s)
+    --- PASS: TestLineEdge/downward_line (0.00s)
+    --- PASS: TestLineEdge/upward_line (0.00s)
+    --- PASS: TestLineEdge/horizontal_line_(should_be_nil) (0.00s)
+    --- PASS: TestLineEdge/vertical_line (0.00s)
+    --- PASS: TestLineEdge/with_AA_shift (0.00s)
+=== RUN   TestQuadraticEdge
+=== RUN   TestQuadraticEdge/simple_quadratic
+    curve_edge_test.go:360: quadratic produced 15 segments
+=== RUN   TestQuadraticEdge/flat_quadratic_(becomes_line)
+    curve_edge_test.go:360: quadratic produced 2 segments
+=== RUN   TestQuadraticEdge/horizontal_quadratic_(should_be_nil)
+=== RUN   TestQuadraticEdge/curved_quadratic
+=== RUN   TestQuadraticEdge/with_AA_shift
+    curve_edge_test.go:360: quadratic produced 8 segments
+--- PASS: TestQuadraticEdge (0.00s)
+    --- PASS: TestQuadraticEdge/simple_quadratic (0.00s)
+    --- PASS: TestQuadraticEdge/flat_quadratic_(becomes_line) (0.00s)
+    --- PASS: TestQuadraticEdge/horizontal_quadratic_(should_be_nil) (0.00s)
+    --- PASS: TestQuadraticEdge/curved_quadratic (0.00s)
+    --- PASS: TestQuadraticEdge/with_AA_shift (0.00s)
+=== RUN   TestQuadraticEdgeForwardDifferencing
+    curve_edge_test.go:402: forward differencing produced 2 line segments
+--- PASS: TestQuadraticEdgeForwardDifferencing (0.00s)
+=== RUN   TestCubicEdge
+=== RUN   TestCubicEdge/simple_cubic
+    curve_edge_test.go:478: cubic produced 8 segments
+=== RUN   TestCubicEdge/S-curve
+    curve_edge_test.go:478: cubic produced 30 segments
+=== RUN   TestCubicEdge/horizontal_cubic_(should_be_nil)
+=== RUN   TestCubicEdge/with_AA_shift
+    curve_edge_test.go:478: cubic produced 16 segments
+--- PASS: TestCubicEdge (0.00s)
+    --- PASS: TestCubicEdge/simple_cubic (0.00s)
+    --- PASS: TestCubicEdge/S-curve (0.00s)
+    --- PASS: TestCubicEdge/horizontal_cubic_(should_be_nil) (0.00s)
+    --- PASS: TestCubicEdge/with_AA_shift (0.00s)
+=== RUN   TestCubicEdgeForwardDifferencing
+    curve_edge_test.go:512: cubic forward differencing: 16 Y values, range [0, 91]
+--- PASS: TestCubicEdgeForwardDifferencing (0.00s)
+=== RUN   TestEdgeVariant
+=== RUN   TestEdgeVariant/line_variant
+=== RUN   TestEdgeVariant/quadratic_variant
+    curve_edge_test.go:552: quadratic variant produced 7 additional segments
+=== RUN   TestEdgeVariant/cubic_variant
+    curve_edge_test.go:574: cubic variant produced 15 additional segments
+--- PASS: TestEdgeVariant (0.00s)
+    --- PASS: TestEdgeVariant/line_variant (0.00s)
+    --- PASS: TestEdgeVariant/quadratic_variant (0.00s)
+    --- PASS: TestEdgeVariant/cubic_variant (0.00s)
+PASS

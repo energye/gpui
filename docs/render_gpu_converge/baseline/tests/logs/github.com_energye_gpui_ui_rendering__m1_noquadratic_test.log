@@ -1,0 +1,18 @@
+=== RUN   TestCaretForOffset_NoQuadratic_M1
+    m1_noquadratic_test.go:51: CaretForOffset 200行=399ns 2000行=580ns 比值=1.45
+--- PASS: TestCaretForOffset_NoQuadratic_M1 (0.05s)
+=== RUN   TestBoxesForRange_NoQuadratic_M1
+    m1_noquadratic_test.go:92: BoxesForRange末小段 200行=222ns 2000行=221ns 比值=1.00
+--- PASS: TestBoxesForRange_NoQuadratic_M1 (0.04s)
+=== RUN   TestBoxesForRange_FullLinear_M1
+    m1_noquadratic_test.go:106: BoxesForRange全文 2000行=140.346µs 20000行=2.484442ms 比值=17.70(输出本身O(n),线性即达标)
+    m1_noquadratic_test.go:108: BoxesForRange全文查询超线性:行数×10耗时×17.7,门禁≤15
+--- FAIL: TestBoxesForRange_FullLinear_M1 (0.48s)
+=== RUN   TestLineTop_PrefixSum_M1
+--- PASS: TestLineTop_PrefixSum_M1 (0.00s)
+=== RUN   TestKeystrokeRatio_M1
+    m1_noquadratic_test.go:179: 击键NoWrap: base=595ns 1e4=593ns 1e5=849ns 比值1e5/base=1.43
+    m1_noquadratic_test.go:179: 击键WrapShort: base=612ns 1e4=628ns 1e5=748ns 比值1e5/base=1.22
+    m1_noquadratic_test.go:179: 击键WrapLong: base=47.659µs 1e4=68.118µs 1e5=62.502µs 比值1e5/base=1.31
+--- PASS: TestKeystrokeRatio_M1 (0.09s)
+FAIL

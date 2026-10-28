@@ -1,0 +1,9 @@
+=== RUN   TestScanKR
+kr: bad@10px=0 (npt=0)
+kr: bad@12px=0 (npt=0)
+kr: bad@14px=0 (npt=0)
+kr: bad@16px=0 (npt=0)
+kr: bad@20px=0 (npt=0)
+kr: bad@24px=0 (npt=0)
+--- PASS: TestScanKR (16.35s)
+PASS

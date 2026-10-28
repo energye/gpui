@@ -1,0 +1,32 @@
+=== RUN   TestVecFromCases
+--- PASS: TestVecFromCases (0.00s)
+=== RUN   TestRectFromCases
+--- PASS: TestRectFromCases (0.00s)
+=== RUN   TestMatFromCases
+--- PASS: TestMatFromCases (0.00s)
+=== RUN   TestColorFromCases
+--- PASS: TestColorFromCases (0.00s)
+=== RUN   TestHexFromCases
+--- PASS: TestHexFromCases (0.00s)
+=== RUN   TestTimeFromCases
+--- PASS: TestTimeFromCases (0.00s)
+=== RUN   TestRandGolden
+--- PASS: TestRandGolden (0.00s)
+=== RUN   TestRandProperties
+--- PASS: TestRandProperties (0.00s)
+=== RUN   TestVersionFromCases
+--- PASS: TestVersionFromCases (0.00s)
+=== RUN   TestAssetManagerFromCases
+--- PASS: TestAssetManagerFromCases (0.00s)
+=== RUN   TestAssetLedgerConsistent
+--- PASS: TestAssetLedgerConsistent (0.00s)
+=== RUN   TestResultCodes
+--- PASS: TestResultCodes (0.00s)
+=== RUN   TestEdgeNoCrash
+--- PASS: TestEdgeNoCrash (0.00s)
+=== RUN   TestCorePerf10k
+    core_test.go:770: core-10k: 10000 mixed vec/mat/color ops in 78.897µs (7.9 ns/op)
+--- PASS: TestCorePerf10k (0.00s)
+=== RUN   TestCoreLongRunNoDrift
+--- PASS: TestCoreLongRunNoDrift (0.00s)
+PASS

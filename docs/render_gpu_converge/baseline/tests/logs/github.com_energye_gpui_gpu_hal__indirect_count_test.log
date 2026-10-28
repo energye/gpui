@@ -1,0 +1,13 @@
+=== RUN   TestRecordIndirectCountMax_ForwardsMaxDrawCount
+=== PAUSE TestRecordIndirectCountMax_ForwardsMaxDrawCount
+=== RUN   TestRecordIndirectCountMax_ZeroCountIsNoOp
+=== PAUSE TestRecordIndirectCountMax_ZeroCountIsNoOp
+=== RUN   TestRecordIndirectCountMax_IgnoresCountBuffer
+=== PAUSE TestRecordIndirectCountMax_IgnoresCountBuffer
+=== CONT  TestRecordIndirectCountMax_ForwardsMaxDrawCount
+=== CONT  TestRecordIndirectCountMax_IgnoresCountBuffer
+--- PASS: TestRecordIndirectCountMax_ForwardsMaxDrawCount (0.00s)
+=== CONT  TestRecordIndirectCountMax_ZeroCountIsNoOp
+--- PASS: TestRecordIndirectCountMax_ZeroCountIsNoOp (0.00s)
+--- PASS: TestRecordIndirectCountMax_IgnoresCountBuffer (0.00s)
+PASS

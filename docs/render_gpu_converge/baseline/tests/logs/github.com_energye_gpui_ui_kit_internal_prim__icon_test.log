@@ -1,0 +1,5 @@
+=== RUN   TestIcon_GlyphRegistry
+--- PASS: TestIcon_GlyphRegistry (0.00s)
+=== RUN   TestIcon_LineWidth
+--- PASS: TestIcon_LineWidth (0.00s)
+PASS

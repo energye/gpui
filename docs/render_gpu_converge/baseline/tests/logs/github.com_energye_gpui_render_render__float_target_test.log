@@ -1,0 +1,9 @@
+=== RUN   TestFloatTargetConstruct
+--- PASS: TestFloatTargetConstruct (0.00s)
+=== RUN   TestFloatTargetSoftwareDeclines
+--- PASS: TestFloatTargetSoftwareDeclines (0.00s)
+=== RUN   TestFloatTargetEncodeGolden
+--- PASS: TestFloatTargetEncodeGolden (0.00s)
+=== RUN   TestFloatTargetHDRVs8Bit
+--- PASS: TestFloatTargetHDRVs8Bit (0.00s)
+PASS

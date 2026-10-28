@@ -1,0 +1,25 @@
+=== RUN   TestRegisterAndNewBackend
+--- PASS: TestRegisterAndNewBackend (0.00s)
+=== RUN   TestNewBackendUnknown
+--- PASS: TestNewBackendUnknown (0.00s)
+=== RUN   TestRegisterNilFactory
+--- PASS: TestRegisterNilFactory (0.00s)
+=== RUN   TestRegisterDuplicate
+--- PASS: TestRegisterDuplicate (0.00s)
+=== RUN   TestUnregister
+--- PASS: TestUnregister (0.00s)
+=== RUN   TestBackends
+--- PASS: TestBackends (0.00s)
+=== RUN   TestIsRegistered
+--- PASS: TestIsRegistered (0.00s)
+=== RUN   TestCount
+--- PASS: TestCount (0.00s)
+=== RUN   TestMustBackend
+--- PASS: TestMustBackend (0.00s)
+=== RUN   TestMustBackendPanic
+--- PASS: TestMustBackendPanic (0.00s)
+=== RUN   TestBackendLifecycle
+--- PASS: TestBackendLifecycle (0.00s)
+=== RUN   TestConcurrentRegistration
+--- PASS: TestConcurrentRegistration (0.00s)
+PASS

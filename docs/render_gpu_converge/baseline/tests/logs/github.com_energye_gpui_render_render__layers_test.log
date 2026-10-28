@@ -1,0 +1,25 @@
+=== RUN   TestNewLayeredPixmapTarget
+--- PASS: TestNewLayeredPixmapTarget (0.00s)
+=== RUN   TestLayeredPixmapTargetCreateLayer
+--- PASS: TestLayeredPixmapTargetCreateLayer (0.00s)
+=== RUN   TestLayeredPixmapTargetCreateLayerDuplicate
+--- PASS: TestLayeredPixmapTargetCreateLayerDuplicate (0.00s)
+=== RUN   TestLayeredPixmapTargetRemoveLayer
+--- PASS: TestLayeredPixmapTargetRemoveLayer (0.00s)
+=== RUN   TestLayeredPixmapTargetSetLayerVisible
+--- PASS: TestLayeredPixmapTargetSetLayerVisible (0.00s)
+=== RUN   TestLayeredPixmapTargetComposite
+--- PASS: TestLayeredPixmapTargetComposite (0.00s)
+=== RUN   TestLayeredPixmapTargetCompositeInvisible
+--- PASS: TestLayeredPixmapTargetCompositeInvisible (0.00s)
+=== RUN   TestLayeredPixmapTargetCompositeOrder
+--- PASS: TestLayeredPixmapTargetCompositeOrder (0.00s)
+=== RUN   TestLayeredPixmapTargetClearLayer
+--- PASS: TestLayeredPixmapTargetClearLayer (0.00s)
+=== RUN   TestLayeredPixmapTargetGetLayer
+--- PASS: TestLayeredPixmapTargetGetLayer (0.00s)
+=== RUN   TestLayeredPixmapTargetLayersReturnsNewSlice
+--- PASS: TestLayeredPixmapTargetLayersReturnsNewSlice (0.00s)
+=== RUN   TestLayeredTargetInterface
+--- PASS: TestLayeredTargetInterface (0.00s)
+PASS

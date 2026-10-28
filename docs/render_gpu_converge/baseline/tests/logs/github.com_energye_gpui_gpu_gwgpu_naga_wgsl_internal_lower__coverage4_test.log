@@ -1,0 +1,69 @@
+=== RUN   TestLowerConstFoldVecBinOpI32
+--- PASS: TestLowerConstFoldVecBinOpI32 (0.00s)
+=== RUN   TestLowerConstFoldVecBinOpF32
+--- PASS: TestLowerConstFoldVecBinOpF32 (0.00s)
+=== RUN   TestLowerConstFoldVecUnaryNeg
+--- PASS: TestLowerConstFoldVecUnaryNeg (0.00s)
+=== RUN   TestLowerSplatAbstractConcretization
+--- PASS: TestLowerSplatAbstractConcretization (0.00s)
+=== RUN   TestLowerAbstractIntFloatPromotion
+--- PASS: TestLowerAbstractIntFloatPromotion (0.00s)
+=== RUN   TestLowerPartialConstruct
+--- PASS: TestLowerPartialConstruct (0.00s)
+=== RUN   TestLowerNestedFnInConst
+--- PASS: TestLowerNestedFnInConst (0.00s)
+=== RUN   TestLowerConstFoldSwizzleComponents
+--- PASS: TestLowerConstFoldSwizzleComponents (0.00s)
+=== RUN   TestLowerConstFoldAs
+--- PASS: TestLowerConstFoldAs (0.00s)
+=== RUN   TestLowerConstFoldBitwiseNotVec
+--- PASS: TestLowerConstFoldBitwiseNotVec (0.00s)
+=== RUN   TestLowerFunctionMultiParams
+--- PASS: TestLowerFunctionMultiParams (0.00s)
+=== RUN   TestLowerPointerToStructMember
+--- PASS: TestLowerPointerToStructMember (0.00s)
+=== RUN   TestLowerGlobalConstComplexTree
+--- PASS: TestLowerGlobalConstComplexTree (0.00s)
+=== RUN   TestLowerLargeSwitch
+--- PASS: TestLowerLargeSwitch (0.00s)
+=== RUN   TestLowerNestedStructConstruction
+--- PASS: TestLowerNestedStructConstruction (0.00s)
+=== RUN   TestLowerTextureSampleBiasArray
+--- PASS: TestLowerTextureSampleBiasArray (0.00s)
+=== RUN   TestLowerIfElseChainReturns
+--- PASS: TestLowerIfElseChainReturns (0.00s)
+=== RUN   TestLowerAbstractConstMemberAccess
+--- PASS: TestLowerAbstractConstMemberAccess (0.00s)
+=== RUN   TestLowerAbstractConstIndexAccess
+--- PASS: TestLowerAbstractConstIndexAccess (0.00s)
+=== RUN   TestLowerTextureSampleLevelOffset
+--- PASS: TestLowerTextureSampleLevelOffset (0.00s)
+=== RUN   TestLowerInterleavedLoadStore
+--- PASS: TestLowerInterleavedLoadStore (0.00s)
+=== RUN   TestLowerNestedBlocksLocalConst
+--- PASS: TestLowerNestedBlocksLocalConst (0.00s)
+=== RUN   TestLowerMixedEntryAndHelper
+--- PASS: TestLowerMixedEntryAndHelper (0.00s)
+=== RUN   TestLowerScalarConstructors
+--- PASS: TestLowerScalarConstructors (0.00s)
+=== RUN   TestLowerDynamicArrayAccess
+--- PASS: TestLowerDynamicArrayAccess (0.00s)
+=== RUN   TestLowerMatVecMultiply
+--- PASS: TestLowerMatVecMultiply (0.00s)
+=== RUN   TestLowerAtomicI32
+--- PASS: TestLowerAtomicI32 (0.00s)
+=== RUN   TestLowerInterpolationSampling
+--- PASS: TestLowerInterpolationSampling (0.00s)
+=== RUN   TestLowerTextureLoadStorage
+--- PASS: TestLowerTextureLoadStorage (0.00s)
+=== RUN   TestLowerUnsignedComparisons
+--- PASS: TestLowerUnsignedComparisons (0.00s)
+=== RUN   TestLowerFloatComparisons
+--- PASS: TestLowerFloatComparisons (0.00s)
+=== RUN   TestLowerEmptyEntryPoint
+--- PASS: TestLowerEmptyEntryPoint (0.00s)
+=== RUN   TestLowerLetWithTypeAnnotation
+--- PASS: TestLowerLetWithTypeAnnotation (0.00s)
+=== RUN   TestLowerConstAssertTrue
+--- PASS: TestLowerConstAssertTrue (0.00s)
+PASS

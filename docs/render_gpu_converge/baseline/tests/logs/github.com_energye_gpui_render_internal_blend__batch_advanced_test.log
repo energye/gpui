@@ -1,0 +1,73 @@
+=== RUN   TestBatchAdvancedBasic
+=== RUN   TestBatchAdvancedBasic/Multiply
+=== RUN   TestBatchAdvancedBasic/Multiply/opaque_white
+=== RUN   TestBatchAdvancedBasic/Multiply/opaque_black
+=== RUN   TestBatchAdvancedBasic/Multiply/half_alpha
+=== RUN   TestBatchAdvancedBasic/Multiply/transparent
+=== RUN   TestBatchAdvancedBasic/Screen
+=== RUN   TestBatchAdvancedBasic/Screen/opaque_white
+=== RUN   TestBatchAdvancedBasic/Screen/opaque_black
+=== RUN   TestBatchAdvancedBasic/Screen/half_alpha
+=== RUN   TestBatchAdvancedBasic/Screen/transparent
+=== RUN   TestBatchAdvancedBasic/Darken
+=== RUN   TestBatchAdvancedBasic/Darken/opaque_white
+=== RUN   TestBatchAdvancedBasic/Darken/opaque_black
+=== RUN   TestBatchAdvancedBasic/Darken/half_alpha
+=== RUN   TestBatchAdvancedBasic/Darken/transparent
+=== RUN   TestBatchAdvancedBasic/Lighten
+=== RUN   TestBatchAdvancedBasic/Lighten/opaque_white
+=== RUN   TestBatchAdvancedBasic/Lighten/opaque_black
+=== RUN   TestBatchAdvancedBasic/Lighten/half_alpha
+=== RUN   TestBatchAdvancedBasic/Lighten/transparent
+=== RUN   TestBatchAdvancedBasic/Difference
+=== RUN   TestBatchAdvancedBasic/Difference/opaque_white
+=== RUN   TestBatchAdvancedBasic/Difference/opaque_black
+=== RUN   TestBatchAdvancedBasic/Difference/half_alpha
+=== RUN   TestBatchAdvancedBasic/Difference/transparent
+=== RUN   TestBatchAdvancedBasic/Exclusion
+=== RUN   TestBatchAdvancedBasic/Exclusion/opaque_white
+=== RUN   TestBatchAdvancedBasic/Exclusion/opaque_black
+=== RUN   TestBatchAdvancedBasic/Exclusion/half_alpha
+=== RUN   TestBatchAdvancedBasic/Exclusion/transparent
+=== RUN   TestBatchAdvancedBasic/Overlay
+=== RUN   TestBatchAdvancedBasic/Overlay/opaque_white
+=== RUN   TestBatchAdvancedBasic/Overlay/opaque_black
+=== RUN   TestBatchAdvancedBasic/Overlay/half_alpha
+=== RUN   TestBatchAdvancedBasic/Overlay/transparent
+--- PASS: TestBatchAdvancedBasic (0.00s)
+    --- PASS: TestBatchAdvancedBasic/Multiply (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Multiply/opaque_white (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Multiply/opaque_black (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Multiply/half_alpha (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Multiply/transparent (0.00s)
+    --- PASS: TestBatchAdvancedBasic/Screen (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Screen/opaque_white (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Screen/opaque_black (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Screen/half_alpha (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Screen/transparent (0.00s)
+    --- PASS: TestBatchAdvancedBasic/Darken (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Darken/opaque_white (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Darken/opaque_black (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Darken/half_alpha (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Darken/transparent (0.00s)
+    --- PASS: TestBatchAdvancedBasic/Lighten (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Lighten/opaque_white (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Lighten/opaque_black (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Lighten/half_alpha (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Lighten/transparent (0.00s)
+    --- PASS: TestBatchAdvancedBasic/Difference (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Difference/opaque_white (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Difference/opaque_black (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Difference/half_alpha (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Difference/transparent (0.00s)
+    --- PASS: TestBatchAdvancedBasic/Exclusion (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Exclusion/opaque_white (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Exclusion/opaque_black (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Exclusion/half_alpha (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Exclusion/transparent (0.00s)
+    --- PASS: TestBatchAdvancedBasic/Overlay (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Overlay/opaque_white (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Overlay/opaque_black (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Overlay/half_alpha (0.00s)
+        --- PASS: TestBatchAdvancedBasic/Overlay/transparent (0.00s)
+PASS

@@ -1,0 +1,27 @@
+=== RUN   TestClassifyScalarSingleStore
+--- PASS: TestClassifyScalarSingleStore (0.00s)
+=== RUN   TestClassifyVectorNotPromotable
+--- PASS: TestClassifyVectorNotPromotable (0.00s)
+=== RUN   TestClassifyStructNotPromotable
+--- PASS: TestClassifyStructNotPromotable (0.00s)
+=== RUN   TestClassifyAccessIndexDisqualifies
+--- PASS: TestClassifyAccessIndexDisqualifies (0.00s)
+=== RUN   TestClassifyStmtAtomicDisqualifies
+--- PASS: TestClassifyStmtAtomicDisqualifies (0.00s)
+=== RUN   TestPromoteSingleStoreSingleLoad
+--- PASS: TestPromoteSingleStoreSingleLoad (0.00s)
+=== RUN   TestPromoteUsesInitWhenLoadPrecedesStore
+--- PASS: TestPromoteUsesInitWhenLoadPrecedesStore (0.00s)
+=== RUN   TestPromoteSynthesizesZeroValueWhenUninitialized
+--- PASS: TestPromoteSynthesizesZeroValueWhenUninitialized (0.00s)
+=== RUN   TestPromoteMultipleStoresInOneBlock
+--- PASS: TestPromoteMultipleStoresInOneBlock (0.00s)
+=== RUN   TestPhaseBIfMergePromotion
+--- PASS: TestPhaseBIfMergePromotion (0.00s)
+=== RUN   TestRunEmptyFunction
+--- PASS: TestRunEmptyFunction (0.00s)
+=== RUN   TestRunNilModule
+--- PASS: TestRunNilModule (0.00s)
+=== RUN   TestPromoteInlineArgSpillPattern
+--- PASS: TestPromoteInlineArgSpillPattern (0.00s)
+PASS

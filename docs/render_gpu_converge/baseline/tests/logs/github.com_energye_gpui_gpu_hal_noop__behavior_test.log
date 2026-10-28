@@ -1,0 +1,9 @@
+=== RUN   TestH4B3_NoopSubmitIndexIncrements
+--- PASS: TestH4B3_NoopSubmitIndexIncrements (0.00s)
+=== RUN   TestH4B3_NoopFenceSignalWait
+--- PASS: TestH4B3_NoopFenceSignalWait (0.00s)
+=== RUN   TestH4B3_NoopMapInvalidRangeAndUnmapIdempotent
+--- PASS: TestH4B3_NoopMapInvalidRangeAndUnmapIdempotent (0.00s)
+=== RUN   TestH4B3_NoopDeviceLostErrorScopeStubs
+--- PASS: TestH4B3_NoopDeviceLostErrorScopeStubs (0.00s)
+PASS

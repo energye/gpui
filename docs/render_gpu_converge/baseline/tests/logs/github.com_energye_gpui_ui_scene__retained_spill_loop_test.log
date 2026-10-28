@@ -1,0 +1,10 @@
+=== RUN   TestRetainedSpill_LongBlinkRun
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+--- PASS: TestRetainedSpill_LongBlinkRun (5.53s)
+=== RUN   TestRetainedScrollBandExpiry
+    retained_spill_loop_test.go:107: retained-vs-vector diff: 2115 px bbox=(296,199)-(1174,206)
+--- PASS: TestRetainedScrollBandExpiry (0.14s)
+=== RUN   TestRetainedScrollBandEstablishAfterWarmup
+    retained_spill_loop_test.go:135: no GPU texture entries (no GPU?)
+--- SKIP: TestRetainedScrollBandEstablishAfterWarmup (0.05s)
+PASS

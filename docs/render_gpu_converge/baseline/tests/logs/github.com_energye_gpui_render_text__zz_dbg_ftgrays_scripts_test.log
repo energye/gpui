@@ -1,0 +1,12 @@
+=== RUN   TestDbgFTGraysScanScripts
+=== RUN   TestDbgFTGraysScanScripts/latin
+latin: 254/254 字逐字节一致 (FT light)
+=== RUN   TestDbgFTGraysScanScripts/thai
+thai: 87/87 字逐字节一致 (FT light)
+=== RUN   TestDbgFTGraysScanScripts/korean
+korean: 11172/11172 字逐字节一致 (FT light)
+--- PASS: TestDbgFTGraysScanScripts (70.27s)
+    --- PASS: TestDbgFTGraysScanScripts/latin (0.80s)
+    --- PASS: TestDbgFTGraysScanScripts/thai (0.28s)
+    --- PASS: TestDbgFTGraysScanScripts/korean (68.79s)
+PASS

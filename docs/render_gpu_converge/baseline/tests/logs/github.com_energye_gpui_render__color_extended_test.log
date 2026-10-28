@@ -1,0 +1,227 @@
+=== RUN   TestPremultiply
+=== RUN   TestPremultiply/opaque_red
+=== RUN   TestPremultiply/50%_alpha_red
+=== RUN   TestPremultiply/transparent
+=== RUN   TestPremultiply/25%_alpha_white
+=== RUN   TestPremultiply/full_color_half_alpha
+--- PASS: TestPremultiply (0.00s)
+    --- PASS: TestPremultiply/opaque_red (0.00s)
+    --- PASS: TestPremultiply/50%_alpha_red (0.00s)
+    --- PASS: TestPremultiply/transparent (0.00s)
+    --- PASS: TestPremultiply/25%_alpha_white (0.00s)
+    --- PASS: TestPremultiply/full_color_half_alpha (0.00s)
+=== RUN   TestUnpremultiply
+=== RUN   TestUnpremultiply/opaque_red
+=== RUN   TestUnpremultiply/premul_50%_alpha_red
+=== RUN   TestUnpremultiply/transparent
+=== RUN   TestUnpremultiply/premul_25%_alpha_white
+--- PASS: TestUnpremultiply (0.00s)
+    --- PASS: TestUnpremultiply/opaque_red (0.00s)
+    --- PASS: TestUnpremultiply/premul_50%_alpha_red (0.00s)
+    --- PASS: TestUnpremultiply/transparent (0.00s)
+    --- PASS: TestUnpremultiply/premul_25%_alpha_white (0.00s)
+=== RUN   TestPremultiply_Roundtrip
+--- PASS: TestPremultiply_Roundtrip (0.00s)
+=== RUN   TestLerp
+=== RUN   TestLerp/t=0_returns_first
+=== RUN   TestLerp/t=1_returns_second
+=== RUN   TestLerp/t=0.5_midpoint
+=== RUN   TestLerp/alpha_interpolation
+=== RUN   TestLerp/extrapolate_t=2
+--- PASS: TestLerp (0.00s)
+    --- PASS: TestLerp/t=0_returns_first (0.00s)
+    --- PASS: TestLerp/t=1_returns_second (0.00s)
+    --- PASS: TestLerp/t=0.5_midpoint (0.00s)
+    --- PASS: TestLerp/alpha_interpolation (0.00s)
+    --- PASS: TestLerp/extrapolate_t=2 (0.00s)
+=== RUN   TestHSL_ExtendedCases
+=== RUN   TestHSL_ExtendedCases/red
+=== RUN   TestHSL_ExtendedCases/green
+=== RUN   TestHSL_ExtendedCases/blue
+=== RUN   TestHSL_ExtendedCases/white
+=== RUN   TestHSL_ExtendedCases/black
+=== RUN   TestHSL_ExtendedCases/50%_gray
+=== RUN   TestHSL_ExtendedCases/yellow
+=== RUN   TestHSL_ExtendedCases/cyan
+=== RUN   TestHSL_ExtendedCases/magenta
+=== RUN   TestHSL_ExtendedCases/negative_hue_wraps
+=== RUN   TestHSL_ExtendedCases/hue_>_360_wraps
+=== RUN   TestHSL_ExtendedCases/zero_saturation
+--- PASS: TestHSL_ExtendedCases (0.00s)
+    --- PASS: TestHSL_ExtendedCases/red (0.00s)
+    --- PASS: TestHSL_ExtendedCases/green (0.00s)
+    --- PASS: TestHSL_ExtendedCases/blue (0.00s)
+    --- PASS: TestHSL_ExtendedCases/white (0.00s)
+    --- PASS: TestHSL_ExtendedCases/black (0.00s)
+    --- PASS: TestHSL_ExtendedCases/50%_gray (0.00s)
+    --- PASS: TestHSL_ExtendedCases/yellow (0.00s)
+    --- PASS: TestHSL_ExtendedCases/cyan (0.00s)
+    --- PASS: TestHSL_ExtendedCases/magenta (0.00s)
+    --- PASS: TestHSL_ExtendedCases/negative_hue_wraps (0.00s)
+    --- PASS: TestHSL_ExtendedCases/hue_>_360_wraps (0.00s)
+    --- PASS: TestHSL_ExtendedCases/zero_saturation (0.00s)
+=== RUN   TestHex
+=== RUN   TestHex/6-char_with_hash
+=== RUN   TestHex/6-char_no_hash
+=== RUN   TestHex/3-char
+=== RUN   TestHex/3-char_green
+=== RUN   TestHex/8-char_with_alpha
+=== RUN   TestHex/4-char_with_alpha
+=== RUN   TestHex/white
+=== RUN   TestHex/black
+=== RUN   TestHex/invalid_length_returns_black_opaque
+=== RUN   TestHex/empty_string_returns_black_opaque
+=== RUN   TestHex/lowercase_hex
+=== RUN   TestHex/mixed_case
+--- PASS: TestHex (0.00s)
+    --- PASS: TestHex/6-char_with_hash (0.00s)
+    --- PASS: TestHex/6-char_no_hash (0.00s)
+    --- PASS: TestHex/3-char (0.00s)
+    --- PASS: TestHex/3-char_green (0.00s)
+    --- PASS: TestHex/8-char_with_alpha (0.00s)
+    --- PASS: TestHex/4-char_with_alpha (0.00s)
+    --- PASS: TestHex/white (0.00s)
+    --- PASS: TestHex/black (0.00s)
+    --- PASS: TestHex/invalid_length_returns_black_opaque (0.00s)
+    --- PASS: TestHex/empty_string_returns_black_opaque (0.00s)
+    --- PASS: TestHex/lowercase_hex (0.00s)
+    --- PASS: TestHex/mixed_case (0.00s)
+=== RUN   TestFromColor
+=== RUN   TestFromColor/opaque_white_NRGBA
+=== RUN   TestFromColor/opaque_red_NRGBA
+=== RUN   TestFromColor/transparent
+=== RUN   TestFromColor/half_alpha
+--- PASS: TestFromColor (0.00s)
+    --- PASS: TestFromColor/opaque_white_NRGBA (0.00s)
+    --- PASS: TestFromColor/opaque_red_NRGBA (0.00s)
+    --- PASS: TestFromColor/transparent (0.00s)
+    --- PASS: TestFromColor/half_alpha (0.00s)
+=== RUN   TestRGB
+--- PASS: TestRGB (0.00s)
+=== RUN   TestRGBA2
+--- PASS: TestRGBA2 (0.00s)
+=== RUN   TestColor_Method
+--- PASS: TestColor_Method (0.00s)
+=== RUN   TestClamp65535
+=== RUN   TestClamp65535/negative
+=== RUN   TestClamp65535/zero
+=== RUN   TestClamp65535/middle
+=== RUN   TestClamp65535/max
+=== RUN   TestClamp65535/above_max
+--- PASS: TestClamp65535 (0.00s)
+    --- PASS: TestClamp65535/negative (0.00s)
+    --- PASS: TestClamp65535/zero (0.00s)
+    --- PASS: TestClamp65535/middle (0.00s)
+    --- PASS: TestClamp65535/max (0.00s)
+    --- PASS: TestClamp65535/above_max (0.00s)
+=== RUN   TestClamp255
+=== RUN   TestClamp255/negative
+=== RUN   TestClamp255/zero
+=== RUN   TestClamp255/middle
+=== RUN   TestClamp255/max
+=== RUN   TestClamp255/above_max
+--- PASS: TestClamp255 (0.00s)
+    --- PASS: TestClamp255/negative (0.00s)
+    --- PASS: TestClamp255/zero (0.00s)
+    --- PASS: TestClamp255/middle (0.00s)
+    --- PASS: TestClamp255/max (0.00s)
+    --- PASS: TestClamp255/above_max (0.00s)
+=== RUN   TestRGBA_Interface_Clamping
+--- PASS: TestRGBA_Interface_Clamping (0.00s)
+=== RUN   TestCommonColors
+=== RUN   TestCommonColors/Black
+=== RUN   TestCommonColors/White
+=== RUN   TestCommonColors/Red
+=== RUN   TestCommonColors/Green
+=== RUN   TestCommonColors/Blue
+=== RUN   TestCommonColors/Yellow
+=== RUN   TestCommonColors/Cyan
+=== RUN   TestCommonColors/Magenta
+=== RUN   TestCommonColors/Transparent
+--- PASS: TestCommonColors (0.00s)
+    --- PASS: TestCommonColors/Black (0.00s)
+    --- PASS: TestCommonColors/White (0.00s)
+    --- PASS: TestCommonColors/Red (0.00s)
+    --- PASS: TestCommonColors/Green (0.00s)
+    --- PASS: TestCommonColors/Blue (0.00s)
+    --- PASS: TestCommonColors/Yellow (0.00s)
+    --- PASS: TestCommonColors/Cyan (0.00s)
+    --- PASS: TestCommonColors/Magenta (0.00s)
+    --- PASS: TestCommonColors/Transparent (0.00s)
+=== RUN   TestParseHex
+=== RUN   TestParseHex/6-char_with_hash
+=== RUN   TestParseHex/6-char_no_hash
+=== RUN   TestParseHex/6-char_blue
+=== RUN   TestParseHex/3-char_red
+=== RUN   TestParseHex/3-char_white
+=== RUN   TestParseHex/3-char_black
+=== RUN   TestParseHex/8-char_with_alpha
+=== RUN   TestParseHex/8-char_fully_opaque
+=== RUN   TestParseHex/8-char_fully_transparent
+=== RUN   TestParseHex/4-char_with_alpha
+=== RUN   TestParseHex/4-char_opaque
+=== RUN   TestParseHex/lowercase
+=== RUN   TestParseHex/mixed_case
+=== RUN   TestParseHex/gray
+=== RUN   TestParseHex/empty_string
+=== RUN   TestParseHex/hash_only
+=== RUN   TestParseHex/1_char
+=== RUN   TestParseHex/2_chars
+=== RUN   TestParseHex/5_chars
+=== RUN   TestParseHex/7_chars
+=== RUN   TestParseHex/9_chars
+=== RUN   TestParseHex/invalid_hex_chars_6
+=== RUN   TestParseHex/invalid_hex_chars_3
+=== RUN   TestParseHex/invalid_hex_chars_8
+=== RUN   TestParseHex/partial_invalid
+=== RUN   TestParseHex/spaces
+--- PASS: TestParseHex (0.00s)
+    --- PASS: TestParseHex/6-char_with_hash (0.00s)
+    --- PASS: TestParseHex/6-char_no_hash (0.00s)
+    --- PASS: TestParseHex/6-char_blue (0.00s)
+    --- PASS: TestParseHex/3-char_red (0.00s)
+    --- PASS: TestParseHex/3-char_white (0.00s)
+    --- PASS: TestParseHex/3-char_black (0.00s)
+    --- PASS: TestParseHex/8-char_with_alpha (0.00s)
+    --- PASS: TestParseHex/8-char_fully_opaque (0.00s)
+    --- PASS: TestParseHex/8-char_fully_transparent (0.00s)
+    --- PASS: TestParseHex/4-char_with_alpha (0.00s)
+    --- PASS: TestParseHex/4-char_opaque (0.00s)
+    --- PASS: TestParseHex/lowercase (0.00s)
+    --- PASS: TestParseHex/mixed_case (0.00s)
+    --- PASS: TestParseHex/gray (0.00s)
+    --- PASS: TestParseHex/empty_string (0.00s)
+    --- PASS: TestParseHex/hash_only (0.00s)
+    --- PASS: TestParseHex/1_char (0.00s)
+    --- PASS: TestParseHex/2_chars (0.00s)
+    --- PASS: TestParseHex/5_chars (0.00s)
+    --- PASS: TestParseHex/7_chars (0.00s)
+    --- PASS: TestParseHex/9_chars (0.00s)
+    --- PASS: TestParseHex/invalid_hex_chars_6 (0.00s)
+    --- PASS: TestParseHex/invalid_hex_chars_3 (0.00s)
+    --- PASS: TestParseHex/invalid_hex_chars_8 (0.00s)
+    --- PASS: TestParseHex/partial_invalid (0.00s)
+    --- PASS: TestParseHex/spaces (0.00s)
+=== RUN   TestParseHexHelper
+=== RUN   TestParseHexHelper/single_0
+=== RUN   TestParseHexHelper/single_F
+=== RUN   TestParseHexHelper/single_a
+=== RUN   TestParseHexHelper/two_digit_FF
+=== RUN   TestParseHexHelper/two_digit_80
+=== RUN   TestParseHexHelper/mixed_case_Ab
+=== RUN   TestParseHexHelper/invalid_G
+=== RUN   TestParseHexHelper/invalid_GG
+=== RUN   TestParseHexHelper/invalid_after_valid
+=== RUN   TestParseHexHelper/space
+--- PASS: TestParseHexHelper (0.00s)
+    --- PASS: TestParseHexHelper/single_0 (0.00s)
+    --- PASS: TestParseHexHelper/single_F (0.00s)
+    --- PASS: TestParseHexHelper/single_a (0.00s)
+    --- PASS: TestParseHexHelper/two_digit_FF (0.00s)
+    --- PASS: TestParseHexHelper/two_digit_80 (0.00s)
+    --- PASS: TestParseHexHelper/mixed_case_Ab (0.00s)
+    --- PASS: TestParseHexHelper/invalid_G (0.00s)
+    --- PASS: TestParseHexHelper/invalid_GG (0.00s)
+    --- PASS: TestParseHexHelper/invalid_after_valid (0.00s)
+    --- PASS: TestParseHexHelper/space (0.00s)
+PASS

@@ -1,0 +1,13 @@
+=== RUN   TestPrimeEnvForPower
+=== RUN   TestPrimeEnvForPower/high_selects_discrete
+=== RUN   TestPrimeEnvForPower/discrete_alias
+=== RUN   TestPrimeEnvForPower/low_keeps_integrated
+=== RUN   TestPrimeEnvForPower/unset_keeps_integrated
+=== RUN   TestPrimeEnvForPower/explicit_prime_wins
+--- PASS: TestPrimeEnvForPower (0.00s)
+    --- PASS: TestPrimeEnvForPower/high_selects_discrete (0.00s)
+    --- PASS: TestPrimeEnvForPower/discrete_alias (0.00s)
+    --- PASS: TestPrimeEnvForPower/low_keeps_integrated (0.00s)
+    --- PASS: TestPrimeEnvForPower/unset_keeps_integrated (0.00s)
+    --- PASS: TestPrimeEnvForPower/explicit_prime_wins (0.00s)
+PASS

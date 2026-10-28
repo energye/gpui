@@ -1,0 +1,43 @@
+=== RUN   TestParseAvar_VazirmatnVar
+--- PASS: TestParseAvar_VazirmatnVar (0.00s)
+=== RUN   TestAvarApply_PiecewiseLinear
+=== RUN   TestAvarApply_PiecewiseLinear/neg1.0
+=== RUN   TestAvarApply_PiecewiseLinear/zero
+=== RUN   TestAvarApply_PiecewiseLinear/pos1.0
+--- PASS: TestAvarApply_PiecewiseLinear (0.00s)
+    --- PASS: TestAvarApply_PiecewiseLinear/neg1.0 (0.00s)
+    --- PASS: TestAvarApply_PiecewiseLinear/zero (0.00s)
+    --- PASS: TestAvarApply_PiecewiseLinear/pos1.0 (0.00s)
+=== RUN   TestAvarApply_Interpolation
+=== RUN   TestAvarApply_Interpolation/identity_neg
+=== RUN   TestAvarApply_Interpolation/identity_pos
+=== RUN   TestAvarApply_Interpolation/identity_zero
+--- PASS: TestAvarApply_Interpolation (0.00s)
+    --- PASS: TestAvarApply_Interpolation/identity_neg (0.00s)
+    --- PASS: TestAvarApply_Interpolation/identity_pos (0.00s)
+    --- PASS: TestAvarApply_Interpolation/identity_zero (0.00s)
+=== RUN   TestAvarApply_NonLinear
+=== RUN   TestAvarApply_NonLinear/exact_half
+=== RUN   TestAvarApply_NonLinear/at_zero
+=== RUN   TestAvarApply_NonLinear/at_neg1
+=== RUN   TestAvarApply_NonLinear/between_0_half
+=== RUN   TestAvarApply_NonLinear/between_half_1
+--- PASS: TestAvarApply_NonLinear (0.00s)
+    --- PASS: TestAvarApply_NonLinear/exact_half (0.00s)
+    --- PASS: TestAvarApply_NonLinear/at_zero (0.00s)
+    --- PASS: TestAvarApply_NonLinear/at_neg1 (0.00s)
+    --- PASS: TestAvarApply_NonLinear/between_0_half (0.00s)
+    --- PASS: TestAvarApply_NonLinear/between_half_1 (0.00s)
+=== RUN   TestAvarApply_EdgeCases
+=== RUN   TestAvarApply_EdgeCases/empty_segments
+=== RUN   TestAvarApply_EdgeCases/single_segment_shift
+=== RUN   TestAvarApply_EdgeCases/before_all_segments
+--- PASS: TestAvarApply_EdgeCases (0.00s)
+    --- PASS: TestAvarApply_EdgeCases/empty_segments (0.00s)
+    --- PASS: TestAvarApply_EdgeCases/single_segment_shift (0.00s)
+    --- PASS: TestAvarApply_EdgeCases/before_all_segments (0.00s)
+=== RUN   TestParseAvar_Nil
+--- PASS: TestParseAvar_Nil (0.00s)
+=== RUN   TestAvar_NilApply
+--- PASS: TestAvar_NilApply (0.00s)
+PASS

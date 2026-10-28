@@ -1,0 +1,179 @@
+=== RUN   TestFilterCache_HitThenInvalidateOnParams
+--- PASS: TestFilterCache_HitThenInvalidateOnParams (0.00s)
+=== RUN   TestFilterCache_DirtySubtreeInvalidates
+--- PASS: TestFilterCache_DirtySubtreeInvalidates (0.00s)
+=== RUN   TestFilterCache_AgingDropsStaleEntries
+--- PASS: TestFilterCache_AgingDropsStaleEntries (0.00s)
+=== RUN   TestFilterSubtreeBounds_OffsetChain
+--- PASS: TestFilterSubtreeBounds_OffsetChain (0.00s)
+=== RUN   TestSubtreeHasTransform
+--- PASS: TestSubtreeHasTransform (0.00s)
+=== RUN   TestPacket_ImageDisposeRacesComposite
+--- PASS: TestPacket_ImageDisposeRacesComposite (0.51s)
+=== RUN   TestAdmission_ThresholdCountsStableSightings
+--- PASS: TestAdmission_ThresholdCountsStableSightings (0.00s)
+=== RUN   TestAdmission_RefuseEvictsAndDamages
+--- PASS: TestAdmission_RefuseEvictsAndDamages (0.00s)
+=== RUN   TestAdmission_SweepDropsDeadKeys
+--- PASS: TestAdmission_SweepDropsDeadKeys (0.00s)
+=== RUN   TestAdmission_CompositeRefusesSustainedChurn
+--- PASS: TestAdmission_CompositeRefusesSustainedChurn (0.00s)
+=== RUN   TestAdmission_IntervalChangesKeepTexture
+--- PASS: TestAdmission_IntervalChangesKeepTexture (0.01s)
+=== RUN   TestAdmission_CompositeAdmitsStableLayer
+--- PASS: TestAdmission_CompositeAdmitsStableLayer (0.00s)
+=== RUN   TestTextureBudget_EvictsUnderPressure
+--- PASS: TestTextureBudget_EvictsUnderPressure (0.00s)
+=== RUN   TestTextureBudget_ZeroUnsets
+--- PASS: TestTextureBudget_ZeroUnsets (0.00s)
+=== RUN   TestRecordLocal_RefusesOversized
+--- PASS: TestRecordLocal_RefusesOversized (0.00s)
+=== RUN   TestRecordLocal_CachesPadBleedAtExactSize
+--- PASS: TestRecordLocal_CachesPadBleedAtExactSize (0.02s)
+=== RUN   TestRecordLocal_RefusalEvictsStaleEntry
+--- PASS: TestRecordLocal_RefusalEvictsStaleEntry (0.00s)
+=== RUN   TestPhase1_EmptyRecordingSkipsTexture
+--- PASS: TestPhase1_EmptyRecordingSkipsTexture (0.00s)
+=== RUN   TestPhase1_InvisibleRecordingReplaysVector
+--- PASS: TestPhase1_InvisibleRecordingReplaysVector (0.00s)
+=== RUN   TestPhase1_BoundedRecordingTextures
+--- PASS: TestPhase1_BoundedRecordingTextures (0.00s)
+=== RUN   TestPictureTextureCache_RerecordAttribution
+    textured_rerecord_by_test.go:15: no-GPU degrade: record unavailable in this env
+--- SKIP: TestPictureTextureCache_RerecordAttribution (0.00s)
+=== RUN   TestPictureTextureCache_RerecordAttributionLocal
+    textured_rerecord_by_test.go:48: no-GPU degrade: local record unavailable in this env
+--- SKIP: TestPictureTextureCache_RerecordAttributionLocal (0.00s)
+=== RUN   TestTextureRing_PersistentSlots
+--- PASS: TestTextureRing_PersistentSlots (0.00s)
+=== RUN   TestTextureRing_DoubleRecordSameFrame
+--- PASS: TestTextureRing_DoubleRecordSameFrame (0.00s)
+=== RUN   TestTextureRing_ReallocOnSizeChange
+--- PASS: TestTextureRing_ReallocOnSizeChange (0.00s)
+=== RUN   TestTextureRing_EvictionReleasesBothSlots
+--- PASS: TestTextureRing_EvictionReleasesBothSlots (0.00s)
+=== RUN   TestRecordLocal_ShrinkKeepsPrevBounds
+--- PASS: TestRecordLocal_ShrinkKeepsPrevBounds (0.00s)
+=== RUN   TestRecordLocal_GrowUnionIsCurrent
+--- PASS: TestRecordLocal_GrowUnionIsCurrent (0.00s)
+=== RUN   TestDropTransparent_KeepsShellForDamage
+--- PASS: TestDropTransparent_KeepsShellForDamage (0.00s)
+=== RUN   TestCompositeFramePacketTextured_RotateCachesUntransformed
+--- PASS: TestCompositeFramePacketTextured_RotateCachesUntransformed (0.01s)
+=== RUN   TestCompositeFramePacketTextured_ScaleCachesUntransformed
+--- PASS: TestCompositeFramePacketTextured_ScaleCachesUntransformed (0.01s)
+=== RUN   TestRetainedMatchesVector_BTail
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+--- PASS: TestRetainedMatchesVector_BTail (0.33s)
+=== RUN   TestRetainedCaretToggle_BOnly
+--- PASS: TestRetainedCaretToggle_BOnly (0.28s)
+=== RUN   TestCaretTransparentRerecordClearsStale
+    caret_transparent_rerecord_test.go:115: f2: caret bar has no live texture (test needs the GPU path)
+--- FAIL: TestCaretTransparentRerecordClearsStale (0.06s)
+=== RUN   TestComposite_RejectsUnsealed
+--- PASS: TestComposite_RejectsUnsealed (0.00s)
+=== RUN   TestCompositeToContext_OffsetClipPicture
+--- PASS: TestCompositeToContext_OffsetClipPicture (0.00s)
+=== RUN   TestCompositeToContext_TransformTranslate
+--- PASS: TestCompositeToContext_TransformTranslate (0.00s)
+=== RUN   TestCompositeToContext_ClipRRectRoundsCorner
+--- PASS: TestCompositeToContext_ClipRRectRoundsCorner (0.00s)
+=== RUN   TestCompositeFramePacket_OverlayAboveMain
+--- PASS: TestCompositeFramePacket_OverlayAboveMain (0.00s)
+=== RUN   TestCompositeToContext_OpacityDimsContent
+--- PASS: TestCompositeToContext_OpacityDimsContent (0.00s)
+=== RUN   TestCompositeToContext_BackdropFilter
+--- PASS: TestCompositeToContext_BackdropFilter (0.02s)
+=== RUN   TestCountPictureOps_PacketSum
+--- PASS: TestCountPictureOps_PacketSum (0.00s)
+=== RUN   TestDirtyMovesFromCases
+--- PASS: TestDirtyMovesFromCases (0.00s)
+=== RUN   TestDirtyEdgesNoCrash
+--- PASS: TestDirtyEdgesNoCrash (0.00s)
+=== RUN   TestDirtyBoundaryIdentical
+--- PASS: TestDirtyBoundaryIdentical (0.00s)
+=== RUN   TestDirtyPerfCounts
+    dirty_test.go:317: dirty-burst: 1000 moves in 17.381µs (full fallback, rects nil)
+    dirty_test.go:341: dirty-steady: 200 frames 373 rects in 99.131µs (495.7 ns/frame maxRects=2)
+--- PASS: TestDirtyPerfCounts (0.00s)
+=== RUN   TestDirtyLongRunStable
+--- PASS: TestDirtyLongRunStable (0.01s)
+=== RUN   TestDirtyOffscreenGolden
+--- PASS: TestDirtyOffscreenGolden (0.00s)
+=== RUN   TestLayer_WalkAndIDs
+--- PASS: TestLayer_WalkAndIDs (0.00s)
+=== RUN   TestFramePacket_CloneShallowSharesRoot
+--- PASS: TestFramePacket_CloneShallowSharesRoot (0.00s)
+=== RUN   TestClassifyDirty
+--- PASS: TestClassifyDirty (0.00s)
+=== RUN   TestTransformLayer_Builder
+--- PASS: TestTransformLayer_Builder (0.00s)
+=== RUN   TestColorFilterLayer_Builder
+--- PASS: TestColorFilterLayer_Builder (0.00s)
+=== RUN   TestBackdropFilterLayer_Builder
+--- PASS: TestBackdropFilterLayer_Builder (0.00s)
+=== RUN   TestImageFilterLayer_Builder
+--- PASS: TestImageFilterLayer_Builder (0.00s)
+=== RUN   TestClipRRectLayer_Builder
+--- PASS: TestClipRRectLayer_Builder (0.00s)
+=== RUN   TestEnsureOverlayBand
+--- PASS: TestEnsureOverlayBand (0.00s)
+=== RUN   TestFramePacket_CloneShallowCopiesOverlayDirtyIDs
+--- PASS: TestFramePacket_CloneShallowCopiesOverlayDirtyIDs (0.00s)
+=== RUN   TestFramePacket_SealMarksEndFrame
+--- PASS: TestFramePacket_SealMarksEndFrame (0.00s)
+=== RUN   TestFramePacket_FourStampsHonest
+--- PASS: TestFramePacket_FourStampsHonest (0.00s)
+=== RUN   TestFramePacket_PostFrameHooksSealGate
+--- PASS: TestFramePacket_PostFrameHooksSealGate (0.00s)
+=== RUN   TestFramePacket_SealGateDocumented
+--- PASS: TestFramePacket_SealGateDocumented (0.00s)
+=== RUN   TestFramePacket_CloneShallowCarriesSealState
+--- PASS: TestFramePacket_CloneShallowCarriesSealState (0.00s)
+=== RUN   TestPacket_RetainsDrawImageBuffers
+--- PASS: TestPacket_RetainsDrawImageBuffers (0.00s)
+=== RUN   TestPacket_NoImages_NoRetention
+--- PASS: TestPacket_NoImages_NoRetention (0.00s)
+=== RUN   TestRetainedSpill_LongBlinkRun
+--- PASS: TestRetainedSpill_LongBlinkRun (5.84s)
+=== RUN   TestRetainedScrollBandExpiry
+    retained_spill_loop_test.go:107: retained-vs-vector diff: 2115 px bbox=(296,199)-(1174,206)
+--- PASS: TestRetainedScrollBandExpiry (0.18s)
+=== RUN   TestRetainedScrollBandEstablishAfterWarmup
+    retained_spill_loop_test.go:135: no GPU texture entries (no GPU?)
+--- SKIP: TestRetainedScrollBandEstablishAfterWarmup (0.07s)
+=== RUN   TestShrinkRerecordDamagesClearedTail
+    shrink_damage_test.go:127: f2 shrink damage [(304,121)-(315,137) (314,121)-(316,145)] does not cover grown ink (304,121)-(319,137): cleared tail not repainted
+--- FAIL: TestShrinkRerecordDamagesClearedTail (0.06s)
+=== RUN   TestClearToEmptyDamagesOldRegion
+--- PASS: TestClearToEmptyDamagesOldRegion (0.04s)
+=== RUN   TestTextureLayer_KindAndRect
+--- PASS: TestTextureLayer_KindAndRect (0.00s)
+=== RUN   TestCompositeToContext_TextureUsesCompositeCTM
+--- PASS: TestCompositeToContext_TextureUsesCompositeCTM (0.00s)
+=== RUN   TestCompositeToContext_TextureMissIsCounted
+--- PASS: TestCompositeToContext_TextureMissIsCounted (0.00s)
+=== RUN   TestTextured_TextureLayerAlwaysDamagesAndNeverCaches
+--- PASS: TestTextured_TextureLayerAlwaysDamagesAndNeverCaches (0.00s)
+=== RUN   TestTextured_TextureLayerMissPaintsAndDamagesNothing
+--- PASS: TestTextured_TextureLayerMissPaintsAndDamagesNothing (0.00s)
+=== RUN   TestPictureTextureCache_ExplicitBudget
+    textured_budget_test.go:33: record without GPU should fail
+--- FAIL: TestPictureTextureCache_ExplicitBudget (0.00s)
+=== RUN   TestPictureTextureCache_CloseReleases
+--- PASS: TestPictureTextureCache_CloseReleases (0.00s)
+=== RUN   TestCompositeFallback_ReplaysRecordingWithoutGPU
+--- PASS: TestCompositeFallback_ReplaysRecordingWithoutGPU (0.01s)
+=== RUN   TestPictureCache_EnsureCapacity_SingleWindowUncapped
+--- PASS: TestPictureCache_EnsureCapacity_SingleWindowUncapped (0.00s)
+=== RUN   TestCompositeFramePacketTextured_Fallback
+    textured_test.go:35: RasterLayerCount=1 want 0 (no GPU)
+--- FAIL: TestCompositeFramePacketTextured_Fallback (0.01s)
+=== RUN   TestCompositeFramePacketTextured_OpacityGroup
+    textured_test.go:80: ReplayedOps=0 want ≥1
+--- FAIL: TestCompositeFramePacketTextured_OpacityGroup (0.01s)
+=== RUN   TestCompositeFramePacketTextured_TranslateStillCacheable
+--- PASS: TestCompositeFramePacketTextured_TranslateStillCacheable (0.01s)
+FAIL
+FAIL	github.com/energye/gpui/ui/scene	7.598s
+FAIL

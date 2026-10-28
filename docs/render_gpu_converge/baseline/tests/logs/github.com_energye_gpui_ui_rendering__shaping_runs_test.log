@@ -1,0 +1,12 @@
+=== RUN   TestIntersectRuns_ArabicLatin
+--- PASS: TestIntersectRuns_ArabicLatin (0.26s)
+=== RUN   TestIntersectRuns_RTLVisual
+--- PASS: TestIntersectRuns_RTLVisual (0.00s)
+=== RUN   TestPaintUsesShapedX_MultiFaceBulk
+--- PASS: TestPaintUsesShapedX_MultiFaceBulk (0.01s)
+=== RUN   TestCaretBuild_NoQuadratic
+    shaping_runs_test.go:120: per-rune ns: 1e3=1074 1e4=1354 1e5=861
+--- PASS: TestCaretBuild_NoQuadratic (1.88s)
+=== RUN   TestPaintMultiFace_Ink
+--- PASS: TestPaintMultiFace_Ink (0.00s)
+PASS

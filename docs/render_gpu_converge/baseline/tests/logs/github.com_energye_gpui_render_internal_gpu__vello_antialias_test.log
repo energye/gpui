@@ -1,0 +1,7 @@
+=== RUN   TestSnapPathToPixelGrid
+--- PASS: TestSnapPathToPixelGrid (0.00s)
+=== RUN   TestSnapPathToPixelGrid_AlreadyAligned
+--- PASS: TestSnapPathToPixelGrid_AlreadyAligned (0.00s)
+=== RUN   TestVelloAccelerator_NoAA_SnapsPath
+--- PASS: TestVelloAccelerator_NoAA_SnapsPath (0.00s)
+PASS

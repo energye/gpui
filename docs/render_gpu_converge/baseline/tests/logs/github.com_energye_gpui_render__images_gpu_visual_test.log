@@ -1,0 +1,4 @@
+=== RUN   TestImagesCPUvsGPUVisualDiagnostic
+    images_gpu_visual_test.go:16: set GPUI_IMAGES_VISUAL=1 to run CPU/GPU images diagnostics
+--- SKIP: TestImagesCPUvsGPUVisualDiagnostic (0.00s)
+PASS

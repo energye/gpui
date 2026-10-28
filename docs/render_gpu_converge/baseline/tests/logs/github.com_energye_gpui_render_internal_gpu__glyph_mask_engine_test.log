@@ -1,0 +1,65 @@
+=== RUN   TestSelectGlyphMaskLCD
+=== RUN   TestSelectGlyphMaskLCD/small_identity
+=== RUN   TestSelectGlyphMaskLCD/small_translation
+=== RUN   TestSelectGlyphMaskLCD/threshold_48px
+=== RUN   TestSelectGlyphMaskLCD/above_threshold
+=== RUN   TestSelectGlyphMaskLCD/large_72px
+=== RUN   TestSelectGlyphMaskLCD/rotated_small
+=== RUN   TestSelectGlyphMaskLCD/skewed
+=== RUN   TestSelectGlyphMaskLCD/uniform_scale_small
+--- PASS: TestSelectGlyphMaskLCD (0.00s)
+    --- PASS: TestSelectGlyphMaskLCD/small_identity (0.00s)
+    --- PASS: TestSelectGlyphMaskLCD/small_translation (0.00s)
+    --- PASS: TestSelectGlyphMaskLCD/threshold_48px (0.00s)
+    --- PASS: TestSelectGlyphMaskLCD/above_threshold (0.00s)
+    --- PASS: TestSelectGlyphMaskLCD/large_72px (0.00s)
+    --- PASS: TestSelectGlyphMaskLCD/rotated_small (0.00s)
+    --- PASS: TestSelectGlyphMaskLCD/skewed (0.00s)
+    --- PASS: TestSelectGlyphMaskLCD/uniform_scale_small (0.00s)
+=== RUN   TestGlyphMaskEngine_SetLCDLayout
+--- PASS: TestGlyphMaskEngine_SetLCDLayout (0.00s)
+=== RUN   TestGlyphMaskEngine_SetLCDFilter
+--- PASS: TestGlyphMaskEngine_SetLCDFilter (0.00s)
+=== RUN   TestGlyphMaskRasterScaleFromTotalMatrix
+=== RUN   TestGlyphMaskRasterScaleFromTotalMatrix/identity
+=== RUN   TestGlyphMaskRasterScaleFromTotalMatrix/hidpi_without_user_scale
+=== RUN   TestGlyphMaskRasterScaleFromTotalMatrix/hidpi_with_user_scale
+=== RUN   TestGlyphMaskRasterScaleFromTotalMatrix/user_scale_down
+=== RUN   TestGlyphMaskRasterScaleFromTotalMatrix/rotation_not_baked
+--- PASS: TestGlyphMaskRasterScaleFromTotalMatrix (0.00s)
+    --- PASS: TestGlyphMaskRasterScaleFromTotalMatrix/identity (0.00s)
+    --- PASS: TestGlyphMaskRasterScaleFromTotalMatrix/hidpi_without_user_scale (0.00s)
+    --- PASS: TestGlyphMaskRasterScaleFromTotalMatrix/hidpi_with_user_scale (0.00s)
+    --- PASS: TestGlyphMaskRasterScaleFromTotalMatrix/user_scale_down (0.00s)
+    --- PASS: TestGlyphMaskRasterScaleFromTotalMatrix/rotation_not_baked (0.00s)
+=== RUN   TestGlyphMaskFontSizeIncludesRasterScale
+--- PASS: TestGlyphMaskFontSizeIncludesRasterScale (0.00s)
+=== RUN   TestGlyphMaskLayoutBakesUniformScaleWithoutChangingUserQuadSize
+--- PASS: TestGlyphMaskLayoutBakesUniformScaleWithoutChangingUserQuadSize (0.01s)
+=== RUN   TestSelectGlyphMaskHinting
+=== RUN   TestSelectGlyphMaskHinting/latin_small_identity
+=== RUN   TestSelectGlyphMaskHinting/latin_small_translation
+=== RUN   TestSelectGlyphMaskHinting/latin_threshold_48px
+=== RUN   TestSelectGlyphMaskHinting/latin_above_threshold
+=== RUN   TestSelectGlyphMaskHinting/latin_large_72px
+=== RUN   TestSelectGlyphMaskHinting/rotated_small
+=== RUN   TestSelectGlyphMaskHinting/skewed
+=== RUN   TestSelectGlyphMaskHinting/latin_uniform_scale
+=== RUN   TestSelectGlyphMaskHinting/cjk_small_1x_light
+=== RUN   TestSelectGlyphMaskHinting/cjk_small_2x_full
+=== RUN   TestSelectGlyphMaskHinting/cjk_large_light
+=== RUN   TestSelectGlyphMaskHinting/cjk_rotated_none
+--- PASS: TestSelectGlyphMaskHinting (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/latin_small_identity (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/latin_small_translation (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/latin_threshold_48px (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/latin_above_threshold (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/latin_large_72px (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/rotated_small (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/skewed (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/latin_uniform_scale (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/cjk_small_1x_light (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/cjk_small_2x_full (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/cjk_large_light (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting/cjk_rotated_none (0.00s)
+PASS

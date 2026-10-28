@@ -1,0 +1,5 @@
+=== RUN   TestOpt32_DualTexMultiIntoEncoder_OneFinish
+--- PASS: TestOpt32_DualTexMultiIntoEncoder_OneFinish (0.27s)
+=== RUN   TestOpt32_EncodeBlitToEncoder_LoadOpUsesFrameRendered
+--- PASS: TestOpt32_EncodeBlitToEncoder_LoadOpUsesFrameRendered (0.00s)
+PASS

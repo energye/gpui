@@ -1,0 +1,39 @@
+=== RUN   TestDbgProdLightPixels
+'静' 8px: mism=28/30 mism16=23 ink self=1610 ft=2973 bestShift=(-3,-3)
+'每' 8px: mism=31/35 mism16=28 ink self=1971 ft=2934 bestShift=(-3,-3)
+'合' 8px: mism=28/35 mism16=24 ink self=1384 ft=2172 bestShift=(-3,-3)
+'静' 10px: mism=53/56 mism16=44 ink self=3673 ft=5830 bestShift=(-3,-3)
+'每' 10px: mism=49/63 mism16=46 ink self=4314 ft=4970 bestShift=(-3,-3)
+'合' 10px: mism=43/63 mism16=39 ink self=2970 ft=3910 bestShift=(-3,-3)
+'静' 12px: mism=73/81 mism16=73 ink self=6992 ft=8732 bestShift=(-3,-3)
+'每' 12px: mism=77/99 mism16=68 ink self=6668 ft=7792 bestShift=(-3,-3)
+'合' 12px: mism=62/90 mism16=55 ink self=4839 ft=6117 bestShift=(-3,-3)
+'静' 14px: mism=104/121 mism16=90 ink self=11127 ft=12692 bestShift=(-3,-3)
+'每' 14px: mism=90/121 mism16=76 ink self=9683 ft=11647 bestShift=(-3,-3)
+'合' 14px: mism=81/121 mism16=74 ink self=7279 ft=9650 bestShift=(-3,-3)
+    zz_dbg_prod_pixels_test.go:48: DUMP16 静 -> /tmp/dbg16-4080656902/self_38745_16.pgm
+    zz_dbg_prod_pixels_test.go:51: ft dump: OK rune=静 size=16 bitmap=16x16 pitch=16 left=0 top=14 fg=151 ratio=0.590 comps=1
+'静' 16px: mism=133/256 mism16=29 ink self=25315 ft=24835 bestShift=(+1,+1)
+    zz_dbg_prod_pixels_test.go:48: DUMP16 每 -> /tmp/dbg16-4187696001/self_27599_16.pgm
+    zz_dbg_prod_pixels_test.go:51: ft dump: OK rune=每 size=16 bitmap=16x16 pitch=16 left=0 top=14 fg=166 ratio=0.648 comps=1
+'每' 16px: mism=110/256 mism16=25 ink self=21134 ft=21929 bestShift=(+1,+1)
+    zz_dbg_prod_pixels_test.go:48: DUMP16 合 -> /tmp/dbg16-2772726809/self_21512_16.pgm
+    zz_dbg_prod_pixels_test.go:51: ft dump: OK rune=合 size=16 bitmap=16x16 pitch=16 left=0 top=14 fg=114 ratio=0.445 comps=2
+'合' 16px: mism=90/256 mism16=35 ink self=16095 ft=16504 bestShift=(+1,+1)
+'静' 20px: mism=162/400 mism16=39 ink self=38227 ft=38220 bestShift=(+1,+1)
+'每' 20px: mism=138/420 mism16=52 ink self=33753 ft=34271 bestShift=(+1,+1)
+'合' 20px: mism=130/400 mism16=66 ink self=25307 ft=25627 bestShift=(+1,+1)
+'静' 24px: mism=215/576 mism16=37 ink self=54061 ft=54809 bestShift=(+1,+1)
+'每' 24px: mism=165/576 mism16=62 ink self=47856 ft=48068 bestShift=(+1,+1)
+'合' 24px: mism=162/576 mism16=90 ink self=35491 ft=36872 bestShift=(+1,+1)
+'静' 28px: mism=255/729 mism16=52 ink self=73323 ft=73838 bestShift=(+1,+1)
+'每' 28px: mism=200/728 mism16=92 ink self=66523 ft=66593 bestShift=(+1,+1)
+'合' 28px: mism=184/784 mism16=95 ink self=48375 ft=49510 bestShift=(+1,+1)
+'静' 32px: mism=283/960 mism16=38 ink self=96400 ft=96795 bestShift=(+1,+1)
+'每' 32px: mism=235/960 mism16=86 ink self=86529 ft=85812 bestShift=(+1,+1)
+'合' 32px: mism=209/992 mism16=110 ink self=65389 ft=64897 bestShift=(+1,+1)
+'静' 48px: mism=428/2116 mism16=64 ink self=217410 ft=218015 bestShift=(+1,+1)
+'每' 48px: mism=356/2116 mism16=74 ink self=191316 ft=192654 bestShift=(+1,+1)
+'合' 48px: mism=315/2116 mism16=125 ink self=144768 ft=144505 bestShift=(+1,+1)
+--- PASS: TestDbgProdLightPixels (1.20s)
+PASS

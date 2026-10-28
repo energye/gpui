@@ -1,0 +1,21 @@
+=== RUN   TestRegistry_BuiltinFormats
+--- PASS: TestRegistry_BuiltinFormats (0.00s)
+=== RUN   TestRegistry_Replaceable
+--- PASS: TestRegistry_Replaceable (0.00s)
+=== RUN   TestDecodeFile_SmallPNG
+--- PASS: TestDecodeFile_SmallPNG (0.00s)
+=== RUN   TestDecodeFile_SmallJPEG
+--- PASS: TestDecodeFile_SmallJPEG (0.00s)
+=== RUN   TestDecodeBytes_SmallPNG
+--- PASS: TestDecodeBytes_SmallPNG (0.00s)
+=== RUN   TestLarge_SingleFlight
+--- PASS: TestLarge_SingleFlight (0.12s)
+=== RUN   TestLarge_FileSniffFallback
+--- PASS: TestLarge_FileSniffFallback (0.03s)
+=== RUN   TestCancel_PreCancelled
+--- PASS: TestCancel_PreCancelled (0.20s)
+=== RUN   TestCancel_SuppressesInFlightCallback
+--- PASS: TestCancel_SuppressesInFlightCallback (1.05s)
+=== RUN   TestStats_Counts
+--- PASS: TestStats_Counts (0.00s)
+PASS

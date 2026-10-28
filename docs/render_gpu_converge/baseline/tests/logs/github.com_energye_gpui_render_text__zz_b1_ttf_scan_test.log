@@ -1,0 +1,38 @@
+=== RUN   TestB1TTFWqyCJK
+B1 wqy-nohint: 4 档 × 3000 字四维度全部一致
+--- PASS: TestB1TTFWqyCJK (12.39s)
+=== RUN   TestB1TTFProbe
+B1 wqy-nohint: 1 档 × 3000 字四维度全部一致
+B1 wqy-microhei: 1 档 × 3000 字四维度全部一致
+B1 freesans: 1 档 × 254 字四维度全部一致
+B1 dejavu: 1 档 × 254 字四维度全部一致
+B1 samyak-deva: 1 档 × 40 字四维度全部一致
+B1 mukti-beng: 1 档 × 40 字四维度全部一致
+B1 samyak-taml: 1 档 × 40 字四维度全部一致
+B1 samyak-gujr: 1 档 × 40 字四维度全部一致
+B1 kacst-arab: 1 档 × 40 字四维度全部一致
+B1 abyssinica-ethi: 1 档 × 40 字四维度全部一致
+B1 padauk-mymr: 1 档 × 40 字四维度全部一致
+--- PASS: TestB1TTFProbe (10.18s)
+=== RUN   TestB1TTFWqyCJKFull
+B1 wqy-nohint: 65 档 × 3000 字四维度全部一致
+--- PASS: TestB1TTFWqyCJKFull (203.70s)
+=== RUN   TestB1TTFWqyMicroheiFull
+B1 wqy-microhei: 65 档 × 3000 字四维度全部一致
+--- PASS: TestB1TTFWqyMicroheiFull (215.89s)
+=== RUN   TestB1TTFLatin
+B1 freesans: 65 档 × 254 字四维度全部一致
+B1 dejavu: 65 档 × 254 字四维度全部一致
+--- PASS: TestB1TTFLatin (59.64s)
+=== RUN   TestB1TTFMyanmar
+B1 padauk-mymr: 65 档 × 40 字四维度全部一致
+--- PASS: TestB1TTFMyanmar (28.07s)
+=== RUN   TestB1TTFIndicScripts
+B1 samyak-deva: 65 档 × 40 字四维度全部一致
+B1 mukti-beng: 65 档 × 40 字四维度全部一致
+B1 samyak-taml: 65 档 × 40 字四维度全部一致
+B1 samyak-gujr: 65 档 × 40 字四维度全部一致
+B1 kacst-arab: 65 档 × 40 字四维度全部一致
+B1 abyssinica-ethi: 65 档 × 40 字四维度全部一致
+--- PASS: TestB1TTFIndicScripts (174.31s)
+PASS

@@ -1,0 +1,15 @@
+=== RUN   TestRegistry_ResolveTransientRefMustBeReleased
+--- PASS: TestRegistry_ResolveTransientRefMustBeReleased (0.00s)
+=== RUN   TestRegistry_ReleaseAndReacquireIndependentRefs
+--- PASS: TestRegistry_ReleaseAndReacquireIndependentRefs (0.00s)
+=== RUN   TestRegistry_InvalidateThenReuse
+--- PASS: TestRegistry_InvalidateThenReuse (0.00s)
+=== RUN   TestSubmission_DoubleTrackSingleSubmitDone
+--- PASS: TestSubmission_DoubleTrackSingleSubmitDone (0.00s)
+=== RUN   TestCache_InvalidateThenAcquire
+--- PASS: TestCache_InvalidateThenAcquire (0.00s)
+=== RUN   TestRegistry_ResolveStatsCountsHitsAndMisses
+--- PASS: TestRegistry_ResolveStatsCountsHitsAndMisses (0.00s)
+=== RUN   TestCache_ReleaseUnknownRefNoPanic
+--- PASS: TestCache_ReleaseUnknownRefNoPanic (0.00s)
+PASS

@@ -1,0 +1,14 @@
+=== RUN   TestLifecycleSequencesFromCases
+--- PASS: TestLifecycleSequencesFromCases (0.00s)
+=== RUN   TestLifecycleEdgesNoCrash
+--- PASS: TestLifecycleEdgesNoCrash (0.00s)
+=== RUN   TestLifecycleReplayIdentical
+--- PASS: TestLifecycleReplayIdentical (0.00s)
+=== RUN   TestLifecyclePerfTenThousand
+    lifecycle_test.go:329: lifecycle-perf: 10000 spawn+dispose rounds in 4.173516ms (417.4 ns/op)
+--- PASS: TestLifecyclePerfTenThousand (0.00s)
+=== RUN   TestLifecycleLevelsNoLeak
+--- PASS: TestLifecycleLevelsNoLeak (0.00s)
+=== RUN   TestLifecycleOffscreenGolden
+--- PASS: TestLifecycleOffscreenGolden (0.00s)
+PASS

@@ -1,0 +1,315 @@
+=== RUN   TestFFmpegPlaySeekClose
+    backend_ffmpeg_test.go:43: frame pix 0
+--- FAIL: TestFFmpegPlaySeekClose (0.10s)
+=== RUN   TestNoForbiddenImports
+--- PASS: TestNoForbiddenImports (0.00s)
+=== RUN   TestClassifyTable
+--- PASS: TestClassifyTable (0.00s)
+=== RUN   TestFaultH265Headers
+[hevc @ 0x797188007880] Unknown profile bitstream
+[hevc @ 0x797188007880] Unknown profile bitstream
+[hevc @ 0x797188050d80] Unknown profile bitstream
+[hevc @ 0x797188050d80] Unknown profile bitstream
+[hevc @ 0x797188031000] Unknown profile bitstream
+[hevc @ 0x797188031000] Unknown profile bitstream
+[hevc @ 0x79718803ee00] Unknown profile bitstream
+[hevc @ 0x79718803ee00] Unknown profile bitstream
+[hevc @ 0x797188515d80] Unknown profile bitstream
+[hevc @ 0x797188515d80] Unknown profile bitstream
+    fault_classify_test.go:82: frame pix 0
+--- FAIL: TestFaultH265Headers (0.02s)
+=== RUN   TestFaultCleanClips
+--- PASS: TestFaultCleanClips (0.08s)
+=== RUN   TestFaultMissingFile
+--- PASS: TestFaultMissingFile (0.00s)
+=== RUN   TestFaultNonMP4
+--- PASS: TestFaultNonMP4 (0.00s)
+=== RUN   TestFaultTruncatedTail
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x797188600c40] error reading header
+--- PASS: TestFaultTruncatedTail (0.00s)
+=== RUN   TestFaultFlowerIsolation
+[h264 @ 0x797188019a40] Invalid NAL unit size (0 > 265).
+[h264 @ 0x797188019a40] missing picture in access unit with size 269
+[h264 @ 0x797188019a40] Invalid NAL unit size (0 > 70).
+[h264 @ 0x797188019a40] missing picture in access unit with size 74
+[h264 @ 0x797188011f00] Invalid NAL unit size (0 > 265).
+[h264 @ 0x797188011f00] Error splitting the input into NAL units.
+[h264 @ 0x7971885fcfc0] Invalid NAL unit size (0 > 70).
+[h264 @ 0x7971885fcfc0] Error splitting the input into NAL units.
+[h264 @ 0x797188019a40] Invalid NAL unit size (0 > 39).
+[h264 @ 0x797188019a40] missing picture in access unit with size 43
+[h264 @ 0x797188019a40] Invalid NAL unit size (0 > 136).
+[h264 @ 0x797188019a40] missing picture in access unit with size 140
+[h264 @ 0x79718850fe00] Invalid NAL unit size (0 > 39).
+[h264 @ 0x79718850fe00] Error splitting the input into NAL units.
+[h264 @ 0x797188447640] Invalid NAL unit size (0 > 136).
+[h264 @ 0x797188447640] Error splitting the input into NAL units.
+--- PASS: TestFaultFlowerIsolation (0.02s)
+=== RUN   TestFaultRapidBadOpens
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7971840dd2c0] error reading header
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7971840de6c0] error reading header
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7971840de640] error reading header
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7971840de640] error reading header
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x79718475d600] error reading header
+--- PASS: TestFaultRapidBadOpens (0.09s)
+=== RUN   TestVR3FFmpegParity
+=== RUN   TestVR3FFmpegParity/vr2_b_intra.mp4
+    gate_color_test.go:247: vr2_b_intra.mp4 frame 0: player md5 d41d8cd98f00b204e9800998ecf8427e != direct 782985d31513617794b2e54f736d0405 (backend output changed in transit)
+=== RUN   TestVR3FFmpegParity/vr2_480p.mp4
+    gate_color_test.go:247: vr2_480p.mp4 frame 0: player md5 d41d8cd98f00b204e9800998ecf8427e != direct 074528eaf8f65ec360e049ef6cce768c (backend output changed in transit)
+=== RUN   TestVR3FFmpegParity/vr2_720p.mp4
+    gate_color_test.go:247: vr2_720p.mp4 frame 0: player md5 d41d8cd98f00b204e9800998ecf8427e != direct d5b34d480575bcf88f07e37997ff770c (backend output changed in transit)
+--- FAIL: TestVR3FFmpegParity (0.45s)
+    --- FAIL: TestVR3FFmpegParity/vr2_b_intra.mp4 (0.04s)
+    --- FAIL: TestVR3FFmpegParity/vr2_480p.mp4 (0.15s)
+    --- FAIL: TestVR3FFmpegParity/vr2_720p.mp4 (0.26s)
+=== RUN   TestVR6FFmpegParity
+=== RUN   TestVR6FFmpegParity/file/missing-file
+=== RUN   TestVR6FFmpegParity/file/junk-not-mp4
+=== RUN   TestVR6FFmpegParity/file/trunc-tail
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x79715c777bc0] error reading header
+=== RUN   TestVR6FFmpegParity/file/flower-f20
+[h264 @ 0x79715c00e240] Invalid NAL unit size (0 > 234).
+[h264 @ 0x79715c00e240] missing picture in access unit with size 238
+[h264 @ 0x79715c18ad80] Invalid NAL unit size (0 > 234).
+[h264 @ 0x79715c18ad80] Error splitting the input into NAL units.
+[h264 @ 0x79718805b640] Invalid NAL unit size (0 > 234).
+[h264 @ 0x79718805b640] missing picture in access unit with size 238
+[h264 @ 0x79714c09f1c0] Invalid NAL unit size (0 > 234).
+[h264 @ 0x79714c09f1c0] Error splitting the input into NAL units.
+    gate_fault_test.go:243: flower-f20: shown=9 (header 10, good >= 8)
+=== RUN   TestVR6FFmpegParity/file/level60-diverged
+=== RUN   TestVR6FFmpegParity/file/clean-good
+=== RUN   TestVR6FFmpegParity/unit/backend-buckets
+=== RUN   TestVR6FFmpegParity/unit/retired-aliases
+--- PASS: TestVR6FFmpegParity (0.13s)
+    --- PASS: TestVR6FFmpegParity/file/missing-file (0.00s)
+    --- PASS: TestVR6FFmpegParity/file/junk-not-mp4 (0.00s)
+    --- PASS: TestVR6FFmpegParity/file/trunc-tail (0.00s)
+    --- PASS: TestVR6FFmpegParity/file/flower-f20 (0.05s)
+    --- PASS: TestVR6FFmpegParity/file/level60-diverged (0.04s)
+    --- PASS: TestVR6FFmpegParity/file/clean-good (0.03s)
+    --- PASS: TestVR6FFmpegParity/unit/backend-buckets (0.00s)
+    --- PASS: TestVR6FFmpegParity/unit/retired-aliases (0.00s)
+=== RUN   TestGateHWStatsKeys
+    gate_hw_test.go:47: hw info(active=false name="vaapi" fb=0) stats(active=true name="vaapi" fb=0 avg=13.888ms)
+--- PASS: TestGateHWStatsKeys (0.15s)
+=== RUN   TestGateHWForcedSoft
+--- PASS: TestGateHWForcedSoft (0.05s)
+=== RUN   TestGateHWFaultBucket
+--- PASS: TestGateHWFaultBucket (0.00s)
+=== RUN   TestVR7TFFmpegParity
+=== RUN   TestVR7TFFmpegParity/vr_stream_long.mp4
+    gate_perf_convert_test.go:141: vr_stream_long.mp4: ours avg=3.039ms p95=4.195ms vs ffmpeg rgba=0.630ms/frame (pool 99.5%)
+    gate_perf_convert_test.go:145: vr_stream_long.mp4: VR7-T miss: ours convert avg=3.039ms > ffmpeg rgba utime/frame=0.630ms (gap 4.82x,记 S1 攻坚，不降预算)
+--- FAIL: TestVR7TFFmpegParity (0.63s)
+    --- FAIL: TestVR7TFFmpegParity/vr_stream_long.mp4 (0.62s)
+=== RUN   TestVR7DFFmpegParity
+=== RUN   TestVR7DFFmpegParity/vr2_1080p.mp4
+    gate_perf_decode_test.go:132: vr2_1080p.mp4: VR7-D report (log-only): ours decode_ms_p95=106.70ms vs ffmpeg-4.4.2 decode-only 8.80ms (gap 12.13x, quantities differ: ours incl. NV12 planes)
+--- PASS: TestVR7DFFmpegParity (0.44s)
+    --- PASS: TestVR7DFFmpegParity/vr2_1080p.mp4 (0.43s)
+=== RUN   TestVR7MFFmpegParity
+=== RUN   TestVR7MFFmpegParity/vr_stream_long.mp4
+    gate_perf_mem_test.go:207: vr_stream_long.mp4: cap=131072KB estimate=4.7MB evictions=0 dropped=2 maxrss_ref=50228kB
+--- PASS: TestVR7MFFmpegParity (0.53s)
+    --- PASS: TestVR7MFFmpegParity/vr_stream_long.mp4 (0.53s)
+=== RUN   TestS7OverCapFailFast
+--- PASS: TestS7OverCapFailFast (0.00s)
+=== RUN   TestVR4FFmpegParity
+=== RUN   TestVR4FFmpegParity/vr2_m_bframes.mp4
+=== RUN   TestVR4FFmpegParity/vr2_480p.mp4
+=== RUN   TestVR4FFmpegParity/vr2_720p.mp4
+--- PASS: TestVR4FFmpegParity (0.30s)
+    --- PASS: TestVR4FFmpegParity/vr2_m_bframes.mp4 (0.02s)
+    --- PASS: TestVR4FFmpegParity/vr2_480p.mp4 (0.09s)
+    --- PASS: TestVR4FFmpegParity/vr2_720p.mp4 (0.19s)
+=== RUN   TestVR5FFmpegParity
+=== RUN   TestVR5FFmpegParity/vr5_seek.mp4
+    gate_seek_test.go:250: vr5_seek.mp4/second-gop: recover 0ms (logged, not gated)
+    gate_seek_test.go:250: vr5_seek.mp4/first-gop: recover 0ms (logged, not gated)
+    gate_seek_test.go:250: vr5_seek.mp4/between-stamps: recover 1ms (logged, not gated)
+=== RUN   TestVR5FFmpegParity/vr2_m_bframes.mp4
+    gate_seek_test.go:250: vr2_m_bframes.mp4/b-reorder: recover 0ms (logged, not gated)
+=== RUN   TestVR5FFmpegParity/vr2_480p.mp4
+    gate_seek_test.go:250: vr2_480p.mp4/crop-480p: recover 0ms (logged, not gated)
+--- PASS: TestVR5FFmpegParity (0.32s)
+    --- PASS: TestVR5FFmpegParity/vr5_seek.mp4 (0.10s)
+    --- PASS: TestVR5FFmpegParity/vr2_m_bframes.mp4 (0.04s)
+    --- PASS: TestVR5FFmpegParity/vr2_480p.mp4 (0.18s)
+=== RUN   TestS6StreamingPoolSteady
+    mem_pool_streaming_test.go:57: s6 steady: shown=197 acquires=200 hits=199 misses=1 hitpct=99.5 outstanding=0
+--- PASS: TestS6StreamingPoolSteady (0.57s)
+=== RUN   TestS6SmallClipPooled
+--- PASS: TestS6SmallClipPooled (0.02s)
+=== RUN   TestPoolReuse
+--- PASS: TestPoolReuse (0.00s)
+=== RUN   TestPoolCap
+--- PASS: TestPoolCap (0.00s)
+=== RUN   TestPoolsTriple
+--- PASS: TestPoolsTriple (0.00s)
+=== RUN   TestPoolZeroAlloc
+--- PASS: TestPoolZeroAlloc (0.00s)
+=== RUN   TestMemCap
+--- PASS: TestMemCap (0.00s)
+=== RUN   TestBPlayerExact
+    playback_bframes_test.go:84: B player 80f/2gops: shown=80 first=0 last=15800
+--- PASS: TestBPlayerExact (0.12s)
+=== RUN   TestBPlayerOffParity
+--- PASS: TestBPlayerOffParity (0.21s)
+=== RUN   TestB1HeaderParity
+=== RUN   TestB1HeaderParity/b1_frag5.mp4
+=== RUN   TestB1HeaderParity/b1_frag100.mp4
+--- PASS: TestB1HeaderParity (0.09s)
+    --- PASS: TestB1HeaderParity/b1_frag5.mp4 (0.02s)
+    --- PASS: TestB1HeaderParity/b1_frag100.mp4 (0.07s)
+=== RUN   TestB1DecodeExact
+=== RUN   TestB1DecodeExact/b1_frag5.mp4
+=== RUN   TestB1DecodeExact/b1_frag100.mp4
+--- PASS: TestB1DecodeExact (0.10s)
+    --- PASS: TestB1DecodeExact/b1_frag5.mp4 (0.01s)
+    --- PASS: TestB1DecodeExact/b1_frag100.mp4 (0.09s)
+=== RUN   TestB1PlayToEnd
+=== RUN   TestB1PlayToEnd/b1_frag5.mp4
+=== RUN   TestB1PlayToEnd/b1_frag100.mp4
+--- PASS: TestB1PlayToEnd (0.15s)
+    --- PASS: TestB1PlayToEnd/b1_frag5.mp4 (0.02s)
+    --- PASS: TestB1PlayToEnd/b1_frag100.mp4 (0.13s)
+=== RUN   TestB1SeekFloor
+=== RUN   TestB1SeekFloor/b1_frag5.mp4
+=== RUN   TestB1SeekFloor/b1_frag100.mp4
+--- PASS: TestB1SeekFloor (0.20s)
+    --- PASS: TestB1SeekFloor/b1_frag5.mp4 (0.02s)
+    --- PASS: TestB1SeekFloor/b1_frag100.mp4 (0.18s)
+=== RUN   TestS2PlayerParallelExact
+    playback_parallel_test.go:92: s2 ffmpeg parity: par=199 seq=199 common=198
+--- PASS: TestS2PlayerParallelExact (1.21s)
+=== RUN   TestS2PlayerSeekParity
+--- PASS: TestS2PlayerSeekParity (0.35s)
+=== RUN   TestS2PlayerSmallClipUntouched
+--- PASS: TestS2PlayerSmallClipUntouched (0.03s)
+=== RUN   TestPollSteadyNoAlloc
+--- PASS: TestPollSteadyNoAlloc (0.02s)
+=== RUN   TestLoopSteadyBytes
+    playback_steady_test.go:76: 1080p steady: shown=21 per_frame_B=1281
+--- PASS: TestLoopSteadyBytes (7.22s)
+=== RUN   TestPlayOrder
+--- PASS: TestPlayOrder (0.02s)
+=== RUN   TestPauseFreezes
+--- PASS: TestPauseFreezes (0.02s)
+=== RUN   TestDropStale
+--- PASS: TestDropStale (0.02s)
+=== RUN   TestLoopReplays
+--- PASS: TestLoopReplays (0.03s)
+=== RUN   TestBadClips
+    player_playback_test.go:212: non-mp4 err: video: ffmpeg open fault_classify.go: ffmpeg: open fault_classify.go: Invalid data found when processing input: video: bad clip
+--- PASS: TestBadClips (0.00s)
+=== RUN   TestSeekToMiddleKeyframe
+--- PASS: TestSeekToMiddleKeyframe (0.03s)
+=== RUN   TestSeekFirstGOP
+--- PASS: TestSeekFirstGOP (0.02s)
+=== RUN   TestSeekBetweenStamps
+--- PASS: TestSeekBetweenStamps (0.02s)
+=== RUN   TestSeekSingleKeyframeClip
+--- PASS: TestSeekSingleKeyframeClip (0.02s)
+=== RUN   TestSeekRapidNoStall
+--- PASS: TestSeekRapidNoStall (0.14s)
+=== RUN   TestSeekLoopRefused
+--- PASS: TestSeekLoopRefused (0.01s)
+=== RUN   TestSeekWhilePaused
+--- PASS: TestSeekWhilePaused (0.02s)
+=== RUN   TestSeekFastAndKeyframes
+--- PASS: TestSeekFastAndKeyframes (0.05s)
+=== RUN   TestSeekByAndRate
+    player_seek_test.go:416: shown pts = 800, want 600
+--- FAIL: TestSeekByAndRate (0.02s)
+=== RUN   TestStreamPathPlaysToEnd
+    player_stream_long_test.go:81: catch-up: shown=197 dropped=3
+--- PASS: TestStreamPathPlaysToEnd (0.58s)
+=== RUN   TestStreamSeekMidGOP
+    player_stream_long_test.go:179: seek travelling (background still decoding)
+--- PASS: TestStreamSeekMidGOP (0.30s)
+=== RUN   TestStreamSeekWhileDecoding
+--- PASS: TestStreamSeekWhileDecoding (0.05s)
+=== RUN   TestStreamLoopWrap
+--- PASS: TestStreamLoopWrap (1.15s)
+=== RUN   TestStreamPauseFreezes
+--- PASS: TestStreamPauseFreezes (0.03s)
+=== RUN   TestStreamDropStale
+--- PASS: TestStreamDropStale (1.52s)
+=== RUN   TestStreamHTTPFullPlay
+    player_stream_long_test.go:378: http long: gets=2 ranges=2
+--- PASS: TestStreamHTTPFullPlay (0.54s)
+=== RUN   TestStreamSeekBackward
+--- PASS: TestStreamSeekBackward (0.05s)
+=== RUN   TestStreamTruncatedMidway
+[h264 @ 0x79714c5a1a40] Invalid NAL unit size (835 > 136).
+[h264 @ 0x79714c5a1a40] missing picture in access unit with size 140
+[h264 @ 0x79714c599080] Invalid NAL unit size (835 > 136).
+[h264 @ 0x79714c599080] Error splitting the input into NAL units.
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x79714c007100] stream 0, offset 0x228db: partial file
+    player_stream_long_test.go:472: cut play: shown=116 concealed=0 fault=""
+--- PASS: TestStreamTruncatedMidway (0.32s)
+=== RUN   TestStreamSeekWithFullQueueNoConsumer
+--- PASS: TestStreamSeekWithFullQueueNoConsumer (1.23s)
+=== RUN   TestStreamSeekCompanions
+    player_stream_long_test.go:545: seek travelling (background still decoding)
+--- PASS: TestStreamSeekCompanions (0.31s)
+=== RUN   TestStreamOpenMissingAndJunk
+--- PASS: TestStreamOpenMissingAndJunk (0.00s)
+=== RUN   TestStreamFastOpen
+--- PASS: TestStreamFastOpen (0.20s)
+=== RUN   TestStreamLongClip
+--- PASS: TestStreamLongClip (2.87s)
+=== RUN   TestHTTPSourceRange
+    player_stream_test.go:123: http open: gets=2 ranges=2
+--- PASS: TestHTTPSourceRange (0.03s)
+=== RUN   TestOpenPathVariants
+--- PASS: TestOpenPathVariants (0.01s)
+=== RUN   TestProbeSource
+--- PASS: TestProbeSource (0.02s)
+=== RUN   TestBytesSourceRange
+--- PASS: TestBytesSourceRange (0.00s)
+=== RUN   TestHTTPNoRangeFallback
+--- PASS: TestHTTPNoRangeFallback (0.03s)
+=== RUN   TestHTTPChunkErrors
+--- PASS: TestHTTPChunkErrors (0.00s)
+=== RUN   TestFileSourceRange
+--- PASS: TestFileSourceRange (0.00s)
+=== RUN   TestHTTPSourceChunkCache
+--- PASS: TestHTTPSourceChunkCache (0.06s)
+=== RUN   TestOpenWithSourceKinds
+--- PASS: TestOpenWithSourceKinds (0.03s)
+=== RUN   TestPlayerCloseIdempotent
+--- PASS: TestPlayerCloseIdempotent (0.01s)
+=== RUN   TestStreamingQueueBounded
+--- PASS: TestStreamingQueueBounded (0.02s)
+=== RUN   TestIsURL
+--- PASS: TestIsURL (0.00s)
+=== RUN   TestRegistrySupported
+--- PASS: TestRegistrySupported (0.00s)
+=== RUN   TestRegistryOpenClip
+--- PASS: TestRegistryOpenClip (1.09s)
+=== RUN   TestRegistryUnsupported
+--- PASS: TestRegistryUnsupported (0.00s)
+=== RUN   TestNoHardcodedNames
+--- PASS: TestNoHardcodedNames (0.01s)
+=== RUN   TestA2BaselineParity
+--- PASS: TestA2BaselineParity (0.07s)
+=== RUN   TestA2TargetDelay
+--- PASS: TestA2TargetDelay (0.00s)
+=== RUN   TestA2SoundHead
+    sync_audio_test.go:241: sound head v=239 a=238 energy=4815.1687000868 avdiff=0
+--- PASS: TestA2SoundHead (4.23s)
+=== RUN   TestA2SoundSeeks
+--- PASS: TestA2SoundSeeks (1.50s)
+=== RUN   TestA2SilentFallback
+--- PASS: TestA2SilentFallback (8.24s)
+=== RUN   TestA2RateKeepsSoundSync
+--- PASS: TestA2RateKeepsSoundSync (0.19s)
+=== RUN   TestA2VolumeAndMute
+    sync_audio_test.go:517: volume 0.5x verified on 6 frames
+--- PASS: TestA2VolumeAndMute (0.27s)
+FAIL
+FAIL	github.com/energye/gpui/video	39.044s
+FAIL

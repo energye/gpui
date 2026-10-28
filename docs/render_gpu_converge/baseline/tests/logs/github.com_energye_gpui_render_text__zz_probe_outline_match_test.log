@@ -1,0 +1,33 @@
+=== RUN   TestDbgProdContour
+'静' 8px: N pts self=140 ft=123
+'每' 8px: N pts self=113 ft=92
+'合' 8px: N pts self=42 ft=35
+'静' 10px: N pts self=140 ft=123
+'每' 10px: N pts self=113 ft=92
+'合' 10px: N pts self=42 ft=35
+'静' 12px: N pts self=139 ft=122
+'每' 12px: N pts self=113 ft=92
+'合' 12px: N pts self=42 ft=35
+'静' 14px: N pts self=140 ft=123
+'每' 14px: N pts self=113 ft=92
+'合' 14px: N pts self=42 ft=35
+'静' 16px: N pts self=140 ft=123
+'每' 16px: N pts self=113 ft=92
+'合' 16px: N pts self=42 ft=35
+'静' 20px: N pts self=140 ft=123
+'每' 20px: N pts self=113 ft=92
+'合' 20px: N pts self=42 ft=35
+'静' 24px: N pts self=140 ft=123
+'每' 24px: N pts self=113 ft=92
+'合' 24px: N pts self=42 ft=35
+'静' 28px: N pts self=140 ft=123
+'每' 28px: N pts self=113 ft=92
+'合' 28px: N pts self=42 ft=35
+'静' 32px: N pts self=140 ft=123
+'每' 32px: N pts self=113 ft=92
+'合' 32px: N pts self=42 ft=35
+'静' 48px: N pts self=140 ft=123
+'每' 48px: N pts self=113 ft=92
+'合' 48px: N pts self=42 ft=35
+--- PASS: TestDbgProdContour (1.14s)
+PASS

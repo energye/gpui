@@ -1,0 +1,11 @@
+=== RUN   TestFromPlatform_Stylus
+--- PASS: TestFromPlatform_Stylus (0.00s)
+=== RUN   TestFromPlatform_StylusPressureRange
+--- PASS: TestFromPlatform_StylusPressureRange (0.00s)
+=== RUN   TestFromPlatform_StylusPhaseClamp
+--- PASS: TestFromPlatform_StylusPhaseClamp (0.00s)
+=== RUN   TestFromStylus
+--- PASS: TestFromStylus (0.00s)
+=== RUN   TestStylusEventString
+--- PASS: TestStylusEventString (0.00s)
+PASS

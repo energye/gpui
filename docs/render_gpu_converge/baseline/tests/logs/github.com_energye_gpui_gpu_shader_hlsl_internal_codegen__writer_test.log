@@ -1,0 +1,37 @@
+=== RUN   TestWriter_Indentation
+--- PASS: TestWriter_Indentation (0.00s)
+=== RUN   TestWriter_WriteLine
+--- PASS: TestWriter_WriteLine (0.00s)
+=== RUN   TestWriter_WriteLineWithFormat
+--- PASS: TestWriter_WriteLineWithFormat (0.00s)
+=== RUN   TestWriter_IndentedOutput
+--- PASS: TestWriter_IndentedOutput (0.00s)
+=== RUN   TestWriter_GetTypeName_Scalar
+--- PASS: TestWriter_GetTypeName_Scalar (0.00s)
+=== RUN   TestWriter_GetTypeName_Vector
+--- PASS: TestWriter_GetTypeName_Vector (0.00s)
+=== RUN   TestWriter_GetTypeName_Matrix
+--- PASS: TestWriter_GetTypeName_Matrix (0.00s)
+=== RUN   TestWriter_GetTypeName_Struct
+--- PASS: TestWriter_GetTypeName_Struct (0.00s)
+=== RUN   TestWriter_GetTypeName_InvalidHandle
+--- PASS: TestWriter_GetTypeName_InvalidHandle (0.00s)
+=== RUN   TestWriter_WriteModule_Header
+--- PASS: TestWriter_WriteModule_Header (0.00s)
+=== RUN   TestWriter_WriteTypes_Struct
+--- PASS: TestWriter_WriteTypes_Struct (0.00s)
+=== RUN   TestWriter_WriteConstants
+--- PASS: TestWriter_WriteConstants (0.00s)
+=== RUN   TestWriter_ScalarValue
+=== RUN   TestWriter_ScalarValue/bool_true
+=== RUN   TestWriter_ScalarValue/bool_false
+=== RUN   TestWriter_ScalarValue/int_positive
+=== RUN   TestWriter_ScalarValue/int_negative
+=== RUN   TestWriter_ScalarValue/uint
+--- PASS: TestWriter_ScalarValue (0.00s)
+    --- PASS: TestWriter_ScalarValue/bool_true (0.00s)
+    --- PASS: TestWriter_ScalarValue/bool_false (0.00s)
+    --- PASS: TestWriter_ScalarValue/int_positive (0.00s)
+    --- PASS: TestWriter_ScalarValue/int_negative (0.00s)
+    --- PASS: TestWriter_ScalarValue/uint (0.00s)
+PASS

@@ -1,0 +1,5 @@
+=== RUN   TestDebugRepaint_MarksLivePaintNotReplay
+--- PASS: TestDebugRepaint_MarksLivePaintNotReplay (0.00s)
+=== RUN   TestDebugRepaint_DirtyUnchangedContentLivePaints
+--- PASS: TestDebugRepaint_DirtyUnchangedContentLivePaints (0.00s)
+PASS

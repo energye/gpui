@@ -1,0 +1,9 @@
+=== RUN   TestVertexCoverage_PartialAlpha
+--- PASS: TestVertexCoverage_PartialAlpha (0.00s)
+=== RUN   TestEdgePosition_NoDrift
+--- PASS: TestEdgePosition_NoDrift (0.00s)
+=== RUN   TestCoverageToRuns_MergedRunAlpha
+--- PASS: TestCoverageToRuns_MergedRunAlpha (0.00s)
+=== RUN   TestInteriorPixels_FullCoverage
+--- PASS: TestInteriorPixels_FullCoverage (0.00s)
+PASS

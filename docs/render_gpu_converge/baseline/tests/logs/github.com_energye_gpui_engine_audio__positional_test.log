@@ -1,0 +1,14 @@
+=== RUN   TestPositionalMixFromCases
+--- PASS: TestPositionalMixFromCases (0.00s)
+=== RUN   TestPositionalEdgesNoCrash
+--- PASS: TestPositionalEdgesNoCrash (0.00s)
+=== RUN   TestPositionalBoundaryIdentical
+--- PASS: TestPositionalBoundaryIdentical (0.00s)
+=== RUN   TestPositionalPerfMulti
+    positional_test.go:407: positional-256: 2000 reps x 256 voices (512000 mixes) in 38.888873ms (19.4 us/rep, audible 20000)
+--- PASS: TestPositionalPerfMulti (0.04s)
+=== RUN   TestPositionalLongRunStable
+--- PASS: TestPositionalLongRunStable (0.00s)
+=== RUN   TestPositionalOffscreenGolden
+--- PASS: TestPositionalOffscreenGolden (0.00s)
+PASS

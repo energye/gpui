@@ -1,0 +1,557 @@
+=== RUN   TestIsReserved
+=== RUN   TestIsReserved/fxc_keyword_bool
+=== RUN   TestIsReserved/fxc_keyword_float
+=== RUN   TestIsReserved/fxc_keyword_struct
+=== RUN   TestIsReserved/fxc_keyword_cbuffer
+=== RUN   TestIsReserved/fxc_keyword_texture2d
+=== RUN   TestIsReserved/fxc_keyword_buffer
+=== RUN   TestIsReserved/fxc_reserved_auto
+=== RUN   TestIsReserved/fxc_reserved_class
+=== RUN   TestIsReserved/fxc_reserved_delete
+=== RUN   TestIsReserved/fxc_intrinsic_abs
+=== RUN   TestIsReserved/fxc_intrinsic_sin
+=== RUN   TestIsReserved/fxc_intrinsic_cos
+=== RUN   TestIsReserved/fxc_intrinsic_dot
+=== RUN   TestIsReserved/fxc_intrinsic_cross
+=== RUN   TestIsReserved/fxc_intrinsic_lerp
+=== RUN   TestIsReserved/fxc_intrinsic_saturate
+=== RUN   TestIsReserved/dxc_keyword_constexpr
+=== RUN   TestIsReserved/dxc_keyword_nullptr
+=== RUN   TestIsReserved/dxc_keyword_alignas
+=== RUN   TestIsReserved/dxc_wave_isFirstLane
+=== RUN   TestIsReserved/dxc_wave_getIndex
+=== RUN   TestIsReserved/dxc_wave_activeSum
+=== RUN   TestIsReserved/dxc_ray_traceRay
+=== RUN   TestIsReserved/dxc_ray_reportHit
+=== RUN   TestIsReserved/dxc_ray_worldRayOrigin
+=== RUN   TestIsReserved/dxc_mesh_setOutputCounts
+=== RUN   TestIsReserved/dxc_mesh_dispatchMesh
+=== RUN   TestIsReserved/dxc_resource_rwTexture2dms
+=== RUN   TestIsReserved/dxc_resource_feedbackTex
+=== RUN   TestIsReserved/dxc_resource_rayQuery
+=== RUN   TestIsReserved/semantic_position
+=== RUN   TestIsReserved/semantic_target
+=== RUN   TestIsReserved/semantic_dispatchThread
+=== RUN   TestIsReserved/naga_modf
+=== RUN   TestIsReserved/naga_div
+=== RUN   TestIsReserved/naga_sampler_heap
+=== RUN   TestIsReserved/type_bool
+=== RUN   TestIsReserved/type_int
+=== RUN   TestIsReserved/type_uint
+=== RUN   TestIsReserved/type_float
+=== RUN   TestIsReserved/type_double
+=== RUN   TestIsReserved/type_half
+=== RUN   TestIsReserved/type_float2
+=== RUN   TestIsReserved/type_float3
+=== RUN   TestIsReserved/type_float4
+=== RUN   TestIsReserved/type_int4
+=== RUN   TestIsReserved/type_uint3
+=== RUN   TestIsReserved/type_bool2
+=== RUN   TestIsReserved/type_float4x4
+=== RUN   TestIsReserved/type_float3x3
+=== RUN   TestIsReserved/type_float2x2
+=== RUN   TestIsReserved/type_int4x4
+=== RUN   TestIsReserved/type_half3x4
+=== RUN   TestIsReserved/non_reserved_myVar
+=== RUN   TestIsReserved/non_reserved_custom
+=== RUN   TestIsReserved/non_reserved_position
+=== RUN   TestIsReserved/non_reserved_color
+=== RUN   TestIsReserved/non_reserved_normal
+=== RUN   TestIsReserved/non_reserved_underscore
+=== RUN   TestIsReserved/non_reserved_camelCase
+--- PASS: TestIsReserved (0.00s)
+    --- PASS: TestIsReserved/fxc_keyword_bool (0.00s)
+    --- PASS: TestIsReserved/fxc_keyword_float (0.00s)
+    --- PASS: TestIsReserved/fxc_keyword_struct (0.00s)
+    --- PASS: TestIsReserved/fxc_keyword_cbuffer (0.00s)
+    --- PASS: TestIsReserved/fxc_keyword_texture2d (0.00s)
+    --- PASS: TestIsReserved/fxc_keyword_buffer (0.00s)
+    --- PASS: TestIsReserved/fxc_reserved_auto (0.00s)
+    --- PASS: TestIsReserved/fxc_reserved_class (0.00s)
+    --- PASS: TestIsReserved/fxc_reserved_delete (0.00s)
+    --- PASS: TestIsReserved/fxc_intrinsic_abs (0.00s)
+    --- PASS: TestIsReserved/fxc_intrinsic_sin (0.00s)
+    --- PASS: TestIsReserved/fxc_intrinsic_cos (0.00s)
+    --- PASS: TestIsReserved/fxc_intrinsic_dot (0.00s)
+    --- PASS: TestIsReserved/fxc_intrinsic_cross (0.00s)
+    --- PASS: TestIsReserved/fxc_intrinsic_lerp (0.00s)
+    --- PASS: TestIsReserved/fxc_intrinsic_saturate (0.00s)
+    --- PASS: TestIsReserved/dxc_keyword_constexpr (0.00s)
+    --- PASS: TestIsReserved/dxc_keyword_nullptr (0.00s)
+    --- PASS: TestIsReserved/dxc_keyword_alignas (0.00s)
+    --- PASS: TestIsReserved/dxc_wave_isFirstLane (0.00s)
+    --- PASS: TestIsReserved/dxc_wave_getIndex (0.00s)
+    --- PASS: TestIsReserved/dxc_wave_activeSum (0.00s)
+    --- PASS: TestIsReserved/dxc_ray_traceRay (0.00s)
+    --- PASS: TestIsReserved/dxc_ray_reportHit (0.00s)
+    --- PASS: TestIsReserved/dxc_ray_worldRayOrigin (0.00s)
+    --- PASS: TestIsReserved/dxc_mesh_setOutputCounts (0.00s)
+    --- PASS: TestIsReserved/dxc_mesh_dispatchMesh (0.00s)
+    --- PASS: TestIsReserved/dxc_resource_rwTexture2dms (0.00s)
+    --- PASS: TestIsReserved/dxc_resource_feedbackTex (0.00s)
+    --- PASS: TestIsReserved/dxc_resource_rayQuery (0.00s)
+    --- PASS: TestIsReserved/semantic_position (0.00s)
+    --- PASS: TestIsReserved/semantic_target (0.00s)
+    --- PASS: TestIsReserved/semantic_dispatchThread (0.00s)
+    --- PASS: TestIsReserved/naga_modf (0.00s)
+    --- PASS: TestIsReserved/naga_div (0.00s)
+    --- PASS: TestIsReserved/naga_sampler_heap (0.00s)
+    --- PASS: TestIsReserved/type_bool (0.00s)
+    --- PASS: TestIsReserved/type_int (0.00s)
+    --- PASS: TestIsReserved/type_uint (0.00s)
+    --- PASS: TestIsReserved/type_float (0.00s)
+    --- PASS: TestIsReserved/type_double (0.00s)
+    --- PASS: TestIsReserved/type_half (0.00s)
+    --- PASS: TestIsReserved/type_float2 (0.00s)
+    --- PASS: TestIsReserved/type_float3 (0.00s)
+    --- PASS: TestIsReserved/type_float4 (0.00s)
+    --- PASS: TestIsReserved/type_int4 (0.00s)
+    --- PASS: TestIsReserved/type_uint3 (0.00s)
+    --- PASS: TestIsReserved/type_bool2 (0.00s)
+    --- PASS: TestIsReserved/type_float4x4 (0.00s)
+    --- PASS: TestIsReserved/type_float3x3 (0.00s)
+    --- PASS: TestIsReserved/type_float2x2 (0.00s)
+    --- PASS: TestIsReserved/type_int4x4 (0.00s)
+    --- PASS: TestIsReserved/type_half3x4 (0.00s)
+    --- PASS: TestIsReserved/non_reserved_myVar (0.00s)
+    --- PASS: TestIsReserved/non_reserved_custom (0.00s)
+    --- PASS: TestIsReserved/non_reserved_position (0.00s)
+    --- PASS: TestIsReserved/non_reserved_color (0.00s)
+    --- PASS: TestIsReserved/non_reserved_normal (0.00s)
+    --- PASS: TestIsReserved/non_reserved_underscore (0.00s)
+    --- PASS: TestIsReserved/non_reserved_camelCase (0.00s)
+=== RUN   TestIsCaseInsensitiveReserved
+=== RUN   TestIsCaseInsensitiveReserved/asm_lower
+=== RUN   TestIsCaseInsensitiveReserved/asm_upper
+=== RUN   TestIsCaseInsensitiveReserved/asm_mixed
+=== RUN   TestIsCaseInsensitiveReserved/decl_lower
+=== RUN   TestIsCaseInsensitiveReserved/decl_upper
+=== RUN   TestIsCaseInsensitiveReserved/pass_lower
+=== RUN   TestIsCaseInsensitiveReserved/pass_upper
+=== RUN   TestIsCaseInsensitiveReserved/technique_lower
+=== RUN   TestIsCaseInsensitiveReserved/technique_mixed
+=== RUN   TestIsCaseInsensitiveReserved/texture1d_lower
+=== RUN   TestIsCaseInsensitiveReserved/texture1d_upper
+=== RUN   TestIsCaseInsensitiveReserved/texture2d_lower
+=== RUN   TestIsCaseInsensitiveReserved/texture2d_mixed
+=== RUN   TestIsCaseInsensitiveReserved/texture3d_lower
+=== RUN   TestIsCaseInsensitiveReserved/texturecube_lower
+=== RUN   TestIsCaseInsensitiveReserved/texturecube_mixed
+=== RUN   TestIsCaseInsensitiveReserved/float_not_case_insensitive
+=== RUN   TestIsCaseInsensitiveReserved/struct_not_case_insensitive
+=== RUN   TestIsCaseInsensitiveReserved/buffer_not_case_insensitive
+=== RUN   TestIsCaseInsensitiveReserved/random_word
+--- PASS: TestIsCaseInsensitiveReserved (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/asm_lower (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/asm_upper (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/asm_mixed (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/decl_lower (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/decl_upper (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/pass_lower (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/pass_upper (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/technique_lower (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/technique_mixed (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/texture1d_lower (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/texture1d_upper (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/texture2d_lower (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/texture2d_mixed (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/texture3d_lower (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/texturecube_lower (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/texturecube_mixed (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/float_not_case_insensitive (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/struct_not_case_insensitive (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/buffer_not_case_insensitive (0.00s)
+    --- PASS: TestIsCaseInsensitiveReserved/random_word (0.00s)
+=== RUN   TestEscape
+=== RUN   TestEscape/empty
+=== RUN   TestEscape/escape_float
+=== RUN   TestEscape/escape_int
+=== RUN   TestEscape/escape_struct
+=== RUN   TestEscape/escape_cbuffer
+=== RUN   TestEscape/escape_bool
+=== RUN   TestEscape/escape_void
+=== RUN   TestEscape/escape_abs
+=== RUN   TestEscape/escape_sin
+=== RUN   TestEscape/escape_cos
+=== RUN   TestEscape/escape_dot
+=== RUN   TestEscape/escape_float4
+=== RUN   TestEscape/escape_int3
+=== RUN   TestEscape/escape_float4x4
+=== RUN   TestEscape/escape_asm_lower
+=== RUN   TestEscape/escape_ASM_upper
+=== RUN   TestEscape/escape_Technique
+=== RUN   TestEscape/pass_myVar
+=== RUN   TestEscape/pass_custom
+=== RUN   TestEscape/pass_position
+=== RUN   TestEscape/pass_color
+=== RUN   TestEscape/pass_underscore
+--- PASS: TestEscape (0.00s)
+    --- PASS: TestEscape/empty (0.00s)
+    --- PASS: TestEscape/escape_float (0.00s)
+    --- PASS: TestEscape/escape_int (0.00s)
+    --- PASS: TestEscape/escape_struct (0.00s)
+    --- PASS: TestEscape/escape_cbuffer (0.00s)
+    --- PASS: TestEscape/escape_bool (0.00s)
+    --- PASS: TestEscape/escape_void (0.00s)
+    --- PASS: TestEscape/escape_abs (0.00s)
+    --- PASS: TestEscape/escape_sin (0.00s)
+    --- PASS: TestEscape/escape_cos (0.00s)
+    --- PASS: TestEscape/escape_dot (0.00s)
+    --- PASS: TestEscape/escape_float4 (0.00s)
+    --- PASS: TestEscape/escape_int3 (0.00s)
+    --- PASS: TestEscape/escape_float4x4 (0.00s)
+    --- PASS: TestEscape/escape_asm_lower (0.00s)
+    --- PASS: TestEscape/escape_ASM_upper (0.00s)
+    --- PASS: TestEscape/escape_Technique (0.00s)
+    --- PASS: TestEscape/pass_myVar (0.00s)
+    --- PASS: TestEscape/pass_custom (0.00s)
+    --- PASS: TestEscape/pass_position (0.00s)
+    --- PASS: TestEscape/pass_color (0.00s)
+    --- PASS: TestEscape/pass_underscore (0.00s)
+=== RUN   TestTypeShorthandsGeneration
+=== RUN   TestTypeShorthandsGeneration/vector_float1
+=== RUN   TestTypeShorthandsGeneration/vector_float2
+=== RUN   TestTypeShorthandsGeneration/vector_float3
+=== RUN   TestTypeShorthandsGeneration/vector_float4
+=== RUN   TestTypeShorthandsGeneration/vector_int1
+=== RUN   TestTypeShorthandsGeneration/vector_int2
+=== RUN   TestTypeShorthandsGeneration/vector_int3
+=== RUN   TestTypeShorthandsGeneration/vector_int4
+=== RUN   TestTypeShorthandsGeneration/vector_uint1
+=== RUN   TestTypeShorthandsGeneration/vector_uint2
+=== RUN   TestTypeShorthandsGeneration/vector_uint3
+=== RUN   TestTypeShorthandsGeneration/vector_uint4
+=== RUN   TestTypeShorthandsGeneration/vector_bool1
+=== RUN   TestTypeShorthandsGeneration/vector_bool2
+=== RUN   TestTypeShorthandsGeneration/vector_bool3
+=== RUN   TestTypeShorthandsGeneration/vector_bool4
+=== RUN   TestTypeShorthandsGeneration/vector_half1
+=== RUN   TestTypeShorthandsGeneration/vector_half2
+=== RUN   TestTypeShorthandsGeneration/vector_half3
+=== RUN   TestTypeShorthandsGeneration/vector_half4
+=== RUN   TestTypeShorthandsGeneration/vector_double1
+=== RUN   TestTypeShorthandsGeneration/vector_double2
+=== RUN   TestTypeShorthandsGeneration/vector_double3
+=== RUN   TestTypeShorthandsGeneration/vector_double4
+=== RUN   TestTypeShorthandsGeneration/matrix_float2x2
+=== RUN   TestTypeShorthandsGeneration/matrix_float3x3
+=== RUN   TestTypeShorthandsGeneration/matrix_float4x4
+=== RUN   TestTypeShorthandsGeneration/matrix_float2x3
+=== RUN   TestTypeShorthandsGeneration/matrix_float3x4
+=== RUN   TestTypeShorthandsGeneration/matrix_float4x3
+=== RUN   TestTypeShorthandsGeneration/matrix_int2x2
+=== RUN   TestTypeShorthandsGeneration/matrix_int4x4
+=== RUN   TestTypeShorthandsGeneration/matrix_half2x2
+=== RUN   TestTypeShorthandsGeneration/matrix_half4x4
+--- PASS: TestTypeShorthandsGeneration (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_float1 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_float2 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_float3 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_float4 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_int1 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_int2 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_int3 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_int4 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_uint1 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_uint2 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_uint3 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_uint4 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_bool1 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_bool2 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_bool3 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_bool4 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_half1 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_half2 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_half3 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_half4 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_double1 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_double2 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_double3 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/vector_double4 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_float2x2 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_float3x3 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_float4x4 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_float2x3 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_float3x4 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_float4x3 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_int2x2 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_int4x4 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_half2x2 (0.00s)
+    --- PASS: TestTypeShorthandsGeneration/matrix_half4x4 (0.00s)
+=== RUN   TestNagaHelperConstants
+=== RUN   TestNagaHelperConstants/NagaModfFunction
+=== RUN   TestNagaHelperConstants/NagaFrexpFunction
+=== RUN   TestNagaHelperConstants/NagaExtractBitsFunction
+=== RUN   TestNagaHelperConstants/NagaInsertBitsFunction
+=== RUN   TestNagaHelperConstants/SamplerHeapVar
+=== RUN   TestNagaHelperConstants/ComparisonSamplerHeapVar
+=== RUN   TestNagaHelperConstants/SampleExternalTextureFunction
+=== RUN   TestNagaHelperConstants/NagaAbsFunction
+=== RUN   TestNagaHelperConstants/NagaDivFunction
+=== RUN   TestNagaHelperConstants/NagaModFunction
+=== RUN   TestNagaHelperConstants/NagaNegFunction
+=== RUN   TestNagaHelperConstants/NagaF2I32Function
+=== RUN   TestNagaHelperConstants/NagaF2U32Function
+=== RUN   TestNagaHelperConstants/NagaF2I64Function
+=== RUN   TestNagaHelperConstants/NagaF2U64Function
+=== RUN   TestNagaHelperConstants/ImageLoadExternalFunction
+=== RUN   TestNagaHelperConstants/ImageSampleBaseClampToEdgeFunc
+=== RUN   TestNagaHelperConstants/DynamicBufferOffsetsPrefix
+=== RUN   TestNagaHelperConstants/ImageStorageLoadScalarWrapper
+--- PASS: TestNagaHelperConstants (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaModfFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaFrexpFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaExtractBitsFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaInsertBitsFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/SamplerHeapVar (0.00s)
+    --- PASS: TestNagaHelperConstants/ComparisonSamplerHeapVar (0.00s)
+    --- PASS: TestNagaHelperConstants/SampleExternalTextureFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaAbsFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaDivFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaModFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaNegFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaF2I32Function (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaF2U32Function (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaF2I64Function (0.00s)
+    --- PASS: TestNagaHelperConstants/NagaF2U64Function (0.00s)
+    --- PASS: TestNagaHelperConstants/ImageLoadExternalFunction (0.00s)
+    --- PASS: TestNagaHelperConstants/ImageSampleBaseClampToEdgeFunc (0.00s)
+    --- PASS: TestNagaHelperConstants/DynamicBufferOffsetsPrefix (0.00s)
+    --- PASS: TestNagaHelperConstants/ImageStorageLoadScalarWrapper (0.00s)
+=== RUN   TestReservedKeywordsCoverage
+=== RUN   TestReservedKeywordsCoverage/fxc_AppendStructuredBuffer
+=== RUN   TestReservedKeywordsCoverage/fxc_BlendState
+=== RUN   TestReservedKeywordsCoverage/fxc_Buffer
+=== RUN   TestReservedKeywordsCoverage/fxc_ByteAddressBuffer
+=== RUN   TestReservedKeywordsCoverage/fxc_cbuffer
+=== RUN   TestReservedKeywordsCoverage/fxc_centroid
+=== RUN   TestReservedKeywordsCoverage/fxc_column_major
+=== RUN   TestReservedKeywordsCoverage/fxc_compile
+=== RUN   TestReservedKeywordsCoverage/fxc_ConsumeStructuredBuffer
+=== RUN   TestReservedKeywordsCoverage/fxc_DepthStencilState
+=== RUN   TestReservedKeywordsCoverage/fxc_discard
+=== RUN   TestReservedKeywordsCoverage/fxc_DomainShader
+=== RUN   TestReservedKeywordsCoverage/fxc_GeometryShader
+=== RUN   TestReservedKeywordsCoverage/fxc_groupshared
+=== RUN   TestReservedKeywordsCoverage/fxc_Hullshader
+=== RUN   TestReservedKeywordsCoverage/fxc_InputPatch
+=== RUN   TestReservedKeywordsCoverage/fxc_interface
+=== RUN   TestReservedKeywordsCoverage/fxc_lineadj
+=== RUN   TestReservedKeywordsCoverage/fxc_LineStream
+=== RUN   TestReservedKeywordsCoverage/fxc_matrix
+=== RUN   TestReservedKeywordsCoverage/fxc_nointerpolation
+=== RUN   TestReservedKeywordsCoverage/fxc_noperspective
+=== RUN   TestReservedKeywordsCoverage/fxc_OutputPatch
+=== RUN   TestReservedKeywordsCoverage/fxc_packoffset
+=== RUN   TestReservedKeywordsCoverage/fxc_pixelfragment
+=== RUN   TestReservedKeywordsCoverage/fxc_PixelShader
+=== RUN   TestReservedKeywordsCoverage/fxc_PointStream
+=== RUN   TestReservedKeywordsCoverage/fxc_precise
+=== RUN   TestReservedKeywordsCoverage/fxc_RasterizerState
+=== RUN   TestReservedKeywordsCoverage/fxc_RenderTargetView
+=== RUN   TestReservedKeywordsCoverage/fxc_register
+=== RUN   TestReservedKeywordsCoverage/fxc_row_major
+=== RUN   TestReservedKeywordsCoverage/fxc_RWBuffer
+=== RUN   TestReservedKeywordsCoverage/fxc_RWByteAddressBuffer
+=== RUN   TestReservedKeywordsCoverage/fxc_RWStructuredBuffer
+=== RUN   TestReservedKeywordsCoverage/fxc_SamplerState
+=== RUN   TestReservedKeywordsCoverage/fxc_SamplerComparisonState
+=== RUN   TestReservedKeywordsCoverage/fxc_shared
+=== RUN   TestReservedKeywordsCoverage/fxc_snorm
+=== RUN   TestReservedKeywordsCoverage/fxc_stateblock
+=== RUN   TestReservedKeywordsCoverage/fxc_StructuredBuffer
+=== RUN   TestReservedKeywordsCoverage/fxc_tbuffer
+=== RUN   TestReservedKeywordsCoverage/fxc_technique10
+=== RUN   TestReservedKeywordsCoverage/fxc_technique11
+=== RUN   TestReservedKeywordsCoverage/fxc_texture
+=== RUN   TestReservedKeywordsCoverage/fxc_Texture1D
+=== RUN   TestReservedKeywordsCoverage/fxc_Texture1DArray
+=== RUN   TestReservedKeywordsCoverage/fxc_Texture2D
+=== RUN   TestReservedKeywordsCoverage/fxc_Texture2DArray
+=== RUN   TestReservedKeywordsCoverage/fxc_Texture2DMS
+=== RUN   TestReservedKeywordsCoverage/fxc_Texture2DMSArray
+=== RUN   TestReservedKeywordsCoverage/fxc_Texture3D
+=== RUN   TestReservedKeywordsCoverage/fxc_TextureCube
+=== RUN   TestReservedKeywordsCoverage/fxc_TextureCubeArray
+=== RUN   TestReservedKeywordsCoverage/fxc_triangle
+=== RUN   TestReservedKeywordsCoverage/fxc_triangleadj
+=== RUN   TestReservedKeywordsCoverage/fxc_TriangleStream
+=== RUN   TestReservedKeywordsCoverage/fxc_uniform
+=== RUN   TestReservedKeywordsCoverage/fxc_unorm
+=== RUN   TestReservedKeywordsCoverage/fxc_vector
+=== RUN   TestReservedKeywordsCoverage/fxc_vertexfragment
+=== RUN   TestReservedKeywordsCoverage/fxc_VertexShader
+=== RUN   TestReservedKeywordsCoverage/fxc_volatile
+=== RUN   TestReservedKeywordsCoverage/wave_WaveIsFirstLane
+=== RUN   TestReservedKeywordsCoverage/wave_WaveGetLaneIndex
+=== RUN   TestReservedKeywordsCoverage/wave_WaveGetLaneCount
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveAnyTrue
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveAllTrue
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveAllEqual
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveBallot
+=== RUN   TestReservedKeywordsCoverage/wave_WaveReadLaneAt
+=== RUN   TestReservedKeywordsCoverage/wave_WaveReadLaneFirst
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveCountBits
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveSum
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveProduct
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveBitAnd
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveBitOr
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveBitXor
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveMin
+=== RUN   TestReservedKeywordsCoverage/wave_WaveActiveMax
+=== RUN   TestReservedKeywordsCoverage/wave_WavePrefixCountBits
+=== RUN   TestReservedKeywordsCoverage/wave_WavePrefixSum
+=== RUN   TestReservedKeywordsCoverage/wave_WavePrefixProduct
+=== RUN   TestReservedKeywordsCoverage/wave_WaveMatch
+=== RUN   TestReservedKeywordsCoverage/wave_WaveMultiPrefixBitAnd
+=== RUN   TestReservedKeywordsCoverage/wave_WaveMultiPrefixBitOr
+=== RUN   TestReservedKeywordsCoverage/wave_WaveMultiPrefixBitXor
+=== RUN   TestReservedKeywordsCoverage/wave_WaveMultiPrefixCountBits
+=== RUN   TestReservedKeywordsCoverage/wave_WaveMultiPrefixProduct
+=== RUN   TestReservedKeywordsCoverage/wave_WaveMultiPrefixSum
+=== RUN   TestReservedKeywordsCoverage/wave_QuadReadLaneAt
+=== RUN   TestReservedKeywordsCoverage/wave_QuadReadAcrossX
+=== RUN   TestReservedKeywordsCoverage/wave_QuadReadAcrossY
+=== RUN   TestReservedKeywordsCoverage/wave_QuadReadAcrossDiagonal
+=== RUN   TestReservedKeywordsCoverage/wave_QuadAny
+=== RUN   TestReservedKeywordsCoverage/wave_QuadAll
+=== RUN   TestReservedKeywordsCoverage/ray_TraceRay
+=== RUN   TestReservedKeywordsCoverage/ray_ReportHit
+=== RUN   TestReservedKeywordsCoverage/ray_CallShader
+=== RUN   TestReservedKeywordsCoverage/ray_IgnoreHit
+=== RUN   TestReservedKeywordsCoverage/ray_AcceptHitAndEndSearch
+=== RUN   TestReservedKeywordsCoverage/ray_DispatchRaysIndex
+=== RUN   TestReservedKeywordsCoverage/ray_DispatchRaysDimensions
+=== RUN   TestReservedKeywordsCoverage/ray_WorldRayOrigin
+=== RUN   TestReservedKeywordsCoverage/ray_WorldRayDirection
+=== RUN   TestReservedKeywordsCoverage/ray_ObjectRayOrigin
+=== RUN   TestReservedKeywordsCoverage/ray_ObjectRayDirection
+=== RUN   TestReservedKeywordsCoverage/ray_RayTMin
+=== RUN   TestReservedKeywordsCoverage/ray_RayTCurrent
+=== RUN   TestReservedKeywordsCoverage/ray_PrimitiveIndex
+=== RUN   TestReservedKeywordsCoverage/ray_InstanceID
+=== RUN   TestReservedKeywordsCoverage/ray_InstanceIndex
+=== RUN   TestReservedKeywordsCoverage/ray_GeometryIndex
+=== RUN   TestReservedKeywordsCoverage/ray_HitKind
+=== RUN   TestReservedKeywordsCoverage/ray_RayFlags
+=== RUN   TestReservedKeywordsCoverage/ray_ObjectToWorld
+=== RUN   TestReservedKeywordsCoverage/ray_WorldToObject
+--- PASS: TestReservedKeywordsCoverage (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_AppendStructuredBuffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_BlendState (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_Buffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_ByteAddressBuffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_cbuffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_centroid (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_column_major (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_compile (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_ConsumeStructuredBuffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_DepthStencilState (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_discard (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_DomainShader (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_GeometryShader (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_groupshared (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_Hullshader (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_InputPatch (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_interface (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_lineadj (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_LineStream (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_matrix (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_nointerpolation (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_noperspective (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_OutputPatch (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_packoffset (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_pixelfragment (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_PixelShader (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_PointStream (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_precise (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_RasterizerState (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_RenderTargetView (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_register (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_row_major (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_RWBuffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_RWByteAddressBuffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_RWStructuredBuffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_SamplerState (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_SamplerComparisonState (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_shared (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_snorm (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_stateblock (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_StructuredBuffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_tbuffer (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_technique10 (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_technique11 (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_texture (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_Texture1D (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_Texture1DArray (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_Texture2D (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_Texture2DArray (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_Texture2DMS (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_Texture2DMSArray (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_Texture3D (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_TextureCube (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_TextureCubeArray (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_triangle (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_triangleadj (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_TriangleStream (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_uniform (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_unorm (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_vector (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_vertexfragment (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_VertexShader (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/fxc_volatile (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveIsFirstLane (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveGetLaneIndex (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveGetLaneCount (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveAnyTrue (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveAllTrue (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveAllEqual (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveBallot (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveReadLaneAt (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveReadLaneFirst (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveCountBits (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveSum (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveProduct (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveBitAnd (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveBitOr (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveBitXor (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveMin (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveActiveMax (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WavePrefixCountBits (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WavePrefixSum (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WavePrefixProduct (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveMatch (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveMultiPrefixBitAnd (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveMultiPrefixBitOr (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveMultiPrefixBitXor (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveMultiPrefixCountBits (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveMultiPrefixProduct (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_WaveMultiPrefixSum (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_QuadReadLaneAt (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_QuadReadAcrossX (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_QuadReadAcrossY (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_QuadReadAcrossDiagonal (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_QuadAny (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/wave_QuadAll (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_TraceRay (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_ReportHit (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_CallShader (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_IgnoreHit (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_AcceptHitAndEndSearch (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_DispatchRaysIndex (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_DispatchRaysDimensions (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_WorldRayOrigin (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_WorldRayDirection (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_ObjectRayOrigin (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_ObjectRayDirection (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_RayTMin (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_RayTCurrent (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_PrimitiveIndex (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_InstanceID (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_InstanceIndex (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_GeometryIndex (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_HitKind (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_RayFlags (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_ObjectToWorld (0.00s)
+    --- PASS: TestReservedKeywordsCoverage/ray_WorldToObject (0.00s)
+PASS

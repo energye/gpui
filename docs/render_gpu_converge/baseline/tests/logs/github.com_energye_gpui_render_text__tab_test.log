@@ -1,0 +1,33 @@
+=== RUN   TestDefaultTabWidth
+--- PASS: TestDefaultTabWidth (0.00s)
+=== RUN   TestTabWidth
+--- PASS: TestTabWidth (0.00s)
+=== RUN   TestExpandTabs
+=== RUN   TestExpandTabs/no_tabs
+=== RUN   TestExpandTabs/one_tab
+=== RUN   TestExpandTabs/leading_tab
+=== RUN   TestExpandTabs/trailing_tab
+=== RUN   TestExpandTabs/two_tabs
+=== RUN   TestExpandTabs/empty
+=== RUN   TestExpandTabs/only_tab
+--- PASS: TestExpandTabs (0.00s)
+    --- PASS: TestExpandTabs/no_tabs (0.00s)
+    --- PASS: TestExpandTabs/one_tab (0.00s)
+    --- PASS: TestExpandTabs/leading_tab (0.00s)
+    --- PASS: TestExpandTabs/trailing_tab (0.00s)
+    --- PASS: TestExpandTabs/two_tabs (0.00s)
+    --- PASS: TestExpandTabs/empty (0.00s)
+    --- PASS: TestExpandTabs/only_tab (0.00s)
+=== RUN   TestExpandTabsWidthChange
+--- PASS: TestExpandTabsWidthChange (0.00s)
+=== RUN   TestTabAdvance
+--- PASS: TestTabAdvance (0.00s)
+=== RUN   TestFaceAdvanceWithTab
+--- PASS: TestFaceAdvanceWithTab (0.00s)
+=== RUN   TestFaceGlyphsWithTab
+--- PASS: TestFaceGlyphsWithTab (0.00s)
+=== RUN   TestFaceGlyphsSkipsControlChars
+--- PASS: TestFaceGlyphsSkipsControlChars (0.00s)
+=== RUN   TestFixTabGlyphs
+--- PASS: TestFixTabGlyphs (0.00s)
+PASS

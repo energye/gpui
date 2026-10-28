@@ -1,0 +1,6 @@
+=== RUN   TestPaintPerRuneX_NoQuadratic_M1
+    m1_paint_test.go:42: 逐字X查表 1e3=77.657µs 1e4=709.652µs 1e5=12.469099ms 比值1e4/1e3=9.14 1e5/1e3=160.57
+--- PASS: TestPaintPerRuneX_NoQuadratic_M1 (1.52s)
+=== RUN   TestCaretMatchesPaint_M1
+--- PASS: TestCaretMatchesPaint_M1 (0.00s)
+PASS

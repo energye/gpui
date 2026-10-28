@@ -1,0 +1,33 @@
+=== RUN   TestBackendRegistration
+--- PASS: TestBackendRegistration (0.00s)
+=== RUN   TestBackendLifecycle
+--- PASS: TestBackendLifecycle (0.00s)
+=== RUN   TestBackendFillRect
+--- PASS: TestBackendFillRect (0.00s)
+=== RUN   TestBackendFillPath
+--- PASS: TestBackendFillPath (0.00s)
+=== RUN   TestBackendStrokePath
+--- PASS: TestBackendStrokePath (0.00s)
+=== RUN   TestBackendSaveRestore
+--- PASS: TestBackendSaveRestore (0.00s)
+=== RUN   TestBackendConcatComposesOntoExistingCTM
+--- PASS: TestBackendConcatComposesOntoExistingCTM (0.00s)
+=== RUN   TestBackendWriteTo
+--- PASS: TestBackendWriteTo (0.00s)
+=== RUN   TestBackendPixmap
+--- PASS: TestBackendPixmap (0.00s)
+=== RUN   TestBackendInterfaceCompliance
+--- PASS: TestBackendInterfaceCompliance (0.00s)
+=== RUN   TestBackendLinearGradient
+    backend_test.go:309: gradient rendering not yet supported by render.SoftwareRenderer
+--- SKIP: TestBackendLinearGradient (0.00s)
+=== RUN   TestBackendRadialGradient
+    backend_test.go:356: gradient rendering not yet supported by render.SoftwareRenderer
+--- SKIP: TestBackendRadialGradient (0.00s)
+=== RUN   TestRecordingPlayback
+--- PASS: TestRecordingPlayback (0.00s)
+=== RUN   TestRecordingPlaybackViaRegistry
+--- PASS: TestRecordingPlaybackViaRegistry (0.00s)
+=== RUN   TestBackendDashedStroke
+--- PASS: TestBackendDashedStroke (0.00s)
+PASS

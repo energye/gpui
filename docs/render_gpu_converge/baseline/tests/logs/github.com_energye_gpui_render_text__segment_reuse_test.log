@@ -1,0 +1,7 @@
+=== RUN   TestSegmentReuse_KeystrokeEquiv
+--- PASS: TestSegmentReuse_KeystrokeEquiv (0.07s)
+=== RUN   TestSegmentReuse_ScriptChangeFallbackEquiv
+--- PASS: TestSegmentReuse_ScriptChangeFallbackEquiv (0.00s)
+=== RUN   TestSegmentReuse_RTLFallbackEquiv
+--- PASS: TestSegmentReuse_RTLFallbackEquiv (0.00s)
+PASS

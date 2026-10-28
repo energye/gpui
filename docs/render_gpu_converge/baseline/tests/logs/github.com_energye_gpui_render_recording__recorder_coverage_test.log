@@ -1,0 +1,59 @@
+=== RUN   TestRecorderRotateAbout
+--- PASS: TestRecorderRotateAbout (0.00s)
+=== RUN   TestRecorderShear
+--- PASS: TestRecorderShear (0.00s)
+=== RUN   TestRecorderTransformCoverage
+--- PASS: TestRecorderTransformCoverage (0.00s)
+=== RUN   TestRecorderIdentityConcatRecordsNothing
+--- PASS: TestRecorderIdentityConcatRecordsNothing (0.00s)
+=== RUN   TestRecorderSetStrokeBrush
+--- PASS: TestRecorderSetStrokeBrush (0.00s)
+=== RUN   TestRecorderSetFillRGBA
+--- PASS: TestRecorderSetFillRGBA (0.00s)
+=== RUN   TestRecorderSetStrokeRGBA
+--- PASS: TestRecorderSetStrokeRGBA (0.00s)
+=== RUN   TestRecorderSetLineCap
+--- PASS: TestRecorderSetLineCap (0.00s)
+=== RUN   TestRecorderSetLineJoin
+--- PASS: TestRecorderSetLineJoin (0.00s)
+=== RUN   TestRecorderNewSubPath
+--- PASS: TestRecorderNewSubPath (0.00s)
+=== RUN   TestRecorderDrawEllipticalArc
+--- PASS: TestRecorderDrawEllipticalArc (0.00s)
+=== RUN   TestRecorderClipRoundRect
+--- PASS: TestRecorderClipRoundRect (0.00s)
+=== RUN   TestRecorderDrawStringAnchored
+--- PASS: TestRecorderDrawStringAnchored (0.00s)
+=== RUN   TestRecorderSplitLines
+--- PASS: TestRecorderSplitLines (0.00s)
+=== RUN   TestRecorderWordWrap
+--- PASS: TestRecorderWordWrap (0.00s)
+=== RUN   TestRecorderMeasureMultilineString
+--- PASS: TestRecorderMeasureMultilineString (0.00s)
+=== RUN   TestRecorderDrawImageNil
+--- PASS: TestRecorderDrawImageNil (0.00s)
+=== RUN   TestRecorderSetFont
+--- PASS: TestRecorderSetFont (0.00s)
+=== RUN   TestRecordingPlaybackComplex
+--- PASS: TestRecordingPlaybackComplex (0.00s)
+=== RUN   TestRecordingPlaybackCoverage
+--- PASS: TestRecordingPlaybackCoverage (0.00s)
+=== RUN   TestRecorderDrawStringWrapped
+--- PASS: TestRecorderDrawStringWrapped (0.00s)
+=== RUN   TestRecorderSetDash
+--- PASS: TestRecorderSetDash (0.00s)
+=== RUN   TestRecorderSetDashClearDash
+--- PASS: TestRecorderSetDashClearDash (0.00s)
+=== RUN   TestRecorderSaveToFile
+--- PASS: TestRecorderSaveToFile (0.00s)
+=== RUN   TestRecorderMeasureStringCoverage
+--- PASS: TestRecorderMeasureStringCoverage (0.00s)
+=== RUN   TestRecorderPlaybackSaveRestore
+--- PASS: TestRecorderPlaybackSaveRestore (0.00s)
+=== RUN   TestRecorderPlaybackClipCommands
+--- PASS: TestRecorderPlaybackClipCommands (0.00s)
+=== RUN   TestRecorderPlaybackImageCommand
+--- PASS: TestRecorderPlaybackImageCommand (0.00s)
+=== RUN   TestRecorderPlaybackDashCommands
+--- PASS: TestRecorderPlaybackDashCommands (0.00s)
+PASS

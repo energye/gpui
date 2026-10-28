@@ -1,0 +1,5 @@
+=== RUN   TestGlyphMaskUniformsSurviveDeferredWrites
+--- PASS: TestGlyphMaskUniformsSurviveDeferredWrites (0.00s)
+=== RUN   TestClipUniformsSurviveDeferredWrites
+--- PASS: TestClipUniformsSurviveDeferredWrites (0.00s)
+PASS

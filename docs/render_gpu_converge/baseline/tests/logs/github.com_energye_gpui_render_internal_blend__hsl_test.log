@@ -1,0 +1,123 @@
+=== RUN   TestLum
+=== RUN   TestLum/black
+=== RUN   TestLum/white
+=== RUN   TestLum/red
+=== RUN   TestLum/green
+=== RUN   TestLum/blue
+=== RUN   TestLum/gray
+=== RUN   TestLum/yellow
+=== RUN   TestLum/cyan
+=== RUN   TestLum/magenta
+--- PASS: TestLum (0.00s)
+    --- PASS: TestLum/black (0.00s)
+    --- PASS: TestLum/white (0.00s)
+    --- PASS: TestLum/red (0.00s)
+    --- PASS: TestLum/green (0.00s)
+    --- PASS: TestLum/blue (0.00s)
+    --- PASS: TestLum/gray (0.00s)
+    --- PASS: TestLum/yellow (0.00s)
+    --- PASS: TestLum/cyan (0.00s)
+    --- PASS: TestLum/magenta (0.00s)
+=== RUN   TestSat
+=== RUN   TestSat/black
+=== RUN   TestSat/white
+=== RUN   TestSat/gray
+=== RUN   TestSat/red
+=== RUN   TestSat/green
+=== RUN   TestSat/blue
+=== RUN   TestSat/half_saturated_red
+=== RUN   TestSat/mixed_color
+--- PASS: TestSat (0.00s)
+    --- PASS: TestSat/black (0.00s)
+    --- PASS: TestSat/white (0.00s)
+    --- PASS: TestSat/gray (0.00s)
+    --- PASS: TestSat/red (0.00s)
+    --- PASS: TestSat/green (0.00s)
+    --- PASS: TestSat/blue (0.00s)
+    --- PASS: TestSat/half_saturated_red (0.00s)
+    --- PASS: TestSat/mixed_color (0.00s)
+=== RUN   TestClipColor
+=== RUN   TestClipColor/already_in_range
+=== RUN   TestClipColor/negative_component
+=== RUN   TestClipColor/component_exceeds_1
+=== RUN   TestClipColor/black_is_unchanged
+=== RUN   TestClipColor/white_is_unchanged
+--- PASS: TestClipColor (0.00s)
+    --- PASS: TestClipColor/already_in_range (0.00s)
+    --- PASS: TestClipColor/negative_component (0.00s)
+    --- PASS: TestClipColor/component_exceeds_1 (0.00s)
+    --- PASS: TestClipColor/black_is_unchanged (0.00s)
+    --- PASS: TestClipColor/white_is_unchanged (0.00s)
+=== RUN   TestSetLum
+=== RUN   TestSetLum/red_to_mid_luminance
+=== RUN   TestSetLum/blue_to_high_luminance
+=== RUN   TestSetLum/gray_unchanged
+=== RUN   TestSetLum/yellow_to_low_luminance
+--- PASS: TestSetLum (0.00s)
+    --- PASS: TestSetLum/red_to_mid_luminance (0.00s)
+    --- PASS: TestSetLum/blue_to_high_luminance (0.00s)
+    --- PASS: TestSetLum/gray_unchanged (0.00s)
+    --- PASS: TestSetLum/yellow_to_low_luminance (0.00s)
+=== RUN   TestSetSat
+=== RUN   TestSetSat/red_to_desaturated
+=== RUN   TestSetSat/saturated_to_gray
+=== RUN   TestSetSat/partially_saturated_unchanged
+--- PASS: TestSetSat (0.00s)
+    --- PASS: TestSetSat/red_to_desaturated (0.00s)
+    --- PASS: TestSetSat/saturated_to_gray (0.00s)
+    --- PASS: TestSetSat/partially_saturated_unchanged (0.00s)
+=== RUN   TestBlendHue
+=== RUN   TestBlendHue/red_hue_with_gray_backdrop
+=== RUN   TestBlendHue/both_grayscale
+--- PASS: TestBlendHue (0.00s)
+    --- PASS: TestBlendHue/red_hue_with_gray_backdrop (0.00s)
+    --- PASS: TestBlendHue/both_grayscale (0.00s)
+=== RUN   TestBlendSaturation
+=== RUN   TestBlendSaturation/gray_source_with_saturated_backdrop
+=== RUN   TestBlendSaturation/both_saturated
+--- PASS: TestBlendSaturation (0.00s)
+    --- PASS: TestBlendSaturation/gray_source_with_saturated_backdrop (0.00s)
+    --- PASS: TestBlendSaturation/both_saturated (0.00s)
+=== RUN   TestBlendColor
+=== RUN   TestBlendColor/red_source_with_gray_backdrop
+=== RUN   TestBlendColor/blue_source_with_bright_backdrop
+=== RUN   TestBlendColor/yellow_source_with_dark_backdrop
+--- PASS: TestBlendColor (0.00s)
+    --- PASS: TestBlendColor/red_source_with_gray_backdrop (0.00s)
+    --- PASS: TestBlendColor/blue_source_with_bright_backdrop (0.00s)
+    --- PASS: TestBlendColor/yellow_source_with_dark_backdrop (0.00s)
+=== RUN   TestBlendLuminosity
+=== RUN   TestBlendLuminosity/bright_source_with_red_backdrop
+=== RUN   TestBlendLuminosity/dark_source_with_green_backdrop
+=== RUN   TestBlendLuminosity/mid_source_with_blue_backdrop
+--- PASS: TestBlendLuminosity (0.00s)
+    --- PASS: TestBlendLuminosity/bright_source_with_red_backdrop (0.00s)
+    --- PASS: TestBlendLuminosity/dark_source_with_green_backdrop (0.00s)
+    --- PASS: TestBlendLuminosity/mid_source_with_blue_backdrop (0.00s)
+=== RUN   TestBlendModeIntegration
+=== RUN   TestBlendModeIntegration/hue_-_red_over_gray
+=== RUN   TestBlendModeIntegration/saturation_-_red_over_gray
+=== RUN   TestBlendModeIntegration/color_-_blue_over_white
+=== RUN   TestBlendModeIntegration/luminosity_-_white_over_red
+=== RUN   TestBlendModeIntegration/hue_-_with_transparency
+--- PASS: TestBlendModeIntegration (0.00s)
+    --- PASS: TestBlendModeIntegration/hue_-_red_over_gray (0.00s)
+    --- PASS: TestBlendModeIntegration/saturation_-_red_over_gray (0.00s)
+    --- PASS: TestBlendModeIntegration/color_-_blue_over_white (0.00s)
+    --- PASS: TestBlendModeIntegration/luminosity_-_white_over_red (0.00s)
+    --- PASS: TestBlendModeIntegration/hue_-_with_transparency (0.00s)
+=== RUN   TestMin3Max3
+=== RUN   TestMin3Max3/ascending
+=== RUN   TestMin3Max3/descending
+=== RUN   TestMin3Max3/mixed
+=== RUN   TestMin3Max3/all_same
+=== RUN   TestMin3Max3/two_same_min
+=== RUN   TestMin3Max3/two_same_max
+--- PASS: TestMin3Max3 (0.00s)
+    --- PASS: TestMin3Max3/ascending (0.00s)
+    --- PASS: TestMin3Max3/descending (0.00s)
+    --- PASS: TestMin3Max3/mixed (0.00s)
+    --- PASS: TestMin3Max3/all_same (0.00s)
+    --- PASS: TestMin3Max3/two_same_min (0.00s)
+    --- PASS: TestMin3Max3/two_same_max (0.00s)
+PASS

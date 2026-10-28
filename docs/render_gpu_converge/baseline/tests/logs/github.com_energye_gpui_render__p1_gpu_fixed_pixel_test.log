@@ -1,0 +1,12 @@
+=== RUN   TestP12GPUFixedPixel_SourceOverPremul
+    p1_gpu_fixed_pixel_test.go:82: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_fixed_pixel_test.go:95: gpu center rgba=128,0,128,255 ref=128,0,127,255
+--- PASS: TestP12GPUFixedPixel_SourceOverPremul (0.29s)
+=== RUN   TestP12GPUFixedPixel_OpaqueReplace
+--- PASS: TestP12GPUFixedPixel_OpaqueReplace (0.00s)
+=== RUN   TestP12GPUFixedPixel_ClipOutsideClear
+--- PASS: TestP12GPUFixedPixel_ClipOutsideClear (0.01s)
+=== RUN   TestP12GPUFixedPixel_HairlineStroke
+    p1_gpu_fixed_pixel_test.go:181: hairline sample y=31 rgba=170,170,170
+--- PASS: TestP12GPUFixedPixel_HairlineStroke (0.00s)
+PASS

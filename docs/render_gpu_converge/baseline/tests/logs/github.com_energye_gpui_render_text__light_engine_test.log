@@ -1,0 +1,21 @@
+=== RUN   TestLightNew
+--- PASS: TestLightNew (0.00s)
+=== RUN   TestLightHintNilFont
+--- PASS: TestLightHintNilFont (0.00s)
+=== RUN   TestLightHintSkeleton
+=== RUN   TestLightHintSkeleton/cjk-niu
+=== RUN   TestLightHintSkeleton/latin-H
+--- PASS: TestLightHintSkeleton (0.01s)
+    --- PASS: TestLightHintSkeleton/cjk-niu (0.00s)
+    --- PASS: TestLightHintSkeleton/latin-H (0.00s)
+=== RUN   TestLightM0TopBlueAnchor
+--- PASS: TestLightM0TopBlueAnchor (0.00s)
+=== RUN   TestLightM0UnanchoredTop
+--- PASS: TestLightM0UnanchoredTop (0.00s)
+=== RUN   TestLightUnknownMode
+--- PASS: TestLightUnknownMode (0.00s)
+=== RUN   TestCFFLightBridgeTrailingOff
+--- PASS: TestCFFLightBridgeTrailingOff (0.00s)
+=== RUN   TestCFFLightBridgeKeepsSubpixel
+--- PASS: TestCFFLightBridgeKeepsSubpixel (0.00s)
+PASS

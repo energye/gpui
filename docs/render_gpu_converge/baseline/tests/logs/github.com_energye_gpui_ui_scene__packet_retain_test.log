@@ -1,0 +1,5 @@
+=== RUN   TestPacket_RetainsDrawImageBuffers
+--- PASS: TestPacket_RetainsDrawImageBuffers (0.00s)
+=== RUN   TestPacket_NoImages_NoRetention
+--- PASS: TestPacket_NoImages_NoRetention (0.00s)
+PASS

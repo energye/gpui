@@ -1,0 +1,46 @@
+=== RUN   TestS69_HeavyBudget_TierGates
+    s6_9_heavy_budget_test.go:349: P01_SolidPresent tier=floor s6.0=0.42 s6.9=0.43 ratio=1.031 abs=16.7 rel=0.5 eff=16.7 gpu=1 PASS
+    s6_9_heavy_budget_test.go:349: U01_StaticShell tier=P0_main s6.0=0.90 s6.9=1.92 ratio=2.125 abs=16.7 rel=1.0 eff=16.7 gpu=3 PASS
+    s6_9_heavy_budget_test.go:349: U02_ListScrollMorph tier=P0_main s6.0=0.27 s6.9=0.27 ratio=1.000 abs=16.7 rel=0.3 eff=16.7 gpu=9 PASS
+    s6_9_heavy_budget_test.go:349: U03_FormFieldDamage tier=P0_main s6.0=0.21 s6.9=0.16 ratio=0.730 abs=16.7 rel=0.2 eff=16.7 gpu=3 PASS
+    s6_9_heavy_budget_test.go:349: U04_ModalStatic tier=P0_main s6.0=0.16 s6.9=0.27 ratio=1.623 abs=16.7 rel=0.2 eff=16.7 gpu=6 PASS
+    s6_9_heavy_budget_test.go:349: B15like_MultiDamage tier=P0_main s6.0=0.16 s6.9=0.25 ratio=1.536 abs=16.7 rel=0.2 eff=16.7 gpu=4 PASS
+    s6_9_heavy_budget_test.go:349: H01_FullRedrawShell tier=P1_density s6.0=0.37 s6.9=0.41 ratio=1.102 abs=33.4 rel=0.4 eff=0.4 gpu=19 FAIL
+    s6_9_heavy_budget_test.go:349: H04_TextRows40 tier=P1_density s6.0=1.16 s6.9=0.76 ratio=0.652 abs=16.7 rel=1.3 eff=1.3 gpu=41 PASS
+    s6_9_heavy_budget_test.go:349: H05_ImageTileGrid tier=P1_density s6.0=0.29 s6.9=0.69 ratio=2.415 abs=16.7 rel=0.3 eff=0.3 gpu=65 FAIL
+    s6_9_heavy_budget_test.go:349: U05_KitchenSinkStress tier=P2_heavy s6.0=7.27 s6.9=6.76 ratio=0.931 abs=145.0 rel=6.7 eff=6.7 gpu=18 FAIL
+    s6_9_heavy_budget_test.go:349: H03_PathStrokeCloud tier=P2_heavy s6.0=1.32 s6.9=2.74 ratio=2.071 abs=90.0 rel=0.9 eff=0.9 gpu=25 FAIL
+    s6_9_heavy_budget_test.go:349: H02_LayerBlendStack tier=P2_heavy s6.0=7.65 s6.9=5.68 ratio=0.743 abs=210.0 rel=7.0 eff=7.0 gpu=13 PASS
+    s6_9_heavy_budget_test.go:349: H06_NestedClipLayerText tier=P3_stress s6.0=0.24 s6.9=0.39 ratio=1.599 abs=150.0 rel=0.3 eff=0.3 gpu=9 FAIL
+    s6_9_heavy_budget_test.go:367: wrote /home/yanghy/app/projects/gogpu/gpui/tmp/s6_9_heavy_budget.json (13 rows)
+    s6_9_heavy_budget_test.go:370: S6.9 budget failures (5):
+          H01_FullRedrawShell: P1 p50=0.41 > S6.0×1.10 (0.41)
+          H05_ImageTileGrid: P1 p50=0.69 > S6.0×1.10 (0.32)
+          U05_KitchenSinkStress: P2 p50=6.76 > must-improve rel 6.69 (S6.0=7.27)
+          H03_PathStrokeCloud: P2 p50=2.74 worse than S6.0 1.32
+          H06_NestedClipLayerText: P3 p50=0.39 > S6.0×1.15 (0.28)
+--- FAIL: TestS69_HeavyBudget_TierGates (0.66s)
+=== RUN   TestS69_Contract_FromJSON
+    s6_9_heavy_budget_test.go:419: S6.9 contract fails:
+          H01_FullRedrawShell: status=FAIL
+          H01_FullRedrawShell: P1 p50=0.41 > S6.0×1.10 (0.41)
+          H03_PathStrokeCloud: status=FAIL
+          H03_PathStrokeCloud: P2 p50=2.74 worse than S6.0 1.32
+          H05_ImageTileGrid: status=FAIL
+          H05_ImageTileGrid: P1 p50=0.69 > S6.0×1.10 (0.32)
+          H06_NestedClipLayerText: status=FAIL
+          H06_NestedClipLayerText: P3 p50=0.39 > S6.0×1.15 (0.28)
+          U05_KitchenSinkStress: status=FAIL
+          U05_KitchenSinkStress: P2 p50=6.76 > must-improve rel 6.69 (S6.0=7.27)
+--- FAIL: TestS69_Contract_FromJSON (0.00s)
+=== RUN   TestS69_L0_MainPathStillGreen
+=== RUN   TestS69_L0_MainPathStillGreen/U01_StaticShell
+=== RUN   TestS69_L0_MainPathStillGreen/U02_ListScrollMorph
+=== RUN   TestS69_L0_MainPathStillGreen/U03_FormFieldDamage
+=== RUN   TestS69_L0_MainPathStillGreen/U04_ModalStatic
+--- PASS: TestS69_L0_MainPathStillGreen (0.03s)
+    --- PASS: TestS69_L0_MainPathStillGreen/U01_StaticShell (0.01s)
+    --- PASS: TestS69_L0_MainPathStillGreen/U02_ListScrollMorph (0.01s)
+    --- PASS: TestS69_L0_MainPathStillGreen/U03_FormFieldDamage (0.00s)
+    --- PASS: TestS69_L0_MainPathStillGreen/U04_ModalStatic (0.01s)
+FAIL

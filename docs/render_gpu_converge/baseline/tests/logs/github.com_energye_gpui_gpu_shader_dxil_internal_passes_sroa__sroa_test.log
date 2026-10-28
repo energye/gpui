@@ -1,0 +1,13 @@
+=== RUN   TestRunStructDecomposition
+--- PASS: TestRunStructDecomposition (0.00s)
+=== RUN   TestRunNoDecompositionDynamicAccess
+--- PASS: TestRunNoDecompositionDynamicAccess (0.00s)
+=== RUN   TestRunNoDecompositionNonStruct
+--- PASS: TestRunNoDecompositionNonStruct (0.00s)
+=== RUN   TestRunNoDecompositionCallArgument
+--- PASS: TestRunNoDecompositionCallArgument (0.00s)
+=== RUN   TestRunWithInit
+--- PASS: TestRunWithInit (0.00s)
+=== RUN   TestRunNilInputs
+--- PASS: TestRunNilInputs (0.00s)
+PASS

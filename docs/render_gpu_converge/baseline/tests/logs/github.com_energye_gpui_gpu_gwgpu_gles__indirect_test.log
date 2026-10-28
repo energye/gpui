@@ -1,0 +1,3 @@
+=== RUN   TestRenderPassEncoderCountedIndirectRemainsUnsupported
+--- PASS: TestRenderPassEncoderCountedIndirectRemainsUnsupported (0.00s)
+PASS

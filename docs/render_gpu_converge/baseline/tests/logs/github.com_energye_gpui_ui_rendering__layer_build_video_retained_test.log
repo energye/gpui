@@ -1,0 +1,7 @@
+=== RUN   TestLayerTree_VideoLeafRetainedRepresentation
+--- PASS: TestLayerTree_VideoLeafRetainedRepresentation (0.00s)
+=== RUN   TestLayerTree_VideoTextureRepaintsInPlace
+--- PASS: TestLayerTree_VideoTextureRepaintsInPlace (0.00s)
+=== RUN   TestLayerTree_VideoTextureMissDamagesRect
+--- PASS: TestLayerTree_VideoTextureMissDamagesRect (0.00s)
+PASS

@@ -1,0 +1,93 @@
+=== RUN   TestCommandType_String
+=== RUN   TestCommandType_String/Save
+=== RUN   TestCommandType_String/Restore
+=== RUN   TestCommandType_String/Concat
+=== RUN   TestCommandType_String/SetClip
+=== RUN   TestCommandType_String/ClearClip
+=== RUN   TestCommandType_String/FillPath
+=== RUN   TestCommandType_String/StrokePath
+=== RUN   TestCommandType_String/FillRect
+=== RUN   TestCommandType_String/StrokeRect
+=== RUN   TestCommandType_String/DrawImage
+=== RUN   TestCommandType_String/DrawText
+=== RUN   TestCommandType_String/SetFillStyle
+=== RUN   TestCommandType_String/SetStrokeStyle
+=== RUN   TestCommandType_String/SetLineWidth
+=== RUN   TestCommandType_String/SetLineCap
+=== RUN   TestCommandType_String/SetLineJoin
+=== RUN   TestCommandType_String/SetMiterLimit
+=== RUN   TestCommandType_String/SetDash
+=== RUN   TestCommandType_String/SetFillRule
+=== RUN   TestCommandType_String/SetMask
+=== RUN   TestCommandType_String/ClearMask
+=== RUN   TestCommandType_String/InvertMask
+=== RUN   TestCommandType_String/ApplyMask
+=== RUN   TestCommandType_String/PushMaskLayer
+=== RUN   TestCommandType_String/Unknown
+--- PASS: TestCommandType_String (0.00s)
+    --- PASS: TestCommandType_String/Save (0.00s)
+    --- PASS: TestCommandType_String/Restore (0.00s)
+    --- PASS: TestCommandType_String/Concat (0.00s)
+    --- PASS: TestCommandType_String/SetClip (0.00s)
+    --- PASS: TestCommandType_String/ClearClip (0.00s)
+    --- PASS: TestCommandType_String/FillPath (0.00s)
+    --- PASS: TestCommandType_String/StrokePath (0.00s)
+    --- PASS: TestCommandType_String/FillRect (0.00s)
+    --- PASS: TestCommandType_String/StrokeRect (0.00s)
+    --- PASS: TestCommandType_String/DrawImage (0.00s)
+    --- PASS: TestCommandType_String/DrawText (0.00s)
+    --- PASS: TestCommandType_String/SetFillStyle (0.00s)
+    --- PASS: TestCommandType_String/SetStrokeStyle (0.00s)
+    --- PASS: TestCommandType_String/SetLineWidth (0.00s)
+    --- PASS: TestCommandType_String/SetLineCap (0.00s)
+    --- PASS: TestCommandType_String/SetLineJoin (0.00s)
+    --- PASS: TestCommandType_String/SetMiterLimit (0.00s)
+    --- PASS: TestCommandType_String/SetDash (0.00s)
+    --- PASS: TestCommandType_String/SetFillRule (0.00s)
+    --- PASS: TestCommandType_String/SetMask (0.00s)
+    --- PASS: TestCommandType_String/ClearMask (0.00s)
+    --- PASS: TestCommandType_String/InvertMask (0.00s)
+    --- PASS: TestCommandType_String/ApplyMask (0.00s)
+    --- PASS: TestCommandType_String/PushMaskLayer (0.00s)
+    --- PASS: TestCommandType_String/Unknown (0.00s)
+=== RUN   TestCommandInterface
+--- PASS: TestCommandInterface (0.00s)
+=== RUN   TestPathRef_IsValid
+=== RUN   TestPathRef_IsValid/valid_zero
+=== RUN   TestPathRef_IsValid/valid_non-zero
+=== RUN   TestPathRef_IsValid/invalid
+--- PASS: TestPathRef_IsValid (0.00s)
+    --- PASS: TestPathRef_IsValid/valid_zero (0.00s)
+    --- PASS: TestPathRef_IsValid/valid_non-zero (0.00s)
+    --- PASS: TestPathRef_IsValid/invalid (0.00s)
+=== RUN   TestBrushRef_IsValid
+=== RUN   TestBrushRef_IsValid/valid_zero
+=== RUN   TestBrushRef_IsValid/valid_non-zero
+=== RUN   TestBrushRef_IsValid/invalid
+--- PASS: TestBrushRef_IsValid (0.00s)
+    --- PASS: TestBrushRef_IsValid/valid_zero (0.00s)
+    --- PASS: TestBrushRef_IsValid/valid_non-zero (0.00s)
+    --- PASS: TestBrushRef_IsValid/invalid (0.00s)
+=== RUN   TestImageRef_IsValid
+=== RUN   TestImageRef_IsValid/valid_zero
+=== RUN   TestImageRef_IsValid/valid_non-zero
+=== RUN   TestImageRef_IsValid/invalid
+--- PASS: TestImageRef_IsValid (0.00s)
+    --- PASS: TestImageRef_IsValid/valid_zero (0.00s)
+    --- PASS: TestImageRef_IsValid/valid_non-zero (0.00s)
+    --- PASS: TestImageRef_IsValid/invalid (0.00s)
+=== RUN   TestDefaultStroke
+--- PASS: TestDefaultStroke (0.00s)
+=== RUN   TestStroke_Clone
+--- PASS: TestStroke_Clone (0.00s)
+=== RUN   TestFillPathCommand
+--- PASS: TestFillPathCommand (0.00s)
+=== RUN   TestStrokePathCommand
+--- PASS: TestStrokePathCommand (0.00s)
+=== RUN   TestDrawTextCommand
+--- PASS: TestDrawTextCommand (0.00s)
+=== RUN   TestDrawImageCommand
+--- PASS: TestDrawImageCommand (0.00s)
+=== RUN   TestCloneDrawImageOptionsDetachesSrcRect
+--- PASS: TestCloneDrawImageOptionsDetachesSrcRect (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestOpt34_SharedEncoder_DoesNotFlushLeading
+    opt34_shared_encoder_no_flush_leading_test.go:85: sharedEncoder RenderFrameGrouped: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestOpt34_SharedEncoder_DoesNotFlushLeading (0.19s)
+=== RUN   TestOpt34_NoSharedEncoder_StillFlushesLeading
+    opt34_shared_encoder_no_flush_leading_test.go:179: present RenderFrameGrouped: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestOpt34_NoSharedEncoder_StillFlushesLeading (0.13s)
+FAIL

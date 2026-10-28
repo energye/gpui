@@ -1,0 +1,76 @@
+=== RUN   TestVelloAgainstUpstream
+=== RUN   TestVelloAgainstUpstream/filled_circle
+    golden_test.go:273: Scene: filled_circle, Size: 100x100, Diff: 364 pixels (3.64%), Threshold: 5.00%
+=== RUN   TestVelloAgainstUpstream/filled_triangle
+    golden_test.go:273: Scene: filled_triangle, Size: 100x100, Diff: 320 pixels (3.20%), Threshold: 5.00%
+=== RUN   TestVelloAgainstUpstream/filling_nonzero_rule
+    golden_test.go:273: Scene: filling_nonzero_rule, Size: 100x100, Diff: 663 pixels (6.63%), Threshold: 10.00%
+=== RUN   TestVelloAgainstUpstream/filling_evenodd_rule
+    golden_test.go:273: Scene: filling_evenodd_rule, Size: 100x100, Diff: 865 pixels (8.65%), Threshold: 10.00%
+--- PASS: TestVelloAgainstUpstream (0.01s)
+    --- PASS: TestVelloAgainstUpstream/filled_circle (0.00s)
+    --- PASS: TestVelloAgainstUpstream/filled_triangle (0.00s)
+    --- PASS: TestVelloAgainstUpstream/filling_nonzero_rule (0.00s)
+    --- PASS: TestVelloAgainstUpstream/filling_evenodd_rule (0.00s)
+=== RUN   TestVelloComputeGolden
+=== RUN   TestVelloComputeGolden/compute_green_triangle
+    golden_test.go:457: GPU vs CPU: 0 diff pixels (0.00%), threshold: 0.00%
+    golden_test.go:461: GPU output saved: ../../tmp/compute_gpu_compute_green_triangle.png
+    golden_test.go:461: CPU reference saved: ../../tmp/compute_cpu_compute_green_triangle.png
+    golden_test.go:461: Diff image saved: ../../tmp/compute_diff_compute_green_triangle.png
+=== RUN   TestVelloComputeGolden/compute_blue_square
+    golden_test.go:457: GPU vs CPU: 0 diff pixels (0.00%), threshold: 0.00%
+    golden_test.go:461: GPU output saved: ../../tmp/compute_gpu_compute_blue_square.png
+    golden_test.go:461: CPU reference saved: ../../tmp/compute_cpu_compute_blue_square.png
+    golden_test.go:461: Diff image saved: ../../tmp/compute_diff_compute_blue_square.png
+=== RUN   TestVelloComputeGolden/compute_red_circle
+    golden_test.go:457: GPU vs CPU: 0 diff pixels (0.00%), threshold: 0.50%
+    golden_test.go:461: GPU output saved: ../../tmp/compute_gpu_compute_red_circle.png
+    golden_test.go:461: CPU reference saved: ../../tmp/compute_cpu_compute_red_circle.png
+    golden_test.go:461: Diff image saved: ../../tmp/compute_diff_compute_red_circle.png
+=== RUN   TestVelloComputeGolden/compute_star_nonzero
+    golden_test.go:457: GPU vs CPU: 0 diff pixels (0.00%), threshold: 0.50%
+    golden_test.go:461: GPU output saved: ../../tmp/compute_gpu_compute_star_nonzero.png
+    golden_test.go:461: CPU reference saved: ../../tmp/compute_cpu_compute_star_nonzero.png
+    golden_test.go:461: Diff image saved: ../../tmp/compute_diff_compute_star_nonzero.png
+=== RUN   TestVelloComputeGolden/compute_star_evenodd
+    golden_test.go:457: GPU vs CPU: 0 diff pixels (0.00%), threshold: 0.50%
+    golden_test.go:461: GPU output saved: ../../tmp/compute_gpu_compute_star_evenodd.png
+    golden_test.go:461: CPU reference saved: ../../tmp/compute_cpu_compute_star_evenodd.png
+    golden_test.go:461: Diff image saved: ../../tmp/compute_diff_compute_star_evenodd.png
+=== RUN   TestVelloComputeGolden/compute_multipath
+    golden_test.go:457: GPU vs CPU: 0 diff pixels (0.00%), threshold: 0.50%
+    golden_test.go:461: GPU output saved: ../../tmp/compute_gpu_compute_multipath.png
+    golden_test.go:461: CPU reference saved: ../../tmp/compute_cpu_compute_multipath.png
+    golden_test.go:461: Diff image saved: ../../tmp/compute_diff_compute_multipath.png
+=== RUN   TestVelloComputeGolden/compute_overlapping_semitransparent
+    golden_test.go:457: GPU vs CPU: 0 diff pixels (0.00%), threshold: 1.00%
+    golden_test.go:461: GPU output saved: ../../tmp/compute_gpu_compute_overlapping_semitransparent.png
+    golden_test.go:461: CPU reference saved: ../../tmp/compute_cpu_compute_overlapping_semitransparent.png
+    golden_test.go:461: Diff image saved: ../../tmp/compute_diff_compute_overlapping_semitransparent.png
+--- PASS: TestVelloComputeGolden (0.41s)
+    --- PASS: TestVelloComputeGolden/compute_green_triangle (0.10s)
+    --- PASS: TestVelloComputeGolden/compute_blue_square (0.01s)
+    --- PASS: TestVelloComputeGolden/compute_red_circle (0.01s)
+    --- PASS: TestVelloComputeGolden/compute_star_nonzero (0.01s)
+    --- PASS: TestVelloComputeGolden/compute_star_evenodd (0.01s)
+    --- PASS: TestVelloComputeGolden/compute_multipath (0.01s)
+    --- PASS: TestVelloComputeGolden/compute_overlapping_semitransparent (0.01s)
+=== RUN   TestVelloComputeClipGolden
+=== RUN   TestVelloComputeClipGolden/single_clip
+    golden_test.go:583: GPU vs CPU: 0 diff pixels (0.00%), threshold: 1.00%
+    golden_test.go:587: GPU output saved: ../../tmp/compute_gpu_clip_single_clip.png
+    golden_test.go:587: CPU reference saved: ../../tmp/compute_cpu_clip_single_clip.png
+    golden_test.go:587: Diff image saved: ../../tmp/compute_diff_clip_single_clip.png
+=== RUN   TestVelloComputeClipGolden/nested_clip
+    golden_test.go:583: GPU vs CPU: 0 diff pixels (0.00%), threshold: 1.00%
+    golden_test.go:587: GPU output saved: ../../tmp/compute_gpu_clip_nested_clip.png
+    golden_test.go:587: CPU reference saved: ../../tmp/compute_cpu_clip_nested_clip.png
+    golden_test.go:587: Diff image saved: ../../tmp/compute_diff_clip_nested_clip.png
+--- PASS: TestVelloComputeClipGolden (0.24s)
+    --- PASS: TestVelloComputeClipGolden/single_clip (0.10s)
+    --- PASS: TestVelloComputeClipGolden/nested_clip (0.01s)
+=== RUN   TestVelloComputeSmoke
+    golden_test.go:634: Non-white pixels: 144 / 400
+--- PASS: TestVelloComputeSmoke (0.22s)
+PASS

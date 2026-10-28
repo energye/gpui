@@ -1,0 +1,7 @@
+=== RUN   TestRefreshExtents_MatchesFullRebuild
+--- PASS: TestRefreshExtents_MatchesFullRebuild (0.00s)
+=== RUN   TestRefreshExtents_NoChangeNoWork
+--- PASS: TestRefreshExtents_NoChangeNoWork (0.00s)
+=== RUN   TestRefreshExtents_Clamp
+--- PASS: TestRefreshExtents_Clamp (0.00s)
+PASS

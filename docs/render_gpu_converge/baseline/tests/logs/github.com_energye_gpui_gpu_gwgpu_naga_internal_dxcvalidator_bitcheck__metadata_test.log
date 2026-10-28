@@ -1,0 +1,17 @@
+=== RUN   TestMetadataWalker_ValidEntryPoint
+--- PASS: TestMetadataWalker_ValidEntryPoint (0.00s)
+=== RUN   TestMetadataWalker_NullOperand
+--- PASS: TestMetadataWalker_NullOperand (0.00s)
+=== RUN   TestMetadataWalker_MetadataValueNull
+--- PASS: TestMetadataWalker_MetadataValueNull (0.00s)
+=== RUN   TestMetadataWalker_MissingEntryPoints
+--- PASS: TestMetadataWalker_MissingEntryPoints (0.00s)
+=== RUN   TestMetadataWalker_EmptyTuple
+--- PASS: TestMetadataWalker_EmptyTuple (0.00s)
+=== RUN   TestMetadataWalker_NamedNodeWithoutName
+--- PASS: TestMetadataWalker_NamedNodeWithoutName (0.00s)
+=== RUN   TestMetadataWalker_DistinctNodeAccepted
+--- PASS: TestMetadataWalker_DistinctNodeAccepted (0.00s)
+=== RUN   TestMetadataWalker_MultipleEntryPoints
+--- PASS: TestMetadataWalker_MultipleEntryPoints (0.00s)
+PASS

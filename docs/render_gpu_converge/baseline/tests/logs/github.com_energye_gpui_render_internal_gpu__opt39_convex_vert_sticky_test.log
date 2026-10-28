@@ -1,0 +1,5 @@
+=== RUN   TestOpt39_ConvexVertSticky_SkipsRepeatWrite
+--- PASS: TestOpt39_ConvexVertSticky_SkipsRepeatWrite (0.23s)
+=== RUN   TestOpt39_ConvexVertSticky_Slot0WhenNoDeferred
+--- PASS: TestOpt39_ConvexVertSticky_Slot0WhenNoDeferred (0.18s)
+PASS

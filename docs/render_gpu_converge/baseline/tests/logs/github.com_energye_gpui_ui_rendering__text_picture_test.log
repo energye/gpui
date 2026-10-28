@@ -1,0 +1,13 @@
+=== RUN   TestRecordRenderText_Multiline
+--- PASS: TestRecordRenderText_Multiline (0.00s)
+=== RUN   TestRecordRenderText_YBandCullsToVisible
+--- PASS: TestRecordRenderText_YBandCullsToVisible (0.00s)
+=== RUN   TestRecordRuns_YBandCullsToVisible
+--- PASS: TestRecordRuns_YBandCullsToVisible (0.00s)
+=== RUN   TestRecordRenderText_MultiRun
+--- PASS: TestRecordRenderText_MultiRun (0.00s)
+=== RUN   TestRecordRenderText_SingleLine
+--- PASS: TestRecordRenderText_SingleLine (0.00s)
+=== RUN   TestRecordRenderText_NoFaceRecordsNothing
+--- PASS: TestRecordRenderText_NoFaceRecordsNothing (0.71s)
+PASS

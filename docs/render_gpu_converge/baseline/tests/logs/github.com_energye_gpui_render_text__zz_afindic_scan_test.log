@@ -1,0 +1,9 @@
+=== RUN   TestScanM4b5Indic
+    zz_afindic_scan_test.go:62: deva px12: bad=0/40 []
+    zz_afindic_scan_test.go:62: deva px16: bad=0/40 []
+    zz_afindic_scan_test.go:62: beng px12: bad=0/40 []
+    zz_afindic_scan_test.go:62: beng px16: bad=0/40 []
+    zz_afindic_scan_test.go:62: taml px12: bad=0/40 []
+    zz_afindic_scan_test.go:62: taml px16: bad=0/40 []
+--- PASS: TestScanM4b5Indic (2.81s)
+PASS

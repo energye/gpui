@@ -1,0 +1,16 @@
+=== RUN   TestS63_CanMergeGPUTextureDraw
+--- PASS: TestS63_CanMergeGPUTextureDraw (0.00s)
+=== RUN   TestS63_GPUTexture_MultiQuadLogic
+--- PASS: TestS63_GPUTexture_MultiQuadLogic (0.00s)
+=== RUN   TestS63_CoalesceTextBatches_DeepensRuns
+--- PASS: TestS63_CoalesceTextBatches_DeepensRuns (0.00s)
+=== RUN   TestS63_CoalesceGlyphBatches_DeepensRuns
+--- PASS: TestS63_CoalesceGlyphBatches_DeepensRuns (0.00s)
+=== RUN   TestS63_Coalesce_DoesNotCrossManualSplit
+--- PASS: TestS63_Coalesce_DoesNotCrossManualSplit (0.00s)
+=== RUN   TestS63_BatchStats_AfterFlush
+    s6_3_batch_deepen_test.go:182: S6.3 batch stats={ImageDraws:0 ImageQuads:0 GPUTexDraws:0 GPUTexQuads:0 TextDraws:0 TextQuads:0 GlyphDraws:0 GlyphQuads:0 SDFDraws:1 SDFShapes:5 ConvexDraws:0 ConvexCmds:0}
+--- PASS: TestS63_BatchStats_AfterFlush (0.29s)
+=== RUN   TestS63_ImageSealStillRespected
+--- PASS: TestS63_ImageSealStillRespected (0.00s)
+PASS

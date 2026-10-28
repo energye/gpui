@@ -1,0 +1,15 @@
+=== RUN   TestScenePathReverse
+--- PASS: TestScenePathReverse (0.00s)
+=== RUN   TestScenePathReverseEmpty
+--- PASS: TestScenePathReverseEmpty (0.00s)
+=== RUN   TestScenePathContainsRect
+--- PASS: TestScenePathContainsRect (0.00s)
+=== RUN   TestScenePathContainsQuad
+--- PASS: TestScenePathContainsQuad (0.00s)
+=== RUN   TestScenePathContainsCubic
+--- PASS: TestScenePathContainsCubic (0.00s)
+=== RUN   TestScenePathContainsEmptyPath
+--- PASS: TestScenePathContainsEmptyPath (0.00s)
+=== RUN   TestSceneBuilderFillRoundRectCoverage
+--- PASS: TestSceneBuilderFillRoundRectCoverage (0.00s)
+PASS

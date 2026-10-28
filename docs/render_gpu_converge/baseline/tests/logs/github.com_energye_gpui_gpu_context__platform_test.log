@@ -1,0 +1,41 @@
+=== RUN   TestNullPlatformProvider_ClipboardRead
+--- PASS: TestNullPlatformProvider_ClipboardRead (0.00s)
+=== RUN   TestNullPlatformProvider_ClipboardWrite
+--- PASS: TestNullPlatformProvider_ClipboardWrite (0.00s)
+=== RUN   TestNullPlatformProvider_SetCursor
+--- PASS: TestNullPlatformProvider_SetCursor (0.00s)
+=== RUN   TestNullPlatformProvider_Defaults
+--- PASS: TestNullPlatformProvider_Defaults (0.00s)
+=== RUN   TestCursorShape_String
+=== RUN   TestCursorShape_String/Default
+=== RUN   TestCursorShape_String/Pointer
+=== RUN   TestCursorShape_String/Text
+=== RUN   TestCursorShape_String/Crosshair
+=== RUN   TestCursorShape_String/Move
+=== RUN   TestCursorShape_String/ResizeNS
+=== RUN   TestCursorShape_String/ResizeEW
+=== RUN   TestCursorShape_String/ResizeNWSE
+=== RUN   TestCursorShape_String/ResizeNESW
+=== RUN   TestCursorShape_String/NotAllowed
+=== RUN   TestCursorShape_String/Wait
+=== RUN   TestCursorShape_String/None
+=== RUN   TestCursorShape_String/Unknown
+--- PASS: TestCursorShape_String (0.00s)
+    --- PASS: TestCursorShape_String/Default (0.00s)
+    --- PASS: TestCursorShape_String/Pointer (0.00s)
+    --- PASS: TestCursorShape_String/Text (0.00s)
+    --- PASS: TestCursorShape_String/Crosshair (0.00s)
+    --- PASS: TestCursorShape_String/Move (0.00s)
+    --- PASS: TestCursorShape_String/ResizeNS (0.00s)
+    --- PASS: TestCursorShape_String/ResizeEW (0.00s)
+    --- PASS: TestCursorShape_String/ResizeNWSE (0.00s)
+    --- PASS: TestCursorShape_String/ResizeNESW (0.00s)
+    --- PASS: TestCursorShape_String/NotAllowed (0.00s)
+    --- PASS: TestCursorShape_String/Wait (0.00s)
+    --- PASS: TestCursorShape_String/None (0.00s)
+    --- PASS: TestCursorShape_String/Unknown (0.00s)
+=== RUN   TestCursorShape_Values
+--- PASS: TestCursorShape_Values (0.00s)
+=== RUN   TestPlatformProvider_CustomImplementation
+--- PASS: TestPlatformProvider_CustomImplementation (0.00s)
+PASS

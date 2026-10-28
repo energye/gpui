@@ -1,0 +1,17 @@
+=== RUN   TestCPUTileLayerOpacity
+--- PASS: TestCPUTileLayerOpacity (0.00s)
+=== RUN   TestCPUTileRoundRectRespectsClip
+--- PASS: TestCPUTileRoundRectRespectsClip (0.00s)
+=== RUN   TestCPUTileRoundRectMultiTile
+--- PASS: TestCPUTileRoundRectMultiTile (0.00s)
+=== RUN   TestSceneDrawTransformResetsAfterTransformedDraw
+--- PASS: TestSceneDrawTransformResetsAfterTransformedDraw (0.00s)
+=== RUN   TestEncodingAppendResetsStaleTransform
+--- PASS: TestEncodingAppendResetsStaleTransform (0.00s)
+=== RUN   TestSceneImageDrawResetsStaleTransform
+--- PASS: TestSceneImageDrawResetsStaleTransform (0.00s)
+=== RUN   TestEncodingCommandBoundsSurviveFlattenAppendClone
+--- PASS: TestEncodingCommandBoundsSurviveFlattenAppendClone (0.00s)
+=== RUN   TestEncodingHashIncludesBrushes
+--- PASS: TestEncodingHashIncludesBrushes (0.00s)
+PASS

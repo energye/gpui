@@ -1,0 +1,21 @@
+=== RUN   TestDraw_FillRect_OriginAware
+--- PASS: TestDraw_FillRect_OriginAware (0.00s)
+=== RUN   TestDraw_StrokeRect_NotFullyFilled
+--- PASS: TestDraw_StrokeRect_NotFullyFilled (0.00s)
+=== RUN   TestDraw_FillCircle_CenterRed
+--- PASS: TestDraw_FillCircle_CenterRed (0.00s)
+=== RUN   TestDraw_FillOval_And_StrokeArc
+--- PASS: TestDraw_FillOval_And_StrokeArc (0.00s)
+=== RUN   TestDraw_FillPath_Triangle
+--- PASS: TestDraw_FillPath_Triangle (0.00s)
+=== RUN   TestDraw_FillLinearGradient_Runs
+--- PASS: TestDraw_FillLinearGradient_Runs (0.00s)
+=== RUN   TestDraw_DrawPoints_OriginAware
+--- PASS: TestDraw_DrawPoints_OriginAware (0.00s)
+=== RUN   TestDraw_DrawVertices_Triangle
+--- PASS: TestDraw_DrawVertices_Triangle (0.00s)
+=== RUN   TestDraw_FillDRRect_RingHasHole
+--- PASS: TestDraw_FillDRRect_RingHasHole (0.00s)
+=== RUN   TestDraw_PathAddHelpers_BuildAndFill
+--- PASS: TestDraw_PathAddHelpers_BuildAndFill (0.00s)
+PASS

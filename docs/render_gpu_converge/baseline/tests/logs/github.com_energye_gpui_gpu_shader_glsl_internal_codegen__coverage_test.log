@@ -1,0 +1,329 @@
+=== RUN   TestCoverage_IntegerModuloHelper
+--- PASS: TestCoverage_IntegerModuloHelper (0.00s)
+=== RUN   TestCoverage_IntegerDivisionHelper
+--- PASS: TestCoverage_IntegerDivisionHelper (0.00s)
+=== RUN   TestCoverage_WriteExpressionInline
+--- PASS: TestCoverage_WriteExpressionInline (0.00s)
+=== RUN   TestCoverage_FunctionCallResult
+--- PASS: TestCoverage_FunctionCallResult (0.00s)
+=== RUN   TestCoverage_WriteAtomicResult
+--- PASS: TestCoverage_WriteAtomicResult (0.00s)
+=== RUN   TestCoverage_BoolVectorOps
+--- PASS: TestCoverage_BoolVectorOps (0.00s)
+=== RUN   TestCoverage_FormatConstResult
+=== RUN   TestCoverage_FormatConstResult/float_val
+=== RUN   TestCoverage_FormatConstResult/sint_val
+=== RUN   TestCoverage_FormatConstResult/uint_val
+=== RUN   TestCoverage_FormatConstResult/bool_true
+=== RUN   TestCoverage_FormatConstResult/bool_false
+--- PASS: TestCoverage_FormatConstResult (0.00s)
+    --- PASS: TestCoverage_FormatConstResult/float_val (0.00s)
+    --- PASS: TestCoverage_FormatConstResult/sint_val (0.00s)
+    --- PASS: TestCoverage_FormatConstResult/uint_val (0.00s)
+    --- PASS: TestCoverage_FormatConstResult/bool_true (0.00s)
+    --- PASS: TestCoverage_FormatConstResult/bool_false (0.00s)
+=== RUN   TestCoverage_ConstEvalUnary
+--- PASS: TestCoverage_ConstEvalUnary (0.00s)
+=== RUN   TestCoverage_ConstEvalNegate
+--- PASS: TestCoverage_ConstEvalNegate (0.00s)
+=== RUN   TestCoverage_GetExpressionTypeHandle
+=== RUN   TestCoverage_GetExpressionTypeHandle/local_var
+=== RUN   TestCoverage_GetExpressionTypeHandle/global_var
+=== RUN   TestCoverage_GetExpressionTypeHandle/func_arg
+=== RUN   TestCoverage_GetExpressionTypeHandle/compose
+=== RUN   TestCoverage_GetExpressionTypeHandle/zero_value
+=== RUN   TestCoverage_GetExpressionTypeHandle/literal_no_handle
+=== RUN   TestCoverage_GetExpressionTypeHandle/local_oob
+=== RUN   TestCoverage_GetExpressionTypeHandle/global_oob
+=== RUN   TestCoverage_GetExpressionTypeHandle/arg_oob
+--- PASS: TestCoverage_GetExpressionTypeHandle (0.00s)
+    --- PASS: TestCoverage_GetExpressionTypeHandle/local_var (0.00s)
+    --- PASS: TestCoverage_GetExpressionTypeHandle/global_var (0.00s)
+    --- PASS: TestCoverage_GetExpressionTypeHandle/func_arg (0.00s)
+    --- PASS: TestCoverage_GetExpressionTypeHandle/compose (0.00s)
+    --- PASS: TestCoverage_GetExpressionTypeHandle/zero_value (0.00s)
+    --- PASS: TestCoverage_GetExpressionTypeHandle/literal_no_handle (0.00s)
+    --- PASS: TestCoverage_GetExpressionTypeHandle/local_oob (0.00s)
+    --- PASS: TestCoverage_GetExpressionTypeHandle/global_oob (0.00s)
+    --- PASS: TestCoverage_GetExpressionTypeHandle/arg_oob (0.00s)
+=== RUN   TestCoverage_WriteCompositeValue
+--- PASS: TestCoverage_WriteCompositeValue (0.00s)
+=== RUN   TestCoverage_ResolveTypeInner
+=== RUN   TestCoverage_ResolveTypeInner/via_handle_scalar
+=== RUN   TestCoverage_ResolveTypeInner/via_handle_vec
+=== RUN   TestCoverage_ResolveTypeInner/via_value
+=== RUN   TestCoverage_ResolveTypeInner/empty_no_function
+--- PASS: TestCoverage_ResolveTypeInner (0.00s)
+    --- PASS: TestCoverage_ResolveTypeInner/via_handle_scalar (0.00s)
+    --- PASS: TestCoverage_ResolveTypeInner/via_handle_vec (0.00s)
+    --- PASS: TestCoverage_ResolveTypeInner/via_value (0.00s)
+    --- PASS: TestCoverage_ResolveTypeInner/empty_no_function (0.00s)
+=== RUN   TestCoverage_ScanBlockForStages
+=== RUN   TestCoverage_ScanBlockForStages/empty
+=== RUN   TestCoverage_ScanBlockForStages/discard_in_if
+=== RUN   TestCoverage_ScanBlockForStages/barrier_in_switch
+=== RUN   TestCoverage_ScanBlockForStages/barrier_in_loop
+=== RUN   TestCoverage_ScanBlockForStages/discard_in_loop_continuing
+--- PASS: TestCoverage_ScanBlockForStages (0.00s)
+    --- PASS: TestCoverage_ScanBlockForStages/empty (0.00s)
+    --- PASS: TestCoverage_ScanBlockForStages/discard_in_if (0.00s)
+    --- PASS: TestCoverage_ScanBlockForStages/barrier_in_switch (0.00s)
+    --- PASS: TestCoverage_ScanBlockForStages/barrier_in_loop (0.00s)
+    --- PASS: TestCoverage_ScanBlockForStages/discard_in_loop_continuing (0.00s)
+=== RUN   TestCoverage_StageCompatible
+--- PASS: TestCoverage_StageCompatible (0.00s)
+=== RUN   TestCoverage_UniformBlockExpanded
+--- PASS: TestCoverage_UniformBlockExpanded (0.00s)
+=== RUN   TestCoverage_EntryPointBuiltinArgs
+--- PASS: TestCoverage_EntryPointBuiltinArgs (0.00s)
+=== RUN   TestCoverage_ComputeBuiltinArgs
+--- PASS: TestCoverage_ComputeBuiltinArgs (0.00s)
+=== RUN   TestCoverage_TextureSampler2DArray
+--- PASS: TestCoverage_TextureSampler2DArray (0.00s)
+=== RUN   TestCoverage_AtomicOps
+--- PASS: TestCoverage_AtomicOps (0.00s)
+=== RUN   TestCoverage_WriteLocalVariable
+--- PASS: TestCoverage_WriteLocalVariable (0.00s)
+=== RUN   TestCoverage_ContinueCtxClear
+--- PASS: TestCoverage_ContinueCtxClear (0.00s)
+=== RUN   TestCoverage_ContinueCtxExitLoop
+--- PASS: TestCoverage_ContinueCtxExitLoop (0.00s)
+=== RUN   TestCoverage_FallbackCombinedName
+--- PASS: TestCoverage_FallbackCombinedName (0.00s)
+=== RUN   TestCoverage_VectorSelect
+--- PASS: TestCoverage_VectorSelect (0.00s)
+=== RUN   TestCoverage_RelationalFunctions
+--- PASS: TestCoverage_RelationalFunctions (0.00s)
+=== RUN   TestCoverage_ZeroValues
+--- PASS: TestCoverage_ZeroValues (0.00s)
+=== RUN   TestCoverage_VertexFragmentStructIO
+--- PASS: TestCoverage_VertexFragmentStructIO (0.00s)
+=== RUN   TestCoverage_FragmentStructIO
+--- PASS: TestCoverage_FragmentStructIO (0.00s)
+=== RUN   TestCoverage_FragmentMultiOutput
+--- PASS: TestCoverage_FragmentMultiOutput (0.00s)
+=== RUN   TestCoverage_AtomicSubtract
+--- PASS: TestCoverage_AtomicSubtract (0.00s)
+=== RUN   TestCoverage_AtomicMinMax
+--- PASS: TestCoverage_AtomicMinMax (0.00s)
+=== RUN   TestCoverage_AtomicAndOrXor
+--- PASS: TestCoverage_AtomicAndOrXor (0.00s)
+=== RUN   TestCoverage_AtomicExchange
+--- PASS: TestCoverage_AtomicExchange (0.00s)
+=== RUN   TestCoverage_StoreToArrayElement
+--- PASS: TestCoverage_StoreToArrayElement (0.00s)
+=== RUN   TestCoverage_ImageStore
+--- PASS: TestCoverage_ImageStore (0.00s)
+=== RUN   TestCoverage_ImageAtomicOps
+--- PASS: TestCoverage_ImageAtomicOps (0.00s)
+=== RUN   TestCoverage_DepthTextureSample
+--- PASS: TestCoverage_DepthTextureSample (0.00s)
+=== RUN   TestCoverage_SwitchSingleCase
+--- PASS: TestCoverage_SwitchSingleCase (0.00s)
+=== RUN   TestCoverage_WorkgroupArrayInit
+--- PASS: TestCoverage_WorkgroupArrayInit (0.00s)
+=== RUN   TestCoverage_ConstExprSplat
+--- PASS: TestCoverage_ConstExprSplat (0.00s)
+=== RUN   TestCoverage_ConstExprCompose
+--- PASS: TestCoverage_ConstExprCompose (0.00s)
+=== RUN   TestCoverage_EarlyDepthTest
+--- PASS: TestCoverage_EarlyDepthTest (0.00s)
+=== RUN   TestCoverage_EscapeKeywords
+=== RUN   TestCoverage_EscapeKeywords/texture
+=== RUN   TestCoverage_EscapeKeywords/sampler
+=== RUN   TestCoverage_EscapeKeywords/normal_name
+=== RUN   TestCoverage_EscapeKeywords/in
+=== RUN   TestCoverage_EscapeKeywords/out
+=== RUN   TestCoverage_EscapeKeywords/uniform
+=== RUN   TestCoverage_EscapeKeywords/buffer
+=== RUN   TestCoverage_EscapeKeywords/float
+=== RUN   TestCoverage_EscapeKeywords/int
+=== RUN   TestCoverage_EscapeKeywords/vec2
+=== RUN   TestCoverage_EscapeKeywords/mat4
+=== RUN   TestCoverage_EscapeKeywords/gl_Position
+=== RUN   TestCoverage_EscapeKeywords/#00
+--- PASS: TestCoverage_EscapeKeywords (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/texture (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/sampler (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/normal_name (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/in (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/out (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/uniform (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/buffer (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/float (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/int (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/vec2 (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/mat4 (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/gl_Position (0.00s)
+    --- PASS: TestCoverage_EscapeKeywords/#00 (0.00s)
+=== RUN   TestCoverage_LoopWithContinue
+--- PASS: TestCoverage_LoopWithContinue (0.00s)
+=== RUN   TestCoverage_ConstEvalBinary
+--- PASS: TestCoverage_ConstEvalBinary (0.00s)
+=== RUN   TestCoverage_ExprConstValueRecursive
+--- PASS: TestCoverage_ExprConstValueRecursive (0.00s)
+=== RUN   TestCoverage_ComputeBlockNames
+--- PASS: TestCoverage_ComputeBlockNames (0.00s)
+=== RUN   TestCoverage_ComputeBlockNamesFragment
+--- PASS: TestCoverage_ComputeBlockNamesFragment (0.00s)
+=== RUN   TestCoverage_ComputeBlockNamesVertex
+--- PASS: TestCoverage_ComputeBlockNamesVertex (0.00s)
+=== RUN   TestCoverage_BooleanBinaryExpr
+--- PASS: TestCoverage_BooleanBinaryExpr (0.00s)
+=== RUN   TestCoverage_ArrayLength
+--- PASS: TestCoverage_ArrayLength (0.00s)
+=== RUN   TestCoverage_WriteLiteral
+=== RUN   TestCoverage_WriteLiteral/bool_true
+=== RUN   TestCoverage_WriteLiteral/bool_false
+=== RUN   TestCoverage_WriteLiteral/i32
+=== RUN   TestCoverage_WriteLiteral/u32
+=== RUN   TestCoverage_WriteLiteral/f32
+=== RUN   TestCoverage_WriteLiteral/i64
+=== RUN   TestCoverage_WriteLiteral/u64
+=== RUN   TestCoverage_WriteLiteral/f64
+=== RUN   TestCoverage_WriteLiteral/abstract_int
+=== RUN   TestCoverage_WriteLiteral/abstract_float
+--- PASS: TestCoverage_WriteLiteral (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/bool_true (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/bool_false (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/i32 (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/u32 (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/f32 (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/i64 (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/u64 (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/f64 (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/abstract_int (0.00s)
+    --- PASS: TestCoverage_WriteLiteral/abstract_float (0.00s)
+=== RUN   TestCoverage_TextureDimensions
+--- PASS: TestCoverage_TextureDimensions (0.00s)
+=== RUN   TestCoverage_TextureNumLevels
+--- PASS: TestCoverage_TextureNumLevels (0.00s)
+=== RUN   TestCoverage_TextureNumSamples
+--- PASS: TestCoverage_TextureNumSamples (0.00s)
+=== RUN   TestCoverage_ConstantZeroValue
+--- PASS: TestCoverage_ConstantZeroValue (0.00s)
+=== RUN   TestCoverage_ReadWriteStorage
+--- PASS: TestCoverage_ReadWriteStorage (0.00s)
+=== RUN   TestCoverage_VectorComparisons
+--- PASS: TestCoverage_VectorComparisons (0.00s)
+=== RUN   TestCoverage_BitwiseNotUnary
+--- PASS: TestCoverage_BitwiseNotUnary (0.00s)
+=== RUN   TestCoverage_TypeCasts
+--- PASS: TestCoverage_TypeCasts (0.00s)
+=== RUN   TestCoverage_TextureSampleBias
+--- PASS: TestCoverage_TextureSampleBias (0.00s)
+=== RUN   TestCoverage_TextureSampleLevel
+--- PASS: TestCoverage_TextureSampleLevel (0.00s)
+=== RUN   TestCoverage_TextureSampleGrad
+--- PASS: TestCoverage_TextureSampleGrad (0.00s)
+=== RUN   TestCoverage_Fwidth
+--- PASS: TestCoverage_Fwidth (0.00s)
+=== RUN   TestCoverage_TextureLoad
+--- PASS: TestCoverage_TextureLoad (0.00s)
+=== RUN   TestCoverage_WriteCallResultDirect
+--- PASS: TestCoverage_WriteCallResultDirect (0.00s)
+=== RUN   TestCoverage_MathFunctions
+--- PASS: TestCoverage_MathFunctions (0.00s)
+=== RUN   TestCoverage_MathSignInverseSqrt
+--- PASS: TestCoverage_MathSignInverseSqrt (0.00s)
+=== RUN   TestCoverage_ScalarValueTypes
+--- PASS: TestCoverage_ScalarValueTypes (0.00s)
+=== RUN   TestCoverage_MatrixColumnAccess
+--- PASS: TestCoverage_MatrixColumnAccess (0.00s)
+=== RUN   TestCoverage_FormatLiteralTypes
+=== RUN   TestCoverage_FormatLiteralTypes/bool_true
+=== RUN   TestCoverage_FormatLiteralTypes/bool_false
+=== RUN   TestCoverage_FormatLiteralTypes/i32_pos
+=== RUN   TestCoverage_FormatLiteralTypes/i32_neg
+=== RUN   TestCoverage_FormatLiteralTypes/u32
+=== RUN   TestCoverage_FormatLiteralTypes/i64
+=== RUN   TestCoverage_FormatLiteralTypes/u64
+--- PASS: TestCoverage_FormatLiteralTypes (0.00s)
+    --- PASS: TestCoverage_FormatLiteralTypes/bool_true (0.00s)
+    --- PASS: TestCoverage_FormatLiteralTypes/bool_false (0.00s)
+    --- PASS: TestCoverage_FormatLiteralTypes/i32_pos (0.00s)
+    --- PASS: TestCoverage_FormatLiteralTypes/i32_neg (0.00s)
+    --- PASS: TestCoverage_FormatLiteralTypes/u32 (0.00s)
+    --- PASS: TestCoverage_FormatLiteralTypes/i64 (0.00s)
+    --- PASS: TestCoverage_FormatLiteralTypes/u64 (0.00s)
+=== RUN   TestCoverage_SwitchInLoop
+--- PASS: TestCoverage_SwitchInLoop (0.00s)
+=== RUN   TestCoverage_WriteFunctionArgumentDirect
+--- PASS: TestCoverage_WriteFunctionArgumentDirect (0.00s)
+=== RUN   TestCoverage_WriteGlobalVariableDirect
+--- PASS: TestCoverage_WriteGlobalVariableDirect (0.00s)
+=== RUN   TestCoverage_WriteZeroValueTypes
+=== RUN   TestCoverage_WriteZeroValueTypes/float
+=== RUN   TestCoverage_WriteZeroValueTypes/vec3
+=== RUN   TestCoverage_WriteZeroValueTypes/mat4x4
+=== RUN   TestCoverage_WriteZeroValueTypes/int
+=== RUN   TestCoverage_WriteZeroValueTypes/uint
+=== RUN   TestCoverage_WriteZeroValueTypes/bool
+--- PASS: TestCoverage_WriteZeroValueTypes (0.00s)
+    --- PASS: TestCoverage_WriteZeroValueTypes/float (0.00s)
+    --- PASS: TestCoverage_WriteZeroValueTypes/vec3 (0.00s)
+    --- PASS: TestCoverage_WriteZeroValueTypes/mat4x4 (0.00s)
+    --- PASS: TestCoverage_WriteZeroValueTypes/int (0.00s)
+    --- PASS: TestCoverage_WriteZeroValueTypes/uint (0.00s)
+    --- PASS: TestCoverage_WriteZeroValueTypes/bool (0.00s)
+=== RUN   TestCoverage_StorageImageDimensions
+--- PASS: TestCoverage_StorageImageDimensions (0.00s)
+=== RUN   TestCoverage_MathDistanceReflect
+--- PASS: TestCoverage_MathDistanceReflect (0.00s)
+=== RUN   TestCoverage_MathPackUnpack
+--- PASS: TestCoverage_MathPackUnpack (0.00s)
+=== RUN   TestCoverage_SelectScalar
+--- PASS: TestCoverage_SelectScalar (0.00s)
+=== RUN   TestCoverage_RelationalAnyAll
+--- PASS: TestCoverage_RelationalAnyAll (0.00s)
+=== RUN   TestCoverage_NamedExpressions
+--- PASS: TestCoverage_NamedExpressions (0.00s)
+=== RUN   TestCoverage_AccessBoundsCheck
+--- PASS: TestCoverage_AccessBoundsCheck (0.00s)
+=== RUN   TestCoverage_TextureLoadRestrict
+--- PASS: TestCoverage_TextureLoadRestrict (0.00s)
+=== RUN   TestCoverage_TextureLoadReadZero
+--- PASS: TestCoverage_TextureLoadReadZero (0.00s)
+=== RUN   TestCoverage_MultipleTextureSamplers
+--- PASS: TestCoverage_MultipleTextureSamplers (0.00s)
+=== RUN   TestCoverage_ConstExprZeroValue
+--- PASS: TestCoverage_ConstExprZeroValue (0.00s)
+=== RUN   TestCoverage_MathTrigFunctions
+--- PASS: TestCoverage_MathTrigFunctions (0.00s)
+=== RUN   TestCoverage_MathHyperbolicFunctions
+--- PASS: TestCoverage_MathHyperbolicFunctions (0.00s)
+=== RUN   TestCoverage_MathSaturateFract
+--- PASS: TestCoverage_MathSaturateFract (0.00s)
+=== RUN   TestCoverage_MathLdexp
+--- PASS: TestCoverage_MathLdexp (0.00s)
+=== RUN   TestCoverage_WriteSelectDirect
+--- PASS: TestCoverage_WriteSelectDirect (0.00s)
+=== RUN   TestCoverage_IsNanIsInf
+--- PASS: TestCoverage_IsNanIsInf (0.00s)
+=== RUN   TestCoverage_EntryPointLocationArgs
+--- PASS: TestCoverage_EntryPointLocationArgs (0.00s)
+=== RUN   TestCoverage_PrivateGlobal
+--- PASS: TestCoverage_PrivateGlobal (0.00s)
+=== RUN   TestCoverage_StorageImageLoad
+--- PASS: TestCoverage_StorageImageLoad (0.00s)
+=== RUN   TestCoverage_ContinueEncountered
+--- PASS: TestCoverage_ContinueEncountered (0.00s)
+=== RUN   TestCoverage_IsSamplerComparison
+--- PASS: TestCoverage_IsSamplerComparison (0.00s)
+=== RUN   TestCoverage_WriteHelperFunctionsDirect
+=== RUN   TestCoverage_WriteHelperFunctionsDirect/mod_only
+=== RUN   TestCoverage_WriteHelperFunctionsDirect/div_only
+=== RUN   TestCoverage_WriteHelperFunctionsDirect/both
+=== RUN   TestCoverage_WriteHelperFunctionsDirect/neither
+--- PASS: TestCoverage_WriteHelperFunctionsDirect (0.00s)
+    --- PASS: TestCoverage_WriteHelperFunctionsDirect/mod_only (0.00s)
+    --- PASS: TestCoverage_WriteHelperFunctionsDirect/div_only (0.00s)
+    --- PASS: TestCoverage_WriteHelperFunctionsDirect/both (0.00s)
+    --- PASS: TestCoverage_WriteHelperFunctionsDirect/neither (0.00s)
+=== RUN   TestCoverage_TryConstEvalUnaryDirect
+--- PASS: TestCoverage_TryConstEvalUnaryDirect (0.00s)
+=== RUN   TestCoverage_LookupVaryingNameWithBlendDirect
+--- PASS: TestCoverage_LookupVaryingNameWithBlendDirect (0.00s)
+=== RUN   TestCoverage_WriteUniformBlockDirect
+--- PASS: TestCoverage_WriteUniformBlockDirect (0.00s)
+PASS

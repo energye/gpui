@@ -1,0 +1,49 @@
+=== RUN   TestAlignConstants
+--- PASS: TestAlignConstants (0.00s)
+=== RUN   TestWordWrap_NoFont
+--- PASS: TestWordWrap_NoFont (0.00s)
+=== RUN   TestWordWrap
+--- PASS: TestWordWrap (0.01s)
+=== RUN   TestWordWrap_EmptyString
+--- PASS: TestWordWrap_EmptyString (0.00s)
+=== RUN   TestMeasureMultilineString_NoFont
+--- PASS: TestMeasureMultilineString_NoFont (0.00s)
+=== RUN   TestMeasureMultilineString
+--- PASS: TestMeasureMultilineString (0.00s)
+=== RUN   TestMeasureMultilineString_LineSpacing
+--- PASS: TestMeasureMultilineString_LineSpacing (0.00s)
+=== RUN   TestMeasureMultilineString_CRLFNormalization
+--- PASS: TestMeasureMultilineString_CRLFNormalization (0.00s)
+=== RUN   TestDrawStringWrapped_NoFont
+--- PASS: TestDrawStringWrapped_NoFont (0.00s)
+=== RUN   TestDrawStringWrapped_DrawsPixels
+--- PASS: TestDrawStringWrapped_DrawsPixels (0.30s)
+=== RUN   TestDrawStringWrapped_Alignment
+--- PASS: TestDrawStringWrapped_Alignment (0.01s)
+=== RUN   TestFontHeight
+--- PASS: TestFontHeight (0.00s)
+=== RUN   TestSplitLines
+=== RUN   TestSplitLines/empty
+=== RUN   TestSplitLines/single_line
+=== RUN   TestSplitLines/LF
+=== RUN   TestSplitLines/CRLF
+=== RUN   TestSplitLines/CR
+=== RUN   TestSplitLines/mixed
+=== RUN   TestSplitLines/trailing_newline
+--- PASS: TestSplitLines (0.00s)
+    --- PASS: TestSplitLines/empty (0.00s)
+    --- PASS: TestSplitLines/single_line (0.00s)
+    --- PASS: TestSplitLines/LF (0.00s)
+    --- PASS: TestSplitLines/CRLF (0.00s)
+    --- PASS: TestSplitLines/CR (0.00s)
+    --- PASS: TestSplitLines/mixed (0.00s)
+    --- PASS: TestSplitLines/trailing_newline (0.00s)
+=== RUN   TestDrawStringWrapped_HeightConsistency
+--- PASS: TestDrawStringWrapped_HeightConsistency (0.00s)
+=== RUN   TestDrawStringAnchored_AnchorSemantics
+--- PASS: TestDrawStringAnchored_AnchorSemantics (0.02s)
+=== RUN   TestWordWrap_TrimsSeparators
+--- PASS: TestWordWrap_TrimsSeparators (0.00s)
+=== RUN   TestMeasureMultilineString_VisualBlock
+--- PASS: TestMeasureMultilineString_VisualBlock (0.00s)
+PASS

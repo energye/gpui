@@ -1,0 +1,37 @@
+=== RUN   TestVisualRegression_ParallelClear
+=== RUN   TestVisualRegression_ParallelClear/white
+=== RUN   TestVisualRegression_ParallelClear/black
+=== RUN   TestVisualRegression_ParallelClear/red
+=== RUN   TestVisualRegression_ParallelClear/green
+=== RUN   TestVisualRegression_ParallelClear/blue
+=== RUN   TestVisualRegression_ParallelClear/transparent
+=== RUN   TestVisualRegression_ParallelClear/semi_transparent
+--- PASS: TestVisualRegression_ParallelClear (0.01s)
+    --- PASS: TestVisualRegression_ParallelClear/white (0.00s)
+    --- PASS: TestVisualRegression_ParallelClear/black (0.00s)
+    --- PASS: TestVisualRegression_ParallelClear/red (0.00s)
+    --- PASS: TestVisualRegression_ParallelClear/green (0.00s)
+    --- PASS: TestVisualRegression_ParallelClear/blue (0.00s)
+    --- PASS: TestVisualRegression_ParallelClear/transparent (0.00s)
+    --- PASS: TestVisualRegression_ParallelClear/semi_transparent (0.00s)
+=== RUN   TestVisualRegression_ParallelFillRect
+=== RUN   TestVisualRegression_ParallelFillRect/centered_red_rect
+=== RUN   TestVisualRegression_ParallelFillRect/corner_green_rect
+=== RUN   TestVisualRegression_ParallelFillRect/spanning_multiple_tiles
+=== RUN   TestVisualRegression_ParallelFillRect/edge_tile_rect
+--- PASS: TestVisualRegression_ParallelFillRect (0.01s)
+    --- PASS: TestVisualRegression_ParallelFillRect/centered_red_rect (0.00s)
+    --- PASS: TestVisualRegression_ParallelFillRect/corner_green_rect (0.00s)
+    --- PASS: TestVisualRegression_ParallelFillRect/spanning_multiple_tiles (0.00s)
+    --- PASS: TestVisualRegression_ParallelFillRect/edge_tile_rect (0.00s)
+=== RUN   TestVisualRegression_ParallelComposite
+--- PASS: TestVisualRegression_ParallelComposite (0.00s)
+=== RUN   TestVisualRegression_ParallelVsSerial
+--- PASS: TestVisualRegression_ParallelVsSerial (0.00s)
+=== RUN   TestVisualRegression_TileBoundaries
+--- PASS: TestVisualRegression_TileBoundaries (0.00s)
+=== RUN   TestVisualRegression_EdgeTiles
+--- PASS: TestVisualRegression_EdgeTiles (0.00s)
+=== RUN   TestVisualRegression_MultipleOperations
+--- PASS: TestVisualRegression_MultipleOperations (0.00s)
+PASS

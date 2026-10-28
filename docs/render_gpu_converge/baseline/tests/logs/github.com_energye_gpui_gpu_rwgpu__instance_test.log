@@ -1,0 +1,20 @@
+=== RUN   TestInit
+    instance_test.go:15: Library initialized successfully
+--- PASS: TestInit (0.00s)
+=== RUN   TestCreateInstanceWithNil
+    instance_test.go:26: Instance created successfully: handle=0xef68300
+--- PASS: TestCreateInstanceWithNil (0.15s)
+=== RUN   TestCreateInstanceWithDescriptor
+    instance_test.go:38: Instance created successfully: handle=0xec4efb0
+--- PASS: TestCreateInstanceWithDescriptor (0.10s)
+=== RUN   TestInstanceRelease
+    instance_test.go:48: Before release: handle=0xeb5f580
+    instance_test.go:55: Instance released successfully
+--- PASS: TestInstanceRelease (0.10s)
+=== RUN   TestCheckInitAfterLoad
+    instance_test.go:67: checkInit() passed after library initialization
+--- PASS: TestCheckInitAfterLoad (0.00s)
+=== RUN   TestCreateInstanceReturnsErrLibraryNotLoaded
+    instance_test.go:77: ErrLibraryNotLoaded is defined: wgpu: native library not loaded or failed to initialize
+--- PASS: TestCreateInstanceReturnsErrLibraryNotLoaded (0.00s)
+PASS

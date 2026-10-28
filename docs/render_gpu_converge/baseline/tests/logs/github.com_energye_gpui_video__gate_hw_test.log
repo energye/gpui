@@ -1,0 +1,8 @@
+=== RUN   TestGateHWStatsKeys
+    gate_hw_test.go:47: hw info(active=false name="vaapi" fb=0) stats(active=true name="vaapi" fb=0 avg=12.946ms)
+--- PASS: TestGateHWStatsKeys (0.17s)
+=== RUN   TestGateHWForcedSoft
+--- PASS: TestGateHWForcedSoft (0.03s)
+=== RUN   TestGateHWFaultBucket
+--- PASS: TestGateHWFaultBucket (0.00s)
+PASS

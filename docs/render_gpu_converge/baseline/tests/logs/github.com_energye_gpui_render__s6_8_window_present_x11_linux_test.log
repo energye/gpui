@@ -1,0 +1,7 @@
+=== RUN   TestS68_WindowPresent_MultiFrameDraw
+    s6_8_window_present_x11_linux_test.go:164: S6.8 window present mode=fifo frames=20 p50=16.75ms acquires=21 presents=21 reconfig=0 suboptimal=0 lastPresentMs=16.868
+--- PASS: TestS68_WindowPresent_MultiFrameDraw (0.61s)
+=== RUN   TestS68_WindowPresent_IdleSkip
+    s6_8_window_present_x11_linux_test.go:260: S6.8 idle skip OK
+--- PASS: TestS68_WindowPresent_IdleSkip (0.34s)
+PASS

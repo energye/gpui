@@ -1,0 +1,17 @@
+=== RUN   TestRepaintBoundary_StopsPaintBubble
+--- PASS: TestRepaintBoundary_StopsPaintBubble (0.00s)
+=== RUN   TestMarkNeedsPaint_NestedBoundaryIsolation
+--- PASS: TestMarkNeedsPaint_NestedBoundaryIsolation (0.00s)
+=== RUN   TestCompositeOnly_OnlyDirtyPathVisits
+--- PASS: TestCompositeOnly_OnlyDirtyPathVisits (0.00s)
+=== RUN   TestCompositeOnly_SkipsCleanLeaves
+--- PASS: TestCompositeOnly_SkipsCleanLeaves (0.00s)
+=== RUN   TestCompositeOnly_10kBoundary
+--- PASS: TestCompositeOnly_10kBoundary (0.01s)
+=== RUN   TestBuildLayerTree_BoundaryDirtyIDs
+--- PASS: TestBuildLayerTree_BoundaryDirtyIDs (0.00s)
+=== RUN   TestCompositingBits_Propagate
+--- PASS: TestCompositingBits_Propagate (0.00s)
+=== RUN   TestBuildLayerTree_NestedBoundaryInnerDirtyOnly
+--- PASS: TestBuildLayerTree_NestedBoundaryInnerDirtyOnly (0.00s)
+PASS

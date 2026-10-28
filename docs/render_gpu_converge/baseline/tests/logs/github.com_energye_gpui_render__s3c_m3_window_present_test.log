@@ -1,0 +1,9 @@
+=== RUN   TestS3c_M3_PresentFrame_Offscreen
+    s3c_m3_window_present_test.go:46: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3c_M3_PresentFrame_Offscreen (0.28s)
+=== RUN   TestS3c_M3_PresentFrame_Guards
+--- PASS: TestS3c_M3_PresentFrame_Guards (0.00s)
+=== RUN   TestS3c_M3_WindowSwapchain_PresentFrame
+    s3c_m3_window_present_test.go:86: no platform window surface (headless): wgpu: CreateSurface requires a non-zero window handle
+--- SKIP: TestS3c_M3_WindowSwapchain_PresentFrame (0.01s)
+PASS

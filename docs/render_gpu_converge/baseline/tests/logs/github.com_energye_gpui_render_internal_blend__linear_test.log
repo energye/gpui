@@ -1,0 +1,121 @@
+=== RUN   TestLinearVsSRGBBlending
+=== RUN   TestLinearVsSRGBBlending/50%_red_+_50%_green
+    linear_test.go:64: sRGB:   R=255, G=127, B=0, A=255
+    linear_test.go:65: Linear: R=255, G=187, B=0, A=255
+=== RUN   TestLinearVsSRGBBlending/multiply_dark_colors
+    linear_test.go:64: sRGB:   R=32, G=32, B=32, A=255
+    linear_test.go:65: Linear: R=28, G=28, B=28, A=255
+=== RUN   TestLinearVsSRGBBlending/screen_bright_colors
+    linear_test.go:64: sRGB:   R=232, G=232, B=209, A=255
+    linear_test.go:65: Linear: R=219, G=219, B=191, A=255
+--- PASS: TestLinearVsSRGBBlending (0.00s)
+    --- PASS: TestLinearVsSRGBBlending/50%_red_+_50%_green (0.00s)
+    --- PASS: TestLinearVsSRGBBlending/multiply_dark_colors (0.00s)
+    --- PASS: TestLinearVsSRGBBlending/screen_bright_colors (0.00s)
+=== RUN   TestLinearBlendingAccuracy
+    linear_test.go:83: Linear blend result: R=255, G=187, B=0, A=255
+    linear_test.go:102: sRGB blend result:   R=255, G=127, B=0, A=255
+--- PASS: TestLinearBlendingAccuracy (0.00s)
+=== RUN   TestAlphaPreservation
+=== RUN   TestAlphaPreservation/source_over_with_various_alpha
+=== RUN   TestAlphaPreservation/multiply_with_semi-transparent
+--- PASS: TestAlphaPreservation (0.00s)
+    --- PASS: TestAlphaPreservation/source_over_with_various_alpha (0.00s)
+    --- PASS: TestAlphaPreservation/multiply_with_semi-transparent (0.00s)
+=== RUN   TestRoundTripAccuracy
+=== RUN   TestRoundTripAccuracy/#00
+=== RUN   TestRoundTripAccuracy/#01
+=== RUN   TestRoundTripAccuracy/#02
+=== RUN   TestRoundTripAccuracy/#03
+=== RUN   TestRoundTripAccuracy/#04
+=== RUN   TestRoundTripAccuracy/#05
+=== RUN   TestRoundTripAccuracy/#06
+--- PASS: TestRoundTripAccuracy (0.00s)
+    --- PASS: TestRoundTripAccuracy/#00 (0.00s)
+    --- PASS: TestRoundTripAccuracy/#01 (0.00s)
+    --- PASS: TestRoundTripAccuracy/#02 (0.00s)
+    --- PASS: TestRoundTripAccuracy/#03 (0.00s)
+    --- PASS: TestRoundTripAccuracy/#04 (0.00s)
+    --- PASS: TestRoundTripAccuracy/#05 (0.00s)
+    --- PASS: TestRoundTripAccuracy/#06 (0.00s)
+=== RUN   TestAllBlendModesLinear
+=== RUN   TestAllBlendModesLinear/#00
+=== RUN   TestAllBlendModesLinear/#01
+=== RUN   TestAllBlendModesLinear/#02
+=== RUN   TestAllBlendModesLinear/#03
+=== RUN   TestAllBlendModesLinear/#04
+=== RUN   TestAllBlendModesLinear/#05
+=== RUN   TestAllBlendModesLinear/#06
+=== RUN   TestAllBlendModesLinear/#07
+=== RUN   TestAllBlendModesLinear/#08
+=== RUN   TestAllBlendModesLinear/#09
+=== RUN   TestAllBlendModesLinear/#10
+=== RUN   TestAllBlendModesLinear/#11
+=== RUN   TestAllBlendModesLinear/#12
+=== RUN   TestAllBlendModesLinear/#13
+=== RUN   TestAllBlendModesLinear/#14
+=== RUN   TestAllBlendModesLinear/#15
+=== RUN   TestAllBlendModesLinear/#16
+=== RUN   TestAllBlendModesLinear/#17
+=== RUN   TestAllBlendModesLinear/#18
+=== RUN   TestAllBlendModesLinear/#19
+=== RUN   TestAllBlendModesLinear/#20
+=== RUN   TestAllBlendModesLinear/#21
+=== RUN   TestAllBlendModesLinear/#22
+=== RUN   TestAllBlendModesLinear/#23
+=== RUN   TestAllBlendModesLinear/#24
+=== RUN   TestAllBlendModesLinear/#25
+=== RUN   TestAllBlendModesLinear/#26
+=== RUN   TestAllBlendModesLinear/#27
+=== RUN   TestAllBlendModesLinear/#28
+--- PASS: TestAllBlendModesLinear (0.00s)
+    --- PASS: TestAllBlendModesLinear/#00 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#01 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#02 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#03 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#04 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#05 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#06 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#07 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#08 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#09 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#10 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#11 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#12 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#13 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#14 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#15 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#16 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#17 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#18 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#19 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#20 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#21 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#22 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#23 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#24 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#25 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#26 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#27 (0.00s)
+    --- PASS: TestAllBlendModesLinear/#28 (0.00s)
+=== RUN   TestBlendLinearConvenience
+    linear_test.go:253: BlendLinear result: R=255, G=187, B=0, A=255
+--- PASS: TestBlendLinearConvenience (0.00s)
+=== RUN   TestLinearBlendingEdgeCases
+=== RUN   TestLinearBlendingEdgeCases/fully_transparent_source
+    linear_test.go:307: Result: R=0, G=255, B=0, A=255
+=== RUN   TestLinearBlendingEdgeCases/fully_transparent_destination
+    linear_test.go:307: Result: R=255, G=0, B=0, A=255
+=== RUN   TestLinearBlendingEdgeCases/both_transparent
+    linear_test.go:307: Result: R=0, G=0, B=0, A=0
+=== RUN   TestLinearBlendingEdgeCases/black_colors
+    linear_test.go:307: Result: R=0, G=0, B=0, A=255
+=== RUN   TestLinearBlendingEdgeCases/white_colors
+    linear_test.go:307: Result: R=255, G=255, B=255, A=255
+--- PASS: TestLinearBlendingEdgeCases (0.00s)
+    --- PASS: TestLinearBlendingEdgeCases/fully_transparent_source (0.00s)
+    --- PASS: TestLinearBlendingEdgeCases/fully_transparent_destination (0.00s)
+    --- PASS: TestLinearBlendingEdgeCases/both_transparent (0.00s)
+    --- PASS: TestLinearBlendingEdgeCases/black_colors (0.00s)
+    --- PASS: TestLinearBlendingEdgeCases/white_colors (0.00s)
+PASS

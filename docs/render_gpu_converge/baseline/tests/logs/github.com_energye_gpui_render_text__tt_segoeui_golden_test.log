@@ -1,0 +1,4 @@
+=== RUN   TestTTGolden_SegoeUI_W_12ppem
+    tt_segoeui_golden_test.go:26: system font test only on Windows (Segoe UI)
+--- SKIP: TestTTGolden_SegoeUI_W_12ppem (0.00s)
+PASS

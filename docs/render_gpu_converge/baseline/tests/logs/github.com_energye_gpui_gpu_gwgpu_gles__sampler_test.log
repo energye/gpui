@@ -1,0 +1,95 @@
+=== RUN   TestMapFilterMode
+=== RUN   TestMapFilterMode/Nearest
+=== RUN   TestMapFilterMode/Linear
+=== RUN   TestMapFilterMode/Undefined_defaults_to_Nearest
+=== RUN   TestMapFilterMode/Unknown_defaults_to_Nearest
+--- PASS: TestMapFilterMode (0.00s)
+    --- PASS: TestMapFilterMode/Nearest (0.00s)
+    --- PASS: TestMapFilterMode/Linear (0.00s)
+    --- PASS: TestMapFilterMode/Undefined_defaults_to_Nearest (0.00s)
+    --- PASS: TestMapFilterMode/Unknown_defaults_to_Nearest (0.00s)
+=== RUN   TestMapMinFilter
+=== RUN   TestMapMinFilter/Nearest+Nearest
+=== RUN   TestMapMinFilter/Nearest+Linear
+=== RUN   TestMapMinFilter/Linear+Nearest
+=== RUN   TestMapMinFilter/Linear+Linear
+=== RUN   TestMapMinFilter/Nearest+Undefined
+=== RUN   TestMapMinFilter/Linear+Undefined
+=== RUN   TestMapMinFilter/Default_(both_zero)
+--- PASS: TestMapMinFilter (0.00s)
+    --- PASS: TestMapMinFilter/Nearest+Nearest (0.00s)
+    --- PASS: TestMapMinFilter/Nearest+Linear (0.00s)
+    --- PASS: TestMapMinFilter/Linear+Nearest (0.00s)
+    --- PASS: TestMapMinFilter/Linear+Linear (0.00s)
+    --- PASS: TestMapMinFilter/Nearest+Undefined (0.00s)
+    --- PASS: TestMapMinFilter/Linear+Undefined (0.00s)
+    --- PASS: TestMapMinFilter/Default_(both_zero) (0.00s)
+=== RUN   TestMapAddressMode
+=== RUN   TestMapAddressMode/Repeat
+=== RUN   TestMapAddressMode/MirrorRepeat
+=== RUN   TestMapAddressMode/ClampToEdge
+=== RUN   TestMapAddressMode/Undefined_defaults_to_ClampToEdge
+--- PASS: TestMapAddressMode (0.00s)
+    --- PASS: TestMapAddressMode/Repeat (0.00s)
+    --- PASS: TestMapAddressMode/MirrorRepeat (0.00s)
+    --- PASS: TestMapAddressMode/ClampToEdge (0.00s)
+    --- PASS: TestMapAddressMode/Undefined_defaults_to_ClampToEdge (0.00s)
+=== RUN   TestMapCompareFunction
+=== RUN   TestMapCompareFunction/Never
+=== RUN   TestMapCompareFunction/Less
+=== RUN   TestMapCompareFunction/Equal
+=== RUN   TestMapCompareFunction/LessEqual
+=== RUN   TestMapCompareFunction/Greater
+=== RUN   TestMapCompareFunction/NotEqual
+=== RUN   TestMapCompareFunction/GreaterEqual
+=== RUN   TestMapCompareFunction/Always
+=== RUN   TestMapCompareFunction/Undefined_defaults_to_Always
+--- PASS: TestMapCompareFunction (0.00s)
+    --- PASS: TestMapCompareFunction/Never (0.00s)
+    --- PASS: TestMapCompareFunction/Less (0.00s)
+    --- PASS: TestMapCompareFunction/Equal (0.00s)
+    --- PASS: TestMapCompareFunction/LessEqual (0.00s)
+    --- PASS: TestMapCompareFunction/Greater (0.00s)
+    --- PASS: TestMapCompareFunction/NotEqual (0.00s)
+    --- PASS: TestMapCompareFunction/GreaterEqual (0.00s)
+    --- PASS: TestMapCompareFunction/Always (0.00s)
+    --- PASS: TestMapCompareFunction/Undefined_defaults_to_Always (0.00s)
+=== RUN   TestSamplerBindMap
+=== RUN   TestSamplerBindMap/sampler_2_maps_to_texUnit_1
+=== RUN   TestSamplerBindMap/sampler_3_maps_to_texUnit_5
+=== RUN   TestSamplerBindMap/sampler_0_not_mapped
+=== RUN   TestSamplerBindMap/sampler_7_not_mapped
+=== RUN   TestSamplerBindMap/sampler_1_not_mapped_(only_2_and_3_are)
+--- PASS: TestSamplerBindMap (0.00s)
+    --- PASS: TestSamplerBindMap/sampler_2_maps_to_texUnit_1 (0.00s)
+    --- PASS: TestSamplerBindMap/sampler_3_maps_to_texUnit_5 (0.00s)
+    --- PASS: TestSamplerBindMap/sampler_0_not_mapped (0.00s)
+    --- PASS: TestSamplerBindMap/sampler_7_not_mapped (0.00s)
+    --- PASS: TestSamplerBindMap/sampler_1_not_mapped_(only_2_and_3_are) (0.00s)
+=== RUN   TestIsNonFilterableFormat
+=== RUN   TestIsNonFilterableFormat/R8Uint
+=== RUN   TestIsNonFilterableFormat/RGBA8Sint
+=== RUN   TestIsNonFilterableFormat/R32Uint
+=== RUN   TestIsNonFilterableFormat/R32Float
+=== RUN   TestIsNonFilterableFormat/RGBA32Float
+=== RUN   TestIsNonFilterableFormat/Depth32Float
+=== RUN   TestIsNonFilterableFormat/Stencil8
+=== RUN   TestIsNonFilterableFormat/RGBA8Unorm
+=== RUN   TestIsNonFilterableFormat/R16Float
+=== RUN   TestIsNonFilterableFormat/RGBA16Float
+=== RUN   TestIsNonFilterableFormat/Depth24Plus
+=== RUN   TestIsNonFilterableFormat/BGRA8Unorm
+--- PASS: TestIsNonFilterableFormat (0.00s)
+    --- PASS: TestIsNonFilterableFormat/R8Uint (0.00s)
+    --- PASS: TestIsNonFilterableFormat/RGBA8Sint (0.00s)
+    --- PASS: TestIsNonFilterableFormat/R32Uint (0.00s)
+    --- PASS: TestIsNonFilterableFormat/R32Float (0.00s)
+    --- PASS: TestIsNonFilterableFormat/RGBA32Float (0.00s)
+    --- PASS: TestIsNonFilterableFormat/Depth32Float (0.00s)
+    --- PASS: TestIsNonFilterableFormat/Stencil8 (0.00s)
+    --- PASS: TestIsNonFilterableFormat/RGBA8Unorm (0.00s)
+    --- PASS: TestIsNonFilterableFormat/R16Float (0.00s)
+    --- PASS: TestIsNonFilterableFormat/RGBA16Float (0.00s)
+    --- PASS: TestIsNonFilterableFormat/Depth24Plus (0.00s)
+    --- PASS: TestIsNonFilterableFormat/BGRA8Unorm (0.00s)
+PASS

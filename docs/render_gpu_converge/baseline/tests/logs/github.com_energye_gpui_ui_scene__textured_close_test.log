@@ -1,0 +1,3 @@
+=== RUN   TestPictureTextureCache_CloseReleases
+--- PASS: TestPictureTextureCache_CloseReleases (0.26s)
+PASS

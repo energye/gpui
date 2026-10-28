@@ -1,0 +1,7 @@
+=== RUN   TestAtomicI32ResultType
+--- PASS: TestAtomicI32ResultType (0.00s)
+=== RUN   TestAtomicI32PointerType
+    atomic_type_test.go:107: OpAtomicIAdd[0]: result type ID=3 (int)
+    atomic_type_test.go:107: OpAtomicIAdd[1]: result type ID=4 (uint)
+--- PASS: TestAtomicI32PointerType (0.00s)
+PASS

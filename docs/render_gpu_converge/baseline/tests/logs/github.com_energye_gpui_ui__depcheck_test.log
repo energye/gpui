@@ -1,0 +1,7 @@
+=== RUN   TestUIDoesNotImportGPU
+    depcheck_test.go:40: github.com/energye/gpui/gpu/hal imports forbidden github.com/energye/gpui/gpu/hal
+    depcheck_test.go:40: github.com/energye/gpui/gpu/hal/noop imports forbidden github.com/energye/gpui/gpu/hal/noop
+    depcheck_test.go:40: github.com/energye/gpui/gpu/types imports forbidden github.com/energye/gpui/gpu/types
+    depcheck_test.go:40: github.com/energye/gpui/gpu/context imports forbidden github.com/energye/gpui/gpu/context
+--- FAIL: TestUIDoesNotImportGPU (0.02s)
+FAIL

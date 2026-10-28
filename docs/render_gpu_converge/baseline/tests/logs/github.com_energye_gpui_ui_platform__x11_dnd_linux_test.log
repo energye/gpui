@@ -1,0 +1,19 @@
+=== RUN   TestX11DnDEnterOverLeave
+--- PASS: TestX11DnDEnterOverLeave (6.71s)
+=== RUN   TestX11DnDDropFiles
+--- PASS: TestX11DnDDropFiles (4.34s)
+=== RUN   TestX11DnDNonURIListNoDrop
+--- PASS: TestX11DnDNonURIListNoDrop (5.27s)
+=== RUN   TestX11DnDTextPlainFillsData
+--- PASS: TestX11DnDTextPlainFillsData (4.34s)
+=== RUN   TestX11DnDFilesPlusTextData
+--- PASS: TestX11DnDFilesPlusTextData (4.39s)
+=== RUN   TestX11DnDSourceStartDragTo
+--- PASS: TestX11DnDSourceStartDragTo (3.21s)
+=== RUN   TestX11DnDSourceStartDragToRejects
+--- PASS: TestX11DnDSourceStartDragToRejects (0.65s)
+=== RUN   TestX11DnDSourceNilSafe
+--- PASS: TestX11DnDSourceNilSafe (0.00s)
+=== RUN   TestX11DnDAwareProbe
+--- PASS: TestX11DnDAwareProbe (0.20s)
+PASS

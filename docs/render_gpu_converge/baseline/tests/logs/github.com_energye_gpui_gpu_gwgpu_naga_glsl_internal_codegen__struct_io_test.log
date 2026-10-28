@@ -1,0 +1,163 @@
+=== RUN   TestCompile_StructVertexInput
+    struct_io_test.go:119: Generated GLSL:
+        #version 330 core
+        struct VertexInput {
+            vec2 position;
+            vec2 local;
+            float shape_kind;
+            vec2 center;
+            vec2 size;
+            vec4 params;
+            vec2 stroke;
+            float aa_width;
+            vec4 color;
+        };
+        struct VertexOutput {
+            vec4 clip_position;
+            vec2 local;
+            float shape_kind;
+            vec4 color;
+        };
+        layout(location = 0) in vec2 _p2vs_location0;
+        layout(location = 1) in vec2 _p2vs_location1;
+        layout(location = 2) in float _p2vs_location2;
+        layout(location = 3) in vec2 _p2vs_location3;
+        layout(location = 4) in vec2 _p2vs_location4;
+        layout(location = 5) in vec4 _p2vs_location5;
+        layout(location = 6) in vec2 _p2vs_location6;
+        layout(location = 7) in float _p2vs_location7;
+        layout(location = 8) in vec4 _p2vs_location8;
+        
+        void main() {
+            VertexInput in_ = VertexInput(_p2vs_location0, _p2vs_location1, _p2vs_location2, _p2vs_location3, _p2vs_location4, _p2vs_location5, _p2vs_location6, _p2vs_location7, _p2vs_location8);
+            gl_Position = vec4(in_.position.x, in_.position.y, 0.0, 1.0);
+            return;
+        }
+        
+--- PASS: TestCompile_StructVertexInput (0.00s)
+=== RUN   TestCompile_StructVertexOutput
+    struct_io_test.go:186: Generated GLSL:
+        #version 330 core
+        struct VertexInput {
+            vec2 position;
+            vec2 local;
+            float shape_kind;
+            vec2 center;
+            vec2 size;
+            vec4 params;
+            vec2 stroke;
+            float aa_width;
+            vec4 color;
+        };
+        struct VertexOutput {
+            vec4 clip_position;
+            vec2 local;
+            float shape_kind;
+            vec4 color;
+        };
+        layout(location = 0) in vec2 _p2vs_location0;
+        layout(location = 1) in vec2 _p2vs_location1;
+        layout(location = 2) in float _p2vs_location2;
+        layout(location = 3) in vec2 _p2vs_location3;
+        layout(location = 4) in vec2 _p2vs_location4;
+        layout(location = 5) in vec4 _p2vs_location5;
+        layout(location = 6) in vec2 _p2vs_location6;
+        layout(location = 7) in float _p2vs_location7;
+        layout(location = 8) in vec4 _p2vs_location8;
+        smooth out vec2 _vs2fs_location0;
+        smooth out float _vs2fs_location1;
+        smooth out vec4 _vs2fs_location2;
+        
+        void main() {
+            VertexInput in_ = VertexInput(_p2vs_location0, _p2vs_location1, _p2vs_location2, _p2vs_location3, _p2vs_location4, _p2vs_location5, _p2vs_location6, _p2vs_location7, _p2vs_location8);
+            VertexOutput _tmp_return = VertexOutput(vec4(in_.position, 0.0, 1.0), in_.local, in_.shape_kind, in_.color);
+            gl_Position = _tmp_return.clip_position;
+            _vs2fs_location0 = _tmp_return.local;
+            _vs2fs_location1 = _tmp_return.shape_kind;
+            _vs2fs_location2 = _tmp_return.color;
+            return;
+        }
+        
+--- PASS: TestCompile_StructVertexOutput (0.00s)
+=== RUN   TestCompile_StructFragmentInput
+    struct_io_test.go:255: Generated GLSL:
+        #version 330 core
+        struct FragInput {
+            vec2 uv;
+            vec4 color;
+        };
+        smooth in vec2 _vs2fs_location0;
+        smooth in vec4 _vs2fs_location1;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            FragInput in_ = FragInput(_vs2fs_location0, _vs2fs_location1);
+            _fs2p_location0 = in_.color;
+            return;
+        }
+        
+--- PASS: TestCompile_StructFragmentInput (0.00s)
+=== RUN   TestCompile_MixedStructAndDirectArgs
+    struct_io_test.go:337: Generated GLSL:
+        #version 330 core
+        struct VertexData {
+            vec2 pos;
+            vec2 uv;
+        };
+        layout(location = 0) in vec2 _p2vs_location0;
+        layout(location = 1) in vec2 _p2vs_location1;
+        
+        void main() {
+            VertexData data = VertexData(_p2vs_location0, _p2vs_location1);
+            gl_Position = vec4(data.pos, 0.0, 1.0);
+            return;
+        }
+        
+--- PASS: TestCompile_MixedStructAndDirectArgs (0.00s)
+=== RUN   TestCompile_StructInputWithBuiltin
+    struct_io_test.go:423: Generated GLSL:
+        #version 330 core
+        struct VertexInput {
+            vec2 position;
+            uint vertex_index;
+        };
+        layout(location = 0) in vec2 _p2vs_location0;
+        
+        void main() {
+            VertexInput in_ = VertexInput(_p2vs_location0, uint(gl_VertexID));
+            gl_Position = vec4(in_.position, 0.0, 1.0);
+            return;
+        }
+        
+--- PASS: TestCompile_StructInputWithBuiltin (0.00s)
+=== RUN   TestCompile_StructFragmentOutput
+    struct_io_test.go:496: Generated GLSL:
+        #version 330 core
+        struct FragOutput {
+            vec4 color;
+            vec4 bloom;
+        };
+        layout(location = 0) out vec4 _fs2p_location0;
+        layout(location = 1) out vec4 _fs2p_location1;
+        
+        void main() {
+            FragOutput _tmp_return = FragOutput(vec4(1.0, 1.0, 1.0, 1.0), vec4(0.5, 0.5, 0.5, 0.5));
+            _fs2p_location0 = _tmp_return.color;
+            _fs2p_location1 = _tmp_return.bloom;
+            return;
+        }
+        
+--- PASS: TestCompile_StructFragmentOutput (0.00s)
+=== RUN   TestCompile_DirectBindingArgsStillWork
+    struct_io_test.go:557: Generated GLSL:
+        #version 330 core
+        layout(location = 0) in vec2 _p2vs_location0;
+        
+        void main() {
+            vec2 pos = _p2vs_location0;
+            gl_Position = vec4(pos, 0.0, 1.0);
+            return;
+        }
+        
+--- PASS: TestCompile_DirectBindingArgsStillWork (0.00s)
+PASS

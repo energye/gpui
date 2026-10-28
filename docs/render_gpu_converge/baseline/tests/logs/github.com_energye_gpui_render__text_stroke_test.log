@@ -1,0 +1,39 @@
+=== RUN   TestStrokeString_Basic
+--- PASS: TestStrokeString_Basic (0.29s)
+=== RUN   TestStrokeString_NoFont
+--- PASS: TestStrokeString_NoFont (0.00s)
+=== RUN   TestStrokeString_LineWidth
+--- PASS: TestStrokeString_LineWidth (0.01s)
+=== RUN   TestStrokeStringAnchored_Center
+--- PASS: TestStrokeStringAnchored_Center (0.00s)
+=== RUN   TestStrokeStringAnchored_NoFont
+--- PASS: TestStrokeStringAnchored_NoFont (0.00s)
+=== RUN   TestTextPath_ReturnsPath
+--- PASS: TestTextPath_ReturnsPath (0.00s)
+=== RUN   TestTextPath_NoFont
+--- PASS: TestTextPath_NoFont (0.00s)
+=== RUN   TestTextPath_EmptyString
+--- PASS: TestTextPath_EmptyString (0.00s)
+=== RUN   TestTextPath_FillMatchesDrawString
+--- PASS: TestTextPath_FillMatchesDrawString (0.00s)
+=== RUN   TestStrokeString_IgnoresTextMode
+=== RUN   TestStrokeString_IgnoresTextMode/Auto
+=== RUN   TestStrokeString_IgnoresTextMode/MSDF
+=== RUN   TestStrokeString_IgnoresTextMode/Vector
+=== RUN   TestStrokeString_IgnoresTextMode/Bitmap
+--- PASS: TestStrokeString_IgnoresTextMode (0.01s)
+    --- PASS: TestStrokeString_IgnoresTextMode/Auto (0.00s)
+    --- PASS: TestStrokeString_IgnoresTextMode/MSDF (0.00s)
+    --- PASS: TestStrokeString_IgnoresTextMode/Vector (0.00s)
+    --- PASS: TestStrokeString_IgnoresTextMode/Bitmap (0.00s)
+=== RUN   TestStrokeString_PreservesContextPath
+--- PASS: TestStrokeString_PreservesContextPath (0.00s)
+=== RUN   TestStrokeString_UsesStrokeColor
+--- PASS: TestStrokeString_UsesStrokeColor (0.00s)
+=== RUN   TestDrawStringAsOutlines_RegressionMatch
+--- PASS: TestDrawStringAsOutlines_RegressionMatch (0.00s)
+=== RUN   TestStrokeString_DifferentFromFill
+--- PASS: TestStrokeString_DifferentFromFill (0.00s)
+=== RUN   TestStrokeString_ColorMatchesCurrentColor
+--- PASS: TestStrokeString_ColorMatchesCurrentColor (0.00s)
+PASS

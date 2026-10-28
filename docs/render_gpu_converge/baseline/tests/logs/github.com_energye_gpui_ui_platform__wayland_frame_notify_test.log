@@ -1,0 +1,3 @@
+=== RUN   TestWaylandFrameNotify
+--- PASS: TestWaylandFrameNotify (0.09s)
+PASS

@@ -1,0 +1,11 @@
+=== RUN   TestTessellateAA_SquareConvex
+--- PASS: TestTessellateAA_SquareConvex (0.00s)
+=== RUN   TestTessellateAA_CWSquare
+--- PASS: TestTessellateAA_CWSquare (0.00s)
+=== RUN   TestTessellateAA_ArcBandSweep
+--- PASS: TestTessellateAA_ArcBandSweep (0.00s)
+=== RUN   TestTessellateAA_BandDOutside
+--- PASS: TestTessellateAA_BandDOutside (0.00s)
+=== RUN   TestPathGeomCacheAA_MissThenHit
+--- PASS: TestPathGeomCacheAA_MissThenHit (0.00s)
+PASS

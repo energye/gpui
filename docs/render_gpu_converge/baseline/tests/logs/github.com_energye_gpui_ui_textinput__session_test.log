@@ -1,0 +1,7 @@
+=== RUN   TestSessionAttachOpenDisableClose
+--- PASS: TestSessionAttachOpenDisableClose (0.00s)
+=== RUN   TestSessionComposingLeg
+--- PASS: TestSessionComposingLeg (0.00s)
+=== RUN   TestSessionCaretMovedDedup
+--- PASS: TestSessionCaretMovedDedup (0.00s)
+PASS

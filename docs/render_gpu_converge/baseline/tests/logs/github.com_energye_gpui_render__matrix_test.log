@@ -1,0 +1,127 @@
+=== RUN   TestIsTranslationOnly
+=== RUN   TestIsTranslationOnly/identity
+=== RUN   TestIsTranslationOnly/pure_translation
+=== RUN   TestIsTranslationOnly/zero_translation
+=== RUN   TestIsTranslationOnly/negative_translation
+=== RUN   TestIsTranslationOnly/large_translation
+=== RUN   TestIsTranslationOnly/uniform_scale
+=== RUN   TestIsTranslationOnly/non-uniform_scale
+=== RUN   TestIsTranslationOnly/scale_1,1_(identity_via_Scale)
+=== RUN   TestIsTranslationOnly/rotation_45deg
+=== RUN   TestIsTranslationOnly/rotation_90deg
+=== RUN   TestIsTranslationOnly/shear_x
+=== RUN   TestIsTranslationOnly/shear_y
+=== RUN   TestIsTranslationOnly/scale_+_translate
+=== RUN   TestIsTranslationOnly/zero_matrix
+--- PASS: TestIsTranslationOnly (0.00s)
+    --- PASS: TestIsTranslationOnly/identity (0.00s)
+    --- PASS: TestIsTranslationOnly/pure_translation (0.00s)
+    --- PASS: TestIsTranslationOnly/zero_translation (0.00s)
+    --- PASS: TestIsTranslationOnly/negative_translation (0.00s)
+    --- PASS: TestIsTranslationOnly/large_translation (0.00s)
+    --- PASS: TestIsTranslationOnly/uniform_scale (0.00s)
+    --- PASS: TestIsTranslationOnly/non-uniform_scale (0.00s)
+    --- PASS: TestIsTranslationOnly/scale_1,1_(identity_via_Scale) (0.00s)
+    --- PASS: TestIsTranslationOnly/rotation_45deg (0.00s)
+    --- PASS: TestIsTranslationOnly/rotation_90deg (0.00s)
+    --- PASS: TestIsTranslationOnly/shear_x (0.00s)
+    --- PASS: TestIsTranslationOnly/shear_y (0.00s)
+    --- PASS: TestIsTranslationOnly/scale_+_translate (0.00s)
+    --- PASS: TestIsTranslationOnly/zero_matrix (0.00s)
+=== RUN   TestIsScaleOnly
+=== RUN   TestIsScaleOnly/identity
+=== RUN   TestIsScaleOnly/pure_translation
+=== RUN   TestIsScaleOnly/uniform_scale
+=== RUN   TestIsScaleOnly/non-uniform_scale
+=== RUN   TestIsScaleOnly/negative_scale_x
+=== RUN   TestIsScaleOnly/negative_scale_y
+=== RUN   TestIsScaleOnly/negative_scale_both
+=== RUN   TestIsScaleOnly/zero_scale_x
+=== RUN   TestIsScaleOnly/zero_scale_y
+=== RUN   TestIsScaleOnly/zero_scale_both
+=== RUN   TestIsScaleOnly/scale_+_translate
+=== RUN   TestIsScaleOnly/rotation_45deg
+=== RUN   TestIsScaleOnly/rotation_90deg
+=== RUN   TestIsScaleOnly/shear_x
+=== RUN   TestIsScaleOnly/shear_y
+=== RUN   TestIsScaleOnly/shear_both
+=== RUN   TestIsScaleOnly/scale_then_rotate
+=== RUN   TestIsScaleOnly/zero_matrix
+--- PASS: TestIsScaleOnly (0.00s)
+    --- PASS: TestIsScaleOnly/identity (0.00s)
+    --- PASS: TestIsScaleOnly/pure_translation (0.00s)
+    --- PASS: TestIsScaleOnly/uniform_scale (0.00s)
+    --- PASS: TestIsScaleOnly/non-uniform_scale (0.00s)
+    --- PASS: TestIsScaleOnly/negative_scale_x (0.00s)
+    --- PASS: TestIsScaleOnly/negative_scale_y (0.00s)
+    --- PASS: TestIsScaleOnly/negative_scale_both (0.00s)
+    --- PASS: TestIsScaleOnly/zero_scale_x (0.00s)
+    --- PASS: TestIsScaleOnly/zero_scale_y (0.00s)
+    --- PASS: TestIsScaleOnly/zero_scale_both (0.00s)
+    --- PASS: TestIsScaleOnly/scale_+_translate (0.00s)
+    --- PASS: TestIsScaleOnly/rotation_45deg (0.00s)
+    --- PASS: TestIsScaleOnly/rotation_90deg (0.00s)
+    --- PASS: TestIsScaleOnly/shear_x (0.00s)
+    --- PASS: TestIsScaleOnly/shear_y (0.00s)
+    --- PASS: TestIsScaleOnly/shear_both (0.00s)
+    --- PASS: TestIsScaleOnly/scale_then_rotate (0.00s)
+    --- PASS: TestIsScaleOnly/zero_matrix (0.00s)
+=== RUN   TestMaxScaleFactor
+=== RUN   TestMaxScaleFactor/identity
+=== RUN   TestMaxScaleFactor/pure_translation
+=== RUN   TestMaxScaleFactor/uniform_scale_2
+=== RUN   TestMaxScaleFactor/uniform_scale_0.5
+=== RUN   TestMaxScaleFactor/non-uniform_scale_3,1
+=== RUN   TestMaxScaleFactor/non-uniform_scale_1,4
+=== RUN   TestMaxScaleFactor/non-uniform_scale_2,5
+=== RUN   TestMaxScaleFactor/negative_scale_-2,1
+=== RUN   TestMaxScaleFactor/negative_scale_1,-3
+=== RUN   TestMaxScaleFactor/negative_scale_-2,-3
+=== RUN   TestMaxScaleFactor/zero_scale_x
+=== RUN   TestMaxScaleFactor/zero_scale_y
+=== RUN   TestMaxScaleFactor/zero_scale_both
+=== RUN   TestMaxScaleFactor/rotation_45deg
+=== RUN   TestMaxScaleFactor/rotation_90deg
+=== RUN   TestMaxScaleFactor/rotation_180deg
+=== RUN   TestMaxScaleFactor/rotation_arbitrary
+=== RUN   TestMaxScaleFactor/scale_2_then_rotate_45deg
+=== RUN   TestMaxScaleFactor/scale_3,1_then_rotate_45deg
+=== RUN   TestMaxScaleFactor/scale_1,4_then_rotate_30deg
+=== RUN   TestMaxScaleFactor/shear_x=1
+=== RUN   TestMaxScaleFactor/scale_+_translate
+--- PASS: TestMaxScaleFactor (0.00s)
+    --- PASS: TestMaxScaleFactor/identity (0.00s)
+    --- PASS: TestMaxScaleFactor/pure_translation (0.00s)
+    --- PASS: TestMaxScaleFactor/uniform_scale_2 (0.00s)
+    --- PASS: TestMaxScaleFactor/uniform_scale_0.5 (0.00s)
+    --- PASS: TestMaxScaleFactor/non-uniform_scale_3,1 (0.00s)
+    --- PASS: TestMaxScaleFactor/non-uniform_scale_1,4 (0.00s)
+    --- PASS: TestMaxScaleFactor/non-uniform_scale_2,5 (0.00s)
+    --- PASS: TestMaxScaleFactor/negative_scale_-2,1 (0.00s)
+    --- PASS: TestMaxScaleFactor/negative_scale_1,-3 (0.00s)
+    --- PASS: TestMaxScaleFactor/negative_scale_-2,-3 (0.00s)
+    --- PASS: TestMaxScaleFactor/zero_scale_x (0.00s)
+    --- PASS: TestMaxScaleFactor/zero_scale_y (0.00s)
+    --- PASS: TestMaxScaleFactor/zero_scale_both (0.00s)
+    --- PASS: TestMaxScaleFactor/rotation_45deg (0.00s)
+    --- PASS: TestMaxScaleFactor/rotation_90deg (0.00s)
+    --- PASS: TestMaxScaleFactor/rotation_180deg (0.00s)
+    --- PASS: TestMaxScaleFactor/rotation_arbitrary (0.00s)
+    --- PASS: TestMaxScaleFactor/scale_2_then_rotate_45deg (0.00s)
+    --- PASS: TestMaxScaleFactor/scale_3,1_then_rotate_45deg (0.00s)
+    --- PASS: TestMaxScaleFactor/scale_1,4_then_rotate_30deg (0.00s)
+    --- PASS: TestMaxScaleFactor/shear_x=1 (0.00s)
+    --- PASS: TestMaxScaleFactor/scale_+_translate (0.00s)
+=== RUN   TestMaxScaleFactorShearManual
+--- PASS: TestMaxScaleFactorShearManual (0.00s)
+=== RUN   TestMaxScaleFactorSkewComposition
+--- PASS: TestMaxScaleFactorSkewComposition (0.00s)
+=== RUN   TestMaxScaleFactorNearIdentity
+--- PASS: TestMaxScaleFactorNearIdentity (0.00s)
+=== RUN   TestIsTranslationOnlyConsistentWithIsTranslation
+--- PASS: TestIsTranslationOnlyConsistentWithIsTranslation (0.00s)
+=== RUN   TestMaxScaleFactorPreservesDirectionInvariance
+--- PASS: TestMaxScaleFactorPreservesDirectionInvariance (0.00s)
+=== RUN   TestMaxScaleFactorScaleRotateCommutes
+--- PASS: TestMaxScaleFactorScaleRotateCommutes (0.00s)
+PASS

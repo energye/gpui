@@ -1,0 +1,27 @@
+=== RUN   TestFlattenQuadratic_NaN_NoCrash
+=== RUN   TestFlattenQuadratic_NaN_NoCrash/NaN_control_point
+=== RUN   TestFlattenQuadratic_NaN_NoCrash/NaN_endpoint
+=== RUN   TestFlattenQuadratic_NaN_NoCrash/NaN_start_point
+=== RUN   TestFlattenQuadratic_NaN_NoCrash/all_NaN
+--- PASS: TestFlattenQuadratic_NaN_NoCrash (0.00s)
+    --- PASS: TestFlattenQuadratic_NaN_NoCrash/NaN_control_point (0.00s)
+    --- PASS: TestFlattenQuadratic_NaN_NoCrash/NaN_endpoint (0.00s)
+    --- PASS: TestFlattenQuadratic_NaN_NoCrash/NaN_start_point (0.00s)
+    --- PASS: TestFlattenQuadratic_NaN_NoCrash/all_NaN (0.00s)
+=== RUN   TestFlattenCubic_NaN_NoCrash
+=== RUN   TestFlattenCubic_NaN_NoCrash/NaN_control_point_1
+=== RUN   TestFlattenCubic_NaN_NoCrash/NaN_control_point_2
+=== RUN   TestFlattenCubic_NaN_NoCrash/NaN_both_control_points
+=== RUN   TestFlattenCubic_NaN_NoCrash/NaN_endpoint
+=== RUN   TestFlattenCubic_NaN_NoCrash/all_NaN
+--- PASS: TestFlattenCubic_NaN_NoCrash (0.00s)
+    --- PASS: TestFlattenCubic_NaN_NoCrash/NaN_control_point_1 (0.00s)
+    --- PASS: TestFlattenCubic_NaN_NoCrash/NaN_control_point_2 (0.00s)
+    --- PASS: TestFlattenCubic_NaN_NoCrash/NaN_both_control_points (0.00s)
+    --- PASS: TestFlattenCubic_NaN_NoCrash/NaN_endpoint (0.00s)
+    --- PASS: TestFlattenCubic_NaN_NoCrash/all_NaN (0.00s)
+=== RUN   TestFlattenQuadratic_Inf_NoCrash
+--- PASS: TestFlattenQuadratic_Inf_NoCrash (0.00s)
+=== RUN   TestFlattenCubic_Inf_NoCrash
+--- PASS: TestFlattenCubic_Inf_NoCrash (0.00s)
+PASS

@@ -1,0 +1,115 @@
+=== RUN   TestSequenceType_String
+=== RUN   TestSequenceType_String/Simple
+=== RUN   TestSequenceType_String/ZWJ
+=== RUN   TestSequenceType_String/Flag
+=== RUN   TestSequenceType_String/Keycap
+=== RUN   TestSequenceType_String/Modified
+=== RUN   TestSequenceType_String/Tag
+=== RUN   TestSequenceType_String/Presentation
+=== RUN   TestSequenceType_String/Unknown
+--- PASS: TestSequenceType_String (0.00s)
+    --- PASS: TestSequenceType_String/Simple (0.00s)
+    --- PASS: TestSequenceType_String/ZWJ (0.00s)
+    --- PASS: TestSequenceType_String/Flag (0.00s)
+    --- PASS: TestSequenceType_String/Keycap (0.00s)
+    --- PASS: TestSequenceType_String/Modified (0.00s)
+    --- PASS: TestSequenceType_String/Tag (0.00s)
+    --- PASS: TestSequenceType_String/Presentation (0.00s)
+    --- PASS: TestSequenceType_String/Unknown (0.00s)
+=== RUN   TestParse
+=== RUN   TestParse/empty
+=== RUN   TestParse/single_emoji
+=== RUN   TestParse/flag_US
+=== RUN   TestParse/keycap_1
+--- PASS: TestParse (0.00s)
+    --- PASS: TestParse/empty (0.00s)
+    --- PASS: TestParse/single_emoji (0.00s)
+    --- PASS: TestParse/flag_US (0.00s)
+    --- PASS: TestParse/keycap_1 (0.00s)
+=== RUN   TestParseString
+--- PASS: TestParseString (0.00s)
+=== RUN   TestSequence_String
+--- PASS: TestSequence_String (0.00s)
+=== RUN   TestSequence_Len
+=== RUN   TestSequence_Len/empty
+=== RUN   TestSequence_Len/single
+=== RUN   TestSequence_Len/flag
+=== RUN   TestSequence_Len/keycap
+--- PASS: TestSequence_Len (0.00s)
+    --- PASS: TestSequence_Len/empty (0.00s)
+    --- PASS: TestSequence_Len/single (0.00s)
+    --- PASS: TestSequence_Len/flag (0.00s)
+    --- PASS: TestSequence_Len/keycap (0.00s)
+=== RUN   TestSequence_HasModifier
+=== RUN   TestSequence_HasModifier/no_modifier
+=== RUN   TestSequence_HasModifier/with_modifier
+--- PASS: TestSequence_HasModifier (0.00s)
+    --- PASS: TestSequence_HasModifier/no_modifier (0.00s)
+    --- PASS: TestSequence_HasModifier/with_modifier (0.00s)
+=== RUN   TestNormalize
+=== RUN   TestNormalize/empty
+=== RUN   TestNormalize/simple_passthrough
+=== RUN   TestNormalize/remove_text_VS
+--- PASS: TestNormalize (0.00s)
+    --- PASS: TestNormalize/empty (0.00s)
+    --- PASS: TestNormalize/simple_passthrough (0.00s)
+    --- PASS: TestNormalize/remove_text_VS (0.00s)
+=== RUN   TestIsValidSequence
+=== RUN   TestIsValidSequence/empty
+=== RUN   TestIsValidSequence/simple_emoji
+=== RUN   TestIsValidSequence/valid_flag
+=== RUN   TestIsValidSequence/invalid_flag_-_wrong_length
+=== RUN   TestIsValidSequence/valid_keycap
+=== RUN   TestIsValidSequence/invalid_keycap_-_no_enclosing
+--- PASS: TestIsValidSequence (0.00s)
+    --- PASS: TestIsValidSequence/empty (0.00s)
+    --- PASS: TestIsValidSequence/simple_emoji (0.00s)
+    --- PASS: TestIsValidSequence/valid_flag (0.00s)
+    --- PASS: TestIsValidSequence/invalid_flag_-_wrong_length (0.00s)
+    --- PASS: TestIsValidSequence/valid_keycap (0.00s)
+    --- PASS: TestIsValidSequence/invalid_keycap_-_no_enclosing (0.00s)
+=== RUN   TestGetFlagCode
+=== RUN   TestGetFlagCode/US_flag
+=== RUN   TestGetFlagCode/JP_flag
+=== RUN   TestGetFlagCode/not_a_flag
+--- PASS: TestGetFlagCode (0.00s)
+    --- PASS: TestGetFlagCode/US_flag (0.00s)
+    --- PASS: TestGetFlagCode/JP_flag (0.00s)
+    --- PASS: TestGetFlagCode/not_a_flag (0.00s)
+=== RUN   TestGetTagSequenceCode
+=== RUN   TestGetTagSequenceCode/Scotland_flag
+=== RUN   TestGetTagSequenceCode/not_a_tag
+--- PASS: TestGetTagSequenceCode (0.00s)
+    --- PASS: TestGetTagSequenceCode/Scotland_flag (0.00s)
+    --- PASS: TestGetTagSequenceCode/not_a_tag (0.00s)
+=== RUN   TestSkinTone
+=== RUN   TestSkinTone/Light
+=== RUN   TestSkinTone/MediumLight
+=== RUN   TestSkinTone/Medium
+=== RUN   TestSkinTone/MediumDark
+=== RUN   TestSkinTone/Dark
+=== RUN   TestSkinTone/None
+--- PASS: TestSkinTone (0.00s)
+    --- PASS: TestSkinTone/Light (0.00s)
+    --- PASS: TestSkinTone/MediumLight (0.00s)
+    --- PASS: TestSkinTone/Medium (0.00s)
+    --- PASS: TestSkinTone/MediumDark (0.00s)
+    --- PASS: TestSkinTone/Dark (0.00s)
+    --- PASS: TestSkinTone/None (0.00s)
+=== RUN   TestSkinTone_String
+=== RUN   TestSkinTone_String/None
+=== RUN   TestSkinTone_String/Light
+=== RUN   TestSkinTone_String/MediumLight
+=== RUN   TestSkinTone_String/Medium
+=== RUN   TestSkinTone_String/MediumDark
+=== RUN   TestSkinTone_String/Dark
+=== RUN   TestSkinTone_String/Unknown
+--- PASS: TestSkinTone_String (0.00s)
+    --- PASS: TestSkinTone_String/None (0.00s)
+    --- PASS: TestSkinTone_String/Light (0.00s)
+    --- PASS: TestSkinTone_String/MediumLight (0.00s)
+    --- PASS: TestSkinTone_String/Medium (0.00s)
+    --- PASS: TestSkinTone_String/MediumDark (0.00s)
+    --- PASS: TestSkinTone_String/Dark (0.00s)
+    --- PASS: TestSkinTone_String/Unknown (0.00s)
+PASS

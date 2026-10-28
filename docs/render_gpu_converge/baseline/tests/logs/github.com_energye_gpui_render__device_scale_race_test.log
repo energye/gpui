@@ -1,0 +1,3 @@
+=== RUN   TestDeviceScale_ConcurrentReadWrite
+--- PASS: TestDeviceScale_ConcurrentReadWrite (0.00s)
+PASS

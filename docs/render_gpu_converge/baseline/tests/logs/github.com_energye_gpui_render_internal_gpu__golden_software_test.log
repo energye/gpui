@@ -1,0 +1,39 @@
+=== RUN   TestGoldenSoftware_CPUSDFvsCPU
+=== RUN   TestGoldenSoftware_CPUSDFvsCPU/filled_circle
+    golden_software_test.go:152: CPU SDF vs CPU: meanDiff=0.000000, maxDiff=0.000000, threshold=0.0200
+=== RUN   TestGoldenSoftware_CPUSDFvsCPU/filled_rectangle
+    golden_software_test.go:152: CPU SDF vs CPU: meanDiff=0.000000, maxDiff=0.000000, threshold=0.0100
+=== RUN   TestGoldenSoftware_CPUSDFvsCPU/stroked_line
+    golden_software_test.go:152: CPU SDF vs CPU: meanDiff=0.000000, maxDiff=0.000000, threshold=0.0100
+=== RUN   TestGoldenSoftware_CPUSDFvsCPU/stroked_circle
+    golden_software_test.go:152: CPU SDF vs CPU: meanDiff=0.000000, maxDiff=0.000000, threshold=0.0200
+=== RUN   TestGoldenSoftware_CPUSDFvsCPU/filled_triangle
+    golden_software_test.go:152: CPU SDF vs CPU: meanDiff=0.000000, maxDiff=0.000000, threshold=0.0100
+=== RUN   TestGoldenSoftware_CPUSDFvsCPU/overlapping_shapes
+    golden_software_test.go:152: CPU SDF vs CPU: meanDiff=0.000000, maxDiff=0.000000, threshold=0.0200
+--- PASS: TestGoldenSoftware_CPUSDFvsCPU (0.01s)
+    --- PASS: TestGoldenSoftware_CPUSDFvsCPU/filled_circle (0.00s)
+    --- PASS: TestGoldenSoftware_CPUSDFvsCPU/filled_rectangle (0.00s)
+    --- PASS: TestGoldenSoftware_CPUSDFvsCPU/stroked_line (0.00s)
+    --- PASS: TestGoldenSoftware_CPUSDFvsCPU/stroked_circle (0.00s)
+    --- PASS: TestGoldenSoftware_CPUSDFvsCPU/filled_triangle (0.00s)
+    --- PASS: TestGoldenSoftware_CPUSDFvsCPU/overlapping_shapes (0.00s)
+=== RUN   TestGoldenSoftware_CPUConsistency
+=== RUN   TestGoldenSoftware_CPUConsistency/filled_circle
+=== RUN   TestGoldenSoftware_CPUConsistency/filled_rectangle
+=== RUN   TestGoldenSoftware_CPUConsistency/stroked_line
+=== RUN   TestGoldenSoftware_CPUConsistency/stroked_circle
+=== RUN   TestGoldenSoftware_CPUConsistency/filled_triangle
+=== RUN   TestGoldenSoftware_CPUConsistency/overlapping_shapes
+--- PASS: TestGoldenSoftware_CPUConsistency (0.01s)
+    --- PASS: TestGoldenSoftware_CPUConsistency/filled_circle (0.00s)
+    --- PASS: TestGoldenSoftware_CPUConsistency/filled_rectangle (0.00s)
+    --- PASS: TestGoldenSoftware_CPUConsistency/stroked_line (0.00s)
+    --- PASS: TestGoldenSoftware_CPUConsistency/stroked_circle (0.00s)
+    --- PASS: TestGoldenSoftware_CPUConsistency/filled_triangle (0.00s)
+    --- PASS: TestGoldenSoftware_CPUConsistency/overlapping_shapes (0.00s)
+=== RUN   TestGoldenSoftware_GPUvsCPU
+    golden_software_test.go:209: GPU available — compute pipeline tests run via TestVelloComputeGolden
+    golden_software_test.go:210: This test validates GPU init + shared resource lifecycle on software adapters
+--- PASS: TestGoldenSoftware_GPUvsCPU (0.24s)
+PASS

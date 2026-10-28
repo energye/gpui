@@ -1,0 +1,103 @@
+=== RUN   TestCov_SplatVec2
+--- PASS: TestCov_SplatVec2 (0.00s)
+=== RUN   TestCov_SplatVec4
+--- PASS: TestCov_SplatVec4 (0.00s)
+=== RUN   TestCov_SplatIntVec
+--- PASS: TestCov_SplatIntVec (0.00s)
+=== RUN   TestCov_SwizzleAllComponents
+--- PASS: TestCov_SwizzleAllComponents (0.00s)
+=== RUN   TestCov_StructMemberAccessMultiple
+--- PASS: TestCov_StructMemberAccessMultiple (0.00s)
+=== RUN   TestCov_ArrayOfStructAccess
+--- PASS: TestCov_ArrayOfStructAccess (0.00s)
+=== RUN   TestCov_BinaryU32Arithmetic
+--- PASS: TestCov_BinaryU32Arithmetic (0.00s)
+=== RUN   TestCov_BinaryF32Arithmetic
+--- PASS: TestCov_BinaryF32Arithmetic (0.00s)
+=== RUN   TestCov_BinaryVecI32Arithmetic
+--- PASS: TestCov_BinaryVecI32Arithmetic (0.00s)
+=== RUN   TestCov_MatrixMatrixMultiply
+--- PASS: TestCov_MatrixMatrixMultiply (0.00s)
+=== RUN   TestCov_VectorMatrixMultiply
+--- PASS: TestCov_VectorMatrixMultiply (0.00s)
+=== RUN   TestCov_UnaryI32Negate
+--- PASS: TestCov_UnaryI32Negate (0.00s)
+=== RUN   TestCov_UnaryVec4I32Negate
+--- PASS: TestCov_UnaryVec4I32Negate (0.00s)
+=== RUN   TestCov_CastVecFloatToInt
+--- PASS: TestCov_CastVecFloatToInt (0.00s)
+=== RUN   TestCov_CastVecIntToFloat
+--- PASS: TestCov_CastVecIntToFloat (0.00s)
+=== RUN   TestCov_BitcastIntToFloat
+--- PASS: TestCov_BitcastIntToFloat (0.00s)
+=== RUN   TestCov_BitcastFloatToUint
+--- PASS: TestCov_BitcastFloatToUint (0.00s)
+=== RUN   TestCov_BitcastUintToInt
+--- PASS: TestCov_BitcastUintToInt (0.00s)
+=== RUN   TestCov_SelectExpression
+--- PASS: TestCov_SelectExpression (0.00s)
+=== RUN   TestCov_ComposeVec
+--- PASS: TestCov_ComposeVec (0.00s)
+=== RUN   TestCov_ComposeStructWithReturn
+--- PASS: TestCov_ComposeStructWithReturn (0.00s)
+=== RUN   TestCov_LoadFromPointer
+--- PASS: TestCov_LoadFromPointer (0.00s)
+=== RUN   TestCov_TextureSampleGrad
+--- PASS: TestCov_TextureSampleGrad (0.00s)
+=== RUN   TestCov_TextureNumSamples
+--- PASS: TestCov_TextureNumSamples (0.00s)
+=== RUN   TestCov_GlobalVariableHandle
+--- PASS: TestCov_GlobalVariableHandle (0.00s)
+=== RUN   TestCov_StructEndPadding
+--- PASS: TestCov_StructEndPadding (0.00s)
+=== RUN   TestCov_VectorComparison
+--- PASS: TestCov_VectorComparison (0.00s)
+=== RUN   TestCov_ManyLocalVars
+--- PASS: TestCov_ManyLocalVars (0.00s)
+=== RUN   TestCov_ArrayLength
+--- PASS: TestCov_ArrayLength (0.00s)
+=== RUN   TestCov_FunctionArgExpression
+--- PASS: TestCov_FunctionArgExpression (0.00s)
+=== RUN   TestCov_HelperFunctionGeneration
+--- PASS: TestCov_HelperFunctionGeneration (0.00s)
+=== RUN   TestCov_ExtractBitsInsertBits
+--- PASS: TestCov_ExtractBitsInsertBits (0.00s)
+=== RUN   TestCov_CountOneBitsI32
+--- PASS: TestCov_CountOneBitsI32 (0.00s)
+=== RUN   TestCov_ReverseBitsI32
+--- PASS: TestCov_ReverseBitsI32 (0.00s)
+=== RUN   TestCov_Texture1D
+--- PASS: TestCov_Texture1D (0.00s)
+=== RUN   TestCov_ComputeMultipleBuiltins
+--- PASS: TestCov_ComputeMultipleBuiltins (0.00s)
+=== RUN   TestCov_VertexInstanceIndex
+--- PASS: TestCov_VertexInstanceIndex (0.00s)
+=== RUN   TestCov_FragmentFrontFacing
+--- PASS: TestCov_FragmentFrontFacing (0.00s)
+=== RUN   TestCov_FragmentSampleIndex
+--- PASS: TestCov_FragmentSampleIndex (0.00s)
+=== RUN   TestCov_I32MinLiteral
+--- PASS: TestCov_I32MinLiteral (0.00s)
+=== RUN   TestHLSLBlockEndsWithReturn
+--- PASS: TestHLSLBlockEndsWithReturn (0.00s)
+=== RUN   TestFormatSpecialFloat
+=== RUN   TestFormatSpecialFloat/pos_inf
+=== RUN   TestFormatSpecialFloat/neg_inf
+=== RUN   TestFormatSpecialFloat/nan
+=== RUN   TestFormatSpecialFloat/normal
+=== RUN   TestFormatSpecialFloat/zero
+--- PASS: TestFormatSpecialFloat (0.00s)
+    --- PASS: TestFormatSpecialFloat/pos_inf (0.00s)
+    --- PASS: TestFormatSpecialFloat/neg_inf (0.00s)
+    --- PASS: TestFormatSpecialFloat/nan (0.00s)
+    --- PASS: TestFormatSpecialFloat/normal (0.00s)
+    --- PASS: TestFormatSpecialFloat/zero (0.00s)
+=== RUN   TestHLSLTypeId
+--- PASS: TestHLSLTypeId (0.00s)
+=== RUN   TestWriteExpressionToString
+--- PASS: TestWriteExpressionToString (0.00s)
+=== RUN   TestToLowerFirst
+--- PASS: TestToLowerFirst (0.00s)
+=== RUN   TestStageName
+--- PASS: TestStageName (0.00s)
+PASS

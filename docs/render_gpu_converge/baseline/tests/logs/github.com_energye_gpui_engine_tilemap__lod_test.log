@@ -1,0 +1,14 @@
+=== RUN   TestLODFromCases
+--- PASS: TestLODFromCases (0.00s)
+=== RUN   TestLODEdgesNoCrash
+--- PASS: TestLODEdgesNoCrash (0.00s)
+=== RUN   TestLODBoundaryIdentical
+--- PASS: TestLODBoundaryIdentical (0.00s)
+=== RUN   TestLODPerfSwitch
+    lod_test.go:341: lod-switch: 20000 select+chunk on band 192-320 in 837.147µs (20.9 ns/op, near 28561 far 11439)
+--- PASS: TestLODPerfSwitch (0.00s)
+=== RUN   TestLODLongRunStable
+--- PASS: TestLODLongRunStable (0.00s)
+=== RUN   TestLODOffscreenGolden
+--- PASS: TestLODOffscreenGolden (0.00s)
+PASS

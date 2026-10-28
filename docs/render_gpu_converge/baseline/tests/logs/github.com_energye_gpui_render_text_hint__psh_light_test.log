@@ -1,0 +1,17 @@
+=== RUN   TestM2Ri12pxEightEdges
+    psh_light_test.go:63: fd Blues: bv=[-250 -250 1100 1100] lg=1
+    psh_light_test.go:102: cs -120 → ds -1.5000px (want -1.5000px)
+    psh_light_test.go:102: cs -4 → ds 0.0000px (want 0.0000px)
+    psh_light_test.go:102: cs 71 → ds 0.8995px (want 0.8995px)
+    psh_light_test.go:102: cs 352 → ds 5.0000px (want 5.0000px)
+    psh_light_test.go:102: cs 426 → ds 5.8875px (want 5.8880px)
+    psh_light_test.go:102: cs 697 → ds 9.1005px (want 9.1000px)
+    psh_light_test.go:102: cs 772 → ds 10.0000px (want 10.0000px)
+    psh_light_test.go:102: cs 880 → ds 11.4996px (want 11.5000px)
+--- PASS: TestM2Ri12pxEightEdges (0.01s)
+=== RUN   TestM2ContourLight
+    psh_light_test.go:145: 日 12px: 16 点 26.6 全部与 FT-light 逐点一致
+    psh_light_test.go:145: 田 12px: 24 点 26.6 全部与 FT-light 逐点一致
+    psh_light_test.go:145: 目 12px: 20 点 26.6 全部与 FT-light 逐点一致
+--- PASS: TestM2ContourLight (0.48s)
+PASS

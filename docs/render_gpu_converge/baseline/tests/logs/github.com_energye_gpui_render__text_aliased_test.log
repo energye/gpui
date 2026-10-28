@@ -1,0 +1,17 @@
+=== RUN   TestTextModeAliased_Enum
+--- PASS: TestTextModeAliased_Enum (0.00s)
+=== RUN   TestTextModeAliased_SetGet
+--- PASS: TestTextModeAliased_SetGet (0.00s)
+=== RUN   TestTextModeAliased_SelectStrategy
+--- PASS: TestTextModeAliased_SelectStrategy (0.00s)
+=== RUN   TestTextModeAliased_DrawString_CPUFallback
+--- PASS: TestTextModeAliased_DrawString_CPUFallback (0.30s)
+=== RUN   TestTextModeAliased_BinaryAlpha
+--- PASS: TestTextModeAliased_BinaryAlpha (0.00s)
+=== RUN   TestGlyphMaskKey_AliasedFlag
+--- PASS: TestGlyphMaskKey_AliasedFlag (0.00s)
+=== RUN   TestGlyphMaskRasterizer_Aliased_BinaryPixels
+--- PASS: TestGlyphMaskRasterizer_Aliased_BinaryPixels (0.00s)
+=== RUN   TestGlyphMaskRasterizer_Aliased_VsHinted
+--- PASS: TestGlyphMaskRasterizer_Aliased_VsHinted (0.00s)
+PASS

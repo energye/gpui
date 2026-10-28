@@ -1,0 +1,21 @@
+=== RUN   TestGradientFollowsCTM_Translate
+--- PASS: TestGradientFollowsCTM_Translate (0.00s)
+=== RUN   TestGradientFollowsCTM_Rotate90
+--- PASS: TestGradientFollowsCTM_Rotate90 (0.00s)
+=== RUN   TestGradientFollowsCTM_UniformScale
+--- PASS: TestGradientFollowsCTM_UniformScale (0.01s)
+=== RUN   TestGradientFollowsCTM_NonUniformScaleOracle
+--- PASS: TestGradientFollowsCTM_NonUniformScaleOracle (0.00s)
+=== RUN   TestGradientFollowsCTM_DeviceScale
+--- PASS: TestGradientFollowsCTM_DeviceScale (0.01s)
+=== RUN   TestGradientFollowsCTM_RestoresState
+--- PASS: TestGradientFollowsCTM_RestoresState (0.00s)
+=== RUN   TestGradientFollowsCTM_Stroke
+--- PASS: TestGradientFollowsCTM_Stroke (0.00s)
+=== RUN   TestImagePatternFollowsCTM
+--- PASS: TestImagePatternFollowsCTM (0.00s)
+=== RUN   TestMatrixSimilarityScale
+--- PASS: TestMatrixSimilarityScale (0.00s)
+=== RUN   TestBrushFieldSeed_DistinctWrappers
+--- PASS: TestBrushFieldSeed_DistinctWrappers (0.00s)
+PASS

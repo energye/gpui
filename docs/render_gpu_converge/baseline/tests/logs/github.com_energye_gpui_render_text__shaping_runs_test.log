@@ -1,0 +1,5 @@
+=== RUN   TestShapeNonEmpty_MultiFace
+--- PASS: TestShapeNonEmpty_MultiFace (0.30s)
+=== RUN   TestItemizeRuns_MixedLatinCJK
+--- PASS: TestItemizeRuns_MixedLatinCJK (0.00s)
+PASS

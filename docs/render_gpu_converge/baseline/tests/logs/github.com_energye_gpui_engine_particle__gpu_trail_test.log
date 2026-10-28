@@ -1,0 +1,16 @@
+=== RUN   TestGPUTrailCasesFromFile
+--- PASS: TestGPUTrailCasesFromFile (0.00s)
+=== RUN   TestGPUTrailEdgesNoCrash
+--- PASS: TestGPUTrailEdgesNoCrash (0.00s)
+=== RUN   TestGPUPoolCPUParity
+--- PASS: TestGPUPoolCPUParity (0.00s)
+=== RUN   TestGPUPoolPerfThousands
+    gpu_trail_test.go:604: gpu-trail-3000: spawn 8.622291ms update 5.92292ms append 7.013039ms flush 1.46996ms (points=6000 draws=1)
+--- PASS: TestGPUPoolPerfThousands (0.02s)
+=== RUN   TestGPUTrailLongRunStable
+--- PASS: TestGPUTrailLongRunStable (0.12s)
+=== RUN   TestGPUTrailOffscreenGolden
+--- PASS: TestGPUTrailOffscreenGolden (0.00s)
+=== RUN   TestReuseAppendMatchesCopy
+--- PASS: TestReuseAppendMatchesCopy (0.00s)
+PASS

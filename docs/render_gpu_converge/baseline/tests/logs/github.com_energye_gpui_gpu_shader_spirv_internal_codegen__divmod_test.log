@@ -1,0 +1,15 @@
+=== RUN   TestWrappedDivU32
+--- PASS: TestWrappedDivU32 (0.00s)
+=== RUN   TestWrappedDivI32
+--- PASS: TestWrappedDivI32 (0.00s)
+=== RUN   TestWrappedModI32UsesOpSRem
+--- PASS: TestWrappedModI32UsesOpSRem (0.00s)
+=== RUN   TestFloatDivNoWrapper
+--- PASS: TestFloatDivNoWrapper (0.00s)
+=== RUN   TestWrappedDivDeduplicated
+--- PASS: TestWrappedDivDeduplicated (0.00s)
+=== RUN   TestWrappedDivVec2I32
+--- PASS: TestWrappedDivVec2I32 (0.00s)
+=== RUN   TestWrappedModU32
+--- PASS: TestWrappedModU32 (0.00s)
+PASS

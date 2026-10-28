@@ -1,0 +1,17 @@
+=== RUN   TestContinueCtx_BasicStack
+--- PASS: TestContinueCtx_BasicStack (0.00s)
+=== RUN   TestContinueCtx_ContinueInSwitch
+--- PASS: TestContinueCtx_ContinueInSwitch (0.00s)
+=== RUN   TestContinueCtx_NestedSwitches
+--- PASS: TestContinueCtx_NestedSwitches (0.00s)
+=== RUN   TestContinueCtx_ContinueOutsideSwitch
+--- PASS: TestContinueCtx_ContinueOutsideSwitch (0.00s)
+=== RUN   TestContinueForward_DoWhileOutput
+--- PASS: TestContinueForward_DoWhileOutput (0.00s)
+=== RUN   TestContinueCtx_ExitLoopError
+--- PASS: TestContinueCtx_ExitLoopError (0.00s)
+=== RUN   TestContinueCtx_ExitSwitchError
+--- PASS: TestContinueCtx_ExitSwitchError (0.00s)
+=== RUN   TestContinueForward_RegularSwitchNoContinueForward
+--- PASS: TestContinueForward_RegularSwitchNoContinueForward (0.00s)
+PASS

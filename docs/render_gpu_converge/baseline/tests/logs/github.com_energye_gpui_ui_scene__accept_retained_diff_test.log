@@ -1,0 +1,6 @@
+=== RUN   TestRetainedMatchesVector_BTail
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+--- PASS: TestRetainedMatchesVector_BTail (0.58s)
+=== RUN   TestRetainedCaretToggle_BOnly
+--- PASS: TestRetainedCaretToggle_BOnly (0.13s)
+PASS

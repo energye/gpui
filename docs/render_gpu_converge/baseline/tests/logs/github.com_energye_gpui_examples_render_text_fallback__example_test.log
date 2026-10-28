@@ -1,0 +1,23 @@
+=== RUN   TestFindMainFont
+    example_test.go:27: Found main font: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+--- PASS: TestFindMainFont (0.00s)
+=== RUN   TestFindEmojiFont
+    example_test.go:47: Found emoji font: /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf
+--- PASS: TestFindEmojiFont (0.00s)
+=== RUN   TestFilteredFace
+=== RUN   TestFilteredFace/ASCII_only
+=== RUN   TestFilteredFace/Latin_Extended
+=== RUN   TestFilteredFace/Cyrillic
+=== RUN   TestFilteredFace/Emoji
+--- PASS: TestFilteredFace (0.00s)
+    --- PASS: TestFilteredFace/ASCII_only (0.00s)
+    --- PASS: TestFilteredFace/Latin_Extended (0.00s)
+    --- PASS: TestFilteredFace/Cyrillic (0.00s)
+    --- PASS: TestFilteredFace/Emoji (0.00s)
+=== RUN   TestMultiFace
+--- PASS: TestMultiFace (0.00s)
+=== RUN   TestMultiFaceRendering
+--- PASS: TestMultiFaceRendering (0.19s)
+=== RUN   TestFilteredFaceRendering
+--- PASS: TestFilteredFaceRendering (0.00s)
+PASS

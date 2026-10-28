@@ -1,0 +1,7 @@
+=== RUN   TestComputeFontID_DifferentFontsInSameFamily
+--- PASS: TestComputeFontID_DifferentFontsInSameFamily (0.00s)
+=== RUN   TestComputeFontID_NilSource
+--- PASS: TestComputeFontID_NilSource (0.00s)
+=== RUN   TestComputeFontID_SameFontStableID
+--- PASS: TestComputeFontID_SameFontStableID (0.00s)
+PASS

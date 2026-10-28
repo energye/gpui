@@ -1,0 +1,6 @@
+=== RUN   TestPollSteadyNoAlloc
+--- PASS: TestPollSteadyNoAlloc (0.03s)
+=== RUN   TestLoopSteadyBytes
+    playback_steady_test.go:76: 1080p steady: shown=22 per_frame_B=1255
+--- PASS: TestLoopSteadyBytes (7.18s)
+PASS

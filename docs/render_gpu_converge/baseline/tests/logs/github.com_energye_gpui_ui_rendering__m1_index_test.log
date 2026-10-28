@@ -1,0 +1,7 @@
+=== RUN   TestLineIndex_M1
+--- PASS: TestLineIndex_M1 (0.00s)
+=== RUN   TestRowForY_RV
+--- PASS: TestRowForY_RV (0.00s)
+=== RUN   TestCaretPrefixSum_M1
+--- PASS: TestCaretPrefixSum_M1 (0.00s)
+PASS

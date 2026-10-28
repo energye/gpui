@@ -1,0 +1,23 @@
+=== RUN   TestSourceError_Error
+=== RUN   TestSourceError_Error/with_position
+=== RUN   TestSourceError_Error/without_position
+--- PASS: TestSourceError_Error (0.00s)
+    --- PASS: TestSourceError_Error/with_position (0.00s)
+    --- PASS: TestSourceError_Error/without_position (0.00s)
+=== RUN   TestSourceError_FormatWithContext
+--- PASS: TestSourceError_FormatWithContext (0.00s)
+=== RUN   TestSourceError_FormatWithContext_NoSource
+--- PASS: TestSourceError_FormatWithContext_NoSource (0.00s)
+=== RUN   TestSourceErrors_Error
+=== RUN   TestSourceErrors_Error/empty
+=== RUN   TestSourceErrors_Error/single
+=== RUN   TestSourceErrors_Error/multiple
+--- PASS: TestSourceErrors_Error (0.00s)
+    --- PASS: TestSourceErrors_Error/empty (0.00s)
+    --- PASS: TestSourceErrors_Error/single (0.00s)
+    --- PASS: TestSourceErrors_Error/multiple (0.00s)
+=== RUN   TestSourceErrors_Operations
+--- PASS: TestSourceErrors_Operations (0.00s)
+=== RUN   TestNewSourceErrorf
+--- PASS: TestNewSourceErrorf (0.00s)
+PASS

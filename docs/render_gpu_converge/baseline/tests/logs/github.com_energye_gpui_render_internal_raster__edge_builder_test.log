@@ -1,0 +1,53 @@
+=== RUN   TestEdgeBuilderEmpty
+--- PASS: TestEdgeBuilderEmpty (0.00s)
+=== RUN   TestEdgeBuilderNilPath
+--- PASS: TestEdgeBuilderNilPath (0.00s)
+=== RUN   TestEdgeBuilderTriangle
+--- PASS: TestEdgeBuilderTriangle (0.00s)
+=== RUN   TestEdgeBuilderRectangle
+--- PASS: TestEdgeBuilderRectangle (0.00s)
+=== RUN   TestEdgeBuilderQuadCurve
+=== RUN   TestEdgeBuilderQuadCurve/flattened
+=== RUN   TestEdgeBuilderQuadCurve/native_curves
+--- PASS: TestEdgeBuilderQuadCurve (0.00s)
+    --- PASS: TestEdgeBuilderQuadCurve/flattened (0.00s)
+    --- PASS: TestEdgeBuilderQuadCurve/native_curves (0.00s)
+=== RUN   TestEdgeBuilderCubicCurve
+=== RUN   TestEdgeBuilderCubicCurve/flattened
+=== RUN   TestEdgeBuilderCubicCurve/native_curves
+--- PASS: TestEdgeBuilderCubicCurve (0.00s)
+    --- PASS: TestEdgeBuilderCubicCurve/flattened (0.00s)
+    --- PASS: TestEdgeBuilderCubicCurve/native_curves (0.00s)
+=== RUN   TestEdgeBuilderVelloLines
+--- PASS: TestEdgeBuilderVelloLines (0.00s)
+=== RUN   TestEdgeBuilderReset
+--- PASS: TestEdgeBuilderReset (0.00s)
+=== RUN   TestEdgeBuilderAllEdges
+--- PASS: TestEdgeBuilderAllEdges (0.00s)
+=== RUN   TestEdgeBuilderLineEdgesIterator
+--- PASS: TestEdgeBuilderLineEdgesIterator (0.00s)
+=== RUN   TestEdgeBuilderEmptyRect
+--- PASS: TestEdgeBuilderEmptyRect (0.00s)
+=== RUN   TestCombineVertical
+=== RUN   TestCombineVertical/non-vertical_edges
+=== RUN   TestCombineVertical/different_X_positions
+=== RUN   TestCombineVertical/same_winding_extend_below
+=== RUN   TestCombineVertical/same_winding_extend_above
+=== RUN   TestCombineVertical/opposite_winding_total_cancel
+=== RUN   TestCombineVertical/opposite_winding_partial_from_top_edge_shorter
+=== RUN   TestCombineVertical/opposite_winding_partial_from_top_edge_longer
+=== RUN   TestCombineVertical/opposite_winding_partial_from_bottom_same_end
+=== RUN   TestCombineVertical/opposite_winding_partial_from_bottom_edge_starts_before_last
+=== RUN   TestCombineVertical/same_winding_non-adjacent
+--- PASS: TestCombineVertical (0.00s)
+    --- PASS: TestCombineVertical/non-vertical_edges (0.00s)
+    --- PASS: TestCombineVertical/different_X_positions (0.00s)
+    --- PASS: TestCombineVertical/same_winding_extend_below (0.00s)
+    --- PASS: TestCombineVertical/same_winding_extend_above (0.00s)
+    --- PASS: TestCombineVertical/opposite_winding_total_cancel (0.00s)
+    --- PASS: TestCombineVertical/opposite_winding_partial_from_top_edge_shorter (0.00s)
+    --- PASS: TestCombineVertical/opposite_winding_partial_from_top_edge_longer (0.00s)
+    --- PASS: TestCombineVertical/opposite_winding_partial_from_bottom_same_end (0.00s)
+    --- PASS: TestCombineVertical/opposite_winding_partial_from_bottom_edge_starts_before_last (0.00s)
+    --- PASS: TestCombineVertical/same_winding_non-adjacent (0.00s)
+PASS

@@ -1,0 +1,71 @@
+=== RUN   TestFlattenShaderCompilation
+    gpu_flatten_test.go:50: Flatten shader compiled to 29044 bytes of SPIR-V
+--- PASS: TestFlattenShaderCompilation (0.01s)
+=== RUN   TestGPUPathElementConversion
+--- PASS: TestGPUPathElementConversion (0.00s)
+=== RUN   TestGPUCursorStateComputation
+--- PASS: TestGPUCursorStateComputation (0.00s)
+=== RUN   TestGPUCursorStateWithQuadCubic
+--- PASS: TestGPUCursorStateWithQuadCubic (0.00s)
+=== RUN   TestGPUAffineConversion
+=== RUN   TestGPUAffineConversion/identity
+=== RUN   TestGPUAffineConversion/translation
+=== RUN   TestGPUAffineConversion/scale
+--- PASS: TestGPUAffineConversion (0.00s)
+    --- PASS: TestGPUAffineConversion/identity (0.00s)
+    --- PASS: TestGPUAffineConversion/translation (0.00s)
+    --- PASS: TestGPUAffineConversion/scale (0.00s)
+=== RUN   TestWangQuadraticEstimate
+=== RUN   TestWangQuadraticEstimate/nearly_linear
+=== RUN   TestWangQuadraticEstimate/moderate_curve
+=== RUN   TestWangQuadraticEstimate/sharp_curve
+--- PASS: TestWangQuadraticEstimate (0.00s)
+    --- PASS: TestWangQuadraticEstimate/nearly_linear (0.00s)
+    --- PASS: TestWangQuadraticEstimate/moderate_curve (0.00s)
+    --- PASS: TestWangQuadraticEstimate/sharp_curve (0.00s)
+=== RUN   TestWangCubicEstimate
+=== RUN   TestWangCubicEstimate/nearly_linear
+=== RUN   TestWangCubicEstimate/S_curve
+--- PASS: TestWangCubicEstimate (0.00s)
+    --- PASS: TestWangCubicEstimate/nearly_linear (0.00s)
+    --- PASS: TestWangCubicEstimate/S_curve (0.00s)
+=== RUN   TestCPUFlattenAccuracy
+    gpu_flatten_test.go:331: Circle flattened to 33 segments
+--- PASS: TestCPUFlattenAccuracy (0.00s)
+=== RUN   TestEstimateSegmentCount
+=== RUN   TestEstimateSegmentCount/simple_line
+=== RUN   TestEstimateSegmentCount/quadratic_curve
+=== RUN   TestEstimateSegmentCount/cubic_curve
+=== RUN   TestEstimateSegmentCount/triangle_with_close
+--- PASS: TestEstimateSegmentCount (0.00s)
+    --- PASS: TestEstimateSegmentCount/simple_line (0.00s)
+    --- PASS: TestEstimateSegmentCount/quadratic_curve (0.00s)
+    --- PASS: TestEstimateSegmentCount/cubic_curve (0.00s)
+    --- PASS: TestEstimateSegmentCount/triangle_with_close (0.00s)
+=== RUN   TestFlattenEmptyPath
+--- PASS: TestFlattenEmptyPath (0.00s)
+=== RUN   TestFlattenWithTransform
+=== RUN   TestFlattenWithTransform/identity
+=== RUN   TestFlattenWithTransform/translation
+=== RUN   TestFlattenWithTransform/scale_2x
+--- PASS: TestFlattenWithTransform (0.00s)
+    --- PASS: TestFlattenWithTransform/identity (0.00s)
+    --- PASS: TestFlattenWithTransform/translation (0.00s)
+    --- PASS: TestFlattenWithTransform/scale_2x (0.00s)
+=== RUN   TestByteSerializationFlatten
+=== RUN   TestByteSerializationFlatten/flattenConfig
+=== RUN   TestByteSerializationFlatten/affineTransform
+=== RUN   TestByteSerializationFlatten/pathElements
+=== RUN   TestByteSerializationFlatten/points
+=== RUN   TestByteSerializationFlatten/segmentCounts
+=== RUN   TestByteSerializationFlatten/cursorStates
+--- PASS: TestByteSerializationFlatten (0.00s)
+    --- PASS: TestByteSerializationFlatten/flattenConfig (0.00s)
+    --- PASS: TestByteSerializationFlatten/affineTransform (0.00s)
+    --- PASS: TestByteSerializationFlatten/pathElements (0.00s)
+    --- PASS: TestByteSerializationFlatten/points (0.00s)
+    --- PASS: TestByteSerializationFlatten/segmentCounts (0.00s)
+    --- PASS: TestByteSerializationFlatten/cursorStates (0.00s)
+=== RUN   TestFlattenConfigValues
+--- PASS: TestFlattenConfigValues (0.00s)
+PASS

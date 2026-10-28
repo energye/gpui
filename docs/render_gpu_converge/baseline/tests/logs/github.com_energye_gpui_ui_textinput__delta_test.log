@@ -1,0 +1,5 @@
+=== RUN   TestDelta_NonTextUpdate
+--- PASS: TestDelta_NonTextUpdate (0.00s)
+=== RUN   TestDelta_Insert
+--- PASS: TestDelta_Insert (0.00s)
+PASS

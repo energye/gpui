@@ -1,0 +1,5 @@
+=== RUN   TestSemantics_ReadWrite
+--- PASS: TestSemantics_ReadWrite (0.00s)
+=== RUN   TestSemantics_Flatten
+--- PASS: TestSemantics_Flatten (0.00s)
+PASS

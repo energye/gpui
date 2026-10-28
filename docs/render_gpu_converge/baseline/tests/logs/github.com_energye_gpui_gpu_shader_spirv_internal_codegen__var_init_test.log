@@ -1,0 +1,267 @@
+=== RUN   TestVarInitFromUniform
+    var_init_test.go:39: === SPIR-V Disassembly for var x = params.value ===
+    var_init_test.go:40: --- FUNCTION %17 (type=%16) ---
+    var_init_test.go:40:   BLOCK 1 (label %18):
+    var_init_test.go:40:      211: %20(x) = OpVariable Function (type=ptr<Function,f32>)
+    var_init_test.go:40:      215: %23 = OpAccessChain base:%15(gid) [%21]
+    var_init_test.go:40:      220: %24 = OpLoad %23() (type=u32)
+    var_init_test.go:40:      224: %26 = OpAccessChain base:%10() [%21]
+    var_init_test.go:40:      229: %29 = OpAccessChain base:%26() [%27]
+    var_init_test.go:40:      234: %30 = OpLoad %29() (type=u32)
+    var_init_test.go:40:      238: %31 = OpAccessChain base:%10() [%21]
+    var_init_test.go:40:      243: %32 = OpAccessChain base:%31() [%27]
+    var_init_test.go:40:      248: %33 = OpLoad %32() (type=u32)
+    var_init_test.go:40:      252: %34 = OpAccessChain base:%10() [%21]
+    var_init_test.go:40:      257: %36 = OpAccessChain base:%34() [%35]
+    var_init_test.go:40:      262: %37 = OpLoad %36() (type=u32)
+    var_init_test.go:40:      266: %38 = OpAccessChain base:%10() [%21]
+    var_init_test.go:40:      271: %39 = OpAccessChain base:%38() [%35]
+    var_init_test.go:40:      276: %40 = OpLoad %39() (type=u32)
+    var_init_test.go:40:      280: %41 = OpIMul %33, %40
+    var_init_test.go:40:      285: %43 = OpUGreaterThanEqual %24, %41
+    var_init_test.go:40:      290: OpSelectionMerge merge:%46
+    var_init_test.go:40:      293: OpBranchConditional cond:%43 true:%44 false:%45
+    var_init_test.go:40:   BLOCK 2 (label %44):
+    var_init_test.go:40:      299: OpReturn
+    var_init_test.go:40:   BLOCK 3 (label %45):
+    var_init_test.go:40:      302: OpBranch -> %46
+    var_init_test.go:40:   BLOCK 4 (label %46):
+    var_init_test.go:40:      306: %47 = OpAccessChain base:%10() [%21]
+    var_init_test.go:40:      311: %49 = OpAccessChain base:%47() [%21]
+    var_init_test.go:40:      316: %50 = OpLoad %49() (type=f32)
+    var_init_test.go:40:      320: %51 = OpAccessChain base:%10() [%21]
+    var_init_test.go:40:      325: %52 = OpAccessChain base:%51() [%21]
+    var_init_test.go:40:      330: %53 = OpLoad %52() (type=f32)
+    var_init_test.go:40:      334: OpStore *%20(x) = %53()
+    var_init_test.go:40:      337: %55 = OpAccessChain base:%13() [%21]
+    var_init_test.go:40:      342: %57 = OpAccessChain base:%55() [%24]
+    var_init_test.go:40:      347: %58 = OpLoad %57() (type=u32)
+    var_init_test.go:40:      351: %59 = OpLoad %20(x) (type=f32)
+    var_init_test.go:40:      355: %61 = OpFMul %59, %60
+    var_init_test.go:40:      360: %62 = OpConvertFToU %61
+    var_init_test.go:40:      364: %63 = OpAccessChain base:%13() [%21]
+    var_init_test.go:40:      369: %64 = OpAccessChain base:%63() [%24]
+    var_init_test.go:40:      374: OpStore *%64() = %62()
+    var_init_test.go:40:      377: OpReturn
+    var_init_test.go:40: --- FUNCTION END ---
+    var_init_test.go:47: Local variable 'x' has SPIR-V ID: %20
+    var_init_test.go:50:   Found init OpStore to x(%20) at word 334, value=%53
+    var_init_test.go:57:   Init store value ID: %53
+    var_init_test.go:57:   OpLoad %53 from %52()
+    var_init_test.go:57:     OpAccessChain %52 = base:%51() [%21]
+    var_init_test.go:57:       OpAccessChain %51 = base:%10() [%21]
+    var_init_test.go:57:         OpVariable %10() storage=Uniform
+--- PASS: TestVarInitFromUniform (0.00s)
+=== RUN   TestVarInitFromExpression
+    var_init_test.go:86: === SPIR-V Disassembly for var x = params.value * 2.0 ===
+    var_init_test.go:87: --- FUNCTION %17 (type=%16) ---
+    var_init_test.go:87:   BLOCK 1 (label %18):
+    var_init_test.go:87:      215: %20(x) = OpVariable Function (type=ptr<Function,f32>)
+    var_init_test.go:87:      219: %23 = OpAccessChain base:%15(gid) [%21]
+    var_init_test.go:87:      224: %24 = OpLoad %23() (type=u32)
+    var_init_test.go:87:      228: %26 = OpAccessChain base:%10() [%21]
+    var_init_test.go:87:      233: %29 = OpAccessChain base:%26() [%27]
+    var_init_test.go:87:      238: %30 = OpLoad %29() (type=u32)
+    var_init_test.go:87:      242: %31 = OpAccessChain base:%10() [%21]
+    var_init_test.go:87:      247: %32 = OpAccessChain base:%31() [%27]
+    var_init_test.go:87:      252: %33 = OpLoad %32() (type=u32)
+    var_init_test.go:87:      256: %34 = OpAccessChain base:%10() [%21]
+    var_init_test.go:87:      261: %36 = OpAccessChain base:%34() [%35]
+    var_init_test.go:87:      266: %37 = OpLoad %36() (type=u32)
+    var_init_test.go:87:      270: %38 = OpAccessChain base:%10() [%21]
+    var_init_test.go:87:      275: %39 = OpAccessChain base:%38() [%35]
+    var_init_test.go:87:      280: %40 = OpLoad %39() (type=u32)
+    var_init_test.go:87:      284: %41 = OpIMul %33, %40
+    var_init_test.go:87:      289: %43 = OpUGreaterThanEqual %24, %41
+    var_init_test.go:87:      294: OpSelectionMerge merge:%46
+    var_init_test.go:87:      297: OpBranchConditional cond:%43 true:%44 false:%45
+    var_init_test.go:87:   BLOCK 2 (label %44):
+    var_init_test.go:87:      303: OpReturn
+    var_init_test.go:87:   BLOCK 3 (label %45):
+    var_init_test.go:87:      306: OpBranch -> %46
+    var_init_test.go:87:   BLOCK 4 (label %46):
+    var_init_test.go:87:      310: %47 = OpAccessChain base:%10() [%21]
+    var_init_test.go:87:      315: %49 = OpAccessChain base:%47() [%21]
+    var_init_test.go:87:      320: %50 = OpLoad %49() (type=f32)
+    var_init_test.go:87:      324: %51 = OpAccessChain base:%10() [%21]
+    var_init_test.go:87:      329: %52 = OpAccessChain base:%51() [%21]
+    var_init_test.go:87:      334: %53 = OpLoad %52() (type=f32)
+    var_init_test.go:87:      338: %55 = OpFMul %53, %54
+    var_init_test.go:87:      343: OpStore *%20(x) = %55()
+    var_init_test.go:87:      346: %57 = OpAccessChain base:%13() [%21]
+    var_init_test.go:87:      351: %59 = OpAccessChain base:%57() [%24]
+    var_init_test.go:87:      356: %60 = OpLoad %59() (type=u32)
+    var_init_test.go:87:      360: %61 = OpLoad %20(x) (type=f32)
+    var_init_test.go:87:      364: %63 = OpFMul %61, %62
+    var_init_test.go:87:      369: %64 = OpConvertFToU %63
+    var_init_test.go:87:      373: %65 = OpAccessChain base:%13() [%21]
+    var_init_test.go:87:      378: %66 = OpAccessChain base:%65() [%24]
+    var_init_test.go:87:      383: OpStore *%66() = %64()
+    var_init_test.go:87:      386: OpReturn
+    var_init_test.go:87: --- FUNCTION END ---
+    var_init_test.go:96:   Found init OpStore to x(%20) at word 343, value=%55
+--- PASS: TestVarInitFromExpression (0.00s)
+=== RUN   TestVarInitFromLiteral
+    var_init_test.go:120: === SPIR-V Disassembly for var x = 42.0 ===
+    var_init_test.go:121: --- FUNCTION %13 (type=%12) ---
+    var_init_test.go:121:   BLOCK 1 (label %14):
+    var_init_test.go:121:      127: %16(x) = OpVariable Function (type=ptr<Function,f32>)
+    var_init_test.go:121:      131: OpStore *%16(x) = %17()
+    var_init_test.go:121:      134: %20 = OpAccessChain base:%11(gid) [%18]
+    var_init_test.go:121:      139: %21 = OpLoad %20() (type=u32)
+    var_init_test.go:121:      143: %23 = OpAccessChain base:%9() [%18]
+    var_init_test.go:121:      148: %25 = OpAccessChain base:%23() [%21]
+    var_init_test.go:121:      153: %26 = OpLoad %25() (type=u32)
+    var_init_test.go:121:      157: %27 = OpLoad %16(x) (type=f32)
+    var_init_test.go:121:      161: %28 = OpConvertFToU %27
+    var_init_test.go:121:      165: %29 = OpAccessChain base:%9() [%18]
+    var_init_test.go:121:      170: %30 = OpAccessChain base:%29() [%21]
+    var_init_test.go:121:      175: OpStore *%30() = %28()
+    var_init_test.go:121:      178: OpReturn
+    var_init_test.go:121: --- FUNCTION END ---
+    var_init_test.go:130:   Found init OpStore to x(%16) at word 131, value=%17
+--- PASS: TestVarInitFromLiteral (0.00s)
+=== RUN   TestVarInitFromLetBinding
+    var_init_test.go:159: === SPIR-V Disassembly for let v = ...; var x = v ===
+    var_init_test.go:160: --- FUNCTION %17 (type=%16) ---
+    var_init_test.go:160:   BLOCK 1 (label %18):
+    var_init_test.go:160:      175: %20(x) = OpVariable Function (type=ptr<Function,f32>)
+    var_init_test.go:160:      179: %23 = OpAccessChain base:%15(gid) [%21]
+    var_init_test.go:160:      184: %24 = OpLoad %23() (type=u32)
+    var_init_test.go:160:      188: %26 = OpAccessChain base:%10() [%21]
+    var_init_test.go:160:      193: %28 = OpAccessChain base:%26() [%21]
+    var_init_test.go:160:      198: %29 = OpLoad %28() (type=f32)
+    var_init_test.go:160:      202: %30 = OpAccessChain base:%10() [%21]
+    var_init_test.go:160:      207: %31 = OpAccessChain base:%30() [%21]
+    var_init_test.go:160:      212: %32 = OpLoad %31() (type=f32)
+    var_init_test.go:160:      216: OpStore *%20(x) = %32()
+    var_init_test.go:160:      219: %34 = OpAccessChain base:%13() [%21]
+    var_init_test.go:160:      224: %36 = OpAccessChain base:%34() [%24]
+    var_init_test.go:160:      229: %37 = OpLoad %36() (type=u32)
+    var_init_test.go:160:      233: %38 = OpLoad %20(x) (type=f32)
+    var_init_test.go:160:      237: %40 = OpFMul %38, %39
+    var_init_test.go:160:      242: %41 = OpConvertFToU %40
+    var_init_test.go:160:      246: %42 = OpAccessChain base:%13() [%21]
+    var_init_test.go:160:      251: %43 = OpAccessChain base:%42() [%24]
+    var_init_test.go:160:      256: OpStore *%43() = %41()
+    var_init_test.go:160:      259: OpReturn
+    var_init_test.go:160: --- FUNCTION END ---
+    var_init_test.go:169:   Found init OpStore to x(%20) at word 216, value=%32
+--- PASS: TestVarInitFromLetBinding (0.00s)
+=== RUN   TestVarInitOrder
+    var_init_test.go:205: === SPIR-V Disassembly for var init ordering test ===
+    var_init_test.go:206: --- FUNCTION %17 (type=%16) ---
+    var_init_test.go:206:   BLOCK 1 (label %18):
+    var_init_test.go:206:      191: %20(scaled) = OpVariable Function (type=ptr<Function,f32>)
+    var_init_test.go:206:      195: %23 = OpAccessChain base:%15(gid) [%21]
+    var_init_test.go:206:      200: %24 = OpLoad %23() (type=u32)
+    var_init_test.go:206:      204: %26 = OpAccessChain base:%10() [%21]
+    var_init_test.go:206:      209: %28 = OpAccessChain base:%26() [%21]
+    var_init_test.go:206:      214: %29 = OpLoad %28() (type=f32)
+    var_init_test.go:206:      218: %30 = OpAccessChain base:%10() [%21]
+    var_init_test.go:206:      223: %31 = OpAccessChain base:%30() [%21]
+    var_init_test.go:206:      228: %32 = OpLoad %31() (type=f32)
+    var_init_test.go:206:      232: %33 = OpAccessChain base:%10() [%21]
+    var_init_test.go:206:      237: %35 = OpAccessChain base:%33() [%34]
+    var_init_test.go:206:      242: %36 = OpLoad %35() (type=f32)
+    var_init_test.go:206:      246: %37 = OpAccessChain base:%10() [%21]
+    var_init_test.go:206:      251: %38 = OpAccessChain base:%37() [%34]
+    var_init_test.go:206:      256: %39 = OpLoad %38() (type=f32)
+    var_init_test.go:206:      260: %40 = OpFMul %32, %39
+    var_init_test.go:206:      265: OpStore *%20(scaled) = %40()
+    var_init_test.go:206:      268: %41 = OpLoad %20(scaled) (type=f32)
+    var_init_test.go:206:      272: %43 = OpFAdd %41, %42
+    var_init_test.go:206:      277: OpStore *%20(scaled) = %43()
+    var_init_test.go:206:      280: %45 = OpAccessChain base:%13() [%21]
+    var_init_test.go:206:      285: %47 = OpAccessChain base:%45() [%24]
+    var_init_test.go:206:      290: %48 = OpLoad %47() (type=u32)
+    var_init_test.go:206:      294: %49 = OpLoad %20(scaled) (type=f32)
+    var_init_test.go:206:      298: %50 = OpConvertFToU %49
+    var_init_test.go:206:      302: %51 = OpAccessChain base:%13() [%21]
+    var_init_test.go:206:      307: %52 = OpAccessChain base:%51() [%24]
+    var_init_test.go:206:      312: OpStore *%52() = %50()
+    var_init_test.go:206:      315: OpReturn
+    var_init_test.go:206: --- FUNCTION END ---
+    var_init_test.go:216: Found 2 OpStore instructions to 'scaled' (%20)
+--- PASS: TestVarInitOrder (0.00s)
+=== RUN   TestVarInitFromFunctionCall
+    var_init_test.go:251: === SPIR-V Disassembly for var result = double(params.value) ===
+    var_init_test.go:252: --- FUNCTION %17 (type=%16) ---
+    var_init_test.go:252:      181: OpFunctionParameter %3 %18
+    var_init_test.go:252:   BLOCK 1 (label %19):
+    var_init_test.go:252:      186: %21 = OpFMul %18, %20
+    var_init_test.go:252: --- FUNCTION END ---
+    var_init_test.go:252: --- FUNCTION %23 (type=%22) ---
+    var_init_test.go:252:   BLOCK 1 (label %24):
+    var_init_test.go:252:      201: %26(result) = OpVariable Function (type=ptr<Function,f32>)
+    var_init_test.go:252:      205: %29 = OpAccessChain base:%15(gid) [%27]
+    var_init_test.go:252:      210: %30 = OpLoad %29() (type=u32)
+    var_init_test.go:252:      214: %32 = OpAccessChain base:%10() [%27]
+    var_init_test.go:252:      219: %34 = OpAccessChain base:%32() [%27]
+    var_init_test.go:252:      224: %35 = OpLoad %34() (type=f32)
+    var_init_test.go:252:      228: %36 = OpAccessChain base:%10() [%27]
+    var_init_test.go:252:      233: %37 = OpAccessChain base:%36() [%27]
+    var_init_test.go:252:      238: %38 = OpLoad %37() (type=f32)
+    var_init_test.go:252:      242: OpFunctionCall %3 %39 %17 %38
+    var_init_test.go:252:      247: OpStore *%26(result) = %39()
+    var_init_test.go:252:      250: %41 = OpAccessChain base:%13() [%27]
+    var_init_test.go:252:      255: %43 = OpAccessChain base:%41() [%30]
+    var_init_test.go:252:      260: %44 = OpLoad %43() (type=u32)
+    var_init_test.go:252:      264: %45 = OpLoad %26(result) (type=f32)
+    var_init_test.go:252:      268: %46 = OpConvertFToU %45
+    var_init_test.go:252:      272: %47 = OpAccessChain base:%13() [%27]
+    var_init_test.go:252:      277: %48 = OpAccessChain base:%47() [%30]
+    var_init_test.go:252:      282: OpStore *%48() = %46()
+    var_init_test.go:252:      285: OpReturn
+    var_init_test.go:252: --- FUNCTION END ---
+    var_init_test.go:265: Found 1 OpStore(s) to 'result' (%26)
+    var_init_test.go:285: Found OpFunctionCall at word 242
+--- PASS: TestVarInitFromFunctionCall (0.00s)
+=== RUN   TestVarInitConditionalBlock
+    var_init_test.go:320: === SPIR-V Disassembly for var init inside conditional ===
+    var_init_test.go:321: --- FUNCTION %17 (type=%16) ---
+    var_init_test.go:321:   BLOCK 1 (label %18):
+    var_init_test.go:321:      209: %20(result) = OpVariable Function (type=ptr<Function,f32>)
+    var_init_test.go:321:      213: %21(scaled) = OpVariable Function (type=ptr<Function,f32>)
+    var_init_test.go:321:      217: OpStore *%20(result) = %22()
+    var_init_test.go:321:      220: %25 = OpAccessChain base:%15(gid) [%23]
+    var_init_test.go:321:      225: %26 = OpLoad %25() (type=u32)
+    var_init_test.go:321:      229: %28 = OpAccessChain base:%10() [%23]
+    var_init_test.go:321:      234: %31 = OpAccessChain base:%28() [%29]
+    var_init_test.go:321:      239: %32 = OpLoad %31() (type=u32)
+    var_init_test.go:321:      243: %33 = OpAccessChain base:%10() [%23]
+    var_init_test.go:321:      248: %34 = OpAccessChain base:%33() [%29]
+    var_init_test.go:321:      253: %35 = OpLoad %34() (type=u32)
+    var_init_test.go:321:      257: %37 = OpINotEqual %35, %23
+    var_init_test.go:321:      262: OpSelectionMerge merge:%40
+    var_init_test.go:321:      265: OpBranchConditional cond:%37 true:%38 false:%39
+    var_init_test.go:321:   BLOCK 2 (label %38):
+    var_init_test.go:321:      271: %41 = OpAccessChain base:%10() [%23]
+    var_init_test.go:321:      276: %43 = OpAccessChain base:%41() [%23]
+    var_init_test.go:321:      281: %44 = OpLoad %43() (type=f32)
+    var_init_test.go:321:      285: %45 = OpAccessChain base:%10() [%23]
+    var_init_test.go:321:      290: %46 = OpAccessChain base:%45() [%23]
+    var_init_test.go:321:      295: %47 = OpLoad %46() (type=f32)
+    var_init_test.go:321:      299: %49 = OpFMul %47, %48
+    var_init_test.go:321:      304: OpStore *%21(scaled) = %49()
+    var_init_test.go:321:      307: %50 = OpLoad %21(scaled) (type=f32)
+    var_init_test.go:321:      311: OpStore *%20(result) = %50()
+    var_init_test.go:321:      314: OpBranch -> %40
+    var_init_test.go:321:   BLOCK 3 (label %39):
+    var_init_test.go:321:      318: OpBranch -> %40
+    var_init_test.go:321:   BLOCK 4 (label %40):
+    var_init_test.go:321:      322: %52 = OpAccessChain base:%13() [%23]
+    var_init_test.go:321:      327: %54 = OpAccessChain base:%52() [%26]
+    var_init_test.go:321:      332: %55 = OpLoad %54() (type=u32)
+    var_init_test.go:321:      336: %56 = OpLoad %20(result) (type=f32)
+    var_init_test.go:321:      340: %58 = OpFMul %56, %57
+    var_init_test.go:321:      345: %59 = OpConvertFToU %58
+    var_init_test.go:321:      349: %60 = OpAccessChain base:%13() [%23]
+    var_init_test.go:321:      354: %61 = OpAccessChain base:%60() [%26]
+    var_init_test.go:321:      359: OpStore *%61() = %59()
+    var_init_test.go:321:      362: OpReturn
+    var_init_test.go:321: --- FUNCTION END ---
+    var_init_test.go:334: result=%20, scaled=%21
+    var_init_test.go:337:   Found init OpStore to result(%20) at word 217, value=%22
+--- PASS: TestVarInitConditionalBlock (0.00s)
+PASS

@@ -1,0 +1,59 @@
+=== RUN   TestNewLayerCache
+=== RUN   TestNewLayerCache/positive_size
+=== RUN   TestNewLayerCache/zero_defaults_to_64MB
+=== RUN   TestNewLayerCache/negative_defaults_to_64MB
+--- PASS: TestNewLayerCache (0.00s)
+    --- PASS: TestNewLayerCache/positive_size (0.00s)
+    --- PASS: TestNewLayerCache/zero_defaults_to_64MB (0.00s)
+    --- PASS: TestNewLayerCache/negative_defaults_to_64MB (0.00s)
+=== RUN   TestDefaultLayerCache
+--- PASS: TestDefaultLayerCache (0.00s)
+=== RUN   TestLayerCache_PutGet
+--- PASS: TestLayerCache_PutGet (0.00s)
+=== RUN   TestLayerCache_PutNil
+--- PASS: TestLayerCache_PutNil (0.00s)
+=== RUN   TestLayerCache_PutReplace
+--- PASS: TestLayerCache_PutReplace (0.00s)
+=== RUN   TestLayerCache_LRUEviction
+--- PASS: TestLayerCache_LRUEviction (0.00s)
+=== RUN   TestLayerCache_LRUOrder
+--- PASS: TestLayerCache_LRUOrder (0.00s)
+=== RUN   TestLayerCache_Invalidate
+--- PASS: TestLayerCache_Invalidate (0.00s)
+=== RUN   TestLayerCache_InvalidateAll
+--- PASS: TestLayerCache_InvalidateAll (0.00s)
+=== RUN   TestLayerCache_Trim
+--- PASS: TestLayerCache_Trim (0.00s)
+=== RUN   TestLayerCache_TrimNegative
+--- PASS: TestLayerCache_TrimNegative (0.00s)
+=== RUN   TestLayerCache_Stats
+--- PASS: TestLayerCache_Stats (0.00s)
+=== RUN   TestLayerCache_SetMaxSize
+--- PASS: TestLayerCache_SetMaxSize (0.00s)
+=== RUN   TestLayerCache_GetVersion
+--- PASS: TestLayerCache_GetVersion (0.00s)
+=== RUN   TestLayerCache_ResetStats
+--- PASS: TestLayerCache_ResetStats (0.00s)
+=== RUN   TestLayerCache_OversizedEntry
+--- PASS: TestLayerCache_OversizedEntry (0.00s)
+=== RUN   TestLayerCache_Concurrent
+--- PASS: TestLayerCache_Concurrent (0.01s)
+=== RUN   TestLayerCache_ConcurrentGetAfterPut
+--- PASS: TestLayerCache_ConcurrentGetAfterPut (0.00s)
+=== RUN   TestLayerCache_SizeCalculation
+=== RUN   TestLayerCache_SizeCalculation/#00
+=== RUN   TestLayerCache_SizeCalculation/#01
+=== RUN   TestLayerCache_SizeCalculation/#02
+=== RUN   TestLayerCache_SizeCalculation/#03
+--- PASS: TestLayerCache_SizeCalculation (0.00s)
+    --- PASS: TestLayerCache_SizeCalculation/#00 (0.00s)
+    --- PASS: TestLayerCache_SizeCalculation/#01 (0.00s)
+    --- PASS: TestLayerCache_SizeCalculation/#02 (0.00s)
+    --- PASS: TestLayerCache_SizeCalculation/#03 (0.00s)
+=== RUN   TestPixmapSize
+--- PASS: TestPixmapSize (0.00s)
+=== RUN   TestEncoding_Hash
+--- PASS: TestEncoding_Hash (0.00s)
+=== RUN   TestEncoding_HashEmpty
+--- PASS: TestEncoding_HashEmpty (0.00s)
+PASS

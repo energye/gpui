@@ -1,0 +1,73 @@
+=== RUN   TestSampleNearest
+=== RUN   TestSampleNearest/top-left_corner
+=== RUN   TestSampleNearest/top-right_corner
+=== RUN   TestSampleNearest/center_pixel_(1,1)
+=== RUN   TestSampleNearest/near_pixel_(2,2)
+=== RUN   TestSampleNearest/bottom-right_corner
+--- PASS: TestSampleNearest (0.00s)
+    --- PASS: TestSampleNearest/top-left_corner (0.00s)
+    --- PASS: TestSampleNearest/top-right_corner (0.00s)
+    --- PASS: TestSampleNearest/center_pixel_(1,1) (0.00s)
+    --- PASS: TestSampleNearest/near_pixel_(2,2) (0.00s)
+    --- PASS: TestSampleNearest/bottom-right_corner (0.00s)
+=== RUN   TestSampleNearestEdgeClamping
+=== RUN   TestSampleNearestEdgeClamping/before_top-left
+=== RUN   TestSampleNearestEdgeClamping/after_bottom-right
+=== RUN   TestSampleNearestEdgeClamping/left_edge
+=== RUN   TestSampleNearestEdgeClamping/right_edge
+--- PASS: TestSampleNearestEdgeClamping (0.00s)
+    --- PASS: TestSampleNearestEdgeClamping/before_top-left (0.00s)
+    --- PASS: TestSampleNearestEdgeClamping/after_bottom-right (0.00s)
+    --- PASS: TestSampleNearestEdgeClamping/left_edge (0.00s)
+    --- PASS: TestSampleNearestEdgeClamping/right_edge (0.00s)
+=== RUN   TestSampleBilinear
+=== RUN   TestSampleBilinear/exact_top-left_corner
+=== RUN   TestSampleBilinear/exact_bottom-right_corner
+=== RUN   TestSampleBilinear/center_between_all_4_pixels
+=== RUN   TestSampleBilinear/halfway_between_top_corners
+=== RUN   TestSampleBilinear/halfway_between_left_corners
+--- PASS: TestSampleBilinear (0.00s)
+    --- PASS: TestSampleBilinear/exact_top-left_corner (0.00s)
+    --- PASS: TestSampleBilinear/exact_bottom-right_corner (0.00s)
+    --- PASS: TestSampleBilinear/center_between_all_4_pixels (0.00s)
+    --- PASS: TestSampleBilinear/halfway_between_top_corners (0.00s)
+    --- PASS: TestSampleBilinear/halfway_between_left_corners (0.00s)
+=== RUN   TestSampleBilinearSmooth
+--- PASS: TestSampleBilinearSmooth (0.00s)
+=== RUN   TestSampleBicubic
+=== RUN   TestSampleBicubic/exact_pixel_center
+=== RUN   TestSampleBicubic/between_pixels
+--- PASS: TestSampleBicubic (0.00s)
+    --- PASS: TestSampleBicubic/exact_pixel_center (0.00s)
+    --- PASS: TestSampleBicubic/between_pixels (0.00s)
+=== RUN   TestSampleBicubicSmooth
+--- PASS: TestSampleBicubicSmooth (0.00s)
+=== RUN   TestSampleDispatch
+=== RUN   TestSampleDispatch/nearest_mode
+=== RUN   TestSampleDispatch/bilinear_mode
+=== RUN   TestSampleDispatch/bicubic_mode
+--- PASS: TestSampleDispatch (0.00s)
+    --- PASS: TestSampleDispatch/nearest_mode (0.00s)
+    --- PASS: TestSampleDispatch/bilinear_mode (0.00s)
+    --- PASS: TestSampleDispatch/bicubic_mode (0.00s)
+=== RUN   TestSampleAllFormats
+=== RUN   TestSampleAllFormats/Gray8
+=== RUN   TestSampleAllFormats/RGB8
+=== RUN   TestSampleAllFormats/RGBA8
+=== RUN   TestSampleAllFormats/BGRA8
+--- PASS: TestSampleAllFormats (0.00s)
+    --- PASS: TestSampleAllFormats/Gray8 (0.00s)
+    --- PASS: TestSampleAllFormats/RGB8 (0.00s)
+    --- PASS: TestSampleAllFormats/RGBA8 (0.00s)
+    --- PASS: TestSampleAllFormats/BGRA8 (0.00s)
+=== RUN   TestInterpolationModeString
+=== RUN   TestInterpolationModeString/Nearest
+=== RUN   TestInterpolationModeString/Bilinear
+=== RUN   TestInterpolationModeString/Bicubic
+=== RUN   TestInterpolationModeString/Unknown
+--- PASS: TestInterpolationModeString (0.00s)
+    --- PASS: TestInterpolationModeString/Nearest (0.00s)
+    --- PASS: TestInterpolationModeString/Bilinear (0.00s)
+    --- PASS: TestInterpolationModeString/Bicubic (0.00s)
+    --- PASS: TestInterpolationModeString/Unknown (0.00s)
+PASS

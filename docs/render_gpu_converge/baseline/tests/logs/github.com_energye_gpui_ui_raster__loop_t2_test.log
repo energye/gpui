@@ -1,0 +1,5 @@
+=== RUN   TestLoop_TryReserve_BuildBeforePlace
+--- PASS: TestLoop_TryReserve_BuildBeforePlace (0.05s)
+=== RUN   TestLoop_ThreadAssertions
+--- PASS: TestLoop_ThreadAssertions (0.00s)
+PASS

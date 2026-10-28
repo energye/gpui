@@ -1,0 +1,7 @@
+=== RUN   TestB1VFNotoSansSC
+B1 notosc_vf: 65 档 × 4 wght 四维度全部一致
+--- PASS: TestB1VFNotoSansSC (255.19s)
+=== RUN   TestB1VFSourceSans
+B1 sourcesans_vf: 65 档 × 4 wght 四维度全部一致
+--- PASS: TestB1VFSourceSans (229.48s)
+PASS

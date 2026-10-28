@@ -1,0 +1,4 @@
+=== RUN   TestCFF2VSIndexBlendMatchGT
+    cff2_vsindex_gate_test.go:87: M5 vsindex 门禁: 694/2478 字形含 vsindex × 4 wght 全对照 go-text
+--- PASS: TestCFF2VSIndexBlendMatchGT (0.06s)
+PASS

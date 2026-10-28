@@ -1,0 +1,7 @@
+=== RUN   TestCompositeFramePacketTextured_Fallback
+    textured_test.go:35: RasterLayerCount=1 want 0 (no GPU)
+--- FAIL: TestCompositeFramePacketTextured_Fallback (0.30s)
+=== RUN   TestCompositeFramePacketTextured_OpacityGroup
+    textured_test.go:80: ReplayedOps=0 want ≥1
+--- FAIL: TestCompositeFramePacketTextured_OpacityGroup (0.01s)
+FAIL

@@ -1,0 +1,17 @@
+=== RUN   TestCreateRenderBundleEncoder
+    render_bundle_test.go:26: Creating render bundle encoder...
+    render_bundle_test.go:38: RenderBundleEncoder created: handle=0x23ff6300
+--- PASS: TestCreateRenderBundleEncoder (0.23s)
+=== RUN   TestRenderBundleEncoderFinish
+    render_bundle_test.go:63: Finishing render bundle encoder (empty bundle)...
+    render_bundle_test.go:74: RenderBundle created: handle=0x238a5130
+--- PASS: TestRenderBundleEncoderFinish (0.15s)
+=== RUN   TestRenderBundleWithPipeline
+    render_bundle_test.go:135: Recording render commands to bundle...
+    render_bundle_test.go:145: RenderBundle with draw commands created: handle=0x24313a90
+--- PASS: TestRenderBundleWithPipeline (0.07s)
+=== RUN   TestRenderBundleWithVertexBuffer
+    render_bundle_test.go:229: Recording render commands with vertex buffer to bundle...
+    render_bundle_test.go:241: RenderBundle with vertex buffer created: handle=0x246d9710
+--- PASS: TestRenderBundleWithVertexBuffer (0.09s)
+PASS

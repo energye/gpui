@@ -1,0 +1,8 @@
+=== RUN   TestRenderSceneAuto_MatchesCPUReference
+    scene_auto_test.go:65: RenderSceneAuto: backend=gpu-compute diff=0 px (0.00%)
+--- PASS: TestRenderSceneAuto_MatchesCPUReference (0.35s)
+=== RUN   TestRenderSceneAuto_EmptyElements
+--- PASS: TestRenderSceneAuto_EmptyElements (0.08s)
+=== RUN   TestRenderSceneAuto_ReportsBackend
+--- PASS: TestRenderSceneAuto_ReportsBackend (0.24s)
+PASS

@@ -1,0 +1,4 @@
+=== RUN   TestGlyphMaskRenderFrameNonGrouped
+    glyph_mask_renderframe_test.go:87: non-grouped RenderFrame text dark pixels = 275
+--- PASS: TestGlyphMaskRenderFrameNonGrouped (0.21s)
+PASS

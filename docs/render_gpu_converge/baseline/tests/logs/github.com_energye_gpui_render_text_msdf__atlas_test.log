@@ -1,0 +1,97 @@
+=== RUN   TestShelfAllocator_Basic
+--- PASS: TestShelfAllocator_Basic (0.00s)
+=== RUN   TestShelfAllocator_NewShelf
+--- PASS: TestShelfAllocator_NewShelf (0.00s)
+=== RUN   TestShelfAllocator_Full
+--- PASS: TestShelfAllocator_Full (0.00s)
+=== RUN   TestShelfAllocator_Utilization
+--- PASS: TestShelfAllocator_Utilization (0.00s)
+=== RUN   TestShelfAllocator_Reset
+--- PASS: TestShelfAllocator_Reset (0.00s)
+=== RUN   TestShelfAllocator_CanFit
+--- PASS: TestShelfAllocator_CanFit (0.00s)
+=== RUN   TestShelfAllocator_VariableHeights
+--- PASS: TestShelfAllocator_VariableHeights (0.00s)
+=== RUN   TestGridAllocator_Basic
+--- PASS: TestGridAllocator_Basic (0.00s)
+=== RUN   TestGridAllocator_Capacity
+--- PASS: TestGridAllocator_Capacity (0.00s)
+=== RUN   TestGridAllocator_Full
+--- PASS: TestGridAllocator_Full (0.00s)
+=== RUN   TestGridAllocator_Utilization
+--- PASS: TestGridAllocator_Utilization (0.00s)
+=== RUN   TestGridAllocator_Reset
+--- PASS: TestGridAllocator_Reset (0.00s)
+=== RUN   TestAtlasConfig_Validate
+=== RUN   TestAtlasConfig_Validate/default_is_valid
+=== RUN   TestAtlasConfig_Validate/size_too_small
+=== RUN   TestAtlasConfig_Validate/size_too_large
+=== RUN   TestAtlasConfig_Validate/size_not_power_of_2
+=== RUN   TestAtlasConfig_Validate/glyph_size_too_small
+=== RUN   TestAtlasConfig_Validate/glyph_size_larger_than_atlas
+=== RUN   TestAtlasConfig_Validate/negative_padding
+=== RUN   TestAtlasConfig_Validate/padding_too_large
+=== RUN   TestAtlasConfig_Validate/max_atlases_too_small
+=== RUN   TestAtlasConfig_Validate/max_atlases_too_large
+--- PASS: TestAtlasConfig_Validate (0.00s)
+    --- PASS: TestAtlasConfig_Validate/default_is_valid (0.00s)
+    --- PASS: TestAtlasConfig_Validate/size_too_small (0.00s)
+    --- PASS: TestAtlasConfig_Validate/size_too_large (0.00s)
+    --- PASS: TestAtlasConfig_Validate/size_not_power_of_2 (0.00s)
+    --- PASS: TestAtlasConfig_Validate/glyph_size_too_small (0.00s)
+    --- PASS: TestAtlasConfig_Validate/glyph_size_larger_than_atlas (0.00s)
+    --- PASS: TestAtlasConfig_Validate/negative_padding (0.00s)
+    --- PASS: TestAtlasConfig_Validate/padding_too_large (0.00s)
+    --- PASS: TestAtlasConfig_Validate/max_atlases_too_small (0.00s)
+    --- PASS: TestAtlasConfig_Validate/max_atlases_too_large (0.00s)
+=== RUN   TestAtlas_Creation
+--- PASS: TestAtlas_Creation (0.00s)
+=== RUN   TestAtlas_GlyphCount
+--- PASS: TestAtlas_GlyphCount (0.00s)
+=== RUN   TestAtlasManager_Creation
+--- PASS: TestAtlasManager_Creation (0.00s)
+=== RUN   TestAtlasManager_InvalidConfig
+--- PASS: TestAtlasManager_InvalidConfig (0.00s)
+=== RUN   TestAtlasManager_Get
+--- PASS: TestAtlasManager_Get (0.00s)
+=== RUN   TestAtlasManager_GetCached
+--- PASS: TestAtlasManager_GetCached (0.00s)
+=== RUN   TestAtlasManager_GetBatch
+--- PASS: TestAtlasManager_GetBatch (0.00s)
+=== RUN   TestAtlasManager_GetBatch_LengthMismatch
+--- PASS: TestAtlasManager_GetBatch_LengthMismatch (0.00s)
+=== RUN   TestAtlasManager_HasGlyph
+--- PASS: TestAtlasManager_HasGlyph (0.00s)
+=== RUN   TestAtlasManager_Clear
+--- PASS: TestAtlasManager_Clear (0.01s)
+=== RUN   TestAtlasManager_Remove
+--- PASS: TestAtlasManager_Remove (0.00s)
+=== RUN   TestAtlasManager_DirtyAtlases
+--- PASS: TestAtlasManager_DirtyAtlases (0.00s)
+=== RUN   TestAtlasManager_GetAtlas
+--- PASS: TestAtlasManager_GetAtlas (0.00s)
+=== RUN   TestAtlasManager_MemoryUsage
+--- PASS: TestAtlasManager_MemoryUsage (0.00s)
+=== RUN   TestAtlasManager_AtlasInfos
+--- PASS: TestAtlasManager_AtlasInfos (0.00s)
+=== RUN   TestAtlasManager_MultipleAtlases
+--- PASS: TestAtlasManager_MultipleAtlases (0.01s)
+=== RUN   TestAtlasManager_AtlasFull
+--- PASS: TestAtlasManager_AtlasFull (0.00s)
+=== RUN   TestAtlasManager_Concurrent
+--- PASS: TestAtlasManager_Concurrent (0.07s)
+=== RUN   TestAtlasManager_ConcurrentReadWrite
+--- PASS: TestAtlasManager_ConcurrentReadWrite (0.02s)
+=== RUN   TestConcurrentAtlasManager_Creation
+--- PASS: TestConcurrentAtlasManager_Creation (0.00s)
+=== RUN   TestConcurrentAtlasManager_Get
+--- PASS: TestConcurrentAtlasManager_Get (0.00s)
+=== RUN   TestConcurrentAtlasManager_Concurrent
+--- PASS: TestConcurrentAtlasManager_Concurrent (0.32s)
+=== RUN   TestConcurrentAtlasManager_Stats
+--- PASS: TestConcurrentAtlasManager_Stats (0.00s)
+=== RUN   TestConcurrentAtlasManager_Clear
+--- PASS: TestConcurrentAtlasManager_Clear (0.01s)
+=== RUN   TestConcurrentAtlasManager_MemoryUsage
+--- PASS: TestConcurrentAtlasManager_MemoryUsage (0.00s)
+PASS

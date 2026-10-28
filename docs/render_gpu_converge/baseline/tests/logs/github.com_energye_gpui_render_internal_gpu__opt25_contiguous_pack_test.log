@@ -1,0 +1,7 @@
+=== RUN   TestOpt25_PackedMeshVertsContiguous_MultiCmd
+--- PASS: TestOpt25_PackedMeshVertsContiguous_MultiCmd (0.00s)
+=== RUN   TestOpt25_PackedMeshIndicesContiguous_MultiCmd
+--- PASS: TestOpt25_PackedMeshIndicesContiguous_MultiCmd (0.00s)
+=== RUN   TestOpt25_BuildConvexResources_MultiCmdZeroCopy
+--- PASS: TestOpt25_BuildConvexResources_MultiCmdZeroCopy (0.23s)
+PASS

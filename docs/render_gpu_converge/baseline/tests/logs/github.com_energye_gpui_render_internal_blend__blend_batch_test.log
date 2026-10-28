@@ -1,0 +1,241 @@
+=== RUN   TestBlendBatch
+=== RUN   TestBlendBatch/Clear
+=== RUN   TestBlendBatch/Clear/#00
+=== RUN   TestBlendBatch/Clear/#01
+=== RUN   TestBlendBatch/Clear/#02
+=== RUN   TestBlendBatch/Clear/#03
+=== RUN   TestBlendBatch/Clear/#04
+=== RUN   TestBlendBatch/Clear/#05
+=== RUN   TestBlendBatch/Clear/#06
+=== RUN   TestBlendBatch/Clear/#07
+=== RUN   TestBlendBatch/Clear/#08
+=== RUN   TestBlendBatch/Clear/#09
+=== RUN   TestBlendBatch/Clear/#10
+=== RUN   TestBlendBatch/Source
+=== RUN   TestBlendBatch/Source/#00
+=== RUN   TestBlendBatch/Source/#01
+=== RUN   TestBlendBatch/Source/#02
+=== RUN   TestBlendBatch/Source/#03
+=== RUN   TestBlendBatch/Source/#04
+=== RUN   TestBlendBatch/Source/#05
+=== RUN   TestBlendBatch/Source/#06
+=== RUN   TestBlendBatch/Source/#07
+=== RUN   TestBlendBatch/Source/#08
+=== RUN   TestBlendBatch/Source/#09
+=== RUN   TestBlendBatch/Source/#10
+=== RUN   TestBlendBatch/SourceOver
+=== RUN   TestBlendBatch/SourceOver/#00
+=== RUN   TestBlendBatch/SourceOver/#01
+=== RUN   TestBlendBatch/SourceOver/#02
+=== RUN   TestBlendBatch/SourceOver/#03
+=== RUN   TestBlendBatch/SourceOver/#04
+=== RUN   TestBlendBatch/SourceOver/#05
+=== RUN   TestBlendBatch/SourceOver/#06
+=== RUN   TestBlendBatch/SourceOver/#07
+=== RUN   TestBlendBatch/SourceOver/#08
+=== RUN   TestBlendBatch/SourceOver/#09
+=== RUN   TestBlendBatch/SourceOver/#10
+=== RUN   TestBlendBatch/DestinationOver
+=== RUN   TestBlendBatch/DestinationOver/#00
+=== RUN   TestBlendBatch/DestinationOver/#01
+=== RUN   TestBlendBatch/DestinationOver/#02
+=== RUN   TestBlendBatch/DestinationOver/#03
+=== RUN   TestBlendBatch/DestinationOver/#04
+=== RUN   TestBlendBatch/DestinationOver/#05
+=== RUN   TestBlendBatch/DestinationOver/#06
+=== RUN   TestBlendBatch/DestinationOver/#07
+=== RUN   TestBlendBatch/DestinationOver/#08
+=== RUN   TestBlendBatch/DestinationOver/#09
+=== RUN   TestBlendBatch/DestinationOver/#10
+=== RUN   TestBlendBatch/SourceIn
+=== RUN   TestBlendBatch/SourceIn/#00
+=== RUN   TestBlendBatch/SourceIn/#01
+=== RUN   TestBlendBatch/SourceIn/#02
+=== RUN   TestBlendBatch/SourceIn/#03
+=== RUN   TestBlendBatch/SourceIn/#04
+=== RUN   TestBlendBatch/SourceIn/#05
+=== RUN   TestBlendBatch/SourceIn/#06
+=== RUN   TestBlendBatch/SourceIn/#07
+=== RUN   TestBlendBatch/SourceIn/#08
+=== RUN   TestBlendBatch/SourceIn/#09
+=== RUN   TestBlendBatch/SourceIn/#10
+=== RUN   TestBlendBatch/Plus
+=== RUN   TestBlendBatch/Plus/#00
+=== RUN   TestBlendBatch/Plus/#01
+=== RUN   TestBlendBatch/Plus/#02
+=== RUN   TestBlendBatch/Plus/#03
+=== RUN   TestBlendBatch/Plus/#04
+=== RUN   TestBlendBatch/Plus/#05
+=== RUN   TestBlendBatch/Plus/#06
+=== RUN   TestBlendBatch/Plus/#07
+=== RUN   TestBlendBatch/Plus/#08
+=== RUN   TestBlendBatch/Plus/#09
+=== RUN   TestBlendBatch/Plus/#10
+=== RUN   TestBlendBatch/Modulate
+=== RUN   TestBlendBatch/Modulate/#00
+=== RUN   TestBlendBatch/Modulate/#01
+=== RUN   TestBlendBatch/Modulate/#02
+=== RUN   TestBlendBatch/Modulate/#03
+=== RUN   TestBlendBatch/Modulate/#04
+=== RUN   TestBlendBatch/Modulate/#05
+=== RUN   TestBlendBatch/Modulate/#06
+=== RUN   TestBlendBatch/Modulate/#07
+=== RUN   TestBlendBatch/Modulate/#08
+=== RUN   TestBlendBatch/Modulate/#09
+=== RUN   TestBlendBatch/Modulate/#10
+--- PASS: TestBlendBatch (0.01s)
+    --- PASS: TestBlendBatch/Clear (0.00s)
+        --- PASS: TestBlendBatch/Clear/#00 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#01 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#02 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#03 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#04 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#05 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#06 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#07 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#08 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#09 (0.00s)
+        --- PASS: TestBlendBatch/Clear/#10 (0.00s)
+    --- PASS: TestBlendBatch/Source (0.00s)
+        --- PASS: TestBlendBatch/Source/#00 (0.00s)
+        --- PASS: TestBlendBatch/Source/#01 (0.00s)
+        --- PASS: TestBlendBatch/Source/#02 (0.00s)
+        --- PASS: TestBlendBatch/Source/#03 (0.00s)
+        --- PASS: TestBlendBatch/Source/#04 (0.00s)
+        --- PASS: TestBlendBatch/Source/#05 (0.00s)
+        --- PASS: TestBlendBatch/Source/#06 (0.00s)
+        --- PASS: TestBlendBatch/Source/#07 (0.00s)
+        --- PASS: TestBlendBatch/Source/#08 (0.00s)
+        --- PASS: TestBlendBatch/Source/#09 (0.00s)
+        --- PASS: TestBlendBatch/Source/#10 (0.00s)
+    --- PASS: TestBlendBatch/SourceOver (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#00 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#01 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#02 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#03 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#04 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#05 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#06 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#07 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#08 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#09 (0.00s)
+        --- PASS: TestBlendBatch/SourceOver/#10 (0.00s)
+    --- PASS: TestBlendBatch/DestinationOver (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#00 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#01 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#02 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#03 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#04 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#05 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#06 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#07 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#08 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#09 (0.00s)
+        --- PASS: TestBlendBatch/DestinationOver/#10 (0.00s)
+    --- PASS: TestBlendBatch/SourceIn (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#00 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#01 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#02 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#03 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#04 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#05 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#06 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#07 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#08 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#09 (0.00s)
+        --- PASS: TestBlendBatch/SourceIn/#10 (0.00s)
+    --- PASS: TestBlendBatch/Plus (0.00s)
+        --- PASS: TestBlendBatch/Plus/#00 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#01 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#02 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#03 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#04 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#05 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#06 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#07 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#08 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#09 (0.00s)
+        --- PASS: TestBlendBatch/Plus/#10 (0.00s)
+    --- PASS: TestBlendBatch/Modulate (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#00 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#01 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#02 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#03 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#04 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#05 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#06 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#07 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#08 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#09 (0.00s)
+        --- PASS: TestBlendBatch/Modulate/#10 (0.00s)
+=== RUN   TestBlendSourceOverBatch
+=== RUN   TestBlendSourceOverBatch/#00
+=== RUN   TestBlendSourceOverBatch/#01
+=== RUN   TestBlendSourceOverBatch/#02
+=== RUN   TestBlendSourceOverBatch/#03
+=== RUN   TestBlendSourceOverBatch/#04
+=== RUN   TestBlendSourceOverBatch/#05
+=== RUN   TestBlendSourceOverBatch/#06
+=== RUN   TestBlendSourceOverBatch/#07
+=== RUN   TestBlendSourceOverBatch/#08
+=== RUN   TestBlendSourceOverBatch/#09
+=== RUN   TestBlendSourceOverBatch/#10
+--- PASS: TestBlendSourceOverBatch (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#00 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#01 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#02 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#03 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#04 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#05 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#06 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#07 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#08 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#09 (0.00s)
+    --- PASS: TestBlendSourceOverBatch/#10 (0.00s)
+=== RUN   TestBlendBatchAligned
+=== RUN   TestBlendBatchAligned/#00
+=== RUN   TestBlendBatchAligned/#00/#00
+=== RUN   TestBlendBatchAligned/#00/#01
+=== RUN   TestBlendBatchAligned/#00/#02
+=== RUN   TestBlendBatchAligned/#00/#03
+=== RUN   TestBlendBatchAligned/#00/#04
+=== RUN   TestBlendBatchAligned/#01
+=== RUN   TestBlendBatchAligned/#01/#00
+=== RUN   TestBlendBatchAligned/#01/#01
+=== RUN   TestBlendBatchAligned/#01/#02
+=== RUN   TestBlendBatchAligned/#01/#03
+=== RUN   TestBlendBatchAligned/#01/#04
+=== RUN   TestBlendBatchAligned/#02
+=== RUN   TestBlendBatchAligned/#02/#00
+=== RUN   TestBlendBatchAligned/#02/#01
+=== RUN   TestBlendBatchAligned/#02/#02
+=== RUN   TestBlendBatchAligned/#02/#03
+=== RUN   TestBlendBatchAligned/#02/#04
+--- PASS: TestBlendBatchAligned (0.00s)
+    --- PASS: TestBlendBatchAligned/#00 (0.00s)
+        --- PASS: TestBlendBatchAligned/#00/#00 (0.00s)
+        --- PASS: TestBlendBatchAligned/#00/#01 (0.00s)
+        --- PASS: TestBlendBatchAligned/#00/#02 (0.00s)
+        --- PASS: TestBlendBatchAligned/#00/#03 (0.00s)
+        --- PASS: TestBlendBatchAligned/#00/#04 (0.00s)
+    --- PASS: TestBlendBatchAligned/#01 (0.00s)
+        --- PASS: TestBlendBatchAligned/#01/#00 (0.00s)
+        --- PASS: TestBlendBatchAligned/#01/#01 (0.00s)
+        --- PASS: TestBlendBatchAligned/#01/#02 (0.00s)
+        --- PASS: TestBlendBatchAligned/#01/#03 (0.00s)
+        --- PASS: TestBlendBatchAligned/#01/#04 (0.00s)
+    --- PASS: TestBlendBatchAligned/#02 (0.00s)
+        --- PASS: TestBlendBatchAligned/#02/#00 (0.00s)
+        --- PASS: TestBlendBatchAligned/#02/#01 (0.00s)
+        --- PASS: TestBlendBatchAligned/#02/#02 (0.00s)
+        --- PASS: TestBlendBatchAligned/#02/#03 (0.00s)
+        --- PASS: TestBlendBatchAligned/#02/#04 (0.00s)
+=== RUN   TestBlendBatchEdgeCases
+=== RUN   TestBlendBatchEdgeCases/zero_pixels
+=== RUN   TestBlendBatchEdgeCases/negative_pixels
+=== RUN   TestBlendBatchEdgeCases/single_pixel
+--- PASS: TestBlendBatchEdgeCases (0.00s)
+    --- PASS: TestBlendBatchEdgeCases/zero_pixels (0.00s)
+    --- PASS: TestBlendBatchEdgeCases/negative_pixels (0.00s)
+    --- PASS: TestBlendBatchEdgeCases/single_pixel (0.00s)
+PASS

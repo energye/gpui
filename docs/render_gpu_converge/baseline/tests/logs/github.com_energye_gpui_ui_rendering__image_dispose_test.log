@@ -1,0 +1,15 @@
+=== RUN   TestRenderImage_SetImage_SamePointer_StaysLive
+--- PASS: TestRenderImage_SetImage_SamePointer_StaysLive (0.00s)
+=== RUN   TestRenderImage_SetImage_ReplacesAndDisposesPrior
+--- PASS: TestRenderImage_SetImage_ReplacesAndDisposesPrior (0.00s)
+=== RUN   TestRenderImage_SetImageShared_DoesNotDispose
+--- PASS: TestRenderImage_SetImageShared_DoesNotDispose (0.00s)
+=== RUN   TestRenderImage_SetError_DisposesOwned
+--- PASS: TestRenderImage_SetError_DisposesOwned (0.00s)
+=== RUN   TestRenderImage_Paint_AfterDisposeSafe
+--- PASS: TestRenderImage_Paint_AfterDisposeSafe (0.00s)
+=== RUN   TestRenderImage_RejectsAlreadyDisposedSetImage
+--- PASS: TestRenderImage_RejectsAlreadyDisposedSetImage (0.00s)
+=== RUN   TestImageBuf_Dispose_ViaRenderAlias
+--- PASS: TestImageBuf_Dispose_ViaRenderAlias (0.00s)
+PASS

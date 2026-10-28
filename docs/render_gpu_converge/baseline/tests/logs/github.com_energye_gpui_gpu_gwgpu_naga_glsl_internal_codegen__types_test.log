@@ -1,0 +1,69 @@
+=== RUN   TestTypeInnerToGLSL_Sampler
+--- PASS: TestTypeInnerToGLSL_Sampler (0.00s)
+=== RUN   TestTypeInnerToGLSL_Pointer
+--- PASS: TestTypeInnerToGLSL_Pointer (0.00s)
+=== RUN   TestTypeInnerToGLSL_AccelerationStructure
+--- PASS: TestTypeInnerToGLSL_AccelerationStructure (0.00s)
+=== RUN   TestTypeInnerToGLSL_RayQuery
+--- PASS: TestTypeInnerToGLSL_RayQuery (0.00s)
+=== RUN   TestTypeInnerToGLSL_StructLookup
+--- PASS: TestTypeInnerToGLSL_StructLookup (0.00s)
+=== RUN   TestTypeInnerToGLSL_StructUnknown
+--- PASS: TestTypeInnerToGLSL_StructUnknown (0.00s)
+=== RUN   TestTypeInnerToGLSL_Atomic
+=== RUN   TestTypeInnerToGLSL_Atomic/uint
+=== RUN   TestTypeInnerToGLSL_Atomic/int
+=== RUN   TestTypeInnerToGLSL_Atomic/default
+--- PASS: TestTypeInnerToGLSL_Atomic (0.00s)
+    --- PASS: TestTypeInnerToGLSL_Atomic/uint (0.00s)
+    --- PASS: TestTypeInnerToGLSL_Atomic/int (0.00s)
+    --- PASS: TestTypeInnerToGLSL_Atomic/default (0.00s)
+=== RUN   TestImageToGLSL_StorageUint
+--- PASS: TestImageToGLSL_StorageUint (0.00s)
+=== RUN   TestImageToGLSL_StorageSint
+--- PASS: TestImageToGLSL_StorageSint (0.00s)
+=== RUN   TestImageToGLSL_StorageFloat
+--- PASS: TestImageToGLSL_StorageFloat (0.00s)
+=== RUN   TestImageToGLSL_1D
+--- PASS: TestImageToGLSL_1D (0.00s)
+=== RUN   TestImageToGLSL_1DArray
+--- PASS: TestImageToGLSL_1DArray (0.00s)
+=== RUN   TestImageToGLSL_2DMSArray
+--- PASS: TestImageToGLSL_2DMSArray (0.00s)
+=== RUN   TestImageToGLSL_CubeArray
+--- PASS: TestImageToGLSL_CubeArray (0.00s)
+=== RUN   TestImageToGLSL_CubeArrayShadow
+--- PASS: TestImageToGLSL_CubeArrayShadow (0.00s)
+=== RUN   TestImageToGLSL_2DArrayShadow
+--- PASS: TestImageToGLSL_2DArrayShadow (0.00s)
+=== RUN   TestImageToGLSL_SampledUint
+--- PASS: TestImageToGLSL_SampledUint (0.00s)
+=== RUN   TestImageToGLSL_SampledSint
+--- PASS: TestImageToGLSL_SampledSint (0.00s)
+=== RUN   TestImageToGLSL_DefaultDim
+--- PASS: TestImageToGLSL_DefaultDim (0.00s)
+=== RUN   TestImageToGLSL_3D
+--- PASS: TestImageToGLSL_3D (0.00s)
+=== RUN   TestImageToGLSL_2DArray
+--- PASS: TestImageToGLSL_2DArray (0.00s)
+=== RUN   TestImageToGLSL_DefaultClass
+--- PASS: TestImageToGLSL_DefaultClass (0.00s)
+=== RUN   TestScalarToGLSL_AbstractTypes
+=== RUN   TestScalarToGLSL_AbstractTypes/abstract_int
+=== RUN   TestScalarToGLSL_AbstractTypes/abstract_float
+=== RUN   TestScalarToGLSL_AbstractTypes/unknown_kind
+--- PASS: TestScalarToGLSL_AbstractTypes (0.00s)
+    --- PASS: TestScalarToGLSL_AbstractTypes/abstract_int (0.00s)
+    --- PASS: TestScalarToGLSL_AbstractTypes/abstract_float (0.00s)
+    --- PASS: TestScalarToGLSL_AbstractTypes/unknown_kind (0.00s)
+=== RUN   TestVectorToGLSL_Float16
+--- PASS: TestVectorToGLSL_Float16 (0.00s)
+=== RUN   TestVectorToGLSL_DefaultKind
+--- PASS: TestVectorToGLSL_DefaultKind (0.00s)
+=== RUN   TestMatrixToGLSL_DefaultKind
+--- PASS: TestMatrixToGLSL_DefaultKind (0.00s)
+=== RUN   TestArrayToGLSL_DynamicSize
+--- PASS: TestArrayToGLSL_DynamicSize (0.00s)
+=== RUN   TestStructsEqual_TypeMismatch
+--- PASS: TestStructsEqual_TypeMismatch (0.00s)
+PASS

@@ -1,0 +1,235 @@
+=== RUN   TestGlslBuiltIn
+=== RUN   TestGlslBuiltIn/position_output
+=== RUN   TestGlslBuiltIn/position_input
+=== RUN   TestGlslBuiltIn/vertex_index
+=== RUN   TestGlslBuiltIn/instance_index
+=== RUN   TestGlslBuiltIn/front_facing
+=== RUN   TestGlslBuiltIn/frag_depth
+=== RUN   TestGlslBuiltIn/sample_index
+=== RUN   TestGlslBuiltIn/sample_mask
+=== RUN   TestGlslBuiltIn/local_invocation_id
+=== RUN   TestGlslBuiltIn/local_invocation_index
+=== RUN   TestGlslBuiltIn/global_invocation_id
+=== RUN   TestGlslBuiltIn/workgroup_id
+=== RUN   TestGlslBuiltIn/num_workgroups
+=== RUN   TestGlslBuiltIn/view_index
+=== RUN   TestGlslBuiltIn/barycentric
+=== RUN   TestGlslBuiltIn/point_size
+=== RUN   TestGlslBuiltIn/primitive_index
+=== RUN   TestGlslBuiltIn/num_subgroups
+=== RUN   TestGlslBuiltIn/subgroup_id
+=== RUN   TestGlslBuiltIn/subgroup_size
+=== RUN   TestGlslBuiltIn/subgroup_invocation_id
+=== RUN   TestGlslBuiltIn/clip_distance
+=== RUN   TestGlslBuiltIn/unknown_builtin
+--- PASS: TestGlslBuiltIn (0.00s)
+    --- PASS: TestGlslBuiltIn/position_output (0.00s)
+    --- PASS: TestGlslBuiltIn/position_input (0.00s)
+    --- PASS: TestGlslBuiltIn/vertex_index (0.00s)
+    --- PASS: TestGlslBuiltIn/instance_index (0.00s)
+    --- PASS: TestGlslBuiltIn/front_facing (0.00s)
+    --- PASS: TestGlslBuiltIn/frag_depth (0.00s)
+    --- PASS: TestGlslBuiltIn/sample_index (0.00s)
+    --- PASS: TestGlslBuiltIn/sample_mask (0.00s)
+    --- PASS: TestGlslBuiltIn/local_invocation_id (0.00s)
+    --- PASS: TestGlslBuiltIn/local_invocation_index (0.00s)
+    --- PASS: TestGlslBuiltIn/global_invocation_id (0.00s)
+    --- PASS: TestGlslBuiltIn/workgroup_id (0.00s)
+    --- PASS: TestGlslBuiltIn/num_workgroups (0.00s)
+    --- PASS: TestGlslBuiltIn/view_index (0.00s)
+    --- PASS: TestGlslBuiltIn/barycentric (0.00s)
+    --- PASS: TestGlslBuiltIn/point_size (0.00s)
+    --- PASS: TestGlslBuiltIn/primitive_index (0.00s)
+    --- PASS: TestGlslBuiltIn/num_subgroups (0.00s)
+    --- PASS: TestGlslBuiltIn/subgroup_id (0.00s)
+    --- PASS: TestGlslBuiltIn/subgroup_size (0.00s)
+    --- PASS: TestGlslBuiltIn/subgroup_invocation_id (0.00s)
+    --- PASS: TestGlslBuiltIn/clip_distance (0.00s)
+    --- PASS: TestGlslBuiltIn/unknown_builtin (0.00s)
+=== RUN   TestGlslStorageFormat
+=== RUN   TestGlslStorageFormat/rgba8
+=== RUN   TestGlslStorageFormat/rgba8_snorm
+=== RUN   TestGlslStorageFormat/rgba8ui
+=== RUN   TestGlslStorageFormat/rgba8i
+=== RUN   TestGlslStorageFormat/rgba16ui
+=== RUN   TestGlslStorageFormat/rgba16i
+=== RUN   TestGlslStorageFormat/rgba16f
+=== RUN   TestGlslStorageFormat/rgba32ui
+=== RUN   TestGlslStorageFormat/rgba32i
+=== RUN   TestGlslStorageFormat/rgba32f
+=== RUN   TestGlslStorageFormat/r32ui
+=== RUN   TestGlslStorageFormat/r32i
+=== RUN   TestGlslStorageFormat/r32f
+=== RUN   TestGlslStorageFormat/#00
+--- PASS: TestGlslStorageFormat (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba8 (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba8_snorm (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba8ui (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba8i (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba16ui (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba16i (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba16f (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba32ui (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba32i (0.00s)
+    --- PASS: TestGlslStorageFormat/rgba32f (0.00s)
+    --- PASS: TestGlslStorageFormat/r32ui (0.00s)
+    --- PASS: TestGlslStorageFormat/r32i (0.00s)
+    --- PASS: TestGlslStorageFormat/r32f (0.00s)
+    --- PASS: TestGlslStorageFormat/#00 (0.00s)
+=== RUN   TestGlslStorageAccess
+=== RUN   TestGlslStorageAccess/readonly_
+=== RUN   TestGlslStorageAccess/writeonly_
+=== RUN   TestGlslStorageAccess/#00
+=== RUN   TestGlslStorageAccess/#01
+--- PASS: TestGlslStorageAccess (0.00s)
+    --- PASS: TestGlslStorageAccess/readonly_ (0.00s)
+    --- PASS: TestGlslStorageAccess/writeonly_ (0.00s)
+    --- PASS: TestGlslStorageAccess/#00 (0.00s)
+    --- PASS: TestGlslStorageAccess/#01 (0.00s)
+=== RUN   TestScalarZeroInit
+=== RUN   TestScalarZeroInit/false
+=== RUN   TestScalarZeroInit/0
+=== RUN   TestScalarZeroInit/0u
+=== RUN   TestScalarZeroInit/0.0
+=== RUN   TestScalarZeroInit/0#01
+--- PASS: TestScalarZeroInit (0.00s)
+    --- PASS: TestScalarZeroInit/false (0.00s)
+    --- PASS: TestScalarZeroInit/0 (0.00s)
+    --- PASS: TestScalarZeroInit/0u (0.00s)
+    --- PASS: TestScalarZeroInit/0.0 (0.00s)
+    --- PASS: TestScalarZeroInit/0#01 (0.00s)
+=== RUN   TestScalarVecPrefix_AllKinds
+--- PASS: TestScalarVecPrefix_AllKinds (0.00s)
+=== RUN   TestFormatFloat_EdgeCases
+=== RUN   TestFormatFloat_EdgeCases/positive_infinity
+=== RUN   TestFormatFloat_EdgeCases/negative_infinity
+=== RUN   TestFormatFloat_EdgeCases/zero
+=== RUN   TestFormatFloat_EdgeCases/negative_zero
+=== RUN   TestFormatFloat_EdgeCases/integer_value
+=== RUN   TestFormatFloat_EdgeCases/no_plus_in_exponent
+--- PASS: TestFormatFloat_EdgeCases (0.00s)
+    --- PASS: TestFormatFloat_EdgeCases/positive_infinity (0.00s)
+    --- PASS: TestFormatFloat_EdgeCases/negative_infinity (0.00s)
+    --- PASS: TestFormatFloat_EdgeCases/zero (0.00s)
+    --- PASS: TestFormatFloat_EdgeCases/negative_zero (0.00s)
+    --- PASS: TestFormatFloat_EdgeCases/integer_value (0.00s)
+    --- PASS: TestFormatFloat_EdgeCases/no_plus_in_exponent (0.00s)
+=== RUN   TestFormatFloat64_EdgeCases
+=== RUN   TestFormatFloat64_EdgeCases/zero
+=== RUN   TestFormatFloat64_EdgeCases/one
+=== RUN   TestFormatFloat64_EdgeCases/small_fraction
+--- PASS: TestFormatFloat64_EdgeCases (0.00s)
+    --- PASS: TestFormatFloat64_EdgeCases/zero (0.00s)
+    --- PASS: TestFormatFloat64_EdgeCases/one (0.00s)
+    --- PASS: TestFormatFloat64_EdgeCases/small_fraction (0.00s)
+=== RUN   TestIsDynamicallySized
+=== RUN   TestIsDynamicallySized/scalar
+=== RUN   TestIsDynamicallySized/fixed_array
+=== RUN   TestIsDynamicallySized/dynamic_array
+=== RUN   TestIsDynamicallySized/struct_with_dynamic_member
+=== RUN   TestIsDynamicallySized/struct_with_scalar_member
+=== RUN   TestIsDynamicallySized/empty_struct
+=== RUN   TestIsDynamicallySized/vector
+=== RUN   TestIsDynamicallySized/out_of_range
+--- PASS: TestIsDynamicallySized (0.00s)
+    --- PASS: TestIsDynamicallySized/scalar (0.00s)
+    --- PASS: TestIsDynamicallySized/fixed_array (0.00s)
+    --- PASS: TestIsDynamicallySized/dynamic_array (0.00s)
+    --- PASS: TestIsDynamicallySized/struct_with_dynamic_member (0.00s)
+    --- PASS: TestIsDynamicallySized/struct_with_scalar_member (0.00s)
+    --- PASS: TestIsDynamicallySized/empty_struct (0.00s)
+    --- PASS: TestIsDynamicallySized/vector (0.00s)
+    --- PASS: TestIsDynamicallySized/out_of_range (0.00s)
+=== RUN   TestGetTypeName
+=== RUN   TestGetTypeName/registered_name
+=== RUN   TestGetTypeName/out_of_range
+--- PASS: TestGetTypeName (0.00s)
+    --- PASS: TestGetTypeName/registered_name (0.00s)
+    --- PASS: TestGetTypeName/out_of_range (0.00s)
+=== RUN   TestSupportsPack2x16snorm
+--- PASS: TestSupportsPack2x16snorm (0.00s)
+=== RUN   TestSupportsPack2x16unorm
+--- PASS: TestSupportsPack2x16unorm (0.00s)
+=== RUN   TestIsWebGL
+--- PASS: TestIsWebGL (0.00s)
+=== RUN   TestFormatLiteral_AllTypes
+=== RUN   TestFormatLiteral_AllTypes/bool_true
+=== RUN   TestFormatLiteral_AllTypes/bool_false
+=== RUN   TestFormatLiteral_AllTypes/i32_positive
+=== RUN   TestFormatLiteral_AllTypes/i32_negative
+=== RUN   TestFormatLiteral_AllTypes/i32_zero
+=== RUN   TestFormatLiteral_AllTypes/u32
+=== RUN   TestFormatLiteral_AllTypes/f32_decimal
+=== RUN   TestFormatLiteral_AllTypes/f32_zero
+=== RUN   TestFormatLiteral_AllTypes/f64
+=== RUN   TestFormatLiteral_AllTypes/i64
+--- PASS: TestFormatLiteral_AllTypes (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/bool_true (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/bool_false (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/i32_positive (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/i32_negative (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/i32_zero (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/u32 (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/f32_decimal (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/f32_zero (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/f64 (0.00s)
+    --- PASS: TestFormatLiteral_AllTypes/i64 (0.00s)
+=== RUN   TestZeroInitValue_Extended
+--- PASS: TestZeroInitValue_Extended (0.00s)
+=== RUN   TestWriteConstExpr_ZeroValue
+--- PASS: TestWriteConstExpr_ZeroValue (0.00s)
+=== RUN   TestWriteScalarValue
+=== RUN   TestWriteScalarValue/bool_true
+=== RUN   TestWriteScalarValue/bool_false
+=== RUN   TestWriteScalarValue/int
+=== RUN   TestWriteScalarValue/uint
+--- PASS: TestWriteScalarValue (0.00s)
+    --- PASS: TestWriteScalarValue/bool_true (0.00s)
+    --- PASS: TestWriteScalarValue/bool_false (0.00s)
+    --- PASS: TestWriteScalarValue/int (0.00s)
+    --- PASS: TestWriteScalarValue/uint (0.00s)
+=== RUN   TestNamer_EmptyString
+--- PASS: TestNamer_EmptyString (0.00s)
+=== RUN   TestNamer_SpecialChars
+--- PASS: TestNamer_SpecialChars (0.00s)
+=== RUN   TestWriterFlags
+--- PASS: TestWriterFlags (0.00s)
+=== RUN   TestBoundsCheckPolicy_Values
+--- PASS: TestBoundsCheckPolicy_Values (0.00s)
+=== RUN   TestStorageLayoutPrefix
+=== RUN   TestStorageLayoutPrefix/std430_no_binding
+=== RUN   TestStorageLayoutPrefix/std430_with_binding_map
+--- PASS: TestStorageLayoutPrefix (0.00s)
+    --- PASS: TestStorageLayoutPrefix/std430_no_binding (0.00s)
+    --- PASS: TestStorageLayoutPrefix/std430_with_binding_map (0.00s)
+=== RUN   TestGetSelectedEntryPoint
+=== RUN   TestGetSelectedEntryPoint/no_entry_points
+=== RUN   TestGetSelectedEntryPoint/first_entry_point_default
+=== RUN   TestGetSelectedEntryPoint/named_entry_point
+--- PASS: TestGetSelectedEntryPoint (0.00s)
+    --- PASS: TestGetSelectedEntryPoint/no_entry_points (0.00s)
+    --- PASS: TestGetSelectedEntryPoint/first_entry_point_default (0.00s)
+    --- PASS: TestGetSelectedEntryPoint/named_entry_point (0.00s)
+=== RUN   TestWrapUintCast
+=== RUN   TestWrapUintCast/unsigned_scalar
+=== RUN   TestWrapUintCast/signed_scalar
+=== RUN   TestWrapUintCast/unsigned_vector
+--- PASS: TestWrapUintCast (0.00s)
+    --- PASS: TestWrapUintCast/unsigned_scalar (0.00s)
+    --- PASS: TestWrapUintCast/signed_scalar (0.00s)
+    --- PASS: TestWrapUintCast/unsigned_vector (0.00s)
+=== RUN   TestIsUnsignedExpr
+=== RUN   TestIsUnsignedExpr/scalar_uint_via_handle
+=== RUN   TestIsUnsignedExpr/scalar_sint_via_handle
+=== RUN   TestIsUnsignedExpr/vector_uint_via_handle
+=== RUN   TestIsUnsignedExpr/via_value_scalar
+=== RUN   TestIsUnsignedExpr/via_value_vector
+=== RUN   TestIsUnsignedExpr/nil_function
+--- PASS: TestIsUnsignedExpr (0.00s)
+    --- PASS: TestIsUnsignedExpr/scalar_uint_via_handle (0.00s)
+    --- PASS: TestIsUnsignedExpr/scalar_sint_via_handle (0.00s)
+    --- PASS: TestIsUnsignedExpr/vector_uint_via_handle (0.00s)
+    --- PASS: TestIsUnsignedExpr/via_value_scalar (0.00s)
+    --- PASS: TestIsUnsignedExpr/via_value_vector (0.00s)
+    --- PASS: TestIsUnsignedExpr/nil_function (0.00s)
+PASS

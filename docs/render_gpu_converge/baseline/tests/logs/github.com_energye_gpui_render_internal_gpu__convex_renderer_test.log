@@ -1,0 +1,87 @@
+=== RUN   TestConvexRendererCreation
+--- PASS: TestConvexRendererCreation (0.22s)
+=== RUN   TestConvexRendererPipeline
+    convex_renderer_test.go:46: ensurePipeline failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestConvexRendererPipeline (0.19s)
+=== RUN   TestConvexRendererPipelineWithStencil
+    convex_renderer_test.go:82: ensurePipelineWithStencil failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestConvexRendererPipelineWithStencil (0.19s)
+=== RUN   TestConvexRendererDestroy
+    convex_renderer_test.go:112: ensurePipelineWithStencil failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestConvexRendererDestroy (0.15s)
+=== RUN   TestConvexRendererDestroyBeforeCreate
+--- PASS: TestConvexRendererDestroyBeforeCreate (0.09s)
+=== RUN   TestConvexRendererShaderCompilation
+--- PASS: TestConvexRendererShaderCompilation (0.06s)
+=== RUN   TestConvexRendererRecordDrawsEmpty
+    convex_renderer_test.go:176: ensurePipelineWithStencil failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestConvexRendererRecordDrawsEmpty (0.08s)
+=== RUN   TestConvexVertexLayout
+--- PASS: TestConvexVertexLayout (0.00s)
+=== RUN   TestBuildConvexVerticesTriangle
+--- PASS: TestBuildConvexVerticesTriangle (0.00s)
+=== RUN   TestBuildConvexVerticesSquare
+--- PASS: TestBuildConvexVerticesSquare (0.00s)
+=== RUN   TestBuildConvexVerticesWithAA
+--- PASS: TestBuildConvexVerticesWithAA (0.00s)
+=== RUN   TestBuildConvexVerticesEmpty
+--- PASS: TestBuildConvexVerticesEmpty (0.00s)
+=== RUN   TestBuildConvexVerticesDegeneratePolygon
+--- PASS: TestBuildConvexVerticesDegeneratePolygon (0.00s)
+=== RUN   TestBuildConvexVerticesMultipleCommands
+--- PASS: TestBuildConvexVerticesMultipleCommands (0.00s)
+=== RUN   TestConvexDrawCommandFields
+--- PASS: TestConvexDrawCommandFields (0.00s)
+=== RUN   TestConvexVertexCount
+=== RUN   TestConvexVertexCount/nil_commands
+=== RUN   TestConvexVertexCount/empty_commands
+=== RUN   TestConvexVertexCount/triangle
+=== RUN   TestConvexVertexCount/square
+=== RUN   TestConvexVertexCount/pentagon
+=== RUN   TestConvexVertexCount/degenerate_two_points
+=== RUN   TestConvexVertexCount/mixed_valid_and_degenerate
+--- PASS: TestConvexVertexCount (0.00s)
+    --- PASS: TestConvexVertexCount/nil_commands (0.00s)
+    --- PASS: TestConvexVertexCount/empty_commands (0.00s)
+    --- PASS: TestConvexVertexCount/triangle (0.00s)
+    --- PASS: TestConvexVertexCount/square (0.00s)
+    --- PASS: TestConvexVertexCount/pentagon (0.00s)
+    --- PASS: TestConvexVertexCount/degenerate_two_points (0.00s)
+    --- PASS: TestConvexVertexCount/mixed_valid_and_degenerate (0.00s)
+=== RUN   TestWriteConvexVertex
+--- PASS: TestWriteConvexVertex (0.00s)
+=== RUN   TestBuildConvexVerticesNormalDirection
+--- PASS: TestBuildConvexVerticesNormalDirection (0.00s)
+=== RUN   TestBuildConvexVerticesRegularPolygons
+--- PASS: TestBuildConvexVerticesRegularPolygons (0.00s)
+=== RUN   TestConvexFrameResourcesDestroy
+--- PASS: TestConvexFrameResourcesDestroy (0.09s)
+=== RUN   TestExtractConvexPolygonTriangle
+--- PASS: TestExtractConvexPolygonTriangle (0.00s)
+=== RUN   TestExtractConvexPolygonSquare
+--- PASS: TestExtractConvexPolygonSquare (0.00s)
+=== RUN   TestExtractConvexPolygonNotClosed
+--- PASS: TestExtractConvexPolygonNotClosed (0.00s)
+=== RUN   TestExtractConvexPolygonWithCurves
+--- PASS: TestExtractConvexPolygonWithCurves (0.00s)
+=== RUN   TestExtractConvexPolygonConcave
+--- PASS: TestExtractConvexPolygonConcave (0.00s)
+=== RUN   TestExtractConvexPolygonMultipleSubpaths
+--- PASS: TestExtractConvexPolygonMultipleSubpaths (0.00s)
+=== RUN   TestExtractConvexPolygonTooFewPoints
+--- PASS: TestExtractConvexPolygonTooFewPoints (0.00s)
+=== RUN   TestExtractConvexPolygonEmptyPath
+--- PASS: TestExtractConvexPolygonEmptyPath (0.00s)
+=== RUN   TestExtractConvexPolygonPentagon
+--- PASS: TestExtractConvexPolygonPentagon (0.00s)
+=== RUN   TestExtractConvexPolygonWithQuadCurve
+--- PASS: TestExtractConvexPolygonWithQuadCurve (0.00s)
+=== RUN   TestRenderSessionConvexOnly
+--- PASS: TestRenderSessionConvexOnly (0.19s)
+=== RUN   TestRenderSessionMixedWithConvex
+--- PASS: TestRenderSessionMixedWithConvex (0.17s)
+=== RUN   TestRenderSessionConvexRendererSetter
+--- PASS: TestRenderSessionConvexRendererSetter (0.08s)
+=== RUN   TestBuildConvexVertices_VertexColors
+--- PASS: TestBuildConvexVertices_VertexColors (0.00s)
+FAIL

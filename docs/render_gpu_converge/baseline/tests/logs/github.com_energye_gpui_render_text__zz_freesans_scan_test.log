@@ -1,0 +1,11 @@
+=== RUN   TestScanFreeSansLatin
+    zz_freesans_scan_test.go:81: freesans px10: bad=0/254 npt=0 nptR=0 first=[]
+    zz_freesans_scan_test.go:82: freesans px10: badR=[]
+    zz_freesans_scan_test.go:81: freesans px12: bad=0/254 npt=0 nptR=0 first=[]
+    zz_freesans_scan_test.go:82: freesans px12: badR=[]
+    zz_freesans_scan_test.go:81: freesans px14: bad=0/254 npt=0 nptR=0 first=[]
+    zz_freesans_scan_test.go:82: freesans px14: badR=[]
+    zz_freesans_scan_test.go:81: freesans px16: bad=0/254 npt=0 nptR=0 first=[]
+    zz_freesans_scan_test.go:82: freesans px16: badR=[]
+--- PASS: TestScanFreeSansLatin (1.87s)
+PASS

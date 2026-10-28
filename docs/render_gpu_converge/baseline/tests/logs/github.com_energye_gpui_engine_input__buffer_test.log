@@ -1,0 +1,15 @@
+=== RUN   TestBufferComboFromCases
+--- PASS: TestBufferComboFromCases (0.00s)
+=== RUN   TestBufferEdgesNoCrash
+--- PASS: TestBufferEdgesNoCrash (0.00s)
+=== RUN   TestBufferBoundaryIdentical
+--- PASS: TestBufferBoundaryIdentical (0.00s)
+=== RUN   TestBufferPerfPressure
+    buffer_test.go:575: buffer-pressure: 5000 reps x 32 pushes (+peek) (165000 ops) in 11.844504ms (71.8 ns/op, hits 5000)
+    buffer_test.go:592: touch-pressure: 5000 reps (begin/move/end) in 826.522µs (55.1 ns/op, active 0)
+--- PASS: TestBufferPerfPressure (0.01s)
+=== RUN   TestBufferLongRunStable
+--- PASS: TestBufferLongRunStable (0.00s)
+=== RUN   TestBufferOffscreenGolden
+--- PASS: TestBufferOffscreenGolden (0.00s)
+PASS

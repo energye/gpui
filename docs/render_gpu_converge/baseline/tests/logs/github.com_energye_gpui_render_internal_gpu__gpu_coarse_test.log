@@ -1,0 +1,37 @@
+=== RUN   TestGPUCoarseConfigSize
+--- PASS: TestGPUCoarseConfigSize (0.00s)
+=== RUN   TestGPUCoarseTileEntrySerialization
+--- PASS: TestGPUCoarseTileEntrySerialization (0.00s)
+=== RUN   TestCoarseShaderCompilation
+    gpu_coarse_test.go:102: Coarse shader compiled to 12588 bytes of SPIR-V
+--- PASS: TestCoarseShaderCompilation (0.00s)
+=== RUN   TestGPUCoarseRasterizer_CPUFallback
+    gpu_coarse_test.go:144: Generated 10 tile entries for 2 segments
+--- PASS: TestGPUCoarseRasterizer_CPUFallback (0.00s)
+=== RUN   TestGPUCoarseVsCPUCoarse
+=== RUN   TestGPUCoarseVsCPUCoarse/single_vertical_line
+    gpu_coarse_test.go:254: CPU entries: 6, GPU entries: 6, tiles matched: 6/6
+=== RUN   TestGPUCoarseVsCPUCoarse/single_diagonal_line
+    gpu_coarse_test.go:254: CPU entries: 11, GPU entries: 11, tiles matched: 11/11
+=== RUN   TestGPUCoarseVsCPUCoarse/triangle
+    gpu_coarse_test.go:254: CPU entries: 61, GPU entries: 61, tiles matched: 57/57
+=== RUN   TestGPUCoarseVsCPUCoarse/multiple_lines
+    gpu_coarse_test.go:254: CPU entries: 25, GPU entries: 25, tiles matched: 25/25
+--- PASS: TestGPUCoarseVsCPUCoarse (0.00s)
+    --- PASS: TestGPUCoarseVsCPUCoarse/single_vertical_line (0.00s)
+    --- PASS: TestGPUCoarseVsCPUCoarse/single_diagonal_line (0.00s)
+    --- PASS: TestGPUCoarseVsCPUCoarse/triangle (0.00s)
+    --- PASS: TestGPUCoarseVsCPUCoarse/multiple_lines (0.00s)
+=== RUN   TestGPUCoarseRasterizer_VerticalLine
+    gpu_coarse_test.go:287: Vertical line produced 6 entries
+--- PASS: TestGPUCoarseRasterizer_VerticalLine (0.00s)
+=== RUN   TestGPUCoarseRasterizer_SingleTileLine
+--- PASS: TestGPUCoarseRasterizer_SingleTileLine (0.00s)
+=== RUN   TestGPUCoarseRasterizer_OutOfBounds
+--- PASS: TestGPUCoarseRasterizer_OutOfBounds (0.00s)
+=== RUN   TestGPUCoarseRasterizer_HorizontalLine
+    gpu_coarse_test.go:357: Horizontal line produced 12 entries (segment skipped: false)
+--- PASS: TestGPUCoarseRasterizer_HorizontalLine (0.00s)
+=== RUN   TestGPUCoarseRasterizer_GetTileEntries
+--- PASS: TestGPUCoarseRasterizer_GetTileEntries (0.00s)
+PASS

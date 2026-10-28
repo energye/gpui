@@ -1,0 +1,17 @@
+=== RUN   TestLexerBasicTokens
+--- PASS: TestLexerBasicTokens (0.00s)
+=== RUN   TestLexerOperators
+--- PASS: TestLexerOperators (0.00s)
+=== RUN   TestLexerKeywords
+--- PASS: TestLexerKeywords (0.00s)
+=== RUN   TestLexerTypes
+--- PASS: TestLexerTypes (0.00s)
+=== RUN   TestLexerNumbers
+--- PASS: TestLexerNumbers (0.00s)
+=== RUN   TestLexerIdentifiers
+--- PASS: TestLexerIdentifiers (0.00s)
+=== RUN   TestLexerComments
+--- PASS: TestLexerComments (0.00s)
+=== RUN   TestLexerFunction
+--- PASS: TestLexerFunction (0.00s)
+PASS

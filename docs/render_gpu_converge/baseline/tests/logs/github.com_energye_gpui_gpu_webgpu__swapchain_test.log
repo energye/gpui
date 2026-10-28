@@ -1,0 +1,16 @@
+=== RUN   TestSwapchain_ConfigureNilGuards
+--- PASS: TestSwapchain_ConfigureNilGuards (0.00s)
+=== RUN   TestSwapchain_BeginFrameRequiresSurface
+--- PASS: TestSwapchain_BeginFrameRequiresSurface (0.00s)
+=== RUN   TestSwapchain_CreateSurfaceInvalidHandles
+    swapchain_test.go:48: CreateSurface(0,0) error (expected): wgpu: CreateSurface requires a non-zero window handle
+--- PASS: TestSwapchain_CreateSurfaceInvalidHandles (0.13s)
+=== RUN   TestSwapchain_NewDefaults
+--- PASS: TestSwapchain_NewDefaults (0.00s)
+=== RUN   TestSwapchain_BeginFrame_PreChecks
+--- PASS: TestSwapchain_BeginFrame_PreChecks (0.00s)
+=== RUN   TestSwapchain_FramePairing_DiscardClearsOpen
+--- PASS: TestSwapchain_FramePairing_DiscardClearsOpen (0.00s)
+=== RUN   TestSwapchain_EnableAutoRecover_Fields
+--- PASS: TestSwapchain_EnableAutoRecover_Fields (0.00s)
+PASS

@@ -1,0 +1,3 @@
+=== RUN   TestCompositeFallback_ReplaysRecordingWithoutGPU
+--- PASS: TestCompositeFallback_ReplaysRecordingWithoutGPU (0.29s)
+PASS

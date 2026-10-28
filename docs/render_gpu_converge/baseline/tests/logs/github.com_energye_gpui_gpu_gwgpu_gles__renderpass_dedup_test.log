@@ -1,0 +1,9 @@
+=== RUN   TestRenderPassDedup_PipelineOnce
+--- PASS: TestRenderPassDedup_PipelineOnce (0.00s)
+=== RUN   TestRenderPassDedup_BindGroupValueChangeEmits
+--- PASS: TestRenderPassDedup_BindGroupValueChangeEmits (0.00s)
+=== RUN   TestRenderPassDedup_BindGroupPipelineChangeEmits
+--- PASS: TestRenderPassDedup_BindGroupPipelineChangeEmits (0.00s)
+=== RUN   TestRenderPassDedup_ViewportScissorBlendStencil
+--- PASS: TestRenderPassDedup_ViewportScissorBlendStencil (0.00s)
+PASS

@@ -1,0 +1,11 @@
+=== RUN   TestTextureLayer_KindAndRect
+--- PASS: TestTextureLayer_KindAndRect (0.00s)
+=== RUN   TestCompositeToContext_TextureUsesCompositeCTM
+--- PASS: TestCompositeToContext_TextureUsesCompositeCTM (0.29s)
+=== RUN   TestCompositeToContext_TextureMissIsCounted
+--- PASS: TestCompositeToContext_TextureMissIsCounted (0.00s)
+=== RUN   TestTextured_TextureLayerAlwaysDamagesAndNeverCaches
+--- PASS: TestTextured_TextureLayerAlwaysDamagesAndNeverCaches (0.00s)
+=== RUN   TestTextured_TextureLayerMissPaintsAndDamagesNothing
+--- PASS: TestTextured_TextureLayerMissPaintsAndDamagesNothing (0.00s)
+PASS

@@ -1,0 +1,107 @@
+=== RUN   TestTileReset
+--- PASS: TestTileReset (0.00s)
+=== RUN   TestTilePixelCoordinates
+--- PASS: TestTilePixelCoordinates (0.00s)
+=== RUN   TestTileCoverage
+--- PASS: TestTileCoverage (0.00s)
+=== RUN   TestTileFillSolid
+--- PASS: TestTileFillSolid (0.00s)
+=== RUN   TestTileIsEmpty
+--- PASS: TestTileIsEmpty (0.00s)
+=== RUN   TestTileIsSolid
+--- PASS: TestTileIsSolid (0.00s)
+=== RUN   TestTileGridBasic
+--- PASS: TestTileGridBasic (0.00s)
+=== RUN   TestTileGridBounds
+--- PASS: TestTileGridBounds (0.00s)
+=== RUN   TestTileGridReset
+--- PASS: TestTileGridReset (0.00s)
+=== RUN   TestTileGridFillRule
+--- PASS: TestTileGridFillRule (0.00s)
+=== RUN   TestPixelToTile
+--- PASS: TestPixelToTile (0.00s)
+=== RUN   TestPixelToTileF
+--- PASS: TestPixelToTileF (0.00s)
+=== RUN   TestNewLineSegment
+--- PASS: TestNewLineSegment (0.00s)
+=== RUN   TestLineSegmentProperties
+--- PASS: TestLineSegmentProperties (0.00s)
+=== RUN   TestLineSegmentHorizontal
+--- PASS: TestLineSegmentHorizontal (0.00s)
+=== RUN   TestLineSegmentVertical
+--- PASS: TestLineSegmentVertical (0.00s)
+=== RUN   TestLineSegmentXAtY
+--- PASS: TestLineSegmentXAtY (0.00s)
+=== RUN   TestLineSegmentBounds
+--- PASS: TestLineSegmentBounds (0.00s)
+=== RUN   TestSegmentListBasic
+--- PASS: TestSegmentListBasic (0.00s)
+=== RUN   TestSegmentListSkipsDegenerate
+--- PASS: TestSegmentListSkipsDegenerate (0.00s)
+=== RUN   TestSegmentListReset
+--- PASS: TestSegmentListReset (0.00s)
+=== RUN   TestSegmentListBounds
+--- PASS: TestSegmentListBounds (0.00s)
+=== RUN   TestFlattenPathRectangle
+--- PASS: TestFlattenPathRectangle (0.00s)
+=== RUN   TestFlattenPathQuadratic
+--- PASS: TestFlattenPathQuadratic (0.00s)
+=== RUN   TestFlattenPathCubic
+--- PASS: TestFlattenPathCubic (0.00s)
+=== RUN   TestFlattenPathWithTransform
+--- PASS: TestFlattenPathWithTransform (0.00s)
+=== RUN   TestFlattenPathEmpty
+--- PASS: TestFlattenPathEmpty (0.00s)
+=== RUN   TestFlattenPathNil
+--- PASS: TestFlattenPathNil (0.00s)
+=== RUN   TestFlattenContext
+--- PASS: TestFlattenContext (0.00s)
+=== RUN   TestCoarseRasterizerBasic
+--- PASS: TestCoarseRasterizerBasic (0.00s)
+=== RUN   TestCoarseRasterizerRectangle
+--- PASS: TestCoarseRasterizerRectangle (0.00s)
+=== RUN   TestCoarseRasterizerBackdrop
+--- PASS: TestCoarseRasterizerBackdrop (0.00s)
+=== RUN   TestCoarseRasterizerReset
+--- PASS: TestCoarseRasterizerReset (0.00s)
+=== RUN   TestCoarseRasterizerSort
+--- PASS: TestCoarseRasterizerSort (0.00s)
+=== RUN   TestFineRasterizerBasic
+--- PASS: TestFineRasterizerBasic (0.00s)
+=== RUN   TestFineRasterizerRasterize
+--- PASS: TestFineRasterizerRasterize (0.00s)
+=== RUN   TestFineRasterizerRenderToBuffer
+--- PASS: TestFineRasterizerRenderToBuffer (0.00s)
+=== RUN   TestSparseStripsRasterizerBasic
+--- PASS: TestSparseStripsRasterizerBasic (0.00s)
+=== RUN   TestSparseStripsRasterizerRectangle
+--- PASS: TestSparseStripsRasterizerRectangle (0.00s)
+=== RUN   TestSparseStripsRasterizerCircle
+--- PASS: TestSparseStripsRasterizerCircle (0.00s)
+=== RUN   TestSparseStripsRasterizerStrips
+--- PASS: TestSparseStripsRasterizerStrips (0.00s)
+=== RUN   TestSparseStripsRasterizerRenderToBuffer
+--- PASS: TestSparseStripsRasterizerRenderToBuffer (0.00s)
+=== RUN   TestSparseStripsRasterizerReset
+--- PASS: TestSparseStripsRasterizerReset (0.00s)
+=== RUN   TestSparseStripsRasterizerFillRules
+=== RUN   TestSparseStripsRasterizerFillRules/NonZero
+=== RUN   TestSparseStripsRasterizerFillRules/EvenOdd
+--- PASS: TestSparseStripsRasterizerFillRules (0.00s)
+    --- PASS: TestSparseStripsRasterizerFillRules/NonZero (0.00s)
+    --- PASS: TestSparseStripsRasterizerFillRules/EvenOdd (0.00s)
+=== RUN   TestSparseStripsPool
+--- PASS: TestSparseStripsPool (0.00s)
+=== RUN   TestSparseStripsRasterizerEmptyPath
+--- PASS: TestSparseStripsRasterizerEmptyPath (0.00s)
+=== RUN   TestSparseStripsRasterizerNilPath
+--- PASS: TestSparseStripsRasterizerNilPath (0.00s)
+=== RUN   TestSparseStripsRasterizerResize
+--- PASS: TestSparseStripsRasterizerResize (0.00s)
+=== RUN   TestWindingPropagationBetweenTiles
+--- PASS: TestWindingPropagationBetweenTiles (0.00s)
+=== RUN   TestWindingPropagation_FineRasterizer
+--- PASS: TestWindingPropagation_FineRasterizer (0.00s)
+=== RUN   TestWindingPropagation_EvenOddFillRule
+--- PASS: TestWindingPropagation_EvenOddFillRule (0.00s)
+PASS

@@ -1,0 +1,57 @@
+=== RUN   TestRegisterAcceleratorNil
+--- PASS: TestRegisterAcceleratorNil (0.00s)
+=== RUN   TestRegisterAcceleratorInitError
+--- PASS: TestRegisterAcceleratorInitError (0.00s)
+=== RUN   TestRegisterAcceleratorSuccess
+--- PASS: TestRegisterAcceleratorSuccess (0.00s)
+=== RUN   TestRegisterAcceleratorReplacesOld
+--- PASS: TestRegisterAcceleratorReplacesOld (0.00s)
+=== RUN   TestAcceleratorReturnsNilWhenNoneRegistered
+--- PASS: TestAcceleratorReturnsNilWhenNoneRegistered (0.00s)
+=== RUN   TestAcceleratedOpBitfield
+=== RUN   TestAcceleratedOpBitfield/fill_in_fill
+=== RUN   TestAcceleratedOpBitfield/stroke_in_stroke
+=== RUN   TestAcceleratedOpBitfield/fill_in_fill|stroke
+=== RUN   TestAcceleratedOpBitfield/stroke_in_fill|stroke
+=== RUN   TestAcceleratedOpBitfield/scene_not_in_fill|stroke
+=== RUN   TestAcceleratedOpBitfield/text_not_in_fill
+=== RUN   TestAcceleratedOpBitfield/all_ops_combined
+=== RUN   TestAcceleratedOpBitfield/circle_sdf_in_sdf_ops
+=== RUN   TestAcceleratedOpBitfield/rrect_sdf_in_sdf_ops
+=== RUN   TestAcceleratedOpBitfield/empty_has_nothing
+--- PASS: TestAcceleratedOpBitfield (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/fill_in_fill (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/stroke_in_stroke (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/fill_in_fill|stroke (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/stroke_in_fill|stroke (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/scene_not_in_fill|stroke (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/text_not_in_fill (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/all_ops_combined (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/circle_sdf_in_sdf_ops (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/rrect_sdf_in_sdf_ops (0.00s)
+    --- PASS: TestAcceleratedOpBitfield/empty_has_nothing (0.00s)
+=== RUN   TestCanAccelerate
+=== RUN   TestCanAccelerate/fill_supported
+=== RUN   TestCanAccelerate/stroke_supported
+=== RUN   TestCanAccelerate/scene_supported
+=== RUN   TestCanAccelerate/text_not_supported
+=== RUN   TestCanAccelerate/image_not_supported
+=== RUN   TestCanAccelerate/gradient_not_supported
+--- PASS: TestCanAccelerate (0.00s)
+    --- PASS: TestCanAccelerate/fill_supported (0.00s)
+    --- PASS: TestCanAccelerate/stroke_supported (0.00s)
+    --- PASS: TestCanAccelerate/scene_supported (0.00s)
+    --- PASS: TestCanAccelerate/text_not_supported (0.00s)
+    --- PASS: TestCanAccelerate/image_not_supported (0.00s)
+    --- PASS: TestCanAccelerate/gradient_not_supported (0.00s)
+=== RUN   TestCloseAcceleratorClosesAndUnregisters
+--- PASS: TestCloseAcceleratorClosesAndUnregisters (0.00s)
+=== RUN   TestCloseAcceleratorIdempotent
+--- PASS: TestCloseAcceleratorIdempotent (0.00s)
+=== RUN   TestCloseAcceleratorNoop
+--- PASS: TestCloseAcceleratorNoop (0.00s)
+=== RUN   TestErrFallbackToCPU
+--- PASS: TestErrFallbackToCPU (0.00s)
+=== RUN   TestAcceleratedOpValues
+--- PASS: TestAcceleratedOpValues (0.00s)
+PASS

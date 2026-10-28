@@ -1,0 +1,14 @@
+=== RUN   TestP04_ApplyBlurGPU
+    p04_filter_gpu_test.go:47: blur gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base=1
+    p04_filter_gpu_test.go:57: near-edge=227,230,253
+    p04_filter_gpu_test.go:67: center=25,51,242
+--- PASS: TestP04_ApplyBlurGPU (0.30s)
+=== RUN   TestP04_ApplyDropShadowGPU
+    p04_filter_gpu_test.go:100: shadow gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base=1
+    p04_filter_gpu_test.go:106: content=229,51,51,255
+    p04_filter_gpu_test.go:117: shadow sample at 52,48 = 0,0,0,108
+--- PASS: TestP04_ApplyDropShadowGPU (0.00s)
+=== RUN   TestP04_ApplyGrayscaleGPU
+    p04_filter_gpu_test.go:154: gray=18,18,18
+--- PASS: TestP04_ApplyGrayscaleGPU (0.00s)
+PASS

@@ -1,0 +1,35 @@
+=== RUN   TestNoAAFiller_AxisAlignedRect
+--- PASS: TestNoAAFiller_AxisAlignedRect (0.00s)
+=== RUN   TestNoAAFiller_NoCoverageOutside
+--- PASS: TestNoAAFiller_NoCoverageOutside (0.00s)
+=== RUN   TestNoAAFiller_CircleBinaryCoverage
+--- PASS: TestNoAAFiller_CircleBinaryCoverage (0.00s)
+=== RUN   TestNoAAFiller_EvenOddFillRule
+--- PASS: TestNoAAFiller_EvenOddFillRule (0.00s)
+=== RUN   TestNoAAFiller_NonZeroFillRule
+--- PASS: TestNoAAFiller_NonZeroFillRule (0.00s)
+=== RUN   TestNoAAFiller_EmptyPath
+--- PASS: TestNoAAFiller_EmptyPath (0.00s)
+=== RUN   TestNoAAFiller_PathOutsideBounds
+--- PASS: TestNoAAFiller_PathOutsideBounds (0.00s)
+=== RUN   TestNoAAFiller_SinglePixelRect
+--- PASS: TestNoAAFiller_SinglePixelRect (0.00s)
+=== RUN   TestFixedRoundToInt
+=== RUN   TestFixedRoundToInt/zero
+=== RUN   TestFixedRoundToInt/one
+=== RUN   TestFixedRoundToInt/half_rounds_up
+=== RUN   TestFixedRoundToInt/just_below_half
+=== RUN   TestFixedRoundToInt/negative_one
+=== RUN   TestFixedRoundToInt/ten
+=== RUN   TestFixedRoundToInt/quarter
+=== RUN   TestFixedRoundToInt/three_quarters
+--- PASS: TestFixedRoundToInt (0.00s)
+    --- PASS: TestFixedRoundToInt/zero (0.00s)
+    --- PASS: TestFixedRoundToInt/one (0.00s)
+    --- PASS: TestFixedRoundToInt/half_rounds_up (0.00s)
+    --- PASS: TestFixedRoundToInt/just_below_half (0.00s)
+    --- PASS: TestFixedRoundToInt/negative_one (0.00s)
+    --- PASS: TestFixedRoundToInt/ten (0.00s)
+    --- PASS: TestFixedRoundToInt/quarter (0.00s)
+    --- PASS: TestFixedRoundToInt/three_quarters (0.00s)
+PASS

@@ -1,0 +1,4 @@
+=== RUN   TestV3_VideoCrossDeviceRealWindow
+    video_v3_window_x11_linux_test.go:210: V-3 real window: device A slot rejected by device B session; reason="video:device-mismatch" cpu_fb=1 pixel=(255,0,0); presents=1
+--- PASS: TestV3_VideoCrossDeviceRealWindow (0.63s)
+PASS

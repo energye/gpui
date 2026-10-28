@@ -1,0 +1,3 @@
+=== RUN   TestPresentTarget_WaitIdleNilSafe
+--- PASS: TestPresentTarget_WaitIdleNilSafe (0.00s)
+PASS

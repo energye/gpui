@@ -1,0 +1,7 @@
+=== RUN   TestS42_SyncAtlasTextures_PartialThenHit
+    glyph_mask_s42_test.go:31: sync1 bytes=1048576 regions=1 partial=0 full=1
+    glyph_mask_s42_test.go:61: sync3 bytes=4352 regions=1 partial=1 full=0
+--- PASS: TestS42_SyncAtlasTextures_PartialThenHit (0.18s)
+=== RUN   TestUploadBudget_DefersLargeFirst
+--- PASS: TestUploadBudget_DefersLargeFirst (0.00s)
+PASS

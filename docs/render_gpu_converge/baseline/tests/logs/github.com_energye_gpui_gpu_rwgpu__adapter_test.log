@@ -1,0 +1,9 @@
+=== RUN   TestRequestAdapter
+    adapter_test.go:13: Requesting adapter...
+    adapter_test.go:24: Adapter obtained: handle=0x2b4e3a40
+--- PASS: TestRequestAdapter (0.20s)
+=== RUN   TestRequestAdapterWithOptions
+    adapter_test.go:35: Requesting high-performance adapter...
+    adapter_test.go:42: Adapter obtained: handle=0x2adb50f0
+--- PASS: TestRequestAdapterWithOptions (0.12s)
+PASS

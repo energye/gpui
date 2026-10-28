@@ -1,0 +1,16 @@
+=== RUN   TestQualityFromCases
+--- PASS: TestQualityFromCases (0.00s)
+=== RUN   TestQualityEdgesNoCrash
+--- PASS: TestQualityEdgesNoCrash (0.00s)
+=== RUN   TestQualityBoundaryIdentical
+--- PASS: TestQualityBoundaryIdentical (0.00s)
+=== RUN   TestQualityPerfTiers
+    quality_test.go:370: quality-spec: 200000 SpecFor in 4.235309ms (21.2 ns/op)
+    quality_test.go:383: quality-switch: 200000 pairs in 1.765687ms (8.8 ns/pair)
+    quality_test.go:398: quality-codec: 20000 reps encode+parse 34B in 60.903128ms (3.0 us/rep)
+--- PASS: TestQualityPerfTiers (0.07s)
+=== RUN   TestQualityLongRunStable
+--- PASS: TestQualityLongRunStable (0.05s)
+=== RUN   TestQualityOffscreenGolden
+--- PASS: TestQualityOffscreenGolden (0.00s)
+PASS

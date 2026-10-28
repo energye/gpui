@@ -1,0 +1,75 @@
+=== RUN   TestIsArgRead_UnusedArgument
+--- PASS: TestIsArgRead_UnusedArgument (0.00s)
+=== RUN   TestIsArgRead_UsedArgument
+--- PASS: TestIsArgRead_UsedArgument (0.00s)
+=== RUN   TestIsArgRead_UsedViaImageSample
+--- PASS: TestIsArgRead_UsedViaImageSample (0.00s)
+=== RUN   TestIsArgRead_UsedViaSwizzle
+--- PASS: TestIsArgRead_UsedViaSwizzle (0.00s)
+=== RUN   TestUsedComponentMask_SingleComponent
+--- PASS: TestUsedComponentMask_SingleComponent (0.00s)
+=== RUN   TestUsedComponentMask_MultipleComponents
+--- PASS: TestUsedComponentMask_MultipleComponents (0.00s)
+=== RUN   TestUsedComponentMask_AllComponents
+--- PASS: TestUsedComponentMask_AllComponents (0.00s)
+=== RUN   TestUsedComponentMask_ViaStatement
+--- PASS: TestUsedComponentMask_ViaStatement (0.00s)
+=== RUN   TestExpressionReferences_ImageSample
+=== RUN   TestExpressionReferences_ImageSample/coordinate
+=== RUN   TestExpressionReferences_ImageSample/image
+=== RUN   TestExpressionReferences_ImageSample/sampler
+=== RUN   TestExpressionReferences_ImageSample/no_match
+=== RUN   TestExpressionReferences_ImageSample/array_index
+=== RUN   TestExpressionReferences_ImageSample/depth_ref
+--- PASS: TestExpressionReferences_ImageSample (0.00s)
+    --- PASS: TestExpressionReferences_ImageSample/coordinate (0.00s)
+    --- PASS: TestExpressionReferences_ImageSample/image (0.00s)
+    --- PASS: TestExpressionReferences_ImageSample/sampler (0.00s)
+    --- PASS: TestExpressionReferences_ImageSample/no_match (0.00s)
+    --- PASS: TestExpressionReferences_ImageSample/array_index (0.00s)
+    --- PASS: TestExpressionReferences_ImageSample/depth_ref (0.00s)
+=== RUN   TestExpressionReferences_ImageLoad
+=== RUN   TestExpressionReferences_ImageLoad/image
+=== RUN   TestExpressionReferences_ImageLoad/coordinate
+=== RUN   TestExpressionReferences_ImageLoad/sample
+=== RUN   TestExpressionReferences_ImageLoad/no_match
+--- PASS: TestExpressionReferences_ImageLoad (0.00s)
+    --- PASS: TestExpressionReferences_ImageLoad/image (0.00s)
+    --- PASS: TestExpressionReferences_ImageLoad/coordinate (0.00s)
+    --- PASS: TestExpressionReferences_ImageLoad/sample (0.00s)
+    --- PASS: TestExpressionReferences_ImageLoad/no_match (0.00s)
+=== RUN   TestExpressionReferences_Alias
+--- PASS: TestExpressionReferences_Alias (0.00s)
+=== RUN   TestUsedStructMembers_AllUsed
+--- PASS: TestUsedStructMembers_AllUsed (0.00s)
+=== RUN   TestUsedStructMembers_OnlyOneUsed
+--- PASS: TestUsedStructMembers_OnlyOneUsed (0.00s)
+=== RUN   TestUsedStructMembers_TransitiveChain
+--- PASS: TestUsedStructMembers_TransitiveChain (0.00s)
+=== RUN   TestUsedStructMembers_WholeStructRef
+--- PASS: TestUsedStructMembers_WholeStructRef (0.00s)
+=== RUN   TestComputeLiveExprs_TransitiveReachability
+--- PASS: TestComputeLiveExprs_TransitiveReachability (0.00s)
+=== RUN   TestExpressionOperands
+=== RUN   TestExpressionOperands/AccessIndex
+=== RUN   TestExpressionOperands/Binary
+=== RUN   TestExpressionOperands/Swizzle
+=== RUN   TestExpressionOperands/Load
+=== RUN   TestExpressionOperands/Unary
+=== RUN   TestExpressionOperands/As
+=== RUN   TestExpressionOperands/Compose
+=== RUN   TestExpressionOperands/FunctionArgument
+=== RUN   TestExpressionOperands/Literal
+--- PASS: TestExpressionOperands (0.00s)
+    --- PASS: TestExpressionOperands/AccessIndex (0.00s)
+    --- PASS: TestExpressionOperands/Binary (0.00s)
+    --- PASS: TestExpressionOperands/Swizzle (0.00s)
+    --- PASS: TestExpressionOperands/Load (0.00s)
+    --- PASS: TestExpressionOperands/Unary (0.00s)
+    --- PASS: TestExpressionOperands/As (0.00s)
+    --- PASS: TestExpressionOperands/Compose (0.00s)
+    --- PASS: TestExpressionOperands/FunctionArgument (0.00s)
+    --- PASS: TestExpressionOperands/Literal (0.00s)
+=== RUN   TestBuildInputRowMapSequentialSigId
+--- PASS: TestBuildInputRowMapSequentialSigId (0.00s)
+PASS

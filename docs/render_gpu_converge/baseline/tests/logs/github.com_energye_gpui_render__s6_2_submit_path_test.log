@@ -1,0 +1,6 @@
+=== RUN   TestS62_PresentMainPath_NoRegress
+    s6_2_submit_path_test.go:61: S6.2 present auto p50=0.14ms budget=16.70
+--- PASS: TestS62_PresentMainPath_NoRegress (0.29s)
+=== RUN   TestS62_L0_S61HelpersStillGreen
+--- PASS: TestS62_L0_S61HelpersStillGreen (0.00s)
+PASS

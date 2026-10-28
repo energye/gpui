@@ -1,0 +1,24 @@
+=== RUN   TestRegression_StarInteriorCoverage
+--- PASS: TestRegression_StarInteriorCoverage (0.00s)
+=== RUN   TestRegression_StarExteriorCoverage
+--- PASS: TestRegression_StarExteriorCoverage (0.00s)
+=== RUN   TestRegression_StarEdgePixels
+--- PASS: TestRegression_StarEdgePixels (0.00s)
+=== RUN   TestRegression_RectInteriorCoverage
+--- PASS: TestRegression_RectInteriorCoverage (0.00s)
+=== RUN   TestRegression_RectEdgePixels
+--- PASS: TestRegression_RectEdgePixels (0.00s)
+=== RUN   TestRegression_TrapezoidToAlpha
+--- PASS: TestRegression_TrapezoidToAlpha (0.00s)
+=== RUN   TestRegression_PolygonKnownBug
+    analytic_filler_regression_test.go:224: BUG-RAST-011 appears FIXED at y=40: coverage=255
+--- PASS: TestRegression_PolygonKnownBug (0.00s)
+=== RUN   TestRegression_StarNonZeroCoverage
+--- PASS: TestRegression_StarNonZeroCoverage (0.00s)
+=== RUN   TestRegression_CoverageMonotonicity
+--- PASS: TestRegression_CoverageMonotonicity (0.00s)
+=== RUN   TestRegression_NearHorizontalEdgeBleed
+--- PASS: TestRegression_NearHorizontalEdgeBleed (0.00s)
+=== RUN   TestRegression_SteepNearHorizontalBleed
+--- PASS: TestRegression_SteepNearHorizontalBleed (0.00s)
+PASS

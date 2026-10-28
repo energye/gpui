@@ -1,0 +1,18 @@
+=== RUN   TestDispatchWorkgroupsIndirect
+    indirect_test.go:130: Dispatching workgroups indirectly...
+    indirect_test.go:144: DispatchWorkgroupsIndirect executed successfully
+--- PASS: TestDispatchWorkgroupsIndirect (0.30s)
+=== RUN   TestDrawIndirectArgs
+    indirect_test.go:163: DrawIndirectArgs size: 16 bytes
+--- PASS: TestDrawIndirectArgs (0.00s)
+=== RUN   TestDrawIndexedIndirectArgs
+    indirect_test.go:183: DrawIndexedIndirectArgs size: 20 bytes
+--- PASS: TestDrawIndexedIndirectArgs (0.00s)
+=== RUN   TestDispatchIndirectArgs
+    indirect_test.go:201: DispatchIndirectArgs size: 12 bytes
+--- PASS: TestDispatchIndirectArgs (0.00s)
+=== RUN   TestRenderBundleDrawIndirect
+    indirect_test.go:286: Recording DrawIndirect to render bundle...
+    indirect_test.go:296: RenderBundle with DrawIndirect created: handle=0xe669e50
+--- PASS: TestRenderBundleDrawIndirect (0.15s)
+PASS

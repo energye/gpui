@@ -1,0 +1,29 @@
+=== RUN   TestNewSoftwareRenderer
+--- PASS: TestNewSoftwareRenderer (0.00s)
+=== RUN   TestSoftwareRendererCapabilities
+--- PASS: TestSoftwareRendererCapabilities (0.00s)
+=== RUN   TestSoftwareRendererFlush
+--- PASS: TestSoftwareRendererFlush (0.00s)
+=== RUN   TestSoftwareRendererNilTarget
+--- PASS: TestSoftwareRendererNilTarget (0.00s)
+=== RUN   TestSoftwareRendererNilScene
+--- PASS: TestSoftwareRendererNilScene (0.00s)
+=== RUN   TestSoftwareRendererEmptyScene
+--- PASS: TestSoftwareRendererEmptyScene (0.00s)
+=== RUN   TestSoftwareRendererClear
+--- PASS: TestSoftwareRendererClear (0.00s)
+=== RUN   TestSoftwareRendererFillRectangle
+--- PASS: TestSoftwareRendererFillRectangle (0.00s)
+=== RUN   TestSoftwareRendererFillCircle
+--- PASS: TestSoftwareRendererFillCircle (0.00s)
+=== RUN   TestSoftwareRendererStroke
+--- PASS: TestSoftwareRendererStroke (0.00s)
+=== RUN   TestSoftwareRendererAlphaBlend
+--- PASS: TestSoftwareRendererAlphaBlend (0.00s)
+=== RUN   TestSoftwareRendererMultipleShapes
+--- PASS: TestSoftwareRendererMultipleShapes (0.00s)
+=== RUN   TestSoftwareRendererGPUTargetError
+--- PASS: TestSoftwareRendererGPUTargetError (0.00s)
+=== RUN   TestSoftwareRendererLargeTarget
+--- PASS: TestSoftwareRendererLargeTarget (0.01s)
+PASS

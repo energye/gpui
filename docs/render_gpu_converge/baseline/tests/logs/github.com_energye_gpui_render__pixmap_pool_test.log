@@ -1,0 +1,11 @@
+=== RUN   TestPixmapPool_GetReuseStillWorks
+--- PASS: TestPixmapPool_GetReuseStillWorks (0.00s)
+=== RUN   TestPixmapPool_EvictExcept_DropsStaleSizes
+--- PASS: TestPixmapPool_EvictExcept_DropsStaleSizes (0.00s)
+=== RUN   TestPixmapPool_BudgetEvictsLRUBucket
+--- PASS: TestPixmapPool_BudgetEvictsLRUBucket (0.00s)
+=== RUN   TestPixmapPool_KeepsActiveBucketOverBudget
+--- PASS: TestPixmapPool_KeepsActiveBucketOverBudget (0.00s)
+=== RUN   TestContext_Resize_EvictsStaleLayerSizes
+--- PASS: TestContext_Resize_EvictsStaleLayerSizes (0.26s)
+PASS

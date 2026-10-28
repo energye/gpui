@@ -1,0 +1,12 @@
+=== RUN   TestP03_MultiplyDualTexGPU
+    p03_advanced_blend_test.go:34: gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base_gpu=1
+    p03_advanced_blend_test.go:42: multiply rgba=0,0,0
+--- PASS: TestP03_MultiplyDualTexGPU (0.30s)
+=== RUN   TestP03_AdvancedLayerDualTexGPU
+    p03_advanced_blend_test.go:70: layer multiply gpu_ops=2 cpu_fallback_ops=0 frame_flushes=3
+    p03_advanced_blend_test.go:75: result rgba=255,0,0
+--- PASS: TestP03_AdvancedLayerDualTexGPU (0.01s)
+=== RUN   TestP03_LargeMultiplyTiled
+    p03_advanced_blend_test.go:107: large gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base=1
+--- PASS: TestP03_LargeMultiplyTiled (0.02s)
+PASS

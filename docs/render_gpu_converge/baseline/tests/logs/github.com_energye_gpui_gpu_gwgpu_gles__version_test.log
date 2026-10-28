@@ -1,0 +1,81 @@
+=== RUN   TestGLSLVersionToNaga
+=== RUN   TestGLSLVersionToNaga/desktop/330
+=== RUN   TestGLSLVersionToNaga/desktop/400
+=== RUN   TestGLSLVersionToNaga/desktop/410
+=== RUN   TestGLSLVersionToNaga/desktop/420
+=== RUN   TestGLSLVersionToNaga/desktop/430
+=== RUN   TestGLSLVersionToNaga/desktop/450
+=== RUN   TestGLSLVersionToNaga/desktop/460
+=== RUN   TestGLSLVersionToNaga/es/300
+=== RUN   TestGLSLVersionToNaga/es/310
+=== RUN   TestGLSLVersionToNaga/es/320
+=== RUN   TestGLSLVersionToNaga/zero/desktop_defaults_to_330
+=== RUN   TestGLSLVersionToNaga/zero/es_defaults_to_es300
+--- PASS: TestGLSLVersionToNaga (0.00s)
+    --- PASS: TestGLSLVersionToNaga/desktop/330 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/desktop/400 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/desktop/410 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/desktop/420 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/desktop/430 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/desktop/450 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/desktop/460 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/es/300 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/es/310 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/es/320 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/zero/desktop_defaults_to_330 (0.00s)
+    --- PASS: TestGLSLVersionToNaga/zero/es_defaults_to_es300 (0.00s)
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/330_no_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/400_no_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/410_no_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/419_no_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/420_has_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/430_has_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/450_has_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/es/300_no_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/es/309_no_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/es/310_has_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/es/320_has_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/zero/desktop_no_bindings
+=== RUN   TestGLSLVersionToNaga_SupportsExplicitLocations/zero/es_no_bindings
+--- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/330_no_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/400_no_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/410_no_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/419_no_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/420_has_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/430_has_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/desktop/450_has_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/es/300_no_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/es/309_no_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/es/310_has_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/es/320_has_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/zero/desktop_no_bindings (0.00s)
+    --- PASS: TestGLSLVersionToNaga_SupportsExplicitLocations/zero/es_no_bindings (0.00s)
+=== RUN   TestShaderBindingLayout
+=== RUN   TestShaderBindingLayout/GL_3.3/GLSL_330_no_layout
+=== RUN   TestShaderBindingLayout/GL_4.0/GLSL_400_no_layout
+=== RUN   TestShaderBindingLayout/GL_4.1/GLSL_410_no_layout
+=== RUN   TestShaderBindingLayout/GL_4.2/GLSL_420_has_layout
+=== RUN   TestShaderBindingLayout/GL_4.3/GLSL_430_has_layout
+=== RUN   TestShaderBindingLayout/GL_4.5/GLSL_450_has_layout
+=== RUN   TestShaderBindingLayout/GL_4.6/GLSL_460_has_layout
+=== RUN   TestShaderBindingLayout/GLES_3.0/GLSL_300_no_layout
+=== RUN   TestShaderBindingLayout/GLES_3.1/GLSL_310_has_layout
+=== RUN   TestShaderBindingLayout/GLES_3.2/GLSL_320_has_layout
+=== RUN   TestShaderBindingLayout/zero_desktop_no_layout
+=== RUN   TestShaderBindingLayout/zero_es_no_layout
+--- PASS: TestShaderBindingLayout (0.00s)
+    --- PASS: TestShaderBindingLayout/GL_3.3/GLSL_330_no_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/GL_4.0/GLSL_400_no_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/GL_4.1/GLSL_410_no_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/GL_4.2/GLSL_420_has_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/GL_4.3/GLSL_430_has_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/GL_4.5/GLSL_450_has_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/GL_4.6/GLSL_460_has_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/GLES_3.0/GLSL_300_no_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/GLES_3.1/GLSL_310_has_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/GLES_3.2/GLSL_320_has_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/zero_desktop_no_layout (0.00s)
+    --- PASS: TestShaderBindingLayout/zero_es_no_layout (0.00s)
+PASS

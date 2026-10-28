@@ -1,0 +1,17 @@
+=== RUN   TestVendorPinForPower
+=== RUN   TestVendorPinForPower/high_pins_nvidia
+=== RUN   TestVendorPinForPower/discrete_alias
+=== RUN   TestVendorPinForPower/low_pins_mesa
+=== RUN   TestVendorPinForPower/unset_leaves_loader_default
+=== RUN   TestVendorPinForPower/explicit_env_wins
+--- PASS: TestVendorPinForPower (0.00s)
+    --- PASS: TestVendorPinForPower/high_pins_nvidia (0.00s)
+    --- PASS: TestVendorPinForPower/discrete_alias (0.00s)
+    --- PASS: TestVendorPinForPower/low_pins_mesa (0.00s)
+    --- PASS: TestVendorPinForPower/unset_leaves_loader_default (0.00s)
+    --- PASS: TestVendorPinForPower/explicit_env_wins (0.00s)
+=== RUN   TestVendorPinMissingDirFailsOpen
+--- PASS: TestVendorPinMissingDirFailsOpen (0.00s)
+=== RUN   TestRendererIsSoftware
+--- PASS: TestRendererIsSoftware (0.00s)
+PASS

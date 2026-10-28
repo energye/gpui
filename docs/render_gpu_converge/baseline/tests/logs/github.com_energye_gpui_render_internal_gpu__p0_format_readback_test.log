@@ -1,0 +1,13 @@
+=== RUN   TestTextureUploadDownloadNative_UnalignedWidth
+--- PASS: TestTextureUploadDownloadNative_UnalignedWidth (0.25s)
+=== RUN   TestTextureUploadDownloadNative_BGRA8
+--- PASS: TestTextureUploadDownloadNative_BGRA8 (0.23s)
+=== RUN   TestTextureUploadDownloadNative_R8
+--- PASS: TestTextureUploadDownloadNative_R8 (0.22s)
+=== RUN   TestTextureClearNative_RGBAOpaqueColor
+--- PASS: TestTextureClearNative_RGBAOpaqueColor (0.21s)
+=== RUN   TestPackTextureUpload_R8AlphaPlane
+--- PASS: TestPackTextureUpload_R8AlphaPlane (0.00s)
+=== RUN   TestPackTextureUpload_UnalignedRGBA
+--- PASS: TestPackTextureUpload_UnalignedRGBA (0.00s)
+PASS

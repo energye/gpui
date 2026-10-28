@@ -1,0 +1,17 @@
+=== RUN   TestDiv255Fast
+--- PASS: TestDiv255Fast (0.00s)
+=== RUN   TestDiv255Exact
+--- PASS: TestDiv255Exact (0.00s)
+=== RUN   TestMulDiv255
+--- PASS: TestMulDiv255 (0.00s)
+=== RUN   TestMulDiv255AllValues
+--- PASS: TestMulDiv255AllValues (0.00s)
+=== RUN   TestInv255
+--- PASS: TestInv255 (0.00s)
+=== RUN   TestClamp255
+--- PASS: TestClamp255 (0.00s)
+=== RUN   TestAddClamp
+--- PASS: TestAddClamp (0.00s)
+=== RUN   TestSubClamp
+--- PASS: TestSubClamp (0.00s)
+PASS

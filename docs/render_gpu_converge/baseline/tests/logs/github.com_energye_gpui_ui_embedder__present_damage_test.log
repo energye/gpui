@@ -1,0 +1,9 @@
+=== RUN   TestPaintPresentTree_ForceFullDamagesWholeSurface
+--- PASS: TestPaintPresentTree_ForceFullDamagesWholeSurface (0.28s)
+=== RUN   TestPaintPresentTreeCompositeOnly_PartialOnlyDirtiesHotWidget
+--- PASS: TestPaintPresentTreeCompositeOnly_PartialOnlyDirtiesHotWidget (0.01s)
+=== RUN   TestPaintPresentTree_SteadyFullPaintKeepsStatic
+--- PASS: TestPaintPresentTree_SteadyFullPaintKeepsStatic (0.01s)
+=== RUN   TestPaintPresentTree_PartialSkipsCleanStatic
+--- PASS: TestPaintPresentTree_PartialSkipsCleanStatic (0.00s)
+PASS

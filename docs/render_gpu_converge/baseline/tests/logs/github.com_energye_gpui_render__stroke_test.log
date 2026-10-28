@@ -1,0 +1,101 @@
+=== RUN   TestDefaultStroke
+--- PASS: TestDefaultStroke (0.00s)
+=== RUN   TestStroke_WithWidth
+=== RUN   TestStroke_WithWidth/thin
+=== RUN   TestStroke_WithWidth/normal
+=== RUN   TestStroke_WithWidth/thick
+=== RUN   TestStroke_WithWidth/zero
+=== RUN   TestStroke_WithWidth/negative
+--- PASS: TestStroke_WithWidth (0.00s)
+    --- PASS: TestStroke_WithWidth/thin (0.00s)
+    --- PASS: TestStroke_WithWidth/normal (0.00s)
+    --- PASS: TestStroke_WithWidth/thick (0.00s)
+    --- PASS: TestStroke_WithWidth/zero (0.00s)
+    --- PASS: TestStroke_WithWidth/negative (0.00s)
+=== RUN   TestStroke_WithCap
+=== RUN   TestStroke_WithCap/butt
+=== RUN   TestStroke_WithCap/round
+=== RUN   TestStroke_WithCap/square
+--- PASS: TestStroke_WithCap (0.00s)
+    --- PASS: TestStroke_WithCap/butt (0.00s)
+    --- PASS: TestStroke_WithCap/round (0.00s)
+    --- PASS: TestStroke_WithCap/square (0.00s)
+=== RUN   TestStroke_WithJoin
+=== RUN   TestStroke_WithJoin/miter
+=== RUN   TestStroke_WithJoin/round
+=== RUN   TestStroke_WithJoin/bevel
+--- PASS: TestStroke_WithJoin (0.00s)
+    --- PASS: TestStroke_WithJoin/miter (0.00s)
+    --- PASS: TestStroke_WithJoin/round (0.00s)
+    --- PASS: TestStroke_WithJoin/bevel (0.00s)
+=== RUN   TestStroke_WithMiterLimit
+=== RUN   TestStroke_WithMiterLimit/one
+=== RUN   TestStroke_WithMiterLimit/default
+=== RUN   TestStroke_WithMiterLimit/high
+--- PASS: TestStroke_WithMiterLimit (0.00s)
+    --- PASS: TestStroke_WithMiterLimit/one (0.00s)
+    --- PASS: TestStroke_WithMiterLimit/default (0.00s)
+    --- PASS: TestStroke_WithMiterLimit/high (0.00s)
+=== RUN   TestStroke_WithDash
+=== RUN   TestStroke_WithDash/with_nil_dash
+=== RUN   TestStroke_WithDash/with_valid_dash
+=== RUN   TestStroke_WithDash/clears_dash_with_nil
+--- PASS: TestStroke_WithDash (0.00s)
+    --- PASS: TestStroke_WithDash/with_nil_dash (0.00s)
+    --- PASS: TestStroke_WithDash/with_valid_dash (0.00s)
+    --- PASS: TestStroke_WithDash/clears_dash_with_nil (0.00s)
+=== RUN   TestStroke_WithDashPattern
+=== RUN   TestStroke_WithDashPattern/empty_pattern
+=== RUN   TestStroke_WithDashPattern/simple_pattern
+=== RUN   TestStroke_WithDashPattern/single_value
+--- PASS: TestStroke_WithDashPattern (0.00s)
+    --- PASS: TestStroke_WithDashPattern/empty_pattern (0.00s)
+    --- PASS: TestStroke_WithDashPattern/simple_pattern (0.00s)
+    --- PASS: TestStroke_WithDashPattern/single_value (0.00s)
+=== RUN   TestStroke_WithDashOffset
+=== RUN   TestStroke_WithDashOffset/with_dash_set
+=== RUN   TestStroke_WithDashOffset/without_dash_set
+--- PASS: TestStroke_WithDashOffset (0.00s)
+    --- PASS: TestStroke_WithDashOffset/with_dash_set (0.00s)
+    --- PASS: TestStroke_WithDashOffset/without_dash_set (0.00s)
+=== RUN   TestStroke_IsDashed
+=== RUN   TestStroke_IsDashed/default_stroke
+=== RUN   TestStroke_IsDashed/with_dash
+=== RUN   TestStroke_IsDashed/with_nil_dash
+--- PASS: TestStroke_IsDashed (0.00s)
+    --- PASS: TestStroke_IsDashed/default_stroke (0.00s)
+    --- PASS: TestStroke_IsDashed/with_dash (0.00s)
+    --- PASS: TestStroke_IsDashed/with_nil_dash (0.00s)
+=== RUN   TestStroke_Clone
+=== RUN   TestStroke_Clone/clones_simple_stroke
+=== RUN   TestStroke_Clone/clones_stroke_with_dash
+=== RUN   TestStroke_Clone/modifying_clone_does_not_affect_original
+--- PASS: TestStroke_Clone (0.00s)
+    --- PASS: TestStroke_Clone/clones_simple_stroke (0.00s)
+    --- PASS: TestStroke_Clone/clones_stroke_with_dash (0.00s)
+    --- PASS: TestStroke_Clone/modifying_clone_does_not_affect_original (0.00s)
+=== RUN   TestStroke_FluentChaining
+--- PASS: TestStroke_FluentChaining (0.00s)
+=== RUN   TestPresetStrokes
+=== RUN   TestPresetStrokes/Thin
+=== RUN   TestPresetStrokes/Thick
+=== RUN   TestPresetStrokes/Bold
+=== RUN   TestPresetStrokes/RoundStroke
+=== RUN   TestPresetStrokes/SquareStroke
+=== RUN   TestPresetStrokes/DashedStroke
+=== RUN   TestPresetStrokes/DottedStroke
+--- PASS: TestPresetStrokes (0.00s)
+    --- PASS: TestPresetStrokes/Thin (0.00s)
+    --- PASS: TestPresetStrokes/Thick (0.00s)
+    --- PASS: TestPresetStrokes/Bold (0.00s)
+    --- PASS: TestPresetStrokes/RoundStroke (0.00s)
+    --- PASS: TestPresetStrokes/SquareStroke (0.00s)
+    --- PASS: TestPresetStrokes/DashedStroke (0.00s)
+    --- PASS: TestPresetStrokes/DottedStroke (0.00s)
+=== RUN   TestStroke_ValueSemantics
+=== RUN   TestStroke_ValueSemantics/WithWidth_returns_copy
+=== RUN   TestStroke_ValueSemantics/chained_calls_preserve_independence
+--- PASS: TestStroke_ValueSemantics (0.00s)
+    --- PASS: TestStroke_ValueSemantics/WithWidth_returns_copy (0.00s)
+    --- PASS: TestStroke_ValueSemantics/chained_calls_preserve_independence (0.00s)
+PASS

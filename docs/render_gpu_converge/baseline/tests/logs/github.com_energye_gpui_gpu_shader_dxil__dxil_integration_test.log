@@ -1,0 +1,66 @@
+=== RUN   TestCompile_EmptyVertex
+    dxil_integration_test.go:42: wrote 1972 bytes to ../tmp/test_empty_vs.dxil
+--- PASS: TestCompile_EmptyVertex (0.00s)
+=== RUN   TestDXC_ManualModuleWithConstants
+    dxil_integration_test.go:89: wrote 888 bytes to ../tmp/test_manual_constants.dxil
+--- PASS: TestDXC_ManualModuleWithConstants (0.00s)
+=== RUN   TestDXC_ManualModuleWithDeclOnly
+    dxil_integration_test.go:137: wrote 940 bytes to ../tmp/test_manual_decl_only.dxil
+--- PASS: TestDXC_ManualModuleWithDeclOnly (0.00s)
+=== RUN   TestDXC_ManualModuleWithDeclAndCall
+    dxil_integration_test.go:214: wrote 964 bytes to ../tmp/test_manual_call.dxil
+--- PASS: TestDXC_ManualModuleWithDeclAndCall (0.00s)
+=== RUN   TestDXC_MinimalCall
+    dxil_integration_test.go:267: wrote 912 bytes to ../tmp/test_minimal_call.dxil
+--- PASS: TestDXC_MinimalCall (0.00s)
+=== RUN   TestDXC_CallWithOneArg
+    dxil_integration_test.go:331: wrote 920 bytes to ../tmp/test_call_one_arg.dxil
+--- PASS: TestDXC_CallWithOneArg (0.00s)
+=== RUN   TestDXC_CallWithFiveArgs
+    dxil_integration_test.go:400: wrote 972 bytes to ../tmp/test_call_five_args.dxil
+--- PASS: TestDXC_CallWithFiveArgs (0.00s)
+=== RUN   TestDebug_PassthroughEmitterIDs
+    dxil_integration_test.go:455: Functions (3):
+    dxil_integration_test.go:457:   [0] main (decl=false, valueID=0, typeID=1)
+    dxil_integration_test.go:457:   [1] dx.op.loadInput.f32 (decl=true, valueID=1, typeID=5)
+    dxil_integration_test.go:457:   [2] dx.op.storeOutput.f32 (decl=true, valueID=2, typeID=6)
+    dxil_integration_test.go:460: Constants (24):
+    dxil_integration_test.go:467:   [0] int 4 (valueID=3)
+    dxil_integration_test.go:467:   [1] int 0 (valueID=4)
+    dxil_integration_test.go:467:   [2] int 0 (valueID=5)
+    dxil_integration_test.go:463:   [3] undef (type=1, valueID=6)
+    dxil_integration_test.go:467:   [4] int 1 (valueID=7)
+    dxil_integration_test.go:467:   [5] int 2 (valueID=8)
+    dxil_integration_test.go:467:   [6] int 3 (valueID=9)
+    dxil_integration_test.go:467:   [7] int 5 (valueID=10)
+    dxil_integration_test.go:467:   [8] int 1 (valueID=11)
+    dxil_integration_test.go:467:   [9] int 8 (valueID=12)
+    dxil_integration_test.go:467:   [10] int 6 (valueID=13)
+    dxil_integration_test.go:467:   [11] int 0 (valueID=14)
+    dxil_integration_test.go:467:   [12] int 9 (valueID=15)
+    dxil_integration_test.go:467:   [13] int 3 (valueID=16)
+    dxil_integration_test.go:467:   [14] int 0 (valueID=17)
+    dxil_integration_test.go:467:   [15] int 4 (valueID=18)
+    dxil_integration_test.go:467:   [16] int 0 (valueID=19)
+    dxil_integration_test.go:467:   [17] int 3 (valueID=20)
+    dxil_integration_test.go:467:   [18] int 15 (valueID=21)
+    dxil_integration_test.go:467:   [19] int 9 (valueID=22)
+    dxil_integration_test.go:467:   [20] int 3 (valueID=23)
+    dxil_integration_test.go:467:   [21] int 4 (valueID=24)
+    dxil_integration_test.go:467:   [22] int 4 (valueID=25)
+    dxil_integration_test.go:467:   [23] int 0 (valueID=26)
+    dxil_integration_test.go:472: globalValueCount=27
+    dxil_integration_test.go:484:   instr[0]: kind=2, hasValue=true, valueID=27, operands=[3 4 4 5 6], callee=dx.op.loadInput.f32
+    dxil_integration_test.go:484:   instr[1]: kind=2, hasValue=true, valueID=28, operands=[3 4 4 7 6], callee=dx.op.loadInput.f32
+    dxil_integration_test.go:484:   instr[2]: kind=2, hasValue=true, valueID=29, operands=[3 4 4 8 6], callee=dx.op.loadInput.f32
+    dxil_integration_test.go:484:   instr[3]: kind=2, hasValue=true, valueID=30, operands=[3 4 4 9 6], callee=dx.op.loadInput.f32
+    dxil_integration_test.go:484:   instr[4]: kind=2, hasValue=false, valueID=12, operands=[10 4 4 5 27], callee=dx.op.storeOutput.f32
+    dxil_integration_test.go:484:   instr[5]: kind=2, hasValue=false, valueID=13, operands=[10 4 4 7 28], callee=dx.op.storeOutput.f32
+    dxil_integration_test.go:484:   instr[6]: kind=2, hasValue=false, valueID=14, operands=[10 4 4 8 29], callee=dx.op.storeOutput.f32
+    dxil_integration_test.go:484:   instr[7]: kind=2, hasValue=false, valueID=15, operands=[10 4 4 9 30], callee=dx.op.storeOutput.f32
+    dxil_integration_test.go:484:   instr[8]: kind=0, hasValue=false, valueID=0, operands=[], callee=<nil>
+--- PASS: TestDebug_PassthroughEmitterIDs (0.00s)
+=== RUN   TestDXC_StoreOutputShader
+    dxil_integration_test.go:587: wrote 1024 bytes to ../tmp/test_storeoutput_ps.dxil
+--- PASS: TestDXC_StoreOutputShader (0.00s)
+PASS

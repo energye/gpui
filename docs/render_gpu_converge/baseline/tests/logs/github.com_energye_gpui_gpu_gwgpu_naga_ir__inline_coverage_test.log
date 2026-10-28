@@ -1,0 +1,71 @@
+=== RUN   TestBlockContainsReturn
+=== RUN   TestBlockContainsReturn/empty_block
+=== RUN   TestBlockContainsReturn/direct_return
+=== RUN   TestBlockContainsReturn/no_return
+=== RUN   TestBlockContainsReturn/return_in_if_accept
+=== RUN   TestBlockContainsReturn/return_in_if_reject
+=== RUN   TestBlockContainsReturn/return_in_switch_case
+=== RUN   TestBlockContainsReturn/return_in_loop_body
+=== RUN   TestBlockContainsReturn/return_in_loop_continuing
+=== RUN   TestBlockContainsReturn/return_in_nested_block
+=== RUN   TestBlockContainsReturn/no_return_in_nested_structures
+--- PASS: TestBlockContainsReturn (0.00s)
+    --- PASS: TestBlockContainsReturn/empty_block (0.00s)
+    --- PASS: TestBlockContainsReturn/direct_return (0.00s)
+    --- PASS: TestBlockContainsReturn/no_return (0.00s)
+    --- PASS: TestBlockContainsReturn/return_in_if_accept (0.00s)
+    --- PASS: TestBlockContainsReturn/return_in_if_reject (0.00s)
+    --- PASS: TestBlockContainsReturn/return_in_switch_case (0.00s)
+    --- PASS: TestBlockContainsReturn/return_in_loop_body (0.00s)
+    --- PASS: TestBlockContainsReturn/return_in_loop_continuing (0.00s)
+    --- PASS: TestBlockContainsReturn/return_in_nested_block (0.00s)
+    --- PASS: TestBlockContainsReturn/no_return_in_nested_structures (0.00s)
+=== RUN   TestBlockHasEarlyReturn
+=== RUN   TestBlockHasEarlyReturn/empty_block
+=== RUN   TestBlockHasEarlyReturn/tail_return_only_is_not_early
+=== RUN   TestBlockHasEarlyReturn/return_in_if_accept_is_early
+=== RUN   TestBlockHasEarlyReturn/return_in_if_reject_is_early
+=== RUN   TestBlockHasEarlyReturn/return_in_switch_is_early
+=== RUN   TestBlockHasEarlyReturn/return_in_loop_body_is_early
+=== RUN   TestBlockHasEarlyReturn/return_in_loop_continuing_is_early
+=== RUN   TestBlockHasEarlyReturn/return_in_nested_block_is_early
+=== RUN   TestBlockHasEarlyReturn/no_return_anywhere
+--- PASS: TestBlockHasEarlyReturn (0.00s)
+    --- PASS: TestBlockHasEarlyReturn/empty_block (0.00s)
+    --- PASS: TestBlockHasEarlyReturn/tail_return_only_is_not_early (0.00s)
+    --- PASS: TestBlockHasEarlyReturn/return_in_if_accept_is_early (0.00s)
+    --- PASS: TestBlockHasEarlyReturn/return_in_if_reject_is_early (0.00s)
+    --- PASS: TestBlockHasEarlyReturn/return_in_switch_is_early (0.00s)
+    --- PASS: TestBlockHasEarlyReturn/return_in_loop_body_is_early (0.00s)
+    --- PASS: TestBlockHasEarlyReturn/return_in_loop_continuing_is_early (0.00s)
+    --- PASS: TestBlockHasEarlyReturn/return_in_nested_block_is_early (0.00s)
+    --- PASS: TestBlockHasEarlyReturn/no_return_anywhere (0.00s)
+=== RUN   TestShouldAliasArgType
+=== RUN   TestShouldAliasArgType/PointerType
+=== RUN   TestShouldAliasArgType/ImageType
+=== RUN   TestShouldAliasArgType/SamplerType
+=== RUN   TestShouldAliasArgType/BindingArrayType
+=== RUN   TestShouldAliasArgType/VectorType
+=== RUN   TestShouldAliasArgType/MatrixType
+=== RUN   TestShouldAliasArgType/ArrayType
+=== RUN   TestShouldAliasArgType/StructType
+=== RUN   TestShouldAliasArgType/ScalarType_f32
+=== RUN   TestShouldAliasArgType/ScalarType_u32
+=== RUN   TestShouldAliasArgType/ScalarType_i32
+=== RUN   TestShouldAliasArgType/ScalarType_bool
+=== RUN   TestShouldAliasArgType/AtomicType
+--- PASS: TestShouldAliasArgType (0.00s)
+    --- PASS: TestShouldAliasArgType/PointerType (0.00s)
+    --- PASS: TestShouldAliasArgType/ImageType (0.00s)
+    --- PASS: TestShouldAliasArgType/SamplerType (0.00s)
+    --- PASS: TestShouldAliasArgType/BindingArrayType (0.00s)
+    --- PASS: TestShouldAliasArgType/VectorType (0.00s)
+    --- PASS: TestShouldAliasArgType/MatrixType (0.00s)
+    --- PASS: TestShouldAliasArgType/ArrayType (0.00s)
+    --- PASS: TestShouldAliasArgType/StructType (0.00s)
+    --- PASS: TestShouldAliasArgType/ScalarType_f32 (0.00s)
+    --- PASS: TestShouldAliasArgType/ScalarType_u32 (0.00s)
+    --- PASS: TestShouldAliasArgType/ScalarType_i32 (0.00s)
+    --- PASS: TestShouldAliasArgType/ScalarType_bool (0.00s)
+    --- PASS: TestShouldAliasArgType/AtomicType (0.00s)
+PASS

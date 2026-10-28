@@ -1,0 +1,7 @@
+=== RUN   TestScriptDetection_Thai
+--- PASS: TestScriptDetection_Thai (0.00s)
+=== RUN   TestScriptData_Generated
+--- PASS: TestScriptData_Generated (0.00s)
+=== RUN   TestScriptClasses_Order
+--- PASS: TestScriptClasses_Order (0.00s)
+PASS

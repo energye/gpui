@@ -1,0 +1,3 @@
+=== RUN   TestUpload_SelectProgressRemoveMaxCount
+--- PASS: TestUpload_SelectProgressRemoveMaxCount (0.00s)
+PASS

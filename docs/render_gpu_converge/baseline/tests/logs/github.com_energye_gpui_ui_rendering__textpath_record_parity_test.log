@@ -1,0 +1,5 @@
+=== RUN   TestTextPathCardRecords
+--- PASS: TestTextPathCardRecords (0.01s)
+=== RUN   TestStrokeStringRecords
+--- PASS: TestStrokeStringRecords (0.01s)
+PASS

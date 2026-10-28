@@ -1,0 +1,13 @@
+=== RUN   TestGDEF_ParseAndIgnoreMarks
+--- PASS: TestGDEF_ParseAndIgnoreMarks (0.00s)
+=== RUN   TestGSUB_Ligature_IgnoreMarks
+--- PASS: TestGSUB_Ligature_IgnoreMarks (0.00s)
+=== RUN   TestNextMatchIndex_SkipMarks
+--- PASS: TestNextMatchIndex_SkipMarks (0.00s)
+=== RUN   TestGDEF_MarkAttachmentType
+--- PASS: TestGDEF_MarkAttachmentType (0.00s)
+=== RUN   TestGDEF_MarkFilteringSet
+--- PASS: TestGDEF_MarkFilteringSet (0.00s)
+=== RUN   TestParseLookup_MarkFilteringSet
+--- PASS: TestParseLookup_MarkFilteringSet (0.00s)
+PASS

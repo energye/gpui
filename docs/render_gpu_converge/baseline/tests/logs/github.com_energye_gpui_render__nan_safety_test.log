@@ -1,0 +1,43 @@
+=== RUN   TestNaN_StrokeCubic_NoCrash
+--- PASS: TestNaN_StrokeCubic_NoCrash (0.00s)
+=== RUN   TestNaN_StrokeQuad_NoCrash
+--- PASS: TestNaN_StrokeQuad_NoCrash (0.00s)
+=== RUN   TestNaN_FillCubic_NoCrash
+--- PASS: TestNaN_FillCubic_NoCrash (0.28s)
+=== RUN   TestNaN_FillQuad_NoCrash
+--- PASS: TestNaN_FillQuad_NoCrash (0.00s)
+=== RUN   TestNaN_PathFlatten_NoCrash
+=== RUN   TestNaN_PathFlatten_NoCrash/cubic_NaN_control_point_1
+=== RUN   TestNaN_PathFlatten_NoCrash/cubic_all_NaN
+=== RUN   TestNaN_PathFlatten_NoCrash/quad_NaN_control_point
+=== RUN   TestNaN_PathFlatten_NoCrash/cubic_NaN_endpoint
+--- PASS: TestNaN_PathFlatten_NoCrash (0.00s)
+    --- PASS: TestNaN_PathFlatten_NoCrash/cubic_NaN_control_point_1 (0.00s)
+    --- PASS: TestNaN_PathFlatten_NoCrash/cubic_all_NaN (0.00s)
+    --- PASS: TestNaN_PathFlatten_NoCrash/quad_NaN_control_point (0.00s)
+    --- PASS: TestNaN_PathFlatten_NoCrash/cubic_NaN_endpoint (0.00s)
+=== RUN   TestNaN_PathLength_NoCrash
+=== RUN   TestNaN_PathLength_NoCrash/cubic_NaN_control_point
+=== RUN   TestNaN_PathLength_NoCrash/quad_NaN_control_point
+--- PASS: TestNaN_PathLength_NoCrash (0.02s)
+    --- PASS: TestNaN_PathLength_NoCrash/cubic_NaN_control_point (0.01s)
+    --- PASS: TestNaN_PathLength_NoCrash/quad_NaN_control_point (0.01s)
+=== RUN   TestNaN_PathContains_NoCrash
+=== RUN   TestNaN_PathContains_NoCrash/cubic_NaN_control_point
+=== RUN   TestNaN_PathContains_NoCrash/quad_NaN_control_point
+--- PASS: TestNaN_PathContains_NoCrash (0.00s)
+    --- PASS: TestNaN_PathContains_NoCrash/cubic_NaN_control_point (0.00s)
+    --- PASS: TestNaN_PathContains_NoCrash/quad_NaN_control_point (0.00s)
+=== RUN   TestNaN_DashStroke_NoCrash
+--- PASS: TestNaN_DashStroke_NoCrash (0.00s)
+=== RUN   TestNaN_DashStrokeQuad_NoCrash
+--- PASS: TestNaN_DashStrokeQuad_NoCrash (0.00s)
+=== RUN   TestInf_StrokeCubic_NoCrash
+--- PASS: TestInf_StrokeCubic_NoCrash (0.00s)
+=== RUN   TestInf_FillCubic_NoCrash
+--- PASS: TestInf_FillCubic_NoCrash (0.00s)
+=== RUN   TestInf_PathFlatten_NoCrash
+--- PASS: TestInf_PathFlatten_NoCrash (0.00s)
+=== RUN   TestInf_PathLength_NoCrash
+--- PASS: TestInf_PathLength_NoCrash (0.01s)
+PASS

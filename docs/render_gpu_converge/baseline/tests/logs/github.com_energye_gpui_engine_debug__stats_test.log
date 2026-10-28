@@ -1,0 +1,16 @@
+=== RUN   TestStatsFromCases
+--- PASS: TestStatsFromCases (0.00s)
+=== RUN   TestStatsEdgesNoCrash
+--- PASS: TestStatsEdgesNoCrash (0.00s)
+=== RUN   TestStatsBoundaryIdentical
+--- PASS: TestStatsBoundaryIdentical (0.00s)
+=== RUN   TestStatsReportPerf
+    stats_test.go:502: stats-report: 2000 reps encode+parse 624B in 71.476834ms (35.7 us/rep)
+    stats_test.go:514: stats-shader: 2000 reps record in 38.811µs (19.4 ns/op)
+    stats_test.go:537: stats-file: store+load report+crash in 294.401µs
+--- PASS: TestStatsReportPerf (0.07s)
+=== RUN   TestStatsLongRunStable
+--- PASS: TestStatsLongRunStable (0.09s)
+=== RUN   TestStatsOffscreenGolden
+--- PASS: TestStatsOffscreenGolden (0.00s)
+PASS

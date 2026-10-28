@@ -1,0 +1,15 @@
+=== RUN   TestC2bImagePatternParity
+--- PASS: TestC2bImagePatternParity (0.00s)
+=== RUN   TestC2bSetStrokeParity
+--- PASS: TestC2bSetStrokeParity (0.00s)
+=== RUN   TestC2bClipOpParity
+--- PASS: TestC2bClipOpParity (0.00s)
+=== RUN   TestC2bMeshParity
+--- PASS: TestC2bMeshParity (0.00s)
+=== RUN   TestC2bTextStateParity
+--- PASS: TestC2bTextStateParity (0.01s)
+=== RUN   TestC2bAntiAliasParity
+--- PASS: TestC2bAntiAliasParity (0.00s)
+=== RUN   TestC2bSetTransformParity
+--- PASS: TestC2bSetTransformParity (0.00s)
+PASS

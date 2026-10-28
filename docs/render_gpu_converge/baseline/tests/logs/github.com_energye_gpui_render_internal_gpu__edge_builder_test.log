@@ -1,0 +1,95 @@
+=== RUN   TestChopQuadAtYExtrema
+=== RUN   TestChopQuadAtYExtrema/already_monotonic_(going_down)
+    edge_builder_test.go:85: input: [{0 0} {50 50} {100 100}] -> 0 chops
+    edge_builder_test.go:87:   segment 0: [0.0,0.0] -> [50.0,50.0] -> [100.0,100.0]
+=== RUN   TestChopQuadAtYExtrema/already_monotonic_(going_up)
+    edge_builder_test.go:85: input: [{0 100} {50 50} {100 0}] -> 0 chops
+    edge_builder_test.go:87:   segment 0: [0.0,100.0] -> [50.0,50.0] -> [100.0,0.0]
+=== RUN   TestChopQuadAtYExtrema/has_Y_extremum_(arch_up)
+    edge_builder_test.go:85: input: [{0 0} {50 100} {100 0}] -> 1 chops
+    edge_builder_test.go:87:   segment 0: [0.0,0.0] -> [25.0,50.0] -> [50.0,50.0]
+    edge_builder_test.go:87:   segment 1: [50.0,50.0] -> [75.0,50.0] -> [100.0,0.0]
+=== RUN   TestChopQuadAtYExtrema/has_Y_extremum_(arch_down)
+    edge_builder_test.go:85: input: [{0 100} {50 0} {100 100}] -> 1 chops
+    edge_builder_test.go:87:   segment 0: [0.0,100.0] -> [25.0,50.0] -> [50.0,50.0]
+    edge_builder_test.go:87:   segment 1: [50.0,50.0] -> [75.0,50.0] -> [100.0,100.0]
+=== RUN   TestChopQuadAtYExtrema/horizontal_line
+    edge_builder_test.go:85: input: [{0 50} {50 50} {100 50}] -> 0 chops
+    edge_builder_test.go:87:   segment 0: [0.0,50.0] -> [50.0,50.0] -> [100.0,50.0]
+=== RUN   TestChopQuadAtYExtrema/small_deviation
+    edge_builder_test.go:85: input: [{0 0} {50 51} {100 100}] -> 0 chops
+    edge_builder_test.go:87:   segment 0: [0.0,0.0] -> [50.0,51.0] -> [100.0,100.0]
+--- PASS: TestChopQuadAtYExtrema (0.00s)
+    --- PASS: TestChopQuadAtYExtrema/already_monotonic_(going_down) (0.00s)
+    --- PASS: TestChopQuadAtYExtrema/already_monotonic_(going_up) (0.00s)
+    --- PASS: TestChopQuadAtYExtrema/has_Y_extremum_(arch_up) (0.00s)
+    --- PASS: TestChopQuadAtYExtrema/has_Y_extremum_(arch_down) (0.00s)
+    --- PASS: TestChopQuadAtYExtrema/horizontal_line (0.00s)
+    --- PASS: TestChopQuadAtYExtrema/small_deviation (0.00s)
+=== RUN   TestChopCubicAtYExtrema
+=== RUN   TestChopCubicAtYExtrema/already_monotonic_(straight_down)
+    edge_builder_test.go:161: input: [{0 0} {33 33} {66 66} {100 100}] -> 0 chops
+=== RUN   TestChopCubicAtYExtrema/S-curve_(two_extrema)
+    edge_builder_test.go:161: input: [{0 50} {100 0} {0 100} {100 50}] -> 2 chops
+=== RUN   TestChopCubicAtYExtrema/one_extremum_(arch)
+    edge_builder_test.go:161: input: [{0 0} {50 100} {50 100} {100 0}] -> 1 chops
+=== RUN   TestChopCubicAtYExtrema/horizontal_cubic
+    edge_builder_test.go:161: input: [{0 50} {33 50} {66 50} {100 50}] -> 0 chops
+=== RUN   TestChopCubicAtYExtrema/real_world_curve_(smooth)
+    edge_builder_test.go:161: input: [{10 20} {67 437} {298 213} {401 214}] -> 2 chops
+--- PASS: TestChopCubicAtYExtrema (0.00s)
+    --- PASS: TestChopCubicAtYExtrema/already_monotonic_(straight_down) (0.00s)
+    --- PASS: TestChopCubicAtYExtrema/S-curve_(two_extrema) (0.00s)
+    --- PASS: TestChopCubicAtYExtrema/one_extremum_(arch) (0.00s)
+    --- PASS: TestChopCubicAtYExtrema/horizontal_cubic (0.00s)
+    --- PASS: TestChopCubicAtYExtrema/real_world_curve_(smooth) (0.00s)
+=== RUN   TestEdgeBuilderBasic
+=== RUN   TestEdgeBuilderBasic/new_builder_is_empty
+=== RUN   TestEdgeBuilderBasic/reset_clears_edges
+--- PASS: TestEdgeBuilderBasic (0.00s)
+    --- PASS: TestEdgeBuilderBasic/new_builder_is_empty (0.00s)
+    --- PASS: TestEdgeBuilderBasic/reset_clears_edges (0.00s)
+=== RUN   TestEdgeBuilderLinePath
+    edge_builder_test.go:219: Triangle: 2 line edges
+--- PASS: TestEdgeBuilderLinePath (0.00s)
+=== RUN   TestEdgeBuilderQuadPath
+    edge_builder_test.go:259: Quad path: 0 lines, 2 quads, 0 cubics
+--- PASS: TestEdgeBuilderQuadPath (0.00s)
+=== RUN   TestEdgeBuilderCubicPath
+    edge_builder_test.go:280: Cubic path: 0 lines, 0 quads, 3 cubics
+--- PASS: TestEdgeBuilderCubicPath (0.00s)
+=== RUN   TestEdgeBuilderTransform
+--- PASS: TestEdgeBuilderTransform (0.00s)
+=== RUN   TestEdgeBuilderAllEdgesOrder
+    edge_builder_test.go:337: Edge top Ys: [0 0 40 40 80 80] (should be ascending)
+--- PASS: TestEdgeBuilderAllEdgesOrder (0.00s)
+=== RUN   TestEdgeBuilderCircle
+    edge_builder_test.go:355: Circle: 0 lines, 0 quads, 4 cubics, total 4
+--- PASS: TestEdgeBuilderCircle (0.00s)
+=== RUN   TestEdgeBuilderWithAA
+--- PASS: TestEdgeBuilderWithAA (0.00s)
+=== RUN   TestEdgeBuilderIterators
+    edge_builder_test.go:434: Mixed path: 2 lines, 2 quads, 2 cubics
+--- PASS: TestEdgeBuilderIterators (0.00s)
+=== RUN   TestEdgeBuilderHorizontalLine
+--- PASS: TestEdgeBuilderHorizontalLine (0.00s)
+=== RUN   TestEdgeBuilderVerticalCombine
+    edge_builder_test.go:471: Two vertical lines: 0 edges
+--- PASS: TestEdgeBuilderVerticalCombine (0.00s)
+=== RUN   TestQuadIsYMonotonic
+=== RUN   TestQuadIsYMonotonic/going_down
+=== RUN   TestQuadIsYMonotonic/going_up
+=== RUN   TestQuadIsYMonotonic/arch
+=== RUN   TestQuadIsYMonotonic/valley
+--- PASS: TestQuadIsYMonotonic (0.00s)
+    --- PASS: TestQuadIsYMonotonic/going_down (0.00s)
+    --- PASS: TestQuadIsYMonotonic/going_up (0.00s)
+    --- PASS: TestQuadIsYMonotonic/arch (0.00s)
+    --- PASS: TestQuadIsYMonotonic/valley (0.00s)
+=== RUN   TestCubicIsYMonotonic
+=== RUN   TestCubicIsYMonotonic/straight_down
+=== RUN   TestCubicIsYMonotonic/S-curve
+--- PASS: TestCubicIsYMonotonic (0.00s)
+    --- PASS: TestCubicIsYMonotonic/straight_down (0.00s)
+    --- PASS: TestCubicIsYMonotonic/S-curve (0.00s)
+PASS

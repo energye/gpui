@@ -1,0 +1,9 @@
+=== RUN   TestOpt30_ConvexVertexStride_Is16
+--- PASS: TestOpt30_ConvexVertexStride_Is16 (0.00s)
+=== RUN   TestOpt30_PackColorUnorm8x4_ExactSolids
+--- PASS: TestOpt30_PackColorUnorm8x4_ExactSolids (0.00s)
+=== RUN   TestOpt30_PackMeshVerts_MatchesWriteConvexVertex
+--- PASS: TestOpt30_PackMeshVerts_MatchesWriteConvexVertex (0.00s)
+=== RUN   TestOpt30_BuildConvex_WhiteSolid_ColorBits
+--- PASS: TestOpt30_BuildConvex_WhiteSolid_ColorBits (0.00s)
+PASS

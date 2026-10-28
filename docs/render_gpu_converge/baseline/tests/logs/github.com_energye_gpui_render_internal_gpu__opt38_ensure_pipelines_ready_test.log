@@ -1,0 +1,7 @@
+=== RUN   TestOpt38_EnsurePipelines_ReadyFastPath
+    opt38_ensure_pipelines_ready_test.go:36: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestOpt38_EnsurePipelines_ReadyFastPath (0.19s)
+=== RUN   TestOpt38_EnsurePipelines_WarmRenderFrame
+    opt38_ensure_pipelines_ready_test.go:120: frame 0: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestOpt38_EnsurePipelines_WarmRenderFrame (0.07s)
+FAIL

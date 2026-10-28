@@ -1,0 +1,5 @@
+=== RUN   TestPerformance_BudgetsAndIsolation
+--- PASS: TestPerformance_BudgetsAndIsolation (0.00s)
+=== RUN   TestPerformance_CacheAndVirtual
+--- PASS: TestPerformance_CacheAndVirtual (0.00s)
+PASS

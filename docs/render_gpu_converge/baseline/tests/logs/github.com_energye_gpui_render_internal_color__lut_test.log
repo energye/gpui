@@ -1,0 +1,38 @@
+=== RUN   TestSRGBToLinearAccuracy
+    lut_test.go:23: Max sRGB→Linear error: 0.000000
+--- PASS: TestSRGBToLinearAccuracy (0.00s)
+=== RUN   TestLinearToSRGBAccuracy
+    lut_test.go:49: Max Linear→sRGB error: 1 bytes (out of 255)
+    lut_test.go:50: Errors > 1 byte: 0 / 1001 = 0.00%
+--- PASS: TestLinearToSRGBAccuracy (0.00s)
+=== RUN   TestSRGBRoundTrip
+    lut_test.go:76: Max round-trip error: 0 bytes
+--- PASS: TestSRGBRoundTrip (0.00s)
+=== RUN   TestLinearRoundTrip
+    lut_test.go:95: Max linear round-trip error: 0.004314
+--- PASS: TestLinearRoundTrip (0.00s)
+=== RUN   TestEdgeCases
+=== RUN   TestEdgeCases/black
+=== RUN   TestEdgeCases/white
+=== RUN   TestEdgeCases/mid-gray
+=== RUN   TestEdgeCases/quarter
+=== RUN   TestEdgeCases/three-quarter
+=== RUN   TestEdgeCases/black#01
+=== RUN   TestEdgeCases/white#01
+=== RUN   TestEdgeCases/below-zero
+=== RUN   TestEdgeCases/above-one
+=== RUN   TestEdgeCases/mid-linear
+--- PASS: TestEdgeCases (0.00s)
+    --- PASS: TestEdgeCases/black (0.00s)
+    --- PASS: TestEdgeCases/white (0.00s)
+    --- PASS: TestEdgeCases/mid-gray (0.00s)
+    --- PASS: TestEdgeCases/quarter (0.00s)
+    --- PASS: TestEdgeCases/three-quarter (0.00s)
+    --- PASS: TestEdgeCases/black#01 (0.00s)
+    --- PASS: TestEdgeCases/white#01 (0.00s)
+    --- PASS: TestEdgeCases/below-zero (0.00s)
+    --- PASS: TestEdgeCases/above-one (0.00s)
+    --- PASS: TestEdgeCases/mid-linear (0.00s)
+=== RUN   TestLUTInitialization
+--- PASS: TestLUTInitialization (0.00s)
+PASS

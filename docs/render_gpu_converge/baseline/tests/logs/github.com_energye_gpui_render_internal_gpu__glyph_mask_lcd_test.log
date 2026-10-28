@@ -1,0 +1,23 @@
+=== RUN   TestMakeGlyphMaskLCDUniform
+--- PASS: TestMakeGlyphMaskLCDUniform (0.00s)
+=== RUN   TestMakeGlyphMaskLCDUniform_Transform
+--- PASS: TestMakeGlyphMaskLCDUniform_Transform (0.00s)
+=== RUN   TestHasLCDBatches
+=== RUN   TestHasLCDBatches/empty
+=== RUN   TestHasLCDBatches/all_grayscale
+=== RUN   TestHasLCDBatches/one_lcd
+=== RUN   TestHasLCDBatches/all_lcd
+--- PASS: TestHasLCDBatches (0.00s)
+    --- PASS: TestHasLCDBatches/empty (0.00s)
+    --- PASS: TestHasLCDBatches/all_grayscale (0.00s)
+    --- PASS: TestHasLCDBatches/one_lcd (0.00s)
+    --- PASS: TestHasLCDBatches/all_lcd (0.00s)
+=== RUN   TestGlyphMaskBatch_LCDFields
+--- PASS: TestGlyphMaskBatch_LCDFields (0.00s)
+=== RUN   TestGlyphMaskFrameResources_IsLCD
+--- PASS: TestGlyphMaskFrameResources_IsLCD (0.00s)
+=== RUN   TestSelectGlyphMaskLCD_LCDLayoutAware
+--- PASS: TestSelectGlyphMaskLCD_LCDLayoutAware (0.00s)
+=== RUN   TestGlyphMaskLCDUniformSize
+--- PASS: TestGlyphMaskLCDUniformSize (0.00s)
+PASS

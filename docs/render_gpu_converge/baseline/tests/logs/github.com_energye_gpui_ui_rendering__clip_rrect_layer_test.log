@@ -1,0 +1,9 @@
+=== RUN   TestBuildLayerTree_ClipRRectLayer
+--- PASS: TestBuildLayerTree_ClipRRectLayer (0.00s)
+=== RUN   TestBuildLayerTree_ClipRRectLayer_NonBoundary
+--- PASS: TestBuildLayerTree_ClipRRectLayer_NonBoundary (0.00s)
+=== RUN   TestRenderClipRRect_PaintClipsCorners
+--- PASS: TestRenderClipRRect_PaintClipsCorners (0.00s)
+=== RUN   TestRenderClipRRect_SetRadiusPaintOnly
+--- PASS: TestRenderClipRRect_SetRadiusPaintOnly (0.00s)
+PASS

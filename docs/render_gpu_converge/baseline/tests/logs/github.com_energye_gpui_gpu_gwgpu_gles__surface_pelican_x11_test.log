@@ -1,0 +1,6 @@
+=== RUN   TestH4E3_PelicanWindowPresentX11
+    surface_pelican_x11_test.go:273: pelican-size frame pixels md5: 269cded18ab5694330c468c77d6b2aa4
+    surface_pelican_x11_test.go:285: H4-e3 X11 pelican-size frame1 presented (window 0xc00001, 1200x700)
+    surface_pelican_x11_test.go:299: H4-e3 X11 pelican-size frame2 presented, eglSwapBuffers zero-error x2
+--- PASS: TestH4E3_PelicanWindowPresentX11 (1.31s)
+PASS

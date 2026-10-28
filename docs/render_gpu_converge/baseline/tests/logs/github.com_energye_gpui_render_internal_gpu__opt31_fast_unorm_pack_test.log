@@ -1,0 +1,7 @@
+=== RUN   TestOpt31_PackColorUnorm8x4RGBA_MatchesArray
+--- PASS: TestOpt31_PackColorUnorm8x4RGBA_MatchesArray (0.00s)
+=== RUN   TestOpt31_PackMeshVerts_MatchesWriteConvexVertex
+--- PASS: TestOpt31_PackMeshVerts_MatchesWriteConvexVertex (0.00s)
+=== RUN   TestOpt31_PackMeshVerts_SolidColor_NoPerVertQuant
+--- PASS: TestOpt31_PackMeshVerts_SolidColor_NoPerVertQuant (0.00s)
+PASS

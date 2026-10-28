@@ -1,0 +1,30 @@
+=== RUN   TestDeviceLostOnObject
+--- PASS: TestDeviceLostOnObject (0.00s)
+=== RUN   TestNewDeviceNotPoisonedByOldLost
+--- PASS: TestNewDeviceNotPoisonedByOldLost (0.00s)
+=== RUN   TestDeviceLostHandler_MarksDeviceObject
+2026/10/28 17:05:08 rwgpu: DeviceLostCallback ENTER reason=1 msg="gpu reset" devicePtr=0xc00003ef18 handle=0x5555 userdata1=5
+2026/10/28 17:05:08 rwgpu: DeviceLostCallback DONE sticky_lost=true routed_device=true
+--- PASS: TestDeviceLostHandler_MarksDeviceObject (0.00s)
+=== RUN   TestDeviceLostHandler_UserdataIsolatesDevices
+2026/10/28 17:05:08 rwgpu: DeviceLostCallback ENTER reason=1 msg="" devicePtr=0x0 handle=0x0 userdata1=7
+2026/10/28 17:05:08 rwgpu: DeviceLostCallback DONE sticky_lost=true routed_device=true
+--- PASS: TestDeviceLostHandler_UserdataIsolatesDevices (0.00s)
+=== RUN   TestUncapturedMarksLostWhenMessageMatches
+2026/10/28 17:05:08 rwgpu: Uncaptured looksLikeDeviceLost type=2 msg="Parent device is lost" owner=0x7777 userdata1=9
+--- PASS: TestUncapturedMarksLostWhenMessageMatches (0.00s)
+=== RUN   TestUncapturedNonLostMessageDoesNotMarkLost
+--- PASS: TestUncapturedNonLostMessageDoesNotMarkLost (0.00s)
+=== RUN   TestMarkDeviceLostFromCallback_DoesNotPoisonOtherDevices
+--- PASS: TestMarkDeviceLostFromCallback_DoesNotPoisonOtherDevices (0.00s)
+=== RUN   TestSurfaceParentLost_AbsorbsUncapturedMessage
+--- PASS: TestSurfaceParentLost_AbsorbsUncapturedMessage (0.00s)
+=== RUN   TestSurfaceParentLost_IgnoresOtherDeviceUncaptured
+--- PASS: TestSurfaceParentLost_IgnoresOtherDeviceUncaptured (0.00s)
+=== RUN   TestLooksLikeDeviceLost_Messages
+--- PASS: TestLooksLikeDeviceLost_Messages (0.00s)
+=== RUN   TestCallbackStringView_STRLEN
+--- PASS: TestCallbackStringView_STRLEN (0.00s)
+=== RUN   TestRefuseIfLost_RequiresRegisteredDevice
+--- PASS: TestRefuseIfLost_RequiresRegisteredDevice (0.00s)
+PASS

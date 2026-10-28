@@ -1,0 +1,51 @@
+=== RUN   TestTagText_Constants
+--- PASS: TestTagText_Constants (0.00s)
+=== RUN   TestTagText_String
+--- PASS: TestTagText_String (0.00s)
+=== RUN   TestTagText_IsDrawCommand
+--- PASS: TestTagText_IsDrawCommand (0.00s)
+=== RUN   TestTagText_IsNotPathCommand
+--- PASS: TestTagText_IsNotPathCommand (0.00s)
+=== RUN   TestTagText_DataSize
+--- PASS: TestTagText_DataSize (0.00s)
+=== RUN   TestEncodeText_RoundTrip
+--- PASS: TestEncodeText_RoundTrip (0.00s)
+=== RUN   TestEncodeText_EmptyString
+--- PASS: TestEncodeText_EmptyString (0.00s)
+=== RUN   TestEncodeText_MultipleRuns
+--- PASS: TestEncodeText_MultipleRuns (0.00s)
+=== RUN   TestEncoding_Reset_ClearsTextData
+--- PASS: TestEncoding_Reset_ClearsTextData (0.00s)
+=== RUN   TestEncoding_Clone_CopiesTextData
+--- PASS: TestEncoding_Clone_CopiesTextData (0.00s)
+=== RUN   TestEncoding_Hash_IncludesTextData
+--- PASS: TestEncoding_Hash_IncludesTextData (0.00s)
+=== RUN   TestEncoding_Size_IncludesTextData
+--- PASS: TestEncoding_Size_IncludesTextData (0.00s)
+=== RUN   TestScene_DrawText_NilFace
+--- PASS: TestScene_DrawText_NilFace (0.00s)
+=== RUN   TestScene_DrawGlyphs_Empty
+--- PASS: TestScene_DrawGlyphs_Empty (0.00s)
+=== RUN   TestScene_DrawGlyphs_NilFace
+--- PASS: TestScene_DrawGlyphs_NilFace (0.00s)
+=== RUN   TestScene_FontRegistry_Empty
+--- PASS: TestScene_FontRegistry_Empty (0.00s)
+=== RUN   TestScene_FontRegistry_Reset
+--- PASS: TestScene_FontRegistry_Reset (0.00s)
+=== RUN   TestScene_FontRegistry_Append
+--- PASS: TestScene_FontRegistry_Append (0.00s)
+=== RUN   TestScene_FontRegistry_AppendWithTranslation
+--- PASS: TestScene_FontRegistry_AppendWithTranslation (0.00s)
+=== RUN   TestGlyphRunDataSize
+--- PASS: TestGlyphRunDataSize (0.00s)
+=== RUN   TestGlyphEntrySize
+--- PASS: TestGlyphEntrySize (0.00s)
+=== RUN   TestTextFlags
+--- PASS: TestTextFlags (0.00s)
+=== RUN   TestEncoding_AppendWithImages_TagText_BrushOffset
+--- PASS: TestEncoding_AppendWithImages_TagText_BrushOffset (0.00s)
+=== RUN   TestEncoding_AppendWithTranslation_TagText_OriginOffset
+--- PASS: TestEncoding_AppendWithTranslation_TagText_OriginOffset (0.00s)
+=== RUN   TestEncoding_AppendWithTranslation_TagText_Mixed
+--- PASS: TestEncoding_AppendWithTranslation_TagText_Mixed (0.00s)
+PASS

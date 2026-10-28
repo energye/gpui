@@ -1,0 +1,13 @@
+=== RUN   TestBackdropNestedVsFlat
+=== RUN   TestBackdropNestedVsFlat/single_row
+=== RUN   TestBackdropNestedVsFlat/single_column
+=== RUN   TestBackdropNestedVsFlat/3x3_grid
+=== RUN   TestBackdropNestedVsFlat/4x2_mixed
+=== RUN   TestBackdropNestedVsFlat/1x1_trivial
+--- PASS: TestBackdropNestedVsFlat (0.00s)
+    --- PASS: TestBackdropNestedVsFlat/single_row (0.00s)
+    --- PASS: TestBackdropNestedVsFlat/single_column (0.00s)
+    --- PASS: TestBackdropNestedVsFlat/3x3_grid (0.00s)
+    --- PASS: TestBackdropNestedVsFlat/4x2_mixed (0.00s)
+    --- PASS: TestBackdropNestedVsFlat/1x1_trivial (0.00s)
+PASS

@@ -1,0 +1,69 @@
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Pixel
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Vertex
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Geometry
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Hull
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Domain
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Compute
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Library
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/RayGeneration
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Intersection
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/AnyHit
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/ClosestHit
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Miss
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Callable
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Mesh
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Amplification
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Node
+=== RUN   TestPSVShaderKindMatchesMicrosoftABI/Invalid
+--- PASS: TestPSVShaderKindMatchesMicrosoftABI (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Pixel (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Vertex (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Geometry (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Hull (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Domain (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Compute (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Library (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/RayGeneration (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Intersection (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/AnyHit (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/ClosestHit (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Miss (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Callable (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Mesh (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Amplification (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Node (0.00s)
+    --- PASS: TestPSVShaderKindMatchesMicrosoftABI/Invalid (0.00s)
+=== RUN   TestEncodePSV0ShaderStageByte
+--- PASS: TestEncodePSV0ShaderStageByte (0.00s)
+=== RUN   TestPSV0Basic_VertexShader
+--- PASS: TestPSV0Basic_VertexShader (0.00s)
+=== RUN   TestPSV0Basic_PixelShader
+--- PASS: TestPSV0Basic_PixelShader (0.00s)
+=== RUN   TestPSV0WithStringTable
+--- PASS: TestPSV0WithStringTable (0.00s)
+=== RUN   TestEncodePSV0SizeIsAlwaysInfo3
+=== RUN   TestEncodePSV0SizeIsAlwaysInfo3/vertex
+=== RUN   TestEncodePSV0SizeIsAlwaysInfo3/pixel
+=== RUN   TestEncodePSV0SizeIsAlwaysInfo3/compute
+=== RUN   TestEncodePSV0SizeIsAlwaysInfo3/mesh
+=== RUN   TestEncodePSV0SizeIsAlwaysInfo3/amplification
+--- PASS: TestEncodePSV0SizeIsAlwaysInfo3 (0.00s)
+    --- PASS: TestEncodePSV0SizeIsAlwaysInfo3/vertex (0.00s)
+    --- PASS: TestEncodePSV0SizeIsAlwaysInfo3/pixel (0.00s)
+    --- PASS: TestEncodePSV0SizeIsAlwaysInfo3/compute (0.00s)
+    --- PASS: TestEncodePSV0SizeIsAlwaysInfo3/mesh (0.00s)
+    --- PASS: TestEncodePSV0SizeIsAlwaysInfo3/amplification (0.00s)
+=== RUN   TestEncodePSV0ZeroPadsUnusedFields
+--- PASS: TestEncodePSV0ZeroPadsUnusedFields (0.00s)
+=== RUN   TestEncodePSV0EntryFunctionNameInStringTable
+--- PASS: TestEncodePSV0EntryFunctionNameInStringTable (0.00s)
+=== RUN   TestEncodePSV0ClampsSigCountsWhenNoElements
+--- PASS: TestEncodePSV0ClampsSigCountsWhenNoElements (0.00s)
+=== RUN   TestEncodePSV0KeepsSigCountsWhenElementsProvided
+--- PASS: TestEncodePSV0KeepsSigCountsWhenElementsProvided (0.00s)
+=== RUN   TestBuildPSVStringTableEmpty
+--- PASS: TestBuildPSVStringTableEmpty (0.00s)
+=== RUN   TestContainerWithPSV0
+--- PASS: TestContainerWithPSV0 (0.00s)
+PASS

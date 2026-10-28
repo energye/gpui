@@ -1,0 +1,9 @@
+=== RUN   TestSnapCoord_DeviceGrid
+--- PASS: TestSnapCoord_DeviceGrid (0.00s)
+=== RUN   TestSnapLine_HairlineCenter
+--- PASS: TestSnapLine_HairlineCenter (0.00s)
+=== RUN   TestSnapLine_OneDevicePixelCoverage
+--- PASS: TestSnapLine_OneDevicePixelCoverage (0.00s)
+=== RUN   TestSnapRect_GridAlignedEdges
+--- PASS: TestSnapRect_GridAlignedEdges (0.00s)
+PASS

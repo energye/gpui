@@ -1,0 +1,9 @@
+=== RUN   TestClipCircle_CPUPixels
+    context_clip_depth_test.go:31: center pixel should be red, got R=0.00 G=0.00 B=0.00
+    context_clip_depth_test.go:51: pixel at (50,25) should be red (inside circle clip), got R=0.00 G=0.00 B=0.00
+--- FAIL: TestClipCircle_CPUPixels (0.29s)
+=== RUN   TestClipCircle_GPUClipPathBridge
+--- PASS: TestClipCircle_GPUClipPathBridge (0.00s)
+=== RUN   TestClipCircle_IsNotRectOrRRect
+--- PASS: TestClipCircle_IsNotRectOrRRect (0.00s)
+FAIL

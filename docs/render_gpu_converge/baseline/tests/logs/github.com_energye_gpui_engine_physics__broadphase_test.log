@@ -1,0 +1,29 @@
+=== RUN   TestBroadphaseFiledStatic
+--- PASS: TestBroadphaseFiledStatic (0.05s)
+=== RUN   TestBroadphaseFiledDrop
+--- PASS: TestBroadphaseFiledDrop (0.01s)
+=== RUN   TestBroadphaseFiledRays
+--- PASS: TestBroadphaseFiledRays (0.00s)
+=== RUN   TestBroadphaseFiledRegions
+    broadphase_test.go:288: region view_home: 154 bodies 15.30us
+    broadphase_test.go:288: region view_empty: 0 bodies 0.05us
+--- PASS: TestBroadphaseFiledRegions (0.00s)
+=== RUN   TestBroadphaseBudgetFiled
+    broadphase_test.go:334: yard query over 1200 bodies: 0.17ms, evals 10793
+    broadphase_test.go:347: ray ray_ew: 5.63us
+    broadphase_test.go:347: ray ray_drop: 3.88us
+    broadphase_test.go:347: ray ray_miss: 0.10us
+    broadphase_test.go:357: query allocs/run = 0.0
+    broadphase_test.go:385: drop evaluations = 10793 (naive 719400)
+--- PASS: TestBroadphaseBudgetFiled (0.01s)
+=== RUN   TestBroadphaseSleepWake
+--- PASS: TestBroadphaseSleepWake (0.00s)
+=== RUN   TestBroadphaseStaticRestNoWake
+--- PASS: TestBroadphaseStaticRestNoWake (0.00s)
+=== RUN   TestBroadphaseSpringPad
+--- PASS: TestBroadphaseSpringPad (0.00s)
+=== RUN   TestBroadphaseReplayStable
+--- PASS: TestBroadphaseReplayStable (2.07s)
+=== RUN   TestBroadphaseEdgesNoCrash
+--- PASS: TestBroadphaseEdgesNoCrash (0.07s)
+PASS

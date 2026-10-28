@@ -1,0 +1,9 @@
+=== RUN   TestVramLedgerChargeRefund
+--- PASS: TestVramLedgerChargeRefund (0.00s)
+=== RUN   TestVramLedgerBudgetGate
+--- PASS: TestVramLedgerBudgetGate (0.00s)
+=== RUN   TestVramTextureBytes
+--- PASS: TestVramTextureBytes (0.00s)
+=== RUN   TestVramLedgerNonTextureKinds
+--- PASS: TestVramLedgerNonTextureKinds (0.00s)
+PASS

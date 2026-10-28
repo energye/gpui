@@ -1,0 +1,11 @@
+=== RUN   TestScanLightBytecodeLatin
+    zz_light_bytecode_scan_test.go:84: DejaVuSans L0 px8: bad=0/7 badR=[]
+    zz_light_bytecode_scan_test.go:84: DejaVuSans L0 px12: bad=0/7 badR=[]
+    zz_light_bytecode_scan_test.go:84: DejaVuSans L0 px16: bad=0/7 badR=[]
+    zz_light_bytecode_scan_test.go:123: DejaVuSans L1 12px: bad=0/254 glyphs matched=254 badR=[]
+    zz_light_bytecode_scan_test.go:84: FreeSans L0 px8: bad=0/7 badR=[]
+    zz_light_bytecode_scan_test.go:84: FreeSans L0 px12: bad=0/7 badR=[]
+    zz_light_bytecode_scan_test.go:84: FreeSans L0 px16: bad=0/7 badR=[]
+    zz_light_bytecode_scan_test.go:123: FreeSans L1 12px: bad=0/254 glyphs matched=254 badR=[]
+--- PASS: TestScanLightBytecodeLatin (3.54s)
+PASS

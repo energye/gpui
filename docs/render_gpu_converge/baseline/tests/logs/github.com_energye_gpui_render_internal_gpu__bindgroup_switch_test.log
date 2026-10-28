@@ -1,0 +1,4 @@
+=== RUN   TestBindGroupLayoutSwitch_StencilThenSDF
+    bindgroup_switch_test.go:25: sdf pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestBindGroupLayoutSwitch_StencilThenSDF (0.21s)
+FAIL

@@ -1,0 +1,15 @@
+=== RUN   TestSkeletonBonesFromCases
+--- PASS: TestSkeletonBonesFromCases (0.00s)
+=== RUN   TestSkeletonEdgesNoCrash
+--- PASS: TestSkeletonEdgesNoCrash (0.00s)
+=== RUN   TestSkeletonBoundaryIdentical
+--- PASS: TestSkeletonBoundaryIdentical (0.00s)
+=== RUN   TestSkeletonPerfSingle
+    skeleton_test.go:602: skeleton-single: 20000 pose+ik+2 skins in 67.438953ms (3371.9 ns/op)
+--- PASS: TestSkeletonPerfSingle (0.07s)
+=== RUN   TestSkeletonLongRunStable
+--- PASS: TestSkeletonLongRunStable (0.28s)
+=== RUN   TestSkeletonOffscreenGolden
+    skeleton_test.go:750: game_anim window absent; offscreen spine_cases.json stands in (pure math, P2 intent game_anim --case=sk)
+--- PASS: TestSkeletonOffscreenGolden (0.00s)
+PASS

@@ -1,0 +1,125 @@
+=== RUN   TestNewClipStack
+--- PASS: TestNewClipStack (0.00s)
+=== RUN   TestClipStack_PushRect
+=== RUN   TestClipStack_PushRect/push_smaller_rect
+=== RUN   TestClipStack_PushRect/push_overlapping_rect
+--- PASS: TestClipStack_PushRect (0.00s)
+    --- PASS: TestClipStack_PushRect/push_smaller_rect (0.00s)
+    --- PASS: TestClipStack_PushRect/push_overlapping_rect (0.00s)
+=== RUN   TestClipStack_PushPath
+--- PASS: TestClipStack_PushPath (0.00s)
+=== RUN   TestClipStack_PushPath_EmptyBounds
+--- PASS: TestClipStack_PushPath_EmptyBounds (0.00s)
+=== RUN   TestClipStack_Pop
+--- PASS: TestClipStack_Pop (0.00s)
+=== RUN   TestClipStack_IsVisible
+=== RUN   TestClipStack_IsVisible/point_in_initial_bounds
+=== RUN   TestClipStack_IsVisible/point_outside_initial_bounds
+=== RUN   TestClipStack_IsVisible/point_in_rect_clip
+=== RUN   TestClipStack_IsVisible/point_outside_rect_clip
+--- PASS: TestClipStack_IsVisible (0.00s)
+    --- PASS: TestClipStack_IsVisible/point_in_initial_bounds (0.00s)
+    --- PASS: TestClipStack_IsVisible/point_outside_initial_bounds (0.00s)
+    --- PASS: TestClipStack_IsVisible/point_in_rect_clip (0.00s)
+    --- PASS: TestClipStack_IsVisible/point_outside_rect_clip (0.00s)
+=== RUN   TestClipStack_IsVisible_WithMask
+=== RUN   TestClipStack_IsVisible_WithMask/point_inside_triangle
+=== RUN   TestClipStack_IsVisible_WithMask/point_outside_triangle
+=== RUN   TestClipStack_IsVisible_WithMask/point_outside_bounds
+--- PASS: TestClipStack_IsVisible_WithMask (0.00s)
+    --- PASS: TestClipStack_IsVisible_WithMask/point_inside_triangle (0.00s)
+    --- PASS: TestClipStack_IsVisible_WithMask/point_outside_triangle (0.00s)
+    --- PASS: TestClipStack_IsVisible_WithMask/point_outside_bounds (0.00s)
+=== RUN   TestClipStack_Coverage
+=== RUN   TestClipStack_Coverage/point_in_bounds
+=== RUN   TestClipStack_Coverage/point_outside_bounds
+--- PASS: TestClipStack_Coverage (0.00s)
+    --- PASS: TestClipStack_Coverage/point_in_bounds (0.00s)
+    --- PASS: TestClipStack_Coverage/point_outside_bounds (0.00s)
+=== RUN   TestClipStack_Coverage_WithMask
+=== RUN   TestClipStack_Coverage_WithMask/point_inside_path
+=== RUN   TestClipStack_Coverage_WithMask/point_outside_path
+=== RUN   TestClipStack_Coverage_WithMask/point_outside_bounds
+--- PASS: TestClipStack_Coverage_WithMask (0.00s)
+    --- PASS: TestClipStack_Coverage_WithMask/point_inside_path (0.00s)
+    --- PASS: TestClipStack_Coverage_WithMask/point_outside_path (0.00s)
+    --- PASS: TestClipStack_Coverage_WithMask/point_outside_bounds (0.00s)
+=== RUN   TestClipStack_Coverage_MultipleMasks
+=== RUN   TestClipStack_Coverage_MultipleMasks/point_in_both_masks
+=== RUN   TestClipStack_Coverage_MultipleMasks/point_in_first_mask_only
+=== RUN   TestClipStack_Coverage_MultipleMasks/point_in_neither_mask
+--- PASS: TestClipStack_Coverage_MultipleMasks (0.00s)
+    --- PASS: TestClipStack_Coverage_MultipleMasks/point_in_both_masks (0.00s)
+    --- PASS: TestClipStack_Coverage_MultipleMasks/point_in_first_mask_only (0.00s)
+    --- PASS: TestClipStack_Coverage_MultipleMasks/point_in_neither_mask (0.00s)
+=== RUN   TestClipStack_Depth
+=== RUN   TestClipStack_Depth/initial_depth
+=== RUN   TestClipStack_Depth/after_push_rect
+=== RUN   TestClipStack_Depth/after_second_push
+=== RUN   TestClipStack_Depth/after_pop
+=== RUN   TestClipStack_Depth/after_second_pop
+--- PASS: TestClipStack_Depth (0.00s)
+    --- PASS: TestClipStack_Depth/initial_depth (0.00s)
+    --- PASS: TestClipStack_Depth/after_push_rect (0.00s)
+    --- PASS: TestClipStack_Depth/after_second_push (0.00s)
+    --- PASS: TestClipStack_Depth/after_pop (0.00s)
+    --- PASS: TestClipStack_Depth/after_second_pop (0.00s)
+=== RUN   TestClipStack_Reset
+--- PASS: TestClipStack_Reset (0.00s)
+=== RUN   TestClipStack_PushPop_Symmetry
+--- PASS: TestClipStack_PushPop_Symmetry (0.00s)
+=== RUN   TestClipStack_RectIntersection
+--- PASS: TestClipStack_RectIntersection (0.00s)
+=== RUN   TestClipStack_EmptyIntersection
+--- PASS: TestClipStack_EmptyIntersection (0.00s)
+=== RUN   TestClipStack_PushRRect
+--- PASS: TestClipStack_PushRRect (0.00s)
+=== RUN   TestClipStack_PushRRect_ZeroRadius
+--- PASS: TestClipStack_PushRRect_ZeroRadius (0.00s)
+=== RUN   TestClipStack_PushRRect_ClampedRadius
+--- PASS: TestClipStack_PushRRect_ClampedRadius (0.00s)
+=== RUN   TestClipStack_PushRRect_NegativeRadius
+--- PASS: TestClipStack_PushRRect_NegativeRadius (0.00s)
+=== RUN   TestRrectSDF
+=== RUN   TestRrectSDF/center
+=== RUN   TestRrectSDF/far_outside
+=== RUN   TestRrectSDF/inside_near_edge
+=== RUN   TestRrectSDF/outside_corner
+--- PASS: TestRrectSDF (0.00s)
+    --- PASS: TestRrectSDF/center (0.00s)
+    --- PASS: TestRrectSDF/far_outside (0.00s)
+    --- PASS: TestRrectSDF/inside_near_edge (0.00s)
+    --- PASS: TestRrectSDF/outside_corner (0.00s)
+=== RUN   TestRrectCoverage
+=== RUN   TestRrectCoverage/center
+=== RUN   TestRrectCoverage/far_outside
+=== RUN   TestRrectCoverage/deep_inside
+--- PASS: TestRrectCoverage (0.00s)
+    --- PASS: TestRrectCoverage/center (0.00s)
+    --- PASS: TestRrectCoverage/far_outside (0.00s)
+    --- PASS: TestRrectCoverage/deep_inside (0.00s)
+=== RUN   TestRrectCoverageAntiAliasEdge
+--- PASS: TestRrectCoverageAntiAliasEdge (0.00s)
+=== RUN   TestClipStack_IsRectOnly
+--- PASS: TestClipStack_IsRectOnly (0.00s)
+=== RUN   TestClipStack_IsRectOnly_WithMask
+--- PASS: TestClipStack_IsRectOnly_WithMask (0.00s)
+=== RUN   TestClipStack_IsRRectOnly
+--- PASS: TestClipStack_IsRRectOnly (0.00s)
+=== RUN   TestClipStack_IsRRectOnly_WithMask
+--- PASS: TestClipStack_IsRRectOnly_WithMask (0.00s)
+=== RUN   TestClipStack_RRectBounds
+--- PASS: TestClipStack_RRectBounds (0.00s)
+=== RUN   TestClipStack_RRectBounds_Innermost
+--- PASS: TestClipStack_RRectBounds_Innermost (0.00s)
+=== RUN   TestClipStack_IsVisible_WithRRect
+--- PASS: TestClipStack_IsVisible_WithRRect (0.00s)
+=== RUN   TestClipStack_Coverage_WithRRect
+--- PASS: TestClipStack_Coverage_WithRRect (0.00s)
+=== RUN   TestPointAdd
+--- PASS: TestPointAdd (0.00s)
+=== RUN   TestPointSub
+--- PASS: TestPointSub (0.00s)
+=== RUN   TestPointMul
+--- PASS: TestPointMul (0.00s)
+PASS

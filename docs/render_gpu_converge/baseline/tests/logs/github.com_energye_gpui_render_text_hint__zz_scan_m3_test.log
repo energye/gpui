@@ -1,0 +1,9 @@
+=== RUN   TestScanM3
+scan: multi2=128 bad@10px=0 (npt=0)
+scan: multi2=128 bad@12px=0 (npt=0)
+scan: multi2=128 bad@14px=0 (npt=0)
+scan: multi2=128 bad@16px=0 (npt=0)
+scan: multi2=128 bad@20px=0 (npt=0)
+scan: multi2=128 bad@24px=0 (npt=0)
+--- PASS: TestScanM3 (18.17s)
+PASS

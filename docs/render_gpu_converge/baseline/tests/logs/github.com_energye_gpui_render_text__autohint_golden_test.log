@@ -1,0 +1,178 @@
+=== RUN   TestGolden_HintedCoords_NotoSerifHebrew_Default
+    autohint_golden_test.go:233: PASS: 32/32 coordinates match skrifa golden (diff=0)
+--- PASS: TestGolden_HintedCoords_NotoSerifHebrew_Default (0.00s)
+=== RUN   TestGolden_HintedCoords_Ahem_24px
+    autohint_golden_test.go:283: PASS: 4/4 coordinates match skrifa golden (diff=0)
+--- PASS: TestGolden_HintedCoords_Ahem_24px (0.00s)
+=== RUN   TestGolden_Widths_NotoSerifHebrew
+    autohint_golden_test.go:320: detected script: Latin
+    autohint_golden_test.go:334: horizontal standardWidth: got 97, want 54
+    autohint_golden_test.go:340: horizontal edgeDistThreshold: got 19, want 10
+    autohint_golden_test.go:345: horizontal widths[0]: got 97, want 54
+    autohint_golden_test.go:334: vertical standardWidth: got 52, want 21
+    autohint_golden_test.go:340: vertical edgeDistThreshold: got 10, want 4
+    autohint_golden_test.go:345: vertical widths count: got 1, want 2
+    autohint_golden_test.go:349: TODO: match FreeType standard width computation — 6 mismatches
+--- SKIP: TestGolden_Widths_NotoSerifHebrew (0.00s)
+=== RUN   TestGolden_Widths_CantarellVF_Fallback
+--- PASS: TestGolden_Widths_CantarellVF_Fallback (0.00s)
+=== RUN   TestGolden_Blues_NotoSerifHebrew_Latin
+    autohint_golden_test.go:451: detected 6 blue zones (expected 6 for Latin script)
+    autohint_golden_test.go:457:   zone[0]: ref=714 shoot=725 top
+    autohint_golden_test.go:457:   zone[1]: ref=0 shoot=-10 bottom
+    autohint_golden_test.go:457:   zone[2]: ref=760 shoot=760 top
+    autohint_golden_test.go:457:   zone[3]: ref=536 shoot=546 top
+    autohint_golden_test.go:457:   zone[4]: ref=0 shoot=-10 bottom
+    autohint_golden_test.go:457:   zone[5]: ref=-240 shoot=-240 bottom
+    autohint_golden_test.go:477: PASS: 6/6 Latin blue zones match skrifa golden (diff=0)
+--- PASS: TestGolden_Blues_NotoSerifHebrew_Latin (0.00s)
+=== RUN   TestGolden_Blues_NotoSerifHebrew_Hebrew
+    autohint_golden_test.go:497: detected 6 blue zones (expected 3 for Hebrew, script=Latin)
+    autohint_golden_test.go:503:   zone[0]: ref=714 shoot=725 top flags=2
+    autohint_golden_test.go:503:   zone[1]: ref=0 shoot=-10 bottom flags=0
+    autohint_golden_test.go:503:   zone[2]: ref=760 shoot=760 top flags=2
+    autohint_golden_test.go:503:   zone[3]: ref=536 shoot=546 top flags=18
+    autohint_golden_test.go:503:   zone[4]: ref=0 shoot=-10 bottom flags=0
+    autohint_golden_test.go:503:   zone[5]: ref=-240 shoot=-240 bottom flags=0
+    autohint_golden_test.go:507: zone count: got 6, want 3
+    autohint_golden_test.go:508: TODO: match FreeType Hebrew blue zone count
+--- SKIP: TestGolden_Blues_NotoSerifHebrew_Hebrew (0.00s)
+=== RUN   TestGolden_Blues_NotoSerif_C2SC
+    autohint_golden_test.go:554: detected 0 blue zones for NotoSerif (expected 2 for c2sc, script=CJKV ideographs)
+    autohint_golden_test.go:563: TODO: c2sc requires HarfBuzz shaping — documents golden data for future
+--- SKIP: TestGolden_Blues_NotoSerif_C2SC (0.00s)
+=== RUN   TestGolden_Edges_NotoSerifHebrew_Default
+    autohint_golden_test.go:654: H-edges: got 4, want 4
+    autohint_golden_test.go:656:   H edge[0]: fpos=15 opos=15 pos=15 dir=1 link=3 serif=-1 round=true
+    autohint_golden_test.go:656:   H edge[1]: fpos=123 opos=126 pos=126 dir=1 link=2 serif=-1 round=false
+    autohint_golden_test.go:656:   H edge[2]: fpos=186 opos=190 pos=190 dir=-1 link=1 serif=-1 round=false
+    autohint_golden_test.go:656:   H edge[3]: fpos=205 opos=210 pos=210 dir=-1 link=0 serif=-1 round=true
+    autohint_golden_test.go:685: V-edges: got 4, want 4
+    autohint_golden_test.go:687:   V edge[0]: fpos=-240 opos=-246 pos=-246 dir=-2 link=-1 serif=-1 round=false
+    autohint_golden_test.go:687:   V edge[1]: fpos=481 opos=493 pos=493 dir=-2 link=2 serif=-1 round=false
+    autohint_golden_test.go:687:   V edge[2]: fpos=592 opos=606 pos=606 dir=2 link=1 serif=-1 round=true
+    autohint_golden_test.go:687:   V edge[3]: fpos=647 opos=663 pos=663 dir=2 link=-1 serif=2 round=false
+    autohint_golden_test.go:704: V edge[0] MISMATCH: got {fpos=-240 opos=-246 pos=-246 dir=-2 link=-1 serif=-1 round=false}, want {fpos=-240 opos=-246 pos=-246 dir=-2 link=-1 serif=1 round=false}
+    autohint_golden_test.go:718: TODO: edge serifIdx parity — 1 mismatches (V edge serif linking)
+--- SKIP: TestGolden_Edges_NotoSerifHebrew_Default (0.00s)
+=== RUN   TestGolden_FullPipeline_NotoSerifHebrew_Glyph9
+    autohint_golden_test.go:777:   pt[ 0]: ( 133, -256)  want: ( 133, -256)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[ 1]: ( 133,  282)  want: ( 133,  282)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[ 2]: ( 133,  343)  want: ( 133,  343)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[ 3]: ( 146,  431)  want: ( 146,  431)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[ 4]: ( 158,  463)  want: ( 158,  463)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[ 5]: ( 158,  463)  want: ( 158,  463)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[ 6]: (  57,  463)  want: (  57,  463)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[ 7]: (  30,  463)  want: (  30,  463)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[ 8]: (   0,  495)  want: (   0,  495)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[ 9]: (   0,  534)  want: (   0,  534)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[10]: (   0,  548)  want: (   0,  548)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[11]: (   2,  570)  want: (   2,  570)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[12]: (  11,  604)  want: (  11,  604)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[13]: (  17,  633)  want: (  17,  633)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[14]: (  50,  633)  want: (  50,  633)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[15]: (  50,  629)  want: (  50,  629)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[16]: (  50,  604)  want: (  50,  604)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[17]: (  77,  576)  want: (  77,  576)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[18]: ( 101,  576)  want: ( 101,  576)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[19]: ( 163,  576)  want: ( 163,  576)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[20]: ( 180,  576)  want: ( 180,  576)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[21]: ( 192,  562)  want: ( 192,  562)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[22]: ( 192,  542)  want: ( 192,  542)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[23]: ( 192,  475)  want: ( 192,  475)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[24]: ( 190,  457)  want: ( 190,  457)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[25]: ( 187,  423)  want: ( 187,  423)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[26]: ( 187,  366)  want: ( 187,  366)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[27]: ( 187,  315)  want: ( 187,  315)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[28]: ( 187, -220)  want: ( 187, -220)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[29]: ( 178, -231)  want: ( 178, -231)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[30]: ( 159, -248)  want: ( 159, -248)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:777:   pt[31]: ( 146, -256)  want: ( 146, -256)  dx=  0 dy=  0  OK
+    autohint_golden_test.go:784: PASS: 32/32 coordinates match skrifa golden (diff=0)
+--- PASS: TestGolden_FullPipeline_NotoSerifHebrew_Glyph9 (0.00s)
+=== RUN   TestGolden_HintedCoords_NotoSerifTC_CJK
+    autohint_golden_test.go:893: PASS: 114/114 CJK coordinates match skrifa golden (diff=0)
+--- PASS: TestGolden_HintedCoords_NotoSerifTC_CJK (0.00s)
+=== RUN   TestGolden_Widths_Hebrew_Diagnostic
+    autohint_golden_test.go:926: Detected script: Latin
+    autohint_golden_test.go:933: Width detection comparison (our Latin vs skrifa Hebrew):
+    autohint_golden_test.go:938:   H: our standardWidth=97, skrifa=54 | our edgeDist=19, skrifa=10
+    autohint_golden_test.go:941:   H: our widths=[97], skrifa=[54]
+    autohint_golden_test.go:944:   H: standardWidth mismatch
+    autohint_golden_test.go:938:   V: our standardWidth=52, skrifa=21 | our edgeDist=10, skrifa=4
+    autohint_golden_test.go:941:   V: our widths=[52], skrifa=[21 109]
+    autohint_golden_test.go:944:   V: standardWidth mismatch
+    autohint_golden_test.go:952: NOTE: 2 width mismatches — script detection correct (Latin), but width values may differ due to outline analysis differences
+--- PASS: TestGolden_Widths_Hebrew_Diagnostic (0.00s)
+=== RUN   TestGolden_Segments_Contours_NotoSerifHebrew_H
+    autohint_golden_test.go:1001: contour-based H segments: got 8, want 8
+    autohint_golden_test.go:1007:   seg[0]: dir=1 pos=55 height=372 [26,360] link=3 serif=-1
+    autohint_golden_test.go:1007:   seg[1]: dir=1 pos=112 height=34 [481,504] link=2 serif=-1
+    autohint_golden_test.go:1007:   seg[2]: dir=-1 pos=168 height=26 [483,504] link=1 serif=-1
+    autohint_golden_test.go:1007:   seg[3]: dir=-1 pos=109 height=288 [109,366] link=0 serif=-1
+    autohint_golden_test.go:1007:   seg[4]: dir=1 pos=453 height=304 [169,432] link=7 serif=-1
+    autohint_golden_test.go:1007:   seg[5]: dir=1 pos=62 height=76 [517,566] link=-1 serif=-1 ROUND
+    autohint_golden_test.go:1007:   seg[6]: dir=-1 pos=103 height=41 [619,647] link=-1 serif=-1 ROUND
+    autohint_golden_test.go:1007:   seg[7]: dir=-1 pos=507 height=498 [40,485] link=4 serif=-1
+    autohint_golden_test.go:1040: PASS: 8/8 contour-based H segments match skrifa golden
+--- PASS: TestGolden_Segments_Contours_NotoSerifHebrew_H (0.00s)
+=== RUN   TestGolden_Segments_Contours_NotoSerifHebrew_V
+    autohint_golden_test.go:1078: contour-based V segments: got 6, want 6
+    autohint_golden_test.go:1080:   seg[0]: dir=-2 pos=0 height=418 [85,470] link=2 serif=-1
+    autohint_golden_test.go:1080:   seg[1]: dir=2 pos=504 height=56 [112,168] link=3 serif=-1
+    autohint_golden_test.go:1080:   seg[2]: dir=2 pos=109 height=327 [109,427] link=0 serif=-1
+    autohint_golden_test.go:1080:   seg[3]: dir=-2 pos=483 height=352 [86,400] link=1 serif=-1
+    autohint_golden_test.go:1080:   seg[4]: dir=2 pos=647 height=29 [76,103] link=-1 serif=1
+    autohint_golden_test.go:1080:   seg[5]: dir=2 pos=592 height=346 [131,437] link=-1 serif=1
+    autohint_golden_test.go:1112: PASS: 6/6 contour-based V segments match skrifa golden
+--- PASS: TestGolden_Segments_Contours_NotoSerifHebrew_V (0.00s)
+=== RUN   TestGolden_EdgeHinting_NotoSerifHebrew
+    autohint_golden_test.go:1190: H-edges: got 4, want 4
+    autohint_golden_test.go:1192:   H edge[0]: pos=0 done=true round=true serif=false
+    autohint_golden_test.go:1192:   H edge[1]: pos=133 done=true round=false serif=false
+    autohint_golden_test.go:1192:   H edge[2]: pos=187 done=true round=false serif=false
+    autohint_golden_test.go:1192:   H edge[3]: pos=192 done=true round=true serif=false
+    autohint_golden_test.go:1222: V-edges: got 4, want 4
+    autohint_golden_test.go:1224:   V edge[0]: pos=-256 done=true round=false serif=false
+    autohint_golden_test.go:1224:   V edge[1]: pos=463 done=true round=false serif=false
+    autohint_golden_test.go:1224:   V edge[2]: pos=576 done=true round=true serif=false
+    autohint_golden_test.go:1224:   V edge[3]: pos=633 done=true round=false serif=false
+    autohint_golden_test.go:1257: PASS: H 4/4 + V 4/4 hinted edges match skrifa golden
+--- PASS: TestGolden_EdgeHinting_NotoSerifHebrew (0.00s)
+=== RUN   TestGolden_HintedMetrics_NotoSerifHebrew_Values
+    autohint_golden_test.go:1323: Left  edge: opos=15 pos=0 (want opos=15 pos=0)
+    autohint_golden_test.go:1325: Right edge: opos=210 pos=192 (want opos=210 pos=192)
+    autohint_golden_test.go:1349: x_scale: computed=67109 (UPM=1000)
+    autohint_golden_test.go:1352: PASS: edge metrics match skrifa golden (left_opos=15 left_pos=0 right_opos=210 right_pos=192)
+--- PASS: TestGolden_HintedMetrics_NotoSerifHebrew_Values (0.00s)
+=== RUN   TestGolden_AdjustedAdvance_NotoSerifHebrew_GID9
+    autohint_golden_test.go:1393: fontUnitAdvance: 280
+    autohint_golden_test.go:1394: xScale: 67109
+    autohint_golden_test.go:1395: advance 26.6: 320, pp1x: -64
+    autohint_golden_test.go:1396: adjusted advance: 5.000 px
+    autohint_golden_test.go:1418: PASS: adjusted advance matches skrifa golden (advance=320 pp1x=-64 → 5.0px)
+--- PASS: TestGolden_AdjustedAdvance_NotoSerifHebrew_GID9 (0.00s)
+=== RUN   TestGolden_AdjustedAdvance_NoEdges
+    autohint_golden_test.go:1441: advance 26.6: 512, pp1x: 0, px: 8.000
+    autohint_golden_test.go:1452: PASS: no-edges advance = 8.0 px (rounded)
+--- PASS: TestGolden_AdjustedAdvance_NoEdges (0.00s)
+=== RUN   TestGolden_AdjustedAdvance_FullPipeline_NotoSerifHebrew
+    autohint_golden_test.go:1476: outline.Advance after hinting: 5.000 px
+    autohint_golden_test.go:1477: outline segment count: 26
+    autohint_golden_test.go:1478: outline bounds: (1.00, -9.89)-(4.00, 4.00)
+    autohint_golden_test.go:1488: PASS: outline advance = 5.0 px (adjusted from 4.48 raw)
+--- PASS: TestGolden_AdjustedAdvance_FullPipeline_NotoSerifHebrew (0.00s)
+=== RUN   TestGolden_MultiSize_NotoSerifHebrew
+=== RUN   TestGolden_MultiSize_NotoSerifHebrew/8px
+=== RUN   TestGolden_MultiSize_NotoSerifHebrew/16px
+    autohint_golden_test.go:1565: PASS: 32/32 coordinates match at 16px (diff=0)
+=== RUN   TestGolden_MultiSize_NotoSerifHebrew/24px
+=== RUN   TestGolden_MultiSize_NotoSerifHebrew/48px
+=== RUN   TestGolden_MultiSize_NotoSerifHebrew/72px
+--- PASS: TestGolden_MultiSize_NotoSerifHebrew (0.00s)
+    --- PASS: TestGolden_MultiSize_NotoSerifHebrew/8px (0.00s)
+    --- PASS: TestGolden_MultiSize_NotoSerifHebrew/16px (0.00s)
+    --- PASS: TestGolden_MultiSize_NotoSerifHebrew/24px (0.00s)
+    --- PASS: TestGolden_MultiSize_NotoSerifHebrew/48px (0.00s)
+    --- PASS: TestGolden_MultiSize_NotoSerifHebrew/72px (0.00s)
+PASS

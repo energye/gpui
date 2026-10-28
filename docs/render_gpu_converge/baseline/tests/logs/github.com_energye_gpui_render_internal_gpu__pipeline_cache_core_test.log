@@ -1,0 +1,59 @@
+=== RUN   TestNewPipelineCacheCore
+--- PASS: TestNewPipelineCacheCore (0.00s)
+=== RUN   TestPipelineCacheCore_GetOrCreateRenderPipeline
+--- PASS: TestPipelineCacheCore_GetOrCreateRenderPipeline (0.00s)
+=== RUN   TestPipelineCacheCore_GetOrCreateComputePipeline
+--- PASS: TestPipelineCacheCore_GetOrCreateComputePipeline (0.00s)
+=== RUN   TestPipelineCacheCore_NilDescriptor
+--- PASS: TestPipelineCacheCore_NilDescriptor (0.00s)
+=== RUN   TestPipelineCacheCore_NilShader
+--- PASS: TestPipelineCacheCore_NilShader (0.00s)
+=== RUN   TestPipelineCacheCore_Size
+--- PASS: TestPipelineCacheCore_Size (0.00s)
+=== RUN   TestPipelineCacheCore_Clear
+--- PASS: TestPipelineCacheCore_Clear (0.00s)
+=== RUN   TestPipelineCacheCore_DestroyAll
+--- PASS: TestPipelineCacheCore_DestroyAll (0.00s)
+=== RUN   TestPipelineCacheCore_HitRate
+--- PASS: TestPipelineCacheCore_HitRate (0.00s)
+=== RUN   TestHashRenderPipelineDescriptor_Deterministic
+--- PASS: TestHashRenderPipelineDescriptor_Deterministic (0.00s)
+=== RUN   TestHashRenderPipelineDescriptor_DifferentShaders
+--- PASS: TestHashRenderPipelineDescriptor_DifferentShaders (0.00s)
+=== RUN   TestHashRenderPipelineDescriptor_DifferentTopology
+--- PASS: TestHashRenderPipelineDescriptor_DifferentTopology (0.00s)
+=== RUN   TestHashRenderPipelineDescriptor_DifferentFormat
+--- PASS: TestHashRenderPipelineDescriptor_DifferentFormat (0.00s)
+=== RUN   TestHashRenderPipelineDescriptor_DifferentBlendState
+--- PASS: TestHashRenderPipelineDescriptor_DifferentBlendState (0.00s)
+=== RUN   TestHashRenderPipelineDescriptor_DifferentVertexLayout
+--- PASS: TestHashRenderPipelineDescriptor_DifferentVertexLayout (0.00s)
+=== RUN   TestHashRenderPipelineDescriptor_DifferentEntryPoint
+--- PASS: TestHashRenderPipelineDescriptor_DifferentEntryPoint (0.00s)
+=== RUN   TestHashRenderPipelineDescriptor_NilShaders
+--- PASS: TestHashRenderPipelineDescriptor_NilShaders (0.00s)
+=== RUN   TestHashComputePipelineDescriptor_Deterministic
+--- PASS: TestHashComputePipelineDescriptor_Deterministic (0.00s)
+=== RUN   TestHashComputePipelineDescriptor_DifferentShaders
+--- PASS: TestHashComputePipelineDescriptor_DifferentShaders (0.00s)
+=== RUN   TestHashComputePipelineDescriptor_DifferentEntryPoint
+--- PASS: TestHashComputePipelineDescriptor_DifferentEntryPoint (0.00s)
+=== RUN   TestNewShaderModule
+--- PASS: TestNewShaderModule (0.00s)
+=== RUN   TestShaderModule_Destroy
+--- PASS: TestShaderModule_Destroy (0.00s)
+=== RUN   TestShaderModule_CodeHashDeterministic
+--- PASS: TestShaderModule_CodeHashDeterministic (0.00s)
+=== RUN   TestShaderModule_CodeHashDifferent
+--- PASS: TestShaderModule_CodeHashDifferent (0.00s)
+=== RUN   TestPipelineCacheCore_ConcurrentAccess
+--- PASS: TestPipelineCacheCore_ConcurrentAccess (0.00s)
+=== RUN   TestPipelineCacheCore_ConcurrentDifferentDescriptors
+--- PASS: TestPipelineCacheCore_ConcurrentDifferentDescriptors (0.00s)
+=== RUN   TestPipelineCacheCore_ConcurrentMixedOperations
+--- PASS: TestPipelineCacheCore_ConcurrentMixedOperations (0.00s)
+=== RUN   TestHashBytes
+--- PASS: TestHashBytes (0.00s)
+=== RUN   TestHashBytes_Empty
+--- PASS: TestHashBytes_Empty (0.00s)
+PASS

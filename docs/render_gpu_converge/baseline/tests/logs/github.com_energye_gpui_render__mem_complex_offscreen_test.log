@@ -1,0 +1,8 @@
+=== RUN   TestMem_T3_ComplexOffscreen_SizeChurn
+    mem_complex_offscreen_test.go:83: T3 RSS warmup_drop=7 early_avg=142747KB late_avg=149149KB grow=6402KB limit=98304KB
+    mem_complex_offscreen_test.go:84: T3 ComplexOffscreen ok iters=36 final_rss=150916KB
+--- PASS: TestMem_T3_ComplexOffscreen_SizeChurn (0.76s)
+=== RUN   TestMem_T3_ComplexOffscreen_EscalatingLevels
+    mem_complex_offscreen_test.go:128: T3-escalating RSS warmup_drop=4 early_avg=152826KB late_avg=152403KB grow=-423KB limit=65536KB
+--- PASS: TestMem_T3_ComplexOffscreen_EscalatingLevels (0.34s)
+PASS

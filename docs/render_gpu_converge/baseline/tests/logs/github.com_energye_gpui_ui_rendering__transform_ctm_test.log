@@ -1,0 +1,11 @@
+=== RUN   TestPaintContext_Translate_MovesFillRect
+--- PASS: TestPaintContext_Translate_MovesFillRect (0.00s)
+=== RUN   TestPaintContext_PushTransform_Scale
+--- PASS: TestPaintContext_PushTransform_Scale (0.00s)
+=== RUN   TestPaintContext_RotateAbout_90
+--- PASS: TestPaintContext_RotateAbout_90 (0.00s)
+=== RUN   TestPaintContext_Shear_Runs
+--- PASS: TestPaintContext_Shear_Runs (0.00s)
+=== RUN   TestPaintContext_Concat_Compose
+--- PASS: TestPaintContext_Concat_Compose (0.00s)
+PASS

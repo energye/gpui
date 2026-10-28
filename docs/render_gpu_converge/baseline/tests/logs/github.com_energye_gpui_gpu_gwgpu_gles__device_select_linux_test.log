@@ -1,0 +1,14 @@
+=== RUN   TestP22RequestAdapterPreference
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: egl: failed to create dri2 screen
+    device_select_linux_test.go:33: listed name="/dev/dri/card2" vendor="NVIDIA Corporation" type=DiscreteGPU
+    device_select_linux_test.go:33: listed name="/dev/dri/card1" vendor="Mesa" type=IntegratedGPU
+    device_select_linux_test.go:33: listed name="EGL software device" vendor="Mesa" type=CPU
+    device_select_linux_test.go:46: high name="NVIDIA GeForce 940MX/PCIe/SSE2" vendor="NVIDIA Corporation" type=DiscreteGPU
+    device_select_linux_test.go:58: low name="Mesa Intel(R) HD Graphics 520 (SKL GT2)" vendor="Intel" type=IntegratedGPU
+    device_select_linux_test.go:70: fallback name="llvmpipe (LLVM 15.0.7, 256 bits)" type=CPU
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: egl: failed to create dri2 screen
+    device_select_linux_test.go:79: default name="/dev/dri/card2" type=Other
+--- PASS: TestP22RequestAdapterPreference (0.29s)
+PASS

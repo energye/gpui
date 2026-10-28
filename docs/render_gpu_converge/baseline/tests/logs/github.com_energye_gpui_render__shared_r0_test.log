@@ -1,0 +1,9 @@
+=== RUN   TestPictureCacheFairMaxN_SplitsBudget
+--- PASS: TestPictureCacheFairMaxN_SplitsBudget (0.00s)
+=== RUN   TestPictureCacheFairMaxN_NoCapAlone
+--- PASS: TestPictureCacheFairMaxN_NoCapAlone (0.00s)
+=== RUN   TestSharedWindowCount_NoShare
+--- PASS: TestSharedWindowCount_NoShare (0.00s)
+=== RUN   TestRecoverSharedDevice_NoShare
+--- PASS: TestRecoverSharedDevice_NoShare (0.00s)
+PASS

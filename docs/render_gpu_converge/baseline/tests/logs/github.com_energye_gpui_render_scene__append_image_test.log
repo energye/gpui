@@ -1,0 +1,21 @@
+=== RUN   TestAppendWithImages_ImageIndicesAdjusted
+--- PASS: TestAppendWithImages_ImageIndicesAdjusted (0.00s)
+=== RUN   TestAppendWithImages_ZeroOffset
+--- PASS: TestAppendWithImages_ZeroOffset (0.00s)
+=== RUN   TestAppendWithImages_MixedTags
+--- PASS: TestAppendWithImages_MixedTags (0.00s)
+=== RUN   TestAppend_BackwardCompatible
+--- PASS: TestAppend_BackwardCompatible (0.00s)
+=== RUN   TestSceneAppend_ImageRegistryMerge
+--- PASS: TestSceneAppend_ImageRegistryMerge (0.00s)
+=== RUN   TestSceneAppend_ImageIndicesCorrect
+--- PASS: TestSceneAppend_ImageIndicesCorrect (0.00s)
+=== RUN   TestSceneAppend_Nil
+--- PASS: TestSceneAppend_Nil (0.00s)
+=== RUN   TestSceneAppend_Empty
+--- PASS: TestSceneAppend_Empty (0.00s)
+=== RUN   TestSceneAppend_BoundsMerge
+--- PASS: TestSceneAppend_BoundsMerge (0.00s)
+=== RUN   TestSceneAppend_VersionIncremented
+--- PASS: TestSceneAppend_VersionIncremented (0.00s)
+PASS

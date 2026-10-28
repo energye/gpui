@@ -1,0 +1,9 @@
+=== RUN   TestCache_AcquireReuse
+--- PASS: TestCache_AcquireReuse (0.00s)
+=== RUN   TestCache_InflightNotLentAndRepooledAfterSubmit
+--- PASS: TestCache_InflightNotLentAndRepooledAfterSubmit (0.00s)
+=== RUN   TestCache_BudgetRetireIdleAndNotInFlight
+--- PASS: TestCache_BudgetRetireIdleAndNotInFlight (0.00s)
+=== RUN   TestCache_InvalidateAll
+--- PASS: TestCache_InvalidateAll (0.00s)
+PASS

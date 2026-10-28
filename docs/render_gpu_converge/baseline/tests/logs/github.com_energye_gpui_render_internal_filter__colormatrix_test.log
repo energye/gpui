@@ -1,0 +1,41 @@
+=== RUN   TestNewColorMatrixFilter
+--- PASS: TestNewColorMatrixFilter (0.00s)
+=== RUN   TestNewIdentityColorMatrix
+--- PASS: TestNewIdentityColorMatrix (0.00s)
+=== RUN   TestColorMatrixExpandBounds
+--- PASS: TestColorMatrixExpandBounds (0.00s)
+=== RUN   TestColorMatrixApplyIdentity
+--- PASS: TestColorMatrixApplyIdentity (0.00s)
+=== RUN   TestColorMatrixApplyNilPixmaps
+--- PASS: TestColorMatrixApplyNilPixmaps (0.00s)
+=== RUN   TestNewBrightnessFilter
+--- PASS: TestNewBrightnessFilter (0.00s)
+=== RUN   TestNewContrastFilter
+=== RUN   TestNewContrastFilter/normal_gray
+=== RUN   TestNewContrastFilter/zero_contrast
+=== RUN   TestNewContrastFilter/zero_contrast#01
+=== RUN   TestNewContrastFilter/high_contrast
+--- PASS: TestNewContrastFilter (0.00s)
+    --- PASS: TestNewContrastFilter/normal_gray (0.00s)
+    --- PASS: TestNewContrastFilter/zero_contrast (0.00s)
+    --- PASS: TestNewContrastFilter/zero_contrast#01 (0.00s)
+    --- PASS: TestNewContrastFilter/high_contrast (0.00s)
+=== RUN   TestNewSaturationFilter
+--- PASS: TestNewSaturationFilter (0.00s)
+=== RUN   TestNewGrayscaleFilter
+--- PASS: TestNewGrayscaleFilter (0.00s)
+=== RUN   TestNewSepiaFilter
+--- PASS: TestNewSepiaFilter (0.00s)
+=== RUN   TestNewInvertFilter
+--- PASS: TestNewInvertFilter (0.00s)
+=== RUN   TestNewOpacityFilter
+--- PASS: TestNewOpacityFilter (0.00s)
+=== RUN   TestNewColorTintFilter
+--- PASS: TestNewColorTintFilter (0.00s)
+=== RUN   TestColorMatrixMultiply
+--- PASS: TestColorMatrixMultiply (0.00s)
+=== RUN   TestColorMatrixMultiplyBrightnessContrast
+--- PASS: TestColorMatrixMultiplyBrightnessContrast (0.00s)
+=== RUN   TestNewHueRotateFilter
+--- PASS: TestNewHueRotateFilter (0.00s)
+PASS

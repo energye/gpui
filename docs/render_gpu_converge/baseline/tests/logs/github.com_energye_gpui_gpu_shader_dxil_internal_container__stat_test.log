@@ -1,0 +1,5 @@
+=== RUN   TestAddSTATPart
+--- PASS: TestAddSTATPart (0.00s)
+=== RUN   TestContainerPartOrder_STATBeforeHASH
+--- PASS: TestContainerPartOrder_STATBeforeHASH (0.00s)
+PASS

@@ -1,0 +1,45 @@
+=== RUN   TestMapValueToScalar
+=== RUN   TestMapValueToScalar/bool_false_from_0
+=== RUN   TestMapValueToScalar/bool_false_from_-0
+=== RUN   TestMapValueToScalar/bool_false_from_NaN
+=== RUN   TestMapValueToScalar/bool_true_from_1
+=== RUN   TestMapValueToScalar/bool_true_from_Inf
+=== RUN   TestMapValueToScalar/i32_from_2.0
+=== RUN   TestMapValueToScalar/i32_from_-5.0
+=== RUN   TestMapValueToScalar/i32_from_NaN
+=== RUN   TestMapValueToScalar/u32_from_2.0
+=== RUN   TestMapValueToScalar/u32_from_negative
+=== RUN   TestMapValueToScalar/f32_from_2.3
+=== RUN   TestMapValueToScalar/f32_from_0.0
+=== RUN   TestMapValueToScalar/f64_from_2.3
+--- PASS: TestMapValueToScalar (0.00s)
+    --- PASS: TestMapValueToScalar/bool_false_from_0 (0.00s)
+    --- PASS: TestMapValueToScalar/bool_false_from_-0 (0.00s)
+    --- PASS: TestMapValueToScalar/bool_false_from_NaN (0.00s)
+    --- PASS: TestMapValueToScalar/bool_true_from_1 (0.00s)
+    --- PASS: TestMapValueToScalar/bool_true_from_Inf (0.00s)
+    --- PASS: TestMapValueToScalar/i32_from_2.0 (0.00s)
+    --- PASS: TestMapValueToScalar/i32_from_-5.0 (0.00s)
+    --- PASS: TestMapValueToScalar/i32_from_NaN (0.00s)
+    --- PASS: TestMapValueToScalar/u32_from_2.0 (0.00s)
+    --- PASS: TestMapValueToScalar/u32_from_negative (0.00s)
+    --- PASS: TestMapValueToScalar/f32_from_2.3 (0.00s)
+    --- PASS: TestMapValueToScalar/f32_from_0.0 (0.00s)
+    --- PASS: TestMapValueToScalar/f64_from_2.3 (0.00s)
+=== RUN   TestProcessFunctionOverrides_NamedExpressions
+--- PASS: TestProcessFunctionOverrides_NamedExpressions (0.00s)
+=== RUN   TestProcessFunctionOverrides_ExpressionIndexShift
+--- PASS: TestProcessFunctionOverrides_ExpressionIndexShift (0.00s)
+=== RUN   TestProcessFunctionOverrides_TypeConversion
+--- PASS: TestProcessFunctionOverrides_TypeConversion (0.00s)
+=== RUN   TestProcessFunctionOverrides_AtomicFunAdjusted
+--- PASS: TestProcessFunctionOverrides_AtomicFunAdjusted (0.00s)
+=== RUN   TestProcessFunctionOverrides_NoOverrides
+--- PASS: TestProcessFunctionOverrides_NoOverrides (0.00s)
+=== RUN   TestApplyPipelineConstants
+=== RUN   TestApplyPipelineConstants/substitute_by_name
+=== RUN   TestApplyPipelineConstants/substitute_by_id
+--- PASS: TestApplyPipelineConstants (0.00s)
+    --- PASS: TestApplyPipelineConstants/substitute_by_name (0.00s)
+    --- PASS: TestApplyPipelineConstants/substitute_by_id (0.00s)
+PASS

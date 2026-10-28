@@ -1,0 +1,3 @@
+=== RUN   TestP14_PresentWithAuto_IdleDoesNotPoisonSwapchain
+--- PASS: TestP14_PresentWithAuto_IdleDoesNotPoisonSwapchain (0.36s)
+PASS

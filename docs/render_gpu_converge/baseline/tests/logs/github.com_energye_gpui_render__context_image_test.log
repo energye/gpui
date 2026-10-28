@@ -1,0 +1,108 @@
+=== RUN   TestDrawImageEx_CPUOnlySkipsGPUClaim
+    context_image_test.go:27: requires GOGPU_RENDER_MODE=cpu: GOGPU_RENDER_MODE=cpu go test ./render/ -run TestDrawImageEx_CPUOnlySkipsGPUClaim
+--- SKIP: TestDrawImageEx_CPUOnlySkipsGPUClaim (0.00s)
+=== RUN   TestDrawImage
+--- PASS: TestDrawImage (0.28s)
+=== RUN   TestDrawImageEx
+=== RUN   TestDrawImageEx/basic_position
+=== RUN   TestDrawImageEx/scaled
+=== RUN   TestDrawImageEx/with_opacity
+--- PASS: TestDrawImageEx (0.02s)
+    --- PASS: TestDrawImageEx/basic_position (0.01s)
+    --- PASS: TestDrawImageEx/scaled (0.01s)
+    --- PASS: TestDrawImageEx/with_opacity (0.00s)
+=== RUN   TestDrawImageWithTransform
+--- PASS: TestDrawImageWithTransform (0.00s)
+=== RUN   TestDrawImageSrcRect
+--- PASS: TestDrawImageSrcRect (0.01s)
+=== RUN   TestNewImagePattern
+--- PASS: TestNewImagePattern (0.00s)
+=== RUN   TestImagePattern_Tiling
+--- PASS: TestImagePattern_Tiling (0.00s)
+=== RUN   TestNewImageBuf
+=== RUN   TestNewImageBuf/valid_RGBA8
+=== RUN   TestNewImageBuf/valid_Gray8
+=== RUN   TestNewImageBuf/zero_width
+=== RUN   TestNewImageBuf/zero_height
+=== RUN   TestNewImageBuf/negative_width
+--- PASS: TestNewImageBuf (0.00s)
+    --- PASS: TestNewImageBuf/valid_RGBA8 (0.00s)
+    --- PASS: TestNewImageBuf/valid_Gray8 (0.00s)
+    --- PASS: TestNewImageBuf/zero_width (0.00s)
+    --- PASS: TestNewImageBuf/zero_height (0.00s)
+    --- PASS: TestNewImageBuf/negative_width (0.00s)
+=== RUN   TestImageBufFromImage
+--- PASS: TestImageBufFromImage (0.00s)
+=== RUN   TestSetFillPattern
+--- PASS: TestSetFillPattern (0.00s)
+=== RUN   TestSetStrokePattern
+--- PASS: TestSetStrokePattern (0.00s)
+=== RUN   TestInterpolationModes
+=== RUN   TestInterpolationModes/Nearest
+=== RUN   TestInterpolationModes/Bilinear
+=== RUN   TestInterpolationModes/Bicubic
+--- PASS: TestInterpolationModes (0.01s)
+    --- PASS: TestInterpolationModes/Nearest (0.00s)
+    --- PASS: TestInterpolationModes/Bilinear (0.00s)
+    --- PASS: TestInterpolationModes/Bicubic (0.01s)
+=== RUN   TestDrawImageEx_BlendDestinationIn
+--- PASS: TestDrawImageEx_BlendDestinationIn (0.01s)
+=== RUN   TestBlendModes
+=== RUN   TestBlendModes/Normal
+=== RUN   TestBlendModes/Multiply
+=== RUN   TestBlendModes/Screen
+=== RUN   TestBlendModes/Overlay
+--- PASS: TestBlendModes (0.03s)
+    --- PASS: TestBlendModes/Normal (0.00s)
+    --- PASS: TestBlendModes/Multiply (0.01s)
+    --- PASS: TestBlendModes/Screen (0.01s)
+    --- PASS: TestBlendModes/Overlay (0.01s)
+=== RUN   TestDrawImageClipped_RoundedRect
+--- PASS: TestDrawImageClipped_RoundedRect (0.01s)
+=== RUN   TestDrawImageClipped_Circle
+--- PASS: TestDrawImageClipped_Circle (0.01s)
+=== RUN   TestDrawImageClipped_NestedClips
+--- PASS: TestDrawImageClipped_NestedClips (0.01s)
+=== RUN   TestDrawImageClipped_NoClip
+--- PASS: TestDrawImageClipped_NoClip (0.01s)
+=== RUN   TestImagePattern_Anchor
+--- PASS: TestImagePattern_Anchor (0.00s)
+=== RUN   TestImagePattern_Scale
+--- PASS: TestImagePattern_Scale (0.00s)
+=== RUN   TestImagePattern_Opacity
+--- PASS: TestImagePattern_Opacity (0.00s)
+=== RUN   TestDrawImageClipped_WithTransform
+--- PASS: TestDrawImageClipped_WithTransform (0.00s)
+=== RUN   TestDrawImageRounded
+--- PASS: TestDrawImageRounded (0.01s)
+=== RUN   TestDrawImageCircular
+--- PASS: TestDrawImageCircular (0.01s)
+=== RUN   TestFillClippedSolid
+--- PASS: TestFillClippedSolid (0.00s)
+=== RUN   TestStrokeClipped
+--- PASS: TestStrokeClipped (0.00s)
+=== RUN   TestImagePatternSetters
+--- PASS: TestImagePatternSetters (0.00s)
+=== RUN   TestDrawImage_Rotation90
+--- PASS: TestDrawImage_Rotation90 (0.01s)
+=== RUN   TestDrawImage_Rotation45
+--- PASS: TestDrawImage_Rotation45 (0.00s)
+=== RUN   TestDrawImage_NoTransformRegression
+--- PASS: TestDrawImage_NoTransformRegression (0.01s)
+=== RUN   TestDrawImage_Scale2x
+--- PASS: TestDrawImage_Scale2x (0.01s)
+=== RUN   TestDrawImage_TranslateRotate
+--- PASS: TestDrawImage_TranslateRotate (0.00s)
+=== RUN   TestDrawImage_DeviceScale
+--- PASS: TestDrawImage_DeviceScale (0.01s)
+=== RUN   TestDrawImageEx_SrcRectWithRotation
+--- PASS: TestDrawImageEx_SrcRectWithRotation (0.01s)
+=== RUN   TestNewImagePattern_Compat
+--- PASS: TestNewImagePattern_Compat (0.00s)
+=== RUN   TestImagePattern_SetTransform
+--- PASS: TestImagePattern_SetTransform (0.00s)
+=== RUN   TestLoadImageNonexistent
+--- PASS: TestLoadImageNonexistent (0.00s)
+=== RUN   TestLoadWebPNonexistent
+--- PASS: TestLoadWebPNonexistent (0.00s)
+PASS

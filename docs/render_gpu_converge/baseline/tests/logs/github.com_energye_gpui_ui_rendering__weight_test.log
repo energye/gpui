@@ -1,0 +1,10 @@
+=== RUN   TestRenderText_WeightKeepsAdvance
+    weight_test.go:14: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 16
+--- PASS: TestRenderText_WeightKeepsAdvance (0.01s)
+=== RUN   TestRenderText_WeightPaintAddsInk
+    weight_test.go:39: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 16
+--- PASS: TestRenderText_WeightPaintAddsInk (0.00s)
+=== RUN   TestRenderText_WeightInvalidatesParentCache
+    weight_test.go:78: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 16
+--- PASS: TestRenderText_WeightInvalidatesParentCache (0.00s)
+PASS

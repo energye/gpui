@@ -1,0 +1,8 @@
+=== RUN   TestXrrModeRefreshHz
+--- PASS: TestXrrModeRefreshHz (0.00s)
+=== RUN   TestX11DisplayRefreshHz_NullDisplay
+--- PASS: TestX11DisplayRefreshHz_NullDisplay (0.00s)
+=== RUN   TestX11DisplayRefreshHz_Live
+    x11_refresh_test.go:51: live display refresh=59.88Hz
+--- PASS: TestX11DisplayRefreshHz_Live (0.00s)
+PASS

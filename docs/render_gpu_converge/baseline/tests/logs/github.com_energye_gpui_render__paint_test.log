@@ -1,0 +1,45 @@
+=== RUN   TestNewPaint
+--- PASS: TestNewPaint (0.00s)
+=== RUN   TestPaintClone
+--- PASS: TestPaintClone (0.00s)
+=== RUN   TestPaintSetBrush
+=== RUN   TestPaintSetBrush/solid_brush_stores_inline
+=== RUN   TestPaintSetBrush/non-solid_brush_sets_fields
+--- PASS: TestPaintSetBrush (0.00s)
+    --- PASS: TestPaintSetBrush/solid_brush_stores_inline (0.00s)
+    --- PASS: TestPaintSetBrush/non-solid_brush_sets_fields (0.00s)
+=== RUN   TestPaintGetBrush
+=== RUN   TestPaintGetBrush/with_solid_brush_(inline)
+=== RUN   TestPaintGetBrush/with_brush_field_set_directly
+=== RUN   TestPaintGetBrush/with_only_pattern_set
+=== RUN   TestPaintGetBrush/with_nothing_set
+--- PASS: TestPaintGetBrush (0.00s)
+    --- PASS: TestPaintGetBrush/with_solid_brush_(inline) (0.00s)
+    --- PASS: TestPaintGetBrush/with_brush_field_set_directly (0.00s)
+    --- PASS: TestPaintGetBrush/with_only_pattern_set (0.00s)
+    --- PASS: TestPaintGetBrush/with_nothing_set (0.00s)
+=== RUN   TestPaintColorAt
+=== RUN   TestPaintColorAt/with_solid_brush_via_SetBrush
+=== RUN   TestPaintColorAt/with_brush_field_directly
+=== RUN   TestPaintColorAt/with_only_pattern_set
+=== RUN   TestPaintColorAt/with_nothing_set
+=== RUN   TestPaintColorAt/brush_takes_precedence_over_pattern
+=== RUN   TestPaintColorAt/isSolid_takes_precedence_over_both
+--- PASS: TestPaintColorAt (0.00s)
+    --- PASS: TestPaintColorAt/with_solid_brush_via_SetBrush (0.00s)
+    --- PASS: TestPaintColorAt/with_brush_field_directly (0.00s)
+    --- PASS: TestPaintColorAt/with_only_pattern_set (0.00s)
+    --- PASS: TestPaintColorAt/with_nothing_set (0.00s)
+    --- PASS: TestPaintColorAt/brush_takes_precedence_over_pattern (0.00s)
+    --- PASS: TestPaintColorAt/isSolid_takes_precedence_over_both (0.00s)
+=== RUN   TestContextSetFillBrush
+--- PASS: TestContextSetFillBrush (0.00s)
+=== RUN   TestContextSetStrokeBrush
+--- PASS: TestContextSetStrokeBrush (0.00s)
+=== RUN   TestContextFillBrush
+--- PASS: TestContextFillBrush (0.00s)
+=== RUN   TestContextStrokeBrush
+--- PASS: TestContextStrokeBrush (0.00s)
+=== RUN   TestContextSetColorUpdatesInlineSolid
+--- PASS: TestContextSetColorUpdatesInlineSolid (0.00s)
+PASS

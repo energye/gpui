@@ -1,0 +1,45 @@
+=== RUN   TestBoxMatrix_ScrollClampEnd
+--- PASS: TestBoxMatrix_ScrollClampEnd (0.00s)
+=== RUN   TestBoxMatrix_DragSelectsToEnd
+--- PASS: TestBoxMatrix_DragSelectsToEnd (0.00s)
+=== RUN   TestBoxMatrix_HighlightClippedToView
+--- PASS: TestBoxMatrix_HighlightClippedToView (0.00s)
+=== RUN   TestBoxMatrix_DownToBottomKeepsCaretVisible
+--- PASS: TestBoxMatrix_DownToBottomKeepsCaretVisible (0.00s)
+=== RUN   TestBoxMatrix_IncrementalMatchesFull
+--- PASS: TestBoxMatrix_IncrementalMatchesFull (0.00s)
+=== RUN   TestBoxMatrix_PasswordMask
+--- PASS: TestBoxMatrix_PasswordMask (0.00s)
+=== RUN   TestBoxMatrix_Placeholder
+--- PASS: TestBoxMatrix_Placeholder (0.00s)
+=== RUN   TestBoxMatrix_YBandFollowsScroll
+--- PASS: TestBoxMatrix_YBandFollowsScroll (0.00s)
+=== RUN   TestBoxMatrix_SingleLineHorizontalScroll
+--- PASS: TestBoxMatrix_SingleLineHorizontalScroll (0.00s)
+=== RUN   TestBoxMatrix_ClickWordLineSelect
+--- PASS: TestBoxMatrix_ClickWordLineSelect (0.00s)
+=== RUN   TestBoxMatrix_ClipboardRoundTrip
+--- PASS: TestBoxMatrix_ClipboardRoundTrip (0.00s)
+=== RUN   TestBoxMatrix_UndoRedo
+--- PASS: TestBoxMatrix_UndoRedo (0.00s)
+=== RUN   TestBoxMatrix_ReadOnlyDisabled
+--- PASS: TestBoxMatrix_ReadOnlyDisabled (0.00s)
+=== RUN   TestBoxMatrix_HomeEndWordJump
+--- PASS: TestBoxMatrix_HomeEndWordJump (0.00s)
+=== RUN   TestBoxMatrix_EmojiClusterStep
+--- PASS: TestBoxMatrix_EmojiClusterStep (0.00s)
+=== RUN   TestBoxMatrix_IMEPreedit
+--- PASS: TestBoxMatrix_IMEPreedit (0.00s)
+=== RUN   TestBoxMatrix_DragUpSelectsFromStart
+--- PASS: TestBoxMatrix_DragUpSelectsFromStart (0.00s)
+=== RUN   TestBoxMatrix_AutoScrollTicks
+--- PASS: TestBoxMatrix_AutoScrollTicks (0.00s)
+=== RUN   TestBoxMatrix_EmptyBoxEdges
+--- PASS: TestBoxMatrix_EmptyBoxEdges (0.00s)
+=== RUN   TestBoxMatrix_NowrapHorizontalScroll
+--- PASS: TestBoxMatrix_NowrapHorizontalScroll (0.00s)
+=== RUN   TestBoxMatrix_LongDocumentCorrectness
+--- PASS: TestBoxMatrix_LongDocumentCorrectness (0.01s)
+=== RUN   TestBoxMatrix_ResizeRewrap
+--- PASS: TestBoxMatrix_ResizeRewrap (0.00s)
+PASS

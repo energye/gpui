@@ -1,0 +1,11 @@
+=== RUN   TestLoadWebP_LosslessPixels
+--- PASS: TestLoadWebP_LosslessPixels (0.00s)
+=== RUN   TestLoadImage_WebPByExtensionAndContent
+--- PASS: TestLoadImage_WebPByExtensionAndContent (0.00s)
+=== RUN   TestLoadWebP_LossySanity
+--- PASS: TestLoadWebP_LossySanity (0.01s)
+=== RUN   TestLoadWebP_Errors
+--- PASS: TestLoadWebP_Errors (0.00s)
+=== RUN   TestLoadWebP_Deterministic
+--- PASS: TestLoadWebP_Deterministic (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestPictureTextureCache_RerecordAttribution
+    textured_rerecord_by_test.go:15: no-GPU degrade: record unavailable in this env
+--- SKIP: TestPictureTextureCache_RerecordAttribution (0.00s)
+=== RUN   TestPictureTextureCache_RerecordAttributionLocal
+    textured_rerecord_by_test.go:48: no-GPU degrade: local record unavailable in this env
+--- SKIP: TestPictureTextureCache_RerecordAttributionLocal (0.00s)
+PASS

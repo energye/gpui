@@ -1,0 +1,11 @@
+=== RUN   TestIsColorText_M5
+--- PASS: TestIsColorText_M5 (0.00s)
+=== RUN   TestColorRunMarked_M5
+--- PASS: TestColorRunMarked_M5 (0.04s)
+=== RUN   TestColorRunOutlineDingbat_M5
+--- PASS: TestColorRunOutlineDingbat_M5 (0.33s)
+=== RUN   TestColorRunBypassesMask_M5
+--- PASS: TestColorRunBypassesMask_M5 (0.04s)
+=== RUN   TestRichColorRunMarked_M5
+--- PASS: TestRichColorRunMarked_M5 (0.00s)
+PASS

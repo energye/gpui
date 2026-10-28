@@ -1,0 +1,13 @@
+=== RUN   TestCreateBindGroupLayout
+    bindgroup_test.go:25: Creating bind group layout...
+    bindgroup_test.go:46: BindGroupLayout created: handle=0x70c1681edf60
+--- PASS: TestCreateBindGroupLayout (0.24s)
+=== RUN   TestCreateBindGroup
+    bindgroup_test.go:96: Creating bind group...
+    bindgroup_test.go:110: BindGroup created: handle=0x70c16867abc0
+--- PASS: TestCreateBindGroup (0.15s)
+=== RUN   TestBindGroupWithMultipleBindings
+    bindgroup_test.go:178: Creating bind group with multiple bindings...
+    bindgroup_test.go:189: BindGroup with 2 bindings created: handle=0x70c1684df860
+--- PASS: TestBindGroupWithMultipleBindings (0.15s)
+PASS

@@ -1,0 +1,9 @@
+=== RUN   TestPendingTexRetire_AddDrain
+--- PASS: TestPendingTexRetire_AddDrain (0.00s)
+=== RUN   TestTextureSet_DestroyWithRetireFnDefersRelease
+--- PASS: TestTextureSet_DestroyWithRetireFnDefersRelease (0.00s)
+=== RUN   TestTextureSet_DestroyWithoutRetireFnReleasesImmediately
+--- PASS: TestTextureSet_DestroyWithoutRetireFnReleasesImmediately (0.00s)
+=== RUN   TestSessionRetireTextureNilSafe
+--- PASS: TestSessionRetireTextureNilSafe (0.00s)
+PASS

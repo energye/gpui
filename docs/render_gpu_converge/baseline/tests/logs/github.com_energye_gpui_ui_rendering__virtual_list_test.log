@@ -1,0 +1,15 @@
+=== RUN   TestS5_VirtualList_BindCap
+    virtual_list_test.go:52: S5 maxBind=15
+--- PASS: TestS5_VirtualList_BindCap (0.00s)
+=== RUN   TestVirtualList_ContentHeight
+--- PASS: TestVirtualList_ContentHeight (0.00s)
+=== RUN   TestVirtualList_BuilderIndex
+--- PASS: TestVirtualList_BuilderIndex (0.00s)
+=== RUN   TestVirtualList_VariableExtent_ContentHeight
+--- PASS: TestVirtualList_VariableExtent_ContentHeight (0.00s)
+=== RUN   TestVirtualList_VariableExtent_BindCapAndScroll
+    virtual_list_test.go:168: var-extent maxBind=13 contentH=23976
+--- PASS: TestVirtualList_VariableExtent_BindCapAndScroll (0.00s)
+=== RUN   TestVirtualList_VariableExtent_RowOffsets
+--- PASS: TestVirtualList_VariableExtent_RowOffsets (0.00s)
+PASS

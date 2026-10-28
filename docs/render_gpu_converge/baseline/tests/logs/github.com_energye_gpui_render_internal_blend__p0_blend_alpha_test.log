@@ -1,0 +1,25 @@
+=== RUN   TestP03FixedPixels_UICriticalModes
+=== RUN   TestP03FixedPixels_UICriticalModes/SourceOver_opaque_red_over_opaque_blue
+=== RUN   TestP03FixedPixels_UICriticalModes/SourceOver_transparent_over_opaque_white
+=== RUN   TestP03FixedPixels_UICriticalModes/SourceOver_premul_white@50_over_opaque_white
+=== RUN   TestP03FixedPixels_UICriticalModes/Source(Copy)_replaces_destination
+=== RUN   TestP03FixedPixels_UICriticalModes/Plus_clamps_channel_sum
+=== RUN   TestP03FixedPixels_UICriticalModes/Plus_transparent_is_identity_on_dest
+=== RUN   TestP03FixedPixels_UICriticalModes/Multiply_white_*_gray_stays_gray
+=== RUN   TestP03FixedPixels_UICriticalModes/Multiply_black_*_white_=_black
+=== RUN   TestP03FixedPixels_UICriticalModes/Multiply_gray_*_gray
+--- PASS: TestP03FixedPixels_UICriticalModes (0.00s)
+    --- PASS: TestP03FixedPixels_UICriticalModes/SourceOver_opaque_red_over_opaque_blue (0.00s)
+    --- PASS: TestP03FixedPixels_UICriticalModes/SourceOver_transparent_over_opaque_white (0.00s)
+    --- PASS: TestP03FixedPixels_UICriticalModes/SourceOver_premul_white@50_over_opaque_white (0.00s)
+    --- PASS: TestP03FixedPixels_UICriticalModes/Source(Copy)_replaces_destination (0.00s)
+    --- PASS: TestP03FixedPixels_UICriticalModes/Plus_clamps_channel_sum (0.00s)
+    --- PASS: TestP03FixedPixels_UICriticalModes/Plus_transparent_is_identity_on_dest (0.00s)
+    --- PASS: TestP03FixedPixels_UICriticalModes/Multiply_white_*_gray_stays_gray (0.00s)
+    --- PASS: TestP03FixedPixels_UICriticalModes/Multiply_black_*_white_=_black (0.00s)
+    --- PASS: TestP03FixedPixels_UICriticalModes/Multiply_gray_*_gray (0.00s)
+=== RUN   TestP03PremulVsStraightAlphaBoundary
+--- PASS: TestP03PremulVsStraightAlphaBoundary (0.00s)
+=== RUN   TestP03NormalIsSourceOverContract
+--- PASS: TestP03NormalIsSourceOverContract (0.00s)
+PASS

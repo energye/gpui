@@ -1,0 +1,15 @@
+=== RUN   TestS2ConvertRenderPipelinePrimitiveFields
+--- PASS: TestS2ConvertRenderPipelinePrimitiveFields (0.00s)
+=== RUN   TestS2ConvertFragmentBlendFields
+--- PASS: TestS2ConvertFragmentBlendFields (0.00s)
+=== RUN   TestS2ConvertBindGroupLayoutBindingTypes
+--- PASS: TestS2ConvertBindGroupLayoutBindingTypes (0.00s)
+=== RUN   TestS2ConvertVertexLayoutsKeepAliveAndFormats
+--- PASS: TestS2ConvertVertexLayoutsKeepAliveAndFormats (0.00s)
+=== RUN   TestS2ConvertDepthStencilComplete
+--- PASS: TestS2ConvertDepthStencilComplete (0.00s)
+=== RUN   TestS2TextureViewCountUndefinedMapping
+--- PASS: TestS2TextureViewCountUndefinedMapping (0.00s)
+=== RUN   TestS2NoRenderImportRWGPU
+--- PASS: TestS2NoRenderImportRWGPU (0.00s)
+PASS

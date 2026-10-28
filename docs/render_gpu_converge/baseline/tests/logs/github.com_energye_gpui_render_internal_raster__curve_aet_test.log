@@ -1,0 +1,32 @@
+=== RUN   TestCurveAwareAET_Basic
+--- PASS: TestCurveAwareAET_Basic (0.00s)
+=== RUN   TestCurveAwareAET_Insert
+--- PASS: TestCurveAwareAET_Insert (0.00s)
+=== RUN   TestCurveAwareAET_Reset
+--- PASS: TestCurveAwareAET_Reset (0.00s)
+=== RUN   TestCurveAwareAET_Edges
+--- PASS: TestCurveAwareAET_Edges (0.00s)
+=== RUN   TestCurveAwareAET_EdgeAt
+--- PASS: TestCurveAwareAET_EdgeAt (0.00s)
+=== RUN   TestCurveAwareAET_SortByX
+--- PASS: TestCurveAwareAET_SortByX (0.00s)
+=== RUN   TestCurveAwareAET_RemoveExpired
+--- PASS: TestCurveAwareAET_RemoveExpired (0.00s)
+=== RUN   TestCurveAwareAET_RemoveExpiredSubpixel
+--- PASS: TestCurveAwareAET_RemoveExpiredSubpixel (0.00s)
+=== RUN   TestCurveAwareAET_AdvanceX
+--- PASS: TestCurveAwareAET_AdvanceX (0.00s)
+=== RUN   TestCurveAwareAET_ForEach
+--- PASS: TestCurveAwareAET_ForEach (0.00s)
+=== RUN   TestCurveAwareAET_ComputeSpans
+    curve_aet_test.go:289: ComputeSpans produced 1 spans
+--- PASS: TestCurveAwareAET_ComputeSpans (0.00s)
+=== RUN   TestCurveAwareAET_ComputeSpansEvenOdd
+    curve_aet_test.go:310: EvenOdd ComputeSpans produced 1 spans
+--- PASS: TestCurveAwareAET_ComputeSpansEvenOdd (0.00s)
+=== RUN   TestFillRule_String
+--- PASS: TestFillRule_String (0.00s)
+=== RUN   TestCurveAwareAET_StepCurves
+    curve_aet_test.go:342: NewQuadraticEdgeVariant returned nil (degenerate input)
+--- SKIP: TestCurveAwareAET_StepCurves (0.00s)
+PASS

@@ -1,0 +1,10 @@
+=== RUN   TestOpenButtonHitOpensOne
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+--- PASS: TestOpenButtonHitOpensOne (0.63s)
+=== RUN   TestOpenButtonNilCallbackSilent
+--- PASS: TestOpenButtonNilCallbackSilent (0.05s)
+=== RUN   TestPauseAndSliderUnaffected
+--- PASS: TestPauseAndSliderUnaffected (0.05s)
+=== RUN   TestOpenButtonHoverIndependent
+--- PASS: TestOpenButtonHoverIndependent (0.05s)
+PASS

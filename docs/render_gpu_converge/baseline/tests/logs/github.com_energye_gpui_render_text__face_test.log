@@ -1,0 +1,97 @@
+=== RUN   TestFaceMetrics
+=== RUN   TestFaceMetrics/size_12
+=== RUN   TestFaceMetrics/size_16
+=== RUN   TestFaceMetrics/size_24
+=== RUN   TestFaceMetrics/size_48
+--- PASS: TestFaceMetrics (0.00s)
+    --- PASS: TestFaceMetrics/size_12 (0.00s)
+    --- PASS: TestFaceMetrics/size_16 (0.00s)
+    --- PASS: TestFaceMetrics/size_24 (0.00s)
+    --- PASS: TestFaceMetrics/size_48 (0.00s)
+=== RUN   TestFaceAdvance
+=== RUN   TestFaceAdvance/empty_string
+=== RUN   TestFaceAdvance/single_char
+=== RUN   TestFaceAdvance/word
+=== RUN   TestFaceAdvance/sentence
+=== RUN   TestFaceAdvance/unicode
+--- PASS: TestFaceAdvance (0.00s)
+    --- PASS: TestFaceAdvance/empty_string (0.00s)
+    --- PASS: TestFaceAdvance/single_char (0.00s)
+    --- PASS: TestFaceAdvance/word (0.00s)
+    --- PASS: TestFaceAdvance/sentence (0.00s)
+    --- PASS: TestFaceAdvance/unicode (0.00s)
+=== RUN   TestFaceAdvanceVsGlyphs
+=== RUN   TestFaceAdvanceVsGlyphs/Hello
+=== RUN   TestFaceAdvanceVsGlyphs/World
+=== RUN   TestFaceAdvanceVsGlyphs/Hello_World
+=== RUN   TestFaceAdvanceVsGlyphs/ABC123
+--- PASS: TestFaceAdvanceVsGlyphs (0.00s)
+    --- PASS: TestFaceAdvanceVsGlyphs/Hello (0.00s)
+    --- PASS: TestFaceAdvanceVsGlyphs/World (0.00s)
+    --- PASS: TestFaceAdvanceVsGlyphs/Hello_World (0.00s)
+    --- PASS: TestFaceAdvanceVsGlyphs/ABC123 (0.00s)
+=== RUN   TestFaceHasGlyph
+=== RUN   TestFaceHasGlyph/ASCII_letter
+=== RUN   TestFaceHasGlyph/ASCII_digit
+=== RUN   TestFaceHasGlyph/space
+=== RUN   TestFaceHasGlyph/period
+=== RUN   TestFaceHasGlyph/common_punctuation
+=== RUN   TestFaceHasGlyph/basic_latin
+--- PASS: TestFaceHasGlyph (0.00s)
+    --- PASS: TestFaceHasGlyph/ASCII_letter (0.00s)
+    --- PASS: TestFaceHasGlyph/ASCII_digit (0.00s)
+    --- PASS: TestFaceHasGlyph/space (0.00s)
+    --- PASS: TestFaceHasGlyph/period (0.00s)
+    --- PASS: TestFaceHasGlyph/common_punctuation (0.00s)
+    --- PASS: TestFaceHasGlyph/basic_latin (0.00s)
+=== RUN   TestFaceGlyphs
+=== RUN   TestFaceGlyphs/empty
+=== RUN   TestFaceGlyphs/single_char
+=== RUN   TestFaceGlyphs/word
+=== RUN   TestFaceGlyphs/sentence
+--- PASS: TestFaceGlyphs (0.00s)
+    --- PASS: TestFaceGlyphs/empty (0.00s)
+    --- PASS: TestFaceGlyphs/single_char (0.00s)
+    --- PASS: TestFaceGlyphs/word (0.00s)
+    --- PASS: TestFaceGlyphs/sentence (0.00s)
+=== RUN   TestFaceGlyphsEarlyExit
+--- PASS: TestFaceGlyphsEarlyExit (0.00s)
+=== RUN   TestFaceAppendGlyphs
+=== RUN   TestFaceAppendGlyphs/nil_slice
+=== RUN   TestFaceAppendGlyphs/empty_slice
+=== RUN   TestFaceAppendGlyphs/with_capacity
+=== RUN   TestFaceAppendGlyphs/append_to_existing
+--- PASS: TestFaceAppendGlyphs (0.00s)
+    --- PASS: TestFaceAppendGlyphs/nil_slice (0.00s)
+    --- PASS: TestFaceAppendGlyphs/empty_slice (0.00s)
+    --- PASS: TestFaceAppendGlyphs/with_capacity (0.00s)
+    --- PASS: TestFaceAppendGlyphs/append_to_existing (0.00s)
+=== RUN   TestFaceAppendGlyphsMatchesGlyphs
+--- PASS: TestFaceAppendGlyphsMatchesGlyphs (0.00s)
+=== RUN   TestFaceDirection
+=== RUN   TestFaceDirection/default
+=== RUN   TestFaceDirection/explicit_LTR
+=== RUN   TestFaceDirection/RTL
+=== RUN   TestFaceDirection/TTB
+--- PASS: TestFaceDirection (0.00s)
+    --- PASS: TestFaceDirection/default (0.00s)
+    --- PASS: TestFaceDirection/explicit_LTR (0.00s)
+    --- PASS: TestFaceDirection/RTL (0.00s)
+    --- PASS: TestFaceDirection/TTB (0.00s)
+=== RUN   TestFaceSource
+--- PASS: TestFaceSource (0.00s)
+=== RUN   TestFaceSize
+=== RUN   TestFaceSize/#00
+=== RUN   TestFaceSize/#01
+=== RUN   TestFaceSize/#02
+=== RUN   TestFaceSize/#03
+=== RUN   TestFaceSize/#04
+--- PASS: TestFaceSize (0.00s)
+    --- PASS: TestFaceSize/#00 (0.00s)
+    --- PASS: TestFaceSize/#01 (0.00s)
+    --- PASS: TestFaceSize/#02 (0.00s)
+    --- PASS: TestFaceSize/#03 (0.00s)
+    --- PASS: TestFaceSize/#04 (0.00s)
+=== RUN   TestFaceMultipleFaces
+--- PASS: TestFaceMultipleFaces (0.00s)
+PASS

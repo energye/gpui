@@ -1,0 +1,7 @@
+=== RUN   TestGlyphMaskVariableFontWeightsUseDifferentOutlines
+--- PASS: TestGlyphMaskVariableFontWeightsUseDifferentOutlines (0.01s)
+=== RUN   TestMSDFVariableFontWeightsUseDifferentOutlines
+--- PASS: TestMSDFVariableFontWeightsUseDifferentOutlines (0.95s)
+=== RUN   TestVariationFontIDDistinct
+--- PASS: TestVariationFontIDDistinct (0.00s)
+PASS

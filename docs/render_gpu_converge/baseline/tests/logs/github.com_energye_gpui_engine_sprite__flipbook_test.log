@@ -1,0 +1,14 @@
+=== RUN   TestFlipbookSequencesFromCases
+--- PASS: TestFlipbookSequencesFromCases (0.00s)
+=== RUN   TestFlipbookEdgesNoCrash
+--- PASS: TestFlipbookEdgesNoCrash (0.00s)
+=== RUN   TestFlipbookBoundaryIdentical
+--- PASS: TestFlipbookBoundaryIdentical (0.00s)
+=== RUN   TestFlipbookPerfMulti
+    flipbook_test.go:389: flipbook-1000: 1000 players x 200 updates (200000 total) in 7.432278ms (37.2 ns/op)
+--- PASS: TestFlipbookPerfMulti (0.01s)
+=== RUN   TestFlipbookLongRunNoDrift
+--- PASS: TestFlipbookLongRunNoDrift (0.03s)
+=== RUN   TestFlipbookOffscreenGolden
+--- PASS: TestFlipbookOffscreenGolden (0.00s)
+PASS

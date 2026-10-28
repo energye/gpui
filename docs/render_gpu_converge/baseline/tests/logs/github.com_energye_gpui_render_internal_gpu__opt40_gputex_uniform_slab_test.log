@@ -1,0 +1,10 @@
+=== RUN   TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot
+    opt40_gputex_uniform_slab_test.go:65: build: res=<nil> err=create gpu texture vertex buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+        
+        Caused by:
+          In wgpuDeviceCreateRenderPipeline
+            Error matching ShaderStages(FRAGMENT) shader requirements against the pipeline
+              Shader global ResourceBinding { group: 1, binding: 0 } is not available in the pipeline layout
+                Binding is missing from the pipeline layout
+--- FAIL: TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot (0.20s)
+FAIL

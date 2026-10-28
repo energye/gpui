@@ -1,0 +1,39 @@
+=== RUN   TestGlyphMaskBatch_CanMerge_SameProperties
+--- PASS: TestGlyphMaskBatch_CanMerge_SameProperties (0.00s)
+=== RUN   TestGlyphMaskBatch_CanMerge_DifferentColor
+--- PASS: TestGlyphMaskBatch_CanMerge_DifferentColor (0.00s)
+=== RUN   TestGlyphMaskBatch_CanMerge_DifferentTransform
+--- PASS: TestGlyphMaskBatch_CanMerge_DifferentTransform (0.00s)
+=== RUN   TestGlyphMaskBatch_CanMerge_DifferentLCD
+--- PASS: TestGlyphMaskBatch_CanMerge_DifferentLCD (0.00s)
+=== RUN   TestGlyphMaskBatch_CanMerge_DifferentAtlasPage
+--- PASS: TestGlyphMaskBatch_CanMerge_DifferentAtlasPage (0.00s)
+=== RUN   TestTextBatch_CanMerge_SameProperties
+--- PASS: TestTextBatch_CanMerge_SameProperties (0.00s)
+=== RUN   TestTextBatch_CanMerge_DifferentColor
+--- PASS: TestTextBatch_CanMerge_DifferentColor (0.00s)
+=== RUN   TestTextBatch_CanMerge_DifferentAtlas
+--- PASS: TestTextBatch_CanMerge_DifferentAtlas (0.00s)
+=== RUN   TestTextBatch_CanMerge_DifferentTransform
+--- PASS: TestTextBatch_CanMerge_DifferentTransform (0.00s)
+=== RUN   TestQueueGlyphMask_Coalescing_SameStyle
+--- PASS: TestQueueGlyphMask_Coalescing_SameStyle (0.00s)
+=== RUN   TestQueueGlyphMask_NoCoalescing_DifferentColor
+--- PASS: TestQueueGlyphMask_NoCoalescing_DifferentColor (0.00s)
+=== RUN   TestQueueGlyphMask_MixedSequence
+--- PASS: TestQueueGlyphMask_MixedSequence (0.00s)
+=== RUN   TestQueueText_Coalescing_SameStyle
+--- PASS: TestQueueText_Coalescing_SameStyle (0.00s)
+=== RUN   TestQueueText_NoCoalescing_DifferentColor
+--- PASS: TestQueueText_NoCoalescing_DifferentColor (0.00s)
+=== RUN   TestQueueText_MixedSequence
+--- PASS: TestQueueText_MixedSequence (0.00s)
+=== RUN   TestQueueGlyphMask_ScissorBoundary_SplitsBatch
+--- PASS: TestQueueGlyphMask_ScissorBoundary_SplitsBatch (0.00s)
+=== RUN   TestQueueGlyphMask_ScissorBoundary_PreservesIntraGroupMerging
+--- PASS: TestQueueGlyphMask_ScissorBoundary_PreservesIntraGroupMerging (0.00s)
+=== RUN   TestQueueText_ScissorBoundary_SplitsBatch
+--- PASS: TestQueueText_ScissorBoundary_SplitsBatch (0.00s)
+=== RUN   TestQueueText_ScissorBoundary_PreservesIntraGroupMerging
+--- PASS: TestQueueText_ScissorBoundary_PreservesIntraGroupMerging (0.00s)
+PASS

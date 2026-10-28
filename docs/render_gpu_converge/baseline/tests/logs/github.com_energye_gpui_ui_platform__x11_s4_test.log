@@ -1,0 +1,4 @@
+=== RUN   TestX11S4ProcessKeyEvent
+    x11_s4_test.go:35: not x11Ime
+--- FAIL: TestX11S4ProcessKeyEvent (0.83s)
+FAIL

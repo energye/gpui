@@ -1,0 +1,81 @@
+=== RUN   TestSplatU16
+=== RUN   TestSplatU16/zero
+=== RUN   TestSplatU16/max
+=== RUN   TestSplatU16/mid
+=== RUN   TestSplatU16/one
+--- PASS: TestSplatU16 (0.00s)
+    --- PASS: TestSplatU16/zero (0.00s)
+    --- PASS: TestSplatU16/max (0.00s)
+    --- PASS: TestSplatU16/mid (0.00s)
+    --- PASS: TestSplatU16/one (0.00s)
+=== RUN   TestU16x16_Add
+=== RUN   TestU16x16_Add/zeros
+=== RUN   TestU16x16_Add/ones
+=== RUN   TestU16x16_Add/mixed
+--- PASS: TestU16x16_Add (0.00s)
+    --- PASS: TestU16x16_Add/zeros (0.00s)
+    --- PASS: TestU16x16_Add/ones (0.00s)
+    --- PASS: TestU16x16_Add/mixed (0.00s)
+=== RUN   TestU16x16_Sub
+=== RUN   TestU16x16_Sub/zeros
+=== RUN   TestU16x16_Sub/equal
+=== RUN   TestU16x16_Sub/mixed
+--- PASS: TestU16x16_Sub (0.00s)
+    --- PASS: TestU16x16_Sub/zeros (0.00s)
+    --- PASS: TestU16x16_Sub/equal (0.00s)
+    --- PASS: TestU16x16_Sub/mixed (0.00s)
+=== RUN   TestU16x16_Mul
+=== RUN   TestU16x16_Mul/zeros
+=== RUN   TestU16x16_Mul/ones
+=== RUN   TestU16x16_Mul/mixed
+--- PASS: TestU16x16_Mul (0.00s)
+    --- PASS: TestU16x16_Mul/zeros (0.00s)
+    --- PASS: TestU16x16_Mul/ones (0.00s)
+    --- PASS: TestU16x16_Mul/mixed (0.00s)
+=== RUN   TestU16x16_Div255
+=== RUN   TestU16x16_Div255/zero
+=== RUN   TestU16x16_Div255/255
+=== RUN   TestU16x16_Div255/510
+=== RUN   TestU16x16_Div255/max_product
+--- PASS: TestU16x16_Div255 (0.00s)
+    --- PASS: TestU16x16_Div255/zero (0.00s)
+    --- PASS: TestU16x16_Div255/255 (0.00s)
+    --- PASS: TestU16x16_Div255/510 (0.00s)
+    --- PASS: TestU16x16_Div255/max_product (0.00s)
+=== RUN   TestU16x16_Inv
+=== RUN   TestU16x16_Inv/zero
+=== RUN   TestU16x16_Inv/max
+=== RUN   TestU16x16_Inv/mid
+=== RUN   TestU16x16_Inv/one
+--- PASS: TestU16x16_Inv (0.00s)
+    --- PASS: TestU16x16_Inv/zero (0.00s)
+    --- PASS: TestU16x16_Inv/max (0.00s)
+    --- PASS: TestU16x16_Inv/mid (0.00s)
+    --- PASS: TestU16x16_Inv/one (0.00s)
+=== RUN   TestU16x16_MulDiv255
+=== RUN   TestU16x16_MulDiv255/zero
+=== RUN   TestU16x16_MulDiv255/max
+=== RUN   TestU16x16_MulDiv255/half_alpha
+=== RUN   TestU16x16_MulDiv255/one
+--- PASS: TestU16x16_MulDiv255 (0.00s)
+    --- PASS: TestU16x16_MulDiv255/zero (0.00s)
+    --- PASS: TestU16x16_MulDiv255/max (0.00s)
+    --- PASS: TestU16x16_MulDiv255/half_alpha (0.00s)
+    --- PASS: TestU16x16_MulDiv255/one (0.00s)
+=== RUN   TestU16x16_Clamp
+=== RUN   TestU16x16_Clamp/under_max
+=== RUN   TestU16x16_Clamp/over_max
+=== RUN   TestU16x16_Clamp/equal_max
+=== RUN   TestU16x16_Clamp/zero_max
+--- PASS: TestU16x16_Clamp (0.00s)
+    --- PASS: TestU16x16_Clamp/under_max (0.00s)
+    --- PASS: TestU16x16_Clamp/over_max (0.00s)
+    --- PASS: TestU16x16_Clamp/equal_max (0.00s)
+    --- PASS: TestU16x16_Clamp/zero_max (0.00s)
+=== RUN   TestU16x16_EdgeCases
+=== RUN   TestU16x16_EdgeCases/overflow_wrapping
+=== RUN   TestU16x16_EdgeCases/underflow_wrapping
+--- PASS: TestU16x16_EdgeCases (0.00s)
+    --- PASS: TestU16x16_EdgeCases/overflow_wrapping (0.00s)
+    --- PASS: TestU16x16_EdgeCases/underflow_wrapping (0.00s)
+PASS

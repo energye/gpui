@@ -1,0 +1,5 @@
+=== RUN   TestView_RawFallbackSemantics
+--- PASS: TestView_RawFallbackSemantics (0.00s)
+=== RUN   TestView_DeferredAndDirectEquality
+--- PASS: TestView_DeferredAndDirectEquality (0.00s)
+PASS

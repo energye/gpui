@@ -1,0 +1,95 @@
+=== RUN   TestCustomBrushColorAt
+=== RUN   TestCustomBrushColorAt/constant_color
+=== RUN   TestCustomBrushColorAt/x-based
+=== RUN   TestCustomBrushColorAt/y-based
+--- PASS: TestCustomBrushColorAt (0.00s)
+    --- PASS: TestCustomBrushColorAt/constant_color (0.00s)
+    --- PASS: TestCustomBrushColorAt/x-based (0.00s)
+    --- PASS: TestCustomBrushColorAt/y-based (0.00s)
+=== RUN   TestCustomBrushNilFunc
+--- PASS: TestCustomBrushNilFunc (0.00s)
+=== RUN   TestCustomBrushWithName
+--- PASS: TestCustomBrushWithName (0.00s)
+=== RUN   TestCustomBrushInterface
+--- PASS: TestCustomBrushInterface (0.00s)
+=== RUN   TestHorizontalGradient
+=== RUN   TestHorizontalGradient/left_edge
+=== RUN   TestHorizontalGradient/middle
+=== RUN   TestHorizontalGradient/right_edge
+=== RUN   TestHorizontalGradient/before_left_(clamped)
+=== RUN   TestHorizontalGradient/after_right_(clamped)
+--- PASS: TestHorizontalGradient (0.00s)
+    --- PASS: TestHorizontalGradient/left_edge (0.00s)
+    --- PASS: TestHorizontalGradient/middle (0.00s)
+    --- PASS: TestHorizontalGradient/right_edge (0.00s)
+    --- PASS: TestHorizontalGradient/before_left_(clamped) (0.00s)
+    --- PASS: TestHorizontalGradient/after_right_(clamped) (0.00s)
+=== RUN   TestVerticalGradient
+=== RUN   TestVerticalGradient/top_edge
+=== RUN   TestVerticalGradient/middle
+=== RUN   TestVerticalGradient/bottom_edge
+--- PASS: TestVerticalGradient (0.00s)
+    --- PASS: TestVerticalGradient/top_edge (0.00s)
+    --- PASS: TestVerticalGradient/middle (0.00s)
+    --- PASS: TestVerticalGradient/bottom_edge (0.00s)
+=== RUN   TestLinearGradient
+=== RUN   TestLinearGradient/origin
+=== RUN   TestLinearGradient/end
+=== RUN   TestLinearGradient/middle
+--- PASS: TestLinearGradient (0.00s)
+    --- PASS: TestLinearGradient/origin (0.00s)
+    --- PASS: TestLinearGradient/end (0.00s)
+    --- PASS: TestLinearGradient/middle (0.00s)
+=== RUN   TestLinearGradientZeroLength
+--- PASS: TestLinearGradientZeroLength (0.00s)
+=== RUN   TestRadialGradient
+=== RUN   TestRadialGradient/center
+=== RUN   TestRadialGradient/edge_right
+=== RUN   TestRadialGradient/edge_top
+=== RUN   TestRadialGradient/halfway
+--- PASS: TestRadialGradient (0.00s)
+    --- PASS: TestRadialGradient/center (0.00s)
+    --- PASS: TestRadialGradient/edge_right (0.00s)
+    --- PASS: TestRadialGradient/edge_top (0.00s)
+    --- PASS: TestRadialGradient/halfway (0.00s)
+=== RUN   TestRadialGradientZeroRadius
+--- PASS: TestRadialGradientZeroRadius (0.00s)
+=== RUN   TestCheckerboard
+=== RUN   TestCheckerboard/origin
+=== RUN   TestCheckerboard/first_white
+=== RUN   TestCheckerboard/next_black
+=== RUN   TestCheckerboard/diag_white
+--- PASS: TestCheckerboard (0.00s)
+    --- PASS: TestCheckerboard/origin (0.00s)
+    --- PASS: TestCheckerboard/first_white (0.00s)
+    --- PASS: TestCheckerboard/next_black (0.00s)
+    --- PASS: TestCheckerboard/diag_white (0.00s)
+=== RUN   TestCheckerboardZeroSize
+--- PASS: TestCheckerboardZeroSize (0.00s)
+=== RUN   TestStripes
+=== RUN   TestStripes/first_stripe
+=== RUN   TestStripes/second_stripe
+=== RUN   TestStripes/third_stripe
+--- PASS: TestStripes (0.00s)
+    --- PASS: TestStripes/first_stripe (0.00s)
+    --- PASS: TestStripes/second_stripe (0.00s)
+    --- PASS: TestStripes/third_stripe (0.00s)
+=== RUN   TestStripesRotated
+--- PASS: TestStripesRotated (0.00s)
+=== RUN   TestStripesZeroWidth
+--- PASS: TestStripesZeroWidth (0.00s)
+=== RUN   TestClampT
+=== RUN   TestClampT/below_zero
+=== RUN   TestClampT/zero
+=== RUN   TestClampT/middle
+=== RUN   TestClampT/one
+=== RUN   TestClampT/above_one
+--- PASS: TestClampT (0.00s)
+    --- PASS: TestClampT/below_zero (0.00s)
+    --- PASS: TestClampT/zero (0.00s)
+    --- PASS: TestClampT/middle (0.00s)
+    --- PASS: TestClampT/one (0.00s)
+    --- PASS: TestClampT/above_one (0.00s)
+=== RUN   TestSolidBrushToCustomBrush
+--- PASS: TestSolidBrushToCustomBrush (0.00s)
+PASS

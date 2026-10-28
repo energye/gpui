@@ -1,0 +1,193 @@
+=== RUN   TestSubpixelMode_String
+=== RUN   TestSubpixelMode_String/None
+=== RUN   TestSubpixelMode_String/Subpixel4
+=== RUN   TestSubpixelMode_String/Subpixel10
+=== RUN   TestSubpixelMode_String/Unknown
+--- PASS: TestSubpixelMode_String (0.00s)
+    --- PASS: TestSubpixelMode_String/None (0.00s)
+    --- PASS: TestSubpixelMode_String/Subpixel4 (0.00s)
+    --- PASS: TestSubpixelMode_String/Subpixel10 (0.00s)
+    --- PASS: TestSubpixelMode_String/Unknown (0.00s)
+=== RUN   TestSubpixelMode_IsEnabled
+=== RUN   TestSubpixelMode_IsEnabled/None
+=== RUN   TestSubpixelMode_IsEnabled/Subpixel4
+=== RUN   TestSubpixelMode_IsEnabled/Subpixel10
+=== RUN   TestSubpixelMode_IsEnabled/Unknown
+--- PASS: TestSubpixelMode_IsEnabled (0.00s)
+    --- PASS: TestSubpixelMode_IsEnabled/None (0.00s)
+    --- PASS: TestSubpixelMode_IsEnabled/Subpixel4 (0.00s)
+    --- PASS: TestSubpixelMode_IsEnabled/Subpixel10 (0.00s)
+    --- PASS: TestSubpixelMode_IsEnabled/Unknown (0.00s)
+=== RUN   TestSubpixelMode_Divisions
+=== RUN   TestSubpixelMode_Divisions/None
+=== RUN   TestSubpixelMode_Divisions/Subpixel4
+=== RUN   TestSubpixelMode_Divisions/Subpixel10
+=== RUN   TestSubpixelMode_Divisions/Unknown
+--- PASS: TestSubpixelMode_Divisions (0.00s)
+    --- PASS: TestSubpixelMode_Divisions/None (0.00s)
+    --- PASS: TestSubpixelMode_Divisions/Subpixel4 (0.00s)
+    --- PASS: TestSubpixelMode_Divisions/Subpixel10 (0.00s)
+    --- PASS: TestSubpixelMode_Divisions/Unknown (0.00s)
+=== RUN   TestDefaultSubpixelConfig
+--- PASS: TestDefaultSubpixelConfig (0.00s)
+=== RUN   TestNoSubpixelConfig
+--- PASS: TestNoSubpixelConfig (0.00s)
+=== RUN   TestHighQualitySubpixelConfig
+--- PASS: TestHighQualitySubpixelConfig (0.00s)
+=== RUN   TestSubpixelConfig_IsEnabled
+=== RUN   TestSubpixelConfig_IsEnabled/default_enabled
+=== RUN   TestSubpixelConfig_IsEnabled/none_disabled
+=== RUN   TestSubpixelConfig_IsEnabled/mode_enabled_but_no_axis
+=== RUN   TestSubpixelConfig_IsEnabled/vertical_only
+--- PASS: TestSubpixelConfig_IsEnabled (0.00s)
+    --- PASS: TestSubpixelConfig_IsEnabled/default_enabled (0.00s)
+    --- PASS: TestSubpixelConfig_IsEnabled/none_disabled (0.00s)
+    --- PASS: TestSubpixelConfig_IsEnabled/mode_enabled_but_no_axis (0.00s)
+    --- PASS: TestSubpixelConfig_IsEnabled/vertical_only (0.00s)
+=== RUN   TestSubpixelConfig_CacheMultiplier
+=== RUN   TestSubpixelConfig_CacheMultiplier/none
+=== RUN   TestSubpixelConfig_CacheMultiplier/horizontal_only_4
+=== RUN   TestSubpixelConfig_CacheMultiplier/horizontal_only_10
+=== RUN   TestSubpixelConfig_CacheMultiplier/vertical_only_4
+=== RUN   TestSubpixelConfig_CacheMultiplier/both_4
+=== RUN   TestSubpixelConfig_CacheMultiplier/both_10
+--- PASS: TestSubpixelConfig_CacheMultiplier (0.00s)
+    --- PASS: TestSubpixelConfig_CacheMultiplier/none (0.00s)
+    --- PASS: TestSubpixelConfig_CacheMultiplier/horizontal_only_4 (0.00s)
+    --- PASS: TestSubpixelConfig_CacheMultiplier/horizontal_only_10 (0.00s)
+    --- PASS: TestSubpixelConfig_CacheMultiplier/vertical_only_4 (0.00s)
+    --- PASS: TestSubpixelConfig_CacheMultiplier/both_4 (0.00s)
+    --- PASS: TestSubpixelConfig_CacheMultiplier/both_10 (0.00s)
+=== RUN   TestQuantize_Subpixel4
+=== RUN   TestQuantize_Subpixel4/#00
+=== RUN   TestQuantize_Subpixel4/#01
+=== RUN   TestQuantize_Subpixel4/#02
+=== RUN   TestQuantize_Subpixel4/#03
+=== RUN   TestQuantize_Subpixel4/#04
+=== RUN   TestQuantize_Subpixel4/#05
+=== RUN   TestQuantize_Subpixel4/#06
+=== RUN   TestQuantize_Subpixel4/#07
+=== RUN   TestQuantize_Subpixel4/#08
+=== RUN   TestQuantize_Subpixel4/#09
+=== RUN   TestQuantize_Subpixel4/#10
+=== RUN   TestQuantize_Subpixel4/#11
+--- PASS: TestQuantize_Subpixel4 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#00 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#01 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#02 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#03 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#04 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#05 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#06 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#07 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#08 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#09 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#10 (0.00s)
+    --- PASS: TestQuantize_Subpixel4/#11 (0.00s)
+=== RUN   TestQuantize_Subpixel10
+=== RUN   TestQuantize_Subpixel10/#00
+=== RUN   TestQuantize_Subpixel10/#01
+=== RUN   TestQuantize_Subpixel10/#02
+=== RUN   TestQuantize_Subpixel10/#03
+=== RUN   TestQuantize_Subpixel10/#04
+=== RUN   TestQuantize_Subpixel10/#05
+=== RUN   TestQuantize_Subpixel10/#06
+=== RUN   TestQuantize_Subpixel10/#07
+--- PASS: TestQuantize_Subpixel10 (0.00s)
+    --- PASS: TestQuantize_Subpixel10/#00 (0.00s)
+    --- PASS: TestQuantize_Subpixel10/#01 (0.00s)
+    --- PASS: TestQuantize_Subpixel10/#02 (0.00s)
+    --- PASS: TestQuantize_Subpixel10/#03 (0.00s)
+    --- PASS: TestQuantize_Subpixel10/#04 (0.00s)
+    --- PASS: TestQuantize_Subpixel10/#05 (0.00s)
+    --- PASS: TestQuantize_Subpixel10/#06 (0.00s)
+    --- PASS: TestQuantize_Subpixel10/#07 (0.00s)
+=== RUN   TestQuantize_SubpixelNone
+=== RUN   TestQuantize_SubpixelNone/#00
+=== RUN   TestQuantize_SubpixelNone/#01
+=== RUN   TestQuantize_SubpixelNone/#02
+=== RUN   TestQuantize_SubpixelNone/#03
+=== RUN   TestQuantize_SubpixelNone/#04
+=== RUN   TestQuantize_SubpixelNone/#05
+--- PASS: TestQuantize_SubpixelNone (0.00s)
+    --- PASS: TestQuantize_SubpixelNone/#00 (0.00s)
+    --- PASS: TestQuantize_SubpixelNone/#01 (0.00s)
+    --- PASS: TestQuantize_SubpixelNone/#02 (0.00s)
+    --- PASS: TestQuantize_SubpixelNone/#03 (0.00s)
+    --- PASS: TestQuantize_SubpixelNone/#04 (0.00s)
+    --- PASS: TestQuantize_SubpixelNone/#05 (0.00s)
+=== RUN   TestQuantize_NegativePositions
+=== RUN   TestQuantize_NegativePositions/#00
+=== RUN   TestQuantize_NegativePositions/#01
+=== RUN   TestQuantize_NegativePositions/#02
+=== RUN   TestQuantize_NegativePositions/#03
+--- PASS: TestQuantize_NegativePositions (0.00s)
+    --- PASS: TestQuantize_NegativePositions/#00 (0.00s)
+    --- PASS: TestQuantize_NegativePositions/#01 (0.00s)
+    --- PASS: TestQuantize_NegativePositions/#02 (0.00s)
+    --- PASS: TestQuantize_NegativePositions/#03 (0.00s)
+=== RUN   TestQuantizePoint
+--- PASS: TestQuantizePoint (0.00s)
+=== RUN   TestQuantizePoint_HorizontalOnly
+--- PASS: TestQuantizePoint_HorizontalOnly (0.00s)
+=== RUN   TestSubpixelOffset
+=== RUN   TestSubpixelOffset/#00
+=== RUN   TestSubpixelOffset/#01
+=== RUN   TestSubpixelOffset/#02
+=== RUN   TestSubpixelOffset/#03
+=== RUN   TestSubpixelOffset/#04
+=== RUN   TestSubpixelOffset/#05
+=== RUN   TestSubpixelOffset/#06
+=== RUN   TestSubpixelOffset/#07
+=== RUN   TestSubpixelOffset/#08
+=== RUN   TestSubpixelOffset/#09
+--- PASS: TestSubpixelOffset (0.00s)
+    --- PASS: TestSubpixelOffset/#00 (0.00s)
+    --- PASS: TestSubpixelOffset/#01 (0.00s)
+    --- PASS: TestSubpixelOffset/#02 (0.00s)
+    --- PASS: TestSubpixelOffset/#03 (0.00s)
+    --- PASS: TestSubpixelOffset/#04 (0.00s)
+    --- PASS: TestSubpixelOffset/#05 (0.00s)
+    --- PASS: TestSubpixelOffset/#06 (0.00s)
+    --- PASS: TestSubpixelOffset/#07 (0.00s)
+    --- PASS: TestSubpixelOffset/#08 (0.00s)
+    --- PASS: TestSubpixelOffset/#09 (0.00s)
+=== RUN   TestSubpixelOffsets
+--- PASS: TestSubpixelOffsets (0.00s)
+=== RUN   TestSubpixelOffsets_Disabled
+--- PASS: TestSubpixelOffsets_Disabled (0.00s)
+=== RUN   TestNewSubpixelCache
+--- PASS: TestNewSubpixelCache (0.00s)
+=== RUN   TestNewSubpixelCacheWithConfig
+--- PASS: TestNewSubpixelCacheWithConfig (0.00s)
+=== RUN   TestSubpixelCache_SetGet
+--- PASS: TestSubpixelCache_SetGet (0.00s)
+=== RUN   TestSubpixelCache_DifferentSubpixelPositions
+--- PASS: TestSubpixelCache_DifferentSubpixelPositions (0.00s)
+=== RUN   TestSubpixelCache_GetOrCreate
+--- PASS: TestSubpixelCache_GetOrCreate (0.00s)
+=== RUN   TestSubpixelCache_GetOrCreate_NilCreate
+--- PASS: TestSubpixelCache_GetOrCreate_NilCreate (0.00s)
+=== RUN   TestSubpixelCache_Delete
+--- PASS: TestSubpixelCache_Delete (0.00s)
+=== RUN   TestSubpixelCache_Clear
+--- PASS: TestSubpixelCache_Clear (0.00s)
+=== RUN   TestSubpixelCache_Maintain
+--- PASS: TestSubpixelCache_Maintain (0.00s)
+=== RUN   TestSubpixelCache_SetConfig
+--- PASS: TestSubpixelCache_SetConfig (0.00s)
+=== RUN   TestSubpixelCache_Stats
+--- PASS: TestSubpixelCache_Stats (0.00s)
+=== RUN   TestSubpixelCache_HitRate
+--- PASS: TestSubpixelCache_HitRate (0.00s)
+=== RUN   TestSubpixelCache_ResetStats
+--- PASS: TestSubpixelCache_ResetStats (0.00s)
+=== RUN   TestMakeSubpixelKey
+--- PASS: TestMakeSubpixelKey (0.00s)
+=== RUN   TestGlobalSubpixelCache
+--- PASS: TestGlobalSubpixelCache (0.00s)
+=== RUN   TestSetGlobalSubpixelCache_Nil
+--- PASS: TestSetGlobalSubpixelCache_Nil (0.00s)
+=== RUN   TestSubpixelCache_Concurrent
+--- PASS: TestSubpixelCache_Concurrent (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestS2_Spinner_DirtyLayerAndNoLayout
+--- PASS: TestS2_Spinner_DirtyLayerAndNoLayout (0.01s)
+=== RUN   TestS4_StaticTree_SpinnerOnlyRaster
+--- PASS: TestS4_StaticTree_SpinnerOnlyRaster (0.00s)
+=== RUN   TestSpinner_IsRepaintBoundary
+--- PASS: TestSpinner_IsRepaintBoundary (0.00s)
+PASS

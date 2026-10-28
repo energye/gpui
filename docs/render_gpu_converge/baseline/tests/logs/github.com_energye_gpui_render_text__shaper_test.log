@@ -1,0 +1,43 @@
+=== RUN   TestBuiltinShapeEmpty
+--- PASS: TestBuiltinShapeEmpty (0.00s)
+=== RUN   TestBuiltinShapeLatinText
+=== RUN   TestBuiltinShapeLatinText/single_char
+=== RUN   TestBuiltinShapeLatinText/word
+=== RUN   TestBuiltinShapeLatinText/with_space
+=== RUN   TestBuiltinShapeLatinText/numbers
+=== RUN   TestBuiltinShapeLatinText/punctuation
+=== RUN   TestBuiltinShapeLatinText/lowercase
+=== RUN   TestBuiltinShapeLatinText/uppercase
+=== RUN   TestBuiltinShapeLatinText/mixed_case
+--- PASS: TestBuiltinShapeLatinText (0.00s)
+    --- PASS: TestBuiltinShapeLatinText/single_char (0.00s)
+    --- PASS: TestBuiltinShapeLatinText/word (0.00s)
+    --- PASS: TestBuiltinShapeLatinText/with_space (0.00s)
+    --- PASS: TestBuiltinShapeLatinText/numbers (0.00s)
+    --- PASS: TestBuiltinShapeLatinText/punctuation (0.00s)
+    --- PASS: TestBuiltinShapeLatinText/lowercase (0.00s)
+    --- PASS: TestBuiltinShapeLatinText/uppercase (0.00s)
+    --- PASS: TestBuiltinShapeLatinText/mixed_case (0.00s)
+=== RUN   TestBuiltinShapeCyrillic
+--- PASS: TestBuiltinShapeCyrillic (0.00s)
+=== RUN   TestBuiltinShapeCJK
+--- PASS: TestBuiltinShapeCJK (0.00s)
+=== RUN   TestSetShaper
+--- PASS: TestSetShaper (0.00s)
+=== RUN   TestSetShaperNil
+--- PASS: TestSetShaperNil (0.00s)
+=== RUN   TestGetShaper
+--- PASS: TestGetShaper (0.00s)
+=== RUN   TestShapeNilFace
+--- PASS: TestShapeNilFace (0.00s)
+=== RUN   TestBuiltinShaperDirectly
+--- PASS: TestBuiltinShaperDirectly (0.00s)
+=== RUN   TestShapedGlyphFields
+--- PASS: TestShapedGlyphFields (0.00s)
+=== RUN   TestShapeDifferentSizes
+--- PASS: TestShapeDifferentSizes (0.00s)
+=== RUN   TestBuiltinShaperConcurrency
+--- PASS: TestBuiltinShaperConcurrency (0.00s)
+=== RUN   TestCustomShaperIntegration
+--- PASS: TestCustomShaperIntegration (0.00s)
+PASS

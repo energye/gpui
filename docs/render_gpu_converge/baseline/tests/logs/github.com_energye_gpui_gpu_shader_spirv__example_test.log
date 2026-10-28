@@ -1,0 +1,7 @@
+=== RUN   ExampleModuleBuilder_minimal
+--- PASS: ExampleModuleBuilder_minimal (0.00s)
+=== RUN   ExampleModuleBuilder_withTypes
+--- PASS: ExampleModuleBuilder_withTypes (0.00s)
+=== RUN   ExampleModuleBuilder_fragmentShader
+--- PASS: ExampleModuleBuilder_fragmentShader (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestSelectionHighlightSurvivesLayout
+=== RUN   TestSelectionHighlightSurvivesLayout/viewport
+=== RUN   TestSelectionHighlightSurvivesLayout/multiline-wrap
+--- PASS: TestSelectionHighlightSurvivesLayout (0.39s)
+    --- PASS: TestSelectionHighlightSurvivesLayout/viewport (0.07s)
+    --- PASS: TestSelectionHighlightSurvivesLayout/multiline-wrap (0.06s)
+PASS

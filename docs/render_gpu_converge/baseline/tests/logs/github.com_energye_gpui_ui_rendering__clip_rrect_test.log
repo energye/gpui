@@ -1,0 +1,11 @@
+=== RUN   TestPaintContext_PushClipRRect_ClipsOutsideCorners
+--- PASS: TestPaintContext_PushClipRRect_ClipsOutsideCorners (0.00s)
+=== RUN   TestPaintContext_PushClipRRect_ZeroRadiusFallsBackToRect
+--- PASS: TestPaintContext_PushClipRRect_ZeroRadiusFallsBackToRect (0.00s)
+=== RUN   TestRenderClipRRect_HitTest
+--- PASS: TestRenderClipRRect_HitTest (0.00s)
+=== RUN   TestRenderClipRRect_HitTest_ChildOverflow
+--- PASS: TestRenderClipRRect_HitTest_ChildOverflow (0.00s)
+=== RUN   TestRenderClipRRect_HitTest_CornerHole
+--- PASS: TestRenderClipRRect_HitTest_CornerHole (0.00s)
+PASS

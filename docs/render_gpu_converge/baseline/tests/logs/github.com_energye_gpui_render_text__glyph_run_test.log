@@ -1,0 +1,55 @@
+=== RUN   TestNewGlyphRunBuilder
+=== RUN   TestNewGlyphRunBuilder/with_cache
+=== RUN   TestNewGlyphRunBuilder/with_nil_cache
+--- PASS: TestNewGlyphRunBuilder (0.00s)
+    --- PASS: TestNewGlyphRunBuilder/with_cache (0.00s)
+    --- PASS: TestNewGlyphRunBuilder/with_nil_cache (0.00s)
+=== RUN   TestGlyphRunBuilder_AddGlyph
+--- PASS: TestGlyphRunBuilder_AddGlyph (0.00s)
+=== RUN   TestGlyphRunBuilder_AddShapedGlyph
+--- PASS: TestGlyphRunBuilder_AddShapedGlyph (0.00s)
+=== RUN   TestGlyphRunBuilder_AddShapedGlyph_Nil
+--- PASS: TestGlyphRunBuilder_AddShapedGlyph_Nil (0.00s)
+=== RUN   TestGlyphRunBuilder_AddShapedGlyphs
+--- PASS: TestGlyphRunBuilder_AddShapedGlyphs (0.00s)
+=== RUN   TestGlyphRunBuilder_Clear
+--- PASS: TestGlyphRunBuilder_Clear (0.00s)
+=== RUN   TestGlyphRunBuilder_Build_Empty
+--- PASS: TestGlyphRunBuilder_Build_Empty (0.00s)
+=== RUN   TestGlyphRunBuilder_Build_WithCreate
+--- PASS: TestGlyphRunBuilder_Build_WithCreate (0.00s)
+=== RUN   TestGlyphRunBuilder_Build_CacheHit
+--- PASS: TestGlyphRunBuilder_Build_CacheHit (0.00s)
+=== RUN   TestGlyphRunBuilder_Build_NilCreate
+--- PASS: TestGlyphRunBuilder_Build_NilCreate (0.00s)
+=== RUN   TestGlyphRunBuilder_Build_SkipEmptyOutlines
+--- PASS: TestGlyphRunBuilder_Build_SkipEmptyOutlines (0.00s)
+=== RUN   TestGlyphRunBuilder_BuildTransformed
+--- PASS: TestGlyphRunBuilder_BuildTransformed (0.00s)
+=== RUN   TestGlyphRunBuilder_BuildTransformed_NilUserTransform
+--- PASS: TestGlyphRunBuilder_BuildTransformed_NilUserTransform (0.00s)
+=== RUN   TestGlyphRunBuilder_SetCache
+--- PASS: TestGlyphRunBuilder_SetCache (0.00s)
+=== RUN   TestGlyphRunBuilder_Instances_Copy
+--- PASS: TestGlyphRunBuilder_Instances_Copy (0.00s)
+=== RUN   TestGlyphRunBuilder_Instances_Empty
+--- PASS: TestGlyphRunBuilder_Instances_Empty (0.00s)
+=== RUN   TestGlyphRunBuilderPool
+--- PASS: TestGlyphRunBuilderPool (0.00s)
+=== RUN   TestGlyphRunBuilderPool_NilCache
+--- PASS: TestGlyphRunBuilderPool_NilCache (0.00s)
+=== RUN   TestSizeBitsConversion
+--- PASS: TestSizeBitsConversion (0.00s)
+=== RUN   TestSizeBitsUniqueness
+--- PASS: TestSizeBitsUniqueness (0.00s)
+=== RUN   TestPoint
+--- PASS: TestPoint (0.00s)
+=== RUN   TestGlyphInstance
+--- PASS: TestGlyphInstance (0.00s)
+=== RUN   TestDrawCommand
+--- PASS: TestDrawCommand (0.00s)
+=== RUN   TestGlyphRunBuilderPool_Concurrent
+--- PASS: TestGlyphRunBuilderPool_Concurrent (0.00s)
+=== RUN   TestGlyphRunBuilder_Growth
+--- PASS: TestGlyphRunBuilder_Growth (0.00s)
+PASS

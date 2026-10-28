@@ -1,0 +1,4 @@
+=== RUN   TestS63_PresentMainPath_NoRegress
+    s6_3_batch_deepen_test.go:60: S6.3 multi-rect present p50=0.15ms budget=16.70
+--- PASS: TestS63_PresentMainPath_NoRegress (0.29s)
+PASS

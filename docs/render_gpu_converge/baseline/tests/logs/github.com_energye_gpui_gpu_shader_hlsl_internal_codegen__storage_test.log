@@ -1,0 +1,293 @@
+=== RUN   TestAlignedOffset
+=== RUN   TestAlignedOffset/already_aligned_4
+=== RUN   TestAlignedOffset/align_1_to_4
+=== RUN   TestAlignedOffset/align_3_to_4
+=== RUN   TestAlignedOffset/align_4_to_4
+=== RUN   TestAlignedOffset/align_5_to_4
+=== RUN   TestAlignedOffset/align_to_16
+=== RUN   TestAlignedOffset/align_15_to_16
+=== RUN   TestAlignedOffset/align_16_to_16
+=== RUN   TestAlignedOffset/zero_alignment
+=== RUN   TestAlignedOffset/align_1_to_1
+--- PASS: TestAlignedOffset (0.00s)
+    --- PASS: TestAlignedOffset/already_aligned_4 (0.00s)
+    --- PASS: TestAlignedOffset/align_1_to_4 (0.00s)
+    --- PASS: TestAlignedOffset/align_3_to_4 (0.00s)
+    --- PASS: TestAlignedOffset/align_4_to_4 (0.00s)
+    --- PASS: TestAlignedOffset/align_5_to_4 (0.00s)
+    --- PASS: TestAlignedOffset/align_to_16 (0.00s)
+    --- PASS: TestAlignedOffset/align_15_to_16 (0.00s)
+    --- PASS: TestAlignedOffset/align_16_to_16 (0.00s)
+    --- PASS: TestAlignedOffset/zero_alignment (0.00s)
+    --- PASS: TestAlignedOffset/align_1_to_1 (0.00s)
+=== RUN   TestCalculateBufferOffset
+=== RUN   TestCalculateBufferOffset/zero_zero
+=== RUN   TestCalculateBufferOffset/zero_offset
+=== RUN   TestCalculateBufferOffset/base_plus_member
+--- PASS: TestCalculateBufferOffset (0.00s)
+    --- PASS: TestCalculateBufferOffset/zero_zero (0.00s)
+    --- PASS: TestCalculateBufferOffset/zero_offset (0.00s)
+    --- PASS: TestCalculateBufferOffset/base_plus_member (0.00s)
+=== RUN   TestGetScalarTypeSize
+=== RUN   TestGetScalarTypeSize/bool_1byte
+=== RUN   TestGetScalarTypeSize/u32
+=== RUN   TestGetScalarTypeSize/f32
+=== RUN   TestGetScalarTypeSize/f64
+=== RUN   TestGetScalarTypeSize/i32
+--- PASS: TestGetScalarTypeSize (0.00s)
+    --- PASS: TestGetScalarTypeSize/bool_1byte (0.00s)
+    --- PASS: TestGetScalarTypeSize/u32 (0.00s)
+    --- PASS: TestGetScalarTypeSize/f32 (0.00s)
+    --- PASS: TestGetScalarTypeSize/f64 (0.00s)
+    --- PASS: TestGetScalarTypeSize/i32 (0.00s)
+=== RUN   TestGetTypeAlignment
+=== RUN   TestGetTypeAlignment/scalar_u32
+=== RUN   TestGetTypeAlignment/scalar_f32
+=== RUN   TestGetTypeAlignment/vec2_f32
+=== RUN   TestGetTypeAlignment/vec4_f32
+=== RUN   TestGetTypeAlignment/mat4x4_f32
+=== RUN   TestGetTypeAlignment/struct
+=== RUN   TestGetTypeAlignment/out_of_range
+--- PASS: TestGetTypeAlignment (0.00s)
+    --- PASS: TestGetTypeAlignment/scalar_u32 (0.00s)
+    --- PASS: TestGetTypeAlignment/scalar_f32 (0.00s)
+    --- PASS: TestGetTypeAlignment/vec2_f32 (0.00s)
+    --- PASS: TestGetTypeAlignment/vec4_f32 (0.00s)
+    --- PASS: TestGetTypeAlignment/mat4x4_f32 (0.00s)
+    --- PASS: TestGetTypeAlignment/struct (0.00s)
+    --- PASS: TestGetTypeAlignment/out_of_range (0.00s)
+=== RUN   TestGetTypeSize
+=== RUN   TestGetTypeSize/u32
+=== RUN   TestGetTypeSize/vec4_f32
+=== RUN   TestGetTypeSize/mat2x3_f32
+=== RUN   TestGetTypeSize/array_u32_4
+=== RUN   TestGetTypeSize/struct_span24
+=== RUN   TestGetTypeSize/out_of_range
+--- PASS: TestGetTypeSize (0.00s)
+    --- PASS: TestGetTypeSize/u32 (0.00s)
+    --- PASS: TestGetTypeSize/vec4_f32 (0.00s)
+    --- PASS: TestGetTypeSize/mat2x3_f32 (0.00s)
+    --- PASS: TestGetTypeSize/array_u32_4 (0.00s)
+    --- PASS: TestGetTypeSize/struct_span24 (0.00s)
+    --- PASS: TestGetTypeSize/out_of_range (0.00s)
+=== RUN   TestAlignmentFromVectorSize
+--- PASS: TestAlignmentFromVectorSize (0.00s)
+=== RUN   TestScalarHLSLCast
+--- PASS: TestScalarHLSLCast (0.00s)
+=== RUN   TestAtomicFunctionToHLSL
+=== RUN   TestAtomicFunctionToHLSL/add
+=== RUN   TestAtomicFunctionToHLSL/subtract
+=== RUN   TestAtomicFunctionToHLSL/and
+=== RUN   TestAtomicFunctionToHLSL/xor
+=== RUN   TestAtomicFunctionToHLSL/or
+=== RUN   TestAtomicFunctionToHLSL/min
+=== RUN   TestAtomicFunctionToHLSL/max
+=== RUN   TestAtomicFunctionToHLSL/exchange
+--- PASS: TestAtomicFunctionToHLSL (0.00s)
+    --- PASS: TestAtomicFunctionToHLSL/add (0.00s)
+    --- PASS: TestAtomicFunctionToHLSL/subtract (0.00s)
+    --- PASS: TestAtomicFunctionToHLSL/and (0.00s)
+    --- PASS: TestAtomicFunctionToHLSL/xor (0.00s)
+    --- PASS: TestAtomicFunctionToHLSL/or (0.00s)
+    --- PASS: TestAtomicFunctionToHLSL/min (0.00s)
+    --- PASS: TestAtomicFunctionToHLSL/max (0.00s)
+    --- PASS: TestAtomicFunctionToHLSL/exchange (0.00s)
+=== RUN   TestIsAtomicSubtract
+--- PASS: TestIsAtomicSubtract (0.00s)
+=== RUN   TestGetRegisterTypeForAddressSpace
+=== RUN   TestGetRegisterTypeForAddressSpace/uniform
+=== RUN   TestGetRegisterTypeForAddressSpace/storage_rw
+=== RUN   TestGetRegisterTypeForAddressSpace/storage_ro
+=== RUN   TestGetRegisterTypeForAddressSpace/handle
+=== RUN   TestGetRegisterTypeForAddressSpace/default
+--- PASS: TestGetRegisterTypeForAddressSpace (0.00s)
+    --- PASS: TestGetRegisterTypeForAddressSpace/uniform (0.00s)
+    --- PASS: TestGetRegisterTypeForAddressSpace/storage_rw (0.00s)
+    --- PASS: TestGetRegisterTypeForAddressSpace/storage_ro (0.00s)
+    --- PASS: TestGetRegisterTypeForAddressSpace/handle (0.00s)
+    --- PASS: TestGetRegisterTypeForAddressSpace/default (0.00s)
+=== RUN   TestGetRegisterBinding
+=== RUN   TestGetRegisterBinding/nil_binding
+=== RUN   TestGetRegisterBinding/t0_space0
+=== RUN   TestGetRegisterBinding/u3_space1
+=== RUN   TestGetRegisterBinding/b0_space2
+--- PASS: TestGetRegisterBinding (0.00s)
+    --- PASS: TestGetRegisterBinding/nil_binding (0.00s)
+    --- PASS: TestGetRegisterBinding/t0_space0 (0.00s)
+    --- PASS: TestGetRegisterBinding/u3_space1 (0.00s)
+    --- PASS: TestGetRegisterBinding/b0_space2 (0.00s)
+=== RUN   TestWriteByteAddressBuffer
+=== RUN   TestWriteByteAddressBuffer/rw_with_binding
+=== RUN   TestWriteByteAddressBuffer/ro_with_binding
+=== RUN   TestWriteByteAddressBuffer/rw_no_binding
+=== RUN   TestWriteByteAddressBuffer/ro_no_binding
+--- PASS: TestWriteByteAddressBuffer (0.00s)
+    --- PASS: TestWriteByteAddressBuffer/rw_with_binding (0.00s)
+    --- PASS: TestWriteByteAddressBuffer/ro_with_binding (0.00s)
+    --- PASS: TestWriteByteAddressBuffer/rw_no_binding (0.00s)
+    --- PASS: TestWriteByteAddressBuffer/ro_no_binding (0.00s)
+=== RUN   TestWriteStructuredBuffer
+=== RUN   TestWriteStructuredBuffer/rw_float4
+=== RUN   TestWriteStructuredBuffer/ro_uint
+--- PASS: TestWriteStructuredBuffer (0.00s)
+    --- PASS: TestWriteStructuredBuffer/rw_float4 (0.00s)
+    --- PASS: TestWriteStructuredBuffer/ro_uint (0.00s)
+=== RUN   TestWriteConstantBuffer
+=== RUN   TestWriteConstantBuffer/with_binding
+=== RUN   TestWriteConstantBuffer/no_binding
+--- PASS: TestWriteConstantBuffer (0.00s)
+    --- PASS: TestWriteConstantBuffer/with_binding (0.00s)
+    --- PASS: TestWriteConstantBuffer/no_binding (0.00s)
+=== RUN   TestWriteBufferLoad
+=== RUN   TestWriteBufferLoad/load1
+=== RUN   TestWriteBufferLoad/load2
+=== RUN   TestWriteBufferLoad/load3
+=== RUN   TestWriteBufferLoad/load4
+=== RUN   TestWriteBufferLoad/load_default_ge5
+--- PASS: TestWriteBufferLoad (0.00s)
+    --- PASS: TestWriteBufferLoad/load1 (0.00s)
+    --- PASS: TestWriteBufferLoad/load2 (0.00s)
+    --- PASS: TestWriteBufferLoad/load3 (0.00s)
+    --- PASS: TestWriteBufferLoad/load4 (0.00s)
+    --- PASS: TestWriteBufferLoad/load_default_ge5 (0.00s)
+=== RUN   TestWriteBufferLoadT
+--- PASS: TestWriteBufferLoadT (0.00s)
+=== RUN   TestWriteBufferStore
+=== RUN   TestWriteBufferStore/store1
+=== RUN   TestWriteBufferStore/store2
+=== RUN   TestWriteBufferStore/store3
+=== RUN   TestWriteBufferStore/store4
+--- PASS: TestWriteBufferStore (0.00s)
+    --- PASS: TestWriteBufferStore/store1 (0.00s)
+    --- PASS: TestWriteBufferStore/store2 (0.00s)
+    --- PASS: TestWriteBufferStore/store3 (0.00s)
+    --- PASS: TestWriteBufferStore/store4 (0.00s)
+=== RUN   TestWriteAtomicOp
+=== RUN   TestWriteAtomicOp/with_result
+=== RUN   TestWriteAtomicOp/without_result
+--- PASS: TestWriteAtomicOp (0.00s)
+    --- PASS: TestWriteAtomicOp/with_result (0.00s)
+    --- PASS: TestWriteAtomicOp/without_result (0.00s)
+=== RUN   TestWriteAtomicCompareExchange
+--- PASS: TestWriteAtomicCompareExchange (0.00s)
+=== RUN   TestWriteAtomicCompareStore
+--- PASS: TestWriteAtomicCompareStore (0.00s)
+=== RUN   TestWriteAtomicExchange
+--- PASS: TestWriteAtomicExchange (0.00s)
+=== RUN   TestIsStoragePointer
+=== RUN   TestIsStoragePointer/storage_global
+=== RUN   TestIsStoragePointer/uniform_global
+=== RUN   TestIsStoragePointer/access_into_storage
+=== RUN   TestIsStoragePointer/nil_function
+--- PASS: TestIsStoragePointer (0.00s)
+    --- PASS: TestIsStoragePointer/storage_global (0.00s)
+    --- PASS: TestIsStoragePointer/uniform_global (0.00s)
+    --- PASS: TestIsStoragePointer/access_into_storage (0.00s)
+    --- PASS: TestIsStoragePointer/nil_function (0.00s)
+=== RUN   TestFillAccessChain
+=== RUN   TestFillAccessChain/struct_member_access
+=== RUN   TestFillAccessChain/direct_global
+--- PASS: TestFillAccessChain (0.00s)
+    --- PASS: TestFillAccessChain/struct_member_access (0.00s)
+    --- PASS: TestFillAccessChain/direct_global (0.00s)
+=== RUN   TestWriteStorageAddress
+=== RUN   TestWriteStorageAddress/empty_chain
+=== RUN   TestWriteStorageAddress/single_offset
+=== RUN   TestWriteStorageAddress/two_offsets
+--- PASS: TestWriteStorageAddress (0.00s)
+    --- PASS: TestWriteStorageAddress/empty_chain (0.00s)
+    --- PASS: TestWriteStorageAddress/single_offset (0.00s)
+    --- PASS: TestWriteStorageAddress/two_offsets (0.00s)
+=== RUN   TestWriteStorageLoad
+=== RUN   TestWriteStorageLoad/scalar_u32
+=== RUN   TestWriteStorageLoad/scalar_f32
+=== RUN   TestWriteStorageLoad/scalar_i32
+=== RUN   TestWriteStorageLoad/vec2_f32
+=== RUN   TestWriteStorageLoad/vec4_f32
+=== RUN   TestWriteStorageLoad/vec4_u32
+--- PASS: TestWriteStorageLoad (0.00s)
+    --- PASS: TestWriteStorageLoad/scalar_u32 (0.00s)
+    --- PASS: TestWriteStorageLoad/scalar_f32 (0.00s)
+    --- PASS: TestWriteStorageLoad/scalar_i32 (0.00s)
+    --- PASS: TestWriteStorageLoad/vec2_f32 (0.00s)
+    --- PASS: TestWriteStorageLoad/vec4_f32 (0.00s)
+    --- PASS: TestWriteStorageLoad/vec4_u32 (0.00s)
+=== RUN   TestWriteStorageStore
+=== RUN   TestWriteStorageStore/scalar_u32_store
+=== RUN   TestWriteStorageStore/vec2_f32_store
+--- PASS: TestWriteStorageStore (0.00s)
+    --- PASS: TestWriteStorageStore/scalar_u32_store (0.00s)
+    --- PASS: TestWriteStorageStore/vec2_f32_store (0.00s)
+=== RUN   TestScalarToHLSLStr
+=== RUN   TestScalarToHLSLStr/int32
+=== RUN   TestScalarToHLSLStr/int64
+=== RUN   TestScalarToHLSLStr/uint32
+=== RUN   TestScalarToHLSLStr/uint64
+=== RUN   TestScalarToHLSLStr/float16
+=== RUN   TestScalarToHLSLStr/float32
+=== RUN   TestScalarToHLSLStr/float64
+=== RUN   TestScalarToHLSLStr/bool
+--- PASS: TestScalarToHLSLStr (0.00s)
+    --- PASS: TestScalarToHLSLStr/int32 (0.00s)
+    --- PASS: TestScalarToHLSLStr/int64 (0.00s)
+    --- PASS: TestScalarToHLSLStr/uint32 (0.00s)
+    --- PASS: TestScalarToHLSLStr/uint64 (0.00s)
+    --- PASS: TestScalarToHLSLStr/float16 (0.00s)
+    --- PASS: TestScalarToHLSLStr/float32 (0.00s)
+    --- PASS: TestScalarToHLSLStr/float64 (0.00s)
+    --- PASS: TestScalarToHLSLStr/bool (0.00s)
+=== RUN   TestFormatBinding
+=== RUN   TestFormatBinding/without_array
+=== RUN   TestFormatBinding/with_array
+--- PASS: TestFormatBinding (0.00s)
+    --- PASS: TestFormatBinding/without_array (0.00s)
+    --- PASS: TestFormatBinding/with_array (0.00s)
+=== RUN   TestGetSpaceBinding
+--- PASS: TestGetSpaceBinding (0.00s)
+=== RUN   TestIndentStr
+--- PASS: TestIndentStr (0.00s)
+=== RUN   TestNagaDivMod
+=== RUN   TestNagaDivMod/div_helper
+=== RUN   TestNagaDivMod/mod_helper
+=== RUN   TestNagaDivMod/no_helpers_when_not_needed
+--- PASS: TestNagaDivMod (0.00s)
+    --- PASS: TestNagaDivMod/div_helper (0.00s)
+    --- PASS: TestNagaDivMod/mod_helper (0.00s)
+    --- PASS: TestNagaDivMod/no_helpers_when_not_needed (0.00s)
+=== RUN   TestWriteStorageLoadMatrix
+--- PASS: TestWriteStorageLoadMatrix (0.00s)
+=== RUN   TestArrayConstructorNaming
+--- PASS: TestArrayConstructorNaming (0.00s)
+=== RUN   TestConstructorDependencyOrder
+--- PASS: TestConstructorDependencyOrder (0.00s)
+=== RUN   TestWriteDynamicBufferOffsets
+=== RUN   TestWriteDynamicBufferOffsets/no_targets_produces_nothing
+=== RUN   TestWriteDynamicBufferOffsets/single_group
+=== RUN   TestWriteDynamicBufferOffsets/multiple_groups_sorted
+--- PASS: TestWriteDynamicBufferOffsets (0.00s)
+    --- PASS: TestWriteDynamicBufferOffsets/no_targets_produces_nothing (0.00s)
+    --- PASS: TestWriteDynamicBufferOffsets/single_group (0.00s)
+    --- PASS: TestWriteDynamicBufferOffsets/multiple_groups_sorted (0.00s)
+=== RUN   TestWriteStorageAddressWithBufferOffset
+=== RUN   TestWriteStorageAddressWithBufferOffset/buffer_offset_only
+=== RUN   TestWriteStorageAddressWithBufferOffset/multiple_groups
+--- PASS: TestWriteStorageAddressWithBufferOffset (0.00s)
+    --- PASS: TestWriteStorageAddressWithBufferOffset/buffer_offset_only (0.00s)
+    --- PASS: TestWriteStorageAddressWithBufferOffset/multiple_groups (0.00s)
+=== RUN   TestFillAccessChainWithDynamicOffset
+--- PASS: TestFillAccessChainWithDynamicOffset (0.00s)
+=== RUN   TestNeedsRestrictIndexingPerBinding
+=== RUN   TestNeedsRestrictIndexingPerBinding/restrict_indexing_false
+=== RUN   TestNeedsRestrictIndexingPerBinding/restrict_indexing_true
+--- PASS: TestNeedsRestrictIndexingPerBinding (0.00s)
+    --- PASS: TestNeedsRestrictIndexingPerBinding/restrict_indexing_false (0.00s)
+    --- PASS: TestNeedsRestrictIndexingPerBinding/restrict_indexing_true (0.00s)
+=== RUN   TestComputeSubAccess_ValuePointerType
+=== RUN   TestComputeSubAccess_ValuePointerType/scalar_const_index
+=== RUN   TestComputeSubAccess_ValuePointerType/scalar_runtime_index
+=== RUN   TestComputeSubAccess_ValuePointerType/vector_ptr_uses_scalar_width
+--- PASS: TestComputeSubAccess_ValuePointerType (0.00s)
+    --- PASS: TestComputeSubAccess_ValuePointerType/scalar_const_index (0.00s)
+    --- PASS: TestComputeSubAccess_ValuePointerType/scalar_runtime_index (0.00s)
+    --- PASS: TestComputeSubAccess_ValuePointerType/vector_ptr_uses_scalar_width (0.00s)
+PASS

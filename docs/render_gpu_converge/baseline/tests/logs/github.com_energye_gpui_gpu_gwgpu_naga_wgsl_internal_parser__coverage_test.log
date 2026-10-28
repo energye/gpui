@@ -1,0 +1,395 @@
+=== RUN   TestParseOverrideDecl
+=== RUN   TestParseOverrideDecl/typed_with_default
+=== RUN   TestParseOverrideDecl/typed_no_default
+=== RUN   TestParseOverrideDecl/untyped_with_default
+=== RUN   TestParseOverrideDecl/multiple_overrides
+--- PASS: TestParseOverrideDecl (0.00s)
+    --- PASS: TestParseOverrideDecl/typed_with_default (0.00s)
+    --- PASS: TestParseOverrideDecl/typed_no_default (0.00s)
+    --- PASS: TestParseOverrideDecl/untyped_with_default (0.00s)
+    --- PASS: TestParseOverrideDecl/multiple_overrides (0.00s)
+=== RUN   TestParseOverrideDeclStructure
+--- PASS: TestParseOverrideDeclStructure (0.00s)
+=== RUN   TestParseBitcast
+--- PASS: TestParseBitcast (0.00s)
+=== RUN   TestParseIncrementDecrement
+=== RUN   TestParseIncrementDecrement/increment
+=== RUN   TestParseIncrementDecrement/decrement
+--- PASS: TestParseIncrementDecrement (0.00s)
+    --- PASS: TestParseIncrementDecrement/increment (0.00s)
+    --- PASS: TestParseIncrementDecrement/decrement (0.00s)
+=== RUN   TestParseAllAssignOps
+=== RUN   TestParseAllAssignOps/=
+=== RUN   TestParseAllAssignOps/+=
+=== RUN   TestParseAllAssignOps/-=
+=== RUN   TestParseAllAssignOps/*=
+=== RUN   TestParseAllAssignOps//=
+=== RUN   TestParseAllAssignOps/%=
+=== RUN   TestParseAllAssignOps/&=
+=== RUN   TestParseAllAssignOps/|=
+=== RUN   TestParseAllAssignOps/^=
+=== RUN   TestParseAllAssignOps/<<=
+=== RUN   TestParseAllAssignOps/>>=
+--- PASS: TestParseAllAssignOps (0.00s)
+    --- PASS: TestParseAllAssignOps/= (0.00s)
+    --- PASS: TestParseAllAssignOps/+= (0.00s)
+    --- PASS: TestParseAllAssignOps/-= (0.00s)
+    --- PASS: TestParseAllAssignOps/*= (0.00s)
+    --- PASS: TestParseAllAssignOps//= (0.00s)
+    --- PASS: TestParseAllAssignOps/%= (0.00s)
+    --- PASS: TestParseAllAssignOps/&= (0.00s)
+    --- PASS: TestParseAllAssignOps/|= (0.00s)
+    --- PASS: TestParseAllAssignOps/^= (0.00s)
+    --- PASS: TestParseAllAssignOps/<<= (0.00s)
+    --- PASS: TestParseAllAssignOps/>>= (0.00s)
+=== RUN   TestParseExprStmt
+--- PASS: TestParseExprStmt (0.00s)
+=== RUN   TestParseAtomicType
+--- PASS: TestParseAtomicType (0.00s)
+=== RUN   TestParseSamplerTypes
+=== RUN   TestParseSamplerTypes/sampler
+=== RUN   TestParseSamplerTypes/sampler_comparison
+--- PASS: TestParseSamplerTypes (0.00s)
+    --- PASS: TestParseSamplerTypes/sampler (0.00s)
+    --- PASS: TestParseSamplerTypes/sampler_comparison (0.00s)
+=== RUN   TestParseBindingArrayType
+=== RUN   TestParseBindingArrayType/with_size
+=== RUN   TestParseBindingArrayType/without_size
+--- PASS: TestParseBindingArrayType (0.00s)
+    --- PASS: TestParseBindingArrayType/with_size (0.00s)
+    --- PASS: TestParseBindingArrayType/without_size (0.00s)
+=== RUN   TestParsePtrTypeWithAccessMode
+--- PASS: TestParsePtrTypeWithAccessMode (0.00s)
+=== RUN   TestParseTextureTypes
+=== RUN   TestParseTextureTypes/texture_1d
+=== RUN   TestParseTextureTypes/texture_2d
+=== RUN   TestParseTextureTypes/texture_2d_array
+=== RUN   TestParseTextureTypes/texture_3d
+=== RUN   TestParseTextureTypes/texture_cube
+=== RUN   TestParseTextureTypes/texture_cube_array
+=== RUN   TestParseTextureTypes/texture_multisampled_2d
+=== RUN   TestParseTextureTypes/texture_depth_2d
+=== RUN   TestParseTextureTypes/texture_depth_2d_array
+=== RUN   TestParseTextureTypes/texture_depth_cube
+=== RUN   TestParseTextureTypes/texture_depth_cube_array
+=== RUN   TestParseTextureTypes/texture_depth_multisampled_2d
+=== RUN   TestParseTextureTypes/texture_storage_1d
+=== RUN   TestParseTextureTypes/texture_storage_2d
+=== RUN   TestParseTextureTypes/texture_storage_2d_array
+=== RUN   TestParseTextureTypes/texture_storage_3d
+--- PASS: TestParseTextureTypes (0.00s)
+    --- PASS: TestParseTextureTypes/texture_1d (0.00s)
+    --- PASS: TestParseTextureTypes/texture_2d (0.00s)
+    --- PASS: TestParseTextureTypes/texture_2d_array (0.00s)
+    --- PASS: TestParseTextureTypes/texture_3d (0.00s)
+    --- PASS: TestParseTextureTypes/texture_cube (0.00s)
+    --- PASS: TestParseTextureTypes/texture_cube_array (0.00s)
+    --- PASS: TestParseTextureTypes/texture_multisampled_2d (0.00s)
+    --- PASS: TestParseTextureTypes/texture_depth_2d (0.00s)
+    --- PASS: TestParseTextureTypes/texture_depth_2d_array (0.00s)
+    --- PASS: TestParseTextureTypes/texture_depth_cube (0.00s)
+    --- PASS: TestParseTextureTypes/texture_depth_cube_array (0.00s)
+    --- PASS: TestParseTextureTypes/texture_depth_multisampled_2d (0.00s)
+    --- PASS: TestParseTextureTypes/texture_storage_1d (0.00s)
+    --- PASS: TestParseTextureTypes/texture_storage_2d (0.00s)
+    --- PASS: TestParseTextureTypes/texture_storage_2d_array (0.00s)
+    --- PASS: TestParseTextureTypes/texture_storage_3d (0.00s)
+=== RUN   TestParseTypeConstructorExpressions
+=== RUN   TestParseTypeConstructorExpressions/vec2
+=== RUN   TestParseTypeConstructorExpressions/vec3
+=== RUN   TestParseTypeConstructorExpressions/vec4
+=== RUN   TestParseTypeConstructorExpressions/mat2x2
+=== RUN   TestParseTypeConstructorExpressions/mat3x3
+=== RUN   TestParseTypeConstructorExpressions/bool
+=== RUN   TestParseTypeConstructorExpressions/i32
+=== RUN   TestParseTypeConstructorExpressions/u32
+=== RUN   TestParseTypeConstructorExpressions/f32
+=== RUN   TestParseTypeConstructorExpressions/f16
+--- PASS: TestParseTypeConstructorExpressions (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/vec2 (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/vec3 (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/vec4 (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/mat2x2 (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/mat3x3 (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/bool (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/i32 (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/u32 (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/f32 (0.00s)
+    --- PASS: TestParseTypeConstructorExpressions/f16 (0.00s)
+=== RUN   TestParseUnaryOps
+=== RUN   TestParseUnaryOps/address_of
+=== RUN   TestParseUnaryOps/deref
+=== RUN   TestParseUnaryOps/bitwise_not
+=== RUN   TestParseUnaryOps/negate
+=== RUN   TestParseUnaryOps/logical_not
+--- PASS: TestParseUnaryOps (0.00s)
+    --- PASS: TestParseUnaryOps/address_of (0.00s)
+    --- PASS: TestParseUnaryOps/deref (0.00s)
+    --- PASS: TestParseUnaryOps/bitwise_not (0.00s)
+    --- PASS: TestParseUnaryOps/negate (0.00s)
+    --- PASS: TestParseUnaryOps/logical_not (0.00s)
+=== RUN   TestDependencyOrderSimple
+--- PASS: TestDependencyOrderSimple (0.00s)
+=== RUN   TestDependencyOrderCycle
+--- PASS: TestDependencyOrderCycle (0.00s)
+=== RUN   TestDependencyOrderEmpty
+--- PASS: TestDependencyOrderEmpty (0.00s)
+=== RUN   TestDependencyOrderNoDeps
+--- PASS: TestDependencyOrderNoDeps (0.00s)
+=== RUN   TestDependencyOrderStructDeps
+--- PASS: TestDependencyOrderStructDeps (0.00s)
+=== RUN   TestDependencyOrderFunctionDeps
+--- PASS: TestDependencyOrderFunctionDeps (0.00s)
+=== RUN   TestDependencyOrderAlias
+--- PASS: TestDependencyOrderAlias (0.00s)
+=== RUN   TestDependencyOrderOverrideDeps
+--- PASS: TestDependencyOrderOverrideDeps (0.00s)
+=== RUN   TestDependencyOrderVarDeps
+--- PASS: TestDependencyOrderVarDeps (0.00s)
+=== RUN   TestDependencyOrderStmtDeps
+--- PASS: TestDependencyOrderStmtDeps (0.00s)
+=== RUN   TestDependencyOrderExprBranches
+--- PASS: TestDependencyOrderExprBranches (0.00s)
+=== RUN   TestDependencyOrderArrayAndPtrTypeDeps
+--- PASS: TestDependencyOrderArrayAndPtrTypeDeps (0.00s)
+=== RUN   TestParseMultipleErrors
+--- PASS: TestParseMultipleErrors (0.00s)
+=== RUN   TestParseUnexpectedDeclaration
+--- PASS: TestParseUnexpectedDeclaration (0.00s)
+=== RUN   TestParseMissingFunctionBody
+--- PASS: TestParseMissingFunctionBody (0.00s)
+=== RUN   TestTokenKindString
+=== RUN   TestTokenKindString/EOF
+=== RUN   TestTokenKindString/Ident
+=== RUN   TestTokenKindString/IntLiteral
+=== RUN   TestTokenKindString/FloatLiteral
+=== RUN   TestTokenKindString/BoolLiteral
+=== RUN   TestTokenKindString/+
+=== RUN   TestTokenKindString/-
+=== RUN   TestTokenKindString/*
+=== RUN   TestTokenKindString//
+=== RUN   TestTokenKindString/%
+=== RUN   TestTokenKindString/&
+=== RUN   TestTokenKindString/|
+=== RUN   TestTokenKindString/^
+=== RUN   TestTokenKindString/~
+=== RUN   TestTokenKindString/!
+=== RUN   TestTokenKindString/=
+=== RUN   TestTokenKindString/<
+=== RUN   TestTokenKindString/>
+=== RUN   TestTokenKindString/.
+=== RUN   TestTokenKindString/,
+=== RUN   TestTokenKindString/:
+=== RUN   TestTokenKindString/;
+=== RUN   TestTokenKindString/@
+=== RUN   TestTokenKindString/->
+=== RUN   TestTokenKindString/++
+=== RUN   TestTokenKindString/--
+=== RUN   TestTokenKindString/==
+=== RUN   TestTokenKindString/!=
+=== RUN   TestTokenKindString/<=
+=== RUN   TestTokenKindString/>=
+=== RUN   TestTokenKindString/&&
+=== RUN   TestTokenKindString/||
+=== RUN   TestTokenKindString/<<
+=== RUN   TestTokenKindString/>>
+=== RUN   TestTokenKindString/+=
+=== RUN   TestTokenKindString/-=
+=== RUN   TestTokenKindString/*=
+=== RUN   TestTokenKindString//=
+=== RUN   TestTokenKindString/%=
+=== RUN   TestTokenKindString/&=
+=== RUN   TestTokenKindString/|=
+=== RUN   TestTokenKindString/^=
+=== RUN   TestTokenKindString/<<=
+=== RUN   TestTokenKindString/>>=
+=== RUN   TestTokenKindString/(
+=== RUN   TestTokenKindString/)
+=== RUN   TestTokenKindString/{
+=== RUN   TestTokenKindString/}
+=== RUN   TestTokenKindString/[
+=== RUN   TestTokenKindString/]
+=== RUN   TestTokenKindString/fn
+=== RUN   TestTokenKindString/struct
+=== RUN   TestTokenKindString/return
+=== RUN   TestTokenKindString/if
+=== RUN   TestTokenKindString/else
+=== RUN   TestTokenKindString/for
+=== RUN   TestTokenKindString/while
+=== RUN   TestTokenKindString/loop
+=== RUN   TestTokenKindString/switch
+=== RUN   TestTokenKindString/case
+=== RUN   TestTokenKindString/default
+=== RUN   TestTokenKindString/break
+=== RUN   TestTokenKindString/continue
+=== RUN   TestTokenKindString/continuing
+=== RUN   TestTokenKindString/discard
+=== RUN   TestTokenKindString/var
+=== RUN   TestTokenKindString/let
+=== RUN   TestTokenKindString/const
+=== RUN   TestTokenKindString/const_assert
+=== RUN   TestTokenKindString/alias
+=== RUN   TestTokenKindString/override
+=== RUN   TestTokenKindString/true
+=== RUN   TestTokenKindString/false
+=== RUN   TestTokenKindString/diagnostic
+=== RUN   TestTokenKindString/enable
+=== RUN   TestTokenKindString/Error
+=== RUN   TestTokenKindString/Unknown
+--- PASS: TestTokenKindString (0.00s)
+    --- PASS: TestTokenKindString/EOF (0.00s)
+    --- PASS: TestTokenKindString/Ident (0.00s)
+    --- PASS: TestTokenKindString/IntLiteral (0.00s)
+    --- PASS: TestTokenKindString/FloatLiteral (0.00s)
+    --- PASS: TestTokenKindString/BoolLiteral (0.00s)
+    --- PASS: TestTokenKindString/+ (0.00s)
+    --- PASS: TestTokenKindString/- (0.00s)
+    --- PASS: TestTokenKindString/* (0.00s)
+    --- PASS: TestTokenKindString// (0.00s)
+    --- PASS: TestTokenKindString/% (0.00s)
+    --- PASS: TestTokenKindString/& (0.00s)
+    --- PASS: TestTokenKindString/| (0.00s)
+    --- PASS: TestTokenKindString/^ (0.00s)
+    --- PASS: TestTokenKindString/~ (0.00s)
+    --- PASS: TestTokenKindString/! (0.00s)
+    --- PASS: TestTokenKindString/= (0.00s)
+    --- PASS: TestTokenKindString/< (0.00s)
+    --- PASS: TestTokenKindString/> (0.00s)
+    --- PASS: TestTokenKindString/. (0.00s)
+    --- PASS: TestTokenKindString/, (0.00s)
+    --- PASS: TestTokenKindString/: (0.00s)
+    --- PASS: TestTokenKindString/; (0.00s)
+    --- PASS: TestTokenKindString/@ (0.00s)
+    --- PASS: TestTokenKindString/-> (0.00s)
+    --- PASS: TestTokenKindString/++ (0.00s)
+    --- PASS: TestTokenKindString/-- (0.00s)
+    --- PASS: TestTokenKindString/== (0.00s)
+    --- PASS: TestTokenKindString/!= (0.00s)
+    --- PASS: TestTokenKindString/<= (0.00s)
+    --- PASS: TestTokenKindString/>= (0.00s)
+    --- PASS: TestTokenKindString/&& (0.00s)
+    --- PASS: TestTokenKindString/|| (0.00s)
+    --- PASS: TestTokenKindString/<< (0.00s)
+    --- PASS: TestTokenKindString/>> (0.00s)
+    --- PASS: TestTokenKindString/+= (0.00s)
+    --- PASS: TestTokenKindString/-= (0.00s)
+    --- PASS: TestTokenKindString/*= (0.00s)
+    --- PASS: TestTokenKindString//= (0.00s)
+    --- PASS: TestTokenKindString/%= (0.00s)
+    --- PASS: TestTokenKindString/&= (0.00s)
+    --- PASS: TestTokenKindString/|= (0.00s)
+    --- PASS: TestTokenKindString/^= (0.00s)
+    --- PASS: TestTokenKindString/<<= (0.00s)
+    --- PASS: TestTokenKindString/>>= (0.00s)
+    --- PASS: TestTokenKindString/( (0.00s)
+    --- PASS: TestTokenKindString/) (0.00s)
+    --- PASS: TestTokenKindString/{ (0.00s)
+    --- PASS: TestTokenKindString/} (0.00s)
+    --- PASS: TestTokenKindString/[ (0.00s)
+    --- PASS: TestTokenKindString/] (0.00s)
+    --- PASS: TestTokenKindString/fn (0.00s)
+    --- PASS: TestTokenKindString/struct (0.00s)
+    --- PASS: TestTokenKindString/return (0.00s)
+    --- PASS: TestTokenKindString/if (0.00s)
+    --- PASS: TestTokenKindString/else (0.00s)
+    --- PASS: TestTokenKindString/for (0.00s)
+    --- PASS: TestTokenKindString/while (0.00s)
+    --- PASS: TestTokenKindString/loop (0.00s)
+    --- PASS: TestTokenKindString/switch (0.00s)
+    --- PASS: TestTokenKindString/case (0.00s)
+    --- PASS: TestTokenKindString/default (0.00s)
+    --- PASS: TestTokenKindString/break (0.00s)
+    --- PASS: TestTokenKindString/continue (0.00s)
+    --- PASS: TestTokenKindString/continuing (0.00s)
+    --- PASS: TestTokenKindString/discard (0.00s)
+    --- PASS: TestTokenKindString/var (0.00s)
+    --- PASS: TestTokenKindString/let (0.00s)
+    --- PASS: TestTokenKindString/const (0.00s)
+    --- PASS: TestTokenKindString/const_assert (0.00s)
+    --- PASS: TestTokenKindString/alias (0.00s)
+    --- PASS: TestTokenKindString/override (0.00s)
+    --- PASS: TestTokenKindString/true (0.00s)
+    --- PASS: TestTokenKindString/false (0.00s)
+    --- PASS: TestTokenKindString/diagnostic (0.00s)
+    --- PASS: TestTokenKindString/enable (0.00s)
+    --- PASS: TestTokenKindString/Error (0.00s)
+    --- PASS: TestTokenKindString/Unknown (0.00s)
+=== RUN   TestSourceErrorFormatWithContext
+--- PASS: TestSourceErrorFormatWithContext (0.00s)
+=== RUN   TestSourceErrorNoSource
+--- PASS: TestSourceErrorNoSource (0.00s)
+=== RUN   TestSourceErrorZeroLine
+--- PASS: TestSourceErrorZeroLine (0.00s)
+=== RUN   TestSourceErrorf
+--- PASS: TestSourceErrorf (0.00s)
+=== RUN   TestSourceErrors
+--- PASS: TestSourceErrors (0.00s)
+=== RUN   TestSourceErrorOutOfRangeLine
+--- PASS: TestSourceErrorOutOfRangeLine (0.00s)
+=== RUN   TestSourceErrorLargeColumn
+--- PASS: TestSourceErrorLargeColumn (0.00s)
+=== RUN   TestSourceErrorZeroColumn
+--- PASS: TestSourceErrorZeroColumn (0.00s)
+=== RUN   TestParseSwitchDefaultFirst
+--- PASS: TestParseSwitchDefaultFirst (0.00s)
+=== RUN   TestParseLoopContinuing
+--- PASS: TestParseLoopContinuing (0.00s)
+=== RUN   TestParseForLoopVariants
+=== RUN   TestParseForLoopVariants/full
+=== RUN   TestParseForLoopVariants/empty_init
+=== RUN   TestParseForLoopVariants/empty_update
+=== RUN   TestParseForLoopVariants/empty_condition
+=== RUN   TestParseForLoopVariants/minimal
+--- PASS: TestParseForLoopVariants (0.00s)
+    --- PASS: TestParseForLoopVariants/full (0.00s)
+    --- PASS: TestParseForLoopVariants/empty_init (0.00s)
+    --- PASS: TestParseForLoopVariants/empty_update (0.00s)
+    --- PASS: TestParseForLoopVariants/empty_condition (0.00s)
+    --- PASS: TestParseForLoopVariants/minimal (0.00s)
+=== RUN   TestParseInferredArrayType
+--- PASS: TestParseInferredArrayType (0.00s)
+=== RUN   TestParseNestedGenerics
+--- PASS: TestParseNestedGenerics (0.00s)
+=== RUN   TestParseLetWithType
+--- PASS: TestParseLetWithType (0.00s)
+=== RUN   TestParseGlobalConstWithType
+--- PASS: TestParseGlobalConstWithType (0.00s)
+=== RUN   TestParseLetModuleScope
+--- PASS: TestParseLetModuleScope (0.00s)
+=== RUN   TestParseGlobalVarAccessMode
+--- PASS: TestParseGlobalVarAccessMode (0.00s)
+=== RUN   TestParseComparisonOps
+=== RUN   TestParseComparisonOps/less
+=== RUN   TestParseComparisonOps/greater
+=== RUN   TestParseComparisonOps/less_equal
+=== RUN   TestParseComparisonOps/greater_equal
+=== RUN   TestParseComparisonOps/equal
+=== RUN   TestParseComparisonOps/not_equal
+--- PASS: TestParseComparisonOps (0.00s)
+    --- PASS: TestParseComparisonOps/less (0.00s)
+    --- PASS: TestParseComparisonOps/greater (0.00s)
+    --- PASS: TestParseComparisonOps/less_equal (0.00s)
+    --- PASS: TestParseComparisonOps/greater_equal (0.00s)
+    --- PASS: TestParseComparisonOps/equal (0.00s)
+    --- PASS: TestParseComparisonOps/not_equal (0.00s)
+=== RUN   TestParseShiftOps
+=== RUN   TestParseShiftOps/left_shift
+=== RUN   TestParseShiftOps/right_shift
+--- PASS: TestParseShiftOps (0.00s)
+    --- PASS: TestParseShiftOps/left_shift (0.00s)
+    --- PASS: TestParseShiftOps/right_shift (0.00s)
+=== RUN   TestParseStructMemberMultiAttrs
+--- PASS: TestParseStructMemberMultiAttrs (0.00s)
+=== RUN   TestASTNodePos
+--- PASS: TestASTNodePos (0.00s)
+=== RUN   TestASTMarkerMethods
+--- PASS: TestASTMarkerMethods (0.00s)
+=== RUN   TestIsBuiltinName
+--- PASS: TestIsBuiltinName (0.00s)
+=== RUN   TestParseDerefAssignment
+--- PASS: TestParseDerefAssignment (0.00s)
+=== RUN   TestParseSemicolonsBetweenDecls
+--- PASS: TestParseSemicolonsBetweenDecls (0.00s)
+=== RUN   TestParseNestedBlock
+--- PASS: TestParseNestedBlock (0.00s)
+PASS

@@ -1,0 +1,93 @@
+=== RUN   TestLowerInferGlobalVarTypeI32
+--- PASS: TestLowerInferGlobalVarTypeI32 (0.00s)
+=== RUN   TestLowerInferGlobalVarTypeU32
+--- PASS: TestLowerInferGlobalVarTypeU32 (0.00s)
+=== RUN   TestLowerInferGlobalVarTypeF32Explicit
+--- PASS: TestLowerInferGlobalVarTypeF32Explicit (0.00s)
+=== RUN   TestLowerInferGlobalVarTypeVec2
+--- PASS: TestLowerInferGlobalVarTypeVec2 (0.00s)
+=== RUN   TestLowerInferGlobalVarTypeVec4
+--- PASS: TestLowerInferGlobalVarTypeVec4 (0.00s)
+=== RUN   TestLowerGlobalVarInitBool
+--- PASS: TestLowerGlobalVarInitBool (0.00s)
+=== RUN   TestLowerGlobalVarInitVec
+--- PASS: TestLowerGlobalVarInitVec (0.00s)
+=== RUN   TestLowerGlobalVarInitArray
+--- PASS: TestLowerGlobalVarInitArray (0.00s)
+=== RUN   TestLowerGlobalVarInitMat
+--- PASS: TestLowerGlobalVarInitMat (0.00s)
+=== RUN   TestLowerGlobalVarInitStructNested
+--- PASS: TestLowerGlobalVarInitStructNested (0.00s)
+=== RUN   TestLowerEvalConstIntExprBinaryOps
+--- PASS: TestLowerEvalConstIntExprBinaryOps (0.00s)
+=== RUN   TestLowerEvalConstIntExprNegation
+--- PASS: TestLowerEvalConstIntExprNegation (0.00s)
+=== RUN   TestLowerASTLiteralToIRAllTypes
+--- PASS: TestLowerASTLiteralToIRAllTypes (0.00s)
+=== RUN   TestLowerInferOverrideTypeAllScalars
+--- PASS: TestLowerInferOverrideTypeAllScalars (0.00s)
+=== RUN   TestLowerOverrideWithBinaryInit
+--- PASS: TestLowerOverrideWithBinaryInit (0.00s)
+=== RUN   TestLowerConstFoldVecBinaryF32Division
+--- PASS: TestLowerConstFoldVecBinaryF32Division (0.00s)
+=== RUN   TestLowerConstFoldVecBinaryBool
+--- PASS: TestLowerConstFoldVecBinaryBool (0.00s)
+=== RUN   TestLowerConcretizeExprToScalarAllTypes
+--- PASS: TestLowerConcretizeExprToScalarAllTypes (0.00s)
+=== RUN   TestLowerResolveExprScalarFromVar
+--- PASS: TestLowerResolveExprScalarFromVar (0.00s)
+=== RUN   TestLowerWidenScalarInBinaryOps
+--- PASS: TestLowerWidenScalarInBinaryOps (0.00s)
+=== RUN   TestLowerWidenScalarVecPlusScalar
+--- PASS: TestLowerWidenScalarVecPlusScalar (0.00s)
+=== RUN   TestLowerZeroLiteralAllTypes
+--- PASS: TestLowerZeroLiteralAllTypes (0.00s)
+=== RUN   TestLowerConvertLiteralAllPathsBool
+--- PASS: TestLowerConvertLiteralAllPathsBool (0.00s)
+=== RUN   TestLowerTryConstantArrayIndexConst
+--- PASS: TestLowerTryConstantArrayIndexConst (0.00s)
+=== RUN   TestLowerTryConstantArrayIndexNamed
+--- PASS: TestLowerTryConstantArrayIndexNamed (0.00s)
+=== RUN   TestLowerResolveScalarFromNameVecMatTypes
+--- PASS: TestLowerResolveScalarFromNameVecMatTypes (0.00s)
+=== RUN   TestLowerNegateVecU32
+--- PASS: TestLowerNegateVecU32 (0.00s)
+=== RUN   TestLowerConstFoldComposeSwizzle
+--- PASS: TestLowerConstFoldComposeSwizzle (0.00s)
+=== RUN   TestLowerEvalConstantArgsAllScalars
+--- PASS: TestLowerEvalConstantArgsAllScalars (0.00s)
+=== RUN   TestLowerTypeConstructorRuntime
+--- PASS: TestLowerTypeConstructorRuntime (0.00s)
+=== RUN   TestLowerTypeConstructorVecFromVec
+--- PASS: TestLowerTypeConstructorVecFromVec (0.00s)
+=== RUN   TestLowerTypeConstructorMatFromMat
+--- PASS: TestLowerTypeConstructorMatFromMat (0.00s)
+=== RUN   TestLowerBuildConstGlobalExprVec
+--- PASS: TestLowerBuildConstGlobalExprVec (0.00s)
+=== RUN   TestLowerBuildConstGlobalExprArray
+--- PASS: TestLowerBuildConstGlobalExprArray (0.00s)
+=== RUN   TestLowerInferCompositeConstTypeWithBinaryArgs
+--- PASS: TestLowerInferCompositeConstTypeWithBinaryArgs (0.00s)
+=== RUN   TestLowerInferCompositeConstTypeFromUnaryArgs
+--- PASS: TestLowerInferCompositeConstTypeFromUnaryArgs (0.00s)
+=== RUN   TestLowerDeepCopyConstValueVecSelect
+--- PASS: TestLowerDeepCopyConstValueVecSelect (0.00s)
+=== RUN   TestLowerEvalConstU32ExprComplex
+--- PASS: TestLowerEvalConstU32ExprComplex (0.00s)
+=== RUN   TestLowerTernaryInAssignment
+--- PASS: TestLowerTernaryInAssignment (0.00s)
+=== RUN   TestLowerMatrixMultiply
+--- PASS: TestLowerMatrixMultiply (0.00s)
+=== RUN   TestLowerComparisonOpsRuntime
+--- PASS: TestLowerComparisonOpsRuntime (0.00s)
+=== RUN   TestLowerConstFoldAsVecFullCoverage
+--- PASS: TestLowerConstFoldAsVecFullCoverage (0.00s)
+=== RUN   TestLowerResolveTargetScalarInCompound
+--- PASS: TestLowerResolveTargetScalarInCompound (0.00s)
+=== RUN   TestLowerConstFoldDotI32
+--- PASS: TestLowerConstFoldDotI32 (0.00s)
+=== RUN   TestLowerTexture3D
+--- PASS: TestLowerTexture3D (0.00s)
+=== RUN   TestLowerTextureCube
+--- PASS: TestLowerTextureCube (0.00s)
+PASS

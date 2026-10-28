@@ -1,0 +1,250 @@
+=== RUN   TestP1_Capability_D03_SweepGradientGPU
+    p1_capability_matrix_closers_test.go:48: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:60: right=253,*,0 bottom=*,186,*
+--- PASS: TestP1_Capability_D03_SweepGradientGPU (0.30s)
+=== RUN   TestP1_Capability_D03_SweepGradientTileExtendGPU
+    p1_capability_matrix_closers_test.go:122: repeat@112.5 deg=112 @(65,117) got=(226,0,133) model=(227,0,133)
+    p1_capability_matrix_closers_test.go:122: repeat@157.5 deg=158 @(43,95) got=(138,0,223) model=(138,0,224)
+    p1_capability_matrix_closers_test.go:122: reflect@112.5 deg=112 @(65,117) got=(133,0,226) model=(133,0,227)
+    p1_capability_matrix_closers_test.go:122: reflect@157.5 deg=158 @(43,95) got=(223,0,138) model=(224,0,138)
+    p1_capability_matrix_closers_test.go:122: pad@112.5 deg=112 @(65,117) got=(9,0,254) model=(0,0,255)
+    p1_capability_matrix_closers_test.go:122: neg-repeat@112.5 deg=112 @(65,117) got=(133,0,226) model=(133,0,227)
+    p1_capability_matrix_closers_test.go:122: ft-repeat@112.5 deg=112 @(65,117) got=(216,0,150) model=(217,0,151)
+    p1_capability_matrix_closers_test.go:122: ft-reflect@112.5 deg=112 @(65,117) got=(216,0,150) model=(217,0,151)
+--- PASS: TestP1_Capability_D03_SweepGradientTileExtendGPU (0.02s)
+=== RUN   TestP1_Capability_B03_MultiplyGPU
+    p1_capability_matrix_closers_test.go:178: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 (base_gpu_ops=1)
+    p1_capability_matrix_closers_test.go:184: multiply rgba=0,0,0
+--- PASS: TestP1_Capability_B03_MultiplyGPU (0.01s)
+=== RUN   TestP1_Capability_B03_ScreenGPU
+    p1_capability_matrix_closers_test.go:212: screen rgba=128,127,0
+--- PASS: TestP1_Capability_B03_ScreenGPU (0.01s)
+=== RUN   TestP12GPUFixedPixel_BlendDestinationOut
+    p1_capability_matrix_closers_test.go:245: dstOut center rgba=255,255,255
+--- PASS: TestP12GPUFixedPixel_BlendDestinationOut (0.00s)
+=== RUN   TestP1_Capability_G06_RRectXYRadiiGPU
+    p1_capability_matrix_closers_test.go:270: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:282: center=25,102,229 corner=255,255,255
+--- PASS: TestP1_Capability_G06_RRectXYRadiiGPU (0.02s)
+=== RUN   TestP1_Capability_I03_ImageFilterNearestLinearGPU
+    p1_capability_matrix_closers_test.go:347: nearest TL=255,*,0 TR=0,*,255
+    p1_capability_matrix_closers_test.go:374: linear seam rgba=135,0,120
+--- PASS: TestP1_Capability_I03_ImageFilterNearestLinearGPU (0.01s)
+=== RUN   TestP1_Capability_C05_ClipRRectAAGPU
+    p1_capability_matrix_closers_test.go:408: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:433: soft edge samples=19
+--- PASS: TestP1_Capability_C05_ClipRRectAAGPU (0.01s)
+=== RUN   TestP1_Capability_C05_ClipPathAntiAliasFlag
+--- PASS: TestP1_Capability_C05_ClipPathAntiAliasFlag (0.00s)
+=== RUN   TestP1_Capability_X05_LCDTextGPU
+    p1_capability_matrix_closers_test.go:518: lcd path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:552: lcd ink=309 subpix_fringe=291
+--- PASS: TestP1_Capability_X05_LCDTextGPU (0.07s)
+=== RUN   TestP1_Capability_X05_LCDTextOnColoredDestGPU
+    p1_capability_matrix_closers_test.go:597: base rgba=38,64,140
+    p1_capability_matrix_closers_test.go:612: colored-dest lcd path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=3
+    p1_capability_matrix_closers_test.go:660: colored LCD ink=487 darkened=442 lcdFringe=321 baseLum=242
+--- PASS: TestP1_Capability_X05_LCDTextOnColoredDestGPU (0.05s)
+=== RUN   TestP1_Capability_D04_MultiStopExtendRepeatGPU
+    p1_capability_matrix_closers_test.go:694: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:705: tile0@2=215,151,0 tile1@18=215,151,0
+    p1_capability_matrix_closers_test.go:711: mid=0,247,69
+--- PASS: TestP1_Capability_D04_MultiStopExtendRepeatGPU (0.01s)
+=== RUN   TestP1_Capability_D04_ExtendReflectGPU
+    p1_capability_matrix_closers_test.go:742: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:752: L=109 R=244 refNear=236 refFar=86
+--- PASS: TestP1_Capability_D04_ExtendReflectGPU (0.00s)
+=== RUN   TestP1_Capability_D05_ImagePatternGPU
+    p1_capability_matrix_closers_test.go:796: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:808: x2=255,*,0 x6=*,*,255 x10=255
+--- PASS: TestP1_Capability_D05_ImagePatternGPU (0.00s)
+=== RUN   TestP1_Capability_D06_PatternLocalMatrixGPU
+    p1_capability_matrix_closers_test.go:850: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:862: scaled left=244,*,11 right=34,*,221
+--- PASS: TestP1_Capability_D06_PatternLocalMatrixGPU (0.00s)
+=== RUN   TestP1_Capability_X03_ShapingGPU
+    p1_capability_matrix_closers_test.go:933: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1 glyphs=4 lastX=63.97
+    p1_capability_matrix_closers_test.go:958: inkCols=73 span=8..87
+--- PASS: TestP1_Capability_X03_ShapingGPU (0.16s)
+=== RUN   TestP1_Capability_X04_SubpixelPosGPU
+    p1_capability_matrix_closers_test.go:1013: subpixel diffs 0vs0.25=0 0vs0.50=1020
+--- PASS: TestP1_Capability_X04_SubpixelPosGPU (0.01s)
+=== RUN   TestP1_Capability_Q03_PixelSnapNoAAGPU
+    p1_capability_matrix_closers_test.go:1048: aligned=0,0,0 snapped=0,0,0
+    p1_capability_matrix_closers_test.go:1073: edge10=255,255,255 interior=0,0,0
+--- PASS: TestP1_Capability_Q03_PixelSnapNoAAGPU (0.01s)
+=== RUN   TestP1_Capability_L06_MaskLayerGPU
+    p1_capability_matrix_closers_test.go:1111: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:1119: left=0,0,255 right=255,255,255
+--- PASS: TestP1_Capability_L06_MaskLayerGPU (0.01s)
+=== RUN   TestP1_Capability_L06_MaskR8ShaderGPU
+    p1_capability_matrix_closers_test.go:1154: L.06 R8 path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:1163: left=255,247,247 mid=255,126,126 right=255,9,9
+--- PASS: TestP1_Capability_L06_MaskR8ShaderGPU (0.01s)
+=== RUN   TestP1_Capability_T03_NonUniformStrokeGPU
+    p1_capability_matrix_closers_test.go:1219: path_stats gpu_ops=2 cpu_fallback_ops=2 frame_flushes=1 last_cpu_fb=stroke-user-space
+    p1_capability_matrix_closers_test.go:1254: horiz dark rows=2 vert dark cols=6
+--- PASS: TestP1_Capability_T03_NonUniformStrokeGPU (0.01s)
+=== RUN   TestP1_Capability_X06_CJKFallbackGPU
+    p1_capability_matrix_closers_test.go:1317: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:1328: ink=346
+--- PASS: TestP1_Capability_X06_CJKFallbackGPU (0.36s)
+=== RUN   TestP1_Capability_X11_GlyphAtlasGPU
+    p1_capability_matrix_closers_test.go:1360: path_stats gpu_ops=5 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:1380: atlas stress ink samples=245
+--- PASS: TestP1_Capability_X11_GlyphAtlasGPU (0.06s)
+=== RUN   TestP1_Capability_P05_StrokeCapsGPU
+    p1_capability_matrix_closers_test.go:1413: P.05 path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:1422: beyond end butt=255,255,255 round=2,255,2 square=0,0,255
+    p1_capability_matrix_closers_test.go:1436: beyond-end ink round=506 butt=0
+--- PASS: TestP1_Capability_P05_StrokeCapsGPU (0.00s)
+=== RUN   TestP1_Capability_P06_StrokeJoinsGPU
+    p1_capability_matrix_closers_test.go:1495: P.06 tip ink miter=20 bevel=0 round=14
+--- PASS: TestP1_Capability_P06_StrokeJoinsGPU (0.01s)
+=== RUN   TestP1_Capability_B05_PremulPipelineGPU
+    p1_capability_matrix_closers_test.go:1529: solid premul SO rgba=128,0,128,255
+    p1_capability_matrix_closers_test.go:1569: image premul SO rgba=128,0,127
+--- PASS: TestP1_Capability_B05_PremulPipelineGPU (0.01s)
+=== RUN   TestP1_Capability_B03_OverlayGPU
+    p1_capability_matrix_closers_test.go:1607: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base_gpu=1
+    p1_capability_matrix_closers_test.go:1612: overlay rgba=255,1,1
+--- PASS: TestP1_Capability_B03_OverlayGPU (0.01s)
+=== RUN   TestP1_Capability_B05_LayerAndTextPremulGPU
+    p1_capability_matrix_closers_test.go:1660: layer path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=3
+    p1_capability_matrix_closers_test.go:1665: layer composite rgba=128,0,127
+    p1_capability_matrix_closers_test.go:1717: text premul ink=254 partial=254 stats=gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2690
+--- PASS: TestP1_Capability_B05_LayerAndTextPremulGPU (0.03s)
+=== RUN   TestP1_Capability_Q04_PremulAAEdgeGPU
+    p1_capability_matrix_closers_test.go:1743: Q.04 path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:1750: interior rgba=255,127,127
+    p1_capability_matrix_closers_test.go:1785: edgeMid=303 badFringe=0
+--- PASS: TestP1_Capability_Q04_PremulAAEdgeGPU (0.01s)
+=== RUN   TestP1_Capability_H03_EvenOddGPU
+    p1_capability_matrix_closers_test.go:1833: evenodd hole=255,255,255 nonzero hole=0,0,255 ring=0,0,255
+--- PASS: TestP1_Capability_H03_EvenOddGPU (0.00s)
+=== RUN   TestP1_Capability_L06_PushMaskLayerGPU
+    p1_capability_matrix_closers_test.go:1878: PushMaskLayer path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+    p1_capability_matrix_closers_test.go:1885: left=0,0,255 right=255,255,255
+--- PASS: TestP1_Capability_L06_PushMaskLayerGPU (0.01s)
+=== RUN   TestP1_Capability_P04_HairlineGPU
+    p1_capability_matrix_closers_test.go:1910: P.04 path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:1924: hairline ink=132
+--- PASS: TestP1_Capability_P04_HairlineGPU (0.00s)
+=== RUN   TestP1_Capability_F03_ImageFilterGraphGPU
+    p1_capability_matrix_closers_test.go:1997: F.03 path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=3 baseGPU=2
+    p1_capability_matrix_closers_test.go:2017: center=89,89,89 edge=242,242,242 shadow=243,243,243
+    p1_capability_matrix_closers_test.go:2043: grayscale-only shadow sample=255,255,255
+--- PASS: TestP1_Capability_F03_ImageFilterGraphGPU (0.01s)
+=== RUN   TestP1_Capability_L06_MaskAwareNativeUploadGPU
+    p1_capability_matrix_closers_test.go:2081: L.06 MaskAware path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:2087: left=0,153,51 right=255,255,255
+--- PASS: TestP1_Capability_L06_MaskAwareNativeUploadGPU (0.01s)
+=== RUN   TestP1_Capability_L06_CoverInlineR8GPU
+    p1_capability_matrix_closers_test.go:2135: L.06 cover-inline path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:2142: left=229,25,38 right=255,255,255
+--- PASS: TestP1_Capability_L06_CoverInlineR8GPU (0.01s)
+=== RUN   TestP1_Capability_L06_SDFCoverInlineR8GPU
+    p1_capability_matrix_closers_test.go:2187: L.06 SDF cover-inline path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:2196: left=25,51,242 right=255,255,255
+    p1_capability_matrix_closers_test.go:2227: ramp mid=255,126,126
+--- PASS: TestP1_Capability_L06_SDFCoverInlineR8GPU (0.01s)
+=== RUN   TestP1_Capability_L06_StencilCoverInlineR8GPU
+    p1_capability_matrix_closers_test.go:2281: L.06 stencil cover-inline path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:2294: leftTop=216,30,51 leftBot=216,30,51 right=255,255,255 notch=255,255,255
+--- PASS: TestP1_Capability_L06_StencilCoverInlineR8GPU (0.01s)
+=== RUN   TestP1_Capability_F03_GPUMultiRTFilterGraph
+    p1_capability_matrix_closers_test.go:2350: F.03 GPU multi-RT path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=3 base=2
+    p1_capability_matrix_closers_test.go:2356: center after blur+gray=69,69,69
+    p1_capability_matrix_closers_test.go:2369: edge=212,212,212
+    p1_capability_matrix_closers_test.go:2392: invert center=0,255,255
+--- PASS: TestP1_Capability_F03_GPUMultiRTFilterGraph (0.01s)
+=== RUN   TestP1_Capability_B04_HueGPU
+    p1_capability_matrix_closers_test.go:2427: B.04 Hue path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base=1
+    p1_capability_matrix_closers_test.go:2435: hue center=0,95,6
+--- PASS: TestP1_Capability_B04_HueGPU (0.01s)
+=== RUN   TestP1_Capability_B04_ColorGPU
+    p1_capability_matrix_closers_test.go:2465: color blend center=83,63,0
+--- PASS: TestP1_Capability_B04_ColorGPU (0.01s)
+=== RUN   TestP1_Capability_F03_GPUColorMatrixDropShadow
+    p1_capability_matrix_closers_test.go:2513: F.03 CM+Shadow path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2 base=2
+    p1_capability_matrix_closers_test.go:2518: sepia card=139,124,97
+    p1_capability_matrix_closers_test.go:2525: shadow sample=255,255,239
+--- PASS: TestP1_Capability_F03_GPUColorMatrixDropShadow (0.01s)
+=== RUN   TestP1_Capability_S07_WritePixelsGPU
+    p1_capability_matrix_closers_test.go:2565: S.07 path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base=1
+    p1_capability_matrix_closers_test.go:2572: block center=220,30,40,255
+    p1_capability_matrix_closers_test.go:2597: edge clip sample=20,40,200
+--- PASS: TestP1_Capability_S07_WritePixelsGPU (0.01s)
+=== RUN   TestP1_Capability_B03_DarkenGPU
+    p1_capability_matrix_closers_test.go:2623: B.03 Darken path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2
+    p1_capability_matrix_closers_test.go:2631: darken center=25,38,76
+--- PASS: TestP1_Capability_B03_DarkenGPU (0.01s)
+=== RUN   TestP1_Capability_B03_DifferenceGPU
+    p1_capability_matrix_closers_test.go:2661: difference center=255,255,0
+--- PASS: TestP1_Capability_B03_DifferenceGPU (0.01s)
+=== RUN   TestP1_Capability_B03_LightenGPU
+    p1_capability_matrix_closers_test.go:2688: lighten center=229,76,76
+--- PASS: TestP1_Capability_B03_LightenGPU (0.01s)
+=== RUN   TestP1_Capability_B03_SoftLightGPU
+    p1_capability_matrix_closers_test.go:2711: SoftLight path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2
+    p1_capability_matrix_closers_test.go:2716: softlight center=133,154,146
+--- PASS: TestP1_Capability_B03_SoftLightGPU (0.01s)
+=== RUN   TestP1_Capability_B03_HardLightGPU
+    p1_capability_matrix_closers_test.go:2743: hardlight center=51,229,76
+--- PASS: TestP1_Capability_B03_HardLightGPU (0.00s)
+=== RUN   TestP1_Capability_B03_ColorDodgeGPU
+    p1_capability_matrix_closers_test.go:2769: colordodge center=212,128,111
+--- PASS: TestP1_Capability_B03_ColorDodgeGPU (0.01s)
+=== RUN   TestP1_Capability_K01_VelloComputePathGPU
+    p1_capability_matrix_closers_test.go:2845: K.01 compute path_stats gpu_ops=4 cpu_fallback_ops=0 frame_flushes=2 base=1 mode=Compute
+    p1_capability_matrix_closers_test.go:2852: center=38,115,242
+    p1_capability_matrix_closers_test.go:2858: arrow=51,191,89
+--- PASS: TestP1_Capability_K01_VelloComputePathGPU (0.02s)
+=== RUN   TestP1_Capability_B03_ColorBurnExclusionGPU
+    p1_capability_matrix_closers_test.go:2884: colorburn center=192,65,81
+    p1_capability_matrix_closers_test.go:2904: exclusion center=188,82,188
+--- PASS: TestP1_Capability_B03_ColorBurnExclusionGPU (0.01s)
+=== RUN   TestP1_Capability_Q02_CoverageAAGPU
+    p1_capability_matrix_closers_test.go:2957: Q.02 AA-on fringe=108 dark=1 ops=2; AA-off fringe=108 dark=1 ops=2
+--- PASS: TestP1_Capability_Q02_CoverageAAGPU (0.02s)
+=== RUN   TestP1_Capability_V03_DrawMeshIndexedGPU
+    p1_capability_matrix_closers_test.go:3006: V.03 path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:3012: mesh center=124,0,131
+--- PASS: TestP1_Capability_V03_DrawMeshIndexedGPU (0.00s)
+=== RUN   TestP1_Capability_K02_DrawIndirectGPU
+    p1_capability_matrix_closers_test.go:3190: K.02 center rgba=25,204,51
+--- PASS: TestP1_Capability_K02_DrawIndirectGPU (0.15s)
+=== RUN   TestP1_Capability_CS02_RGBA16FloatSurfaceGPU
+    p1_capability_matrix_closers_test.go:3297: CS.02 F16 first 8 bytes=[0 52 0 56 0 58 0 60]
+--- PASS: TestP1_Capability_CS02_RGBA16FloatSurfaceGPU (0.13s)
+=== RUN   TestP1_Capability_CS03_LinearBlendMidGPU
+    p1_capability_matrix_closers_test.go:3324: CS.03 path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:3331: CS.03 mid=189,189,189
+    p1_capability_matrix_closers_test.go:3342: ends left=55,55,55 right=252,252,252
+--- PASS: TestP1_Capability_CS03_LinearBlendMidGPU (0.00s)
+=== RUN   TestP1_Capability_E03_TrimPathGPU
+    p1_capability_matrix_closers_test.go:3384: E.03 path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:3390: center=25,51,229
+    p1_capability_matrix_closers_test.go:3396: left=255,255,255
+--- PASS: TestP1_Capability_E03_TrimPathGPU (0.00s)
+=== RUN   TestP1_Capability_P09_DitherGPU
+    p1_capability_matrix_closers_test.go:3431: P.09 unique undithered=48 ops=1 dithered=72 ops=1
+--- PASS: TestP1_Capability_P09_DitherGPU (0.02s)
+=== RUN   TestP1_Capability_T04_ImageQuadGPU
+    p1_capability_matrix_closers_test.go:3476: T.04 path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:3481: quad center=220,40,40
+--- PASS: TestP1_Capability_T04_ImageQuadGPU (0.01s)
+=== RUN   TestP1_Capability_L05_BackdropLayerGPU
+    p1_capability_matrix_closers_test.go:3519: L.05 path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=4 base=1
+    p1_capability_matrix_closers_test.go:3524: backdrop center=21,49,126
+--- PASS: TestP1_Capability_L05_BackdropLayerGPU (0.01s)
+=== RUN   TestP1_Capability_E02_PathEffectsGPU
+    p1_capability_matrix_closers_test.go:3571: E.02 path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=1
+    p1_capability_matrix_closers_test.go:3578: corner sample=255,255,255
+    p1_capability_matrix_closers_test.go:3582: arm sample=38,89,229
+--- PASS: TestP1_Capability_E02_PathEffectsGPU (0.01s)
+=== RUN   TestP1_Capability_I08_ExternalTextureGPU
+    p1_capability_matrix_closers_test.go:3646: I.08 path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base=1
+    p1_capability_matrix_closers_test.go:3651: external composite center=25,178,76
+--- PASS: TestP1_Capability_I08_ExternalTextureGPU (0.01s)
+PASS

@@ -1,0 +1,22 @@
+=== RUN   TestQuadDrawNearestFromCases
+--- PASS: TestQuadDrawNearestFromCases (0.00s)
+=== RUN   TestQuadDrawRectFromCases
+--- PASS: TestQuadDrawRectFromCases (0.00s)
+=== RUN   TestQuadClassifyFromCases
+--- PASS: TestQuadClassifyFromCases (0.00s)
+=== RUN   TestQuadEdgeNoCrash
+--- PASS: TestQuadEdgeNoCrash (0.00s)
+=== RUN   TestQuadGoldenBilinear
+    quad_cpu_test.go:293: golden diff changed=0/6000 (0.000%) mean=0.000 rmse=0.000 max=0 tol_pct=1.0 tol_mean=1.0
+--- PASS: TestQuadGoldenBilinear (0.00s)
+=== RUN   TestQuadCPUGPUParity
+    quad_cpu_test.go:370: parity nearest changed=0/6000 (0.000%) mean=0.000 rmse=0.000 max=0 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+    quad_cpu_test.go:370: parity bilinear changed=0/6000 (0.000%) mean=0.019 rmse=0.138 max=1 gpu_ops=1 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestQuadCPUGPUParity (0.30s)
+=== RUN   TestQuadPerfSingle
+    quad_cpu_test.go:400: quad-perf: 20 draws 100x60 trapezoid in 10.735388ms (0.54 ms/draw)
+--- PASS: TestQuadPerfSingle (0.01s)
+=== RUN   TestQuadLongRunNoLeak
+    quad_cpu_test.go:427: quad-longrun: 500 alternating draws ok, final probe green
+--- PASS: TestQuadLongRunNoLeak (0.08s)
+PASS

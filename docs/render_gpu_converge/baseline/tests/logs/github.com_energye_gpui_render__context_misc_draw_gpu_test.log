@@ -1,0 +1,20 @@
+=== RUN   TestMiscDrawGPUPath
+=== RUN   TestMiscDrawGPUPath/DrawColor
+=== RUN   TestMiscDrawGPUPath/DrawColorAdvancedBlend
+=== RUN   TestMiscDrawGPUPath/DrawColorTwoAdvancedLayers
+=== RUN   TestMiscDrawGPUPath/DrawColorInsideIsolatedLayer
+=== RUN   TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend
+    context_misc_draw_gpu_test.go:141: effect multiply = (255,0,0,255), want approx (229,0,0,255)
+=== RUN   TestMiscDrawGPUPath/DrawPaint
+=== RUN   TestMiscDrawGPUPath/DrawShadow
+=== RUN   TestMiscDrawGPUPath/DrawParagraph
+--- FAIL: TestMiscDrawGPUPath (0.37s)
+    --- PASS: TestMiscDrawGPUPath/DrawColor (0.00s)
+    --- PASS: TestMiscDrawGPUPath/DrawColorAdvancedBlend (0.01s)
+    --- PASS: TestMiscDrawGPUPath/DrawColorTwoAdvancedLayers (0.01s)
+    --- PASS: TestMiscDrawGPUPath/DrawColorInsideIsolatedLayer (0.02s)
+    --- FAIL: TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend (0.02s)
+    --- PASS: TestMiscDrawGPUPath/DrawPaint (0.00s)
+    --- PASS: TestMiscDrawGPUPath/DrawShadow (0.02s)
+    --- PASS: TestMiscDrawGPUPath/DrawParagraph (0.01s)
+FAIL

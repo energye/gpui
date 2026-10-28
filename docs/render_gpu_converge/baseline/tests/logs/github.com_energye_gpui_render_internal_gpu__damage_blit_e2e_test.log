@@ -1,0 +1,7 @@
+=== RUN   TestDamageBlit_LoadOpLoad_PreservesContent
+--- PASS: TestDamageBlit_LoadOpLoad_PreservesContent (0.20s)
+=== RUN   TestDamageBlit_ScissorClampsOverlay
+--- PASS: TestDamageBlit_ScissorClampsOverlay (0.00s)
+=== RUN   TestDamageBlit_NBufferAccumulation
+--- PASS: TestDamageBlit_NBufferAccumulation (0.00s)
+PASS

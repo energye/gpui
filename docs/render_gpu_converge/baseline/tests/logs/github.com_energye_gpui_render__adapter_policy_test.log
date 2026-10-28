@@ -1,0 +1,9 @@
+=== RUN   TestResolveAdapterPolicy
+--- PASS: TestResolveAdapterPolicy (0.00s)
+=== RUN   TestAdapterPolicyString
+--- PASS: TestAdapterPolicyString (0.00s)
+=== RUN   TestPresentLevels_Order
+--- PASS: TestPresentLevels_Order (0.00s)
+=== RUN   TestLowVRAMWaterline_AutoTrip
+--- PASS: TestLowVRAMWaterline_AutoTrip (0.00s)
+PASS

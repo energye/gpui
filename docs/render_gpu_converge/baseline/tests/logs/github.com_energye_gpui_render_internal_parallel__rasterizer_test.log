@@ -1,0 +1,73 @@
+=== RUN   TestParallelRasterizer_Create
+=== RUN   TestParallelRasterizer_Create/valid_small_canvas
+=== RUN   TestParallelRasterizer_Create/valid_medium_canvas
+=== RUN   TestParallelRasterizer_Create/valid_HD_canvas
+=== RUN   TestParallelRasterizer_Create/zero_width
+=== RUN   TestParallelRasterizer_Create/zero_height
+=== RUN   TestParallelRasterizer_Create/negative_width
+=== RUN   TestParallelRasterizer_Create/negative_height
+--- PASS: TestParallelRasterizer_Create (0.01s)
+    --- PASS: TestParallelRasterizer_Create/valid_small_canvas (0.00s)
+    --- PASS: TestParallelRasterizer_Create/valid_medium_canvas (0.00s)
+    --- PASS: TestParallelRasterizer_Create/valid_HD_canvas (0.01s)
+    --- PASS: TestParallelRasterizer_Create/zero_width (0.00s)
+    --- PASS: TestParallelRasterizer_Create/zero_height (0.00s)
+    --- PASS: TestParallelRasterizer_Create/negative_width (0.00s)
+    --- PASS: TestParallelRasterizer_Create/negative_height (0.00s)
+=== RUN   TestParallelRasterizer_CreateWithWorkers
+--- PASS: TestParallelRasterizer_CreateWithWorkers (0.00s)
+=== RUN   TestParallelRasterizer_CreateWithWorkers_Invalid
+--- PASS: TestParallelRasterizer_CreateWithWorkers_Invalid (0.00s)
+=== RUN   TestParallelRasterizer_Clear
+--- PASS: TestParallelRasterizer_Clear (0.00s)
+=== RUN   TestParallelRasterizer_Clear_Different_Colors
+=== RUN   TestParallelRasterizer_Clear_Different_Colors/white
+=== RUN   TestParallelRasterizer_Clear_Different_Colors/black
+=== RUN   TestParallelRasterizer_Clear_Different_Colors/transparent
+=== RUN   TestParallelRasterizer_Clear_Different_Colors/green
+--- PASS: TestParallelRasterizer_Clear_Different_Colors (0.00s)
+    --- PASS: TestParallelRasterizer_Clear_Different_Colors/white (0.00s)
+    --- PASS: TestParallelRasterizer_Clear_Different_Colors/black (0.00s)
+    --- PASS: TestParallelRasterizer_Clear_Different_Colors/transparent (0.00s)
+    --- PASS: TestParallelRasterizer_Clear_Different_Colors/green (0.00s)
+=== RUN   TestParallelRasterizer_FillRect
+--- PASS: TestParallelRasterizer_FillRect (0.00s)
+=== RUN   TestParallelRasterizer_FillRect_SingleTile
+--- PASS: TestParallelRasterizer_FillRect_SingleTile (0.00s)
+=== RUN   TestParallelRasterizer_FillRect_MultipleTiles
+--- PASS: TestParallelRasterizer_FillRect_MultipleTiles (0.00s)
+=== RUN   TestParallelRasterizer_FillRect_EdgeTiles
+--- PASS: TestParallelRasterizer_FillRect_EdgeTiles (0.00s)
+=== RUN   TestParallelRasterizer_FillRect_OutOfBounds
+--- PASS: TestParallelRasterizer_FillRect_OutOfBounds (0.00s)
+=== RUN   TestParallelRasterizer_FillRect_ZeroSize
+--- PASS: TestParallelRasterizer_FillRect_ZeroSize (0.00s)
+=== RUN   TestParallelRasterizer_FillRect_Negative
+--- PASS: TestParallelRasterizer_FillRect_Negative (0.00s)
+=== RUN   TestParallelRasterizer_FillRect_NegativeSize
+--- PASS: TestParallelRasterizer_FillRect_NegativeSize (0.00s)
+=== RUN   TestParallelRasterizer_FillRect_PartialOverlap
+--- PASS: TestParallelRasterizer_FillRect_PartialOverlap (0.00s)
+=== RUN   TestParallelRasterizer_FillTiles
+--- PASS: TestParallelRasterizer_FillTiles (0.00s)
+=== RUN   TestParallelRasterizer_FillTiles_Empty
+--- PASS: TestParallelRasterizer_FillTiles_Empty (0.00s)
+=== RUN   TestParallelRasterizer_FillTiles_NilFunc
+--- PASS: TestParallelRasterizer_FillTiles_NilFunc (0.00s)
+=== RUN   TestParallelRasterizer_Composite
+--- PASS: TestParallelRasterizer_Composite (0.00s)
+=== RUN   TestParallelRasterizer_Composite_EdgeTiles
+--- PASS: TestParallelRasterizer_Composite_EdgeTiles (0.00s)
+=== RUN   TestParallelRasterizer_Composite_SmallBuffer
+--- PASS: TestParallelRasterizer_Composite_SmallBuffer (0.00s)
+=== RUN   TestParallelRasterizer_CompositeDirty
+--- PASS: TestParallelRasterizer_CompositeDirty (0.00s)
+=== RUN   TestParallelRasterizer_Resize
+--- PASS: TestParallelRasterizer_Resize (0.00s)
+=== RUN   TestParallelRasterizer_Resize_Invalid
+--- PASS: TestParallelRasterizer_Resize_Invalid (0.00s)
+=== RUN   TestParallelRasterizer_DirtyTracking
+--- PASS: TestParallelRasterizer_DirtyTracking (0.00s)
+=== RUN   TestParallelRasterizer_Grid
+--- PASS: TestParallelRasterizer_Grid (0.00s)
+PASS

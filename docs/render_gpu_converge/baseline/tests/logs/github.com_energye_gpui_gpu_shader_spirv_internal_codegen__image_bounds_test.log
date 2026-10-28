@@ -1,0 +1,7 @@
+=== RUN   TestImageBoundsCheck_Unchecked
+--- PASS: TestImageBoundsCheck_Unchecked (0.00s)
+=== RUN   TestImageBoundsCheck_Restrict
+--- PASS: TestImageBoundsCheck_Restrict (0.00s)
+=== RUN   TestImageBoundsCheck_RZSW
+--- PASS: TestImageBoundsCheck_RZSW (0.00s)
+PASS

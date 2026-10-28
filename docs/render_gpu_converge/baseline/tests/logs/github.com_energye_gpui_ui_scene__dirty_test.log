@@ -1,0 +1,15 @@
+=== RUN   TestDirtyMovesFromCases
+--- PASS: TestDirtyMovesFromCases (0.01s)
+=== RUN   TestDirtyEdgesNoCrash
+--- PASS: TestDirtyEdgesNoCrash (0.00s)
+=== RUN   TestDirtyBoundaryIdentical
+--- PASS: TestDirtyBoundaryIdentical (0.00s)
+=== RUN   TestDirtyPerfCounts
+    dirty_test.go:317: dirty-burst: 1000 moves in 8.097µs (full fallback, rects nil)
+    dirty_test.go:341: dirty-steady: 200 frames 373 rects in 118.481µs (592.4 ns/frame maxRects=2)
+--- PASS: TestDirtyPerfCounts (0.00s)
+=== RUN   TestDirtyLongRunStable
+--- PASS: TestDirtyLongRunStable (0.01s)
+=== RUN   TestDirtyOffscreenGolden
+--- PASS: TestDirtyOffscreenGolden (0.00s)
+PASS

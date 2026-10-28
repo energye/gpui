@@ -1,0 +1,12 @@
+=== RUN   TestFineRasterizeClip
+    fine_clip_test.go:48: Clip result pixel (8,8): R=1.000 G=0.498 B=0.498 A=1.000
+--- PASS: TestFineRasterizeClip (0.00s)
+=== RUN   TestFineRasterizeNestedClip
+    fine_clip_test.go:99: Nested clip pixel (8,8): R=0.502 G=0.000 B=0.498 A=1.000
+--- PASS: TestFineRasterizeNestedClip (0.00s)
+=== RUN   TestFineRasterizeDeepClip
+    fine_clip_test.go:147: Deep clip (depth=5) pixel (8,8): R=0.000 G=0.000 B=1.000 A=1.000
+--- PASS: TestFineRasterizeDeepClip (0.00s)
+=== RUN   TestPackRGBA
+--- PASS: TestPackRGBA (0.00s)
+PASS

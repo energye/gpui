@@ -1,0 +1,114 @@
+=== RUN   TestNewContextClose
+--- PASS: TestNewContextClose (0.00s)
+=== RUN   TestNewContextDoubleClose
+--- PASS: TestNewContextDoubleClose (0.00s)
+=== RUN   TestNewContextWithDeviceScale
+--- PASS: TestNewContextWithDeviceScale (0.00s)
+=== RUN   TestContextDrawRectangle
+--- PASS: TestContextDrawRectangle (0.28s)
+=== RUN   TestContextDrawCircle
+--- PASS: TestContextDrawCircle (0.00s)
+=== RUN   TestContextDrawEllipse
+--- PASS: TestContextDrawEllipse (0.00s)
+=== RUN   TestContextDrawRoundedRectangle
+--- PASS: TestContextDrawRoundedRectangle (0.00s)
+=== RUN   TestContextPushPop
+--- PASS: TestContextPushPop (0.00s)
+=== RUN   TestContextPushPopTransform
+--- PASS: TestContextPushPopTransform (0.00s)
+=== RUN   TestContextSetRGB
+--- PASS: TestContextSetRGB (0.00s)
+=== RUN   TestContextSetRGBA
+--- PASS: TestContextSetRGBA (0.00s)
+=== RUN   TestContextSetHexColor
+--- PASS: TestContextSetHexColor (0.00s)
+=== RUN   TestContextIdentity
+--- PASS: TestContextIdentity (0.00s)
+=== RUN   TestContextRotate
+--- PASS: TestContextRotate (0.00s)
+=== RUN   TestContextNewSubPath
+--- PASS: TestContextNewSubPath (0.00s)
+=== RUN   TestContextClearPath
+--- PASS: TestContextClearPath (0.00s)
+=== RUN   TestContextStrokeSimple
+--- PASS: TestContextStrokeSimple (0.00s)
+=== RUN   TestContextSetLineWidth
+--- PASS: TestContextSetLineWidth (0.00s)
+=== RUN   TestContextSetLineCap
+--- PASS: TestContextSetLineCap (0.00s)
+=== RUN   TestContextSetLineJoin
+--- PASS: TestContextSetLineJoin (0.00s)
+=== RUN   TestContextSetDashCoverage
+--- PASS: TestContextSetDashCoverage (0.00s)
+=== RUN   TestContextClearDashCoverage
+--- PASS: TestContextClearDashCoverage (0.00s)
+=== RUN   TestContextSetFillRule
+--- PASS: TestContextSetFillRule (0.00s)
+=== RUN   TestContextMultipleShapes
+--- PASS: TestContextMultipleShapes (0.00s)
+=== RUN   TestContextDeviceScaleRendering
+--- PASS: TestContextDeviceScaleRendering (0.00s)
+=== RUN   TestContextImage
+--- PASS: TestContextImage (0.00s)
+=== RUN   TestContextFlushGPUNoAccelerator
+--- PASS: TestContextFlushGPUNoAccelerator (0.00s)
+=== RUN   TestContextSetTextMode
+--- PASS: TestContextSetTextMode (0.00s)
+=== RUN   TestContextSetFillBrushCoverage
+    context_coverage_test.go:454: fill brush red R = 0.000000, want >= 0.8
+--- FAIL: TestContextSetFillBrushCoverage (0.00s)
+=== RUN   TestContextClipRoundRect
+--- PASS: TestContextClipRoundRect (0.00s)
+=== RUN   TestContextClipRoundRectZeroRadius
+--- PASS: TestContextClipRoundRectZeroRadius (0.00s)
+=== RUN   TestContextClipRoundRectNegativeRadius
+--- PASS: TestContextClipRoundRectNegativeRadius (0.00s)
+=== RUN   TestContextSetBlendMode
+--- PASS: TestContextSetBlendMode (0.00s)
+=== RUN   TestContextPushPopLayer
+--- PASS: TestContextPushPopLayer (0.00s)
+=== RUN   TestContextPushPopLayerOpacity
+--- PASS: TestContextPushPopLayerOpacity (0.00s)
+=== RUN   TestContextPopLayerEmpty
+--- PASS: TestContextPopLayerEmpty (0.00s)
+=== RUN   TestContextPushLayerClampOpacity
+--- PASS: TestContextPushLayerClampOpacity (0.00s)
+=== RUN   TestContextPushLayerClampOpacityAboveOne
+--- PASS: TestContextPushLayerClampOpacityAboveOne (0.00s)
+=== RUN   TestContextNestedLayers
+--- PASS: TestContextNestedLayers (0.00s)
+=== RUN   TestContextNewSubPathIsNoOp
+--- PASS: TestContextNewSubPathIsNoOp (0.00s)
+=== RUN   TestContextCurrentColor
+--- PASS: TestContextCurrentColor (0.00s)
+=== RUN   TestContextCurrentColorSolid
+--- PASS: TestContextCurrentColorSolid (0.00s)
+=== RUN   TestContextClipRect
+--- PASS: TestContextClipRect (0.00s)
+=== RUN   TestContextResetClip
+--- PASS: TestContextResetClip (0.00s)
+=== RUN   TestContextResetClipNoInit
+--- PASS: TestContextResetClipNoInit (0.00s)
+=== RUN   TestContextSetStrokeBrushCoverage
+--- PASS: TestContextSetStrokeBrushCoverage (0.00s)
+=== RUN   TestContextFillRadialGradient
+--- PASS: TestContextFillRadialGradient (0.01s)
+=== RUN   TestContextFillSweepGradient
+--- PASS: TestContextFillSweepGradient (0.00s)
+=== RUN   TestContextFillLinearGradient
+--- PASS: TestContextFillLinearGradient (0.00s)
+=== RUN   TestContextDrawArc
+--- PASS: TestContextDrawArc (0.00s)
+=== RUN   TestContextDrawEllipticalArc
+--- PASS: TestContextDrawEllipticalArc (0.00s)
+=== RUN   TestContextClipWithGradientFill
+--- PASS: TestContextClipWithGradientFill (0.01s)
+=== RUN   TestContextClipPreserve
+--- PASS: TestContextClipPreserve (0.00s)
+=== RUN   TestContextGetCurrentPoint
+--- PASS: TestContextGetCurrentPoint (0.00s)
+=== RUN   TestContextFillPreserve
+--- PASS: TestContextFillPreserve (0.00s)
+=== RUN   TestContextStrokePreserve
+--- PASS: TestContextStrokePreserve (0.00s)
+FAIL

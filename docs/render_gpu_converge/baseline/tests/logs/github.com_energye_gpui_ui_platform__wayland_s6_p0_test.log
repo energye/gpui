@@ -1,0 +1,13 @@
+=== RUN   TestWaylandLeaveStampsPosition
+--- PASS: TestWaylandLeaveStampsPosition (0.00s)
+=== RUN   TestWaylandStateChangedDerived
+--- PASS: TestWaylandStateChangedDerived (0.00s)
+=== RUN   TestWaylandRepeatSetsBit
+--- PASS: TestWaylandRepeatSetsBit (0.00s)
+=== RUN   TestWaylandOutputMapsInit
+--- PASS: TestWaylandOutputMapsInit (0.00s)
+=== RUN   TestWaylandTouchCallbacks
+--- PASS: TestWaylandTouchCallbacks (0.00s)
+=== RUN   TestWaylandOutputScale
+--- PASS: TestWaylandOutputScale (0.00s)
+PASS

@@ -1,0 +1,15 @@
+=== RUN   TestEffectiveStrokeWidthMatchesSoftwareSemantics
+=== RUN   TestEffectiveStrokeWidthMatchesSoftwareSemantics/default_transform
+=== RUN   TestEffectiveStrokeWidthMatchesSoftwareSemantics/scaled_up
+=== RUN   TestEffectiveStrokeWidthMatchesSoftwareSemantics/subpixel_width_kept
+=== RUN   TestEffectiveStrokeWidthMatchesSoftwareSemantics/scaled_down_subpixel_kept
+=== RUN   TestEffectiveStrokeWidthMatchesSoftwareSemantics/zero_width_hairline
+=== RUN   TestEffectiveStrokeWidthMatchesSoftwareSemantics/stroke_object
+--- PASS: TestEffectiveStrokeWidthMatchesSoftwareSemantics (0.00s)
+    --- PASS: TestEffectiveStrokeWidthMatchesSoftwareSemantics/default_transform (0.00s)
+    --- PASS: TestEffectiveStrokeWidthMatchesSoftwareSemantics/scaled_up (0.00s)
+    --- PASS: TestEffectiveStrokeWidthMatchesSoftwareSemantics/subpixel_width_kept (0.00s)
+    --- PASS: TestEffectiveStrokeWidthMatchesSoftwareSemantics/scaled_down_subpixel_kept (0.00s)
+    --- PASS: TestEffectiveStrokeWidthMatchesSoftwareSemantics/zero_width_hairline (0.00s)
+    --- PASS: TestEffectiveStrokeWidthMatchesSoftwareSemantics/stroke_object (0.00s)
+PASS

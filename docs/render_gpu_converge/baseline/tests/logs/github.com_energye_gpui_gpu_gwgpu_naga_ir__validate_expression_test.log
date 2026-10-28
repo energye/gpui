@@ -1,0 +1,101 @@
+=== RUN   TestValidateNew_FunctionArgOutOfRange
+--- PASS: TestValidateNew_FunctionArgOutOfRange (0.00s)
+=== RUN   TestValidateNew_LocalVariableOutOfRange
+--- PASS: TestValidateNew_LocalVariableOutOfRange (0.00s)
+=== RUN   TestValidateNew_GlobalVariableInvalid
+--- PASS: TestValidateNew_GlobalVariableInvalid (0.00s)
+=== RUN   TestValidateNew_MathInvalidArg2
+--- PASS: TestValidateNew_MathInvalidArg2 (0.00s)
+=== RUN   TestValidateNew_MathInvalidArg3
+--- PASS: TestValidateNew_MathInvalidArg3 (0.00s)
+=== RUN   TestValidateNew_ImageSampleInvalidArrayIndex
+--- PASS: TestValidateNew_ImageSampleInvalidArrayIndex (0.00s)
+=== RUN   TestValidateNew_ImageSampleInvalidOffset
+--- PASS: TestValidateNew_ImageSampleInvalidOffset (0.00s)
+=== RUN   TestValidateNew_ImageSampleInvalidDepthRef
+--- PASS: TestValidateNew_ImageSampleInvalidDepthRef (0.00s)
+=== RUN   TestValidateNew_ImageLoadInvalidArrayIndex
+--- PASS: TestValidateNew_ImageLoadInvalidArrayIndex (0.00s)
+=== RUN   TestValidateNew_ImageLoadInvalidSample
+--- PASS: TestValidateNew_ImageLoadInvalidSample (0.00s)
+=== RUN   TestValidateNew_ImageLoadInvalidLevel
+--- PASS: TestValidateNew_ImageLoadInvalidLevel (0.00s)
+=== RUN   TestValidateNew_EmitRangeEndOutOfBounds
+--- PASS: TestValidateNew_EmitRangeEndOutOfBounds (0.00s)
+=== RUN   TestValidateNew_EmitRangeStartGEEnd
+--- PASS: TestValidateNew_EmitRangeStartGEEnd (0.00s)
+=== RUN   TestValidateNew_ImageStoreInvalidArrayIndex
+--- PASS: TestValidateNew_ImageStoreInvalidArrayIndex (0.00s)
+=== RUN   TestValidateNew_AtomicInvalidResult
+--- PASS: TestValidateNew_AtomicInvalidResult (0.00s)
+=== RUN   TestValidateNew_CallInvalidResult
+--- PASS: TestValidateNew_CallInvalidResult (0.00s)
+=== RUN   TestValidateNew_CallInvalidArguments
+--- PASS: TestValidateNew_CallInvalidArguments (0.00s)
+=== RUN   TestValidateNew_ValidScalarWidthByte
+--- PASS: TestValidateNew_ValidScalarWidthByte (0.00s)
+=== RUN   TestValidateNew_ValidScalarWidthHalf
+--- PASS: TestValidateNew_ValidScalarWidthHalf (0.00s)
+=== RUN   TestValidateNew_ValidScalarWidthDouble
+--- PASS: TestValidateNew_ValidScalarWidthDouble (0.00s)
+=== RUN   TestValidateNew_InvalidVectorScalarWidth
+--- PASS: TestValidateNew_InvalidVectorScalarWidth (0.00s)
+=== RUN   TestValidateNew_InvalidMatrixColumns
+--- PASS: TestValidateNew_InvalidMatrixColumns (0.00s)
+=== RUN   TestValidateNew_InvalidMatrixRows
+--- PASS: TestValidateNew_InvalidMatrixRows (0.00s)
+=== RUN   TestValidateNew_StructEmptyMemberName
+--- PASS: TestValidateNew_StructEmptyMemberName (0.00s)
+=== RUN   TestValidateNew_StructDuplicateMemberName
+--- PASS: TestValidateNew_StructDuplicateMemberName (0.00s)
+=== RUN   TestValidateNew_StructMemberCircularRef
+--- PASS: TestValidateNew_StructMemberCircularRef (0.00s)
+=== RUN   TestValidateNew_EntryPointEmptyName
+--- PASS: TestValidateNew_EntryPointEmptyName (0.00s)
+=== RUN   TestValidateNew_EntryPointDuplicateName
+--- PASS: TestValidateNew_EntryPointDuplicateName (0.00s)
+=== RUN   TestValidateNew_VertexDirectPositionBinding
+--- PASS: TestValidateNew_VertexDirectPositionBinding (0.00s)
+=== RUN   TestValidateNew_VertexStructPositionBinding
+--- PASS: TestValidateNew_VertexStructPositionBinding (0.00s)
+=== RUN   TestValidateNew_FragmentValid
+--- PASS: TestValidateNew_FragmentValid (0.00s)
+=== RUN   TestValidateNew_GlobalVarInvalidInit
+--- PASS: TestValidateNew_GlobalVarInvalidInit (0.00s)
+=== RUN   TestValidateNew_FunctionInvalidLocalVarInit
+--- PASS: TestValidateNew_FunctionInvalidLocalVarInit (0.00s)
+=== RUN   TestValidateNew_FunctionInvalidResultType
+--- PASS: TestValidateNew_FunctionInvalidResultType (0.00s)
+=== RUN   TestValidationError_Formatting
+=== RUN   TestValidationError_Formatting/plain
+=== RUN   TestValidationError_Formatting/in_function
+=== RUN   TestValidationError_Formatting/in_function_expression
+=== RUN   TestValidationError_Formatting/in_function_statement
+--- PASS: TestValidationError_Formatting (0.00s)
+    --- PASS: TestValidationError_Formatting/plain (0.00s)
+    --- PASS: TestValidationError_Formatting/in_function (0.00s)
+    --- PASS: TestValidationError_Formatting/in_function_expression (0.00s)
+    --- PASS: TestValidationError_Formatting/in_function_statement (0.00s)
+=== RUN   TestIsPositionBuiltin_Cases
+=== RUN   TestIsPositionBuiltin_Cases/position
+=== RUN   TestIsPositionBuiltin_Cases/vertex_index
+=== RUN   TestIsPositionBuiltin_Cases/location
+--- PASS: TestIsPositionBuiltin_Cases (0.00s)
+    --- PASS: TestIsPositionBuiltin_Cases/position (0.00s)
+    --- PASS: TestIsPositionBuiltin_Cases/vertex_index (0.00s)
+    --- PASS: TestIsPositionBuiltin_Cases/location (0.00s)
+=== RUN   TestStructHasPositionBuiltin
+--- PASS: TestStructHasPositionBuiltin (0.00s)
+=== RUN   TestValidateNew_CompleteValidModule
+--- PASS: TestValidateNew_CompleteValidModule (0.00s)
+=== RUN   TestValidateNew_NestedLoopContext
+--- PASS: TestValidateNew_NestedLoopContext (0.00s)
+=== RUN   TestValidateNew_BlockStatement
+--- PASS: TestValidateNew_BlockStatement (0.00s)
+=== RUN   TestValidateNew_BarrierAlwaysValid
+--- PASS: TestValidateNew_BarrierAlwaysValid (0.00s)
+=== RUN   TestValidateNew_IfWithNestedInvalidStatement
+--- PASS: TestValidateNew_IfWithNestedInvalidStatement (0.00s)
+=== RUN   TestValidateNew_IfRejectBlockValidation
+--- PASS: TestValidateNew_IfRejectBlockValidation (0.00s)
+PASS

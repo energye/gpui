@@ -1,0 +1,18 @@
+=== RUN   TestDbgBridgesFidelity
+Npts 静 8px: prodSegs=140 hintPts=123
+Npts 每 8px: prodSegs=113 hintPts=92
+Npts 合 8px: prodSegs=42 hintPts=35
+Npts 静 12px: prodSegs=139 hintPts=122
+Npts 每 12px: prodSegs=113 hintPts=92
+Npts 合 12px: prodSegs=42 hintPts=35
+Npts 静 16px: prodSegs=140 hintPts=123
+Npts 每 16px: prodSegs=113 hintPts=92
+Npts 合 16px: prodSegs=42 hintPts=35
+Npts 静 24px: prodSegs=140 hintPts=123
+Npts 每 24px: prodSegs=113 hintPts=92
+Npts 合 24px: prodSegs=42 hintPts=35
+Npts 静 48px: prodSegs=140 hintPts=123
+Npts 每 48px: prodSegs=113 hintPts=92
+Npts 合 48px: prodSegs=42 hintPts=35
+--- PASS: TestDbgBridgesFidelity (0.02s)
+PASS

@@ -1,0 +1,13 @@
+=== RUN   TestBlockReader_EmptyBlock
+--- PASS: TestBlockReader_EmptyBlock (0.00s)
+=== RUN   TestBlockReader_UnabbrevRecordRoundTrip
+--- PASS: TestBlockReader_UnabbrevRecordRoundTrip (0.00s)
+=== RUN   TestBlockReader_SkipBlock
+--- PASS: TestBlockReader_SkipBlock (0.00s)
+=== RUN   TestBlockReader_MalformedInnerWidth
+--- PASS: TestBlockReader_MalformedInnerWidth (0.00s)
+=== RUN   TestBlockReader_MalformedBlockLength
+--- PASS: TestBlockReader_MalformedBlockLength (0.00s)
+=== RUN   TestBlockReader_DefineAbbrev_FixedOperand
+--- PASS: TestBlockReader_DefineAbbrev_FixedOperand (0.00s)
+PASS

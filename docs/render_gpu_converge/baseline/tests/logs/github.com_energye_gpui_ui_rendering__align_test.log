@@ -1,0 +1,5 @@
+=== RUN   TestAlignBox_LayoutDrivenOffset
+--- PASS: TestAlignBox_LayoutDrivenOffset (0.00s)
+=== RUN   TestAlignBox_SetAlignmentDirties
+--- PASS: TestAlignBox_SetAlignmentDirties (0.00s)
+PASS

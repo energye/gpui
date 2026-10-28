@@ -1,0 +1,37 @@
+=== RUN   TestTypeRegistry_ScalarDeduplication
+--- PASS: TestTypeRegistry_ScalarDeduplication (0.00s)
+=== RUN   TestTypeRegistry_DifferentScalars
+--- PASS: TestTypeRegistry_DifferentScalars (0.00s)
+=== RUN   TestTypeRegistry_VectorDeduplication
+--- PASS: TestTypeRegistry_VectorDeduplication (0.00s)
+=== RUN   TestTypeRegistry_DifferentVectors
+--- PASS: TestTypeRegistry_DifferentVectors (0.00s)
+=== RUN   TestTypeRegistry_MatrixDeduplication
+--- PASS: TestTypeRegistry_MatrixDeduplication (0.00s)
+=== RUN   TestTypeRegistry_DifferentMatrices
+--- PASS: TestTypeRegistry_DifferentMatrices (0.00s)
+=== RUN   TestTypeRegistry_ArrayDeduplication
+--- PASS: TestTypeRegistry_ArrayDeduplication (0.00s)
+=== RUN   TestTypeRegistry_DifferentArrays
+--- PASS: TestTypeRegistry_DifferentArrays (0.00s)
+=== RUN   TestTypeRegistry_StructDeduplication
+--- PASS: TestTypeRegistry_StructDeduplication (0.00s)
+=== RUN   TestTypeRegistry_DifferentStructs
+--- PASS: TestTypeRegistry_DifferentStructs (0.00s)
+=== RUN   TestTypeRegistry_PointerDeduplication
+--- PASS: TestTypeRegistry_PointerDeduplication (0.00s)
+=== RUN   TestTypeRegistry_DifferentPointers
+--- PASS: TestTypeRegistry_DifferentPointers (0.00s)
+=== RUN   TestTypeRegistry_ImageDeduplication
+--- PASS: TestTypeRegistry_ImageDeduplication (0.00s)
+=== RUN   TestTypeRegistry_DifferentImages
+--- PASS: TestTypeRegistry_DifferentImages (0.00s)
+=== RUN   TestTypeRegistry_SamplerDeduplication
+--- PASS: TestTypeRegistry_SamplerDeduplication (0.00s)
+=== RUN   TestTypeRegistry_DifferentSamplers
+--- PASS: TestTypeRegistry_DifferentSamplers (0.00s)
+=== RUN   TestTypeRegistry_Lookup
+--- PASS: TestTypeRegistry_Lookup (0.00s)
+=== RUN   TestTypeRegistry_ComplexNestedTypes
+--- PASS: TestTypeRegistry_ComplexNestedTypes (0.00s)
+PASS

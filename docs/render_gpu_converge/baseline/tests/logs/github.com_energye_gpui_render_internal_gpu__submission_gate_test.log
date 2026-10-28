@@ -1,0 +1,7 @@
+=== RUN   TestP6_PendingBufRetire_AddDrain
+--- PASS: TestP6_PendingBufRetire_AddDrain (0.00s)
+=== RUN   TestP6_SessionRetireBufferNilSafe
+--- PASS: TestP6_SessionRetireBufferNilSafe (0.00s)
+=== RUN   TestP6_InvalidateForDeviceLoss_DropsBookkeeping
+--- PASS: TestP6_InvalidateForDeviceLoss_DropsBookkeeping (0.00s)
+PASS

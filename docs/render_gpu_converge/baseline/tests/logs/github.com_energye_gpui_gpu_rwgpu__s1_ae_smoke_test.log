@@ -1,0 +1,16 @@
+=== RUN   TestS1AE_A_InstanceAdapterDeviceQueue
+    s1_ae_smoke_test.go:68: Limits MaxTextureDimension2D=8192 MaxBindGroups=4
+--- PASS: TestS1AE_A_InstanceAdapterDeviceQueue (0.23s)
+=== RUN   TestS1AE_B_BufferWriteMap
+--- PASS: TestS1AE_B_BufferWriteMap (0.27s)
+=== RUN   TestS1AE_B_CopyBufferToBufferMap
+--- PASS: TestS1AE_B_CopyBufferToBufferMap (0.28s)
+=== RUN   TestS1AE_C_TextureWriteCopyMap
+--- PASS: TestS1AE_C_TextureWriteCopyMap (0.29s)
+=== RUN   TestS1AE_DE_DrawReadback
+--- PASS: TestS1AE_DE_DrawReadback (0.27s)
+=== RUN   TestS1AE_E_DrawIndexed
+--- PASS: TestS1AE_E_DrawIndexed (0.28s)
+=== RUN   TestS1AE_D_BindGroupLayoutConversion
+--- PASS: TestS1AE_D_BindGroupLayoutConversion (0.16s)
+PASS

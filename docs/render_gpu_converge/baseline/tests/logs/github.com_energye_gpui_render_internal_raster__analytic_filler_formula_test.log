@@ -1,0 +1,427 @@
+=== RUN   TestFormulaTrapezoidToAlpha
+=== RUN   TestFormulaTrapezoidToAlpha/full_pixel_both_sides
+=== RUN   TestFormulaTrapezoidToAlpha/half_pixel_both_sides
+=== RUN   TestFormulaTrapezoidToAlpha/triangle_zero_to_full
+=== RUN   TestFormulaTrapezoidToAlpha/triangle_full_to_zero
+=== RUN   TestFormulaTrapezoidToAlpha/zero_both_sides
+=== RUN   TestFormulaTrapezoidToAlpha/triangle_zero_to_half
+=== RUN   TestFormulaTrapezoidToAlpha/negative_l1_clamped
+=== RUN   TestFormulaTrapezoidToAlpha/negative_l2_clamped
+=== RUN   TestFormulaTrapezoidToAlpha/both_negative_clamped
+=== RUN   TestFormulaTrapezoidToAlpha/quarter_pixel_both
+=== RUN   TestFormulaTrapezoidToAlpha/three_quarter_both
+=== RUN   TestFormulaTrapezoidToAlpha/quarter_and_three_quarter
+=== RUN   TestFormulaTrapezoidToAlpha/tiny_value
+=== RUN   TestFormulaTrapezoidToAlpha/sub-threshold_value
+=== RUN   TestFormulaTrapezoidToAlpha/over_full_clamped
+--- PASS: TestFormulaTrapezoidToAlpha (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/full_pixel_both_sides (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/half_pixel_both_sides (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/triangle_zero_to_full (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/triangle_full_to_zero (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/zero_both_sides (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/triangle_zero_to_half (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/negative_l1_clamped (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/negative_l2_clamped (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/both_negative_clamped (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/quarter_pixel_both (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/three_quarter_both (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/quarter_and_three_quarter (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/tiny_value (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/sub-threshold_value (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlpha/over_full_clamped (0.00s)
+=== RUN   TestFormulaPartialTriangleToAlpha
+=== RUN   TestFormulaPartialTriangleToAlpha/full_a_full_b
+=== RUN   TestFormulaPartialTriangleToAlpha/zero_a
+=== RUN   TestFormulaPartialTriangleToAlpha/zero_a_zero_b
+=== RUN   TestFormulaPartialTriangleToAlpha/zero_b
+=== RUN   TestFormulaPartialTriangleToAlpha/half_a_full_b
+=== RUN   TestFormulaPartialTriangleToAlpha/quarter_a_full_b
+=== RUN   TestFormulaPartialTriangleToAlpha/full_a_half_b
+=== RUN   TestFormulaPartialTriangleToAlpha/negative_a
+=== RUN   TestFormulaPartialTriangleToAlpha/negative_b
+=== RUN   TestFormulaPartialTriangleToAlpha/over-full_a_clamped
+=== RUN   TestFormulaPartialTriangleToAlpha/tiny_a_full_b
+=== RUN   TestFormulaPartialTriangleToAlpha/small_a_full_b
+=== RUN   TestFormulaPartialTriangleToAlpha/eighth_a_full_b
+=== RUN   TestFormulaPartialTriangleToAlpha/three_quarter_a_full_b
+--- PASS: TestFormulaPartialTriangleToAlpha (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/full_a_full_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/zero_a (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/zero_a_zero_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/zero_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/half_a_full_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/quarter_a_full_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/full_a_half_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/negative_a (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/negative_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/over-full_a_clamped (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/tiny_a_full_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/small_a_full_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/eighth_a_full_b (0.00s)
+    --- PASS: TestFormulaPartialTriangleToAlpha/three_quarter_a_full_b (0.00s)
+=== RUN   TestFormulaGetPartialAlpha8
+=== RUN   TestFormulaGetPartialAlpha8/max_times_max_truncation
+=== RUN   TestFormulaGetPartialAlpha8/max_times_half
+=== RUN   TestFormulaGetPartialAlpha8/half_times_quarter
+=== RUN   TestFormulaGetPartialAlpha8/zero_alpha
+=== RUN   TestFormulaGetPartialAlpha8/zero_full_alpha
+=== RUN   TestFormulaGetPartialAlpha8/both_zero
+=== RUN   TestFormulaGetPartialAlpha8/one_times_max
+=== RUN   TestFormulaGetPartialAlpha8/max_times_one
+=== RUN   TestFormulaGetPartialAlpha8/half_times_half
+=== RUN   TestFormulaGetPartialAlpha8/quarter_times_quarter
+=== RUN   TestFormulaGetPartialAlpha8/200_times_100
+=== RUN   TestFormulaGetPartialAlpha8/100_times_200_commutative
+=== RUN   TestFormulaGetPartialAlpha8/192_times_255
+=== RUN   TestFormulaGetPartialAlpha8/two_times_half
+--- PASS: TestFormulaGetPartialAlpha8 (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/max_times_max_truncation (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/max_times_half (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/half_times_quarter (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/zero_alpha (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/zero_full_alpha (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/both_zero (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/one_times_max (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/max_times_one (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/half_times_half (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/quarter_times_quarter (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/200_times_100 (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/100_times_200_commutative (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/192_times_255 (0.00s)
+    --- PASS: TestFormulaGetPartialAlpha8/two_times_half (0.00s)
+=== RUN   TestFormulaFixedToAlpha
+=== RUN   TestFormulaFixedToAlpha/full_pixel
+=== RUN   TestFormulaFixedToAlpha/half_pixel
+=== RUN   TestFormulaFixedToAlpha/quarter_pixel
+=== RUN   TestFormulaFixedToAlpha/zero
+=== RUN   TestFormulaFixedToAlpha/three_quarter_pixel
+=== RUN   TestFormulaFixedToAlpha/negative_clamped
+=== RUN   TestFormulaFixedToAlpha/large_negative_clamped
+=== RUN   TestFormulaFixedToAlpha/over_full_clamped
+=== RUN   TestFormulaFixedToAlpha/epsilon
+=== RUN   TestFormulaFixedToAlpha/eighth_pixel
+=== RUN   TestFormulaFixedToAlpha/seven_eighths
+=== RUN   TestFormulaFixedToAlpha/quarter_times_four_overflow
+=== RUN   TestFormulaFixedToAlpha/fixed_half
+--- PASS: TestFormulaFixedToAlpha (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/full_pixel (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/half_pixel (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/quarter_pixel (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/zero (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/three_quarter_pixel (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/negative_clamped (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/large_negative_clamped (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/over_full_clamped (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/epsilon (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/eighth_pixel (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/seven_eighths (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/quarter_times_four_overflow (0.00s)
+    --- PASS: TestFormulaFixedToAlpha/fixed_half (0.00s)
+=== RUN   TestFormulaFixedToAlphaRounding
+--- PASS: TestFormulaFixedToAlphaRounding (0.00s)
+=== RUN   TestFormulaSnapY
+=== RUN   TestFormulaSnapY/exact_integer_15
+=== RUN   TestFormulaSnapY/exact_15.0
+=== RUN   TestFormulaSnapY/zero
+=== RUN   TestFormulaSnapY/one_point_zero
+=== RUN   TestFormulaSnapY/exact_quarter
+=== RUN   TestFormulaSnapY/exact_half
+=== RUN   TestFormulaSnapY/exact_three_quarters
+--- PASS: TestFormulaSnapY (0.00s)
+    --- PASS: TestFormulaSnapY/exact_integer_15 (0.00s)
+    --- PASS: TestFormulaSnapY/exact_15.0 (0.00s)
+    --- PASS: TestFormulaSnapY/zero (0.00s)
+    --- PASS: TestFormulaSnapY/one_point_zero (0.00s)
+    --- PASS: TestFormulaSnapY/exact_quarter (0.00s)
+    --- PASS: TestFormulaSnapY/exact_half (0.00s)
+    --- PASS: TestFormulaSnapY/exact_three_quarters (0.00s)
+=== RUN   TestFormulaSnapYRoundingDirection
+=== RUN   TestFormulaSnapYRoundingDirection/0.125_rounds_to_0.25
+=== RUN   TestFormulaSnapYRoundingDirection/0.1_rounds_to_0.0
+=== RUN   TestFormulaSnapYRoundingDirection/0.2_rounds_to_0.25
+=== RUN   TestFormulaSnapYRoundingDirection/0.3_rounds_to_0.25
+=== RUN   TestFormulaSnapYRoundingDirection/0.4_rounds_to_0.5
+=== RUN   TestFormulaSnapYRoundingDirection/0.6_rounds_to_0.5
+=== RUN   TestFormulaSnapYRoundingDirection/0.9_rounds_to_1.0
+--- PASS: TestFormulaSnapYRoundingDirection (0.00s)
+    --- PASS: TestFormulaSnapYRoundingDirection/0.125_rounds_to_0.25 (0.00s)
+    --- PASS: TestFormulaSnapYRoundingDirection/0.1_rounds_to_0.0 (0.00s)
+    --- PASS: TestFormulaSnapYRoundingDirection/0.2_rounds_to_0.25 (0.00s)
+    --- PASS: TestFormulaSnapYRoundingDirection/0.3_rounds_to_0.25 (0.00s)
+    --- PASS: TestFormulaSnapYRoundingDirection/0.4_rounds_to_0.5 (0.00s)
+    --- PASS: TestFormulaSnapYRoundingDirection/0.6_rounds_to_0.5 (0.00s)
+    --- PASS: TestFormulaSnapYRoundingDirection/0.9_rounds_to_1.0 (0.00s)
+=== RUN   TestFormulaSafeAddAlpha
+=== RUN   TestFormulaSafeAddAlpha/normal_add
+=== RUN   TestFormulaSafeAddAlpha/clamped_overflow
+=== RUN   TestFormulaSafeAddAlpha/zero_alpha_no-op
+=== RUN   TestFormulaSafeAddAlpha/add_to_zero
+=== RUN   TestFormulaSafeAddAlpha/max_plus_max
+=== RUN   TestFormulaSafeAddAlpha/just_reaches_max
+=== RUN   TestFormulaSafeAddAlpha/add_to_already_max
+=== RUN   TestFormulaSafeAddAlpha/negative_x_no-op
+=== RUN   TestFormulaSafeAddAlpha/x_at_width_no-op
+=== RUN   TestFormulaSafeAddAlpha/x_past_width_no-op
+--- PASS: TestFormulaSafeAddAlpha (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/normal_add (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/clamped_overflow (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/zero_alpha_no-op (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/add_to_zero (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/max_plus_max (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/just_reaches_max (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/add_to_already_max (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/negative_x_no-op (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/x_at_width_no-op (0.00s)
+    --- PASS: TestFormulaSafeAddAlpha/x_past_width_no-op (0.00s)
+=== RUN   TestFormulaApproximateIntersection
+=== RUN   TestFormulaApproximateIntersection/symmetric_crossing
+=== RUN   TestFormulaApproximateIntersection/identical_lines
+=== RUN   TestFormulaApproximateIntersection/non_overlapping
+=== RUN   TestFormulaApproximateIntersection/reversed_first
+=== RUN   TestFormulaApproximateIntersection/all_zeros
+=== RUN   TestFormulaApproximateIntersection/negative_values
+=== RUN   TestFormulaApproximateIntersection/fixed_point_values
+--- PASS: TestFormulaApproximateIntersection (0.00s)
+    --- PASS: TestFormulaApproximateIntersection/symmetric_crossing (0.00s)
+    --- PASS: TestFormulaApproximateIntersection/identical_lines (0.00s)
+    --- PASS: TestFormulaApproximateIntersection/non_overlapping (0.00s)
+    --- PASS: TestFormulaApproximateIntersection/reversed_first (0.00s)
+    --- PASS: TestFormulaApproximateIntersection/all_zeros (0.00s)
+    --- PASS: TestFormulaApproximateIntersection/negative_values (0.00s)
+    --- PASS: TestFormulaApproximateIntersection/fixed_point_values (0.00s)
+=== RUN   TestFormulaIntToSkFixed
+=== RUN   TestFormulaIntToSkFixed/zero
+=== RUN   TestFormulaIntToSkFixed/one
+=== RUN   TestFormulaIntToSkFixed/ten
+=== RUN   TestFormulaIntToSkFixed/negative
+--- PASS: TestFormulaIntToSkFixed (0.00s)
+    --- PASS: TestFormulaIntToSkFixed/zero (0.00s)
+    --- PASS: TestFormulaIntToSkFixed/one (0.00s)
+    --- PASS: TestFormulaIntToSkFixed/ten (0.00s)
+    --- PASS: TestFormulaIntToSkFixed/negative (0.00s)
+=== RUN   TestFormulaSkFixedFloorToInt
+=== RUN   TestFormulaSkFixedFloorToInt/zero
+=== RUN   TestFormulaSkFixedFloorToInt/exact_one
+=== RUN   TestFormulaSkFixedFloorToInt/one_point_five
+=== RUN   TestFormulaSkFixedFloorToInt/just_under_one
+=== RUN   TestFormulaSkFixedFloorToInt/negative_half
+=== RUN   TestFormulaSkFixedFloorToInt/negative_one
+--- PASS: TestFormulaSkFixedFloorToInt (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToInt/zero (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToInt/exact_one (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToInt/one_point_five (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToInt/just_under_one (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToInt/negative_half (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToInt/negative_one (0.00s)
+=== RUN   TestFormulaSkFixedCeilToInt
+=== RUN   TestFormulaSkFixedCeilToInt/zero
+=== RUN   TestFormulaSkFixedCeilToInt/exact_one
+=== RUN   TestFormulaSkFixedCeilToInt/epsilon_above_zero
+=== RUN   TestFormulaSkFixedCeilToInt/just_under_one
+=== RUN   TestFormulaSkFixedCeilToInt/one_point_five
+=== RUN   TestFormulaSkFixedCeilToInt/negative_one
+--- PASS: TestFormulaSkFixedCeilToInt (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToInt/zero (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToInt/exact_one (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToInt/epsilon_above_zero (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToInt/just_under_one (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToInt/one_point_five (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToInt/negative_one (0.00s)
+=== RUN   TestFormulaSkFixedFloorToFixed
+=== RUN   TestFormulaSkFixedFloorToFixed/zero
+=== RUN   TestFormulaSkFixedFloorToFixed/exact_one
+=== RUN   TestFormulaSkFixedFloorToFixed/one_point_five
+=== RUN   TestFormulaSkFixedFloorToFixed/half
+=== RUN   TestFormulaSkFixedFloorToFixed/negative_half
+--- PASS: TestFormulaSkFixedFloorToFixed (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToFixed/zero (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToFixed/exact_one (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToFixed/one_point_five (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToFixed/half (0.00s)
+    --- PASS: TestFormulaSkFixedFloorToFixed/negative_half (0.00s)
+=== RUN   TestFormulaSkFixedCeilToFixed
+=== RUN   TestFormulaSkFixedCeilToFixed/zero
+=== RUN   TestFormulaSkFixedCeilToFixed/exact_one
+=== RUN   TestFormulaSkFixedCeilToFixed/epsilon
+=== RUN   TestFormulaSkFixedCeilToFixed/half
+=== RUN   TestFormulaSkFixedCeilToFixed/one_point_five
+--- PASS: TestFormulaSkFixedCeilToFixed (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToFixed/zero (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToFixed/exact_one (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToFixed/epsilon (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToFixed/half (0.00s)
+    --- PASS: TestFormulaSkFixedCeilToFixed/one_point_five (0.00s)
+=== RUN   TestFormulaSkFixedMul
+=== RUN   TestFormulaSkFixedMul/one_times_one
+=== RUN   TestFormulaSkFixedMul/half_times_half
+=== RUN   TestFormulaSkFixedMul/two_times_three
+=== RUN   TestFormulaSkFixedMul/zero_times_anything
+=== RUN   TestFormulaSkFixedMul/negative_one
+--- PASS: TestFormulaSkFixedMul (0.00s)
+    --- PASS: TestFormulaSkFixedMul/one_times_one (0.00s)
+    --- PASS: TestFormulaSkFixedMul/half_times_half (0.00s)
+    --- PASS: TestFormulaSkFixedMul/two_times_three (0.00s)
+    --- PASS: TestFormulaSkFixedMul/zero_times_anything (0.00s)
+    --- PASS: TestFormulaSkFixedMul/negative_one (0.00s)
+=== RUN   TestFormulaSaturatingSub8
+=== RUN   TestFormulaSaturatingSub8/normal_sub
+=== RUN   TestFormulaSaturatingSub8/sub_to_zero
+=== RUN   TestFormulaSaturatingSub8/sub_underflow
+=== RUN   TestFormulaSaturatingSub8/zero_minus_anything
+=== RUN   TestFormulaSaturatingSub8/max_minus_zero
+=== RUN   TestFormulaSaturatingSub8/max_minus_one
+=== RUN   TestFormulaSaturatingSub8/one_minus_max
+--- PASS: TestFormulaSaturatingSub8 (0.00s)
+    --- PASS: TestFormulaSaturatingSub8/normal_sub (0.00s)
+    --- PASS: TestFormulaSaturatingSub8/sub_to_zero (0.00s)
+    --- PASS: TestFormulaSaturatingSub8/sub_underflow (0.00s)
+    --- PASS: TestFormulaSaturatingSub8/zero_minus_anything (0.00s)
+    --- PASS: TestFormulaSaturatingSub8/max_minus_zero (0.00s)
+    --- PASS: TestFormulaSaturatingSub8/max_minus_one (0.00s)
+    --- PASS: TestFormulaSaturatingSub8/one_minus_max (0.00s)
+=== RUN   TestFormulaClampAlpha32
+=== RUN   TestFormulaClampAlpha32/in_range
+=== RUN   TestFormulaClampAlpha32/zero
+=== RUN   TestFormulaClampAlpha32/max
+=== RUN   TestFormulaClampAlpha32/over_max
+=== RUN   TestFormulaClampAlpha32/negative
+=== RUN   TestFormulaClampAlpha32/large_negative
+=== RUN   TestFormulaClampAlpha32/large_positive
+--- PASS: TestFormulaClampAlpha32 (0.00s)
+    --- PASS: TestFormulaClampAlpha32/in_range (0.00s)
+    --- PASS: TestFormulaClampAlpha32/zero (0.00s)
+    --- PASS: TestFormulaClampAlpha32/max (0.00s)
+    --- PASS: TestFormulaClampAlpha32/over_max (0.00s)
+    --- PASS: TestFormulaClampAlpha32/negative (0.00s)
+    --- PASS: TestFormulaClampAlpha32/large_negative (0.00s)
+    --- PASS: TestFormulaClampAlpha32/large_positive (0.00s)
+=== RUN   TestFormulaSk32SatAdd
+=== RUN   TestFormulaSk32SatAdd/normal_add
+=== RUN   TestFormulaSk32SatAdd/negative_add
+=== RUN   TestFormulaSk32SatAdd/overflow_clamp
+=== RUN   TestFormulaSk32SatAdd/underflow_clamp
+=== RUN   TestFormulaSk32SatAdd/zero
+=== RUN   TestFormulaSk32SatAdd/max_plus_zero
+--- PASS: TestFormulaSk32SatAdd (0.00s)
+    --- PASS: TestFormulaSk32SatAdd/normal_add (0.00s)
+    --- PASS: TestFormulaSk32SatAdd/negative_add (0.00s)
+    --- PASS: TestFormulaSk32SatAdd/overflow_clamp (0.00s)
+    --- PASS: TestFormulaSk32SatAdd/underflow_clamp (0.00s)
+    --- PASS: TestFormulaSk32SatAdd/zero (0.00s)
+    --- PASS: TestFormulaSk32SatAdd/max_plus_zero (0.00s)
+=== RUN   TestFormulaComputeEdgeDY
+=== RUN   TestFormulaComputeEdgeDY/vertical_slope_zero
+=== RUN   TestFormulaComputeEdgeDY/45_degree_slope_1.0
+=== RUN   TestFormulaComputeEdgeDY/negative_45_degree
+=== RUN   TestFormulaComputeEdgeDY/slope_2.0
+=== RUN   TestFormulaComputeEdgeDY/slope_0.5
+--- PASS: TestFormulaComputeEdgeDY (0.00s)
+    --- PASS: TestFormulaComputeEdgeDY/vertical_slope_zero (0.00s)
+    --- PASS: TestFormulaComputeEdgeDY/45_degree_slope_1.0 (0.00s)
+    --- PASS: TestFormulaComputeEdgeDY/negative_45_degree (0.00s)
+    --- PASS: TestFormulaComputeEdgeDY/slope_2.0 (0.00s)
+    --- PASS: TestFormulaComputeEdgeDY/slope_0.5 (0.00s)
+=== RUN   TestFormulaSortInt32s
+=== RUN   TestFormulaSortInt32s/already_sorted
+=== RUN   TestFormulaSortInt32s/reversed
+=== RUN   TestFormulaSortInt32s/single
+=== RUN   TestFormulaSortInt32s/empty
+=== RUN   TestFormulaSortInt32s/duplicates
+=== RUN   TestFormulaSortInt32s/negative
+--- PASS: TestFormulaSortInt32s (0.00s)
+    --- PASS: TestFormulaSortInt32s/already_sorted (0.00s)
+    --- PASS: TestFormulaSortInt32s/reversed (0.00s)
+    --- PASS: TestFormulaSortInt32s/single (0.00s)
+    --- PASS: TestFormulaSortInt32s/empty (0.00s)
+    --- PASS: TestFormulaSortInt32s/duplicates (0.00s)
+    --- PASS: TestFormulaSortInt32s/negative (0.00s)
+=== RUN   TestFormulaDeduplicateInt32s
+=== RUN   TestFormulaDeduplicateInt32s/well_spaced
+=== RUN   TestFormulaDeduplicateInt32s/exact_dupes
+=== RUN   TestFormulaDeduplicateInt32s/within_eps_50
+=== RUN   TestFormulaDeduplicateInt32s/at_eps_boundary_128
+=== RUN   TestFormulaDeduplicateInt32s/beyond_eps_129
+=== RUN   TestFormulaDeduplicateInt32s/chain_dedup
+=== RUN   TestFormulaDeduplicateInt32s/single
+=== RUN   TestFormulaDeduplicateInt32s/empty
+=== RUN   TestFormulaDeduplicateInt32s/skfixed_pixels
+=== RUN   TestFormulaDeduplicateInt32s/sub_pixel_dedup
+--- PASS: TestFormulaDeduplicateInt32s (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/well_spaced (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/exact_dupes (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/within_eps_50 (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/at_eps_boundary_128 (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/beyond_eps_129 (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/chain_dedup (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/single (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/empty (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/skfixed_pixels (0.00s)
+    --- PASS: TestFormulaDeduplicateInt32s/sub_pixel_dedup (0.00s)
+=== RUN   TestFormulaInteractionTrapezoidWithPartialAlpha
+--- PASS: TestFormulaInteractionTrapezoidWithPartialAlpha (0.00s)
+=== RUN   TestFormulaInteractionFixedToAlphaSubStrips
+--- PASS: TestFormulaInteractionFixedToAlphaSubStrips (0.00s)
+=== RUN   TestFormulaCommutativity
+--- PASS: TestFormulaCommutativity (0.00s)
+=== RUN   TestFormulaBoundaryValues
+=== RUN   TestFormulaBoundaryValues/trapezoid_extremes
+=== RUN   TestFormulaBoundaryValues/partial_triangle_extremes
+=== RUN   TestFormulaBoundaryValues/fixedToAlpha_extremes
+=== RUN   TestFormulaBoundaryValues/approx_intersection_extremes
+=== RUN   TestFormulaBoundaryValues/computeEdgeDY_extremes
+--- PASS: TestFormulaBoundaryValues (0.00s)
+    --- PASS: TestFormulaBoundaryValues/trapezoid_extremes (0.00s)
+    --- PASS: TestFormulaBoundaryValues/partial_triangle_extremes (0.00s)
+    --- PASS: TestFormulaBoundaryValues/fixedToAlpha_extremes (0.00s)
+    --- PASS: TestFormulaBoundaryValues/approx_intersection_extremes (0.00s)
+    --- PASS: TestFormulaBoundaryValues/computeEdgeDY_extremes (0.00s)
+=== RUN   TestFormulaPixelDY
+=== RUN   TestFormulaPixelDY/star_edge_e1_(75,87.5)_to_(10,37.5)
+=== RUN   TestFormulaPixelDY/star_edge_e0_(50,7.5)_to_(75,87.5)
+=== RUN   TestFormulaPixelDY/vertical_edge
+--- PASS: TestFormulaPixelDY (0.00s)
+    --- PASS: TestFormulaPixelDY/star_edge_e1_(75,87.5)_to_(10,37.5) (0.00s)
+    --- PASS: TestFormulaPixelDY/star_edge_e0_(50,7.5)_to_(75,87.5) (0.00s)
+    --- PASS: TestFormulaPixelDY/vertical_edge (0.00s)
+=== RUN   TestFormulaBlitAaaTrapezoidRowExact
+--- PASS: TestFormulaBlitAaaTrapezoidRowExact (0.00s)
+=== RUN   TestFormulaEdgeFxStepping
+=== RUN   TestFormulaEdgeFxStepping/one_row_after_entry
+    analytic_filler_formula_test.go:1153: y=38: stepped=697958 fromOrigin=697958 diff=0
+=== RUN   TestFormulaEdgeFxStepping/two_rows_after_entry
+    analytic_filler_formula_test.go:1153: y=39: stepped=783154 fromOrigin=783154 diff=0
+=== RUN   TestFormulaEdgeFxStepping/interior
+    analytic_filler_formula_test.go:1153: y=50: stepped=1720310 fromOrigin=1720310 diff=0
+=== RUN   TestFormulaEdgeFxStepping/near_bottom
+    analytic_filler_formula_test.go:1153: y=80: stepped=4276190 fromOrigin=4276190 diff=0
+--- PASS: TestFormulaEdgeFxStepping (0.00s)
+    --- PASS: TestFormulaEdgeFxStepping/one_row_after_entry (0.00s)
+    --- PASS: TestFormulaEdgeFxStepping/two_rows_after_entry (0.00s)
+    --- PASS: TestFormulaEdgeFxStepping/interior (0.00s)
+    --- PASS: TestFormulaEdgeFxStepping/near_bottom (0.00s)
+=== RUN   TestFormulaNewLineEdgePixelFields
+=== RUN   TestFormulaNewLineEdgePixelFields/star_edge_50_7.5_to_75_87.5
+=== RUN   TestFormulaNewLineEdgePixelFields/horizontal_10_50_to_90_50
+--- PASS: TestFormulaNewLineEdgePixelFields (0.00s)
+    --- PASS: TestFormulaNewLineEdgePixelFields/star_edge_50_7.5_to_75_87.5 (0.00s)
+    --- PASS: TestFormulaNewLineEdgePixelFields/horizontal_10_50_to_90_50 (0.00s)
+=== RUN   TestFormulaTrapezoidToAlphaScaled
+=== RUN   TestFormulaTrapezoidToAlphaScaled/full_pixel_full_alpha
+=== RUN   TestFormulaTrapezoidToAlphaScaled/half_pixel_full_alpha
+=== RUN   TestFormulaTrapezoidToAlphaScaled/full_pixel_quarter_alpha
+=== RUN   TestFormulaTrapezoidToAlphaScaled/half_pixel_quarter_alpha
+=== RUN   TestFormulaTrapezoidToAlphaScaled/zero_coverage
+=== RUN   TestFormulaTrapezoidToAlphaScaled/triangle_full_alpha
+--- PASS: TestFormulaTrapezoidToAlphaScaled (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlphaScaled/full_pixel_full_alpha (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlphaScaled/half_pixel_full_alpha (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlphaScaled/full_pixel_quarter_alpha (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlphaScaled/half_pixel_quarter_alpha (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlphaScaled/zero_coverage (0.00s)
+    --- PASS: TestFormulaTrapezoidToAlphaScaled/triangle_full_alpha (0.00s)
+=== RUN   TestFormulaHasEdgeCrossing
+--- PASS: TestFormulaHasEdgeCrossing (0.00s)
+=== RUN   TestFormulaCompositeOnWhite
+--- PASS: TestFormulaCompositeOnWhite (0.00s)
+PASS

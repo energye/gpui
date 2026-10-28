@@ -1,0 +1,17 @@
+=== RUN   TestOffCanvasCircleClipping
+=== RUN   TestOffCanvasCircleClipping/circle_fully_on-screen
+=== RUN   TestOffCanvasCircleClipping/circle_partially_off-screen_left
+=== RUN   TestOffCanvasCircleClipping/circle_partially_off-screen_right
+=== RUN   TestOffCanvasCircleClipping/circle_center_on-screen_but_extends_both_sides
+=== RUN   TestOffCanvasCircleClipping/circle_fully_off-screen_left
+=== RUN   TestOffCanvasCircleClipping/circle_fully_off-screen_right
+--- PASS: TestOffCanvasCircleClipping (0.00s)
+    --- PASS: TestOffCanvasCircleClipping/circle_fully_on-screen (0.00s)
+    --- PASS: TestOffCanvasCircleClipping/circle_partially_off-screen_left (0.00s)
+    --- PASS: TestOffCanvasCircleClipping/circle_partially_off-screen_right (0.00s)
+    --- PASS: TestOffCanvasCircleClipping/circle_center_on-screen_but_extends_both_sides (0.00s)
+    --- PASS: TestOffCanvasCircleClipping/circle_fully_off-screen_left (0.00s)
+    --- PASS: TestOffCanvasCircleClipping/circle_fully_off-screen_right (0.00s)
+=== RUN   TestOffCanvasEdgeBandRegression
+--- PASS: TestOffCanvasEdgeBandRegression (0.00s)
+PASS

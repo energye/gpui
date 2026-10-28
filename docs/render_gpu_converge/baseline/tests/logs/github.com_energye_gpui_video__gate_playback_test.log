@@ -1,0 +1,9 @@
+=== RUN   TestVR4FFmpegParity
+=== RUN   TestVR4FFmpegParity/vr2_m_bframes.mp4
+=== RUN   TestVR4FFmpegParity/vr2_480p.mp4
+=== RUN   TestVR4FFmpegParity/vr2_720p.mp4
+--- PASS: TestVR4FFmpegParity (0.29s)
+    --- PASS: TestVR4FFmpegParity/vr2_m_bframes.mp4 (0.04s)
+    --- PASS: TestVR4FFmpegParity/vr2_480p.mp4 (0.09s)
+    --- PASS: TestVR4FFmpegParity/vr2_720p.mp4 (0.16s)
+PASS

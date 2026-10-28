@@ -1,0 +1,61 @@
+=== RUN   TestDefaultGlyphCacheConfig
+--- PASS: TestDefaultGlyphCacheConfig (0.00s)
+=== RUN   TestNewGlyphCache
+--- PASS: TestNewGlyphCache (0.00s)
+=== RUN   TestNewGlyphCacheWithConfig
+--- PASS: TestNewGlyphCacheWithConfig (0.00s)
+=== RUN   TestNewGlyphCacheWithConfig_Defaults
+--- PASS: TestNewGlyphCacheWithConfig_Defaults (0.00s)
+=== RUN   TestGlyphCache_SetGet
+--- PASS: TestGlyphCache_SetGet (0.00s)
+=== RUN   TestGlyphCache_SetNil
+--- PASS: TestGlyphCache_SetNil (0.00s)
+=== RUN   TestGlyphCache_SetOverwrite
+--- PASS: TestGlyphCache_SetOverwrite (0.00s)
+=== RUN   TestGlyphCache_Delete
+--- PASS: TestGlyphCache_Delete (0.00s)
+=== RUN   TestGlyphCache_Delete_NotFound
+--- PASS: TestGlyphCache_Delete_NotFound (0.00s)
+=== RUN   TestGlyphCache_Clear
+--- PASS: TestGlyphCache_Clear (0.00s)
+=== RUN   TestGlyphCache_LRUEviction
+--- PASS: TestGlyphCache_LRUEviction (0.00s)
+=== RUN   TestGlyphCache_LRUOrder
+--- PASS: TestGlyphCache_LRUOrder (0.00s)
+=== RUN   TestGlyphCache_GetOrCreate
+--- PASS: TestGlyphCache_GetOrCreate (0.00s)
+=== RUN   TestGlyphCache_GetOrCreate_NilCreate
+--- PASS: TestGlyphCache_GetOrCreate_NilCreate (0.00s)
+=== RUN   TestGlyphCache_GetOrCreate_CreateReturnsNil
+--- PASS: TestGlyphCache_GetOrCreate_CreateReturnsNil (0.00s)
+=== RUN   TestGlyphCache_Maintain
+--- PASS: TestGlyphCache_Maintain (0.00s)
+=== RUN   TestGlyphCache_Maintain_ActiveEntries
+--- PASS: TestGlyphCache_Maintain_ActiveEntries (0.00s)
+=== RUN   TestGlyphCache_Stats
+--- PASS: TestGlyphCache_Stats (0.00s)
+=== RUN   TestGlyphCache_HitRate
+--- PASS: TestGlyphCache_HitRate (0.00s)
+=== RUN   TestGlyphCache_ResetStats
+--- PASS: TestGlyphCache_ResetStats (0.00s)
+=== RUN   TestGlyphCache_CurrentFrame
+--- PASS: TestGlyphCache_CurrentFrame (0.00s)
+=== RUN   TestGlyphCache_Concurrent
+--- PASS: TestGlyphCache_Concurrent (0.00s)
+=== RUN   TestGlyphCachePool
+--- PASS: TestGlyphCachePool (0.00s)
+=== RUN   TestGlobalGlyphCache
+--- PASS: TestGlobalGlyphCache (0.00s)
+=== RUN   TestSetGlobalGlyphCache_Nil
+--- PASS: TestSetGlobalGlyphCache_Nil (0.00s)
+=== RUN   TestOutlineCacheKey_Uniqueness
+--- PASS: TestOutlineCacheKey_Uniqueness (0.00s)
+=== RUN   TestGlyphCache_ShardCapacity
+--- PASS: TestGlyphCache_ShardCapacity (0.00s)
+=== RUN   TestGlyphCache_EvictionStatsMatch
+--- PASS: TestGlyphCache_EvictionStatsMatch (0.00s)
+=== RUN   TestGlyphCache_GetOrCreate_Eviction
+--- PASS: TestGlyphCache_GetOrCreate_Eviction (0.00s)
+=== RUN   TestGlyphCache_AllShardsUsed
+--- PASS: TestGlyphCache_AllShardsUsed (0.00s)
+PASS

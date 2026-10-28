@@ -1,0 +1,9 @@
+=== RUN   TestReuseShapedRow_Equiv
+--- PASS: TestReuseShapedRow_Equiv (0.02s)
+=== RUN   TestReuseShapedRow_Scale
+--- PASS: TestReuseShapedRow_Scale (0.25s)
+=== RUN   TestReuseShapedRow_Fallback
+--- PASS: TestReuseShapedRow_Fallback (0.00s)
+=== RUN   TestReuseCachedRow_Cap
+--- PASS: TestReuseCachedRow_Cap (0.00s)
+PASS

@@ -1,0 +1,173 @@
+=== RUN   TestNewModule
+--- PASS: TestNewModule (0.00s)
+=== RUN   TestShaderKindConstants
+--- PASS: TestShaderKindConstants (0.00s)
+=== RUN   TestGetVoidType_Deduplication
+--- PASS: TestGetVoidType_Deduplication (0.00s)
+=== RUN   TestGetIntType_Deduplication
+--- PASS: TestGetIntType_Deduplication (0.00s)
+=== RUN   TestGetFloatType_Deduplication
+--- PASS: TestGetFloatType_Deduplication (0.00s)
+=== RUN   TestGetPointerType_Deduplication
+--- PASS: TestGetPointerType_Deduplication (0.00s)
+=== RUN   TestGetFunctionType
+--- PASS: TestGetFunctionType (0.00s)
+=== RUN   TestGetStructType
+--- PASS: TestGetStructType (0.00s)
+=== RUN   TestGetArrayType
+--- PASS: TestGetArrayType (0.00s)
+=== RUN   TestAddFunction
+--- PASS: TestAddFunction (0.00s)
+=== RUN   TestAddBasicBlock
+--- PASS: TestAddBasicBlock (0.00s)
+=== RUN   TestNewRetVoidInstr
+--- PASS: TestNewRetVoidInstr (0.00s)
+=== RUN   TestAddIntConst
+--- PASS: TestAddIntConst (0.00s)
+=== RUN   TestMetadata
+--- PASS: TestMetadata (0.00s)
+=== RUN   TestNamedMetadata
+--- PASS: TestNamedMetadata (0.00s)
+=== RUN   TestTypeIDAssignment
+--- PASS: TestTypeIDAssignment (0.00s)
+=== RUN   TestSerialize_MinimalModule
+--- PASS: TestSerialize_MinimalModule (0.00s)
+=== RUN   TestSerialize_WithMetadata
+--- PASS: TestSerialize_WithMetadata (0.00s)
+=== RUN   TestEncodeSignRotated
+--- PASS: TestEncodeSignRotated (0.00s)
+=== RUN   TestSerialize_EmptyModule
+--- PASS: TestSerialize_EmptyModule (0.00s)
+=== RUN   TestSerialize_Deterministic
+--- PASS: TestSerialize_Deterministic (0.00s)
+=== RUN   TestLog2Uint
+--- PASS: TestLog2Uint (0.00s)
+=== RUN   TestGetVectorType
+--- PASS: TestGetVectorType (0.00s)
+=== RUN   TestGetLabelType
+--- PASS: TestGetLabelType (0.00s)
+=== RUN   TestGetMetadataType
+--- PASS: TestGetMetadataType (0.00s)
+=== RUN   TestGetIntType_NonStandardWidth
+--- PASS: TestGetIntType_NonStandardWidth (0.00s)
+=== RUN   TestGetFloatType_NonStandardWidth
+--- PASS: TestGetFloatType_NonStandardWidth (0.00s)
+=== RUN   TestPrependInstruction
+--- PASS: TestPrependInstruction (0.00s)
+=== RUN   TestNewBrInstr
+--- PASS: TestNewBrInstr (0.00s)
+=== RUN   TestNewBrCondInstr
+--- PASS: TestNewBrCondInstr (0.00s)
+=== RUN   TestNewPhiInstr
+--- PASS: TestNewPhiInstr (0.00s)
+=== RUN   TestAddAggregateConst
+--- PASS: TestAddAggregateConst (0.00s)
+=== RUN   TestAddDataArrayConst
+--- PASS: TestAddDataArrayConst (0.00s)
+=== RUN   TestAddUndefConst
+--- PASS: TestAddUndefConst (0.00s)
+=== RUN   TestAddGlobalVar
+--- PASS: TestAddGlobalVar (0.00s)
+=== RUN   TestAddGlobalVar_Workgroup
+--- PASS: TestAddGlobalVar_Workgroup (0.00s)
+=== RUN   TestAddFunction_DeclarationAttrSet
+--- PASS: TestAddFunction_DeclarationAttrSet (0.00s)
+=== RUN   TestAddMetadataFunc
+--- PASS: TestAddMetadataFunc (0.00s)
+=== RUN   TestGetArrayType_Deduplication
+--- PASS: TestGetArrayType_Deduplication (0.00s)
+=== RUN   TestGetPointerTypeAS
+--- PASS: TestGetPointerTypeAS (0.00s)
+=== RUN   TestSerialize_FloatConstants
+--- PASS: TestSerialize_FloatConstants (0.00s)
+=== RUN   TestFloat32ToF16Bits
+=== RUN   TestFloat32ToF16Bits/positive_zero
+=== RUN   TestFloat32ToF16Bits/negative_zero
+=== RUN   TestFloat32ToF16Bits/one
+=== RUN   TestFloat32ToF16Bits/neg_one
+=== RUN   TestFloat32ToF16Bits/positive_infinity
+=== RUN   TestFloat32ToF16Bits/negative_infinity
+=== RUN   TestFloat32ToF16Bits/NaN
+=== RUN   TestFloat32ToF16Bits/overflow_to_inf
+=== RUN   TestFloat32ToF16Bits/small_subnormal
+=== RUN   TestFloat32ToF16Bits/underflow_to_zero
+=== RUN   TestFloat32ToF16Bits/rounding_carry_to_exp
+=== RUN   TestFloat32ToF16Bits/rounding_carry_to_inf
+--- PASS: TestFloat32ToF16Bits (0.00s)
+    --- PASS: TestFloat32ToF16Bits/positive_zero (0.00s)
+    --- PASS: TestFloat32ToF16Bits/negative_zero (0.00s)
+    --- PASS: TestFloat32ToF16Bits/one (0.00s)
+    --- PASS: TestFloat32ToF16Bits/neg_one (0.00s)
+    --- PASS: TestFloat32ToF16Bits/positive_infinity (0.00s)
+    --- PASS: TestFloat32ToF16Bits/negative_infinity (0.00s)
+    --- PASS: TestFloat32ToF16Bits/NaN (0.00s)
+    --- PASS: TestFloat32ToF16Bits/overflow_to_inf (0.00s)
+    --- PASS: TestFloat32ToF16Bits/small_subnormal (0.00s)
+    --- PASS: TestFloat32ToF16Bits/underflow_to_zero (0.00s)
+    --- PASS: TestFloat32ToF16Bits/rounding_carry_to_exp (0.00s)
+    --- PASS: TestFloat32ToF16Bits/rounding_carry_to_inf (0.00s)
+=== RUN   TestSerialize_UndefConstant
+--- PASS: TestSerialize_UndefConstant (0.00s)
+=== RUN   TestSerialize_AggregateConstant
+--- PASS: TestSerialize_AggregateConstant (0.00s)
+=== RUN   TestSerialize_DataArrayConstant
+--- PASS: TestSerialize_DataArrayConstant (0.00s)
+=== RUN   TestSerialize_GlobalVar
+--- PASS: TestSerialize_GlobalVar (0.00s)
+=== RUN   TestSerialize_GlobalVarWithInitializer
+--- PASS: TestSerialize_GlobalVarWithInitializer (0.00s)
+=== RUN   TestSerialize_GlobalVarExplicitLinkage
+--- PASS: TestSerialize_GlobalVarExplicitLinkage (0.00s)
+=== RUN   TestSerialize_AllTypeKinds
+--- PASS: TestSerialize_AllTypeKinds (0.00s)
+=== RUN   TestSerialize_MetadataFunc
+--- PASS: TestSerialize_MetadataFunc (0.00s)
+=== RUN   TestSerialize_MetadataStringOnly
+--- PASS: TestSerialize_MetadataStringOnly (0.00s)
+=== RUN   TestSerialize_InstrBinOp
+--- PASS: TestSerialize_InstrBinOp (0.00s)
+=== RUN   TestSerialize_InstrBinOpWithFlags
+--- PASS: TestSerialize_InstrBinOpWithFlags (0.00s)
+=== RUN   TestSerialize_InstrCmp
+--- PASS: TestSerialize_InstrCmp (0.00s)
+=== RUN   TestSerialize_InstrCall
+--- PASS: TestSerialize_InstrCall (0.00s)
+=== RUN   TestSerialize_InstrSelect
+--- PASS: TestSerialize_InstrSelect (0.00s)
+=== RUN   TestSerialize_InstrCast
+--- PASS: TestSerialize_InstrCast (0.00s)
+=== RUN   TestSerialize_InstrBranch
+--- PASS: TestSerialize_InstrBranch (0.00s)
+=== RUN   TestSerialize_InstrExtractVal
+--- PASS: TestSerialize_InstrExtractVal (0.00s)
+=== RUN   TestSerialize_InstrInsertVal
+--- PASS: TestSerialize_InstrInsertVal (0.00s)
+=== RUN   TestSerialize_InstrAlloca
+--- PASS: TestSerialize_InstrAlloca (0.00s)
+=== RUN   TestSerialize_InstrLoadStore
+--- PASS: TestSerialize_InstrLoadStore (0.00s)
+=== RUN   TestSerialize_InstrGEP
+--- PASS: TestSerialize_InstrGEP (0.00s)
+=== RUN   TestSerialize_InstrAtomicRMW
+--- PASS: TestSerialize_InstrAtomicRMW (0.00s)
+=== RUN   TestSerialize_InstrCmpXchg
+--- PASS: TestSerialize_InstrCmpXchg (0.00s)
+=== RUN   TestSerialize_InstrPhi
+--- PASS: TestSerialize_InstrPhi (0.00s)
+=== RUN   TestSerialize_InstrRetWithValue
+--- PASS: TestSerialize_InstrRetWithValue (0.00s)
+=== RUN   TestSerialize_NullConstant
+--- PASS: TestSerialize_NullConstant (0.00s)
+=== RUN   TestSerialize_ValueSymtabGlobalVars
+--- PASS: TestSerialize_ValueSymtabGlobalVars (0.00s)
+=== RUN   TestSerialize_FunctionDeclWithAttrs
+--- PASS: TestSerialize_FunctionDeclWithAttrs (0.00s)
+=== RUN   TestSerialize_NoDataLayout
+--- PASS: TestSerialize_NoDataLayout (0.00s)
+=== RUN   TestSerialize_ComplexModule
+--- PASS: TestSerialize_ComplexModule (0.00s)
+=== RUN   TestSerialize_FunctionWithParams
+--- PASS: TestSerialize_FunctionWithParams (0.00s)
+=== RUN   TestSerialize_ConstantsTypeChange
+--- PASS: TestSerialize_ConstantsTypeChange (0.00s)
+PASS

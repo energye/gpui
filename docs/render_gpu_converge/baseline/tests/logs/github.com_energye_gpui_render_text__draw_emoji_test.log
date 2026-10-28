@@ -1,0 +1,45 @@
+=== RUN   TestBitmapGlyphCache_NewAndSize
+--- PASS: TestBitmapGlyphCache_NewAndSize (0.00s)
+=== RUN   TestBitmapGlyphCache_PutAndGet
+--- PASS: TestBitmapGlyphCache_PutAndGet (0.00s)
+=== RUN   TestBitmapGlyphCache_GetMissing
+--- PASS: TestBitmapGlyphCache_GetMissing (0.00s)
+=== RUN   TestBitmapGlyphCache_Clear
+--- PASS: TestBitmapGlyphCache_Clear (0.00s)
+=== RUN   TestBitmapGlyphCache_Eviction
+--- PASS: TestBitmapGlyphCache_Eviction (0.00s)
+=== RUN   TestColorFontInfo_HasAnyColorTable
+=== RUN   TestColorFontInfo_HasAnyColorTable/no_tables
+=== RUN   TestColorFontInfo_HasAnyColorTable/has_CBDT
+=== RUN   TestColorFontInfo_HasAnyColorTable/has_sbix
+=== RUN   TestColorFontInfo_HasAnyColorTable/has_COLR
+=== RUN   TestColorFontInfo_HasAnyColorTable/has_SVG
+=== RUN   TestColorFontInfo_HasAnyColorTable/has_multiple
+--- PASS: TestColorFontInfo_HasAnyColorTable (0.00s)
+    --- PASS: TestColorFontInfo_HasAnyColorTable/no_tables (0.00s)
+    --- PASS: TestColorFontInfo_HasAnyColorTable/has_CBDT (0.00s)
+    --- PASS: TestColorFontInfo_HasAnyColorTable/has_sbix (0.00s)
+    --- PASS: TestColorFontInfo_HasAnyColorTable/has_COLR (0.00s)
+    --- PASS: TestColorFontInfo_HasAnyColorTable/has_SVG (0.00s)
+    --- PASS: TestColorFontInfo_HasAnyColorTable/has_multiple (0.00s)
+=== RUN   TestColorFontInfo_PreferredColorFormat
+=== RUN   TestColorFontInfo_PreferredColorFormat/no_tables
+=== RUN   TestColorFontInfo_PreferredColorFormat/CBDT_only
+=== RUN   TestColorFontInfo_PreferredColorFormat/sbix_only
+=== RUN   TestColorFontInfo_PreferredColorFormat/COLR_only
+=== RUN   TestColorFontInfo_PreferredColorFormat/SVG_only
+=== RUN   TestColorFontInfo_PreferredColorFormat/CBDT_preferred_over_COLR
+=== RUN   TestColorFontInfo_PreferredColorFormat/sbix_preferred_over_COLR
+--- PASS: TestColorFontInfo_PreferredColorFormat (0.00s)
+    --- PASS: TestColorFontInfo_PreferredColorFormat/no_tables (0.00s)
+    --- PASS: TestColorFontInfo_PreferredColorFormat/CBDT_only (0.00s)
+    --- PASS: TestColorFontInfo_PreferredColorFormat/sbix_only (0.00s)
+    --- PASS: TestColorFontInfo_PreferredColorFormat/COLR_only (0.00s)
+    --- PASS: TestColorFontInfo_PreferredColorFormat/SVG_only (0.00s)
+    --- PASS: TestColorFontInfo_PreferredColorFormat/CBDT_preferred_over_COLR (0.00s)
+    --- PASS: TestColorFontInfo_PreferredColorFormat/sbix_preferred_over_COLR (0.00s)
+=== RUN   TestDetectGlyphType_NoColorFont
+--- PASS: TestDetectGlyphType_NoColorFont (0.00s)
+=== RUN   TestCachedBitmap_Fields
+--- PASS: TestCachedBitmap_Fields (0.00s)
+PASS

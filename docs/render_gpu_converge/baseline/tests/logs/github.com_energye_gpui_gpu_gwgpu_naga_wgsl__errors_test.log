@@ -1,0 +1,5 @@
+=== RUN   TestLowerWithSource_ErrorPosition
+--- PASS: TestLowerWithSource_ErrorPosition (0.00s)
+=== RUN   TestLowerWithSource_ErrorContext
+--- PASS: TestLowerWithSource_ErrorContext (0.00s)
+PASS

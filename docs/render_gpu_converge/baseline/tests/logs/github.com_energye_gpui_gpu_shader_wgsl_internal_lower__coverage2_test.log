@@ -1,0 +1,171 @@
+=== RUN   TestLowerConstFoldMinMax
+--- PASS: TestLowerConstFoldMinMax (0.00s)
+=== RUN   TestLowerConstFoldClamp
+--- PASS: TestLowerConstFoldClamp (0.00s)
+=== RUN   TestLowerConstFoldAbs
+--- PASS: TestLowerConstFoldAbs (0.00s)
+=== RUN   TestLowerConstFoldSign
+--- PASS: TestLowerConstFoldSign (0.00s)
+=== RUN   TestLowerConstFoldTrigonometry
+--- PASS: TestLowerConstFoldTrigonometry (0.00s)
+=== RUN   TestLowerConstFoldExpLog
+--- PASS: TestLowerConstFoldExpLog (0.00s)
+=== RUN   TestLowerConstFoldSqrt
+--- PASS: TestLowerConstFoldSqrt (0.00s)
+=== RUN   TestLowerConstFoldRound
+--- PASS: TestLowerConstFoldRound (0.00s)
+=== RUN   TestLowerConstFoldAngle
+--- PASS: TestLowerConstFoldAngle (0.00s)
+=== RUN   TestLowerConstFoldSaturate
+--- PASS: TestLowerConstFoldSaturate (0.00s)
+=== RUN   TestLowerConstFoldFma
+--- PASS: TestLowerConstFoldFma (0.00s)
+=== RUN   TestLowerConstFoldStep
+--- PASS: TestLowerConstFoldStep (0.00s)
+=== RUN   TestLowerConstFoldMix
+--- PASS: TestLowerConstFoldMix (0.00s)
+=== RUN   TestLowerConstFoldSmoothstep
+--- PASS: TestLowerConstFoldSmoothstep (0.00s)
+=== RUN   TestLowerConstFoldBitOps
+--- PASS: TestLowerConstFoldBitOps (0.00s)
+=== RUN   TestLowerConstFoldCross
+--- PASS: TestLowerConstFoldCross (0.00s)
+=== RUN   TestLowerConstFoldDotConst
+--- PASS: TestLowerConstFoldDotConst (0.00s)
+=== RUN   TestLowerConstFoldBinaryOps
+--- PASS: TestLowerConstFoldBinaryOps (0.00s)
+=== RUN   TestLowerConstFoldFloatBinaryOps
+--- PASS: TestLowerConstFoldFloatBinaryOps (0.00s)
+=== RUN   TestLowerConstFoldBoolOps
+--- PASS: TestLowerConstFoldBoolOps (0.00s)
+=== RUN   TestLowerConstFoldVectorMath
+--- PASS: TestLowerConstFoldVectorMath (0.00s)
+=== RUN   TestLowerConstFoldVectorBinaryOps
+--- PASS: TestLowerConstFoldVectorBinaryOps (0.00s)
+=== RUN   TestLowerConstFoldUnary
+--- PASS: TestLowerConstFoldUnary (0.00s)
+=== RUN   TestLowerConstFoldSelect
+--- PASS: TestLowerConstFoldSelect (0.00s)
+=== RUN   TestLowerTextureSample
+--- PASS: TestLowerTextureSample (0.00s)
+=== RUN   TestLowerTextureSampleBias
+--- PASS: TestLowerTextureSampleBias (0.00s)
+=== RUN   TestLowerTextureSampleLevel
+--- PASS: TestLowerTextureSampleLevel (0.00s)
+=== RUN   TestLowerTextureSampleGrad
+--- PASS: TestLowerTextureSampleGrad (0.00s)
+=== RUN   TestLowerTextureSampleCompare
+--- PASS: TestLowerTextureSampleCompare (0.00s)
+=== RUN   TestLowerTextureSampleCompareLevel
+--- PASS: TestLowerTextureSampleCompareLevel (0.00s)
+=== RUN   TestLowerTextureLoad
+--- PASS: TestLowerTextureLoad (0.00s)
+=== RUN   TestLowerTextureStore
+--- PASS: TestLowerTextureStore (0.00s)
+=== RUN   TestLowerTextureDimensions
+--- PASS: TestLowerTextureDimensions (0.00s)
+=== RUN   TestLowerTextureNumLevels
+--- PASS: TestLowerTextureNumLevels (0.00s)
+=== RUN   TestLowerTextureNumSamples
+--- PASS: TestLowerTextureNumSamples (0.00s)
+=== RUN   TestLowerTextureNumLayers
+--- PASS: TestLowerTextureNumLayers (0.00s)
+=== RUN   TestLowerTextureGather
+--- PASS: TestLowerTextureGather (0.00s)
+=== RUN   TestLowerTextureGatherCompare
+--- PASS: TestLowerTextureGatherCompare (0.00s)
+=== RUN   TestLowerGlobalVarTypeInference
+--- PASS: TestLowerGlobalVarTypeInference (0.00s)
+=== RUN   TestLowerOverrideTypeInference
+--- PASS: TestLowerOverrideTypeInference (0.00s)
+=== RUN   TestLowerConstAssertFailure
+--- PASS: TestLowerConstAssertFailure (0.00s)
+=== RUN   TestLowerForCompoundAssign
+--- PASS: TestLowerForCompoundAssign (0.00s)
+=== RUN   TestLowerSwitchMultipleSelectors
+--- PASS: TestLowerSwitchMultipleSelectors (0.00s)
+=== RUN   TestLowerTextureArraySample
+--- PASS: TestLowerTextureArraySample (0.00s)
+=== RUN   TestLowerAtomicCompareExchange
+--- PASS: TestLowerAtomicCompareExchange (0.00s)
+=== RUN   TestLowerAtomicAllOps
+--- PASS: TestLowerAtomicAllOps (0.00s)
+=== RUN   TestLowerTextureLoadMultisampled
+--- PASS: TestLowerTextureLoadMultisampled (0.00s)
+=== RUN   TestLowerTextureLoadDepth
+--- PASS: TestLowerTextureLoadDepth (0.00s)
+=== RUN   TestLowerTextureSampleOffset
+--- PASS: TestLowerTextureSampleOffset (0.00s)
+=== RUN   TestLowerShortAliasConstructors
+--- PASS: TestLowerShortAliasConstructors (0.00s)
+=== RUN   TestLowerLengthDistance
+--- PASS: TestLowerLengthDistance (0.00s)
+=== RUN   TestLowerNormalize
+--- PASS: TestLowerNormalize (0.00s)
+=== RUN   TestLowerReflectRefract
+--- PASS: TestLowerReflectRefract (0.00s)
+=== RUN   TestLowerDeterminantTranspose
+--- PASS: TestLowerDeterminantTranspose (0.00s)
+=== RUN   TestLowerMultipleEntryPoints
+--- PASS: TestLowerMultipleEntryPoints (0.00s)
+=== RUN   TestLowerStructWithArray
+--- PASS: TestLowerStructWithArray (0.00s)
+=== RUN   TestLowerGlobalConstArray
+--- PASS: TestLowerGlobalConstArray (0.00s)
+=== RUN   TestLowerNumericCasts
+--- PASS: TestLowerNumericCasts (0.00s)
+=== RUN   TestLowerAssignToIndex
+--- PASS: TestLowerAssignToIndex (0.00s)
+=== RUN   TestLowerAssignToMember
+--- PASS: TestLowerAssignToMember (0.00s)
+=== RUN   TestLowerChainedMemberIndex
+--- PASS: TestLowerChainedMemberIndex (0.00s)
+=== RUN   TestLowerConstWithTypeAnnotations
+--- PASS: TestLowerConstWithTypeAnnotations (0.00s)
+=== RUN   TestLowerVectorBinaryConstEval
+--- PASS: TestLowerVectorBinaryConstEval (0.00s)
+=== RUN   TestLowerConstArraySize
+--- PASS: TestLowerConstArraySize (0.00s)
+=== RUN   TestLowerStorageFormats
+=== RUN   TestLowerStorageFormats/rgba8unorm
+=== RUN   TestLowerStorageFormats/rgba8snorm
+=== RUN   TestLowerStorageFormats/rgba8uint
+=== RUN   TestLowerStorageFormats/rgba8sint
+=== RUN   TestLowerStorageFormats/rgba16uint
+=== RUN   TestLowerStorageFormats/rgba16sint
+=== RUN   TestLowerStorageFormats/rgba16float
+=== RUN   TestLowerStorageFormats/r32uint
+=== RUN   TestLowerStorageFormats/r32sint
+=== RUN   TestLowerStorageFormats/r32float
+=== RUN   TestLowerStorageFormats/rg32uint
+=== RUN   TestLowerStorageFormats/rg32sint
+=== RUN   TestLowerStorageFormats/rg32float
+=== RUN   TestLowerStorageFormats/rgba32uint
+=== RUN   TestLowerStorageFormats/rgba32sint
+=== RUN   TestLowerStorageFormats/rgba32float
+--- PASS: TestLowerStorageFormats (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba8unorm (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba8snorm (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba8uint (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba8sint (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba16uint (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba16sint (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba16float (0.00s)
+    --- PASS: TestLowerStorageFormats/r32uint (0.00s)
+    --- PASS: TestLowerStorageFormats/r32sint (0.00s)
+    --- PASS: TestLowerStorageFormats/r32float (0.00s)
+    --- PASS: TestLowerStorageFormats/rg32uint (0.00s)
+    --- PASS: TestLowerStorageFormats/rg32sint (0.00s)
+    --- PASS: TestLowerStorageFormats/rg32float (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba32uint (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba32sint (0.00s)
+    --- PASS: TestLowerStorageFormats/rgba32float (0.00s)
+=== RUN   TestLowerDeepNesting
+--- PASS: TestLowerDeepNesting (0.00s)
+=== RUN   TestLowerMultipleLocationOutputs
+--- PASS: TestLowerMultipleLocationOutputs (0.00s)
+=== RUN   TestLowerAllMatrixSizes
+--- PASS: TestLowerAllMatrixSizes (0.00s)
+=== RUN   TestLowerPointerToArrayElement
+--- PASS: TestLowerPointerToArrayElement (0.00s)
+PASS

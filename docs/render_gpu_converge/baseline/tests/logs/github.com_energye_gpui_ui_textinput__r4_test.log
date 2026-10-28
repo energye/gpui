@@ -1,0 +1,9 @@
+=== RUN   TestR4_PasswordBlocksComposing
+--- PASS: TestR4_PasswordBlocksComposing (0.00s)
+=== RUN   TestR4_ReadOnlyBlocksEdit
+--- PASS: TestR4_ReadOnlyBlocksEdit (0.00s)
+=== RUN   TestR4_SelectWord
+--- PASS: TestR4_SelectWord (0.00s)
+=== RUN   TestR4_PasswordCustomChar
+--- PASS: TestR4_PasswordCustomChar (0.00s)
+PASS

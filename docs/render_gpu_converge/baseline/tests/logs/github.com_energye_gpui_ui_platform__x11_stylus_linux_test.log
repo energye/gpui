@@ -1,0 +1,17 @@
+=== RUN   TestParseXIStylusPhases
+--- PASS: TestParseXIStylusPhases (0.00s)
+=== RUN   TestParseXIStylusPressure
+--- PASS: TestParseXIStylusPressure (0.00s)
+=== RUN   TestValuatorValueOrder
+--- PASS: TestValuatorValueOrder (0.00s)
+=== RUN   TestNormalizeStylusPressure
+--- PASS: TestNormalizeStylusPressure (0.00s)
+=== RUN   TestStylusIDStable
+--- PASS: TestStylusIDStable (0.00s)
+=== RUN   TestStylusHierarchyRemoveDrops
+--- PASS: TestStylusHierarchyRemoveDrops (0.00s)
+=== RUN   TestStylusEventString
+--- PASS: TestStylusEventString (0.00s)
+=== RUN   TestStylusAxesFromClassesPenName
+--- PASS: TestStylusAxesFromClassesPenName (0.00s)
+PASS

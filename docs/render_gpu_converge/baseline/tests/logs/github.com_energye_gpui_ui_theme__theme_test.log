@@ -1,0 +1,9 @@
+=== RUN   TestTokens_Default
+--- PASS: TestTokens_Default (0.00s)
+=== RUN   TestProvider_OverrideStack
+--- PASS: TestProvider_OverrideStack (0.00s)
+=== RUN   TestProvider_With
+--- PASS: TestProvider_With (0.00s)
+=== RUN   TestProvider_DefaultGlobal
+--- PASS: TestProvider_DefaultGlobal (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestX11ResolveIbusAddress_SkipPolluted
+--- PASS: TestX11ResolveIbusAddress_SkipPolluted (0.01s)
+=== RUN   TestX11ProbeOrderStrict
+--- PASS: TestX11ProbeOrderStrict (0.00s)
+=== RUN   TestX11S1BusSingleton
+--- PASS: TestX11S1BusSingleton (0.00s)
+PASS

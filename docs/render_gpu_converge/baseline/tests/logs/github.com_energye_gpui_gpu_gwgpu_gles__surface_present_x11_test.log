@@ -1,0 +1,6 @@
+=== RUN   TestH4E2_TriangleWindowPresentX11
+    surface_present_x11_test.go:270: window frame pixels md5: 59ca40337ff5e016579ea53a09549824
+    surface_present_x11_test.go:282: H4-e2 X11 triangle frame1 presented (window 0xc00001, 64x64)
+    surface_present_x11_test.go:296: H4-e2 X11 triangle frame2 presented, eglSwapBuffers zero-error x2
+--- PASS: TestH4E2_TriangleWindowPresentX11 (0.22s)
+PASS

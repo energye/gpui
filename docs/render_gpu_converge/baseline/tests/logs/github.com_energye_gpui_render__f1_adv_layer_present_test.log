@@ -1,0 +1,10 @@
+=== RUN   TestF1_AdvancedLayerPresentViewMultiply
+    f1_adv_layer_present_test.go:56: center rgba=255,0,0,255 stats=gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestF1_AdvancedLayerPresentViewMultiply (0.29s)
+=== RUN   TestF1_AdvancedLayerPresentViewScreen
+    f1_adv_layer_present_test.go:106: screen center rgba=255,0,0,255
+--- PASS: TestF1_AdvancedLayerPresentViewScreen (0.01s)
+=== RUN   TestF1_AdvancedLayerPresentView_HUDText
+    f1_adv_layer_present_test.go:198: HUD bright=429 maxL=248 stats=gpu_ops=6 cpu_fallback_ops=0 frame_flushes=3
+--- PASS: TestF1_AdvancedLayerPresentView_HUDText (0.03s)
+PASS

@@ -1,0 +1,95 @@
+=== RUN   TestIntegration6_PrivateVariableInit
+--- PASS: TestIntegration6_PrivateVariableInit (0.00s)
+=== RUN   TestIntegration6_PrivateVariableVecInit
+--- PASS: TestIntegration6_PrivateVariableVecInit (0.00s)
+=== RUN   TestIntegration6_PrivateVariableZeroInit
+--- PASS: TestIntegration6_PrivateVariableZeroInit (0.00s)
+=== RUN   TestIntegration6_ArrayLengthRuntime
+--- PASS: TestIntegration6_ArrayLengthRuntime (0.00s)
+=== RUN   TestIntegration6_DynamicAccessRZSW
+--- PASS: TestIntegration6_DynamicAccessRZSW (0.00s)
+=== RUN   TestIntegration6_DynamicAccessRestrict
+--- PASS: TestIntegration6_DynamicAccessRestrict (0.00s)
+=== RUN   TestIntegration6_HelperFunctionWithTexture
+--- PASS: TestIntegration6_HelperFunctionWithTexture (0.00s)
+=== RUN   TestIntegration6_HelperFunctionWithStorageBuffer
+--- PASS: TestIntegration6_HelperFunctionWithStorageBuffer (0.00s)
+=== RUN   TestIntegration6_HelperFuncBufferSizes
+--- PASS: TestIntegration6_HelperFuncBufferSizes (0.00s)
+=== RUN   TestIntegration6_MultipleEntryPoints
+--- PASS: TestIntegration6_MultipleEntryPoints (0.00s)
+=== RUN   TestIntegration6_WorkgroupZeroInit
+--- PASS: TestIntegration6_WorkgroupZeroInit (0.00s)
+=== RUN   TestIntegration6_MatrixColumnAccess
+--- PASS: TestIntegration6_MatrixColumnAccess (0.00s)
+=== RUN   TestIntegration6_VectorComponentAccess
+--- PASS: TestIntegration6_VectorComponentAccess (0.00s)
+=== RUN   TestIntegration6_DeepStructAccess
+--- PASS: TestIntegration6_DeepStructAccess (0.00s)
+=== RUN   TestIntegration6_ForLoop
+--- PASS: TestIntegration6_ForLoop (0.00s)
+=== RUN   TestIntegration6_SwitchMultipleCases
+--- PASS: TestIntegration6_SwitchMultipleCases (0.00s)
+=== RUN   TestIntegration6_NestedIfElse
+--- PASS: TestIntegration6_NestedIfElse (0.00s)
+=== RUN   TestIntegration6_Discard
+--- PASS: TestIntegration6_Discard (0.00s)
+=== RUN   TestIntegration6_Barriers
+--- PASS: TestIntegration6_Barriers (0.00s)
+=== RUN   TestIntegration6_ArrayConstructor
+--- PASS: TestIntegration6_ArrayConstructor (0.00s)
+=== RUN   TestIntegration6_ReadOnlyVsReadWrite
+--- PASS: TestIntegration6_ReadOnlyVsReadWrite (0.00s)
+=== RUN   TestIntegration6_StructWithArray
+--- PASS: TestIntegration6_StructWithArray (0.00s)
+=== RUN   TestIntegration6_UniformBuffer
+--- PASS: TestIntegration6_UniformBuffer (0.00s)
+=== RUN   TestIntegration6_MathCross
+--- PASS: TestIntegration6_MathCross (0.00s)
+=== RUN   TestIntegration6_MathDot
+--- PASS: TestIntegration6_MathDot (0.00s)
+=== RUN   TestIntegration6_MathLength
+--- PASS: TestIntegration6_MathLength (0.00s)
+=== RUN   TestIntegration6_MathNormalize
+--- PASS: TestIntegration6_MathNormalize (0.00s)
+=== RUN   TestIntegration6_MathDistance
+--- PASS: TestIntegration6_MathDistance (0.00s)
+=== RUN   TestIntegration6_MathReflect
+--- PASS: TestIntegration6_MathReflect (0.00s)
+=== RUN   TestIntegration6_TextureSampleLevel
+--- PASS: TestIntegration6_TextureSampleLevel (0.00s)
+=== RUN   TestIntegration6_TextureSampleBias
+--- PASS: TestIntegration6_TextureSampleBias (0.00s)
+=== RUN   TestIntegration6_VertexPullingSint16
+--- PASS: TestIntegration6_VertexPullingSint16 (0.00s)
+=== RUN   TestIntegration6_VertexPullingUnorm8
+--- PASS: TestIntegration6_VertexPullingUnorm8 (0.00s)
+=== RUN   TestIntegration6_PipelineConstantsWorkgroupXYZ
+--- PASS: TestIntegration6_PipelineConstantsWorkgroupXYZ (0.00s)
+=== RUN   TestIntegration6_ConstantVector
+--- PASS: TestIntegration6_ConstantVector (0.00s)
+=== RUN   TestIntegration6_MultipleTextureTypes
+--- PASS: TestIntegration6_MultipleTextureTypes (0.00s)
+=== RUN   TestIntegration6_StorageTextureR32Float
+--- PASS: TestIntegration6_StorageTextureR32Float (0.00s)
+=== RUN   TestIntegration6_StorageTextureRGBA32Uint
+--- PASS: TestIntegration6_StorageTextureRGBA32Uint (0.00s)
+=== RUN   TestIntegration6_InsertBits
+--- PASS: TestIntegration6_InsertBits (0.00s)
+=== RUN   TestIntegration6_ExtractBits
+--- PASS: TestIntegration6_ExtractBits (0.00s)
+=== RUN   TestIntegration6_CountOneBits
+--- PASS: TestIntegration6_CountOneBits (0.00s)
+=== RUN   TestIntegration6_ReverseBits
+--- PASS: TestIntegration6_ReverseBits (0.00s)
+=== RUN   TestIntegration6_FirstLeadingBit
+--- PASS: TestIntegration6_FirstLeadingBit (0.00s)
+=== RUN   TestIntegration6_FirstTrailingBit
+--- PASS: TestIntegration6_FirstTrailingBit (0.00s)
+=== RUN   TestIntegration6_Saturate
+--- PASS: TestIntegration6_Saturate (0.00s)
+=== RUN   TestIntegration6_Pack2x16snorm
+--- PASS: TestIntegration6_Pack2x16snorm (0.00s)
+=== RUN   TestIntegration6_Unpack2x16snorm
+--- PASS: TestIntegration6_Unpack2x16snorm (0.00s)
+PASS

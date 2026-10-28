@@ -1,0 +1,11 @@
+=== RUN   TestInteractive_CanActivate
+--- PASS: TestInteractive_CanActivate (0.00s)
+=== RUN   TestInteractive_Transitions
+--- PASS: TestInteractive_Transitions (0.00s)
+=== RUN   TestInteractive_FocusVisible
+--- PASS: TestInteractive_FocusVisible (0.00s)
+=== RUN   TestInteractive_DisableClears
+--- PASS: TestInteractive_DisableClears (0.00s)
+=== RUN   TestInteractive_SemanticsAndHit
+--- PASS: TestInteractive_SemanticsAndHit (0.00s)
+PASS

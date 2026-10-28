@@ -1,0 +1,15 @@
+=== RUN   TestThread_CallVoid
+--- PASS: TestThread_CallVoid (0.00s)
+=== RUN   TestThread_Call
+--- PASS: TestThread_Call (0.00s)
+=== RUN   TestThread_CallAsync
+--- PASS: TestThread_CallAsync (0.00s)
+=== RUN   TestThread_Stop
+--- PASS: TestThread_Stop (0.00s)
+=== RUN   TestRenderLoop_RequestResize
+--- PASS: TestRenderLoop_RequestResize (0.00s)
+=== RUN   TestRenderLoop_PauseRendering
+--- PASS: TestRenderLoop_PauseRendering (0.00s)
+=== RUN   TestRenderLoop_RunOnRenderThread
+--- PASS: TestRenderLoop_RunOnRenderThread (0.00s)
+PASS

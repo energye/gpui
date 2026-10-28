@@ -1,0 +1,18 @@
+=== RUN   TestCFF_OutlineAndBounds_CFFTest
+    cff_outline_test.go:82: '0' gid=1 segs=10 bounds={MinX:3.203125 MinY:-25.59375 MaxX:16 MaxY:0} advance=19.20 mask=15x28
+    cff_outline_test.go:82: '中' gid=4 segs=12 bounds={MinX:4.390625 MinY:-24.25 MaxX:14.8125 MaxY:-0.828125} advance=19.20 mask=13x27
+--- PASS: TestCFF_OutlineAndBounds_CFFTest (0.00s)
+=== RUN   TestCFF_SystemOTF_NimbusSans
+--- PASS: TestCFF_SystemOTF_NimbusSans (0.00s)
+=== RUN   TestCFF_NotoSansCJK_TTC
+    cff_outline_test.go:174: Noto 中 gid=9544 segs=27 bounds={MinX:4.609375 MinY:-40.3125 MaxX:43.296875 MaxY:3.796875}
+--- PASS: TestCFF_NotoSansCJK_TTC (0.04s)
+=== RUN   TestCFF2_DetectedAndRejected
+--- PASS: TestCFF2_DetectedAndRejected (0.00s)
+=== RUN   TestCFF2_OutlineAndRaster_NotoVF
+    cff_outline_test.go:256: gid=0 segs=20 bounds={MinX:4.800000190734863 MinY:-42.2400016784668 MaxX:43.20000076293945 MaxY:5.760000228881836} mask=42x51 advance=48.00
+--- PASS: TestCFF2_OutlineAndRaster_NotoVF (0.00s)
+=== RUN   TestCFF2_VariationBlend
+    cff_outline_test.go:322: gid=1 axis=wght max=900 default segs=15
+--- PASS: TestCFF2_VariationBlend (0.00s)
+PASS

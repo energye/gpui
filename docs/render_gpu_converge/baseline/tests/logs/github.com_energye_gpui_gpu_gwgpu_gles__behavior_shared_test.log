@@ -1,0 +1,9 @@
+=== RUN   TestH4B3_GlesFenceNilContextFallbackCounter
+--- PASS: TestH4B3_GlesFenceNilContextFallbackCounter (0.00s)
+=== RUN   TestH4B3_GlesMapBufferInvalidRange
+--- PASS: TestH4B3_GlesMapBufferInvalidRange (0.00s)
+=== RUN   TestH4B3_GlesUnmapIdempotent
+--- PASS: TestH4B3_GlesUnmapIdempotent (0.00s)
+=== RUN   TestH4B3_GlesDeviceLostErrorScopeStubs
+--- PASS: TestH4B3_GlesDeviceLostErrorScopeStubs (0.00s)
+PASS

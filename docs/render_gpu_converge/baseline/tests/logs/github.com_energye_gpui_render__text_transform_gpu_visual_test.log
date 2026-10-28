@@ -1,0 +1,4 @@
+=== RUN   TestTextTransformCPUvsGPUVisualDiagnostic
+    text_transform_gpu_visual_test.go:26: set GPUI_TEXT_TRANSFORM_VISUAL=1 to run CPU/GPU text_transform diagnostics
+--- SKIP: TestTextTransformCPUvsGPUVisualDiagnostic (0.00s)
+PASS

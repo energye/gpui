@@ -1,0 +1,8 @@
+=== RUN   TestP1OffscreenPelicanGLvsCPU
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+    p1_offscreen_test.go:253: gl frame gpu_ops=97 cpu_fallback_ops=0 frame_flushes=1 fallback=""
+    p1_offscreen_test.go:269: pngs: /tmp/TestP1OffscreenPelicanGLvsCPU2321197337/001/pelican_gl.png /tmp/TestP1OffscreenPelicanGLvsCPU2321197337/001/pelican_cpu.png
+    p1_offscreen_test.go:283: (0,0) gl=(121,199,245,255) cpu=(121,199,245,255)
+    p1_offscreen_test.go:307: gl-vs-cpu: total=840000 diff=0 (0.000) huge=0 (0.000) gpu_ops=97 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1OffscreenPelicanGLvsCPU (1.39s)
+PASS

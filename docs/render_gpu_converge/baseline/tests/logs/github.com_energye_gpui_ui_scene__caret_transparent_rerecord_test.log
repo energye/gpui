@@ -1,0 +1,4 @@
+=== RUN   TestCaretTransparentRerecordClearsStale
+    caret_transparent_rerecord_test.go:115: f2: caret bar has no live texture (test needs the GPU path)
+--- FAIL: TestCaretTransparentRerecordClearsStale (0.35s)
+FAIL

@@ -1,0 +1,15 @@
+=== RUN   TestXKBResolve
+--- PASS: TestXKBResolve (0.00s)
+=== RUN   TestDecodeRune
+--- PASS: TestDecodeRune (0.00s)
+=== RUN   TestKeyboardNilSafety
+--- PASS: TestKeyboardNilSafety (0.00s)
+=== RUN   TestPushKeyDrain
+--- PASS: TestPushKeyDrain (0.00s)
+=== RUN   TestWLKeyRepeatInfoParsing
+--- PASS: TestWLKeyRepeatInfoParsing (0.00s)
+=== RUN   TestWLKeyRepeatFiresAndCancels
+--- PASS: TestWLKeyRepeatFiresAndCancels (0.29s)
+=== RUN   TestWLKeyRepeatModifierNotArmed
+--- PASS: TestWLKeyRepeatModifierNotArmed (0.06s)
+PASS

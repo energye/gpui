@@ -1,0 +1,13 @@
+=== RUN   TestClampingScrollPhysics_AdjustPosition
+--- PASS: TestClampingScrollPhysics_AdjustPosition (0.00s)
+=== RUN   TestClampingScrollPhysics_BallisticDeceleratesAndStops
+--- PASS: TestClampingScrollPhysics_BallisticDeceleratesAndStops (0.00s)
+=== RUN   TestClampingScrollPhysics_BallisticHitsMaxBoundary
+--- PASS: TestClampingScrollPhysics_BallisticHitsMaxBoundary (0.00s)
+=== RUN   TestViewport_PhysicsClampAndFling
+--- PASS: TestViewport_PhysicsClampAndFling (0.00s)
+=== RUN   TestViewport_NilPhysicsNoFling
+--- PASS: TestViewport_NilPhysicsNoFling (0.00s)
+=== RUN   TestNeverScrollPhysics_NoBallistic
+--- PASS: TestNeverScrollPhysics_NoBallistic (0.00s)
+PASS

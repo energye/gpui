@@ -1,0 +1,23 @@
+=== RUN   TestR1_PushMaskLayerGPU
+    r1_residual_gpu_test.go:42: R1 mask gpu_ops=3 cpu_fallback_ops=0 frame_flushes=2
+    r1_residual_gpu_test.go:51: left=20,0,235 right=255,255,255
+--- PASS: TestR1_PushMaskLayerGPU (0.30s)
+=== RUN   TestR1_BackdropSeedGPU
+    r1_residual_gpu_test.go:85: R1 backdrop gpu_ops=3 cpu_fallback_ops=0 frame_flushes=4 base=1
+    r1_residual_gpu_test.go:94: center=19,44,115
+    r1_residual_gpu_test.go:100: outer blue=38,89,229
+--- PASS: TestR1_BackdropSeedGPU (0.01s)
+=== RUN   TestR1_ImageMipmapUsesGPU
+    r1_residual_gpu_test.go:139: R1 mipmap gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestR1_ImageMipmapUsesGPU (0.01s)
+=== RUN   TestR2_GradientStrokeGPU
+    r1_residual_gpu_test.go:169: R2 grad stroke gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    r1_residual_gpu_test.go:178: mid=186,0,188
+--- PASS: TestR2_GradientStrokeGPU (0.00s)
+=== RUN   TestR3_DashedCircleStrokeGPU
+    r1_residual_gpu_test.go:201: R3 dash circle gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestR3_DashedCircleStrokeGPU (0.00s)
+=== RUN   TestR3_ThinStrokeGPU
+    r1_residual_gpu_test.go:226: R3 thin gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestR3_ThinStrokeGPU (0.00s)
+PASS

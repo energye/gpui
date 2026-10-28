@@ -1,0 +1,7 @@
+=== RUN   TestPhase1_EmptyRecordingSkipsTexture
+--- PASS: TestPhase1_EmptyRecordingSkipsTexture (0.00s)
+=== RUN   TestPhase1_InvisibleRecordingReplaysVector
+--- PASS: TestPhase1_InvisibleRecordingReplaysVector (0.18s)
+=== RUN   TestPhase1_BoundedRecordingTextures
+--- PASS: TestPhase1_BoundedRecordingTextures (0.09s)
+PASS

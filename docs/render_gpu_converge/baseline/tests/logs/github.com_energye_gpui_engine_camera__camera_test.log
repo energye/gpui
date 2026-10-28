@@ -1,0 +1,18 @@
+=== RUN   TestCameraViewFromCases
+--- PASS: TestCameraViewFromCases (0.00s)
+=== RUN   TestCameraFollowAndDecay
+--- PASS: TestCameraFollowAndDecay (0.00s)
+=== RUN   TestCameraDeadzoneAndDual
+--- PASS: TestCameraDeadzoneAndDual (0.00s)
+=== RUN   TestCameraEdgesNoCrash
+--- PASS: TestCameraEdgesNoCrash (0.00s)
+=== RUN   TestCameraBoundaryIdentical
+--- PASS: TestCameraBoundaryIdentical (0.00s)
+=== RUN   TestCameraPerf10k
+    camera_test.go:447: camera-10k: 10000 view+map ops in 3.20273ms (320.3 ns/op)
+--- PASS: TestCameraPerf10k (0.00s)
+=== RUN   TestCameraLongRunNoDrift
+--- PASS: TestCameraLongRunNoDrift (0.00s)
+=== RUN   TestCameraOffscreenGolden
+--- PASS: TestCameraOffscreenGolden (0.00s)
+PASS

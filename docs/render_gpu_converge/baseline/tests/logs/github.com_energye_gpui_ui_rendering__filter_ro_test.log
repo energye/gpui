@@ -1,0 +1,15 @@
+=== RUN   TestRenderColorFilter_PaintAppliesGrayscale
+--- PASS: TestRenderColorFilter_PaintAppliesGrayscale (0.00s)
+=== RUN   TestRenderColorFilter_IdentityPaintsThrough
+--- PASS: TestRenderColorFilter_IdentityPaintsThrough (0.00s)
+=== RUN   TestRenderImageFilter_PaintBlursPastBounds
+--- PASS: TestRenderImageFilter_PaintBlursPastBounds (0.01s)
+=== RUN   TestRenderImageFilter_ZeroRadiusSkipsIsolation
+--- PASS: TestRenderImageFilter_ZeroRadiusSkipsIsolation (0.00s)
+=== RUN   TestRenderFilters_SettersArePaintOnly
+--- PASS: TestRenderFilters_SettersArePaintOnly (0.00s)
+=== RUN   TestBuildLayerTree_FilterLayers
+--- PASS: TestBuildLayerTree_FilterLayers (0.00s)
+=== RUN   TestBuildLayerTree_NoopFiltersOmitted
+--- PASS: TestBuildLayerTree_NoopFiltersOmitted (0.00s)
+PASS

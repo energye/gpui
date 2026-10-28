@@ -1,0 +1,5 @@
+=== RUN   TestGPOS_ContextFormat3_NestedSinglePos
+--- PASS: TestGPOS_ContextFormat3_NestedSinglePos (0.00s)
+=== RUN   TestGPOS_ChainFormat3_Lookahead
+--- PASS: TestGPOS_ChainFormat3_Lookahead (0.00s)
+PASS

@@ -1,0 +1,17 @@
+=== RUN   TestCreatePipelineLayout
+    pipeline_test.go:53: Creating pipeline layout...
+    pipeline_test.go:64: PipelineLayout created: handle=0x7b87482bf720
+--- PASS: TestCreatePipelineLayout (0.25s)
+=== RUN   TestCreateComputePipeline
+    pipeline_test.go:91: Creating compute pipeline with auto layout...
+    pipeline_test.go:102: ComputePipeline created: handle=0x7b87486da0f0
+--- PASS: TestCreateComputePipeline (0.15s)
+=== RUN   TestComputePipelineGetBindGroupLayout
+    pipeline_test.go:136: Getting bind group layout from pipeline...
+    pipeline_test.go:143: Auto BindGroupLayout: handle=0x7b8748645570
+--- PASS: TestComputePipelineGetBindGroupLayout (0.15s)
+=== RUN   TestCreateComputePipelineWithExplicitLayout
+    pipeline_test.go:194: Creating compute pipeline with explicit layout...
+    pipeline_test.go:201: ComputePipeline with explicit layout: handle=0x7b87484c7670
+--- PASS: TestCreateComputePipelineWithExplicitLayout (0.15s)
+PASS

@@ -1,0 +1,480 @@
+=== RUN   TestMSL_Literals
+=== RUN   TestMSL_Literals/bool_true
+=== RUN   TestMSL_Literals/bool_false
+=== RUN   TestMSL_Literals/i32_positive
+=== RUN   TestMSL_Literals/i32_negative
+=== RUN   TestMSL_Literals/u32
+=== RUN   TestMSL_Literals/f32_integer
+=== RUN   TestMSL_Literals/f32_fraction
+=== RUN   TestMSL_Literals/f64
+--- PASS: TestMSL_Literals (0.00s)
+    --- PASS: TestMSL_Literals/bool_true (0.00s)
+    --- PASS: TestMSL_Literals/bool_false (0.00s)
+    --- PASS: TestMSL_Literals/i32_positive (0.00s)
+    --- PASS: TestMSL_Literals/i32_negative (0.00s)
+    --- PASS: TestMSL_Literals/u32 (0.00s)
+    --- PASS: TestMSL_Literals/f32_integer (0.00s)
+    --- PASS: TestMSL_Literals/f32_fraction (0.00s)
+    --- PASS: TestMSL_Literals/f64 (0.00s)
+=== RUN   TestMSL_UnaryOperators
+=== RUN   TestMSL_UnaryOperators/negate
+=== RUN   TestMSL_UnaryOperators/logical_not
+=== RUN   TestMSL_UnaryOperators/bitwise_not
+--- PASS: TestMSL_UnaryOperators (0.00s)
+    --- PASS: TestMSL_UnaryOperators/negate (0.00s)
+    --- PASS: TestMSL_UnaryOperators/logical_not (0.00s)
+    --- PASS: TestMSL_UnaryOperators/bitwise_not (0.00s)
+=== RUN   TestMSL_BinaryOperators
+=== RUN   TestMSL_BinaryOperators/add
+=== RUN   TestMSL_BinaryOperators/subtract
+=== RUN   TestMSL_BinaryOperators/multiply
+=== RUN   TestMSL_BinaryOperators/divide
+=== RUN   TestMSL_BinaryOperators/modulo
+=== RUN   TestMSL_BinaryOperators/equal
+=== RUN   TestMSL_BinaryOperators/not_equal
+=== RUN   TestMSL_BinaryOperators/less
+=== RUN   TestMSL_BinaryOperators/less_equal
+=== RUN   TestMSL_BinaryOperators/greater
+=== RUN   TestMSL_BinaryOperators/greater_equal
+=== RUN   TestMSL_BinaryOperators/and
+=== RUN   TestMSL_BinaryOperators/xor
+=== RUN   TestMSL_BinaryOperators/or
+=== RUN   TestMSL_BinaryOperators/logical_and
+=== RUN   TestMSL_BinaryOperators/logical_or
+=== RUN   TestMSL_BinaryOperators/shift_left
+=== RUN   TestMSL_BinaryOperators/shift_right
+--- PASS: TestMSL_BinaryOperators (0.00s)
+    --- PASS: TestMSL_BinaryOperators/add (0.00s)
+    --- PASS: TestMSL_BinaryOperators/subtract (0.00s)
+    --- PASS: TestMSL_BinaryOperators/multiply (0.00s)
+    --- PASS: TestMSL_BinaryOperators/divide (0.00s)
+    --- PASS: TestMSL_BinaryOperators/modulo (0.00s)
+    --- PASS: TestMSL_BinaryOperators/equal (0.00s)
+    --- PASS: TestMSL_BinaryOperators/not_equal (0.00s)
+    --- PASS: TestMSL_BinaryOperators/less (0.00s)
+    --- PASS: TestMSL_BinaryOperators/less_equal (0.00s)
+    --- PASS: TestMSL_BinaryOperators/greater (0.00s)
+    --- PASS: TestMSL_BinaryOperators/greater_equal (0.00s)
+    --- PASS: TestMSL_BinaryOperators/and (0.00s)
+    --- PASS: TestMSL_BinaryOperators/xor (0.00s)
+    --- PASS: TestMSL_BinaryOperators/or (0.00s)
+    --- PASS: TestMSL_BinaryOperators/logical_and (0.00s)
+    --- PASS: TestMSL_BinaryOperators/logical_or (0.00s)
+    --- PASS: TestMSL_BinaryOperators/shift_left (0.00s)
+    --- PASS: TestMSL_BinaryOperators/shift_right (0.00s)
+=== RUN   TestMSL_Swizzle
+--- PASS: TestMSL_Swizzle (0.00s)
+=== RUN   TestMSL_Select
+--- PASS: TestMSL_Select (0.00s)
+=== RUN   TestMSL_Compose
+--- PASS: TestMSL_Compose (0.00s)
+=== RUN   TestMSL_MathFunctions
+=== RUN   TestMSL_MathFunctions/abs
+=== RUN   TestMSL_MathFunctions/min
+=== RUN   TestMSL_MathFunctions/max
+=== RUN   TestMSL_MathFunctions/clamp
+=== RUN   TestMSL_MathFunctions/saturate
+=== RUN   TestMSL_MathFunctions/cos
+=== RUN   TestMSL_MathFunctions/sin
+=== RUN   TestMSL_MathFunctions/tan
+=== RUN   TestMSL_MathFunctions/floor
+=== RUN   TestMSL_MathFunctions/ceil
+=== RUN   TestMSL_MathFunctions/round
+=== RUN   TestMSL_MathFunctions/sqrt
+=== RUN   TestMSL_MathFunctions/rsqrt
+=== RUN   TestMSL_MathFunctions/exp
+=== RUN   TestMSL_MathFunctions/exp2
+=== RUN   TestMSL_MathFunctions/log
+=== RUN   TestMSL_MathFunctions/log2
+=== RUN   TestMSL_MathFunctions/pow
+=== RUN   TestMSL_MathFunctions/fract
+=== RUN   TestMSL_MathFunctions/sign
+=== RUN   TestMSL_MathFunctions/step
+=== RUN   TestMSL_MathFunctions/smoothstep
+=== RUN   TestMSL_MathFunctions/mix
+=== RUN   TestMSL_MathFunctions/length
+=== RUN   TestMSL_MathFunctions/normalize
+=== RUN   TestMSL_MathFunctions/distance
+=== RUN   TestMSL_MathFunctions/reflect
+=== RUN   TestMSL_MathFunctions/fma
+=== RUN   TestMSL_MathFunctions/dot
+=== RUN   TestMSL_MathFunctions/cross
+--- PASS: TestMSL_MathFunctions (0.00s)
+    --- PASS: TestMSL_MathFunctions/abs (0.00s)
+    --- PASS: TestMSL_MathFunctions/min (0.00s)
+    --- PASS: TestMSL_MathFunctions/max (0.00s)
+    --- PASS: TestMSL_MathFunctions/clamp (0.00s)
+    --- PASS: TestMSL_MathFunctions/saturate (0.00s)
+    --- PASS: TestMSL_MathFunctions/cos (0.00s)
+    --- PASS: TestMSL_MathFunctions/sin (0.00s)
+    --- PASS: TestMSL_MathFunctions/tan (0.00s)
+    --- PASS: TestMSL_MathFunctions/floor (0.00s)
+    --- PASS: TestMSL_MathFunctions/ceil (0.00s)
+    --- PASS: TestMSL_MathFunctions/round (0.00s)
+    --- PASS: TestMSL_MathFunctions/sqrt (0.00s)
+    --- PASS: TestMSL_MathFunctions/rsqrt (0.00s)
+    --- PASS: TestMSL_MathFunctions/exp (0.00s)
+    --- PASS: TestMSL_MathFunctions/exp2 (0.00s)
+    --- PASS: TestMSL_MathFunctions/log (0.00s)
+    --- PASS: TestMSL_MathFunctions/log2 (0.00s)
+    --- PASS: TestMSL_MathFunctions/pow (0.00s)
+    --- PASS: TestMSL_MathFunctions/fract (0.00s)
+    --- PASS: TestMSL_MathFunctions/sign (0.00s)
+    --- PASS: TestMSL_MathFunctions/step (0.00s)
+    --- PASS: TestMSL_MathFunctions/smoothstep (0.00s)
+    --- PASS: TestMSL_MathFunctions/mix (0.00s)
+    --- PASS: TestMSL_MathFunctions/length (0.00s)
+    --- PASS: TestMSL_MathFunctions/normalize (0.00s)
+    --- PASS: TestMSL_MathFunctions/distance (0.00s)
+    --- PASS: TestMSL_MathFunctions/reflect (0.00s)
+    --- PASS: TestMSL_MathFunctions/fma (0.00s)
+    --- PASS: TestMSL_MathFunctions/dot (0.00s)
+    --- PASS: TestMSL_MathFunctions/cross (0.00s)
+=== RUN   TestMSL_ZeroValue
+--- PASS: TestMSL_ZeroValue (0.00s)
+=== RUN   TestMSL_ComposeZeroLocalInit
+    expressions_test.go:506: MSL output:
+        // language: metal2.1
+        #include <metal_stdlib>
+        #include <simd/simd.h>
+        
+        using metal::uint;
+        struct DefaultConstructible {
+            template<typename T>
+            operator T() && {
+                return T {};
+            }
+        };
+        
+        
+        void test_fn(
+        ) {
+            metal::int2 x = metal::int2(0, 0);
+            x = metal::int2(0, 0);
+        }
+--- PASS: TestMSL_ComposeZeroLocalInit (0.00s)
+=== RUN   TestMSL_Vec2EmptyConstructorWithTypeAnnotation
+    expressions_test.go:554: IR: Compose type=0, 2 components
+    expressions_test.go:564: MSL output:
+        // language: metal1.0
+        #include <metal_stdlib>
+        #include <simd/simd.h>
+        
+        using metal::uint;
+        
+        
+        void test(
+        ) {
+            metal::int2 x = metal::int2(0, 0);
+            metal::int2 phony = x;
+            return;
+        }
+--- PASS: TestMSL_Vec2EmptyConstructorWithTypeAnnotation (0.00s)
+=== RUN   TestMSL_Vec2EmptyConstructorMultipleVars
+    expressions_test.go:607: MSL output:
+        // language: metal1.0
+        #include <metal_stdlib>
+        #include <simd/simd.h>
+        
+        using metal::uint;
+        
+        
+        void test(
+        ) {
+            metal::int2 a = metal::int2(42, 43);
+            metal::uint2 b = metal::uint2(44u, 45u);
+            metal::int2 c = metal::int2(0, 0);
+            metal::uint2 d = metal::uint2(0u, 0u);
+            metal::float2 e = metal::float2(0.0, 0.0);
+            metal::int2 phony = a;
+            metal::uint2 phony_1 = b;
+            metal::int2 phony_2 = c;
+            metal::uint2 phony_3 = d;
+            metal::float2 phony_4 = e;
+            return;
+        }
+--- PASS: TestMSL_Vec2EmptyConstructorMultipleVars (0.00s)
+=== RUN   TestMSL_Vec2EmptyConstructorWithPrivateGlobals
+    expressions_test.go:656: MSL output:
+        // language: metal1.0
+        #include <metal_stdlib>
+        #include <simd/simd.h>
+        
+        using metal::uint;
+        
+        
+        void test(
+            thread metal::int2& gx
+        ) {
+            metal::int2 c = metal::int2(0, 0);
+            metal::uint2 d = metal::uint2(0u, 0u);
+            metal::int2 phony = gx;
+            metal::int2 phony_1 = c;
+            metal::uint2 phony_2 = d;
+            c = metal::int2(0, 0);
+            d = metal::uint2(0u, 0u);
+            return;
+        }
+--- PASS: TestMSL_Vec2EmptyConstructorWithPrivateGlobals (0.00s)
+=== RUN   TestMSL_AbstractTypesVarFull
+    expressions_test.go:670: shader file not found: open ../snapshot/testdata/in/abstract-types-var.wgsl: no such file or directory
+--- SKIP: TestMSL_AbstractTypesVarFull (0.00s)
+=== RUN   TestMSL_AbstractTypesVarPattern
+    expressions_test.go:808: MSL output:
+        // language: metal1.0
+        #include <metal_stdlib>
+        #include <simd/simd.h>
+        
+        using metal::uint;
+        
+        
+        void all_constant_arguments(
+        ) {
+            metal::int2 xvipaiai = metal::int2(42, 43);
+            metal::uint2 xvupaiai = metal::uint2(44u, 45u);
+            metal::float2 xvfpaiai = metal::float2(46.0, 47.0);
+            metal::float2 xvfpafaf = metal::float2(48.0, 49.0);
+            metal::float2 xvfpaiaf = metal::float2(48.0, 49.0);
+            metal::uint2 xvupuai = metal::uint2(42u, 43u);
+            metal::uint2 xvupaiu = metal::uint2(42u, 43u);
+            metal::uint2 xvuuai = metal::uint2(42u, 43u);
+            metal::uint2 xvuaiu = metal::uint2(42u, 43u);
+            metal::int2 xvip = metal::int2(0, 0);
+            metal::uint2 xvup = metal::uint2(0u, 0u);
+            metal::float2 xvfp = metal::float2(0.0, 0.0);
+            metal::float2x2 xmfp = metal::float2x2(metal::float2(0.0, 0.0), metal::float2(0.0, 0.0));
+            metal::int2 phony = xvipaiai;
+            metal::uint2 phony_1 = xvupaiai;
+            metal::float2 phony_2 = xvfpaiai;
+            metal::float2 phony_3 = xvfpafaf;
+            metal::float2 phony_4 = xvfpaiaf;
+            metal::uint2 phony_5 = xvupuai;
+            metal::uint2 phony_6 = xvupaiu;
+            metal::uint2 phony_7 = xvuuai;
+            metal::uint2 phony_8 = xvuaiu;
+            metal::int2 phony_9 = xvip;
+            metal::uint2 phony_10 = xvup;
+            metal::float2 phony_11 = xvfp;
+            metal::float2x2 phony_12 = xmfp;
+            return;
+        }
+        
+        kernel void main_(
+        ) {
+            all_constant_arguments();
+            return;
+        }
+--- PASS: TestMSL_AbstractTypesVarPattern (0.00s)
+=== RUN   TestMSL_TypeCast
+=== RUN   TestMSL_TypeCast/conversion
+=== RUN   TestMSL_TypeCast/bitcast
+--- PASS: TestMSL_TypeCast (0.00s)
+    --- PASS: TestMSL_TypeCast/conversion (0.00s)
+    --- PASS: TestMSL_TypeCast/bitcast (0.00s)
+=== RUN   TestMSL_ScalarCastTypeName
+--- PASS: TestMSL_ScalarCastTypeName (0.00s)
+=== RUN   TestMSL_Derivative
+=== RUN   TestMSL_Derivative/dfdx_fine
+=== RUN   TestMSL_Derivative/dfdx_coarse
+=== RUN   TestMSL_Derivative/dfdx_none
+=== RUN   TestMSL_Derivative/dfdy_fine
+=== RUN   TestMSL_Derivative/dfdy_coarse
+=== RUN   TestMSL_Derivative/dfdy_none
+=== RUN   TestMSL_Derivative/fwidth
+--- PASS: TestMSL_Derivative (0.00s)
+    --- PASS: TestMSL_Derivative/dfdx_fine (0.00s)
+    --- PASS: TestMSL_Derivative/dfdx_coarse (0.00s)
+    --- PASS: TestMSL_Derivative/dfdx_none (0.00s)
+    --- PASS: TestMSL_Derivative/dfdy_fine (0.00s)
+    --- PASS: TestMSL_Derivative/dfdy_coarse (0.00s)
+    --- PASS: TestMSL_Derivative/dfdy_none (0.00s)
+    --- PASS: TestMSL_Derivative/fwidth (0.00s)
+=== RUN   TestMSL_Relational
+=== RUN   TestMSL_Relational/all
+=== RUN   TestMSL_Relational/any
+=== RUN   TestMSL_Relational/isnan
+=== RUN   TestMSL_Relational/isinf
+--- PASS: TestMSL_Relational (0.00s)
+    --- PASS: TestMSL_Relational/all (0.00s)
+    --- PASS: TestMSL_Relational/any (0.00s)
+    --- PASS: TestMSL_Relational/isnan (0.00s)
+    --- PASS: TestMSL_Relational/isinf (0.00s)
+=== RUN   TestMSL_MathFunctionName
+=== RUN   TestMSL_MathFunctionName/abs
+=== RUN   TestMSL_MathFunctionName/min
+=== RUN   TestMSL_MathFunctionName/max
+=== RUN   TestMSL_MathFunctionName/clamp
+=== RUN   TestMSL_MathFunctionName/saturate
+=== RUN   TestMSL_MathFunctionName/cos
+=== RUN   TestMSL_MathFunctionName/sin
+=== RUN   TestMSL_MathFunctionName/tan
+=== RUN   TestMSL_MathFunctionName/acos
+=== RUN   TestMSL_MathFunctionName/asin
+=== RUN   TestMSL_MathFunctionName/atan
+=== RUN   TestMSL_MathFunctionName/atan2
+=== RUN   TestMSL_MathFunctionName/cosh
+=== RUN   TestMSL_MathFunctionName/sinh
+=== RUN   TestMSL_MathFunctionName/tanh
+=== RUN   TestMSL_MathFunctionName/asinh
+=== RUN   TestMSL_MathFunctionName/acosh
+=== RUN   TestMSL_MathFunctionName/atanh
+=== RUN   TestMSL_MathFunctionName/#00
+=== RUN   TestMSL_MathFunctionName/#01
+=== RUN   TestMSL_MathFunctionName/ceil
+=== RUN   TestMSL_MathFunctionName/floor
+=== RUN   TestMSL_MathFunctionName/round
+=== RUN   TestMSL_MathFunctionName/fract
+=== RUN   TestMSL_MathFunctionName/trunc
+=== RUN   TestMSL_MathFunctionName/exp
+=== RUN   TestMSL_MathFunctionName/exp2
+=== RUN   TestMSL_MathFunctionName/log
+=== RUN   TestMSL_MathFunctionName/log2
+=== RUN   TestMSL_MathFunctionName/pow
+=== RUN   TestMSL_MathFunctionName/dot
+=== RUN   TestMSL_MathFunctionName/cross
+=== RUN   TestMSL_MathFunctionName/distance
+=== RUN   TestMSL_MathFunctionName/length
+=== RUN   TestMSL_MathFunctionName/normalize
+=== RUN   TestMSL_MathFunctionName/faceforward
+=== RUN   TestMSL_MathFunctionName/reflect
+=== RUN   TestMSL_MathFunctionName/refract
+=== RUN   TestMSL_MathFunctionName/sign
+=== RUN   TestMSL_MathFunctionName/fma
+=== RUN   TestMSL_MathFunctionName/mix
+=== RUN   TestMSL_MathFunctionName/step
+=== RUN   TestMSL_MathFunctionName/smoothstep
+=== RUN   TestMSL_MathFunctionName/sqrt
+=== RUN   TestMSL_MathFunctionName/rsqrt
+=== RUN   TestMSL_MathFunctionName/transpose
+=== RUN   TestMSL_MathFunctionName/determinant
+=== RUN   TestMSL_MathFunctionName/ctz
+=== RUN   TestMSL_MathFunctionName/clz
+=== RUN   TestMSL_MathFunctionName/popcount
+=== RUN   TestMSL_MathFunctionName/reverse_bits
+=== RUN   TestMSL_MathFunctionName/#02
+=== RUN   TestMSL_MathFunctionName/#03
+=== RUN   TestMSL_MathFunctionName/#04
+=== RUN   TestMSL_MathFunctionName/#05
+=== RUN   TestMSL_MathFunctionName/pack_float_to_snorm4x8
+=== RUN   TestMSL_MathFunctionName/pack_float_to_unorm4x8
+=== RUN   TestMSL_MathFunctionName/pack_float_to_snorm2x16
+=== RUN   TestMSL_MathFunctionName/pack_float_to_unorm2x16
+=== RUN   TestMSL_MathFunctionName/#06
+=== RUN   TestMSL_MathFunctionName/unpack_snorm4x8_to_float
+=== RUN   TestMSL_MathFunctionName/unpack_unorm4x8_to_float
+=== RUN   TestMSL_MathFunctionName/unpack_snorm2x16_to_float
+=== RUN   TestMSL_MathFunctionName/unpack_unorm2x16_to_float
+=== RUN   TestMSL_MathFunctionName/#07
+=== RUN   TestMSL_MathFunctionName/unknown_math_255
+--- PASS: TestMSL_MathFunctionName (0.00s)
+    --- PASS: TestMSL_MathFunctionName/abs (0.00s)
+    --- PASS: TestMSL_MathFunctionName/min (0.00s)
+    --- PASS: TestMSL_MathFunctionName/max (0.00s)
+    --- PASS: TestMSL_MathFunctionName/clamp (0.00s)
+    --- PASS: TestMSL_MathFunctionName/saturate (0.00s)
+    --- PASS: TestMSL_MathFunctionName/cos (0.00s)
+    --- PASS: TestMSL_MathFunctionName/sin (0.00s)
+    --- PASS: TestMSL_MathFunctionName/tan (0.00s)
+    --- PASS: TestMSL_MathFunctionName/acos (0.00s)
+    --- PASS: TestMSL_MathFunctionName/asin (0.00s)
+    --- PASS: TestMSL_MathFunctionName/atan (0.00s)
+    --- PASS: TestMSL_MathFunctionName/atan2 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/cosh (0.00s)
+    --- PASS: TestMSL_MathFunctionName/sinh (0.00s)
+    --- PASS: TestMSL_MathFunctionName/tanh (0.00s)
+    --- PASS: TestMSL_MathFunctionName/asinh (0.00s)
+    --- PASS: TestMSL_MathFunctionName/acosh (0.00s)
+    --- PASS: TestMSL_MathFunctionName/atanh (0.00s)
+    --- PASS: TestMSL_MathFunctionName/#00 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/#01 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/ceil (0.00s)
+    --- PASS: TestMSL_MathFunctionName/floor (0.00s)
+    --- PASS: TestMSL_MathFunctionName/round (0.00s)
+    --- PASS: TestMSL_MathFunctionName/fract (0.00s)
+    --- PASS: TestMSL_MathFunctionName/trunc (0.00s)
+    --- PASS: TestMSL_MathFunctionName/exp (0.00s)
+    --- PASS: TestMSL_MathFunctionName/exp2 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/log (0.00s)
+    --- PASS: TestMSL_MathFunctionName/log2 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/pow (0.00s)
+    --- PASS: TestMSL_MathFunctionName/dot (0.00s)
+    --- PASS: TestMSL_MathFunctionName/cross (0.00s)
+    --- PASS: TestMSL_MathFunctionName/distance (0.00s)
+    --- PASS: TestMSL_MathFunctionName/length (0.00s)
+    --- PASS: TestMSL_MathFunctionName/normalize (0.00s)
+    --- PASS: TestMSL_MathFunctionName/faceforward (0.00s)
+    --- PASS: TestMSL_MathFunctionName/reflect (0.00s)
+    --- PASS: TestMSL_MathFunctionName/refract (0.00s)
+    --- PASS: TestMSL_MathFunctionName/sign (0.00s)
+    --- PASS: TestMSL_MathFunctionName/fma (0.00s)
+    --- PASS: TestMSL_MathFunctionName/mix (0.00s)
+    --- PASS: TestMSL_MathFunctionName/step (0.00s)
+    --- PASS: TestMSL_MathFunctionName/smoothstep (0.00s)
+    --- PASS: TestMSL_MathFunctionName/sqrt (0.00s)
+    --- PASS: TestMSL_MathFunctionName/rsqrt (0.00s)
+    --- PASS: TestMSL_MathFunctionName/transpose (0.00s)
+    --- PASS: TestMSL_MathFunctionName/determinant (0.00s)
+    --- PASS: TestMSL_MathFunctionName/ctz (0.00s)
+    --- PASS: TestMSL_MathFunctionName/clz (0.00s)
+    --- PASS: TestMSL_MathFunctionName/popcount (0.00s)
+    --- PASS: TestMSL_MathFunctionName/reverse_bits (0.00s)
+    --- PASS: TestMSL_MathFunctionName/#02 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/#03 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/#04 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/#05 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/pack_float_to_snorm4x8 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/pack_float_to_unorm4x8 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/pack_float_to_snorm2x16 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/pack_float_to_unorm2x16 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/#06 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/unpack_snorm4x8_to_float (0.00s)
+    --- PASS: TestMSL_MathFunctionName/unpack_unorm4x8_to_float (0.00s)
+    --- PASS: TestMSL_MathFunctionName/unpack_snorm2x16_to_float (0.00s)
+    --- PASS: TestMSL_MathFunctionName/unpack_unorm2x16_to_float (0.00s)
+    --- PASS: TestMSL_MathFunctionName/#07 (0.00s)
+    --- PASS: TestMSL_MathFunctionName/unknown_math_255 (0.00s)
+=== RUN   TestMSL_AccessExpression
+--- PASS: TestMSL_AccessExpression (0.00s)
+=== RUN   TestMSL_AccessIndexExpression
+--- PASS: TestMSL_AccessIndexExpression (0.00s)
+=== RUN   TestMSL_BinaryOperatorsExtended
+=== RUN   TestMSL_BinaryOperatorsExtended/modulo
+=== RUN   TestMSL_BinaryOperatorsExtended/logical_and
+=== RUN   TestMSL_BinaryOperatorsExtended/logical_or
+=== RUN   TestMSL_BinaryOperatorsExtended/shift_left
+=== RUN   TestMSL_BinaryOperatorsExtended/shift_right
+=== RUN   TestMSL_BinaryOperatorsExtended/bitwise_and
+=== RUN   TestMSL_BinaryOperatorsExtended/bitwise_xor
+=== RUN   TestMSL_BinaryOperatorsExtended/bitwise_or
+=== RUN   TestMSL_BinaryOperatorsExtended/equal
+=== RUN   TestMSL_BinaryOperatorsExtended/not_equal
+=== RUN   TestMSL_BinaryOperatorsExtended/less
+=== RUN   TestMSL_BinaryOperatorsExtended/less_equal
+=== RUN   TestMSL_BinaryOperatorsExtended/greater
+=== RUN   TestMSL_BinaryOperatorsExtended/greater_equal
+--- PASS: TestMSL_BinaryOperatorsExtended (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/modulo (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/logical_and (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/logical_or (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/shift_left (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/shift_right (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/bitwise_and (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/bitwise_xor (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/bitwise_or (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/equal (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/not_equal (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/less (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/less_equal (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/greater (0.00s)
+    --- PASS: TestMSL_BinaryOperatorsExtended/greater_equal (0.00s)
+=== RUN   TestMSL_LoadExpression
+--- PASS: TestMSL_LoadExpression (0.00s)
+=== RUN   TestMSL_SplatExpression
+--- PASS: TestMSL_SplatExpression (0.00s)
+=== RUN   TestMSL_FunctionWithArgument
+--- PASS: TestMSL_FunctionWithArgument (0.00s)
+=== RUN   TestMSL_LocalVariableExpression
+--- PASS: TestMSL_LocalVariableExpression (0.00s)
+=== RUN   TestMSL_IfElseStatement
+--- PASS: TestMSL_IfElseStatement (0.00s)
+PASS

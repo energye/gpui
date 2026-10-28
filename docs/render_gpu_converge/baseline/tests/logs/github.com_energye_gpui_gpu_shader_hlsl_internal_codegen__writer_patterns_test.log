@@ -1,0 +1,33 @@
+=== RUN   TestHLSL_ZeroValueWrapperFunction
+--- PASS: TestHLSL_ZeroValueWrapperFunction (0.00s)
+=== RUN   TestHLSL_ZeroValueExpression
+--- PASS: TestHLSL_ZeroValueExpression (0.00s)
+=== RUN   TestHLSL_EmptyComposeExpandsZeros
+--- PASS: TestHLSL_EmptyComposeExpandsZeros (0.00s)
+=== RUN   TestHLSL_ArrayConstructorTypedef
+--- PASS: TestHLSL_ArrayConstructorTypedef (0.00s)
+=== RUN   TestHLSL_StructPadding
+--- PASS: TestHLSL_StructPadding (0.00s)
+=== RUN   TestHLSL_PreciseModifier
+--- PASS: TestHLSL_PreciseModifier (0.00s)
+=== RUN   TestHLSL_FunctionalCast
+--- PASS: TestHLSL_FunctionalCast (0.00s)
+=== RUN   TestHLSL_InoutPointerArgs
+--- PASS: TestHLSL_InoutPointerArgs (0.00s)
+=== RUN   TestHLSL_WriteSpecialConstants
+--- PASS: TestHLSL_WriteSpecialConstants (0.00s)
+=== RUN   TestHLSL_WorkgroupZeroInitArrayLoop
+=== RUN   TestHLSL_WorkgroupZeroInitArrayLoop/scalar_no_loop
+=== RUN   TestHLSL_WorkgroupZeroInitArrayLoop/array_uses_loop
+=== RUN   TestHLSL_WorkgroupZeroInitArrayLoop/nested_array_nested_loops
+=== RUN   TestHLSL_WorkgroupZeroInitArrayLoop/struct_no_loop
+=== RUN   TestHLSL_WorkgroupZeroInitArrayLoop/array_of_structs_uses_loop
+--- PASS: TestHLSL_WorkgroupZeroInitArrayLoop (0.00s)
+    --- PASS: TestHLSL_WorkgroupZeroInitArrayLoop/scalar_no_loop (0.00s)
+    --- PASS: TestHLSL_WorkgroupZeroInitArrayLoop/array_uses_loop (0.00s)
+    --- PASS: TestHLSL_WorkgroupZeroInitArrayLoop/nested_array_nested_loops (0.00s)
+    --- PASS: TestHLSL_WorkgroupZeroInitArrayLoop/struct_no_loop (0.00s)
+    --- PASS: TestHLSL_WorkgroupZeroInitArrayLoop/array_of_structs_uses_loop (0.00s)
+=== RUN   TestHLSL_NeedWorkgroupInit
+--- PASS: TestHLSL_NeedWorkgroupInit (0.00s)
+PASS

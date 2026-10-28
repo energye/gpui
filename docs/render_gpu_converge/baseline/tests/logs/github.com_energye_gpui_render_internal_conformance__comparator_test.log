@@ -1,0 +1,5 @@
+=== RUN   TestComparatorPassAndMutations
+--- PASS: TestComparatorPassAndMutations (0.00s)
+=== RUN   TestStraightPixelUnpremultiplies
+--- PASS: TestStraightPixelUnpremultiplies (0.00s)
+PASS

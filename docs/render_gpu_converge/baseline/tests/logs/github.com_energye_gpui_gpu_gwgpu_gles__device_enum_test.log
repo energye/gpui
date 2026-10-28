@@ -1,0 +1,7 @@
+=== RUN   TestEGLDeviceEnumeration
+    device_enum_test.go:25: egl device[0] nvidia=true mesa=false name="/dev/dri/card2"
+    device_enum_test.go:25: egl device[1] nvidia=false mesa=true name="/dev/dri/card1"
+    device_enum_test.go:25: egl device[2] nvidia=false mesa=true name="/dev/dri/card2"
+    device_enum_test.go:25: egl device[3] nvidia=false mesa=true name=""
+--- PASS: TestEGLDeviceEnumeration (0.03s)
+PASS

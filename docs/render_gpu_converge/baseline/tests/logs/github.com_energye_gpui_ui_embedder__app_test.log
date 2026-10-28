@@ -1,0 +1,7 @@
+=== RUN   TestApp_RunStubWithoutGPU
+--- PASS: TestApp_RunStubWithoutGPU (0.00s)
+=== RUN   TestApp_QuitWake
+--- PASS: TestApp_QuitWake (0.00s)
+=== RUN   TestEventQuits
+--- PASS: TestEventQuits (0.00s)
+PASS

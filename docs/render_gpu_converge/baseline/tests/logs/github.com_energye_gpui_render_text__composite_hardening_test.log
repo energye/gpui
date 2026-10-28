@@ -1,0 +1,19 @@
+=== RUN   TestSimpleGlyph_Unchanged
+--- PASS: TestSimpleGlyph_Unchanged (0.00s)
+=== RUN   TestCompositeContours_TwoComponents
+--- PASS: TestCompositeContours_TwoComponents (0.00s)
+=== RUN   TestCompositeContours_Scale
+--- PASS: TestCompositeContours_Scale (0.00s)
+=== RUN   TestCompositeContours_TwoByTwo
+--- PASS: TestCompositeContours_TwoByTwo (0.00s)
+=== RUN   TestCompositeContours_Nested
+--- PASS: TestCompositeContours_Nested (0.00s)
+=== RUN   TestCompositeContours_SelfCycle_DegradesGracefully
+--- PASS: TestCompositeContours_SelfCycle_DegradesGracefully (0.00s)
+=== RUN   TestCompositeContours_FanOutBudgetBounded
+--- PASS: TestCompositeContours_FanOutBudgetBounded (0.00s)
+=== RUN   TestTTLoadCompositeGlyphOutline_SelfCycle_DegradesGracefully
+--- PASS: TestTTLoadCompositeGlyphOutline_SelfCycle_DegradesGracefully (0.00s)
+=== RUN   TestTTLoadCompositeGlyphOutline_FanOutBudgetBounded
+--- PASS: TestTTLoadCompositeGlyphOutline_FanOutBudgetBounded (0.00s)
+PASS

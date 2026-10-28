@@ -1,0 +1,4 @@
+=== RUN   TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills
+    opt21_layer_defer_submit_test.go:76: layer 0 encode: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills (0.19s)
+FAIL

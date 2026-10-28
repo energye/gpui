@@ -1,0 +1,7 @@
+=== RUN   TestBlinkFocusRegistration
+--- PASS: TestBlinkFocusRegistration (0.00s)
+=== RUN   TestBlinkParity_OversizedStep
+--- PASS: TestBlinkParity_OversizedStep (0.00s)
+=== RUN   TestBlinkDeadline_TracksPhase
+--- PASS: TestBlinkDeadline_TracksPhase (0.00s)
+PASS

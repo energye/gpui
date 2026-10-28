@@ -1,0 +1,317 @@
+=== RUN   TestIntegration5_AtomicLoad
+--- PASS: TestIntegration5_AtomicLoad (0.00s)
+=== RUN   TestIntegration5_AtomicStore
+--- PASS: TestIntegration5_AtomicStore (0.00s)
+=== RUN   TestIntegration_AtomicLoadI32
+--- PASS: TestIntegration_AtomicLoadI32 (0.00s)
+=== RUN   TestIntegration_SignedIntegerNegate
+--- PASS: TestIntegration_SignedIntegerNegate (0.00s)
+=== RUN   TestIntegration_SignedIntegerNegateVec
+--- PASS: TestIntegration_SignedIntegerNegateVec (0.00s)
+=== RUN   TestIntegration_IntegerDivisionI32
+--- PASS: TestIntegration_IntegerDivisionI32 (0.00s)
+=== RUN   TestIntegration_IntegerModulusU32
+--- PASS: TestIntegration_IntegerModulusU32 (0.00s)
+=== RUN   TestIntegration_IntegerModulusI32
+--- PASS: TestIntegration_IntegerModulusI32 (0.00s)
+=== RUN   TestIntegration_IntegerAbs
+--- PASS: TestIntegration_IntegerAbs (0.00s)
+=== RUN   TestIntegration5_TextureSampleGrad
+--- PASS: TestIntegration5_TextureSampleGrad (0.00s)
+=== RUN   TestIntegration_TextureSampleCompare
+--- PASS: TestIntegration_TextureSampleCompare (0.00s)
+=== RUN   TestIntegration_ImageLoadUnchecked
+--- PASS: TestIntegration_ImageLoadUnchecked (0.00s)
+=== RUN   TestIntegration_ImageLoad1DNoLod
+--- PASS: TestIntegration_ImageLoad1DNoLod (0.00s)
+=== RUN   TestIntegration_ImageLoadRestrict2D
+--- PASS: TestIntegration_ImageLoadRestrict2D (0.00s)
+=== RUN   TestIntegration_ImageLoadRestrict1D
+--- PASS: TestIntegration_ImageLoadRestrict1D (0.00s)
+=== RUN   TestIntegration_ImageLoadRZSW
+--- PASS: TestIntegration_ImageLoadRZSW (0.00s)
+=== RUN   TestIntegration_ImageStore2D
+--- PASS: TestIntegration_ImageStore2D (0.00s)
+=== RUN   TestIntegration5_TextureDimensions
+--- PASS: TestIntegration5_TextureDimensions (0.00s)
+=== RUN   TestIntegration5_TextureNumLevels
+--- PASS: TestIntegration5_TextureNumLevels (0.00s)
+=== RUN   TestIntegration_PipelineConstantsNegation
+--- PASS: TestIntegration_PipelineConstantsNegation (0.00s)
+=== RUN   TestIntegration_PipelineConstantsBinaryExpression
+--- PASS: TestIntegration_PipelineConstantsBinaryExpression (0.00s)
+=== RUN   TestIntegration_PipelineConstantsF32ToI32
+--- PASS: TestIntegration_PipelineConstantsF32ToI32 (0.00s)
+=== RUN   TestIntegration_RestrictBoundsArray
+--- PASS: TestIntegration_RestrictBoundsArray (0.00s)
+=== RUN   TestIntegration_RestrictBoundsStaticInBounds
+--- PASS: TestIntegration_RestrictBoundsStaticInBounds (0.00s)
+=== RUN   TestIntegration_RZSWBoundsArray
+--- PASS: TestIntegration_RZSWBoundsArray (0.00s)
+=== RUN   TestIntegration_UnaryLogicalNot
+--- PASS: TestIntegration_UnaryLogicalNot (0.00s)
+=== RUN   TestIntegration_UnaryBitwiseNot
+--- PASS: TestIntegration_UnaryBitwiseNot (0.00s)
+=== RUN   TestIntegration5_SelectScalar
+--- PASS: TestIntegration5_SelectScalar (0.00s)
+=== RUN   TestIntegration_Splat
+--- PASS: TestIntegration_Splat (0.00s)
+=== RUN   TestIntegration_Swizzle
+--- PASS: TestIntegration_Swizzle (0.00s)
+=== RUN   TestIntegration5_Modf
+--- PASS: TestIntegration5_Modf (0.00s)
+=== RUN   TestIntegration5_Frexp
+--- PASS: TestIntegration5_Frexp (0.00s)
+=== RUN   TestIntegration5_QuantizeToF16
+--- PASS: TestIntegration5_QuantizeToF16 (0.00s)
+=== RUN   TestIntegration_Pack4x8snorm
+--- PASS: TestIntegration_Pack4x8snorm (0.00s)
+=== RUN   TestIntegration_Pack4x8unorm
+--- PASS: TestIntegration_Pack4x8unorm (0.00s)
+=== RUN   TestIntegration_Unpack4x8snorm
+--- PASS: TestIntegration_Unpack4x8snorm (0.00s)
+=== RUN   TestIntegration_Unpack4x8unorm
+--- PASS: TestIntegration_Unpack4x8unorm (0.00s)
+=== RUN   TestIntegration_Pack2x16float
+--- PASS: TestIntegration_Pack2x16float (0.00s)
+=== RUN   TestIntegration_Unpack2x16float
+--- PASS: TestIntegration_Unpack2x16float (0.00s)
+=== RUN   TestIntegration_DerivativeDpdx
+--- PASS: TestIntegration_DerivativeDpdx (0.00s)
+=== RUN   TestIntegration_DerivativeDpdy
+--- PASS: TestIntegration_DerivativeDpdy (0.00s)
+=== RUN   TestIntegration_RelationalAny
+--- PASS: TestIntegration_RelationalAny (0.00s)
+=== RUN   TestIntegration_RelationalAll
+--- PASS: TestIntegration_RelationalAll (0.00s)
+=== RUN   TestIntegration_BinaryShiftLeft
+--- PASS: TestIntegration_BinaryShiftLeft (0.00s)
+=== RUN   TestIntegration_BinaryShiftRight
+--- PASS: TestIntegration_BinaryShiftRight (0.00s)
+=== RUN   TestIntegration_BitcastU32ToF32
+--- PASS: TestIntegration_BitcastU32ToF32 (0.00s)
+=== RUN   TestIntegration_CastF32ToI32
+--- PASS: TestIntegration_CastF32ToI32 (0.00s)
+=== RUN   TestIntegration_CastVec3F32ToI32
+--- PASS: TestIntegration_CastVec3F32ToI32 (0.00s)
+=== RUN   TestIntegration_ConstantValueInline
+--- PASS: TestIntegration_ConstantValueInline (0.00s)
+=== RUN   TestHalfToFloat32
+=== RUN   TestHalfToFloat32/positive_zero
+=== RUN   TestHalfToFloat32/negative_zero
+=== RUN   TestHalfToFloat32/one
+=== RUN   TestHalfToFloat32/negative_one
+=== RUN   TestHalfToFloat32/half
+=== RUN   TestHalfToFloat32/two
+=== RUN   TestHalfToFloat32/infinity
+=== RUN   TestHalfToFloat32/negative_infinity
+=== RUN   TestHalfToFloat32/smallest_subnormal
+=== RUN   TestHalfToFloat32/largest_subnormal
+--- PASS: TestHalfToFloat32 (0.00s)
+    --- PASS: TestHalfToFloat32/positive_zero (0.00s)
+    --- PASS: TestHalfToFloat32/negative_zero (0.00s)
+    --- PASS: TestHalfToFloat32/one (0.00s)
+    --- PASS: TestHalfToFloat32/negative_one (0.00s)
+    --- PASS: TestHalfToFloat32/half (0.00s)
+    --- PASS: TestHalfToFloat32/two (0.00s)
+    --- PASS: TestHalfToFloat32/infinity (0.00s)
+    --- PASS: TestHalfToFloat32/negative_infinity (0.00s)
+    --- PASS: TestHalfToFloat32/smallest_subnormal (0.00s)
+    --- PASS: TestHalfToFloat32/largest_subnormal (0.00s)
+=== RUN   TestHalfToFloat32_NaN
+--- PASS: TestHalfToFloat32_NaN (0.00s)
+=== RUN   TestEvalUnaryOp
+=== RUN   TestEvalUnaryOp/logical_not_true
+=== RUN   TestEvalUnaryOp/logical_not_false
+=== RUN   TestEvalUnaryOp/negate_f32
+=== RUN   TestEvalUnaryOp/negate_i32
+=== RUN   TestEvalUnaryOp/negate_f64
+=== RUN   TestEvalUnaryOp/logical_not_on_i32_returns_nil
+=== RUN   TestEvalUnaryOp/negate_u32_returns_nil
+=== RUN   TestEvalUnaryOp/unsupported_op_returns_nil
+--- PASS: TestEvalUnaryOp (0.00s)
+    --- PASS: TestEvalUnaryOp/logical_not_true (0.00s)
+    --- PASS: TestEvalUnaryOp/logical_not_false (0.00s)
+    --- PASS: TestEvalUnaryOp/negate_f32 (0.00s)
+    --- PASS: TestEvalUnaryOp/negate_i32 (0.00s)
+    --- PASS: TestEvalUnaryOp/negate_f64 (0.00s)
+    --- PASS: TestEvalUnaryOp/logical_not_on_i32_returns_nil (0.00s)
+    --- PASS: TestEvalUnaryOp/negate_u32_returns_nil (0.00s)
+    --- PASS: TestEvalUnaryOp/unsupported_op_returns_nil (0.00s)
+=== RUN   TestEvalGlobalExpression
+=== RUN   TestEvalGlobalExpression/literal
+=== RUN   TestEvalGlobalExpression/override
+=== RUN   TestEvalGlobalExpression/binary_add
+=== RUN   TestEvalGlobalExpression/constant_ref
+=== RUN   TestEvalGlobalExpression/out_of_bounds
+--- PASS: TestEvalGlobalExpression (0.00s)
+    --- PASS: TestEvalGlobalExpression/literal (0.00s)
+    --- PASS: TestEvalGlobalExpression/override (0.00s)
+    --- PASS: TestEvalGlobalExpression/binary_add (0.00s)
+    --- PASS: TestEvalGlobalExpression/constant_ref (0.00s)
+    --- PASS: TestEvalGlobalExpression/out_of_bounds (0.00s)
+=== RUN   TestConvertLiteralToType
+=== RUN   TestConvertLiteralToType/f32_to_i32
+=== RUN   TestConvertLiteralToType/f32_to_u32
+=== RUN   TestConvertLiteralToType/i32_to_f32
+=== RUN   TestConvertLiteralToType/f32_to_bool_nonzero
+=== RUN   TestConvertLiteralToType/f32_to_bool_zero
+--- PASS: TestConvertLiteralToType (0.00s)
+    --- PASS: TestConvertLiteralToType/f32_to_i32 (0.00s)
+    --- PASS: TestConvertLiteralToType/f32_to_u32 (0.00s)
+    --- PASS: TestConvertLiteralToType/i32_to_f32 (0.00s)
+    --- PASS: TestConvertLiteralToType/f32_to_bool_nonzero (0.00s)
+    --- PASS: TestConvertLiteralToType/f32_to_bool_zero (0.00s)
+=== RUN   TestLiteralToScalarValue
+=== RUN   TestLiteralToScalarValue/f32
+=== RUN   TestLiteralToScalarValue/f64
+=== RUN   TestLiteralToScalarValue/i32
+=== RUN   TestLiteralToScalarValue/u32
+--- PASS: TestLiteralToScalarValue (0.00s)
+    --- PASS: TestLiteralToScalarValue/f32 (0.00s)
+    --- PASS: TestLiteralToScalarValue/f64 (0.00s)
+    --- PASS: TestLiteralToScalarValue/i32 (0.00s)
+    --- PASS: TestLiteralToScalarValue/u32 (0.00s)
+=== RUN   TestLiteralToScalarValue_Bool
+--- PASS: TestLiteralToScalarValue_Bool (0.00s)
+=== RUN   TestIntegration5_AtomicAddResult
+--- PASS: TestIntegration5_AtomicAddResult (0.00s)
+=== RUN   TestIntegration5_AtomicSubResult
+--- PASS: TestIntegration5_AtomicSubResult (0.00s)
+=== RUN   TestIntegration5_AtomicMinResult
+--- PASS: TestIntegration5_AtomicMinResult (0.00s)
+=== RUN   TestIntegration5_AtomicMaxResult
+--- PASS: TestIntegration5_AtomicMaxResult (0.00s)
+=== RUN   TestIntegration5_AtomicAndResult
+--- PASS: TestIntegration5_AtomicAndResult (0.00s)
+=== RUN   TestIntegration5_AtomicOrResult
+--- PASS: TestIntegration5_AtomicOrResult (0.00s)
+=== RUN   TestIntegration5_AtomicXorResult
+--- PASS: TestIntegration5_AtomicXorResult (0.00s)
+=== RUN   TestIntegration5_AtomicExchangeResult
+--- PASS: TestIntegration5_AtomicExchangeResult (0.00s)
+=== RUN   TestIntegration5_AtomicCompareExchangeResult
+--- PASS: TestIntegration5_AtomicCompareExchangeResult (0.00s)
+=== RUN   TestIntegration_FunctionCallPassThrough
+--- PASS: TestIntegration_FunctionCallPassThrough (0.00s)
+=== RUN   TestIntegration_IntegerDotProduct
+--- PASS: TestIntegration_IntegerDotProduct (0.00s)
+=== RUN   TestIntegration_WorkGroupUniformLoad
+--- PASS: TestIntegration_WorkGroupUniformLoad (0.00s)
+=== RUN   TestIntegration5_LiteralI64
+--- PASS: TestIntegration5_LiteralI64 (0.00s)
+=== RUN   TestMSL_ArrayLengthDirect
+--- PASS: TestMSL_ArrayLengthDirect (0.00s)
+=== RUN   TestIntegration_PointerTypeInFunction
+--- PASS: TestIntegration_PointerTypeInFunction (0.00s)
+=== RUN   TestIntegration_MathFunctions
+=== RUN   TestIntegration_MathFunctions/sqrt
+=== RUN   TestIntegration_MathFunctions/ceil
+=== RUN   TestIntegration_MathFunctions/floor
+=== RUN   TestIntegration_MathFunctions/round
+=== RUN   TestIntegration_MathFunctions/trunc
+=== RUN   TestIntegration_MathFunctions/sin
+=== RUN   TestIntegration_MathFunctions/cos
+=== RUN   TestIntegration_MathFunctions/tan
+=== RUN   TestIntegration_MathFunctions/asin
+=== RUN   TestIntegration_MathFunctions/acos
+=== RUN   TestIntegration_MathFunctions/atan
+=== RUN   TestIntegration_MathFunctions/atan2
+=== RUN   TestIntegration_MathFunctions/exp
+=== RUN   TestIntegration_MathFunctions/exp2
+=== RUN   TestIntegration_MathFunctions/log
+=== RUN   TestIntegration_MathFunctions/log2
+=== RUN   TestIntegration_MathFunctions/pow
+=== RUN   TestIntegration_MathFunctions/min
+=== RUN   TestIntegration_MathFunctions/max
+=== RUN   TestIntegration_MathFunctions/clamp
+=== RUN   TestIntegration_MathFunctions/fma
+=== RUN   TestIntegration_MathFunctions/sign
+=== RUN   TestIntegration_MathFunctions/step
+=== RUN   TestIntegration_MathFunctions/fract
+--- PASS: TestIntegration_MathFunctions (0.01s)
+    --- PASS: TestIntegration_MathFunctions/sqrt (0.00s)
+    --- PASS: TestIntegration_MathFunctions/ceil (0.00s)
+    --- PASS: TestIntegration_MathFunctions/floor (0.00s)
+    --- PASS: TestIntegration_MathFunctions/round (0.00s)
+    --- PASS: TestIntegration_MathFunctions/trunc (0.00s)
+    --- PASS: TestIntegration_MathFunctions/sin (0.00s)
+    --- PASS: TestIntegration_MathFunctions/cos (0.00s)
+    --- PASS: TestIntegration_MathFunctions/tan (0.00s)
+    --- PASS: TestIntegration_MathFunctions/asin (0.00s)
+    --- PASS: TestIntegration_MathFunctions/acos (0.00s)
+    --- PASS: TestIntegration_MathFunctions/atan (0.00s)
+    --- PASS: TestIntegration_MathFunctions/atan2 (0.00s)
+    --- PASS: TestIntegration_MathFunctions/exp (0.00s)
+    --- PASS: TestIntegration_MathFunctions/exp2 (0.00s)
+    --- PASS: TestIntegration_MathFunctions/log (0.00s)
+    --- PASS: TestIntegration_MathFunctions/log2 (0.00s)
+    --- PASS: TestIntegration_MathFunctions/pow (0.00s)
+    --- PASS: TestIntegration_MathFunctions/min (0.00s)
+    --- PASS: TestIntegration_MathFunctions/max (0.00s)
+    --- PASS: TestIntegration_MathFunctions/clamp (0.00s)
+    --- PASS: TestIntegration_MathFunctions/fma (0.00s)
+    --- PASS: TestIntegration_MathFunctions/sign (0.00s)
+    --- PASS: TestIntegration_MathFunctions/step (0.00s)
+    --- PASS: TestIntegration_MathFunctions/fract (0.00s)
+=== RUN   TestIntegration_MathMixVec
+--- PASS: TestIntegration_MathMixVec (0.00s)
+=== RUN   TestIntegration_MathSmoothstep
+--- PASS: TestIntegration_MathSmoothstep (0.00s)
+=== RUN   TestIntegration_MatrixMultiply
+--- PASS: TestIntegration_MatrixMultiply (0.00s)
+=== RUN   TestIntegration_PointerExpression
+--- PASS: TestIntegration_PointerExpression (0.00s)
+=== RUN   TestIntegration_TextureSampleOffset
+--- PASS: TestIntegration_TextureSampleOffset (0.00s)
+=== RUN   TestIntegration_TryFoldConstantCast
+--- PASS: TestIntegration_TryFoldConstantCast (0.00s)
+=== RUN   TestIntegration_StructPadding
+--- PASS: TestIntegration_StructPadding (0.00s)
+=== RUN   TestIntegration_LocalVariableInit
+--- PASS: TestIntegration_LocalVariableInit (0.00s)
+=== RUN   TestIntegration_BreakIf
+--- PASS: TestIntegration_BreakIf (0.00s)
+=== RUN   TestIntegration_TextureGather
+--- PASS: TestIntegration_TextureGather (0.00s)
+=== RUN   TestIntegration_TextureGatherCompare
+--- PASS: TestIntegration_TextureGatherCompare (0.00s)
+=== RUN   TestIntegration_ImageStoreRZSW
+--- PASS: TestIntegration_ImageStoreRZSW (0.00s)
+=== RUN   TestIntegration_TextureDimensions3D
+--- PASS: TestIntegration_TextureDimensions3D (0.00s)
+=== RUN   TestIntegration_MultisampledTextureLoad
+--- PASS: TestIntegration_MultisampledTextureLoad (0.00s)
+=== RUN   TestIntegration_ImageTypeResolution
+--- PASS: TestIntegration_ImageTypeResolution (0.00s)
+=== RUN   TestIntegration_MultipleHelpers
+--- PASS: TestIntegration_MultipleHelpers (0.00s)
+=== RUN   TestMSL_FindOrRegisterScalarType
+--- PASS: TestMSL_FindOrRegisterScalarType (0.00s)
+=== RUN   TestReinterpretedVarName
+--- PASS: TestReinterpretedVarName (0.00s)
+=== RUN   TestTypeInnerLength
+=== RUN   TestTypeInnerLength/vector
+=== RUN   TestTypeInnerLength/matrix
+=== RUN   TestTypeInnerLength/array_fixed
+=== RUN   TestTypeInnerLength/array_runtime
+=== RUN   TestTypeInnerLength/scalar_not_indexable
+--- PASS: TestTypeInnerLength (0.00s)
+    --- PASS: TestTypeInnerLength/vector (0.00s)
+    --- PASS: TestTypeInnerLength/matrix (0.00s)
+    --- PASS: TestTypeInnerLength/array_fixed (0.00s)
+    --- PASS: TestTypeInnerLength/array_runtime (0.00s)
+    --- PASS: TestTypeInnerLength/scalar_not_indexable (0.00s)
+=== RUN   TestLiteralAsUint
+=== RUN   TestLiteralAsUint/u32_42
+=== RUN   TestLiteralAsUint/i32_positive
+=== RUN   TestLiteralAsUint/i32_zero
+=== RUN   TestLiteralAsUint/i32_negative
+=== RUN   TestLiteralAsUint/f32
+--- PASS: TestLiteralAsUint (0.00s)
+    --- PASS: TestLiteralAsUint/u32_42 (0.00s)
+    --- PASS: TestLiteralAsUint/i32_positive (0.00s)
+    --- PASS: TestLiteralAsUint/i32_zero (0.00s)
+    --- PASS: TestLiteralAsUint/i32_negative (0.00s)
+    --- PASS: TestLiteralAsUint/f32 (0.00s)
+PASS

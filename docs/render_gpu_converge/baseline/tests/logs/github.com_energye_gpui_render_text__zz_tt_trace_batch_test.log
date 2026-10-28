@@ -1,0 +1,4 @@
+=== RUN   TestTmpTraceBatchFT
+    zz_tt_trace_batch_test.go:17: TT_GIDS not set
+--- SKIP: TestTmpTraceBatchFT (0.00s)
+PASS

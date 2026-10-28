@@ -1,0 +1,5 @@
+=== RUN   TestTessellateAA_RingHoleBandDirection
+--- PASS: TestTessellateAA_RingHoleBandDirection (0.00s)
+=== RUN   TestTessellateAA_ConvexBandUnaffected
+--- PASS: TestTessellateAA_ConvexBandUnaffected (0.00s)
+PASS

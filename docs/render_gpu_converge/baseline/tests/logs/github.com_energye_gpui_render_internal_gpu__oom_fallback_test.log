@@ -1,0 +1,8 @@
+=== RUN   TestTextureSet_FailFastLatch
+--- PASS: TestTextureSet_FailFastLatch (0.00s)
+=== RUN   TestTextureSet_DegradedLatch
+--- PASS: TestTextureSet_DegradedLatch (0.00s)
+=== RUN   TestCreateTextureRetryOOM_SmallHeapInjection
+    oom_fallback_test.go:91: no small-heap hal.Device fixture: live texture-OOM injection needs a capped-heap device which this repo does not provide; coverage via pressure真窗 (gpu_fallbacks=1) + TestTextureSet_FailFastLatch
+--- SKIP: TestCreateTextureRetryOOM_SmallHeapInjection (0.00s)
+PASS

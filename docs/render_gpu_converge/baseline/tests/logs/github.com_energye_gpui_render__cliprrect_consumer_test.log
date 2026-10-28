@@ -1,0 +1,12 @@
+=== RUN   TestClipRRectGPUTextureAndText
+    cliprrect_consumer_test.go:44: tex center=[204 153 102 255] corner=[255 255 255 255] outside=[255 255 255 255]
+    cliprrect_consumer_test.go:73: text center=[255 255 255 255] corner=[255 255 255 255] outside=[255 255 255 255]
+    cliprrect_consumer_test.go:91: text ink inside=3291 outside=0
+--- PASS: TestClipRRectGPUTextureAndText (0.31s)
+=== RUN   TestClipRoundRectCPUBitmapText
+--- PASS: TestClipRoundRectCPUBitmapText (0.02s)
+=== RUN   TestClipRoundRectCPUAliasedText
+--- PASS: TestClipRoundRectCPUAliasedText (0.01s)
+=== RUN   TestClipRoundRectCPUScaledText
+--- PASS: TestClipRoundRectCPUScaledText (0.07s)
+PASS

@@ -1,0 +1,14 @@
+=== RUN   TestShadowGolden
+--- PASS: TestShadowGolden (0.00s)
+=== RUN   TestShadowEdgesNoCrash
+--- PASS: TestShadowEdgesNoCrash (0.00s)
+=== RUN   TestShadowBoundaryIdentical
+--- PASS: TestShadowBoundaryIdentical (0.00s)
+=== RUN   TestShadowMultiPerf
+    shadow_test.go:442: shadow-32x64x64: 14.779048ms total (112.8 ns/px/occluder, 4096 px, 32 occluders)
+--- PASS: TestShadowMultiPerf (0.02s)
+=== RUN   TestShadowLongRunStable
+--- PASS: TestShadowLongRunStable (0.01s)
+=== RUN   TestShadowOffscreenShapes
+--- PASS: TestShadowOffscreenShapes (0.00s)
+PASS

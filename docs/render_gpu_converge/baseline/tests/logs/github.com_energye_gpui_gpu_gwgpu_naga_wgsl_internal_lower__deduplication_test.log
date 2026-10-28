@@ -1,0 +1,11 @@
+=== RUN   TestTypeDeduplication
+--- PASS: TestTypeDeduplication (0.00s)
+=== RUN   TestTypeDeduplicationMultipleStructs
+--- PASS: TestTypeDeduplicationMultipleStructs (0.00s)
+=== RUN   TestTypeDeduplicationMatrices
+    deduplication_test.go:172: Total types: 3
+    deduplication_test.go:174: Type 0:  (ir.MatrixType)
+    deduplication_test.go:174: Type 1: Transforms (ir.StructType)
+    deduplication_test.go:174: Type 2:  (ir.VectorType)
+--- PASS: TestTypeDeduplicationMatrices (0.00s)
+PASS

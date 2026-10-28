@@ -1,0 +1,49 @@
+=== RUN   TestTypeSize
+=== RUN   TestTypeSize/f32
+=== RUN   TestTypeSize/u32
+=== RUN   TestTypeSize/i32
+=== RUN   TestTypeSize/f16
+=== RUN   TestTypeSize/bool
+=== RUN   TestTypeSize/vec2<f32>
+=== RUN   TestTypeSize/vec3<f32>
+=== RUN   TestTypeSize/vec4<f32>
+=== RUN   TestTypeSize/vec2<f16>
+=== RUN   TestTypeSize/mat2x2<f32>
+=== RUN   TestTypeSize/mat3x3<f32>
+=== RUN   TestTypeSize/mat4x4<f32>
+=== RUN   TestTypeSize/mat2x3<f32>
+=== RUN   TestTypeSize/array<f32,4>
+=== RUN   TestTypeSize/array<vec4,10>
+=== RUN   TestTypeSize/array<f32>_dynamic
+=== RUN   TestTypeSize/struct_span=48
+=== RUN   TestTypeSize/pointer
+=== RUN   TestTypeSize/atomic<u32>
+=== RUN   TestTypeSize/sampler
+=== RUN   TestTypeSize/texture_2d
+=== RUN   TestTypeSize/nested_struct_span=64
+=== RUN   TestTypeSize/out_of_bounds_handle
+--- PASS: TestTypeSize (0.00s)
+    --- PASS: TestTypeSize/f32 (0.00s)
+    --- PASS: TestTypeSize/u32 (0.00s)
+    --- PASS: TestTypeSize/i32 (0.00s)
+    --- PASS: TestTypeSize/f16 (0.00s)
+    --- PASS: TestTypeSize/bool (0.00s)
+    --- PASS: TestTypeSize/vec2<f32> (0.00s)
+    --- PASS: TestTypeSize/vec3<f32> (0.00s)
+    --- PASS: TestTypeSize/vec4<f32> (0.00s)
+    --- PASS: TestTypeSize/vec2<f16> (0.00s)
+    --- PASS: TestTypeSize/mat2x2<f32> (0.00s)
+    --- PASS: TestTypeSize/mat3x3<f32> (0.00s)
+    --- PASS: TestTypeSize/mat4x4<f32> (0.00s)
+    --- PASS: TestTypeSize/mat2x3<f32> (0.00s)
+    --- PASS: TestTypeSize/array<f32,4> (0.00s)
+    --- PASS: TestTypeSize/array<vec4,10> (0.00s)
+    --- PASS: TestTypeSize/array<f32>_dynamic (0.00s)
+    --- PASS: TestTypeSize/struct_span=48 (0.00s)
+    --- PASS: TestTypeSize/pointer (0.00s)
+    --- PASS: TestTypeSize/atomic<u32> (0.00s)
+    --- PASS: TestTypeSize/sampler (0.00s)
+    --- PASS: TestTypeSize/texture_2d (0.00s)
+    --- PASS: TestTypeSize/nested_struct_span=64 (0.00s)
+    --- PASS: TestTypeSize/out_of_bounds_handle (0.00s)
+PASS

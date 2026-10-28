@@ -1,0 +1,11 @@
+=== RUN   TestTextInputInterfaceTable
+--- PASS: TestTextInputInterfaceTable (0.00s)
+=== RUN   TestPushIMEDrain
+--- PASS: TestPushIMEDrain (0.00s)
+=== RUN   TestWlImeNilSafety
+--- PASS: TestWlImeNilSafety (0.00s)
+=== RUN   TestContentPurposeValuesStable
+--- PASS: TestContentPurposeValuesStable (0.00s)
+=== RUN   TestWlImeSetContentTypeNilSafety
+--- PASS: TestWlImeSetContentTypeNilSafety (0.00s)
+PASS

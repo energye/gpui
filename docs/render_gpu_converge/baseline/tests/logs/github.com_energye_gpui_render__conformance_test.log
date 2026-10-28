@@ -1,0 +1,6 @@
+=== RUN   TestConformanceDualBackend
+--- PASS: TestConformanceDualBackend (0.81s)
+=== RUN   TestConformanceInner
+    conformance_test.go:126: inner harness; driven by TestConformanceDualBackend
+--- SKIP: TestConformanceInner (0.00s)
+PASS

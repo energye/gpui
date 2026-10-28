@@ -1,0 +1,4 @@
+=== RUN   TestTryLoadDefaultFace_SingleSystemFont
+    font_multiface_test.go:16: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+--- PASS: TestTryLoadDefaultFace_SingleSystemFont (0.00s)
+PASS

@@ -1,0 +1,19 @@
+=== RUN   TestDamageTracker_FirstFrame
+--- PASS: TestDamageTracker_FirstFrame (0.00s)
+=== RUN   TestDamageTracker_NothingChanged
+--- PASS: TestDamageTracker_NothingChanged (0.00s)
+=== RUN   TestDamageTracker_ObjectMoved
+--- PASS: TestDamageTracker_ObjectMoved (0.00s)
+=== RUN   TestDamageTracker_ObjectAdded
+--- PASS: TestDamageTracker_ObjectAdded (0.00s)
+=== RUN   TestDamageTracker_ObjectRemoved
+--- PASS: TestDamageTracker_ObjectRemoved (0.00s)
+=== RUN   TestDamageTracker_ObjectResized
+--- PASS: TestDamageTracker_ObjectResized (0.00s)
+=== RUN   TestDamageTracker_EmptyScene
+--- PASS: TestDamageTracker_EmptyScene (0.00s)
+=== RUN   TestDamageTracker_AllObjectsReplaced
+--- PASS: TestDamageTracker_AllObjectsReplaced (0.00s)
+=== RUN   TestDamageTracker_Reset
+--- PASS: TestDamageTracker_Reset (0.00s)
+PASS

@@ -1,0 +1,4 @@
+=== RUN   TestRenderText_MeasureWidthMatchesShapedLayout
+    measure_shaping_test.go:16: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 20
+--- PASS: TestRenderText_MeasureWidthMatchesShapedLayout (0.01s)
+PASS

@@ -1,0 +1,11 @@
+=== RUN   TestShaderCache_HitReturnsIdenticalGLSL
+--- PASS: TestShaderCache_HitReturnsIdenticalGLSL (0.00s)
+=== RUN   TestShaderCache_KeysDifferByVersionEntryLayout
+--- PASS: TestShaderCache_KeysDifferByVersionEntryLayout (0.00s)
+=== RUN   TestShaderCache_CloneIsolation
+--- PASS: TestShaderCache_CloneIsolation (0.00s)
+=== RUN   TestShaderCache_EmptySourceNotCached
+--- PASS: TestShaderCache_EmptySourceNotCached (0.00s)
+=== RUN   TestCloneTranslationInfo_DeepCopy
+--- PASS: TestCloneTranslationInfo_DeepCopy (0.00s)
+PASS

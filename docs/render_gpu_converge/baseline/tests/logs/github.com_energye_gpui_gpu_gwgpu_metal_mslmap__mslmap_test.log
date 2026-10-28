@@ -1,0 +1,17 @@
+=== RUN   TestDefaultOptionsLeaveSizesBufferUnbound
+=== PAUSE TestDefaultOptionsLeaveSizesBufferUnbound
+=== RUN   TestOptionsBindSizesBuffer
+=== PAUSE TestOptionsBindSizesBuffer
+=== RUN   TestOptionsPreserveOrdinaryBindings
+=== PAUSE TestOptionsPreserveOrdinaryBindings
+=== RUN   TestOptionsRejectsOutOfRangeSlot
+=== PAUSE TestOptionsRejectsOutOfRangeSlot
+=== CONT  TestDefaultOptionsLeaveSizesBufferUnbound
+=== CONT  TestOptionsPreserveOrdinaryBindings
+--- PASS: TestDefaultOptionsLeaveSizesBufferUnbound (0.00s)
+=== CONT  TestOptionsBindSizesBuffer
+--- PASS: TestOptionsPreserveOrdinaryBindings (0.00s)
+=== CONT  TestOptionsRejectsOutOfRangeSlot
+--- PASS: TestOptionsRejectsOutOfRangeSlot (0.00s)
+--- PASS: TestOptionsBindSizesBuffer (0.00s)
+PASS

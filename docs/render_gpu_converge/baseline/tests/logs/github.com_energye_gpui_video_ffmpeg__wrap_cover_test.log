@@ -1,0 +1,122 @@
+=== RUN   TestWrapCover
+[SWR @ 0x1139f180] Option 'nosuchopt' not found
+[SWR @ 0x1139f180] Invalid separator(s) found.--- PASS: TestWrapCover (0.01s)
+=== RUN   TestWrapCoverDemux
+    wrap_cover_test.go:315: GuessFormat(clip.mp4) nil on base lib (base 无复用器, 符合预期)
+    wrap_cover_test.go:440: MatchStreamSpecifier(video vs a): matched (spec 语义以 C 为准)
+    wrap_cover_test.go:594: ReadPartial(空流) 读到数据 (C 行为为准)
+    wrap_cover_test.go:602: Read(空流) 读到数据 (C 行为为准)
+    wrap_cover_test.go:617: ReadToBprint(空流) honest error: ffmpeg: avio_read_to_bprint: Cannot allocate memory
+    wrap_cover_test.go:620: Pause honest error (非网络流): ffmpeg: avio_pause: Function not implemented
+    wrap_cover_test.go:633: SeekTime honest negative: -38
+--- PASS: TestWrapCoverDemux (0.01s)
+=== RUN   TestWrapCoverCodec
+    wrap_cover_test.go:992: AvcodecDefaultGetBuffer2(bare frame) = -22 (要宽高格式先配好才给缓冲, 以 C 为准)
+--- PASS: TestWrapCoverCodec (0.01s)
+=== RUN   TestWrapCoverFilter
+Failed to process command. Continuing with existing parameters.
+    wrap_cover_test.go:1344: ConfigLinks(未连线滤镜) success (C 语义为准)
+[AVFilterGraph @ 0x11488780] No such filter: 'no-such-filter-xyz!!!'
+[AVFilterGraph @ 0x11488780] Error creating filters
+[AVFilterGraph @ 0x11488780] No such filter: 'no-such-filter-xyz!!!'
+[AVFilterGraph @ 0x11488780] Error creating filters
+[AVFilterGraph @ 0x11488780] No such filter: 'no-such-filter-xyz!!!'
+[AVFilterGraph @ 0x11488780] Error processing filtergraph: Filter not found
+[AVFilterGraph @ 0x11488780] No such filter: 'no-such-filter-xyz!!!'
+--- PASS: TestWrapCoverFilter (0.01s)
+=== RUN   TestWrapCoverDemuxFree
+[AVFormatContext @ 0x1148a800] Requested output format 'mp4' is not known.
+    wrap_cover_test.go:1550: AllocOutputContext2(mp4) on base honest error: ffmpeg: avformat_alloc_output_context2: Invalid argument
+--- PASS: TestWrapCoverDemuxFree (0.00s)
+=== RUN   TestWrapCoverBufferMem
+    wrap_cover_test.go:1741: IsWritable(shared) false (以 C 为准: 共享不可写)
+    wrap_cover_test.go:1810: PoolOpaque nil (默认分配器不透出, 以 C 为准)
+--- PASS: TestWrapCoverBufferMem (0.00s)
+=== RUN   TestWrapCoverFramePacket
+--- PASS: TestWrapCoverFramePacket (0.00s)
+=== RUN   TestWrapCoverMath
+--- PASS: TestWrapCoverMath (0.00s)
+=== RUN   TestWrapCoverErrorLog
+--- PASS: TestWrapCoverErrorLog (0.00s)
+=== RUN   TestWrapCoverMediaDesc
+Cannot find color 'no-such-color-xyz'
+[Eval @ 0x7ffea13348d8] Undefined constant or missing '(' in 'no-such-ratio-xyz'
+Unable to parse timecode, syntax: hh:mm:ss[:;.]ff
+--- PASS: TestWrapCoverMediaDesc (0.00s)
+=== RUN   TestWrapCoverDeviceIO
+    wrap_cover_test.go:3116: ListDevices(file ctx) err (ENOSYS 符合预期, 以 C 为准): ffmpeg: avdevice_list_devices: Function not implemented
+    wrap_cover_test.go:3127: AppToDev(file ctx) err (ENOSYS 符合预期): ffmpeg: avdevice_app_to_dev_control_message: Function not implemented
+    wrap_cover_test.go:3132: DevToApp(no cb) err (ENOSYS 符合预期): ffmpeg: avdevice_dev_to_app_control_message: Function not implemented
+    wrap_cover_test.go:3140: ListInputSources(bogus) err (EINVAL 符合预期): ffmpeg: avdevice_list_input_sources: Invalid argument
+[AVFormatContext @ 0x113dee40] Requested output format 'no-such-device-xyz' is not known.
+    wrap_cover_test.go:3150: ListOutputSinks(bogus) err (EINVAL 符合预期): ffmpeg: avdevice_list_output_sinks: Invalid argument
+[mpeg4 @ 0x1140e5c0] No support for codec mpeg4 profile 0.
+[mpeg4 @ 0x1140e5c0] Failed setup for format vaapi: hwaccel initialisation returned error.
+--- PASS: TestWrapCoverDeviceIO (0.02s)
+=== RUN   TestWrapCoverDictOpt
+    wrap_cover_test.go:3373: GetArraySize(side_data_prefer_packet) = 1 (以 C 为准)
+    wrap_cover_test.go:3518: GetQ(time_base) = 0/1 (以 C 为准)
+    wrap_cover_test.go:3543: ChildNext(swr) nil (swr 无子类, 以 C 为准)
+    wrap_cover_test.go:3547: ChildClassIterate(swr) nil (swr 无子类, 以 C 为准)
+    wrap_cover_test.go:3556: IsDefault(in_sample_rate) false (刚 Set 过, 以 C 为准)
+    wrap_cover_test.go:3561: IsDefaultByName(out_sample_fmt) = false (以 C 为准)
+--- PASS: TestWrapCoverDictOpt (0.01s)
+=== RUN   TestWrapCoverScaleResample
+    wrap_cover_test.go:3708: IsEndianSupported(rgba) false (以 C 为准)
+[IMGUTILS @ 0x7ffea1334a30] Picture size 0x0 is invalid
+--- PASS: TestWrapCoverScaleResample (0.00s)
+=== RUN   TestWrapCoverCryptoTables
+    wrap_cover_test.go:4432: GetTimeBaseQ = {Num:1 Den:1000000} (静态非常量, 以 C 为准)
+--- PASS: TestWrapCoverCryptoTables (0.00s)
+=== RUN   TestWrapCoverCryptoStr
+l2-11 log probe00000000  01 02 03                                        ...
+--- PASS: TestWrapCoverCryptoStr (0.00s)
+=== RUN   TestWrapCoverCryptoHash
+--- PASS: TestWrapCoverCryptoHash (0.00s)
+=== RUN   TestWrapCoverCryptoHw
+    wrap_cover_test.go:5524: D3d11vaAllocContext nil (非 Windows 构建 C 回 NULL, 以 C 为准)
+    wrap_cover_test.go:5529: QsvAllocContext nil (无 QSV 构建 C 回 NULL, 以 C 为准)
+    wrap_cover_test.go:5534: MediacodecAllocContext nil (非安卓构建 C 回 NULL, 以 C 为准)
+    wrap_cover_test.go:5539: VkFrameAlloc nil (无 Vulkan 构建 C 回 NULL, 以 C 为准)
+    wrap_cover_test.go:5545: VkfmtFromPixfmt(yuv420p) nil (无 Vulkan 构建, C 为准)
+    wrap_cover_test.go:5567: VdpauGetSurfaceParameters = -38 (未绑定是常态, C 为准)
+    wrap_cover_test.go:5582: MediacodecDefaultInit: ffmpeg: av_mediacodec_default_init: Function not implemented (无 JNI 是常态, C 为准)
+    wrap_cover_test.go:5597: MediacodecReleaseBuffer(released) = ffmpeg: av_mediacodec_release_buffer: Function not implemented (无 JNI 构建回 ENOSYS, C 为准)
+    wrap_cover_test.go:5608: MediacodecRenderBufferAtTime(released) = ffmpeg: av_mediacodec_render_buffer_at_time: Function not implemented (无 JNI 构建回 ENOSYS, C 为准)
+[mpeg4 @ 0x780ba0002340] Codec not subtitle decoder
+    wrap_cover_test.go:5637: AvcodecDecodeSubtitle2(mpeg4 ctx): ffmpeg: avcodec_decode_subtitle2: Invalid argument (非字幕解码器是常态, C 为准)
+[AVHWFramesContext @ 0x780ba002bc00] The hardware pixel format '(null)' is not supported by the device type 'VAAPI'
+[mpeg4 @ 0x780ba0068540] No support for codec mpeg4 profile 0.
+--- PASS: TestWrapCoverCryptoHw (0.01s)
+=== RUN   TestWrapCoverImageSamples
+--- PASS: TestWrapCoverImageSamples (0.00s)
+=== RUN   TestWrapCoverXformParse
+[Eval @ 0x780bbf1f9b38] Undefined constant or missing '(' in '*2'
+[Eval @ 0x780bbf1f9b88] Undefined constant or missing '(' in '*2'
+[Vorbis parser @ 0x780ba0001800] Extradata corrupt.
+--- PASS: TestWrapCoverXformParse (0.00s)
+=== RUN   TestWrapCoverSideData
+[AVFormatContext @ 0x780ba0041040] Requested output format 'mp4' is not known.
+    wrap_cover_test.go:6689: base 无复用器, 流挂边数据真路延 full 版验证: ffmpeg: avformat_alloc_output_context2: Invalid argument
+--- PASS: TestWrapCoverSideData (0.00s)
+=== RUN   TestWrapCoverMuxRW
+    wrap_cover_test.go:6766: iterate: demux=183 filter=41 mux=0 (base 复用器极少是常态, C 为准)
+[mpeg4 @ 0x780ba0022340] Key 'no-such-opt-xyz' not found.
+[AVFormatContext @ 0x780ba00268c0] Requested output format 'mp4' is not known.
+    wrap_cover_test.go:6919: base 无复用器, 写路真路延 full 版验证: ffmpeg: avformat_alloc_output_context2: Invalid argument
+--- PASS: TestWrapCoverMuxRW (0.01s)
+=== RUN   TestWrapCoverThreadMisc
+    wrap_cover_test.go:7092: device in-audio: 1
+    wrap_cover_test.go:7092: device in-video: 1
+    wrap_cover_test.go:7092: device out-audio: 0
+    wrap_cover_test.go:7092: device out-video: 0
+    wrap_cover_test.go:7103: OutputAudioDeviceNext(nil) nil (本机构建无音频输出设备，以 C 为准)
+    wrap_cover_test.go:7106: OutputVideoDeviceNext(nil) nil (本机构建无视频输出设备，以 C 为准)
+stream #0:
+  keyframe=0
+  duration=0.000
+  dts=N/A  pts=N/A
+  size=0
+00000000  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................
+--- PASS: TestWrapCoverThreadMisc (0.00s)
+PASS

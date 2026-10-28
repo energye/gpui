@@ -1,0 +1,7 @@
+=== RUN   TestWGPUErrorIs
+--- PASS: TestWGPUErrorIs (0.00s)
+=== RUN   TestWGPUErrorAs
+--- PASS: TestWGPUErrorAs (0.00s)
+=== RUN   TestWGPUErrorString
+--- PASS: TestWGPUErrorString (0.00s)
+PASS

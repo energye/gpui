@@ -1,0 +1,155 @@
+=== RUN   TestIntegration_ConstantScalarValues
+=== RUN   TestIntegration_ConstantScalarValues/bool_true
+=== RUN   TestIntegration_ConstantScalarValues/bool_false
+=== RUN   TestIntegration_ConstantScalarValues/i32_positive
+=== RUN   TestIntegration_ConstantScalarValues/i32_negative
+=== RUN   TestIntegration_ConstantScalarValues/u32
+--- PASS: TestIntegration_ConstantScalarValues (0.00s)
+    --- PASS: TestIntegration_ConstantScalarValues/bool_true (0.00s)
+    --- PASS: TestIntegration_ConstantScalarValues/bool_false (0.00s)
+    --- PASS: TestIntegration_ConstantScalarValues/i32_positive (0.00s)
+    --- PASS: TestIntegration_ConstantScalarValues/i32_negative (0.00s)
+    --- PASS: TestIntegration_ConstantScalarValues/u32 (0.00s)
+=== RUN   TestIntegration_ConstantZeroValue
+--- PASS: TestIntegration_ConstantZeroValue (0.00s)
+=== RUN   TestIntegration_ConstantComposite
+--- PASS: TestIntegration_ConstantComposite (0.00s)
+=== RUN   TestIntegration_TypeInnerName
+=== RUN   TestIntegration_TypeInnerName/scalar_bool
+=== RUN   TestIntegration_TypeInnerName/scalar_f16
+=== RUN   TestIntegration_TypeInnerName/scalar_f32
+=== RUN   TestIntegration_TypeInnerName/scalar_i32
+=== RUN   TestIntegration_TypeInnerName/scalar_u32
+=== RUN   TestIntegration_TypeInnerName/vec2_f32
+=== RUN   TestIntegration_TypeInnerName/mat4x4_f32
+--- PASS: TestIntegration_TypeInnerName (0.00s)
+    --- PASS: TestIntegration_TypeInnerName/scalar_bool (0.00s)
+    --- PASS: TestIntegration_TypeInnerName/scalar_f16 (0.00s)
+    --- PASS: TestIntegration_TypeInnerName/scalar_f32 (0.00s)
+    --- PASS: TestIntegration_TypeInnerName/scalar_i32 (0.00s)
+    --- PASS: TestIntegration_TypeInnerName/scalar_u32 (0.00s)
+    --- PASS: TestIntegration_TypeInnerName/vec2_f32 (0.00s)
+    --- PASS: TestIntegration_TypeInnerName/mat4x4_f32 (0.00s)
+=== RUN   TestIntegration_TypeInnerToMSL_Unsupported
+--- PASS: TestIntegration_TypeInnerToMSL_Unsupported (0.00s)
+=== RUN   TestIntegration_TypeSize
+=== RUN   TestIntegration_TypeSize/scalar_f32
+=== RUN   TestIntegration_TypeSize/vec4_f32
+=== RUN   TestIntegration_TypeSize/mat4x4_f32
+=== RUN   TestIntegration_TypeSize/atomic_u32
+=== RUN   TestIntegration_TypeSize/struct
+--- PASS: TestIntegration_TypeSize (0.00s)
+    --- PASS: TestIntegration_TypeSize/scalar_f32 (0.00s)
+    --- PASS: TestIntegration_TypeSize/vec4_f32 (0.00s)
+    --- PASS: TestIntegration_TypeSize/mat4x4_f32 (0.00s)
+    --- PASS: TestIntegration_TypeSize/atomic_u32 (0.00s)
+    --- PASS: TestIntegration_TypeSize/struct (0.00s)
+=== RUN   TestIntegration_TypeSize_Array
+--- PASS: TestIntegration_TypeSize_Array (0.00s)
+=== RUN   TestIntegration_TypeSize_DynamicArray
+--- PASS: TestIntegration_TypeSize_DynamicArray (0.00s)
+=== RUN   TestIntegration_TypeSize_OutOfRange
+--- PASS: TestIntegration_TypeSize_OutOfRange (0.00s)
+=== RUN   TestIntegration_TypeSize_MatrixVariants
+=== RUN   TestIntegration_TypeSize_MatrixVariants/mat2x2
+=== RUN   TestIntegration_TypeSize_MatrixVariants/mat3x3
+=== RUN   TestIntegration_TypeSize_MatrixVariants/mat2x3
+=== RUN   TestIntegration_TypeSize_MatrixVariants/mat4x2
+--- PASS: TestIntegration_TypeSize_MatrixVariants (0.00s)
+    --- PASS: TestIntegration_TypeSize_MatrixVariants/mat2x2 (0.00s)
+    --- PASS: TestIntegration_TypeSize_MatrixVariants/mat3x3 (0.00s)
+    --- PASS: TestIntegration_TypeSize_MatrixVariants/mat2x3 (0.00s)
+    --- PASS: TestIntegration_TypeSize_MatrixVariants/mat4x2 (0.00s)
+=== RUN   TestIntegration_ImageTypes
+=== RUN   TestIntegration_ImageTypes/storage_rgba8unorm_write
+=== RUN   TestIntegration_ImageTypes/storage_rgba32float_write
+=== RUN   TestIntegration_ImageTypes/storage_r32uint_write
+=== RUN   TestIntegration_ImageTypes/storage_r32sint_write
+--- PASS: TestIntegration_ImageTypes (0.00s)
+    --- PASS: TestIntegration_ImageTypes/storage_rgba8unorm_write (0.00s)
+    --- PASS: TestIntegration_ImageTypes/storage_rgba32float_write (0.00s)
+    --- PASS: TestIntegration_ImageTypes/storage_r32uint_write (0.00s)
+    --- PASS: TestIntegration_ImageTypes/storage_r32sint_write (0.00s)
+=== RUN   TestIntegration_TextureStore
+--- PASS: TestIntegration_TextureStore (0.00s)
+=== RUN   TestIntegration_TextureLoad
+--- PASS: TestIntegration_TextureLoad (0.00s)
+=== RUN   TestIntegration_AddressSpaceNames
+--- PASS: TestIntegration_AddressSpaceNames (0.00s)
+=== RUN   TestIntegration_AtomicTypeNames
+=== RUN   TestIntegration_AtomicTypeNames/u32
+=== RUN   TestIntegration_AtomicTypeNames/i32
+--- PASS: TestIntegration_AtomicTypeNames (0.00s)
+    --- PASS: TestIntegration_AtomicTypeNames/u32 (0.00s)
+    --- PASS: TestIntegration_AtomicTypeNames/i32 (0.00s)
+=== RUN   TestIntegration_PackedVectorTypeName
+=== RUN   TestIntegration_PackedVectorTypeName/f32
+=== RUN   TestIntegration_PackedVectorTypeName/f16
+=== RUN   TestIntegration_PackedVectorTypeName/i32
+=== RUN   TestIntegration_PackedVectorTypeName/u32
+--- PASS: TestIntegration_PackedVectorTypeName (0.00s)
+    --- PASS: TestIntegration_PackedVectorTypeName/f32 (0.00s)
+    --- PASS: TestIntegration_PackedVectorTypeName/f16 (0.00s)
+    --- PASS: TestIntegration_PackedVectorTypeName/i32 (0.00s)
+    --- PASS: TestIntegration_PackedVectorTypeName/u32 (0.00s)
+=== RUN   TestIntegration_ShouldPackMember
+=== RUN   TestIntegration_ShouldPackMember/scalar_no_pack
+=== RUN   TestIntegration_ShouldPackMember/vec3_pack
+=== RUN   TestIntegration_ShouldPackMember/vec4_no_pack
+=== RUN   TestIntegration_ShouldPackMember/vec2_no_pack
+--- PASS: TestIntegration_ShouldPackMember (0.00s)
+    --- PASS: TestIntegration_ShouldPackMember/scalar_no_pack (0.00s)
+    --- PASS: TestIntegration_ShouldPackMember/vec3_pack (0.00s)
+    --- PASS: TestIntegration_ShouldPackMember/vec4_no_pack (0.00s)
+    --- PASS: TestIntegration_ShouldPackMember/vec2_no_pack (0.00s)
+=== RUN   TestIntegration_TextureLoadWithLod
+--- PASS: TestIntegration_TextureLoadWithLod (0.00s)
+=== RUN   TestIntegration_StorageFormats
+=== RUN   TestIntegration_StorageFormats/rgba8unorm
+=== RUN   TestIntegration_StorageFormats/rgba32float
+=== RUN   TestIntegration_StorageFormats/r32uint
+=== RUN   TestIntegration_StorageFormats/r32sint
+--- PASS: TestIntegration_StorageFormats (0.00s)
+    --- PASS: TestIntegration_StorageFormats/rgba8unorm (0.00s)
+    --- PASS: TestIntegration_StorageFormats/rgba32float (0.00s)
+    --- PASS: TestIntegration_StorageFormats/r32uint (0.00s)
+    --- PASS: TestIntegration_StorageFormats/r32sint (0.00s)
+=== RUN   TestIntegration_TextureSampleWithOffset
+--- PASS: TestIntegration_TextureSampleWithOffset (0.00s)
+=== RUN   TestIntegration_TextureSampleBias
+--- PASS: TestIntegration_TextureSampleBias (0.00s)
+=== RUN   TestIntegration_TextureSampleGrad
+--- PASS: TestIntegration_TextureSampleGrad (0.00s)
+=== RUN   TestIntegration_VectorLengthFunctions
+--- PASS: TestIntegration_VectorLengthFunctions (0.00s)
+=== RUN   TestIntegration_CrossProduct
+--- PASS: TestIntegration_CrossProduct (0.00s)
+=== RUN   TestIntegration_HalfPrecisionOps
+--- PASS: TestIntegration_HalfPrecisionOps (0.00s)
+=== RUN   TestIntegration_FirstLeadingBit
+--- PASS: TestIntegration_FirstLeadingBit (0.00s)
+=== RUN   TestIntegration_FirstTrailingBit
+--- PASS: TestIntegration_FirstTrailingBit (0.00s)
+=== RUN   TestIntegration_ExtractBits
+--- PASS: TestIntegration_ExtractBits (0.00s)
+=== RUN   TestIntegration_InsertBits
+--- PASS: TestIntegration_InsertBits (0.00s)
+=== RUN   TestIntegration_MatrixOps
+--- PASS: TestIntegration_MatrixOps (0.00s)
+=== RUN   TestIntegration_DeepStructAccess
+--- PASS: TestIntegration_DeepStructAccess (0.00s)
+=== RUN   TestIntegration_ArrayAccess
+--- PASS: TestIntegration_ArrayAccess (0.00s)
+=== RUN   TestIntegration_BoundsCheckRestrict
+--- PASS: TestIntegration_BoundsCheckRestrict (0.00s)
+=== RUN   TestIntegration_BoundsCheckUnchecked
+--- PASS: TestIntegration_BoundsCheckUnchecked (0.00s)
+=== RUN   TestIntegration_TextureSampleCompareLevel
+--- PASS: TestIntegration_TextureSampleCompareLevel (0.00s)
+=== RUN   TestIntegration_BitwiseNot
+--- PASS: TestIntegration_BitwiseNot (0.00s)
+=== RUN   TestIntegration_DepthTextureCube
+--- PASS: TestIntegration_DepthTextureCube (0.00s)
+=== RUN   TestIntegration_Texture1D
+--- PASS: TestIntegration_Texture1D (0.00s)
+PASS

@@ -1,0 +1,5 @@
+=== RUN   TestScope_DefaultCtxMatchesCases
+--- PASS: TestScope_DefaultCtxMatchesCases (0.00s)
+=== RUN   TestScope_ProviderUseAspect
+--- PASS: TestScope_ProviderUseAspect (0.00s)
+PASS

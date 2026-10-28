@@ -1,0 +1,3 @@
+=== RUN   TestGPUContextRegistry_AbandonClears
+--- PASS: TestGPUContextRegistry_AbandonClears (0.00s)
+PASS

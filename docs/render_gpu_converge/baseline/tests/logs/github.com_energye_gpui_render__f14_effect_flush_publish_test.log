@@ -1,0 +1,5 @@
+=== RUN   TestF14_EffectSurface_FlushGPU_PublishesGPUFilterTexture
+--- PASS: TestF14_EffectSurface_FlushGPU_PublishesGPUFilterTexture (0.29s)
+=== RUN   TestF14_EffectSurface_Off_StillCPUReadback
+--- PASS: TestF14_EffectSurface_Off_StillCPUReadback (0.00s)
+PASS

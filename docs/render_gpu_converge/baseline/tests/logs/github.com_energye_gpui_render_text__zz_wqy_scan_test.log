@@ -1,0 +1,11 @@
+=== RUN   TestScanWqyCJK3000
+    zz_wqy_scan_test.go:67: wqy px10: bad=0/3000 npt=0 nptR=0 first=[]
+    zz_wqy_scan_test.go:68: wqy px10: badR=[]
+    zz_wqy_scan_test.go:67: wqy px12: bad=0/3000 npt=0 nptR=0 first=[]
+    zz_wqy_scan_test.go:68: wqy px12: badR=[]
+    zz_wqy_scan_test.go:67: wqy px14: bad=0/3000 npt=0 nptR=0 first=[]
+    zz_wqy_scan_test.go:68: wqy px14: badR=[]
+    zz_wqy_scan_test.go:67: wqy px16: bad=0/3000 npt=0 nptR=0 first=[]
+    zz_wqy_scan_test.go:68: wqy px16: badR=[]
+--- PASS: TestScanWqyCJK3000 (4.03s)
+PASS

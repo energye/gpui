@@ -1,0 +1,5 @@
+=== RUN   TestEncoderMethods_SkipNativeWhenLost
+--- PASS: TestEncoderMethods_SkipNativeWhenLost (0.00s)
+=== RUN   TestCreateTextureErrorCleanup_SkipsNativeWhenLostMessage
+--- PASS: TestCreateTextureErrorCleanup_SkipsNativeWhenLostMessage (0.00s)
+PASS

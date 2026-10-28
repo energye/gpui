@@ -1,0 +1,6 @@
+=== RUN   TestStringViewToString_Cases
+--- PASS: TestStringViewToString_Cases (0.00s)
+=== RUN   TestAdapterInfo_StringFieldsSurviveFree
+    adapter_info_test.go:68: vendor="Intel open-source Mesa driver" architecture="" device="Intel(R) HD Graphics 520 (SKL GT2)" description="Mesa 23.2.1-1ubuntu3.1~22.04.4"
+--- PASS: TestAdapterInfo_StringFieldsSurviveFree (0.19s)
+PASS

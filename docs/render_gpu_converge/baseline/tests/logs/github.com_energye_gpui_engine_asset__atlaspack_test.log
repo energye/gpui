@@ -1,0 +1,24 @@
+=== RUN   TestAtlasPackFromCases
+--- PASS: TestAtlasPackFromCases (0.00s)
+=== RUN   TestAtlasPackEdgesNoCrash
+--- PASS: TestAtlasPackEdgesNoCrash (0.00s)
+=== RUN   TestAtlasPackPixelsWithinTolerance
+    atlaspack_test.go:456: atlas-tolerance: maxDiff=0 bad=0/544 tolerance=0 sheet=27x27
+--- PASS: TestAtlasPackPixelsWithinTolerance (0.00s)
+=== RUN   TestAtlasPackPerfPack
+    atlaspack_test.go:501: atlas-pack: 50 reps 64 sprites 16x16 into 256x86 in 5.107324ms (102.1 us/pack)
+    atlaspack_test.go:512: atlas-encode: 64 sprites 6341B in 213.709µs
+--- PASS: TestAtlasPackPerfPack (0.01s)
+=== RUN   TestAtlasPackLongRunStable
+--- PASS: TestAtlasPackLongRunStable (0.02s)
+=== RUN   TestAtlasPackOffscreenGolden
+    atlaspack_test.go:705: atlas-golden: 4 sprites area=544 sheet=27x27=729 util=74.6% pad=1
+--- PASS: TestAtlasPackOffscreenGolden (0.00s)
+=== RUN   TestAtlasS65PackOptions
+--- PASS: TestAtlasS65PackOptions (0.00s)
+=== RUN   TestAtlasS65SeamTransparent
+    atlaspack_test.go:902: s65-seam: maxDiff=0 sheet=50x22 gutter=2 extrude=1
+--- PASS: TestAtlasS65SeamTransparent (0.00s)
+=== RUN   TestAtlasS65RotatedUV
+--- PASS: TestAtlasS65RotatedUV (0.00s)
+PASS

@@ -1,0 +1,16 @@
+=== RUN   TestOwnParser_ParseIndex_SingleFont
+    parser_collection_test.go:12: no test font found
+--- SKIP: TestOwnParser_ParseIndex_SingleFont (0.00s)
+=== RUN   TestOwnParser_ParseIndex_Collection
+    parser_collection_test.go:24: TTC test requires Windows system fonts
+--- SKIP: TestOwnParser_ParseIndex_Collection (0.00s)
+=== RUN   TestOwnParser_ParseIndex_OutOfRange
+    parser_collection_test.go:56: TTC test requires Windows system fonts
+--- SKIP: TestOwnParser_ParseIndex_OutOfRange (0.00s)
+=== RUN   TestNewFontSourceFromFile_TTC
+    parser_collection_test.go:74: TTC test requires Windows system fonts
+--- SKIP: TestNewFontSourceFromFile_TTC (0.00s)
+=== RUN   TestNewFontSourceFromFile_TTC_WithIndex
+    parser_collection_test.go:99: TTC test requires Windows system fonts
+--- SKIP: TestNewFontSourceFromFile_TTC_WithIndex (0.00s)
+PASS

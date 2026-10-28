@@ -1,0 +1,7 @@
+=== RUN   TestImmediate_IsolatedLayer_OneCard
+--- PASS: TestImmediate_IsolatedLayer_OneCard (0.29s)
+=== RUN   TestImmediate_IsolatedLayer_TwoCards
+--- PASS: TestImmediate_IsolatedLayer_TwoCards (0.02s)
+=== RUN   TestRetained_OpacityBoundaryGroupPixels
+--- PASS: TestRetained_OpacityBoundaryGroupPixels (0.01s)
+PASS

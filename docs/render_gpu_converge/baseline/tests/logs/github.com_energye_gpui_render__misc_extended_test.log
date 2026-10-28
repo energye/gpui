@@ -1,0 +1,77 @@
+=== RUN   TestMatrix_TransformVector
+=== RUN   TestMatrix_TransformVector/identity
+=== RUN   TestMatrix_TransformVector/scale_2x
+=== RUN   TestMatrix_TransformVector/translate_ignored
+=== RUN   TestMatrix_TransformVector/rotation_90deg
+=== RUN   TestMatrix_TransformVector/shear
+--- PASS: TestMatrix_TransformVector (0.00s)
+    --- PASS: TestMatrix_TransformVector/identity (0.00s)
+    --- PASS: TestMatrix_TransformVector/scale_2x (0.00s)
+    --- PASS: TestMatrix_TransformVector/translate_ignored (0.00s)
+    --- PASS: TestMatrix_TransformVector/rotation_90deg (0.00s)
+    --- PASS: TestMatrix_TransformVector/shear (0.00s)
+=== RUN   TestMatrix_TransformVector_NoTranslation
+--- PASS: TestMatrix_TransformVector_NoTranslation (0.00s)
+=== RUN   TestMatrix_Invert_Singular
+--- PASS: TestMatrix_Invert_Singular (0.00s)
+=== RUN   TestMatrix_ScaleFactor_VerticalDominant
+--- PASS: TestMatrix_ScaleFactor_VerticalDominant (0.00s)
+=== RUN   TestRasterizerMode_String
+=== RUN   TestRasterizerMode_String/Auto
+=== RUN   TestRasterizerMode_String/Analytic
+=== RUN   TestRasterizerMode_String/SparseStrips
+=== RUN   TestRasterizerMode_String/TileCompute
+=== RUN   TestRasterizerMode_String/SDF
+=== RUN   TestRasterizerMode_String/Unknown
+--- PASS: TestRasterizerMode_String (0.00s)
+    --- PASS: TestRasterizerMode_String/Auto (0.00s)
+    --- PASS: TestRasterizerMode_String/Analytic (0.00s)
+    --- PASS: TestRasterizerMode_String/SparseStrips (0.00s)
+    --- PASS: TestRasterizerMode_String/TileCompute (0.00s)
+    --- PASS: TestRasterizerMode_String/SDF (0.00s)
+    --- PASS: TestRasterizerMode_String/Unknown (0.00s)
+=== RUN   TestContext_SetRasterizerMode
+--- PASS: TestContext_SetRasterizerMode (0.00s)
+=== RUN   TestContext_SetHexColor
+--- PASS: TestContext_SetHexColor (0.00s)
+=== RUN   TestContext_SetFillRule
+--- PASS: TestContext_SetFillRule (0.00s)
+=== RUN   TestContext_NewSubPath
+--- PASS: TestContext_NewSubPath (0.00s)
+=== RUN   TestContext_TransformPoint
+--- PASS: TestContext_TransformPoint (0.00s)
+=== RUN   TestContext_InvertY
+--- PASS: TestContext_InvertY (0.00s)
+=== RUN   TestContext_RotateAbout
+--- PASS: TestContext_RotateAbout (0.00s)
+=== RUN   TestContext_DrawPoint
+--- PASS: TestContext_DrawPoint (0.00s)
+=== RUN   TestContext_DrawRoundedRectangle
+--- PASS: TestContext_DrawRoundedRectangle (0.00s)
+=== RUN   TestContext_DrawEllipse
+--- PASS: TestContext_DrawEllipse (0.00s)
+=== RUN   TestContext_DrawArc
+--- PASS: TestContext_DrawArc (0.00s)
+=== RUN   TestContext_DrawEllipticalArc
+--- PASS: TestContext_DrawEllipticalArc (0.00s)
+=== RUN   TestContext_DrawRegularPolygon
+--- PASS: TestContext_DrawRegularPolygon (0.00s)
+=== RUN   TestSolveQuadraticOverflow
+--- PASS: TestSolveQuadraticOverflow (0.00s)
+=== RUN   TestSolveQuadratic_LargeCoefficients
+--- PASS: TestSolveQuadratic_LargeCoefficients (0.00s)
+=== RUN   TestQuadBez_Subsegment
+=== RUN   TestQuadBez_Subsegment/first_half
+=== RUN   TestQuadBez_Subsegment/second_half
+=== RUN   TestQuadBez_Subsegment/middle_third
+=== RUN   TestQuadBez_Subsegment/full_range
+=== RUN   TestQuadBez_Subsegment/small_segment
+--- PASS: TestQuadBez_Subsegment (0.00s)
+    --- PASS: TestQuadBez_Subsegment/first_half (0.00s)
+    --- PASS: TestQuadBez_Subsegment/second_half (0.00s)
+    --- PASS: TestQuadBez_Subsegment/middle_third (0.00s)
+    --- PASS: TestQuadBez_Subsegment/full_range (0.00s)
+    --- PASS: TestQuadBez_Subsegment/small_segment (0.00s)
+=== RUN   TestQuadBez_Extrema_Symmetric
+--- PASS: TestQuadBez_Extrema_Symmetric (0.00s)
+PASS

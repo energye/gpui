@@ -1,0 +1,43 @@
+=== RUN   TestRouterRoutesPointerToHandler
+--- PASS: TestRouterRoutesPointerToHandler (0.00s)
+=== RUN   TestRouterRoutesScrollToCallback
+--- PASS: TestRouterRoutesScrollToCallback (0.00s)
+=== RUN   TestRouterKeyModifiersTracked
+--- PASS: TestRouterKeyModifiersTracked (0.00s)
+=== RUN   TestRouterModifiersChangedSyncs
+--- PASS: TestRouterModifiersChangedSyncs (0.00s)
+=== RUN   TestRouterFocusRouting
+--- PASS: TestRouterFocusRouting (0.00s)
+=== RUN   TestRouterTextAndIME
+--- PASS: TestRouterTextAndIME (0.00s)
+=== RUN   TestRouterNilSafety
+--- PASS: TestRouterNilSafety (0.00s)
+=== RUN   TestRouterRoutesTextToEditor
+--- PASS: TestRouterRoutesTextToEditor (0.00s)
+=== RUN   TestRouterRoutesIMEToEditor
+--- PASS: TestRouterRoutesIMEToEditor (0.00s)
+=== RUN   TestRouterPlainKeyTypesIntoEditor
+--- PASS: TestRouterPlainKeyTypesIntoEditor (0.00s)
+=== RUN   TestRouterControlKeyNotTyped
+--- PASS: TestRouterControlKeyNotTyped (0.00s)
+=== RUN   TestRouterKeyDuringComposeNotDoubleInserted
+--- PASS: TestRouterKeyDuringComposeNotDoubleInserted (0.00s)
+=== RUN   TestRouter_IMEAutoSession
+--- PASS: TestRouter_IMEAutoSession (0.00s)
+=== RUN   TestRouter_TextEditorFallback
+--- PASS: TestRouter_TextEditorFallback (0.00s)
+=== RUN   TestRouter_FocusSwitchConfirmsPreedit
+=== RUN   TestRouter_FocusSwitchConfirmsPreedit/click_new_field
+=== RUN   TestRouter_FocusSwitchConfirmsPreedit/blur_then_focus
+--- PASS: TestRouter_FocusSwitchConfirmsPreedit (0.00s)
+    --- PASS: TestRouter_FocusSwitchConfirmsPreedit/click_new_field (0.00s)
+    --- PASS: TestRouter_FocusSwitchConfirmsPreedit/blur_then_focus (0.00s)
+=== RUN   TestRouter_PointerMotionDoesNotSpamIME
+--- PASS: TestRouter_PointerMotionDoesNotSpamIME (0.00s)
+=== RUN   TestRouterOnEventPassthrough
+--- PASS: TestRouterOnEventPassthrough (0.00s)
+=== RUN   TestRouterOnEventDropsNone
+--- PASS: TestRouterOnEventDropsNone (0.00s)
+=== RUN   TestRouterOnEventSkipsHandled
+--- PASS: TestRouterOnEventSkipsHandled (0.00s)
+PASS

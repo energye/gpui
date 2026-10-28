@@ -1,0 +1,23 @@
+=== RUN   TestMipmapSwitchFromCases
+--- PASS: TestMipmapSwitchFromCases (0.00s)
+=== RUN   TestMipmapEdgesNoCrash
+--- PASS: TestMipmapEdgesNoCrash (0.00s)
+=== RUN   TestMipmapPerfSwitch
+    mipmap_test.go:372: tex-switch: 1000 pictures set+get in 822.113µs (len=1000)
+    mipmap_test.go:384: tex-far-view: 20000 level+params in 1.542525ms (77.1 ns/op)
+--- PASS: TestMipmapPerfSwitch (0.00s)
+=== RUN   TestMipmapLongRunStable
+--- PASS: TestMipmapLongRunStable (0.05s)
+=== RUN   TestMipmapOffscreenGolden
+--- PASS: TestMipmapOffscreenGolden (0.00s)
+=== RUN   TestMipmapS65Presets
+    mipmap_test.go:594: s65-presets: realistic={Near:linear Far:linear Mip:linear MaxAniso:4} pixel={Near:nearest Far:nearest Mip:nearest MaxAniso:1}
+--- PASS: TestMipmapS65Presets (0.00s)
+=== RUN   TestMipmapS65AnisoWarning
+2026/10/28 16:55:39 tex.Filter: aniso without mipmap-linear is invalid configuration
+2026/10/28 16:55:39 tex.Filter: aniso masked by nearest sampling is invalid configuration
+2026/10/28 16:55:39 tex.Filter: aniso without mipmap-linear is invalid configuration
+--- PASS: TestMipmapS65AnisoWarning (0.00s)
+=== RUN   TestMipmapS65PixelSnap
+--- PASS: TestMipmapS65PixelSnap (0.00s)
+PASS

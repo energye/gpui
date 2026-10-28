@@ -1,0 +1,5 @@
+=== RUN   TestPresentResize_FullRecoveryWritesEveryBuffer
+--- PASS: TestPresentResize_FullRecoveryWritesEveryBuffer (0.34s)
+=== RUN   TestPresentResize_StormWindowCoversBudgetGap
+--- PASS: TestPresentResize_StormWindowCoversBudgetGap (0.24s)
+PASS

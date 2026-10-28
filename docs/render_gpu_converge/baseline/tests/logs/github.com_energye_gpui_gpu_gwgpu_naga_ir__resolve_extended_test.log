@@ -1,0 +1,169 @@
+=== RUN   TestResolveExpressionType_OutOfRange
+--- PASS: TestResolveExpressionType_OutOfRange (0.00s)
+=== RUN   TestResolveExpressionType_Override
+--- PASS: TestResolveExpressionType_Override (0.00s)
+=== RUN   TestResolveExpressionType_Override_OutOfRange
+--- PASS: TestResolveExpressionType_Override_OutOfRange (0.00s)
+=== RUN   TestResolveExpressionType_ZeroValue
+--- PASS: TestResolveExpressionType_ZeroValue (0.00s)
+=== RUN   TestResolveExpressionType_Compose
+--- PASS: TestResolveExpressionType_Compose (0.00s)
+=== RUN   TestResolveExpressionType_GlobalVariable_HandleSpace
+--- PASS: TestResolveExpressionType_GlobalVariable_HandleSpace (0.00s)
+=== RUN   TestResolveExpressionType_GlobalVariable_NonHandleSpace
+--- PASS: TestResolveExpressionType_GlobalVariable_NonHandleSpace (0.00s)
+=== RUN   TestResolveExpressionType_GlobalVariable_OutOfRange
+--- PASS: TestResolveExpressionType_GlobalVariable_OutOfRange (0.00s)
+=== RUN   TestResolveExpressionType_LocalVariable
+--- PASS: TestResolveExpressionType_LocalVariable (0.00s)
+=== RUN   TestResolveExpressionType_LocalVariable_OutOfRange
+--- PASS: TestResolveExpressionType_LocalVariable_OutOfRange (0.00s)
+=== RUN   TestResolveExpressionType_FunctionArgument_OutOfRange
+--- PASS: TestResolveExpressionType_FunctionArgument_OutOfRange (0.00s)
+=== RUN   TestResolveExpressionType_Load
+--- PASS: TestResolveExpressionType_Load (0.00s)
+=== RUN   TestResolveExpressionType_ArrayLength
+--- PASS: TestResolveExpressionType_ArrayLength (0.00s)
+=== RUN   TestResolveExpressionType_AtomicResult
+--- PASS: TestResolveExpressionType_AtomicResult (0.00s)
+=== RUN   TestResolveExpressionType_SubgroupBallotResult
+--- PASS: TestResolveExpressionType_SubgroupBallotResult (0.00s)
+=== RUN   TestResolveExpressionType_SubgroupOperationResult
+--- PASS: TestResolveExpressionType_SubgroupOperationResult (0.00s)
+=== RUN   TestResolveExpressionType_RayQueryProceedResult
+--- PASS: TestResolveExpressionType_RayQueryProceedResult (0.00s)
+=== RUN   TestResolveExpressionType_RayQueryGetIntersection
+--- PASS: TestResolveExpressionType_RayQueryGetIntersection (0.00s)
+=== RUN   TestResolveExpressionType_RayQueryGetIntersection_NotFound
+--- PASS: TestResolveExpressionType_RayQueryGetIntersection_NotFound (0.00s)
+=== RUN   TestResolveExpressionType_CallResult
+--- PASS: TestResolveExpressionType_CallResult (0.00s)
+=== RUN   TestResolveExpressionType_CallResult_NoReturn
+--- PASS: TestResolveExpressionType_CallResult_NoReturn (0.00s)
+=== RUN   TestResolveExpressionType_CallResult_OutOfRange
+--- PASS: TestResolveExpressionType_CallResult_OutOfRange (0.00s)
+=== RUN   TestResolveExpressionType_Constant_OutOfRange
+--- PASS: TestResolveExpressionType_Constant_OutOfRange (0.00s)
+=== RUN   TestResolveExpressionType_Unary
+--- PASS: TestResolveExpressionType_Unary (0.00s)
+=== RUN   TestResolveExpressionType_Select
+--- PASS: TestResolveExpressionType_Select (0.00s)
+=== RUN   TestResolveExpressionType_Derivative
+--- PASS: TestResolveExpressionType_Derivative (0.00s)
+=== RUN   TestResolveExpressionType_Relational_Vector
+--- PASS: TestResolveExpressionType_Relational_Vector (0.00s)
+=== RUN   TestResolveExpressionType_Relational_AllAny_CollapseToScalar
+--- PASS: TestResolveExpressionType_Relational_AllAny_CollapseToScalar (0.00s)
+=== RUN   TestResolveExpressionType_Relational_Scalar
+--- PASS: TestResolveExpressionType_Relational_Scalar (0.00s)
+=== RUN   TestResolveExpressionType_As_Convert
+--- PASS: TestResolveExpressionType_As_Convert (0.00s)
+=== RUN   TestResolveExpressionType_As_Bitcast
+--- PASS: TestResolveExpressionType_As_Bitcast (0.00s)
+=== RUN   TestResolveExpressionType_As_VectorConvert
+--- PASS: TestResolveExpressionType_As_VectorConvert (0.00s)
+=== RUN   TestResolveExpressionType_Swizzle
+--- PASS: TestResolveExpressionType_Swizzle (0.00s)
+=== RUN   TestResolveExpressionType_Access_Array
+--- PASS: TestResolveExpressionType_Access_Array (0.00s)
+=== RUN   TestResolveExpressionType_Access_Matrix
+--- PASS: TestResolveExpressionType_Access_Matrix (0.00s)
+=== RUN   TestResolveExpressionType_AccessIndex_Struct
+--- PASS: TestResolveExpressionType_AccessIndex_Struct (0.00s)
+=== RUN   TestResolveExpressionType_Binary_Multiply_MatVec
+--- PASS: TestResolveExpressionType_Binary_Multiply_MatVec (0.00s)
+=== RUN   TestResolveExpressionType_Binary_Multiply_MatMat
+--- PASS: TestResolveExpressionType_Binary_Multiply_MatMat (0.00s)
+=== RUN   TestResolveExpressionType_Binary_VectorComparison
+--- PASS: TestResolveExpressionType_Binary_VectorComparison (0.00s)
+=== RUN   TestResolveExpressionType_Binary_ScalarVectorBroadcast
+--- PASS: TestResolveExpressionType_Binary_ScalarVectorBroadcast (0.00s)
+=== RUN   TestResolveExpressionType_Math_Dot4Packed
+--- PASS: TestResolveExpressionType_Math_Dot4Packed (0.00s)
+=== RUN   TestResolveExpressionType_Math_PackUnpack
+--- PASS: TestResolveExpressionType_Math_PackUnpack (0.00s)
+=== RUN   TestResolveExpressionType_ImageLoad_StorageTexture
+--- PASS: TestResolveExpressionType_ImageLoad_StorageTexture (0.00s)
+=== RUN   TestResolveExpressionType_ImageSample_DepthTexture
+--- PASS: TestResolveExpressionType_ImageSample_DepthTexture (0.00s)
+=== RUN   TestResolveExpressionType_ImageSample_Gather
+--- PASS: TestResolveExpressionType_ImageSample_Gather (0.00s)
+=== RUN   TestResolveExpressionType_ImageQuery_Size
+--- PASS: TestResolveExpressionType_ImageQuery_Size (0.00s)
+=== RUN   TestResolveExpressionType_ImageQuery_Size_1D
+--- PASS: TestResolveExpressionType_ImageQuery_Size_1D (0.00s)
+=== RUN   TestResolveExpressionType_ImageQuery_NumLevels
+--- PASS: TestResolveExpressionType_ImageQuery_NumLevels (0.00s)
+=== RUN   TestFindNamedType
+--- PASS: TestFindNamedType (0.00s)
+=== RUN   TestResolveInner
+=== RUN   TestResolveInner/with_handle
+=== RUN   TestResolveInner/with_value
+=== RUN   TestResolveInner/with_out-of-range_handle_uses_value
+--- PASS: TestResolveInner (0.00s)
+    --- PASS: TestResolveInner/with_handle (0.00s)
+    --- PASS: TestResolveInner/with_value (0.00s)
+    --- PASS: TestResolveInner/with_out-of-range_handle_uses_value (0.00s)
+=== RUN   TestResolveLiteralType_Exported
+=== RUN   TestResolveLiteralType_Exported/f64
+=== RUN   TestResolveLiteralType_Exported/f16
+=== RUN   TestResolveLiteralType_Exported/u64
+=== RUN   TestResolveLiteralType_Exported/i64
+--- PASS: TestResolveLiteralType_Exported (0.00s)
+    --- PASS: TestResolveLiteralType_Exported/f64 (0.00s)
+    --- PASS: TestResolveLiteralType_Exported/f16 (0.00s)
+    --- PASS: TestResolveLiteralType_Exported/u64 (0.00s)
+    --- PASS: TestResolveLiteralType_Exported/i64 (0.00s)
+=== RUN   TestFindOrInferScalarHandle
+--- PASS: TestFindOrInferScalarHandle (0.00s)
+=== RUN   TestModfResultStructName
+=== RUN   TestModfResultStructName/scalar_f32
+=== RUN   TestModfResultStructName/vec2_f32
+=== RUN   TestModfResultStructName/vec3_f64
+=== RUN   TestModfResultStructName/vec4_f16
+--- PASS: TestModfResultStructName (0.00s)
+    --- PASS: TestModfResultStructName/scalar_f32 (0.00s)
+    --- PASS: TestModfResultStructName/vec2_f32 (0.00s)
+    --- PASS: TestModfResultStructName/vec3_f64 (0.00s)
+    --- PASS: TestModfResultStructName/vec4_f16 (0.00s)
+=== RUN   TestFrexpResultStructName
+=== RUN   TestFrexpResultStructName/scalar_f32
+=== RUN   TestFrexpResultStructName/vec2_f32
+=== RUN   TestFrexpResultStructName/vec4_f64
+--- PASS: TestFrexpResultStructName (0.00s)
+    --- PASS: TestFrexpResultStructName/scalar_f32 (0.00s)
+    --- PASS: TestFrexpResultStructName/vec2_f32 (0.00s)
+    --- PASS: TestFrexpResultStructName/vec4_f64 (0.00s)
+=== RUN   TestResolveAtomicPointerScalar
+--- PASS: TestResolveAtomicPointerScalar (0.00s)
+=== RUN   TestResolveAtomicPointerScalar_ScalarType
+--- PASS: TestResolveAtomicPointerScalar_ScalarType (0.00s)
+=== RUN   TestResolveAtomicPointerScalar_Error
+--- PASS: TestResolveAtomicPointerScalar_Error (0.00s)
+=== RUN   TestResolveExpressionType_MathModf
+--- PASS: TestResolveExpressionType_MathModf (0.00s)
+=== RUN   TestResolveExpressionType_MathFrexp
+--- PASS: TestResolveExpressionType_MathFrexp (0.00s)
+=== RUN   TestResolveExpressionType_MathCountBits
+--- PASS: TestResolveExpressionType_MathCountBits (0.00s)
+=== RUN   TestFindOrInferVectorHandle
+--- PASS: TestFindOrInferVectorHandle (0.00s)
+=== RUN   TestResolve_AccessIndex_PointerToMatrix_ProducesValuePointer
+--- PASS: TestResolve_AccessIndex_PointerToMatrix_ProducesValuePointer (0.00s)
+=== RUN   TestResolve_AccessIndex_PointerToVector_ProducesValuePointer
+--- PASS: TestResolve_AccessIndex_PointerToVector_ProducesValuePointer (0.00s)
+=== RUN   TestResolve_AccessIndex_ValuePointerVector_ProducesValuePointerScalar
+--- PASS: TestResolve_AccessIndex_ValuePointerVector_ProducesValuePointerScalar (0.00s)
+=== RUN   TestResolve_Load_ValuePointerScalar_ProducesScalar
+--- PASS: TestResolve_Load_ValuePointerScalar_ProducesScalar (0.00s)
+=== RUN   TestResolve_Load_ValuePointerVector_ProducesVector
+--- PASS: TestResolve_Load_ValuePointerVector_ProducesVector (0.00s)
+=== RUN   TestResolve_Access_PointerToMatrix_ProducesValuePointer
+--- PASS: TestResolve_Access_PointerToMatrix_ProducesValuePointer (0.00s)
+=== RUN   TestResolve_AccessIndex_PointerToStruct_ProducesPointerToMember
+--- PASS: TestResolve_AccessIndex_PointerToStruct_ProducesPointerToMember (0.00s)
+=== RUN   TestResolve_Load_PointerToMember_ProducesValue
+--- PASS: TestResolve_Load_PointerToMember_ProducesValue (0.00s)
+=== RUN   TestResolve_FullChain_PointerStructMatrixColumnElement
+--- PASS: TestResolve_FullChain_PointerStructMatrixColumnElement (0.00s)
+PASS

@@ -1,0 +1,12 @@
+=== RUN   TestOpt27_GPUTexBGSlotCache_ReusesView
+--- PASS: TestOpt27_GPUTexBGSlotCache_ReusesView (0.18s)
+=== RUN   TestOpt27_BuildGPUTextureResources_MultiViewBGCache
+    opt27_gputex_bg_cache_test.go:172: build 0: create gpu texture vertex buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+        
+        Caused by:
+          In wgpuDeviceCreateRenderPipeline
+            Error matching ShaderStages(FRAGMENT) shader requirements against the pipeline
+              Shader global ResourceBinding { group: 1, binding: 0 } is not available in the pipeline layout
+                Binding is missing from the pipeline layout
+--- FAIL: TestOpt27_BuildGPUTextureResources_MultiViewBGCache (0.06s)
+FAIL

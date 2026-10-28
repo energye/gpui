@@ -1,0 +1,7 @@
+=== RUN   TestCloneFrameBudget_Independent
+--- PASS: TestCloneFrameBudget_Independent (0.00s)
+=== RUN   TestPipelineApp_InputLatencyFrames
+--- PASS: TestPipelineApp_InputLatencyFrames (0.00s)
+=== RUN   TestPipelineApp_SubmitCounters
+--- PASS: TestPipelineApp_SubmitCounters (0.00s)
+PASS

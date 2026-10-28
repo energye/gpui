@@ -1,0 +1,53 @@
+=== RUN   TestIntegration8_PipelineConstantsWithStore
+--- PASS: TestIntegration8_PipelineConstantsWithStore (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsWithIf
+--- PASS: TestIntegration8_PipelineConstantsWithIf (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsWithLoop
+--- PASS: TestIntegration8_PipelineConstantsWithLoop (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsWithSwitch
+--- PASS: TestIntegration8_PipelineConstantsWithSwitch (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsWithMultipleOverrides
+--- PASS: TestIntegration8_PipelineConstantsWithMultipleOverrides (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsWithCast
+--- PASS: TestIntegration8_PipelineConstantsWithCast (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsWithCall
+--- PASS: TestIntegration8_PipelineConstantsWithCall (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsBias
+--- PASS: TestIntegration8_PipelineConstantsBias (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsGrad
+--- PASS: TestIntegration8_PipelineConstantsGrad (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsAtomic
+--- PASS: TestIntegration8_PipelineConstantsAtomic (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsImageStore
+--- PASS: TestIntegration8_PipelineConstantsImageStore (0.00s)
+=== RUN   TestIntegration8_PipelineConstantsReturn
+--- PASS: TestIntegration8_PipelineConstantsReturn (0.00s)
+=== RUN   TestIntegration8_PrivateVarStructInit
+--- PASS: TestIntegration8_PrivateVarStructInit (0.00s)
+=== RUN   TestIntegration8_MultiplePrivateVars
+--- PASS: TestIntegration8_MultiplePrivateVars (0.00s)
+=== RUN   TestIntegration8_ConstantStruct
+--- PASS: TestIntegration8_ConstantStruct (0.00s)
+=== RUN   TestIntegration8_VertexPullingFloat16
+--- PASS: TestIntegration8_VertexPullingFloat16 (0.00s)
+=== RUN   TestIntegration8_VertexPullingFloat32x4
+--- PASS: TestIntegration8_VertexPullingFloat32x4 (0.00s)
+=== RUN   TestIntegration8_MultisampledTextureRestrict
+--- PASS: TestIntegration8_MultisampledTextureRestrict (0.00s)
+=== RUN   TestIntegration8_LocalVarZeroInit
+--- PASS: TestIntegration8_LocalVarZeroInit (0.00s)
+=== RUN   TestIntegration8_NamedExpressions
+--- PASS: TestIntegration8_NamedExpressions (0.00s)
+=== RUN   TestIntegration8_HalfVecType
+--- PASS: TestIntegration8_HalfVecType (0.00s)
+=== RUN   TestIntegration8_LiteralF16
+--- PASS: TestIntegration8_LiteralF16 (0.00s)
+=== RUN   TestIntegration8_InverseSqrt
+--- PASS: TestIntegration8_InverseSqrt (0.00s)
+=== RUN   TestIntegration8_Ldexp
+--- PASS: TestIntegration8_Ldexp (0.00s)
+=== RUN   TestIntegration8_TextureArrayed2D
+--- PASS: TestIntegration8_TextureArrayed2D (0.00s)
+=== RUN   TestIntegration8_MultipleFunctionCalls
+--- PASS: TestIntegration8_MultipleFunctionCalls (0.00s)
+PASS

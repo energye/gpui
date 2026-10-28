@@ -1,0 +1,43 @@
+=== RUN   TestResolveLiteralType
+=== RUN   TestResolveLiteralType/f32_literal
+=== RUN   TestResolveLiteralType/i32_literal
+=== RUN   TestResolveLiteralType/u32_literal
+=== RUN   TestResolveLiteralType/bool_literal_true
+=== RUN   TestResolveLiteralType/bool_literal_false
+=== RUN   TestResolveLiteralType/abstract_int
+=== RUN   TestResolveLiteralType/abstract_float
+--- PASS: TestResolveLiteralType (0.00s)
+    --- PASS: TestResolveLiteralType/f32_literal (0.00s)
+    --- PASS: TestResolveLiteralType/i32_literal (0.00s)
+    --- PASS: TestResolveLiteralType/u32_literal (0.00s)
+    --- PASS: TestResolveLiteralType/bool_literal_true (0.00s)
+    --- PASS: TestResolveLiteralType/bool_literal_false (0.00s)
+    --- PASS: TestResolveLiteralType/abstract_int (0.00s)
+    --- PASS: TestResolveLiteralType/abstract_float (0.00s)
+=== RUN   TestResolveExpressionType_Constant
+--- PASS: TestResolveExpressionType_Constant (0.00s)
+=== RUN   TestResolveExpressionType_FunctionArgument
+--- PASS: TestResolveExpressionType_FunctionArgument (0.00s)
+=== RUN   TestResolveExpressionType_Splat
+--- PASS: TestResolveExpressionType_Splat (0.00s)
+=== RUN   TestResolveExpressionType_AccessIndex
+--- PASS: TestResolveExpressionType_AccessIndex (0.00s)
+=== RUN   TestResolveExpressionType_Binary
+=== RUN   TestResolveExpressionType_Binary/arithmetic_preserves_type
+=== RUN   TestResolveExpressionType_Binary/comparison_returns_bool
+=== RUN   TestResolveExpressionType_Binary/logical_and_returns_bool
+--- PASS: TestResolveExpressionType_Binary (0.00s)
+    --- PASS: TestResolveExpressionType_Binary/arithmetic_preserves_type (0.00s)
+    --- PASS: TestResolveExpressionType_Binary/comparison_returns_bool (0.00s)
+    --- PASS: TestResolveExpressionType_Binary/logical_and_returns_bool (0.00s)
+=== RUN   TestResolveExpressionType_MathFunctions
+=== RUN   TestResolveExpressionType_MathFunctions/sin_preserves_type
+=== RUN   TestResolveExpressionType_MathFunctions/dot_returns_scalar
+=== RUN   TestResolveExpressionType_MathFunctions/length_returns_f32
+--- PASS: TestResolveExpressionType_MathFunctions (0.00s)
+    --- PASS: TestResolveExpressionType_MathFunctions/sin_preserves_type (0.00s)
+    --- PASS: TestResolveExpressionType_MathFunctions/dot_returns_scalar (0.00s)
+    --- PASS: TestResolveExpressionType_MathFunctions/length_returns_f32 (0.00s)
+=== RUN   TestResolveExpressionType_ImageSample
+--- PASS: TestResolveExpressionType_ImageSample (0.00s)
+PASS

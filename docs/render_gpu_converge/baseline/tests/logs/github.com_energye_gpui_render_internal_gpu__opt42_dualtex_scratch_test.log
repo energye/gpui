@@ -1,0 +1,3 @@
+=== RUN   TestOpt42_DualTexResolveScratchReuse
+--- PASS: TestOpt42_DualTexResolveScratchReuse (0.00s)
+PASS

@@ -1,0 +1,3 @@
+=== RUN   TestNoticeQueue_QueueDropsOldestKeyUpdateOnce
+--- PASS: TestNoticeQueue_QueueDropsOldestKeyUpdateOnce (0.00s)
+PASS

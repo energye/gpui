@@ -1,0 +1,27 @@
+=== RUN   TestRegisterAndBackendFor
+--- PASS: TestRegisterAndBackendFor (0.00s)
+=== RUN   TestRegisteredKindsOrder
+--- PASS: TestRegisteredKindsOrder (0.00s)
+=== RUN   TestRegisterNilRemoves
+--- PASS: TestRegisterNilRemoves (0.00s)
+=== RUN   TestOpenCallsCreate
+--- PASS: TestOpenCallsCreate (0.00s)
+=== RUN   TestOpenDefaults
+--- PASS: TestOpenDefaults (0.00s)
+=== RUN   TestOpenNoBackendErrors
+--- PASS: TestOpenNoBackendErrors (0.00s)
+=== RUN   TestAdoptRoutesByKind
+--- PASS: TestAdoptRoutesByKind (0.00s)
+=== RUN   TestAdoptUnknownKind
+--- PASS: TestAdoptUnknownKind (0.00s)
+=== RUN   TestWindowCloseOnce
+--- PASS: TestWindowCloseOnce (0.00s)
+=== RUN   TestWindowNilSafety
+--- PASS: TestWindowNilSafety (0.00s)
+=== RUN   TestWindowCapabilities
+--- PASS: TestWindowCapabilities (0.00s)
+=== RUN   TestToPlatformKind
+--- PASS: TestToPlatformKind (0.00s)
+=== RUN   TestWindowHostEventPump
+--- PASS: TestWindowHostEventPump (0.00s)
+PASS

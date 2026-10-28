@@ -1,0 +1,28 @@
+=== RUN   TestDbgRasterByteExact
+静 12px: FT位图 12x12 left=0 top=11 | 自研 14x14 bx=-1 by=12 | 逐字节 bad=88/144
+每 12px: FT位图 12x14 left=0 top=12 | 自研 14x16 bx=-1 by=13 | 逐字节 bad=81/168
+合 12px: FT位图 12x13 left=0 top=11 | 自研 14x15 bx=-1 by=12 | 逐字节 bad=71/156
+日 12px: FT位图 8x11 left=2 top=10 | 自研 10x13 bx=1 by=11 | 逐字节 bad=46/88
+田 12px: FT位图 10x11 left=1 top=10 | 自研 12x13 bx=0 by=11 | 逐字节 bad=76/110
+静 16px: FT位图 16x16 left=0 top=14 | 自研 18x18 bx=-1 by=15 | 逐字节 bad=133/256
+每 16px: FT位图 16x16 left=0 top=14 | 自研 18x18 bx=-1 by=15 | 逐字节 bad=110/256
+合 16px: FT位图 16x16 left=0 top=14 | 自研 18x18 bx=-1 by=15 | 逐字节 bad=89/256
+日 16px: FT位图 12x15 left=2 top=13 | 自研 14x17 bx=1 by=14 | 逐字节 bad=76/180
+田 16px: FT位图 14x15 left=1 top=13 | 自研 16x17 bx=0 by=14 | 逐字节 bad=100/210
+静 24px: FT位图 24x24 left=0 top=21 | 自研 26x26 bx=-1 by=22 | 逐字节 bad=215/576
+每 24px: FT位图 24x24 left=0 top=21 | 自研 26x26 bx=-1 by=22 | 逐字节 bad=162/576
+合 24px: FT位图 24x24 left=0 top=21 | 自研 26x26 bx=-1 by=22 | 逐字节 bad=160/576
+日 24px: FT位图 16x22 left=4 top=19 | 自研 18x24 bx=3 by=20 | 逐字节 bad=115/352
+田 24px: FT位图 20x22 left=2 top=19 | 自研 22x24 bx=1 by=20 | 逐字节 bad=155/440
+静 32px: FT位图 30x32 left=1 top=28 | 自研 32x34 bx=0 by=29 | 逐字节 bad=283/960
+每 32px: FT位图 30x32 left=1 top=28 | 自研 32x34 bx=0 by=29 | 逐字节 bad=235/960
+合 32px: FT位图 31x32 left=1 top=28 | 自研 33x34 bx=0 by=29 | 逐字节 bad=208/992
+日 32px: FT位图 22x28 left=5 top=25 | 自研 24x30 bx=4 by=26 | 逐字节 bad=148/616
+田 32px: FT位图 27x28 left=3 top=25 | 自研 29x30 bx=2 by=26 | 逐字节 bad=191/756
+静 48px: FT位图 46x46 left=1 top=41 | 自研 48x48 bx=0 by=42 | 逐字节 bad=427/2116
+每 48px: FT位图 46x46 left=1 top=41 | 自研 48x48 bx=0 by=42 | 逐字节 bad=356/2116
+合 48px: FT位图 46x46 left=1 top=41 | 自研 48x48 bx=0 by=42 | 逐字节 bad=312/2116
+日 48px: FT位图 32x41 left=8 top=37 | 自研 34x43 bx=7 by=38 | 逐字节 bad=220/1312
+田 48px: FT位图 40x42 left=4 top=37 | 自研 42x44 bx=3 by=38 | 逐字节 bad=289/1680
+--- PASS: TestDbgRasterByteExact (1.57s)
+PASS

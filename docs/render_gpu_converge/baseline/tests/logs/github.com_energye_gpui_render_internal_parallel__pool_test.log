@@ -1,0 +1,47 @@
+=== RUN   TestWorkerPool_Create
+--- PASS: TestWorkerPool_Create (0.00s)
+=== RUN   TestWorkerPool_CreateZeroWorkers
+--- PASS: TestWorkerPool_CreateZeroWorkers (0.00s)
+=== RUN   TestWorkerPool_CreateNegativeWorkers
+--- PASS: TestWorkerPool_CreateNegativeWorkers (0.00s)
+=== RUN   TestWorkerPool_ExecuteAll
+--- PASS: TestWorkerPool_ExecuteAll (0.00s)
+=== RUN   TestWorkerPool_ExecuteAll_Order
+--- PASS: TestWorkerPool_ExecuteAll_Order (0.00s)
+=== RUN   TestWorkerPool_ExecuteAll_Empty
+--- PASS: TestWorkerPool_ExecuteAll_Empty (0.00s)
+=== RUN   TestWorkerPool_ExecuteAll_Single
+--- PASS: TestWorkerPool_ExecuteAll_Single (0.00s)
+=== RUN   TestWorkerPool_ExecuteAsync
+--- PASS: TestWorkerPool_ExecuteAsync (0.00s)
+=== RUN   TestWorkerPool_ExecuteAsync_Empty
+--- PASS: TestWorkerPool_ExecuteAsync_Empty (0.00s)
+=== RUN   TestWorkerPool_Submit
+--- PASS: TestWorkerPool_Submit (0.00s)
+=== RUN   TestWorkerPool_Submit_Nil
+--- PASS: TestWorkerPool_Submit_Nil (0.00s)
+=== RUN   TestWorkerPool_Close
+--- PASS: TestWorkerPool_Close (0.00s)
+=== RUN   TestWorkerPool_CloseIdempotent
+--- PASS: TestWorkerPool_CloseIdempotent (0.00s)
+=== RUN   TestWorkerPool_CloseWithPendingWork
+    pool_test.go:261: Completed 100 tasks before pool closed
+--- PASS: TestWorkerPool_CloseWithPendingWork (0.00s)
+=== RUN   TestWorkerPool_OperationsAfterClose
+--- PASS: TestWorkerPool_OperationsAfterClose (0.05s)
+=== RUN   TestWorkerPool_Concurrent
+--- PASS: TestWorkerPool_Concurrent (0.00s)
+=== RUN   TestWorkerPool_WorkStealing
+    pool_test.go:362: Elapsed time: 30.618166ms (work stealing should help)
+--- PASS: TestWorkerPool_WorkStealing (0.03s)
+=== RUN   TestWorkerPool_NoGoroutineLeak
+--- PASS: TestWorkerPool_NoGoroutineLeak (0.15s)
+=== RUN   TestWorkerPool_ManySmallTasks
+--- PASS: TestWorkerPool_ManySmallTasks (0.01s)
+=== RUN   TestWorkerPool_SingleWorker
+--- PASS: TestWorkerPool_SingleWorker (0.00s)
+=== RUN   TestWorkerPool_ManyWorkers
+--- PASS: TestWorkerPool_ManyWorkers (0.00s)
+=== RUN   TestWorkerPool_QueuedWork
+--- PASS: TestWorkerPool_QueuedWork (0.00s)
+PASS

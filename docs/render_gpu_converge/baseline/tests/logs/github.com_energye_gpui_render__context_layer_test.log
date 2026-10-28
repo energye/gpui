@@ -1,0 +1,19 @@
+=== RUN   TestPushPopLayer
+--- PASS: TestPushPopLayer (0.18s)
+=== RUN   TestNestedLayers
+--- PASS: TestNestedLayers (0.00s)
+=== RUN   TestLayerCompositing
+--- PASS: TestLayerCompositing (0.00s)
+=== RUN   TestPopWithoutPush
+--- PASS: TestPopWithoutPush (0.00s)
+=== RUN   TestLayerOpacityClamping
+--- PASS: TestLayerOpacityClamping (0.00s)
+=== RUN   TestLayerClearTransparent
+--- PASS: TestLayerClearTransparent (0.00s)
+=== RUN   TestMultipleLayerCycles
+--- PASS: TestMultipleLayerCycles (0.00s)
+=== RUN   TestSetBlendMode
+--- PASS: TestSetBlendMode (0.00s)
+=== RUN   TestLayerPartialAlphaComposite
+--- PASS: TestLayerPartialAlphaComposite (0.11s)
+PASS

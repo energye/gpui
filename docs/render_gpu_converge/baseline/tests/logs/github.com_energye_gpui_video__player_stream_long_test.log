@@ -1,0 +1,35 @@
+=== RUN   TestStreamPathPlaysToEnd
+--- PASS: TestStreamPathPlaysToEnd (0.53s)
+=== RUN   TestStreamSeekMidGOP
+    player_stream_long_test.go:179: seek travelling (background still decoding)
+--- PASS: TestStreamSeekMidGOP (0.28s)
+=== RUN   TestStreamSeekWhileDecoding
+--- PASS: TestStreamSeekWhileDecoding (0.05s)
+=== RUN   TestStreamLoopWrap
+--- PASS: TestStreamLoopWrap (0.97s)
+=== RUN   TestStreamPauseFreezes
+--- PASS: TestStreamPauseFreezes (0.03s)
+=== RUN   TestStreamDropStale
+--- PASS: TestStreamDropStale (1.53s)
+=== RUN   TestStreamHTTPFullPlay
+    player_stream_long_test.go:378: http long: gets=2 ranges=2
+--- PASS: TestStreamHTTPFullPlay (0.52s)
+=== RUN   TestStreamSeekBackward
+--- PASS: TestStreamSeekBackward (0.04s)
+=== RUN   TestStreamTruncatedMidway
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7bf6d40f7640] Packet corrupt (stream = 0, dts = 239616).
+[h264 @ 0x7bf6d43829c0] Invalid NAL unit size (835 > 136).
+[h264 @ 0x7bf6d43829c0] missing picture in access unit with size 140
+[h264 @ 0x7bf6d42b0a80] Invalid NAL unit size (835 > 136).
+[h264 @ 0x7bf6d42b0a80] Error splitting the input into NAL units.
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7bf6d40f7640] stream 0, offset 0x228db: partial file
+    player_stream_long_test.go:472: cut play: shown=117 concealed=0 fault=""
+--- PASS: TestStreamTruncatedMidway (0.31s)
+=== RUN   TestStreamSeekWithFullQueueNoConsumer
+--- PASS: TestStreamSeekWithFullQueueNoConsumer (1.23s)
+=== RUN   TestStreamSeekCompanions
+    player_stream_long_test.go:545: seek travelling (background still decoding)
+--- PASS: TestStreamSeekCompanions (0.29s)
+=== RUN   TestStreamOpenMissingAndJunk
+--- PASS: TestStreamOpenMissingAndJunk (0.00s)
+PASS

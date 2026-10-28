@@ -1,0 +1,25 @@
+=== RUN   TestR1_SentinelDoubleSetText
+--- PASS: TestR1_SentinelDoubleSetText (0.00s)
+=== RUN   TestR1_MixedCJK200
+--- PASS: TestR1_MixedCJK200 (0.00s)
+=== RUN   TestR1_SurrogateCount1
+--- PASS: TestR1_SurrogateCount1 (0.00s)
+=== RUN   TestR1_SurroundingCenter4
+--- PASS: TestR1_SurroundingCenter4 (0.00s)
+=== RUN   TestR1_BatchNest3
+--- PASS: TestR1_BatchNest3 (0.00s)
+=== RUN   TestR1_Utf16Roundtrip
+--- PASS: TestR1_Utf16Roundtrip (0.00s)
+=== RUN   TestR1_UpdateNoop
+--- PASS: TestR1_UpdateNoop (0.00s)
+=== RUN   TestR1_EditableReject
+--- PASS: TestR1_EditableReject (0.00s)
+=== RUN   TestR1_AddCodePoint
+--- PASS: TestR1_AddCodePoint (0.00s)
+=== RUN   TestR1_BatchShouldSkipDedup
+--- PASS: TestR1_BatchShouldSkipDedup (0.00s)
+=== RUN   TestR1_Long5000Perf
+--- PASS: TestR1_Long5000Perf (0.01s)
+=== RUN   TestR1_AffinityCarry
+--- PASS: TestR1_AffinityCarry (0.00s)
+PASS

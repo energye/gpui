@@ -1,0 +1,15 @@
+=== RUN   TestEmboldenOutline_GrowsSquareKeepsAdvance
+--- PASS: TestEmboldenOutline_GrowsSquareKeepsAdvance (0.00s)
+=== RUN   TestEmboldenOutline_HoleShrinks
+--- PASS: TestEmboldenOutline_HoleShrinks (0.00s)
+=== RUN   TestEmboldenOutline_Real14pxGlyphUsesOutlineStrength
+--- PASS: TestEmboldenOutline_Real14pxGlyphUsesOutlineStrength (0.00s)
+=== RUN   TestEmboldenOutline_14And15pxBelowLegacyDilation
+--- PASS: TestEmboldenOutline_14And15pxBelowLegacyDilation (0.00s)
+=== RUN   TestEmboldenOutline_CFFGlyphGrows
+--- PASS: TestEmboldenOutline_CFFGlyphGrows (0.00s)
+=== RUN   TestRasterizeBoldVariants_GrowWithoutAdvanceChange
+--- PASS: TestRasterizeBoldVariants_GrowWithoutAdvanceChange (0.00s)
+=== RUN   TestEmboldenOutline_NilAndEmpty
+--- PASS: TestEmboldenOutline_NilAndEmpty (0.00s)
+PASS

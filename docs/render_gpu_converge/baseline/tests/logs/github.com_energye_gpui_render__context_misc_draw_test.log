@@ -1,0 +1,15 @@
+=== RUN   TestDrawColorFillsClipAndPreservesState
+--- PASS: TestDrawColorFillsClipAndPreservesState (0.00s)
+=== RUN   TestDrawPaintUsesBrushClipAndPreservesPath
+--- PASS: TestDrawPaintUsesBrushClipAndPreservesPath (0.00s)
+=== RUN   TestClipBoundsLocalNestedAndTransformed
+--- PASS: TestClipBoundsLocalNestedAndTransformed (0.00s)
+=== RUN   TestDrawParagraphDrawsLinesAtOrigin
+--- PASS: TestDrawParagraphDrawsLinesAtOrigin (0.01s)
+=== RUN   TestDrawShadowDrawsBlurredOffsetSilhouetteOnly
+--- PASS: TestDrawShadowDrawsBlurredOffsetSilhouetteOnly (0.03s)
+=== RUN   TestIsolatedLayerUsesPhysicalSurfaceOnHiDPI
+--- PASS: TestIsolatedLayerUsesPhysicalSurfaceOnHiDPI (0.30s)
+=== RUN   TestDrawColorAdvancedBlendUsesLayer
+--- PASS: TestDrawColorAdvancedBlendUsesLayer (0.00s)
+PASS

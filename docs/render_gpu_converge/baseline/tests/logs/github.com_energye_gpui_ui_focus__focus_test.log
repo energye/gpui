@@ -1,0 +1,26 @@
+=== RUN   TestFocus_UniquePrimary
+--- PASS: TestFocus_UniquePrimary (0.00s)
+=== RUN   TestFocus_UnregisterClearsPrimary
+--- PASS: TestFocus_UnregisterClearsPrimary (0.00s)
+=== RUN   TestFocus_TabOrder_Wraps
+--- PASS: TestFocus_TabOrder_Wraps (0.00s)
+=== RUN   TestFocus_TabIndexOrder
+--- PASS: TestFocus_TabIndexOrder (0.00s)
+=== RUN   TestFocus_OnKey_SpaceEnter
+--- PASS: TestFocus_OnKey_SpaceEnter (0.00s)
+=== RUN   TestFocus_ChangeDoesNotLayout
+--- PASS: TestFocus_ChangeDoesNotLayout (0.00s)
+=== RUN   TestFocus_PointerDownRequestsFocus
+--- PASS: TestFocus_PointerDownRequestsFocus (0.00s)
+=== RUN   TestFocus_KeyWithNoPrimary
+    focus_test.go:198: tab with no focusables should be unconsumed
+--- FAIL: TestFocus_KeyWithNoPrimary (0.00s)
+=== RUN   TestFocus_DisabledSkipped
+--- PASS: TestFocus_DisabledSkipped (0.00s)
+=== RUN   TestFocus_RingRect
+--- PASS: TestFocus_RingRect (0.00s)
+=== RUN   TestFocus_ObserverTransitions
+--- PASS: TestFocus_ObserverTransitions (0.00s)
+=== RUN   TestFocus_NodeTarget
+--- PASS: TestFocus_NodeTarget (0.00s)
+FAIL

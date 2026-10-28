@@ -1,0 +1,84 @@
+=== RUN   TestDirtyRegion_Create
+=== RUN   TestDirtyRegion_Create/valid_small
+=== RUN   TestDirtyRegion_Create/valid_large
+=== RUN   TestDirtyRegion_Create/valid_non-square
+=== RUN   TestDirtyRegion_Create/valid_single
+=== RUN   TestDirtyRegion_Create/invalid_zero_x
+=== RUN   TestDirtyRegion_Create/invalid_zero_y
+=== RUN   TestDirtyRegion_Create/invalid_negative_x
+=== RUN   TestDirtyRegion_Create/invalid_negative_y
+=== RUN   TestDirtyRegion_Create/invalid_both_zero
+--- PASS: TestDirtyRegion_Create (0.00s)
+    --- PASS: TestDirtyRegion_Create/valid_small (0.00s)
+    --- PASS: TestDirtyRegion_Create/valid_large (0.00s)
+    --- PASS: TestDirtyRegion_Create/valid_non-square (0.00s)
+    --- PASS: TestDirtyRegion_Create/valid_single (0.00s)
+    --- PASS: TestDirtyRegion_Create/invalid_zero_x (0.00s)
+    --- PASS: TestDirtyRegion_Create/invalid_zero_y (0.00s)
+    --- PASS: TestDirtyRegion_Create/invalid_negative_x (0.00s)
+    --- PASS: TestDirtyRegion_Create/invalid_negative_y (0.00s)
+    --- PASS: TestDirtyRegion_Create/invalid_both_zero (0.00s)
+=== RUN   TestDirtyRegion_Mark
+--- PASS: TestDirtyRegion_Mark (0.00s)
+=== RUN   TestDirtyRegion_MarkOutOfBounds
+--- PASS: TestDirtyRegion_MarkOutOfBounds (0.00s)
+=== RUN   TestDirtyRegion_MarkRect
+=== RUN   TestDirtyRegion_MarkRect/single_tile_exact
+=== RUN   TestDirtyRegion_MarkRect/two_tiles_horizontal
+=== RUN   TestDirtyRegion_MarkRect/four_tiles
+=== RUN   TestDirtyRegion_MarkRect/all_tiles
+=== RUN   TestDirtyRegion_MarkRect/zero_width
+=== RUN   TestDirtyRegion_MarkRect/negative_width
+=== RUN   TestDirtyRegion_MarkRect/partially_outside_left
+=== RUN   TestDirtyRegion_MarkRect/completely_outside
+--- PASS: TestDirtyRegion_MarkRect (0.00s)
+    --- PASS: TestDirtyRegion_MarkRect/single_tile_exact (0.00s)
+    --- PASS: TestDirtyRegion_MarkRect/two_tiles_horizontal (0.00s)
+    --- PASS: TestDirtyRegion_MarkRect/four_tiles (0.00s)
+    --- PASS: TestDirtyRegion_MarkRect/all_tiles (0.00s)
+    --- PASS: TestDirtyRegion_MarkRect/zero_width (0.00s)
+    --- PASS: TestDirtyRegion_MarkRect/negative_width (0.00s)
+    --- PASS: TestDirtyRegion_MarkRect/partially_outside_left (0.00s)
+    --- PASS: TestDirtyRegion_MarkRect/completely_outside (0.00s)
+=== RUN   TestDirtyRegion_MarkAll
+=== RUN   TestDirtyRegion_MarkAll/small_grid
+=== RUN   TestDirtyRegion_MarkAll/non-multiple_of_64
+=== RUN   TestDirtyRegion_MarkAll/large_grid
+=== RUN   TestDirtyRegion_MarkAll/single_tile
+=== RUN   TestDirtyRegion_MarkAll/exactly_64_tiles
+=== RUN   TestDirtyRegion_MarkAll/exactly_128_tiles
+--- PASS: TestDirtyRegion_MarkAll (0.00s)
+    --- PASS: TestDirtyRegion_MarkAll/small_grid (0.00s)
+    --- PASS: TestDirtyRegion_MarkAll/non-multiple_of_64 (0.00s)
+    --- PASS: TestDirtyRegion_MarkAll/large_grid (0.00s)
+    --- PASS: TestDirtyRegion_MarkAll/single_tile (0.00s)
+    --- PASS: TestDirtyRegion_MarkAll/exactly_64_tiles (0.00s)
+    --- PASS: TestDirtyRegion_MarkAll/exactly_128_tiles (0.00s)
+=== RUN   TestDirtyRegion_Clear
+--- PASS: TestDirtyRegion_Clear (0.00s)
+=== RUN   TestDirtyRegion_IsDirty
+--- PASS: TestDirtyRegion_IsDirty (0.00s)
+=== RUN   TestDirtyRegion_IsEmpty
+--- PASS: TestDirtyRegion_IsEmpty (0.00s)
+=== RUN   TestDirtyRegion_Count
+--- PASS: TestDirtyRegion_Count (0.00s)
+=== RUN   TestDirtyRegion_GetAndClear
+--- PASS: TestDirtyRegion_GetAndClear (0.00s)
+=== RUN   TestDirtyRegion_ForEachDirty
+--- PASS: TestDirtyRegion_ForEachDirty (0.00s)
+=== RUN   TestDirtyRegion_Resize
+--- PASS: TestDirtyRegion_Resize (0.00s)
+=== RUN   TestDirtyRegion_LargeGrid
+--- PASS: TestDirtyRegion_LargeGrid (0.00s)
+=== RUN   TestDirtyRegion_SingleTile
+--- PASS: TestDirtyRegion_SingleTile (0.00s)
+=== RUN   TestDirtyRegion_NonSquare
+--- PASS: TestDirtyRegion_NonSquare (0.00s)
+=== RUN   TestDirtyRegion_ConcurrentMark
+    dirty_test.go:508: Concurrent mark: 10000 dirty tiles
+--- PASS: TestDirtyRegion_ConcurrentMark (0.00s)
+=== RUN   TestDirtyRegion_ConcurrentMarkAndClear
+--- PASS: TestDirtyRegion_ConcurrentMarkAndClear (0.00s)
+=== RUN   TestDirtyRegion_ConcurrentGetAndClear
+--- PASS: TestDirtyRegion_ConcurrentGetAndClear (0.00s)
+PASS

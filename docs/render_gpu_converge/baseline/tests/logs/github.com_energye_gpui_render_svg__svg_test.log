@@ -1,0 +1,135 @@
+=== RUN   TestParseSVGRoot
+--- PASS: TestParseSVGRoot (0.00s)
+=== RUN   TestParsePathElement
+--- PASS: TestParsePathElement (0.00s)
+=== RUN   TestParseCircleElement
+--- PASS: TestParseCircleElement (0.00s)
+=== RUN   TestParseRectElement
+--- PASS: TestParseRectElement (0.00s)
+=== RUN   TestParsePolygonElement
+--- PASS: TestParsePolygonElement (0.00s)
+=== RUN   TestParseGroupWithTransform
+--- PASS: TestParseGroupWithTransform (0.00s)
+=== RUN   TestParsePathTransform
+--- PASS: TestParsePathTransform (0.00s)
+=== RUN   TestParseColorHex
+=== RUN   TestParseColorHex/6-digit_hex
+=== RUN   TestParseColorHex/3-digit_hex
+=== RUN   TestParseColorHex/8-digit_hex
+=== RUN   TestParseColorHex/none
+=== RUN   TestParseColorHex/empty
+=== RUN   TestParseColorHex/named_black
+=== RUN   TestParseColorHex/named_white
+=== RUN   TestParseColorHex/named_red
+--- PASS: TestParseColorHex (0.00s)
+    --- PASS: TestParseColorHex/6-digit_hex (0.00s)
+    --- PASS: TestParseColorHex/3-digit_hex (0.00s)
+    --- PASS: TestParseColorHex/8-digit_hex (0.00s)
+    --- PASS: TestParseColorHex/none (0.00s)
+    --- PASS: TestParseColorHex/empty (0.00s)
+    --- PASS: TestParseColorHex/named_black (0.00s)
+    --- PASS: TestParseColorHex/named_white (0.00s)
+    --- PASS: TestParseColorHex/named_red (0.00s)
+=== RUN   TestParseColorRGB
+--- PASS: TestParseColorRGB (0.00s)
+=== RUN   TestParseColorRGBA
+--- PASS: TestParseColorRGBA (0.00s)
+=== RUN   TestParseColorError
+--- PASS: TestParseColorError (0.00s)
+=== RUN   TestParseTransformArgs
+=== RUN   TestParseTransformArgs/comma-separated
+=== RUN   TestParseTransformArgs/space-separated
+=== RUN   TestParseTransformArgs/mixed
+=== RUN   TestParseTransformArgs/three_args
+=== RUN   TestParseTransformArgs/single
+--- PASS: TestParseTransformArgs (0.00s)
+    --- PASS: TestParseTransformArgs/comma-separated (0.00s)
+    --- PASS: TestParseTransformArgs/space-separated (0.00s)
+    --- PASS: TestParseTransformArgs/mixed (0.00s)
+    --- PASS: TestParseTransformArgs/three_args (0.00s)
+    --- PASS: TestParseTransformArgs/single (0.00s)
+=== RUN   TestRenderCloseIcon
+--- PASS: TestRenderCloseIcon (0.00s)
+=== RUN   TestRenderSearchIcon
+--- PASS: TestRenderSearchIcon (0.00s)
+=== RUN   TestRenderRefreshIconWithTransform
+--- PASS: TestRenderRefreshIconWithTransform (0.00s)
+=== RUN   TestRenderBackIconWithNestedTransforms
+--- PASS: TestRenderBackIconWithNestedTransforms (0.00s)
+=== RUN   TestRenderExecuteIconPolygon
+--- PASS: TestRenderExecuteIconPolygon (0.00s)
+=== RUN   TestRenderCommitIcon
+--- PASS: TestRenderCommitIcon (0.00s)
+=== RUN   TestRenderProblemsIconMixed
+--- PASS: TestRenderProblemsIconMixed (0.00s)
+=== RUN   TestRenderWithColorOverride
+--- PASS: TestRenderWithColorOverride (0.00s)
+=== RUN   TestRenderMultipleSizes
+--- PASS: TestRenderMultipleSizes (0.00s)
+=== RUN   TestRenderInheritedFillNoneWithoutStroke
+--- PASS: TestRenderInheritedFillNoneWithoutStroke (0.00s)
+=== RUN   TestRenderWithColorOverridePreservesNone
+--- PASS: TestRenderWithColorOverridePreservesNone (0.00s)
+=== RUN   TestParseViewBox
+=== RUN   TestParseViewBox/standard
+=== RUN   TestParseViewBox/with_offset
+=== RUN   TestParseViewBox/comma-separated
+=== RUN   TestParseViewBox/13x13
+=== RUN   TestParseViewBox/invalid
+--- PASS: TestParseViewBox (0.00s)
+    --- PASS: TestParseViewBox/standard (0.00s)
+    --- PASS: TestParseViewBox/with_offset (0.00s)
+    --- PASS: TestParseViewBox/comma-separated (0.00s)
+    --- PASS: TestParseViewBox/13x13 (0.00s)
+    --- PASS: TestParseViewBox/invalid (0.00s)
+=== RUN   TestParseInvalidXML
+--- PASS: TestParseInvalidXML (0.00s)
+=== RUN   TestParseEmptySVG
+--- PASS: TestParseEmptySVG (0.00s)
+=== RUN   TestParseNoViewBox
+--- PASS: TestParseNoViewBox (0.00s)
+=== RUN   TestParseRootPercentDimensions
+--- PASS: TestParseRootPercentDimensions (0.00s)
+=== RUN   TestParseInvalidRootDimensionRejected
+--- PASS: TestParseInvalidRootDimensionRejected (0.00s)
+=== RUN   TestParseChildPercentLengthRejected
+--- PASS: TestParseChildPercentLengthRejected (0.00s)
+=== RUN   TestRenderZeroSize
+--- PASS: TestRenderZeroSize (0.00s)
+=== RUN   TestParseUnsupportedElementsSkipped
+--- PASS: TestParseUnsupportedElementsSkipped (0.00s)
+=== RUN   TestParseEllipseElement
+--- PASS: TestParseEllipseElement (0.00s)
+=== RUN   TestParseLineElement
+--- PASS: TestParseLineElement (0.00s)
+=== RUN   TestParsePolylineElement
+--- PASS: TestParsePolylineElement (0.00s)
+=== RUN   TestRenderEllipse
+--- PASS: TestRenderEllipse (0.00s)
+=== RUN   TestRenderLine
+--- PASS: TestRenderLine (0.00s)
+=== RUN   TestRenderPolyline
+--- PASS: TestRenderPolyline (0.00s)
+=== RUN   TestDocumentReuse
+--- PASS: TestDocumentReuse (0.00s)
+=== RUN   TestDocumentString
+--- PASS: TestDocumentString (0.00s)
+=== RUN   TestFillRuleEvenOdd
+--- PASS: TestFillRuleEvenOdd (0.00s)
+=== RUN   TestRenderAllRealIcons
+=== RUN   TestRenderAllRealIcons/close
+=== RUN   TestRenderAllRealIcons/search
+=== RUN   TestRenderAllRealIcons/refresh
+=== RUN   TestRenderAllRealIcons/back
+=== RUN   TestRenderAllRealIcons/execute
+=== RUN   TestRenderAllRealIcons/commit
+=== RUN   TestRenderAllRealIcons/problems
+--- PASS: TestRenderAllRealIcons (0.00s)
+    --- PASS: TestRenderAllRealIcons/close (0.00s)
+    --- PASS: TestRenderAllRealIcons/search (0.00s)
+    --- PASS: TestRenderAllRealIcons/refresh (0.00s)
+    --- PASS: TestRenderAllRealIcons/back (0.00s)
+    --- PASS: TestRenderAllRealIcons/execute (0.00s)
+    --- PASS: TestRenderAllRealIcons/commit (0.00s)
+    --- PASS: TestRenderAllRealIcons/problems (0.00s)
+PASS

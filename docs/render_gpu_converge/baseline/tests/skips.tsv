@@ -1,0 +1,239 @@
+github.com/energye/gpui/gpu/gwgpu/gles/gl	const_test.go	-	windows only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	behavior_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	compute_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	conv_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	encoder_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	icb_indexed_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	icb_pipeline_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	indirect_count_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	main_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	objc_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	stub_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	surface_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/metal	texture_copy_test.go	-	darwin only; not built on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	dxcvalidator_windows_test.go	-	build tag `windows` excludes it on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_GoldenBlobPasses	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_BadPartCount_TooMany	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_BadPartCount_Zero	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_MalformedPartHeader	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_MalformedPartHeader_SizeOverrun	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_MissingDXILPart	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_MissingPSV0	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_EmptyEntryName	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_InvalidStageByte	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_MalformedPSV0_TooShort	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_MissingISGOSG_GraphicsStage	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	TestPreCheck_CorpusSmoke	no tmp/*.dxil fixtures available
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck	bitcheck_test.go	TestCheck_NagaFixture	skipping: cannot read ../../../tmp/min1_final.dxil: open ../../../tmp/min1_final.dxil: no such file or directory
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck	bitcheck_test.go	TestCheck_DXCFixture	skipping: cannot read ../../../tmp/dxc_trivial_vs.dxil: open ../../../tmp/dxc_trivial_vs.dxil: no such file or directory
+github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck	bitcheck_test.go	TestCheck_CorpusSmoke	no tmp/*.dxil fixtures present
+github.com/energye/gpui/gpu/gwgpu/naga/ir	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_xcrun_test.go	-	build tag `darwin` excludes it on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	expressions_test.go	TestMSL_AbstractTypesVarFull	shader file not found: open ../snapshot/testdata/in/abstract-types-var.wgsl: no such file or directory
+github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/hal	bench_cross_backend_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/hal	bench_raytracing_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/hal/noop	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/shader	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/shader/glsl/internal/codegen	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	dxcvalidator_windows_test.go	-	build tag `windows` excludes it on linux/amd64
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_GoldenBlobPasses	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_BadPartCount_TooMany	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_BadPartCount_Zero	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_MalformedPartHeader	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_MalformedPartHeader_SizeOverrun	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_MissingDXILPart	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_MissingPSV0	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_EmptyEntryName	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_InvalidStageByte	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_MalformedPSV0_TooShort	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	TestPreCheck_MissingISGOSG_GraphicsStage	golden fixture not available (open ../../tmp/min1_final.dxil: no such file or directory) — skipping mutation-based tests
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator/bitcheck	bitcheck_test.go	TestCheck_NagaFixture	skipping: cannot read ../../../tmp/min1_final.dxil: open ../../../tmp/min1_final.dxil: no such file or directory
+github.com/energye/gpui/gpu/shader/internal/dxcvalidator/bitcheck	bitcheck_test.go	TestCheck_DXCFixture	skipping: cannot read ../../../tmp/dxc_trivial_vs.dxil: open ../../../tmp/dxc_trivial_vs.dxil: no such file or directory
+github.com/energye/gpui/gpu/shader/ir	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/shader/msl/internal/codegen	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_xcrun_test.go	-	build tag `darwin` excludes it on linux/amd64
+github.com/energye/gpui/gpu/shader/msl/internal/codegen	expressions_test.go	TestMSL_AbstractTypesVarFull	shader file not found: open ../snapshot/testdata/in/abstract-types-var.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileFragmentShaderWithMath	Type inference for 'let' bindings not yet implemented
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileFullBlendShader	blend.wgsl not available: open ../../gg/internal/gpu/shaders/blend.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileStripShader	strip.wgsl not available: open ../../gg/internal/gpu/shaders/strip.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileCompositeShader	composite.wgsl not available: open ../../gg/internal/gpu/shaders/composite.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileFlattenShader	flatten.wgsl not available: open ../../gg/internal/gpu/shaders/flatten.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileCoarseShader	coarse.wgsl not available: open ../../gg/internal/gpu/shaders/coarse.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileFineShader	fine.wgsl not available: open ../../gg/internal/gpu/shaders/fine.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileBoidsShader	boids.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/naga/tests/in/wgsl/boids.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileCollatzShader	collatz.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/naga/tests/in/wgsl/collatz.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileCubeShader	cube shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/features/src/cube/shader.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileHelloTriangleShader	hello_triangle shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/features/src/hello_triangle/shader.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileHelloComputeShader	hello_compute shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/standalone/01_hello_compute/src/shader.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileRenderToTextureShader	render_to_texture shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/features/src/render_to_texture/shader.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	TestCompileMSAALineShader	msaa_line shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/features/src/msaa_line/shader.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	vec2_ifelse_cache_test.go	TestPathTilingFullShader	path_tiling.wgsl not found: open ../../gg/internal/gpu/tilecompute/shaders/path_tiling.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/spirv/internal/codegen	vello_workaround_test.go	TestSpanFullShaderDump	../../gg/tmp/path_count_span_full.wgsl not found: open ../../gg/tmp/path_count_span_full.wgsl: no such file or directory
+github.com/energye/gpui/gpu/shader/wgsl/internal/lower	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/blend	benchmark_simd_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/cache	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/color	benchmark_lut_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/filter	helpers_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/parallel	benchmark_scaling_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/parallel	benchmark_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/raster	analytic_filler_golden_test.go	TestCoverage_Star	C++ coverage not found: open /home/yanghy/app/projects/gogpu/gpui/render/tmp/skia_coverage/star_coverage_skia_exact.bin: no such file or directory (run full_walk.exe first)
+github.com/energye/gpui/render/internal/raster	analytic_filler_golden_test.go	TestCoverage_FloatRect	C++ rect coverage not found: open /home/yanghy/app/projects/gogpu/gpui/render/tmp/skia_coverage/rect_coverage_skia_exact.bin: no such file or directory (run skia_exact.exe first)
+github.com/energye/gpui/render/internal/raster	analytic_filler_golden_test.go	TestCoverage_Polygon	C++ polygon coverage not found: open /home/yanghy/app/projects/gogpu/gpui/render/tmp/skia_coverage/polygon_coverage_skia_exact.bin: no such file or directory (run skia_exact.exe first)
+github.com/energye/gpui/render/internal/raster	curve_aet_test.go	TestCurveAwareAET_StepCurves	NewQuadraticEdgeVariant returned nil (degenerate input)
+github.com/energye/gpui/render/internal/wide	benchmark_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/recording	backend_stub_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/recording/backends/raster	backend_test.go	TestBackendLinearGradient	gradient rendering not yet supported by render.SoftwareRenderer
+github.com/energye/gpui/render/recording/backends/raster	backend_test.go	TestBackendRadialGradient	gradient rendering not yet supported by render.SoftwareRenderer
+github.com/energye/gpui/render/scene	benchmark_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/tests/stress	analytic_stress_test.go	-	build tag `stress`; not part of default-tag baseline
+github.com/energye/gpui/render/text/cache	shaping_bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/text/hint	fontfile_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/text/hint	ftexp_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/ui/textbuffer	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/video/ffmpeg	feat_setup_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/video/ffmpeg	feat_test.go	TestFeatSplitRanges	need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+github.com/energye/gpui/video/ffmpeg	feat_test.go	TestFeatSubtitles	need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+github.com/energye/gpui/video/ffmpeg	feat_test.go	TestFeatAudioExtract	need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+github.com/energye/gpui/video/ffmpeg	feat_test.go	TestFeatScaleTranscode	need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+github.com/energye/gpui/video/ffmpeg	feat_test.go	TestFeatBurnSubtitle	need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+github.com/energye/gpui/video/ffmpeg	remux_split_test.go	TestRemuxSplitWithSubtitles	need full lib (write/mov_text), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+github.com/energye/gpui/video/ffmpeg	variadic_go_test.go	-	SKIP status but no top-level --- SKIP line
+github.com/energye/gpui/gpu/gwgpu/gles	behavior_windows_test.go	-	build tag `windows && !(js && wasm)` excludes it on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/gles	command_test.go	-	build tag `windows && !(js && wasm)` excludes it on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/gles	convert_test.go	-	build tag `windows && !(js && wasm)` excludes it on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/gles	integration_test.go	-	build tag `integration && linux && !(js && wasm)` excludes it on linux/amd64
+github.com/energye/gpui/gpu/gwgpu/gles	p1_texsample_probe_test.go	TestP1_TexturedSampleMSAAProbe	MSAA probe scaffolded; textured+MSAA body follows the pass-probe shape
+github.com/energye/gpui/gpu/rwgpu	instance_helper_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/gpu/rwgpu	thread_safety_test.go	TestConcurrentAdapterRequests	concurrent RequestAdapter can abort on GLES backends; set RWGPU_CONCURRENT_STRESS=1 to run
+github.com/energye/gpui/render	benchmark_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render	mem_harness_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render	pixmap_bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render	rasterizer_tile_bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render	vram_test_hook_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render	basic_gpu_visual_test.go	TestBasicCPUvsGPUVisualDiagnostic	set GPUI_BASIC_VISUAL=1 to run CPU/GPU basic diagnostics
+github.com/energye/gpui/render	cjk_text_gpu_visual_test.go	TestCJKTextCPUvsGPUVisualDiagnostic	set GPUI_CJK_TEXT_VISUAL=1 to run CPU/GPU cjk_text diagnostics
+github.com/energye/gpui/render	clipping_gpu_visual_test.go	TestClippingCPUvsGPUVisualDiagnostic	set GPUI_CLIPPING_VISUAL=1 to run CPU/GPU clipping diagnostics
+github.com/energye/gpui/render	context_image_test.go	TestDrawImageEx_CPUOnlySkipsGPUClaim	requires GOGPU_RENDER_MODE=cpu: GOGPU_RENDER_MODE=cpu go test ./render/ -run TestDrawImageEx_CPUOnlySkipsGPUClaim
+github.com/energye/gpui/render	gpu_example_visual_test.go	TestGPUExampleCPUvsGPUVisualDiagnostic	set GPUI_GPU_EXAMPLE_VISUAL=1 to run CPU/GPU gpu example diagnostics
+github.com/energye/gpui/render	images_gpu_visual_test.go	TestImagesCPUvsGPUVisualDiagnostic	set GPUI_IMAGES_VISUAL=1 to run CPU/GPU images diagnostics
+github.com/energye/gpui/render	mem_gpu_lifecycle_test.go	TestMem_T5_StressCreateClose	set GPUI_MEM_STRESS=1 for high-iter stress
+github.com/energye/gpui/render	r7_2_filter_export_test.go	TestR72_ApplyBlur_GPUFilterTextureNoExportPrefer	GPU filter graph not registered
+github.com/energye/gpui/render	scene_gpu_visual_test.go	TestSceneCPUvsGPUVisualDiagnostic	set GPUI_SCENE_VISUAL=1 to run CPU/GPU scene diagnostics
+github.com/energye/gpui/render	scene_gpu_visual_test.go	TestSceneGPUCPUvsGPUVisualDiagnostic	set GPUI_SCENE_GPU_VISUAL=1 to run CPU/GPU scene_gpu diagnostics
+github.com/energye/gpui/render	shapes_gpu_visual_test.go	TestShapesCPUvsGPUVisualDiagnostic	set GPUI_SHAPES_VISUAL=1 to run CPU/GPU shapes diagnostics
+github.com/energye/gpui/render	text_gpu_visual_test.go	TestTextCPUvsGPUVisualDiagnostic	set GPUI_TEXT_VISUAL=1 to run CPU/GPU text diagnostics
+github.com/energye/gpui/render	text_transform_gpu_visual_test.go	TestTextTransformCPUvsGPUVisualDiagnostic	set GPUI_TEXT_TRANSFORM_VISUAL=1 to run CPU/GPU text_transform diagnostics
+github.com/energye/gpui/render/internal/gpu	alloc_bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/gpu	analytic_benchmark_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/gpu	benchmark_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/gpu	brush_field_memo_bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/gpu	native_device_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/internal/gpu	stencil_metal_repro_test.go	-	build tag `darwin && !nogpu` excludes it on linux/amd64
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_MapAsync_UsageMismatch	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_MapAsync_RangeValidation	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_MapAsync_NilCallback	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_MapAsync_AfterDestroy	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_GetMappedRange_Success	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_GetMappedRange_PartialMap	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_GetMappedRange_NotMapped	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_GetMappedRange_Pending	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_Unmap_Success	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_Unmap_Pending	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_Unmap_AlreadyUnmapped	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_Unmap_AfterDestroy	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_Destroy	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_Destroy_Idempotent	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_Destroy_WhilePending	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_ConcurrentMapUnmap	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_ConcurrentGetMappedRange	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestCreateBuffer	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestCreateBuffer_NilDescriptor	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestCreateBuffer_ZeroSize	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestCreateBuffer_ZeroUsage	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestCreateBuffer_SizeAlignment	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestCreateBufferSimple	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestCreateStagingBuffer_Upload	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestCreateStagingBuffer_Readback	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_Descriptor	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_Raw_AfterDestroy	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_MapAsync_InvalidMode	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_PollMapAsync_NotPending	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_PollMapAsync_DestroyedDuringPending	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestBuffer_GetMappedRange_AfterDestroy	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	buffer_test.go	TestCreateBuffer_MappedAtCreationValidation	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	oom_fallback_test.go	TestCreateTextureRetryOOM_SmallHeapInjection	no small-heap hal.Device fixture: live texture-OOM injection needs a capped-heap device which this repo does not provide; coverage via pressure真窗 (gpu_fallbacks=1) + TestTextureSet_FailFastLatch
+github.com/energye/gpui/render/internal/gpu	pipeline_wiring_test.go	TestSDFAccelerator_FillShape_ComputeMode	no GPU device available — compute mode requires GPU
+github.com/energye/gpui/render/internal/gpu	s6_7_resources_test.go	TestS67_ImageCache_EphemeralReleased	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	s6_7_resources_test.go	TestS67_ImageCache_StrideStaging	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestTexture_CreateView	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestTexture_CreateView_NilDescriptor	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestTexture_Destroy	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestTexture_Destroy_Idempotent	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestTexture_GetDefaultView_AfterDestroy	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestTextureView_Destroy_NonDefault	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestTextureView_Destroy_Default_NoOp	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestCreateCoreTexture	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestCreateCoreTexture_NilDescriptor	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestCreateCoreTexture_InvalidSize	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestCreateCoreTexture_DefaultValues	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	texture_test.go	TestCreateCoreTextureSimple	webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+github.com/energye/gpui/render/internal/gpu	vello_tiles_test.go	TestGoldenPixelFormat	golden file not found
+github.com/energye/gpui/render/text	bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/text	benchmark_text_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/text	font_bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/text	testfont_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/text	tt_golden_data_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/text	autohint_golden_test.go	TestGolden_Widths_NotoSerifHebrew	TODO: match FreeType standard width computation — 6 mismatches
+github.com/energye/gpui/render/text	autohint_golden_test.go	TestGolden_Blues_NotoSerifHebrew_Hebrew	TODO: match FreeType Hebrew blue zone count
+github.com/energye/gpui/render/text	autohint_golden_test.go	TestGolden_Blues_NotoSerif_C2SC	TODO: c2sc requires HarfBuzz shaping — documents golden data for future
+github.com/energye/gpui/render/text	autohint_golden_test.go	TestGolden_Edges_NotoSerifHebrew_Default	TODO: edge serifIdx parity — 1 mismatches (V edge serif linking)
+github.com/energye/gpui/render/text	glyf_parser_test.go	TestParseGlyfContours_CompositeGlyph_SystemFont	no system font with composites available
+github.com/energye/gpui/render/text	glyf_parser_test.go	TestParseGlyfContours_Composite_IJ_Visible	no system font available for composite i/j test
+github.com/energye/gpui/render/text	glyf_parser_test.go	TestCachedGlyfParser_CompositeGlyphs	no system font with composites available
+github.com/energye/gpui/render/text	gsub_liga_test.go	TestGSUB_Ligatures_TimesNewRoman	Times New Roman not available (system font)
+github.com/energye/gpui/render/text	gsub_liga_test.go	TestGSUB_NoDLigatures	Times New Roman not available (system font)
+github.com/energye/gpui/render/text	gvar_test.go	TestParseGvar_CantarellVF	cantarell_vf_trimmed.ttf has no gvar table (font may be stripped)
+github.com/energye/gpui/render/text	gvar_test.go	TestGvar_DiagnosticDump	no variable font available
+github.com/energye/gpui/render/text	hvar_test.go	TestGolden_HVAR_FullAdvance	font has no glyph for 'A'
+github.com/energye/gpui/render/text	parser_collection_test.go	TestOwnParser_ParseIndex_SingleFont	no test font found
+github.com/energye/gpui/render/text	parser_collection_test.go	TestOwnParser_ParseIndex_Collection	TTC test requires Windows system fonts
+github.com/energye/gpui/render/text	parser_collection_test.go	TestOwnParser_ParseIndex_OutOfRange	TTC test requires Windows system fonts
+github.com/energye/gpui/render/text	parser_collection_test.go	TestNewFontSourceFromFile_TTC	TTC test requires Windows system fonts
+github.com/energye/gpui/render/text	parser_collection_test.go	TestNewFontSourceFromFile_TTC_WithIndex	TTC test requires Windows system fonts
+github.com/energye/gpui/render/text	tt_glyph_test.go	TestLoadCompositeGlyphOutline_SystemFont	no system font with composites available
+github.com/energye/gpui/render/text	tt_golden_test.go	TestTTGolden_SystemFonts	system font test only on Windows
+github.com/energye/gpui/render/text	tt_golden_test.go	TestTTGolden_CousineMonospace	not enough glyphs to verify monospace consistency
+github.com/energye/gpui/render/text	tt_golden_test.go	TestTTHint_SpaceAdvance	system font test only on Windows (Segoe UI)
+github.com/energye/gpui/render/text	tt_golden_test.go	TestTTHint_SpaceAdvanceIntegerPixel	system font test only on Windows
+github.com/energye/gpui/render/text	tt_segoeui_golden_test.go	TestTTGolden_SegoeUI_W_12ppem	system font test only on Windows (Segoe UI)
+github.com/energye/gpui/render/text	varfont_outline_test.go	TestOutline_VarDefaultVsStatic_IdenticalOutlines	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_outline_test.go	TestOutline_VarNonDefault_DiffersFromDefault	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_outline_test.go	TestOutline_VarHinted_PixelAlignedAdvance	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_outline_test.go	TestOutline_VarHintedVsUnhinted_Differs	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_outline_test.go	TestOutline_VarDefault_MatchesStaticRendering	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_test.go	TestIsVariable_VariableFont	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_test.go	TestVariationAxes_VariableFont	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_test.go	TestNamedInstances_VariableFont	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_test.go	TestVariations_AffectShaping	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_test.go	TestVariations_DefaultMatchesNoVariation	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_test.go	TestVariations_AffectRendering	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_test.go	TestVariations_OutlineExtraction	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_test.go	TestVariations_AliasedRendering	No variable font available on this system
+github.com/energye/gpui/render/text	varfont_test.go	TestVariations_AliasedVsAA	No variable font available on this system
+github.com/energye/gpui/ui/platform	probe_cursor_theme_test.go	TestWaylandCursorShapeDeviceBound	compositor lacks zwp_cursor_shape_v1 (theme fallback active)
+github.com/energye/gpui/ui/platform	wayland_features_linux_test.go	TestWaylandClipboardSetGetRoundtrip	two-window clipboard path skipped: compositor refused unattended set_selection (no keyboard focus; wayland: clipboard is empty)
+github.com/energye/gpui/ui/rendering	m1_bench_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/ui/scene	retained_spill_loop_test.go	TestRetainedScrollBandEstablishAfterWarmup	no GPU texture entries (no GPU?)
+github.com/energye/gpui/ui/scene	textured_rerecord_by_test.go	TestPictureTextureCache_RerecordAttribution	no-GPU degrade: record unavailable in this env
+github.com/energye/gpui/ui/scene	textured_rerecord_by_test.go	TestPictureTextureCache_RerecordAttributionLocal	no-GPU degrade: local record unavailable in this env
+github.com/energye/gpui/gpu/hal	error_test.go	TestSurfaceConfigureZeroDimensions_Vulkan	Vulkan backend not available
+github.com/energye/gpui/render	s5_present_helpers_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render	conformance_test.go	TestConformanceInner	inner harness; driven by TestConformanceDualBackend
+github.com/energye/gpui/render	s3c_m3_window_present_test.go	TestS3c_M3_WindowSwapchain_PresentFrame	no platform window surface (headless): wgpu: CreateSurface requires a non-zero window handle
+github.com/energye/gpui/render	visual_diagnostic_test.go	-	no Test/Example functions (helpers/benchmarks/fuzz only)
+github.com/energye/gpui/render/text	zz_tt_trace_batch_test.go	TestTmpTraceBatchFT	TT_GIDS not set

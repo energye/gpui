@@ -1,0 +1,13 @@
+=== RUN   TestCanvasBackendComposesOntoPlaybackCTM
+--- PASS: TestCanvasBackendComposesOntoPlaybackCTM (0.00s)
+=== RUN   TestCanvasBackendReplaysAtDeviceScale
+--- PASS: TestCanvasBackendReplaysAtDeviceScale (0.00s)
+=== RUN   TestCanvasBackendRestoresBrushes
+--- PASS: TestCanvasBackendRestoresBrushes (0.00s)
+=== RUN   TestCanvasBackendPlaybackIntoRecorderFoldsFacts
+--- PASS: TestCanvasBackendPlaybackIntoRecorderFoldsFacts (0.00s)
+=== RUN   TestCanvasBackendPlaybackIntoRecorderKeepsGPUTexture
+--- PASS: TestCanvasBackendPlaybackIntoRecorderKeepsGPUTexture (0.00s)
+=== RUN   TestCanvasBackendPlaybackIntoRecorderFoldsInvisibility
+--- PASS: TestCanvasBackendPlaybackIntoRecorderFoldsInvisibility (0.00s)
+PASS

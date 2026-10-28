@@ -1,0 +1,151 @@
+=== RUN   TestRenderPassEncoder_State
+=== RUN   TestRenderPassEncoder_State/recording_state_on_creation
+=== RUN   TestRenderPassEncoder_State/ended_state_after_End
+=== RUN   TestRenderPassEncoder_State/nil_pass_returns_ended
+--- PASS: TestRenderPassEncoder_State (0.00s)
+    --- PASS: TestRenderPassEncoder_State/recording_state_on_creation (0.00s)
+    --- PASS: TestRenderPassEncoder_State/ended_state_after_End (0.00s)
+    --- PASS: TestRenderPassEncoder_State/nil_pass_returns_ended (0.00s)
+=== RUN   TestRenderPassEncoder_IsEnded
+=== RUN   TestRenderPassEncoder_IsEnded/recording
+=== RUN   TestRenderPassEncoder_IsEnded/ended
+--- PASS: TestRenderPassEncoder_IsEnded (0.00s)
+    --- PASS: TestRenderPassEncoder_IsEnded/recording (0.00s)
+    --- PASS: TestRenderPassEncoder_IsEnded/ended (0.00s)
+=== RUN   TestRenderPassEncoder_SetPipeline
+=== RUN   TestRenderPassEncoder_SetPipeline/success
+=== RUN   TestRenderPassEncoder_SetPipeline/nil_pipeline_error
+=== RUN   TestRenderPassEncoder_SetPipeline/ended_pass_error
+--- PASS: TestRenderPassEncoder_SetPipeline (0.00s)
+    --- PASS: TestRenderPassEncoder_SetPipeline/success (0.00s)
+    --- PASS: TestRenderPassEncoder_SetPipeline/nil_pipeline_error (0.00s)
+    --- PASS: TestRenderPassEncoder_SetPipeline/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_SetBindGroup
+=== RUN   TestRenderPassEncoder_SetBindGroup/valid_bind_group_index_0
+=== RUN   TestRenderPassEncoder_SetBindGroup/valid_bind_group_index_3
+=== RUN   TestRenderPassEncoder_SetBindGroup/index_out_of_range
+=== RUN   TestRenderPassEncoder_SetBindGroup/nil_bind_group
+=== RUN   TestRenderPassEncoder_SetBindGroup/ended_pass_error
+--- PASS: TestRenderPassEncoder_SetBindGroup (0.00s)
+    --- PASS: TestRenderPassEncoder_SetBindGroup/valid_bind_group_index_0 (0.00s)
+    --- PASS: TestRenderPassEncoder_SetBindGroup/valid_bind_group_index_3 (0.00s)
+    --- PASS: TestRenderPassEncoder_SetBindGroup/index_out_of_range (0.00s)
+    --- PASS: TestRenderPassEncoder_SetBindGroup/nil_bind_group (0.00s)
+    --- PASS: TestRenderPassEncoder_SetBindGroup/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_SetVertexBuffer
+=== RUN   TestRenderPassEncoder_SetVertexBuffer/success
+=== RUN   TestRenderPassEncoder_SetVertexBuffer/nil_buffer_error
+=== RUN   TestRenderPassEncoder_SetVertexBuffer/multiple_slots
+=== RUN   TestRenderPassEncoder_SetVertexBuffer/ended_pass_error
+--- PASS: TestRenderPassEncoder_SetVertexBuffer (0.00s)
+    --- PASS: TestRenderPassEncoder_SetVertexBuffer/success (0.00s)
+    --- PASS: TestRenderPassEncoder_SetVertexBuffer/nil_buffer_error (0.00s)
+    --- PASS: TestRenderPassEncoder_SetVertexBuffer/multiple_slots (0.00s)
+    --- PASS: TestRenderPassEncoder_SetVertexBuffer/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_SetIndexBuffer
+=== RUN   TestRenderPassEncoder_SetIndexBuffer/success_uint16
+=== RUN   TestRenderPassEncoder_SetIndexBuffer/success_uint32
+=== RUN   TestRenderPassEncoder_SetIndexBuffer/nil_buffer_error
+=== RUN   TestRenderPassEncoder_SetIndexBuffer/ended_pass_error
+--- PASS: TestRenderPassEncoder_SetIndexBuffer (0.00s)
+    --- PASS: TestRenderPassEncoder_SetIndexBuffer/success_uint16 (0.00s)
+    --- PASS: TestRenderPassEncoder_SetIndexBuffer/success_uint32 (0.00s)
+    --- PASS: TestRenderPassEncoder_SetIndexBuffer/nil_buffer_error (0.00s)
+    --- PASS: TestRenderPassEncoder_SetIndexBuffer/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_SetViewport
+=== RUN   TestRenderPassEncoder_SetViewport/success
+=== RUN   TestRenderPassEncoder_SetViewport/ended_pass_error
+--- PASS: TestRenderPassEncoder_SetViewport (0.00s)
+    --- PASS: TestRenderPassEncoder_SetViewport/success (0.00s)
+    --- PASS: TestRenderPassEncoder_SetViewport/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_SetScissorRect
+=== RUN   TestRenderPassEncoder_SetScissorRect/success
+=== RUN   TestRenderPassEncoder_SetScissorRect/ended_pass_error
+--- PASS: TestRenderPassEncoder_SetScissorRect (0.00s)
+    --- PASS: TestRenderPassEncoder_SetScissorRect/success (0.00s)
+    --- PASS: TestRenderPassEncoder_SetScissorRect/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_SetBlendConstant
+=== RUN   TestRenderPassEncoder_SetBlendConstant/success
+=== RUN   TestRenderPassEncoder_SetBlendConstant/ended_pass_error
+--- PASS: TestRenderPassEncoder_SetBlendConstant (0.00s)
+    --- PASS: TestRenderPassEncoder_SetBlendConstant/success (0.00s)
+    --- PASS: TestRenderPassEncoder_SetBlendConstant/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_SetStencilReference
+=== RUN   TestRenderPassEncoder_SetStencilReference/success
+=== RUN   TestRenderPassEncoder_SetStencilReference/ended_pass_error
+--- PASS: TestRenderPassEncoder_SetStencilReference (0.00s)
+    --- PASS: TestRenderPassEncoder_SetStencilReference/success (0.00s)
+    --- PASS: TestRenderPassEncoder_SetStencilReference/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_Draw
+=== RUN   TestRenderPassEncoder_Draw/success
+=== RUN   TestRenderPassEncoder_Draw/instanced
+=== RUN   TestRenderPassEncoder_Draw/ended_pass_error
+--- PASS: TestRenderPassEncoder_Draw (0.00s)
+    --- PASS: TestRenderPassEncoder_Draw/success (0.00s)
+    --- PASS: TestRenderPassEncoder_Draw/instanced (0.00s)
+    --- PASS: TestRenderPassEncoder_Draw/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_DrawIndexed
+=== RUN   TestRenderPassEncoder_DrawIndexed/success
+=== RUN   TestRenderPassEncoder_DrawIndexed/with_base_vertex
+=== RUN   TestRenderPassEncoder_DrawIndexed/ended_pass_error
+--- PASS: TestRenderPassEncoder_DrawIndexed (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndexed/success (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndexed/with_base_vertex (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndexed/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_DrawIndirect
+=== RUN   TestRenderPassEncoder_DrawIndirect/success
+=== RUN   TestRenderPassEncoder_DrawIndirect/nil_buffer_error
+=== RUN   TestRenderPassEncoder_DrawIndirect/unaligned_offset_error
+=== RUN   TestRenderPassEncoder_DrawIndirect/ended_pass_error
+--- PASS: TestRenderPassEncoder_DrawIndirect (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndirect/success (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndirect/nil_buffer_error (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndirect/unaligned_offset_error (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndirect/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_DrawIndexedIndirect
+=== RUN   TestRenderPassEncoder_DrawIndexedIndirect/success
+=== RUN   TestRenderPassEncoder_DrawIndexedIndirect/nil_buffer_error
+=== RUN   TestRenderPassEncoder_DrawIndexedIndirect/unaligned_offset_error
+=== RUN   TestRenderPassEncoder_DrawIndexedIndirect/ended_pass_error
+--- PASS: TestRenderPassEncoder_DrawIndexedIndirect (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndexedIndirect/success (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndexedIndirect/nil_buffer_error (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndexedIndirect/unaligned_offset_error (0.00s)
+    --- PASS: TestRenderPassEncoder_DrawIndexedIndirect/ended_pass_error (0.00s)
+=== RUN   TestRenderPassEncoder_End
+=== RUN   TestRenderPassEncoder_End/success
+=== RUN   TestRenderPassEncoder_End/idempotent
+--- PASS: TestRenderPassEncoder_End (0.00s)
+    --- PASS: TestRenderPassEncoder_End/success (0.00s)
+    --- PASS: TestRenderPassEncoder_End/idempotent (0.00s)
+=== RUN   TestRenderPassState_String
+=== RUN   TestRenderPassState_String/Recording
+=== RUN   TestRenderPassState_String/Ended
+=== RUN   TestRenderPassState_String/Unknown(99)
+--- PASS: TestRenderPassState_String (0.00s)
+    --- PASS: TestRenderPassState_String/Recording (0.00s)
+    --- PASS: TestRenderPassState_String/Ended (0.00s)
+    --- PASS: TestRenderPassState_String/Unknown(99) (0.00s)
+=== RUN   TestRenderPipeline_Methods
+=== RUN   TestRenderPipeline_Methods/ID
+=== RUN   TestRenderPipeline_Methods/Label
+=== RUN   TestRenderPipeline_Methods/IsDestroyed_before_destroy
+=== RUN   TestRenderPipeline_Methods/Destroy
+--- PASS: TestRenderPipeline_Methods (0.00s)
+    --- PASS: TestRenderPipeline_Methods/ID (0.00s)
+    --- PASS: TestRenderPipeline_Methods/Label (0.00s)
+    --- PASS: TestRenderPipeline_Methods/IsDestroyed_before_destroy (0.00s)
+    --- PASS: TestRenderPipeline_Methods/Destroy (0.00s)
+=== RUN   TestBindGroup_Methods
+=== RUN   TestBindGroup_Methods/ID
+=== RUN   TestBindGroup_Methods/Label
+=== RUN   TestBindGroup_Methods/IsDestroyed_before_destroy
+=== RUN   TestBindGroup_Methods/Destroy
+--- PASS: TestBindGroup_Methods (0.00s)
+    --- PASS: TestBindGroup_Methods/ID (0.00s)
+    --- PASS: TestBindGroup_Methods/Label (0.00s)
+    --- PASS: TestBindGroup_Methods/IsDestroyed_before_destroy (0.00s)
+    --- PASS: TestBindGroup_Methods/Destroy (0.00s)
+=== RUN   TestIndexFormat_Values
+--- PASS: TestIndexFormat_Values (0.00s)
+PASS

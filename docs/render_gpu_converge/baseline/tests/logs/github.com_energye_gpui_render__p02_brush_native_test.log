@@ -1,0 +1,56 @@
+=== RUN   TestP02_LinearGradientNativeGPU
+    p02_brush_native_test.go:36: linear gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p02_brush_native_test.go:51: L=246,74,0 M=0,253,20 R=0,65,248
+--- PASS: TestP02_LinearGradientNativeGPU (0.30s)
+=== RUN   TestP02_RadialGradientNativeGPU
+    p02_brush_native_test.go:87: radial gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p02_brush_native_test.go:100: center=756 edge=87
+--- PASS: TestP02_RadialGradientNativeGPU (0.00s)
+=== RUN   TestP02_ImagePatternNativeGPU
+    p02_brush_native_test.go:139: pattern gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP02_ImagePatternNativeGPU (0.01s)
+=== RUN   TestP02_LinearGradientExtendRepeatGPU
+    p02_brush_native_test.go:181: repeat gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p02_brush_native_test.go:193: x2=240,0,98 x22=240,0,98
+    p02_brush_native_test.go:202: x18=76,0,246
+--- PASS: TestP02_LinearGradientExtendRepeatGPU (0.01s)
+=== RUN   TestP02_DiagonalLinearGradientGPU
+    p02_brush_native_test.go:230: diagonal gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p02_brush_native_test.go:241: tl=246,0,74 br=65,0,249
+--- PASS: TestP02_DiagonalLinearGradientGPU (0.00s)
+=== RUN   TestP02_CustomBrushBootstrapReason
+    p02_brush_native_test.go:280: custom gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1 bootstrap_ops=1 reason="brush:custom"
+    p02_brush_native_test.go:293: L=13,* ,241 R=247,*,7
+--- PASS: TestP02_CustomBrushBootstrapReason (0.00s)
+=== RUN   TestP02_NonConvexLinearGradientGPU
+    p02_brush_native_test.go:335: nonconvex gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1 bootstrap_ops=0 reason=""
+    p02_brush_native_test.go:344: no bootstrap (path may be convex-classified); checking ink only
+    p02_brush_native_test.go:350: center=186,65,188
+--- PASS: TestP02_NonConvexLinearGradientGPU (0.00s)
+=== RUN   TestP02_EvenOddLinearGradientFieldMaskedGPU
+    p02_brush_native_test.go:395: evenodd gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1 bootstrap_ops=0 reason=""
+    p02_brush_native_test.go:410: band=231,0,122 hole=255,255,255
+--- PASS: TestP02_EvenOddLinearGradientFieldMaskedGPU (0.00s)
+=== RUN   TestP02_NonRectImagePatternFieldMaskedGPU
+    p02_brush_native_test.go:456: nonrect-pattern gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1 bootstrap_ops=0 reason=""
+    p02_brush_native_test.go:468: ink=255,40,20
+--- PASS: TestP02_NonRectImagePatternFieldMaskedGPU (0.01s)
+=== RUN   TestP02_NonConvexRadialGradientGPU
+    p02_brush_native_test.go:511: nonconvex-radial gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1 bootstrap_ops=0 reason=""
+    p02_brush_native_test.go:519: no bootstrap (path may be convex-classified); checking ink only
+    p02_brush_native_test.go:524: center=252,252,252
+    p02_brush_native_test.go:527: alt=208,208,208
+--- PASS: TestP02_NonConvexRadialGradientGPU (0.00s)
+=== RUN   TestP02_NonConvexSweepGradientGPU
+    p02_brush_native_test.go:565: nonconvex-sweep gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1 bootstrap_ops=0 reason=""
+    p02_brush_native_test.go:573: center=224,137,0
+--- PASS: TestP02_NonConvexSweepGradientGPU (0.00s)
+=== RUN   TestP02_NonConvexNegativeSweepGradientGPU
+    p02_brush_native_test.go:618: nonconvex-neg-sweep gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1 bootstrap_ops=0 reason=""
+    p02_brush_native_test.go:626: center=0,137,224
+--- PASS: TestP02_NonConvexNegativeSweepGradientGPU (0.00s)
+=== RUN   TestP02_NonConvexFocalRadialGradientGPU
+    p02_brush_native_test.go:668: nonconvex-focal gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1 bootstrap_ops=0 reason=""
+    p02_brush_native_test.go:676: center=0,0,127
+--- PASS: TestP02_NonConvexFocalRadialGradientGPU (0.00s)
+PASS

@@ -1,0 +1,211 @@
+=== RUN   TestTextureFormat_BlockCopySize
+=== RUN   TestTextureFormat_BlockCopySize/Undefined
+=== RUN   TestTextureFormat_BlockCopySize/Unknown_value
+=== RUN   TestTextureFormat_BlockCopySize/R8Unorm
+=== RUN   TestTextureFormat_BlockCopySize/R8Snorm
+=== RUN   TestTextureFormat_BlockCopySize/R8Uint
+=== RUN   TestTextureFormat_BlockCopySize/R8Sint
+=== RUN   TestTextureFormat_BlockCopySize/Stencil8
+=== RUN   TestTextureFormat_BlockCopySize/R16Unorm
+=== RUN   TestTextureFormat_BlockCopySize/R16Snorm
+=== RUN   TestTextureFormat_BlockCopySize/R16Uint
+=== RUN   TestTextureFormat_BlockCopySize/R16Sint
+=== RUN   TestTextureFormat_BlockCopySize/R16Float
+=== RUN   TestTextureFormat_BlockCopySize/RG8Unorm
+=== RUN   TestTextureFormat_BlockCopySize/RG8Snorm
+=== RUN   TestTextureFormat_BlockCopySize/RG8Uint
+=== RUN   TestTextureFormat_BlockCopySize/RG8Sint
+=== RUN   TestTextureFormat_BlockCopySize/Depth16Unorm
+=== RUN   TestTextureFormat_BlockCopySize/R32Float
+=== RUN   TestTextureFormat_BlockCopySize/R32Uint
+=== RUN   TestTextureFormat_BlockCopySize/R32Sint
+=== RUN   TestTextureFormat_BlockCopySize/RG16Unorm
+=== RUN   TestTextureFormat_BlockCopySize/RG16Snorm
+=== RUN   TestTextureFormat_BlockCopySize/RG16Uint
+=== RUN   TestTextureFormat_BlockCopySize/RG16Sint
+=== RUN   TestTextureFormat_BlockCopySize/RG16Float
+=== RUN   TestTextureFormat_BlockCopySize/RGBA8Unorm
+=== RUN   TestTextureFormat_BlockCopySize/RGBA8UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/RGBA8Snorm
+=== RUN   TestTextureFormat_BlockCopySize/RGBA8Uint
+=== RUN   TestTextureFormat_BlockCopySize/RGBA8Sint
+=== RUN   TestTextureFormat_BlockCopySize/BGRA8Unorm
+=== RUN   TestTextureFormat_BlockCopySize/BGRA8UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/RGB10A2Uint
+=== RUN   TestTextureFormat_BlockCopySize/RGB10A2Unorm
+=== RUN   TestTextureFormat_BlockCopySize/RG11B10Ufloat
+=== RUN   TestTextureFormat_BlockCopySize/RGB9E5Ufloat
+=== RUN   TestTextureFormat_BlockCopySize/Depth32Float
+=== RUN   TestTextureFormat_BlockCopySize/RG32Float
+=== RUN   TestTextureFormat_BlockCopySize/RG32Uint
+=== RUN   TestTextureFormat_BlockCopySize/RG32Sint
+=== RUN   TestTextureFormat_BlockCopySize/RGBA16Unorm
+=== RUN   TestTextureFormat_BlockCopySize/RGBA16Snorm
+=== RUN   TestTextureFormat_BlockCopySize/RGBA16Uint
+=== RUN   TestTextureFormat_BlockCopySize/RGBA16Sint
+=== RUN   TestTextureFormat_BlockCopySize/RGBA16Float
+=== RUN   TestTextureFormat_BlockCopySize/RGBA32Float
+=== RUN   TestTextureFormat_BlockCopySize/RGBA32Uint
+=== RUN   TestTextureFormat_BlockCopySize/RGBA32Sint
+=== RUN   TestTextureFormat_BlockCopySize/Depth24Plus
+=== RUN   TestTextureFormat_BlockCopySize/Depth24PlusStencil8
+=== RUN   TestTextureFormat_BlockCopySize/Depth32FloatStencil8
+=== RUN   TestTextureFormat_BlockCopySize/BC1RGBAUnorm
+=== RUN   TestTextureFormat_BlockCopySize/BC1RGBAUnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/BC4RUnorm
+=== RUN   TestTextureFormat_BlockCopySize/BC4RSnorm
+=== RUN   TestTextureFormat_BlockCopySize/BC2RGBAUnorm
+=== RUN   TestTextureFormat_BlockCopySize/BC2RGBAUnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/BC3RGBAUnorm
+=== RUN   TestTextureFormat_BlockCopySize/BC3RGBAUnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/BC5RGUnorm
+=== RUN   TestTextureFormat_BlockCopySize/BC5RGSnorm
+=== RUN   TestTextureFormat_BlockCopySize/BC6HRGBUfloat
+=== RUN   TestTextureFormat_BlockCopySize/BC6HRGBFloat
+=== RUN   TestTextureFormat_BlockCopySize/BC7RGBAUnorm
+=== RUN   TestTextureFormat_BlockCopySize/BC7RGBAUnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ETC2RGB8Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ETC2RGB8UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ETC2RGB8A1Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ETC2RGB8A1UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/EACR11Unorm
+=== RUN   TestTextureFormat_BlockCopySize/EACR11Snorm
+=== RUN   TestTextureFormat_BlockCopySize/ETC2RGBA8Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ETC2RGBA8UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/EACRG11Unorm
+=== RUN   TestTextureFormat_BlockCopySize/EACRG11Snorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC4x4Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC4x4UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC5x4Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC5x4UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC5x5Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC5x5UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC6x5Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC6x5UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC6x6Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC6x6UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC8x5Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC8x5UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC8x6Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC8x6UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC8x8Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC8x8UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC10x5Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC10x5UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC10x6Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC10x6UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC10x8Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC10x8UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC10x10Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC10x10UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC12x10Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC12x10UnormSrgb
+=== RUN   TestTextureFormat_BlockCopySize/ASTC12x12Unorm
+=== RUN   TestTextureFormat_BlockCopySize/ASTC12x12UnormSrgb
+--- PASS: TestTextureFormat_BlockCopySize (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/Undefined (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/Unknown_value (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R8Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R8Snorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R8Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R8Sint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/Stencil8 (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R16Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R16Snorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R16Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R16Sint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R16Float (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG8Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG8Snorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG8Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG8Sint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/Depth16Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R32Float (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R32Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/R32Sint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG16Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG16Snorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG16Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG16Sint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG16Float (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA8Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA8UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA8Snorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA8Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA8Sint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BGRA8Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BGRA8UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGB10A2Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGB10A2Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG11B10Ufloat (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGB9E5Ufloat (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/Depth32Float (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG32Float (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG32Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RG32Sint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA16Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA16Snorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA16Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA16Sint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA16Float (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA32Float (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA32Uint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/RGBA32Sint (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/Depth24Plus (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/Depth24PlusStencil8 (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/Depth32FloatStencil8 (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC1RGBAUnorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC1RGBAUnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC4RUnorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC4RSnorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC2RGBAUnorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC2RGBAUnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC3RGBAUnorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC3RGBAUnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC5RGUnorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC5RGSnorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC6HRGBUfloat (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC6HRGBFloat (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC7RGBAUnorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/BC7RGBAUnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ETC2RGB8Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ETC2RGB8UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ETC2RGB8A1Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ETC2RGB8A1UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/EACR11Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/EACR11Snorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ETC2RGBA8Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ETC2RGBA8UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/EACRG11Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/EACRG11Snorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC4x4Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC4x4UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC5x4Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC5x4UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC5x5Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC5x5UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC6x5Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC6x5UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC6x6Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC6x6UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC8x5Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC8x5UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC8x6Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC8x6UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC8x8Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC8x8UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC10x5Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC10x5UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC10x6Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC10x6UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC10x8Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC10x8UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC10x10Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC10x10UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC12x10Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC12x10UnormSrgb (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC12x12Unorm (0.00s)
+    --- PASS: TestTextureFormat_BlockCopySize/ASTC12x12UnormSrgb (0.00s)
+=== RUN   TestBlockCopySizeCoversAllFormats
+--- PASS: TestBlockCopySizeCoversAllFormats (0.00s)
+PASS

@@ -1,0 +1,115 @@
+=== RUN   TestMSDFTextShaderSource
+--- PASS: TestMSDFTextShaderSource (0.00s)
+=== RUN   TestTextQuad
+--- PASS: TestTextQuad (0.00s)
+=== RUN   TestQuadsToVertices
+=== RUN   TestQuadsToVertices/empty
+=== RUN   TestQuadsToVertices/single_quad
+=== RUN   TestQuadsToVertices/multiple_quads
+--- PASS: TestQuadsToVertices (0.00s)
+    --- PASS: TestQuadsToVertices/empty (0.00s)
+    --- PASS: TestQuadsToVertices/single_quad (0.00s)
+    --- PASS: TestQuadsToVertices/multiple_quads (0.00s)
+=== RUN   TestGenerateQuadIndices
+=== RUN   TestGenerateQuadIndices/zero_quads
+=== RUN   TestGenerateQuadIndices/one_quad
+=== RUN   TestGenerateQuadIndices/two_quads
+=== RUN   TestGenerateQuadIndices/ten_quads
+--- PASS: TestGenerateQuadIndices (0.00s)
+    --- PASS: TestGenerateQuadIndices/zero_quads (0.00s)
+    --- PASS: TestGenerateQuadIndices/one_quad (0.00s)
+    --- PASS: TestGenerateQuadIndices/two_quads (0.00s)
+    --- PASS: TestGenerateQuadIndices/ten_quads (0.00s)
+=== RUN   TestTextPipelineConfig
+=== RUN   TestTextPipelineConfig/defaults
+--- PASS: TestTextPipelineConfig (0.00s)
+    --- PASS: TestTextPipelineConfig/defaults (0.00s)
+=== RUN   TestNewTextPipeline
+=== RUN   TestNewTextPipeline/with_default_config
+=== RUN   TestNewTextPipeline/with_custom_config
+=== RUN   TestNewTextPipeline/with_zero_config_values
+--- PASS: TestNewTextPipeline (0.22s)
+    --- PASS: TestNewTextPipeline/with_default_config (0.00s)
+    --- PASS: TestNewTextPipeline/with_custom_config (0.00s)
+    --- PASS: TestNewTextPipeline/with_zero_config_values (0.00s)
+=== RUN   TestTextPipelineInit
+=== RUN   TestTextPipelineInit/first_init
+=== RUN   TestTextPipelineInit/double_init_is_safe
+--- PASS: TestTextPipelineInit (0.18s)
+    --- PASS: TestTextPipelineInit/first_init (0.03s)
+    --- PASS: TestTextPipelineInit/double_init_is_safe (0.00s)
+=== RUN   TestTextPipelineClose
+--- PASS: TestTextPipelineClose (0.09s)
+=== RUN   TestTextPipelineRenderText
+=== RUN   TestTextPipelineRenderText/not_initialized_error
+=== RUN   TestTextPipelineRenderText/empty_quads_error
+=== RUN   TestTextPipelineRenderText/negative_atlas_index_error
+=== RUN   TestTextPipelineRenderText/too_many_quads_error
+=== RUN   TestTextPipelineRenderText/valid_render
+--- PASS: TestTextPipelineRenderText (0.08s)
+    --- PASS: TestTextPipelineRenderText/not_initialized_error (0.00s)
+    --- PASS: TestTextPipelineRenderText/empty_quads_error (0.00s)
+    --- PASS: TestTextPipelineRenderText/negative_atlas_index_error (0.00s)
+    --- PASS: TestTextPipelineRenderText/too_many_quads_error (0.00s)
+    --- PASS: TestTextPipelineRenderText/valid_render (0.00s)
+=== RUN   TestTextUniforms
+=== RUN   TestTextUniforms/identity_transform
+=== RUN   TestTextUniforms/translated_transform
+=== RUN   TestTextUniforms/premultiplied_color
+--- PASS: TestTextUniforms (0.00s)
+    --- PASS: TestTextUniforms/identity_transform (0.00s)
+    --- PASS: TestTextUniforms/translated_transform (0.00s)
+    --- PASS: TestTextUniforms/premultiplied_color (0.00s)
+=== RUN   TestTextRendererConfig
+--- PASS: TestTextRendererConfig (0.00s)
+=== RUN   TestNewTextRenderer
+=== RUN   TestNewTextRenderer/nil_device_error
+=== RUN   TestNewTextRenderer/with_valid_device
+--- PASS: TestNewTextRenderer (0.09s)
+    --- PASS: TestNewTextRenderer/nil_device_error (0.00s)
+    --- PASS: TestNewTextRenderer/with_valid_device (0.09s)
+=== RUN   TestTextRendererInit
+--- PASS: TestTextRendererInit (0.08s)
+=== RUN   TestTextRendererSyncAtlases
+--- PASS: TestTextRendererSyncAtlases (0.08s)
+=== RUN   TestTextBatch
+--- PASS: TestTextBatch (0.00s)
+=== RUN   TestRenderTextBatch
+--- PASS: TestRenderTextBatch (0.08s)
+=== RUN   TestMSDFTextShaderComments
+--- PASS: TestMSDFTextShaderComments (0.00s)
+=== RUN   TestBuildTextVertexData
+=== RUN   TestBuildTextVertexData/empty_quads
+=== RUN   TestBuildTextVertexData/single_quad
+=== RUN   TestBuildTextVertexData/multiple_quads
+--- PASS: TestBuildTextVertexData (0.00s)
+    --- PASS: TestBuildTextVertexData/empty_quads (0.00s)
+    --- PASS: TestBuildTextVertexData/single_quad (0.00s)
+    --- PASS: TestBuildTextVertexData/multiple_quads (0.00s)
+=== RUN   TestBuildTextIndexData
+=== RUN   TestBuildTextIndexData/single_quad
+=== RUN   TestBuildTextIndexData/multiple_quads
+--- PASS: TestBuildTextIndexData (0.00s)
+    --- PASS: TestBuildTextIndexData/single_quad (0.00s)
+    --- PASS: TestBuildTextIndexData/multiple_quads (0.00s)
+=== RUN   TestMakeTextUniform
+--- PASS: TestMakeTextUniform (0.00s)
+=== RUN   TestRgbToRGBA
+=== RUN   TestRgbToRGBA/single_pixel
+=== RUN   TestRgbToRGBA/2x2_image
+--- PASS: TestRgbToRGBA (0.00s)
+    --- PASS: TestRgbToRGBA/single_pixel (0.00s)
+    --- PASS: TestRgbToRGBA/2x2_image (0.00s)
+=== RUN   TestMSDFTextPipelineCreate
+--- PASS: TestMSDFTextPipelineCreate (0.08s)
+=== RUN   TestMSDFTextPipelineWithStencil
+--- PASS: TestMSDFTextPipelineWithStencil (0.08s)
+=== RUN   TestMSDFTextPipelineDestroy
+--- PASS: TestMSDFTextPipelineDestroy (0.08s)
+=== RUN   TestTextVertexLayout
+--- PASS: TestTextVertexLayout (0.00s)
+=== RUN   TestTextUniformsLayout
+--- PASS: TestTextUniformsLayout (0.00s)
+=== RUN   TestAtlasManagerIntegration
+--- PASS: TestAtlasManagerIntegration (0.00s)
+PASS

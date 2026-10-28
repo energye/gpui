@@ -1,0 +1,7 @@
+=== RUN   TestWlTopConfigure_MaximizedContentHeightAnchor
+--- PASS: TestWlTopConfigure_MaximizedContentHeightAnchor (0.00s)
+=== RUN   TestWlTopConfigure_MaximizeRestoreNoContentHeight
+--- PASS: TestWlTopConfigure_MaximizeRestoreNoContentHeight (0.00s)
+=== RUN   TestWlTopConfigure_MaximizedFullscreenNoShrink
+--- PASS: TestWlTopConfigure_MaximizedFullscreenNoShrink (0.00s)
+PASS

@@ -1,0 +1,35 @@
+=== RUN   TestAlphaRuns_NewAndReset
+--- PASS: TestAlphaRuns_NewAndReset (0.00s)
+=== RUN   TestAlphaRuns_ZeroWidth
+--- PASS: TestAlphaRuns_ZeroWidth (0.00s)
+=== RUN   TestAlphaRuns_Add
+--- PASS: TestAlphaRuns_Add (0.00s)
+=== RUN   TestAlphaRuns_AddOutOfBounds
+--- PASS: TestAlphaRuns_AddOutOfBounds (0.00s)
+=== RUN   TestAlphaRuns_AddWithCoverage
+--- PASS: TestAlphaRuns_AddWithCoverage (0.00s)
+=== RUN   TestAlphaRuns_AddWithCoverageOutOfBounds
+--- PASS: TestAlphaRuns_AddWithCoverageOutOfBounds (0.00s)
+=== RUN   TestAlphaRuns_Accumulation
+--- PASS: TestAlphaRuns_Accumulation (0.00s)
+=== RUN   TestAlphaRuns_OverflowAccumulation
+--- PASS: TestAlphaRuns_OverflowAccumulation (0.00s)
+=== RUN   TestAlphaRuns_GetAlphaOutOfBounds
+--- PASS: TestAlphaRuns_GetAlphaOutOfBounds (0.00s)
+=== RUN   TestAlphaRuns_Clear
+--- PASS: TestAlphaRuns_Clear (0.00s)
+=== RUN   TestAlphaRuns_CopyTo
+--- PASS: TestAlphaRuns_CopyTo (0.00s)
+=== RUN   TestAlphaRuns_CopyToSmallBuffer
+--- PASS: TestAlphaRuns_CopyToSmallBuffer (0.00s)
+=== RUN   TestAlphaRuns_Iter
+--- PASS: TestAlphaRuns_Iter (0.00s)
+=== RUN   TestAlphaRuns_IterEarlyStop
+--- PASS: TestAlphaRuns_IterEarlyStop (0.00s)
+=== RUN   TestAlphaRuns_IterRuns
+--- PASS: TestAlphaRuns_IterRuns (0.00s)
+=== RUN   TestAlphaRuns_IterRunsEarlyStop
+--- PASS: TestAlphaRuns_IterRunsEarlyStop (0.00s)
+=== RUN   TestAlphaRuns_SetOffset
+--- PASS: TestAlphaRuns_SetOffset (0.00s)
+PASS

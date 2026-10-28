@@ -1,0 +1,14 @@
+=== RUN   TestEasingValuesFromCases
+--- PASS: TestEasingValuesFromCases (0.00s)
+=== RUN   TestEasingEdgesNoCrash
+--- PASS: TestEasingEdgesNoCrash (0.00s)
+=== RUN   TestEasingBoundaryIdentical
+--- PASS: TestEasingBoundaryIdentical (0.00s)
+=== RUN   TestEasingPerf10k
+    easing_test.go:249: easing-10k: 10000 eased evals x31 kinds in 767.038µs (76.7 ns/op)
+--- PASS: TestEasingPerf10k (0.00s)
+=== RUN   TestEasingLongRunNoDrift
+--- PASS: TestEasingLongRunNoDrift (0.19s)
+=== RUN   TestEasingOffscreenGolden
+--- PASS: TestEasingOffscreenGolden (0.00s)
+PASS

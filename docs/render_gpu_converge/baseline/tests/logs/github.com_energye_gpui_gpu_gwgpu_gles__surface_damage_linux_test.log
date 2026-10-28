@@ -1,0 +1,13 @@
+=== RUN   TestPresentDamageUnionForAge
+--- PASS: TestPresentDamageUnionForAge (0.00s)
+=== RUN   TestRecordPresentDamageKeepsNewestFirst
+--- PASS: TestRecordPresentDamageKeepsNewestFirst (0.00s)
+=== RUN   TestPresentDamageCoversFull
+--- PASS: TestPresentDamageCoversFull (0.00s)
+=== RUN   TestCanScissorPresent
+--- PASS: TestCanScissorPresent (0.00s)
+=== RUN   TestResetPresentDamageHistory
+--- PASS: TestResetPresentDamageHistory (0.00s)
+=== RUN   TestPresentHistoryDoesNotAmplifyFullFrame
+--- PASS: TestPresentHistoryDoesNotAmplifyFullFrame (0.00s)
+PASS

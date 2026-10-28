@@ -1,0 +1,3 @@
+=== RUN   TestNoForbiddenImports
+--- PASS: TestNoForbiddenImports (0.00s)
+PASS

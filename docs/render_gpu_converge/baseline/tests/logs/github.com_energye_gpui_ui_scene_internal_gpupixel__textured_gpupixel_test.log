@@ -1,0 +1,5 @@
+=== RUN   TestCompositeFramePacketTextured_ClipReplayPixels
+--- PASS: TestCompositeFramePacketTextured_ClipReplayPixels (0.31s)
+=== RUN   TestCompositeFramePacketTextured_TranslateBlitPixels
+--- PASS: TestCompositeFramePacketTextured_TranslateBlitPixels (0.01s)
+PASS

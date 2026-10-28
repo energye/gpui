@@ -1,0 +1,7 @@
+=== RUN   TestRecordLocal_RefusesOversized
+--- PASS: TestRecordLocal_RefusesOversized (0.00s)
+=== RUN   TestRecordLocal_CachesPadBleedAtExactSize
+--- PASS: TestRecordLocal_CachesPadBleedAtExactSize (0.30s)
+=== RUN   TestRecordLocal_RefusalEvictsStaleEntry
+--- PASS: TestRecordLocal_RefusalEvictsStaleEntry (0.00s)
+PASS

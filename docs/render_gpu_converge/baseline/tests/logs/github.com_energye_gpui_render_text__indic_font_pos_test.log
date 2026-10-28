@@ -1,0 +1,9 @@
+=== RUN   TestBuildIndicFontPosClasses_BlwfPstf
+--- PASS: TestBuildIndicFontPosClasses_BlwfPstf (0.00s)
+=== RUN   TestBuildIndicFontPosClasses_RkrfVatu
+--- PASS: TestBuildIndicFontPosClasses_RkrfVatu (0.00s)
+=== RUN   TestReorderFinal_FontPosOverridesStatic
+--- PASS: TestReorderFinal_FontPosOverridesStatic (0.00s)
+=== RUN   TestFindBase_FontPosSkipsCoveredConsonant
+--- PASS: TestFindBase_FontPosSkipsCoveredConsonant (0.00s)
+PASS

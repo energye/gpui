@@ -1,0 +1,16 @@
+=== RUN   TestNavBake256Deterministic
+    nav_test.go:163: bake-256: 1.8ms (gate 200) solids=14208 bytes=65536
+--- PASS: TestNavBake256Deterministic (0.00s)
+=== RUN   TestNavBakeEdgesNoCrash
+--- PASS: TestNavBakeEdgesNoCrash (0.00s)
+=== RUN   TestNavCasesTerminal
+--- PASS: TestNavCasesTerminal (0.00s)
+=== RUN   TestNavCornerRefused
+--- PASS: TestNavCornerRefused (0.00s)
+=== RUN   TestNavAgentArrival
+    nav_test.go:353: agent: cells=16 steps=152 speed=200 tol=2
+--- PASS: TestNavAgentArrival (0.00s)
+=== RUN   TestNavQueueDrain
+    nav_test.go:421: queue: 100 jobs x 8/frame = 13 frames
+--- PASS: TestNavQueueDrain (0.00s)
+PASS

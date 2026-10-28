@@ -1,0 +1,14 @@
+=== RUN   TestLightGolden
+--- PASS: TestLightGolden (0.00s)
+=== RUN   TestLightEdgesNoCrash
+--- PASS: TestLightEdgesNoCrash (0.00s)
+=== RUN   TestLightBoundaryIdentical
+--- PASS: TestLightBoundaryIdentical (0.00s)
+=== RUN   TestLightMultiPerf
+    light_test.go:442: light-8x64x64: 2.021934ms total (61.7 ns/px/light, 4096 px, 8 lights)
+--- PASS: TestLightMultiPerf (0.00s)
+=== RUN   TestLightLongRunStable
+--- PASS: TestLightLongRunStable (0.01s)
+=== RUN   TestLightOffscreenShapes
+--- PASS: TestLightOffscreenShapes (0.00s)
+PASS

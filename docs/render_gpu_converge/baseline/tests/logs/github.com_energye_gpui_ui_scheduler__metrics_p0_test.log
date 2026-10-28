@@ -1,0 +1,23 @@
+=== RUN   TestMetrics_PresentPolicy_JSONKey
+--- PASS: TestMetrics_PresentPolicy_JSONKey (0.00s)
+=== RUN   TestMetrics_PaintCountAndPercentiles
+--- PASS: TestMetrics_PaintCountAndPercentiles (0.00s)
+=== RUN   TestMetrics_P95BetweenP50AndP99
+--- PASS: TestMetrics_P95BetweenP50AndP99 (0.00s)
+=== RUN   TestMetrics_HitchRatePerMin
+--- PASS: TestMetrics_HitchRatePerMin (0.00s)
+=== RUN   TestMetrics_HitchRateZeroWithoutHitch
+--- PASS: TestMetrics_HitchRateZeroWithoutHitch (0.00s)
+=== RUN   TestMetrics_PathCPU_DivergesWhenOneSided
+--- PASS: TestMetrics_PathCPU_DivergesWhenOneSided (0.00s)
+=== RUN   TestMetrics_PathCPU_ScalesWithProcessCPU
+--- PASS: TestMetrics_PathCPU_ScalesWithProcessCPU (0.00s)
+=== RUN   TestMetrics_PathCPU_ZeroWithoutNotes
+--- PASS: TestMetrics_PathCPU_ZeroWithoutNotes (0.00s)
+=== RUN   TestMetrics_FirstPresent_HFamily
+--- PASS: TestMetrics_FirstPresent_HFamily (0.00s)
+=== RUN   TestMetrics_FirstPresent_WarmupFalse
+--- PASS: TestMetrics_FirstPresent_WarmupFalse (0.00s)
+=== RUN   TestMetrics_DirtyLayerIDs_DamageMulti
+--- PASS: TestMetrics_DirtyLayerIDs_DamageMulti (0.00s)
+PASS

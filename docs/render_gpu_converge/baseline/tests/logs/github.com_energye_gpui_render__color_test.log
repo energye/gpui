@@ -1,0 +1,17 @@
+=== RUN   TestRGBA_ColorInterface
+=== RUN   TestRGBA_ColorInterface/opaque_black
+=== RUN   TestRGBA_ColorInterface/opaque_white
+=== RUN   TestRGBA_ColorInterface/opaque_red
+=== RUN   TestRGBA_ColorInterface/transparent
+=== RUN   TestRGBA_ColorInterface/50%_alpha_red
+--- PASS: TestRGBA_ColorInterface (0.00s)
+    --- PASS: TestRGBA_ColorInterface/opaque_black (0.00s)
+    --- PASS: TestRGBA_ColorInterface/opaque_white (0.00s)
+    --- PASS: TestRGBA_ColorInterface/opaque_red (0.00s)
+    --- PASS: TestRGBA_ColorInterface/transparent (0.00s)
+    --- PASS: TestRGBA_ColorInterface/50%_alpha_red (0.00s)
+=== RUN   TestRGBA_SetColor
+--- PASS: TestRGBA_SetColor (0.00s)
+=== RUN   TestRGBA_Roundtrip
+--- PASS: TestRGBA_Roundtrip (0.00s)
+PASS

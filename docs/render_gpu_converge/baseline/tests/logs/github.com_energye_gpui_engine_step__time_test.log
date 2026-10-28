@@ -1,0 +1,15 @@
+=== RUN   TestClockSplitFromCases
+--- PASS: TestClockSplitFromCases (0.00s)
+=== RUN   TestClockEdgesNoCrash
+--- PASS: TestClockEdgesNoCrash (0.00s)
+=== RUN   TestClockBoundaryIdentical
+--- PASS: TestClockBoundaryIdentical (0.00s)
+=== RUN   TestClockPerfSwitch
+    time_test.go:321: time-perf: 80000 advances (switch scale/pause each rep) in 1.016609ms (12.7 ns/op, world 1704000ms ui 1480000ms)
+    time_test.go:334: time-split-10k: splits in 67.46µs (6.7 ns/op)
+--- PASS: TestClockPerfSwitch (0.00s)
+=== RUN   TestClockLongRunNoDrift
+--- PASS: TestClockLongRunNoDrift (0.01s)
+=== RUN   TestClockOffscreenGolden
+--- PASS: TestClockOffscreenGolden (0.00s)
+PASS

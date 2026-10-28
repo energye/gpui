@@ -1,0 +1,27 @@
+=== RUN   TestPrepareDeviceCall_NilReleasedLost
+--- PASS: TestPrepareDeviceCall_NilReleasedLost (0.00s)
+=== RUN   TestPrepareQueueCall_LostReturnsErrDeviceLost
+--- PASS: TestPrepareQueueCall_LostReturnsErrDeviceLost (0.00s)
+=== RUN   TestDeviceCreateBuffer_NilDevice
+--- PASS: TestDeviceCreateBuffer_NilDevice (0.00s)
+=== RUN   TestDeviceCreateBuffer_Released
+--- PASS: TestDeviceCreateBuffer_Released (0.00s)
+=== RUN   TestDeviceCreate_LostReturnsErrDeviceLost
+--- PASS: TestDeviceCreate_LostReturnsErrDeviceLost (0.00s)
+=== RUN   TestQueueSubmit_LostReturnsErrDeviceLost
+--- PASS: TestQueueSubmit_LostReturnsErrDeviceLost (0.00s)
+=== RUN   TestSurfacePresent_LostReturnsErrDeviceLost
+--- PASS: TestSurfacePresent_LostReturnsErrDeviceLost (0.00s)
+=== RUN   TestDeviceCreateTexture_NilDevice
+--- PASS: TestDeviceCreateTexture_NilDevice (0.00s)
+=== RUN   TestQueueSubmit_NilAndReleased
+--- PASS: TestQueueSubmit_NilAndReleased (0.00s)
+=== RUN   TestSurfaceGate_NilReleasedPresent
+--- PASS: TestSurfaceGate_NilReleasedPresent (0.00s)
+=== RUN   TestSurfaceGetCurrentTexture_Released
+--- PASS: TestSurfaceGetCurrentTexture_Released (0.00s)
+=== RUN   TestDeviceRelease_NilSafeIdempotent
+--- PASS: TestDeviceRelease_NilSafeIdempotent (0.00s)
+=== RUN   TestMapRWGPUErr_DeviceLost
+--- PASS: TestMapRWGPUErr_DeviceLost (0.00s)
+PASS

@@ -1,0 +1,28 @@
+=== RUN   TestFineRasterizeTileEmpty
+--- PASS: TestFineRasterizeTileEmpty (0.00s)
+=== RUN   TestFineRasterizeTileSolidColor
+--- PASS: TestFineRasterizeTileSolidColor (0.00s)
+=== RUN   TestFineRasterizeTileFillColor
+--- PASS: TestFineRasterizeTileFillColor (0.00s)
+=== RUN   TestFineRasterizeTileMultiShape
+--- PASS: TestFineRasterizeTileMultiShape (0.00s)
+=== RUN   TestFineRasterizeTileClip
+--- PASS: TestFineRasterizeTileClip (0.00s)
+=== RUN   TestRasterizeScenePTCLSinglePath
+--- PASS: TestRasterizeScenePTCLSinglePath (0.00s)
+=== RUN   TestRasterizeScenePTCLMultiPath
+--- PASS: TestRasterizeScenePTCLMultiPath (0.00s)
+=== RUN   TestRasterizeScenePTCLMatchesExisting
+=== RUN   TestRasterizeScenePTCLMatchesExisting/two_opaque_squares
+    fine_ptcl_test.go:399: scene "two_opaque_squares": 0/1024 pixels differ (>1), maxDiff=0
+=== RUN   TestRasterizeScenePTCLMatchesExisting/three_overlapping_semitransparent
+    fine_ptcl_test.go:399: scene "three_overlapping_semitransparent": 0/1024 pixels differ (>1), maxDiff=1
+=== RUN   TestRasterizeScenePTCLMatchesExisting/triangle_and_square
+    fine_ptcl_test.go:399: scene "triangle_and_square": 0/1024 pixels differ (>1), maxDiff=1
+--- PASS: TestRasterizeScenePTCLMatchesExisting (0.00s)
+    --- PASS: TestRasterizeScenePTCLMatchesExisting/two_opaque_squares (0.00s)
+    --- PASS: TestRasterizeScenePTCLMatchesExisting/three_overlapping_semitransparent (0.00s)
+    --- PASS: TestRasterizeScenePTCLMatchesExisting/triangle_and_square (0.00s)
+=== RUN   TestFineRasterizeTileNilPTCL
+--- PASS: TestFineRasterizeTileNilPTCL (0.00s)
+PASS

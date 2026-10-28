@@ -1,0 +1,43 @@
+=== RUN   TestNew
+--- PASS: TestNew (0.00s)
+=== RUN   TestCacheGetSet
+--- PASS: TestCacheGetSet (0.00s)
+=== RUN   TestCacheGetOrCreate
+--- PASS: TestCacheGetOrCreate (0.00s)
+=== RUN   TestCacheDelete
+--- PASS: TestCacheDelete (0.00s)
+=== RUN   TestCacheClear
+--- PASS: TestCacheClear (0.00s)
+=== RUN   TestCacheEviction
+--- PASS: TestCacheEviction (0.00s)
+=== RUN   TestCacheStats
+--- PASS: TestCacheStats (0.00s)
+=== RUN   TestCacheConcurrent
+--- PASS: TestCacheConcurrent (0.02s)
+=== RUN   TestNewSharded
+--- PASS: TestNewSharded (0.00s)
+=== RUN   TestShardedCacheGetSet
+--- PASS: TestShardedCacheGetSet (0.00s)
+=== RUN   TestShardedCacheGetOrCreate
+--- PASS: TestShardedCacheGetOrCreate (0.00s)
+=== RUN   TestShardedCacheDelete
+--- PASS: TestShardedCacheDelete (0.00s)
+=== RUN   TestShardedCacheClear
+--- PASS: TestShardedCacheClear (0.00s)
+=== RUN   TestShardedCacheEviction
+--- PASS: TestShardedCacheEviction (0.00s)
+=== RUN   TestShardedCacheStats
+--- PASS: TestShardedCacheStats (0.00s)
+=== RUN   TestShardedCacheResetStats
+--- PASS: TestShardedCacheResetStats (0.00s)
+=== RUN   TestShardedCacheShardLen
+--- PASS: TestShardedCacheShardLen (0.00s)
+=== RUN   TestShardedCacheConcurrent
+--- PASS: TestShardedCacheConcurrent (0.00s)
+=== RUN   TestHashers
+--- PASS: TestHashers (0.00s)
+=== RUN   TestLRUList
+--- PASS: TestLRUList (0.00s)
+=== RUN   TestLRUListEmptyOperations
+--- PASS: TestLRUListEmptyOperations (0.00s)
+PASS

@@ -1,0 +1,15 @@
+=== RUN   TestP03SceneModes_FixedPixels
+=== RUN   TestP03SceneModes_FixedPixels/Normal_==_SourceOver_opaque_red_over_blue
+=== RUN   TestP03SceneModes_FixedPixels/SourceOver_opaque_red_over_blue
+=== RUN   TestP03SceneModes_FixedPixels/Copy_replaces
+=== RUN   TestP03SceneModes_FixedPixels/Plus_clamps
+=== RUN   TestP03SceneModes_FixedPixels/Multiply_black_*_white
+--- PASS: TestP03SceneModes_FixedPixels (0.00s)
+    --- PASS: TestP03SceneModes_FixedPixels/Normal_==_SourceOver_opaque_red_over_blue (0.00s)
+    --- PASS: TestP03SceneModes_FixedPixels/SourceOver_opaque_red_over_blue (0.00s)
+    --- PASS: TestP03SceneModes_FixedPixels/Copy_replaces (0.00s)
+    --- PASS: TestP03SceneModes_FixedPixels/Plus_clamps (0.00s)
+    --- PASS: TestP03SceneModes_FixedPixels/Multiply_black_*_white (0.00s)
+=== RUN   TestP03SceneModeMapping_Internal
+--- PASS: TestP03SceneModeMapping_Internal (0.00s)
+PASS

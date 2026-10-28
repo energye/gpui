@@ -1,0 +1,14 @@
+=== RUN   TestParseXIHierarchy
+--- PASS: TestParseXIHierarchy (0.00s)
+=== RUN   TestXIUseToClass
+--- PASS: TestXIUseToClass (0.00s)
+=== RUN   TestXIIsPenName
+--- PASS: TestXIIsPenName (0.00s)
+=== RUN   TestXIHierarchyToEvents
+--- PASS: TestXIHierarchyToEvents (0.00s)
+=== RUN   TestDeviceEventString
+--- PASS: TestDeviceEventString (0.00s)
+=== RUN   TestXIHierarchyProbeGating
+    x11_device_linux_test.go:153: xi hierarchy selected=true major=131 (live plug verification needs hardware)
+--- PASS: TestXIHierarchyProbeGating (0.51s)
+PASS

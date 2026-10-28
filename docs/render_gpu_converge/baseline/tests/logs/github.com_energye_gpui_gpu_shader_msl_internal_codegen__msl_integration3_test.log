@@ -1,0 +1,83 @@
+=== RUN   TestIntegration_PipelineConstantsWithBinary
+--- PASS: TestIntegration_PipelineConstantsWithBinary (0.00s)
+=== RUN   TestIntegration_PipelineConstantsI32
+--- PASS: TestIntegration_PipelineConstantsI32 (0.00s)
+=== RUN   TestIntegration_PipelineConstantsU32
+--- PASS: TestIntegration_PipelineConstantsU32 (0.00s)
+=== RUN   TestIntegration_PipelineConstantsBool
+--- PASS: TestIntegration_PipelineConstantsBool (0.00s)
+=== RUN   TestIntegration_PipelineConstantsDefault
+--- PASS: TestIntegration_PipelineConstantsDefault (0.00s)
+=== RUN   TestIntegration_ConstantF32Values
+--- PASS: TestIntegration_ConstantF32Values (0.00s)
+=== RUN   TestIntegration_ConstantI32Values
+--- PASS: TestIntegration_ConstantI32Values (0.00s)
+=== RUN   TestIntegration_StructWithArray
+--- PASS: TestIntegration_StructWithArray (0.00s)
+=== RUN   TestIntegration_PipelineConstantsMultiple
+--- PASS: TestIntegration_PipelineConstantsMultiple (0.00s)
+=== RUN   TestIntegration_AccessChainDeep
+--- PASS: TestIntegration_AccessChainDeep (0.00s)
+=== RUN   TestIntegration_MatrixColumnAccess
+--- PASS: TestIntegration_MatrixColumnAccess (0.00s)
+=== RUN   TestIntegration_MatrixElementAccess
+--- PASS: TestIntegration_MatrixElementAccess (0.00s)
+=== RUN   TestIntegration_VectorComponentIndex
+--- PASS: TestIntegration_VectorComponentIndex (0.00s)
+=== RUN   TestIntegration_StructMemberAccess
+--- PASS: TestIntegration_StructMemberAccess (0.00s)
+=== RUN   TestIntegration_AtomicMax
+--- PASS: TestIntegration_AtomicMax (0.00s)
+=== RUN   TestIntegration_AtomicMin
+--- PASS: TestIntegration_AtomicMin (0.00s)
+=== RUN   TestIntegration_AtomicAnd
+--- PASS: TestIntegration_AtomicAnd (0.00s)
+=== RUN   TestIntegration_AtomicOr
+--- PASS: TestIntegration_AtomicOr (0.00s)
+=== RUN   TestIntegration_AtomicXor
+--- PASS: TestIntegration_AtomicXor (0.00s)
+=== RUN   TestIntegration_AtomicExchange
+--- PASS: TestIntegration_AtomicExchange (0.00s)
+=== RUN   TestIntegration_AtomicI32Add
+--- PASS: TestIntegration_AtomicI32Add (0.00s)
+=== RUN   TestIntegration_StorageAtomicAdd
+--- PASS: TestIntegration_StorageAtomicAdd (0.00s)
+=== RUN   TestIntegration_LiteralI64
+--- PASS: TestIntegration_LiteralI64 (0.00s)
+=== RUN   TestIntegration_LiteralF16
+--- PASS: TestIntegration_LiteralF16 (0.00s)
+=== RUN   TestIntegration_WrappedScalarSuffix
+=== RUN   TestIntegration_WrappedScalarSuffix/i32
+=== RUN   TestIntegration_WrappedScalarSuffix/u32
+=== RUN   TestIntegration_WrappedScalarSuffix/f32
+=== RUN   TestIntegration_WrappedScalarSuffix/f16
+--- PASS: TestIntegration_WrappedScalarSuffix (0.00s)
+    --- PASS: TestIntegration_WrappedScalarSuffix/i32 (0.00s)
+    --- PASS: TestIntegration_WrappedScalarSuffix/u32 (0.00s)
+    --- PASS: TestIntegration_WrappedScalarSuffix/f32 (0.00s)
+    --- PASS: TestIntegration_WrappedScalarSuffix/f16 (0.00s)
+=== RUN   TestIntegration_Texture2DArrayDimensions
+--- PASS: TestIntegration_Texture2DArrayDimensions (0.00s)
+=== RUN   TestIntegration_Texture2DArrayLayers
+--- PASS: TestIntegration_Texture2DArrayLayers (0.00s)
+=== RUN   TestIntegration_Texture3DDimensions
+--- PASS: TestIntegration_Texture3DDimensions (0.00s)
+=== RUN   TestIntegration_TextureCubeDimensions
+--- PASS: TestIntegration_TextureCubeDimensions (0.00s)
+=== RUN   TestIntegration_BoundsCheckRZSW
+--- PASS: TestIntegration_BoundsCheckRZSW (0.00s)
+=== RUN   TestIntegration_MultipleOutputLocations
+--- PASS: TestIntegration_MultipleOutputLocations (0.00s)
+=== RUN   TestIntegration_FragmentDepthOutput
+--- PASS: TestIntegration_FragmentDepthOutput (0.00s)
+=== RUN   TestIntegration_InvariantPosition
+--- PASS: TestIntegration_InvariantPosition (0.00s)
+=== RUN   TestIntegration_SampleMaskOutput
+--- PASS: TestIntegration_SampleMaskOutput (0.00s)
+=== RUN   TestIntegration_WorkgroupZeroInitStruct
+--- PASS: TestIntegration_WorkgroupZeroInitStruct (0.00s)
+=== RUN   TestIntegration_MultipleFunctions
+--- PASS: TestIntegration_MultipleFunctions (0.00s)
+=== RUN   TestIntegration_FunctionWithMultipleArgs
+--- PASS: TestIntegration_FunctionWithMultipleArgs (0.00s)
+PASS

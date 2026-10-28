@@ -1,0 +1,3 @@
+=== RUN   TestImageBuf_DisposeRacesRasterReads
+--- PASS: TestImageBuf_DisposeRacesRasterReads (0.00s)
+PASS

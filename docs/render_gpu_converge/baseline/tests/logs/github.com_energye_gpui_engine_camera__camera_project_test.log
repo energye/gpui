@@ -1,0 +1,14 @@
+=== RUN   TestProjectFromCases
+--- PASS: TestProjectFromCases (0.00s)
+=== RUN   TestProjectEdgesNoCrash
+--- PASS: TestProjectEdgesNoCrash (0.00s)
+=== RUN   TestProjectBoundaryIdentical
+--- PASS: TestProjectBoundaryIdentical (0.00s)
+=== RUN   TestProjectRoad56Perf
+    camera_project_test.go:292: project-road56: 114 points in 4.988µs (43.8 ns/op)
+--- PASS: TestProjectRoad56Perf (0.00s)
+=== RUN   TestProjectLoopClosed1000
+--- PASS: TestProjectLoopClosed1000 (0.00s)
+=== RUN   TestProjectOffscreenGolden
+--- PASS: TestProjectOffscreenGolden (0.00s)
+PASS

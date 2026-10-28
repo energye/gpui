@@ -1,0 +1,11 @@
+=== RUN   TestNullDeviceHandle
+--- PASS: TestNullDeviceHandle (0.00s)
+=== RUN   TestTextureDescriptorDefault
+--- PASS: TestTextureDescriptorDefault (0.00s)
+=== RUN   TestTextureUsageFlags
+--- PASS: TestTextureUsageFlags (0.00s)
+=== RUN   TestDeviceHandleAlias
+--- PASS: TestDeviceHandleAlias (0.00s)
+=== RUN   TestDeviceCapabilities
+--- PASS: TestDeviceCapabilities (0.00s)
+PASS

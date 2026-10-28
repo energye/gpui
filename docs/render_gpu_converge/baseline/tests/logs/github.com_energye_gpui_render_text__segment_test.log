@@ -1,0 +1,407 @@
+=== RUN   TestDetectScript
+=== RUN   TestDetectScript/Latin_uppercase_A
+=== RUN   TestDetectScript/Latin_lowercase_a
+=== RUN   TestDetectScript/Latin_uppercase_Z
+=== RUN   TestDetectScript/Latin_lowercase_z
+=== RUN   TestDetectScript/digit_0
+=== RUN   TestDetectScript/digit_9
+=== RUN   TestDetectScript/space
+=== RUN   TestDetectScript/period
+=== RUN   TestDetectScript/comma
+=== RUN   TestDetectScript/exclamation
+=== RUN   TestDetectScript/Latin_e-acute
+=== RUN   TestDetectScript/Latin_n-tilde
+=== RUN   TestDetectScript/Latin_o-umlaut
+=== RUN   TestDetectScript/Latin_A-grave
+=== RUN   TestDetectScript/Latin_s-caron
+=== RUN   TestDetectScript/Latin_o-macron
+=== RUN   TestDetectScript/Latin_dotless_i
+=== RUN   TestDetectScript/Latin_a-breve
+=== RUN   TestDetectScript/Latin_o-dblacute
+=== RUN   TestDetectScript/Latin_w-grave
+=== RUN   TestDetectScript/Latin_y-hook
+=== RUN   TestDetectScript/non-breaking_space
+=== RUN   TestDetectScript/copyright_sign
+=== RUN   TestDetectScript/registered_sign
+=== RUN   TestDetectScript/degree_sign
+=== RUN   TestDetectScript/section_sign
+=== RUN   TestDetectScript/Cyrillic_A
+=== RUN   TestDetectScript/Cyrillic_a
+=== RUN   TestDetectScript/Cyrillic_Ya
+=== RUN   TestDetectScript/Cyrillic_ya
+=== RUN   TestDetectScript/Cyrillic_Zhe
+=== RUN   TestDetectScript/Cyrillic_zhe
+=== RUN   TestDetectScript/Cyrillic_Io
+=== RUN   TestDetectScript/Cyrillic_io
+=== RUN   TestDetectScript/Cyrillic_supplement
+=== RUN   TestDetectScript/Greek_Alpha
+=== RUN   TestDetectScript/Greek_alpha
+=== RUN   TestDetectScript/Greek_Omega
+=== RUN   TestDetectScript/Greek_omega
+=== RUN   TestDetectScript/Greek_pi
+=== RUN   TestDetectScript/Greek_extended
+=== RUN   TestDetectScript/Arabic_Alef
+=== RUN   TestDetectScript/Arabic_Ba
+=== RUN   TestDetectScript/Arabic_Ya
+=== RUN   TestDetectScript/Arabic_comma
+=== RUN   TestDetectScript/Arabic_supplement
+=== RUN   TestDetectScript/Arabic_Presentation
+=== RUN   TestDetectScript/Arabic_Presentation_B
+=== RUN   TestDetectScript/Hebrew_Alef
+=== RUN   TestDetectScript/Hebrew_Bet
+=== RUN   TestDetectScript/Hebrew_Tav
+=== RUN   TestDetectScript/Hebrew_mark
+=== RUN   TestDetectScript/Hebrew_presentation
+=== RUN   TestDetectScript/CJK_ideograph_yi
+=== RUN   TestDetectScript/CJK_ideograph
+=== RUN   TestDetectScript/CJK_ideograph#01
+=== RUN   TestDetectScript/CJK_Extension_A
+=== RUN   TestDetectScript/CJK_Compatibility
+=== RUN   TestDetectScript/CJK_Radical
+=== RUN   TestDetectScript/Hiragana_a
+=== RUN   TestDetectScript/Hiragana_i
+=== RUN   TestDetectScript/Hiragana_n
+=== RUN   TestDetectScript/Katakana_a
+=== RUN   TestDetectScript/Katakana_i
+=== RUN   TestDetectScript/Katakana_n
+=== RUN   TestDetectScript/Halfwidth_Katakana
+=== RUN   TestDetectScript/Hangul_syllable_ga
+=== RUN   TestDetectScript/Hangul_syllable_ha
+=== RUN   TestDetectScript/Hangul_Jamo
+=== RUN   TestDetectScript/Hangul_Compatibility
+=== RUN   TestDetectScript/Devanagari_Ka
+=== RUN   TestDetectScript/Devanagari_A
+=== RUN   TestDetectScript/Devanagari_Virama
+=== RUN   TestDetectScript/Thai_Ko_Kai
+=== RUN   TestDetectScript/Thai_Sara_A
+=== RUN   TestDetectScript/Armenian_Ayb
+=== RUN   TestDetectScript/Armenian_ayb
+=== RUN   TestDetectScript/Georgian_An
+=== RUN   TestDetectScript/Combining_acute
+=== RUN   TestDetectScript/Combining_grave
+=== RUN   TestDetectScript/Combining_tilde
+=== RUN   TestDetectScript/Combining_diaeresis
+=== RUN   TestDetectScript/Em_dash
+=== RUN   TestDetectScript/En_dash
+=== RUN   TestDetectScript/Bullet
+=== RUN   TestDetectScript/Ellipsis
+=== RUN   TestDetectScript/Euro_sign
+=== RUN   TestDetectScript/Yen_sign
+=== RUN   TestDetectScript/Dollar_sign
+=== RUN   TestDetectScript/CJK_period
+=== RUN   TestDetectScript/CJK_comma
+=== RUN   TestDetectScript/Unknown_high_plane
+--- PASS: TestDetectScript (0.00s)
+    --- PASS: TestDetectScript/Latin_uppercase_A (0.00s)
+    --- PASS: TestDetectScript/Latin_lowercase_a (0.00s)
+    --- PASS: TestDetectScript/Latin_uppercase_Z (0.00s)
+    --- PASS: TestDetectScript/Latin_lowercase_z (0.00s)
+    --- PASS: TestDetectScript/digit_0 (0.00s)
+    --- PASS: TestDetectScript/digit_9 (0.00s)
+    --- PASS: TestDetectScript/space (0.00s)
+    --- PASS: TestDetectScript/period (0.00s)
+    --- PASS: TestDetectScript/comma (0.00s)
+    --- PASS: TestDetectScript/exclamation (0.00s)
+    --- PASS: TestDetectScript/Latin_e-acute (0.00s)
+    --- PASS: TestDetectScript/Latin_n-tilde (0.00s)
+    --- PASS: TestDetectScript/Latin_o-umlaut (0.00s)
+    --- PASS: TestDetectScript/Latin_A-grave (0.00s)
+    --- PASS: TestDetectScript/Latin_s-caron (0.00s)
+    --- PASS: TestDetectScript/Latin_o-macron (0.00s)
+    --- PASS: TestDetectScript/Latin_dotless_i (0.00s)
+    --- PASS: TestDetectScript/Latin_a-breve (0.00s)
+    --- PASS: TestDetectScript/Latin_o-dblacute (0.00s)
+    --- PASS: TestDetectScript/Latin_w-grave (0.00s)
+    --- PASS: TestDetectScript/Latin_y-hook (0.00s)
+    --- PASS: TestDetectScript/non-breaking_space (0.00s)
+    --- PASS: TestDetectScript/copyright_sign (0.00s)
+    --- PASS: TestDetectScript/registered_sign (0.00s)
+    --- PASS: TestDetectScript/degree_sign (0.00s)
+    --- PASS: TestDetectScript/section_sign (0.00s)
+    --- PASS: TestDetectScript/Cyrillic_A (0.00s)
+    --- PASS: TestDetectScript/Cyrillic_a (0.00s)
+    --- PASS: TestDetectScript/Cyrillic_Ya (0.00s)
+    --- PASS: TestDetectScript/Cyrillic_ya (0.00s)
+    --- PASS: TestDetectScript/Cyrillic_Zhe (0.00s)
+    --- PASS: TestDetectScript/Cyrillic_zhe (0.00s)
+    --- PASS: TestDetectScript/Cyrillic_Io (0.00s)
+    --- PASS: TestDetectScript/Cyrillic_io (0.00s)
+    --- PASS: TestDetectScript/Cyrillic_supplement (0.00s)
+    --- PASS: TestDetectScript/Greek_Alpha (0.00s)
+    --- PASS: TestDetectScript/Greek_alpha (0.00s)
+    --- PASS: TestDetectScript/Greek_Omega (0.00s)
+    --- PASS: TestDetectScript/Greek_omega (0.00s)
+    --- PASS: TestDetectScript/Greek_pi (0.00s)
+    --- PASS: TestDetectScript/Greek_extended (0.00s)
+    --- PASS: TestDetectScript/Arabic_Alef (0.00s)
+    --- PASS: TestDetectScript/Arabic_Ba (0.00s)
+    --- PASS: TestDetectScript/Arabic_Ya (0.00s)
+    --- PASS: TestDetectScript/Arabic_comma (0.00s)
+    --- PASS: TestDetectScript/Arabic_supplement (0.00s)
+    --- PASS: TestDetectScript/Arabic_Presentation (0.00s)
+    --- PASS: TestDetectScript/Arabic_Presentation_B (0.00s)
+    --- PASS: TestDetectScript/Hebrew_Alef (0.00s)
+    --- PASS: TestDetectScript/Hebrew_Bet (0.00s)
+    --- PASS: TestDetectScript/Hebrew_Tav (0.00s)
+    --- PASS: TestDetectScript/Hebrew_mark (0.00s)
+    --- PASS: TestDetectScript/Hebrew_presentation (0.00s)
+    --- PASS: TestDetectScript/CJK_ideograph_yi (0.00s)
+    --- PASS: TestDetectScript/CJK_ideograph (0.00s)
+    --- PASS: TestDetectScript/CJK_ideograph#01 (0.00s)
+    --- PASS: TestDetectScript/CJK_Extension_A (0.00s)
+    --- PASS: TestDetectScript/CJK_Compatibility (0.00s)
+    --- PASS: TestDetectScript/CJK_Radical (0.00s)
+    --- PASS: TestDetectScript/Hiragana_a (0.00s)
+    --- PASS: TestDetectScript/Hiragana_i (0.00s)
+    --- PASS: TestDetectScript/Hiragana_n (0.00s)
+    --- PASS: TestDetectScript/Katakana_a (0.00s)
+    --- PASS: TestDetectScript/Katakana_i (0.00s)
+    --- PASS: TestDetectScript/Katakana_n (0.00s)
+    --- PASS: TestDetectScript/Halfwidth_Katakana (0.00s)
+    --- PASS: TestDetectScript/Hangul_syllable_ga (0.00s)
+    --- PASS: TestDetectScript/Hangul_syllable_ha (0.00s)
+    --- PASS: TestDetectScript/Hangul_Jamo (0.00s)
+    --- PASS: TestDetectScript/Hangul_Compatibility (0.00s)
+    --- PASS: TestDetectScript/Devanagari_Ka (0.00s)
+    --- PASS: TestDetectScript/Devanagari_A (0.00s)
+    --- PASS: TestDetectScript/Devanagari_Virama (0.00s)
+    --- PASS: TestDetectScript/Thai_Ko_Kai (0.00s)
+    --- PASS: TestDetectScript/Thai_Sara_A (0.00s)
+    --- PASS: TestDetectScript/Armenian_Ayb (0.00s)
+    --- PASS: TestDetectScript/Armenian_ayb (0.00s)
+    --- PASS: TestDetectScript/Georgian_An (0.00s)
+    --- PASS: TestDetectScript/Combining_acute (0.00s)
+    --- PASS: TestDetectScript/Combining_grave (0.00s)
+    --- PASS: TestDetectScript/Combining_tilde (0.00s)
+    --- PASS: TestDetectScript/Combining_diaeresis (0.00s)
+    --- PASS: TestDetectScript/Em_dash (0.00s)
+    --- PASS: TestDetectScript/En_dash (0.00s)
+    --- PASS: TestDetectScript/Bullet (0.00s)
+    --- PASS: TestDetectScript/Ellipsis (0.00s)
+    --- PASS: TestDetectScript/Euro_sign (0.00s)
+    --- PASS: TestDetectScript/Yen_sign (0.00s)
+    --- PASS: TestDetectScript/Dollar_sign (0.00s)
+    --- PASS: TestDetectScript/CJK_period (0.00s)
+    --- PASS: TestDetectScript/CJK_comma (0.00s)
+    --- PASS: TestDetectScript/Unknown_high_plane (0.00s)
+=== RUN   TestScriptString
+=== RUN   TestScriptString/Common
+=== RUN   TestScriptString/Inherited
+=== RUN   TestScriptString/Latin
+=== RUN   TestScriptString/Cyrillic
+=== RUN   TestScriptString/Greek
+=== RUN   TestScriptString/Arabic
+=== RUN   TestScriptString/Hebrew
+=== RUN   TestScriptString/Han
+=== RUN   TestScriptString/Hiragana
+=== RUN   TestScriptString/Katakana
+=== RUN   TestScriptString/Hangul
+=== RUN   TestScriptString/Devanagari
+=== RUN   TestScriptString/Thai
+=== RUN   TestScriptString/Georgian
+=== RUN   TestScriptString/Armenian
+=== RUN   TestScriptString/Unknown
+=== RUN   TestScriptString/Unknown#01
+--- PASS: TestScriptString (0.00s)
+    --- PASS: TestScriptString/Common (0.00s)
+    --- PASS: TestScriptString/Inherited (0.00s)
+    --- PASS: TestScriptString/Latin (0.00s)
+    --- PASS: TestScriptString/Cyrillic (0.00s)
+    --- PASS: TestScriptString/Greek (0.00s)
+    --- PASS: TestScriptString/Arabic (0.00s)
+    --- PASS: TestScriptString/Hebrew (0.00s)
+    --- PASS: TestScriptString/Han (0.00s)
+    --- PASS: TestScriptString/Hiragana (0.00s)
+    --- PASS: TestScriptString/Katakana (0.00s)
+    --- PASS: TestScriptString/Hangul (0.00s)
+    --- PASS: TestScriptString/Devanagari (0.00s)
+    --- PASS: TestScriptString/Thai (0.00s)
+    --- PASS: TestScriptString/Georgian (0.00s)
+    --- PASS: TestScriptString/Armenian (0.00s)
+    --- PASS: TestScriptString/Unknown (0.00s)
+    --- PASS: TestScriptString/Unknown#01 (0.00s)
+=== RUN   TestScriptIsRTL
+=== RUN   TestScriptIsRTL/Arabic
+=== RUN   TestScriptIsRTL/Hebrew
+=== RUN   TestScriptIsRTL/Latin
+=== RUN   TestScriptIsRTL/Cyrillic
+=== RUN   TestScriptIsRTL/Han
+=== RUN   TestScriptIsRTL/Common
+--- PASS: TestScriptIsRTL (0.00s)
+    --- PASS: TestScriptIsRTL/Arabic (0.00s)
+    --- PASS: TestScriptIsRTL/Hebrew (0.00s)
+    --- PASS: TestScriptIsRTL/Latin (0.00s)
+    --- PASS: TestScriptIsRTL/Cyrillic (0.00s)
+    --- PASS: TestScriptIsRTL/Han (0.00s)
+    --- PASS: TestScriptIsRTL/Common (0.00s)
+=== RUN   TestScriptRequiresComplexShaping
+=== RUN   TestScriptRequiresComplexShaping/Arabic
+=== RUN   TestScriptRequiresComplexShaping/Hebrew
+=== RUN   TestScriptRequiresComplexShaping/Devanagari
+=== RUN   TestScriptRequiresComplexShaping/Thai
+=== RUN   TestScriptRequiresComplexShaping/Latin
+=== RUN   TestScriptRequiresComplexShaping/Cyrillic
+=== RUN   TestScriptRequiresComplexShaping/Han
+=== RUN   TestScriptRequiresComplexShaping/Hiragana
+=== RUN   TestScriptRequiresComplexShaping/Katakana
+=== RUN   TestScriptRequiresComplexShaping/Hangul
+=== RUN   TestScriptRequiresComplexShaping/Common
+--- PASS: TestScriptRequiresComplexShaping (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Arabic (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Hebrew (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Devanagari (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Thai (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Latin (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Cyrillic (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Han (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Hiragana (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Katakana (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Hangul (0.00s)
+    --- PASS: TestScriptRequiresComplexShaping/Common (0.00s)
+=== RUN   TestSegmentText_Empty
+--- PASS: TestSegmentText_Empty (0.00s)
+=== RUN   TestSegmentText_PureLatin
+--- PASS: TestSegmentText_PureLatin (0.00s)
+=== RUN   TestSegmentText_PureCyrillic
+--- PASS: TestSegmentText_PureCyrillic (0.00s)
+=== RUN   TestSegmentText_PureArabic
+--- PASS: TestSegmentText_PureArabic (0.00s)
+=== RUN   TestSegmentText_PureHebrew
+--- PASS: TestSegmentText_PureHebrew (0.00s)
+=== RUN   TestSegmentText_MixedLatinArabic
+--- PASS: TestSegmentText_MixedLatinArabic (0.00s)
+=== RUN   TestSegmentText_HebrewWithNumbers
+--- PASS: TestSegmentText_HebrewWithNumbers (0.00s)
+=== RUN   TestSegmentText_JapaneseMixed
+--- PASS: TestSegmentText_JapaneseMixed (0.00s)
+=== RUN   TestSegmentText_LatinCyrillic
+--- PASS: TestSegmentText_LatinCyrillic (0.00s)
+=== RUN   TestSegmentText_Greek
+--- PASS: TestSegmentText_Greek (0.00s)
+=== RUN   TestSegmentText_Korean
+--- PASS: TestSegmentText_Korean (0.00s)
+=== RUN   TestSegmentText_Thai
+--- PASS: TestSegmentText_Thai (0.00s)
+=== RUN   TestSegmentText_RTLBase
+--- PASS: TestSegmentText_RTLBase (0.00s)
+=== RUN   TestSegmentRuneCount
+--- PASS: TestSegmentRuneCount (0.00s)
+=== RUN   TestBuiltinSegmenter_NewWithDirection
+--- PASS: TestBuiltinSegmenter_NewWithDirection (0.00s)
+=== RUN   TestSegmentText_ByteOffsets
+--- PASS: TestSegmentText_ByteOffsets (0.00s)
+=== RUN   TestIsWhitespace
+=== RUN   TestIsWhitespace/_
+=== RUN   TestIsWhitespace/_#01
+=== RUN   TestIsWhitespace/_#02
+=== RUN   TestIsWhitespace/_#03
+=== RUN   TestIsWhitespace/_#04
+=== RUN   TestIsWhitespace/a
+=== RUN   TestIsWhitespace/1
+=== RUN   TestIsWhitespace/.
+--- PASS: TestIsWhitespace (0.00s)
+    --- PASS: TestIsWhitespace/_ (0.00s)
+    --- PASS: TestIsWhitespace/_#01 (0.00s)
+    --- PASS: TestIsWhitespace/_#02 (0.00s)
+    --- PASS: TestIsWhitespace/_#03 (0.00s)
+    --- PASS: TestIsWhitespace/_#04 (0.00s)
+    --- PASS: TestIsWhitespace/a (0.00s)
+    --- PASS: TestIsWhitespace/1 (0.00s)
+    --- PASS: TestIsWhitespace/. (0.00s)
+=== RUN   TestIsPunctuation
+=== RUN   TestIsPunctuation/.
+=== RUN   TestIsPunctuation/,
+=== RUN   TestIsPunctuation/!
+=== RUN   TestIsPunctuation/?
+=== RUN   TestIsPunctuation/;
+=== RUN   TestIsPunctuation/:
+=== RUN   TestIsPunctuation/-
+=== RUN   TestIsPunctuation/(
+=== RUN   TestIsPunctuation/)
+=== RUN   TestIsPunctuation/a
+=== RUN   TestIsPunctuation/1
+=== RUN   TestIsPunctuation/_
+--- PASS: TestIsPunctuation (0.00s)
+    --- PASS: TestIsPunctuation/. (0.00s)
+    --- PASS: TestIsPunctuation/, (0.00s)
+    --- PASS: TestIsPunctuation/! (0.00s)
+    --- PASS: TestIsPunctuation/? (0.00s)
+    --- PASS: TestIsPunctuation/; (0.00s)
+    --- PASS: TestIsPunctuation/: (0.00s)
+    --- PASS: TestIsPunctuation/- (0.00s)
+    --- PASS: TestIsPunctuation/( (0.00s)
+    --- PASS: TestIsPunctuation/) (0.00s)
+    --- PASS: TestIsPunctuation/a (0.00s)
+    --- PASS: TestIsPunctuation/1 (0.00s)
+    --- PASS: TestIsPunctuation/_ (0.00s)
+=== RUN   TestSegmentText_CombiningMarks
+--- PASS: TestSegmentText_CombiningMarks (0.00s)
+=== RUN   TestSegmentText_EmptyRunes
+--- PASS: TestSegmentText_EmptyRunes (0.00s)
+=== RUN   TestSegmentText_PunctInContext
+--- PASS: TestSegmentText_PunctInContext (0.00s)
+=== RUN   TestDetectScript_ExtendedRanges
+=== RUN   TestDetectScript_ExtendedRanges/IPA_Extensions
+=== RUN   TestDetectScript_ExtendedRanges/Cyrillic_Extended-A
+=== RUN   TestDetectScript_ExtendedRanges/Cyrillic_Extended-B
+=== RUN   TestDetectScript_ExtendedRanges/Greek_Extended
+=== RUN   TestDetectScript_ExtendedRanges/Bengali
+=== RUN   TestDetectScript_ExtendedRanges/Gurmukhi
+=== RUN   TestDetectScript_ExtendedRanges/Gujarati
+=== RUN   TestDetectScript_ExtendedRanges/Oriya
+=== RUN   TestDetectScript_ExtendedRanges/Tamil
+=== RUN   TestDetectScript_ExtendedRanges/Telugu
+=== RUN   TestDetectScript_ExtendedRanges/Kannada
+=== RUN   TestDetectScript_ExtendedRanges/Malayalam
+=== RUN   TestDetectScript_ExtendedRanges/Sinhala
+=== RUN   TestDetectScript_ExtendedRanges/Lao
+=== RUN   TestDetectScript_ExtendedRanges/Tibetan
+=== RUN   TestDetectScript_ExtendedRanges/Myanmar
+=== RUN   TestDetectScript_ExtendedRanges/Georgian
+=== RUN   TestDetectScript_ExtendedRanges/Ethiopic
+=== RUN   TestDetectScript_ExtendedRanges/Khmer
+=== RUN   TestDetectScript_ExtendedRanges/Hangul_Jamo
+--- PASS: TestDetectScript_ExtendedRanges (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/IPA_Extensions (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Cyrillic_Extended-A (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Cyrillic_Extended-B (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Greek_Extended (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Bengali (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Gurmukhi (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Gujarati (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Oriya (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Tamil (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Telugu (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Kannada (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Malayalam (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Sinhala (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Lao (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Tibetan (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Myanmar (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Georgian (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Ethiopic (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Khmer (0.00s)
+    --- PASS: TestDetectScript_ExtendedRanges/Hangul_Jamo (0.00s)
+=== RUN   TestSegmentText_ComplexMixed
+--- PASS: TestSegmentText_ComplexMixed (0.00s)
+=== RUN   TestDetectScript_NumbersAndSymbols
+--- PASS: TestDetectScript_NumbersAndSymbols (0.00s)
+=== RUN   TestDetectScript_CJKPunctuation
+--- PASS: TestDetectScript_CJKPunctuation (0.00s)
+=== RUN   TestDetectScript_Fullwidth
+--- PASS: TestDetectScript_Fullwidth (0.00s)
+=== RUN   TestSegmentText_SingleCharacter
+=== RUN   TestSegmentText_SingleCharacter/A
+=== RUN   TestSegmentText_SingleCharacter/Я
+=== RUN   TestSegmentText_SingleCharacter/α
+=== RUN   TestSegmentText_SingleCharacter/ا
+=== RUN   TestSegmentText_SingleCharacter/א
+=== RUN   TestSegmentText_SingleCharacter/中
+--- PASS: TestSegmentText_SingleCharacter (0.00s)
+    --- PASS: TestSegmentText_SingleCharacter/A (0.00s)
+    --- PASS: TestSegmentText_SingleCharacter/Я (0.00s)
+    --- PASS: TestSegmentText_SingleCharacter/α (0.00s)
+    --- PASS: TestSegmentText_SingleCharacter/ا (0.00s)
+    --- PASS: TestSegmentText_SingleCharacter/א (0.00s)
+    --- PASS: TestSegmentText_SingleCharacter/中 (0.00s)
+PASS

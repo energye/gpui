@@ -1,0 +1,17 @@
+=== RUN   TestFFIStructSizes
+=== RUN   TestFFIStructSizes/StringView
+=== RUN   TestFFIStructSizes/Future
+=== RUN   TestFFIStructSizes/DrawIndirectArgs
+=== RUN   TestFFIStructSizes/DrawIndexedIndirectArgs
+=== RUN   TestFFIStructSizes/DispatchIndirectArgs
+=== RUN   TestFFIStructSizes/Color
+=== RUN   TestFFIStructSizes/ChainedStruct
+--- PASS: TestFFIStructSizes (0.00s)
+    --- PASS: TestFFIStructSizes/StringView (0.00s)
+    --- PASS: TestFFIStructSizes/Future (0.00s)
+    --- PASS: TestFFIStructSizes/DrawIndirectArgs (0.00s)
+    --- PASS: TestFFIStructSizes/DrawIndexedIndirectArgs (0.00s)
+    --- PASS: TestFFIStructSizes/DispatchIndirectArgs (0.00s)
+    --- PASS: TestFFIStructSizes/Color (0.00s)
+    --- PASS: TestFFIStructSizes/ChainedStruct (0.00s)
+PASS

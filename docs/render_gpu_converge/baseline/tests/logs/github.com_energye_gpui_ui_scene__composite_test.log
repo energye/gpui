@@ -1,0 +1,15 @@
+=== RUN   TestCompositeToContext_OffsetClipPicture
+--- PASS: TestCompositeToContext_OffsetClipPicture (0.30s)
+=== RUN   TestCompositeToContext_TransformTranslate
+--- PASS: TestCompositeToContext_TransformTranslate (0.00s)
+=== RUN   TestCompositeToContext_ClipRRectRoundsCorner
+--- PASS: TestCompositeToContext_ClipRRectRoundsCorner (0.00s)
+=== RUN   TestCompositeFramePacket_OverlayAboveMain
+--- PASS: TestCompositeFramePacket_OverlayAboveMain (0.00s)
+=== RUN   TestCompositeToContext_OpacityDimsContent
+--- PASS: TestCompositeToContext_OpacityDimsContent (0.00s)
+=== RUN   TestCompositeToContext_BackdropFilter
+--- PASS: TestCompositeToContext_BackdropFilter (0.02s)
+=== RUN   TestCountPictureOps_PacketSum
+--- PASS: TestCountPictureOps_PacketSum (0.00s)
+PASS

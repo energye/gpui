@@ -1,0 +1,7 @@
+=== RUN   TestDrawStringAsOutlines_HiDPI
+--- PASS: TestDrawStringAsOutlines_HiDPI (0.31s)
+=== RUN   TestStrokeString_HiDPI
+--- PASS: TestStrokeString_HiDPI (0.01s)
+=== RUN   TestDrawStringAsOutlines_HiDPI_Rotation
+--- PASS: TestDrawStringAsOutlines_HiDPI_Rotation (0.01s)
+PASS

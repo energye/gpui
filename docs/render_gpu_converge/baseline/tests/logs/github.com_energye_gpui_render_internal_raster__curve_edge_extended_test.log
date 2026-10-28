@@ -1,0 +1,80 @@
+=== RUN   TestNewLineEdge
+=== RUN   TestNewLineEdge/simple_downward
+=== RUN   TestNewLineEdge/upward_reverses_winding
+=== RUN   TestNewLineEdge/horizontal_returns_nil
+=== RUN   TestNewLineEdge/with_AA_shift
+=== RUN   TestNewLineEdge/very_short_but_not_horizontal
+--- PASS: TestNewLineEdge (0.00s)
+    --- PASS: TestNewLineEdge/simple_downward (0.00s)
+    --- PASS: TestNewLineEdge/upward_reverses_winding (0.00s)
+    --- PASS: TestNewLineEdge/horizontal_returns_nil (0.00s)
+    --- PASS: TestNewLineEdge/with_AA_shift (0.00s)
+    --- PASS: TestNewLineEdge/very_short_but_not_horizontal (0.00s)
+=== RUN   TestLineEdge_IsVertical
+--- PASS: TestLineEdge_IsVertical (0.00s)
+=== RUN   TestNewQuadraticEdge
+=== RUN   TestNewQuadraticEdge/monotonic_down
+=== RUN   TestNewQuadraticEdge/with_AA_shift
+=== RUN   TestNewQuadraticEdge/arch_same_endpoint_Y_returns_nil
+=== RUN   TestNewQuadraticEdge/horizontal_curve_returns_nil
+--- PASS: TestNewQuadraticEdge (0.00s)
+    --- PASS: TestNewQuadraticEdge/monotonic_down (0.00s)
+    --- PASS: TestNewQuadraticEdge/with_AA_shift (0.00s)
+    --- PASS: TestNewQuadraticEdge/arch_same_endpoint_Y_returns_nil (0.00s)
+    --- PASS: TestNewQuadraticEdge/horizontal_curve_returns_nil (0.00s)
+=== RUN   TestQuadraticEdge_Update
+    curve_edge_extended_test.go:203: QuadraticEdge produced 1 segments
+--- PASS: TestQuadraticEdge_Update (0.00s)
+=== RUN   TestNewCubicEdge
+=== RUN   TestNewCubicEdge/S-curve
+=== RUN   TestNewCubicEdge/with_AA_shift
+=== RUN   TestNewCubicEdge/horizontal_returns_nil
+--- PASS: TestNewCubicEdge (0.00s)
+    --- PASS: TestNewCubicEdge/S-curve (0.00s)
+    --- PASS: TestNewCubicEdge/with_AA_shift (0.00s)
+    --- PASS: TestNewCubicEdge/horizontal_returns_nil (0.00s)
+=== RUN   TestCubicEdge_Update
+    curve_edge_extended_test.go:294: CubicEdge produced 15 segments
+--- PASS: TestCubicEdge_Update (0.00s)
+=== RUN   TestCurveEdgeVariant_AsLine
+=== RUN   TestCurveEdgeVariant_AsLine/line_variant
+=== RUN   TestCurveEdgeVariant_AsLine/quadratic_variant
+=== RUN   TestCurveEdgeVariant_AsLine/cubic_variant
+=== RUN   TestCurveEdgeVariant_AsLine/unknown_type
+--- PASS: TestCurveEdgeVariant_AsLine (0.00s)
+    --- PASS: TestCurveEdgeVariant_AsLine/line_variant (0.00s)
+    --- PASS: TestCurveEdgeVariant_AsLine/quadratic_variant (0.00s)
+    --- PASS: TestCurveEdgeVariant_AsLine/cubic_variant (0.00s)
+    --- PASS: TestCurveEdgeVariant_AsLine/unknown_type (0.00s)
+=== RUN   TestCurveEdgeVariant_TopY
+=== RUN   TestCurveEdgeVariant_TopY/line
+=== RUN   TestCurveEdgeVariant_TopY/quadratic
+    curve_edge_extended_test.go:373: nil variant
+=== RUN   TestCurveEdgeVariant_TopY/cubic
+=== RUN   TestCurveEdgeVariant_TopY/unknown
+--- PASS: TestCurveEdgeVariant_TopY (0.00s)
+    --- PASS: TestCurveEdgeVariant_TopY/line (0.00s)
+    --- SKIP: TestCurveEdgeVariant_TopY/quadratic (0.00s)
+    --- PASS: TestCurveEdgeVariant_TopY/cubic (0.00s)
+    --- PASS: TestCurveEdgeVariant_TopY/unknown (0.00s)
+=== RUN   TestCurveEdgeVariant_BottomY
+=== RUN   TestCurveEdgeVariant_BottomY/line
+=== RUN   TestCurveEdgeVariant_BottomY/unknown
+--- PASS: TestCurveEdgeVariant_BottomY (0.00s)
+    --- PASS: TestCurveEdgeVariant_BottomY/line (0.00s)
+    --- PASS: TestCurveEdgeVariant_BottomY/unknown (0.00s)
+=== RUN   TestCurveEdgeVariant_Update
+=== RUN   TestCurveEdgeVariant_Update/line_always_false
+=== RUN   TestCurveEdgeVariant_Update/unknown_always_false
+--- PASS: TestCurveEdgeVariant_Update (0.00s)
+    --- PASS: TestCurveEdgeVariant_Update/line_always_false (0.00s)
+    --- PASS: TestCurveEdgeVariant_Update/unknown_always_false (0.00s)
+=== RUN   TestComputeDY
+=== RUN   TestComputeDY/aligned
+=== RUN   TestComputeDY/zero
+=== RUN   TestComputeDY/offset
+--- PASS: TestComputeDY (0.00s)
+    --- PASS: TestComputeDY/aligned (0.00s)
+    --- PASS: TestComputeDY/zero (0.00s)
+    --- PASS: TestComputeDY/offset (0.00s)
+PASS

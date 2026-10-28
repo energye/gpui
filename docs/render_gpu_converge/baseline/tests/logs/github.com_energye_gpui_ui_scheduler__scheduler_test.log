@@ -1,0 +1,41 @@
+=== RUN   TestMetrics_JSON
+--- PASS: TestMetrics_JSON (0.00s)
+=== RUN   TestSchedule_PendingAndMode
+--- PASS: TestSchedule_PendingAndMode (0.00s)
+=== RUN   TestTickers
+--- PASS: TestTickers (0.00s)
+=== RUN   TestFrameWanted_LegacyDefault
+--- PASS: TestFrameWanted_LegacyDefault (0.00s)
+=== RUN   TestFrameWanted_OptOut
+--- PASS: TestFrameWanted_OptOut (0.00s)
+=== RUN   TestMetrics_Interval
+--- PASS: TestMetrics_Interval (0.01s)
+=== RUN   TestMetrics_HitchCount
+--- PASS: TestMetrics_HitchCount (0.00s)
+=== RUN   TestFramePace_VsyncSignalDrivesFrames
+--- PASS: TestFramePace_VsyncSignalDrivesFrames (0.01s)
+=== RUN   TestFramePace_VsyncErrorCountsMiss
+--- PASS: TestFramePace_VsyncErrorCountsMiss (0.01s)
+=== RUN   TestFramePace_VsyncErrorRetryThrottled
+--- PASS: TestFramePace_VsyncErrorRetryThrottled (0.30s)
+=== RUN   TestFrameDue_VsyncStopsThenSoftwareCadence
+--- PASS: TestFrameDue_VsyncStopsThenSoftwareCadence (0.11s)
+=== RUN   TestFrameDue_SoftwareInterval
+--- PASS: TestFrameDue_SoftwareInterval (0.02s)
+=== RUN   TestHostVSync_TypeAssert
+--- PASS: TestHostVSync_TypeAssert (0.00s)
+=== RUN   TestFramePace_HungVsync_DoesNotBlock
+--- PASS: TestFramePace_HungVsync_DoesNotBlock (0.04s)
+=== RUN   TestFramePace_FrameNotifierSkipsDRMListener
+--- PASS: TestFramePace_FrameNotifierSkipsDRMListener (0.10s)
+=== RUN   TestFramePace_ListenerStampsButDoesNotSchedule
+--- PASS: TestFramePace_ListenerStampsButDoesNotSchedule (0.01s)
+=== RUN   TestNoteFramePresented_StampsPacing
+--- PASS: TestNoteFramePresented_StampsPacing (0.00s)
+=== RUN   TestWaitTimeout_QuietDeadline
+--- PASS: TestWaitTimeout_QuietDeadline (0.00s)
+=== RUN   TestWaitTimeout_QuietNoDeadline
+--- PASS: TestWaitTimeout_QuietNoDeadline (0.00s)
+=== RUN   TestNextWake_ClearedOnUnregister
+--- PASS: TestNextWake_ClearedOnUnregister (0.00s)
+PASS

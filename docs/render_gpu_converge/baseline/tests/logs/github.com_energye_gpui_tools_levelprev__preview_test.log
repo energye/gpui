@@ -1,0 +1,14 @@
+=== RUN   TestLevelPreview_SmallCounts
+--- PASS: TestLevelPreview_SmallCounts (0.00s)
+=== RUN   TestLevelPreview_BigCounts
+--- PASS: TestLevelPreview_BigCounts (0.02s)
+=== RUN   TestLevelPreview_EmptyProject
+--- PASS: TestLevelPreview_EmptyProject (0.00s)
+=== RUN   TestLevelPreview_BadProjects
+--- PASS: TestLevelPreview_BadProjects (0.00s)
+=== RUN   TestLevelPreview_ParityWithEngine
+--- PASS: TestLevelPreview_ParityWithEngine (0.04s)
+=== RUN   TestLevelPreview_BigOpenCost
+    preview_test.go:191: big open: tiles=14627 entities=2000 (wall time measured by the window run, see delivery)
+--- PASS: TestLevelPreview_BigOpenCost (0.09s)
+PASS

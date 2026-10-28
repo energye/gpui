@@ -1,0 +1,11 @@
+=== RUN   TestFontSourceCacheSharesPerFile
+--- PASS: TestFontSourceCacheSharesPerFile (0.01s)
+=== RUN   TestFontSourceCacheTTCIndexesAreDistinct
+--- PASS: TestFontSourceCacheTTCIndexesAreDistinct (0.03s)
+=== RUN   TestFontSourceCacheConcurrentLoadOnce
+--- PASS: TestFontSourceCacheConcurrentLoadOnce (0.00s)
+=== RUN   TestFontSourceCacheEviction
+--- PASS: TestFontSourceCacheEviction (0.01s)
+=== RUN   TestPurgeFontSourceCache
+--- PASS: TestPurgeFontSourceCache (0.00s)
+PASS

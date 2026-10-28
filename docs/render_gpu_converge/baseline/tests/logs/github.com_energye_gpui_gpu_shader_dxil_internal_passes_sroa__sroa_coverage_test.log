@@ -1,0 +1,45 @@
+=== RUN   TestNestedStoreInIfDisqualifies
+--- PASS: TestNestedStoreInIfDisqualifies (0.00s)
+=== RUN   TestNestedStoreInLoopDisqualifies
+--- PASS: TestNestedStoreInLoopDisqualifies (0.00s)
+=== RUN   TestNestedStoreInSwitchDisqualifies
+--- PASS: TestNestedStoreInSwitchDisqualifies (0.00s)
+=== RUN   TestNestedStoreInBlockDisqualifies
+--- PASS: TestNestedStoreInBlockDisqualifies (0.00s)
+=== RUN   TestResolveStructLocalAccessChain
+--- PASS: TestResolveStructLocalAccessChain (0.00s)
+=== RUN   TestResolveStructLocalNonLocal
+--- PASS: TestResolveStructLocalNonLocal (0.00s)
+=== RUN   TestResolveStructLocalOutOfBounds
+--- PASS: TestResolveStructLocalOutOfBounds (0.00s)
+=== RUN   TestClassifyStmtsAtomicDisqualifies
+--- PASS: TestClassifyStmtsAtomicDisqualifies (0.00s)
+=== RUN   TestClassifyStmtsRecursesIntoControlFlow
+--- PASS: TestClassifyStmtsRecursesIntoControlFlow (0.00s)
+=== RUN   TestFullStructStoreNonComposeDisqualifies
+--- PASS: TestFullStructStoreNonComposeDisqualifies (0.00s)
+=== RUN   TestFullStructStoreWithComposeIsAllowed
+--- PASS: TestFullStructStoreWithComposeIsAllowed (0.00s)
+=== RUN   TestClassifyFieldIndexOutOfBounds
+--- PASS: TestClassifyFieldIndexOutOfBounds (0.00s)
+=== RUN   TestF16MemberDisqualifies
+--- PASS: TestF16MemberDisqualifies (0.00s)
+=== RUN   TestF16VectorMemberDisqualifies
+--- PASS: TestF16VectorMemberDisqualifies (0.00s)
+=== RUN   TestNestedStructMemberDisqualifies
+--- PASS: TestNestedStructMemberDisqualifies (0.00s)
+=== RUN   TestMemberTypeOutOfBounds
+--- PASS: TestMemberTypeOutOfBounds (0.00s)
+=== RUN   TestAllUsesInTopLevelRejectsNestedLoad
+--- PASS: TestAllUsesInTopLevelRejectsNestedLoad (0.00s)
+=== RUN   TestNoUsesAtAllSkipped
+--- PASS: TestNoUsesAtAllSkipped (0.00s)
+=== RUN   TestLocalVarIndexOutOfBounds
+--- PASS: TestLocalVarIndexOutOfBounds (0.00s)
+=== RUN   TestLocalTypeOutOfBounds
+--- PASS: TestLocalTypeOutOfBounds (0.00s)
+=== RUN   TestMarkNestedUsesRecursesDeep
+--- PASS: TestMarkNestedUsesRecursesDeep (0.00s)
+=== RUN   TestResolveStructLocalExprAccess
+--- PASS: TestResolveStructLocalExprAccess (0.00s)
+PASS

@@ -1,0 +1,31 @@
+=== RUN   TestStreamFastOpen
+--- PASS: TestStreamFastOpen (0.22s)
+=== RUN   TestStreamLongClip
+--- PASS: TestStreamLongClip (2.76s)
+=== RUN   TestHTTPSourceRange
+    player_stream_test.go:123: http open: gets=2 ranges=2
+--- PASS: TestHTTPSourceRange (0.06s)
+=== RUN   TestOpenPathVariants
+--- PASS: TestOpenPathVariants (0.01s)
+=== RUN   TestProbeSource
+--- PASS: TestProbeSource (0.02s)
+=== RUN   TestBytesSourceRange
+--- PASS: TestBytesSourceRange (0.00s)
+=== RUN   TestHTTPNoRangeFallback
+--- PASS: TestHTTPNoRangeFallback (0.04s)
+=== RUN   TestHTTPChunkErrors
+[http @ 0x716aa000eac0] HTTP error 500 Internal Server Error
+--- PASS: TestHTTPChunkErrors (0.00s)
+=== RUN   TestFileSourceRange
+--- PASS: TestFileSourceRange (0.00s)
+=== RUN   TestHTTPSourceChunkCache
+--- PASS: TestHTTPSourceChunkCache (0.05s)
+=== RUN   TestOpenWithSourceKinds
+--- PASS: TestOpenWithSourceKinds (0.07s)
+=== RUN   TestPlayerCloseIdempotent
+--- PASS: TestPlayerCloseIdempotent (0.01s)
+=== RUN   TestStreamingQueueBounded
+--- PASS: TestStreamingQueueBounded (0.02s)
+=== RUN   TestIsURL
+--- PASS: TestIsURL (0.00s)
+PASS

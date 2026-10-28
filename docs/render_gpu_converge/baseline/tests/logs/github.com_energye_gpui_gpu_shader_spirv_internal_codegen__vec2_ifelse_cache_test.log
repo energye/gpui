@@ -1,0 +1,249 @@
+=== RUN   TestVec2IfElseCacheBug
+    vec2_ifelse_cache_test.go:62: spirv-dis failed: exec: "spirv-dis": executable file not found in $PATH
+    vec2_ifelse_cache_test.go:64: ; SPIR-V
+        ; Magic:     0x07230203
+        ; Version:   1.3
+        ; Generator: 0x00000000
+        ; Bound:     91
+        ; Schema:    0
+        
+             5: OpCapability Shader
+             7: OpExtInstImport %1 = "GLSL.std.450"
+            13: OpMemoryModel Logical GLSL450
+            16: OpEntryPoint GLCompute %18 "main" %16(gid)
+            22: OpExecutionMode %18 LocalSize 1 1 1
+            28: OpName %16(gid) "gid"
+            31: OpName %21(xy0) "xy0"
+            34: OpDecorate %6 ArrayStride 4
+            38: OpDecorate %9 Block
+            41: OpMemberDecorate %9 0 Offset 0
+            46: OpDecorate %11 DescriptorSet 0
+            50: OpDecorate %11 Binding 0
+            54: OpDecorate %12 Block
+            57: OpMemberDecorate %12 0 Offset 0
+            62: OpDecorate %14 DescriptorSet 0
+            66: OpDecorate %14 Binding 1
+            70: OpDecorate %16(gid) BuiltIn 28
+            74: OpTypeVoid %2
+            76: OpTypeInt %3 32 unsigned
+            80: OpTypeVector %4 %3 4
+            84: OpTypeFloat %5 32
+            87: OpTypeRuntimeArray %6 %5
+            90: OpTypeVector %7 %3 3
+            94: OpTypeVector %8 %5 2
+            98: OpTypeStruct %9 { %4 }
+           101: OpTypePointer %10 Uniform %9
+           105: OpTypeStruct %12 { %6 }
+           108: OpTypePointer %13 StorageBuffer %12
+           112: OpTypePointer %15 Input %7
+           116: OpTypeFunction %17 %2
+           119: OpTypePointer %20 Function %8
+           123: OpConstant %5 %22 = 1065353216 (0x3F800000, f32=1)
+           127: OpConstant %5 %23 = 1073741824 (0x40000000, f32=2)
+           131: OpConstant %5 %25 = 1084227584 (0x40A00000, f32=5)
+           135: OpConstant %5 %26 = 1086324736 (0x40C00000, f32=6)
+           139: OpConstant %3 %28 = 0 (0x00000000, f32=0)
+           143: OpTypePointer %29 Function %5
+           147: OpTypePointer %34 Uniform %4
+           151: OpTypePointer %36 Uniform %3
+           155: OpTypeBool %42
+           157: OpConstant %5 %57 = 1056964608 (0x3F000000, f32=0.5)
+           161: OpConstant %5 %60 = 1092616192 (0x41200000, f32=10)
+           165: OpConstant %5 %62 = 1120272384 (0x42C60000, f32=99)
+           169: OpTypePointer %68 StorageBuffer %6
+           173: OpTypePointer %70 StorageBuffer %5
+           177: OpConstant %3 %76 = 1 (0x00000001, f32=1e-45)
+           181: OpConstant %3 %82 = 2 (0x00000002, f32=3e-45)
+           185: OpVariable %10 %11 Uniform
+           189: OpVariable %13 %14 StorageBuffer
+           193: OpVariable %15 %16(gid) Input
+           197: OpFunction %2 %18 None %17
+           202: OpLabel %19
+           204: OpVariable %20 %21(xy0) Function
+           208: OpCompositeConstruct %8 %24 = { %22, %23 }
+           213: OpStore *%21(xy0) = %24
+           216: OpCompositeConstruct %8 %27 = { %25, %26 }
+           221: OpAccessChain %29 %30 = base:%21(xy0) [%28]
+           226: OpLoad %5 %31 = load %30
+           230: OpAccessChain %29 %32 = base:%21(xy0) [%28]
+           235: OpLoad %5 %33 = load %32
+           239: OpAccessChain %34 %35 = base:%11 [%28]
+           244: OpAccessChain %36 %37 = base:%35 [%28]
+           249: OpLoad %3 %38 = load %37
+           253: OpAccessChain %34 %39 = base:%11 [%28]
+           258: OpAccessChain %36 %40 = base:%39 [%28]
+           263: OpLoad %3 %41 = load %40
+           267: OpUGreaterThan %42 %43 = %41, %28
+           272: OpSelectionMerge merge:%46 control:0
+           275: OpBranchConditional %43 true:%44 false:%45
+           279: OpLabel %44
+           281: OpAccessChain %29 %47 = base:%21(xy0) [%28]
+           286: OpLoad %5 %48 = load %47
+           290: OpAccessChain %29 %49 = base:%21(xy0) [%28]
+           295: OpLoad %5 %50 = load %49
+           299: OpCompositeExtract %5 %51 = %27 . [0]
+           304: OpAccessChain %29 %52 = base:%21(xy0) [%28]
+           309: OpLoad %5 %53 = load %52
+           313: OpAccessChain %29 %54 = base:%21(xy0) [%28]
+           318: OpLoad %5 %55 = load %54
+           322: OpFSub %5 %56 = %51, %55
+           327: OpFMul %5 %58 = %56, %57
+           332: OpFAdd %5 %59 = %50, %58
+           337: OpCompositeConstruct %8 %61 = { %59, %60 }
+           342: OpStore *%21(xy0) = %61
+           345: OpBranch %46
+           347: OpLabel %45
+           349: OpCompositeConstruct %8 %63 = { %62, %60 }
+           354: OpStore *%21(xy0) = %63
+           357: OpBranch %46
+           359: OpLabel %46
+           361: OpAccessChain %29 %64 = base:%21(xy0) [%28]
+           366: OpLoad %5 %65 = load %64
+           370: OpAccessChain %29 %66 = base:%21(xy0) [%28]
+           375: OpLoad %5 %67 = load %66
+           379: OpAccessChain %68 %69 = base:%14 [%28]
+           384: OpAccessChain %70 %71 = base:%69 [%28]
+           389: OpLoad %5 %72 = load %71
+           393: OpAccessChain %68 %73 = base:%14 [%28]
+           398: OpAccessChain %70 %74 = base:%73 [%28]
+           403: OpStore *%74 = %33
+           406: OpAccessChain %68 %75 = base:%14 [%28]
+           411: OpAccessChain %70 %77 = base:%75 [%76]
+           416: OpLoad %5 %78 = load %77
+           420: OpAccessChain %68 %79 = base:%14 [%28]
+           425: OpAccessChain %70 %80 = base:%79 [%76]
+           430: OpStore *%80 = %67
+           433: OpAccessChain %68 %81 = base:%14 [%28]
+           438: OpAccessChain %70 %83 = base:%81 [%82]
+           443: OpLoad %5 %84 = load %83
+           447: OpAccessChain %29 %85 = base:%21(xy0) [%76]
+           452: OpLoad %5 %86 = load %85
+           456: OpAccessChain %29 %87 = base:%21(xy0) [%76]
+           461: OpLoad %5 %88 = load %87
+           465: OpAccessChain %68 %89 = base:%14 [%28]
+           470: OpAccessChain %70 %90 = base:%89 [%82]
+           475: OpStore *%90 = %88
+           478: OpReturn
+           479: OpFunctionEnd
+        
+    vec2_ifelse_cache_test.go:79: spirv-val not found, skipping validation
+    vec2_ifelse_cache_test.go:104: Total: 15 OpLoad, 6 OpStore, 26 OpAccessChain
+    vec2_ifelse_cache_test.go:113: Stores: 6 (need >=4: xy0 init, xy0 in if, xy0 in else, outputs)
+--- PASS: TestVec2IfElseCacheBug (0.00s)
+=== RUN   TestVec2IfElseCacheBugMinimal
+    vec2_ifelse_cache_test.go:153: spirv-dis failed: exec: "spirv-dis": executable file not found in $PATH
+    vec2_ifelse_cache_test.go:154: ; SPIR-V
+        ; Magic:     0x07230203
+        ; Version:   1.3
+        ; Generator: 0x00000000
+        ; Bound:     58
+        ; Schema:    0
+        
+             5: OpCapability Shader
+             7: OpExtInstImport %1 = "GLSL.std.450"
+            13: OpMemoryModel Logical GLSL450
+            16: OpEntryPoint GLCompute %17 "main" %15(gid)
+            22: OpExecutionMode %17 LocalSize 1 1 1
+            28: OpName %15(gid) "gid"
+            31: OpName %20(v) "v"
+            34: OpDecorate %5 ArrayStride 4
+            38: OpDecorate %8 Block
+            41: OpMemberDecorate %8 0 Offset 0
+            46: OpDecorate %10 DescriptorSet 0
+            50: OpDecorate %10 Binding 0
+            54: OpDecorate %11 Block
+            57: OpMemberDecorate %11 0 Offset 0
+            62: OpDecorate %13 DescriptorSet 0
+            66: OpDecorate %13 Binding 1
+            70: OpDecorate %15(gid) BuiltIn 28
+            74: OpTypeVoid %2
+            76: OpTypeInt %3 32 unsigned
+            80: OpTypeFloat %4 32
+            83: OpTypeRuntimeArray %5 %4
+            86: OpTypeVector %6 %3 3
+            90: OpTypeVector %7 %4 2
+            94: OpTypeStruct %8 { %3 }
+            97: OpTypePointer %9 Uniform %8
+           101: OpTypeStruct %11 { %5 }
+           104: OpTypePointer %12 StorageBuffer %11
+           108: OpTypePointer %14 Input %6
+           112: OpTypeFunction %16 %2
+           115: OpTypePointer %19 Function %7
+           119: OpConstant %4 %21 = 1065353216 (0x3F800000, f32=1)
+           123: OpConstant %4 %22 = 1073741824 (0x40000000, f32=2)
+           127: OpConstant %3 %24 = 0 (0x00000000, f32=0)
+           131: OpTypePointer %25 Function %4
+           135: OpTypePointer %30 Uniform %3
+           139: OpTypeBool %33
+           141: OpConstant %4 %38 = 1120403456 (0x42C80000, f32=100)
+           145: OpConstant %4 %39 = 1128792064 (0x43480000, f32=200)
+           149: OpTypePointer %45 StorageBuffer %5
+           153: OpTypePointer %47 StorageBuffer %4
+           157: OpConstant %3 %53 = 1 (0x00000001, f32=1e-45)
+           161: OpVariable %9 %10 Uniform
+           165: OpVariable %12 %13 StorageBuffer
+           169: OpVariable %14 %15(gid) Input
+           173: OpFunction %2 %17 None %16
+           178: OpLabel %18
+           180: OpVariable %19 %20(v) Function
+           184: OpCompositeConstruct %7 %23 = { %21, %22 }
+           189: OpStore *%20(v) = %23
+           192: OpAccessChain %25 %26 = base:%20(v) [%24]
+           197: OpLoad %4 %27 = load %26
+           201: OpAccessChain %25 %28 = base:%20(v) [%24]
+           206: OpLoad %4 %29 = load %28
+           210: OpAccessChain %30 %31 = base:%10 [%24]
+           215: OpLoad %3 %32 = load %31
+           219: OpUGreaterThan %33 %34 = %32, %24
+           224: OpSelectionMerge merge:%37 control:0
+           227: OpBranchConditional %34 true:%35 false:%36
+           231: OpLabel %35
+           233: OpCompositeConstruct %7 %40 = { %38, %39 }
+           238: OpStore *%20(v) = %40
+           241: OpBranch %37
+           243: OpLabel %36
+           245: OpBranch %37
+           247: OpLabel %37
+           249: OpAccessChain %25 %41 = base:%20(v) [%24]
+           254: OpLoad %4 %42 = load %41
+           258: OpAccessChain %25 %43 = base:%20(v) [%24]
+           263: OpLoad %4 %44 = load %43
+           267: OpAccessChain %45 %46 = base:%13 [%24]
+           272: OpAccessChain %47 %48 = base:%46 [%24]
+           277: OpLoad %4 %49 = load %48
+           281: OpAccessChain %45 %50 = base:%13 [%24]
+           286: OpAccessChain %47 %51 = base:%50 [%24]
+           291: OpStore *%51 = %29
+           294: OpAccessChain %45 %52 = base:%13 [%24]
+           299: OpAccessChain %47 %54 = base:%52 [%53]
+           304: OpLoad %4 %55 = load %54
+           308: OpAccessChain %45 %56 = base:%13 [%24]
+           313: OpAccessChain %47 %57 = base:%56 [%53]
+           318: OpStore *%57 = %44
+           321: OpReturn
+           322: OpFunctionEnd
+        
+    vec2_ifelse_cache_test.go:169: spirv-val not found, skipping validation
+--- PASS: TestVec2IfElseCacheBugMinimal (0.00s)
+=== RUN   TestPathTilingFullShader
+    vec2_ifelse_cache_test.go:179: path_tiling.wgsl not found: open ../../gg/internal/gpu/tilecompute/shaders/path_tiling.wgsl: no such file or directory
+--- SKIP: TestPathTilingFullShader (0.00s)
+=== RUN   TestVarInitAfterLocalVarModification
+    vec2_ifelse_cache_test.go:317: xy0 store in if/else: word 279
+    vec2_ifelse_cache_test.go:318: Merge block label:    word 284
+    vec2_ifelse_cache_test.go:319: p0out store:          word 300
+    vec2_ifelse_cache_test.go:326: OK: p0out store is correctly positioned AFTER the if/else merge block
+--- PASS: TestVarInitAfterLocalVarModification (0.00s)
+=== RUN   TestVarInitChainedLocalVarModification
+    vec2_ifelse_cache_test.go:403: Found 2 merge blocks, last at word 353
+    vec2_ifelse_cache_test.go:404: Result store at word 368
+    vec2_ifelse_cache_test.go:413: OK: result store is correctly positioned AFTER both if/else merge blocks
+--- PASS: TestVarInitChainedLocalVarModification (0.00s)
+=== RUN   TestVarInitConstNotAffected
+    vec2_ifelse_cache_test.go:486: x init store: word 214
+    vec2_ifelse_cache_test.go:487: y init store: word 222
+    vec2_ifelse_cache_test.go:488: z init store: word 258
+    vec2_ifelse_cache_test.go:489: First selection merge: word 294
+    vec2_ifelse_cache_test.go:508: OK: All constant/uniform-based var inits remain in prologue
+--- PASS: TestVarInitConstNotAffected (0.00s)
+PASS

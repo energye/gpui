@@ -1,0 +1,24 @@
+=== RUN   TestS67_ImageCache_HitUploadBytes
+--- PASS: TestS67_ImageCache_HitUploadBytes (0.26s)
+=== RUN   TestS67_ImageCache_GenerationInvalidation
+--- PASS: TestS67_ImageCache_GenerationInvalidation (0.09s)
+=== RUN   TestS67_ImageCache_ByteBudgetEvicts
+    s6_7_resources_test.go:82: after 4 uploads under 2-tex byte budget: entries=1 used=256 evictions=3
+--- PASS: TestS67_ImageCache_ByteBudgetEvicts (0.09s)
+=== RUN   TestS67_ImageCache_EphemeralReleased
+    s6_7_resources_test.go:92: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestS67_ImageCache_EphemeralReleased (0.12s)
+=== RUN   TestS67_ImageCache_StrideStaging
+    s6_7_resources_test.go:120: webgpu RequestDevice unavailable: wgpu: failed to request device: wgpu: RequestDevice: Validation Error
+        
+        Caused by:
+          Not enough memory left.
+--- SKIP: TestS67_ImageCache_StrideStaging (0.10s)
+=== RUN   TestS67_TexturePool_HitMissStats
+--- PASS: TestS67_TexturePool_HitMissStats (0.00s)
+=== RUN   TestS67_TexturePool_EndFrameBudget
+--- PASS: TestS67_TexturePool_EndFrameBudget (0.00s)
+PASS

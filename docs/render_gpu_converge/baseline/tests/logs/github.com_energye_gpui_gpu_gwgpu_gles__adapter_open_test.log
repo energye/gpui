@@ -1,0 +1,5 @@
+=== RUN   TestAdapter_Open_NilGLCtxReturnsDescriptiveError
+--- PASS: TestAdapter_Open_NilGLCtxReturnsDescriptiveError (0.00s)
+=== RUN   TestAdapter_Open_NilGLCtxErrorIsActionable
+--- PASS: TestAdapter_Open_NilGLCtxErrorIsActionable (0.00s)
+PASS

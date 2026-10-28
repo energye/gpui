@@ -1,0 +1,5 @@
+=== RUN   TestRayQueryHelperFunctionsGenerated
+--- PASS: TestRayQueryHelperFunctionsGenerated (0.00s)
+=== RUN   TestRayQueryInitTrackingDisabled
+--- PASS: TestRayQueryInitTrackingDisabled (0.00s)
+PASS

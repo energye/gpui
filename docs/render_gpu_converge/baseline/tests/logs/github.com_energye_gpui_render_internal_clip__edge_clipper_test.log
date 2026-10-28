@@ -1,0 +1,121 @@
+=== RUN   TestEdgeClipper_ClipLine_FullyInside
+--- PASS: TestEdgeClipper_ClipLine_FullyInside (0.00s)
+=== RUN   TestEdgeClipper_ClipLine_FullyOutside
+=== RUN   TestEdgeClipper_ClipLine_FullyOutside/left
+=== RUN   TestEdgeClipper_ClipLine_FullyOutside/right
+=== RUN   TestEdgeClipper_ClipLine_FullyOutside/top
+=== RUN   TestEdgeClipper_ClipLine_FullyOutside/bottom
+=== RUN   TestEdgeClipper_ClipLine_FullyOutside/diagonal_outside
+--- PASS: TestEdgeClipper_ClipLine_FullyOutside (0.00s)
+    --- PASS: TestEdgeClipper_ClipLine_FullyOutside/left (0.00s)
+    --- PASS: TestEdgeClipper_ClipLine_FullyOutside/right (0.00s)
+    --- PASS: TestEdgeClipper_ClipLine_FullyOutside/top (0.00s)
+    --- PASS: TestEdgeClipper_ClipLine_FullyOutside/bottom (0.00s)
+    --- PASS: TestEdgeClipper_ClipLine_FullyOutside/diagonal_outside (0.00s)
+=== RUN   TestEdgeClipper_ClipLine_CrossingFromLeft
+--- PASS: TestEdgeClipper_ClipLine_CrossingFromLeft (0.00s)
+=== RUN   TestEdgeClipper_ClipLine_CrossingFromRight
+--- PASS: TestEdgeClipper_ClipLine_CrossingFromRight (0.00s)
+=== RUN   TestEdgeClipper_ClipLine_CrossingFromTop
+--- PASS: TestEdgeClipper_ClipLine_CrossingFromTop (0.00s)
+=== RUN   TestEdgeClipper_ClipLine_CrossingFromBottom
+--- PASS: TestEdgeClipper_ClipLine_CrossingFromBottom (0.00s)
+=== RUN   TestEdgeClipper_ClipLine_CrossingBothSides
+--- PASS: TestEdgeClipper_ClipLine_CrossingBothSides (0.00s)
+=== RUN   TestEdgeClipper_ClipLine_DiagonalCrossing
+--- PASS: TestEdgeClipper_ClipLine_DiagonalCrossing (0.00s)
+=== RUN   TestEdgeClipper_ClipLine_CornerCases
+=== RUN   TestEdgeClipper_ClipLine_CornerCases/on_left_edge
+=== RUN   TestEdgeClipper_ClipLine_CornerCases/on_top_edge
+=== RUN   TestEdgeClipper_ClipLine_CornerCases/corner_to_corner
+--- PASS: TestEdgeClipper_ClipLine_CornerCases (0.00s)
+    --- PASS: TestEdgeClipper_ClipLine_CornerCases/on_left_edge (0.00s)
+    --- PASS: TestEdgeClipper_ClipLine_CornerCases/on_top_edge (0.00s)
+    --- PASS: TestEdgeClipper_ClipLine_CornerCases/corner_to_corner (0.00s)
+=== RUN   TestEdgeClipper_ClipQuadratic_FullyInside
+--- PASS: TestEdgeClipper_ClipQuadratic_FullyInside (0.00s)
+=== RUN   TestEdgeClipper_ClipQuadratic_FullyOutside
+--- PASS: TestEdgeClipper_ClipQuadratic_FullyOutside (0.00s)
+=== RUN   TestEdgeClipper_ClipQuadratic_CrossingTop
+--- PASS: TestEdgeClipper_ClipQuadratic_CrossingTop (0.00s)
+=== RUN   TestEdgeClipper_ClipQuadratic_MonotonicSplit
+--- PASS: TestEdgeClipper_ClipQuadratic_MonotonicSplit (0.00s)
+=== RUN   TestEdgeClipper_ClipCubic_FullyInside
+--- PASS: TestEdgeClipper_ClipCubic_FullyInside (0.00s)
+=== RUN   TestEdgeClipper_ClipCubic_FullyOutside
+--- PASS: TestEdgeClipper_ClipCubic_FullyOutside (0.00s)
+=== RUN   TestEdgeClipper_ClipCubic_CrossingBounds
+--- PASS: TestEdgeClipper_ClipCubic_CrossingBounds (0.00s)
+=== RUN   TestRect_Intersects
+=== RUN   TestRect_Intersects/overlapping
+=== RUN   TestRect_Intersects/inside
+=== RUN   TestRect_Intersects/containing
+=== RUN   TestRect_Intersects/adjacent_right
+=== RUN   TestRect_Intersects/separated_right
+=== RUN   TestRect_Intersects/separated_left
+=== RUN   TestRect_Intersects/separated_above
+=== RUN   TestRect_Intersects/separated_below
+--- PASS: TestRect_Intersects (0.00s)
+    --- PASS: TestRect_Intersects/overlapping (0.00s)
+    --- PASS: TestRect_Intersects/inside (0.00s)
+    --- PASS: TestRect_Intersects/containing (0.00s)
+    --- PASS: TestRect_Intersects/adjacent_right (0.00s)
+    --- PASS: TestRect_Intersects/separated_right (0.00s)
+    --- PASS: TestRect_Intersects/separated_left (0.00s)
+    --- PASS: TestRect_Intersects/separated_above (0.00s)
+    --- PASS: TestRect_Intersects/separated_below (0.00s)
+=== RUN   TestRect_Intersect
+=== RUN   TestRect_Intersect/overlapping
+=== RUN   TestRect_Intersect/inside
+=== RUN   TestRect_Intersect/no_overlap
+--- PASS: TestRect_Intersect (0.00s)
+    --- PASS: TestRect_Intersect/overlapping (0.00s)
+    --- PASS: TestRect_Intersect/inside (0.00s)
+    --- PASS: TestRect_Intersect/no_overlap (0.00s)
+=== RUN   TestSolveQuadratic
+=== RUN   TestSolveQuadratic/two_roots
+=== RUN   TestSolveQuadratic/one_root
+=== RUN   TestSolveQuadratic/no_roots
+=== RUN   TestSolveQuadratic/linear
+=== RUN   TestSolveQuadratic/root_at_0.5
+=== RUN   TestSolveQuadratic/interior_roots
+--- PASS: TestSolveQuadratic (0.00s)
+    --- PASS: TestSolveQuadratic/two_roots (0.00s)
+    --- PASS: TestSolveQuadratic/one_root (0.00s)
+    --- PASS: TestSolveQuadratic/no_roots (0.00s)
+    --- PASS: TestSolveQuadratic/linear (0.00s)
+    --- PASS: TestSolveQuadratic/root_at_0.5 (0.00s)
+    --- PASS: TestSolveQuadratic/interior_roots (0.00s)
+=== RUN   TestSolveCubic
+=== RUN   TestSolveCubic/simple
+=== RUN   TestSolveCubic/no_interior_roots
+--- PASS: TestSolveCubic (0.00s)
+    --- PASS: TestSolveCubic/simple (0.00s)
+    --- PASS: TestSolveCubic/no_interior_roots (0.00s)
+=== RUN   TestChopQuadAt
+--- PASS: TestChopQuadAt (0.00s)
+=== RUN   TestChopCubicAt
+--- PASS: TestChopCubicAt (0.00s)
+=== RUN   TestFilterAndSort
+=== RUN   TestFilterAndSort/empty
+=== RUN   TestFilterAndSort/single_valid
+=== RUN   TestFilterAndSort/out_of_range
+=== RUN   TestFilterAndSort/unsorted
+=== RUN   TestFilterAndSort/duplicates
+=== RUN   TestFilterAndSort/mixed
+--- PASS: TestFilterAndSort (0.00s)
+    --- PASS: TestFilterAndSort/empty (0.00s)
+    --- PASS: TestFilterAndSort/single_valid (0.00s)
+    --- PASS: TestFilterAndSort/out_of_range (0.00s)
+    --- PASS: TestFilterAndSort/unsorted (0.00s)
+    --- PASS: TestFilterAndSort/duplicates (0.00s)
+    --- PASS: TestFilterAndSort/mixed (0.00s)
+=== RUN   TestQuadSegBounds
+--- PASS: TestQuadSegBounds (0.00s)
+=== RUN   TestCubicSegBounds
+--- PASS: TestCubicSegBounds (0.00s)
+=== RUN   TestEvalQuad
+--- PASS: TestEvalQuad (0.00s)
+=== RUN   TestEvalCubic
+--- PASS: TestEvalCubic (0.00s)
+PASS

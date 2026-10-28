@@ -1,0 +1,15 @@
+=== RUN   TestStreamRequestFromCases
+--- PASS: TestStreamRequestFromCases (0.00s)
+=== RUN   TestStreamEdgesNoCrash
+--- PASS: TestStreamEdgesNoCrash (0.04s)
+=== RUN   TestStreamBoundaryIdentical
+--- PASS: TestStreamBoundaryIdentical (0.01s)
+=== RUN   TestStreamPerfStreaming
+    stream_test.go:395: stream-edge: 64 tiles 8x8 (upload 32B decoded 256B each) requests in 1.494057ms (poll 64 in 80.255µs, 1.2 us/poll)
+    stream_test.go:417: stream-big: 10 background 256x256 (upload 32768B decoded 262144B) in 12.325945ms (1.2 ms/stream)
+--- PASS: TestStreamPerfStreaming (0.01s)
+=== RUN   TestStreamLongRunStable
+--- PASS: TestStreamLongRunStable (1.37s)
+=== RUN   TestStreamOffscreenGolden
+--- PASS: TestStreamOffscreenGolden (0.00s)
+PASS

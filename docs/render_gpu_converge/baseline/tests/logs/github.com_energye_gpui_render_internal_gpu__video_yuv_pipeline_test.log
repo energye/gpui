@@ -1,0 +1,11 @@
+=== RUN   TestVideoYUVShaderMatchesCPUOracle
+--- PASS: TestVideoYUVShaderMatchesCPUOracle (0.00s)
+=== RUN   TestQueueGPUVideoPlanesDraw_Enqueues
+--- PASS: TestQueueGPUVideoPlanesDraw_Enqueues (0.00s)
+=== RUN   TestCanMergeGPUTextureDraw_YUVNeverMerges
+--- PASS: TestCanMergeGPUTextureDraw_YUVNeverMerges (0.00s)
+=== RUN   TestVideoYUVPipelines_Compile
+--- PASS: TestVideoYUVPipelines_Compile (0.25s)
+=== RUN   TestDrawVideoPlanes_FailClosedWithoutGPU
+--- PASS: TestDrawVideoPlanes_FailClosedWithoutGPU (0.00s)
+PASS

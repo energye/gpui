@@ -1,0 +1,115 @@
+=== RUN   TestOwnShaper_BasicLatin
+--- PASS: TestOwnShaper_BasicLatin (0.00s)
+=== RUN   TestOwnShaper_VariousText
+=== RUN   TestOwnShaper_VariousText/single_char
+=== RUN   TestOwnShaper_VariousText/word
+=== RUN   TestOwnShaper_VariousText/with_space
+=== RUN   TestOwnShaper_VariousText/numbers
+=== RUN   TestOwnShaper_VariousText/punctuation
+=== RUN   TestOwnShaper_VariousText/lowercase
+=== RUN   TestOwnShaper_VariousText/uppercase
+=== RUN   TestOwnShaper_VariousText/mixed
+--- PASS: TestOwnShaper_VariousText (0.00s)
+    --- PASS: TestOwnShaper_VariousText/single_char (0.00s)
+    --- PASS: TestOwnShaper_VariousText/word (0.00s)
+    --- PASS: TestOwnShaper_VariousText/with_space (0.00s)
+    --- PASS: TestOwnShaper_VariousText/numbers (0.00s)
+    --- PASS: TestOwnShaper_VariousText/punctuation (0.00s)
+    --- PASS: TestOwnShaper_VariousText/lowercase (0.00s)
+    --- PASS: TestOwnShaper_VariousText/uppercase (0.00s)
+    --- PASS: TestOwnShaper_VariousText/mixed (0.00s)
+=== RUN   TestOwnShaper_EmptyText
+--- PASS: TestOwnShaper_EmptyText (0.00s)
+=== RUN   TestOwnShaper_NilFace
+--- PASS: TestOwnShaper_NilFace (0.00s)
+=== RUN   TestOwnShaper_GlyphPositioning
+--- PASS: TestOwnShaper_GlyphPositioning (0.00s)
+=== RUN   TestOwnShaper_ClusterIndices
+--- PASS: TestOwnShaper_ClusterIndices (0.00s)
+=== RUN   TestOwnShaper_DifferentSizes
+--- PASS: TestOwnShaper_DifferentSizes (0.00s)
+=== RUN   TestOwnShaper_VsBuiltinShaper
+    shaper_own_test.go:241: Total advance: Own=84.87, Builtin=84.87, diff=0.00
+--- PASS: TestOwnShaper_VsBuiltinShaper (0.00s)
+=== RUN   TestOwnShaper_Kerning
+    shaper_own_test.go:280: No kerning detected for AV pair in this font: combined=21.34, individual=21.34
+--- PASS: TestOwnShaper_Kerning (0.00s)
+=== RUN   TestOwnShaper_SetShaper
+--- PASS: TestOwnShaper_SetShaper (0.00s)
+=== RUN   TestOwnShaper_Concurrency
+--- PASS: TestOwnShaper_Concurrency (0.00s)
+=== RUN   TestOwnShaper_ClearCache
+--- PASS: TestOwnShaper_ClearCache (0.00s)
+=== RUN   TestOwnShaper_RemoveSource
+--- PASS: TestOwnShaper_RemoveSource (0.00s)
+=== RUN   TestOwnShaper_WhitespaceHandling
+=== RUN   TestOwnShaper_WhitespaceHandling/single_space
+=== RUN   TestOwnShaper_WhitespaceHandling/tab
+=== RUN   TestOwnShaper_WhitespaceHandling/multiple_spaces
+=== RUN   TestOwnShaper_WhitespaceHandling/word_and_space
+--- PASS: TestOwnShaper_WhitespaceHandling (0.00s)
+    --- PASS: TestOwnShaper_WhitespaceHandling/single_space (0.00s)
+    --- PASS: TestOwnShaper_WhitespaceHandling/tab (0.00s)
+    --- PASS: TestOwnShaper_WhitespaceHandling/multiple_spaces (0.00s)
+    --- PASS: TestOwnShaper_WhitespaceHandling/word_and_space (0.00s)
+=== RUN   TestOwnShaper_TabAdvance
+--- PASS: TestOwnShaper_TabAdvance (0.00s)
+=== RUN   TestOwnShaper_ControlCharacters
+--- PASS: TestOwnShaper_ControlCharacters (0.00s)
+=== RUN   TestGSUB_ParseCoverage
+=== RUN   TestGSUB_ParseCoverage/format1
+=== RUN   TestGSUB_ParseCoverage/format2
+--- PASS: TestGSUB_ParseCoverage (0.00s)
+    --- PASS: TestGSUB_ParseCoverage/format1 (0.00s)
+    --- PASS: TestGSUB_ParseCoverage/format2 (0.00s)
+=== RUN   TestGSUB_ParseClassDef
+=== RUN   TestGSUB_ParseClassDef/format1
+=== RUN   TestGSUB_ParseClassDef/format2
+--- PASS: TestGSUB_ParseClassDef (0.00s)
+    --- PASS: TestGSUB_ParseClassDef/format1 (0.00s)
+    --- PASS: TestGSUB_ParseClassDef/format2 (0.00s)
+=== RUN   TestGSUB_SingleSubst
+=== RUN   TestGSUB_SingleSubst/format1_delta
+=== RUN   TestGSUB_SingleSubst/format2_array
+--- PASS: TestGSUB_SingleSubst (0.00s)
+    --- PASS: TestGSUB_SingleSubst/format1_delta (0.00s)
+    --- PASS: TestGSUB_SingleSubst/format2_array (0.00s)
+=== RUN   TestGSUB_LigatureSubst
+--- PASS: TestGSUB_LigatureSubst (0.00s)
+=== RUN   TestKern_ParseAndLookup
+--- PASS: TestKern_ParseAndLookup (0.00s)
+=== RUN   TestOwnShaper_WithGoRegularFont
+    shaper_own_test.go:825: Go Regular: GSUB=false, GPOS=false, kern=false, upem=2048
+    shaper_own_test.go:839: Sentence: 44 glyphs, total advance = 323.36
+--- PASS: TestOwnShaper_WithGoRegularFont (0.00s)
+=== RUN   TestValueRecord_Parsing
+=== RUN   TestValueRecord_Parsing/xPlacement_only
+=== RUN   TestValueRecord_Parsing/xAdvance_only
+=== RUN   TestValueRecord_Parsing/all_four
+--- PASS: TestValueRecord_Parsing (0.00s)
+    --- PASS: TestValueRecord_Parsing/xPlacement_only (0.00s)
+    --- PASS: TestValueRecord_Parsing/xAdvance_only (0.00s)
+    --- PASS: TestValueRecord_Parsing/all_four (0.00s)
+=== RUN   TestOwnShaper_ScriptDetection
+=== RUN   TestOwnShaper_ScriptDetection/Latin
+=== RUN   TestOwnShaper_ScriptDetection/Cyrillic
+=== RUN   TestOwnShaper_ScriptDetection/Greek
+=== RUN   TestOwnShaper_ScriptDetection/spaces_then_Latin
+=== RUN   TestOwnShaper_ScriptDetection/empty
+--- PASS: TestOwnShaper_ScriptDetection (0.00s)
+    --- PASS: TestOwnShaper_ScriptDetection/Latin (0.00s)
+    --- PASS: TestOwnShaper_ScriptDetection/Cyrillic (0.00s)
+    --- PASS: TestOwnShaper_ScriptDetection/Greek (0.00s)
+    --- PASS: TestOwnShaper_ScriptDetection/spaces_then_Latin (0.00s)
+    --- PASS: TestOwnShaper_ScriptDetection/empty (0.00s)
+=== RUN   TestSliceReplace
+=== RUN   TestSliceReplace/delete_middle
+=== RUN   TestSliceReplace/replace_one_with_two
+=== RUN   TestSliceReplace/replace_two_with_one
+--- PASS: TestSliceReplace (0.00s)
+    --- PASS: TestSliceReplace/delete_middle (0.00s)
+    --- PASS: TestSliceReplace/replace_one_with_two (0.00s)
+    --- PASS: TestSliceReplace/replace_two_with_one (0.00s)
+=== RUN   TestOwnShaper_NoLigatures
+--- PASS: TestOwnShaper_NoLigatures (0.00s)
+PASS

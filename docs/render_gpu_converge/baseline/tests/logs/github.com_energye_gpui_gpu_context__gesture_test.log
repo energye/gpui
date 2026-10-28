@@ -1,0 +1,45 @@
+=== RUN   TestGestureEvent_ZeroValue
+--- PASS: TestGestureEvent_ZeroValue (0.00s)
+=== RUN   TestGestureEvent_Fields
+--- PASS: TestGestureEvent_Fields (0.00s)
+=== RUN   TestPinchType_String
+=== RUN   TestPinchType_String/None
+=== RUN   TestPinchType_String/Horizontal
+=== RUN   TestPinchType_String/Vertical
+=== RUN   TestPinchType_String/Proportional
+=== RUN   TestPinchType_String/Unknown
+--- PASS: TestPinchType_String (0.00s)
+    --- PASS: TestPinchType_String/None (0.00s)
+    --- PASS: TestPinchType_String/Horizontal (0.00s)
+    --- PASS: TestPinchType_String/Vertical (0.00s)
+    --- PASS: TestPinchType_String/Proportional (0.00s)
+    --- PASS: TestPinchType_String/Unknown (0.00s)
+=== RUN   TestPinchType_Classification
+=== RUN   TestPinchType_Classification/horizontal_dominant
+=== RUN   TestPinchType_Classification/vertical_dominant
+=== RUN   TestPinchType_Classification/proportional_equal
+=== RUN   TestPinchType_Classification/proportional_similar
+=== RUN   TestPinchType_Classification/horizontal_exactly_3x
+=== RUN   TestPinchType_Classification/horizontal_over_3x
+=== RUN   TestPinchType_Classification/vertical_exactly_3x
+=== RUN   TestPinchType_Classification/vertical_over_3x
+=== RUN   TestPinchType_Classification/negative_horizontal
+=== RUN   TestPinchType_Classification/negative_vertical
+=== RUN   TestPinchType_Classification/both_negative
+--- PASS: TestPinchType_Classification (0.00s)
+    --- PASS: TestPinchType_Classification/horizontal_dominant (0.00s)
+    --- PASS: TestPinchType_Classification/vertical_dominant (0.00s)
+    --- PASS: TestPinchType_Classification/proportional_equal (0.00s)
+    --- PASS: TestPinchType_Classification/proportional_similar (0.00s)
+    --- PASS: TestPinchType_Classification/horizontal_exactly_3x (0.00s)
+    --- PASS: TestPinchType_Classification/horizontal_over_3x (0.00s)
+    --- PASS: TestPinchType_Classification/vertical_exactly_3x (0.00s)
+    --- PASS: TestPinchType_Classification/vertical_over_3x (0.00s)
+    --- PASS: TestPinchType_Classification/negative_horizontal (0.00s)
+    --- PASS: TestPinchType_Classification/negative_vertical (0.00s)
+    --- PASS: TestPinchType_Classification/both_negative (0.00s)
+=== RUN   TestPoint_Operations
+--- PASS: TestPoint_Operations (0.00s)
+=== RUN   TestNullGestureEventSource
+--- PASS: TestNullGestureEventSource (0.00s)
+PASS

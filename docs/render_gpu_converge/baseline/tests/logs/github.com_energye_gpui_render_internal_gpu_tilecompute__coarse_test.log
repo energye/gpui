@@ -1,0 +1,34 @@
+=== RUN   TestPTCLWriteRead
+--- PASS: TestPTCLWriteRead (0.00s)
+=== RUN   TestPTCLEmpty
+--- PASS: TestPTCLEmpty (0.00s)
+=== RUN   TestPTCLFillEncoding
+--- PASS: TestPTCLFillEncoding (0.00s)
+=== RUN   TestCoarseRasterizeSingleTriangle
+    coarse_test.go:178: CoarseOutput: 2x2 tiles, 1 paths, 4 total tiles, 6 segments
+    coarse_test.go:193: Tile (0,0) has 8 commands
+    coarse_test.go:193: Tile (1,0) has 8 commands
+    coarse_test.go:193: Tile (0,1) has 8 commands
+    coarse_test.go:193: Tile (1,1) has 8 commands
+--- PASS: TestCoarseRasterizeSingleTriangle (0.00s)
+=== RUN   TestCoarseRasterizeMultiPath
+    coarse_test.go:234: CoarseOutput: 2x2 tiles, 2 paths, 5 total tiles, 3 segments
+--- PASS: TestCoarseRasterizeMultiPath (0.00s)
+=== RUN   TestCoarseTileAllocation
+    coarse_test.go:278: CoarseOutput: 2x2 tiles, 2 paths, 5 total tiles, 12 segments
+    coarse_test.go:306: Path 0: bbox=[0 0 1 1], tiles=1, offset=0
+    coarse_test.go:308: Path 1: bbox=[0 0 2 2], tiles=4, offset=1
+--- PASS: TestCoarseTileAllocation (0.00s)
+=== RUN   TestCoarseEmptyTiles
+    coarse_test.go:323: CoarseOutput: 4x4 tiles, 1 paths, 1 total tiles, 3 segments
+--- PASS: TestCoarseEmptyTiles (0.00s)
+=== RUN   TestCoarseBackdropSolid
+    coarse_test.go:351: CoarseOutput: 3x3 tiles, 1 paths, 9 total tiles, 3 segments
+    coarse_test.go:379: center tile correctly uses CmdSolid (fully covered)
+--- PASS: TestCoarseBackdropSolid (0.00s)
+=== RUN   TestCoarseEvenOdd
+    coarse_test.go:405: CoarseOutput: 2x2 tiles, 1 paths, 4 total tiles, 12 segments
+--- PASS: TestCoarseEvenOdd (0.00s)
+=== RUN   TestCoarseNoLines
+--- PASS: TestCoarseNoLines (0.00s)
+PASS

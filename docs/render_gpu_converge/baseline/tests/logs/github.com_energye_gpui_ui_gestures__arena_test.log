@@ -1,0 +1,23 @@
+=== RUN   TestArena_TwoMembers_AcceptRejectsOther
+--- PASS: TestArena_TwoMembers_AcceptRejectsOther (0.00s)
+=== RUN   TestArena_TapWinsWithinSlop
+--- PASS: TestArena_TapWinsWithinSlop (0.00s)
+=== RUN   TestArena_PanWinsBeyondSlop
+--- PASS: TestArena_PanWinsBeyondSlop (0.00s)
+=== RUN   TestArena_RejectDoesNotFire
+--- PASS: TestArena_RejectDoesNotFire (0.00s)
+=== RUN   TestArena_LatestMoveOnly
+--- PASS: TestArena_LatestMoveOnly (0.00s)
+=== RUN   TestArena_ScrollWheelBypassesTap
+--- PASS: TestArena_ScrollWheelBypassesTap (0.00s)
+=== RUN   TestArena_ManagerNoLeak
+--- PASS: TestArena_ManagerNoLeak (0.00s)
+=== RUN   TestArena_HitPathDeepestFirst
+--- PASS: TestArena_HitPathDeepestFirst (0.00s)
+=== RUN   TestMultiTouch_TwoIndependentTaps
+--- PASS: TestMultiTouch_TwoIndependentTaps (0.00s)
+=== RUN   TestMultiTouch_ParallelArenas
+--- PASS: TestMultiTouch_ParallelArenas (0.00s)
+=== RUN   TestFromInput_PointerAndTouch
+--- PASS: TestFromInput_PointerAndTouch (0.00s)
+PASS

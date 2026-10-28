@@ -1,0 +1,38 @@
+=== RUN   TestS3a_M0_ClearWithColor
+    s3a_m0m1_gpu_gate_test.go:90: path_stats gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M0_ClearWithColor (0.29s)
+=== RUN   TestS3a_M0_SolidFillRect
+    s3a_m0m1_gpu_gate_test.go:107: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M0_SolidFillRect (0.00s)
+=== RUN   TestS3a_M1_StrokeRect
+    s3a_m0m1_gpu_gate_test.go:131: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M1_StrokeRect (0.00s)
+=== RUN   TestS3a_M1_CircleFill
+    s3a_m0m1_gpu_gate_test.go:153: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M1_CircleFill (0.00s)
+=== RUN   TestS3a_M1_PathTriangleFill
+    s3a_m0m1_gpu_gate_test.go:176: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M1_PathTriangleFill (0.00s)
+=== RUN   TestS3a_M1_Hairline
+    s3a_m0m1_gpu_gate_test.go:197: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M1_Hairline (0.01s)
+=== RUN   TestS3a_M1_CTMTranslate
+    s3a_m0m1_gpu_gate_test.go:238: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M1_CTMTranslate (0.00s)
+=== RUN   TestS3a_M1_CTMScale
+    s3a_m0m1_gpu_gate_test.go:260: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M1_CTMScale (0.00s)
+=== RUN   TestS3a_M1_PushPopCTM
+    s3a_m0m1_gpu_gate_test.go:287: path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M1_PushPopCTM (0.00s)
+=== RUN   TestS3a_M1_ClipRect
+    s3a_m0m1_gpu_gate_test.go:308: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M1_ClipRect (0.00s)
+=== RUN   TestS3a_M1_AntiAliasToggle
+    s3a_m0m1_gpu_gate_test.go:333: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    s3a_m0m1_gpu_gate_test.go:345: AA fringe-ish pixels=112
+--- PASS: TestS3a_M1_AntiAliasToggle (0.01s)
+=== RUN   TestS3a_M1_RotateAbout
+    s3a_m0m1_gpu_gate_test.go:369: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestS3a_M1_RotateAbout (0.02s)
+PASS

@@ -1,0 +1,9 @@
+=== RUN   TestPackUnpackTextureViewRoundtrip
+--- PASS: TestPackUnpackTextureViewRoundtrip (0.00s)
+=== RUN   TestPackNilTextureView
+--- PASS: TestPackNilTextureView (0.00s)
+=== RUN   TestUnpackRawPointerRoundtrip
+--- PASS: TestUnpackRawPointerRoundtrip (0.00s)
+=== RUN   TestUnpackForeignPointerFailsClosed
+--- PASS: TestUnpackForeignPointerFailsClosed (0.00s)
+PASS

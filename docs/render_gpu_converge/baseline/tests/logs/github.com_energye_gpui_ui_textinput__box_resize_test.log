@@ -1,0 +1,9 @@
+=== RUN   TestBoxResize_PropagatesToShells
+=== RUN   TestBoxResize_PropagatesToShells/viewport
+=== RUN   TestBoxResize_PropagatesToShells/wrap
+=== RUN   TestBoxResize_PropagatesToShells/shrinkReclamps
+--- PASS: TestBoxResize_PropagatesToShells (0.00s)
+    --- PASS: TestBoxResize_PropagatesToShells/viewport (0.00s)
+    --- PASS: TestBoxResize_PropagatesToShells/wrap (0.00s)
+    --- PASS: TestBoxResize_PropagatesToShells/shrinkReclamps (0.00s)
+PASS

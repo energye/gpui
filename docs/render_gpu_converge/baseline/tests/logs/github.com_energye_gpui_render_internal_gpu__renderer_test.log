@@ -1,0 +1,71 @@
+=== RUN   TestPipelineCacheCreation
+--- PASS: TestPipelineCacheCreation (0.00s)
+=== RUN   TestPipelineCacheNilShaders
+--- PASS: TestPipelineCacheNilShaders (0.00s)
+=== RUN   TestPipelineCacheBlendPipelines
+--- PASS: TestPipelineCacheBlendPipelines (0.00s)
+=== RUN   TestPipelineCacheWarmup
+--- PASS: TestPipelineCacheWarmup (0.00s)
+=== RUN   TestPipelineCacheClose
+--- PASS: TestPipelineCacheClose (0.00s)
+=== RUN   TestCommandEncoderCreation
+--- PASS: TestCommandEncoderCreation (0.00s)
+=== RUN   TestCommandEncoderRenderPass
+--- PASS: TestCommandEncoderRenderPass (0.00s)
+=== RUN   TestCommandEncoderComputePass
+--- PASS: TestCommandEncoderComputePass (0.00s)
+=== RUN   TestCommandEncoderFinish
+--- PASS: TestCommandEncoderFinish (0.00s)
+=== RUN   TestRenderPassOperations
+--- PASS: TestRenderPassOperations (0.00s)
+=== RUN   TestComputePassOperations
+--- PASS: TestComputePassOperations (0.00s)
+=== RUN   TestRenderCommandBuilder
+--- PASS: TestRenderCommandBuilder (0.00s)
+=== RUN   TestComputeCommandBuilder
+--- PASS: TestComputeCommandBuilder (0.00s)
+=== RUN   TestGPUSceneRendererCreation
+--- PASS: TestGPUSceneRendererCreation (0.00s)
+=== RUN   TestGPUSceneRendererInvalidDimensions
+=== RUN   TestGPUSceneRendererInvalidDimensions/zero_width
+=== RUN   TestGPUSceneRendererInvalidDimensions/zero_height
+=== RUN   TestGPUSceneRendererInvalidDimensions/negative_width
+=== RUN   TestGPUSceneRendererInvalidDimensions/negative_height
+=== RUN   TestGPUSceneRendererInvalidDimensions/both_zero
+=== RUN   TestGPUSceneRendererInvalidDimensions/both_negative
+--- PASS: TestGPUSceneRendererInvalidDimensions (0.00s)
+    --- PASS: TestGPUSceneRendererInvalidDimensions/zero_width (0.00s)
+    --- PASS: TestGPUSceneRendererInvalidDimensions/zero_height (0.00s)
+    --- PASS: TestGPUSceneRendererInvalidDimensions/negative_width (0.00s)
+    --- PASS: TestGPUSceneRendererInvalidDimensions/negative_height (0.00s)
+    --- PASS: TestGPUSceneRendererInvalidDimensions/both_zero (0.00s)
+    --- PASS: TestGPUSceneRendererInvalidDimensions/both_negative (0.00s)
+=== RUN   TestBlendModeMapping
+=== RUN   TestBlendModeMapping/Normal
+=== RUN   TestBlendModeMapping/Multiply
+=== RUN   TestBlendModeMapping/Screen
+=== RUN   TestBlendModeMapping/Overlay
+=== RUN   TestBlendModeMapping/SourceOver
+=== RUN   TestBlendModeMapping/Xor
+--- PASS: TestBlendModeMapping (0.00s)
+    --- PASS: TestBlendModeMapping/Normal (0.00s)
+    --- PASS: TestBlendModeMapping/Multiply (0.00s)
+    --- PASS: TestBlendModeMapping/Screen (0.00s)
+    --- PASS: TestBlendModeMapping/Overlay (0.00s)
+    --- PASS: TestBlendModeMapping/SourceOver (0.00s)
+    --- PASS: TestBlendModeMapping/Xor (0.00s)
+=== RUN   TestBlendParams
+--- PASS: TestBlendParams (0.00s)
+=== RUN   TestStripParams
+--- PASS: TestStripParams (0.00s)
+=== RUN   TestLayerStackOperations
+--- PASS: TestLayerStackOperations (0.00s)
+=== RUN   TestQueueSubmitter
+--- PASS: TestQueueSubmitter (0.00s)
+=== RUN   TestBindGroupBuilder
+--- PASS: TestBindGroupBuilder (0.00s)
+=== RUN   TestSceneDecoderIntegration
+--- PASS: TestSceneDecoderIntegration (0.00s)
+=== RUN   TestIndexFormat
+--- PASS: TestIndexFormat (0.00s)
+PASS

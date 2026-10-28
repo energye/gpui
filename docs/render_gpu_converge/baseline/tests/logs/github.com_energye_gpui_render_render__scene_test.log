@@ -1,0 +1,41 @@
+=== RUN   TestNewScene
+--- PASS: TestNewScene (0.00s)
+=== RUN   TestSceneReset
+--- PASS: TestSceneReset (0.00s)
+=== RUN   TestSceneClear
+--- PASS: TestSceneClear (0.00s)
+=== RUN   TestSceneFill
+--- PASS: TestSceneFill (0.00s)
+=== RUN   TestSceneStroke
+--- PASS: TestSceneStroke (0.00s)
+=== RUN   TestSceneRectangle
+--- PASS: TestSceneRectangle (0.00s)
+=== RUN   TestSceneCircle
+--- PASS: TestSceneCircle (0.00s)
+=== RUN   TestSceneQuadTo
+--- PASS: TestSceneQuadTo (0.00s)
+=== RUN   TestSceneCubicTo
+--- PASS: TestSceneCubicTo (0.00s)
+=== RUN   TestSceneMultipleCommands
+--- PASS: TestSceneMultipleCommands (0.00s)
+=== RUN   TestSceneEmptyFill
+--- PASS: TestSceneEmptyFill (0.00s)
+=== RUN   TestSceneEmptyStroke
+--- PASS: TestSceneEmptyStroke (0.00s)
+=== RUN   TestPathBuilderImplementsPathLike
+--- PASS: TestPathBuilderImplementsPathLike (0.00s)
+=== RUN   TestSceneInvalidate
+--- PASS: TestSceneInvalidate (0.00s)
+=== RUN   TestSceneInvalidateInvalidRect
+--- PASS: TestSceneInvalidateInvalidRect (0.00s)
+=== RUN   TestSceneInvalidateAll
+--- PASS: TestSceneInvalidateAll (0.00s)
+=== RUN   TestSceneClearDirty
+--- PASS: TestSceneClearDirty (0.00s)
+=== RUN   TestSceneInvalidateTooManyRects
+--- PASS: TestSceneInvalidateTooManyRects (0.00s)
+=== RUN   TestSceneInvalidateAfterFullRedraw
+--- PASS: TestSceneInvalidateAfterFullRedraw (0.00s)
+=== RUN   TestSceneResetClearsDirty
+--- PASS: TestSceneResetClearsDirty (0.00s)
+PASS

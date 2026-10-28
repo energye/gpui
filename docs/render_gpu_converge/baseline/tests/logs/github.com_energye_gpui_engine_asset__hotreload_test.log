@@ -1,0 +1,15 @@
+=== RUN   TestHotReloadSwapFromCases
+--- PASS: TestHotReloadSwapFromCases (0.00s)
+=== RUN   TestHotReloadEdgesNoCrash
+--- PASS: TestHotReloadEdgesNoCrash (0.00s)
+=== RUN   TestHotReloadBoundaryIdentical
+--- PASS: TestHotReloadBoundaryIdentical (0.00s)
+=== RUN   TestHotReloadPerfReload
+    hotreload_test.go:585: hotreload-poll: 2000 steady polls on 4 watches in 27.057136ms (13.5 us/poll)
+    hotreload_test.go:601: hotreload-reload: tex/red 136B swap in 50.338µs (hash 7475831939817489811)
+--- PASS: TestHotReloadPerfReload (0.03s)
+=== RUN   TestHotReloadLongRunStable
+--- PASS: TestHotReloadLongRunStable (0.02s)
+=== RUN   TestHotReloadOffscreenGolden
+--- PASS: TestHotReloadOffscreenGolden (0.00s)
+PASS

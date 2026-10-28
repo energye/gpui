@@ -1,0 +1,33 @@
+=== RUN   TestHinting_String
+--- PASS: TestHinting_String (0.00s)
+=== RUN   TestHinting_Values
+--- PASS: TestHinting_Values (0.00s)
+=== RUN   TestGridFitOutline_Nil
+--- PASS: TestGridFitOutline_Nil (0.00s)
+=== RUN   TestGridFitOutline_Empty
+--- PASS: TestGridFitOutline_Empty (0.00s)
+=== RUN   TestGridFitOutline_NoHinting
+--- PASS: TestGridFitOutline_NoHinting (0.00s)
+=== RUN   TestGridFitOutline_BaselineSnap
+--- PASS: TestGridFitOutline_BaselineSnap (0.00s)
+=== RUN   TestGridFitOutline_HorizontalSegmentSnap
+--- PASS: TestGridFitOutline_HorizontalSegmentSnap (0.00s)
+=== RUN   TestGridFitOutline_VerticalOnly
+--- PASS: TestGridFitOutline_VerticalOnly (0.00s)
+=== RUN   TestGridFitOutline_FullSnapsX
+--- PASS: TestGridFitOutline_FullSnapsX (0.00s)
+=== RUN   TestGridFitOutline_NoSnapFarFromGrid
+--- PASS: TestGridFitOutline_NoSnapFarFromGrid (0.00s)
+=== RUN   TestGridFitOutline_BoundsUpdated
+--- PASS: TestGridFitOutline_BoundsUpdated (0.00s)
+=== RUN   TestGridFitOutline_QuadCurve
+--- PASS: TestGridFitOutline_QuadCurve (0.00s)
+=== RUN   TestExtractOutlineHinted_UnsupportedFont
+--- PASS: TestExtractOutlineHinted_UnsupportedFont (0.00s)
+=== RUN   TestSegPointCount
+--- PASS: TestSegPointCount (0.00s)
+=== RUN   TestSegEndY
+--- PASS: TestSegEndY (0.00s)
+=== RUN   TestAbs32f
+--- PASS: TestAbs32f (0.00s)
+PASS

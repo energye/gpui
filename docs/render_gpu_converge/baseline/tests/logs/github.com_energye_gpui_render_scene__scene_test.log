@@ -1,0 +1,77 @@
+=== RUN   TestNewScene
+--- PASS: TestNewScene (0.00s)
+=== RUN   TestSceneReset
+--- PASS: TestSceneReset (0.00s)
+=== RUN   TestSceneFill
+--- PASS: TestSceneFill (0.00s)
+=== RUN   TestSceneFillWithTransform
+--- PASS: TestSceneFillWithTransform (0.00s)
+=== RUN   TestSceneFillNilShape
+--- PASS: TestSceneFillNilShape (0.00s)
+=== RUN   TestSceneStroke
+--- PASS: TestSceneStroke (0.00s)
+=== RUN   TestSceneStrokeDefaultStyle
+--- PASS: TestSceneStrokeDefaultStyle (0.00s)
+=== RUN   TestSceneDrawImage
+--- PASS: TestSceneDrawImage (0.00s)
+=== RUN   TestSceneDrawNilImage
+--- PASS: TestSceneDrawNilImage (0.00s)
+=== RUN   TestScenePushPopLayer
+--- PASS: TestScenePushPopLayer (0.00s)
+=== RUN   TestSceneLayerWithClip
+--- PASS: TestSceneLayerWithClip (0.00s)
+=== RUN   TestSceneNestedLayers
+--- PASS: TestSceneNestedLayers (0.00s)
+=== RUN   TestScenePushPopClip
+--- PASS: TestScenePushPopClip (0.00s)
+=== RUN   TestScenePushClipNil
+--- PASS: TestScenePushClipNil (0.00s)
+=== RUN   TestSceneClipBounds
+--- PASS: TestSceneClipBounds (0.00s)
+=== RUN   TestScenePushPopTransform
+--- PASS: TestScenePushPopTransform (0.00s)
+=== RUN   TestSceneSetTransform
+--- PASS: TestSceneSetTransform (0.00s)
+=== RUN   TestSceneTransformHelpers
+--- PASS: TestSceneTransformHelpers (0.00s)
+=== RUN   TestSceneEncoding
+--- PASS: TestSceneEncoding (0.00s)
+=== RUN   TestSceneVersion
+--- PASS: TestSceneVersion (0.00s)
+=== RUN   TestSceneBoundsTracking
+--- PASS: TestSceneBoundsTracking (0.00s)
+=== RUN   TestImage
+--- PASS: TestImage (0.00s)
+=== RUN   TestScenePool
+--- PASS: TestScenePool (0.00s)
+=== RUN   TestScenePoolWarmup
+--- PASS: TestScenePoolWarmup (0.00s)
+=== RUN   TestLayerKind
+=== RUN   TestLayerKind/Regular
+=== RUN   TestLayerKind/Filtered
+=== RUN   TestLayerKind/Clip
+--- PASS: TestLayerKind (0.00s)
+    --- PASS: TestLayerKind/Regular (0.00s)
+    --- PASS: TestLayerKind/Filtered (0.00s)
+    --- PASS: TestLayerKind/Clip (0.00s)
+=== RUN   TestLayerState
+--- PASS: TestLayerState (0.00s)
+=== RUN   TestLayerStateHelpers
+--- PASS: TestLayerStateHelpers (0.00s)
+=== RUN   TestLayerStack
+--- PASS: TestLayerStack (0.00s)
+=== RUN   TestLayerStackReset
+--- PASS: TestLayerStackReset (0.00s)
+=== RUN   TestClipState
+--- PASS: TestClipState (0.00s)
+=== RUN   TestClipStateWithTransform
+--- PASS: TestClipStateWithTransform (0.00s)
+=== RUN   TestClipStack
+--- PASS: TestClipStack (0.00s)
+=== RUN   TestClipStackReset
+--- PASS: TestClipStackReset (0.00s)
+=== RUN   TestEncodingBoundsWithTransform
+--- PASS: TestEncodingBoundsWithTransform (0.00s)
+=== RUN   TestEncodingBoundsClipDoesNotExpand
+--- PASS: TestEncodingBoundsClipDoesNotExpand (0.00s)
+PASS

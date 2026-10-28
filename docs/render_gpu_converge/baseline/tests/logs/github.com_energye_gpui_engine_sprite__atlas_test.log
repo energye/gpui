@@ -1,0 +1,20 @@
+=== RUN   TestAtlasAnglesFiltersFromCases
+--- PASS: TestAtlasAnglesFiltersFromCases (0.00s)
+=== RUN   TestAtlasEdgesNoCrash
+--- PASS: TestAtlasEdgesNoCrash (0.00s)
+=== RUN   TestAtlasBoundaryIdentical
+    atlas_test.go:530: identity parity changed=0/1024 (0.000%) mean=0.000 max=0 DISPLAY=:1 canvas=32x32
+    atlas_test.go:530: rot90_center parity changed=0/1024 (0.000%) mean=0.003 max=1 DISPLAY=:1 canvas=32x32
+--- PASS: TestAtlasBoundaryIdentical (0.39s)
+=== RUN   TestAtlasPerfHundred
+    atlas_test.go:614: atlas-100-convert: 2000 reps x100 sprites in 33.789398ms (16.9 us/rep)
+    atlas_test.go:636: atlas-100-draw: 50 draws x100 sprites in 6.001401ms (0.12 ms/draw drawn=100)
+--- PASS: TestAtlasPerfHundred (0.04s)
+=== RUN   TestAtlasLongRunStable
+    atlas_test.go:688: atlas-longrun: 5000 conversions identical + 500 alternating draws end on rotated probes
+--- PASS: TestAtlasLongRunStable (0.04s)
+=== RUN   TestAtlasOffscreenGolden
+    atlas_test.go:695: window-intent: game_sprite--case=rot (P2 build, S36 keeps offscreen only)
+    atlas_test.go:753: atlas-offscreen: env DISPLAY=:1 canvas=32x32 GOGPU_RENDER_MODE=cpu debug-build (release window run with P2)
+--- PASS: TestAtlasOffscreenGolden (0.00s)
+PASS

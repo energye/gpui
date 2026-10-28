@@ -1,0 +1,17 @@
+=== RUN   TestStencilPipelineCreation
+    stencil_pipeline_test.go:21: createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestStencilPipelineCreation (0.22s)
+=== RUN   TestStencilPipelineDestroy
+    stencil_pipeline_test.go:63: createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestStencilPipelineDestroy (0.15s)
+=== RUN   TestStencilPipelineDestroyBeforeCreate
+--- PASS: TestStencilPipelineDestroyBeforeCreate (0.09s)
+=== RUN   TestStencilPipelineFullDestroy
+    stencil_pipeline_test.go:127: createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestStencilPipelineFullDestroy (0.07s)
+=== RUN   TestShaderCompilation
+--- PASS: TestShaderCompilation (0.05s)
+=== RUN   TestStencilPipelineRecreate
+    stencil_pipeline_test.go:200: first createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestStencilPipelineRecreate (0.11s)
+FAIL

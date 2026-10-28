@@ -1,0 +1,13 @@
+=== RUN   TestExternalTexturePlaneDecomposition
+--- PASS: TestExternalTexturePlaneDecomposition (0.00s)
+=== RUN   TestExternalTextureHelperFunctions
+=== RUN   TestExternalTextureHelperFunctions/SampleHelper
+=== RUN   TestExternalTextureHelperFunctions/LoadHelper
+=== RUN   TestExternalTextureHelperFunctions/DimensionsHelper
+--- PASS: TestExternalTextureHelperFunctions (0.00s)
+    --- PASS: TestExternalTextureHelperFunctions/SampleHelper (0.00s)
+    --- PASS: TestExternalTextureHelperFunctions/LoadHelper (0.00s)
+    --- PASS: TestExternalTextureHelperFunctions/DimensionsHelper (0.00s)
+=== RUN   TestExternalTextureBindTarget
+--- PASS: TestExternalTextureBindTarget (0.00s)
+PASS

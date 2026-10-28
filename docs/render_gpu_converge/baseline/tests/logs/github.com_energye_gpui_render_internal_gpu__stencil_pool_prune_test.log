@@ -1,0 +1,7 @@
+=== RUN   TestTextureSet_PruneStencilPoolExcept
+--- PASS: TestTextureSet_PruneStencilPoolExcept (0.00s)
+=== RUN   TestTextureSet_PruneStencilPoolExceptNilPool
+--- PASS: TestTextureSet_PruneStencilPoolExceptNilPool (0.00s)
+=== RUN   TestTextureSet_PruneStencilPoolExceptDeferred
+--- PASS: TestTextureSet_PruneStencilPoolExceptDeferred (0.00s)
+PASS

@@ -1,0 +1,3 @@
+=== RUN   TestOpt42_StringToStringView_NoAllocWarm
+--- PASS: TestOpt42_StringToStringView_NoAllocWarm (0.00s)
+PASS

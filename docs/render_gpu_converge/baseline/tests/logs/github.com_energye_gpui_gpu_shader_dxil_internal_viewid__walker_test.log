@@ -1,0 +1,65 @@
+=== RUN   TestWalkStatementTypes
+=== RUN   TestWalkStatementTypes/StmtIf_walks_branches
+=== RUN   TestWalkStatementTypes/StmtSwitch_walks_cases
+=== RUN   TestWalkStatementTypes/StmtLoop_walks_body_and_continuing
+=== RUN   TestWalkStatementTypes/StmtBlock_nested
+=== RUN   TestWalkStatementTypes/StmtImageStore_no_effect
+=== RUN   TestWalkStatementTypes/StmtKill_no_effect
+=== RUN   TestWalkStatementTypes/StmtBarrier_no_effect
+=== RUN   TestWalkStatementTypes/StmtContinue_no_effect
+=== RUN   TestWalkStatementTypes/StmtCall_triggers_giveUp
+--- PASS: TestWalkStatementTypes (0.00s)
+    --- PASS: TestWalkStatementTypes/StmtIf_walks_branches (0.00s)
+    --- PASS: TestWalkStatementTypes/StmtSwitch_walks_cases (0.00s)
+    --- PASS: TestWalkStatementTypes/StmtLoop_walks_body_and_continuing (0.00s)
+    --- PASS: TestWalkStatementTypes/StmtBlock_nested (0.00s)
+    --- PASS: TestWalkStatementTypes/StmtImageStore_no_effect (0.00s)
+    --- PASS: TestWalkStatementTypes/StmtKill_no_effect (0.00s)
+    --- PASS: TestWalkStatementTypes/StmtBarrier_no_effect (0.00s)
+    --- PASS: TestWalkStatementTypes/StmtContinue_no_effect (0.00s)
+    --- PASS: TestWalkStatementTypes/StmtCall_triggers_giveUp (0.00s)
+=== RUN   TestHandleStore
+=== RUN   TestHandleStore/store_scalar_to_local
+=== RUN   TestHandleStore/store_into_vector_member_via_access_index
+=== RUN   TestHandleStore/store_into_non_local_ignored
+--- PASS: TestHandleStore (0.00s)
+    --- PASS: TestHandleStore/store_scalar_to_local (0.00s)
+    --- PASS: TestHandleStore/store_into_vector_member_via_access_index (0.00s)
+    --- PASS: TestHandleStore/store_into_non_local_ignored (0.00s)
+=== RUN   TestRootLocalVar
+=== RUN   TestRootLocalVar/direct_local_var
+=== RUN   TestRootLocalVar/access_index_chain
+=== RUN   TestRootLocalVar/dynamic_access_in_chain
+=== RUN   TestRootLocalVar/non_local_root_returns_false
+--- PASS: TestRootLocalVar (0.00s)
+    --- PASS: TestRootLocalVar/direct_local_var (0.00s)
+    --- PASS: TestRootLocalVar/access_index_chain (0.00s)
+    --- PASS: TestRootLocalVar/dynamic_access_in_chain (0.00s)
+    --- PASS: TestRootLocalVar/non_local_root_returns_false (0.00s)
+=== RUN   TestResolveFlatRange
+=== RUN   TestResolveFlatRange/empty_path_returns_total
+=== RUN   TestResolveFlatRange/struct_member_0
+=== RUN   TestResolveFlatRange/struct_member_1
+=== RUN   TestResolveFlatRange/struct_member_out_of_range
+=== RUN   TestResolveFlatRange/vector_component
+=== RUN   TestResolveFlatRange/vector_component_out_of_range
+=== RUN   TestResolveFlatRange/array_is_opaque
+=== RUN   TestResolveFlatRange/dynamic_step_not_precise
+=== RUN   TestResolveFlatRange/struct_then_vector_nested_path
+=== RUN   TestResolveFlatRange/unknown_type_not_precise
+--- PASS: TestResolveFlatRange (0.00s)
+    --- PASS: TestResolveFlatRange/empty_path_returns_total (0.00s)
+    --- PASS: TestResolveFlatRange/struct_member_0 (0.00s)
+    --- PASS: TestResolveFlatRange/struct_member_1 (0.00s)
+    --- PASS: TestResolveFlatRange/struct_member_out_of_range (0.00s)
+    --- PASS: TestResolveFlatRange/vector_component (0.00s)
+    --- PASS: TestResolveFlatRange/vector_component_out_of_range (0.00s)
+    --- PASS: TestResolveFlatRange/array_is_opaque (0.00s)
+    --- PASS: TestResolveFlatRange/dynamic_step_not_precise (0.00s)
+    --- PASS: TestResolveFlatRange/struct_then_vector_nested_path (0.00s)
+    --- PASS: TestResolveFlatRange/unknown_type_not_precise (0.00s)
+=== RUN   TestHandleReturnNilValue
+--- PASS: TestHandleReturnNilValue (0.00s)
+=== RUN   TestHandleReturnNoResult
+--- PASS: TestHandleReturnNoResult (0.00s)
+PASS

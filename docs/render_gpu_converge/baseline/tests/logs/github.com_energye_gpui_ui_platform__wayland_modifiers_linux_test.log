@@ -1,0 +1,11 @@
+=== RUN   TestWLTrackModsEmitsOnce
+--- PASS: TestWLTrackModsEmitsOnce (0.00s)
+=== RUN   TestWLTrackModsNilSafe
+--- PASS: TestWLTrackModsNilSafe (0.00s)
+=== RUN   TestWLModsFromXKBNilSafe
+--- PASS: TestWLModsFromXKBNilSafe (0.00s)
+=== RUN   TestWLModifiersCBNilSafe
+--- PASS: TestWLModifiersCBNilSafe (0.00s)
+=== RUN   TestWaylandModifiersChangedPump
+--- PASS: TestWaylandModifiersChangedPump (0.56s)
+PASS

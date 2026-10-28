@@ -1,0 +1,61 @@
+=== RUN   TestEdgeCase_DegenerateQuadratic
+    analytic_edgecases_test.go:42: Degenerate quadratic: 140 scanlines
+--- PASS: TestEdgeCase_DegenerateQuadratic (0.00s)
+=== RUN   TestEdgeCase_NearHorizontalCurve
+    analytic_edgecases_test.go:66: Near-horizontal curve: 50 scanlines, 2 edges
+--- PASS: TestEdgeCase_NearHorizontalCurve (0.00s)
+=== RUN   TestEdgeCase_SelfIntersectingPath
+    analytic_edgecases_test.go:95: Self-intersecting path (NonZero): 100 scanlines
+    analytic_edgecases_test.go:95: Self-intersecting path (EvenOdd): 100 scanlines
+--- PASS: TestEdgeCase_SelfIntersectingPath (0.00s)
+=== RUN   TestEdgeCase_CuspCurve
+    analytic_edgecases_test.go:123: Cusp curve: 130 scanlines, 1 cubic edges
+--- PASS: TestEdgeCase_CuspCurve (0.00s)
+=== RUN   TestEdgeCase_VeryThinPath
+    analytic_edgecases_test.go:149: Very thin path: 100 scanlines
+--- PASS: TestEdgeCase_VeryThinPath (0.00s)
+=== RUN   TestEdgeCase_VeryLargePath
+--- PASS: TestEdgeCase_VeryLargePath (0.02s)
+=== RUN   TestEdgeCase_EmptyPath
+--- PASS: TestEdgeCase_EmptyPath (0.00s)
+=== RUN   TestEdgeCase_SinglePoint
+--- PASS: TestEdgeCase_SinglePoint (0.00s)
+=== RUN   TestEdgeCase_HorizontalLine
+--- PASS: TestEdgeCase_HorizontalLine (0.00s)
+=== RUN   TestEdgeCase_VerticalLine
+    analytic_edgecases_test.go:256: Vertical rectangle: 2 line edges
+--- PASS: TestEdgeCase_VerticalLine (0.00s)
+=== RUN   TestEdgeCase_ZeroSizeCanvas
+--- PASS: TestEdgeCase_ZeroSizeCanvas (0.00s)
+=== RUN   TestEdgeCase_NegativeCoordinates
+    analytic_edgecases_test.go:299: Negative coords: 150 visible scanlines
+--- PASS: TestEdgeCase_NegativeCoordinates (0.00s)
+=== RUN   TestEdgeCase_MixedWindings
+    analytic_edgecases_test.go:340: Mixed windings: NonZero=160, EvenOdd=160 scanlines
+--- PASS: TestEdgeCase_MixedWindings (0.00s)
+=== RUN   TestEdgeCase_InfinitesimalCurve
+--- PASS: TestEdgeCase_InfinitesimalCurve (0.00s)
+=== RUN   TestEdgeCase_LoopingCubic
+    analytic_edgecases_test.go:384: Looping cubic: 3 cubic edges, 79 scanlines
+--- PASS: TestEdgeCase_LoopingCubic (0.00s)
+=== RUN   TestEdgeCase_AllEdgeTypesInOnePath
+    analytic_edgecases_test.go:411: Edge distribution: 0 lines, 2 quads, 2 cubics
+    analytic_edgecases_test.go:419: All edge types: 0 lines, 2 quads, 2 cubics, 150 scanlines
+--- PASS: TestEdgeCase_AllEdgeTypesInOnePath (0.00s)
+=== RUN   TestEdgeCase_TransformedPath
+    analytic_edgecases_test.go:451: Transform translate: 4 edges, 100 scanlines
+    analytic_edgecases_test.go:451: Transform scale: 4 edges, 100 scanlines
+    analytic_edgecases_test.go:451: Transform rotate45: 6 edges, 101 scanlines
+    analytic_edgecases_test.go:451: Transform shear: 4 edges, 100 scanlines
+--- PASS: TestEdgeCase_TransformedPath (0.00s)
+=== RUN   TestEdgeCase_FixedPointOverflow
+    analytic_edgecases_test.go:466: Large coord 30000.000000 -> raster.FDot6 1920000 -> 30000.000000
+    analytic_edgecases_test.go:472: Large coord 30000.000000 -> raster.FDot16 1966080000 -> 30000.000000
+--- PASS: TestEdgeCase_FixedPointOverflow (0.00s)
+=== RUN   TestEdgeCase_ZeroAreaPath
+--- PASS: TestEdgeCase_ZeroAreaPath (0.00s)
+=== RUN   TestEdgeCase_AdjacentRectangles
+    analytic_edgecases_test.go:519: Adjacent rects: 4 total edges
+    analytic_edgecases_test.go:526: Adjacent rects: 80 scanlines
+--- PASS: TestEdgeCase_AdjacentRectangles (0.00s)
+PASS

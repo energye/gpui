@@ -1,0 +1,149 @@
+=== RUN   TestStorageFormatScalar
+=== RUN   TestStorageFormatScalar/R8Uint
+=== RUN   TestStorageFormatScalar/R32Float
+=== RUN   TestStorageFormatScalar/R32Sint
+=== RUN   TestStorageFormatScalar/Rgba8Unorm
+=== RUN   TestStorageFormatScalar/R64Uint
+=== RUN   TestStorageFormatScalar/R64Sint
+=== RUN   TestStorageFormatScalar/Rgba32Uint
+=== RUN   TestStorageFormatScalar/Rgba32Sint
+=== RUN   TestStorageFormatScalar/Rgba32Float
+--- PASS: TestStorageFormatScalar (0.00s)
+    --- PASS: TestStorageFormatScalar/R8Uint (0.00s)
+    --- PASS: TestStorageFormatScalar/R32Float (0.00s)
+    --- PASS: TestStorageFormatScalar/R32Sint (0.00s)
+    --- PASS: TestStorageFormatScalar/Rgba8Unorm (0.00s)
+    --- PASS: TestStorageFormatScalar/R64Uint (0.00s)
+    --- PASS: TestStorageFormatScalar/R64Sint (0.00s)
+    --- PASS: TestStorageFormatScalar/Rgba32Uint (0.00s)
+    --- PASS: TestStorageFormatScalar/Rgba32Sint (0.00s)
+    --- PASS: TestStorageFormatScalar/Rgba32Float (0.00s)
+=== RUN   TestValuePointerTypeInterface
+=== RUN   TestValuePointerTypeInterface/scalar_pointer
+=== RUN   TestValuePointerTypeInterface/vector_pointer
+--- PASS: TestValuePointerTypeInterface (0.00s)
+    --- PASS: TestValuePointerTypeInterface/scalar_pointer (0.00s)
+    --- PASS: TestValuePointerTypeInterface/vector_pointer (0.00s)
+=== RUN   TestValidationError_Error
+=== RUN   TestValidationError_Error/message_only
+=== RUN   TestValidationError_Error/with_function
+=== RUN   TestValidationError_Error/with_function_and_expression
+=== RUN   TestValidationError_Error/with_function_and_statement
+--- PASS: TestValidationError_Error (0.00s)
+    --- PASS: TestValidationError_Error/message_only (0.00s)
+    --- PASS: TestValidationError_Error/with_function (0.00s)
+    --- PASS: TestValidationError_Error/with_function_and_expression (0.00s)
+    --- PASS: TestValidationError_Error/with_function_and_statement (0.00s)
+=== RUN   TestDxilOnlyExpressionKinds
+=== RUN   TestDxilOnlyExpressionKinds/ExprAlias
+=== RUN   TestDxilOnlyExpressionKinds/ExprPhi
+--- PASS: TestDxilOnlyExpressionKinds (0.00s)
+    --- PASS: TestDxilOnlyExpressionKinds/ExprAlias (0.00s)
+    --- PASS: TestDxilOnlyExpressionKinds/ExprPhi (0.00s)
+=== RUN   TestBindingTypes
+=== RUN   TestBindingTypes/builtin_binding
+=== RUN   TestBindingTypes/location_binding
+--- PASS: TestBindingTypes (0.00s)
+    --- PASS: TestBindingTypes/builtin_binding (0.00s)
+    --- PASS: TestBindingTypes/location_binding (0.00s)
+=== RUN   TestTypeSizeEdgeCases
+=== RUN   TestTypeSizeEdgeCases/scalar_f32
+=== RUN   TestTypeSizeEdgeCases/scalar_u32
+=== RUN   TestTypeSizeEdgeCases/vec4f_16bytes
+=== RUN   TestTypeSizeEdgeCases/mat2x2_vec2_align2
+=== RUN   TestTypeSizeEdgeCases/array_4_elements
+=== RUN   TestTypeSizeEdgeCases/struct_span
+=== RUN   TestTypeSizeEdgeCases/atomic_u32
+=== RUN   TestTypeSizeEdgeCases/pointer_opaque
+=== RUN   TestTypeSizeEdgeCases/sampler_opaque
+=== RUN   TestTypeSizeEdgeCases/image_opaque
+=== RUN   TestTypeSizeEdgeCases/out_of_range
+=== RUN   TestTypeSizeEdgeCases/vec2f_8bytes
+=== RUN   TestTypeSizeEdgeCases/vec3f_12bytes
+=== RUN   TestTypeSizeEdgeCases/mat4x3_vec3_align4
+--- PASS: TestTypeSizeEdgeCases (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/scalar_f32 (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/scalar_u32 (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/vec4f_16bytes (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/mat2x2_vec2_align2 (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/array_4_elements (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/struct_span (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/atomic_u32 (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/pointer_opaque (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/sampler_opaque (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/image_opaque (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/out_of_range (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/vec2f_8bytes (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/vec3f_12bytes (0.00s)
+    --- PASS: TestTypeSizeEdgeCases/mat4x3_vec3_align4 (0.00s)
+=== RUN   TestValidate_ErrorCases
+=== RUN   TestValidate_ErrorCases/nil_module
+=== RUN   TestValidate_ErrorCases/invalid_type_handle_in_constant
+=== RUN   TestValidate_ErrorCases/invalid_expression_handle_in_function
+=== RUN   TestValidate_ErrorCases/valid_minimal_module
+--- PASS: TestValidate_ErrorCases (0.00s)
+    --- PASS: TestValidate_ErrorCases/nil_module (0.00s)
+    --- PASS: TestValidate_ErrorCases/invalid_type_handle_in_constant (0.00s)
+    --- PASS: TestValidate_ErrorCases/invalid_expression_handle_in_function (0.00s)
+    --- PASS: TestValidate_ErrorCases/valid_minimal_module (0.00s)
+=== RUN   TestMeshOutputTopology
+=== RUN   TestMeshOutputTopology/Points
+=== RUN   TestMeshOutputTopology/Lines
+=== RUN   TestMeshOutputTopology/Triangles
+--- PASS: TestMeshOutputTopology (0.00s)
+    --- PASS: TestMeshOutputTopology/Points (0.00s)
+    --- PASS: TestMeshOutputTopology/Lines (0.00s)
+    --- PASS: TestMeshOutputTopology/Triangles (0.00s)
+=== RUN   TestConservativeDepth
+=== RUN   TestConservativeDepth/Unchanged
+=== RUN   TestConservativeDepth/GreaterEqual
+=== RUN   TestConservativeDepth/LessEqual
+--- PASS: TestConservativeDepth (0.00s)
+    --- PASS: TestConservativeDepth/Unchanged (0.00s)
+    --- PASS: TestConservativeDepth/GreaterEqual (0.00s)
+    --- PASS: TestConservativeDepth/LessEqual (0.00s)
+=== RUN   TestShaderStage
+=== RUN   TestShaderStage/Vertex
+=== RUN   TestShaderStage/Task
+=== RUN   TestShaderStage/Mesh
+=== RUN   TestShaderStage/Fragment
+=== RUN   TestShaderStage/Compute
+--- PASS: TestShaderStage (0.00s)
+    --- PASS: TestShaderStage/Vertex (0.00s)
+    --- PASS: TestShaderStage/Task (0.00s)
+    --- PASS: TestShaderStage/Mesh (0.00s)
+    --- PASS: TestShaderStage/Fragment (0.00s)
+    --- PASS: TestShaderStage/Compute (0.00s)
+=== RUN   TestAddressSpace
+=== RUN   TestAddressSpace/Function
+=== RUN   TestAddressSpace/Private
+=== RUN   TestAddressSpace/WorkGroup
+=== RUN   TestAddressSpace/Uniform
+=== RUN   TestAddressSpace/Storage
+=== RUN   TestAddressSpace/PushConstant
+=== RUN   TestAddressSpace/Handle
+=== RUN   TestAddressSpace/Immediate
+=== RUN   TestAddressSpace/TaskPayload
+--- PASS: TestAddressSpace (0.00s)
+    --- PASS: TestAddressSpace/Function (0.00s)
+    --- PASS: TestAddressSpace/Private (0.00s)
+    --- PASS: TestAddressSpace/WorkGroup (0.00s)
+    --- PASS: TestAddressSpace/Uniform (0.00s)
+    --- PASS: TestAddressSpace/Storage (0.00s)
+    --- PASS: TestAddressSpace/PushConstant (0.00s)
+    --- PASS: TestAddressSpace/Handle (0.00s)
+    --- PASS: TestAddressSpace/Immediate (0.00s)
+    --- PASS: TestAddressSpace/TaskPayload (0.00s)
+=== RUN   TestBarrierFlags
+=== RUN   TestBarrierFlags/Storage
+=== RUN   TestBarrierFlags/WorkGroup
+=== RUN   TestBarrierFlags/SubGroup
+=== RUN   TestBarrierFlags/Texture
+=== RUN   TestBarrierFlags/combined
+--- PASS: TestBarrierFlags (0.00s)
+    --- PASS: TestBarrierFlags/Storage (0.00s)
+    --- PASS: TestBarrierFlags/WorkGroup (0.00s)
+    --- PASS: TestBarrierFlags/SubGroup (0.00s)
+    --- PASS: TestBarrierFlags/Texture (0.00s)
+    --- PASS: TestBarrierFlags/combined (0.00s)
+PASS

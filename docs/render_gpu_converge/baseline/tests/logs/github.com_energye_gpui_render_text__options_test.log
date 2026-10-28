@@ -1,0 +1,63 @@
+=== RUN   TestWithFeatures
+--- PASS: TestWithFeatures (0.00s)
+=== RUN   TestWithFeatures_Single
+--- PASS: TestWithFeatures_Single (0.00s)
+=== RUN   TestWithFeatures_None
+--- PASS: TestWithFeatures_None (0.00s)
+=== RUN   TestWithFeatures_Empty
+--- PASS: TestWithFeatures_Empty (0.00s)
+=== RUN   TestWithFeatures_PreservedBySource
+--- PASS: TestWithFeatures_PreservedBySource (0.00s)
+=== RUN   TestNewFontFeature
+=== RUN   TestNewFontFeature/tnum
+=== RUN   TestNewFontFeature/liga
+=== RUN   TestNewFontFeature/smcp
+=== RUN   TestNewFontFeature/kern
+=== RUN   TestNewFontFeature/onum
+--- PASS: TestNewFontFeature (0.00s)
+    --- PASS: TestNewFontFeature/tnum (0.00s)
+    --- PASS: TestNewFontFeature/liga (0.00s)
+    --- PASS: TestNewFontFeature/smcp (0.00s)
+    --- PASS: TestNewFontFeature/kern (0.00s)
+    --- PASS: TestNewFontFeature/onum (0.00s)
+=== RUN   TestNewFontFeature_EquivalentToConstant
+--- PASS: TestNewFontFeature_EquivalentToConstant (0.00s)
+=== RUN   TestNewFontFeature_PanicShortTag
+--- PASS: TestNewFontFeature_PanicShortTag (0.00s)
+=== RUN   TestNewFontFeature_PanicLongTag
+--- PASS: TestNewFontFeature_PanicLongTag (0.00s)
+=== RUN   TestNewFontFeature_PanicEmptyTag
+--- PASS: TestNewFontFeature_PanicEmptyTag (0.00s)
+=== RUN   TestPredefinedConstants_Tags
+=== RUN   TestPredefinedConstants_Tags/TabularNums
+=== RUN   TestPredefinedConstants_Tags/ProportionalNums
+=== RUN   TestPredefinedConstants_Tags/NoLigatures
+=== RUN   TestPredefinedConstants_Tags/Kerning
+=== RUN   TestPredefinedConstants_Tags/NoKerning
+=== RUN   TestPredefinedConstants_Tags/SmallCaps
+=== RUN   TestPredefinedConstants_Tags/OldstyleNums
+=== RUN   TestPredefinedConstants_Tags/NoDLigatures
+--- PASS: TestPredefinedConstants_Tags (0.00s)
+    --- PASS: TestPredefinedConstants_Tags/TabularNums (0.00s)
+    --- PASS: TestPredefinedConstants_Tags/ProportionalNums (0.00s)
+    --- PASS: TestPredefinedConstants_Tags/NoLigatures (0.00s)
+    --- PASS: TestPredefinedConstants_Tags/Kerning (0.00s)
+    --- PASS: TestPredefinedConstants_Tags/NoKerning (0.00s)
+    --- PASS: TestPredefinedConstants_Tags/SmallCaps (0.00s)
+    --- PASS: TestPredefinedConstants_Tags/OldstyleNums (0.00s)
+    --- PASS: TestPredefinedConstants_Tags/NoDLigatures (0.00s)
+=== RUN   TestFaceLanguage_Default
+--- PASS: TestFaceLanguage_Default (0.00s)
+=== RUN   TestFaceLanguage_WithLanguage
+=== RUN   TestFaceLanguage_WithLanguage/ja
+=== RUN   TestFaceLanguage_WithLanguage/ar
+=== RUN   TestFaceLanguage_WithLanguage/de
+=== RUN   TestFaceLanguage_WithLanguage/zh-Hans
+--- PASS: TestFaceLanguage_WithLanguage (0.00s)
+    --- PASS: TestFaceLanguage_WithLanguage/ja (0.00s)
+    --- PASS: TestFaceLanguage_WithLanguage/ar (0.00s)
+    --- PASS: TestFaceLanguage_WithLanguage/de (0.00s)
+    --- PASS: TestFaceLanguage_WithLanguage/zh-Hans (0.00s)
+=== RUN   TestFaceLanguage_IndependentPerFace
+--- PASS: TestFaceLanguage_IndependentPerFace (0.00s)
+PASS

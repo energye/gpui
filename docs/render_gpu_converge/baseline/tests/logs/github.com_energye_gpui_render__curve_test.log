@@ -1,0 +1,89 @@
+=== RUN   TestRect_NewRect
+=== RUN   TestRect_NewRect/normal_order
+=== RUN   TestRect_NewRect/reversed_order
+=== RUN   TestRect_NewRect/mixed
+--- PASS: TestRect_NewRect (0.00s)
+    --- PASS: TestRect_NewRect/normal_order (0.00s)
+    --- PASS: TestRect_NewRect/reversed_order (0.00s)
+    --- PASS: TestRect_NewRect/mixed (0.00s)
+=== RUN   TestRect_WidthHeight
+--- PASS: TestRect_WidthHeight (0.00s)
+=== RUN   TestRect_Union
+--- PASS: TestRect_Union (0.00s)
+=== RUN   TestRect_Contains
+=== RUN   TestRect_Contains/inside
+=== RUN   TestRect_Contains/corner
+=== RUN   TestRect_Contains/edge
+=== RUN   TestRect_Contains/outside
+--- PASS: TestRect_Contains (0.00s)
+    --- PASS: TestRect_Contains/inside (0.00s)
+    --- PASS: TestRect_Contains/corner (0.00s)
+    --- PASS: TestRect_Contains/edge (0.00s)
+    --- PASS: TestRect_Contains/outside (0.00s)
+=== RUN   TestLine_Eval
+=== RUN   TestLine_Eval/t=0
+=== RUN   TestLine_Eval/t=1
+=== RUN   TestLine_Eval/t=0.5
+=== RUN   TestLine_Eval/t=0.25
+--- PASS: TestLine_Eval (0.00s)
+    --- PASS: TestLine_Eval/t=0 (0.00s)
+    --- PASS: TestLine_Eval/t=1 (0.00s)
+    --- PASS: TestLine_Eval/t=0.5 (0.00s)
+    --- PASS: TestLine_Eval/t=0.25 (0.00s)
+=== RUN   TestLine_StartEnd
+--- PASS: TestLine_StartEnd (0.00s)
+=== RUN   TestLine_Subdivide
+--- PASS: TestLine_Subdivide (0.00s)
+=== RUN   TestLine_Subsegment
+--- PASS: TestLine_Subsegment (0.00s)
+=== RUN   TestLine_BoundingBox
+--- PASS: TestLine_BoundingBox (0.00s)
+=== RUN   TestLine_Length
+--- PASS: TestLine_Length (0.00s)
+=== RUN   TestLine_Midpoint
+--- PASS: TestLine_Midpoint (0.00s)
+=== RUN   TestLine_Reversed
+--- PASS: TestLine_Reversed (0.00s)
+=== RUN   TestQuadBez_Eval
+=== RUN   TestQuadBez_Eval/t=0
+=== RUN   TestQuadBez_Eval/t=1
+=== RUN   TestQuadBez_Eval/t=0.5
+--- PASS: TestQuadBez_Eval (0.00s)
+    --- PASS: TestQuadBez_Eval/t=0 (0.00s)
+    --- PASS: TestQuadBez_Eval/t=1 (0.00s)
+    --- PASS: TestQuadBez_Eval/t=0.5 (0.00s)
+=== RUN   TestQuadBez_StartEnd
+--- PASS: TestQuadBez_StartEnd (0.00s)
+=== RUN   TestQuadBez_Subdivide
+--- PASS: TestQuadBez_Subdivide (0.00s)
+=== RUN   TestQuadBez_Extrema
+--- PASS: TestQuadBez_Extrema (0.00s)
+=== RUN   TestQuadBez_BoundingBox
+--- PASS: TestQuadBez_BoundingBox (0.00s)
+=== RUN   TestQuadBez_Raise
+--- PASS: TestQuadBez_Raise (0.00s)
+=== RUN   TestCubicBez_Eval
+=== RUN   TestCubicBez_Eval/t=0
+=== RUN   TestCubicBez_Eval/t=1
+--- PASS: TestCubicBez_Eval (0.00s)
+    --- PASS: TestCubicBez_Eval/t=0 (0.00s)
+    --- PASS: TestCubicBez_Eval/t=1 (0.00s)
+=== RUN   TestCubicBez_StartEnd
+--- PASS: TestCubicBez_StartEnd (0.00s)
+=== RUN   TestCubicBez_Subdivide
+--- PASS: TestCubicBez_Subdivide (0.00s)
+=== RUN   TestCubicBez_Subsegment
+--- PASS: TestCubicBez_Subsegment (0.00s)
+=== RUN   TestCubicBez_Extrema
+--- PASS: TestCubicBez_Extrema (0.00s)
+=== RUN   TestCubicBez_BoundingBox
+--- PASS: TestCubicBez_BoundingBox (0.00s)
+=== RUN   TestCubicBez_Inflections
+--- PASS: TestCubicBez_Inflections (0.00s)
+=== RUN   TestCubicBez_Deriv
+--- PASS: TestCubicBez_Deriv (0.00s)
+=== RUN   TestCubicBez_Tangent
+--- PASS: TestCubicBez_Tangent (0.00s)
+=== RUN   TestCubicBez_Normal
+--- PASS: TestCubicBez_Normal (0.00s)
+PASS

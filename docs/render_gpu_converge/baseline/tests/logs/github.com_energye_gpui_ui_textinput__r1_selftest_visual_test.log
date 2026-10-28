@@ -1,0 +1,7 @@
+=== RUN   TestR1_MixedCaretVisual_SingleSource
+--- PASS: TestR1_MixedCaretVisual_SingleSource (0.27s)
+=== RUN   TestR1_MixedCaret_NoInsideGlyph
+--- PASS: TestR1_MixedCaret_NoInsideGlyph (0.00s)
+=== RUN   TestR1_MoveVisual_PerCaret
+--- PASS: TestR1_MoveVisual_PerCaret (0.00s)
+PASS

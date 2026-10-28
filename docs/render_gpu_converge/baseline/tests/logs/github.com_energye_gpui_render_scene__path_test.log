@@ -1,0 +1,73 @@
+=== RUN   TestNewPath
+--- PASS: TestNewPath (0.00s)
+=== RUN   TestPathMoveTo
+--- PASS: TestPathMoveTo (0.00s)
+=== RUN   TestPathLineTo
+--- PASS: TestPathLineTo (0.00s)
+=== RUN   TestPathQuadTo
+--- PASS: TestPathQuadTo (0.00s)
+=== RUN   TestPathCubicTo
+--- PASS: TestPathCubicTo (0.00s)
+=== RUN   TestPathClose
+--- PASS: TestPathClose (0.00s)
+=== RUN   TestPathRectangle
+--- PASS: TestPathRectangle (0.00s)
+=== RUN   TestPathRoundedRectangle
+=== RUN   TestPathRoundedRectangle/no_radius
+=== RUN   TestPathRoundedRectangle/small_radius
+=== RUN   TestPathRoundedRectangle/clamped_radius
+--- PASS: TestPathRoundedRectangle (0.00s)
+    --- PASS: TestPathRoundedRectangle/no_radius (0.00s)
+    --- PASS: TestPathRoundedRectangle/small_radius (0.00s)
+    --- PASS: TestPathRoundedRectangle/clamped_radius (0.00s)
+=== RUN   TestPathCircle
+--- PASS: TestPathCircle (0.00s)
+=== RUN   TestPathEllipse
+--- PASS: TestPathEllipse (0.00s)
+=== RUN   TestPathReset
+--- PASS: TestPathReset (0.00s)
+=== RUN   TestPathTransform
+--- PASS: TestPathTransform (0.00s)
+=== RUN   TestPathClone
+--- PASS: TestPathClone (0.00s)
+=== RUN   TestPathChaining
+--- PASS: TestPathChaining (0.00s)
+=== RUN   TestPathVerbString
+=== RUN   TestPathVerbString/MoveTo
+=== RUN   TestPathVerbString/LineTo
+=== RUN   TestPathVerbString/QuadTo
+=== RUN   TestPathVerbString/CubicTo
+=== RUN   TestPathVerbString/Close
+=== RUN   TestPathVerbString/Unknown
+--- PASS: TestPathVerbString (0.00s)
+    --- PASS: TestPathVerbString/MoveTo (0.00s)
+    --- PASS: TestPathVerbString/LineTo (0.00s)
+    --- PASS: TestPathVerbString/QuadTo (0.00s)
+    --- PASS: TestPathVerbString/CubicTo (0.00s)
+    --- PASS: TestPathVerbString/Close (0.00s)
+    --- PASS: TestPathVerbString/Unknown (0.00s)
+=== RUN   TestPathVerbPointCount
+=== RUN   TestPathVerbPointCount/MoveTo
+=== RUN   TestPathVerbPointCount/LineTo
+=== RUN   TestPathVerbPointCount/QuadTo
+=== RUN   TestPathVerbPointCount/CubicTo
+=== RUN   TestPathVerbPointCount/Close
+--- PASS: TestPathVerbPointCount (0.00s)
+    --- PASS: TestPathVerbPointCount/MoveTo (0.00s)
+    --- PASS: TestPathVerbPointCount/LineTo (0.00s)
+    --- PASS: TestPathVerbPointCount/QuadTo (0.00s)
+    --- PASS: TestPathVerbPointCount/CubicTo (0.00s)
+    --- PASS: TestPathVerbPointCount/Close (0.00s)
+=== RUN   TestPathArc
+--- PASS: TestPathArc (0.00s)
+=== RUN   TestPathPool
+--- PASS: TestPathPool (0.00s)
+=== RUN   TestPathElements
+--- PASS: TestPathElements (0.00s)
+=== RUN   TestPathElementsWithCursor
+--- PASS: TestPathElementsWithCursor (0.00s)
+=== RUN   TestPathElementsEmpty
+--- PASS: TestPathElementsEmpty (0.00s)
+=== RUN   TestPathElementsEarlyBreak
+--- PASS: TestPathElementsEarlyBreak (0.00s)
+PASS

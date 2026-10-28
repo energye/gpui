@@ -1,0 +1,18 @@
+=== RUN   TestA4BaselineParity
+    a4_sink_test.go:31: 本该静音却有声
+--- FAIL: TestA4BaselineParity (0.17s)
+=== RUN   TestA4ConvertExact
+    a4_sink_test.go:48: vectors 11/11 exact
+--- PASS: TestA4ConvertExact (0.00s)
+=== RUN   TestA4WavChain
+--- PASS: TestA4WavChain (0.18s)
+=== RUN   TestA4PumpSync
+    a4_sink_test.go:121: pump v=71 a=74 avdiff=0
+--- PASS: TestA4PumpSync (3.08s)
+=== RUN   TestA4ProbeHonest
+    a4_sink_test.go:134: probe backend="paplay-pulse" available=true reason=""
+--- PASS: TestA4ProbeHonest (0.00s)
+=== RUN   TestA4DeviceLossKeepsThread
+    a4_sink_test.go:209: loss paused, err="device lost (paplay-pulse): write |1: broken pipe", resumed ok
+--- PASS: TestA4DeviceLossKeepsThread (0.62s)
+FAIL

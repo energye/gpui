@@ -1,0 +1,22 @@
+=== RUN   TestCreateBuffer
+    buffer_test.go:26: Creating buffer...
+    buffer_test.go:43: Buffer created: handle=0x3dc3a550
+    buffer_test.go:50: Buffer size: 256 bytes
+--- PASS: TestCreateBuffer (0.22s)
+=== RUN   TestBufferMappedAtCreation
+    buffer_test.go:69: Creating buffer with MappedAtCreation...
+    buffer_test.go:87: Mapped range: 0x757b6dc00100
+    buffer_test.go:94: Wrote test data to buffer
+    buffer_test.go:98: Buffer unmapped
+--- PASS: TestBufferMappedAtCreation (0.16s)
+=== RUN   TestQueueWriteBuffer
+    buffer_test.go:123: Creating buffer for WriteBuffer test...
+    buffer_test.go:142: Writing data to buffer via queue...
+    buffer_test.go:144: WriteBuffer completed
+--- PASS: TestQueueWriteBuffer (0.16s)
+=== RUN   TestQueueWriteBufferRaw
+    buffer_test.go:169: Creating buffer for WriteBufferRaw test...
+    buffer_test.go:184: Writing float32 data to buffer via queue...
+    buffer_test.go:186: WriteBufferRaw completed
+--- PASS: TestQueueWriteBufferRaw (0.15s)
+PASS

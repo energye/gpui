@@ -1,0 +1,17 @@
+=== RUN   TestCanInlineCallee
+=== RUN   TestCanInlineCallee/vec3_return_single_trailing_return_eligible
+=== RUN   TestCanInlineCallee/void_helper_NOT_eligible_(zero-fallback_no-op_is_correct)
+=== RUN   TestCanInlineCallee/scalar_return_NOT_eligible_(should_route_through_helperFunctions)
+=== RUN   TestCanInlineCallee/bool_return_NOT_eligible_(i1_returns_cause_Invalid_record)
+=== RUN   TestCanInlineCallee/nested_StmtCall_in_vec3_body_rejected_in_Phase_1
+=== RUN   TestCanInlineCallee/non-trailing_return_rejected_in_Phase_1
+--- PASS: TestCanInlineCallee (0.00s)
+    --- PASS: TestCanInlineCallee/vec3_return_single_trailing_return_eligible (0.00s)
+    --- PASS: TestCanInlineCallee/void_helper_NOT_eligible_(zero-fallback_no-op_is_correct) (0.00s)
+    --- PASS: TestCanInlineCallee/scalar_return_NOT_eligible_(should_route_through_helperFunctions) (0.00s)
+    --- PASS: TestCanInlineCallee/bool_return_NOT_eligible_(i1_returns_cause_Invalid_record) (0.00s)
+    --- PASS: TestCanInlineCallee/nested_StmtCall_in_vec3_body_rejected_in_Phase_1 (0.00s)
+    --- PASS: TestCanInlineCallee/non-trailing_return_rejected_in_Phase_1 (0.00s)
+=== RUN   TestCanInlineCalleeNil
+--- PASS: TestCanInlineCalleeNil (0.00s)
+PASS

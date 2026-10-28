@@ -1,0 +1,5 @@
+=== RUN   TestGPUAnalyticFiller_MergedRunAlpha
+--- PASS: TestGPUAnalyticFiller_MergedRunAlpha (0.00s)
+=== RUN   TestGPUAnalyticFillerVello_MergedRunAlpha
+--- PASS: TestGPUAnalyticFillerVello_MergedRunAlpha (0.00s)
+PASS

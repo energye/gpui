@@ -1,0 +1,8 @@
+=== RUN   TestDecodeFirstFrames
+    decode_test.go:18: lib /home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so version 7.1.5
+    decode_test.go:28: info {Path:../testdata/vr2_720p.mp4 Width:1280 Height:720 FPS:5 DurMs:1000 Frames:5 CodecID:27 SrcPixFmt:0}
+    decode_test.go:48: frame 0 pts=0 mean=158.3 var=14754
+    decode_test.go:48: frame 1 pts=200 mean=158.3 var=14757
+    decode_test.go:48: frame 2 pts=400 mean=158.2 var=14769
+--- PASS: TestDecodeFirstFrames (0.18s)
+PASS

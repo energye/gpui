@@ -1,0 +1,3 @@
+=== RUN   TestNoticeQueue_VirtualClockFreezesOnHover
+--- PASS: TestNoticeQueue_VirtualClockFreezesOnHover (0.00s)
+PASS

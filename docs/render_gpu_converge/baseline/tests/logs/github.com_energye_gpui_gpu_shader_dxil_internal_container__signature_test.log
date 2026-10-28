@@ -1,0 +1,13 @@
+=== RUN   TestEncodeSignature_Empty
+--- PASS: TestEncodeSignature_Empty (0.00s)
+=== RUN   TestEncodeInputSignature
+--- PASS: TestEncodeInputSignature (0.00s)
+=== RUN   TestEncodeOutputSignature
+--- PASS: TestEncodeOutputSignature (0.00s)
+=== RUN   TestFragmentSignatures
+--- PASS: TestFragmentSignatures (0.00s)
+=== RUN   TestSVNameDeduplication
+--- PASS: TestSVNameDeduplication (0.00s)
+=== RUN   TestContainerWithSignatures
+--- PASS: TestContainerWithSignatures (0.00s)
+PASS

@@ -1,0 +1,15 @@
+=== RUN   TestStateMachineSwitchFromCases
+--- PASS: TestStateMachineSwitchFromCases (0.00s)
+=== RUN   TestStateMachineEdgesNoCrash
+--- PASS: TestStateMachineEdgesNoCrash (0.00s)
+=== RUN   TestStateMachineBoundaryIdentical
+--- PASS: TestStateMachineBoundaryIdentical (0.00s)
+=== RUN   TestStateMachinePerfHundred
+    statemachine_test.go:341: statemachine-100: 100 settled switches in 8.67µs (86.7 ns/switch)
+--- PASS: TestStateMachinePerfHundred (0.00s)
+=== RUN   TestStateMachineLongRunStable
+--- PASS: TestStateMachineLongRunStable (0.00s)
+=== RUN   TestStateMachineOffscreenGolden
+    statemachine_test.go:500: game_anim window absent; offscreen statemachine_cases.json stands in (pure math, W7 intent game_anim --case=fsm)
+--- PASS: TestStateMachineOffscreenGolden (0.00s)
+PASS

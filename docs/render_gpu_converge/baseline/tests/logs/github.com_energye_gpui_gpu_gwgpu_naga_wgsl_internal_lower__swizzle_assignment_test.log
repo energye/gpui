@@ -1,0 +1,97 @@
+=== RUN   TestSwizzleAssignment_EnableDirectiveParsed
+--- PASS: TestSwizzleAssignment_EnableDirectiveParsed (0.00s)
+=== RUN   TestSwizzleAssignment_SimpleAssignTwoComponents
+--- PASS: TestSwizzleAssignment_SimpleAssignTwoComponents (0.00s)
+=== RUN   TestSwizzleAssignment_ThreeComponents
+--- PASS: TestSwizzleAssignment_ThreeComponents (0.00s)
+=== RUN   TestSwizzleAssignment_AllFourComponents
+--- PASS: TestSwizzleAssignment_AllFourComponents (0.00s)
+=== RUN   TestSwizzleAssignment_RGBA
+--- PASS: TestSwizzleAssignment_RGBA (0.00s)
+=== RUN   TestSwizzleAssignment_ReorderedIndices
+--- PASS: TestSwizzleAssignment_ReorderedIndices (0.00s)
+=== RUN   TestSwizzleAssignment_CompoundAdd
+--- PASS: TestSwizzleAssignment_CompoundAdd (0.00s)
+=== RUN   TestSwizzleAssignment_CompoundMul
+--- PASS: TestSwizzleAssignment_CompoundMul (0.00s)
+=== RUN   TestSwizzleAssignment_Vec2Target
+--- PASS: TestSwizzleAssignment_Vec2Target (0.00s)
+=== RUN   TestSwizzleAssignment_Vec3Target
+--- PASS: TestSwizzleAssignment_Vec3Target (0.00s)
+=== RUN   TestSwizzleAssignment_SingleComponentStillWorks
+--- PASS: TestSwizzleAssignment_SingleComponentStillWorks (0.00s)
+=== RUN   TestSwizzleAssignment_WithoutEnableDirective
+--- PASS: TestSwizzleAssignment_WithoutEnableDirective (0.00s)
+=== RUN   TestSwizzleAssignment_RValueSwizzleWithoutEnable
+--- PASS: TestSwizzleAssignment_RValueSwizzleWithoutEnable (0.00s)
+=== RUN   TestSwizzleAssignment_IntegerVector
+--- PASS: TestSwizzleAssignment_IntegerVector (0.00s)
+=== RUN   TestSwizzleAssignment_UnsignedIntegerVector
+--- PASS: TestSwizzleAssignment_UnsignedIntegerVector (0.00s)
+=== RUN   TestSwizzleAssignment_EnableF16AlongWithSwizzle
+--- PASS: TestSwizzleAssignment_EnableF16AlongWithSwizzle (0.00s)
+=== RUN   TestSwizzleAssignment_MultipleExtensionsInOneEnable
+--- PASS: TestSwizzleAssignment_MultipleExtensionsInOneEnable (0.00s)
+=== RUN   TestSwizzleAssignment_BackendRoundtrip
+--- PASS: TestSwizzleAssignment_BackendRoundtrip (0.00s)
+=== RUN   TestSwizzleAssignment_DuplicateIndicesDetection
+--- PASS: TestSwizzleAssignment_DuplicateIndicesDetection (0.00s)
+=== RUN   TestSwizzleAssignment_CompoundSubtract
+--- PASS: TestSwizzleAssignment_CompoundSubtract (0.00s)
+=== RUN   TestSwizzleAssignment_SwizzleYW
+--- PASS: TestSwizzleAssignment_SwizzleYW (0.00s)
+=== RUN   TestSwizzleAssignment_Vec3SwapXZ
+--- PASS: TestSwizzleAssignment_Vec3SwapXZ (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn3_ChainedSwizzleSingle
+--- PASS: TestSwizzleAssignment_Dawn3_ChainedSwizzleSingle (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn4_ChainedMultiElement
+--- PASS: TestSwizzleAssignment_Dawn4_ChainedMultiElement (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn4_ChainedMultiElement_YZ
+--- PASS: TestSwizzleAssignment_Dawn4_ChainedMultiElement_YZ (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn7_CompoundChainedMultiElement
+--- PASS: TestSwizzleAssignment_Dawn7_CompoundChainedMultiElement (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn7_CompoundChainedSingle
+--- PASS: TestSwizzleAssignment_Dawn7_CompoundChainedSingle (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn8_IndexedConstant
+--- PASS: TestSwizzleAssignment_Dawn8_IndexedConstant (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn8_IndexedConstant_ZYX
+--- PASS: TestSwizzleAssignment_Dawn8_IndexedConstant_ZYX (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn9_IndexedDynamic
+--- PASS: TestSwizzleAssignment_Dawn9_IndexedDynamic (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn10_CompoundIndexedConstant
+--- PASS: TestSwizzleAssignment_Dawn10_CompoundIndexedConstant (0.00s)
+=== RUN   TestSwizzleAssignment_Dawn11_CompoundIndexedDynamic
+--- PASS: TestSwizzleAssignment_Dawn11_CompoundIndexedDynamic (0.00s)
+=== RUN   TestSwizzleAssignment_AllDawnPatterns
+--- PASS: TestSwizzleAssignment_AllDawnPatterns (0.00s)
+=== RUN   TestSwizzleAssignment_ChainedWithoutEnable
+--- PASS: TestSwizzleAssignment_ChainedWithoutEnable (0.00s)
+=== RUN   TestSwizzleAssignment_IndexedWithoutEnable
+--- PASS: TestSwizzleAssignment_IndexedWithoutEnable (0.00s)
+=== RUN   TestSwizzleAssignment_ChainedOnVec3
+--- PASS: TestSwizzleAssignment_ChainedOnVec3 (0.00s)
+=== RUN   TestSwizzleAssignment_StructMemberNotSwizzle
+--- PASS: TestSwizzleAssignment_StructMemberNotSwizzle (0.00s)
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/zyx_x
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/zyx_y
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/zyx_z
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/wzyx_x
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/wzyx_w
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/xyzw_x
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/xy_x
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/xy_y
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/yx_x
+=== RUN   TestSwizzleAssignment_ChainedSwizzleResolution/yx_y
+--- PASS: TestSwizzleAssignment_ChainedSwizzleResolution (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/zyx_x (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/zyx_y (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/zyx_z (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/wzyx_x (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/wzyx_w (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/xyzw_x (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/xy_x (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/xy_y (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/yx_x (0.00s)
+    --- PASS: TestSwizzleAssignment_ChainedSwizzleResolution/yx_y (0.00s)
+PASS

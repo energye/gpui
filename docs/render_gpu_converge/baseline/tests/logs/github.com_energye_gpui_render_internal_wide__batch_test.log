@@ -1,0 +1,19 @@
+=== RUN   TestBatchState_LoadSrc
+--- PASS: TestBatchState_LoadSrc (0.00s)
+=== RUN   TestBatchState_LoadDst
+--- PASS: TestBatchState_LoadDst (0.00s)
+=== RUN   TestBatchState_StoreDst
+--- PASS: TestBatchState_StoreDst (0.00s)
+=== RUN   TestBatchState_RoundTrip
+--- PASS: TestBatchState_RoundTrip (0.00s)
+=== RUN   TestBatchState_EdgeCases
+=== RUN   TestBatchState_EdgeCases/all_zeros
+=== RUN   TestBatchState_EdgeCases/all_max
+=== RUN   TestBatchState_EdgeCases/alternating_pattern
+--- PASS: TestBatchState_EdgeCases (0.00s)
+    --- PASS: TestBatchState_EdgeCases/all_zeros (0.00s)
+    --- PASS: TestBatchState_EdgeCases/all_max (0.00s)
+    --- PASS: TestBatchState_EdgeCases/alternating_pattern (0.00s)
+=== RUN   TestBatchState_Truncation
+--- PASS: TestBatchState_Truncation (0.00s)
+PASS

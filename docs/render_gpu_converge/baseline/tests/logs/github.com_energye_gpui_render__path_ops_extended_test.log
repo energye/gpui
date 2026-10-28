@@ -1,0 +1,81 @@
+=== RUN   TestPathArea_Quadratic
+=== RUN   TestPathArea_Quadratic/closed_quadratic_curve
+=== RUN   TestPathArea_Quadratic/quadratic_half-circle_approximation
+=== RUN   TestPathArea_Quadratic/mixed_line_and_quadratic
+--- PASS: TestPathArea_Quadratic (0.00s)
+    --- PASS: TestPathArea_Quadratic/closed_quadratic_curve (0.00s)
+    --- PASS: TestPathArea_Quadratic/quadratic_half-circle_approximation (0.00s)
+    --- PASS: TestPathArea_Quadratic/mixed_line_and_quadratic (0.00s)
+=== RUN   TestPathWinding_Quadratic
+=== RUN   TestPathWinding_Quadratic/center_inside
+=== RUN   TestPathWinding_Quadratic/far_outside
+=== RUN   TestPathWinding_Quadratic/outside_left
+=== RUN   TestPathWinding_Quadratic/below_path
+--- PASS: TestPathWinding_Quadratic (0.00s)
+    --- PASS: TestPathWinding_Quadratic/center_inside (0.00s)
+    --- PASS: TestPathWinding_Quadratic/far_outside (0.00s)
+    --- PASS: TestPathWinding_Quadratic/outside_left (0.00s)
+    --- PASS: TestPathWinding_Quadratic/below_path (0.00s)
+=== RUN   TestPathLength_Quadratic
+=== RUN   TestPathLength_Quadratic/straight-ish_quadratic_(control_on_chord)
+=== RUN   TestPathLength_Quadratic/curved_quadratic
+=== RUN   TestPathLength_Quadratic/multiple_quadratics
+--- PASS: TestPathLength_Quadratic (0.00s)
+    --- PASS: TestPathLength_Quadratic/straight-ish_quadratic_(control_on_chord) (0.00s)
+    --- PASS: TestPathLength_Quadratic/curved_quadratic (0.00s)
+    --- PASS: TestPathLength_Quadratic/multiple_quadratics (0.00s)
+=== RUN   TestPathLength_ZeroAccuracy
+--- PASS: TestPathLength_ZeroAccuracy (0.00s)
+=== RUN   TestFlattenCallback_ZeroTolerance
+--- PASS: TestFlattenCallback_ZeroTolerance (0.00s)
+=== RUN   TestFlattenCallback_MultipleSubpaths
+--- PASS: TestFlattenCallback_MultipleSubpaths (0.00s)
+=== RUN   TestFlattenCallback_ClosedPath
+--- PASS: TestFlattenCallback_ClosedPath (0.00s)
+=== RUN   TestPathReversed_QuadraticClosed
+--- PASS: TestPathReversed_QuadraticClosed (0.00s)
+=== RUN   TestPathContains_QuadraticShape
+=== RUN   TestPathContains_QuadraticShape/inside_bottom_center
+=== RUN   TestPathContains_QuadraticShape/outside_above_curve
+=== RUN   TestPathContains_QuadraticShape/outside_left
+=== RUN   TestPathContains_QuadraticShape/outside_right
+--- PASS: TestPathContains_QuadraticShape (0.00s)
+    --- PASS: TestPathContains_QuadraticShape/inside_bottom_center (0.00s)
+    --- PASS: TestPathContains_QuadraticShape/outside_above_curve (0.00s)
+    --- PASS: TestPathContains_QuadraticShape/outside_left (0.00s)
+    --- PASS: TestPathContains_QuadraticShape/outside_right (0.00s)
+=== RUN   TestPathBoundingBox_QuadraticBulge
+--- PASS: TestPathBoundingBox_QuadraticBulge (0.00s)
+=== RUN   TestLineArea
+=== RUN   TestLineArea/horizontal_right
+=== RUN   TestLineArea/diagonal
+=== RUN   TestLineArea/triangle_contrib
+=== RUN   TestLineArea/reverse
+--- PASS: TestLineArea (0.00s)
+    --- PASS: TestLineArea/horizontal_right (0.00s)
+    --- PASS: TestLineArea/diagonal (0.00s)
+    --- PASS: TestLineArea/triangle_contrib (0.00s)
+    --- PASS: TestLineArea/reverse (0.00s)
+=== RUN   TestIsLeft
+=== RUN   TestIsLeft/point_left_of_line
+=== RUN   TestIsLeft/point_right_of_line
+=== RUN   TestIsLeft/point_on_line
+--- PASS: TestIsLeft (0.00s)
+    --- PASS: TestIsLeft/point_left_of_line (0.00s)
+    --- PASS: TestIsLeft/point_right_of_line (0.00s)
+    --- PASS: TestIsLeft/point_on_line (0.00s)
+=== RUN   TestCubicFlatness
+--- PASS: TestCubicFlatness (0.00s)
+=== RUN   TestLineWinding
+=== RUN   TestLineWinding/upward_crossing_left
+=== RUN   TestLineWinding/no_crossing_horizontal
+=== RUN   TestLineWinding/downward_crossing_right
+=== RUN   TestLineWinding/point_above_segment
+=== RUN   TestLineWinding/point_below_segment
+--- PASS: TestLineWinding (0.00s)
+    --- PASS: TestLineWinding/upward_crossing_left (0.00s)
+    --- PASS: TestLineWinding/no_crossing_horizontal (0.00s)
+    --- PASS: TestLineWinding/downward_crossing_right (0.00s)
+    --- PASS: TestLineWinding/point_above_segment (0.00s)
+    --- PASS: TestLineWinding/point_below_segment (0.00s)
+PASS

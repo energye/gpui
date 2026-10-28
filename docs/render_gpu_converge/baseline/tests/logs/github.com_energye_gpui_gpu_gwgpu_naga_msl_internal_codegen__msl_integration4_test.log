@@ -1,0 +1,61 @@
+=== RUN   TestIntegration_VertexPullingBasic
+--- PASS: TestIntegration_VertexPullingBasic (0.00s)
+=== RUN   TestIntegration_VertexPullingMultipleAttributes
+--- PASS: TestIntegration_VertexPullingMultipleAttributes (0.00s)
+=== RUN   TestIntegration_VertexPullingWithInstance
+--- PASS: TestIntegration_VertexPullingWithInstance (0.00s)
+=== RUN   TestIntegration_VertexPullingUint8Format
+--- PASS: TestIntegration_VertexPullingUint8Format (0.00s)
+=== RUN   TestIntegration_PipelineConstantsWorkgroupSize
+--- PASS: TestIntegration_PipelineConstantsWorkgroupSize (0.00s)
+=== RUN   TestIntegration_CompileWithPipelineVertex
+--- PASS: TestIntegration_CompileWithPipelineVertex (0.00s)
+=== RUN   TestIntegration_CompileWithPipelineFragment
+--- PASS: TestIntegration_CompileWithPipelineFragment (0.00s)
+=== RUN   TestIntegration_FloatDivision
+--- PASS: TestIntegration_FloatDivision (0.00s)
+=== RUN   TestIntegration_FloatModulo
+--- PASS: TestIntegration_FloatModulo (0.00s)
+=== RUN   TestIntegration_VectorNegate
+--- PASS: TestIntegration_VectorNegate (0.00s)
+=== RUN   TestIntegration_VectorBitwiseNot
+--- PASS: TestIntegration_VectorBitwiseNot (0.00s)
+=== RUN   TestIntegration_TextureDimensionsWithLevel
+--- PASS: TestIntegration_TextureDimensionsWithLevel (0.00s)
+=== RUN   TestIntegration_DepthTextureCubeArray
+--- PASS: TestIntegration_DepthTextureCubeArray (0.00s)
+=== RUN   TestIntegration_DepthTexture2DArray
+--- PASS: TestIntegration_DepthTexture2DArray (0.00s)
+=== RUN   TestIntegration_InterpolationQualifiers
+--- PASS: TestIntegration_InterpolationQualifiers (0.00s)
+=== RUN   TestIntegration_NestedLoops
+--- PASS: TestIntegration_NestedLoops (0.00s)
+=== RUN   TestIntegration_SwitchMultipleBodies
+--- PASS: TestIntegration_SwitchMultipleBodies (0.00s)
+=== RUN   TestIntegration_MultipleBindGroups
+--- PASS: TestIntegration_MultipleBindGroups (0.00s)
+=== RUN   TestIntegration_F16Extension
+--- PASS: TestIntegration_F16Extension (0.00s)
+=== RUN   TestIntegration_VectorBoolRelational
+--- PASS: TestIntegration_VectorBoolRelational (0.00s)
+=== RUN   TestIntegration_MultipleTexturesAndSamplers
+--- PASS: TestIntegration_MultipleTexturesAndSamplers (0.00s)
+=== RUN   TestIntegration_Unpack4xI8
+--- PASS: TestIntegration_Unpack4xI8 (0.00s)
+=== RUN   TestIntegration_Unpack4xU8
+--- PASS: TestIntegration_Unpack4xU8 (0.00s)
+=== RUN   TestIntegration_Pack4xI8
+--- PASS: TestIntegration_Pack4xI8 (0.00s)
+=== RUN   TestIntegration_Pack4xU8
+--- PASS: TestIntegration_Pack4xU8 (0.00s)
+=== RUN   TestIntegration_Pack4xI8Clamp
+--- PASS: TestIntegration_Pack4xI8Clamp (0.00s)
+=== RUN   TestIntegration_Pack4xU8Clamp
+--- PASS: TestIntegration_Pack4xU8Clamp (0.00s)
+=== RUN   TestIntegration_ModfVector
+--- PASS: TestIntegration_ModfVector (0.00s)
+=== RUN   TestIntegration_FrexpVector
+--- PASS: TestIntegration_FrexpVector (0.00s)
+=== RUN   TestIntegration_CompileWithPipelineAndConstants
+--- PASS: TestIntegration_CompileWithPipelineAndConstants (0.00s)
+PASS

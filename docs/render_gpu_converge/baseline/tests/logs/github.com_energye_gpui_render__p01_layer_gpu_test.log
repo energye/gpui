@@ -1,0 +1,11 @@
+=== RUN   TestP01_LayerGPUComposite
+    p01_layer_gpu_test.go:46: P01 path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2
+    p01_layer_gpu_test.go:59: layer composite rgba=128,0,127
+--- PASS: TestP01_LayerGPUComposite (0.28s)
+=== RUN   TestP01_LayerGPUNested
+    p01_layer_gpu_test.go:101: nested gpu_ops=3 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP01_LayerGPUNested (0.00s)
+=== RUN   TestP01_LayerAdvancedBlendStillCPU
+    p01_layer_gpu_test.go:133: multiply layer rgb=255,0,0
+--- PASS: TestP01_LayerAdvancedBlendStillCPU (0.01s)
+PASS

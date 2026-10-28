@@ -1,0 +1,6 @@
+=== RUN   TestS65_PresentListScroll_NoRegress
+    s6_5_text_atlas_test.go:85: S6.5 list-scroll present p50=0.28ms budget=16.70 shapeHits=0 misses=8 entries=8
+--- PASS: TestS65_PresentListScroll_NoRegress (0.29s)
+=== RUN   TestS65_L0_HelpersStillGreen
+--- PASS: TestS65_L0_HelpersStillGreen (0.01s)
+PASS

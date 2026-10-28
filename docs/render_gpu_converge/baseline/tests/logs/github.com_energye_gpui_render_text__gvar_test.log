@@ -1,0 +1,111 @@
+=== RUN   TestParseGvar_VazirmatnVar
+--- PASS: TestParseGvar_VazirmatnVar (0.00s)
+=== RUN   TestParseGvar_CantarellVF
+    gvar_test.go:59: cantarell_vf_trimmed.ttf has no gvar table (font may be stripped)
+--- SKIP: TestParseGvar_CantarellVF (0.00s)
+=== RUN   TestParseGvar_InvalidData
+=== RUN   TestParseGvar_InvalidData/nil
+=== RUN   TestParseGvar_InvalidData/too_short
+=== RUN   TestParseGvar_InvalidData/wrong_version
+--- PASS: TestParseGvar_InvalidData (0.00s)
+    --- PASS: TestParseGvar_InvalidData/nil (0.00s)
+    --- PASS: TestParseGvar_InvalidData/too_short (0.00s)
+    --- PASS: TestParseGvar_InvalidData/wrong_version (0.00s)
+=== RUN   TestUnpackPointNumbers
+=== RUN   TestUnpackPointNumbers/all_points_count_zero
+=== RUN   TestUnpackPointNumbers/single_byte_count_one_point
+=== RUN   TestUnpackPointNumbers/three_points_byte_deltas
+=== RUN   TestUnpackPointNumbers/two_points_word_deltas
+--- PASS: TestUnpackPointNumbers (0.00s)
+    --- PASS: TestUnpackPointNumbers/all_points_count_zero (0.00s)
+    --- PASS: TestUnpackPointNumbers/single_byte_count_one_point (0.00s)
+    --- PASS: TestUnpackPointNumbers/three_points_byte_deltas (0.00s)
+    --- PASS: TestUnpackPointNumbers/two_points_word_deltas (0.00s)
+=== RUN   TestUnpackDeltas
+=== RUN   TestUnpackDeltas/zeros
+=== RUN   TestUnpackDeltas/byte_deltas
+=== RUN   TestUnpackDeltas/word_deltas
+=== RUN   TestUnpackDeltas/mixed_runs
+--- PASS: TestUnpackDeltas (0.00s)
+    --- PASS: TestUnpackDeltas/zeros (0.00s)
+    --- PASS: TestUnpackDeltas/byte_deltas (0.00s)
+    --- PASS: TestUnpackDeltas/word_deltas (0.00s)
+    --- PASS: TestUnpackDeltas/mixed_runs (0.00s)
+=== RUN   TestComputeTupleScalar
+=== RUN   TestComputeTupleScalar/exact_match
+=== RUN   TestComputeTupleScalar/half_coord
+=== RUN   TestComputeTupleScalar/coord_zero_peak_nonzero
+=== RUN   TestComputeTupleScalar/opposite_sign
+=== RUN   TestComputeTupleScalar/negative_peak_negative_coord
+=== RUN   TestComputeTupleScalar/negative_peak_half_coord
+=== RUN   TestComputeTupleScalar/peak_zero_axis
+=== RUN   TestComputeTupleScalar/intermediate_region_inside
+=== RUN   TestComputeTupleScalar/intermediate_region_outside
+--- PASS: TestComputeTupleScalar (0.00s)
+    --- PASS: TestComputeTupleScalar/exact_match (0.00s)
+    --- PASS: TestComputeTupleScalar/half_coord (0.00s)
+    --- PASS: TestComputeTupleScalar/coord_zero_peak_nonzero (0.00s)
+    --- PASS: TestComputeTupleScalar/opposite_sign (0.00s)
+    --- PASS: TestComputeTupleScalar/negative_peak_negative_coord (0.00s)
+    --- PASS: TestComputeTupleScalar/negative_peak_half_coord (0.00s)
+    --- PASS: TestComputeTupleScalar/peak_zero_axis (0.00s)
+    --- PASS: TestComputeTupleScalar/intermediate_region_inside (0.00s)
+    --- PASS: TestComputeTupleScalar/intermediate_region_outside (0.00s)
+=== RUN   TestApplyScalar
+=== RUN   TestApplyScalar/identity
+=== RUN   TestApplyScalar/half
+=== RUN   TestApplyScalar/zero
+=== RUN   TestApplyScalar/negative_delta
+=== RUN   TestApplyScalar/quarter
+--- PASS: TestApplyScalar (0.00s)
+    --- PASS: TestApplyScalar/identity (0.00s)
+    --- PASS: TestApplyScalar/half (0.00s)
+    --- PASS: TestApplyScalar/zero (0.00s)
+    --- PASS: TestApplyScalar/negative_delta (0.00s)
+    --- PASS: TestApplyScalar/quarter (0.00s)
+=== RUN   TestIupInterpolate_Shift
+--- PASS: TestIupInterpolate_Shift (0.00s)
+=== RUN   TestIupInterpolate_TwoRefPoints
+--- PASS: TestIupInterpolate_TwoRefPoints (0.00s)
+=== RUN   TestGvarVariationDeltas_VazirmatnGlyphA
+=== RUN   TestGvarVariationDeltas_VazirmatnGlyphA/wght_neg1
+=== RUN   TestGvarVariationDeltas_VazirmatnGlyphA/wght_pos1
+=== RUN   TestGvarVariationDeltas_VazirmatnGlyphA/wght_half
+--- PASS: TestGvarVariationDeltas_VazirmatnGlyphA (0.00s)
+    --- PASS: TestGvarVariationDeltas_VazirmatnGlyphA/wght_neg1 (0.00s)
+    --- PASS: TestGvarVariationDeltas_VazirmatnGlyphA/wght_pos1 (0.00s)
+    --- PASS: TestGvarVariationDeltas_VazirmatnGlyphA/wght_half (0.00s)
+=== RUN   TestGvarVariationDeltas_DefaultCoords
+--- PASS: TestGvarVariationDeltas_DefaultCoords (0.00s)
+=== RUN   TestGvarVariationDeltas_PhantomPoints
+=== RUN   TestGvarVariationDeltas_PhantomPoints/wght_pos1
+=== RUN   TestGvarVariationDeltas_PhantomPoints/wght_neg1
+--- PASS: TestGvarVariationDeltas_PhantomPoints (0.00s)
+    --- PASS: TestGvarVariationDeltas_PhantomPoints/wght_pos1 (0.00s)
+    --- PASS: TestGvarVariationDeltas_PhantomPoints/wght_neg1 (0.00s)
+=== RUN   TestGvarVariationDeltas_VazirmatnGlyphGrave
+--- PASS: TestGvarVariationDeltas_VazirmatnGlyphGrave (0.00s)
+=== RUN   TestOwnParsedFont_ApplyVariations
+--- PASS: TestOwnParsedFont_ApplyVariations (0.00s)
+=== RUN   TestOwnParsedFont_ApplyVariations_Default
+--- PASS: TestOwnParsedFont_ApplyVariations_Default (0.00s)
+=== RUN   TestGvar_DiagnosticDump
+    gvar_test.go:858: no variable font available
+--- SKIP: TestGvar_DiagnosticDump (0.00s)
+=== RUN   TestGolden_NormalizeCoords_MultiAxis
+=== RUN   TestGolden_NormalizeCoords_MultiAxis/single_axis_specified_(wght=700)
+=== RUN   TestGolden_NormalizeCoords_MultiAxis/two_axes_specified_(wght=700,_GRAD=150)
+=== RUN   TestGolden_NormalizeCoords_MultiAxis/no_variations_specified
+=== RUN   TestGolden_NormalizeCoords_MultiAxis/all_axes_at_default
+=== RUN   TestGolden_NormalizeCoords_MultiAxis/unknown_axis_tag_ignored
+--- PASS: TestGolden_NormalizeCoords_MultiAxis (0.00s)
+    --- PASS: TestGolden_NormalizeCoords_MultiAxis/single_axis_specified_(wght=700) (0.00s)
+    --- PASS: TestGolden_NormalizeCoords_MultiAxis/two_axes_specified_(wght=700,_GRAD=150) (0.00s)
+    --- PASS: TestGolden_NormalizeCoords_MultiAxis/no_variations_specified (0.00s)
+    --- PASS: TestGolden_NormalizeCoords_MultiAxis/all_axes_at_default (0.00s)
+    --- PASS: TestGolden_NormalizeCoords_MultiAxis/unknown_axis_tag_ignored (0.00s)
+=== RUN   TestLoadFvar_IndependentOfHVAR
+--- PASS: TestLoadFvar_IndependentOfHVAR (0.00s)
+=== RUN   TestApplyVariations_NoHVAR
+--- PASS: TestApplyVariations_NoHVAR (0.00s)
+PASS

@@ -1,0 +1,9 @@
+=== RUN   TestDetectArcFromDrawArc
+--- PASS: TestDetectArcFromDrawArc (0.00s)
+=== RUN   TestDetectEllipticalArc
+--- PASS: TestDetectEllipticalArc (0.00s)
+=== RUN   TestDetectArcRejectsLinePath
+--- PASS: TestDetectArcRejectsLinePath (0.00s)
+=== RUN   TestDetectArcRejectsFullCircle
+--- PASS: TestDetectArcRejectsFullCircle (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestShaderMaskRecordingCarriesBlendPerFill
+--- PASS: TestShaderMaskRecordingCarriesBlendPerFill (0.00s)
+=== RUN   TestShaderMaskRecordingRestoresRecorderBlend
+--- PASS: TestShaderMaskRecordingRestoresRecorderBlend (0.00s)
+=== RUN   TestShaderMaskRecordingReplayParity
+--- PASS: TestShaderMaskRecordingReplayParity (0.00s)
+PASS

@@ -1,0 +1,20 @@
+=== RUN   TestX11IbusBusResolveKeepsFcitxFrontendEntry
+--- PASS: TestX11IbusBusResolveKeepsFcitxFrontendEntry (0.00s)
+=== RUN   TestX11IbusBusResolveSkipsDeadPid
+--- PASS: TestX11IbusBusResolveSkipsDeadPid (0.00s)
+=== RUN   TestX11FcitxFallsBackToIBusCompatNode
+    x11_ime_compat_test.go:94: 回落生效：objectPath=/org/freedesktop/IBus/InputContext_59 compat=true
+    x11_ime_compat_test.go:102: ProcessKeyEvent -> handled=false err=<nil>
+--- PASS: TestX11FcitxFallsBackToIBusCompatNode (0.01s)
+=== RUN   TestX11FcitxCompatUsesIBusKeySignature
+    x11_ime_compat_test.go:150: uuu 被接受，uuuub 被拒（Invalid arguments 'uuuub' to call org.freedesktop.IBus.InputContext.ProcessKeyEvent(), expecting 'uuu'.）—— 兼容模式必须选 uuu
+--- PASS: TestX11FcitxCompatUsesIBusKeySignature (0.00s)
+=== RUN   TestX11ImeForX11BothModuleConfigs
+=== RUN   TestX11ImeForX11BothModuleConfigs/GTK_IM_MODULE=ibus
+    x11_ime_compat_test.go:203: OK engine="ibus" objectPath=/org/freedesktop/IBus/InputContext_61
+=== RUN   TestX11ImeForX11BothModuleConfigs/GTK_IM_MODULE=fcitx
+    x11_ime_compat_test.go:203: OK engine="fcitx5" objectPath=/org/freedesktop/IBus/InputContext_62
+--- PASS: TestX11ImeForX11BothModuleConfigs (0.05s)
+    --- PASS: TestX11ImeForX11BothModuleConfigs/GTK_IM_MODULE=ibus (0.02s)
+    --- PASS: TestX11ImeForX11BothModuleConfigs/GTK_IM_MODULE=fcitx (0.02s)
+PASS

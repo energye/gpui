@@ -1,0 +1,7 @@
+=== RUN   TestRasterizeTransformMaskRotatedRect
+    transform_mask_raster_test.go:45: bbox=(115,65) 170x170 ink=13071 (45% of area; ~44% expected for rotated 160x80)
+--- PASS: TestRasterizeTransformMaskRotatedRect (0.00s)
+=== RUN   TestRasterizeTransformMaskAxisRect
+    transform_mask_raster_test.go:74: axis bbox=(100,100) 160x80 ink=12800 (100%)
+--- PASS: TestRasterizeTransformMaskAxisRect (0.00s)
+PASS

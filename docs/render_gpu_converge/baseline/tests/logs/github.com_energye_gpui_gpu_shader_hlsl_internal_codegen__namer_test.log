@@ -1,0 +1,94 @@
+=== RUN   TestNamer_Call
+--- PASS: TestNamer_Call (0.00s)
+=== RUN   TestNamer_CaseInsensitivity
+--- PASS: TestNamer_CaseInsensitivity (0.00s)
+=== RUN   TestNamer_ReservedKeywords
+=== RUN   TestNamer_ReservedKeywords/float
+=== RUN   TestNamer_ReservedKeywords/int
+=== RUN   TestNamer_ReservedKeywords/bool
+=== RUN   TestNamer_ReservedKeywords/struct
+=== RUN   TestNamer_ReservedKeywords/cbuffer
+--- PASS: TestNamer_ReservedKeywords (0.00s)
+    --- PASS: TestNamer_ReservedKeywords/float (0.00s)
+    --- PASS: TestNamer_ReservedKeywords/int (0.00s)
+    --- PASS: TestNamer_ReservedKeywords/bool (0.00s)
+    --- PASS: TestNamer_ReservedKeywords/struct (0.00s)
+    --- PASS: TestNamer_ReservedKeywords/cbuffer (0.00s)
+=== RUN   TestNamer_EmptyBase
+--- PASS: TestNamer_EmptyBase (0.00s)
+=== RUN   TestNamer_NumericSuffix
+--- PASS: TestNamer_NumericSuffix (0.00s)
+=== RUN   TestNamer_LeadingDigits
+    namer_test.go:114: call("1___x") = "_x"
+--- PASS: TestNamer_LeadingDigits (0.00s)
+=== RUN   TestNamer_IsUsed
+--- PASS: TestNamer_IsUsed (0.00s)
+=== RUN   TestNamer_Reserve
+--- PASS: TestNamer_Reserve (0.00s)
+=== RUN   TestNamer_HelperNamesReserved
+--- PASS: TestNamer_HelperNamesReserved (0.00s)
+=== RUN   TestNamer_Reset
+--- PASS: TestNamer_Reset (0.00s)
+=== RUN   TestNamer_CallWithPrefix
+--- PASS: TestNamer_CallWithPrefix (0.00s)
+=== RUN   TestNamer_UniqueSequence
+--- PASS: TestNamer_UniqueSequence (0.00s)
+=== RUN   TestNamer_UnicodeEscaping
+--- PASS: TestNamer_UnicodeEscaping (0.00s)
+=== RUN   TestNamer_CaseSensitiveKeywords
+--- PASS: TestNamer_CaseSensitiveKeywords (0.00s)
+=== RUN   TestBackendIsASCIIAlphanumeric
+--- PASS: TestBackendIsASCIIAlphanumeric (0.00s)
+=== RUN   TestBackendNeedsTrailingUnderscore
+=== RUN   TestBackendNeedsTrailingUnderscore/t1
+=== RUN   TestBackendNeedsTrailingUnderscore/t2
+=== RUN   TestBackendNeedsTrailingUnderscore/atomic_i32
+=== RUN   TestBackendNeedsTrailingUnderscore/atomic_u32
+=== RUN   TestBackendNeedsTrailingUnderscore/input1
+=== RUN   TestBackendNeedsTrailingUnderscore/input2
+=== RUN   TestBackendNeedsTrailingUnderscore/input3
+=== RUN   TestBackendNeedsTrailingUnderscore/image_2d_i32
+=== RUN   TestBackendNeedsTrailingUnderscore/in_data_storage_g0_b3
+=== RUN   TestBackendNeedsTrailingUnderscore/in
+=== RUN   TestBackendNeedsTrailingUnderscore/out
+=== RUN   TestBackendNeedsTrailingUnderscore/float
+=== RUN   TestBackendNeedsTrailingUnderscore/int
+=== RUN   TestBackendNeedsTrailingUnderscore/struct
+=== RUN   TestBackendNeedsTrailingUnderscore/texture
+=== RUN   TestBackendNeedsTrailingUnderscore/indices
+=== RUN   TestBackendNeedsTrailingUnderscore/vertices
+=== RUN   TestBackendNeedsTrailingUnderscore/params
+=== RUN   TestBackendNeedsTrailingUnderscore/uniformOne
+=== RUN   TestBackendNeedsTrailingUnderscore/camera
+=== RUN   TestBackendNeedsTrailingUnderscore/globals
+=== RUN   TestBackendNeedsTrailingUnderscore/output
+=== RUN   TestBackendNeedsTrailingUnderscore/result
+=== RUN   TestBackendNeedsTrailingUnderscore/nagaSamplerHeap
+=== RUN   TestBackendNeedsTrailingUnderscore/#00
+--- PASS: TestBackendNeedsTrailingUnderscore (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/t1 (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/t2 (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/atomic_i32 (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/atomic_u32 (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/input1 (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/input2 (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/input3 (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/image_2d_i32 (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/in_data_storage_g0_b3 (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/in (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/out (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/float (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/int (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/struct (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/texture (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/indices (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/vertices (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/params (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/uniformOne (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/camera (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/globals (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/output (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/result (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/nagaSamplerHeap (0.00s)
+    --- PASS: TestBackendNeedsTrailingUnderscore/#00 (0.00s)
+PASS

@@ -1,0 +1,23 @@
+=== RUN   TestAtlasR4IdentityFromCases
+    atlas_r4_test.go:259: no GPU ops on probe, old-vs-new GPU road deferred
+--- PASS: TestAtlasR4IdentityFromCases (0.00s)
+=== RUN   TestAtlasR4RotFlipFromCases
+--- PASS: TestAtlasR4RotFlipFromCases (0.00s)
+=== RUN   TestAtlasR4TintFilterFromCases
+--- PASS: TestAtlasR4TintFilterFromCases (0.28s)
+=== RUN   TestAtlasR4EdgesNoCrash
+--- PASS: TestAtlasR4EdgesNoCrash (0.00s)
+=== RUN   TestAtlasR4PerfBatch
+    atlas_r4_test.go:466: atlas-r4-perf: 50 batches x100 sprites in 7.191105ms (0.14 ms/batch drawn=100)
+--- PASS: TestAtlasR4PerfBatch (0.01s)
+=== RUN   TestAtlasR4LongRunStable
+    atlas_r4_test.go:498: atlas-r4-longrun: 500 alternating draws ok, final TR [255 0 0 255]
+--- PASS: TestAtlasR4LongRunStable (0.03s)
+=== RUN   TestAtlasR4CPUGPUParity
+    atlas_r4_test.go:557: identity parity changed=0/1024 (0.000%) mean=0.000 rmse=0.000 max=0
+    atlas_r4_test.go:557: rot90_center parity changed=0/1024 (0.000%) mean=0.003 rmse=0.051 max=1
+--- PASS: TestAtlasR4CPUGPUParity (0.01s)
+=== RUN   TestAtlasR4OffscreenGolden
+    atlas_r4_test.go:570: window-intent: game_sprite--case=rot (P2 build, S30 keeps offscreen only)
+--- PASS: TestAtlasR4OffscreenGolden (0.00s)
+PASS

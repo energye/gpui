@@ -1,0 +1,5 @@
+=== RUN   TestRetainedCompositeOnly_SteadyDamageSmall
+--- PASS: TestRetainedCompositeOnly_SteadyDamageSmall (0.28s)
+=== RUN   TestPipelineApp_SetPresentPolicyRetained
+--- PASS: TestPipelineApp_SetPresentPolicyRetained (0.00s)
+PASS

@@ -1,0 +1,14 @@
+=== RUN   TestLoopFromCases
+--- PASS: TestLoopFromCases (0.00s)
+=== RUN   TestLoopBadInputs
+--- PASS: TestLoopBadInputs (0.00s)
+=== RUN   TestLoopReplayIdentical
+--- PASS: TestLoopReplayIdentical (0.00s)
+=== RUN   TestLoopFrameCost
+    loop_test.go:307: 10000 frames x3 systems: 756.745µs total, 75.7ns/frame
+--- PASS: TestLoopFrameCost (0.00s)
+=== RUN   TestLoopLongRun
+--- PASS: TestLoopLongRun (0.01s)
+=== RUN   TestLoopCasesFrozen
+--- PASS: TestLoopCasesFrozen (0.00s)
+PASS

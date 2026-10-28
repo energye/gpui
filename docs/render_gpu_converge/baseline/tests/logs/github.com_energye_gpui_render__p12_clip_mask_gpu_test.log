@@ -1,0 +1,11 @@
+=== RUN   TestP12_ClipRectDifferenceGPU
+    p12_clip_mask_gpu_test.go:40: diff-clip gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base=1
+    p12_clip_mask_gpu_test.go:50: outside=229,25,25
+    p12_clip_mask_gpu_test.go:56: hole=255,255,255
+--- PASS: TestP12_ClipRectDifferenceGPU (0.29s)
+=== RUN   TestP12_ClipPathDifferenceGPU
+    p12_clip_mask_gpu_test.go:85: path-diff gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2 base=1
+    p12_clip_mask_gpu_test.go:94: corner=0,51,229
+    p12_clip_mask_gpu_test.go:100: center=255,255,255
+--- PASS: TestP12_ClipPathDifferenceGPU (0.01s)
+PASS

@@ -1,0 +1,13 @@
+=== RUN   TestG1a_InputReshape_ShapeCacheBounded
+    g1a_soak_test.go:45: shape cache: entries=17 soft=4096 hits=0 misses=400 evictions=383
+--- PASS: TestG1a_InputReshape_ShapeCacheBounded (0.06s)
+=== RUN   TestG1a_VirtualList_ShapeAndAtlasBounded
+    g1a_soak_test.go:147: list soak: shape entries=492/4096 atlas entries=13 pages=1 hits=22387 misses=3213 mem=65536B
+--- PASS: TestG1a_VirtualList_ShapeAndAtlasBounded (0.03s)
+=== RUN   TestG1a_EditingReshape_NoEntryExplosion
+    g1a_soak_test.go:196: edit soak: hits=979 misses=21 entries=21 evictions=0
+--- PASS: TestG1a_EditingReshape_NoEntryExplosion (0.00s)
+=== RUN   TestG1a_LongReshape_HeapGrowthBounded
+    g1a_soak_test.go:273: heap base=3174368 residual=3171232 midMax=3763376 residualGrowth=0 peakShapeEntries=41 soft=4096
+--- PASS: TestG1a_LongReshape_HeapGrowthBounded (0.35s)
+PASS

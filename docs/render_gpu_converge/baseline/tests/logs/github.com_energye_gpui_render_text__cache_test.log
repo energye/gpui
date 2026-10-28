@@ -1,0 +1,25 @@
+=== RUN   TestCacheBasicOperations
+--- PASS: TestCacheBasicOperations (0.00s)
+=== RUN   TestCacheGetOrCreate
+--- PASS: TestCacheGetOrCreate (0.00s)
+=== RUN   TestCacheLRUEviction
+--- PASS: TestCacheLRUEviction (0.00s)
+=== RUN   TestCacheLRUAccessUpdate
+--- PASS: TestCacheLRUAccessUpdate (0.00s)
+=== RUN   TestCacheClear
+--- PASS: TestCacheClear (0.00s)
+=== RUN   TestCacheThreadSafety
+--- PASS: TestCacheThreadSafety (0.00s)
+=== RUN   TestRuneToBoolMapBasic
+--- PASS: TestRuneToBoolMapBasic (0.00s)
+=== RUN   TestRuneToBoolMapSparseAccess
+--- PASS: TestRuneToBoolMapSparseAccess (0.00s)
+=== RUN   TestRuneToBoolMapClear
+--- PASS: TestRuneToBoolMapClear (0.00s)
+=== RUN   TestRuneToBoolMapThreadSafety
+--- PASS: TestRuneToBoolMapThreadSafety (0.00s)
+=== RUN   TestShapingKey
+--- PASS: TestShapingKey (0.00s)
+=== RUN   TestGlyphKey
+--- PASS: TestGlyphKey (0.00s)
+PASS

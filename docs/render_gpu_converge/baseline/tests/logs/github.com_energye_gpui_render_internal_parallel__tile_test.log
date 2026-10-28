@@ -1,0 +1,187 @@
+=== RUN   TestTile_Constants
+--- PASS: TestTile_Constants (0.00s)
+=== RUN   TestTile_Bounds
+=== RUN   TestTile_Bounds/first_tile
+=== RUN   TestTile_Bounds/second_row_first_column
+=== RUN   TestTile_Bounds/edge_tile
+--- PASS: TestTile_Bounds (0.00s)
+    --- PASS: TestTile_Bounds/first_tile (0.00s)
+    --- PASS: TestTile_Bounds/second_row_first_column (0.00s)
+    --- PASS: TestTile_Bounds/edge_tile (0.00s)
+=== RUN   TestTile_PixelOffset
+=== RUN   TestTile_PixelOffset/top-left
+=== RUN   TestTile_PixelOffset/second_pixel
+=== RUN   TestTile_PixelOffset/second_row
+=== RUN   TestTile_PixelOffset/middle
+=== RUN   TestTile_PixelOffset/out_of_bounds_negative_x
+=== RUN   TestTile_PixelOffset/out_of_bounds_negative_y
+=== RUN   TestTile_PixelOffset/out_of_bounds_x
+=== RUN   TestTile_PixelOffset/out_of_bounds_y
+--- PASS: TestTile_PixelOffset (0.00s)
+    --- PASS: TestTile_PixelOffset/top-left (0.00s)
+    --- PASS: TestTile_PixelOffset/second_pixel (0.00s)
+    --- PASS: TestTile_PixelOffset/second_row (0.00s)
+    --- PASS: TestTile_PixelOffset/middle (0.00s)
+    --- PASS: TestTile_PixelOffset/out_of_bounds_negative_x (0.00s)
+    --- PASS: TestTile_PixelOffset/out_of_bounds_negative_y (0.00s)
+    --- PASS: TestTile_PixelOffset/out_of_bounds_x (0.00s)
+    --- PASS: TestTile_PixelOffset/out_of_bounds_y (0.00s)
+=== RUN   TestTile_CanvasPixelOffset
+=== RUN   TestTile_CanvasPixelOffset/tile_origin
+=== RUN   TestTile_CanvasPixelOffset/inside_tile
+=== RUN   TestTile_CanvasPixelOffset/inside_tile_row_2
+=== RUN   TestTile_CanvasPixelOffset/outside_tile_left
+=== RUN   TestTile_CanvasPixelOffset/outside_tile_top
+=== RUN   TestTile_CanvasPixelOffset/outside_tile_right
+=== RUN   TestTile_CanvasPixelOffset/outside_tile_bottom
+--- PASS: TestTile_CanvasPixelOffset (0.00s)
+    --- PASS: TestTile_CanvasPixelOffset/tile_origin (0.00s)
+    --- PASS: TestTile_CanvasPixelOffset/inside_tile (0.00s)
+    --- PASS: TestTile_CanvasPixelOffset/inside_tile_row_2 (0.00s)
+    --- PASS: TestTile_CanvasPixelOffset/outside_tile_left (0.00s)
+    --- PASS: TestTile_CanvasPixelOffset/outside_tile_top (0.00s)
+    --- PASS: TestTile_CanvasPixelOffset/outside_tile_right (0.00s)
+    --- PASS: TestTile_CanvasPixelOffset/outside_tile_bottom (0.00s)
+=== RUN   TestTile_Contains
+=== RUN   TestTile_Contains/inside
+=== RUN   TestTile_Contains/top-left_corner
+=== RUN   TestTile_Contains/bottom-right_inside
+=== RUN   TestTile_Contains/outside_left
+=== RUN   TestTile_Contains/outside_right
+=== RUN   TestTile_Contains/outside_top
+=== RUN   TestTile_Contains/outside_bottom
+--- PASS: TestTile_Contains (0.00s)
+    --- PASS: TestTile_Contains/inside (0.00s)
+    --- PASS: TestTile_Contains/top-left_corner (0.00s)
+    --- PASS: TestTile_Contains/bottom-right_inside (0.00s)
+    --- PASS: TestTile_Contains/outside_left (0.00s)
+    --- PASS: TestTile_Contains/outside_right (0.00s)
+    --- PASS: TestTile_Contains/outside_top (0.00s)
+    --- PASS: TestTile_Contains/outside_bottom (0.00s)
+=== RUN   TestTile_Reset
+--- PASS: TestTile_Reset (0.00s)
+=== RUN   TestTile_Stride
+--- PASS: TestTile_Stride (0.00s)
+=== RUN   TestTile_ByteSize
+--- PASS: TestTile_ByteSize (0.00s)
+=== RUN   TestTileGrid_Create
+=== RUN   TestTileGrid_Create/exact_multiple
+=== RUN   TestTileGrid_Create/single_tile
+=== RUN   TestTileGrid_Create/partial_width
+=== RUN   TestTileGrid_Create/partial_height
+=== RUN   TestTileGrid_Create/large_canvas
+--- PASS: TestTileGrid_Create (0.01s)
+    --- PASS: TestTileGrid_Create/exact_multiple (0.00s)
+    --- PASS: TestTileGrid_Create/single_tile (0.00s)
+    --- PASS: TestTileGrid_Create/partial_width (0.00s)
+    --- PASS: TestTileGrid_Create/partial_height (0.00s)
+    --- PASS: TestTileGrid_Create/large_canvas (0.01s)
+=== RUN   TestTileGrid_CreateInvalid
+=== RUN   TestTileGrid_CreateInvalid/zero_width
+=== RUN   TestTileGrid_CreateInvalid/zero_height
+=== RUN   TestTileGrid_CreateInvalid/negative_width
+=== RUN   TestTileGrid_CreateInvalid/negative_height
+=== RUN   TestTileGrid_CreateInvalid/both_zero
+--- PASS: TestTileGrid_CreateInvalid (0.00s)
+    --- PASS: TestTileGrid_CreateInvalid/zero_width (0.00s)
+    --- PASS: TestTileGrid_CreateInvalid/zero_height (0.00s)
+    --- PASS: TestTileGrid_CreateInvalid/negative_width (0.00s)
+    --- PASS: TestTileGrid_CreateInvalid/negative_height (0.00s)
+    --- PASS: TestTileGrid_CreateInvalid/both_zero (0.00s)
+=== RUN   TestTileGrid_EdgeTiles
+--- PASS: TestTileGrid_EdgeTiles (0.00s)
+=== RUN   TestTileGrid_TileAt
+=== RUN   TestTileGrid_TileAt/valid_(0,0)
+=== RUN   TestTileGrid_TileAt/valid_(1,1)
+=== RUN   TestTileGrid_TileAt/out_of_bounds_x
+=== RUN   TestTileGrid_TileAt/out_of_bounds_y
+=== RUN   TestTileGrid_TileAt/negative_x
+=== RUN   TestTileGrid_TileAt/negative_y
+--- PASS: TestTileGrid_TileAt (0.00s)
+    --- PASS: TestTileGrid_TileAt/valid_(0,0) (0.00s)
+    --- PASS: TestTileGrid_TileAt/valid_(1,1) (0.00s)
+    --- PASS: TestTileGrid_TileAt/out_of_bounds_x (0.00s)
+    --- PASS: TestTileGrid_TileAt/out_of_bounds_y (0.00s)
+    --- PASS: TestTileGrid_TileAt/negative_x (0.00s)
+    --- PASS: TestTileGrid_TileAt/negative_y (0.00s)
+=== RUN   TestTileGrid_TileAtPixel
+=== RUN   TestTileGrid_TileAtPixel/origin
+=== RUN   TestTileGrid_TileAtPixel/inside_first_tile
+=== RUN   TestTileGrid_TileAtPixel/second_tile_x
+=== RUN   TestTileGrid_TileAtPixel/second_tile_y
+=== RUN   TestTileGrid_TileAtPixel/third_tile_x
+=== RUN   TestTileGrid_TileAtPixel/edge_of_canvas
+=== RUN   TestTileGrid_TileAtPixel/out_of_bounds_x
+=== RUN   TestTileGrid_TileAtPixel/out_of_bounds_y
+=== RUN   TestTileGrid_TileAtPixel/negative_x
+=== RUN   TestTileGrid_TileAtPixel/negative_y
+--- PASS: TestTileGrid_TileAtPixel (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/origin (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/inside_first_tile (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/second_tile_x (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/second_tile_y (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/third_tile_x (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/edge_of_canvas (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/out_of_bounds_x (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/out_of_bounds_y (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/negative_x (0.00s)
+    --- PASS: TestTileGrid_TileAtPixel/negative_y (0.00s)
+=== RUN   TestTileGrid_TilesInRect
+=== RUN   TestTileGrid_TilesInRect/single_tile
+=== RUN   TestTileGrid_TilesInRect/full_tile
+=== RUN   TestTileGrid_TilesInRect/span_two_tiles_x
+=== RUN   TestTileGrid_TilesInRect/span_two_tiles_y
+=== RUN   TestTileGrid_TilesInRect/four_tiles
+=== RUN   TestTileGrid_TilesInRect/all_tiles
+=== RUN   TestTileGrid_TilesInRect/empty_rect
+=== RUN   TestTileGrid_TilesInRect/negative_size
+=== RUN   TestTileGrid_TilesInRect/outside_canvas
+=== RUN   TestTileGrid_TilesInRect/partial_overlap
+--- PASS: TestTileGrid_TilesInRect (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/single_tile (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/full_tile (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/span_two_tiles_x (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/span_two_tiles_y (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/four_tiles (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/all_tiles (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/empty_rect (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/negative_size (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/outside_canvas (0.00s)
+    --- PASS: TestTileGrid_TilesInRect/partial_overlap (0.00s)
+=== RUN   TestTileGrid_MarkDirty
+--- PASS: TestTileGrid_MarkDirty (0.00s)
+=== RUN   TestTileGrid_MarkRectDirty
+--- PASS: TestTileGrid_MarkRectDirty (0.00s)
+=== RUN   TestTileGrid_DirtyTiles
+--- PASS: TestTileGrid_DirtyTiles (0.00s)
+=== RUN   TestTileGrid_Resize
+--- PASS: TestTileGrid_Resize (0.00s)
+=== RUN   TestTileGrid_ForEach
+--- PASS: TestTileGrid_ForEach (0.00s)
+=== RUN   TestTileGrid_ForEachDirty
+--- PASS: TestTileGrid_ForEachDirty (0.00s)
+=== RUN   TestTileGrid_MarkAllDirty
+--- PASS: TestTileGrid_MarkAllDirty (0.00s)
+=== RUN   TestTilePool_GetPut
+--- PASS: TestTilePool_GetPut (0.00s)
+=== RUN   TestTilePool_GetEdgeTile
+--- PASS: TestTilePool_GetEdgeTile (0.00s)
+=== RUN   TestTilePool_GetInvalid
+=== RUN   TestTilePool_GetInvalid/zero_width
+=== RUN   TestTilePool_GetInvalid/zero_height
+=== RUN   TestTilePool_GetInvalid/negative_width
+=== RUN   TestTilePool_GetInvalid/negative_height
+--- PASS: TestTilePool_GetInvalid (0.00s)
+    --- PASS: TestTilePool_GetInvalid/zero_width (0.00s)
+    --- PASS: TestTilePool_GetInvalid/zero_height (0.00s)
+    --- PASS: TestTilePool_GetInvalid/negative_width (0.00s)
+    --- PASS: TestTilePool_GetInvalid/negative_height (0.00s)
+=== RUN   TestTilePool_PutNil
+--- PASS: TestTilePool_PutNil (0.00s)
+=== RUN   TestTilePool_Concurrent
+--- PASS: TestTilePool_Concurrent (0.00s)
+=== RUN   TestTilePool_DataCleared
+--- PASS: TestTilePool_DataCleared (0.00s)
+=== RUN   TestDefaultPoolFunctions
+--- PASS: TestDefaultPoolFunctions (0.00s)
+PASS

@@ -1,0 +1,77 @@
+=== RUN   TestGlyphMaskAtlasConfig_Validate
+=== RUN   TestGlyphMaskAtlasConfig_Validate/default_is_valid
+=== RUN   TestGlyphMaskAtlasConfig_Validate/size_too_small
+=== RUN   TestGlyphMaskAtlasConfig_Validate/size_too_large
+=== RUN   TestGlyphMaskAtlasConfig_Validate/size_not_power_of_2
+=== RUN   TestGlyphMaskAtlasConfig_Validate/negative_padding
+=== RUN   TestGlyphMaskAtlasConfig_Validate/zero_atlases
+=== RUN   TestGlyphMaskAtlasConfig_Validate/zero_entries
+=== RUN   TestGlyphMaskAtlasConfig_Validate/valid_small
+--- PASS: TestGlyphMaskAtlasConfig_Validate (0.00s)
+    --- PASS: TestGlyphMaskAtlasConfig_Validate/default_is_valid (0.00s)
+    --- PASS: TestGlyphMaskAtlasConfig_Validate/size_too_small (0.00s)
+    --- PASS: TestGlyphMaskAtlasConfig_Validate/size_too_large (0.00s)
+    --- PASS: TestGlyphMaskAtlasConfig_Validate/size_not_power_of_2 (0.00s)
+    --- PASS: TestGlyphMaskAtlasConfig_Validate/negative_padding (0.00s)
+    --- PASS: TestGlyphMaskAtlasConfig_Validate/zero_atlases (0.00s)
+    --- PASS: TestGlyphMaskAtlasConfig_Validate/zero_entries (0.00s)
+    --- PASS: TestGlyphMaskAtlasConfig_Validate/valid_small (0.00s)
+=== RUN   TestMakeGlyphMaskKey
+=== RUN   TestMakeGlyphMaskKey/13px_no_subpixel
+=== RUN   TestMakeGlyphMaskKey/14.5px
+=== RUN   TestMakeGlyphMaskKey/13px_0.25_subpixel
+=== RUN   TestMakeGlyphMaskKey/13px_0.5_subpixel
+=== RUN   TestMakeGlyphMaskKey/13px_0.75_subpixel
+=== RUN   TestMakeGlyphMaskKey/tiny_size_clamped
+=== RUN   TestMakeGlyphMaskKey/vertical_subpixel
+--- PASS: TestMakeGlyphMaskKey (0.00s)
+    --- PASS: TestMakeGlyphMaskKey/13px_no_subpixel (0.00s)
+    --- PASS: TestMakeGlyphMaskKey/14.5px (0.00s)
+    --- PASS: TestMakeGlyphMaskKey/13px_0.25_subpixel (0.00s)
+    --- PASS: TestMakeGlyphMaskKey/13px_0.5_subpixel (0.00s)
+    --- PASS: TestMakeGlyphMaskKey/13px_0.75_subpixel (0.00s)
+    --- PASS: TestMakeGlyphMaskKey/tiny_size_clamped (0.00s)
+    --- PASS: TestMakeGlyphMaskKey/vertical_subpixel (0.00s)
+=== RUN   TestGlyphMaskAtlas_PutGet
+--- PASS: TestGlyphMaskAtlas_PutGet (0.00s)
+=== RUN   TestGlyphMaskAtlas_DuplicatePut
+--- PASS: TestGlyphMaskAtlas_DuplicatePut (0.00s)
+=== RUN   TestGlyphMaskAtlas_LRUEviction
+--- PASS: TestGlyphMaskAtlas_LRUEviction (0.00s)
+=== RUN   TestGlyphMaskAtlas_Stats
+--- PASS: TestGlyphMaskAtlas_Stats (0.00s)
+=== RUN   TestGlyphMaskAtlas_Clear
+--- PASS: TestGlyphMaskAtlas_Clear (0.00s)
+=== RUN   TestGlyphMaskAtlas_DirtyPages
+--- PASS: TestGlyphMaskAtlas_DirtyPages (0.00s)
+=== RUN   TestGlyphMaskAtlas_InvalidMask
+--- PASS: TestGlyphMaskAtlas_InvalidMask (0.00s)
+=== RUN   TestGlyphMaskAtlas_GetOrRasterize
+--- PASS: TestGlyphMaskAtlas_GetOrRasterize (0.00s)
+=== RUN   TestGlyphMaskAtlas_MemoryUsage
+--- PASS: TestGlyphMaskAtlas_MemoryUsage (0.00s)
+=== RUN   TestGlyphMaskAtlas_SubpixelVariants
+--- PASS: TestGlyphMaskAtlas_SubpixelVariants (0.00s)
+=== RUN   TestGlyphMaskShelfAllocator
+--- PASS: TestGlyphMaskShelfAllocator (0.00s)
+=== RUN   TestGlyphMaskShelfAllocator_CanFit
+--- PASS: TestGlyphMaskShelfAllocator_CanFit (0.00s)
+=== RUN   TestMakeGlyphMaskKeyBucketed
+--- PASS: TestMakeGlyphMaskKeyBucketed (0.00s)
+=== RUN   TestBucketedKey_ReducesEntries
+--- PASS: TestBucketedKey_ReducesEntries (0.00s)
+=== RUN   TestGlyphMaskAtlas_UnderPressure_Hysteresis
+--- PASS: TestGlyphMaskAtlas_UnderPressure_Hysteresis (0.00s)
+=== RUN   TestGlyphMaskAtlas_Compact_StalePages
+--- PASS: TestGlyphMaskAtlas_Compact_StalePages (0.00s)
+=== RUN   TestGlyphMaskAtlas_EvictTail_ResetsEmptyPage
+--- PASS: TestGlyphMaskAtlas_EvictTail_ResetsEmptyPage (0.00s)
+=== RUN   TestS42_DirtyRegionPartialUnion
+--- PASS: TestS42_DirtyRegionPartialUnion (0.00s)
+=== RUN   TestS42_DirtyRegionFullWhenLarge
+--- PASS: TestS42_DirtyRegionFullWhenLarge (0.00s)
+=== RUN   TestGlyphMaskAtlas_Generation_BumpsOnClearAndReset
+--- PASS: TestGlyphMaskAtlas_Generation_BumpsOnClearAndReset (0.00s)
+=== RUN   TestGlyphMaskAtlas_Get_KeepsPageAlive
+--- PASS: TestGlyphMaskAtlas_Get_KeepsPageAlive (0.00s)
+PASS

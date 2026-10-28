@@ -1,0 +1,7 @@
+=== RUN   TestPlacement_AntTwelveDrivesFromFile
+--- PASS: TestPlacement_AntTwelveDrivesFromFile (0.00s)
+=== RUN   TestPlacement_FlipTable
+--- PASS: TestPlacement_FlipTable (0.00s)
+=== RUN   TestInteract_OutsideAndFocusLock
+--- PASS: TestInteract_OutsideAndFocusLock (0.00s)
+PASS

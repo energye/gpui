@@ -1,0 +1,29 @@
+=== RUN   TestPackSignatureElements_Empty
+--- PASS: TestPackSignatureElements_Empty (0.00s)
+=== RUN   TestPackSignatureElements_LocationsSameInterpPack
+--- PASS: TestPackSignatureElements_LocationsSameInterpPack (0.00s)
+=== RUN   TestPackSignatureElements_DifferentInterpDoesNotPack
+--- PASS: TestPackSignatureElements_DifferentInterpDoesNotPack (0.00s)
+=== RUN   TestPackSignatureElements_SVPositionAlone
+--- PASS: TestPackSignatureElements_SVPositionAlone (0.00s)
+=== RUN   TestPackSignatureElements_SystemManaged
+--- PASS: TestPackSignatureElements_SystemManaged (0.00s)
+=== RUN   TestPackSignatureElements_ScalarArrayMultiRow
+--- PASS: TestPackSignatureElements_ScalarArrayMultiRow (0.00s)
+=== RUN   TestPackSignatureElements_BuiltinSystemValueAlone
+--- PASS: TestPackSignatureElements_BuiltinSystemValueAlone (0.00s)
+=== RUN   TestPackSignatureElements_FullRowWithVec4
+--- PASS: TestPackSignatureElements_FullRowWithVec4 (0.00s)
+=== RUN   TestPackSignatureElements_LinearAfterFlatStartsNewRow
+--- PASS: TestPackSignatureElements_LinearAfterFlatStartsNewRow (0.00s)
+=== RUN   TestPackSignatureElements_TargetOutputUsesSemanticIndex
+--- PASS: TestPackSignatureElements_TargetOutputUsesSemanticIndex (0.00s)
+=== RUN   TestPackSignatureElements_OtherBindingPlaceholder
+--- PASS: TestPackSignatureElements_OtherBindingPlaceholder (0.00s)
+=== RUN   TestSortFlatBindings_LocationsBeforeBuiltins
+--- PASS: TestSortFlatBindings_LocationsBeforeBuiltins (0.00s)
+=== RUN   TestSortFlatBindings_VSInputPreservesOrder
+--- PASS: TestSortFlatBindings_VSInputPreservesOrder (0.00s)
+=== RUN   TestSortFlatBindings_MultipleLocations
+--- PASS: TestSortFlatBindings_MultipleLocations (0.00s)
+PASS

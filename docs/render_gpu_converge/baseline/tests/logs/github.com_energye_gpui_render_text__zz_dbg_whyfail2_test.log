@@ -1,0 +1,7 @@
+=== RUN   TestDbgWhyFail2
+isCFF2: false
+内部调用: err: <nil> pts: 35 contours: 4
+segments: 30
+bounds: {0.53125 -13.75 15.578125 1.828125}
+--- PASS: TestDbgWhyFail2 (0.02s)
+PASS

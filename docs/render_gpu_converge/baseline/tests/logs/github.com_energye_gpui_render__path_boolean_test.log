@@ -1,0 +1,41 @@
+=== RUN   TestPathBooleanDifferenceNoFragmentation
+--- PASS: TestPathBooleanDifferenceNoFragmentation (0.00s)
+=== RUN   TestPathBooleanDifferenceBeyondLegacyCap
+--- PASS: TestPathBooleanDifferenceBeyondLegacyCap (0.00s)
+=== RUN   TestPathBooleanExactIntersections
+--- PASS: TestPathBooleanExactIntersections (0.00s)
+=== RUN   TestPathBooleanRegionSemantics
+=== RUN   TestPathBooleanRegionSemantics/overlapping_subpaths_fill_under_non-zero
+=== RUN   TestPathBooleanRegionSemantics/reversed_inner_contour_keeps_the_hole
+=== RUN   TestPathBooleanRegionSemantics/concentric_same-direction_contours_stay_solid
+=== RUN   TestPathBooleanRegionSemantics/self-intersecting_bowtie_fills_both_lobes
+=== RUN   TestPathBooleanRegionSemantics/xor_excludes_the_overlap
+=== RUN   TestPathBooleanRegionSemantics/curve_after_close_starts_from_subpath_start
+--- PASS: TestPathBooleanRegionSemantics (0.00s)
+    --- PASS: TestPathBooleanRegionSemantics/overlapping_subpaths_fill_under_non-zero (0.00s)
+    --- PASS: TestPathBooleanRegionSemantics/reversed_inner_contour_keeps_the_hole (0.00s)
+    --- PASS: TestPathBooleanRegionSemantics/concentric_same-direction_contours_stay_solid (0.00s)
+    --- PASS: TestPathBooleanRegionSemantics/self-intersecting_bowtie_fills_both_lobes (0.00s)
+    --- PASS: TestPathBooleanRegionSemantics/xor_excludes_the_overlap (0.00s)
+    --- PASS: TestPathBooleanRegionSemantics/curve_after_close_starts_from_subpath_start (0.00s)
+=== RUN   TestPathBooleanFillRuleInvariance
+--- PASS: TestPathBooleanFillRuleInvariance (0.30s)
+=== RUN   TestPathBooleanCurvesFlattened
+--- PASS: TestPathBooleanCurvesFlattened (0.00s)
+=== RUN   TestPathBooleanDegenerateInputs
+=== RUN   TestPathBooleanDegenerateInputs/nil_and_empty_operands
+=== RUN   TestPathBooleanDegenerateInputs/line-only_path_has_no_area
+=== RUN   TestPathBooleanDegenerateInputs/spike_retrace_keeps_triangle_region
+=== RUN   TestPathBooleanDegenerateInputs/nan_coordinates_do_not_corrupt_output
+=== RUN   TestPathBooleanDegenerateInputs/huge_coordinates_are_clamped
+=== RUN   TestPathBooleanDegenerateInputs/lone_close_verb_does_not_panic
+=== RUN   TestPathBooleanDegenerateInputs/self_operand_difference_is_empty
+--- PASS: TestPathBooleanDegenerateInputs (0.00s)
+    --- PASS: TestPathBooleanDegenerateInputs/nil_and_empty_operands (0.00s)
+    --- PASS: TestPathBooleanDegenerateInputs/line-only_path_has_no_area (0.00s)
+    --- PASS: TestPathBooleanDegenerateInputs/spike_retrace_keeps_triangle_region (0.00s)
+    --- PASS: TestPathBooleanDegenerateInputs/nan_coordinates_do_not_corrupt_output (0.00s)
+    --- PASS: TestPathBooleanDegenerateInputs/huge_coordinates_are_clamped (0.00s)
+    --- PASS: TestPathBooleanDegenerateInputs/lone_close_verb_does_not_panic (0.00s)
+    --- PASS: TestPathBooleanDegenerateInputs/self_operand_difference_is_empty (0.00s)
+PASS

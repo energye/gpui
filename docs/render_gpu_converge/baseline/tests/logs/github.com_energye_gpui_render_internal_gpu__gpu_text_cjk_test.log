@@ -1,0 +1,53 @@
+=== RUN   TestGPUTextEngine_CJKAtlasCreated
+--- PASS: TestGPUTextEngine_CJKAtlasCreated (0.00s)
+=== RUN   TestGPUTextEngine_CJKAtlasConfig
+--- PASS: TestGPUTextEngine_CJKAtlasConfig (0.00s)
+=== RUN   TestGPUTextEngine_CJKAtlasOffset
+--- PASS: TestGPUTextEngine_CJKAtlasOffset (0.00s)
+=== RUN   TestGPUTextEngine_DirtyAtlasesEmpty
+--- PASS: TestGPUTextEngine_DirtyAtlasesEmpty (0.00s)
+=== RUN   TestGPUTextEngine_AtlasRGBADataNil
+--- PASS: TestGPUTextEngine_AtlasRGBADataNil (0.00s)
+=== RUN   TestGPUTextEngine_MarkCleanBothAtlases
+--- PASS: TestGPUTextEngine_MarkCleanBothAtlases (0.00s)
+=== RUN   TestIsCJKRune_TextRendering
+=== RUN   TestIsCJKRune_TextRendering/Han
+=== RUN   TestIsCJKRune_TextRendering/Han_complex
+=== RUN   TestIsCJKRune_TextRendering/Hiragana
+=== RUN   TestIsCJKRune_TextRendering/Katakana
+=== RUN   TestIsCJKRune_TextRendering/Hangul
+=== RUN   TestIsCJKRune_TextRendering/Fullwidth
+=== RUN   TestIsCJKRune_TextRendering/Latin
+=== RUN   TestIsCJKRune_TextRendering/Digit
+=== RUN   TestIsCJKRune_TextRendering/Emoji
+=== RUN   TestIsCJKRune_TextRendering/Arabic
+=== RUN   TestIsCJKRune_TextRendering/Cyrillic
+--- PASS: TestIsCJKRune_TextRendering (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Han (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Han_complex (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Hiragana (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Katakana (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Hangul (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Fullwidth (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Latin (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Digit (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Emoji (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Arabic (0.00s)
+    --- PASS: TestIsCJKRune_TextRendering/Cyrillic (0.00s)
+=== RUN   TestSelectGlyphMaskHinting_CJKEnterprise
+=== RUN   TestSelectGlyphMaskHinting_CJKEnterprise/cjk_1x_light
+=== RUN   TestSelectGlyphMaskHinting_CJKEnterprise/cjk_1.5x_light
+=== RUN   TestSelectGlyphMaskHinting_CJKEnterprise/cjk_2x_full
+=== RUN   TestSelectGlyphMaskHinting_CJKEnterprise/cjk_3x_full
+=== RUN   TestSelectGlyphMaskHinting_CJKEnterprise/latin_1x_light
+=== RUN   TestSelectGlyphMaskHinting_CJKEnterprise/latin_2x_light
+--- PASS: TestSelectGlyphMaskHinting_CJKEnterprise (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting_CJKEnterprise/cjk_1x_light (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting_CJKEnterprise/cjk_1.5x_light (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting_CJKEnterprise/cjk_2x_full (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting_CJKEnterprise/cjk_3x_full (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting_CJKEnterprise/latin_1x_light (0.00s)
+    --- PASS: TestSelectGlyphMaskHinting_CJKEnterprise/latin_2x_light (0.00s)
+=== RUN   TestGlyphMaskSkipsNotdef
+--- PASS: TestGlyphMaskSkipsNotdef (0.05s)
+PASS

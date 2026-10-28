@@ -1,0 +1,27 @@
+=== RUN   TestGaussianKernelZeroRadius
+--- PASS: TestGaussianKernelZeroRadius (0.00s)
+=== RUN   TestGaussianKernelNegativeRadius
+--- PASS: TestGaussianKernelNegativeRadius (0.00s)
+=== RUN   TestGaussianKernelNormalized
+--- PASS: TestGaussianKernelNormalized (0.00s)
+=== RUN   TestGaussianKernelSymmetric
+--- PASS: TestGaussianKernelSymmetric (0.00s)
+=== RUN   TestGaussianKernelSize
+--- PASS: TestGaussianKernelSize (0.00s)
+=== RUN   TestGaussianKernelPeakAtCenter
+--- PASS: TestGaussianKernelPeakAtCenter (0.00s)
+=== RUN   TestBoxKernelZeroRadius
+--- PASS: TestBoxKernelZeroRadius (0.00s)
+=== RUN   TestBoxKernelUniform
+--- PASS: TestBoxKernelUniform (0.00s)
+=== RUN   TestBoxKernelNormalized
+--- PASS: TestBoxKernelNormalized (0.00s)
+=== RUN   TestCachedGaussianKernel
+--- PASS: TestCachedGaussianKernel (0.00s)
+=== RUN   TestCachedGaussianKernelDifferentRadii
+--- PASS: TestCachedGaussianKernelDifferentRadii (0.00s)
+=== RUN   TestOptimalKernelSize
+--- PASS: TestOptimalKernelSize (0.00s)
+=== RUN   TestKernelCenter
+--- PASS: TestKernelCenter (0.00s)
+PASS

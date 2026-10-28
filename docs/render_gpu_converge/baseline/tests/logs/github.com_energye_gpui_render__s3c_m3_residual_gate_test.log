@@ -1,0 +1,35 @@
+=== RUN   TestS3c_M3_BlendHue
+    s3c_m3_residual_gate_test.go:71: BlendHue rgba=0,76,0,255 stats=gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestS3c_M3_BlendHue (0.30s)
+=== RUN   TestS3c_M3_BlendColorAndLuminosity
+    s3c_m3_residual_gate_test.go:102: BlendColor rgba=109,54,0
+    s3c_m3_residual_gate_test.go:114: BlendLuminosity rgba=136,136,255
+--- PASS: TestS3c_M3_BlendColorAndLuminosity (0.01s)
+=== RUN   TestS3c_M3_ClipRectDifference
+--- PASS: TestS3c_M3_ClipRectDifference (0.01s)
+=== RUN   TestS3c_M3_ClipRectReplace
+--- PASS: TestS3c_M3_ClipRectReplace (0.00s)
+=== RUN   TestS3c_M3_PathBooleanIntersect
+    s3c_m3_residual_gate_test.go:202: intersect center rgba=0,153,0
+--- PASS: TestS3c_M3_PathBooleanIntersect (0.00s)
+=== RUN   TestS3c_M3_PathBooleanDifference
+--- PASS: TestS3c_M3_PathBooleanDifference (0.00s)
+=== RUN   TestS3c_M3_ImageBicubicAndMipmap
+    s3c_m3_residual_gate_test.go:288: mipmap sample rgba=134,134,128,255
+--- PASS: TestS3c_M3_ImageBicubicAndMipmap (0.01s)
+=== RUN   TestS3c_M3_DrawImageNine
+    s3c_m3_residual_gate_test.go:319: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    s3c_m3_residual_gate_test.go:322: nine corner rgba=255,0,0
+    s3c_m3_residual_gate_test.go:328: nine center rgba=0,0,255
+--- PASS: TestS3c_M3_DrawImageNine (0.00s)
+=== RUN   TestS3c_M3_TextUnderline
+    s3c_m3_residual_gate_test.go:354: underline pixel at 8,26 rgba=19,19,19
+--- PASS: TestS3c_M3_TextUnderline (0.01s)
+=== RUN   TestS3c_M3_VariableFontWeight
+    s3c_m3_residual_gate_test.go:381: axes=[{[119 103 104 116] Weight 100 400 800}]
+    s3c_m3_residual_gate_test.go:391: advance default=12.00 wght700=12.00
+--- PASS: TestS3c_M3_VariableFontWeight (0.00s)
+=== RUN   TestS3c_M3_DrawWithEmojiAPI
+    s3c_m3_residual_gate_test.go:421: glyph rgba=41,41,41,255
+--- PASS: TestS3c_M3_DrawWithEmojiAPI (0.00s)
+PASS

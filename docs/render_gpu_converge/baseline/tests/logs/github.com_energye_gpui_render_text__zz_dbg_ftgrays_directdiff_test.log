@@ -1,0 +1,33 @@
+=== RUN   TestDbgFT26DirectDiff
+静 12px: LightPts=122 contours=8 | FT_Outline np=122 nc=8 ends=[23 31 83 87 91 95 99 121]
+  pt 26: light=(566,549,tag0) ft=(566,549,tag2)
+  pt 27: light=(546,519,tag0) ft=(546,519,tag2)
+  pt 30: light=(436,519,tag0) ft=(436,519,tag2)
+  pt 31: light=(457,546,tag0) ft=(457,546,tag2)
+  pt 33: light=(447,618,tag0) ft=(447,618,tag2)
+  pt 34: light=(400,537,tag0) ft=(400,537,tag2)
+  pt 36: light=(360,467,tag0) ft=(360,467,tag2)
+  pt 37: light=(382,451,tag0) ft=(382,451,tag2)
+  点差异: 32/122 (FT=122)
+每 12px: LightPts=92 contours=5 | FT_Outline np=92 nc=5 ends=[12 59 68 75 91]
+  pt 1: light=(348,381,tag0) ft=(348,381,tag2)
+  pt 2: light=(406,339,tag0) ft=(406,339,tag2)
+  pt 10: light=(442,378,tag0) ft=(442,378,tag2)
+  pt 11: light=(382,420,tag0) ft=(382,420,tag2)
+  pt 16: light=(131,170,tag0) ft=(131,170,tag2)
+  pt 17: light=(118,91,tag0) ft=(118,91,tag2)
+  pt 22: light=(548,28,tag0) ft=(548,28,tag2)
+  pt 23: light=(542,6,tag0) ft=(542,6,tag2)
+  点差异: 40/92 (FT=92)
+合 12px: LightPts=35 contours=4 | FT_Outline np=35 nc=4 ends=[3 22 30 34]
+  pt 5: light=(454,536,tag0) ft=(454,536,tag2)
+  pt 6: light=(589,421,tag0) ft=(589,421,tag2)
+  pt 8: light=(719,371,tag0) ft=(719,371,tag2)
+  pt 9: light=(733,394,tag0) ft=(733,394,tag2)
+  pt 11: light=(625,465,tag0) ft=(625,465,tag2)
+  pt 12: light=(490,579,tag0) ft=(490,579,tag2)
+  pt 15: light=(289,595,tag0) ft=(289,595,tag2)
+  pt 16: light=(160,469,tag0) ft=(160,469,tag2)
+  点差异: 12/35 (FT=35)
+--- PASS: TestDbgFT26DirectDiff (0.51s)
+PASS

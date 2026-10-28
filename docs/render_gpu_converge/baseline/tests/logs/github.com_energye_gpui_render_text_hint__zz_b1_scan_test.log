@@ -1,0 +1,10 @@
+=== RUN   TestB1ScanCJK3000
+B1 cjk3000: 65 档 × 3000 字四维度全部一致
+--- PASS: TestB1ScanCJK3000 (59.82s)
+=== RUN   TestB1ScanKR
+B1 kr_all: 65 档 × 11172 字四维度全部一致
+--- PASS: TestB1ScanKR (209.82s)
+=== RUN   TestB1ScanThai
+B1 th_all: 65 档 × 128 字四维度全部一致
+--- PASS: TestB1ScanThai (1.03s)
+PASS

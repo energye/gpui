@@ -1,0 +1,7 @@
+=== RUN   TestFilterOpsInvertContract
+--- PASS: TestFilterOpsInvertContract (0.28s)
+=== RUN   TestFilterOpsBlurXYAnisotropicContract
+--- PASS: TestFilterOpsBlurXYAnisotropicContract (0.01s)
+=== RUN   TestFilterOpsGraphOrderAndSequential
+--- PASS: TestFilterOpsGraphOrderAndSequential (0.01s)
+PASS

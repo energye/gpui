@@ -1,0 +1,5 @@
+=== RUN   TestShapeKhmer_M5
+--- PASS: TestShapeKhmer_M5 (0.01s)
+=== RUN   TestShapeTibetan_M5
+--- PASS: TestShapeTibetan_M5 (0.06s)
+PASS

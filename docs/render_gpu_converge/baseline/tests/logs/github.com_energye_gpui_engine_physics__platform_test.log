@@ -1,0 +1,14 @@
+=== RUN   TestPlatformFromCases
+--- PASS: TestPlatformFromCases (0.00s)
+=== RUN   TestPlatformEdgesNoCrash
+--- PASS: TestPlatformEdgesNoCrash (0.00s)
+=== RUN   TestPlatformBoundaryIdentical
+--- PASS: TestPlatformBoundaryIdentical (0.00s)
+=== RUN   TestPlatformPerfLongSlope
+    platform_test.go:518: platform-long: 5000 grounds + 2000 steps on 10k slope in 223.569µs (0.0 us/op, sum 360906.2, landed 48)
+--- PASS: TestPlatformPerfLongSlope (0.00s)
+=== RUN   TestPlatformLongRunStable
+--- PASS: TestPlatformLongRunStable (0.00s)
+=== RUN   TestPlatformOffscreenGolden
+--- PASS: TestPlatformOffscreenGolden (0.00s)
+PASS

@@ -1,0 +1,41 @@
+=== RUN   TestVelloPortVsGPUPipeline
+=== RUN   TestVelloPortVsGPUPipeline/filled_circle
+    rasterizer_test.go:294: Scene: filled_circle, Size: 100x100, Diff: 0 pixels (0.00%), Threshold: 0.0%
+    rasterizer_test.go:297: Diff image saved: ../../../tmp/tilecompute_gpu_diff_filled_circle.png
+    rasterizer_test.go:297: Our output saved: ../../../tmp/tilecompute_gpu_ours_filled_circle.png
+=== RUN   TestVelloPortVsGPUPipeline/filled_triangle
+    rasterizer_test.go:294: Scene: filled_triangle, Size: 100x100, Diff: 0 pixels (0.00%), Threshold: 0.0%
+    rasterizer_test.go:297: Diff image saved: ../../../tmp/tilecompute_gpu_diff_filled_triangle.png
+    rasterizer_test.go:297: Our output saved: ../../../tmp/tilecompute_gpu_ours_filled_triangle.png
+=== RUN   TestVelloPortVsGPUPipeline/filling_nonzero_rule
+    rasterizer_test.go:294: Scene: filling_nonzero_rule, Size: 100x100, Diff: 8 pixels (0.08%), Threshold: 0.1%
+    rasterizer_test.go:297: Diff image saved: ../../../tmp/tilecompute_gpu_diff_filling_nonzero_rule.png
+    rasterizer_test.go:297: Our output saved: ../../../tmp/tilecompute_gpu_ours_filling_nonzero_rule.png
+=== RUN   TestVelloPortVsGPUPipeline/filling_evenodd_rule
+    rasterizer_test.go:294: Scene: filling_evenodd_rule, Size: 100x100, Diff: 10 pixels (0.10%), Threshold: 0.1%
+    rasterizer_test.go:297: Diff image saved: ../../../tmp/tilecompute_gpu_diff_filling_evenodd_rule.png
+    rasterizer_test.go:297: Our output saved: ../../../tmp/tilecompute_gpu_ours_filling_evenodd_rule.png
+--- PASS: TestVelloPortVsGPUPipeline (0.02s)
+    --- PASS: TestVelloPortVsGPUPipeline/filled_circle (0.01s)
+    --- PASS: TestVelloPortVsGPUPipeline/filled_triangle (0.01s)
+    --- PASS: TestVelloPortVsGPUPipeline/filling_nonzero_rule (0.00s)
+    --- PASS: TestVelloPortVsGPUPipeline/filling_evenodd_rule (0.00s)
+=== RUN   TestVelloPortVsGPUPipelineSmoke
+=== RUN   TestVelloPortVsGPUPipelineSmoke/smoke_filled_circle
+    rasterizer_test.go:325: Scene: smoke_filled_circle, Size: 20x20, Diff: 0 pixels (0.00%), Threshold: 0.0%
+    rasterizer_test.go:328: Diff image saved: ../../../tmp/tilecompute_smoke_diff_smoke_filled_circle.png
+    rasterizer_test.go:328: Our output saved: ../../../tmp/tilecompute_smoke_ours_smoke_filled_circle.png
+=== RUN   TestVelloPortVsGPUPipelineSmoke/smoke_filled_square
+    rasterizer_test.go:325: Scene: smoke_filled_square, Size: 20x20, Diff: 0 pixels (0.00%), Threshold: 0.0%
+    rasterizer_test.go:328: Diff image saved: ../../../tmp/tilecompute_smoke_diff_smoke_filled_square.png
+    rasterizer_test.go:328: Our output saved: ../../../tmp/tilecompute_smoke_ours_smoke_filled_square.png
+--- PASS: TestVelloPortVsGPUPipelineSmoke (0.00s)
+    --- PASS: TestVelloPortVsGPUPipelineSmoke/smoke_filled_circle (0.00s)
+    --- PASS: TestVelloPortVsGPUPipelineSmoke/smoke_filled_square (0.00s)
+=== RUN   TestVelloPortMultiPath
+    rasterizer_test.go:397: Saved: ../../../tmp/multipath_two_circles.png
+--- PASS: TestVelloPortMultiPath (0.00s)
+=== RUN   TestVelloPortMultiPathOverlapping
+    rasterizer_test.go:446: Saved: ../../../tmp/multipath_overlapping.png
+--- PASS: TestVelloPortMultiPathOverlapping (0.00s)
+PASS

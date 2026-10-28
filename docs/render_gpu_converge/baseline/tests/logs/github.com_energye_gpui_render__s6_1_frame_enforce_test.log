@@ -1,0 +1,16 @@
+=== RUN   TestS61_PresentAuto_IdleSkipsGPU
+--- PASS: TestS61_PresentAuto_IdleSkipsGPU (0.29s)
+=== RUN   TestS61_PresentAuto_LocalDamageMulti
+    s6_1_frame_enforce_test.go:107: S6.1 multi/local outcome={Mode:damage_multi Idle:false Rects:2} plan={Mode:damage_multi Rects:[(16,20)-(76,60) (300,220)-(370,270)] Union:(16,20)-(370,270)}
+--- PASS: TestS61_PresentAuto_LocalDamageMulti (0.00s)
+=== RUN   TestS61_PresentFull_ExplicitPath
+--- PASS: TestS61_PresentFull_ExplicitPath (0.00s)
+=== RUN   TestS61_U01like_DamageVs_H01like_Full
+    s6_1_frame_enforce_test.go:228: S6.1 contrast damage_p50=0.12ms full_p50=0.52ms (present-only style wall)
+--- PASS: TestS61_U01like_DamageVs_H01like_Full (0.01s)
+=== RUN   TestS61_PlanPresent_MatchesFrameDamagePhysical
+--- PASS: TestS61_PlanPresent_MatchesFrameDamagePhysical (0.00s)
+=== RUN   TestS61_L0_MainPathHelpersStillGreen
+    s6_1_frame_enforce_test.go:318: S61 L0 auto-present p50=0.20 budget=16.70
+--- PASS: TestS61_L0_MainPathHelpersStillGreen (0.00s)
+PASS

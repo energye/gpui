@@ -1,0 +1,9 @@
+=== RUN   TestCompositeAlphaModeToJS
+--- PASS: TestCompositeAlphaModeToJS (0.00s)
+=== RUN   TestPresentModeToJS
+--- PASS: TestPresentModeToJS (0.00s)
+=== RUN   TestTextureFormatFromJS
+--- PASS: TestTextureFormatFromJS (0.00s)
+=== RUN   TestTextureFormatRoundTrip
+--- PASS: TestTextureFormatRoundTrip (0.00s)
+PASS

@@ -1,0 +1,11 @@
+=== RUN   TestH4B3_WebGPUQueuePollAlwaysZero
+--- PASS: TestH4B3_WebGPUQueuePollAlwaysZero (0.00s)
+=== RUN   TestH4B3_WebGPUSubmitNeedsDevice
+--- PASS: TestH4B3_WebGPUSubmitNeedsDevice (0.00s)
+=== RUN   TestH4B3_WebGPUFenceNoopLifecycle
+--- PASS: TestH4B3_WebGPUFenceNoopLifecycle (0.00s)
+=== RUN   TestH4B3_WebGPUMapInvalidRange
+--- PASS: TestH4B3_WebGPUMapInvalidRange (0.00s)
+=== RUN   TestH4B3_WebGPUDeviceLostErrorScopeStubs
+--- PASS: TestH4B3_WebGPUDeviceLostErrorScopeStubs (0.00s)
+PASS

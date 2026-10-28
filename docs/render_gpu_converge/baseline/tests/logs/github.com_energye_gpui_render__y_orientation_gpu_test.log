@@ -1,0 +1,5 @@
+=== RUN   TestGPUYOrientation_TopIsTop
+    y_orientation_gpu_test.go:44: stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=1
+    y_orientation_gpu_test.go:53: top(y=8) rgb=255,0,0 bottom(y=120) rgb=0,255,0
+--- PASS: TestGPUYOrientation_TopIsTop (0.27s)
+PASS

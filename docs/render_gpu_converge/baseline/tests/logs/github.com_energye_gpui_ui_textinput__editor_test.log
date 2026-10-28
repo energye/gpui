@@ -1,0 +1,5 @@
+=== RUN   TestR1_AddTextReplacesComposing
+--- PASS: TestR1_AddTextReplacesComposing (0.00s)
+=== RUN   TestR1_DeleteSurrounding
+--- PASS: TestR1_DeleteSurrounding (0.00s)
+PASS

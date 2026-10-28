@@ -1,0 +1,5 @@
+=== RUN   TestResolveBackend
+--- PASS: TestResolveBackend (0.00s)
+=== RUN   TestResolveBackendForEnvWins
+--- PASS: TestResolveBackendForEnvWins (0.00s)
+PASS

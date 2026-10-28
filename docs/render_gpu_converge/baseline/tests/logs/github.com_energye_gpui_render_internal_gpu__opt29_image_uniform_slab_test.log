@@ -1,0 +1,22 @@
+=== RUN   TestOpt29_ImageUniformSlab_OneWriteForManyOpacities
+--- FAIL: TestOpt29_ImageUniformSlab_OneWriteForManyOpacities (0.23s)
+panic: runtime error: invalid memory address or nil pointer dereference [recovered, repanicked]
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x20 pc=0x949951]
+
+goroutine 20 [running]:
+testing.tRunner.func1.2({0xbad080, 0x12a34b0})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/testing/testing.go:1872 +0x237
+testing.tRunner.func1()
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/testing/testing.go:1875 +0x35b
+panic({0xbad080?, 0x12a34b0?})
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/runtime/panic.go:783 +0x132
+github.com/energye/gpui/render/internal/gpu.(*ImageCache).GetOrUpload(0x0, 0xc000038b30)
+	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/image_cache.go:211 +0x111
+github.com/energye/gpui/render/internal/gpu.(*GPURenderSession).buildImageResources(0xc0000a8008, {0xc000038b30, 0x20, 0xc000010048?}, 0xc8, 0x64, {0x0, 0x0, 0x0?})
+	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/render_session.go:4195 +0x73b
+github.com/energye/gpui/render/internal/gpu.TestOpt29_ImageUniformSlab_OneWriteForManyOpacities(0xc0001028c0)
+	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/opt29_image_uniform_slab_test.go:37 +0x305
+testing.tRunner(0xc0001028c0, 0xd0fd30)
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/testing/testing.go:1934 +0xea
+created by testing.(*T).Run in goroutine 1
+	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/testing/testing.go:1997 +0x465

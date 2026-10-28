@@ -1,0 +1,9 @@
+=== RUN   TestWaylandCSDHoverEnter
+--- PASS: TestWaylandCSDHoverEnter (0.07s)
+=== RUN   TestWaylandCSDHoverDirectButtonEnter
+--- PASS: TestWaylandCSDHoverDirectButtonEnter (0.04s)
+=== RUN   TestWaylandCSDHoverBetweenButtonsMotion
+--- PASS: TestWaylandCSDHoverBetweenButtonsMotion (0.04s)
+=== RUN   TestWaylandCSDHoverRepaintsButton
+--- PASS: TestWaylandCSDHoverRepaintsButton (0.02s)
+PASS

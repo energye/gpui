@@ -1,0 +1,96 @@
+=== RUN   TestSDFAccelerator_SetPipelineMode
+--- PASS: TestSDFAccelerator_SetPipelineMode (0.00s)
+=== RUN   TestSDFAccelerator_CanCompute_NoVello
+--- PASS: TestSDFAccelerator_CanCompute_NoVello (0.00s)
+=== RUN   TestSDFAccelerator_CanCompute_WithVelloNotReady
+--- PASS: TestSDFAccelerator_CanCompute_WithVelloNotReady (0.00s)
+=== RUN   TestSDFAccelerator_SceneStats_Accumulation
+--- PASS: TestSDFAccelerator_SceneStats_Accumulation (0.00s)
+=== RUN   TestSDFAccelerator_SceneStats_ResetOnFlush
+--- PASS: TestSDFAccelerator_SceneStats_ResetOnFlush (0.28s)
+=== RUN   TestSDFAccelerator_ComputeMode_DelegatesToVello
+--- PASS: TestSDFAccelerator_ComputeMode_DelegatesToVello (0.07s)
+=== RUN   TestSDFAccelerator_RenderPassMode_IgnoresVello
+--- PASS: TestSDFAccelerator_RenderPassMode_IgnoresVello (0.00s)
+=== RUN   TestSDFAccelerator_FillShape_ComputeMode
+    pipeline_wiring_test.go:235: no GPU device available — compute mode requires GPU
+--- SKIP: TestSDFAccelerator_FillShape_ComputeMode (0.00s)
+=== RUN   TestSDFAccelerator_Interfaces
+--- PASS: TestSDFAccelerator_Interfaces (0.00s)
+=== RUN   TestGPURenderContext_Isolation
+--- PASS: TestGPURenderContext_Isolation (0.00s)
+=== RUN   TestGPURenderContext_FrameTracking
+--- PASS: TestGPURenderContext_FrameTracking (0.00s)
+=== RUN   TestTexturePool_AcquireRelease
+--- PASS: TestTexturePool_AcquireRelease (0.00s)
+=== RUN   TestTexturePool_EndFrame
+--- PASS: TestTexturePool_EndFrame (0.00s)
+=== RUN   TestGPURenderContext_BaseLayer_PendingCount
+--- PASS: TestGPURenderContext_BaseLayer_PendingCount (0.00s)
+=== RUN   TestGPURenderContext_BaseLayer_LastCallWins
+--- PASS: TestGPURenderContext_BaseLayer_LastCallWins (0.00s)
+=== RUN   TestGPURenderContext_BaseLayer_ClearedAfterClose
+--- PASS: TestGPURenderContext_BaseLayer_ClearedAfterClose (0.00s)
+=== RUN   TestGPURenderContext_BaseLayer_DoesNotAffectOtherCounts
+--- PASS: TestGPURenderContext_BaseLayer_DoesNotAffectOtherCounts (0.00s)
+=== RUN   TestStrokeRouting_AutoModeUsesStencil
+--- PASS: TestStrokeRouting_AutoModeUsesStencil (0.00s)
+=== RUN   TestStrokeRouting_ComputeModeUsesVello
+--- PASS: TestStrokeRouting_ComputeModeUsesVello (0.00s)
+=== RUN   TestEvenOddFillRouting_AutoModeUsesStencil
+--- PASS: TestEvenOddFillRouting_AutoModeUsesStencil (0.00s)
+=== RUN   TestResolveSampleCount_Default
+--- PASS: TestResolveSampleCount_Default (0.12s)
+=== RUN   TestResolveSampleCount_APIForce4
+--- PASS: TestResolveSampleCount_APIForce4 (0.11s)
+=== RUN   TestResolveSampleCount_APIForce1
+--- PASS: TestResolveSampleCount_APIForce1 (0.12s)
+=== RUN   TestGPUShared_SampleCount_Default
+--- PASS: TestGPUShared_SampleCount_Default (0.00s)
+=== RUN   TestGPUShared_SampleCount_AfterInit
+--- PASS: TestGPUShared_SampleCount_AfterInit (0.00s)
+=== RUN   TestMultisampleState
+=== RUN   TestMultisampleState/4x_MSAA
+=== RUN   TestMultisampleState/1x_no_MSAA
+--- PASS: TestMultisampleState (0.00s)
+    --- PASS: TestMultisampleState/4x_MSAA (0.00s)
+    --- PASS: TestMultisampleState/1x_no_MSAA (0.00s)
+=== RUN   TestConstructors_WithSampleCount
+=== RUN   TestConstructors_WithSampleCount/4x_MSAA
+=== RUN   TestConstructors_WithSampleCount/1x_fallback
+--- PASS: TestConstructors_WithSampleCount (0.09s)
+    --- PASS: TestConstructors_WithSampleCount/4x_MSAA (0.00s)
+    --- PASS: TestConstructors_WithSampleCount/1x_fallback (0.00s)
+=== RUN   TestGPUShared_RasterAtlas_DeviceReadyWithoutPipelines
+--- PASS: TestGPUShared_RasterAtlas_DeviceReadyWithoutPipelines (0.00s)
+=== RUN   TestGPUShared_FullStrategy_BothReady
+--- PASS: TestGPUShared_FullStrategy_BothReady (0.00s)
+=== RUN   TestGPUShared_Close_ResetsBothFlags
+--- PASS: TestGPUShared_Close_ResetsBothFlags (0.00s)
+=== RUN   TestCreateOffscreenTexture_RasterAtlas_DeviceReady
+--- PASS: TestCreateOffscreenTexture_RasterAtlas_DeviceReady (0.00s)
+=== RUN   TestCreateOffscreenTexture_NilShared_Bails
+--- PASS: TestCreateOffscreenTexture_NilShared_Bails (0.00s)
+=== RUN   TestFillShape_RasterAtlas_FallsBackToCPU
+--- PASS: TestFillShape_RasterAtlas_FallsBackToCPU (0.06s)
+=== RUN   TestFillPath_RasterAtlas_FallsBackToCPU
+--- PASS: TestFillPath_RasterAtlas_FallsBackToCPU (0.06s)
+=== RUN   TestUploadPixmapToView_RasterAtlas
+--- PASS: TestUploadPixmapToView_RasterAtlas (0.10s)
+=== RUN   TestUploadPixmapToView_NilQueue
+--- PASS: TestUploadPixmapToView_NilQueue (0.00s)
+=== RUN   TestUploadPixmapToView_EmptyData
+--- PASS: TestUploadPixmapToView_EmptyData (0.08s)
+=== RUN   TestUploadPixmapToView_NilView
+--- PASS: TestUploadPixmapToView_NilView (0.09s)
+=== RUN   TestFlush_RasterAtlas_OffscreenTriggersUpload
+--- PASS: TestFlush_RasterAtlas_OffscreenTriggersUpload (0.10s)
+=== RUN   TestFlush_FullStrategy_OffscreenDoesNotUpload
+--- PASS: TestFlush_FullStrategy_OffscreenDoesNotUpload (0.08s)
+=== RUN   TestRGBASwizzle
+--- PASS: TestRGBASwizzle (0.00s)
+=== RUN   TestEnsurePipelines_RasterAtlas_Skips
+--- PASS: TestEnsurePipelines_RasterAtlas_Skips (0.00s)
+=== RUN   TestGPUShared_AbandonKeepsMSDFAtlasMapsWritable
+--- PASS: TestGPUShared_AbandonKeepsMSDFAtlasMapsWritable (0.00s)
+PASS

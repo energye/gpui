@@ -1,0 +1,5 @@
+=== RUN   TestRenderText_MeasureCacheHit
+--- PASS: TestRenderText_MeasureCacheHit (0.00s)
+=== RUN   TestRenderText_MeasureCacheStableWidth
+--- PASS: TestRenderText_MeasureCacheStableWidth (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestRenderVideoUploadPlanes_FailClosed
+--- PASS: TestRenderVideoUploadPlanes_FailClosed (0.00s)
+=== RUN   TestRenderVideoUploadPlanes_RGBAShapeRoutes
+--- PASS: TestRenderVideoUploadPlanes_RGBAShapeRoutes (0.00s)
+=== RUN   TestRenderVideoUploadPlanes_OddPlanesFallBackToRGBA
+--- PASS: TestRenderVideoUploadPlanes_OddPlanesFallBackToRGBA (0.00s)
+PASS

@@ -1,0 +1,457 @@
+=== RUN   TestIsAbstractType
+=== RUN   TestIsAbstractType/concrete_scalar_f32
+=== RUN   TestIsAbstractType/concrete_scalar_i32
+=== RUN   TestIsAbstractType/concrete_scalar_u32
+=== RUN   TestIsAbstractType/concrete_scalar_bool
+=== RUN   TestIsAbstractType/abstract_int
+=== RUN   TestIsAbstractType/abstract_float
+=== RUN   TestIsAbstractType/vector_with_abstract_float
+=== RUN   TestIsAbstractType/vector_with_concrete_float
+=== RUN   TestIsAbstractType/matrix_with_abstract_int
+=== RUN   TestIsAbstractType/matrix_with_concrete_float
+=== RUN   TestIsAbstractType/array_with_abstract_base
+=== RUN   TestIsAbstractType/array_with_concrete_base
+=== RUN   TestIsAbstractType/struct_is_never_abstract
+=== RUN   TestIsAbstractType/pointer_is_never_abstract
+=== RUN   TestIsAbstractType/sampler_is_never_abstract
+--- PASS: TestIsAbstractType (0.00s)
+    --- PASS: TestIsAbstractType/concrete_scalar_f32 (0.00s)
+    --- PASS: TestIsAbstractType/concrete_scalar_i32 (0.00s)
+    --- PASS: TestIsAbstractType/concrete_scalar_u32 (0.00s)
+    --- PASS: TestIsAbstractType/concrete_scalar_bool (0.00s)
+    --- PASS: TestIsAbstractType/abstract_int (0.00s)
+    --- PASS: TestIsAbstractType/abstract_float (0.00s)
+    --- PASS: TestIsAbstractType/vector_with_abstract_float (0.00s)
+    --- PASS: TestIsAbstractType/vector_with_concrete_float (0.00s)
+    --- PASS: TestIsAbstractType/matrix_with_abstract_int (0.00s)
+    --- PASS: TestIsAbstractType/matrix_with_concrete_float (0.00s)
+    --- PASS: TestIsAbstractType/array_with_abstract_base (0.00s)
+    --- PASS: TestIsAbstractType/array_with_concrete_base (0.00s)
+    --- PASS: TestIsAbstractType/struct_is_never_abstract (0.00s)
+    --- PASS: TestIsAbstractType/pointer_is_never_abstract (0.00s)
+    --- PASS: TestIsAbstractType/sampler_is_never_abstract (0.00s)
+=== RUN   TestIsPreEmitExpression
+=== RUN   TestIsPreEmitExpression/Literal
+=== RUN   TestIsPreEmitExpression/ExprConstant
+=== RUN   TestIsPreEmitExpression/ExprOverride
+=== RUN   TestIsPreEmitExpression/ExprZeroValue
+=== RUN   TestIsPreEmitExpression/ExprGlobalVariable
+=== RUN   TestIsPreEmitExpression/ExprFunctionArgument
+=== RUN   TestIsPreEmitExpression/ExprLocalVariable
+=== RUN   TestIsPreEmitExpression/ExprBinary_not_pre-emit
+=== RUN   TestIsPreEmitExpression/ExprUnary_not_pre-emit
+=== RUN   TestIsPreEmitExpression/ExprLoad_not_pre-emit
+=== RUN   TestIsPreEmitExpression/ExprAccess_not_pre-emit
+=== RUN   TestIsPreEmitExpression/ExprCompose_not_pre-emit
+=== RUN   TestIsPreEmitExpression/ExprMath_not_pre-emit
+--- PASS: TestIsPreEmitExpression (0.00s)
+    --- PASS: TestIsPreEmitExpression/Literal (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprConstant (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprOverride (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprZeroValue (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprGlobalVariable (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprFunctionArgument (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprLocalVariable (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprBinary_not_pre-emit (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprUnary_not_pre-emit (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprLoad_not_pre-emit (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprAccess_not_pre-emit (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprCompose_not_pre-emit (0.00s)
+    --- PASS: TestIsPreEmitExpression/ExprMath_not_pre-emit (0.00s)
+=== RUN   TestCompactUnused_NoEntryPoints
+--- PASS: TestCompactUnused_NoEntryPoints (0.00s)
+=== RUN   TestCompactUnused_RemovesUnusedGlobals
+--- PASS: TestCompactUnused_RemovesUnusedGlobals (0.00s)
+=== RUN   TestCompactUnused_RemovesUnusedFunctions
+--- PASS: TestCompactUnused_RemovesUnusedFunctions (0.00s)
+=== RUN   TestCompactUnused_AllUsed
+--- PASS: TestCompactUnused_AllUsed (0.00s)
+=== RUN   TestCompactUnused_MeshShaderTaskPayload
+--- PASS: TestCompactUnused_MeshShaderTaskPayload (0.00s)
+=== RUN   TestCompactTypes_EmptyModule
+--- PASS: TestCompactTypes_EmptyModule (0.00s)
+=== RUN   TestCompactTypes_RemovesUnreferencedAnonymousTypes
+--- PASS: TestCompactTypes_RemovesUnreferencedAnonymousTypes (0.00s)
+=== RUN   TestCompactTypes_RemovesAbstractTypes
+--- PASS: TestCompactTypes_RemovesAbstractTypes (0.00s)
+=== RUN   TestCompactTypes_RemapsHandlesInTypes
+--- PASS: TestCompactTypes_RemapsHandlesInTypes (0.00s)
+=== RUN   TestCompactTypes_UnnamedUnreferenced
+--- PASS: TestCompactTypes_UnnamedUnreferenced (0.00s)
+=== RUN   TestCompactTypes_NamedTypesKept
+--- PASS: TestCompactTypes_NamedTypesKept (0.00s)
+=== RUN   TestCompactConstants_EmptyModule
+--- PASS: TestCompactConstants_EmptyModule (0.00s)
+=== RUN   TestCompactConstants_RemovesAbstractConstants
+--- PASS: TestCompactConstants_RemovesAbstractConstants (0.00s)
+=== RUN   TestCompactConstants_KeepsReferencedByGlobalVarInit
+--- PASS: TestCompactConstants_KeepsReferencedByGlobalVarInit (0.00s)
+=== RUN   TestCompactConstants_TransitiveKeepComposite
+--- PASS: TestCompactConstants_TransitiveKeepComposite (0.00s)
+=== RUN   TestCompactConstants_AllKept
+--- PASS: TestCompactConstants_AllKept (0.00s)
+=== RUN   TestCompactExpressions_RemovesUnusedExpressions
+--- PASS: TestCompactExpressions_RemovesUnusedExpressions (0.00s)
+=== RUN   TestCompactExpressions_KeepsNamedExpressions
+--- PASS: TestCompactExpressions_KeepsNamedExpressions (0.00s)
+=== RUN   TestCompactExpressions_TransitiveDependencies
+--- PASS: TestCompactExpressions_TransitiveDependencies (0.00s)
+=== RUN   TestCompactExpressions_AllUsed
+--- PASS: TestCompactExpressions_AllUsed (0.00s)
+=== RUN   TestCompactExpressions_EmptyFunction
+--- PASS: TestCompactExpressions_EmptyFunction (0.00s)
+=== RUN   TestCompactExpressions_RemapsEmitRanges
+--- PASS: TestCompactExpressions_RemapsEmitRanges (0.00s)
+=== RUN   TestCompactExpressions_LocalVarInitKept
+--- PASS: TestCompactExpressions_LocalVarInitKept (0.00s)
+=== RUN   TestReorderTypes_EmptyModule
+--- PASS: TestReorderTypes_EmptyModule (0.00s)
+=== RUN   TestReorderTypes_AlreadyOrdered
+--- PASS: TestReorderTypes_AlreadyOrdered (0.00s)
+=== RUN   TestReorderTypes_ReordersBasedOnTypeUseOrder
+--- PASS: TestReorderTypes_ReordersBasedOnTypeUseOrder (0.00s)
+=== RUN   TestReorderTypes_RemapsSpecialTypes
+--- PASS: TestReorderTypes_RemapsSpecialTypes (0.00s)
+=== RUN   TestDeduplicateEmits_RemovesEmptyEmits
+--- PASS: TestDeduplicateEmits_RemovesEmptyEmits (0.00s)
+=== RUN   TestDeduplicateEmits_RemovesCoveredEmits
+--- PASS: TestDeduplicateEmits_RemovesCoveredEmits (0.00s)
+=== RUN   TestDeduplicateEmits_SkipsPreEmitOnlyRanges
+--- PASS: TestDeduplicateEmits_SkipsPreEmitOnlyRanges (0.00s)
+=== RUN   TestMarkTypeInnerRefs
+=== RUN   TestMarkTypeInnerRefs/array_marks_base
+=== RUN   TestMarkTypeInnerRefs/struct_marks_members
+=== RUN   TestMarkTypeInnerRefs/pointer_marks_base
+=== RUN   TestMarkTypeInnerRefs/binding_array_marks_base
+=== RUN   TestMarkTypeInnerRefs/scalar_marks_nothing
+=== RUN   TestMarkTypeInnerRefs/vector_marks_nothing
+--- PASS: TestMarkTypeInnerRefs (0.00s)
+    --- PASS: TestMarkTypeInnerRefs/array_marks_base (0.00s)
+    --- PASS: TestMarkTypeInnerRefs/struct_marks_members (0.00s)
+    --- PASS: TestMarkTypeInnerRefs/pointer_marks_base (0.00s)
+    --- PASS: TestMarkTypeInnerRefs/binding_array_marks_base (0.00s)
+    --- PASS: TestMarkTypeInnerRefs/scalar_marks_nothing (0.00s)
+    --- PASS: TestMarkTypeInnerRefs/vector_marks_nothing (0.00s)
+=== RUN   TestMarkExprTypeRefs
+=== RUN   TestMarkExprTypeRefs/ZeroValue_marks_type
+=== RUN   TestMarkExprTypeRefs/Compose_marks_type
+=== RUN   TestMarkExprTypeRefs/SubgroupOperationResult_marks_type
+=== RUN   TestMarkExprTypeRefs/AtomicResult_marks_type
+=== RUN   TestMarkExprTypeRefs/Literal_marks_nothing
+=== RUN   TestMarkExprTypeRefs/Binary_marks_nothing
+--- PASS: TestMarkExprTypeRefs (0.00s)
+    --- PASS: TestMarkExprTypeRefs/ZeroValue_marks_type (0.00s)
+    --- PASS: TestMarkExprTypeRefs/Compose_marks_type (0.00s)
+    --- PASS: TestMarkExprTypeRefs/SubgroupOperationResult_marks_type (0.00s)
+    --- PASS: TestMarkExprTypeRefs/AtomicResult_marks_type (0.00s)
+    --- PASS: TestMarkExprTypeRefs/Literal_marks_nothing (0.00s)
+    --- PASS: TestMarkExprTypeRefs/Binary_marks_nothing (0.00s)
+=== RUN   TestRemapTypeInner
+=== RUN   TestRemapTypeInner/array_remaps_base
+=== RUN   TestRemapTypeInner/pointer_remaps_base
+=== RUN   TestRemapTypeInner/binding_array_remaps_base
+=== RUN   TestRemapTypeInner/struct_remaps_member_types
+=== RUN   TestRemapTypeInner/scalar_unchanged
+--- PASS: TestRemapTypeInner (0.00s)
+    --- PASS: TestRemapTypeInner/array_remaps_base (0.00s)
+    --- PASS: TestRemapTypeInner/pointer_remaps_base (0.00s)
+    --- PASS: TestRemapTypeInner/binding_array_remaps_base (0.00s)
+    --- PASS: TestRemapTypeInner/struct_remaps_member_types (0.00s)
+    --- PASS: TestRemapTypeInner/scalar_unchanged (0.00s)
+=== RUN   TestRemapExprTypeHandles
+=== RUN   TestRemapExprTypeHandles/ZeroValue
+=== RUN   TestRemapExprTypeHandles/Compose
+=== RUN   TestRemapExprTypeHandles/SubgroupOperationResult
+=== RUN   TestRemapExprTypeHandles/AtomicResult
+=== RUN   TestRemapExprTypeHandles/literal_unchanged
+--- PASS: TestRemapExprTypeHandles (0.00s)
+    --- PASS: TestRemapExprTypeHandles/ZeroValue (0.00s)
+    --- PASS: TestRemapExprTypeHandles/Compose (0.00s)
+    --- PASS: TestRemapExprTypeHandles/SubgroupOperationResult (0.00s)
+    --- PASS: TestRemapExprTypeHandles/AtomicResult (0.00s)
+    --- PASS: TestRemapExprTypeHandles/literal_unchanged (0.00s)
+=== RUN   TestRemapExprHandles
+=== RUN   TestRemapExprHandles/Binary
+=== RUN   TestRemapExprHandles/Unary
+=== RUN   TestRemapExprHandles/Access
+=== RUN   TestRemapExprHandles/AccessIndex
+=== RUN   TestRemapExprHandles/Compose
+=== RUN   TestRemapExprHandles/Load
+=== RUN   TestRemapExprHandles/Select
+=== RUN   TestRemapExprHandles/Math
+=== RUN   TestRemapExprHandles/Literal_passthrough
+=== RUN   TestRemapExprHandles/Splat
+=== RUN   TestRemapExprHandles/Swizzle
+=== RUN   TestRemapExprHandles/As
+=== RUN   TestRemapExprHandles/ArrayLength
+=== RUN   TestRemapExprHandles/Derivative
+=== RUN   TestRemapExprHandles/Relational
+--- PASS: TestRemapExprHandles (0.00s)
+    --- PASS: TestRemapExprHandles/Binary (0.00s)
+    --- PASS: TestRemapExprHandles/Unary (0.00s)
+    --- PASS: TestRemapExprHandles/Access (0.00s)
+    --- PASS: TestRemapExprHandles/AccessIndex (0.00s)
+    --- PASS: TestRemapExprHandles/Compose (0.00s)
+    --- PASS: TestRemapExprHandles/Load (0.00s)
+    --- PASS: TestRemapExprHandles/Select (0.00s)
+    --- PASS: TestRemapExprHandles/Math (0.00s)
+    --- PASS: TestRemapExprHandles/Literal_passthrough (0.00s)
+    --- PASS: TestRemapExprHandles/Splat (0.00s)
+    --- PASS: TestRemapExprHandles/Swizzle (0.00s)
+    --- PASS: TestRemapExprHandles/As (0.00s)
+    --- PASS: TestRemapExprHandles/ArrayLength (0.00s)
+    --- PASS: TestRemapExprHandles/Derivative (0.00s)
+    --- PASS: TestRemapExprHandles/Relational (0.00s)
+=== RUN   TestRemapSampleLevel
+=== RUN   TestRemapSampleLevel/nil
+=== RUN   TestRemapSampleLevel/auto_unchanged
+=== RUN   TestRemapSampleLevel/zero_unchanged
+=== RUN   TestRemapSampleLevel/exact_remaps_level
+=== RUN   TestRemapSampleLevel/bias_remaps_bias
+=== RUN   TestRemapSampleLevel/gradient_remaps_x_and_y
+--- PASS: TestRemapSampleLevel (0.00s)
+    --- PASS: TestRemapSampleLevel/nil (0.00s)
+    --- PASS: TestRemapSampleLevel/auto_unchanged (0.00s)
+    --- PASS: TestRemapSampleLevel/zero_unchanged (0.00s)
+    --- PASS: TestRemapSampleLevel/exact_remaps_level (0.00s)
+    --- PASS: TestRemapSampleLevel/bias_remaps_bias (0.00s)
+    --- PASS: TestRemapSampleLevel/gradient_remaps_x_and_y (0.00s)
+=== RUN   TestMarkExprHandleRefs
+=== RUN   TestMarkExprHandleRefs/Compose
+=== RUN   TestMarkExprHandleRefs/Splat
+=== RUN   TestMarkExprHandleRefs/Swizzle
+=== RUN   TestMarkExprHandleRefs/Access
+=== RUN   TestMarkExprHandleRefs/AccessIndex
+=== RUN   TestMarkExprHandleRefs/Load
+=== RUN   TestMarkExprHandleRefs/Unary
+=== RUN   TestMarkExprHandleRefs/Binary
+=== RUN   TestMarkExprHandleRefs/Select
+=== RUN   TestMarkExprHandleRefs/Relational
+=== RUN   TestMarkExprHandleRefs/As
+=== RUN   TestMarkExprHandleRefs/ArrayLength
+=== RUN   TestMarkExprHandleRefs/Derivative
+--- PASS: TestMarkExprHandleRefs (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Compose (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Splat (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Swizzle (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Access (0.00s)
+    --- PASS: TestMarkExprHandleRefs/AccessIndex (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Load (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Unary (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Binary (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Select (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Relational (0.00s)
+    --- PASS: TestMarkExprHandleRefs/As (0.00s)
+    --- PASS: TestMarkExprHandleRefs/ArrayLength (0.00s)
+    --- PASS: TestMarkExprHandleRefs/Derivative (0.00s)
+=== RUN   TestTraceStatementsForRefs
+--- PASS: TestTraceStatementsForRefs (0.00s)
+=== RUN   TestTraceStatementsForRefs_NestedBlocks
+--- PASS: TestTraceStatementsForRefs_NestedBlocks (0.00s)
+=== RUN   TestRemapGatherMode
+=== RUN   TestRemapGatherMode/Broadcast
+=== RUN   TestRemapGatherMode/Shuffle
+=== RUN   TestRemapGatherMode/ShuffleDown
+=== RUN   TestRemapGatherMode/ShuffleUp
+=== RUN   TestRemapGatherMode/ShuffleXor
+=== RUN   TestRemapGatherMode/QuadBroadcast
+=== RUN   TestRemapGatherMode/BroadcastFirst_passthrough
+=== RUN   TestRemapGatherMode/QuadSwap_passthrough
+--- PASS: TestRemapGatherMode (0.00s)
+    --- PASS: TestRemapGatherMode/Broadcast (0.00s)
+    --- PASS: TestRemapGatherMode/Shuffle (0.00s)
+    --- PASS: TestRemapGatherMode/ShuffleDown (0.00s)
+    --- PASS: TestRemapGatherMode/ShuffleUp (0.00s)
+    --- PASS: TestRemapGatherMode/ShuffleXor (0.00s)
+    --- PASS: TestRemapGatherMode/QuadBroadcast (0.00s)
+    --- PASS: TestRemapGatherMode/BroadcastFirst_passthrough (0.00s)
+    --- PASS: TestRemapGatherMode/QuadSwap_passthrough (0.00s)
+=== RUN   TestRemapRayQueryFunction
+=== RUN   TestRemapRayQueryFunction/Initialize
+=== RUN   TestRemapRayQueryFunction/Proceed
+=== RUN   TestRemapRayQueryFunction/GenerateIntersection
+=== RUN   TestRemapRayQueryFunction/Terminate_passthrough
+--- PASS: TestRemapRayQueryFunction (0.00s)
+    --- PASS: TestRemapRayQueryFunction/Initialize (0.00s)
+    --- PASS: TestRemapRayQueryFunction/Proceed (0.00s)
+    --- PASS: TestRemapRayQueryFunction/GenerateIntersection (0.00s)
+    --- PASS: TestRemapRayQueryFunction/Terminate_passthrough (0.00s)
+=== RUN   TestRemapAtomicFunction
+=== RUN   TestRemapAtomicFunction/Exchange_with_compare
+=== RUN   TestRemapAtomicFunction/Exchange_without_compare
+=== RUN   TestRemapAtomicFunction/Add_passthrough
+--- PASS: TestRemapAtomicFunction (0.00s)
+    --- PASS: TestRemapAtomicFunction/Exchange_with_compare (0.00s)
+    --- PASS: TestRemapAtomicFunction/Exchange_without_compare (0.00s)
+    --- PASS: TestRemapAtomicFunction/Add_passthrough (0.00s)
+=== RUN   TestVisitExprTypeHandles
+=== RUN   TestVisitExprTypeHandles/ZeroValue
+=== RUN   TestVisitExprTypeHandles/Compose
+=== RUN   TestVisitExprTypeHandles/SubgroupOperationResult
+=== RUN   TestVisitExprTypeHandles/AtomicResult
+=== RUN   TestVisitExprTypeHandles/Literal_no_visits
+--- PASS: TestVisitExprTypeHandles (0.00s)
+    --- PASS: TestVisitExprTypeHandles/ZeroValue (0.00s)
+    --- PASS: TestVisitExprTypeHandles/Compose (0.00s)
+    --- PASS: TestVisitExprTypeHandles/SubgroupOperationResult (0.00s)
+    --- PASS: TestVisitExprTypeHandles/AtomicResult (0.00s)
+    --- PASS: TestVisitExprTypeHandles/Literal_no_visits (0.00s)
+=== RUN   TestMarkSampleLevelRefs
+=== RUN   TestMarkSampleLevelRefs/nil
+=== RUN   TestMarkSampleLevelRefs/Auto
+=== RUN   TestMarkSampleLevelRefs/Exact
+=== RUN   TestMarkSampleLevelRefs/Bias
+=== RUN   TestMarkSampleLevelRefs/Gradient
+--- PASS: TestMarkSampleLevelRefs (0.00s)
+    --- PASS: TestMarkSampleLevelRefs/nil (0.00s)
+    --- PASS: TestMarkSampleLevelRefs/Auto (0.00s)
+    --- PASS: TestMarkSampleLevelRefs/Exact (0.00s)
+    --- PASS: TestMarkSampleLevelRefs/Bias (0.00s)
+    --- PASS: TestMarkSampleLevelRefs/Gradient (0.00s)
+=== RUN   TestMarkStmtExprRefs
+=== RUN   TestMarkStmtExprRefs/Store_marks_pointer_and_value
+=== RUN   TestMarkStmtExprRefs/Return_marks_value
+=== RUN   TestMarkStmtExprRefs/Return_nil_value_marks_nothing
+=== RUN   TestMarkStmtExprRefs/If_marks_condition_and_recurses
+=== RUN   TestMarkStmtExprRefs/Switch_marks_selector_and_case_bodies
+=== RUN   TestMarkStmtExprRefs/Loop_marks_body,_continuing,_and_break_if
+=== RUN   TestMarkStmtExprRefs/Block_recurses
+=== RUN   TestMarkStmtExprRefs/Call_marks_arguments_and_result
+=== RUN   TestMarkStmtExprRefs/ImageStore_marks_all_fields
+=== RUN   TestMarkStmtExprRefs/Emit_marks_range
+=== RUN   TestMarkStmtExprRefs/Atomic_marks_pointer,_value,_result
+=== RUN   TestMarkStmtExprRefs/WorkGroupUniformLoad_marks_pointer_and_result
+=== RUN   TestMarkStmtExprRefs/RayQuery_marks_query_and_function_refs
+=== RUN   TestMarkStmtExprRefs/SubgroupBallot_marks_predicate_and_result
+=== RUN   TestMarkStmtExprRefs/SubgroupGather_marks_mode,_argument,_result
+=== RUN   TestMarkStmtExprRefs/ImageAtomic_marks_all_fields
+=== RUN   TestMarkStmtExprRefs/SubgroupCollectiveOperation_marks_argument_and_result
+--- PASS: TestMarkStmtExprRefs (0.00s)
+    --- PASS: TestMarkStmtExprRefs/Store_marks_pointer_and_value (0.00s)
+    --- PASS: TestMarkStmtExprRefs/Return_marks_value (0.00s)
+    --- PASS: TestMarkStmtExprRefs/Return_nil_value_marks_nothing (0.00s)
+    --- PASS: TestMarkStmtExprRefs/If_marks_condition_and_recurses (0.00s)
+    --- PASS: TestMarkStmtExprRefs/Switch_marks_selector_and_case_bodies (0.00s)
+    --- PASS: TestMarkStmtExprRefs/Loop_marks_body,_continuing,_and_break_if (0.00s)
+    --- PASS: TestMarkStmtExprRefs/Block_recurses (0.00s)
+    --- PASS: TestMarkStmtExprRefs/Call_marks_arguments_and_result (0.00s)
+    --- PASS: TestMarkStmtExprRefs/ImageStore_marks_all_fields (0.00s)
+    --- PASS: TestMarkStmtExprRefs/Emit_marks_range (0.00s)
+    --- PASS: TestMarkStmtExprRefs/Atomic_marks_pointer,_value,_result (0.00s)
+    --- PASS: TestMarkStmtExprRefs/WorkGroupUniformLoad_marks_pointer_and_result (0.00s)
+    --- PASS: TestMarkStmtExprRefs/RayQuery_marks_query_and_function_refs (0.00s)
+    --- PASS: TestMarkStmtExprRefs/SubgroupBallot_marks_predicate_and_result (0.00s)
+    --- PASS: TestMarkStmtExprRefs/SubgroupGather_marks_mode,_argument,_result (0.00s)
+    --- PASS: TestMarkStmtExprRefs/ImageAtomic_marks_all_fields (0.00s)
+    --- PASS: TestMarkStmtExprRefs/SubgroupCollectiveOperation_marks_argument_and_result (0.00s)
+=== RUN   TestMarkRayQueryFunctionRefs
+=== RUN   TestMarkRayQueryFunctionRefs/Initialize
+=== RUN   TestMarkRayQueryFunctionRefs/Proceed
+=== RUN   TestMarkRayQueryFunctionRefs/GenerateIntersection
+=== RUN   TestMarkRayQueryFunctionRefs/Terminate_marks_nothing
+--- PASS: TestMarkRayQueryFunctionRefs (0.00s)
+    --- PASS: TestMarkRayQueryFunctionRefs/Initialize (0.00s)
+    --- PASS: TestMarkRayQueryFunctionRefs/Proceed (0.00s)
+    --- PASS: TestMarkRayQueryFunctionRefs/GenerateIntersection (0.00s)
+    --- PASS: TestMarkRayQueryFunctionRefs/Terminate_marks_nothing (0.00s)
+=== RUN   TestMarkAtomicFunctionRefs
+=== RUN   TestMarkAtomicFunctionRefs/Exchange_with_compare
+=== RUN   TestMarkAtomicFunctionRefs/Exchange_without_compare
+=== RUN   TestMarkAtomicFunctionRefs/Add_marks_nothing
+--- PASS: TestMarkAtomicFunctionRefs (0.00s)
+    --- PASS: TestMarkAtomicFunctionRefs/Exchange_with_compare (0.00s)
+    --- PASS: TestMarkAtomicFunctionRefs/Exchange_without_compare (0.00s)
+    --- PASS: TestMarkAtomicFunctionRefs/Add_marks_nothing (0.00s)
+=== RUN   TestMarkGatherModeRefs
+=== RUN   TestMarkGatherModeRefs/Broadcast_marks_index
+=== RUN   TestMarkGatherModeRefs/Shuffle_marks_index
+=== RUN   TestMarkGatherModeRefs/ShuffleDown_marks_delta
+=== RUN   TestMarkGatherModeRefs/ShuffleUp_marks_delta
+=== RUN   TestMarkGatherModeRefs/ShuffleXor_marks_mask
+=== RUN   TestMarkGatherModeRefs/QuadBroadcast_marks_index
+=== RUN   TestMarkGatherModeRefs/BroadcastFirst_marks_nothing
+--- PASS: TestMarkGatherModeRefs (0.00s)
+    --- PASS: TestMarkGatherModeRefs/Broadcast_marks_index (0.00s)
+    --- PASS: TestMarkGatherModeRefs/Shuffle_marks_index (0.00s)
+    --- PASS: TestMarkGatherModeRefs/ShuffleDown_marks_delta (0.00s)
+    --- PASS: TestMarkGatherModeRefs/ShuffleUp_marks_delta (0.00s)
+    --- PASS: TestMarkGatherModeRefs/ShuffleXor_marks_mask (0.00s)
+    --- PASS: TestMarkGatherModeRefs/QuadBroadcast_marks_index (0.00s)
+    --- PASS: TestMarkGatherModeRefs/BroadcastFirst_marks_nothing (0.00s)
+=== RUN   TestRemapStmtExprHandles
+=== RUN   TestRemapStmtExprHandles/Store
+=== RUN   TestRemapStmtExprHandles/Return_with_value
+=== RUN   TestRemapStmtExprHandles/If_remaps_condition
+=== RUN   TestRemapStmtExprHandles/Switch_remaps_selector
+=== RUN   TestRemapStmtExprHandles/Loop_remaps_breakIf
+=== RUN   TestRemapStmtExprHandles/Call_remaps_arguments_and_result
+=== RUN   TestRemapStmtExprHandles/Emit_remaps_range
+=== RUN   TestRemapStmtExprHandles/ImageStore_remaps
+=== RUN   TestRemapStmtExprHandles/Block_recurses
+=== RUN   TestRemapStmtExprHandles/Atomic_remaps
+=== RUN   TestRemapStmtExprHandles/WorkGroupUniformLoad_remaps
+=== RUN   TestRemapStmtExprHandles/RayQuery_remaps
+=== RUN   TestRemapStmtExprHandles/SubgroupBallot_remaps
+=== RUN   TestRemapStmtExprHandles/SubgroupGather_remaps
+=== RUN   TestRemapStmtExprHandles/ImageAtomic_remaps
+=== RUN   TestRemapStmtExprHandles/SubgroupCollectiveOperation_remaps
+--- PASS: TestRemapStmtExprHandles (0.00s)
+    --- PASS: TestRemapStmtExprHandles/Store (0.00s)
+    --- PASS: TestRemapStmtExprHandles/Return_with_value (0.00s)
+    --- PASS: TestRemapStmtExprHandles/If_remaps_condition (0.00s)
+    --- PASS: TestRemapStmtExprHandles/Switch_remaps_selector (0.00s)
+    --- PASS: TestRemapStmtExprHandles/Loop_remaps_breakIf (0.00s)
+    --- PASS: TestRemapStmtExprHandles/Call_remaps_arguments_and_result (0.00s)
+    --- PASS: TestRemapStmtExprHandles/Emit_remaps_range (0.00s)
+    --- PASS: TestRemapStmtExprHandles/ImageStore_remaps (0.00s)
+    --- PASS: TestRemapStmtExprHandles/Block_recurses (0.00s)
+    --- PASS: TestRemapStmtExprHandles/Atomic_remaps (0.00s)
+    --- PASS: TestRemapStmtExprHandles/WorkGroupUniformLoad_remaps (0.00s)
+    --- PASS: TestRemapStmtExprHandles/RayQuery_remaps (0.00s)
+    --- PASS: TestRemapStmtExprHandles/SubgroupBallot_remaps (0.00s)
+    --- PASS: TestRemapStmtExprHandles/SubgroupGather_remaps (0.00s)
+    --- PASS: TestRemapStmtExprHandles/ImageAtomic_remaps (0.00s)
+    --- PASS: TestRemapStmtExprHandles/SubgroupCollectiveOperation_remaps (0.00s)
+=== RUN   TestVisitFunctionTypes
+--- PASS: TestVisitFunctionTypes (0.00s)
+=== RUN   TestVisitFunctionTypes_NoResult
+--- PASS: TestVisitFunctionTypes_NoResult (0.00s)
+=== RUN   TestSafeRemapFunctionTypes
+--- PASS: TestSafeRemapFunctionTypes (0.00s)
+=== RUN   TestSafeRemapFunctionTypes_SentinelHandle
+--- PASS: TestSafeRemapFunctionTypes_SentinelHandle (0.00s)
+=== RUN   TestRemapStmtFuncHandles
+=== RUN   TestRemapStmtFuncHandles/Call
+=== RUN   TestRemapStmtFuncHandles/Block_recurses
+=== RUN   TestRemapStmtFuncHandles/If_recurses
+=== RUN   TestRemapStmtFuncHandles/Switch_recurses
+=== RUN   TestRemapStmtFuncHandles/Loop_recurses
+--- PASS: TestRemapStmtFuncHandles (0.00s)
+    --- PASS: TestRemapStmtFuncHandles/Call (0.00s)
+    --- PASS: TestRemapStmtFuncHandles/Block_recurses (0.00s)
+    --- PASS: TestRemapStmtFuncHandles/If_recurses (0.00s)
+    --- PASS: TestRemapStmtFuncHandles/Switch_recurses (0.00s)
+    --- PASS: TestRemapStmtFuncHandles/Loop_recurses (0.00s)
+=== RUN   TestCompactExpressions_IfStatement
+--- PASS: TestCompactExpressions_IfStatement (0.00s)
+=== RUN   TestCompactExpressions_SwitchStatement
+--- PASS: TestCompactExpressions_SwitchStatement (0.00s)
+=== RUN   TestCompactExpressions_LoopStatement
+--- PASS: TestCompactExpressions_LoopStatement (0.00s)
+=== RUN   TestCompactExpressions_ImageStoreAndAtomic
+--- PASS: TestCompactExpressions_ImageStoreAndAtomic (0.00s)
+=== RUN   TestCompactExpressions_CallStatement
+--- PASS: TestCompactExpressions_CallStatement (0.00s)
+=== RUN   TestReorderTypes_WithStructDependencies
+--- PASS: TestReorderTypes_WithStructDependencies (0.00s)
+=== RUN   TestReorderTypes_WithArrayDependency
+--- PASS: TestReorderTypes_WithArrayDependency (0.00s)
+=== RUN   TestReorderTypes_WithPointerDependency
+--- PASS: TestReorderTypes_WithPointerDependency (0.00s)
+=== RUN   TestReorderTypes_WithBindingArrayDependency
+--- PASS: TestReorderTypes_WithBindingArrayDependency (0.00s)
+=== RUN   TestRemapFunctionTypes
+--- PASS: TestRemapFunctionTypes (0.00s)
+=== RUN   TestRemapFunctionTypes_AbstractTypeRemoved
+--- PASS: TestRemapFunctionTypes_AbstractTypeRemoved (0.00s)
+PASS

@@ -1,0 +1,118 @@
+=== RUN   TestNewRenderer
+=== RUN   TestNewRenderer/valid_dimensions
+=== RUN   TestNewRenderer/small_dimensions
+=== RUN   TestNewRenderer/zero_width
+=== RUN   TestNewRenderer/zero_height
+=== RUN   TestNewRenderer/negative_width
+=== RUN   TestNewRenderer/negative_height
+--- PASS: TestNewRenderer (0.00s)
+    --- PASS: TestNewRenderer/valid_dimensions (0.00s)
+    --- PASS: TestNewRenderer/small_dimensions (0.00s)
+    --- PASS: TestNewRenderer/zero_width (0.00s)
+    --- PASS: TestNewRenderer/zero_height (0.00s)
+    --- PASS: TestNewRenderer/negative_width (0.00s)
+    --- PASS: TestNewRenderer/negative_height (0.00s)
+=== RUN   TestRenderer_Dimensions
+--- PASS: TestRenderer_Dimensions (0.00s)
+=== RUN   TestRenderer_TileCount
+--- PASS: TestRenderer_TileCount (0.00s)
+=== RUN   TestRenderer_Options
+--- PASS: TestRenderer_Options (0.00s)
+=== RUN   TestRenderer_RenderEmptyScene
+--- PASS: TestRenderer_RenderEmptyScene (0.00s)
+=== RUN   TestRenderer_RenderSimpleScene
+--- PASS: TestRenderer_RenderSimpleScene (0.00s)
+=== RUN   TestRenderer_RenderDirty
+--- PASS: TestRenderer_RenderDirty (0.00s)
+=== RUN   TestRenderer_Resize
+--- PASS: TestRenderer_Resize (0.00s)
+=== RUN   TestRenderer_MarkDirty
+--- PASS: TestRenderer_MarkDirty (0.00s)
+=== RUN   TestRenderer_MarkAllDirty
+--- PASS: TestRenderer_MarkAllDirty (0.00s)
+=== RUN   TestRenderer_Stats
+--- PASS: TestRenderer_Stats (0.00s)
+=== RUN   TestRenderer_CacheStats
+--- PASS: TestRenderer_CacheStats (0.00s)
+=== RUN   TestRenderer_NilInputs
+--- PASS: TestRenderer_NilInputs (0.00s)
+=== RUN   TestRenderer_Close
+--- PASS: TestRenderer_Close (0.00s)
+=== RUN   TestRenderer_MultipleShapes
+--- PASS: TestRenderer_MultipleShapes (0.00s)
+=== RUN   TestRenderer_Transforms
+--- PASS: TestRenderer_Transforms (0.00s)
+=== RUN   TestRenderer_WithDefaultWorkers
+--- PASS: TestRenderer_WithDefaultWorkers (0.00s)
+=== RUN   TestRenderer_ParallelExecution
+--- PASS: TestRenderer_ParallelExecution (0.04s)
+=== RUN   TestRenderer_CircleFill
+    renderer_test.go:494: edge pixel at (140,100) = {R:0 G:0 B:0 A:0} (may be exactly on boundary)
+--- PASS: TestRenderer_CircleFill (0.00s)
+=== RUN   TestRenderer_CircleStroke
+--- PASS: TestRenderer_CircleStroke (0.00s)
+=== RUN   TestRenderer_BackgroundPreservation
+--- PASS: TestRenderer_BackgroundPreservation (0.00s)
+=== RUN   TestRenderer_AlphaCompositing
+--- PASS: TestRenderer_AlphaCompositing (0.00s)
+=== RUN   TestRenderer_RectFillPixels
+=== RUN   TestRenderer_RectFillPixels/inside_center
+=== RUN   TestRenderer_RectFillPixels/inside_top-left
+=== RUN   TestRenderer_RectFillPixels/inside_bottom-right
+=== RUN   TestRenderer_RectFillPixels/outside_top-left
+=== RUN   TestRenderer_RectFillPixels/outside_bottom-right
+--- PASS: TestRenderer_RectFillPixels (0.00s)
+    --- PASS: TestRenderer_RectFillPixels/inside_center (0.00s)
+    --- PASS: TestRenderer_RectFillPixels/inside_top-left (0.00s)
+    --- PASS: TestRenderer_RectFillPixels/inside_bottom-right (0.00s)
+    --- PASS: TestRenderer_RectFillPixels/outside_top-left (0.00s)
+    --- PASS: TestRenderer_RectFillPixels/outside_bottom-right (0.00s)
+=== RUN   TestRenderer_TransformPixels
+--- PASS: TestRenderer_TransformPixels (0.00s)
+=== RUN   TestConvertPath
+--- PASS: TestConvertPath (0.00s)
+=== RUN   TestConvertFillPaint
+=== RUN   TestConvertFillPaint/solid_non-zero
+=== RUN   TestConvertFillPaint/solid_even-odd
+--- PASS: TestConvertFillPaint (0.00s)
+    --- PASS: TestConvertFillPaint/solid_non-zero (0.00s)
+    --- PASS: TestConvertFillPaint/solid_even-odd (0.00s)
+=== RUN   TestConvertStrokePaint
+--- PASS: TestConvertStrokePaint (0.00s)
+=== RUN   TestConvertStrokePaintNilStyle
+--- PASS: TestConvertStrokePaintNilStyle (0.00s)
+=== RUN   TestClipBasic
+--- PASS: TestClipBasic (0.00s)
+=== RUN   TestClipNested
+--- PASS: TestClipNested (0.00s)
+=== RUN   TestClipRestore
+--- PASS: TestClipRestore (0.00s)
+=== RUN   TestClipEmpty
+--- PASS: TestClipEmpty (0.00s)
+=== RUN   TestClipWithCircle
+--- PASS: TestClipWithCircle (0.00s)
+=== RUN   TestClipWithTransform
+--- PASS: TestClipWithTransform (0.00s)
+=== RUN   TestClipBuilderAPI
+--- PASS: TestClipBuilderAPI (0.00s)
+=== RUN   TestExtractAlphaMask
+--- PASS: TestExtractAlphaMask (0.00s)
+=== RUN   TestApplyAlphaMask
+--- PASS: TestApplyAlphaMask (0.00s)
+=== RUN   TestCompositePixmaps
+--- PASS: TestCompositePixmaps (0.00s)
+=== RUN   TestRenderer_DrawImage_Identity
+--- PASS: TestRenderer_DrawImage_Identity (0.00s)
+=== RUN   TestRenderer_DrawImage_Translate
+--- PASS: TestRenderer_DrawImage_Translate (0.00s)
+=== RUN   TestRenderer_DrawImage_Scale
+--- PASS: TestRenderer_DrawImage_Scale (0.00s)
+=== RUN   TestRenderer_DrawImage_SemiTransparent
+--- PASS: TestRenderer_DrawImage_SemiTransparent (0.00s)
+=== RUN   TestRenderer_DrawImage_NilAndEmpty
+--- PASS: TestRenderer_DrawImage_NilAndEmpty (0.00s)
+=== RUN   TestRenderer_DrawImage_SpansTiles
+--- PASS: TestRenderer_DrawImage_SpansTiles (0.00s)
+=== RUN   TestRenderer_DrawImage_MultipleImages
+--- PASS: TestRenderer_DrawImage_MultipleImages (0.00s)
+PASS

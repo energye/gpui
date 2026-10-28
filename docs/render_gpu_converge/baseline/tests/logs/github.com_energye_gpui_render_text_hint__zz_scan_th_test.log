@@ -1,0 +1,9 @@
+=== RUN   TestScanTH
+th: bad@10px=0 (npt=0)
+th: bad@12px=0 (npt=0)
+th: bad@14px=0 (npt=0)
+th: bad@16px=0 (npt=0)
+th: bad@20px=0 (npt=0)
+th: bad@24px=0 (npt=0)
+--- PASS: TestScanTH (0.51s)
+PASS

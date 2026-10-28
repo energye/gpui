@@ -1,0 +1,12 @@
+=== RUN   TestVR3FFmpegParity
+=== RUN   TestVR3FFmpegParity/vr2_b_intra.mp4
+    gate_color_test.go:247: vr2_b_intra.mp4 frame 0: player md5 d41d8cd98f00b204e9800998ecf8427e != direct 782985d31513617794b2e54f736d0405 (backend output changed in transit)
+=== RUN   TestVR3FFmpegParity/vr2_480p.mp4
+    gate_color_test.go:247: vr2_480p.mp4 frame 0: player md5 d41d8cd98f00b204e9800998ecf8427e != direct 074528eaf8f65ec360e049ef6cce768c (backend output changed in transit)
+=== RUN   TestVR3FFmpegParity/vr2_720p.mp4
+    gate_color_test.go:247: vr2_720p.mp4 frame 0: player md5 d41d8cd98f00b204e9800998ecf8427e != direct d5b34d480575bcf88f07e37997ff770c (backend output changed in transit)
+--- FAIL: TestVR3FFmpegParity (0.45s)
+    --- FAIL: TestVR3FFmpegParity/vr2_b_intra.mp4 (0.06s)
+    --- FAIL: TestVR3FFmpegParity/vr2_480p.mp4 (0.13s)
+    --- FAIL: TestVR3FFmpegParity/vr2_720p.mp4 (0.25s)
+FAIL

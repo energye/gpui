@@ -1,0 +1,17 @@
+=== RUN   TestCreateRenderPipelineSimple
+    render_pipeline_test.go:47: Creating simple render pipeline...
+    render_pipeline_test.go:63: RenderPipeline created: handle=0x10947270
+--- PASS: TestCreateRenderPipelineSimple (0.23s)
+=== RUN   TestCreateRenderPipelineWithDescriptor
+    render_pipeline_test.go:104: Creating render pipeline with descriptor...
+    render_pipeline_test.go:133: RenderPipeline with descriptor created: handle=0x10045e90
+--- PASS: TestCreateRenderPipelineWithDescriptor (0.16s)
+=== RUN   TestRenderPipelineGetBindGroupLayout
+    render_pipeline_test.go:192: Getting bind group layout from render pipeline...
+    render_pipeline_test.go:203: BindGroupLayout from render pipeline: handle=0x1011b3b0
+--- PASS: TestRenderPipelineGetBindGroupLayout (0.16s)
+=== RUN   TestRenderPipelineWithDepth
+    render_pipeline_test.go:244: Creating render pipeline with depth testing...
+    render_pipeline_test.go:276: RenderPipeline with depth: handle=0x101fec60
+--- PASS: TestRenderPipelineWithDepth (0.17s)
+PASS

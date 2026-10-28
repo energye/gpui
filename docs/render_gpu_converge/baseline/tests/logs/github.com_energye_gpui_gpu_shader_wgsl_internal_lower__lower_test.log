@@ -1,0 +1,225 @@
+=== RUN   TestLowerSimpleVertexShader
+    lower_test.go:142: Successfully lowered vertex shader with 6 expressions
+--- PASS: TestLowerSimpleVertexShader (0.00s)
+=== RUN   TestLowerTypes
+=== RUN   TestLowerTypes/f32_scalar
+=== RUN   TestLowerTypes/vec3<f32>
+=== RUN   TestLowerTypes/mat4x4<f32>
+--- PASS: TestLowerTypes (0.00s)
+    --- PASS: TestLowerTypes/f32_scalar (0.00s)
+    --- PASS: TestLowerTypes/vec3<f32> (0.00s)
+    --- PASS: TestLowerTypes/mat4x4<f32> (0.00s)
+=== RUN   TestLowerExpressions
+=== RUN   TestLowerExpressions/integer_literal
+=== RUN   TestLowerExpressions/float_literal
+=== RUN   TestLowerExpressions/bool_literal
+--- PASS: TestLowerExpressions (0.00s)
+    --- PASS: TestLowerExpressions/integer_literal (0.00s)
+    --- PASS: TestLowerExpressions/float_literal (0.00s)
+    --- PASS: TestLowerExpressions/bool_literal (0.00s)
+=== RUN   TestUnusedVariableWarnings
+--- PASS: TestUnusedVariableWarnings (0.00s)
+=== RUN   TestUnusedVariableWarnings_UnderscoreIgnored
+--- PASS: TestUnusedVariableWarnings_UnderscoreIgnored (0.00s)
+=== RUN   TestMathFunctions
+=== RUN   TestMathFunctions/abs
+=== RUN   TestMathFunctions/min
+=== RUN   TestMathFunctions/max
+=== RUN   TestMathFunctions/clamp
+=== RUN   TestMathFunctions/saturate
+=== RUN   TestMathFunctions/sin
+=== RUN   TestMathFunctions/cos
+=== RUN   TestMathFunctions/tan
+=== RUN   TestMathFunctions/sinh
+=== RUN   TestMathFunctions/cosh
+=== RUN   TestMathFunctions/tanh
+=== RUN   TestMathFunctions/asin
+=== RUN   TestMathFunctions/acos
+=== RUN   TestMathFunctions/atan
+=== RUN   TestMathFunctions/atan2
+=== RUN   TestMathFunctions/asinh
+=== RUN   TestMathFunctions/acosh
+=== RUN   TestMathFunctions/atanh
+=== RUN   TestMathFunctions/radians
+=== RUN   TestMathFunctions/degrees
+=== RUN   TestMathFunctions/ceil
+=== RUN   TestMathFunctions/floor
+=== RUN   TestMathFunctions/round
+=== RUN   TestMathFunctions/fract
+=== RUN   TestMathFunctions/trunc
+=== RUN   TestMathFunctions/exp
+=== RUN   TestMathFunctions/exp2
+=== RUN   TestMathFunctions/log
+=== RUN   TestMathFunctions/log2
+=== RUN   TestMathFunctions/pow
+=== RUN   TestMathFunctions/sqrt
+=== RUN   TestMathFunctions/inverseSqrt
+=== RUN   TestMathFunctions/length
+=== RUN   TestMathFunctions/normalize
+=== RUN   TestMathFunctions/dot
+=== RUN   TestMathFunctions/cross
+=== RUN   TestMathFunctions/distance
+=== RUN   TestMathFunctions/faceForward
+=== RUN   TestMathFunctions/reflect
+=== RUN   TestMathFunctions/refract
+=== RUN   TestMathFunctions/sign
+=== RUN   TestMathFunctions/fma
+=== RUN   TestMathFunctions/mix
+=== RUN   TestMathFunctions/step
+=== RUN   TestMathFunctions/smoothstep
+--- PASS: TestMathFunctions (0.01s)
+    --- PASS: TestMathFunctions/abs (0.00s)
+    --- PASS: TestMathFunctions/min (0.00s)
+    --- PASS: TestMathFunctions/max (0.00s)
+    --- PASS: TestMathFunctions/clamp (0.00s)
+    --- PASS: TestMathFunctions/saturate (0.00s)
+    --- PASS: TestMathFunctions/sin (0.00s)
+    --- PASS: TestMathFunctions/cos (0.00s)
+    --- PASS: TestMathFunctions/tan (0.00s)
+    --- PASS: TestMathFunctions/sinh (0.00s)
+    --- PASS: TestMathFunctions/cosh (0.00s)
+    --- PASS: TestMathFunctions/tanh (0.00s)
+    --- PASS: TestMathFunctions/asin (0.00s)
+    --- PASS: TestMathFunctions/acos (0.00s)
+    --- PASS: TestMathFunctions/atan (0.00s)
+    --- PASS: TestMathFunctions/atan2 (0.00s)
+    --- PASS: TestMathFunctions/asinh (0.00s)
+    --- PASS: TestMathFunctions/acosh (0.00s)
+    --- PASS: TestMathFunctions/atanh (0.00s)
+    --- PASS: TestMathFunctions/radians (0.00s)
+    --- PASS: TestMathFunctions/degrees (0.00s)
+    --- PASS: TestMathFunctions/ceil (0.00s)
+    --- PASS: TestMathFunctions/floor (0.00s)
+    --- PASS: TestMathFunctions/round (0.00s)
+    --- PASS: TestMathFunctions/fract (0.00s)
+    --- PASS: TestMathFunctions/trunc (0.00s)
+    --- PASS: TestMathFunctions/exp (0.00s)
+    --- PASS: TestMathFunctions/exp2 (0.00s)
+    --- PASS: TestMathFunctions/log (0.00s)
+    --- PASS: TestMathFunctions/log2 (0.00s)
+    --- PASS: TestMathFunctions/pow (0.00s)
+    --- PASS: TestMathFunctions/sqrt (0.00s)
+    --- PASS: TestMathFunctions/inverseSqrt (0.00s)
+    --- PASS: TestMathFunctions/length (0.00s)
+    --- PASS: TestMathFunctions/normalize (0.00s)
+    --- PASS: TestMathFunctions/dot (0.00s)
+    --- PASS: TestMathFunctions/cross (0.00s)
+    --- PASS: TestMathFunctions/distance (0.00s)
+    --- PASS: TestMathFunctions/faceForward (0.00s)
+    --- PASS: TestMathFunctions/reflect (0.00s)
+    --- PASS: TestMathFunctions/refract (0.00s)
+    --- PASS: TestMathFunctions/sign (0.00s)
+    --- PASS: TestMathFunctions/fma (0.00s)
+    --- PASS: TestMathFunctions/mix (0.00s)
+    --- PASS: TestMathFunctions/step (0.00s)
+    --- PASS: TestMathFunctions/smoothstep (0.00s)
+=== RUN   TestSelectBuiltin
+--- PASS: TestSelectBuiltin (0.00s)
+=== RUN   TestIfElseWithReturn
+--- PASS: TestIfElseWithReturn (0.00s)
+=== RUN   TestLowerVec3ZeroValBinop
+    lower_test.go:605: Types: 1
+    lower_test.go:607:   type[0] = ir.VectorType {Size:3 Scalar:{Kind:0 Width:4}}
+    lower_test.go:656: Local var 'a': type=0 ({Size:3 Scalar:{Kind:0 Width:4}}), init=0xc00028eee8
+    lower_test.go:670:   expr[0] ir.Literal typeRes=Value(ir.ScalarType)
+    lower_test.go:670:   expr[1] ir.Literal typeRes=Value(ir.ScalarType)
+    lower_test.go:670:   expr[2] ir.Literal typeRes=Value(ir.ScalarType)
+    lower_test.go:670:   expr[3] ir.ExprCompose typeRes=Handle(0)
+    lower_test.go:670:   expr[4] ir.ExprLocalVariable typeRes=Value(ir.PointerType)
+    lower_test.go:670:   expr[5] ir.ExprLoad typeRes=Handle(0)
+--- PASS: TestLowerVec3ZeroValBinop (0.00s)
+=== RUN   TestLowerComposeThreeDeep
+    lower_test.go:707: type[0] ir.ScalarType {Kind:0 Width:4}
+--- PASS: TestLowerComposeThreeDeep (0.00s)
+=== RUN   TestLowerSwizzleOfCompose
+    lower_test.go:783: expressions: 7
+    lower_test.go:785:   [0] ir.Literal {Value:4}
+    lower_test.go:785:   [1] ir.Literal {Value:3}
+    lower_test.go:785:   [2] ir.Literal {Value:2}
+    lower_test.go:785:   [3] ir.Literal {Value:1}
+    lower_test.go:785:   [4] ir.ExprCompose {Type:0 Components:[0 1 2 3]}
+    lower_test.go:785:   [5] ir.ExprLocalVariable {Variable:0}
+    lower_test.go:785:   [6] ir.ExprLoad {Pointer:5}
+--- PASS: TestLowerSwizzleOfCompose (0.00s)
+=== RUN   TestLowerSwizzleOfSplat
+--- PASS: TestLowerSwizzleOfSplat (0.00s)
+=== RUN   TestLowerPackedDotProduct
+    lower_test.go:914: expressions: 5, literals: 5, const-init vars: 5
+    lower_test.go:916:   [0] ir.Literal {Value:4}
+    lower_test.go:916:   [1] ir.Literal {Value:4}
+    lower_test.go:916:   [2] ir.Literal {Value:70}
+    lower_test.go:916:   [3] ir.Literal {Value:70}
+    lower_test.go:916:   [4] ir.Literal {Value:-4}
+--- PASS: TestLowerPackedDotProduct (0.00s)
+=== RUN   TestLowerAbstractAccessInline
+    lower_test.go:986: expressions: 22 (literals=15, compose=2, constant=0)
+    lower_test.go:989:   [0] ir.ExprFunctionArgument {Index:0}
+    lower_test.go:989:   [1] ir.Literal {Value:1}
+    lower_test.go:989:   [2] ir.Literal {Value:1}
+    lower_test.go:989:   [3] ir.Literal {Value:1}
+    lower_test.go:989:   [4] ir.Literal {Value:2}
+    lower_test.go:989:   [5] ir.Literal {Value:3}
+    lower_test.go:989:   [6] ir.Literal {Value:4}
+    lower_test.go:989:   [7] ir.Literal {Value:5}
+    lower_test.go:989:   [8] ir.Literal {Value:6}
+    lower_test.go:989:   [9] ir.Literal {Value:7}
+    lower_test.go:989:   [10] ir.Literal {Value:8}
+    lower_test.go:989:   [11] ir.Literal {Value:9}
+    lower_test.go:989:   [12] ir.ExprCompose {Type:3 Components:[3 4 5 6 7 8 9 10 11]}
+    lower_test.go:989:   [13] ir.ExprAccess {Base:12 Index:0}
+    lower_test.go:989:   [14] ir.ExprLocalVariable {Variable:2}
+    lower_test.go:989:   [15] ir.Literal {Value:1}
+    lower_test.go:989:   [16] ir.Literal {Value:2}
+    lower_test.go:989:   [17] ir.Literal {Value:3}
+    lower_test.go:989:   [18] ir.Literal {Value:4}
+    lower_test.go:989:   [19] ir.ExprCompose {Type:4 Components:[15 16 17 18]}
+    lower_test.go:989:   [20] ir.ExprAccess {Base:19 Index:0}
+    lower_test.go:989:   [21] ir.ExprLocalVariable {Variable:3}
+--- PASS: TestLowerAbstractAccessInline (0.00s)
+=== RUN   TestLowerVoidCallEmitterRestart
+--- PASS: TestLowerVoidCallEmitterRestart (0.00s)
+=== RUN   TestLowerNestedMatrixColumnGrouping
+--- PASS: TestLowerNestedMatrixColumnGrouping (0.00s)
+=== RUN   TestNeedsPreEmitInterrupt
+--- PASS: TestNeedsPreEmitInterrupt (0.00s)
+=== RUN   TestSplatInGlobalExpressions
+--- PASS: TestSplatInGlobalExpressions (0.00s)
+=== RUN   TestZeroValueInGlobalExpressions
+--- PASS: TestZeroValueInGlobalExpressions (0.00s)
+=== RUN   TestZeroVarExpandsToLiterals
+--- PASS: TestZeroVarExpandsToLiterals (0.00s)
+=== RUN   TestConstantAliasSharesGE
+--- PASS: TestConstantAliasSharesGE (0.00s)
+=== RUN   TestBinaryConstEvalProducesGE
+--- PASS: TestBinaryConstEvalProducesGE (0.00s)
+=== RUN   TestAbstractLiteralConcretization
+--- PASS: TestAbstractLiteralConcretization (0.00s)
+=== RUN   TestBreakIfEmitsSubExpressions
+--- PASS: TestBreakIfEmitsSubExpressions (0.00s)
+=== RUN   TestAtomicTypeAlignment
+--- PASS: TestAtomicTypeAlignment (0.00s)
+=== RUN   TestBindingBufferArrayStorageSpace
+--- PASS: TestBindingBufferArrayStorageSpace (0.00s)
+=== RUN   TestMatrixAliasScalarConstructorAnonymousType
+--- PASS: TestMatrixAliasScalarConstructorAnonymousType (0.00s)
+=== RUN   TestCallArgumentTypeMismatch
+=== RUN   TestCallArgumentTypeMismatch/vec2_passed_as_scalar_(issue_#66)
+=== RUN   TestCallArgumentTypeMismatch/scalar_passed_as_vec2
+=== RUN   TestCallArgumentTypeMismatch/vec3_passed_as_vec4
+=== RUN   TestCallArgumentTypeMismatch/wrong_argument_count_—_too_many
+=== RUN   TestCallArgumentTypeMismatch/wrong_argument_count_—_too_few
+=== RUN   TestCallArgumentTypeMismatch/correct_call_compiles
+=== RUN   TestCallArgumentTypeMismatch/abstract_int_concretizes_to_u32
+=== RUN   TestCallArgumentTypeMismatch/abstract_float_concretizes_to_f32
+=== RUN   TestCallArgumentTypeMismatch/multiple_args_—_second_wrong
+--- PASS: TestCallArgumentTypeMismatch (0.00s)
+    --- PASS: TestCallArgumentTypeMismatch/vec2_passed_as_scalar_(issue_#66) (0.00s)
+    --- PASS: TestCallArgumentTypeMismatch/scalar_passed_as_vec2 (0.00s)
+    --- PASS: TestCallArgumentTypeMismatch/vec3_passed_as_vec4 (0.00s)
+    --- PASS: TestCallArgumentTypeMismatch/wrong_argument_count_—_too_many (0.00s)
+    --- PASS: TestCallArgumentTypeMismatch/wrong_argument_count_—_too_few (0.00s)
+    --- PASS: TestCallArgumentTypeMismatch/correct_call_compiles (0.00s)
+    --- PASS: TestCallArgumentTypeMismatch/abstract_int_concretizes_to_u32 (0.00s)
+    --- PASS: TestCallArgumentTypeMismatch/abstract_float_concretizes_to_f32 (0.00s)
+    --- PASS: TestCallArgumentTypeMismatch/multiple_args_—_second_wrong (0.00s)
+PASS

@@ -1,0 +1,83 @@
+=== RUN   TestNewRoundRectShape
+=== RUN   TestNewRoundRectShape/basic
+=== RUN   TestNewRoundRectShape/rx_clamped_to_half_width
+=== RUN   TestNewRoundRectShape/ry_clamped_to_half_height
+=== RUN   TestNewRoundRectShape/both_clamped_to_pill_shape
+=== RUN   TestNewRoundRectShape/negative_radii_clamped_to_zero
+=== RUN   TestNewRoundRectShape/zero_radius_is_sharp_rect
+--- PASS: TestNewRoundRectShape (0.00s)
+    --- PASS: TestNewRoundRectShape/basic (0.00s)
+    --- PASS: TestNewRoundRectShape/rx_clamped_to_half_width (0.00s)
+    --- PASS: TestNewRoundRectShape/ry_clamped_to_half_height (0.00s)
+    --- PASS: TestNewRoundRectShape/both_clamped_to_pill_shape (0.00s)
+    --- PASS: TestNewRoundRectShape/negative_radii_clamped_to_zero (0.00s)
+    --- PASS: TestNewRoundRectShape/zero_radius_is_sharp_rect (0.00s)
+=== RUN   TestNewRoundRectShapeUniform
+--- PASS: TestNewRoundRectShapeUniform (0.00s)
+=== RUN   TestRoundRectShapeBounds
+--- PASS: TestRoundRectShapeBounds (0.00s)
+=== RUN   TestRoundRectShapeContains
+=== RUN   TestRoundRectShapeContains/center
+=== RUN   TestRoundRectShapeContains/top-left_inside
+=== RUN   TestRoundRectShapeContains/top_edge
+=== RUN   TestRoundRectShapeContains/left_edge
+=== RUN   TestRoundRectShapeContains/outside_left
+=== RUN   TestRoundRectShapeContains/outside_top
+=== RUN   TestRoundRectShapeContains/outside_right
+=== RUN   TestRoundRectShapeContains/outside_bottom
+=== RUN   TestRoundRectShapeContains/corner_cutout
+=== RUN   TestRoundRectShapeContains/inside_corner
+--- PASS: TestRoundRectShapeContains (0.00s)
+    --- PASS: TestRoundRectShapeContains/center (0.00s)
+    --- PASS: TestRoundRectShapeContains/top-left_inside (0.00s)
+    --- PASS: TestRoundRectShapeContains/top_edge (0.00s)
+    --- PASS: TestRoundRectShapeContains/left_edge (0.00s)
+    --- PASS: TestRoundRectShapeContains/outside_left (0.00s)
+    --- PASS: TestRoundRectShapeContains/outside_top (0.00s)
+    --- PASS: TestRoundRectShapeContains/outside_right (0.00s)
+    --- PASS: TestRoundRectShapeContains/outside_bottom (0.00s)
+    --- PASS: TestRoundRectShapeContains/corner_cutout (0.00s)
+    --- PASS: TestRoundRectShapeContains/inside_corner (0.00s)
+=== RUN   TestRoundRectShapeToPath
+--- PASS: TestRoundRectShapeToPath (0.00s)
+=== RUN   TestSdfRoundRectCoverage
+=== RUN   TestSdfRoundRectCoverage/center
+=== RUN   TestSdfRoundRectCoverage/well_inside
+=== RUN   TestSdfRoundRectCoverage/just_inside_edge
+=== RUN   TestSdfRoundRectCoverage/well_outside
+=== RUN   TestSdfRoundRectCoverage/outside_corner
+--- PASS: TestSdfRoundRectCoverage (0.00s)
+    --- PASS: TestSdfRoundRectCoverage/center (0.00s)
+    --- PASS: TestSdfRoundRectCoverage/well_inside (0.00s)
+    --- PASS: TestSdfRoundRectCoverage/just_inside_edge (0.00s)
+    --- PASS: TestSdfRoundRectCoverage/well_outside (0.00s)
+    --- PASS: TestSdfRoundRectCoverage/outside_corner (0.00s)
+=== RUN   TestSmoothstepCoverage32
+=== RUN   TestSmoothstepCoverage32/well_inside
+=== RUN   TestSmoothstepCoverage32/well_outside
+=== RUN   TestSmoothstepCoverage32/exactly_on_edge
+--- PASS: TestSmoothstepCoverage32 (0.00s)
+    --- PASS: TestSmoothstepCoverage32/well_inside (0.00s)
+    --- PASS: TestSmoothstepCoverage32/well_outside (0.00s)
+    --- PASS: TestSmoothstepCoverage32/exactly_on_edge (0.00s)
+=== RUN   TestRoundRectShapeEncoding
+--- PASS: TestRoundRectShapeEncoding (0.00s)
+=== RUN   TestRoundRectShapeEncodingAppend
+--- PASS: TestRoundRectShapeEncodingAppend (0.00s)
+=== RUN   TestSceneFillRoundRect
+--- PASS: TestSceneFillRoundRect (0.00s)
+=== RUN   TestSceneFillRoundRectWithTransform
+--- PASS: TestSceneFillRoundRectWithTransform (0.00s)
+=== RUN   TestSceneBuilderFillRoundRect
+--- PASS: TestSceneBuilderFillRoundRect (0.00s)
+=== RUN   TestTagFillRoundRectString
+--- PASS: TestTagFillRoundRectString (0.00s)
+=== RUN   TestTagFillRoundRectIsDrawCommand
+--- PASS: TestTagFillRoundRectIsDrawCommand (0.00s)
+=== RUN   TestTagFillRoundRectDataSize
+--- PASS: TestTagFillRoundRectDataSize (0.00s)
+=== RUN   TestRoundedRectShapeStillWorks
+--- PASS: TestRoundedRectShapeStillWorks (0.00s)
+=== RUN   TestExistingRoundedRectShapeUsesPathEncoding
+--- PASS: TestExistingRoundedRectShapeUsesPathEncoding (0.00s)
+PASS

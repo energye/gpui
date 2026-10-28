@@ -1,0 +1,33 @@
+=== RUN   TestDraw
+--- PASS: TestDraw (0.01s)
+=== RUN   TestDrawEmpty
+--- PASS: TestDrawEmpty (0.00s)
+=== RUN   TestDrawNilFace
+--- PASS: TestDrawNilFace (0.00s)
+=== RUN   TestMeasure
+=== RUN   TestMeasure/Simple
+=== RUN   TestMeasure/With_spaces
+=== RUN   TestMeasure/Long_text
+--- PASS: TestMeasure (0.00s)
+    --- PASS: TestMeasure/Simple (0.00s)
+    --- PASS: TestMeasure/With_spaces (0.00s)
+    --- PASS: TestMeasure/Long_text (0.00s)
+=== RUN   TestMeasureEmpty
+--- PASS: TestMeasureEmpty (0.00s)
+=== RUN   TestMeasureNilFace
+--- PASS: TestMeasureNilFace (0.00s)
+=== RUN   TestDrawColor
+--- PASS: TestDrawColor (0.00s)
+=== RUN   TestMeasureConsistency
+--- PASS: TestMeasureConsistency (0.00s)
+=== RUN   TestDrawMultiFace
+--- PASS: TestDrawMultiFace (0.00s)
+=== RUN   TestDrawFilteredFace
+--- PASS: TestDrawFilteredFace (0.00s)
+=== RUN   TestDrawMultiFaceWithFilteredFaces
+--- PASS: TestDrawMultiFaceWithFilteredFaces (0.00s)
+=== RUN   TestMeasureMultiFace
+--- PASS: TestMeasureMultiFace (0.00s)
+=== RUN   TestMeasureFilteredFace
+--- PASS: TestMeasureFilteredFace (0.00s)
+PASS

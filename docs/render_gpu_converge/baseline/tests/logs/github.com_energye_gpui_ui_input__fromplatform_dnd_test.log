@@ -1,0 +1,5 @@
+=== RUN   TestFromPlatform_DragEnterOverLeave
+--- PASS: TestFromPlatform_DragEnterOverLeave (0.00s)
+=== RUN   TestFromPlatform_DropDataClone
+--- PASS: TestFromPlatform_DropDataClone (0.00s)
+PASS

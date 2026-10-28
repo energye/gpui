@@ -1,0 +1,7 @@
+=== RUN   TestH4B2_WebGPUCreateStubsNotSupported
+--- PASS: TestH4B2_WebGPUCreateStubsNotSupported (0.00s)
+=== RUN   TestH4B2_WebGPUDestroyStubsNilSafe
+--- PASS: TestH4B2_WebGPUDestroyStubsNilSafe (0.00s)
+=== RUN   TestH4B2_WebGPUEncoderStubsNilSafe
+--- PASS: TestH4B2_WebGPUEncoderStubsNilSafe (0.00s)
+PASS

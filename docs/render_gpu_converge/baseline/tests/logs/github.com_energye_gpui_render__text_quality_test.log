@@ -1,0 +1,39 @@
+=== RUN   TestTextQuality_AllStrategies
+=== RUN   TestTextQuality_AllStrategies/Bitmap
+    text_quality_test.go:71: Bitmap: 499 non-white pixels
+=== RUN   TestTextQuality_AllStrategies/Vector
+    text_quality_test.go:71: Vector: 596 non-white pixels
+=== RUN   TestTextQuality_AllStrategies/CrossComparison
+--- PASS: TestTextQuality_AllStrategies (0.30s)
+    --- PASS: TestTextQuality_AllStrategies/Bitmap (0.01s)
+    --- PASS: TestTextQuality_AllStrategies/Vector (0.29s)
+    --- PASS: TestTextQuality_AllStrategies/CrossComparison (0.00s)
+=== RUN   TestTextQuality_SizeProportionality
+    text_quality_test.go:128: Size 12: 125 pixels
+    text_quality_test.go:128: Size 16: 207 pixels
+    text_quality_test.go:128: Size 24: 404 pixels
+    text_quality_test.go:128: Size 32: 665 pixels
+    text_quality_test.go:128: Size 48: 1399 pixels
+--- PASS: TestTextQuality_SizeProportionality (0.01s)
+=== RUN   TestTextQuality_VectorSizes
+    text_quality_test.go:194: Vector size 12: 244 pixels
+    text_quality_test.go:194: Vector size 16: 385 pixels
+    text_quality_test.go:194: Vector size 24: 792 pixels
+    text_quality_test.go:194: Vector size 48: 2690 pixels
+--- PASS: TestTextQuality_VectorSizes (0.04s)
+=== RUN   TestTextQuality_StrategyConsistency
+    text_quality_test.go:255: Bitmap: 551 pixels, Vector: 626 pixels
+--- PASS: TestTextQuality_StrategyConsistency (0.01s)
+=== RUN   TestTextQuality_ThinStrokes
+=== RUN   TestTextQuality_ThinStrokes/14px
+    text_quality_test.go:318: Thin strokes at 14px: 175 pixels
+=== RUN   TestTextQuality_ThinStrokes/20px
+    text_quality_test.go:318: Thin strokes at 20px: 331 pixels
+--- PASS: TestTextQuality_ThinStrokes (0.01s)
+    --- PASS: TestTextQuality_ThinStrokes/14px (0.00s)
+    --- PASS: TestTextQuality_ThinStrokes/20px (0.00s)
+=== RUN   TestTextQuality_GlyphCacheHits
+    text_quality_test.go:367: After first draw: hits=2, misses=0, insertions=7
+    text_quality_test.go:377: After second draw: hits=11, misses=0, insertions=7
+--- PASS: TestTextQuality_GlyphCacheHits (0.00s)
+PASS

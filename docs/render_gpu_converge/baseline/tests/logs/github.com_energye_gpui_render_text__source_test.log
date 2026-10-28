@@ -1,0 +1,30 @@
+=== RUN   TestNewFontSource
+    source_test.go:75: Font name: DejaVu Sans
+--- PASS: TestNewFontSource (0.00s)
+=== RUN   TestNewFontSourceFromFile
+    source_test.go:97: Font name: DejaVu Sans
+--- PASS: TestNewFontSourceFromFile (0.00s)
+=== RUN   TestFontSourceFace
+--- PASS: TestFontSourceFace (0.00s)
+=== RUN   TestFontSourceCopyProtection
+    source_test.go:137: Copy protection panic (expected): text: FontSource must not be copied by value
+--- PASS: TestFontSourceCopyProtection (0.00s)
+=== RUN   TestFontSourceName
+    source_test.go:187: Font name: DejaVu Sans
+--- PASS: TestFontSourceName (0.00s)
+=== RUN   TestFontSourceClose
+--- PASS: TestFontSourceClose (0.00s)
+=== RUN   TestNewFontSourceWithOptions
+--- PASS: TestNewFontSourceWithOptions (0.00s)
+=== RUN   TestFaceWithOptions
+--- PASS: TestFaceWithOptions (0.00s)
+=== RUN   TestNewFontSourceEmptyData
+--- PASS: TestNewFontSourceEmptyData (0.00s)
+=== RUN   TestNewFontSourceInvalidData
+--- PASS: TestNewFontSourceInvalidData (0.00s)
+=== RUN   TestNewFontSourceWithParser
+    source_test.go:367: Font: DejaVu Sans, Glyphs: 6253, UnitsPerEm: 2048
+    source_test.go:368: Glyph 'A' index: 36, advance at 24pt: 16.42
+    source_test.go:369: Metrics at 24pt: Ascent=18.23, Descent=-5.77, Height=28.80
+--- PASS: TestNewFontSourceWithParser (0.00s)
+PASS

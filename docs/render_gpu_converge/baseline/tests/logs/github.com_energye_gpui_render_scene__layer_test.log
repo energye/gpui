@@ -1,0 +1,485 @@
+=== RUN   TestBlendModeString
+=== RUN   TestBlendModeString/Normal
+=== RUN   TestBlendModeString/Multiply
+=== RUN   TestBlendModeString/Screen
+=== RUN   TestBlendModeString/Overlay
+=== RUN   TestBlendModeString/Darken
+=== RUN   TestBlendModeString/Lighten
+=== RUN   TestBlendModeString/ColorDodge
+=== RUN   TestBlendModeString/ColorBurn
+=== RUN   TestBlendModeString/HardLight
+=== RUN   TestBlendModeString/SoftLight
+=== RUN   TestBlendModeString/Difference
+=== RUN   TestBlendModeString/Exclusion
+=== RUN   TestBlendModeString/Hue
+=== RUN   TestBlendModeString/Saturation
+=== RUN   TestBlendModeString/Color
+=== RUN   TestBlendModeString/Luminosity
+=== RUN   TestBlendModeString/Clear
+=== RUN   TestBlendModeString/Copy
+=== RUN   TestBlendModeString/Destination
+=== RUN   TestBlendModeString/SourceOver
+=== RUN   TestBlendModeString/DestinationOver
+=== RUN   TestBlendModeString/SourceIn
+=== RUN   TestBlendModeString/DestinationIn
+=== RUN   TestBlendModeString/SourceOut
+=== RUN   TestBlendModeString/DestinationOut
+=== RUN   TestBlendModeString/SourceAtop
+=== RUN   TestBlendModeString/DestinationAtop
+=== RUN   TestBlendModeString/Xor
+=== RUN   TestBlendModeString/Plus
+=== RUN   TestBlendModeString/Unknown
+--- PASS: TestBlendModeString (0.00s)
+    --- PASS: TestBlendModeString/Normal (0.00s)
+    --- PASS: TestBlendModeString/Multiply (0.00s)
+    --- PASS: TestBlendModeString/Screen (0.00s)
+    --- PASS: TestBlendModeString/Overlay (0.00s)
+    --- PASS: TestBlendModeString/Darken (0.00s)
+    --- PASS: TestBlendModeString/Lighten (0.00s)
+    --- PASS: TestBlendModeString/ColorDodge (0.00s)
+    --- PASS: TestBlendModeString/ColorBurn (0.00s)
+    --- PASS: TestBlendModeString/HardLight (0.00s)
+    --- PASS: TestBlendModeString/SoftLight (0.00s)
+    --- PASS: TestBlendModeString/Difference (0.00s)
+    --- PASS: TestBlendModeString/Exclusion (0.00s)
+    --- PASS: TestBlendModeString/Hue (0.00s)
+    --- PASS: TestBlendModeString/Saturation (0.00s)
+    --- PASS: TestBlendModeString/Color (0.00s)
+    --- PASS: TestBlendModeString/Luminosity (0.00s)
+    --- PASS: TestBlendModeString/Clear (0.00s)
+    --- PASS: TestBlendModeString/Copy (0.00s)
+    --- PASS: TestBlendModeString/Destination (0.00s)
+    --- PASS: TestBlendModeString/SourceOver (0.00s)
+    --- PASS: TestBlendModeString/DestinationOver (0.00s)
+    --- PASS: TestBlendModeString/SourceIn (0.00s)
+    --- PASS: TestBlendModeString/DestinationIn (0.00s)
+    --- PASS: TestBlendModeString/SourceOut (0.00s)
+    --- PASS: TestBlendModeString/DestinationOut (0.00s)
+    --- PASS: TestBlendModeString/SourceAtop (0.00s)
+    --- PASS: TestBlendModeString/DestinationAtop (0.00s)
+    --- PASS: TestBlendModeString/Xor (0.00s)
+    --- PASS: TestBlendModeString/Plus (0.00s)
+    --- PASS: TestBlendModeString/Unknown (0.00s)
+=== RUN   TestBlendModeIsPorterDuff
+=== RUN   TestBlendModeIsPorterDuff/Clear
+=== RUN   TestBlendModeIsPorterDuff/Copy
+=== RUN   TestBlendModeIsPorterDuff/Destination
+=== RUN   TestBlendModeIsPorterDuff/SourceOver
+=== RUN   TestBlendModeIsPorterDuff/DestinationOver
+=== RUN   TestBlendModeIsPorterDuff/SourceIn
+=== RUN   TestBlendModeIsPorterDuff/DestinationIn
+=== RUN   TestBlendModeIsPorterDuff/SourceOut
+=== RUN   TestBlendModeIsPorterDuff/DestinationOut
+=== RUN   TestBlendModeIsPorterDuff/SourceAtop
+=== RUN   TestBlendModeIsPorterDuff/DestinationAtop
+=== RUN   TestBlendModeIsPorterDuff/Xor
+=== RUN   TestBlendModeIsPorterDuff/Plus
+=== RUN   TestBlendModeIsPorterDuff/Normal_NotPD
+=== RUN   TestBlendModeIsPorterDuff/Multiply_NotPD
+=== RUN   TestBlendModeIsPorterDuff/Screen_NotPD
+=== RUN   TestBlendModeIsPorterDuff/Overlay_NotPD
+=== RUN   TestBlendModeIsPorterDuff/Hue_NotPD
+=== RUN   TestBlendModeIsPorterDuff/Saturation_NotPD
+--- PASS: TestBlendModeIsPorterDuff (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Clear (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Copy (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Destination (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/SourceOver (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/DestinationOver (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/SourceIn (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/DestinationIn (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/SourceOut (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/DestinationOut (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/SourceAtop (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/DestinationAtop (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Xor (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Plus (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Normal_NotPD (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Multiply_NotPD (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Screen_NotPD (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Overlay_NotPD (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Hue_NotPD (0.00s)
+    --- PASS: TestBlendModeIsPorterDuff/Saturation_NotPD (0.00s)
+=== RUN   TestBlendModeIsAdvanced
+=== RUN   TestBlendModeIsAdvanced/Normal
+=== RUN   TestBlendModeIsAdvanced/Multiply
+=== RUN   TestBlendModeIsAdvanced/Screen
+=== RUN   TestBlendModeIsAdvanced/Overlay
+=== RUN   TestBlendModeIsAdvanced/Darken
+=== RUN   TestBlendModeIsAdvanced/Lighten
+=== RUN   TestBlendModeIsAdvanced/ColorDodge
+=== RUN   TestBlendModeIsAdvanced/ColorBurn
+=== RUN   TestBlendModeIsAdvanced/HardLight
+=== RUN   TestBlendModeIsAdvanced/SoftLight
+=== RUN   TestBlendModeIsAdvanced/Difference
+=== RUN   TestBlendModeIsAdvanced/Exclusion
+=== RUN   TestBlendModeIsAdvanced/Hue_NotAdv
+=== RUN   TestBlendModeIsAdvanced/Saturation_NotAdv
+=== RUN   TestBlendModeIsAdvanced/Color_NotAdv
+=== RUN   TestBlendModeIsAdvanced/Luminosity_NotAdv
+=== RUN   TestBlendModeIsAdvanced/Clear_NotAdv
+=== RUN   TestBlendModeIsAdvanced/Copy_NotAdv
+=== RUN   TestBlendModeIsAdvanced/SourceOver_NotAdv
+--- PASS: TestBlendModeIsAdvanced (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Normal (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Multiply (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Screen (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Overlay (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Darken (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Lighten (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/ColorDodge (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/ColorBurn (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/HardLight (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/SoftLight (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Difference (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Exclusion (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Hue_NotAdv (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Saturation_NotAdv (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Color_NotAdv (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Luminosity_NotAdv (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Clear_NotAdv (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/Copy_NotAdv (0.00s)
+    --- PASS: TestBlendModeIsAdvanced/SourceOver_NotAdv (0.00s)
+=== RUN   TestBlendModeIsHSL
+=== RUN   TestBlendModeIsHSL/Hue
+=== RUN   TestBlendModeIsHSL/Saturation
+=== RUN   TestBlendModeIsHSL/Color
+=== RUN   TestBlendModeIsHSL/Luminosity
+=== RUN   TestBlendModeIsHSL/Normal_NotHSL
+=== RUN   TestBlendModeIsHSL/Multiply_NotHSL
+=== RUN   TestBlendModeIsHSL/Clear_NotHSL
+=== RUN   TestBlendModeIsHSL/SourceOver_NotHSL
+--- PASS: TestBlendModeIsHSL (0.00s)
+    --- PASS: TestBlendModeIsHSL/Hue (0.00s)
+    --- PASS: TestBlendModeIsHSL/Saturation (0.00s)
+    --- PASS: TestBlendModeIsHSL/Color (0.00s)
+    --- PASS: TestBlendModeIsHSL/Luminosity (0.00s)
+    --- PASS: TestBlendModeIsHSL/Normal_NotHSL (0.00s)
+    --- PASS: TestBlendModeIsHSL/Multiply_NotHSL (0.00s)
+    --- PASS: TestBlendModeIsHSL/Clear_NotHSL (0.00s)
+    --- PASS: TestBlendModeIsHSL/SourceOver_NotHSL (0.00s)
+=== RUN   TestToInternalBlendMode_PorterDuff
+=== RUN   TestToInternalBlendMode_PorterDuff/Clear
+=== RUN   TestToInternalBlendMode_PorterDuff/Copy
+=== RUN   TestToInternalBlendMode_PorterDuff/Destination
+=== RUN   TestToInternalBlendMode_PorterDuff/SourceOver
+=== RUN   TestToInternalBlendMode_PorterDuff/Normal
+=== RUN   TestToInternalBlendMode_PorterDuff/DestinationOver
+=== RUN   TestToInternalBlendMode_PorterDuff/SourceIn
+=== RUN   TestToInternalBlendMode_PorterDuff/DestinationIn
+=== RUN   TestToInternalBlendMode_PorterDuff/SourceOut
+=== RUN   TestToInternalBlendMode_PorterDuff/DestinationOut
+=== RUN   TestToInternalBlendMode_PorterDuff/SourceAtop
+=== RUN   TestToInternalBlendMode_PorterDuff/DestinationAtop
+=== RUN   TestToInternalBlendMode_PorterDuff/Xor
+=== RUN   TestToInternalBlendMode_PorterDuff/Plus
+--- PASS: TestToInternalBlendMode_PorterDuff (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/Clear (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/Copy (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/Destination (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/SourceOver (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/Normal (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/DestinationOver (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/SourceIn (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/DestinationIn (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/SourceOut (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/DestinationOut (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/SourceAtop (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/DestinationAtop (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/Xor (0.00s)
+    --- PASS: TestToInternalBlendMode_PorterDuff/Plus (0.00s)
+=== RUN   TestToInternalBlendMode_Advanced
+=== RUN   TestToInternalBlendMode_Advanced/Multiply
+=== RUN   TestToInternalBlendMode_Advanced/Screen
+=== RUN   TestToInternalBlendMode_Advanced/Overlay
+=== RUN   TestToInternalBlendMode_Advanced/Darken
+=== RUN   TestToInternalBlendMode_Advanced/Lighten
+=== RUN   TestToInternalBlendMode_Advanced/ColorDodge
+=== RUN   TestToInternalBlendMode_Advanced/ColorBurn
+=== RUN   TestToInternalBlendMode_Advanced/HardLight
+=== RUN   TestToInternalBlendMode_Advanced/SoftLight
+=== RUN   TestToInternalBlendMode_Advanced/Difference
+=== RUN   TestToInternalBlendMode_Advanced/Exclusion
+--- PASS: TestToInternalBlendMode_Advanced (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/Multiply (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/Screen (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/Overlay (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/Darken (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/Lighten (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/ColorDodge (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/ColorBurn (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/HardLight (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/SoftLight (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/Difference (0.00s)
+    --- PASS: TestToInternalBlendMode_Advanced/Exclusion (0.00s)
+=== RUN   TestToInternalBlendMode_HSL
+=== RUN   TestToInternalBlendMode_HSL/Hue
+=== RUN   TestToInternalBlendMode_HSL/Saturation
+=== RUN   TestToInternalBlendMode_HSL/Color
+=== RUN   TestToInternalBlendMode_HSL/Luminosity
+--- PASS: TestToInternalBlendMode_HSL (0.00s)
+    --- PASS: TestToInternalBlendMode_HSL/Hue (0.00s)
+    --- PASS: TestToInternalBlendMode_HSL/Saturation (0.00s)
+    --- PASS: TestToInternalBlendMode_HSL/Color (0.00s)
+    --- PASS: TestToInternalBlendMode_HSL/Luminosity (0.00s)
+=== RUN   TestToInternalBlendMode_Unknown
+--- PASS: TestToInternalBlendMode_Unknown (0.00s)
+=== RUN   TestGetBlendFunc
+=== RUN   TestGetBlendFunc/Normal
+=== RUN   TestGetBlendFunc/Multiply
+=== RUN   TestGetBlendFunc/Screen
+=== RUN   TestGetBlendFunc/Overlay
+=== RUN   TestGetBlendFunc/Darken
+=== RUN   TestGetBlendFunc/Lighten
+=== RUN   TestGetBlendFunc/ColorDodge
+=== RUN   TestGetBlendFunc/ColorBurn
+=== RUN   TestGetBlendFunc/HardLight
+=== RUN   TestGetBlendFunc/SoftLight
+=== RUN   TestGetBlendFunc/Difference
+=== RUN   TestGetBlendFunc/Exclusion
+=== RUN   TestGetBlendFunc/Hue
+=== RUN   TestGetBlendFunc/Saturation
+=== RUN   TestGetBlendFunc/Color
+=== RUN   TestGetBlendFunc/Luminosity
+=== RUN   TestGetBlendFunc/Clear
+=== RUN   TestGetBlendFunc/Copy
+=== RUN   TestGetBlendFunc/Destination
+=== RUN   TestGetBlendFunc/SourceOver
+=== RUN   TestGetBlendFunc/DestinationOver
+=== RUN   TestGetBlendFunc/SourceIn
+=== RUN   TestGetBlendFunc/DestinationIn
+=== RUN   TestGetBlendFunc/SourceOut
+=== RUN   TestGetBlendFunc/DestinationOut
+=== RUN   TestGetBlendFunc/SourceAtop
+=== RUN   TestGetBlendFunc/DestinationAtop
+=== RUN   TestGetBlendFunc/Xor
+=== RUN   TestGetBlendFunc/Plus
+--- PASS: TestGetBlendFunc (0.00s)
+    --- PASS: TestGetBlendFunc/Normal (0.00s)
+    --- PASS: TestGetBlendFunc/Multiply (0.00s)
+    --- PASS: TestGetBlendFunc/Screen (0.00s)
+    --- PASS: TestGetBlendFunc/Overlay (0.00s)
+    --- PASS: TestGetBlendFunc/Darken (0.00s)
+    --- PASS: TestGetBlendFunc/Lighten (0.00s)
+    --- PASS: TestGetBlendFunc/ColorDodge (0.00s)
+    --- PASS: TestGetBlendFunc/ColorBurn (0.00s)
+    --- PASS: TestGetBlendFunc/HardLight (0.00s)
+    --- PASS: TestGetBlendFunc/SoftLight (0.00s)
+    --- PASS: TestGetBlendFunc/Difference (0.00s)
+    --- PASS: TestGetBlendFunc/Exclusion (0.00s)
+    --- PASS: TestGetBlendFunc/Hue (0.00s)
+    --- PASS: TestGetBlendFunc/Saturation (0.00s)
+    --- PASS: TestGetBlendFunc/Color (0.00s)
+    --- PASS: TestGetBlendFunc/Luminosity (0.00s)
+    --- PASS: TestGetBlendFunc/Clear (0.00s)
+    --- PASS: TestGetBlendFunc/Copy (0.00s)
+    --- PASS: TestGetBlendFunc/Destination (0.00s)
+    --- PASS: TestGetBlendFunc/SourceOver (0.00s)
+    --- PASS: TestGetBlendFunc/DestinationOver (0.00s)
+    --- PASS: TestGetBlendFunc/SourceIn (0.00s)
+    --- PASS: TestGetBlendFunc/DestinationIn (0.00s)
+    --- PASS: TestGetBlendFunc/SourceOut (0.00s)
+    --- PASS: TestGetBlendFunc/DestinationOut (0.00s)
+    --- PASS: TestGetBlendFunc/SourceAtop (0.00s)
+    --- PASS: TestGetBlendFunc/DestinationAtop (0.00s)
+    --- PASS: TestGetBlendFunc/Xor (0.00s)
+    --- PASS: TestGetBlendFunc/Plus (0.00s)
+=== RUN   TestBlendModeFromInternal
+=== RUN   TestBlendModeFromInternal/Normal
+=== RUN   TestBlendModeFromInternal/Multiply
+=== RUN   TestBlendModeFromInternal/Screen
+=== RUN   TestBlendModeFromInternal/Overlay
+=== RUN   TestBlendModeFromInternal/Darken
+=== RUN   TestBlendModeFromInternal/Lighten
+=== RUN   TestBlendModeFromInternal/ColorDodge
+=== RUN   TestBlendModeFromInternal/ColorBurn
+=== RUN   TestBlendModeFromInternal/HardLight
+=== RUN   TestBlendModeFromInternal/SoftLight
+=== RUN   TestBlendModeFromInternal/Difference
+=== RUN   TestBlendModeFromInternal/Exclusion
+=== RUN   TestBlendModeFromInternal/Hue
+=== RUN   TestBlendModeFromInternal/Saturation
+=== RUN   TestBlendModeFromInternal/Color
+=== RUN   TestBlendModeFromInternal/Luminosity
+=== RUN   TestBlendModeFromInternal/Clear
+=== RUN   TestBlendModeFromInternal/Copy
+=== RUN   TestBlendModeFromInternal/Destination
+=== RUN   TestBlendModeFromInternal/SourceOver
+=== RUN   TestBlendModeFromInternal/DestinationOver
+=== RUN   TestBlendModeFromInternal/SourceIn
+=== RUN   TestBlendModeFromInternal/DestinationIn
+=== RUN   TestBlendModeFromInternal/SourceOut
+=== RUN   TestBlendModeFromInternal/DestinationOut
+=== RUN   TestBlendModeFromInternal/SourceAtop
+=== RUN   TestBlendModeFromInternal/DestinationAtop
+=== RUN   TestBlendModeFromInternal/Xor
+=== RUN   TestBlendModeFromInternal/Plus
+--- PASS: TestBlendModeFromInternal (0.00s)
+    --- PASS: TestBlendModeFromInternal/Normal (0.00s)
+    --- PASS: TestBlendModeFromInternal/Multiply (0.00s)
+    --- PASS: TestBlendModeFromInternal/Screen (0.00s)
+    --- PASS: TestBlendModeFromInternal/Overlay (0.00s)
+    --- PASS: TestBlendModeFromInternal/Darken (0.00s)
+    --- PASS: TestBlendModeFromInternal/Lighten (0.00s)
+    --- PASS: TestBlendModeFromInternal/ColorDodge (0.00s)
+    --- PASS: TestBlendModeFromInternal/ColorBurn (0.00s)
+    --- PASS: TestBlendModeFromInternal/HardLight (0.00s)
+    --- PASS: TestBlendModeFromInternal/SoftLight (0.00s)
+    --- PASS: TestBlendModeFromInternal/Difference (0.00s)
+    --- PASS: TestBlendModeFromInternal/Exclusion (0.00s)
+    --- PASS: TestBlendModeFromInternal/Hue (0.00s)
+    --- PASS: TestBlendModeFromInternal/Saturation (0.00s)
+    --- PASS: TestBlendModeFromInternal/Color (0.00s)
+    --- PASS: TestBlendModeFromInternal/Luminosity (0.00s)
+    --- PASS: TestBlendModeFromInternal/Clear (0.00s)
+    --- PASS: TestBlendModeFromInternal/Copy (0.00s)
+    --- PASS: TestBlendModeFromInternal/Destination (0.00s)
+    --- PASS: TestBlendModeFromInternal/SourceOver (0.00s)
+    --- PASS: TestBlendModeFromInternal/DestinationOver (0.00s)
+    --- PASS: TestBlendModeFromInternal/SourceIn (0.00s)
+    --- PASS: TestBlendModeFromInternal/DestinationIn (0.00s)
+    --- PASS: TestBlendModeFromInternal/SourceOut (0.00s)
+    --- PASS: TestBlendModeFromInternal/DestinationOut (0.00s)
+    --- PASS: TestBlendModeFromInternal/SourceAtop (0.00s)
+    --- PASS: TestBlendModeFromInternal/DestinationAtop (0.00s)
+    --- PASS: TestBlendModeFromInternal/Xor (0.00s)
+    --- PASS: TestBlendModeFromInternal/Plus (0.00s)
+=== RUN   TestAllBlendModes
+--- PASS: TestAllBlendModes (0.00s)
+=== RUN   TestPorterDuffModes
+--- PASS: TestPorterDuffModes (0.00s)
+=== RUN   TestAdvancedModes
+--- PASS: TestAdvancedModes (0.00s)
+=== RUN   TestHSLModes
+--- PASS: TestHSLModes (0.00s)
+=== RUN   TestLayerStackAcquireRelease
+--- PASS: TestLayerStackAcquireRelease (0.00s)
+=== RUN   TestLayerStackAll
+--- PASS: TestLayerStackAll (0.00s)
+=== RUN   TestDeepLayerNesting
+--- PASS: TestDeepLayerNesting (0.00s)
+=== RUN   TestDeepLayerNestingWithContent
+--- PASS: TestDeepLayerNestingWithContent (0.00s)
+=== RUN   TestLayerOpacityRange
+=== RUN   TestLayerOpacityRange/#00
+=== RUN   TestLayerOpacityRange/#01
+=== RUN   TestLayerOpacityRange/#02
+=== RUN   TestLayerOpacityRange/#03
+=== RUN   TestLayerOpacityRange/#04
+=== RUN   TestLayerOpacityRange/#05
+=== RUN   TestLayerOpacityRange/#06
+=== RUN   TestLayerOpacityRange/#07
+=== RUN   TestLayerOpacityRange/#08
+--- PASS: TestLayerOpacityRange (0.00s)
+    --- PASS: TestLayerOpacityRange/#00 (0.00s)
+    --- PASS: TestLayerOpacityRange/#01 (0.00s)
+    --- PASS: TestLayerOpacityRange/#02 (0.00s)
+    --- PASS: TestLayerOpacityRange/#03 (0.00s)
+    --- PASS: TestLayerOpacityRange/#04 (0.00s)
+    --- PASS: TestLayerOpacityRange/#05 (0.00s)
+    --- PASS: TestLayerOpacityRange/#06 (0.00s)
+    --- PASS: TestLayerOpacityRange/#07 (0.00s)
+    --- PASS: TestLayerOpacityRange/#08 (0.00s)
+=== RUN   TestLayerOpacityInScene
+--- PASS: TestLayerOpacityInScene (0.00s)
+=== RUN   TestLayerWithClipRegion
+--- PASS: TestLayerWithClipRegion (0.00s)
+=== RUN   TestClipStackContains
+--- PASS: TestClipStackContains (0.00s)
+=== RUN   TestClipStackIntersects
+=== RUN   TestClipStackIntersects/overlapping
+=== RUN   TestClipStackIntersects/contained
+=== RUN   TestClipStackIntersects/containing
+=== RUN   TestClipStackIntersects/outside_right
+=== RUN   TestClipStackIntersects/outside_bottom
+=== RUN   TestClipStackIntersects/outside_left
+=== RUN   TestClipStackIntersects/empty
+--- PASS: TestClipStackIntersects (0.00s)
+    --- PASS: TestClipStackIntersects/overlapping (0.00s)
+    --- PASS: TestClipStackIntersects/contained (0.00s)
+    --- PASS: TestClipStackIntersects/containing (0.00s)
+    --- PASS: TestClipStackIntersects/outside_right (0.00s)
+    --- PASS: TestClipStackIntersects/outside_bottom (0.00s)
+    --- PASS: TestClipStackIntersects/outside_left (0.00s)
+    --- PASS: TestClipStackIntersects/empty (0.00s)
+=== RUN   TestClipStackCombinedBoundsEmpty
+--- PASS: TestClipStackCombinedBoundsEmpty (0.00s)
+=== RUN   TestLayerPoolReuse
+--- PASS: TestLayerPoolReuse (0.00s)
+=== RUN   TestLayerPoolPutNil
+--- PASS: TestLayerPoolPutNil (0.00s)
+=== RUN   TestLayerPoolMultiple
+--- PASS: TestLayerPoolMultiple (0.00s)
+=== RUN   TestSceneFlatten
+--- PASS: TestSceneFlatten (0.00s)
+=== RUN   TestSceneFlattenIsClone
+--- PASS: TestSceneFlattenIsClone (0.00s)
+=== RUN   TestSceneFlattenMultipleLayers
+--- PASS: TestSceneFlattenMultipleLayers (0.00s)
+=== RUN   TestLayerStateIsEmpty
+--- PASS: TestLayerStateIsEmpty (0.00s)
+=== RUN   TestLayerStateUpdateBounds
+--- PASS: TestLayerStateUpdateBounds (0.00s)
+=== RUN   TestLayerStateReset
+--- PASS: TestLayerStateReset (0.00s)
+=== RUN   TestAllBlendModesInLayer
+=== RUN   TestAllBlendModesInLayer/Normal
+=== RUN   TestAllBlendModesInLayer/Multiply
+=== RUN   TestAllBlendModesInLayer/Screen
+=== RUN   TestAllBlendModesInLayer/Overlay
+=== RUN   TestAllBlendModesInLayer/Darken
+=== RUN   TestAllBlendModesInLayer/Lighten
+=== RUN   TestAllBlendModesInLayer/ColorDodge
+=== RUN   TestAllBlendModesInLayer/ColorBurn
+=== RUN   TestAllBlendModesInLayer/HardLight
+=== RUN   TestAllBlendModesInLayer/SoftLight
+=== RUN   TestAllBlendModesInLayer/Difference
+=== RUN   TestAllBlendModesInLayer/Exclusion
+=== RUN   TestAllBlendModesInLayer/Hue
+=== RUN   TestAllBlendModesInLayer/Saturation
+=== RUN   TestAllBlendModesInLayer/Color
+=== RUN   TestAllBlendModesInLayer/Luminosity
+=== RUN   TestAllBlendModesInLayer/Clear
+=== RUN   TestAllBlendModesInLayer/Copy
+=== RUN   TestAllBlendModesInLayer/Destination
+=== RUN   TestAllBlendModesInLayer/SourceOver
+=== RUN   TestAllBlendModesInLayer/DestinationOver
+=== RUN   TestAllBlendModesInLayer/SourceIn
+=== RUN   TestAllBlendModesInLayer/DestinationIn
+=== RUN   TestAllBlendModesInLayer/SourceOut
+=== RUN   TestAllBlendModesInLayer/DestinationOut
+=== RUN   TestAllBlendModesInLayer/SourceAtop
+=== RUN   TestAllBlendModesInLayer/DestinationAtop
+=== RUN   TestAllBlendModesInLayer/Xor
+=== RUN   TestAllBlendModesInLayer/Plus
+--- PASS: TestAllBlendModesInLayer (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Normal (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Multiply (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Screen (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Overlay (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Darken (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Lighten (0.00s)
+    --- PASS: TestAllBlendModesInLayer/ColorDodge (0.00s)
+    --- PASS: TestAllBlendModesInLayer/ColorBurn (0.00s)
+    --- PASS: TestAllBlendModesInLayer/HardLight (0.00s)
+    --- PASS: TestAllBlendModesInLayer/SoftLight (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Difference (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Exclusion (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Hue (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Saturation (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Color (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Luminosity (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Clear (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Copy (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Destination (0.00s)
+    --- PASS: TestAllBlendModesInLayer/SourceOver (0.00s)
+    --- PASS: TestAllBlendModesInLayer/DestinationOver (0.00s)
+    --- PASS: TestAllBlendModesInLayer/SourceIn (0.00s)
+    --- PASS: TestAllBlendModesInLayer/DestinationIn (0.00s)
+    --- PASS: TestAllBlendModesInLayer/SourceOut (0.00s)
+    --- PASS: TestAllBlendModesInLayer/DestinationOut (0.00s)
+    --- PASS: TestAllBlendModesInLayer/SourceAtop (0.00s)
+    --- PASS: TestAllBlendModesInLayer/DestinationAtop (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Xor (0.00s)
+    --- PASS: TestAllBlendModesInLayer/Plus (0.00s)
+PASS

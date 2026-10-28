@@ -1,0 +1,18 @@
+=== RUN   TestDbgRasterSource
+静 12px: 生产光栅 vs FT位图 mism=73 | FT轮廓光栅 vs FT位图 mism=73 (FT位图 12x12)
+每 12px: 生产光栅 vs FT位图 mism=77 | FT轮廓光栅 vs FT位图 mism=77 (FT位图 12x14)
+合 12px: 生产光栅 vs FT位图 mism=62 | FT轮廓光栅 vs FT位图 mism=62 (FT位图 12x13)
+静 16px: 生产光栅 vs FT位图 mism=133 | FT轮廓光栅 vs FT位图 mism=133 (FT位图 16x16)
+每 16px: 生产光栅 vs FT位图 mism=110 | FT轮廓光栅 vs FT位图 mism=110 (FT位图 16x16)
+合 16px: 生产光栅 vs FT位图 mism=90 | FT轮廓光栅 vs FT位图 mism=89 (FT位图 16x16)
+静 24px: 生产光栅 vs FT位图 mism=215 | FT轮廓光栅 vs FT位图 mism=215 (FT位图 24x24)
+每 24px: 生产光栅 vs FT位图 mism=165 | FT轮廓光栅 vs FT位图 mism=162 (FT位图 24x24)
+合 24px: 生产光栅 vs FT位图 mism=162 | FT轮廓光栅 vs FT位图 mism=160 (FT位图 24x24)
+静 32px: 生产光栅 vs FT位图 mism=283 | FT轮廓光栅 vs FT位图 mism=283 (FT位图 30x32)
+每 32px: 生产光栅 vs FT位图 mism=235 | FT轮廓光栅 vs FT位图 mism=235 (FT位图 30x32)
+合 32px: 生产光栅 vs FT位图 mism=209 | FT轮廓光栅 vs FT位图 mism=208 (FT位图 31x32)
+静 48px: 生产光栅 vs FT位图 mism=428 | FT轮廓光栅 vs FT位图 mism=427 (FT位图 46x46)
+每 48px: 生产光栅 vs FT位图 mism=356 | FT轮廓光栅 vs FT位图 mism=356 (FT位图 46x46)
+合 48px: 生产光栅 vs FT位图 mism=315 | FT轮廓光栅 vs FT位图 mism=312 (FT位图 46x46)
+--- PASS: TestDbgRasterSource (1.12s)
+PASS

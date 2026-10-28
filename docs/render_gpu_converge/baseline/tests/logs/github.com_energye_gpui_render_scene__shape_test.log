@@ -1,0 +1,39 @@
+=== RUN   TestRectShape
+--- PASS: TestRectShape (0.00s)
+=== RUN   TestRoundedRectShape
+--- PASS: TestRoundedRectShape (0.00s)
+=== RUN   TestCircleShape
+--- PASS: TestCircleShape (0.00s)
+=== RUN   TestEllipseShape
+--- PASS: TestEllipseShape (0.00s)
+=== RUN   TestLineShape
+--- PASS: TestLineShape (0.00s)
+=== RUN   TestPathShape
+--- PASS: TestPathShape (0.00s)
+=== RUN   TestPolygonShape
+--- PASS: TestPolygonShape (0.00s)
+=== RUN   TestRegularPolygonShape
+=== RUN   TestRegularPolygonShape/triangle
+=== RUN   TestRegularPolygonShape/square
+=== RUN   TestRegularPolygonShape/pentagon
+=== RUN   TestRegularPolygonShape/hexagon
+=== RUN   TestRegularPolygonShape/too_few_sides
+--- PASS: TestRegularPolygonShape (0.00s)
+    --- PASS: TestRegularPolygonShape/triangle (0.00s)
+    --- PASS: TestRegularPolygonShape/square (0.00s)
+    --- PASS: TestRegularPolygonShape/pentagon (0.00s)
+    --- PASS: TestRegularPolygonShape/hexagon (0.00s)
+    --- PASS: TestRegularPolygonShape/too_few_sides (0.00s)
+=== RUN   TestStarShape
+--- PASS: TestStarShape (0.00s)
+=== RUN   TestArcShape
+--- PASS: TestArcShape (0.00s)
+=== RUN   TestPieShape
+--- PASS: TestPieShape (0.00s)
+=== RUN   TestTransformShape
+--- PASS: TestTransformShape (0.00s)
+=== RUN   TestCompositeShape
+--- PASS: TestCompositeShape (0.00s)
+=== RUN   TestShapeInterface
+--- PASS: TestShapeInterface (0.00s)
+PASS

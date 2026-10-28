@@ -1,0 +1,129 @@
+=== RUN   TestCoreCommandEncoder_CreateFromBackend
+=== RUN   TestCoreCommandEncoder_CreateFromBackend/fail_when_initialized_without_device
+=== RUN   TestCoreCommandEncoder_CreateFromBackend/fail_when_not_initialized
+=== RUN   TestCoreCommandEncoder_CreateFromBackend/fail_with_nil_backend
+--- PASS: TestCoreCommandEncoder_CreateFromBackend (0.00s)
+    --- PASS: TestCoreCommandEncoder_CreateFromBackend/fail_when_initialized_without_device (0.00s)
+    --- PASS: TestCoreCommandEncoder_CreateFromBackend/fail_when_not_initialized (0.00s)
+    --- PASS: TestCoreCommandEncoder_CreateFromBackend/fail_with_nil_backend (0.00s)
+=== RUN   TestCoreCommandEncoder_Label
+=== RUN   TestCoreCommandEncoder_Label/nil_encoder
+=== RUN   TestCoreCommandEncoder_Label/encoder_with_label
+=== RUN   TestCoreCommandEncoder_Label/encoder_without_label
+--- PASS: TestCoreCommandEncoder_Label (0.00s)
+    --- PASS: TestCoreCommandEncoder_Label/nil_encoder (0.00s)
+    --- PASS: TestCoreCommandEncoder_Label/encoder_with_label (0.00s)
+    --- PASS: TestCoreCommandEncoder_Label/encoder_without_label (0.00s)
+=== RUN   TestCoreCommandEncoder_Status
+=== RUN   TestCoreCommandEncoder_Status/nil_encoder
+=== RUN   TestCoreCommandEncoder_Status/recording_state
+=== RUN   TestCoreCommandEncoder_Status/locked_state_(render_pass)
+=== RUN   TestCoreCommandEncoder_Status/locked_state_(compute_pass)
+--- PASS: TestCoreCommandEncoder_Status (0.00s)
+    --- PASS: TestCoreCommandEncoder_Status/nil_encoder (0.00s)
+    --- PASS: TestCoreCommandEncoder_Status/recording_state (0.00s)
+    --- PASS: TestCoreCommandEncoder_Status/locked_state_(render_pass) (0.00s)
+    --- PASS: TestCoreCommandEncoder_Status/locked_state_(compute_pass) (0.00s)
+=== RUN   TestCoreCommandEncoder_BeginRenderPass
+=== RUN   TestCoreCommandEncoder_BeginRenderPass/success_with_descriptor
+=== RUN   TestCoreCommandEncoder_BeginRenderPass/nil_descriptor
+=== RUN   TestCoreCommandEncoder_BeginRenderPass/encoder_locked
+--- PASS: TestCoreCommandEncoder_BeginRenderPass (0.00s)
+    --- PASS: TestCoreCommandEncoder_BeginRenderPass/success_with_descriptor (0.00s)
+    --- PASS: TestCoreCommandEncoder_BeginRenderPass/nil_descriptor (0.00s)
+    --- PASS: TestCoreCommandEncoder_BeginRenderPass/encoder_locked (0.00s)
+=== RUN   TestCoreCommandEncoder_BeginComputePass
+=== RUN   TestCoreCommandEncoder_BeginComputePass/success_with_descriptor
+=== RUN   TestCoreCommandEncoder_BeginComputePass/success_with_nil_descriptor
+=== RUN   TestCoreCommandEncoder_BeginComputePass/encoder_locked
+--- PASS: TestCoreCommandEncoder_BeginComputePass (0.00s)
+    --- PASS: TestCoreCommandEncoder_BeginComputePass/success_with_descriptor (0.00s)
+    --- PASS: TestCoreCommandEncoder_BeginComputePass/success_with_nil_descriptor (0.00s)
+    --- PASS: TestCoreCommandEncoder_BeginComputePass/encoder_locked (0.00s)
+=== RUN   TestCoreCommandEncoder_CopyBufferToBuffer
+=== RUN   TestCoreCommandEncoder_CopyBufferToBuffer/nil_source_buffer
+=== RUN   TestCoreCommandEncoder_CopyBufferToBuffer/nil_destination_buffer
+=== RUN   TestCoreCommandEncoder_CopyBufferToBuffer/unaligned_source_offset
+=== RUN   TestCoreCommandEncoder_CopyBufferToBuffer/unaligned_destination_offset
+=== RUN   TestCoreCommandEncoder_CopyBufferToBuffer/unaligned_size
+=== RUN   TestCoreCommandEncoder_CopyBufferToBuffer/encoder_locked
+--- PASS: TestCoreCommandEncoder_CopyBufferToBuffer (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyBufferToBuffer/nil_source_buffer (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyBufferToBuffer/nil_destination_buffer (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyBufferToBuffer/unaligned_source_offset (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyBufferToBuffer/unaligned_destination_offset (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyBufferToBuffer/unaligned_size (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyBufferToBuffer/encoder_locked (0.00s)
+=== RUN   TestCoreCommandEncoder_CopyBufferToTexture
+=== RUN   TestCoreCommandEncoder_CopyBufferToTexture/nil_source
+=== RUN   TestCoreCommandEncoder_CopyBufferToTexture/nil_destination
+=== RUN   TestCoreCommandEncoder_CopyBufferToTexture/encoder_locked
+--- PASS: TestCoreCommandEncoder_CopyBufferToTexture (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyBufferToTexture/nil_source (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyBufferToTexture/nil_destination (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyBufferToTexture/encoder_locked (0.00s)
+=== RUN   TestCoreCommandEncoder_CopyTextureToBuffer
+=== RUN   TestCoreCommandEncoder_CopyTextureToBuffer/nil_source
+=== RUN   TestCoreCommandEncoder_CopyTextureToBuffer/nil_destination
+--- PASS: TestCoreCommandEncoder_CopyTextureToBuffer (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyTextureToBuffer/nil_source (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyTextureToBuffer/nil_destination (0.00s)
+=== RUN   TestCoreCommandEncoder_CopyTextureToTexture
+=== RUN   TestCoreCommandEncoder_CopyTextureToTexture/nil_source
+=== RUN   TestCoreCommandEncoder_CopyTextureToTexture/nil_destination
+--- PASS: TestCoreCommandEncoder_CopyTextureToTexture (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyTextureToTexture/nil_source (0.00s)
+    --- PASS: TestCoreCommandEncoder_CopyTextureToTexture/nil_destination (0.00s)
+=== RUN   TestCoreCommandEncoder_ClearBuffer
+=== RUN   TestCoreCommandEncoder_ClearBuffer/nil_buffer
+=== RUN   TestCoreCommandEncoder_ClearBuffer/unaligned_offset
+=== RUN   TestCoreCommandEncoder_ClearBuffer/encoder_locked
+--- PASS: TestCoreCommandEncoder_ClearBuffer (0.00s)
+    --- PASS: TestCoreCommandEncoder_ClearBuffer/nil_buffer (0.00s)
+    --- PASS: TestCoreCommandEncoder_ClearBuffer/unaligned_offset (0.00s)
+    --- PASS: TestCoreCommandEncoder_ClearBuffer/encoder_locked (0.00s)
+=== RUN   TestCoreCommandEncoder_Finish
+=== RUN   TestCoreCommandEncoder_Finish/success
+=== RUN   TestCoreCommandEncoder_Finish/encoder_locked
+--- PASS: TestCoreCommandEncoder_Finish (0.00s)
+    --- PASS: TestCoreCommandEncoder_Finish/success (0.00s)
+    --- PASS: TestCoreCommandEncoder_Finish/encoder_locked (0.00s)
+=== RUN   TestRenderPassEncoder_IntegrationWithEncoder
+=== RUN   TestRenderPassEncoder_IntegrationWithEncoder/normal_end_clears_active_pass
+--- PASS: TestRenderPassEncoder_IntegrationWithEncoder (0.00s)
+    --- PASS: TestRenderPassEncoder_IntegrationWithEncoder/normal_end_clears_active_pass (0.00s)
+=== RUN   TestComputePassEncoder_IntegrationWithEncoder
+=== RUN   TestComputePassEncoder_IntegrationWithEncoder/normal_end_clears_active_pass
+--- PASS: TestComputePassEncoder_IntegrationWithEncoder (0.00s)
+    --- PASS: TestComputePassEncoder_IntegrationWithEncoder/normal_end_clears_active_pass (0.00s)
+=== RUN   TestCoreCommandBuffer_Label
+=== RUN   TestCoreCommandBuffer_Label/nil_buffer
+=== RUN   TestCoreCommandBuffer_Label/buffer_with_label
+=== RUN   TestCoreCommandBuffer_Label/buffer_without_label
+--- PASS: TestCoreCommandBuffer_Label (0.00s)
+    --- PASS: TestCoreCommandBuffer_Label/nil_buffer (0.00s)
+    --- PASS: TestCoreCommandBuffer_Label/buffer_with_label (0.00s)
+    --- PASS: TestCoreCommandBuffer_Label/buffer_without_label (0.00s)
+=== RUN   TestCoreCommandBuffer_Raw
+=== RUN   TestCoreCommandBuffer_Raw/nil_command_buffer
+=== RUN   TestCoreCommandBuffer_Raw/buffer_without_core_buffer
+--- PASS: TestCoreCommandBuffer_Raw (0.00s)
+    --- PASS: TestCoreCommandBuffer_Raw/nil_command_buffer (0.00s)
+    --- PASS: TestCoreCommandBuffer_Raw/buffer_without_core_buffer (0.00s)
+=== RUN   TestRenderPassDescriptor_toWebGPUDescriptor
+=== RUN   TestRenderPassDescriptor_toWebGPUDescriptor/nil_descriptor
+=== RUN   TestRenderPassDescriptor_toWebGPUDescriptor/descriptor_with_color_attachment
+=== RUN   TestRenderPassDescriptor_toWebGPUDescriptor/descriptor_with_depth_stencil
+--- PASS: TestRenderPassDescriptor_toWebGPUDescriptor (0.00s)
+    --- PASS: TestRenderPassDescriptor_toWebGPUDescriptor/nil_descriptor (0.00s)
+    --- PASS: TestRenderPassDescriptor_toWebGPUDescriptor/descriptor_with_color_attachment (0.00s)
+    --- PASS: TestRenderPassDescriptor_toWebGPUDescriptor/descriptor_with_depth_stencil (0.00s)
+=== RUN   TestCommandEncoderErrors
+=== RUN   TestCommandEncoderErrors/error_constants_are_distinct
+--- PASS: TestCommandEncoderErrors (0.00s)
+    --- PASS: TestCommandEncoderErrors/error_constants_are_distinct (0.00s)
+=== RUN   TestCoreCommandEncoder_RenderWorkflow
+--- PASS: TestCoreCommandEncoder_RenderWorkflow (0.00s)
+=== RUN   TestCoreCommandEncoder_ComputeWorkflow
+--- PASS: TestCoreCommandEncoder_ComputeWorkflow (0.00s)
+PASS

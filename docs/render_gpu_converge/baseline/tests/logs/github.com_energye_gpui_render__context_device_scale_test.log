@@ -1,0 +1,37 @@
+=== RUN   TestNewContextWithScale
+=== RUN   TestNewContextWithScale/no_scale
+=== RUN   TestNewContextWithScale/retina_2x
+=== RUN   TestNewContextWithScale/mobile_3x
+=== RUN   TestNewContextWithScale/fractional_1.5x
+--- PASS: TestNewContextWithScale (0.01s)
+    --- PASS: TestNewContextWithScale/no_scale (0.00s)
+    --- PASS: TestNewContextWithScale/retina_2x (0.00s)
+    --- PASS: TestNewContextWithScale/mobile_3x (0.00s)
+    --- PASS: TestNewContextWithScale/fractional_1.5x (0.00s)
+=== RUN   TestWithDeviceScale
+--- PASS: TestWithDeviceScale (0.00s)
+=== RUN   TestDefaultContextHasScale1
+--- PASS: TestDefaultContextHasScale1 (0.00s)
+=== RUN   TestSetDeviceScale
+--- PASS: TestSetDeviceScale (0.00s)
+=== RUN   TestSetDeviceScaleIgnoresInvalid
+--- PASS: TestSetDeviceScaleIgnoresInvalid (0.00s)
+=== RUN   TestResizeWithDeviceScale
+--- PASS: TestResizeWithDeviceScale (0.01s)
+=== RUN   TestIdentityResetsToIdentity
+--- PASS: TestIdentityResetsToIdentity (0.01s)
+=== RUN   TestGetCurrentPointWithDeviceScale
+--- PASS: TestGetCurrentPointWithDeviceScale (0.00s)
+=== RUN   TestCoordinateRoundTrip
+--- PASS: TestCoordinateRoundTrip (0.00s)
+=== RUN   TestGetTransformUserSpace
+--- PASS: TestGetTransformUserSpace (0.00s)
+=== RUN   TestFillAtDeviceScale
+--- PASS: TestFillAtDeviceScale (0.29s)
+=== RUN   TestClipRectDeviceScale
+--- PASS: TestClipRectDeviceScale (0.00s)
+=== RUN   TestDrawingAtDeviceScale
+--- PASS: TestDrawingAtDeviceScale (0.00s)
+=== RUN   TestDrawStringBitmapRetinaScaling
+--- PASS: TestDrawStringBitmapRetinaScaling (0.01s)
+PASS

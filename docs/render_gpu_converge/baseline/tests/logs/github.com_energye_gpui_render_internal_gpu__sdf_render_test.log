@@ -1,0 +1,60 @@
+=== RUN   TestSDFRenderPipelineCreation
+    sdf_render_test.go:23: createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestSDFRenderPipelineCreation (0.21s)
+=== RUN   TestSDFRenderPipelineDestroy
+    sdf_render_test.go:48: createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestSDFRenderPipelineDestroy (0.16s)
+=== RUN   TestSDFRenderPipelineDestroyBeforeCreate
+--- PASS: TestSDFRenderPipelineDestroyBeforeCreate (0.08s)
+=== RUN   TestSDFRenderPipelineTextures
+--- PASS: TestSDFRenderPipelineTextures (0.11s)
+=== RUN   TestSDFRenderPipelineTexturesIdempotent
+--- PASS: TestSDFRenderPipelineTexturesIdempotent (0.10s)
+=== RUN   TestSDFRenderPipelineTexturesResize
+--- PASS: TestSDFRenderPipelineTexturesResize (0.10s)
+=== RUN   TestSDFRenderPipelineFullDestroy
+    sdf_render_test.go:189: createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestSDFRenderPipelineFullDestroy (0.06s)
+=== RUN   TestSDFRenderPipelineRecreate
+    sdf_render_test.go:223: first createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestSDFRenderPipelineRecreate (0.09s)
+=== RUN   TestSDFRenderShaderCompilation
+--- PASS: TestSDFRenderShaderCompilation (0.06s)
+=== RUN   TestSDFRenderVertexLayout
+--- PASS: TestSDFRenderVertexLayout (0.00s)
+=== RUN   TestBuildSDFRenderVerticesCircle
+--- PASS: TestBuildSDFRenderVerticesCircle (0.00s)
+=== RUN   TestBuildSDFRenderVerticesRRect
+--- PASS: TestBuildSDFRenderVerticesRRect (0.00s)
+=== RUN   TestBuildSDFRenderVerticesMultipleShapes
+--- PASS: TestBuildSDFRenderVerticesMultipleShapes (0.00s)
+=== RUN   TestBuildSDFRenderVerticesStrokedShape
+--- PASS: TestBuildSDFRenderVerticesStrokedShape (0.00s)
+=== RUN   TestBuildSDFRenderVerticesEmpty
+--- PASS: TestBuildSDFRenderVerticesEmpty (0.00s)
+=== RUN   TestMakeSDFRenderUniform
+--- PASS: TestMakeSDFRenderUniform (0.00s)
+=== RUN   TestDetectedShapeToRenderShapeCircle
+--- PASS: TestDetectedShapeToRenderShapeCircle (0.00s)
+=== RUN   TestDetectedShapeToRenderShapeEllipse
+--- PASS: TestDetectedShapeToRenderShapeEllipse (0.00s)
+=== RUN   TestDetectedShapeToRenderShapeRRect
+--- PASS: TestDetectedShapeToRenderShapeRRect (0.00s)
+=== RUN   TestDetectedShapeToRenderShapeRect
+--- PASS: TestDetectedShapeToRenderShapeRect (0.00s)
+=== RUN   TestDetectedShapeToRenderShapeStroked
+--- PASS: TestDetectedShapeToRenderShapeStroked (0.00s)
+=== RUN   TestDetectedShapeToRenderShapeStrokedUsesTransformScale
+--- PASS: TestDetectedShapeToRenderShapeStrokedUsesTransformScale (0.00s)
+=== RUN   TestDetectedShapeToRenderShapeUnknown
+--- PASS: TestDetectedShapeToRenderShapeUnknown (0.00s)
+=== RUN   TestSDFRenderPipelineRenderShapesEmpty
+--- PASS: TestSDFRenderPipelineRenderShapesEmpty (0.10s)
+=== RUN   TestSDFRenderPipelineEnsureReady
+    sdf_render_test.go:678: ensureReady failed: create pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestSDFRenderPipelineEnsureReady (0.12s)
+=== RUN   TestSDFRenderPipelineTexturesAfterDestroy
+--- PASS: TestSDFRenderPipelineTexturesAfterDestroy (0.16s)
+=== RUN   TestWriteSDFRenderVertex
+--- PASS: TestWriteSDFRenderVertex (0.00s)
+FAIL

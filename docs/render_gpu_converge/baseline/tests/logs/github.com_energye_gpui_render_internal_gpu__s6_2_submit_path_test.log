@@ -1,0 +1,9 @@
+=== RUN   TestS62_ClipParams_BytesInto_NoAllocHot
+--- PASS: TestS62_ClipParams_BytesInto_NoAllocHot (0.00s)
+=== RUN   TestS62_SDFUniformInto_NoAllocHot
+--- PASS: TestS62_SDFUniformInto_NoAllocHot (0.00s)
+=== RUN   TestS62_RenderSession_StatsAfterGrouped
+    s6_2_submit_path_test.go:69: S6.2 stats={Groups:1 EncodersCreated:1 Submits:0 WriteBuffers:2 WriteBytes:400 SingleGroupFast:true CoalescedCBs:0 ErrorScopeErrors:0}
+    s6_2_submit_path_test.go:88: S6.2 stats2={Groups:1 EncodersCreated:1 Submits:0 WriteBuffers:1 WriteBytes:384 SingleGroupFast:true CoalescedCBs:0 ErrorScopeErrors:0}
+--- PASS: TestS62_RenderSession_StatsAfterGrouped (0.28s)
+PASS

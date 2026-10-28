@@ -1,0 +1,59 @@
+=== RUN   TestContext_SetStroke
+--- PASS: TestContext_SetStroke (0.00s)
+=== RUN   TestContext_GetStroke_Legacy
+--- PASS: TestContext_GetStroke_Legacy (0.00s)
+=== RUN   TestContext_SetDash
+=== RUN   TestContext_SetDash/simple_dash_pattern
+=== RUN   TestContext_SetDash/complex_dash_pattern
+=== RUN   TestContext_SetDash/empty_dash_clears_pattern
+=== RUN   TestContext_SetDash/all_zeros_clears_pattern
+--- PASS: TestContext_SetDash (0.00s)
+    --- PASS: TestContext_SetDash/simple_dash_pattern (0.00s)
+    --- PASS: TestContext_SetDash/complex_dash_pattern (0.00s)
+    --- PASS: TestContext_SetDash/empty_dash_clears_pattern (0.00s)
+    --- PASS: TestContext_SetDash/all_zeros_clears_pattern (0.00s)
+=== RUN   TestContext_SetDashOffset
+--- PASS: TestContext_SetDashOffset (0.00s)
+=== RUN   TestContext_SetDashOffset_NoDash
+--- PASS: TestContext_SetDashOffset_NoDash (0.00s)
+=== RUN   TestContext_ClearDash
+--- PASS: TestContext_ClearDash (0.00s)
+=== RUN   TestContext_ClearDash_NoStroke
+--- PASS: TestContext_ClearDash_NoStroke (0.00s)
+=== RUN   TestContext_IsDashed
+--- PASS: TestContext_IsDashed (0.00s)
+=== RUN   TestContext_StrokeWithDash
+--- PASS: TestContext_StrokeWithDash (0.18s)
+=== RUN   TestContext_StrokeWithDash_PixelVerification
+--- PASS: TestContext_StrokeWithDash_PixelVerification (0.10s)
+=== RUN   TestContext_StrokeWithDash_Rectangle
+--- PASS: TestContext_StrokeWithDash_Rectangle (0.00s)
+=== RUN   TestContext_StrokeWithDash_Offset
+--- PASS: TestContext_StrokeWithDash_Offset (0.00s)
+=== RUN   TestContext_SetStroke_UpdatesLegacyFields
+--- PASS: TestContext_SetStroke_UpdatesLegacyFields (0.00s)
+=== RUN   TestContext_DashedLinePreset
+--- PASS: TestContext_DashedLinePreset (0.00s)
+=== RUN   TestContext_DottedLinePreset
+--- PASS: TestContext_DottedLinePreset (0.00s)
+=== RUN   TestPaint_GetStroke
+=== RUN   TestPaint_GetStroke/with_Stroke_set
+=== RUN   TestPaint_GetStroke/without_Stroke_set_(legacy_fallback)
+--- PASS: TestPaint_GetStroke (0.00s)
+    --- PASS: TestPaint_GetStroke/with_Stroke_set (0.00s)
+    --- PASS: TestPaint_GetStroke/without_Stroke_set_(legacy_fallback) (0.00s)
+=== RUN   TestPaint_EffectiveMethods
+=== RUN   TestPaint_EffectiveMethods/with_Stroke_set
+=== RUN   TestPaint_EffectiveMethods/without_Stroke_set_(legacy_fallback)
+--- PASS: TestPaint_EffectiveMethods (0.00s)
+    --- PASS: TestPaint_EffectiveMethods/with_Stroke_set (0.00s)
+    --- PASS: TestPaint_EffectiveMethods/without_Stroke_set_(legacy_fallback) (0.00s)
+=== RUN   TestPaint_Clone_WithStroke
+--- PASS: TestPaint_Clone_WithStroke (0.00s)
+=== RUN   TestStroke_NearHorizontalBleed
+--- PASS: TestStroke_NearHorizontalBleed (0.00s)
+=== RUN   TestStroke_FillThenStrokeBleed
+--- PASS: TestStroke_FillThenStrokeBleed (0.00s)
+=== RUN   TestStroke_ExtremeNearHorizontalBleed
+--- PASS: TestStroke_ExtremeNearHorizontalBleed (0.00s)
+PASS

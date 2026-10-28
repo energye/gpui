@@ -1,0 +1,19 @@
+=== RUN   TestM2VerifyGrid
+    zz_m2_verify_test.go:36: 单区字 25 个：[26085 30000 30446 19968 20108 19977 21313 20154 21475 26408 27700 28779 22303 29579 22823 23567 20013 23665 22825 19979 19978 19981 24515 26376 24029]
+    zz_m2_verify_test.go:37: 多 mask 字 1 个（M3）：[26126]
+    zz_m2_verify_test.go:76: 单区字 25 × 6 字号全部逐点一致
+    zz_m2_verify_test.go:114: 多 mask 字 1 × 6 字号全部逐点一致
+--- PASS: TestM2VerifyGrid (4.08s)
+=== RUN   TestM2VerifyEdge
+    zz_m2_verify_test.go:148: 10px edges: -2:-1536.00 0:0.00 1:767.58 3:3338.66 4:4096.00 7:7168.00 8:7935.58 9:9727.70 
+    zz_m2_verify_test.go:148: 12px edges: -2:-1536.00 0:0.00 1:921.09 4:4211.19 5:5120.00 8:8294.91 9:9216.00 11:11775.92 
+    zz_m2_verify_test.go:148: 14px edges: -2:-2560.00 -0:-51.78 1:1024.00 5:5082.56 6:6144.00 10:10188.22 11:11264.00 12:12799.62 
+    zz_m2_verify_test.go:148: 16px edges: -2:-2560.00 0:0.00 1:1229.30 6:5955.09 7:7168.00 11:11264.00 12:12493.30 14:14847.34 
+--- PASS: TestM2VerifyEdge (0.01s)
+=== RUN   TestM2VStem
+--- PASS: TestM2VStem (0.02s)
+=== RUN   TestM2Offset
+    zz_m2_verify_test.go:177: 一 hstems=[{349 431}] vstems=[{44 960}]
+    zz_m2_verify_test.go:178: blues=&{[-250 -250 1100 1100] [] [] [] 0.039625 7 1 58 63 [58 65 84] [63 73 89] 1000 0 1 1000}
+--- PASS: TestM2Offset (0.01s)
+PASS

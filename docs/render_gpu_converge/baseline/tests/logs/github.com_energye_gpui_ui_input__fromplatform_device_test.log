@@ -1,0 +1,7 @@
+=== RUN   TestFromPlatform_DeviceAdded
+--- PASS: TestFromPlatform_DeviceAdded (0.00s)
+=== RUN   TestFromPlatform_DeviceRemoved
+--- PASS: TestFromPlatform_DeviceRemoved (0.00s)
+=== RUN   TestFromPlatform_DeviceClasses
+--- PASS: TestFromPlatform_DeviceClasses (0.00s)
+PASS

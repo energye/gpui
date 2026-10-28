@@ -1,0 +1,7 @@
+=== RUN   TestOpt35_FilterPassUniformSlotStride_Aligned
+--- PASS: TestOpt35_FilterPassUniformSlotStride_Aligned (0.00s)
+=== RUN   TestOpt35_FilterPassUniformSlab_OneWriteForMultiPassBlur
+--- PASS: TestOpt35_FilterPassUniformSlab_OneWriteForMultiPassBlur (0.33s)
+=== RUN   TestOpt35_FilterPassUniformSlab_ShadowMultiPass
+--- PASS: TestOpt35_FilterPassUniformSlab_ShadowMultiPass (0.29s)
+PASS

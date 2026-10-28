@@ -1,0 +1,43 @@
+=== RUN   TestNewEdge
+=== RUN   TestNewEdge/simple_downward_edge
+=== RUN   TestNewEdge/upward_edge_normalized
+=== RUN   TestNewEdge/horizontal_edge_returns_nil
+=== RUN   TestNewEdge/very_small_dy_returns_nil
+=== RUN   TestNewEdge/vertical_edge
+--- PASS: TestNewEdge (0.00s)
+    --- PASS: TestNewEdge/simple_downward_edge (0.00s)
+    --- PASS: TestNewEdge/upward_edge_normalized (0.00s)
+    --- PASS: TestNewEdge/horizontal_edge_returns_nil (0.00s)
+    --- PASS: TestNewEdge/very_small_dy_returns_nil (0.00s)
+    --- PASS: TestNewEdge/vertical_edge (0.00s)
+=== RUN   TestNewEdgeWithWinding
+=== RUN   TestNewEdgeWithWinding/downward_with_positive_winding
+=== RUN   TestNewEdgeWithWinding/needs_swap_reverses_winding
+=== RUN   TestNewEdgeWithWinding/horizontal_returns_nil
+--- PASS: TestNewEdgeWithWinding (0.00s)
+    --- PASS: TestNewEdgeWithWinding/downward_with_positive_winding (0.00s)
+    --- PASS: TestNewEdgeWithWinding/needs_swap_reverses_winding (0.00s)
+    --- PASS: TestNewEdgeWithWinding/horizontal_returns_nil (0.00s)
+=== RUN   TestEdgeXAtY
+--- PASS: TestEdgeXAtY (0.00s)
+=== RUN   TestEdgeIsActiveAt
+--- PASS: TestEdgeIsActiveAt (0.00s)
+=== RUN   TestEdgeContainsY
+--- PASS: TestEdgeContainsY (0.00s)
+=== RUN   TestEdgeHeight
+--- PASS: TestEdgeHeight (0.00s)
+=== RUN   TestEdgeList
+--- PASS: TestEdgeList (0.00s)
+=== RUN   TestEdgeListBounds
+=== RUN   TestEdgeListBounds/empty_list
+=== RUN   TestEdgeListBounds/single_edge
+=== RUN   TestEdgeListBounds/multiple_edges
+--- PASS: TestEdgeListBounds (0.00s)
+    --- PASS: TestEdgeListBounds/empty_list (0.00s)
+    --- PASS: TestEdgeListBounds/single_edge (0.00s)
+    --- PASS: TestEdgeListBounds/multiple_edges (0.00s)
+=== RUN   TestSimpleAET
+--- PASS: TestSimpleAET (0.00s)
+=== RUN   TestSimpleAET_RemoveExpired
+--- PASS: TestSimpleAET_RemoveExpired (0.00s)
+PASS

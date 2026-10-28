@@ -1,0 +1,129 @@
+=== RUN   TestApplyExtendMode
+=== RUN   TestApplyExtendMode/pad_negative
+=== RUN   TestApplyExtendMode/pad_zero
+=== RUN   TestApplyExtendMode/pad_middle
+=== RUN   TestApplyExtendMode/pad_one
+=== RUN   TestApplyExtendMode/pad_over
+=== RUN   TestApplyExtendMode/repeat_negative
+=== RUN   TestApplyExtendMode/repeat_zero
+=== RUN   TestApplyExtendMode/repeat_middle
+=== RUN   TestApplyExtendMode/repeat_one
+=== RUN   TestApplyExtendMode/repeat_1.25
+=== RUN   TestApplyExtendMode/repeat_2.5
+=== RUN   TestApplyExtendMode/reflect_negative
+=== RUN   TestApplyExtendMode/reflect_zero
+=== RUN   TestApplyExtendMode/reflect_middle
+=== RUN   TestApplyExtendMode/reflect_one
+=== RUN   TestApplyExtendMode/reflect_1.25
+=== RUN   TestApplyExtendMode/reflect_1.5
+=== RUN   TestApplyExtendMode/reflect_2.0
+=== RUN   TestApplyExtendMode/reflect_2.25
+--- PASS: TestApplyExtendMode (0.00s)
+    --- PASS: TestApplyExtendMode/pad_negative (0.00s)
+    --- PASS: TestApplyExtendMode/pad_zero (0.00s)
+    --- PASS: TestApplyExtendMode/pad_middle (0.00s)
+    --- PASS: TestApplyExtendMode/pad_one (0.00s)
+    --- PASS: TestApplyExtendMode/pad_over (0.00s)
+    --- PASS: TestApplyExtendMode/repeat_negative (0.00s)
+    --- PASS: TestApplyExtendMode/repeat_zero (0.00s)
+    --- PASS: TestApplyExtendMode/repeat_middle (0.00s)
+    --- PASS: TestApplyExtendMode/repeat_one (0.00s)
+    --- PASS: TestApplyExtendMode/repeat_1.25 (0.00s)
+    --- PASS: TestApplyExtendMode/repeat_2.5 (0.00s)
+    --- PASS: TestApplyExtendMode/reflect_negative (0.00s)
+    --- PASS: TestApplyExtendMode/reflect_zero (0.00s)
+    --- PASS: TestApplyExtendMode/reflect_middle (0.00s)
+    --- PASS: TestApplyExtendMode/reflect_one (0.00s)
+    --- PASS: TestApplyExtendMode/reflect_1.25 (0.00s)
+    --- PASS: TestApplyExtendMode/reflect_1.5 (0.00s)
+    --- PASS: TestApplyExtendMode/reflect_2.0 (0.00s)
+    --- PASS: TestApplyExtendMode/reflect_2.25 (0.00s)
+=== RUN   TestSortStops
+=== RUN   TestSortStops/empty
+=== RUN   TestSortStops/already_sorted
+=== RUN   TestSortStops/reverse_order
+--- PASS: TestSortStops (0.00s)
+    --- PASS: TestSortStops/empty (0.00s)
+    --- PASS: TestSortStops/already_sorted (0.00s)
+    --- PASS: TestSortStops/reverse_order (0.00s)
+=== RUN   TestInterpolateColorLinear
+=== RUN   TestInterpolateColorLinear/t=0_returns_first_color
+=== RUN   TestInterpolateColorLinear/t=1_returns_second_color
+=== RUN   TestInterpolateColorLinear/black_to_white_midpoint
+--- PASS: TestInterpolateColorLinear (0.00s)
+    --- PASS: TestInterpolateColorLinear/t=0_returns_first_color (0.00s)
+    --- PASS: TestInterpolateColorLinear/t=1_returns_second_color (0.00s)
+    --- PASS: TestInterpolateColorLinear/black_to_white_midpoint (0.00s)
+=== RUN   TestLinearGradientBrush_New
+--- PASS: TestLinearGradientBrush_New (0.00s)
+=== RUN   TestLinearGradientBrush_AddColorStop
+--- PASS: TestLinearGradientBrush_AddColorStop (0.00s)
+=== RUN   TestLinearGradientBrush_ColorAt
+=== RUN   TestLinearGradientBrush_ColorAt/at_start
+=== RUN   TestLinearGradientBrush_ColorAt/at_end
+=== RUN   TestLinearGradientBrush_ColorAt/before_start_(pad)
+=== RUN   TestLinearGradientBrush_ColorAt/after_end_(pad)
+--- PASS: TestLinearGradientBrush_ColorAt (0.00s)
+    --- PASS: TestLinearGradientBrush_ColorAt/at_start (0.00s)
+    --- PASS: TestLinearGradientBrush_ColorAt/at_end (0.00s)
+    --- PASS: TestLinearGradientBrush_ColorAt/before_start_(pad) (0.00s)
+    --- PASS: TestLinearGradientBrush_ColorAt/after_end_(pad) (0.00s)
+=== RUN   TestLinearGradientBrush_ZeroLength
+--- PASS: TestLinearGradientBrush_ZeroLength (0.00s)
+=== RUN   TestLinearGradientBrush_EmptyStops
+--- PASS: TestLinearGradientBrush_EmptyStops (0.00s)
+=== RUN   TestLinearGradientBrush_SingleStop
+--- PASS: TestLinearGradientBrush_SingleStop (0.00s)
+=== RUN   TestLinearGradientBrush_Vertical
+--- PASS: TestLinearGradientBrush_Vertical (0.00s)
+=== RUN   TestLinearGradientBrush_ExtendRepeat
+--- PASS: TestLinearGradientBrush_ExtendRepeat (0.00s)
+=== RUN   TestRadialGradientBrush_New
+--- PASS: TestRadialGradientBrush_New (0.00s)
+=== RUN   TestRadialGradientBrush_SetFocus
+--- PASS: TestRadialGradientBrush_SetFocus (0.00s)
+=== RUN   TestRadialGradientBrush_ColorAt
+=== RUN   TestRadialGradientBrush_ColorAt/at_center
+=== RUN   TestRadialGradientBrush_ColorAt/at_edge
+=== RUN   TestRadialGradientBrush_ColorAt/at_edge_top
+--- PASS: TestRadialGradientBrush_ColorAt (0.00s)
+    --- PASS: TestRadialGradientBrush_ColorAt/at_center (0.00s)
+    --- PASS: TestRadialGradientBrush_ColorAt/at_edge (0.00s)
+    --- PASS: TestRadialGradientBrush_ColorAt/at_edge_top (0.00s)
+=== RUN   TestRadialGradientBrush_EmptyStops
+--- PASS: TestRadialGradientBrush_EmptyStops (0.00s)
+=== RUN   TestRadialGradientBrush_ZeroRadius
+--- PASS: TestRadialGradientBrush_ZeroRadius (0.00s)
+=== RUN   TestRadialGradientBrush_StartRadius
+--- PASS: TestRadialGradientBrush_StartRadius (0.00s)
+=== RUN   TestSweepGradientBrush_New
+--- PASS: TestSweepGradientBrush_New (0.00s)
+=== RUN   TestSweepGradientBrush_SetEndAngle
+--- PASS: TestSweepGradientBrush_SetEndAngle (0.00s)
+=== RUN   TestSweepGradientBrush_ColorAt
+=== RUN   TestSweepGradientBrush_ColorAt/right_(0_degrees)
+=== RUN   TestSweepGradientBrush_ColorAt/left_(180_degrees)
+--- PASS: TestSweepGradientBrush_ColorAt (0.00s)
+    --- PASS: TestSweepGradientBrush_ColorAt/right_(0_degrees) (0.00s)
+    --- PASS: TestSweepGradientBrush_ColorAt/left_(180_degrees) (0.00s)
+=== RUN   TestSweepGradientBrush_AtCenter
+--- PASS: TestSweepGradientBrush_AtCenter (0.00s)
+=== RUN   TestSweepGradientBrush_EmptyStops
+--- PASS: TestSweepGradientBrush_EmptyStops (0.00s)
+=== RUN   TestSweepGradientBrush_WithOffset
+--- PASS: TestSweepGradientBrush_WithOffset (0.00s)
+=== RUN   TestGradient_BrushInterface
+--- PASS: TestGradient_BrushInterface (0.00s)
+=== RUN   TestGradient_PatternInterface
+--- PASS: TestGradient_PatternInterface (0.00s)
+=== RUN   TestLinearGradientBrush_MultipleStops
+--- PASS: TestLinearGradientBrush_MultipleStops (0.00s)
+=== RUN   TestRadialGradientBrush_Focal
+--- PASS: TestRadialGradientBrush_Focal (0.00s)
+=== RUN   TestRadialGradientBrush_SetExtend
+--- PASS: TestRadialGradientBrush_SetExtend (0.00s)
+=== RUN   TestSweepGradientBrush_SetExtend
+--- PASS: TestSweepGradientBrush_SetExtend (0.00s)
+=== RUN   TestSweepGradientBrush_NegativeSweep
+--- PASS: TestSweepGradientBrush_NegativeSweep (0.00s)
+PASS

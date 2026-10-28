@@ -1,0 +1,31 @@
+=== RUN   TestBuildReport_AndSchema
+--- PASS: TestBuildReport_AndSchema (0.00s)
+=== RUN   TestBuildReport_ShortRunSlopeInvalidIsHonest
+--- PASS: TestBuildReport_ShortRunSlopeInvalidIsHonest (0.00s)
+=== RUN   TestEvaluateGates_FailNoPresents
+--- PASS: TestEvaluateGates_FailNoPresents (0.00s)
+=== RUN   TestEvaluateGates_FailWrongPolicy
+--- PASS: TestEvaluateGates_FailWrongPolicy (0.00s)
+=== RUN   TestEvaluateGates_PassMinimal
+--- PASS: TestEvaluateGates_PassMinimal (0.00s)
+=== RUN   TestBuildReport_FirstPresentObservations
+--- PASS: TestBuildReport_FirstPresentObservations (0.00s)
+=== RUN   TestBuildReport_DirtyLayerIDs
+--- PASS: TestBuildReport_DirtyLayerIDs (0.00s)
+=== RUN   TestEvaluateRetainedExtras_DirtyLayerIDGates
+--- PASS: TestEvaluateRetainedExtras_DirtyLayerIDGates (0.00s)
+=== RUN   TestEvaluateRetainedExtras_CacheInvalidationGate
+--- PASS: TestEvaluateRetainedExtras_CacheInvalidationGate (0.00s)
+=== RUN   TestBuildReport_DebugRepaintOffStateExplicit
+--- PASS: TestBuildReport_DebugRepaintOffStateExplicit (0.00s)
+=== RUN   TestRuler_NullWhenNotRun
+--- PASS: TestRuler_NullWhenNotRun (0.00s)
+=== RUN   TestRuler_FilledAndRatios
+--- PASS: TestRuler_FilledAndRatios (0.00s)
+=== RUN   TestRuler_ZeroSideKeepsNullRatio
+--- PASS: TestRuler_ZeroSideKeepsNullRatio (0.00s)
+=== RUN   TestRulerFromEnv
+wrgate: GPUI_RULER_GPUI_RULER_CPU_PCT,GPUI_RULER_RSS_MB unset/unparseable; ruler metrics stay null (no fabricated ratio)
+wrgate: GPUI_RULER_GPUI_RULER_CPU_PCT unset/unparseable; ruler metrics stay null (no fabricated ratio)
+--- PASS: TestRulerFromEnv (0.00s)
+PASS

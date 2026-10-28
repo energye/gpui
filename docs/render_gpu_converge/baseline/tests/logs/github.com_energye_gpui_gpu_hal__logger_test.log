@@ -1,0 +1,17 @@
+=== RUN   TestNopHandler_Enabled
+--- PASS: TestNopHandler_Enabled (0.00s)
+=== RUN   TestNopHandler_Handle
+--- PASS: TestNopHandler_Handle (0.00s)
+=== RUN   TestNopHandler_WithAttrs
+--- PASS: TestNopHandler_WithAttrs (0.00s)
+=== RUN   TestNopHandler_WithGroup
+--- PASS: TestNopHandler_WithGroup (0.00s)
+=== RUN   TestLoggerDefaultSilent
+--- PASS: TestLoggerDefaultSilent (0.00s)
+=== RUN   TestSetLogger
+--- PASS: TestSetLogger (0.00s)
+=== RUN   TestSetLoggerNilRestoresSilent
+--- PASS: TestSetLoggerNilRestoresSilent (0.00s)
+=== RUN   TestLoggerConcurrentAccess
+--- PASS: TestLoggerConcurrentAccess (0.00s)
+PASS

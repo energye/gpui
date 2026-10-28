@@ -1,0 +1,7 @@
+=== RUN   TestFramePairing_DoubleBeginRefused
+--- PASS: TestFramePairing_DoubleBeginRefused (0.00s)
+=== RUN   TestBeginFrame_ReleasedSurface
+--- PASS: TestBeginFrame_ReleasedSurface (0.00s)
+=== RUN   TestConcurrentBeginFrame_NoPanic
+--- PASS: TestConcurrentBeginFrame_NoPanic (0.00s)
+PASS

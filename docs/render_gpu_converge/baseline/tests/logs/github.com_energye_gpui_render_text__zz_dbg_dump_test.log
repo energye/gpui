@@ -1,0 +1,61 @@
+=== RUN   TestDbgDumpASCII
+
+==== 合 16px 自研光栅 (18x18) ====
+                  
+       .OO        
+       O##o       
+      o#oo#o      
+     o#O  O#o     
+    o#O.   O#o    
+  .o#O.    .o#O.  
+ o##o########o##o 
+ .O.           o. 
+                  
+    ##########    
+    #o      o#    
+    #o      o#    
+    #o      o#    
+    #o      o#    
+    ##########    
+    Oo      oO    
+                  
+==== 合 16px FT-light 位图 (16x16) ====
+       OO       
+      O##.      
+     .#..#.     
+    .#.  .#.    
+   .#.    .#O   
+  O#.      .#O  
+.##.########.O#.
+ .            . 
+                
+   ##########   
+   #.      .#   
+   #.      .#   
+   #.      .#   
+   #.      .#   
+   ##########   
+   O.      .O   
+--- PASS: TestDbgDumpASCII (0.46s)
+=== RUN   TestDbgDumpFTContourASCII
+==== 合 16px FT轮廓→自研光栅 (18x18) ====
+                  
+        OO        
+       O##O       
+      .#..#.      
+     .#O  O#.     
+    .#O    O#.    
+   O#O      .#O   
+ .##.######## O#. 
+  O            .  
+                  
+    ##########    
+    #.      .#    
+    #.      .#    
+    #.      .#    
+    #.      .#    
+    ##########    
+    O.      .O    
+                  
+--- PASS: TestDbgDumpFTContourASCII (0.02s)
+PASS

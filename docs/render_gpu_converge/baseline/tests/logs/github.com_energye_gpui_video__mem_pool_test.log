@@ -1,0 +1,11 @@
+=== RUN   TestPoolReuse
+--- PASS: TestPoolReuse (0.00s)
+=== RUN   TestPoolCap
+--- PASS: TestPoolCap (0.00s)
+=== RUN   TestPoolsTriple
+--- PASS: TestPoolsTriple (0.00s)
+=== RUN   TestPoolZeroAlloc
+--- PASS: TestPoolZeroAlloc (0.00s)
+=== RUN   TestMemCap
+--- PASS: TestMemCap (0.00s)
+PASS

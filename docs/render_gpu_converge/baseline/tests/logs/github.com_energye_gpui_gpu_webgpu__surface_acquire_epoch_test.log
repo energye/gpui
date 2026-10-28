@@ -1,0 +1,5 @@
+=== RUN   TestSurfaceAcquireEpoch_BumpInvalidatesInFlight
+--- PASS: TestSurfaceAcquireEpoch_BumpInvalidatesInFlight (0.00s)
+=== RUN   TestIsSkipFrameSurfaceErr_AcquireTimeout
+--- PASS: TestIsSkipFrameSurfaceErr_AcquireTimeout (0.00s)
+PASS

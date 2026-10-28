@@ -1,0 +1,11 @@
+=== RUN   TestVertsMeshGPUOddIndexCountUploads
+--- PASS: TestVertsMeshGPUOddIndexCountUploads (0.28s)
+=== RUN   TestVertsMeshGPUShortIndicesDrawNothing
+--- PASS: TestVertsMeshGPUShortIndicesDrawNothing (0.00s)
+=== RUN   TestVertsMeshGPUBadIndexDoesNotBleed
+--- PASS: TestVertsMeshGPUBadIndexDoesNotBleed (0.00s)
+=== RUN   TestVertsMeshGPUIndexedMatchesExpanded
+--- PASS: TestVertsMeshGPUIndexedMatchesExpanded (0.00s)
+=== RUN   TestVertsMeshExGPUReportsGPU
+--- PASS: TestVertsMeshExGPUReportsGPU (0.00s)
+PASS

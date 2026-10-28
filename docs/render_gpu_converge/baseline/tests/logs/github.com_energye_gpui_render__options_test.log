@@ -1,0 +1,15 @@
+=== RUN   TestNewContextDefault
+--- PASS: TestNewContextDefault (0.00s)
+=== RUN   TestNewContextWithRenderer
+--- PASS: TestNewContextWithRenderer (0.00s)
+=== RUN   TestNewContextWithPixmap
+--- PASS: TestNewContextWithPixmap (0.00s)
+=== RUN   TestNewContextMultipleOptions
+--- PASS: TestNewContextMultipleOptions (0.00s)
+=== RUN   TestNewContextForImageWithRenderer
+--- PASS: TestNewContextForImageWithRenderer (0.00s)
+=== RUN   TestRendererInterface
+--- PASS: TestRendererInterface (0.00s)
+=== RUN   TestNewContextDefaultSoftwareRenderer
+--- PASS: TestNewContextDefaultSoftwareRenderer (0.00s)
+PASS

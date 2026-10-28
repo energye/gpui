@@ -1,0 +1,15 @@
+=== RUN   TestDrawShaderMask_SolidHalfAlpha
+--- PASS: TestDrawShaderMask_SolidHalfAlpha (0.00s)
+=== RUN   TestDrawShaderMask_LinearFadeAndZeroStop
+--- PASS: TestDrawShaderMask_LinearFadeAndZeroStop (0.00s)
+=== RUN   TestDrawShaderMask_BoundsClip
+--- PASS: TestDrawShaderMask_BoundsClip (0.00s)
+=== RUN   TestDrawShaderMask_RestoresState
+--- PASS: TestDrawShaderMask_RestoresState (0.00s)
+=== RUN   TestDrawShaderMask_DroppedDanglingPath
+--- PASS: TestDrawShaderMask_DroppedDanglingPath (0.00s)
+=== RUN   TestDrawShaderMask_NilMaskDrawsDirect
+--- PASS: TestDrawShaderMask_NilMaskDrawsDirect (0.00s)
+=== RUN   TestDrawShaderMask_Nested
+--- PASS: TestDrawShaderMask_Nested (0.00s)
+PASS

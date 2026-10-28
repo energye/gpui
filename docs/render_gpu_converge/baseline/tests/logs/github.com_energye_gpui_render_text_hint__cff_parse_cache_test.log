@@ -1,0 +1,5 @@
+=== RUN   TestCFFParseCachedReusesPerFont
+--- PASS: TestCFFParseCachedReusesPerFont (0.05s)
+=== RUN   TestCFFParseCachedErrNotCached
+--- PASS: TestCFFParseCachedErrNotCached (0.00s)
+PASS

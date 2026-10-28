@@ -1,0 +1,5 @@
+=== RUN   TestFloatToS16
+--- PASS: TestFloatToS16 (0.00s)
+=== RUN   TestProbeConsistent
+--- PASS: TestProbeConsistent (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestSubmission_Lifecycle
+--- PASS: TestSubmission_Lifecycle (0.00s)
+=== RUN   TestSubmission_InvalidateOnDeviceLoss
+--- PASS: TestSubmission_InvalidateOnDeviceLoss (0.00s)
+=== RUN   TestSubmission_TrackAfterInvalidateShortCircuits
+--- PASS: TestSubmission_TrackAfterInvalidateShortCircuits (0.00s)
+PASS

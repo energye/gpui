@@ -1,0 +1,25 @@
+=== RUN   TestMapBuiltinToSemantic
+=== RUN   TestMapBuiltinToSemantic/Position
+=== RUN   TestMapBuiltinToSemantic/VertexIndex
+=== RUN   TestMapBuiltinToSemantic/InstanceIndex
+=== RUN   TestMapBuiltinToSemantic/FrontFacing
+=== RUN   TestMapBuiltinToSemantic/FragDepth
+=== RUN   TestMapBuiltinToSemantic/SampleIndex
+=== RUN   TestMapBuiltinToSemantic/ClipDistance
+--- PASS: TestMapBuiltinToSemantic (0.00s)
+    --- PASS: TestMapBuiltinToSemantic/Position (0.00s)
+    --- PASS: TestMapBuiltinToSemantic/VertexIndex (0.00s)
+    --- PASS: TestMapBuiltinToSemantic/InstanceIndex (0.00s)
+    --- PASS: TestMapBuiltinToSemantic/FrontFacing (0.00s)
+    --- PASS: TestMapBuiltinToSemantic/FragDepth (0.00s)
+    --- PASS: TestMapBuiltinToSemantic/SampleIndex (0.00s)
+    --- PASS: TestMapBuiltinToSemantic/ClipDistance (0.00s)
+=== RUN   TestMapLocationToInputSemantic
+--- PASS: TestMapLocationToInputSemantic (0.00s)
+=== RUN   TestMapLocationToOutputSemantic_Fragment
+--- PASS: TestMapLocationToOutputSemantic_Fragment (0.00s)
+=== RUN   TestMapLocationToOutputSemantic_Vertex
+--- PASS: TestMapLocationToOutputSemantic_Vertex (0.00s)
+=== RUN   TestMapBindingToSemantic
+--- PASS: TestMapBindingToSemantic (0.00s)
+PASS

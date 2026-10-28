@@ -1,0 +1,5 @@
+=== RUN   TestR74_TrackDamageOverflowPrefersTouchMerge
+--- PASS: TestR74_TrackDamageOverflowPrefersTouchMerge (0.00s)
+=== RUN   TestR74_TrackDamageOverflowStillCaps
+--- PASS: TestR74_TrackDamageOverflowStillCaps (0.00s)
+PASS

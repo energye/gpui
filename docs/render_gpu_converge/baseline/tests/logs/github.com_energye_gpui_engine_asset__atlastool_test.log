@@ -1,0 +1,8 @@
+=== RUN   TestAtlasToolSizeGate
+--- PASS: TestAtlasToolSizeGate (0.00s)
+=== RUN   TestAtlasToolRotatedInverse
+--- PASS: TestAtlasToolRotatedInverse (0.00s)
+=== RUN   TestAtlasToolStrokeBlackLine
+    atlastool_test.go:225: stroke-probe: ring (2,3) sprite="s69/red" spots=1
+--- PASS: TestAtlasToolStrokeBlackLine (0.00s)
+PASS

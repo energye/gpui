@@ -1,0 +1,13 @@
+=== RUN   TestS1HbvsNative_Strict
+    zz_s1_hb_native_test.go:183: thai: skeleton OK (13 glyphs)
+    zz_s1_hb_native_test.go:183: hebrew: skeleton OK (9 glyphs)
+    zz_s1_hb_native_test.go:183: lao: skeleton OK (7 glyphs)
+    zz_s1_hb_native_test.go:183: bengali: skeleton OK (10 glyphs)
+--- PASS: TestS1HbvsNative_Strict (0.37s)
+=== RUN   TestS1HbvsNative_VersionDiff
+    zz_s1_hb_native_test.go:250: arabic: 产出自洽 OK (go-text 11 glyphs vs native 2.7.4 12 glyphs)
+    zz_s1_hb_native_test.go:250: myanmar: 产出自洽 OK (go-text 8 glyphs vs native 2.7.4 8 glyphs)
+    zz_s1_hb_native_test.go:250: devanagari: 产出自洽 OK (go-text 11 glyphs vs native 2.7.4 13 glyphs)
+    zz_s1_hb_native_test.go:250: tamil: 产出自洽 OK (go-text 3 glyphs vs native 2.7.4 5 glyphs)
+--- PASS: TestS1HbvsNative_VersionDiff (0.04s)
+PASS

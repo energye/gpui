@@ -1,0 +1,7 @@
+=== RUN   TestCompositorPeriodLearnsSteady
+--- PASS: TestCompositorPeriodLearnsSteady (0.00s)
+=== RUN   TestCompositorPeriodRejectsBatched
+--- PASS: TestCompositorPeriodRejectsBatched (0.00s)
+=== RUN   TestCompositorPeriodHoldsThroughJitter
+--- PASS: TestCompositorPeriodHoldsThroughJitter (0.00s)
+PASS

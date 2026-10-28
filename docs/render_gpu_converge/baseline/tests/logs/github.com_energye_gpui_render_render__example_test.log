@@ -1,0 +1,21 @@
+=== RUN   ExampleNewGPURenderer
+--- PASS: ExampleNewGPURenderer (0.00s)
+=== RUN   ExampleNewSoftwareRenderer
+--- PASS: ExampleNewSoftwareRenderer (0.00s)
+=== RUN   ExampleScene
+--- PASS: ExampleScene (0.00s)
+=== RUN   ExampleNewPixmapTarget
+--- PASS: ExampleNewPixmapTarget (0.00s)
+=== RUN   ExamplePixmapTarget_Clear
+--- PASS: ExamplePixmapTarget_Clear (0.00s)
+=== RUN   ExampleNullDeviceHandle
+--- PASS: ExampleNullDeviceHandle (0.00s)
+=== RUN   ExampleGPURenderer_Capabilities
+--- PASS: ExampleGPURenderer_Capabilities (0.00s)
+=== RUN   ExampleSoftwareRenderer_Capabilities
+--- PASS: ExampleSoftwareRenderer_Capabilities (0.00s)
+=== RUN   ExampleScene_damage
+--- PASS: ExampleScene_damage (0.00s)
+=== RUN   ExamplePixmapTarget_Image
+--- PASS: ExamplePixmapTarget_Image (0.00s)
+PASS

@@ -1,0 +1,14 @@
+=== RUN   TestTilemapFromCases
+--- PASS: TestTilemapFromCases (0.00s)
+=== RUN   TestTilemapEdgesNoCrash
+--- PASS: TestTilemapEdgesNoCrash (0.00s)
+=== RUN   TestTilemapBoundaryIdentical
+--- PASS: TestTilemapBoundaryIdentical (0.00s)
+=== RUN   TestTilemapPerfLarge
+    tilemap_test.go:614: tilemap-128: 2000 ops x 4 queries on 128x128 in 181.579µs (0.1 us/op, solids 95)
+--- PASS: TestTilemapPerfLarge (0.00s)
+=== RUN   TestTilemapLongRunStable
+--- PASS: TestTilemapLongRunStable (0.03s)
+=== RUN   TestTilemapOffscreenGolden
+--- PASS: TestTilemapOffscreenGolden (0.00s)
+PASS

@@ -1,0 +1,3 @@
+=== RUN   TestNV12MatchesRGBA
+--- PASS: TestNV12MatchesRGBA (0.30s)
+PASS

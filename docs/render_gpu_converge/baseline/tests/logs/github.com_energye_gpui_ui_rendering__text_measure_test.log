@@ -1,0 +1,19 @@
+=== RUN   TestRenderText_LayoutUsesRuneEstimate
+--- PASS: TestRenderText_LayoutUsesRuneEstimate (0.00s)
+=== RUN   TestRenderText_SetColorNoLayout
+--- PASS: TestRenderText_SetColorNoLayout (0.00s)
+=== RUN   TestRenderText_MaxWidthWrapLayout
+--- PASS: TestRenderText_MaxWidthWrapLayout (0.00s)
+=== RUN   TestRenderText_SingleLineEllipsis_MaxWidth
+--- PASS: TestRenderText_SingleLineEllipsis_MaxWidth (0.00s)
+=== RUN   TestRenderText_MaxLines_Ellipsis
+--- PASS: TestRenderText_MaxLines_Ellipsis (0.00s)
+=== RUN   TestRenderText_MaxLines_Clip_NoEllipsis
+--- PASS: TestRenderText_MaxLines_Clip_NoEllipsis (0.00s)
+=== RUN   TestRenderText_SetMaxLines_DirtiesLayout
+--- PASS: TestRenderText_SetMaxLines_DirtiesLayout (0.00s)
+=== RUN   TestRenderTextByteOffsetAt
+--- PASS: TestRenderTextByteOffsetAt (0.00s)
+=== RUN   TestRenderTextByteOffsetAtPoint
+--- PASS: TestRenderTextByteOffsetAtPoint (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestP1OnlinePelicanGL
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+    p1_online_test.go:60: online pelican frame 0 gpu_ops=97 cpu_fallback_ops=0 frame_flushes=1 backend=integrated
+    p1_online_test.go:60: online pelican frame 1 gpu_ops=194 cpu_fallback_ops=0 frame_flushes=1 backend=integrated
+    p1_online_test.go:92: online pelican timed frames=30 total=0.47s fps=64.5 p50=16.67ms p95=17.93ms gpu_ops=3104 cpu_fallback_ops=0 frame_flushes=1 backend=integrated
+--- PASS: TestP1OnlinePelicanGL (1.30s)
+PASS

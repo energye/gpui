@@ -1,0 +1,4 @@
+=== RUN   TestP1GLPresentX11OnlineSmoke
+    p1_gl_present_x11_test.go:86: P1-2 GL online smoke: 2 frames presented via thin swapchain (backend=integrated)
+--- PASS: TestP1GLPresentX11OnlineSmoke (0.31s)
+PASS

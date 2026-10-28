@@ -1,0 +1,12 @@
+=== RUN   TestAdvanceCache_Hit
+--- PASS: TestAdvanceCache_Hit (0.00s)
+=== RUN   TestAdvanceCache_FontSwitch
+--- PASS: TestAdvanceCache_FontSwitch (0.00s)
+=== RUN   TestAdvanceCache_TabDistinct
+--- PASS: TestAdvanceCache_TabDistinct (0.00s)
+=== RUN   TestAdvanceCache_Capacity
+--- PASS: TestAdvanceCache_Capacity (0.00s)
+=== RUN   TestAdvanceCache_Steady250ns
+    advance_cache_test.go:110: RuneAdvance mean=391ns p99=3342ns (250ns absolute target pending quiet hardware)
+--- PASS: TestAdvanceCache_Steady250ns (0.00s)
+PASS

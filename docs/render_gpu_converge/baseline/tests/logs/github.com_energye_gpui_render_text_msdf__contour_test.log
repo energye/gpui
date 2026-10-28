@@ -1,0 +1,43 @@
+=== RUN   TestNewContour
+--- PASS: TestNewContour (0.00s)
+=== RUN   TestContourAddEdge
+--- PASS: TestContourAddEdge (0.00s)
+=== RUN   TestContourBounds
+--- PASS: TestContourBounds (0.00s)
+=== RUN   TestContourBoundsEmpty
+--- PASS: TestContourBoundsEmpty (0.00s)
+=== RUN   TestContourCalculateWinding
+--- PASS: TestContourCalculateWinding (0.00s)
+=== RUN   TestContourClone
+--- PASS: TestContourClone (0.00s)
+=== RUN   TestNewShape
+--- PASS: TestNewShape (0.00s)
+=== RUN   TestShapeAddContour
+--- PASS: TestShapeAddContour (0.00s)
+=== RUN   TestShapeCalculateBounds
+--- PASS: TestShapeCalculateBounds (0.00s)
+=== RUN   TestShapeValidate
+--- PASS: TestShapeValidate (0.00s)
+=== RUN   TestShapeEdgeCount
+--- PASS: TestShapeEdgeCount (0.00s)
+=== RUN   TestFromOutlineEmpty
+--- PASS: TestFromOutlineEmpty (0.00s)
+=== RUN   TestFromOutlineSquare
+--- PASS: TestFromOutlineSquare (0.00s)
+=== RUN   TestFromOutlineWithCurves
+--- PASS: TestFromOutlineWithCurves (0.00s)
+=== RUN   TestFromOutlineMultipleContours
+--- PASS: TestFromOutlineMultipleContours (0.00s)
+=== RUN   TestAssignColorsSimple
+--- PASS: TestAssignColorsSimple (0.00s)
+=== RUN   TestAssignColorsWithCorners
+--- PASS: TestAssignColorsWithCorners (0.00s)
+=== RUN   TestAssignColorsSingleEdge
+--- PASS: TestAssignColorsSingleEdge (0.00s)
+=== RUN   TestAssignColorsEmpty
+--- PASS: TestAssignColorsEmpty (0.00s)
+=== RUN   TestSwitchColor
+--- PASS: TestSwitchColor (0.00s)
+=== RUN   TestEdgeSelectors
+--- PASS: TestEdgeSelectors (0.00s)
+PASS

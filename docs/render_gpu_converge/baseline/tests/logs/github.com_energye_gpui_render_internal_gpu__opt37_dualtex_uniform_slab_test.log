@@ -1,0 +1,5 @@
+=== RUN   TestOpt37_DualTexUniformSlotStride_Aligned
+--- PASS: TestOpt37_DualTexUniformSlotStride_Aligned (0.00s)
+=== RUN   TestOpt37_DualTexMultiUniformSlab_OneWrite
+--- PASS: TestOpt37_DualTexMultiUniformSlab_OneWrite (0.27s)
+PASS

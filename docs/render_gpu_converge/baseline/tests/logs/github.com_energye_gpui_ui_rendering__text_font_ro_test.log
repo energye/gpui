@@ -1,0 +1,15 @@
+=== RUN   TestRenderText_LayoutUsesFaceMeasure
+    text_font_ro_test.go:28: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 16
+--- PASS: TestRenderText_LayoutUsesFaceMeasure (0.01s)
+=== RUN   TestRenderText_SetFontSize_RescalesFaceMeasure
+    text_font_ro_test.go:50: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 12
+--- PASS: TestRenderText_SetFontSize_RescalesFaceMeasure (0.00s)
+=== RUN   TestRenderText_PaintSetsFaceOnDC
+    text_font_ro_test.go:77: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 14
+--- PASS: TestRenderText_PaintSetsFaceOnDC (0.00s)
+=== RUN   TestRenderText_NoFaceStillHeuristic
+--- PASS: TestRenderText_NoFaceStillHeuristic (0.00s)
+=== RUN   TestRenderText_GlyphInkBounds
+    text_font_ro_test.go:142: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 20
+--- PASS: TestRenderText_GlyphInkBounds (0.00s)
+PASS

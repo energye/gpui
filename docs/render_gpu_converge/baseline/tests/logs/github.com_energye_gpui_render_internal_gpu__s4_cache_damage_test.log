@@ -1,0 +1,7 @@
+=== RUN   TestS44_SharedPathCacheAcrossContexts
+--- PASS: TestS44_SharedPathCacheAcrossContexts (0.00s)
+=== RUN   TestS44_StrokeCache_SharedRetainedHit
+--- PASS: TestS44_StrokeCache_SharedRetainedHit (0.00s)
+=== RUN   TestS44_DamageUnion_MultiRegion
+--- PASS: TestS44_DamageUnion_MultiRegion (0.00s)
+PASS

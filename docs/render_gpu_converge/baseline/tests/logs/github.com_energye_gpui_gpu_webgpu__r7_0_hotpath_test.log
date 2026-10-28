@@ -1,0 +1,7 @@
+=== RUN   TestR70_Submit_MarksSubmitted
+--- PASS: TestR70_Submit_MarksSubmitted (0.00s)
+=== RUN   TestR70_ConvertBindGroup_NoAllocHot
+--- PASS: TestR70_ConvertBindGroup_NoAllocHot (0.00s)
+=== RUN   TestR70_ConvertBindGroupLayout_NoAllocHot
+--- PASS: TestR70_ConvertBindGroupLayout_NoAllocHot (0.00s)
+PASS

@@ -1,0 +1,13 @@
+=== RUN   TestM1HStemsTRACE
+--- PASS: TestM1HStemsTRACE (0.01s)
+=== RUN   TestM1Outline26_6
+    cffcs_test.go:196: 日 12px: 16 点 26.6 全部与 FT-nohint 逐点一致
+    cffcs_test.go:196: 田 12px: 24 点 26.6 全部与 FT-nohint 逐点一致
+    cffcs_test.go:196: 目 12px: 20 点 26.6 全部与 FT-nohint 逐点一致
+--- PASS: TestM1Outline26_6 (9.35s)
+=== RUN   TestM1Width
+    cffcs_test.go:225: 日 advance = 12.000px (defaultWidthX=1000 FU)
+--- PASS: TestM1Width (0.01s)
+=== RUN   TestM1TianMuStems
+--- PASS: TestM1TianMuStems (0.02s)
+PASS

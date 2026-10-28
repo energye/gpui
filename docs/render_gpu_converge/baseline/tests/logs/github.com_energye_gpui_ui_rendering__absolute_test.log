@@ -1,0 +1,3 @@
+=== RUN   TestAbsoluteBox_PreservesOffsets
+--- PASS: TestAbsoluteBox_PreservesOffsets (0.00s)
+PASS

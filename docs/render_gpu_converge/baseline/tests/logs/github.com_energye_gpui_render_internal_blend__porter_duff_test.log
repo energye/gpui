@@ -1,0 +1,191 @@
+=== RUN   TestAddDiv255
+=== RUN   TestAddDiv255/zero_+_zero
+=== RUN   TestAddDiv255/zero_+_max
+=== RUN   TestAddDiv255/max_+_zero
+=== RUN   TestAddDiv255/max_+_max_(clamped)
+=== RUN   TestAddDiv255/128_+_128_(clamped)
+=== RUN   TestAddDiv255/100_+_100
+=== RUN   TestAddDiv255/200_+_100_(clamped)
+=== RUN   TestAddDiv255/1_+_1
+=== RUN   TestAddDiv255/127_+_128
+=== RUN   TestAddDiv255/50_+_60
+--- PASS: TestAddDiv255 (0.00s)
+    --- PASS: TestAddDiv255/zero_+_zero (0.00s)
+    --- PASS: TestAddDiv255/zero_+_max (0.00s)
+    --- PASS: TestAddDiv255/max_+_zero (0.00s)
+    --- PASS: TestAddDiv255/max_+_max_(clamped) (0.00s)
+    --- PASS: TestAddDiv255/128_+_128_(clamped) (0.00s)
+    --- PASS: TestAddDiv255/100_+_100 (0.00s)
+    --- PASS: TestAddDiv255/200_+_100_(clamped) (0.00s)
+    --- PASS: TestAddDiv255/1_+_1 (0.00s)
+    --- PASS: TestAddDiv255/127_+_128 (0.00s)
+    --- PASS: TestAddDiv255/50_+_60 (0.00s)
+=== RUN   TestMinByte
+=== RUN   TestMinByte/0_vs_0
+=== RUN   TestMinByte/0_vs_255
+=== RUN   TestMinByte/255_vs_0
+=== RUN   TestMinByte/128_vs_128
+=== RUN   TestMinByte/100_vs_200
+=== RUN   TestMinByte/200_vs_100
+--- PASS: TestMinByte (0.00s)
+    --- PASS: TestMinByte/0_vs_0 (0.00s)
+    --- PASS: TestMinByte/0_vs_255 (0.00s)
+    --- PASS: TestMinByte/255_vs_0 (0.00s)
+    --- PASS: TestMinByte/128_vs_128 (0.00s)
+    --- PASS: TestMinByte/100_vs_200 (0.00s)
+    --- PASS: TestMinByte/200_vs_100 (0.00s)
+=== RUN   TestBlendClear
+=== RUN   TestBlendClear/opaque_red_over_opaque_blue
+=== RUN   TestBlendClear/transparent_over_opaque
+=== RUN   TestBlendClear/opaque_over_transparent
+--- PASS: TestBlendClear (0.00s)
+    --- PASS: TestBlendClear/opaque_red_over_opaque_blue (0.00s)
+    --- PASS: TestBlendClear/transparent_over_opaque (0.00s)
+    --- PASS: TestBlendClear/opaque_over_transparent (0.00s)
+=== RUN   TestBlendSource
+=== RUN   TestBlendSource/opaque_red_over_opaque_blue
+=== RUN   TestBlendSource/transparent_over_opaque
+=== RUN   TestBlendSource/opaque_over_transparent
+=== RUN   TestBlendSource/half-transparent_green
+--- PASS: TestBlendSource (0.00s)
+    --- PASS: TestBlendSource/opaque_red_over_opaque_blue (0.00s)
+    --- PASS: TestBlendSource/transparent_over_opaque (0.00s)
+    --- PASS: TestBlendSource/opaque_over_transparent (0.00s)
+    --- PASS: TestBlendSource/half-transparent_green (0.00s)
+=== RUN   TestBlendDestination
+=== RUN   TestBlendDestination/opaque_red_over_opaque_blue
+=== RUN   TestBlendDestination/transparent_over_opaque
+=== RUN   TestBlendDestination/opaque_over_transparent
+--- PASS: TestBlendDestination (0.00s)
+    --- PASS: TestBlendDestination/opaque_red_over_opaque_blue (0.00s)
+    --- PASS: TestBlendDestination/transparent_over_opaque (0.00s)
+    --- PASS: TestBlendDestination/opaque_over_transparent (0.00s)
+=== RUN   TestBlendSourceOver
+=== RUN   TestBlendSourceOver/opaque_red_over_opaque_blue
+=== RUN   TestBlendSourceOver/transparent_over_opaque
+=== RUN   TestBlendSourceOver/opaque_over_transparent
+=== RUN   TestBlendSourceOver/half-transparent_gray_over_white
+--- PASS: TestBlendSourceOver (0.00s)
+    --- PASS: TestBlendSourceOver/opaque_red_over_opaque_blue (0.00s)
+    --- PASS: TestBlendSourceOver/transparent_over_opaque (0.00s)
+    --- PASS: TestBlendSourceOver/opaque_over_transparent (0.00s)
+    --- PASS: TestBlendSourceOver/half-transparent_gray_over_white (0.00s)
+=== RUN   TestBlendDestinationOver
+=== RUN   TestBlendDestinationOver/opaque_red_over_opaque_blue
+=== RUN   TestBlendDestinationOver/transparent_source,_opaque_dest
+=== RUN   TestBlendDestinationOver/opaque_source,_transparent_dest
+--- PASS: TestBlendDestinationOver (0.00s)
+    --- PASS: TestBlendDestinationOver/opaque_red_over_opaque_blue (0.00s)
+    --- PASS: TestBlendDestinationOver/transparent_source,_opaque_dest (0.00s)
+    --- PASS: TestBlendDestinationOver/opaque_source,_transparent_dest (0.00s)
+=== RUN   TestBlendSourceIn
+=== RUN   TestBlendSourceIn/opaque_red,_opaque_blue
+=== RUN   TestBlendSourceIn/opaque_source,_transparent_dest
+=== RUN   TestBlendSourceIn/source,_half-transparent_dest
+--- PASS: TestBlendSourceIn (0.00s)
+    --- PASS: TestBlendSourceIn/opaque_red,_opaque_blue (0.00s)
+    --- PASS: TestBlendSourceIn/opaque_source,_transparent_dest (0.00s)
+    --- PASS: TestBlendSourceIn/source,_half-transparent_dest (0.00s)
+=== RUN   TestBlendDestinationIn
+=== RUN   TestBlendDestinationIn/opaque_red,_opaque_blue
+=== RUN   TestBlendDestinationIn/transparent_source,_opaque_dest
+=== RUN   TestBlendDestinationIn/half-transparent_source,_opaque_dest
+--- PASS: TestBlendDestinationIn (0.00s)
+    --- PASS: TestBlendDestinationIn/opaque_red,_opaque_blue (0.00s)
+    --- PASS: TestBlendDestinationIn/transparent_source,_opaque_dest (0.00s)
+    --- PASS: TestBlendDestinationIn/half-transparent_source,_opaque_dest (0.00s)
+=== RUN   TestBlendSourceOut
+=== RUN   TestBlendSourceOut/opaque_source,_opaque_dest
+=== RUN   TestBlendSourceOut/opaque_source,_transparent_dest
+=== RUN   TestBlendSourceOut/opaque_source,_half-transparent_dest
+--- PASS: TestBlendSourceOut (0.00s)
+    --- PASS: TestBlendSourceOut/opaque_source,_opaque_dest (0.00s)
+    --- PASS: TestBlendSourceOut/opaque_source,_transparent_dest (0.00s)
+    --- PASS: TestBlendSourceOut/opaque_source,_half-transparent_dest (0.00s)
+=== RUN   TestBlendDestinationOut
+=== RUN   TestBlendDestinationOut/opaque_source,_opaque_dest
+=== RUN   TestBlendDestinationOut/transparent_source,_opaque_dest
+=== RUN   TestBlendDestinationOut/half-transparent_source,_opaque_dest
+--- PASS: TestBlendDestinationOut (0.00s)
+    --- PASS: TestBlendDestinationOut/opaque_source,_opaque_dest (0.00s)
+    --- PASS: TestBlendDestinationOut/transparent_source,_opaque_dest (0.00s)
+    --- PASS: TestBlendDestinationOut/half-transparent_source,_opaque_dest (0.00s)
+=== RUN   TestBlendSourceAtop
+=== RUN   TestBlendSourceAtop/opaque_red_over_opaque_blue
+=== RUN   TestBlendSourceAtop/opaque_source,_transparent_dest
+=== RUN   TestBlendSourceAtop/opaque_source,_half-transparent_dest
+--- PASS: TestBlendSourceAtop (0.00s)
+    --- PASS: TestBlendSourceAtop/opaque_red_over_opaque_blue (0.00s)
+    --- PASS: TestBlendSourceAtop/opaque_source,_transparent_dest (0.00s)
+    --- PASS: TestBlendSourceAtop/opaque_source,_half-transparent_dest (0.00s)
+=== RUN   TestBlendDestinationAtop
+=== RUN   TestBlendDestinationAtop/opaque_red_source,_opaque_blue_dest
+=== RUN   TestBlendDestinationAtop/transparent_source,_opaque_dest
+=== RUN   TestBlendDestinationAtop/half-transparent_source,_opaque_dest
+--- PASS: TestBlendDestinationAtop (0.00s)
+    --- PASS: TestBlendDestinationAtop/opaque_red_source,_opaque_blue_dest (0.00s)
+    --- PASS: TestBlendDestinationAtop/transparent_source,_opaque_dest (0.00s)
+    --- PASS: TestBlendDestinationAtop/half-transparent_source,_opaque_dest (0.00s)
+=== RUN   TestBlendXor
+=== RUN   TestBlendXor/opaque_source,_opaque_dest
+=== RUN   TestBlendXor/opaque_source,_transparent_dest
+=== RUN   TestBlendXor/transparent_source,_opaque_dest
+--- PASS: TestBlendXor (0.00s)
+    --- PASS: TestBlendXor/opaque_source,_opaque_dest (0.00s)
+    --- PASS: TestBlendXor/opaque_source,_transparent_dest (0.00s)
+    --- PASS: TestBlendXor/transparent_source,_opaque_dest (0.00s)
+=== RUN   TestBlendPlus
+=== RUN   TestBlendPlus/100_+_100
+=== RUN   TestBlendPlus/200_+_100_(clamped)
+=== RUN   TestBlendPlus/255_+_255_(clamped)
+=== RUN   TestBlendPlus/0_+_0
+--- PASS: TestBlendPlus (0.00s)
+    --- PASS: TestBlendPlus/100_+_100 (0.00s)
+    --- PASS: TestBlendPlus/200_+_100_(clamped) (0.00s)
+    --- PASS: TestBlendPlus/255_+_255_(clamped) (0.00s)
+    --- PASS: TestBlendPlus/0_+_0 (0.00s)
+=== RUN   TestBlendModulate
+=== RUN   TestBlendModulate/255_*_255
+=== RUN   TestBlendModulate/255_*_128
+=== RUN   TestBlendModulate/128_*_128
+=== RUN   TestBlendModulate/anything_*_0
+--- PASS: TestBlendModulate (0.00s)
+    --- PASS: TestBlendModulate/255_*_255 (0.00s)
+    --- PASS: TestBlendModulate/255_*_128 (0.00s)
+    --- PASS: TestBlendModulate/128_*_128 (0.00s)
+    --- PASS: TestBlendModulate/anything_*_0 (0.00s)
+=== RUN   TestGetBlendFunc
+=== RUN   TestGetBlendFunc/Clear
+=== RUN   TestGetBlendFunc/Source
+=== RUN   TestGetBlendFunc/Destination
+=== RUN   TestGetBlendFunc/SourceOver
+=== RUN   TestGetBlendFunc/DestinationOver
+=== RUN   TestGetBlendFunc/SourceIn
+=== RUN   TestGetBlendFunc/DestinationIn
+=== RUN   TestGetBlendFunc/SourceOut
+=== RUN   TestGetBlendFunc/DestinationOut
+=== RUN   TestGetBlendFunc/SourceAtop
+=== RUN   TestGetBlendFunc/DestinationAtop
+=== RUN   TestGetBlendFunc/Xor
+=== RUN   TestGetBlendFunc/Plus
+=== RUN   TestGetBlendFunc/Modulate
+=== RUN   TestGetBlendFunc/unknown_mode
+--- PASS: TestGetBlendFunc (0.00s)
+    --- PASS: TestGetBlendFunc/Clear (0.00s)
+    --- PASS: TestGetBlendFunc/Source (0.00s)
+    --- PASS: TestGetBlendFunc/Destination (0.00s)
+    --- PASS: TestGetBlendFunc/SourceOver (0.00s)
+    --- PASS: TestGetBlendFunc/DestinationOver (0.00s)
+    --- PASS: TestGetBlendFunc/SourceIn (0.00s)
+    --- PASS: TestGetBlendFunc/DestinationIn (0.00s)
+    --- PASS: TestGetBlendFunc/SourceOut (0.00s)
+    --- PASS: TestGetBlendFunc/DestinationOut (0.00s)
+    --- PASS: TestGetBlendFunc/SourceAtop (0.00s)
+    --- PASS: TestGetBlendFunc/DestinationAtop (0.00s)
+    --- PASS: TestGetBlendFunc/Xor (0.00s)
+    --- PASS: TestGetBlendFunc/Plus (0.00s)
+    --- PASS: TestGetBlendFunc/Modulate (0.00s)
+    --- PASS: TestGetBlendFunc/unknown_mode (0.00s)
+=== RUN   TestBlendModeConstants
+--- PASS: TestBlendModeConstants (0.00s)
+PASS

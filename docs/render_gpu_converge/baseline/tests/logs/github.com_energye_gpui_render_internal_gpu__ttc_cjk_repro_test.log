@@ -1,0 +1,23 @@
+=== RUN   TestProbeTTC_CJKGlyphMaskEngine
+    ttc_cjk_repro_test.go:50: quads=2
+    ttc_cjk_repro_test.go:52: quad[0] x0=9 y0=11 x1=25 y1=27
+    ttc_cjk_repro_test.go:52: quad[1] x0=23 y0=11 x1=39 y1=28
+    ttc_cjk_repro_test.go:68: atlas nonzero coverage bytes = 197
+    ttc_cjk_repro_test.go:78: page size 256x256
+    ttc_cjk_repro_test.go:86: mask row y=4 nz=7
+    ttc_cjk_repro_test.go:86: mask row y=8 nz=10
+    ttc_cjk_repro_test.go:86: mask row y=12 nz=11
+    ttc_cjk_repro_test.go:86: mask row y=16 nz=19
+    ttc_cjk_repro_test.go:86: mask row y=20 nz=12
+    ttc_cjk_repro_test.go:86: mask row y=24 nz=20
+    ttc_cjk_repro_test.go:86: mask row y=28 nz=17
+    ttc_cjk_repro_test.go:86: mask row y=32 nz=8
+    ttc_cjk_repro_test.go:86: mask row y=36 nz=18
+    ttc_cjk_repro_test.go:86: mask row y=40 nz=11
+    ttc_cjk_repro_test.go:86: mask row y=44 nz=13
+    ttc_cjk_repro_test.go:86: mask row y=48 nz=16
+    ttc_cjk_repro_test.go:86: mask row y=52 nz=21
+    ttc_cjk_repro_test.go:86: mask row y=56 nz=13
+    ttc_cjk_repro_test.go:86: mask row y=60 nz=1
+--- PASS: TestProbeTTC_CJKGlyphMaskEngine (0.26s)
+PASS

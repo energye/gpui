@@ -1,0 +1,9 @@
+=== RUN   TestMotion_DurationsAndCurves
+--- PASS: TestMotion_DurationsAndCurves (0.00s)
+=== RUN   TestMotion_SpinnerTrueRotation
+--- PASS: TestMotion_SpinnerTrueRotation (0.00s)
+=== RUN   TestMotion_ReducedMotionFreezes
+--- PASS: TestMotion_ReducedMotionFreezes (0.00s)
+=== RUN   TestMotion_WaveSpreadAndFade
+--- PASS: TestMotion_WaveSpreadAndFade (0.00s)
+PASS

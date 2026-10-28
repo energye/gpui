@@ -1,0 +1,36 @@
+=== RUN   TestRenderPathTriangle
+    stencil_render_test.go:37: RenderPath failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestRenderPathTriangle (0.24s)
+=== RUN   TestRenderPathEmpty
+    stencil_render_test.go:61: RenderPath with nil elements should return nil, got: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestRenderPathEmpty (0.20s)
+=== RUN   TestRenderPathCircle
+    stencil_render_test.go:92: RenderPath circle failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestRenderPathCircle (0.20s)
+=== RUN   TestRenderPathEvenOdd
+    stencil_render_test.go:120: RenderPath with EvenOdd fill rule failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestRenderPathEvenOdd (0.20s)
+=== RUN   TestRenderPathBothFillRules
+    stencil_render_test.go:152: RenderPath NonZero failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestRenderPathBothFillRules (0.20s)
+=== RUN   TestRenderPathPipelinesCreatedOnce
+    stencil_render_test.go:196: first RenderPath failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestRenderPathPipelinesCreatedOnce (0.21s)
+=== RUN   TestRenderPathResizesTextures
+    stencil_render_test.go:238: RenderPath at 64x64 failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestRenderPathResizesTextures (0.21s)
+=== RUN   TestMakeStencilFillUniform
+--- PASS: TestMakeStencilFillUniform (0.00s)
+=== RUN   TestMakeCoverUniform
+--- PASS: TestMakeCoverUniform (0.00s)
+=== RUN   TestMakeCoverUniformDoesNotPremultiplyTwice
+--- PASS: TestMakeCoverUniformDoesNotPremultiplyTwice (0.00s)
+=== RUN   TestPremultiplyRGBA
+--- PASS: TestPremultiplyRGBA (0.00s)
+=== RUN   TestCoverUniformStickyContract
+--- PASS: TestCoverUniformStickyContract (0.00s)
+=== RUN   TestConvertBGRAToRGBA
+--- PASS: TestConvertBGRAToRGBA (0.00s)
+=== RUN   TestFloat32SliceToBytes
+--- PASS: TestFloat32SliceToBytes (0.00s)
+FAIL

@@ -1,0 +1,29 @@
+=== RUN   TestBlendModeString
+--- PASS: TestBlendModeString (0.00s)
+=== RUN   TestDrawImageIdentity
+--- PASS: TestDrawImageIdentity (0.00s)
+=== RUN   TestDrawImageScale
+--- PASS: TestDrawImageScale (0.00s)
+=== RUN   TestDrawImageRotate
+--- PASS: TestDrawImageRotate (0.00s)
+=== RUN   TestDrawImageOpacity
+--- PASS: TestDrawImageOpacity (0.00s)
+=== RUN   TestDrawImageBlendMultiply
+--- PASS: TestDrawImageBlendMultiply (0.00s)
+=== RUN   TestDrawImageBlendScreen
+--- PASS: TestDrawImageBlendScreen (0.00s)
+=== RUN   TestDrawImageSrcRect
+--- PASS: TestDrawImageSrcRect (0.00s)
+=== RUN   TestDrawImageClipping
+--- PASS: TestDrawImageClipping (0.00s)
+=== RUN   TestDrawImageSingularTransform
+--- PASS: TestDrawImageSingularTransform (0.00s)
+=== RUN   TestDrawImageInterpolation
+=== RUN   TestDrawImageInterpolation/Nearest
+=== RUN   TestDrawImageInterpolation/Bilinear
+=== RUN   TestDrawImageInterpolation/Bicubic
+--- PASS: TestDrawImageInterpolation (0.00s)
+    --- PASS: TestDrawImageInterpolation/Nearest (0.00s)
+    --- PASS: TestDrawImageInterpolation/Bilinear (0.00s)
+    --- PASS: TestDrawImageInterpolation/Bicubic (0.00s)
+PASS

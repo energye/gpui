@@ -1,0 +1,220 @@
+=== RUN   TestVelloWorkaround_NestedForLoops
+    vello_workaround_test.go:28: Compiled 1308 bytes, control flow valid
+--- PASS: TestVelloWorkaround_NestedForLoops (0.00s)
+=== RUN   TestVelloWorkaround_VarAtomicInit
+    vello_workaround_test.go:54: Compiled 1144 bytes, control flow valid
+--- PASS: TestVelloWorkaround_VarAtomicInit (0.00s)
+=== RUN   TestVelloWorkaround_StoreInIfElse
+    vello_workaround_test.go:79: Compiled 1144 bytes, control flow valid
+--- PASS: TestVelloWorkaround_StoreInIfElse (0.00s)
+=== RUN   TestVelloWorkaround_Vec2VarReassignment
+    vello_workaround_test.go:124: OpStore *%21(xy0) = %35 (word 255)
+    vello_workaround_test.go:124: OpStore *%22(xy1) = %37 (word 269)
+    vello_workaround_test.go:124: OpStore *%21(xy0) = %53 (word 325)
+    vello_workaround_test.go:124: OpStore *%78 = %76 (word 415)
+    vello_workaround_test.go:128: Total OpStore instructions: 4
+--- PASS: TestVelloWorkaround_Vec2VarReassignment (0.00s)
+=== RUN   TestVelloWorkaround_FuncCallResult
+    vello_workaround_test.go:155: Compiled 820 bytes, control flow valid
+--- PASS: TestVelloWorkaround_FuncCallResult (0.00s)
+=== RUN   TestVelloWorkaround_TwoCallsSameFunc
+    vello_workaround_test.go:190: Compiled 1176 bytes, 2 OpFunctionCall instructions
+--- PASS: TestVelloWorkaround_TwoCallsSameFunc (0.00s)
+=== RUN   TestVelloWorkaround_VarInitWithTwoFuncCalls
+    vello_workaround_test.go:217: Compiled 1252 bytes, control flow valid
+--- PASS: TestVelloWorkaround_VarInitWithTwoFuncCalls (0.00s)
+=== RUN   TestSpanFullShaderDump
+    vello_workaround_test.go:229: ../../gg/tmp/path_count_span_full.wgsl not found: open ../../gg/tmp/path_count_span_full.wgsl: no such file or directory
+--- SKIP: TestSpanFullShaderDump (0.00s)
+=== RUN   TestSpanFunctionVsInline
+    vello_workaround_test.go:270: === FUNCTION CALL VERSION ===
+    vello_workaround_test.go:272: ; SPIR-V
+        ; Magic:     0x07230203
+        ; Version:   1.3
+        ; Generator: 0x00000000
+        ; Bound:     60
+        ; Schema:    0
+        
+             5: OpCapability Shader
+             7: OpExtInstImport %1 = "GLSL.std.450"
+            13: OpMemoryModel Logical GLSL450
+            16: OpEntryPoint GLCompute %27 "main" %12(gid)
+            22: OpExecutionMode %27 LocalSize 1 1 1
+            28: OpName %12(gid) "gid"
+            31: OpName %15(a) "a"
+            34: OpName %16(b) "b"
+            37: OpName %30(count_x) "count_x"
+            41: OpName %31(count) "count"
+            45: OpDecorate %4 ArrayStride 4
+            49: OpDecorate %8 Block
+            52: OpMemberDecorate %8 0 Offset 0
+            57: OpDecorate %10 DescriptorSet 0
+            61: OpDecorate %10 Binding 0
+            65: OpDecorate %12(gid) BuiltIn 28
+            69: OpTypeVoid %2
+            71: OpTypeInt %3 32 unsigned
+            75: OpTypeRuntimeArray %4 %3
+            78: OpTypeFloat %5 32
+            81: OpTypeVector %6 %3 3
+            85: OpTypeVector %7 %5 2
+            89: OpTypeStruct %8 { %4 }
+            92: OpTypePointer %9 StorageBuffer %8
+            96: OpTypePointer %11 Input %6
+           100: OpTypeFunction %13 %3 (%5, %5)
+           105: OpConstant %5 %23 = 1065353216 (0x3F800000, f32=1)
+           109: OpTypeFunction %26 %2
+           112: OpTypePointer %29 Function %3
+           116: OpConstant %5 %32 = 1069547520 (0x3FC00000, f32=1.5)
+           120: OpConstant %5 %33 = 1075838976 (0x40200000, f32=2.5)
+           124: OpConstant %5 %35 = 1080033280 (0x40600000, f32=3.5)
+           128: OpConstant %5 %36 = 1083179008 (0x40900000, f32=4.5)
+           132: OpConstant %3 %41 = 1 (0x00000001, f32=1e-45)
+           136: OpConstant %3 %48 = 0 (0x00000000, f32=0)
+           140: OpTypePointer %49 Input %3
+           144: OpTypePointer %52 StorageBuffer %4
+           148: OpTypePointer %54 StorageBuffer %3
+           152: OpVariable %9 %10 StorageBuffer
+           156: OpVariable %11 %12(gid) Input
+           160: OpFunction %3 %14 None %13
+           165: OpFunctionParameter %5 %15(a)
+           168: OpFunctionParameter %5 %16(b)
+           171: OpLabel %17
+           173: OpExtInst %5 %18 = %1 op:40(FMax) (%15(a), %16(b))
+           180: OpExtInst %5 %19 = %1 op:9(Ceil) (%18)
+           186: OpExtInst %5 %20 = %1 op:37(FMin) (%15(a), %16(b))
+           193: OpExtInst %5 %21 = %1 op:8(Floor) (%20)
+           199: OpFSub %5 %22 = %19, %21
+           204: OpExtInst %5 %24 = %1 op:40(FMax) (%22, %23)
+           211: OpConvertFToU %3 %25 = %24
+           215: OpReturnValue %25
+           217: OpFunctionEnd
+           218: OpFunction %2 %27 None %26
+           223: OpLabel %28
+           225: OpVariable %29 %30(count_x) Function
+           229: OpVariable %29 %31(count) Function
+           233: OpCompositeConstruct %7 %34 = { %32, %33 }
+           238: OpCompositeConstruct %7 %37 = { %35, %36 }
+           243: OpCompositeExtract %5 %38 = %34 . [0]
+           248: OpCompositeExtract %5 %39 = %37 . [0]
+           253: OpFunctionCall %3 %40 = call %14(%38, %39)
+           259: OpISub %3 %42 = %40, %41
+           264: OpStore *%30(count_x) = %42
+           267: OpLoad %3 %43 = load %30(count_x)
+           271: OpCompositeExtract %5 %44 = %34 . [1]
+           276: OpCompositeExtract %5 %45 = %37 . [1]
+           281: OpFunctionCall %3 %46 = call %14(%44, %45)
+           287: OpIAdd %3 %47 = %43, %46
+           292: OpStore *%31(count) = %47
+           295: OpAccessChain %49 %50 = base:%12(gid) [%48]
+           300: OpLoad %3 %51 = load %50
+           304: OpAccessChain %52 %53 = base:%10 [%48]
+           309: OpAccessChain %54 %55 = base:%53 [%51]
+           314: OpLoad %3 %56 = load %55
+           318: OpLoad %3 %57 = load %31(count)
+           322: OpAccessChain %52 %58 = base:%10 [%48]
+           327: OpAccessChain %54 %59 = base:%58 [%51]
+           332: OpStore *%59 = %57
+           335: OpReturn
+           336: OpFunctionEnd
+        
+    vello_workaround_test.go:274: 
+        === INLINE VERSION ===
+    vello_workaround_test.go:276: ; SPIR-V
+        ; Magic:     0x07230203
+        ; Version:   1.3
+        ; Generator: 0x00000000
+        ; Bound:     64
+        ; Schema:    0
+        
+             5: OpCapability Shader
+             7: OpExtInstImport %1 = "GLSL.std.450"
+            13: OpMemoryModel Logical GLSL450
+            16: OpEntryPoint GLCompute %14 "main" %12(gid)
+            22: OpExecutionMode %14 LocalSize 1 1 1
+            28: OpName %12(gid) "gid"
+            31: OpName %17(count_x) "count_x"
+            35: OpName %18(count) "count"
+            39: OpDecorate %4 ArrayStride 4
+            43: OpDecorate %8 Block
+            46: OpMemberDecorate %8 0 Offset 0
+            51: OpDecorate %10 DescriptorSet 0
+            55: OpDecorate %10 Binding 0
+            59: OpDecorate %12(gid) BuiltIn 28
+            63: OpTypeVoid %2
+            65: OpTypeInt %3 32 unsigned
+            69: OpTypeRuntimeArray %4 %3
+            72: OpTypeVector %5 %3 3
+            76: OpTypeFloat %6 32
+            79: OpTypeVector %7 %6 2
+            83: OpTypeStruct %8 { %4 }
+            86: OpTypePointer %9 StorageBuffer %8
+            90: OpTypePointer %11 Input %5
+            94: OpTypeFunction %13 %2
+            97: OpTypePointer %16 Function %3
+           101: OpConstant %6 %19 = 1069547520 (0x3FC00000, f32=1.5)
+           105: OpConstant %6 %20 = 1075838976 (0x40200000, f32=2.5)
+           109: OpConstant %6 %22 = 1080033280 (0x40600000, f32=3.5)
+           113: OpConstant %6 %23 = 1083179008 (0x40900000, f32=4.5)
+           117: OpConstant %6 %34 = 1065353216 (0x3F800000, f32=1)
+           121: OpConstant %3 %37 = 1 (0x00000001, f32=1e-45)
+           125: OpConstant %3 %52 = 0 (0x00000000, f32=0)
+           129: OpTypePointer %53 Input %3
+           133: OpTypePointer %56 StorageBuffer %4
+           137: OpTypePointer %58 StorageBuffer %3
+           141: OpVariable %9 %10 StorageBuffer
+           145: OpVariable %11 %12(gid) Input
+           149: OpFunction %2 %14 None %13
+           154: OpLabel %15
+           156: OpVariable %16 %17(count_x) Function
+           160: OpVariable %16 %18(count) Function
+           164: OpCompositeConstruct %7 %21 = { %19, %20 }
+           169: OpCompositeConstruct %7 %24 = { %22, %23 }
+           174: OpCompositeExtract %6 %25 = %21 . [0]
+           179: OpCompositeExtract %6 %26 = %24 . [0]
+           184: OpExtInst %6 %27 = %1 op:40(FMax) (%25, %26)
+           191: OpExtInst %6 %28 = %1 op:9(Ceil) (%27)
+           197: OpCompositeExtract %6 %29 = %21 . [0]
+           202: OpCompositeExtract %6 %30 = %24 . [0]
+           207: OpExtInst %6 %31 = %1 op:37(FMin) (%29, %30)
+           214: OpExtInst %6 %32 = %1 op:8(Floor) (%31)
+           220: OpFSub %6 %33 = %28, %32
+           225: OpExtInst %6 %35 = %1 op:40(FMax) (%33, %34)
+           232: OpConvertFToU %3 %36 = %35
+           236: OpISub %3 %38 = %36, %37
+           241: OpStore *%17(count_x) = %38
+           244: OpLoad %3 %39 = load %17(count_x)
+           248: OpCompositeExtract %6 %40 = %21 . [1]
+           253: OpCompositeExtract %6 %41 = %24 . [1]
+           258: OpExtInst %6 %42 = %1 op:40(FMax) (%40, %41)
+           265: OpExtInst %6 %43 = %1 op:9(Ceil) (%42)
+           271: OpCompositeExtract %6 %44 = %21 . [1]
+           276: OpCompositeExtract %6 %45 = %24 . [1]
+           281: OpExtInst %6 %46 = %1 op:37(FMin) (%44, %45)
+           288: OpExtInst %6 %47 = %1 op:8(Floor) (%46)
+           294: OpFSub %6 %48 = %43, %47
+           299: OpExtInst %6 %49 = %1 op:40(FMax) (%48, %34)
+           306: OpConvertFToU %3 %50 = %49
+           310: OpIAdd %3 %51 = %39, %50
+           315: OpStore *%18(count) = %51
+           318: OpAccessChain %53 %54 = base:%12(gid) [%52]
+           323: OpLoad %3 %55 = load %54
+           327: OpAccessChain %56 %57 = base:%10 [%52]
+           332: OpAccessChain %58 %59 = base:%57 [%55]
+           337: OpLoad %3 %60 = load %59
+           341: OpLoad %3 %61 = load %18(count)
+           345: OpAccessChain %56 %62 = base:%10 [%52]
+           350: OpAccessChain %58 %63 = base:%62 [%55]
+           355: OpStore *%63 = %61
+           358: OpReturn
+           359: OpFunctionEnd
+        
+    vello_workaround_test.go:299: Function: 2 functions, 2 calls, 5 ExtInst, 3 stores, 4 loads
+    vello_workaround_test.go:299: Inline: 1 functions, 0 calls, 10 ExtInst, 3 stores, 4 loads
+--- PASS: TestSpanFunctionVsInline (0.00s)
+=== RUN   TestBoolEqualUsesLogicalEqual
+    vello_workaround_test.go:340: OpLogicalEqual: 1, OpLogicalNotEqual: 1, OpIEqual: 1, OpINotEqual: 0
+--- PASS: TestBoolEqualUsesLogicalEqual (0.00s)
+=== RUN   TestDeferredStoreTransitiveDeps
+    vello_workaround_test.go:388: Compiled 1104 bytes, deferred store ordering verified
+--- PASS: TestDeferredStoreTransitiveDeps (0.00s)
+PASS

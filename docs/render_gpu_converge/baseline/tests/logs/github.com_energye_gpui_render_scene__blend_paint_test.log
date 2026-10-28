@@ -1,0 +1,3 @@
+=== RUN   TestPaintBlendMode_RoundTripAndClearDivergence
+--- PASS: TestPaintBlendMode_RoundTripAndClearDivergence (0.00s)
+PASS

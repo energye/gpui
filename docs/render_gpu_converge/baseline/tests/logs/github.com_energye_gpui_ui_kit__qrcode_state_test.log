@@ -1,0 +1,3 @@
+=== RUN   TestQRCode_StateMachineMatchesCases
+--- PASS: TestQRCode_StateMachineMatchesCases (0.00s)
+PASS

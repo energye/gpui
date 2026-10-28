@@ -1,0 +1,5 @@
+=== RUN   TestCFF2CJKVFBlendMatchGT
+    cff2_cjk_vf_gate_test.go:57: CJK VF: 31036 charStrings, 8675 含 vsindex
+    cff2_cjk_vf_gate_test.go:102: M5 CJK VF 门禁: 3000 汉字 × 4 wght 全对照 go-text 一致（vsindex 字形 8675 个）
+--- PASS: TestCFF2CJKVFBlendMatchGT (0.57s)
+PASS

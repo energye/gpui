@@ -1,0 +1,27 @@
+=== RUN   TestBackendApplyBrushLinearGradient
+--- PASS: TestBackendApplyBrushLinearGradient (0.00s)
+=== RUN   TestBackendApplyBrushRadialGradient
+--- PASS: TestBackendApplyBrushRadialGradient (0.00s)
+=== RUN   TestBackendApplyBrushSweepGradient
+--- PASS: TestBackendApplyBrushSweepGradient (0.00s)
+=== RUN   TestBackendApplyStrokeBrush
+--- PASS: TestBackendApplyStrokeBrush (0.00s)
+=== RUN   TestBackendSetClip
+--- PASS: TestBackendSetClip (0.00s)
+=== RUN   TestBackendFillPathNil
+--- PASS: TestBackendFillPathNil (0.00s)
+=== RUN   TestBackendStrokePathNil
+--- PASS: TestBackendStrokePathNil (0.00s)
+=== RUN   TestBackendDrawImageNil
+--- PASS: TestBackendDrawImageNil (0.00s)
+=== RUN   TestBackendCanvasOpsNoPanic
+--- PASS: TestBackendCanvasOpsNoPanic (0.00s)
+=== RUN   TestBackendDrawText
+--- PASS: TestBackendDrawText (0.00s)
+=== RUN   TestBackendFillRuleEvenOdd
+--- PASS: TestBackendFillRuleEvenOdd (0.00s)
+=== RUN   TestBackendSavePNG
+--- PASS: TestBackendSavePNG (0.00s)
+=== RUN   TestBackendStyleEnumsAreRenderTypes
+--- PASS: TestBackendStyleEnumsAreRenderTypes (0.00s)
+PASS

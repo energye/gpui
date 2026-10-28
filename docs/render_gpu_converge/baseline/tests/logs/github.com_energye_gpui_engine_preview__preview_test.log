@@ -1,0 +1,7 @@
+=== RUN   TestRecordWritesFiles
+--- PASS: TestRecordWritesFiles (0.00s)
+=== RUN   TestBreakdownLocatesNode
+--- PASS: TestBreakdownLocatesNode (0.00s)
+=== RUN   TestBreakdownOverBudgetRed
+--- PASS: TestBreakdownOverBudgetRed (0.00s)
+PASS

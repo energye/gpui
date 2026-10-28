@@ -1,0 +1,143 @@
+=== RUN   TestShaderSourcesNonEmpty
+=== RUN   TestShaderSourcesNonEmpty/blit
+=== RUN   TestShaderSourcesNonEmpty/blend
+=== RUN   TestShaderSourcesNonEmpty/strip
+=== RUN   TestShaderSourcesNonEmpty/composite
+--- PASS: TestShaderSourcesNonEmpty (0.00s)
+    --- PASS: TestShaderSourcesNonEmpty/blit (0.00s)
+    --- PASS: TestShaderSourcesNonEmpty/blend (0.00s)
+    --- PASS: TestShaderSourcesNonEmpty/strip (0.00s)
+    --- PASS: TestShaderSourcesNonEmpty/composite (0.00s)
+=== RUN   TestShaderSourcesContainExpectedContent
+=== RUN   TestShaderSourcesContainExpectedContent/blit
+=== RUN   TestShaderSourcesContainExpectedContent/blend
+=== RUN   TestShaderSourcesContainExpectedContent/strip
+=== RUN   TestShaderSourcesContainExpectedContent/composite
+--- PASS: TestShaderSourcesContainExpectedContent (0.00s)
+    --- PASS: TestShaderSourcesContainExpectedContent/blit (0.00s)
+    --- PASS: TestShaderSourcesContainExpectedContent/blend (0.00s)
+    --- PASS: TestShaderSourcesContainExpectedContent/strip (0.00s)
+    --- PASS: TestShaderSourcesContainExpectedContent/composite (0.00s)
+=== RUN   TestBlendShaderContainsAllModes
+--- PASS: TestBlendShaderContainsAllModes (0.00s)
+=== RUN   TestBlendModeConstantsMatchScene
+=== RUN   TestBlendModeConstantsMatchScene/Normal
+=== RUN   TestBlendModeConstantsMatchScene/Multiply
+=== RUN   TestBlendModeConstantsMatchScene/Screen
+=== RUN   TestBlendModeConstantsMatchScene/Overlay
+=== RUN   TestBlendModeConstantsMatchScene/Darken
+=== RUN   TestBlendModeConstantsMatchScene/Lighten
+=== RUN   TestBlendModeConstantsMatchScene/ColorDodge
+=== RUN   TestBlendModeConstantsMatchScene/ColorBurn
+=== RUN   TestBlendModeConstantsMatchScene/HardLight
+=== RUN   TestBlendModeConstantsMatchScene/SoftLight
+=== RUN   TestBlendModeConstantsMatchScene/Difference
+=== RUN   TestBlendModeConstantsMatchScene/Exclusion
+=== RUN   TestBlendModeConstantsMatchScene/Hue
+=== RUN   TestBlendModeConstantsMatchScene/Saturation
+=== RUN   TestBlendModeConstantsMatchScene/Color
+=== RUN   TestBlendModeConstantsMatchScene/Luminosity
+=== RUN   TestBlendModeConstantsMatchScene/Clear
+=== RUN   TestBlendModeConstantsMatchScene/Copy
+=== RUN   TestBlendModeConstantsMatchScene/Destination
+=== RUN   TestBlendModeConstantsMatchScene/SourceOver
+=== RUN   TestBlendModeConstantsMatchScene/DestinationOver
+=== RUN   TestBlendModeConstantsMatchScene/SourceIn
+=== RUN   TestBlendModeConstantsMatchScene/DestinationIn
+=== RUN   TestBlendModeConstantsMatchScene/SourceOut
+=== RUN   TestBlendModeConstantsMatchScene/DestinationOut
+=== RUN   TestBlendModeConstantsMatchScene/SourceAtop
+=== RUN   TestBlendModeConstantsMatchScene/DestinationAtop
+=== RUN   TestBlendModeConstantsMatchScene/Xor
+=== RUN   TestBlendModeConstantsMatchScene/Plus
+--- PASS: TestBlendModeConstantsMatchScene (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Normal (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Multiply (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Screen (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Overlay (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Darken (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Lighten (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/ColorDodge (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/ColorBurn (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/HardLight (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/SoftLight (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Difference (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Exclusion (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Hue (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Saturation (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Color (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Luminosity (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Clear (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Copy (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Destination (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/SourceOver (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/DestinationOver (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/SourceIn (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/DestinationIn (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/SourceOut (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/DestinationOut (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/SourceAtop (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/DestinationAtop (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Xor (0.00s)
+    --- PASS: TestBlendModeConstantsMatchScene/Plus (0.00s)
+=== RUN   TestValidateBlendModeMapping
+--- PASS: TestValidateBlendModeMapping (0.00s)
+=== RUN   TestBlendModeToShader
+--- PASS: TestBlendModeToShader (0.00s)
+=== RUN   TestShaderToBlendMode
+--- PASS: TestShaderToBlendMode (0.00s)
+=== RUN   TestCompileShaders
+--- PASS: TestCompileShaders (0.00s)
+=== RUN   TestCompileShadersNative
+--- PASS: TestCompileShadersNative (0.23s)
+=== RUN   TestPipelineCacheNativePipelines
+--- PASS: TestPipelineCacheNativePipelines (0.20s)
+=== RUN   TestShaderModulesIsValid
+=== RUN   TestShaderModulesIsValid/all_valid
+=== RUN   TestShaderModulesIsValid/blit_invalid
+=== RUN   TestShaderModulesIsValid/blend_invalid
+=== RUN   TestShaderModulesIsValid/strip_invalid
+=== RUN   TestShaderModulesIsValid/composite_invalid
+=== RUN   TestShaderModulesIsValid/all_invalid
+--- PASS: TestShaderModulesIsValid (0.00s)
+    --- PASS: TestShaderModulesIsValid/all_valid (0.00s)
+    --- PASS: TestShaderModulesIsValid/blit_invalid (0.00s)
+    --- PASS: TestShaderModulesIsValid/blend_invalid (0.00s)
+    --- PASS: TestShaderModulesIsValid/strip_invalid (0.00s)
+    --- PASS: TestShaderModulesIsValid/composite_invalid (0.00s)
+    --- PASS: TestShaderModulesIsValid/all_invalid (0.00s)
+=== RUN   TestBlendParamsSize
+--- PASS: TestBlendParamsSize (0.00s)
+=== RUN   TestStripParamsSize
+--- PASS: TestStripParamsSize (0.00s)
+=== RUN   TestLayerDescriptorSize
+--- PASS: TestLayerDescriptorSize (0.00s)
+=== RUN   TestWGSLSyntaxBasics
+=== RUN   TestWGSLSyntaxBasics/blit
+=== RUN   TestWGSLSyntaxBasics/strip
+--- PASS: TestWGSLSyntaxBasics (0.00s)
+    --- PASS: TestWGSLSyntaxBasics/blit (0.00s)
+    --- PASS: TestWGSLSyntaxBasics/strip (0.00s)
+=== RUN   TestBlendShaderHSLFunctions
+--- PASS: TestBlendShaderHSLFunctions (0.00s)
+=== RUN   TestBlendShaderSeparableFunctions
+--- PASS: TestBlendShaderSeparableFunctions (0.00s)
+=== RUN   TestStripShaderEntryPoints
+--- PASS: TestStripShaderEntryPoints (0.00s)
+=== RUN   TestCompositeShaderEntryPoints
+--- PASS: TestCompositeShaderEntryPoints (0.00s)
+=== RUN   TestShaderSourceLineCount
+=== RUN   TestShaderSourceLineCount/blit
+    shaders_test.go:567: blit shader: 43 lines
+=== RUN   TestShaderSourceLineCount/blend
+    shaders_test.go:567: blend shader: 424 lines
+=== RUN   TestShaderSourceLineCount/strip
+    shaders_test.go:567: strip shader: 155 lines
+=== RUN   TestShaderSourceLineCount/composite
+    shaders_test.go:567: composite shader: 235 lines
+--- PASS: TestShaderSourceLineCount (0.00s)
+    --- PASS: TestShaderSourceLineCount/blit (0.00s)
+    --- PASS: TestShaderSourceLineCount/blend (0.00s)
+    --- PASS: TestShaderSourceLineCount/strip (0.00s)
+    --- PASS: TestShaderSourceLineCount/composite (0.00s)
+PASS

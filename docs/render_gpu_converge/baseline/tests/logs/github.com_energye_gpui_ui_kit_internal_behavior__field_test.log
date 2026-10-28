@@ -1,0 +1,5 @@
+=== RUN   TestField_ValueAndComposing
+--- PASS: TestField_ValueAndComposing (0.00s)
+=== RUN   TestField_ControlledSync
+--- PASS: TestField_ControlledSync (0.00s)
+PASS

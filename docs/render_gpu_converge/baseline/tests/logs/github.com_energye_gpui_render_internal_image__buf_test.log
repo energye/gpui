@@ -1,0 +1,95 @@
+=== RUN   TestNewImageBuf
+=== RUN   TestNewImageBuf/valid_RGBA8
+=== RUN   TestNewImageBuf/valid_Gray8
+=== RUN   TestNewImageBuf/1x1_minimum
+=== RUN   TestNewImageBuf/zero_width
+=== RUN   TestNewImageBuf/zero_height
+=== RUN   TestNewImageBuf/negative_width
+=== RUN   TestNewImageBuf/negative_height
+=== RUN   TestNewImageBuf/invalid_format
+--- PASS: TestNewImageBuf (0.00s)
+    --- PASS: TestNewImageBuf/valid_RGBA8 (0.00s)
+    --- PASS: TestNewImageBuf/valid_Gray8 (0.00s)
+    --- PASS: TestNewImageBuf/1x1_minimum (0.00s)
+    --- PASS: TestNewImageBuf/zero_width (0.00s)
+    --- PASS: TestNewImageBuf/zero_height (0.00s)
+    --- PASS: TestNewImageBuf/negative_width (0.00s)
+    --- PASS: TestNewImageBuf/negative_height (0.00s)
+    --- PASS: TestNewImageBuf/invalid_format (0.00s)
+=== RUN   TestNewImageBufWithStride
+=== RUN   TestNewImageBufWithStride/valid_aligned_stride
+=== RUN   TestNewImageBufWithStride/minimum_stride
+=== RUN   TestNewImageBufWithStride/stride_too_small
+=== RUN   TestNewImageBufWithStride/zero_stride
+--- PASS: TestNewImageBufWithStride (0.00s)
+    --- PASS: TestNewImageBufWithStride/valid_aligned_stride (0.00s)
+    --- PASS: TestNewImageBufWithStride/minimum_stride (0.00s)
+    --- PASS: TestNewImageBufWithStride/stride_too_small (0.00s)
+    --- PASS: TestNewImageBufWithStride/zero_stride (0.00s)
+=== RUN   TestFromRaw
+=== RUN   TestFromRaw/valid_data
+=== RUN   TestFromRaw/data_too_small
+=== RUN   TestFromRaw/invalid_dimensions
+=== RUN   TestFromRaw/stride_too_small
+--- PASS: TestFromRaw (0.00s)
+    --- PASS: TestFromRaw/valid_data (0.00s)
+    --- PASS: TestFromRaw/data_too_small (0.00s)
+    --- PASS: TestFromRaw/invalid_dimensions (0.00s)
+    --- PASS: TestFromRaw/stride_too_small (0.00s)
+=== RUN   TestImageBuf_Clone
+--- PASS: TestImageBuf_Clone (0.00s)
+=== RUN   TestImageBuf_Bounds
+--- PASS: TestImageBuf_Bounds (0.00s)
+=== RUN   TestImageBuf_RowBytes
+--- PASS: TestImageBuf_RowBytes (0.00s)
+=== RUN   TestImageBuf_PixelOffset
+--- PASS: TestImageBuf_PixelOffset (0.00s)
+=== RUN   TestImageBuf_PixelBytes
+--- PASS: TestImageBuf_PixelBytes (0.00s)
+=== RUN   TestImageBuf_GetSetRGBA_RGBA8
+--- PASS: TestImageBuf_GetSetRGBA_RGBA8 (0.00s)
+=== RUN   TestImageBuf_GetSetRGBA_BGRA8
+--- PASS: TestImageBuf_GetSetRGBA_BGRA8 (0.00s)
+=== RUN   TestImageBuf_GetSetRGBA_Gray8
+--- PASS: TestImageBuf_GetSetRGBA_Gray8 (0.00s)
+=== RUN   TestImageBuf_GetSetRGBA_RGB8
+--- PASS: TestImageBuf_GetSetRGBA_RGB8 (0.00s)
+=== RUN   TestImageBuf_Clear
+--- PASS: TestImageBuf_Clear (0.00s)
+=== RUN   TestImageBuf_Fill
+--- PASS: TestImageBuf_Fill (0.00s)
+=== RUN   TestImageBuf_PremultipliedData_NoPremul
+--- PASS: TestImageBuf_PremultipliedData_NoPremul (0.00s)
+=== RUN   TestImageBuf_PremultipliedData_RGBA8
+--- PASS: TestImageBuf_PremultipliedData_RGBA8 (0.00s)
+=== RUN   TestImageBuf_PremulCache
+--- PASS: TestImageBuf_PremulCache (0.00s)
+=== RUN   TestImageBuf_SubImage
+--- PASS: TestImageBuf_SubImage (0.00s)
+=== RUN   TestImageBuf_SubImage_Invalid
+=== RUN   TestImageBuf_SubImage_Invalid/negative_x
+=== RUN   TestImageBuf_SubImage_Invalid/negative_y
+=== RUN   TestImageBuf_SubImage_Invalid/zero_width
+=== RUN   TestImageBuf_SubImage_Invalid/zero_height
+=== RUN   TestImageBuf_SubImage_Invalid/exceeds_right
+=== RUN   TestImageBuf_SubImage_Invalid/exceeds_bottom
+--- PASS: TestImageBuf_SubImage_Invalid (0.00s)
+    --- PASS: TestImageBuf_SubImage_Invalid/negative_x (0.00s)
+    --- PASS: TestImageBuf_SubImage_Invalid/negative_y (0.00s)
+    --- PASS: TestImageBuf_SubImage_Invalid/zero_width (0.00s)
+    --- PASS: TestImageBuf_SubImage_Invalid/zero_height (0.00s)
+    --- PASS: TestImageBuf_SubImage_Invalid/exceeds_right (0.00s)
+    --- PASS: TestImageBuf_SubImage_Invalid/exceeds_bottom (0.00s)
+=== RUN   TestImageBuf_ByteSize
+--- PASS: TestImageBuf_ByteSize (0.00s)
+=== RUN   TestImageBuf_IsEmpty
+--- PASS: TestImageBuf_IsEmpty (0.00s)
+=== RUN   TestImageBuf_SetPixelBytes
+--- PASS: TestImageBuf_SetPixelBytes (0.00s)
+=== RUN   TestImageBuf_Gray16
+--- PASS: TestImageBuf_Gray16 (0.00s)
+=== RUN   TestImageBuf_Dispose_Idempotent
+--- PASS: TestImageBuf_Dispose_Idempotent (0.00s)
+=== RUN   TestImageBuf_Dispose_RejectsPoolPut
+--- PASS: TestImageBuf_Dispose_RejectsPoolPut (0.00s)
+PASS

@@ -1,0 +1,3 @@
+=== RUN   TestWrapSeamDownstreamGoesNextLine
+--- PASS: TestWrapSeamDownstreamGoesNextLine (0.00s)
+PASS

@@ -1,0 +1,105 @@
+=== RUN   TestGLESComputeConstants
+=== RUN   TestGLESComputeConstants/GL_COMPUTE_SHADER
+=== RUN   TestGLESComputeConstants/GL_MAX_COMPUTE_WORK_GROUP_COUNT
+=== RUN   TestGLESComputeConstants/GL_MAX_COMPUTE_WORK_GROUP_SIZE
+=== RUN   TestGLESComputeConstants/GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS
+=== RUN   TestGLESComputeConstants/GL_DISPATCH_INDIRECT_BUFFER
+=== RUN   TestGLESComputeConstants/GL_SHADER_STORAGE_BUFFER
+--- PASS: TestGLESComputeConstants (0.00s)
+    --- PASS: TestGLESComputeConstants/GL_COMPUTE_SHADER (0.00s)
+    --- PASS: TestGLESComputeConstants/GL_MAX_COMPUTE_WORK_GROUP_COUNT (0.00s)
+    --- PASS: TestGLESComputeConstants/GL_MAX_COMPUTE_WORK_GROUP_SIZE (0.00s)
+    --- PASS: TestGLESComputeConstants/GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS (0.00s)
+    --- PASS: TestGLESComputeConstants/GL_DISPATCH_INDIRECT_BUFFER (0.00s)
+    --- PASS: TestGLESComputeConstants/GL_SHADER_STORAGE_BUFFER (0.00s)
+=== RUN   TestGLESComputeBarrierConstants
+=== RUN   TestGLESComputeBarrierConstants/GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_ELEMENT_ARRAY_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_UNIFORM_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_TEXTURE_FETCH_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_COMMAND_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_PIXEL_BUFFER_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_TEXTURE_UPDATE_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_BUFFER_UPDATE_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_FRAMEBUFFER_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_TRANSFORM_FEEDBACK_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_ATOMIC_COUNTER_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_SHADER_STORAGE_BARRIER_BIT
+=== RUN   TestGLESComputeBarrierConstants/GL_ALL_BARRIER_BITS
+--- PASS: TestGLESComputeBarrierConstants (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_ELEMENT_ARRAY_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_UNIFORM_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_TEXTURE_FETCH_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_SHADER_IMAGE_ACCESS_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_COMMAND_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_PIXEL_BUFFER_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_TEXTURE_UPDATE_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_BUFFER_UPDATE_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_FRAMEBUFFER_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_TRANSFORM_FEEDBACK_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_ATOMIC_COUNTER_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_SHADER_STORAGE_BARRIER_BIT (0.00s)
+    --- PASS: TestGLESComputeBarrierConstants/GL_ALL_BARRIER_BITS (0.00s)
+=== RUN   TestGLESComputeSupport
+=== RUN   TestGLESComputeSupport/NoComputeSupport
+=== RUN   TestGLESComputeSupport/DispatchComputeNoOp
+=== RUN   TestGLESComputeSupport/DispatchComputeIndirectNoOp
+=== RUN   TestGLESComputeSupport/MemoryBarrierNoOp
+--- PASS: TestGLESComputeSupport (0.00s)
+    --- PASS: TestGLESComputeSupport/NoComputeSupport (0.00s)
+    --- PASS: TestGLESComputeSupport/DispatchComputeNoOp (0.00s)
+    --- PASS: TestGLESComputeSupport/DispatchComputeIndirectNoOp (0.00s)
+    --- PASS: TestGLESComputeSupport/MemoryBarrierNoOp (0.00s)
+=== RUN   TestGLESComputeDispatch
+=== RUN   TestGLESComputeDispatch/SingleWorkgroup
+=== RUN   TestGLESComputeDispatch/MultipleWorkgroups
+=== RUN   TestGLESComputeDispatch/LargeDispatch
+=== RUN   TestGLESComputeDispatch/MaxDimensions
+--- PASS: TestGLESComputeDispatch (0.00s)
+    --- PASS: TestGLESComputeDispatch/SingleWorkgroup (0.00s)
+    --- PASS: TestGLESComputeDispatch/MultipleWorkgroups (0.00s)
+    --- PASS: TestGLESComputeDispatch/LargeDispatch (0.00s)
+    --- PASS: TestGLESComputeDispatch/MaxDimensions (0.00s)
+=== RUN   TestGLESComputeDispatchIndirect
+=== RUN   TestGLESComputeDispatchIndirect/ZeroOffset
+=== RUN   TestGLESComputeDispatchIndirect/NonZeroOffset
+=== RUN   TestGLESComputeDispatchIndirect/MultipleDispatchOffset
+=== RUN   TestGLESComputeDispatchIndirect/InvalidBufferType
+--- PASS: TestGLESComputeDispatchIndirect (0.00s)
+    --- PASS: TestGLESComputeDispatchIndirect/ZeroOffset (0.00s)
+    --- PASS: TestGLESComputeDispatchIndirect/NonZeroOffset (0.00s)
+    --- PASS: TestGLESComputeDispatchIndirect/MultipleDispatchOffset (0.00s)
+    --- PASS: TestGLESComputeDispatchIndirect/InvalidBufferType (0.00s)
+=== RUN   TestGLESComputeSSBO
+=== RUN   TestGLESComputeSSBO/SSBOBufferTarget
+=== RUN   TestGLESComputeSSBO/BufferWithStorageUsage
+--- PASS: TestGLESComputeSSBO (0.00s)
+    --- PASS: TestGLESComputeSSBO/SSBOBufferTarget (0.00s)
+    --- PASS: TestGLESComputeSSBO/BufferWithStorageUsage (0.00s)
+=== RUN   TestGLESComputePassEncoder
+=== RUN   TestGLESComputePassEncoder/BeginComputePass
+=== RUN   TestGLESComputePassEncoder/ComputePassEnd
+=== RUN   TestGLESComputePassEncoder/SetPipeline
+=== RUN   TestGLESComputePassEncoder/SetPipelineInvalidType
+=== RUN   TestGLESComputePassEncoder/SetBindGroup
+=== RUN   TestGLESComputePassEncoder/SetBindGroupWithOffsets
+=== RUN   TestGLESComputePassEncoder/SetBindGroupInvalidType
+--- PASS: TestGLESComputePassEncoder (0.00s)
+    --- PASS: TestGLESComputePassEncoder/BeginComputePass (0.00s)
+    --- PASS: TestGLESComputePassEncoder/ComputePassEnd (0.00s)
+    --- PASS: TestGLESComputePassEncoder/SetPipeline (0.00s)
+    --- PASS: TestGLESComputePassEncoder/SetPipelineInvalidType (0.00s)
+    --- PASS: TestGLESComputePassEncoder/SetBindGroup (0.00s)
+    --- PASS: TestGLESComputePassEncoder/SetBindGroupWithOffsets (0.00s)
+    --- PASS: TestGLESComputePassEncoder/SetBindGroupInvalidType (0.00s)
+=== RUN   TestGLESComputeBarrier
+=== RUN   TestGLESComputeBarrier/DispatchIncludesBarrier
+=== RUN   TestGLESComputeBarrier/DispatchIndirectIncludesBarrier
+--- PASS: TestGLESComputeBarrier (0.00s)
+    --- PASS: TestGLESComputeBarrier/DispatchIncludesBarrier (0.00s)
+    --- PASS: TestGLESComputeBarrier/DispatchIndirectIncludesBarrier (0.00s)
+=== RUN   TestGLESComputeFullWorkflow
+--- PASS: TestGLESComputeFullWorkflow (0.00s)
+PASS

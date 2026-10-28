@@ -1,0 +1,13 @@
+=== RUN   TestAdmission_ThresholdCountsStableSightings
+--- PASS: TestAdmission_ThresholdCountsStableSightings (0.00s)
+=== RUN   TestAdmission_RefuseEvictsAndDamages
+--- PASS: TestAdmission_RefuseEvictsAndDamages (0.29s)
+=== RUN   TestAdmission_SweepDropsDeadKeys
+--- PASS: TestAdmission_SweepDropsDeadKeys (0.00s)
+=== RUN   TestAdmission_CompositeRefusesSustainedChurn
+--- PASS: TestAdmission_CompositeRefusesSustainedChurn (0.00s)
+=== RUN   TestAdmission_IntervalChangesKeepTexture
+--- PASS: TestAdmission_IntervalChangesKeepTexture (0.01s)
+=== RUN   TestAdmission_CompositeAdmitsStableLayer
+--- PASS: TestAdmission_CompositeAdmitsStableLayer (0.00s)
+PASS

@@ -1,0 +1,31 @@
+=== RUN   TestBlendBatchAA
+=== RUN   TestBlendBatchAA/zero_alpha
+=== RUN   TestBlendBatchAA/quarter_alpha
+=== RUN   TestBlendBatchAA/half_alpha
+=== RUN   TestBlendBatchAA/three_quarter_alpha
+=== RUN   TestBlendBatchAA/full_alpha
+--- PASS: TestBlendBatchAA (0.00s)
+    --- PASS: TestBlendBatchAA/zero_alpha (0.00s)
+    --- PASS: TestBlendBatchAA/quarter_alpha (0.00s)
+    --- PASS: TestBlendBatchAA/half_alpha (0.00s)
+    --- PASS: TestBlendBatchAA/three_quarter_alpha (0.00s)
+    --- PASS: TestBlendBatchAA/full_alpha (0.00s)
+=== RUN   TestBlendSolidColorSpanAA
+=== RUN   TestBlendSolidColorSpanAA/small_span
+=== RUN   TestBlendSolidColorSpanAA/batch_aligned_span
+=== RUN   TestBlendSolidColorSpanAA/large_span
+=== RUN   TestBlendSolidColorSpanAA/partial_alpha_source
+=== RUN   TestBlendSolidColorSpanAA/zero_coverage
+=== RUN   TestBlendSolidColorSpanAA/full_coverage
+--- PASS: TestBlendSolidColorSpanAA (0.00s)
+    --- PASS: TestBlendSolidColorSpanAA/small_span (0.00s)
+    --- PASS: TestBlendSolidColorSpanAA/batch_aligned_span (0.00s)
+    --- PASS: TestBlendSolidColorSpanAA/large_span (0.00s)
+    --- PASS: TestBlendSolidColorSpanAA/partial_alpha_source (0.00s)
+    --- PASS: TestBlendSolidColorSpanAA/zero_coverage (0.00s)
+    --- PASS: TestBlendSolidColorSpanAA/full_coverage (0.00s)
+=== RUN   TestBlendBatchAAZeroAlpha
+--- PASS: TestBlendBatchAAZeroAlpha (0.00s)
+=== RUN   TestBlendBatchAAFullAlpha
+--- PASS: TestBlendBatchAAFullAlpha (0.00s)
+PASS

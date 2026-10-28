@@ -1,0 +1,205 @@
+=== RUN   TestLowerOverride
+--- PASS: TestLowerOverride (0.00s)
+=== RUN   TestLowerOverrideNoInit
+--- PASS: TestLowerOverrideNoInit (0.00s)
+=== RUN   TestLowerGlobalVarPrivate
+--- PASS: TestLowerGlobalVarPrivate (0.00s)
+=== RUN   TestLowerGlobalVarWorkgroup
+--- PASS: TestLowerGlobalVarWorkgroup (0.00s)
+=== RUN   TestLowerGlobalVarUniform
+--- PASS: TestLowerGlobalVarUniform (0.00s)
+=== RUN   TestLowerGlobalVarStorageReadWrite
+--- PASS: TestLowerGlobalVarStorageReadWrite (0.00s)
+=== RUN   TestLowerForLoop
+--- PASS: TestLowerForLoop (0.00s)
+=== RUN   TestLowerForLoopMinimal
+--- PASS: TestLowerForLoopMinimal (0.00s)
+=== RUN   TestLowerWhileLoop
+--- PASS: TestLowerWhileLoop (0.00s)
+=== RUN   TestLowerSwitch
+--- PASS: TestLowerSwitch (0.00s)
+=== RUN   TestLowerSwitchDefaultOnly
+--- PASS: TestLowerSwitchDefaultOnly (0.00s)
+=== RUN   TestLowerTextureSampler
+--- PASS: TestLowerTextureSampler (0.00s)
+=== RUN   TestLowerTextureTypes
+=== RUN   TestLowerTextureTypes/texture_1d
+=== RUN   TestLowerTextureTypes/texture_3d
+=== RUN   TestLowerTextureTypes/texture_cube
+=== RUN   TestLowerTextureTypes/texture_2d_array
+=== RUN   TestLowerTextureTypes/texture_depth_2d
+=== RUN   TestLowerTextureTypes/texture_multisampled_2d
+=== RUN   TestLowerTextureTypes/sampler_comparison
+--- PASS: TestLowerTextureTypes (0.00s)
+    --- PASS: TestLowerTextureTypes/texture_1d (0.00s)
+    --- PASS: TestLowerTextureTypes/texture_3d (0.00s)
+    --- PASS: TestLowerTextureTypes/texture_cube (0.00s)
+    --- PASS: TestLowerTextureTypes/texture_2d_array (0.00s)
+    --- PASS: TestLowerTextureTypes/texture_depth_2d (0.00s)
+    --- PASS: TestLowerTextureTypes/texture_multisampled_2d (0.00s)
+    --- PASS: TestLowerTextureTypes/sampler_comparison (0.00s)
+=== RUN   TestLowerStorageTexture
+--- PASS: TestLowerStorageTexture (0.00s)
+=== RUN   TestLowerDerivatives
+=== RUN   TestLowerDerivatives/dpdx
+=== RUN   TestLowerDerivatives/dpdy
+=== RUN   TestLowerDerivatives/fwidth
+=== RUN   TestLowerDerivatives/dpdxCoarse
+=== RUN   TestLowerDerivatives/dpdyCoarse
+=== RUN   TestLowerDerivatives/fwidthCoarse
+=== RUN   TestLowerDerivatives/dpdxFine
+=== RUN   TestLowerDerivatives/dpdyFine
+=== RUN   TestLowerDerivatives/fwidthFine
+--- PASS: TestLowerDerivatives (0.00s)
+    --- PASS: TestLowerDerivatives/dpdx (0.00s)
+    --- PASS: TestLowerDerivatives/dpdy (0.00s)
+    --- PASS: TestLowerDerivatives/fwidth (0.00s)
+    --- PASS: TestLowerDerivatives/dpdxCoarse (0.00s)
+    --- PASS: TestLowerDerivatives/dpdyCoarse (0.00s)
+    --- PASS: TestLowerDerivatives/fwidthCoarse (0.00s)
+    --- PASS: TestLowerDerivatives/dpdxFine (0.00s)
+    --- PASS: TestLowerDerivatives/dpdyFine (0.00s)
+    --- PASS: TestLowerDerivatives/fwidthFine (0.00s)
+=== RUN   TestLowerRelationalFunctions
+=== RUN   TestLowerRelationalFunctions/all
+=== RUN   TestLowerRelationalFunctions/any
+--- PASS: TestLowerRelationalFunctions (0.00s)
+    --- PASS: TestLowerRelationalFunctions/all (0.00s)
+    --- PASS: TestLowerRelationalFunctions/any (0.00s)
+=== RUN   TestLowerArrayLength
+--- PASS: TestLowerArrayLength (0.00s)
+=== RUN   TestLowerUnaryOps
+--- PASS: TestLowerUnaryOps (0.00s)
+=== RUN   TestLowerCompoundAssign
+--- PASS: TestLowerCompoundAssign (0.00s)
+=== RUN   TestLowerLogicalShortCircuit
+--- PASS: TestLowerLogicalShortCircuit (0.00s)
+=== RUN   TestLowerTypeConstructors
+--- PASS: TestLowerTypeConstructors (0.00s)
+=== RUN   TestLowerTypeConstructorFromVec
+--- PASS: TestLowerTypeConstructorFromVec (0.00s)
+=== RUN   TestLowerSplatConstructor
+--- PASS: TestLowerSplatConstructor (0.00s)
+=== RUN   TestLowerZeroConstructors
+--- PASS: TestLowerZeroConstructors (0.00s)
+=== RUN   TestLowerSwizzle
+--- PASS: TestLowerSwizzle (0.00s)
+=== RUN   TestLowerStructMemberAccess
+--- PASS: TestLowerStructMemberAccess (0.00s)
+=== RUN   TestLowerArrayAccess
+--- PASS: TestLowerArrayAccess (0.00s)
+=== RUN   TestLowerConstAssert
+--- PASS: TestLowerConstAssert (0.00s)
+=== RUN   TestLowerBitcast
+--- PASS: TestLowerBitcast (0.00s)
+=== RUN   TestLowerEntryPointStages
+--- PASS: TestLowerEntryPointStages (0.00s)
+=== RUN   TestLowerWorkgroupSize
+--- PASS: TestLowerWorkgroupSize (0.00s)
+=== RUN   TestLowerInterpolation
+--- PASS: TestLowerInterpolation (0.00s)
+=== RUN   TestLowerBindingAttributes
+--- PASS: TestLowerBindingAttributes (0.00s)
+=== RUN   TestLowerFunctionCall
+--- PASS: TestLowerFunctionCall (0.00s)
+=== RUN   TestLowerRecursiveFunction
+--- PASS: TestLowerRecursiveFunction (0.00s)
+=== RUN   TestLowerNestedIfElse
+--- PASS: TestLowerNestedIfElse (0.00s)
+=== RUN   TestLowerTypeAlias
+--- PASS: TestLowerTypeAlias (0.00s)
+=== RUN   TestLowerConstExpressions
+--- PASS: TestLowerConstExpressions (0.00s)
+=== RUN   TestLowerConstExpressionsFloat
+--- PASS: TestLowerConstExpressionsFloat (0.00s)
+=== RUN   TestLowerConstNegate
+--- PASS: TestLowerConstNegate (0.00s)
+=== RUN   TestLowerLocalConst
+--- PASS: TestLowerLocalConst (0.00s)
+=== RUN   TestLowerPhonyAssignment
+--- PASS: TestLowerPhonyAssignment (0.00s)
+=== RUN   TestLowerPointerOps
+--- PASS: TestLowerPointerOps (0.00s)
+=== RUN   TestLowerMatrixOps
+--- PASS: TestLowerMatrixOps (0.00s)
+=== RUN   TestLowerMatrixColumnAccess
+--- PASS: TestLowerMatrixColumnAccess (0.00s)
+=== RUN   TestLowerShortNameTypes
+--- PASS: TestLowerShortNameTypes (0.00s)
+=== RUN   TestLowerAbstractConcretization
+--- PASS: TestLowerAbstractConcretization (0.00s)
+=== RUN   TestLowerLoopBreakContinue
+--- PASS: TestLowerLoopBreakContinue (0.00s)
+=== RUN   TestLowerStructReturn
+--- PASS: TestLowerStructReturn (0.00s)
+=== RUN   TestLowerVarWithInit
+--- PASS: TestLowerVarWithInit (0.00s)
+=== RUN   TestLowerDiscard
+--- PASS: TestLowerDiscard (0.00s)
+=== RUN   TestLowerAtomicOps
+--- PASS: TestLowerAtomicOps (0.00s)
+=== RUN   TestLowerWorkgroupBarrier
+--- PASS: TestLowerWorkgroupBarrier (0.00s)
+=== RUN   TestLowerStorageBarrier
+--- PASS: TestLowerStorageBarrier (0.00s)
+=== RUN   TestLowerComparisonOps
+--- PASS: TestLowerComparisonOps (0.00s)
+=== RUN   TestLowerErrorUndefinedVariable
+--- PASS: TestLowerErrorUndefinedVariable (0.00s)
+=== RUN   TestLowerErrorUndefinedFunction
+--- PASS: TestLowerErrorUndefinedFunction (0.00s)
+=== RUN   TestLowerDuplicateFunction
+--- PASS: TestLowerDuplicateFunction (0.00s)
+=== RUN   TestLowerErrorMathArgCount
+--- PASS: TestLowerErrorMathArgCount (0.00s)
+=== RUN   TestLowerF16Type
+--- PASS: TestLowerF16Type (0.00s)
+=== RUN   TestLowerStructAlignSize
+--- PASS: TestLowerStructAlignSize (0.00s)
+=== RUN   TestLowerPackDotProduct
+--- PASS: TestLowerPackDotProduct (0.00s)
+=== RUN   TestLowerMultipleStructs
+--- PASS: TestLowerMultipleStructs (0.00s)
+=== RUN   TestLowerComplexExpressions
+--- PASS: TestLowerComplexExpressions (0.00s)
+=== RUN   TestLowerEntryPointStructIO
+--- PASS: TestLowerEntryPointStructIO (0.00s)
+=== RUN   TestLowerWithWarnings
+--- PASS: TestLowerWithWarnings (0.00s)
+=== RUN   TestLowerWithSource
+--- PASS: TestLowerWithSource (0.00s)
+=== RUN   TestLowerEarlyDepthTest
+--- PASS: TestLowerEarlyDepthTest (0.00s)
+=== RUN   TestLowerMixedBinaryOps
+--- PASS: TestLowerMixedBinaryOps (0.00s)
+=== RUN   TestLowerNestedStructTypes
+--- PASS: TestLowerNestedStructTypes (0.00s)
+=== RUN   TestLowerConstVectorConstructors
+--- PASS: TestLowerConstVectorConstructors (0.00s)
+=== RUN   TestLowerCompleteShader
+--- PASS: TestLowerCompleteShader (0.00s)
+=== RUN   TestLowerGlobalVarNoInit
+--- PASS: TestLowerGlobalVarNoInit (0.00s)
+=== RUN   TestLowerRuntimeSizedArray
+--- PASS: TestLowerRuntimeSizedArray (0.00s)
+=== RUN   TestLowerNestedLoop
+--- PASS: TestLowerNestedLoop (0.00s)
+=== RUN   TestLowerVariableShadowing
+--- PASS: TestLowerVariableShadowing (0.00s)
+=== RUN   TestLowerChainedFunctionCalls
+--- PASS: TestLowerChainedFunctionCalls (0.00s)
+=== RUN   TestLowerSelectTernary
+--- PASS: TestLowerSelectTernary (0.00s)
+=== RUN   TestLowerConstBoolOps
+--- PASS: TestLowerConstBoolOps (0.00s)
+=== RUN   TestLowerThreeArgMath
+--- PASS: TestLowerThreeArgMath (0.00s)
+=== RUN   TestLowerBitOps
+--- PASS: TestLowerBitOps (0.00s)
+=== RUN   TestLowerPackUnpack
+--- PASS: TestLowerPackUnpack (0.00s)
+=== RUN   TestLowerExtractInsertBits
+--- PASS: TestLowerExtractInsertBits (0.00s)
+=== RUN   TestLowerQuantize
+--- PASS: TestLowerQuantize (0.00s)
+PASS

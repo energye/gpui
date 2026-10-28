@@ -1,0 +1,79 @@
+=== RUN   TestPhaseBSwitchMergePromotion
+--- PASS: TestPhaseBSwitchMergePromotion (0.00s)
+=== RUN   TestPhaseBSwitchNoWritePassThrough
+--- PASS: TestPhaseBSwitchNoWritePassThrough (0.00s)
+=== RUN   TestPhaseBLoopDisqualification
+--- PASS: TestPhaseBLoopDisqualification (0.00s)
+=== RUN   TestCollectStoresRecursesIntoNestedControlFlow
+--- PASS: TestCollectStoresRecursesIntoNestedControlFlow (0.00s)
+=== RUN   TestClassifyStatementsNestedControlFlow
+--- PASS: TestClassifyStatementsNestedControlFlow (0.00s)
+=== RUN   TestClassifyStatementsImageStoreDisqualifies
+--- PASS: TestClassifyStatementsImageStoreDisqualifies (0.00s)
+=== RUN   TestClassifyStatementsCallArgDisqualifies
+--- PASS: TestClassifyStatementsCallArgDisqualifies (0.00s)
+=== RUN   TestCollectExpressionHandlesExhaustive
+=== RUN   TestCollectExpressionHandlesExhaustive/Splat
+=== RUN   TestCollectExpressionHandlesExhaustive/Swizzle
+=== RUN   TestCollectExpressionHandlesExhaustive/Compose
+=== RUN   TestCollectExpressionHandlesExhaustive/As
+=== RUN   TestCollectExpressionHandlesExhaustive/Derivative
+=== RUN   TestCollectExpressionHandlesExhaustive/Select
+=== RUN   TestCollectExpressionHandlesExhaustive/Math_AllArgs
+=== RUN   TestCollectExpressionHandlesExhaustive/Math_NoOptionals
+=== RUN   TestCollectExpressionHandlesExhaustive/Relational
+=== RUN   TestCollectExpressionHandlesExhaustive/ArrayLength
+=== RUN   TestCollectExpressionHandlesExhaustive/ImageSample_AllOptionals
+=== RUN   TestCollectExpressionHandlesExhaustive/ImageSample_NoOptionals
+=== RUN   TestCollectExpressionHandlesExhaustive/ImageLoad_AllOptionals
+=== RUN   TestCollectExpressionHandlesExhaustive/ImageLoad_NoOptionals
+=== RUN   TestCollectExpressionHandlesExhaustive/ImageQuery
+=== RUN   TestCollectExpressionHandlesExhaustive/Alias
+=== RUN   TestCollectExpressionHandlesExhaustive/Literal_NoHandles
+=== RUN   TestCollectExpressionHandlesExhaustive/LocalVariable_NoHandles
+--- PASS: TestCollectExpressionHandlesExhaustive (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Splat (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Swizzle (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Compose (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/As (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Derivative (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Select (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Math_AllArgs (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Math_NoOptionals (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Relational (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/ArrayLength (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/ImageSample_AllOptionals (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/ImageSample_NoOptionals (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/ImageLoad_AllOptionals (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/ImageLoad_NoOptionals (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/ImageQuery (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Alias (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/Literal_NoHandles (0.00s)
+    --- PASS: TestCollectExpressionHandlesExhaustive/LocalVariable_NoHandles (0.00s)
+=== RUN   TestCollectEmitsInBlockRecursesIntoControlFlow
+--- PASS: TestCollectEmitsInBlockRecursesIntoControlFlow (0.00s)
+=== RUN   TestPromoteBlocksRecursesIntoNestedControlFlow
+--- PASS: TestPromoteBlocksRecursesIntoNestedControlFlow (0.00s)
+=== RUN   TestIsBoolLocalDisqualifiesPhiCandidate
+--- PASS: TestIsBoolLocalDisqualifiesPhiCandidate (0.00s)
+=== RUN   TestSelectBlockCandidatesRejectsPartialMatch
+--- PASS: TestSelectBlockCandidatesRejectsPartialMatch (0.00s)
+=== RUN   TestLoadHandleVarOutOfBounds
+--- PASS: TestLoadHandleVarOutOfBounds (0.00s)
+=== RUN   TestPromoteIfOneBranchOnly
+--- PASS: TestPromoteIfOneBranchOnly (0.00s)
+=== RUN   TestClassifyStatementsInSwitchCases
+--- PASS: TestClassifyStatementsInSwitchCases (0.00s)
+=== RUN   TestIsPromotableLocalInvalidTypeHandle
+--- PASS: TestIsPromotableLocalInvalidTypeHandle (0.00s)
+=== RUN   TestIsBoolLocalInvalidTypeHandle
+--- PASS: TestIsBoolLocalInvalidTypeHandle (0.00s)
+=== RUN   TestIsBoolLocalNonScalar
+--- PASS: TestIsBoolLocalNonScalar (0.00s)
+=== RUN   TestPhaseASameValueIfBranches
+--- PASS: TestPhaseASameValueIfBranches (0.00s)
+=== RUN   TestInitialValueOfWithInit
+--- PASS: TestInitialValueOfWithInit (0.00s)
+=== RUN   TestInitialValueOfWithoutInit
+--- PASS: TestInitialValueOfWithoutInit (0.00s)
+PASS

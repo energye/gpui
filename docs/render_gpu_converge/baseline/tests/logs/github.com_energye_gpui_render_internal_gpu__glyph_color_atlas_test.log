@@ -1,0 +1,9 @@
+=== RUN   TestColorAtlasPutGet
+--- PASS: TestColorAtlasPutGet (0.00s)
+=== RUN   TestColorAtlasDirtyUpload
+--- PASS: TestColorAtlasDirtyUpload (0.00s)
+=== RUN   TestColorAtlasFull
+--- PASS: TestColorAtlasFull (0.00s)
+=== RUN   TestColorGlyphAtlasEvictsCold
+--- PASS: TestColorGlyphAtlasEvictsCold (0.00s)
+PASS

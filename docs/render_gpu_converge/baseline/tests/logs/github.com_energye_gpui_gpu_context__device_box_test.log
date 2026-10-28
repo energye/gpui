@@ -1,0 +1,11 @@
+=== RUN   TestPackUnpackDeviceRoundtrip
+--- PASS: TestPackUnpackDeviceRoundtrip (0.00s)
+=== RUN   TestPackUnpackQueueRoundtrip
+--- PASS: TestPackUnpackQueueRoundtrip (0.00s)
+=== RUN   TestPackUnpackAdapterRoundtrip
+--- PASS: TestPackUnpackAdapterRoundtrip (0.00s)
+=== RUN   TestPackNilYieldsNilHandle
+--- PASS: TestPackNilYieldsNilHandle (0.00s)
+=== RUN   TestUnpackForeignFailsClosed
+--- PASS: TestUnpackForeignFailsClosed (0.00s)
+PASS

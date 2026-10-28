@@ -1,0 +1,49 @@
+=== RUN   TestClipOps_FillRuleWinding
+--- PASS: TestClipOps_FillRuleWinding (0.30s)
+=== RUN   TestClipOps_FillRuleEvenOdd
+--- PASS: TestClipOps_FillRuleEvenOdd (0.00s)
+=== RUN   TestClipOps_DisjointSubpaths
+--- PASS: TestClipOps_DisjointSubpaths (0.00s)
+=== RUN   TestClipOps_OpenSubpathImplicitClose
+--- PASS: TestClipOps_OpenSubpathImplicitClose (0.00s)
+=== RUN   TestClipOps_RectDifferenceFractionalAA
+--- PASS: TestClipOps_RectDifferenceFractionalAA (0.01s)
+=== RUN   TestClipOps_RectDifferenceFractionalAA_CPUFallback
+--- PASS: TestClipOps_RectDifferenceFractionalAA_CPUFallback (0.00s)
+=== RUN   TestClipOps_PathCtmInvariance
+=== RUN   TestClipOps_PathCtmInvariance/replace
+=== RUN   TestClipOps_PathCtmInvariance/replace/identity
+=== RUN   TestClipOps_PathCtmInvariance/replace/translate
+=== RUN   TestClipOps_PathCtmInvariance/replace/scale
+=== RUN   TestClipOps_PathCtmInvariance/replace/translate+scale
+=== RUN   TestClipOps_PathCtmInvariance/intersect
+=== RUN   TestClipOps_PathCtmInvariance/intersect/identity
+=== RUN   TestClipOps_PathCtmInvariance/intersect/translate
+=== RUN   TestClipOps_PathCtmInvariance/intersect/scale
+=== RUN   TestClipOps_PathCtmInvariance/intersect/translate+scale
+=== RUN   TestClipOps_PathCtmInvariance/difference
+=== RUN   TestClipOps_PathCtmInvariance/difference/identity
+=== RUN   TestClipOps_PathCtmInvariance/difference/translate
+=== RUN   TestClipOps_PathCtmInvariance/difference/scale
+=== RUN   TestClipOps_PathCtmInvariance/difference/translate+scale
+--- PASS: TestClipOps_PathCtmInvariance (0.02s)
+    --- PASS: TestClipOps_PathCtmInvariance/replace (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/replace/identity (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/replace/translate (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/replace/scale (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/replace/translate+scale (0.00s)
+    --- PASS: TestClipOps_PathCtmInvariance/intersect (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/intersect/identity (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/intersect/translate (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/intersect/scale (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/intersect/translate+scale (0.00s)
+    --- PASS: TestClipOps_PathCtmInvariance/difference (0.01s)
+        --- PASS: TestClipOps_PathCtmInvariance/difference/identity (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/difference/translate (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/difference/scale (0.00s)
+        --- PASS: TestClipOps_PathCtmInvariance/difference/translate+scale (0.00s)
+=== RUN   TestClipOps_PathReplace
+--- PASS: TestClipOps_PathReplace (0.00s)
+=== RUN   TestClipOps_PathDifference
+--- PASS: TestClipOps_PathDifference (0.01s)
+PASS

@@ -1,0 +1,321 @@
+=== RUN   TestScalarTypeToHLSL
+=== RUN   TestScalarTypeToHLSL/bool
+=== RUN   TestScalarTypeToHLSL/int8
+=== RUN   TestScalarTypeToHLSL/int16
+=== RUN   TestScalarTypeToHLSL/int32
+=== RUN   TestScalarTypeToHLSL/int64
+=== RUN   TestScalarTypeToHLSL/uint8
+=== RUN   TestScalarTypeToHLSL/uint16
+=== RUN   TestScalarTypeToHLSL/uint32
+=== RUN   TestScalarTypeToHLSL/uint64
+=== RUN   TestScalarTypeToHLSL/half
+=== RUN   TestScalarTypeToHLSL/float
+=== RUN   TestScalarTypeToHLSL/double
+--- PASS: TestScalarTypeToHLSL (0.00s)
+    --- PASS: TestScalarTypeToHLSL/bool (0.00s)
+    --- PASS: TestScalarTypeToHLSL/int8 (0.00s)
+    --- PASS: TestScalarTypeToHLSL/int16 (0.00s)
+    --- PASS: TestScalarTypeToHLSL/int32 (0.00s)
+    --- PASS: TestScalarTypeToHLSL/int64 (0.00s)
+    --- PASS: TestScalarTypeToHLSL/uint8 (0.00s)
+    --- PASS: TestScalarTypeToHLSL/uint16 (0.00s)
+    --- PASS: TestScalarTypeToHLSL/uint32 (0.00s)
+    --- PASS: TestScalarTypeToHLSL/uint64 (0.00s)
+    --- PASS: TestScalarTypeToHLSL/half (0.00s)
+    --- PASS: TestScalarTypeToHLSL/float (0.00s)
+    --- PASS: TestScalarTypeToHLSL/double (0.00s)
+=== RUN   TestVectorTypeToHLSL
+=== RUN   TestVectorTypeToHLSL/float2
+=== RUN   TestVectorTypeToHLSL/float3
+=== RUN   TestVectorTypeToHLSL/float4
+=== RUN   TestVectorTypeToHLSL/int2
+=== RUN   TestVectorTypeToHLSL/int3
+=== RUN   TestVectorTypeToHLSL/int4
+=== RUN   TestVectorTypeToHLSL/uint2
+=== RUN   TestVectorTypeToHLSL/uint3
+=== RUN   TestVectorTypeToHLSL/uint4
+=== RUN   TestVectorTypeToHLSL/half2
+=== RUN   TestVectorTypeToHLSL/half4
+=== RUN   TestVectorTypeToHLSL/bool2
+=== RUN   TestVectorTypeToHLSL/bool4
+--- PASS: TestVectorTypeToHLSL (0.00s)
+    --- PASS: TestVectorTypeToHLSL/float2 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/float3 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/float4 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/int2 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/int3 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/int4 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/uint2 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/uint3 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/uint4 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/half2 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/half4 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/bool2 (0.00s)
+    --- PASS: TestVectorTypeToHLSL/bool4 (0.00s)
+=== RUN   TestMatrixTypeToHLSL
+=== RUN   TestMatrixTypeToHLSL/float2x2
+=== RUN   TestMatrixTypeToHLSL/float3x3
+=== RUN   TestMatrixTypeToHLSL/float4x4
+=== RUN   TestMatrixTypeToHLSL/float2x3
+=== RUN   TestMatrixTypeToHLSL/float3x4
+=== RUN   TestMatrixTypeToHLSL/float4x2
+=== RUN   TestMatrixTypeToHLSL/half3x3
+=== RUN   TestMatrixTypeToHLSL/half4x4
+=== RUN   TestMatrixTypeToHLSL/double4x4
+--- PASS: TestMatrixTypeToHLSL (0.00s)
+    --- PASS: TestMatrixTypeToHLSL/float2x2 (0.00s)
+    --- PASS: TestMatrixTypeToHLSL/float3x3 (0.00s)
+    --- PASS: TestMatrixTypeToHLSL/float4x4 (0.00s)
+    --- PASS: TestMatrixTypeToHLSL/float2x3 (0.00s)
+    --- PASS: TestMatrixTypeToHLSL/float3x4 (0.00s)
+    --- PASS: TestMatrixTypeToHLSL/float4x2 (0.00s)
+    --- PASS: TestMatrixTypeToHLSL/half3x3 (0.00s)
+    --- PASS: TestMatrixTypeToHLSL/half4x4 (0.00s)
+    --- PASS: TestMatrixTypeToHLSL/double4x4 (0.00s)
+=== RUN   TestSamplerTypeToHLSL
+=== RUN   TestSamplerTypeToHLSL/regular_sampler
+=== RUN   TestSamplerTypeToHLSL/comparison_sampler
+--- PASS: TestSamplerTypeToHLSL (0.00s)
+    --- PASS: TestSamplerTypeToHLSL/regular_sampler (0.00s)
+    --- PASS: TestSamplerTypeToHLSL/comparison_sampler (0.00s)
+=== RUN   TestImageTypeToHLSL
+=== RUN   TestImageTypeToHLSL/Texture1D
+=== RUN   TestImageTypeToHLSL/Texture2D
+=== RUN   TestImageTypeToHLSL/Texture3D
+=== RUN   TestImageTypeToHLSL/TextureCube
+=== RUN   TestImageTypeToHLSL/Texture2D_uint
+=== RUN   TestImageTypeToHLSL/Texture2D_sint
+=== RUN   TestImageTypeToHLSL/Texture1DArray
+=== RUN   TestImageTypeToHLSL/Texture2DArray
+=== RUN   TestImageTypeToHLSL/TextureCubeArray
+=== RUN   TestImageTypeToHLSL/Texture3D_no_array
+=== RUN   TestImageTypeToHLSL/Texture2DMS
+=== RUN   TestImageTypeToHLSL/Texture2DMSArray
+=== RUN   TestImageTypeToHLSL/Texture2D_depth
+=== RUN   TestImageTypeToHLSL/Texture2DArray_depth
+=== RUN   TestImageTypeToHLSL/TextureCube_depth
+=== RUN   TestImageTypeToHLSL/RWTexture1D
+=== RUN   TestImageTypeToHLSL/RWTexture2D
+=== RUN   TestImageTypeToHLSL/RWTexture3D
+=== RUN   TestImageTypeToHLSL/RWTexture2DArray
+--- PASS: TestImageTypeToHLSL (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture1D (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture2D (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture3D (0.00s)
+    --- PASS: TestImageTypeToHLSL/TextureCube (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture2D_uint (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture2D_sint (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture1DArray (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture2DArray (0.00s)
+    --- PASS: TestImageTypeToHLSL/TextureCubeArray (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture3D_no_array (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture2DMS (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture2DMSArray (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture2D_depth (0.00s)
+    --- PASS: TestImageTypeToHLSL/Texture2DArray_depth (0.00s)
+    --- PASS: TestImageTypeToHLSL/TextureCube_depth (0.00s)
+    --- PASS: TestImageTypeToHLSL/RWTexture1D (0.00s)
+    --- PASS: TestImageTypeToHLSL/RWTexture2D (0.00s)
+    --- PASS: TestImageTypeToHLSL/RWTexture3D (0.00s)
+    --- PASS: TestImageTypeToHLSL/RWTexture2DArray (0.00s)
+=== RUN   TestStructsEqual
+=== RUN   TestStructsEqual/empty_structs_equal
+=== RUN   TestStructsEqual/same_members
+=== RUN   TestStructsEqual/different_member_count
+=== RUN   TestStructsEqual/different_member_names
+=== RUN   TestStructsEqual/different_member_types
+--- PASS: TestStructsEqual (0.00s)
+    --- PASS: TestStructsEqual/empty_structs_equal (0.00s)
+    --- PASS: TestStructsEqual/same_members (0.00s)
+    --- PASS: TestStructsEqual/different_member_count (0.00s)
+    --- PASS: TestStructsEqual/different_member_names (0.00s)
+    --- PASS: TestStructsEqual/different_member_types (0.00s)
+=== RUN   TestFormatFloat32
+=== RUN   TestFormatFloat32/zero
+=== RUN   TestFormatFloat32/one
+=== RUN   TestFormatFloat32/negative
+=== RUN   TestFormatFloat32/small
+=== RUN   TestFormatFloat32/large
+=== RUN   TestFormatFloat32/small_exp
+--- PASS: TestFormatFloat32 (0.00s)
+    --- PASS: TestFormatFloat32/zero (0.00s)
+    --- PASS: TestFormatFloat32/one (0.00s)
+    --- PASS: TestFormatFloat32/negative (0.00s)
+    --- PASS: TestFormatFloat32/small (0.00s)
+    --- PASS: TestFormatFloat32/large (0.00s)
+    --- PASS: TestFormatFloat32/small_exp (0.00s)
+=== RUN   TestFormatFloat64
+=== RUN   TestFormatFloat64/zero
+=== RUN   TestFormatFloat64/one
+=== RUN   TestFormatFloat64/negative
+=== RUN   TestFormatFloat64/small
+=== RUN   TestFormatFloat64/large
+--- PASS: TestFormatFloat64 (0.00s)
+    --- PASS: TestFormatFloat64/zero (0.00s)
+    --- PASS: TestFormatFloat64/one (0.00s)
+    --- PASS: TestFormatFloat64/negative (0.00s)
+    --- PASS: TestFormatFloat64/small (0.00s)
+    --- PASS: TestFormatFloat64/large (0.00s)
+=== RUN   TestWriteBufferType
+=== RUN   TestWriteBufferType/read-write_float4
+=== RUN   TestWriteBufferType/read-only_float4
+=== RUN   TestWriteBufferType/read-write_MyStruct
+=== RUN   TestWriteBufferType/read-only_MyStruct
+--- PASS: TestWriteBufferType (0.00s)
+    --- PASS: TestWriteBufferType/read-write_float4 (0.00s)
+    --- PASS: TestWriteBufferType/read-only_float4 (0.00s)
+    --- PASS: TestWriteBufferType/read-write_MyStruct (0.00s)
+    --- PASS: TestWriteBufferType/read-only_MyStruct (0.00s)
+=== RUN   TestWriteByteAddressBufferType
+=== RUN   TestWriteByteAddressBufferType/read-write
+=== RUN   TestWriteByteAddressBufferType/read-only
+--- PASS: TestWriteByteAddressBufferType (0.00s)
+    --- PASS: TestWriteByteAddressBufferType/read-write (0.00s)
+    --- PASS: TestWriteByteAddressBufferType/read-only (0.00s)
+=== RUN   TestTypeClassification
+=== RUN   TestTypeClassification/isScalarType
+=== RUN   TestTypeClassification/isVectorType
+=== RUN   TestTypeClassification/isMatrixType
+=== RUN   TestTypeClassification/isStructType
+=== RUN   TestTypeClassification/isArrayType
+=== RUN   TestTypeClassification/isRuntimeArray
+=== RUN   TestTypeClassification/getScalarKind
+=== RUN   TestTypeClassification/getVectorSize
+=== RUN   TestTypeClassification/getMatrixDimensions
+=== RUN   TestTypeClassification/getArrayElementType
+=== RUN   TestTypeClassification/getArraySize
+=== RUN   TestTypeClassification/out_of_bounds
+--- PASS: TestTypeClassification (0.00s)
+    --- PASS: TestTypeClassification/isScalarType (0.00s)
+    --- PASS: TestTypeClassification/isVectorType (0.00s)
+    --- PASS: TestTypeClassification/isMatrixType (0.00s)
+    --- PASS: TestTypeClassification/isStructType (0.00s)
+    --- PASS: TestTypeClassification/isArrayType (0.00s)
+    --- PASS: TestTypeClassification/isRuntimeArray (0.00s)
+    --- PASS: TestTypeClassification/getScalarKind (0.00s)
+    --- PASS: TestTypeClassification/getVectorSize (0.00s)
+    --- PASS: TestTypeClassification/getMatrixDimensions (0.00s)
+    --- PASS: TestTypeClassification/getArrayElementType (0.00s)
+    --- PASS: TestTypeClassification/getArraySize (0.00s)
+    --- PASS: TestTypeClassification/out_of_bounds (0.00s)
+=== RUN   TestGetTypeName
+=== RUN   TestGetTypeName/scalar_float
+=== RUN   TestGetTypeName/vector_float4
+=== RUN   TestGetTypeName/matrix_float4x4
+=== RUN   TestGetTypeName/named_struct
+=== RUN   TestGetTypeName/sampler
+=== RUN   TestGetTypeName/comparison_sampler
+=== RUN   TestGetTypeName/texture2d
+=== RUN   TestGetTypeName/pointer_to_float
+=== RUN   TestGetTypeName/atomic_uint
+--- PASS: TestGetTypeName (0.00s)
+    --- PASS: TestGetTypeName/scalar_float (0.00s)
+    --- PASS: TestGetTypeName/vector_float4 (0.00s)
+    --- PASS: TestGetTypeName/matrix_float4x4 (0.00s)
+    --- PASS: TestGetTypeName/named_struct (0.00s)
+    --- PASS: TestGetTypeName/sampler (0.00s)
+    --- PASS: TestGetTypeName/comparison_sampler (0.00s)
+    --- PASS: TestGetTypeName/texture2d (0.00s)
+    --- PASS: TestGetTypeName/pointer_to_float (0.00s)
+    --- PASS: TestGetTypeName/atomic_uint (0.00s)
+=== RUN   TestGetTypeNameWithArraySuffix
+=== RUN   TestGetTypeNameWithArraySuffix/scalar
+=== RUN   TestGetTypeNameWithArraySuffix/const_array
+=== RUN   TestGetTypeNameWithArraySuffix/runtime_array
+=== RUN   TestGetTypeNameWithArraySuffix/nested_array
+--- PASS: TestGetTypeNameWithArraySuffix (0.00s)
+    --- PASS: TestGetTypeNameWithArraySuffix/scalar (0.00s)
+    --- PASS: TestGetTypeNameWithArraySuffix/const_array (0.00s)
+    --- PASS: TestGetTypeNameWithArraySuffix/runtime_array (0.00s)
+    --- PASS: TestGetTypeNameWithArraySuffix/nested_array (0.00s)
+=== RUN   TestWriteCBufferDeclaration
+=== RUN   TestWriteCBufferDeclaration/with_binding
+=== RUN   TestWriteCBufferDeclaration/without_binding
+--- PASS: TestWriteCBufferDeclaration (0.00s)
+    --- PASS: TestWriteCBufferDeclaration/with_binding (0.00s)
+    --- PASS: TestWriteCBufferDeclaration/without_binding (0.00s)
+=== RUN   TestGetSemanticFromBinding
+=== RUN   TestGetSemanticFromBinding/position_builtin
+=== RUN   TestGetSemanticFromBinding/vertex_index_builtin
+=== RUN   TestGetSemanticFromBinding/instance_index_builtin
+=== RUN   TestGetSemanticFromBinding/location_0
+=== RUN   TestGetSemanticFromBinding/location_3
+=== RUN   TestGetSemanticFromBinding/nil_binding
+--- PASS: TestGetSemanticFromBinding (0.00s)
+    --- PASS: TestGetSemanticFromBinding/position_builtin (0.00s)
+    --- PASS: TestGetSemanticFromBinding/vertex_index_builtin (0.00s)
+    --- PASS: TestGetSemanticFromBinding/instance_index_builtin (0.00s)
+    --- PASS: TestGetSemanticFromBinding/location_0 (0.00s)
+    --- PASS: TestGetSemanticFromBinding/location_3 (0.00s)
+    --- PASS: TestGetSemanticFromBinding/nil_binding (0.00s)
+=== RUN   TestGetInterpolationModifier
+=== RUN   TestGetInterpolationModifier/nil_binding
+=== RUN   TestGetInterpolationModifier/builtin_binding
+=== RUN   TestGetInterpolationModifier/location_no_interp
+=== RUN   TestGetInterpolationModifier/flat_interpolation
+=== RUN   TestGetInterpolationModifier/linear_noperspective
+=== RUN   TestGetInterpolationModifier/centroid_sampling
+=== RUN   TestGetInterpolationModifier/sample_sampling
+=== RUN   TestGetInterpolationModifier/flat_with_centroid
+--- PASS: TestGetInterpolationModifier (0.00s)
+    --- PASS: TestGetInterpolationModifier/nil_binding (0.00s)
+    --- PASS: TestGetInterpolationModifier/builtin_binding (0.00s)
+    --- PASS: TestGetInterpolationModifier/location_no_interp (0.00s)
+    --- PASS: TestGetInterpolationModifier/flat_interpolation (0.00s)
+    --- PASS: TestGetInterpolationModifier/linear_noperspective (0.00s)
+    --- PASS: TestGetInterpolationModifier/centroid_sampling (0.00s)
+    --- PASS: TestGetInterpolationModifier/sample_sampling (0.00s)
+    --- PASS: TestGetInterpolationModifier/flat_with_centroid (0.00s)
+=== RUN   TestGetInnerMatrixData
+=== RUN   TestGetInnerMatrixData/direct_mat3x2
+=== RUN   TestGetInnerMatrixData/array_of_mat3x2
+=== RUN   TestGetInnerMatrixData/scalar_(not_matrix)
+=== RUN   TestGetInnerMatrixData/mat4x3_(not_Cx2)
+--- PASS: TestGetInnerMatrixData (0.00s)
+    --- PASS: TestGetInnerMatrixData/direct_mat3x2 (0.00s)
+    --- PASS: TestGetInnerMatrixData/array_of_mat3x2 (0.00s)
+    --- PASS: TestGetInnerMatrixData/scalar_(not_matrix) (0.00s)
+    --- PASS: TestGetInnerMatrixData/mat4x3_(not_Cx2) (0.00s)
+=== RUN   TestWriteMatCx2TypedefAndFunctions
+--- PASS: TestWriteMatCx2TypedefAndFunctions (0.00s)
+=== RUN   TestWriteWrappedStructMatrixAccessFunctions
+--- PASS: TestWriteWrappedStructMatrixAccessFunctions (0.00s)
+=== RUN   TestIsMatCx2Type
+--- PASS: TestIsMatCx2Type (0.00s)
+=== RUN   TestIsSubgroupBuiltinBinding
+=== RUN   TestIsSubgroupBuiltinBinding/nil
+=== RUN   TestIsSubgroupBuiltinBinding/SubgroupSize
+=== RUN   TestIsSubgroupBuiltinBinding/SubgroupInvocationID
+=== RUN   TestIsSubgroupBuiltinBinding/NumSubgroups
+=== RUN   TestIsSubgroupBuiltinBinding/SubgroupID
+=== RUN   TestIsSubgroupBuiltinBinding/Position_(not_subgroup)
+=== RUN   TestIsSubgroupBuiltinBinding/Location_(not_subgroup)
+--- PASS: TestIsSubgroupBuiltinBinding (0.00s)
+    --- PASS: TestIsSubgroupBuiltinBinding/nil (0.00s)
+    --- PASS: TestIsSubgroupBuiltinBinding/SubgroupSize (0.00s)
+    --- PASS: TestIsSubgroupBuiltinBinding/SubgroupInvocationID (0.00s)
+    --- PASS: TestIsSubgroupBuiltinBinding/NumSubgroups (0.00s)
+    --- PASS: TestIsSubgroupBuiltinBinding/SubgroupID (0.00s)
+    --- PASS: TestIsSubgroupBuiltinBinding/Position_(not_subgroup) (0.00s)
+    --- PASS: TestIsSubgroupBuiltinBinding/Location_(not_subgroup) (0.00s)
+=== RUN   TestImageQueryFunctionName
+=== RUN   TestImageQueryFunctionName/RW_Dimensions_2D
+=== RUN   TestImageQueryFunctionName/Dimensions_2D
+=== RUN   TestImageQueryFunctionName/MipDimensions_1D
+=== RUN   TestImageQueryFunctionName/NumLevels_Cube
+=== RUN   TestImageQueryFunctionName/NumLayers_2DArray
+=== RUN   TestImageQueryFunctionName/MS_NumSamples_2D
+=== RUN   TestImageQueryFunctionName/Depth_Dimensions_2D
+--- PASS: TestImageQueryFunctionName (0.00s)
+    --- PASS: TestImageQueryFunctionName/RW_Dimensions_2D (0.00s)
+    --- PASS: TestImageQueryFunctionName/Dimensions_2D (0.00s)
+    --- PASS: TestImageQueryFunctionName/MipDimensions_1D (0.00s)
+    --- PASS: TestImageQueryFunctionName/NumLevels_Cube (0.00s)
+    --- PASS: TestImageQueryFunctionName/NumLayers_2DArray (0.00s)
+    --- PASS: TestImageQueryFunctionName/MS_NumSamples_2D (0.00s)
+    --- PASS: TestImageQueryFunctionName/Depth_Dimensions_2D (0.00s)
+=== RUN   TestWriteSemantic_SkipsSubgroupBuiltins
+--- PASS: TestWriteSemantic_SkipsSubgroupBuiltins (0.00s)
+=== RUN   TestIsArrayOfMatCx2Type
+--- PASS: TestIsArrayOfMatCx2Type (0.00s)
+PASS

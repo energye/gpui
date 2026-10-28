@@ -1,0 +1,5 @@
+=== RUN   TestPhaseStagger_SpreadsWindows
+--- PASS: TestPhaseStagger_SpreadsWindows (0.00s)
+=== RUN   TestPhaseStagger_SlotZeroLegacy
+--- PASS: TestPhaseStagger_SlotZeroLegacy (0.00s)
+PASS

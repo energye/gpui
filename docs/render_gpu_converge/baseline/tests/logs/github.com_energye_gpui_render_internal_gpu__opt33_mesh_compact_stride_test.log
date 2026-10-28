@@ -1,0 +1,9 @@
+=== RUN   TestOpt33_MeshVertexStride_Is12
+--- PASS: TestOpt33_MeshVertexStride_Is12 (0.00s)
+=== RUN   TestOpt33_AllConvexCommandsMeshCompact
+--- PASS: TestOpt33_AllConvexCommandsMeshCompact (0.00s)
+=== RUN   TestOpt33_PackMesh_12B_NoCoverageChannel
+--- PASS: TestOpt33_PackMesh_12B_NoCoverageChannel (0.00s)
+=== RUN   TestOpt33_ExpandMesh12To16_InBuildConvex
+--- PASS: TestOpt33_ExpandMesh12To16_InBuildConvex (0.00s)
+PASS

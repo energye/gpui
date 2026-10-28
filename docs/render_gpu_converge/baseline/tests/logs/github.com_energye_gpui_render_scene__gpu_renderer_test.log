@@ -1,0 +1,6 @@
+=== RUN   TestSceneRenderer_GPUPathInvoked
+    gpu_renderer_test.go:70: GPU path confirmed: FillShape=2, FillPath=2
+--- PASS: TestSceneRenderer_GPUPathInvoked (0.00s)
+=== RUN   TestSceneRenderer_CPUFallbackWithoutGPU
+--- PASS: TestSceneRenderer_CPUFallbackWithoutGPU (0.00s)
+PASS

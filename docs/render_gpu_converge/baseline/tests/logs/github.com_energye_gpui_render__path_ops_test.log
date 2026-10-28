@@ -1,0 +1,95 @@
+=== RUN   TestPathArea
+=== RUN   TestPathArea/unit_square_clockwise
+=== RUN   TestPathArea/unit_square_counter-clockwise
+=== RUN   TestPathArea/10x10_square
+=== RUN   TestPathArea/triangle
+=== RUN   TestPathArea/circle_radius_1
+=== RUN   TestPathArea/empty_path
+--- PASS: TestPathArea (0.00s)
+    --- PASS: TestPathArea/unit_square_clockwise (0.00s)
+    --- PASS: TestPathArea/unit_square_counter-clockwise (0.00s)
+    --- PASS: TestPathArea/10x10_square (0.00s)
+    --- PASS: TestPathArea/triangle (0.00s)
+    --- PASS: TestPathArea/circle_radius_1 (0.00s)
+    --- PASS: TestPathArea/empty_path (0.00s)
+=== RUN   TestPathWinding
+=== RUN   TestPathWinding/point_inside_square
+=== RUN   TestPathWinding/point_outside_square_left
+=== RUN   TestPathWinding/point_outside_square_right
+=== RUN   TestPathWinding/point_outside_square_above
+=== RUN   TestPathWinding/point_outside_square_below
+--- PASS: TestPathWinding (0.00s)
+    --- PASS: TestPathWinding/point_inside_square (0.00s)
+    --- PASS: TestPathWinding/point_outside_square_left (0.00s)
+    --- PASS: TestPathWinding/point_outside_square_right (0.00s)
+    --- PASS: TestPathWinding/point_outside_square_above (0.00s)
+    --- PASS: TestPathWinding/point_outside_square_below (0.00s)
+=== RUN   TestPathContains
+=== RUN   TestPathContains/inside_square
+=== RUN   TestPathContains/outside_square
+=== RUN   TestPathContains/inside_circle
+=== RUN   TestPathContains/outside_circle
+=== RUN   TestPathContains/inside_triangle
+=== RUN   TestPathContains/outside_triangle
+--- PASS: TestPathContains (0.00s)
+    --- PASS: TestPathContains/inside_square (0.00s)
+    --- PASS: TestPathContains/outside_square (0.00s)
+    --- PASS: TestPathContains/inside_circle (0.00s)
+    --- PASS: TestPathContains/outside_circle (0.00s)
+    --- PASS: TestPathContains/inside_triangle (0.00s)
+    --- PASS: TestPathContains/outside_triangle (0.00s)
+=== RUN   TestPathBoundingBox
+=== RUN   TestPathBoundingBox/simple_rectangle
+=== RUN   TestPathBoundingBox/triangle
+=== RUN   TestPathBoundingBox/circle_at_origin
+=== RUN   TestPathBoundingBox/quadratic_curve
+=== RUN   TestPathBoundingBox/empty_path
+--- PASS: TestPathBoundingBox (0.00s)
+    --- PASS: TestPathBoundingBox/simple_rectangle (0.00s)
+    --- PASS: TestPathBoundingBox/triangle (0.00s)
+    --- PASS: TestPathBoundingBox/circle_at_origin (0.00s)
+    --- PASS: TestPathBoundingBox/quadratic_curve (0.00s)
+    --- PASS: TestPathBoundingBox/empty_path (0.00s)
+=== RUN   TestPathFlatten
+=== RUN   TestPathFlatten/simple_line
+=== RUN   TestPathFlatten/quadratic_curve
+=== RUN   TestPathFlatten/cubic_curve
+=== RUN   TestPathFlatten/high_precision
+--- PASS: TestPathFlatten (0.00s)
+    --- PASS: TestPathFlatten/simple_line (0.00s)
+    --- PASS: TestPathFlatten/quadratic_curve (0.00s)
+    --- PASS: TestPathFlatten/cubic_curve (0.00s)
+    --- PASS: TestPathFlatten/high_precision (0.00s)
+=== RUN   TestPathFlattenCallback
+--- PASS: TestPathFlattenCallback (0.00s)
+=== RUN   TestPathReversed
+=== RUN   TestPathReversed/simple_line_path
+=== RUN   TestPathReversed/closed_rectangle
+=== RUN   TestPathReversed/path_with_quadratic
+=== RUN   TestPathReversed/path_with_cubic
+--- PASS: TestPathReversed (0.00s)
+    --- PASS: TestPathReversed/simple_line_path (0.00s)
+    --- PASS: TestPathReversed/closed_rectangle (0.00s)
+    --- PASS: TestPathReversed/path_with_quadratic (0.00s)
+    --- PASS: TestPathReversed/path_with_cubic (0.00s)
+=== RUN   TestPathLength
+=== RUN   TestPathLength/horizontal_line
+=== RUN   TestPathLength/diagonal_line
+=== RUN   TestPathLength/square_perimeter
+=== RUN   TestPathLength/circle_circumference
+=== RUN   TestPathLength/empty_path
+--- PASS: TestPathLength (0.00s)
+    --- PASS: TestPathLength/horizontal_line (0.00s)
+    --- PASS: TestPathLength/diagonal_line (0.00s)
+    --- PASS: TestPathLength/square_perimeter (0.00s)
+    --- PASS: TestPathLength/circle_circumference (0.00s)
+    --- PASS: TestPathLength/empty_path (0.00s)
+=== RUN   TestBoundingBoxWithCurves
+--- PASS: TestBoundingBoxWithCurves (0.00s)
+=== RUN   TestContainsWithCurves
+--- PASS: TestContainsWithCurves (0.00s)
+=== RUN   TestLengthAccuracy
+--- PASS: TestLengthAccuracy (0.00s)
+=== RUN   TestEmptyPathOperations
+--- PASS: TestEmptyPathOperations (0.00s)
+PASS

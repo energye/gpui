@@ -1,0 +1,16 @@
+=== RUN   TestAutoRecover_SessionDepthAfterForceLost
+    auto_recover_depth_test.go:114: frame 0: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 1: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 2: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 3: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 4: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 5: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 6: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 7: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 8: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 9: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 10: ErrRecovered (grace)
+    auto_recover_depth_test.go:114: frame 11: ErrRecovered (grace)
+    auto_recover_depth_test.go:156: PASS recoveries=1 recoveredGrace=true
+--- PASS: TestAutoRecover_SessionDepthAfterForceLost (0.60s)
+PASS

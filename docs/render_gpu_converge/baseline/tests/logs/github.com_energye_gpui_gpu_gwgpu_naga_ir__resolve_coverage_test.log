@@ -1,0 +1,65 @@
+=== RUN   TestResolveLoadType_Dereferences
+=== RUN   TestResolveLoadType_Dereferences/load_pointer_to_scalar
+=== RUN   TestResolveLoadType_Dereferences/load_pointer_to_atomic_resolves_scalar
+=== RUN   TestResolveLoadType_Dereferences/load_value_pointer_vector
+--- PASS: TestResolveLoadType_Dereferences (0.00s)
+    --- PASS: TestResolveLoadType_Dereferences/load_pointer_to_scalar (0.00s)
+    --- PASS: TestResolveLoadType_Dereferences/load_pointer_to_atomic_resolves_scalar (0.00s)
+    --- PASS: TestResolveLoadType_Dereferences/load_value_pointer_vector (0.00s)
+=== RUN   TestResolveAccessType_Containers
+=== RUN   TestResolveAccessType_Containers/access_vector_returns_scalar
+=== RUN   TestResolveAccessType_Containers/access_matrix_returns_column_vector
+=== RUN   TestResolveAccessType_Containers/access_array_returns_element_handle
+--- PASS: TestResolveAccessType_Containers (0.00s)
+    --- PASS: TestResolveAccessType_Containers/access_vector_returns_scalar (0.00s)
+    --- PASS: TestResolveAccessType_Containers/access_matrix_returns_column_vector (0.00s)
+    --- PASS: TestResolveAccessType_Containers/access_array_returns_element_handle (0.00s)
+=== RUN   TestResolveAccessIndexType_Struct
+--- PASS: TestResolveAccessIndexType_Struct (0.00s)
+=== RUN   TestResolveSplatType
+--- PASS: TestResolveSplatType (0.00s)
+=== RUN   TestResolveSwizzleType
+--- PASS: TestResolveSwizzleType (0.00s)
+=== RUN   TestFindModfResultType
+=== RUN   TestFindModfResultType/found_scalar_f32
+=== RUN   TestFindModfResultType/not_found
+--- PASS: TestFindModfResultType (0.00s)
+    --- PASS: TestFindModfResultType/found_scalar_f32 (0.00s)
+    --- PASS: TestFindModfResultType/not_found (0.00s)
+=== RUN   TestFindFrexpResultType
+=== RUN   TestFindFrexpResultType/found_scalar_f32
+=== RUN   TestFindFrexpResultType/not_found
+--- PASS: TestFindFrexpResultType (0.00s)
+    --- PASS: TestFindFrexpResultType/found_scalar_f32 (0.00s)
+    --- PASS: TestFindFrexpResultType/not_found (0.00s)
+=== RUN   TestFindModfResultType_Vector
+--- PASS: TestFindModfResultType_Vector (0.00s)
+=== RUN   TestFindFrexpResultType_Vector
+=== RUN   TestFindFrexpResultType_Vector/vec2_f32
+=== RUN   TestFindFrexpResultType_Vector/vec3_f32
+=== RUN   TestFindFrexpResultType_Vector/vec4_f32
+=== RUN   TestFindFrexpResultType_Vector/vec2_f16
+=== RUN   TestFindFrexpResultType_Vector/vec2_f64
+--- PASS: TestFindFrexpResultType_Vector (0.00s)
+    --- PASS: TestFindFrexpResultType_Vector/vec2_f32 (0.00s)
+    --- PASS: TestFindFrexpResultType_Vector/vec3_f32 (0.00s)
+    --- PASS: TestFindFrexpResultType_Vector/vec4_f32 (0.00s)
+    --- PASS: TestFindFrexpResultType_Vector/vec2_f16 (0.00s)
+    --- PASS: TestFindFrexpResultType_Vector/vec2_f64 (0.00s)
+=== RUN   TestResolveAtomicResultType
+=== RUN   TestResolveAtomicResultType/found_atomic_result
+=== RUN   TestResolveAtomicResultType/fallback_u32
+--- PASS: TestResolveAtomicResultType (0.00s)
+    --- PASS: TestResolveAtomicResultType/found_atomic_result (0.00s)
+    --- PASS: TestResolveAtomicResultType/fallback_u32 (0.00s)
+=== RUN   TestFindAtomicTypeForResult_Nested
+--- PASS: TestFindAtomicTypeForResult_Nested (0.00s)
+=== RUN   TestResolveWorkGroupUniformLoadResultType
+=== RUN   TestResolveWorkGroupUniformLoadResultType/found
+=== RUN   TestResolveWorkGroupUniformLoadResultType/not_found
+--- PASS: TestResolveWorkGroupUniformLoadResultType (0.00s)
+    --- PASS: TestResolveWorkGroupUniformLoadResultType/found (0.00s)
+    --- PASS: TestResolveWorkGroupUniformLoadResultType/not_found (0.00s)
+=== RUN   TestFindWorkGroupUniformLoadType_Nested
+--- PASS: TestFindWorkGroupUniformLoadType_Nested (0.00s)
+PASS

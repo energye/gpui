@@ -1,0 +1,93 @@
+=== RUN   TestSetPixelPremul
+--- PASS: TestSetPixelPremul (0.00s)
+=== RUN   TestSetPixelPremul_OutOfBounds
+--- PASS: TestSetPixelPremul_OutOfBounds (0.00s)
+=== RUN   TestSetPixelPremul_ConsistentWithSetPixel
+--- PASS: TestSetPixelPremul_ConsistentWithSetPixel (0.00s)
+=== RUN   TestSetPixelPremul_SemiTransparent
+--- PASS: TestSetPixelPremul_SemiTransparent (0.00s)
+=== RUN   TestSetPixelPremul_ZeroAlpha
+--- PASS: TestSetPixelPremul_ZeroAlpha (0.00s)
+=== RUN   TestPixmapFillSpan
+=== RUN   TestPixmapFillSpan/short_span_(<_16_pixels)
+=== RUN   TestPixmapFillSpan/medium_span_(16_pixels)
+=== RUN   TestPixmapFillSpan/long_span_(100_pixels)
+=== RUN   TestPixmapFillSpan/full_row
+=== RUN   TestPixmapFillSpan/clipped_left
+=== RUN   TestPixmapFillSpan/clipped_right
+=== RUN   TestPixmapFillSpan/out_of_bounds_y_(negative)
+=== RUN   TestPixmapFillSpan/out_of_bounds_y_(too_large)
+=== RUN   TestPixmapFillSpan/x1_>=_x2
+--- PASS: TestPixmapFillSpan (0.00s)
+    --- PASS: TestPixmapFillSpan/short_span_(<_16_pixels) (0.00s)
+    --- PASS: TestPixmapFillSpan/medium_span_(16_pixels) (0.00s)
+    --- PASS: TestPixmapFillSpan/long_span_(100_pixels) (0.00s)
+    --- PASS: TestPixmapFillSpan/full_row (0.00s)
+    --- PASS: TestPixmapFillSpan/clipped_left (0.00s)
+    --- PASS: TestPixmapFillSpan/clipped_right (0.00s)
+    --- PASS: TestPixmapFillSpan/out_of_bounds_y_(negative) (0.00s)
+    --- PASS: TestPixmapFillSpan/out_of_bounds_y_(too_large) (0.00s)
+    --- PASS: TestPixmapFillSpan/x1_>=_x2 (0.00s)
+=== RUN   TestPixmapFillSpanPerformance
+--- PASS: TestPixmapFillSpanPerformance (0.02s)
+=== RUN   TestPixmapFillSpanBlend
+=== RUN   TestPixmapFillSpanBlend/opaque_color_(no_blending)
+=== RUN   TestPixmapFillSpanBlend/semi-transparent_color_(short_span)
+=== RUN   TestPixmapFillSpanBlend/semi-transparent_color_(long_span)
+=== RUN   TestPixmapFillSpanBlend/fully_transparent_(no_effect)
+--- PASS: TestPixmapFillSpanBlend (0.00s)
+    --- PASS: TestPixmapFillSpanBlend/opaque_color_(no_blending) (0.00s)
+    --- PASS: TestPixmapFillSpanBlend/semi-transparent_color_(short_span) (0.00s)
+    --- PASS: TestPixmapFillSpanBlend/semi-transparent_color_(long_span) (0.00s)
+    --- PASS: TestPixmapFillSpanBlend/fully_transparent_(no_effect) (0.00s)
+=== RUN   TestPixmapFillSpanBounds
+=== RUN   TestPixmapFillSpanBounds/negative_x1
+=== RUN   TestPixmapFillSpanBounds/x2_beyond_width
+=== RUN   TestPixmapFillSpanBounds/both_out_of_bounds
+=== RUN   TestPixmapFillSpanBounds/negative_y
+=== RUN   TestPixmapFillSpanBounds/y_beyond_height
+=== RUN   TestPixmapFillSpanBounds/x1_==_x2
+=== RUN   TestPixmapFillSpanBounds/x1_>_x2
+--- PASS: TestPixmapFillSpanBounds (0.00s)
+    --- PASS: TestPixmapFillSpanBounds/negative_x1 (0.00s)
+    --- PASS: TestPixmapFillSpanBounds/x2_beyond_width (0.00s)
+    --- PASS: TestPixmapFillSpanBounds/both_out_of_bounds (0.00s)
+    --- PASS: TestPixmapFillSpanBounds/negative_y (0.00s)
+    --- PASS: TestPixmapFillSpanBounds/y_beyond_height (0.00s)
+    --- PASS: TestPixmapFillSpanBounds/x1_==_x2 (0.00s)
+    --- PASS: TestPixmapFillSpanBounds/x1_>_x2 (0.00s)
+=== RUN   TestPixmapFillRect
+--- PASS: TestPixmapFillRect (0.00s)
+=== RUN   TestPixmapFillRect_Clamp
+--- PASS: TestPixmapFillRect_Clamp (0.00s)
+=== RUN   TestPixmapFillRect_OutOfBounds
+--- PASS: TestPixmapFillRect_OutOfBounds (0.00s)
+=== RUN   TestPixmapFillRect_GenID
+--- PASS: TestPixmapFillRect_GenID (0.00s)
+=== RUN   TestFillRectCPU
+--- PASS: TestFillRectCPU (0.00s)
+=== RUN   TestFillRectCPU_DoesNotQueueSDF
+--- PASS: TestFillRectCPU_DoesNotQueueSDF (0.00s)
+=== RUN   TestPixmap_FillRect
+--- PASS: TestPixmap_FillRect (0.00s)
+=== RUN   TestPixmap_FillRect_Clamped
+--- PASS: TestPixmap_FillRect_Clamped (0.00s)
+=== RUN   TestPixmap_FillRect_Empty
+--- PASS: TestPixmap_FillRect_Empty (0.00s)
+=== RUN   TestPixmap_FillRect_GenID
+--- PASS: TestPixmap_FillRect_GenID (0.00s)
+=== RUN   TestNewPixmapFromBuffer
+--- PASS: TestNewPixmapFromBuffer (0.00s)
+=== RUN   TestNewPixmapFromBuffer_OverSizedBuffer
+--- PASS: TestNewPixmapFromBuffer_OverSizedBuffer (0.00s)
+=== RUN   TestNewPixmapFromBuffer_PanicSmallBuffer
+--- PASS: TestNewPixmapFromBuffer_PanicSmallBuffer (0.00s)
+=== RUN   TestNewPixmapFromBuffer_PanicBadDims
+--- PASS: TestNewPixmapFromBuffer_PanicBadDims (0.00s)
+=== RUN   TestNewPixmapFromBuffer_PanicOverflow
+--- PASS: TestNewPixmapFromBuffer_PanicOverflow (0.00s)
+=== RUN   TestPixmap_ImageView
+--- PASS: TestPixmap_ImageView (0.00s)
+=== RUN   TestPixmap_ImageView_ExternalBuffer
+--- PASS: TestPixmap_ImageView_ExternalBuffer (0.00s)
+PASS

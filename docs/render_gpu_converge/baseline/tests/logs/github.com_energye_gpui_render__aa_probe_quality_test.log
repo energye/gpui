@@ -1,0 +1,4 @@
+=== RUN   TestAAProbe_CircleDiag
+    aa_probe_quality_test.go:72: circle edge soft=618 hard=628 gpu_ops=4 cpu_fallback=0 reason="" wrote=../tmp/comp/AA_PROBE_circle_diag.png
+--- PASS: TestAAProbe_CircleDiag (0.28s)
+PASS

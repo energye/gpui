@@ -1,0 +1,24 @@
+=== RUN   TestVerifierSet
+    hint_test.go:26: cjk-horizontal-multi   runes= 26  多横主字（平行横笔，blue 对齐最敏感，最容易错位）
+    hint_test.go:26: cjk-vertical-multi     runes= 28  多竖主字（竖笔密集，Y 不影响但竖距检验 X 不动守则）
+    hint_test.go:26: cjk-slash              runes= 28  撇捺主字（斜笔，检验网格拟合对斜向不误伤）
+    hint_test.go:26: cjk-dot                runes= 23  点笔主字（小点着落，检验亚像素点定位）
+    hint_test.go:26: cjk-frame              runes= 22  方框/包围（外框横竖相接，检验角部对齐）
+    hint_test.go:26: cjk-surround           runes= 26  半包围（走之/广/门，检验底部横笔对齐 + 上包下）
+    hint_test.go:26: cjk-leftright          runes= 26  左右结构（最常用体，检验左右组件的横笔同高对齐）
+    hint_test.go:26: cjk-topbottom          runes= 27  上下结构（顶横/底横 blue 双对齐）
+    hint_test.go:26: cjk-repeat             runes= 23  重复部件（品/森，检验同字内同类横笔一致捕捉）
+    hint_test.go:26: cjk-dense              runes= 26  高密笔画（小字号极限，笔画粘连风险最大）
+    hint_test.go:26: cjk-punctuation        runes= 22  中文标点（头尾对齐，悬挂缩进相关）
+    hint_test.go:26: latin-ascii            runes= 95  ASCII 可打印全集（95 字符，bytecode light 全量覆盖）
+    hint_test.go:26: latin-accent           runes= 29  拉丁变音符（组合字形，Y 对齐影响 accent）
+    hint_test.go:26: latin-confusable       runes= 17  易混淆对（0/O 1/l/I，检验 discriminate）
+    hint_test.go:26: thai-consonants        runes= 44  泰文辅音（高位短字元 cue 在 baseline 附近，afcjk 变体）
+    hint_test.go:26: thai-voweltone         runes= 24  泰文元音/音调（上下标高频）
+    hint_test.go:26: arabic-letters         runes= 28  阿拉伯字母（右连，Y 高度差异大）
+    hint_test.go:26: arabic-ligature        runes= 21  阿拉伯常见连字/变体（Lam-Alef 等）
+    hint_test.go:26: cyrillic               runes= 66  西里尔全字母（俄文，含高位元）
+    hint_test.go:26: greek                  runes= 48  希腊全字母（数学符号来源）
+    hint_test.go:28: TOTAL  runes=649
+--- PASS: TestVerifierSet (0.00s)
+PASS

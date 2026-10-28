@@ -1,0 +1,30 @@
+=== RUN   TestPieceTree_RandomAgainstString
+=== RUN   TestPieceTree_RandomAgainstString/auto
+=== RUN   TestPieceTree_RandomAgainstString/forced-tree
+--- PASS: TestPieceTree_RandomAgainstString (0.51s)
+    --- PASS: TestPieceTree_RandomAgainstString/auto (0.23s)
+    --- PASS: TestPieceTree_RandomAgainstString/forced-tree (0.27s)
+=== RUN   TestBufferLineAt_Boundaries
+--- PASS: TestBufferLineAt_Boundaries (0.00s)
+=== RUN   TestBufferLineAt_SplitCRLF
+--- PASS: TestBufferLineAt_SplitCRLF (0.00s)
+=== RUN   TestBufferMode_Switch
+--- PASS: TestBufferMode_Switch (0.00s)
+=== RUN   TestBufferSnapshot_Restore
+--- PASS: TestBufferSnapshot_Restore (0.00s)
+=== RUN   TestBufferSnapshot_LargeIsO1
+--- PASS: TestBufferSnapshot_LargeIsO1 (0.00s)
+=== RUN   TestBufferRestore_SizeInvariant_M35
+--- PASS: TestBufferRestore_SizeInvariant_M35 (0.00s)
+=== RUN   TestBufferRestore_KeepsPins_M35
+--- PASS: TestBufferRestore_KeepsPins_M35 (0.00s)
+=== RUN   TestInsertComplexityRatio
+    buffer_test.go:295: N=10000 per-insert=1.009µs
+    buffer_test.go:295: N=100000 per-insert=2.409µs
+    buffer_test.go:295: N=1000000 per-insert=1.76µs
+--- PASS: TestInsertComplexityRatio (0.03s)
+=== RUN   TestBufferInvalidUTF8Progress
+--- PASS: TestBufferInvalidUTF8Progress (0.64s)
+=== RUN   TestForceStringUnpinRestoresTree
+--- PASS: TestForceStringUnpinRestoresTree (0.00s)
+PASS

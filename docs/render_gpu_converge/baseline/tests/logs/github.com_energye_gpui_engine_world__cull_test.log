@@ -1,0 +1,24 @@
+=== RUN   TestCullLargeFromCases
+--- PASS: TestCullLargeFromCases (0.09s)
+=== RUN   TestCullSnapshotMatchesWorldOf
+--- PASS: TestCullSnapshotMatchesWorldOf (0.02s)
+=== RUN   TestCullSortMatchesSprite
+--- PASS: TestCullSortMatchesSprite (0.03s)
+=== RUN   TestCullBudgetLarge
+    cull_test.go:423: update over 1655 actives: 1.51ms mean (gate 3.0), refresh 1236us
+    cull_test.go:438: refresh allocs/run = 2.0
+--- PASS: TestCullBudgetLarge (0.07s)
+=== RUN   TestCullSleepEnablerAttach
+--- PASS: TestCullSleepEnablerAttach (0.00s)
+=== RUN   TestCullDespawnParentNoCrash
+--- PASS: TestCullDespawnParentNoCrash (0.00s)
+=== RUN   TestCullEnterExitBaselineReopen
+--- PASS: TestCullEnterExitBaselineReopen (0.71s)
+=== RUN   TestCullPanWrapBand
+    cull_test.go:706: pan 3600 ticks top active = 1656
+--- PASS: TestCullPanWrapBand (5.03s)
+=== RUN   TestCullDeepChainMatchesWorldOf
+--- PASS: TestCullDeepChainMatchesWorldOf (0.00s)
+=== RUN   TestCullEdgesNoCrash
+--- PASS: TestCullEdgesNoCrash (0.01s)
+PASS

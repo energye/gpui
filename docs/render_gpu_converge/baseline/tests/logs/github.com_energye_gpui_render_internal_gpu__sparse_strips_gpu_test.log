@@ -1,0 +1,52 @@
+=== RUN   TestPipelineStageString
+=== RUN   TestPipelineStageString/Flatten
+=== RUN   TestPipelineStageString/Coarse
+=== RUN   TestPipelineStageString/Fine
+=== RUN   TestPipelineStageString/Unknown
+--- PASS: TestPipelineStageString (0.00s)
+    --- PASS: TestPipelineStageString/Flatten (0.00s)
+    --- PASS: TestPipelineStageString/Coarse (0.00s)
+    --- PASS: TestPipelineStageString/Fine (0.00s)
+    --- PASS: TestPipelineStageString/Unknown (0.00s)
+=== RUN   TestHybridPipelineCPUOnly
+--- PASS: TestHybridPipelineCPUOnly (0.00s)
+=== RUN   TestHybridPipelineDefaults
+--- PASS: TestHybridPipelineDefaults (0.00s)
+=== RUN   TestHybridPipelineCustomThresholds
+--- PASS: TestHybridPipelineCustomThresholds (0.00s)
+=== RUN   TestHybridPipelineEmptyPath
+--- PASS: TestHybridPipelineEmptyPath (0.00s)
+=== RUN   TestHybridPipelineSimpleLine
+    sparse_strips_gpu_test.go:167: Line produced 21 tiles, 2 segments, 42 entries
+--- PASS: TestHybridPipelineSimpleLine (0.00s)
+=== RUN   TestHybridPipelineTriangle
+    sparse_strips_gpu_test.go:214: Triangle produced 129 tiles, 3 segments, 61 entries
+--- PASS: TestHybridPipelineTriangle (0.00s)
+=== RUN   TestHybridPipelineCircle
+    sparse_strips_gpu_test.go:243: Circle produced 540 tiles, 64 segments from 6 path elements
+--- PASS: TestHybridPipelineCircle (0.00s)
+=== RUN   TestHybridPipelineWithTransform
+    sparse_strips_gpu_test.go:268: Transformed triangle: 71 tiles, 3 segments
+--- PASS: TestHybridPipelineWithTransform (0.00s)
+=== RUN   TestHybridPipelineFillRules
+=== RUN   TestHybridPipelineFillRules/NonZero
+=== RUN   TestHybridPipelineFillRules/EvenOdd
+--- PASS: TestHybridPipelineFillRules (0.00s)
+    --- PASS: TestHybridPipelineFillRules/NonZero (0.00s)
+    --- PASS: TestHybridPipelineFillRules/EvenOdd (0.00s)
+=== RUN   TestHybridPipelineReset
+--- PASS: TestHybridPipelineReset (0.00s)
+=== RUN   TestHybridPipelineStatsReset
+--- PASS: TestHybridPipelineStatsReset (0.00s)
+=== RUN   TestHybridPipelineSetTolerance
+    sparse_strips_gpu_test.go:406: Tolerance 1.0: 24 segments, Tolerance 0.1: 64 segments
+--- PASS: TestHybridPipelineSetTolerance (0.00s)
+=== RUN   TestHybridPipelineThresholdLogic
+--- PASS: TestHybridPipelineThresholdLogic (0.00s)
+=== RUN   TestHybridPipelineMultipleRasterizations
+--- PASS: TestHybridPipelineMultipleRasterizations (0.00s)
+=== RUN   TestHybridPipelineDestroy
+--- PASS: TestHybridPipelineDestroy (0.00s)
+=== RUN   TestHybridPipelineGridConsistency
+--- PASS: TestHybridPipelineGridConsistency (0.00s)
+PASS

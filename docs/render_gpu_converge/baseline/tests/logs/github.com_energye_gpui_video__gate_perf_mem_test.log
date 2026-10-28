@@ -1,0 +1,8 @@
+=== RUN   TestVR7MFFmpegParity
+=== RUN   TestVR7MFFmpegParity/vr_stream_long.mp4
+    gate_perf_mem_test.go:207: vr_stream_long.mp4: cap=131072KB estimate=4.7MB evictions=0 dropped=1 maxrss_ref=50228kB
+--- PASS: TestVR7MFFmpegParity (0.49s)
+    --- PASS: TestVR7MFFmpegParity/vr_stream_long.mp4 (0.49s)
+=== RUN   TestS7OverCapFailFast
+--- PASS: TestS7OverCapFailFast (0.00s)
+PASS

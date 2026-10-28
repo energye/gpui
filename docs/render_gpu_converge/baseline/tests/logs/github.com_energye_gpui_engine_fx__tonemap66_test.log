@@ -1,0 +1,13 @@
+=== RUN   TestTonemapFilmicCurve
+--- PASS: TestTonemapFilmicCurve (0.00s)
+=== RUN   TestTonemapDefaultFrozen
+--- PASS: TestTonemapDefaultFrozen (0.00s)
+=== RUN   TestGradeDegradedBit
+--- PASS: TestGradeDegradedBit (0.00s)
+=== RUN   TestTonemapRejectsBad
+--- PASS: TestTonemapRejectsBad (0.00s)
+=== RUN   TestTonemapHDRVs8Bit
+--- PASS: TestTonemapHDRVs8Bit (0.00s)
+=== RUN   TestTonemapFilmicReplay
+--- PASS: TestTonemapFilmicReplay (0.00s)
+PASS

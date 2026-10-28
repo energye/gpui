@@ -1,0 +1,125 @@
+=== RUN   TestBlockEndsWithTerminator
+=== RUN   TestBlockEndsWithTerminator/empty_block
+=== RUN   TestBlockEndsWithTerminator/break
+=== RUN   TestBlockEndsWithTerminator/continue
+=== RUN   TestBlockEndsWithTerminator/return_no_value
+=== RUN   TestBlockEndsWithTerminator/kill
+=== RUN   TestBlockEndsWithTerminator/store_not_terminator
+=== RUN   TestBlockEndsWithTerminator/multiple_stmts_terminator_last
+=== RUN   TestBlockEndsWithTerminator/multiple_stmts_non_terminator_last
+--- PASS: TestBlockEndsWithTerminator (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/empty_block (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/break (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/continue (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/return_no_value (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/kill (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/store_not_terminator (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/multiple_stmts_terminator_last (0.00s)
+    --- PASS: TestBlockEndsWithTerminator/multiple_stmts_non_terminator_last (0.00s)
+=== RUN   TestJoinStrings
+=== RUN   TestJoinStrings/empty
+=== RUN   TestJoinStrings/single
+=== RUN   TestJoinStrings/two
+=== RUN   TestJoinStrings/three
+=== RUN   TestJoinStrings/empty_sep
+--- PASS: TestJoinStrings (0.00s)
+    --- PASS: TestJoinStrings/empty (0.00s)
+    --- PASS: TestJoinStrings/single (0.00s)
+    --- PASS: TestJoinStrings/two (0.00s)
+    --- PASS: TestJoinStrings/three (0.00s)
+    --- PASS: TestJoinStrings/empty_sep (0.00s)
+=== RUN   TestWriteBarrier
+=== RUN   TestWriteBarrier/storage_only
+=== RUN   TestWriteBarrier/workgroup_only
+=== RUN   TestWriteBarrier/subgroup_only
+=== RUN   TestWriteBarrier/texture_only
+=== RUN   TestWriteBarrier/all_flags
+=== RUN   TestWriteBarrier/no_flags_still_barrier
+--- PASS: TestWriteBarrier (0.00s)
+    --- PASS: TestWriteBarrier/storage_only (0.00s)
+    --- PASS: TestWriteBarrier/workgroup_only (0.00s)
+    --- PASS: TestWriteBarrier/subgroup_only (0.00s)
+    --- PASS: TestWriteBarrier/texture_only (0.00s)
+    --- PASS: TestWriteBarrier/all_flags (0.00s)
+    --- PASS: TestWriteBarrier/no_flags_still_barrier (0.00s)
+=== RUN   TestWriteStore
+--- PASS: TestWriteStore (0.00s)
+=== RUN   TestWriteIf
+=== RUN   TestWriteIf/if_only
+=== RUN   TestWriteIf/if_else
+--- PASS: TestWriteIf (0.00s)
+    --- PASS: TestWriteIf/if_only (0.00s)
+    --- PASS: TestWriteIf/if_else (0.00s)
+=== RUN   TestWriteLoop
+=== RUN   TestWriteLoop/simple_loop
+=== RUN   TestWriteLoop/loop_with_continuing
+=== RUN   TestWriteLoop/loop_with_break_if
+--- PASS: TestWriteLoop (0.00s)
+    --- PASS: TestWriteLoop/simple_loop (0.00s)
+    --- PASS: TestWriteLoop/loop_with_continuing (0.00s)
+    --- PASS: TestWriteLoop/loop_with_break_if (0.00s)
+=== RUN   TestWriteSwitch_MultiCase
+--- PASS: TestWriteSwitch_MultiCase (0.00s)
+=== RUN   TestWriteSwitch_UnsignedCase
+--- PASS: TestWriteSwitch_UnsignedCase (0.00s)
+=== RUN   TestWriteSwitch_FallthroughCase
+--- PASS: TestWriteSwitch_FallthroughCase (0.00s)
+=== RUN   TestWriteReturn_NoValue
+--- PASS: TestWriteReturn_NoValue (0.00s)
+=== RUN   TestWriteReturn_WithValue
+--- PASS: TestWriteReturn_WithValue (0.00s)
+=== RUN   TestWriteStatementKind_Kill
+--- PASS: TestWriteStatementKind_Kill (0.00s)
+=== RUN   TestWriteStatementKind_Break
+--- PASS: TestWriteStatementKind_Break (0.00s)
+=== RUN   TestWriteStatementKind_Continue
+--- PASS: TestWriteStatementKind_Continue (0.00s)
+=== RUN   TestWriteStatementKind_ContinueInsideSwitch
+--- PASS: TestWriteStatementKind_ContinueInsideSwitch (0.00s)
+=== RUN   TestWriteRayQuery_ReturnsError
+--- PASS: TestWriteRayQuery_ReturnsError (0.00s)
+=== RUN   TestWriteBlock_Empty
+--- PASS: TestWriteBlock_Empty (0.00s)
+=== RUN   TestWriteStatementKind_Block
+--- PASS: TestWriteStatementKind_Block (0.00s)
+=== RUN   TestWriteWorkGroupUniformLoad
+--- PASS: TestWriteWorkGroupUniformLoad (0.00s)
+=== RUN   TestShouldBakeExpression
+=== RUN   TestShouldBakeExpression/load_always_baked
+=== RUN   TestShouldBakeExpression/derivative_always_baked
+=== RUN   TestShouldBakeExpression/literal_not_baked
+=== RUN   TestShouldBakeExpression/named_literal_not_baked
+=== RUN   TestShouldBakeExpression/named_non_literal_baked
+=== RUN   TestShouldBakeExpression/nil_function
+=== RUN   TestShouldBakeExpression/out_of_range
+--- PASS: TestShouldBakeExpression (0.00s)
+    --- PASS: TestShouldBakeExpression/load_always_baked (0.00s)
+    --- PASS: TestShouldBakeExpression/derivative_always_baked (0.00s)
+    --- PASS: TestShouldBakeExpression/literal_not_baked (0.00s)
+    --- PASS: TestShouldBakeExpression/named_literal_not_baked (0.00s)
+    --- PASS: TestShouldBakeExpression/named_non_literal_baked (0.00s)
+    --- PASS: TestShouldBakeExpression/nil_function (0.00s)
+    --- PASS: TestShouldBakeExpression/out_of_range (0.00s)
+=== RUN   TestIsVariableReference
+=== RUN   TestIsVariableReference/global_var
+=== RUN   TestIsVariableReference/local_var
+=== RUN   TestIsVariableReference/literal
+=== RUN   TestIsVariableReference/binary
+=== RUN   TestIsVariableReference/nil_function
+--- PASS: TestIsVariableReference (0.00s)
+    --- PASS: TestIsVariableReference/global_var (0.00s)
+    --- PASS: TestIsVariableReference/local_var (0.00s)
+    --- PASS: TestIsVariableReference/literal (0.00s)
+    --- PASS: TestIsVariableReference/binary (0.00s)
+    --- PASS: TestIsVariableReference/nil_function (0.00s)
+=== RUN   TestIsPointerExpression
+=== RUN   TestIsPointerExpression/pointer_type_handle
+=== RUN   TestIsPointerExpression/pointer_type_value
+=== RUN   TestIsPointerExpression/non_pointer
+=== RUN   TestIsPointerExpression/nil_function
+--- PASS: TestIsPointerExpression (0.00s)
+    --- PASS: TestIsPointerExpression/pointer_type_handle (0.00s)
+    --- PASS: TestIsPointerExpression/pointer_type_value (0.00s)
+    --- PASS: TestIsPointerExpression/non_pointer (0.00s)
+    --- PASS: TestIsPointerExpression/nil_function (0.00s)
+PASS

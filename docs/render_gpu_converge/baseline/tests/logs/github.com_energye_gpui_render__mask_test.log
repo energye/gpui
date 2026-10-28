@@ -1,0 +1,81 @@
+=== RUN   TestNewMask
+--- PASS: TestNewMask (0.00s)
+=== RUN   TestMaskFill
+--- PASS: TestMaskFill (0.00s)
+=== RUN   TestMaskInvert
+--- PASS: TestMaskInvert (0.00s)
+=== RUN   TestMaskClone
+--- PASS: TestMaskClone (0.00s)
+=== RUN   TestMaskBounds
+--- PASS: TestMaskBounds (0.00s)
+=== RUN   TestMaskSet
+--- PASS: TestMaskSet (0.00s)
+=== RUN   TestMaskClear
+--- PASS: TestMaskClear (0.00s)
+=== RUN   TestMaskBoundsRect
+--- PASS: TestMaskBoundsRect (0.00s)
+=== RUN   TestMaskData
+--- PASS: TestMaskData (0.00s)
+=== RUN   TestContextMask
+--- PASS: TestContextMask (0.19s)
+=== RUN   TestContextInvertMask
+--- PASS: TestContextInvertMask (0.00s)
+=== RUN   TestContextAsMask
+--- PASS: TestContextAsMask (0.10s)
+=== RUN   TestNewMaskFromAlpha
+--- PASS: TestNewMaskFromAlpha (0.00s)
+=== RUN   TestMaskPushPop
+--- PASS: TestMaskPushPop (0.00s)
+=== RUN   TestMaskPushPopNil
+--- PASS: TestMaskPushPopNil (0.00s)
+=== RUN   TestSetMask_Fill
+--- PASS: TestSetMask_Fill (0.01s)
+=== RUN   TestSetMask_Fill_PartialAlpha
+--- PASS: TestSetMask_Fill_PartialAlpha (0.00s)
+=== RUN   TestSetMask_Stroke
+--- PASS: TestSetMask_Stroke (0.00s)
+=== RUN   TestSetMask_WithClip
+--- PASS: TestSetMask_WithClip (0.01s)
+=== RUN   TestSetMask_PushPop
+--- PASS: TestSetMask_PushPop (0.01s)
+=== RUN   TestAsMask_BeforeFill
+--- PASS: TestAsMask_BeforeFill (0.00s)
+=== RUN   TestAsMask_AfterFill
+--- PASS: TestAsMask_AfterFill (0.00s)
+=== RUN   TestSetMask_Rider21Reproduction
+--- PASS: TestSetMask_Rider21Reproduction (0.01s)
+=== RUN   TestSetMask_NoMask
+--- PASS: TestSetMask_NoMask (0.00s)
+=== RUN   TestNewLuminanceMask
+--- PASS: TestNewLuminanceMask (0.00s)
+=== RUN   TestNewLuminanceMask_White
+--- PASS: TestNewLuminanceMask_White (0.00s)
+=== RUN   TestNewLuminanceMask_Black
+--- PASS: TestNewLuminanceMask_Black (0.00s)
+=== RUN   TestNewMaskFromData
+--- PASS: TestNewMaskFromData (0.00s)
+=== RUN   TestNewMaskFromData_InvalidLength
+--- PASS: TestNewMaskFromData_InvalidLength (0.00s)
+=== RUN   TestNewMaskFromData_RoundTrip
+--- PASS: TestNewMaskFromData_RoundTrip (0.00s)
+=== RUN   TestApplyMask_Basic
+--- PASS: TestApplyMask_Basic (0.01s)
+=== RUN   TestApplyMask_OutsideMaskRectUntouched
+--- PASS: TestApplyMask_OutsideMaskRectUntouched (0.00s)
+=== RUN   TestApplyMask_RespectsClip
+--- PASS: TestApplyMask_RespectsClip (0.01s)
+=== RUN   TestApplyMask_NilMask
+--- PASS: TestApplyMask_NilMask (0.00s)
+=== RUN   TestApplyMask_PartialAlpha
+--- PASS: TestApplyMask_PartialAlpha (0.01s)
+=== RUN   TestPushMaskLayer_Basic
+--- PASS: TestPushMaskLayer_Basic (0.01s)
+=== RUN   TestPushMaskLayer_Nested
+--- PASS: TestPushMaskLayer_Nested (0.01s)
+=== RUN   TestPushMaskLayer_NilMask
+--- PASS: TestPushMaskLayer_NilMask (0.00s)
+=== RUN   TestPushMaskLayer_WithSetMask
+--- PASS: TestPushMaskLayer_WithSetMask (0.00s)
+=== RUN   TestMaskNestedPushPop
+--- PASS: TestMaskNestedPushPop (0.00s)
+PASS

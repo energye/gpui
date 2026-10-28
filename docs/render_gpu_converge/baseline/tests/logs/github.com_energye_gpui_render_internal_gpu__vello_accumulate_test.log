@@ -1,0 +1,29 @@
+=== RUN   TestVelloAccelerator_FillPathAccumulates
+--- PASS: TestVelloAccelerator_FillPathAccumulates (0.00s)
+=== RUN   TestVelloAccelerator_FillPathRejectsWhenNotReady
+--- PASS: TestVelloAccelerator_FillPathRejectsWhenNotReady (0.00s)
+=== RUN   TestVelloAccelerator_FillPathSkipsEmptyPath
+--- PASS: TestVelloAccelerator_FillPathSkipsEmptyPath (0.00s)
+=== RUN   TestVelloAccelerator_FillShapeAccumulates
+--- PASS: TestVelloAccelerator_FillShapeAccumulates (0.00s)
+=== RUN   TestVelloAccelerator_FillShapeRejectsUnknown
+--- PASS: TestVelloAccelerator_FillShapeRejectsUnknown (0.00s)
+=== RUN   TestVelloAccelerator_StrokePathAccumulates
+--- PASS: TestVelloAccelerator_StrokePathAccumulates (0.00s)
+=== RUN   TestVelloAccelerator_StrokeAlwaysUsesNonZero
+=== RUN   TestVelloAccelerator_StrokeAlwaysUsesNonZero/smooth_round-rect
+=== RUN   TestVelloAccelerator_StrokeAlwaysUsesNonZero/sharp_rectangle
+--- PASS: TestVelloAccelerator_StrokeAlwaysUsesNonZero (0.00s)
+    --- PASS: TestVelloAccelerator_StrokeAlwaysUsesNonZero/smooth_round-rect (0.00s)
+    --- PASS: TestVelloAccelerator_StrokeAlwaysUsesNonZero/sharp_rectangle (0.00s)
+=== RUN   TestVelloAccelerator_StrokeShapeUsesNonZero
+--- PASS: TestVelloAccelerator_StrokeShapeUsesNonZero (0.00s)
+=== RUN   TestVelloAccelerator_FlushClearsPending
+--- PASS: TestVelloAccelerator_FlushClearsPending (0.29s)
+=== RUN   TestVelloAccelerator_FlushNoPending
+--- PASS: TestVelloAccelerator_FlushNoPending (0.00s)
+=== RUN   TestVelloAccelerator_CanAccelerate
+--- PASS: TestVelloAccelerator_CanAccelerate (0.00s)
+=== RUN   TestVelloAccelerator_MultiplePathsMixedTypes
+--- PASS: TestVelloAccelerator_MultiplePathsMixedTypes (0.00s)
+PASS

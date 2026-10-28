@@ -1,0 +1,31 @@
+=== RUN   TestP2TwoWindowRepro
+    p2_two_window_repro_test.go:96: P2-1 repro: opening first window
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+2026/10/28 17:10:54 WARN gles: AdapterContext frame-end keep on a foreign thread; unmade instead tid=461882 glTid=461891
+    p2_two_window_repro_test.go:97: P2-1 repro window done gpu_ops=194 cpu_fallback_ops=0 frame_flushes=1 backend=integrated
+    p2_two_window_repro_test.go:98: P2-1 repro: first window closed, opening second window in same process
+2026/10/28 17:10:54 WARN gles: AdapterContext frame-end keep on a foreign thread; unmade instead tid=461891 glTid=461882
+    p2_two_window_repro_test.go:99: P2-1 repro window done gpu_ops=194 cpu_fallback_ops=0 frame_flushes=1 backend=integrated
+    p2_two_window_repro_test.go:100: P2-1 repro: second window done, no hang
+--- PASS: TestP2TwoWindowRepro (1.07s)
+=== RUN   TestP2TwoWindowSequentialWebGPU
+    p2_two_window_repro_test.go:108: P2-1 repro WebGPU: opening first window
+    p2_two_window_repro_test.go:109: P2-1 repro window done gpu_ops=194 cpu_fallback_ops=0 frame_flushes=1 backend=integrated
+    p2_two_window_repro_test.go:110: P2-1 repro WebGPU: first window closed, opening second window in same process
+    p2_two_window_repro_test.go:111: P2-1 repro window done gpu_ops=194 cpu_fallback_ops=0 frame_flushes=1 backend=integrated
+    p2_two_window_repro_test.go:112: P2-1 repro WebGPU: second window done, no hang
+--- PASS: TestP2TwoWindowSequentialWebGPU (0.84s)
+=== RUN   TestP2TwoWindowOverlapped
+2026/10/28 17:10:55 WARN gles: AdapterContext frame-end keep on a foreign thread; unmade instead tid=461879 glTid=461881
+    p2_two_window_repro_test.go:179: overlapped iter 0: presenting win1
+    p2_two_window_repro_test.go:183: overlapped iter 0: presenting win2
+    p2_two_window_repro_test.go:179: overlapped iter 1: presenting win1
+    p2_two_window_repro_test.go:183: overlapped iter 1: presenting win2
+    p2_two_window_repro_test.go:179: overlapped iter 2: presenting win1
+    p2_two_window_repro_test.go:183: overlapped iter 2: presenting win2
+    p2_two_window_repro_test.go:179: overlapped iter 3: presenting win1
+    p2_two_window_repro_test.go:183: overlapped iter 3: presenting win2
+    p2_two_window_repro_test.go:192: P2-1 overlapped: win1 gpu_ops=388 cpu_fallback_ops=0 frame_flushes=1 backend=integrated
+    p2_two_window_repro_test.go:193: P2-1 overlapped: win2 gpu_ops=388 cpu_fallback_ops=0 frame_flushes=1 backend=integrated
+--- PASS: TestP2TwoWindowOverlapped (0.37s)
+PASS

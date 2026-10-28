@@ -1,0 +1,8 @@
+=== RUN   TestVirtualList_OffsetOfIndex_VariablePrefix
+--- PASS: TestVirtualList_OffsetOfIndex_VariablePrefix (0.00s)
+=== RUN   TestVirtualList_ScrollToIndex_VariableJump
+    virtual_list_scroll_test.go:133: final bind=9 range=[391,400) contentH=16000
+--- PASS: TestVirtualList_ScrollToIndex_VariableJump (0.00s)
+=== RUN   TestVirtualList_ScrollToIndex_FixedStillWorks
+--- PASS: TestVirtualList_ScrollToIndex_FixedStillWorks (0.00s)
+PASS

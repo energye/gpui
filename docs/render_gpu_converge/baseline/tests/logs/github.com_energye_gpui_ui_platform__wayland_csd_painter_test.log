@@ -1,0 +1,5 @@
+=== RUN   TestWaylandCSDNarrowPaint
+--- PASS: TestWaylandCSDNarrowPaint (0.04s)
+=== RUN   TestWaylandCSDNarrowButtonsNotDrawn
+--- PASS: TestWaylandCSDNarrowButtonsNotDrawn (0.00s)
+PASS

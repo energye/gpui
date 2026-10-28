@@ -1,0 +1,55 @@
+=== RUN   TestClip
+--- PASS: TestClip (0.00s)
+=== RUN   TestClipPreserve
+--- PASS: TestClipPreserve (0.00s)
+=== RUN   TestClipRect
+--- PASS: TestClipRect (0.00s)
+=== RUN   TestResetClip
+--- PASS: TestResetClip (0.00s)
+=== RUN   TestClipWithPushPop
+--- PASS: TestClipWithPushPop (0.00s)
+=== RUN   TestClipNestedPushPop
+--- PASS: TestClipNestedPushPop (0.00s)
+=== RUN   TestClipWithTransform
+--- PASS: TestClipWithTransform (0.00s)
+=== RUN   TestMultipleClipsIntersect
+--- PASS: TestMultipleClipsIntersect (0.00s)
+=== RUN   TestClipEmptyPath
+--- PASS: TestClipEmptyPath (0.00s)
+=== RUN   TestClipComplexPath
+--- PASS: TestClipComplexPath (0.00s)
+=== RUN   TestResetClipWithoutInitialization
+--- PASS: TestResetClipWithoutInitialization (0.00s)
+=== RUN   TestConvertPathToClipVerbs
+--- PASS: TestConvertPathToClipVerbs (0.00s)
+=== RUN   TestClipRectTransformed
+--- PASS: TestClipRectTransformed (0.00s)
+=== RUN   TestClipRectFill
+--- PASS: TestClipRectFill (0.31s)
+=== RUN   TestClipNestedFill
+--- PASS: TestClipNestedFill (0.01s)
+=== RUN   TestClipRectTextNoRegression
+--- PASS: TestClipRectTextNoRegression (0.02s)
+=== RUN   TestClipIsRectOnly
+--- PASS: TestClipIsRectOnly (0.00s)
+=== RUN   TestClipPathStoresGPUClipPath
+--- PASS: TestClipPathStoresGPUClipPath (0.00s)
+=== RUN   TestClipPreserveStoresGPUClipPath
+--- PASS: TestClipPreserveStoresGPUClipPath (0.00s)
+=== RUN   TestClipPathClearedOnResetClip
+--- PASS: TestClipPathClearedOnResetClip (0.00s)
+=== RUN   TestClipPathClearedOnPop
+--- PASS: TestClipPathClearedOnPop (0.00s)
+=== RUN   TestClipPathNotSetForRectClip
+--- PASS: TestClipPathNotSetForRectClip (0.00s)
+=== RUN   TestClipPathNotSetForRRectClip
+--- PASS: TestClipPathNotSetForRRectClip (0.00s)
+=== RUN   TestSetGPUClipPathNoGPU
+--- PASS: TestSetGPUClipPathNoGPU (0.00s)
+=== RUN   TestClipPathDeviceSpace
+--- PASS: TestClipPathDeviceSpace (0.00s)
+=== RUN   TestClipRoundRectFillSDF
+--- PASS: TestClipRoundRectFillSDF (0.00s)
+=== RUN   TestClipRoundRectFillPath
+--- PASS: TestClipRoundRectFillPath (0.00s)
+PASS

@@ -1,0 +1,23 @@
+=== RUN   TestSceneSetAntiAlias
+--- PASS: TestSceneSetAntiAlias (0.00s)
+=== RUN   TestSceneAntiAliasResetRestoresDefault
+--- PASS: TestSceneAntiAliasResetRestoresDefault (0.00s)
+=== RUN   TestSceneAntiAliasEncodedInStream
+--- PASS: TestSceneAntiAliasEncodedInStream (0.00s)
+=== RUN   TestSceneAntiAliasEmittedOnChange
+--- PASS: TestSceneAntiAliasEmittedOnChange (0.00s)
+=== RUN   TestSceneAntiAliasDeltaEncoding
+--- PASS: TestSceneAntiAliasDeltaEncoding (0.00s)
+=== RUN   TestSceneAntiAliasMultipleTransitions
+--- PASS: TestSceneAntiAliasMultipleTransitions (0.00s)
+=== RUN   TestSceneAntiAliasDecodeRoundTrip
+--- PASS: TestSceneAntiAliasDecodeRoundTrip (0.00s)
+=== RUN   TestSceneAntiAliasDecoderDefaultTrue
+--- PASS: TestSceneAntiAliasDecoderDefaultTrue (0.00s)
+=== RUN   TestSceneBuilderSetAntiAlias
+--- PASS: TestSceneBuilderSetAntiAlias (0.00s)
+=== RUN   TestSceneAntiAliasStroke
+--- PASS: TestSceneAntiAliasStroke (0.00s)
+=== RUN   TestSceneAntiAliasAppendWithTranslation
+--- PASS: TestSceneAntiAliasAppendWithTranslation (0.00s)
+PASS

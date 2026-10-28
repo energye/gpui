@@ -1,0 +1,11 @@
+=== RUN   TestS65_LayoutText_UsesShapeCache
+--- PASS: TestS65_LayoutText_UsesShapeCache (0.00s)
+=== RUN   TestS65_ScrollReuse_AtlasUploadConverges
+    s6_5_text_atlas_test.go:97: cold uploadBytes=1048576 atlas hits=128 misses=46
+    s6_5_text_atlas_test.go:117: warm1 uploadBytes=3072 regions=1 hits=176 misses=56
+    s6_5_text_atlas_test.go:118: warm2 uploadBytes=0 regions=0 hits=176 misses=56
+--- PASS: TestS65_ScrollReuse_AtlasUploadConverges (0.19s)
+=== RUN   TestS65_LCD_LayoutCacheSmoke
+    s6_5_text_atlas_test.go:164: lcd upload cold=1048576 warm=0 regions=0 shapeHits=0 templateHits=1
+--- PASS: TestS65_LCD_LayoutCacheSmoke (0.07s)
+PASS

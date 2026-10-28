@@ -1,0 +1,53 @@
+=== RUN   TestDepthClipPipeline_Lifecycle
+--- PASS: TestDepthClipPipeline_Lifecycle (0.25s)
+=== RUN   TestDepthClipPipeline_BuildClipResources_NilPath
+--- PASS: TestDepthClipPipeline_BuildClipResources_NilPath (0.18s)
+=== RUN   TestDepthClipPipeline_BuildClipResources_EmptyPath
+--- PASS: TestDepthClipPipeline_BuildClipResources_EmptyPath (0.19s)
+=== RUN   TestDepthClipDepthStencil
+--- PASS: TestDepthClipDepthStencil (0.00s)
+=== RUN   TestScissorGroup_ClipPath
+--- PASS: TestScissorGroup_ClipPath (0.00s)
+=== RUN   TestHasAnyDepthClip
+=== RUN   TestHasAnyDepthClip/nil_slice
+=== RUN   TestHasAnyDepthClip/empty_slice
+=== RUN   TestHasAnyDepthClip/all_false
+=== RUN   TestHasAnyDepthClip/first_true
+=== RUN   TestHasAnyDepthClip/last_true
+=== RUN   TestHasAnyDepthClip/all_true
+--- PASS: TestHasAnyDepthClip (0.18s)
+    --- PASS: TestHasAnyDepthClip/nil_slice (0.00s)
+    --- PASS: TestHasAnyDepthClip/empty_slice (0.00s)
+    --- PASS: TestHasAnyDepthClip/all_false (0.00s)
+    --- PASS: TestHasAnyDepthClip/first_true (0.00s)
+    --- PASS: TestHasAnyDepthClip/last_true (0.00s)
+    --- PASS: TestHasAnyDepthClip/all_true (0.00s)
+=== RUN   TestRecordGroupDraws_NoDepthClip_Regression
+--- PASS: TestRecordGroupDraws_NoDepthClip_Regression (0.23s)
+=== RUN   TestStencilRenderer_EnsureDepthClipPipelines
+    depth_clip_test.go:373: ensureDepthClipPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestStencilRenderer_EnsureDepthClipPipelines (0.18s)
+=== RUN   TestDepthLoadOp_AlwaysClear_Regression
+--- PASS: TestDepthLoadOp_AlwaysClear_Regression (0.23s)
+=== RUN   TestScissorSegments_CircleClip_MultipleSDFContent
+--- PASS: TestScissorSegments_CircleClip_MultipleSDFContent (0.00s)
+=== RUN   TestClipPath_SurvivesDeepCopy
+--- PASS: TestClipPath_SurvivesDeepCopy (0.00s)
+=== RUN   TestGPURenderSession_DepthClipPipelineConstructed
+--- PASS: TestGPURenderSession_DepthClipPipelineConstructed (0.00s)
+=== RUN   TestGPURenderSession_DepthClipPipelineInitialized
+--- PASS: TestGPURenderSession_DepthClipPipelineInitialized (0.18s)
+=== RUN   TestGPURenderSession_EnsureStagePipelines_CreatesDepthClip
+--- PASS: TestGPURenderSession_EnsureStagePipelines_CreatesDepthClip (0.21s)
+=== RUN   TestClipPathCoverageMask_AnalyticAA
+--- PASS: TestClipPathCoverageMask_AnalyticAA (0.00s)
+=== RUN   TestClipPathCoverageMask_EmptyPath
+--- PASS: TestClipPathCoverageMask_EmptyPath (0.00s)
+=== RUN   TestBuildClipMask_SampleCount1
+--- PASS: TestBuildClipMask_SampleCount1 (0.21s)
+=== RUN   TestDepthClipResources_BuildAndReleaseFromSession
+--- PASS: TestDepthClipResources_BuildAndReleaseFromSession (0.19s)
+=== RUN   TestDepthClip_ProductionPath_NoManualEnsure
+    depth_clip_test.go:890: production depth clip: inside=100 outside=0 (clip square x 50..150)
+--- PASS: TestDepthClip_ProductionPath_NoManualEnsure (0.23s)
+FAIL

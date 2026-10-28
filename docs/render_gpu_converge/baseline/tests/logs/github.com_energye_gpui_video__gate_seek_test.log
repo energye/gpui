@@ -1,0 +1,14 @@
+=== RUN   TestVR5FFmpegParity
+=== RUN   TestVR5FFmpegParity/vr5_seek.mp4
+    gate_seek_test.go:250: vr5_seek.mp4/second-gop: recover 0ms (logged, not gated)
+    gate_seek_test.go:250: vr5_seek.mp4/first-gop: recover 0ms (logged, not gated)
+    gate_seek_test.go:250: vr5_seek.mp4/between-stamps: recover 1ms (logged, not gated)
+=== RUN   TestVR5FFmpegParity/vr2_m_bframes.mp4
+    gate_seek_test.go:250: vr2_m_bframes.mp4/b-reorder: recover 0ms (logged, not gated)
+=== RUN   TestVR5FFmpegParity/vr2_480p.mp4
+    gate_seek_test.go:250: vr2_480p.mp4/crop-480p: recover 0ms (logged, not gated)
+--- PASS: TestVR5FFmpegParity (0.29s)
+    --- PASS: TestVR5FFmpegParity/vr5_seek.mp4 (0.11s)
+    --- PASS: TestVR5FFmpegParity/vr2_m_bframes.mp4 (0.04s)
+    --- PASS: TestVR5FFmpegParity/vr2_480p.mp4 (0.15s)
+PASS

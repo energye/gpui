@@ -1,0 +1,25 @@
+=== RUN   TestClipLineEntirelyInside
+--- PASS: TestClipLineEntirelyInside (0.00s)
+=== RUN   TestClipLineEntirelyOutsideRight
+--- PASS: TestClipLineEntirelyOutsideRight (0.00s)
+=== RUN   TestClipLineEntirelyAbove
+--- PASS: TestClipLineEntirelyAbove (0.00s)
+=== RUN   TestClipLineEntirelyBelow
+--- PASS: TestClipLineEntirelyBelow (0.00s)
+=== RUN   TestClipLineCrossingRightBoundary
+--- PASS: TestClipLineCrossingRightBoundary (0.00s)
+=== RUN   TestClipNoClipRect
+--- PASS: TestClipNoClipRect (0.00s)
+=== RUN   TestClipRectPreservesWinding
+--- PASS: TestClipRectPreservesWinding (0.00s)
+=== RUN   TestClipOverflowCoordinates
+--- PASS: TestClipOverflowCoordinates (0.00s)
+=== RUN   TestClipLargeCanvasNoOverflow
+--- PASS: TestClipLargeCanvasNoOverflow (0.00s)
+=== RUN   TestClipSaturatingFDot16
+--- PASS: TestClipSaturatingFDot16 (0.00s)
+=== RUN   TestClipSaturatingFDot16Negative
+--- PASS: TestClipSaturatingFDot16Negative (0.00s)
+=== RUN   TestClipSafeFDot16Values
+--- PASS: TestClipSafeFDot16Values (0.00s)
+PASS

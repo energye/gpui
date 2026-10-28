@@ -1,0 +1,15 @@
+=== RUN   TestNullEventSource
+--- PASS: TestNullEventSource (0.00s)
+=== RUN   TestModifiers
+--- PASS: TestModifiers (0.00s)
+=== RUN   TestKeyConstants
+--- PASS: TestKeyConstants (0.00s)
+=== RUN   TestMouseButtonConstants
+--- PASS: TestMouseButtonConstants (0.00s)
+=== RUN   TestIMEState
+--- PASS: TestIMEState (0.00s)
+=== RUN   TestIMEStateZeroValue
+--- PASS: TestIMEStateZeroValue (0.00s)
+=== RUN   TestIMEControllerInterface
+--- PASS: TestIMEControllerInterface (0.00s)
+PASS

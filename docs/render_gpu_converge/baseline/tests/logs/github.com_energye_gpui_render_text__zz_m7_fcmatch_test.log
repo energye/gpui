@@ -1,0 +1,7 @@
+=== RUN   TestM7FamilyMatch
+--- PASS: TestM7FamilyMatch (0.43s)
+=== RUN   TestM7RuneFallback
+--- PASS: TestM7RuneFallback (0.11s)
+=== RUN   TestM7FamilyList
+--- PASS: TestM7FamilyList (0.00s)
+PASS

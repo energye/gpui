@@ -1,0 +1,14 @@
+=== RUN   TestMusicXformFromCases
+--- PASS: TestMusicXformFromCases (0.00s)
+=== RUN   TestMusicBusEdgesNoCrash
+--- PASS: TestMusicBusEdgesNoCrash (0.00s)
+=== RUN   TestMusicBusBoundaryIdentical
+--- PASS: TestMusicBusBoundaryIdentical (0.00s)
+=== RUN   TestMusicBusPerfCapped
+    music_bus_test.go:547: musicbus-256: 2000 reps x 256 voices (512000 mixes) in 36.908186ms (18.5 us/rep)
+--- PASS: TestMusicBusPerfCapped (0.04s)
+=== RUN   TestMusicBusLongRunStable
+--- PASS: TestMusicBusLongRunStable (0.00s)
+=== RUN   TestMusicBusOffscreenGolden
+--- PASS: TestMusicBusOffscreenGolden (0.00s)
+PASS

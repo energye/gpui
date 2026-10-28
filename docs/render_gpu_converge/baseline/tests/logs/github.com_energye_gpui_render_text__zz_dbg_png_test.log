@@ -1,0 +1,7 @@
+=== RUN   TestDbgRenderPNG
+    zz_dbg_png_test.go:43: wrote /tmp/dbg_r18_14px_none.png (14px none)
+    zz_dbg_png_test.go:43: wrote /tmp/dbg_r18_14px_light.png (14px light)
+    zz_dbg_png_test.go:43: wrote /tmp/dbg_r18_28px_none.png (28px none)
+    zz_dbg_png_test.go:43: wrote /tmp/dbg_r18_28px_light.png (28px light)
+--- PASS: TestDbgRenderPNG (0.27s)
+PASS

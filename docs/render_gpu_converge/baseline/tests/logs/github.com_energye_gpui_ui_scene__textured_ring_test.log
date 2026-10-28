@@ -1,0 +1,9 @@
+=== RUN   TestTextureRing_PersistentSlots
+--- PASS: TestTextureRing_PersistentSlots (0.00s)
+=== RUN   TestTextureRing_DoubleRecordSameFrame
+--- PASS: TestTextureRing_DoubleRecordSameFrame (0.00s)
+=== RUN   TestTextureRing_ReallocOnSizeChange
+--- PASS: TestTextureRing_ReallocOnSizeChange (0.00s)
+=== RUN   TestTextureRing_EvictionReleasesBothSlots
+--- PASS: TestTextureRing_EvictionReleasesBothSlots (0.00s)
+PASS

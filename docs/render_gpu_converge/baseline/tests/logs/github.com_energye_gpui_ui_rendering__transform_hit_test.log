@@ -1,0 +1,9 @@
+=== RUN   TestRenderTransform_HitTest_Identity
+--- PASS: TestRenderTransform_HitTest_Identity (0.00s)
+=== RUN   TestRenderTransform_HitTest_Rotation
+--- PASS: TestRenderTransform_HitTest_Rotation (0.00s)
+=== RUN   TestRenderTransform_HitTest_Scale
+--- PASS: TestRenderTransform_HitTest_Scale (0.00s)
+=== RUN   TestRenderTransform_HitTest_RotationAndScale
+--- PASS: TestRenderTransform_HitTest_RotationAndScale (0.00s)
+PASS

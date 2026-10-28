@@ -1,0 +1,5 @@
+=== RUN   TestDbgWhyFail
+collectionIndex: 0 gid: 11948 rawlen: 19484784
+LightHintVar err: <nil> pts: 35 contours: 4 w: 0
+--- PASS: TestDbgWhyFail (0.02s)
+PASS

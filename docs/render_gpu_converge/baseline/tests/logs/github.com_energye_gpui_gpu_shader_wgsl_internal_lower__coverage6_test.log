@@ -1,0 +1,372 @@
+=== RUN   TestFloat32ToHalf
+=== RUN   TestFloat32ToHalf/positive_zero
+=== RUN   TestFloat32ToHalf/negative_zero
+=== RUN   TestFloat32ToHalf/one
+=== RUN   TestFloat32ToHalf/negative_one
+=== RUN   TestFloat32ToHalf/half
+=== RUN   TestFloat32ToHalf/positive_inf
+=== RUN   TestFloat32ToHalf/negative_inf
+=== RUN   TestFloat32ToHalf/NaN
+=== RUN   TestFloat32ToHalf/overflow_to_inf
+=== RUN   TestFloat32ToHalf/smallest_subnormal
+=== RUN   TestFloat32ToHalf/too_small_to_represent
+--- PASS: TestFloat32ToHalf (0.00s)
+    --- PASS: TestFloat32ToHalf/positive_zero (0.00s)
+    --- PASS: TestFloat32ToHalf/negative_zero (0.00s)
+    --- PASS: TestFloat32ToHalf/one (0.00s)
+    --- PASS: TestFloat32ToHalf/negative_one (0.00s)
+    --- PASS: TestFloat32ToHalf/half (0.00s)
+    --- PASS: TestFloat32ToHalf/positive_inf (0.00s)
+    --- PASS: TestFloat32ToHalf/negative_inf (0.00s)
+    --- PASS: TestFloat32ToHalf/NaN (0.00s)
+    --- PASS: TestFloat32ToHalf/overflow_to_inf (0.00s)
+    --- PASS: TestFloat32ToHalf/smallest_subnormal (0.00s)
+    --- PASS: TestFloat32ToHalf/too_small_to_represent (0.00s)
+=== RUN   TestHalfToFloat32
+=== RUN   TestHalfToFloat32/positive_zero
+=== RUN   TestHalfToFloat32/negative_zero
+=== RUN   TestHalfToFloat32/one
+=== RUN   TestHalfToFloat32/negative_one
+=== RUN   TestHalfToFloat32/positive_inf
+=== RUN   TestHalfToFloat32/negative_inf
+=== RUN   TestHalfToFloat32/NaN
+=== RUN   TestHalfToFloat32/subnormal
+--- PASS: TestHalfToFloat32 (0.00s)
+    --- PASS: TestHalfToFloat32/positive_zero (0.00s)
+    --- PASS: TestHalfToFloat32/negative_zero (0.00s)
+    --- PASS: TestHalfToFloat32/one (0.00s)
+    --- PASS: TestHalfToFloat32/negative_one (0.00s)
+    --- PASS: TestHalfToFloat32/positive_inf (0.00s)
+    --- PASS: TestHalfToFloat32/negative_inf (0.00s)
+    --- PASS: TestHalfToFloat32/NaN (0.00s)
+    --- PASS: TestHalfToFloat32/subnormal (0.00s)
+=== RUN   TestFloat32HalfRoundTrip
+--- PASS: TestFloat32HalfRoundTrip (0.00s)
+=== RUN   TestScalarZeroLiteral
+=== RUN   TestScalarZeroLiteral/bool
+=== RUN   TestScalarZeroLiteral/i32
+=== RUN   TestScalarZeroLiteral/u32
+=== RUN   TestScalarZeroLiteral/f32
+=== RUN   TestScalarZeroLiteral/f64
+--- PASS: TestScalarZeroLiteral (0.00s)
+    --- PASS: TestScalarZeroLiteral/bool (0.00s)
+    --- PASS: TestScalarZeroLiteral/i32 (0.00s)
+    --- PASS: TestScalarZeroLiteral/u32 (0.00s)
+    --- PASS: TestScalarZeroLiteral/f32 (0.00s)
+    --- PASS: TestScalarZeroLiteral/f64 (0.00s)
+=== RUN   TestScalarKindCompatible
+=== RUN   TestScalarKindCompatible/same_kind
+=== RUN   TestScalarKindCompatible/sint-uint
+=== RUN   TestScalarKindCompatible/uint-sint
+=== RUN   TestScalarKindCompatible/sint-abstractint
+=== RUN   TestScalarKindCompatible/float-abstractfloat
+=== RUN   TestScalarKindCompatible/sint-float_incompatible
+=== RUN   TestScalarKindCompatible/uint-float_incompatible
+=== RUN   TestScalarKindCompatible/bool-sint_incompatible
+=== RUN   TestScalarKindCompatible/abstractint-abstractfloat_incompatible
+--- PASS: TestScalarKindCompatible (0.00s)
+    --- PASS: TestScalarKindCompatible/same_kind (0.00s)
+    --- PASS: TestScalarKindCompatible/sint-uint (0.00s)
+    --- PASS: TestScalarKindCompatible/uint-sint (0.00s)
+    --- PASS: TestScalarKindCompatible/sint-abstractint (0.00s)
+    --- PASS: TestScalarKindCompatible/float-abstractfloat (0.00s)
+    --- PASS: TestScalarKindCompatible/sint-float_incompatible (0.00s)
+    --- PASS: TestScalarKindCompatible/uint-float_incompatible (0.00s)
+    --- PASS: TestScalarKindCompatible/bool-sint_incompatible (0.00s)
+    --- PASS: TestScalarKindCompatible/abstractint-abstractfloat_incompatible (0.00s)
+=== RUN   TestConvertScalarBits
+=== RUN   TestConvertScalarBits/sint_to_f32
+=== RUN   TestConvertScalarBits/sint_to_f64
+=== RUN   TestConvertScalarBits/f32_to_sint
+=== RUN   TestConvertScalarBits/sint_to_uint_same_family
+--- PASS: TestConvertScalarBits (0.00s)
+    --- PASS: TestConvertScalarBits/sint_to_f32 (0.00s)
+    --- PASS: TestConvertScalarBits/sint_to_f64 (0.00s)
+    --- PASS: TestConvertScalarBits/f32_to_sint (0.00s)
+    --- PASS: TestConvertScalarBits/sint_to_uint_same_family (0.00s)
+=== RUN   TestConcretizeLiteralTo
+=== RUN   TestConcretizeLiteralTo/abstractint_to_f32
+=== RUN   TestConcretizeLiteralTo/abstractint_to_i32
+=== RUN   TestConcretizeLiteralTo/abstractint_to_u32
+=== RUN   TestConcretizeLiteralTo/abstractfloat_to_f32
+=== RUN   TestConcretizeLiteralTo/abstractfloat_to_f64
+=== RUN   TestConcretizeLiteralTo/abstractint_to_i64
+=== RUN   TestConcretizeLiteralTo/abstractint_to_u64
+=== RUN   TestConcretizeLiteralTo/concrete_unchanged
+--- PASS: TestConcretizeLiteralTo (0.00s)
+    --- PASS: TestConcretizeLiteralTo/abstractint_to_f32 (0.00s)
+    --- PASS: TestConcretizeLiteralTo/abstractint_to_i32 (0.00s)
+    --- PASS: TestConcretizeLiteralTo/abstractint_to_u32 (0.00s)
+    --- PASS: TestConcretizeLiteralTo/abstractfloat_to_f32 (0.00s)
+    --- PASS: TestConcretizeLiteralTo/abstractfloat_to_f64 (0.00s)
+    --- PASS: TestConcretizeLiteralTo/abstractint_to_i64 (0.00s)
+    --- PASS: TestConcretizeLiteralTo/abstractint_to_u64 (0.00s)
+    --- PASS: TestConcretizeLiteralTo/concrete_unchanged (0.00s)
+=== RUN   TestLowerErrorConstWithoutInit
+--- PASS: TestLowerErrorConstWithoutInit (0.00s)
+=== RUN   TestLowerErrorUnsupportedConstInit
+--- PASS: TestLowerErrorUnsupportedConstInit (0.00s)
+=== RUN   TestLowerOverrideWithVecTypeCompiles
+--- PASS: TestLowerOverrideWithVecTypeCompiles (0.00s)
+=== RUN   TestLowerErrorUnknownType
+--- PASS: TestLowerErrorUnknownType (0.00s)
+=== RUN   TestLowerErrorDuplicateEntryPoint
+--- PASS: TestLowerErrorDuplicateEntryPoint (0.00s)
+=== RUN   TestLowerErrorBadConstExpr
+--- PASS: TestLowerErrorBadConstExpr (0.00s)
+=== RUN   TestLowerModfResultMember
+--- PASS: TestLowerModfResultMember (0.00s)
+=== RUN   TestLowerFrexpResultMember
+--- PASS: TestLowerFrexpResultMember (0.00s)
+=== RUN   TestLowerModfVectorResultMember
+--- PASS: TestLowerModfVectorResultMember (0.00s)
+=== RUN   TestLowerFrexpVectorResultMember
+--- PASS: TestLowerFrexpVectorResultMember (0.00s)
+=== RUN   TestLowerConstAssertBoolLiterals
+--- PASS: TestLowerConstAssertBoolLiterals (0.00s)
+=== RUN   TestLowerConstAssertNamedBoolConstant
+--- PASS: TestLowerConstAssertNamedBoolConstant (0.00s)
+=== RUN   TestLowerConstAssertComparisonOps
+=== RUN   TestLowerConstAssertComparisonOps/equal
+=== RUN   TestLowerConstAssertComparisonOps/not_equal
+=== RUN   TestLowerConstAssertComparisonOps/less_than
+=== RUN   TestLowerConstAssertComparisonOps/less_equal
+=== RUN   TestLowerConstAssertComparisonOps/greater_than
+=== RUN   TestLowerConstAssertComparisonOps/greater_equal
+--- PASS: TestLowerConstAssertComparisonOps (0.00s)
+    --- PASS: TestLowerConstAssertComparisonOps/equal (0.00s)
+    --- PASS: TestLowerConstAssertComparisonOps/not_equal (0.00s)
+    --- PASS: TestLowerConstAssertComparisonOps/less_than (0.00s)
+    --- PASS: TestLowerConstAssertComparisonOps/less_equal (0.00s)
+    --- PASS: TestLowerConstAssertComparisonOps/greater_than (0.00s)
+    --- PASS: TestLowerConstAssertComparisonOps/greater_equal (0.00s)
+=== RUN   TestLowerConstAssertLogicalOps
+--- PASS: TestLowerConstAssertLogicalOps (0.00s)
+=== RUN   TestLowerConstAssertFails
+--- PASS: TestLowerConstAssertFails (0.00s)
+=== RUN   TestLowerConstAssertComplexExpr
+--- PASS: TestLowerConstAssertComplexExpr (0.00s)
+=== RUN   TestLowerEvalConstantIntExprBinary
+--- PASS: TestLowerEvalConstantIntExprBinary (0.00s)
+=== RUN   TestLowerEvalConstantIntUnary
+--- PASS: TestLowerEvalConstantIntUnary (0.00s)
+=== RUN   TestLowerConstExprWithCallConstructor
+--- PASS: TestLowerConstExprWithCallConstructor (0.00s)
+=== RUN   TestLowerConstExprWithVecMemberAccess
+--- PASS: TestLowerConstExprWithVecMemberAccess (0.00s)
+=== RUN   TestLowerConstExprWithVecComponentAccess
+--- PASS: TestLowerConstExprWithVecComponentAccess (0.00s)
+=== RUN   TestLowerWorkgroupSizeWithTypeConstructors
+=== RUN   TestLowerWorkgroupSizeWithTypeConstructors/i32_zero
+=== RUN   TestLowerWorkgroupSizeWithTypeConstructors/u32_zero
+=== RUN   TestLowerWorkgroupSizeWithTypeConstructors/const_in_workgroup_size
+--- PASS: TestLowerWorkgroupSizeWithTypeConstructors (0.00s)
+    --- PASS: TestLowerWorkgroupSizeWithTypeConstructors/i32_zero (0.00s)
+    --- PASS: TestLowerWorkgroupSizeWithTypeConstructors/u32_zero (0.00s)
+    --- PASS: TestLowerWorkgroupSizeWithTypeConstructors/const_in_workgroup_size (0.00s)
+=== RUN   TestLowerConstFoldComparisons
+--- PASS: TestLowerConstFoldComparisons (0.00s)
+=== RUN   TestLowerConstFoldMixedIntFloat
+--- PASS: TestLowerConstFoldMixedIntFloat (0.00s)
+=== RUN   TestLowerConstFoldIntegerDivByZero
+--- PASS: TestLowerConstFoldIntegerDivByZero (0.00s)
+=== RUN   TestLowerShiftOps
+--- PASS: TestLowerShiftOps (0.00s)
+=== RUN   TestLowerShiftAbstractOperands
+--- PASS: TestLowerShiftAbstractOperands (0.00s)
+=== RUN   TestLowerCompoundAssignVectorSplat
+--- PASS: TestLowerCompoundAssignVectorSplat (0.00s)
+=== RUN   TestLowerCallConstantScalarConstructors
+--- PASS: TestLowerCallConstantScalarConstructors (0.00s)
+=== RUN   TestLowerCallConstantStructConstructor
+--- PASS: TestLowerCallConstantStructConstructor (0.00s)
+=== RUN   TestLowerConstantAliasAbstractScalar
+--- PASS: TestLowerConstantAliasAbstractScalar (0.00s)
+=== RUN   TestLowerConstantAliasConcrete
+--- PASS: TestLowerConstantAliasConcrete (0.00s)
+=== RUN   TestLowerConstantAliasAbstractComposite
+--- PASS: TestLowerConstantAliasAbstractComposite (0.00s)
+=== RUN   TestLowerConstantAliasTyped
+--- PASS: TestLowerConstantAliasTyped (0.00s)
+=== RUN   TestLowerConstantUnaryBitwiseNot
+--- PASS: TestLowerConstantUnaryBitwiseNot (0.00s)
+=== RUN   TestLowerConstantUnaryLogicalNot
+--- PASS: TestLowerConstantUnaryLogicalNot (0.00s)
+=== RUN   TestLowerConstantUnaryNegate
+--- PASS: TestLowerConstantUnaryNegate (0.00s)
+=== RUN   TestLowerAbstractConstBinaryOps
+--- PASS: TestLowerAbstractConstBinaryOps (0.00s)
+=== RUN   TestLowerAbstractConstUnaryNegate
+--- PASS: TestLowerAbstractConstUnaryNegate (0.00s)
+=== RUN   TestLowerAbstractConstUnaryBang
+--- PASS: TestLowerAbstractConstUnaryBang (0.00s)
+=== RUN   TestLowerIfElseChain
+--- PASS: TestLowerIfElseChain (0.00s)
+=== RUN   TestLowerIfElseNestedDeep
+--- PASS: TestLowerIfElseNestedDeep (0.00s)
+=== RUN   TestLowerVariableShadowingBlockScope
+--- PASS: TestLowerVariableShadowingBlockScope (0.00s)
+=== RUN   TestLowerVariableShadowingParam
+--- PASS: TestLowerVariableShadowingParam (0.00s)
+=== RUN   TestLowerAbstractConstantVector
+--- PASS: TestLowerAbstractConstantVector (0.00s)
+=== RUN   TestLowerAbstractConstantArray
+--- PASS: TestLowerAbstractConstantArray (0.00s)
+=== RUN   TestLowerZeroArgVecConstructorInConst
+--- PASS: TestLowerZeroArgVecConstructorInConst (0.00s)
+=== RUN   TestLowerZeroArgMatConstructorInConst
+--- PASS: TestLowerZeroArgMatConstructorInConst (0.00s)
+=== RUN   TestLowerZeroArgVecConstructorRuntimeExplicit
+--- PASS: TestLowerZeroArgVecConstructorRuntimeExplicit (0.00s)
+=== RUN   TestLowerZeroArgVecConstructorPartial
+--- PASS: TestLowerZeroArgVecConstructorPartial (0.00s)
+=== RUN   TestLowerZeroArgMatConstructorExplicit
+--- PASS: TestLowerZeroArgMatConstructorExplicit (0.00s)
+=== RUN   TestLowerZeroArgMatConstructorPartial
+--- PASS: TestLowerZeroArgMatConstructorPartial (0.00s)
+=== RUN   TestLowerMatrixConstantWithScalars
+    coverage6_test.go:996: matrix constant M: type=0, value=<nil>
+--- PASS: TestLowerMatrixConstantWithScalars (0.00s)
+=== RUN   TestLowerZeroArgVecComposite
+--- PASS: TestLowerZeroArgVecComposite (0.00s)
+=== RUN   TestLowerAbstractArrayTypeInference
+--- PASS: TestLowerAbstractArrayTypeInference (0.00s)
+=== RUN   TestLowerAbstractArrayFloatInference
+--- PASS: TestLowerAbstractArrayFloatInference (0.00s)
+=== RUN   TestFoldBinaryLiterals
+=== RUN   TestFoldBinaryLiterals/i32_add
+=== RUN   TestFoldBinaryLiterals/i32_sub
+=== RUN   TestFoldBinaryLiterals/i32_mul
+=== RUN   TestFoldBinaryLiterals/i32_div
+=== RUN   TestFoldBinaryLiterals/i32_mod
+=== RUN   TestFoldBinaryLiterals/i32_bitand
+=== RUN   TestFoldBinaryLiterals/i32_bitor
+=== RUN   TestFoldBinaryLiterals/i32_bitxor
+=== RUN   TestFoldBinaryLiterals/i32_shl
+=== RUN   TestFoldBinaryLiterals/i32_shr
+=== RUN   TestFoldBinaryLiterals/f32_add
+=== RUN   TestFoldBinaryLiterals/f32_sub
+=== RUN   TestFoldBinaryLiterals/f32_mul
+=== RUN   TestFoldBinaryLiterals/f32_div
+=== RUN   TestFoldBinaryLiterals/i32_eq_true
+=== RUN   TestFoldBinaryLiterals/i32_eq_false
+=== RUN   TestFoldBinaryLiterals/i32_neq
+=== RUN   TestFoldBinaryLiterals/i32_lt
+=== RUN   TestFoldBinaryLiterals/i32_lte
+=== RUN   TestFoldBinaryLiterals/i32_gt
+=== RUN   TestFoldBinaryLiterals/i32_gte
+--- PASS: TestFoldBinaryLiterals (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_add (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_sub (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_mul (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_div (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_mod (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_bitand (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_bitor (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_bitxor (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_shl (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_shr (0.00s)
+    --- PASS: TestFoldBinaryLiterals/f32_add (0.00s)
+    --- PASS: TestFoldBinaryLiterals/f32_sub (0.00s)
+    --- PASS: TestFoldBinaryLiterals/f32_mul (0.00s)
+    --- PASS: TestFoldBinaryLiterals/f32_div (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_eq_true (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_eq_false (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_neq (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_lt (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_lte (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_gt (0.00s)
+    --- PASS: TestFoldBinaryLiterals/i32_gte (0.00s)
+=== RUN   TestLowerFunctionForwardReferences
+--- PASS: TestLowerFunctionForwardReferences (0.00s)
+=== RUN   TestLowerFunctionReverseOrder
+--- PASS: TestLowerFunctionReverseOrder (0.00s)
+=== RUN   TestLowerFunctionMutualForwardRef
+--- PASS: TestLowerFunctionMutualForwardRef (0.00s)
+=== RUN   TestLowerTypeAliasChained
+--- PASS: TestLowerTypeAliasChained (0.00s)
+=== RUN   TestLowerEmptyFunctionBody
+--- PASS: TestLowerEmptyFunctionBody (0.00s)
+=== RUN   TestLowerUnicodeIdentifiers
+--- PASS: TestLowerUnicodeIdentifiers (0.00s)
+=== RUN   TestLowerNestedAccessChain
+--- PASS: TestLowerNestedAccessChain (0.00s)
+=== RUN   TestLowerMatrixColumnSwizzle
+--- PASS: TestLowerMatrixColumnSwizzle (0.00s)
+=== RUN   TestLowerPointerDerefAccess
+--- PASS: TestLowerPointerDerefAccess (0.00s)
+=== RUN   TestLowerAbstractIntPromotionNested
+--- PASS: TestLowerAbstractIntPromotionNested (0.00s)
+=== RUN   TestLowerBuildConstGlobalExprScalar
+--- PASS: TestLowerBuildConstGlobalExprScalar (0.00s)
+=== RUN   TestLowerConstFoldRoundingNegative
+--- PASS: TestLowerConstFoldRoundingNegative (0.00s)
+=== RUN   TestLowerInferCompositeConstantTypeNested
+--- PASS: TestLowerInferCompositeConstantTypeNested (0.00s)
+=== RUN   TestLowerConstFoldNegateAll
+--- PASS: TestLowerConstFoldNegateAll (0.00s)
+=== RUN   TestLowerWidenScalar
+--- PASS: TestLowerWidenScalar (0.00s)
+=== RUN   TestLowerAtomicOpsAddLoadStore
+--- PASS: TestLowerAtomicOpsAddLoadStore (0.00s)
+=== RUN   TestLowerConcretizeAbstractToFloat
+--- PASS: TestLowerConcretizeAbstractToFloat (0.00s)
+=== RUN   TestLowerBinaryOpSplatScalarVec
+--- PASS: TestLowerBinaryOpSplatScalarVec (0.00s)
+=== RUN   TestLowerConcretizeExprToScalar
+--- PASS: TestLowerConcretizeExprToScalar (0.00s)
+=== RUN   TestLowerConvertExprToFloat
+--- PASS: TestLowerConvertExprToFloat (0.00s)
+=== RUN   TestLowerComputeConcreteLiteral
+--- PASS: TestLowerComputeConcreteLiteral (0.00s)
+=== RUN   TestLowerResolvePointerScalar
+--- PASS: TestLowerResolvePointerScalar (0.00s)
+=== RUN   TestLowerConcretizeAbstractToUint
+--- PASS: TestLowerConcretizeAbstractToUint (0.00s)
+=== RUN   TestLowerOverrideTypeInferenceExpr
+--- PASS: TestLowerOverrideTypeInferenceExpr (0.00s)
+=== RUN   TestLowerOverrideInitBinaryExpr
+--- PASS: TestLowerOverrideInitBinaryExpr (0.00s)
+=== RUN   TestLowerCoerceScalarToType
+--- PASS: TestLowerCoerceScalarToType (0.00s)
+=== RUN   TestLowerLiteralSuffixes
+--- PASS: TestLowerLiteralSuffixes (0.00s)
+=== RUN   TestLowerLiteralHexAndBinary
+--- PASS: TestLowerLiteralHexAndBinary (0.00s)
+=== RUN   TestLowerAbstractScalarKindDetection
+--- PASS: TestLowerAbstractScalarKindDetection (0.00s)
+=== RUN   TestLowerArraySizeFromConstExpr
+--- PASS: TestLowerArraySizeFromConstExpr (0.00s)
+=== RUN   TestLowerCompositeConstantStruct
+--- PASS: TestLowerCompositeConstantStruct (0.00s)
+=== RUN   TestLowerConcretizeAbstractArrayType
+--- PASS: TestLowerConcretizeAbstractArrayType (0.00s)
+=== RUN   TestLowerInitHasConcreteType
+--- PASS: TestLowerInitHasConcreteType (0.00s)
+=== RUN   TestLowerEvalConstantArgsStruct
+--- PASS: TestLowerEvalConstantArgsStruct (0.00s)
+=== RUN   TestLowerEvalConstantFloatExpr
+--- PASS: TestLowerEvalConstantFloatExpr (0.00s)
+=== RUN   TestLowerEvalConstantIdentChain
+--- PASS: TestLowerEvalConstantIdentChain (0.00s)
+=== RUN   TestLowerForLoopWithBody
+--- PASS: TestLowerForLoopWithBody (0.00s)
+=== RUN   TestLowerWhileLoopDecrement
+--- PASS: TestLowerWhileLoopDecrement (0.00s)
+=== RUN   TestLowerLoopWithBreakIf
+--- PASS: TestLowerLoopWithBreakIf (0.00s)
+=== RUN   TestLowerSwitchStatement
+--- PASS: TestLowerSwitchStatement (0.00s)
+=== RUN   TestLowerGlobalVarInitWithConstExpr
+--- PASS: TestLowerGlobalVarInitWithConstExpr (0.00s)
+=== RUN   TestLowerInferGlobalVarTypeArray
+--- PASS: TestLowerInferGlobalVarTypeArray (0.00s)
+=== RUN   TestLowerExternalTextureTypes
+--- PASS: TestLowerExternalTextureTypes (0.00s)
+=== RUN   TestLowerInferScalarWidthF16
+--- PASS: TestLowerInferScalarWidthF16 (0.00s)
+=== RUN   TestLowerConstFoldVecSplat
+--- PASS: TestLowerConstFoldVecSplat (0.00s)
+=== RUN   TestLowerAbstractIntToFloat
+--- PASS: TestLowerAbstractIntToFloat (0.00s)
+PASS

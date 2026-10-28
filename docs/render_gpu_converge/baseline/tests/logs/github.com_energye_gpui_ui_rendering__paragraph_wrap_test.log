@@ -1,0 +1,5 @@
+=== RUN   TestRenderText_FitRunPrefix_WordPriority
+--- PASS: TestRenderText_FitRunPrefix_WordPriority (0.01s)
+=== RUN   TestRenderText_FitRunPrefix_SingleOverlongWord
+--- PASS: TestRenderText_FitRunPrefix_SingleOverlongWord (0.00s)
+PASS

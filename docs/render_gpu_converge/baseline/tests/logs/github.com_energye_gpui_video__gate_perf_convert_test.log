@@ -1,0 +1,7 @@
+=== RUN   TestVR7TFFmpegParity
+=== RUN   TestVR7TFFmpegParity/vr_stream_long.mp4
+    gate_perf_convert_test.go:141: vr_stream_long.mp4: ours avg=2.566ms p95=3.797ms vs ffmpeg rgba=0.630ms/frame (pool 99.5%)
+    gate_perf_convert_test.go:145: vr_stream_long.mp4: VR7-T miss: ours convert avg=2.566ms > ffmpeg rgba utime/frame=0.630ms (gap 4.07x,记 S1 攻坚，不降预算)
+--- FAIL: TestVR7TFFmpegParity (0.55s)
+    --- FAIL: TestVR7TFFmpegParity/vr_stream_long.mp4 (0.55s)
+FAIL

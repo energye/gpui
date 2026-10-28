@@ -1,0 +1,6 @@
+=== RUN   TestShrinkRerecordDamagesClearedTail
+    shrink_damage_test.go:127: f2 shrink damage [(304,121)-(315,137) (314,121)-(316,145)] does not cover grown ink (304,121)-(319,137): cleared tail not repainted
+--- FAIL: TestShrinkRerecordDamagesClearedTail (0.36s)
+=== RUN   TestClearToEmptyDamagesOldRegion
+--- PASS: TestClearToEmptyDamagesOldRegion (0.04s)
+FAIL

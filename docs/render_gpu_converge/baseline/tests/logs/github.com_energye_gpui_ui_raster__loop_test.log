@@ -1,0 +1,5 @@
+=== RUN   TestLoop_Backpressure
+--- PASS: TestLoop_Backpressure (0.03s)
+=== RUN   TestLoop_DoneChannel
+--- PASS: TestLoop_DoneChannel (0.00s)
+PASS

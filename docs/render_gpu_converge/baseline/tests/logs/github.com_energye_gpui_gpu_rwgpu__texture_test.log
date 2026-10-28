@@ -1,0 +1,29 @@
+=== RUN   TestCreateTexture
+    texture_test.go:25: Creating 2D texture...
+    texture_test.go:47: Texture created: handle=0x3b68c1d0
+--- PASS: TestCreateTexture (0.23s)
+=== RUN   TestCreateTextureView
+    texture_test.go:83: Creating texture view...
+    texture_test.go:94: TextureView created: handle=0x3b93bdd0
+--- PASS: TestCreateTextureView (0.16s)
+=== RUN   TestCreateDepthTexture
+    texture_test.go:113: Creating depth texture...
+    texture_test.go:127: Depth texture created: handle=0x3b0468b0
+--- PASS: TestCreateDepthTexture (0.15s)
+=== RUN   TestCreateSampler
+    texture_test.go:146: Creating sampler...
+    texture_test.go:165: Sampler created: handle=0x3b079e10
+--- PASS: TestCreateSampler (0.15s)
+=== RUN   TestCreateSamplerSimple
+    texture_test.go:184: Creating sampler with minimal settings...
+    texture_test.go:193: Simple sampler created: handle=0x3b1ff440
+--- PASS: TestCreateSamplerSimple (0.15s)
+=== RUN   TestTextureFormats
+    texture_test.go:214: Format RGBA8Unorm = 0x5247424138556e6f726d
+    texture_test.go:214: Format BGRA8Unorm = 0x4247524138556e6f726d
+    texture_test.go:214: Format Depth24Plus = 0x44657074683234506c7573
+    texture_test.go:214: Format Depth32Float = 0x44657074683332466c6f6174
+    texture_test.go:214: Format R8Unorm = 0x5238556e6f726d
+    texture_test.go:214: Format RG8Unorm = 0x524738556e6f726d
+--- PASS: TestTextureFormats (0.00s)
+PASS

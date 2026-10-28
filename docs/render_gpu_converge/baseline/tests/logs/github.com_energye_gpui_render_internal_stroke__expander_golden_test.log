@@ -1,0 +1,28 @@
+=== RUN   TestStrokeExpander_SineWaveGolden
+    expander_golden_test.go:78: OK: 201 elements, 200 points, 0 duplicates, 0 self-intersections (matches Rust kurbo)
+--- PASS: TestStrokeExpander_SineWaveGolden (0.00s)
+=== RUN   TestStrokeExpander_ClosedRectGolden
+--- PASS: TestStrokeExpander_ClosedRectGolden (0.00s)
+=== RUN   TestStrokeExpander_ThickCircleNoTeeth
+=== RUN   TestStrokeExpander_ThickCircleNoTeeth/lineWidth=5
+=== RUN   TestStrokeExpander_ThickCircleNoTeeth/lineWidth=10
+=== RUN   TestStrokeExpander_ThickCircleNoTeeth/lineWidth=15
+=== RUN   TestStrokeExpander_ThickCircleNoTeeth/lineWidth=20
+--- PASS: TestStrokeExpander_ThickCircleNoTeeth (0.00s)
+    --- PASS: TestStrokeExpander_ThickCircleNoTeeth/lineWidth=5 (0.00s)
+    --- PASS: TestStrokeExpander_ThickCircleNoTeeth/lineWidth=10 (0.00s)
+    --- PASS: TestStrokeExpander_ThickCircleNoTeeth/lineWidth=15 (0.00s)
+    --- PASS: TestStrokeExpander_ThickCircleNoTeeth/lineWidth=20 (0.00s)
+=== RUN   TestStrokeExpander_ThickRectNoRotation
+=== RUN   TestStrokeExpander_ThickRectNoRotation/lineWidth=5
+=== RUN   TestStrokeExpander_ThickRectNoRotation/lineWidth=10
+=== RUN   TestStrokeExpander_ThickRectNoRotation/lineWidth=15
+=== RUN   TestStrokeExpander_ThickRectNoRotation/lineWidth=20
+--- PASS: TestStrokeExpander_ThickRectNoRotation (0.00s)
+    --- PASS: TestStrokeExpander_ThickRectNoRotation/lineWidth=5 (0.00s)
+    --- PASS: TestStrokeExpander_ThickRectNoRotation/lineWidth=10 (0.00s)
+    --- PASS: TestStrokeExpander_ThickRectNoRotation/lineWidth=15 (0.00s)
+    --- PASS: TestStrokeExpander_ThickRectNoRotation/lineWidth=20 (0.00s)
+=== RUN   TestStrokeExpander_InnerJoinOffset
+--- PASS: TestStrokeExpander_InnerJoinOffset (0.00s)
+PASS

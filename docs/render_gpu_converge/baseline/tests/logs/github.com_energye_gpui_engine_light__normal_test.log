@@ -1,0 +1,14 @@
+=== RUN   TestNormalGolden
+--- PASS: TestNormalGolden (0.00s)
+=== RUN   TestNormalEdgesNoCrash
+--- PASS: TestNormalEdgesNoCrash (0.00s)
+=== RUN   TestNormalBoundaryIdentical
+--- PASS: TestNormalBoundaryIdentical (0.00s)
+=== RUN   TestNormalSinglePerf
+    normal_test.go:477: normal-8x64x64: 2.383771ms total (72.7 ns/px/light, 4096 px, 8 lights)
+--- PASS: TestNormalSinglePerf (0.00s)
+=== RUN   TestNormalLongRunStable
+--- PASS: TestNormalLongRunStable (0.02s)
+=== RUN   TestNormalOffscreenShapes
+--- PASS: TestNormalOffscreenShapes (0.00s)
+PASS

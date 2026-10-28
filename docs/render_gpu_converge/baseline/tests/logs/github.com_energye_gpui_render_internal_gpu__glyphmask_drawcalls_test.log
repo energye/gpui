@@ -1,0 +1,7 @@
+=== RUN   TestBuildGlyphMaskDrawCalls_QuadOffsetOnNilBindGroup
+--- PASS: TestBuildGlyphMaskDrawCalls_QuadOffsetOnNilBindGroup (0.24s)
+=== RUN   TestBuildGlyphMaskDrawCalls_AllBindGroupsValid
+--- PASS: TestBuildGlyphMaskDrawCalls_AllBindGroupsValid (0.21s)
+=== RUN   TestBuildGlyphMaskDrawCalls_EmptyBatchSkipped
+--- PASS: TestBuildGlyphMaskDrawCalls_EmptyBatchSkipped (0.20s)
+PASS

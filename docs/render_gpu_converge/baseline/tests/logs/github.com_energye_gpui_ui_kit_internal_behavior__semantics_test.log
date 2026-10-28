@@ -1,0 +1,5 @@
+=== RUN   TestSemantics_NamedRole
+--- PASS: TestSemantics_NamedRole (0.00s)
+=== RUN   TestSemantics_Advisory
+--- PASS: TestSemantics_Advisory (0.00s)
+PASS

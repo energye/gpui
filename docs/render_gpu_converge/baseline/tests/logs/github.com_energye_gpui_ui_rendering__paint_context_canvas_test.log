@@ -1,0 +1,9 @@
+=== RUN   TestPaintContext_TypedNilCanvasNormalizesAtConstruction
+--- PASS: TestPaintContext_TypedNilCanvasNormalizesAtConstruction (0.00s)
+=== RUN   TestPaintContext_LiveContextSeparatesLiveFromRecording
+--- PASS: TestPaintContext_LiveContextSeparatesLiveFromRecording (0.00s)
+=== RUN   TestPaintContext_RequireLiveContextCountsRefusals
+--- PASS: TestPaintContext_RequireLiveContextCountsRefusals (0.00s)
+=== RUN   TestDrawGPUTexture_RecordsOnRecordingWalk
+--- PASS: TestDrawGPUTexture_RecordsOnRecordingWalk (0.00s)
+PASS

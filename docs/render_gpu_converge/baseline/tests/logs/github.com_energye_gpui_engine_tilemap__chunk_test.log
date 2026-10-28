@@ -1,0 +1,14 @@
+=== RUN   TestChunkFromCases
+--- PASS: TestChunkFromCases (0.00s)
+=== RUN   TestChunkEdgesNoCrash
+--- PASS: TestChunkEdgesNoCrash (0.00s)
+=== RUN   TestChunkBoundaryIdentical
+--- PASS: TestChunkBoundaryIdentical (0.00s)
+=== RUN   TestChunkPerfFastMove
+    chunk_test.go:456: chunk-64: 2000 update+visible on 64x64/8x8 in 11.574827ms (5.8 us/op, visible 7988)
+--- PASS: TestChunkPerfFastMove (0.01s)
+=== RUN   TestChunkLongRunStable
+--- PASS: TestChunkLongRunStable (0.00s)
+=== RUN   TestChunkOffscreenGolden
+--- PASS: TestChunkOffscreenGolden (0.00s)
+PASS

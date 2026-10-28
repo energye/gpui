@@ -1,0 +1,44 @@
+=== RUN   TestFanTessellateEmpty
+--- PASS: TestFanTessellateEmpty (0.00s)
+=== RUN   TestFanTessellateTriangle
+--- PASS: TestFanTessellateTriangle (0.00s)
+=== RUN   TestFanTessellateSquare
+--- PASS: TestFanTessellateSquare (0.00s)
+=== RUN   TestFanTessellateCircle
+--- PASS: TestFanTessellateCircle (0.00s)
+=== RUN   TestFanTessellateStar
+--- PASS: TestFanTessellateStar (0.00s)
+=== RUN   TestFanTessellateDonut
+--- PASS: TestFanTessellateDonut (0.00s)
+=== RUN   TestFanTessellateAABB
+=== RUN   TestFanTessellateAABB/triangle
+=== RUN   TestFanTessellateAABB/square
+=== RUN   TestFanTessellateAABB/circle_at_origin
+--- PASS: TestFanTessellateAABB (0.00s)
+    --- PASS: TestFanTessellateAABB/triangle (0.00s)
+    --- PASS: TestFanTessellateAABB/square (0.00s)
+    --- PASS: TestFanTessellateAABB/circle_at_origin (0.00s)
+=== RUN   TestFanTessellateCoverQuad
+--- PASS: TestFanTessellateCoverQuad (0.00s)
+=== RUN   TestFanTessellateReset
+--- PASS: TestFanTessellateReset (0.00s)
+=== RUN   TestFanTessellateQuadBezier
+--- PASS: TestFanTessellateQuadBezier (0.00s)
+=== RUN   TestFanTessellateVertexLayout
+--- PASS: TestFanTessellateVertexLayout (0.00s)
+=== RUN   TestFanTessellateOnlyMoveTo
+--- PASS: TestFanTessellateOnlyMoveTo (0.00s)
+=== RUN   TestFanTessellatePentagon
+--- PASS: TestFanTessellatePentagon (0.00s)
+=== RUN   TestFanTessellateStrokeExpandedSineWave
+    tessellate_test.go:565: stroke-expanded sine wave: 232 triangles, 696 vertices, bounds=[49.094864 117.08209 744.0113 195.1923]
+--- PASS: TestFanTessellateStrokeExpandedSineWave (0.00s)
+=== RUN   TestStrokeExpandedPathIsNotConvex
+    tessellate_test.go:611: stroke-expanded polygon: 234 points, closed=true
+--- PASS: TestStrokeExpandedPathIsNotConvex (0.00s)
+=== RUN   TestDegenerateTriangleSkipSafety
+--- PASS: TestDegenerateTriangleSkipSafety (0.00s)
+=== RUN   TestFanTessellateRingTopology
+    tessellate_test.go:737: ring topology: 10 points, 7 triangles
+--- PASS: TestFanTessellateRingTopology (0.00s)
+PASS

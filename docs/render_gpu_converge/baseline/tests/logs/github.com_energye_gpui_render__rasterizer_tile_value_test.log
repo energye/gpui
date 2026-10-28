@@ -1,0 +1,47 @@
+=== RUN   TestRasterizerValueMatchesAnalytic
+=== RUN   TestRasterizerValueMatchesAnalytic/单矩形(对齐)
+    rasterizer_tile_value_test.go:260: SparseStrips: max diff 0, differing px 0, ink px 1600
+    rasterizer_tile_value_test.go:260: TileCompute: max diff 0, differing px 0, ink px 1600
+=== RUN   TestRasterizerValueMatchesAnalytic/非对齐矩形(分数边界)
+    rasterizer_tile_value_test.go:260: SparseStrips: max diff 1, differing px 25, ink px 806
+    rasterizer_tile_value_test.go:260: TileCompute: max diff 2, differing px 26, ink px 806
+=== RUN   TestRasterizerValueMatchesAnalytic/U形单轮廓
+    rasterizer_tile_value_test.go:260: SparseStrips: max diff 0, differing px 0, ink px 504
+    rasterizer_tile_value_test.go:260: TileCompute: max diff 0, differing px 0, ink px 504
+=== RUN   TestRasterizerValueMatchesAnalytic/上下堆叠两矩形
+    rasterizer_tile_value_test.go:260: SparseStrips: max diff 0, differing px 0, ink px 800
+    rasterizer_tile_value_test.go:260: TileCompute: max diff 0, differing px 0, ink px 800
+=== RUN   TestRasterizerValueMatchesAnalytic/左右并排两矩形
+    rasterizer_tile_value_test.go:260: SparseStrips: max diff 0, differing px 0, ink px 96
+    rasterizer_tile_value_test.go:260: TileCompute: max diff 0, differing px 0, ink px 96
+=== RUN   TestRasterizerValueMatchesAnalytic/差集(布尔产物)
+    rasterizer_tile_value_test.go:260: SparseStrips: max diff 0, differing px 0, ink px 1344
+    rasterizer_tile_value_test.go:260: TileCompute: max diff 0, differing px 0, ink px 1344
+=== RUN   TestRasterizerValueMatchesAnalytic/even-odd_打洞
+    rasterizer_tile_value_test.go:260: SparseStrips: max diff 0, differing px 0, ink px 1344
+    rasterizer_tile_value_test.go:260: TileCompute: max diff 0, differing px 0, ink px 1344
+=== RUN   TestRasterizerValueMatchesAnalytic/菱形(分数行起止)
+    rasterizer_tile_value_test.go:260: SparseStrips: max diff 8, differing px 102, ink px 504
+    rasterizer_tile_value_test.go:260: TileCompute: max diff 8, differing px 102, ink px 504
+    rasterizer_tile_value_test.go:270: Auto: ink runs mismatch at row 5: golden="" got="[19..20] "
+    rasterizer_tile_value_test.go:270: SDF: ink runs mismatch at row 5: golden="" got="[19..20] "
+=== RUN   TestRasterizerValueMatchesAnalytic/超视口矩形
+    rasterizer_tile_value_test.go:260: SparseStrips: max diff 0, differing px 0, ink px 2250
+    rasterizer_tile_value_test.go:260: TileCompute: max diff 0, differing px 0, ink px 2250
+--- FAIL: TestRasterizerValueMatchesAnalytic (0.33s)
+    --- PASS: TestRasterizerValueMatchesAnalytic/单矩形(对齐) (0.30s)
+    --- PASS: TestRasterizerValueMatchesAnalytic/非对齐矩形(分数边界) (0.00s)
+    --- PASS: TestRasterizerValueMatchesAnalytic/U形单轮廓 (0.01s)
+    --- PASS: TestRasterizerValueMatchesAnalytic/上下堆叠两矩形 (0.01s)
+    --- PASS: TestRasterizerValueMatchesAnalytic/左右并排两矩形 (0.00s)
+    --- PASS: TestRasterizerValueMatchesAnalytic/差集(布尔产物) (0.00s)
+    --- PASS: TestRasterizerValueMatchesAnalytic/even-odd_打洞 (0.00s)
+    --- FAIL: TestRasterizerValueMatchesAnalytic/菱形(分数行起止) (0.01s)
+    --- PASS: TestRasterizerValueMatchesAnalytic/超视口矩形 (0.00s)
+=== RUN   TestRasterizerExactAreaGolden
+=== RUN   TestRasterizerExactAreaGolden/菱形(分数行起止)
+=== RUN   TestRasterizerExactAreaGolden/非对齐矩形(分数边界)
+--- PASS: TestRasterizerExactAreaGolden (0.00s)
+    --- PASS: TestRasterizerExactAreaGolden/菱形(分数行起止) (0.00s)
+    --- PASS: TestRasterizerExactAreaGolden/非对齐矩形(分数边界) (0.00s)
+FAIL

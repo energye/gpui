@@ -1,0 +1,13 @@
+=== RUN   TestPresentDamageX11
+    present_damage_x11_test.go:176: full frame 1: inside=0xff0000 outside=0xff0000
+    present_damage_x11_test.go:176: full frame 2: inside=0xff00 outside=0xff00
+    present_damage_x11_test.go:176: full frame 3: inside=0xff outside=0xff
+    present_damage_x11_test.go:223: damage frame 1: inside=0xff outside=0xff00 full=7 partial=0
+    present_damage_x11_test.go:223: damage frame 2: inside=0xffff00 outside=0xff00 full=8 partial=0
+    present_damage_x11_test.go:223: damage frame 3: inside=0xff00ff outside=0xff00 full=9 partial=0
+    present_damage_x11_test.go:223: damage frame 4: inside=0xffff outside=0xff00 full=10 partial=0
+    present_damage_x11_test.go:223: damage frame 5: inside=0xff0000 outside=0xff00 full=11 partial=0
+    present_damage_x11_test.go:223: damage frame 6: inside=0xff outside=0xff00 full=12 partial=0
+    present_damage_x11_test.go:235: partial present never engaged: full=12 partial=0
+--- FAIL: TestPresentDamageX11 (1.58s)
+FAIL

@@ -1,0 +1,21 @@
+=== RUN   TestDetectCircle
+--- PASS: TestDetectCircle (0.00s)
+=== RUN   TestDetectCircleViaContext
+--- PASS: TestDetectCircleViaContext (0.00s)
+=== RUN   TestDetectEllipse
+--- PASS: TestDetectEllipse (0.00s)
+=== RUN   TestDetectRect
+--- PASS: TestDetectRect (0.00s)
+=== RUN   TestDetectRRect
+--- PASS: TestDetectRRect (0.00s)
+=== RUN   TestDetectUnknownArbitraryPath
+--- PASS: TestDetectUnknownArbitraryPath (0.00s)
+=== RUN   TestDetectUnknownEmptyPath
+--- PASS: TestDetectUnknownEmptyPath (0.00s)
+=== RUN   TestDetectUnknownNilPath
+--- PASS: TestDetectUnknownNilPath (0.00s)
+=== RUN   TestDetectNonAxisAlignedRect
+--- PASS: TestDetectNonAxisAlignedRect (0.00s)
+=== RUN   TestDetectSmallCircle
+--- PASS: TestDetectSmallCircle (0.00s)
+PASS

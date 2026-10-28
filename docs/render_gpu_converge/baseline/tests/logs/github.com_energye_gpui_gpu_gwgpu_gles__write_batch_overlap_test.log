@@ -1,0 +1,7 @@
+=== RUN   TestCountStagedWriteOverlaps
+--- PASS: TestCountStagedWriteOverlaps (0.00s)
+=== RUN   TestNoteStagedWriteOverlapsCounts
+gles: staged write overlap buf=7 label=test_buf writes=46 overlaps=45 last-end=384
+gles: staged write overlap buf=0 label= writes=2 overlaps=1 last-end=16
+--- PASS: TestNoteStagedWriteOverlapsCounts (0.00s)
+PASS

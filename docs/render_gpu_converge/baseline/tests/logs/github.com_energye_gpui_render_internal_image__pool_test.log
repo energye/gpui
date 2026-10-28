@@ -1,0 +1,36 @@
+=== RUN   TestNewPool
+=== RUN   TestNewPool/zero_means_unlimited
+=== RUN   TestNewPool/positive_limit
+=== RUN   TestNewPool/negative_means_unlimited_(edge_case)
+--- PASS: TestNewPool (0.00s)
+    --- PASS: TestNewPool/zero_means_unlimited (0.00s)
+    --- PASS: TestNewPool/positive_limit (0.00s)
+    --- PASS: TestNewPool/negative_means_unlimited_(edge_case) (0.00s)
+=== RUN   TestPool_GetPut_Basic
+--- PASS: TestPool_GetPut_Basic (0.00s)
+=== RUN   TestPool_GetPut_DifferentSizes
+--- PASS: TestPool_GetPut_DifferentSizes (0.00s)
+=== RUN   TestPool_MaxSize
+--- PASS: TestPool_MaxSize (0.00s)
+=== RUN   TestPool_Put_Nil
+--- PASS: TestPool_Put_Nil (0.00s)
+=== RUN   TestPool_Concurrent
+--- PASS: TestPool_Concurrent (0.00s)
+=== RUN   TestPool_GetInvalidDimensions
+=== RUN   TestPool_GetInvalidDimensions/zero_width
+=== RUN   TestPool_GetInvalidDimensions/zero_height
+=== RUN   TestPool_GetInvalidDimensions/negative_width
+=== RUN   TestPool_GetInvalidDimensions/negative_height
+=== RUN   TestPool_GetInvalidDimensions/invalid_format
+--- PASS: TestPool_GetInvalidDimensions (0.00s)
+    --- PASS: TestPool_GetInvalidDimensions/zero_width (0.00s)
+    --- PASS: TestPool_GetInvalidDimensions/zero_height (0.00s)
+    --- PASS: TestPool_GetInvalidDimensions/negative_width (0.00s)
+    --- PASS: TestPool_GetInvalidDimensions/negative_height (0.00s)
+    --- PASS: TestPool_GetInvalidDimensions/invalid_format (0.00s)
+=== RUN   TestDefaultPool
+--- PASS: TestDefaultPool (0.00s)
+=== RUN   TestPool_StressTest
+    pool_test.go:314: Stress test complete: 289 total buffers pooled across 128 buckets
+--- PASS: TestPool_StressTest (0.17s)
+PASS

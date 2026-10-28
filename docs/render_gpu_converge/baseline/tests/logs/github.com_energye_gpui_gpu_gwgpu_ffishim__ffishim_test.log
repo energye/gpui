@@ -1,0 +1,5 @@
+=== RUN   TestCallFunctionStrlen
+--- PASS: TestCallFunctionStrlen (0.00s)
+=== RUN   TestCallFunctionFloatReturnUnsupported
+--- PASS: TestCallFunctionFloatReturnUnsupported (0.00s)
+PASS

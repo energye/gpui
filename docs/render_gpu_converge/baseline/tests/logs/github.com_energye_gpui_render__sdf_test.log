@@ -1,0 +1,53 @@
+=== RUN   TestSmoothstepCoverage
+=== RUN   TestSmoothstepCoverage/fully_inside
+=== RUN   TestSmoothstepCoverage/fully_outside
+=== RUN   TestSmoothstepCoverage/at_center
+=== RUN   TestSmoothstepCoverage/at_inner_edge
+=== RUN   TestSmoothstepCoverage/at_outer_edge
+--- PASS: TestSmoothstepCoverage (0.00s)
+    --- PASS: TestSmoothstepCoverage/fully_inside (0.00s)
+    --- PASS: TestSmoothstepCoverage/fully_outside (0.00s)
+    --- PASS: TestSmoothstepCoverage/at_center (0.00s)
+    --- PASS: TestSmoothstepCoverage/at_inner_edge (0.00s)
+    --- PASS: TestSmoothstepCoverage/at_outer_edge (0.00s)
+=== RUN   TestSmoothstepCoverageMonotonic
+--- PASS: TestSmoothstepCoverageMonotonic (0.00s)
+=== RUN   TestSDFFilledCircleCoverage
+=== RUN   TestSDFFilledCircleCoverage/center
+=== RUN   TestSDFFilledCircleCoverage/inside
+=== RUN   TestSDFFilledCircleCoverage/near_boundary
+=== RUN   TestSDFFilledCircleCoverage/just_outside
+=== RUN   TestSDFFilledCircleCoverage/far_outside
+--- PASS: TestSDFFilledCircleCoverage (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/center (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/inside (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/near_boundary (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/just_outside (0.00s)
+    --- PASS: TestSDFFilledCircleCoverage/far_outside (0.00s)
+=== RUN   TestSDFCircleCoverage
+=== RUN   TestSDFCircleCoverage/on_stroke_center
+=== RUN   TestSDFCircleCoverage/inside_stroke
+=== RUN   TestSDFCircleCoverage/outside_shape_far
+=== RUN   TestSDFCircleCoverage/center_of_circle
+--- PASS: TestSDFCircleCoverage (0.00s)
+    --- PASS: TestSDFCircleCoverage/on_stroke_center (0.00s)
+    --- PASS: TestSDFCircleCoverage/inside_stroke (0.00s)
+    --- PASS: TestSDFCircleCoverage/outside_shape_far (0.00s)
+    --- PASS: TestSDFCircleCoverage/center_of_circle (0.00s)
+=== RUN   TestSDFFilledRRectCoverage
+=== RUN   TestSDFFilledRRectCoverage/center
+=== RUN   TestSDFFilledRRectCoverage/inside
+=== RUN   TestSDFFilledRRectCoverage/far_outside
+--- PASS: TestSDFFilledRRectCoverage (0.00s)
+    --- PASS: TestSDFFilledRRectCoverage/center (0.00s)
+    --- PASS: TestSDFFilledRRectCoverage/inside (0.00s)
+    --- PASS: TestSDFFilledRRectCoverage/far_outside (0.00s)
+=== RUN   TestSDFRRectCoverage
+=== RUN   TestSDFRRectCoverage/on_right_edge
+=== RUN   TestSDFRRectCoverage/center
+=== RUN   TestSDFRRectCoverage/far_outside
+--- PASS: TestSDFRRectCoverage (0.00s)
+    --- PASS: TestSDFRRectCoverage/on_right_edge (0.00s)
+    --- PASS: TestSDFRRectCoverage/center (0.00s)
+    --- PASS: TestSDFRRectCoverage/far_outside (0.00s)
+PASS

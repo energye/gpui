@@ -1,0 +1,109 @@
+=== RUN   TestIsI32ScalarOp
+=== RUN   TestIsI32ScalarOp/i32_left
+=== RUN   TestIsI32ScalarOp/u32_left
+=== RUN   TestIsI32ScalarOp/f32_left
+=== RUN   TestIsI32ScalarOp/vec4_i32
+=== RUN   TestIsI32ScalarOp/vec4_u32
+=== RUN   TestIsI32ScalarOp/i64_left
+--- PASS: TestIsI32ScalarOp (0.00s)
+    --- PASS: TestIsI32ScalarOp/i32_left (0.00s)
+    --- PASS: TestIsI32ScalarOp/u32_left (0.00s)
+    --- PASS: TestIsI32ScalarOp/f32_left (0.00s)
+    --- PASS: TestIsI32ScalarOp/vec4_i32 (0.00s)
+    --- PASS: TestIsI32ScalarOp/vec4_u32 (0.00s)
+    --- PASS: TestIsI32ScalarOp/i64_left (0.00s)
+=== RUN   TestWriteAsExpressionVectorCast
+=== RUN   TestWriteAsExpressionVectorCast/vec4_i32_to_f32
+=== RUN   TestWriteAsExpressionVectorCast/vec2_f32_to_i32
+=== RUN   TestWriteAsExpressionVectorCast/scalar_f32_to_i32
+--- PASS: TestWriteAsExpressionVectorCast (0.00s)
+    --- PASS: TestWriteAsExpressionVectorCast/vec4_i32_to_f32 (0.00s)
+    --- PASS: TestWriteAsExpressionVectorCast/vec2_f32_to_i32 (0.00s)
+    --- PASS: TestWriteAsExpressionVectorCast/scalar_f32_to_i32 (0.00s)
+=== RUN   TestI32MinLiteral
+--- PASS: TestI32MinLiteral (0.00s)
+=== RUN   TestWrappingSignedArithmetic
+=== RUN   TestWrappingSignedArithmetic/add_i32
+=== RUN   TestWrappingSignedArithmetic/sub_i32
+=== RUN   TestWrappingSignedArithmetic/mul_i32
+--- PASS: TestWrappingSignedArithmetic (0.00s)
+    --- PASS: TestWrappingSignedArithmetic/add_i32 (0.00s)
+    --- PASS: TestWrappingSignedArithmetic/sub_i32 (0.00s)
+    --- PASS: TestWrappingSignedArithmetic/mul_i32 (0.00s)
+=== RUN   TestGatherMethodNaming
+=== RUN   TestGatherMethodNaming/comp_0_no_depth
+=== RUN   TestGatherMethodNaming/comp_1_no_depth
+=== RUN   TestGatherMethodNaming/comp_2_no_depth
+=== RUN   TestGatherMethodNaming/comp_3_no_depth
+=== RUN   TestGatherMethodNaming/comp_0_with_depth
+=== RUN   TestGatherMethodNaming/comp_1_with_depth
+--- PASS: TestGatherMethodNaming (0.00s)
+    --- PASS: TestGatherMethodNaming/comp_0_no_depth (0.00s)
+    --- PASS: TestGatherMethodNaming/comp_1_no_depth (0.00s)
+    --- PASS: TestGatherMethodNaming/comp_2_no_depth (0.00s)
+    --- PASS: TestGatherMethodNaming/comp_3_no_depth (0.00s)
+    --- PASS: TestGatherMethodNaming/comp_0_with_depth (0.00s)
+    --- PASS: TestGatherMethodNaming/comp_1_with_depth (0.00s)
+=== RUN   TestGetExpressionVectorSize_SplatFallback
+--- PASS: TestGetExpressionVectorSize_SplatFallback (0.00s)
+=== RUN   TestWriteConstExpression
+--- PASS: TestWriteConstExpression (0.00s)
+=== RUN   TestNonUniformResourceIndex
+=== RUN   TestNonUniformResourceIndex/fragment_in_(function_arg)
+=== RUN   TestNonUniformResourceIndex/fragment_in.index_(non-uniform_member)
+=== RUN   TestNonUniformResourceIndex/uni_(uniform_global)
+=== RUN   TestNonUniformResourceIndex/load(uni)_(uniform)
+=== RUN   TestNonUniformResourceIndex/uni.index_(uniform_member)
+=== RUN   TestNonUniformResourceIndex/literal_0u_(constant)
+--- PASS: TestNonUniformResourceIndex (0.00s)
+    --- PASS: TestNonUniformResourceIndex/fragment_in_(function_arg) (0.00s)
+    --- PASS: TestNonUniformResourceIndex/fragment_in.index_(non-uniform_member) (0.00s)
+    --- PASS: TestNonUniformResourceIndex/uni_(uniform_global) (0.00s)
+    --- PASS: TestNonUniformResourceIndex/load(uni)_(uniform) (0.00s)
+    --- PASS: TestNonUniformResourceIndex/uni.index_(uniform_member) (0.00s)
+    --- PASS: TestNonUniformResourceIndex/literal_0u_(constant) (0.00s)
+=== RUN   TestSamplerHeapBindingArray
+=== RUN   TestSamplerHeapBindingArray/isBindingArrayOfSamplers
+=== RUN   TestSamplerHeapBindingArray/samplerBindingArrayInfo
+--- PASS: TestSamplerHeapBindingArray (0.00s)
+    --- PASS: TestSamplerHeapBindingArray/isBindingArrayOfSamplers (0.00s)
+    --- PASS: TestSamplerHeapBindingArray/samplerBindingArrayInfo (0.00s)
+=== RUN   TestIsAbstractIntLiteral
+--- PASS: TestIsAbstractIntLiteral (0.00s)
+=== RUN   TestWritePack4xI8U8
+=== RUN   TestWritePack4xI8U8/pack4xI8_signed
+=== RUN   TestWritePack4xI8U8/pack4xU8_unsigned
+=== RUN   TestWritePack4xI8U8/pack4xI8Clamp_signed_clamp
+=== RUN   TestWritePack4xI8U8/pack4xU8Clamp_unsigned_clamp
+--- PASS: TestWritePack4xI8U8 (0.00s)
+    --- PASS: TestWritePack4xI8U8/pack4xI8_signed (0.00s)
+    --- PASS: TestWritePack4xI8U8/pack4xU8_unsigned (0.00s)
+    --- PASS: TestWritePack4xI8U8/pack4xI8Clamp_signed_clamp (0.00s)
+    --- PASS: TestWritePack4xI8U8/pack4xU8Clamp_unsigned_clamp (0.00s)
+=== RUN   TestWriteUnpack4xI8U8
+=== RUN   TestWriteUnpack4xI8U8/unpack4xI8_signed
+=== RUN   TestWriteUnpack4xI8U8/unpack4xU8_unsigned
+--- PASS: TestWriteUnpack4xI8U8 (0.00s)
+    --- PASS: TestWriteUnpack4xI8U8/unpack4xI8_signed (0.00s)
+    --- PASS: TestWriteUnpack4xI8U8/unpack4xU8_unsigned (0.00s)
+=== RUN   TestWriteDot4Packed
+=== RUN   TestWriteDot4Packed/dot4i8_sm64_intrinsic
+=== RUN   TestWriteDot4Packed/dot4u8_sm64_intrinsic
+=== RUN   TestWriteDot4Packed/dot4i8_sm60_polyfill
+=== RUN   TestWriteDot4Packed/dot4u8_sm60_polyfill
+=== RUN   TestWriteDot4Packed/missing_arg1_error
+--- PASS: TestWriteDot4Packed (0.00s)
+    --- PASS: TestWriteDot4Packed/dot4i8_sm64_intrinsic (0.00s)
+    --- PASS: TestWriteDot4Packed/dot4u8_sm64_intrinsic (0.00s)
+    --- PASS: TestWriteDot4Packed/dot4i8_sm60_polyfill (0.00s)
+    --- PASS: TestWriteDot4Packed/dot4u8_sm60_polyfill (0.00s)
+    --- PASS: TestWriteDot4Packed/missing_arg1_error (0.00s)
+=== RUN   TestLiteralF16Formatting
+=== RUN   TestLiteralF16Formatting/f16_1.5
+=== RUN   TestLiteralF16Formatting/f16_0.0
+--- PASS: TestLiteralF16Formatting (0.00s)
+    --- PASS: TestLiteralF16Formatting/f16_1.5 (0.00s)
+    --- PASS: TestLiteralF16Formatting/f16_0.0 (0.00s)
+=== RUN   TestExprWorkGroupUniformLoadResult
+--- PASS: TestExprWorkGroupUniformLoadResult (0.00s)
+PASS

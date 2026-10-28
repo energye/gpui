@@ -1,0 +1,135 @@
+=== RUN   TestNoopBackendVariant
+--- PASS: TestNoopBackendVariant (0.00s)
+=== RUN   TestNoopCreateInstance
+--- PASS: TestNoopCreateInstance (0.00s)
+=== RUN   TestNoopCreateInstance_NilDescriptor
+--- PASS: TestNoopCreateInstance_NilDescriptor (0.00s)
+=== RUN   TestNoopEnumerateAdapters
+--- PASS: TestNoopEnumerateAdapters (0.00s)
+=== RUN   TestNoopEnumerateAdapters_WithSurfaceHint
+--- PASS: TestNoopEnumerateAdapters_WithSurfaceHint (0.00s)
+=== RUN   TestNoopCreateSurface
+=== RUN   TestNoopCreateSurface/zero_handles
+=== RUN   TestNoopCreateSurface/non-zero_handles
+--- PASS: TestNoopCreateSurface (0.00s)
+    --- PASS: TestNoopCreateSurface/zero_handles (0.00s)
+    --- PASS: TestNoopCreateSurface/non-zero_handles (0.00s)
+=== RUN   TestNoopAdapterOpen
+=== RUN   TestNoopAdapterOpen/default_limits
+=== RUN   TestNoopAdapterOpen/zero_limits
+=== RUN   TestNoopAdapterOpen/with_features
+--- PASS: TestNoopAdapterOpen (0.00s)
+    --- PASS: TestNoopAdapterOpen/default_limits (0.00s)
+    --- PASS: TestNoopAdapterOpen/zero_limits (0.00s)
+    --- PASS: TestNoopAdapterOpen/with_features (0.00s)
+=== RUN   TestNoopAdapterCapabilities
+--- PASS: TestNoopAdapterCapabilities (0.00s)
+=== RUN   TestNoopCreateBuffer
+=== RUN   TestNoopCreateBuffer/basic_buffer
+=== RUN   TestNoopCreateBuffer/mapped_buffer
+=== RUN   TestNoopCreateBuffer/zero_size_buffer
+=== RUN   TestNoopCreateBuffer/large_buffer
+--- PASS: TestNoopCreateBuffer (0.00s)
+    --- PASS: TestNoopCreateBuffer/basic_buffer (0.00s)
+    --- PASS: TestNoopCreateBuffer/mapped_buffer (0.00s)
+    --- PASS: TestNoopCreateBuffer/zero_size_buffer (0.00s)
+    --- PASS: TestNoopCreateBuffer/large_buffer (0.00s)
+=== RUN   TestNoopCreateTexture
+=== RUN   TestNoopCreateTexture/2D_texture
+=== RUN   TestNoopCreateTexture/3D_texture
+=== RUN   TestNoopCreateTexture/MSAA_texture
+--- PASS: TestNoopCreateTexture (0.00s)
+    --- PASS: TestNoopCreateTexture/2D_texture (0.00s)
+    --- PASS: TestNoopCreateTexture/3D_texture (0.00s)
+    --- PASS: TestNoopCreateTexture/MSAA_texture (0.00s)
+=== RUN   TestNoopCreateSampler
+=== RUN   TestNoopCreateSampler/default_sampler
+=== RUN   TestNoopCreateSampler/comparison_sampler
+--- PASS: TestNoopCreateSampler (0.00s)
+    --- PASS: TestNoopCreateSampler/default_sampler (0.00s)
+    --- PASS: TestNoopCreateSampler/comparison_sampler (0.00s)
+=== RUN   TestNoopCreateBindGroupLayout
+--- PASS: TestNoopCreateBindGroupLayout (0.00s)
+=== RUN   TestNoopCreateShaderModule
+=== RUN   TestNoopCreateShaderModule/WGSL_shader
+=== RUN   TestNoopCreateShaderModule/SPIR-V_shader
+--- PASS: TestNoopCreateShaderModule (0.00s)
+    --- PASS: TestNoopCreateShaderModule/WGSL_shader (0.00s)
+    --- PASS: TestNoopCreateShaderModule/SPIR-V_shader (0.00s)
+=== RUN   TestNoopCreateRenderPipeline
+--- PASS: TestNoopCreateRenderPipeline (0.00s)
+=== RUN   TestNoopCreateComputePipeline
+--- PASS: TestNoopCreateComputePipeline (0.00s)
+=== RUN   TestNoopCreateFence
+--- PASS: TestNoopCreateFence (0.00s)
+=== RUN   TestNoopQueueSubmit
+--- PASS: TestNoopQueueSubmit (0.00s)
+=== RUN   TestNoopQueueWriteBuffer
+--- PASS: TestNoopQueueWriteBuffer (0.00s)
+=== RUN   TestNoopQueueWriteTexture
+--- PASS: TestNoopQueueWriteTexture (0.00s)
+=== RUN   TestNoopCommandEncoder
+--- PASS: TestNoopCommandEncoder (0.00s)
+=== RUN   TestNoopRenderPass
+--- PASS: TestNoopRenderPass (0.00s)
+=== RUN   TestNoopComputePass
+--- PASS: TestNoopComputePass (0.00s)
+=== RUN   TestNoopComputeE2E
+--- PASS: TestNoopComputeE2E (0.00s)
+=== RUN   TestNoopWriteReadBufferRoundTrip
+--- PASS: TestNoopWriteReadBufferRoundTrip (0.00s)
+=== RUN   TestNoopWriteReadBufferWithOffset
+--- PASS: TestNoopWriteReadBufferWithOffset (0.00s)
+=== RUN   TestNoopSurfaceConfigure
+--- PASS: TestNoopSurfaceConfigure (0.00s)
+=== RUN   TestNoopSurfaceAcquireTexture
+--- PASS: TestNoopSurfaceAcquireTexture (0.00s)
+=== RUN   TestNoopFenceValue
+--- PASS: TestNoopFenceValue (0.00s)
+=== RUN   TestNoopFenceWait
+--- PASS: TestNoopFenceWait (0.00s)
+=== RUN   TestNoopFullLifecycle
+--- PASS: TestNoopFullLifecycle (0.00s)
+=== RUN   TestNoopConcurrentAccess
+--- PASS: TestNoopConcurrentAccess (0.00s)
+=== RUN   TestNoopCreateQuerySet
+--- PASS: TestNoopCreateQuerySet (0.00s)
+=== RUN   TestNoopCreateRenderBundleEncoder
+--- PASS: TestNoopCreateRenderBundleEncoder (0.00s)
+=== RUN   TestNoopWaitIdle
+--- PASS: TestNoopWaitIdle (0.00s)
+=== RUN   TestNoopGetFenceStatus
+--- PASS: TestNoopGetFenceStatus (0.00s)
+=== RUN   TestNoopResetFence
+--- PASS: TestNoopResetFence (0.00s)
+=== RUN   TestNoopDeviceWaitWithNonNoopFence
+--- PASS: TestNoopDeviceWaitWithNonNoopFence (0.00s)
+=== RUN   TestNoopFreeCommandBuffer
+--- PASS: TestNoopFreeCommandBuffer (0.00s)
+=== RUN   TestNoopDestroyQuerySet
+--- PASS: TestNoopDestroyQuerySet (0.00s)
+=== RUN   TestNoopDestroyRenderBundle
+--- PASS: TestNoopDestroyRenderBundle (0.00s)
+=== RUN   TestNoopDeviceRelease
+--- PASS: TestNoopDeviceRelease (0.00s)
+=== RUN   TestNoopCommandEncoderBeginEnd
+--- PASS: TestNoopCommandEncoderBeginEnd (0.00s)
+=== RUN   TestNoopCommandEncoderDiscardEncoding
+--- PASS: TestNoopCommandEncoderDiscardEncoding (0.00s)
+=== RUN   TestNoopCommandEncoderResetAll
+--- PASS: TestNoopCommandEncoderResetAll (0.00s)
+=== RUN   TestNoopCommandEncoderTransitions
+--- PASS: TestNoopCommandEncoderTransitions (0.00s)
+=== RUN   TestNoopCommandEncoderClearBuffer
+--- PASS: TestNoopCommandEncoderClearBuffer (0.00s)
+=== RUN   TestNoopCommandEncoderCopyOps
+--- PASS: TestNoopCommandEncoderCopyOps (0.00s)
+=== RUN   TestNoopCommandEncoderResolveQuerySet
+--- PASS: TestNoopCommandEncoderResolveQuerySet (0.00s)
+=== RUN   TestNoopRenderPassEncoder
+--- PASS: TestNoopRenderPassEncoder (0.00s)
+=== RUN   TestNoopComputePassEncoder
+--- PASS: TestNoopComputePassEncoder (0.00s)
+=== RUN   TestNoopDestroyMethods
+--- PASS: TestNoopDestroyMethods (0.00s)
+PASS

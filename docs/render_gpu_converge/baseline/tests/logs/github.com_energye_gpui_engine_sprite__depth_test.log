@@ -1,0 +1,14 @@
+=== RUN   TestDepthSortFromCases
+--- PASS: TestDepthSortFromCases (0.00s)
+=== RUN   TestDepthEdgesNoCrash
+--- PASS: TestDepthEdgesNoCrash (0.00s)
+=== RUN   TestDepthBoundaryIdentical
+--- PASS: TestDepthBoundaryIdentical (0.00s)
+=== RUN   TestDepthPerfOcclusion
+    depth_test.go:200: depth 100 occluders x2000 in 14.175733ms (7.1us/sort)
+--- PASS: TestDepthPerfOcclusion (0.01s)
+=== RUN   TestDepthLongRunStable
+--- PASS: TestDepthLongRunStable (0.01s)
+=== RUN   TestDepthOffscreenContrast
+--- PASS: TestDepthOffscreenContrast (0.00s)
+PASS

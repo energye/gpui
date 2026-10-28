@@ -1,0 +1,61 @@
+=== RUN   TestHairlineVisualDashedRect
+--- PASS: TestHairlineVisualDashedRect (0.30s)
+=== RUN   TestHairlineQualityComparison
+    hairline_visual_test.go:100: Gray (AA) pixels: 162, Black pixels: 80, Unique gray levels: 3
+--- PASS: TestHairlineQualityComparison (0.00s)
+=== RUN   TestHairlineHorizontalLine
+    hairline_visual_test.go:142: Row 50: 80 pixels, Row 51: 80 pixels
+--- PASS: TestHairlineHorizontalLine (0.00s)
+=== RUN   TestHairlineVerticalLine
+    hairline_visual_test.go:189: Col 50: 80 pixels, Col 51: 80 pixels
+--- PASS: TestHairlineVerticalLine (0.00s)
+=== RUN   TestHairlineThinLineVisibility
+=== RUN   TestHairlineThinLineVisibility/width_0,0)-(5,0)
+    hairline_visual_test.go:251: Width 0.500000: 242 visible pixels, 0 solid-dark pixels
+=== RUN   TestHairlineThinLineVisibility/width_0,0)-(3,0)
+    hairline_visual_test.go:251: Width 0.300000: 242 visible pixels, 0 solid-dark pixels
+=== RUN   TestHairlineThinLineVisibility/width_0,0)-(1,0)
+    hairline_visual_test.go:251: Width 0.100000: 242 visible pixels, 0 solid-dark pixels
+--- PASS: TestHairlineThinLineVisibility (0.01s)
+    --- PASS: TestHairlineThinLineVisibility/width_0,0)-(5,0) (0.00s)
+    --- PASS: TestHairlineThinLineVisibility/width_0,0)-(3,0) (0.00s)
+    --- PASS: TestHairlineThinLineVisibility/width_0,0)-(1,0) (0.00s)
+=== RUN   TestHairlineLineCaps
+=== RUN   TestHairlineLineCaps/butt
+=== RUN   TestHairlineLineCaps/round
+=== RUN   TestHairlineLineCaps/square
+--- PASS: TestHairlineLineCaps (0.01s)
+    --- PASS: TestHairlineLineCaps/butt (0.00s)
+    --- PASS: TestHairlineLineCaps/round (0.00s)
+    --- PASS: TestHairlineLineCaps/square (0.00s)
+=== RUN   TestHairlineDashPattern
+    hairline_visual_test.go:361: Detected 12 dashes
+--- PASS: TestHairlineDashPattern (0.00s)
+=== RUN   TestHairlineWithColors
+=== RUN   TestHairlineWithColors/red
+=== RUN   TestHairlineWithColors/green
+=== RUN   TestHairlineWithColors/blue
+=== RUN   TestHairlineWithColors/gray
+--- PASS: TestHairlineWithColors (0.01s)
+    --- PASS: TestHairlineWithColors/red (0.00s)
+    --- PASS: TestHairlineWithColors/green (0.00s)
+    --- PASS: TestHairlineWithColors/blue (0.00s)
+    --- PASS: TestHairlineWithColors/gray (0.00s)
+=== RUN   TestHairlineEdgeCase_NearIntegerCoordinates
+=== RUN   TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(0,0)
+=== RUN   TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(0,0)#01
+=== RUN   TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(2,0)
+=== RUN   TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(5,0)
+=== RUN   TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(7,0)
+=== RUN   TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(9,0)
+--- PASS: TestHairlineEdgeCase_NearIntegerCoordinates (0.01s)
+    --- PASS: TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(0,0) (0.00s)
+    --- PASS: TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(0,0)#01 (0.00s)
+    --- PASS: TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(2,0) (0.00s)
+    --- PASS: TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(5,0) (0.00s)
+    --- PASS: TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(7,0) (0.00s)
+    --- PASS: TestHairlineEdgeCase_NearIntegerCoordinates/offset_0,0)-(9,0) (0.00s)
+=== RUN   TestStrokeExpansion_ScaledDashedRect
+    hairline_visual_test.go:509: Black pixels: 1200, Gray AA pixels: 0
+--- PASS: TestStrokeExpansion_ScaledDashedRect (0.01s)
+PASS

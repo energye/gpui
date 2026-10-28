@@ -1,0 +1,3 @@
+=== RUN   TestComposite_RejectsUnsealed
+--- PASS: TestComposite_RejectsUnsealed (0.00s)
+PASS

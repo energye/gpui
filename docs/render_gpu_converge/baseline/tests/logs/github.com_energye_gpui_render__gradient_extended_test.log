@@ -1,0 +1,107 @@
+=== RUN   TestApplyExtendMode_LargeValues
+=== RUN   TestApplyExtendMode_LargeValues/repeat_large_positive
+=== RUN   TestApplyExtendMode_LargeValues/repeat_large_negative
+=== RUN   TestApplyExtendMode_LargeValues/reflect_3.25
+=== RUN   TestApplyExtendMode_LargeValues/reflect_4.5
+=== RUN   TestApplyExtendMode_LargeValues/pad_large_positive
+=== RUN   TestApplyExtendMode_LargeValues/pad_large_negative
+--- PASS: TestApplyExtendMode_LargeValues (0.00s)
+    --- PASS: TestApplyExtendMode_LargeValues/repeat_large_positive (0.00s)
+    --- PASS: TestApplyExtendMode_LargeValues/repeat_large_negative (0.00s)
+    --- PASS: TestApplyExtendMode_LargeValues/reflect_3.25 (0.00s)
+    --- PASS: TestApplyExtendMode_LargeValues/reflect_4.5 (0.00s)
+    --- PASS: TestApplyExtendMode_LargeValues/pad_large_positive (0.00s)
+    --- PASS: TestApplyExtendMode_LargeValues/pad_large_negative (0.00s)
+=== RUN   TestClamp01
+=== RUN   TestClamp01/negative
+=== RUN   TestClamp01/zero
+=== RUN   TestClamp01/middle
+=== RUN   TestClamp01/one
+=== RUN   TestClamp01/over
+=== RUN   TestClamp01/large_negative
+=== RUN   TestClamp01/large_positive
+--- PASS: TestClamp01 (0.00s)
+    --- PASS: TestClamp01/negative (0.00s)
+    --- PASS: TestClamp01/zero (0.00s)
+    --- PASS: TestClamp01/middle (0.00s)
+    --- PASS: TestClamp01/one (0.00s)
+    --- PASS: TestClamp01/over (0.00s)
+    --- PASS: TestClamp01/large_negative (0.00s)
+    --- PASS: TestClamp01/large_positive (0.00s)
+=== RUN   TestColorAtOffset_EdgeCases
+=== RUN   TestColorAtOffset_EdgeCases/empty_stops_returns_transparent
+=== RUN   TestColorAtOffset_EdgeCases/single_stop_returns_that_color
+=== RUN   TestColorAtOffset_EdgeCases/t_before_first_stop
+=== RUN   TestColorAtOffset_EdgeCases/t_after_last_stop
+=== RUN   TestColorAtOffset_EdgeCases/coincident_stops
+=== RUN   TestColorAtOffset_EdgeCases/pre-sorted_stops_work_correctly
+--- PASS: TestColorAtOffset_EdgeCases (0.00s)
+    --- PASS: TestColorAtOffset_EdgeCases/empty_stops_returns_transparent (0.00s)
+    --- PASS: TestColorAtOffset_EdgeCases/single_stop_returns_that_color (0.00s)
+    --- PASS: TestColorAtOffset_EdgeCases/t_before_first_stop (0.00s)
+    --- PASS: TestColorAtOffset_EdgeCases/t_after_last_stop (0.00s)
+    --- PASS: TestColorAtOffset_EdgeCases/coincident_stops (0.00s)
+    --- PASS: TestColorAtOffset_EdgeCases/pre-sorted_stops_work_correctly (0.00s)
+=== RUN   TestColorAtOffset_Interpolation
+--- PASS: TestColorAtOffset_Interpolation (0.00s)
+=== RUN   TestColorAtOffset_ThreeStops
+--- PASS: TestColorAtOffset_ThreeStops (0.00s)
+=== RUN   TestSortStops_SingleStop
+--- PASS: TestSortStops_SingleStop (0.00s)
+=== RUN   TestSortStops_DoesNotModifyOriginal
+--- PASS: TestSortStops_DoesNotModifyOriginal (0.00s)
+=== RUN   TestLinearGradientBrush_Diagonal
+--- PASS: TestLinearGradientBrush_Diagonal (0.00s)
+=== RUN   TestLinearGradientBrush_SetExtend
+--- PASS: TestLinearGradientBrush_SetExtend (0.00s)
+=== RUN   TestLinearGradientBrush_ExtendReflect
+--- PASS: TestLinearGradientBrush_ExtendReflect (0.00s)
+=== RUN   TestLinearGradientBrush_PerpendicularPoint
+--- PASS: TestLinearGradientBrush_PerpendicularPoint (0.00s)
+=== RUN   TestRadialGradientBrush_SimpleSymmetry
+--- PASS: TestRadialGradientBrush_SimpleSymmetry (0.00s)
+=== RUN   TestRadialGradientBrush_FocalAtCenter
+--- PASS: TestRadialGradientBrush_FocalAtCenter (0.00s)
+=== RUN   TestRadialGradientBrush_FocalCompute
+--- PASS: TestRadialGradientBrush_FocalCompute (0.00s)
+=== RUN   TestRadialGradientBrush_SingleStop
+--- PASS: TestRadialGradientBrush_SingleStop (0.00s)
+=== RUN   TestRadialGradientBrush_ExtendReflect
+--- PASS: TestRadialGradientBrush_ExtendReflect (0.00s)
+=== RUN   TestSweepGradientBrush_SingleStop
+--- PASS: TestSweepGradientBrush_SingleStop (0.00s)
+=== RUN   TestSweepGradientBrush_ZeroSweep
+--- PASS: TestSweepGradientBrush_ZeroSweep (0.00s)
+=== RUN   TestSweepGradientBrush_PartialSweep
+--- PASS: TestSweepGradientBrush_PartialSweep (0.00s)
+=== RUN   TestNormalizeAngle
+=== RUN   TestNormalizeAngle/positive_sweep,_positive_angle
+=== RUN   TestNormalizeAngle/positive_sweep,_negative_angle
+=== RUN   TestNormalizeAngle/negative_sweep,_positive_angle
+=== RUN   TestNormalizeAngle/negative_sweep,_negative_angle
+=== RUN   TestNormalizeAngle/zero_angle,_positive_sweep
+--- PASS: TestNormalizeAngle (0.00s)
+    --- PASS: TestNormalizeAngle/positive_sweep,_positive_angle (0.00s)
+    --- PASS: TestNormalizeAngle/positive_sweep,_negative_angle (0.00s)
+    --- PASS: TestNormalizeAngle/negative_sweep,_positive_angle (0.00s)
+    --- PASS: TestNormalizeAngle/negative_sweep,_negative_angle (0.00s)
+    --- PASS: TestNormalizeAngle/zero_angle,_positive_sweep (0.00s)
+=== RUN   TestInterpolateColorLinear_SameColor
+--- PASS: TestInterpolateColorLinear_SameColor (0.00s)
+=== RUN   TestInterpolateColorLinear_WithAlpha
+--- PASS: TestInterpolateColorLinear_WithAlpha (0.00s)
+=== RUN   TestFirstStopColor
+=== RUN   TestFirstStopColor/empty_returns_transparent
+=== RUN   TestFirstStopColor/single_stop
+=== RUN   TestFirstStopColor/sorted_returns_minimum_offset
+--- PASS: TestFirstStopColor (0.00s)
+    --- PASS: TestFirstStopColor/empty_returns_transparent (0.00s)
+    --- PASS: TestFirstStopColor/single_stop (0.00s)
+    --- PASS: TestFirstStopColor/sorted_returns_minimum_offset (0.00s)
+=== RUN   TestLinearGradientBrush_Chaining
+--- PASS: TestLinearGradientBrush_Chaining (0.00s)
+=== RUN   TestRadialGradientBrush_Chaining
+--- PASS: TestRadialGradientBrush_Chaining (0.00s)
+=== RUN   TestSweepGradientBrush_Chaining
+--- PASS: TestSweepGradientBrush_Chaining (0.00s)
+PASS

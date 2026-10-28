@@ -1,0 +1,6 @@
+=== RUN   TestLeakDetection
+    debug_test.go:20: Before release: 1 unreleased GPU resource(s): Instance=1 [[Instance:-]]
+--- PASS: TestLeakDetection (0.18s)
+=== RUN   TestLeakDetectionDisabled
+--- PASS: TestLeakDetectionDisabled (0.11s)
+PASS

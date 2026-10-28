@@ -1,0 +1,23 @@
+=== RUN   TestMapSurfaceAcquireErr_Sentinels
+=== RUN   TestMapSurfaceAcquireErr_Sentinels/nil
+=== RUN   TestMapSurfaceAcquireErr_Sentinels/occluded
+=== RUN   TestMapSurfaceAcquireErr_Sentinels/timeout
+=== RUN   TestMapSurfaceAcquireErr_Sentinels/outdated
+=== RUN   TestMapSurfaceAcquireErr_Sentinels/surface_lost
+=== RUN   TestMapSurfaceAcquireErr_Sentinels/device_lost_surface
+=== RUN   TestMapSurfaceAcquireErr_Sentinels/device_lost
+--- PASS: TestMapSurfaceAcquireErr_Sentinels (0.00s)
+    --- PASS: TestMapSurfaceAcquireErr_Sentinels/nil (0.00s)
+    --- PASS: TestMapSurfaceAcquireErr_Sentinels/occluded (0.00s)
+    --- PASS: TestMapSurfaceAcquireErr_Sentinels/timeout (0.00s)
+    --- PASS: TestMapSurfaceAcquireErr_Sentinels/outdated (0.00s)
+    --- PASS: TestMapSurfaceAcquireErr_Sentinels/surface_lost (0.00s)
+    --- PASS: TestMapSurfaceAcquireErr_Sentinels/device_lost_surface (0.00s)
+    --- PASS: TestMapSurfaceAcquireErr_Sentinels/device_lost (0.00s)
+=== RUN   TestMapSurfaceAcquireErr_Wrapped
+--- PASS: TestMapSurfaceAcquireErr_Wrapped (0.00s)
+=== RUN   TestSkipFrameVsOutdatedClassification
+--- PASS: TestSkipFrameVsOutdatedClassification (0.00s)
+=== RUN   TestIsDeviceLostErr_MessageFallback
+--- PASS: TestIsDeviceLostErr_MessageFallback (0.00s)
+PASS

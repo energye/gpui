@@ -1,0 +1,5 @@
+=== RUN   TestHitDebugName_MatchesPaintedBoxes
+--- PASS: TestHitDebugName_MatchesPaintedBoxes (0.00s)
+=== RUN   TestBoundaryCache_ClearDropsEntries
+--- PASS: TestBoundaryCache_ClearDropsEntries (0.00s)
+PASS

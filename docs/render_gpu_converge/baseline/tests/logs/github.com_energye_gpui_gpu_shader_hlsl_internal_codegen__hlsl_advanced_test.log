@@ -1,0 +1,81 @@
+=== RUN   TestCompile_GlobalConstCompose
+--- PASS: TestCompile_GlobalConstCompose (0.00s)
+=== RUN   TestCompile_GlobalConstBinaryExpr
+--- PASS: TestCompile_GlobalConstBinaryExpr (0.00s)
+=== RUN   TestCompile_StructMemberAccess
+--- PASS: TestCompile_StructMemberAccess (0.00s)
+=== RUN   TestCompile_NestedArrayAccess
+--- PASS: TestCompile_NestedArrayAccess (0.00s)
+=== RUN   TestCompile_DynamicArrayAccess
+--- PASS: TestCompile_DynamicArrayAccess (0.00s)
+=== RUN   TestCompile_LoopWithContinuing
+--- PASS: TestCompile_LoopWithContinuing (0.00s)
+=== RUN   TestCompile_InterpolationModifiers
+--- PASS: TestCompile_InterpolationModifiers (0.00s)
+=== RUN   TestCompile_StorageTextureFormats
+=== RUN   TestCompile_StorageTextureFormats/rgba8unorm
+=== RUN   TestCompile_StorageTextureFormats/rgba16float
+=== RUN   TestCompile_StorageTextureFormats/r32uint
+=== RUN   TestCompile_StorageTextureFormats/r32sint
+=== RUN   TestCompile_StorageTextureFormats/r32float
+=== RUN   TestCompile_StorageTextureFormats/rgba32float
+=== RUN   TestCompile_StorageTextureFormats/rgba32uint
+=== RUN   TestCompile_StorageTextureFormats/rgba32sint
+--- PASS: TestCompile_StorageTextureFormats (0.00s)
+    --- PASS: TestCompile_StorageTextureFormats/rgba8unorm (0.00s)
+    --- PASS: TestCompile_StorageTextureFormats/rgba16float (0.00s)
+    --- PASS: TestCompile_StorageTextureFormats/r32uint (0.00s)
+    --- PASS: TestCompile_StorageTextureFormats/r32sint (0.00s)
+    --- PASS: TestCompile_StorageTextureFormats/r32float (0.00s)
+    --- PASS: TestCompile_StorageTextureFormats/rgba32float (0.00s)
+    --- PASS: TestCompile_StorageTextureFormats/rgba32uint (0.00s)
+    --- PASS: TestCompile_StorageTextureFormats/rgba32sint (0.00s)
+=== RUN   TestCompile_TextureLoad
+--- PASS: TestCompile_TextureLoad (0.00s)
+=== RUN   TestCompile_TextureSampleLevel
+--- PASS: TestCompile_TextureSampleLevel (0.00s)
+=== RUN   TestCompile_TextureSampleBias
+--- PASS: TestCompile_TextureSampleBias (0.00s)
+=== RUN   TestCompile_TextureSampleCompare
+--- PASS: TestCompile_TextureSampleCompare (0.00s)
+=== RUN   TestCompile_TextureNumLevels
+--- PASS: TestCompile_TextureNumLevels (0.00s)
+=== RUN   TestCompile_MatCx2Store
+--- PASS: TestCompile_MatCx2Store (0.00s)
+=== RUN   TestCompile_LocalVariables
+--- PASS: TestCompile_LocalVariables (0.00s)
+=== RUN   TestCompile_MultipleStorageBuffers
+--- PASS: TestCompile_MultipleStorageBuffers (0.00s)
+=== RUN   TestCompile_PhonyAssignment
+--- PASS: TestCompile_PhonyAssignment (0.00s)
+=== RUN   TestCompile_NestedStructTypes
+--- PASS: TestCompile_NestedStructTypes (0.00s)
+=== RUN   TestCompile_SwitchU32
+--- PASS: TestCompile_SwitchU32 (0.00s)
+=== RUN   TestCompile_WhileLoop
+--- PASS: TestCompile_WhileLoop (0.00s)
+=== RUN   TestCompile_TextureMultisampled
+--- PASS: TestCompile_TextureMultisampled (0.00s)
+=== RUN   TestCompile_TextureCube
+--- PASS: TestCompile_TextureCube (0.00s)
+=== RUN   TestCompile_Texture3D
+--- PASS: TestCompile_Texture3D (0.00s)
+=== RUN   TestCompile_TextureArray2D
+--- PASS: TestCompile_TextureArray2D (0.00s)
+=== RUN   TestCompile_ForceLoopBounding
+--- PASS: TestCompile_ForceLoopBounding (0.00s)
+=== RUN   TestCompile_SpecialConstants
+--- PASS: TestCompile_SpecialConstants (0.00s)
+=== RUN   TestCompile_DerivativeFineCoarse
+--- PASS: TestCompile_DerivativeFineCoarse (0.00s)
+=== RUN   TestCompile_ModuloOperator
+--- PASS: TestCompile_ModuloOperator (0.00s)
+=== RUN   TestCompile_FloatModulo
+--- PASS: TestCompile_FloatModulo (0.00s)
+=== RUN   TestCompile_IntegerDivision
+--- PASS: TestCompile_IntegerDivision (0.00s)
+=== RUN   TestCompile_MultiFunctionShader
+--- PASS: TestCompile_MultiFunctionShader (0.00s)
+=== RUN   TestCompile_SamplerComparison
+--- PASS: TestCompile_SamplerComparison (0.00s)
+PASS

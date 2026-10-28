@@ -1,0 +1,15 @@
+=== RUN   TestVelloStageLayout_ClipLeafOrder
+--- PASS: TestVelloStageLayout_ClipLeafOrder (0.00s)
+=== RUN   TestVelloStageClipLeafString
+--- PASS: TestVelloStageClipLeafString (0.00s)
+=== RUN   TestComputeWorkgroupCount_ClipLeaf
+--- PASS: TestComputeWorkgroupCount_ClipLeaf (0.00s)
+=== RUN   TestStageBindGroupLayoutEntries_ClipLeaf
+--- PASS: TestStageBindGroupLayoutEntries_ClipLeaf (0.00s)
+=== RUN   TestStageBindGroupLayoutEntries_DrawLeafHasClipInp
+--- PASS: TestStageBindGroupLayoutEntries_DrawLeafHasClipInp (0.00s)
+=== RUN   TestComputeBufferSizes_ClipInp
+--- PASS: TestComputeBufferSizes_ClipInp (0.00s)
+=== RUN   TestBuildPathMetadata_ClipScene
+--- PASS: TestBuildPathMetadata_ClipScene (0.00s)
+PASS

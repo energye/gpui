@@ -1,0 +1,7 @@
+=== RUN   TestRegTransientView_LifecycleClosesAtFrameBoundary
+--- PASS: TestRegTransientView_LifecycleClosesAtFrameBoundary (0.23s)
+=== RUN   TestRegBorrowed_RetireSkipsNativeRelease
+--- PASS: TestRegBorrowed_RetireSkipsNativeRelease (0.19s)
+=== RUN   TestRegTransientView_RawResolvePathRetired
+--- PASS: TestRegTransientView_RawResolvePathRetired (0.20s)
+PASS

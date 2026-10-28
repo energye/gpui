@@ -1,0 +1,11 @@
+=== RUN   TestForceLoopBounding
+=== RUN   TestForceLoopBounding/enabled
+=== RUN   TestForceLoopBounding/disabled
+--- PASS: TestForceLoopBounding (0.00s)
+    --- PASS: TestForceLoopBounding/enabled (0.00s)
+    --- PASS: TestForceLoopBounding/disabled (0.00s)
+=== RUN   TestDot4PolyfillWhenCapNotAvailable
+--- PASS: TestDot4PolyfillWhenCapNotAvailable (0.00s)
+=== RUN   TestDot4NativeWhenCapAvailable
+--- PASS: TestDot4NativeWhenCapAvailable (0.00s)
+PASS

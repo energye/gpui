@@ -1,0 +1,7 @@
+=== RUN   TestX11RealWindow_ResizeSyncProtocol
+--- PASS: TestX11RealWindow_ResizeSyncProtocol (0.11s)
+=== RUN   TestX11RealWindow_SyncRequestAdvancesCounter
+--- PASS: TestX11RealWindow_SyncRequestAdvancesCounter (0.10s)
+=== RUN   TestX11RealWindow_ConfigNotifyDrivesResize
+--- PASS: TestX11RealWindow_ConfigNotifyDrivesResize (0.10s)
+PASS

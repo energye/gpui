@@ -1,0 +1,12 @@
+=== RUN   TestScanScriptDispatch
+    zz_scriptdispatch_test.go:137: arab px12: bad=0/40
+    zz_scriptdispatch_test.go:137: arab px16: bad=0/40
+    zz_scriptdispatch_test.go:137: ethi px12: bad=0/40
+    zz_scriptdispatch_test.go:137: ethi px16: bad=0/40
+    zz_scriptdispatch_test.go:137: mymr px12: bad=0/40
+    zz_scriptdispatch_test.go:137: mymr px16: bad=0/40
+    zz_scriptdispatch_test.go:137: gujr px12: bad=0/40
+    zz_scriptdispatch_test.go:137: gujr px16: bad=0/40
+    zz_scriptdispatch_test.go:137: fallback px16: bad=0/15
+--- PASS: TestScanScriptDispatch (4.09s)
+PASS

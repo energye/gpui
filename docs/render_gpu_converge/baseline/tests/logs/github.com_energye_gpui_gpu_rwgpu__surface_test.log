@@ -1,0 +1,7 @@
+=== RUN   TestSurfaceGetCapabilities_NilSurface
+--- PASS: TestSurfaceGetCapabilities_NilSurface (0.00s)
+=== RUN   TestSurfaceGetCapabilities_NilAdapter
+--- PASS: TestSurfaceGetCapabilities_NilAdapter (0.00s)
+=== RUN   TestSurfaceDiscardCurrent_NilSafe
+--- PASS: TestSurfaceDiscardCurrent_NilSafe (0.00s)
+PASS

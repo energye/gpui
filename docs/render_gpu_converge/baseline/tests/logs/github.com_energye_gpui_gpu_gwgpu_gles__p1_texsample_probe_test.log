@@ -1,0 +1,21 @@
+=== RUN   TestP1_TexturedSampleOffscreenProbe
+--- PASS: TestP1_TexturedSampleOffscreenProbe (0.20s)
+=== RUN   TestP1_TexturedSampleUniformProbe
+--- PASS: TestP1_TexturedSampleUniformProbe (0.03s)
+=== RUN   TestP1_TexturedSampleClipProbe
+--- PASS: TestP1_TexturedSampleClipProbe (0.03s)
+=== RUN   TestP1_TexturedSamplePassProbe
+--- PASS: TestP1_TexturedSamplePassProbe (0.01s)
+=== RUN   TestP1_TexturedSampleMSAAProbe
+    p1_texsample_probe_test.go:1429: MSAA probe scaffolded; textured+MSAA body follows the pass-probe shape
+--- SKIP: TestP1_TexturedSampleMSAAProbe (0.00s)
+=== RUN   TestP1_TexturedSampleSlabProbe
+    p1_texsample_probe_test.go:1860: slab left=(255,0,0,255) right=(255,0,0,255)
+--- PASS: TestP1_TexturedSampleSlabProbe (0.01s)
+=== RUN   TestP1_TexturedSampleSessionShapeProbe
+    p1_texsample_probe_test.go:2270: session-shape center=(255,0,0,255)
+--- PASS: TestP1_TexturedSampleSessionShapeProbe (0.03s)
+=== RUN   TestP1_TexturedSampleRealShaderProbe
+    p1_texsample_probe_test.go:2717: real-shader center=(255,0,0,255)
+--- PASS: TestP1_TexturedSampleRealShaderProbe (0.05s)
+PASS

@@ -1,0 +1,13 @@
+=== RUN   TestRecorderMaskCommands
+--- PASS: TestRecorderMaskCommands (0.00s)
+=== RUN   TestMaskSnapshotIsImmutable
+--- PASS: TestMaskSnapshotIsImmutable (0.00s)
+=== RUN   TestMaskPlaybackIsRepeatable
+--- PASS: TestMaskPlaybackIsRepeatable (0.00s)
+=== RUN   TestMaskMismatchedExtentCountsSkip
+--- PASS: TestMaskMismatchedExtentCountsSkip (0.00s)
+=== RUN   TestMaskUnsupportedTargetCountsSkipAndKeepsLayerBalance
+--- PASS: TestMaskUnsupportedTargetCountsSkipAndKeepsLayerBalance (0.00s)
+=== RUN   TestMaskLayerPlaybackModulatesContent
+--- PASS: TestMaskLayerPlaybackModulatesContent (0.00s)
+PASS

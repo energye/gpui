@@ -1,0 +1,13 @@
+=== RUN   TestM1_CaretForOffset_Lines_M1
+--- PASS: TestM1_CaretForOffset_Lines_M1 (0.00s)
+=== RUN   TestM1_BoxesForRange_Span_M1
+--- PASS: TestM1_BoxesForRange_Span_M1 (0.00s)
+=== RUN   TestM1_NewAPIs_M1
+--- PASS: TestM1_NewAPIs_M1 (0.00s)
+=== RUN   TestM1_LineCaretsGlyphs_M1
+--- PASS: TestM1_LineCaretsGlyphs_M1 (0.00s)
+=== RUN   TestM1_GetPositionForOffset_EmptyLines
+--- PASS: TestM1_GetPositionForOffset_EmptyLines (0.00s)
+=== RUN   TestM1_GetPositionForOffset_Edges_M1
+--- PASS: TestM1_GetPositionForOffset_Edges_M1 (0.00s)
+PASS

@@ -1,0 +1,39 @@
+=== RUN   TestNullWindowChrome_Defaults
+--- PASS: TestNullWindowChrome_Defaults (0.00s)
+=== RUN   TestNullWindowChrome_Actions
+--- PASS: TestNullWindowChrome_Actions (0.00s)
+=== RUN   TestHitTestResult_String
+=== RUN   TestHitTestResult_String/Client
+=== RUN   TestHitTestResult_String/Caption
+=== RUN   TestHitTestResult_String/Close
+=== RUN   TestHitTestResult_String/Maximize
+=== RUN   TestHitTestResult_String/Minimize
+=== RUN   TestHitTestResult_String/ResizeN
+=== RUN   TestHitTestResult_String/ResizeS
+=== RUN   TestHitTestResult_String/ResizeW
+=== RUN   TestHitTestResult_String/ResizeE
+=== RUN   TestHitTestResult_String/ResizeNW
+=== RUN   TestHitTestResult_String/ResizeNE
+=== RUN   TestHitTestResult_String/ResizeSW
+=== RUN   TestHitTestResult_String/ResizeSE
+=== RUN   TestHitTestResult_String/Unknown
+--- PASS: TestHitTestResult_String (0.00s)
+    --- PASS: TestHitTestResult_String/Client (0.00s)
+    --- PASS: TestHitTestResult_String/Caption (0.00s)
+    --- PASS: TestHitTestResult_String/Close (0.00s)
+    --- PASS: TestHitTestResult_String/Maximize (0.00s)
+    --- PASS: TestHitTestResult_String/Minimize (0.00s)
+    --- PASS: TestHitTestResult_String/ResizeN (0.00s)
+    --- PASS: TestHitTestResult_String/ResizeS (0.00s)
+    --- PASS: TestHitTestResult_String/ResizeW (0.00s)
+    --- PASS: TestHitTestResult_String/ResizeE (0.00s)
+    --- PASS: TestHitTestResult_String/ResizeNW (0.00s)
+    --- PASS: TestHitTestResult_String/ResizeNE (0.00s)
+    --- PASS: TestHitTestResult_String/ResizeSW (0.00s)
+    --- PASS: TestHitTestResult_String/ResizeSE (0.00s)
+    --- PASS: TestHitTestResult_String/Unknown (0.00s)
+=== RUN   TestHitTestResult_Values
+--- PASS: TestHitTestResult_Values (0.00s)
+=== RUN   TestWindowChrome_CustomImplementation
+--- PASS: TestWindowChrome_CustomImplementation (0.00s)
+PASS

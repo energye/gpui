@@ -1,0 +1,7 @@
+=== RUN   TestM2_MultiBoundary_DirtyLocality
+--- PASS: TestM2_MultiBoundary_DirtyLocality (0.00s)
+=== RUN   TestM4_Text_DirtyLocality
+--- PASS: TestM4_Text_DirtyLocality (0.00s)
+=== RUN   TestM5_GradientBoundary_DirtyLocality
+--- PASS: TestM5_GradientBoundary_DirtyLocality (0.00s)
+PASS

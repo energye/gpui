@@ -1,0 +1,50 @@
+=== RUN   TestIsNotMonotonic
+=== RUN   TestIsNotMonotonic/increasing
+=== RUN   TestIsNotMonotonic/decreasing
+=== RUN   TestIsNotMonotonic/constant
+=== RUN   TestIsNotMonotonic/peak
+=== RUN   TestIsNotMonotonic/valley
+=== RUN   TestIsNotMonotonic/flat_start
+=== RUN   TestIsNotMonotonic/flat_end
+--- PASS: TestIsNotMonotonic (0.00s)
+    --- PASS: TestIsNotMonotonic/increasing (0.00s)
+    --- PASS: TestIsNotMonotonic/decreasing (0.00s)
+    --- PASS: TestIsNotMonotonic/constant (0.00s)
+    --- PASS: TestIsNotMonotonic/peak (0.00s)
+    --- PASS: TestIsNotMonotonic/valley (0.00s)
+    --- PASS: TestIsNotMonotonic/flat_start (0.00s)
+    --- PASS: TestIsNotMonotonic/flat_end (0.00s)
+=== RUN   TestValidUnitDivide
+=== RUN   TestValidUnitDivide/half
+=== RUN   TestValidUnitDivide/third
+=== RUN   TestValidUnitDivide/zero_denom
+=== RUN   TestValidUnitDivide/negative_result
+=== RUN   TestValidUnitDivide/greater_than_one
+=== RUN   TestValidUnitDivide/exactly_zero
+=== RUN   TestValidUnitDivide/exactly_one
+--- PASS: TestValidUnitDivide (0.00s)
+    --- PASS: TestValidUnitDivide/half (0.00s)
+    --- PASS: TestValidUnitDivide/third (0.00s)
+    --- PASS: TestValidUnitDivide/zero_denom (0.00s)
+    --- PASS: TestValidUnitDivide/negative_result (0.00s)
+    --- PASS: TestValidUnitDivide/greater_than_one (0.00s)
+    --- PASS: TestValidUnitDivide/exactly_zero (0.00s)
+    --- PASS: TestValidUnitDivide/exactly_one (0.00s)
+=== RUN   TestFindUnitQuadRoots
+=== RUN   TestFindUnitQuadRoots/no_roots_(positive_discriminant,_outside)
+    path_geometry_test.go:91: findUnitQuadRoots(1, -3, 3) = []
+=== RUN   TestFindUnitQuadRoots/one_root_at_0.5
+    path_geometry_test.go:91: findUnitQuadRoots(1, -1, 0.25) = [0.5]
+=== RUN   TestFindUnitQuadRoots/two_roots
+    path_geometry_test.go:91: findUnitQuadRoots(1, -1.5, 0.5) = [0.5]
+=== RUN   TestFindUnitQuadRoots/no_real_roots
+    path_geometry_test.go:91: findUnitQuadRoots(1, 0, 1) = []
+=== RUN   TestFindUnitQuadRoots/linear_(a=0)
+    path_geometry_test.go:91: findUnitQuadRoots(0, 2, -1) = [0.5]
+--- PASS: TestFindUnitQuadRoots (0.00s)
+    --- PASS: TestFindUnitQuadRoots/no_roots_(positive_discriminant,_outside) (0.00s)
+    --- PASS: TestFindUnitQuadRoots/one_root_at_0.5 (0.00s)
+    --- PASS: TestFindUnitQuadRoots/two_roots (0.00s)
+    --- PASS: TestFindUnitQuadRoots/no_real_roots (0.00s)
+    --- PASS: TestFindUnitQuadRoots/linear_(a=0) (0.00s)
+PASS

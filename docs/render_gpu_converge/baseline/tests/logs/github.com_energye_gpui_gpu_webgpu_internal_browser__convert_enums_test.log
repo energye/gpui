@@ -1,0 +1,45 @@
+=== RUN   TestTextureFormatToJS
+--- PASS: TestTextureFormatToJS (0.00s)
+=== RUN   TestTextureDimensionToJS
+--- PASS: TestTextureDimensionToJS (0.00s)
+=== RUN   TestTextureViewDimensionToJS
+--- PASS: TestTextureViewDimensionToJS (0.00s)
+=== RUN   TestTextureAspectToJS
+--- PASS: TestTextureAspectToJS (0.00s)
+=== RUN   TestAddressModeToJS
+--- PASS: TestAddressModeToJS (0.00s)
+=== RUN   TestFilterModeToJS
+--- PASS: TestFilterModeToJS (0.00s)
+=== RUN   TestCompareFunctionToJS
+--- PASS: TestCompareFunctionToJS (0.00s)
+=== RUN   TestPrimitiveTopologyToJS
+--- PASS: TestPrimitiveTopologyToJS (0.00s)
+=== RUN   TestFrontFaceToJS
+--- PASS: TestFrontFaceToJS (0.00s)
+=== RUN   TestCullModeToJS
+--- PASS: TestCullModeToJS (0.00s)
+=== RUN   TestIndexFormatToJS
+--- PASS: TestIndexFormatToJS (0.00s)
+=== RUN   TestVertexFormatToJS
+--- PASS: TestVertexFormatToJS (0.00s)
+=== RUN   TestVertexStepModeToJS
+--- PASS: TestVertexStepModeToJS (0.00s)
+=== RUN   TestBlendFactorToJS
+--- PASS: TestBlendFactorToJS (0.00s)
+=== RUN   TestBlendOperationToJS
+--- PASS: TestBlendOperationToJS (0.00s)
+=== RUN   TestStencilOperationToJS
+--- PASS: TestStencilOperationToJS (0.00s)
+=== RUN   TestBufferBindingTypeToJS
+--- PASS: TestBufferBindingTypeToJS (0.00s)
+=== RUN   TestSamplerBindingTypeToJS
+--- PASS: TestSamplerBindingTypeToJS (0.00s)
+=== RUN   TestTextureSampleTypeToJS
+--- PASS: TestTextureSampleTypeToJS (0.00s)
+=== RUN   TestStorageTextureAccessToJS
+--- PASS: TestStorageTextureAccessToJS (0.00s)
+=== RUN   TestTextureFormatMapCompleteness
+--- PASS: TestTextureFormatMapCompleteness (0.00s)
+=== RUN   TestVertexFormatMapCompleteness
+--- PASS: TestVertexFormatMapCompleteness (0.00s)
+PASS

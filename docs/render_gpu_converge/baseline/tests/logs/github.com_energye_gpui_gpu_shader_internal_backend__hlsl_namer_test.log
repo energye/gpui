@@ -1,0 +1,179 @@
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/t1
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/t2
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/atomic_i32
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/atomic_u32
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/input1
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/input2
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/input3
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/image_2d_i32
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/in_data_storage_g0_b3
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/in
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/out
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/float
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/int
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/struct
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/texture
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/indices
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/vertices
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/register
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/cbuffer
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/void
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/return
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/nullptr
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/constexpr
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/alignas
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/WaveGetLaneIndex
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/TraceRay
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/naga_modf
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/naga_frexp
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/naga_div
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/_naga_abs
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/SV_Position
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/SV_Target
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/SV_DispatchThreadID
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/params
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/uniformOne
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/camera
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/globals
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/output
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/result
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/nagaSamplerHeap
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/myBuffer
+=== RUN   TestNeedsTrailingUnderscore_DXILResourceNames/#00
+--- PASS: TestNeedsTrailingUnderscore_DXILResourceNames (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/t1 (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/t2 (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/atomic_i32 (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/atomic_u32 (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/input1 (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/input2 (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/input3 (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/image_2d_i32 (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/in_data_storage_g0_b3 (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/in (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/out (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/float (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/int (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/struct (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/texture (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/indices (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/vertices (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/register (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/cbuffer (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/void (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/return (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/nullptr (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/constexpr (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/alignas (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/WaveGetLaneIndex (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/TraceRay (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/naga_modf (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/naga_frexp (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/naga_div (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/_naga_abs (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/SV_Position (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/SV_Target (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/SV_DispatchThreadID (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/params (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/uniformOne (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/camera (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/globals (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/output (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/result (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/nagaSamplerHeap (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/myBuffer (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_DXILResourceNames/#00 (0.00s)
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/asm
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/ASM
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/Asm
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/decl
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/DECL
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/Decl
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/pass
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/PASS
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/Pass
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/technique
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/TECHNIQUE
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/Technique
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/texture1d
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/TEXTURE1D
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/Texture1d
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/texture2d
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/TEXTURE2D
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/Texture2d
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/texture3d
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/TEXTURE3D
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/Texture3d
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/texturecube
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/TEXTURECUBE
+=== RUN   TestNeedsTrailingUnderscore_CaseInsensitive/Texturecube
+--- PASS: TestNeedsTrailingUnderscore_CaseInsensitive (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/asm (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/ASM (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/Asm (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/decl (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/DECL (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/Decl (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/pass (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/PASS (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/Pass (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/technique (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/TECHNIQUE (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/Technique (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/texture1d (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/TEXTURE1D (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/Texture1d (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/texture2d (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/TEXTURE2D (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/Texture2d (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/texture3d (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/TEXTURE3D (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/Texture3d (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/texturecube (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/TEXTURECUBE (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_CaseInsensitive/Texturecube (0.00s)
+=== RUN   TestNeedsTrailingUnderscore_EdgeCases
+=== RUN   TestNeedsTrailingUnderscore_EdgeCases/single_zero
+=== RUN   TestNeedsTrailingUnderscore_EdgeCases/single_nine
+=== RUN   TestNeedsTrailingUnderscore_EdgeCases/single_letter
+=== RUN   TestNeedsTrailingUnderscore_EdgeCases/digit_middle
+=== RUN   TestNeedsTrailingUnderscore_EdgeCases/digit_then_underscore
+=== RUN   TestNeedsTrailingUnderscore_EdgeCases/unicode_suffix
+=== RUN   TestNeedsTrailingUnderscore_EdgeCases/float_x_prefix
+=== RUN   TestNeedsTrailingUnderscore_EdgeCases/xfloat_suffix
+--- PASS: TestNeedsTrailingUnderscore_EdgeCases (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_EdgeCases/single_zero (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_EdgeCases/single_nine (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_EdgeCases/single_letter (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_EdgeCases/digit_middle (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_EdgeCases/digit_then_underscore (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_EdgeCases/unicode_suffix (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_EdgeCases/float_x_prefix (0.00s)
+    --- PASS: TestNeedsTrailingUnderscore_EdgeCases/xfloat_suffix (0.00s)
+=== RUN   TestEndsWithDigit
+=== RUN   TestEndsWithDigit/#00
+=== RUN   TestEndsWithDigit/abc0
+=== RUN   TestEndsWithDigit/abc9
+=== RUN   TestEndsWithDigit/abc1x
+=== RUN   TestEndsWithDigit/foo_
+=== RUN   TestEndsWithDigit/123
+=== RUN   TestEndsWithDigit/a
+=== RUN   TestEndsWithDigit/5
+--- PASS: TestEndsWithDigit (0.00s)
+    --- PASS: TestEndsWithDigit/#00 (0.00s)
+    --- PASS: TestEndsWithDigit/abc0 (0.00s)
+    --- PASS: TestEndsWithDigit/abc9 (0.00s)
+    --- PASS: TestEndsWithDigit/abc1x (0.00s)
+    --- PASS: TestEndsWithDigit/foo_ (0.00s)
+    --- PASS: TestEndsWithDigit/123 (0.00s)
+    --- PASS: TestEndsWithDigit/a (0.00s)
+    --- PASS: TestEndsWithDigit/5 (0.00s)
+=== RUN   TestIsASCIIAlphanumeric
+--- PASS: TestIsASCIIAlphanumeric (0.00s)
+=== RUN   TestHLSLKeywordMaps_RustParity
+--- PASS: TestHLSLKeywordMaps_RustParity (0.00s)
+=== RUN   TestLocationSemantic_Value
+--- PASS: TestLocationSemantic_Value (0.00s)
+PASS

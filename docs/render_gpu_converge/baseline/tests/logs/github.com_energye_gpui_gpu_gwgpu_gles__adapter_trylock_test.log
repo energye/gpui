@@ -1,0 +1,3 @@
+=== RUN   TestTryLockNilContextStops
+--- PASS: TestTryLockNilContextStops (0.00s)
+PASS

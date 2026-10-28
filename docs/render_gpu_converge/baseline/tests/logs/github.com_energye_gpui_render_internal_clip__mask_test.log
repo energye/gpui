@@ -1,0 +1,81 @@
+=== RUN   TestNewMaskClipper
+=== RUN   TestNewMaskClipper/simple_rectangle
+=== RUN   TestNewMaskClipper/empty_bounds
+=== RUN   TestNewMaskClipper/negative_dimensions
+--- PASS: TestNewMaskClipper (0.00s)
+    --- PASS: TestNewMaskClipper/simple_rectangle (0.00s)
+    --- PASS: TestNewMaskClipper/empty_bounds (0.00s)
+    --- PASS: TestNewMaskClipper/negative_dimensions (0.00s)
+=== RUN   TestMaskClipper_Coverage
+=== RUN   TestMaskClipper_Coverage/outside_left
+=== RUN   TestMaskClipper_Coverage/outside_right
+=== RUN   TestMaskClipper_Coverage/outside_top
+=== RUN   TestMaskClipper_Coverage/outside_bottom
+=== RUN   TestMaskClipper_Coverage/inside_center
+=== RUN   TestMaskClipper_Coverage/outside_mask_bounds
+=== RUN   TestMaskClipper_Coverage/outside_mask_bounds_high
+--- PASS: TestMaskClipper_Coverage (0.00s)
+    --- PASS: TestMaskClipper_Coverage/outside_left (0.00s)
+    --- PASS: TestMaskClipper_Coverage/outside_right (0.00s)
+    --- PASS: TestMaskClipper_Coverage/outside_top (0.00s)
+    --- PASS: TestMaskClipper_Coverage/outside_bottom (0.00s)
+    --- PASS: TestMaskClipper_Coverage/inside_center (0.00s)
+    --- PASS: TestMaskClipper_Coverage/outside_mask_bounds (0.00s)
+    --- PASS: TestMaskClipper_Coverage/outside_mask_bounds_high (0.00s)
+=== RUN   TestMaskClipper_ApplyCoverage
+=== RUN   TestMaskClipper_ApplyCoverage/full_coverage_full_alpha
+=== RUN   TestMaskClipper_ApplyCoverage/zero_coverage
+=== RUN   TestMaskClipper_ApplyCoverage/full_coverage_half_alpha
+=== RUN   TestMaskClipper_ApplyCoverage/zero_alpha
+--- PASS: TestMaskClipper_ApplyCoverage (0.00s)
+    --- PASS: TestMaskClipper_ApplyCoverage/full_coverage_full_alpha (0.00s)
+    --- PASS: TestMaskClipper_ApplyCoverage/zero_coverage (0.00s)
+    --- PASS: TestMaskClipper_ApplyCoverage/full_coverage_half_alpha (0.00s)
+    --- PASS: TestMaskClipper_ApplyCoverage/zero_alpha (0.00s)
+=== RUN   TestMaskClipper_Bounds
+--- PASS: TestMaskClipper_Bounds (0.00s)
+=== RUN   TestMaskClipper_Mask
+--- PASS: TestMaskClipper_Mask (0.00s)
+=== RUN   TestMaskClipper_QuadraticBezier
+--- PASS: TestMaskClipper_QuadraticBezier (0.00s)
+=== RUN   TestMaskClipper_CubicBezier
+--- PASS: TestMaskClipper_CubicBezier (0.00s)
+=== RUN   TestMaskClipper_EmptyPath
+--- PASS: TestMaskClipper_EmptyPath (0.00s)
+=== RUN   TestMaskClipper_Triangle
+--- PASS: TestMaskClipper_Triangle (0.00s)
+=== RUN   TestEvalQuadraticBezier
+=== RUN   TestEvalQuadraticBezier/start_point
+=== RUN   TestEvalQuadraticBezier/end_point
+=== RUN   TestEvalQuadraticBezier/midpoint
+--- PASS: TestEvalQuadraticBezier (0.00s)
+    --- PASS: TestEvalQuadraticBezier/start_point (0.00s)
+    --- PASS: TestEvalQuadraticBezier/end_point (0.00s)
+    --- PASS: TestEvalQuadraticBezier/midpoint (0.00s)
+=== RUN   TestEvalCubicBezier
+=== RUN   TestEvalCubicBezier/start_point
+=== RUN   TestEvalCubicBezier/end_point
+--- PASS: TestEvalCubicBezier (0.00s)
+    --- PASS: TestEvalCubicBezier/start_point (0.00s)
+    --- PASS: TestEvalCubicBezier/end_point (0.00s)
+=== RUN   TestSortFloats
+=== RUN   TestSortFloats/empty
+=== RUN   TestSortFloats/single
+=== RUN   TestSortFloats/sorted
+=== RUN   TestSortFloats/reverse
+=== RUN   TestSortFloats/unsorted
+--- PASS: TestSortFloats (0.00s)
+    --- PASS: TestSortFloats/empty (0.00s)
+    --- PASS: TestSortFloats/single (0.00s)
+    --- PASS: TestSortFloats/sorted (0.00s)
+    --- PASS: TestSortFloats/reverse (0.00s)
+    --- PASS: TestSortFloats/unsorted (0.00s)
+=== RUN   TestMaskClipper_NonAA
+--- PASS: TestMaskClipper_NonAA (0.00s)
+=== RUN   TestMaskClipper_LargeTriangle
+--- PASS: TestMaskClipper_LargeTriangle (0.00s)
+=== RUN   TestMaskClipper_ApplyCoverageOutside
+--- PASS: TestMaskClipper_ApplyCoverageOutside (0.00s)
+=== RUN   TestMaskClipper_HorizontalEdge
+--- PASS: TestMaskClipper_HorizontalEdge (0.00s)
+PASS

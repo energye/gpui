@@ -1,0 +1,3 @@
+=== RUN   TestLinearDiagonalRampMatchesColorAt
+--- PASS: TestLinearDiagonalRampMatchesColorAt (0.28s)
+PASS

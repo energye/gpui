@@ -1,0 +1,43 @@
+=== RUN   TestComputeBindingMap_Empty
+--- PASS: TestComputeBindingMap_Empty (0.00s)
+=== RUN   TestComputeBindingMap_SingleUniform
+--- PASS: TestComputeBindingMap_SingleUniform (0.00s)
+=== RUN   TestComputeBindingMap_MixedResources
+--- PASS: TestComputeBindingMap_MixedResources (0.00s)
+=== RUN   TestComputeBindingMap_MultipleOfSameType
+--- PASS: TestComputeBindingMap_MultipleOfSameType (0.00s)
+=== RUN   TestComputeBindingMap_CrossGroupCounters
+--- PASS: TestComputeBindingMap_CrossGroupCounters (0.00s)
+=== RUN   TestComputeBindingMap_NilLayout
+--- PASS: TestComputeBindingMap_NilLayout (0.00s)
+=== RUN   TestComputeBindingMap_StorageTexture
+--- PASS: TestComputeBindingMap_StorageTexture (0.00s)
+=== RUN   TestClassifyBindGroupEntry
+=== RUN   TestClassifyBindGroupEntry/sampler
+=== RUN   TestClassifyBindGroupEntry/texture
+=== RUN   TestClassifyBindGroupEntry/storage_texture
+=== RUN   TestClassifyBindGroupEntry/uniform_buffer
+=== RUN   TestClassifyBindGroupEntry/storage_buffer
+=== RUN   TestClassifyBindGroupEntry/readonly_storage_buffer
+=== RUN   TestClassifyBindGroupEntry/empty_entry
+--- PASS: TestClassifyBindGroupEntry (0.00s)
+    --- PASS: TestClassifyBindGroupEntry/sampler (0.00s)
+    --- PASS: TestClassifyBindGroupEntry/texture (0.00s)
+    --- PASS: TestClassifyBindGroupEntry/storage_texture (0.00s)
+    --- PASS: TestClassifyBindGroupEntry/uniform_buffer (0.00s)
+    --- PASS: TestClassifyBindGroupEntry/storage_buffer (0.00s)
+    --- PASS: TestClassifyBindGroupEntry/readonly_storage_buffer (0.00s)
+    --- PASS: TestClassifyBindGroupEntry/empty_entry (0.00s)
+=== RUN   TestAssignBindingsAfterLink_StorageBufferReturnsError
+--- PASS: TestAssignBindingsAfterLink_StorageBufferReturnsError (0.00s)
+=== RUN   TestAssignBindingsAfterLink_BindingMapLookup
+--- PASS: TestAssignBindingsAfterLink_BindingMapLookup (0.00s)
+=== RUN   TestAssignBindingsAfterLink_MissingBindingSkipped
+--- PASS: TestAssignBindingsAfterLink_MissingBindingSkipped (0.00s)
+=== RUN   TestUniformInfo_FieldsPopulated
+--- PASS: TestUniformInfo_FieldsPopulated (0.00s)
+=== RUN   TestTranslationInfo_TextureMappings
+--- PASS: TestTranslationInfo_TextureMappings (0.00s)
+=== RUN   TestBindGroupLayoutInfo_UnusedSlot
+--- PASS: TestBindGroupLayoutInfo_UnusedSlot (0.00s)
+PASS

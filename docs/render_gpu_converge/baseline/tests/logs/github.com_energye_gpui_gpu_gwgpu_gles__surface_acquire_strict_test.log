@@ -1,0 +1,5 @@
+=== RUN   TestH4D_SurfaceAcquireStrictCodes
+--- PASS: TestH4D_SurfaceAcquireStrictCodes (0.00s)
+=== RUN   TestH4D_SurfaceDiscardTracksInflight
+--- PASS: TestH4D_SurfaceDiscardTracksInflight (0.00s)
+PASS

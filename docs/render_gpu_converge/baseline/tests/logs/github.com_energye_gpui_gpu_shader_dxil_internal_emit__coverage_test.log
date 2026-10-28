@@ -1,0 +1,169 @@
+=== RUN   TestEmitUnaryNegateFloat
+--- PASS: TestEmitUnaryNegateFloat (0.00s)
+=== RUN   TestEmitUnaryNegateInt
+--- PASS: TestEmitUnaryNegateInt (0.00s)
+=== RUN   TestEmitUnaryBitwiseNot
+--- PASS: TestEmitUnaryBitwiseNot (0.00s)
+=== RUN   TestEmitUnaryLogicalNot
+--- PASS: TestEmitUnaryLogicalNot (0.00s)
+=== RUN   TestEmitSelectScalar
+--- PASS: TestEmitSelectScalar (0.00s)
+=== RUN   TestEmitSwitchStatement
+--- PASS: TestEmitSwitchStatement (0.00s)
+=== RUN   TestEmitLiteralBool
+--- PASS: TestEmitLiteralBool (0.00s)
+=== RUN   TestEmitLiteralI32
+--- PASS: TestEmitLiteralI32 (0.00s)
+=== RUN   TestEmitLiteralU32
+--- PASS: TestEmitLiteralU32 (0.00s)
+=== RUN   TestEmitLiteralAbstractFloat
+--- PASS: TestEmitLiteralAbstractFloat (0.00s)
+=== RUN   TestEmitLiteralAbstractInt
+--- PASS: TestEmitLiteralAbstractInt (0.00s)
+=== RUN   TestEmitBinaryIntDivide
+--- PASS: TestEmitBinaryIntDivide (0.00s)
+=== RUN   TestEmitBinaryUintDivide
+--- PASS: TestEmitBinaryUintDivide (0.00s)
+=== RUN   TestEmitBinaryIntModulo
+--- PASS: TestEmitBinaryIntModulo (0.00s)
+=== RUN   TestEmitBinaryUintModulo
+--- PASS: TestEmitBinaryUintModulo (0.00s)
+=== RUN   TestEmitBinaryBitwiseOps
+=== RUN   TestEmitBinaryBitwiseOps/and
+=== RUN   TestEmitBinaryBitwiseOps/xor
+=== RUN   TestEmitBinaryBitwiseOps/or
+=== RUN   TestEmitBinaryBitwiseOps/shl
+=== RUN   TestEmitBinaryBitwiseOps/shr_signed
+--- PASS: TestEmitBinaryBitwiseOps (0.00s)
+    --- PASS: TestEmitBinaryBitwiseOps/and (0.00s)
+    --- PASS: TestEmitBinaryBitwiseOps/xor (0.00s)
+    --- PASS: TestEmitBinaryBitwiseOps/or (0.00s)
+    --- PASS: TestEmitBinaryBitwiseOps/shl (0.00s)
+    --- PASS: TestEmitBinaryBitwiseOps/shr_signed (0.00s)
+=== RUN   TestEmitBinaryLogicalOps
+--- PASS: TestEmitBinaryLogicalOps (0.00s)
+=== RUN   TestEmitBinaryFloatModulo
+--- PASS: TestEmitBinaryFloatModulo (0.00s)
+=== RUN   TestEmitComparisonOps
+=== RUN   TestEmitComparisonOps/float_equal
+=== RUN   TestEmitComparisonOps/float_not_equal
+=== RUN   TestEmitComparisonOps/float_less
+=== RUN   TestEmitComparisonOps/float_less_equal
+=== RUN   TestEmitComparisonOps/float_greater
+=== RUN   TestEmitComparisonOps/float_greater_equal
+--- PASS: TestEmitComparisonOps (0.00s)
+    --- PASS: TestEmitComparisonOps/float_equal (0.00s)
+    --- PASS: TestEmitComparisonOps/float_not_equal (0.00s)
+    --- PASS: TestEmitComparisonOps/float_less (0.00s)
+    --- PASS: TestEmitComparisonOps/float_less_equal (0.00s)
+    --- PASS: TestEmitComparisonOps/float_greater (0.00s)
+    --- PASS: TestEmitComparisonOps/float_greater_equal (0.00s)
+=== RUN   TestEmitIfElseControlFlow
+--- PASS: TestEmitIfElseControlFlow (0.00s)
+=== RUN   TestEmitLoopWithBreak
+--- PASS: TestEmitLoopWithBreak (0.00s)
+=== RUN   TestEmitBarrierWorkgroup
+--- PASS: TestEmitBarrierWorkgroup (0.00s)
+=== RUN   TestEmitVertexMultiComponentOutput
+--- PASS: TestEmitVertexMultiComponentOutput (0.00s)
+=== RUN   TestEmitLocalVariableStoreLoad
+--- PASS: TestEmitLocalVariableStoreLoad (0.00s)
+=== RUN   TestEmitComputeBuiltins
+--- PASS: TestEmitComputeBuiltins (0.00s)
+=== RUN   TestTypeMappingMatrix
+--- PASS: TestTypeMappingMatrix (0.00s)
+=== RUN   TestTypeMappingArrayOfScalar
+--- PASS: TestTypeMappingArrayOfScalar (0.00s)
+=== RUN   TestEmitMathUnaryFunctions
+=== RUN   TestEmitMathUnaryFunctions/abs
+=== RUN   TestEmitMathUnaryFunctions/sqrt
+=== RUN   TestEmitMathUnaryFunctions/inverseSqrt
+=== RUN   TestEmitMathUnaryFunctions/ceil
+=== RUN   TestEmitMathUnaryFunctions/floor
+=== RUN   TestEmitMathUnaryFunctions/round
+=== RUN   TestEmitMathUnaryFunctions/trunc
+=== RUN   TestEmitMathUnaryFunctions/sin
+=== RUN   TestEmitMathUnaryFunctions/cos
+=== RUN   TestEmitMathUnaryFunctions/tan
+=== RUN   TestEmitMathUnaryFunctions/asin
+=== RUN   TestEmitMathUnaryFunctions/acos
+=== RUN   TestEmitMathUnaryFunctions/atan
+=== RUN   TestEmitMathUnaryFunctions/log2
+=== RUN   TestEmitMathUnaryFunctions/exp2
+=== RUN   TestEmitMathUnaryFunctions/saturate
+=== RUN   TestEmitMathUnaryFunctions/fract
+--- PASS: TestEmitMathUnaryFunctions (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/abs (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/sqrt (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/inverseSqrt (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/ceil (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/floor (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/round (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/trunc (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/sin (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/cos (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/tan (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/asin (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/acos (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/atan (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/log2 (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/exp2 (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/saturate (0.00s)
+    --- PASS: TestEmitMathUnaryFunctions/fract (0.00s)
+=== RUN   TestDescribeIRType
+--- PASS: TestDescribeIRType (0.00s)
+=== RUN   TestInterpolationModeForBinding
+=== RUN   TestInterpolationModeForBinding/flat
+=== RUN   TestInterpolationModeForBinding/perspective
+=== RUN   TestInterpolationModeForBinding/linear
+=== RUN   TestInterpolationModeForBinding/nil_frag_input
+=== RUN   TestInterpolationModeForBinding/nil_frag_output
+=== RUN   TestInterpolationModeForBinding/nil_vert_output
+--- PASS: TestInterpolationModeForBinding (0.00s)
+    --- PASS: TestInterpolationModeForBinding/flat (0.00s)
+    --- PASS: TestInterpolationModeForBinding/perspective (0.00s)
+    --- PASS: TestInterpolationModeForBinding/linear (0.00s)
+    --- PASS: TestInterpolationModeForBinding/nil_frag_input (0.00s)
+    --- PASS: TestInterpolationModeForBinding/nil_frag_output (0.00s)
+    --- PASS: TestInterpolationModeForBinding/nil_vert_output (0.00s)
+=== RUN   TestStageToShaderKindExtended
+--- PASS: TestStageToShaderKindExtended (0.00s)
+=== RUN   TestBuiltinToDXILSemantic
+--- PASS: TestBuiltinToDXILSemantic (0.00s)
+=== RUN   TestDxilCompTypeForScalar
+--- PASS: TestDxilCompTypeForScalar (0.00s)
+=== RUN   TestFunctionHasComplexLocals
+--- PASS: TestFunctionHasComplexLocals (0.00s)
+=== RUN   TestFunctionHasComplexLocalsWithStruct
+--- PASS: TestFunctionHasComplexLocalsWithStruct (0.00s)
+=== RUN   TestFunctionHasComplexExpressions
+--- PASS: TestFunctionHasComplexExpressions (0.00s)
+=== RUN   TestFunctionAccessesGlobals
+--- PASS: TestFunctionAccessesGlobals (0.00s)
+=== RUN   TestFunctionAccessesGlobalsTrue
+--- PASS: TestFunctionAccessesGlobalsTrue (0.00s)
+=== RUN   TestIsScalarizableType
+--- PASS: TestIsScalarizableType (0.00s)
+=== RUN   TestComponentCountExported
+--- PASS: TestComponentCountExported (0.00s)
+=== RUN   TestEmitMultipleEntryPointsUsesFirst
+--- PASS: TestEmitMultipleEntryPointsUsesFirst (0.00s)
+=== RUN   TestEmitSplatVec2
+--- PASS: TestEmitSplatVec2 (0.00s)
+=== RUN   TestEmitCastFPToSI
+--- PASS: TestEmitCastFPToSI (0.00s)
+=== RUN   TestEmitCastFPToUI
+--- PASS: TestEmitCastFPToUI (0.00s)
+=== RUN   TestEmitComputeShaderMetadata
+--- PASS: TestEmitComputeShaderMetadata (0.00s)
+=== RUN   TestSelectDivOp
+--- PASS: TestSelectDivOp (0.00s)
+=== RUN   TestEmitVectorBinaryAdd
+--- PASS: TestEmitVectorBinaryAdd (0.00s)
+=== RUN   TestEmitWithFlagsReturnsFlags
+--- PASS: TestEmitWithFlagsReturnsFlags (0.00s)
+=== RUN   TestEmitSwizzleYX
+--- PASS: TestEmitSwizzleYX (0.00s)
+=== RUN   TestComputeBitcodeShaderFlagsBasicCompute
+--- PASS: TestComputeBitcodeShaderFlagsBasicCompute (0.00s)
+PASS

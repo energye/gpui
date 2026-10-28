@@ -1,0 +1,109 @@
+=== RUN   TestIntegration7_PipelineConstantsWithTextureSample
+--- PASS: TestIntegration7_PipelineConstantsWithTextureSample (0.00s)
+=== RUN   TestIntegration7_PipelineConstantsWithTextureLoad
+--- PASS: TestIntegration7_PipelineConstantsWithTextureLoad (0.00s)
+=== RUN   TestIntegration7_PipelineConstantsSelect
+--- PASS: TestIntegration7_PipelineConstantsSelect (0.00s)
+=== RUN   TestIntegration7_PipelineConstantsComplex
+--- PASS: TestIntegration7_PipelineConstantsComplex (0.00s)
+=== RUN   TestIntegration7_PipelineConstantsSplat
+--- PASS: TestIntegration7_PipelineConstantsSplat (0.00s)
+=== RUN   TestIntegration7_PipelineConstantsCompose
+--- PASS: TestIntegration7_PipelineConstantsCompose (0.00s)
+=== RUN   TestIntegration7_PipelineConstantsDerivative
+--- PASS: TestIntegration7_PipelineConstantsDerivative (0.00s)
+=== RUN   TestIntegration7_PipelineConstantsArrayAccess
+--- PASS: TestIntegration7_PipelineConstantsArrayAccess (0.00s)
+=== RUN   TestIntegration7_PipelineConstantsRelational
+--- PASS: TestIntegration7_PipelineConstantsRelational (0.00s)
+=== RUN   TestIntegration7_PipelineConstantsSwizzle
+--- PASS: TestIntegration7_PipelineConstantsSwizzle (0.00s)
+=== RUN   TestIntegration7_PrivateVarVecCompose
+--- PASS: TestIntegration7_PrivateVarVecCompose (0.00s)
+=== RUN   TestIntegration7_PrivateVarMatCompose
+--- PASS: TestIntegration7_PrivateVarMatCompose (0.00s)
+=== RUN   TestIntegration7_PrivateVarZeroVec
+--- PASS: TestIntegration7_PrivateVarZeroVec (0.00s)
+=== RUN   TestIntegration7_CastF32ToU32
+--- PASS: TestIntegration7_CastF32ToU32 (0.00s)
+=== RUN   TestIntegration7_CastF32ToI32Vec
+--- PASS: TestIntegration7_CastF32ToI32Vec (0.00s)
+=== RUN   TestIntegration7_TypeSampledTexture3D
+--- PASS: TestIntegration7_TypeSampledTexture3D (0.00s)
+=== RUN   TestIntegration7_TypeTextureCube
+--- PASS: TestIntegration7_TypeTextureCube (0.00s)
+=== RUN   TestIntegration7_AccessChainStruct
+--- PASS: TestIntegration7_AccessChainStruct (0.00s)
+=== RUN   TestIntegration7_LoadExpression
+--- PASS: TestIntegration7_LoadExpression (0.00s)
+=== RUN   TestIntegration7_TextureDimensions1D
+--- PASS: TestIntegration7_TextureDimensions1D (0.00s)
+=== RUN   TestIntegration7_TextureDimensionsCube
+--- PASS: TestIntegration7_TextureDimensionsCube (0.00s)
+=== RUN   TestIntegration7_TextureNumSamples
+--- PASS: TestIntegration7_TextureNumSamples (0.00s)
+=== RUN   TestIntegration7_BinaryBooleanOps
+--- PASS: TestIntegration7_BinaryBooleanOps (0.00s)
+=== RUN   TestIntegration7_BinaryComparison
+--- PASS: TestIntegration7_BinaryComparison (0.00s)
+=== RUN   TestIntegration7_VertexMultipleOutputs
+--- PASS: TestIntegration7_VertexMultipleOutputs (0.00s)
+=== RUN   TestIntegration7_FragmentMultipleInputs
+--- PASS: TestIntegration7_FragmentMultipleInputs (0.00s)
+=== RUN   TestEvalBinaryOp
+=== RUN   TestEvalBinaryOp/add_f32
+=== RUN   TestEvalBinaryOp/sub_f32
+=== RUN   TestEvalBinaryOp/mul_f32
+=== RUN   TestEvalBinaryOp/div_f32
+=== RUN   TestEvalBinaryOp/div_by_zero
+=== RUN   TestEvalBinaryOp/add_i32
+=== RUN   TestEvalBinaryOp/mul_u32
+=== RUN   TestEvalBinaryOp/unsupported_op
+--- PASS: TestEvalBinaryOp (0.00s)
+    --- PASS: TestEvalBinaryOp/add_f32 (0.00s)
+    --- PASS: TestEvalBinaryOp/sub_f32 (0.00s)
+    --- PASS: TestEvalBinaryOp/mul_f32 (0.00s)
+    --- PASS: TestEvalBinaryOp/div_f32 (0.00s)
+    --- PASS: TestEvalBinaryOp/div_by_zero (0.00s)
+    --- PASS: TestEvalBinaryOp/add_i32 (0.00s)
+    --- PASS: TestEvalBinaryOp/mul_u32 (0.00s)
+    --- PASS: TestEvalBinaryOp/unsupported_op (0.00s)
+=== RUN   TestEvalTypeConversion
+=== RUN   TestEvalTypeConversion/f32_to_u32
+=== RUN   TestEvalTypeConversion/bool_true_to_f32
+=== RUN   TestEvalTypeConversion/bool_false_to_i32
+=== RUN   TestEvalTypeConversion/f64_to_i32
+=== RUN   TestEvalTypeConversion/u32_to_f64
+--- PASS: TestEvalTypeConversion (0.00s)
+    --- PASS: TestEvalTypeConversion/f32_to_u32 (0.00s)
+    --- PASS: TestEvalTypeConversion/bool_true_to_f32 (0.00s)
+    --- PASS: TestEvalTypeConversion/bool_false_to_i32 (0.00s)
+    --- PASS: TestEvalTypeConversion/f64_to_i32 (0.00s)
+    --- PASS: TestEvalTypeConversion/u32_to_f64 (0.00s)
+=== RUN   TestLiteralToFloat64
+=== RUN   TestLiteralToFloat64/f32
+=== RUN   TestLiteralToFloat64/f64
+=== RUN   TestLiteralToFloat64/i32
+=== RUN   TestLiteralToFloat64/i64
+=== RUN   TestLiteralToFloat64/u32
+=== RUN   TestLiteralToFloat64/u64
+=== RUN   TestLiteralToFloat64/bool
+--- PASS: TestLiteralToFloat64 (0.00s)
+    --- PASS: TestLiteralToFloat64/f32 (0.00s)
+    --- PASS: TestLiteralToFloat64/f64 (0.00s)
+    --- PASS: TestLiteralToFloat64/i32 (0.00s)
+    --- PASS: TestLiteralToFloat64/i64 (0.00s)
+    --- PASS: TestLiteralToFloat64/u32 (0.00s)
+    --- PASS: TestLiteralToFloat64/u64 (0.00s)
+    --- PASS: TestLiteralToFloat64/bool (0.00s)
+=== RUN   TestScalarValueToLiteral_EdgeCases
+=== RUN   TestScalarValueToLiteral_EdgeCases/nan_to_bool_false
+=== RUN   TestScalarValueToLiteral_EdgeCases/inf_to_i32_nil
+=== RUN   TestScalarValueToLiteral_EdgeCases/inf_to_u32_nil
+=== RUN   TestScalarValueToLiteral_EdgeCases/negative_to_u32_nil
+--- PASS: TestScalarValueToLiteral_EdgeCases (0.00s)
+    --- PASS: TestScalarValueToLiteral_EdgeCases/nan_to_bool_false (0.00s)
+    --- PASS: TestScalarValueToLiteral_EdgeCases/inf_to_i32_nil (0.00s)
+    --- PASS: TestScalarValueToLiteral_EdgeCases/inf_to_u32_nil (0.00s)
+    --- PASS: TestScalarValueToLiteral_EdgeCases/negative_to_u32_nil (0.00s)
+PASS

@@ -1,0 +1,5 @@
+=== RUN   TestValidate_LdexpScalarStructural
+--- PASS: TestValidate_LdexpScalarStructural (0.00s)
+=== RUN   TestValidate_ChainedOverrideDefault
+--- PASS: TestValidate_ChainedOverrideDefault (0.00s)
+PASS

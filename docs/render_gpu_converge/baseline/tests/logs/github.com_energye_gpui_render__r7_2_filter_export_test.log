@@ -1,0 +1,6 @@
+=== RUN   TestR72_ApplyBlur_GPUFilterTextureNoExportPrefer
+    r7_2_filter_export_test.go:37: GPU filter graph not registered
+--- SKIP: TestR72_ApplyBlur_GPUFilterTextureNoExportPrefer (0.00s)
+=== RUN   TestR72_ExportImageBuf_AfterGPUFilter_NoPendingSucceeds
+--- PASS: TestR72_ExportImageBuf_AfterGPUFilter_NoPendingSucceeds (0.30s)
+PASS

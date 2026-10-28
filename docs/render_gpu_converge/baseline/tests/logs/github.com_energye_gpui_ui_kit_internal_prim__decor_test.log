@@ -1,0 +1,15 @@
+=== RUN   TestPrim_Decor
+=== RUN   TestPrim_Decor/blend_group_formula
+=== RUN   TestPrim_Decor/rrect_hit_matches_paint
+=== RUN   TestPrim_Decor/oval_hit
+=== RUN   TestPrim_Decor/shadow_never_expands_hit
+=== RUN   TestPrim_Decor/gradient_endpoints_monotonic
+=== RUN   TestPrim_Decor/resolve_prefers_props_over_seed
+--- PASS: TestPrim_Decor (0.00s)
+    --- PASS: TestPrim_Decor/blend_group_formula (0.00s)
+    --- PASS: TestPrim_Decor/rrect_hit_matches_paint (0.00s)
+    --- PASS: TestPrim_Decor/oval_hit (0.00s)
+    --- PASS: TestPrim_Decor/shadow_never_expands_hit (0.00s)
+    --- PASS: TestPrim_Decor/gradient_endpoints_monotonic (0.00s)
+    --- PASS: TestPrim_Decor/resolve_prefers_props_over_seed (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestHandleLifecycle_MinimizedLatch
+--- PASS: TestHandleLifecycle_MinimizedLatch (0.00s)
+=== RUN   TestHandleLifecycle_StateChangedNonMinimized
+--- PASS: TestHandleLifecycle_StateChangedNonMinimized (0.00s)
+=== RUN   TestHandleLifecycle_OccludedMinimizedIndependent
+--- PASS: TestHandleLifecycle_OccludedMinimizedIndependent (0.00s)
+PASS

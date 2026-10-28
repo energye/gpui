@@ -1,0 +1,261 @@
+=== RUN   TestWGSLErrors_ParseErrors
+=== RUN   TestWGSLErrors_ParseErrors/unexpected_token_at_top_level
+=== RUN   TestWGSLErrors_ParseErrors/unexpected_keyword_at_top_level
+=== RUN   TestWGSLErrors_ParseErrors/missing_function_name
+=== RUN   TestWGSLErrors_ParseErrors/missing_function_open_paren
+=== RUN   TestWGSLErrors_ParseErrors/missing_function_close_paren
+=== RUN   TestWGSLErrors_ParseErrors/missing_function_body_open_brace
+=== RUN   TestWGSLErrors_ParseErrors/missing_struct_name
+=== RUN   TestWGSLErrors_ParseErrors/missing_struct_open_brace
+=== RUN   TestWGSLErrors_ParseErrors/missing_struct_member_name
+=== RUN   TestWGSLErrors_ParseErrors/missing_struct_member_colon
+=== RUN   TestWGSLErrors_ParseErrors/missing_struct_member_type
+=== RUN   TestWGSLErrors_ParseErrors/missing_var_name
+=== RUN   TestWGSLErrors_ParseErrors/missing_const_name
+=== RUN   TestWGSLErrors_ParseErrors/missing_const_equal_sign
+=== RUN   TestWGSLErrors_ParseErrors/missing_let_name_top_level
+=== RUN   TestWGSLErrors_ParseErrors/missing_alias_name
+=== RUN   TestWGSLErrors_ParseErrors/missing_alias_equal
+=== RUN   TestWGSLErrors_ParseErrors/missing_param_name
+=== RUN   TestWGSLErrors_ParseErrors/missing_param_colon
+=== RUN   TestWGSLErrors_ParseErrors/missing_param_type
+=== RUN   TestWGSLErrors_ParseErrors/missing_return_type
+=== RUN   TestWGSLErrors_ParseErrors/unexpected_token_in_expression
+=== RUN   TestWGSLErrors_ParseErrors/missing_function_close_brace
+=== RUN   TestWGSLErrors_ParseErrors/missing_for_open_paren
+=== RUN   TestWGSLErrors_ParseErrors/missing_member_name_after_dot
+=== RUN   TestWGSLErrors_ParseErrors/missing_close_paren_in_expr
+=== RUN   TestWGSLErrors_ParseErrors/missing_let_equal_in_function
+=== RUN   TestWGSLErrors_ParseErrors/expected_case_or_default
+=== RUN   TestWGSLErrors_ParseErrors/missing_switch_open_brace
+=== RUN   TestWGSLErrors_ParseErrors/ptr_missing_address_space
+=== RUN   TestWGSLErrors_ParseErrors/ptr_missing_comma
+=== RUN   TestWGSLErrors_ParseErrors/array_missing_close_angle
+=== RUN   TestWGSLErrors_ParseErrors/bitcast_missing_less
+=== RUN   TestWGSLErrors_ParseErrors/loop_missing_open_brace
+=== RUN   TestWGSLErrors_ParseErrors/missing_struct_close_brace
+=== RUN   TestWGSLErrors_ParseErrors/const_missing_value
+=== RUN   TestWGSLErrors_ParseErrors/multiple_errors_synchronize
+=== RUN   TestWGSLErrors_ParseErrors/binding_array_missing_less
+=== RUN   TestWGSLErrors_ParseErrors/loop_missing_close_brace
+--- PASS: TestWGSLErrors_ParseErrors (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/unexpected_token_at_top_level (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/unexpected_keyword_at_top_level (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_function_name (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_function_open_paren (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_function_close_paren (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_function_body_open_brace (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_struct_name (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_struct_open_brace (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_struct_member_name (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_struct_member_colon (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_struct_member_type (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_var_name (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_const_name (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_const_equal_sign (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_let_name_top_level (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_alias_name (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_alias_equal (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_param_name (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_param_colon (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_param_type (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_return_type (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/unexpected_token_in_expression (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_function_close_brace (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_for_open_paren (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_member_name_after_dot (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_close_paren_in_expr (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_let_equal_in_function (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/expected_case_or_default (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_switch_open_brace (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/ptr_missing_address_space (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/ptr_missing_comma (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/array_missing_close_angle (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/bitcast_missing_less (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/loop_missing_open_brace (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/missing_struct_close_brace (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/const_missing_value (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/multiple_errors_synchronize (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/binding_array_missing_less (0.00s)
+    --- PASS: TestWGSLErrors_ParseErrors/loop_missing_close_brace (0.00s)
+=== RUN   TestWGSLErrors_LowerErrors
+=== RUN   TestWGSLErrors_LowerErrors/unknown_type_in_var
+=== RUN   TestWGSLErrors_LowerErrors/unknown_type_in_function_param
+=== RUN   TestWGSLErrors_LowerErrors/unknown_type_in_return
+=== RUN   TestWGSLErrors_LowerErrors/unresolved_identifier
+=== RUN   TestWGSLErrors_LowerErrors/unresolved_identifier_in_expression
+=== RUN   TestWGSLErrors_LowerErrors/unknown_function
+=== RUN   TestWGSLErrors_LowerErrors/global_var_no_type_no_init
+=== RUN   TestWGSLErrors_LowerErrors/global_var_unknown_type
+=== RUN   TestWGSLErrors_LowerErrors/local_var_no_type_no_init
+=== RUN   TestWGSLErrors_LowerErrors/const_no_initializer
+=== RUN   TestWGSLErrors_LowerErrors/struct_member_unknown_type
+=== RUN   TestWGSLErrors_LowerErrors/unknown_parameterized_type
+=== RUN   TestWGSLErrors_LowerErrors/atomic_no_type_params
+=== RUN   TestWGSLErrors_LowerErrors/const_unsupported_binary_init
+=== RUN   TestWGSLErrors_LowerErrors/texture_sample_bias_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/texture_sample_level_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/texture_sample_grad_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/select_wrong_arg_count
+=== RUN   TestWGSLErrors_LowerErrors/math_function_no_args
+=== RUN   TestWGSLErrors_LowerErrors/array_length_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/derivative_wrong_arg_count
+=== RUN   TestWGSLErrors_LowerErrors/texture_store_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/atomic_store_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/atomic_compare_exchange_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/relational_function_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/unsupported_parameterized_type_weird
+=== RUN   TestWGSLErrors_LowerErrors/struct_member_bad_type_in_function
+=== RUN   TestWGSLErrors_LowerErrors/global_var_unsupported_call_type
+=== RUN   TestWGSLErrors_LowerErrors/const_must_have_init
+=== RUN   TestWGSLErrors_LowerErrors/local_const_must_have_init
+=== RUN   TestWGSLErrors_LowerErrors/unknown_function_in_body
+=== RUN   TestWGSLErrors_LowerErrors/function_param_unknown_type_wrapped
+=== RUN   TestWGSLErrors_LowerErrors/texture_sample_compare_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/texture_sample_base_clamp_wrong_args
+=== RUN   TestWGSLErrors_LowerErrors/compute_missing_workgroup_size
+=== RUN   TestWGSLErrors_LowerErrors/compute_with_workgroup_size_ok
+=== RUN   TestWGSLErrors_LowerErrors/array_size_zero
+=== RUN   TestWGSLErrors_LowerErrors/array_size_one_ok
+--- PASS: TestWGSLErrors_LowerErrors (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/unknown_type_in_var (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/unknown_type_in_function_param (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/unknown_type_in_return (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/unresolved_identifier (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/unresolved_identifier_in_expression (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/unknown_function (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/global_var_no_type_no_init (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/global_var_unknown_type (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/local_var_no_type_no_init (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/const_no_initializer (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/struct_member_unknown_type (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/unknown_parameterized_type (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/atomic_no_type_params (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/const_unsupported_binary_init (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/texture_sample_bias_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/texture_sample_level_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/texture_sample_grad_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/select_wrong_arg_count (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/math_function_no_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/array_length_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/derivative_wrong_arg_count (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/texture_store_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/atomic_store_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/atomic_compare_exchange_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/relational_function_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/unsupported_parameterized_type_weird (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/struct_member_bad_type_in_function (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/global_var_unsupported_call_type (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/const_must_have_init (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/local_const_must_have_init (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/unknown_function_in_body (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/function_param_unknown_type_wrapped (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/texture_sample_compare_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/texture_sample_base_clamp_wrong_args (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/compute_missing_workgroup_size (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/compute_with_workgroup_size_ok (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/array_size_zero (0.00s)
+    --- PASS: TestWGSLErrors_LowerErrors/array_size_one_ok (0.00s)
+=== RUN   TestWGSLErrors_ConstAssert
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_false
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_true
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_comparison_true
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_comparison_false
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_less_than_true
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_less_than_false
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_not_equal_true
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_negation
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_negation_true_fails
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_logical_and
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_logical_and_false
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_logical_or
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_with_parens
+=== RUN   TestWGSLErrors_ConstAssert/module_scope_with_parens_false
+=== RUN   TestWGSLErrors_ConstAssert/function_scope_false
+=== RUN   TestWGSLErrors_ConstAssert/function_scope_true
+=== RUN   TestWGSLErrors_ConstAssert/function_scope_comparison_false
+=== RUN   TestWGSLErrors_ConstAssert/function_scope_comparison_true
+=== RUN   TestWGSLErrors_ConstAssert/module_const_true
+=== RUN   TestWGSLErrors_ConstAssert/module_const_false
+--- PASS: TestWGSLErrors_ConstAssert (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_false (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_true (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_comparison_true (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_comparison_false (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_less_than_true (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_less_than_false (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_not_equal_true (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_negation (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_negation_true_fails (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_logical_and (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_logical_and_false (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_logical_or (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_with_parens (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_scope_with_parens_false (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/function_scope_false (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/function_scope_true (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/function_scope_comparison_false (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/function_scope_comparison_true (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_const_true (0.00s)
+    --- PASS: TestWGSLErrors_ConstAssert/module_const_false (0.00s)
+=== RUN   TestWGSLErrors_BindingGroupValidation
+=== RUN   TestWGSLErrors_BindingGroupValidation/both_group_and_binding
+=== RUN   TestWGSLErrors_BindingGroupValidation/binding_before_group
+=== RUN   TestWGSLErrors_BindingGroupValidation/binding_without_group
+=== RUN   TestWGSLErrors_BindingGroupValidation/group_without_binding
+=== RUN   TestWGSLErrors_BindingGroupValidation/no_group_no_binding
+--- PASS: TestWGSLErrors_BindingGroupValidation (0.00s)
+    --- PASS: TestWGSLErrors_BindingGroupValidation/both_group_and_binding (0.00s)
+    --- PASS: TestWGSLErrors_BindingGroupValidation/binding_before_group (0.00s)
+    --- PASS: TestWGSLErrors_BindingGroupValidation/binding_without_group (0.00s)
+    --- PASS: TestWGSLErrors_BindingGroupValidation/group_without_binding (0.00s)
+    --- PASS: TestWGSLErrors_BindingGroupValidation/no_group_no_binding (0.00s)
+=== RUN   TestWGSLErrors_MustUse
+=== RUN   TestWGSLErrors_MustUse/must_use_discarded_as_statement
+=== RUN   TestWGSLErrors_MustUse/must_use_used_in_return
+=== RUN   TestWGSLErrors_MustUse/must_use_used_in_let
+=== RUN   TestWGSLErrors_MustUse/must_use_used_in_var
+=== RUN   TestWGSLErrors_MustUse/must_use_used_in_phony
+=== RUN   TestWGSLErrors_MustUse/no_must_use_discarded
+=== RUN   TestWGSLErrors_MustUse/void_function_discarded
+=== RUN   TestWGSLErrors_MustUse/must_use_discarded_in_entry_point
+=== RUN   TestWGSLErrors_MustUse/must_use_used_in_expression
+--- PASS: TestWGSLErrors_MustUse (0.00s)
+    --- PASS: TestWGSLErrors_MustUse/must_use_discarded_as_statement (0.00s)
+    --- PASS: TestWGSLErrors_MustUse/must_use_used_in_return (0.00s)
+    --- PASS: TestWGSLErrors_MustUse/must_use_used_in_let (0.00s)
+    --- PASS: TestWGSLErrors_MustUse/must_use_used_in_var (0.00s)
+    --- PASS: TestWGSLErrors_MustUse/must_use_used_in_phony (0.00s)
+    --- PASS: TestWGSLErrors_MustUse/no_must_use_discarded (0.00s)
+    --- PASS: TestWGSLErrors_MustUse/void_function_discarded (0.00s)
+    --- PASS: TestWGSLErrors_MustUse/must_use_discarded_in_entry_point (0.00s)
+    --- PASS: TestWGSLErrors_MustUse/must_use_used_in_expression (0.00s)
+=== RUN   TestWGSLErrors_SwizzleValidation
+=== RUN   TestWGSLErrors_SwizzleValidation/xyzw_single
+=== RUN   TestWGSLErrors_SwizzleValidation/xyzw_multi
+=== RUN   TestWGSLErrors_SwizzleValidation/xyzw_full
+=== RUN   TestWGSLErrors_SwizzleValidation/rgba_single
+=== RUN   TestWGSLErrors_SwizzleValidation/rgba_multi
+=== RUN   TestWGSLErrors_SwizzleValidation/rgba_full
+=== RUN   TestWGSLErrors_SwizzleValidation/glsl_stpq_rejected
+=== RUN   TestWGSLErrors_SwizzleValidation/glsl_st_rejected
+=== RUN   TestWGSLErrors_SwizzleValidation/glsl_single_s_rejected
+=== RUN   TestWGSLErrors_SwizzleValidation/mixed_xg
+=== RUN   TestWGSLErrors_SwizzleValidation/mixed_xb
+=== RUN   TestWGSLErrors_SwizzleValidation/mixed_ry
+=== RUN   TestWGSLErrors_SwizzleValidation/xyzw_repeat
+--- PASS: TestWGSLErrors_SwizzleValidation (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/xyzw_single (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/xyzw_multi (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/xyzw_full (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/rgba_single (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/rgba_multi (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/rgba_full (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/glsl_stpq_rejected (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/glsl_st_rejected (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/glsl_single_s_rejected (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/mixed_xg (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/mixed_xb (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/mixed_ry (0.00s)
+    --- PASS: TestWGSLErrors_SwizzleValidation/xyzw_repeat (0.00s)
+PASS

@@ -1,0 +1,15 @@
+=== RUN   TestBlendPixelAlphaSemiTransparent
+=== RUN   TestBlendPixelAlphaSemiTransparent/opaque_color_with_full_coverage_-_fast_path_OK
+=== RUN   TestBlendPixelAlphaSemiTransparent/semi-transparent_color_with_full_coverage_-_must_blend_(BUG-001)
+=== RUN   TestBlendPixelAlphaSemiTransparent/semi-transparent_color_with_partial_coverage_-_must_blend
+=== RUN   TestBlendPixelAlphaSemiTransparent/opaque_color_with_partial_coverage_-_must_blend
+=== RUN   TestBlendPixelAlphaSemiTransparent/zero_alpha_color_-_should_not_change_background
+--- PASS: TestBlendPixelAlphaSemiTransparent (0.00s)
+    --- PASS: TestBlendPixelAlphaSemiTransparent/opaque_color_with_full_coverage_-_fast_path_OK (0.00s)
+    --- PASS: TestBlendPixelAlphaSemiTransparent/semi-transparent_color_with_full_coverage_-_must_blend_(BUG-001) (0.00s)
+    --- PASS: TestBlendPixelAlphaSemiTransparent/semi-transparent_color_with_partial_coverage_-_must_blend (0.00s)
+    --- PASS: TestBlendPixelAlphaSemiTransparent/opaque_color_with_partial_coverage_-_must_blend (0.00s)
+    --- PASS: TestBlendPixelAlphaSemiTransparent/zero_alpha_color_-_should_not_change_background (0.00s)
+=== RUN   TestBlendPixelAlphaSemiTransparentRGBValues
+--- PASS: TestBlendPixelAlphaSemiTransparentRGBValues (0.00s)
+PASS

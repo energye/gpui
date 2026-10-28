@@ -1,0 +1,137 @@
+=== RUN   TestDeadLoopWithOnlyBreakIsEliminated
+--- PASS: TestDeadLoopWithOnlyBreakIsEliminated (0.00s)
+=== RUN   TestLoopWithSideEffectsKept
+--- PASS: TestLoopWithSideEffectsKept (0.00s)
+=== RUN   TestLoopWithBreakIfAndNonEmptyContinuing
+--- PASS: TestLoopWithBreakIfAndNonEmptyContinuing (0.00s)
+=== RUN   TestBlockOnlyHasTerminatorsNested
+--- PASS: TestBlockOnlyHasTerminatorsNested (0.00s)
+=== RUN   TestBlockOnlyHasTerminatorsWithSideEffect
+--- PASS: TestBlockOnlyHasTerminatorsWithSideEffect (0.00s)
+=== RUN   TestImageStoreIsRoot
+--- PASS: TestImageStoreIsRoot (0.00s)
+=== RUN   TestImageAtomicIsRoot
+--- PASS: TestImageAtomicIsRoot (0.00s)
+=== RUN   TestGlobalAtomicIsRoot
+--- PASS: TestGlobalAtomicIsRoot (0.00s)
+=== RUN   TestWorkGroupUniformLoadIsRoot
+--- PASS: TestWorkGroupUniformLoadIsRoot (0.00s)
+=== RUN   TestRayQueryIsRoot
+=== RUN   TestRayQueryIsRoot/Initialize
+=== RUN   TestRayQueryIsRoot/Proceed
+=== RUN   TestRayQueryIsRoot/GenerateIntersection
+=== RUN   TestRayQueryIsRoot/Terminate
+=== RUN   TestRayQueryIsRoot/ConfirmIntersection
+--- PASS: TestRayQueryIsRoot (0.00s)
+    --- PASS: TestRayQueryIsRoot/Initialize (0.00s)
+    --- PASS: TestRayQueryIsRoot/Proceed (0.00s)
+    --- PASS: TestRayQueryIsRoot/GenerateIntersection (0.00s)
+    --- PASS: TestRayQueryIsRoot/Terminate (0.00s)
+    --- PASS: TestRayQueryIsRoot/ConfirmIntersection (0.00s)
+=== RUN   TestSubgroupStatementsAreRoots
+=== RUN   TestSubgroupStatementsAreRoots/SubgroupBallot
+=== RUN   TestSubgroupStatementsAreRoots/SubgroupCollectiveOperation
+=== RUN   TestSubgroupStatementsAreRoots/SubgroupGather
+--- PASS: TestSubgroupStatementsAreRoots (0.00s)
+    --- PASS: TestSubgroupStatementsAreRoots/SubgroupBallot (0.00s)
+    --- PASS: TestSubgroupStatementsAreRoots/SubgroupCollectiveOperation (0.00s)
+    --- PASS: TestSubgroupStatementsAreRoots/SubgroupGather (0.00s)
+=== RUN   TestKillStatementIsRoot
+--- PASS: TestKillStatementIsRoot (0.00s)
+=== RUN   TestVisitExprHandlesAllKinds
+=== RUN   TestVisitExprHandlesAllKinds/Select
+=== RUN   TestVisitExprHandlesAllKinds/Splat
+=== RUN   TestVisitExprHandlesAllKinds/Swizzle
+=== RUN   TestVisitExprHandlesAllKinds/Compose
+=== RUN   TestVisitExprHandlesAllKinds/As
+=== RUN   TestVisitExprHandlesAllKinds/Derivative
+=== RUN   TestVisitExprHandlesAllKinds/Math_AllArgs
+=== RUN   TestVisitExprHandlesAllKinds/Relational
+=== RUN   TestVisitExprHandlesAllKinds/ArrayLength
+=== RUN   TestVisitExprHandlesAllKinds/ImageSample_WithOptionals
+=== RUN   TestVisitExprHandlesAllKinds/ImageLoad_WithOptionals
+=== RUN   TestVisitExprHandlesAllKinds/ImageQuery
+=== RUN   TestVisitExprHandlesAllKinds/Phi
+--- PASS: TestVisitExprHandlesAllKinds (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/Select (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/Splat (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/Swizzle (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/Compose (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/As (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/Derivative (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/Math_AllArgs (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/Relational (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/ArrayLength (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/ImageSample_WithOptionals (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/ImageLoad_WithOptionals (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/ImageQuery (0.00s)
+    --- PASS: TestVisitExprHandlesAllKinds/Phi (0.00s)
+=== RUN   TestDeadSwitchWithNestedDeadStoresEliminated
+--- PASS: TestDeadSwitchWithNestedDeadStoresEliminated (0.00s)
+=== RUN   TestSwitchWithLiveCasePreserved
+--- PASS: TestSwitchWithLiveCasePreserved (0.00s)
+=== RUN   TestStmtHasSideEffectsExhaustive
+=== RUN   TestStmtHasSideEffectsExhaustive/EmitNoEffect
+=== RUN   TestStmtHasSideEffectsExhaustive/Return
+=== RUN   TestStmtHasSideEffectsExhaustive/Break
+=== RUN   TestStmtHasSideEffectsExhaustive/Continue
+=== RUN   TestStmtHasSideEffectsExhaustive/Barrier
+=== RUN   TestStmtHasSideEffectsExhaustive/Kill
+=== RUN   TestStmtHasSideEffectsExhaustive/ImageStore
+=== RUN   TestStmtHasSideEffectsExhaustive/ImageAtomic
+=== RUN   TestStmtHasSideEffectsExhaustive/Atomic
+=== RUN   TestStmtHasSideEffectsExhaustive/Call
+=== RUN   TestStmtHasSideEffectsExhaustive/WorkGroupUniformLoad
+=== RUN   TestStmtHasSideEffectsExhaustive/RayQuery
+=== RUN   TestStmtHasSideEffectsExhaustive/EmptyBlock
+=== RUN   TestStmtHasSideEffectsExhaustive/BlockWithBarrier
+=== RUN   TestStmtHasSideEffectsExhaustive/IfWithEmptyBranches
+=== RUN   TestStmtHasSideEffectsExhaustive/IfWithBarrier
+=== RUN   TestStmtHasSideEffectsExhaustive/LoopEmpty
+=== RUN   TestStmtHasSideEffectsExhaustive/LoopWithCall
+=== RUN   TestStmtHasSideEffectsExhaustive/SwitchEmpty
+=== RUN   TestStmtHasSideEffectsExhaustive/SwitchWithAtomic
+--- PASS: TestStmtHasSideEffectsExhaustive (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/EmitNoEffect (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/Return (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/Break (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/Continue (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/Barrier (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/Kill (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/ImageStore (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/ImageAtomic (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/Atomic (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/Call (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/WorkGroupUniformLoad (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/RayQuery (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/EmptyBlock (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/BlockWithBarrier (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/IfWithEmptyBranches (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/IfWithBarrier (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/LoopEmpty (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/LoopWithCall (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/SwitchEmpty (0.00s)
+    --- PASS: TestStmtHasSideEffectsExhaustive/SwitchWithAtomic (0.00s)
+=== RUN   TestLocalStoreInsideNestedBlock
+--- PASS: TestLocalStoreInsideNestedBlock (0.00s)
+=== RUN   TestPureCallWithLiveResultKept
+--- PASS: TestPureCallWithLiveResultKept (0.00s)
+=== RUN   TestHasOtherLiveConsumerSharedExpression
+--- PASS: TestHasOtherLiveConsumerSharedExpression (0.00s)
+=== RUN   TestResolveLocalVarDeepAccessIndexChain
+--- PASS: TestResolveLocalVarDeepAccessIndexChain (0.00s)
+=== RUN   TestIsLiveInRangeOutOfBounds
+--- PASS: TestIsLiveInRangeOutOfBounds (0.00s)
+=== RUN   TestCalleeHasSideEffectsOutOfRange
+--- PASS: TestCalleeHasSideEffectsOutOfRange (0.00s)
+=== RUN   TestPureCalleeNoSideEffects
+--- PASS: TestPureCalleeNoSideEffects (0.00s)
+=== RUN   TestLocalAtomicInsideIfIsConservativelyKept
+--- PASS: TestLocalAtomicInsideIfIsConservativelyKept (0.00s)
+=== RUN   TestEmptyFunctionNoExpressions
+--- PASS: TestEmptyFunctionNoExpressions (0.00s)
+=== RUN   TestPropagateCallResultLivenessInsideSwitch
+--- PASS: TestPropagateCallResultLivenessInsideSwitch (0.00s)
+=== RUN   TestPropagateCallResultLivenessInsideLoop
+--- PASS: TestPropagateCallResultLivenessInsideLoop (0.00s)
+PASS

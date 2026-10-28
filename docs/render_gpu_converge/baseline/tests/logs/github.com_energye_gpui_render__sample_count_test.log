@@ -1,0 +1,7 @@
+=== RUN   TestMSAASampleCountConstants
+--- PASS: TestMSAASampleCountConstants (0.00s)
+=== RUN   TestMSAASampleCount_DefaultUnset
+--- PASS: TestMSAASampleCount_DefaultUnset (0.00s)
+=== RUN   TestMSAASampleCount_SetAndReset
+--- PASS: TestMSAASampleCount_SetAndReset (0.00s)
+PASS

@@ -1,0 +1,8 @@
+=== RUN   TestE2Merged_CountsHonestAndPacketEqual
+    e2_merged_counts_test.go:95: honest: boundary=(3,2) ops=2 measure=(4,2)
+    e2_merged_counts_test.go:120: packet equal: layers=13 dirty=2 ops=2
+--- PASS: TestE2Merged_CountsHonestAndPacketEqual (0.01s)
+=== RUN   TestE2Merged_NewSequenceWalkCount
+    e2_merged_counts_test.go:172: N=120 new sequence Children calls=361 (root=2 leaf=359) stats={BoundaryCount:120 BoundaryMaxDepth:1 PictureOpCount:0 MeasureHits:0 MeasureMisses:0}
+--- PASS: TestE2Merged_NewSequenceWalkCount (0.00s)
+PASS

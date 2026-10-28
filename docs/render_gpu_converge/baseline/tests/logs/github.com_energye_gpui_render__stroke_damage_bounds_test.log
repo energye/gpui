@@ -1,0 +1,5 @@
+=== RUN   TestStrokeDamageCoversLineWidth
+--- PASS: TestStrokeDamageCoversLineWidth (0.30s)
+=== RUN   TestTextOutlineCacheKeepsFractionalSizes
+--- PASS: TestTextOutlineCacheKeepsFractionalSizes (0.00s)
+PASS

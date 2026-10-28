@@ -1,0 +1,5 @@
+=== RUN   TestCompositeFramePacketTextured_RotateBlitPixels
+--- PASS: TestCompositeFramePacketTextured_RotateBlitPixels (0.30s)
+=== RUN   TestCompositeFramePacketTextured_ScaleBlitPixels
+--- PASS: TestCompositeFramePacketTextured_ScaleBlitPixels (0.02s)
+PASS

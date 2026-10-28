@@ -1,0 +1,149 @@
+=== RUN   TestWrapModeString
+=== RUN   TestWrapModeString/WordChar
+=== RUN   TestWrapModeString/None
+=== RUN   TestWrapModeString/Word
+=== RUN   TestWrapModeString/Char
+=== RUN   TestWrapModeString/Unknown
+--- PASS: TestWrapModeString (0.00s)
+    --- PASS: TestWrapModeString/WordChar (0.00s)
+    --- PASS: TestWrapModeString/None (0.00s)
+    --- PASS: TestWrapModeString/Word (0.00s)
+    --- PASS: TestWrapModeString/Char (0.00s)
+    --- PASS: TestWrapModeString/Unknown (0.00s)
+=== RUN   TestClassifyRune
+=== RUN   TestClassifyRune/space
+=== RUN   TestClassifyRune/tab
+=== RUN   TestClassifyRune/zero-width_space
+=== RUN   TestClassifyRune/open_paren
+=== RUN   TestClassifyRune/close_paren
+=== RUN   TestClassifyRune/open_bracket
+=== RUN   TestClassifyRune/close_bracket
+=== RUN   TestClassifyRune/open_brace
+=== RUN   TestClassifyRune/close_brace
+=== RUN   TestClassifyRune/left_double_quote
+=== RUN   TestClassifyRune/right_double_quote
+=== RUN   TestClassifyRune/hyphen
+=== RUN   TestClassifyRune/en_dash
+=== RUN   TestClassifyRune/em_dash
+=== RUN   TestClassifyRune/CJK_ideograph
+=== RUN   TestClassifyRune/hiragana
+=== RUN   TestClassifyRune/katakana
+=== RUN   TestClassifyRune/hangul
+=== RUN   TestClassifyRune/latin_a
+=== RUN   TestClassifyRune/digit_1
+--- PASS: TestClassifyRune (0.00s)
+    --- PASS: TestClassifyRune/space (0.00s)
+    --- PASS: TestClassifyRune/tab (0.00s)
+    --- PASS: TestClassifyRune/zero-width_space (0.00s)
+    --- PASS: TestClassifyRune/open_paren (0.00s)
+    --- PASS: TestClassifyRune/close_paren (0.00s)
+    --- PASS: TestClassifyRune/open_bracket (0.00s)
+    --- PASS: TestClassifyRune/close_bracket (0.00s)
+    --- PASS: TestClassifyRune/open_brace (0.00s)
+    --- PASS: TestClassifyRune/close_brace (0.00s)
+    --- PASS: TestClassifyRune/left_double_quote (0.00s)
+    --- PASS: TestClassifyRune/right_double_quote (0.00s)
+    --- PASS: TestClassifyRune/hyphen (0.00s)
+    --- PASS: TestClassifyRune/en_dash (0.00s)
+    --- PASS: TestClassifyRune/em_dash (0.00s)
+    --- PASS: TestClassifyRune/CJK_ideograph (0.00s)
+    --- PASS: TestClassifyRune/hiragana (0.00s)
+    --- PASS: TestClassifyRune/katakana (0.00s)
+    --- PASS: TestClassifyRune/hangul (0.00s)
+    --- PASS: TestClassifyRune/latin_a (0.00s)
+    --- PASS: TestClassifyRune/digit_1 (0.00s)
+=== RUN   TestIsCJKRune
+=== RUN   TestIsCJKRune/CJK_ideograph_start
+=== RUN   TestIsCJKRune/CJK_ideograph_end
+=== RUN   TestIsCJKRune/CJK_Extension_A
+=== RUN   TestIsCJKRune/Hiragana_A
+=== RUN   TestIsCJKRune/Katakana_A
+=== RUN   TestIsCJKRune/Hangul_syllable
+=== RUN   TestIsCJKRune/Fullwidth_A
+=== RUN   TestIsCJKRune/Latin_A
+=== RUN   TestIsCJKRune/Space
+=== RUN   TestIsCJKRune/Digit
+--- PASS: TestIsCJKRune (0.00s)
+    --- PASS: TestIsCJKRune/CJK_ideograph_start (0.00s)
+    --- PASS: TestIsCJKRune/CJK_ideograph_end (0.00s)
+    --- PASS: TestIsCJKRune/CJK_Extension_A (0.00s)
+    --- PASS: TestIsCJKRune/Hiragana_A (0.00s)
+    --- PASS: TestIsCJKRune/Katakana_A (0.00s)
+    --- PASS: TestIsCJKRune/Hangul_syllable (0.00s)
+    --- PASS: TestIsCJKRune/Fullwidth_A (0.00s)
+    --- PASS: TestIsCJKRune/Latin_A (0.00s)
+    --- PASS: TestIsCJKRune/Space (0.00s)
+    --- PASS: TestIsCJKRune/Digit (0.00s)
+=== RUN   TestFindBreakOpportunities
+=== RUN   TestFindBreakOpportunities/empty
+=== RUN   TestFindBreakOpportunities/single_char
+=== RUN   TestFindBreakOpportunities/two_chars
+=== RUN   TestFindBreakOpportunities/word_with_space
+=== RUN   TestFindBreakOpportunities/CJK
+--- PASS: TestFindBreakOpportunities (0.00s)
+    --- PASS: TestFindBreakOpportunities/empty (0.00s)
+    --- PASS: TestFindBreakOpportunities/single_char (0.00s)
+    --- PASS: TestFindBreakOpportunities/two_chars (0.00s)
+    --- PASS: TestFindBreakOpportunities/word_with_space (0.00s)
+    --- PASS: TestFindBreakOpportunities/CJK (0.00s)
+=== RUN   TestFindBreakOpportunities_WrapNone
+--- PASS: TestFindBreakOpportunities_WrapNone (0.00s)
+=== RUN   TestFindBreakOpportunities_WrapWord
+--- PASS: TestFindBreakOpportunities_WrapWord (0.00s)
+=== RUN   TestFindBreakOpportunities_WrapChar
+--- PASS: TestFindBreakOpportunities_WrapChar (0.00s)
+=== RUN   TestFindBreakOpportunities_CJK
+--- PASS: TestFindBreakOpportunities_CJK (0.00s)
+=== RUN   TestFindBreakOpportunities_Punctuation
+--- PASS: TestFindBreakOpportunities_Punctuation (0.00s)
+=== RUN   TestWrapTextInfo
+--- PASS: TestWrapTextInfo (0.00s)
+=== RUN   TestWrapTextInfo_UTF8
+--- PASS: TestWrapTextInfo_UTF8 (0.00s)
+=== RUN   TestWrapTextInfo_CanBreakAt
+--- PASS: TestWrapTextInfo_CanBreakAt (0.00s)
+=== RUN   TestWrapTextInfo_Substring
+--- PASS: TestWrapTextInfo_Substring (0.00s)
+=== RUN   TestWrapText_Empty
+--- PASS: TestWrapText_Empty (0.00s)
+=== RUN   TestWrapText_NoWrap
+--- PASS: TestWrapText_NoWrap (0.00s)
+=== RUN   TestWrapText_Word
+--- PASS: TestWrapText_Word (0.00s)
+=== RUN   TestWrapText_Char
+--- PASS: TestWrapText_Char (0.00s)
+=== RUN   TestWrapText_WordChar
+--- PASS: TestWrapText_WordChar (0.00s)
+=== RUN   TestWrapText_CJK
+--- PASS: TestWrapText_CJK (0.00s)
+=== RUN   TestMeasureText
+=== RUN   TestMeasureText/#00
+=== RUN   TestMeasureText/a
+=== RUN   TestMeasureText/hello
+=== RUN   TestMeasureText/___
+--- PASS: TestMeasureText (0.00s)
+    --- PASS: TestMeasureText/#00 (0.00s)
+    --- PASS: TestMeasureText/a (0.00s)
+    --- PASS: TestMeasureText/hello (0.00s)
+    --- PASS: TestMeasureText/___ (0.00s)
+=== RUN   TestMeasureText_NilFace
+--- PASS: TestMeasureText_NilFace (0.00s)
+=== RUN   TestMeasureText_Proportional
+--- PASS: TestMeasureText_Proportional (0.00s)
+=== RUN   TestLayoutText_WrapMode
+=== RUN   TestLayoutText_WrapMode/WrapNone
+=== RUN   TestLayoutText_WrapMode/WrapWord_narrow
+=== RUN   TestLayoutText_WrapMode/WrapChar_narrow
+=== RUN   TestLayoutText_WrapMode/WrapWordChar_narrow
+--- PASS: TestLayoutText_WrapMode (0.00s)
+    --- PASS: TestLayoutText_WrapMode/WrapNone (0.00s)
+    --- PASS: TestLayoutText_WrapMode/WrapWord_narrow (0.00s)
+    --- PASS: TestLayoutText_WrapMode/WrapChar_narrow (0.00s)
+    --- PASS: TestLayoutText_WrapMode/WrapWordChar_narrow (0.00s)
+=== RUN   TestLayoutText_WrapModeNone
+--- PASS: TestLayoutText_WrapModeNone (0.00s)
+=== RUN   TestWrapText_CRLFOffsets
+--- PASS: TestWrapText_CRLFOffsets (0.00s)
+=== RUN   TestWrapText_OverflowingSeparator
+--- PASS: TestWrapText_OverflowingSeparator (0.00s)
+PASS

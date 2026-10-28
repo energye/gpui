@@ -1,0 +1,51 @@
+=== RUN   TestIndicInitial_RephMovesAfterBase
+--- PASS: TestIndicInitial_RephMovesAfterBase (0.00s)
+=== RUN   TestIndicInitial_NoRephWithoutBase
+--- PASS: TestIndicInitial_NoRephWithoutBase (0.00s)
+=== RUN   TestIndicFinal_PreBaseMatraBeforeBase
+--- PASS: TestIndicFinal_PreBaseMatraBeforeBase (0.00s)
+=== RUN   TestIndicFinal_RephToEnd
+--- PASS: TestIndicFinal_RephToEnd (0.00s)
+=== RUN   TestIndicSyllableSplit_Simple
+--- PASS: TestIndicSyllableSplit_Simple (0.00s)
+=== RUN   TestIndicCategory_Basics
+--- PASS: TestIndicCategory_Basics (0.00s)
+=== RUN   TestIndicCategory_MatraClasses
+--- PASS: TestIndicCategory_MatraClasses (0.00s)
+=== RUN   TestIndicFinal_PeerPreBaseMatra
+--- PASS: TestIndicFinal_PeerPreBaseMatra (0.00s)
+=== RUN   TestIndicFinal_AboveMatraStaysWithBase
+--- PASS: TestIndicFinal_AboveMatraStaysWithBase (0.00s)
+=== RUN   TestIndicFindBase_MultiConsonant
+--- PASS: TestIndicFindBase_MultiConsonant (0.00s)
+=== RUN   TestIndicFindBase_SkipBelowBaseRa
+--- PASS: TestIndicFindBase_SkipBelowBaseRa (0.00s)
+=== RUN   TestIndicFinal_BelowBaseConsonantBucket
+--- PASS: TestIndicFinal_BelowBaseConsonantBucket (0.00s)
+=== RUN   TestIndicConsonantPos_PeerScripts
+--- PASS: TestIndicConsonantPos_PeerScripts (0.00s)
+=== RUN   TestIndicInitial_RephAfterMultiConsonantBase
+--- PASS: TestIndicInitial_RephAfterMultiConsonantBase (0.00s)
+=== RUN   TestIndicFinal_MatraBuckets
+--- PASS: TestIndicFinal_MatraBuckets (0.00s)
+=== RUN   TestIndicFinal_RephAfterMatras
+--- PASS: TestIndicFinal_RephAfterMatras (0.00s)
+=== RUN   TestIndicSyllableSplit_ConsonantCluster
+--- PASS: TestIndicSyllableSplit_ConsonantCluster (0.00s)
+=== RUN   TestKhmerCategory_PreBaseAndCoeng
+--- PASS: TestKhmerCategory_PreBaseAndCoeng (0.00s)
+=== RUN   TestKhmerFinal_PreBaseBeforeBase
+--- PASS: TestKhmerFinal_PreBaseBeforeBase (0.00s)
+=== RUN   TestKhmerSyllable_CoengCluster
+--- PASS: TestKhmerSyllable_CoengCluster (0.00s)
+=== RUN   TestMyanmarCategory_PreBaseE
+--- PASS: TestMyanmarCategory_PreBaseE (0.00s)
+=== RUN   TestMyanmarFinal_PreBaseE
+--- PASS: TestMyanmarFinal_PreBaseE (0.00s)
+=== RUN   TestMyanmarInitial_KinziAfterBase
+--- PASS: TestMyanmarInitial_KinziAfterBase (0.00s)
+=== RUN   TestMyanmarFinal_KinziToEnd
+--- PASS: TestMyanmarFinal_KinziToEnd (0.00s)
+=== RUN   TestNeedsIndic_KhmerMyanmar
+--- PASS: TestNeedsIndic_KhmerMyanmar (0.00s)
+PASS

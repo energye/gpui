@@ -1,0 +1,3 @@
+=== RUN   TestCompositeFramePacketTextured_TranslateStillCacheable
+--- PASS: TestCompositeFramePacketTextured_TranslateStillCacheable (0.29s)
+PASS

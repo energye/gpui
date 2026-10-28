@@ -1,0 +1,37 @@
+=== RUN   TestVideoUploadAlignedCountsOnce
+--- PASS: TestVideoUploadAlignedCountsOnce (0.00s)
+=== RUN   TestVideoUploadRejectsBadInput
+--- PASS: TestVideoUploadRejectsBadInput (0.00s)
+=== RUN   TestVideoAcquireForFrameReuse
+--- PASS: TestVideoAcquireForFrameReuse (0.00s)
+=== RUN   TestVideoDrawFrameMarksDamage
+    video_direct_upload_test.go:161: DrawVideoFrame left no damage
+--- FAIL: TestVideoDrawFrameMarksDamage (0.18s)
+=== RUN   TestVideoSlotFailClosedWithoutGPU
+--- PASS: TestVideoSlotFailClosedWithoutGPU (0.00s)
+=== RUN   TestVideoBridgeFallbackConverged
+    video_direct_upload_test.go:226: Bridge fallback left no damage
+--- FAIL: TestVideoBridgeFallbackConverged (0.00s)
+=== RUN   TestVideoBridgeNilDeviceFallbackOnly
+--- PASS: TestVideoBridgeNilDeviceFallbackOnly (0.00s)
+=== RUN   TestVideoBridgeTickUploadPaintDraw
+--- PASS: TestVideoBridgeTickUploadPaintDraw (0.00s)
+=== RUN   TestVideoBridgeMisalignedRGBAStagesCPUShadow
+--- PASS: TestVideoBridgeMisalignedRGBAStagesCPUShadow (0.10s)
+=== RUN   TestVideoBridgeShowSeqUploadsOnce
+--- PASS: TestVideoBridgeShowSeqUploadsOnce (0.00s)
+=== RUN   TestVideoBridgeEnsureDevice
+--- PASS: TestVideoBridgeEnsureDevice (0.00s)
+=== RUN   TestVideoPlanePoolBorrowReturnNoLeak
+--- PASS: TestVideoPlanePoolBorrowReturnNoLeak (0.00s)
+=== RUN   TestVideoPlaneUploadTightAndPadded
+--- PASS: TestVideoPlaneUploadTightAndPadded (0.01s)
+=== RUN   TestNV12ConvertPrimaries
+--- PASS: TestNV12ConvertPrimaries (0.00s)
+=== RUN   TestVideoBridgePlanesFallback
+    video_direct_upload_test.go:508: planes fallback left no damage
+--- FAIL: TestVideoBridgePlanesFallback (0.00s)
+=== RUN   TestNV12ConvertMatchesDecoder
+    video_direct_upload_test.go:582: nv12 convert parity: meanAbsDiff=1.112 over25=0.5233%
+--- PASS: TestNV12ConvertMatchesDecoder (0.27s)
+FAIL

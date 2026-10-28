@@ -1,0 +1,11 @@
+=== RUN   TestS41_CanMergeImageDraw
+--- PASS: TestS41_CanMergeImageDraw (0.00s)
+=== RUN   TestS41_ImageDrawVertexCount
+--- PASS: TestS41_ImageDrawVertexCount (0.00s)
+=== RUN   TestS41_SliceImageResourcesByVertexRange
+--- PASS: TestS41_SliceImageResourcesByVertexRange (0.00s)
+=== RUN   TestS41_BatchSealPreventsCrossGroupMergeLogic
+--- PASS: TestS41_BatchSealPreventsCrossGroupMergeLogic (0.00s)
+=== RUN   TestS41_MergeRunCounts64SameTexture
+--- PASS: TestS41_MergeRunCounts64SameTexture (0.00s)
+PASS

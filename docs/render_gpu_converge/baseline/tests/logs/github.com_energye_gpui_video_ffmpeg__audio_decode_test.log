@@ -1,0 +1,14 @@
+=== RUN   TestAudioOpenInfo
+--- PASS: TestAudioOpenInfo (0.02s)
+=== RUN   TestAudioFirstFrames
+    audio_decode_test.go:73: audio 0 pts=640 samples=1024
+    audio_decode_test.go:73: audio 1 pts=661 samples=1024
+    audio_decode_test.go:73: audio 2 pts=682 samples=1024
+    audio_decode_test.go:73: audio 3 pts=704 samples=1024
+    audio_decode_test.go:73: audio 4 pts=725 samples=1024
+--- PASS: TestAudioFirstFrames (0.01s)
+=== RUN   TestAudioSeek
+--- PASS: TestAudioSeek (0.01s)
+=== RUN   TestAudioSilentClip
+--- PASS: TestAudioSilentClip (0.01s)
+PASS

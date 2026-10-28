@@ -1,0 +1,5 @@
+=== RUN   TestQueueShape_SkipsZeroAlpha
+--- PASS: TestQueueShape_SkipsZeroAlpha (0.00s)
+=== RUN   TestQueueShape_KeepsSemiTransparent
+--- PASS: TestQueueShape_KeepsSemiTransparent (0.00s)
+PASS

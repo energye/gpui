@@ -1,0 +1,147 @@
+=== RUN   TestLayoutText_Empty
+--- PASS: TestLayoutText_Empty (0.00s)
+=== RUN   TestLayoutText_NilFace
+--- PASS: TestLayoutText_NilFace (0.00s)
+=== RUN   TestLayoutText_SingleLine
+--- PASS: TestLayoutText_SingleLine (0.00s)
+=== RUN   TestLayoutText_MultiLine
+--- PASS: TestLayoutText_MultiLine (0.00s)
+=== RUN   TestLayoutText_WindowsLineEndings
+--- PASS: TestLayoutText_WindowsLineEndings (0.00s)
+=== RUN   TestLayoutText_MacLineEndings
+--- PASS: TestLayoutText_MacLineEndings (0.00s)
+=== RUN   TestLayoutText_EmptyLines
+--- PASS: TestLayoutText_EmptyLines (0.00s)
+=== RUN   TestLayoutText_Alignment
+=== RUN   TestLayoutText_Alignment/AlignLeft
+=== RUN   TestLayoutText_Alignment/AlignCenter
+=== RUN   TestLayoutText_Alignment/AlignRight
+--- PASS: TestLayoutText_Alignment (0.00s)
+    --- PASS: TestLayoutText_Alignment/AlignLeft (0.00s)
+    --- PASS: TestLayoutText_Alignment/AlignCenter (0.00s)
+    --- PASS: TestLayoutText_Alignment/AlignRight (0.00s)
+=== RUN   TestLayoutText_AlignmentString
+=== RUN   TestLayoutText_AlignmentString/Left
+=== RUN   TestLayoutText_AlignmentString/Center
+=== RUN   TestLayoutText_AlignmentString/Right
+=== RUN   TestLayoutText_AlignmentString/Justify
+=== RUN   TestLayoutText_AlignmentString/Unknown
+--- PASS: TestLayoutText_AlignmentString (0.00s)
+    --- PASS: TestLayoutText_AlignmentString/Left (0.00s)
+    --- PASS: TestLayoutText_AlignmentString/Center (0.00s)
+    --- PASS: TestLayoutText_AlignmentString/Right (0.00s)
+    --- PASS: TestLayoutText_AlignmentString/Justify (0.00s)
+    --- PASS: TestLayoutText_AlignmentString/Unknown (0.00s)
+=== RUN   TestLayoutText_MaxWidth
+--- PASS: TestLayoutText_MaxWidth (0.00s)
+=== RUN   TestLayoutText_NoWrap
+--- PASS: TestLayoutText_NoWrap (0.00s)
+=== RUN   TestLayoutText_Bidi
+=== RUN   TestLayoutText_Bidi/Latin_only
+=== RUN   TestLayoutText_Bidi/With_Arabic
+=== RUN   TestLayoutText_Bidi/With_Hebrew
+=== RUN   TestLayoutText_Bidi/RTL_base
+--- PASS: TestLayoutText_Bidi (0.00s)
+    --- PASS: TestLayoutText_Bidi/Latin_only (0.00s)
+    --- PASS: TestLayoutText_Bidi/With_Arabic (0.00s)
+    --- PASS: TestLayoutText_Bidi/With_Hebrew (0.00s)
+    --- PASS: TestLayoutText_Bidi/RTL_base (0.00s)
+=== RUN   TestLayoutText_LineSpacing
+--- PASS: TestLayoutText_LineSpacing (0.00s)
+=== RUN   TestLayoutText_ZeroLineSpacing
+--- PASS: TestLayoutText_ZeroLineSpacing (0.00s)
+=== RUN   TestLayoutTextSimple
+--- PASS: TestLayoutTextSimple (0.00s)
+=== RUN   TestDefaultLayoutOptions
+--- PASS: TestDefaultLayoutOptions (0.00s)
+=== RUN   TestLine_Height
+--- PASS: TestLine_Height (0.00s)
+=== RUN   TestLayoutText_GlyphPositions
+--- PASS: TestLayoutText_GlyphPositions (0.00s)
+=== RUN   TestLayoutText_Runs
+--- PASS: TestLayoutText_Runs (0.00s)
+=== RUN   TestLayoutText_LongText
+--- PASS: TestLayoutText_LongText (0.02s)
+=== RUN   TestLayoutText_SingleCharacter
+--- PASS: TestLayoutText_SingleCharacter (0.00s)
+=== RUN   TestLayoutText_Whitespace
+--- PASS: TestLayoutText_Whitespace (0.00s)
+=== RUN   TestIsWordBreakRune
+=== RUN   TestIsWordBreakRune/_
+=== RUN   TestIsWordBreakRune/_#01
+=== RUN   TestIsWordBreakRune/_#02
+=== RUN   TestIsWordBreakRune/a
+=== RUN   TestIsWordBreakRune/A
+=== RUN   TestIsWordBreakRune/1
+=== RUN   TestIsWordBreakRune/.
+=== RUN   TestIsWordBreakRune/一
+=== RUN   TestIsWordBreakRune/あ
+=== RUN   TestIsWordBreakRune/ア
+=== RUN   TestIsWordBreakRune/가
+--- PASS: TestIsWordBreakRune (0.00s)
+    --- PASS: TestIsWordBreakRune/_ (0.00s)
+    --- PASS: TestIsWordBreakRune/_#01 (0.00s)
+    --- PASS: TestIsWordBreakRune/_#02 (0.00s)
+    --- PASS: TestIsWordBreakRune/a (0.00s)
+    --- PASS: TestIsWordBreakRune/A (0.00s)
+    --- PASS: TestIsWordBreakRune/1 (0.00s)
+    --- PASS: TestIsWordBreakRune/. (0.00s)
+    --- PASS: TestIsWordBreakRune/一 (0.00s)
+    --- PASS: TestIsWordBreakRune/あ (0.00s)
+    --- PASS: TestIsWordBreakRune/ア (0.00s)
+    --- PASS: TestIsWordBreakRune/가 (0.00s)
+=== RUN   TestIsCJK
+=== RUN   TestIsCJK/CJK_ideograph
+=== RUN   TestIsCJK/CJK_ideograph_end
+=== RUN   TestIsCJK/CJK_Extension_A
+=== RUN   TestIsCJK/Hiragana_A
+=== RUN   TestIsCJK/Hiragana_N
+=== RUN   TestIsCJK/Katakana_A
+=== RUN   TestIsCJK/Katakana_N
+=== RUN   TestIsCJK/Hangul_syllable
+=== RUN   TestIsCJK/Latin_A
+=== RUN   TestIsCJK/Latin_a
+=== RUN   TestIsCJK/Space
+=== RUN   TestIsCJK/Digit
+--- PASS: TestIsCJK (0.00s)
+    --- PASS: TestIsCJK/CJK_ideograph (0.00s)
+    --- PASS: TestIsCJK/CJK_ideograph_end (0.00s)
+    --- PASS: TestIsCJK/CJK_Extension_A (0.00s)
+    --- PASS: TestIsCJK/Hiragana_A (0.00s)
+    --- PASS: TestIsCJK/Hiragana_N (0.00s)
+    --- PASS: TestIsCJK/Katakana_A (0.00s)
+    --- PASS: TestIsCJK/Katakana_N (0.00s)
+    --- PASS: TestIsCJK/Hangul_syllable (0.00s)
+    --- PASS: TestIsCJK/Latin_A (0.00s)
+    --- PASS: TestIsCJK/Latin_a (0.00s)
+    --- PASS: TestIsCJK/Space (0.00s)
+    --- PASS: TestIsCJK/Digit (0.00s)
+=== RUN   TestLayoutText_DifferentSizes
+--- PASS: TestLayoutText_DifferentSizes (0.00s)
+=== RUN   TestSplitParagraphs
+=== RUN   TestSplitParagraphs/empty
+=== RUN   TestSplitParagraphs/single_line
+=== RUN   TestSplitParagraphs/two_lines_LF
+=== RUN   TestSplitParagraphs/two_lines_CRLF
+=== RUN   TestSplitParagraphs/two_lines_CR
+=== RUN   TestSplitParagraphs/three_lines
+=== RUN   TestSplitParagraphs/empty_middle
+=== RUN   TestSplitParagraphs/trailing_newline
+--- PASS: TestSplitParagraphs (0.00s)
+    --- PASS: TestSplitParagraphs/empty (0.00s)
+    --- PASS: TestSplitParagraphs/single_line (0.00s)
+    --- PASS: TestSplitParagraphs/two_lines_LF (0.00s)
+    --- PASS: TestSplitParagraphs/two_lines_CRLF (0.00s)
+    --- PASS: TestSplitParagraphs/two_lines_CR (0.00s)
+    --- PASS: TestSplitParagraphs/three_lines (0.00s)
+    --- PASS: TestSplitParagraphs/empty_middle (0.00s)
+    --- PASS: TestSplitParagraphs/trailing_newline (0.00s)
+=== RUN   TestLayoutText_WrappedLineYPositions
+--- PASS: TestLayoutText_WrappedLineYPositions (0.00s)
+=== RUN   TestLayoutText_WrappedMultiParagraphY
+--- PASS: TestLayoutText_WrappedMultiParagraphY (0.00s)
+=== RUN   TestLayoutText_MultiFace
+--- PASS: TestLayoutText_MultiFace (0.00s)
+=== RUN   TestLayoutText_MultiFaceRTL
+--- PASS: TestLayoutText_MultiFaceRTL (0.26s)
+PASS

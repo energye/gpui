@@ -1,0 +1,5 @@
+=== RUN   TestClipPresentDamage
+--- PASS: TestClipPresentDamage (0.00s)
+=== RUN   TestDamageRectsAreaSum
+--- PASS: TestDamageRectsAreaSum (0.00s)
+PASS

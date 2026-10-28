@@ -1,0 +1,15 @@
+=== RUN   TestWithWeight_StaticBoldEmboldens
+--- PASS: TestWithWeight_StaticBoldEmboldens (0.00s)
+=== RUN   TestWithWeight_StaticRegularNoEmbolden
+--- PASS: TestWithWeight_StaticRegularNoEmbolden (0.00s)
+=== RUN   TestWithWeight_ExplicitWghtWins
+--- PASS: TestWithWeight_ExplicitWghtWins (0.00s)
+=== RUN   TestWithWeight_VariableResolvesToWght
+--- PASS: TestWithWeight_VariableResolvesToWght (0.00s)
+=== RUN   TestGlyphMaskKey_BoldSeparates
+--- PASS: TestGlyphMaskKey_BoldSeparates (0.00s)
+=== RUN   TestFaceEmbolden_NilSafe
+--- PASS: TestFaceEmbolden_NilSafe (0.00s)
+=== RUN   TestDeriveFace_SingleEntry
+--- PASS: TestDeriveFace_SingleEntry (0.00s)
+PASS

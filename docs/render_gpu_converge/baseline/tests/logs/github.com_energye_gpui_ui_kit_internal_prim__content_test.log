@@ -1,0 +1,15 @@
+=== RUN   TestPrim_Content
+=== RUN   TestPrim_Content/estimate_sizes
+=== RUN   TestPrim_Content/style_merge
+=== RUN   TestPrim_Content/ellipsis_flag
+=== RUN   TestPrim_Content/picture_three_states
+=== RUN   TestPrim_Content/icon_follows_ctx
+=== RUN   TestPrim_Content/label_builds_nodes
+--- PASS: TestPrim_Content (0.00s)
+    --- PASS: TestPrim_Content/estimate_sizes (0.00s)
+    --- PASS: TestPrim_Content/style_merge (0.00s)
+    --- PASS: TestPrim_Content/ellipsis_flag (0.00s)
+    --- PASS: TestPrim_Content/picture_three_states (0.00s)
+    --- PASS: TestPrim_Content/icon_follows_ctx (0.00s)
+    --- PASS: TestPrim_Content/label_builds_nodes (0.00s)
+PASS

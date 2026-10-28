@@ -1,0 +1,5 @@
+=== RUN   TestR73_DualTexMultiBundle_DeferredSubmit
+--- PASS: TestR73_DualTexMultiBundle_DeferredSubmit (0.28s)
+=== RUN   TestR73_SubmitWithLeading_TwoCBs
+--- PASS: TestR73_SubmitWithLeading_TwoCBs (0.26s)
+PASS

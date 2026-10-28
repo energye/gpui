@@ -1,0 +1,4 @@
+=== RUN   TestGPUExampleCPUvsGPUVisualDiagnostic
+    gpu_example_visual_test.go:15: set GPUI_GPU_EXAMPLE_VISUAL=1 to run CPU/GPU gpu example diagnostics
+--- SKIP: TestGPUExampleCPUvsGPUVisualDiagnostic (0.00s)
+PASS

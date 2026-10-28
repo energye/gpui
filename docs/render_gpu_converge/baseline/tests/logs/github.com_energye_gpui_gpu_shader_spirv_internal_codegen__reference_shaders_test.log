@@ -1,0 +1,56 @@
+=== RUN   TestEssentialReferenceShaders
+=== RUN   TestEssentialReferenceShaders/empty
+    reference_shaders_test.go:151: [empty] compiled successfully: 164 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/constructors
+    reference_shaders_test.go:151: [constructors] compiled successfully: 1312 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/operators
+    reference_shaders_test.go:151: [operators] compiled successfully: 14640 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/control-flow
+    reference_shaders_test.go:151: [control-flow] compiled successfully: 5404 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/functions
+    reference_shaders_test.go:151: [functions] compiled successfully: 1480 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/globals
+    reference_shaders_test.go:151: [globals] compiled successfully: 6076 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/interface
+    reference_shaders_test.go:151: [interface] compiled successfully: 3132 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/collatz
+    reference_shaders_test.go:151: [collatz] compiled successfully: 2156 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/quad
+    reference_shaders_test.go:151: [quad] compiled successfully: 1388 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/image
+    reference_shaders_test.go:151: [image] compiled successfully: 14492 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/shadow
+    reference_shaders_test.go:151: [shadow] compiled successfully: 7964 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/boids
+    reference_shaders_test.go:151: [boids] compiled successfully: 7160 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/access
+    reference_shaders_test.go:151: [access] compiled successfully: 17208 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/math-functions
+    reference_shaders_test.go:151: [math-functions] compiled successfully: 2064 bytes of SPIR-V
+=== RUN   TestEssentialReferenceShaders/struct-layout
+    reference_shaders_test.go:151: [struct-layout] compiled successfully: 2536 bytes of SPIR-V
+--- PASS: TestEssentialReferenceShaders (0.02s)
+    --- PASS: TestEssentialReferenceShaders/empty (0.00s)
+    --- PASS: TestEssentialReferenceShaders/constructors (0.00s)
+    --- PASS: TestEssentialReferenceShaders/operators (0.00s)
+    --- PASS: TestEssentialReferenceShaders/control-flow (0.00s)
+    --- PASS: TestEssentialReferenceShaders/functions (0.00s)
+    --- PASS: TestEssentialReferenceShaders/globals (0.00s)
+    --- PASS: TestEssentialReferenceShaders/interface (0.00s)
+    --- PASS: TestEssentialReferenceShaders/collatz (0.00s)
+    --- PASS: TestEssentialReferenceShaders/quad (0.00s)
+    --- PASS: TestEssentialReferenceShaders/image (0.00s)
+    --- PASS: TestEssentialReferenceShaders/shadow (0.00s)
+    --- PASS: TestEssentialReferenceShaders/boids (0.00s)
+    --- PASS: TestEssentialReferenceShaders/access (0.00s)
+    --- PASS: TestEssentialReferenceShaders/math-functions (0.00s)
+    --- PASS: TestEssentialReferenceShaders/struct-layout (0.00s)
+=== RUN   TestBonusReferenceShaders
+=== RUN   TestBonusReferenceShaders/skybox
+    reference_shaders_test.go:181: [skybox] compiled successfully: 3084 bytes of SPIR-V
+=== RUN   TestBonusReferenceShaders/water
+    reference_shaders_test.go:181: [water] compiled successfully: 14568 bytes of SPIR-V
+--- PASS: TestBonusReferenceShaders (0.00s)
+    --- PASS: TestBonusReferenceShaders/skybox (0.00s)
+    --- PASS: TestBonusReferenceShaders/water (0.00s)
+PASS

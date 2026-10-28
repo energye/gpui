@@ -1,0 +1,13 @@
+=== RUN   TestErrorScopeNoError
+    errors_test.go:44: No error captured (as expected)
+--- PASS: TestErrorScopeNoError (0.23s)
+=== RUN   TestErrorScopeValidation
+    errors_test.go:88: No error captured (size=0 might be allowed by implementation)
+--- PASS: TestErrorScopeValidation (0.16s)
+=== RUN   TestErrorScopeNested
+    errors_test.go:119: Popped scope 1: type=1, msg=
+    errors_test.go:125: Popped scope 2: type=1, msg=
+    errors_test.go:131: Popped scope 3: type=1, msg=
+    errors_test.go:135: Successfully popped all 3 scopes in LIFO order
+--- PASS: TestErrorScopeNested (0.15s)
+PASS

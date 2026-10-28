@@ -1,0 +1,13 @@
+=== RUN   TestPictureBox_SkipWhenClean
+--- PASS: TestPictureBox_SkipWhenClean (0.00s)
+=== RUN   TestPictureBox_RerecordOnDirty
+--- PASS: TestPictureBox_RerecordOnDirty (0.00s)
+=== RUN   TestPictureBox_RecordLiveEquivalence
+--- PASS: TestPictureBox_RecordLiveEquivalence (0.00s)
+=== RUN   TestPictureBox_NilRecordNeverCaches
+--- PASS: TestPictureBox_NilRecordNeverCaches (0.00s)
+=== RUN   TestPictureBox_NonBoundaryDisablesParentCache
+--- PASS: TestPictureBox_NonBoundaryDisablesParentCache (0.00s)
+=== RUN   TestPictureBox_LayerRecordsOps
+--- PASS: TestPictureBox_LayerRecordsOps (0.00s)
+PASS

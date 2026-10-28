@@ -1,0 +1,31 @@
+=== RUN   TestDefaultLCDFilter_WeightsSum
+--- PASS: TestDefaultLCDFilter_WeightsSum (0.00s)
+=== RUN   TestLCDFilter_Apply_Uniform
+--- PASS: TestLCDFilter_Apply_Uniform (0.00s)
+=== RUN   TestLCDFilter_Apply_SinglePixel
+--- PASS: TestLCDFilter_Apply_SinglePixel (0.00s)
+=== RUN   TestLCDFilter_Apply_ZeroInput
+--- PASS: TestLCDFilter_Apply_ZeroInput (0.00s)
+=== RUN   TestLCDFilter_Apply_KnownPattern
+--- PASS: TestLCDFilter_Apply_KnownPattern (0.00s)
+=== RUN   TestLCDFilter_Apply_ClampOutput
+--- PASS: TestLCDFilter_Apply_ClampOutput (0.00s)
+=== RUN   TestLCDFilter_Apply_EmptyInput
+--- PASS: TestLCDFilter_Apply_EmptyInput (0.00s)
+=== RUN   TestLCDLayout_String
+--- PASS: TestLCDLayout_String (0.00s)
+=== RUN   TestGlyphMaskRasterizer_RasterizeLCDOutline_Nil
+--- PASS: TestGlyphMaskRasterizer_RasterizeLCDOutline_Nil (0.00s)
+=== RUN   TestGlyphMaskRasterizer_RasterizeLCDOutline_Empty
+--- PASS: TestGlyphMaskRasterizer_RasterizeLCDOutline_Empty (0.00s)
+=== RUN   TestGlyphMaskRasterizer_RasterizeLCDOutline_Triangle
+--- PASS: TestGlyphMaskRasterizer_RasterizeLCDOutline_Triangle (0.00s)
+=== RUN   TestGlyphMaskRasterizer_RasterizeLCD_BGR_Swaps
+--- PASS: TestGlyphMaskRasterizer_RasterizeLCD_BGR_Swaps (0.00s)
+=== RUN   TestGlyphMaskRasterizer_RasterizeLCD_Square
+--- PASS: TestGlyphMaskRasterizer_RasterizeLCD_Square (0.00s)
+=== RUN   TestGlyphMaskAtlas_PutLCD
+--- PASS: TestGlyphMaskAtlas_PutLCD (0.00s)
+=== RUN   TestGlyphMaskAtlas_PutLCD_InvalidDimensions
+--- PASS: TestGlyphMaskAtlas_PutLCD_InvalidDimensions (0.00s)
+PASS

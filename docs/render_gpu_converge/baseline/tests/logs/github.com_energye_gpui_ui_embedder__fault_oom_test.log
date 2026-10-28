@@ -1,0 +1,7 @@
+=== RUN   TestFaultOOM_EnvParsing
+--- PASS: TestFaultOOM_EnvParsing (0.00s)
+=== RUN   TestFaultOOM_InjectStreak
+--- PASS: TestFaultOOM_InjectStreak (0.00s)
+=== RUN   TestFaultOOM_FeedsRealExitChain
+--- PASS: TestFaultOOM_FeedsRealExitChain (0.00s)
+PASS

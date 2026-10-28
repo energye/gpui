@@ -1,0 +1,87 @@
+=== RUN   TestNewFontVariation
+=== RUN   TestNewFontVariation/wght
+=== RUN   TestNewFontVariation/wdth
+=== RUN   TestNewFontVariation/slnt
+=== RUN   TestNewFontVariation/ital
+=== RUN   TestNewFontVariation/opsz
+--- PASS: TestNewFontVariation (0.00s)
+    --- PASS: TestNewFontVariation/wght (0.00s)
+    --- PASS: TestNewFontVariation/wdth (0.00s)
+    --- PASS: TestNewFontVariation/slnt (0.00s)
+    --- PASS: TestNewFontVariation/ital (0.00s)
+    --- PASS: TestNewFontVariation/opsz (0.00s)
+=== RUN   TestNewFontVariation_PanicShortTag
+--- PASS: TestNewFontVariation_PanicShortTag (0.00s)
+=== RUN   TestNewFontVariation_PanicLongTag
+--- PASS: TestNewFontVariation_PanicLongTag (0.00s)
+=== RUN   TestNewFontVariation_PanicEmptyTag
+--- PASS: TestNewFontVariation_PanicEmptyTag (0.00s)
+=== RUN   TestAxisConstants
+=== RUN   TestAxisConstants/AxisWeight
+=== RUN   TestAxisConstants/AxisWidth
+=== RUN   TestAxisConstants/AxisItalic
+=== RUN   TestAxisConstants/AxisSlant
+=== RUN   TestAxisConstants/AxisOpticalSize
+--- PASS: TestAxisConstants (0.00s)
+    --- PASS: TestAxisConstants/AxisWeight (0.00s)
+    --- PASS: TestAxisConstants/AxisWidth (0.00s)
+    --- PASS: TestAxisConstants/AxisItalic (0.00s)
+    --- PASS: TestAxisConstants/AxisSlant (0.00s)
+    --- PASS: TestAxisConstants/AxisOpticalSize (0.00s)
+=== RUN   TestWithVariations
+--- PASS: TestWithVariations (0.00s)
+=== RUN   TestWithVariations_None
+--- PASS: TestWithVariations_None (0.00s)
+=== RUN   TestWithVariations_Empty
+--- PASS: TestWithVariations_Empty (0.00s)
+=== RUN   TestWithVariations_IndependentPerFace
+--- PASS: TestWithVariations_IndependentPerFace (0.00s)
+=== RUN   TestWithVariations_CombinedWithFeatures
+--- PASS: TestWithVariations_CombinedWithFeatures (0.00s)
+=== RUN   TestIsVariable_StaticFont
+--- PASS: TestIsVariable_StaticFont (0.00s)
+=== RUN   TestIsVariable_VariableFont
+    varfont_test.go:311: No variable font available on this system
+--- SKIP: TestIsVariable_VariableFont (0.00s)
+=== RUN   TestVariationAxes_StaticFont
+--- PASS: TestVariationAxes_StaticFont (0.00s)
+=== RUN   TestVariationAxes_VariableFont
+    varfont_test.go:339: No variable font available on this system
+--- SKIP: TestVariationAxes_VariableFont (0.00s)
+=== RUN   TestNamedInstances_StaticFont
+--- PASS: TestNamedInstances_StaticFont (0.00s)
+=== RUN   TestNamedInstances_VariableFont
+    varfont_test.go:401: No variable font available on this system
+--- SKIP: TestNamedInstances_VariableFont (0.00s)
+=== RUN   TestVariationHash_Empty
+--- PASS: TestVariationHash_Empty (0.00s)
+=== RUN   TestVariationHash_Deterministic
+--- PASS: TestVariationHash_Deterministic (0.00s)
+=== RUN   TestVariationHash_DifferentValues
+--- PASS: TestVariationHash_DifferentValues (0.00s)
+=== RUN   TestVariationHash_OrderMatters
+--- PASS: TestVariationHash_OrderMatters (0.00s)
+=== RUN   TestVariationCacheKey_DifferentVariations
+--- PASS: TestVariationCacheKey_DifferentVariations (0.00s)
+=== RUN   TestVariations_AffectShaping
+    varfont_test.go:548: No variable font available on this system
+--- SKIP: TestVariations_AffectShaping (0.00s)
+=== RUN   TestVariations_DefaultMatchesNoVariation
+    varfont_test.go:589: No variable font available on this system
+--- SKIP: TestVariations_DefaultMatchesNoVariation (0.00s)
+=== RUN   TestVariations_AffectRendering
+    varfont_test.go:633: No variable font available on this system
+--- SKIP: TestVariations_AffectRendering (0.00s)
+=== RUN   TestVariations_NoVariation_UsesDefaultPath
+    varfont_test.go:695: standard font: 248 ink pixels
+--- PASS: TestVariations_NoVariation_UsesDefaultPath (0.00s)
+=== RUN   TestVariations_OutlineExtraction
+    varfont_test.go:701: No variable font available on this system
+--- SKIP: TestVariations_OutlineExtraction (0.00s)
+=== RUN   TestVariations_AliasedRendering
+    varfont_test.go:742: No variable font available on this system
+--- SKIP: TestVariations_AliasedRendering (0.00s)
+=== RUN   TestVariations_AliasedVsAA
+    varfont_test.go:786: No variable font available on this system
+--- SKIP: TestVariations_AliasedVsAA (0.00s)
+PASS

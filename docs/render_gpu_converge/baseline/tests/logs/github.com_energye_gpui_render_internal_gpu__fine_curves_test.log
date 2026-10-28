@@ -1,0 +1,46 @@
+=== RUN   TestRasterizeCurvesEmptyInput
+--- PASS: TestRasterizeCurvesEmptyInput (0.00s)
+=== RUN   TestRasterizeCurvesWithLineEdges
+    fine_curves_test.go:67: Rectangle: 2 line edges, 4 tiles
+--- PASS: TestRasterizeCurvesWithLineEdges (0.00s)
+=== RUN   TestRasterizeCurvesWithQuadratic
+--- PASS: TestRasterizeCurvesWithQuadratic (0.00s)
+=== RUN   TestRasterizeCurvesWithCubic
+--- PASS: TestRasterizeCurvesWithCubic (0.00s)
+=== RUN   TestRasterizeCurvesClosedPath
+--- PASS: TestRasterizeCurvesClosedPath (0.00s)
+=== RUN   TestRasterizeCurvesCirclePath
+    fine_curves_test.go:191: Circle path: 0 line edges, 0 quad edges, 4 cubic edges, 0 tiles
+--- PASS: TestRasterizeCurvesCirclePath (0.00s)
+=== RUN   TestRasterizeCurvesFillRules
+=== RUN   TestRasterizeCurvesFillRules/NonZero
+    fine_curves_test.go:245: NonZero: 6 tiles
+=== RUN   TestRasterizeCurvesFillRules/EvenOdd
+    fine_curves_test.go:245: EvenOdd: 6 tiles
+--- PASS: TestRasterizeCurvesFillRules (0.00s)
+    --- PASS: TestRasterizeCurvesFillRules/NonZero (0.00s)
+    --- PASS: TestRasterizeCurvesFillRules/EvenOdd (0.00s)
+=== RUN   TestRasterizeCurvesBackdrop
+--- PASS: TestRasterizeCurvesBackdrop (0.00s)
+=== RUN   TestBinCurveEdgesNil
+--- PASS: TestBinCurveEdgesNil (0.00s)
+=== RUN   TestBinCurveEdgesEmpty
+--- PASS: TestBinCurveEdgesEmpty (0.00s)
+=== RUN   TestCurveTileBinCloning
+    fine_curves_test.go:333: Lines created 12 edges across 12 bins
+--- PASS: TestCurveTileBinCloning (0.00s)
+=== RUN   TestLineEdgeToSegment
+--- PASS: TestLineEdgeToSegment (0.00s)
+=== RUN   TestFillTileWithBackdrop
+=== RUN   TestFillTileWithBackdrop/nonzero_positive
+=== RUN   TestFillTileWithBackdrop/nonzero_negative
+=== RUN   TestFillTileWithBackdrop/nonzero_zero
+=== RUN   TestFillTileWithBackdrop/evenodd_odd
+=== RUN   TestFillTileWithBackdrop/evenodd_even
+--- PASS: TestFillTileWithBackdrop (0.00s)
+    --- PASS: TestFillTileWithBackdrop/nonzero_positive (0.00s)
+    --- PASS: TestFillTileWithBackdrop/nonzero_negative (0.00s)
+    --- PASS: TestFillTileWithBackdrop/nonzero_zero (0.00s)
+    --- PASS: TestFillTileWithBackdrop/evenodd_odd (0.00s)
+    --- PASS: TestFillTileWithBackdrop/evenodd_even (0.00s)
+PASS

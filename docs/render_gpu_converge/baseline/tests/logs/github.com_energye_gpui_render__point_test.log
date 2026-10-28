@@ -1,0 +1,173 @@
+=== RUN   TestPt
+--- PASS: TestPt (0.00s)
+=== RUN   TestPoint_Add
+=== RUN   TestPoint_Add/positive
+=== RUN   TestPoint_Add/negative
+=== RUN   TestPoint_Add/mixed
+=== RUN   TestPoint_Add/zero_+_zero
+=== RUN   TestPoint_Add/zero_+_value
+=== RUN   TestPoint_Add/fractional
+--- PASS: TestPoint_Add (0.00s)
+    --- PASS: TestPoint_Add/positive (0.00s)
+    --- PASS: TestPoint_Add/negative (0.00s)
+    --- PASS: TestPoint_Add/mixed (0.00s)
+    --- PASS: TestPoint_Add/zero_+_zero (0.00s)
+    --- PASS: TestPoint_Add/zero_+_value (0.00s)
+    --- PASS: TestPoint_Add/fractional (0.00s)
+=== RUN   TestPoint_Sub
+=== RUN   TestPoint_Sub/positive
+=== RUN   TestPoint_Sub/negative_result
+=== RUN   TestPoint_Sub/same_point
+=== RUN   TestPoint_Sub/zero
+--- PASS: TestPoint_Sub (0.00s)
+    --- PASS: TestPoint_Sub/positive (0.00s)
+    --- PASS: TestPoint_Sub/negative_result (0.00s)
+    --- PASS: TestPoint_Sub/same_point (0.00s)
+    --- PASS: TestPoint_Sub/zero (0.00s)
+=== RUN   TestPoint_Mul
+=== RUN   TestPoint_Mul/positive_scalar
+=== RUN   TestPoint_Mul/zero_scalar
+=== RUN   TestPoint_Mul/negative_scalar
+=== RUN   TestPoint_Mul/fractional_scalar
+=== RUN   TestPoint_Mul/one_scalar
+--- PASS: TestPoint_Mul (0.00s)
+    --- PASS: TestPoint_Mul/positive_scalar (0.00s)
+    --- PASS: TestPoint_Mul/zero_scalar (0.00s)
+    --- PASS: TestPoint_Mul/negative_scalar (0.00s)
+    --- PASS: TestPoint_Mul/fractional_scalar (0.00s)
+    --- PASS: TestPoint_Mul/one_scalar (0.00s)
+=== RUN   TestPoint_Div
+=== RUN   TestPoint_Div/positive_divisor
+=== RUN   TestPoint_Div/fractional_divisor
+=== RUN   TestPoint_Div/negative_divisor
+=== RUN   TestPoint_Div/one_divisor
+--- PASS: TestPoint_Div (0.00s)
+    --- PASS: TestPoint_Div/positive_divisor (0.00s)
+    --- PASS: TestPoint_Div/fractional_divisor (0.00s)
+    --- PASS: TestPoint_Div/negative_divisor (0.00s)
+    --- PASS: TestPoint_Div/one_divisor (0.00s)
+=== RUN   TestPoint_Div_ByZero
+--- PASS: TestPoint_Div_ByZero (0.00s)
+=== RUN   TestPoint_Dot
+=== RUN   TestPoint_Dot/perpendicular
+=== RUN   TestPoint_Dot/parallel_same
+=== RUN   TestPoint_Dot/parallel_opposite
+=== RUN   TestPoint_Dot/general
+=== RUN   TestPoint_Dot/zero_vectors
+=== RUN   TestPoint_Dot/unit_at_45
+--- PASS: TestPoint_Dot (0.00s)
+    --- PASS: TestPoint_Dot/perpendicular (0.00s)
+    --- PASS: TestPoint_Dot/parallel_same (0.00s)
+    --- PASS: TestPoint_Dot/parallel_opposite (0.00s)
+    --- PASS: TestPoint_Dot/general (0.00s)
+    --- PASS: TestPoint_Dot/zero_vectors (0.00s)
+    --- PASS: TestPoint_Dot/unit_at_45 (0.00s)
+=== RUN   TestPoint_Cross
+=== RUN   TestPoint_Cross/perpendicular
+=== RUN   TestPoint_Cross/perpendicular_reverse
+=== RUN   TestPoint_Cross/parallel
+=== RUN   TestPoint_Cross/general
+=== RUN   TestPoint_Cross/zero_vectors
+=== RUN   TestPoint_Cross/same_vector
+--- PASS: TestPoint_Cross (0.00s)
+    --- PASS: TestPoint_Cross/perpendicular (0.00s)
+    --- PASS: TestPoint_Cross/perpendicular_reverse (0.00s)
+    --- PASS: TestPoint_Cross/parallel (0.00s)
+    --- PASS: TestPoint_Cross/general (0.00s)
+    --- PASS: TestPoint_Cross/zero_vectors (0.00s)
+    --- PASS: TestPoint_Cross/same_vector (0.00s)
+=== RUN   TestPoint_Length
+=== RUN   TestPoint_Length/unit_x
+=== RUN   TestPoint_Length/unit_y
+=== RUN   TestPoint_Length/3-4-5
+=== RUN   TestPoint_Length/zero
+=== RUN   TestPoint_Length/negative
+=== RUN   TestPoint_Length/unit_diagonal
+--- PASS: TestPoint_Length (0.00s)
+    --- PASS: TestPoint_Length/unit_x (0.00s)
+    --- PASS: TestPoint_Length/unit_y (0.00s)
+    --- PASS: TestPoint_Length/3-4-5 (0.00s)
+    --- PASS: TestPoint_Length/zero (0.00s)
+    --- PASS: TestPoint_Length/negative (0.00s)
+    --- PASS: TestPoint_Length/unit_diagonal (0.00s)
+=== RUN   TestPoint_LengthSquared
+=== RUN   TestPoint_LengthSquared/3-4-5
+=== RUN   TestPoint_LengthSquared/zero
+=== RUN   TestPoint_LengthSquared/unit
+--- PASS: TestPoint_LengthSquared (0.00s)
+    --- PASS: TestPoint_LengthSquared/3-4-5 (0.00s)
+    --- PASS: TestPoint_LengthSquared/zero (0.00s)
+    --- PASS: TestPoint_LengthSquared/unit (0.00s)
+=== RUN   TestPoint_Distance
+=== RUN   TestPoint_Distance/same_point
+=== RUN   TestPoint_Distance/horizontal
+=== RUN   TestPoint_Distance/vertical
+=== RUN   TestPoint_Distance/3-4-5
+=== RUN   TestPoint_Distance/symmetric
+--- PASS: TestPoint_Distance (0.00s)
+    --- PASS: TestPoint_Distance/same_point (0.00s)
+    --- PASS: TestPoint_Distance/horizontal (0.00s)
+    --- PASS: TestPoint_Distance/vertical (0.00s)
+    --- PASS: TestPoint_Distance/3-4-5 (0.00s)
+    --- PASS: TestPoint_Distance/symmetric (0.00s)
+=== RUN   TestPoint_Distance_Symmetry
+--- PASS: TestPoint_Distance_Symmetry (0.00s)
+=== RUN   TestPoint_Normalize
+=== RUN   TestPoint_Normalize/unit_x
+=== RUN   TestPoint_Normalize/unit_y
+=== RUN   TestPoint_Normalize/diagonal
+=== RUN   TestPoint_Normalize/negative
+=== RUN   TestPoint_Normalize/already_unit
+--- PASS: TestPoint_Normalize (0.00s)
+    --- PASS: TestPoint_Normalize/unit_x (0.00s)
+    --- PASS: TestPoint_Normalize/unit_y (0.00s)
+    --- PASS: TestPoint_Normalize/diagonal (0.00s)
+    --- PASS: TestPoint_Normalize/negative (0.00s)
+    --- PASS: TestPoint_Normalize/already_unit (0.00s)
+=== RUN   TestPoint_Normalize_Zero
+--- PASS: TestPoint_Normalize_Zero (0.00s)
+=== RUN   TestPoint_Normalize_Direction
+--- PASS: TestPoint_Normalize_Direction (0.00s)
+=== RUN   TestPoint_Rotate
+=== RUN   TestPoint_Rotate/0_degrees
+=== RUN   TestPoint_Rotate/90_degrees
+=== RUN   TestPoint_Rotate/180_degrees
+=== RUN   TestPoint_Rotate/270_degrees
+=== RUN   TestPoint_Rotate/360_degrees
+=== RUN   TestPoint_Rotate/-90_degrees
+=== RUN   TestPoint_Rotate/45_degrees
+=== RUN   TestPoint_Rotate/zero_vector
+--- PASS: TestPoint_Rotate (0.00s)
+    --- PASS: TestPoint_Rotate/0_degrees (0.00s)
+    --- PASS: TestPoint_Rotate/90_degrees (0.00s)
+    --- PASS: TestPoint_Rotate/180_degrees (0.00s)
+    --- PASS: TestPoint_Rotate/270_degrees (0.00s)
+    --- PASS: TestPoint_Rotate/360_degrees (0.00s)
+    --- PASS: TestPoint_Rotate/-90_degrees (0.00s)
+    --- PASS: TestPoint_Rotate/45_degrees (0.00s)
+    --- PASS: TestPoint_Rotate/zero_vector (0.00s)
+=== RUN   TestPoint_Rotate_PreservesLength
+--- PASS: TestPoint_Rotate_PreservesLength (0.00s)
+=== RUN   TestPoint_Lerp
+=== RUN   TestPoint_Lerp/t=0_returns_p
+=== RUN   TestPoint_Lerp/t=1_returns_q
+=== RUN   TestPoint_Lerp/t=0.5_midpoint
+=== RUN   TestPoint_Lerp/t=0.25_quarter
+=== RUN   TestPoint_Lerp/same_point
+=== RUN   TestPoint_Lerp/extrapolate_t=2
+=== RUN   TestPoint_Lerp/extrapolate_t=-1
+=== RUN   TestPoint_Lerp/negative_coords
+--- PASS: TestPoint_Lerp (0.00s)
+    --- PASS: TestPoint_Lerp/t=0_returns_p (0.00s)
+    --- PASS: TestPoint_Lerp/t=1_returns_q (0.00s)
+    --- PASS: TestPoint_Lerp/t=0.5_midpoint (0.00s)
+    --- PASS: TestPoint_Lerp/t=0.25_quarter (0.00s)
+    --- PASS: TestPoint_Lerp/same_point (0.00s)
+    --- PASS: TestPoint_Lerp/extrapolate_t=2 (0.00s)
+    --- PASS: TestPoint_Lerp/extrapolate_t=-1 (0.00s)
+    --- PASS: TestPoint_Lerp/negative_coords (0.00s)
+=== RUN   TestPoint_NaN
+--- PASS: TestPoint_NaN (0.00s)
+=== RUN   TestPoint_Inf
+--- PASS: TestPoint_Inf (0.00s)
+PASS

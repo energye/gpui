@@ -1,0 +1,111 @@
+=== RUN   TestNewStrokeExpander
+--- PASS: TestNewStrokeExpander (0.00s)
+=== RUN   TestStrokeExpander_SetTolerance
+--- PASS: TestStrokeExpander_SetTolerance (0.00s)
+=== RUN   TestStrokeExpander_ExpandSimpleLine
+--- PASS: TestStrokeExpander_ExpandSimpleLine (0.00s)
+=== RUN   TestStrokeExpander_ExpandSquare
+--- PASS: TestStrokeExpander_ExpandSquare (0.00s)
+=== RUN   TestStrokeExpander_ExpandWithRoundCap
+--- PASS: TestStrokeExpander_ExpandWithRoundCap (0.00s)
+=== RUN   TestStrokeExpander_ExpandWithSquareCap
+--- PASS: TestStrokeExpander_ExpandWithSquareCap (0.00s)
+=== RUN   TestStrokeExpander_MiterJoin
+--- PASS: TestStrokeExpander_MiterJoin (0.00s)
+=== RUN   TestStrokeExpander_MiterJoinTipBothDirections
+=== RUN   TestStrokeExpander_MiterJoinTipBothDirections/down-then-right
+=== RUN   TestStrokeExpander_MiterJoinTipBothDirections/right-then-down
+--- PASS: TestStrokeExpander_MiterJoinTipBothDirections (0.00s)
+    --- PASS: TestStrokeExpander_MiterJoinTipBothDirections/down-then-right (0.00s)
+    --- PASS: TestStrokeExpander_MiterJoinTipBothDirections/right-then-down (0.00s)
+=== RUN   TestStrokeExpander_BevelJoin
+--- PASS: TestStrokeExpander_BevelJoin (0.00s)
+=== RUN   TestStrokeExpander_RoundJoin
+--- PASS: TestStrokeExpander_RoundJoin (0.00s)
+=== RUN   TestStrokeExpander_QuadraticCurve
+--- PASS: TestStrokeExpander_QuadraticCurve (0.00s)
+=== RUN   TestStrokeExpander_CubicCurve
+--- PASS: TestStrokeExpander_CubicCurve (0.00s)
+=== RUN   TestStrokeExpander_EmptyPath
+--- PASS: TestStrokeExpander_EmptyPath (0.00s)
+=== RUN   TestStrokeExpander_SingleMoveTo
+--- PASS: TestStrokeExpander_SingleMoveTo (0.00s)
+=== RUN   TestStrokeExpander_ZeroLengthLine
+--- PASS: TestStrokeExpander_ZeroLengthLine (0.00s)
+=== RUN   TestStrokeExpander_MultipleSubpaths
+--- PASS: TestStrokeExpander_MultipleSubpaths (0.00s)
+=== RUN   TestVec2_Operations
+=== RUN   TestVec2_Operations/Add
+=== RUN   TestVec2_Operations/Sub
+=== RUN   TestVec2_Operations/Scale
+=== RUN   TestVec2_Operations/Neg
+=== RUN   TestVec2_Operations/Dot
+=== RUN   TestVec2_Operations/Cross
+=== RUN   TestVec2_Operations/Length
+=== RUN   TestVec2_Operations/Normalize
+=== RUN   TestVec2_Operations/Normalize_zero_vector
+=== RUN   TestVec2_Operations/Perp
+=== RUN   TestVec2_Operations/Angle
+--- PASS: TestVec2_Operations (0.00s)
+    --- PASS: TestVec2_Operations/Add (0.00s)
+    --- PASS: TestVec2_Operations/Sub (0.00s)
+    --- PASS: TestVec2_Operations/Scale (0.00s)
+    --- PASS: TestVec2_Operations/Neg (0.00s)
+    --- PASS: TestVec2_Operations/Dot (0.00s)
+    --- PASS: TestVec2_Operations/Cross (0.00s)
+    --- PASS: TestVec2_Operations/Length (0.00s)
+    --- PASS: TestVec2_Operations/Normalize (0.00s)
+    --- PASS: TestVec2_Operations/Normalize_zero_vector (0.00s)
+    --- PASS: TestVec2_Operations/Perp (0.00s)
+    --- PASS: TestVec2_Operations/Angle (0.00s)
+=== RUN   TestPoint_Operations
+=== RUN   TestPoint_Operations/Add
+=== RUN   TestPoint_Operations/Sub
+=== RUN   TestPoint_Operations/Distance
+=== RUN   TestPoint_Operations/Lerp
+--- PASS: TestPoint_Operations (0.00s)
+    --- PASS: TestPoint_Operations/Add (0.00s)
+    --- PASS: TestPoint_Operations/Sub (0.00s)
+    --- PASS: TestPoint_Operations/Distance (0.00s)
+    --- PASS: TestPoint_Operations/Lerp (0.00s)
+=== RUN   TestDistanceToLine
+=== RUN   TestDistanceToLine/point_on_line
+=== RUN   TestDistanceToLine/point_above_line
+=== RUN   TestDistanceToLine/point_before_line_start
+=== RUN   TestDistanceToLine/point_after_line_end
+=== RUN   TestDistanceToLine/degenerate_line_(a_==_b)
+--- PASS: TestDistanceToLine (0.00s)
+    --- PASS: TestDistanceToLine/point_on_line (0.00s)
+    --- PASS: TestDistanceToLine/point_above_line (0.00s)
+    --- PASS: TestDistanceToLine/point_before_line_start (0.00s)
+    --- PASS: TestDistanceToLine/point_after_line_end (0.00s)
+    --- PASS: TestDistanceToLine/degenerate_line_(a_==_b) (0.00s)
+=== RUN   TestDefaultStroke
+--- PASS: TestDefaultStroke (0.00s)
+=== RUN   TestPathBuilder
+--- PASS: TestPathBuilder (0.00s)
+=== RUN   TestInnerJoin_AcuteAngle
+=== RUN   TestInnerJoin_AcuteAngle/Bevel
+=== RUN   TestInnerJoin_AcuteAngle/Miter
+=== RUN   TestInnerJoin_AcuteAngle/Round
+--- PASS: TestInnerJoin_AcuteAngle (0.00s)
+    --- PASS: TestInnerJoin_AcuteAngle/Bevel (0.00s)
+    --- PASS: TestInnerJoin_AcuteAngle/Miter (0.00s)
+    --- PASS: TestInnerJoin_AcuteAngle/Round (0.00s)
+=== RUN   TestInnerJoin_ExactReversal
+--- PASS: TestInnerJoin_ExactReversal (0.00s)
+=== RUN   TestInnerJoin_VeryAcuteAngle
+--- PASS: TestInnerJoin_VeryAcuteAngle (0.00s)
+=== RUN   TestInnerJoin_ClosedPath
+--- PASS: TestInnerJoin_ClosedPath (0.00s)
+=== RUN   TestInnerJoin_WideStrokeShortSegment
+--- PASS: TestInnerJoin_WideStrokeShortSegment (0.00s)
+=== RUN   TestRoundJoin_VShape
+--- PASS: TestRoundJoin_VShape (0.00s)
+=== RUN   TestHadInnerJoin_SmoothRoundRect
+--- PASS: TestHadInnerJoin_SmoothRoundRect (0.00s)
+=== RUN   TestHadInnerJoin_SharpRectangle
+--- PASS: TestHadInnerJoin_SharpRectangle (0.00s)
+=== RUN   TestHadInnerJoin_ZeroRadiusRoundRect
+--- PASS: TestHadInnerJoin_ZeroRadiusRoundRect (0.00s)
+PASS

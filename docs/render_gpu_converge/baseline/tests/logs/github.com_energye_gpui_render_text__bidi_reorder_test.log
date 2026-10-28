@@ -1,0 +1,13 @@
+=== RUN   TestReorderRTLShapedGlyphs_ReversesAndResetsX
+--- PASS: TestReorderRTLShapedGlyphs_ReversesAndResetsX (0.00s)
+=== RUN   TestOwnShaper_RTLFace_Reorders
+--- PASS: TestOwnShaper_RTLFace_Reorders (0.00s)
+=== RUN   TestLayout_RTLSegment_VisualOrder
+--- PASS: TestLayout_RTLSegment_VisualOrder (0.00s)
+=== RUN   TestHitTestCluster_LTR
+--- PASS: TestHitTestCluster_LTR (0.00s)
+=== RUN   TestHitTestCluster_RTLVisual
+--- PASS: TestHitTestCluster_RTLVisual (0.00s)
+=== RUN   TestCaretXForCluster_LTR
+--- PASS: TestCaretXForCluster_LTR (0.00s)
+PASS

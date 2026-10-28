@@ -1,0 +1,77 @@
+=== RUN   TestDrawStringCPU_TranslationOnly
+--- PASS: TestDrawStringCPU_TranslationOnly (0.30s)
+=== RUN   TestDrawStringCPU_UniformScale
+--- PASS: TestDrawStringCPU_UniformScale (0.02s)
+=== RUN   TestDrawStringCPU_UniformScaleThreshold
+--- PASS: TestDrawStringCPU_UniformScaleThreshold (0.15s)
+=== RUN   TestDrawStringCPU_Rotation
+--- PASS: TestDrawStringCPU_Rotation (0.01s)
+=== RUN   TestDrawStringCPU_NonUniformScale
+--- PASS: TestDrawStringCPU_NonUniformScale (0.01s)
+=== RUN   TestDrawStringCPU_Shear
+--- PASS: TestDrawStringCPU_Shear (0.01s)
+=== RUN   TestDrawStringCPU_NegativeScale
+--- PASS: TestDrawStringCPU_NegativeScale (0.01s)
+=== RUN   TestDrawStringAnchored_WithTransform
+--- PASS: TestDrawStringAnchored_WithTransform (0.01s)
+=== RUN   TestDrawStringAnchored_Rotated
+--- PASS: TestDrawStringAnchored_Rotated (0.01s)
+=== RUN   TestDrawStringWrapped_WithScale
+--- PASS: TestDrawStringWrapped_WithScale (0.02s)
+=== RUN   TestDrawStringCPU_EmptyString
+--- PASS: TestDrawStringCPU_EmptyString (0.00s)
+=== RUN   TestDrawStringCPU_SpacesOnly
+--- PASS: TestDrawStringCPU_SpacesOnly (0.00s)
+=== RUN   TestDrawStringCPU_NoFont
+--- PASS: TestDrawStringCPU_NoFont (0.00s)
+=== RUN   TestDrawStringCPU_IdentityMatrix
+--- PASS: TestDrawStringCPU_IdentityMatrix (0.01s)
+=== RUN   TestDrawStringCPU_MultiFaceFallback
+--- PASS: TestDrawStringCPU_MultiFaceFallback (0.00s)
+=== RUN   TestEnsureOutlineExtractor
+--- PASS: TestEnsureOutlineExtractor (0.00s)
+=== RUN   TestDrawStringCPU_TierSelection
+=== RUN   TestDrawStringCPU_TierSelection/identity
+=== RUN   TestDrawStringCPU_TierSelection/translate_50_30
+=== RUN   TestDrawStringCPU_TierSelection/uniform_scale_3x
+=== RUN   TestDrawStringCPU_TierSelection/non_uniform_scale
+=== RUN   TestDrawStringCPU_TierSelection/rotate_90deg
+=== RUN   TestDrawStringCPU_TierSelection/shear
+=== RUN   TestDrawStringCPU_TierSelection/scale_translate_combo
+--- PASS: TestDrawStringCPU_TierSelection (0.09s)
+    --- PASS: TestDrawStringCPU_TierSelection/identity (0.01s)
+    --- PASS: TestDrawStringCPU_TierSelection/translate_50_30 (0.01s)
+    --- PASS: TestDrawStringCPU_TierSelection/uniform_scale_3x (0.01s)
+    --- PASS: TestDrawStringCPU_TierSelection/non_uniform_scale (0.01s)
+    --- PASS: TestDrawStringCPU_TierSelection/rotate_90deg (0.01s)
+    --- PASS: TestDrawStringCPU_TierSelection/shear (0.01s)
+    --- PASS: TestDrawStringCPU_TierSelection/scale_translate_combo (0.01s)
+=== RUN   TestDrawStringCPU_ScaleProducesLargerText
+--- PASS: TestDrawStringCPU_ScaleProducesLargerText (0.02s)
+=== RUN   TestDrawStringCPU_RotationChangesInkDistribution
+--- PASS: TestDrawStringCPU_RotationChangesInkDistribution (0.01s)
+=== RUN   TestDrawStringCPU_CombinedTransform
+--- PASS: TestDrawStringCPU_CombinedTransform (0.02s)
+=== RUN   TestTextTransformGolden
+=== RUN   TestTextTransformGolden/Identity
+=== RUN   TestTextTransformGolden/Translate
+=== RUN   TestTextTransformGolden/UniformScale2x
+=== RUN   TestTextTransformGolden/UniformScaleDown
+=== RUN   TestTextTransformGolden/LargeScale
+=== RUN   TestTextTransformGolden/Rotate30
+=== RUN   TestTextTransformGolden/Rotate45
+=== RUN   TestTextTransformGolden/NonUniformScale
+=== RUN   TestTextTransformGolden/Shear
+=== RUN   TestTextTransformGolden/CrossComparisons
+--- PASS: TestTextTransformGolden (0.06s)
+    --- PASS: TestTextTransformGolden/Identity (0.00s)
+    --- PASS: TestTextTransformGolden/Translate (0.00s)
+    --- PASS: TestTextTransformGolden/UniformScale2x (0.00s)
+    --- PASS: TestTextTransformGolden/UniformScaleDown (0.00s)
+    --- PASS: TestTextTransformGolden/LargeScale (0.03s)
+    --- PASS: TestTextTransformGolden/Rotate30 (0.00s)
+    --- PASS: TestTextTransformGolden/Rotate45 (0.00s)
+    --- PASS: TestTextTransformGolden/NonUniformScale (0.00s)
+    --- PASS: TestTextTransformGolden/Shear (0.00s)
+    --- PASS: TestTextTransformGolden/CrossComparisons (0.00s)
+PASS

@@ -1,0 +1,55 @@
+=== RUN   TestNewMemberInterfaceKey
+=== RUN   TestNewMemberInterfaceKey/nil_binding_->_MemberOther
+=== RUN   TestNewMemberInterfaceKey/location(3)_->_MemberLocation_with_index
+=== RUN   TestNewMemberInterfaceKey/location(0)_->_MemberLocation_zero_index
+=== RUN   TestNewMemberInterfaceKey/builtin(position)_->_MemberBuiltin
+=== RUN   TestNewMemberInterfaceKey/builtin(frag_depth)_->_MemberBuiltin
+--- PASS: TestNewMemberInterfaceKey (0.00s)
+    --- PASS: TestNewMemberInterfaceKey/nil_binding_->_MemberOther (0.00s)
+    --- PASS: TestNewMemberInterfaceKey/location(3)_->_MemberLocation_with_index (0.00s)
+    --- PASS: TestNewMemberInterfaceKey/location(0)_->_MemberLocation_zero_index (0.00s)
+    --- PASS: TestNewMemberInterfaceKey/builtin(position)_->_MemberBuiltin (0.00s)
+    --- PASS: TestNewMemberInterfaceKey/builtin(frag_depth)_->_MemberBuiltin (0.00s)
+=== RUN   TestMemberInterfaceLess
+=== RUN   TestMemberInterfaceLess/location_<_builtin
+=== RUN   TestMemberInterfaceLess/builtin_>_location
+=== RUN   TestMemberInterfaceLess/location_<_other
+=== RUN   TestMemberInterfaceLess/builtin_<_other
+=== RUN   TestMemberInterfaceLess/other_>_location
+=== RUN   TestMemberInterfaceLess/loc(1)_<_loc(3)
+=== RUN   TestMemberInterfaceLess/loc(5)_>_loc(1)
+=== RUN   TestMemberInterfaceLess/loc(2)_==_loc(2)_->_false
+=== RUN   TestMemberInterfaceLess/position_<_frag_depth
+=== RUN   TestMemberInterfaceLess/frag_depth_>_position
+=== RUN   TestMemberInterfaceLess/same_builtin_->_false
+=== RUN   TestMemberInterfaceLess/other_==_other_->_false
+--- PASS: TestMemberInterfaceLess (0.00s)
+    --- PASS: TestMemberInterfaceLess/location_<_builtin (0.00s)
+    --- PASS: TestMemberInterfaceLess/builtin_>_location (0.00s)
+    --- PASS: TestMemberInterfaceLess/location_<_other (0.00s)
+    --- PASS: TestMemberInterfaceLess/builtin_<_other (0.00s)
+    --- PASS: TestMemberInterfaceLess/other_>_location (0.00s)
+    --- PASS: TestMemberInterfaceLess/loc(1)_<_loc(3) (0.00s)
+    --- PASS: TestMemberInterfaceLess/loc(5)_>_loc(1) (0.00s)
+    --- PASS: TestMemberInterfaceLess/loc(2)_==_loc(2)_->_false (0.00s)
+    --- PASS: TestMemberInterfaceLess/position_<_frag_depth (0.00s)
+    --- PASS: TestMemberInterfaceLess/frag_depth_>_position (0.00s)
+    --- PASS: TestMemberInterfaceLess/same_builtin_->_false (0.00s)
+    --- PASS: TestMemberInterfaceLess/other_==_other_->_false (0.00s)
+=== RUN   TestSortedArgIndices_Empty
+--- PASS: TestSortedArgIndices_Empty (0.00s)
+=== RUN   TestSortedArgIndices_FragmentShaderInputs
+--- PASS: TestSortedArgIndices_FragmentShaderInputs (0.00s)
+=== RUN   TestSortedArgIndices_NilBindingsLast
+--- PASS: TestSortedArgIndices_NilBindingsLast (0.00s)
+=== RUN   TestSortedMemberIndices_Empty
+--- PASS: TestSortedMemberIndices_Empty (0.00s)
+=== RUN   TestSortedMemberIndices_VertexOutputStruct
+--- PASS: TestSortedMemberIndices_VertexOutputStruct (0.00s)
+=== RUN   TestSortedMemberIndices_MultipleBuiltinsSortByEnum
+--- PASS: TestSortedMemberIndices_MultipleBuiltinsSortByEnum (0.00s)
+=== RUN   TestSortedMemberIndices_NilBindingsLast
+--- PASS: TestSortedMemberIndices_NilBindingsLast (0.00s)
+=== RUN   TestSortedMemberIndices_StableForEqualKeys
+--- PASS: TestSortedMemberIndices_StableForEqualKeys (0.00s)
+PASS

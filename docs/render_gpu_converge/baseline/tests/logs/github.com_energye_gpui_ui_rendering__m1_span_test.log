@@ -1,0 +1,5 @@
+=== RUN   TestSpanHit_M1
+--- PASS: TestSpanHit_M1 (0.00s)
+=== RUN   TestSpanFallback_M1
+--- PASS: TestSpanFallback_M1 (0.00s)
+PASS

@@ -1,0 +1,4 @@
+=== RUN   TestSymbolCover
+    symbol_cover_test.go:103: lib /home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so: 1002 bound symbols all present
+--- PASS: TestSymbolCover (0.01s)
+PASS

@@ -1,0 +1,13 @@
+=== RUN   TestDriveNilCtl
+--- PASS: TestDriveNilCtl (0.00s)
+=== RUN   TestDriveDeterministicCallSequence
+--- PASS: TestDriveDeterministicCallSequence (0.30s)
+=== RUN   TestDriveUnsupportedTolerated
+--- PASS: TestDriveUnsupportedTolerated (0.30s)
+=== RUN   TestDriveNativeErrorFails
+--- PASS: TestDriveNativeErrorFails (0.30s)
+=== RUN   TestReportCounts
+--- PASS: TestReportCounts (0.00s)
+=== RUN   TestPumpStubHost
+--- PASS: TestPumpStubHost (0.36s)
+PASS

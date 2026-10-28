@@ -1,0 +1,169 @@
+=== RUN   TestWriteModHelper
+--- PASS: TestWriteModHelper (0.00s)
+=== RUN   TestWriteDivHelper
+--- PASS: TestWriteDivHelper (0.00s)
+=== RUN   TestWriteAbsHelper
+--- PASS: TestWriteAbsHelper (0.00s)
+=== RUN   TestWriteNegHelper
+--- PASS: TestWriteNegHelper (0.00s)
+=== RUN   TestWriteModfHelper
+--- PASS: TestWriteModfHelper (0.00s)
+=== RUN   TestWriteFrexpHelper
+--- PASS: TestWriteFrexpHelper (0.00s)
+=== RUN   TestWriteF2I32Helper
+--- PASS: TestWriteF2I32Helper (0.00s)
+=== RUN   TestWriteF2U32Helper
+--- PASS: TestWriteF2U32Helper (0.00s)
+=== RUN   TestIsStorageBufferReadOnly
+--- PASS: TestIsStorageBufferReadOnly (0.00s)
+=== RUN   TestGetBufferElementType
+--- PASS: TestGetBufferElementType (0.00s)
+=== RUN   TestWriteStorageBufferDeclaration
+--- PASS: TestWriteStorageBufferDeclaration (0.00s)
+=== RUN   TestWriteStorageStoreScalar
+--- PASS: TestWriteStorageStoreScalar (0.00s)
+=== RUN   TestWriteStorageStoreVector
+--- PASS: TestWriteStorageStoreVector (0.00s)
+=== RUN   TestWriteStorageStoreMatrix
+--- PASS: TestWriteStorageStoreMatrix (0.00s)
+=== RUN   TestWriteStorageStoreStruct
+--- PASS: TestWriteStorageStoreStruct (0.00s)
+=== RUN   TestWriteStorageStoreArray
+--- PASS: TestWriteStorageStoreArray (0.00s)
+=== RUN   TestWriteStorageStoreRecursionLimit
+--- PASS: TestWriteStorageStoreRecursionLimit (0.00s)
+=== RUN   TestWriteStoreValue
+--- PASS: TestWriteStoreValue (0.00s)
+=== RUN   TestTypesMatch
+=== RUN   TestTypesMatch/scalar_match
+=== RUN   TestTypesMatch/scalar_kind_mismatch
+=== RUN   TestTypesMatch/scalar_width_mismatch
+=== RUN   TestTypesMatch/vector_match
+=== RUN   TestTypesMatch/vector_size_mismatch
+=== RUN   TestTypesMatch/matrix_match
+=== RUN   TestTypesMatch/matrix_col_mismatch
+=== RUN   TestTypesMatch/struct_match
+=== RUN   TestTypesMatch/struct_span_mismatch
+=== RUN   TestTypesMatch/struct_member_count_mismatch
+=== RUN   TestTypesMatch/struct_member_name_mismatch
+=== RUN   TestTypesMatch/array_match
+=== RUN   TestTypesMatch/array_base_mismatch
+=== RUN   TestTypesMatch/type_kind_mismatch
+=== RUN   TestTypesMatch/unmatched_type
+--- PASS: TestTypesMatch (0.00s)
+    --- PASS: TestTypesMatch/scalar_match (0.00s)
+    --- PASS: TestTypesMatch/scalar_kind_mismatch (0.00s)
+    --- PASS: TestTypesMatch/scalar_width_mismatch (0.00s)
+    --- PASS: TestTypesMatch/vector_match (0.00s)
+    --- PASS: TestTypesMatch/vector_size_mismatch (0.00s)
+    --- PASS: TestTypesMatch/matrix_match (0.00s)
+    --- PASS: TestTypesMatch/matrix_col_mismatch (0.00s)
+    --- PASS: TestTypesMatch/struct_match (0.00s)
+    --- PASS: TestTypesMatch/struct_span_mismatch (0.00s)
+    --- PASS: TestTypesMatch/struct_member_count_mismatch (0.00s)
+    --- PASS: TestTypesMatch/struct_member_name_mismatch (0.00s)
+    --- PASS: TestTypesMatch/array_match (0.00s)
+    --- PASS: TestTypesMatch/array_base_mismatch (0.00s)
+    --- PASS: TestTypesMatch/type_kind_mismatch (0.00s)
+    --- PASS: TestTypesMatch/unmatched_type (0.00s)
+=== RUN   TestGetTypeHandleForInner
+--- PASS: TestGetTypeHandleForInner (0.00s)
+=== RUN   TestWriteTypeByHandle
+--- PASS: TestWriteTypeByHandle (0.00s)
+=== RUN   TestWriteGlobalBinaryExpression
+--- PASS: TestWriteGlobalBinaryExpression (0.00s)
+=== RUN   TestWriteGlobalSplatExpression
+--- PASS: TestWriteGlobalSplatExpression (0.00s)
+=== RUN   TestWriteMatrixValueType
+=== RUN   TestWriteMatrixValueType/float4x4
+=== RUN   TestWriteMatrixValueType/float3x2
+=== RUN   TestWriteMatrixValueType/float2x3
+--- PASS: TestWriteMatrixValueType (0.00s)
+    --- PASS: TestWriteMatrixValueType/float4x4 (0.00s)
+    --- PASS: TestWriteMatrixValueType/float3x2 (0.00s)
+    --- PASS: TestWriteMatrixValueType/float2x3 (0.00s)
+=== RUN   TestWriteCallResultExpression
+--- PASS: TestWriteCallResultExpression (0.00s)
+=== RUN   TestWriteRayQueryGetIntersection
+--- PASS: TestWriteRayQueryGetIntersection (0.00s)
+=== RUN   TestShouldDecomposeExternalTextureStruct
+--- PASS: TestShouldDecomposeExternalTextureStruct (0.00s)
+=== RUN   TestShouldDecomposeExternalTextureStruct_NoParams
+--- PASS: TestShouldDecomposeExternalTextureStruct_NoParams (0.00s)
+=== RUN   TestWriteDecomposedMat3x2Member
+--- PASS: TestWriteDecomposedMat3x2Member (0.00s)
+=== RUN   TestWriteFunctionExternalTextureArgument
+--- PASS: TestWriteFunctionExternalTextureArgument (0.00s)
+=== RUN   TestWriteExternalTextureGlobalExpression
+--- PASS: TestWriteExternalTextureGlobalExpression (0.00s)
+=== RUN   TestWriteExternalTextureFuncArgExpression
+--- PASS: TestWriteExternalTextureFuncArgExpression (0.00s)
+=== RUN   TestWriteExternalTextureLoadHelperIfNeeded
+--- PASS: TestWriteExternalTextureLoadHelperIfNeeded (0.00s)
+=== RUN   TestWriteExternalTextureLoadHelperIfNeeded_NoExternalTexture
+--- PASS: TestWriteExternalTextureLoadHelperIfNeeded_NoExternalTexture (0.00s)
+=== RUN   TestInferExpressionType
+--- PASS: TestInferExpressionType (0.00s)
+=== RUN   TestInferExpressionType_Access
+--- PASS: TestInferExpressionType_Access (0.00s)
+=== RUN   TestInferPointeeType
+--- PASS: TestInferPointeeType (0.00s)
+=== RUN   TestInferPointeeType_AccessIndex
+--- PASS: TestInferPointeeType_AccessIndex (0.00s)
+=== RUN   TestWriteWrappedImageQueryFunctions
+--- PASS: TestWriteWrappedImageQueryFunctions (0.00s)
+=== RUN   TestWriteWrappedImageQueryFunctions_Size
+--- PASS: TestWriteWrappedImageQueryFunctions_Size (0.00s)
+=== RUN   TestWriteWrappedImageQueryFunctions_Dedup
+--- PASS: TestWriteWrappedImageQueryFunctions_Dedup (0.00s)
+=== RUN   TestWriteStructMatrixAccessHelpers
+--- PASS: TestWriteStructMatrixAccessHelpers (0.00s)
+=== RUN   TestWriteCompositeValue
+--- PASS: TestWriteCompositeValue (0.00s)
+=== RUN   TestWriteCompositeValue_Array
+--- PASS: TestWriteCompositeValue_Array (0.00s)
+=== RUN   TestWriteArraySizes
+--- PASS: TestWriteArraySizes (0.00s)
+=== RUN   TestWriteModifier
+--- PASS: TestWriteModifier (0.00s)
+=== RUN   TestWriteStructConstructors
+--- PASS: TestWriteStructConstructors (0.00s)
+=== RUN   TestWriteClampToEdgeHelper_Regular
+--- PASS: TestWriteClampToEdgeHelper_Regular (0.00s)
+=== RUN   TestWriteClampToEdgeHelper_NoClampToEdge
+--- PASS: TestWriteClampToEdgeHelper_NoClampToEdge (0.00s)
+=== RUN   TestWriteClampToEdgeHelper_Dedup
+--- PASS: TestWriteClampToEdgeHelper_Dedup (0.00s)
+=== RUN   TestWriteLoadExpression_Simple
+--- PASS: TestWriteLoadExpression_Simple (0.00s)
+=== RUN   TestGetGlobalUniformMatrix
+--- PASS: TestGetGlobalUniformMatrix (0.00s)
+=== RUN   TestGetGlobalUniformMatrix_NotUniform
+--- PASS: TestGetGlobalUniformMatrix_NotUniform (0.00s)
+=== RUN   TestWriteHeader
+--- PASS: TestWriteHeader (0.00s)
+=== RUN   TestWriteBindingArrayDeclaration_Texture
+--- PASS: TestWriteBindingArrayDeclaration_Texture (0.00s)
+=== RUN   TestWriteBindingArrayDeclaration_Sampler
+--- PASS: TestWriteBindingArrayDeclaration_Sampler (0.00s)
+=== RUN   TestWriteBindingArrayDeclaration_UnknownBase
+--- PASS: TestWriteBindingArrayDeclaration_UnknownBase (0.00s)
+=== RUN   TestGetArgumentSemantic
+--- PASS: TestGetArgumentSemantic (0.00s)
+=== RUN   TestWriteArgumentWithSemantic
+--- PASS: TestWriteArgumentWithSemantic (0.00s)
+=== RUN   TestGetResultSemantic
+--- PASS: TestGetResultSemantic (0.00s)
+=== RUN   TestWriteResultType
+--- PASS: TestWriteResultType (0.00s)
+=== RUN   TestResolveVariableTypeHandle
+--- PASS: TestResolveVariableTypeHandle (0.00s)
+=== RUN   TestWriteNagaBufferLengthHelpers
+--- PASS: TestWriteNagaBufferLengthHelpers (0.00s)
+=== RUN   TestWriteNagaBufferLengthHelpers_ReadOnly
+--- PASS: TestWriteNagaBufferLengthHelpers_ReadOnly (0.00s)
+=== RUN   TestGetRayIntersectionTypeName
+--- PASS: TestGetRayIntersectionTypeName (0.00s)
+=== RUN   TestIndentStr_EdgeCases
+--- PASS: TestIndentStr_EdgeCases (0.00s)
+PASS

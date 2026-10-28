@@ -1,0 +1,20 @@
+=== RUN   TestScrollWalk_WrapBoxShowsLiveRows
+    textbox_scroll_walk_test.go:200: paste-end: thirds=[1381 1789 360] blankRows=1/5
+    textbox_scroll_walk_test.go:200: head: thirds=[3123 3982 802] blankRows=0/5
+    textbox_scroll_walk_test.go:200: q1: thirds=[4293 5288 1096] blankRows=0/5
+    textbox_scroll_walk_test.go:200: mid: thirds=[4606 5565 1162] blankRows=0/5
+    textbox_scroll_walk_test.go:200: q3: thirds=[4692 5620 1174] blankRows=0/5
+    textbox_scroll_walk_test.go:200: end: thirds=[4780 5748 1210] blankRows=0/5
+--- PASS: TestScrollWalk_WrapBoxShowsLiveRows (0.48s)
+=== RUN   TestScrollWalk_SingleBoxShowsLiveSlice
+    textbox_scroll_walk_test.go:231: paste-end: thirds=[520 520 460] blankRows=0/0
+    textbox_scroll_walk_test.go:231: head: thirds=[655 694 601] blankRows=0/0
+    textbox_scroll_walk_test.go:231: mid: thirds=[677 700 621] blankRows=0/0
+    textbox_scroll_walk_test.go:231: end: thirds=[688 715 631] blankRows=0/0
+--- PASS: TestScrollWalk_SingleBoxShowsLiveSlice (0.10s)
+=== RUN   TestResize_WidensPaintedBox
+    textbox_scroll_walk_test.go:307: before resize: border x 1..299
+    textbox_scroll_walk_test.go:318: after FlushLayout: fixed=540 size=540x40
+    textbox_scroll_walk_test.go:324: after resize: border x 1..539
+--- PASS: TestResize_WidensPaintedBox (0.05s)
+PASS

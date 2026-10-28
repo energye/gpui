@@ -1,0 +1,14 @@
+=== RUN   TestEntityHierarchyFromCases
+--- PASS: TestEntityHierarchyFromCases (0.00s)
+=== RUN   TestEntityEdgesNoCrash
+--- PASS: TestEntityEdgesNoCrash (0.00s)
+=== RUN   TestEntityBoundaryIdentical
+--- PASS: TestEntityBoundaryIdentical (0.00s)
+=== RUN   TestEntityPerfThousand
+    entity_test.go:451: entity-perf: 1000 entities x 200 reps (200000 matrices) in 93.397561ms (467.0 ns/op)
+--- PASS: TestEntityPerfThousand (0.09s)
+=== RUN   TestEntityLongRunNoLeak
+--- PASS: TestEntityLongRunNoLeak (0.01s)
+=== RUN   TestEntityOffscreenGolden
+--- PASS: TestEntityOffscreenGolden (0.00s)
+PASS

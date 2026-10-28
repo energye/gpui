@@ -1,0 +1,17 @@
+=== RUN   TestSceneAppendWithTranslation_ZeroOffset
+--- PASS: TestSceneAppendWithTranslation_ZeroOffset (0.00s)
+=== RUN   TestSceneAppendWithTranslation_RectOffset
+--- PASS: TestSceneAppendWithTranslation_RectOffset (0.00s)
+=== RUN   TestSceneAppendWithTranslation_PathCoordinates
+--- PASS: TestSceneAppendWithTranslation_PathCoordinates (0.00s)
+=== RUN   TestSceneAppendWithTranslation_TransformsVerbatim
+--- PASS: TestSceneAppendWithTranslation_TransformsVerbatim (0.00s)
+=== RUN   TestSceneAppendWithTranslation_BrushNotOffset
+--- PASS: TestSceneAppendWithTranslation_BrushNotOffset (0.00s)
+=== RUN   TestSceneAppendWithTranslation_BoundsOffset
+--- PASS: TestSceneAppendWithTranslation_BoundsOffset (0.00s)
+=== RUN   TestSceneAppendWithTranslation_Nil
+--- PASS: TestSceneAppendWithTranslation_Nil (0.00s)
+=== RUN   TestSceneAppendWithTranslation_Empty
+--- PASS: TestSceneAppendWithTranslation_Empty (0.00s)
+PASS

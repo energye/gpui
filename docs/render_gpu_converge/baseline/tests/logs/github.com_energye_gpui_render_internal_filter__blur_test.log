@@ -1,0 +1,33 @@
+=== RUN   TestNewBlurFilter
+--- PASS: TestNewBlurFilter (0.00s)
+=== RUN   TestNewBlurFilterXY
+--- PASS: TestNewBlurFilterXY (0.00s)
+=== RUN   TestBlurFilterExpandBounds
+=== RUN   TestBlurFilterExpandBounds/zero_radius
+=== RUN   TestBlurFilterExpandBounds/symmetric_radius
+=== RUN   TestBlurFilterExpandBounds/asymmetric_radius
+--- PASS: TestBlurFilterExpandBounds (0.00s)
+    --- PASS: TestBlurFilterExpandBounds/zero_radius (0.00s)
+    --- PASS: TestBlurFilterExpandBounds/symmetric_radius (0.00s)
+    --- PASS: TestBlurFilterExpandBounds/asymmetric_radius (0.00s)
+=== RUN   TestBlurFilterApplyZeroRadius
+--- PASS: TestBlurFilterApplyZeroRadius (0.00s)
+=== RUN   TestBlurFilterApplyNilPixmaps
+--- PASS: TestBlurFilterApplyNilPixmaps (0.00s)
+=== RUN   TestBlurFilterApplySmallImage
+--- PASS: TestBlurFilterApplySmallImage (0.00s)
+=== RUN   TestBlurFilterApplyPreservesAlpha
+--- PASS: TestBlurFilterApplyPreservesAlpha (0.00s)
+=== RUN   TestBlurFilterApplyEdgeHandling
+--- PASS: TestBlurFilterApplyEdgeHandling (0.00s)
+=== RUN   TestBlurFilterApplyEmptyBounds
+--- PASS: TestBlurFilterApplyEmptyBounds (0.00s)
+=== RUN   TestBlurFilterApplyOnlyHorizontal
+--- PASS: TestBlurFilterApplyOnlyHorizontal (0.00s)
+=== RUN   TestBlurFilterApplyOnlyVertical
+--- PASS: TestBlurFilterApplyOnlyVertical (0.00s)
+=== RUN   TestClampInt
+--- PASS: TestClampInt (0.00s)
+=== RUN   TestClampUint8
+--- PASS: TestClampUint8 (0.00s)
+PASS

@@ -1,0 +1,23 @@
+=== RUN   TestH4B3_GlesSubmitIndexIncrements
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+--- PASS: TestH4B3_GlesSubmitIndexIncrements (0.00s)
+=== RUN   TestH4B3_GlesSubmitInvalidTypeNoIncrement
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+--- PASS: TestH4B3_GlesSubmitInvalidTypeNoIncrement (0.00s)
+=== RUN   TestH4B3_GlesQueuePollFollowsFence
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+--- PASS: TestH4B3_GlesQueuePollFollowsFence (0.00s)
+=== RUN   TestH4B3_GlesMapRoundTrip
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+2026/10/28 17:04:55 ERROR gles: AdapterContext.Lock: nil egl context
+--- PASS: TestH4B3_GlesMapRoundTrip (0.00s)
+=== RUN   TestH4B3_GlesDeviceFenceWrappers
+--- PASS: TestH4B3_GlesDeviceFenceWrappers (0.00s)
+PASS

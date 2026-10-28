@@ -1,0 +1,15 @@
+=== RUN   TestGlyphMaskRasterizer_New
+--- PASS: TestGlyphMaskRasterizer_New (0.00s)
+=== RUN   TestGlyphMaskRasterizer_RasterizeNilOutline
+--- PASS: TestGlyphMaskRasterizer_RasterizeNilOutline (0.00s)
+=== RUN   TestGlyphMaskRasterizer_RasterizeEmptyOutline
+--- PASS: TestGlyphMaskRasterizer_RasterizeEmptyOutline (0.00s)
+=== RUN   TestGlyphMaskRasterizer_RasterizeTriangle
+--- PASS: TestGlyphMaskRasterizer_RasterizeTriangle (0.00s)
+=== RUN   TestGlyphMaskRasterizer_RasterizeSquare
+--- PASS: TestGlyphMaskRasterizer_RasterizeSquare (0.00s)
+=== RUN   TestGlyphMaskRasterizer_SubpixelOffset
+--- PASS: TestGlyphMaskRasterizer_SubpixelOffset (0.00s)
+=== RUN   TestGlyphPath_Interface
+--- PASS: TestGlyphPath_Interface (0.00s)
+PASS

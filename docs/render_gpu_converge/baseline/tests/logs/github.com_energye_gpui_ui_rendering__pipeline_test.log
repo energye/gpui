@@ -1,0 +1,19 @@
+=== RUN   TestRenderBox_LayoutPaintHit
+--- PASS: TestRenderBox_LayoutPaintHit (0.00s)
+=== RUN   TestOwner_BlinkRegistry
+--- PASS: TestOwner_BlinkRegistry (0.00s)
+=== RUN   TestRelayoutBoundary_StopsBubble
+--- PASS: TestRelayoutBoundary_StopsBubble (0.00s)
+=== RUN   TestMarkNeedsPaint_Bubbles
+--- PASS: TestMarkNeedsPaint_Bubbles (0.00s)
+=== RUN   TestPipeline_SecondFlushNoWork
+--- PASS: TestPipeline_SecondFlushNoWork (0.00s)
+=== RUN   TestPaint_LogicalTopLeft_YDown
+--- PASS: TestPaint_LogicalTopLeft_YDown (0.00s)
+=== RUN   TestDeviceScale_LogicalVsPhysical
+--- PASS: TestDeviceScale_LogicalVsPhysical (0.00s)
+=== RUN   TestHitTest_MatchesPaintOffset
+--- PASS: TestHitTest_MatchesPaintOffset (0.00s)
+=== RUN   TestOwner_NextBlinkWake
+--- PASS: TestOwner_NextBlinkWake (0.00s)
+PASS

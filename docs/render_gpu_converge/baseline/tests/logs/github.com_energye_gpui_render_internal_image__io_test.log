@@ -1,0 +1,53 @@
+=== RUN   TestFromStdImage_RGBA
+--- PASS: TestFromStdImage_RGBA (0.00s)
+=== RUN   TestFromStdImage_NRGBA
+--- PASS: TestFromStdImage_NRGBA (0.00s)
+=== RUN   TestFromStdImage_Gray
+--- PASS: TestFromStdImage_Gray (0.00s)
+=== RUN   TestToStdImage_RGBA8
+--- PASS: TestToStdImage_RGBA8 (0.00s)
+=== RUN   TestToStdImage_Gray8
+--- PASS: TestToStdImage_Gray8 (0.00s)
+=== RUN   TestToStdImage_BGRA8
+--- PASS: TestToStdImage_BGRA8 (0.00s)
+=== RUN   TestToStdImage_RGB8
+--- PASS: TestToStdImage_RGB8 (0.00s)
+=== RUN   TestEncodePNG_DecodePNG
+--- PASS: TestEncodePNG_DecodePNG (0.00s)
+=== RUN   TestEncodeJPEG_DecodeJPEG
+--- PASS: TestEncodeJPEG_DecodeJPEG (0.00s)
+=== RUN   TestEncodeJPEG_QualityBounds
+--- PASS: TestEncodeJPEG_QualityBounds (0.00s)
+=== RUN   TestLoadImageFromBytes
+--- PASS: TestLoadImageFromBytes (0.00s)
+=== RUN   TestLoadImageFromBytes_Empty
+--- PASS: TestLoadImageFromBytes_Empty (0.00s)
+=== RUN   TestEncodeToBytes
+--- PASS: TestEncodeToBytes (0.00s)
+=== RUN   TestEncodeToJPEGBytes
+--- PASS: TestEncodeToJPEGBytes (0.00s)
+=== RUN   TestSavePNG_LoadPNG
+--- PASS: TestSavePNG_LoadPNG (0.00s)
+=== RUN   TestSaveJPEG_LoadJPEG
+--- PASS: TestSaveJPEG_LoadJPEG (0.00s)
+=== RUN   TestLoadImage_AutoDetect
+--- PASS: TestLoadImage_AutoDetect (0.00s)
+=== RUN   TestLoadPNG_NotFound
+--- PASS: TestLoadPNG_NotFound (0.00s)
+=== RUN   TestLoadJPEG_NotFound
+--- PASS: TestLoadJPEG_NotFound (0.00s)
+=== RUN   TestDecode_InvalidData
+--- PASS: TestDecode_InvalidData (0.00s)
+=== RUN   TestToStdImage_Gray16
+--- PASS: TestToStdImage_Gray16 (0.00s)
+=== RUN   TestDecodeWebP
+--- PASS: TestDecodeWebP (0.00s)
+=== RUN   TestDecodeWebP_InvalidData
+--- PASS: TestDecodeWebP_InvalidData (0.00s)
+=== RUN   TestLoadWebP_NotFound
+--- PASS: TestLoadWebP_NotFound (0.00s)
+=== RUN   TestLoadImage_WebP
+--- PASS: TestLoadImage_WebP (0.00s)
+=== RUN   TestWebPViaAutoDetect
+--- PASS: TestWebPViaAutoDetect (0.00s)
+PASS

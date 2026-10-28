@@ -1,0 +1,13 @@
+=== RUN   TestX11PreeditAttrsParsed
+    x11_ime_preedit_state_test.go:87: B21 OK: segs=[{Start:0 End:2 Attr:1} {Start:0 End:2 Attr:1} {Start:0 End:2 Attr:3}]
+--- PASS: TestX11PreeditAttrsParsed (0.00s)
+=== RUN   TestX11PreeditNoAttrsFallsBack
+    x11_ime_preedit_state_test.go:100: fallback segs=[{Start:0 End:2 Attr:1}]
+--- PASS: TestX11PreeditNoAttrsFallsBack (0.00s)
+=== RUN   TestX11FcitxPreeditUnderline
+    x11_ime_preedit_state_test.go:117: wbx segs=[{Start:0 End:2 Attr:1}]
+--- PASS: TestX11FcitxPreeditUnderline (0.00s)
+=== RUN   TestX11OwnerChangeKeepsInputContext
+    x11_ime_preedit_state_test.go:167: B22 OK: IC /org/freedesktop/IBus/InputContext_63 在守护抖动后保持不变
+--- PASS: TestX11OwnerChangeKeepsInputContext (0.03s)
+PASS

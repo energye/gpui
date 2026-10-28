@@ -1,0 +1,99 @@
+=== RUN   TestNewRecorder
+--- PASS: TestNewRecorder (0.00s)
+=== RUN   TestRecorderFinishRecording
+--- PASS: TestRecorderFinishRecording (0.00s)
+=== RUN   TestRecorderSaveRestore
+--- PASS: TestRecorderSaveRestore (0.00s)
+=== RUN   TestRecorderPushPop
+--- PASS: TestRecorderPushPop (0.00s)
+=== RUN   TestRecorderTransform
+--- PASS: TestRecorderTransform (0.00s)
+=== RUN   TestRecorderSetColor
+--- PASS: TestRecorderSetColor (0.00s)
+=== RUN   TestRecorderSetFillStrokeStyle
+--- PASS: TestRecorderSetFillStrokeStyle (0.00s)
+=== RUN   TestRecorderLineProperties
+--- PASS: TestRecorderLineProperties (0.00s)
+=== RUN   TestRecorderFillRule
+--- PASS: TestRecorderFillRule (0.00s)
+=== RUN   TestRecorderPathBuilding
+--- PASS: TestRecorderPathBuilding (0.00s)
+=== RUN   TestRecorderFill
+--- PASS: TestRecorderFill (0.00s)
+=== RUN   TestRecorderFillPreserve
+--- PASS: TestRecorderFillPreserve (0.00s)
+=== RUN   TestRecorderStroke
+--- PASS: TestRecorderStroke (0.00s)
+=== RUN   TestRecorderStrokePreserve
+--- PASS: TestRecorderStrokePreserve (0.00s)
+=== RUN   TestRecorderFillStroke
+--- PASS: TestRecorderFillStroke (0.00s)
+=== RUN   TestRecorderShapes
+=== RUN   TestRecorderShapes/DrawPoint
+=== RUN   TestRecorderShapes/DrawLine
+=== RUN   TestRecorderShapes/DrawRectangle
+=== RUN   TestRecorderShapes/DrawRoundedRectangle
+=== RUN   TestRecorderShapes/DrawCircle
+=== RUN   TestRecorderShapes/DrawEllipse
+=== RUN   TestRecorderShapes/DrawArc
+--- PASS: TestRecorderShapes (0.00s)
+    --- PASS: TestRecorderShapes/DrawPoint (0.00s)
+    --- PASS: TestRecorderShapes/DrawLine (0.00s)
+    --- PASS: TestRecorderShapes/DrawRectangle (0.00s)
+    --- PASS: TestRecorderShapes/DrawRoundedRectangle (0.00s)
+    --- PASS: TestRecorderShapes/DrawCircle (0.00s)
+    --- PASS: TestRecorderShapes/DrawEllipse (0.00s)
+    --- PASS: TestRecorderShapes/DrawArc (0.00s)
+=== RUN   TestRecorderOptimizedRectangles
+--- PASS: TestRecorderOptimizedRectangles (0.00s)
+=== RUN   TestRecorderClipping
+--- PASS: TestRecorderClipping (0.00s)
+=== RUN   TestRecorderClipPreserve
+--- PASS: TestRecorderClipPreserve (0.00s)
+=== RUN   TestRecorderResetClip
+--- PASS: TestRecorderResetClip (0.00s)
+=== RUN   TestRecorderDrawImage
+--- PASS: TestRecorderDrawImage (0.00s)
+=== RUN   TestRecorderDrawImageEx
+--- PASS: TestRecorderDrawImageEx (0.00s)
+=== RUN   TestRecorderDrawImageExDetachesSrcRect
+--- PASS: TestRecorderDrawImageExDetachesSrcRect (0.00s)
+=== RUN   TestRecorderDrawImageIgnoresMissingBuffer
+--- PASS: TestRecorderDrawImageIgnoresMissingBuffer (0.00s)
+=== RUN   TestRecorderDrawString
+--- PASS: TestRecorderDrawString (0.00s)
+=== RUN   TestRecorderClear
+--- PASS: TestRecorderClear (0.00s)
+=== RUN   TestRecorderClearWithColor
+--- PASS: TestRecorderClearWithColor (0.00s)
+=== RUN   TestRecorderGetCurrentPoint
+--- PASS: TestRecorderGetCurrentPoint (0.00s)
+=== RUN   TestRecorderEmptyPathOperations
+--- PASS: TestRecorderEmptyPathOperations (0.00s)
+=== RUN   TestRecorderStoresUserSpaceGeometryWithPathMatrix
+--- PASS: TestRecorderStoresUserSpaceGeometryWithPathMatrix (0.00s)
+=== RUN   TestRecorderRebakesPathAcrossMidPathTransform
+--- PASS: TestRecorderRebakesPathAcrossMidPathTransform (0.00s)
+=== RUN   TestRecorderMeasureString
+--- PASS: TestRecorderMeasureString (0.00s)
+=== RUN   TestRecorderResourceCounting
+--- PASS: TestRecorderResourceCounting (0.00s)
+=== RUN   TestRecorderInvertY
+--- PASS: TestRecorderInvertY (0.00s)
+=== RUN   TestRecorderNestedSaveRestore
+--- PASS: TestRecorderNestedSaveRestore (0.00s)
+=== RUN   TestRecorderRestoreEmptyStack
+--- PASS: TestRecorderRestoreEmptyStack (0.00s)
+=== RUN   TestRecordingPlayback
+--- PASS: TestRecordingPlayback (0.00s)
+=== RUN   TestRecorderWordWrap_NoFont
+--- PASS: TestRecorderWordWrap_NoFont (0.00s)
+=== RUN   TestRecorderMeasureMultilineString_NoFont
+--- PASS: TestRecorderMeasureMultilineString_NoFont (0.00s)
+=== RUN   TestRecorderDrawStringWrapped_NoFont
+--- PASS: TestRecorderDrawStringWrapped_NoFont (0.00s)
+=== RUN   TestRecorderDrawStringWrapped_ProducesCommands
+--- PASS: TestRecorderDrawStringWrapped_ProducesCommands (0.00s)
+=== RUN   TestRecorderPaintBackedOpsCaptureFillBrush
+--- PASS: TestRecorderPaintBackedOpsCaptureFillBrush (0.00s)
+PASS

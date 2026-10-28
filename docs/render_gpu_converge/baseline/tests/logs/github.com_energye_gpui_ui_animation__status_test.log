@@ -1,0 +1,9 @@
+=== RUN   TestController_StatusTransitions
+--- PASS: TestController_StatusTransitions (0.00s)
+=== RUN   TestController_Reverse
+--- PASS: TestController_Reverse (0.00s)
+=== RUN   TestController_StopDismissed
+--- PASS: TestController_StopDismissed (0.00s)
+=== RUN   TestAnimatedOpacity_CompositorOnly
+--- PASS: TestAnimatedOpacity_CompositorOnly (0.00s)
+PASS

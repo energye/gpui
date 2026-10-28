@@ -1,0 +1,99 @@
+=== RUN   TestRecordingBounds_EmptyRecordingHasNoBounds
+--- PASS: TestRecordingBounds_EmptyRecordingHasNoBounds (0.00s)
+=== RUN   TestRecordingBounds_RectMapsThroughCTM
+--- PASS: TestRecordingBounds_RectMapsThroughCTM (0.00s)
+=== RUN   TestRecordingBounds_RotationUsesTransformedCorners
+--- PASS: TestRecordingBounds_RotationUsesTransformedCorners (0.00s)
+=== RUN   TestRecordingBounds_SaveRestoreIsolatesTransform
+--- PASS: TestRecordingBounds_SaveRestoreIsolatesTransform (0.00s)
+=== RUN   TestRecordingBounds_UnbalancedRestoreKeepsAccumulatedGeometry
+--- PASS: TestRecordingBounds_UnbalancedRestoreKeepsAccumulatedGeometry (0.00s)
+=== RUN   TestRecordingBounds_StrokeBandOutsetsPath
+--- PASS: TestRecordingBounds_StrokeBandOutsetsPath (0.00s)
+=== RUN   TestRecordingBounds_StrokeWidthZeroStrokesAtOne
+--- PASS: TestRecordingBounds_StrokeWidthZeroStrokesAtOne (0.00s)
+=== RUN   TestRecordingBounds_DegenerateGeometryContributesNothing
+--- PASS: TestRecordingBounds_DegenerateGeometryContributesNothing (0.00s)
+=== RUN   TestRecordingBounds_NonFiniteGeometryIsSkipped
+--- PASS: TestRecordingBounds_NonFiniteGeometryIsSkipped (0.00s)
+=== RUN   TestRecordingBounds_ClipIsNotIntersected
+--- PASS: TestRecordingBounds_ClipIsNotIntersected (0.00s)
+=== RUN   TestRecordingBounds_PostEffectsAreSurfaceWide
+=== RUN   TestRecordingBounds_PostEffectsAreSurfaceWide/blur
+=== RUN   TestRecordingBounds_PostEffectsAreSurfaceWide/shadow
+--- PASS: TestRecordingBounds_PostEffectsAreSurfaceWide (0.00s)
+    --- PASS: TestRecordingBounds_PostEffectsAreSurfaceWide/blur (0.00s)
+    --- PASS: TestRecordingBounds_PostEffectsAreSurfaceWide/shadow (0.00s)
+=== RUN   TestRecordingBounds_ZeroRadiusBlurIsNotSurfaceWide
+--- PASS: TestRecordingBounds_ZeroRadiusBlurIsNotSurfaceWide (0.00s)
+=== RUN   TestRecordingBounds_ImageDestinations
+=== RUN   TestRecordingBounds_ImageDestinations/native_size
+=== RUN   TestRecordingBounds_ImageDestinations/scaled_destination
+=== RUN   TestRecordingBounds_ImageDestinations/source_rect_sets_the_size
+=== RUN   TestRecordingBounds_ImageDestinations/nine_patch_destination
+=== RUN   TestRecordingBounds_ImageDestinations/quad_corners
+=== RUN   TestRecordingBounds_ImageDestinations/rounded_keeps_native_size
+=== RUN   TestRecordingBounds_ImageDestinations/circular_box_is_the_circle
+=== RUN   TestRecordingBounds_ImageDestinations/atlas_batch_unions_every_sprite
+=== RUN   TestRecordingBounds_ImageDestinations/rotated_sprite_spans_its_turned_corners
+=== RUN   TestRecordingBounds_ImageDestinations/depth_sprites_fold_into_the_same_box
+--- PASS: TestRecordingBounds_ImageDestinations (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/native_size (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/scaled_destination (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/source_rect_sets_the_size (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/nine_patch_destination (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/quad_corners (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/rounded_keeps_native_size (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/circular_box_is_the_circle (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/atlas_batch_unions_every_sprite (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/rotated_sprite_spans_its_turned_corners (0.00s)
+    --- PASS: TestRecordingBounds_ImageDestinations/depth_sprites_fold_into_the_same_box (0.00s)
+=== RUN   TestRecordingBounds_DisposedImageContributesNothing
+--- PASS: TestRecordingBounds_DisposedImageContributesNothing (0.00s)
+=== RUN   TestRecordingImageBufs_ReturnsPooledBuffersInOrder
+--- PASS: TestRecordingImageBufs_ReturnsPooledBuffersInOrder (0.00s)
+=== RUN   TestRecordingVisible_ZeroAlphaIsNotPaint
+--- PASS: TestRecordingVisible_ZeroAlphaIsNotPaint (0.00s)
+=== RUN   TestRecordingVisible_CommandCountIsNotPaint
+--- PASS: TestRecordingVisible_CommandCountIsNotPaint (0.00s)
+=== RUN   TestRecordingPaintOpCountCountsDrawingCommands
+--- PASS: TestRecordingPaintOpCountCountsDrawingCommands (0.00s)
+=== RUN   TestRecordingCPUScratchFollowsImageCommands
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/draw
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/scaled
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/nine
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/quad
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/rounded
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/circular
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/atlas
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/depth_sprites
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/pattern_brush_fill
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/pattern_brush_stroke
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/vector
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/path
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/text
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/gradient
+=== RUN   TestRecordingCPUScratchFollowsImageCommands/state_only
+--- PASS: TestRecordingCPUScratchFollowsImageCommands (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/draw (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/scaled (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/nine (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/quad (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/rounded (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/circular (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/atlas (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/depth_sprites (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/pattern_brush_fill (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/pattern_brush_stroke (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/vector (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/path (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/text (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/gradient (0.00s)
+    --- PASS: TestRecordingCPUScratchFollowsImageCommands/state_only (0.00s)
+=== RUN   TestRecordingVisible_GradientStopsDecide
+--- PASS: TestRecordingVisible_GradientStopsDecide (0.00s)
+=== RUN   TestRecordingVisible_TextNeedsAFace
+--- PASS: TestRecordingVisible_TextNeedsAFace (0.00s)
+=== RUN   TestRecordingBounds_TextFootprintMatchesPaintedInk
+--- PASS: TestRecordingBounds_TextFootprintMatchesPaintedInk (0.01s)
+PASS

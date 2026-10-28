@@ -1,0 +1,4 @@
+=== RUN   TestRemuxSplitWithSubtitles
+    remux_split_test.go:19: need full lib (write/mov_text), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+--- SKIP: TestRemuxSplitWithSubtitles (0.01s)
+PASS

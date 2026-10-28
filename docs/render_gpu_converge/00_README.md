@@ -31,8 +31,9 @@
 | `evidence/P1.1b/` | **P1.1b 跨平台构建修复证据**：`summary.md`（B1–B6 根因/改动/验证）、五目标 8 段输出、`js-wasm.txt`（不支持根因）、`conformance-rerun.txt`（P0.4 复跑逐字节一致） | 不重复 `baseline/build/` 的基线表 |
 | `baseline/vet.txt` | **P1.2 `go vet` 基线（P1.2b 修复后）**：环境/命令/过滤口径、默认与 nogpu 两轮原始输出、352/348 包逐包状态、61 条告警逐条登记、已知问题 V-0/W-U/W-T/W-D | 不装测试执行结果（归 P1.3 `baseline/tests/`） |
 | `evidence/P1.2b/` | **P1.2b nogpu 测试标签修复证据**：`summary.md`（20 个文件根因/改动/验证）、修复前后 vet 与测试编译原始输出、两模式包清单 | 不重复 `baseline/vet.txt` 的基线表 |
+| `baseline/tests/` | **P1.3 逐测试文件基线**：`summary.md`（结论/失败分组/P2 交接）、`summary.tsv`（1398 行）、`failures.tsv`（48 行）、`skips.tsv`（239 行）、`logs/`（逐文件原始日志 + `clean-rerun/` + `crosscheck/`）、`failures/`（T1/app/integration/opt24/28/29 原始栈）；1398 文件逐文件执行，1264 PASS / 48 FAIL / 86 SKIP；46 个 `RequestDevice` SKIP 首轮与干净重跑均复现 | 不装 vet（归 P1.2）；不装真窗（归 P1.4） |
 
-## 当前进度（P0 已收口；P1 基线冻结进行中，下一任务 P1.3）
+## 当前进度（P0 已收口；P1 基线冻结进行中，下一任务 P1.4）
 
 > 状态真源是 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2；本表只是索引镜像，两边不一致以台账为准。
 
@@ -46,6 +47,7 @@
 | P1.1b | 跨平台构建修复（B1–B6） | ✅ 2026-10-28 | `evidence/P1.1b/`：五目标（linux×2 351/347/141、windows 357/353/140、darwin×2 349/345/140）默认/nogpu/库范围全 PASS、加载失败 0；P0.4 复跑 6 份 report 与 summary 逐字节一致；js/wasm 因 `../purego` 无 wasm 实现，用户决定登记不支持（将来需 `syscall/js` 后端单独立项） |
 | P1.2 | `go vet ./...` | ✅ 2026-10-28 | `baseline/vet.txt`：默认 352 包（含仅有测试文件的 `ui/scene/internal/gpupixel`）/ 3 包 61 条（59 unsafe + 2 unreachable）；nogpu 348 包 / 2 包 58 条 unsafe；两模式类型错误 0；原始 `./...` 仅剩 `ui_wr_t_stress` 已知加载错误；告警逐条登记（ui/platform 线外 56、P2.5 测试卫生 3、P2.5 死代码 2） |
 | P1.2b | nogpu 测试标签修复 | ✅ 2026-10-28 | `evidence/P1.2b/`：20 个测试文件补 `//go:build !nogpu`（`render/internal/gpu` 9 + `render` 11）；nogpu vet 348 包完成、0 类型错误；nogpu 测试编译 137 ok / 211 no test / 0 FAIL；默认 vet 61 条不变（仅 `view_raw_attack` 行号 11→13） |
+| P1.3 | 逐测试文件运行 | ✅ 2026-10-28 | `baseline/tests/`：1398 文件逐文件执行；1264 PASS / 48 FAIL / 86 SKIP；0 缺失/0 重复/0 多余；48 条失败逐条分类并给 P2 归属；T1 原始栈；46 个 `RequestDevice` SKIP 首轮与干净重跑均复现；`ui/scene`/`video` 整包交叉复核 |
 
 ## 先看哪个
 

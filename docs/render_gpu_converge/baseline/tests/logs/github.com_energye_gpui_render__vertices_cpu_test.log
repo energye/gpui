@@ -1,0 +1,25 @@
+=== RUN   TestVertsDrawTriFromCases
+--- PASS: TestVertsDrawTriFromCases (0.00s)
+=== RUN   TestVertsDrawFanFromCases
+--- PASS: TestVertsDrawFanFromCases (0.00s)
+=== RUN   TestVertsMeshIndexedFromCases
+--- PASS: TestVertsMeshIndexedFromCases (0.00s)
+=== RUN   TestVertsSolidTriFromCases
+--- PASS: TestVertsSolidTriFromCases (0.00s)
+=== RUN   TestVertsUniformTriFromCases
+--- PASS: TestVertsUniformTriFromCases (0.00s)
+=== RUN   TestVertsEdgeNoCrash
+--- PASS: TestVertsEdgeNoCrash (0.00s)
+=== RUN   TestVertsPerfSingle
+    vertices_cpu_test.go:287: verts-perf: 200 draws 64x64 RGB tri in 11.995783ms (59.98 us/draw)
+--- PASS: TestVertsPerfSingle (0.01s)
+=== RUN   TestVertsLongRunNoLeak
+    vertices_cpu_test.go:315: verts-longrun: 500 alternating draws ok, final hub [124 0 131 255]
+--- PASS: TestVertsLongRunNoLeak (0.04s)
+=== RUN   TestVertsGoldenGouraud
+    vertices_cpu_test.go:335: golden diff changed=0/4096 (0.000%) mean=0.000 rmse=0.000 max=0 tol_pct=1.0 tol_mean=1.0
+--- PASS: TestVertsGoldenGouraud (0.00s)
+=== RUN   TestVertsCPUGPUParity
+    vertices_cpu_test.go:398: parity changed=0/4096 (0.000%) mean=0.003 rmse=0.058 max=1
+--- PASS: TestVertsCPUGPUParity (0.32s)
+PASS

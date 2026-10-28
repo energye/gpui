@@ -1,0 +1,15 @@
+=== RUN   TestArabicJoining_Forms_BehMeem
+--- PASS: TestArabicJoining_Forms_BehMeem (0.00s)
+=== RUN   TestArabicJoining_Forms_ThreeLetter
+--- PASS: TestArabicJoining_Forms_ThreeLetter (0.00s)
+=== RUN   TestArabicJoining_Forms_AlefRightOnly
+--- PASS: TestArabicJoining_Forms_AlefRightOnly (0.00s)
+=== RUN   TestArabicJoining_TransparentMark
+--- PASS: TestArabicJoining_TransparentMark (0.00s)
+=== RUN   TestArabicJoining_Isolated
+--- PASS: TestArabicJoining_Isolated (0.00s)
+=== RUN   TestNeedsArabicJoining
+--- PASS: TestNeedsArabicJoining (0.00s)
+=== RUN   TestGSUB_StagedArabic_MaskOnlyFormPositions
+--- PASS: TestGSUB_StagedArabic_MaskOnlyFormPositions (0.00s)
+PASS

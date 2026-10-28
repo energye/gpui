@@ -1,0 +1,23 @@
+=== RUN   TestModuleBuilder_MinimalModule
+    writer_test.go:56: Module size: 40 bytes
+    writer_test.go:57: Bound: 1
+--- PASS: TestModuleBuilder_MinimalModule (0.00s)
+=== RUN   TestModuleBuilder_WithTypes
+    writer_test.go:88: Type IDs: void=1, float=2, int=3, vec4=4
+    writer_test.go:89: Module size: 92 bytes
+--- PASS: TestModuleBuilder_WithTypes (0.00s)
+=== RUN   TestModuleBuilder_WithEntryPoint
+    writer_test.go:125: Function ID: 3, Label ID: 4
+    writer_test.go:126: Module size: 128 bytes
+--- PASS: TestModuleBuilder_WithEntryPoint (0.00s)
+=== RUN   TestInstructionBuilder_String
+    writer_test.go:150: String 'hello' encoded to 3 words
+--- PASS: TestInstructionBuilder_String (0.00s)
+=== RUN   TestInstructionBuilder_Float32
+    writer_test.go:165: Float constant ID: 2
+    writer_test.go:166: Module size: 48 bytes
+--- PASS: TestInstructionBuilder_Float32 (0.00s)
+=== RUN   TestModuleBuilder_IDAllocation
+    writer_test.go:184: Allocated IDs: 1, 2, 3
+--- PASS: TestModuleBuilder_IDAllocation (0.00s)
+PASS

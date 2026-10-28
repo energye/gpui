@@ -1,0 +1,3 @@
+=== RUN   TestMeasureCache_Concurrent
+--- PASS: TestMeasureCache_Concurrent (0.00s)
+PASS

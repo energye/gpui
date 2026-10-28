@@ -1,0 +1,13 @@
+=== RUN   TestReleaseSequenceTiming
+--- PASS: TestReleaseSequenceTiming (0.00s)
+=== RUN   TestRegistry_InflightBlocksReleaseUntilSubmitDone
+--- PASS: TestRegistry_InflightBlocksReleaseUntilSubmitDone (0.00s)
+=== RUN   TestRegistry_ResolveRebindReturnsNewInstance
+--- PASS: TestRegistry_ResolveRebindReturnsNewInstance (0.00s)
+=== RUN   TestRegistry_MonotonicIDsNeverReused
+--- PASS: TestRegistry_MonotonicIDsNeverReused (0.00s)
+=== RUN   TestRegistry_InvalidateAllSkipsNativeRelease
+--- PASS: TestRegistry_InvalidateAllSkipsNativeRelease (0.00s)
+=== RUN   TestRegistry_BindRetiresPredecessor
+--- PASS: TestRegistry_BindRetiresPredecessor (0.00s)
+PASS

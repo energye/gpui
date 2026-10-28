@@ -1,0 +1,9 @@
+=== RUN   TestHWPreferenceCoversPlatforms
+--- PASS: TestHWPreferenceCoversPlatforms (0.00s)
+=== RUN   TestHWDeviceCandidatesNoFSOffLinux
+--- PASS: TestHWDeviceCandidatesNoFSOffLinux (0.00s)
+=== RUN   TestCCLayoutOKGuards
+--- PASS: TestCCLayoutOKGuards (0.00s)
+=== RUN   TestHWDisabledForms
+--- PASS: TestHWDisabledForms (0.00s)
+PASS

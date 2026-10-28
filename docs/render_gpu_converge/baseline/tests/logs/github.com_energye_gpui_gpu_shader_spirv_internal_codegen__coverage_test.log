@@ -1,0 +1,317 @@
+=== RUN   TestStorageFormatToImageFormat
+--- PASS: TestStorageFormatToImageFormat (0.00s)
+=== RUN   TestFloat32ToF16BitsEdgeCases
+=== RUN   TestFloat32ToF16BitsEdgeCases/negative_zero
+=== RUN   TestFloat32ToF16BitsEdgeCases/+Inf
+=== RUN   TestFloat32ToF16BitsEdgeCases/-Inf
+=== RUN   TestFloat32ToF16BitsEdgeCases/NaN
+=== RUN   TestFloat32ToF16BitsEdgeCases/100000_(overflow)
+=== RUN   TestFloat32ToF16BitsEdgeCases/-100000_(overflow)
+=== RUN   TestFloat32ToF16BitsEdgeCases/5.96e-8_(smallest_subnormal_f16)
+=== RUN   TestFloat32ToF16BitsEdgeCases/1e-10_(underflow_to_zero)
+=== RUN   TestFloat32ToF16BitsEdgeCases/1.0009766_(round_up)
+--- PASS: TestFloat32ToF16BitsEdgeCases (0.00s)
+    --- PASS: TestFloat32ToF16BitsEdgeCases/negative_zero (0.00s)
+    --- PASS: TestFloat32ToF16BitsEdgeCases/+Inf (0.00s)
+    --- PASS: TestFloat32ToF16BitsEdgeCases/-Inf (0.00s)
+    --- PASS: TestFloat32ToF16BitsEdgeCases/NaN (0.00s)
+    --- PASS: TestFloat32ToF16BitsEdgeCases/100000_(overflow) (0.00s)
+    --- PASS: TestFloat32ToF16BitsEdgeCases/-100000_(overflow) (0.00s)
+    --- PASS: TestFloat32ToF16BitsEdgeCases/5.96e-8_(smallest_subnormal_f16) (0.00s)
+    --- PASS: TestFloat32ToF16BitsEdgeCases/1e-10_(underflow_to_zero) (0.00s)
+    --- PASS: TestFloat32ToF16BitsEdgeCases/1.0009766_(round_up) (0.00s)
+=== RUN   TestNewWriter
+--- PASS: TestNewWriter (0.00s)
+=== RUN   TestModuleBuilder_AddString
+--- PASS: TestModuleBuilder_AddString (0.00s)
+=== RUN   TestModuleBuilder_AddTypeSampler
+--- PASS: TestModuleBuilder_AddTypeSampler (0.00s)
+=== RUN   TestModuleBuilder_AddConstantFloat64
+--- PASS: TestModuleBuilder_AddConstantFloat64 (0.00s)
+=== RUN   TestModuleBuilder_AddVariableWithInit
+--- PASS: TestModuleBuilder_AddVariableWithInit (0.00s)
+=== RUN   TestModuleBuilder_AddFunctionParameter
+--- PASS: TestModuleBuilder_AddFunctionParameter (0.00s)
+=== RUN   TestModuleBuilder_AddLabelWithID
+--- PASS: TestModuleBuilder_AddLabelWithID (0.00s)
+=== RUN   TestModuleBuilder_AddUnreachable
+--- PASS: TestModuleBuilder_AddUnreachable (0.00s)
+=== RUN   TestModuleBuilder_AddReturnValue
+--- PASS: TestModuleBuilder_AddReturnValue (0.00s)
+=== RUN   TestModuleBuilder_AddCopyLogical
+--- PASS: TestModuleBuilder_AddCopyLogical (0.00s)
+=== RUN   TestModuleBuilder_AddVectorExtractDynamic
+--- PASS: TestModuleBuilder_AddVectorExtractDynamic (0.00s)
+=== RUN   TestModuleBuilder_AddBranchConditional
+--- PASS: TestModuleBuilder_AddBranchConditional (0.00s)
+=== RUN   TestModuleBuilder_AddKill
+--- PASS: TestModuleBuilder_AddKill (0.00s)
+=== RUN   TestCompileSelectExpression
+--- PASS: TestCompileSelectExpression (0.00s)
+=== RUN   TestCompileSelectVectorExpression
+--- PASS: TestCompileSelectVectorExpression (0.00s)
+=== RUN   TestCompileLocalVariables
+    coverage_test.go:506: local variables shader: 820 bytes
+--- PASS: TestCompileLocalVariables (0.00s)
+=== RUN   TestCompileConstExpression
+    coverage_test.go:522: const expression shader: 716 bytes
+--- PASS: TestCompileConstExpression (0.00s)
+=== RUN   TestCompileDerivatives
+--- PASS: TestCompileDerivatives (0.00s)
+=== RUN   TestCompileComputeBarrier
+--- PASS: TestCompileComputeBarrier (0.00s)
+=== RUN   TestCompileAtomics
+    coverage_test.go:635: atomic shader: 916 bytes, 7 atomic ops emitted
+--- PASS: TestCompileAtomics (0.00s)
+=== RUN   TestCompileAtomicsI32
+    coverage_test.go:653: atomic i32 shader: 708 bytes
+--- PASS: TestCompileAtomicsI32 (0.00s)
+=== RUN   TestCompileAtomicCompareExchange
+--- PASS: TestCompileAtomicCompareExchange (0.00s)
+=== RUN   TestCompileDiscard
+--- PASS: TestCompileDiscard (0.00s)
+=== RUN   TestCompileFunctionCall
+    coverage_test.go:724: function call shader: 640 bytes
+--- PASS: TestCompileFunctionCall (0.00s)
+=== RUN   TestCompileFunctionCallMultipleParams
+    coverage_test.go:740: multi-param function call shader: 656 bytes
+--- PASS: TestCompileFunctionCallMultipleParams (0.00s)
+=== RUN   TestCompileImageSampleWithOffset
+    coverage_test.go:756: image sample with offset shader: 696 bytes
+--- PASS: TestCompileImageSampleWithOffset (0.00s)
+=== RUN   TestCompileArrayLength
+    coverage_test.go:777: array length shader: 692 bytes
+--- PASS: TestCompileArrayLength (0.00s)
+=== RUN   TestCompileSwitch
+    coverage_test.go:804: switch shader: 700 bytes
+--- PASS: TestCompileSwitch (0.00s)
+=== RUN   TestCompileLoop
+    coverage_test.go:828: loop shader: 1424 bytes
+--- PASS: TestCompileLoop (0.00s)
+=== RUN   TestCompileNestedIf
+    coverage_test.go:854: nested if shader: 1052 bytes
+--- PASS: TestCompileNestedIf (0.00s)
+=== RUN   TestCompileStorageTexture
+--- PASS: TestCompileStorageTexture (0.00s)
+=== RUN   TestCompileStorageTextureR32Float
+    coverage_test.go:887: storage texture r32float shader: 684 bytes
+--- PASS: TestCompileStorageTextureR32Float (0.00s)
+=== RUN   TestCompileImageQueryDimensions
+    coverage_test.go:905: image query shader: 684 bytes
+--- PASS: TestCompileImageQueryDimensions (0.00s)
+=== RUN   TestCompileTypeCast
+    coverage_test.go:923: type cast shader: 676 bytes
+--- PASS: TestCompileTypeCast (0.00s)
+=== RUN   TestCompileBoolToNumeric
+    coverage_test.go:939: bool to numeric shader: 668 bytes
+--- PASS: TestCompileBoolToNumeric (0.00s)
+=== RUN   TestCompileUnary
+    coverage_test.go:956: unary shader: 596 bytes
+--- PASS: TestCompileUnary (0.00s)
+=== RUN   TestCompileDebugNames
+    coverage_test.go:1019: debug names: 3 OpName + 2 OpMemberName instructions
+--- PASS: TestCompileDebugNames (0.00s)
+=== RUN   TestCompileMatrixOperations
+    coverage_test.go:1039: matrix operations shader: 684 bytes
+--- PASS: TestCompileMatrixOperations (0.00s)
+=== RUN   TestCompileSwizzle
+    coverage_test.go:1054: swizzle shader: 572 bytes
+--- PASS: TestCompileSwizzle (0.00s)
+=== RUN   TestCompileF64Literal
+    coverage_test.go:1069: f64 literal shader: 580 bytes
+--- PASS: TestCompileF64Literal (0.00s)
+=== RUN   TestCompileMultipleEntryPoints
+    coverage_test.go:1094: multiple entry points shader: 1040 bytes
+--- PASS: TestCompileMultipleEntryPoints (0.00s)
+=== RUN   TestCompileWorkgroupVariable
+    coverage_test.go:1112: workgroup variable shader: 1304 bytes
+--- PASS: TestCompileWorkgroupVariable (0.00s)
+=== RUN   TestCompileCompositeAccess
+    coverage_test.go:1141: composite access shader: 1540 bytes
+--- PASS: TestCompileCompositeAccess (0.00s)
+=== RUN   TestCompileInterpolation
+--- PASS: TestCompileInterpolation (0.00s)
+=== RUN   TestCompilePointerLoad
+    coverage_test.go:1198: pointer load shader: 436 bytes
+--- PASS: TestCompilePointerLoad (0.00s)
+=== RUN   TestCompileForLoop
+    coverage_test.go:1214: for loop shader: 1324 bytes
+--- PASS: TestCompileForLoop (0.00s)
+=== RUN   TestCompileWhileLoop
+    coverage_test.go:1232: while loop shader: 1272 bytes
+--- PASS: TestCompileWhileLoop (0.00s)
+=== RUN   TestCompileSplatExpression
+    coverage_test.go:1246: splat expression shader: 424 bytes
+--- PASS: TestCompileSplatExpression (0.00s)
+=== RUN   TestCompileMathBuiltins
+    coverage_test.go:1270: math builtins shader: 1568 bytes
+--- PASS: TestCompileMathBuiltins (0.00s)
+=== RUN   TestCompileVectorConstructors
+    coverage_test.go:1286: vector constructors shader: 676 bytes
+--- PASS: TestCompileVectorConstructors (0.00s)
+=== RUN   TestCompileTextureLoad
+    coverage_test.go:1300: texture load shader: 516 bytes
+--- PASS: TestCompileTextureLoad (0.00s)
+=== RUN   TestCompileMultisampleTexture
+    coverage_test.go:1314: multisample texture shader: 516 bytes
+--- PASS: TestCompileMultisampleTexture (0.00s)
+=== RUN   TestCompileDepthTexture
+    coverage_test.go:1330: depth texture shader: 648 bytes
+--- PASS: TestCompileDepthTexture (0.00s)
+=== RUN   TestCompileSampleMask
+    coverage_test.go:1345: sample mask shader: 644 bytes
+--- PASS: TestCompileSampleMask (0.00s)
+=== RUN   TestCompileFragDepth
+    coverage_test.go:1365: frag depth shader: 872 bytes
+--- PASS: TestCompileFragDepth (0.00s)
+=== RUN   TestCompileComparisonSampler
+    coverage_test.go:1382: comparison sampler shader: 648 bytes
+--- PASS: TestCompileComparisonSampler (0.00s)
+=== RUN   TestCompileStorageBuffer
+    coverage_test.go:1405: storage buffer shader: 1512 bytes
+--- PASS: TestCompileStorageBuffer (0.00s)
+=== RUN   TestCompileModfFrexp
+    coverage_test.go:1419: modf/frexp shader: 748 bytes
+--- PASS: TestCompileModfFrexp (0.00s)
+=== RUN   TestCompileModfVec
+    coverage_test.go:1432: modf vec shader: 468 bytes
+--- PASS: TestCompileModfVec (0.00s)
+=== RUN   TestCompileVectorScalarBinary
+    coverage_test.go:1450: vector scalar binary shader: 600 bytes
+--- PASS: TestCompileVectorScalarBinary (0.00s)
+=== RUN   TestCompileIntVectorScalarBinary
+    coverage_test.go:1464: int vector scalar binary shader: 1088 bytes
+--- PASS: TestCompileIntVectorScalarBinary (0.00s)
+=== RUN   TestCompileDynamicAccess
+    coverage_test.go:1478: dynamic access shader: 708 bytes
+--- PASS: TestCompileDynamicAccess (0.00s)
+=== RUN   TestCompileWorkgroupStruct
+    coverage_test.go:1500: workgroup struct shader: 1556 bytes
+--- PASS: TestCompileWorkgroupStruct (0.00s)
+=== RUN   TestCompileRuntimeSizedArray
+    coverage_test.go:1522: runtime sized array shader: 936 bytes
+--- PASS: TestCompileRuntimeSizedArray (0.00s)
+=== RUN   TestCompileStorageTextureR32Uint
+    coverage_test.go:1536: storage texture r32uint shader: 676 bytes
+--- PASS: TestCompileStorageTextureR32Uint (0.00s)
+=== RUN   TestCompileStorageTextureRgba16Float
+    coverage_test.go:1550: storage texture rgba16float shader: 700 bytes
+--- PASS: TestCompileStorageTextureRgba16Float (0.00s)
+=== RUN   TestCompileTextureSampleBias
+    coverage_test.go:1565: texture sample bias shader: 608 bytes
+--- PASS: TestCompileTextureSampleBias (0.00s)
+=== RUN   TestCompileTextureSampleGrad
+    coverage_test.go:1582: texture sample grad shader: 908 bytes
+--- PASS: TestCompileTextureSampleGrad (0.00s)
+=== RUN   TestCompileTextureGather
+    coverage_test.go:1597: texture gather shader: 620 bytes
+--- PASS: TestCompileTextureGather (0.00s)
+=== RUN   TestCompileMultipleMathFunctions
+    coverage_test.go:1621: multiple math functions shader: 1512 bytes
+--- PASS: TestCompileMultipleMathFunctions (0.00s)
+=== RUN   TestCompileIntegerMath
+    coverage_test.go:1637: integer math shader: 704 bytes
+--- PASS: TestCompileIntegerMath (0.00s)
+=== RUN   TestCompileAbsInt
+    coverage_test.go:1652: abs int shader: 592 bytes
+--- PASS: TestCompileAbsInt (0.00s)
+=== RUN   TestCompileLocalVarInLoop
+    coverage_test.go:1675: local var in loop shader: 1304 bytes
+--- PASS: TestCompileLocalVarInLoop (0.00s)
+=== RUN   TestCompilePointerArgs
+    coverage_test.go:1693: pointer args shader: 736 bytes
+--- PASS: TestCompilePointerArgs (0.00s)
+=== RUN   TestCompileCrossProductDotNormalize
+    coverage_test.go:1712: cross dot normalize shader: 928 bytes
+--- PASS: TestCompileCrossProductDotNormalize (0.00s)
+=== RUN   TestCompileMatrixConstructor
+    coverage_test.go:1729: matrix constructor shader: 728 bytes
+--- PASS: TestCompileMatrixConstructor (0.00s)
+=== RUN   TestCompileMultiReturnFunction
+    coverage_test.go:1754: multi-return function shader: 952 bytes
+--- PASS: TestCompileMultiReturnFunction (0.00s)
+=== RUN   TestCompileWrappedUniformBuffer
+    coverage_test.go:1775: wrapped uniform buffer shader: 1156 bytes
+--- PASS: TestCompileWrappedUniformBuffer (0.00s)
+=== RUN   TestCompileTexture3D
+    coverage_test.go:1790: texture 3d shader: 584 bytes
+--- PASS: TestCompileTexture3D (0.00s)
+=== RUN   TestCompileTextureCube
+    coverage_test.go:1805: texture cube shader: 584 bytes
+--- PASS: TestCompileTextureCube (0.00s)
+=== RUN   TestCompileTextureArray
+    coverage_test.go:1820: texture array shader: 732 bytes
+--- PASS: TestCompileTextureArray (0.00s)
+=== RUN   TestAtomicOpcode
+=== RUN   TestAtomicOpcode/add_uint
+=== RUN   TestAtomicOpcode/add_sint
+=== RUN   TestAtomicOpcode/add_float
+=== RUN   TestAtomicOpcode/subtract
+=== RUN   TestAtomicOpcode/and
+=== RUN   TestAtomicOpcode/or
+=== RUN   TestAtomicOpcode/xor
+=== RUN   TestAtomicOpcode/min_uint
+=== RUN   TestAtomicOpcode/min_sint
+=== RUN   TestAtomicOpcode/max_uint
+=== RUN   TestAtomicOpcode/max_sint
+=== RUN   TestAtomicOpcode/exchange
+--- PASS: TestAtomicOpcode (0.00s)
+    --- PASS: TestAtomicOpcode/add_uint (0.00s)
+    --- PASS: TestAtomicOpcode/add_sint (0.00s)
+    --- PASS: TestAtomicOpcode/add_float (0.00s)
+    --- PASS: TestAtomicOpcode/subtract (0.00s)
+    --- PASS: TestAtomicOpcode/and (0.00s)
+    --- PASS: TestAtomicOpcode/or (0.00s)
+    --- PASS: TestAtomicOpcode/xor (0.00s)
+    --- PASS: TestAtomicOpcode/min_uint (0.00s)
+    --- PASS: TestAtomicOpcode/min_sint (0.00s)
+    --- PASS: TestAtomicOpcode/max_uint (0.00s)
+    --- PASS: TestAtomicOpcode/max_sint (0.00s)
+    --- PASS: TestAtomicOpcode/exchange (0.00s)
+=== RUN   TestAtomicOpcodeSpecialCases
+--- PASS: TestAtomicOpcodeSpecialCases (0.00s)
+=== RUN   TestCompileAtomicExchange
+--- PASS: TestCompileAtomicExchange (0.00s)
+=== RUN   TestCompileWorkgroupAtomicI32
+--- PASS: TestCompileWorkgroupAtomicI32 (0.00s)
+=== RUN   TestCompileArrayAccess
+--- PASS: TestCompileArrayAccess (0.00s)
+=== RUN   TestCompileArrayLengthOnStruct
+--- PASS: TestCompileArrayLengthOnStruct (0.00s)
+=== RUN   TestCompileSwitchWithFallthrough
+--- PASS: TestCompileSwitchWithFallthrough (0.00s)
+=== RUN   TestCompileNestedLoopBreakContinue
+--- PASS: TestCompileNestedLoopBreakContinue (0.00s)
+=== RUN   TestCompileMultiBindGroupUniform
+--- PASS: TestCompileMultiBindGroupUniform (0.00s)
+=== RUN   TestCompileTextureSampleLevel
+--- PASS: TestCompileTextureSampleLevel (0.00s)
+=== RUN   TestCompileTextureDimensionsCube
+--- PASS: TestCompileTextureDimensionsCube (0.00s)
+=== RUN   TestCompileNumericConversions
+--- PASS: TestCompileNumericConversions (0.00s)
+=== RUN   TestCompileVertexBuiltins
+--- PASS: TestCompileVertexBuiltins (0.00s)
+=== RUN   TestCompileComputeBuiltins
+--- PASS: TestCompileComputeBuiltins (0.00s)
+=== RUN   TestCompileBitOperations
+--- PASS: TestCompileBitOperations (0.00s)
+=== RUN   TestCompileModuleWithAtomicResult
+--- PASS: TestCompileModuleWithAtomicResult (0.00s)
+=== RUN   TestCompilePack4x8
+--- PASS: TestCompilePack4x8 (0.00s)
+=== RUN   TestCompileUnpack4x8
+--- PASS: TestCompileUnpack4x8 (0.00s)
+=== RUN   TestCompileWorkgroupUniformLoad
+--- PASS: TestCompileWorkgroupUniformLoad (0.00s)
+=== RUN   TestCompileSpillCompositeAccess
+--- PASS: TestCompileSpillCompositeAccess (0.00s)
+=== RUN   TestCompileDeferredCallResultInit
+--- PASS: TestCompileDeferredCallResultInit (0.00s)
+=== RUN   TestCompileVecDivideScalar
+--- PASS: TestCompileVecDivideScalar (0.00s)
+=== RUN   TestCompileSelectWithFloatCondition
+--- PASS: TestCompileSelectWithFloatCondition (0.00s)
+=== RUN   TestCompileModuleWithLocalVarValue
+--- PASS: TestCompileModuleWithLocalVarValue (0.00s)
+PASS

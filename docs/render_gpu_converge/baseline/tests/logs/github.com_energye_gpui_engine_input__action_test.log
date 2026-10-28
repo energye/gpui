@@ -1,0 +1,14 @@
+=== RUN   TestActionValuesFromCases
+--- PASS: TestActionValuesFromCases (0.00s)
+=== RUN   TestActionEdgesNoCrash
+--- PASS: TestActionEdgesNoCrash (0.00s)
+=== RUN   TestActionBoundaryIdentical
+--- PASS: TestActionBoundaryIdentical (0.00s)
+=== RUN   TestActionPerfHundred
+    action_test.go:725: input-100: 20000 reps x 10 actions (+vector) (220000 evals) in 28.697445ms (130.4 ns/op)
+--- PASS: TestActionPerfHundred (0.03s)
+=== RUN   TestActionLongRunNoDrift
+--- PASS: TestActionLongRunNoDrift (0.00s)
+=== RUN   TestActionOffscreenGolden
+--- PASS: TestActionOffscreenGolden (0.00s)
+PASS

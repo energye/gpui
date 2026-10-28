@@ -1,0 +1,9 @@
+=== RUN   TestRegistrySupported
+--- PASS: TestRegistrySupported (0.00s)
+=== RUN   TestRegistryOpenClip
+--- PASS: TestRegistryOpenClip (1.10s)
+=== RUN   TestRegistryUnsupported
+--- PASS: TestRegistryUnsupported (0.00s)
+=== RUN   TestNoHardcodedNames
+--- PASS: TestNoHardcodedNames (0.01s)
+PASS

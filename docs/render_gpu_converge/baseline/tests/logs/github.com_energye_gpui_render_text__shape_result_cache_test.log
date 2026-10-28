@@ -1,0 +1,15 @@
+=== RUN   TestS65_LayoutGlyphs_CacheHit
+--- PASS: TestS65_LayoutGlyphs_CacheHit (0.00s)
+=== RUN   TestS65_Shape_CacheHit
+--- PASS: TestS65_Shape_CacheHit (0.00s)
+=== RUN   TestS65_LayoutAndShape_ModeIsolation
+--- PASS: TestS65_LayoutAndShape_ModeIsolation (0.00s)
+=== RUN   TestS65_MultiFaceRuns_CacheAndMerge
+--- PASS: TestS65_MultiFaceRuns_CacheAndMerge (0.00s)
+=== RUN   TestIsHighChurnLabel
+--- PASS: TestIsHighChurnLabel (0.00s)
+=== RUN   TestLayoutGlyphs_SkipsHighChurnCache
+--- PASS: TestLayoutGlyphs_SkipsHighChurnCache (0.00s)
+=== RUN   TestS65_ShapeCache_ChurnEntriesEvictedFirst
+--- PASS: TestS65_ShapeCache_ChurnEntriesEvictedFirst (0.19s)
+PASS

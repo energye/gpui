@@ -1,0 +1,11 @@
+=== RUN   TestGradientFollowsCTM_GPU
+=== RUN   TestGradientFollowsCTM_GPU/translate
+=== RUN   TestGradientFollowsCTM_GPU/rotate90
+=== RUN   TestGradientFollowsCTM_GPU/uniform_scale
+--- PASS: TestGradientFollowsCTM_GPU (0.32s)
+    --- PASS: TestGradientFollowsCTM_GPU/translate (0.01s)
+    --- PASS: TestGradientFollowsCTM_GPU/rotate90 (0.01s)
+    --- PASS: TestGradientFollowsCTM_GPU/uniform_scale (0.01s)
+=== RUN   TestGradientFollowsCTM_GPU_NonUniform
+--- PASS: TestGradientFollowsCTM_GPU_NonUniform (0.02s)
+PASS

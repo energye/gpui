@@ -1,0 +1,10 @@
+=== RUN   TestErrZeroArea
+--- PASS: TestErrZeroArea (0.00s)
+=== RUN   TestErrZeroArea_IsComparable
+--- PASS: TestErrZeroArea_IsComparable (0.00s)
+=== RUN   TestSurfaceConfigureZeroDimensions_Vulkan
+    error_test.go:50: Vulkan backend not available
+--- SKIP: TestSurfaceConfigureZeroDimensions_Vulkan (0.00s)
+=== RUN   TestSurfaceConfigureValidDimensions
+--- PASS: TestSurfaceConfigureValidDimensions (0.00s)
+PASS

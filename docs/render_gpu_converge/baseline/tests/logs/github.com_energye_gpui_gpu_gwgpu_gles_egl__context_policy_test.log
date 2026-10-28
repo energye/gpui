@@ -1,0 +1,9 @@
+=== RUN   TestSelectWindowKindHonorsExplicitTarget
+=== RUN   TestSelectWindowKindHonorsExplicitTarget/explicit_X11_under_Wayland
+=== RUN   TestSelectWindowKindHonorsExplicitTarget/explicit_Wayland_under_X11
+=== RUN   TestSelectWindowKindHonorsExplicitTarget/nil_uses_automatic_selection
+--- PASS: TestSelectWindowKindHonorsExplicitTarget (0.00s)
+    --- PASS: TestSelectWindowKindHonorsExplicitTarget/explicit_X11_under_Wayland (0.00s)
+    --- PASS: TestSelectWindowKindHonorsExplicitTarget/explicit_Wayland_under_X11 (0.00s)
+    --- PASS: TestSelectWindowKindHonorsExplicitTarget/nil_uses_automatic_selection (0.00s)
+PASS

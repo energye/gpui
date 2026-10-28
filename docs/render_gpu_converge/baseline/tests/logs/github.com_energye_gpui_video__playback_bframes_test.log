@@ -1,0 +1,6 @@
+=== RUN   TestBPlayerExact
+    playback_bframes_test.go:84: B player 80f/2gops: shown=80 first=0 last=15800
+--- PASS: TestBPlayerExact (0.13s)
+=== RUN   TestBPlayerOffParity
+--- PASS: TestBPlayerOffParity (0.21s)
+PASS

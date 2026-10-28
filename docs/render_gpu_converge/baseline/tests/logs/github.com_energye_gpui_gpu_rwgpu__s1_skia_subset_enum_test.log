@@ -1,0 +1,413 @@
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/LoadOp
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/LoadOp/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/LoadOp/Load
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/LoadOp/Clear
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StoreOp
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StoreOp/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StoreOp/Store
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StoreOp/Discard
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Zero
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/One
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Src
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusSrc
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/SrcAlpha
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusSrcAlpha
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Dst
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusDst
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/DstAlpha
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusDstAlpha
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/SrcAlphaSaturated
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Constant
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusConstant
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Add
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Subtract
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/ReverseSubtract
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Min
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Max
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Never
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Less
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Equal
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/LessEqual
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Greater
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/NotEqual
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/GreaterEqual
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Always
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Keep
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Zero
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Replace
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Invert
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/IncrementClamp
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/DecrementClamp
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/IncrementWrap
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/DecrementWrap
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/FilterMode
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/FilterMode/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/FilterMode/Nearest
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/FilterMode/Linear
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/MipmapFilterMode
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/MipmapFilterMode/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/MipmapFilterMode/Nearest
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/MipmapFilterMode/Linear
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/AddressMode
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/AddressMode/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/AddressMode/ClampToEdge
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/AddressMode/Repeat
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/AddressMode/MirrorRepeat
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/IndexFormat
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/IndexFormat/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/IndexFormat/Uint16
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/IndexFormat/Uint32
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension/1D
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension/2D
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension/3D
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/1D
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/2D
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/2DArray
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/Cube
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/CubeArray
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/3D
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect/Undefined
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect/All
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect/StencilOnly
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect/DepthOnly
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/None
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/Red
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/Green
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/Blue
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/Alpha
+=== RUN   TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/All
+--- PASS: TestS1IdentityEnumsMatchWebGPUHeader (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/LoadOp (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/LoadOp/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/LoadOp/Load (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/LoadOp/Clear (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StoreOp (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StoreOp/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StoreOp/Store (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StoreOp/Discard (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Zero (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/One (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Src (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusSrc (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/SrcAlpha (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusSrcAlpha (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Dst (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusDst (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/DstAlpha (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusDstAlpha (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/SrcAlphaSaturated (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/Constant (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendFactor/OneMinusConstant (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Add (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Subtract (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/ReverseSubtract (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Min (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/BlendOperation/Max (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Never (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Less (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Equal (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/LessEqual (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Greater (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/NotEqual (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/GreaterEqual (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/CompareFunction/Always (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Keep (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Zero (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Replace (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/Invert (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/IncrementClamp (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/DecrementClamp (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/IncrementWrap (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/StencilOperation/DecrementWrap (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/FilterMode (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/FilterMode/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/FilterMode/Nearest (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/FilterMode/Linear (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/MipmapFilterMode (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/MipmapFilterMode/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/MipmapFilterMode/Nearest (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/MipmapFilterMode/Linear (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/AddressMode (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/AddressMode/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/AddressMode/ClampToEdge (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/AddressMode/Repeat (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/AddressMode/MirrorRepeat (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/IndexFormat (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/IndexFormat/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/IndexFormat/Uint16 (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/IndexFormat/Uint32 (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension/1D (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension/2D (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureDimension/3D (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/1D (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/2D (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/2DArray (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/Cube (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/CubeArray (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureViewDimension/3D (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect/Undefined (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect/All (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect/StencilOnly (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/TextureAspect/DepthOnly (0.00s)
+    --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/None (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/Red (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/Green (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/Blue (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/Alpha (0.00s)
+        --- PASS: TestS1IdentityEnumsMatchWebGPUHeader/ColorWriteMask/All (0.00s)
+=== RUN   TestS1TextureFormatSkiaSubset
+=== RUN   TestS1TextureFormatSkiaSubset/Undefined
+=== RUN   TestS1TextureFormatSkiaSubset/R8Unorm
+=== RUN   TestS1TextureFormatSkiaSubset/R8Snorm
+=== RUN   TestS1TextureFormatSkiaSubset/R8Uint
+=== RUN   TestS1TextureFormatSkiaSubset/R8Sint
+=== RUN   TestS1TextureFormatSkiaSubset/R16Uint
+=== RUN   TestS1TextureFormatSkiaSubset/R16Sint
+=== RUN   TestS1TextureFormatSkiaSubset/R16Float
+=== RUN   TestS1TextureFormatSkiaSubset/RG8Unorm
+=== RUN   TestS1TextureFormatSkiaSubset/R32Float
+=== RUN   TestS1TextureFormatSkiaSubset/RG16Float
+=== RUN   TestS1TextureFormatSkiaSubset/RGBA8Unorm
+=== RUN   TestS1TextureFormatSkiaSubset/RGBA8UnormSrgb
+=== RUN   TestS1TextureFormatSkiaSubset/RGBA8Snorm
+=== RUN   TestS1TextureFormatSkiaSubset/RGBA8Uint
+=== RUN   TestS1TextureFormatSkiaSubset/RGBA8Sint
+=== RUN   TestS1TextureFormatSkiaSubset/BGRA8Unorm
+=== RUN   TestS1TextureFormatSkiaSubset/BGRA8UnormSrgb
+=== RUN   TestS1TextureFormatSkiaSubset/RGB10A2Unorm
+=== RUN   TestS1TextureFormatSkiaSubset/RG11B10Ufloat
+=== RUN   TestS1TextureFormatSkiaSubset/RGBA16Float
+=== RUN   TestS1TextureFormatSkiaSubset/RGBA32Float
+=== RUN   TestS1TextureFormatSkiaSubset/Stencil8
+=== RUN   TestS1TextureFormatSkiaSubset/Depth16Unorm
+=== RUN   TestS1TextureFormatSkiaSubset/Depth24Plus
+=== RUN   TestS1TextureFormatSkiaSubset/Depth24PlusStencil8
+=== RUN   TestS1TextureFormatSkiaSubset/Depth32Float
+=== RUN   TestS1TextureFormatSkiaSubset/Depth32FloatStencil8
+--- PASS: TestS1TextureFormatSkiaSubset (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/Undefined (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/R8Unorm (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/R8Snorm (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/R8Uint (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/R8Sint (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/R16Uint (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/R16Sint (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/R16Float (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RG8Unorm (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/R32Float (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RG16Float (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RGBA8Unorm (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RGBA8UnormSrgb (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RGBA8Snorm (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RGBA8Uint (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RGBA8Sint (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/BGRA8Unorm (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/BGRA8UnormSrgb (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RGB10A2Unorm (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RG11B10Ufloat (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RGBA16Float (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/RGBA32Float (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/Stencil8 (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/Depth16Unorm (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/Depth24Plus (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/Depth24PlusStencil8 (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/Depth32Float (0.00s)
+    --- PASS: TestS1TextureFormatSkiaSubset/Depth32FloatStencil8 (0.00s)
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/TriangleList
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/PointList
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/LineList
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/LineStrip
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/TriangleStrip
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/Unknown
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/FrontFace
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/FrontFace/CCW
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/FrontFace/CW
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/FrontFace/Unknown
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/CullMode
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/CullMode/None
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/CullMode/Front
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/CullMode/Back
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/CullMode/Unknown
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType/Undefined_as_BindingNotUsed
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType/Uniform
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType/Storage
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType/ReadOnlyStorage
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType/Undefined_as_BindingNotUsed
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType/Filtering
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType/NonFiltering
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType/Comparison
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Undefined_as_BindingNotUsed
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Float
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/UnfilterableFloat
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Depth
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Sint
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Uint
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess/Undefined_as_BindingNotUsed
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess/WriteOnly
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess/ReadOnly
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess/ReadWrite
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode/Undefined
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode/VertexBufferNotUsed
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode/Vertex
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode/Instance
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Undefined
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint8x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint8x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint8x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint8x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm8x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm8x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Snorm8x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Snorm8x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint16x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint16x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint16x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint16x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm16x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm16x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Snorm16x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Snorm16x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float16x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float16x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float32
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float32x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float32x3
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float32x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint32
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint32x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint32x3
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint32x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint32
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint32x2
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint32x3
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint32x4
+=== RUN   TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm1010102
+--- PASS: TestS1ConvertedEnumsMatchWebGPUHeader (0.00s)
+    --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/TriangleList (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/PointList (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/LineList (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/LineStrip (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/TriangleStrip (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/PrimitiveTopology/Unknown (0.00s)
+    --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/FrontFace (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/FrontFace/CCW (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/FrontFace/CW (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/FrontFace/Unknown (0.00s)
+    --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/CullMode (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/CullMode/None (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/CullMode/Front (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/CullMode/Back (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/CullMode/Unknown (0.00s)
+    --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType/Undefined_as_BindingNotUsed (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType/Uniform (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType/Storage (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/BufferBindingType/ReadOnlyStorage (0.00s)
+    --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType/Undefined_as_BindingNotUsed (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType/Filtering (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType/NonFiltering (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/SamplerBindingType/Comparison (0.00s)
+    --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Undefined_as_BindingNotUsed (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Float (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/UnfilterableFloat (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Depth (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Sint (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/TextureSampleType/Uint (0.00s)
+    --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess/Undefined_as_BindingNotUsed (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess/WriteOnly (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess/ReadOnly (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/StorageTextureAccess/ReadWrite (0.00s)
+    --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode/Undefined (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode/VertexBufferNotUsed (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode/Vertex (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexStepMode/Instance (0.00s)
+    --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Undefined (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint8x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint8x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint8x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint8x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm8x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm8x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Snorm8x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Snorm8x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint16x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint16x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint16x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint16x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm16x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm16x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Snorm16x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Snorm16x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float16x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float16x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float32 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float32x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float32x3 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Float32x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint32 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint32x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint32x3 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Uint32x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint32 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint32x2 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint32x3 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Sint32x4 (0.00s)
+        --- PASS: TestS1ConvertedEnumsMatchWebGPUHeader/VertexFormat/Unorm1010102 (0.00s)
+=== RUN   TestS1ConvertedEnumsRejectSilentIdentity
+=== RUN   TestS1ConvertedEnumsRejectSilentIdentity/PrimitiveTopologyTriangleList
+=== RUN   TestS1ConvertedEnumsRejectSilentIdentity/FrontFaceCCW
+=== RUN   TestS1ConvertedEnumsRejectSilentIdentity/CullModeNone
+=== RUN   TestS1ConvertedEnumsRejectSilentIdentity/BufferBindingTypeUniform
+=== RUN   TestS1ConvertedEnumsRejectSilentIdentity/VertexStepModeVertex
+=== RUN   TestS1ConvertedEnumsRejectSilentIdentity/VertexFormatFloat32
+--- PASS: TestS1ConvertedEnumsRejectSilentIdentity (0.00s)
+    --- PASS: TestS1ConvertedEnumsRejectSilentIdentity/PrimitiveTopologyTriangleList (0.00s)
+    --- PASS: TestS1ConvertedEnumsRejectSilentIdentity/FrontFaceCCW (0.00s)
+    --- PASS: TestS1ConvertedEnumsRejectSilentIdentity/CullModeNone (0.00s)
+    --- PASS: TestS1ConvertedEnumsRejectSilentIdentity/BufferBindingTypeUniform (0.00s)
+    --- PASS: TestS1ConvertedEnumsRejectSilentIdentity/VertexStepModeVertex (0.00s)
+    --- PASS: TestS1ConvertedEnumsRejectSilentIdentity/VertexFormatFloat32 (0.00s)
+PASS

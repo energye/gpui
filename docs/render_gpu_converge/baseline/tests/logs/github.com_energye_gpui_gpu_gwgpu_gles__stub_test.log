@@ -1,0 +1,7 @@
+=== RUN   TestH4B2_GlesCreateStubsNotSupported
+--- PASS: TestH4B2_GlesCreateStubsNotSupported (0.00s)
+=== RUN   TestH4B2_GlesDestroyStubsNilSafe
+--- PASS: TestH4B2_GlesDestroyStubsNilSafe (0.00s)
+=== RUN   TestH4B2_GlesEncoderStubsNilSafe
+--- PASS: TestH4B2_GlesEncoderStubsNilSafe (0.00s)
+PASS

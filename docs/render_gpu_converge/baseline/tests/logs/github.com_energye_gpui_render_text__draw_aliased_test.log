@@ -1,0 +1,22 @@
+=== RUN   TestDrawAliased_BinaryAlpha
+--- PASS: TestDrawAliased_BinaryAlpha (0.01s)
+=== RUN   TestDrawAliased_EmptyString
+--- PASS: TestDrawAliased_EmptyString (0.00s)
+=== RUN   TestDrawAliased_NilFace
+--- PASS: TestDrawAliased_NilFace (0.00s)
+=== RUN   TestDrawAliased_MultipleSizes
+=== RUN   TestDrawAliased_MultipleSizes/size_10
+=== RUN   TestDrawAliased_MultipleSizes/size_16
+=== RUN   TestDrawAliased_MultipleSizes/size_24
+=== RUN   TestDrawAliased_MultipleSizes/size_36
+=== RUN   TestDrawAliased_MultipleSizes/size_48
+--- PASS: TestDrawAliased_MultipleSizes (0.00s)
+    --- PASS: TestDrawAliased_MultipleSizes/size_10 (0.00s)
+    --- PASS: TestDrawAliased_MultipleSizes/size_16 (0.00s)
+    --- PASS: TestDrawAliased_MultipleSizes/size_24 (0.00s)
+    --- PASS: TestDrawAliased_MultipleSizes/size_36 (0.00s)
+    --- PASS: TestDrawAliased_MultipleSizes/size_48 (0.00s)
+=== RUN   TestDrawAliased_VsDraw_DifferentAlpha
+    draw_aliased_test.go:166: Confirmed: AA path produces intermediate alpha, aliased path does not
+--- PASS: TestDrawAliased_VsDraw_DifferentAlpha (0.00s)
+PASS

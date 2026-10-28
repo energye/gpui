@@ -1,0 +1,4 @@
+=== RUN   TestShapesCPUvsGPUVisualDiagnostic
+    shapes_gpu_visual_test.go:15: set GPUI_SHAPES_VISUAL=1 to run CPU/GPU shapes diagnostics
+--- SKIP: TestShapesCPUvsGPUVisualDiagnostic (0.00s)
+PASS

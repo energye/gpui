@@ -1,0 +1,5 @@
+=== RUN   TestOffscreenPass_SuspendsAndRestoresMainStream
+--- PASS: TestOffscreenPass_SuspendsAndRestoresMainStream (0.00s)
+=== RUN   TestOffscreenPass_SubPassCannotConsumeMain
+--- PASS: TestOffscreenPass_SubPassCannotConsumeMain (0.00s)
+PASS

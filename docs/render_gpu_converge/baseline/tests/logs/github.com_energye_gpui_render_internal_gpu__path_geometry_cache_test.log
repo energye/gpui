@@ -1,0 +1,7 @@
+=== RUN   TestS43_PathGeometryCache_HitMiss
+--- PASS: TestS43_PathGeometryCache_HitMiss (0.00s)
+=== RUN   TestS43_StrokeGeometryCache_HitMiss
+--- PASS: TestS43_StrokeGeometryCache_HitMiss (0.00s)
+=== RUN   TestS43_ImageCache_Stats
+--- PASS: TestS43_ImageCache_Stats (0.19s)
+PASS

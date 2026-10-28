@@ -1,0 +1,6 @@
+=== RUN   TestVR7DFFmpegParity
+=== RUN   TestVR7DFFmpegParity/vr2_1080p.mp4
+    gate_perf_decode_test.go:132: vr2_1080p.mp4: VR7-D report (log-only): ours decode_ms_p95=96.20ms vs ffmpeg-4.4.2 decode-only 8.80ms (gap 10.93x, quantities differ: ours incl. NV12 planes)
+--- PASS: TestVR7DFFmpegParity (0.40s)
+    --- PASS: TestVR7DFFmpegParity/vr2_1080p.mp4 (0.40s)
+PASS

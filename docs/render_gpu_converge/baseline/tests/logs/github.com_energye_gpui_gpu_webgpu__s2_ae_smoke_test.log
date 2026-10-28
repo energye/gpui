@@ -1,0 +1,7 @@
+=== RUN   TestS2AE_BufferWriteCopyMap
+--- PASS: TestS2AE_BufferWriteCopyMap (0.36s)
+=== RUN   TestS2AE_TextureWriteCopyMap
+--- PASS: TestS2AE_TextureWriteCopyMap (0.30s)
+=== RUN   TestS2AE_DrawReadback
+--- PASS: TestS2AE_DrawReadback (0.31s)
+PASS

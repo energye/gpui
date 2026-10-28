@@ -1,0 +1,193 @@
+=== RUN   TestCompile_NilModule
+--- PASS: TestCompile_NilModule (0.00s)
+=== RUN   TestCompile_NoEntryPoints
+--- PASS: TestCompile_NoEntryPoints (0.00s)
+=== RUN   TestDefaultOptions
+--- PASS: TestDefaultOptions (0.00s)
+=== RUN   TestMinimalDXILModule
+    dxil_test.go:145: wrote 884 bytes to ../tmp/test_minimal.dxil
+    dxil_test.go:149: bitcode size: 764 bytes
+    dxil_test.go:150: container size: 884 bytes
+--- PASS: TestMinimalDXILModule (0.00s)
+=== RUN   TestContainerStructure
+--- PASS: TestContainerStructure (0.00s)
+=== RUN   TestBypassHash
+--- PASS: TestBypassHash (0.00s)
+=== RUN   TestCompile_PassthroughVertex
+    dxil_test.go:286: wrote 3076 bytes to ../tmp/test_passthrough_vs.dxil
+    dxil_test.go:290: passthrough vertex shader compiled: 3076 bytes
+--- PASS: TestCompile_PassthroughVertex (0.00s)
+=== RUN   TestCompile_RetailHash
+    dxil_test.go:359: retail hash digest: d034ec220317647d6b8f11000c868953
+    dxil_test.go:366: wrote 3076 bytes to ../tmp/test_retail_hash.dxil
+--- PASS: TestCompile_RetailHash (0.00s)
+=== RUN   TestCompile_SimpleFragment
+    dxil_test.go:439: wrote 2608 bytes to ../tmp/test_simple_ps.dxil
+    dxil_test.go:443: simple fragment shader compiled: 2608 bytes
+--- PASS: TestCompile_SimpleFragment (0.00s)
+=== RUN   TestStageToPSVKind
+=== RUN   TestStageToPSVKind/vertex
+=== RUN   TestStageToPSVKind/fragment
+=== RUN   TestStageToPSVKind/compute
+=== RUN   TestStageToPSVKind/mesh
+=== RUN   TestStageToPSVKind/task
+--- PASS: TestStageToPSVKind (0.00s)
+    --- PASS: TestStageToPSVKind/vertex (0.00s)
+    --- PASS: TestStageToPSVKind/fragment (0.00s)
+    --- PASS: TestStageToPSVKind/compute (0.00s)
+    --- PASS: TestStageToPSVKind/mesh (0.00s)
+    --- PASS: TestStageToPSVKind/task (0.00s)
+=== RUN   TestPSVResourceCountForSimpleCBV
+--- PASS: TestPSVResourceCountForSimpleCBV (0.00s)
+=== RUN   TestComputeContainerHasEmptyISGOSG
+--- PASS: TestComputeContainerHasEmptyISGOSG (0.00s)
+=== RUN   TestBuildPSVStageDispatch
+=== RUN   TestBuildPSVStageDispatch/vertex
+=== RUN   TestBuildPSVStageDispatch/fragment
+=== RUN   TestBuildPSVStageDispatch/compute
+=== RUN   TestBuildPSVStageDispatch/mesh
+=== RUN   TestBuildPSVStageDispatch/task
+--- PASS: TestBuildPSVStageDispatch (0.00s)
+    --- PASS: TestBuildPSVStageDispatch/vertex (0.00s)
+    --- PASS: TestBuildPSVStageDispatch/fragment (0.00s)
+    --- PASS: TestBuildPSVStageDispatch/compute (0.00s)
+    --- PASS: TestBuildPSVStageDispatch/mesh (0.00s)
+    --- PASS: TestBuildPSVStageDispatch/task (0.00s)
+=== RUN   TestFeatureInfoFromShaderFlags
+=== RUN   TestFeatureInfoFromShaderFlags/zero_produces_zero
+=== RUN   TestFeatureInfoFromShaderFlags/low_prec_alone_→_MinimumPrecision
+=== RUN   TestFeatureInfoFromShaderFlags/low_prec_+_native_→_NativeLowPrecision
+=== RUN   TestFeatureInfoFromShaderFlags/native_alone_is_ignored_(needs_LowPrec_gate,_matching_DXC)
+=== RUN   TestFeatureInfoFromShaderFlags/int64_alone
+=== RUN   TestFeatureInfoFromShaderFlags/raytracing_alone
+=== RUN   TestFeatureInfoFromShaderFlags/f16-native_+_int64_+_raytracing
+=== RUN   TestFeatureInfoFromShaderFlags/min-prec_f16_+_int64_(no_native_bit)
+=== RUN   TestFeatureInfoFromShaderFlags/atomic_int64_on_heap_resource
+=== RUN   TestFeatureInfoFromShaderFlags/unrelated_high_bits_must_not_leak_into_SFI0
+=== RUN   TestFeatureInfoFromShaderFlags/doubles_bit_alone_(mostly_EnableDoublePrecision)
+=== RUN   TestFeatureInfoFromShaderFlags/double_extensions_alone
+=== RUN   TestFeatureInfoFromShaderFlags/doubles_+_double-extensions_paired_(DXC's_normal_case)
+=== RUN   TestFeatureInfoFromShaderFlags/UAVsAtEveryStage
+=== RUN   TestFeatureInfoFromShaderFlags/ViewID
+=== RUN   TestFeatureInfoFromShaderFlags/WaveOps_bitcode_0x80000_→_SFI0_0x4000_(NOT_0x80000)
+=== RUN   TestFeatureInfoFromShaderFlags/WaveOps_must_not_set_ShadingRate_bit_0x80000
+=== RUN   TestFeatureInfoFromShaderFlags/VS_with_UAVs_+_view_index_(multiview_shaders)
+--- PASS: TestFeatureInfoFromShaderFlags (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/zero_produces_zero (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/low_prec_alone_→_MinimumPrecision (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/low_prec_+_native_→_NativeLowPrecision (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/native_alone_is_ignored_(needs_LowPrec_gate,_matching_DXC) (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/int64_alone (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/raytracing_alone (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/f16-native_+_int64_+_raytracing (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/min-prec_f16_+_int64_(no_native_bit) (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/atomic_int64_on_heap_resource (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/unrelated_high_bits_must_not_leak_into_SFI0 (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/doubles_bit_alone_(mostly_EnableDoublePrecision) (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/double_extensions_alone (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/doubles_+_double-extensions_paired_(DXC's_normal_case) (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/UAVsAtEveryStage (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/ViewID (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/WaveOps_bitcode_0x80000_→_SFI0_0x4000_(NOT_0x80000) (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/WaveOps_must_not_set_ShadingRate_bit_0x80000 (0.00s)
+    --- PASS: TestFeatureInfoFromShaderFlags/VS_with_UAVs_+_view_index_(multiview_shaders) (0.00s)
+=== RUN   TestBuildPSVSampleFrequency
+=== RUN   TestBuildPSVSampleFrequency/no_interp_attribute_(default_perspective)
+=== RUN   TestBuildPSVSampleFrequency/linear,_center_—_no_sample_frequency
+=== RUN   TestBuildPSVSampleFrequency/linear,_sample_→_SampleFrequency_=_1
+=== RUN   TestBuildPSVSampleFrequency/perspective,_sample_→_SampleFrequency_=_1
+=== RUN   TestBuildPSVSampleFrequency/flat_→_not_a_sample_variant
+--- PASS: TestBuildPSVSampleFrequency (0.00s)
+    --- PASS: TestBuildPSVSampleFrequency/no_interp_attribute_(default_perspective) (0.00s)
+    --- PASS: TestBuildPSVSampleFrequency/linear,_center_—_no_sample_frequency (0.00s)
+    --- PASS: TestBuildPSVSampleFrequency/linear,_sample_→_SampleFrequency_=_1 (0.00s)
+    --- PASS: TestBuildPSVSampleFrequency/perspective,_sample_→_SampleFrequency_=_1 (0.00s)
+    --- PASS: TestBuildPSVSampleFrequency/flat_→_not_a_sample_variant (0.00s)
+=== RUN   TestOutputIDIsSignatureIndex
+--- PASS: TestOutputIDIsSignatureIndex (0.00s)
+=== RUN   TestIsSystemManagedSV
+=== RUN   TestIsSystemManagedSV/SV_Depth
+=== RUN   TestIsSystemManagedSV/SV_DepthGreaterEqual
+=== RUN   TestIsSystemManagedSV/SV_DepthLessEqual
+=== RUN   TestIsSystemManagedSV/SV_Coverage
+=== RUN   TestIsSystemManagedSV/SV_StencilRef
+=== RUN   TestIsSystemManagedSV/SV_Target_is_NOT_system-managed
+=== RUN   TestIsSystemManagedSV/SV_Position_is_NOT_system-managed
+=== RUN   TestIsSystemManagedSV/SV_VertexID_is_NOT_system-managed
+=== RUN   TestIsSystemManagedSV/SV_Arbitrary_is_NOT_system-managed
+--- PASS: TestIsSystemManagedSV (0.00s)
+    --- PASS: TestIsSystemManagedSV/SV_Depth (0.00s)
+    --- PASS: TestIsSystemManagedSV/SV_DepthGreaterEqual (0.00s)
+    --- PASS: TestIsSystemManagedSV/SV_DepthLessEqual (0.00s)
+    --- PASS: TestIsSystemManagedSV/SV_Coverage (0.00s)
+    --- PASS: TestIsSystemManagedSV/SV_StencilRef (0.00s)
+    --- PASS: TestIsSystemManagedSV/SV_Target_is_NOT_system-managed (0.00s)
+    --- PASS: TestIsSystemManagedSV/SV_Position_is_NOT_system-managed (0.00s)
+    --- PASS: TestIsSystemManagedSV/SV_VertexID_is_NOT_system-managed (0.00s)
+    --- PASS: TestIsSystemManagedSV/SV_Arbitrary_is_NOT_system-managed (0.00s)
+=== RUN   TestIsPSVSemanticSystemManaged
+=== RUN   TestIsPSVSemanticSystemManaged/DXIL_Coverage_(14)
+=== RUN   TestIsPSVSemanticSystemManaged/DXIL_Depth_(17)
+=== RUN   TestIsPSVSemanticSystemManaged/DXIL_DepthLessEqual_(18)
+=== RUN   TestIsPSVSemanticSystemManaged/DXIL_DepthGreaterEqual_(19)
+=== RUN   TestIsPSVSemanticSystemManaged/DXIL_StencilRef_(20)
+=== RUN   TestIsPSVSemanticSystemManaged/DXIL_Target_(16)_is_NOT_system-managed
+=== RUN   TestIsPSVSemanticSystemManaged/DXIL_Position_(3)_is_NOT_system-managed
+=== RUN   TestIsPSVSemanticSystemManaged/DXIL_Arbitrary_(0)_is_NOT_system-managed
+--- PASS: TestIsPSVSemanticSystemManaged (0.00s)
+    --- PASS: TestIsPSVSemanticSystemManaged/DXIL_Coverage_(14) (0.00s)
+    --- PASS: TestIsPSVSemanticSystemManaged/DXIL_Depth_(17) (0.00s)
+    --- PASS: TestIsPSVSemanticSystemManaged/DXIL_DepthLessEqual_(18) (0.00s)
+    --- PASS: TestIsPSVSemanticSystemManaged/DXIL_DepthGreaterEqual_(19) (0.00s)
+    --- PASS: TestIsPSVSemanticSystemManaged/DXIL_StencilRef_(20) (0.00s)
+    --- PASS: TestIsPSVSemanticSystemManaged/DXIL_Target_(16)_is_NOT_system-managed (0.00s)
+    --- PASS: TestIsPSVSemanticSystemManaged/DXIL_Position_(3)_is_NOT_system-managed (0.00s)
+    --- PASS: TestIsPSVSemanticSystemManaged/DXIL_Arbitrary_(0)_is_NOT_system-managed (0.00s)
+=== RUN   TestEntryUsesViewIndex
+=== RUN   TestEntryUsesViewIndex/nil_entry_point
+=== RUN   TestEntryUsesViewIndex/no_view_index_argument
+=== RUN   TestEntryUsesViewIndex/view_index_as_the_only_argument
+=== RUN   TestEntryUsesViewIndex/view_index_alongside_other_builtins
+=== RUN   TestEntryUsesViewIndex/location_binding_is_not_view_index
+--- PASS: TestEntryUsesViewIndex (0.00s)
+    --- PASS: TestEntryUsesViewIndex/nil_entry_point (0.00s)
+    --- PASS: TestEntryUsesViewIndex/no_view_index_argument (0.00s)
+    --- PASS: TestEntryUsesViewIndex/view_index_as_the_only_argument (0.00s)
+    --- PASS: TestEntryUsesViewIndex/view_index_alongside_other_builtins (0.00s)
+    --- PASS: TestEntryUsesViewIndex/location_binding_is_not_view_index (0.00s)
+=== RUN   TestEntryWritesDepth
+=== RUN   TestEntryWritesDepth/nil_entry_point
+=== RUN   TestEntryWritesDepth/no_result
+=== RUN   TestEntryWritesDepth/result_without_binding
+=== RUN   TestEntryWritesDepth/result_is_SV_Target_(not_depth)
+=== RUN   TestEntryWritesDepth/result_is_@builtin(frag_depth)
+--- PASS: TestEntryWritesDepth (0.00s)
+    --- PASS: TestEntryWritesDepth/nil_entry_point (0.00s)
+    --- PASS: TestEntryWritesDepth/no_result (0.00s)
+    --- PASS: TestEntryWritesDepth/result_without_binding (0.00s)
+    --- PASS: TestEntryWritesDepth/result_is_SV_Target_(not_depth) (0.00s)
+    --- PASS: TestEntryWritesDepth/result_is_@builtin(frag_depth) (0.00s)
+=== RUN   TestModuleUsesLowPrecision_QuantizeF16NotTriggered
+--- PASS: TestModuleUsesLowPrecision_QuantizeF16NotTriggered (0.00s)
+=== RUN   TestFlatArrayVectorLoad_ConstIndex
+    dxil_test.go:1192: main: 3912 bytes, valid
+--- PASS: TestFlatArrayVectorLoad_ConstIndex (0.00s)
+=== RUN   TestFlatArrayVectorLoad_DynamicIndex
+    dxil_test.go:1210: main: 4080 bytes, valid
+--- PASS: TestFlatArrayVectorLoad_DynamicIndex (0.00s)
+=== RUN   TestFlatArrayVectorLoad_PackUnpackRoundtrip
+    dxil_test.go:1228: main: 4552 bytes, valid
+--- PASS: TestFlatArrayVectorLoad_PackUnpackRoundtrip (0.00s)
+=== RUN   TestFlatArrayVectorLoad_BinaryOps
+    dxil_test.go:1259: main: 4240 bytes, valid
+--- PASS: TestFlatArrayVectorLoad_BinaryOps (0.00s)
+=== RUN   TestPhiNodesGroupedAtTopOfBasicBlock
+    dxil_test.go:1285: main: 3152 bytes, valid
+--- PASS: TestPhiNodesGroupedAtTopOfBasicBlock (0.00s)
+=== RUN   TestPhiNodesMultipleVars
+    dxil_test.go:1309: main: 3256 bytes, valid
+--- PASS: TestPhiNodesMultipleVars (0.00s)
+=== RUN   TestPhiNodesNestedIf
+    dxil_test.go:1338: main: 3376 bytes, valid
+--- PASS: TestPhiNodesNestedIf (0.00s)
+PASS

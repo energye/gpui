@@ -1,0 +1,27 @@
+=== RUN   TestColor_RGBA
+--- PASS: TestColor_RGBA (0.00s)
+=== RUN   TestColor_ToRGBA
+--- PASS: TestColor_ToRGBA (0.00s)
+=== RUN   TestColorLayer_IsForeground
+=== RUN   TestColorLayer_IsForeground/foreground
+=== RUN   TestColorLayer_IsForeground/palette_0
+=== RUN   TestColorLayer_IsForeground/palette_10
+--- PASS: TestColorLayer_IsForeground (0.00s)
+    --- PASS: TestColorLayer_IsForeground/foreground (0.00s)
+    --- PASS: TestColorLayer_IsForeground/palette_0 (0.00s)
+    --- PASS: TestColorLayer_IsForeground/palette_10 (0.00s)
+=== RUN   TestRect
+--- PASS: TestRect (0.00s)
+=== RUN   TestCOLRGlyph
+--- PASS: TestCOLRGlyph (0.00s)
+=== RUN   TestNewCOLRParser_Errors
+=== RUN   TestNewCOLRParser_Errors/no_COLR
+=== RUN   TestNewCOLRParser_Errors/no_CPAL
+--- PASS: TestNewCOLRParser_Errors (0.00s)
+    --- PASS: TestNewCOLRParser_Errors/no_COLR (0.00s)
+    --- PASS: TestNewCOLRParser_Errors/no_CPAL (0.00s)
+=== RUN   TestRenderCOLRToImage_Nil
+--- PASS: TestRenderCOLRToImage_Nil (0.00s)
+=== RUN   TestRenderCOLRToImage_EmptyLayers
+--- PASS: TestRenderCOLRToImage_EmptyLayers (0.00s)
+PASS

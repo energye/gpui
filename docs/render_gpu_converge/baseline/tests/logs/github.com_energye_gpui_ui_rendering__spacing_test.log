@@ -1,0 +1,13 @@
+=== RUN   TestRenderText_SpacingMeasureEqualsLayout
+    spacing_test.go:14: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 16
+--- PASS: TestRenderText_SpacingMeasureEqualsLayout (0.01s)
+=== RUN   TestRenderText_SpacingPaintShiftsInk
+    spacing_test.go:47: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 16
+--- PASS: TestRenderText_SpacingPaintShiftsInk (0.00s)
+=== RUN   TestRenderText_SpacingInvalidatesParentCache
+    spacing_test.go:88: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 16
+--- PASS: TestRenderText_SpacingInvalidatesParentCache (0.00s)
+=== RUN   TestRenderText_SpacingClusterCountsAndWrap
+    spacing_test.go:145: face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf size: 16
+--- PASS: TestRenderText_SpacingClusterCountsAndWrap (0.00s)
+PASS

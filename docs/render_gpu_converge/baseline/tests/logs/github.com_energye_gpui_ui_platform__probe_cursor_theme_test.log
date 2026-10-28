@@ -1,0 +1,6 @@
+=== RUN   TestWaylandCSDCursorNamesResolve
+--- PASS: TestWaylandCSDCursorNamesResolve (0.24s)
+=== RUN   TestWaylandCursorShapeDeviceBound
+    probe_cursor_theme_test.go:82: compositor lacks zwp_cursor_shape_v1 (theme fallback active)
+--- SKIP: TestWaylandCursorShapeDeviceBound (0.04s)
+PASS

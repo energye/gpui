@@ -1,0 +1,11 @@
+=== RUN   TestParagraphBuilder_TwoRunsDifferentColor
+--- PASS: TestParagraphBuilder_TwoRunsDifferentColor (0.00s)
+=== RUN   TestParagraph_MaxWidthWrap_MultiRun
+--- PASS: TestParagraph_MaxWidthWrap_MultiRun (0.00s)
+=== RUN   TestParagraph_MaxLines_Ellipsis
+--- PASS: TestParagraph_MaxLines_Ellipsis (0.00s)
+=== RUN   TestParagraph_SetTextClearsRuns
+--- PASS: TestParagraph_SetTextClearsRuns (0.00s)
+=== RUN   TestParagraph_SingleStringPathUnchanged
+--- PASS: TestParagraph_SingleStringPathUnchanged (0.00s)
+PASS

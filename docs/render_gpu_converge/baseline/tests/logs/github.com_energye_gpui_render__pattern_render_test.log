@@ -1,0 +1,25 @@
+=== RUN   TestCustomPatternFill
+--- PASS: TestCustomPatternFill (0.28s)
+=== RUN   TestCustomBrushFill
+--- PASS: TestCustomBrushFill (0.01s)
+=== RUN   TestCheckerboardFill
+--- PASS: TestCheckerboardFill (0.00s)
+=== RUN   TestSolidFillStillWorks
+--- PASS: TestSolidFillStillWorks (0.00s)
+=== RUN   TestSetFillPatternUpdatesBrush
+--- PASS: TestSetFillPatternUpdatesBrush (0.00s)
+=== RUN   TestSetStrokePatternUpdatesBrush
+--- PASS: TestSetStrokePatternUpdatesBrush (0.00s)
+=== RUN   TestGradientFillVariation
+--- PASS: TestGradientFillVariation (0.00s)
+=== RUN   TestSolidColorFromPaint
+=== RUN   TestSolidColorFromPaint/solid_brush
+=== RUN   TestSolidColorFromPaint/solid_pattern
+=== RUN   TestSolidColorFromPaint/custom_brush
+=== RUN   TestSolidColorFromPaint/custom_pattern
+--- PASS: TestSolidColorFromPaint (0.00s)
+    --- PASS: TestSolidColorFromPaint/solid_brush (0.00s)
+    --- PASS: TestSolidColorFromPaint/solid_pattern (0.00s)
+    --- PASS: TestSolidColorFromPaint/custom_brush (0.00s)
+    --- PASS: TestSolidColorFromPaint/custom_pattern (0.00s)
+PASS

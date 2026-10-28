@@ -1,0 +1,15 @@
+=== RUN   TestCullRange_Horizontal
+--- PASS: TestCullRange_Horizontal (0.00s)
+=== RUN   TestCullRange_Vertical
+--- PASS: TestCullRange_Vertical (0.00s)
+=== RUN   TestDamageRows
+--- PASS: TestDamageRows (0.00s)
+=== RUN   TestCompositeBatch_MultiFace
+--- PASS: TestCompositeBatch_MultiFace (0.31s)
+=== RUN   TestSubmittedGlyphEstimate
+--- PASS: TestSubmittedGlyphEstimate (0.00s)
+=== RUN   TestLineBulkRoutable_RV
+--- PASS: TestLineBulkRoutable_RV (0.00s)
+=== RUN   TestCompositeBatch_RebasedPositions
+--- PASS: TestCompositeBatch_RebasedPositions (0.00s)
+PASS

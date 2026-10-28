@@ -1,0 +1,14 @@
+=== RUN   TestSnapModeFromCases
+--- PASS: TestSnapModeFromCases (0.00s)
+=== RUN   TestSnapModeEdgesNoCrash
+--- PASS: TestSnapModeEdgesNoCrash (0.00s)
+=== RUN   TestSnapModeBoundaryIdentical
+--- PASS: TestSnapModeBoundaryIdentical (0.00s)
+=== RUN   TestSnapModePerfSnap
+    snap_mode_test.go:484: snap-mode: 5000 snaps + 2000 steps on 10k slope in 878.756µs (0.1 us/op, sum 360906.3, holds 5049)
+--- PASS: TestSnapModePerfSnap (0.00s)
+=== RUN   TestSnapModeLongRunStable
+--- PASS: TestSnapModeLongRunStable (0.00s)
+=== RUN   TestSnapModeOffscreenGolden
+--- PASS: TestSnapModeOffscreenGolden (0.00s)
+PASS

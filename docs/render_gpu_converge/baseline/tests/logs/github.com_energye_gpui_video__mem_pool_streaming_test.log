@@ -1,0 +1,6 @@
+=== RUN   TestS6StreamingPoolSteady
+    mem_pool_streaming_test.go:57: s6 steady: shown=200 acquires=200 hits=199 misses=1 hitpct=99.5 outstanding=0
+--- PASS: TestS6StreamingPoolSteady (0.48s)
+=== RUN   TestS6SmallClipPooled
+--- PASS: TestS6SmallClipPooled (0.03s)
+PASS

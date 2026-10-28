@@ -1,0 +1,9 @@
+=== RUN   TestHandleLifecycle_Occluded
+--- PASS: TestHandleLifecycle_Occluded (0.00s)
+=== RUN   TestHandleLifecycle_Hidden
+--- PASS: TestHandleLifecycle_Hidden (0.00s)
+=== RUN   TestHandleLifecycle_FramePresented
+--- PASS: TestHandleLifecycle_FramePresented (0.00s)
+=== RUN   TestHandleLifecycle_RejectsOthers
+--- PASS: TestHandleLifecycle_RejectsOthers (0.00s)
+PASS

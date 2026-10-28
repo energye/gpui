@@ -1,0 +1,9 @@
+=== RUN   TestBackdropLayerPresentKeepsSeed
+--- PASS: TestBackdropLayerPresentKeepsSeed (0.29s)
+=== RUN   TestBackdropLayerClipCompositeFullSurface
+--- PASS: TestBackdropLayerClipCompositeFullSurface (0.01s)
+=== RUN   TestBackdropLayerNestedKeepsParentContent
+--- PASS: TestBackdropLayerNestedKeepsParentContent (0.01s)
+=== RUN   TestBackdropLayerBoundedFilterKeepsParentOutside
+--- PASS: TestBackdropLayerBoundedFilterKeepsParentOutside (0.01s)
+PASS

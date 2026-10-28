@@ -1,0 +1,5 @@
+=== RUN   TestTextureSourceRegistryLifecycle
+--- PASS: TestTextureSourceRegistryLifecycle (0.00s)
+=== RUN   TestVideoBridgeIsTextureSource
+--- PASS: TestVideoBridgeIsTextureSource (0.00s)
+PASS

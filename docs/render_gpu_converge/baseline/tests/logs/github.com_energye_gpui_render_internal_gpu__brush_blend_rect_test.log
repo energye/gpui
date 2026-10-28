@@ -1,0 +1,23 @@
+=== RUN   TestStagedBlendUnsupported
+=== RUN   TestStagedBlendUnsupported/normal_rect
+=== RUN   TestStagedBlendUnsupported/normal_triangle
+=== RUN   TestStagedBlendUnsupported/dstin_rect
+=== RUN   TestStagedBlendUnsupported/dstout_rect
+=== RUN   TestStagedBlendUnsupported/dstin_triangle
+=== RUN   TestStagedBlendUnsupported/multiply_rect
+=== RUN   TestStagedBlendUnsupported/nil_path_normal
+=== RUN   TestStagedBlendUnsupported/nil_path_dstin
+--- PASS: TestStagedBlendUnsupported (0.00s)
+    --- PASS: TestStagedBlendUnsupported/normal_rect (0.00s)
+    --- PASS: TestStagedBlendUnsupported/normal_triangle (0.00s)
+    --- PASS: TestStagedBlendUnsupported/dstin_rect (0.00s)
+    --- PASS: TestStagedBlendUnsupported/dstout_rect (0.00s)
+    --- PASS: TestStagedBlendUnsupported/dstin_triangle (0.00s)
+    --- PASS: TestStagedBlendUnsupported/multiply_rect (0.00s)
+    --- PASS: TestStagedBlendUnsupported/nil_path_normal (0.00s)
+    --- PASS: TestStagedBlendUnsupported/nil_path_dstin (0.00s)
+=== RUN   TestFillBrushNativeRejectsNonRectFixedBlend
+--- PASS: TestFillBrushNativeRejectsNonRectFixedBlend (0.00s)
+=== RUN   TestFillBrushNativeRectFixedBlendGate
+--- PASS: TestFillBrushNativeRectFixedBlendGate (0.00s)
+PASS

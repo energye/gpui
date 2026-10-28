@@ -1,0 +1,15 @@
+=== RUN   TestPlaybackStrokeRect
+--- PASS: TestPlaybackStrokeRect (0.00s)
+=== RUN   TestPlaybackClipAndReset
+--- PASS: TestPlaybackClipAndReset (0.00s)
+=== RUN   TestPlaybackSaveRestoreClip
+--- PASS: TestPlaybackSaveRestoreClip (0.00s)
+=== RUN   TestPlaybackDrawImage
+--- PASS: TestPlaybackDrawImage (0.00s)
+=== RUN   TestPlaybackDrawImageSubImage
+--- PASS: TestPlaybackDrawImageSubImage (0.00s)
+=== RUN   TestPlaybackDrawText
+--- PASS: TestPlaybackDrawText (0.00s)
+=== RUN   TestPlaybackLinearGradient
+--- PASS: TestPlaybackLinearGradient (0.00s)
+PASS

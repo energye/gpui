@@ -1,0 +1,26 @@
+=== RUN   TestP1GLOffscreenSolidProbe
+--- PASS: TestP1GLOffscreenSolidProbe (0.33s)
+=== RUN   TestP1GLOffscreenSolidCorner
+--- PASS: TestP1GLOffscreenSolidCorner (0.07s)
+=== RUN   TestP1GLOffscreenSolidDoubleFlush
+    p1_gl_offscreen_probe_test.go:224: double-flush solid=(255,0,0,255)
+--- PASS: TestP1GLOffscreenSolidDoubleFlush (0.07s)
+=== RUN   TestP1GLOffscreenTexturedQuad
+    p1_gl_offscreen_probe_test.go:264: GL image gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gl_offscreen_probe_test.go:274: image center=(255,0,0,255) bottom=(255,0,0,255) solid=(255,0,0,255)
+--- PASS: TestP1GLOffscreenTexturedQuad (0.10s)
+=== RUN   TestP1GLOffscreenLinearGradient
+    p1_gl_offscreen_probe_test.go:312: GL linear gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1
+    p1_gl_offscreen_probe_test.go:313: GL linear bootstrap=0 reason=""
+    p1_gl_offscreen_probe_test.go:329: x=0 rgb=253,20,0
+    p1_gl_offscreen_probe_test.go:329: x=16 rgb=223,138,0
+    p1_gl_offscreen_probe_test.go:329: x=32 rgb=185,188,0
+    p1_gl_offscreen_probe_test.go:329: x=48 rgb=134,225,0
+    p1_gl_offscreen_probe_test.go:329: x=64 rgb=0,253,20
+    p1_gl_offscreen_probe_test.go:329: x=80 rgb=0,223,138
+    p1_gl_offscreen_probe_test.go:329: x=96 rgb=0,185,188
+    p1_gl_offscreen_probe_test.go:329: x=112 rgb=0,134,225
+    p1_gl_offscreen_probe_test.go:329: x=127 rgb=0,20,253
+    p1_gl_offscreen_probe_test.go:334: L=246,74,0 M=0,253,0 R=0,0,248
+--- PASS: TestP1GLOffscreenLinearGradient (0.06s)
+PASS

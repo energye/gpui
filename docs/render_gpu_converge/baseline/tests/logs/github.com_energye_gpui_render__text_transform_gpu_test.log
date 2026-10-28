@@ -1,0 +1,27 @@
+=== RUN   TestNeedsOutlineTransform
+=== RUN   TestNeedsOutlineTransform/identity
+=== RUN   TestNeedsOutlineTransform/translate
+=== RUN   TestNeedsOutlineTransform/uniform_scale2
+=== RUN   TestNeedsOutlineTransform/uniform_scale_down
+=== RUN   TestNeedsOutlineTransform/nonuniform_scale31
+=== RUN   TestNeedsOutlineTransform/rotate30
+=== RUN   TestNeedsOutlineTransform/rotate45
+=== RUN   TestNeedsOutlineTransform/shear
+=== RUN   TestNeedsOutlineTransform/translate_then_rotate
+=== RUN   TestNeedsOutlineTransform/uniform_scale_then_rotate
+--- PASS: TestNeedsOutlineTransform (0.00s)
+    --- PASS: TestNeedsOutlineTransform/identity (0.00s)
+    --- PASS: TestNeedsOutlineTransform/translate (0.00s)
+    --- PASS: TestNeedsOutlineTransform/uniform_scale2 (0.00s)
+    --- PASS: TestNeedsOutlineTransform/uniform_scale_down (0.00s)
+    --- PASS: TestNeedsOutlineTransform/nonuniform_scale31 (0.00s)
+    --- PASS: TestNeedsOutlineTransform/rotate30 (0.00s)
+    --- PASS: TestNeedsOutlineTransform/rotate45 (0.00s)
+    --- PASS: TestNeedsOutlineTransform/shear (0.00s)
+    --- PASS: TestNeedsOutlineTransform/translate_then_rotate (0.00s)
+    --- PASS: TestNeedsOutlineTransform/uniform_scale_then_rotate (0.00s)
+=== RUN   TestTextTransformAutoRoutesOutlines
+    text_transform_gpu_test.go:76: Auto vs Vector diff: 569 px | Auto vs MSDF diff: 1016 px
+    text_transform_gpu_test.go:88: TextModeAuto rotated text differs from TextModeVector by 569 px (want ≤8): auto must route transforms to outlines
+--- FAIL: TestTextTransformAutoRoutesOutlines (0.46s)
+FAIL

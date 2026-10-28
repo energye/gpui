@@ -1,0 +1,312 @@
+=== RUN   TestCallInConditional_FuncWithIfReturn
+    call_conditional_test.go:62: === SPIR-V Disassembly ===
+    call_conditional_test.go:63: --- FUNCTION %17 (type=%16) ---
+    call_conditional_test.go:63:      228: OpFunctionParameter %3 %18
+    call_conditional_test.go:63:   BLOCK 1 (label %19):
+    call_conditional_test.go:63:      233: OpFOrdLessThan %21 %22 %18 %20
+    call_conditional_test.go:63:      238: OpSelectionMerge merge:%25
+    call_conditional_test.go:63:      241: OpBranchConditional cond:%22 true:%23 false:%24
+    call_conditional_test.go:63:   BLOCK 2 (label %23):
+    call_conditional_test.go:63:   BLOCK 3 (label %24):
+    call_conditional_test.go:63:      251: OpBranch -> %25
+    call_conditional_test.go:63:   BLOCK 4 (label %25):
+    call_conditional_test.go:63:      255: %26 = OpFMul %18, %18
+    call_conditional_test.go:63: --- FUNCTION END ---
+    call_conditional_test.go:63: --- FUNCTION %28 (type=%27) ---
+    call_conditional_test.go:63:   BLOCK 1 (label %29):
+    call_conditional_test.go:63:      270: %31(result) = OpVariable Function (type=ptr<Function,f32>)
+    call_conditional_test.go:63:      274: OpStore *%31(result) = %20()
+    call_conditional_test.go:63:      277: %34 = OpAccessChain base:%15(gid) [%32]
+    call_conditional_test.go:63:      282: %35 = OpLoad %34() (type=u32)
+    call_conditional_test.go:63:      286: %37 = OpAccessChain base:%10() [%32]
+    call_conditional_test.go:63:      291: %40 = OpAccessChain base:%37() [%38]
+    call_conditional_test.go:63:      296: %41 = OpLoad %40() (type=u32)
+    call_conditional_test.go:63:      300: %42 = OpAccessChain base:%10() [%32]
+    call_conditional_test.go:63:      305: %43 = OpAccessChain base:%42() [%38]
+    call_conditional_test.go:63:      310: %44 = OpLoad %43() (type=u32)
+    call_conditional_test.go:63:      314: %45 = OpINotEqual %44, %32
+    call_conditional_test.go:63:      319: OpSelectionMerge merge:%48
+    call_conditional_test.go:63:      322: OpBranchConditional cond:%45 true:%46 false:%47
+    call_conditional_test.go:63:   BLOCK 2 (label %46):
+    call_conditional_test.go:63:      328: %49 = OpAccessChain base:%10() [%32]
+    call_conditional_test.go:63:      333: %51 = OpAccessChain base:%49() [%32]
+    call_conditional_test.go:63:      338: %52 = OpLoad %51() (type=f32)
+    call_conditional_test.go:63:      342: %53 = OpAccessChain base:%10() [%32]
+    call_conditional_test.go:63:      347: %54 = OpAccessChain base:%53() [%32]
+    call_conditional_test.go:63:      352: %55 = OpLoad %54() (type=f32)
+    call_conditional_test.go:63:      356: OpFunctionCall %3 %56 %17 %55
+    call_conditional_test.go:63:      361: OpStore *%31(result) = %56()
+    call_conditional_test.go:63:      364: OpBranch -> %48
+    call_conditional_test.go:63:   BLOCK 3 (label %47):
+    call_conditional_test.go:63:      368: OpBranch -> %48
+    call_conditional_test.go:63:   BLOCK 4 (label %48):
+    call_conditional_test.go:63:      372: %58 = OpAccessChain base:%13() [%32]
+    call_conditional_test.go:63:      377: %60 = OpAccessChain base:%58() [%35]
+    call_conditional_test.go:63:      382: %61 = OpLoad %60() (type=u32)
+    call_conditional_test.go:63:      386: %62 = OpLoad %31(result) (type=f32)
+    call_conditional_test.go:63:      390: %64 = OpFMul %62, %63
+    call_conditional_test.go:63:      395: %65 = OpConvertFToU %64
+    call_conditional_test.go:63:      399: %66 = OpAccessChain base:%13() [%32]
+    call_conditional_test.go:63:      404: %67 = OpAccessChain base:%66() [%35]
+    call_conditional_test.go:63:      409: OpStore *%67() = %65()
+    call_conditional_test.go:63:      412: OpReturn
+    call_conditional_test.go:63: --- FUNCTION END ---
+    call_conditional_test.go:67: Helper function has correct if/return control flow
+    call_conditional_test.go:70: Found OpFunctionCall at word 356 inside conditional block -- OK
+    call_conditional_test.go:77: Found result variable: %31
+    call_conditional_test.go:85: Found 2 OpStore(s) to 'result' (%31) -- OK
+    call_conditional_test.go:89: Call result not used cross-block -- OK (result accessed via OpLoad from variable)
+--- PASS: TestCallInConditional_FuncWithIfReturn (0.00s)
+=== RUN   TestCallInConditional_DirectUseOfResult
+    call_conditional_test.go:125: === SPIR-V Disassembly ===
+    call_conditional_test.go:126: --- FUNCTION %17 (type=%16) ---
+    call_conditional_test.go:126:      206: OpFunctionParameter %3 %18
+    call_conditional_test.go:126:   BLOCK 1 (label %19):
+    call_conditional_test.go:126:      211: OpFOrdLessThan %21 %22 %18 %20
+    call_conditional_test.go:126:      216: OpSelectionMerge merge:%25
+    call_conditional_test.go:126:      219: OpBranchConditional cond:%22 true:%23 false:%24
+    call_conditional_test.go:126:   BLOCK 2 (label %23):
+    call_conditional_test.go:126:   BLOCK 3 (label %24):
+    call_conditional_test.go:126:      229: OpBranch -> %25
+    call_conditional_test.go:126:   BLOCK 4 (label %25):
+    call_conditional_test.go:126:      233: %26 = OpFMul %18, %18
+    call_conditional_test.go:126: --- FUNCTION END ---
+    call_conditional_test.go:126: --- FUNCTION %28 (type=%27) ---
+    call_conditional_test.go:126:   BLOCK 1 (label %29):
+    call_conditional_test.go:126:      248: %31(result) = OpVariable Function (type=ptr<Function,f32>)
+    call_conditional_test.go:126:      252: OpStore *%31(result) = %20()
+    call_conditional_test.go:126:      255: %34 = OpAccessChain base:%15(gid) [%32]
+    call_conditional_test.go:126:      260: %35 = OpLoad %34() (type=u32)
+    call_conditional_test.go:126:      264: %37 = OpAccessChain base:%10() [%32]
+    call_conditional_test.go:126:      269: %40 = OpAccessChain base:%37() [%38]
+    call_conditional_test.go:126:      274: %41 = OpLoad %40() (type=u32)
+    call_conditional_test.go:126:      278: %42 = OpAccessChain base:%10() [%32]
+    call_conditional_test.go:126:      283: %43 = OpAccessChain base:%42() [%38]
+    call_conditional_test.go:126:      288: %44 = OpLoad %43() (type=u32)
+    call_conditional_test.go:126:      292: %45 = OpINotEqual %44, %32
+    call_conditional_test.go:126:      297: OpSelectionMerge merge:%48
+    call_conditional_test.go:126:      300: OpBranchConditional cond:%45 true:%46 false:%47
+    call_conditional_test.go:126:   BLOCK 2 (label %46):
+    call_conditional_test.go:126:      306: %49 = OpAccessChain base:%10() [%32]
+    call_conditional_test.go:126:      311: %51 = OpAccessChain base:%49() [%32]
+    call_conditional_test.go:126:      316: %52 = OpLoad %51() (type=f32)
+    call_conditional_test.go:126:      320: %53 = OpAccessChain base:%10() [%32]
+    call_conditional_test.go:126:      325: %54 = OpAccessChain base:%53() [%32]
+    call_conditional_test.go:126:      330: %55 = OpLoad %54() (type=f32)
+    call_conditional_test.go:126:      334: OpFunctionCall %3 %56 %17 %55
+    call_conditional_test.go:126:      339: %58 = OpFMul %56, %57
+    call_conditional_test.go:126:      344: OpStore *%31(result) = %58()
+    call_conditional_test.go:126:      347: OpBranch -> %48
+    call_conditional_test.go:126:   BLOCK 3 (label %47):
+    call_conditional_test.go:126:      351: OpBranch -> %48
+    call_conditional_test.go:126:   BLOCK 4 (label %48):
+    call_conditional_test.go:126:      355: %60 = OpAccessChain base:%13() [%32]
+    call_conditional_test.go:126:      360: %62 = OpAccessChain base:%60() [%35]
+    call_conditional_test.go:126:      365: %63 = OpLoad %62() (type=u32)
+    call_conditional_test.go:126:      369: %64 = OpLoad %31(result) (type=f32)
+    call_conditional_test.go:126:      373: %65 = OpConvertFToU %64
+    call_conditional_test.go:126:      377: %66 = OpAccessChain base:%13() [%32]
+    call_conditional_test.go:126:      382: %67 = OpAccessChain base:%66() [%35]
+    call_conditional_test.go:126:      387: OpStore *%67() = %65()
+    call_conditional_test.go:126:      390: OpReturn
+    call_conditional_test.go:126: --- FUNCTION END ---
+    call_conditional_test.go:159: Found OpFunctionCall at word 334 inside conditional block
+    call_conditional_test.go:163: Found OpFMul at word 339 inside conditional block
+--- PASS: TestCallInConditional_DirectUseOfResult (0.00s)
+=== RUN   TestCallInConditional_NestedIf
+    call_conditional_test.go:211: === SPIR-V Disassembly ===
+    call_conditional_test.go:212: --- FUNCTION %17 (type=%16) ---
+    call_conditional_test.go:212:      225: OpFunctionParameter %3 %18
+    call_conditional_test.go:212:   BLOCK 1 (label %19):
+    call_conditional_test.go:212:      230: OpFOrdLessThan %21 %22 %18 %20
+    call_conditional_test.go:212:      235: OpSelectionMerge merge:%25
+    call_conditional_test.go:212:      238: OpBranchConditional cond:%22 true:%23 false:%24
+    call_conditional_test.go:212:   BLOCK 2 (label %23):
+    call_conditional_test.go:212:   BLOCK 3 (label %24):
+    call_conditional_test.go:212:      248: OpBranch -> %25
+    call_conditional_test.go:212:   BLOCK 4 (label %25):
+    call_conditional_test.go:212:      252: OpFOrdGreaterThan %21 %27 %18 %26
+    call_conditional_test.go:212:      257: OpSelectionMerge merge:%30
+    call_conditional_test.go:212:      260: OpBranchConditional cond:%27 true:%28 false:%29
+    call_conditional_test.go:212:   BLOCK 5 (label %28):
+    call_conditional_test.go:212:   BLOCK 6 (label %29):
+    call_conditional_test.go:212:      270: OpBranch -> %30
+    call_conditional_test.go:212:   BLOCK 7 (label %30):
+    call_conditional_test.go:212: --- FUNCTION END ---
+    call_conditional_test.go:212: --- FUNCTION %32 (type=%31) ---
+    call_conditional_test.go:212:   BLOCK 1 (label %33):
+    call_conditional_test.go:212:      284: %35(result) = OpVariable Function (type=ptr<Function,f32>)
+    call_conditional_test.go:212:      288: OpStore *%35(result) = %20()
+    call_conditional_test.go:212:      291: %38 = OpAccessChain base:%15(gid) [%36]
+    call_conditional_test.go:212:      296: %39 = OpLoad %38() (type=u32)
+    call_conditional_test.go:212:      300: %41 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:212:      305: %44 = OpAccessChain base:%41() [%42]
+    call_conditional_test.go:212:      310: %45 = OpLoad %44() (type=u32)
+    call_conditional_test.go:212:      314: %46 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:212:      319: %47 = OpAccessChain base:%46() [%42]
+    call_conditional_test.go:212:      324: %48 = OpLoad %47() (type=u32)
+    call_conditional_test.go:212:      328: %49 = OpINotEqual %48, %36
+    call_conditional_test.go:212:      333: OpSelectionMerge merge:%52
+    call_conditional_test.go:212:      336: OpBranchConditional cond:%49 true:%50 false:%51
+    call_conditional_test.go:212:   BLOCK 2 (label %50):
+    call_conditional_test.go:212:      342: %53 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:212:      347: %55 = OpAccessChain base:%53() [%54]
+    call_conditional_test.go:212:      352: %56 = OpLoad %55() (type=u32)
+    call_conditional_test.go:212:      356: %57 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:212:      361: %58 = OpAccessChain base:%57() [%54]
+    call_conditional_test.go:212:      366: %59 = OpLoad %58() (type=u32)
+    call_conditional_test.go:212:      370: OpIEqual %21 %60 %59 %42
+    call_conditional_test.go:212:      375: OpSelectionMerge merge:%63
+    call_conditional_test.go:212:      378: OpBranchConditional cond:%60 true:%61 false:%62
+    call_conditional_test.go:212:   BLOCK 3 (label %61):
+    call_conditional_test.go:212:      384: %64 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:212:      389: %66 = OpAccessChain base:%64() [%36]
+    call_conditional_test.go:212:      394: %67 = OpLoad %66() (type=f32)
+    call_conditional_test.go:212:      398: %68 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:212:      403: %69 = OpAccessChain base:%68() [%36]
+    call_conditional_test.go:212:      408: %70 = OpLoad %69() (type=f32)
+    call_conditional_test.go:212:      412: OpFunctionCall %3 %71 %17 %70
+    call_conditional_test.go:212:      417: OpStore *%35(result) = %71()
+    call_conditional_test.go:212:      420: OpBranch -> %63
+    call_conditional_test.go:212:   BLOCK 4 (label %62):
+    call_conditional_test.go:212:      424: OpBranch -> %63
+    call_conditional_test.go:212:   BLOCK 5 (label %63):
+    call_conditional_test.go:212:      428: OpBranch -> %52
+    call_conditional_test.go:212:   BLOCK 6 (label %51):
+    call_conditional_test.go:212:      432: OpBranch -> %52
+    call_conditional_test.go:212:   BLOCK 7 (label %52):
+    call_conditional_test.go:212:      436: %73 = OpAccessChain base:%13() [%36]
+    call_conditional_test.go:212:      441: %75 = OpAccessChain base:%73() [%39]
+    call_conditional_test.go:212:      446: %76 = OpLoad %75() (type=u32)
+    call_conditional_test.go:212:      450: %77 = OpLoad %35(result) (type=f32)
+    call_conditional_test.go:212:      454: %79 = OpFMul %77, %78
+    call_conditional_test.go:212:      459: %80 = OpConvertFToU %79
+    call_conditional_test.go:212:      463: %81 = OpAccessChain base:%13() [%36]
+    call_conditional_test.go:212:      468: %82 = OpAccessChain base:%81() [%39]
+    call_conditional_test.go:212:      473: OpStore *%82() = %80()
+    call_conditional_test.go:212:      476: OpReturn
+    call_conditional_test.go:212: --- FUNCTION END ---
+    call_conditional_test.go:224: Found 2 OpStore(s) to 'result' -- OK
+    call_conditional_test.go:228: Callee has 2 OpSelectionMerge instructions -- OK (multiple if/return)
+--- PASS: TestCallInConditional_NestedIf (0.00s)
+=== RUN   TestCallInConditional_VarInitFromCallInIf
+    call_conditional_test.go:263: === SPIR-V Disassembly ===
+    call_conditional_test.go:264: --- FUNCTION %17 (type=%16) ---
+    call_conditional_test.go:264:      210: OpFunctionParameter %3 %18
+    call_conditional_test.go:264:   BLOCK 1 (label %19):
+    call_conditional_test.go:264:      215: %21 = OpFMul %18, %20
+    call_conditional_test.go:264: --- FUNCTION END ---
+    call_conditional_test.go:264: --- FUNCTION %23 (type=%22) ---
+    call_conditional_test.go:264:   BLOCK 1 (label %24):
+    call_conditional_test.go:264:      230: %26(output_val) = OpVariable Function (type=ptr<Function,f32>)
+    call_conditional_test.go:264:      234: %27(tmp) = OpVariable Function (type=ptr<Function,f32>)
+    call_conditional_test.go:264:      238: OpStore *%26(output_val) = %28()
+    call_conditional_test.go:264:      241: %31 = OpAccessChain base:%15(gid) [%29]
+    call_conditional_test.go:264:      246: %32 = OpLoad %31() (type=u32)
+    call_conditional_test.go:264:      250: %34 = OpAccessChain base:%10() [%29]
+    call_conditional_test.go:264:      255: %37 = OpAccessChain base:%34() [%35]
+    call_conditional_test.go:264:      260: %38 = OpLoad %37() (type=u32)
+    call_conditional_test.go:264:      264: %39 = OpAccessChain base:%10() [%29]
+    call_conditional_test.go:264:      269: %40 = OpAccessChain base:%39() [%35]
+    call_conditional_test.go:264:      274: %41 = OpLoad %40() (type=u32)
+    call_conditional_test.go:264:      278: %43 = OpINotEqual %41, %29
+    call_conditional_test.go:264:      283: OpSelectionMerge merge:%46
+    call_conditional_test.go:264:      286: OpBranchConditional cond:%43 true:%44 false:%45
+    call_conditional_test.go:264:   BLOCK 2 (label %44):
+    call_conditional_test.go:264:      292: %47 = OpAccessChain base:%10() [%29]
+    call_conditional_test.go:264:      297: %49 = OpAccessChain base:%47() [%29]
+    call_conditional_test.go:264:      302: %50 = OpLoad %49() (type=f32)
+    call_conditional_test.go:264:      306: %51 = OpAccessChain base:%10() [%29]
+    call_conditional_test.go:264:      311: %52 = OpAccessChain base:%51() [%29]
+    call_conditional_test.go:264:      316: %53 = OpLoad %52() (type=f32)
+    call_conditional_test.go:264:      320: OpFunctionCall %3 %54 %17 %53
+    call_conditional_test.go:264:      325: OpStore *%27(tmp) = %54()
+    call_conditional_test.go:264:      328: %55 = OpLoad %27(tmp) (type=f32)
+    call_conditional_test.go:264:      332: OpStore *%26(output_val) = %55()
+    call_conditional_test.go:264:      335: OpBranch -> %46
+    call_conditional_test.go:264:   BLOCK 3 (label %45):
+    call_conditional_test.go:264:      339: OpBranch -> %46
+    call_conditional_test.go:264:   BLOCK 4 (label %46):
+    call_conditional_test.go:264:      343: %57 = OpAccessChain base:%13() [%29]
+    call_conditional_test.go:264:      348: %59 = OpAccessChain base:%57() [%32]
+    call_conditional_test.go:264:      353: %60 = OpLoad %59() (type=u32)
+    call_conditional_test.go:264:      357: %61 = OpLoad %26(output_val) (type=f32)
+    call_conditional_test.go:264:      361: %62 = OpConvertFToU %61
+    call_conditional_test.go:264:      365: %63 = OpAccessChain base:%13() [%29]
+    call_conditional_test.go:264:      370: %64 = OpAccessChain base:%63() [%32]
+    call_conditional_test.go:264:      375: OpStore *%64() = %62()
+    call_conditional_test.go:264:      378: OpReturn
+    call_conditional_test.go:264: --- FUNCTION END ---
+    call_conditional_test.go:282: Found OpFunctionCall at word 320
+--- PASS: TestCallInConditional_VarInitFromCallInIf (0.00s)
+=== RUN   TestCallInConditional_BothBranchesCallDifferentFunctions
+    call_conditional_test.go:333: === SPIR-V Disassembly ===
+    call_conditional_test.go:334: --- FUNCTION %17 (type=%16) ---
+    call_conditional_test.go:334:      209: OpFunctionParameter %3 %18
+    call_conditional_test.go:334:   BLOCK 1 (label %19):
+    call_conditional_test.go:334:      214: %20 = OpFMul %18, %18
+    call_conditional_test.go:334: --- FUNCTION END ---
+    call_conditional_test.go:334: --- FUNCTION %21 (type=%16) ---
+    call_conditional_test.go:334:      227: OpFunctionParameter %3 %22
+    call_conditional_test.go:334:   BLOCK 1 (label %23):
+    call_conditional_test.go:334:      232: OpFOrdEqual %25 %26 %22 %24
+    call_conditional_test.go:334:      237: OpSelectionMerge merge:%29
+    call_conditional_test.go:334:      240: OpBranchConditional cond:%26 true:%27 false:%28
+    call_conditional_test.go:334:   BLOCK 2 (label %27):
+    call_conditional_test.go:334:   BLOCK 3 (label %28):
+    call_conditional_test.go:334:      250: OpBranch -> %29
+    call_conditional_test.go:334:   BLOCK 4 (label %29):
+    call_conditional_test.go:334:      254: OpFSub %3 %30 %24 %22
+    call_conditional_test.go:334: --- FUNCTION END ---
+    call_conditional_test.go:334: --- FUNCTION %32 (type=%31) ---
+    call_conditional_test.go:334:   BLOCK 1 (label %33):
+    call_conditional_test.go:334:      269: %35(result) = OpVariable Function (type=ptr<Function,f32>)
+    call_conditional_test.go:334:      273: %38 = OpAccessChain base:%15(gid) [%36]
+    call_conditional_test.go:334:      278: %39 = OpLoad %38() (type=u32)
+    call_conditional_test.go:334:      282: %41 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:334:      287: %44 = OpAccessChain base:%41() [%42]
+    call_conditional_test.go:334:      292: %45 = OpLoad %44() (type=u32)
+    call_conditional_test.go:334:      296: %46 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:334:      301: %47 = OpAccessChain base:%46() [%42]
+    call_conditional_test.go:334:      306: %48 = OpLoad %47() (type=u32)
+    call_conditional_test.go:334:      310: %49 = OpINotEqual %48, %36
+    call_conditional_test.go:334:      315: OpSelectionMerge merge:%52
+    call_conditional_test.go:334:      318: OpBranchConditional cond:%49 true:%50 false:%51
+    call_conditional_test.go:334:   BLOCK 2 (label %50):
+    call_conditional_test.go:334:      324: %53 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:334:      329: %55 = OpAccessChain base:%53() [%36]
+    call_conditional_test.go:334:      334: %56 = OpLoad %55() (type=f32)
+    call_conditional_test.go:334:      338: %57 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:334:      343: %58 = OpAccessChain base:%57() [%36]
+    call_conditional_test.go:334:      348: %59 = OpLoad %58() (type=f32)
+    call_conditional_test.go:334:      352: OpFunctionCall %3 %60 %17 %59
+    call_conditional_test.go:334:      357: OpStore *%35(result) = %60()
+    call_conditional_test.go:334:      360: OpBranch -> %52
+    call_conditional_test.go:334:   BLOCK 3 (label %51):
+    call_conditional_test.go:334:      364: %61 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:334:      369: %62 = OpAccessChain base:%61() [%36]
+    call_conditional_test.go:334:      374: %63 = OpLoad %62() (type=f32)
+    call_conditional_test.go:334:      378: %64 = OpAccessChain base:%10() [%36]
+    call_conditional_test.go:334:      383: %65 = OpAccessChain base:%64() [%36]
+    call_conditional_test.go:334:      388: %66 = OpLoad %65() (type=f32)
+    call_conditional_test.go:334:      392: OpFunctionCall %3 %67 %21 %66
+    call_conditional_test.go:334:      397: OpStore *%35(result) = %67()
+    call_conditional_test.go:334:      400: OpBranch -> %52
+    call_conditional_test.go:334:   BLOCK 4 (label %52):
+    call_conditional_test.go:334:      404: %69 = OpAccessChain base:%13() [%36]
+    call_conditional_test.go:334:      409: %71 = OpAccessChain base:%69() [%39]
+    call_conditional_test.go:334:      414: %72 = OpLoad %71() (type=u32)
+    call_conditional_test.go:334:      418: %73 = OpLoad %35(result) (type=f32)
+    call_conditional_test.go:334:      422: %75 = OpFMul %73, %74
+    call_conditional_test.go:334:      427: %76 = OpConvertFToU %75
+    call_conditional_test.go:334:      431: %77 = OpAccessChain base:%13() [%36]
+    call_conditional_test.go:334:      436: %78 = OpAccessChain base:%77() [%39]
+    call_conditional_test.go:334:      441: OpStore *%78() = %76()
+    call_conditional_test.go:334:      444: OpReturn
+    call_conditional_test.go:334: --- FUNCTION END ---
+    call_conditional_test.go:352: Found OpFunctionCall #1 at word 352
+    call_conditional_test.go:352: Found OpFunctionCall #2 at word 392
+    call_conditional_test.go:359: Found 2 OpFunctionCall(s) in main -- OK
+    call_conditional_test.go:371: Found 2 OpStore(s) to 'result' -- OK
+--- PASS: TestCallInConditional_BothBranchesCallDifferentFunctions (0.00s)
+PASS

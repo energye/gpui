@@ -1,0 +1,25 @@
+=== RUN   TestBoundaryCache_SkipVsRerecord
+--- PASS: TestBoundaryCache_SkipVsRerecord (0.00s)
+=== RUN   TestBoundaryCache_NestedAbsoluteBoxCleanReplayKeepsMidContent
+--- PASS: TestBoundaryCache_NestedAbsoluteBoxCleanReplayKeepsMidContent (0.00s)
+=== RUN   TestBoundaryCache_InnerChangeThenCleanReplayShowsFresh
+--- PASS: TestBoundaryCache_InnerChangeThenCleanReplayShowsFresh (0.01s)
+=== RUN   TestBoundaryCache_NestedOuterNoRerecordWhenInnerDirty
+--- PASS: TestBoundaryCache_NestedOuterNoRerecordWhenInnerDirty (0.00s)
+=== RUN   TestCountRepaintBoundaries_NestedDepth
+--- PASS: TestCountRepaintBoundaries_NestedDepth (0.00s)
+=== RUN   TestBoundaryCache_SizeChangeInvalidates
+--- PASS: TestBoundaryCache_SizeChangeInvalidates (0.00s)
+=== RUN   TestPipelineOwner_BoundaryCachePersists
+--- PASS: TestPipelineOwner_BoundaryCachePersists (0.00s)
+=== RUN   TestBoundaryCache_NonCacheableNeverReplays
+--- PASS: TestBoundaryCache_NonCacheableNeverReplays (0.00s)
+=== RUN   TestBoundaryCache_DPRInvalidateReRecords
+--- PASS: TestBoundaryCache_DPRInvalidateReRecords (0.00s)
+=== RUN   TestCompositingBits_IncrementalFlush
+--- PASS: TestCompositingBits_IncrementalFlush (0.00s)
+=== RUN   TestBoundaryCache_ShellBodyPartition
+--- PASS: TestBoundaryCache_ShellBodyPartition (0.00s)
+=== RUN   TestBase_SetShellBoundary_Toggle
+--- PASS: TestBase_SetShellBoundary_Toggle (0.00s)
+PASS

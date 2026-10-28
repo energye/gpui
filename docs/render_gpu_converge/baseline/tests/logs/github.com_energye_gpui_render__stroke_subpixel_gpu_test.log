@@ -1,0 +1,4 @@
+=== RUN   TestStrokeSubpixelWidthGPU
+    stroke_subpixel_gpu_test.go:43: 0.5px=127 (gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1), 1px=0 (gpu_ops=1 cpu_fallback_ops=0 frame_flushes=1)
+--- PASS: TestStrokeSubpixelWidthGPU (0.27s)
+PASS

@@ -1,0 +1,4 @@
+=== RUN   TestSingleLongLineKeystroke_M5
+    m5_singleline_test.go:58: single 50k line incremental keystroke median = 13.100131ms
+--- PASS: TestSingleLongLineKeystroke_M5 (0.48s)
+PASS

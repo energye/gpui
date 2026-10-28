@@ -1,0 +1,35 @@
+=== RUN   TestNewMultiFace
+=== RUN   TestNewMultiFace/valid_faces
+=== RUN   TestNewMultiFace/empty_faces
+=== RUN   TestNewMultiFace/mismatched_directions
+--- PASS: TestNewMultiFace (0.00s)
+    --- PASS: TestNewMultiFace/valid_faces (0.00s)
+    --- PASS: TestNewMultiFace/empty_faces (0.00s)
+    --- PASS: TestNewMultiFace/mismatched_directions (0.00s)
+=== RUN   TestMultiFaceMetrics
+--- PASS: TestMultiFaceMetrics (0.00s)
+=== RUN   TestMultiFaceHasGlyph
+--- PASS: TestMultiFaceHasGlyph (0.00s)
+=== RUN   TestMultiFaceAdvance
+--- PASS: TestMultiFaceAdvance (0.00s)
+=== RUN   TestMultiFaceGlyphs
+--- PASS: TestMultiFaceGlyphs (0.00s)
+=== RUN   TestMultiFaceAppendGlyphs
+--- PASS: TestMultiFaceAppendGlyphs (0.00s)
+=== RUN   TestMultiFaceDirection
+--- PASS: TestMultiFaceDirection (0.00s)
+=== RUN   TestMultiFaceSource
+--- PASS: TestMultiFaceSource (0.00s)
+=== RUN   TestMultiFaceSize
+--- PASS: TestMultiFaceSize (0.00s)
+=== RUN   TestMultiFaceLanguage
+--- PASS: TestMultiFaceLanguage (0.00s)
+=== RUN   TestMultiFaceScriptPreference
+--- PASS: TestMultiFaceScriptPreference (0.00s)
+=== RUN   TestMultiFaceAtSizePreservesHinting
+--- PASS: TestMultiFaceAtSizePreservesHinting (0.00s)
+=== RUN   TestMultiFaceWithHinting
+--- PASS: TestMultiFaceWithHinting (0.00s)
+=== RUN   TestMultiFaceWithHintingThenAtSize
+--- PASS: TestMultiFaceWithHintingThenAtSize (0.00s)
+PASS

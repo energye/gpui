@@ -1,0 +1,54 @@
+=== RUN   TestCompileSimpleVertexShader
+    naga_test.go:37: Generated 360 bytes of SPIR-V
+--- PASS: TestCompileSimpleVertexShader (0.00s)
+=== RUN   TestCompileFragmentShader
+    naga_test.go:65: Generated 312 bytes of SPIR-V
+--- PASS: TestCompileFragmentShader (0.00s)
+=== RUN   TestCompileWithMathFunctions
+    naga_test.go:89: Generated 412 bytes of SPIR-V
+--- PASS: TestCompileWithMathFunctions (0.00s)
+=== RUN   TestCompileComputeShader
+    naga_test.go:115: Generated 248 bytes of SPIR-V
+--- PASS: TestCompileComputeShader (0.00s)
+=== RUN   TestCompileWithOptions
+    naga_test.go:139: Generated 292 bytes of SPIR-V (with debug info)
+--- PASS: TestCompileWithOptions (0.00s)
+=== RUN   TestCompileInvalidShader
+    naga_test.go:155: Got expected error: validation failed: entry point "main" (@vertex): must return @builtin(position)
+--- PASS: TestCompileInvalidShader (0.00s)
+=== RUN   TestParseSyntaxError
+    naga_test.go:171: Got expected parse error: parse error: parsing failed with 2 error(s): line 3, column 10: expected parameter name
+--- PASS: TestParseSyntaxError (0.00s)
+=== RUN   TestParseAndLowerPipeline
+    naga_test.go:204: No validation errors (shader is valid)
+    naga_test.go:209: Successfully parsed, lowered, and validated shader
+--- PASS: TestParseAndLowerPipeline (0.00s)
+=== RUN   TestCompileTriangleShader
+    naga_test.go:256: Generated 1288 bytes of SPIR-V for triangle shader
+--- PASS: TestCompileTriangleShader (0.00s)
+=== RUN   TestIntegrationVertexFragment
+    naga_test.go:302: Successfully compiled vertex+fragment shader: 1248 bytes
+--- PASS: TestIntegrationVertexFragment (0.00s)
+=== RUN   TestIntegrationComputeWithStorage
+    naga_test.go:338: Successfully compiled compute shader with storage: 396 bytes, bound=18
+--- PASS: TestIntegrationComputeWithStorage (0.00s)
+=== RUN   TestIntegrationWithUniforms
+    naga_test.go:373: Successfully compiled shader with uniform buffer: 724 bytes
+--- PASS: TestIntegrationWithUniforms (0.00s)
+=== RUN   TestIntegrationPipelineAPI
+    naga_test.go:406: Validation completed with 0 issues
+    naga_test.go:422: Pipeline test successful: 532 bytes SPIR-V
+--- PASS: TestIntegrationPipelineAPI (0.00s)
+=== RUN   TestIntegrationErrorHandling
+=== RUN   TestIntegrationErrorHandling/valid_shader
+=== RUN   TestIntegrationErrorHandling/syntax_error_-_missing_parenthesis
+--- PASS: TestIntegrationErrorHandling (0.00s)
+    --- PASS: TestIntegrationErrorHandling/valid_shader (0.00s)
+    --- PASS: TestIntegrationErrorHandling/syntax_error_-_missing_parenthesis (0.00s)
+=== RUN   TestCompileSwitchStatement
+    naga_test.go:506: Generated 636 bytes of SPIR-V for switch statement
+--- PASS: TestCompileSwitchStatement (0.00s)
+=== RUN   TestCompileLocalConst
+    naga_test.go:532: Generated 376 bytes of SPIR-V for local const
+--- PASS: TestCompileLocalConst (0.00s)
+PASS

@@ -1,0 +1,3 @@
+=== RUN   TestBoundaryCache_BudgetEvictsOldest
+--- PASS: TestBoundaryCache_BudgetEvictsOldest (0.00s)
+PASS

@@ -1,0 +1,5 @@
+=== RUN   TestBuildLayerTree_LeafPictures
+--- PASS: TestBuildLayerTree_LeafPictures (0.00s)
+=== RUN   TestBuildLayerTree_CacheKeyStable
+--- PASS: TestBuildLayerTree_CacheKeyStable (0.00s)
+PASS

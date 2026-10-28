@@ -1,0 +1,11 @@
+=== RUN   TestWlDragStartDragToUnsupported
+--- PASS: TestWlDragStartDragToUnsupported (0.00s)
+=== RUN   TestWlDragStartDragNoWindow
+--- PASS: TestWlDragStartDragNoWindow (0.00s)
+=== RUN   TestWlDragStartDragNeedsSerial
+--- PASS: TestWlDragStartDragNeedsSerial (0.00s)
+=== RUN   TestWlDragSourceSendServesByMIME
+--- PASS: TestWlDragSourceSendServesByMIME (0.00s)
+=== RUN   TestWlDragSourceCancelledSplits
+--- PASS: TestWlDragSourceCancelledSplits (0.00s)
+PASS

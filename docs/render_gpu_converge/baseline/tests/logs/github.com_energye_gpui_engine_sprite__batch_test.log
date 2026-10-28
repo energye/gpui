@@ -1,0 +1,16 @@
+=== RUN   TestBatchGroupsFromCases
+--- PASS: TestBatchGroupsFromCases (0.00s)
+=== RUN   TestBatchEdgesNoCrash
+--- PASS: TestBatchEdgesNoCrash (0.00s)
+=== RUN   TestBatchBoundaryIdentical
+--- PASS: TestBatchBoundaryIdentical (0.00s)
+=== RUN   TestBatchPerfThousand
+    batch_test.go:339: batch-1000: 1000 sprites in 335.621µs (2 draws, 500.0 sprites/draw)
+--- PASS: TestBatchPerfThousand (0.00s)
+=== RUN   TestBatchLongRunStable
+--- PASS: TestBatchLongRunStable (0.04s)
+=== RUN   TestBatchOffscreenGolden
+--- PASS: TestBatchOffscreenGolden (0.00s)
+=== RUN   TestFlushCountMatchesFlush
+--- PASS: TestFlushCountMatchesFlush (0.00s)
+PASS

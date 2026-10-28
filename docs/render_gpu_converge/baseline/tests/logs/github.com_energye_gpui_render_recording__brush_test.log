@@ -1,0 +1,45 @@
+=== RUN   TestSolidBrush
+=== RUN   TestSolidBrush/red
+=== RUN   TestSolidBrush/blue
+=== RUN   TestSolidBrush/transparent
+=== RUN   TestSolidBrush/semi-transparent
+--- PASS: TestSolidBrush (0.00s)
+    --- PASS: TestSolidBrush/red (0.00s)
+    --- PASS: TestSolidBrush/blue (0.00s)
+    --- PASS: TestSolidBrush/transparent (0.00s)
+    --- PASS: TestSolidBrush/semi-transparent (0.00s)
+=== RUN   TestLinearGradientBrush
+--- PASS: TestLinearGradientBrush (0.00s)
+=== RUN   TestRadialGradientBrush
+--- PASS: TestRadialGradientBrush (0.00s)
+=== RUN   TestRadialGradientBrush_DefaultFocus
+--- PASS: TestRadialGradientBrush_DefaultFocus (0.00s)
+=== RUN   TestSweepGradientBrush
+--- PASS: TestSweepGradientBrush (0.00s)
+=== RUN   TestSweepGradientBrush_DefaultEndAngle
+--- PASS: TestSweepGradientBrush_DefaultEndAngle (0.00s)
+=== RUN   TestPatternBrush
+--- PASS: TestPatternBrush (0.00s)
+=== RUN   TestPatternBrush_Defaults
+--- PASS: TestPatternBrush_Defaults (0.00s)
+=== RUN   TestPatternBrush_DisposedImagePaintsNothing
+--- PASS: TestPatternBrush_DisposedImagePaintsNothing (0.00s)
+=== RUN   TestFromRenderPattern_ImagePatternRoundTrip
+--- PASS: TestFromRenderPattern_ImagePatternRoundTrip (0.00s)
+=== RUN   TestFromRenderPattern_SolidAndCustom
+--- PASS: TestFromRenderPattern_SolidAndCustom (0.00s)
+=== RUN   TestExtendMode
+--- PASS: TestExtendMode (0.00s)
+=== RUN   TestFromRenderBrush_Solid
+--- PASS: TestFromRenderBrush_Solid (0.00s)
+=== RUN   TestFromRenderBrush_LinearGradient
+--- PASS: TestFromRenderBrush_LinearGradient (0.00s)
+=== RUN   TestFromRenderBrush_RadialGradient
+--- PASS: TestFromRenderBrush_RadialGradient (0.00s)
+=== RUN   TestFromRenderBrush_SweepGradient
+--- PASS: TestFromRenderBrush_SweepGradient (0.00s)
+=== RUN   TestFromRenderBrush_CustomBrush
+--- PASS: TestFromRenderBrush_CustomBrush (0.00s)
+=== RUN   TestGradientStop
+--- PASS: TestGradientStop (0.00s)
+PASS

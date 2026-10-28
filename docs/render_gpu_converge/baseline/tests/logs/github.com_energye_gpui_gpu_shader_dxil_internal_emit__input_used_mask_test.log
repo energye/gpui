@@ -1,0 +1,11 @@
+=== RUN   TestInputUsedMaskClamping
+--- PASS: TestInputUsedMaskClamping (0.00s)
+=== RUN   TestInputUsedMaskNull
+--- PASS: TestInputUsedMaskNull (0.00s)
+=== RUN   TestInputUsedMaskSortedOrder
+--- PASS: TestInputUsedMaskSortedOrder (0.00s)
+=== RUN   TestInputUsedMaskVSInputPreservesOrder
+--- PASS: TestInputUsedMaskVSInputPreservesOrder (0.00s)
+=== RUN   TestViewIDMaxPackedLocationIncludesStartCol
+--- PASS: TestViewIDMaxPackedLocationIncludesStartCol (0.00s)
+PASS

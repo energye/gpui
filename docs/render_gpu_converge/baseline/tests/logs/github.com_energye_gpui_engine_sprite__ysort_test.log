@@ -1,0 +1,14 @@
+=== RUN   TestYSortOrderFromCases
+--- PASS: TestYSortOrderFromCases (0.00s)
+=== RUN   TestYSortEdgesNoCrash
+--- PASS: TestYSortEdgesNoCrash (0.00s)
+=== RUN   TestYSortBoundaryIdentical
+--- PASS: TestYSortBoundaryIdentical (0.00s)
+=== RUN   TestYSortPerfHundred
+    ysort_test.go:289: ysort-100: 2000 sorts x 100 items in 78.853979ms (39.4 us/sort)
+--- PASS: TestYSortPerfHundred (0.08s)
+=== RUN   TestYSortLongRunStable
+--- PASS: TestYSortLongRunStable (0.00s)
+=== RUN   TestYSortOffscreenGolden
+--- PASS: TestYSortOffscreenGolden (0.00s)
+PASS

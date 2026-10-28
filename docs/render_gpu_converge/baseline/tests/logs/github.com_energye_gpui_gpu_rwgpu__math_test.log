@@ -1,0 +1,35 @@
+=== RUN   TestMat4Identity
+--- PASS: TestMat4Identity (0.00s)
+=== RUN   TestMat4Translate
+--- PASS: TestMat4Translate (0.00s)
+=== RUN   TestMat4Scale
+--- PASS: TestMat4Scale (0.00s)
+=== RUN   TestMat4RotateX
+--- PASS: TestMat4RotateX (0.00s)
+=== RUN   TestMat4RotateY
+--- PASS: TestMat4RotateY (0.00s)
+=== RUN   TestMat4RotateZ
+--- PASS: TestMat4RotateZ (0.00s)
+=== RUN   TestMat4Perspective
+--- PASS: TestMat4Perspective (0.00s)
+=== RUN   TestMat4LookAt
+--- PASS: TestMat4LookAt (0.00s)
+=== RUN   TestMat4Mul
+--- PASS: TestMat4Mul (0.00s)
+=== RUN   TestMat4MulIdentity
+--- PASS: TestMat4MulIdentity (0.00s)
+=== RUN   TestMat4MulVec4
+--- PASS: TestMat4MulVec4 (0.00s)
+=== RUN   TestVec3Sub
+--- PASS: TestVec3Sub (0.00s)
+=== RUN   TestVec3Cross
+--- PASS: TestVec3Cross (0.00s)
+=== RUN   TestVec3Normalize
+--- PASS: TestVec3Normalize (0.00s)
+=== RUN   TestVec3NormalizeZero
+--- PASS: TestVec3NormalizeZero (0.00s)
+=== RUN   TestVec3Dot
+--- PASS: TestVec3Dot (0.00s)
+=== RUN   TestVec3DotOrthogonal
+--- PASS: TestVec3DotOrthogonal (0.00s)
+PASS

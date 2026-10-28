@@ -1,0 +1,79 @@
+=== RUN   TestSDFAcceleratorClose
+--- PASS: TestSDFAcceleratorClose (0.00s)
+=== RUN   TestSDFAcceleratorFlush
+--- PASS: TestSDFAcceleratorFlush (0.00s)
+=== RUN   TestSDFAcceleratorSetForceSDF
+--- PASS: TestSDFAcceleratorSetForceSDF (0.00s)
+=== RUN   TestSDFAcceleratorFillShapeTooSmall
+--- PASS: TestSDFAcceleratorFillShapeTooSmall (0.00s)
+=== RUN   TestSDFAcceleratorFillShapeTooSmallForced
+--- PASS: TestSDFAcceleratorFillShapeTooSmallForced (0.00s)
+=== RUN   TestSDFAcceleratorStrokeShapeTooSmall
+--- PASS: TestSDFAcceleratorStrokeShapeTooSmall (0.00s)
+=== RUN   TestSDFAcceleratorStrokeShapeTooSmallForced
+--- PASS: TestSDFAcceleratorStrokeShapeTooSmallForced (0.00s)
+=== RUN   TestSDFAcceleratorFillEllipse
+--- PASS: TestSDFAcceleratorFillEllipse (0.00s)
+=== RUN   TestSDFAcceleratorStrokeEllipse
+--- PASS: TestSDFAcceleratorStrokeEllipse (0.00s)
+=== RUN   TestSDFAcceleratorStrokeRRect
+--- PASS: TestSDFAcceleratorStrokeRRect (0.00s)
+=== RUN   TestSDFAcceleratorStrokeRect
+--- PASS: TestSDFAcceleratorStrokeRect (0.00s)
+=== RUN   TestShapeTooSmallForSDF
+=== RUN   TestShapeTooSmallForSDF/large_circle
+=== RUN   TestShapeTooSmallForSDF/small_circle
+=== RUN   TestShapeTooSmallForSDF/large_ellipse
+=== RUN   TestShapeTooSmallForSDF/small_ellipse
+=== RUN   TestShapeTooSmallForSDF/large_rect
+=== RUN   TestShapeTooSmallForSDF/small_rect
+=== RUN   TestShapeTooSmallForSDF/large_rrect
+=== RUN   TestShapeTooSmallForSDF/unknown_shape
+--- PASS: TestShapeTooSmallForSDF (0.00s)
+    --- PASS: TestShapeTooSmallForSDF/large_circle (0.00s)
+    --- PASS: TestShapeTooSmallForSDF/small_circle (0.00s)
+    --- PASS: TestShapeTooSmallForSDF/large_ellipse (0.00s)
+    --- PASS: TestShapeTooSmallForSDF/small_ellipse (0.00s)
+    --- PASS: TestShapeTooSmallForSDF/large_rect (0.00s)
+    --- PASS: TestShapeTooSmallForSDF/small_rect (0.00s)
+    --- PASS: TestShapeTooSmallForSDF/large_rrect (0.00s)
+    --- PASS: TestShapeTooSmallForSDF/unknown_shape (0.00s)
+=== RUN   TestSDFAccelerator_ThinStrokeFallback
+=== RUN   TestSDFAccelerator_ThinStrokeFallback/lineWidth=0.5_fallback
+=== RUN   TestSDFAccelerator_ThinStrokeFallback/lineWidth=0.74_fallback
+=== RUN   TestSDFAccelerator_ThinStrokeFallback/lineWidth=1.0_renders
+=== RUN   TestSDFAccelerator_ThinStrokeFallback/lineWidth=1.5_renders
+=== RUN   TestSDFAccelerator_ThinStrokeFallback/lineWidth=2.0_renders
+=== RUN   TestSDFAccelerator_ThinStrokeFallback/lineWidth=3.0_renders
+=== RUN   TestSDFAccelerator_ThinStrokeFallback/lineWidth=10.0_renders
+--- PASS: TestSDFAccelerator_ThinStrokeFallback (0.00s)
+    --- PASS: TestSDFAccelerator_ThinStrokeFallback/lineWidth=0.5_fallback (0.00s)
+    --- PASS: TestSDFAccelerator_ThinStrokeFallback/lineWidth=0.74_fallback (0.00s)
+    --- PASS: TestSDFAccelerator_ThinStrokeFallback/lineWidth=1.0_renders (0.00s)
+    --- PASS: TestSDFAccelerator_ThinStrokeFallback/lineWidth=1.5_renders (0.00s)
+    --- PASS: TestSDFAccelerator_ThinStrokeFallback/lineWidth=2.0_renders (0.00s)
+    --- PASS: TestSDFAccelerator_ThinStrokeFallback/lineWidth=3.0_renders (0.00s)
+    --- PASS: TestSDFAccelerator_ThinStrokeFallback/lineWidth=10.0_renders (0.00s)
+=== RUN   TestGetColorFromPaint
+=== RUN   TestGetColorFromPaint/solid_brush
+=== RUN   TestGetColorFromPaint/gradient_brush
+=== RUN   TestGetColorFromPaint/pattern
+=== RUN   TestGetColorFromPaint/nil_everything
+--- PASS: TestGetColorFromPaint (0.00s)
+    --- PASS: TestGetColorFromPaint/solid_brush (0.00s)
+    --- PASS: TestGetColorFromPaint/gradient_brush (0.00s)
+    --- PASS: TestGetColorFromPaint/pattern (0.00s)
+    --- PASS: TestGetColorFromPaint/nil_everything (0.00s)
+=== RUN   TestBlendPixelBoundsCheck
+--- PASS: TestBlendPixelBoundsCheck (0.00s)
+=== RUN   TestBlendPixelClipCoverage
+--- PASS: TestBlendPixelClipCoverage (0.00s)
+=== RUN   TestBlendPixelMaskCoverage
+--- PASS: TestBlendPixelMaskCoverage (0.00s)
+=== RUN   TestBlendPixelPartialClip
+--- PASS: TestBlendPixelPartialClip (0.00s)
+=== RUN   TestSDFCircleFillClipped
+--- PASS: TestSDFCircleFillClipped (0.00s)
+=== RUN   TestSDFRRectFillClipped
+--- PASS: TestSDFRRectFillClipped (0.00s)
+PASS

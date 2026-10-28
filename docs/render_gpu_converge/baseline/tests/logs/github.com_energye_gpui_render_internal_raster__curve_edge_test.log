@@ -1,0 +1,33 @@
+=== RUN   TestDiffToShift
+=== RUN   TestDiffToShift/flat_curve
+=== RUN   TestDiffToShift/small_deviation
+=== RUN   TestDiffToShift/medium_deviation
+=== RUN   TestDiffToShift/large_deviation
+=== RUN   TestDiffToShift/with_AA
+--- PASS: TestDiffToShift (0.00s)
+    --- PASS: TestDiffToShift/flat_curve (0.00s)
+    --- PASS: TestDiffToShift/small_deviation (0.00s)
+    --- PASS: TestDiffToShift/medium_deviation (0.00s)
+    --- PASS: TestDiffToShift/large_deviation (0.00s)
+    --- PASS: TestDiffToShift/with_AA (0.00s)
+=== RUN   TestCheapDistance
+=== RUN   TestCheapDistance/zero
+=== RUN   TestCheapDistance/horizontal
+=== RUN   TestCheapDistance/vertical
+=== RUN   TestCheapDistance/diagonal
+=== RUN   TestCheapDistance/3-4-5
+--- PASS: TestCheapDistance (0.00s)
+    --- PASS: TestCheapDistance/zero (0.00s)
+    --- PASS: TestCheapDistance/horizontal (0.00s)
+    --- PASS: TestCheapDistance/vertical (0.00s)
+    --- PASS: TestCheapDistance/diagonal (0.00s)
+    --- PASS: TestCheapDistance/3-4-5 (0.00s)
+=== RUN   TestCubicDeltaFromLine
+=== RUN   TestCubicDeltaFromLine/flat_line
+=== RUN   TestCubicDeltaFromLine/collinear
+=== RUN   TestCubicDeltaFromLine/curved
+--- PASS: TestCubicDeltaFromLine (0.00s)
+    --- PASS: TestCubicDeltaFromLine/flat_line (0.00s)
+    --- PASS: TestCubicDeltaFromLine/collinear (0.00s)
+    --- PASS: TestCubicDeltaFromLine/curved (0.00s)
+PASS

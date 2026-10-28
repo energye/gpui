@@ -1,0 +1,63 @@
+=== RUN   TestSubgroupBallotNoPredicate
+--- PASS: TestSubgroupBallotNoPredicate (0.00s)
+=== RUN   TestSubgroupBallotWithPredicate
+--- PASS: TestSubgroupBallotWithPredicate (0.00s)
+=== RUN   TestSubgroupCollectiveAdd
+--- PASS: TestSubgroupCollectiveAdd (0.00s)
+=== RUN   TestSubgroupCollectiveAllOps
+=== RUN   TestSubgroupCollectiveAllOps/All/vote
+=== RUN   TestSubgroupCollectiveAllOps/Any/vote
+=== RUN   TestSubgroupCollectiveAllOps/Add/float
+=== RUN   TestSubgroupCollectiveAllOps/Mul/float
+=== RUN   TestSubgroupCollectiveAllOps/Mul/int
+=== RUN   TestSubgroupCollectiveAllOps/Min/float
+=== RUN   TestSubgroupCollectiveAllOps/Min/uint
+=== RUN   TestSubgroupCollectiveAllOps/Min/sint
+=== RUN   TestSubgroupCollectiveAllOps/Max/float
+=== RUN   TestSubgroupCollectiveAllOps/Max/uint
+=== RUN   TestSubgroupCollectiveAllOps/Max/sint
+=== RUN   TestSubgroupCollectiveAllOps/And/bool
+=== RUN   TestSubgroupCollectiveAllOps/And/uint
+=== RUN   TestSubgroupCollectiveAllOps/Or/bool
+=== RUN   TestSubgroupCollectiveAllOps/Or/uint
+=== RUN   TestSubgroupCollectiveAllOps/Xor/bool
+=== RUN   TestSubgroupCollectiveAllOps/Xor/uint
+--- PASS: TestSubgroupCollectiveAllOps (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/All/vote (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Any/vote (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Add/float (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Mul/float (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Mul/int (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Min/float (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Min/uint (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Min/sint (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Max/float (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Max/uint (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Max/sint (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/And/bool (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/And/uint (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Or/bool (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Or/uint (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Xor/bool (0.00s)
+    --- PASS: TestSubgroupCollectiveAllOps/Xor/uint (0.00s)
+=== RUN   TestSubgroupGatherAllModes
+=== RUN   TestSubgroupGatherAllModes/BroadcastFirst
+=== RUN   TestSubgroupGatherAllModes/Broadcast
+=== RUN   TestSubgroupGatherAllModes/Shuffle
+=== RUN   TestSubgroupGatherAllModes/ShuffleDown
+=== RUN   TestSubgroupGatherAllModes/ShuffleUp
+=== RUN   TestSubgroupGatherAllModes/ShuffleXor
+=== RUN   TestSubgroupGatherAllModes/QuadBroadcast
+=== RUN   TestSubgroupGatherAllModes/QuadSwap/X
+--- PASS: TestSubgroupGatherAllModes (0.00s)
+    --- PASS: TestSubgroupGatherAllModes/BroadcastFirst (0.00s)
+    --- PASS: TestSubgroupGatherAllModes/Broadcast (0.00s)
+    --- PASS: TestSubgroupGatherAllModes/Shuffle (0.00s)
+    --- PASS: TestSubgroupGatherAllModes/ShuffleDown (0.00s)
+    --- PASS: TestSubgroupGatherAllModes/ShuffleUp (0.00s)
+    --- PASS: TestSubgroupGatherAllModes/ShuffleXor (0.00s)
+    --- PASS: TestSubgroupGatherAllModes/QuadBroadcast (0.00s)
+    --- PASS: TestSubgroupGatherAllModes/QuadSwap/X (0.00s)
+=== RUN   TestSubgroupCollectiveWithVector
+--- PASS: TestSubgroupCollectiveWithVector (0.00s)
+PASS

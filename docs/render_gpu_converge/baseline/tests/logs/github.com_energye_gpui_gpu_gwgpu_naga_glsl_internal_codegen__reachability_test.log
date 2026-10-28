@@ -1,0 +1,34 @@
+=== RUN   TestCollectReachable_FunctionsTransitive
+--- PASS: TestCollectReachable_FunctionsTransitive (0.00s)
+=== RUN   TestCollectReachable_Globals
+--- PASS: TestCollectReachable_Globals (0.00s)
+=== RUN   TestCollectReachable_Constants
+--- PASS: TestCollectReachable_Constants (0.00s)
+=== RUN   TestCollectReachable_Types
+--- PASS: TestCollectReachable_Types (0.00s)
+=== RUN   TestCollectReachable_EmptyModule
+--- PASS: TestCollectReachable_EmptyModule (0.00s)
+=== RUN   TestCollectReachable_CyclicCalls
+--- PASS: TestCollectReachable_CyclicCalls (0.00s)
+=== RUN   TestCollectReachable_NestedStatements
+--- PASS: TestCollectReachable_NestedStatements (0.00s)
+=== RUN   TestCollectReachable_SwitchAndLoop
+--- PASS: TestCollectReachable_SwitchAndLoop (0.00s)
+=== RUN   TestCompile_DeadCodeElimination_Functions
+--- PASS: TestCompile_DeadCodeElimination_Functions (0.00s)
+=== RUN   TestCompile_DeadCodeElimination_Globals
+--- PASS: TestCompile_DeadCodeElimination_Globals (0.00s)
+=== RUN   TestCompile_DeadCodeElimination_Constants
+--- PASS: TestCompile_DeadCodeElimination_Constants (0.00s)
+=== RUN   TestCompile_DeadCodeElimination_Types
+--- PASS: TestCompile_DeadCodeElimination_Types (0.00s)
+=== RUN   TestCompile_NoEntryPoint_NoFiltering
+--- PASS: TestCompile_NoEntryPoint_NoFiltering (0.00s)
+=== RUN   TestCompile_OutputSizeReduction
+    reachability_test.go:599: Filtered output size: 7043 bytes
+--- PASS: TestCompile_OutputSizeReduction (0.00s)
+=== RUN   TestCollectReachable_CompositeConstant
+--- PASS: TestCollectReachable_CompositeConstant (0.00s)
+=== RUN   TestCollectReachable_ArrayType
+--- PASS: TestCollectReachable_ArrayType (0.00s)
+PASS

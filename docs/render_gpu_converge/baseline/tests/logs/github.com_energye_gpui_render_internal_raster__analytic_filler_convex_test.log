@@ -1,0 +1,28 @@
+=== RUN   TestFillConvex_RectInterior
+--- PASS: TestFillConvex_RectInterior (0.00s)
+=== RUN   TestFillConvex_RectExterior
+--- PASS: TestFillConvex_RectExterior (0.00s)
+=== RUN   TestFillConvex_RectEdges
+--- PASS: TestFillConvex_RectEdges (0.00s)
+=== RUN   TestFillConvex_Triangle
+--- PASS: TestFillConvex_Triangle (0.00s)
+=== RUN   TestFillConvex_Pentagon
+--- PASS: TestFillConvex_Pentagon (0.00s)
+=== RUN   TestRegression_ConvexMatchesGeneral_Rect
+    analytic_filler_convex_test.go:273: ConvexRect: max diff=1 (within tolerance 1)
+--- PASS: TestRegression_ConvexMatchesGeneral_Rect (0.00s)
+=== RUN   TestRegression_ConvexMatchesGeneral_Triangle
+--- PASS: TestRegression_ConvexMatchesGeneral_Triangle (0.00s)
+=== RUN   TestRegression_ConvexMatchesGeneral_Diamond
+--- PASS: TestRegression_ConvexMatchesGeneral_Diamond (0.00s)
+=== RUN   TestFillConvex_ThinRect
+--- PASS: TestFillConvex_ThinRect (0.00s)
+=== RUN   TestFillConvex_SubPixelRect
+--- PASS: TestFillConvex_SubPixelRect (0.00s)
+=== RUN   TestFillConvex_VerticalEdges
+--- PASS: TestFillConvex_VerticalEdges (0.00s)
+=== RUN   TestFillConvex_RectSymmetry
+--- PASS: TestFillConvex_RectSymmetry (0.00s)
+=== RUN   TestFillConvex_TriangleMonotonicity
+--- PASS: TestFillConvex_TriangleMonotonicity (0.00s)
+PASS

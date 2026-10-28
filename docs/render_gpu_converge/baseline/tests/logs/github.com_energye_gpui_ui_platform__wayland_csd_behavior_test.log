@@ -1,0 +1,21 @@
+=== RUN   TestWaylandCSDResizeFillsBeforeCommit
+--- PASS: TestWaylandCSDResizeFillsBeforeCommit (0.06s)
+=== RUN   TestWaylandCSDButtonReleaseInside
+--- PASS: TestWaylandCSDButtonReleaseInside (0.02s)
+=== RUN   TestWaylandCSDRightCaptionMenu
+--- PASS: TestWaylandCSDRightCaptionMenu (0.02s)
+=== RUN   TestWaylandCSDLockedNoResize
+--- PASS: TestWaylandCSDLockedNoResize (0.02s)
+=== RUN   TestWaylandCSDCoordTranslate
+--- PASS: TestWaylandCSDCoordTranslate (0.02s)
+=== RUN   TestWaylandCSDHiddenChromeResizeZones
+--- PASS: TestWaylandCSDHiddenChromeResizeZones (0.03s)
+=== RUN   TestWaylandPointerWindowLevel
+--- PASS: TestWaylandPointerWindowLevel (0.09s)
+=== RUN   TestWaylandCSDCursorApply
+--- PASS: TestWaylandCSDCursorApply (0.03s)
+=== RUN   TestWaylandCSDCursorHotspot
+--- PASS: TestWaylandCSDCursorHotspot (0.05s)
+=== RUN   TestWaylandCSDTopRightCornerResizeHit
+--- PASS: TestWaylandCSDTopRightCornerResizeHit (0.03s)
+PASS

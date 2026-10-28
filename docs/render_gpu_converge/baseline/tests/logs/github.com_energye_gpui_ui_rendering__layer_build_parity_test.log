@@ -1,0 +1,5 @@
+=== RUN   TestParity_LiveVsRecordedReplay_TransformChain
+--- PASS: TestParity_LiveVsRecordedReplay_TransformChain (0.00s)
+=== RUN   TestParity_ReplayInsideOnPaint_FoldsIntoLayerRecording
+--- PASS: TestParity_ReplayInsideOnPaint_FoldsIntoLayerRecording (0.00s)
+PASS

@@ -1,0 +1,538 @@
+=== RUN   TestEmitPassthroughVertex
+    emit_test.go:280: passthrough vertex: 9 types, 3 functions, 24 constants, 47 metadata nodes, 1316 bytes bitcode
+--- PASS: TestEmitPassthroughVertex (0.00s)
+=== RUN   TestEmitSimpleTransformVertex
+    emit_test.go:312: simple transform vertex: 9 types, 3 functions, 26 constants, 1300 bytes bitcode
+--- PASS: TestEmitSimpleTransformVertex (0.00s)
+=== RUN   TestEmitSimpleFragment
+    emit_test.go:332: simple fragment: 8 types, 2 functions, 19 constants, 1128 bytes bitcode
+--- PASS: TestEmitSimpleFragment (0.00s)
+=== RUN   TestEmitBinaryArithmeticVertex
+    emit_test.go:372: binary arithmetic vertex: 9 types, 3 functions, 31 constants, 1384 bytes bitcode
+--- PASS: TestEmitBinaryArithmeticVertex (0.00s)
+=== RUN   TestEmitNoEntryPoints
+--- PASS: TestEmitNoEntryPoints (0.00s)
+=== RUN   TestStageMapping
+--- PASS: TestStageMapping (0.00s)
+=== RUN   TestShaderKindString
+--- PASS: TestShaderKindString (0.00s)
+=== RUN   TestEmitArrayLoad_WorkgroupFieldReroot
+--- PASS: TestEmitArrayLoad_WorkgroupFieldReroot (0.00s)
+=== RUN   TestEmitArrayLoad_NonWorkgroupBaseUnchanged
+--- PASS: TestEmitArrayLoad_NonWorkgroupBaseUnchanged (0.00s)
+=== RUN   TestOverloadForScalar
+--- PASS: TestOverloadForScalar (0.00s)
+=== RUN   TestComponentCount
+--- PASS: TestComponentCount (0.00s)
+=== RUN   TestScalarOfType
+--- PASS: TestScalarOfType (0.00s)
+=== RUN   TestTypeMappingScalar
+--- PASS: TestTypeMappingScalar (0.00s)
+=== RUN   TestTypeMappingVectorReturnsScalar
+--- PASS: TestTypeMappingVectorReturnsScalar (0.00s)
+=== RUN   TestIsFloatType
+--- PASS: TestIsFloatType (0.00s)
+=== RUN   TestBuiltinSemanticIndex
+--- PASS: TestBuiltinSemanticIndex (0.00s)
+=== RUN   TestEmitMathMinFloat
+    emit_test.go:998: min(f32): 4 functions, 32 constants, 1440 bytes
+--- PASS: TestEmitMathMinFloat (0.00s)
+=== RUN   TestEmitMathMaxSint
+    emit_test.go:1023: max(i32): 4 functions, 32 constants, 1440 bytes
+--- PASS: TestEmitMathMaxSint (0.00s)
+=== RUN   TestEmitMathMaxUint
+--- PASS: TestEmitMathMaxUint (0.00s)
+=== RUN   TestEmitMathClamp
+    emit_test.go:1079: clamp(f32): 4 functions, 39 constants, 1564 bytes
+--- PASS: TestEmitMathClamp (0.00s)
+=== RUN   TestEmitMathMix
+    emit_test.go:1109: mix(f32): 4 functions, 38 constants, 1560 bytes
+--- PASS: TestEmitMathMix (0.00s)
+=== RUN   TestEmitMathFma
+--- PASS: TestEmitMathFma (0.00s)
+=== RUN   TestEmitMathPow
+    emit_test.go:1179: pow(f32): 4 functions, 33 constants, 1460 bytes
+--- PASS: TestEmitMathPow (0.00s)
+=== RUN   TestEmitMathLdexp_BitcodeRecordValid
+--- PASS: TestEmitMathLdexp_BitcodeRecordValid (0.00s)
+=== RUN   TestEmitMathStep
+--- PASS: TestEmitMathStep (0.00s)
+=== RUN   TestEmitMathSmoothStep
+    emit_test.go:1401: smoothstep(f32): 4 functions, 41 constants, 1624 bytes
+--- PASS: TestEmitMathSmoothStep (0.00s)
+=== RUN   TestEmitDotProduct
+=== RUN   TestEmitDotProduct/dot2
+    emit_test.go:1443: dot2: 4 functions, 31 constants, 1472 bytes
+=== RUN   TestEmitDotProduct/dot3
+    emit_test.go:1443: dot3: 4 functions, 31 constants, 1508 bytes
+=== RUN   TestEmitDotProduct/dot4
+    emit_test.go:1443: dot4: 4 functions, 31 constants, 1540 bytes
+--- PASS: TestEmitDotProduct (0.00s)
+    --- PASS: TestEmitDotProduct/dot2 (0.00s)
+    --- PASS: TestEmitDotProduct/dot3 (0.00s)
+    --- PASS: TestEmitDotProduct/dot4 (0.00s)
+=== RUN   TestEmitCrossProduct
+    emit_test.go:1476: cross(vec3): 9 binops, 3 functions, 1488 bytes
+--- PASS: TestEmitCrossProduct (0.00s)
+=== RUN   TestEmitMathLength
+    emit_test.go:1508: length(vec3): 5 functions, 27 constants, 1428 bytes
+--- PASS: TestEmitMathLength (0.00s)
+=== RUN   TestEmitMathAtan2
+--- PASS: TestEmitMathAtan2 (0.00s)
+=== RUN   TestOverloadSuffix
+--- PASS: TestOverloadSuffix (0.00s)
+=== RUN   TestGetDxOpBinaryFunc
+--- PASS: TestGetDxOpBinaryFunc (0.00s)
+=== RUN   TestGetDxOpTernaryFunc
+--- PASS: TestGetDxOpTernaryFunc (0.00s)
+=== RUN   TestGetDxOpDotFunc
+--- PASS: TestGetDxOpDotFunc (0.00s)
+=== RUN   TestSelectDXILCastOp
+=== RUN   TestSelectDXILCastOp/f32_to_i32
+=== RUN   TestSelectDXILCastOp/f32_to_u32
+=== RUN   TestSelectDXILCastOp/f64_to_i32
+=== RUN   TestSelectDXILCastOp/i32_to_f32
+=== RUN   TestSelectDXILCastOp/u32_to_f32
+=== RUN   TestSelectDXILCastOp/i32_to_f64
+=== RUN   TestSelectDXILCastOp/f64_to_f32
+=== RUN   TestSelectDXILCastOp/f32_to_f64
+=== RUN   TestSelectDXILCastOp/f32_to_f16
+=== RUN   TestSelectDXILCastOp/f16_to_f32
+=== RUN   TestSelectDXILCastOp/i32_to_i64
+=== RUN   TestSelectDXILCastOp/i64_to_i32
+=== RUN   TestSelectDXILCastOp/u32_to_u64
+=== RUN   TestSelectDXILCastOp/u64_to_u32
+=== RUN   TestSelectDXILCastOp/i32_to_u32
+=== RUN   TestSelectDXILCastOp/u32_to_i32
+=== RUN   TestSelectDXILCastOp/i32_to_u64
+=== RUN   TestSelectDXILCastOp/u64_to_i32
+=== RUN   TestSelectDXILCastOp/u32_to_i64
+--- PASS: TestSelectDXILCastOp (0.00s)
+    --- PASS: TestSelectDXILCastOp/f32_to_i32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/f32_to_u32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/f64_to_i32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/i32_to_f32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/u32_to_f32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/i32_to_f64 (0.00s)
+    --- PASS: TestSelectDXILCastOp/f64_to_f32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/f32_to_f64 (0.00s)
+    --- PASS: TestSelectDXILCastOp/f32_to_f16 (0.00s)
+    --- PASS: TestSelectDXILCastOp/f16_to_f32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/i32_to_i64 (0.00s)
+    --- PASS: TestSelectDXILCastOp/i64_to_i32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/u32_to_u64 (0.00s)
+    --- PASS: TestSelectDXILCastOp/u64_to_u32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/i32_to_u32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/u32_to_i32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/i32_to_u64 (0.00s)
+    --- PASS: TestSelectDXILCastOp/u64_to_i32 (0.00s)
+    --- PASS: TestSelectDXILCastOp/u32_to_i64 (0.00s)
+=== RUN   TestEmitAsF32ToI32
+    emit_test.go:1825: f32→i32: 2 casts, 3 functions, 26 constants
+--- PASS: TestEmitAsF32ToI32 (0.00s)
+=== RUN   TestEmitAsF32ToU32
+    emit_test.go:1842: f32→u32: 2 casts, 3 functions, 26 constants
+--- PASS: TestEmitAsF32ToU32 (0.00s)
+=== RUN   TestEmitAsI32ToF32
+    emit_test.go:1859: i32→f32: 1 casts, 3 functions, 26 constants
+--- PASS: TestEmitAsI32ToF32 (0.00s)
+=== RUN   TestEmitAsU32ToF32
+    emit_test.go:1876: u32→f32: 1 casts, 3 functions, 26 constants
+--- PASS: TestEmitAsU32ToF32 (0.00s)
+=== RUN   TestEmitAsF64ToF32
+    emit_test.go:1893: f64→f32: 1 casts, 3 functions, 27 constants
+--- PASS: TestEmitAsF64ToF32 (0.00s)
+=== RUN   TestEmitAsF32ToF64
+    emit_test.go:1910: f32→f64: 2 casts, 3 functions, 27 constants
+--- PASS: TestEmitAsF32ToF64 (0.00s)
+=== RUN   TestEmitAsBitcastF32U32
+    emit_test.go:1928: f32↔u32 bitcast: 2 casts, 3 functions, 26 constants
+--- PASS: TestEmitAsBitcastF32U32 (0.00s)
+=== RUN   TestEmitAsI32ToI64
+    emit_test.go:1945: i32→i64: 2 casts, 3 functions, 27 constants
+--- PASS: TestEmitAsI32ToI64 (0.00s)
+=== RUN   TestEmitAsI64ToI32
+    emit_test.go:1962: i64→i32: 2 casts, 3 functions, 27 constants
+--- PASS: TestEmitAsI64ToI32 (0.00s)
+=== RUN   TestEmitAsSameType
+    emit_test.go:1982: f32→f32 (no-op): 0 casts
+--- PASS: TestEmitAsSameType (0.00s)
+=== RUN   TestEmitAsBoolToInt
+    emit_test.go:2000: bool→i32: 2 casts
+--- PASS: TestEmitAsBoolToInt (0.00s)
+=== RUN   TestEmitAsBoolToFloat
+    emit_test.go:2020: bool→f32: 2 casts
+--- PASS: TestEmitAsBoolToFloat (0.00s)
+=== RUN   TestEmitAsIntToBool
+    emit_test.go:2039: i32→bool: 1 cmps, 2 casts
+--- PASS: TestEmitAsIntToBool (0.00s)
+=== RUN   TestEmitIfElse
+    emit_test.go:2431: if/else: 4 BBs, 3 branches, 1300 bytes bitcode
+--- PASS: TestEmitIfElse (0.00s)
+=== RUN   TestEmitIfNoElse
+    emit_test.go:2463: if-no-else: 3 BBs, 2 branches, 1296 bytes bitcode
+--- PASS: TestEmitIfNoElse (0.00s)
+=== RUN   TestEmitLoop
+    emit_test.go:2496: loop: 7 BBs, 6 branches, 1152 bytes bitcode
+--- PASS: TestEmitLoop (0.00s)
+=== RUN   TestEmitLoopBreak
+    emit_test.go:2532: loop-break: 7 BBs, 1152 bytes bitcode
+--- PASS: TestEmitLoopBreak (0.00s)
+=== RUN   TestEmitLoopContinue
+    emit_test.go:2557: loop-continue: 9 BBs, 8 branches, 1160 bytes bitcode
+--- PASS: TestEmitLoopContinue (0.00s)
+=== RUN   TestEmitNestedIfLoop
+    emit_test.go:2587: nested if/loop: 11 BBs, 10 branches, 1164 bytes bitcode
+--- PASS: TestEmitNestedIfLoop (0.00s)
+=== RUN   TestEmitLocalVariable
+    emit_test.go:2865: local-var: alloca=1, store=2, load=1, 1160 bytes bitcode
+--- PASS: TestEmitLocalVariable (0.00s)
+=== RUN   TestEmitStoreLoad
+--- PASS: TestEmitStoreLoad (0.00s)
+=== RUN   TestEmitMultipleLocals
+    emit_test.go:2957: multiple-locals: alloca=0, store=0, load=0, 1136 bytes bitcode
+--- PASS: TestEmitMultipleLocals (0.00s)
+=== RUN   TestEmitLocalInLoop
+    emit_test.go:2988: local-in-loop: alloca=2, store=4, load=4
+    emit_test.go:3002: local-in-loop: 7 BBs, alloca=2, store=4, load=4, 1232 bytes bitcode
+--- PASS: TestEmitLocalInLoop (0.00s)
+=== RUN   TestEmitSwizzle
+    emit_test.go:3079: swizzle: 3 functions, 25 constants, 1304 bytes
+--- PASS: TestEmitSwizzle (0.00s)
+=== RUN   TestEmitDerivativeCoarseX
+    emit_test.go:3175: derivCoarseX: 4 functions, 1332 bytes
+--- PASS: TestEmitDerivativeCoarseX (0.00s)
+=== RUN   TestEmitDerivativeFineY
+    emit_test.go:3200: derivFineY: 4 functions, 1332 bytes
+--- PASS: TestEmitDerivativeFineY (0.00s)
+=== RUN   TestEmitDerivativeWidth
+    emit_test.go:3230: fwidth: 4 functions, 1380 bytes
+--- PASS: TestEmitDerivativeWidth (0.00s)
+=== RUN   TestEmitRelationalIsNaN
+    emit_test.go:3333: isNaN: 4 functions, 1356 bytes
+--- PASS: TestEmitRelationalIsNaN (0.00s)
+=== RUN   TestEmitRelationalIsInf
+    emit_test.go:3358: isInf: 4 functions, 1364 bytes
+--- PASS: TestEmitRelationalIsInf (0.00s)
+=== RUN   TestEmitUnsupportedExpression
+    emit_test.go:3410: got expected error: dxil/emit: entry point "main": function body: emit range [1]: expression [1]: ExprArrayLength: cannot resolve global variable from expression [0]
+--- PASS: TestEmitUnsupportedExpression (0.00s)
+=== RUN   TestEmitUnsupportedStatement
+    emit_test.go:3458: got expected error: dxil/emit: entry point "main": function body: unsupported ray query function: <nil>
+--- PASS: TestEmitUnsupportedStatement (0.00s)
+=== RUN   TestEmitStmtKillSilentSkip
+    emit_test.go:3507: StmtKill correctly silently skipped
+--- PASS: TestEmitStmtKillSilentSkip (0.00s)
+=== RUN   TestResourceAnalysis
+--- PASS: TestResourceAnalysis (0.00s)
+=== RUN   TestResourceAnalysisMultiple
+--- PASS: TestResourceAnalysisMultiple (0.00s)
+=== RUN   TestEmitCreateHandle
+    emit_test.go:3702: CBV createHandle emitted successfully
+--- PASS: TestEmitCreateHandle (0.00s)
+=== RUN   TestEmitCBVLoad
+--- PASS: TestEmitCBVLoad (0.00s)
+=== RUN   TestEmitCBVLoadMultiField
+--- PASS: TestEmitCBVLoadMultiField (0.00s)
+=== RUN   TestEmitCBVLoadI32
+--- PASS: TestEmitCBVLoadI32 (0.00s)
+=== RUN   TestEmitCBVLoadRegisterOffset
+    emit_test.go:4003: cbufferLoadLegacy call found with correct operand count for register 1
+--- PASS: TestEmitCBVLoadRegisterOffset (0.00s)
+=== RUN   TestEmitImageSample
+    emit_test.go:4120: Image sample emitted: createHandle=true, sample=true, extracts=5
+--- PASS: TestEmitImageSample (0.00s)
+=== RUN   TestResourceMetadata
+--- PASS: TestResourceMetadata (0.00s)
+=== RUN   TestNoResourcesNoMetadata
+--- PASS: TestNoResourcesNoMetadata (0.00s)
+=== RUN   TestEmitComputeEntryPoint
+    emit_test.go:4478: minimal compute: 14 types, 4 functions, 19 constants, 1324 bytes bitcode
+--- PASS: TestEmitComputeEntryPoint (0.00s)
+=== RUN   TestEmitComputeNumthreadsMetadata
+=== RUN   TestEmitComputeNumthreadsMetadata/64x1x1
+=== RUN   TestEmitComputeNumthreadsMetadata/8x8x1
+=== RUN   TestEmitComputeNumthreadsMetadata/4x4x4
+=== RUN   TestEmitComputeNumthreadsMetadata/256x1x1
+--- PASS: TestEmitComputeNumthreadsMetadata (0.00s)
+    --- PASS: TestEmitComputeNumthreadsMetadata/64x1x1 (0.00s)
+    --- PASS: TestEmitComputeNumthreadsMetadata/8x8x1 (0.00s)
+    --- PASS: TestEmitComputeNumthreadsMetadata/4x4x4 (0.00s)
+    --- PASS: TestEmitComputeNumthreadsMetadata/256x1x1 (0.00s)
+=== RUN   TestEmitThreadID
+--- PASS: TestEmitThreadID (0.00s)
+=== RUN   TestEmitMultipleComputeBuiltins
+--- PASS: TestEmitMultipleComputeBuiltins (0.00s)
+=== RUN   TestEmitUAVCreateHandle
+--- PASS: TestEmitUAVCreateHandle (0.00s)
+=== RUN   TestEmitUAVBufferLoadStore
+    emit_test.go:4693: compute with UAV: 17 types, 5 functions, 20 constants, 1472 bytes bitcode
+--- PASS: TestEmitUAVBufferLoadStore (0.00s)
+=== RUN   TestEmitComputeNoOutputSignature
+--- PASS: TestEmitComputeNoOutputSignature (0.00s)
+=== RUN   TestEmitComputeWorkgroupZeroClamping
+--- PASS: TestEmitComputeWorkgroupZeroClamping (0.00s)
+=== RUN   TestEmitComputeUAVResourceMetadata
+--- PASS: TestEmitComputeUAVResourceMetadata (0.00s)
+=== RUN   TestEmitAtomicAdd
+    emit_test.go:4890: atomic add compute: 14 types, 4 functions, 19 constants, 1316 bytes
+--- PASS: TestEmitAtomicAdd (0.00s)
+=== RUN   TestEmitAtomicCompareExchange
+    emit_test.go:5009: atomic CAS compute: 14 types, 4 functions, 20 constants, 1340 bytes
+--- PASS: TestEmitAtomicCompareExchange (0.00s)
+=== RUN   TestEmitBarrier
+    emit_test.go:5073: barrier compute: 5 types, 2 functions, 8 constants, 924 bytes
+--- PASS: TestEmitBarrier (0.00s)
+=== RUN   TestEmitMultipleAtomicOps
+    emit_test.go:5193: multi-atomic compute: 14 types, 4 functions, 19 constants, 1352 bytes
+--- PASS: TestEmitMultipleAtomicOps (0.00s)
+=== RUN   TestEmitBarrierFlags
+=== RUN   TestEmitBarrierFlags/storage_only
+=== RUN   TestEmitBarrierFlags/workgroup_only
+=== RUN   TestEmitBarrierFlags/storage_+_workgroup
+=== RUN   TestEmitBarrierFlags/subgroup_(must_include_memory_fence)
+=== RUN   TestEmitBarrierFlags/default_(zero_flags)_must_include_fence
+--- PASS: TestEmitBarrierFlags (0.00s)
+    --- PASS: TestEmitBarrierFlags/storage_only (0.00s)
+    --- PASS: TestEmitBarrierFlags/workgroup_only (0.00s)
+    --- PASS: TestEmitBarrierFlags/storage_+_workgroup (0.00s)
+    --- PASS: TestEmitBarrierFlags/subgroup_(must_include_memory_fence) (0.00s)
+    --- PASS: TestEmitBarrierFlags/default_(zero_flags)_must_include_fence (0.00s)
+=== RUN   TestEmitAtomicSubtract
+    emit_test.go:5399: atomic subtract compute: 14 types, 4 functions, 19 constants, 1320 bytes
+--- PASS: TestEmitAtomicSubtract (0.00s)
+=== RUN   TestEmitRawBufferFloatStoreUsesI32Overload
+    emit_test.go:5537: raw buffer float store: 0 bitcasts, 1 bufferStore.i32 calls, 1284 bytes bitcode
+--- PASS: TestEmitRawBufferFloatStoreUsesI32Overload (0.00s)
+=== RUN   TestEmitRawBufferIntStoreNoBitcast
+--- PASS: TestEmitRawBufferIntStoreNoBitcast (0.00s)
+=== RUN   TestEmitRawBufferFloatLoadUsesI32Overload
+    emit_test.go:5722: raw buffer float load: 4 bitcasts, 1 bufferLoad.i32 calls, 1524 bytes bitcode
+--- PASS: TestEmitRawBufferFloatLoadUsesI32Overload (0.00s)
+=== RUN   TestEmitRawBufferIntLoadNoBitcast
+--- PASS: TestEmitRawBufferIntLoadNoBitcast (0.00s)
+=== RUN   TestResourceNameSuffix
+=== RUN   TestResourceNameSuffix/t1
+=== RUN   TestResourceNameSuffix/atomic_i32
+=== RUN   TestResourceNameSuffix/input3
+=== RUN   TestResourceNameSuffix/in
+=== RUN   TestResourceNameSuffix/out
+=== RUN   TestResourceNameSuffix/indices
+=== RUN   TestResourceNameSuffix/data
+=== RUN   TestResourceNameSuffix/params
+=== RUN   TestResourceNameSuffix/camera
+--- PASS: TestResourceNameSuffix (0.00s)
+    --- PASS: TestResourceNameSuffix/t1 (0.00s)
+    --- PASS: TestResourceNameSuffix/atomic_i32 (0.00s)
+    --- PASS: TestResourceNameSuffix/input3 (0.00s)
+    --- PASS: TestResourceNameSuffix/in (0.00s)
+    --- PASS: TestResourceNameSuffix/out (0.00s)
+    --- PASS: TestResourceNameSuffix/indices (0.00s)
+    --- PASS: TestResourceNameSuffix/data (0.00s)
+    --- PASS: TestResourceNameSuffix/params (0.00s)
+    --- PASS: TestResourceNameSuffix/camera (0.00s)
+=== RUN   TestSamplerHeapHandleAfterInputLoads
+--- PASS: TestSamplerHeapHandleAfterInputLoads (0.00s)
+=== RUN   TestOutputStructPromotion
+--- PASS: TestOutputStructPromotion (0.00s)
+=== RUN   TestOutputStructPromotionNotInLoop
+--- PASS: TestOutputStructPromotionNotInLoop (0.00s)
+=== RUN   TestSingleStoreVectorLocalPromotion
+--- PASS: TestSingleStoreVectorLocalPromotion (0.00s)
+=== RUN   TestSingleStoreLocalNotInLoop
+--- PASS: TestSingleStoreLocalNotInLoop (0.00s)
+=== RUN   TestZeroStoreLocalPromotion
+--- PASS: TestZeroStoreLocalPromotion (0.00s)
+=== RUN   TestZeroStoreLocalWithInit
+--- PASS: TestZeroStoreLocalWithInit (0.00s)
+=== RUN   TestSameTypeCastElimination
+=== RUN   TestSameTypeCastElimination/i32_to_i32
+=== RUN   TestSameTypeCastElimination/u32_to_u32
+=== RUN   TestSameTypeCastElimination/u32_to_i32
+=== RUN   TestSameTypeCastElimination/i32_to_u32
+=== RUN   TestSameTypeCastElimination/f32_to_f32
+=== RUN   TestSameTypeCastElimination/u16_to_i16
+=== RUN   TestSameTypeCastElimination/f32_to_i32_not_noop
+=== RUN   TestSameTypeCastElimination/i32_to_f32_not_noop
+=== RUN   TestSameTypeCastElimination/i16_to_i32_not_noop
+--- PASS: TestSameTypeCastElimination (0.00s)
+    --- PASS: TestSameTypeCastElimination/i32_to_i32 (0.00s)
+    --- PASS: TestSameTypeCastElimination/u32_to_u32 (0.00s)
+    --- PASS: TestSameTypeCastElimination/u32_to_i32 (0.00s)
+    --- PASS: TestSameTypeCastElimination/i32_to_u32 (0.00s)
+    --- PASS: TestSameTypeCastElimination/f32_to_f32 (0.00s)
+    --- PASS: TestSameTypeCastElimination/u16_to_i16 (0.00s)
+    --- PASS: TestSameTypeCastElimination/f32_to_i32_not_noop (0.00s)
+    --- PASS: TestSameTypeCastElimination/i32_to_f32_not_noop (0.00s)
+    --- PASS: TestSameTypeCastElimination/i16_to_i32_not_noop (0.00s)
+=== RUN   TestIsIntegerKind
+--- PASS: TestIsIntegerKind (0.00s)
+=== RUN   TestSubToAddNeg
+--- PASS: TestSubToAddNeg (0.00s)
+=== RUN   TestMulToShl
+--- PASS: TestMulToShl (0.00s)
+=== RUN   TestURemStrengthReduction
+--- PASS: TestURemStrengthReduction (0.00s)
+=== RUN   TestURemStrengthReductionNonInt
+--- PASS: TestURemStrengthReductionNonInt (0.00s)
+=== RUN   TestHlslMangledGroupsharedName
+=== RUN   TestHlslMangledGroupsharedName/float_array
+=== RUN   TestHlslMangledGroupsharedName/uint_scalar
+=== RUN   TestHlslMangledGroupsharedName/int_array
+=== RUN   TestHlslMangledGroupsharedName/uint64_scalar
+=== RUN   TestHlslMangledGroupsharedName/digit-ending_name_gets_underscore
+=== RUN   TestHlslMangledGroupsharedName/atomic_uint_scalar
+=== RUN   TestHlslMangledGroupsharedName/atomic_uint_array
+--- PASS: TestHlslMangledGroupsharedName (0.00s)
+    --- PASS: TestHlslMangledGroupsharedName/float_array (0.00s)
+    --- PASS: TestHlslMangledGroupsharedName/uint_scalar (0.00s)
+    --- PASS: TestHlslMangledGroupsharedName/int_array (0.00s)
+    --- PASS: TestHlslMangledGroupsharedName/uint64_scalar (0.00s)
+    --- PASS: TestHlslMangledGroupsharedName/digit-ending_name_gets_underscore (0.00s)
+    --- PASS: TestHlslMangledGroupsharedName/atomic_uint_scalar (0.00s)
+    --- PASS: TestHlslMangledGroupsharedName/atomic_uint_array (0.00s)
+=== RUN   TestMsvcScalarCode
+=== RUN   TestMsvcScalarCode/float
+=== RUN   TestMsvcScalarCode/double
+=== RUN   TestMsvcScalarCode/uint
+=== RUN   TestMsvcScalarCode/uint64
+=== RUN   TestMsvcScalarCode/int
+=== RUN   TestMsvcScalarCode/int64
+=== RUN   TestMsvcScalarCode/unknown_width
+--- PASS: TestMsvcScalarCode (0.00s)
+    --- PASS: TestMsvcScalarCode/float (0.00s)
+    --- PASS: TestMsvcScalarCode/double (0.00s)
+    --- PASS: TestMsvcScalarCode/uint (0.00s)
+    --- PASS: TestMsvcScalarCode/uint64 (0.00s)
+    --- PASS: TestMsvcScalarCode/int (0.00s)
+    --- PASS: TestMsvcScalarCode/int64 (0.00s)
+    --- PASS: TestMsvcScalarCode/unknown_width (0.00s)
+=== RUN   TestIsInt64Type
+=== RUN   TestIsInt64Type/nil
+=== RUN   TestIsInt64Type/i32
+=== RUN   TestIsInt64Type/i64
+=== RUN   TestIsInt64Type/f64
+=== RUN   TestIsInt64Type/i16
+--- PASS: TestIsInt64Type (0.00s)
+    --- PASS: TestIsInt64Type/nil (0.00s)
+    --- PASS: TestIsInt64Type/i32 (0.00s)
+    --- PASS: TestIsInt64Type/i64 (0.00s)
+    --- PASS: TestIsInt64Type/f64 (0.00s)
+    --- PASS: TestIsInt64Type/i16 (0.00s)
+=== RUN   TestAlignForType
+=== RUN   TestAlignForType/i1
+=== RUN   TestAlignForType/i8
+=== RUN   TestAlignForType/i16
+=== RUN   TestAlignForType/i32
+=== RUN   TestAlignForType/i64
+=== RUN   TestAlignForType/f16
+=== RUN   TestAlignForType/f32
+=== RUN   TestAlignForType/f64
+--- PASS: TestAlignForType (0.00s)
+    --- PASS: TestAlignForType/i1 (0.00s)
+    --- PASS: TestAlignForType/i8 (0.00s)
+    --- PASS: TestAlignForType/i16 (0.00s)
+    --- PASS: TestAlignForType/i32 (0.00s)
+    --- PASS: TestAlignForType/i64 (0.00s)
+    --- PASS: TestAlignForType/f16 (0.00s)
+    --- PASS: TestAlignForType/f32 (0.00s)
+    --- PASS: TestAlignForType/f64 (0.00s)
+=== RUN   TestGlobalVarAlignment
+=== RUN   TestGlobalVarAlignment/i32
+=== RUN   TestGlobalVarAlignment/i64
+=== RUN   TestGlobalVarAlignment/f32
+=== RUN   TestGlobalVarAlignment/f64
+=== RUN   TestGlobalVarAlignment/[2_x_i32]
+=== RUN   TestGlobalVarAlignment/[2_x_i64]
+--- PASS: TestGlobalVarAlignment (0.00s)
+    --- PASS: TestGlobalVarAlignment/i32 (0.00s)
+    --- PASS: TestGlobalVarAlignment/i64 (0.00s)
+    --- PASS: TestGlobalVarAlignment/f32 (0.00s)
+    --- PASS: TestGlobalVarAlignment/f64 (0.00s)
+    --- PASS: TestGlobalVarAlignment/[2_x_i32] (0.00s)
+    --- PASS: TestGlobalVarAlignment/[2_x_i64] (0.00s)
+=== RUN   TestFoldNumericCast
+=== RUN   TestFoldNumericCast/sint0_to_float
+=== RUN   TestFoldNumericCast/sint1_to_float
+=== RUN   TestFoldNumericCast/sint_neg1_to_float
+=== RUN   TestFoldNumericCast/uint2_to_float
+=== RUN   TestFoldNumericCast/float0_to_sint
+=== RUN   TestFoldNumericCast/float1_to_sint
+=== RUN   TestFoldNumericCast/float2_5_to_uint
+--- PASS: TestFoldNumericCast (0.00s)
+    --- PASS: TestFoldNumericCast/sint0_to_float (0.00s)
+    --- PASS: TestFoldNumericCast/sint1_to_float (0.00s)
+    --- PASS: TestFoldNumericCast/sint_neg1_to_float (0.00s)
+    --- PASS: TestFoldNumericCast/uint2_to_float (0.00s)
+    --- PASS: TestFoldNumericCast/float0_to_sint (0.00s)
+    --- PASS: TestFoldNumericCast/float1_to_sint (0.00s)
+    --- PASS: TestFoldNumericCast/float2_5_to_uint (0.00s)
+=== RUN   TestAddMulOrShlInstr
+--- PASS: TestAddMulOrShlInstr (0.00s)
+=== RUN   TestExprLeadsToResourceRead
+=== RUN   TestExprLeadsToResourceRead/GlobalVariable(resource)
+=== RUN   TestExprLeadsToResourceRead/AccessIndex(resource,_0)
+=== RUN   TestExprLeadsToResourceRead/Load(AccessIndex(resource))
+=== RUN   TestExprLeadsToResourceRead/As(pure_ALU)
+--- PASS: TestExprLeadsToResourceRead (0.00s)
+    --- PASS: TestExprLeadsToResourceRead/GlobalVariable(resource) (0.00s)
+    --- PASS: TestExprLeadsToResourceRead/AccessIndex(resource,_0) (0.00s)
+    --- PASS: TestExprLeadsToResourceRead/Load(AccessIndex(resource)) (0.00s)
+    --- PASS: TestExprLeadsToResourceRead/As(pure_ALU) (0.00s)
+=== RUN   TestLeafEmitPriority
+=== RUN   TestLeafEmitPriority/already_emitted_literal
+=== RUN   TestLeafEmitPriority/Load(AccessIndex(resource))
+=== RUN   TestLeafEmitPriority/As(pure_cast)
+--- PASS: TestLeafEmitPriority (0.00s)
+    --- PASS: TestLeafEmitPriority/already_emitted_literal (0.00s)
+    --- PASS: TestLeafEmitPriority/Load(AccessIndex(resource)) (0.00s)
+    --- PASS: TestLeafEmitPriority/As(pure_cast) (0.00s)
+=== RUN   TestMergeConsecutiveEmitRanges
+=== RUN   TestMergeConsecutiveEmitRanges/two_consecutive_emits_merged
+=== RUN   TestMergeConsecutiveEmitRanges/three_consecutive_emits_merged
+=== RUN   TestMergeConsecutiveEmitRanges/emits_separated_by_store_not_merged
+=== RUN   TestMergeConsecutiveEmitRanges/single_emit_unchanged
+=== RUN   TestMergeConsecutiveEmitRanges/no_emits_unchanged
+=== RUN   TestMergeConsecutiveEmitRanges/empty_block
+=== RUN   TestMergeConsecutiveEmitRanges/two_groups_separated_by_if
+=== RUN   TestMergeConsecutiveEmitRanges/non-contiguous_ranges_merged_by_max_end
+--- PASS: TestMergeConsecutiveEmitRanges (0.00s)
+    --- PASS: TestMergeConsecutiveEmitRanges/two_consecutive_emits_merged (0.00s)
+    --- PASS: TestMergeConsecutiveEmitRanges/three_consecutive_emits_merged (0.00s)
+    --- PASS: TestMergeConsecutiveEmitRanges/emits_separated_by_store_not_merged (0.00s)
+    --- PASS: TestMergeConsecutiveEmitRanges/single_emit_unchanged (0.00s)
+    --- PASS: TestMergeConsecutiveEmitRanges/no_emits_unchanged (0.00s)
+    --- PASS: TestMergeConsecutiveEmitRanges/empty_block (0.00s)
+    --- PASS: TestMergeConsecutiveEmitRanges/two_groups_separated_by_if (0.00s)
+    --- PASS: TestMergeConsecutiveEmitRanges/non-contiguous_ranges_merged_by_max_end (0.00s)
+=== RUN   TestMergeConsecutiveEmitRangesNoAlloc
+--- PASS: TestMergeConsecutiveEmitRangesNoAlloc (0.00s)
+=== RUN   TestSplitPhiRanges
+=== RUN   TestSplitPhiRanges/no_phi_ranges
+=== RUN   TestSplitPhiRanges/only_phi_ranges
+=== RUN   TestSplitPhiRanges/mixed_phi_and_non-phi
+=== RUN   TestSplitPhiRanges/multi-handle_range_not_treated_as_phi
+--- PASS: TestSplitPhiRanges (0.00s)
+    --- PASS: TestSplitPhiRanges/no_phi_ranges (0.00s)
+    --- PASS: TestSplitPhiRanges/only_phi_ranges (0.00s)
+    --- PASS: TestSplitPhiRanges/mixed_phi_and_non-phi (0.00s)
+    --- PASS: TestSplitPhiRanges/multi-handle_range_not_treated_as_phi (0.00s)
+=== RUN   TestIsPhiExpression
+--- PASS: TestIsPhiExpression (0.00s)
+=== RUN   TestIsFollowedByEmit
+--- PASS: TestIsFollowedByEmit (0.00s)
+=== RUN   TestDecomposeWorkgroupStructNames
+--- PASS: TestDecomposeWorkgroupStructNames (0.00s)
+=== RUN   TestIsMultiDimArray
+=== RUN   TestIsMultiDimArray/scalar
+=== RUN   TestIsMultiDimArray/atomic
+=== RUN   TestIsMultiDimArray/1D_array
+=== RUN   TestIsMultiDimArray/2D_array
+--- PASS: TestIsMultiDimArray (0.00s)
+    --- PASS: TestIsMultiDimArray/scalar (0.00s)
+    --- PASS: TestIsMultiDimArray/atomic (0.00s)
+    --- PASS: TestIsMultiDimArray/1D_array (0.00s)
+    --- PASS: TestIsMultiDimArray/2D_array (0.00s)
+=== RUN   TestDecomposeWorkgroupStructMemberTypes
+--- PASS: TestDecomposeWorkgroupStructMemberTypes (0.00s)
+PASS

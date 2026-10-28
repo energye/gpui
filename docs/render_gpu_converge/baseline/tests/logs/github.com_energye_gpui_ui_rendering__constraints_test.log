@@ -1,0 +1,5 @@
+=== RUN   TestConstraints_Tighten
+--- PASS: TestConstraints_Tighten (0.00s)
+=== RUN   TestConstraints_Tight
+--- PASS: TestConstraints_Tight (0.00s)
+PASS

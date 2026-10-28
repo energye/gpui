@@ -1,0 +1,9 @@
+=== RUN   TestApplyGrayscale_DesaturatesRed
+--- PASS: TestApplyGrayscale_DesaturatesRed (0.00s)
+=== RUN   TestApplyBlur_SoftensHardEdge
+--- PASS: TestApplyBlur_SoftensHardEdge (0.00s)
+=== RUN   TestApplyDropShadow_ChangesPixels
+--- PASS: TestApplyDropShadow_ChangesPixels (0.00s)
+=== RUN   TestPushBackdrop_BlursUnderContent
+--- PASS: TestPushBackdrop_BlursUnderContent (0.00s)
+PASS

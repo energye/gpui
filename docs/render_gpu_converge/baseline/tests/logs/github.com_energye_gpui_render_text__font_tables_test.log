@@ -1,0 +1,112 @@
+=== RUN   TestParseFontTablesIndex
+--- PASS: TestParseFontTablesIndex (0.00s)
+=== RUN   TestParseFontTablesIndex_InvalidIndex
+--- PASS: TestParseFontTablesIndex_InvalidIndex (0.00s)
+=== RUN   TestParseFontTablesIndex_TruncatedData
+--- PASS: TestParseFontTablesIndex_TruncatedData (0.00s)
+=== RUN   TestCmapParser
+=== RUN   TestCmapParser/tthint_subset.ttf
+=== RUN   TestCmapParser/ahem.ttf
+=== RUN   TestCmapParser/cousine_hint_subset.ttf
+--- PASS: TestCmapParser (0.00s)
+    --- PASS: TestCmapParser/tthint_subset.ttf (0.00s)
+    --- PASS: TestCmapParser/ahem.ttf (0.00s)
+    --- PASS: TestCmapParser/cousine_hint_subset.ttf (0.00s)
+=== RUN   TestCmapParser_NotdefForMissing
+--- PASS: TestCmapParser_NotdefForMissing (0.00s)
+=== RUN   TestCmapParser_MultipleRunes
+--- PASS: TestCmapParser_MultipleRunes (0.00s)
+=== RUN   TestHmtxAdvance
+=== RUN   TestHmtxAdvance/tthint_subset.ttf
+=== RUN   TestHmtxAdvance/ahem.ttf
+=== RUN   TestHmtxAdvance/cousine_hint_subset.ttf
+    font_tables_test.go:167: font does not contain 'A'
+--- PASS: TestHmtxAdvance (0.00s)
+    --- PASS: TestHmtxAdvance/tthint_subset.ttf (0.00s)
+    --- PASS: TestHmtxAdvance/ahem.ttf (0.00s)
+    --- SKIP: TestHmtxAdvance/cousine_hint_subset.ttf (0.00s)
+=== RUN   TestHmtxAdvance_KnownValues
+--- PASS: TestHmtxAdvance_KnownValues (0.00s)
+=== RUN   TestNameParser
+=== RUN   TestNameParser/tthint_subset.ttf
+=== RUN   TestNameParser/ahem.ttf
+=== RUN   TestNameParser/cousine_hint_subset.ttf
+--- PASS: TestNameParser (0.00s)
+    --- PASS: TestNameParser/tthint_subset.ttf (0.00s)
+    --- PASS: TestNameParser/ahem.ttf (0.00s)
+    --- PASS: TestNameParser/cousine_hint_subset.ttf (0.00s)
+=== RUN   TestFullNameParser
+=== RUN   TestFullNameParser/cousine_hint_subset.ttf
+--- PASS: TestFullNameParser (0.00s)
+    --- PASS: TestFullNameParser/cousine_hint_subset.ttf (0.00s)
+=== RUN   TestFontMetrics
+=== RUN   TestFontMetrics/tthint_subset.ttf
+=== RUN   TestFontMetrics/ahem.ttf
+=== RUN   TestFontMetrics/cousine_hint_subset.ttf
+--- PASS: TestFontMetrics (0.00s)
+    --- PASS: TestFontMetrics/tthint_subset.ttf (0.00s)
+    --- PASS: TestFontMetrics/ahem.ttf (0.00s)
+    --- PASS: TestFontMetrics/cousine_hint_subset.ttf (0.00s)
+=== RUN   TestFontMetrics_ScalingCorrectness
+--- PASS: TestFontMetrics_ScalingCorrectness (0.00s)
+=== RUN   TestFontMetrics_FaceIntegration
+--- PASS: TestFontMetrics_FaceIntegration (0.00s)
+=== RUN   TestUnitsPerEmAndNumGlyphs
+=== RUN   TestUnitsPerEmAndNumGlyphs/tthint_subset.ttf
+=== RUN   TestUnitsPerEmAndNumGlyphs/ahem.ttf
+--- PASS: TestUnitsPerEmAndNumGlyphs (0.00s)
+    --- PASS: TestUnitsPerEmAndNumGlyphs/tthint_subset.ttf (0.00s)
+    --- PASS: TestUnitsPerEmAndNumGlyphs/ahem.ttf (0.00s)
+=== RUN   TestGlyphBounds
+--- PASS: TestGlyphBounds (0.00s)
+=== RUN   TestGlyphBounds_EmptyGlyph
+--- PASS: TestGlyphBounds_EmptyGlyph (0.00s)
+=== RUN   TestRawFontDataProvider
+--- PASS: TestRawFontDataProvider (0.00s)
+=== RUN   TestVariableAdvanceProvider
+--- PASS: TestVariableAdvanceProvider (0.00s)
+=== RUN   TestOwnParsedFont_TTHintCache
+--- PASS: TestOwnParsedFont_TTHintCache (0.00s)
+=== RUN   TestOwnParserRegistered
+--- PASS: TestOwnParserRegistered (0.00s)
+=== RUN   TestOwnParserViaFontSource
+--- PASS: TestOwnParserViaFontSource (0.00s)
+=== RUN   TestOwnParserViaFontSource_Cousine
+--- PASS: TestOwnParserViaFontSource_Cousine (0.00s)
+=== RUN   TestCrossValidation
+=== RUN   TestCrossValidation/tthint_subset.ttf
+=== RUN   TestCrossValidation/ahem.ttf
+=== RUN   TestCrossValidation/cousine_hint_subset.ttf
+--- PASS: TestCrossValidation (0.00s)
+    --- PASS: TestCrossValidation/tthint_subset.ttf (0.00s)
+    --- PASS: TestCrossValidation/ahem.ttf (0.00s)
+    --- PASS: TestCrossValidation/cousine_hint_subset.ttf (0.00s)
+=== RUN   TestOwnParser_EmptyData
+--- PASS: TestOwnParser_EmptyData (0.00s)
+=== RUN   TestOwnParser_InvalidData
+--- PASS: TestOwnParser_InvalidData (0.00s)
+=== RUN   TestCmapGlyphIndex_BeyondBMP
+    font_tables_test.go:625: Hebrew Alef not found in NotoSerifHebrew (might be subset)
+--- PASS: TestCmapGlyphIndex_BeyondBMP (0.00s)
+=== RUN   TestGlyphBounds_CrossValidation
+=== RUN   TestGlyphBounds_CrossValidation/tthint_subset.ttf
+=== RUN   TestGlyphBounds_CrossValidation/ahem.ttf
+=== RUN   TestGlyphBounds_CrossValidation/cousine_hint_subset.ttf
+--- PASS: TestGlyphBounds_CrossValidation (0.00s)
+    --- PASS: TestGlyphBounds_CrossValidation/tthint_subset.ttf (0.00s)
+    --- PASS: TestGlyphBounds_CrossValidation/ahem.ttf (0.00s)
+    --- PASS: TestGlyphBounds_CrossValidation/cousine_hint_subset.ttf (0.00s)
+=== RUN   TestExtractOutline_OwnParser
+    font_tables_test.go:751: own: 765 segments, advance=20.307692, bounds={MinX:0 MinY:-24.115385055541992 MaxX:20.30769157409668 MaxY:7.384615421295166}
+    font_tables_test.go:753: ximg: 765 segments, advance=20.307692, bounds={MinX:0 MinY:-24.115385055541992 MaxX:20.30769157409668 MaxY:7.384615421295166}
+--- PASS: TestExtractOutline_OwnParser (0.00s)
+=== RUN   TestExtractOutline_OwnParser_EmptyGlyph
+--- PASS: TestExtractOutline_OwnParser_EmptyGlyph (0.00s)
+=== RUN   TestTTBytecodeHintingGeneric_OwnParser
+--- PASS: TestTTBytecodeHintingGeneric_OwnParser (0.01s)
+=== RUN   TestComputeDefaultBlues_OwnParser
+    font_tables_test.go:848: ownBlues: 0 zones, ximgBlues: 0 zones
+--- PASS: TestComputeDefaultBlues_OwnParser (0.00s)
+=== RUN   TestCmapGlyphIndex_NotoSerifShaping
+--- PASS: TestCmapGlyphIndex_NotoSerifShaping (0.00s)
+PASS

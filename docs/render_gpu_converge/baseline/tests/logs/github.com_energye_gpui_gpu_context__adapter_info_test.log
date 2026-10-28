@@ -1,0 +1,5 @@
+=== RUN   TestAdapterTypeString
+--- PASS: TestAdapterTypeString (0.00s)
+=== RUN   TestAdapterInfoZeroValue
+--- PASS: TestAdapterInfoZeroValue (0.00s)
+PASS

@@ -1,0 +1,17 @@
+=== RUN   TestContextCloseFlushesGPU
+--- PASS: TestContextCloseFlushesGPU (0.00s)
+=== RUN   TestContextCloseWithoutAccelerator
+--- PASS: TestContextCloseWithoutAccelerator (0.00s)
+=== RUN   TestContextWithSDFAcceleratorFillCircle
+--- PASS: TestContextWithSDFAcceleratorFillCircle (0.00s)
+=== RUN   TestContextWithSDFAcceleratorStrokeCircle
+--- PASS: TestContextWithSDFAcceleratorStrokeCircle (0.00s)
+=== RUN   TestContextFallbackToSoftware
+--- PASS: TestContextFallbackToSoftware (0.00s)
+=== RUN   TestContextNoAcceleratorSoftwarePath
+--- PASS: TestContextNoAcceleratorSoftwarePath (0.00s)
+=== RUN   TestContextFillPreserveWithAccelerator
+--- PASS: TestContextFillPreserveWithAccelerator (0.00s)
+=== RUN   TestContextStrokePreserveWithAccelerator
+--- PASS: TestContextStrokePreserveWithAccelerator (0.00s)
+PASS

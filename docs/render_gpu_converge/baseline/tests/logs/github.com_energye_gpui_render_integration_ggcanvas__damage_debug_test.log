@@ -1,0 +1,13 @@
+=== RUN   TestDamageOverlay_RefreshSameRect
+--- PASS: TestDamageOverlay_RefreshSameRect (0.00s)
+=== RUN   TestDamageOverlay_DifferentRectsNotDeduped
+--- PASS: TestDamageOverlay_DifferentRectsNotDeduped (0.00s)
+=== RUN   TestDamageOverlay_ExpiredFlashAllowsNewForSameRect
+--- PASS: TestDamageOverlay_ExpiredFlashAllowsNewForSameRect (0.00s)
+=== RUN   TestDamageOverlay_NeedsAnimationFrameFalseAfterExpiry
+--- PASS: TestDamageOverlay_NeedsAnimationFrameFalseAfterExpiry (0.00s)
+=== RUN   TestDamageOverlay_FeedbackLoopBroken
+--- PASS: TestDamageOverlay_FeedbackLoopBroken (0.00s)
+=== RUN   TestDamageOverlay_EmptyRectsIgnored
+--- PASS: TestDamageOverlay_EmptyRectsIgnored (0.00s)
+PASS

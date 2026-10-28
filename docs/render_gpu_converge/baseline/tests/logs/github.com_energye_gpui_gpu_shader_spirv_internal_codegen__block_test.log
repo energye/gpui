@@ -1,0 +1,29 @@
+=== RUN   TestNewBlock
+--- PASS: TestNewBlock (0.00s)
+=== RUN   TestFunctionBuilder_Consume
+--- PASS: TestFunctionBuilder_Consume (0.00s)
+=== RUN   TestFunctionBuilder_ToInstructions
+--- PASS: TestFunctionBuilder_ToInstructions (0.00s)
+=== RUN   TestFunctionBuilder_VariablesInFirstBlock
+--- PASS: TestFunctionBuilder_VariablesInFirstBlock (0.00s)
+=== RUN   TestBlockExitKind_Constants
+=== RUN   TestBlockExitKind_Constants/BlockExitReturn
+=== RUN   TestBlockExitKind_Constants/BlockExitBranch
+=== RUN   TestBlockExitKind_Constants/BlockExitBreakIf
+--- PASS: TestBlockExitKind_Constants (0.00s)
+    --- PASS: TestBlockExitKind_Constants/BlockExitReturn (0.00s)
+    --- PASS: TestBlockExitKind_Constants/BlockExitBranch (0.00s)
+    --- PASS: TestBlockExitKind_Constants/BlockExitBreakIf (0.00s)
+=== RUN   TestBlockExitDisposition_Constants
+--- PASS: TestBlockExitDisposition_Constants (0.00s)
+=== RUN   TestBlockExit_Fields
+--- PASS: TestBlockExit_Fields (0.00s)
+=== RUN   TestLoopContext_ValueSemantics
+--- PASS: TestLoopContext_ValueSemantics (0.00s)
+=== RUN   TestMakeLabelInstruction
+--- PASS: TestMakeLabelInstruction (0.00s)
+=== RUN   TestMakeFunctionEndInstruction
+--- PASS: TestMakeFunctionEndInstruction (0.00s)
+=== RUN   TestFunctionBuilder_EmptyFunction
+--- PASS: TestFunctionBuilder_EmptyFunction (0.00s)
+PASS

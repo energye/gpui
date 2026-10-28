@@ -1,0 +1,9 @@
+=== RUN   TestClusterBoundary_CombiningMark
+--- PASS: TestClusterBoundary_CombiningMark (0.00s)
+=== RUN   TestClusterBoundary_ZWJ
+--- PASS: TestClusterBoundary_ZWJ (0.00s)
+=== RUN   TestClusterBoundary_SurrogatePair
+--- PASS: TestClusterBoundary_SurrogatePair (0.00s)
+=== RUN   TestClusterBoundary_PlainASCII
+--- PASS: TestClusterBoundary_PlainASCII (0.00s)
+PASS

@@ -1,0 +1,1399 @@
+status	pkg	file	funcs	pass	skip	fail	rc	duration_s	note
+PASS	github.com/energye/gpui/engine/anim	easing_test.go	6	6	0	0	0	0.2	
+PASS	github.com/energye/gpui/engine/anim	skeleton_test.go	6	6	0	0	0	0.4	
+PASS	github.com/energye/gpui/engine/anim	statemachine_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/anim	timeline_test.go	6	6	0	0	0	0.2	
+PASS	github.com/energye/gpui/engine/asset	asset_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/asset	atlaspack_test.go	9	9	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/asset	atlastool_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/asset	budget_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/asset	hotreload_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/asset	reload_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/audio	music_bus_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/audio	positional_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/camera	basis25d_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/camera	camera_project_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/camera	camera_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/camera	parallax_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/core	core_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/debug	stats_test.go	6	6	0	0	0	0.2	
+PASS	github.com/energye/gpui/engine/dirty	dirty_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/fx	bloom_lut_test.go	6	6	0	0	0	0.7	
+PASS	github.com/energye/gpui/engine/fx	custom_test.go	6	6	0	0	0	0.5	
+PASS	github.com/energye/gpui/engine/fx	tonemap66_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/fx	warp_test.go	6	6	0	0	0	0.9	
+PASS	github.com/energye/gpui/engine/input	action_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/input	buffer_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/light	light_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/light	normal_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/light	rough_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/light	shadow_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/light	softshadow_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/loop	loop_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/nav	nav_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/particle	emitter_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/particle	gpu_trail_test.go	7	7	0	0	0	0.2	
+PASS	github.com/energye/gpui/engine/physics	body_ray_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/physics	body_test.go	6	6	0	0	0	0.6	
+PASS	github.com/energye/gpui/engine/physics	broadphase_test.go	10	10	0	0	0	2.3	
+PASS	github.com/energye/gpui/engine/physics	platform_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/physics	snap_mode_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/pool	pool_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/preview	preview_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/quality	quality_test.go	6	6	0	0	0	0.2	
+PASS	github.com/energye/gpui/engine/renderconv	conv_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/save	save_test.go	6	6	0	0	0	0.2	
+PASS	github.com/energye/gpui/engine/sprite	atlas_test.go	6	6	0	0	0	0.6	
+PASS	github.com/energye/gpui/engine/sprite	batch_test.go	7	7	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/sprite	depth_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/sprite	flipbook_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/sprite	ysort_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/step	fixed_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/step	time_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/tex	compressed_test.go	12	12	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/tex	mipmap_test.go	8	8	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/tex	stream_test.go	6	6	0	0	0	1.5	
+PASS	github.com/energye/gpui/engine/tilemap	chunk_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/tilemap	large_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/tilemap	lod_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/tilemap	tilemap_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/world	cull_test.go	10	10	0	0	0	6.0	
+PASS	github.com/energye/gpui/engine/world	entity_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/engine/world	lifecycle_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/engine/world	scene_test.go	6	6	0	0	0	0.2	
+PASS	github.com/energye/gpui/examples/hostsink	sink_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/examples/pfkit	pfkit_test.go	6	6	0	0	0	1.3	
+PASS	github.com/energye/gpui/examples/render_text	example_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/examples/render_text_fallback	example_test.go	6	6	0	0	0	0.2	
+FAIL	github.com/energye/gpui/examples/ui_l2_shell	scene_test.go	3	2	0	1	1	0.0	1 failing test(s)
+PASS	github.com/energye/gpui/examples/ui_render_jumprope	fit_test.go	1	1	0	0	0	0.0	
+FAIL	github.com/energye/gpui/examples/video/video_a4_sink	a4_sink_test.go	6	5	0	1	1	4.1	1 failing test(s)
+PASS	github.com/energye/gpui/examples/video/video_player	open_test.go	8	8	0	0	0	1.2	
+PASS	github.com/energye/gpui/examples/wrgate	report_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	adapter_info_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	device_box_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	events_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	gesture_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	platform_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	pointer_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	registry_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	scroll_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	texture_view_box_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/ffishim	call_shape_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/ffishim	ffishim_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles/egl	context_policy_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles/egl	device_enum_nosupport_test.go	1	1	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/gwgpu/gles/gl	const_test.go	0	0	0	0	0	0.0	windows only; not built on linux/amd64
+PASS	github.com/energye/gpui/gpu/gwgpu/indirect	span_test.go	3	3	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	behavior_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	compute_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	conv_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	encoder_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	icb_indexed_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	icb_pipeline_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	indirect_count_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	main_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	objc_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	stub_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	surface_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/metal	texture_copy_test.go	0	0	0	0	0	0.0	darwin only; not built on linux/amd64
+PASS	github.com/energye/gpui/gpu/gwgpu/metal/mslmap	mslmap_test.go	4	4	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	backend_test.go	79	79	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	compile_test.go	100	100	0	0	0	0.1	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	continue_forward_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	coverage_test.go	101	101	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	expressions_test.go	60	60	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	features_test.go	33	33	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	reachability_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	statements_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	struct_io_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	texture_sampler_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	types_test.go	28	28	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	unsupported_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/glsl/internal/codegen	writer_utils_test.go	24	24	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/backend	hlsl_namer_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/backend	interface_order_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/backend	sig_pack_binding_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/backend	sig_pack_test.go	14	14	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	dxcvalidator_windows_test.go	1	0	0	0	0	0.0	build tag `windows` excludes it on linux/amd64
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator	precheck_test.go	15	3	12	0	0	0.0	12 skipped
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck	bitcheck_test.go	11	8	3	0	0	0.0	3 skipped
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck	bitstream_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck	blocks_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck	metadata_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/registry	registry_test.go	18	18	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/internal/textutil	textutil_test.go	4	4	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/gwgpu/naga/ir	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	compact_test.go	67	67	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	inline_coverage_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	inline_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	ir_coverage_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	ir_test.go	18	18	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	process_overrides_coverage_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	process_overrides_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	resolve_coverage_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	resolve_extended_test.go	70	70	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	resolve_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	type_size_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	validate_capabilities_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	validate_expression_test.go	43	43	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/ir	validate_semantic_test.go	60	60	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_xcrun_test.go	2	0	0	0	0	0.0	build tag `darwin` excludes it on linux/amd64
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	backend_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	coverage_test.go	34	34	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	expressions_test.go	27	26	1	0	0	0.0	1 skipped
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	int64_atomics_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_integration2_test.go	38	38	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_integration3_test.go	37	37	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_integration4_test.go	30	30	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_integration5_test.go	95	95	0	0	0	0.1	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_integration6_test.go	47	47	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_integration7_test.go	30	30	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_integration8_test.go	26	26	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	msl_integration_test.go	93	93	0	0	0	0.1	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	pipeline_constants_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	statements_test.go	23	23	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	types_test.go	20	20	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/msl/internal/codegen	unsupported_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl	errors_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl	wgsl_errors_test.go	6	6	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage10_test.go	37	37	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage2_test.go	69	69	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage3_test.go	45	45	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage4_test.go	34	34	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage5_test.go	34	34	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage6_test.go	110	110	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage7_test.go	64	64	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage8_test.go	50	50	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage9_test.go	46	46	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	coverage_test.go	84	84	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	deduplication_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	lower_test.go	28	28	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	lower_type_inference_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower	swizzle_assignment_test.go	38	38	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/parser	coverage_test.go	55	55	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/parser	errors_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/parser	lexer_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/parser	parser_test.go	28	28	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/hal	bench_cross_backend_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/gpu/hal	bench_raytracing_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/hal	indirect_count_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/hal	logger_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/hal	surface_target_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/hal	vram_ledger_test.go	4	4	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/hal/noop	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/hal/noop	behavior_test.go	4	4	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/shader	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/shader	naga_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil	dxil_integration_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil	dxil_test.go	28	28	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil	sig_usage_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil	validate_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/bitcode	writer_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/container	container_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/container	psv_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/container	semantic_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/container	signature_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/container	stat_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/emit	bug026_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/emit	byte_layout_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/emit	coverage_test.go	50	50	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/emit	emit_test.go	127	127	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/emit	inline_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/emit	input_used_mask_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/emit	io_test.go	18	18	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/emit	reassociate_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/emit	resources_test.go	23	23	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/module	module_test.go	74	74	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/passes/dce	dce_coverage_test.go	27	27	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/passes/dce	dce_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/passes/mem2reg	mem2reg_coverage_test.go	21	21	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/passes/mem2reg	mem2reg_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/passes/sroa	sroa_coverage_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/passes/sroa	sroa_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/viewid	analysis_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/viewid	dataflow_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/viewid	expressions_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/dxil/internal/viewid	walker_test.go	6	6	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	backend_test.go	79	79	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	compile_test.go	100	100	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	continue_forward_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	coverage_test.go	101	101	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	expressions_test.go	60	60	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	features_test.go	33	33	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	reachability_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	statements_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	struct_io_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	texture_sampler_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	types_test.go	28	28	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	unsupported_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/glsl/internal/codegen	writer_utils_test.go	24	24	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl	hlsl_e2e_test.go	23	23	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	backend_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	bind_target_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	conv_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	errors_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	expressions_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	external_texture_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	hlsl_advanced_test.go	32	32	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	hlsl_compile_test.go	76	76	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	hlsl_coverage_test.go	46	46	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	hlsl_statements_test.go	32	32	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	hlsl_types_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	hlsl_uncovered_test.go	66	66	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	keywords_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	namer_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	shader_model_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	statements_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	storage_test.go	39	39	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	types_test.go	24	24	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	writer_patterns_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/hlsl/internal/codegen	writer_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/internal/backend	hlsl_namer_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/internal/backend	interface_order_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/internal/backend	sig_pack_binding_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/internal/backend	sig_pack_test.go	14	14	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/shader/internal/dxcvalidator	dxcvalidator_windows_test.go	1	0	0	0	0	0.0	build tag `windows` excludes it on linux/amd64
+PASS	github.com/energye/gpui/gpu/shader/internal/dxcvalidator	precheck_test.go	15	4	11	0	0	0.0	11 skipped
+PASS	github.com/energye/gpui/gpu/shader/internal/dxcvalidator/bitcheck	bitcheck_test.go	11	9	2	0	0	0.0	2 skipped
+PASS	github.com/energye/gpui/gpu/shader/internal/dxcvalidator/bitcheck	bitstream_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/internal/dxcvalidator/bitcheck	blocks_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/internal/dxcvalidator/bitcheck	metadata_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/internal/registry	registry_test.go	18	18	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/internal/textutil	textutil_test.go	4	4	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/shader/ir	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/shader/ir	compact_test.go	67	67	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	inline_coverage_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	inline_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	ir_coverage_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	ir_test.go	18	18	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	process_overrides_coverage_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	process_overrides_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	resolve_coverage_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	resolve_extended_test.go	70	70	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	resolve_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	type_size_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	validate_expression_test.go	43	43	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/ir	validate_semantic_test.go	60	60	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/shader/msl/internal/codegen	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_xcrun_test.go	1	0	0	0	0	0.0	build tag `darwin` excludes it on linux/amd64
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	backend_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	coverage_test.go	34	34	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	expressions_test.go	27	26	1	0	0	0.0	1 skipped
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_integration2_test.go	38	38	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_integration3_test.go	37	37	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_integration4_test.go	30	30	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_integration5_test.go	92	92	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_integration6_test.go	47	47	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_integration7_test.go	30	30	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_integration8_test.go	26	26	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	msl_integration_test.go	93	93	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	pipeline_constants_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	statements_test.go	23	23	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	types_test.go	20	20	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/msl/internal/codegen	unsupported_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv	backend_example_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv	example_test.go	3	3	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	atomic_type_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	backend_test.go	30	30	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	block_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	call_conditional_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	capabilities_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	coverage_direct_ir_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	coverage_image_atomic_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	coverage_math_spill_test.go	19	19	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	coverage_subgroup_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	coverage_test.go	107	107	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	coverage_wgsl_deep_test.go	24	24	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	divmod_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	image_bounds_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	loop_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	math_args_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	phase12_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	phase3_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	ray_query_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	reference_shaders_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	sdf_analysis_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	shader_test.go	51	37	14	0	0	0.1	14 skipped
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	var_ifelse_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	var_init_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	vec2_ifelse_cache_test.go	6	5	1	0	0	0.0	1 skipped
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	vello_workaround_test.go	11	10	1	0	0	0.0	1 skipped
+PASS	github.com/energye/gpui/gpu/shader/spirv/internal/codegen	writer_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl	errors_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl	wgsl_errors_test.go	6	6	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage10_test.go	37	37	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage2_test.go	69	69	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage3_test.go	45	45	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage4_test.go	34	34	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage5_test.go	34	34	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage6_test.go	110	110	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage7_test.go	64	64	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage8_test.go	50	50	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage9_test.go	46	46	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	coverage_test.go	84	84	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	deduplication_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	lower_test.go	28	28	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/lower	lower_type_inference_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/parser	coverage_test.go	55	55	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/parser	errors_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/parser	lexer_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/shader/wgsl/internal/parser	parser_test.go	28	28	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/types	texture_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu/internal/browser	convert_command_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu/internal/browser	convert_enums_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu/internal/browser	convert_surface_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu/internal/thread	thread_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/gpu	lifecycle_policy_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/integration/ggcanvas	canvas_test.go	48	48	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/integration/ggcanvas	damage_debug_test.go	6	6	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/internal/blend	benchmark_simd_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/internal/blend	advanced_test.go	19	19	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	batch_advanced_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	batch_porter_duff_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	blend_batch_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	hsl_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	layer_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	linear_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	math_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	p0_blend_alpha_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	porter_duff_test.go	18	18	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/blend	visual_test.go	4	4	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/internal/cache	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/internal/cache	cache_test.go	21	21	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/clip	edge_clipper_test.go	27	27	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/clip	mask_fillrule_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/clip	mask_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/clip	stack_test.go	33	33	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/internal/color	benchmark_lut_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/internal/color	color_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/color	lut_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/conformance	comparator_test.go	2	2	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/internal/filter	helpers_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/internal/filter	blur_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/filter	colormatrix_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/filter	kernel_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/filter	shadow_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/res	attack_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/res	cache_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/res	registry_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/res	submission_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/res	view_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/tilecompute	backdrop_workaround_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/tilecompute	clip_integration_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/tilecompute	coarse_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/tilecompute	fine_clip_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/tilecompute	fine_ptcl_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu/tilecompute	rasterizer_test.go	4	4	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/internal/gpu/tilecompute	scene_encode_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	affine_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	buf_race_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	buf_test.go	25	25	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	draw_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	format_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	interp_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	io_test.go	26	26	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	mipmap_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	pattern_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/image	pool_test.go	9	9	0	0	0	0.2	
+SKIP	github.com/energye/gpui/render/internal/parallel	benchmark_scaling_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/internal/parallel	benchmark_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/internal/parallel	dirty_test.go	18	18	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/parallel	pool_test.go	22	22	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/parallel	rasterizer_test.go	25	25	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/parallel	tile_test.go	28	28	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	alpha_runs_extended_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	alpha_runs_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	analytic_filler_convex_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	analytic_filler_extended_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	analytic_filler_formula_test.go	32	32	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	analytic_filler_golden_test.go	7	4	3	0	0	0.0	3 skipped
+PASS	github.com/energye/gpui/render/internal/raster	analytic_filler_regression_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	analytic_filler_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	curve_aet_test.go	14	13	1	0	0	0.0	1 skipped
+PASS	github.com/energye/gpui/render/internal/raster	curve_edge_extended_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	curve_edge_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	edge_builder_clip_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	edge_builder_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	edge_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	fixed_test.go	23	23	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	noaa_buffer_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	noaa_filler_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	path_geometry_extended_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	path_geometry_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	vertex_debug_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/raster	winding_residual_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/stroke	expander_golden_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/stroke	expander_test.go	30	30	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/internal/wide	benchmark_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/internal/wide	batch_aa_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/wide	batch_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/wide	f32x8_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/wide	u16x16_test.go	9	9	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/recording	backend_stub_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/recording	backend_canvas_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	bounds_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	brush_test.go	18	18	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	command_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	gradient_ctm_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	mask_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	matrix_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	pool_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	recorder_coverage_test.go	29	29	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	recorder_test.go	42	42	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	registry_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording	shader_mask_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording/backends/raster	backend_c2b_parity_test.go	7	7	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/recording/backends/raster	backend_context_parity_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording/backends/raster	backend_coverage_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording/backends/raster	backend_paint_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/recording/backends/raster	backend_test.go	15	13	2	0	0	0.0	2 skipped
+PASS	github.com/energye/gpui/render/recording/backends/raster	backend_transform_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/render	device_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/render	example_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/render	float_target_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/render	gpu_renderer_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/render	layers_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/render	scene_test.go	20	20	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/render	software_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/render	target_test.go	9	9	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/scene	benchmark_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/scene	antialias_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	append_image_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	append_translation_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	blend_paint_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	builder_test.go	41	41	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	cache_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	coverage_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	damage_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	decoder_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	encoding_test.go	29	29	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	filter_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	gpu_renderer_regression_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	gpu_renderer_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	layer_test.go	34	34	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	p0_blend_alpha_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	paint_correctness_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	path_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	pool_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	renderer_test.go	45	45	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/scene	roundrect_shape_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	scene_test.go	35	35	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	shape_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	tagtext_test.go	25	25	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/scene	text_test.go	18	18	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/svg	svg_test.go	42	42	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/tests/stress	analytic_stress_test.go	0	0	0	0	0	0.0	build tag `stress`; not part of default-tag baseline
+SKIP	github.com/energye/gpui/render/text/cache	shaping_bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/text/cache	shaping_test.go	50	50	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text/emoji	bitmap_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text/emoji	cbdt_extractor_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text/emoji	colr_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text/emoji	detect_test.go	29	29	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text/emoji	sequence_test.go	12	12	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/text/hint	fontfile_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/text/hint	ftexp_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/text/hint	cff2_cjk_vf_gate_test.go	1	1	0	0	0	0.6	
+PASS	github.com/energye/gpui/render/text/hint	cff2_gate_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text/hint	cff2_vsindex_gate_test.go	1	1	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text/hint	cff_parse_cache_test.go	2	2	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text/hint	cffcs_test.go	4	4	0	0	0	9.4	
+PASS	github.com/energye/gpui/render/text/hint	hint_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text/hint	light_api_test.go	3	3	0	0	0	0.7	
+PASS	github.com/energye/gpui/render/text/hint	psh_light_test.go	2	2	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text/msdf	atlas_test.go	38	38	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text/msdf	contour_test.go	21	21	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text/msdf	edge_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text/msdf	generator_test.go	21	21	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text/msdf	types_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/tools/levelprev	preview_test.go	6	6	0	0	0	0.2	
+PASS	github.com/energye/gpui/tools/particleprev	preview_test.go	4	4	0	0	0	0.0	
+FAIL	github.com/energye/gpui/ui	depcheck_test.go	1	0	0	1	1	0.0	1 failing test(s)
+PASS	github.com/energye/gpui/ui/animation	controller_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/animation	curve_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/animation	status_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	app_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	debug_snapshot_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	fault_oom_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	input_router_test.go	19	19	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	m5_surrounding_epoch_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	oom_exit_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	paint_consume_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	pipeline_lifecycle_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	pipeline_minimized_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	pipeline_t2_test.go	3	3	0	0	0	0.0	
+FAIL	github.com/energye/gpui/ui/focus	focus_test.go	12	11	0	1	1	0.0	1 failing test(s)
+PASS	github.com/energye/gpui/ui/gestures	arena_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/input	fromplatform_device_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/input	fromplatform_dnd_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/input	fromplatform_stylus_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/input	fromplatform_test.go	26	26	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/input	keys_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/io	decode_r3_test.go	4	4	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/io	decode_t4_test.go	10	10	0	0	0	1.4	
+PASS	github.com/energye/gpui/ui/io	decode_test.go	2	2	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/kit	color_model_convert_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	color_model_props_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	color_model_render_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	color_model_state_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	color_model_theme_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	date_engine_format_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	date_engine_generate_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	date_engine_props_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	date_engine_render_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	date_engine_state_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	date_engine_theme_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	icon_props_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	icon_render_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	icon_state_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	icon_theme_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	modal_host_props_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	modal_host_render_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	modal_host_state_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	modal_host_theme_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	notice_queue_clock_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	notice_queue_props_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	notice_queue_render_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	notice_queue_state_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	notice_queue_theme_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	qrcode_encode_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	qrcode_props_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	qrcode_render_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	qrcode_state_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	qrcode_theme_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	tour_mask_props_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	tour_mask_render_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	tour_mask_state_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	tour_mask_theme_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	upload_host_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	upload_props_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	upload_render_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	upload_request_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit	upload_state_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/behavior	direction_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/behavior	field_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/behavior	interactive_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/behavior	motion_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/behavior	overlay_trigger_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/behavior	semantics_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/gate	gate_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/prim	content_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/prim	decor_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/prim	icon_antd_test.go	1	1	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/kit/internal/prim	icon_custom_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/prim	icon_palette_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/prim	icon_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/prim	layout_edge_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/prim	layout_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/scope	ctx_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/scope	resolve_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/kit/internal/scope	states_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/overlay	overlay_retain_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/overlay	overlay_seal_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/overlay	overlay_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/overlay	placement_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/raster	async_test.go	2	2	0	0	0	0.2	
+PASS	github.com/energye/gpui/ui/raster	loop_restart_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/raster	loop_t2_test.go	2	2	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/raster	loop_test.go	2	2	0	0	0	0.1	
+FAIL	github.com/energye/gpui/ui/scene/internal/gpupixel	blit_rrect_corner_test.go	1	0	0	1	1	0.4	1 failing test(s)
+PASS	github.com/energye/gpui/ui/scene/internal/gpupixel	opacity_group_gpupixel_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene/internal/gpupixel	pass_scratch_gpupixel_test.go	1	1	0	0	0	0.5	
+PASS	github.com/energye/gpui/ui/scene/internal/gpupixel	textbox_scroll_walk_test.go	3	3	0	0	0	0.7	
+PASS	github.com/energye/gpui/ui/scene/internal/gpupixel	textured_gpupixel_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene/internal/gpupixel	textured_transform_gpupixel_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene/internal/gpupixel	transform_pivot_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/ui/scheduler	baseline_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scheduler	display_period_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scheduler	display_refresh_seed_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scheduler	metrics_age_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scheduler	metrics_p0_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scheduler	metrics_r7_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scheduler	pacing_test.go	5	5	0	0	0	0.6	
+PASS	github.com/energye/gpui/ui/scheduler	phase_stagger_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scheduler	proc_slope_internal_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scheduler	refresh_gears_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scheduler	scheduler_test.go	20	20	0	0	0	0.7	
+PASS	github.com/energye/gpui/ui/scheduler	ticker_late_add_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/semantics	semantics_test.go	2	2	0	0	0	0.0	
+SKIP	github.com/energye/gpui/ui/textbuffer	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/ui/textbuffer	buffer_test.go	11	11	0	0	0	1.2	
+PASS	github.com/energye/gpui/ui/textinput	blink_owner_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	box_resize_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	delta_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	editor_buffer_m35_test.go	9	9	0	0	0	6.6	
+PASS	github.com/energye/gpui/ui/textinput	editor_retention_paths_m3_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	editor_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	editor_undo_m3_test.go	7	7	0	0	0	0.5	
+PASS	github.com/energye/gpui/ui/textinput	highlight_layout_test.go	1	1	0	0	0	0.5	
+PASS	github.com/energye/gpui/ui/textinput	m1c_cluster_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	m1d_span_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	r1_editor_metrics_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	r1_selftest_visual_test.go	3	3	0	0	0	0.3	
+PASS	github.com/energye/gpui/ui/textinput	r2_sticky_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	r4_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	r5_control_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	session_preedit_m35_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	session_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	step_rune_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/theme	seed_ant_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/theme	theme_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/video/clock	clock_test.go	10	10	0	0	0	0.5	
+PASS	github.com/energye/gpui/video/clock	compliance_test.go	1	1	0	0	0	0.0	
+SKIP	github.com/energye/gpui/video/ffmpeg	feat_setup_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/video/ffmpeg	audio_decode_test.go	4	4	0	0	0	0.1	
+PASS	github.com/energye/gpui/video/ffmpeg	data_const_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/video/ffmpeg	decode_nv12_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/video/ffmpeg	decode_test.go	1	1	0	0	0	0.2	
+SKIP	github.com/energye/gpui/video/ffmpeg	feat_test.go	5	0	5	0	0	0.0	all 5 skipped
+PASS	github.com/energye/gpui/video/ffmpeg	hw_cross_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/video/ffmpeg	hw_decode_test.go	2	2	0	0	0	0.3	
+SKIP	github.com/energye/gpui/video/ffmpeg	remux_split_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/video/ffmpeg	symbol_cover_test.go	1	1	0	0	0	0.0	
+SKIP	github.com/energye/gpui/video/ffmpeg	variadic_go_test.go	1	0	0	0	0	0.0	no tests executed
+PASS	github.com/energye/gpui/video/ffmpeg	variant_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/video/ffmpeg	wrap_cover_test.go	22	21	0	0	0	0.1	
+SKIP	github.com/energye/gpui/gpu/gwgpu/gles	behavior_windows_test.go	1	0	0	0	0	0.0	build tag `windows && !(js && wasm)` excludes it on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/gles	command_test.go	16	0	0	0	0	0.0	build tag `windows && !(js && wasm)` excludes it on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/gles	convert_test.go	7	0	0	0	0	0.0	build tag `windows && !(js && wasm)` excludes it on linux/amd64
+SKIP	github.com/energye/gpui/gpu/gwgpu/gles	integration_test.go	9	0	0	0	0	0.0	build tag `integration && linux && !(js && wasm)` excludes it on linux/amd64
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	adapter_context_linux_test.go	21	21	0	0	0	0.1	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	adapter_open_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	adapter_trylock_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	behavior_linux_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	behavior_shared_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	binding_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	capabilities_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	compute_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	device_enum_test.go	1	1	0	0	0	0.1	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	device_select_linux_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	indirect_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	p1_texsample_probe_test.go	8	7	1	0	0	0.4	1 skipped
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	prime_linux_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	renderpass_dedup_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	sampler_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	shader_cache_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	shader_pipeline_offscreen_test.go	1	1	0	0	0	0.2	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	spin_blit_damage_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	stub_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	surface_acquire_strict_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	surface_damage_linux_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	surface_frame_offscreen_test.go	1	1	0	0	0	0.2	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	vendor_linux_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	version_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	vram_handle_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	write_batch_overlap_test.go	2	2	0	0	0	0.0	
+SKIP	github.com/energye/gpui/gpu/rwgpu	instance_helper_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/gpu/rwgpu	abi_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	adapter_info_test.go	2	2	0	0	0	0.2	
+PASS	github.com/energye/gpui/gpu/rwgpu	adapter_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/gpu/rwgpu	bindgroup_entry_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	bindgroup_test.go	3	3	0	0	0	0.6	
+PASS	github.com/energye/gpui/gpu/rwgpu	buffer_test.go	4	4	0	0	0	0.7	
+PASS	github.com/energye/gpui/gpu/rwgpu	clear_pass_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/gpu/rwgpu	command_new_test.go	6	6	0	0	0	1.1	
+PASS	github.com/energye/gpui/gpu/rwgpu	command_test.go	6	6	0	0	0	1.2	
+PASS	github.com/energye/gpui/gpu/rwgpu	debug_render_test.go	2	2	0	0	0	0.3	
+PASS	github.com/energye/gpui/gpu/rwgpu	debug_test.go	2	2	0	0	0	0.3	
+PASS	github.com/energye/gpui/gpu/rwgpu	device_lost_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	device_test.go	6	6	0	0	0	0.9	
+PASS	github.com/energye/gpui/gpu/rwgpu	encoder_lost_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	errors_test.go	3	3	0	0	0	0.6	
+PASS	github.com/energye/gpui/gpu/rwgpu	example_math_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	fuzz_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	indirect_test.go	5	5	0	0	0	0.5	
+PASS	github.com/energye/gpui/gpu/rwgpu	instance_test.go	6	6	0	0	0	0.4	
+PASS	github.com/energye/gpui/gpu/rwgpu	math_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	null_guard_test.go	18	18	0	0	0	0.2	
+PASS	github.com/energye/gpui/gpu/rwgpu	opt42_string_view_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	pipeline_test.go	4	4	0	0	0	0.7	
+FAIL	github.com/energye/gpui/gpu/rwgpu	queue_workdone_test.go	2	0	0	0	2	0.3	crash marker: SIGSEGV
+PASS	github.com/energye/gpui/gpu/rwgpu	release_lost_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	render_bundle_test.go	4	4	0	0	0	0.6	
+PASS	github.com/energye/gpui/gpu/rwgpu	render_pipeline_test.go	4	4	0	0	0	0.8	
+PASS	github.com/energye/gpui/gpu/rwgpu	s1_ae_smoke_test.go	7	7	0	0	0	1.8	
+PASS	github.com/energye/gpui/gpu/rwgpu	s1_skia_subset_enum_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	safety_test.go	10	10	0	0	0	0.5	
+PASS	github.com/energye/gpui/gpu/rwgpu	shader_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/gpu/rwgpu	sizeof_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	surface_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/rwgpu	texture_test.go	6	6	0	0	0	0.9	
+PASS	github.com/energye/gpui/gpu/rwgpu	thread_safety_test.go	3	2	1	0	0	0.3	1 skipped
+PASS	github.com/energye/gpui/gpu/rwgpu	wgpu_errors_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	device_conversion_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	frame_pair_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	gate_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	h2b_hal_conformance_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	h4b3_behavior_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	r7_0_hotpath_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	r7_6_pipeline_convert_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	recover_vram_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/gpu/webgpu	s2_ae_smoke_test.go	3	3	0	0	0	1.0	
+PASS	github.com/energye/gpui/gpu/webgpu	s2_facade_conversion_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	stub_not_supported_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	surface_acquire_epoch_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	surface_error_test.go	4	4	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render	benchmark_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render	mem_harness_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render	pixmap_bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render	rasterizer_tile_bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render	vram_test_hook_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render	aa_probe_quality_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	accelerator_integration_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	accelerator_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	adapter_policy_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	antialias_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	atlas_r4_test.go	8	8	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	backdrop_layer_msaa_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	backend_test.go	2	2	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render	basic_gpu_visual_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render	blend_porterduff_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	brush_custom_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	brush_test.go	12	12	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render	cjk_text_gpu_visual_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render	clip_ops_semantics_test.go	9	9	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	clip_rotated_rect_test.go	1	1	0	0	0	0.4	
+SKIP	github.com/energye/gpui/render	clipping_gpu_visual_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render	cliprrect_consumer_test.go	4	4	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	color_extended_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	color_test.go	3	3	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render	context_clip_depth_test.go	3	2	0	1	1	0.3	1 failing test(s)
+PASS	github.com/energye/gpui/render	context_clip_test.go	27	27	0	0	0	0.5	
+FAIL	github.com/energye/gpui/render	context_coverage_test.go	56	55	0	1	1	0.4	1 failing test(s)
+PASS	github.com/energye/gpui/render	context_device_scale_test.go	14	14	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	context_gpu_registry_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	context_image_test.go	38	37	1	0	0	0.6	1 skipped
+PASS	github.com/energye/gpui/render	context_layer_test.go	9	9	0	0	0	0.4	
+FAIL	github.com/energye/gpui/render	context_misc_draw_gpu_test.go	1	0	0	1	1	0.5	1 failing test(s)
+PASS	github.com/energye/gpui/render	context_misc_draw_test.go	7	7	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	context_output_test.go	18	18	0	0	0	0.3	
+PASS	github.com/energye/gpui/render	context_resize_test.go	6	6	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	context_stroke_test.go	21	21	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	coverage_extended_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	curve_test.go	28	28	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	damage_scale_test.go	11	11	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	dash_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	depth_r5_test.go	7	7	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	device_scale_race_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	draw_shader_mask_gpu_test.go	4	4	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	draw_shader_mask_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	export_imagebuf_dirty_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	f14_effect_flush_publish_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	filter_ops_contract_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	filter_ops_gpu_test.go	5	5	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	frame_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	gg_test.go	13	13	0	0	0	0.2	
+PASS	github.com/energye/gpui/render	glyphmask_lcd_mix_test.go	1	1	0	0	0	0.4	
+SKIP	github.com/energye/gpui/render	gpu_example_visual_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render	gradient_ctm_gpu_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	gradient_ctm_test.go	10	10	0	0	0	0.1	
+PASS	github.com/energye/gpui/render	gradient_extended_test.go	26	26	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	gradient_test.go	30	30	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	hairline_visual_test.go	10	10	0	0	0	0.4	
+SKIP	github.com/energye/gpui/render	images_gpu_visual_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render	layer_rt_clear_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	lcd_layout_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	logger_test.go	10	10	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render	m5_color_glyph_api_test.go	4	3	0	1	1	0.6	1 failing test(s)
+PASS	github.com/energye/gpui/render	m5_emoji_draw_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	mask_test.go	40	40	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	mem_complex_offscreen_test.go	2	2	0	0	0	1.3	
+PASS	github.com/energye/gpui/render	mem_gpu_lifecycle_test.go	7	6	1	0	0	2.0	1 skipped
+PASS	github.com/energye/gpui/render	misc_extended_test.go	22	22	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	nan_safety_test.go	13	13	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	offscreen_record_mask_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/render	oom_exit_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	oom_purge_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	opt18_filter_submit_coalesce_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	options_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	p01_layer_gpu_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	p02_brush_native_test.go	13	13	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	p03_advanced_blend_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	p04_filter_gpu_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	p11_text_shape_cache_test.go	1	1	0	0	0	0.6	
+PASS	github.com/energye/gpui/render	p12_clip_mask_gpu_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	p13_frame_flush_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	p1_gpu_blend_fixed_pixel_test.go	9	9	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	p1_gpu_fixed_pixel_test.go	4	4	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	paint_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	painter_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	pass_scratch_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	path_boolean_test.go	7	7	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	path_bounds_test.go	13	13	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	path_builder_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	path_ops_extended_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	path_ops_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	path_svg_test.go	44	44	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	path_test.go	46	46	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	pathops_subpath_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	pattern_render_test.go	8	8	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	pipeline_mode_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	pixmap_pool_test.go	5	5	0	0	0	0.3	
+PASS	github.com/energye/gpui/render	pixmap_test.go	26	26	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	point_test.go	20	20	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	quad_cpu_test.go	8	8	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	r1_residual_gpu_test.go	6	6	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	r7_2_filter_export_test.go	2	1	1	0	0	0.4	1 skipped
+PASS	github.com/energye/gpui/render	r7_4_damage_coalesce_test.go	2	2	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render	rasterizer_tile_value_test.go	2	1	0	1	1	0.4	1 failing test(s)
+PASS	github.com/energye/gpui/render	s3a_m0m1_gpu_gate_test.go	12	12	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	s3b_m2_gpu_gate_test.go	17	17	0	0	0	0.6	
+PASS	github.com/energye/gpui/render	s3c_m3_gpu_gate_test.go	12	12	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	s3c_m3_residual_gate_test.go	11	11	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	s6_1_frame_enforce_test.go	6	6	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	s6_2_submit_path_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	s6_3_batch_deepen_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	s6_4_layer_filter_test.go	5	5	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	s6_5_text_atlas_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	s6_6_path_geometry_test.go	3	3	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	s6_7_resources_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	sample_count_test.go	3	3	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render	scene_gpu_visual_test.go	2	0	2	0	0	0.0	all 2 skipped
+PASS	github.com/energye/gpui/render	sdf_accelerator_coverage_test.go	20	20	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	sdf_accelerator_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	sdf_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	shape_arc_detect_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	shape_detect_coverage_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	shape_detect_test.go	10	10	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render	shapes_gpu_visual_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render	shapes_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	shared_r0_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	software_coverage_test.go	55	55	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	software_extended_test.go	6	6	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	software_stroke_dash_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	software_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	solver_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	stroke_damage_bounds_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	stroke_join_solid_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	stroke_subpixel_gpu_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	stroke_subpixel_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	stroke_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	text_aliased_test.go	8	8	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	text_artifact_test.go	4	4	0	0	0	0.3	
+PASS	github.com/energye/gpui/render	text_clip_bounds_test.go	1	1	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render	text_gpu_visual_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render	text_hidpi_outline_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	text_integration_test.go	4	4	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	text_mode_test.go	9	9	0	0	0	0.3	
+PASS	github.com/energye/gpui/render	text_quality_test.go	6	6	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	text_stroke_test.go	15	15	0	0	0	0.4	
+FAIL	github.com/energye/gpui/render	text_transform_gpu_test.go	2	1	0	1	1	0.6	1 failing test(s)
+SKIP	github.com/energye/gpui/render	text_transform_gpu_visual_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render	text_transform_test.go	21	21	0	0	0	0.9	
+PASS	github.com/energye/gpui/render	text_variable_path_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	text_wrap_test.go	17	17	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	texture_source_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	vec_extended_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	vec_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	vertices_cpu_test.go	10	10	0	0	0	0.5	
+PASS	github.com/energye/gpui/render	vertices_mesh_contract_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	vertices_mesh_gpu_test.go	5	5	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	video_async_upload_test.go	8	8	0	0	0	0.1	
+PASS	github.com/energye/gpui/render	video_device_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	video_direct_test.go	4	4	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render	video_direct_upload_test.go	16	13	0	3	1	0.6	3 failing test(s)
+PASS	github.com/energye/gpui/render	video_yuv_color_gpu_test.go	1	1	0	0	0	0.6	
+PASS	github.com/energye/gpui/render	visual_parallel_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	visual_path_stats_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	webp_contract_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	y_orientation_gpu_test.go	1	1	0	0	0	0.4	
+SKIP	github.com/energye/gpui/render/internal/gpu	alloc_bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/internal/gpu	analytic_benchmark_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/internal/gpu	benchmark_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/internal/gpu	brush_field_memo_bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/internal/gpu	native_device_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/internal/gpu	stencil_metal_repro_test.go	3	0	0	0	0	0.0	build tag `darwin && !nogpu` excludes it on linux/amd64
+PASS	github.com/energye/gpui/render/internal/gpu	analytic_coverage_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	analytic_edgecases_test.go	20	20	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/internal/gpu	analytic_filler_test.go	26	26	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	backend_test.go	10	10	0	0	0	1.8	
+PASS	github.com/energye/gpui/render/internal/gpu	batch_coalescing_test.go	19	19	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	bg_cache_semantics_test.go	1	1	0	0	0	0.3	
+FAIL	github.com/energye/gpui/render/internal/gpu	bindgroup_switch_test.go	1	0	0	1	1	0.3	1 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	brush_blend_rect_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	buffer_test.go	40	8	32	0	0	2.7	32 skipped
+PASS	github.com/energye/gpui/render/internal/gpu	clip_leaf_host_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	command_encoder_test.go	19	19	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	compute_pass_test.go	15	15	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render/internal/gpu	convex_renderer_test.go	34	30	0	4	1	1.6	4 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	convexity_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	curve_edge_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	damage_blit_e2e_test.go	3	3	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	damage_scissor_test.go	4	4	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render/internal/gpu	depth_clip_test.go	19	18	0	1	1	2.5	1 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	edge_builder_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	empty_clip_skip_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	fine_curves_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	flatten_nan_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_color_atlas_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_color_engine_test.go	4	4	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_color_shader_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_color_reject_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_engine_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_gpu_repro_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_hinting_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_lcd_layout_cache_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_lcd_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_multipage_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_renderframe_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_s42_test.go	2	2	0	0	0	0.2	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_shaped_default_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_spacing_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_span_exact_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_mask_uniform_staging_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyph_placement_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	glyphmask_drawcalls_test.go	3	3	0	0	0	0.7	
+PASS	github.com/energye/gpui/render/internal/gpu	golden_software_test.go	3	3	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	golden_test.go	4	4	0	0	0	0.9	
+PASS	github.com/energye/gpui/render/internal/gpu	gpu_coarse_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	gpu_fine_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	gpu_flatten_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	gpu_text_cjk_test.go	9	9	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/internal/gpu	gpu_text_test.go	3	3	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render/internal/gpu	gpu_texture_test.go	28	27	0	1	1	1.9	1 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	image_batch_s41_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	image_bicubic_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	image_cache_rewrite_test.go	1	1	0	0	0	0.3	
+FAIL	github.com/energye/gpui/render/internal/gpu	integration_test.go	9	8	0	0	2	1.7	rc=2
+PASS	github.com/energye/gpui/render/internal/gpu	linear_diagonal_ramp_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/render/internal/gpu	memory_test.go	17	17	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	msaa_load_store_test.go	2	2	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/internal/gpu	offscreen_pass_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	offscreen_pool_r6_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	oom_fallback_test.go	3	2	1	0	0	0.0	1 skipped
+PASS	github.com/energye/gpui/render/internal/gpu	opt19_packed_mesh_test.go	1	1	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render/internal/gpu	opt21_layer_defer_submit_test.go	1	0	0	1	1	0.3	1 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	opt22_indexed_mesh_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render/internal/gpu	opt23_mesh_pack_test.go	1	1	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render/internal/gpu	opt24_sticky_index_uniform_test.go	3	2	0	1	2	0.5	crash marker: panic:
+PASS	github.com/energye/gpui/render/internal/gpu	opt25_contiguous_pack_test.go	3	3	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	opt26_dualtex_bg_fontid_test.go	3	3	0	0	0	0.4	
+FAIL	github.com/energye/gpui/render/internal/gpu	opt27_gputex_bg_cache_test.go	2	1	0	1	1	0.3	1 failing test(s)
+FAIL	github.com/energye/gpui/render/internal/gpu	opt28_sticky_image_gputex_verts_test.go	2	0	0	1	2	0.3	crash marker: panic:
+FAIL	github.com/energye/gpui/render/internal/gpu	opt29_image_uniform_slab_test.go	2	0	0	1	2	0.3	crash marker: panic:
+PASS	github.com/energye/gpui/render/internal/gpu	opt30_compact_convex_color_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	opt31_fast_unorm_pack_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	opt32_dual_tex_composite_encoder_test.go	2	2	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	opt33_mesh_compact_stride_test.go	4	4	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render/internal/gpu	opt34_shared_encoder_no_flush_leading_test.go	2	0	0	2	1	0.4	2 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	opt35_filter_pass_uniform_slab_test.go	3	3	0	0	0	0.7	
+FAIL	github.com/energye/gpui/render/internal/gpu	opt36_filter_seed_shared_encoder_test.go	3	2	0	1	1	0.4	1 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	opt37_dualtex_uniform_slab_test.go	2	2	0	0	0	0.3	
+FAIL	github.com/energye/gpui/render/internal/gpu	opt38_ensure_pipelines_ready_test.go	2	0	0	2	1	0.3	2 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	opt39_convex_vert_sticky_test.go	2	2	0	0	0	0.5	
+FAIL	github.com/energye/gpui/render/internal/gpu	opt40_gputex_uniform_slab_test.go	1	0	0	1	1	0.3	1 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	opt41_surface_rp_reuse_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	opt42_dualtex_scratch_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	opt44_filter_pass_rp_reuse_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	p0_format_readback_test.go	6	6	0	0	0	1.0	
+PASS	github.com/energye/gpui/render/internal/gpu	p1_device_box_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	pass_bind_ledger_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	path_convert_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	path_geometry_cache_test.go	3	3	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	pipeline_cache_core_test.go	29	29	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	pipeline_wiring_test.go	43	42	1	0	0	1.5	1 skipped
+PASS	github.com/energye/gpui/render/internal/gpu	r7_1_scratch_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	r7_3_submit_coalesce_test.go	2	2	0	0	0	0.6	
+PASS	github.com/energye/gpui/render/internal/gpu	r7_5_layout_template_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/internal/gpu	registry_retire_test.go	3	3	0	0	0	0.7	
+PASS	github.com/energye/gpui/render/internal/gpu	render_pass_test.go	19	19	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render/internal/gpu	render_session_test.go	34	23	0	11	1	4.8	11 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	renderer_test.go	23	23	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	retire_queue_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	ring_band_direction_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	s4_cache_damage_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	s6_2_submit_path_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/render/internal/gpu	s6_3_batch_deepen_test.go	7	7	0	0	0	0.4	
+PASS	github.com/energye/gpui/render/internal/gpu	s6_5_text_atlas_test.go	3	3	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	s6_6_path_geometry_test.go	6	6	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	s6_7_resources_test.go	7	5	2	0	0	0.5	2 skipped
+PASS	github.com/energye/gpui/render/internal/gpu	scene_auto_test.go	3	3	0	0	0	0.7	
+FAIL	github.com/energye/gpui/render/internal/gpu	sdf_render_test.go	27	22	0	5	1	1.4	5 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	sdf_transparent_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	shaders_test.go	20	20	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/internal/gpu	sparse_strips_gpu_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	sparse_strips_test.go	51	51	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render/internal/gpu	stencil_pipeline_test.go	6	2	0	4	1	0.8	4 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	stencil_pool_prune_test.go	3	3	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render/internal/gpu	stencil_render_test.go	14	7	0	7	1	1.5	7 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	stencil_renderer_test.go	9	9	0	0	0	1.9	
+PASS	github.com/energye/gpui/render/internal/gpu	stroke_fast_path_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	stroke_width_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	submission_gate_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	tessellate_aa_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	tessellate_test.go	17	17	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	tex_shrink_r6_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	text_pipeline_test.go	27	27	0	0	0	1.2	
+PASS	github.com/energye/gpui/render/internal/gpu	texture_test.go	17	5	12	0	0	1.1	12 skipped
+PASS	github.com/energye/gpui/render/internal/gpu	transform_mask_isolate_test.go	1	1	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/internal/gpu	transform_mask_raster_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	transform_uniform_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	ttc_4face_mixed_repro_test.go	1	1	0	0	0	0.6	
+FAIL	github.com/energye/gpui/render/internal/gpu	ttc_cjk_gpu_repro_test.go	1	0	0	1	1	0.9	1 failing test(s)
+PASS	github.com/energye/gpui/render/internal/gpu	ttc_cjk_repro_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	varfont_atlas_test.go	3	3	0	0	0	1.0	
+PASS	github.com/energye/gpui/render/internal/gpu	vello_accumulate_test.go	12	12	0	0	0	0.4	
+PASS	github.com/energye/gpui/render/internal/gpu	vello_antialias_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/internal/gpu	vello_tiles_test.go	12	11	1	0	0	0.0	1 skipped
+PASS	github.com/energye/gpui/render/internal/gpu	video_yuv_pipeline_test.go	5	5	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/internal/gpu	view_raw_attack_test.go	4	4	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/text	bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/text	benchmark_text_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/text	font_bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/text	testfont_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+SKIP	github.com/energye/gpui/render/text	tt_golden_data_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render/text	advance_cache_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	arabic_joining_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	autohint_blues_ft_test.go	1	1	0	0	0	0.2	
+PASS	github.com/energye/gpui/render/text	autohint_golden_test.go	19	15	4	0	0	0.0	4 skipped
+PASS	github.com/energye/gpui/render/text	autohint_test.go	50	50	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	avar_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	bidi_reorder_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	cache_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	cff_outline_test.go	6	6	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text	color_font_adapter_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	color_raster_test.go	5	5	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text	composite_hardening_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	coverage_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	draw_aliased_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	draw_emoji_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	draw_shaped_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	draw_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	embolden_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	face_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	family_multi_test.go	1	1	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text	family_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	filtered_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	font_tables_test.go	32	32	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	gdef_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	glyf_parser_test.go	30	27	3	0	0	0.0	3 skipped
+PASS	github.com/energye/gpui/render/text	glyph_cache_test.go	30	30	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	glyph_hinting_test.go	16	16	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	glyph_mask_atlas_test.go	23	23	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	glyph_mask_rasterizer_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	glyph_outline_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	glyph_renderer_test.go	23	23	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	glyph_run_test.go	25	25	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	gpos_context_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	gpos_mark_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	grapheme_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	gsub_context_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	gsub_liga_test.go	6	4	2	0	0	0.0	2 skipped
+PASS	github.com/energye/gpui/render/text	gvar_test.go	19	17	2	0	0	0.0	2 skipped
+PASS	github.com/energye/gpui/render/text	hb_warm_m38_test.go	1	1	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text	hvar_test.go	10	9	1	0	0	0.0	1 skipped
+PASS	github.com/energye/gpui/render/text	indic_font_pos_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	indic_reorder_test.go	25	25	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	indic_shaping_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	layout_test.go	30	30	0	0	0	0.4	
+PASS	github.com/energye/gpui/render/text	lcd_filter_test.go	15	15	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	light_engine_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	m5_dpr_quant_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	m5_khmer_tibetan_test.go	2	2	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text	multi_test.go	14	14	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	options_test.go	14	14	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render/text	parser_collection_test.go	5	0	5	0	0	0.0	all 5 skipped
+PASS	github.com/energye/gpui/render/text	script_detect_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	segment_reuse_test.go	3	3	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text	segment_test.go	31	31	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	shape_result_cache_test.go	7	7	0	0	0	0.2	
+PASS	github.com/energye/gpui/render/text	shaper_hb_race_test.go	1	1	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text	shaper_own_test.go	26	26	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	shaper_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	shaping_runs_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/render/text	source_cache_test.go	5	5	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text	source_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	spacing_test.go	11	11	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	subpixel_test.go	34	34	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	system_font_test.go	5	5	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/text	tab_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	tt_engine_test.go	54	54	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	tt_glyph_test.go	24	23	1	0	0	0.1	1 skipped
+PASS	github.com/energye/gpui/render/text	tt_golden_test.go	27	23	4	0	0	0.1	4 skipped
+SKIP	github.com/energye/gpui/render/text	tt_segoeui_golden_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render/text	types_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	varfont_outline_test.go	7	2	5	0	0	0.0	5 skipped
+PASS	github.com/energye/gpui/render/text	varfont_shape_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	varfont_test.go	28	19	9	0	0	0.0	9 skipped
+PASS	github.com/energye/gpui/render/text	visual_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	weight_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	wrap_test.go	26	26	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	backend_test.go	13	13	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	drag_offer_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	host_test.go	4	4	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/platform	kind_stable_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	probe_cursor_theme_test.go	2	1	1	0	0	0.3	1 skipped
+PASS	github.com/energye/gpui/ui/platform	vsync_test.go	1	1	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/platform	wayland_csd_behavior_test.go	10	10	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/platform	wayland_csd_font_test.go	5	5	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/platform	wayland_csd_hover_test.go	4	4	0	0	0	0.2	
+PASS	github.com/energye/gpui/ui/platform	wayland_csd_painter_test.go	2	2	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/platform	wayland_dnd_hover_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	wayland_dnd_source_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	wayland_features_linux_test.go	4	3	1	0	0	0.9	1 skipped
+PASS	github.com/energye/gpui/ui/platform	wayland_frame_notify_test.go	1	1	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/platform	wayland_interact_test.go	2	2	0	0	0	4.5	
+PASS	github.com/energye/gpui/ui/platform	wayland_keyboard_linux_test.go	7	7	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/platform	wayland_maximize_anchor_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	wayland_modifiers_linux_test.go	5	5	0	0	0	0.6	
+PASS	github.com/energye/gpui/ui/platform	wayland_output_refresh_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	wayland_s6_p0_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	wayland_seat_device_linux_test.go	7	7	0	0	0	0.5	
+PASS	github.com/energye/gpui/ui/platform	wayland_textinput_linux_test.go	5	5	0	0	0	0.0	
+SKIP	github.com/energye/gpui/ui/rendering	m1_bench_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/ui/rendering	absolute_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	align_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	boundary_cache_budget_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	boundary_cache_evict_test.go	1	1	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/rendering	boundary_cache_fontsize_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	boundary_cache_test.go	12	12	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	clip_rrect_layer_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	clip_rrect_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	constraints_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	debug_repaint_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	draw_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	e2_merged_counts_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	e2_old_evidence_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	filter_draw_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	filter_ro_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	font_multiface_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	hit_debug_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	image_dispose_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	image_draw_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	image_setimage_paintonly_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	layer_build_freeze_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	layer_build_parity_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	layer_build_savelayer_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	layer_build_seal_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	layer_build_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	layer_build_video_retained_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	layer_ownpaint_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	layer_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	m1_cache_test.go	7	7	0	0	0	0.3	
+PASS	github.com/energye/gpui/ui/rendering	m1_cluster_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	m1_index_test.go	3	3	0	0	0	0.0	
+FAIL	github.com/energye/gpui/ui/rendering	m1_noquadratic_test.go	5	4	0	1	1	0.7	1 failing test(s)
+PASS	github.com/energye/gpui/ui/rendering	m1_paint_test.go	2	2	0	0	0	1.6	
+PASS	github.com/energye/gpui/ui/rendering	m1_query_equiv_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	m1_span_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	m1_update_balance_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	m1_update_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	m2_paint_test.go	7	7	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/rendering	m5_colorrun_test.go	5	5	0	0	0	0.5	
+PASS	github.com/energye/gpui/ui/rendering	m5_ellipsize_prefix_test.go	1	1	0	0	0	0.0	
+FAIL	github.com/energye/gpui/ui/rendering	m5_keystroke_g1_test.go	1	0	0	1	1	0.2	1 failing test(s)
+PASS	github.com/energye/gpui/ui/rendering	m5_richline_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	m5_singleline_test.go	1	1	0	0	0	0.5	
+PASS	github.com/energye/gpui/ui/rendering	measure_shaping_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	nested_scroll_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	opacity_test.go	7	7	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	paint_context_canvas_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	paint_context_shadermask_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	paragraph_style_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	paragraph_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	paragraph_wrap_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	path_metrics_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	picture_box_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	pipeline_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	row_reuse_test.go	4	4	0	0	0	0.3	
+PASS	github.com/energye/gpui/ui/rendering	save_layer_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	scroll_physics_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	shaping_runs_test.go	5	5	0	0	0	2.2	
+PASS	github.com/energye/gpui/ui/rendering	snap_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	spacing_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	spinner_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	text_display_layout_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	text_font_ro_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	text_layout_r2_test.go	9	9	0	0	0	0.3	
+PASS	github.com/energye/gpui/ui/rendering	text_measure_cache_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	text_measure_concurrent_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	text_measure_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	text_picture_test.go	6	6	0	0	0	0.7	
+PASS	github.com/energye/gpui/ui/rendering	text_viewport_cull_test.go	2	2	0	0	0	0.5	
+PASS	github.com/energye/gpui/ui/rendering	textpath_record_parity_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	transform_ctm_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	transform_hit_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	transform_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	video_direct_node_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	viewport_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	virtual_list_metrics_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	virtual_list_refresh_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	virtual_list_scroll_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	virtual_list_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	virtual_text_lines_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	weight_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/rendering	wrap_seam_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scene	accept_retained_diff_test.go	2	2	0	0	0	0.8	
+FAIL	github.com/energye/gpui/ui/scene	caret_transparent_rerecord_test.go	1	0	0	1	1	0.5	1 failing test(s)
+PASS	github.com/energye/gpui/ui/scene	composite_seal_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scene	composite_test.go	7	7	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene	dirty_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scene	filter_cache_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scene	layer_test.go	10	10	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scene	packet_freeze_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scene	packet_race_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene	packet_retain_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scene	retained_spill_loop_test.go	3	2	1	0	0	5.8	1 skipped
+FAIL	github.com/energye/gpui/ui/scene	shrink_damage_test.go	2	1	0	1	1	0.5	1 failing test(s)
+PASS	github.com/energye/gpui/ui/scene	texture_layer_test.go	5	5	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene	textured_admission_internal_test.go	6	6	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene	textured_budget_internal_test.go	2	2	0	0	0	0.0	
+FAIL	github.com/energye/gpui/ui/scene	textured_budget_test.go	1	0	0	1	1	0.3	1 failing test(s)
+PASS	github.com/energye/gpui/ui/scene	textured_close_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/ui/scene	textured_fallback_extra_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene	textured_oversized_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene	textured_r0_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scene	textured_r6_internal_test.go	3	3	0	0	0	0.4	
+SKIP	github.com/energye/gpui/ui/scene	textured_rerecord_by_test.go	2	0	2	0	0	0.0	all 2 skipped
+PASS	github.com/energye/gpui/ui/scene	textured_ring_test.go	4	4	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/scene	textured_shrink_internal_test.go	3	3	0	0	0	0.4	
+FAIL	github.com/energye/gpui/ui/scene	textured_test.go	2	0	0	2	1	0.4	2 failing test(s)
+PASS	github.com/energye/gpui/ui/scene	textured_transform_internal_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/scene	textured_transform_test.go	1	1	0	0	0	0.4	
+FAIL	github.com/energye/gpui/video	backend_ffmpeg_test.go	1	0	0	1	1	0.1	1 failing test(s)
+PASS	github.com/energye/gpui/video	compliance_imports_test.go	1	1	0	0	0	0.0	
+FAIL	github.com/energye/gpui/video	fault_classify_test.go	8	7	0	1	1	0.2	1 failing test(s)
+FAIL	github.com/energye/gpui/video	gate_color_test.go	1	0	0	1	1	0.5	1 failing test(s)
+PASS	github.com/energye/gpui/video	gate_fault_test.go	1	1	0	0	0	0.2	
+PASS	github.com/energye/gpui/video	gate_hw_test.go	3	3	0	0	0	0.3	
+PASS	github.com/energye/gpui/video	gate_playback_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/video	gate_seek_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/video	mem_pool_streaming_test.go	2	2	0	0	0	0.5	
+PASS	github.com/energye/gpui/video	mem_pool_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/video	playback_bframes_test.go	2	2	0	0	0	0.4	
+PASS	github.com/energye/gpui/video	playback_frag_test.go	4	4	0	0	0	0.6	
+PASS	github.com/energye/gpui/video	playback_parallel_test.go	3	3	0	0	0	1.3	
+PASS	github.com/energye/gpui/video	playback_steady_test.go	2	2	0	0	0	7.2	
+PASS	github.com/energye/gpui/video	player_playback_test.go	5	5	0	0	0	0.1	
+PASS	github.com/energye/gpui/video	player_seek_test.go	9	9	0	0	0	0.4	
+PASS	github.com/energye/gpui/video	player_stream_test.go	14	14	0	0	0	3.3	
+PASS	github.com/energye/gpui/video	registry_probe_test.go	4	4	0	0	0	1.1	
+PASS	github.com/energye/gpui/video	sync_audio_test.go	7	7	0	0	0	14.2	
+PASS	github.com/energye/gpui/examples/ui_render_pelican	openwindow_test.go	4	4	0	0	0	0.9	
+PASS	github.com/energye/gpui/examples/ui_render_pelican	p1_offscreen_test.go	1	1	0	0	0	1.6	
+PASS	github.com/energye/gpui/examples/ui_render_pelican	p1_online_test.go	1	1	0	0	0	1.4	
+PASS	github.com/energye/gpui/examples/ui_render_pelican	p2_two_window_repro_test.go	3	3	0	0	0	2.4	
+PASS	github.com/energye/gpui/gpu/context	window_chrome_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/context	window_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/hal	backends_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/hal	error_test.go	4	3	1	0	0	0.0	1 skipped
+PASS	github.com/energye/gpui/gpu/hal	registry_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/hal/noop	noop_test.go	51	51	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/hal/noop	swapchain_suppressed_test.go	3	3	0	0	0	0.0	
+FAIL	github.com/energye/gpui/ui/application	app_test.go	18	16	0	0	2	0.2	crash marker: SIGSEGV
+PASS	github.com/energye/gpui/ui/embedder	present_damage_test.go	4	4	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/embedder	present_idle_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/ui/embedder	present_policy_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/embedder	retained_present_test.go	2	2	0	0	0	0.4	
+FAIL	github.com/energye/gpui/gpu/gwgpu/gles	present_damage_x11_test.go	1	0	0	1	1	1.6	1 failing test(s)
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	surface_pelican_x11_test.go	1	1	0	0	0	1.4	
+PASS	github.com/energye/gpui/gpu/gwgpu/gles	surface_present_x11_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/gpu/webgpu	auto_recover_depth_test.go	1	1	0	0	0	0.6	
+PASS	github.com/energye/gpui/gpu/webgpu	s6_8_swapchain_test.go	6	6	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	swapchain_acquire_internal_test.go	5	5	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	swapchain_pairing_internal_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/gpu/webgpu	swapchain_test.go	7	7	0	0	0	0.2	
+FAIL	github.com/energye/gpui/gpu/webgpu	swapchain_x11_linux_test.go	3	2	0	1	1	1.0	1 failing test(s)
+SKIP	github.com/energye/gpui/render	s5_present_helpers_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render	backdrop_layer_present_test.go	4	4	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	conformance_test.go	2	1	1	0	0	0.9	1 skipped
+PASS	github.com/energye/gpui/render	dither_contract_test.go	4	4	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	f1_adv_layer_present_test.go	3	3	0	0	0	0.4	
+FAIL	github.com/energye/gpui/render	filter_present_coherence_test.go	4	3	0	1	1	0.4	1 failing test(s)
+PASS	github.com/energye/gpui/render	g2_damage_contract_test.go	3	3	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	mem_window_x11_linux_test.go	1	1	0	0	0	1.3	
+PASS	github.com/energye/gpui/render	p1_gl_offscreen_probe_test.go	5	5	0	0	0	0.7	
+PASS	github.com/energye/gpui/render	p1_gl_present_x11_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/render	present_damage_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	present_record_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	present_resize_test.go	2	2	0	0	0	0.7	
+PASS	github.com/energye/gpui/render	present_waitidle_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	s3c_m3_window_present_test.go	3	2	1	0	0	0.3	1 skipped
+PASS	github.com/energye/gpui/render	s6_8_window_present_x11_linux_test.go	2	2	0	0	0	1.0	
+PASS	github.com/energye/gpui/render	video_v3_window_x11_linux_test.go	1	1	0	0	0	0.7	
+PASS	github.com/energye/gpui/render/internal/gpu	present_stash_glyph_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	wayland_window_linux_test.go	3	3	0	0	0	0.2	
+PASS	github.com/energye/gpui/ui/platform	x11_dbus_ime_linux_test.go	5	5	0	0	0	0.2	
+PASS	github.com/energye/gpui/ui/platform	x11_device_linux_test.go	6	6	0	0	0	0.6	
+PASS	github.com/energye/gpui/ui/platform	x11_dnd_linux_test.go	9	9	0	0	0	29.1	
+PASS	github.com/energye/gpui/ui/platform	x11_ime_compat_test.go	5	5	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/platform	x11_ime_preedit_state_test.go	4	4	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/platform	x11_ime_s1_test.go	3	3	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	x11_ime_s3_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	x11_ime_switch_refresh_test.go	5	5	0	0	0	0.1	
+PASS	github.com/energye/gpui/ui/platform	x11_refresh_test.go	3	3	0	0	0	0.0	
+FAIL	github.com/energye/gpui/ui/platform	x11_s4_test.go	1	0	0	1	1	0.9	1 failing test(s)
+PASS	github.com/energye/gpui/ui/platform	x11_s6_p0_test.go	17	17	0	0	0	5.4	
+PASS	github.com/energye/gpui/ui/platform	x11_stylus_linux_test.go	8	8	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/platform	x11_sync_test.go	3	3	0	0	0	0.3	
+PASS	github.com/energye/gpui/ui/platform	x11_window_linux_test.go	4	4	0	0	0	0.7	
+PASS	github.com/energye/gpui/render/text/hint	zz_b1_scan_test.go	3	3	0	0	0	270.7	
+PASS	github.com/energye/gpui/render/text/hint	zz_dbg_8px_test.go	1	1	0	0	0	2.0	
+PASS	github.com/energye/gpui/render/text/hint	zz_m2_verify_test.go	4	4	0	0	0	4.1	
+PASS	github.com/energye/gpui/render/text/hint	zz_scan_3000_test.go	1	1	0	0	0	5.1	
+PASS	github.com/energye/gpui/render/text/hint	zz_scan_kr_test.go	1	1	0	0	0	16.4	
+PASS	github.com/energye/gpui/render/text/hint	zz_scan_m3_singlemask_test.go	1	1	0	0	0	1.6	
+PASS	github.com/energye/gpui/render/text/hint	zz_scan_m3_test.go	1	1	0	0	0	18.2	
+PASS	github.com/energye/gpui/render/text/hint	zz_scan_th_test.go	1	1	0	0	0	0.5	
+PASS	github.com/energye/gpui/ui/kit/internal/behavior	performance_test.go	2	2	0	0	0	0.0	
+PASS	github.com/energye/gpui/ui/textinput	box_matrix_test.go	22	22	0	0	0	0.0	
+SKIP	github.com/energye/gpui/render	visual_diagnostic_test.go	0	0	0	0	0	0.0	no Test/Example functions (helpers/benchmarks/fuzz only)
+PASS	github.com/energye/gpui/render	matrix_test.go	9	9	0	0	0	0.0	
+PASS	github.com/energye/gpui/render	p1_capability_matrix_closers_test.go	61	61	0	0	0	1.8	
+PASS	github.com/energye/gpui/render	p1_complex_ui_matrix_test.go	56	56	0	0	0	1.9	
+PASS	github.com/energye/gpui/render	s6_4_coalesce_matrix_test.go	2	2	0	0	0	0.0	
+FAIL	github.com/energye/gpui/render	s6_9_heavy_budget_test.go	3	1	0	2	1	0.8	2 failing test(s)
+PASS	github.com/energye/gpui/render	s6_perf_baseline_test.go	3	3	0	0	0	0.9	
+PASS	github.com/energye/gpui/render/text	cff2_ftexp_test.go	1	1	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text	fontscan_fallback_share_test.go	2	2	0	0	0	0.1	
+PASS	github.com/energye/gpui/render/text	g1a_soak_test.go	4	4	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text	zz_afindic_scan_test.go	1	1	0	0	0	2.8	
+PASS	github.com/energye/gpui/render/text	zz_b1_ttf_scan_test.go	7	7	0	0	0	704.2	
+PASS	github.com/energye/gpui/render/text	zz_b1_vf_test.go	2	2	0	0	0	484.7	
+PASS	github.com/energye/gpui/render/text	zz_b2_bitmap_scan_test.go	4	4	0	0	0	1256.2	
+PASS	github.com/energye/gpui/render/text	zz_dbg_box_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_bridge_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_dump_test.go	2	2	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text	zz_dbg_ftbox_test.go	1	1	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text	zz_dbg_ftgrays_byteexact_test.go	1	1	0	0	0	2.2	
+PASS	github.com/energye/gpui/render/text	zz_dbg_ftgrays_direct_test.go	1	1	0	0	0	1.7	
+PASS	github.com/energye/gpui/render/text	zz_dbg_ftgrays_directdiff_test.go	1	1	0	0	0	0.6	
+PASS	github.com/energye/gpui/render/text	zz_dbg_ftgrays_scan_test.go	1	1	0	0	0	69.1	
+PASS	github.com/energye/gpui/render/text	zz_dbg_ftgrays_scripts_test.go	1	1	0	0	0	70.3	
+PASS	github.com/energye/gpui/render/text	zz_dbg_ftgrays_wqy_test.go	1	1	0	0	0	3.7	
+PASS	github.com/energye/gpui/render/text	zz_dbg_hintpts_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_jing_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_none_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_nosnap_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_png_test.go	1	1	0	0	0	0.3	
+PASS	github.com/energye/gpui/render/text	zz_dbg_prod_pixels_test.go	1	1	0	0	0	1.2	
+PASS	github.com/energye/gpui/render/text	zz_dbg_raster_byteexact_test.go	1	1	0	0	0	1.6	
+PASS	github.com/energye/gpui/render/text	zz_dbg_raster_src_test.go	1	1	0	0	0	1.2	
+PASS	github.com/energye/gpui/render/text	zz_dbg_segs_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_snap3_test.go	2	2	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text	zz_dbg_which_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_whyfail2_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_whyfail_test.go	1	1	0	0	0	0.0	
+PASS	github.com/energye/gpui/render/text	zz_dbg_y_test.go	1	1	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text	zz_freesans_scan_test.go	1	1	0	0	0	1.9	
+PASS	github.com/energye/gpui/render/text	zz_light_bytecode_scan_test.go	1	1	0	0	0	3.6	
+PASS	github.com/energye/gpui/render/text	zz_m6_vertical_test.go	7	7	0	0	0	0.9	
+PASS	github.com/energye/gpui/render/text	zz_m7_fcmatch_test.go	3	3	0	0	0	0.6	
+PASS	github.com/energye/gpui/render/text	zz_probe_outline_match_test.go	1	1	0	0	0	1.2	
+PASS	github.com/energye/gpui/render/text	zz_s1_hb_native_test.go	2	2	0	0	0	0.5	
+PASS	github.com/energye/gpui/render/text	zz_scriptdispatch_test.go	1	1	0	0	0	4.1	
+PASS	github.com/energye/gpui/render/text	zz_tt_full_scan_test.go	1	1	0	0	0	2.0	
+SKIP	github.com/energye/gpui/render/text	zz_tt_trace_batch_test.go	1	0	1	0	0	0.0	all 1 skipped
+PASS	github.com/energye/gpui/render/text	zz_wqy_scan_test.go	1	1	0	0	0	4.1	
+PASS	github.com/energye/gpui/ui/rendering	render_matrix_test.go	3	3	0	0	0	0.0	
+FAIL	github.com/energye/gpui/video	gate_perf_convert_test.go	1	0	0	1	1	0.6	1 failing test(s)
+PASS	github.com/energye/gpui/video	gate_perf_decode_test.go	1	1	0	0	0	0.4	
+PASS	github.com/energye/gpui/video	gate_perf_mem_test.go	2	2	0	0	0	0.5	
+PASS	github.com/energye/gpui/video	player_stream_long_test.go	12	12	0	0	0	5.8	

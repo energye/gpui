@@ -1,0 +1,3 @@
+=== RUN   TestOpt44_FilterPassRenderPassDesc_NoAllocWarm
+--- PASS: TestOpt44_FilterPassRenderPassDesc_NoAllocWarm (0.00s)
+PASS

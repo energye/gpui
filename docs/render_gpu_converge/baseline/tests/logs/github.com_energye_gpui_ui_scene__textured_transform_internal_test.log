@@ -1,0 +1,5 @@
+=== RUN   TestCompositeFramePacketTextured_RotateCachesUntransformed
+--- PASS: TestCompositeFramePacketTextured_RotateCachesUntransformed (0.27s)
+=== RUN   TestCompositeFramePacketTextured_ScaleCachesUntransformed
+--- PASS: TestCompositeFramePacketTextured_ScaleCachesUntransformed (0.01s)
+PASS

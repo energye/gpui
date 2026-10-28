@@ -1,0 +1,19 @@
+=== RUN   TestRSSSlope_SteadyStateFoldsWarmupRamp
+--- PASS: TestRSSSlope_SteadyStateFoldsWarmupRamp (0.00s)
+=== RUN   TestRSSSlopeSteady_ShortRunInvalid
+--- PASS: TestRSSSlopeSteady_ShortRunInvalid (0.00s)
+=== RUN   TestRSSSlopeSteady_30sBoundary
+--- PASS: TestRSSSlopeSteady_30sBoundary (0.00s)
+=== RUN   TestRSSSlopeSteady_60sRampFolds
+--- PASS: TestRSSSlopeSteady_60sRampFolds (0.00s)
+=== RUN   TestRSSSlopeSteady_LeakKeepsTrueSlope
+--- PASS: TestRSSSlopeSteady_LeakKeepsTrueSlope (0.00s)
+=== RUN   TestRSSSlopeSteady_MidRunLeakStillCaught
+--- PASS: TestRSSSlopeSteady_MidRunLeakStillCaught (0.00s)
+=== RUN   TestRSSSlope_LeakKeepsTrueSlope
+--- PASS: TestRSSSlope_LeakKeepsTrueSlope (0.00s)
+=== RUN   TestRSSSlope_MidRunLeakStillCaught
+--- PASS: TestRSSSlope_MidRunLeakStillCaught (0.00s)
+=== RUN   TestRSSSlopeLSQ_Degenerate
+--- PASS: TestRSSSlopeLSQ_Degenerate (0.00s)
+PASS

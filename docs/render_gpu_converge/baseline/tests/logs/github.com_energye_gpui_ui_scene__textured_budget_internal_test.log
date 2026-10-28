@@ -1,0 +1,5 @@
+=== RUN   TestTextureBudget_EvictsUnderPressure
+--- PASS: TestTextureBudget_EvictsUnderPressure (0.00s)
+=== RUN   TestTextureBudget_ZeroUnsets
+--- PASS: TestTextureBudget_ZeroUnsets (0.00s)
+PASS

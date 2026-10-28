@@ -1,0 +1,176 @@
+=== RUN   TestCompileVertexShader
+    shader_test.go:68: Successfully compiled vertex shader: 960 bytes
+--- PASS: TestCompileVertexShader (0.00s)
+=== RUN   TestCompileFragmentShader
+    shader_test.go:117: Successfully compiled fragment shader: 544 bytes
+--- PASS: TestCompileFragmentShader (0.00s)
+=== RUN   TestCompileComputeShader
+    shader_test.go:169: Successfully compiled compute shader: 432 bytes
+--- PASS: TestCompileComputeShader (0.00s)
+=== RUN   TestCompileFragmentShaderWithMath
+    shader_test.go:176: Type inference for 'let' bindings not yet implemented
+--- SKIP: TestCompileFragmentShaderWithMath (0.00s)
+=== RUN   TestCompileVertexShaderWithUniforms
+    shader_test.go:272: Successfully compiled vertex shader with uniforms: 724 bytes
+--- PASS: TestCompileVertexShaderWithUniforms (0.00s)
+=== RUN   TestCompileMultiEntryPoint
+    shader_test.go:323: Successfully compiled multi-entry shader: 820 bytes
+--- PASS: TestCompileMultiEntryPoint (0.00s)
+=== RUN   TestCompileWithDebugInfo
+    shader_test.go:368: Successfully compiled shader with debug info: 560 bytes
+--- PASS: TestCompileWithDebugInfo (0.00s)
+=== RUN   TestCompileComputeShaderWithLocalVars
+    shader_test.go:414: Successfully compiled compute shader with local vars: 532 bytes
+--- PASS: TestCompileComputeShaderWithLocalVars (0.00s)
+=== RUN   TestCompileFragmentShaderWithConditionals
+    shader_test.go:461: Successfully compiled fragment shader with conditionals: 952 bytes
+--- PASS: TestCompileFragmentShaderWithConditionals (0.00s)
+=== RUN   TestCompileDifferentSPIRVVersions
+=== RUN   TestCompileDifferentSPIRVVersions/SPIR-V_1.0
+    shader_test.go:529: Successfully compiled with SPIR-V 1.0: 532 bytes
+=== RUN   TestCompileDifferentSPIRVVersions/SPIR-V_1.3
+    shader_test.go:529: Successfully compiled with SPIR-V 1.3: 532 bytes
+=== RUN   TestCompileDifferentSPIRVVersions/SPIR-V_1.4
+    shader_test.go:529: Successfully compiled with SPIR-V 1.4: 532 bytes
+=== RUN   TestCompileDifferentSPIRVVersions/SPIR-V_1.5
+    shader_test.go:529: Successfully compiled with SPIR-V 1.5: 532 bytes
+=== RUN   TestCompileDifferentSPIRVVersions/SPIR-V_1.6
+    shader_test.go:529: Successfully compiled with SPIR-V 1.6: 532 bytes
+--- PASS: TestCompileDifferentSPIRVVersions (0.00s)
+    --- PASS: TestCompileDifferentSPIRVVersions/SPIR-V_1.0 (0.00s)
+    --- PASS: TestCompileDifferentSPIRVVersions/SPIR-V_1.3 (0.00s)
+    --- PASS: TestCompileDifferentSPIRVVersions/SPIR-V_1.4 (0.00s)
+    --- PASS: TestCompileDifferentSPIRVVersions/SPIR-V_1.5 (0.00s)
+    --- PASS: TestCompileDifferentSPIRVVersions/SPIR-V_1.6 (0.00s)
+=== RUN   TestCompileComputeShaderWithAtomics
+    shader_test.go:618: Successfully compiled compute shader with atomics: 512 bytes
+--- PASS: TestCompileComputeShaderWithAtomics (0.00s)
+=== RUN   TestCompileComputeShaderWithAtomicCompareExchange
+    shader_test.go:661: Successfully compiled compute shader with atomicCompareExchangeWeak: 640 bytes
+--- PASS: TestCompileComputeShaderWithAtomicCompareExchange (0.00s)
+=== RUN   TestCompileFragmentShaderWithIfElseReturn
+    shader_test.go:726: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:728: Successfully compiled fragment shader with if/else return: 1592 bytes
+--- PASS: TestCompileFragmentShaderWithIfElseReturn (0.00s)
+=== RUN   TestCompileFragmentShaderWithNestedIfElse
+    shader_test.go:775: Successfully compiled fragment shader with nested if/else: 848 bytes
+--- PASS: TestCompileFragmentShaderWithNestedIfElse (0.00s)
+=== RUN   TestCompileFragmentShaderIfWithoutElse
+    shader_test.go:816: Successfully compiled fragment shader if without else: 668 bytes
+--- PASS: TestCompileFragmentShaderIfWithoutElse (0.00s)
+=== RUN   TestBoolToFloatConversion
+    shader_test.go:951: Successfully compiled bool→f32 conversion: 440 bytes
+--- PASS: TestBoolToFloatConversion (0.00s)
+=== RUN   TestBoolToUintConversion
+    shader_test.go:996: Successfully compiled bool→u32 conversion: 704 bytes
+--- PASS: TestBoolToUintConversion (0.00s)
+=== RUN   TestBoolToSintConversion
+    shader_test.go:1039: Successfully compiled bool→i32 conversion: 488 bytes
+--- PASS: TestBoolToSintConversion (0.00s)
+=== RUN   TestInlineBoolToFloatConversion
+    shader_test.go:1080: Successfully compiled inline bool→f32 conversion: 424 bytes
+--- PASS: TestInlineBoolToFloatConversion (0.00s)
+=== RUN   TestCompileVectorTimesScalar
+--- PASS: TestCompileVectorTimesScalar (0.00s)
+=== RUN   TestCompileScalarTimesVector
+--- PASS: TestCompileScalarTimesVector (0.00s)
+=== RUN   TestBuiltinPositionFragCoord
+    shader_test.go:1306: Successfully verified Position/FragCoord BuiltIn decorations: 1364 bytes
+--- PASS: TestBuiltinPositionFragCoord (0.00s)
+=== RUN   TestBuiltinPositionFragCoordDirectBinding
+    shader_test.go:1416: Successfully verified direct @builtin(position) on fragment input: 564 bytes
+--- PASS: TestBuiltinPositionFragCoordDirectBinding (0.00s)
+=== RUN   TestCompileArrayLengthBareArray
+    shader_test.go:1462: Successfully compiled arrayLength on bare array: 844 bytes
+--- PASS: TestCompileArrayLengthBareArray (0.00s)
+=== RUN   TestCompileArrayLengthStructMember
+    shader_test.go:1513: Successfully compiled arrayLength on struct member: 924 bytes
+--- PASS: TestCompileArrayLengthStructMember (0.00s)
+=== RUN   TestCompileFunctionCallInLetExpr
+    shader_test.go:1593: Successfully compiled function call in let expression: 836 bytes
+--- PASS: TestCompileFunctionCallInLetExpr (0.00s)
+=== RUN   TestCompileMultipleCallResultsInInit
+    shader_test.go:1652: Successfully compiled multiple call results in init: 1076 bytes
+--- PASS: TestCompileMultipleCallResultsInInit (0.00s)
+=== RUN   TestCompileMultipleCallResultsInlinedLet
+    shader_test.go:1712: Successfully compiled inlined let with multiple call results: 1032 bytes
+--- PASS: TestCompileMultipleCallResultsInlinedLet (0.00s)
+=== RUN   TestCompileImageQuery
+    shader_test.go:1782: Successfully compiled image query shader with ImageQuery capability: 804 bytes
+--- PASS: TestCompileImageQuery (0.00s)
+=== RUN   TestCompileMSDFTextShader
+    shader_test.go:1878: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:1880: Successfully compiled MSDF text shader: 4564 bytes
+--- PASS: TestCompileMSDFTextShader (0.00s)
+=== RUN   TestCompileSDFRenderShader
+    shader_test.go:1998: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:2000: Successfully compiled SDF render shader: 6572 bytes
+--- PASS: TestCompileSDFRenderShader (0.03s)
+=== RUN   TestCompileConvexShader
+    shader_test.go:2069: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:2071: Successfully compiled convex shader: 2584 bytes
+--- PASS: TestCompileConvexShader (0.00s)
+=== RUN   TestCompileGogpuPositionedQuadShader
+    shader_test.go:2162: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:2164: Successfully compiled gogpu positioned quad shader: 4216 bytes
+--- PASS: TestCompileGogpuPositionedQuadShader (0.00s)
+=== RUN   TestCompileGogpuTexturedQuadShader
+    shader_test.go:2207: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:2209: Successfully compiled gogpu textured quad shader: 2024 bytes
+--- PASS: TestCompileGogpuTexturedQuadShader (0.00s)
+=== RUN   TestCompileStencilFillShader
+    shader_test.go:2237: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:2239: Successfully compiled stencil fill shader: 1404 bytes
+--- PASS: TestCompileStencilFillShader (0.00s)
+=== RUN   TestCompileCoverShader
+    shader_test.go:2268: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:2270: Successfully compiled cover shader: 1544 bytes
+--- PASS: TestCompileCoverShader (0.00s)
+=== RUN   TestCompileBlitShader
+    shader_test.go:2311: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:2313: Successfully compiled blit shader: 1872 bytes
+--- PASS: TestCompileBlitShader (0.00s)
+=== RUN   TestCompileBlendShader
+    shader_test.go:2427: spirv-val not found, skipping Vulkan SDK validation
+    shader_test.go:2429: Successfully compiled blend shader: 5252 bytes
+--- PASS: TestCompileBlendShader (0.00s)
+=== RUN   TestCompileFullBlendShader
+    shader_test.go:2438: blend.wgsl not available: open ../../gg/internal/gpu/shaders/blend.wgsl: no such file or directory
+--- SKIP: TestCompileFullBlendShader (0.00s)
+=== RUN   TestCompileStripShader
+    shader_test.go:2455: strip.wgsl not available: open ../../gg/internal/gpu/shaders/strip.wgsl: no such file or directory
+--- SKIP: TestCompileStripShader (0.00s)
+=== RUN   TestCompileCompositeShader
+    shader_test.go:2472: composite.wgsl not available: open ../../gg/internal/gpu/shaders/composite.wgsl: no such file or directory
+--- SKIP: TestCompileCompositeShader (0.00s)
+=== RUN   TestCompileFlattenShader
+    shader_test.go:2489: flatten.wgsl not available: open ../../gg/internal/gpu/shaders/flatten.wgsl: no such file or directory
+--- SKIP: TestCompileFlattenShader (0.00s)
+=== RUN   TestCompileCoarseShader
+    shader_test.go:2506: coarse.wgsl not available: open ../../gg/internal/gpu/shaders/coarse.wgsl: no such file or directory
+--- SKIP: TestCompileCoarseShader (0.00s)
+=== RUN   TestCompileFineShader
+    shader_test.go:2523: fine.wgsl not available: open ../../gg/internal/gpu/shaders/fine.wgsl: no such file or directory
+--- SKIP: TestCompileFineShader (0.00s)
+=== RUN   TestCompileBoidsShader
+    shader_test.go:2540: boids.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/naga/tests/in/wgsl/boids.wgsl: no such file or directory
+--- SKIP: TestCompileBoidsShader (0.00s)
+=== RUN   TestCompileCollatzShader
+    shader_test.go:2556: collatz.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/naga/tests/in/wgsl/collatz.wgsl: no such file or directory
+--- SKIP: TestCompileCollatzShader (0.00s)
+=== RUN   TestCompileCubeShader
+    shader_test.go:2572: cube shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/features/src/cube/shader.wgsl: no such file or directory
+--- SKIP: TestCompileCubeShader (0.00s)
+=== RUN   TestCompileHelloTriangleShader
+    shader_test.go:2587: hello_triangle shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/features/src/hello_triangle/shader.wgsl: no such file or directory
+--- SKIP: TestCompileHelloTriangleShader (0.00s)
+=== RUN   TestCompileHelloComputeShader
+    shader_test.go:2602: hello_compute shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/standalone/01_hello_compute/src/shader.wgsl: no such file or directory
+--- SKIP: TestCompileHelloComputeShader (0.00s)
+=== RUN   TestCompileRenderToTextureShader
+    shader_test.go:2617: render_to_texture shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/features/src/render_to_texture/shader.wgsl: no such file or directory
+--- SKIP: TestCompileRenderToTextureShader (0.00s)
+=== RUN   TestCompileMSAALineShader
+    shader_test.go:2632: msaa_line shader.wgsl not available: open ../../reference/wgpu-ecosystem/wgpu/examples/features/src/msaa_line/shader.wgsl: no such file or directory
+--- SKIP: TestCompileMSAALineShader (0.00s)
+PASS

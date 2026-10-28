@@ -1,0 +1,5 @@
+=== RUN   TestKeystrokeRatio_M5
+    m5_keystroke_g1_test.go:26: G1击键NoWrap: base=718ns 1e6=1.084µs 比值1e6/base=1.51
+    m5_keystroke_g1_test.go:28: G1未达标NoWrap:文本×1000耗时×1.5,门禁≤1.5
+--- FAIL: TestKeystrokeRatio_M5 (0.11s)
+FAIL

@@ -1,0 +1,11 @@
+=== RUN   TestDisplayLinesMatchLayout_MaxLinesEllipsis
+--- PASS: TestDisplayLinesMatchLayout_MaxLinesEllipsis (0.00s)
+=== RUN   TestDisplayLinesMatchLayout_MaxLinesClip
+--- PASS: TestDisplayLinesMatchLayout_MaxLinesClip (0.00s)
+=== RUN   TestDisplayLinesMatchLayout_NoFaceEstimate
+--- PASS: TestDisplayLinesMatchLayout_NoFaceEstimate (0.00s)
+=== RUN   TestDisplayLinesMatchLayout_WrapLock
+--- PASS: TestDisplayLinesMatchLayout_WrapLock (0.01s)
+=== RUN   TestDisplayLinesMatchLayout_MultiRun
+--- PASS: TestDisplayLinesMatchLayout_MultiRun (0.00s)
+PASS

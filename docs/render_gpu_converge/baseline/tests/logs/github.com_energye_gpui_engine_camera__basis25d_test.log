@@ -1,0 +1,11 @@
+=== RUN   TestBasis25DFromCases
+--- PASS: TestBasis25DFromCases (0.00s)
+=== RUN   TestBasis25DProjectFromCases
+--- PASS: TestBasis25DProjectFromCases (0.00s)
+=== RUN   TestBasis25DEdgesNoCrash
+--- PASS: TestBasis25DEdgesNoCrash (0.00s)
+=== RUN   TestYSortFromCases
+--- PASS: TestYSortFromCases (0.00s)
+=== RUN   TestShadow25DFromCases
+--- PASS: TestShadow25DFromCases (0.00s)
+PASS

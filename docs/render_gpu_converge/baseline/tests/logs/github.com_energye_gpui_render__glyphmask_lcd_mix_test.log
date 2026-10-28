@@ -1,0 +1,7 @@
+=== RUN   TestGlyphMaskMixedGrayLCDSameFrame
+=== RUN   TestGlyphMaskMixedGrayLCDSameFrame/gray_then_lcd
+=== RUN   TestGlyphMaskMixedGrayLCDSameFrame/lcd_then_gray
+--- PASS: TestGlyphMaskMixedGrayLCDSameFrame (0.33s)
+    --- PASS: TestGlyphMaskMixedGrayLCDSameFrame/gray_then_lcd (0.01s)
+    --- PASS: TestGlyphMaskMixedGrayLCDSameFrame/lcd_then_gray (0.02s)
+PASS

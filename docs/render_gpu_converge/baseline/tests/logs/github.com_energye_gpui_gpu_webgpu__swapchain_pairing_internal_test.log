@@ -1,0 +1,5 @@
+=== RUN   TestSwapchainPairing_FailurePathsMoveNoCounters
+--- PASS: TestSwapchainPairing_FailurePathsMoveNoCounters (0.00s)
+=== RUN   TestSwapchainPairing_EmptyDiscardDocumentsSemantics
+--- PASS: TestSwapchainPairing_EmptyDiscardDocumentsSemantics (0.00s)
+PASS

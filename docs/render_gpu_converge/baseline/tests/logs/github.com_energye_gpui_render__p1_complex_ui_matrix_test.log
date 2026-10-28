@@ -1,0 +1,234 @@
+=== RUN   TestP1_A1_UIButtonStates
+    p1_complex_ui_matrix_test.go:131: path_stats gpu_ops=14 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_A1_UIButtonStates (0.34s)
+=== RUN   TestP1_A2_UIInputField
+    p1_complex_ui_matrix_test.go:194: path_stats gpu_ops=6 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_A2_UIInputField (0.01s)
+=== RUN   TestP1_A3_UIMenuOverlay
+    p1_complex_ui_matrix_test.go:250: path_stats gpu_ops=10 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_A3_UIMenuOverlay (0.01s)
+=== RUN   TestP1_A4_UIModalMask
+    p1_complex_ui_matrix_test.go:293: path_stats gpu_ops=5 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_A4_UIModalMask (0.01s)
+=== RUN   TestP1_A5_UITableCells
+    p1_complex_ui_matrix_test.go:378: path_stats gpu_ops=63 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_A5_UITableCells (0.20s)
+=== RUN   TestP1_A6_UITabsBadge
+    p1_complex_ui_matrix_test.go:451: path_stats gpu_ops=11 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_A6_UITabsBadge (0.01s)
+=== RUN   TestP1_A7_UIIconTextMix
+    p1_complex_ui_matrix_test.go:494: path_stats gpu_ops=4 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_A7_UIIconTextMix (0.08s)
+=== RUN   TestP1_A8_UIScrollClip
+    p1_complex_ui_matrix_test.go:553: path_stats gpu_ops=13 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_A8_UIScrollClip (0.00s)
+=== RUN   TestP1_Capability_S05_ResizeGPU
+    p1_complex_ui_matrix_test.go:584: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:594: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_Capability_S05_ResizeGPU (0.00s)
+=== RUN   TestP1_Capability_S08_HiDPIHairline
+    p1_complex_ui_matrix_test.go:622: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:635: HiDPI hairline ink samples=120 DeviceScale=2
+--- PASS: TestP1_Capability_S08_HiDPIHairline (0.02s)
+=== RUN   TestP1_Capability_B06_PaintAlpha
+    p1_complex_ui_matrix_test.go:653: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:656: paint alpha center rgba=255,128,128,255
+--- PASS: TestP1_Capability_B06_PaintAlpha (0.00s)
+=== RUN   TestP1_Capability_B06_PaintAlphaMultiPath
+    p1_complex_ui_matrix_test.go:687: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:689: B06 solid rgba=128,0,128 stats=gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2
+    p1_complex_ui_matrix_test.go:718: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:720: B06 image opacity rgba=128,0,128 stats=gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2
+    p1_complex_ui_matrix_test.go:745: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:747: B06 layer opacity rgba=128,0,128 stats=gpu_ops=2 cpu_fallback_ops=0 frame_flushes=2
+    p1_complex_ui_matrix_test.go:770: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:772: B06 text alpha stats=gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:795: B06 text ink=55 partial=55
+--- PASS: TestP1_Capability_B06_PaintAlphaMultiPath (0.04s)
+=== RUN   TestP1_B1_ManyRRectsCorrectness
+    p1_complex_ui_matrix_test.go:821: path_stats gpu_ops=401 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:841: many rrects colored samples=2982 stats=gpu_ops=401 cpu_fallback_ops=0 frame_flushes=3602
+--- PASS: TestP1_B1_ManyRRectsCorrectness (0.36s)
+=== RUN   TestP1_B2_StressTextAtlas
+    p1_complex_ui_matrix_test.go:864: path_stats gpu_ops=96 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_B2_StressTextAtlas (0.01s)
+=== RUN   TestP1_B3_StressImageGallery
+    p1_complex_ui_matrix_test.go:894: path_stats gpu_ops=64 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_B3_StressImageGallery (0.01s)
+=== RUN   TestP1_B4_StressBlendStack
+    p1_complex_ui_matrix_test.go:929: path_stats gpu_ops=3 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:932: B4 copy-center rgba=255,64,64
+--- PASS: TestP1_B4_StressBlendStack (0.00s)
+=== RUN   TestP1_B5_StressPathAA
+    p1_complex_ui_matrix_test.go:964: path_stats gpu_ops=52 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:976: B5 ink samples=36 center=131,131,131
+--- PASS: TestP1_B5_StressPathAA (0.01s)
+=== RUN   TestP1_B6_StressHiDPI
+    p1_complex_ui_matrix_test.go:1000: path_stats gpu_ops=21 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_B6_StressHiDPI (0.00s)
+=== RUN   TestP1_C1_NestedModalFormMenu
+    p1_complex_ui_matrix_test.go:1096: path_stats gpu_ops=18 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1111: mask=133,133,133 modal=255,255,255 hover=231,241,255
+--- PASS: TestP1_C1_NestedModalFormMenu (0.00s)
+=== RUN   TestP1_C2_TableScrollOverlayDensity
+    p1_complex_ui_matrix_test.go:1174: path_stats gpu_ops=27 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_C2_TableScrollOverlayDensity (0.01s)
+=== RUN   TestP1_D1_DrawerTreeSelectDensity
+    p1_complex_ui_matrix_test.go:1306: path_stats gpu_ops=43 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1308: D1 path_stats gpu_ops=43 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1342: samples drawer=235,235,235 panel=255,255,255 btn=33,140,242 tree=164,164,164
+--- PASS: TestP1_D1_DrawerTreeSelectDensity (0.01s)
+=== RUN   TestP1_D2_TabsBadgePopconfirmDensity
+    p1_complex_ui_matrix_test.go:1421: path_stats gpu_ops=23 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_D2_TabsBadgePopconfirmDensity (0.00s)
+=== RUN   TestP1_E1_DatePickerPanelDensity
+    p1_complex_ui_matrix_test.go:1532: path_stats gpu_ops=60 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1534: E1 path_stats gpu_ops=60 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_E1_DatePickerPanelDensity (0.01s)
+=== RUN   TestP1_E2_TransferListDensity
+    p1_complex_ui_matrix_test.go:1637: path_stats gpu_ops=61 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1639: E2 path_stats gpu_ops=61 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_E2_TransferListDensity (0.01s)
+=== RUN   TestP1_F1_CascaderPanelDensity
+    p1_complex_ui_matrix_test.go:1711: path_stats gpu_ops=41 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1713: F1 path_stats gpu_ops=41 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1724: active sample=229,242,255 col=234,234,234
+--- PASS: TestP1_F1_CascaderPanelDensity (0.01s)
+=== RUN   TestP1_F2_VirtualListDensity
+    p1_complex_ui_matrix_test.go:1798: path_stats gpu_ops=58 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1800: F2 path_stats gpu_ops=58 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1822: header=247,247,247 avatar=33,140,242 thumb=140,140,140
+--- PASS: TestP1_F2_VirtualListDensity (0.01s)
+=== RUN   TestP1_G1_TreeSelectPanelDensity
+    p1_complex_ui_matrix_test.go:1961: path_stats gpu_ops=59 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1963: G1 path_stats gpu_ops=59 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:1980: panel=255,255,255 sel=255,255,255 check=229,229,229
+--- PASS: TestP1_G1_TreeSelectPanelDensity (0.01s)
+=== RUN   TestP1_G2_CarouselStageDensity
+    p1_complex_ui_matrix_test.go:2078: path_stats gpu_ops=22 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2080: G2 path_stats gpu_ops=22 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2104: stage=31,92,199 cta=255,255,255 dot=31,92,199 prog=31,92,199
+--- PASS: TestP1_G2_CarouselStageDensity (0.01s)
+=== RUN   TestP1_H1_LargeVirtualListWindow
+    p1_complex_ui_matrix_test.go:2186: path_stats gpu_ops=131 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2188: H1 path_stats gpu_ops=131 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_H1_LargeVirtualListWindow (0.02s)
+=== RUN   TestP1_H2_TransferDualListHeavy
+    p1_complex_ui_matrix_test.go:2277: path_stats gpu_ops=108 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2279: H2 path_stats gpu_ops=108 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_H2_TransferDualListHeavy (0.01s)
+=== RUN   TestP1_I1_DashboardShellDensity
+    p1_complex_ui_matrix_test.go:2383: path_stats gpu_ops=66 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2385: I1 path_stats gpu_ops=66 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_I1_DashboardShellDensity (0.02s)
+=== RUN   TestP1_I2_ModalStackDensity
+    p1_complex_ui_matrix_test.go:2463: path_stats gpu_ops=23 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2465: I2 path_stats gpu_ops=23 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_I2_ModalStackDensity (0.01s)
+=== RUN   TestP1_J1_NotificationStackDensity
+    p1_complex_ui_matrix_test.go:2542: path_stats gpu_ops=47 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2544: J1 path_stats gpu_ops=47 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_J1_NotificationStackDensity (0.01s)
+=== RUN   TestP1_J2_DualDrawerOverlayDensity
+    p1_complex_ui_matrix_test.go:2630: path_stats gpu_ops=46 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2632: J2 path_stats gpu_ops=46 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_J2_DualDrawerOverlayDensity (0.01s)
+=== RUN   TestP1_K1_DamageMultiRegionUI
+    p1_complex_ui_matrix_test.go:2688: path_stats gpu_ops=10 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2706: K1 path_stats gpu_ops=12 cpu_fallback_ops=0 frame_flushes=2 base=10 damageRects=2
+--- PASS: TestP1_K1_DamageMultiRegionUI (0.01s)
+=== RUN   TestP1_K2_HiDPIToolbarTableOverlay
+    p1_complex_ui_matrix_test.go:2784: path_stats gpu_ops=141 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2786: K2 path_stats gpu_ops=141 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_K2_HiDPIToolbarTableOverlay (0.01s)
+=== RUN   TestP1_L1_FormValidationDense
+    p1_complex_ui_matrix_test.go:2868: path_stats gpu_ops=20 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2870: L1 path_stats gpu_ops=20 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_L1_FormValidationDense (0.01s)
+=== RUN   TestP1_L2_TableSelectionToasts
+    p1_complex_ui_matrix_test.go:2950: path_stats gpu_ops=41 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:2952: L2 path_stats gpu_ops=41 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_L2_TableSelectionToasts (0.01s)
+=== RUN   TestP1_M1_ChartDashboardBlend
+    p1_complex_ui_matrix_test.go:3036: path_stats gpu_ops=32 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:3038: M1 path_stats gpu_ops=32 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_M1_ChartDashboardBlend (0.03s)
+=== RUN   TestP1_M2_HeatmapSoftLightDensity
+    p1_complex_ui_matrix_test.go:3098: path_stats gpu_ops=56 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:3100: M2 path_stats gpu_ops=56 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_M2_HeatmapSoftLightDensity (0.03s)
+=== RUN   TestP1_N1_RetainedMultiPanelDamage
+    p1_complex_ui_matrix_test.go:3156: path_stats gpu_ops=24 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:3179: path_stats gpu_ops=27 cpu_fallback_ops=0 frame_flushes=2
+    p1_complex_ui_matrix_test.go:3181: N1 path_stats gpu_ops=27 cpu_fallback_ops=0 frame_flushes=2 base=24 damage=3
+--- PASS: TestP1_N1_RetainedMultiPanelDamage (0.01s)
+=== RUN   TestP1_N2_IDELayoutDensity
+    p1_complex_ui_matrix_test.go:3276: path_stats gpu_ops=69 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:3278: N2 path_stats gpu_ops=69 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_N2_IDELayoutDensity (0.02s)
+=== RUN   TestP1_O1_CalendarTimelineDensity
+    p1_complex_ui_matrix_test.go:3374: path_stats gpu_ops=105 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:3376: O1 path_stats gpu_ops=105 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_O1_CalendarTimelineDensity (0.01s)
+=== RUN   TestP1_O2_GanttDependencyDensity
+    p1_complex_ui_matrix_test.go:3456: path_stats gpu_ops=42 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:3458: O2 path_stats gpu_ops=42 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_O2_GanttDependencyDensity (0.02s)
+=== RUN   TestP1_P1_AdvancedBlendCompositeDensity
+    p1_complex_ui_matrix_test.go:3540: bar0 before blend @104,130 = 82,157,233
+    p1_complex_ui_matrix_test.go:3564: P1 after blends path_stats gpu_ops=77 cpu_fallback_ops=0 frame_flushes=3 baseOps=74
+    p1_complex_ui_matrix_test.go:3573: colorburn sample=0,0,107 (was 82,157,233)
+    p1_complex_ui_matrix_test.go:3581: exclusion sample=204,192,26
+    p1_complex_ui_matrix_test.go:3590: path_stats gpu_ops=79 cpu_fallback_ops=0 frame_flushes=6
+--- PASS: TestP1_P1_AdvancedBlendCompositeDensity (0.03s)
+=== RUN   TestP1_P2_ComputePathUIChromeDensity
+    p1_complex_ui_matrix_test.go:3663: P2 compute path_stats gpu_ops=24 cpu_fallback_ops=0 frame_flushes=3 base=12
+    p1_complex_ui_matrix_test.go:3669: compute star sample=38,102,217
+    p1_complex_ui_matrix_test.go:3672: compute arrow sample=51,191,102
+    p1_complex_ui_matrix_test.go:3681: path_stats gpu_ops=26 cpu_fallback_ops=0 frame_flushes=6
+    p1_complex_ui_matrix_test.go:3686: sidebar sample=240,242,247
+--- PASS: TestP1_P2_ComputePathUIChromeDensity (0.05s)
+=== RUN   TestP1_Q1_MultiViewportRetainedDensity
+    p1_complex_ui_matrix_test.go:3788: path_stats gpu_ops=94 cpu_fallback_ops=0 frame_flushes=2
+    p1_complex_ui_matrix_test.go:3790: Q1 path_stats gpu_ops=94 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestP1_Q1_MultiViewportRetainedDensity (0.04s)
+=== RUN   TestP1_Q2_TriplePaneDamageDensity
+    p1_complex_ui_matrix_test.go:3883: Q2 path_stats gpu_ops=59 cpu_fallback_ops=0 frame_flushes=2 base=57 damage=[(266,40)-(566,352) (652,92)-(708,148)]
+--- PASS: TestP1_Q2_TriplePaneDamageDensity (0.03s)
+=== RUN   TestP1_R1_SpreadsheetGridDensity
+    p1_complex_ui_matrix_test.go:3978: path_stats gpu_ops=206 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:3980: R1 path_stats gpu_ops=206 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:3986: selection sample=192,210,232
+    p1_complex_ui_matrix_test.go:3992: formula bar sample=255,255,255
+    p1_complex_ui_matrix_test.go:3998: col header sample=229,235,242
+--- PASS: TestP1_R1_SpreadsheetGridDensity (0.03s)
+=== RUN   TestP1_R2_PivotHeatmapDensity
+    p1_complex_ui_matrix_test.go:4055: path_stats gpu_ops=178 cpu_fallback_ops=0 frame_flushes=2
+    p1_complex_ui_matrix_test.go:4057: R2 path_stats gpu_ops=178 cpu_fallback_ops=0 frame_flushes=2 base=177
+--- PASS: TestP1_R2_PivotHeatmapDensity (0.02s)
+=== RUN   TestP1_S1_KanbanBoardDensity
+    p1_complex_ui_matrix_test.go:4140: path_stats gpu_ops=74 cpu_fallback_ops=0 frame_flushes=2
+    p1_complex_ui_matrix_test.go:4142: S1 path_stats gpu_ops=74 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestP1_S1_KanbanBoardDensity (0.03s)
+=== RUN   TestP1_S2_StoryboardFilmstripDensity
+    p1_complex_ui_matrix_test.go:4209: path_stats gpu_ops=17 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:4211: S2 path_stats gpu_ops=17 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_S2_StoryboardFilmstripDensity (0.01s)
+=== RUN   TestP1_T1_MailClientDensity
+    p1_complex_ui_matrix_test.go:4291: path_stats gpu_ops=35 cpu_fallback_ops=0 frame_flushes=2
+    p1_complex_ui_matrix_test.go:4293: T1 path_stats gpu_ops=35 cpu_fallback_ops=0 frame_flushes=2
+--- PASS: TestP1_T1_MailClientDensity (0.02s)
+=== RUN   TestP1_T2_SettingsModalBackdropDensity
+    p1_complex_ui_matrix_test.go:4348: path_stats gpu_ops=23 cpu_fallback_ops=0 frame_flushes=4
+    p1_complex_ui_matrix_test.go:4350: T2 path_stats gpu_ops=23 cpu_fallback_ops=0 frame_flushes=4 base=18
+    p1_complex_ui_matrix_test.go:4361: dimmed page=147,148,148
+--- PASS: TestP1_T2_SettingsModalBackdropDensity (0.03s)
+=== RUN   TestP1_U1_VectorDesignToolDensity
+    p1_complex_ui_matrix_test.go:4456: path_stats gpu_ops=30 cpu_fallback_ops=0 frame_flushes=1
+    p1_complex_ui_matrix_test.go:4458: U1 path_stats gpu_ops=30 cpu_fallback_ops=0 frame_flushes=1
+--- PASS: TestP1_U1_VectorDesignToolDensity (0.02s)
+=== RUN   TestP1_U2_MediaGalleryExternalTiles
+    p1_complex_ui_matrix_test.go:4541: path_stats gpu_ops=19 cpu_fallback_ops=0 frame_flushes=4
+    p1_complex_ui_matrix_test.go:4543: U2 path_stats gpu_ops=19 cpu_fallback_ops=0 frame_flushes=4 base=15
+--- PASS: TestP1_U2_MediaGalleryExternalTiles (0.04s)
+PASS

@@ -1,0 +1,97 @@
+=== RUN   TestX11SharedBusSingleConn
+--- PASS: TestX11SharedBusSingleConn (0.00s)
+=== RUN   TestX11ImeDebugSmoke
+[ime-x11] probe order: ibus (QT_IM_MODULE="ibus") single
+[ime-x11] fcitx org.fcitx.Fcitx5 failed: Unknown object '/org/fcitx/Fcitx5/InputMethod'.
+[ime-x11] fcitx CreateInputContext(ss) org.fcitx.Fcitx /org/fcitx/Fcitx/InputMethod appname="github.com_energye_gpui_ui_platform.test" appid="gpui"
+[ime-x11] fcitx org.fcitx.Fcitx failed: Name "org.fcitx.Fcitx" does not exist
+[ime-x11] fcitx fallback ibus compat CreateInputContext(s) client_name="gpui:github.com_energye_gpui_ui_platform.test"
+[ime-x11] ibus bus skip dead pid 28197 file /home/yanghy/.config/ibus/bus/710b9a1c83b644dbaea12f82ea7fcb5f-unix-gpui-nested addr "unix:abstract=/home/yanghy/.cache/ibus/dbus-3Hn7n4Ox,guid=0f56964c172b7f77a43b90976ae0032c"
+[ime-x11] ibus bus skip dead pid 105196 file /home/yanghy/.config/ibus/bus/710b9a1c83b644dbaea12f82ea7fcb5f-unix-wayland-nested addr "unix:abstract=/home/yanghy/.cache/ibus/dbus-OeLqnmkj,guid=52114b62086f312fabd5850f6aa47686"
+[ime-x11] ibus bus resolved "unix:path=/run/user/1000/bus,fcitx_random_string=4223b429f5664b7892045f7a501d7b26" pid 146598 file /home/yanghy/.config/ibus/bus/710b9a1c83b644dbaea12f82ea7fcb5f-unix-wayland-0
+[ime-x11] ibus private dial addr="unix:path=/run/user/1000/bus,fcitx_random_string=4223b429f5664b7892045f7a501d7b26"
+[ime-x11] ibus private dial ok addr="unix:path=/run/user/1000/bus,fcitx_random_string=4223b429f5664b7892045f7a501d7b26"
+[ime-x11] ibus AddMatch "type='signal',sender='org.freedesktop.IBus'" ok
+[ime-x11] ibus AddMatch "type='signal',sender='org.fcitx.Fcitx5'" ok
+[ime-x11] ibus AddMatch "type='signal',sender='org.fcitx.Fcitx'" ok
+[ime-x11] ibus AddMatch "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'" ok
+[ime-x11] ibus CreateInputContext(s) client_name="gpui:github.com_energye_gpui_ui_platform.test"
+[ime-x11] imeForX11 engine=ibus conn=0xc000116690
+[ime-x11] lazy reprobe triggered dirty=false path=""
+[ime-x11] probe order: ibus (QT_IM_MODULE="ibus") single
+[ime-x11] asyncProbe start order=[ibus]
+[ime-x11] ibus CreateInputContext(s) client_name="gpui:github.com_energye_gpui_ui_platform.test"
+[ime-x11] probe order: ibus (QT_IM_MODULE="ibus") single
+[ime-x11] ibus CreateInputContext(s) client_name="gpui:github.com_energye_gpui_ui_platform.test"
+[ime-x11] fcitx compat mode = true
+[ime-x11] fcitx ibus compat CreateInputContext ok /org/freedesktop/IBus/InputContext_36 (compat mode)
+[ime-x11] CreateInputContext fcitx5 ok objectPath=/org/freedesktop/IBus/InputContext_36
+[ime-x11] CreateInputContext ibus ok objectPath=/org/freedesktop/IBus/InputContext_38
+[ime-x11] CreateInputContext ibus ok objectPath=/org/freedesktop/IBus/InputContext_37
+[ime-x11] lazy reprobe ibus ok /org/freedesktop/IBus/InputContext_39 (force=false)
+[ime-x11] SetCapabilities fcitx5 ok caps=16
+[ime-x11] SetCapabilities ibus ok caps=41
+[ime-x11] SetCapabilities ibus ok caps=41
+[ime-x11] engine=fcitx5 objectPath=/org/freedesktop/IBus/InputContext_36
+[ime-x11] signal loop started for /org/freedesktop/IBus/InputContext_36 engine=fcitx5
+[ime-x11] engine=ibus objectPath=/org/freedesktop/IBus/InputContext_38
+[ime-x11] signal loop started for /org/freedesktop/IBus/InputContext_38 engine=ibus
+[ime-x11] engine=ibus objectPath=/org/freedesktop/IBus/InputContext_37
+[ime-x11] signal loop started for /org/freedesktop/IBus/InputContext_37 engine=ibus
+[ime-x11] Destroy ibus /org/freedesktop/IBus/InputContext_38 err=<nil>
+[ime-x11] lazy reprobe success engine=ibus path=/org/freedesktop/IBus/InputContext_39
+[ime-x11] FocusIn /org/freedesktop/IBus/InputContext_39 err=<nil>
+[ime-x11] FocusIn /org/freedesktop/IBus/InputContext_39 err=<nil>
+[ime-x11] signal loop started for /org/freedesktop/IBus/InputContext_39 engine=ibus
+[ime-x11] EnableIME rect={10 20 2 16} engine=ibus path=/org/freedesktop/IBus/InputContext_39 purpose=0 dirty=false
+[ime-x11] FocusIn /org/freedesktop/IBus/InputContext_39 err=<nil>
+[ime-x11] FocusIn /org/freedesktop/IBus/InputContext_39 err=<nil>
+[ime-x11] SetCursorLocation ii ii rect={10 20 2 16} -> phys x=10 y=20 w=2 h=16
+[ime-x11] ibus SetCursorLocation(10,20,2,16) err=<nil>
+[ime-x11] ibus SetContentType purpose=0 err=<nil>
+[ime-x11] EnableIME focused guard skip rect={10 20 2 16}
+[ime-x11] UpdateCursorRect skip same rect={10 20 2 16}
+[ime-x11] UpdateCursorRect preheat (not composing) rect={12 20 2 16}
+[ime-x11] SetContentType purpose=8 engine=ibus focused=true dirty=false
+[ime-x11] ibus SetContentType purpose=8 err=<nil>
+[ime-x11] SetComposing len=5 cur=3 engine=ibus dirty=false
+[ime-x11] SetComposing skip password purpose
+[ime-x11] Commit len=6 engine=ibus
+[ime-x11] DisableIME engine=ibus
+[ime-x11] signal :1.110 org.freedesktop.IBus.InputContext.UpdatePreeditText path=/org/freedesktop/IBus/InputContext_39 body=[@(sa{sv}sv) ["IBusText", {}, "", <@(sa{sv}av) ["IBusAttrList", {}, []]>] 0 false]
+[ime-x11] UpdatePreeditText text="" cursor=0 visible=false segs=[]
+[ime-x11] push Preedit end segs=[]
+[ime-x11] signal :1.110 org.freedesktop.IBus.InputContext.UpdatePreeditText path=/org/freedesktop/IBus/InputContext_39 body=[@(sa{sv}sv) ["IBusText", {}, "", <@(sa{sv}av) ["IBusAttrList", {}, []]>] 0 false]
+[ime-x11] UpdatePreeditText text="" cursor=0 visible=false segs=[]
+[ime-x11] push Preedit end segs=[]
+[ime-x11] FocusOut /org/freedesktop/IBus/InputContext_39 err=<nil>
+[ime-x11] FocusOut /org/freedesktop/IBus/InputContext_39 err=<nil>
+[ime-x11] EndComposing after FocusOut
+--- PASS: TestX11ImeDebugSmoke (0.02s)
+=== RUN   TestX11ImeNilSafety
+--- PASS: TestX11ImeNilSafety (0.00s)
+=== RUN   TestX11S2AsyncProbe
+[ime-x11] probe order: ibus (GTK_IM_MODULE="ibus") single
+[ime-x11] imeForX11 engine=ibus conn=0xc000116690
+[ime-x11] probe order: ibus (GTK_IM_MODULE="ibus") single
+[ime-x11] probe order: ibus (GTK_IM_MODULE="ibus") single
+[ime-x11] asyncProbe start order=[ibus]
+[ime-x11] ibus CreateInputContext(s) client_name="gpui:github.com_energye_gpui_ui_platform.test"
+[ime-x11] imeForX11 engine=ibus conn=0xc000116690
+[ime-x11] probe order: ibus (GTK_IM_MODULE="ibus") single
+[ime-x11] asyncProbe start order=[ibus]
+[ime-x11] ibus CreateInputContext(s) client_name="gpui:github.com_energye_gpui_ui_platform.test"
+[ime-x11] CreateInputContext ibus ok objectPath=/org/freedesktop/IBus/InputContext_40
+[ime-x11] CreateInputContext ibus ok objectPath=/org/freedesktop/IBus/InputContext_41
+[ime-x11] SetCapabilities ibus ok caps=41
+[ime-x11] SetCapabilities ibus ok caps=41
+[ime-x11] engine=ibus objectPath=/org/freedesktop/IBus/InputContext_40
+[ime-x11] signal loop started for /org/freedesktop/IBus/InputContext_40 engine=ibus
+[ime-x11] engine=ibus objectPath=/org/freedesktop/IBus/InputContext_41
+[ime-x11] signal loop started for /org/freedesktop/IBus/InputContext_41 engine=ibus
+[ime-x11] Destroy ibus /org/freedesktop/IBus/InputContext_40 err=<nil>
+[ime-x11] Destroy ibus /org/freedesktop/IBus/InputContext_41 err=<nil>
+--- PASS: TestX11S2AsyncProbe (0.10s)
+=== RUN   TestX11TruncateSyncB10
+--- PASS: TestX11TruncateSyncB10 (0.00s)
+PASS

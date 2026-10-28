@@ -1,0 +1,3 @@
+=== RUN   TestQRCode_EncodeMatchesCases
+--- PASS: TestQRCode_EncodeMatchesCases (0.00s)
+PASS

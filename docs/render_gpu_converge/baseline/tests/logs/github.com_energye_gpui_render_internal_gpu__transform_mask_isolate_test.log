@@ -1,0 +1,6 @@
+=== RUN   TestIsolateMaskVsCPUNoClip
+    transform_mask_isolate_test.go:100: mask bbox=(56,589) 86x86
+ISOLATE mask-vs-CPU(noclip) rotate45: diff=235 <=31:235 32-63:0 64-159:0 >=160:0 maxd=2 mean=-1.06 std=0.23
+    transform_mask_isolate_test.go:190: artifacts: /tmp/TestIsolateMaskVsCPUNoClip2003354245/001
+--- PASS: TestIsolateMaskVsCPUNoClip (0.07s)
+PASS

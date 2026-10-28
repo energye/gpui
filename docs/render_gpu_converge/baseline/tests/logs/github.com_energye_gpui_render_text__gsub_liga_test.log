@@ -1,0 +1,27 @@
+=== RUN   TestGSUB_Ligatures_NotoSerif
+=== RUN   TestGSUB_Ligatures_NotoSerif/fi
+    gsub_liga_test.go:43:   [0] GID=7 XAdvance=10.61 Cluster=0
+=== RUN   TestGSUB_Ligatures_NotoSerif/ff
+    gsub_liga_test.go:43:   [0] GID=5 XAdvance=11.33 Cluster=0
+=== RUN   TestGSUB_Ligatures_NotoSerif/fi_in_word
+    gsub_liga_test.go:43:   [0] GID=0 XAdvance=9.60 Cluster=0
+    gsub_liga_test.go:43:   [1] GID=6 XAdvance=16.03 Cluster=1
+    gsub_liga_test.go:43:   [2] GID=0 XAdvance=9.60 Cluster=4
+    gsub_liga_test.go:43:   [3] GID=0 XAdvance=9.60 Cluster=5
+--- PASS: TestGSUB_Ligatures_NotoSerif (0.00s)
+    --- PASS: TestGSUB_Ligatures_NotoSerif/fi (0.00s)
+    --- PASS: TestGSUB_Ligatures_NotoSerif/ff (0.00s)
+    --- PASS: TestGSUB_Ligatures_NotoSerif/fi_in_word (0.00s)
+=== RUN   TestGSUB_Ligatures_TimesNewRoman
+    gsub_liga_test.go:61: Times New Roman not available (system font)
+--- SKIP: TestGSUB_Ligatures_TimesNewRoman (0.00s)
+=== RUN   TestGSUB_NoLigatures
+--- PASS: TestGSUB_NoLigatures (0.00s)
+=== RUN   TestGSUB_NoDLigatures
+    gsub_liga_test.go:129: Times New Roman not available (system font)
+--- SKIP: TestGSUB_NoDLigatures (0.00s)
+=== RUN   TestGSUB_DefaultFeatures
+--- PASS: TestGSUB_DefaultFeatures (0.00s)
+=== RUN   TestGSUB_FeatureDisable
+--- PASS: TestGSUB_FeatureDisable (0.00s)
+PASS

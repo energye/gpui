@@ -1,0 +1,9 @@
+=== RUN   TestColorAdapter_ImplementsInterface
+--- PASS: TestColorAdapter_ImplementsInterface (0.00s)
+=== RUN   TestColorAdapter_NoColorTables
+--- PASS: TestColorAdapter_NoColorTables (0.00s)
+=== RUN   TestColorAdapter_SyntheticCOLR
+--- PASS: TestColorAdapter_SyntheticCOLR (0.00s)
+=== RUN   TestColorAdapter_SyntheticCBDT
+--- PASS: TestColorAdapter_SyntheticCBDT (0.00s)
+PASS

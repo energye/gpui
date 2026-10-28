@@ -1,0 +1,67 @@
+=== RUN   TestWriteBits_SingleBit
+--- PASS: TestWriteBits_SingleBit (0.00s)
+=== RUN   TestWriteBits_MultipleBits
+--- PASS: TestWriteBits_MultipleBits (0.00s)
+=== RUN   TestWriteBits_CrossDword
+--- PASS: TestWriteBits_CrossDword (0.00s)
+=== RUN   TestWriteVBR_SmallValue
+=== RUN   TestWriteVBR_SmallValue/zero_vbr4
+=== RUN   TestWriteVBR_SmallValue/seven_vbr4
+=== RUN   TestWriteVBR_SmallValue/one_vbr6
+--- PASS: TestWriteVBR_SmallValue (0.00s)
+    --- PASS: TestWriteVBR_SmallValue/zero_vbr4 (0.00s)
+    --- PASS: TestWriteVBR_SmallValue/seven_vbr4 (0.00s)
+    --- PASS: TestWriteVBR_SmallValue/one_vbr6 (0.00s)
+=== RUN   TestWriteVBR_LargeValue
+--- PASS: TestWriteVBR_LargeValue (0.00s)
+=== RUN   TestWriteVBR_ThreeChunks
+--- PASS: TestWriteVBR_ThreeChunks (0.00s)
+=== RUN   TestEncodeSignedVBR
+=== RUN   TestEncodeSignedVBR/zero
+=== RUN   TestEncodeSignedVBR/positive_one
+=== RUN   TestEncodeSignedVBR/positive_max_small
+=== RUN   TestEncodeSignedVBR/negative_one
+=== RUN   TestEncodeSignedVBR/negative_two
+=== RUN   TestEncodeSignedVBR/negative_seven
+=== RUN   TestEncodeSignedVBR/large_positive
+=== RUN   TestEncodeSignedVBR/large_negative
+--- PASS: TestEncodeSignedVBR (0.00s)
+    --- PASS: TestEncodeSignedVBR/zero (0.00s)
+    --- PASS: TestEncodeSignedVBR/positive_one (0.00s)
+    --- PASS: TestEncodeSignedVBR/positive_max_small (0.00s)
+    --- PASS: TestEncodeSignedVBR/negative_one (0.00s)
+    --- PASS: TestEncodeSignedVBR/negative_two (0.00s)
+    --- PASS: TestEncodeSignedVBR/negative_seven (0.00s)
+    --- PASS: TestEncodeSignedVBR/large_positive (0.00s)
+    --- PASS: TestEncodeSignedVBR/large_negative (0.00s)
+=== RUN   TestEncodeChar6
+--- PASS: TestEncodeChar6 (0.00s)
+=== RUN   TestIsChar6String
+--- PASS: TestIsChar6String (0.00s)
+=== RUN   TestWriteChar6
+--- PASS: TestWriteChar6 (0.00s)
+=== RUN   TestEnterExitBlock
+--- PASS: TestEnterExitBlock (0.00s)
+=== RUN   TestEnterExitBlock_NestedBlocks
+--- PASS: TestEnterExitBlock_NestedBlocks (0.00s)
+=== RUN   TestEnterExitBlock_SizeBackpatch
+--- PASS: TestEnterExitBlock_SizeBackpatch (0.00s)
+=== RUN   TestEmitRecord_Empty
+--- PASS: TestEmitRecord_Empty (0.00s)
+=== RUN   TestEmitRecord_WithValues
+--- PASS: TestEmitRecord_WithValues (0.00s)
+=== RUN   TestBitcodeHeader
+--- PASS: TestBitcodeHeader (0.00s)
+=== RUN   TestAlign32_NoOp
+--- PASS: TestAlign32_NoOp (0.00s)
+=== RUN   TestAlign32_WithPendingBits
+--- PASS: TestAlign32_WithPendingBits (0.00s)
+=== RUN   TestWriteFixed_ZeroWidth
+--- PASS: TestWriteFixed_ZeroWidth (0.00s)
+=== RUN   TestWriteVBR_Zero
+--- PASS: TestWriteVBR_Zero (0.00s)
+=== RUN   TestEmitRecord_LargeValues
+--- PASS: TestEmitRecord_LargeValues (0.00s)
+=== RUN   TestFullBitcodeModule
+--- PASS: TestFullBitcodeModule (0.00s)
+PASS

@@ -1,0 +1,39 @@
+=== RUN   TestModfStructTypeDirectScalar
+--- PASS: TestModfStructTypeDirectScalar (0.00s)
+=== RUN   TestFrexpStructTypeDirectScalar
+--- PASS: TestFrexpStructTypeDirectScalar (0.00s)
+=== RUN   TestFrexpStructTypeDirectVector
+--- PASS: TestFrexpStructTypeDirectVector (0.00s)
+=== RUN   TestSplatScalarViaBinaryOp
+--- PASS: TestSplatScalarViaBinaryOp (0.00s)
+=== RUN   TestSelectVectorFloatCondition
+--- PASS: TestSelectVectorFloatCondition (0.00s)
+=== RUN   TestArrayLengthDirectGlobal
+--- PASS: TestArrayLengthDirectGlobal (0.00s)
+=== RUN   TestConversionsI32ToF32
+--- PASS: TestConversionsI32ToF32 (0.00s)
+=== RUN   TestConversionsU32ToF32
+--- PASS: TestConversionsU32ToF32 (0.00s)
+=== RUN   TestConversionsBitcast
+--- PASS: TestConversionsBitcast (0.00s)
+=== RUN   TestModfViaWGSL
+--- PASS: TestModfViaWGSL (0.00s)
+=== RUN   TestFrexpViaWGSL
+--- PASS: TestFrexpViaWGSL (0.00s)
+=== RUN   TestSpillCompositeFieldAccessWithIndexChain
+--- PASS: TestSpillCompositeFieldAccessWithIndexChain (0.00s)
+=== RUN   TestAtomicExchangeResult
+--- PASS: TestAtomicExchangeResult (0.00s)
+=== RUN   TestMultipleFunctionCalls
+--- PASS: TestMultipleFunctionCalls (0.00s)
+=== RUN   TestGlobalVariableLoadRuntimeArrayPath
+--- PASS: TestGlobalVariableLoadRuntimeArrayPath (0.00s)
+=== RUN   TestNonUniformExpression
+--- PASS: TestNonUniformExpression (0.00s)
+=== RUN   TestTypeNeedsLayoutDecoration
+--- PASS: TestTypeNeedsLayoutDecoration (0.00s)
+=== RUN   TestMatrixMultiplication
+--- PASS: TestMatrixMultiplication (0.00s)
+=== RUN   TestInlineTypeEmission
+--- PASS: TestInlineTypeEmission (0.00s)
+PASS

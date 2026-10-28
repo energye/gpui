@@ -1,0 +1,19 @@
+=== RUN   TestTextLayout_36Deep_Roundtrip
+--- PASS: TestTextLayout_36Deep_Roundtrip (0.00s)
+=== RUN   TestTextLayout_Affinity_Newline
+--- PASS: TestTextLayout_Affinity_Newline (0.00s)
+=== RUN   TestTextLayout_Ellipsis_NotInCarets
+--- PASS: TestTextLayout_Ellipsis_NotInCarets (0.00s)
+=== RUN   TestTextLayout_LongBuild
+--- PASS: TestTextLayout_LongBuild (0.00s)
+=== RUN   TestTextLayout_LongBuild_RealFace
+--- PASS: TestTextLayout_LongBuild_RealFace (0.27s)
+=== RUN   TestTextLayout_BoxesForRange
+--- PASS: TestTextLayout_BoxesForRange (0.00s)
+=== RUN   TestTextLayout_Generation
+--- PASS: TestTextLayout_Generation (0.00s)
+=== RUN   TestTextLayout_HiDPI_Snap
+--- PASS: TestTextLayout_HiDPI_Snap (0.00s)
+=== RUN   TestTextLayout_StickyFallback
+--- PASS: TestTextLayout_StickyFallback (0.00s)
+PASS

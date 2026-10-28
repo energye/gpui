@@ -1,0 +1,162 @@
+=== RUN   TestSamplerIsKeyword
+--- PASS: TestSamplerIsKeyword (0.00s)
+=== RUN   TestCompile_TextureSamplerCombined
+    texture_sampler_test.go:97: Generated GLSL:
+        #version 330 core
+        uniform sampler2D _group_1_binding_1_fs;
+        
+        smooth in vec2 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec2 uv = _vs2fs_location0;
+            _fs2p_location0 = texture(_group_1_binding_1_fs, vec2(uv));
+            return;
+        }
+        
+--- PASS: TestCompile_TextureSamplerCombined (0.00s)
+=== RUN   TestCompile_TextureSamplerWithBinding
+    texture_sampler_test.go:187: Generated GLSL:
+        #version 330 core
+        uniform sampler2D _group_0_binding_1_fs;
+        
+        smooth in vec2 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec2 uv = _vs2fs_location0;
+            _fs2p_location0 = texture(_group_0_binding_1_fs, vec2(uv));
+            return;
+        }
+        
+--- PASS: TestCompile_TextureSamplerWithBinding (0.00s)
+=== RUN   TestCompile_SameSamplerMultipleTextures
+    texture_sampler_test.go:289: Generated GLSL:
+        #version 330 core
+        uniform sampler2D _group_0_binding_1_fs;
+        
+        uniform sampler2D _group_0_binding_2_fs;
+        
+        smooth in vec2 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec2 uv = _vs2fs_location0;
+            _fs2p_location0 = (texture(_group_0_binding_1_fs, vec2(uv)) + texture(_group_0_binding_2_fs, vec2(uv)));
+            return;
+        }
+        
+--- PASS: TestCompile_SameSamplerMultipleTextures (0.00s)
+=== RUN   TestCompile_TextureSampleLod
+    texture_sampler_test.go:378: Generated GLSL:
+        #version 330 core
+        uniform sampler2D _group_0_binding_1_fs;
+        
+        smooth in vec2 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec2 uv = _vs2fs_location0;
+            _fs2p_location0 = textureLod(_group_0_binding_1_fs, vec2(uv), 0.0);
+            return;
+        }
+        
+--- PASS: TestCompile_TextureSampleLod (0.00s)
+=== RUN   TestCompile_TextureSampleLevelZero
+    texture_sampler_test.go:456: Generated GLSL:
+        #version 330 core
+        uniform sampler2D t;
+        
+        smooth in vec2 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec2 uv = _vs2fs_location0;
+            _fs2p_location0 = textureLod(t, vec2(uv), 0.0);
+            return;
+        }
+        
+--- PASS: TestCompile_TextureSampleLevelZero (0.00s)
+=== RUN   TestCompile_Texture3DSampler
+    texture_sampler_test.go:527: Generated GLSL:
+        #version 330 core
+        uniform sampler3D vol;
+        
+        smooth in vec3 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec3 uvw = _vs2fs_location0;
+            _fs2p_location0 = texture(vol, vec2(uvw));
+            return;
+        }
+        
+--- PASS: TestCompile_Texture3DSampler (0.00s)
+=== RUN   TestCompile_DepthTextureSampler
+    texture_sampler_test.go:597: Generated GLSL:
+        #version 330 core
+        uniform sampler2DShadow shadowMap;
+        
+        smooth in vec2 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec2 uv = _vs2fs_location0;
+            _fs2p_location0 = texture(shadowMap, vec2(uv));
+            return;
+        }
+        
+--- PASS: TestCompile_DepthTextureSampler (0.00s)
+=== RUN   TestCompile_CubeTextureSampler
+    texture_sampler_test.go:666: Generated GLSL:
+        #version 330 core
+        uniform samplerCube envMap;
+        
+        smooth in vec3 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec3 dir = _vs2fs_location0;
+            _fs2p_location0 = texture(envMap, vec2(dir));
+            return;
+        }
+        
+--- PASS: TestCompile_CubeTextureSampler (0.00s)
+=== RUN   TestCompile_TextureBindingBaseOffset
+    texture_sampler_test.go:734: Generated GLSL:
+        #version 330 core
+        uniform sampler2D _group_0_binding_1_fs;
+        
+        smooth in vec2 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec2 uv = _vs2fs_location0;
+            _fs2p_location0 = texture(_group_0_binding_1_fs, vec2(uv));
+            return;
+        }
+        
+--- PASS: TestCompile_TextureBindingBaseOffset (0.00s)
+=== RUN   TestCompile_MixedUniformsAndTextures
+    texture_sampler_test.go:811: Generated GLSL:
+        #version 330 core
+        struct Uniforms {
+            mat4x4 mvp;
+        };
+        layout(std140) uniform Uniforms_block_0Fragment { Uniforms _group_0_binding_0_fs; };
+        
+        uniform sampler2D _group_0_binding_2_fs;
+        
+        smooth in vec2 _vs2fs_location0;
+        layout(location = 0) out vec4 _fs2p_location0;
+        
+        void main() {
+            vec2 uv = _vs2fs_location0;
+            _fs2p_location0 = texture(_group_0_binding_2_fs, vec2(uv));
+            return;
+        }
+        
+--- PASS: TestCompile_MixedUniformsAndTextures (0.00s)
+=== RUN   TestCompile_NoTextureSamplerPairs
+--- PASS: TestCompile_NoTextureSamplerPairs (0.00s)
+PASS

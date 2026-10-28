@@ -1,0 +1,754 @@
+=== RUN   TestE2E_TriangleShader
+    hlsl_e2e_test.go:102: HLSL output:
+        typedef float2 ret_Constructarray3_float2_[3];
+        ret_Constructarray3_float2_ Constructarray3_float2_(float2 arg0, float2 arg1, float2 arg2) {
+            float2 ret[3] = { arg0, arg1, arg2 };
+            return ret;
+        }
+        
+        float4 vs_main(uint idx : SV_VertexID) : SV_Position
+        {
+            float2 positions[3] = Constructarray3_float2_(float2(0.0, 0.5), float2(-0.5, -0.5), float2(0.5, -0.5));
+        
+            float2 _e13 = positions[min(uint(idx), 2u)];
+            return float4(_e13, 0.0, 1.0);
+        }
+        
+        float4 ps_main() : SV_Target0
+        {
+            return float4(1.0, 0.0, 0.0, 1.0);
+        }
+--- PASS: TestE2E_TriangleShader (0.00s)
+=== RUN   TestE2E_SimpleVertexShader
+    hlsl_e2e_test.go:130: HLSL output:
+        float4 main(uint idx : SV_VertexID) : SV_Position
+        {
+            return float4(0.0, 0.0, 0.0, 1.0);
+        }
+--- PASS: TestE2E_SimpleVertexShader (0.00s)
+=== RUN   TestE2E_SimpleFragmentShader
+    hlsl_e2e_test.go:155: HLSL output:
+        float4 main() : SV_Target0
+        {
+            return float4(1.0, 0.0, 0.0, 1.0);
+        }
+--- PASS: TestE2E_SimpleFragmentShader (0.00s)
+=== RUN   TestE2E_ComputeShader
+    hlsl_e2e_test.go:180: HLSL output:
+        [numthreads(64, 1, 1)]
+        void main(uint3 id : SV_DispatchThreadID)
+        {
+            uint x = (uint)0;
+        
+            x = (id.x * 2u);
+            return;
+        }
+--- PASS: TestE2E_ComputeShader (0.00s)
+=== RUN   TestE2E_VertexFragmentWithStruct
+    hlsl_e2e_test.go:220: HLSL output:
+        struct VertexOutput {
+            float4 position : SV_Position;
+            float4 color : LOC0;
+        };
+        
+        struct VertexOutput_vs_main {
+            float4 color_1 : LOC0;
+            float4 position : SV_Position;
+        };
+        
+        struct FragmentInput_fs_main {
+            float4 color_2 : LOC0;
+        };
+        
+        VertexOutput_vs_main vs_main(uint idx : SV_VertexID)
+        {
+            VertexOutput out_ = (VertexOutput)0;
+        
+            out_.position = float4(0.0, 0.0, 0.0, 1.0);
+            out_.color = float4(1.0, 0.0, 0.0, 1.0);
+            VertexOutput _e14 = out_;
+            const VertexOutput vertexoutput = _e14;
+            const VertexOutput_vs_main vertexoutput_1 = { vertexoutput.color, vertexoutput.position };
+            return vertexoutput_1;
+        }
+        
+        float4 fs_main(FragmentInput_fs_main fragmentinput_fs_main) : SV_Target0
+        {
+            float4 color = fragmentinput_fs_main.color_2;
+            return color;
+        }
+--- PASS: TestE2E_VertexFragmentWithStruct (0.00s)
+=== RUN   TestE2E_UniformBuffer
+    hlsl_e2e_test.go:257: HLSL output:
+        struct Camera {
+            row_major float4x4 view_proj;
+        };
+        
+        cbuffer camera : register(b0) { Camera camera; }
+        
+        float4 main(float3 pos : LOC0) : SV_Position
+        {
+            return float4(pos.x, pos.y, pos.z, 1.0);
+        }
+--- PASS: TestE2E_UniformBuffer (0.00s)
+=== RUN   TestE2E_MathFunctions
+    hlsl_e2e_test.go:296: HLSL output:
+        struct FragmentInput_main {
+            float3 v_1 : LOC0;
+        };
+        
+        float4 main(FragmentInput_main fragmentinput_main) : SV_Target0
+        {
+            float3 v = fragmentinput_main.v_1;
+            float3 n = normalize(v);
+            float l = length(v);
+            float d = dot(n, v);
+            float3 c = cross(n, v);
+            float s = sqrt(l);
+            float a = abs(d);
+            float mx = max(s, a);
+            float mn = min(s, a);
+            float cl = clamp(d, 0.0, 1.0);
+            return float4(mx, mn, cl, c.x);
+        }
+--- PASS: TestE2E_MathFunctions (0.00s)
+=== RUN   TestE2E_IfElse
+    hlsl_e2e_test.go:325: HLSL output:
+        struct FragmentInput_main {
+            float x_1 : LOC0;
+        };
+        
+        float4 main(FragmentInput_main fragmentinput_main) : SV_Target0
+        {
+            float x = fragmentinput_main.x_1;
+            float4 color = (float4)0;
+        
+            if ((x > 0.5)) {
+                color = float4(1.0, 0.0, 0.0, 1.0);
+            } else {
+                color = float4(0.0, 0.0, 1.0, 1.0);
+            }
+            float4 _e14 = color;
+            return _e14;
+        }
+--- PASS: TestE2E_IfElse (0.00s)
+=== RUN   TestE2E_Switch
+    hlsl_e2e_test.go:355: HLSL output:
+        struct FragmentInput_main {
+            nointerpolation uint idx_1 : LOC0;
+        };
+        
+        float4 main(FragmentInput_main fragmentinput_main) : SV_Target0
+        {
+            uint idx = fragmentinput_main.idx_1;
+            float4 color = (float4)0;
+        
+            switch(idx) {
+                case 0u: {
+                    color = float4(1.0, 0.0, 0.0, 1.0);
+                    break;
+                }
+                case 1u: {
+                    color = float4(0.0, 1.0, 0.0, 1.0);
+                    break;
+                }
+                default: {
+                    color = float4(0.0, 0.0, 1.0, 1.0);
+                    break;
+                }
+            }
+            float4 _e17 = color;
+            return _e17;
+        }
+--- PASS: TestE2E_Switch (0.00s)
+=== RUN   TestE2E_LocalConst
+    hlsl_e2e_test.go:379: HLSL output:
+        float4 main(uint idx : SV_VertexID) : SV_Position
+        {
+            return float4(6.28318, 0.0, 0.0, 1.0);
+        }
+--- PASS: TestE2E_LocalConst (0.00s)
+=== RUN   TestE2E_NoEntryPointDuplication
+    hlsl_e2e_test.go:414: HLSL output:
+        float4 vs_main(uint idx : SV_VertexID) : SV_Position
+        {
+            return float4(0.0, 0.0, 0.0, 1.0);
+        }
+        
+        float4 ps_main() : SV_Target0
+        {
+            return float4(1.0, 0.0, 0.0, 1.0);
+        }
+--- PASS: TestE2E_NoEntryPointDuplication (0.00s)
+=== RUN   TestE2E_HeaderComment
+    hlsl_e2e_test.go:436: HLSL output:
+        float4 main() : SV_Position
+        {
+            return float4(0.0, 0.0, 0.0, 1.0);
+        }
+--- PASS: TestE2E_HeaderComment (0.00s)
+=== RUN   TestE2E_Swizzle
+    hlsl_e2e_test.go:459: HLSL output:
+        struct FragmentInput_main {
+            float4 v_1 : LOC0;
+        };
+        
+        float4 main(FragmentInput_main fragmentinput_main) : SV_Target0
+        {
+            float4 v = fragmentinput_main.v_1;
+            float2 xy = v.xy;
+            return float4(xy.x, xy.y, 0.0, 1.0);
+        }
+--- PASS: TestE2E_Swizzle (0.00s)
+=== RUN   TestE2E_ForLoop
+    hlsl_e2e_test.go:488: HLSL output:
+        struct FragmentInput_main {
+            float x_1 : LOC0;
+        };
+        
+        float4 main(FragmentInput_main fragmentinput_main) : SV_Target0
+        {
+            float x = fragmentinput_main.x_1;
+            float sum = 0.0;
+            uint i = 0u;
+        
+            uint2 loop_bound = uint2(4294967295u, 4294967295u);
+            bool loop_init = true;
+            while(true) {
+                if (all(loop_bound == uint2(0u, 0u))) { break; }
+                loop_bound -= uint2(loop_bound.y == 0u, 1u);
+                if (!loop_init) {
+                    uint _e10 = i;
+                    i = (_e10 + 1u);
+                }
+                loop_init = false;
+                uint _e5 = i;
+                if ((_e5 < 10u)) {
+                } else {
+                    break;
+                }
+                {
+                    float _e8 = sum;
+                    sum = (_e8 + x);
+                }
+            }
+            float _e13 = sum;
+            return float4(_e13, 0.0, 0.0, 1.0);
+        }
+--- PASS: TestE2E_ForLoop (0.00s)
+=== RUN   TestE2E_LoopContinuingGate
+=== RUN   TestE2E_LoopContinuingGate/with_force_loop_bounding
+    hlsl_e2e_test.go:522: HLSL output:
+        [numthreads(1, 1, 1)]
+        void main()
+        {
+            int i = int(0);
+        
+            uint2 loop_bound = uint2(4294967295u, 4294967295u);
+            bool loop_init = true;
+            while(true) {
+                if (all(loop_bound == uint2(0u, 0u))) { break; }
+                loop_bound -= uint2(loop_bound.y == 0u, 1u);
+                if (!loop_init) {
+                    int _e8 = i;
+                    i = asint(asuint(_e8) + asuint(int(0)));
+                }
+                loop_init = false;
+                int _e2 = i;
+                if ((_e2 >= int(10))) {
+                    break;
+                }
+                int _e5 = i;
+                i = asint(asuint(_e5) + asuint(int(1)));
+            }
+            return;
+        }
+=== RUN   TestE2E_LoopContinuingGate/without_force_loop_bounding
+    hlsl_e2e_test.go:538: HLSL output:
+        [numthreads(1, 1, 1)]
+        void main()
+        {
+            int i = int(0);
+        
+            bool loop_init = true;
+            while(true) {
+                if (!loop_init) {
+                    int _e8 = i;
+                    i = asint(asuint(_e8) + asuint(int(0)));
+                }
+                loop_init = false;
+                int _e2 = i;
+                if ((_e2 >= int(10))) {
+                    break;
+                }
+                int _e5 = i;
+                i = asint(asuint(_e5) + asuint(int(1)));
+            }
+            return;
+        }
+--- PASS: TestE2E_LoopContinuingGate (0.00s)
+    --- PASS: TestE2E_LoopContinuingGate/with_force_loop_bounding (0.00s)
+    --- PASS: TestE2E_LoopContinuingGate/without_force_loop_bounding (0.00s)
+=== RUN   TestE2E_LoopBreakIf
+=== RUN   TestE2E_LoopBreakIf/with_force_loop_bounding
+    hlsl_e2e_test.go:569: HLSL output:
+        [numthreads(1, 1, 1)]
+        void main()
+        {
+            int i = int(0);
+        
+            uint2 loop_bound = uint2(4294967295u, 4294967295u);
+            bool loop_init = true;
+            while(true) {
+                if (all(loop_bound == uint2(0u, 0u))) { break; }
+                loop_bound -= uint2(loop_bound.y == 0u, 1u);
+                if (!loop_init) {
+                    int _e5 = i;
+                    if ((_e5 >= int(10))) {
+                        break;
+                    }
+                }
+                loop_init = false;
+                int _e2 = i;
+                i = asint(asuint(_e2) + asuint(int(1)));
+            }
+            return;
+        }
+=== RUN   TestE2E_LoopBreakIf/without_force_loop_bounding
+    hlsl_e2e_test.go:584: HLSL output:
+        [numthreads(1, 1, 1)]
+        void main()
+        {
+            int i = int(0);
+        
+            bool loop_init = true;
+            while(true) {
+                if (!loop_init) {
+                    int _e5 = i;
+                    if ((_e5 >= int(10))) {
+                        break;
+                    }
+                }
+                loop_init = false;
+                int _e2 = i;
+                i = asint(asuint(_e2) + asuint(int(1)));
+            }
+            return;
+        }
+--- PASS: TestE2E_LoopBreakIf (0.00s)
+    --- PASS: TestE2E_LoopBreakIf/with_force_loop_bounding (0.00s)
+    --- PASS: TestE2E_LoopBreakIf/without_force_loop_bounding (0.00s)
+=== RUN   TestE2E_StructArgumentEntryPoint
+    hlsl_e2e_test.go:633: HLSL struct arg output:
+        struct VertexInput {
+            float2 position : LOC0;
+            float4 color : LOC1;
+        };
+        
+        struct VertexOutput {
+            float4 position : SV_Position;
+            float4 color : LOC0;
+        };
+        
+        struct VertexOutput_vs_main {
+            float4 color : LOC0;
+            float4 position : SV_Position;
+        };
+        
+        struct FragmentInput_fs_main {
+            float4 color_1 : LOC0;
+            float4 position_1 : SV_Position;
+        };
+        
+        VertexOutput_vs_main vs_main(VertexInput input)
+        {
+            VertexOutput output = (VertexOutput)0;
+        
+            output.position = float4(input.position, 0.0, 1.0);
+            output.color = input.color;
+            VertexOutput _e9 = output;
+            const VertexOutput vertexoutput = _e9;
+            const VertexOutput_vs_main vertexoutput_1 = { vertexoutput.color, vertexoutput.position };
+            return vertexoutput_1;
+        }
+        
+        float4 fs_main(FragmentInput_fs_main fragmentinput_fs_main) : SV_Target0
+        {
+            VertexOutput input_1 = { fragmentinput_fs_main.position_1, fragmentinput_fs_main.color_1 };
+            return input_1.color;
+        }
+--- PASS: TestE2E_StructArgumentEntryPoint (0.00s)
+=== RUN   TestE2E_MSDFTextShader
+    hlsl_e2e_test.go:780: MSDF text HLSL output:
+        struct TextUniforms {
+            row_major float4x4 transform;
+            float4 color;
+            float4 msdf_params;
+        };
+        
+        struct VertexInput {
+            float2 position : LOC0;
+            float2 tex_coord : LOC1;
+        };
+        
+        struct VertexOutput {
+            float4 position : SV_Position;
+            float2 tex_coord : LOC0;
+            float4 color : LOC1;
+        };
+        
+        cbuffer uniforms : register(b0) { TextUniforms uniforms; }
+        Texture2D<float4> msdf_atlas : register(t1);
+        SamplerState nagaSamplerHeap[2048]: register(s0, space0);
+        SamplerComparisonState nagaComparisonSamplerHeap[2048]: register(s0, space1);
+        StructuredBuffer<uint> nagaGroup0SamplerIndexArray : register(t0, space255);
+        static const SamplerState msdf_sampler = nagaSamplerHeap[nagaGroup0SamplerIndexArray[2]];
+        
+        struct VertexOutput_vs_main {
+            float2 tex_coord : LOC0;
+            float4 color : LOC1;
+            float4 position : SV_Position;
+        };
+        
+        struct FragmentInput_fs_main {
+            float2 tex_coord_1 : LOC0;
+            float4 color_1 : LOC1;
+            float4 position_1 : SV_Position;
+        };
+        
+        struct FragmentInput_fs_main_outline {
+            float2 tex_coord_2 : LOC0;
+            float4 color_2 : LOC1;
+            float4 position_2 : SV_Position;
+        };
+        
+        struct FragmentInput_fs_main_shadow {
+            float2 tex_coord_3 : LOC0;
+            float4 color_3 : LOC1;
+            float4 position_3 : SV_Position;
+        };
+        
+        float median3_(float r, float g, float b)
+        {
+            return max(min(r, g), min(max(r, g), b));
+        }
+        
+        float sampleSD(float2 uv)
+        {
+            float4 _e3 = msdf_atlas.Sample(msdf_sampler, uv);
+            float3 msdf = _e3.xyz;
+            const float _e8 = median3_(msdf.x, msdf.y, msdf.z);
+            return (_e8 - 0.5);
+        }
+        
+        VertexOutput_vs_main vs_main(VertexInput in_)
+        {
+            VertexOutput out_ = (VertexOutput)0;
+        
+            float4 p = float4(in_.position, 0.0, 1.0);
+            float4 col0_ = uniforms.transform[0];
+            float4 col1_ = uniforms.transform[1];
+            float4 col2_ = uniforms.transform[2];
+            float4 col3_ = uniforms.transform[3];
+            float4 pos = ((((p.x * col0_) + (p.y * col1_)) + (p.z * col2_)) + (p.w * col3_));
+            out_.position = pos;
+            out_.tex_coord = in_.tex_coord;
+            float4 _e39 = uniforms.color;
+            out_.color = _e39;
+            VertexOutput _e40 = out_;
+            const VertexOutput vertexoutput = _e40;
+            const VertexOutput_vs_main vertexoutput_1 = { vertexoutput.tex_coord, vertexoutput.color, vertexoutput.position };
+            return vertexoutput_1;
+        }
+        
+        float4 fs_main(FragmentInput_fs_main fragmentinput_fs_main) : SV_Target0
+        {
+            VertexOutput in_1 = { fragmentinput_fs_main.position_1, fragmentinput_fs_main.tex_coord_1, fragmentinput_fs_main.color_1 };
+            float px_range = uniforms.msdf_params.x;
+            float atlas_size = uniforms.msdf_params.y;
+            float2 unit_range = float2((px_range / atlas_size), (px_range / atlas_size));
+            float2 _e16 = fwidth(in_1.tex_coord);
+            float2 screen_tex_size = (float2(1.0, 1.0) / _e16);
+            float screen_px_range = max((0.5 * dot(unit_range, screen_tex_size)), 1.0);
+            float2 _e24 = fwidth(in_1.tex_coord);
+            float2 offset = (_e24 * 0.25);
+            const float _e34 = sampleSD((in_1.tex_coord + float2(-(offset.x), -(offset.y))));
+            const float _e41 = sampleSD((in_1.tex_coord + float2(offset.x, -(offset.y))));
+            const float _e48 = sampleSD((in_1.tex_coord + float2(-(offset.x), offset.y)));
+            const float _e54 = sampleSD((in_1.tex_coord + float2(offset.x, offset.y)));
+            float sd = ((((_e34 + _e41) + _e48) + _e54) * 0.25);
+            float alpha = clamp(((screen_px_range * sd) + 0.5), 0.0, 1.0);
+            return float4((in_1.color.xyz * alpha), (in_1.color.w * alpha));
+        }
+        
+        float4 fs_main_outline(FragmentInput_fs_main_outline fragmentinput_fs_main_outline) : SV_Target0
+        {
+            VertexOutput in_2 = { fragmentinput_fs_main_outline.position_2, fragmentinput_fs_main_outline.tex_coord_2, fragmentinput_fs_main_outline.color_2 };
+            float4 _e4 = msdf_atlas.Sample(msdf_sampler, in_2.tex_coord);
+            float3 msdf_1 = _e4.xyz;
+            const float _e9 = median3_(msdf_1.x, msdf_1.y, msdf_1.z);
+            float sd_1 = (_e9 - 0.5);
+            float _e15 = uniforms.msdf_params.x;
+            float _e19 = uniforms.msdf_params.y;
+            float _e24 = uniforms.msdf_params.x;
+            float _e28 = uniforms.msdf_params.y;
+            float2 unit_range_1 = float2((_e15 / _e19), (_e24 / _e28));
+            float2 _e35 = fwidth(in_2.tex_coord);
+            float2 screen_tex_size_1 = (float2(1.0, 1.0) / _e35);
+            float screen_px_range_1 = max((0.5 * dot(unit_range_1, screen_tex_size_1)), 1.0);
+            float screen_px_distance = (screen_px_range_1 * sd_1);
+            float outline_width = uniforms.msdf_params.z;
+            float fill_alpha = clamp((screen_px_distance + 0.5), 0.0, 1.0);
+            float outline_alpha = clamp(((screen_px_distance + outline_width) + 0.5), 0.0, 1.0);
+            float4 outline_color = float4(((1.0).xxx - in_2.color.xyz), 1.0);
+            float outline_diff = (outline_alpha - fill_alpha);
+            float4 fill = float4((in_2.color.xyz * fill_alpha), (in_2.color.w * fill_alpha));
+            float4 outline = float4((outline_color.xyz * outline_diff), (outline_color.w * outline_diff));
+            return (fill + outline);
+        }
+        
+        float4 fs_main_shadow(FragmentInput_fs_main_shadow fragmentinput_fs_main_shadow) : SV_Target0
+        {
+            VertexOutput in_3 = { fragmentinput_fs_main_shadow.position_3, fragmentinput_fs_main_shadow.tex_coord_3, fragmentinput_fs_main_shadow.color_3 };
+            float2 shadow_offset = float2(0.002, 0.002);
+            float4 shadow_color = float4(0.0, 0.0, 0.0, 0.5);
+            float _e12 = uniforms.msdf_params.x;
+            float _e16 = uniforms.msdf_params.y;
+            float _e21 = uniforms.msdf_params.x;
+            float _e25 = uniforms.msdf_params.y;
+            float2 unit_range_2 = float2((_e12 / _e16), (_e21 / _e25));
+            float2 _e32 = fwidth(in_3.tex_coord);
+            float2 screen_tex_size_2 = (float2(1.0, 1.0) / _e32);
+            float screen_px_range_2 = max((0.5 * dot(unit_range_2, screen_tex_size_2)), 1.0);
+            float4 _e43 = msdf_atlas.Sample(msdf_sampler, (in_3.tex_coord - shadow_offset));
+            float3 shadow_msdf = _e43.xyz;
+            const float _e48 = median3_(shadow_msdf.x, shadow_msdf.y, shadow_msdf.z);
+            float shadow_sd = (_e48 - 0.5);
+            float shadow_alpha = clamp(((screen_px_range_2 * shadow_sd) + 0.5), 0.0, 1.0);
+            float4 _e60 = msdf_atlas.Sample(msdf_sampler, in_3.tex_coord);
+            float3 msdf_2 = _e60.xyz;
+            const float _e65 = median3_(msdf_2.x, msdf_2.y, msdf_2.z);
+            float fill_sd = (_e65 - 0.5);
+            float fill_alpha_1 = clamp(((screen_px_range_2 * fill_sd) + 0.5), 0.0, 1.0);
+            float4 shadow = float4((shadow_color.xyz * shadow_alpha), (shadow_color.w * shadow_alpha));
+            float4 fill_1 = float4((in_3.color.xyz * fill_alpha_1), (in_3.color.w * fill_alpha_1));
+            return (fill_1 + (shadow * (1.0 - fill_1.w)));
+        }
+--- PASS: TestE2E_MSDFTextShader (0.00s)
+=== RUN   TestE2E_MSDFTextShader_PerEntryPoint
+    hlsl_e2e_test.go:850: === HLSL for entry point 'vs_main' ===
+        struct TextUniforms {
+            row_major float4x4 transform;
+            float4 color;
+            float4 msdf_params;
+        };
+        
+        struct VertexInput {
+            float2 position : LOC0;
+            float2 tex_coord : LOC1;
+        };
+        
+        struct VertexOutput {
+            float4 position : SV_Position;
+            float2 tex_coord : LOC0;
+            float4 color : LOC1;
+        };
+        
+        cbuffer uniforms : register(b0) { TextUniforms uniforms; }
+        Texture2D<float4> msdf_atlas : register(t1);
+        SamplerState nagaSamplerHeap[2048]: register(s0, space0);
+        SamplerComparisonState nagaComparisonSamplerHeap[2048]: register(s0, space1);
+        StructuredBuffer<uint> nagaGroup0SamplerIndexArray : register(t0, space255);
+        static const SamplerState msdf_sampler = nagaSamplerHeap[nagaGroup0SamplerIndexArray[2]];
+        
+        struct VertexOutput_vs_main {
+            float2 tex_coord : LOC0;
+            float4 color : LOC1;
+            float4 position : SV_Position;
+        };
+        
+        float median3_(float r, float g, float b)
+        {
+            return max(min(r, g), min(max(r, g), b));
+        }
+        
+        VertexOutput_vs_main vs_main(VertexInput in_)
+        {
+            VertexOutput out_ = (VertexOutput)0;
+        
+            float4 p = float4(in_.position, 0.0, 1.0);
+            float4 col0_ = uniforms.transform[0];
+            float4 col1_ = uniforms.transform[1];
+            float4 col2_ = uniforms.transform[2];
+            float4 col3_ = uniforms.transform[3];
+            float4 pos = ((((p.x * col0_) + (p.y * col1_)) + (p.z * col2_)) + (p.w * col3_));
+            out_.position = pos;
+            out_.tex_coord = in_.tex_coord;
+            float4 _e39 = uniforms.color;
+            out_.color = _e39;
+            VertexOutput _e40 = out_;
+            const VertexOutput vertexoutput = _e40;
+            const VertexOutput_vs_main vertexoutput_1 = { vertexoutput.tex_coord, vertexoutput.color, vertexoutput.position };
+            return vertexoutput_1;
+        }
+    hlsl_e2e_test.go:850: === HLSL for entry point 'fs_main' ===
+        struct TextUniforms {
+            row_major float4x4 transform;
+            float4 color;
+            float4 msdf_params;
+        };
+        
+        struct VertexInput {
+            float2 position : LOC0;
+            float2 tex_coord : LOC1;
+        };
+        
+        struct VertexOutput {
+            float4 position : SV_Position;
+            float2 tex_coord : LOC0;
+            float4 color : LOC1;
+        };
+        
+        cbuffer uniforms : register(b0) { TextUniforms uniforms; }
+        Texture2D<float4> msdf_atlas : register(t1);
+        SamplerState nagaSamplerHeap[2048]: register(s0, space0);
+        SamplerComparisonState nagaComparisonSamplerHeap[2048]: register(s0, space1);
+        StructuredBuffer<uint> nagaGroup0SamplerIndexArray : register(t0, space255);
+        static const SamplerState msdf_sampler = nagaSamplerHeap[nagaGroup0SamplerIndexArray[2]];
+        
+        struct FragmentInput_fs_main {
+            float2 tex_coord : LOC0;
+            float4 color : LOC1;
+            float4 position : SV_Position;
+        };
+        
+        float median3_(float r, float g, float b)
+        {
+            return max(min(r, g), min(max(r, g), b));
+        }
+        
+        float4 fs_main(FragmentInput_fs_main fragmentinput_fs_main) : SV_Target0
+        {
+            VertexOutput in_ = { fragmentinput_fs_main.position, fragmentinput_fs_main.tex_coord, fragmentinput_fs_main.color };
+            return float4(1.0, 0.0, 0.0, 1.0);
+        }
+--- PASS: TestE2E_MSDFTextShader_PerEntryPoint (0.00s)
+=== RUN   TestE2E_FunctionCallWithResult
+    hlsl_e2e_test.go:889: Function call result HLSL output:
+        struct FragmentInput_main {
+            float v_1 : LOC0;
+        };
+        
+        float helper(float x)
+        {
+            return (x * 2.0);
+        }
+        
+        float4 main(FragmentInput_main fragmentinput_main) : SV_Target0
+        {
+            float v = fragmentinput_main.v_1;
+            const float _e1 = helper(v);
+            return float4(_e1, 0.0, 0.0, 1.0);
+        }
+--- PASS: TestE2E_FunctionCallWithResult (0.00s)
+=== RUN   TestE2E_MatrixRowMajor
+    hlsl_e2e_test.go:922: HLSL output:
+        struct Uniforms {
+            row_major float4x4 model;
+            row_major float4x4 view;
+            row_major float4x4 proj;
+            float scale;
+            int _end_pad_0;
+            int _end_pad_1;
+            int _end_pad_2;
+        };
+        
+        cbuffer u : register(b0) { Uniforms u; }
+        
+        float4 main(float3 pos : LOC0) : SV_Position
+        {
+            float _e3 = u.scale;
+            return float4((pos * _e3), 1.0);
+        }
+--- PASS: TestE2E_MatrixRowMajor (0.00s)
+=== RUN   TestE2E_MatrixMulReversed
+    hlsl_e2e_test.go:951: HLSL output:
+        struct Camera {
+            row_major float4x4 mvp;
+        };
+        
+        cbuffer camera : register(b0) { Camera camera; }
+        
+        float4 main(float3 pos : LOC0) : SV_Position
+        {
+            float4 p = float4(pos, 1.0);
+            float4x4 _e5 = camera.mvp;
+            return mul(p, _e5);
+        }
+--- PASS: TestE2E_MatrixMulReversed (0.00s)
+=== RUN   TestE2E_SamplerHeapIndirection
+=== RUN   TestE2E_SamplerHeapIndirection/heap_indirection_with_sampler_buffer_map
+    hlsl_e2e_test.go:1057: HLSL output (heap indirection):
+        cbuffer color : register(b0) { float4 color; }
+        Texture2D<float4> my_texture : register(t1);
+        SamplerState nagaSamplerHeap[2048]: register(s0, space0);
+        SamplerComparisonState nagaComparisonSamplerHeap[2048]: register(s0, space1);
+        StructuredBuffer<uint> nagaGroup0SamplerIndexArray : register(t0, space255);
+        static const SamplerState my_sampler = nagaSamplerHeap[nagaGroup0SamplerIndexArray[0]];
+        
+        struct FragmentInput_fs_main {
+            float2 uv_1 : LOC0;
+        };
+        
+        float4 fs_main(FragmentInput_fs_main fragmentinput_fs_main) : SV_Target0
+        {
+            float2 uv = fragmentinput_fs_main.uv_1;
+            float4 _e3 = my_texture.Sample(my_sampler, uv);
+            float4 _e5 = color;
+            return (_e3 * _e5);
+        }
+=== RUN   TestE2E_SamplerHeapIndirection/heap_indirection_with_fake_missing
+    hlsl_e2e_test.go:1072: HLSL output (fake missing):
+        cbuffer color : register(b0) { float4 color; }
+        Texture2D<float4> my_texture : register(t1);
+        SamplerState nagaSamplerHeap[2048]: register(s0, space0);
+        SamplerComparisonState nagaComparisonSamplerHeap[2048]: register(s0, space1);
+        StructuredBuffer<uint> nagaGroup0SamplerIndexArray : register(t0, space255);
+        static const SamplerState my_sampler = nagaSamplerHeap[nagaGroup0SamplerIndexArray[2]];
+        
+        struct FragmentInput_fs_main {
+            float2 uv_1 : LOC0;
+        };
+        
+        float4 fs_main(FragmentInput_fs_main fragmentinput_fs_main) : SV_Target0
+        {
+            float2 uv = fragmentinput_fs_main.uv_1;
+            float4 _e3 = my_texture.Sample(my_sampler, uv);
+            float4 _e5 = color;
+            return (_e3 * _e5);
+        }
+=== RUN   TestE2E_SamplerHeapIndirection/always_heap_even_without_sampler_buffer_map
+    hlsl_e2e_test.go:1086: HLSL output (no sampler buffer map):
+        cbuffer color : register(b0) { float4 color; }
+        Texture2D<float4> my_texture : register(t1);
+        SamplerState nagaSamplerHeap[2048]: register(s0, space0);
+        SamplerComparisonState nagaComparisonSamplerHeap[2048]: register(s0, space1);
+        StructuredBuffer<uint> nagaGroup0SamplerIndexArray : register(t0, space0);
+        static const SamplerState my_sampler = nagaSamplerHeap[nagaGroup0SamplerIndexArray[0]];
+        
+        struct FragmentInput_fs_main {
+            float2 uv_1 : LOC0;
+        };
+        
+        float4 fs_main(FragmentInput_fs_main fragmentinput_fs_main) : SV_Target0
+        {
+            float2 uv = fragmentinput_fs_main.uv_1;
+            float4 _e3 = my_texture.Sample(my_sampler, uv);
+            float4 _e5 = color;
+            return (_e3 * _e5);
+        }
+--- PASS: TestE2E_SamplerHeapIndirection (0.00s)
+    --- PASS: TestE2E_SamplerHeapIndirection/heap_indirection_with_sampler_buffer_map (0.00s)
+    --- PASS: TestE2E_SamplerHeapIndirection/heap_indirection_with_fake_missing (0.00s)
+    --- PASS: TestE2E_SamplerHeapIndirection/always_heap_even_without_sampler_buffer_map (0.00s)
+PASS

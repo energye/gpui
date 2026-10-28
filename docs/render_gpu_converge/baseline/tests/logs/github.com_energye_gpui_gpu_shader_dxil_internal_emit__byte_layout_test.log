@@ -1,0 +1,71 @@
+=== RUN   TestElemByteSize_Scalar
+=== RUN   TestElemByteSize_Scalar/u32
+=== RUN   TestElemByteSize_Scalar/i32
+=== RUN   TestElemByteSize_Scalar/f32
+=== RUN   TestElemByteSize_Scalar/u64
+=== RUN   TestElemByteSize_Scalar/i64
+=== RUN   TestElemByteSize_Scalar/f64
+=== RUN   TestElemByteSize_Scalar/f16
+--- PASS: TestElemByteSize_Scalar (0.00s)
+    --- PASS: TestElemByteSize_Scalar/u32 (0.00s)
+    --- PASS: TestElemByteSize_Scalar/i32 (0.00s)
+    --- PASS: TestElemByteSize_Scalar/f32 (0.00s)
+    --- PASS: TestElemByteSize_Scalar/u64 (0.00s)
+    --- PASS: TestElemByteSize_Scalar/i64 (0.00s)
+    --- PASS: TestElemByteSize_Scalar/f64 (0.00s)
+    --- PASS: TestElemByteSize_Scalar/f16 (0.00s)
+=== RUN   TestElemByteSize_Vector
+=== RUN   TestElemByteSize_Vector/vec2<f32>
+=== RUN   TestElemByteSize_Vector/vec3<f32>
+=== RUN   TestElemByteSize_Vector/vec4<f32>
+--- PASS: TestElemByteSize_Vector (0.00s)
+    --- PASS: TestElemByteSize_Vector/vec2<f32> (0.00s)
+    --- PASS: TestElemByteSize_Vector/vec3<f32> (0.00s)
+    --- PASS: TestElemByteSize_Vector/vec4<f32> (0.00s)
+=== RUN   TestElemByteSize_Matrix
+=== RUN   TestElemByteSize_Matrix/mat2x2<f32>
+=== RUN   TestElemByteSize_Matrix/mat3x2<f32>
+=== RUN   TestElemByteSize_Matrix/mat4x2<f32>
+=== RUN   TestElemByteSize_Matrix/mat2x3<f32>
+=== RUN   TestElemByteSize_Matrix/mat3x3<f32>
+=== RUN   TestElemByteSize_Matrix/mat4x3<f32>
+=== RUN   TestElemByteSize_Matrix/mat2x4<f32>
+=== RUN   TestElemByteSize_Matrix/mat3x4<f32>
+=== RUN   TestElemByteSize_Matrix/mat4x4<f32>
+--- PASS: TestElemByteSize_Matrix (0.00s)
+    --- PASS: TestElemByteSize_Matrix/mat2x2<f32> (0.00s)
+    --- PASS: TestElemByteSize_Matrix/mat3x2<f32> (0.00s)
+    --- PASS: TestElemByteSize_Matrix/mat4x2<f32> (0.00s)
+    --- PASS: TestElemByteSize_Matrix/mat2x3<f32> (0.00s)
+    --- PASS: TestElemByteSize_Matrix/mat3x3<f32> (0.00s)
+    --- PASS: TestElemByteSize_Matrix/mat4x3<f32> (0.00s)
+    --- PASS: TestElemByteSize_Matrix/mat2x4<f32> (0.00s)
+    --- PASS: TestElemByteSize_Matrix/mat3x4<f32> (0.00s)
+    --- PASS: TestElemByteSize_Matrix/mat4x4<f32> (0.00s)
+=== RUN   TestElemByteSize_Atomic
+=== RUN   TestElemByteSize_Atomic/atomic<u32>
+=== RUN   TestElemByteSize_Atomic/atomic<i64>
+=== RUN   TestElemByteSize_Atomic/atomic<u64>
+--- PASS: TestElemByteSize_Atomic (0.00s)
+    --- PASS: TestElemByteSize_Atomic/atomic<u32> (0.00s)
+    --- PASS: TestElemByteSize_Atomic/atomic<i64> (0.00s)
+    --- PASS: TestElemByteSize_Atomic/atomic<u64> (0.00s)
+=== RUN   TestElemByteSize_Array
+=== RUN   TestElemByteSize_Array/array<u32,_8>_with_stride
+=== RUN   TestElemByteSize_Array/array<u32,_4>_stride_16_(vec4_padding)
+--- PASS: TestElemByteSize_Array (0.00s)
+    --- PASS: TestElemByteSize_Array/array<u32,_8>_with_stride (0.00s)
+    --- PASS: TestElemByteSize_Array/array<u32,_4>_stride_16_(vec4_padding) (0.00s)
+=== RUN   TestElemByteSize_Struct
+--- PASS: TestElemByteSize_Struct (0.00s)
+=== RUN   TestElemByteSize_F16Vector
+--- PASS: TestElemByteSize_F16Vector (0.00s)
+=== RUN   TestMatrixColumnByteStride_F16
+=== RUN   TestMatrixColumnByteStride_F16/mat2x2<f16>
+=== RUN   TestMatrixColumnByteStride_F16/mat3x3<f16>
+=== RUN   TestMatrixColumnByteStride_F16/mat4x4<f16>
+--- PASS: TestMatrixColumnByteStride_F16 (0.00s)
+    --- PASS: TestMatrixColumnByteStride_F16/mat2x2<f16> (0.00s)
+    --- PASS: TestMatrixColumnByteStride_F16/mat3x3<f16> (0.00s)
+    --- PASS: TestMatrixColumnByteStride_F16/mat4x4<f16> (0.00s)
+PASS

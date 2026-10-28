@@ -1,0 +1,14 @@
+=== RUN   TestSystemFontCandidates_UINotEmpty
+    system_font_test.go:18: UI candidates (13): first=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+--- PASS: TestSystemFontCandidates_UINotEmpty (0.00s)
+=== RUN   TestSetDefaultFontPath_Override
+--- PASS: TestSetDefaultFontPath_Override (0.00s)
+=== RUN   TestFontResolver_SetFontFile_Isolated
+--- PASS: TestFontResolver_SetFontFile_Isolated (0.00s)
+=== RUN   TestLoadDefaultFace_SingleSystemFont
+    system_font_test.go:64: default face: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+--- PASS: TestLoadDefaultFace_SingleSystemFont (0.00s)
+=== RUN   TestLoadMultiFace_OptIn
+    system_font_test.go:82: multi: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf (MultiFace)
+--- PASS: TestLoadMultiFace_OptIn (0.26s)
+PASS

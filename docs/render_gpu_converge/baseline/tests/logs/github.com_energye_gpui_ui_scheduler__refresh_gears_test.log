@@ -1,0 +1,13 @@
+=== RUN   TestGears_SeededBoundary
+--- PASS: TestGears_SeededBoundary (0.00s)
+=== RUN   TestGears_ReportedWinsOverLearnedDrift
+--- PASS: TestGears_ReportedWinsOverLearnedDrift (0.00s)
+=== RUN   TestGears_ReportedWinsOverDRMLearn
+--- PASS: TestGears_ReportedWinsOverDRMLearn (0.00s)
+=== RUN   TestGears_ReseedFollowsOutputChange
+--- PASS: TestGears_ReseedFollowsOutputChange (0.00s)
+=== RUN   TestGears_UnseededFallsBackToLearned
+--- PASS: TestGears_UnseededFallsBackToLearned (0.00s)
+=== RUN   TestGears_TickDtFollowsGear
+--- PASS: TestGears_TickDtFollowsGear (0.00s)
+PASS

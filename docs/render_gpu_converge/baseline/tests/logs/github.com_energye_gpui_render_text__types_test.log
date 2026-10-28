@@ -1,0 +1,17 @@
+=== RUN   TestDirectionString
+--- PASS: TestDirectionString (0.00s)
+=== RUN   TestDirectionIsHorizontal
+--- PASS: TestDirectionIsHorizontal (0.00s)
+=== RUN   TestDirectionIsVertical
+--- PASS: TestDirectionIsVertical (0.00s)
+=== RUN   TestGlyphTypeString
+--- PASS: TestGlyphTypeString (0.00s)
+=== RUN   TestGlyphFlagsHas
+--- PASS: TestGlyphFlagsHas (0.00s)
+=== RUN   TestGlyphFlagsString
+--- PASS: TestGlyphFlagsString (0.00s)
+=== RUN   TestShapedRunDimensions
+--- PASS: TestShapedRunDimensions (0.00s)
+=== RUN   TestShapedRunBounds
+--- PASS: TestShapedRunBounds (0.00s)
+PASS

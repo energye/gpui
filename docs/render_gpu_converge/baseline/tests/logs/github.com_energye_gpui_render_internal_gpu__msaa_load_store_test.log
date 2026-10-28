@@ -1,0 +1,7 @@
+=== RUN   TestMSAAColorAttachmentStoresForLaterLoad
+    msaa_load_store_test.go:54: loadOp=Clear storeOp=Store
+    msaa_load_store_test.go:54: loadOp=Load storeOp=Store
+--- PASS: TestMSAAColorAttachmentStoresForLaterLoad (0.23s)
+=== RUN   TestRenderSessionMSAATwoPassPreservesContent
+--- PASS: TestRenderSessionMSAATwoPassPreservesContent (0.19s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestR76_ConvertVertexLayouts_CommonShape
+--- PASS: TestR76_ConvertVertexLayouts_CommonShape (0.00s)
+=== RUN   TestR76_ConvertFragment_CommonShape
+--- PASS: TestR76_ConvertFragment_CommonShape (0.00s)
+=== RUN   TestR76_ConvertPipelineDescInto_NoNilCrash
+--- PASS: TestR76_ConvertPipelineDescInto_NoNilCrash (0.00s)
+PASS

@@ -1,0 +1,71 @@
+=== RUN   TestRenderParams_Defaults
+--- PASS: TestRenderParams_Defaults (0.00s)
+=== RUN   TestRenderParams_WithMethods
+--- PASS: TestRenderParams_WithMethods (0.00s)
+=== RUN   TestNewGlyphRenderer
+--- PASS: TestNewGlyphRenderer (0.00s)
+=== RUN   TestNewGlyphRendererWithCache
+--- PASS: TestNewGlyphRendererWithCache (0.00s)
+=== RUN   TestGlyphRenderer_CacheAccess
+--- PASS: TestGlyphRenderer_CacheAccess (0.00s)
+=== RUN   TestGlyphRenderer_RenderGlyph_NilInputs
+--- PASS: TestGlyphRenderer_RenderGlyph_NilInputs (0.00s)
+=== RUN   TestGlyphRenderer_RenderGlyphs_NilInputs
+--- PASS: TestGlyphRenderer_RenderGlyphs_NilInputs (0.00s)
+=== RUN   TestGlyphRenderer_RenderRun_NilInputs
+--- PASS: TestGlyphRenderer_RenderRun_NilInputs (0.00s)
+=== RUN   TestGlyphRenderer_RenderLayout_NilInputs
+--- PASS: TestGlyphRenderer_RenderLayout_NilInputs (0.00s)
+=== RUN   TestTransformOutline
+=== RUN   TestTransformOutline/nil_outline
+=== RUN   TestTransformOutline/basic_outline
+=== RUN   TestTransformOutline/with_user_transform
+--- PASS: TestTransformOutline (0.00s)
+    --- PASS: TestTransformOutline/nil_outline (0.00s)
+    --- PASS: TestTransformOutline/basic_outline (0.00s)
+    --- PASS: TestTransformOutline/with_user_transform (0.00s)
+=== RUN   TestComputeFontID
+--- PASS: TestComputeFontID (0.00s)
+=== RUN   TestFixedSize
+=== RUN   TestFixedSize/normal_size
+=== RUN   TestFixedSize/fractional_kept
+=== RUN   TestFixedSize/small_fraction_rounds
+=== RUN   TestFixedSize/nearby_fractions_stay_distinct
+=== RUN   TestFixedSize/nearby_fraction_b
+=== RUN   TestFixedSize/zero
+=== RUN   TestFixedSize/negative_clamped
+=== RUN   TestFixedSize/large_kept
+=== RUN   TestFixedSize/huge_clamped
+--- PASS: TestFixedSize (0.00s)
+    --- PASS: TestFixedSize/normal_size (0.00s)
+    --- PASS: TestFixedSize/fractional_kept (0.00s)
+    --- PASS: TestFixedSize/small_fraction_rounds (0.00s)
+    --- PASS: TestFixedSize/nearby_fractions_stay_distinct (0.00s)
+    --- PASS: TestFixedSize/nearby_fraction_b (0.00s)
+    --- PASS: TestFixedSize/zero (0.00s)
+    --- PASS: TestFixedSize/negative_clamped (0.00s)
+    --- PASS: TestFixedSize/large_kept (0.00s)
+    --- PASS: TestFixedSize/huge_clamped (0.00s)
+=== RUN   TestClampOpacity
+--- PASS: TestClampOpacity (0.00s)
+=== RUN   TestRotateTransform
+--- PASS: TestRotateTransform (0.00s)
+=== RUN   TestScaleTransformXY
+--- PASS: TestScaleTransformXY (0.00s)
+=== RUN   TestSineApprox
+--- PASS: TestSineApprox (0.00s)
+=== RUN   TestCosineApprox
+--- PASS: TestCosineApprox (0.00s)
+=== RUN   TestNewTextRenderer
+--- PASS: TestNewTextRenderer (0.00s)
+=== RUN   TestTextRenderer_SetDefaults
+--- PASS: TestTextRenderer_SetDefaults (0.00s)
+=== RUN   TestTextRenderer_GlyphRenderer
+--- PASS: TestTextRenderer_GlyphRenderer (0.00s)
+=== RUN   TestGetGlobalTextRenderer
+--- PASS: TestGetGlobalTextRenderer (0.00s)
+=== RUN   TestTextRenderer_ShapeAndRender_NoFace
+--- PASS: TestTextRenderer_ShapeAndRender_NoFace (0.00s)
+=== RUN   TestTextRenderer_ShapeAndRenderAt_NoFace
+--- PASS: TestTextRenderer_ShapeAndRenderAt_NoFace (0.00s)
+PASS

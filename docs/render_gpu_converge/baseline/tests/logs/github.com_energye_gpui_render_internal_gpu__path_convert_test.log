@@ -1,0 +1,45 @@
+=== RUN   TestConvertPathToPathDef_NilPath
+--- PASS: TestConvertPathToPathDef_NilPath (0.00s)
+=== RUN   TestConvertPathToPathDef_SingleLine
+--- PASS: TestConvertPathToPathDef_SingleLine (0.00s)
+=== RUN   TestConvertPathToPathDef_Triangle
+--- PASS: TestConvertPathToPathDef_Triangle (0.00s)
+=== RUN   TestConvertPathToPathDef_Rectangle
+--- PASS: TestConvertPathToPathDef_Rectangle (0.00s)
+=== RUN   TestConvertPathToPathDef_CurveFlattening
+--- PASS: TestConvertPathToPathDef_CurveFlattening (0.00s)
+=== RUN   TestConvertPathToPathDef_QuadElevation
+--- PASS: TestConvertPathToPathDef_QuadElevation (0.00s)
+=== RUN   TestConvertPathToPathDef_Circle
+--- PASS: TestConvertPathToPathDef_Circle (0.00s)
+=== RUN   TestConvertPathToPathDef_ColorExtraction
+=== RUN   TestConvertPathToPathDef_ColorExtraction/black
+=== RUN   TestConvertPathToPathDef_ColorExtraction/white
+=== RUN   TestConvertPathToPathDef_ColorExtraction/red
+=== RUN   TestConvertPathToPathDef_ColorExtraction/green
+=== RUN   TestConvertPathToPathDef_ColorExtraction/blue
+=== RUN   TestConvertPathToPathDef_ColorExtraction/half-transparent
+=== RUN   TestConvertPathToPathDef_ColorExtraction/transparent
+--- PASS: TestConvertPathToPathDef_ColorExtraction (0.00s)
+    --- PASS: TestConvertPathToPathDef_ColorExtraction/black (0.00s)
+    --- PASS: TestConvertPathToPathDef_ColorExtraction/white (0.00s)
+    --- PASS: TestConvertPathToPathDef_ColorExtraction/red (0.00s)
+    --- PASS: TestConvertPathToPathDef_ColorExtraction/green (0.00s)
+    --- PASS: TestConvertPathToPathDef_ColorExtraction/blue (0.00s)
+    --- PASS: TestConvertPathToPathDef_ColorExtraction/half-transparent (0.00s)
+    --- PASS: TestConvertPathToPathDef_ColorExtraction/transparent (0.00s)
+=== RUN   TestConvertPathToPathDef_FillRule
+--- PASS: TestConvertPathToPathDef_FillRule (0.00s)
+=== RUN   TestConvertPathToPathDef_NilPaint
+--- PASS: TestConvertPathToPathDef_NilPaint (0.00s)
+=== RUN   TestConvertPathToPathDef_ZeroLengthLines
+--- PASS: TestConvertPathToPathDef_ZeroLengthLines (0.00s)
+=== RUN   TestConvertShapeToPathDef_Circle
+--- PASS: TestConvertShapeToPathDef_Circle (0.00s)
+=== RUN   TestConvertShapeToPathDef_Rect
+--- PASS: TestConvertShapeToPathDef_Rect (0.00s)
+=== RUN   TestConvertShapeToPathDef_Unknown
+--- PASS: TestConvertShapeToPathDef_Unknown (0.00s)
+=== RUN   TestConvertPathToPathDef_MultipleSubpaths
+--- PASS: TestConvertPathToPathDef_MultipleSubpaths (0.00s)
+PASS

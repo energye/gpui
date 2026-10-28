@@ -1,0 +1,15 @@
+=== RUN   TestRenderOpacity_PaintCompositesGroup
+--- PASS: TestRenderOpacity_PaintCompositesGroup (0.00s)
+=== RUN   TestRenderOpacity_ZeroSkipsSubtree
+--- PASS: TestRenderOpacity_ZeroSkipsSubtree (0.00s)
+=== RUN   TestRenderOpacity_SetOpacityPaintOnly
+--- PASS: TestRenderOpacity_SetOpacityPaintOnly (0.00s)
+=== RUN   TestRenderOpacity_HitTestBlindToOpacity
+--- PASS: TestRenderOpacity_HitTestBlindToOpacity (0.00s)
+=== RUN   TestBuildLayerTree_OpacityLayer
+--- PASS: TestBuildLayerTree_OpacityLayer (0.00s)
+=== RUN   TestBuildLayerTree_OpacityLayer_NonBoundary
+--- PASS: TestBuildLayerTree_OpacityLayer_NonBoundary (0.00s)
+=== RUN   TestBuildLayerTree_OpacityIdentityOmitted
+--- PASS: TestBuildLayerTree_OpacityIdentityOmitted (0.00s)
+PASS

@@ -1,0 +1,49 @@
+=== RUN   TestBitmapFormat_String
+=== RUN   TestBitmapFormat_String/PNG
+=== RUN   TestBitmapFormat_String/JPEG
+=== RUN   TestBitmapFormat_String/TIFF
+=== RUN   TestBitmapFormat_String/DUPE
+=== RUN   TestBitmapFormat_String/Raw
+=== RUN   TestBitmapFormat_String/Unknown
+--- PASS: TestBitmapFormat_String (0.00s)
+    --- PASS: TestBitmapFormat_String/PNG (0.00s)
+    --- PASS: TestBitmapFormat_String/JPEG (0.00s)
+    --- PASS: TestBitmapFormat_String/TIFF (0.00s)
+    --- PASS: TestBitmapFormat_String/DUPE (0.00s)
+    --- PASS: TestBitmapFormat_String/Raw (0.00s)
+    --- PASS: TestBitmapFormat_String/Unknown (0.00s)
+=== RUN   TestBitmapGlyph_Decode_UnsupportedFormat
+--- PASS: TestBitmapGlyph_Decode_UnsupportedFormat (0.00s)
+=== RUN   TestBitmapGlyph_Decode_JPEG
+--- PASS: TestBitmapGlyph_Decode_JPEG (0.00s)
+=== RUN   TestBitmapGlyph_Decode_InvalidPNG
+--- PASS: TestBitmapGlyph_Decode_InvalidPNG (0.00s)
+=== RUN   TestNewSBIXParser_NoData
+--- PASS: TestNewSBIXParser_NoData (0.00s)
+=== RUN   TestNewSBIXParser_TooShort
+--- PASS: TestNewSBIXParser_TooShort (0.00s)
+=== RUN   TestParseGraphicType
+=== RUN   TestParseGraphicType/png_
+=== RUN   TestParseGraphicType/jpg_
+=== RUN   TestParseGraphicType/tiff
+=== RUN   TestParseGraphicType/dupe
+=== RUN   TestParseGraphicType/xxxx
+--- PASS: TestParseGraphicType (0.00s)
+    --- PASS: TestParseGraphicType/png_ (0.00s)
+    --- PASS: TestParseGraphicType/jpg_ (0.00s)
+    --- PASS: TestParseGraphicType/tiff (0.00s)
+    --- PASS: TestParseGraphicType/dupe (0.00s)
+    --- PASS: TestParseGraphicType/xxxx (0.00s)
+=== RUN   TestAbsDiff
+--- PASS: TestAbsDiff (0.00s)
+=== RUN   TestNewCBDTParser
+=== RUN   TestNewCBDTParser/no_CBDT
+=== RUN   TestNewCBDTParser/no_CBLC
+=== RUN   TestNewCBDTParser/both_present
+--- PASS: TestNewCBDTParser (0.00s)
+    --- PASS: TestNewCBDTParser/no_CBDT (0.00s)
+    --- PASS: TestNewCBDTParser/no_CBLC (0.00s)
+    --- PASS: TestNewCBDTParser/both_present (0.00s)
+=== RUN   TestCBDTParser_HasTable
+--- PASS: TestCBDTParser_HasTable (0.00s)
+PASS

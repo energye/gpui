@@ -1,0 +1,67 @@
+=== RUN   TestGolden_HVAR_AdvanceDelta
+=== RUN   TestGolden_HVAR_AdvanceDelta/coord_-1.0
+=== RUN   TestGolden_HVAR_AdvanceDelta/coord_-0.75
+=== RUN   TestGolden_HVAR_AdvanceDelta/coord_-0.5
+=== RUN   TestGolden_HVAR_AdvanceDelta/coord_0.0
+=== RUN   TestGolden_HVAR_AdvanceDelta/coord_+0.5
+=== RUN   TestGolden_HVAR_AdvanceDelta/coord_+1.0
+--- PASS: TestGolden_HVAR_AdvanceDelta (0.00s)
+    --- PASS: TestGolden_HVAR_AdvanceDelta/coord_-1.0 (0.00s)
+    --- PASS: TestGolden_HVAR_AdvanceDelta/coord_-0.75 (0.00s)
+    --- PASS: TestGolden_HVAR_AdvanceDelta/coord_-0.5 (0.00s)
+    --- PASS: TestGolden_HVAR_AdvanceDelta/coord_0.0 (0.00s)
+    --- PASS: TestGolden_HVAR_AdvanceDelta/coord_+0.5 (0.00s)
+    --- PASS: TestGolden_HVAR_AdvanceDelta/coord_+1.0 (0.00s)
+=== RUN   TestGolden_HVAR_IVSRegions
+--- PASS: TestGolden_HVAR_IVSRegions (0.00s)
+=== RUN   TestGolden_HVAR_NormalizeCoords
+=== RUN   TestGolden_HVAR_NormalizeCoords/min_100
+=== RUN   TestGolden_HVAR_NormalizeCoords/light_250
+=== RUN   TestGolden_HVAR_NormalizeCoords/default_400
+=== RUN   TestGolden_HVAR_NormalizeCoords/bold_650
+=== RUN   TestGolden_HVAR_NormalizeCoords/max_900
+--- PASS: TestGolden_HVAR_NormalizeCoords (0.00s)
+    --- PASS: TestGolden_HVAR_NormalizeCoords/min_100 (0.00s)
+    --- PASS: TestGolden_HVAR_NormalizeCoords/light_250 (0.00s)
+    --- PASS: TestGolden_HVAR_NormalizeCoords/default_400 (0.00s)
+    --- PASS: TestGolden_HVAR_NormalizeCoords/bold_650 (0.00s)
+    --- PASS: TestGolden_HVAR_NormalizeCoords/max_900 (0.00s)
+=== RUN   TestGolden_HVAR_FaceAdvance
+=== RUN   TestGolden_HVAR_FaceAdvance/thin_100
+    hvar_test.go:229: wght=100: delta=-113, advance=1223 FU
+=== RUN   TestGolden_HVAR_FaceAdvance/default_400
+    hvar_test.go:229: wght=400: delta=0, advance=1336 FU
+=== RUN   TestGolden_HVAR_FaceAdvance/black_900
+    hvar_test.go:229: wght=900: delta=59, advance=1395 FU
+--- PASS: TestGolden_HVAR_FaceAdvance (0.00s)
+    --- PASS: TestGolden_HVAR_FaceAdvance/thin_100 (0.00s)
+    --- PASS: TestGolden_HVAR_FaceAdvance/default_400 (0.00s)
+    --- PASS: TestGolden_HVAR_FaceAdvance/black_900 (0.00s)
+=== RUN   TestGolden_HVAR_FullAdvance
+    hvar_test.go:272: font has no glyph for 'A'
+--- SKIP: TestGolden_HVAR_FullAdvance (0.00s)
+=== RUN   TestHVAR_NilSafety
+--- PASS: TestHVAR_NilSafety (0.00s)
+=== RUN   TestDeltaSetIndexMap_NilIdentity
+--- PASS: TestDeltaSetIndexMap_NilIdentity (0.00s)
+=== RUN   TestDeltaSetIndexMap_ClampToLast
+--- PASS: TestDeltaSetIndexMap_ClampToLast (0.00s)
+=== RUN   TestNormalizeValue
+=== RUN   TestNormalizeValue/at_default
+=== RUN   TestNormalizeValue/at_min
+=== RUN   TestNormalizeValue/at_max
+=== RUN   TestNormalizeValue/below_default
+=== RUN   TestNormalizeValue/above_default
+=== RUN   TestNormalizeValue/min_equals_default
+=== RUN   TestNormalizeValue/max_equals_default
+--- PASS: TestNormalizeValue (0.00s)
+    --- PASS: TestNormalizeValue/at_default (0.00s)
+    --- PASS: TestNormalizeValue/at_min (0.00s)
+    --- PASS: TestNormalizeValue/at_max (0.00s)
+    --- PASS: TestNormalizeValue/below_default (0.00s)
+    --- PASS: TestNormalizeValue/above_default (0.00s)
+    --- PASS: TestNormalizeValue/min_equals_default (0.00s)
+    --- PASS: TestNormalizeValue/max_equals_default (0.00s)
+=== RUN   TestComputeScalar_ZeroPeak
+--- PASS: TestComputeScalar_ZeroPeak (0.00s)
+PASS

@@ -1,0 +1,9 @@
+=== RUN   TestVideoBackendQueryBothCopyModes
+--- PASS: TestVideoBackendQueryBothCopyModes (0.00s)
+=== RUN   TestVideoBorrowWithoutWindow
+--- PASS: TestVideoBorrowWithoutWindow (0.00s)
+=== RUN   TestVideoPoolBorrowReturnNoLeak
+--- PASS: TestVideoPoolBorrowReturnNoLeak (0.00s)
+=== RUN   TestVideoFallbackCountsCPU
+--- PASS: TestVideoFallbackCountsCPU (0.00s)
+PASS

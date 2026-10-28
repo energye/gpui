@@ -1,0 +1,5 @@
+=== RUN   TestMem_T4_WindowComplex_ResizeChurn
+    mem_window_x11_linux_test.go:183: T4 window frames=48 reconfig=15 acquires=48 presents=48 rss=241100KB
+    mem_window_x11_linux_test.go:189: T4 RSS warmup_drop=8 early_avg=232290KB late_avg=238338KB grow=6049KB limit=98304KB
+--- PASS: TestMem_T4_WindowComplex_ResizeChurn (1.22s)
+PASS

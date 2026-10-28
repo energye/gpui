@@ -1,0 +1,4 @@
+=== RUN   TestDbgFTGraysFT26Direct
+A3 直通: 48 字 × FT-light 逐字节一致
+--- PASS: TestDbgFTGraysFT26Direct (1.62s)
+PASS

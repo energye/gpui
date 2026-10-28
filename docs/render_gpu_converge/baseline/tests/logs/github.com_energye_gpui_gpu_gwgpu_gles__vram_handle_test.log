@@ -1,0 +1,5 @@
+=== RUN   TestVramHandleTagDisjoint
+--- PASS: TestVramHandleTagDisjoint (0.00s)
+=== RUN   TestGlAllocOOMShape
+--- PASS: TestGlAllocOOMShape (0.00s)
+PASS

@@ -1,0 +1,67 @@
+=== RUN   TestStrikeStrategy_String
+=== RUN   TestStrikeStrategy_String/BestFit
+=== RUN   TestStrikeStrategy_String/Exact
+=== RUN   TestStrikeStrategy_String/Largest
+=== RUN   TestStrikeStrategy_String/Unknown
+--- PASS: TestStrikeStrategy_String (0.00s)
+    --- PASS: TestStrikeStrategy_String/BestFit (0.00s)
+    --- PASS: TestStrikeStrategy_String/Exact (0.00s)
+    --- PASS: TestStrikeStrategy_String/Largest (0.00s)
+    --- PASS: TestStrikeStrategy_String/Unknown (0.00s)
+=== RUN   TestNewCBDTExtractor_NoData
+=== RUN   TestNewCBDTExtractor_NoData/no_CBDT
+=== RUN   TestNewCBDTExtractor_NoData/no_CBLC
+--- PASS: TestNewCBDTExtractor_NoData (0.00s)
+    --- PASS: TestNewCBDTExtractor_NoData/no_CBDT (0.00s)
+    --- PASS: TestNewCBDTExtractor_NoData/no_CBLC (0.00s)
+=== RUN   TestNewCBDTExtractor_InvalidCBLC
+=== RUN   TestNewCBDTExtractor_InvalidCBLC/too_short
+=== RUN   TestNewCBDTExtractor_InvalidCBLC/wrong_version
+--- PASS: TestNewCBDTExtractor_InvalidCBLC (0.00s)
+    --- PASS: TestNewCBDTExtractor_InvalidCBLC/too_short (0.00s)
+    --- PASS: TestNewCBDTExtractor_InvalidCBLC/wrong_version (0.00s)
+=== RUN   TestCBDTExtractor_NumStrikes
+--- PASS: TestCBDTExtractor_NumStrikes (0.00s)
+=== RUN   TestCBDTExtractor_StrikePPEM
+--- PASS: TestCBDTExtractor_StrikePPEM (0.00s)
+=== RUN   TestCBDTExtractor_SelectStrike
+=== RUN   TestCBDTExtractor_SelectStrike/BestFit_exact_match
+=== RUN   TestCBDTExtractor_SelectStrike/BestFit_round_up
+=== RUN   TestCBDTExtractor_SelectStrike/BestFit_largest
+=== RUN   TestCBDTExtractor_SelectStrike/BestFit_smallest
+=== RUN   TestCBDTExtractor_SelectStrike/Exact_match
+=== RUN   TestCBDTExtractor_SelectStrike/Exact_no_match
+=== RUN   TestCBDTExtractor_SelectStrike/Exact_boundary
+=== RUN   TestCBDTExtractor_SelectStrike/Largest_always
+=== RUN   TestCBDTExtractor_SelectStrike/Largest_any_ppem
+--- PASS: TestCBDTExtractor_SelectStrike (0.00s)
+    --- PASS: TestCBDTExtractor_SelectStrike/BestFit_exact_match (0.00s)
+    --- PASS: TestCBDTExtractor_SelectStrike/BestFit_round_up (0.00s)
+    --- PASS: TestCBDTExtractor_SelectStrike/BestFit_largest (0.00s)
+    --- PASS: TestCBDTExtractor_SelectStrike/BestFit_smallest (0.00s)
+    --- PASS: TestCBDTExtractor_SelectStrike/Exact_match (0.00s)
+    --- PASS: TestCBDTExtractor_SelectStrike/Exact_no_match (0.00s)
+    --- PASS: TestCBDTExtractor_SelectStrike/Exact_boundary (0.00s)
+    --- PASS: TestCBDTExtractor_SelectStrike/Largest_always (0.00s)
+    --- PASS: TestCBDTExtractor_SelectStrike/Largest_any_ppem (0.00s)
+=== RUN   TestCBDTExtractor_SelectStrike_Empty
+--- PASS: TestCBDTExtractor_SelectStrike_Empty (0.00s)
+=== RUN   TestCBDTExtractor_AvailablePPEMs
+--- PASS: TestCBDTExtractor_AvailablePPEMs (0.00s)
+=== RUN   TestCBDTExtractor_GetGlyph_NoStrike
+--- PASS: TestCBDTExtractor_GetGlyph_NoStrike (0.00s)
+=== RUN   TestCBDTExtractor_GetGlyphAtStrike_OutOfRange
+--- PASS: TestCBDTExtractor_GetGlyphAtStrike_OutOfRange (0.00s)
+=== RUN   TestParseBigGlyphMetrics
+--- PASS: TestParseBigGlyphMetrics (0.00s)
+=== RUN   TestParseSmallGlyphMetrics
+--- PASS: TestParseSmallGlyphMetrics (0.00s)
+=== RUN   TestCBDTExtractor_StrikeBitDepth
+--- PASS: TestCBDTExtractor_StrikeBitDepth (0.00s)
+=== RUN   TestCBDTExtractor_Format17_Integration
+--- PASS: TestCBDTExtractor_Format17_Integration (0.00s)
+=== RUN   TestCBDTExtractor_HasGlyphInStrike
+--- PASS: TestCBDTExtractor_HasGlyphInStrike (0.00s)
+=== RUN   TestCBDTExtractor_GetGlyphWithStrategy
+--- PASS: TestCBDTExtractor_GetGlyphWithStrategy (0.00s)
+PASS

@@ -1,0 +1,4 @@
+=== RUN   TestCompositeFramePacketTextured_BlitzRRectCornerPixels
+    blit_rrect_corner_test.go:102: rounded-corner hole (31,22) rgb=77,204,115 want dark background — blit lost the rounded clip
+--- FAIL: TestCompositeFramePacketTextured_BlitzRRectCornerPixels (0.30s)
+FAIL

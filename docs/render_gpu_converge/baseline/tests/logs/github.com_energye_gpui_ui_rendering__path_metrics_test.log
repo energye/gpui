@@ -1,0 +1,11 @@
+=== RUN   TestPathMetrics_Line_LengthAndEndpoints
+--- PASS: TestPathMetrics_Line_LengthAndEndpoints (0.00s)
+=== RUN   TestPathMetrics_ClosedRect_IncludesClosingEdge
+--- PASS: TestPathMetrics_ClosedRect_IncludesClosingEdge (0.00s)
+=== RUN   TestPathMetrics_Cubic_NonTrivialLength
+--- PASS: TestPathMetrics_Cubic_NonTrivialLength (0.00s)
+=== RUN   TestPathMetrics_MultiContour_SeparateLengths
+--- PASS: TestPathMetrics_MultiContour_SeparateLengths (0.00s)
+=== RUN   TestPathMetrics_EmptyPath
+--- PASS: TestPathMetrics_EmptyPath (0.00s)
+PASS

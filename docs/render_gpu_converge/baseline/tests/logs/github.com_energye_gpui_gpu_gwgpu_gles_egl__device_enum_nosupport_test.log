@@ -1,0 +1,3 @@
+=== RUN   TestQueryDevicesNoExtensionFailsOpen
+--- PASS: TestQueryDevicesNoExtensionFailsOpen (0.00s)
+PASS

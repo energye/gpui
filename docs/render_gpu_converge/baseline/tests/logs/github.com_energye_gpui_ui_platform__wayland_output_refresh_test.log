@@ -1,0 +1,5 @@
+=== RUN   TestWlOutputModeRefresh
+--- PASS: TestWlOutputModeRefresh (0.00s)
+=== RUN   TestWlOutputRefreshEnterFallback
+--- PASS: TestWlOutputRefreshEnterFallback (0.00s)
+PASS

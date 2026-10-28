@@ -1,0 +1,47 @@
+=== RUN   TestNewGenerator
+--- PASS: TestNewGenerator (0.00s)
+=== RUN   TestDefaultGenerator
+--- PASS: TestDefaultGenerator (0.00s)
+=== RUN   TestGeneratorConfig
+--- PASS: TestGeneratorConfig (0.00s)
+=== RUN   TestGenerateEmpty
+--- PASS: TestGenerateEmpty (0.00s)
+=== RUN   TestGenerateInvalidConfig
+--- PASS: TestGenerateInvalidConfig (0.00s)
+=== RUN   TestGenerateSquare
+--- PASS: TestGenerateSquare (0.00s)
+=== RUN   TestGenerateWithCurves
+--- PASS: TestGenerateWithCurves (0.00s)
+=== RUN   TestGenerateWithMetrics
+--- PASS: TestGenerateWithMetrics (0.00s)
+=== RUN   TestGenerateWithMetricsEmpty
+--- PASS: TestGenerateWithMetricsEmpty (0.00s)
+=== RUN   TestGenerateBatch
+--- PASS: TestGenerateBatch (0.00s)
+=== RUN   TestGenerateBatchInvalidConfig
+--- PASS: TestGenerateBatchInvalidConfig (0.00s)
+=== RUN   TestGeneratorPool
+--- PASS: TestGeneratorPool (0.00s)
+=== RUN   TestMedianFilter
+--- PASS: TestMedianFilter (0.00s)
+=== RUN   TestMedianFilterNil
+--- PASS: TestMedianFilterNil (0.00s)
+=== RUN   TestErrorCorrection
+--- PASS: TestErrorCorrection (0.00s)
+=== RUN   TestErrorCorrectionNil
+--- PASS: TestErrorCorrectionNil (0.00s)
+=== RUN   TestDistanceToPixel
+--- PASS: TestDistanceToPixel (0.00s)
+=== RUN   TestCalculateScale
+--- PASS: TestCalculateScale (0.00s)
+=== RUN   TestMedian9
+--- PASS: TestMedian9 (0.00s)
+=== RUN   TestMedian3Byte
+--- PASS: TestMedian3Byte (0.00s)
+=== RUN   TestGenerateOrientationIndependent
+=== RUN   TestGenerateOrientationIndependent/truetype
+=== RUN   TestGenerateOrientationIndependent/cff
+--- PASS: TestGenerateOrientationIndependent (0.00s)
+    --- PASS: TestGenerateOrientationIndependent/truetype (0.00s)
+    --- PASS: TestGenerateOrientationIndependent/cff (0.00s)
+PASS

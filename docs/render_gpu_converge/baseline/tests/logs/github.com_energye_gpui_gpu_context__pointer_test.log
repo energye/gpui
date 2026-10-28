@@ -1,0 +1,83 @@
+=== RUN   TestPointerEventType_String
+=== RUN   TestPointerEventType_String/PointerDown
+=== RUN   TestPointerEventType_String/PointerUp
+=== RUN   TestPointerEventType_String/PointerMove
+=== RUN   TestPointerEventType_String/PointerEnter
+=== RUN   TestPointerEventType_String/PointerLeave
+=== RUN   TestPointerEventType_String/PointerCancel
+=== RUN   TestPointerEventType_String/Unknown
+--- PASS: TestPointerEventType_String (0.00s)
+    --- PASS: TestPointerEventType_String/PointerDown (0.00s)
+    --- PASS: TestPointerEventType_String/PointerUp (0.00s)
+    --- PASS: TestPointerEventType_String/PointerMove (0.00s)
+    --- PASS: TestPointerEventType_String/PointerEnter (0.00s)
+    --- PASS: TestPointerEventType_String/PointerLeave (0.00s)
+    --- PASS: TestPointerEventType_String/PointerCancel (0.00s)
+    --- PASS: TestPointerEventType_String/Unknown (0.00s)
+=== RUN   TestPointerType_String
+=== RUN   TestPointerType_String/Mouse
+=== RUN   TestPointerType_String/Touch
+=== RUN   TestPointerType_String/Pen
+=== RUN   TestPointerType_String/Unknown
+--- PASS: TestPointerType_String (0.00s)
+    --- PASS: TestPointerType_String/Mouse (0.00s)
+    --- PASS: TestPointerType_String/Touch (0.00s)
+    --- PASS: TestPointerType_String/Pen (0.00s)
+    --- PASS: TestPointerType_String/Unknown (0.00s)
+=== RUN   TestButton_String
+=== RUN   TestButton_String/None
+=== RUN   TestButton_String/Left
+=== RUN   TestButton_String/Middle
+=== RUN   TestButton_String/Right
+=== RUN   TestButton_String/X1
+=== RUN   TestButton_String/X2
+=== RUN   TestButton_String/Eraser
+=== RUN   TestButton_String/Unknown
+--- PASS: TestButton_String (0.00s)
+    --- PASS: TestButton_String/None (0.00s)
+    --- PASS: TestButton_String/Left (0.00s)
+    --- PASS: TestButton_String/Middle (0.00s)
+    --- PASS: TestButton_String/Right (0.00s)
+    --- PASS: TestButton_String/X1 (0.00s)
+    --- PASS: TestButton_String/X2 (0.00s)
+    --- PASS: TestButton_String/Eraser (0.00s)
+    --- PASS: TestButton_String/Unknown (0.00s)
+=== RUN   TestButtonConstants
+--- PASS: TestButtonConstants (0.00s)
+=== RUN   TestButtons_HasMethods
+=== RUN   TestButtons_HasMethods/none
+=== RUN   TestButtons_HasMethods/left_only
+=== RUN   TestButtons_HasMethods/right_only
+=== RUN   TestButtons_HasMethods/middle_only
+=== RUN   TestButtons_HasMethods/x1_only
+=== RUN   TestButtons_HasMethods/x2_only
+=== RUN   TestButtons_HasMethods/eraser_only
+=== RUN   TestButtons_HasMethods/left_and_right
+=== RUN   TestButtons_HasMethods/all_buttons
+--- PASS: TestButtons_HasMethods (0.00s)
+    --- PASS: TestButtons_HasMethods/none (0.00s)
+    --- PASS: TestButtons_HasMethods/left_only (0.00s)
+    --- PASS: TestButtons_HasMethods/right_only (0.00s)
+    --- PASS: TestButtons_HasMethods/middle_only (0.00s)
+    --- PASS: TestButtons_HasMethods/x1_only (0.00s)
+    --- PASS: TestButtons_HasMethods/x2_only (0.00s)
+    --- PASS: TestButtons_HasMethods/eraser_only (0.00s)
+    --- PASS: TestButtons_HasMethods/left_and_right (0.00s)
+    --- PASS: TestButtons_HasMethods/all_buttons (0.00s)
+=== RUN   TestButtons_Count
+--- PASS: TestButtons_Count (0.00s)
+=== RUN   TestButtonsConstants
+--- PASS: TestButtonsConstants (0.00s)
+=== RUN   TestPointerEvent_ZeroValue
+--- PASS: TestPointerEvent_ZeroValue (0.00s)
+=== RUN   TestPointerEvent_FullConstruction
+--- PASS: TestPointerEvent_FullConstruction (0.00s)
+=== RUN   TestPointerEventType_Values
+--- PASS: TestPointerEventType_Values (0.00s)
+=== RUN   TestPointerType_Values
+--- PASS: TestPointerType_Values (0.00s)
+=== RUN   TestNullPointerEventSource
+--- PASS: TestNullPointerEventSource (0.00s)
+=== RUN   TestPointerEventSource_Interface
+--- PASS: TestPointerEventSource_Interface (0.00s)
+PASS

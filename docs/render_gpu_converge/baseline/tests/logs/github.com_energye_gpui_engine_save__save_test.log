@@ -1,0 +1,15 @@
+=== RUN   TestSaveFromCases
+--- PASS: TestSaveFromCases (0.00s)
+=== RUN   TestSaveEdgesNoCrash
+--- PASS: TestSaveEdgesNoCrash (0.00s)
+=== RUN   TestSaveBoundaryIdentical
+--- PASS: TestSaveBoundaryIdentical (0.00s)
+=== RUN   TestSavePerfLarge
+    save_test.go:543: save-large: 200 reps encode+parse 256 items 64 stars 8773B in 83.088806ms (415.4 us/rep)
+    save_test.go:555: save-file: store+load 8773B in 450.929µs
+--- PASS: TestSavePerfLarge (0.08s)
+=== RUN   TestSaveLongRunStable
+--- PASS: TestSaveLongRunStable (0.04s)
+=== RUN   TestSaveOffscreenGolden
+--- PASS: TestSaveOffscreenGolden (0.00s)
+PASS

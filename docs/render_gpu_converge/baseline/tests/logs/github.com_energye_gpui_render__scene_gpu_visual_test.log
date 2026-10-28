@@ -1,0 +1,7 @@
+=== RUN   TestSceneCPUvsGPUVisualDiagnostic
+    scene_gpu_visual_test.go:15: set GPUI_SCENE_VISUAL=1 to run CPU/GPU scene diagnostics
+--- SKIP: TestSceneCPUvsGPUVisualDiagnostic (0.00s)
+=== RUN   TestSceneGPUCPUvsGPUVisualDiagnostic
+    scene_gpu_visual_test.go:112: set GPUI_SCENE_GPU_VISUAL=1 to run CPU/GPU scene_gpu diagnostics
+--- SKIP: TestSceneGPUCPUvsGPUVisualDiagnostic (0.00s)
+PASS

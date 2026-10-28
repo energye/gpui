@@ -1,0 +1,223 @@
+=== RUN   TestScalarToHLSL
+=== RUN   TestScalarToHLSL/bool
+=== RUN   TestScalarToHLSL/int_1byte
+=== RUN   TestScalarToHLSL/int_2bytes
+=== RUN   TestScalarToHLSL/int_4bytes
+=== RUN   TestScalarToHLSL/int64_t
+=== RUN   TestScalarToHLSL/uint_1byte
+=== RUN   TestScalarToHLSL/uint_2bytes
+=== RUN   TestScalarToHLSL/uint_4bytes
+=== RUN   TestScalarToHLSL/uint64_t
+=== RUN   TestScalarToHLSL/half
+=== RUN   TestScalarToHLSL/float
+=== RUN   TestScalarToHLSL/double
+--- PASS: TestScalarToHLSL (0.00s)
+    --- PASS: TestScalarToHLSL/bool (0.00s)
+    --- PASS: TestScalarToHLSL/int_1byte (0.00s)
+    --- PASS: TestScalarToHLSL/int_2bytes (0.00s)
+    --- PASS: TestScalarToHLSL/int_4bytes (0.00s)
+    --- PASS: TestScalarToHLSL/int64_t (0.00s)
+    --- PASS: TestScalarToHLSL/uint_1byte (0.00s)
+    --- PASS: TestScalarToHLSL/uint_2bytes (0.00s)
+    --- PASS: TestScalarToHLSL/uint_4bytes (0.00s)
+    --- PASS: TestScalarToHLSL/uint64_t (0.00s)
+    --- PASS: TestScalarToHLSL/half (0.00s)
+    --- PASS: TestScalarToHLSL/float (0.00s)
+    --- PASS: TestScalarToHLSL/double (0.00s)
+=== RUN   TestVectorToHLSL
+=== RUN   TestVectorToHLSL/float2
+=== RUN   TestVectorToHLSL/float3
+=== RUN   TestVectorToHLSL/float4
+=== RUN   TestVectorToHLSL/int2
+=== RUN   TestVectorToHLSL/int3
+=== RUN   TestVectorToHLSL/int4
+=== RUN   TestVectorToHLSL/uint2
+=== RUN   TestVectorToHLSL/uint3
+=== RUN   TestVectorToHLSL/uint4
+=== RUN   TestVectorToHLSL/bool2
+=== RUN   TestVectorToHLSL/half4
+=== RUN   TestVectorToHLSL/double3
+--- PASS: TestVectorToHLSL (0.00s)
+    --- PASS: TestVectorToHLSL/float2 (0.00s)
+    --- PASS: TestVectorToHLSL/float3 (0.00s)
+    --- PASS: TestVectorToHLSL/float4 (0.00s)
+    --- PASS: TestVectorToHLSL/int2 (0.00s)
+    --- PASS: TestVectorToHLSL/int3 (0.00s)
+    --- PASS: TestVectorToHLSL/int4 (0.00s)
+    --- PASS: TestVectorToHLSL/uint2 (0.00s)
+    --- PASS: TestVectorToHLSL/uint3 (0.00s)
+    --- PASS: TestVectorToHLSL/uint4 (0.00s)
+    --- PASS: TestVectorToHLSL/bool2 (0.00s)
+    --- PASS: TestVectorToHLSL/half4 (0.00s)
+    --- PASS: TestVectorToHLSL/double3 (0.00s)
+=== RUN   TestMatrixToHLSL
+=== RUN   TestMatrixToHLSL/float2x2
+=== RUN   TestMatrixToHLSL/float3x3
+=== RUN   TestMatrixToHLSL/float4x4
+=== RUN   TestMatrixToHLSL/float3x4
+=== RUN   TestMatrixToHLSL/float4x3
+=== RUN   TestMatrixToHLSL/half4x4
+=== RUN   TestMatrixToHLSL/double4x4
+=== RUN   TestMatrixToHLSL/int4x4
+--- PASS: TestMatrixToHLSL (0.00s)
+    --- PASS: TestMatrixToHLSL/float2x2 (0.00s)
+    --- PASS: TestMatrixToHLSL/float3x3 (0.00s)
+    --- PASS: TestMatrixToHLSL/float4x4 (0.00s)
+    --- PASS: TestMatrixToHLSL/float3x4 (0.00s)
+    --- PASS: TestMatrixToHLSL/float4x3 (0.00s)
+    --- PASS: TestMatrixToHLSL/half4x4 (0.00s)
+    --- PASS: TestMatrixToHLSL/double4x4 (0.00s)
+    --- PASS: TestMatrixToHLSL/int4x4 (0.00s)
+=== RUN   TestScalarCast
+=== RUN   TestScalarCast/float
+=== RUN   TestScalarCast/sint
+=== RUN   TestScalarCast/uint
+=== RUN   TestScalarCast/bool
+--- PASS: TestScalarCast (0.00s)
+    --- PASS: TestScalarCast/float (0.00s)
+    --- PASS: TestScalarCast/sint (0.00s)
+    --- PASS: TestScalarCast/uint (0.00s)
+    --- PASS: TestScalarCast/bool (0.00s)
+=== RUN   TestBuiltInToSemantic
+=== RUN   TestBuiltInToSemantic/position
+=== RUN   TestBuiltInToSemantic/vertex_index
+=== RUN   TestBuiltInToSemantic/instance_index
+=== RUN   TestBuiltInToSemantic/front_facing
+=== RUN   TestBuiltInToSemantic/frag_depth
+=== RUN   TestBuiltInToSemantic/sample_index
+=== RUN   TestBuiltInToSemantic/sample_mask
+=== RUN   TestBuiltInToSemantic/global_invocation_id
+=== RUN   TestBuiltInToSemantic/local_invocation_id
+=== RUN   TestBuiltInToSemantic/local_invocation_index
+=== RUN   TestBuiltInToSemantic/workgroup_id
+=== RUN   TestBuiltInToSemantic/num_workgroups
+--- PASS: TestBuiltInToSemantic (0.00s)
+    --- PASS: TestBuiltInToSemantic/position (0.00s)
+    --- PASS: TestBuiltInToSemantic/vertex_index (0.00s)
+    --- PASS: TestBuiltInToSemantic/instance_index (0.00s)
+    --- PASS: TestBuiltInToSemantic/front_facing (0.00s)
+    --- PASS: TestBuiltInToSemantic/frag_depth (0.00s)
+    --- PASS: TestBuiltInToSemantic/sample_index (0.00s)
+    --- PASS: TestBuiltInToSemantic/sample_mask (0.00s)
+    --- PASS: TestBuiltInToSemantic/global_invocation_id (0.00s)
+    --- PASS: TestBuiltInToSemantic/local_invocation_id (0.00s)
+    --- PASS: TestBuiltInToSemantic/local_invocation_index (0.00s)
+    --- PASS: TestBuiltInToSemantic/workgroup_id (0.00s)
+    --- PASS: TestBuiltInToSemantic/num_workgroups (0.00s)
+=== RUN   TestInterpolationToHLSL
+=== RUN   TestInterpolationToHLSL/flat
+=== RUN   TestInterpolationToHLSL/linear
+=== RUN   TestInterpolationToHLSL/perspective
+--- PASS: TestInterpolationToHLSL (0.00s)
+    --- PASS: TestInterpolationToHLSL/flat (0.00s)
+    --- PASS: TestInterpolationToHLSL/linear (0.00s)
+    --- PASS: TestInterpolationToHLSL/perspective (0.00s)
+=== RUN   TestSamplingToHLSL
+=== RUN   TestSamplingToHLSL/center
+=== RUN   TestSamplingToHLSL/centroid
+=== RUN   TestSamplingToHLSL/sample
+--- PASS: TestSamplingToHLSL (0.00s)
+    --- PASS: TestSamplingToHLSL/center (0.00s)
+    --- PASS: TestSamplingToHLSL/centroid (0.00s)
+    --- PASS: TestSamplingToHLSL/sample (0.00s)
+=== RUN   TestAtomicOpToHLSL
+=== RUN   TestAtomicOpToHLSL/add
+=== RUN   TestAtomicOpToHLSL/sub
+=== RUN   TestAtomicOpToHLSL/and
+=== RUN   TestAtomicOpToHLSL/or
+=== RUN   TestAtomicOpToHLSL/xor
+=== RUN   TestAtomicOpToHLSL/min
+=== RUN   TestAtomicOpToHLSL/max
+=== RUN   TestAtomicOpToHLSL/exchange
+=== RUN   TestAtomicOpToHLSL/compare_exchange
+=== RUN   TestAtomicOpToHLSL/unknown
+--- PASS: TestAtomicOpToHLSL (0.00s)
+    --- PASS: TestAtomicOpToHLSL/add (0.00s)
+    --- PASS: TestAtomicOpToHLSL/sub (0.00s)
+    --- PASS: TestAtomicOpToHLSL/and (0.00s)
+    --- PASS: TestAtomicOpToHLSL/or (0.00s)
+    --- PASS: TestAtomicOpToHLSL/xor (0.00s)
+    --- PASS: TestAtomicOpToHLSL/min (0.00s)
+    --- PASS: TestAtomicOpToHLSL/max (0.00s)
+    --- PASS: TestAtomicOpToHLSL/exchange (0.00s)
+    --- PASS: TestAtomicOpToHLSL/compare_exchange (0.00s)
+    --- PASS: TestAtomicOpToHLSL/unknown (0.00s)
+=== RUN   TestAddressSpaceToHLSL
+=== RUN   TestAddressSpaceToHLSL/workgroup
+=== RUN   TestAddressSpaceToHLSL/uniform
+=== RUN   TestAddressSpaceToHLSL/storage
+=== RUN   TestAddressSpaceToHLSL/function
+=== RUN   TestAddressSpaceToHLSL/private
+--- PASS: TestAddressSpaceToHLSL (0.00s)
+    --- PASS: TestAddressSpaceToHLSL/workgroup (0.00s)
+    --- PASS: TestAddressSpaceToHLSL/uniform (0.00s)
+    --- PASS: TestAddressSpaceToHLSL/storage (0.00s)
+    --- PASS: TestAddressSpaceToHLSL/function (0.00s)
+    --- PASS: TestAddressSpaceToHLSL/private (0.00s)
+=== RUN   TestImageDimToHLSL
+=== RUN   TestImageDimToHLSL/1d
+=== RUN   TestImageDimToHLSL/1d_array
+=== RUN   TestImageDimToHLSL/2d
+=== RUN   TestImageDimToHLSL/2d_array
+=== RUN   TestImageDimToHLSL/3d
+=== RUN   TestImageDimToHLSL/3d_array
+=== RUN   TestImageDimToHLSL/cube
+=== RUN   TestImageDimToHLSL/cube_array
+--- PASS: TestImageDimToHLSL (0.00s)
+    --- PASS: TestImageDimToHLSL/1d (0.00s)
+    --- PASS: TestImageDimToHLSL/1d_array (0.00s)
+    --- PASS: TestImageDimToHLSL/2d (0.00s)
+    --- PASS: TestImageDimToHLSL/2d_array (0.00s)
+    --- PASS: TestImageDimToHLSL/3d (0.00s)
+    --- PASS: TestImageDimToHLSL/3d_array (0.00s)
+    --- PASS: TestImageDimToHLSL/cube (0.00s)
+    --- PASS: TestImageDimToHLSL/cube_array (0.00s)
+=== RUN   TestImageClassToHLSL
+=== RUN   TestImageClassToHLSL/sampled
+=== RUN   TestImageClassToHLSL/depth
+=== RUN   TestImageClassToHLSL/storage_read
+=== RUN   TestImageClassToHLSL/storage_rw
+--- PASS: TestImageClassToHLSL (0.00s)
+    --- PASS: TestImageClassToHLSL/sampled (0.00s)
+    --- PASS: TestImageClassToHLSL/depth (0.00s)
+    --- PASS: TestImageClassToHLSL/storage_read (0.00s)
+    --- PASS: TestImageClassToHLSL/storage_rw (0.00s)
+=== RUN   TestImageToHLSL
+=== RUN   TestImageToHLSL/Texture2D
+=== RUN   TestImageToHLSL/Texture2DArray
+=== RUN   TestImageToHLSL/Texture3D
+=== RUN   TestImageToHLSL/TextureCube
+=== RUN   TestImageToHLSL/RWTexture2D
+=== RUN   TestImageToHLSL/Texture2DMS
+--- PASS: TestImageToHLSL (0.00s)
+    --- PASS: TestImageToHLSL/Texture2D (0.00s)
+    --- PASS: TestImageToHLSL/Texture2DArray (0.00s)
+    --- PASS: TestImageToHLSL/Texture3D (0.00s)
+    --- PASS: TestImageToHLSL/TextureCube (0.00s)
+    --- PASS: TestImageToHLSL/RWTexture2D (0.00s)
+    --- PASS: TestImageToHLSL/Texture2DMS (0.00s)
+=== RUN   TestSamplerToHLSL
+=== RUN   TestSamplerToHLSL/regular
+=== RUN   TestSamplerToHLSL/comparison
+--- PASS: TestSamplerToHLSL (0.00s)
+    --- PASS: TestSamplerToHLSL/regular (0.00s)
+    --- PASS: TestSamplerToHLSL/comparison (0.00s)
+=== RUN   TestShaderStageToHLSL
+=== RUN   TestShaderStageToHLSL/vertex
+=== RUN   TestShaderStageToHLSL/fragment
+=== RUN   TestShaderStageToHLSL/compute
+--- PASS: TestShaderStageToHLSL (0.00s)
+    --- PASS: TestShaderStageToHLSL/vertex (0.00s)
+    --- PASS: TestShaderStageToHLSL/fragment (0.00s)
+    --- PASS: TestShaderStageToHLSL/compute (0.00s)
+=== RUN   TestShaderProfile
+=== RUN   TestShaderProfile/vs_5_0
+=== RUN   TestShaderProfile/vs_5_1
+=== RUN   TestShaderProfile/ps_6_0
+=== RUN   TestShaderProfile/cs_6_6
+--- PASS: TestShaderProfile (0.00s)
+    --- PASS: TestShaderProfile/vs_5_0 (0.00s)
+    --- PASS: TestShaderProfile/vs_5_1 (0.00s)
+    --- PASS: TestShaderProfile/ps_6_0 (0.00s)
+    --- PASS: TestShaderProfile/cs_6_6 (0.00s)
+PASS

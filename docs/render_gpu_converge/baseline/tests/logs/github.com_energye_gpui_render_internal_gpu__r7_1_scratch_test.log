@@ -1,0 +1,7 @@
+=== RUN   TestR71_DualTexParamsPool_NoAllocHot
+--- PASS: TestR71_DualTexParamsPool_NoAllocHot (0.00s)
+=== RUN   TestR71_GlyphMaskLCDUniformInto_NoAllocHot
+--- PASS: TestR71_GlyphMaskLCDUniformInto_NoAllocHot (0.00s)
+=== RUN   TestR71_ImageStagingAcquireRelease_RoundTrip
+--- PASS: TestR71_ImageStagingAcquireRelease_RoundTrip (0.00s)
+PASS

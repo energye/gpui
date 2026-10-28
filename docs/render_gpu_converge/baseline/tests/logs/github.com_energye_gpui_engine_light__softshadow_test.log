@@ -1,0 +1,13 @@
+=== RUN   TestSoftModeGrades
+--- PASS: TestSoftModeGrades (0.00s)
+=== RUN   TestSoftFactorGrades
+--- PASS: TestSoftFactorGrades (0.00s)
+=== RUN   TestSoftBilling
+--- PASS: TestSoftBilling (0.00s)
+=== RUN   TestSoftNightAndDowngrade
+--- PASS: TestSoftNightAndDowngrade (0.00s)
+=== RUN   TestSoftTorchAndGain
+--- PASS: TestSoftTorchAndGain (0.00s)
+=== RUN   TestSoftApplyMirror
+--- PASS: TestSoftApplyMirror (0.00s)
+PASS

@@ -1,0 +1,15 @@
+=== RUN   TestCustomGolden
+--- PASS: TestCustomGolden (0.00s)
+=== RUN   TestCustomEdgesNoCrash
+--- PASS: TestCustomEdgesNoCrash (0.00s)
+=== RUN   TestCustomBoundaryIdentical
+--- PASS: TestCustomBoundaryIdentical (0.00s)
+=== RUN   TestCustomFullscreenPerf
+    custom_test.go:484: custom-1080p: identity in 73.017796ms, outline in 34.740339ms (best of 3, 28.8 fps equivalent)
+--- PASS: TestCustomFullscreenPerf (0.39s)
+=== RUN   TestCustomLongRunStable
+--- PASS: TestCustomLongRunStable (0.01s)
+=== RUN   TestCustomOffscreenShapes
+    custom_test.go:632: dissolve mid: kept=14 edge=4 gone=6
+--- PASS: TestCustomOffscreenShapes (0.00s)
+PASS

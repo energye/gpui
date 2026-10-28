@@ -1,0 +1,61 @@
+=== RUN   TestNewLayer
+=== RUN   TestNewLayer/valid_layer
+=== RUN   TestNewLayer/opacity_clamped_to_0
+=== RUN   TestNewLayer/opacity_clamped_to_1
+=== RUN   TestNewLayer/invalid_dimensions
+--- PASS: TestNewLayer (0.00s)
+    --- PASS: TestNewLayer/valid_layer (0.00s)
+    --- PASS: TestNewLayer/opacity_clamped_to_0 (0.00s)
+    --- PASS: TestNewLayer/opacity_clamped_to_1 (0.00s)
+    --- PASS: TestNewLayer/invalid_dimensions (0.00s)
+=== RUN   TestLayerSetOpacity
+=== RUN   TestLayerSetOpacity/set_0.5
+=== RUN   TestLayerSetOpacity/set_negative_(clamped)
+=== RUN   TestLayerSetOpacity/set_>_1_(clamped)
+=== RUN   TestLayerSetOpacity/set_0
+=== RUN   TestLayerSetOpacity/set_1
+--- PASS: TestLayerSetOpacity (0.00s)
+    --- PASS: TestLayerSetOpacity/set_0.5 (0.00s)
+    --- PASS: TestLayerSetOpacity/set_negative_(clamped) (0.00s)
+    --- PASS: TestLayerSetOpacity/set_>_1_(clamped) (0.00s)
+    --- PASS: TestLayerSetOpacity/set_0 (0.00s)
+    --- PASS: TestLayerSetOpacity/set_1 (0.00s)
+=== RUN   TestNewLayerStack
+=== RUN   TestNewLayerStack/with_custom_pool
+=== RUN   TestNewLayerStack/with_nil_pool
+--- PASS: TestNewLayerStack (0.00s)
+    --- PASS: TestNewLayerStack/with_custom_pool (0.00s)
+    --- PASS: TestNewLayerStack/with_nil_pool (0.00s)
+=== RUN   TestLayerStackPushPop
+--- PASS: TestLayerStackPushPop (0.01s)
+=== RUN   TestLayerStackPushWithInvalidBounds
+--- PASS: TestLayerStackPushWithInvalidBounds (0.00s)
+=== RUN   TestLayerStackClear
+--- PASS: TestLayerStackClear (0.00s)
+=== RUN   TestCompositeLayer
+--- PASS: TestCompositeLayer (0.00s)
+=== RUN   TestCompositeLayerWithBlendModes
+=== RUN   TestCompositeLayerWithBlendModes/source_over
+=== RUN   TestCompositeLayerWithBlendModes/multiply
+=== RUN   TestCompositeLayerWithBlendModes/screen
+=== RUN   TestCompositeLayerWithBlendModes/source_over_with_opacity
+--- PASS: TestCompositeLayerWithBlendModes (0.00s)
+    --- PASS: TestCompositeLayerWithBlendModes/source_over (0.00s)
+    --- PASS: TestCompositeLayerWithBlendModes/multiply (0.00s)
+    --- PASS: TestCompositeLayerWithBlendModes/screen (0.00s)
+    --- PASS: TestCompositeLayerWithBlendModes/source_over_with_opacity (0.00s)
+=== RUN   TestCompositeLayerOutOfBounds
+=== RUN   TestCompositeLayerOutOfBounds/layer_partially_outside_left
+=== RUN   TestCompositeLayerOutOfBounds/layer_partially_outside_top
+=== RUN   TestCompositeLayerOutOfBounds/layer_partially_outside_right
+=== RUN   TestCompositeLayerOutOfBounds/layer_partially_outside_bottom
+=== RUN   TestCompositeLayerOutOfBounds/layer_completely_outside
+--- PASS: TestCompositeLayerOutOfBounds (0.00s)
+    --- PASS: TestCompositeLayerOutOfBounds/layer_partially_outside_left (0.00s)
+    --- PASS: TestCompositeLayerOutOfBounds/layer_partially_outside_top (0.00s)
+    --- PASS: TestCompositeLayerOutOfBounds/layer_partially_outside_right (0.00s)
+    --- PASS: TestCompositeLayerOutOfBounds/layer_partially_outside_bottom (0.00s)
+    --- PASS: TestCompositeLayerOutOfBounds/layer_completely_outside (0.00s)
+=== RUN   TestLayerStackIntegration
+--- PASS: TestLayerStackIntegration (0.00s)
+PASS

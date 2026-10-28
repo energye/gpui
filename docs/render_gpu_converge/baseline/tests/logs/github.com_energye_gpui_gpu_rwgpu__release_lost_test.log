@@ -1,0 +1,9 @@
+=== RUN   TestDeviceLostReleasePathsSkipNative
+--- PASS: TestDeviceLostReleasePathsSkipNative (0.00s)
+=== RUN   TestReleaseNilAndZeroHandleSafe
+--- PASS: TestReleaseNilAndZeroHandleSafe (0.00s)
+=== RUN   TestSurfaceUnconfigure_NilBeforeInit
+--- PASS: TestSurfaceUnconfigure_NilBeforeInit (0.00s)
+=== RUN   TestReleaseNativeHandle_HelperIdempotent
+--- PASS: TestReleaseNativeHandle_HelperIdempotent (0.00s)
+PASS

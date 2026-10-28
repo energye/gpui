@@ -1,0 +1,71 @@
+=== RUN   TestCopyAllAsUnion
+--- PASS: TestCopyAllAsUnion (0.00s)
+=== RUN   TestCopyAllAsUnionNilComponents
+--- PASS: TestCopyAllAsUnionNilComponents (0.00s)
+=== RUN   TestPerComponentCopy
+=== RUN   TestPerComponentCopy/exact_size
+=== RUN   TestPerComponentCopy/larger_than_source
+=== RUN   TestPerComponentCopy/smaller_than_source
+--- PASS: TestPerComponentCopy (0.00s)
+    --- PASS: TestPerComponentCopy/exact_size (0.00s)
+    --- PASS: TestPerComponentCopy/larger_than_source (0.00s)
+    --- PASS: TestPerComponentCopy/smaller_than_source (0.00s)
+=== RUN   TestMergeComponentWise
+=== RUN   TestMergeComponentWise/vector_vector
+=== RUN   TestMergeComponentWise/scalar_broadcast_lhs
+--- PASS: TestMergeComponentWise (0.00s)
+    --- PASS: TestMergeComponentWise/vector_vector (0.00s)
+    --- PASS: TestMergeComponentWise/scalar_broadcast_lhs (0.00s)
+=== RUN   TestMergeSelectComponentWise
+--- PASS: TestMergeSelectComponentWise (0.00s)
+=== RUN   TestResultScalarCount
+=== RUN   TestResultScalarCount/vec4_returns_4
+=== RUN   TestResultScalarCount/nil_type_returns_1
+--- PASS: TestResultScalarCount (0.00s)
+    --- PASS: TestResultScalarCount/vec4_returns_4 (0.00s)
+    --- PASS: TestResultScalarCount/nil_type_returns_1 (0.00s)
+=== RUN   TestInnerOfExpr
+=== RUN   TestInnerOfExpr/handle_resolved
+=== RUN   TestInnerOfExpr/value_resolved
+=== RUN   TestInnerOfExpr/out_of_range_handle
+=== RUN   TestInnerOfExpr/out_of_range_expr
+--- PASS: TestInnerOfExpr (0.00s)
+    --- PASS: TestInnerOfExpr/handle_resolved (0.00s)
+    --- PASS: TestInnerOfExpr/value_resolved (0.00s)
+    --- PASS: TestInnerOfExpr/out_of_range_handle (0.00s)
+    --- PASS: TestInnerOfExpr/out_of_range_expr (0.00s)
+=== RUN   TestComputeTaintExpressionKinds
+=== RUN   TestComputeTaintExpressionKinds/ExprSplat
+=== RUN   TestComputeTaintExpressionKinds/ExprSwizzle
+=== RUN   TestComputeTaintExpressionKinds/ExprDerivative
+=== RUN   TestComputeTaintExpressionKinds/ExprRelational_collapses_vector
+=== RUN   TestComputeTaintExpressionKinds/ExprAccess_dynamic_index
+=== RUN   TestComputeTaintExpressionKinds/ExprMath_multi_arg
+=== RUN   TestComputeTaintExpressionKinds/ExprSelect_vector
+=== RUN   TestComputeTaintExpressionKinds/ExprImageQuery_returns_empty
+=== RUN   TestComputeTaintExpressionKinds/ExprArrayLength_returns_empty
+=== RUN   TestComputeTaintExpressionKinds/ExprGlobalVariable_returns_empty
+=== RUN   TestComputeTaintExpressionKinds/ExprCallResult_triggers_giveUp
+=== RUN   TestComputeTaintExpressionKinds/ExprImageSample_with_depthref
+=== RUN   TestComputeTaintExpressionKinds/ExprImageLoad_with_array_index
+=== RUN   TestComputeTaintExpressionKinds/ExprAccessIndex_matrix_column
+=== RUN   TestComputeTaintExpressionKinds/ExprAccessIndex_array_conservative
+=== RUN   TestComputeTaintExpressionKinds/unknown_expression_kind_triggers_giveUp
+--- PASS: TestComputeTaintExpressionKinds (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprSplat (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprSwizzle (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprDerivative (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprRelational_collapses_vector (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprAccess_dynamic_index (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprMath_multi_arg (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprSelect_vector (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprImageQuery_returns_empty (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprArrayLength_returns_empty (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprGlobalVariable_returns_empty (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprCallResult_triggers_giveUp (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprImageSample_with_depthref (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprImageLoad_with_array_index (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprAccessIndex_matrix_column (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/ExprAccessIndex_array_conservative (0.00s)
+    --- PASS: TestComputeTaintExpressionKinds/unknown_expression_kind_triggers_giveUp (0.00s)
+PASS

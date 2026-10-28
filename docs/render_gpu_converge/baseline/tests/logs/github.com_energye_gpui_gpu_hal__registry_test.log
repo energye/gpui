@@ -1,0 +1,21 @@
+=== RUN   TestRegisterBackend
+--- PASS: TestRegisterBackend (0.00s)
+=== RUN   TestRegisterBackend_Replacement
+--- PASS: TestRegisterBackend_Replacement (0.00s)
+=== RUN   TestGetBackend
+=== RUN   TestGetBackend/noop_backend_(registered_by_init)
+=== RUN   TestGetBackend/unregistered_backend
+--- PASS: TestGetBackend (0.00s)
+    --- PASS: TestGetBackend/noop_backend_(registered_by_init) (0.00s)
+    --- PASS: TestGetBackend/unregistered_backend (0.00s)
+=== RUN   TestGetBackend_NotRegistered
+--- PASS: TestGetBackend_NotRegistered (0.00s)
+=== RUN   TestAvailableBackends
+--- PASS: TestAvailableBackends (0.00s)
+=== RUN   TestAvailableBackends_AfterRegistration
+--- PASS: TestAvailableBackends_AfterRegistration (0.00s)
+=== RUN   TestConcurrentAccess
+--- PASS: TestConcurrentAccess (0.00s)
+=== RUN   TestNoopBackendRegistered
+--- PASS: TestNoopBackendRegistered (0.00s)
+PASS

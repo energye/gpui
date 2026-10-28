@@ -1,0 +1,7 @@
+=== RUN   TestSeedDisplayRefreshHz_Baseline
+--- PASS: TestSeedDisplayRefreshHz_Baseline (0.00s)
+=== RUN   TestSeedDisplayRefreshHz_RejectsGarbage
+--- PASS: TestSeedDisplayRefreshHz_RejectsGarbage (0.00s)
+=== RUN   TestSeedDisplayRefreshHz_LearnedMatchesSeed
+--- PASS: TestSeedDisplayRefreshHz_LearnedMatchesSeed (0.00s)
+PASS

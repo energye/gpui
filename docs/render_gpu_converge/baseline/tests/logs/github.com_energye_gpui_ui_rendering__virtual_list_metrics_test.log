@@ -1,0 +1,7 @@
+=== RUN   TestVirtualList_BindMetricsSnapshot
+--- PASS: TestVirtualList_BindMetricsSnapshot (0.00s)
+=== RUN   TestVirtualList_ScrollRerecord_FreshMountsOnly
+--- PASS: TestVirtualList_ScrollRerecord_FreshMountsOnly (0.00s)
+=== RUN   TestVirtualList_FreshCellKeepsPaintDirty
+--- PASS: TestVirtualList_FreshCellKeepsPaintDirty (0.00s)
+PASS

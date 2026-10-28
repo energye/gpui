@@ -1,0 +1,117 @@
+=== RUN   TestNewEncoding
+--- PASS: TestNewEncoding (0.00s)
+=== RUN   TestEncodeTransform
+=== RUN   TestEncodeTransform/identity
+=== RUN   TestEncodeTransform/translate
+=== RUN   TestEncodeTransform/scale
+=== RUN   TestEncodeTransform/rotate
+--- PASS: TestEncodeTransform (0.00s)
+    --- PASS: TestEncodeTransform/identity (0.00s)
+    --- PASS: TestEncodeTransform/translate (0.00s)
+    --- PASS: TestEncodeTransform/scale (0.00s)
+    --- PASS: TestEncodeTransform/rotate (0.00s)
+=== RUN   TestEncodePath
+--- PASS: TestEncodePath (0.00s)
+=== RUN   TestEncodePathWithCurves
+--- PASS: TestEncodePathWithCurves (0.00s)
+=== RUN   TestEncodeFill
+--- PASS: TestEncodeFill (0.00s)
+=== RUN   TestEncodeStroke
+--- PASS: TestEncodeStroke (0.00s)
+=== RUN   TestEncodeStrokeDefaultStyle
+--- PASS: TestEncodeStrokeDefaultStyle (0.00s)
+=== RUN   TestEncodeLayers
+--- PASS: TestEncodeLayers (0.00s)
+=== RUN   TestEncodeClip
+--- PASS: TestEncodeClip (0.00s)
+=== RUN   TestReset
+--- PASS: TestReset (0.00s)
+=== RUN   TestBounds
+--- PASS: TestBounds (0.00s)
+=== RUN   TestBoundsMultiplePaths
+--- PASS: TestBoundsMultiplePaths (0.00s)
+=== RUN   TestHash
+--- PASS: TestHash (0.00s)
+=== RUN   TestHashStability
+--- PASS: TestHashStability (0.00s)
+=== RUN   TestAppend
+--- PASS: TestAppend (0.00s)
+=== RUN   TestAppendNil
+--- PASS: TestAppendNil (0.00s)
+=== RUN   TestAppendEmpty
+--- PASS: TestAppendEmpty (0.00s)
+=== RUN   TestClone
+--- PASS: TestClone (0.00s)
+=== RUN   TestIterator
+--- PASS: TestIterator (0.00s)
+=== RUN   TestIteratorReset
+--- PASS: TestIteratorReset (0.00s)
+=== RUN   TestSize
+--- PASS: TestSize (0.00s)
+=== RUN   TestTagString
+=== RUN   TestTagString/Transform
+=== RUN   TestTagString/BeginPath
+=== RUN   TestTagString/MoveTo
+=== RUN   TestTagString/LineTo
+=== RUN   TestTagString/QuadTo
+=== RUN   TestTagString/CubicTo
+=== RUN   TestTagString/ClosePath
+=== RUN   TestTagString/EndPath
+=== RUN   TestTagString/Fill
+=== RUN   TestTagString/Stroke
+=== RUN   TestTagString/PushLayer
+=== RUN   TestTagString/PopLayer
+=== RUN   TestTagString/BeginClip
+=== RUN   TestTagString/EndClip
+=== RUN   TestTagString/Brush
+=== RUN   TestTagString/Image
+=== RUN   TestTagString/Unknown
+--- PASS: TestTagString (0.00s)
+    --- PASS: TestTagString/Transform (0.00s)
+    --- PASS: TestTagString/BeginPath (0.00s)
+    --- PASS: TestTagString/MoveTo (0.00s)
+    --- PASS: TestTagString/LineTo (0.00s)
+    --- PASS: TestTagString/QuadTo (0.00s)
+    --- PASS: TestTagString/CubicTo (0.00s)
+    --- PASS: TestTagString/ClosePath (0.00s)
+    --- PASS: TestTagString/EndPath (0.00s)
+    --- PASS: TestTagString/Fill (0.00s)
+    --- PASS: TestTagString/Stroke (0.00s)
+    --- PASS: TestTagString/PushLayer (0.00s)
+    --- PASS: TestTagString/PopLayer (0.00s)
+    --- PASS: TestTagString/BeginClip (0.00s)
+    --- PASS: TestTagString/EndClip (0.00s)
+    --- PASS: TestTagString/Brush (0.00s)
+    --- PASS: TestTagString/Image (0.00s)
+    --- PASS: TestTagString/Unknown (0.00s)
+=== RUN   TestTagPredicates
+--- PASS: TestTagPredicates (0.00s)
+=== RUN   TestTagDataSize
+=== RUN   TestTagDataSize/Transform
+=== RUN   TestTagDataSize/MoveTo
+=== RUN   TestTagDataSize/LineTo
+=== RUN   TestTagDataSize/QuadTo
+=== RUN   TestTagDataSize/CubicTo
+=== RUN   TestTagDataSize/Brush
+=== RUN   TestTagDataSize/BeginPath
+=== RUN   TestTagDataSize/ClosePath
+--- PASS: TestTagDataSize (0.00s)
+    --- PASS: TestTagDataSize/Transform (0.00s)
+    --- PASS: TestTagDataSize/MoveTo (0.00s)
+    --- PASS: TestTagDataSize/LineTo (0.00s)
+    --- PASS: TestTagDataSize/QuadTo (0.00s)
+    --- PASS: TestTagDataSize/CubicTo (0.00s)
+    --- PASS: TestTagDataSize/Brush (0.00s)
+    --- PASS: TestTagDataSize/BeginPath (0.00s)
+    --- PASS: TestTagDataSize/ClosePath (0.00s)
+=== RUN   TestRect
+--- PASS: TestRect (0.00s)
+=== RUN   TestAffine
+--- PASS: TestAffine (0.00s)
+=== RUN   TestAffineFromMatrix
+--- PASS: TestAffineFromMatrix (0.00s)
+=== RUN   TestEncodeNilPath
+--- PASS: TestEncodeNilPath (0.00s)
+=== RUN   TestEncodeEmptyPath
+--- PASS: TestEncodeEmptyPath (0.00s)
+PASS

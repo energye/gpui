@@ -1,0 +1,7 @@
+=== RUN   TestGPOS_MarkToBase_Anchor
+--- PASS: TestGPOS_MarkToBase_Anchor (0.00s)
+=== RUN   TestGPOS_Cursive_EntryExit
+--- PASS: TestGPOS_Cursive_EntryExit (0.00s)
+=== RUN   TestGPOS_MarkToLig_Anchor
+--- PASS: TestGPOS_MarkToLig_Anchor (0.00s)
+PASS

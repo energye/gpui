@@ -1,0 +1,6 @@
+=== RUN   TestGlyphMaskGPURepro
+    glyph_mask_gpu_repro_test.go:100: atlas nonzero coverage bytes = 682 (masks ARE present)
+    glyph_mask_gpu_repro_test.go:136: wrote glyph_mask_gpu_repro.png — EXPECTED BUG: red circle visible, text MISSING
+    glyph_mask_gpu_repro_test.go:148: text (dark) pixels rendered = 275  (BUG: this is ~0; fix makes it large)
+--- PASS: TestGlyphMaskGPURepro (0.25s)
+PASS

@@ -1,0 +1,19 @@
+=== RUN   TestEditorBufferMirror_M35
+--- PASS: TestEditorBufferMirror_M35 (6.49s)
+=== RUN   TestEditorBufferSmall_NoMirror
+--- PASS: TestEditorBufferSmall_NoMirror (0.00s)
+=== RUN   TestEditorBufferMirrorUndoRedo_M35
+--- PASS: TestEditorBufferMirrorUndoRedo_M35 (0.01s)
+=== RUN   TestEditorBufferMirrorComposing_M35
+--- PASS: TestEditorBufferMirrorComposing_M35 (0.01s)
+=== RUN   TestEditorBufferMirrorDeleteSurrounding_M35
+--- PASS: TestEditorBufferMirrorDeleteSurrounding_M35 (0.01s)
+=== RUN   TestEditorBufferMirrorApplyDelta_M35
+--- PASS: TestEditorBufferMirrorApplyDelta_M35 (0.00s)
+=== RUN   TestEditorBufferFallback_M35
+--- PASS: TestEditorBufferFallback_M35 (0.01s)
+=== RUN   TestEditorBufferUndoShrinkReleasesMirror_M35
+--- PASS: TestEditorBufferUndoShrinkReleasesMirror_M35 (0.06s)
+=== RUN   TestEditorBufferHysteresis_M35
+--- PASS: TestEditorBufferHysteresis_M35 (0.00s)
+PASS

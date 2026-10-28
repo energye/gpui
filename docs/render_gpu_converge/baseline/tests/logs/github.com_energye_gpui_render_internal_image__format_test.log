@@ -1,0 +1,173 @@
+=== RUN   TestFormat_BytesPerPixel
+=== RUN   TestFormat_BytesPerPixel/Gray8
+=== RUN   TestFormat_BytesPerPixel/Gray16
+=== RUN   TestFormat_BytesPerPixel/RGB8
+=== RUN   TestFormat_BytesPerPixel/RGBA8
+=== RUN   TestFormat_BytesPerPixel/RGBAPremul
+=== RUN   TestFormat_BytesPerPixel/BGRA8
+=== RUN   TestFormat_BytesPerPixel/BGRAPremul
+--- PASS: TestFormat_BytesPerPixel (0.00s)
+    --- PASS: TestFormat_BytesPerPixel/Gray8 (0.00s)
+    --- PASS: TestFormat_BytesPerPixel/Gray16 (0.00s)
+    --- PASS: TestFormat_BytesPerPixel/RGB8 (0.00s)
+    --- PASS: TestFormat_BytesPerPixel/RGBA8 (0.00s)
+    --- PASS: TestFormat_BytesPerPixel/RGBAPremul (0.00s)
+    --- PASS: TestFormat_BytesPerPixel/BGRA8 (0.00s)
+    --- PASS: TestFormat_BytesPerPixel/BGRAPremul (0.00s)
+=== RUN   TestFormat_Channels
+=== RUN   TestFormat_Channels/Gray8
+=== RUN   TestFormat_Channels/Gray16
+=== RUN   TestFormat_Channels/RGB8
+=== RUN   TestFormat_Channels/RGBA8
+=== RUN   TestFormat_Channels/RGBAPremul
+=== RUN   TestFormat_Channels/BGRA8
+=== RUN   TestFormat_Channels/BGRAPremul
+--- PASS: TestFormat_Channels (0.00s)
+    --- PASS: TestFormat_Channels/Gray8 (0.00s)
+    --- PASS: TestFormat_Channels/Gray16 (0.00s)
+    --- PASS: TestFormat_Channels/RGB8 (0.00s)
+    --- PASS: TestFormat_Channels/RGBA8 (0.00s)
+    --- PASS: TestFormat_Channels/RGBAPremul (0.00s)
+    --- PASS: TestFormat_Channels/BGRA8 (0.00s)
+    --- PASS: TestFormat_Channels/BGRAPremul (0.00s)
+=== RUN   TestFormat_HasAlpha
+=== RUN   TestFormat_HasAlpha/Gray8
+=== RUN   TestFormat_HasAlpha/Gray16
+=== RUN   TestFormat_HasAlpha/RGB8
+=== RUN   TestFormat_HasAlpha/RGBA8
+=== RUN   TestFormat_HasAlpha/RGBAPremul
+=== RUN   TestFormat_HasAlpha/BGRA8
+=== RUN   TestFormat_HasAlpha/BGRAPremul
+--- PASS: TestFormat_HasAlpha (0.00s)
+    --- PASS: TestFormat_HasAlpha/Gray8 (0.00s)
+    --- PASS: TestFormat_HasAlpha/Gray16 (0.00s)
+    --- PASS: TestFormat_HasAlpha/RGB8 (0.00s)
+    --- PASS: TestFormat_HasAlpha/RGBA8 (0.00s)
+    --- PASS: TestFormat_HasAlpha/RGBAPremul (0.00s)
+    --- PASS: TestFormat_HasAlpha/BGRA8 (0.00s)
+    --- PASS: TestFormat_HasAlpha/BGRAPremul (0.00s)
+=== RUN   TestFormat_IsPremultiplied
+=== RUN   TestFormat_IsPremultiplied/Gray8
+=== RUN   TestFormat_IsPremultiplied/Gray16
+=== RUN   TestFormat_IsPremultiplied/RGB8
+=== RUN   TestFormat_IsPremultiplied/RGBA8
+=== RUN   TestFormat_IsPremultiplied/RGBAPremul
+=== RUN   TestFormat_IsPremultiplied/BGRA8
+=== RUN   TestFormat_IsPremultiplied/BGRAPremul
+--- PASS: TestFormat_IsPremultiplied (0.00s)
+    --- PASS: TestFormat_IsPremultiplied/Gray8 (0.00s)
+    --- PASS: TestFormat_IsPremultiplied/Gray16 (0.00s)
+    --- PASS: TestFormat_IsPremultiplied/RGB8 (0.00s)
+    --- PASS: TestFormat_IsPremultiplied/RGBA8 (0.00s)
+    --- PASS: TestFormat_IsPremultiplied/RGBAPremul (0.00s)
+    --- PASS: TestFormat_IsPremultiplied/BGRA8 (0.00s)
+    --- PASS: TestFormat_IsPremultiplied/BGRAPremul (0.00s)
+=== RUN   TestFormat_IsGrayscale
+=== RUN   TestFormat_IsGrayscale/Gray8
+=== RUN   TestFormat_IsGrayscale/Gray16
+=== RUN   TestFormat_IsGrayscale/RGB8
+=== RUN   TestFormat_IsGrayscale/RGBA8
+=== RUN   TestFormat_IsGrayscale/RGBAPremul
+=== RUN   TestFormat_IsGrayscale/BGRA8
+=== RUN   TestFormat_IsGrayscale/BGRAPremul
+--- PASS: TestFormat_IsGrayscale (0.00s)
+    --- PASS: TestFormat_IsGrayscale/Gray8 (0.00s)
+    --- PASS: TestFormat_IsGrayscale/Gray16 (0.00s)
+    --- PASS: TestFormat_IsGrayscale/RGB8 (0.00s)
+    --- PASS: TestFormat_IsGrayscale/RGBA8 (0.00s)
+    --- PASS: TestFormat_IsGrayscale/RGBAPremul (0.00s)
+    --- PASS: TestFormat_IsGrayscale/BGRA8 (0.00s)
+    --- PASS: TestFormat_IsGrayscale/BGRAPremul (0.00s)
+=== RUN   TestFormat_BitsPerChannel
+=== RUN   TestFormat_BitsPerChannel/Gray8
+=== RUN   TestFormat_BitsPerChannel/Gray16
+=== RUN   TestFormat_BitsPerChannel/RGB8
+=== RUN   TestFormat_BitsPerChannel/RGBA8
+--- PASS: TestFormat_BitsPerChannel (0.00s)
+    --- PASS: TestFormat_BitsPerChannel/Gray8 (0.00s)
+    --- PASS: TestFormat_BitsPerChannel/Gray16 (0.00s)
+    --- PASS: TestFormat_BitsPerChannel/RGB8 (0.00s)
+    --- PASS: TestFormat_BitsPerChannel/RGBA8 (0.00s)
+=== RUN   TestFormat_String
+=== RUN   TestFormat_String/Gray8
+=== RUN   TestFormat_String/Gray16
+=== RUN   TestFormat_String/RGB8
+=== RUN   TestFormat_String/RGBA8
+=== RUN   TestFormat_String/RGBAPremul
+=== RUN   TestFormat_String/BGRA8
+=== RUN   TestFormat_String/BGRAPremul
+=== RUN   TestFormat_String/Unknown
+--- PASS: TestFormat_String (0.00s)
+    --- PASS: TestFormat_String/Gray8 (0.00s)
+    --- PASS: TestFormat_String/Gray16 (0.00s)
+    --- PASS: TestFormat_String/RGB8 (0.00s)
+    --- PASS: TestFormat_String/RGBA8 (0.00s)
+    --- PASS: TestFormat_String/RGBAPremul (0.00s)
+    --- PASS: TestFormat_String/BGRA8 (0.00s)
+    --- PASS: TestFormat_String/BGRAPremul (0.00s)
+    --- PASS: TestFormat_String/Unknown (0.00s)
+=== RUN   TestFormat_IsValid
+=== RUN   TestFormat_IsValid/Gray8
+=== RUN   TestFormat_IsValid/RGBA8
+=== RUN   TestFormat_IsValid/BGRAPremul
+=== RUN   TestFormat_IsValid/Unknown
+=== RUN   TestFormat_IsValid/Unknown#01
+--- PASS: TestFormat_IsValid (0.00s)
+    --- PASS: TestFormat_IsValid/Gray8 (0.00s)
+    --- PASS: TestFormat_IsValid/RGBA8 (0.00s)
+    --- PASS: TestFormat_IsValid/BGRAPremul (0.00s)
+    --- PASS: TestFormat_IsValid/Unknown (0.00s)
+    --- PASS: TestFormat_IsValid/Unknown#01 (0.00s)
+=== RUN   TestFormat_RowBytes
+=== RUN   TestFormat_RowBytes/Gray8
+=== RUN   TestFormat_RowBytes/Gray16
+=== RUN   TestFormat_RowBytes/RGB8
+=== RUN   TestFormat_RowBytes/RGBA8
+=== RUN   TestFormat_RowBytes/RGBA8#01
+--- PASS: TestFormat_RowBytes (0.00s)
+    --- PASS: TestFormat_RowBytes/Gray8 (0.00s)
+    --- PASS: TestFormat_RowBytes/Gray16 (0.00s)
+    --- PASS: TestFormat_RowBytes/RGB8 (0.00s)
+    --- PASS: TestFormat_RowBytes/RGBA8 (0.00s)
+    --- PASS: TestFormat_RowBytes/RGBA8#01 (0.00s)
+=== RUN   TestFormat_ImageBytes
+=== RUN   TestFormat_ImageBytes/Gray8
+=== RUN   TestFormat_ImageBytes/RGBA8
+=== RUN   TestFormat_ImageBytes/RGBA8#01
+=== RUN   TestFormat_ImageBytes/RGBA8#02
+--- PASS: TestFormat_ImageBytes (0.00s)
+    --- PASS: TestFormat_ImageBytes/Gray8 (0.00s)
+    --- PASS: TestFormat_ImageBytes/RGBA8 (0.00s)
+    --- PASS: TestFormat_ImageBytes/RGBA8#01 (0.00s)
+    --- PASS: TestFormat_ImageBytes/RGBA8#02 (0.00s)
+=== RUN   TestFormat_PremultipliedVersion
+=== RUN   TestFormat_PremultipliedVersion/Gray8
+=== RUN   TestFormat_PremultipliedVersion/RGB8
+=== RUN   TestFormat_PremultipliedVersion/RGBA8
+=== RUN   TestFormat_PremultipliedVersion/RGBAPremul
+=== RUN   TestFormat_PremultipliedVersion/BGRA8
+=== RUN   TestFormat_PremultipliedVersion/BGRAPremul
+--- PASS: TestFormat_PremultipliedVersion (0.00s)
+    --- PASS: TestFormat_PremultipliedVersion/Gray8 (0.00s)
+    --- PASS: TestFormat_PremultipliedVersion/RGB8 (0.00s)
+    --- PASS: TestFormat_PremultipliedVersion/RGBA8 (0.00s)
+    --- PASS: TestFormat_PremultipliedVersion/RGBAPremul (0.00s)
+    --- PASS: TestFormat_PremultipliedVersion/BGRA8 (0.00s)
+    --- PASS: TestFormat_PremultipliedVersion/BGRAPremul (0.00s)
+=== RUN   TestFormat_UnpremultipliedVersion
+=== RUN   TestFormat_UnpremultipliedVersion/Gray8
+=== RUN   TestFormat_UnpremultipliedVersion/RGB8
+=== RUN   TestFormat_UnpremultipliedVersion/RGBA8
+=== RUN   TestFormat_UnpremultipliedVersion/RGBAPremul
+=== RUN   TestFormat_UnpremultipliedVersion/BGRA8
+=== RUN   TestFormat_UnpremultipliedVersion/BGRAPremul
+--- PASS: TestFormat_UnpremultipliedVersion (0.00s)
+    --- PASS: TestFormat_UnpremultipliedVersion/Gray8 (0.00s)
+    --- PASS: TestFormat_UnpremultipliedVersion/RGB8 (0.00s)
+    --- PASS: TestFormat_UnpremultipliedVersion/RGBA8 (0.00s)
+    --- PASS: TestFormat_UnpremultipliedVersion/RGBAPremul (0.00s)
+    --- PASS: TestFormat_UnpremultipliedVersion/BGRA8 (0.00s)
+    --- PASS: TestFormat_UnpremultipliedVersion/BGRAPremul (0.00s)
+=== RUN   TestFormat_Info_InvalidFormat
+--- PASS: TestFormat_Info_InvalidFormat (0.00s)
+PASS

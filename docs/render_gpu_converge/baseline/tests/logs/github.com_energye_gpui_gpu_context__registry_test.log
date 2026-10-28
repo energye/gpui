@@ -1,0 +1,23 @@
+=== RUN   TestRegistry_RegisterAndGet
+--- PASS: TestRegistry_RegisterAndGet (0.00s)
+=== RUN   TestRegistry_Get_NotFound
+--- PASS: TestRegistry_Get_NotFound (0.00s)
+=== RUN   TestRegistry_Has
+--- PASS: TestRegistry_Has (0.00s)
+=== RUN   TestRegistry_Unregister
+--- PASS: TestRegistry_Unregister (0.00s)
+=== RUN   TestRegistry_Best_WithPriority
+--- PASS: TestRegistry_Best_WithPriority (0.00s)
+=== RUN   TestRegistry_Best_NoPriority
+--- PASS: TestRegistry_Best_NoPriority (0.00s)
+=== RUN   TestRegistry_Best_Empty
+--- PASS: TestRegistry_Best_Empty (0.00s)
+=== RUN   TestRegistry_BestName
+--- PASS: TestRegistry_BestName (0.00s)
+=== RUN   TestRegistry_Available
+--- PASS: TestRegistry_Available (0.00s)
+=== RUN   TestRegistry_Count
+--- PASS: TestRegistry_Count (0.00s)
+=== RUN   TestRegistry_Replace
+--- PASS: TestRegistry_Replace (0.00s)
+PASS

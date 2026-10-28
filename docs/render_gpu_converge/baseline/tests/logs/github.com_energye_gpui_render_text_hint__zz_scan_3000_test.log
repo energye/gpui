@@ -1,0 +1,9 @@
+=== RUN   TestScanCJK3000
+cjk3000: bad@10px=0 (npt=0)
+cjk3000: bad@12px=0 (npt=0)
+cjk3000: bad@14px=0 (npt=0)
+cjk3000: bad@16px=0 (npt=0)
+cjk3000: bad@20px=0 (npt=0)
+cjk3000: bad@24px=0 (npt=0)
+--- PASS: TestScanCJK3000 (5.04s)
+PASS

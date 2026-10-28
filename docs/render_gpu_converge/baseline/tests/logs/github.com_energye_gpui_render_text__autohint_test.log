@@ -1,0 +1,443 @@
+=== RUN   TestComputeStandardWidths_GoRegular
+    autohint_test.go:34: Horizontal: stdWidth=213, widths=[213], edgeDist=42
+    autohint_test.go:36: Vertical:   stdWidth=148, widths=[148], edgeDist=29
+--- PASS: TestComputeStandardWidths_GoRegular (0.00s)
+=== RUN   TestComputeStandardWidths_NoGlyph
+--- PASS: TestComputeStandardWidths_NoGlyph (0.00s)
+=== RUN   TestSortAndQuantizeWidths
+=== RUN   TestSortAndQuantizeWidths/empty
+=== RUN   TestSortAndQuantizeWidths/single
+=== RUN   TestSortAndQuantizeWidths/no_merge
+=== RUN   TestSortAndQuantizeWidths/merge_near
+=== RUN   TestSortAndQuantizeWidths/all_same
+=== RUN   TestSortAndQuantizeWidths/unsorted
+--- PASS: TestSortAndQuantizeWidths (0.00s)
+    --- PASS: TestSortAndQuantizeWidths/empty (0.00s)
+    --- PASS: TestSortAndQuantizeWidths/single (0.00s)
+    --- PASS: TestSortAndQuantizeWidths/no_merge (0.00s)
+    --- PASS: TestSortAndQuantizeWidths/merge_near (0.00s)
+    --- PASS: TestSortAndQuantizeWidths/all_same (0.00s)
+    --- PASS: TestSortAndQuantizeWidths/unsorted (0.00s)
+=== RUN   TestComputeBlueZones_GoRegular
+    autohint_test.go:120: Detected 6 blue zones (script: Latin):
+    autohint_test.go:126:   zone[0]: ref=1480 shoot=1517 top flags=2
+    autohint_test.go:126:   zone[1]: ref=0 shoot=-37 bottom flags=0
+    autohint_test.go:126:   zone[2]: ref=1579 shoot=1604 top flags=2
+    autohint_test.go:126:   zone[3]: ref=1086 shoot=1110 top flags=18
+    autohint_test.go:126:   zone[4]: ref=0 shoot=-25 bottom flags=0
+    autohint_test.go:126:   zone[5]: ref=-395 shoot=-419 bottom flags=0
+--- PASS: TestComputeBlueZones_GoRegular (0.00s)
+=== RUN   TestScaleBlueZones
+--- PASS: TestScaleBlueZones (0.00s)
+=== RUN   TestMedianFloat32
+=== RUN   TestMedianFloat32/empty
+=== RUN   TestMedianFloat32/single
+=== RUN   TestMedianFloat32/odd
+=== RUN   TestMedianFloat32/even
+=== RUN   TestMedianFloat32/unsorted
+--- PASS: TestMedianFloat32 (0.00s)
+    --- PASS: TestMedianFloat32/empty (0.00s)
+    --- PASS: TestMedianFloat32/single (0.00s)
+    --- PASS: TestMedianFloat32/odd (0.00s)
+    --- PASS: TestMedianFloat32/even (0.00s)
+    --- PASS: TestMedianFloat32/unsorted (0.00s)
+=== RUN   TestComputeSegments_Rectangle
+    autohint_test.go:242: Horizontal segments (vertical stems): 2
+    autohint_test.go:244:   seg[0]: pos=10.00 dir=1 height=20.00 [0.00,20.00]
+    autohint_test.go:244:   seg[1]: pos=0.00 dir=-1 height=20.00 [0.00,20.00]
+    autohint_test.go:250: Vertical segments (horizontal stems): 2
+    autohint_test.go:252:   seg[0]: pos=0.00 dir=2 height=10.00 [0.00,10.00]
+    autohint_test.go:252:   seg[1]: pos=20.00 dir=-2 height=10.00 [0.00,10.00]
+--- PASS: TestComputeSegments_Rectangle (0.00s)
+=== RUN   TestComputeSegments_GoRegularGlyph
+    autohint_test.go:283: 'H' has 6 horizontal-dimension segments
+--- PASS: TestComputeSegments_GoRegularGlyph (0.00s)
+=== RUN   TestComputeEdges_BasicStemPair
+    autohint_test.go:320: Edge[0]: pos=5.00 dir=1 link=1
+    autohint_test.go:321: Edge[1]: pos=7.00 dir=-1 link=0
+--- PASS: TestComputeEdges_BasicStemPair (0.00s)
+=== RUN   TestComputeEdges_SegmentMerging
+--- PASS: TestComputeEdges_SegmentMerging (0.00s)
+=== RUN   TestComputeStemWidth_Table
+=== RUN   TestComputeStemWidth_Table/thin_round
+=== RUN   TestComputeStemWidth_Table/thin_straight
+=== RUN   TestComputeStemWidth_Table/near_standard
+=== RUN   TestComputeStemWidth_Table/at_standard
+=== RUN   TestComputeStemWidth_Table/slightly_above_standard
+=== RUN   TestComputeStemWidth_Table/medium_2px
+=== RUN   TestComputeStemWidth_Table/medium_2.5px
+=== RUN   TestComputeStemWidth_Table/large_4px
+=== RUN   TestComputeStemWidth_Table/large_5px
+--- PASS: TestComputeStemWidth_Table (0.00s)
+    --- PASS: TestComputeStemWidth_Table/thin_round (0.00s)
+    --- PASS: TestComputeStemWidth_Table/thin_straight (0.00s)
+    --- PASS: TestComputeStemWidth_Table/near_standard (0.00s)
+    --- PASS: TestComputeStemWidth_Table/at_standard (0.00s)
+    --- PASS: TestComputeStemWidth_Table/slightly_above_standard (0.00s)
+    --- PASS: TestComputeStemWidth_Table/medium_2px (0.00s)
+    --- PASS: TestComputeStemWidth_Table/medium_2.5px (0.00s)
+    --- PASS: TestComputeStemWidth_Table/large_4px (0.00s)
+    --- PASS: TestComputeStemWidth_Table/large_5px (0.00s)
+=== RUN   TestComputeStemWidth_Consistency
+    autohint_test.go:426: Stem width consistency: inputs=[1.2 1.25 1.28 1.3 1.32 1.35 1.4] → outputs=[83 83 83 83 83 83 83]
+--- PASS: TestComputeStemWidth_Consistency (0.00s)
+=== RUN   TestComputeStemWidth_ExtraLight
+--- PASS: TestComputeStemWidth_ExtraLight (0.00s)
+=== RUN   TestComputeStemWidth_Negative
+--- PASS: TestComputeStemWidth_Negative (0.00s)
+=== RUN   TestComputeStemWidth_Serif
+--- PASS: TestComputeStemWidth_Serif (0.00s)
+=== RUN   TestHintEdges_BluAnchored
+--- PASS: TestHintEdges_BluAnchored (0.00s)
+=== RUN   TestHintEdges_StemPair
+    autohint_test.go:525: Stem: edge[0]=180 (2.81px) edge[1]=257 (4.02px) width=77 (1.203px)
+--- PASS: TestHintEdges_StemPair (0.00s)
+=== RUN   TestAlignEdgePoints
+--- PASS: TestAlignEdgePoints (0.00s)
+=== RUN   TestIupInterpolate
+--- PASS: TestIupInterpolate (0.00s)
+=== RUN   TestIupShift
+--- PASS: TestIupShift (0.00s)
+=== RUN   TestAutoHintOutline_GoRegular_H
+--- PASS: TestAutoHintOutline_GoRegular_H (0.00s)
+=== RUN   TestAutoHintOutline_StemConsistency
+    autohint_test.go:691: 'H' at 12px: bounds=[0.97,-9.00]-[7.69,-0.00] advance=9.00
+    autohint_test.go:691: 'H' at 16px: bounds=[1.30,-12.00]-[10.27,-0.00] advance=12.00
+    autohint_test.go:691: 'H' at 24px: bounds=[1.94,-17.00]-[15.39,-0.00] advance=17.00
+    autohint_test.go:691: 'H' at 48px: bounds=[3.88,-34.67]-[30.78,-0.00] advance=35.00
+--- PASS: TestAutoHintOutline_StemConsistency (0.00s)
+=== RUN   TestAutoHintOutline_MultipleGlyphs
+--- PASS: TestAutoHintOutline_MultipleGlyphs (0.00s)
+=== RUN   TestAutoHintOutline_NilSafety
+--- PASS: TestAutoHintOutline_NilSafety (0.00s)
+=== RUN   TestAutoHintOutline_VerticalOnly
+--- PASS: TestAutoHintOutline_VerticalOnly (0.00s)
+=== RUN   TestAutoHintCache
+--- PASS: TestAutoHintCache (0.00s)
+=== RUN   TestPixRound
+=== RUN   TestPixRound/26dot6
+--- PASS: TestPixRound (0.00s)
+    --- PASS: TestPixRound/26dot6 (0.00s)
+=== RUN   TestDerivedConstant
+--- PASS: TestDerivedConstant (0.00s)
+=== RUN   TestBuildHintPoints_Contours
+    autohint_test.go:894: Contour[0]: start=0 end=3
+    autohint_test.go:894: Contour[1]: start=4 end=7
+--- PASS: TestBuildHintPoints_Contours (0.00s)
+=== RUN   TestAutoHint_RawContourPoints_ScaleVsSkrifaGolden
+    autohint_test.go:992:   pt[ 0]: (  126,  -246)  want: (  126,  -246)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[ 1]: (  126,   306)  want: (  126,   306)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[ 2]: (  126,   369)  want: (  126,   369)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[ 3]: (  142,   459)  want: (  142,   459)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[ 4]: (  156,   492)  want: (  156,   492)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[ 5]: (  156,   495)  want: (  156,   495)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[ 6]: (   66,   495)  want: (   66,   495)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[ 7]: (   42,   495)  want: (   42,   495)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[ 8]: (   15,   527)  want: (   15,   527)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[ 9]: (   15,   565)  want: (   15,   565)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[10]: (   15,   579)  want: (   15,   579)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[11]: (   17,   601)  want: (   17,   601)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[12]: (   25,   634)  want: (   25,   634)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[13]: (   30,   663)  want: (   30,   663)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[14]: (   57,   663)  want: (   57,   663)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[15]: (   57,   659)  want: (   57,   659)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[16]: (   57,   634)  want: (   57,   634)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[17]: (   86,   606)  want: (   86,   606)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[18]: (  112,   606)  want: (  112,   606)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[19]: (  179,   606)  want: (  179,   606)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[20]: (  197,   606)  want: (  197,   606)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[21]: (  210,   592)  want: (  210,   592)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[22]: (  210,   572)  want: (  210,   572)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[23]: (  210,   505)  want: (  210,   505)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[24]: (  200,   487)  want: (  200,   487)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[25]: (  188,   452)  want: (  188,   452)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[26]: (  184,   393)  want: (  184,   393)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[27]: (  185,   341)  want: (  185,   341)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[28]: (  197,  -209)  want: (  197,  -209)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[29]: (  185,  -220)  want: (  185,  -220)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[30]: (  159,  -238)  want: (  159,  -238)  dx=  0 dy=  0 OK
+    autohint_test.go:992:   pt[31]: (  141,  -246)  want: (  141,  -246)  dx=  0 dy=  0 OK
+--- PASS: TestAutoHint_RawContourPoints_ScaleVsSkrifaGolden (0.00s)
+=== RUN   TestAutoHint_ContourPath_PointCount
+    autohint_test.go:1037: contour path: 32 points (raw TrueType)
+    autohint_test.go:1038: legacy path:  42 points (pen-derived)
+--- PASS: TestAutoHint_ContourPath_PointCount (0.00s)
+=== RUN   TestAutoHint_ContourPath_DirectionClassification
+    autohint_test.go:1098:   pt[ 0]: (123.0, -240.0) in=Left out=Up
+    autohint_test.go:1098:   pt[ 1]: (123.0, 299.0) in=Up out=Up [WEAK]
+    autohint_test.go:1098:   pt[ 2]: (123.0, 360.0) in=Up out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[ 3]: (139.0, 448.0) in=None out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[ 4]: (152.0, 480.0) in=None out=Left
+    autohint_test.go:1098:   pt[ 5]: (152.0, 483.0) in=Left out=Left [WEAK]
+    autohint_test.go:1098:   pt[ 6]: (64.0, 483.0) in=Left out=Left [WEAK]
+    autohint_test.go:1098:   pt[ 7]: (41.0, 483.0) in=Left out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[ 8]: (15.0, 515.0) in=None out=Up [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[ 9]: (15.0, 552.0) in=Up out=Up [WEAK]
+    autohint_test.go:1098:   pt[10]: (15.0, 565.0) in=Up out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[11]: (17.0, 587.0) in=None out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[12]: (24.0, 619.0) in=None out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[13]: (29.0, 647.0) in=None out=Right
+    autohint_test.go:1098:   pt[14]: (56.0, 647.0) in=Right out=Down
+    autohint_test.go:1098:   pt[15]: (56.0, 644.0) in=Down out=Down [WEAK]
+    autohint_test.go:1098:   pt[16]: (56.0, 619.0) in=Down out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[17]: (84.0, 592.0) in=None out=Right [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[18]: (109.0, 592.0) in=Right out=Right [WEAK]
+    autohint_test.go:1098:   pt[19]: (175.0, 592.0) in=Right out=Right [WEAK]
+    autohint_test.go:1098:   pt[20]: (192.0, 592.0) in=Right out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[21]: (205.0, 578.0) in=None out=Down [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[22]: (205.0, 559.0) in=Down out=Down [WEAK]
+    autohint_test.go:1098:   pt[23]: (205.0, 493.0) in=Down out=None
+    autohint_test.go:1098:   pt[24]: (195.0, 476.0) in=None out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[25]: (184.0, 441.0) in=None out=Down [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[26]: (180.0, 384.0) in=Down out=Down [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[27]: (181.0, 333.0) in=Down out=Down [WEAK]
+    autohint_test.go:1098:   pt[28]: (192.0, -204.0) in=Down out=None
+    autohint_test.go:1098:   pt[29]: (181.0, -215.0) in=None out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[30]: (155.0, -232.0) in=None out=None [WEAK] [CTRL]
+    autohint_test.go:1098:   pt[31]: (138.0, -240.0) in=None out=Left
+    autohint_test.go:1114: directional: 5, weak: 25, total: 32
+--- PASS: TestAutoHint_ContourPath_DirectionClassification (0.00s)
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/v_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/v_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/v_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/v_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/w_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/w_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/w_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/w_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/A_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/A_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/A_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/A_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/x_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/x_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/x_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/x_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/k_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/k_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/k_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/k_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/z_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/z_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/z_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/z_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/V_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/V_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/V_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/V_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/W_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/W_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/W_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/W_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/X_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/X_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/X_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/X_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/Z_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/Z_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/Z_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/Z_48px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/K_12px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/K_16px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/K_24px
+=== RUN   TestAutoHintOutline_DiagonalGlyphs_NoCorruption/K_48px
+--- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/v_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/v_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/v_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/v_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/w_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/w_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/w_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/w_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/A_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/A_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/A_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/A_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/x_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/x_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/x_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/x_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/k_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/k_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/k_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/k_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/z_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/z_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/z_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/z_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/V_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/V_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/V_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/V_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/W_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/W_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/W_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/W_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/X_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/X_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/X_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/X_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/Z_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/Z_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/Z_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/Z_48px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/K_12px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/K_16px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/K_24px (0.00s)
+    --- PASS: TestAutoHintOutline_DiagonalGlyphs_NoCorruption/K_48px (0.00s)
+=== RUN   TestWeakPointClassification_DiagonalGlyph
+    autohint_test.go:1246: 'v' at 16px: 8 total points, 1 weak, 0 control, 1 strong-dirNone
+--- PASS: TestWeakPointClassification_DiagonalGlyph (0.00s)
+=== RUN   TestWeakPointClassification_ControlPointsAlwaysWeak
+--- PASS: TestWeakPointClassification_ControlPointsAlwaysWeak (0.00s)
+=== RUN   TestWeakPointClassification_HorizontalVerticalGlyphs
+    autohint_test.go:1315: 'H' at 16px: 11 strong directional points out of 13
+    autohint_test.go:1315: 'I' at 16px: 11 strong directional points out of 13
+    autohint_test.go:1315: 'T' at 16px: 7 strong directional points out of 9
+    autohint_test.go:1315: 'L' at 16px: 5 strong directional points out of 7
+    autohint_test.go:1315: 'E' at 16px: 11 strong directional points out of 13
+    autohint_test.go:1315: 'F' at 16px: 9 strong directional points out of 11
+--- PASS: TestWeakPointClassification_HorizontalVerticalGlyphs (0.00s)
+=== RUN   TestAutoHintOutline_DiagonalVsOriginal_AreaPreservation
+    autohint_test.go:1349: 'v' at 24px: origArea=52.82 hintArea=54.05 ratio=102.32%
+    autohint_test.go:1349: 'w' at 24px: origArea=95.97 hintArea=97.97 ratio=102.09%
+    autohint_test.go:1349: 'A' at 24px: origArea=92.75 hintArea=88.90 ratio=95.85%
+    autohint_test.go:1349: 'x' at 24px: origArea=58.32 hintArea=59.63 ratio=102.25%
+--- PASS: TestAutoHintOutline_DiagonalVsOriginal_AreaPreservation (0.00s)
+=== RUN   TestAlignEdgePoints_LinkedListTraversal
+--- PASS: TestAlignEdgePoints_LinkedListTraversal (0.00s)
+=== RUN   TestAutoHint_DiagonalValleyPreservation
+=== RUN   TestAutoHint_DiagonalValleyPreservation/v_16px
+    autohint_test.go:1546: 'v' at 16px: origSpan=8.48 hintedSpan=9.00 origDistinctY=3 hintedDistinctY=3
+=== RUN   TestAutoHint_DiagonalValleyPreservation/v_24px
+    autohint_test.go:1546: 'v' at 24px: origSpan=12.73 hintedSpan=13.00 origDistinctY=3 hintedDistinctY=3
+=== RUN   TestAutoHint_DiagonalValleyPreservation/w_16px
+    autohint_test.go:1546: 'w' at 16px: origSpan=8.48 hintedSpan=9.00 origDistinctY=4 hintedDistinctY=4
+=== RUN   TestAutoHint_DiagonalValleyPreservation/w_24px
+    autohint_test.go:1546: 'w' at 24px: origSpan=12.73 hintedSpan=13.00 origDistinctY=4 hintedDistinctY=4
+=== RUN   TestAutoHint_DiagonalValleyPreservation/A_16px
+    autohint_test.go:1546: 'A' at 16px: origSpan=11.56 hintedSpan=12.00 origDistinctY=5 hintedDistinctY=5
+=== RUN   TestAutoHint_DiagonalValleyPreservation/A_24px
+    autohint_test.go:1546: 'A' at 24px: origSpan=17.34 hintedSpan=17.00 origDistinctY=5 hintedDistinctY=5
+=== RUN   TestAutoHint_DiagonalValleyPreservation/x_16px
+    autohint_test.go:1546: 'x' at 16px: origSpan=8.48 hintedSpan=9.00 origDistinctY=6 hintedDistinctY=6
+=== RUN   TestAutoHint_DiagonalValleyPreservation/x_24px
+    autohint_test.go:1546: 'x' at 24px: origSpan=12.73 hintedSpan=13.00 origDistinctY=6 hintedDistinctY=6
+--- PASS: TestAutoHint_DiagonalValleyPreservation (0.00s)
+    --- PASS: TestAutoHint_DiagonalValleyPreservation/v_16px (0.00s)
+    --- PASS: TestAutoHint_DiagonalValleyPreservation/v_24px (0.00s)
+    --- PASS: TestAutoHint_DiagonalValleyPreservation/w_16px (0.00s)
+    --- PASS: TestAutoHint_DiagonalValleyPreservation/w_24px (0.00s)
+    --- PASS: TestAutoHint_DiagonalValleyPreservation/A_16px (0.00s)
+    --- PASS: TestAutoHint_DiagonalValleyPreservation/A_24px (0.00s)
+    --- PASS: TestAutoHint_DiagonalValleyPreservation/x_16px (0.00s)
+    --- PASS: TestAutoHint_DiagonalValleyPreservation/x_24px (0.00s)
+=== RUN   TestAutoHint_V_24px_GoldenCoordinates
+    autohint_test.go:1614: Hinted Y coords: [-0 -13 -13 -2.890625 -13 -13 -0 -0]
+    autohint_test.go:1622: baseline=-0.0000 valley=-2.8906 top=-13.0000
+--- PASS: TestAutoHint_V_24px_GoldenCoordinates (0.00s)
+=== RUN   TestAlignEdgePoints_NoExtraPointsSnapped
+--- PASS: TestAlignEdgePoints_NoExtraPointsSnapped (0.00s)
+=== RUN   TestAutoHint_Segments_VsSkrifaGolden_Horizontal
+    autohint_test.go:1760: Horizontal segments: got 5, want 5
+    autohint_test.go:1779:   seg[0]: dir=Up    pos= 123 first= 0 last= 2 min=-240 max= 360
+    autohint_test.go:1779:   seg[1]: dir=Up    pos=  15 first= 8 last=10 min= 515 max= 565
+    autohint_test.go:1779:   seg[2]: dir=Down  pos=  56 first=14 last=16 min= 619 max= 647
+    autohint_test.go:1779:   seg[3]: dir=Down  pos= 205 first=21 last=23 min= 493 max= 578
+    autohint_test.go:1779:   seg[4]: dir=Down  pos= 186 first=25 last=28 min=-204 max= 441
+--- PASS: TestAutoHint_Segments_VsSkrifaGolden_Horizontal (0.00s)
+=== RUN   TestAutoHint_Segments_VsSkrifaGolden_Vertical
+    autohint_test.go:1873: Vertical segments: got 4, want 4
+    autohint_test.go:1890:   seg[0]: dir=Left  pos= 481 first= 4 last= 7 min=  41 max= 152
+    autohint_test.go:1890:   seg[1]: dir=Right pos= 647 first=13 last=14 min=  29 max=  56
+    autohint_test.go:1890:   seg[2]: dir=Right pos= 592 first=17 last=20 min=  84 max= 192
+    autohint_test.go:1890:   seg[3]: dir=Left  pos=-240 first=31 last= 0 min= 123 max= 138
+--- PASS: TestAutoHint_Segments_VsSkrifaGolden_Vertical (0.00s)
+=== RUN   TestAutoHint_Edges_VsSkrifaGolden_Horizontal
+    autohint_test.go:2000: Horizontal segments after link:
+    autohint_test.go:2002:   seg[0]: pos=123 dir=1 link=4 serif=-1 height=644 delta=0 edgeIdx=-1
+    autohint_test.go:2002:   seg[1]: pos=15 dir=1 link=3 serif=-1 height=77 delta=0 edgeIdx=-1
+    autohint_test.go:2002:   seg[2]: pos=56 dir=-1 link=-1 serif=-1 height=41 delta=0 edgeIdx=-1
+    autohint_test.go:2002:   seg[3]: pos=205 dir=-1 link=1 serif=-1 height=100 delta=0 edgeIdx=-1
+    autohint_test.go:2002:   seg[4]: pos=186 dir=-1 link=0 serif=-1 height=667 delta=6 edgeIdx=-1
+    autohint_test.go:2005: Axis: scale=0.016000 edgeDistThreshold=0.304000 widths=[{99 99}]
+    autohint_test.go:2019: Horizontal edges: got 4, want 4
+    autohint_test.go:2031:   edge[0]: fpos=15 opos=960 pos=960 dir=Up link=Some(3)
+    autohint_test.go:2031:   edge[1]: fpos=123 opos=8064 pos=8064 dir=Up link=Some(2)
+    autohint_test.go:2031:   edge[2]: fpos=186 opos=12160 pos=12160 dir=Down link=Some(1)
+    autohint_test.go:2031:   edge[3]: fpos=205 opos=13440 pos=13440 dir=Down link=Some(0)
+--- PASS: TestAutoHint_Edges_VsSkrifaGolden_Horizontal (0.00s)
+=== RUN   TestAutoHint_Edges_VsSkrifaGolden_Vertical
+    autohint_test.go:2134: Vertical edges: got 4, want 4
+    autohint_test.go:2149:   edge[0]: fpos=-240 opos=-15744 pos=-15744 dir=Left link=None serif=None
+    autohint_test.go:2149:   edge[1]: fpos=481 opos=31552 pos=31552 dir=Left link=Some(2) serif=None
+    autohint_test.go:2149:   edge[2]: fpos=592 opos=38784 pos=38784 dir=Right link=Some(1) serif=None
+    autohint_test.go:2149:   edge[3]: fpos=647 opos=42432 pos=42432 dir=Right link=None serif=Some(2)
+--- PASS: TestAutoHint_Edges_VsSkrifaGolden_Vertical (0.00s)
+=== RUN   TestAutoHint_Edges_VsSkrifaRust_FullParity
+    autohint_test.go:2282: === Horizontal edges: got 4, want 4 ===
+    autohint_test.go:2298:   edge[0]: fpos=15 opos=15 link=Some(3) serif=None flags=ROUND
+    autohint_test.go:2298:   edge[1]: fpos=123 opos=126 link=Some(2) serif=None flags=NORMAL
+    autohint_test.go:2298:   edge[2]: fpos=186 opos=190 link=Some(1) serif=None flags=NORMAL
+    autohint_test.go:2298:   edge[3]: fpos=205 opos=210 link=Some(0) serif=None flags=ROUND
+    autohint_test.go:2342: === Vertical edges: got 4, want 4 ===
+    autohint_test.go:2358:   edge[0]: fpos=-240 opos=-246 link=None serif=Some(1) flags=NORMAL
+    autohint_test.go:2358:   edge[1]: fpos=481 opos=493 link=Some(2) serif=None flags=NORMAL
+    autohint_test.go:2358:   edge[2]: fpos=592 opos=606 link=Some(1) serif=None flags=ROUND
+    autohint_test.go:2358:   edge[3]: fpos=647 opos=663 link=None serif=Some(2) flags=NORMAL
+--- PASS: TestAutoHint_Edges_VsSkrifaRust_FullParity (0.00s)
+=== RUN   TestAutoHint_HintEdges_VsSkrifaGolden_Horizontal
+    autohint_test.go:2454: Horizontal edges after hint_edges: 4 edges
+    autohint_test.go:2456:   edge[0]: opos=15 -> pos=0
+    autohint_test.go:2456:   edge[1]: opos=126 -> pos=133
+    autohint_test.go:2456:   edge[2]: opos=190 -> pos=187
+    autohint_test.go:2456:   edge[3]: opos=210 -> pos=192
+--- PASS: TestAutoHint_HintEdges_VsSkrifaGolden_Horizontal (0.00s)
+=== RUN   TestAutoHint_HintEdges_VsSkrifaGolden_Vertical
+    autohint_test.go:2565: Vertical edges after hint_edges: 4 edges
+    autohint_test.go:2571:   edge[0]: opos=-246 -> pos=-256 blue=fitted=-256
+    autohint_test.go:2571:   edge[1]: opos=493 -> pos=463 blue=None
+    autohint_test.go:2571:   edge[2]: opos=606 -> pos=576 blue=fitted=576
+    autohint_test.go:2571:   edge[3]: opos=663 -> pos=633 blue=None
+--- PASS: TestAutoHint_HintEdges_VsSkrifaGolden_Vertical (0.00s)
+=== RUN   TestAutoHint_FullPipeline_VsSkrifaGolden
+    autohint_test.go:2715:   pt[ 0]: ( 133, -256)  want: ( 133, -256)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[ 1]: ( 133,  282)  want: ( 133,  282)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[ 2]: ( 133,  343)  want: ( 133,  343)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[ 3]: ( 146,  431)  want: ( 146,  431)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[ 4]: ( 158,  463)  want: ( 158,  463)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[ 5]: ( 158,  463)  want: ( 158,  463)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[ 6]: (  57,  463)  want: (  57,  463)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[ 7]: (  30,  463)  want: (  30,  463)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[ 8]: (   0,  495)  want: (   0,  495)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[ 9]: (   0,  534)  want: (   0,  534)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[10]: (   0,  548)  want: (   0,  548)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[11]: (   2,  570)  want: (   2,  570)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[12]: (  11,  604)  want: (  11,  604)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[13]: (  17,  633)  want: (  17,  633)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[14]: (  50,  633)  want: (  50,  633)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[15]: (  50,  629)  want: (  50,  629)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[16]: (  50,  604)  want: (  50,  604)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[17]: (  77,  576)  want: (  77,  576)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[18]: ( 101,  576)  want: ( 101,  576)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[19]: ( 163,  576)  want: ( 163,  576)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[20]: ( 180,  576)  want: ( 180,  576)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[21]: ( 192,  562)  want: ( 192,  562)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[22]: ( 192,  542)  want: ( 192,  542)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[23]: ( 192,  475)  want: ( 192,  475)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[24]: ( 190,  457)  want: ( 190,  457)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[25]: ( 187,  423)  want: ( 187,  423)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[26]: ( 187,  366)  want: ( 187,  366)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[27]: ( 187,  315)  want: ( 187,  315)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[28]: ( 187, -220)  want: ( 187, -220)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[29]: ( 178, -231)  want: ( 178, -231)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[30]: ( 159, -248)  want: ( 159, -248)  dx=  0 dy=  0  OK
+    autohint_test.go:2715:   pt[31]: ( 146, -256)  want: ( 146, -256)  dx=  0 dy=  0  OK
+    autohint_test.go:2722: PASS: 32/32 coordinates match skrifa golden (diff=0)
+--- PASS: TestAutoHint_FullPipeline_VsSkrifaGolden (0.00s)
+=== RUN   TestAutoHint_AlignEdgePoints_VsSkrifaGolden
+    autohint_test.go:2792: H align_edge_points: 32/32 match
+--- PASS: TestAutoHint_AlignEdgePoints_VsSkrifaGolden (0.00s)
+PASS

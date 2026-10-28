@@ -1,0 +1,243 @@
+=== RUN   TestLiteralToFloat
+=== RUN   TestLiteralToFloat/F32
+=== RUN   TestLiteralToFloat/F64
+=== RUN   TestLiteralToFloat/I32_positive
+=== RUN   TestLiteralToFloat/I32_negative
+=== RUN   TestLiteralToFloat/U32
+=== RUN   TestLiteralToFloat/Bool_true
+=== RUN   TestLiteralToFloat/Bool_false
+=== RUN   TestLiteralToFloat/AbstractInt
+=== RUN   TestLiteralToFloat/AbstractFloat
+=== RUN   TestLiteralToFloat/I64_unhandled
+=== RUN   TestLiteralToFloat/U64_unhandled
+=== RUN   TestLiteralToFloat/F16_unhandled
+--- PASS: TestLiteralToFloat (0.00s)
+    --- PASS: TestLiteralToFloat/F32 (0.00s)
+    --- PASS: TestLiteralToFloat/F64 (0.00s)
+    --- PASS: TestLiteralToFloat/I32_positive (0.00s)
+    --- PASS: TestLiteralToFloat/I32_negative (0.00s)
+    --- PASS: TestLiteralToFloat/U32 (0.00s)
+    --- PASS: TestLiteralToFloat/Bool_true (0.00s)
+    --- PASS: TestLiteralToFloat/Bool_false (0.00s)
+    --- PASS: TestLiteralToFloat/AbstractInt (0.00s)
+    --- PASS: TestLiteralToFloat/AbstractFloat (0.00s)
+    --- PASS: TestLiteralToFloat/I64_unhandled (0.00s)
+    --- PASS: TestLiteralToFloat/U64_unhandled (0.00s)
+    --- PASS: TestLiteralToFloat/F16_unhandled (0.00s)
+=== RUN   TestEvalBinaryFloat
+=== RUN   TestEvalBinaryFloat/add
+=== RUN   TestEvalBinaryFloat/subtract
+=== RUN   TestEvalBinaryFloat/multiply
+=== RUN   TestEvalBinaryFloat/divide
+=== RUN   TestEvalBinaryFloat/divide_by_zero
+=== RUN   TestEvalBinaryFloat/add_negative
+=== RUN   TestEvalBinaryFloat/multiply_zero
+=== RUN   TestEvalBinaryFloat/unknown_op
+--- PASS: TestEvalBinaryFloat (0.00s)
+    --- PASS: TestEvalBinaryFloat/add (0.00s)
+    --- PASS: TestEvalBinaryFloat/subtract (0.00s)
+    --- PASS: TestEvalBinaryFloat/multiply (0.00s)
+    --- PASS: TestEvalBinaryFloat/divide (0.00s)
+    --- PASS: TestEvalBinaryFloat/divide_by_zero (0.00s)
+    --- PASS: TestEvalBinaryFloat/add_negative (0.00s)
+    --- PASS: TestEvalBinaryFloat/multiply_zero (0.00s)
+    --- PASS: TestEvalBinaryFloat/unknown_op (0.00s)
+=== RUN   TestEvalUnaryFloat
+=== RUN   TestEvalUnaryFloat/negate_positive
+=== RUN   TestEvalUnaryFloat/negate_negative
+=== RUN   TestEvalUnaryFloat/negate_zero
+=== RUN   TestEvalUnaryFloat/logical_not_zero
+=== RUN   TestEvalUnaryFloat/logical_not_nonzero
+=== RUN   TestEvalUnaryFloat/logical_not_negative
+=== RUN   TestEvalUnaryFloat/bitwise_not
+=== RUN   TestEvalUnaryFloat/unknown_op
+--- PASS: TestEvalUnaryFloat (0.00s)
+    --- PASS: TestEvalUnaryFloat/negate_positive (0.00s)
+    --- PASS: TestEvalUnaryFloat/negate_negative (0.00s)
+    --- PASS: TestEvalUnaryFloat/negate_zero (0.00s)
+    --- PASS: TestEvalUnaryFloat/logical_not_zero (0.00s)
+    --- PASS: TestEvalUnaryFloat/logical_not_nonzero (0.00s)
+    --- PASS: TestEvalUnaryFloat/logical_not_negative (0.00s)
+    --- PASS: TestEvalUnaryFloat/bitwise_not (0.00s)
+    --- PASS: TestEvalUnaryFloat/unknown_op (0.00s)
+=== RUN   TestMakeLiteralFromProto
+=== RUN   TestMakeLiteralFromProto/bool_true
+=== RUN   TestMakeLiteralFromProto/bool_false
+=== RUN   TestMakeLiteralFromProto/i32
+=== RUN   TestMakeLiteralFromProto/u32
+=== RUN   TestMakeLiteralFromProto/f32
+=== RUN   TestMakeLiteralFromProto/f64
+=== RUN   TestMakeLiteralFromProto/unknown_fallback_to_f32
+--- PASS: TestMakeLiteralFromProto (0.00s)
+    --- PASS: TestMakeLiteralFromProto/bool_true (0.00s)
+    --- PASS: TestMakeLiteralFromProto/bool_false (0.00s)
+    --- PASS: TestMakeLiteralFromProto/i32 (0.00s)
+    --- PASS: TestMakeLiteralFromProto/u32 (0.00s)
+    --- PASS: TestMakeLiteralFromProto/f32 (0.00s)
+    --- PASS: TestMakeLiteralFromProto/f64 (0.00s)
+    --- PASS: TestMakeLiteralFromProto/unknown_fallback_to_f32 (0.00s)
+=== RUN   TestNeedsPreEmit
+=== RUN   TestNeedsPreEmit/Literal
+=== RUN   TestNeedsPreEmit/ExprConstant
+=== RUN   TestNeedsPreEmit/ExprOverride
+=== RUN   TestNeedsPreEmit/ExprZeroValue
+=== RUN   TestNeedsPreEmit/ExprFunctionArgument
+=== RUN   TestNeedsPreEmit/ExprGlobalVariable
+=== RUN   TestNeedsPreEmit/ExprLocalVariable
+=== RUN   TestNeedsPreEmit/ExprBinary_no
+=== RUN   TestNeedsPreEmit/ExprUnary_no
+=== RUN   TestNeedsPreEmit/ExprLoad_no
+=== RUN   TestNeedsPreEmit/ExprMath_no
+=== RUN   TestNeedsPreEmit/ExprAs_no
+--- PASS: TestNeedsPreEmit (0.00s)
+    --- PASS: TestNeedsPreEmit/Literal (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprConstant (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprOverride (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprZeroValue (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprFunctionArgument (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprGlobalVariable (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprLocalVariable (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprBinary_no (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprUnary_no (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprLoad_no (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprMath_no (0.00s)
+    --- PASS: TestNeedsPreEmit/ExprAs_no (0.00s)
+=== RUN   TestFilterEmitsInBlock
+=== RUN   TestFilterEmitsInBlock/splits_emit_around_pre_emit_expressions
+=== RUN   TestFilterEmitsInBlock/preserves_non_emit_statements
+=== RUN   TestFilterEmitsInBlock/recurses_into_if
+=== RUN   TestFilterEmitsInBlock/recurses_into_switch
+=== RUN   TestFilterEmitsInBlock/recurses_into_loop
+=== RUN   TestFilterEmitsInBlock/recurses_into_block_stmt
+=== RUN   TestFilterEmitsInBlock/all_pre_emit_produces_empty
+--- PASS: TestFilterEmitsInBlock (0.00s)
+    --- PASS: TestFilterEmitsInBlock/splits_emit_around_pre_emit_expressions (0.00s)
+    --- PASS: TestFilterEmitsInBlock/preserves_non_emit_statements (0.00s)
+    --- PASS: TestFilterEmitsInBlock/recurses_into_if (0.00s)
+    --- PASS: TestFilterEmitsInBlock/recurses_into_switch (0.00s)
+    --- PASS: TestFilterEmitsInBlock/recurses_into_loop (0.00s)
+    --- PASS: TestFilterEmitsInBlock/recurses_into_block_stmt (0.00s)
+    --- PASS: TestFilterEmitsInBlock/all_pre_emit_produces_empty (0.00s)
+=== RUN   TestCloneModuleForOverrides
+=== RUN   TestCloneModuleForOverrides/types_shared
+=== RUN   TestCloneModuleForOverrides/overrides_deep_copied
+=== RUN   TestCloneModuleForOverrides/global_expressions_independent
+=== RUN   TestCloneModuleForOverrides/constants_independent
+=== RUN   TestCloneModuleForOverrides/function_expressions_independent
+=== RUN   TestCloneModuleForOverrides/function_local_vars_deep_copied
+=== RUN   TestCloneModuleForOverrides/function_named_expressions_independent
+=== RUN   TestCloneModuleForOverrides/entry_point_expressions_independent
+=== RUN   TestCloneModuleForOverrides/entry_point_local_vars_deep_copied
+=== RUN   TestCloneModuleForOverrides/entry_point_named_expressions_independent
+--- PASS: TestCloneModuleForOverrides (0.00s)
+    --- PASS: TestCloneModuleForOverrides/types_shared (0.00s)
+    --- PASS: TestCloneModuleForOverrides/overrides_deep_copied (0.00s)
+    --- PASS: TestCloneModuleForOverrides/global_expressions_independent (0.00s)
+    --- PASS: TestCloneModuleForOverrides/constants_independent (0.00s)
+    --- PASS: TestCloneModuleForOverrides/function_expressions_independent (0.00s)
+    --- PASS: TestCloneModuleForOverrides/function_local_vars_deep_copied (0.00s)
+    --- PASS: TestCloneModuleForOverrides/function_named_expressions_independent (0.00s)
+    --- PASS: TestCloneModuleForOverrides/entry_point_expressions_independent (0.00s)
+    --- PASS: TestCloneModuleForOverrides/entry_point_local_vars_deep_copied (0.00s)
+    --- PASS: TestCloneModuleForOverrides/entry_point_named_expressions_independent (0.00s)
+=== RUN   TestEvalFuncExprAsFloat
+=== RUN   TestEvalFuncExprAsFloat/literal
+=== RUN   TestEvalFuncExprAsFloat/constant
+=== RUN   TestEvalFuncExprAsFloat/binary_add
+=== RUN   TestEvalFuncExprAsFloat/unary_negate
+=== RUN   TestEvalFuncExprAsFloat/unsupported_kind
+=== RUN   TestEvalFuncExprAsFloat/out_of_range
+--- PASS: TestEvalFuncExprAsFloat (0.00s)
+    --- PASS: TestEvalFuncExprAsFloat/literal (0.00s)
+    --- PASS: TestEvalFuncExprAsFloat/constant (0.00s)
+    --- PASS: TestEvalFuncExprAsFloat/binary_add (0.00s)
+    --- PASS: TestEvalFuncExprAsFloat/unary_negate (0.00s)
+    --- PASS: TestEvalFuncExprAsFloat/unsupported_kind (0.00s)
+    --- PASS: TestEvalFuncExprAsFloat/out_of_range (0.00s)
+=== RUN   TestExprAsLiteral
+=== RUN   TestExprAsLiteral/direct_literal
+=== RUN   TestExprAsLiteral/constant_ref
+=== RUN   TestExprAsLiteral/non_literal
+=== RUN   TestExprAsLiteral/out_of_range
+--- PASS: TestExprAsLiteral (0.00s)
+    --- PASS: TestExprAsLiteral/direct_literal (0.00s)
+    --- PASS: TestExprAsLiteral/constant_ref (0.00s)
+    --- PASS: TestExprAsLiteral/non_literal (0.00s)
+    --- PASS: TestExprAsLiteral/out_of_range (0.00s)
+=== RUN   TestTryConstFoldExpr
+=== RUN   TestTryConstFoldExpr/binary_fold
+=== RUN   TestTryConstFoldExpr/unary_negate_fold
+=== RUN   TestTryConstFoldExpr/unary_logical_not_bool
+=== RUN   TestTryConstFoldExpr/non_foldable
+=== RUN   TestTryConstFoldExpr/binary_non_literal_operand
+--- PASS: TestTryConstFoldExpr (0.00s)
+    --- PASS: TestTryConstFoldExpr/binary_fold (0.00s)
+    --- PASS: TestTryConstFoldExpr/unary_negate_fold (0.00s)
+    --- PASS: TestTryConstFoldExpr/unary_logical_not_bool (0.00s)
+    --- PASS: TestTryConstFoldExpr/non_foldable (0.00s)
+    --- PASS: TestTryConstFoldExpr/binary_non_literal_operand (0.00s)
+=== RUN   TestOverrideRemapExprHandles
+=== RUN   TestOverrideRemapExprHandles/access
+=== RUN   TestOverrideRemapExprHandles/access_index
+=== RUN   TestOverrideRemapExprHandles/binary
+=== RUN   TestOverrideRemapExprHandles/unary
+=== RUN   TestOverrideRemapExprHandles/load
+=== RUN   TestOverrideRemapExprHandles/select
+=== RUN   TestOverrideRemapExprHandles/splat
+=== RUN   TestOverrideRemapExprHandles/swizzle
+=== RUN   TestOverrideRemapExprHandles/compose
+=== RUN   TestOverrideRemapExprHandles/as
+=== RUN   TestOverrideRemapExprHandles/derivative
+=== RUN   TestOverrideRemapExprHandles/relational
+=== RUN   TestOverrideRemapExprHandles/array_length
+=== RUN   TestOverrideRemapExprHandles/math_multi_arg
+=== RUN   TestOverrideRemapExprHandles/math_4_args
+=== RUN   TestOverrideRemapExprHandles/image_load
+=== RUN   TestOverrideRemapExprHandles/image_query_size_with_level
+=== RUN   TestOverrideRemapExprHandles/alias
+=== RUN   TestOverrideRemapExprHandles/phi
+=== RUN   TestOverrideRemapExprHandles/literal_passthrough
+=== RUN   TestOverrideRemapExprHandles/image_sample
+=== RUN   TestOverrideRemapExprHandles/image_sample_bias_level
+--- PASS: TestOverrideRemapExprHandles (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/access (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/access_index (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/binary (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/unary (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/load (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/select (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/splat (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/swizzle (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/compose (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/as (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/derivative (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/relational (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/array_length (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/math_multi_arg (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/math_4_args (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/image_load (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/image_query_size_with_level (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/alias (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/phi (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/literal_passthrough (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/image_sample (0.00s)
+    --- PASS: TestOverrideRemapExprHandles/image_sample_bias_level (0.00s)
+=== RUN   TestMakeOverrideLiteral
+=== RUN   TestMakeOverrideLiteral/bool_true
+=== RUN   TestMakeOverrideLiteral/bool_false_nan
+=== RUN   TestMakeOverrideLiteral/i32
+=== RUN   TestMakeOverrideLiteral/u32
+=== RUN   TestMakeOverrideLiteral/f32
+=== RUN   TestMakeOverrideLiteral/f64
+=== RUN   TestMakeOverrideLiteral/non_scalar_fallback
+=== RUN   TestMakeOverrideLiteral/out_of_range_type_fallback
+--- PASS: TestMakeOverrideLiteral (0.00s)
+    --- PASS: TestMakeOverrideLiteral/bool_true (0.00s)
+    --- PASS: TestMakeOverrideLiteral/bool_false_nan (0.00s)
+    --- PASS: TestMakeOverrideLiteral/i32 (0.00s)
+    --- PASS: TestMakeOverrideLiteral/u32 (0.00s)
+    --- PASS: TestMakeOverrideLiteral/f32 (0.00s)
+    --- PASS: TestMakeOverrideLiteral/f64 (0.00s)
+    --- PASS: TestMakeOverrideLiteral/non_scalar_fallback (0.00s)
+    --- PASS: TestMakeOverrideLiteral/out_of_range_type_fallback (0.00s)
+PASS

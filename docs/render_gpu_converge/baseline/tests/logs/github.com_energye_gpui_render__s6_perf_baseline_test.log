@@ -1,0 +1,57 @@
+=== RUN   TestS6_PresentBaseline_Scenes
+=== RUN   TestS6_PresentBaseline_Scenes/P01_SolidPresent
+    s6_perf_baseline_test.go:337: P01_SolidPresent tier=floor p50=0.46 avg=0.59 fps_p50=2184.0 gpu=1 cpu_fb=0 dmg=false ret=false
+=== RUN   TestS6_PresentBaseline_Scenes/U01_StaticShell
+    s6_perf_baseline_test.go:337: U01_StaticShell tier=P0_main p50=1.28 avg=1.42 fps_p50=782.3 gpu=3 cpu_fb=0 dmg=true ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/U02_ListScrollMorph
+    s6_perf_baseline_test.go:337: U02_ListScrollMorph tier=P0_main p50=0.29 avg=0.76 fps_p50=3426.2 gpu=9 cpu_fb=0 dmg=true ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/U03_FormFieldDamage
+    s6_perf_baseline_test.go:337: U03_FormFieldDamage tier=P0_main p50=0.29 avg=0.29 fps_p50=3451.7 gpu=3 cpu_fb=0 dmg=true ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/U04_ModalStatic
+    s6_perf_baseline_test.go:337: U04_ModalStatic tier=P0_main p50=0.27 avg=0.28 fps_p50=3691.2 gpu=6 cpu_fb=0 dmg=false ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/U05_KitchenSinkStress
+    s6_perf_baseline_test.go:337: U05_KitchenSinkStress tier=P2_heavy p50=6.23 avg=6.93 fps_p50=160.6 gpu=18 cpu_fb=0 dmg=false ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/B15like_MultiDamage
+    s6_perf_baseline_test.go:337: B15like_MultiDamage tier=P0_main p50=0.17 avg=0.18 fps_p50=5861.3 gpu=4 cpu_fb=0 dmg=true ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/H01_FullRedrawShell
+    s6_perf_baseline_test.go:337: H01_FullRedrawShell tier=P1_density p50=0.48 avg=0.62 fps_p50=2096.2 gpu=19 cpu_fb=0 dmg=false ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/H02_LayerBlendStack
+    s6_perf_baseline_test.go:337: H02_LayerBlendStack tier=P2_heavy p50=6.39 avg=6.58 fps_p50=156.5 gpu=13 cpu_fb=0 dmg=false ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/H03_PathStrokeCloud
+    s6_perf_baseline_test.go:337: H03_PathStrokeCloud tier=P2_heavy p50=1.58 avg=1.96 fps_p50=634.0 gpu=25 cpu_fb=0 dmg=false ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/H04_TextRows40
+    s6_perf_baseline_test.go:337: H04_TextRows40 tier=P1_density p50=0.62 avg=0.64 fps_p50=1603.6 gpu=41 cpu_fb=0 dmg=false ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/H05_ImageTileGrid
+    s6_perf_baseline_test.go:337: H05_ImageTileGrid tier=P1_density p50=0.30 avg=0.30 fps_p50=3298.4 gpu=65 cpu_fb=0 dmg=false ret=true
+=== RUN   TestS6_PresentBaseline_Scenes/H06_NestedClipLayerText
+    s6_perf_baseline_test.go:337: H06_NestedClipLayerText tier=P3_stress p50=0.30 avg=0.32 fps_p50=3284.6 gpu=9 cpu_fb=0 dmg=false ret=true
+=== NAME  TestS6_PresentBaseline_Scenes
+    s6_perf_baseline_test.go:386: kept frozen baseline /home/yanghy/app/projects/gogpu/gpui/tmp/s6_present_baseline.json; wrote measure-only /home/yanghy/app/projects/gogpu/gpui/tmp/s6_present_latest.json (13 scenes). Set S6_WRITE_BASELINE=1 to refresh freeze.
+--- PASS: TestS6_PresentBaseline_Scenes (0.80s)
+    --- PASS: TestS6_PresentBaseline_Scenes/P01_SolidPresent (0.05s)
+    --- PASS: TestS6_PresentBaseline_Scenes/U01_StaticShell (0.03s)
+    --- PASS: TestS6_PresentBaseline_Scenes/U02_ListScrollMorph (0.02s)
+    --- PASS: TestS6_PresentBaseline_Scenes/U03_FormFieldDamage (0.01s)
+    --- PASS: TestS6_PresentBaseline_Scenes/U04_ModalStatic (0.02s)
+    --- PASS: TestS6_PresentBaseline_Scenes/U05_KitchenSinkStress (0.11s)
+    --- PASS: TestS6_PresentBaseline_Scenes/B15like_MultiDamage (0.01s)
+    --- PASS: TestS6_PresentBaseline_Scenes/H01_FullRedrawShell (0.04s)
+    --- PASS: TestS6_PresentBaseline_Scenes/H02_LayerBlendStack (0.09s)
+    --- PASS: TestS6_PresentBaseline_Scenes/H03_PathStrokeCloud (0.03s)
+    --- PASS: TestS6_PresentBaseline_Scenes/H04_TextRows40 (0.02s)
+    --- PASS: TestS6_PresentBaseline_Scenes/H05_ImageTileGrid (0.02s)
+    --- PASS: TestS6_PresentBaseline_Scenes/H06_NestedClipLayerText (0.03s)
+=== RUN   TestS6_RegressionLock_Contract
+    s6_perf_baseline_test.go:482: S6.0 regression lock OK scenes=13 main_budget=16.7 contrast present=0.34 readback=1.64
+--- PASS: TestS6_RegressionLock_Contract (0.00s)
+=== RUN   TestS6_L0_MainPathStillGreen
+=== RUN   TestS6_L0_MainPathStillGreen/U01_StaticShell
+=== RUN   TestS6_L0_MainPathStillGreen/U02_ListScrollMorph
+=== RUN   TestS6_L0_MainPathStillGreen/U03_FormFieldDamage
+=== RUN   TestS6_L0_MainPathStillGreen/U04_ModalStatic
+--- PASS: TestS6_L0_MainPathStillGreen (0.05s)
+    --- PASS: TestS6_L0_MainPathStillGreen/U01_StaticShell (0.01s)
+    --- PASS: TestS6_L0_MainPathStillGreen/U02_ListScrollMorph (0.01s)
+    --- PASS: TestS6_L0_MainPathStillGreen/U03_FormFieldDamage (0.01s)
+    --- PASS: TestS6_L0_MainPathStillGreen/U04_ModalStatic (0.02s)
+PASS

@@ -1,0 +1,15 @@
+=== RUN   TestGlyphPlacementCJKVerticalSnapsX
+--- PASS: TestGlyphPlacementCJKVerticalSnapsX (0.00s)
+=== RUN   TestGlyphPlacementFullSnapsX
+--- PASS: TestGlyphPlacementFullSnapsX (0.00s)
+=== RUN   TestGlyphPlacementNoneKeepsXFraction
+--- PASS: TestGlyphPlacementNoneKeepsXFraction (0.00s)
+=== RUN   TestGlyphPlacementNoneSnapsX
+--- PASS: TestGlyphPlacementNoneSnapsX (0.00s)
+=== RUN   TestGlyphPlacementScaledCTMXAxisFraction
+--- PASS: TestGlyphPlacementScaledCTMXAxisFraction (0.00s)
+=== RUN   TestGlyphPlacementLCDKeepsXPhase
+--- PASS: TestGlyphPlacementLCDKeepsXPhase (0.00s)
+=== RUN   TestSnapXGridMonotonic
+--- PASS: TestSnapXGridMonotonic (0.00s)
+PASS

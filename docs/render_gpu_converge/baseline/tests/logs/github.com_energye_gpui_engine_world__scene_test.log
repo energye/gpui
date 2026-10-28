@@ -1,0 +1,14 @@
+=== RUN   TestSceneOpenFromCases
+--- PASS: TestSceneOpenFromCases (0.00s)
+=== RUN   TestSceneEdgesNoCrash
+--- PASS: TestSceneEdgesNoCrash (0.00s)
+=== RUN   TestSceneBoundaryIdentical
+--- PASS: TestSceneBoundaryIdentical (0.00s)
+=== RUN   TestScenePerfLarge
+    scene_test.go:615: scene-large: 2000 entities 5 reps 249078B: parse 63.870323ms (12774.0 us/rep), open 13.197329ms (2639.4 us/rep), 10000 matrices 8.079532ms (808.0 ns/op)
+--- PASS: TestScenePerfLarge (0.11s)
+=== RUN   TestSceneLongRunStable
+--- PASS: TestSceneLongRunStable (0.07s)
+=== RUN   TestSceneOffscreenGolden
+--- PASS: TestSceneOffscreenGolden (0.00s)
+PASS

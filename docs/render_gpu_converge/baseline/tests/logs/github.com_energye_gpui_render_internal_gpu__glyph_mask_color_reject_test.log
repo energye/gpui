@@ -1,0 +1,7 @@
+=== RUN   TestGlyphMaskRejectsColorRun
+--- PASS: TestGlyphMaskRejectsColorRun (0.00s)
+=== RUN   TestGlyphMaskKeepsOutlineRun
+--- PASS: TestGlyphMaskKeepsOutlineRun (0.00s)
+=== RUN   TestGlyphMaskRejectsShapedColorRun
+--- PASS: TestGlyphMaskRejectsShapedColorRun (0.00s)
+PASS

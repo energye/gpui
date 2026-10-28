@@ -1,0 +1,105 @@
+=== RUN   TestSplatF32
+=== RUN   TestSplatF32/zero
+=== RUN   TestSplatF32/one
+=== RUN   TestSplatF32/half
+=== RUN   TestSplatF32/negative
+--- PASS: TestSplatF32 (0.00s)
+    --- PASS: TestSplatF32/zero (0.00s)
+    --- PASS: TestSplatF32/one (0.00s)
+    --- PASS: TestSplatF32/half (0.00s)
+    --- PASS: TestSplatF32/negative (0.00s)
+=== RUN   TestF32x8_Add
+=== RUN   TestF32x8_Add/zeros
+=== RUN   TestF32x8_Add/ones
+=== RUN   TestF32x8_Add/mixed
+=== RUN   TestF32x8_Add/negative
+--- PASS: TestF32x8_Add (0.00s)
+    --- PASS: TestF32x8_Add/zeros (0.00s)
+    --- PASS: TestF32x8_Add/ones (0.00s)
+    --- PASS: TestF32x8_Add/mixed (0.00s)
+    --- PASS: TestF32x8_Add/negative (0.00s)
+=== RUN   TestF32x8_Sub
+=== RUN   TestF32x8_Sub/zeros
+=== RUN   TestF32x8_Sub/equal
+=== RUN   TestF32x8_Sub/mixed
+=== RUN   TestF32x8_Sub/negative_result
+--- PASS: TestF32x8_Sub (0.00s)
+    --- PASS: TestF32x8_Sub/zeros (0.00s)
+    --- PASS: TestF32x8_Sub/equal (0.00s)
+    --- PASS: TestF32x8_Sub/mixed (0.00s)
+    --- PASS: TestF32x8_Sub/negative_result (0.00s)
+=== RUN   TestF32x8_Mul
+=== RUN   TestF32x8_Mul/zeros
+=== RUN   TestF32x8_Mul/ones
+=== RUN   TestF32x8_Mul/mixed
+=== RUN   TestF32x8_Mul/negative
+--- PASS: TestF32x8_Mul (0.00s)
+    --- PASS: TestF32x8_Mul/zeros (0.00s)
+    --- PASS: TestF32x8_Mul/ones (0.00s)
+    --- PASS: TestF32x8_Mul/mixed (0.00s)
+    --- PASS: TestF32x8_Mul/negative (0.00s)
+=== RUN   TestF32x8_Div
+=== RUN   TestF32x8_Div/ones
+=== RUN   TestF32x8_Div/mixed
+=== RUN   TestF32x8_Div/fractional
+=== RUN   TestF32x8_Div/divide_by_zero
+--- PASS: TestF32x8_Div (0.00s)
+    --- PASS: TestF32x8_Div/ones (0.00s)
+    --- PASS: TestF32x8_Div/mixed (0.00s)
+    --- PASS: TestF32x8_Div/fractional (0.00s)
+    --- PASS: TestF32x8_Div/divide_by_zero (0.00s)
+=== RUN   TestF32x8_Sqrt
+=== RUN   TestF32x8_Sqrt/zero
+=== RUN   TestF32x8_Sqrt/one
+=== RUN   TestF32x8_Sqrt/four
+=== RUN   TestF32x8_Sqrt/nine
+=== RUN   TestF32x8_Sqrt/negative
+--- PASS: TestF32x8_Sqrt (0.00s)
+    --- PASS: TestF32x8_Sqrt/zero (0.00s)
+    --- PASS: TestF32x8_Sqrt/one (0.00s)
+    --- PASS: TestF32x8_Sqrt/four (0.00s)
+    --- PASS: TestF32x8_Sqrt/nine (0.00s)
+    --- PASS: TestF32x8_Sqrt/negative (0.00s)
+=== RUN   TestF32x8_Clamp
+=== RUN   TestF32x8_Clamp/within_range
+=== RUN   TestF32x8_Clamp/below_min
+=== RUN   TestF32x8_Clamp/above_max
+=== RUN   TestF32x8_Clamp/at_min
+=== RUN   TestF32x8_Clamp/at_max
+--- PASS: TestF32x8_Clamp (0.00s)
+    --- PASS: TestF32x8_Clamp/within_range (0.00s)
+    --- PASS: TestF32x8_Clamp/below_min (0.00s)
+    --- PASS: TestF32x8_Clamp/above_max (0.00s)
+    --- PASS: TestF32x8_Clamp/at_min (0.00s)
+    --- PASS: TestF32x8_Clamp/at_max (0.00s)
+=== RUN   TestF32x8_Lerp
+=== RUN   TestF32x8_Lerp/t=0
+=== RUN   TestF32x8_Lerp/t=1
+=== RUN   TestF32x8_Lerp/t=0.5
+=== RUN   TestF32x8_Lerp/t=0.25
+--- PASS: TestF32x8_Lerp (0.00s)
+    --- PASS: TestF32x8_Lerp/t=0 (0.00s)
+    --- PASS: TestF32x8_Lerp/t=1 (0.00s)
+    --- PASS: TestF32x8_Lerp/t=0.5 (0.00s)
+    --- PASS: TestF32x8_Lerp/t=0.25 (0.00s)
+=== RUN   TestF32x8_Min
+=== RUN   TestF32x8_Min/equal
+=== RUN   TestF32x8_Min/a_smaller
+=== RUN   TestF32x8_Min/b_smaller
+=== RUN   TestF32x8_Min/negative
+--- PASS: TestF32x8_Min (0.00s)
+    --- PASS: TestF32x8_Min/equal (0.00s)
+    --- PASS: TestF32x8_Min/a_smaller (0.00s)
+    --- PASS: TestF32x8_Min/b_smaller (0.00s)
+    --- PASS: TestF32x8_Min/negative (0.00s)
+=== RUN   TestF32x8_Max
+=== RUN   TestF32x8_Max/equal
+=== RUN   TestF32x8_Max/a_larger
+=== RUN   TestF32x8_Max/b_larger
+=== RUN   TestF32x8_Max/negative
+--- PASS: TestF32x8_Max (0.00s)
+    --- PASS: TestF32x8_Max/equal (0.00s)
+    --- PASS: TestF32x8_Max/a_larger (0.00s)
+    --- PASS: TestF32x8_Max/b_larger (0.00s)
+    --- PASS: TestF32x8_Max/negative (0.00s)
+PASS

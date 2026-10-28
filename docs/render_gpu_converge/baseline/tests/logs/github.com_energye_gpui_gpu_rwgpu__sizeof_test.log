@@ -1,0 +1,6 @@
+=== RUN   TestChainedStructSize
+    sizeof_test.go:9: ChainedStruct 16
+--- PASS: TestChainedStructSize (0.00s)
+=== RUN   TestInstanceExtrasWireSize
+--- PASS: TestInstanceExtrasWireSize (0.00s)
+PASS

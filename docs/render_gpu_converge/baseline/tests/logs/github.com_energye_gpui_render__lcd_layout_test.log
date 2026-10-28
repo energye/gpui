@@ -1,0 +1,13 @@
+=== RUN   TestLCDLayoutConstants
+=== RUN   TestLCDLayoutConstants/None
+=== RUN   TestLCDLayoutConstants/RGB
+=== RUN   TestLCDLayoutConstants/BGR
+--- PASS: TestLCDLayoutConstants (0.00s)
+    --- PASS: TestLCDLayoutConstants/None (0.00s)
+    --- PASS: TestLCDLayoutConstants/RGB (0.00s)
+    --- PASS: TestLCDLayoutConstants/BGR (0.00s)
+=== RUN   TestSetLCDLayout_NoAccelerator
+--- PASS: TestSetLCDLayout_NoAccelerator (0.00s)
+=== RUN   TestLCDLayoutType
+--- PASS: TestLCDLayoutType (0.00s)
+PASS

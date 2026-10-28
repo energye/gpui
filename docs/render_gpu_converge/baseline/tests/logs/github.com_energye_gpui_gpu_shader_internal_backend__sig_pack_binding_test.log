@@ -1,0 +1,77 @@
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_Position_VS_out
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_Position_PS_in
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_Depth_PS_out
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_Depth_non-PS
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_Coverage_PS_out
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_Coverage_non-PS
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_SampleIndex_PS_in
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_SampleIndex_VS_in
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_SampleIndex_PS_out
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_VertexID
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_InstanceID
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_IsFrontFace
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_GlobalInvocationID
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_LocalInvocationID
+=== RUN   TestSigElementInfoForBinding_AllBuiltinClasses/SV_WorkGroupID
+--- PASS: TestSigElementInfoForBinding_AllBuiltinClasses (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_Position_VS_out (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_Position_PS_in (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_Depth_PS_out (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_Depth_non-PS (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_Coverage_PS_out (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_Coverage_non-PS (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_SampleIndex_PS_in (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_SampleIndex_VS_in (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_SampleIndex_PS_out (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_VertexID (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_InstanceID (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_IsFrontFace (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_GlobalInvocationID (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_LocalInvocationID (0.00s)
+    --- PASS: TestSigElementInfoForBinding_AllBuiltinClasses/SV_WorkGroupID (0.00s)
+=== RUN   TestSigElementInfoForBinding_ClipDistance
+--- PASS: TestSigElementInfoForBinding_ClipDistance (0.00s)
+=== RUN   TestSigElementInfoForBinding_LocationFragTarget
+--- PASS: TestSigElementInfoForBinding_LocationFragTarget (0.00s)
+=== RUN   TestSigElementInfoForBinding_DualSourceBlending
+--- PASS: TestSigElementInfoForBinding_DualSourceBlending (0.00s)
+=== RUN   TestSigElementInfoForBinding_LocationWithInterp
+--- PASS: TestSigElementInfoForBinding_LocationWithInterp (0.00s)
+=== RUN   TestComponentDimensions
+=== RUN   TestComponentDimensions/f32_scalar_->_1_col_1_row
+=== RUN   TestComponentDimensions/vec2<f32>_->_2_cols_1_row
+=== RUN   TestComponentDimensions/vec3<f32>_->_3_cols_1_row
+=== RUN   TestComponentDimensions/vec4<f32>_->_4_cols_1_row
+=== RUN   TestComponentDimensions/array<f32,_3>_->_1_col_3_rows_(ClipDistance)
+=== RUN   TestComponentDimensions/array<f32,_8>_->_capped_at_4_rows
+=== RUN   TestComponentDimensions/array<vec3,_2>_->_non-scalar_base_defaults_to_4/1
+=== RUN   TestComponentDimensions/array_with_out-of-bounds_base_->_defaults_to_4/1
+--- PASS: TestComponentDimensions (0.00s)
+    --- PASS: TestComponentDimensions/f32_scalar_->_1_col_1_row (0.00s)
+    --- PASS: TestComponentDimensions/vec2<f32>_->_2_cols_1_row (0.00s)
+    --- PASS: TestComponentDimensions/vec3<f32>_->_3_cols_1_row (0.00s)
+    --- PASS: TestComponentDimensions/vec4<f32>_->_4_cols_1_row (0.00s)
+    --- PASS: TestComponentDimensions/array<f32,_3>_->_1_col_3_rows_(ClipDistance) (0.00s)
+    --- PASS: TestComponentDimensions/array<f32,_8>_->_capped_at_4_rows (0.00s)
+    --- PASS: TestComponentDimensions/array<vec3,_2>_->_non-scalar_base_defaults_to_4/1 (0.00s)
+    --- PASS: TestComponentDimensions/array_with_out-of-bounds_base_->_defaults_to_4/1 (0.00s)
+=== RUN   TestComponentDimensions_NilModule
+--- PASS: TestComponentDimensions_NilModule (0.00s)
+=== RUN   TestPackStructMembers_VertexShaderOutput
+--- PASS: TestPackStructMembers_VertexShaderOutput (0.00s)
+=== RUN   TestPackStructMembers_VSInputNoPacking
+--- PASS: TestPackStructMembers_VSInputNoPacking (0.00s)
+=== RUN   TestPackStructMembers_NilBinding
+--- PASS: TestPackStructMembers_NilBinding (0.00s)
+=== RUN   TestPackStructMembers_Empty
+--- PASS: TestPackStructMembers_Empty (0.00s)
+=== RUN   TestPackSignatureElements_ZeroColCountLocation
+--- PASS: TestPackSignatureElements_ZeroColCountLocation (0.00s)
+=== RUN   TestPackSignatureElements_ScalarArrayZeroRows
+--- PASS: TestPackSignatureElements_ScalarArrayZeroRows (0.00s)
+=== RUN   TestPackSignatureElements_TargetOutputAdvancesNextRow
+--- PASS: TestPackSignatureElements_TargetOutputAdvancesNextRow (0.00s)
+=== RUN   TestPackSignatureElements_BuiltinClearsOpenRows
+--- PASS: TestPackSignatureElements_BuiltinClearsOpenRows (0.00s)
+PASS

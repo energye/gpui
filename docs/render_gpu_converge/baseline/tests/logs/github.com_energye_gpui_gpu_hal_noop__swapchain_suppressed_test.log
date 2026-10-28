@@ -1,0 +1,7 @@
+=== RUN   TestSetSwapchainSuppressed_NoopNoPanic
+--- PASS: TestSetSwapchainSuppressed_NoopNoPanic (0.00s)
+=== RUN   TestSetSwapchainSuppressed_SubmitDuringSuppression
+--- PASS: TestSetSwapchainSuppressed_SubmitDuringSuppression (0.00s)
+=== RUN   TestSetSwapchainSuppressed_Idempotent
+--- PASS: TestSetSwapchainSuppressed_Idempotent (0.00s)
+PASS

@@ -1,0 +1,43 @@
+=== RUN   TestDefaultTextRendererConfig
+--- PASS: TestDefaultTextRendererConfig (0.00s)
+=== RUN   TestNewTextRenderer
+--- PASS: TestNewTextRenderer (0.00s)
+=== RUN   TestNewTextRendererWithConfig
+--- PASS: TestNewTextRendererWithConfig (0.00s)
+=== RUN   TestTextRenderer_SetConfig
+--- PASS: TestTextRenderer_SetConfig (0.00s)
+=== RUN   TestTextRendererPool
+--- PASS: TestTextRendererPool (0.00s)
+=== RUN   TestTextBounds_Empty
+--- PASS: TestTextBounds_Empty (0.00s)
+=== RUN   TestTextAdvance_Empty
+--- PASS: TestTextAdvance_Empty (0.00s)
+=== RUN   TestTextAdvance_WithGlyphs
+--- PASS: TestTextAdvance_WithGlyphs (0.00s)
+=== RUN   TestRenderedGlyph_Fields
+--- PASS: TestRenderedGlyph_Fields (0.00s)
+=== RUN   TestAppendPath
+=== RUN   TestAppendPath/nil_src
+=== RUN   TestAppendPath/empty_src
+=== RUN   TestAppendPath/append_paths
+--- PASS: TestAppendPath (0.00s)
+    --- PASS: TestAppendPath/nil_src (0.00s)
+    --- PASS: TestAppendPath/empty_src (0.00s)
+    --- PASS: TestAppendPath/append_paths (0.00s)
+=== RUN   TestTextRenderer_RenderGlyphs_EmptySlice
+--- PASS: TestTextRenderer_RenderGlyphs_EmptySlice (0.00s)
+=== RUN   TestTextRenderer_RenderRun_Nil
+--- PASS: TestTextRenderer_RenderRun_Nil (0.00s)
+=== RUN   TestTextRenderer_RenderText_Empty
+--- PASS: TestTextRenderer_RenderText_Empty (0.00s)
+=== RUN   TestScene_DrawText_Empty
+--- PASS: TestScene_DrawText_Empty (0.00s)
+=== RUN   TestTextRenderer_ToCompositePath_Empty
+--- PASS: TestTextRenderer_ToCompositePath_Empty (0.00s)
+=== RUN   TestTextRenderer_ToCompositePath_WithGlyphs
+--- PASS: TestTextRenderer_ToCompositePath_WithGlyphs (0.00s)
+=== RUN   TestNewTextShape_Empty
+--- PASS: TestNewTextShape_Empty (0.00s)
+=== RUN   TestTextShape_Bounds_Empty
+--- PASS: TestTextShape_Bounds_Empty (0.00s)
+PASS

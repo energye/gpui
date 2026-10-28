@@ -1,0 +1,193 @@
+=== RUN   TestNewSoftwareRenderer
+--- PASS: TestNewSoftwareRenderer (0.00s)
+=== RUN   TestSoftwareRendererResize
+--- PASS: TestSoftwareRendererResize (0.00s)
+=== RUN   TestSoftwareRendererResizeWithDeviceScale
+--- PASS: TestSoftwareRendererResizeWithDeviceScale (0.00s)
+=== RUN   TestSoftwareRendererSetDeviceScale
+=== RUN   TestSoftwareRendererSetDeviceScale/normal_1x
+=== RUN   TestSoftwareRendererSetDeviceScale/retina_2x
+=== RUN   TestSoftwareRendererSetDeviceScale/3x
+=== RUN   TestSoftwareRendererSetDeviceScale/zero_clamps_to_1
+=== RUN   TestSoftwareRendererSetDeviceScale/negative_clamps_to_1
+--- PASS: TestSoftwareRendererSetDeviceScale (0.00s)
+    --- PASS: TestSoftwareRendererSetDeviceScale/normal_1x (0.00s)
+    --- PASS: TestSoftwareRendererSetDeviceScale/retina_2x (0.00s)
+    --- PASS: TestSoftwareRendererSetDeviceScale/3x (0.00s)
+    --- PASS: TestSoftwareRendererSetDeviceScale/zero_clamps_to_1 (0.00s)
+    --- PASS: TestSoftwareRendererSetDeviceScale/negative_clamps_to_1 (0.00s)
+=== RUN   TestAdaptiveThresholdExtended
+=== RUN   TestAdaptiveThresholdExtended/zero_area
+=== RUN   TestAdaptiveThresholdExtended/negative_area
+=== RUN   TestAdaptiveThresholdExtended/small_area_(100)
+=== RUN   TestAdaptiveThresholdExtended/medium_area_(10000)
+=== RUN   TestAdaptiveThresholdExtended/large_area_(1000000)
+=== RUN   TestAdaptiveThresholdExtended/exact_100x100
+--- PASS: TestAdaptiveThresholdExtended (0.00s)
+    --- PASS: TestAdaptiveThresholdExtended/zero_area (0.00s)
+    --- PASS: TestAdaptiveThresholdExtended/negative_area (0.00s)
+    --- PASS: TestAdaptiveThresholdExtended/small_area_(100) (0.00s)
+    --- PASS: TestAdaptiveThresholdExtended/medium_area_(10000) (0.00s)
+    --- PASS: TestAdaptiveThresholdExtended/large_area_(1000000) (0.00s)
+    --- PASS: TestAdaptiveThresholdExtended/exact_100x100 (0.00s)
+=== RUN   TestAdaptiveThresholdClamping
+--- PASS: TestAdaptiveThresholdClamping (0.00s)
+=== RUN   TestPathBoundsEmpty
+--- PASS: TestPathBoundsEmpty (0.00s)
+=== RUN   TestPathBoundsRectangle
+--- PASS: TestPathBoundsRectangle (0.00s)
+=== RUN   TestPathBoundsCircle
+--- PASS: TestPathBoundsCircle (0.00s)
+=== RUN   TestPathBoundsWithQuadCurve
+--- PASS: TestPathBoundsWithQuadCurve (0.00s)
+=== RUN   TestShouldUseTileRasterizerExtended
+=== RUN   TestShouldUseTileRasterizerExtended/empty_path
+=== RUN   TestShouldUseTileRasterizerExtended/small_rectangle_(below_min_area)
+=== RUN   TestShouldUseTileRasterizerExtended/thin_line_(below_min_dimension)
+=== RUN   TestShouldUseTileRasterizerExtended/simple_rectangle_(not_enough_elements)
+=== RUN   TestShouldUseTileRasterizerExtended/complex_path_with_many_elements
+--- PASS: TestShouldUseTileRasterizerExtended (0.00s)
+    --- PASS: TestShouldUseTileRasterizerExtended/empty_path (0.00s)
+    --- PASS: TestShouldUseTileRasterizerExtended/small_rectangle_(below_min_area) (0.00s)
+    --- PASS: TestShouldUseTileRasterizerExtended/thin_line_(below_min_dimension) (0.00s)
+    --- PASS: TestShouldUseTileRasterizerExtended/simple_rectangle_(not_enough_elements) (0.00s)
+    --- PASS: TestShouldUseTileRasterizerExtended/complex_path_with_many_elements (0.00s)
+=== RUN   TestSolidColorFromPaintExtended
+=== RUN   TestSolidColorFromPaintExtended/solid_brush
+=== RUN   TestSolidColorFromPaintExtended/non-solid_brush
+=== RUN   TestSolidColorFromPaintExtended/solid_pattern_fallback
+=== RUN   TestSolidColorFromPaintExtended/nil_brush_and_nil_pattern
+--- PASS: TestSolidColorFromPaintExtended (0.00s)
+    --- PASS: TestSolidColorFromPaintExtended/solid_brush (0.00s)
+    --- PASS: TestSolidColorFromPaintExtended/non-solid_brush (0.00s)
+    --- PASS: TestSolidColorFromPaintExtended/solid_pattern_fallback (0.00s)
+    --- PASS: TestSolidColorFromPaintExtended/nil_brush_and_nil_pattern (0.00s)
+=== RUN   TestApplyClipCoverage
+=== RUN   TestApplyClipCoverage/nil_clip_returns_unchanged
+=== RUN   TestApplyClipCoverage/clip_returns_zero
+=== RUN   TestApplyClipCoverage/clip_returns_full
+=== RUN   TestApplyClipCoverage/clip_returns_half
+--- PASS: TestApplyClipCoverage (0.00s)
+    --- PASS: TestApplyClipCoverage/nil_clip_returns_unchanged (0.00s)
+    --- PASS: TestApplyClipCoverage/clip_returns_zero (0.00s)
+    --- PASS: TestApplyClipCoverage/clip_returns_full (0.00s)
+    --- PASS: TestApplyClipCoverage/clip_returns_half (0.00s)
+=== RUN   TestApplyMaskCoverage
+=== RUN   TestApplyMaskCoverage/nil_mask_returns_unchanged
+=== RUN   TestApplyMaskCoverage/mask_returns_zero
+=== RUN   TestApplyMaskCoverage/mask_returns_full
+=== RUN   TestApplyMaskCoverage/mask_returns_half
+--- PASS: TestApplyMaskCoverage (0.00s)
+    --- PASS: TestApplyMaskCoverage/nil_mask_returns_unchanged (0.00s)
+    --- PASS: TestApplyMaskCoverage/mask_returns_zero (0.00s)
+    --- PASS: TestApplyMaskCoverage/mask_returns_full (0.00s)
+    --- PASS: TestApplyMaskCoverage/mask_returns_half (0.00s)
+=== RUN   TestSoftwareRendererFillSimplePath
+--- PASS: TestSoftwareRendererFillSimplePath (0.00s)
+=== RUN   TestSoftwareRendererFillEmptyPath
+--- PASS: TestSoftwareRendererFillEmptyPath (0.00s)
+=== RUN   TestSoftwareRendererFillEvenOdd
+--- PASS: TestSoftwareRendererFillEvenOdd (0.00s)
+=== RUN   TestSoftwareRendererStroke
+--- PASS: TestSoftwareRendererStroke (0.00s)
+=== RUN   TestSoftwareRendererStrokeMinWidth
+--- PASS: TestSoftwareRendererStrokeMinWidth (0.00s)
+=== RUN   TestSoftwareRendererStrokeLineCaps
+=== RUN   TestSoftwareRendererStrokeLineCaps/butt
+=== RUN   TestSoftwareRendererStrokeLineCaps/round
+=== RUN   TestSoftwareRendererStrokeLineCaps/square
+--- PASS: TestSoftwareRendererStrokeLineCaps (0.00s)
+    --- PASS: TestSoftwareRendererStrokeLineCaps/butt (0.00s)
+    --- PASS: TestSoftwareRendererStrokeLineCaps/round (0.00s)
+    --- PASS: TestSoftwareRendererStrokeLineCaps/square (0.00s)
+=== RUN   TestSoftwareRendererStrokeLineJoins
+=== RUN   TestSoftwareRendererStrokeLineJoins/miter
+=== RUN   TestSoftwareRendererStrokeLineJoins/round
+=== RUN   TestSoftwareRendererStrokeLineJoins/bevel
+--- PASS: TestSoftwareRendererStrokeLineJoins (0.00s)
+    --- PASS: TestSoftwareRendererStrokeLineJoins/miter (0.00s)
+    --- PASS: TestSoftwareRendererStrokeLineJoins/round (0.00s)
+    --- PASS: TestSoftwareRendererStrokeLineJoins/bevel (0.00s)
+=== RUN   TestSoftwareRendererStrokeWithDeviceScale
+--- PASS: TestSoftwareRendererStrokeWithDeviceScale (0.00s)
+=== RUN   TestSoftwareRendererStrokeDashed
+--- PASS: TestSoftwareRendererStrokeDashed (0.00s)
+=== RUN   TestSoftwareRendererStrokeDashScaled
+--- PASS: TestSoftwareRendererStrokeDashScaled (0.00s)
+=== RUN   TestConvertGGPathToCorePath
+--- PASS: TestConvertGGPathToCorePath (0.00s)
+=== RUN   TestConvertGGPathToCorePathEmpty
+--- PASS: TestConvertGGPathToCorePathEmpty (0.00s)
+=== RUN   TestConvertLineCap
+--- PASS: TestConvertLineCap (0.00s)
+=== RUN   TestConvertLineJoin
+--- PASS: TestConvertLineJoin (0.00s)
+=== RUN   TestBlendCoverageSolidBoundsCheck
+--- PASS: TestBlendCoverageSolidBoundsCheck (0.00s)
+=== RUN   TestBlendCoverageSolidFullOpaque
+--- PASS: TestBlendCoverageSolidFullOpaque (0.00s)
+=== RUN   TestBlendCoverageSolidPartialCoverage
+--- PASS: TestBlendCoverageSolidPartialCoverage (0.00s)
+=== RUN   TestBlendCoveragePaintBoundsCheck
+--- PASS: TestBlendCoveragePaintBoundsCheck (0.00s)
+=== RUN   TestBlendCoveragePaintFullOpaque
+--- PASS: TestBlendCoveragePaintFullOpaque (0.00s)
+=== RUN   TestPointLineDistanceSoftware
+=== RUN   TestPointLineDistanceSoftware/point_on_line
+=== RUN   TestPointLineDistanceSoftware/point_above_line
+=== RUN   TestPointLineDistanceSoftware/degenerate_line_(point)
+--- PASS: TestPointLineDistanceSoftware (0.00s)
+    --- PASS: TestPointLineDistanceSoftware/point_on_line (0.00s)
+    --- PASS: TestPointLineDistanceSoftware/point_above_line (0.00s)
+    --- PASS: TestPointLineDistanceSoftware/degenerate_line_(point) (0.00s)
+=== RUN   TestPathEndAt
+--- PASS: TestPathEndAt (0.00s)
+=== RUN   TestDashStateAtOffset
+=== RUN   TestDashStateAtOffset/zero_offset
+=== RUN   TestDashStateAtOffset/in_first_dash
+=== RUN   TestDashStateAtOffset/in_first_gap
+=== RUN   TestDashStateAtOffset/at_pattern_boundary
+--- PASS: TestDashStateAtOffset (0.00s)
+    --- PASS: TestDashStateAtOffset/zero_offset (0.00s)
+    --- PASS: TestDashStateAtOffset/in_first_dash (0.00s)
+    --- PASS: TestDashStateAtOffset/in_first_gap (0.00s)
+    --- PASS: TestDashStateAtOffset/at_pattern_boundary (0.00s)
+=== RUN   TestDashStateAtOffsetEmptyPattern
+--- PASS: TestDashStateAtOffsetEmptyPattern (0.00s)
+=== RUN   TestSoftwareRendererForcedAnalytic
+--- PASS: TestSoftwareRendererForcedAnalytic (0.00s)
+=== RUN   TestSoftwareRendererForcedSparseStrips
+--- PASS: TestSoftwareRendererForcedSparseStrips (0.00s)
+=== RUN   TestSoftwareRendererForcedTileCompute
+--- PASS: TestSoftwareRendererForcedTileCompute (0.00s)
+=== RUN   TestSoftwareRendererFillGradient
+--- PASS: TestSoftwareRendererFillGradient (0.00s)
+=== RUN   TestSoftwareRendererFillEvenOddGradient
+--- PASS: TestSoftwareRendererFillEvenOddGradient (0.00s)
+=== RUN   TestSoftwareRendererStrokeGradient
+--- PASS: TestSoftwareRendererStrokeGradient (0.00s)
+=== RUN   TestSoftwareRendererStrokeMiterLimit
+--- PASS: TestSoftwareRendererStrokeMiterLimit (0.00s)
+=== RUN   TestBlendCoveragePaintPartialCoverage
+--- PASS: TestBlendCoveragePaintPartialCoverage (0.00s)
+=== RUN   TestPathEndAtQuadAndCubic
+--- PASS: TestPathEndAtQuadAndCubic (0.00s)
+=== RUN   TestDashStateAtNegativeOffset
+--- PASS: TestDashStateAtNegativeOffset (0.00s)
+=== RUN   TestFlattenQuadForDash
+--- PASS: TestFlattenQuadForDash (0.00s)
+=== RUN   TestFlattenCubicForDash
+--- PASS: TestFlattenCubicForDash (0.00s)
+=== RUN   TestDashPathNilDash
+--- PASS: TestDashPathNilDash (0.00s)
+=== RUN   TestDashPathWithClose
+--- PASS: TestDashPathWithClose (0.00s)
+=== RUN   TestDashPathWithOffset
+--- PASS: TestDashPathWithOffset (0.00s)
+=== RUN   TestDashPathZeroLengthSegment
+--- PASS: TestDashPathZeroLengthSegment (0.00s)
+=== RUN   TestDashPathMultipleSubpaths
+--- PASS: TestDashPathMultipleSubpaths (0.00s)
+=== RUN   TestDashPathWithLongPath
+--- PASS: TestDashPathWithLongPath (0.00s)
+PASS

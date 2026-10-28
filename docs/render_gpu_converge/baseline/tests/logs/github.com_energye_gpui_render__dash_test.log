@@ -1,0 +1,97 @@
+=== RUN   TestNewDash
+=== RUN   TestNewDash/empty_input_returns_nil
+=== RUN   TestNewDash/nil_input_returns_nil
+=== RUN   TestNewDash/all_zeros_returns_nil
+=== RUN   TestNewDash/simple_dash-gap_pattern
+=== RUN   TestNewDash/single_value_(becomes_duplicated_pattern)
+=== RUN   TestNewDash/complex_pattern
+=== RUN   TestNewDash/negative_values_become_absolute
+=== RUN   TestNewDash/all_negative_zeros_returns_nil
+=== RUN   TestNewDash/mixed_positive_and_zero
+--- PASS: TestNewDash (0.00s)
+    --- PASS: TestNewDash/empty_input_returns_nil (0.00s)
+    --- PASS: TestNewDash/nil_input_returns_nil (0.00s)
+    --- PASS: TestNewDash/all_zeros_returns_nil (0.00s)
+    --- PASS: TestNewDash/simple_dash-gap_pattern (0.00s)
+    --- PASS: TestNewDash/single_value_(becomes_duplicated_pattern) (0.00s)
+    --- PASS: TestNewDash/complex_pattern (0.00s)
+    --- PASS: TestNewDash/negative_values_become_absolute (0.00s)
+    --- PASS: TestNewDash/all_negative_zeros_returns_nil (0.00s)
+    --- PASS: TestNewDash/mixed_positive_and_zero (0.00s)
+=== RUN   TestDash_WithOffset
+=== RUN   TestDash_WithOffset/nil_dash_returns_nil
+=== RUN   TestDash_WithOffset/positive_offset
+=== RUN   TestDash_WithOffset/negative_offset
+=== RUN   TestDash_WithOffset/zero_offset
+--- PASS: TestDash_WithOffset (0.00s)
+    --- PASS: TestDash_WithOffset/nil_dash_returns_nil (0.00s)
+    --- PASS: TestDash_WithOffset/positive_offset (0.00s)
+    --- PASS: TestDash_WithOffset/negative_offset (0.00s)
+    --- PASS: TestDash_WithOffset/zero_offset (0.00s)
+=== RUN   TestDash_PatternLength
+=== RUN   TestDash_PatternLength/nil_dash
+=== RUN   TestDash_PatternLength/simple_even_pattern
+=== RUN   TestDash_PatternLength/odd_pattern_(duplicated)
+=== RUN   TestDash_PatternLength/complex_even_pattern
+=== RUN   TestDash_PatternLength/three_element_odd_pattern
+--- PASS: TestDash_PatternLength (0.00s)
+    --- PASS: TestDash_PatternLength/nil_dash (0.00s)
+    --- PASS: TestDash_PatternLength/simple_even_pattern (0.00s)
+    --- PASS: TestDash_PatternLength/odd_pattern_(duplicated) (0.00s)
+    --- PASS: TestDash_PatternLength/complex_even_pattern (0.00s)
+    --- PASS: TestDash_PatternLength/three_element_odd_pattern (0.00s)
+=== RUN   TestDash_IsDashed
+=== RUN   TestDash_IsDashed/nil_dash
+=== RUN   TestDash_IsDashed/valid_dash
+=== RUN   TestDash_IsDashed/single_element_dash
+=== RUN   TestDash_IsDashed/empty_array_dash
+=== RUN   TestDash_IsDashed/all_zeros_dash
+--- PASS: TestDash_IsDashed (0.00s)
+    --- PASS: TestDash_IsDashed/nil_dash (0.00s)
+    --- PASS: TestDash_IsDashed/valid_dash (0.00s)
+    --- PASS: TestDash_IsDashed/single_element_dash (0.00s)
+    --- PASS: TestDash_IsDashed/empty_array_dash (0.00s)
+    --- PASS: TestDash_IsDashed/all_zeros_dash (0.00s)
+=== RUN   TestDash_Clone
+=== RUN   TestDash_Clone/nil_dash_returns_nil
+=== RUN   TestDash_Clone/clones_array_and_offset
+=== RUN   TestDash_Clone/modifying_clone_does_not_affect_original
+--- PASS: TestDash_Clone (0.00s)
+    --- PASS: TestDash_Clone/nil_dash_returns_nil (0.00s)
+    --- PASS: TestDash_Clone/clones_array_and_offset (0.00s)
+    --- PASS: TestDash_Clone/modifying_clone_does_not_affect_original (0.00s)
+=== RUN   TestDash_NormalizedOffset
+=== RUN   TestDash_NormalizedOffset/nil_dash
+=== RUN   TestDash_NormalizedOffset/offset_within_pattern
+=== RUN   TestDash_NormalizedOffset/offset_equals_pattern_length
+=== RUN   TestDash_NormalizedOffset/offset_greater_than_pattern
+=== RUN   TestDash_NormalizedOffset/negative_offset
+=== RUN   TestDash_NormalizedOffset/large_negative_offset
+--- PASS: TestDash_NormalizedOffset (0.00s)
+    --- PASS: TestDash_NormalizedOffset/nil_dash (0.00s)
+    --- PASS: TestDash_NormalizedOffset/offset_within_pattern (0.00s)
+    --- PASS: TestDash_NormalizedOffset/offset_equals_pattern_length (0.00s)
+    --- PASS: TestDash_NormalizedOffset/offset_greater_than_pattern (0.00s)
+    --- PASS: TestDash_NormalizedOffset/negative_offset (0.00s)
+    --- PASS: TestDash_NormalizedOffset/large_negative_offset (0.00s)
+=== RUN   TestDash_effectiveArray
+=== RUN   TestDash_effectiveArray/nil_dash
+=== RUN   TestDash_effectiveArray/empty_array
+=== RUN   TestDash_effectiveArray/even_length_array_unchanged
+=== RUN   TestDash_effectiveArray/odd_length_array_duplicated
+=== RUN   TestDash_effectiveArray/three_element_array_duplicated
+--- PASS: TestDash_effectiveArray (0.00s)
+    --- PASS: TestDash_effectiveArray/nil_dash (0.00s)
+    --- PASS: TestDash_effectiveArray/empty_array (0.00s)
+    --- PASS: TestDash_effectiveArray/even_length_array_unchanged (0.00s)
+    --- PASS: TestDash_effectiveArray/odd_length_array_duplicated (0.00s)
+    --- PASS: TestDash_effectiveArray/three_element_array_duplicated (0.00s)
+=== RUN   TestDash_EdgeCases
+=== RUN   TestDash_EdgeCases/very_large_values
+=== RUN   TestDash_EdgeCases/very_small_values
+=== RUN   TestDash_EdgeCases/mixed_small_and_large
+--- PASS: TestDash_EdgeCases (0.00s)
+    --- PASS: TestDash_EdgeCases/very_large_values (0.00s)
+    --- PASS: TestDash_EdgeCases/very_small_values (0.00s)
+    --- PASS: TestDash_EdgeCases/mixed_small_and_large (0.00s)
+PASS

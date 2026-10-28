@@ -1,0 +1,4 @@
+=== RUN   TestPictureTextureCache_ExplicitBudget
+    textured_budget_test.go:33: record without GPU should fail
+--- FAIL: TestPictureTextureCache_ExplicitBudget (0.26s)
+FAIL

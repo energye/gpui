@@ -1,0 +1,5 @@
+=== RUN   TestScope_ResolvePriority
+--- PASS: TestScope_ResolvePriority (0.00s)
+=== RUN   TestScope_FocusRing
+--- PASS: TestScope_FocusRing (0.00s)
+PASS

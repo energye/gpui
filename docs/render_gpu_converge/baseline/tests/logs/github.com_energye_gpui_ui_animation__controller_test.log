@@ -1,0 +1,5 @@
+=== RUN   TestController_OneShotAutoRemove
+--- PASS: TestController_OneShotAutoRemove (0.00s)
+=== RUN   TestController_Repeat
+--- PASS: TestController_Repeat (0.00s)
+PASS

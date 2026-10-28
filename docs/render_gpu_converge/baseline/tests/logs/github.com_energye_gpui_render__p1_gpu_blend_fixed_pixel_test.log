@@ -1,0 +1,38 @@
+=== RUN   TestP12GPUFixedPixel_BlendCopy
+    p1_gpu_blend_fixed_pixel_test.go:38: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_blend_fixed_pixel_test.go:45: copy center rgba=255,127,127,255
+--- PASS: TestP12GPUFixedPixel_BlendCopy (0.28s)
+=== RUN   TestP12GPUFixedPixel_BlendPlus
+    p1_gpu_blend_fixed_pixel_test.go:85: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_blend_fixed_pixel_test.go:91: plus center rgba=128,128,0,255
+--- PASS: TestP12GPUFixedPixel_BlendPlus (0.00s)
+=== RUN   TestP12GPUFixedPixel_BlendModulate
+    p1_gpu_blend_fixed_pixel_test.go:123: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_blend_fixed_pixel_test.go:131: modulate center rgba=128,0,0,255
+--- PASS: TestP12GPUFixedPixel_BlendModulate (0.00s)
+=== RUN   TestP12GPUFixedPixel_BlendClear
+    p1_gpu_blend_fixed_pixel_test.go:165: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_blend_fixed_pixel_test.go:174: clear center rgba=255,255,255,255
+--- PASS: TestP12GPUFixedPixel_BlendClear (0.00s)
+=== RUN   TestP12GPUFixedPixel_BlendSourceOut
+    p1_gpu_blend_fixed_pixel_test.go:209: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_blend_fixed_pixel_test.go:214: srcOut center rgba=255,255,255
+--- PASS: TestP12GPUFixedPixel_BlendSourceOut (0.00s)
+=== RUN   TestP12GPUFixedPixel_BlendDestinationIn
+    p1_gpu_blend_fixed_pixel_test.go:246: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_blend_fixed_pixel_test.go:251: dstIn center rgba=127,127,255,255
+--- PASS: TestP12GPUFixedPixel_BlendDestinationIn (0.00s)
+=== RUN   TestP12GPUFixedPixel_BlendSourceIn
+    p1_gpu_blend_fixed_pixel_test.go:287: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_blend_fixed_pixel_test.go:292: srcIn center rgba=128,0,0,128
+--- PASS: TestP12GPUFixedPixel_BlendSourceIn (0.00s)
+=== RUN   TestP12GPUFixedPixel_BlendDestinationOver
+    p1_gpu_blend_fixed_pixel_test.go:331: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_blend_fixed_pixel_test.go:336: dstOver center rgba=255,0,0
+    p1_gpu_blend_fixed_pixel_test.go:341: dstOver outside rgba=0,0,255
+--- PASS: TestP12GPUFixedPixel_BlendDestinationOver (0.00s)
+=== RUN   TestP12GPUFixedPixel_BlendDestinationAtop
+    p1_gpu_blend_fixed_pixel_test.go:368: path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=1
+    p1_gpu_blend_fixed_pixel_test.go:373: dstAtop center rgba=127,127,255
+--- PASS: TestP12GPUFixedPixel_BlendDestinationAtop (0.00s)
+PASS

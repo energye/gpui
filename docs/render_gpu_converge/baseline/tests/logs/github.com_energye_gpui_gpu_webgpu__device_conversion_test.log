@@ -1,0 +1,23 @@
+=== RUN   TestStencilOperationValuesMatchNativeTypes
+=== RUN   TestStencilOperationValuesMatchNativeTypes/Keep
+=== RUN   TestStencilOperationValuesMatchNativeTypes/Zero
+=== RUN   TestStencilOperationValuesMatchNativeTypes/Replace
+=== RUN   TestStencilOperationValuesMatchNativeTypes/Invert
+=== RUN   TestStencilOperationValuesMatchNativeTypes/IncrementClamp
+=== RUN   TestStencilOperationValuesMatchNativeTypes/DecrementClamp
+=== RUN   TestStencilOperationValuesMatchNativeTypes/IncrementWrap
+=== RUN   TestStencilOperationValuesMatchNativeTypes/DecrementWrap
+--- PASS: TestStencilOperationValuesMatchNativeTypes (0.00s)
+    --- PASS: TestStencilOperationValuesMatchNativeTypes/Keep (0.00s)
+    --- PASS: TestStencilOperationValuesMatchNativeTypes/Zero (0.00s)
+    --- PASS: TestStencilOperationValuesMatchNativeTypes/Replace (0.00s)
+    --- PASS: TestStencilOperationValuesMatchNativeTypes/Invert (0.00s)
+    --- PASS: TestStencilOperationValuesMatchNativeTypes/IncrementClamp (0.00s)
+    --- PASS: TestStencilOperationValuesMatchNativeTypes/DecrementClamp (0.00s)
+    --- PASS: TestStencilOperationValuesMatchNativeTypes/IncrementWrap (0.00s)
+    --- PASS: TestStencilOperationValuesMatchNativeTypes/DecrementWrap (0.00s)
+=== RUN   TestConvertDepthStencilStateUsesNativeStencilValues
+--- PASS: TestConvertDepthStencilStateUsesNativeStencilValues (0.00s)
+=== RUN   TestConvertRenderPipelineDescKeepsVertexAttributesAlive
+--- PASS: TestConvertRenderPipelineDescKeepsVertexAttributesAlive (0.00s)
+PASS

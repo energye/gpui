@@ -1,0 +1,19 @@
+=== RUN   TestSaveLayer_BudgetRejectsExcessOps
+--- PASS: TestSaveLayer_BudgetRejectsExcessOps (0.00s)
+=== RUN   TestSaveLayer_BudgetRejectsArea
+--- PASS: TestSaveLayer_BudgetRejectsArea (0.00s)
+=== RUN   TestSaveLayer_OpacityCompositesGroup
+--- PASS: TestSaveLayer_OpacityCompositesGroup (0.00s)
+=== RUN   TestSaveLayer_RestoreNoOpWhenEmpty
+--- PASS: TestSaveLayer_RestoreNoOpWhenEmpty (0.00s)
+=== RUN   TestPushClipPath_TriangleClipsFill
+--- PASS: TestPushClipPath_TriangleClipsFill (0.00s)
+=== RUN   TestSaveLayer_NestedDepth
+--- PASS: TestSaveLayer_NestedDepth (0.00s)
+=== RUN   TestSaveLayer_StatsCountsAllowReject
+--- PASS: TestSaveLayer_StatsCountsAllowReject (0.00s)
+=== RUN   TestSaveLayer_StatsAllowNoBudget
+--- PASS: TestSaveLayer_StatsAllowNoBudget (0.00s)
+=== RUN   TestWithOrigin_SharesLayerStats
+--- PASS: TestWithOrigin_SharesLayerStats (0.00s)
+PASS

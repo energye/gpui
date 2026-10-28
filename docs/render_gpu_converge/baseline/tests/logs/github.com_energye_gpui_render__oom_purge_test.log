@@ -1,0 +1,7 @@
+=== RUN   TestPurgeEvictables_RunsRegistered
+--- PASS: TestPurgeEvictables_RunsRegistered (0.00s)
+=== RUN   TestPurgeEvictables_NilIgnored
+--- PASS: TestPurgeEvictables_NilIgnored (0.00s)
+=== RUN   TestIsGPUOutOfMemory
+--- PASS: TestIsGPUOutOfMemory (0.00s)
+PASS

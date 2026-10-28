@@ -1,0 +1,9 @@
+=== RUN   TestS66_PresentPathStrokeDash_NoRegress
+    s6_6_path_geometry_test.go:93: S6.6 path/stroke/dash present p50=7.08ms soft=66.80 main=16.70
+--- PASS: TestS66_PresentPathStrokeDash_NoRegress (0.38s)
+=== RUN   TestS66_PresentRetainedStroke_NoRegress
+    s6_6_path_geometry_test.go:154: S6.6 retained stroke present p50=1.48ms budget=16.70
+--- PASS: TestS66_PresentRetainedStroke_NoRegress (0.02s)
+=== RUN   TestS66_L0_HelpersStillGreen
+--- PASS: TestS66_L0_HelpersStillGreen (0.01s)
+PASS

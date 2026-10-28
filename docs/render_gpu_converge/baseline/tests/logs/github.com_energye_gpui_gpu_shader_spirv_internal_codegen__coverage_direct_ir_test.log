@@ -1,0 +1,23 @@
+=== RUN   TestEmitLocalVarValueDirect
+--- PASS: TestEmitLocalVarValueDirect (0.00s)
+=== RUN   TestResolveAtomicScalarKindSint
+--- PASS: TestResolveAtomicScalarKindSint (0.00s)
+=== RUN   TestSplatScalarViaAddition
+--- PASS: TestSplatScalarViaAddition (0.00s)
+=== RUN   TestSplatScalarViaSubtraction
+--- PASS: TestSplatScalarViaSubtraction (0.00s)
+=== RUN   TestAtomicSubtractFloat
+--- PASS: TestAtomicSubtractFloat (0.00s)
+=== RUN   TestEmitLiteralI64
+--- PASS: TestEmitLiteralI64 (0.00s)
+=== RUN   TestEmitLiteralF64
+--- PASS: TestEmitLiteralF64 (0.00s)
+=== RUN   TestEmitConstExpressionComposite
+--- PASS: TestEmitConstExpressionComposite (0.00s)
+=== RUN   TestImageQueryNumLevels
+--- PASS: TestImageQueryNumLevels (0.00s)
+=== RUN   TestImageQueryNumSamples
+--- PASS: TestImageQueryNumSamples (0.00s)
+=== RUN   TestStorageTextureReadFormat
+--- PASS: TestStorageTextureReadFormat (0.00s)
+PASS

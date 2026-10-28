@@ -1,0 +1,12 @@
+=== RUN   TestPlayOrder
+--- PASS: TestPlayOrder (0.04s)
+=== RUN   TestPauseFreezes
+--- PASS: TestPauseFreezes (0.02s)
+=== RUN   TestDropStale
+--- PASS: TestDropStale (0.01s)
+=== RUN   TestLoopReplays
+--- PASS: TestLoopReplays (0.03s)
+=== RUN   TestBadClips
+    player_playback_test.go:212: non-mp4 err: video: ffmpeg open fault_classify.go: ffmpeg: open fault_classify.go: Invalid data found when processing input: video: bad clip
+--- PASS: TestBadClips (0.00s)
+PASS

@@ -1,0 +1,11 @@
+=== RUN   TestViewport_ScrollDoesNotLayout
+--- PASS: TestViewport_ScrollDoesNotLayout (0.00s)
+=== RUN   TestViewport_HitTestRespectsOffset
+--- PASS: TestViewport_HitTestRespectsOffset (0.00s)
+=== RUN   TestS6_DragScroll_NoLayoutStorm
+--- PASS: TestS6_DragScroll_NoLayoutStorm (0.00s)
+=== RUN   TestViewport_PaintVisits
+--- PASS: TestViewport_PaintVisits (0.00s)
+=== RUN   TestViewport_FixedSizeBoundsScrolledContent
+--- PASS: TestViewport_FixedSizeBoundsScrolledContent (0.00s)
+PASS

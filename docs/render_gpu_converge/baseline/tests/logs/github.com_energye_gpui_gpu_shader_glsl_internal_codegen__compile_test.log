@@ -1,0 +1,201 @@
+=== RUN   TestCompileWGSL_VertexShader
+--- PASS: TestCompileWGSL_VertexShader (0.00s)
+=== RUN   TestCompileWGSL_VertexShaderForcePointSize
+--- PASS: TestCompileWGSL_VertexShaderForcePointSize (0.00s)
+=== RUN   TestCompileWGSL_FragmentShader
+--- PASS: TestCompileWGSL_FragmentShader (0.00s)
+=== RUN   TestCompileWGSL_ComputeShader
+--- PASS: TestCompileWGSL_ComputeShader (0.00s)
+=== RUN   TestCompileWGSL_Constants
+--- PASS: TestCompileWGSL_Constants (0.00s)
+=== RUN   TestCompileWGSL_LocalVars
+--- PASS: TestCompileWGSL_LocalVars (0.00s)
+=== RUN   TestCompileWGSL_IfElse
+--- PASS: TestCompileWGSL_IfElse (0.00s)
+=== RUN   TestCompileWGSL_ForLoop
+--- PASS: TestCompileWGSL_ForLoop (0.00s)
+=== RUN   TestCompileWGSL_Switch
+--- PASS: TestCompileWGSL_Switch (0.00s)
+=== RUN   TestCompileWGSL_BinaryOps
+--- PASS: TestCompileWGSL_BinaryOps (0.00s)
+=== RUN   TestCompileWGSL_UnaryOps
+--- PASS: TestCompileWGSL_UnaryOps (0.00s)
+=== RUN   TestCompileWGSL_MathFunctions
+--- PASS: TestCompileWGSL_MathFunctions (0.00s)
+=== RUN   TestCompileWGSL_VectorOperations
+--- PASS: TestCompileWGSL_VectorOperations (0.00s)
+=== RUN   TestCompileWGSL_Swizzle
+--- PASS: TestCompileWGSL_Swizzle (0.00s)
+=== RUN   TestCompileWGSL_Select
+--- PASS: TestCompileWGSL_Select (0.00s)
+=== RUN   TestCompileWGSL_UniformStruct
+--- PASS: TestCompileWGSL_UniformStruct (0.00s)
+=== RUN   TestCompileWGSL_StorageBuffer
+--- PASS: TestCompileWGSL_StorageBuffer (0.00s)
+=== RUN   TestCompileWGSL_TypeCast
+--- PASS: TestCompileWGSL_TypeCast (0.00s)
+=== RUN   TestCompileWGSL_ES300_Precision
+--- PASS: TestCompileWGSL_ES300_Precision (0.00s)
+=== RUN   TestCompileWGSL_ES310_Compute
+--- PASS: TestCompileWGSL_ES310_Compute (0.00s)
+=== RUN   TestCompileWGSL_FunctionCall
+--- PASS: TestCompileWGSL_FunctionCall (0.00s)
+=== RUN   TestCompileWGSL_Derivatives
+--- PASS: TestCompileWGSL_Derivatives (0.00s)
+=== RUN   TestCompileWGSL_Discard
+--- PASS: TestCompileWGSL_Discard (0.00s)
+=== RUN   TestCompileWGSL_FixedArray
+--- PASS: TestCompileWGSL_FixedArray (0.00s)
+=== RUN   TestCompileWGSL_MatrixMultiply
+--- PASS: TestCompileWGSL_MatrixMultiply (0.00s)
+=== RUN   TestCompileWGSL_Splat
+--- PASS: TestCompileWGSL_Splat (0.00s)
+=== RUN   TestCompileWGSL_StructReturn
+--- PASS: TestCompileWGSL_StructReturn (0.00s)
+=== RUN   TestCompileWGSL_StructInput
+--- PASS: TestCompileWGSL_StructInput (0.00s)
+=== RUN   TestCompileWGSL_WorkgroupVar
+--- PASS: TestCompileWGSL_WorkgroupVar (0.00s)
+=== RUN   TestCompileWGSL_BindingMap
+--- PASS: TestCompileWGSL_BindingMap (0.00s)
+=== RUN   TestCompileWGSL_RelationalOps
+--- PASS: TestCompileWGSL_RelationalOps (0.00s)
+=== RUN   TestCompileWGSL_FloatModulo
+--- PASS: TestCompileWGSL_FloatModulo (0.00s)
+=== RUN   TestCompileWGSL_IntLiterals
+--- PASS: TestCompileWGSL_IntLiterals (0.00s)
+=== RUN   TestCompileWGSL_TextureSample
+--- PASS: TestCompileWGSL_TextureSample (0.00s)
+=== RUN   TestCompileWGSL_UnusedFunction
+--- PASS: TestCompileWGSL_UnusedFunction (0.00s)
+=== RUN   TestCompileWGSL_Modf
+--- PASS: TestCompileWGSL_Modf (0.00s)
+=== RUN   TestCompileWGSL_Frexp
+--- PASS: TestCompileWGSL_Frexp (0.00s)
+=== RUN   TestCompileWGSL_MixStepSmoothstep
+--- PASS: TestCompileWGSL_MixStepSmoothstep (0.00s)
+=== RUN   TestCompileWGSL_PowExpLog
+--- PASS: TestCompileWGSL_PowExpLog (0.00s)
+=== RUN   TestCompileWGSL_FloorCeilRound
+--- PASS: TestCompileWGSL_FloorCeilRound (0.00s)
+=== RUN   TestCompileWGSL_StructFieldAccess
+--- PASS: TestCompileWGSL_StructFieldAccess (0.00s)
+=== RUN   TestCompileWGSL_VectorAccess
+--- PASS: TestCompileWGSL_VectorAccess (0.00s)
+=== RUN   TestCompileWGSL_DynamicArrayAccess
+--- PASS: TestCompileWGSL_DynamicArrayAccess (0.00s)
+=== RUN   TestCompileWGSL_Bitcast
+--- PASS: TestCompileWGSL_Bitcast (0.00s)
+=== RUN   TestCompileWGSL_DerivativesFineCoarse
+--- PASS: TestCompileWGSL_DerivativesFineCoarse (0.00s)
+=== RUN   TestCompileWGSL_IntegerDivision
+--- PASS: TestCompileWGSL_IntegerDivision (0.00s)
+=== RUN   TestCompileWGSL_ComparisonOps
+--- PASS: TestCompileWGSL_ComparisonOps (0.00s)
+=== RUN   TestCompileWGSL_BitwiseOps
+--- PASS: TestCompileWGSL_BitwiseOps (0.00s)
+=== RUN   TestCompileWGSL_BitOperations
+--- PASS: TestCompileWGSL_BitOperations (0.00s)
+=== RUN   TestCompileWGSL_FirstBitOps
+--- PASS: TestCompileWGSL_FirstBitOps (0.00s)
+=== RUN   TestCompileWGSL_FunctionMultipleArgs
+--- PASS: TestCompileWGSL_FunctionMultipleArgs (0.00s)
+=== RUN   TestCompileWGSL_ArrayLength
+--- PASS: TestCompileWGSL_ArrayLength (0.00s)
+=== RUN   TestCompileWGSL_TextureDimensions
+--- PASS: TestCompileWGSL_TextureDimensions (0.00s)
+=== RUN   TestCompileWGSL_EarlyDepthTest
+--- PASS: TestCompileWGSL_EarlyDepthTest (0.00s)
+=== RUN   TestCompileWGSL_MatrixColumnAccess
+--- PASS: TestCompileWGSL_MatrixColumnAccess (0.00s)
+=== RUN   TestCompileWGSL_SelectNamedEntryPoint
+--- PASS: TestCompileWGSL_SelectNamedEntryPoint (0.00s)
+=== RUN   TestCompileWGSL_MatrixOps
+--- PASS: TestCompileWGSL_MatrixOps (0.00s)
+=== RUN   TestCompileWGSL_MathMore
+--- PASS: TestCompileWGSL_MathMore (0.00s)
+=== RUN   TestCompileWGSL_Atan2Ldexp
+--- PASS: TestCompileWGSL_Atan2Ldexp (0.00s)
+=== RUN   TestCompileWGSL_VertexIndex
+--- PASS: TestCompileWGSL_VertexIndex (0.00s)
+=== RUN   TestCompileWGSL_FrontFacing
+--- PASS: TestCompileWGSL_FrontFacing (0.00s)
+=== RUN   TestCompileWGSL_NamedExpressions
+--- PASS: TestCompileWGSL_NamedExpressions (0.00s)
+=== RUN   TestCompileWGSL_NestedStruct
+--- PASS: TestCompileWGSL_NestedStruct (0.00s)
+=== RUN   TestCompileWGSL_Fwidth
+--- PASS: TestCompileWGSL_Fwidth (0.00s)
+=== RUN   TestCompileWGSL_Pack4x8
+--- PASS: TestCompileWGSL_Pack4x8 (0.00s)
+=== RUN   TestCompileWGSL_DistanceReflect
+--- PASS: TestCompileWGSL_DistanceReflect (0.00s)
+=== RUN   TestCompileWGSL_ExtractInsertBits
+--- PASS: TestCompileWGSL_ExtractInsertBits (0.00s)
+=== RUN   TestCompileWGSL_TextureLoad
+--- PASS: TestCompileWGSL_TextureLoad (0.00s)
+=== RUN   TestCompileWGSL_AtomicOps
+--- PASS: TestCompileWGSL_AtomicOps (0.00s)
+=== RUN   TestCompileWGSL_TextureNumLevels
+--- PASS: TestCompileWGSL_TextureNumLevels (0.00s)
+=== RUN   TestCompileWGSL_IntegerMinMax
+--- PASS: TestCompileWGSL_IntegerMinMax (0.00s)
+=== RUN   TestCompileWGSL_RelationalFunctions
+--- PASS: TestCompileWGSL_RelationalFunctions (0.00s)
+=== RUN   TestCompileWGSL_MultipleOutputLocations
+--- PASS: TestCompileWGSL_MultipleOutputLocations (0.00s)
+=== RUN   TestCompileWGSL_StorageTexture
+--- PASS: TestCompileWGSL_StorageTexture (0.00s)
+=== RUN   TestCompileWGSL_DepthTextureSample
+--- PASS: TestCompileWGSL_DepthTextureSample (0.00s)
+=== RUN   TestCompileWGSL_Saturate
+--- PASS: TestCompileWGSL_Saturate (0.00s)
+=== RUN   TestCompileWGSL_LoopBreakIf
+--- PASS: TestCompileWGSL_LoopBreakIf (0.00s)
+=== RUN   TestCompileWGSL_PipelineOverrides
+--- PASS: TestCompileWGSL_PipelineOverrides (0.00s)
+=== RUN   TestCompileWGSL_NestedIf
+--- PASS: TestCompileWGSL_NestedIf (0.00s)
+=== RUN   TestCompileWGSL_ES300_NoHighP
+--- PASS: TestCompileWGSL_ES300_NoHighP (0.00s)
+=== RUN   TestCompileWGSL_UniformBlockStruct
+--- PASS: TestCompileWGSL_UniformBlockStruct (0.00s)
+=== RUN   TestCompileWGSL_VertexFragmentIO
+--- PASS: TestCompileWGSL_VertexFragmentIO (0.00s)
+=== RUN   TestCompileWGSL_FragmentInputOutput
+--- PASS: TestCompileWGSL_FragmentInputOutput (0.00s)
+=== RUN   TestCompileWGSL_ComputeWorkgroupInit
+--- PASS: TestCompileWGSL_ComputeWorkgroupInit (0.00s)
+=== RUN   TestCompileWGSL_IntegerModulo
+--- PASS: TestCompileWGSL_IntegerModulo (0.00s)
+=== RUN   TestCompileWGSL_Exp2Log2
+--- PASS: TestCompileWGSL_Exp2Log2 (0.00s)
+=== RUN   TestCompileWGSL_UnaryNegation
+--- PASS: TestCompileWGSL_UnaryNegation (0.00s)
+=== RUN   TestCompileWGSL_MultipleTextures
+--- PASS: TestCompileWGSL_MultipleTextures (0.00s)
+=== RUN   TestCompileWGSL_VertexAdjustAndPointSize
+--- PASS: TestCompileWGSL_VertexAdjustAndPointSize (0.00s)
+=== RUN   TestCompileWGSL_MultipleUniformsBindingMap
+--- PASS: TestCompileWGSL_MultipleUniformsBindingMap (0.00s)
+=== RUN   TestCompileWGSL_TextureLoadRestrict
+--- PASS: TestCompileWGSL_TextureLoadRestrict (0.00s)
+=== RUN   TestCompileWGSL_TextureLoadReadZero
+--- PASS: TestCompileWGSL_TextureLoadReadZero (0.00s)
+=== RUN   TestCompileWGSL_QuantizeToF16
+--- PASS: TestCompileWGSL_QuantizeToF16 (0.00s)
+=== RUN   TestCompileWGSL_TrigInverse
+--- PASS: TestCompileWGSL_TrigInverse (0.00s)
+=== RUN   TestCompileWGSL_Hyperbolic
+--- PASS: TestCompileWGSL_Hyperbolic (0.00s)
+=== RUN   TestCompileWGSL_HyperbolicInverse
+--- PASS: TestCompileWGSL_HyperbolicInverse (0.00s)
+=== RUN   TestCompileWGSL_RefractFaceforward
+--- PASS: TestCompileWGSL_RefractFaceforward (0.00s)
+=== RUN   TestCompileWGSL_SampleIndex
+--- PASS: TestCompileWGSL_SampleIndex (0.00s)
+=== RUN   TestCompileWGSL_FragDepthOutput
+--- PASS: TestCompileWGSL_FragDepthOutput (0.00s)
+=== RUN   TestCompileWGSL_ConditionalAssign
+--- PASS: TestCompileWGSL_ConditionalAssign (0.00s)
+PASS

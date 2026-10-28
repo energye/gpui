@@ -1,0 +1,7 @@
+=== RUN   TestCanMergeImageDraw_BicubicIsolation
+--- PASS: TestCanMergeImageDraw_BicubicIsolation (0.00s)
+=== RUN   TestBicubicKernelProperties
+--- PASS: TestBicubicKernelProperties (0.00s)
+=== RUN   TestBicubicGPUAlgorithmMatchesCPU
+--- PASS: TestBicubicGPUAlgorithmMatchesCPU (0.00s)
+PASS

@@ -1,0 +1,69 @@
+=== RUN   TestLowerScalarKindConversions
+--- PASS: TestLowerScalarKindConversions (0.00s)
+=== RUN   TestLowerInferGlobalVarTypes
+--- PASS: TestLowerInferGlobalVarTypes (0.00s)
+=== RUN   TestLowerOverrideAllTypes
+--- PASS: TestLowerOverrideAllTypes (0.00s)
+=== RUN   TestLowerGlobalVarInitBinaryExpr
+--- PASS: TestLowerGlobalVarInitBinaryExpr (0.00s)
+=== RUN   TestLowerAbstractConstantComplex
+--- PASS: TestLowerAbstractConstantComplex (0.00s)
+=== RUN   TestLowerConstSelectInFunction
+--- PASS: TestLowerConstSelectInFunction (0.00s)
+=== RUN   TestLowerConstBinaryCoercion
+--- PASS: TestLowerConstBinaryCoercion (0.00s)
+=== RUN   TestLowerDotCrossRuntime
+--- PASS: TestLowerDotCrossRuntime (0.00s)
+=== RUN   TestLowerConstFoldVecBinaryI32Full
+--- PASS: TestLowerConstFoldVecBinaryI32Full (0.00s)
+=== RUN   TestLowerConstFoldVecBitOps
+--- PASS: TestLowerConstFoldVecBitOps (0.00s)
+=== RUN   TestLowerExtractConstVecLiteralsF32
+--- PASS: TestLowerExtractConstVecLiteralsF32 (0.00s)
+=== RUN   TestLowerInferConstructorTypeFromScalar
+--- PASS: TestLowerInferConstructorTypeFromScalar (0.00s)
+=== RUN   TestLowerResolveScalarNames
+--- PASS: TestLowerResolveScalarNames (0.00s)
+=== RUN   TestLowerConstFoldAsConversions
+--- PASS: TestLowerConstFoldAsConversions (0.00s)
+=== RUN   TestLowerTextureGatherComponent
+--- PASS: TestLowerTextureGatherComponent (0.00s)
+=== RUN   TestLowerOverrideInitExprs
+--- PASS: TestLowerOverrideInitExprs (0.00s)
+=== RUN   TestLowerEarlyDepthTestGreater
+--- PASS: TestLowerEarlyDepthTestGreater (0.00s)
+=== RUN   TestLowerConstEvalNestedArithmetic
+--- PASS: TestLowerConstEvalNestedArithmetic (0.00s)
+=== RUN   TestLowerDepthArraySampleCompareLevel
+--- PASS: TestLowerDepthArraySampleCompareLevel (0.00s)
+=== RUN   TestLowerAtomicWorkgroup
+--- PASS: TestLowerAtomicWorkgroup (0.00s)
+=== RUN   TestLowerTextureLoad3D
+--- PASS: TestLowerTextureLoad3D (0.00s)
+=== RUN   TestLowerTextureLoad1D
+--- PASS: TestLowerTextureLoad1D (0.00s)
+=== RUN   TestLowerTextureLoadArray
+--- PASS: TestLowerTextureLoadArray (0.00s)
+=== RUN   TestLowerTextureCubeArraySample
+--- PASS: TestLowerTextureCubeArraySample (0.00s)
+=== RUN   TestLowerConcretizeTypeHandle
+--- PASS: TestLowerConcretizeTypeHandle (0.00s)
+=== RUN   TestLowerConcretizeLiteralValue
+--- PASS: TestLowerConcretizeLiteralValue (0.00s)
+=== RUN   TestLowerShortCircuitVerify
+--- PASS: TestLowerShortCircuitVerify (0.00s)
+=== RUN   TestLowerConvertScalarBits
+--- PASS: TestLowerConvertScalarBits (0.00s)
+=== RUN   TestLowerDepthTextureCubeArraySample
+--- PASS: TestLowerDepthTextureCubeArraySample (0.00s)
+=== RUN   TestLowerTextureSampleBiasOffset
+--- PASS: TestLowerTextureSampleBiasOffset (0.00s)
+=== RUN   TestLowerTextureSampleCompareOffset
+--- PASS: TestLowerTextureSampleCompareOffset (0.00s)
+=== RUN   TestLowerConstU32Expr
+--- PASS: TestLowerConstU32Expr (0.00s)
+=== RUN   TestLowerTextureScalarKinds
+--- PASS: TestLowerTextureScalarKinds (0.00s)
+=== RUN   TestLowerMatrixAllSizes
+--- PASS: TestLowerMatrixAllSizes (0.00s)
+PASS

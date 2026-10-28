@@ -1,0 +1,19 @@
+=== RUN   TestSeekToMiddleKeyframe
+--- PASS: TestSeekToMiddleKeyframe (0.04s)
+=== RUN   TestSeekFirstGOP
+--- PASS: TestSeekFirstGOP (0.03s)
+=== RUN   TestSeekBetweenStamps
+--- PASS: TestSeekBetweenStamps (0.02s)
+=== RUN   TestSeekSingleKeyframeClip
+--- PASS: TestSeekSingleKeyframeClip (0.02s)
+=== RUN   TestSeekRapidNoStall
+--- PASS: TestSeekRapidNoStall (0.12s)
+=== RUN   TestSeekLoopRefused
+--- PASS: TestSeekLoopRefused (0.02s)
+=== RUN   TestSeekWhilePaused
+--- PASS: TestSeekWhilePaused (0.02s)
+=== RUN   TestSeekFastAndKeyframes
+--- PASS: TestSeekFastAndKeyframes (0.04s)
+=== RUN   TestSeekByAndRate
+--- PASS: TestSeekByAndRate (0.02s)
+PASS

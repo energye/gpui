@@ -1,0 +1,25 @@
+=== RUN   TestSessionPreeditCursorClamp_M35
+=== RUN   TestSessionPreeditCursorClamp_M35/negative_means_end
+=== RUN   TestSessionPreeditCursorClamp_M35/mid-rune_snaps_down
+=== RUN   TestSessionPreeditCursorClamp_M35/rune_boundary
+=== RUN   TestSessionPreeditCursorClamp_M35/second_char_start
+=== RUN   TestSessionPreeditCursorClamp_M35/at_len_means_end
+=== RUN   TestSessionPreeditCursorClamp_M35/overlong_clamps_to_end
+--- PASS: TestSessionPreeditCursorClamp_M35 (0.00s)
+    --- PASS: TestSessionPreeditCursorClamp_M35/negative_means_end (0.00s)
+    --- PASS: TestSessionPreeditCursorClamp_M35/mid-rune_snaps_down (0.00s)
+    --- PASS: TestSessionPreeditCursorClamp_M35/rune_boundary (0.00s)
+    --- PASS: TestSessionPreeditCursorClamp_M35/second_char_start (0.00s)
+    --- PASS: TestSessionPreeditCursorClamp_M35/at_len_means_end (0.00s)
+    --- PASS: TestSessionPreeditCursorClamp_M35/overlong_clamps_to_end (0.00s)
+=== RUN   TestSessionDeleteSurroundingCounts_M35
+=== RUN   TestSessionDeleteSurroundingCounts_M35/before_only
+=== RUN   TestSessionDeleteSurroundingCounts_M35/after_only
+=== RUN   TestSessionDeleteSurroundingCounts_M35/korean_syllables
+=== RUN   TestSessionDeleteSurroundingCounts_M35/zero_counts_are_noop
+--- PASS: TestSessionDeleteSurroundingCounts_M35 (0.00s)
+    --- PASS: TestSessionDeleteSurroundingCounts_M35/before_only (0.00s)
+    --- PASS: TestSessionDeleteSurroundingCounts_M35/after_only (0.00s)
+    --- PASS: TestSessionDeleteSurroundingCounts_M35/korean_syllables (0.00s)
+    --- PASS: TestSessionDeleteSurroundingCounts_M35/zero_counts_are_noop (0.00s)
+PASS

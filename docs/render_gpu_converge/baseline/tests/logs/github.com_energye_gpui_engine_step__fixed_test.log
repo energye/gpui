@@ -1,0 +1,15 @@
+=== RUN   TestFixedStepsFromCases
+--- PASS: TestFixedStepsFromCases (0.00s)
+=== RUN   TestFixedEdgesNoCrash
+--- PASS: TestFixedEdgesNoCrash (0.00s)
+=== RUN   TestFixedBoundaryIdentical
+--- PASS: TestFixedBoundaryIdentical (0.00s)
+=== RUN   TestFixedPerfSteps
+    fixed_test.go:317: fixed-perf: 60000 frames -> 82500 steps in 1.145345ms (19.1 ns/frame)
+    fixed_test.go:329: fixed-interp-10k: blends in 63.079µs (6.3 ns/op)
+--- PASS: TestFixedPerfSteps (0.00s)
+=== RUN   TestFixedLongRunNoDrift
+--- PASS: TestFixedLongRunNoDrift (0.01s)
+=== RUN   TestFixedOffscreenGolden
+--- PASS: TestFixedOffscreenGolden (0.00s)
+PASS

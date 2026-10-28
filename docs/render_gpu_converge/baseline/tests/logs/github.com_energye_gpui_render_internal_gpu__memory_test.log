@@ -1,0 +1,60 @@
+=== RUN   TestTextureFormat
+=== RUN   TestTextureFormat/RGBA8
+=== RUN   TestTextureFormat/BGRA8
+=== RUN   TestTextureFormat/R8
+=== RUN   TestTextureFormat/Unknown(99)
+--- PASS: TestTextureFormat (0.00s)
+    --- PASS: TestTextureFormat/RGBA8 (0.00s)
+    --- PASS: TestTextureFormat/BGRA8 (0.00s)
+    --- PASS: TestTextureFormat/R8 (0.00s)
+    --- PASS: TestTextureFormat/Unknown(99) (0.00s)
+=== RUN   TestCreateTexture
+=== RUN   TestCreateTexture/valid_RGBA8
+=== RUN   TestCreateTexture/valid_R8
+=== RUN   TestCreateTexture/invalid_zero_width
+=== RUN   TestCreateTexture/invalid_zero_height
+=== RUN   TestCreateTexture/invalid_negative_width
+--- PASS: TestCreateTexture (0.00s)
+    --- PASS: TestCreateTexture/valid_RGBA8 (0.00s)
+    --- PASS: TestCreateTexture/valid_R8 (0.00s)
+    --- PASS: TestCreateTexture/invalid_zero_width (0.00s)
+    --- PASS: TestCreateTexture/invalid_zero_height (0.00s)
+    --- PASS: TestCreateTexture/invalid_negative_width (0.00s)
+=== RUN   TestTextureUploadDownload
+--- PASS: TestTextureUploadDownload (0.00s)
+=== RUN   TestTextureUploadDownloadNative
+--- PASS: TestTextureUploadDownloadNative (0.24s)
+=== RUN   TestTextureUploadRegion
+--- PASS: TestTextureUploadRegion (0.00s)
+=== RUN   TestMemoryManagerBasic
+--- PASS: TestMemoryManagerBasic (0.00s)
+=== RUN   TestMemoryManagerEviction
+    memory_test.go:339: After allocation: Memory[62.5% used, 10/16 MB, 10 textures, 0 evictions]
+    memory_test.go:353: After large allocation: Memory[87.5% used, 14/16 MB, 11 textures, 0 evictions]
+--- PASS: TestMemoryManagerEviction (0.00s)
+=== RUN   TestMemoryManagerTouch
+--- PASS: TestMemoryManagerTouch (0.00s)
+=== RUN   TestMemoryManagerBudget
+    memory_test.go:424: After budget reduction: Memory[4.7% used, 0/16 MB, 3 textures, 0 evictions]
+--- PASS: TestMemoryManagerBudget (0.00s)
+=== RUN   TestMemoryManagerClose
+--- PASS: TestMemoryManagerClose (0.00s)
+=== RUN   TestRectAllocator
+    memory_test.go:518: Allocator utilization: 71.9%
+--- PASS: TestRectAllocator (0.00s)
+=== RUN   TestAtlasRegion
+--- PASS: TestAtlasRegion (0.00s)
+=== RUN   TestTextureAtlas
+    memory_test.go:608: Atlas utilization: 8.2%
+--- PASS: TestTextureAtlas (0.00s)
+=== RUN   TestTextureAtlasErrors
+    memory_test.go:632: Atlas full after 64 allocations
+--- PASS: TestTextureAtlasErrors (0.00s)
+=== RUN   TestMemoryStats
+    memory_test.go:687: MemoryStats: Memory[50.0% used, 128/256 MB, 10 textures, 5 evictions]
+--- PASS: TestMemoryStats (0.00s)
+=== RUN   TestCreateTextureFromPixmap
+--- PASS: TestCreateTextureFromPixmap (0.00s)
+=== RUN   TestDoubleClose
+--- PASS: TestDoubleClose (0.00s)
+PASS

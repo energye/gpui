@@ -1,0 +1,10 @@
+=== RUN   TestX11RealWindowControls
+--- PASS: TestX11RealWindowControls (0.40s)
+=== RUN   TestX11RealWindowEvents
+    x11_window_linux_test.go:188: event: focus=false
+--- PASS: TestX11RealWindowEvents (0.11s)
+=== RUN   TestX11RealWindowOptionVisibleFalse
+--- PASS: TestX11RealWindowOptionVisibleFalse (0.10s)
+=== RUN   TestX11RealWindowCloseUnsupportedIsHonest
+--- PASS: TestX11RealWindowCloseUnsupportedIsHonest (0.10s)
+PASS

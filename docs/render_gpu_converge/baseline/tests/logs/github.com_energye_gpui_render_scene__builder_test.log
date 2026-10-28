@@ -1,0 +1,83 @@
+=== RUN   TestNewSceneBuilder
+--- PASS: TestNewSceneBuilder (0.00s)
+=== RUN   TestNewSceneBuilderFrom
+--- PASS: TestNewSceneBuilderFrom (0.00s)
+=== RUN   TestSceneBuilderFill
+--- PASS: TestSceneBuilderFill (0.00s)
+=== RUN   TestSceneBuilderFillWith
+--- PASS: TestSceneBuilderFillWith (0.00s)
+=== RUN   TestSceneBuilderStroke
+--- PASS: TestSceneBuilderStroke (0.00s)
+=== RUN   TestSceneBuilderStrokeWith
+--- PASS: TestSceneBuilderStrokeWith (0.00s)
+=== RUN   TestSceneBuilderImage
+--- PASS: TestSceneBuilderImage (0.00s)
+=== RUN   TestSceneBuilderImageNil
+--- PASS: TestSceneBuilderImageNil (0.00s)
+=== RUN   TestSceneBuilderImageEmptyRect
+--- PASS: TestSceneBuilderImageEmptyRect (0.00s)
+=== RUN   TestSceneBuilderTransform
+--- PASS: TestSceneBuilderTransform (0.00s)
+=== RUN   TestSceneBuilderTranslate
+--- PASS: TestSceneBuilderTranslate (0.00s)
+=== RUN   TestSceneBuilderScale
+--- PASS: TestSceneBuilderScale (0.00s)
+=== RUN   TestSceneBuilderRotate
+--- PASS: TestSceneBuilderRotate (0.00s)
+=== RUN   TestSceneBuilderResetTransform
+--- PASS: TestSceneBuilderResetTransform (0.00s)
+=== RUN   TestSceneBuilderLayer
+--- PASS: TestSceneBuilderLayer (0.00s)
+=== RUN   TestSceneBuilderLayerWithClip
+--- PASS: TestSceneBuilderLayerWithClip (0.00s)
+=== RUN   TestSceneBuilderLayerNilCallback
+--- PASS: TestSceneBuilderLayerNilCallback (0.00s)
+=== RUN   TestSceneBuilderLayerTransformRestored
+--- PASS: TestSceneBuilderLayerTransformRestored (0.00s)
+=== RUN   TestSceneBuilderClip
+--- PASS: TestSceneBuilderClip (0.00s)
+=== RUN   TestSceneBuilderClipNilShape
+--- PASS: TestSceneBuilderClipNilShape (0.00s)
+=== RUN   TestSceneBuilderClipNilCallback
+--- PASS: TestSceneBuilderClipNilCallback (0.00s)
+=== RUN   TestSceneBuilderClipTransformRestored
+--- PASS: TestSceneBuilderClipTransformRestored (0.00s)
+=== RUN   TestSceneBuilderGroup
+--- PASS: TestSceneBuilderGroup (0.00s)
+=== RUN   TestSceneBuilderGroupNilCallback
+--- PASS: TestSceneBuilderGroupNilCallback (0.00s)
+=== RUN   TestSceneBuilderGroupTransformRestored
+--- PASS: TestSceneBuilderGroupTransformRestored (0.00s)
+=== RUN   TestSceneBuilderWithTransform
+--- PASS: TestSceneBuilderWithTransform (0.00s)
+=== RUN   TestSceneBuilderWithTransformNilCallback
+--- PASS: TestSceneBuilderWithTransformNilCallback (0.00s)
+=== RUN   TestSceneBuilderBuild
+--- PASS: TestSceneBuilderBuild (0.00s)
+=== RUN   TestSceneBuilderReset
+--- PASS: TestSceneBuilderReset (0.00s)
+=== RUN   TestSceneBuilderScene
+--- PASS: TestSceneBuilderScene (0.00s)
+=== RUN   TestSceneBuilderCurrentTransform
+--- PASS: TestSceneBuilderCurrentTransform (0.00s)
+=== RUN   TestSceneBuilderFillRect
+--- PASS: TestSceneBuilderFillRect (0.00s)
+=== RUN   TestSceneBuilderStrokeRect
+--- PASS: TestSceneBuilderStrokeRect (0.00s)
+=== RUN   TestSceneBuilderFillCircle
+--- PASS: TestSceneBuilderFillCircle (0.00s)
+=== RUN   TestSceneBuilderStrokeCircle
+--- PASS: TestSceneBuilderStrokeCircle (0.00s)
+=== RUN   TestSceneBuilderDrawLine
+--- PASS: TestSceneBuilderDrawLine (0.00s)
+=== RUN   TestSceneBuilderFillPath
+--- PASS: TestSceneBuilderFillPath (0.00s)
+=== RUN   TestSceneBuilderStrokePath
+--- PASS: TestSceneBuilderStrokePath (0.00s)
+=== RUN   TestSceneBuilderFluentChaining
+--- PASS: TestSceneBuilderFluentChaining (0.00s)
+=== RUN   TestSceneBuilderNestedLayers
+--- PASS: TestSceneBuilderNestedLayers (0.00s)
+=== RUN   TestSceneBuilderComplexScene
+--- PASS: TestSceneBuilderComplexScene (0.00s)
+PASS

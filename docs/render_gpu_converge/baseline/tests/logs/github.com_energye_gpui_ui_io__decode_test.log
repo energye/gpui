@@ -1,0 +1,5 @@
+=== RUN   TestPool_RunAsync
+--- PASS: TestPool_RunAsync (0.03s)
+=== RUN   TestDecodeFile_Missing
+--- PASS: TestDecodeFile_Missing (0.00s)
+PASS

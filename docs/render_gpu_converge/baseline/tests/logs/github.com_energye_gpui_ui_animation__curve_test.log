@@ -1,0 +1,7 @@
+=== RUN   TestCurve_LinearBounds
+--- PASS: TestCurve_LinearBounds (0.00s)
+=== RUN   TestCurve_EaseInOutBounds
+--- PASS: TestCurve_EaseInOutBounds (0.00s)
+=== RUN   TestController_UsesCurve
+--- PASS: TestController_UsesCurve (0.00s)
+PASS

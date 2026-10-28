@@ -1,0 +1,15 @@
+=== RUN   TestParseGLVersion
+--- PASS: TestParseGLVersion (0.00s)
+=== RUN   TestParseVersionNumbers
+--- PASS: TestParseVersionNumbers (0.00s)
+=== RUN   TestParseGLSLVersion
+--- PASS: TestParseGLSLVersion (0.00s)
+=== RUN   TestInferDeviceType
+--- PASS: TestInferDeviceType (0.00s)
+=== RUN   TestInferVendorID
+--- PASS: TestInferVendorID (0.00s)
+=== RUN   TestHasExtension
+--- PASS: TestHasExtension (0.00s)
+=== RUN   TestGlVersionAtLeast
+--- PASS: TestGlVersionAtLeast (0.00s)
+PASS

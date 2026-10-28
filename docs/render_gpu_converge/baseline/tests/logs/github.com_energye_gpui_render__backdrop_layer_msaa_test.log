@@ -1,0 +1,5 @@
+=== RUN   TestBackdropLayer4xNestedFilterBlursSeed
+--- PASS: TestBackdropLayer4xNestedFilterBlursSeed (0.31s)
+=== RUN   TestBackdropLayer4xPostFilterTintKeepsSeed
+--- PASS: TestBackdropLayer4xPostFilterTintKeepsSeed (0.01s)
+PASS

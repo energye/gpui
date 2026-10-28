@@ -1,0 +1,7 @@
+=== RUN   TestLoadOpToJS
+--- PASS: TestLoadOpToJS (0.00s)
+=== RUN   TestStoreOpToJS
+--- PASS: TestStoreOpToJS (0.00s)
+=== RUN   TestLoadOpStoreOpRoundTrip
+--- PASS: TestLoadOpStoreOpRoundTrip (0.00s)
+PASS

@@ -1,0 +1,371 @@
+=== RUN   TestTypeResInner
+=== RUN   TestTypeResInner/handle_resolution
+=== RUN   TestTypeResInner/value_resolution
+=== RUN   TestTypeResInner/nil_handle_uses_value
+--- PASS: TestTypeResInner (0.00s)
+    --- PASS: TestTypeResInner/handle_resolution (0.00s)
+    --- PASS: TestTypeResInner/value_resolution (0.00s)
+    --- PASS: TestTypeResInner/nil_handle_uses_value (0.00s)
+=== RUN   TestStorageFormatScalarKind
+=== RUN   TestStorageFormatScalarKind/R8Uint
+=== RUN   TestStorageFormatScalarKind/R16Uint
+=== RUN   TestStorageFormatScalarKind/R32Uint
+=== RUN   TestStorageFormatScalarKind/Rg8Uint
+=== RUN   TestStorageFormatScalarKind/Rg16Uint
+=== RUN   TestStorageFormatScalarKind/Rg32Uint
+=== RUN   TestStorageFormatScalarKind/Rgba8Uint
+=== RUN   TestStorageFormatScalarKind/Rgba16Uint
+=== RUN   TestStorageFormatScalarKind/Rgba32Uint
+=== RUN   TestStorageFormatScalarKind/Rgb10a2Uint
+=== RUN   TestStorageFormatScalarKind/R64Uint
+=== RUN   TestStorageFormatScalarKind/R8Sint
+=== RUN   TestStorageFormatScalarKind/R16Sint
+=== RUN   TestStorageFormatScalarKind/R32Sint
+=== RUN   TestStorageFormatScalarKind/Rg8Sint
+=== RUN   TestStorageFormatScalarKind/Rg16Sint
+=== RUN   TestStorageFormatScalarKind/Rg32Sint
+=== RUN   TestStorageFormatScalarKind/Rgba8Sint
+=== RUN   TestStorageFormatScalarKind/Rgba16Sint
+=== RUN   TestStorageFormatScalarKind/Rgba32Sint
+=== RUN   TestStorageFormatScalarKind/R64Sint
+=== RUN   TestStorageFormatScalarKind/R8Unorm
+=== RUN   TestStorageFormatScalarKind/R8Snorm
+=== RUN   TestStorageFormatScalarKind/R16Float
+=== RUN   TestStorageFormatScalarKind/R32Float
+=== RUN   TestStorageFormatScalarKind/Rgba8Unorm
+=== RUN   TestStorageFormatScalarKind/Rgba8Snorm
+=== RUN   TestStorageFormatScalarKind/Bgra8Unorm
+=== RUN   TestStorageFormatScalarKind/Rg11b10Ufloat
+=== RUN   TestStorageFormatScalarKind/Rgb10a2Unorm
+=== RUN   TestStorageFormatScalarKind/Rgba16Float
+=== RUN   TestStorageFormatScalarKind/Rgba32Float
+=== RUN   TestStorageFormatScalarKind/R16Unorm
+=== RUN   TestStorageFormatScalarKind/R16Snorm
+=== RUN   TestStorageFormatScalarKind/Rg16Unorm
+=== RUN   TestStorageFormatScalarKind/Rg16Snorm
+=== RUN   TestStorageFormatScalarKind/Rgba16Unorm
+=== RUN   TestStorageFormatScalarKind/Rgba16Snorm
+=== RUN   TestStorageFormatScalarKind/Unknown
+--- PASS: TestStorageFormatScalarKind (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R8Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R16Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R32Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rg8Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rg16Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rg32Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba8Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba16Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba32Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgb10a2Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R64Uint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R8Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R16Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R32Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rg8Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rg16Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rg32Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba8Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba16Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba32Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R64Sint (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R8Unorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R8Snorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R16Float (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R32Float (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba8Unorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba8Snorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Bgra8Unorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rg11b10Ufloat (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgb10a2Unorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba16Float (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba32Float (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R16Unorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/R16Snorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rg16Unorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rg16Snorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba16Unorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Rgba16Snorm (0.00s)
+    --- PASS: TestStorageFormatScalarKind/Unknown (0.00s)
+=== RUN   TestStorageFormatIsUnorm
+--- PASS: TestStorageFormatIsUnorm (0.00s)
+=== RUN   TestStorageFormatIsSnorm
+--- PASS: TestStorageFormatIsSnorm (0.00s)
+=== RUN   TestTypeInnerInterfaceImplementation
+=== RUN   TestTypeInnerInterfaceImplementation/ScalarType
+=== RUN   TestTypeInnerInterfaceImplementation/VectorType
+=== RUN   TestTypeInnerInterfaceImplementation/MatrixType
+=== RUN   TestTypeInnerInterfaceImplementation/ArrayType
+=== RUN   TestTypeInnerInterfaceImplementation/StructType
+=== RUN   TestTypeInnerInterfaceImplementation/PointerType
+=== RUN   TestTypeInnerInterfaceImplementation/AtomicType
+=== RUN   TestTypeInnerInterfaceImplementation/BindingArrayType
+=== RUN   TestTypeInnerInterfaceImplementation/AccelerationStructureType
+=== RUN   TestTypeInnerInterfaceImplementation/RayQueryType
+=== RUN   TestTypeInnerInterfaceImplementation/SamplerType
+=== RUN   TestTypeInnerInterfaceImplementation/ImageType
+--- PASS: TestTypeInnerInterfaceImplementation (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/ScalarType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/VectorType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/MatrixType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/ArrayType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/StructType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/PointerType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/AtomicType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/BindingArrayType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/AccelerationStructureType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/RayQueryType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/SamplerType (0.00s)
+    --- PASS: TestTypeInnerInterfaceImplementation/ImageType (0.00s)
+=== RUN   TestExpressionKindInterfaceImplementation
+=== RUN   TestExpressionKindInterfaceImplementation/Literal
+=== RUN   TestExpressionKindInterfaceImplementation/ExprConstant
+=== RUN   TestExpressionKindInterfaceImplementation/ExprOverride
+=== RUN   TestExpressionKindInterfaceImplementation/ExprZeroValue
+=== RUN   TestExpressionKindInterfaceImplementation/ExprCompose
+=== RUN   TestExpressionKindInterfaceImplementation/ExprAccess
+=== RUN   TestExpressionKindInterfaceImplementation/ExprAccessIndex
+=== RUN   TestExpressionKindInterfaceImplementation/ExprSplat
+=== RUN   TestExpressionKindInterfaceImplementation/ExprSwizzle
+=== RUN   TestExpressionKindInterfaceImplementation/ExprFunctionArgument
+=== RUN   TestExpressionKindInterfaceImplementation/ExprGlobalVariable
+=== RUN   TestExpressionKindInterfaceImplementation/ExprLocalVariable
+=== RUN   TestExpressionKindInterfaceImplementation/ExprLoad
+=== RUN   TestExpressionKindInterfaceImplementation/ExprImageSample
+=== RUN   TestExpressionKindInterfaceImplementation/ExprImageLoad
+=== RUN   TestExpressionKindInterfaceImplementation/ExprImageQuery
+=== RUN   TestExpressionKindInterfaceImplementation/ExprUnary
+=== RUN   TestExpressionKindInterfaceImplementation/ExprBinary
+=== RUN   TestExpressionKindInterfaceImplementation/ExprSelect
+=== RUN   TestExpressionKindInterfaceImplementation/ExprDerivative
+=== RUN   TestExpressionKindInterfaceImplementation/ExprRelational
+=== RUN   TestExpressionKindInterfaceImplementation/ExprMath
+=== RUN   TestExpressionKindInterfaceImplementation/ExprAs
+=== RUN   TestExpressionKindInterfaceImplementation/ExprCallResult
+=== RUN   TestExpressionKindInterfaceImplementation/ExprArrayLength
+=== RUN   TestExpressionKindInterfaceImplementation/ExprAtomicResult
+=== RUN   TestExpressionKindInterfaceImplementation/ExprWorkGroupUniformLoadResult
+=== RUN   TestExpressionKindInterfaceImplementation/ExprRayQueryProceedResult
+=== RUN   TestExpressionKindInterfaceImplementation/ExprRayQueryGetIntersection
+=== RUN   TestExpressionKindInterfaceImplementation/ExprSubgroupBallotResult
+=== RUN   TestExpressionKindInterfaceImplementation/ExprSubgroupOperationResult
+--- PASS: TestExpressionKindInterfaceImplementation (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/Literal (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprConstant (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprOverride (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprZeroValue (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprCompose (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprAccess (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprAccessIndex (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprSplat (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprSwizzle (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprFunctionArgument (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprGlobalVariable (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprLocalVariable (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprLoad (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprImageSample (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprImageLoad (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprImageQuery (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprUnary (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprBinary (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprSelect (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprDerivative (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprRelational (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprMath (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprAs (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprCallResult (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprArrayLength (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprAtomicResult (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprWorkGroupUniformLoadResult (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprRayQueryProceedResult (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprRayQueryGetIntersection (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprSubgroupBallotResult (0.00s)
+    --- PASS: TestExpressionKindInterfaceImplementation/ExprSubgroupOperationResult (0.00s)
+=== RUN   TestStatementKindInterfaceImplementation
+=== RUN   TestStatementKindInterfaceImplementation/StmtEmit
+=== RUN   TestStatementKindInterfaceImplementation/StmtBlock
+=== RUN   TestStatementKindInterfaceImplementation/StmtIf
+=== RUN   TestStatementKindInterfaceImplementation/StmtSwitch
+=== RUN   TestStatementKindInterfaceImplementation/StmtLoop
+=== RUN   TestStatementKindInterfaceImplementation/StmtBreak
+=== RUN   TestStatementKindInterfaceImplementation/StmtContinue
+=== RUN   TestStatementKindInterfaceImplementation/StmtReturn
+=== RUN   TestStatementKindInterfaceImplementation/StmtKill
+=== RUN   TestStatementKindInterfaceImplementation/StmtBarrier
+=== RUN   TestStatementKindInterfaceImplementation/StmtStore
+=== RUN   TestStatementKindInterfaceImplementation/StmtImageStore
+=== RUN   TestStatementKindInterfaceImplementation/StmtAtomic
+=== RUN   TestStatementKindInterfaceImplementation/StmtWorkGroupUniformLoad
+=== RUN   TestStatementKindInterfaceImplementation/StmtCall
+=== RUN   TestStatementKindInterfaceImplementation/StmtRayQuery
+=== RUN   TestStatementKindInterfaceImplementation/StmtSubgroupBallot
+=== RUN   TestStatementKindInterfaceImplementation/StmtSubgroupCollectiveOperation
+=== RUN   TestStatementKindInterfaceImplementation/StmtSubgroupGather
+=== RUN   TestStatementKindInterfaceImplementation/StmtImageAtomic
+--- PASS: TestStatementKindInterfaceImplementation (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtEmit (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtBlock (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtIf (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtSwitch (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtLoop (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtBreak (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtContinue (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtReturn (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtKill (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtBarrier (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtStore (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtImageStore (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtAtomic (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtWorkGroupUniformLoad (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtCall (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtRayQuery (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtSubgroupBallot (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtSubgroupCollectiveOperation (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtSubgroupGather (0.00s)
+    --- PASS: TestStatementKindInterfaceImplementation/StmtImageAtomic (0.00s)
+=== RUN   TestLiteralValueInterfaceImplementation
+=== RUN   TestLiteralValueInterfaceImplementation/F64
+=== RUN   TestLiteralValueInterfaceImplementation/F32
+=== RUN   TestLiteralValueInterfaceImplementation/F16
+=== RUN   TestLiteralValueInterfaceImplementation/U32
+=== RUN   TestLiteralValueInterfaceImplementation/I32
+=== RUN   TestLiteralValueInterfaceImplementation/U64
+=== RUN   TestLiteralValueInterfaceImplementation/I64
+=== RUN   TestLiteralValueInterfaceImplementation/Bool
+=== RUN   TestLiteralValueInterfaceImplementation/AbstractInt
+=== RUN   TestLiteralValueInterfaceImplementation/AbstractFloat
+--- PASS: TestLiteralValueInterfaceImplementation (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/F64 (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/F32 (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/F16 (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/U32 (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/I32 (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/U64 (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/I64 (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/Bool (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/AbstractInt (0.00s)
+    --- PASS: TestLiteralValueInterfaceImplementation/AbstractFloat (0.00s)
+=== RUN   TestOverrideInitExprInterface
+=== RUN   TestOverrideInitExprInterface/Literal
+=== RUN   TestOverrideInitExprInterface/Ref
+=== RUN   TestOverrideInitExprInterface/Binary
+=== RUN   TestOverrideInitExprInterface/Unary
+=== RUN   TestOverrideInitExprInterface/BoolLiteral
+=== RUN   TestOverrideInitExprInterface/UintLiteral
+--- PASS: TestOverrideInitExprInterface (0.00s)
+    --- PASS: TestOverrideInitExprInterface/Literal (0.00s)
+    --- PASS: TestOverrideInitExprInterface/Ref (0.00s)
+    --- PASS: TestOverrideInitExprInterface/Binary (0.00s)
+    --- PASS: TestOverrideInitExprInterface/Unary (0.00s)
+    --- PASS: TestOverrideInitExprInterface/BoolLiteral (0.00s)
+    --- PASS: TestOverrideInitExprInterface/UintLiteral (0.00s)
+=== RUN   TestBindingInterface
+=== RUN   TestBindingInterface/Builtin
+=== RUN   TestBindingInterface/Location
+--- PASS: TestBindingInterface (0.00s)
+    --- PASS: TestBindingInterface/Builtin (0.00s)
+    --- PASS: TestBindingInterface/Location (0.00s)
+=== RUN   TestConstantValueInterface
+=== RUN   TestConstantValueInterface/Scalar
+=== RUN   TestConstantValueInterface/Composite
+=== RUN   TestConstantValueInterface/Zero
+--- PASS: TestConstantValueInterface (0.00s)
+    --- PASS: TestConstantValueInterface/Scalar (0.00s)
+    --- PASS: TestConstantValueInterface/Composite (0.00s)
+    --- PASS: TestConstantValueInterface/Zero (0.00s)
+=== RUN   TestSwitchValueInterface
+=== RUN   TestSwitchValueInterface/I32
+=== RUN   TestSwitchValueInterface/U32
+=== RUN   TestSwitchValueInterface/Default
+--- PASS: TestSwitchValueInterface (0.00s)
+    --- PASS: TestSwitchValueInterface/I32 (0.00s)
+    --- PASS: TestSwitchValueInterface/U32 (0.00s)
+    --- PASS: TestSwitchValueInterface/Default (0.00s)
+=== RUN   TestSampleLevelInterface
+=== RUN   TestSampleLevelInterface/Auto
+=== RUN   TestSampleLevelInterface/Zero
+=== RUN   TestSampleLevelInterface/Exact
+=== RUN   TestSampleLevelInterface/Bias
+=== RUN   TestSampleLevelInterface/Gradient
+--- PASS: TestSampleLevelInterface (0.00s)
+    --- PASS: TestSampleLevelInterface/Auto (0.00s)
+    --- PASS: TestSampleLevelInterface/Zero (0.00s)
+    --- PASS: TestSampleLevelInterface/Exact (0.00s)
+    --- PASS: TestSampleLevelInterface/Bias (0.00s)
+    --- PASS: TestSampleLevelInterface/Gradient (0.00s)
+=== RUN   TestImageQueryInterface
+=== RUN   TestImageQueryInterface/Size
+=== RUN   TestImageQueryInterface/NumLevels
+=== RUN   TestImageQueryInterface/NumLayers
+=== RUN   TestImageQueryInterface/NumSamples
+--- PASS: TestImageQueryInterface (0.00s)
+    --- PASS: TestImageQueryInterface/Size (0.00s)
+    --- PASS: TestImageQueryInterface/NumLevels (0.00s)
+    --- PASS: TestImageQueryInterface/NumLayers (0.00s)
+    --- PASS: TestImageQueryInterface/NumSamples (0.00s)
+=== RUN   TestAtomicFunctionInterface
+=== RUN   TestAtomicFunctionInterface/Add
+=== RUN   TestAtomicFunctionInterface/Subtract
+=== RUN   TestAtomicFunctionInterface/And
+=== RUN   TestAtomicFunctionInterface/ExclusiveOr
+=== RUN   TestAtomicFunctionInterface/InclusiveOr
+=== RUN   TestAtomicFunctionInterface/Min
+=== RUN   TestAtomicFunctionInterface/Max
+=== RUN   TestAtomicFunctionInterface/Exchange
+=== RUN   TestAtomicFunctionInterface/Store
+=== RUN   TestAtomicFunctionInterface/Load
+--- PASS: TestAtomicFunctionInterface (0.00s)
+    --- PASS: TestAtomicFunctionInterface/Add (0.00s)
+    --- PASS: TestAtomicFunctionInterface/Subtract (0.00s)
+    --- PASS: TestAtomicFunctionInterface/And (0.00s)
+    --- PASS: TestAtomicFunctionInterface/ExclusiveOr (0.00s)
+    --- PASS: TestAtomicFunctionInterface/InclusiveOr (0.00s)
+    --- PASS: TestAtomicFunctionInterface/Min (0.00s)
+    --- PASS: TestAtomicFunctionInterface/Max (0.00s)
+    --- PASS: TestAtomicFunctionInterface/Exchange (0.00s)
+    --- PASS: TestAtomicFunctionInterface/Store (0.00s)
+    --- PASS: TestAtomicFunctionInterface/Load (0.00s)
+=== RUN   TestRayQueryFunctionInterface
+=== RUN   TestRayQueryFunctionInterface/Initialize
+=== RUN   TestRayQueryFunctionInterface/Proceed
+=== RUN   TestRayQueryFunctionInterface/Terminate
+=== RUN   TestRayQueryFunctionInterface/GenerateIntersection
+=== RUN   TestRayQueryFunctionInterface/ConfirmIntersection
+--- PASS: TestRayQueryFunctionInterface (0.00s)
+    --- PASS: TestRayQueryFunctionInterface/Initialize (0.00s)
+    --- PASS: TestRayQueryFunctionInterface/Proceed (0.00s)
+    --- PASS: TestRayQueryFunctionInterface/Terminate (0.00s)
+    --- PASS: TestRayQueryFunctionInterface/GenerateIntersection (0.00s)
+    --- PASS: TestRayQueryFunctionInterface/ConfirmIntersection (0.00s)
+=== RUN   TestGatherModeInterface
+=== RUN   TestGatherModeInterface/BroadcastFirst
+=== RUN   TestGatherModeInterface/Broadcast
+=== RUN   TestGatherModeInterface/Shuffle
+=== RUN   TestGatherModeInterface/ShuffleDown
+=== RUN   TestGatherModeInterface/ShuffleUp
+=== RUN   TestGatherModeInterface/ShuffleXor
+=== RUN   TestGatherModeInterface/QuadBroadcast
+=== RUN   TestGatherModeInterface/QuadSwap
+--- PASS: TestGatherModeInterface (0.00s)
+    --- PASS: TestGatherModeInterface/BroadcastFirst (0.00s)
+    --- PASS: TestGatherModeInterface/Broadcast (0.00s)
+    --- PASS: TestGatherModeInterface/Shuffle (0.00s)
+    --- PASS: TestGatherModeInterface/ShuffleDown (0.00s)
+    --- PASS: TestGatherModeInterface/ShuffleUp (0.00s)
+    --- PASS: TestGatherModeInterface/ShuffleXor (0.00s)
+    --- PASS: TestGatherModeInterface/QuadBroadcast (0.00s)
+    --- PASS: TestGatherModeInterface/QuadSwap (0.00s)
+=== RUN   TestStmtSubBlocks
+=== RUN   TestStmtSubBlocks/Block
+=== RUN   TestStmtSubBlocks/If
+=== RUN   TestStmtSubBlocks/Loop
+=== RUN   TestStmtSubBlocks/Switch
+=== RUN   TestStmtSubBlocks/Store_has_no_sub-blocks
+=== RUN   TestStmtSubBlocks/Return_has_no_sub-blocks
+--- PASS: TestStmtSubBlocks (0.00s)
+    --- PASS: TestStmtSubBlocks/Block (0.00s)
+    --- PASS: TestStmtSubBlocks/If (0.00s)
+    --- PASS: TestStmtSubBlocks/Loop (0.00s)
+    --- PASS: TestStmtSubBlocks/Switch (0.00s)
+    --- PASS: TestStmtSubBlocks/Store_has_no_sub-blocks (0.00s)
+    --- PASS: TestStmtSubBlocks/Return_has_no_sub-blocks (0.00s)
+PASS

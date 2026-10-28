@@ -1,0 +1,11 @@
+=== RUN   TestFramePacket_SealMarksEndFrame
+--- PASS: TestFramePacket_SealMarksEndFrame (0.00s)
+=== RUN   TestFramePacket_FourStampsHonest
+--- PASS: TestFramePacket_FourStampsHonest (0.00s)
+=== RUN   TestFramePacket_PostFrameHooksSealGate
+--- PASS: TestFramePacket_PostFrameHooksSealGate (0.00s)
+=== RUN   TestFramePacket_SealGateDocumented
+--- PASS: TestFramePacket_SealGateDocumented (0.00s)
+=== RUN   TestFramePacket_CloneShallowCarriesSealState
+--- PASS: TestFramePacket_CloneShallowCarriesSealState (0.00s)
+PASS

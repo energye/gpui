@@ -1,0 +1,23 @@
+=== RUN   TestDetectShapeWrongElementCounts
+--- PASS: TestDetectShapeWrongElementCounts (0.00s)
+=== RUN   TestDetectCircleNotClosed
+--- PASS: TestDetectCircleNotClosed (0.00s)
+=== RUN   TestDetectRectNotAxisAligned
+--- PASS: TestDetectRectNotAxisAligned (0.00s)
+=== RUN   TestDetectRectDegenerateSize
+--- PASS: TestDetectRectDegenerateSize (0.00s)
+=== RUN   TestDetectRRect9Elements
+--- PASS: TestDetectRRect9Elements (0.00s)
+=== RUN   TestDetectRRectWrongPattern
+--- PASS: TestDetectRRectWrongPattern (0.00s)
+=== RUN   TestDetectRRectInconsistentCornerRadius
+--- PASS: TestDetectRRectInconsistentCornerRadius (0.00s)
+=== RUN   TestShapeKindValues
+--- PASS: TestShapeKindValues (0.00s)
+=== RUN   TestDetectedShapeCircleFields
+--- PASS: TestDetectedShapeCircleFields (0.00s)
+=== RUN   TestDetectedShapeRRectFields
+--- PASS: TestDetectedShapeRRectFields (0.00s)
+=== RUN   TestDetectShapeMultipleCalls
+--- PASS: TestDetectShapeMultipleCalls (0.00s)
+PASS

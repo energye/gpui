@@ -1,0 +1,7 @@
+=== RUN   TestGradientCTMReplayUnderTranslatedTarget
+--- PASS: TestGradientCTMReplayUnderTranslatedTarget (0.01s)
+=== RUN   TestGradientCTMReplayMatchesLiveAtRecordedCTM
+--- PASS: TestGradientCTMReplayMatchesLiveAtRecordedCTM (0.00s)
+=== RUN   TestGradientCTMFoldedRecordingKeepsCTM
+--- PASS: TestGradientCTMFoldedRecordingKeepsCTM (0.00s)
+PASS

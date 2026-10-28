@@ -1,0 +1,19 @@
+=== RUN   TestStencilRendererNew
+--- PASS: TestStencilRendererNew (0.21s)
+=== RUN   TestStencilRendererEnsureTextures
+--- PASS: TestStencilRendererEnsureTextures (0.20s)
+=== RUN   TestStencilRendererEnsureTexturesIdempotent
+--- PASS: TestStencilRendererEnsureTexturesIdempotent (0.20s)
+=== RUN   TestStencilRendererEnsureTexturesResize
+--- PASS: TestStencilRendererEnsureTexturesResize (0.20s)
+=== RUN   TestStencilRendererDestroy
+--- PASS: TestStencilRendererDestroy (0.21s)
+=== RUN   TestStencilRendererDestroyBeforeEnsure
+--- PASS: TestStencilRendererDestroyBeforeEnsure (0.20s)
+=== RUN   TestStencilRendererRenderPassDescriptor
+--- PASS: TestStencilRendererRenderPassDescriptor (0.20s)
+=== RUN   TestStencilRendererResolveTextureNilBeforeEnsure
+--- PASS: TestStencilRendererResolveTextureNilBeforeEnsure (0.19s)
+=== RUN   TestStencilRendererEnsureAfterDestroy
+--- PASS: TestStencilRendererEnsureAfterDestroy (0.21s)
+PASS

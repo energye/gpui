@@ -1,0 +1,11 @@
+=== RUN   TestX11SwitchRefreshHandledPressBurstsOnce
+--- PASS: TestX11SwitchRefreshHandledPressBurstsOnce (0.00s)
+=== RUN   TestX11SwitchRefreshComposingStaysQuiet
+--- PASS: TestX11SwitchRefreshComposingStaysQuiet (0.00s)
+=== RUN   TestX11SwitchRefreshReleaseAndPassthroughQuiet
+--- PASS: TestX11SwitchRefreshReleaseAndPassthroughQuiet (0.00s)
+=== RUN   TestX11SwitchRefreshUnfocusedQuiet
+--- PASS: TestX11SwitchRefreshUnfocusedQuiet (0.00s)
+=== RUN   TestX11SwitchRefreshAsyncBurstsOnce
+--- PASS: TestX11SwitchRefreshAsyncBurstsOnce (0.11s)
+PASS

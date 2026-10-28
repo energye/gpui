@@ -1,0 +1,7 @@
+=== RUN   TestStrokeJoin_OpenPolylineSolid
+--- PASS: TestStrokeJoin_OpenPolylineSolid (0.30s)
+=== RUN   TestStrokeJoin_ClosedRingHollow
+--- PASS: TestStrokeJoin_ClosedRingHollow (0.00s)
+=== RUN   TestStrokeJoin_CheckMarkUI
+--- PASS: TestStrokeJoin_CheckMarkUI (0.00s)
+PASS

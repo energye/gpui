@@ -1,0 +1,23 @@
+=== RUN   TestNewGPURenderer
+--- PASS: TestNewGPURenderer (0.00s)
+=== RUN   TestNewGPURendererNilHandle
+--- PASS: TestNewGPURendererNilHandle (0.00s)
+=== RUN   TestGPURendererCapabilities
+--- PASS: TestGPURendererCapabilities (0.00s)
+=== RUN   TestGPURendererFlush
+--- PASS: TestGPURendererFlush (0.00s)
+=== RUN   TestGPURendererDeviceHandle
+--- PASS: TestGPURendererDeviceHandle (0.00s)
+=== RUN   TestGPURendererCPUTarget
+--- PASS: TestGPURendererCPUTarget (0.00s)
+=== RUN   TestGPURendererGPUTarget
+--- PASS: TestGPURendererGPUTarget (0.00s)
+=== RUN   TestGPURendererNilTarget
+--- PASS: TestGPURendererNilTarget (0.00s)
+=== RUN   TestGPURendererCreateTextureTarget
+--- PASS: TestGPURendererCreateTextureTarget (0.00s)
+=== RUN   TestGPURendererFillWithSoftwareFallback
+--- PASS: TestGPURendererFillWithSoftwareFallback (0.00s)
+=== RUN   TestGPURendererImplementsRenderer
+--- PASS: TestGPURendererImplementsRenderer (0.00s)
+PASS

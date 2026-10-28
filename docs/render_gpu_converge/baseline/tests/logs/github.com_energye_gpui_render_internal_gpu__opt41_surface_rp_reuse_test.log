@@ -1,0 +1,3 @@
+=== RUN   TestOpt41_SurfaceRenderPassDesc_NoAllocWarm
+--- PASS: TestOpt41_SurfaceRenderPassDesc_NoAllocWarm (0.00s)
+PASS

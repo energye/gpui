@@ -1,0 +1,7 @@
+=== RUN   TestPathTrim_SubsetContract
+--- PASS: TestPathTrim_SubsetContract (0.00s)
+=== RUN   TestPathWithCorners_Contract
+--- PASS: TestPathWithCorners_Contract (0.00s)
+=== RUN   TestPathDiscrete_PeriodAndTwoSidedJitter
+--- PASS: TestPathDiscrete_PeriodAndTwoSidedJitter (0.00s)
+PASS

@@ -1,0 +1,15 @@
+=== RUN   TestPainterFromPaint_Solid
+--- PASS: TestPainterFromPaint_Solid (0.00s)
+=== RUN   TestPainterFromPaint_SolidPattern
+--- PASS: TestPainterFromPaint_SolidPattern (0.00s)
+=== RUN   TestPainterFromPaint_CustomBrush
+--- PASS: TestPainterFromPaint_CustomBrush (0.00s)
+=== RUN   TestPainterFromPaint_CustomPattern
+--- PASS: TestPainterFromPaint_CustomPattern (0.00s)
+=== RUN   TestPainterFromPaint_Empty
+--- PASS: TestPainterFromPaint_Empty (0.00s)
+=== RUN   TestSolidPainter_PaintSpan
+--- PASS: TestSolidPainter_PaintSpan (0.00s)
+=== RUN   TestFuncPainter_PaintSpan
+--- PASS: TestFuncPainter_PaintSpan (0.00s)
+PASS

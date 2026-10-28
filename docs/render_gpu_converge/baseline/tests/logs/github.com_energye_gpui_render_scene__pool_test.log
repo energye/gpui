@@ -1,0 +1,13 @@
+=== RUN   TestEncodingPool
+--- PASS: TestEncodingPool (0.00s)
+=== RUN   TestEncodingPoolNilPut
+--- PASS: TestEncodingPoolNilPut (0.00s)
+=== RUN   TestEncodingPoolWarmup
+--- PASS: TestEncodingPoolWarmup (0.00s)
+=== RUN   TestEncodingPoolConcurrent
+--- PASS: TestEncodingPoolConcurrent (0.00s)
+=== RUN   TestDefaultPool
+--- PASS: TestDefaultPool (0.00s)
+=== RUN   TestPoolPreservesCapacity
+--- PASS: TestPoolPreservesCapacity (0.00s)
+PASS

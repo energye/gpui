@@ -1,0 +1,141 @@
+=== RUN   TestVec2_Creation
+=== RUN   TestVec2_Creation/zero
+=== RUN   TestVec2_Creation/positive
+=== RUN   TestVec2_Creation/negative
+=== RUN   TestVec2_Creation/mixed
+=== RUN   TestVec2_Creation/fractional
+--- PASS: TestVec2_Creation (0.00s)
+    --- PASS: TestVec2_Creation/zero (0.00s)
+    --- PASS: TestVec2_Creation/positive (0.00s)
+    --- PASS: TestVec2_Creation/negative (0.00s)
+    --- PASS: TestVec2_Creation/mixed (0.00s)
+    --- PASS: TestVec2_Creation/fractional (0.00s)
+=== RUN   TestVec2_Add
+=== RUN   TestVec2_Add/zero+zero
+=== RUN   TestVec2_Add/positive
+=== RUN   TestVec2_Add/negative
+=== RUN   TestVec2_Add/mixed
+--- PASS: TestVec2_Add (0.00s)
+    --- PASS: TestVec2_Add/zero+zero (0.00s)
+    --- PASS: TestVec2_Add/positive (0.00s)
+    --- PASS: TestVec2_Add/negative (0.00s)
+    --- PASS: TestVec2_Add/mixed (0.00s)
+=== RUN   TestVec2_Sub
+=== RUN   TestVec2_Sub/zero-zero
+=== RUN   TestVec2_Sub/positive
+=== RUN   TestVec2_Sub/negative
+--- PASS: TestVec2_Sub (0.00s)
+    --- PASS: TestVec2_Sub/zero-zero (0.00s)
+    --- PASS: TestVec2_Sub/positive (0.00s)
+    --- PASS: TestVec2_Sub/negative (0.00s)
+=== RUN   TestVec2_Mul
+=== RUN   TestVec2_Mul/zero_scalar
+=== RUN   TestVec2_Mul/positive
+=== RUN   TestVec2_Mul/negative
+=== RUN   TestVec2_Mul/fractional
+--- PASS: TestVec2_Mul (0.00s)
+    --- PASS: TestVec2_Mul/zero_scalar (0.00s)
+    --- PASS: TestVec2_Mul/positive (0.00s)
+    --- PASS: TestVec2_Mul/negative (0.00s)
+    --- PASS: TestVec2_Mul/fractional (0.00s)
+=== RUN   TestVec2_Dot
+=== RUN   TestVec2_Dot/orthogonal
+=== RUN   TestVec2_Dot/parallel
+=== RUN   TestVec2_Dot/same
+=== RUN   TestVec2_Dot/opposite
+--- PASS: TestVec2_Dot (0.00s)
+    --- PASS: TestVec2_Dot/orthogonal (0.00s)
+    --- PASS: TestVec2_Dot/parallel (0.00s)
+    --- PASS: TestVec2_Dot/same (0.00s)
+    --- PASS: TestVec2_Dot/opposite (0.00s)
+=== RUN   TestVec2_Cross
+=== RUN   TestVec2_Cross/parallel
+=== RUN   TestVec2_Cross/orthogonal
+=== RUN   TestVec2_Cross/reverse_orthogonal
+=== RUN   TestVec2_Cross/general
+--- PASS: TestVec2_Cross (0.00s)
+    --- PASS: TestVec2_Cross/parallel (0.00s)
+    --- PASS: TestVec2_Cross/orthogonal (0.00s)
+    --- PASS: TestVec2_Cross/reverse_orthogonal (0.00s)
+    --- PASS: TestVec2_Cross/general (0.00s)
+=== RUN   TestVec2_Length
+=== RUN   TestVec2_Length/zero
+=== RUN   TestVec2_Length/unit_x
+=== RUN   TestVec2_Length/unit_y
+=== RUN   TestVec2_Length/3-4-5
+=== RUN   TestVec2_Length/negative
+--- PASS: TestVec2_Length (0.00s)
+    --- PASS: TestVec2_Length/zero (0.00s)
+    --- PASS: TestVec2_Length/unit_x (0.00s)
+    --- PASS: TestVec2_Length/unit_y (0.00s)
+    --- PASS: TestVec2_Length/3-4-5 (0.00s)
+    --- PASS: TestVec2_Length/negative (0.00s)
+=== RUN   TestVec2_LengthSq
+=== RUN   TestVec2_LengthSq/zero
+=== RUN   TestVec2_LengthSq/3-4-5
+--- PASS: TestVec2_LengthSq (0.00s)
+    --- PASS: TestVec2_LengthSq/zero (0.00s)
+    --- PASS: TestVec2_LengthSq/3-4-5 (0.00s)
+=== RUN   TestVec2_Normalize
+=== RUN   TestVec2_Normalize/zero
+=== RUN   TestVec2_Normalize/unit_x
+=== RUN   TestVec2_Normalize/unit_y
+=== RUN   TestVec2_Normalize/diagonal
+--- PASS: TestVec2_Normalize (0.00s)
+    --- PASS: TestVec2_Normalize/zero (0.00s)
+    --- PASS: TestVec2_Normalize/unit_x (0.00s)
+    --- PASS: TestVec2_Normalize/unit_y (0.00s)
+    --- PASS: TestVec2_Normalize/diagonal (0.00s)
+=== RUN   TestVec2_Lerp
+=== RUN   TestVec2_Lerp/t=0
+=== RUN   TestVec2_Lerp/t=1
+=== RUN   TestVec2_Lerp/t=0.5
+=== RUN   TestVec2_Lerp/t=0.25
+--- PASS: TestVec2_Lerp (0.00s)
+    --- PASS: TestVec2_Lerp/t=0 (0.00s)
+    --- PASS: TestVec2_Lerp/t=1 (0.00s)
+    --- PASS: TestVec2_Lerp/t=0.5 (0.00s)
+    --- PASS: TestVec2_Lerp/t=0.25 (0.00s)
+=== RUN   TestVec2_Rotate
+=== RUN   TestVec2_Rotate/zero_angle
+=== RUN   TestVec2_Rotate/90_deg
+=== RUN   TestVec2_Rotate/180_deg
+=== RUN   TestVec2_Rotate/270_deg
+--- PASS: TestVec2_Rotate (0.00s)
+    --- PASS: TestVec2_Rotate/zero_angle (0.00s)
+    --- PASS: TestVec2_Rotate/90_deg (0.00s)
+    --- PASS: TestVec2_Rotate/180_deg (0.00s)
+    --- PASS: TestVec2_Rotate/270_deg (0.00s)
+=== RUN   TestVec2_Perp
+=== RUN   TestVec2_Perp/x_axis
+=== RUN   TestVec2_Perp/y_axis
+=== RUN   TestVec2_Perp/diagonal
+--- PASS: TestVec2_Perp (0.00s)
+    --- PASS: TestVec2_Perp/x_axis (0.00s)
+    --- PASS: TestVec2_Perp/y_axis (0.00s)
+    --- PASS: TestVec2_Perp/diagonal (0.00s)
+=== RUN   TestVec2_Atan2
+=== RUN   TestVec2_Atan2/x_axis
+=== RUN   TestVec2_Atan2/y_axis
+=== RUN   TestVec2_Atan2/negative_x
+=== RUN   TestVec2_Atan2/negative_y
+--- PASS: TestVec2_Atan2 (0.00s)
+    --- PASS: TestVec2_Atan2/x_axis (0.00s)
+    --- PASS: TestVec2_Atan2/y_axis (0.00s)
+    --- PASS: TestVec2_Atan2/negative_x (0.00s)
+    --- PASS: TestVec2_Atan2/negative_y (0.00s)
+=== RUN   TestVec2_IsZero
+=== RUN   TestVec2_IsZero/zero
+=== RUN   TestVec2_IsZero/non-zero_x
+=== RUN   TestVec2_IsZero/non-zero_y
+=== RUN   TestVec2_IsZero/tiny
+--- PASS: TestVec2_IsZero (0.00s)
+    --- PASS: TestVec2_IsZero/zero (0.00s)
+    --- PASS: TestVec2_IsZero/non-zero_x (0.00s)
+    --- PASS: TestVec2_IsZero/non-zero_y (0.00s)
+    --- PASS: TestVec2_IsZero/tiny (0.00s)
+=== RUN   TestVec2_ToPoint
+--- PASS: TestVec2_ToPoint (0.00s)
+=== RUN   TestPointToVec2
+--- PASS: TestPointToVec2 (0.00s)
+PASS

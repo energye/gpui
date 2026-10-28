@@ -1,0 +1,17 @@
+=== RUN   TestA2BaselineParity
+--- PASS: TestA2BaselineParity (0.10s)
+=== RUN   TestA2TargetDelay
+--- PASS: TestA2TargetDelay (0.00s)
+=== RUN   TestA2SoundHead
+    sync_audio_test.go:241: sound head v=239 a=231 energy=4719.598307893015 avdiff=0
+--- PASS: TestA2SoundHead (4.14s)
+=== RUN   TestA2SoundSeeks
+--- PASS: TestA2SoundSeeks (1.39s)
+=== RUN   TestA2SilentFallback
+--- PASS: TestA2SilentFallback (8.15s)
+=== RUN   TestA2RateKeepsSoundSync
+--- PASS: TestA2RateKeepsSoundSync (0.17s)
+=== RUN   TestA2VolumeAndMute
+    sync_audio_test.go:517: volume 0.5x verified on 6 frames
+--- PASS: TestA2VolumeAndMute (0.20s)
+PASS

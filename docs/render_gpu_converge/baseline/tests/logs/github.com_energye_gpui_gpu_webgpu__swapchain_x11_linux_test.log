@@ -1,0 +1,11 @@
+=== RUN   TestSwapchain_WindowPresentE2E
+    swapchain_x11_linux_test.go:145: window swapchain Configure/BeginFrame/Present OK
+--- PASS: TestSwapchain_WindowPresentE2E (0.31s)
+=== RUN   TestS68_Swapchain_X11_MultiFramePresent
+    swapchain_x11_linux_test.go:213: S6.8 swapchain multi-frame mode=fifo acquires=12 presents=12 reconfig=0 suboptimal=0 lastPresentMs=14.807
+    swapchain_x11_linux_test.go:219: expected reconfigure counter, got 0
+--- FAIL: TestS68_Swapchain_X11_MultiFramePresent (0.38s)
+=== RUN   TestS68_Swapchain_X11_SuboptimalReconfigureFlag
+    swapchain_x11_linux_test.go:269: suboptimal path reconfigures=1 acquires=1
+--- PASS: TestS68_Swapchain_X11_SuboptimalReconfigureFlag (0.22s)
+FAIL

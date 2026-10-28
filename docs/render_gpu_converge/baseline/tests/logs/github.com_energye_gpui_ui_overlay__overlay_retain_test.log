@@ -1,0 +1,3 @@
+=== RUN   TestOverlay_AttachToPacket_RetainsImages
+--- PASS: TestOverlay_AttachToPacket_RetainsImages (0.00s)
+PASS

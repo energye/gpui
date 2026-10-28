@@ -1,0 +1,17 @@
+=== RUN   TestVideoBridgeAsyncPublishesFromWorker
+--- PASS: TestVideoBridgeAsyncPublishesFromWorker (0.00s)
+=== RUN   TestVideoBridgeAsyncDoubleBuffers
+--- PASS: TestVideoBridgeAsyncDoubleBuffers (0.00s)
+=== RUN   TestVideoBridgeAsyncPublishesOnRasterPath
+--- PASS: TestVideoBridgeAsyncPublishesOnRasterPath (0.00s)
+=== RUN   TestVideoBridgeRasterPublishSwapsShadow
+--- PASS: TestVideoBridgeRasterPublishSwapsShadow (0.00s)
+=== RUN   TestVideoBridgeAsyncBusyRejects
+--- PASS: TestVideoBridgeAsyncBusyRejects (0.00s)
+=== RUN   TestVideoBridgeAsyncUploadFailureFallsBackToShadow
+--- PASS: TestVideoBridgeAsyncUploadFailureFallsBackToShadow (0.00s)
+=== RUN   TestVideoBridgeAsyncCrossUploadFailureFallsBackToShadow
+--- PASS: TestVideoBridgeAsyncCrossUploadFailureFallsBackToShadow (0.00s)
+=== RUN   TestVideoBridgeAsyncCloseWaitsForWorker
+--- PASS: TestVideoBridgeAsyncCloseWaitsForWorker (0.01s)
+PASS

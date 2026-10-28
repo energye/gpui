@@ -1,0 +1,11 @@
+=== RUN   TestFrameDue_SlowStampsDoNotThrottleBelowSoftwareInterval
+--- PASS: TestFrameDue_SlowStampsDoNotThrottleBelowSoftwareInterval (0.42s)
+=== RUN   TestFrameDue_FastStampsPaceOncePerStamp
+--- PASS: TestFrameDue_FastStampsPaceOncePerStamp (0.01s)
+=== RUN   TestFrameDue_StaleStampsFallBackToSoftwareFloor
+--- PASS: TestFrameDue_StaleStampsFallBackToSoftwareFloor (0.02s)
+=== RUN   TestWaitTimeout_TargetsNextFrameBoundary
+--- PASS: TestWaitTimeout_TargetsNextFrameBoundary (0.01s)
+=== RUN   TestWaitTimeout_OverdueReturnsZero
+--- PASS: TestWaitTimeout_OverdueReturnsZero (0.05s)
+PASS

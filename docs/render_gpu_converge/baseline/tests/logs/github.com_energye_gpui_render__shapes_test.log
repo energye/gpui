@@ -1,0 +1,11 @@
+=== RUN   TestDrawRegularPolygon_TriangleVertexUp
+--- PASS: TestDrawRegularPolygon_TriangleVertexUp (0.00s)
+=== RUN   TestDrawRegularPolygon_SquareFlatTop
+--- PASS: TestDrawRegularPolygon_SquareFlatTop (0.00s)
+=== RUN   TestDrawRegularPolygon_HexagonFlatTop
+--- PASS: TestDrawRegularPolygon_HexagonFlatTop (0.00s)
+=== RUN   TestDrawRegularPolygon_PentagonVertexUp
+--- PASS: TestDrawRegularPolygon_PentagonVertexUp (0.00s)
+=== RUN   TestDrawRegularPolygon_CustomRotation
+--- PASS: TestDrawRegularPolygon_CustomRotation (0.00s)
+PASS

@@ -1,0 +1,9 @@
+=== RUN   TestHWRealPathOrHonestFallback
+    hw_decode_test.go:24: hw types in build: ["vdpau" "vaapi" "drm"]
+    hw_decode_test.go:53: hw stats: active=true name="vaapi" fallbacks=0 xfer_avg=13.600ms mean=158.2 var=14766
+--- PASS: TestHWRealPathOrHonestFallback (0.20s)
+=== RUN   TestHWSoftContrast
+[swscaler @ 0x769788309a00] No accelerated colorspace conversion found from yuv420p to rgba.
+    hw_decode_test.go:106: auto mean=158.29 var=14754 soft mean=158.28 var=14766
+--- PASS: TestHWSoftContrast (0.09s)
+PASS

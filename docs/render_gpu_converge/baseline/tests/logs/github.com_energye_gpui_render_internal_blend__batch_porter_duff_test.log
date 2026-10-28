@@ -1,0 +1,129 @@
+=== RUN   TestBatchPorterDuffModes
+=== RUN   TestBatchPorterDuffModes/Clear
+=== RUN   TestBatchPorterDuffModes/Source
+=== RUN   TestBatchPorterDuffModes/Destination
+=== RUN   TestBatchPorterDuffModes/SourceOver
+=== RUN   TestBatchPorterDuffModes/DestinationOver
+=== RUN   TestBatchPorterDuffModes/SourceIn
+=== RUN   TestBatchPorterDuffModes/DestinationIn
+=== RUN   TestBatchPorterDuffModes/SourceOut
+=== RUN   TestBatchPorterDuffModes/DestinationOut
+=== RUN   TestBatchPorterDuffModes/SourceAtop
+=== RUN   TestBatchPorterDuffModes/DestinationAtop
+=== RUN   TestBatchPorterDuffModes/Xor
+=== RUN   TestBatchPorterDuffModes/Plus
+=== RUN   TestBatchPorterDuffModes/Modulate
+--- PASS: TestBatchPorterDuffModes (0.00s)
+    --- PASS: TestBatchPorterDuffModes/Clear (0.00s)
+    --- PASS: TestBatchPorterDuffModes/Source (0.00s)
+    --- PASS: TestBatchPorterDuffModes/Destination (0.00s)
+    --- PASS: TestBatchPorterDuffModes/SourceOver (0.00s)
+    --- PASS: TestBatchPorterDuffModes/DestinationOver (0.00s)
+    --- PASS: TestBatchPorterDuffModes/SourceIn (0.00s)
+    --- PASS: TestBatchPorterDuffModes/DestinationIn (0.00s)
+    --- PASS: TestBatchPorterDuffModes/SourceOut (0.00s)
+    --- PASS: TestBatchPorterDuffModes/DestinationOut (0.00s)
+    --- PASS: TestBatchPorterDuffModes/SourceAtop (0.00s)
+    --- PASS: TestBatchPorterDuffModes/DestinationAtop (0.00s)
+    --- PASS: TestBatchPorterDuffModes/Xor (0.00s)
+    --- PASS: TestBatchPorterDuffModes/Plus (0.00s)
+    --- PASS: TestBatchPorterDuffModes/Modulate (0.00s)
+=== RUN   TestBatchEdgeCases
+=== RUN   TestBatchEdgeCases/SourceOver
+=== RUN   TestBatchEdgeCases/SourceOver/transparent_src
+=== RUN   TestBatchEdgeCases/SourceOver/transparent_dst
+=== RUN   TestBatchEdgeCases/SourceOver/opaque_both
+=== RUN   TestBatchEdgeCases/SourceOver/half_alpha_src
+=== RUN   TestBatchEdgeCases/SourceOver/half_alpha_dst
+=== RUN   TestBatchEdgeCases/SourceOver/both_half_alpha
+=== RUN   TestBatchEdgeCases/DestinationOver
+=== RUN   TestBatchEdgeCases/DestinationOver/transparent_src
+=== RUN   TestBatchEdgeCases/DestinationOver/transparent_dst
+=== RUN   TestBatchEdgeCases/DestinationOver/opaque_both
+=== RUN   TestBatchEdgeCases/DestinationOver/half_alpha_src
+=== RUN   TestBatchEdgeCases/DestinationOver/half_alpha_dst
+=== RUN   TestBatchEdgeCases/DestinationOver/both_half_alpha
+=== RUN   TestBatchEdgeCases/SourceIn
+=== RUN   TestBatchEdgeCases/SourceIn/transparent_src
+=== RUN   TestBatchEdgeCases/SourceIn/transparent_dst
+=== RUN   TestBatchEdgeCases/SourceIn/opaque_both
+=== RUN   TestBatchEdgeCases/SourceIn/half_alpha_src
+=== RUN   TestBatchEdgeCases/SourceIn/half_alpha_dst
+=== RUN   TestBatchEdgeCases/SourceIn/both_half_alpha
+=== RUN   TestBatchEdgeCases/SourceOut
+=== RUN   TestBatchEdgeCases/SourceOut/transparent_src
+=== RUN   TestBatchEdgeCases/SourceOut/transparent_dst
+=== RUN   TestBatchEdgeCases/SourceOut/opaque_both
+=== RUN   TestBatchEdgeCases/SourceOut/half_alpha_src
+=== RUN   TestBatchEdgeCases/SourceOut/half_alpha_dst
+=== RUN   TestBatchEdgeCases/SourceOut/both_half_alpha
+=== RUN   TestBatchEdgeCases/SourceAtop
+=== RUN   TestBatchEdgeCases/SourceAtop/transparent_src
+=== RUN   TestBatchEdgeCases/SourceAtop/transparent_dst
+=== RUN   TestBatchEdgeCases/SourceAtop/opaque_both
+=== RUN   TestBatchEdgeCases/SourceAtop/half_alpha_src
+=== RUN   TestBatchEdgeCases/SourceAtop/half_alpha_dst
+=== RUN   TestBatchEdgeCases/SourceAtop/both_half_alpha
+--- PASS: TestBatchEdgeCases (0.00s)
+    --- PASS: TestBatchEdgeCases/SourceOver (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOver/transparent_src (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOver/transparent_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOver/opaque_both (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOver/half_alpha_src (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOver/half_alpha_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOver/both_half_alpha (0.00s)
+    --- PASS: TestBatchEdgeCases/DestinationOver (0.00s)
+        --- PASS: TestBatchEdgeCases/DestinationOver/transparent_src (0.00s)
+        --- PASS: TestBatchEdgeCases/DestinationOver/transparent_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/DestinationOver/opaque_both (0.00s)
+        --- PASS: TestBatchEdgeCases/DestinationOver/half_alpha_src (0.00s)
+        --- PASS: TestBatchEdgeCases/DestinationOver/half_alpha_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/DestinationOver/both_half_alpha (0.00s)
+    --- PASS: TestBatchEdgeCases/SourceIn (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceIn/transparent_src (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceIn/transparent_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceIn/opaque_both (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceIn/half_alpha_src (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceIn/half_alpha_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceIn/both_half_alpha (0.00s)
+    --- PASS: TestBatchEdgeCases/SourceOut (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOut/transparent_src (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOut/transparent_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOut/opaque_both (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOut/half_alpha_src (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOut/half_alpha_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceOut/both_half_alpha (0.00s)
+    --- PASS: TestBatchEdgeCases/SourceAtop (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceAtop/transparent_src (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceAtop/transparent_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceAtop/opaque_both (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceAtop/half_alpha_src (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceAtop/half_alpha_dst (0.00s)
+        --- PASS: TestBatchEdgeCases/SourceAtop/both_half_alpha (0.00s)
+=== RUN   TestGetBatchBlendFunc
+=== RUN   TestGetBatchBlendFunc/Clear
+=== RUN   TestGetBatchBlendFunc/Source
+=== RUN   TestGetBatchBlendFunc/SourceOver
+=== RUN   TestGetBatchBlendFunc/Plus
+=== RUN   TestGetBatchBlendFunc/SourceOver#01
+--- PASS: TestGetBatchBlendFunc (0.00s)
+    --- PASS: TestGetBatchBlendFunc/Clear (0.00s)
+    --- PASS: TestGetBatchBlendFunc/Source (0.00s)
+    --- PASS: TestGetBatchBlendFunc/SourceOver (0.00s)
+    --- PASS: TestGetBatchBlendFunc/Plus (0.00s)
+    --- PASS: TestGetBatchBlendFunc/SourceOver#01 (0.00s)
+=== RUN   TestBatchRandomData
+=== RUN   TestBatchRandomData/SourceOver
+=== RUN   TestBatchRandomData/DestinationOver
+=== RUN   TestBatchRandomData/SourceIn
+=== RUN   TestBatchRandomData/SourceOut
+=== RUN   TestBatchRandomData/Plus
+=== RUN   TestBatchRandomData/Modulate
+--- PASS: TestBatchRandomData (0.00s)
+    --- PASS: TestBatchRandomData/SourceOver (0.00s)
+    --- PASS: TestBatchRandomData/DestinationOver (0.00s)
+    --- PASS: TestBatchRandomData/SourceIn (0.00s)
+    --- PASS: TestBatchRandomData/SourceOut (0.00s)
+    --- PASS: TestBatchRandomData/Plus (0.00s)
+    --- PASS: TestBatchRandomData/Modulate (0.00s)
+PASS

@@ -1,0 +1,8 @@
+=== RUN   TestPassScratchGatesOffCPUOnly
+--- PASS: TestPassScratchGatesOffCPUOnly (0.00s)
+=== RUN   TestPassScratchMixedRecordPixels
+    pass_scratch_test.go:196: commit skipped clean scratch (full-GPU tint path): gpu_ops=3 cpu_fallback_ops=0 frame_flushes=0
+--- PASS: TestPassScratchMixedRecordPixels (0.29s)
+=== RUN   TestPassScratchLazyCleanSkip
+--- PASS: TestPassScratchLazyCleanSkip (0.01s)
+PASS

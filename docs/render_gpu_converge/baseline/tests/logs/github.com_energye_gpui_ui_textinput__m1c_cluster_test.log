@@ -1,0 +1,7 @@
+=== RUN   TestClusterBoundary_ArrowSkipsMark_M1
+--- PASS: TestClusterBoundary_ArrowSkipsMark_M1 (0.00s)
+=== RUN   TestClusterBoundary_AffinitySnap_M1
+--- PASS: TestClusterBoundary_AffinitySnap_M1 (0.00s)
+=== RUN   TestClusterBoundary_VerticalNoSplit_M1
+--- PASS: TestClusterBoundary_VerticalNoSplit_M1 (0.00s)
+PASS

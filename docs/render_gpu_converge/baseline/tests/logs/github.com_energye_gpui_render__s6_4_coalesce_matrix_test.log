@@ -1,0 +1,5 @@
+=== RUN   TestS64_ComposeColorMatrix_Identity
+--- PASS: TestS64_ComposeColorMatrix_Identity (0.00s)
+=== RUN   TestS64_CoalesceImageFilterNodes_MergesMatrices
+--- PASS: TestS64_CoalesceImageFilterNodes_MergesMatrices (0.00s)
+PASS

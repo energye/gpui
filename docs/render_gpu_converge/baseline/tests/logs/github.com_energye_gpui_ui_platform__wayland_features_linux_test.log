@@ -1,0 +1,10 @@
+=== RUN   TestWaylandHideShow
+--- PASS: TestWaylandHideShow (0.07s)
+=== RUN   TestWaylandClipboardSetGetRoundtrip
+    wayland_features_linux_test.go:162: two-window clipboard path skipped: compositor refused unattended set_selection (no keyboard focus; wayland: clipboard is empty)
+--- SKIP: TestWaylandClipboardSetGetRoundtrip (0.56s)
+=== RUN   TestWaylandClipboardEmpty
+--- PASS: TestWaylandClipboardEmpty (0.22s)
+=== RUN   TestParseURIList
+--- PASS: TestParseURIList (0.00s)
+PASS

@@ -1,0 +1,47 @@
+=== RUN   TestDbgSnap3
+
+######## '静' 12px ########
+生产Vertical vs FT位图 73
+None+不snap  vs FT位图 71
+
+######## '每' 12px ########
+生产Vertical vs FT位图 77
+None+不snap  vs FT位图 77
+
+######## '合' 16px ########
+生产Vertical vs FT位图 90
+None+不snap  vs FT位图 112
+--- PASS: TestDbgSnap3 (0.49s)
+=== RUN   TestDbgSnap3Dump
+==== '静' 12px hint=Vertical (14x14) ====
+              
+   .O   O     
+ .O##OO #OO   
+   .O  O .O   
+  O##OO#O##O  
+ .O##OO .O #  
+        .O #  
+  #OO#.O##O#. 
+  #OO#. .O #  
+  #  O.O##O#  
+  #OO#. .O .  
+  #  O. .O    
+  # O# .O.    
+              
+==== '静' 12px hint=None (14x14) ====
+              
+              
+   .O   #     
+ .O##OO.#O#   
+  OO#O.# .O   
+  ..O..OO##O  
+ .OOOO. .O #  
+  OOOO.O##O#. 
+  #..O. .O #  
+  #OO#.O##O#  
+  #OO#. .O .  
+  #  O. .O    
+  # O# .#.    
+              
+--- PASS: TestDbgSnap3Dump (0.00s)
+PASS

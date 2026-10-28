@@ -1,0 +1,30 @@
+=== RUN   TestDebugColorTargetState
+    debug_render_test.go:19: colorTargetStateWire size: 32
+    debug_render_test.go:20: format value: 27 (0x1B)
+    debug_render_test.go:21: writeMask value: 15 (0xF)
+    debug_render_test.go:24: nextInChain offset: 0
+    debug_render_test.go:25: format offset: 8
+    debug_render_test.go:26: blend offset: 16
+    debug_render_test.go:27: writeMask offset: 24
+    debug_render_test.go:32: Raw bytes: [0 0 0 0 0 0 0 0 27 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 15 0 0 0 0 0 0 0]
+    debug_render_test.go:36: Value at offset 8 (format): 27 (0x1B)
+--- PASS: TestDebugColorTargetState (0.00s)
+=== RUN   TestDebugRenderPipelineBytes
+    debug_render_test.go:62: gputypes.TextureFormatBGRA8Unorm = 27 (0x4247524138556E6F726D)
+    debug_render_test.go:63: gputypes.TextureFormatRG11B10Ufloat = 31 (0x5247313142313055666C6F6174)
+    debug_render_test.go:67: uint32(BGRA8Unorm) = 27 (0x1B)
+    debug_render_test.go:96: Shader module handle: 0x91EEF40
+    debug_render_test.go:107: nativeTarget bytes: [0 0 0 0 0 0 0 0 27 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 15 0 0 0 0 0 0 0]
+    debug_render_test.go:108:   Bytes 8-11 (format): [27 0 0 0]
+    debug_render_test.go:112:   Format at offset 8: 27 (0x1B)
+    debug_render_test.go:115: 
+        Struct sizes:
+    debug_render_test.go:116:   colorTargetStateWire: 32
+    debug_render_test.go:117:   fragmentState: 64
+    debug_render_test.go:118:   vertexState: 64
+    debug_render_test.go:119:   primitiveState: 32
+    debug_render_test.go:120:   multisampleState: 24
+    debug_render_test.go:121:   renderPipelineDescriptor: 168
+Debug test complete - not calling CreateRenderPipeline to avoid crash
+--- PASS: TestDebugRenderPipelineBytes (0.25s)
+PASS

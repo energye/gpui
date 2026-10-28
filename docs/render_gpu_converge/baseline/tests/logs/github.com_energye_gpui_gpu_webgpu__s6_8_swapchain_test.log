@@ -1,0 +1,13 @@
+=== RUN   TestS68_Swapchain_PreferPresentModes
+--- PASS: TestS68_Swapchain_PreferPresentModes (0.00s)
+=== RUN   TestS68_Swapchain_StatsDefaults
+--- PASS: TestS68_Swapchain_StatsDefaults (0.00s)
+=== RUN   TestS68_Swapchain_NewDefaultsStillValid
+--- PASS: TestS68_Swapchain_NewDefaultsStillValid (0.00s)
+=== RUN   TestS68_Swapchain_PresentModeForVsync
+--- PASS: TestS68_Swapchain_PresentModeForVsync (0.00s)
+=== RUN   TestS68_FrameHandleUnpacksToSameView
+--- PASS: TestS68_FrameHandleUnpacksToSameView (0.00s)
+=== RUN   TestS68_TextureViewToHandleNil
+--- PASS: TestS68_TextureViewToHandleNil (0.00s)
+PASS

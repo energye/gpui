@@ -1,0 +1,9 @@
+=== RUN   TestCreateShaderModuleWGSL
+    shader_test.go:33: Creating shader module from WGSL...
+    shader_test.go:44: ShaderModule created: handle=0x26ce7260
+--- PASS: TestCreateShaderModuleWGSL (0.23s)
+=== RUN   TestCreateShaderModuleVertex
+    shader_test.go:80: Creating vertex/fragment shader module...
+    shader_test.go:87: Vertex/Fragment ShaderModule created: handle=0x2649f660
+--- PASS: TestCreateShaderModuleVertex (0.15s)
+PASS

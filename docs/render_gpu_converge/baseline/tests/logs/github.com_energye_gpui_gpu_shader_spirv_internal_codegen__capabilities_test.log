@@ -1,0 +1,45 @@
+=== RUN   TestCapability_ShaderAlwaysPresent
+=== RUN   TestCapability_ShaderAlwaysPresent/compute_shader
+=== RUN   TestCapability_ShaderAlwaysPresent/vertex_shader
+=== RUN   TestCapability_ShaderAlwaysPresent/fragment_shader
+--- PASS: TestCapability_ShaderAlwaysPresent (0.00s)
+    --- PASS: TestCapability_ShaderAlwaysPresent/compute_shader (0.00s)
+    --- PASS: TestCapability_ShaderAlwaysPresent/vertex_shader (0.00s)
+    --- PASS: TestCapability_ShaderAlwaysPresent/fragment_shader (0.00s)
+=== RUN   TestCapability_Float16
+--- PASS: TestCapability_Float16 (0.00s)
+=== RUN   TestCapability_Float64_ViaIR
+--- PASS: TestCapability_Float64_ViaIR (0.00s)
+=== RUN   TestCapability_Int16_ViaIR
+--- PASS: TestCapability_Int16_ViaIR (0.00s)
+=== RUN   TestCapability_Int64_ViaIR
+--- PASS: TestCapability_Int64_ViaIR (0.00s)
+=== RUN   TestCapability_Int8_ViaIR
+--- PASS: TestCapability_Int8_ViaIR (0.00s)
+=== RUN   TestCapability_ImageQuery
+--- PASS: TestCapability_ImageQuery (0.00s)
+=== RUN   TestCapability_DotProduct
+=== RUN   TestCapability_DotProduct/dot4I8Packed
+=== RUN   TestCapability_DotProduct/dot4U8Packed
+--- PASS: TestCapability_DotProduct (0.00s)
+    --- PASS: TestCapability_DotProduct/dot4I8Packed (0.00s)
+    --- PASS: TestCapability_DotProduct/dot4U8Packed (0.00s)
+=== RUN   TestCapability_NotEmittedWhenUnused
+--- PASS: TestCapability_NotEmittedWhenUnused (0.00s)
+=== RUN   TestCapability_UserRequestedViaOptions
+--- PASS: TestCapability_UserRequestedViaOptions (0.00s)
+=== RUN   TestCapability_NoDuplicates
+--- PASS: TestCapability_NoDuplicates (0.00s)
+=== RUN   TestCapability_ExtractEdgeCases
+=== RUN   TestCapability_ExtractEdgeCases/nil_input
+=== RUN   TestCapability_ExtractEdgeCases/empty_input
+=== RUN   TestCapability_ExtractEdgeCases/too_short_for_header
+=== RUN   TestCapability_ExtractEdgeCases/header_only_(20_bytes)
+--- PASS: TestCapability_ExtractEdgeCases (0.00s)
+    --- PASS: TestCapability_ExtractEdgeCases/nil_input (0.00s)
+    --- PASS: TestCapability_ExtractEdgeCases/empty_input (0.00s)
+    --- PASS: TestCapability_ExtractEdgeCases/too_short_for_header (0.00s)
+    --- PASS: TestCapability_ExtractEdgeCases/header_only_(20_bytes) (0.00s)
+=== RUN   TestCapability_MultipleNonStandardTypes
+--- PASS: TestCapability_MultipleNonStandardTypes (0.00s)
+PASS

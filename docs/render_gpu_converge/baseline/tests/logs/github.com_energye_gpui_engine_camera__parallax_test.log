@@ -1,0 +1,16 @@
+=== RUN   TestParallaxShiftFromCases
+--- PASS: TestParallaxShiftFromCases (0.00s)
+=== RUN   TestParallaxScreenFromCases
+--- PASS: TestParallaxScreenFromCases (0.00s)
+=== RUN   TestParallaxEdgesNoCrash
+--- PASS: TestParallaxEdgesNoCrash (0.00s)
+=== RUN   TestParallaxBoundaryIdentical
+--- PASS: TestParallaxBoundaryIdentical (0.00s)
+=== RUN   TestParallaxFollowPathPerf
+    parallax_test.go:328: parallax-follow: 728 screens (7 layers x 13 worlds x 8 cams) in 53.134µs (73.0 ns/op)
+--- PASS: TestParallaxFollowPathPerf (0.00s)
+=== RUN   TestParallaxLongRunSeamless
+--- PASS: TestParallaxLongRunSeamless (0.00s)
+=== RUN   TestParallaxOffscreenGolden
+--- PASS: TestParallaxOffscreenGolden (0.00s)
+PASS

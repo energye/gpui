@@ -1,0 +1,7 @@
+=== RUN   TestImageAtomicAdd
+--- PASS: TestImageAtomicAdd (0.00s)
+=== RUN   TestImageAtomicExchange
+--- PASS: TestImageAtomicExchange (0.00s)
+=== RUN   TestImageAtomicSignedMin
+--- PASS: TestImageAtomicSignedMin (0.00s)
+PASS

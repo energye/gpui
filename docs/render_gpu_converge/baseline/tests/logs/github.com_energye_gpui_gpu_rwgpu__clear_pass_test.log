@@ -1,0 +1,3 @@
+=== RUN   TestRenderPassClearAndSubmit
+--- PASS: TestRenderPassClearAndSubmit (0.31s)
+PASS

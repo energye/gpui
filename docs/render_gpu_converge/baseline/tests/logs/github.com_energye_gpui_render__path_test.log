@@ -1,0 +1,103 @@
+=== RUN   TestNewPath
+--- PASS: TestNewPath (0.00s)
+=== RUN   TestPath_MoveTo
+--- PASS: TestPath_MoveTo (0.00s)
+=== RUN   TestPath_MoveTo_Multiple
+--- PASS: TestPath_MoveTo_Multiple (0.00s)
+=== RUN   TestPath_LineTo
+--- PASS: TestPath_LineTo (0.00s)
+=== RUN   TestPath_LineTo_Chain
+--- PASS: TestPath_LineTo_Chain (0.00s)
+=== RUN   TestPath_QuadraticTo
+--- PASS: TestPath_QuadraticTo (0.00s)
+=== RUN   TestPath_CubicTo
+--- PASS: TestPath_CubicTo (0.00s)
+=== RUN   TestPath_Close
+--- PASS: TestPath_Close (0.00s)
+=== RUN   TestPath_Close_ResetsToStart
+--- PASS: TestPath_Close_ResetsToStart (0.00s)
+=== RUN   TestPath_Close_ThenContinue
+--- PASS: TestPath_Close_ThenContinue (0.00s)
+=== RUN   TestPath_Clear
+--- PASS: TestPath_Clear (0.00s)
+=== RUN   TestPath_Reset
+--- PASS: TestPath_Reset (0.00s)
+=== RUN   TestPath_Verbs
+--- PASS: TestPath_Verbs (0.00s)
+=== RUN   TestPath_Verbs_AllTypes
+--- PASS: TestPath_Verbs_AllTypes (0.00s)
+=== RUN   TestPath_Iterate
+--- PASS: TestPath_Iterate (0.00s)
+=== RUN   TestPath_CurrentPoint
+--- PASS: TestPath_CurrentPoint (0.00s)
+=== RUN   TestPath_IsEmpty
+--- PASS: TestPath_IsEmpty (0.00s)
+=== RUN   TestPath_Rectangle
+--- PASS: TestPath_Rectangle (0.00s)
+=== RUN   TestPath_Circle
+--- PASS: TestPath_Circle (0.00s)
+=== RUN   TestPath_Ellipse
+--- PASS: TestPath_Ellipse (0.00s)
+=== RUN   TestPath_Arc
+--- PASS: TestPath_Arc (0.00s)
+=== RUN   TestPath_Arc_FullCircle
+--- PASS: TestPath_Arc_FullCircle (0.00s)
+=== RUN   TestPath_Arc_LargeAngle
+--- PASS: TestPath_Arc_LargeAngle (0.00s)
+=== RUN   TestPath_Arc_NegativeAngle
+--- PASS: TestPath_Arc_NegativeAngle (0.00s)
+=== RUN   TestPath_RoundedRectangle
+--- PASS: TestPath_RoundedRectangle (0.00s)
+=== RUN   TestPath_RoundedRectangle_RadiusClamping
+--- PASS: TestPath_RoundedRectangle_RadiusClamping (0.00s)
+=== RUN   TestPath_RoundedRectangle_ZeroRadius
+--- PASS: TestPath_RoundedRectangle_ZeroRadius (0.00s)
+=== RUN   TestPath_Clone
+--- PASS: TestPath_Clone (0.00s)
+=== RUN   TestPath_Clone_Empty
+--- PASS: TestPath_Clone_Empty (0.00s)
+=== RUN   TestPath_Transform_Identity
+--- PASS: TestPath_Transform_Identity (0.00s)
+=== RUN   TestPath_Transform_Translate
+--- PASS: TestPath_Transform_Translate (0.00s)
+=== RUN   TestPath_Transform_Scale
+--- PASS: TestPath_Transform_Scale (0.00s)
+=== RUN   TestPath_Transform_WithQuadCubic
+--- PASS: TestPath_Transform_WithQuadCubic (0.00s)
+=== RUN   TestPathVerb_String
+--- PASS: TestPathVerb_String (0.00s)
+=== RUN   TestVerbCoordCount
+--- PASS: TestVerbCoordCount (0.00s)
+=== RUN   TestPath_VerbsCoords
+--- PASS: TestPath_VerbsCoords (0.00s)
+=== RUN   TestPath_MultipleSubpaths
+--- PASS: TestPath_MultipleSubpaths (0.00s)
+=== RUN   TestPath_MixedCurves
+--- PASS: TestPath_MixedCurves (0.00s)
+=== RUN   TestPath_StateTransitions
+--- PASS: TestPath_StateTransitions (0.00s)
+=== RUN   TestPath_Circle_BoundingBox
+--- PASS: TestPath_Circle_BoundingBox (0.00s)
+=== RUN   TestPath_Ellipse_BoundingBox
+--- PASS: TestPath_Ellipse_BoundingBox (0.00s)
+=== RUN   TestPath_SOA_ZeroAllocPerVerb
+--- PASS: TestPath_SOA_ZeroAllocPerVerb (0.00s)
+=== RUN   TestPath_Append
+--- PASS: TestPath_Append (0.00s)
+=== RUN   TestPath_Append_Nil
+--- PASS: TestPath_Append_Nil (0.00s)
+=== RUN   TestPath_Append_Empty
+--- PASS: TestPath_Append_Empty (0.00s)
+=== RUN   TestHasCurves
+=== RUN   TestHasCurves/empty
+=== RUN   TestHasCurves/lines_only
+=== RUN   TestHasCurves/quad_curve
+=== RUN   TestHasCurves/cubic_curve
+=== RUN   TestHasCurves/mixed_lines_and_cubic
+--- PASS: TestHasCurves (0.00s)
+    --- PASS: TestHasCurves/empty (0.00s)
+    --- PASS: TestHasCurves/lines_only (0.00s)
+    --- PASS: TestHasCurves/quad_curve (0.00s)
+    --- PASS: TestHasCurves/cubic_curve (0.00s)
+    --- PASS: TestHasCurves/mixed_lines_and_cubic (0.00s)
+PASS

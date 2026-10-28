@@ -1,0 +1,203 @@
+=== RUN   TestMaxByte
+=== RUN   TestMaxByte/0_vs_0
+=== RUN   TestMaxByte/0_vs_255
+=== RUN   TestMaxByte/255_vs_0
+=== RUN   TestMaxByte/128_vs_128
+=== RUN   TestMaxByte/100_vs_200
+=== RUN   TestMaxByte/200_vs_100
+--- PASS: TestMaxByte (0.00s)
+    --- PASS: TestMaxByte/0_vs_0 (0.00s)
+    --- PASS: TestMaxByte/0_vs_255 (0.00s)
+    --- PASS: TestMaxByte/255_vs_0 (0.00s)
+    --- PASS: TestMaxByte/128_vs_128 (0.00s)
+    --- PASS: TestMaxByte/100_vs_200 (0.00s)
+    --- PASS: TestMaxByte/200_vs_100 (0.00s)
+=== RUN   TestBlendMultiply
+=== RUN   TestBlendMultiply/opaque_white_*_opaque_white
+=== RUN   TestBlendMultiply/opaque_black_*_opaque_white
+=== RUN   TestBlendMultiply/opaque_gray_*_opaque_gray
+=== RUN   TestBlendMultiply/transparent_over_opaque
+--- PASS: TestBlendMultiply (0.00s)
+    --- PASS: TestBlendMultiply/opaque_white_*_opaque_white (0.00s)
+    --- PASS: TestBlendMultiply/opaque_black_*_opaque_white (0.00s)
+    --- PASS: TestBlendMultiply/opaque_gray_*_opaque_gray (0.00s)
+    --- PASS: TestBlendMultiply/transparent_over_opaque (0.00s)
+=== RUN   TestBlendScreen
+=== RUN   TestBlendScreen/opaque_white_screen_opaque_white
+=== RUN   TestBlendScreen/opaque_black_screen_opaque_white
+=== RUN   TestBlendScreen/opaque_white_screen_opaque_black
+=== RUN   TestBlendScreen/opaque_black_screen_opaque_black
+--- PASS: TestBlendScreen (0.00s)
+    --- PASS: TestBlendScreen/opaque_white_screen_opaque_white (0.00s)
+    --- PASS: TestBlendScreen/opaque_black_screen_opaque_white (0.00s)
+    --- PASS: TestBlendScreen/opaque_white_screen_opaque_black (0.00s)
+    --- PASS: TestBlendScreen/opaque_black_screen_opaque_black (0.00s)
+=== RUN   TestBlendOverlay
+=== RUN   TestBlendOverlay/opaque_white_over_opaque_white
+=== RUN   TestBlendOverlay/opaque_black_over_opaque_white
+=== RUN   TestBlendOverlay/opaque_gray_over_opaque_gray
+--- PASS: TestBlendOverlay (0.00s)
+    --- PASS: TestBlendOverlay/opaque_white_over_opaque_white (0.00s)
+    --- PASS: TestBlendOverlay/opaque_black_over_opaque_white (0.00s)
+    --- PASS: TestBlendOverlay/opaque_gray_over_opaque_gray (0.00s)
+=== RUN   TestBlendDarken
+=== RUN   TestBlendDarken/opaque_white_vs_opaque_black
+=== RUN   TestBlendDarken/opaque_gray_vs_opaque_white
+=== RUN   TestBlendDarken/opaque_100_vs_opaque_200
+--- PASS: TestBlendDarken (0.00s)
+    --- PASS: TestBlendDarken/opaque_white_vs_opaque_black (0.00s)
+    --- PASS: TestBlendDarken/opaque_gray_vs_opaque_white (0.00s)
+    --- PASS: TestBlendDarken/opaque_100_vs_opaque_200 (0.00s)
+=== RUN   TestBlendLighten
+=== RUN   TestBlendLighten/opaque_white_vs_opaque_black
+=== RUN   TestBlendLighten/opaque_gray_vs_opaque_white
+=== RUN   TestBlendLighten/opaque_100_vs_opaque_200
+--- PASS: TestBlendLighten (0.00s)
+    --- PASS: TestBlendLighten/opaque_white_vs_opaque_black (0.00s)
+    --- PASS: TestBlendLighten/opaque_gray_vs_opaque_white (0.00s)
+    --- PASS: TestBlendLighten/opaque_100_vs_opaque_200 (0.00s)
+=== RUN   TestBlendColorDodge
+=== RUN   TestBlendColorDodge/opaque_white_dodge_opaque_gray
+=== RUN   TestBlendColorDodge/opaque_black_dodge_opaque_white
+=== RUN   TestBlendColorDodge/opaque_gray_dodge_opaque_gray
+--- PASS: TestBlendColorDodge (0.00s)
+    --- PASS: TestBlendColorDodge/opaque_white_dodge_opaque_gray (0.00s)
+    --- PASS: TestBlendColorDodge/opaque_black_dodge_opaque_white (0.00s)
+    --- PASS: TestBlendColorDodge/opaque_gray_dodge_opaque_gray (0.00s)
+=== RUN   TestBlendColorBurn
+=== RUN   TestBlendColorBurn/opaque_white_burn_opaque_gray
+=== RUN   TestBlendColorBurn/opaque_black_burn_opaque_white
+=== RUN   TestBlendColorBurn/opaque_gray_burn_opaque_gray
+--- PASS: TestBlendColorBurn (0.00s)
+    --- PASS: TestBlendColorBurn/opaque_white_burn_opaque_gray (0.00s)
+    --- PASS: TestBlendColorBurn/opaque_black_burn_opaque_white (0.00s)
+    --- PASS: TestBlendColorBurn/opaque_gray_burn_opaque_gray (0.00s)
+=== RUN   TestBlendHardLight
+=== RUN   TestBlendHardLight/opaque_white_hard_light_opaque_gray
+=== RUN   TestBlendHardLight/opaque_black_hard_light_opaque_white
+=== RUN   TestBlendHardLight/opaque_64_hard_light_opaque_gray
+--- PASS: TestBlendHardLight (0.00s)
+    --- PASS: TestBlendHardLight/opaque_white_hard_light_opaque_gray (0.00s)
+    --- PASS: TestBlendHardLight/opaque_black_hard_light_opaque_white (0.00s)
+    --- PASS: TestBlendHardLight/opaque_64_hard_light_opaque_gray (0.00s)
+=== RUN   TestBlendSoftLight
+=== RUN   TestBlendSoftLight/opaque_white_soft_light_opaque_gray
+=== RUN   TestBlendSoftLight/opaque_black_soft_light_opaque_white
+=== RUN   TestBlendSoftLight/opaque_gray_soft_light_opaque_gray
+--- PASS: TestBlendSoftLight (0.00s)
+    --- PASS: TestBlendSoftLight/opaque_white_soft_light_opaque_gray (0.00s)
+    --- PASS: TestBlendSoftLight/opaque_black_soft_light_opaque_white (0.00s)
+    --- PASS: TestBlendSoftLight/opaque_gray_soft_light_opaque_gray (0.00s)
+=== RUN   TestBlendDifference
+=== RUN   TestBlendDifference/opaque_white_diff_opaque_black
+=== RUN   TestBlendDifference/opaque_black_diff_opaque_white
+=== RUN   TestBlendDifference/opaque_same_color
+=== RUN   TestBlendDifference/opaque_200_diff_opaque_100
+--- PASS: TestBlendDifference (0.00s)
+    --- PASS: TestBlendDifference/opaque_white_diff_opaque_black (0.00s)
+    --- PASS: TestBlendDifference/opaque_black_diff_opaque_white (0.00s)
+    --- PASS: TestBlendDifference/opaque_same_color (0.00s)
+    --- PASS: TestBlendDifference/opaque_200_diff_opaque_100 (0.00s)
+=== RUN   TestBlendExclusion
+=== RUN   TestBlendExclusion/opaque_white_exclusion_opaque_black
+=== RUN   TestBlendExclusion/opaque_black_exclusion_opaque_white
+=== RUN   TestBlendExclusion/opaque_same_color
+--- PASS: TestBlendExclusion (0.00s)
+    --- PASS: TestBlendExclusion/opaque_white_exclusion_opaque_black (0.00s)
+    --- PASS: TestBlendExclusion/opaque_black_exclusion_opaque_white (0.00s)
+    --- PASS: TestBlendExclusion/opaque_same_color (0.00s)
+=== RUN   TestSeparableBlend
+=== RUN   TestSeparableBlend/identity_blend_(returns_source)
+=== RUN   TestSeparableBlend/zero_blend_(returns_zero)
+=== RUN   TestSeparableBlend/max_blend_(returns_max)
+--- PASS: TestSeparableBlend (0.00s)
+    --- PASS: TestSeparableBlend/identity_blend_(returns_source) (0.00s)
+    --- PASS: TestSeparableBlend/zero_blend_(returns_zero) (0.00s)
+    --- PASS: TestSeparableBlend/max_blend_(returns_max) (0.00s)
+=== RUN   TestSeparableBlendTransparent
+=== RUN   TestSeparableBlendTransparent/transparent_source
+=== RUN   TestSeparableBlendTransparent/transparent_destination
+=== RUN   TestSeparableBlendTransparent/both_transparent
+--- PASS: TestSeparableBlendTransparent (0.00s)
+    --- PASS: TestSeparableBlendTransparent/transparent_source (0.00s)
+    --- PASS: TestSeparableBlendTransparent/transparent_destination (0.00s)
+    --- PASS: TestSeparableBlendTransparent/both_transparent (0.00s)
+=== RUN   TestGetBlendFuncAdvanced
+=== RUN   TestGetBlendFuncAdvanced/Multiply
+=== RUN   TestGetBlendFuncAdvanced/Screen
+=== RUN   TestGetBlendFuncAdvanced/Overlay
+=== RUN   TestGetBlendFuncAdvanced/Darken
+=== RUN   TestGetBlendFuncAdvanced/Lighten
+=== RUN   TestGetBlendFuncAdvanced/ColorDodge
+=== RUN   TestGetBlendFuncAdvanced/ColorBurn
+=== RUN   TestGetBlendFuncAdvanced/HardLight
+=== RUN   TestGetBlendFuncAdvanced/SoftLight
+=== RUN   TestGetBlendFuncAdvanced/Difference
+=== RUN   TestGetBlendFuncAdvanced/Exclusion
+=== RUN   TestGetBlendFuncAdvanced/Hue
+=== RUN   TestGetBlendFuncAdvanced/Saturation
+=== RUN   TestGetBlendFuncAdvanced/Color
+=== RUN   TestGetBlendFuncAdvanced/Luminosity
+--- PASS: TestGetBlendFuncAdvanced (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Multiply (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Screen (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Overlay (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Darken (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Lighten (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/ColorDodge (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/ColorBurn (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/HardLight (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/SoftLight (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Difference (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Exclusion (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Hue (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Saturation (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Color (0.00s)
+    --- PASS: TestGetBlendFuncAdvanced/Luminosity (0.00s)
+=== RUN   TestAdvancedBlendModeConstants
+--- PASS: TestAdvancedBlendModeConstants (0.00s)
+=== RUN   TestBlendModeSymmetry
+=== RUN   TestBlendModeSymmetry/Multiply
+=== RUN   TestBlendModeSymmetry/Screen
+=== RUN   TestBlendModeSymmetry/Difference
+=== RUN   TestBlendModeSymmetry/Exclusion
+--- PASS: TestBlendModeSymmetry (0.00s)
+    --- PASS: TestBlendModeSymmetry/Multiply (0.00s)
+    --- PASS: TestBlendModeSymmetry/Screen (0.00s)
+    --- PASS: TestBlendModeSymmetry/Difference (0.00s)
+    --- PASS: TestBlendModeSymmetry/Exclusion (0.00s)
+=== RUN   TestBlendModeIdentity
+=== RUN   TestBlendModeIdentity/#00
+=== RUN   TestBlendModeIdentity/#01
+=== RUN   TestBlendModeIdentity/#02
+=== RUN   TestBlendModeIdentity/#03
+=== RUN   TestBlendModeIdentity/#04
+=== RUN   TestBlendModeIdentity/#05
+=== RUN   TestBlendModeIdentity/#06
+=== RUN   TestBlendModeIdentity/#07
+=== RUN   TestBlendModeIdentity/#08
+=== RUN   TestBlendModeIdentity/#09
+=== RUN   TestBlendModeIdentity/#10
+--- PASS: TestBlendModeIdentity (0.00s)
+    --- PASS: TestBlendModeIdentity/#00 (0.00s)
+    --- PASS: TestBlendModeIdentity/#01 (0.00s)
+    --- PASS: TestBlendModeIdentity/#02 (0.00s)
+    --- PASS: TestBlendModeIdentity/#03 (0.00s)
+    --- PASS: TestBlendModeIdentity/#04 (0.00s)
+    --- PASS: TestBlendModeIdentity/#05 (0.00s)
+    --- PASS: TestBlendModeIdentity/#06 (0.00s)
+    --- PASS: TestBlendModeIdentity/#07 (0.00s)
+    --- PASS: TestBlendModeIdentity/#08 (0.00s)
+    --- PASS: TestBlendModeIdentity/#09 (0.00s)
+    --- PASS: TestBlendModeIdentity/#10 (0.00s)
+=== RUN   TestSoftLightPrecision
+=== RUN   TestSoftLightPrecision/source_<_0.5
+=== RUN   TestSoftLightPrecision/source_>_0.5
+=== RUN   TestSoftLightPrecision/dest_<_0.25
+=== RUN   TestSoftLightPrecision/dest_>_0.25
+--- PASS: TestSoftLightPrecision (0.00s)
+    --- PASS: TestSoftLightPrecision/source_<_0.5 (0.00s)
+    --- PASS: TestSoftLightPrecision/source_>_0.5 (0.00s)
+    --- PASS: TestSoftLightPrecision/dest_<_0.25 (0.00s)
+    --- PASS: TestSoftLightPrecision/dest_>_0.25 (0.00s)
+PASS

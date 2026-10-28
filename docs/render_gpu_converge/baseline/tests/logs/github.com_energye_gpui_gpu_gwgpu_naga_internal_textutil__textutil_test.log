@@ -1,0 +1,27 @@
+=== RUN   TestIndentWriter_WriteLine
+=== RUN   TestIndentWriter_WriteLine/no_indent,_no_args
+=== RUN   TestIndentWriter_WriteLine/one_indent_level
+=== RUN   TestIndentWriter_WriteLine/two_indent_levels
+=== RUN   TestIndentWriter_WriteLine/with_format_args
+=== RUN   TestIndentWriter_WriteLine/with_string_format
+--- PASS: TestIndentWriter_WriteLine (0.00s)
+    --- PASS: TestIndentWriter_WriteLine/no_indent,_no_args (0.00s)
+    --- PASS: TestIndentWriter_WriteLine/one_indent_level (0.00s)
+    --- PASS: TestIndentWriter_WriteLine/two_indent_levels (0.00s)
+    --- PASS: TestIndentWriter_WriteLine/with_format_args (0.00s)
+    --- PASS: TestIndentWriter_WriteLine/with_string_format (0.00s)
+=== RUN   TestIndentWriter_WriteIndent
+=== RUN   TestIndentWriter_WriteIndent/zero
+=== RUN   TestIndentWriter_WriteIndent/one
+=== RUN   TestIndentWriter_WriteIndent/two
+=== RUN   TestIndentWriter_WriteIndent/three
+--- PASS: TestIndentWriter_WriteIndent (0.00s)
+    --- PASS: TestIndentWriter_WriteIndent/zero (0.00s)
+    --- PASS: TestIndentWriter_WriteIndent/one (0.00s)
+    --- PASS: TestIndentWriter_WriteIndent/two (0.00s)
+    --- PASS: TestIndentWriter_WriteIndent/three (0.00s)
+=== RUN   TestIndentWriter_PushPopIndent
+--- PASS: TestIndentWriter_PushPopIndent (0.00s)
+=== RUN   TestIndentWriter_MultipleWrites
+--- PASS: TestIndentWriter_MultipleWrites (0.00s)
+PASS

@@ -1,0 +1,61 @@
+=== RUN   TestMathBuiltinArgumentOrder
+=== RUN   TestMathBuiltinArgumentOrder/smoothstep(low=0.2,_high=0.8,_x=0.5)
+    math_args_test.go:139: Operand 0: value 0.2 matches expected 0.2 (ID=20)
+    math_args_test.go:139: Operand 1: value 0.8 matches expected 0.8 (ID=21)
+    math_args_test.go:139: Operand 2: value 0.5 matches expected 0.5 (ID=22)
+=== RUN   TestMathBuiltinArgumentOrder/clamp(e=0.3,_low=0.1,_high=0.9)
+    math_args_test.go:139: Operand 0: value 0.3 matches expected 0.3 (ID=20)
+    math_args_test.go:139: Operand 1: value 0.1 matches expected 0.1 (ID=21)
+    math_args_test.go:139: Operand 2: value 0.9 matches expected 0.9 (ID=22)
+=== RUN   TestMathBuiltinArgumentOrder/step(edge=0.4,_x=0.6)
+    math_args_test.go:139: Operand 0: value 0.4 matches expected 0.4 (ID=18)
+    math_args_test.go:139: Operand 1: value 0.6 matches expected 0.6 (ID=19)
+=== RUN   TestMathBuiltinArgumentOrder/mix(e1=0.2,_e2=0.7,_e3=0.5)
+    math_args_test.go:139: Operand 0: value 0.2 matches expected 0.2 (ID=20)
+    math_args_test.go:139: Operand 1: value 0.7 matches expected 0.7 (ID=21)
+    math_args_test.go:139: Operand 2: value 0.5 matches expected 0.5 (ID=22)
+=== RUN   TestMathBuiltinArgumentOrder/fma(a=0.3,_b=0.4,_c=0.5)
+    math_args_test.go:139: Operand 0: value 0.3 matches expected 0.3 (ID=20)
+    math_args_test.go:139: Operand 1: value 0.4 matches expected 0.4 (ID=21)
+    math_args_test.go:139: Operand 2: value 0.5 matches expected 0.5 (ID=22)
+--- PASS: TestMathBuiltinArgumentOrder (0.00s)
+    --- PASS: TestMathBuiltinArgumentOrder/smoothstep(low=0.2,_high=0.8,_x=0.5) (0.00s)
+    --- PASS: TestMathBuiltinArgumentOrder/clamp(e=0.3,_low=0.1,_high=0.9) (0.00s)
+    --- PASS: TestMathBuiltinArgumentOrder/step(edge=0.4,_x=0.6) (0.00s)
+    --- PASS: TestMathBuiltinArgumentOrder/mix(e1=0.2,_e2=0.7,_e3=0.5) (0.00s)
+    --- PASS: TestMathBuiltinArgumentOrder/fma(a=0.3,_b=0.4,_c=0.5) (0.00s)
+=== RUN   TestMathBuiltinCompilation
+=== RUN   TestMathBuiltinCompilation/smoothstep
+    math_args_test.go:203: Successfully compiled smoothstep: 464 bytes
+=== RUN   TestMathBuiltinCompilation/clamp
+    math_args_test.go:203: Successfully compiled clamp: 464 bytes
+=== RUN   TestMathBuiltinCompilation/step
+    math_args_test.go:203: Successfully compiled step: 476 bytes
+=== RUN   TestMathBuiltinCompilation/mix
+    math_args_test.go:203: Successfully compiled mix: 464 bytes
+=== RUN   TestMathBuiltinCompilation/fma
+    math_args_test.go:203: Successfully compiled fma: 480 bytes
+--- PASS: TestMathBuiltinCompilation (0.00s)
+    --- PASS: TestMathBuiltinCompilation/smoothstep (0.00s)
+    --- PASS: TestMathBuiltinCompilation/clamp (0.00s)
+    --- PASS: TestMathBuiltinCompilation/step (0.00s)
+    --- PASS: TestMathBuiltinCompilation/mix (0.00s)
+    --- PASS: TestMathBuiltinCompilation/fma (0.00s)
+=== RUN   TestMathBuiltinExtInstPresence
+=== RUN   TestMathBuiltinExtInstPresence/smoothstep_emits_SmoothStep(49)
+    math_args_test.go:515: Found GLSLstd450SmoothStep with 3 operands
+=== RUN   TestMathBuiltinExtInstPresence/clamp_emits_FClamp(43)
+    math_args_test.go:515: Found GLSLstd450FClamp with 3 operands
+=== RUN   TestMathBuiltinExtInstPresence/step_emits_Step(48)
+    math_args_test.go:515: Found GLSLstd450Step with 2 operands
+=== RUN   TestMathBuiltinExtInstPresence/mix_emits_FMix(46)
+    math_args_test.go:515: Found GLSLstd450FMix with 3 operands
+=== RUN   TestMathBuiltinExtInstPresence/fma_emits_Fma(50)
+    math_args_test.go:515: Found GLSLstd450Fma with 3 operands
+--- PASS: TestMathBuiltinExtInstPresence (0.00s)
+    --- PASS: TestMathBuiltinExtInstPresence/smoothstep_emits_SmoothStep(49) (0.00s)
+    --- PASS: TestMathBuiltinExtInstPresence/clamp_emits_FClamp(43) (0.00s)
+    --- PASS: TestMathBuiltinExtInstPresence/step_emits_Step(48) (0.00s)
+    --- PASS: TestMathBuiltinExtInstPresence/mix_emits_FMix(46) (0.00s)
+    --- PASS: TestMathBuiltinExtInstPresence/fma_emits_Fma(50) (0.00s)
+PASS

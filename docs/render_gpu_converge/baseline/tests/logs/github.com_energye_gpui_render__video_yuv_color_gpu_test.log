@@ -1,0 +1,7 @@
+=== RUN   TestVideoYUVPlanes_GPUColor
+=== RUN   TestVideoYUVPlanes_GPUColor/padded
+=== RUN   TestVideoYUVPlanes_GPUColor/aligned
+--- PASS: TestVideoYUVPlanes_GPUColor (0.56s)
+    --- PASS: TestVideoYUVPlanes_GPUColor/padded (0.08s)
+    --- PASS: TestVideoYUVPlanes_GPUColor/aligned (0.01s)
+PASS

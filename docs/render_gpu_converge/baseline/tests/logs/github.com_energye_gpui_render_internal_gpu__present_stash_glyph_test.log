@@ -1,0 +1,5 @@
+=== RUN   TestStashGlyphQuads_SurviveStoreReuse
+--- PASS: TestStashGlyphQuads_SurviveStoreReuse (0.00s)
+=== RUN   TestStashGlyphQuads_MultipleBatchesKeepsOrder
+--- PASS: TestStashGlyphQuads_MultipleBatchesKeepsOrder (0.00s)
+PASS

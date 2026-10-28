@@ -1,0 +1,6 @@
+=== RUN   TestWaylandResizeHandshake
+    wayland_interact_test.go:48: no resizing-state configure within 3s (compositor may not emit one without pointer motion)
+--- PASS: TestWaylandResizeHandshake (4.26s)
+=== RUN   TestWaylandChromePressConsumes
+--- PASS: TestWaylandChromePressConsumes (0.19s)
+PASS

@@ -1,0 +1,5 @@
+=== RUN   TestVarIfElseSPIRV_ControlFlowValidation
+    var_ifelse_test.go:110: Running control flow validation on Shader A (var + if/else)...
+    var_ifelse_test.go:112: Control flow validation passed!
+--- PASS: TestVarIfElseSPIRV_ControlFlowValidation (0.00s)
+PASS

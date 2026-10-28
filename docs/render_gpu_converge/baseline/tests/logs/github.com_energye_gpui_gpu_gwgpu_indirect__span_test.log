@@ -1,0 +1,17 @@
+=== RUN   TestRangeFits
+=== RUN   TestRangeFits/empty_range
+=== RUN   TestRangeFits/exact_range
+=== RUN   TestRangeFits/range_too_large
+=== RUN   TestRangeFits/offset_past_buffer
+=== RUN   TestRangeFits/zero_record_size
+--- PASS: TestRangeFits (0.00s)
+    --- PASS: TestRangeFits/empty_range (0.00s)
+    --- PASS: TestRangeFits/exact_range (0.00s)
+    --- PASS: TestRangeFits/range_too_large (0.00s)
+    --- PASS: TestRangeFits/offset_past_buffer (0.00s)
+    --- PASS: TestRangeFits/zero_record_size (0.00s)
+=== RUN   TestRecordOffset
+--- PASS: TestRecordOffset (0.00s)
+=== RUN   TestDelegatedValidationOffset
+--- PASS: TestDelegatedValidationOffset (0.00s)
+PASS

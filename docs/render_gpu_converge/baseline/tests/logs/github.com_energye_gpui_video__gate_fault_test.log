@@ -1,0 +1,29 @@
+=== RUN   TestVR6FFmpegParity
+=== RUN   TestVR6FFmpegParity/file/missing-file
+=== RUN   TestVR6FFmpegParity/file/junk-not-mp4
+=== RUN   TestVR6FFmpegParity/file/trunc-tail
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x1e483d80] error reading header
+=== RUN   TestVR6FFmpegParity/file/flower-f20
+[h264 @ 0x1e4b9700] Invalid NAL unit size (0 > 234).
+[h264 @ 0x1e4b9700] missing picture in access unit with size 238
+[h264 @ 0x1e678540] Invalid NAL unit size (0 > 234).
+[h264 @ 0x1e678540] Error splitting the input into NAL units.
+[h264 @ 0x1eb1c380] Invalid NAL unit size (0 > 234).
+[h264 @ 0x1eb1c380] missing picture in access unit with size 238
+[h264 @ 0x1eac1dc0] Invalid NAL unit size (0 > 234).
+[h264 @ 0x1eac1dc0] Error splitting the input into NAL units.
+    gate_fault_test.go:243: flower-f20: shown=9 (header 10, good >= 8)
+=== RUN   TestVR6FFmpegParity/file/level60-diverged
+=== RUN   TestVR6FFmpegParity/file/clean-good
+=== RUN   TestVR6FFmpegParity/unit/backend-buckets
+=== RUN   TestVR6FFmpegParity/unit/retired-aliases
+--- PASS: TestVR6FFmpegParity (0.12s)
+    --- PASS: TestVR6FFmpegParity/file/missing-file (0.00s)
+    --- PASS: TestVR6FFmpegParity/file/junk-not-mp4 (0.01s)
+    --- PASS: TestVR6FFmpegParity/file/trunc-tail (0.00s)
+    --- PASS: TestVR6FFmpegParity/file/flower-f20 (0.06s)
+    --- PASS: TestVR6FFmpegParity/file/level60-diverged (0.03s)
+    --- PASS: TestVR6FFmpegParity/file/clean-good (0.03s)
+    --- PASS: TestVR6FFmpegParity/unit/backend-buckets (0.00s)
+    --- PASS: TestVR6FFmpegParity/unit/retired-aliases (0.00s)
+PASS

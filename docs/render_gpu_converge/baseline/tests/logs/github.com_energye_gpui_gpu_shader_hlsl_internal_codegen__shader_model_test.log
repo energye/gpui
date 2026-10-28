@@ -1,0 +1,107 @@
+=== RUN   TestShaderModel_String
+=== RUN   TestShaderModel_String/SM_5.0
+=== RUN   TestShaderModel_String/SM_5.1
+=== RUN   TestShaderModel_String/SM_6.0
+=== RUN   TestShaderModel_String/SM_6.1
+=== RUN   TestShaderModel_String/SM_6.2
+=== RUN   TestShaderModel_String/SM_6.3
+=== RUN   TestShaderModel_String/SM_6.4
+=== RUN   TestShaderModel_String/SM_6.5
+=== RUN   TestShaderModel_String/SM_6.6
+=== RUN   TestShaderModel_String/SM_6.7
+--- PASS: TestShaderModel_String (0.00s)
+    --- PASS: TestShaderModel_String/SM_5.0 (0.00s)
+    --- PASS: TestShaderModel_String/SM_5.1 (0.00s)
+    --- PASS: TestShaderModel_String/SM_6.0 (0.00s)
+    --- PASS: TestShaderModel_String/SM_6.1 (0.00s)
+    --- PASS: TestShaderModel_String/SM_6.2 (0.00s)
+    --- PASS: TestShaderModel_String/SM_6.3 (0.00s)
+    --- PASS: TestShaderModel_String/SM_6.4 (0.00s)
+    --- PASS: TestShaderModel_String/SM_6.5 (0.00s)
+    --- PASS: TestShaderModel_String/SM_6.6 (0.00s)
+    --- PASS: TestShaderModel_String/SM_6.7 (0.00s)
+=== RUN   TestShaderModel_ProfileSuffix
+=== RUN   TestShaderModel_ProfileSuffix/SM_5.0_suffix
+=== RUN   TestShaderModel_ProfileSuffix/SM_5.1_suffix
+=== RUN   TestShaderModel_ProfileSuffix/SM_6.0_suffix
+=== RUN   TestShaderModel_ProfileSuffix/SM_6.5_suffix
+=== RUN   TestShaderModel_ProfileSuffix/SM_6.7_suffix
+--- PASS: TestShaderModel_ProfileSuffix (0.00s)
+    --- PASS: TestShaderModel_ProfileSuffix/SM_5.0_suffix (0.00s)
+    --- PASS: TestShaderModel_ProfileSuffix/SM_5.1_suffix (0.00s)
+    --- PASS: TestShaderModel_ProfileSuffix/SM_6.0_suffix (0.00s)
+    --- PASS: TestShaderModel_ProfileSuffix/SM_6.5_suffix (0.00s)
+    --- PASS: TestShaderModel_ProfileSuffix/SM_6.7_suffix (0.00s)
+=== RUN   TestShaderModel_Version
+=== RUN   TestShaderModel_Version/SM_5.0
+=== RUN   TestShaderModel_Version/SM_5.1
+=== RUN   TestShaderModel_Version/SM_6.0
+=== RUN   TestShaderModel_Version/SM_6.3
+=== RUN   TestShaderModel_Version/SM_6.7
+--- PASS: TestShaderModel_Version (0.00s)
+    --- PASS: TestShaderModel_Version/SM_5.0 (0.00s)
+    --- PASS: TestShaderModel_Version/SM_5.1 (0.00s)
+    --- PASS: TestShaderModel_Version/SM_6.0 (0.00s)
+    --- PASS: TestShaderModel_Version/SM_6.3 (0.00s)
+    --- PASS: TestShaderModel_Version/SM_6.7 (0.00s)
+=== RUN   TestShaderModel_SupportsDXIL
+=== RUN   TestShaderModel_SupportsDXIL/SM_5.0_no_DXIL
+=== RUN   TestShaderModel_SupportsDXIL/SM_5.1_no_DXIL
+=== RUN   TestShaderModel_SupportsDXIL/SM_6.0_DXIL
+=== RUN   TestShaderModel_SupportsDXIL/SM_6.5_DXIL
+--- PASS: TestShaderModel_SupportsDXIL (0.00s)
+    --- PASS: TestShaderModel_SupportsDXIL/SM_5.0_no_DXIL (0.00s)
+    --- PASS: TestShaderModel_SupportsDXIL/SM_5.1_no_DXIL (0.00s)
+    --- PASS: TestShaderModel_SupportsDXIL/SM_6.0_DXIL (0.00s)
+    --- PASS: TestShaderModel_SupportsDXIL/SM_6.5_DXIL (0.00s)
+=== RUN   TestShaderModel_SupportsWaveOps
+=== RUN   TestShaderModel_SupportsWaveOps/SM_5.1_no_wave_ops
+=== RUN   TestShaderModel_SupportsWaveOps/SM_6.0_wave_ops
+=== RUN   TestShaderModel_SupportsWaveOps/SM_6.5_wave_ops
+--- PASS: TestShaderModel_SupportsWaveOps (0.00s)
+    --- PASS: TestShaderModel_SupportsWaveOps/SM_5.1_no_wave_ops (0.00s)
+    --- PASS: TestShaderModel_SupportsWaveOps/SM_6.0_wave_ops (0.00s)
+    --- PASS: TestShaderModel_SupportsWaveOps/SM_6.5_wave_ops (0.00s)
+=== RUN   TestShaderModel_SupportsMeshShaders
+=== RUN   TestShaderModel_SupportsMeshShaders/SM_6.4_no_mesh
+=== RUN   TestShaderModel_SupportsMeshShaders/SM_6.5_mesh
+=== RUN   TestShaderModel_SupportsMeshShaders/SM_6.6_mesh
+--- PASS: TestShaderModel_SupportsMeshShaders (0.00s)
+    --- PASS: TestShaderModel_SupportsMeshShaders/SM_6.4_no_mesh (0.00s)
+    --- PASS: TestShaderModel_SupportsMeshShaders/SM_6.5_mesh (0.00s)
+    --- PASS: TestShaderModel_SupportsMeshShaders/SM_6.6_mesh (0.00s)
+=== RUN   TestShaderModel_SupportsRayTracing
+=== RUN   TestShaderModel_SupportsRayTracing/SM_6.2_no_ray_tracing
+=== RUN   TestShaderModel_SupportsRayTracing/SM_6.3_ray_tracing
+=== RUN   TestShaderModel_SupportsRayTracing/SM_6.5_ray_tracing
+--- PASS: TestShaderModel_SupportsRayTracing (0.00s)
+    --- PASS: TestShaderModel_SupportsRayTracing/SM_6.2_no_ray_tracing (0.00s)
+    --- PASS: TestShaderModel_SupportsRayTracing/SM_6.3_ray_tracing (0.00s)
+    --- PASS: TestShaderModel_SupportsRayTracing/SM_6.5_ray_tracing (0.00s)
+=== RUN   TestShaderModel_Supports64BitAtomics
+=== RUN   TestShaderModel_Supports64BitAtomics/SM_6.5_no_64-bit_atomics
+=== RUN   TestShaderModel_Supports64BitAtomics/SM_6.6_64-bit_atomics
+=== RUN   TestShaderModel_Supports64BitAtomics/SM_6.7_64-bit_atomics
+--- PASS: TestShaderModel_Supports64BitAtomics (0.00s)
+    --- PASS: TestShaderModel_Supports64BitAtomics/SM_6.5_no_64-bit_atomics (0.00s)
+    --- PASS: TestShaderModel_Supports64BitAtomics/SM_6.6_64-bit_atomics (0.00s)
+    --- PASS: TestShaderModel_Supports64BitAtomics/SM_6.7_64-bit_atomics (0.00s)
+=== RUN   TestShaderModel_SupportsFloat16
+=== RUN   TestShaderModel_SupportsFloat16/SM_6.1_no_float16
+=== RUN   TestShaderModel_SupportsFloat16/SM_6.2_float16
+=== RUN   TestShaderModel_SupportsFloat16/SM_6.5_float16
+--- PASS: TestShaderModel_SupportsFloat16 (0.00s)
+    --- PASS: TestShaderModel_SupportsFloat16/SM_6.1_no_float16 (0.00s)
+    --- PASS: TestShaderModel_SupportsFloat16/SM_6.2_float16 (0.00s)
+    --- PASS: TestShaderModel_SupportsFloat16/SM_6.5_float16 (0.00s)
+=== RUN   TestShaderModel_SupportsVariableRateShading
+=== RUN   TestShaderModel_SupportsVariableRateShading/SM_6.3_no_VRS
+=== RUN   TestShaderModel_SupportsVariableRateShading/SM_6.4_VRS
+=== RUN   TestShaderModel_SupportsVariableRateShading/SM_6.6_VRS
+--- PASS: TestShaderModel_SupportsVariableRateShading (0.00s)
+    --- PASS: TestShaderModel_SupportsVariableRateShading/SM_6.3_no_VRS (0.00s)
+    --- PASS: TestShaderModel_SupportsVariableRateShading/SM_6.4_VRS (0.00s)
+    --- PASS: TestShaderModel_SupportsVariableRateShading/SM_6.6_VRS (0.00s)
+=== RUN   TestShaderModel_Unknown
+--- PASS: TestShaderModel_Unknown (0.00s)
+PASS

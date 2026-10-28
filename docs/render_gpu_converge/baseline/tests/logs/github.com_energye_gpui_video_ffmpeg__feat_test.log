@@ -1,0 +1,16 @@
+=== RUN   TestFeatSplitRanges
+    feat_test.go:111: need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+--- SKIP: TestFeatSplitRanges (0.01s)
+=== RUN   TestFeatSubtitles
+    feat_test.go:139: need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+--- SKIP: TestFeatSubtitles (0.00s)
+=== RUN   TestFeatAudioExtract
+    feat_test.go:160: need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+--- SKIP: TestFeatAudioExtract (0.00s)
+=== RUN   TestFeatScaleTranscode
+    feat_test.go:324: need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+--- SKIP: TestFeatScaleTranscode (0.00s)
+=== RUN   TestFeatBurnSubtitle
+    feat_test.go:620: need full lib (write/encode), current=/home/yanghy/app/projects/gogpu/gpui/lib/ffmpeg/linux-x64/libgpui_ffmpeg.so variant=base
+--- SKIP: TestFeatBurnSubtitle (0.00s)
+PASS

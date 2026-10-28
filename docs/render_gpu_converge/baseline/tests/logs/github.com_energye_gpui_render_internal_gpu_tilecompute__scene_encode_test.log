@@ -1,0 +1,73 @@
+=== RUN   TestEncodeSceneSinglePath
+    scene_encode_test.go:76: PathTags: 2 words, PathData: 8 uint32s, DrawTags: 1, DrawData: 1
+--- PASS: TestEncodeSceneSinglePath (0.00s)
+=== RUN   TestEncodeSceneMultiPath
+    scene_encode_test.go:165: PathTags: 6 words, PathData: 28 uint32s
+--- PASS: TestEncodeSceneMultiPath (0.00s)
+=== RUN   TestPackScene
+    scene_encode_test.go:229: Layout: PathTagBase=0 PathDataBase=256 DrawTagBase=264 DrawDataBase=265 TransformBase=266 StyleBase=272
+    scene_encode_test.go:232: Total buffer size: 273 uint32s
+--- PASS: TestPackScene (0.00s)
+=== RUN   TestPathMonoidNew
+=== RUN   TestPathMonoidNew/empty
+=== RUN   TestPathMonoidNew/single_lineto
+=== RUN   TestPathMonoidNew/single_transform
+=== RUN   TestPathMonoidNew/single_style
+=== RUN   TestPathMonoidNew/single_path_marker
+=== RUN   TestPathMonoidNew/two_linetos
+=== RUN   TestPathMonoidNew/transform_style_lineto_path
+--- PASS: TestPathMonoidNew (0.00s)
+    --- PASS: TestPathMonoidNew/empty (0.00s)
+    --- PASS: TestPathMonoidNew/single_lineto (0.00s)
+    --- PASS: TestPathMonoidNew/single_transform (0.00s)
+    --- PASS: TestPathMonoidNew/single_style (0.00s)
+    --- PASS: TestPathMonoidNew/single_path_marker (0.00s)
+    --- PASS: TestPathMonoidNew/two_linetos (0.00s)
+    --- PASS: TestPathMonoidNew/transform_style_lineto_path (0.00s)
+=== RUN   TestPathMonoidCombine
+--- PASS: TestPathMonoidCombine (0.00s)
+=== RUN   TestPathtagReduceScan
+    scene_encode_test.go:393: Total monoid: {TransIx:2 PathSegIx:9 PathSegOffset:18 StyleIx:2 PathIx:2}
+    scene_encode_test.go:394: Reduced blocks: 1
+--- PASS: TestPathtagReduceScan (0.00s)
+=== RUN   TestDrawMonoidNew
+=== RUN   TestDrawMonoidNew/nop
+=== RUN   TestDrawMonoidNew/color
+=== RUN   TestDrawMonoidNew/begin_clip
+=== RUN   TestDrawMonoidNew/end_clip
+--- PASS: TestDrawMonoidNew (0.00s)
+    --- PASS: TestDrawMonoidNew/nop (0.00s)
+    --- PASS: TestDrawMonoidNew/color (0.00s)
+    --- PASS: TestDrawMonoidNew/begin_clip (0.00s)
+    --- PASS: TestDrawMonoidNew/end_clip (0.00s)
+=== RUN   TestDrawReduceScan
+    scene_encode_test.go:545: Draw monoids: [{PathIx:0 ClipIx:0 SceneOffset:0 InfoOffset:0} {PathIx:1 ClipIx:0 SceneOffset:1 InfoOffset:1} {PathIx:2 ClipIx:0 SceneOffset:2 InfoOffset:2}]
+    scene_encode_test.go:546: Info buffer (3 entries): [4278190335 4278255360 2155872256]
+--- PASS: TestDrawReduceScan (0.00s)
+=== RUN   TestPackPathTags
+=== RUN   TestPackPathTags/empty
+=== RUN   TestPackPathTags/single_tag
+=== RUN   TestPackPathTags/four_tags
+=== RUN   TestPackPathTags/five_tags
+--- PASS: TestPackPathTags (0.00s)
+    --- PASS: TestPackPathTags/empty (0.00s)
+    --- PASS: TestPackPathTags/single_tag (0.00s)
+    --- PASS: TestPackPathTags/four_tags (0.00s)
+    --- PASS: TestPackPathTags/five_tags (0.00s)
+=== RUN   TestColorPacking
+=== RUN   TestColorPacking/opaque_red
+=== RUN   TestColorPacking/opaque_white
+=== RUN   TestColorPacking/fully_transparent
+=== RUN   TestColorPacking/half_transparent_white
+--- PASS: TestColorPacking (0.00s)
+    --- PASS: TestColorPacking/opaque_red (0.00s)
+    --- PASS: TestColorPacking/opaque_white (0.00s)
+    --- PASS: TestColorPacking/fully_transparent (0.00s)
+    --- PASS: TestColorPacking/half_transparent_white (0.00s)
+=== RUN   TestEncodeSceneEvenOddStyle
+--- PASS: TestEncodeSceneEvenOddStyle (0.00s)
+=== RUN   TestSceneRoundTrip
+    scene_encode_test.go:725: Round-trip: 256 tag words, 2 draw objects, 2 info entries
+    scene_encode_test.go:727: Total PathMonoid: {TransIx:2 PathSegIx:26 PathSegOffset:52 StyleIx:2 PathIx:2}
+--- PASS: TestSceneRoundTrip (0.00s)
+PASS

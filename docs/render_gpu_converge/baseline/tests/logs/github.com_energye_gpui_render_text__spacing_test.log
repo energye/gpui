@@ -1,0 +1,23 @@
+=== RUN   TestApplySpacing_GapsNoTrailing
+--- PASS: TestApplySpacing_GapsNoTrailing (0.00s)
+=== RUN   TestApplySpacing_SingleCluster
+--- PASS: TestApplySpacing_SingleCluster (0.00s)
+=== RUN   TestApplySpacing_ZeroFastPath
+--- PASS: TestApplySpacing_ZeroFastPath (0.00s)
+=== RUN   TestApplySpacing_WordRuns
+--- PASS: TestApplySpacing_WordRuns (0.00s)
+=== RUN   TestApplySpacing_LigatureGlue
+--- PASS: TestApplySpacing_LigatureGlue (0.00s)
+=== RUN   TestApplySpacing_ClampForeignClusters
+--- PASS: TestApplySpacing_ClampForeignClusters (0.00s)
+=== RUN   TestWordSeparators
+--- PASS: TestWordSeparators (0.00s)
+=== RUN   TestLayoutText_LetterSpacingEndToEnd
+--- PASS: TestLayoutText_LetterSpacingEndToEnd (0.00s)
+=== RUN   TestLayoutText_WordSpacingEndToEnd
+--- PASS: TestLayoutText_WordSpacingEndToEnd (0.00s)
+=== RUN   TestLayoutText_ZeroSpacingIdentical
+--- PASS: TestLayoutText_ZeroSpacingIdentical (0.00s)
+=== RUN   TestWrapTextWithSpacing_BreaksEarlier
+--- PASS: TestWrapTextWithSpacing_BreaksEarlier (0.00s)
+PASS

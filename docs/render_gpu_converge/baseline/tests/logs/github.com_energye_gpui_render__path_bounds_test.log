@@ -1,0 +1,27 @@
+=== RUN   TestPathBounds_Empty
+--- PASS: TestPathBounds_Empty (0.00s)
+=== RUN   TestPathBounds_SinglePoint
+--- PASS: TestPathBounds_SinglePoint (0.00s)
+=== RUN   TestPathBounds_Line
+--- PASS: TestPathBounds_Line (0.00s)
+=== RUN   TestPathBounds_Rectangle
+--- PASS: TestPathBounds_Rectangle (0.00s)
+=== RUN   TestPathBounds_CubicBezier
+--- PASS: TestPathBounds_CubicBezier (0.00s)
+=== RUN   TestPathBounds_QuadraticBezier
+--- PASS: TestPathBounds_QuadraticBezier (0.00s)
+=== RUN   TestPathBounds_ClearResets
+--- PASS: TestPathBounds_ClearResets (0.00s)
+=== RUN   TestPathBounds_IncrementalAccuracy
+--- PASS: TestPathBounds_IncrementalAccuracy (0.00s)
+=== RUN   TestContextFrameDamage_Empty
+--- PASS: TestContextFrameDamage_Empty (0.00s)
+=== RUN   TestContextFrameDamage_AfterFill
+--- PASS: TestContextFrameDamage_AfterFill (0.29s)
+=== RUN   TestContextFrameDamage_MultipleFillsSeparateRects
+--- PASS: TestContextFrameDamage_MultipleFillsSeparateRects (0.01s)
+=== RUN   TestContextFrameDamage_MergesAboveThreshold
+--- PASS: TestContextFrameDamage_MergesAboveThreshold (0.02s)
+=== RUN   TestContextFrameDamage_ResetClears
+--- PASS: TestContextFrameDamage_ResetClears (0.00s)
+PASS

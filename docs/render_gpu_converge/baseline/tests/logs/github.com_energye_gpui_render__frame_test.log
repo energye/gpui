@@ -1,0 +1,23 @@
+=== RUN   TestPlanFramePresent_IdleEmpty
+--- PASS: TestPlanFramePresent_IdleEmpty (0.00s)
+=== RUN   TestPlanFramePresent_SingleUnion
+--- PASS: TestPlanFramePresent_SingleUnion (0.00s)
+=== RUN   TestPlanFramePresent_DistantMulti
+--- PASS: TestPlanFramePresent_DistantMulti (0.00s)
+=== RUN   TestPlanFramePresent_ClusteredUnion
+--- PASS: TestPlanFramePresent_ClusteredUnion (0.00s)
+=== RUN   TestPlanFramePresent_HighCoverageFull
+--- PASS: TestPlanFramePresent_HighCoverageFull (0.00s)
+=== RUN   TestCoalesceDamageRects_MergesTouching
+--- PASS: TestCoalesceDamageRects_MergesTouching (0.00s)
+=== RUN   TestCoalesceDamageRects_CapsToUnion
+--- PASS: TestCoalesceDamageRects_CapsToUnion (0.00s)
+=== RUN   TestBeginFrame_ClearsDamage
+--- PASS: TestBeginFrame_ClearsDamage (0.00s)
+=== RUN   TestInvalidate_HiDPI_Physical
+--- PASS: TestInvalidate_HiDPI_Physical (0.00s)
+=== RUN   TestMarkFullRedraw_LogicalSurface
+--- PASS: TestMarkFullRedraw_LogicalSurface (0.00s)
+=== RUN   TestPresentMode_String
+--- PASS: TestPresentMode_String (0.00s)
+PASS

@@ -1,0 +1,92 @@
+=== RUN   TestRenderSessionCreation
+--- PASS: TestRenderSessionCreation (0.23s)
+=== RUN   TestRenderSessionTextures
+--- PASS: TestRenderSessionTextures (0.20s)
+=== RUN   TestRenderSessionTexturesIdempotent
+--- PASS: TestRenderSessionTexturesIdempotent (0.20s)
+=== RUN   TestRenderSessionTexturesResize
+--- PASS: TestRenderSessionTexturesResize (0.22s)
+=== RUN   TestRenderSessionDestroyAndRecreate
+--- PASS: TestRenderSessionDestroyAndRecreate (0.20s)
+=== RUN   TestRenderSessionEmpty
+--- PASS: TestRenderSessionEmpty (0.24s)
+=== RUN   TestRenderSessionSDFOnly
+--- PASS: TestRenderSessionSDFOnly (0.23s)
+=== RUN   TestRenderSessionStencilOnly
+--- PASS: TestRenderSessionStencilOnly (0.23s)
+=== RUN   TestRenderSessionStencilPremultipliedColor
+--- PASS: TestRenderSessionStencilPremultipliedColor (0.22s)
+=== RUN   TestRenderSessionMixed
+--- PASS: TestRenderSessionMixed (0.24s)
+=== RUN   TestRenderSessionMultipleFrames
+--- PASS: TestRenderSessionMultipleFrames (0.23s)
+=== RUN   TestRenderSessionPipelineSetters
+--- PASS: TestRenderSessionPipelineSetters (0.18s)
+=== RUN   TestStencilPathCommandFields
+--- PASS: TestStencilPathCommandFields (0.00s)
+=== RUN   TestSDFRenderPipelineWithStencil
+    render_session_test.go:490: ensurePipelineWithStencil failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestSDFRenderPipelineWithStencil (0.18s)
+=== RUN   TestSDFRenderPipelineDestroyWithStencilVariant
+    render_session_test.go:520: ensurePipelineWithStencil failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestSDFRenderPipelineDestroyWithStencilVariant (0.14s)
+=== RUN   TestRenderSessionSurfaceMode
+    render_session_test.go:608: expected non-nil stencil textures
+--- FAIL: TestRenderSessionSurfaceMode (0.11s)
+=== RUN   TestRenderSessionSurfaceModeReset
+--- PASS: TestRenderSessionSurfaceModeReset (0.10s)
+=== RUN   TestRenderSessionSurfaceModeTextures
+    render_session_test.go:679: expected non-nil stencil textures
+--- FAIL: TestRenderSessionSurfaceModeTextures (0.10s)
+=== RUN   TestRenderSessionSurfaceModeResize
+    render_session_test.go:730: expected non-nil stencil textures
+--- FAIL: TestRenderSessionSurfaceModeResize (0.10s)
+=== RUN   TestRenderSessionSurfaceModeStencilPaths
+--- PASS: TestRenderSessionSurfaceModeStencilPaths (0.13s)
+=== RUN   TestRenderSessionDestroyClearsSurface
+--- PASS: TestRenderSessionDestroyClearsSurface (0.09s)
+=== RUN   TestStencilRendererRecordPath
+    render_session_test.go:816: createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestStencilRendererRecordPath (0.09s)
+=== RUN   TestEnsurePipelines_ClipLayoutRecreation
+    render_session_test.go:845: initial createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestEnsurePipelines_ClipLayoutRecreation (0.08s)
+=== RUN   TestEnsurePipelines_ConvexClipRecreation
+    render_session_test.go:900: initial createPipeline failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestEnsurePipelines_ConvexClipRecreation (0.08s)
+=== RUN   TestEnsurePipelines_StencilClipRecreation
+    render_session_test.go:946: initial createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+--- FAIL: TestEnsurePipelines_StencilClipRecreation (0.08s)
+=== RUN   TestRenderSession_EncoderLifecycleRecovery
+--- PASS: TestRenderSession_EncoderLifecycleRecovery (0.13s)
+=== RUN   TestRenderSession_EncoderLifecycleSurface
+--- PASS: TestRenderSession_EncoderLifecycleSurface (0.13s)
+=== RUN   TestRenderSessionEnsurePipelines_FullFlow
+    render_session_test.go:1161: expected non-nil stencilRenderer
+--- FAIL: TestRenderSessionEnsurePipelines_FullFlow (0.11s)
+=== RUN   TestIsBlitOnly
+=== RUN   TestIsBlitOnly/base_layer_only
+=== RUN   TestIsBlitOnly/no_base_layer
+=== RUN   TestIsBlitOnly/base_layer_with_SDF_shapes
+=== RUN   TestIsBlitOnly/base_layer_with_text
+=== RUN   TestIsBlitOnly/base_layer_with_overlay_GPU_textures
+=== RUN   TestIsBlitOnly/empty_groups
+--- PASS: TestIsBlitOnly (0.09s)
+    --- PASS: TestIsBlitOnly/base_layer_only (0.00s)
+    --- PASS: TestIsBlitOnly/no_base_layer (0.00s)
+    --- PASS: TestIsBlitOnly/base_layer_with_SDF_shapes (0.00s)
+    --- PASS: TestIsBlitOnly/base_layer_with_text (0.00s)
+    --- PASS: TestIsBlitOnly/base_layer_with_overlay_GPU_textures (0.00s)
+    --- PASS: TestIsBlitOnly/empty_groups (0.00s)
+=== RUN   TestReadbackGrouped_NilTexturesReturnsError
+--- PASS: TestReadbackGrouped_NilTexturesReturnsError (0.09s)
+=== RUN   TestReadback_NilTexturesReturnsError
+--- PASS: TestReadback_NilTexturesReturnsError (0.09s)
+=== RUN   TestCopySubmitAndReadback_NilResolveTexReturnsError
+--- PASS: TestCopySubmitAndReadback_NilResolveTexReturnsError (0.08s)
+=== RUN   TestTextureSet_SurfaceToOffscreenSameSize
+    render_session_test.go:1318: surface mode must allocate stencil
+--- FAIL: TestTextureSet_SurfaceToOffscreenSameSize (0.06s)
+=== RUN   TestTextureSet_OffscreenToSurfaceSameSize
+--- PASS: TestTextureSet_OffscreenToSurfaceSameSize (0.10s)
+FAIL

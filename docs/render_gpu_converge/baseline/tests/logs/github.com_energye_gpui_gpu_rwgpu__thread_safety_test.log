@@ -1,0 +1,8 @@
+=== RUN   TestConcurrentInit
+--- PASS: TestConcurrentInit (0.00s)
+=== RUN   TestMultipleAdapterRequests
+--- PASS: TestMultipleAdapterRequests (0.27s)
+=== RUN   TestConcurrentAdapterRequests
+    thread_safety_test.go:45: concurrent RequestAdapter can abort on GLES backends; set RWGPU_CONCURRENT_STRESS=1 to run
+--- SKIP: TestConcurrentAdapterRequests (0.00s)
+PASS

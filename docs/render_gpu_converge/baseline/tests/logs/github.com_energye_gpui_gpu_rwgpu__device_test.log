@@ -1,0 +1,23 @@
+=== RUN   TestRequestDevice
+    device_test.go:17: Requesting device...
+    device_test.go:28: Device obtained: handle=0x14688990
+--- PASS: TestRequestDevice (0.23s)
+=== RUN   TestDeviceGetQueue
+    device_test.go:47: Getting queue...
+    device_test.go:58: Queue obtained: handle=0x143dbb10
+--- PASS: TestDeviceGetQueue (0.17s)
+=== RUN   TestDeviceGetLimits
+    device_test.go:77: Getting device limits (cached, no FFI call)...
+    device_test.go:83: Device limits: MaxTextureDimension2D=8192, MaxBindGroups=4
+--- PASS: TestDeviceGetLimits (0.16s)
+=== RUN   TestDeviceGetFeatures
+    device_test.go:104: Getting device features...
+    device_test.go:109: Device has no optional features enabled
+--- PASS: TestDeviceGetFeatures (0.15s)
+=== RUN   TestDeviceHasFeature
+    device_test.go:134: Checking for TimestampQuery feature...
+    device_test.go:138: Device has TimestampQuery: false
+--- PASS: TestDeviceHasFeature (0.16s)
+=== RUN   TestDeviceGetLimits_Nil
+--- PASS: TestDeviceGetLimits_Nil (0.00s)
+PASS

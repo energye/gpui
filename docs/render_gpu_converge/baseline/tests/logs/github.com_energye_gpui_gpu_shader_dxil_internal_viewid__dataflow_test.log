@@ -1,0 +1,19 @@
+=== RUN   TestTrianglePassThroughFS
+--- PASS: TestTrianglePassThroughFS (0.00s)
+=== RUN   TestNonStructReturn
+--- PASS: TestNonStructReturn (0.00s)
+=== RUN   TestScalarTimesVectorPrecision
+--- PASS: TestScalarTimesVectorPrecision (0.00s)
+=== RUN   TestMatrixVectorMultiplyUnion
+--- PASS: TestMatrixVectorMultiplyUnion (0.00s)
+=== RUN   TestEmptyDeps
+--- PASS: TestEmptyDeps (0.00s)
+=== RUN   TestPackedInputScalarStartCol
+--- PASS: TestPackedInputScalarStartCol (0.00s)
+=== RUN   TestVertexTwoStructsPrecision
+--- PASS: TestVertexTwoStructsPrecision (0.00s)
+=== RUN   TestExprAliasTaintForwarding
+--- PASS: TestExprAliasTaintForwarding (0.00s)
+=== RUN   TestExprPhiTaintMerge
+--- PASS: TestExprPhiTaintMerge (0.00s)
+PASS

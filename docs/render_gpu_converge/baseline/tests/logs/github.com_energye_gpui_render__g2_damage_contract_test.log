@@ -1,0 +1,11 @@
+=== RUN   TestG2_DamageContract_API
+    g2_damage_contract_test.go:56: G2 contract path_stats gpu_ops=2 cpu_fallback_ops=0 frame_flushes=3 (vector damage is best-effort / may clear)
+--- PASS: TestG2_DamageContract_API (0.27s)
+=== RUN   TestG2_PresentWithDamage_IgnoresRect_Doc
+    g2_damage_contract_test.go:64: G2.c: Surface.PresentWithDamage ignores rects (wgpu-native)
+--- PASS: TestG2_PresentWithDamage_IgnoresRect_Doc (0.00s)
+=== RUN   TestG2_BlitOnly_DamagePreservesOutsidePixels
+    g2_damage_contract_test.go:126: outside damage rgba=255,255,255
+    g2_damage_contract_test.go:129: inside damage rgba=255,0,0
+--- PASS: TestG2_BlitOnly_DamagePreservesOutsidePixels (0.01s)
+PASS

@@ -1,0 +1,5 @@
+=== RUN   TestMSL_UnsupportedMeshShader
+--- PASS: TestMSL_UnsupportedMeshShader (0.00s)
+=== RUN   TestMSL_UnsupportedTaskShader
+--- PASS: TestMSL_UnsupportedTaskShader (0.00s)
+PASS

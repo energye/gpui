@@ -1,0 +1,5 @@
+=== RUN   TestPlaybackTransformAppliesOnce
+--- PASS: TestPlaybackTransformAppliesOnce (0.00s)
+=== RUN   TestPlaybackPathTransformAppliesOnce
+--- PASS: TestPlaybackPathTransformAppliesOnce (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestGlyphMaskLightHintingFromFreeType
+--- PASS: TestGlyphMaskLightHintingFromFreeType (0.00s)
+=== RUN   TestGlyphMaskEvenSpacing
+--- PASS: TestGlyphMaskEvenSpacing (0.00s)
+=== RUN   TestGlyphMaskHintingSeparatesAtlasEntries
+--- PASS: TestGlyphMaskHintingSeparatesAtlasEntries (0.01s)
+PASS

@@ -1,0 +1,47 @@
+=== RUN   TestPipelineModeString
+=== RUN   TestPipelineModeString/Auto
+=== RUN   TestPipelineModeString/RenderPass
+=== RUN   TestPipelineModeString/Compute
+=== RUN   TestPipelineModeString/Unknown
+--- PASS: TestPipelineModeString (0.00s)
+    --- PASS: TestPipelineModeString/Auto (0.00s)
+    --- PASS: TestPipelineModeString/RenderPass (0.00s)
+    --- PASS: TestPipelineModeString/Compute (0.00s)
+    --- PASS: TestPipelineModeString/Unknown (0.00s)
+=== RUN   TestPipelineModeDefault
+--- PASS: TestPipelineModeDefault (0.00s)
+=== RUN   TestPipelineModeSetGet
+--- PASS: TestPipelineModeSetGet (0.00s)
+=== RUN   TestWithPipelineMode
+=== RUN   TestWithPipelineMode/Auto
+=== RUN   TestWithPipelineMode/RenderPass
+=== RUN   TestWithPipelineMode/Compute
+--- PASS: TestWithPipelineMode (0.00s)
+    --- PASS: TestWithPipelineMode/Auto (0.00s)
+    --- PASS: TestWithPipelineMode/RenderPass (0.00s)
+    --- PASS: TestWithPipelineMode/Compute (0.00s)
+=== RUN   TestSelectPipelineNoCompute
+--- PASS: TestSelectPipelineNoCompute (0.00s)
+=== RUN   TestSelectPipelineSimpleScene
+--- PASS: TestSelectPipelineSimpleScene (0.00s)
+=== RUN   TestSelectPipelineComplexScene
+--- PASS: TestSelectPipelineComplexScene (0.00s)
+=== RUN   TestSelectPipelineDeepClips
+--- PASS: TestSelectPipelineDeepClips (0.00s)
+=== RUN   TestSelectPipelineHighOverlap
+--- PASS: TestSelectPipelineHighOverlap (0.00s)
+=== RUN   TestSelectPipelineTextHeavy
+--- PASS: TestSelectPipelineTextHeavy (0.00s)
+=== RUN   TestSelectPipelineMediumComplexity
+--- PASS: TestSelectPipelineMediumComplexity (0.00s)
+=== RUN   TestSetPipelineModePropagation
+--- PASS: TestSetPipelineModePropagation (0.00s)
+=== RUN   TestComputeModeSkipsShapeDetection
+--- PASS: TestComputeModeSkipsShapeDetection (0.00s)
+=== RUN   TestRenderPassModeUsesShapeDetection
+--- PASS: TestRenderPassModeUsesShapeDetection (0.00s)
+=== RUN   TestAutoModeDefaultsBehavior
+--- PASS: TestAutoModeDefaultsBehavior (0.00s)
+=== RUN   TestComputeModeWithoutComputeFallsThrough
+--- PASS: TestComputeModeWithoutComputeFallsThrough (0.00s)
+PASS

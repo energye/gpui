@@ -1,0 +1,11 @@
+=== RUN   TestVirtualLines_FixedWindow
+--- PASS: TestVirtualLines_FixedWindow (0.00s)
+=== RUN   TestVirtualLines_ScrollToIndex
+--- PASS: TestVirtualLines_ScrollToIndex (0.00s)
+=== RUN   TestLazyMeasure_EstimateThenCorrect
+--- PASS: TestLazyMeasure_EstimateThenCorrect (0.00s)
+=== RUN   TestLazyMeasure_NoJump
+--- PASS: TestLazyMeasure_NoJump (0.00s)
+=== RUN   TestLazyMeasure_PrefixConsistent
+--- PASS: TestLazyMeasure_PrefixConsistent (0.00s)
+PASS

@@ -1,0 +1,36 @@
+=== RUN   TestX11CloseRequestedSplit
+--- PASS: TestX11CloseRequestedSplit (0.10s)
+=== RUN   TestX11FocusWriteback
+--- PASS: TestX11FocusWriteback (0.11s)
+=== RUN   TestX11EnterLeaveCoords
+--- PASS: TestX11EnterLeaveCoords (0.11s)
+=== RUN   TestX11HideShowEmits
+--- PASS: TestX11HideShowEmits (1.37s)
+=== RUN   TestX11TiltScrollSource
+--- PASS: TestX11TiltScrollSource (0.10s)
+=== RUN   TestX11KeyRepeat
+--- PASS: TestX11KeyRepeat (0.31s)
+=== RUN   TestX11StateReadback
+--- PASS: TestX11StateReadback (0.50s)
+=== RUN   TestXI2ParseTouch
+--- PASS: TestXI2ParseTouch (0.00s)
+=== RUN   TestXI2ProbeGating
+    x11_s6_p0_test.go:606: xi2 touch selected=true (no hardware here; live-device verification needs a touchscreen)
+--- PASS: TestXI2ProbeGating (0.51s)
+=== RUN   TestX11ParseDPI
+--- PASS: TestX11ParseDPI (0.00s)
+=== RUN   TestX11ScaleRandRNotify
+--- PASS: TestX11ScaleRandRNotify (1.15s)
+=== RUN   TestX11ScaleResourceManagerNotify
+--- PASS: TestX11ScaleResourceManagerNotify (0.51s)
+=== RUN   TestX11ModsFromState
+--- PASS: TestX11ModsFromState (0.00s)
+=== RUN   TestX11NewMods
+--- PASS: TestX11NewMods (0.00s)
+=== RUN   TestX11TrackModsEmitsOnce
+--- PASS: TestX11TrackModsEmitsOnce (0.00s)
+=== RUN   TestX11ModifiersChangedPump
+--- PASS: TestX11ModifiersChangedPump (0.51s)
+=== RUN   TestX11PointerCancelOnGrab
+--- PASS: TestX11PointerCancelOnGrab (0.10s)
+PASS

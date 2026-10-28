@@ -1,0 +1,74 @@
+=== RUN   TestBackendCompileEmptyModule
+--- PASS: TestBackendCompileEmptyModule (0.00s)
+=== RUN   TestBackendEmitScalarTypes
+--- PASS: TestBackendEmitScalarTypes (0.00s)
+=== RUN   TestBackendEmitVectorTypes
+--- PASS: TestBackendEmitVectorTypes (0.00s)
+=== RUN   TestBackendEmitMatrixTypes
+--- PASS: TestBackendEmitMatrixTypes (0.00s)
+=== RUN   TestBackendEmitScalarConstants
+--- PASS: TestBackendEmitScalarConstants (0.00s)
+=== RUN   TestBackendEmitCompositeConstants
+--- PASS: TestBackendEmitCompositeConstants (0.00s)
+=== RUN   TestBackendTypeDeduplification
+--- PASS: TestBackendTypeDeduplification (0.00s)
+=== RUN   TestBackendEmitStructType
+--- PASS: TestBackendEmitStructType (0.00s)
+=== RUN   TestBackendSimpleVertexShader
+    backend_test.go:441: Generated SPIR-V binary: 312 bytes
+--- PASS: TestBackendSimpleVertexShader (0.00s)
+=== RUN   TestNonWritableStorageBuffer
+--- PASS: TestNonWritableStorageBuffer (0.00s)
+=== RUN   TestFlatOnIntegerBuiltInFragmentInput
+--- PASS: TestFlatOnIntegerBuiltInFragmentInput (0.00s)
+=== RUN   TestColMajorThroughArrayType
+--- PASS: TestColMajorThroughArrayType (0.00s)
+=== RUN   TestPushConstantStorageClass
+--- PASS: TestPushConstantStorageClass (0.00s)
+=== RUN   TestDefaultInterpolationFlatOnIntegerLocation
+--- PASS: TestDefaultInterpolationFlatOnIntegerLocation (0.00s)
+=== RUN   TestFloat32ToF16Bits
+=== RUN   TestFloat32ToF16Bits/zero
+=== RUN   TestFloat32ToF16Bits/one
+=== RUN   TestFloat32ToF16Bits/minus_one
+=== RUN   TestFloat32ToF16Bits/half
+=== RUN   TestFloat32ToF16Bits/max_f16
+=== RUN   TestFloat32ToF16Bits/min_f16
+--- PASS: TestFloat32ToF16Bits (0.00s)
+    --- PASS: TestFloat32ToF16Bits/zero (0.00s)
+    --- PASS: TestFloat32ToF16Bits/one (0.00s)
+    --- PASS: TestFloat32ToF16Bits/minus_one (0.00s)
+    --- PASS: TestFloat32ToF16Bits/half (0.00s)
+    --- PASS: TestFloat32ToF16Bits/max_f16 (0.00s)
+    --- PASS: TestFloat32ToF16Bits/min_f16 (0.00s)
+=== RUN   TestOpLoadResultType
+--- PASS: TestOpLoadResultType (0.00s)
+=== RUN   TestSaturateEmitsFClampWith3Operands
+--- PASS: TestSaturateEmitsFClampWith3Operands (0.00s)
+=== RUN   TestModfStructReturnType
+--- PASS: TestModfStructReturnType (0.00s)
+=== RUN   TestWorkgroupVarUsesRegularType
+--- PASS: TestWorkgroupVarUsesRegularType (0.00s)
+=== RUN   TestStorageTextureImageFormat
+--- PASS: TestStorageTextureImageFormat (0.00s)
+=== RUN   TestSampledTextureUsesCorrectScalarKind
+--- PASS: TestSampledTextureUsesCorrectScalarKind (0.00s)
+=== RUN   TestIndexByValueSpillsToFunction
+--- PASS: TestIndexByValueSpillsToFunction (0.00s)
+=== RUN   TestF16PolyfillConvertsIO
+--- PASS: TestF16PolyfillConvertsIO (0.00s)
+=== RUN   TestBackendReuse
+--- PASS: TestBackendReuse (0.00s)
+=== RUN   TestEmitScalarType_UnknownKind
+--- PASS: TestEmitScalarType_UnknownKind (0.00s)
+=== RUN   TestAddressSpaceToStorageClass_UnknownSpace
+--- PASS: TestAddressSpaceToStorageClass_UnknownSpace (0.00s)
+=== RUN   TestFindTypeHandleByID_NotFound
+--- PASS: TestFindTypeHandleByID_NotFound (0.00s)
+=== RUN   TestResolveScalarType_WrongType
+--- PASS: TestResolveScalarType_WrongType (0.00s)
+=== RUN   TestEmitScalarConstant_UnknownKind
+--- PASS: TestEmitScalarConstant_UnknownKind (0.00s)
+=== RUN   TestEmitInlineType_UnsupportedType
+--- PASS: TestEmitInlineType_UnsupportedType (0.00s)
+PASS

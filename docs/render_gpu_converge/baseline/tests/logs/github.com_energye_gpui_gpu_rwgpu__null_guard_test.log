@@ -1,0 +1,223 @@
+=== RUN   TestNullGuard_Device_Creation
+=== RUN   TestNullGuard_Device_Creation/CreateCommandEncoder
+=== RUN   TestNullGuard_Device_Creation/CreateBuffer
+=== RUN   TestNullGuard_Device_Creation/CreateTexture
+=== RUN   TestNullGuard_Device_Creation/CreateShaderModuleWGSL
+=== RUN   TestNullGuard_Device_Creation/CreateSampler
+=== RUN   TestNullGuard_Device_Creation/CreateBindGroupLayout
+=== RUN   TestNullGuard_Device_Creation/CreateBindGroup
+=== RUN   TestNullGuard_Device_Creation/CreatePipelineLayout
+=== RUN   TestNullGuard_Device_Creation/CreateComputePipeline
+=== RUN   TestNullGuard_Device_Creation/CreateRenderPipeline
+=== RUN   TestNullGuard_Device_Creation/CreateQuerySet
+=== RUN   TestNullGuard_Device_Creation/CreateRenderBundleEncoder
+=== RUN   TestNullGuard_Device_Creation/Queue
+=== RUN   TestNullGuard_Device_Creation/CreateDepthTextureErr
+=== RUN   TestNullGuard_Device_Creation/CreateDepthTexture
+--- PASS: TestNullGuard_Device_Creation (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateCommandEncoder (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateBuffer (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateTexture (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateShaderModuleWGSL (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateSampler (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateBindGroupLayout (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateBindGroup (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreatePipelineLayout (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateComputePipeline (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateRenderPipeline (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateQuerySet (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateRenderBundleEncoder (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/Queue (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateDepthTextureErr (0.00s)
+    --- PASS: TestNullGuard_Device_Creation/CreateDepthTexture (0.00s)
+=== RUN   TestNullGuard_Device_Void
+=== RUN   TestNullGuard_Device_Void/Poll
+=== RUN   TestNullGuard_Device_Void/PushErrorScope
+--- PASS: TestNullGuard_Device_Void (0.00s)
+    --- PASS: TestNullGuard_Device_Void/Poll (0.00s)
+    --- PASS: TestNullGuard_Device_Void/PushErrorScope (0.00s)
+=== RUN   TestNullGuard_Device_ZeroHandle
+=== RUN   TestNullGuard_Device_ZeroHandle/CreateCommandEncoder
+=== RUN   TestNullGuard_Device_ZeroHandle/CreateBuffer
+=== RUN   TestNullGuard_Device_ZeroHandle/Queue
+=== RUN   TestNullGuard_Device_ZeroHandle/Poll
+=== RUN   TestNullGuard_Device_ZeroHandle/PushErrorScope
+--- PASS: TestNullGuard_Device_ZeroHandle (0.00s)
+    --- PASS: TestNullGuard_Device_ZeroHandle/CreateCommandEncoder (0.00s)
+    --- PASS: TestNullGuard_Device_ZeroHandle/CreateBuffer (0.00s)
+    --- PASS: TestNullGuard_Device_ZeroHandle/Queue (0.00s)
+    --- PASS: TestNullGuard_Device_ZeroHandle/Poll (0.00s)
+    --- PASS: TestNullGuard_Device_ZeroHandle/PushErrorScope (0.00s)
+=== RUN   TestNullGuard_Instance
+=== RUN   TestNullGuard_Instance/RequestAdapter
+=== RUN   TestNullGuard_Instance/ProcessEvents
+--- PASS: TestNullGuard_Instance (0.00s)
+    --- PASS: TestNullGuard_Instance/RequestAdapter (0.00s)
+    --- PASS: TestNullGuard_Instance/ProcessEvents (0.00s)
+=== RUN   TestNullGuard_Adapter
+=== RUN   TestNullGuard_Adapter/RequestDevice
+--- PASS: TestNullGuard_Adapter (0.00s)
+    --- PASS: TestNullGuard_Adapter/RequestDevice (0.00s)
+=== RUN   TestNullGuard_CommandEncoder
+=== RUN   TestNullGuard_CommandEncoder/BeginComputePass
+=== RUN   TestNullGuard_CommandEncoder/BeginRenderPass
+=== RUN   TestNullGuard_CommandEncoder/Finish
+=== RUN   TestNullGuard_CommandEncoder/CopyBufferToBuffer
+=== RUN   TestNullGuard_CommandEncoder/ClearBuffer
+=== RUN   TestNullGuard_CommandEncoder/CopyBufferToTexture
+=== RUN   TestNullGuard_CommandEncoder/CopyTextureToBuffer
+=== RUN   TestNullGuard_CommandEncoder/CopyTextureToTexture
+=== RUN   TestNullGuard_CommandEncoder/InsertDebugMarker
+=== RUN   TestNullGuard_CommandEncoder/PushDebugGroup
+=== RUN   TestNullGuard_CommandEncoder/PopDebugGroup
+=== RUN   TestNullGuard_CommandEncoder/WriteTimestamp
+=== RUN   TestNullGuard_CommandEncoder/ResolveQuerySet
+--- PASS: TestNullGuard_CommandEncoder (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/BeginComputePass (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/BeginRenderPass (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/Finish (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/CopyBufferToBuffer (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/ClearBuffer (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/CopyBufferToTexture (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/CopyTextureToBuffer (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/CopyTextureToTexture (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/InsertDebugMarker (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/PushDebugGroup (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/PopDebugGroup (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/WriteTimestamp (0.00s)
+    --- PASS: TestNullGuard_CommandEncoder/ResolveQuerySet (0.00s)
+=== RUN   TestNullGuard_ComputePassEncoder
+=== RUN   TestNullGuard_ComputePassEncoder/SetPipeline
+=== RUN   TestNullGuard_ComputePassEncoder/SetBindGroup
+=== RUN   TestNullGuard_ComputePassEncoder/DispatchWorkgroups
+=== RUN   TestNullGuard_ComputePassEncoder/DispatchWorkgroupsIndirect
+=== RUN   TestNullGuard_ComputePassEncoder/End
+--- PASS: TestNullGuard_ComputePassEncoder (0.00s)
+    --- PASS: TestNullGuard_ComputePassEncoder/SetPipeline (0.00s)
+    --- PASS: TestNullGuard_ComputePassEncoder/SetBindGroup (0.00s)
+    --- PASS: TestNullGuard_ComputePassEncoder/DispatchWorkgroups (0.00s)
+    --- PASS: TestNullGuard_ComputePassEncoder/DispatchWorkgroupsIndirect (0.00s)
+    --- PASS: TestNullGuard_ComputePassEncoder/End (0.00s)
+=== RUN   TestNullGuard_RenderPassEncoder
+=== RUN   TestNullGuard_RenderPassEncoder/SetPipeline
+=== RUN   TestNullGuard_RenderPassEncoder/SetBindGroup
+=== RUN   TestNullGuard_RenderPassEncoder/SetVertexBuffer
+=== RUN   TestNullGuard_RenderPassEncoder/SetIndexBuffer
+=== RUN   TestNullGuard_RenderPassEncoder/Draw
+=== RUN   TestNullGuard_RenderPassEncoder/DrawIndexed
+=== RUN   TestNullGuard_RenderPassEncoder/DrawIndirect
+=== RUN   TestNullGuard_RenderPassEncoder/DrawIndexedIndirect
+=== RUN   TestNullGuard_RenderPassEncoder/SetViewport
+=== RUN   TestNullGuard_RenderPassEncoder/SetScissorRect
+=== RUN   TestNullGuard_RenderPassEncoder/SetBlendConstant
+=== RUN   TestNullGuard_RenderPassEncoder/SetStencilReference
+=== RUN   TestNullGuard_RenderPassEncoder/InsertDebugMarker
+=== RUN   TestNullGuard_RenderPassEncoder/PushDebugGroup
+=== RUN   TestNullGuard_RenderPassEncoder/PopDebugGroup
+=== RUN   TestNullGuard_RenderPassEncoder/End
+=== RUN   TestNullGuard_RenderPassEncoder/ExecuteBundles
+--- PASS: TestNullGuard_RenderPassEncoder (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/SetPipeline (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/SetBindGroup (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/SetVertexBuffer (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/SetIndexBuffer (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/Draw (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/DrawIndexed (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/DrawIndirect (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/DrawIndexedIndirect (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/SetViewport (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/SetScissorRect (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/SetBlendConstant (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/SetStencilReference (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/InsertDebugMarker (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/PushDebugGroup (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/PopDebugGroup (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/End (0.00s)
+    --- PASS: TestNullGuard_RenderPassEncoder/ExecuteBundles (0.00s)
+=== RUN   TestNullGuard_RenderBundleEncoder
+=== RUN   TestNullGuard_RenderBundleEncoder/SetPipeline
+=== RUN   TestNullGuard_RenderBundleEncoder/SetBindGroup
+=== RUN   TestNullGuard_RenderBundleEncoder/SetVertexBuffer
+=== RUN   TestNullGuard_RenderBundleEncoder/SetIndexBuffer
+=== RUN   TestNullGuard_RenderBundleEncoder/Draw
+=== RUN   TestNullGuard_RenderBundleEncoder/DrawIndexed
+=== RUN   TestNullGuard_RenderBundleEncoder/DrawIndirect
+=== RUN   TestNullGuard_RenderBundleEncoder/DrawIndexedIndirect
+=== RUN   TestNullGuard_RenderBundleEncoder/Finish
+--- PASS: TestNullGuard_RenderBundleEncoder (0.00s)
+    --- PASS: TestNullGuard_RenderBundleEncoder/SetPipeline (0.00s)
+    --- PASS: TestNullGuard_RenderBundleEncoder/SetBindGroup (0.00s)
+    --- PASS: TestNullGuard_RenderBundleEncoder/SetVertexBuffer (0.00s)
+    --- PASS: TestNullGuard_RenderBundleEncoder/SetIndexBuffer (0.00s)
+    --- PASS: TestNullGuard_RenderBundleEncoder/Draw (0.00s)
+    --- PASS: TestNullGuard_RenderBundleEncoder/DrawIndexed (0.00s)
+    --- PASS: TestNullGuard_RenderBundleEncoder/DrawIndirect (0.00s)
+    --- PASS: TestNullGuard_RenderBundleEncoder/DrawIndexedIndirect (0.00s)
+    --- PASS: TestNullGuard_RenderBundleEncoder/Finish (0.00s)
+=== RUN   TestNullGuard_Buffer
+=== RUN   TestNullGuard_Buffer/GetMappedRange
+=== RUN   TestNullGuard_Buffer/Size
+=== RUN   TestNullGuard_Buffer/Unmap
+--- PASS: TestNullGuard_Buffer (0.00s)
+    --- PASS: TestNullGuard_Buffer/GetMappedRange (0.00s)
+    --- PASS: TestNullGuard_Buffer/Size (0.00s)
+    --- PASS: TestNullGuard_Buffer/Unmap (0.00s)
+=== RUN   TestNullGuard_Texture
+=== RUN   TestNullGuard_Texture/CreateView
+--- PASS: TestNullGuard_Texture (0.00s)
+    --- PASS: TestNullGuard_Texture/CreateView (0.00s)
+=== RUN   TestNullGuard_QuerySet
+=== RUN   TestNullGuard_QuerySet/Destroy
+--- PASS: TestNullGuard_QuerySet (0.00s)
+    --- PASS: TestNullGuard_QuerySet/Destroy (0.00s)
+=== RUN   TestNullGuard_Queue
+=== RUN   TestNullGuard_Queue/Submit
+=== RUN   TestNullGuard_Queue/WriteBuffer
+=== RUN   TestNullGuard_Queue/WriteBufferRaw
+--- PASS: TestNullGuard_Queue (0.00s)
+    --- PASS: TestNullGuard_Queue/Submit (0.00s)
+    --- PASS: TestNullGuard_Queue/WriteBuffer (0.00s)
+    --- PASS: TestNullGuard_Queue/WriteBufferRaw (0.00s)
+=== RUN   TestNullGuard_Surface
+=== RUN   TestNullGuard_Surface/Configure
+=== RUN   TestNullGuard_Surface/Unconfigure
+=== RUN   TestNullGuard_Surface/GetCurrentTexture
+=== RUN   TestNullGuard_Surface/Present
+--- PASS: TestNullGuard_Surface (0.00s)
+    --- PASS: TestNullGuard_Surface/Configure (0.00s)
+    --- PASS: TestNullGuard_Surface/Unconfigure (0.00s)
+    --- PASS: TestNullGuard_Surface/GetCurrentTexture (0.00s)
+    --- PASS: TestNullGuard_Surface/Present (0.00s)
+=== RUN   TestNullGuard_ComputePipeline
+=== RUN   TestNullGuard_ComputePipeline/GetBindGroupLayout
+--- PASS: TestNullGuard_ComputePipeline (0.00s)
+    --- PASS: TestNullGuard_ComputePipeline/GetBindGroupLayout (0.00s)
+=== RUN   TestNullGuard_RenderPipeline
+=== RUN   TestNullGuard_RenderPipeline/GetBindGroupLayout
+--- PASS: TestNullGuard_RenderPipeline (0.00s)
+    --- PASS: TestNullGuard_RenderPipeline/GetBindGroupLayout (0.00s)
+=== RUN   TestNullGuard_PopErrorScopeAsync
+--- PASS: TestNullGuard_PopErrorScopeAsync (0.16s)
+=== RUN   TestNullGuard_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreateBuffer_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreateTexture_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreateSampler_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreateBindGroupLayout_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreateBindGroup_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreatePipelineLayout_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreateComputePipeline_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreateRenderPipeline_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreateQuerySet_NilDesc
+=== RUN   TestNullGuard_NilDesc/CreateRenderBundleEncoder_NilDesc
+--- PASS: TestNullGuard_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreateBuffer_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreateTexture_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreateSampler_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreateBindGroupLayout_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreateBindGroup_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreatePipelineLayout_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreateComputePipeline_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreateRenderPipeline_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreateQuerySet_NilDesc (0.00s)
+    --- PASS: TestNullGuard_NilDesc/CreateRenderBundleEncoder_NilDesc (0.00s)
+PASS

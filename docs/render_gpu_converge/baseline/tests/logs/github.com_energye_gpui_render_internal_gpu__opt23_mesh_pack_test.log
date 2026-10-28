@@ -1,0 +1,3 @@
+=== RUN   TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex
+--- PASS: TestOpt23_PackMeshVertsCoverage1_MatchesWriteConvexVertex (0.00s)
+PASS

@@ -1,0 +1,7 @@
+=== RUN   TestLightHintMatchesFT
+--- PASS: TestLightHintMatchesFT (0.62s)
+=== RUN   TestLightHintContours
+--- PASS: TestLightHintContours (0.02s)
+=== RUN   TestLightHintCFF2
+--- PASS: TestLightHintCFF2 (0.05s)
+PASS

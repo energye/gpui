@@ -1,0 +1,11 @@
+=== RUN   TestFilterCache_HitThenInvalidateOnParams
+--- PASS: TestFilterCache_HitThenInvalidateOnParams (0.00s)
+=== RUN   TestFilterCache_DirtySubtreeInvalidates
+--- PASS: TestFilterCache_DirtySubtreeInvalidates (0.00s)
+=== RUN   TestFilterCache_AgingDropsStaleEntries
+--- PASS: TestFilterCache_AgingDropsStaleEntries (0.00s)
+=== RUN   TestFilterSubtreeBounds_OffsetChain
+--- PASS: TestFilterSubtreeBounds_OffsetChain (0.00s)
+=== RUN   TestSubtreeHasTransform
+--- PASS: TestSubtreeHasTransform (0.00s)
+PASS

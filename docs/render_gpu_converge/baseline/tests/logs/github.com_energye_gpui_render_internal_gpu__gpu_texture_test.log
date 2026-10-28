@@ -1,0 +1,82 @@
+=== RUN   TestBuildImageVertices_OverlayPosition
+--- PASS: TestBuildImageVertices_OverlayPosition (0.00s)
+=== RUN   TestBuildImageVertices_FullScreen
+--- PASS: TestBuildImageVertices_FullScreen (0.00s)
+=== RUN   TestBuildImageVertices_ZeroSize
+--- PASS: TestBuildImageVertices_ZeroSize (0.00s)
+=== RUN   TestBuildImageVertices_RotatedQuad
+--- PASS: TestBuildImageVertices_RotatedQuad (0.00s)
+=== RUN   TestMakeImageUniform_OrthoProjection
+=== RUN   TestMakeImageUniform_OrthoProjection/600x400
+=== RUN   TestMakeImageUniform_OrthoProjection/48x48
+=== RUN   TestMakeImageUniform_OrthoProjection/1920x1080
+--- PASS: TestMakeImageUniform_OrthoProjection (0.00s)
+    --- PASS: TestMakeImageUniform_OrthoProjection/600x400 (0.00s)
+    --- PASS: TestMakeImageUniform_OrthoProjection/48x48 (0.00s)
+    --- PASS: TestMakeImageUniform_OrthoProjection/1920x1080 (0.00s)
+=== RUN   TestMakeImageUniform_OverlayUsesMainViewport
+--- PASS: TestMakeImageUniform_OverlayUsesMainViewport (0.00s)
+=== RUN   TestQueueGPUTextureDraw_OverlayCoordinates
+--- PASS: TestQueueGPUTextureDraw_OverlayCoordinates (0.00s)
+=== RUN   TestQueueGPUTextureDraw_OpacityPassthrough
+--- PASS: TestQueueGPUTextureDraw_OpacityPassthrough (0.00s)
+=== RUN   TestQueueGPUTextureDraw_OpacityZero
+--- PASS: TestQueueGPUTextureDraw_OpacityZero (0.00s)
+=== RUN   TestQueueGPUTextureDrawQuad_CornersPassthrough
+--- PASS: TestQueueGPUTextureDrawQuad_CornersPassthrough (0.00s)
+=== RUN   TestQueueBaseLayer_FullScreen
+--- PASS: TestQueueBaseLayer_FullScreen (0.00s)
+=== RUN   TestPendingCount_BaseLayerOnly
+--- PASS: TestPendingCount_BaseLayerOnly (0.00s)
+=== RUN   TestPendingCount_OverlayOnly
+--- PASS: TestPendingCount_OverlayOnly (0.00s)
+=== RUN   TestPendingCount_BaseLayerPlusOverlay
+--- PASS: TestPendingCount_BaseLayerPlusOverlay (0.00s)
+=== RUN   TestIsBlitOnly_BaseLayerOnly
+--- PASS: TestIsBlitOnly_BaseLayerOnly (0.21s)
+=== RUN   TestIsBlitOnly_NoBaseLayer
+--- PASS: TestIsBlitOnly_NoBaseLayer (0.18s)
+=== RUN   TestIsBlitOnly_WithSDFShapes
+--- PASS: TestIsBlitOnly_WithSDFShapes (0.20s)
+=== RUN   TestRenderFrameGrouped_BaseLayerOnlyGuard
+--- PASS: TestRenderFrameGrouped_BaseLayerOnlyGuard (0.19s)
+=== RUN   TestBlitLoadOp_DamageRectWithoutFrameRendered
+--- PASS: TestBlitLoadOp_DamageRectWithoutFrameRendered (0.18s)
+=== RUN   TestBlitLoadOp_NoDamageRect
+--- PASS: TestBlitLoadOp_NoDamageRect (0.19s)
+=== RUN   TestBuildGPUTextureResources_SeparateVertexBuffers
+    gpu_texture_test.go:476: overlay build: create gpu texture vertex buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+        
+        Caused by:
+          In wgpuDeviceCreateRenderPipeline
+            Error matching ShaderStages(FRAGMENT) shader requirements against the pipeline
+              Shader global ResourceBinding { group: 1, binding: 0 } is not available in the pipeline layout
+                Binding is missing from the pipeline layout
+--- FAIL: TestBuildGPUTextureResources_SeparateVertexBuffers (0.20s)
+=== RUN   TestIsBlitOnly_BaseOnly
+--- PASS: TestIsBlitOnly_BaseOnly (0.08s)
+=== RUN   TestIsBlitOnly_OverlayOnly
+--- PASS: TestIsBlitOnly_OverlayOnly (0.08s)
+=== RUN   TestIsBlitOnly_BaseAndOverlay
+--- PASS: TestIsBlitOnly_BaseAndOverlay (0.08s)
+=== RUN   TestIsBlitOnly_VectorShapesRejectsBlit
+=== RUN   TestIsBlitOnly_VectorShapesRejectsBlit/SDF_shapes
+=== RUN   TestIsBlitOnly_VectorShapesRejectsBlit/convex_shapes
+=== RUN   TestIsBlitOnly_VectorShapesRejectsBlit/stencil_paths
+=== RUN   TestIsBlitOnly_VectorShapesRejectsBlit/image_draws
+=== RUN   TestIsBlitOnly_VectorShapesRejectsBlit/text_batches
+=== RUN   TestIsBlitOnly_VectorShapesRejectsBlit/glyph_masks
+--- PASS: TestIsBlitOnly_VectorShapesRejectsBlit (0.08s)
+    --- PASS: TestIsBlitOnly_VectorShapesRejectsBlit/SDF_shapes (0.00s)
+    --- PASS: TestIsBlitOnly_VectorShapesRejectsBlit/convex_shapes (0.00s)
+    --- PASS: TestIsBlitOnly_VectorShapesRejectsBlit/stencil_paths (0.00s)
+    --- PASS: TestIsBlitOnly_VectorShapesRejectsBlit/image_draws (0.00s)
+    --- PASS: TestIsBlitOnly_VectorShapesRejectsBlit/text_batches (0.00s)
+    --- PASS: TestIsBlitOnly_VectorShapesRejectsBlit/glyph_masks (0.00s)
+=== RUN   TestIsBlitOnly_EmptyFrame
+--- PASS: TestIsBlitOnly_EmptyFrame (0.09s)
+=== RUN   TestRenderFrameGrouped_OverlayOnlyNotSkipped
+--- PASS: TestRenderFrameGrouped_OverlayOnlyNotSkipped (0.08s)
+=== RUN   TestRenderFrameGrouped_EmptyFrameSkipped
+--- PASS: TestRenderFrameGrouped_EmptyFrameSkipped (0.00s)
+FAIL

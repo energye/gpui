@@ -1,0 +1,25 @@
+=== RUN   TestB1HeaderParity
+=== RUN   TestB1HeaderParity/b1_frag5.mp4
+=== RUN   TestB1HeaderParity/b1_frag100.mp4
+--- PASS: TestB1HeaderParity (0.09s)
+    --- PASS: TestB1HeaderParity/b1_frag5.mp4 (0.03s)
+    --- PASS: TestB1HeaderParity/b1_frag100.mp4 (0.06s)
+=== RUN   TestB1DecodeExact
+=== RUN   TestB1DecodeExact/b1_frag5.mp4
+=== RUN   TestB1DecodeExact/b1_frag100.mp4
+--- PASS: TestB1DecodeExact (0.09s)
+    --- PASS: TestB1DecodeExact/b1_frag5.mp4 (0.02s)
+    --- PASS: TestB1DecodeExact/b1_frag100.mp4 (0.07s)
+=== RUN   TestB1PlayToEnd
+=== RUN   TestB1PlayToEnd/b1_frag5.mp4
+=== RUN   TestB1PlayToEnd/b1_frag100.mp4
+--- PASS: TestB1PlayToEnd (0.16s)
+    --- PASS: TestB1PlayToEnd/b1_frag5.mp4 (0.02s)
+    --- PASS: TestB1PlayToEnd/b1_frag100.mp4 (0.14s)
+=== RUN   TestB1SeekFloor
+=== RUN   TestB1SeekFloor/b1_frag5.mp4
+=== RUN   TestB1SeekFloor/b1_frag100.mp4
+--- PASS: TestB1SeekFloor (0.18s)
+    --- PASS: TestB1SeekFloor/b1_frag5.mp4 (0.02s)
+    --- PASS: TestB1SeekFloor/b1_frag100.mp4 (0.16s)
+PASS

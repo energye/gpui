@@ -1,0 +1,5 @@
+=== RUN   TestEditorSpan_AddConsume_M1
+--- PASS: TestEditorSpan_AddConsume_M1 (0.00s)
+=== RUN   TestEditorSpan_DoubleInvalidate_M1
+--- PASS: TestEditorSpan_DoubleInvalidate_M1 (0.00s)
+PASS

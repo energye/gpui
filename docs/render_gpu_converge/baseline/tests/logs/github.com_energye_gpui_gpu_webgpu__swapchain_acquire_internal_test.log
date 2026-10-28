@@ -1,0 +1,11 @@
+=== RUN   TestAcquireSurfaceTexture_HungLatchReturnsImmediately
+--- PASS: TestAcquireSurfaceTexture_HungLatchReturnsImmediately (0.00s)
+=== RUN   TestAcquireSurfaceTexture_NilSurfaceGuard
+--- PASS: TestAcquireSurfaceTexture_NilSurfaceGuard (0.00s)
+=== RUN   TestAcquireHungLocked_ThrottledRecreateWhileHung
+--- PASS: TestAcquireHungLocked_ThrottledRecreateWhileHung (0.00s)
+=== RUN   TestAcquireHungLocked_NoGateWhenHealthy
+--- PASS: TestAcquireHungLocked_NoGateWhenHealthy (0.00s)
+=== RUN   TestAcquireHungLocked_ReconfigureFailureKeepsLatch
+--- PASS: TestAcquireHungLocked_ReconfigureFailureKeepsLatch (0.00s)
+PASS

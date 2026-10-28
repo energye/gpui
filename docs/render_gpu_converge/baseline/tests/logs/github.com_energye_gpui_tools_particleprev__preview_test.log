@@ -1,0 +1,9 @@
+=== RUN   TestParticlePreview_Effects
+--- PASS: TestParticlePreview_Effects (0.00s)
+=== RUN   TestParticlePreview_BadEffects
+--- PASS: TestParticlePreview_BadEffects (0.00s)
+=== RUN   TestParticlePreview_ParityWithEngine
+--- PASS: TestParticlePreview_ParityWithEngine (0.00s)
+=== RUN   TestParticlePreview_ReopenStable
+--- PASS: TestParticlePreview_ReopenStable (0.00s)
+PASS
