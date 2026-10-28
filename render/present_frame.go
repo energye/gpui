@@ -19,9 +19,6 @@ import (
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/types"
-
-	// Register the pure-Go GL backend for SelectBackend (BackendGo).
-	_ "github.com/energye/gpui/gpu/gwgpu/gles"
 )
 
 // PresentClear clears to RGBA (0–1) and presents one full frame (P0 path).

@@ -51,8 +51,6 @@ import (
 	"github.com/energye/gpui/ui/rendering"
 	"github.com/energye/gpui/ui/scheduler"
 	"github.com/energye/gpui/ui/scene"
-
-	rendergpu "github.com/energye/gpui/render/gpu"
 )
 
 const (
@@ -968,7 +966,7 @@ func main() {
 	// Probe's offscreen GPU pass used a standalone device; drop it before the
 	// window opens so only one device is live on 1GB cards (dual-device peak
 	// OOMs depth creation). The window re-inits lazily on its own device.
-	if err := rendergpu.ResetAccelerator(); err != nil {
+	if err := resetGPUAccelerator(); err != nil {
 		fmt.Fprintf(os.Stderr, "game_stage_chase: reset accelerator: %v\n", err)
 	}
 

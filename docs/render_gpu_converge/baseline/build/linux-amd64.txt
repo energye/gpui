@@ -1,8 +1,8 @@
-# P1.1 build baseline: linux/amd64
+# P1.1b build baseline (after B1-B6 fixes): linux/amd64
 # env: CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 # go: go version go1.25.5 linux/amd64
-# repo: 1bd1a06e
-# date: 2026-10-28T14:30:13+08:00
+# repo: 0b97eeb3
+# date: 2026-10-28T15:23:31+08:00
 
 ## 1. go build ./... (raw)
 examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
@@ -22,194 +22,27 @@ examples/ui_wr_t_stress/main.go:39:2: no required module provides package github
 github.com/energye/gpui/ui/scene/internal/gpupixel: no non-test Go files in /home/yanghy/app/projects/gogpu/gpui/ui/scene/internal/gpupixel
 # exit: 1
 
-## 3. go build <all except known-broken>
+## 3. go build <all except known-broken, zero-GoFiles dirs skipped>
 # pkgs: 351
 # exit: 0
 
 ## 4. go build -tags nogpu ./... (raw)
-package github.com/energye/gpui/examples/engine/25d_basis
-	imports github.com/energye/gpui/render/gpu: build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu
 examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
 	go get github.com/energye/gpui/ui/kit/button
 examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
 	go get github.com/energye/gpui/ui/kit/icon
 # exit: 1
 
-## 5. go build -tags nogpu <all except known-broken>
-# pkgs: 346
-package github.com/energye/gpui/examples/engine/25d_basis
-	imports github.com/energye/gpui/render/gpu: build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu
-# exit: 1
+## 5. go build -tags nogpu <all except known-broken, zero-GoFiles dirs skipped>
+# pkgs: 347
+# exit: 0
 
 ## 6. load failures, default tags (go list DepsErrors, excludes known-broken)
 # count: 0
 
 ## 7. load failures, -tags nogpu (go list DepsErrors, excludes known-broken)
-github.com/energye/gpui/examples/engine/25d_basis|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/anim|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/asset|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/camera|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/dodge|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/fx|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/input|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/light2d|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/light|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/nav|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/particle|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/particles2d|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/physics|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/platformer|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/quad|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/save|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/sprite|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/stage_chase|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/step|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/tex|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/tilemap|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/engine/world|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit/color-model|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit/date-engine|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit_f0_content|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit_f0_decor|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit_f0_interact|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit_f0_layout|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit_f0_motion|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit_f0_scope|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit_f0_theme|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit/icon|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit/modal-host|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit/notice-queue|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit/qrcode|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit/spin_min|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit/tour-mask|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/kit/upload|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/render_cjk_text|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/render_clipping|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/render_sdf|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/render_shapes|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/render_text_fallback|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/render_text_transform|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/render_visual_basic|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/text_langs_png|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_ant_verify|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_base_batch_cap|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_base_idle|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_base_multiwin_cap|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_base_vram_cap|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_l1_blank|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_l1_render_matrix|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_l1_scroll|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_l1_spinner|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_l2_shell|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_backdrop|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_cliplayer|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_clipop|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_cliprrect|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_dither|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_emoji|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_filterops|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_geometry|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_image|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_imagepattern|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_maskops|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_miscdraw|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_pathbool|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_pathlow|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_pathshape|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_perfsoak|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_recording|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_scene|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_strokepreset|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_svg|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_sweepgradient|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_text|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_textlow|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_textspacing|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_textstroke|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_variablefont|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_verticesmesh|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_base_webp|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_graphics/vector|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_jumprope|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_particle|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_render_pelican|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_ruler_parity|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_text_edit_accept|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_textinput_ime|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_text_m4_virtual|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_text_m5_anycase|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c0_smoke|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c10_soak|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c11_policy_switch|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c1_boundary_nest|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c2_retained_scene|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c3_list_scroll|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c4_shell_overlay|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c5_anim_over_static|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c6_savelayer_group|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c7_resize_dpr|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c8_hit_overlay_xf|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_c9_stress_cache|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_ime_r1_editor|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_ime_r2_textlayout|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_ime_r3_channel|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_ime_r4_selection|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_ime_r5_control|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r0_fullpaint|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r10_async_image|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r11_dpr|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r12b_debug_repaint|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r12_metrics|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r13_hit|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r14_cache_budget|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r15_soak|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r16_warmup|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r17_bg_throttle|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r18_savelayer|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r19_snap|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r1_layout|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r20_filter|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r21_shell|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r22_selection_stub|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r2_paint|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r3b_compbits|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r3_boundary|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r4b_multidamage|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r4_composite|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r5_picture|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r6_layer_anim|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r7b_scroll_reuse|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r7_virtlist|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r8_overlay|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_r9_text_cache|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/ui_wr_shadermask|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_2k_play|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_4k_play|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_a2_sync|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_a4_sink|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_b1_frag|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_player|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_retained_golden|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_s8_index|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vc0_fullplay|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vc1_seek_fault|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vc2_soak|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vc3_embed_extend|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr0_demux|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr1_params|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr2_decode|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr3_color|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr4_play|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr5_seek|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr6_fault|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr7_perf|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr8_embed|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/video/video_vr9_registry|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/examples/zz_soak_control|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/tools/levelprev|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-github.com/energye/gpui/tools/particleprev|build constraints exclude all Go files in /home/yanghy/app/projects/gogpu/gpui/render/gpu ; 
-# count: 163
+# count: 0
 
 ## 8. go build -tags nogpu <library scope: exclude examples/ tools/>
-# pkgs: 140
+# pkgs: 141
 # exit: 0

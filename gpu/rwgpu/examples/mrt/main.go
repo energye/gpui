@@ -96,23 +96,23 @@ type MSG struct {
 type App struct {
 	hwnd             windows.HWND
 	hinstance        windows.Handle
-	instance         *rrwgpu.Instance
-	adapter          *rrwgpu.Adapter
-	device           *rrwgpu.Device
-	queue            *rrwgpu.Queue
-	surface          *rrwgpu.Surface
-	pipeline         *rrwgpu.RenderPipeline
-	vertexBuffer     *rrwgpu.Buffer
-	uniformBuffer    *rrwgpu.Buffer
-	bindGroupLayout  *rrwgpu.BindGroupLayout
-	bindGroup        *rrwgpu.BindGroup
-	extraTexture     *rrwgpu.Texture
-	extraTextureView *rrwgpu.TextureView
+	instance         *rwgpu.Instance
+	adapter          *rwgpu.Adapter
+	device           *rwgpu.Device
+	queue            *rwgpu.Queue
+	surface          *rwgpu.Surface
+	pipeline         *rwgpu.RenderPipeline
+	vertexBuffer     *rwgpu.Buffer
+	uniformBuffer    *rwgpu.Buffer
+	bindGroupLayout  *rwgpu.BindGroupLayout
+	bindGroup        *rwgpu.BindGroup
+	extraTexture     *rwgpu.Texture
+	extraTextureView *rwgpu.TextureView
 	width            uint32
 	height           uint32
 	running          bool
 	needsRecreate    bool
-	surfaceTex       *rrwgpu.SurfaceTexture
+	surfaceTex       *rwgpu.SurfaceTexture
 	surfaceTexView   *rwgpu.TextureView
 	startTime        time.Time
 }

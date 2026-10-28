@@ -18,9 +18,6 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
-
-	// Register the pure-Go GL backend so SelectBackend can create it.
-	_ "github.com/energye/gpui/gpu/gwgpu/gles"
 )
 
 // Backend picks which GPU implementation render creates.
@@ -30,7 +27,8 @@ type Backend int
 const (
 	// BackendNative is the default WebGPU implementation.
 	BackendNative Backend = iota
-	// BackendGo is the pure-Go GL implementation.
+	// BackendGo is the pure-Go GL implementation (linux/windows only; other
+	// targets are WebGPU-only and SelectBackend reports it unregistered).
 	BackendGo
 )
 

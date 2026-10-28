@@ -27,9 +27,10 @@
 | `baseline/thresholds.md` | **P0.1 验收阈值与环境清单**：首帧、滚动帧率、p95/p99、显存上限、金图容差的写死数字与来源；基线机实测配置 | 不装逐窗金图清单（归 P0.2 `baseline/windows.md`） |
 | `baseline/windows.md` | **P0.2 真窗与金图清单**：162 真窗 + 28 headless 逐窗金图/容差/运行档/平台后端/能力标签；PLAN §5/§6 能力→窗映射；P1.4 采集顺序与自校验脚本 | 不装阈值数字（归 P0.1）；不装采集结果（归 `baseline/windows/`） |
 | `baseline/conformance/` | **P0.4 双后端一致性证据**：`summary.md`（回归/负向命令 + PASS 表 + 已知差异表）、`<scene>/<backend>/{report.json,frame.png,run.txt}`、`negative/` 一套转红证据 | 不装阈值（归 P0.1）；不做像素相等金图（归 P1.4 真窗） |
-| `baseline/build/` | **P1.1 六目标交叉编译证据**：`summary.md`（结果表 + 红项 B1–B6）、`<os>-<arch>.txt` 8 段原始输出（默认/nogpu × 原始/过滤/库范围 + 加载失败枚举） | 不装 vet/单测结果（归 P1.2/P1.3） |
+| `baseline/build/` | **P1.1 六目标交叉编译基线（P1.1b 修复后刷新）**：`summary.md`（结果表 + B1–B6 修复登记 + wasm 不支持结论）、`<os>-<arch>.txt` 8 段原始输出（默认/nogpu × 原始/过滤/库范围 + 加载失败枚举）；修复前红基线在提交 `0b97eeb3` | 不装 vet/单测结果（归 P1.2/P1.3） |
+| `evidence/P1.1b/` | **P1.1b 跨平台构建修复证据**：`summary.md`（B1–B6 根因/改动/验证）、五目标 8 段输出、`js-wasm.txt`（不支持根因）、`conformance-rerun.txt`（P0.4 复跑逐字节一致） | 不重复 `baseline/build/` 的基线表 |
 
-## 当前进度（P0 已收口；P1 基线冻结进行中，当前 P1.1b）
+## 当前进度（P0 已收口；P1 基线冻结进行中，下一任务 P1.2）
 
 > 状态真源是 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2；本表只是索引镜像，两边不一致以台账为准。
 
@@ -39,8 +40,8 @@
 | P0.2 | 真窗与金图清单 | ✅ 2026-10-28 | `baseline/windows.md`（自校验实测：162 真窗 / 28 headless；金图 114 仓内 / 8 运行期 / 40 无；缺图 0） |
 | P0.3 | 归档与回滚演练 | ✅ 2026-10-28 | `baseline/rollback.md`：R1–R8 全 PASS——回退点 `876b7835` 可辨认（`baseline/` 不存在、台账下一任务 P0.1），恢复后树哈希与三文件 sha1 逐位一致、status 不变、演练 tag/worktree 清零；R5 按「相对起点无新增失败」口径（首轮两次红与原因保留在文档内）；发现 `ui_wr_t_stress` 引用不存在的包，移交 P1.1 |
 | P0.4 | 双后端一致性测试台 | ✅ 2026-10-28 | `baseline/conformance/`：3 场景（`solid_gradient`/`clip_blend`/`text_image`）× 2 后端（native/go）全 PASS，`gpu_ops` 3/3/2、CPU 回退 0，跨后端像素差 ≤2/255（text_image 逐字节一致）；负向对照转红；比较器单测 PASS。已知差异 K1（每轮 +2 条/+131072 字节，双后端一致）登记 P1.6/P2.4c；metal/Win32 未验（无真机）。入口 `render/conformance_test.go`，用例 `render/testdata/conformance/` |
-| P1.1 | 六目标交叉编译 + `-tags nogpu` | ✅ 2026-10-28（4 目标有红项） | `baseline/build/`：linux/amd64、linux/arm64 默认主体 351 包 PASS、nogpu 库范围 PASS；windows/darwin×2/js 红项 B1–B6（gles 未限平台、render 无条件注册 gles、rwgpu Windows 缺 unix 调用层、ffishim 用 purego.Dlopen、wayland_csd_font 缺 linux 标签、163 个消费方无条件导入 render/gpu）。用户决定插队修 → P1.1b |
-| P1.1b | 跨平台构建修复（B1–B6） | 🟡 2026-10-28 开工 | 范围/验收见 TASKS §3 P1.1b；证据 `evidence/P1.1b/`；修完复跑六目标、刷新 `baseline/build/`，P0.4 测试台作 Linux 零变化守卫 |
+| P1.1 | 六目标交叉编译 + `-tags nogpu` | ✅ 2026-10-28（采集完成，修复前 4 目标有红项） | `baseline/build/`（现已由 P1.1b 刷新为修复后基线，修复前输出留在 `0b97eeb3`）：修复前 linux×2 默认 351 包 PASS、windows/darwin×2/js 红项 B1–B6 逐条登记 |
+| P1.1b | 跨平台构建修复（B1–B6） | ✅ 2026-10-28 | `evidence/P1.1b/`：五目标（linux×2 351/347/141、windows 357/353/140、darwin×2 349/345/140）默认/nogpu/库范围全 PASS、加载失败 0；P0.4 复跑 6 份 report 与 summary 逐字节一致；js/wasm 因 `../purego` 无 wasm 实现，用户决定登记不支持（将来需 `syscall/js` 后端单独立项） |
 
 ## 先看哪个
 

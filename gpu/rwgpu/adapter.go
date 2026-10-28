@@ -200,8 +200,8 @@ func (i *Instance) RequestAdapter(options *RequestAdapterOptions) (*Adapter, err
 }
 
 func callInstanceRequestAdapter(instance uintptr, options uintptr, callbackInfo *RequestAdapterCallbackInfo) (Future, error) {
-	proc, ok := procInstanceRequestAdapter.(*unixProc)
-	if !ok {
+	fnPtr, known := resolvedFnPtr(procInstanceRequestAdapter)
+	if !known {
 		future, _, err := procInstanceRequestAdapter.Call(
 			instance,
 			options,
@@ -209,12 +209,12 @@ func callInstanceRequestAdapter(instance uintptr, options uintptr, callbackInfo 
 		)
 		return Future{ID: uint64(future)}, err
 	}
-	if proc.fnPtr == 0 {
+	if fnPtr == 0 {
 		return Future{}, &WGPUError{Op: "RequestAdapter", Message: "wgpuInstanceRequestAdapter symbol is missing"}
 	}
 
 	var requestAdapter func(uintptr, uintptr, RequestAdapterCallbackInfo) Future
-	purego.RegisterFunc(&requestAdapter, proc.fnPtr)
+	purego.RegisterFunc(&requestAdapter, fnPtr)
 	return requestAdapter(instance, options, *callbackInfo), nil
 }
 

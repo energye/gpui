@@ -8,6 +8,8 @@
 //
 //----------------------------------------
 
+//go:build (windows || linux) && !(js && wasm)
+
 package gles
 
 import (

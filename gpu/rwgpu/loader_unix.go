@@ -105,6 +105,17 @@ func asUnixProc(p Proc) *unixProc {
 	return u
 }
 
+// resolvedFnPtr exposes the raw symbol address for typed purego.RegisterFunc
+// wrappers. known=false means p is not a loader-backed Proc; known=true with
+// fn==0 means the symbol did not resolve.
+func resolvedFnPtr(p Proc) (fn uintptr, known bool) {
+	u, ok := p.(*unixProc)
+	if !ok {
+		return 0, false
+	}
+	return u.fnPtr, true
+}
+
 func call1(p Proc, a0 uintptr) (uintptr, uintptr) {
 	if u := asUnixProc(p); u != nil && u.fnPtr != 0 {
 		r1, r2, _ := purego.SyscallN(u.fnPtr, a0)

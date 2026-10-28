@@ -8,10 +8,13 @@
 //
 //----------------------------------------
 
+//go:build (windows || linux) && !(js && wasm)
+
 package render
 
 import (
-
 	// Register the pure-Go GL backend for SelectBackend (BackendGo).
+	// The gles backend only builds on linux/windows (GL FFI + platform
+	// context); other targets are WebGPU-only.
 	_ "github.com/energye/gpui/gpu/gwgpu/gles"
 )

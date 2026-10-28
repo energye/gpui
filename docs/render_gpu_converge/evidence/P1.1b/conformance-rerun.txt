@@ -1,0 +1,15 @@
+# P0.4 一致性测试台复跑（P1.1b Linux 零变化守卫，2026-10-28）
+# repo: 0b97eeb3 + P1.1b 工作区改动
+
+## 1. 复跑命令与结果
+WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so GPUI_CONFORMANCE_OUT=/tmp/p11b-conformance go test ./render -run "^TestConformanceDualBackend$" -count=1 -v
+--- PASS: TestConformanceDualBackend (10.22s) / PASS
+
+## 2. 与 P0.4 基线逐字节比对（baseline/conformance/）
+solid_gradient/native/report.json: identical
+solid_gradient/go/report.json: identical
+clip_blend/native/report.json: identical
+clip_blend/go/report.json: identical
+text_image/native/report.json: identical
+text_image/go/report.json: identical
+summary.md: identical

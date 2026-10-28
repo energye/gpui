@@ -153,8 +153,8 @@ func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error) {
 }
 
 func callAdapterRequestDevice(adapter uintptr, options uintptr, callbackInfo *RequestDeviceCallbackInfo) (Future, error) {
-	proc, ok := procAdapterRequestDevice.(*unixProc)
-	if !ok {
+	fnPtr, known := resolvedFnPtr(procAdapterRequestDevice)
+	if !known {
 		future, _, err := procAdapterRequestDevice.Call(
 			adapter,
 			options,
@@ -162,12 +162,12 @@ func callAdapterRequestDevice(adapter uintptr, options uintptr, callbackInfo *Re
 		)
 		return Future{ID: uint64(future)}, err
 	}
-	if proc.fnPtr == 0 {
+	if fnPtr == 0 {
 		return Future{}, &WGPUError{Op: "RequestDevice", Message: "wgpuAdapterRequestDevice symbol is missing"}
 	}
 
 	var requestDevice func(uintptr, uintptr, RequestDeviceCallbackInfo) Future
-	purego.RegisterFunc(&requestDevice, proc.fnPtr)
+	purego.RegisterFunc(&requestDevice, fnPtr)
 	return requestDevice(adapter, options, *callbackInfo), nil
 }
 

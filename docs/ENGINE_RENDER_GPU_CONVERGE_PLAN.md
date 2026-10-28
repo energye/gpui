@@ -203,7 +203,7 @@ render/
 
 目的：把“当前所有测试和真窗都正确”变成可对照的证据，作为 P2 的唯一参照。
 
-- P1.1 六目标交叉编译：`linux/amd64`、`linux/arm64`、`windows/amd64`、`darwin/amd64`、`darwin/arm64`、`js/wasm`；另跑 `-tags nogpu`。
+- P1.1 六目标交叉编译：`linux/amd64`、`linux/arm64`、`windows/amd64`、`darwin/amd64`、`darwin/arm64`、`js/wasm`；另跑 `-tags nogpu`。（2026-10-28 更新：js/wasm 因 `purego` 无 wasm 实现，登记为不支持，基线按五真机目标验收，见台账 P1.1b。）
 - P1.2 `go vet ./...`。
 - P1.3 逐测试文件运行，记录每文件 PASS/SKIP/FAIL；SKIP 必须带原因。
 - P1.4 全部真窗：JSON 探针 + PNG + 金图 diff 计数 + 容差声明。
@@ -285,7 +285,7 @@ render/
 4. **前置半成品前移**：线性混合是 HDR 地基、逐 run 样式是富文本地基；按“6 在 5 之后”会返工。
 5. **CI / 矩阵自动化**：六目标编译与真窗需要可重复执行；没有 CI 就要有固定 runner 协议。
 6. **测试计数对账**：删除会减少测试数，必须区分“计划内减少”和“误删覆盖”。
-7. **构建标签回归**：`nogpu`、`js/wasm`、`windows`、`darwin` 必须逐个编译，不能只跑默认标签。
+7. **构建标签回归**：`nogpu`、`js/wasm`、`windows`、`darwin` 必须逐个编译，不能只跑默认标签。（js/wasm 当前登记为不支持：`purego` 无 wasm 实现，见台账 P1.1b；其余标签照跑。）
 8. **文档同步持续门禁**：API 同步不能只在 P2.5 做一次，每次公开 API 改动都要同步总账。
 
 ### 7.9 每任务能力验证（硬，2026-10-28 补）

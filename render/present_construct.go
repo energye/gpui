@@ -20,9 +20,6 @@ import (
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
-
-	// Register the pure-Go GL backend for SelectBackend (BackendGo).
-	_ "github.com/energye/gpui/gpu/gwgpu/gles"
 )
 
 // requestPresentDeviceWithRetry retries device creation when the adapter is

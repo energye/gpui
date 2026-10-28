@@ -108,28 +108,9 @@ func ptrOf(u uintptr) unsafe.Pointer {
 	return *(*unsafe.Pointer)(unsafe.Pointer(&u))
 }
 
-// LoadLibrary opens a shared library (RTLD_NOW|RTLD_GLOBAL, same as rwgpu).
-func LoadLibrary(name string) (unsafe.Pointer, error) {
-	h, err := purego.Dlopen(name, purego.RTLD_NOW|purego.RTLD_GLOBAL)
-	if err != nil {
-		return nil, err
-	}
-	return ptrOf(h), nil
-}
-
-// GetSymbol resolves a symbol from an opened library.
-func GetSymbol(handle unsafe.Pointer, name string) (unsafe.Pointer, error) {
-	ptr, err := purego.Dlsym(uintptr(handle), name)
-	if err != nil {
-		return nil, err
-	}
-	return ptrOf(ptr), nil
-}
-
-// FreeLibrary closes an opened library.
-func FreeLibrary(handle unsafe.Pointer) error {
-	return purego.Dlclose(uintptr(handle))
-}
+// LoadLibrary, GetSymbol and FreeLibrary are platform-split in libload_*.go:
+// unix uses purego.Dlopen/Dlsym/Dlclose, windows uses kernel32 LoadLibraryW /
+// GetProcAddress / FreeLibrary.
 
 // PrepareCallInterface records the signature into cif. Only scalar and
 // pointer kinds are supported — the GLES call set needs nothing else.

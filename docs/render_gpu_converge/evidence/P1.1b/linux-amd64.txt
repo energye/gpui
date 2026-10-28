@@ -1,0 +1,48 @@
+# P1.1b build baseline (after B1-B6 fixes): linux/amd64
+# env: CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+# go: go version go1.25.5 linux/amd64
+# repo: 0b97eeb3
+# date: 2026-10-28T15:23:31+08:00
+
+## 1. go build ./... (raw)
+examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
+	go get github.com/energye/gpui/ui/kit/button
+examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
+	go get github.com/energye/gpui/ui/kit/icon
+# exit: 1
+
+## 2. known-broken packages (registered, expected red)
+### go build ./examples/ui_wr_t_stress
+examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
+	go get github.com/energye/gpui/ui/kit/button
+examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
+	go get github.com/energye/gpui/ui/kit/icon
+# exit: 1
+### go build ./ui/scene/internal/gpupixel
+github.com/energye/gpui/ui/scene/internal/gpupixel: no non-test Go files in /home/yanghy/app/projects/gogpu/gpui/ui/scene/internal/gpupixel
+# exit: 1
+
+## 3. go build <all except known-broken, zero-GoFiles dirs skipped>
+# pkgs: 351
+# exit: 0
+
+## 4. go build -tags nogpu ./... (raw)
+examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
+	go get github.com/energye/gpui/ui/kit/button
+examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
+	go get github.com/energye/gpui/ui/kit/icon
+# exit: 1
+
+## 5. go build -tags nogpu <all except known-broken, zero-GoFiles dirs skipped>
+# pkgs: 347
+# exit: 0
+
+## 6. load failures, default tags (go list DepsErrors, excludes known-broken)
+# count: 0
+
+## 7. load failures, -tags nogpu (go list DepsErrors, excludes known-broken)
+# count: 0
+
+## 8. go build -tags nogpu <library scope: exclude examples/ tools/>
+# pkgs: 141
+# exit: 0

@@ -8,6 +8,8 @@
 //
 //----------------------------------------
 
+//go:build linux
+
 package platform
 
 // Wayland CSD 标题栏文本渲染。内嵌位图字体（wayland_csd_painter.go 的 csdFont）
