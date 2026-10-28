@@ -1,0 +1,184 @@
+{
+  "backend": "go",
+  "scene": "solid_gradient",
+  "status": "ok",
+  "width": 128,
+  "height": 96,
+  "image_sha256": "cb67dd9e38f220400a6c0f4fe3ac267125bd7cf10d32f20d0818b62a13c32bd1",
+  "samples": [
+    {
+      "name": "solid_center",
+      "x": 32,
+      "y": 32,
+      "want_rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "got_rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "linear_left",
+      "x": 80,
+      "y": 32,
+      "want_rgba": [
+        185,
+        190,
+        0,
+        255
+      ],
+      "got_rgba": [
+        184,
+        189,
+        0,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "linear_mid",
+      "x": 96,
+      "y": 32,
+      "want_rgba": [
+        0,
+        253,
+        34,
+        255
+      ],
+      "got_rgba": [
+        0,
+        252,
+        33,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "linear_right",
+      "x": 112,
+      "y": 32,
+      "want_rgba": [
+        0,
+        185,
+        190,
+        255
+      ],
+      "got_rgba": [
+        0,
+        184,
+        189,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "radial_center",
+      "x": 96,
+      "y": 80,
+      "want_rgba": [
+        253,
+        0,
+        41,
+        255
+      ],
+      "got_rgba": [
+        252,
+        0,
+        40,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "radial_edge",
+      "x": 66,
+      "y": 66,
+      "want_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "got_rgba": [
+        0,
+        0,
+        254,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    }
+  ],
+  "regions": [
+    {
+      "name": "left_red_fill",
+      "kind": "coverage",
+      "got_ratio": 1,
+      "min_ratio": 1,
+      "max_ratio": 1,
+      "ok": true
+    },
+    {
+      "name": "linear_area_opaque",
+      "kind": "coverage",
+      "got_ratio": 1,
+      "min_ratio": 1,
+      "max_ratio": 1,
+      "ok": true
+    },
+    {
+      "name": "radial_area_opaque",
+      "kind": "coverage",
+      "got_ratio": 1,
+      "min_ratio": 1,
+      "max_ratio": 1,
+      "ok": true
+    }
+  ],
+  "path": {
+    "gpu_ops": 3,
+    "cpu_fallback_ops": 0,
+    "frame_flushes": 1,
+    "min_gpu_ops": 1,
+    "max_cpu_fallback_ops": 0,
+    "gpu_ops_ok": true,
+    "fallback_ok": true,
+    "ok": true
+  },
+  "resource": {
+    "repeats": 3,
+    "live_count": [
+      13,
+      15,
+      17
+    ],
+    "live_bytes": [
+      790528,
+      921600,
+      1052672
+    ],
+    "steady_count_delta": 2,
+    "steady_bytes_delta": 131072,
+    "max_steady_count_delta": 2,
+    "max_steady_bytes_delta": 131072,
+    "gpu_contexts_after": [
+      0,
+      0,
+      0
+    ],
+    "ok": true
+  },
+  "ok": true
+}

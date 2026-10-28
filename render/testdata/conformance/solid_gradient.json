@@ -1,0 +1,245 @@
+{
+  "name": "solid_gradient",
+  "width": 128,
+  "height": 96,
+  "notes": "Left half solid red; right half linear gradient (red@0, green@0.5, blue@1 over x=64..128) with a radial overlay (red@0 -> blue@1, center 96,80 r=32) in the bottom-right quadrant. Expected values are the gradient interpolation at each pixel center in LINEAR-LIGHT space, then sRGB-encoded (measured: both backends agree within 1/255). Region rects inset 1px because integer-aligned fill edges lose ~7% coverage in the outer pixel row/column (both backends identical). Resource bounds are non-zero: a known per-context ledger leak (+2 entries / 131072 bytes per run) on brush, glyph and image textures is registered as K1 (render domain, P1.6/P2.4c); tighten these to 0 once fixed.",
+  "ops": [
+    {
+      "kind": "clear",
+      "color": [
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "kind": "fill_rect",
+      "rect": [
+        0,
+        0,
+        64,
+        96
+      ],
+      "color": [
+        1,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "kind": "linear_gradient",
+      "rect": [
+        64,
+        0,
+        64,
+        96
+      ],
+      "from": [
+        64,
+        48
+      ],
+      "to": [
+        128,
+        48
+      ],
+      "stops": [
+        {
+          "offset": 0.0,
+          "color": [
+            1,
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "offset": 0.5,
+          "color": [
+            0,
+            1,
+            0,
+            1
+          ]
+        },
+        {
+          "offset": 1.0,
+          "color": [
+            0,
+            0,
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "radial_gradient",
+      "rect": [
+        64,
+        64,
+        64,
+        32
+      ],
+      "center": [
+        96,
+        80
+      ],
+      "radius": 32,
+      "stops": [
+        {
+          "offset": 0.0,
+          "color": [
+            1,
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "offset": 1.0,
+          "color": [
+            0,
+            0,
+            1,
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "name": "solid_center",
+      "x": 32,
+      "y": 32,
+      "rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "linear_left",
+      "x": 80,
+      "y": 32,
+      "rgba": [
+        185,
+        190,
+        0,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "linear_mid",
+      "x": 96,
+      "y": 32,
+      "rgba": [
+        0,
+        253,
+        34,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "linear_right",
+      "x": 112,
+      "y": 32,
+      "rgba": [
+        0,
+        185,
+        190,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "radial_center",
+      "x": 96,
+      "y": 80,
+      "rgba": [
+        253,
+        0,
+        41,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "radial_edge",
+      "x": 66,
+      "y": 66,
+      "rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "tol": 2
+    }
+  ],
+  "regions": [
+    {
+      "name": "left_red_fill",
+      "kind": "coverage",
+      "rect": [
+        1,
+        1,
+        62,
+        94
+      ],
+      "match_rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "match_tol": 2,
+      "min_ratio": 1.0,
+      "max_ratio": 1.0,
+      "tol_pp": 0
+    },
+    {
+      "name": "linear_area_opaque",
+      "kind": "coverage",
+      "rect": [
+        65,
+        1,
+        62,
+        62
+      ],
+      "alpha_above": 0,
+      "min_ratio": 1.0,
+      "max_ratio": 1.0,
+      "tol_pp": 0
+    },
+    {
+      "name": "radial_area_opaque",
+      "kind": "coverage",
+      "rect": [
+        65,
+        65,
+        62,
+        30
+      ],
+      "alpha_above": 0,
+      "min_ratio": 1.0,
+      "max_ratio": 1.0,
+      "tol_pp": 0
+    }
+  ],
+  "expect": {
+    "min_gpu_ops": 1,
+    "max_cpu_fallback_ops": 0
+  },
+  "resource": {
+    "repeats": 3,
+    "max_steady_count_delta": 2,
+    "max_steady_bytes_delta": 131072
+  }
+}

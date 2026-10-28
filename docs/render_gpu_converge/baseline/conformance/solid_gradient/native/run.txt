@@ -1,0 +1,6 @@
+=== RUN   TestConformanceInner
+    conformance_test.go:169: native/clip_blend ok=true 
+    conformance_test.go:169: native/solid_gradient ok=true 
+    conformance_test.go:169: native/text_image ok=true 
+--- PASS: TestConformanceInner (0.27s)
+PASS

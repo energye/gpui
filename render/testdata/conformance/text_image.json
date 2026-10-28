@@ -1,0 +1,144 @@
+{
+  "name": "text_image",
+  "width": 160,
+  "height": 96,
+  "notes": "Ahem glyphs (deterministic filled squares) at size 40 plus a 16x16 quadrant bitmap. Ahem's ascent is 0.8em and descent 0.2em, and its glyph box spans the full em square, so AB at baseline y=56 covers y=24..63 and x=8..87. Expected glyph area is 2 glyph squares over the 96x96 text region; the bbox pins the glyph band. The font path is relative to the render package root (the harness cwd). Resource bounds are non-zero: a known per-context ledger leak (+2 entries / 131072 bytes per run) on brush, glyph and image textures is registered as K1 (render domain, P1.6/P2.4c); tighten these to 0 once fixed.",
+  "ops": [
+    {
+      "kind": "clear",
+      "color": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "kind": "text",
+      "text": "AB",
+      "x": 8,
+      "y": 56,
+      "font": "text/testdata/ahem.ttf",
+      "size": 40
+    },
+    {
+      "kind": "draw_image",
+      "path": "testdata/conformance/quadrants.png",
+      "x": 96,
+      "y": 16
+    }
+  ],
+  "samples": [
+    {
+      "name": "image_tl_red",
+      "x": 100,
+      "y": 20,
+      "rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "image_tr_green",
+      "x": 108,
+      "y": 20,
+      "rgba": [
+        0,
+        255,
+        0,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "image_bl_blue",
+      "x": 100,
+      "y": 28,
+      "rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "image_br_white",
+      "x": 108,
+      "y": 28,
+      "rgba": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "tol": 2
+    }
+  ],
+  "regions": [
+    {
+      "name": "glyph_coverage",
+      "kind": "coverage",
+      "rect": [
+        0,
+        0,
+        96,
+        96
+      ],
+      "alpha_above": 0,
+      "min_ratio": 0.3,
+      "max_ratio": 0.4,
+      "tol_pp": 5
+    },
+    {
+      "name": "glyph_bbox",
+      "kind": "bbox",
+      "rect": [
+        0,
+        0,
+        96,
+        96
+      ],
+      "alpha_above": 0,
+      "expect_bbox": [
+        8,
+        24,
+        87,
+        63
+      ],
+      "bbox_tol": 1
+    },
+    {
+      "name": "image_white_quadrant",
+      "kind": "coverage",
+      "rect": [
+        105,
+        25,
+        6,
+        6
+      ],
+      "match_rgba": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "match_tol": 2,
+      "min_ratio": 1.0,
+      "max_ratio": 1.0,
+      "tol_pp": 0
+    }
+  ],
+  "expect": {
+    "min_gpu_ops": 1,
+    "max_cpu_fallback_ops": 0
+  },
+  "resource": {
+    "repeats": 3,
+    "max_steady_count_delta": 2,
+    "max_steady_bytes_delta": 131072
+  }
+}

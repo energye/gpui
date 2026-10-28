@@ -48,19 +48,19 @@
 ### 2.1 当前焦点
 
 - 当前进行中：无
-- 下一任务：P0.4
-- 最近完成：P0.3（2026-10-28）
+- 下一任务：P1.1 六目标交叉编译 + `-tags nogpu`
+- 最近完成：P0.4（2026-10-28）
 - 阻塞项：无
 
 **下一任务验证载体（开工前必须填，不填不得开工）**
 
-- 任务：P0.4 双后端一致性测试台
-- 能力单测：测试台自带 ≥1 个单测，覆盖断言比较器本身（同输入 PASS、改一项即 FAIL）；逐文件 `go test`
-- 真窗：无（headless 场景，不开窗）；3 个代表场景：`solid_gradient`（纯色/渐变）、`clip_blend`（裁剪+混合）、`text_image`（文本/位图），断言口径见 §3 P0.4
-- 金图：无金图，不做像素相等；容差口径写「N/A（语义断言）」，只在证据里记断言语义
-- 双后端：`GPUI_BACKEND=native` 与 `GPUI_BACKEND=go` 各跑同一场景，落断言 JSON；跑不起来的后端记「不支持/未实现 + 现象」，不静默跳过
-- 负向对照：故意改错一个期望值或注入一次错误绘制，确认对应断言转红
-- 证据：`baseline/conformance/`
+- 任务：P1.1 六目标交叉编译 + `-tags nogpu`
+- 能力单测：无（构建类任务，不新增单测）；判据为六目标 `go build ./...` 各一次 + `-tags nogpu` 一次，逐目标记录成功/失败
+- 真窗：无（不改代码、不跑窗）
+- 金图：N/A（不产出图像）
+- 双后端：默认构建（含 `render/gpu` native + `gwgpu/gles` 注册）与 `-tags nogpu` 各编一遍，确保两种后端组合都能交叉编译
+- 负向对照：本任务不注入破坏；已知红项（`examples/ui_wr_t_stress` 引用不存在包、`ui/scene/internal/gpupixel` 无非测试文件）逐条登记为基线已知问题，不隐藏
+- 证据：`baseline/build/`
 
 > 每次状态变更必须同时更新本小节；新会话从这里接着做，开工前先把上面这块换成新任务的载体登记。
 
@@ -71,7 +71,7 @@
 | P0.1 | 验收阈值与环境清单（首帧/滚动帧率/p95/p99/显存上限/金图容差，写死数字并指明真源） | — | ✅ | `baseline/thresholds.md` |
 | P0.2 | 真窗与金图清单（窗口名 → 金图 → 平台 → 容差 → 单窗/批量 → 覆盖能力标签） | — | ✅ | `baseline/windows.md` |
 | P0.3 | 归档与回滚演练（打 tag/建分支，实际回退一次证明可回） | — | ✅ | `baseline/rollback.md` |
-| P0.4 | 双后端一致性测试台（同场景 webgpu/gles/metal 逻辑断言，不比像素只比语义） | — | ⬜ | `baseline/conformance/` |
+| P0.4 | 双后端一致性测试台（同场景 webgpu/gles/metal 逻辑断言，不比像素只比语义） | — | ✅ | `baseline/conformance/` |
 | P1.1 | 六目标交叉编译 + `-tags nogpu` | P0.1–P0.3 | ⬜ | `baseline/build/` |
 | P1.2 | `go vet ./...` | P0.1–P0.3 | ⬜ | `baseline/vet.txt` |
 | P1.3 | 逐测试文件运行，记录 PASS/SKIP/FAIL（SKIP 带原因） | P0.1–P0.3 | ⬜ | `baseline/tests/` |
@@ -130,7 +130,7 @@
   - 完成标准：至少 3 个代表场景（纯色/渐变、裁剪+混合、文本/位图）双后端可跑；不支持的后端显式标原因；用例集可一条命令回归。
   - 开工条件：P0.1–P0.3 无硬依赖（P0.3 已完成）；**不改引擎行为**，只加测试代码与 testdata。
   - 测试台落点：断言器 + 场景运行器放 `render/internal/conformance/`（测试专用，不进公开 API）；用例数据放 `render/testdata/conformance/*.json` + 输入图/文本（数据入 testdata，测试代码不硬编码标准数据）；入口测试放 `render/conformance_test.go`。
-  - 后端切换：用子进程带 `GPUI_BACKEND=native|go` 跑同一入口（参照 `render/p1_gl_present_x11_test.go`、`examples/ui_render_pelican/p1_online_test.go` 的既有做法）；若想同进程切换，必须先证明设备/缓存隔离，否则不用。
+  - 后端切换：用子进程跑同一入口（参照 `render/p1_gl_present_x11_test.go`、`examples/ui_render_pelican/p1_online_test.go` 的既有做法）；若想同进程切换，必须先证明设备/缓存隔离，否则不用。**注意 `GPUI_BACKEND` 只切呈现层，不切 accelerator**：实际实现用 `GPUI_CONFORMANCE_BACKEND=native|go` 选装箱设备（native 走 `render/gpu.SetDeviceProvider`，go 走 GL + `SetAcceleratorDeviceProvider`），详见下方执行结果。
   - 场景与断言（三个场景各一份用例 JSON，期望值写在数据里）：
     1. `solid_gradient`：纯色矩形 + 线性/径向渐变 → 采样点通道 ±2/255、区域覆盖率 ±5 个百分点、无裁剪。
     2. `clip_blend`：矩形/圆角裁剪 + 半透明图层 → 裁剪内外采样点、混合结果通道 ±2/255、边界重绘计数。
@@ -140,6 +140,18 @@
   - 证据：`baseline/conformance/summary.md`（含一条回归命令）+ `<scene>/<backend>/report.json` + `run.txt`。
   - 环境前提：`replace ../purego` 是相对路径，测试机需存在 sibling 模块（本机 `/home/yanghy/app/projects/gogpu/purego`），否则先补路径再判失败。
   - 下游义务：P2.6 用本测试台做语义层「零变化」复核；像素与金图层仍归 P1.4 真窗，二者不互相替代。
+  - 执行结果（2026-10-28）：3 场景 × 2 后端全 PASS，负向对照转红。落盘：
+    - 入口：`render/conformance_test.go`（`TestConformanceDualBackend` 子进程编排 + `TestConformanceInner` 场景执行）；断言器/场景运行器：`render/internal/conformance/{case,run,report}.go`；比较器单测：`render/internal/conformance/comparator_test.go`（PASS）。
+    - 用例：`render/testdata/conformance/{solid_gradient,clip_blend,text_image}.json` + `quadrants.png` + `comparator/` 夹具。
+    - 证据：`baseline/conformance/summary.md`、`<scene>/<backend>/{report.json,frame.png,run.txt}`、`negative/solid_gradient_linear_left/`。
+    - 实测计数：`gpu_ops` 3/3/2（solid_gradient/clip_blend/text_image，两后端一致），CPU 回退 0；跨后端像素差 solid_gradient 最大 1/255、clip_blend 最大 2/255、text_image 逐字节一致（SHA `618a13ac…`）。
+    - 负向对照：`GPUI_CONFORMANCE_MUTATE=solid_gradient:linear_left` → `sample linear_left @(80,32): got [184 189 0 255] want [249 190 0 255] ±0`，按预期红。
+  - 口径修正（执行中发现，务必按此理解）：
+    1. **`GPUI_BACKEND` 只管呈现层**（`render/present_swapchain*.go`）；上下文级 GPU 工作永远走已注册的 accelerator。所以测试台不是「一个环境变量切后端」，而是子进程 + 显式装箱设备：native 走 `webgpu.CreateInstance/RequestAdapter/RequestDevice` + `render/gpu.SetDeviceProvider`，go 走 `hal.GetBackend(BackendGL)` + `memOpenX11`（不呈现的 X11 窗口）交 `SetAcceleratorDeviceProvider`。
+    2. **「真窗：无、不开窗」不准确**：GL 后端必须有一个不呈现的 X11 上下文提供窗口（`memOpenX11`），否则出不了 surface/adapter；它不是验收窗，不渲染到屏幕，但依赖 X11 连接。headless 说法只对 native 成立。
+    3. **native 缺 `WGPU_NATIVE_PATH` 会静默降级**：默认 `SDFAccelerator` 无设备提供者时，渐变/字形/图片全部回落 CPU `gg`（仅纯色 SDF 上 GPU）。测试台因此把「`WGPU_NATIVE_PATH` 未设置」显式记为 unavailable 原因，并强制装箱设备，避免把 CPU 回退误判成后端差异。
+  - 已知差异 K1（已登记，不修）：`solid_gradient`/`text_image` 每跑一轮 context 记账 +2 条 / +131072 字节，**native 与 go 表现一致**（`clip_blend` 只有纯色/图层，稳态 9 条不增长）。用例按上界 2 / 131072 显式放宽并写明原因；P1.6/P2.4c 修掉释放缺口后把两处阈值收紧回 0。
+  - 跨平台格：`native`（Linux Vulkan）✅ 已跑；`go`（Linux GL/X11）✅ 已跑；`metal` 未验（无 macOS 真机）；Win32/DX12 未验（无 Windows 真机）。
 
 ### P1 基线冻结（不改代码）
 
@@ -152,6 +164,7 @@
 - **P1.4 全部真窗**：按 P0.2 清单逐个跑；每个窗口三证据齐；金图 diff 给像素计数并对照容差；批量压测遵守 `AGENTS.md` 的 GPU 真窗安全条。
 - **P1.5 API 与测试计数快照**：每包 `go doc -all` 落盘；测试函数计数统计落盘。这两份是 P2 对账的尺子。
 - **P1.6 显存账本**：开窗、关窗、切场景、压测后各取一次；关窗后应回落到基线值，差异记录。
+  - 已知差异 K1（P0.4 移交）：`solid_gradient`/`text_image` 每跑一轮 context 记账 +2 条 / +131072 字节，**native 与 go 一致**（`clip_blend` 纯色/图层不增长）。本项按「每轮增量」口径实测复核并落盘；释放缺口修在 P2.4c。
 - **P1.7 性能基线**：首帧、滚动帧率、p95/p99 按 P0.1 口径实测并落盘。
 - **P1.8 负向对照**：三种人为破坏（偏移 1px、跳过一次绘制、少释放一次）各跑一次，确认对应门禁会红；记录门禁输出。做完立即还原。通过后把 P1 证据一并提交，并打正式基线 tag（P2 从该 tag 起分支）。
 
@@ -170,6 +183,7 @@
 - **P2.4a 设备创建/选卡收敛**：三份 → 一份，创建入口唯一。
 - **P2.4b 预算统一**：六口径 → 一套 Budget，按域分账；淘汰语义有单测。
 - **P2.4c 延迟释放统一**：三队列 → `res/registry`；释放时序有单测。
+  - 已知差异 K1（P0.4 移交）：修掉 brush/glyph/image 纹理每轮 +2 条 / +131072 字节的释放缺口；修完把 `render/testdata/conformance/{solid_gradient,text_image}.json` 的 `max_steady_count_delta` / `max_steady_bytes_delta` 收紧回 0，并用 P0.4 回归命令重跑（`baseline/conformance/summary.md` 已知差异表应清空）。
 - **P2.4d 纹理分配收敛**：六处同尺寸管理器 → `res/cache`；复用命中率有探针。
 - **P2.4e 入口收敛**：裁剪栈、混合枚举、呈现入口各归一处；旧入口删除且调用方全改。
   - 每条子步附加门禁：生命周期测试台（开窗/关窗/切场景 → 显存账本归零、堆无增长）+ 触及共享数据跑 `-race` + 真窗三证据。
@@ -297,7 +311,7 @@ docs/render_gpu_converge/
 | 2026-10-28 | P0.2 | ⬜→✅ 真窗与金图清单落盘 | `docs/render_gpu_converge/baseline/windows.md`：162 真窗 + 28 headless，逐窗金图/容差/运行档/能力标签；仓内金图 114、运行期 8、无金图 40（均写原因与替代判定）；PLAN §5/§6 能力逐项映射，无窗项给替代 + 计划窗名；§6 自校验脚本实测 rows=162、114/8/40、missing=0 |
 | 2026-10-28 | P0.3 | 演练模板落盘，**未执行**（状态仍 ⬜） | `docs/render_gpu_converge/baseline/rollback.md`：R1–R8 判据、8 条边界、起点 `404d8e75` / 回退点 `876b7835` / `/tmp/gpui-p0.3-drill` 隔离 worktree / 演练 tag 用完即删；R8 与边界 5 明确 4 个既有 prunable worktree 原样保留；§6 结果列待执行回填 |
 | 2026-10-28 | P0.3 | ⬜→✅ 归档与回滚演练执行完毕 | `baseline/rollback.md` §6：R1–R8 全 PASS；回退点 `876b7835` 树 `893b1c9d…`≠起点 `eee499f5…`、`baseline/` 不存在且台账「下一任务：P0.1」；恢复后树哈希与三文件 sha1 逐位一致、status 7 行不变；演练 tag/隔离 worktree/`/tmp/purego` 软链全部清干净。R5 首轮两次 FAIL 保留：`/tmp` 下 `../purego` 不存在（环境）、`ui_wr_t_stress` 引用不存在的包（起点同错），判据改为「相对起点无新增失败」，350 包构建通过。既有缺陷移交 P1.1 |
-| 2026-10-28 | P0.4 | 台账条目扩为可开工细则，**未开工**（状态仍 ⬜） | 落点 `render/internal/conformance/` + `render/testdata/conformance/*.json` + `render/conformance_test.go`；3 场景断言口径（`solid_gradient`/`clip_blend`/`text_image`）、子进程切后端、双后端格、负向对照、证据结构、`../purego` 环境前提；见 §3 P0.4 与 §2.1 载体登记 |
+| 2026-10-28 | P0.4 | ⬜→✅ 双后端一致性测试台建成并跑绿 | `render/conformance_test.go` + `render/internal/conformance/{case,run,report}.go` + `render/testdata/conformance/`；3 场景 × native/go 全 PASS，`gpu_ops` 3/3/2、回退 0，跨后端像素差 ≤2/255（text_image 逐字节一致），比较器单测 PASS；负向对照转红；证据 `baseline/conformance/`（summary + 12 组 report/frame/run + negative 一套）。口径修正三条：`GPUI_BACKEND` 只切呈现层（测试台改用 `GPUI_CONFORMANCE_BACKEND` + 装箱设备）、GL 需不呈现的 X11 上下文窗、native 缺 `WGPU_NATIVE_PATH` 会静默回落 CPU。新登记 K1（每轮 +2 条/+131072 字节，双后端一致）→ P1.6/P2.4c；metal/Win32 未验（无真机） |
 
 ## 8 修订记录
 
@@ -307,3 +321,4 @@ docs/render_gpu_converge/
 | 2026-10-28 | 补新会话可续跑能力：§0 开场话术、§2.1 当前焦点、镜像允许按阶段聚合；同步规则改为同步 §2.1 与 PLAN |
 | 2026-10-28 | 依赖校正：P1.4 补 P0.1；P2.6 补 P0.4；P3.7 补 P3.5；P3.8 补 P3.3/P3.5；P4.1/P4.2/P4.3 补 P3.4；P4.4 补 P3.3；P0.3 演练 tag 与正式基线 tag 分开，正式 tag 在 P1.8 通过后打 |
 | 2026-10-28 | 新增 §4.1 能力验证硬要求：每个任务必须带能力单测 + 真窗；开工前在 §2.1 登记四类载体，完成交五份证据；同步规则加第 9、10 条 |
+| 2026-10-28 | P0.4 收口：按 §4.1 一致性测试台口径（自带单测 + 3 场景双后端）标 ✅；资源断言以 K1 上界显式放宽（非静默跳过，已知差异表可见），收紧条件挂到 P1.6/P2.4c；修正「`GPUI_BACKEND` 切后端」「headless 不开窗」两处旧描述 |

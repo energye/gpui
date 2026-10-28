@@ -1,0 +1,224 @@
+{
+  "name": "clip_blend",
+  "width": 128,
+  "height": 96,
+  "notes": "Opaque blue background, rectangular clip to the left half, opaque red repaint under the clip, then a 50% white layer over x=32..96 (still clipped). Expected blend is 0.5*white + 0.5*red over the clipped band; the clip boundary must stay at x=64. Region rects inset 1px from fill and layer boundaries: those edges carry ~7% neighbour coverage on both backends (AA bleed), so the pure bands assert the interior only.",
+  "ops": [
+    {
+      "kind": "clear",
+      "color": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "kind": "fill_rect",
+      "rect": [
+        0,
+        0,
+        128,
+        96
+      ],
+      "color": [
+        0,
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "kind": "clip_rect",
+      "rect": [
+        0,
+        0,
+        64,
+        96
+      ]
+    },
+    {
+      "kind": "fill_rect",
+      "rect": [
+        0,
+        0,
+        128,
+        96
+      ],
+      "color": [
+        1,
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "kind": "push_layer",
+      "opacity": 0.5,
+      "blend": "normal"
+    },
+    {
+      "kind": "fill_rect",
+      "rect": [
+        32,
+        0,
+        64,
+        96
+      ],
+      "color": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "kind": "pop_layer"
+    }
+  ],
+  "samples": [
+    {
+      "name": "inside_red",
+      "x": 8,
+      "y": 48,
+      "rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "blend_inside",
+      "x": 48,
+      "y": 48,
+      "rgba": [
+        255,
+        128,
+        128,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "boundary_in",
+      "x": 63,
+      "y": 48,
+      "rgba": [
+        255,
+        128,
+        128,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "boundary_out",
+      "x": 64,
+      "y": 48,
+      "rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "clip_outside",
+      "x": 80,
+      "y": 48,
+      "rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "tol": 2
+    },
+    {
+      "name": "far_right",
+      "x": 120,
+      "y": 48,
+      "rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "tol": 2
+    }
+  ],
+  "regions": [
+    {
+      "name": "left_red_band",
+      "kind": "coverage",
+      "rect": [
+        1,
+        1,
+        30,
+        94
+      ],
+      "match_rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "match_tol": 2,
+      "min_ratio": 1.0,
+      "max_ratio": 1.0,
+      "tol_pp": 0
+    },
+    {
+      "name": "blend_band",
+      "kind": "coverage",
+      "rect": [
+        33,
+        1,
+        30,
+        94
+      ],
+      "match_rgba": [
+        255,
+        128,
+        128,
+        255
+      ],
+      "match_tol": 2,
+      "min_ratio": 1.0,
+      "max_ratio": 1.0,
+      "tol_pp": 0
+    },
+    {
+      "name": "right_blue_band",
+      "kind": "coverage",
+      "rect": [
+        65,
+        1,
+        62,
+        94
+      ],
+      "match_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "match_tol": 2,
+      "min_ratio": 1.0,
+      "max_ratio": 1.0,
+      "tol_pp": 0
+    }
+  ],
+  "expect": {
+    "min_gpu_ops": 1,
+    "max_cpu_fallback_ops": 0
+  },
+  "resource": {
+    "repeats": 3,
+    "max_steady_count_delta": 0,
+    "max_steady_bytes_delta": 0
+  }
+}

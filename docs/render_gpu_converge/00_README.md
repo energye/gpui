@@ -26,8 +26,9 @@
 | `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` | **任务状态唯一真源**：可执行任务清单、依赖、开工/完成标准、统一门禁、证据目录、即时同步规则、状态流水 | 不重复 PLAN 的方案论证 |
 | `baseline/thresholds.md` | **P0.1 验收阈值与环境清单**：首帧、滚动帧率、p95/p99、显存上限、金图容差的写死数字与来源；基线机实测配置 | 不装逐窗金图清单（归 P0.2 `baseline/windows.md`） |
 | `baseline/windows.md` | **P0.2 真窗与金图清单**：162 真窗 + 28 headless 逐窗金图/容差/运行档/平台后端/能力标签；PLAN §5/§6 能力→窗映射；P1.4 采集顺序与自校验脚本 | 不装阈值数字（归 P0.1）；不装采集结果（归 `baseline/windows/`） |
+| `baseline/conformance/` | **P0.4 双后端一致性证据**：`summary.md`（回归/负向命令 + PASS 表 + 已知差异表）、`<scene>/<backend>/{report.json,frame.png,run.txt}`、`negative/` 一套转红证据 | 不装阈值（归 P0.1）；不做像素相等金图（归 P1.4 真窗） |
 
-## 当前进度（P0 准备阶段）
+## 当前进度（P0 准备阶段已收口，下一任务 P1.1）
 
 > 状态真源是 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2；本表只是索引镜像，两边不一致以台账为准。
 
@@ -36,7 +37,7 @@
 | P0.1 | 验收阈值与环境清单 | ✅ 2026-10-28 | `baseline/thresholds.md` |
 | P0.2 | 真窗与金图清单 | ✅ 2026-10-28 | `baseline/windows.md`（自校验实测：162 真窗 / 28 headless；金图 114 仓内 / 8 运行期 / 40 无；缺图 0） |
 | P0.3 | 归档与回滚演练 | ✅ 2026-10-28 | `baseline/rollback.md`：R1–R8 全 PASS——回退点 `876b7835` 可辨认（`baseline/` 不存在、台账下一任务 P0.1），恢复后树哈希与三文件 sha1 逐位一致、status 不变、演练 tag/worktree 清零；R5 按「相对起点无新增失败」口径（首轮两次红与原因保留在文档内）；发现 `ui_wr_t_stress` 引用不存在的包，移交 P1.1 |
-| P0.4 | 双后端一致性测试台 | ⬜ 已登记，待开工（2026-10-28 建细则） | 产出 `baseline/conformance/`；3 个场景（`solid_gradient` 纯色/渐变、`clip_blend` 裁剪+混合、`text_image` 文本/位图）在 `native` 与 `go` 上跑语义断言（采样通道 ±2/255、覆盖率 ±5pp、纹理创建=释放），不比像素；断言器自带单测 + 负向对照；用例数据入 `render/testdata/conformance/`，测试台落 `render/internal/conformance/` |
+| P0.4 | 双后端一致性测试台 | ✅ 2026-10-28 | `baseline/conformance/`：3 场景（`solid_gradient`/`clip_blend`/`text_image`）× 2 后端（native/go）全 PASS，`gpu_ops` 3/3/2、CPU 回退 0，跨后端像素差 ≤2/255（text_image 逐字节一致）；负向对照转红；比较器单测 PASS。已知差异 K1（每轮 +2 条/+131072 字节，双后端一致）登记 P1.6/P2.4c；metal/Win32 未验（无真机）。入口 `render/conformance_test.go`，用例 `render/testdata/conformance/` |
 
 ## 先看哪个
 

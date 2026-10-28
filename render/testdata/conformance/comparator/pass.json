@@ -1,0 +1,30 @@
+{
+  "name": "comparator_pass",
+  "width": 8,
+  "height": 8,
+  "notes": "Comparator fixture: 4x8 left block (10,20,30,255) and 4x8 right block (200,150,100,255). Used by the comparator unit test only; no GPU involved.",
+  "samples": [
+    {"name": "left_pixel", "x": 2, "y": 4, "rgba": [10, 20, 30, 255], "tol": 0},
+    {"name": "right_pixel", "x": 6, "y": 4, "rgba": [200, 150, 100, 255], "tol": 0}
+  ],
+  "regions": [
+    {
+      "name": "left_half",
+      "kind": "coverage",
+      "rect": [0, 0, 4, 8],
+      "match_rgba": [10, 20, 30, 255],
+      "match_tol": 0,
+      "min_ratio": 1.0,
+      "max_ratio": 1.0,
+      "tol_pp": 0
+    },
+    {
+      "name": "full_bbox",
+      "kind": "bbox",
+      "rect": [0, 0, 8, 8],
+      "alpha_above": 0,
+      "expect_bbox": [0, 0, 7, 7],
+      "bbox_tol": 0
+    }
+  ]
+}

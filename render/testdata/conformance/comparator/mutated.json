@@ -1,0 +1,22 @@
+{
+  "name": "comparator_mutated_sample",
+  "width": 8,
+  "height": 8,
+  "notes": "Negative-control fixture: identical to pass.json except left_pixel expects 11 instead of 10 with tol=0. Must fail.",
+  "samples": [
+    {"name": "left_pixel", "x": 2, "y": 4, "rgba": [11, 20, 30, 255], "tol": 0},
+    {"name": "right_pixel", "x": 6, "y": 4, "rgba": [200, 150, 100, 255], "tol": 0}
+  ],
+  "regions": [
+    {
+      "name": "left_half",
+      "kind": "coverage",
+      "rect": [0, 0, 4, 8],
+      "match_rgba": [10, 20, 30, 255],
+      "match_tol": 0,
+      "min_ratio": 1.0,
+      "max_ratio": 1.0,
+      "tol_pp": 0
+    }
+  ]
+}

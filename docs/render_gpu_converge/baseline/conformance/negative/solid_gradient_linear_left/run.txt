@@ -1,0 +1,4 @@
+=== RUN   TestConformanceInner
+    conformance_test.go:169: native/solid_gradient ok=false sample linear_left @(80,32): got [184 189 0 255] want [249 190 0 255] ±0
+--- PASS: TestConformanceInner (0.24s)
+PASS
