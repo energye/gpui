@@ -37,7 +37,7 @@
 | 14 | 视频/纹理流 | 持续喂帧 | video C4 | ❌ 解码吞吐（V-5 挂视频线） | ffplay/Flutter video | 挂视频线 |
 | 15 | 呈现策略对照 | 同场景 full vs retained | R0/C2/R4 | ✅ 已对照（§5.8.5）：R0 26.92% vs C2 集成壳 25.22%（retained 省 ~6.3% CPU、damage_sum 0.187≪0.35 线）、R4 局部地板 24.02%；全部 59.94–59.97fps 满拍；严格逐字同内容可切策略窗挂 §6 遗留 | Godot 视口/Flutter | ✅ Flutter 臂同触发语义见 §5.8.4 各行 |
 | 16 | 首帧/恢复（t2fp、遮挡恢复） | 冷启/遮挡回来 | R16/R17 | ✅ | Flutter 首帧 | ✅ Flutter 臂 map_ms（进程启动→X 客户区 mapped，三跑中位）270–292ms（§5.8.4：min 276.6 / grid 277.4 / resize 280.6 / boundary 281.6 / cp 284.8 / full 291.8 / overlay 275.3）；遮挡恢复 Flutter 臂协议缺口挂 §6 遗留 |
-| 17 | 显存压力/设备恢复（资源纪律验收） | 多窗 VRAM 预算压力、`GPUI_FAULT_OOM` 注入 | 故障注入缝在（`ui/embedder/fault_oom.go`）、预算拒增计数在（`ui/scheduler/metrics.BudgetRefusals` + `ui/embedder/pipeline_app` cacheBudgetRefusals）、`hud_hal.vram_ledger` 账本在（`gpu/hal/vram_ledger.go` + 单测） | ❌ 无专项资源场景窗（恢复正确性有注入测试、压力资源账无） | Godot 压力场景 | **立账计划已登记（2026-10-27，窗未立）**：①多窗 VRAM 预算阶梯开窗（2/4/8 窗纹理负载递增）取 `BudgetRefusals` 拒增曲线；②`GPUI_FAULT_OOM` 注入后断言 `hal.VramLiveBytes()` 恢复回落至注前账；③Godot 臂后置。窗建成前不标绿 |
+| 17 | 显存压力/设备恢复（资源纪律验收） | 多窗 VRAM 预算压力、`GPUI_FAULT_OOM` 注入 | **`ui_base_vram_cap`**（2026-10-28 建成：模式 A 预算拒增阶梯 2/4/8 窗 + 模式 B OOM 注入回落探针，§5.10） | ✅ 两模式门禁各 SEEDED+两连 rc=0（300s×3 / 15s×3）：拒增曲线 0→+630→+860/档、账本峰值 362.9–381.4MB 全程 ≤0.9×预算水线、保持段斜率 −291/+1591/+1771KB/min（≪30000 线）、OOM 注入后账本精确回落 **delta 0.00MB**、golden 逐窗 0×3 | Godot 压力场景 | ✅ 专项窗建成成账（§5.10）；Godot 臂照登记后置作观察项 |
 
 **P2 冻结结论（2026-10-25）**：17 行逐行核对完毕——
 - ✅ 真窗已有 + 资源指标已有（不需新窗）：行 2/4/5/6/7/8/11/16（8 行）——只需 P4 补对照数字；
@@ -555,6 +555,48 @@ JSON 五对齐线键保持 null（禁假绿语义，`report.go` L268–283）。
 规则落点：系数入 §1.3 与 §4 对齐线公式；判红 = `gpui值 > 尺臂值 × 系数`
 （三跑中位对三跑中位）；任何豁免行必须书面挂号（本节 + §2 该行）。
 
+### 5.10 行 17 专项窗 `ui_base_vram_cap`：VRAM 预算拒增阶梯 + OOM 注入回落（2026-10-28 建成；模式 A 隔离 GNOME Wayland 会话/XWayland 同 P4A 口径，模式 B 单窗）
+
+真源依据：§2 行 17 登记的立账计划①②。引擎层零改动（四挂钩全在：`EnsureCapacity`
+拒增、`fault_oom` 注入缝、`hal` 账本、wrgate 字段）。窗=一进程多窗、每窗 160 张
+256×256 静态 RepaintBoundary 卡（工作集 ~40MB/窗），wrgate JSON 出账（未接尺 env
+五键如实 null——Godot 臂后置无配对）。
+
+**模式 A 预算拒增阶梯**（`RUN_SECONDS=300 -auto-only`，增量开窗 2/4/8——
+`SharedWindowCount` 按开窗数分摊公平份额 `预算/窗数/4`，阶梯本身就是加压）：
+门禁断言=阶梯三档齐全、4/8 窗档拒增 >0、低压档（2 窗）fps≥40、账本峰值 ≤0.9×
+预算水线、**保持段斜率 ≤30000KB/min**（固定 8 窗、缓存饱和后 ~250s 持续呈现——
+整段斜率被阶梯结构性抬高只作信息项）、golden 逐窗零容差。
+
+| 跑 | 拒增曲线（+档） | 账本峰值 | 2 窗 fps_min | 保持段斜率 | golden | px |
+|---|---|---:|---:|---:|---|---|
+| seed（SEEDED） | 0 / +632 / +930 | 381.4MB | 53.4 | −291KB/min（256s） | 0（播种） | 16/16 |
+| 验证 1 | 0 / +630 / +885 | 362.9MB | 57.0 | +1591KB/min（256s） | 0.0000% | 16/16 |
+| 验证 2 | 0 / +654 / +835 | 362.9MB | 56.3 | +1771KB/min（256s） | 0.0000% | 16/16 |
+
+**模式 B OOM 注入回落**（`GPUI_FAULT_OOM=180:1 RUN_SECONDS=15 -oom-probe -auto-only`，
+单窗 12 卡轻载；窗解析同一 env 定采样窗，注前 [after−48,after−8] 对注后
+[after+40,after+120] 中位）：断言=应用存活（不触发 3 帧持续 OOM 退出链）+ 账本
+回落注前 ±max(4MB,5%) + golden 0。三跑 pre=8.55MB / post=8.55MB / **delta 0.00MB**
+recovered=true survived=true（presents ~1080 ≫ 注入点），两连验证 golden 0.0000%。
+
+**读数（三句）**：
+1. **拒增真实发生且随压力走**：2 窗档公平份额 96MB>40MB 需求零拒增；4 窗档
+   48MB 被顶破开始拒增（+630/档）；8 窗档 24MB 拒增率再升（+835~930/档）。
+   拒增拒的是「缓存自动扩容」，活层纹理由 `SetLiveKeys` 保护保供——正确性不依赖
+   缓存（golden 逐窗 0 实证），账本 361MB=全部活纹理+表面，全程 ≤0.9×768 水线。
+2. **拒增/重录稳态无泄漏**：8 窗档 fps 降至 ~14–15（被拒层逐帧重录的代价，
+   如实记账不设 fps 门），但 256s 保持段斜率 −291/+1591/+1771KB/min ≪ 30000
+   线——失败/拒绝路径没有堆积水。
+3. **OOM 注入后资源纪律成立**：单次合成 present 失败后应用存活、账本精确回到
+   注前账（delta 0.00MB）——「资源谁建谁放」在失败路径上实测成立。
+
+复现：`go build -o /tmp/p4e_vramcap ./examples/ui_base_vram_cap`；模式 A
+`RUN_SECONDS=300 /tmp/p4e_vramcap -auto-only`（**隔离 Wayland 会话，桌面禁 8 窗**），
+模式 B `GPUI_FAULT_OOM=180:1 RUN_SECONDS=15 /tmp/p4e_vramcap -oom-probe -auto-only`
+（单窗可桌面）。原跑 JSON：`/tmp/opencode/ruler_runs/P4E_vram/{ladder_seed,ladder_v1,
+ladder_v2,oom_seed,oom_v1,oom_v2}.stdout`。
+
 ## 6. 实施阶段与 DoD
 
 | 阶段 | 内容 | DoD | 量级 |
@@ -566,7 +608,7 @@ JSON 五对齐线键保持 null（禁假绿语义，`report.go` L268–283）。
 
 **P3 进度（2026-10-27 更新）**：三扇新窗（idle/batch_cap/multiwin_cap）两连 gate + manual 已完成（§5.1–5.3）；多窗 `-race` 清零；13 扇尾账 Golden 两连全 PASS（§5.4，13→0）；IME 颜色字形分类引擎修复落地；两处既有红已定案（用例迁移 + 断言口径，§5.4）；E1 14 扇机器证据已补（§5.6，其中 appkit/win32 本机诚实 SKIP、待真机）。E2 已定案（jumprope 冻结 Golden 两连 PASS、spin_min 豁免）；六扇 IME 真机人工验收已完成并修掉光标/选区引擎缺陷（§5.4.1/§5.4.2）；maskops 可录制掩码后处理已收，两连 `screen=0.0000%`/`pixel=18/18`/`golden=0.0000%`/`live_only_skips=0`/`mask_skips=0`（§5.4.1、线程计划 §18.1 #19）；**Flutter stable 3.47.8 与 Godot 4.5.1 对照尺已立，三臂真实出画；Flutter/Godot 基准各三跑取中位；gpui 同语义 parity 四场景各三跑中位（spin 14.16% / list 22.99% / text 0.42% / godot 20.33%），四张 Golden 重出两连零差异（§5.5.3）**；旧 P1 黑屏阻塞解除。故 **P3 收口（2026-10-27），P4 未开工**；P4 接手全矩阵对照、系数定稿、m5/parity text RSS 异常定位。
 
-**P4 进度（2026-10-27 更新）**：**D 步完成（wrgate 对照字段落地，§4）**——`Report` 五对齐线字段（未接尺显式 `null`）+ `RulerInput`/`RulerFromEnv` + `RequiredSchemaKeys` 纳检，单测五测绿、全仓编译过；行 1/2/3 对照沿用 P3 成果。**A 步完成**：行 10 多实例（隔离 Wayland 会话 12 轮，§5.8/§5.8.3）+ 行 4/5/6/7/8/9/13/16 七场单窗臂（桌面 Xorg 12 轮，§5.8.4）。**B 步完成**：行 11 长跑 300s×3（稳态斜率 535.5KB/min valid，§5.8.4）。**C 步完成**：行 12 修复归档、行 15 R0/C2/R4 策略对照成表（§5.8.5）、行 17 立账计划登记（§2 行 17）。**E 步完成**：五窗 `GPUI_RULER_*` 接线（multiwin 接线实证 2026-10-28 隔离会话补齐，遗留 7 清账）、C2/parity 陈旧金基线收口（row 12 字体共享 + `dc5248de` 壳对齐涟漪，§5.8.5/§9）、系数定稿（2026-10-28 拍板：CPU 1.5×/RSS 2.0× + 双豁免 + text 族 RSS 豁免，§5.9）。行 14 挂视频线不进本轮验收；行 17 尺臂（Godot 压力场景）后置作观察项。**遗留清单 1 已清账（2026-10-28，§5.8.6）**：行 5/6/8/11 gpui 同窗资源账补采 15 轮全绿成比值（CPU 0.27–0.50× / RSS 1.57–1.65×，全低于定稿线）。
+**P4 进度（2026-10-27 更新）**：**D 步完成（wrgate 对照字段落地，§4）**——`Report` 五对齐线字段（未接尺显式 `null`）+ `RulerInput`/`RulerFromEnv` + `RequiredSchemaKeys` 纳检，单测五测绿、全仓编译过；行 1/2/3 对照沿用 P3 成果。**A 步完成**：行 10 多实例（隔离 Wayland 会话 12 轮，§5.8/§5.8.3）+ 行 4/5/6/7/8/9/13/16 七场单窗臂（桌面 Xorg 12 轮，§5.8.4）。**B 步完成**：行 11 长跑 300s×3（稳态斜率 535.5KB/min valid，§5.8.4）。**C 步完成**：行 12 修复归档、行 15 R0/C2/R4 策略对照成表（§5.8.5）、行 17 立账计划登记（§2 行 17）。**E 步完成**：五窗 `GPUI_RULER_*` 接线（multiwin 接线实证 2026-10-28 隔离会话补齐，遗留 7 清账）、C2/parity 陈旧金基线收口（row 12 字体共享 + `dc5248de` 壳对齐涟漪，§5.8.5/§9）、系数定稿（2026-10-28 拍板：CPU 1.5×/RSS 2.0× + 双豁免 + text 族 RSS 豁免，§5.9）。行 14 挂视频线不进本轮验收；行 17 尺臂（Godot 压力场景）后置作观察项。**遗留清单 1 已清账（2026-10-28，§5.8.6）**：行 5/6/8/11 gpui 同窗资源账补采 15 轮全绿成比值（CPU 0.27–0.50× / RSS 1.57–1.65×，全低于定稿线）。**遗留 6 已清账（2026-10-28，§5.10）**：行 17 专项窗 `ui_base_vram_cap` 建成（预算拒增阶梯 + OOM 注入回落两模式三连全绿）；**遗留 7 已清账（2026-10-28，§5.9/§9）**：multiwin 接线实证 + 行 10 带 env 复跑（标量 0.67×/0.41×）。至此 17 行中 16 行成账闭环，仅行 14 挂视频线（外部线）。
 
 **P4 遗留清单（§2 各行指向，2026-10-27 登记；2026-10-28 更新）**：
 1. ✅ **已清账（2026-10-28，§5.8.6）**：行 5/6/8/11 的 gpui 同窗资源账带出成比值写回 §2——R10/R3/R8 60s×3 门禁自退 + R15/C10 300s×3 长跑自退（桌面 15 轮全绿、轮间 Xorg 无恙），比值 CPU 0.27–0.50× / RSS 1.57–1.65× 全低于定稿线（CPU 1.5×/RSS 2.0×）；
@@ -574,7 +616,7 @@ JSON 五对齐线键保持 null（禁假绿语义，`report.go` L268–283）。
 3. 行 9 最小化的 FG/BG 段 CPU 拆分（Flutter 臂 36.19% 是 FG22+BG8 混窗聚合，不可直比 R17 FG 段）；
 4. 行 16 遮挡恢复：Flutter 臂 WM 协议无「遮挡→恢复」事件路径，恢复臂暂缺（人工恢复路径可选）；
 5. 行 15 严格同内容 full vs retained「可切策略」对照窗（现 R0/C2 为同壳族策略对照、非逐字同内容）；
-6. 行 17 专项资源场景窗：预算拒增曲线（`BudgetRefusals`）+ `GPUI_FAULT_OOM` 注入后 `hal.VramLiveBytes()` 回落断言——窗未立不标绿；
+6. ✅ **已清账（2026-10-28，§5.10）**：行 17 专项资源场景窗 `ui_base_vram_cap` 建成——模式 A 预算拒增阶梯（2/4/8 增量开窗，拒增曲线/水线/保持段斜率三证）+ 模式 B `GPUI_FAULT_OOM` 注入回落（账本 delta 0.00MB），各 SEEDED+两连 rc=0；Godot 臂照登记后置作观察项；
 7. ✅ **已清账（2026-10-28，§5.9/§9）**：multiwin 接线实证 + 行 10 臂 wrgate JSON 复跑（`GPUI_RULER_*` 带 env）在隔离 GNOME Wayland 会话完成——wire-probe 一轮证管道 + ladder 混梯口径真值三连全 rc=0，标量比值 CPU 0.67×/RSS 0.41×，八窗 golden 逐窗 0×3、max60=4/steady60=2 复现；逐档比值仍以 §5.8.3 成表为准。
 
 ## 7. 风险与边界
@@ -696,12 +738,17 @@ GDK_BACKEND=x11 python3 tools/ruler_flutter/scripts/measure.py \
   --out /tmp/ruler/P4A_multi/multi_N4_run1
 # gpui 臂（一进程八窗门禁；下限 75s；隔离 Wayland 会话加 GPUI_RULER_BACKEND=x11）
 RUN_SECONDS=90 GPUI_RULER_BACKEND=x11 go run ./examples/ui_base_multiwin_cap -auto-only
+
+# P4-E 行 17（模式 A 是 8 窗批量 → 隔离 Wayland 会话专用；模式 B 单窗可桌面）
+RUN_SECONDS=300 go run ./examples/ui_base_vram_cap -auto-only
+GPUI_FAULT_OOM=180:1 RUN_SECONDS=15 go run ./examples/ui_base_vram_cap -oom-probe -auto-only
 ```
 
 ## 9. 修订表
 
 | 日期 | 内容 |
 |---|---|
+| 2026-10-28 | **P4 遗留 6 清账：行 17 专项资源场景窗 `ui_base_vram_cap` 建成成账（§5.10）**：按 §2 行 17 登记的立账计划建窗，引擎层零改动。**模式 A 预算拒增阶梯**（隔离 GNOME Wayland 会话，增量开窗 2/4/8——SharedWindowCount 驱动公平份额 预算/窗数/4，每窗 160 张 256×256 静态 RepaintBoundary 卡 ~40MB 工作集）：300s×3（SEEDED+两连）全 rc=0，拒增曲线 0→+630→+860/档（4/8 窗档被公平份额顶破）、账本峰值 362.9–381.4MB ≤0.9×768 水线、8 窗档 fps 降至 ~14–15（被拒层逐帧重录代价，如实记账不设 fps 门）、**保持段斜率（固定 8 窗 ~250s）−291/+1591/+1771KB/min ≪30000 线**（整段斜率被阶梯结构性抬高故健康线只判保持段——先例：multiwin 预开 8 窗同理由）、golden 逐窗 0×3 + px 16/16。**模式 B OOM 注入回落**（单窗桌面可跑）：`GPUI_FAULT_OOM=180:1` 三跑 pre=8.55MB/post=8.55MB/**delta 0.00MB**、survived=true（不触发 3 帧持续 OOM 退出链）、两连 golden 0.0000%——「资源谁建谁放」在失败路径实测成立。建窗中修两处窗侧缺陷（不涉引擎）：①OnPaint 契约——PaintContext 携带绝对 origin、裸 `pc.DC` 绘制绕过它，卡片须先 `Translate(pc.Abs(0,0))`（multiwin 无恙仅因其盒在 Place(0,0)；像素探针逮住快照叠卡，三证据互证防假绿生效）；②探针退出等待双消费 done 通道。§2 行 17 对照列、§8 复现、遗留 6 同步。证据：`/tmp/opencode/ruler_runs/P4E_vram/`（6 份 stdout JSON）。 |
 | 2026-10-28 | **P4 遗留 7 清账：multiwin 接线实证 + 行 10 臂 wrgate JSON 复跑带 env（隔离 GNOME Wayland 会话/XWayland `:1`，§5.9）**：用户切会话（P4A 行 10 同款环境）后跑批 `ruler_batch_P4E_multiwin.sh`，四轮全程 Xwayland 存活、应用自退标准关闭。①wire-probe：假尺值 999 只证管道——rc=0、五键非 null、比值成算。②真值三连（ladder 混梯对混梯，2026-10-28 拍板口径：尺值=Flutter N=1/2/4/8 三跑中位等权均值 CPU 99.19%/RSS 611.8MB）：全 rc=0，整场中位 CPU 66.70%（66.70/68.18/65.52）/RSS 252.0MB（249.9/259.4/252.0）→ **标量比值 CPU 0.67×/RSS 0.41×**（远低于定稿线 1.5×/2.0×）；八窗 golden 逐窗 0×3、px 16/16、max60=4/steady60=2 复现 P4A 账、cpu_fallback=0、presents/s@8 357–384（P4A ~316–328，饱和点随会话环境漂移先例注）。逐档 CPU 中位 21.92/36.75/67.66/109.24%（P4A 账 22.42/43.83/81.33/111.0，同量级会话漂移）——**逐档比值仍以 §5.8.3 成表为准**；标量为跨日配对（gpui 今夜三跑 vs Flutter P4A 中位），如实带注；八窗总和口径 gpui 252MB vs Flutter N=8 1305MB → gpui 省 ~5.2×（同 §5.8.3 的 5.57× 量级）。backend=x11（XWayland）与 P4A 隔离口径一致。§2 行 10/§5.9/§6 遗留 7 同步。证据：`/tmp/opencode/ruler_runs/P4E_multi/`（4 份 stdout JSON）。 |
 | 2026-10-28 | **P4 遗留 1 清账：行 5/6/8/11 gpui 同窗资源账补采成比值（§5.8.6，遗留清单 2026-10-28 更新）**：桌面 Xorg `:1` 单窗串行 15 轮（每轮标准关闭、轮间查 Xorg，全程无恙）——R10/R3/R8 各 60s×3 `-auto-only` 门禁自退（golden 三连 0、rc=0×3），R15/C10 各 300s×3 自退 `app.Close()` 关闭档长跑。中位：R10 25.75%/59.95fps/305.5MB、R3 34.39%/59.92fps/291.1MB、R8 18.26%/59.95fps/296.1MB、R15 33.97%/59.91fps/309.3MB、C10 35.69%/59.91fps/314.9MB；斜率全 valid（1406–8809KB/min ≪ 30000 线）、hitch ≤1/min。对 §5.8.4 Flutter 臂成比值：CPU **0.37/0.50/0.27/0.47/0.49×**、RSS **1.65/1.59/1.60/1.57/1.60×**——全部低于定稿线（CPU 1.5×/RSS 2.0×，§5.9），R8 按豁免②带双侧 fps 注（Flutter 臂 49.1fps 未满 60）。§2 行 5/6/8/11 对照列同步，遗留清单 1 标 ✅。证据：`/tmp/opencode/ruler_runs/P4E/`（15 份 stdout JSON）。 |
 | 2026-10-28 | **P4-E 对齐线系数定稿（2026-10-28 拍板）+ 五窗 `GPUI_RULER_*` 接线落地 + 行 15 策略对照成表（§5.8.5/§5.9）**：**系数定稿 CPU 1.5× / RSS 2.0× 入 §1.3/§4**（判红 = gpui 值 > 尺臂值 × 系数，三跑中位对三跑中位；占位 1.2×/1.5× 作废——1.2× 过最紧恶劣样本 Godot 0.94× 后余量仅 ~13pp 扛不住 ±2pp 中位波动；RSS 2.0× 罩最紧行 4 对 R0 1.73× 与 multiwin N1 1.43×）。豁免两条 + 一注：①双侧 CPU < 1% 的 idle 级行不走系数走绝对差 Δ≤0.5pp（text idle 0.02 vs 0.42 的 21× 是假信号）；②Flutter 臂未满 60fps 的行（full 53.2 / overlay 49.1 / boundary 55.0 / soak 55.3）CPU 比值必须双侧带 fps 注、不单独作对齐判据；③text 族 RSS 豁免（字体位图图集进程级共享粒度与臂结构不同源，row 12 已把真实泄漏修掉 1.67GB→464MB，剩余差值是常驻图集粒度语义）。**接线**：五窗 `BuildReport` 挂 `Ruler: wrgate.RulerFromEnv()`——parity（live 模式 JSON；其 `-auto-only` 走自家 RULER_GATE 不走 wrgate 报告，两模态分工注 §5.9）+ r0/c2/r4/multiwin（门禁 JSON）；env 三件套不齐五键保持 null 禁假绿。wire-probe 实证：parity live 五 ruler 字段全非 null、比值自动成算 0.65×/0.82×（臂值假值注名 `*-wire-probe` 只证管道）；r0/c2/r4 门禁三连 rc=0+比值成算+零失败；multiwin 接线实证挂 §6 遗留 7（隔离 Wayland 会话补，桌面不跑 8 窗）。**行 15 成表（§5.8.5）**：R0 full_paint 26.92%/59.94fps/289.8MB vs C2 retained 集成壳 25.22%/300.8MB（damage_sum 0.187≪0.35 线，省 ~6.3% CPU）、R4 局部地板 24.02%；三窗满拍、斜率全 valid 低于 30000 线；严格逐字同内容可切策略对照窗挂 §6 遗留 5。§0/§1.3/§2 行 4/15/§4/§6/§7 同步。 |
