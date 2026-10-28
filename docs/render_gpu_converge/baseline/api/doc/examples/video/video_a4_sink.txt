@@ -1,0 +1,169 @@
+A4 gate probes (VW6 §12 A4 row): identity + conversion + WAV chain + null-pump
+sync + device honesty. Same clip and numbers as video/testdata/a4_ffmpeg.json,
+so the window never drifts from the gate. Numbers come from the real engine,
+never hand-written; the baseline JSON is read for expect values.
+
+The speaker itself is exercised by the live window (a headless test cannot
+hear); what runs headless is everything around it: the shell identity, the exact
+float->s16 bytes, the WAV chain carrying those bytes, the sound-led sync through
+a counting sink, and the honest device probe (present or readable-unavailable,
+never faked).
+
+Command video_a4_sink is the §12 A4 real-window: the host side of sound actually
+reaches the speaker.
+
+    go run ./examples/video/video_a4_sink -auto-only
+    go run ./examples/video/video_a4_sink -manual-seconds 30
+    go run ./examples/video/video_a4_sink -file video/testdata/vr_oceans.mp4
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 15). GPU window required. Left: the
+A4 gates from the real engine (identity 1 clip, conversion vectors, WAV chain,
+sound-led pump, device honesty). Right: the live picture (gate clip by default,
+any local MP4 via -file) while the same PCM flows to the host speaker, plus the
+drop drill on the strict gate leg only (the writer child is killed mid-stream:
+the pump must pause with a readable error and resume, never die).
+
+-file is a watch leg, not a gate leg: probes still pin the gate clip (same real
+footage), live AV is reported (live_gate=demo) but never fails the run. The
+default leg is the same real footage (vr_oceans.mp4) and keeps the kill drill;
+its speaker-AV readout is reported only, never gated (see checkGate): the window
+on a ~10fps box (§6.2 RENDER-SLOW-2, owned by the render line) reads picture
+lag into this last-vs-last number, not sync. |avdiff|<=200ms stays enforced
+headless by TestA4PumpSync on the same clip. The kill drill still gates on both
+gate-owned legs. Killing the speaker mid-watch would mute the user's own movie.
+
+A4 host audio bridge (VW6 §12 A4 row): the host side of sound.
+
+Say it plain: the engine (video.Player.PollAudio) hands us decoded PCM frames
+(float32 interleaved + stamp + waterline) and never touches the speaker; this
+file carries those frames to the OS sound service and reports back honestly.
+video/ stays device-free per §4 (same ban as gpu), so every device handle below
+lives window-side only.
+
+ffmpeg peers (read-only, fftools/ffplay.c; Serial == Player generation, queue
+Clear == packet_queue_flush without the bump):
+
+    audio_open (:2578-2640, SDL_OpenAudioDevice + next_nb_channels /
+      next_sample_rates fallback + AUDIO_S16SYS + samples sizing) ->
+      ProbeHostAudio + NewHostSink (paplay-pulse preferred, aplay-alsa
+      fallback, wav-file last; the obtained spec is reported, never
+      faked; raw Pulse-native socket stays future work and is NOT
+      claimed, see the baseline peer_note)
+    sdl_audio_callback (:2533-2576, pull audio_decode_frame, pad silence
+      on error, memcpy/Mix into the device buffer, re-anchor audclk
+      assuming two periods) -> PumpOnce/PumpLoop (pull PollAudio,
+      FloatToS16, bad packets never surface: the engine conceals them
+      and the pipe simply stalls, which is silence without a glitch)
+    audio_decode_frame (:2423-2531, readable sampq frame + serial match,
+      audclk follows played PCM) -> PollAudio already re-anchors the
+      sound clock at each shown stamp (A2 owns this); the pump only
+      counts what reached the speaker
+    SDL_PauseAudioDevice (:2814, start) -> the first Write starts the
+      stream; Pause stops feeding while the pump thread and both clocks
+      keep living, so a pulled cable never kills play state
+
+Platform table (one row per OS, no blank cells per repo discipline):
+
+    Linux/paplay-pulse | system Pulse client via raw stdin | default, tried first
+    Linux/aplay-alsa   | system ALSA writer via raw stdin  | fallback when paplay missing
+    Linux/wav-file     | RIFF/WAV bytes, no speaker        | headless chain proof only
+    Linux/null         | discard + count                   | sync tests, never a window verdict
+    darwin/*           | honest unsupported, readable err  | no speaker claim, never green
+    windows/*          | honest unsupported, readable err  | no speaker claim, never green
+
+CONSTANTS
+
+const (
+	BackendPaplay = "paplay-pulse"
+	BackendAplay  = "aplay-alsa"
+	BackendWav    = "wav-file"
+	BackendNull   = "null"
+)
+    Backends in preference order (mirrors audio_open's fallback lists).
+
+
+FUNCTIONS
+
+func EncodeWav(rate, ch int, pcm []byte) []byte
+    EncodeWav renders one complete WAV file in memory (same bytes the speaker
+    path carries, verifiable without hardware).
+
+func FloatToS16(dst []int16, src []float32)
+    FloatToS16 converts interleaved float PCM in [-1,1] to s16, clipping
+    over-range (and non-finite) samples. 1.0 maps to 32767, -1.0 to -32768;
+    dst must hold len(src) samples. Pure math, no device.
+
+func ProbeHostAudio() (backend string, available bool, reason string)
+    ProbeHostAudio names the backend NewHostSink would open without opening
+    anything. available false carries the honest reason (tried paplay then aplay
+    via PATH; darwin/windows have no writer yet).
+
+func PumpLoop(pm *Pump, p *govideo.Player, stopCh <-chan struct{}, resumer func(Sink) bool)
+    PumpLoop is the SDL-audio-thread shape: it owns one goroutine, blocks on the
+    device, survives device loss (pause + retry every 2s), and only returns when
+    stop closes. End-of-stream does NOT end it: a wrapping caller re-seeks and
+    fresh frames arrive on the new serial (the engine wakes the sound thread on
+    seek), so the pump lingers instead of dying mid-show.
+
+func S16Bytes(out []byte, s16 []int16) []byte
+    S16Bytes appends s16 samples as little-endian bytes (the wire format
+    paplay/aplay read with --format=s16le / -f S16_LE).
+
+func NewWavSink(path string, rate, ch int) (*wavSink, error)
+    NewWavSink creates path for rate/ch s16le WAV.
+
+
+TYPES
+
+type Pump struct {
+	Sink Sink
+
+	Stat PumpStats
+	// Has unexported fields.
+}
+    Pump pulls due PCM into its sink. The s16 scratch buffer is reused across
+    calls (no per-packet alloc); use one Pump per goroutine. Stat is sampled via
+    Snapshot (the pump goroutine writes, the window samples under lock).
+
+func (pm *Pump) Once(p *govideo.Player) (wrote bool, ended bool, err error)
+    Once pulls the newest due PCM frame and feeds it to the sink. False,
+    no error means nothing due yet (caller sleeps or advances its clock).
+    Device loss parks the sink paused and counts one drop; the pump thread stays
+    alive for Resume.
+
+func (pm *Pump) Snapshot() PumpStats
+    Snapshot copies the counters for the window thread.
+
+type PumpStats struct {
+	PlayedBytes int64 // PCM bytes accepted by the device
+	PlayedPkts  int64 // AudioFrames written
+	Starved     int64 // ticks with nothing due yet (stream alive)
+	Drops       int64 // device-loss events (paused, thread alive)
+	Resumes     int64 // successful Resume after a loss
+	LastPTS     int64 // newest played stamp
+}
+    PumpStats counts what reached the speaker (plain fields: one pump goroutine
+    writes, the window samples under its own lock).
+
+type Sink interface {
+	WritePCM(pcm []byte) error
+	Backend() string
+	ObtainedRate() int
+	ObtainedChannels() int
+	DeviceError() string
+	Paused() bool
+	Pause()
+	Resume() error
+	Close() error
+}
+    Sink is one speaker path. WritePCM blocks with backpressure (the device sets
+    the pace, like SDL's audio thread); any error means the device is gone:
+    the sink parks itself paused with a readable error and the pump thread stays
+    alive for Resume.
+
+func NewHostSink(rate, ch int, wavPath string) (Sink, error)
+    NewHostSink opens the preferred speaker path for rate/ch (taken from the
+    decoded AudioFrame, never defaulted here). wavPath non-empty allows the
+    wav-file fallback (tests); empty means no fallback: the caller gets the
+    honest unavailable error instead of a fake speaker.
+

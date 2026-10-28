@@ -1,0 +1,13 @@
+Command ui_render_graphics/vector is the 2D vector path window for
+render_graphics.md §2 (等级B 2D 部分): 二次/三次贝塞尔、Arc、EllipticalArc.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 SNAP_PNG=/tmp/vector.png go run ./examples/ui_render_graphics/vector
+
+Six-cell canvas (3x2), each cell exercises one primitive family:
+
+    ① QuadTo stroke（平缓/尖锐/反转） ② QuadTo 闭合 fill（泪滴+径向渐变/椭圆高光）
+    ③ CubicTo stroke（S 形/回环/直线退化） ④ CubicTo 闭合 fill（花瓣）
+    ⑤ Arc 角度范围（90/180/270/350°） ⑥ EllipticalArc（rx:ry 比例）
+
+贝塞尔格内同时画控制顶点与多边形（细灰线），便于核对曲线形状。

@@ -1,0 +1,641 @@
+package parser // import "github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/parser"
+
+
+TYPES
+
+type AliasDecl struct {
+	Name string
+	Type Type
+	Span Span
+}
+    AliasDecl represents a type alias declaration.
+
+func (a *AliasDecl) Pos() Span
+
+type ArrayType struct {
+	Element Type
+	Size    Expr // nil for runtime-sized arrays
+	Span    Span
+}
+    ArrayType represents an array type.
+
+func (a *ArrayType) Pos() Span
+
+type AssignStmt struct {
+	Left  Expr
+	Op    TokenKind // =, +=, -=, etc.
+	Right Expr
+	Span  Span
+}
+    AssignStmt represents an assignment statement.
+
+func (a *AssignStmt) Pos() Span
+
+type Attribute struct {
+	Name string
+	Args []Expr
+	Span Span
+}
+
+type BinaryExpr struct {
+	Left  Expr
+	Op    TokenKind
+	Right Expr
+	Span  Span
+}
+    BinaryExpr represents a binary expression.
+
+func (b *BinaryExpr) Pos() Span
+
+type BindingArrayType struct {
+	Element Type
+	Size    Expr // nil for unbounded
+	Span    Span
+}
+    BindingArrayType represents a binding array type (binding_array<T, N>).
+
+func (b *BindingArrayType) Pos() Span
+
+type BitcastExpr struct {
+	Type Type // Target type
+	Expr Expr // Source expression
+	Span Span
+}
+    BitcastExpr represents a bitcast expression: bitcast<TargetType>(expr).
+
+func (b *BitcastExpr) Pos() Span
+
+type BlockStmt struct {
+	Statements []Stmt
+	Span       Span
+}
+    BlockStmt represents a block statement.
+
+func (b *BlockStmt) Pos() Span
+
+type BreakIfStmt struct {
+	Condition Expr
+	Span      Span
+}
+    BreakIfStmt represents a "break if" statement inside a continuing block.
+    WGSL spec: continuing { ... break if condition; }
+
+func (b *BreakIfStmt) Pos() Span
+
+type BreakStmt struct {
+	Span Span
+}
+    BreakStmt represents a break statement.
+
+func (b *BreakStmt) Pos() Span
+
+type CallExpr struct {
+	Func *Ident
+	Args []Expr
+	Span Span
+}
+    CallExpr represents a function call.
+
+func (c *CallExpr) Pos() Span
+
+type ConstAssertDecl struct {
+	Condition Expr
+	Span      Span
+}
+    ConstAssertDecl represents a const_assert declaration (module or function
+    scope). WGSL spec: const_assert expr; — compile-time assertion.
+
+func (c *ConstAssertDecl) Pos() Span
+
+type ConstDecl struct {
+	Name    string
+	Type    Type
+	Init    Expr
+	Span    Span
+	IsConst bool // true for `const`, false for `let`
+}
+    ConstDecl represents a const declaration.
+
+func (c *ConstDecl) Pos() Span
+
+type ConstructExpr struct {
+	Type Type
+	Args []Expr
+	Span Span
+}
+    ConstructExpr represents a type constructor expression.
+
+func (c *ConstructExpr) Pos() Span
+
+type ContinueStmt struct {
+	Span Span
+}
+    ContinueStmt represents a continue statement.
+
+func (c *ContinueStmt) Pos() Span
+
+type Decl interface {
+	Node
+	// Has unexported methods.
+}
+    Decl is the interface for declarations.
+
+func DependencyOrder(decls []Decl) []Decl
+    DependencyOrder returns declarations sorted in dependency order using
+    DFS-based topological sort.
+
+    When there are no dependencies between declarations, they appear in source
+    order (the outer DFS loop iterates in original order).
+
+type Diagnostic struct {
+	Severity string
+	Rule     string
+	Span     Span
+}
+    Diagnostic represents a diagnostic directive.
+
+type DiscardStmt struct {
+	Span Span
+}
+    DiscardStmt represents a discard statement.
+
+func (d *DiscardStmt) Pos() Span
+
+type Enable struct {
+	Extensions []string
+	Span       Span
+}
+    Enable represents an enable directive.
+
+type Expr interface {
+	Node
+	// Has unexported methods.
+}
+    Expr is the interface for expressions.
+
+type ExprStmt struct {
+	Expr Expr
+	Span Span
+}
+    ExprStmt represents an expression statement.
+
+func (e *ExprStmt) Pos() Span
+
+type ForStmt struct {
+	Init      Stmt
+	Condition Expr
+	Update    Stmt
+	Body      *BlockStmt
+	Span      Span
+}
+    ForStmt represents a for loop.
+
+func (f *ForStmt) Pos() Span
+
+type FunctionDecl struct {
+	Name        string
+	Params      []*Parameter
+	ReturnType  Type
+	ReturnAttrs []Attribute
+	Attributes  []Attribute
+	Body        *BlockStmt
+	Span        Span
+}
+    FunctionDecl represents a function declaration.
+
+func (f *FunctionDecl) Pos() Span
+
+type Ident struct {
+	Name string
+	Span Span
+}
+    Ident represents an identifier.
+
+func (i *Ident) Pos() Span
+
+type IfStmt struct {
+	Condition Expr
+	Body      *BlockStmt
+	Else      Stmt // *BlockStmt or *IfStmt
+	Span      Span
+}
+    IfStmt represents an if statement.
+
+func (i *IfStmt) Pos() Span
+
+type IndexExpr struct {
+	Expr  Expr
+	Index Expr
+	Span  Span
+}
+    IndexExpr represents an index expression.
+
+func (i *IndexExpr) Pos() Span
+
+type Lexer struct {
+	// Has unexported fields.
+}
+    Lexer tokenizes WGSL source code.
+
+func NewLexer(source string) *Lexer
+    NewLexer creates a new lexer for the given source.
+
+func (l *Lexer) Tokenize() ([]Token, error)
+    Tokenize returns all tokens from the source.
+
+type Literal struct {
+	Kind  TokenKind // IntLiteral, FloatLiteral, BoolLiteral
+	Value string
+	Span  Span
+}
+    Literal represents a literal value.
+
+func (l *Literal) Pos() Span
+
+type LoopStmt struct {
+	Body       *BlockStmt
+	Continuing *BlockStmt
+	Span       Span
+}
+    LoopStmt represents a loop statement.
+
+func (l *LoopStmt) Pos() Span
+
+type MemberExpr struct {
+	Expr   Expr
+	Member string
+	Span   Span
+}
+    MemberExpr represents a member access expression.
+
+func (m *MemberExpr) Pos() Span
+
+type Module struct {
+	Enables     []Enable
+	Diagnostics []Diagnostic
+	Structs     []*StructDecl
+	Functions   []*FunctionDecl
+	GlobalVars  []*VarDecl
+	Aliases     []*AliasDecl
+	Constants   []*ConstDecl
+	Overrides   []*OverrideDecl
+
+	// Declarations preserves all top-level declarations in source order.
+	Declarations []Decl
+}
+    Module represents a WGSL module (translation unit).
+
+type NamedType struct {
+	Name       string
+	TypeParams []Type
+	Span       Span
+}
+    NamedType represents a named type (e.g., f32, vec3<f32>).
+
+func (n *NamedType) Pos() Span
+
+type Node interface {
+	Pos() Span
+}
+    Node is the base interface for all AST nodes.
+
+type OverrideDecl struct {
+	Name       string
+	Type       Type
+	Init       Expr // May be nil (override without default value)
+	Attributes []Attribute
+	Span       Span
+}
+    OverrideDecl represents an override declaration (pipeline-overridable
+    constant).
+
+func (o *OverrideDecl) Pos() Span
+
+type Parameter struct {
+	Name       string
+	Type       Type
+	Attributes []Attribute
+	Span       Span
+}
+    Parameter represents a function parameter.
+
+type ParseError struct {
+	Message string
+	Token   Token
+}
+    ParseError represents a parsing error.
+
+func (e ParseError) Error() string
+
+type Parser struct {
+	// Has unexported fields.
+}
+    Parser parses WGSL tokens into an AST.
+
+func NewParser(tokens []Token) *Parser
+    NewParser creates a new parser for the given tokens.
+
+func (p *Parser) Parse() (*Module, error)
+    Parse parses the tokens and returns a Module AST.
+
+type Position struct {
+	Line   int
+	Column int
+	Offset int
+}
+    Position represents a position in source code.
+
+type PtrType struct {
+	AddressSpace string
+	PointeeType  Type
+	AccessMode   string
+	Span         Span
+}
+    PtrType represents a pointer type.
+
+func (p *PtrType) Pos() Span
+
+type ReturnStmt struct {
+	Value Expr
+	Span  Span
+}
+    ReturnStmt represents a return statement.
+
+func (r *ReturnStmt) Pos() Span
+
+type SourceError struct {
+	Message string
+	Span    Span
+	Source  string // Original source code (for context display)
+}
+    SourceError represents an error with source location information.
+
+func NewSourceError(message string, span Span, source string) *SourceError
+    NewSourceError creates a new SourceError.
+
+func NewSourceErrorf(span Span, source string, format string, args ...interface{}) *SourceError
+    NewSourceErrorf creates a new SourceError with formatted message.
+
+func (e *SourceError) Error() string
+    Error implements the error interface.
+
+func (e *SourceError) FormatWithContext() string
+    FormatWithContext returns the error message with source context. Shows the
+    problematic line with a caret pointing to the error location.
+
+type SourceErrors []*SourceError
+    SourceErrors represents a list of source errors.
+
+func (el *SourceErrors) Add(err *SourceError)
+    Add adds an error to the list.
+
+func (el *SourceErrors) AddError(message string, span Span, source string)
+    AddError adds an error with the given message and span.
+
+func (el SourceErrors) Error() string
+
+func (el SourceErrors) FormatAll() string
+    FormatAll returns all errors formatted with context.
+
+func (el SourceErrors) HasErrors() bool
+    HasErrors returns true if there are any errors.
+
+func (el SourceErrors) Len() int
+    Len returns the number of errors.
+
+type Span struct {
+	Start  Position
+	End    Position
+	Source string // Source file name or identifier
+}
+    Span represents a source code location span.
+
+type Stmt interface {
+	Node
+	// Has unexported methods.
+}
+    Stmt is the interface for statements.
+
+type StructDecl struct {
+	Name    string
+	Members []*StructMember
+	Span    Span
+}
+    StructDecl represents a struct declaration.
+
+func (s *StructDecl) Pos() Span
+
+type StructMember struct {
+	Name       string
+	Type       Type
+	Attributes []Attribute
+	Span       Span
+}
+    StructMember represents a struct member.
+
+type SwitchCaseClause struct {
+	Selectors    []Expr     // Case selectors (nil or empty for default)
+	IsDefault    bool       // True for default case
+	DefaultFirst bool       // True when default appears before selectors (case default, 6:)
+	Body         *BlockStmt // Case body
+	Span         Span
+}
+    SwitchCaseClause represents a case clause in a switch statement.
+
+type SwitchStmt struct {
+	Selector Expr
+	Cases    []*SwitchCaseClause
+	Span     Span
+}
+    SwitchStmt represents a switch statement.
+
+func (s *SwitchStmt) Pos() Span
+
+type Token struct {
+	Kind   TokenKind
+	Lexeme string
+	Line   int
+	Column int
+}
+    Token represents a lexical token.
+
+type TokenKind uint8
+    TokenKind represents the type of token.
+
+const (
+	TokenEOF TokenKind = iota
+	TokenError
+
+	// Literals
+	TokenIdent
+	TokenIntLiteral
+	TokenFloatLiteral
+	TokenBoolLiteral
+
+	// Operators
+	TokenPlus // +
+	TokenMinus
+	TokenStar      // *
+	TokenSlash     // /
+	TokenPercent   // %
+	TokenAmpersand // &
+	TokenPipe      // |
+	TokenCaret     // ^
+	TokenTilde     // ~
+	TokenBang      // !
+	TokenEqual     // =
+	TokenLess      // <
+	TokenGreater   // >
+	TokenDot
+	TokenComma
+	TokenColon
+	TokenSemicolon
+	TokenAt       // @
+	TokenArrow    // ->
+	TokenPlusPlus // ++
+	TokenMinusMinus
+	TokenEqualEqual          // ==
+	TokenBangEqual           // !=
+	TokenLessEqual           // <=
+	TokenGreaterEqual        // >=
+	TokenAmpAmp              // &&
+	TokenPipePipe            // ||
+	TokenLessLess            // <<
+	TokenGreaterGreater      // >>
+	TokenPlusEqual           // +=
+	TokenMinusEqual          // -=
+	TokenStarEqual           // *=
+	TokenSlashEqual          // /=
+	TokenPercentEqual        // %=
+	TokenAmpEqual            // &=
+	TokenPipeEqual           // |=
+	TokenCaretEqual          // ^=
+	TokenLessLessEqual       // <<=
+	TokenGreaterGreaterEqual // >>=
+
+	// Delimiters
+	TokenLeftParen    // (
+	TokenRightParen   // )
+	TokenLeftBrace    // {
+	TokenRightBrace   // }
+	TokenLeftBracket  // [
+	TokenRightBracket // ]
+
+	// Keywords
+	TokenAlias
+	TokenBreak
+	TokenCase
+	TokenConst
+	TokenConstAssert
+	TokenContinue
+	TokenContinuing
+	TokenDefault
+	TokenDiagnostic
+	TokenDiscard
+	TokenElse
+	TokenEnable
+	TokenFalse
+	TokenFn
+	TokenFor
+	TokenIf
+	TokenLet
+	TokenLoop
+	TokenOverride
+	TokenReturn
+	TokenStruct
+	TokenSwitch
+	TokenTrue
+	TokenVar
+	TokenWhile
+
+	// Reserved keywords
+	TokenNull
+	TokenSelf
+	TokenSuper
+	TokenTrait
+	TokenType
+	TokenUsing
+
+	// Type keywords
+	TokenBool
+	TokenF16
+	TokenF32
+	TokenF64
+	TokenI32
+	TokenI64
+	TokenU32
+	TokenU64
+	TokenVec2
+	TokenVec3
+	TokenVec4
+	TokenMat2x2
+	TokenMat2x3
+	TokenMat2x4
+	TokenMat3x2
+	TokenMat3x3
+	TokenMat3x4
+	TokenMat4x2
+	TokenMat4x3
+	TokenMat4x4
+	TokenArray
+	TokenAtomic
+	TokenPtr
+	TokenSampler
+	TokenSamplerComparison
+	TokenTexture1d
+	TokenTexture2d
+	TokenTexture2dArray
+	TokenTexture3d
+	TokenTextureCube
+	TokenTextureCubeArray
+	TokenTextureMultisampled2d
+	TokenTextureStorage1d
+	TokenTextureStorage2d
+	TokenTextureStorage2dArray
+	TokenTextureStorage3d
+	TokenTextureDepth2d
+	TokenTextureDepth2dArray
+	TokenTextureDepthCube
+	TokenTextureDepthCubeArray
+	TokenTextureDepthMultisampled2d
+)
+func (k TokenKind) String() string
+    String returns the string representation of the token kind.
+
+type Type interface {
+	Node
+	// Has unexported methods.
+}
+    Type represents a type.
+
+type UnaryExpr struct {
+	Op      TokenKind
+	Operand Expr
+	Span    Span
+}
+    UnaryExpr represents a unary expression.
+
+func (u *UnaryExpr) Pos() Span
+
+type VarDecl struct {
+	Name         string
+	Type         Type
+	Init         Expr
+	AddressSpace string // function, private, workgroup, uniform, storage
+	AccessMode   string // read, write, read_write
+	Attributes   []Attribute
+	Span         Span
+}
+    VarDecl represents a variable declaration.
+
+func (v *VarDecl) Pos() Span
+
+type WhileStmt struct {
+	Condition Expr
+	Body      *BlockStmt
+	Span      Span
+}
+    WhileStmt represents a while loop.
+
+func (w *WhileStmt) Pos() Span
+

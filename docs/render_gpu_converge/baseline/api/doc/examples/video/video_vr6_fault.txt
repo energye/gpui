@@ -1,0 +1,12 @@
+Command video_vr6_fault is the VW2 VR6 real-window: every bad input in the
+matrix fails readable (or, for F20 flower, isolates and keeps playing) with zero
+crash and zero hang.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/video/video_vr6_fault
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 15). GPU window required. Left:
+the 12-case fault matrix (missing file, non-mp4, truncated tail, F20 flower
+isolation, missing params, F17 x3, F20 ref loss, F2 level, F12 interlace,
+clean clip), each with its layer+tool note. Right: the live picture (good clip
+looping) proving the process stays alive after the whole matrix.

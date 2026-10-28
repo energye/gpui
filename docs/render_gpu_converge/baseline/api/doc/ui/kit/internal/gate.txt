@@ -1,0 +1,54 @@
+package gate // import "github.com/energye/gpui/ui/kit/internal/gate"
+
+Package gate hosts the F0-5 central gate: four checks every future component
+window must pass (Props coverage, State flow, wiring limited to L1/L2, Token via
+theme). Each check is pure logic over window-reported facts; windows collect the
+facts, gate judges them.
+
+FUNCTIONS
+
+func CheckProps(c PropsCoverage) (bool, []string)
+    CheckProps reports whether every documented param is covered. Missing names
+    or Covered<Total both fail.
+
+func CheckState(f StateFlow) bool
+    CheckState reports whether every claimed state resolves. Requires the
+    Disabled bit present (disabled-look never leaks hover/pressed colors) and
+    every entry resolved.
+
+func CheckToken(u TokenUse) bool
+    CheckToken passes only when values come from theme and nothing is hardcoded
+    in Render.
+
+func CheckWiring(imports []string) (bool, []string)
+    CheckWiring reports whether product imports stay within L1/L2 plus theme:
+    direct render/gpu imports fail. Stdlib and other ui/* engine packages pass;
+    only the two forbidden roots are judged here.
+
+
+TYPES
+
+type PropsCoverage struct {
+	Component string
+	Total     int
+	Covered   int
+	Missing   []string
+}
+    PropsCoverage is the window-reported Props audit: Total API params from the
+    antd doc table, Covered actually exercised, Missing named.
+
+type StateFlow struct {
+	States   []scope.WidgetState
+	Resolved []bool
+}
+    StateFlow is the window-reported state audit: every state the component
+    claims must resolve through StateResolver (no inline hover/pressed branches
+    in Render).
+
+type TokenUse struct {
+	FromTheme      bool
+	HardcodedCount int
+}
+    TokenUse is the window-reported theme audit: colors resolve from Ctx tokens
+    with zero hardcoded user-facing values in Render.
+

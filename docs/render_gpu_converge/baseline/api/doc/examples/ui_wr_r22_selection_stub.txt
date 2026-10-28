@@ -1,0 +1,27 @@
+Command ui_wr_r22_selection_stub is the R22 selection/caret local-dirty
+reservation single-ability real window (mode-1 first close).
+
+§2 R22 thesis: 选区/光标局部脏预留 — the engine reserves a local-dirty path for future
+selection/caret work, so that selection changes never need a full-window
+repaint. This window proves the reservation is in place: the real engine
+selection API (textinput.Editor.SetSelection) exists and runs, the stub visual
+(selection lane + caret bar) toggles locally on phase steps, and the rest of the
+window stays untouched.
+
+Boards:
+
+    STUB   selection lane + caret bar driven by a headless textinput.Editor;
+           Steady/Recover show range A, Spike shows range B (the observable
+           "selection range change", phase-local repaint only)
+    DENSE  static 4x4 grid + 8 labels, never touched
+    HOT    breathing-scale disc (no selection) — the persistent motion hotspot
+
+Gates (§2 主表 R22 行「字段可 0；API 存在」+ §2.2 全族): full_paint policy,
+selection_api_present + selection_set_ok, stub calls >= 2, paint drift capped
+(stub never full-repaints), pixel assertions, golden static mask bitwise-stable
+across runs.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_wr_r22_selection_stub
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 5 (§2.5 正确性档).

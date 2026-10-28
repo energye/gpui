@@ -1,0 +1,3197 @@
+package rwgpu // import "github.com/energye/gpui/gpu/rwgpu"
+
+Package wgpu provides Zero-CGO WebGPU bindings for Go.
+
+This package wraps wgpu-native using pure Go FFI via syscall on Windows and
+dlopen on Unix. No CGO is required.
+
+# Thread Safety
+
+The following operations are safe for concurrent use:
+  - Init and library initialization (protected by sync.Once)
+  - Instance.RequestAdapter (callback registry protected by mutex)
+  - Adapter.RequestDevice (callback registry protected by mutex)
+  - Device.PopErrorScopeAsync (callback registry protected by mutex)
+  - Buffer.MapAsync (callback registry protected by mutex)
+  - Read-only queries: Adapter.Limits, Adapter.Info, Adapter.Features,
+    Adapter.HasFeature
+  - Read-only queries: Device.Limits, Device.Features, Device.HasFeature
+  - Read-only queries: Surface.GetCapabilities
+
+The following operations are NOT safe for concurrent use on the same object:
+  - Surface.Configure, Surface.GetCurrentTexture, Surface.Present (must be
+    called from a single goroutine, typically the render loop)
+  - CommandEncoder methods (single encoder should not be shared between
+    goroutines)
+  - RenderPassEncoder and ComputePassEncoder methods
+  - Buffer.GetMappedRange and Buffer.Unmap
+
+General rule: different GPU objects can be used from different goroutines,
+but a single object should not be accessed concurrently.
+
+# Quick Start
+
+    // Initialize the library
+    if err := wgpu.Init(); err != nil {
+        log.Fatal(err)
+    }
+
+    // Create instance
+    instance, err := wgpu.CreateInstance(nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer instance.Release()
+
+    // Request adapter (GPU)
+    adapter, err := instance.RequestAdapter(nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer adapter.Release()
+
+    // Request device
+    device, err := adapter.RequestDevice(nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer device.Release()
+
+# Core Objects
+
+The WebGPU API is structured around several core object types:
+
+  - Instance: Entry point to the WebGPU API
+  - Adapter: Represents a physical GPU
+  - Device: Logical device for creating resources
+  - Queue: Command submission queue
+  - Buffer: GPU memory buffer
+  - Texture: GPU texture resource
+  - Sampler: Texture sampling configuration
+  - ShaderModule: Compiled shader code (WGSL)
+  - BindGroup: Resource bindings for shaders
+  - RenderPipeline: Configuration for rendering
+  - ComputePipeline: Configuration for compute
+  - CommandEncoder: Records GPU commands
+  - RenderPassEncoder: Records render commands
+  - ComputePassEncoder: Records compute commands
+
+# Resource Management
+
+All WebGPU objects must be released when no longer needed:
+
+    buffer := device.CreateBuffer
+    defer buffer.Release()
+
+# Render Pipeline
+
+A typical render pipeline setup:
+
+    // Create shader module
+    shader := device.CreateShaderModuleWGSL(shaderCode)
+    defer shader.Release()
+
+    // Create render pipeline
+    pipeline := device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
+        Vertex: wgpu.VertexState{
+            Module: vsModule,
+            EntryPoint: "main",
+            Buffers: []wgpu.VertexBufferLayout{vertexBufferLayout},
+        },
+        Fragment: &wgpu.FragmentState{
+            Module: fsModule,
+            EntryPoint: "main",
+            Targets: []wgpu.ColorTargetState{{Format: format, WriteMask: gputypes.ColorWriteMaskAll}},
+        },
+        // ... other configuration
+    })
+    defer pipeline.Release()
+
+# Compute Pipeline
+
+For GPU compute operations:
+
+    pipeline := device.CreateComputePipelineSimple(nil, shader, "main")
+    defer pipeline.Release()
+
+    // Dispatch compute work
+    computePass := encoder.BeginComputePass(nil)
+    computePass.SetPipeline(pipeline)
+    computePass.SetBindGroup(0, bindGroup, nil)
+    computePass.DispatchWorkgroups(workgroupCount, 1, 1)
+    computePass.End()
+
+# Indirect Drawing
+
+GPU-driven rendering using indirect buffers:
+
+    // Create indirect buffer with draw args
+    args := wgpu.DrawIndirectArgs{
+        VertexCount: 3,
+        InstanceCount: 100,
+    }
+    // Write to buffer...
+
+    // Draw using GPU-specified parameters
+    renderPass.DrawIndirect(indirectBuffer, 0)
+
+# RenderBundle
+
+Pre-record render commands for efficient replay:
+
+    bundleEncoder := device.CreateRenderBundleEncoderSimple(
+        []gputypes.TextureFormat{surfaceFormat},
+        gputypes.TextureFormatUndefined,
+        1,
+    )
+    bundleEncoder.SetPipeline(pipeline)
+    bundleEncoder.Draw(3, 1, 0, 0)
+    bundle := bundleEncoder.Finish(nil)
+    defer bundle.Release()
+
+    // Later, in a render pass:
+    renderPass.ExecuteBundles
+
+# Platform Support
+
+Supported platforms:
+  - Windows (x64) - uses syscall.LazyDLL
+  - Linux (x64, arm64) - uses purego/dlopen
+  - macOS (x64, arm64) - uses purego/dlopen
+
+# Dependencies
+
+This package requires wgpu-native library:
+  - Windows: wgpu_native.dll
+  - Linux: libwgpu_native.so
+  - macOS: libwgpu_native.dylib
+
+Download from: https://github.com/gfx-rs/wgpu-native/releases
+
+CONSTANTS
+
+const (
+	BufferUsageNone         = types.BufferUsageNone
+	BufferUsageMapRead      = types.BufferUsageMapRead
+	BufferUsageMapWrite     = types.BufferUsageMapWrite
+	BufferUsageCopySrc      = types.BufferUsageCopySrc
+	BufferUsageCopyDst      = types.BufferUsageCopyDst
+	BufferUsageIndex        = types.BufferUsageIndex
+	BufferUsageVertex       = types.BufferUsageVertex
+	BufferUsageUniform      = types.BufferUsageUniform
+	BufferUsageStorage      = types.BufferUsageStorage
+	BufferUsageIndirect     = types.BufferUsageIndirect
+	BufferUsageQueryResolve = types.BufferUsageQueryResolve
+)
+const (
+	TextureUsageNone             = types.TextureUsageNone
+	TextureUsageCopySrc          = types.TextureUsageCopySrc
+	TextureUsageCopyDst          = types.TextureUsageCopyDst
+	TextureUsageTextureBinding   = types.TextureUsageTextureBinding
+	TextureUsageStorageBinding   = types.TextureUsageStorageBinding
+	TextureUsageRenderAttachment = types.TextureUsageRenderAttachment
+)
+const (
+	TextureFormatUndefined           = types.TextureFormatUndefined
+	TextureFormatR8Unorm             = types.TextureFormatR8Unorm
+	TextureFormatR8Snorm             = types.TextureFormatR8Snorm
+	TextureFormatR8Uint              = types.TextureFormatR8Uint
+	TextureFormatR8Sint              = types.TextureFormatR8Sint
+	TextureFormatR16Uint             = types.TextureFormatR16Uint
+	TextureFormatR16Sint             = types.TextureFormatR16Sint
+	TextureFormatR16Float            = types.TextureFormatR16Float
+	TextureFormatRG8Unorm            = types.TextureFormatRG8Unorm
+	TextureFormatRG8Snorm            = types.TextureFormatRG8Snorm
+	TextureFormatRG8Uint             = types.TextureFormatRG8Uint
+	TextureFormatRG8Sint             = types.TextureFormatRG8Sint
+	TextureFormatR32Float            = types.TextureFormatR32Float
+	TextureFormatR32Uint             = types.TextureFormatR32Uint
+	TextureFormatR32Sint             = types.TextureFormatR32Sint
+	TextureFormatRG16Uint            = types.TextureFormatRG16Uint
+	TextureFormatRG16Sint            = types.TextureFormatRG16Sint
+	TextureFormatRG16Float           = types.TextureFormatRG16Float
+	TextureFormatRGBA8Unorm          = types.TextureFormatRGBA8Unorm
+	TextureFormatRGBA8UnormSrgb      = types.TextureFormatRGBA8UnormSrgb
+	TextureFormatRGBA8Snorm          = types.TextureFormatRGBA8Snorm
+	TextureFormatRGBA8Uint           = types.TextureFormatRGBA8Uint
+	TextureFormatRGBA8Sint           = types.TextureFormatRGBA8Sint
+	TextureFormatBGRA8Unorm          = types.TextureFormatBGRA8Unorm
+	TextureFormatBGRA8UnormSrgb      = types.TextureFormatBGRA8UnormSrgb
+	TextureFormatRGB10A2Uint         = types.TextureFormatRGB10A2Uint
+	TextureFormatRGB10A2Unorm        = types.TextureFormatRGB10A2Unorm
+	TextureFormatRG11B10Ufloat       = types.TextureFormatRG11B10Ufloat
+	TextureFormatRG32Float           = types.TextureFormatRG32Float
+	TextureFormatRG32Uint            = types.TextureFormatRG32Uint
+	TextureFormatRG32Sint            = types.TextureFormatRG32Sint
+	TextureFormatRGBA16Uint          = types.TextureFormatRGBA16Uint
+	TextureFormatRGBA16Sint          = types.TextureFormatRGBA16Sint
+	TextureFormatRGBA16Float         = types.TextureFormatRGBA16Float
+	TextureFormatRGBA32Float         = types.TextureFormatRGBA32Float
+	TextureFormatRGBA32Uint          = types.TextureFormatRGBA32Uint
+	TextureFormatRGBA32Sint          = types.TextureFormatRGBA32Sint
+	TextureFormatDepth32Float        = types.TextureFormatDepth32Float
+	TextureFormatDepth24Plus         = types.TextureFormatDepth24Plus
+	TextureFormatDepth24PlusStencil8 = types.TextureFormatDepth24PlusStencil8
+	TextureFormatDepth16Unorm        = types.TextureFormatDepth16Unorm
+)
+const (
+	TextureDimension1D = types.TextureDimension1D
+	TextureDimension2D = types.TextureDimension2D
+	TextureDimension3D = types.TextureDimension3D
+)
+const (
+	ShaderStageNone     = types.ShaderStageNone
+	ShaderStageVertex   = types.ShaderStageVertex
+	ShaderStageFragment = types.ShaderStageFragment
+	ShaderStageCompute  = types.ShaderStageCompute
+)
+const (
+	PrimitiveTopologyPointList     = types.PrimitiveTopologyPointList
+	PrimitiveTopologyLineList      = types.PrimitiveTopologyLineList
+	PrimitiveTopologyLineStrip     = types.PrimitiveTopologyLineStrip
+	PrimitiveTopologyTriangleList  = types.PrimitiveTopologyTriangleList
+	PrimitiveTopologyTriangleStrip = types.PrimitiveTopologyTriangleStrip
+)
+const (
+	FrontFaceCCW = types.FrontFaceCCW
+	FrontFaceCW  = types.FrontFaceCW
+)
+const (
+	CullModeNone  = types.CullModeNone
+	CullModeFront = types.CullModeFront
+	CullModeBack  = types.CullModeBack
+)
+const (
+	IndexFormatUint16 = types.IndexFormatUint16
+	IndexFormatUint32 = types.IndexFormatUint32
+)
+const (
+	LoadOpLoad  = types.LoadOpLoad
+	LoadOpClear = types.LoadOpClear
+)
+const (
+	StoreOpStore   = types.StoreOpStore
+	StoreOpDiscard = types.StoreOpDiscard
+)
+const (
+	FilterModeNearest = types.FilterModeNearest
+	FilterModeLinear  = types.FilterModeLinear
+)
+const (
+	AddressModeRepeat       = types.AddressModeRepeat
+	AddressModeMirrorRepeat = types.AddressModeMirrorRepeat
+	AddressModeClampToEdge  = types.AddressModeClampToEdge
+)
+const (
+	CompareFunctionUndefined    = types.CompareFunctionUndefined
+	CompareFunctionNever        = types.CompareFunctionNever
+	CompareFunctionLess         = types.CompareFunctionLess
+	CompareFunctionEqual        = types.CompareFunctionEqual
+	CompareFunctionLessEqual    = types.CompareFunctionLessEqual
+	CompareFunctionGreater      = types.CompareFunctionGreater
+	CompareFunctionNotEqual     = types.CompareFunctionNotEqual
+	CompareFunctionGreaterEqual = types.CompareFunctionGreaterEqual
+	CompareFunctionAlways       = types.CompareFunctionAlways
+)
+const (
+	PresentModeImmediate   = types.PresentModeImmediate
+	PresentModeMailbox     = types.PresentModeMailbox
+	PresentModeFifo        = types.PresentModeFifo
+	PresentModeFifoRelaxed = types.PresentModeFifoRelaxed
+)
+const (
+	CompositeAlphaModeAuto            = types.CompositeAlphaModeAuto
+	CompositeAlphaModeOpaque          = types.CompositeAlphaModeOpaque
+	CompositeAlphaModePremultiplied   = types.CompositeAlphaModePremultiplied
+	CompositeAlphaModeUnpremultiplied = types.CompositeAlphaModeUnpremultiplied
+	CompositeAlphaModeInherit         = types.CompositeAlphaModeInherit
+)
+const (
+	PowerPreferenceNone            = types.PowerPreferenceNone
+	PowerPreferenceLowPower        = types.PowerPreferenceLowPower
+	PowerPreferenceHighPerformance = types.PowerPreferenceHighPerformance
+)
+const (
+	ColorWriteMaskNone  = types.ColorWriteMaskNone
+	ColorWriteMaskRed   = types.ColorWriteMaskRed
+	ColorWriteMaskGreen = types.ColorWriteMaskGreen
+	ColorWriteMaskBlue  = types.ColorWriteMaskBlue
+	ColorWriteMaskAlpha = types.ColorWriteMaskAlpha
+	ColorWriteMaskAll   = types.ColorWriteMaskAll
+)
+const (
+	VertexFormatUint8x2   = types.VertexFormatUint8x2
+	VertexFormatUint8x4   = types.VertexFormatUint8x4
+	VertexFormatSint8x2   = types.VertexFormatSint8x2
+	VertexFormatSint8x4   = types.VertexFormatSint8x4
+	VertexFormatFloat32   = types.VertexFormatFloat32
+	VertexFormatFloat32x2 = types.VertexFormatFloat32x2
+	VertexFormatFloat32x3 = types.VertexFormatFloat32x3
+	VertexFormatFloat32x4 = types.VertexFormatFloat32x4
+	VertexFormatUint32    = types.VertexFormatUint32
+	VertexFormatUint32x2  = types.VertexFormatUint32x2
+	VertexFormatUint32x3  = types.VertexFormatUint32x3
+	VertexFormatUint32x4  = types.VertexFormatUint32x4
+	VertexFormatSint32    = types.VertexFormatSint32
+	VertexFormatSint32x2  = types.VertexFormatSint32x2
+	VertexFormatSint32x3  = types.VertexFormatSint32x3
+	VertexFormatSint32x4  = types.VertexFormatSint32x4
+)
+const (
+	VertexStepModeVertex   = types.VertexStepModeVertex
+	VertexStepModeInstance = types.VertexStepModeInstance
+)
+const (
+	BufferBindingTypeUndefined       = types.BufferBindingTypeUndefined
+	BufferBindingTypeUniform         = types.BufferBindingTypeUniform
+	BufferBindingTypeStorage         = types.BufferBindingTypeStorage
+	BufferBindingTypeReadOnlyStorage = types.BufferBindingTypeReadOnlyStorage
+)
+const (
+	SamplerBindingTypeUndefined    = types.SamplerBindingTypeUndefined
+	SamplerBindingTypeFiltering    = types.SamplerBindingTypeFiltering
+	SamplerBindingTypeNonFiltering = types.SamplerBindingTypeNonFiltering
+	SamplerBindingTypeComparison   = types.SamplerBindingTypeComparison
+)
+const (
+	TextureSampleTypeUndefined         = types.TextureSampleTypeUndefined
+	TextureSampleTypeFloat             = types.TextureSampleTypeFloat
+	TextureSampleTypeUnfilterableFloat = types.TextureSampleTypeUnfilterableFloat
+	TextureSampleTypeDepth             = types.TextureSampleTypeDepth
+	TextureSampleTypeSint              = types.TextureSampleTypeSint
+	TextureSampleTypeUint              = types.TextureSampleTypeUint
+)
+const (
+	TextureViewDimensionUndefined = types.TextureViewDimensionUndefined
+	TextureViewDimension1D        = types.TextureViewDimension1D
+	TextureViewDimension2D        = types.TextureViewDimension2D
+	TextureViewDimension2DArray   = types.TextureViewDimension2DArray
+	TextureViewDimensionCube      = types.TextureViewDimensionCube
+	TextureViewDimensionCubeArray = types.TextureViewDimensionCubeArray
+	TextureViewDimension3D        = types.TextureViewDimension3D
+)
+const (
+	StencilOperationUndefined      = types.StencilOperationUndefined
+	StencilOperationKeep           = types.StencilOperationKeep
+	StencilOperationZero           = types.StencilOperationZero
+	StencilOperationReplace        = types.StencilOperationReplace
+	StencilOperationInvert         = types.StencilOperationInvert
+	StencilOperationIncrementClamp = types.StencilOperationIncrementClamp
+	StencilOperationDecrementClamp = types.StencilOperationDecrementClamp
+	StencilOperationIncrementWrap  = types.StencilOperationIncrementWrap
+	StencilOperationDecrementWrap  = types.StencilOperationDecrementWrap
+)
+const DepthSliceUndefined uint32 = 0xFFFFFFFF
+    DepthSliceUndefined is used for 2D textures in color attachments.
+
+const TimestampLocationUndefined uint32 = 0xFFFFFFFF
+    TimestampLocationUndefined indicates no timestamp write at this location.
+
+
+VARIABLES
+
+var (
+	// ErrInvalidHandle is returned when a nil, released, or zero handle is used.
+	ErrInvalidHandle = &WGPUError{Type: ErrorTypeUnknown, Message: "invalid handle"}
+	// ErrSurfaceInvalid is a generic surface-not-usable sentinel (lost/outdated/nil).
+	ErrSurfaceInvalid = &WGPUError{Type: ErrorTypeUnknown, Message: "surface invalid"}
+)
+    Structured sentinels (in addition to ErrDeviceLost / ErrSurface* /
+    ErrOutOfMemory).
+
+var (
+	ErrSurfaceNeedsReconfigure = &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface needs reconfigure"}
+	ErrSurfaceLost             = &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface lost"}
+	ErrSurfaceTimeout          = &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface texture timeout"}
+	// ErrSurfaceOccluded is returned on macOS Metal when the window is minimized or fully covered.
+	// Applications should skip rendering for the current frame and try again when unoccluded.
+	// New in wgpu-native v29.
+	ErrSurfaceOccluded = &WGPUError{Op: "Surface.GetCurrentTexture", Message: "surface occluded (window minimized or covered)"}
+	// ErrSurfaceOutOfMemory is kept for backward compatibility.
+	// Deprecated: In v29 this is reported as generic Error status.
+	ErrSurfaceOutOfMemory = &WGPUError{Op: "Surface.GetCurrentTexture", Message: "out of memory"}
+	// ErrSurfaceDeviceLost is kept for backward compatibility.
+	// Deprecated: In v29 this is reported as generic Error status.
+	ErrSurfaceDeviceLost = &WGPUError{Op: "Surface.GetCurrentTexture", Message: "device lost"}
+)
+    Error values for surface operations. These are sentinel errors for
+    programmatic error handling via errors.Is().
+
+var (
+	// ErrValidation matches any WebGPU validation error.
+	ErrValidation = &WGPUError{Type: ErrorTypeValidation}
+	// ErrOutOfMemory matches any WebGPU out-of-memory error.
+	ErrOutOfMemory = &WGPUError{Type: ErrorTypeOutOfMemory}
+	// ErrInternal matches any WebGPU internal error.
+	ErrInternal = &WGPUError{Type: ErrorTypeInternal}
+	// ErrDeviceLost matches device lost errors.
+	ErrDeviceLost = &WGPUError{Type: ErrorTypeUnknown, Message: "device lost"}
+)
+    Sentinel errors for programmatic error handling via errors.Is().
+
+    Usage:
+
+        if errors.Is {
+            // handle validation error
+        }
+
+var ErrLibraryNotLoaded = errors.New("wgpu: native library not loaded or failed to initialize")
+    ErrLibraryNotLoaded is returned when wgpu-native library is not loaded or
+    failed to initialize.
+
+
+FUNCTIONS
+
+func CmdBufLive() int64
+    CmdBufLive returns outstanding CommandBuffer handles (diagnostics).
+
+func Init() error
+    Init initializes the wgpu library. Called automatically on first use.
+    Can be called explicitly to check for initialization errors early.
+
+    The library is located using the following strategy (first match wins):
+     1. WGPU_NATIVE_PATH environment variable (explicit full path)
+     2. ./lib/<name> — default location installed by cmd/setup
+     3. ./<name> — current directory
+     4. OS default search (PATH on Windows, LD_LIBRARY_PATH/DYLD_LIBRARY_PATH on
+        Unix)
+
+func IsDeviceHandleLost(handle uintptr) bool
+    IsDeviceHandleLost reports sticky lost state for a native device handle.
+    Survives Device.Release (liveDevices unregister) so child Release/Destroy
+    still skip native after the parent Device object is gone. IsDeviceHandleLost
+    reports sticky lost state for a native device handle. Survives
+    Device.Release (liveDevices unregister) so child Release/Destroy still skip
+    native after the parent Device object is gone.
+
+func LockGPU()
+    LockGPU acquires the process-global GPU serialization lock. Prefer WithGPU
+    for scoped use. Must be paired with UnlockGPU.
+
+func QueueWorkDoneStatusName(s QueueWorkDoneStatus) string
+    QueueWorkDoneStatusName returns a human-readable status name (diagnostics).
+
+func ResetLeakTracker()
+    ResetLeakTracker clears the resource tracker. Useful for test cleanup.
+
+func SetDebugMode(enabled bool)
+    SetDebugMode enables or disables resource tracking.
+
+func UnlockGPU()
+    UnlockGPU releases the process-global GPU serialization lock.
+
+func VramBudgetMB() int64
+    VramBudgetMB exposes the process VRAM budget (GPUI_VRAM_BUDGET_MB, default
+    768, 0 = disabled) so upper layers can derive watermarks from the same
+    number the gate enforces — one budget, no second constant.
+
+func VramLiveBytes() uint64
+    VramLiveBytes reports the ledger total for diagnostics and tests.
+
+func VramLiveCount() int
+    VramLiveCount reports how many allocations the ledger tracks.
+
+func VramPeakBytes() uint64
+    VramPeakBytes reports the high-water mark since process start (or the last
+    VramTestReset), for post-fix measurement via WR_MEMDIG.
+
+func VramTestAdd(handle uintptr, need uint64)
+    VramTestAdd records a synthetic live entry. Test-only companion to
+    VramTestReset (bypasses the cpu-mode skip so tests are hermetic).
+
+func VramTestReset()
+    VramTestReset clears the ledger. Test-only: lets render waterline tests seed
+    exact live totals without a GPU.
+
+func WaitForFuture(instance *Instance, future Future) error
+    WaitForFuture blocks until the given callback-mode future completes.
+    This is the same polling path used by PopErrorScopeAsync — do NOT use on the
+    per-frame hot path (P6; use BeginFrame sync points instead).
+
+func WithForceNativeReleaseOnLost(fn func())
+    WithForceNativeReleaseOnLost runs fn with native child Release enabled even
+    when the parent device is sticky-lost.
+
+func WithGPU(fn func())
+    WithGPU runs fn while holding the global GPU lock.
+
+
+TYPES
+
+type Adapter struct {
+	// Has unexported fields.
+}
+    Adapter represents a physical GPU and its capabilities. Obtained via
+    Instance.RequestAdapter, release with Adapter.Release.
+
+func (a *Adapter) EnumerateFeatures() []FeatureName
+    EnumerateFeatures is a deprecated alias for Features. Deprecated: Use
+    Features instead. This method was renamed in wgpu-native v29.
+
+func (a *Adapter) Features() []FeatureName
+    Features retrieves all features supported by this adapter. v29: Uses
+    single-call wgpuAdapterGetFeatures with SupportedFeatures struct (replaces
+    two-call EnumerateFeatures). The returned slice is copied from C memory;
+    the underlying C allocation is freed automatically.
+
+func (a *Adapter) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (a *Adapter) HasFeature(feature FeatureName) bool
+    HasFeature checks if the adapter supports a specific feature.
+
+func (a *Adapter) Info() (*AdapterInfoGo, error)
+    Info retrieves information about this adapter. The returned AdapterInfoGo
+    contains Go strings copied from C memory. Returns nil if the adapter is nil
+    or if the operation fails.
+
+func (a *Adapter) Limits() Limits
+    Limits returns the resource limits of this adapter.
+
+    Limits are cached at adapter creation time and returned by value. No FFI
+    call is made. Returns zero-value Limits if the adapter is nil.
+
+func (a *Adapter) Release()
+    Release releases the adapter resources.
+
+func (a *Adapter) RequestDevice(options *DeviceDescriptor) (*Device, error)
+    allocDeviceSlot reserves a userdata slot before RequestDevice so DeviceLost
+    / Uncaptured callbacks can identify this logical device even before the
+    native handle exists. Call bindDeviceSlot after RequestDevice succeeds.
+    RequestDevice requests a GPU device from the adapter. This is a synchronous
+    wrapper that blocks until the device is available.
+
+type AdapterInfo struct {
+	NextInChain     uintptr // *ChainedStruct (was *ChainedStructOut in v27)
+	Vendor          StringView
+	Architecture    StringView
+	Device          StringView
+	Description     StringView
+	BackendType     BackendType
+	AdapterType     AdapterType
+	VendorID        uint32
+	DeviceID        uint32
+	SubgroupMinSize uint32 // NEW in v29
+	SubgroupMaxSize uint32 // NEW in v29
+}
+    AdapterInfo contains information about the adapter. v29: NextInChain type
+    changed from *ChainedStructOut to *ChainedStruct. v29: SubgroupMinSize and
+    SubgroupMaxSize fields added.
+
+type AdapterInfoGo struct {
+	Vendor       string
+	Architecture string
+	Device       string
+	Description  string
+	BackendType  BackendType
+	AdapterType  AdapterType
+	VendorID     uint32
+	DeviceID     uint32
+}
+    AdapterInfoGo is the Go-friendly version of AdapterInfo with actual strings.
+
+type AdapterType uint32
+    AdapterType describes the type of GPU adapter.
+
+const (
+	// AdapterTypeDiscreteGPU indicates a dedicated/discrete GPU (best performance).
+	AdapterTypeDiscreteGPU AdapterType = 0x00000001
+	// AdapterTypeIntegratedGPU indicates an integrated GPU (shared with CPU).
+	AdapterTypeIntegratedGPU AdapterType = 0x00000002
+	// AdapterTypeCPU indicates a software/CPU-based renderer.
+	AdapterTypeCPU AdapterType = 0x00000003
+	// AdapterTypeUnknown indicates the adapter type could not be determined.
+	AdapterTypeUnknown AdapterType = 0x00000004
+)
+type AddressMode = types.AddressMode
+
+type BackendType uint32
+    BackendType describes the graphics backend being used.
+
+const (
+	// BackendTypeUndefined indicates no backend is specified.
+	BackendTypeUndefined BackendType = 0x00000000
+	// BackendTypeNull indicates a null/mock backend (for testing).
+	BackendTypeNull BackendType = 0x00000001
+	// BackendTypeWebGPU indicates the native WebGPU backend.
+	BackendTypeWebGPU BackendType = 0x00000002
+	// BackendTypeD3D11 indicates the Direct3D 11 backend (Windows).
+	BackendTypeD3D11 BackendType = 0x00000003
+	// BackendTypeD3D12 indicates the Direct3D 12 backend (Windows).
+	BackendTypeD3D12 BackendType = 0x00000004
+	// BackendTypeMetal indicates the Metal backend (macOS/iOS).
+	BackendTypeMetal BackendType = 0x00000005
+	// BackendTypeVulkan indicates the Vulkan backend (cross-platform).
+	BackendTypeVulkan BackendType = 0x00000006
+	// BackendTypeOpenGL indicates the OpenGL backend.
+	BackendTypeOpenGL BackendType = 0x00000007
+	// BackendTypeOpenGLES indicates the OpenGL ES backend (mobile/embedded).
+	BackendTypeOpenGLES BackendType = 0x00000008
+)
+type BindGroup struct {
+	// Has unexported fields.
+}
+    BindGroup binds actual GPU resources (buffers, textures, samplers) to shader
+    slots. Create with Device.CreateBindGroup, release with BindGroup.Release.
+    device is the parent Device handle for lost-safe Release.
+
+func (bg *BindGroup) Handle() uintptr
+    Handle returns the underlying handle.
+
+func (bg *BindGroup) Release()
+    Release releases the bind group. Nil-safe and idempotent. Skips native
+    release when the parent device is lost.
+
+type BindGroupDescriptor struct {
+	Label   string
+	Layout  *BindGroupLayout
+	Entries []BindGroupEntry
+}
+    BindGroupDescriptor describes a bind group.
+
+type BindGroupDescriptorGo = BindGroupDescriptor
+    BindGroupDescriptorGo is kept for backward compatibility. Deprecated:
+    Use BindGroupDescriptor directly (now Go-idiomatic).
+
+type BindGroupEntry struct {
+	Binding     uint32
+	Buffer      *Buffer      // For buffer bindings (nil if not used)
+	Offset      uint64       // Buffer offset (ignored for non-buffer bindings)
+	Size        uint64       // Buffer binding size; 0 = whole buffer
+	Sampler     *Sampler     // For sampler bindings (nil if not used)
+	TextureView *TextureView // For texture view bindings (nil if not used)
+}
+    BindGroupEntry describes a single binding in a bind group. Exactly one of
+    Buffer, Sampler, or TextureView must be non-nil.
+
+func BufferBindingEntry(binding uint32, buffer *Buffer, offset, size uint64) BindGroupEntry
+    BufferBindingEntry creates a BindGroupEntry for a buffer.
+
+func SamplerBindingEntry(binding uint32, sampler *Sampler) BindGroupEntry
+    SamplerBindingEntry creates a BindGroupEntry for a sampler.
+
+func TextureBindingEntry(binding uint32, textureView *TextureView) BindGroupEntry
+    TextureBindingEntry creates a BindGroupEntry for a texture view.
+
+type BindGroupEntryGo = BindGroupEntry
+    BindGroupEntryGo is kept for backward compatibility. Deprecated: Use
+    BindGroupEntry directly (now Go-idiomatic).
+
+type BindGroupLayout struct {
+	// Has unexported fields.
+}
+    BindGroupLayout defines the layout of resource bindings for a
+    shader stage. Create with Device.CreateBindGroupLayout, release with
+    BindGroupLayout.Release. device is the parent Device handle for lost-safe
+    Release.
+
+func (bgl *BindGroupLayout) Handle() uintptr
+    Handle returns the underlying handle.
+
+func (bgl *BindGroupLayout) Release()
+    Release releases the bind group layout. Nil-safe and idempotent. Skips
+    native release when the parent device is lost.
+
+type BindGroupLayoutDescriptor struct {
+	Label   string
+	Entries []BindGroupLayoutEntry
+}
+    BindGroupLayoutDescriptor describes a bind group layout.
+
+type BindGroupLayoutDescriptorGo = BindGroupLayoutDescriptor
+    BindGroupLayoutDescriptorGo is kept for backward compatibility. Deprecated:
+    Use BindGroupLayoutDescriptor directly (now Go-idiomatic).
+
+type BindGroupLayoutEntry struct {
+	Binding uint32
+	// Visibility specifies which shader stages can access this binding.
+	Visibility types.ShaderStage
+	// BindingArraySize enables binding arrays when non-zero.
+	BindingArraySize uint32
+	// Buffer describes a buffer binding (nil if not a buffer binding).
+	Buffer *BufferBindingLayout
+	// Sampler describes a sampler binding (nil if not a sampler binding).
+	Sampler *SamplerBindingLayout
+	// Texture describes a texture binding (nil if not a texture binding).
+	Texture *TextureBindingLayout
+	// StorageTexture describes a storage texture binding (nil if not a storage texture binding).
+	StorageTexture *StorageTextureBindingLayout
+}
+    BindGroupLayoutEntry describes a single binding in a bind group layout.
+
+    Exactly one of Buffer, Sampler, Texture, or StorageTexture must be non-nil.
+
+type BlendComponent struct {
+	Operation types.BlendOperation
+	SrcFactor types.BlendFactor
+	DstFactor types.BlendFactor
+}
+    BlendComponent describes blend state for a color component.
+
+type BlendFactor = types.BlendFactor
+    Blend types.
+
+type BlendOperation = types.BlendOperation
+
+type BlendState struct {
+	Color BlendComponent
+	Alpha BlendComponent
+}
+    BlendState describes how colors are blended.
+
+type Bool uint32
+    Bool is a WebGPU boolean (uint32).
+
+const (
+	// False is the WebGPU boolean false value (0).
+	False Bool = 0
+	// True is the WebGPU boolean true value (1).
+	True Bool = 1
+)
+type Buffer struct {
+	// Has unexported fields.
+}
+    Buffer represents a block of GPU-accessible memory. Create with
+    Device.CreateBuffer, release with Buffer.Release.
+
+func (b *Buffer) Destroy()
+    Destroy destroys the buffer, making it invalid. After Destroy the handle is
+    nulled so subsequent ops cannot call native with a wild pointer. Idempotent;
+    a following Release is a no-op. When the parent device is lost, only Go-side
+    state is cleared.
+
+func (b *Buffer) GetMappedRange(offset, size uint64) unsafe.Pointer
+    GetMappedRange returns a pointer to the mapped buffer data. The buffer must
+    be mapped (either via MapAsync or MappedAtCreation). offset and size specify
+    the range to access. Returns nil if the buffer is not mapped or the range is
+    invalid.
+
+func (b *Buffer) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (b *Buffer) Map(ctx context.Context, mode MapMode, offset, size uint64) error
+    Map blocks until a CPU-visible mapping is established for the given byte
+    range, or until ctx is canceled.
+
+    The buffer must have been created with BufferUsageMapRead or
+    BufferUsageMapWrite matching mode. offset must be a multiple of 8 and size
+    must be a multiple of 4.
+
+    After Map succeeds, call MappedRange to obtain a byte view and Unmap when
+    finished:
+
+        if err := buf.Map; err != nil {
+            return err
+        }
+        defer buf.Unmap()
+        rng, _ := buf.MappedRange(0, size)
+        data := rng.Bytes()
+
+func (b *Buffer) MapAsync(mode MapMode, offset, size uint64) (*MapPending, error)
+    MapAsync initiates an asynchronous buffer map without blocking. Returns a
+    *MapPending that resolves once the GPU completes the operation.
+
+    The caller must periodically drive Device.Poll(false) so the mapping
+    resolves. For a blocking variant use Buffer.Map.
+
+func (b *Buffer) MapAsyncBlocking(device *Device, mode MapMode, offset, size uint64) error
+    MapAsyncBlocking maps a buffer for reading or writing, blocking until
+    complete. Deprecated: Use Buffer.Map for blocking mapping or Buffer.MapAsync
+    for non-blocking. This method is retained for backward compatibility.
+
+func (b *Buffer) MapState() BufferMapState
+    MapState returns the current mapping state of this buffer.
+
+func (b *Buffer) MappedRange(offset, size uint64) (*MappedRange, error)
+    MappedRange returns a safe view over the mapped region [offset,
+    offset+size).
+
+    The buffer must be in the Mapped state (Buffer.Map or Buffer.MapAsync
+    resolved to success). The returned MappedRange.Bytes() slice is invalidated
+    by Buffer.Unmap.
+
+func (b *Buffer) Release()
+    Release releases the buffer reference. Nil-safe and idempotent. Skips native
+    release when the parent device is lost.
+
+func (b *Buffer) Size() uint64
+    Size returns the size of the buffer in bytes.
+
+func (b *Buffer) Unmap() error
+    Unmap unmaps the buffer, making the mapped memory inaccessible. For buffers
+    created with MappedAtCreation, this commits the data to the GPU. Returns nil
+    on success.
+
+func (b *Buffer) Usage() types.BufferUsage
+    Usage returns the usage flags of this buffer.
+
+type BufferBindingLayout = types.BufferBindingLayout
+    BufferBindingLayout describes buffer binding properties.
+
+    This type matches gputypes.BufferBindingLayout for cross-project
+    compatibility. Used as a pointer field in BindGroupLayoutEntry; nil means
+    "not a buffer binding".
+
+type BufferBindingType = types.BufferBindingType
+    Binding layout types.
+
+type BufferDescriptor struct {
+	Label            string            // Buffer label for debugging
+	Usage            types.BufferUsage // How the buffer will be used
+	Size             uint64            // Size in bytes
+	MappedAtCreation bool              // If true, buffer is mapped when created
+}
+    BufferDescriptor describes a GPU buffer to create.
+
+type BufferMapCallbackInfo struct {
+	NextInChain uintptr // *ChainedStruct
+	Mode        CallbackMode
+	Callback    uintptr // Function pointer
+	Userdata1   uintptr
+	Userdata2   uintptr
+}
+    BufferMapCallbackInfo holds callback configuration for MapAsync.
+
+type BufferMapState uint32
+    BufferMapState describes the mapping state of a buffer.
+
+const (
+	// BufferMapStateUnmapped indicates the buffer is not mapped.
+	BufferMapStateUnmapped BufferMapState = 0x00000001
+	// BufferMapStatePending indicates a map operation is in progress.
+	BufferMapStatePending BufferMapState = 0x00000002
+	// BufferMapStateMapped indicates the buffer is currently mapped and accessible.
+	BufferMapStateMapped BufferMapState = 0x00000003
+)
+type BufferTextureCopy struct {
+	// BufferLayout describes the memory layout of the buffer data.
+	BufferLayout ImageDataLayout
+	// TextureBase describes the texture subresource and origin.
+	TextureBase ImageCopyTexture
+	// Size is the extent of the copy operation.
+	Size types.Extent3D
+}
+    BufferTextureCopy defines a buffer-texture copy region.
+
+type BufferUsage = types.BufferUsage
+    Buffer types.
+
+type CallbackMode uint32
+    CallbackMode controls how callbacks are fired.
+
+const (
+	// CallbackModeWaitAnyOnly fires callbacks only during WaitAny calls.
+	CallbackModeWaitAnyOnly CallbackMode = 0x00000001
+	// CallbackModeAllowProcessEvents fires callbacks during ProcessEvents calls.
+	CallbackModeAllowProcessEvents CallbackMode = 0x00000002
+	// CallbackModeAllowSpontaneous allows callbacks to fire at any time.
+	CallbackModeAllowSpontaneous CallbackMode = 0x00000003
+)
+type ChainedStruct struct {
+	Next  uintptr // *ChainedStruct
+	SType uint32
+}
+    ChainedStruct is used for struct chaining (both input and output).
+    In v29 ChainedStructOut was unified with ChainedStruct — use ChainedStruct
+    everywhere.
+
+type ChainedStructOut = ChainedStruct
+    ChainedStructOut is kept for backward compatibility. Deprecated: Use
+    ChainedStruct. In v29 there is no separate ChainedStructOut in C header.
+
+type Color struct {
+	R, G, B, A float64
+}
+    Color represents RGBA color with double precision.
+
+type ColorTargetState struct {
+	Format    types.TextureFormat
+	Blend     *BlendState // nil for no blending
+	WriteMask types.ColorWriteMask
+}
+    ColorTargetState describes a render target in a render pipeline.
+
+type ColorWriteMask = types.ColorWriteMask
+
+type CommandBuffer struct {
+	// Has unexported fields.
+}
+    CommandBuffer holds encoded GPU commands ready for submission via
+    Queue.Submit. Obtained from CommandEncoder.Finish, release with
+    CommandBuffer.Release. device is the parent Device handle for lost-safe
+    Release.
+
+func (cb *CommandBuffer) Handle() uintptr
+    Handle returns the underlying handle.
+
+func (cb *CommandBuffer) Release()
+    Release releases the command buffer. Nil-safe and idempotent. Skips native
+    release when the parent device is lost.
+
+type CommandBufferDescriptor struct {
+	NextInChain uintptr // *ChainedStruct
+	Label       StringView
+}
+    CommandBufferDescriptor describes a command buffer.
+
+type CommandEncoder struct {
+	// Has unexported fields.
+}
+    CommandEncoder records GPU commands into a CommandBuffer. Create with
+    Device.CreateCommandEncoder, finalize with CommandEncoder.Finish. device is
+    the parent Device handle for lost-safe Release.
+
+func (enc *CommandEncoder) BeginComputePass(desc *ComputePassDescriptor) (*ComputePassEncoder, error)
+    BeginComputePass begins a compute pass. Returns an error if the FFI call
+    fails or the encoder is nil.
+
+func (enc *CommandEncoder) BeginRenderPass(desc *RenderPassDescriptor) (*RenderPassEncoder, error)
+    BeginRenderPass begins a render pass. Returns an error if the FFI call
+    fails, encoder is nil, or desc has no color attachments.
+
+func (enc *CommandEncoder) ClearBuffer(buffer *Buffer, offset, size uint64)
+    ClearBuffer clears a region of a buffer to zeros. size = 0 means clear from
+    offset to end of buffer.
+
+func (enc *CommandEncoder) CopyBufferToBuffer(src *Buffer, srcOffset uint64, dst *Buffer, dstOffset uint64, size uint64)
+    CopyBufferToBuffer copies data between buffers.
+
+func (enc *CommandEncoder) CopyBufferToTexture(source *TexelCopyBufferInfo, destination *TexelCopyTextureInfo, copySize *types.Extent3D)
+    CopyBufferToTexture copies data from a buffer to a texture using low-level
+    wire types. Errors are reported via Device error scopes, not as return
+    values.
+
+func (enc *CommandEncoder) CopyTextureToBuffer(src *Texture, dst *Buffer, regions []BufferTextureCopy)
+    CopyTextureToBuffer copies data from a texture to a buffer.
+    Accepts gogpu/wgpu-compatible types: src *Texture, dst *Buffer, regions
+    []BufferTextureCopy. Each region specifies the buffer layout, texture
+    subresource origin, and copy extent. Errors are reported via Device error
+    scopes, not as return values.
+
+func (enc *CommandEncoder) CopyTextureToBufferRaw(source *TexelCopyTextureInfo, destination *TexelCopyBufferInfo, copySize *types.Extent3D)
+    CopyTextureToBufferRaw copies data from a texture to a buffer using
+    low-level wire types. Prefer [CopyTextureToBuffer] for new code.
+
+func (enc *CommandEncoder) CopyTextureToTexture(src, dst *Texture, regions []TextureCopy)
+    CopyTextureToTexture copies data from one texture to another.
+    Accepts gogpu/wgpu-compatible types: src *Texture, dst *Texture, regions
+    []TextureCopy. Each region specifies the source and destination subresource
+    origins and copy extent. Errors are reported via Device error scopes,
+    not as return values.
+
+func (enc *CommandEncoder) CopyTextureToTextureRaw(source *TexelCopyTextureInfo, destination *TexelCopyTextureInfo, copySize *types.Extent3D)
+    CopyTextureToTextureRaw copies data from one texture to another using
+    low-level wire types. Prefer [CopyTextureToTexture] for new code.
+
+func (enc *CommandEncoder) Finish(desc ...*CommandBufferDescriptor) (*CommandBuffer, error)
+    Finish finishes recording and returns a command buffer. The optional desc
+    argument allows setting a label; pass nothing for defaults. This variadic
+    signature matches the gogpu/wgpu API for compatibility. Returns an error if
+    the FFI call fails or the encoder is nil.
+
+func (enc *CommandEncoder) Handle() uintptr
+    Handle returns the underlying handle.
+
+func (enc *CommandEncoder) InsertDebugMarker(markerLabel string)
+    InsertDebugMarker inserts a single debug marker label. This is useful for
+    GPU debugging tools to identify specific command points.
+
+func (enc *CommandEncoder) PopDebugGroup()
+    PopDebugGroup ends the current debug group. Must match a preceding
+    PushDebugGroup call.
+
+func (enc *CommandEncoder) PushDebugGroup(groupLabel string)
+    PushDebugGroup begins a labeled debug group. Use PopDebugGroup to end the
+    group. Groups can be nested.
+
+func (enc *CommandEncoder) Release()
+    Release releases the command encoder. Nil-safe and idempotent. Skips native
+    release when the parent device is lost.
+
+func (enc *CommandEncoder) ResolveQuerySet(querySet *QuerySet, firstQuery, queryCount uint32, destination *Buffer, destinationOffset uint64)
+    ResolveQuerySet resolves query results to a buffer. The buffer must have
+    BufferUsageQueryResolve usage.
+
+func (enc *CommandEncoder) WriteTimestamp(querySet *QuerySet, queryIndex uint32)
+    WriteTimestamp writes a timestamp to a query. Note: This is a wgpu-native
+    extension. Prefer pass-level timestamps via RenderPassTimestampWrites or
+    ComputePassTimestampWrites when possible.
+
+type CommandEncoderDescriptor struct {
+	Label string
+}
+    CommandEncoderDescriptor describes a command encoder to create.
+
+type CommandEncoderDescriptorGo = CommandEncoderDescriptor
+    CommandEncoderDescriptorGo is kept for backward compatibility. Deprecated:
+    Use CommandEncoderDescriptor directly (now Go-idiomatic).
+
+type CompareFunction = types.CompareFunction
+    Depth/stencil types.
+
+type ComponentSwizzle uint32
+    ComponentSwizzle describes texture component swizzle mapping. New in v29.
+
+const (
+	// ComponentSwizzleUndefined indicates no value is passed.
+	ComponentSwizzleUndefined ComponentSwizzle = 0x00000000
+	// ComponentSwizzleZero forces the component value to 0.
+	ComponentSwizzleZero ComponentSwizzle = 0x00000001
+	// ComponentSwizzleOne forces the component value to 1.
+	ComponentSwizzleOne ComponentSwizzle = 0x00000002
+	// ComponentSwizzleR takes from the red channel.
+	ComponentSwizzleR ComponentSwizzle = 0x00000003
+	// ComponentSwizzleG takes from the green channel.
+	ComponentSwizzleG ComponentSwizzle = 0x00000004
+	// ComponentSwizzleB takes from the blue channel.
+	ComponentSwizzleB ComponentSwizzle = 0x00000005
+	// ComponentSwizzleA takes from the alpha channel.
+	ComponentSwizzleA ComponentSwizzle = 0x00000006
+)
+type CompositeAlphaMode = types.CompositeAlphaMode
+
+type ComputePassDescriptor struct {
+	Label           string
+	TimestampWrites *PassTimestampWrites // optional; use PassTimestampWrites (was ComputePassTimestampWrites)
+}
+    ComputePassDescriptor describes a compute pass (user-facing API).
+
+type ComputePassEncoder struct {
+	// Has unexported fields.
+}
+    ComputePassEncoder records dispatch commands within a compute pass. Begin
+    with CommandEncoder.BeginComputePass, end with ComputePassEncoder.End.
+
+func (cpe *ComputePassEncoder) DispatchWorkgroups(x, y, z uint32)
+    DispatchWorkgroups dispatches compute work.
+
+func (cpe *ComputePassEncoder) DispatchWorkgroupsIndirect(indirectBuffer *Buffer, indirectOffset uint64)
+    DispatchWorkgroupsIndirect dispatches compute work using parameters from a
+    GPU buffer. indirectBuffer must contain a DispatchIndirectArgs structure:
+      - workgroupCountX (uint32)
+      - workgroupCountY (uint32)
+      - workgroupCountZ (uint32)
+
+func (cpe *ComputePassEncoder) End()
+    End ends the compute pass.
+
+func (cpe *ComputePassEncoder) Handle() uintptr
+    Handle returns the underlying handle.
+
+func (cpe *ComputePassEncoder) Release()
+    Release releases the compute pass encoder. Nil-safe and idempotent. Skips
+    native release when the parent device is lost.
+
+func (cpe *ComputePassEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, dynamicOffsets []uint32)
+    SetBindGroup sets a bind group.
+
+func (cpe *ComputePassEncoder) SetPipeline(pipeline *ComputePipeline)
+    SetPipeline sets the compute pipeline.
+
+type ComputePassTimestampWrites = PassTimestampWrites
+    ComputePassTimestampWrites is a deprecated alias for PassTimestampWrites.
+    Deprecated: Use PassTimestampWrites. Renamed in wgpu-native v29.
+
+type ComputePipeline struct {
+	// Has unexported fields.
+}
+    ComputePipeline is a compiled compute pipeline configuration. Create with
+    Device.CreateComputePipeline, release with ComputePipeline.Release. device
+    is the parent Device handle for lost-safe Release.
+
+func (cp *ComputePipeline) GetBindGroupLayout(groupIndex uint32) *BindGroupLayout
+    GetBindGroupLayout returns the bind group layout at the given index.
+    Useful for auto-layout pipelines. Defense order: nil/zero handle → lost →
+    init → native.
+
+func (cp *ComputePipeline) Handle() uintptr
+    Handle returns the underlying handle.
+
+func (cp *ComputePipeline) Release()
+    Release releases the compute pipeline. Nil-safe and idempotent. Skips native
+    release when the parent device is lost.
+
+type ComputePipelineDescriptor struct {
+	Label      string
+	Layout     *PipelineLayout // nil for auto layout
+	Module     *ShaderModule
+	EntryPoint string
+}
+    ComputePipelineDescriptor describes a compute pipeline to create. Layout is
+    nil for auto layout.
+
+type ComputePipelineDescriptorGo = ComputePipelineDescriptor
+    ComputePipelineDescriptorGo is kept for backward compatibility. Deprecated:
+    Use ComputePipelineDescriptor directly (now Go-idiomatic).
+
+type CullMode = types.CullMode
+
+type DepthStencilState struct {
+	Format              types.TextureFormat
+	DepthWriteEnabled   bool
+	DepthCompare        types.CompareFunction
+	StencilFront        StencilFaceState
+	StencilBack         StencilFaceState
+	StencilReadMask     uint32
+	StencilWriteMask    uint32
+	DepthBias           int32
+	DepthBiasSlopeScale float32
+	DepthBiasClamp      float32
+}
+    DepthStencilState describes depth and stencil test state (user API).
+
+type Device struct {
+	// Has unexported fields.
+}
+    Device is the logical connection to a GPU, used to create all other
+    resources. Obtained via Adapter.RequestDevice, release with Device.Release.
+
+    Multi-window / multi-device: each window (or logical GPU context) must own
+    its own Device. Device-lost is sticky per Device only — never process-wide.
+    Native DeviceLost / uncaptured callbacks route via callbackUserdata (slot
+    id).
+
+func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (*BindGroup, error)
+    CreateBindGroup creates a bind group. Returns an error if the FFI call fails
+    or the device/descriptor is nil.
+
+func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (*BindGroupLayout, error)
+    CreateBindGroupLayout creates a bind group layout. Entries are converted
+    from gputypes to wgpu-native enum values before FFI call. Returns an error
+    if the FFI call fails or the device/descriptor is nil.
+
+func (d *Device) CreateBindGroupLayoutSimple(entries []BindGroupLayoutEntry) (*BindGroupLayout, error)
+    CreateBindGroupLayoutSimple creates a bind group layout with the given
+    entries. Returns an error if the FFI call fails or the device is nil.
+
+func (d *Device) CreateBindGroupSimple(layout *BindGroupLayout, entries []BindGroupEntry) (*BindGroup, error)
+    CreateBindGroupSimple creates a bind group with the given entries. Returns
+    an error if the FFI call fails or the device/layout is nil.
+
+func (d *Device) CreateBuffer(desc *BufferDescriptor) (*Buffer, error)
+    CreateBuffer creates a new GPU buffer. Returns an error if the FFI call
+    fails or the device/descriptor is nil.
+
+func (d *Device) CreateCommandEncoder(desc *CommandEncoderDescriptor) (*CommandEncoder, error)
+    CreateCommandEncoder creates a command encoder. Returns an error if the FFI
+    call fails or the device is nil.
+
+func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (*ComputePipeline, error)
+    CreateComputePipeline creates a compute pipeline. Returns an error if the
+    FFI call fails or the device/descriptor is nil.
+
+func (d *Device) CreateComputePipelineSimple(layout *PipelineLayout, shader *ShaderModule, entryPoint string) (*ComputePipeline, error)
+    CreateComputePipelineSimple creates a compute pipeline with the given shader
+    and entry point. If layout is nil, auto layout is used. Returns an error if
+    the FFI call fails or the device/shader is nil.
+
+func (d *Device) CreateDepthTexture(width, height uint32, format types.TextureFormat) *Texture
+    CreateDepthTexture creates a depth texture with the specified dimensions
+    and format. This is a convenience function for creating depth buffers
+    for render passes. Returns nil on error (use CreateDepthTextureErr for
+    full error handling). The ledger charge in CreateTexture is best-effort:
+    on failure this refunds by handle is impossible (no handle), so the
+    check-then-create gap can strand at most one texture estimate (~4MB at
+    1080p) until process exit — negligible against the 768MB budget and far
+    cheaper than a ledger mutex around the native call. CreateDepthTexture
+    creates a depth texture with the specified dimensions and format. This is a
+    convenience function for creating depth buffers for render passes. Returns
+    nil on error (use CreateDepthTextureErr for full error handling). The ledger
+    charge in CreateTexture is best-effort: on failure this refunds by handle is
+    impossible (no handle), so the check-then-create gap can strand at most one
+    texture estimate (~4MB at 1080p) until process exit — negligible against the
+    768MB budget and far cheaper than a ledger mutex around the native call.
+
+func (d *Device) CreateDepthTextureErr(width, height uint32, format types.TextureFormat) (*Texture, error)
+    CreateDepthTextureErr creates a depth texture and reports the native error
+    instead of swallowing it, so callers under VRAM pressure can tell OOM
+    (degrade/retry) from misuse (fail fast) instead of blind-retesting nil.
+    CreateDepthTextureErr creates a depth texture and reports the native error
+    instead of swallowing it, so callers under VRAM pressure can tell OOM
+    (degrade/retry) from misuse (fail fast) instead of blind-retesting nil.
+
+func (d *Device) CreateLinearSampler() (*Sampler, error)
+    CreateLinearSampler creates a sampler with linear filtering.
+
+func (d *Device) CreateNearestSampler() (*Sampler, error)
+    CreateNearestSampler creates a sampler with nearest filtering.
+
+func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (*PipelineLayout, error)
+    CreatePipelineLayout creates a pipeline layout. Returns an error if the FFI
+    call fails or the device/descriptor is nil.
+
+func (d *Device) CreatePipelineLayoutSimple(layouts []*BindGroupLayout) (*PipelineLayout, error)
+    CreatePipelineLayoutSimple creates a pipeline layout with the given bind
+    group layouts. Returns an error if the FFI call fails or the device is nil.
+
+func (d *Device) CreateQuerySet(desc *QuerySetDescriptor) (*QuerySet, error)
+    CreateQuerySet creates a new QuerySet for GPU profiling/timestamps.
+
+func (d *Device) CreateRenderBundleEncoder(desc *RenderBundleEncoderDescriptor) (*RenderBundleEncoder, error)
+    CreateRenderBundleEncoder creates a render bundle encoder for pre-recording
+    render commands. Render bundles allow you to pre-record a sequence of render
+    commands that can be replayed multiple times, which is useful for static
+    geometry.
+
+func (d *Device) CreateRenderBundleEncoderSimple(colorFormats []types.TextureFormat, depthFormat types.TextureFormat, sampleCount uint32) *RenderBundleEncoder
+    CreateRenderBundleEncoderSimple creates a render bundle encoder with common
+    settings.
+
+func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (*RenderPipeline, error)
+    CreateRenderPipeline creates a render pipeline. Returns an error if the FFI
+    call fails or the device/descriptor is nil.
+
+func (d *Device) CreateRenderPipelineSimple(
+	layout *PipelineLayout,
+	vertexShader *ShaderModule,
+	vertexEntryPoint string,
+	fragmentShader *ShaderModule,
+	fragmentEntryPoint string,
+	targetFormat types.TextureFormat,
+) (*RenderPipeline, error)
+    CreateRenderPipelineSimple creates a simple render pipeline with common
+    defaults. Returns an error if the FFI call fails or the device/shaders are
+    nil.
+
+func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error)
+    CreateSampler creates a sampler with the specified descriptor.
+
+func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (*ShaderModule, error)
+    CreateShaderModule creates a shader module from a descriptor. For WGSL
+    shaders, prefer CreateShaderModuleWGSL or use ShaderDescriptor. Returns an
+    error if the FFI call fails or the device/descriptor is nil.
+
+func (d *Device) CreateShaderModuleFromDesc(desc *ShaderDescriptor) (*ShaderModule, error)
+    CreateShaderModule creates a shader module from a Go-idiomatic
+    ShaderDescriptor. This is the preferred method name matching the gogpu/wgpu
+    API. If both WGSL and SPIRV are set, WGSL takes precedence. Returns an error
+    if the FFI call fails, the device is nil, or both sources are empty.
+
+    Note: there is also a lower-level
+    CreateShaderModule(*ShaderModuleDescriptor) that accepts the wire-level
+    descriptor with a chained struct for direct FFI use.
+
+func (d *Device) CreateShaderModuleFromDescriptor(desc *ShaderDescriptor) (*ShaderModule, error)
+    CreateShaderModuleFromDescriptor creates a shader module from a Go-idiomatic
+    ShaderDescriptor. If both WGSL and SPIRV are set, WGSL takes precedence.
+    Returns an error if the FFI call fails, the device is nil, or both sources
+    are empty.
+
+    Deprecated: use CreateShaderModule which has the same signature.
+
+func (d *Device) CreateShaderModuleSPIRV(label string, spirv []uint32) (*ShaderModule, error)
+    CreateShaderModuleSPIRV creates a shader module from SPIR-V bytecode.
+    Returns an error if the FFI call fails, the device is nil, or the bytecode
+    is empty.
+
+func (d *Device) CreateShaderModuleWGSL(code string) (*ShaderModule, error)
+    CreateShaderModuleWGSL creates a shader module from WGSL source code.
+    Returns an error if the FFI call fails or the device is nil.
+
+func (d *Device) CreateTexture(desc *TextureDescriptor) (*Texture, error)
+    CreateTexture creates a texture with the specified descriptor. Enum values
+    are converted from gputypes to wgpu-native values before FFI call. Returns
+    an error if the FFI call fails or the device/descriptor is nil.
+
+func (d *Device) Destroy()
+    absorbLostUncapturedLocked consumes a pending uncaptured lost message for
+    this device and marks sticky lost. Returns true if the device is now lost.
+    Caller should hold gpuMu when folding with surface acquire. Destroy forces
+    native device teardown and sticky-lost state (Skia/Flutter abandon-context).
+    Sticky is force-marked so public APIs refuse with ErrDeviceLost even if
+    DeviceLostCallback is not delivered. Idempotent and nil-safe.
+
+func (d *Device) Features() []FeatureName
+    Features retrieves all features enabled on this device. Returns a slice of
+    FeatureName values. Defense order: nil/zero handle → lost → init → native.
+    Features retrieves all features enabled on this device. Returns a slice of
+    FeatureName values. Defense order: nil/zero handle → lost → init → native.
+
+func (d *Device) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (d *Device) HasFeature(feature FeatureName) bool
+    HasFeature checks if the device has a specific feature enabled. Defense
+    order: nil/zero handle → lost → init → native. HasFeature checks if the
+    device has a specific feature enabled. Defense order: nil/zero handle → lost
+    → init → native.
+
+func (d *Device) IsLost() bool
+    IsLost reports DeviceLostCallback state for this device. Safe on nil.
+    IsLost reports DeviceLostCallback state for this device. Safe on nil.
+
+func (d *Device) Limits() Limits
+    Limits returns the resource limits of this device.
+
+    Limits are cached at device creation time and returned by value. No FFI call
+    is made. Returns zero-value Limits if the device is nil. Limits returns the
+    resource limits of this device.
+
+    Limits are cached at device creation time and returned by value. No FFI call
+    is made. Returns zero-value Limits if the device is nil.
+
+func (d *Device) MarkLost()
+    MarkLost sets sticky device-lost state (same effect as DeviceLostCallback /
+    uncaptured "Parent device is lost"). Safe on nil. Used by facade tests and
+    recovery paths that inject lost without a native callback. MarkLost sets
+    sticky device-lost state (same effect as DeviceLostCallback / uncaptured
+    "Parent device is lost"). Safe on nil. Used by facade tests and recovery
+    paths that inject lost without a native callback.
+
+func (d *Device) Poll(wait bool) bool
+    Poll polls the device for completed work. If wait is true, blocks until
+    there is work to process. Returns true if the queue is empty. This is a
+    wgpu-native extension. After device-lost, returns true without calling
+    native (queue treated as empty). Poll polls the device for completed work.
+    If wait is true, blocks until there is work to process. Returns true if
+    the queue is empty. This is a wgpu-native extension. After device-lost,
+    returns true without calling native (queue treated as empty).
+
+func (d *Device) PopErrorScope(instance *Instance) (ErrorType, string)
+    Deprecated: PopErrorScope panics on failure. Use PopErrorScopeAsync instead.
+
+    PopErrorScope pops the current error scope and returns the first error
+    caught. This is a synchronous wrapper that blocks until the result is
+    available.
+
+    IMPORTANT: You must have pushed an error scope before calling this.
+    Calling PopErrorScope on an empty stack will cause a panic in wgpu-native.
+    Use PopErrorScopeAsync if you need to handle empty stack gracefully.
+
+    Returns:
+      - ErrorType: The type of error that occurred (ErrorTypeNoError if no
+        error)
+      - string: Error message (empty if no error)
+
+    Note: Error scopes are LIFO - the last pushed scope is popped first.
+
+func (d *Device) PopErrorScopeAsync(instance *Instance) (ErrorType, string, error)
+    PopErrorScopeAsync pops the current error scope and returns the first error
+    caught. This version returns an error instead of panicking if the operation
+    fails.
+
+    Returns:
+      - ErrorType: The type of error that occurred (ErrorTypeNoError if no
+        error)
+      - string: Error message (empty if no error)
+      - error: An error if the operation failed (e.g., empty stack)
+
+    Note: Error scopes are LIFO - the last pushed scope is popped first.
+    If the error scope stack is empty, returns an error instead of panicking.
+
+func (d *Device) PushErrorScope(filter ErrorFilter)
+    PushErrorScope pushes an error scope for catching GPU errors. Errors of
+    the specified filter type will be caught until PopErrorScope is called.
+    Error scopes are LIFO (stack-based) - last pushed scope is popped first.
+
+    IMPORTANT: You must call PopErrorScope for each PushErrorScope. Popping
+    an empty stack will cause a panic in wgpu-native (known limitation).
+    Users should track push/pop calls manually to avoid stack underflow.
+
+    Example usage:
+
+        device.PushErrorScope(ErrorFilterValidation)
+        // ... GPU operations that might produce validation errors
+        errType, message := device.PopErrorScope(instance)
+        if errType != ErrorTypeNoError {
+            log.Printf("Validation error: %s", message)
+        }
+
+func (d *Device) Queue() *Queue
+    Queue returns the default queue for the device. Returns nil when the device
+    is nil/released or the sticky device-lost fuse is set (avoids purego Call
+    on a lost device handle). Queue returns the default queue for the device.
+    Returns nil when the device is nil/released or the sticky device-lost fuse
+    is set (avoids purego Call on a lost device handle).
+
+func (d *Device) Release()
+    Release releases the device resources. Nil-safe and idempotent. When the
+    device is already lost, only Go-side state is cleared — native DeviceRelease
+    is skipped when lost. Release releases the device resources. Nil-safe and
+    idempotent. When the device is already lost, only Go-side state is cleared —
+    native DeviceRelease is skipped when lost.
+
+func (d *Device) SyncLostState()
+    SyncLostState pumps instance events and folds pending Uncaptured/DeviceLost
+    into sticky IsLost. Does not call WriteBuffer canary — soft native returns
+    errors from GetCurrentTexture/Submit instead of SIGABRT. Safe and idempotent
+    on nil / already-lost devices. SyncLostState pumps instance events and folds
+    pending Uncaptured/DeviceLost into sticky IsLost. Does not call WriteBuffer
+    canary — soft native returns errors from GetCurrentTexture/Submit instead of
+    SIGABRT. Safe and idempotent on nil / already-lost devices.
+
+type DeviceDescriptor struct {
+	// Label is an optional debug label for the device.
+	Label string
+	// RequiredFeatures lists GPU features that the device must support.
+	RequiredFeatures []FeatureName
+	// RequiredLimits, if non-nil, specifies minimum resource limits the device must meet.
+	// Pass nil to use the adapter's default limits.
+	RequiredLimits *Limits
+}
+    DeviceDescriptor configures device creation.
+
+type DeviceLostCallbackInfo struct {
+	NextInChain uintptr // *ChainedStruct
+	Mode        CallbackMode
+	Callback    uintptr // Function pointer
+	Userdata1   uintptr
+	Userdata2   uintptr
+}
+    DeviceLostCallbackInfo configures the device-lost callback.
+
+type DeviceLostReason uint32
+    DeviceLostReason describes why a device was lost.
+
+const (
+	// DeviceLostReasonUnknown indicates the device was lost for an unknown reason.
+	DeviceLostReasonUnknown DeviceLostReason = 0x00000001
+	// DeviceLostReasonDestroyed indicates the device was explicitly destroyed.
+	DeviceLostReasonDestroyed DeviceLostReason = 0x00000002
+	// DeviceLostReasonCallbackCancelled indicates the operation was cancelled (e.g. instance dropped).
+	// Renamed from InstanceDropped in v29.
+	DeviceLostReasonCallbackCancelled DeviceLostReason = 0x00000003
+	// DeviceLostReasonFailedCreation indicates device creation failed.
+	DeviceLostReasonFailedCreation DeviceLostReason = 0x00000004
+	// DeviceLostReasonInstanceDropped is a deprecated alias for CallbackCancelled.
+	// Deprecated: Use DeviceLostReasonCallbackCancelled.
+	DeviceLostReasonInstanceDropped = DeviceLostReasonCallbackCancelled
+)
+type DispatchIndirectArgs struct {
+	WorkgroupCountX uint32 // Number of workgroups in X dimension
+	WorkgroupCountY uint32 // Number of workgroups in Y dimension
+	WorkgroupCountZ uint32 // Number of workgroups in Z dimension
+}
+    DispatchIndirectArgs contains arguments for indirect compute dispatch. This
+    struct must be written to a Buffer for use with DispatchWorkgroupsIndirect.
+    Size: 12 bytes, must be aligned to 4 bytes.
+
+type DrawIndexedIndirectArgs struct {
+	IndexCount    uint32 // Number of indices to draw
+	InstanceCount uint32 // Number of instances to draw
+	FirstIndex    uint32 // First index in the index buffer
+	BaseVertex    int32  // Value added to vertex index before indexing into vertex buffer
+	FirstInstance uint32 // First instance index
+}
+    DrawIndexedIndirectArgs contains arguments for indirect indexed draw calls.
+    This struct must be written to a Buffer for use with DrawIndexedIndirect.
+    Size: 20 bytes, must be aligned to 4 bytes.
+
+type DrawIndirectArgs struct {
+	VertexCount   uint32 // Number of vertices to draw
+	InstanceCount uint32 // Number of instances to draw
+	FirstVertex   uint32 // First vertex index
+	FirstInstance uint32 // First instance index
+}
+    DrawIndirectArgs contains arguments for indirect (GPU-driven) draw calls.
+    This struct must be written to a Buffer for use with DrawIndirect. Size:
+    16 bytes, must be aligned to 4 bytes.
+
+type ErrorClass int
+    ErrorClass is a structured classification of GPU operation failures.
+    Prefer errors.Is against sentinels; ClassifyError is for grading (retry vs
+    fatal) without ad-hoc string matching.
+
+const (
+	// ErrorClassUnknown is an unclassified or opaque error.
+	ErrorClassUnknown ErrorClass = iota
+	// ErrorClassDeviceLost is a sticky, fatal device failure.
+	ErrorClassDeviceLost
+	// ErrorClassInvalidHandle is a nil/released/zero native handle.
+	ErrorClassInvalidHandle
+	// ErrorClassSurfaceInvalid is surface lost/outdated/unconfigured/occluded.
+	ErrorClassSurfaceInvalid
+	// ErrorClassOutOfMemory is GPU VRAM/system memory pressure.
+	ErrorClassOutOfMemory
+	// ErrorClassValidation is a WebGPU validation error.
+	ErrorClassValidation
+)
+func ClassifyError(err error) ErrorClass
+    ClassifyError maps err to a structured ErrorClass using sentinel matching
+    first, then conservative message fallbacks for wrapped native text.
+
+func (c ErrorClass) String() string
+    String returns a short name for the error class.
+
+type ErrorFilter uint32
+    ErrorFilter filters error types in error scopes.
+
+const (
+	// ErrorFilterValidation catches validation errors.
+	ErrorFilterValidation ErrorFilter = 0x00000001
+	// ErrorFilterOutOfMemory catches out-of-memory errors.
+	ErrorFilterOutOfMemory ErrorFilter = 0x00000002
+	// ErrorFilterInternal catches internal errors.
+	ErrorFilterInternal ErrorFilter = 0x00000003
+)
+type ErrorType uint32
+    ErrorType describes the type of error that occurred.
+
+const (
+	// ErrorTypeNoError indicates no error occurred.
+	ErrorTypeNoError ErrorType = 0x00000001
+	// ErrorTypeValidation indicates a validation error.
+	ErrorTypeValidation ErrorType = 0x00000002
+	// ErrorTypeOutOfMemory indicates an out-of-memory error.
+	ErrorTypeOutOfMemory ErrorType = 0x00000003
+	// ErrorTypeInternal indicates an internal error.
+	ErrorTypeInternal ErrorType = 0x00000004
+	// ErrorTypeUnknown indicates an unknown error.
+	ErrorTypeUnknown ErrorType = 0x00000005
+)
+func LastUncapturedError() (ErrorType, string)
+    LastUncapturedError returns and clears the most recent uncaptured device
+    error.
+
+func PeekLastUncapturedError() (typ ErrorType, msg string, deviceHandle uintptr)
+    PeekLastUncapturedError returns the sticky uncaptured error without
+    clearing. The second return is the native device handle that reported
+    it (0 if unknown). PeekLastUncapturedError returns the sticky uncaptured
+    error without clearing. The second return is the native device handle that
+    reported it (0 if unknown).
+
+type Extent3D = types.Extent3D
+    Extent3D is a 3D extent (width/height/depth or array layers).
+
+type FeatureLevel uint32
+    FeatureLevel indicates the WebGPU feature level.
+
+const (
+	// FeatureLevelUndefined indicates no value is passed. Added in v29.
+	FeatureLevelUndefined FeatureLevel = 0x00000000
+	// FeatureLevelCompatibility indicates the compatibility feature level.
+	FeatureLevelCompatibility FeatureLevel = 0x00000001
+	// FeatureLevelCore indicates the core feature level.
+	FeatureLevelCore FeatureLevel = 0x00000002
+)
+type FeatureName uint32
+    FeatureName describes a WebGPU feature that can be requested.
+
+const (
+	// FeatureNameCoreFeaturesAndLimits indicates core features and limits support.
+	FeatureNameCoreFeaturesAndLimits FeatureName = 0x00000001
+	// FeatureNameDepthClipControl enables depth clip control.
+	FeatureNameDepthClipControl FeatureName = 0x00000002
+	// FeatureNameDepth32FloatStencil8 enables depth32float-stencil8 texture format.
+	FeatureNameDepth32FloatStencil8 FeatureName = 0x00000003
+	// FeatureNameTextureCompressionBC enables BC texture compression.
+	FeatureNameTextureCompressionBC FeatureName = 0x00000004
+	// FeatureNameTextureCompressionBCSliced3D enables sliced 3D BC compression.
+	FeatureNameTextureCompressionBCSliced3D FeatureName = 0x00000005
+	// FeatureNameTextureCompressionETC2 enables ETC2 texture compression.
+	FeatureNameTextureCompressionETC2 FeatureName = 0x00000006
+	// FeatureNameTextureCompressionASTC enables ASTC texture compression.
+	FeatureNameTextureCompressionASTC FeatureName = 0x00000007
+	// FeatureNameTextureCompressionASTCSliced3D enables sliced 3D ASTC compression.
+	FeatureNameTextureCompressionASTCSliced3D FeatureName = 0x00000008
+	// FeatureNameTimestampQuery enables timestamp query support.
+	FeatureNameTimestampQuery FeatureName = 0x00000009
+	// FeatureNameIndirectFirstInstance enables indirect first instance.
+	FeatureNameIndirectFirstInstance FeatureName = 0x0000000A
+	// FeatureNameShaderF16 enables f16 in shaders.
+	FeatureNameShaderF16 FeatureName = 0x0000000B
+	// FeatureNameRG11B10UfloatRenderable enables RG11B10Ufloat as render target.
+	FeatureNameRG11B10UfloatRenderable FeatureName = 0x0000000C
+	// FeatureNameBGRA8UnormStorage enables BGRA8Unorm storage textures.
+	FeatureNameBGRA8UnormStorage FeatureName = 0x0000000D
+	// FeatureNameFloat32Filterable enables filterable float32 textures.
+	FeatureNameFloat32Filterable FeatureName = 0x0000000E
+	// FeatureNameFloat32Blendable enables blendable float32 textures.
+	FeatureNameFloat32Blendable FeatureName = 0x0000000F
+	// FeatureNameClipDistances enables clip distances in shaders.
+	FeatureNameClipDistances FeatureName = 0x00000010
+	// FeatureNameDualSourceBlending enables dual source blending.
+	FeatureNameDualSourceBlending FeatureName = 0x00000011
+	// FeatureNameSubgroups enables subgroup operations.
+	FeatureNameSubgroups FeatureName = 0x00000012
+	// FeatureNameTextureFormatsTier1 enables tier 1 texture formats.
+	FeatureNameTextureFormatsTier1 FeatureName = 0x00000013
+	// FeatureNameTextureFormatsTier2 enables tier 2 texture formats.
+	FeatureNameTextureFormatsTier2 FeatureName = 0x00000014
+	// FeatureNamePrimitiveIndex enables primitive index in shaders.
+	FeatureNamePrimitiveIndex FeatureName = 0x00000015
+	// FeatureNameTextureComponentSwizzle enables texture component swizzle.
+	FeatureNameTextureComponentSwizzle FeatureName = 0x00000016
+)
+type Features = types.Features
+    Features is a bitmask of enabled GPU features. Note: Limits is defined as a
+    native FFI struct in adapter.go.
+
+type FilterMode = types.FilterMode
+    Sampler types.
+
+type FragmentState struct {
+	Module     *ShaderModule
+	EntryPoint string
+	Targets    []ColorTargetState
+}
+    FragmentState describes the fragment stage of a render pipeline.
+
+type FrontFace = types.FrontFace
+
+type Future struct {
+	ID uint64
+}
+    Future represents an async operation handle.
+
+type ImageCopyTexture struct {
+	Texture  *Texture
+	MipLevel uint32
+	Origin   types.Origin3D
+	Aspect   TextureAspect
+}
+    ImageCopyTexture describes a texture subresource and origin for copy/write
+    operations.
+
+type ImageDataLayout struct {
+	Offset       uint64
+	BytesPerRow  uint32
+	RowsPerImage uint32
+}
+    ImageDataLayout describes the layout of image data in a buffer.
+
+type IndexFormat = types.IndexFormat
+
+type Instance struct {
+	// Has unexported fields.
+}
+    Instance is the entry point to the WebGPU API. Create with CreateInstance,
+    release with Instance.Release.
+
+func CreateInstance(desc *InstanceDescriptor) (*Instance, error)
+    CreateInstance creates a new WebGPU instance. Pass nil for default
+    configuration (all primary backends enabled).
+
+    When backends or budgets are set (or via GPUI_* env), chains
+    WGPUInstanceExtras so GL-only / budget-limited instances are possible.
+
+func (inst *Instance) CreateSurfaceFromWaylandSurface(display, surface uintptr) (*Surface, error)
+    CreateSurfaceFromWaylandSurface creates a surface from a Wayland surface.
+    display is the wl_display pointer. surface is the wl_surface pointer.
+
+func (inst *Instance) CreateSurfaceFromXlibWindow(display uintptr, window uint64) (*Surface, error)
+    CreateSurfaceFromXlibWindow creates a surface from an X11 Xlib window.
+    display is the X11 Display pointer. window is the X11 Window ID (XID).
+
+func (i *Instance) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (i *Instance) ProcessEvents()
+    ProcessEvents processes pending async events.
+
+func (i *Instance) Release()
+    Release releases the instance resources.
+
+func (i *Instance) RequestAdapter(options *RequestAdapterOptions) (*Adapter, error)
+    RequestAdapter requests a GPU adapter from the instance. This is a
+    synchronous wrapper that blocks until the adapter is available.
+
+type InstanceBackend uint64
+    InstanceBackend is a bitflag selecting which graphics backends to enable.
+    Used in InstanceExtras.Backends.
+
+const (
+	// InstanceBackendAll enables all available backends (default when zero).
+	InstanceBackendAll InstanceBackend = 0x00000000
+	// InstanceBackendVulkan enables the Vulkan backend.
+	InstanceBackendVulkan InstanceBackend = 1 << 0
+	// InstanceBackendGL enables the OpenGL/OpenGL ES backend.
+	InstanceBackendGL InstanceBackend = 1 << 1
+	// InstanceBackendMetal enables the Metal backend (macOS/iOS).
+	InstanceBackendMetal InstanceBackend = 1 << 2
+	// InstanceBackendDX12 enables the Direct3D 12 backend (Windows).
+	InstanceBackendDX12 InstanceBackend = 1 << 3
+	// InstanceBackendBrowserWebGPU enables the browser WebGPU backend (WASM).
+	InstanceBackendBrowserWebGPU InstanceBackend = 1 << 5
+	// InstanceBackendPrimary enables primary tier backends: Vulkan, Metal, DX12, BrowserWebGPU.
+	InstanceBackendPrimary InstanceBackend = (1 << 0) | (1 << 2) | (1 << 3) | (1 << 5)
+	// InstanceBackendSecondary enables secondary tier backends: GL only.
+	// BREAKING: v27 had Secondary = GL | DX11; DX11 was removed in v29.
+	InstanceBackendSecondary InstanceBackend = (1 << 1)
+)
+type InstanceDescriptor struct {
+	// Backends selects which GPU backends to enable.
+	// Zero = All unless env overrides.
+	Backends types.Backends
+	// Flags controls instance features like debug layers and validation.
+	Flags types.InstanceFlags
+	// BudgetForDeviceCreationPct is 1–100 memory budget percent for device
+	// creation (Vulkan/DX12 via InstanceExtras). 0 = unset.
+	BudgetForDeviceCreationPct uint8
+	// BudgetForDeviceLossPct optional companion for device-loss reclaim.
+	BudgetForDeviceLossPct uint8
+	// XlibDisplay, when non-zero, is Display* for GL/X11 (WGPUNativeDisplayHandle).
+	// Required for GPUI_BACKEND=gl with X11 surfaces ("gl not compatible with surface"
+	// without this). Screen defaults to 0 when XlibScreen < 0.
+	XlibDisplay uintptr
+	// XlibScreen is the X11 screen number (DefaultScreen).
+	XlibScreen int32
+}
+    InstanceDescriptor configures instance creation.
+
+    Pass nil to CreateInstance for default configuration (all primary backends
+    enabled).
+
+    Env (applied when using CreateInstance):
+
+        GPUI_BACKEND=gl|vulkan|primary|all|gl+vulkan
+        GPUI_VRAM_BUDGET_PCT=1..100
+
+type InstanceFeatureName uint32
+    InstanceFeatureName describes features that can be required at instance
+    creation. New in v29.
+
+const (
+	// InstanceFeatureNameTimedWaitAny enables wgpuInstanceWaitAny with timeoutNS > 0.
+	InstanceFeatureNameTimedWaitAny InstanceFeatureName = 0x00000001
+	// InstanceFeatureNameShaderSourceSPIRV enables SPIR-V shader sources.
+	InstanceFeatureNameShaderSourceSPIRV InstanceFeatureName = 0x00000002
+	// InstanceFeatureNameMultipleDevicesPerAdapter allows multiple devices per adapter.
+	InstanceFeatureNameMultipleDevicesPerAdapter InstanceFeatureName = 0x00000003
+)
+type InstanceFlag uint64
+    InstanceFlag is a bitflag controlling instance debugging and validation
+    behavior. Used in InstanceExtras.Flags.
+
+const (
+	// InstanceFlagEmpty has no flags set. Zero-initialization default.
+	// BREAKING: v27 had Default=0; v29 renamed to Empty=0, Default moved to 1<<24.
+	InstanceFlagEmpty InstanceFlag = 0x00000000
+	// InstanceFlagDebug generates debug information in shaders and objects.
+	InstanceFlagDebug InstanceFlag = 1 << 0
+	// InstanceFlagValidation enables validation in the backend API.
+	InstanceFlagValidation InstanceFlag = 1 << 1
+	// InstanceFlagDiscardHalLabels suppresses label passing to backend HAL.
+	InstanceFlagDiscardHalLabels InstanceFlag = 1 << 2
+	// InstanceFlagAllowUnderlyingNoncompliantAdapter exposes adapters on non-compliant drivers.
+	InstanceFlagAllowUnderlyingNoncompliantAdapter InstanceFlag = 1 << 3
+	// InstanceFlagGPUBasedValidation enables GPU-based validation (implies Validation).
+	InstanceFlagGPUBasedValidation InstanceFlag = 1 << 4
+	// InstanceFlagValidationIndirectCall validates indirect buffer content before indirect draws.
+	InstanceFlagValidationIndirectCall InstanceFlag = 1 << 5
+	// InstanceFlagAutomaticTimestampNormalization normalizes timestamps to nanoseconds.
+	InstanceFlagAutomaticTimestampNormalization InstanceFlag = 1 << 6
+	// InstanceFlagDefault uses the default flags for the current build configuration.
+	// BREAKING: v27 had Default=0; v29 Default=1<<24 (debug builds enable Debug+Validation).
+	InstanceFlagDefault InstanceFlag = 1 << 24
+	// InstanceFlagDebugging enables Debug and Validation.
+	InstanceFlagDebugging InstanceFlag = 1 << 25
+	// InstanceFlagAdvancedDebugging enables Debug, Validation, and GPUBasedValidation.
+	InstanceFlagAdvancedDebugging InstanceFlag = 1 << 26
+	// InstanceFlagWithEnv reads flag overrides from environment variables.
+	InstanceFlagWithEnv InstanceFlag = 1 << 27
+)
+type InstanceLimits struct {
+	NextInChain          uintptr // *ChainedStruct (nullable)
+	TimedWaitAnyMaxCount uint64
+}
+    InstanceLimits describes the limits required at instance creation. New in
+    v29 — passed as RequiredLimits in instanceDescriptorWire.
+
+type LeakReport struct {
+	Count int
+	Types map[string]int
+	Items []string // "Type:label" for each live resource
+}
+    LeakReport contains information about unreleased GPU resources.
+
+func ReportLeaks() *LeakReport
+    ReportLeaks returns information about unreleased GPU resources.
+
+func (r *LeakReport) String() string
+    String returns a human-readable summary of the leak report.
+
+type Library interface {
+	// NewProc retrieves a procedure (function) from the library.
+	// Returns a Proc interface that can be used to call the function.
+	NewProc(name string) Proc
+}
+    Library represents a dynamically loaded library (DLL/SO/DYLIB).
+    Platform-specific implementations handle the actual loading mechanism.
+
+type Limits struct {
+	// MaxTextureDimension1D is the maximum 1D texture dimension.
+	MaxTextureDimension1D uint32
+	// MaxTextureDimension2D is the maximum 2D texture dimension.
+	MaxTextureDimension2D uint32
+	// MaxTextureDimension3D is the maximum 3D texture dimension.
+	MaxTextureDimension3D uint32
+	// MaxTextureArrayLayers is the maximum texture array layer count.
+	MaxTextureArrayLayers uint32
+	// MaxBindGroups is the maximum number of bind groups.
+	MaxBindGroups uint32
+	// MaxBindGroupsPlusVertexBuffers is the max bind groups + vertex buffers.
+	MaxBindGroupsPlusVertexBuffers uint32
+	// MaxBindingsPerBindGroup is the max bindings per bind group.
+	MaxBindingsPerBindGroup uint32
+	// MaxDynamicUniformBuffersPerPipelineLayout is the max dynamic uniform buffers.
+	MaxDynamicUniformBuffersPerPipelineLayout uint32
+	// MaxDynamicStorageBuffersPerPipelineLayout is the max dynamic storage buffers.
+	MaxDynamicStorageBuffersPerPipelineLayout uint32
+	// MaxSampledTexturesPerShaderStage is the max sampled textures per shader stage.
+	MaxSampledTexturesPerShaderStage uint32
+	// MaxSamplersPerShaderStage is the max samplers per shader stage.
+	MaxSamplersPerShaderStage uint32
+	// MaxStorageBuffersPerShaderStage is the max storage buffers per shader stage.
+	MaxStorageBuffersPerShaderStage uint32
+	// MaxStorageTexturesPerShaderStage is the max storage textures per shader stage.
+	MaxStorageTexturesPerShaderStage uint32
+	// MaxUniformBuffersPerShaderStage is the max uniform buffers per shader stage.
+	MaxUniformBuffersPerShaderStage uint32
+	// MaxUniformBufferBindingSize is the max uniform buffer binding size in bytes.
+	MaxUniformBufferBindingSize uint64
+	// MaxStorageBufferBindingSize is the max storage buffer binding size in bytes.
+	MaxStorageBufferBindingSize uint64
+	// MinUniformBufferOffsetAlignment is the minimum uniform buffer offset alignment.
+	MinUniformBufferOffsetAlignment uint32
+	// MinStorageBufferOffsetAlignment is the minimum storage buffer offset alignment.
+	MinStorageBufferOffsetAlignment uint32
+	// MaxVertexBuffers is the max vertex buffers in a pipeline.
+	MaxVertexBuffers uint32
+	// MaxBufferSize is the max buffer size in bytes.
+	MaxBufferSize uint64
+	// MaxVertexAttributes is the max vertex attributes in a pipeline.
+	MaxVertexAttributes uint32
+	// MaxVertexBufferArrayStride is the max vertex buffer array stride.
+	MaxVertexBufferArrayStride uint32
+	// MaxInterStageShaderVariables is the max inter-stage shader variables.
+	MaxInterStageShaderVariables uint32
+	// MaxColorAttachments is the max color attachments in a render pass.
+	MaxColorAttachments uint32
+	// MaxColorAttachmentBytesPerSample is the max bytes per sample for color attachments.
+	MaxColorAttachmentBytesPerSample uint32
+	// MaxComputeWorkgroupStorageSize is the max compute workgroup storage in bytes.
+	MaxComputeWorkgroupStorageSize uint32
+	// MaxComputeInvocationsPerWorkgroup is the max compute invocations per workgroup.
+	MaxComputeInvocationsPerWorkgroup uint32
+	// MaxComputeWorkgroupSizeX is the max compute workgroup size in X dimension.
+	MaxComputeWorkgroupSizeX uint32
+	// MaxComputeWorkgroupSizeY is the max compute workgroup size in Y dimension.
+	MaxComputeWorkgroupSizeY uint32
+	// MaxComputeWorkgroupSizeZ is the max compute workgroup size in Z dimension.
+	MaxComputeWorkgroupSizeZ uint32
+	// MaxComputeWorkgroupsPerDimension is the max compute workgroups per dimension.
+	MaxComputeWorkgroupsPerDimension uint32
+}
+    Limits describes GPU resource limits for an adapter or device.
+
+    This type matches the gogpu/wgpu API for cross-project compatibility. Limits
+    are cached at creation time (RequestAdapter/RequestDevice) and returned by
+    value — no FFI call is made on each access.
+
+    Note: wgpu-native-specific fields (MaxImmediateSize, MaxNonSamplerBindings)
+    are not exposed here. Use NativeLimits for native extensions.
+
+type LoadOp = types.LoadOp
+    Render pass types.
+
+type MapAsyncStatus uint32
+    MapAsyncStatus is the status returned by MapAsync callback.
+
+const (
+	// MapAsyncStatusSuccess indicates the buffer was successfully mapped.
+	MapAsyncStatusSuccess MapAsyncStatus = 0x00000001
+	// MapAsyncStatusCallbackCancelled indicates the callback was cancelled.
+	MapAsyncStatusCallbackCancelled MapAsyncStatus = 0x00000002
+	// MapAsyncStatusError indicates a mapping error occurred.
+	MapAsyncStatusError MapAsyncStatus = 0x00000003
+	// MapAsyncStatusAborted indicates the mapping was aborted (e.g., buffer destroyed).
+	MapAsyncStatusAborted MapAsyncStatus = 0x00000004
+
+	// Deprecated: use MapAsyncStatusCallbackCancelled.
+	MapAsyncStatusInstanceDropped = MapAsyncStatusCallbackCancelled
+)
+type MapMode uint64
+    MapMode specifies the mapping mode for MapAsync.
+
+const (
+	// MapModeNone indicates no mapping mode (default).
+	MapModeNone MapMode = 0x0000000000000000
+	// MapModeRead maps the buffer for reading via GetMappedRange.
+	MapModeRead MapMode = 0x0000000000000001
+	// MapModeWrite maps the buffer for writing via GetMappedRange.
+	MapModeWrite MapMode = 0x0000000000000002
+)
+type MapPending struct {
+	// Has unexported fields.
+}
+    MapPending represents an in-flight buffer map request. Created by
+    Buffer.MapAsync; poll Status() or call Wait() to resolve.
+
+    The caller must not access the mapped buffer data until Status() returns
+    ready=true with err=nil, or Wait() returns nil.
+
+func (p *MapPending) Release()
+    Release discards the pending handle. Safe to call after Wait/Status
+    resolved.
+
+func (p *MapPending) Status() (ready bool, err error)
+    Status reports whether the map request has completed. Non-blocking — returns
+    (false, nil) if still pending. Once it returns (true, ...), subsequent calls
+    return the same value.
+
+func (p *MapPending) Wait(ctx context.Context) error
+    Wait blocks until the map request completes or ctx is canceled. Returns nil
+    on success, ctx.Err() if context was canceled before completion.
+
+type MappedRange struct {
+	// Has unexported fields.
+}
+    MappedRange provides safe access to a mapped buffer region. Obtained via
+    Buffer.MappedRange after a successful Buffer.Map or Buffer.MapAsync.
+    The data slice is invalidated by Buffer.Unmap.
+
+func (m *MappedRange) Bytes() []byte
+    Bytes returns the mapped memory as a byte slice. Returns nil if the buffer
+    is not mapped or the range has been invalidated.
+
+    The slice is valid only while the buffer remains mapped. Calling
+    Buffer.Unmap or Buffer.Release after this will cause undefined behavior if
+    the slice is still accessed.
+
+func (m *MappedRange) Len() int
+    Len returns the size of the mapped range in bytes.
+
+func (m *MappedRange) Offset() uint64
+    Offset returns the byte offset of this range within the buffer.
+
+type Mat4 [16]float32
+    Mat4 represents a 4x4 matrix in column-major order, compatible with WGSL
+    mat4x4<f32>. Layout: [col0, col1, col2, col3] where each column is [x, y, z,
+    w]. Element at column c, row r is at index c*4+r.
+
+func Mat4Identity() Mat4
+    Mat4Identity returns a 4x4 identity matrix. The identity matrix has 1s on
+    the diagonal and 0s elsewhere.
+
+func Mat4LookAt(eye, center, up Vec3) Mat4
+    Mat4LookAt returns a view matrix that looks from eye position towards
+    center. eye: camera position center: point the camera is looking at up:
+    up direction vector (typically (0, 1, 0))
+
+    This creates a right-handed coordinate system view matrix.
+
+func Mat4Perspective(fovY, aspect, near, far float32) Mat4
+    Mat4Perspective returns a perspective projection matrix. fovY: vertical
+    field of view in radians aspect: aspect ratio (width/height) near: near
+    clipping plane distance (must be > 0) far: far clipping plane distance (must
+    be > near)
+
+    This uses right-handed coordinate system with Z in [-1, 1] (OpenGL/Vulkan
+    style). For WebGPU with Z in [0, 1], post-multiply with depth range
+    transform.
+
+func Mat4RotateX(radians float32) Mat4
+    Mat4RotateX returns a rotation matrix around the X axis. Angle is in
+    radians. Positive rotation follows right-hand rule.
+
+func Mat4RotateY(radians float32) Mat4
+    Mat4RotateY returns a rotation matrix around the Y axis. Angle is in
+    radians. Positive rotation follows right-hand rule.
+
+func Mat4RotateZ(radians float32) Mat4
+    Mat4RotateZ returns a rotation matrix around the Z axis. Angle is in
+    radians. Positive rotation follows right-hand rule.
+
+func Mat4Scale(x, y, z float32) Mat4
+    Mat4Scale returns a scaling matrix for the given factors. Scales objects by
+    (x, y, z) along each axis.
+
+func Mat4Translate(x, y, z float32) Mat4
+    Mat4Translate returns a translation matrix for the given offset. Translates
+    points by (x, y, z) in 3D space.
+
+func (m Mat4) Mul(other Mat4) Mat4
+    Mul multiplies this matrix by another matrix (column-major order). Returns
+    result = m * other (apply m first, then other).
+
+func (m Mat4) MulVec4(v Vec4) Vec4
+    MulVec4 multiplies this matrix by a 4D vector. Returns result = m * v
+    (transforms vector by matrix).
+
+type MipmapFilterMode = types.MipmapFilterMode
+
+type MultisampleState struct {
+	Count                  uint32
+	Mask                   uint32
+	AlphaToCoverageEnabled bool
+}
+    MultisampleState describes multisampling.
+
+type NativeDisplayHandleType uint32
+    NativeDisplayHandleType identifies the platform display connection type.
+    Used in NativeDisplayHandle.Type. New in v29.
+
+const (
+	// NativeDisplayHandleTypeNone indicates no display handle. Default (zero-init).
+	NativeDisplayHandleTypeNone NativeDisplayHandleType = 0x00000000
+	// NativeDisplayHandleTypeXlib is an X11 display via Xlib.
+	NativeDisplayHandleTypeXlib NativeDisplayHandleType = 0x00000001
+	// NativeDisplayHandleTypeXcb is an X11 display via XCB.
+	NativeDisplayHandleTypeXcb NativeDisplayHandleType = 0x00000002
+	// NativeDisplayHandleTypeWayland is a Wayland display connection.
+	NativeDisplayHandleTypeWayland NativeDisplayHandleType = 0x00000003
+)
+type NativeFeature uint32
+    NativeFeature describes a wgpu-native extension feature.
+
+const (
+	// NativeFeatureImmediates enables immediate data (push constants replacement).
+	// Renamed from PushConstants in v29.
+	NativeFeatureImmediates NativeFeature = 0x00030001
+	// NativeFeaturePushConstants is a deprecated alias for Immediates.
+	// Deprecated: Use NativeFeatureImmediates.
+	NativeFeaturePushConstants = NativeFeatureImmediates
+	// NativeFeatureTextureAdapterSpecificFormatFeatures enables device-specific texture format features.
+	NativeFeatureTextureAdapterSpecificFormatFeatures NativeFeature = 0x00030002
+	// NativeFeatureMultiDrawIndirectCount enables indirect draw count.
+	NativeFeatureMultiDrawIndirectCount NativeFeature = 0x00030004
+	// NativeFeatureVertexWritableStorage enables vertex shader writable storage.
+	NativeFeatureVertexWritableStorage NativeFeature = 0x00030005
+	// NativeFeatureTextureBindingArray enables texture binding arrays.
+	NativeFeatureTextureBindingArray NativeFeature = 0x00030006
+	// NativeFeatureSampledTextureAndStorageBufferArrayNonUniformIndexing enables non-uniform indexing.
+	NativeFeatureSampledTextureAndStorageBufferArrayNonUniformIndexing NativeFeature = 0x00030007
+	// NativeFeaturePipelineStatisticsQuery enables pipeline statistics queries.
+	NativeFeaturePipelineStatisticsQuery NativeFeature = 0x00030008
+	// NativeFeatureStorageResourceBindingArray enables storage resource binding arrays.
+	NativeFeatureStorageResourceBindingArray NativeFeature = 0x00030009
+	// NativeFeaturePartiallyBoundBindingArray enables partially bound binding arrays.
+	NativeFeaturePartiallyBoundBindingArray NativeFeature = 0x0003000A
+	// NativeFeatureTextureFormat16bitNorm enables normalized 16-bit texture formats.
+	NativeFeatureTextureFormat16bitNorm NativeFeature = 0x0003000B
+	// NativeFeatureTextureCompressionAstcHdr enables ASTC HDR compression.
+	NativeFeatureTextureCompressionAstcHdr NativeFeature = 0x0003000C
+	// NativeFeatureMappablePrimaryBuffers enables mappable primary buffers.
+	NativeFeatureMappablePrimaryBuffers NativeFeature = 0x0003000E
+	// NativeFeatureBufferBindingArray enables buffer binding arrays.
+	NativeFeatureBufferBindingArray NativeFeature = 0x0003000F
+	// NativeFeatureUniformBufferAndStorageTextureArrayNonUniformIndexing enables non-uniform indexing for these types.
+	NativeFeatureUniformBufferAndStorageTextureArrayNonUniformIndexing NativeFeature = 0x00030010
+	// NativeFeaturePolygonModeLine enables polygon line mode.
+	NativeFeaturePolygonModeLine NativeFeature = 0x00030013
+	// NativeFeaturePolygonModePoint enables polygon point mode.
+	NativeFeaturePolygonModePoint NativeFeature = 0x00030014
+	// NativeFeatureConservativeRasterization enables conservative rasterization.
+	NativeFeatureConservativeRasterization NativeFeature = 0x00030015
+	// NativeFeatureSpirvShaderPassthrough enables SPIR-V shader passthrough.
+	NativeFeatureSpirvShaderPassthrough NativeFeature = 0x00030017
+	// NativeFeatureVertexAttribute64bit enables 64-bit vertex attributes.
+	NativeFeatureVertexAttribute64bit NativeFeature = 0x00030019
+	// NativeFeatureTextureFormatNv12 enables NV12 texture format.
+	NativeFeatureTextureFormatNv12 NativeFeature = 0x0003001A
+	// NativeFeatureRayQuery enables ray query in shaders.
+	NativeFeatureRayQuery NativeFeature = 0x0003001C
+	// NativeFeatureShaderF64 enables f64 in shaders.
+	NativeFeatureShaderF64 NativeFeature = 0x0003001D
+	// NativeFeatureShaderI16 enables i16 in shaders.
+	NativeFeatureShaderI16 NativeFeature = 0x0003001E
+	// NativeFeatureShaderEarlyDepthTest enables early depth test attribute in shaders.
+	NativeFeatureShaderEarlyDepthTest NativeFeature = 0x00030020
+	// NativeFeatureSubgroup enables subgroup operations in compute/fragment shaders.
+	NativeFeatureSubgroup NativeFeature = 0x00030021
+	// NativeFeatureSubgroupVertex enables subgroup operations in vertex shaders.
+	NativeFeatureSubgroupVertex NativeFeature = 0x00030022
+	// NativeFeatureSubgroupBarrier enables subgroup barrier in compute shaders.
+	NativeFeatureSubgroupBarrier NativeFeature = 0x00030023
+	// NativeFeatureTimestampQueryInsideEncoders enables timestamp queries on command encoders.
+	NativeFeatureTimestampQueryInsideEncoders NativeFeature = 0x00030024
+	// NativeFeatureTimestampQueryInsidePasses enables timestamp queries inside render/compute passes.
+	NativeFeatureTimestampQueryInsidePasses NativeFeature = 0x00030025
+	// NativeFeatureShaderInt64 enables i64/u64 in shaders.
+	NativeFeatureShaderInt64 NativeFeature = 0x00030026
+)
+type NativeLimits struct {
+	Chain                                 ChainedStruct // chain.SType must be STypeNativeLimits
+	MaxImmediateSize                      uint32        // was maxPushConstantSize in v27
+	MaxNonSamplerBindings                 uint32        // max live non-sampler bindings (DX12 only)
+	MaxBindingArrayElementsPerShaderStage uint32        // max resources in binding arrays per shader stage
+}
+    NativeLimits extends WGPULimits with wgpu-native specific limits. Chain
+    via NextInChain in Limits with SType = STypeNativeLimits. v29 BREAKING:
+    maxPushConstantSize renamed to maxImmediateSize; maxNonSamplerBindings and
+    maxBindingArrayElementsPerShaderStage added.
+
+type OptionalBool uint32
+    OptionalBool is a tri-state boolean for WebGPU.
+
+const (
+	// OptionalBoolFalse represents an explicit false value.
+	OptionalBoolFalse OptionalBool = 0x00000000
+	// OptionalBoolTrue represents an explicit true value.
+	OptionalBoolTrue OptionalBool = 0x00000001
+	// OptionalBoolUndefined represents an unset/default value.
+	OptionalBoolUndefined OptionalBool = 0x00000002
+)
+type Origin3D = types.Origin3D
+    Origin3D is a 3D origin (x/y/z or array layer offset).
+
+type PassTimestampWrites struct {
+	QuerySet                  *QuerySet
+	BeginningOfPassWriteIndex uint32 // Use TimestampLocationUndefined to disable
+	EndOfPassWriteIndex       uint32 // Use TimestampLocationUndefined to disable
+}
+    PassTimestampWrites describes timestamp writes for a render or compute pass.
+    v29: Unified struct — replaces separate RenderPassTimestampWrites and
+    ComputePassTimestampWrites.
+
+type PipelineLayout struct {
+	// Has unexported fields.
+}
+    PipelineLayout defines the bind group layouts used by a pipeline. Create
+    with Device.CreatePipelineLayout, release with PipelineLayout.Release.
+    device is the parent Device handle for lost-safe Release.
+
+func (pl *PipelineLayout) Handle() uintptr
+    Handle returns the underlying handle.
+
+func (pl *PipelineLayout) Release()
+    Release releases the pipeline layout. Nil-safe and idempotent. Skips native
+    release when the parent device is lost.
+
+type PipelineLayoutDescriptor struct {
+	Label            string
+	BindGroupLayouts []*BindGroupLayout
+}
+    PipelineLayoutDescriptor describes a pipeline layout to create.
+    BindGroupLayouts is a slice of *BindGroupLayout; nil for auto layout.
+
+type PipelineLayoutDescriptorGo = PipelineLayoutDescriptor
+    PipelineLayoutDescriptorGo is kept for backward compatibility. Deprecated:
+    Use PipelineLayoutDescriptor directly (now Go-idiomatic).
+
+type PipelineLayoutExtras struct {
+	Chain             ChainedStruct // chain.SType must be STypePipelineLayoutExtras
+	ImmediateDataSize uint32        // bytes of immediate data for shaders (requires NativeFeatureImmediates)
+}
+    PipelineLayoutExtras provides wgpu-native specific pipeline layout
+    extensions. Chain via NextInChain in PipelineLayoutDescriptor
+    with SType = STypePipelineLayoutExtras. v29 BREAKING:
+    pushConstantRangeCount/pushConstantRanges replaced by immediateDataSize.
+
+type PopErrorScopeStatus uint32
+    PopErrorScopeStatus describes the result of PopErrorScope operation.
+
+const (
+	// PopErrorScopeStatusSuccess indicates the error scope was successfully popped.
+	PopErrorScopeStatusSuccess PopErrorScopeStatus = 0x00000001
+	// PopErrorScopeStatusCallbackCancelled indicates the operation was cancelled (e.g. instance dropped).
+	// Renamed from InstanceDropped in v29.
+	PopErrorScopeStatusCallbackCancelled PopErrorScopeStatus = 0x00000002
+	// PopErrorScopeStatusError indicates the error scope stack was empty or another error occurred.
+	// Renamed from EmptyStack in v29.
+	PopErrorScopeStatusError PopErrorScopeStatus = 0x00000003
+	// PopErrorScopeStatusInstanceDropped is a deprecated alias for CallbackCancelled.
+	// Deprecated: Use PopErrorScopeStatusCallbackCancelled.
+	PopErrorScopeStatusInstanceDropped = PopErrorScopeStatusCallbackCancelled
+	// PopErrorScopeStatusEmptyStack is a deprecated alias for Error.
+	// Deprecated: Use PopErrorScopeStatusError.
+	PopErrorScopeStatusEmptyStack = PopErrorScopeStatusError
+)
+type PowerPreference = types.PowerPreference
+    Adapter types.
+
+type PredefinedColorSpace uint32
+    PredefinedColorSpace describes a color space for surface color management.
+    New in v29.
+
+const (
+	// PredefinedColorSpaceSRGB is the standard sRGB color space.
+	PredefinedColorSpaceSRGB      PredefinedColorSpace = 0x00000001
+	PredefinedColorSpaceDisplayP3 PredefinedColorSpace = 0x00000002
+)
+type PresentMode = types.PresentMode
+    Surface/presentation types.
+
+type PrimitiveState struct {
+	Topology         types.PrimitiveTopology
+	StripIndexFormat types.IndexFormat
+	FrontFace        types.FrontFace
+	CullMode         types.CullMode
+	// UnclippedDepth enables depth values outside [0, 1] (requires feature).
+	UnclippedDepth bool
+}
+    PrimitiveState describes how primitives are assembled.
+
+type PrimitiveTopology = types.PrimitiveTopology
+    Primitive assembly types.
+
+type Proc interface {
+	// Call invokes the procedure with the given arguments.
+	// Returns the result value and error (if any).
+	// Arguments are passed as uintptr to match C ABI.
+	Call(args ...uintptr) (uintptr, uintptr, error)
+}
+    Proc represents a procedure (function pointer) from a dynamically loaded
+    library. It abstracts platform-specific function calling mechanisms.
+
+type ProgrammableStageDescriptor struct {
+	NextInChain   uintptr    // *ChainedStruct
+	Module        uintptr    // WGPUShaderModule
+	EntryPoint    StringView // Entry point function name
+	ConstantCount uintptr    // size_t
+	Constants     uintptr    // *ConstantEntry
+}
+    ProgrammableStageDescriptor describes a programmable shader stage.
+
+type QuerySet struct {
+	// Has unexported fields.
+}
+    QuerySet holds a set of GPU queries (occlusion or timestamp). Create with
+    Device.CreateQuerySet, release with QuerySet.Release. device is the parent
+    Device handle for lost-safe Release/Destroy.
+
+func (qs *QuerySet) Destroy()
+    Destroy destroys the QuerySet, making it invalid. After Destroy the
+    handle is nulled so subsequent ops cannot call native with a wild pointer.
+    Idempotent; a following Release is a no-op. When the parent device is lost,
+    only Go-side state is cleared.
+
+func (qs *QuerySet) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (qs *QuerySet) Release()
+    Release releases the QuerySet reference. Nil-safe and idempotent. Skips
+    native release when the parent device is lost.
+
+type QuerySetDescriptor struct {
+	Label string
+	Type  QueryType
+	Count uint32
+}
+    QuerySetDescriptor describes a QuerySet to create.
+
+type QueryType uint32
+    QueryType describes the type of queries in a QuerySet.
+
+const (
+	// QueryTypeOcclusion specifies occlusion queries.
+	QueryTypeOcclusion QueryType = 0x00000001
+	// QueryTypeTimestamp specifies timestamp queries for GPU profiling.
+	QueryTypeTimestamp QueryType = 0x00000002
+)
+type Queue struct {
+	// Has unexported fields.
+}
+    Queue is used to submit command buffers and write data to buffers/textures.
+    Obtained via Device.Queue, release with Queue.Release.
+
+func (q *Queue) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (q *Queue) OnSubmittedWorkDone() (Future, error)
+    OnSubmittedWorkDone registers a callback that fires once all GPU work
+    submitted before this call has completed (Skia command-buffer refs / fence
+    semantics, P6).
+
+    The returned Future must be polled (Device.Poll / WaitForFuture) for the
+    callback to fire — this wgpu-native build uses callback-mode futures.
+    The frame path should NOT block on the future: completion is also reachable
+    at the existing sync points (BeginFrame vsync/drainQueue).
+
+func (q *Queue) Release()
+    Release releases the queue resources. Nil-safe and idempotent. Skips
+    native release when the parent device is lost. Release releases the queue
+    resources. Nil-safe and idempotent. Skips native release when the parent
+    device is lost.
+
+func (q *Queue) Submit(commands ...*CommandBuffer) (uint64, error)
+    Submit submits command buffers for execution. Returns the submission
+    index (uint64) and nil on success. The submission index can be used with
+    Device.Poll to track when work completes.
+
+func (q *Queue) WriteBuffer(buffer *Buffer, offset uint64, data []byte) error
+    WriteBuffer writes data to a buffer. Returns nil on success. On this
+    libwgpu_native.so, a lost parent yields a soft uncaptured "Parent device is
+    lost" (not a fatal abort). We fold that into sticky device-lost and return
+    ErrDeviceLost so surface acquire can refuse.
+
+func (q *Queue) WriteBufferRaw(buffer *Buffer, offset uint64, data unsafe.Pointer, size uint64)
+    WriteBufferTyped writes typed data to a buffer. The data pointer should
+    point to the first element, size is total byte size.
+
+func (q *Queue) WriteTexture(dest *ImageCopyTexture, data []byte, layout *ImageDataLayout, size *types.Extent3D) error
+    WriteTexture writes data to a texture. Returns nil on success. In this FFI
+    implementation errors are surfaced through the Device uncaptured-error
+    callback; the signature matches gogpu/wgpu for API compatibility.
+
+    Accepts either ImageCopyTexture or TexelCopyTextureInfo as dest (via
+    overloads below). This overload takes the high-level ImageCopyTexture type.
+
+func (q *Queue) WriteTextureRaw(dest *TexelCopyTextureInfo, data []byte, layout *TexelCopyBufferLayout, size *types.Extent3D) error
+    WriteTextureRaw writes data to a texture using the low-level wire types.
+    Prefer [WriteTexture] for new code.
+
+type QueueDescriptor struct {
+	NextInChain uintptr // *ChainedStruct
+	Label       StringView
+}
+    QueueDescriptor configures queue creation.
+
+type QueueWorkDoneStatus int
+    QueueWorkDoneStatus mirrors WGPUQueueWorkDoneStatus.
+
+const (
+	// QueueWorkDoneSuccess indicates all submitted work completed.
+	QueueWorkDoneSuccess QueueWorkDoneStatus = iota
+	// QueueWorkDoneError indicates an error occurred during execution.
+	QueueWorkDoneError
+	// QueueWorkDoneUnknown indicates an unknown failure.
+	QueueWorkDoneUnknown
+	// QueueWorkDoneDeviceLost indicates the device was lost while executing.
+	QueueWorkDoneDeviceLost
+)
+type RenderBundle struct {
+	// Has unexported fields.
+}
+    RenderBundle is a pre-recorded set of render commands for efficient replay.
+    Obtained from RenderBundleEncoder.Finish, release with RenderBundle.Release.
+    device is the parent Device handle for lost-safe Release.
+
+func (rb *RenderBundle) Handle() uintptr
+    Handle returns the underlying handle.
+
+func (rb *RenderBundle) Release()
+    Release releases the render bundle. Nil-safe and idempotent. Skips native
+    release when the parent device is lost.
+
+type RenderBundleDescriptor struct {
+	NextInChain uintptr // *ChainedStruct
+	Label       StringView
+}
+    RenderBundleDescriptor describes a render bundle.
+
+type RenderBundleEncoder struct {
+	// Has unexported fields.
+}
+    RenderBundleEncoder records render commands into a RenderBundle. Create with
+    Device.CreateRenderBundleEncoder, finalize with RenderBundleEncoder.Finish.
+    device is the parent Device handle for lost-safe Release.
+
+func (rbe *RenderBundleEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32)
+    Draw records a non-indexed draw call.
+
+func (rbe *RenderBundleEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32)
+    DrawIndexed records an indexed draw call.
+
+func (rbe *RenderBundleEncoder) DrawIndexedIndirect(indirectBuffer *Buffer, indirectOffset uint64)
+    DrawIndexedIndirect records an indirect indexed draw call.
+
+func (rbe *RenderBundleEncoder) DrawIndirect(indirectBuffer *Buffer, indirectOffset uint64)
+    DrawIndirect records an indirect draw call.
+
+func (rbe *RenderBundleEncoder) Finish(desc ...*RenderBundleDescriptor) *RenderBundle
+    Finish completes recording and returns the render bundle. The optional desc
+    parameter allows specifying a label; if omitted, nil is used.
+
+func (rbe *RenderBundleEncoder) Handle() uintptr
+    Handle returns the underlying handle.
+
+func (rbe *RenderBundleEncoder) Release()
+    Release releases the render bundle encoder. Nil-safe and idempotent.
+    Skips native release when the parent device is lost.
+
+func (rbe *RenderBundleEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, dynamicOffsets []uint32)
+    SetBindGroup sets a bind group at the given index.
+
+func (rbe *RenderBundleEncoder) SetIndexBuffer(buffer *Buffer, format types.IndexFormat, offset, size uint64)
+    SetIndexBuffer sets the index buffer.
+
+func (rbe *RenderBundleEncoder) SetPipeline(pipeline *RenderPipeline)
+    SetPipeline sets the render pipeline for subsequent draw calls.
+
+func (rbe *RenderBundleEncoder) SetVertexBuffer(slot uint32, buffer *Buffer, offset, size uint64)
+    SetVertexBuffer sets a vertex buffer at the given slot.
+
+type RenderBundleEncoderDescriptor struct {
+	Label              string
+	ColorFormats       []types.TextureFormat
+	DepthStencilFormat types.TextureFormat
+	SampleCount        uint32
+	DepthReadOnly      bool
+	StencilReadOnly    bool
+}
+    RenderBundleEncoderDescriptor describes a render bundle encoder to create.
+
+type RenderBundleEncoderDescriptorGo = RenderBundleEncoderDescriptor
+    RenderBundleEncoderDescriptorGo is kept for backward compatibility.
+    Deprecated: Use RenderBundleEncoderDescriptor directly (now Go-idiomatic).
+
+type RenderPassColorAttachment struct {
+	View          *TextureView
+	ResolveTarget *TextureView // For MSAA, nil otherwise
+	LoadOp        types.LoadOp
+	StoreOp       types.StoreOp
+	ClearValue    Color
+}
+    RenderPassColorAttachment describes a color attachment for a render pass.
+
+type RenderPassDepthStencilAttachment struct {
+	View              *TextureView
+	DepthLoadOp       types.LoadOp
+	DepthStoreOp      types.StoreOp
+	DepthClearValue   float32
+	DepthReadOnly     bool
+	StencilLoadOp     types.LoadOp
+	StencilStoreOp    types.StoreOp
+	StencilClearValue uint32
+	StencilReadOnly   bool
+}
+    RenderPassDepthStencilAttachment describes a depth/stencil attachment (user
+    API).
+
+type RenderPassDescriptor struct {
+	Label                  string
+	ColorAttachments       []RenderPassColorAttachment
+	DepthStencilAttachment *RenderPassDepthStencilAttachment
+	TimestampWrites        *RenderPassTimestampWrites
+}
+    RenderPassDescriptor describes a render pass.
+
+type RenderPassEncoder struct {
+	// Has unexported fields.
+}
+    RenderPassEncoder records draw commands within a render pass. Begin with
+    CommandEncoder.BeginRenderPass, end with RenderPassEncoder.End.
+
+func (rpe *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32)
+    Draw draws primitives.
+
+func (rpe *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32)
+    DrawIndexed draws indexed primitives.
+
+func (rpe *RenderPassEncoder) DrawIndexedIndirect(indirectBuffer *Buffer, indirectOffset uint64)
+    DrawIndexedIndirect draws indexed primitives using parameters from a GPU
+    buffer. indirectBuffer must contain a DrawIndexedIndirectArgs structure:
+      - indexCount (uint32)
+      - instanceCount (uint32)
+      - firstIndex (uint32)
+      - baseVertex (int32)
+      - firstInstance (uint32)
+
+func (rpe *RenderPassEncoder) DrawIndirect(indirectBuffer *Buffer, indirectOffset uint64)
+    DrawIndirect draws primitives using parameters from a GPU buffer.
+    indirectBuffer must contain a DrawIndirectArgs structure:
+      - vertexCount (uint32)
+      - instanceCount (uint32)
+      - firstVertex (uint32)
+      - firstInstance (uint32)
+
+func (rpe *RenderPassEncoder) End()
+    End ends the render pass.
+
+func (rpe *RenderPassEncoder) ExecuteBundles(bundles []*RenderBundle)
+    ExecuteBundles executes pre-recorded render bundles in the render pass.
+    This is useful for replaying static geometry without re-recording commands.
+
+func (rpe *RenderPassEncoder) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (rpe *RenderPassEncoder) InsertDebugMarker(markerLabel string)
+    InsertDebugMarker inserts a single debug marker label into the render pass.
+    This is useful for GPU debugging tools to identify specific command points.
+
+func (rpe *RenderPassEncoder) PopDebugGroup()
+    PopDebugGroup ends the current debug group in the render pass. Must match a
+    preceding PushDebugGroup call.
+
+func (rpe *RenderPassEncoder) PushDebugGroup(groupLabel string)
+    PushDebugGroup begins a labeled debug group in the render pass. Use
+    PopDebugGroup to end the group. Groups can be nested.
+
+func (rpe *RenderPassEncoder) Release()
+    Release releases the render pass encoder.
+
+func (rpe *RenderPassEncoder) SetBindGroup(groupIndex uint32, group *BindGroup, dynamicOffsets []uint32)
+    SetBindGroup sets a bind group for this pass. Passing group == nil (or a
+    zero handle) unsets the bind group at groupIndex. Unsetting is required
+    before SetPipeline when switching to a pipeline whose bind-group layouts are
+    incompatible with the previously bound groups
+
+func (rpe *RenderPassEncoder) SetBlendConstant(color *Color)
+    SetBlendConstant sets the blend constant color used by blend operations.
+    Errors are reported via Device error scopes.
+
+func (rpe *RenderPassEncoder) SetIndexBuffer(buffer *Buffer, format types.IndexFormat, offset, size uint64)
+    SetIndexBuffer sets the index buffer for this pass.
+
+func (rpe *RenderPassEncoder) SetPipeline(pipeline *RenderPipeline)
+    SetPipeline sets the render pipeline for this pass.
+
+func (rpe *RenderPassEncoder) SetScissorRect(x, y, width, height uint32)
+    SetScissorRect sets the scissor rectangle used during the rasterization
+    stage. Pixels outside the scissor rectangle will be discarded. x, y:
+    top-left corner of the scissor rectangle in pixels width, height: dimensions
+    of the scissor rectangle in pixels
+
+func (rpe *RenderPassEncoder) SetStencilReference(reference uint32)
+    SetStencilReference sets the stencil reference value used by stencil
+    operations.
+
+func (rpe *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer *Buffer, offset, size uint64)
+    SetVertexBuffer sets a vertex buffer for this pass.
+
+func (rpe *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth float32)
+    SetViewport sets the viewport used during the rasterization stage. x, y:
+    top-left corner of the viewport in pixels width, height: dimensions of
+    the viewport in pixels minDepth, maxDepth: depth range for the viewport
+    (typically 0.0 to 1.0)
+
+type RenderPassTimestampWrites = PassTimestampWrites
+    RenderPassTimestampWrites is a deprecated alias for PassTimestampWrites.
+    Deprecated: Use PassTimestampWrites. Renamed in wgpu-native v29.
+
+type RenderPipeline struct {
+	// Has unexported fields.
+}
+    RenderPipeline is a compiled render pipeline configuration (shaders,
+    vertex layout, blend state). Create with Device.CreateRenderPipeline,
+    release with RenderPipeline.Release. device is the parent Device handle for
+    lost-safe Release.
+
+func (rp *RenderPipeline) GetBindGroupLayout(groupIndex uint32) *BindGroupLayout
+    GetBindGroupLayout returns the bind group layout for the given index.
+    Defense order: nil/zero handle → lost → init → native.
+
+func (rp *RenderPipeline) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (rp *RenderPipeline) Release()
+    Release releases the render pipeline. Nil-safe and idempotent. Skips native
+    release when the parent device is lost.
+
+type RenderPipelineDescriptor struct {
+	Label        string
+	Layout       *PipelineLayout // nil for auto layout
+	Vertex       VertexState
+	Primitive    PrimitiveState
+	DepthStencil *DepthStencilState // nil for no depth/stencil
+	Multisample  MultisampleState
+	Fragment     *FragmentState // nil for no fragment stage (depth-only)
+}
+    RenderPipelineDescriptor describes a render pipeline to create.
+
+type RequestAdapterCallbackInfo struct {
+	NextInChain uintptr // *ChainedStruct
+	Mode        CallbackMode
+	Callback    uintptr // Function pointer
+	Userdata1   uintptr
+	Userdata2   uintptr
+}
+    RequestAdapterCallbackInfo holds callback configuration.
+
+type RequestAdapterOptions struct {
+	// PowerPreference indicates power consumption preference.
+	PowerPreference types.PowerPreference
+	// ForceFallbackAdapter forces the use of a software adapter.
+	ForceFallbackAdapter bool
+	// CompatibleSurface, if non-nil, restricts adapter selection to those
+	// compatible with rendering to the given surface.
+	CompatibleSurface *Surface
+}
+    RequestAdapterOptions configures adapter selection.
+
+type RequestAdapterStatus uint32
+    RequestAdapterStatus is the status returned by RequestAdapter callback.
+
+const (
+	// RequestAdapterStatusSuccess indicates the adapter was successfully obtained.
+	RequestAdapterStatusSuccess RequestAdapterStatus = 0x00000001
+	// RequestAdapterStatusCallbackCancelled indicates the operation was cancelled (e.g. instance dropped).
+	// Renamed from InstanceDropped in v29.
+	RequestAdapterStatusCallbackCancelled RequestAdapterStatus = 0x00000002
+	// RequestAdapterStatusUnavailable indicates no suitable adapter is available.
+	RequestAdapterStatusUnavailable RequestAdapterStatus = 0x00000003
+	// RequestAdapterStatusError indicates an error occurred during adapter request.
+	RequestAdapterStatusError RequestAdapterStatus = 0x00000004
+	// RequestAdapterStatusInstanceDropped is a deprecated alias for CallbackCancelled.
+	// Deprecated: Use RequestAdapterStatusCallbackCancelled.
+	RequestAdapterStatusInstanceDropped = RequestAdapterStatusCallbackCancelled
+)
+type RequestDeviceCallbackInfo struct {
+	NextInChain uintptr // *ChainedStruct
+	Mode        CallbackMode
+	Callback    uintptr // Function pointer
+	Userdata1   uintptr
+	Userdata2   uintptr
+}
+    RequestDeviceCallbackInfo holds callback configuration for RequestDevice.
+
+type RequestDeviceStatus uint32
+    RequestDeviceStatus is the status returned by RequestDevice callback.
+
+const (
+	// RequestDeviceStatusSuccess indicates the device was successfully obtained.
+	RequestDeviceStatusSuccess RequestDeviceStatus = 0x00000001
+	// RequestDeviceStatusCallbackCancelled indicates the operation was cancelled (e.g. instance dropped).
+	// Renamed from InstanceDropped in v29.
+	RequestDeviceStatusCallbackCancelled RequestDeviceStatus = 0x00000002
+	// RequestDeviceStatusError indicates an error occurred during device request.
+	RequestDeviceStatusError RequestDeviceStatus = 0x00000003
+	// RequestDeviceStatusInstanceDropped is a deprecated alias for CallbackCancelled.
+	// Deprecated: Use RequestDeviceStatusCallbackCancelled.
+	RequestDeviceStatusInstanceDropped = RequestDeviceStatusCallbackCancelled
+)
+type SType uint32
+    SType identifies chained struct types.
+
+const (
+	// STypeShaderSourceSPIRV identifies a SPIR-V shader source chained struct.
+	STypeShaderSourceSPIRV SType = 0x00000001
+	// STypeShaderSourceWGSL identifies a WGSL shader source chained struct.
+	STypeShaderSourceWGSL SType = 0x00000002
+	// STypeRenderPassMaxDrawCount identifies the max draw count chained struct.
+	STypeRenderPassMaxDrawCount SType = 0x00000003
+
+	// STypeSurfaceSourceMetalLayer identifies a Metal layer surface source (macOS/iOS).
+	STypeSurfaceSourceMetalLayer SType = 0x00000004
+	// STypeSurfaceSourceWindowsHWND identifies a Windows HWND surface source.
+	STypeSurfaceSourceWindowsHWND SType = 0x00000005
+	// STypeSurfaceSourceXlibWindow identifies an Xlib window surface source (Linux).
+	STypeSurfaceSourceXlibWindow SType = 0x00000006
+	// STypeSurfaceSourceWaylandSurface identifies a Wayland surface source (Linux).
+	STypeSurfaceSourceWaylandSurface SType = 0x00000007
+	// STypeSurfaceSourceAndroidNativeWindow identifies an Android native window surface source.
+	STypeSurfaceSourceAndroidNativeWindow SType = 0x00000008
+	// STypeSurfaceSourceXCBWindow identifies an XCB window surface source (Linux).
+	STypeSurfaceSourceXCBWindow SType = 0x00000009
+	// STypeSurfaceColorManagement identifies a surface color management chained struct. New in v29.
+	STypeSurfaceColorManagement SType = 0x0000000A
+	// STypeRequestAdapterWebXROptions identifies WebXR adapter options. New in v29.
+	STypeRequestAdapterWebXROptions SType = 0x0000000B
+	// STypeTextureComponentSwizzleDescriptor identifies a texture component swizzle descriptor. New in v29.
+	STypeTextureComponentSwizzleDescriptor SType = 0x0000000C
+	// STypeExternalTextureBindingLayout identifies an external texture binding layout. New in v29.
+	STypeExternalTextureBindingLayout SType = 0x0000000D
+	// STypeExternalTextureBindingEntry identifies an external texture binding entry. New in v29.
+	STypeExternalTextureBindingEntry SType = 0x0000000E
+	// STypeCompatibilityModeLimits identifies compat-mode limits. New in v29.
+	STypeCompatibilityModeLimits SType = 0x0000000F
+	// STypeTextureBindingViewDimension identifies a texture binding view dimension. New in v29.
+	STypeTextureBindingViewDimension SType = 0x00000010
+
+	// STypeDeviceExtras identifies wgpu-native device extras chained struct.
+	STypeDeviceExtras SType = 0x00030001
+	// STypeNativeLimits identifies wgpu-native native limits chained struct.
+	STypeNativeLimits SType = 0x00030002
+	// STypeShaderSourceGLSL identifies a GLSL shader source chained struct.
+	STypeShaderSourceGLSL SType = 0x00030003
+	// STypeInstanceExtras identifies wgpu-native instance extras (backends, budgets).
+	STypeInstanceExtras SType = 0x00030004
+	// STypeBindGroupEntryExtras identifies wgpu-native bind group entry extras.
+	STypeBindGroupEntryExtras SType = 0x00030005
+	// STypeBindGroupLayoutEntryExtras identifies wgpu-native bind group layout entry extras.
+	STypeBindGroupLayoutEntryExtras SType = 0x00030006
+	// STypeQuerySetDescriptorExtras identifies wgpu-native query set descriptor extras.
+	STypeQuerySetDescriptorExtras SType = 0x00030007
+	// STypeSurfaceConfigurationExtras identifies wgpu-native surface configuration extras.
+	STypeSurfaceConfigurationExtras SType = 0x00030008
+	// STypeSurfaceSourceSwapChainPanel identifies a WinUI SwapChainPanel surface source.
+	STypeSurfaceSourceSwapChainPanel SType = 0x00030009
+	// STypePrimitiveStateExtras identifies wgpu-native primitive state extras.
+	STypePrimitiveStateExtras SType = 0x0003000A
+	// STypeSamplerDescriptorExtras identifies wgpu-native sampler descriptor extras.
+	STypeSamplerDescriptorExtras SType = 0x0003000B
+
+	// STypePipelineLayoutExtras is no longer in current wgpu.h; kept as an alias
+	// of ShaderSourceGLSL only so old references compile. Do not chain this.
+	// Deprecated: removed from native ABI.
+	STypePipelineLayoutExtras SType = STypeShaderSourceGLSL
+)
+type Sampler struct {
+	// Has unexported fields.
+}
+    Sampler defines how a shader samples a Texture. Create with
+    Device.CreateSampler, release with Sampler.Release. device is the parent
+    Device handle for lost-safe Release.
+
+func (s *Sampler) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (s *Sampler) Release()
+    Release releases the sampler reference.
+
+type SamplerBindingLayout = types.SamplerBindingLayout
+    SamplerBindingLayout describes sampler binding properties.
+
+    This type matches gputypes.SamplerBindingLayout for cross-project
+    compatibility. Used as a pointer field in BindGroupLayoutEntry; nil means
+    "not a sampler binding".
+
+type SamplerBindingType = types.SamplerBindingType
+
+type SamplerDescriptor struct {
+	Label        string
+	AddressModeU types.AddressMode
+	AddressModeV types.AddressMode
+	AddressModeW types.AddressMode
+	MagFilter    types.FilterMode
+	MinFilter    types.FilterMode
+	MipmapFilter types.MipmapFilterMode
+	LodMinClamp  float32
+	LodMaxClamp  float32
+	Compare      types.CompareFunction
+	// Anisotropy is the maximum anisotropy level for anisotropic filtering.
+	// wgpu-native requires a value >= 1; 0 is automatically clamped to 1.
+	Anisotropy uint16
+}
+    SamplerDescriptor describes a sampler to create.
+
+type ShaderDescriptor struct {
+	Label string
+	WGSL  string   // WGSL source code
+	SPIRV []uint32 // SPIR-V bytecode (alternative to WGSL)
+}
+    ShaderDescriptor is the Go-idiomatic descriptor for creating a shader
+    module. Use WGSL to specify WGSL source, or SPIRV for SPIR-V bytecode.
+    If both are set, WGSL takes precedence. Use Device.CreateShaderModule or
+    Device.CreateShaderModuleFromDescriptor to create from this.
+
+type ShaderModule struct {
+	// Has unexported fields.
+}
+    ShaderModule holds compiled shader code (WGSL or SPIR-V). Create with
+    Device.CreateShaderModuleWGSL, release with ShaderModule.Release. device is
+    the parent Device handle for lost-safe Release.
+
+func (s *ShaderModule) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (s *ShaderModule) Release()
+    Release releases the shader module resources.
+
+type ShaderModuleDescriptor struct {
+	NextInChain uintptr    // *ChainedStruct
+	Label       StringView // Shader module label for debugging
+}
+    ShaderModuleDescriptor describes a shader module to create.
+
+type ShaderModuleDescriptorGo = ShaderDescriptor
+    ShaderModuleDescriptorGo is an alias for ShaderDescriptor. Use this name
+    when matching the gogpu/wgpu naming convention.
+
+type ShaderSourceWGSL struct {
+	Chain ChainedStruct
+	Code  StringView
+}
+    ShaderSourceWGSL provides WGSL source code for shader creation.
+
+type ShaderStage = types.ShaderStage
+    Shader stage type. ShaderStage is the uint32 bitflag for individual stages
+    (vertex/fragment/compute). ShaderStages is an alias for the same type for
+    use in pipeline descriptors.
+
+type ShaderStages = types.ShaderStages
+
+type StencilFaceState struct {
+	Compare     types.CompareFunction
+	FailOp      types.StencilOperation
+	DepthFailOp types.StencilOperation
+	PassOp      types.StencilOperation
+}
+    StencilFaceState describes stencil operations for a face.
+
+type StencilOperation = types.StencilOperation
+
+type StorageTextureBindingLayout = types.StorageTextureBindingLayout
+    StorageTextureBindingLayout describes storage texture binding properties.
+
+    This type matches gputypes.StorageTextureBindingLayout for cross-project
+    compatibility. Used as a pointer field in BindGroupLayoutEntry; nil means
+    "not a storage texture binding".
+
+type StoreOp = types.StoreOp
+
+type StringView struct {
+	Data   uintptr // *char
+	Length uintptr // size_t, use SIZE_MAX for null-terminated
+}
+    StringView represents a WebGPU string view (pointer + length).
+
+func EmptyStringView() StringView
+    EmptyStringView returns an empty string view (null label).
+
+type SupportedFeatures struct {
+	FeatureCount uintptr // size_t
+	Features     uintptr // *FeatureName (C-allocated, must free with SupportedFeaturesFreeMembers)
+}
+    SupportedFeatures contains features supported by adapter or device. This
+    is the wire format for wgpuAdapterGetFeatures/wgpuDeviceGetFeatures (v29
+    single-call API). Call SupportedFeaturesFreeMembers after use to release
+    C-allocated memory.
+
+type Surface struct {
+	// Has unexported fields.
+}
+    Surface represents a platform window surface for presenting rendered frames.
+    Create with platform-specific CreateSurface, release with Surface.Release.
+    device is the last configured Device handle (0 if unconfigured); used to
+    refuse GetCurrentTexture after device-lost without calling into native.
+
+func (s *Surface) Configure(device *Device, config *SurfaceConfiguration) error
+    Configure configures the surface for rendering. The device argument
+    specifies which logical device to use for the surface. If config.Device
+    is also set (deprecated usage), it takes precedence over the device arg.
+    Returns nil on success. Soft-error native reports failures via Device
+    ErrorSink (Uncaptured/DeviceLost); this method folds them into the returned
+    error. Enum values are converted from gputypes to wgpu-native values before
+    FFI call.
+
+func (s *Surface) ConfigureLegacy(config *SurfaceConfiguration)
+    ConfigureLegacy configures the surface using only the config struct (legacy
+    API). Deprecated: use Configure(device, config) instead.
+
+func (s *Surface) DiscardCurrent()
+    DiscardCurrent drops the currently acquired surface texture without
+    presenting it. wgpu-native exposes no surface-texture discard entry point,
+    so wgpuSurfacePresent is the only public operation that removes the
+    SurfaceTexture from Surface.presentation.acquired_texture; callers must use
+    this only on error / reconfigure / close paths, never for a normal frame.
+    Nil-safe and idempotent.
+
+func (s *Surface) DiscardCurrentIf(st *SurfaceTexture)
+    DiscardCurrentIf drops st only when it is still this surface's current
+    acquired texture. A timed-out acquire goroutine may return after a newer
+    acquire has replaced current; in that case it must release only its own
+    texture handle and leave the newer output alone. Nil-safe and idempotent.
+
+func (s *Surface) GetCapabilities(adapter *Adapter) (*SurfaceCapabilities, error)
+    GetCapabilities queries the surface capabilities for the given adapter.
+    This determines which texture formats, present modes, and alpha modes are
+    supported. The caller must provide a valid adapter that will be used with
+    this surface. Defense order: nil/zero handle → init → native.
+
+func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error)
+    GetCurrentTexture gets the current texture to render to. Returns the
+    texture, a suboptimal flag (true if the surface needs reconfiguration but is
+    still usable this frame), and any error.
+
+    Soft-error native (patched rwgpu): parent-device-lost and not-configured
+    return status=Error (and may fire Uncaptured/DeviceLost). Go maps status +
+    uncaptured into structured errors. Still refuse native when sticky-lost /
+    probe fail-closed.
+
+func (s *Surface) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (s *Surface) Present(texture ...*SurfaceTexture) error
+    Present presents the current frame to the surface. The texture argument
+    is accepted for API compatibility with gogpu/wgpu but is unused in the FFI
+    implementation (wgpuSurfacePresent takes no texture arg). Returns nil on
+    success.
+
+func (s *Surface) Release()
+    Release releases the surface. Nil-safe and idempotent. Skips native
+    release when the parent device is lost or the surface was abandoned after
+    parent-lost refuse.
+
+func (s *Surface) Unconfigure()
+    Unconfigure removes the surface configuration. Defense order:
+    nil/zero handle → abandoned/lost (skip native) → init → native. Nil-safe,
+    zero-handle-safe, and idempotent w.r.t. Go-side device binding.
+
+type SurfaceCapabilities struct {
+	Usages       types.TextureUsage
+	Formats      []types.TextureFormat
+	PresentModes []types.PresentMode
+	AlphaModes   []types.CompositeAlphaMode
+}
+    SurfaceCapabilities describes the capabilities of a surface for
+    presentation. Returned by Surface.GetCapabilities() to query supported
+    formats, present modes, etc.
+
+type SurfaceConfiguration struct {
+	// Device is deprecated: pass the device to Configure() directly instead.
+	// Kept for backward compatibility. If non-nil, overrides the explicit device argument.
+	Device      *Device
+	Format      types.TextureFormat
+	Usage       types.TextureUsage
+	Width       uint32
+	Height      uint32
+	AlphaMode   types.CompositeAlphaMode
+	PresentMode types.PresentMode
+}
+    SurfaceConfiguration describes how to configure a surface. Note: the Device
+    field is deprecated — pass the device as a separate argument to Configure.
+    It remains here for backward compatibility; if non-nil it takes precedence
+    over the explicit arg.
+
+type SurfaceGetCurrentTextureStatus uint32
+    SurfaceGetCurrentTextureStatus describes the result of GetCurrentTexture.
+
+const (
+	// SurfaceGetCurrentTextureStatusSuccessOptimal indicates the texture was obtained optimally.
+	SurfaceGetCurrentTextureStatusSuccessOptimal SurfaceGetCurrentTextureStatus = 0x00000001
+	// SurfaceGetCurrentTextureStatusSuccessSuboptimal indicates the texture was obtained but may not be optimal.
+	SurfaceGetCurrentTextureStatusSuccessSuboptimal SurfaceGetCurrentTextureStatus = 0x00000002
+	// SurfaceGetCurrentTextureStatusTimeout indicates the operation timed out.
+	SurfaceGetCurrentTextureStatusTimeout SurfaceGetCurrentTextureStatus = 0x00000003
+	// SurfaceGetCurrentTextureStatusOutdated indicates the surface needs reconfiguration.
+	SurfaceGetCurrentTextureStatusOutdated SurfaceGetCurrentTextureStatus = 0x00000004
+	// SurfaceGetCurrentTextureStatusLost indicates the surface was lost and must be recreated.
+	SurfaceGetCurrentTextureStatusLost SurfaceGetCurrentTextureStatus = 0x00000005
+	// SurfaceGetCurrentTextureStatusError indicates a deterministic error (e.g. surface not configured).
+	// BREAKING: v27 had OutOfMemory=0x06, DeviceLost=0x07, Error=0x08; v29 collapsed to Error=0x06.
+	SurfaceGetCurrentTextureStatusError SurfaceGetCurrentTextureStatus = 0x00000006
+
+	// NativeSurfaceGetCurrentTextureStatusOccluded is a wgpu-native extension status.
+	// Returned on macOS Metal when the window is occluded/minimized.
+	NativeSurfaceGetCurrentTextureStatusOccluded SurfaceGetCurrentTextureStatus = 0x00030001
+)
+type SurfaceTexture struct {
+	Texture *Texture
+	Status  SurfaceGetCurrentTextureStatus
+}
+    SurfaceTexture holds the result of GetCurrentTexture.
+
+type TexelCopyBufferInfo struct {
+	Layout TexelCopyBufferLayout
+	Buffer uintptr // Buffer handle
+}
+    TexelCopyBufferInfo describes a buffer source/destination for copy
+    operations.
+
+type TexelCopyBufferLayout struct {
+	Offset       uint64
+	BytesPerRow  uint32
+	RowsPerImage uint32
+}
+    TexelCopyBufferLayout describes buffer layout for WriteTexture (low-level
+    wire type). Prefer ImageDataLayout for new code.
+
+type TexelCopyTextureInfo struct {
+	Texture  uintptr
+	MipLevel uint32
+	Origin   types.Origin3D
+	Aspect   TextureAspect
+}
+    TexelCopyTextureInfo describes a texture for WriteTexture (low-level wire
+    type). Prefer ImageCopyTexture for new code — it holds a *Texture handle.
+
+type Texture struct {
+	// Has unexported fields.
+}
+    Texture represents a GPU texture resource (1D, 2D, or 3D). Create with
+    Device.CreateTexture, release with Texture.Release. device is the parent
+    Device handle for lost-safe Release/Destroy.
+
+func (t *Texture) CreateView(desc *TextureViewDescriptor) (*TextureView, error)
+    CreateView creates a view into this texture. Pass nil for default view
+    parameters. Enum values are converted from gputypes to wgpu-native values
+    before FFI call. Returns an error if the FFI call fails or the texture is
+    nil.
+
+func (t *Texture) DepthOrArrayLayers() uint32
+    DepthOrArrayLayers returns the depth (for 3D textures) or array layer count.
+
+func (t *Texture) Destroy()
+    Destroy destroys the texture. After Destroy the handle is nulled so
+    subsequent ops cannot call native with a wild pointer. Idempotent;
+    a following Release is a no-op. When the parent device is lost, only Go-side
+    state is cleared.
+
+func (t *Texture) Format() types.TextureFormat
+    Format returns the texture format. TextureFormat values match between
+    gputypes v0.3.0 and wgpu-native v29 exactly.
+
+func (t *Texture) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (t *Texture) Height() uint32
+    Height returns the height of the texture in texels.
+
+func (t *Texture) MipLevelCount() uint32
+    MipLevelCount returns the number of mip levels.
+
+func (t *Texture) Release()
+    Release releases the texture reference. Nil-safe and idempotent. Skips
+    native release when the parent device is lost.
+
+func (t *Texture) Width() uint32
+    Width returns the width of the texture in texels.
+
+type TextureAspect uint32
+    TextureAspect describes which aspect of a texture to access.
+
+const (
+	// TextureAspectUndefined leaves the texture aspect unspecified.
+	TextureAspectUndefined TextureAspect = 0x00
+	// TextureAspectAll accesses all aspects of the texture.
+	TextureAspectAll TextureAspect = 0x01
+	// TextureAspectStencilOnly accesses only the stencil aspect of a depth-stencil texture.
+	TextureAspectStencilOnly TextureAspect = 0x02
+	// TextureAspectDepthOnly accesses only the depth aspect of a depth-stencil texture.
+	TextureAspectDepthOnly TextureAspect = 0x03
+)
+type TextureBindingLayout = types.TextureBindingLayout
+    TextureBindingLayout describes texture binding properties.
+
+    This type matches gputypes.TextureBindingLayout for cross-project
+    compatibility. Used as a pointer field in BindGroupLayoutEntry; nil means
+    "not a texture binding".
+
+type TextureCopy struct {
+	// Source describes the source texture subresource and origin.
+	Source ImageCopyTexture
+	// Destination describes the destination texture subresource and origin.
+	Destination ImageCopyTexture
+	// Size is the extent of the copy operation.
+	Size types.Extent3D
+}
+    TextureCopy describes a texture-to-texture copy region.
+
+type TextureDescriptor struct {
+	Label         string
+	Usage         types.TextureUsage
+	Dimension     types.TextureDimension
+	Size          types.Extent3D
+	Format        types.TextureFormat
+	MipLevelCount uint32
+	SampleCount   uint32
+	ViewFormats   []types.TextureFormat
+}
+    TextureDescriptor describes a texture to create.
+
+type TextureDimension = types.TextureDimension
+
+type TextureFormat = types.TextureFormat
+    Texture types. TextureAspect is defined as a native enum in enums.go.
+
+type TextureSampleType = types.TextureSampleType
+
+type TextureUsage = types.TextureUsage
+    Texture usage type.
+
+type TextureView struct {
+	// Has unexported fields.
+}
+    TextureView is a view into a subset of a Texture, used in bind groups
+    and render passes. Create with Texture.CreateView, release with
+    TextureView.Release. device is the parent Device handle for lost-safe
+    Release.
+
+func (tv *TextureView) Handle() uintptr
+    Handle returns the underlying handle. For advanced use only.
+
+func (tv *TextureView) Release()
+    Release releases the texture view reference. Nil-safe and idempotent.
+    Skips native release when the parent device is lost.
+
+type TextureViewDescriptor struct {
+	Label           string
+	Format          types.TextureFormat
+	Dimension       types.TextureViewDimension
+	BaseMipLevel    uint32
+	MipLevelCount   uint32
+	BaseArrayLayer  uint32
+	ArrayLayerCount uint32
+	Aspect          TextureAspect
+	Usage           types.TextureUsage
+}
+    TextureViewDescriptor describes a texture view to create.
+
+type TextureViewDimension = types.TextureViewDimension
+
+type ToneMappingMode uint32
+    ToneMappingMode describes tone mapping for HDR surfaces. New in v29.
+
+const (
+	// ToneMappingModeStandard is standard tone mapping (sRGB).
+	ToneMappingModeStandard ToneMappingMode = 0x00000001
+	// ToneMappingModeExtended is extended (HDR) tone mapping.
+	ToneMappingModeExtended ToneMappingMode = 0x00000002
+)
+type UncapturedErrorCallbackInfo struct {
+	NextInChain uintptr // *ChainedStruct
+	Callback    uintptr // Function pointer
+	Userdata1   uintptr
+	Userdata2   uintptr
+}
+    UncapturedErrorCallbackInfo configures the uncaptured-error callback.
+
+type Vec3 struct {
+	X, Y, Z float32
+}
+    Vec3 represents a 3D vector with X, Y, Z components.
+
+func (v Vec3) Cross(other Vec3) Vec3
+    Cross computes the cross product of this vector with another. Returns v ×
+    other (perpendicular to both vectors). Result follows right-hand rule.
+
+func (v Vec3) Dot(other Vec3) float32
+    Dot computes the dot product of this vector with another. Returns v · other
+    (scalar projection).
+
+func (v Vec3) Normalize() Vec3
+    Normalize returns a unit vector in the same direction as v. If v has zero
+    length, returns zero vector.
+
+func (v Vec3) Sub(other Vec3) Vec3
+    Sub subtracts another vector from this vector. Returns v - other.
+
+type Vec4 struct {
+	X, Y, Z, W float32
+}
+    Vec4 represents a 4D vector with X, Y, Z, W components. Compatible with WGSL
+    vec4<f32>.
+
+type VertexAttribute struct {
+	Format         types.VertexFormat
+	Offset         uint64
+	ShaderLocation uint32
+	// Has unexported fields.
+}
+    VertexAttribute describes a vertex attribute.
+
+type VertexBufferLayout struct {
+	ArrayStride uint64
+	StepMode    types.VertexStepMode
+
+	AttributeCount uintptr
+	Attributes     *VertexAttribute
+	// Has unexported fields.
+}
+    VertexBufferLayout describes how vertex data is laid out in a buffer.
+
+type VertexFormat = types.VertexFormat
+    Vertex types.
+
+type VertexState struct {
+	Module     *ShaderModule
+	EntryPoint string
+	Buffers    []VertexBufferLayout
+}
+    VertexState describes the vertex stage of a render pipeline.
+
+type VertexStepMode = types.VertexStepMode
+
+type WGPUError struct {
+	// Op is the operation that failed (e.g., "CreateBuffer", "RequestAdapter").
+	Op string
+	// Type is the WebGPU error type (Validation, OutOfMemory, Internal).
+	Type ErrorType
+	// Message is the error message from wgpu-native.
+	Message string
+}
+    WGPUError represents a WebGPU operation error with context. Supports
+    errors.Is() and errors.As() for programmatic handling.
+
+func (e *WGPUError) Error() string
+    Error returns a formatted error string including the operation name and
+    message.
+
+func (e *WGPUError) Is(target error) bool
+    Is supports errors.Is() matching by error Type. This allows: errors.Is
+    Message-only sentinels (ErrDeviceLost, ErrInvalidHandle) match any Op whose
+    Message equals the sentinel Message.
+
+type WGPUStatus uint32
+    WGPUStatus describes the status returned from certain WebGPU operations.
+    Note: v29 changed Success from 0x00 to 0x01 and Error from 0x01 to 0x02.
+
+const (
+	// WGPUStatusSuccess indicates the operation completed successfully.
+	WGPUStatusSuccess WGPUStatus = 0x00000001
+	// WGPUStatusError indicates the operation failed.
+	WGPUStatusError WGPUStatus = 0x00000002
+)

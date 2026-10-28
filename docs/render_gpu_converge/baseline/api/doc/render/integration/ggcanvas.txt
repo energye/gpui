@@ -1,0 +1,437 @@
+package ggcanvas // import "github.com/energye/gpui/render/integration/ggcanvas"
+
+Package ggcanvas provides seamless integration between gg 2D graphics and gogpu
+GPU-accelerated windows.
+
+This package enables drawing 2D UI elements directly in GPU-accelerated windows
+by managing the CPU-to-GPU pipeline automatically. The data flow is:
+
+    render.Context (draw) -> Pixmap (CPU) -> GPU Texture -> Window
+
+# Architecture
+
+Canvas wraps a render.Context and manages the texture upload pipeline:
+
+  - Draw operations use the familiar gg API
+  - Flush() uploads pixel data to GPU texture
+  - RenderTo() draws the texture to a gogpu window
+
+# Usage
+
+Basic usage with gogpu:
+
+    canvas := ggcanvas.New(app.GPUContextProvider(), 800, 600)
+    defer canvas.Close()
+
+    // Draw with gg API
+    cc := canvas.Context()
+    cc.SetRGB(1, 0, 0)
+    cc.DrawCircle(400, 300, 100)
+    cc.Fill()
+
+    // Render to gogpu window
+    canvas.RenderTo(dc)
+
+# Thread Safety
+
+Canvas is NOT safe for concurrent use. Create one Canvas per goroutine, or use
+external synchronization.
+
+# Performance Notes
+
+  - Texture is created lazily on first Flush()
+  - Dirty tracking avoids unnecessary GPU uploads
+  - Consider canvas size vs window size for optimal performance
+
+# Integration Without Circular Imports
+
+This package uses interfaces to avoid importing gogpu directly:
+
+  - gpucontext.DeviceProvider for device access
+  - Local interfaces for texture creation and drawing
+
+This allows gg to provide integration without creating circular dependencies.
+
+VARIABLES
+
+var (
+	// ErrCanvasClosed is returned when operations are attempted on a closed canvas.
+	ErrCanvasClosed = errors.New("ggcanvas: canvas is closed")
+
+	// ErrInvalidDimensions is returned when width or height is invalid.
+	ErrInvalidDimensions = errors.New("ggcanvas: invalid dimensions")
+
+	// ErrNilProvider is returned when a nil DeviceProvider is passed.
+	ErrNilProvider = errors.New("ggcanvas: nil DeviceProvider")
+
+	// ErrTextureCreationFailed is returned when texture creation fails.
+	ErrTextureCreationFailed = errors.New("ggcanvas: texture creation failed")
+)
+    Common errors returned by Canvas operations.
+
+var (
+	// ErrInvalidDrawContext is returned when the draw context doesn't implement
+	// gpucontext.TextureDrawer.
+	ErrInvalidDrawContext = errors.New("ggcanvas: dc must implement gpucontext.TextureDrawer")
+
+	// ErrInvalidRenderer is returned when the renderer doesn't implement
+	// gpucontext.TextureCreator.
+	ErrInvalidRenderer = errors.New("ggcanvas: renderer must implement gpucontext.TextureCreator")
+)
+    Rendering errors.
+
+
+TYPES
+
+type Canvas struct {
+	// Has unexported fields.
+}
+    Canvas wraps render.Context with gogpu integration. It manages the
+    CPU-to-GPU pipeline automatically.
+
+    Canvas is NOT safe for concurrent use. Create one Canvas per goroutine,
+    or use external synchronization.
+
+func MustNew(provider gpucontext.DeviceProvider, width, height int) *Canvas
+    MustNew is like New but panics on error. Use only when errors are
+    programming mistakes (e.g., hardcoded dimensions).
+
+func MustNewWithScale(provider gpucontext.DeviceProvider, width, height int, scale float64) *Canvas
+    MustNewWithScale is like NewWithScale but panics on error.
+
+func New(provider gpucontext.DeviceProvider, width, height int) (*Canvas, error)
+    New creates a Canvas for integrated mode. The provider should come from
+    gogpu.App.GPUContextProvider(). The width and height are logical dimensions.
+
+    If the provider also implements gpucontext.WindowProvider, the device scale
+    is auto-detected for HiDPI/Retina support. Otherwise defaults to 1.0.
+    Use Context() to access and configure the drawing context.
+
+    Returns error if dimensions are invalid or provider is nil.
+
+func NewWithScale(provider gpucontext.DeviceProvider, width, height int, scale float64) (*Canvas, error)
+    NewWithScale creates a Canvas with HiDPI device scale support. The width and
+    height are logical dimensions. The internal pixmap is allocated at physical
+    resolution (width*scale x height*scale).
+
+    The provider should come from gogpu.App.GPUContextProvider(). Scale factor
+    should come from the platform (e.g., gogpu.Context.ScaleFactor()). Typical
+    values: 1.0 (standard), 2.0 (macOS Retina), 3.0 (mobile HiDPI).
+
+    Example:
+
+        scale := dc.ScaleFactor() // from gogpu.Context
+        canvas, err := ggcanvas.NewWithScale(provider, 800, 600, scale)
+
+    Returns error if dimensions are invalid, provider is nil, or scale <= 0.
+
+func (c *Canvas) Close() error
+    Close releases all resources associated with the Canvas. After Close, the
+    Canvas should not be used. Close is idempotent - multiple calls are safe.
+
+func (c *Canvas) Context() *render.Context
+    Context returns the gg drawing context. All gg drawing methods are available
+    through this context.
+
+    After drawing, call MarkDirty() to flag the canvas for GPU upload, or call
+    Flush() which handles this automatically.
+
+    Returns nil if the canvas is closed.
+
+func (c *Canvas) DeviceScale() float64
+    DeviceScale returns the current device scale factor. Returns 1.0 if the
+    canvas was created without HiDPI support.
+
+func (c *Canvas) Draw(fn func(*render.Context)) error
+    Draw calls fn with the gg context and marks the canvas as dirty. This is the
+    recommended way to update canvas content, as it ensures the dirty flag is
+    set correctly for GPU upload on next Flush/RenderTo.
+
+    BeginAcceleratorFrame is called before fn to reset per-frame GPU state.
+    This ensures the first render pass clears the surface while mid-frame CPU
+    fallback flushes (bitmap text, gradient fill) use LoadOpLoad to preserve
+    previously drawn content. See RENDER-DIRECT-003. BeginGPUFrame resets the
+    per-context GPU render queue used by this Canvas. Without it, command
+    buffers from previous direct-render frames remain queued until context
+    close.
+
+    Per-frame state (matrix, path, clip, mask) is automatically reset via
+    Push/Pop wrapper. Configuration state (font, paint color, textMode) persists
+    across frames.
+
+func (c *Canvas) EnsureGPUTexture(dc RenderTarget) error
+    EnsureGPUTexture promotes the internal pendingTexture to a real GPU texture
+    if needed. After this call, PixmapTextureView() returns non-nil.
+
+    Call this once after the first FlushPixmap() to create the GPU texture.
+    Subsequent calls are no-ops (texture already promoted). The RenderTarget
+    provides TextureCreator for GPU texture allocation.
+
+    This is the setup step for zero-readback compositing:
+
+        canvas.FlushPixmap() // upload pixmap (no GPU readback)
+        canvas.EnsureGPUTexture(dc.RenderTarget()) // promote once
+        view := canvas.PixmapTextureView() // now non-nil
+        cc.DrawGPUTextureBase(view, ...) // base layer
+        cc.FlushGPUWithView(surface, ...) // single pass
+
+func (c *Canvas) Flush() (any, error)
+    Flush uploads the canvas content to GPU texture if dirty. Returns the
+    texture for manual drawing if needed.
+
+    This first calls FlushGPU() to render any pending GPU-accelerated shapes
+    (SDF, stencil, text) back into the CPU pixmap, then uploads the pixmap to a
+    GPU texture. For zero-readback rendering, use FlushPixmap() instead.
+
+    The texture is created lazily on first Flush(). Subsequent calls only upload
+    data if dirty flag is set.
+
+    Returns error if texture creation or update fails, or if canvas is closed.
+
+func (c *Canvas) FlushPixmap() (any, error)
+    FlushPixmap uploads the CPU pixmap to GPU texture without flushing
+    GPU shapes. Unlike Flush(), this does NOT call FlushGPU() — pending
+    GPU-accelerated shapes remain queued in GPURenderContext for the caller to
+    flush separately (e.g., via FlushGPUWithView for zero-readback rendering to
+    a surface view).
+
+    Use this when GPU shapes should render directly to the display surface
+    instead of being read back into the CPU pixmap. See ADR-006.
+
+func (c *Canvas) Height() int
+    Height returns the canvas logical height.
+
+func (c *Canvas) IsDirty() bool
+    IsDirty returns true if the canvas has pending changes that need to be
+    uploaded to the GPU.
+
+func (c *Canvas) LastDamage() image.Rectangle
+    LastDamage returns the damage rectangle (union) from the most recent frame.
+
+func (c *Canvas) LastDamageRects() []image.Rectangle
+    LastDamageRects returns individual damage rectangles from the most recent
+    frame.
+
+func (c *Canvas) MarkDirty()
+    MarkDirty flags the canvas for GPU upload on next Flush(). Call this after
+    drawing operations if you want explicit control over when uploads happen.
+
+    MarkDirty invalidates the entire canvas. For partial invalidation, use
+    MarkDirtyRegion to upload only the changed region.
+
+func (c *Canvas) MarkDirtyRegion(r image.Rectangle)
+    MarkDirtyRegion flags a rectangular region of the canvas as dirty. On the
+    next Flush(), only the accumulated dirty region is uploaded to the GPU (if
+    the texture supports partial upload), which can be significantly faster than
+    uploading the entire pixmap.
+
+    Multiple calls accumulate into the bounding rectangle of all dirty regions.
+    The region is in physical pixel coordinates (after device scale).
+
+func (c *Canvas) NeedsAnimationFrame() bool
+    NeedsAnimationFrame reports whether the canvas needs another frame for debug
+    overlay fade animation. Caller should RequestRedraw if true.
+
+func (c *Canvas) PixmapTextureView() gpucontext.TextureView
+    PixmapTextureView returns the GPU texture view of the uploaded pixmap.
+    Returns nil if the pixmap has not been uploaded yet (call FlushPixmap
+    first) or if the texture does not expose a view (e.g., pendingTexture before
+    promotion).
+
+    Use this with DrawGPUTextureBase for single-pass zero-readback compositing:
+
+        canvas.FlushPixmap() // upload, no GPU readback
+        view := canvas.PixmapTextureView() // get GPU texture view
+        cc.DrawGPUTextureBase(view, 0, 0, w, h) // base layer
+        cc.FlushGPUWithView(surfaceView, sw, sh) // single pass compositor
+
+    The view is valid until the texture is destroyed (resize, close). Uses Go
+    structural typing — no gogpu import required.
+
+func (c *Canvas) Provider() gpucontext.DeviceProvider
+    Provider returns the DeviceProvider associated with this canvas. Returns nil
+    if the canvas is closed.
+
+func (c *Canvas) Render(dc RenderTarget) error
+    Render presents canvas content to the screen. Works on all backends.
+
+    On GPU backends (Vulkan, DX12, Metal, GLES): renders directly to surface via
+    GPU shaders (zero-copy, optimal performance).
+
+    On software backend or when GPU-direct fails: falls back to universal path
+    where gg CPU rasterizer renders to pixmap, uploads to texture, and presents
+    via textured quad.
+
+    This is the recommended way to present canvas content — one call, all
+    backends.
+
+        canvas.Draw(func(cc *render.Context) { ... })
+        canvas.Render(dc) // dc is *gogpu.Context
+
+func (c *Canvas) RenderDirect(surfaceView gpucontext.TextureView, width, height uint32) error
+    RenderDirect renders canvas content directly to the given surface view,
+    bypassing the GPU->CPU->GPU readback. This is the zero-copy rendering path
+    for use with gogpu's surface texture view.
+
+    When the GPU accelerator supports direct surface rendering, shapes are
+    rendered directly to the provided surface view via MSAA resolve. No staging
+    buffers, no ReadBuffer, no texture upload -- pure GPU-to-GPU.
+
+    If the accelerator doesn't support surface rendering, or if no GPU
+    accelerator is registered, this method falls back to the readback path via
+    Flush().
+
+    The surfaceView is a type-safe opaque handle obtained from
+    dc.RenderTarget().SurfaceView(). Pass a zero-value (IsNil() == true) to use
+    the readback path.
+
+    Example:
+
+        app.OnDraw(func(dc *gogpu.Context) {
+            canvas.Draw(func(cc *render.Context) { ... })
+            w, h := dc.SurfaceSize()
+            canvas.RenderDirect(dc.RenderTarget().SurfaceView(), w, h)
+        })
+
+func (c *Canvas) RenderDirectWithDamage(surfaceView gpucontext.TextureView, width, height uint32, damage image.Rectangle) error
+    RenderDirectWithDamage renders canvas content to a surface view with a
+    damage rect hint. Only the damaged region is re-rendered; the rest preserves
+    the previous frame (LoadOpLoad + scissor). This enables per-boundary
+    incremental updates without full-frame re-render.
+
+    Use when only a subset of GPU content changed (e.g., a single
+    RepaintBoundary item in a compositor). Pass image.Rectangle{} for full-frame
+    render.
+
+func (c *Canvas) RenderDirectWithDamageRects(surfaceView gpucontext.TextureView, width, height uint32, rects []image.Rectangle) error
+    RenderDirectWithDamageRects renders with multiple damage rects (ADR-028).
+    Each rect gets its own scissor — per-draw dynamic scissor for distant dirty
+    regions. Falls back to single-rect behavior when len(rects) <= 1.
+
+func (c *Canvas) RenderTo(dc gpucontext.TextureDrawer) error
+    RenderTo draws the canvas content to a gpucontext.TextureDrawer. This is the
+    primary integration method.
+
+    The dc parameter should be obtained from gogpu.Context.AsTextureDrawer().
+    The canvas content is flushed to GPU and drawn at position (0, 0).
+
+    Example:
+
+        app.OnDraw(func(dc *gogpu.Context) {
+            canvas.RenderTo(dc.AsTextureDrawer())
+        })
+
+    Returns error if:
+      - Canvas is closed
+      - Texture creation or drawing fails
+
+func (c *Canvas) RenderToEx(dc gpucontext.TextureDrawer, opts RenderOptions) error
+    RenderToEx draws the canvas with additional options. Use this when you need
+    positioning, scaling, or transparency control.
+
+    Example:
+
+        opts := ggcanvas.RenderOptions{
+            X: 100, Y: 50,
+            ScaleX: 0.5, ScaleY: 0.5,
+            Alpha: 0.8,
+        }
+        canvas.RenderToEx(dc.AsTextureDrawer(), opts)
+
+func (c *Canvas) RenderToPosition(dc gpucontext.TextureDrawer, x, y float32) error
+    RenderToPosition is a convenience method for rendering at a specific
+    position.
+
+        canvas.RenderToPosition(dc.AsTextureDrawer(), 100, 50)
+
+    is equivalent to:
+
+        canvas.RenderToEx(dc.AsTextureDrawer(), RenderOptions{X: 100, Y: 50, ScaleX: 1, ScaleY: 1, Alpha: 1})
+
+func (c *Canvas) RenderToScaled(dc gpucontext.TextureDrawer, scale float32) error
+    RenderToScaled is a convenience method for rendering with uniform scaling.
+
+        canvas.RenderToScaled(dc.AsTextureDrawer(), 0.5) // Render at half size
+
+func (c *Canvas) Resize(width, height int) error
+    Resize changes canvas dimensions. This recreates internal buffers and clears
+    the canvas.
+
+    Returns error if dimensions are invalid or canvas is closed.
+
+func (c *Canvas) SetDeviceScale(scale float64)
+    SetDeviceScale changes the device scale factor on the canvas. This delegates
+    to the render.Context and marks the canvas for re-upload. Scale must be > 0;
+    values <= 0 are ignored.
+
+func (c *Canvas) SetPresentDamage(rects []image.Rectangle)
+    SetPresentDamage sets damage rectangles for the next present call (ADR-021
+    Level 4). Rects are in logical (user-space) coordinates with top-left
+    origin. They are automatically scaled to physical pixels and forwarded
+    to gogpu SetDamageRects() → wgpu PresentWithDamage() → OS compositor hint
+    (VK_KHR_incremental_present, DX12 Present1, eglSwapBuffersWithDamage).
+
+    Callers with retained-mode knowledge (e.g. ui widget tree) should provide
+    BOTH old and new bounds of moved/resized objects. Immediate-mode callers can
+    pass FrameDamage() rects (new positions only) when old positions are covered
+    by full-surface redraw.
+
+    Rects are consumed after one present and do not persist across frames.
+    When nil or empty, the full surface is presented (backward compatible).
+
+func (c *Canvas) Size() (width, height int)
+    Size returns logical width and height as a convenience.
+
+func (c *Canvas) Texture() any
+    Texture returns the current GPU texture without flushing. Returns nil if
+    texture hasn't been created yet.
+
+    Use Flush() to ensure the texture exists and is up-to-date.
+
+func (c *Canvas) Width() int
+    Width returns the canvas logical width.
+
+type DamageRectSetter interface {
+	SetDamageRects(rects []image.Rectangle)
+}
+    DamageRectSetter is an optional interface for RenderTargets that support
+    damage-aware presentation (ADR-021 Level 3-4). gogpu.ContextRenderTarget
+    implements this via Context.SetDamageRects().
+
+type RenderOptions struct {
+	// X, Y is the position to draw the texture (default: 0, 0)
+	X, Y float32
+
+	// ScaleX, ScaleY are the scale factors (default: 1, 1)
+	// Values < 1 shrink, values > 1 enlarge
+	ScaleX float32
+	ScaleY float32
+
+	// Alpha is the opacity from 0 (transparent) to 1 (opaque) (default: 1)
+	Alpha float32
+
+	// FlipY flips the texture vertically (default: false)
+	// Useful when coordinate systems differ between gg and GPU
+	FlipY bool
+}
+    RenderOptions controls how canvas is rendered to the target.
+
+func DefaultRenderOptions() RenderOptions
+    DefaultRenderOptions returns options with sensible defaults.
+
+type RenderTarget interface {
+	SurfaceView() gpucontext.TextureView
+	SurfaceSize() (uint32, uint32)
+	PresentTexture(tex any) error
+}
+    RenderTarget is the interface for presenting canvas content on screen.
+    Implement this on your application context. *gogpu.Context satisfies this
+    via the gogpu.RenderTarget() adapter.
+
+type SurfacePixelWriter interface {
+	WriteSurfacePixels(data []byte, width, height uint32) error
+}
+    SurfacePixelWriter is an optional interface for RenderTargets that support
+    direct pixel upload to the surface framebuffer (software backend zero-copy).
+    Bypasses texture creation, render pass, and SPIR-V — single memcpy+swizzle.
+

@@ -1,0 +1,16 @@
+Command ui_wr_c11_policy_switch is the W6 C11 combined real window: R0→R4 策略切换 —
+full_paint↔retained 热切换 + 静态内容不丢失。
+
+§3 C11 thesis: 策略热切换正确 — Steady(full_paint 0–5s) → Spike(retained
+5–10s) → Recover(full_paint 10–15s)，两次切换后静态面板像素不变、policy 字段如实跟随、retained
+相损伤远小于全屏、切换无闪烁（fps 不塌）。
+
+Gates (§3 C11 行 + §2.5 层 Present/多 damage 档): policy_switches==2, retained
+相 damage_ratio_avg≤0.35 且小于 full 相均值, full/damage 两态 present_mode 均观测到,
+fps_interval≥55, p95≤22ms, hitch≤5/min, CPU 非双 0, 像素断言 3/3, Golden 静态掩码零容差（次跑起）。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_wr_c11_policy_switch
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 15 (§2.5 层 Present 档).
+No RUN_SECONDS → interactive loop (pixel evidence off).

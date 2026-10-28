@@ -1,0 +1,6 @@
+fdiff 逐字 diff 对照器：自研 light 渲染 vs 系统 FreeType light（开发期度量衡）。
+
+用法:
+
+对每个 (rune,px)：自研光栅 PGM 与 ftexp(FT-light) PGM 逐像素 diff， 输出每字形一行指标 + 汇总。PGM 落盘
+outdir（默认 /tmp/opencode/fdiff_out）。

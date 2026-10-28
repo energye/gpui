@@ -1,0 +1,28 @@
+Command ui_wr_r17_bg_throttle is the R17 real-window: invisible windows must not
+burn frames (stop, not throttle).
+
+Phase script (30s close duration, wall clock in the tick pump):
+
+    FG  0–22s  normal persistent rendering, presents flow
+    BG  22–30s self-minimize via WindowController → minimized latch stops
+               the frame loop: presents must freeze while latched
+
+The script deliberately ends minimized: several WMs (verified Mutter) ignore
+a bare map request for restoring an iconic window — programmatic restore
+is not a portable primitive (Wayland has no unminimize request at all).
+Restore is covered by unit test (embedder MinimizedLatch, latch→unlatch→demand)
+and by the user-driven path (taskbar click → MapNotify → StateChanged, platform
+x11_linux.go).
+
+Stop semantics (user-confirmed direction): the gate is NOT "background interval
+> 2x foreground" (that wording assumes a slow heartbeat). A stopped loop
+produces no interval samples at all, so the honest proof is presents frozen
+inside the latched span. fps_wall over the whole run is therefore low by design
+— read fps_interval (steady foreground pacing) instead.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=30 go run ./examples/ui_wr_r17_bg_throttle
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); <30 cannot complete the phase script
+and FAILs honestly. GPU window required. The run ends while minimized (no
+programmatic restore primitive); see the phase note above.

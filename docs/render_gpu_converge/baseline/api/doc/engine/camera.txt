@@ -1,0 +1,341 @@
+package camera // import "github.com/energye/gpui/engine/camera"
+
+Basis25D presses a 3D point flat into 2D, the Godot misc/2.5d way (S79).
+
+The demo's Node25D keeps three 2D axes and draws every point as x*basisX
++ y*basisY + z*basisZ. Six view modes only swap the three axes;
+SCALE stays 32. This file copies the six axis sets number for number from
+addons/node25d/node_25d.gd (only copying the method, not the code), so the
+matrices match the demo bit for bit.
+
+This is parallel squash, not the 1.1 pinhole Projector next door: no focal
+length, no depth scale, nothing to reconcile. Depth only matters for draw order
+(see ysort25d.go) and shadow landing (see shadow25d.go).
+
+ShadowMath25D lands a true-2.5D shadow on the ground, S79 scope (S79).
+
+The demo fires a 3D ray (ShapeCast3D) and parks the shadow on the hit point,
+hiding it when nothing is hit. Our physics has no 3D bodies, so this file does
+the landing math only: the shadow falls straight down to the ground height,
+presses flat through the same basis, and hides when the target is below ground
+or the numbers are bad. The signature takes the target point (later: the ray hit
+point) so a future 3D cast feeds in without changing this function.
+
+Layers (bottom-up): LandShadow projects the ground point; ShadowVisible reports
+whether to draw it; the window puts the shadow one z slot above its owner's
+YSort25D slot, matching the demo's odd-slot convention.
+
+YSort25D orders true-2.5D objects back to front, the Godot misc/2.5d way (S79).
+Lower y draws first (behind); the demo's y_sort_slight_xz adds 0.001*(x+z) so
+equal-height objects keep a stable order instead of flickering. Sorted ranks map
+to z slots starting at -4000 stepping by 2, leaving the odd slots in between for
+shadows; over 4000 objects refuses to sort rather than overflowing the z range.
+
+CONSTANTS
+
+const (
+	YSortZBase = -4000
+	YSortZStep = 2
+)
+    YSortZBase is the first z slot; YSortZStep leaves odd slots for shadows.
+
+const BasisScale = 32
+    BasisScale is the demo's SCALE: 32 two-dimensional units per 3D unit.
+
+const MaxYSort25D = 4000
+    MaxYSort25D caps one sort pass, copied from the demo's 4000-node guard.
+
+const MinZoom = 1e-6
+    MinZoom floors each zoom component. Zero/negative zoom clamps here, never to
+    zero, so View stays invertible.
+
+
+FUNCTIONS
+
+func LandShadow(b Basis25D, target core.Vec3, groundY float64) (flat core.Vec2, ok bool)
+    LandShadow drops target straight down to groundY and presses the ground
+    point flat through basis. Below-ground targets and NaN/Inf input report
+    ok=false (hide the shadow), never NaN.
+
+func ShadowVisible(target core.Vec3, groundY float64, landedOK bool) bool
+    ShadowVisible reports whether a landed shadow should draw: landed ok plus
+    the target above the ground plane.
+
+func YSortKey(p core.Vec3) float64
+    YSortKey ranks one position: y plus a whisper of x+z, exactly like the
+    demo's y_sort_slight_xz.
+
+func YSortLess(a, b YSortItem) bool
+    YSortLess reports whether a draws behind b (lower key first; ties fall back
+    to input order, never a coin flip).
+
+func YSortZ(rank int) int
+    YSortZ maps a sorted rank to its z slot: base plus rank times step.
+
+
+TYPES
+
+type Basis25D struct {
+	X, Y, Z core.Vec2
+	// Has unexported fields.
+}
+    Basis25D holds the three 2D axes for one view mode. A 3D point (x,y,z) lands
+    on x*X + y*Y + z*Z, exactly like the demo's flat_pos = x*_basisX + y*_basisY
+    + z*_basisZ.
+
+func NewBasis25D(mode ViewMode) (Basis25D, error)
+    NewBasis25D builds the axis set for one view mode. The numbers are the
+    demo's set_view_mode values times BasisScale, written out so the six
+    matrices stay readable next to the demo.
+
+func (b Basis25D) Mode() ViewMode
+    Mode returns the view mode this basis was built for.
+
+func (b Basis25D) Project(p core.Vec3) (flat core.Vec2, ok bool)
+    Project presses one 3D point flat through the three axes. NaN/Inf input
+    returns ok=false with a zero point, never NaN.
+
+func (b Basis25D) ProjectPoints(ps []core.Vec3) ([]core.Vec2, bool)
+    ProjectPoints presses many 3D points flat in order. A bad point fails the
+    whole set (ok=false) so the caller never draws half a shape, same contract
+    as Projector.ProjectQuad.
+
+type Camera struct {
+	// Has unexported fields.
+}
+    Camera is a pure-math 2D lens: position, zoom, angle, shake offset, position
+    limits, follow smoothing, screen anchor, viewport size. It draws nothing;
+    View feeds the existing render draws.
+
+func NewCamera(viewport core.Vec2) (Camera, error)
+    NewCamera builds a centered camera over viewport (screen size). Viewport
+    must be finite; negative components clamp to 0. NaN/Inf viewport returns a
+    core InvalidArg error.
+
+func (c Camera) Anchor() core.Vec2
+    Anchor returns the screen anchor fraction in [0,1] each.
+
+func (c *Camera) DecayShake(factor float64) error
+    DecayShake shrinks the shake offset by factor in [0,1] (1 clears).
+    Out-of-range factors clamp; NaN/Inf is an error.
+
+func (c Camera) DualPicture() core.Vec2
+    DualPicture is where the picture sits: the clamped center. The caller keeps
+    the target separately (DualTarget), so target and picture stay two queries
+    by construction and never collapse into one number.
+
+func (c Camera) DualTarget(target core.Vec2) (tgt, pic core.Vec2, ok bool)
+    DualTarget pairs a caller-kept target with the lens picture in one call:
+    target stays the caller's number (unclamped), picture is the clamped center.
+    It reports ok=false only on bad input, never NaN.
+
+func (c Camera) EffectivePos() core.Vec2
+    EffectivePos is the clamped center plus the shake offset. Limits pin the
+    center; shake may peek outside for a frame by design. Pos is always clamped
+    at write time (SetPos/SetLimit/Follow), so this is a direct add with no
+    second clamp on the hot path.
+
+func (c *Camera) Follow(target core.Vec2) error
+    With smoothing 0 it snaps; otherwise pos lerps by the smoothing factor.
+    Bad targets are an error and move nothing.
+
+func (c *Camera) FollowDeadzone(target core.Vec2, radius float64) (bool, error)
+    FollowDeadzone chases target only outside radius of Pos: inside holds,
+    outside runs Follow (limit plus smoothing still apply). Negative radius
+    clamps to 0 (always chase); NaN/Inf target or radius is InvalidArg and moves
+    nothing. It returns whether the lens moved. The caller keeps the target;
+    DualTarget/DualPicture below report both sides by name.
+
+func (c Camera) Limit() core.Rect
+    Limit returns the position clamp box; empty means disabled.
+
+func (c Camera) Pos() core.Vec2
+    Pos returns the clamped camera center in world units.
+
+func (c Camera) Rotation() float64
+    Rotation returns the camera angle in radians, normalized to [-pi, pi].
+
+func (c Camera) ScreenToWorld(screen core.Vec2) (world core.Vec2, ok bool)
+    ScreenToWorld inverts WorldToScreen. Bad input returns ok=false.
+
+func (c *Camera) SetAnchor(a core.Vec2) error
+    SetAnchor sets which screen point the center maps to, as a fraction of the
+    viewport in [0,1] each ((0,0) top-left, (0.5,0.5) centered). Out-of-range
+    components clamp; NaN/Inf is an error.
+
+func (c *Camera) SetLimit(r core.Rect) error
+    SetLimit replaces the center clamp box; empty disables clamping. NaN/Inf
+    components are an error; negative sizes stay empty (disabled).
+
+func (c *Camera) SetPos(p core.Vec2) error
+    SetPos moves the center; it clamps into Limit when Limit is set.
+
+func (c *Camera) SetRotation(rad float64) error
+    SetRotation replaces the angle; any finite value normalizes to [-pi, pi].
+
+func (c *Camera) SetShake(offset core.Vec2) error
+    SetShake replaces the shake offset; callers drive it (trauma curve, seeded
+    random), the camera only adds and decays it.
+
+func (c *Camera) SetSmoothing(f float64) error
+    SetSmoothing sets the Follow factor: 0 snaps, (0,1] eases. Out-of-range
+    values clamp to [0,1]; NaN/Inf is an error.
+
+func (c *Camera) SetViewport(v core.Vec2) error
+    SetViewport replaces the screen size; negatives clamp to 0.
+
+func (c *Camera) SetZoom(z core.Vec2) error
+    SetZoom replaces the scale; zero/negative components clamp to MinZoom.
+
+func (c Camera) Shake() core.Vec2
+    Shake returns the current shake offset in world units.
+
+func (c Camera) Smoothing() float64
+    Smoothing returns the Follow lerp factor: 0 snaps, (0,1] eases.
+
+func (c Camera) View() core.Mat2D
+    View returns the world-to-screen matrix:
+
+        screen = Anchor*Viewport + Rot(-rotation) * Zoom * (world - EffectivePos)
+
+    Zoom never hits zero (see MinZoom), so the result is always finite and
+    invertible for finite state; setters already reject NaN/Inf.
+
+func (c Camera) Viewport() core.Vec2
+    Viewport returns the screen size in pixels (each >= 0).
+
+func (c Camera) VisibleWorldRect() core.Rect
+    VisibleWorldRect returns the axis-aligned world bound of the viewport,
+    for tile/chunk culling. With rotation it is a conservative bound. Empty
+    viewports see only the center point.
+
+func (c Camera) WorldToScreen(world core.Vec2) (screen core.Vec2, ok bool)
+    WorldToScreen maps one world point to screen pixels. Bad input returns
+    ok=false with a zero point, never NaN.
+
+func (c Camera) Zoom() core.Vec2
+    Zoom returns the zoom scale (each component >= MinZoom).
+
+type Layer struct {
+	// Has unexported fields.
+}
+    Layer is one parallax depth band: how far it drifts with the camera, plus an
+    optional seamless repeat.
+
+    Only core numbers are used. A Layer draws nothing; Shift computes the
+    drifted world position and Screen feeds it into a Projector, whose screen
+    corners go to the existing trapezoid/triangle draws (render.DrawImageQuad,
+    DrawVertices/DrawMesh).
+
+func NewLayer(factor, offset, mirror core.Vec2) (Layer, error)
+    NewLayer builds a Layer.
+
+    Factor is the follow ratio per axis: 1 locks to the world, 0 pins to
+    the screen (far sky), 0.5 drifts at half speed, values above 1 run
+    ahead (foreground). Any finite value is accepted, including negatives
+    (counter-drift effects).
+
+    Offset is an extra shift in world units.
+
+    on that axis. Negative or non-finite components are a core InvalidArg error,
+    never a silently wrapped layer.
+
+func (l Layer) Factor() core.Vec2
+    Factor returns the follow ratio per axis.
+
+func (l Layer) Mirror() core.Vec2
+
+func (l Layer) Offset() core.Vec2
+    Offset returns the extra shift in world units.
+
+func (l Layer) Screen(world core.Vec2, depth float64, camera core.Vec2, proj Projector) (core.Vec2, float64, bool)
+    Screen maps world at depth seen from camera to a screen point.
+
+    It shifts first, then projects: build the Projector with the same camera
+    each frame so factor 1 layers land exactly where a direct Project call
+    lands. It also returns the perspective scale, so callers can size sprites.
+    Any undrawable step (bad shift or bad depth) returns ok=false with zero
+    screen and zero scale.
+
+func (l Layer) ScreenQuad(corners [4]core.Vec2, depths [4]float64, camera core.Vec2, proj Projector) ([4]core.Vec2, [4]float64, bool)
+    ScreenQuad maps four corners plus per-corner depths to four screen corners
+    for render.DrawImageQuad. Any undrawable corner fails the whole quad
+    (ok=false) so the caller never draws half a trapezoid.
+
+func (l Layer) Shift(world, camera core.Vec2) (core.Vec2, bool)
+    Shift returns the drifted world position for world seen from camera:
+
+        shift = world + camera*(1-factor) + offset
+
+    wrapped per axis into [0, mirror) when that mirror component is set. Factor
+    1 cancels the camera term (world-locked); factor 0 keeps the full camera
+    term so Screen later subtracts it back out (screen-pinned). Undrawable input
+    (NaN/Inf world or camera) returns ok=false with a zero position, never NaN
+    and never a panic.
+
+type Projector struct {
+	// Has unexported fields.
+}
+    Projector maps world positions plus depth to screen positions. Only core
+    numbers are used; render types are converted once by the caller at the
+    render boundary in engine/renderconv.
+
+func NewProjector(focal float64, center, camera core.Vec2) (Projector, error)
+    NewProjector builds a Projector. Focal must be finite and positive; center
+    and camera must be finite. Anything else returns a core InvalidArg error,
+    never a guessed projector.
+
+func (p Projector) Camera() core.Vec2
+    Camera returns the world point sitting under Center at depth 0.
+
+func (p Projector) Center() core.Vec2
+    Center returns the screen point where depth 0 lands.
+
+func (p Projector) DepthToScale(depth float64) (scale float64, ok bool)
+    DepthToScale maps depth to a screen scale. Depth 0 returns 1. Behind the eye
+    (focal+depth <= 0) or any non-finite depth returns ok=false with scale 0.
+
+func (p Projector) Focal() float64
+    Focal returns the eye-to-screen distance the projector was built with.
+
+func (p Projector) Project(world core.Vec2, depth float64) (screen core.Vec2, scale float64, ok bool)
+    Project maps one world point at depth to a screen point. It also returns
+    the scale used, so callers can size sprites. Undrawable input (bad depth,
+    NaN/Inf world) returns ok=false with zero screen and zero scale, never NaN
+    and never a panic.
+
+func (p Projector) ProjectQuad(corners [4]core.Vec2, depths [4]float64) (screens [4]core.Vec2, scales [4]float64, ok bool)
+    ProjectQuad maps four corners plus per-corner depths to four screen corners.
+    The result feeds render.DrawImageQuad corner for corner after one renderconv
+    conversion each. Any undrawable corner fails the whole quad (ok=false) so
+    the caller never draws half a trapezoid.
+
+func (p Projector) Unproject(screen core.Vec2, depth float64) (world core.Vec2, ok bool)
+    Unproject inverts Project: screen plus depth back to world. It reports
+    ok=false for the same inputs Project rejects, so a Project/Unproject round
+    trip closes within float tolerance.
+
+type ViewMode int
+    ViewMode names one of the demo's six 2.5D views, in demo order: 45-degree,
+    isometric, top-down, front-side, oblique-Y, oblique-Z.
+
+const (
+	View45 ViewMode = iota
+	ViewIsometric
+	ViewTopDown
+	ViewFrontSide
+	ViewObliqueY
+	ViewObliqueZ
+)
+type YSortItem struct {
+	Pos   core.Vec3
+	Order int
+}
+    YSortItem is one sortable object: its 3D position plus its input order.
+    Order breaks full ties so the result is deterministic.
+
+func YSort(items []YSortItem) ([]YSortItem, error)
+    YSort orders items back to front without mutating the input. More than
+    MaxYSort25D items returns a core OutOfMemory error and nil, mirroring the
+    demo's refusal to sort past 4000 nodes.
+

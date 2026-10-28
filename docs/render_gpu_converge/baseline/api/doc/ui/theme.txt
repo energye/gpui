@@ -1,0 +1,232 @@
+package theme // import "github.com/energye/gpui/ui/theme"
+
+Package theme provides a minimal token map and provider stack (P5e).
+
+Not Ant Design's full token table and not a CSS selector engine. Widgets read
+Tokens via Provider.Current() (global default + optional overrides).
+
+VARIABLES
+
+var Default = NewProvider(DefaultTokens())
+    Default is the process-wide provider (lazy DefaultTokens).
+
+
+TYPES
+
+type Color struct {
+	R, G, B, A float64
+}
+    Color is an sRGB color in 0..1 (matches painting fill convention).
+
+func Hex(s string) Color
+    Hex parses #rgb / #rrggbb into Color (alpha 1). Invalid input returns zero.
+
+func RGBA(r, g, b float64, a float64) Color
+    RGBA builds a Color from 0..255 channels and 0..1 alpha.
+
+type Provider struct {
+	// Has unexported fields.
+}
+    Provider holds the active token set with an optional override stack.
+
+    Command-style API: Push/Pop for local scopes (e.g. dialog chrome).
+    Thread-safe for concurrent read; Push/Pop intended on UI thread.
+
+func NewProvider(base Tokens) *Provider
+    NewProvider creates a provider with the given base tokens. If base is
+    zero-ish (FontSize==0), DefaultTokens is used.
+
+func (p *Provider) Base() Tokens
+    Base returns the root tokens (ignoring overrides).
+
+func (p *Provider) Current() Tokens
+    Current returns the top-of-stack tokens, or base if the stack is empty.
+
+func (p *Provider) Depth() int
+    Depth returns override stack depth.
+
+func (p *Provider) Pop()
+    Pop removes the top override. No-op if empty.
+
+func (p *Provider) Push(t Tokens)
+    Push pushes an override (typically a modified copy of Current()).
+
+func (p *Provider) SetBase(t Tokens)
+    SetBase replaces the root tokens (does not clear the override stack).
+
+func (p *Provider) With(t Tokens, fn func())
+    With runs fn under tokens t and restores the previous stack depth.
+
+type Tokens struct {
+	// Compat shorthand (Ant default light).
+	Primary   Color
+	OnPrimary Color
+	Surface   Color
+	OnSurface Color
+	Border    Color
+	Danger    Color
+
+	FontSize   float64 // logical px
+	FontSizeSM float64
+	FontSizeLG float64
+
+	// Spacing unit (logical px); Space(n) = n * Spacing.
+	// Equals Ant sizeXS (8).
+	Spacing float64
+	Radius  float64
+
+	// Seed colors.
+	ColorPrimary Color
+	ColorSuccess Color
+	ColorWarning Color
+	ColorError   Color
+	ColorInfo    Color
+	ColorLink    Color
+	ColorWhite   Color
+
+	// Text hierarchy (black base with alpha).
+	ColorText            Color
+	ColorTextSecondary   Color
+	ColorTextTertiary    Color
+	ColorTextQuaternary  Color
+	ColorTextPlaceholder Color
+	ColorTextDisabled    Color
+	ColorTextHeading     Color
+
+	// Backgrounds.
+	ColorBgBase      Color
+	ColorBgLayout    Color
+	ColorBgContainer Color
+	ColorBgElevated  Color
+	ColorBgSpotlight Color
+	ColorBgMask      Color
+
+	// Borders and fills.
+	ColorBorder          Color
+	ColorBorderSecondary Color
+	ColorFill            Color
+	ColorFillSecondary   Color
+	ColorFillTertiary    Color
+	ColorFillQuaternary  Color
+
+	// Primary #1677ff -> hover #4096ff active #0958d9.
+	ColorPrimaryHover   Color
+	ColorPrimaryActive  Color
+	ColorPrimaryBg      Color
+	ColorPrimaryBgHover Color
+	ColorPrimaryBorder  Color
+	// Danger/error #ff4d4f -> hover #ff7875 active #d9363e.
+	ColorErrorHover         Color
+	ColorErrorActive        Color
+	ColorErrorBg            Color
+	ColorErrorBgHover       Color
+	ColorErrorBgFilledHover Color
+	ColorErrorBgActive      Color
+	ColorErrorBorder        Color
+	// Success #52c41a -> hover palette[4] #95de64 active #389e0d.
+	ColorSuccessHover   Color
+	ColorSuccessActive  Color
+	ColorSuccessBg      Color
+	ColorSuccessBgHover Color
+	ColorSuccessBorder  Color
+	// Warning #faad14 -> hover palette[4] #ffd666 active #d48806.
+	ColorWarningHover   Color
+	ColorWarningActive  Color
+	ColorWarningBg      Color
+	ColorWarningBgHover Color
+	ColorWarningBorder  Color
+	// Link #1677ff -> hover palette[4] #69b1ff active #0958d9.
+	ColorLinkHover  Color
+	ColorLinkActive Color
+	// Default solid black + disabled container.
+	ColorBgSolid             Color
+	ColorBgSolidHover        Color
+	ColorBgSolidActive       Color
+	ColorBgContainerDisabled Color
+
+	// Type scale (base 14).
+	FontSizeXL   float64
+	LineHeight   float64
+	LineHeightSM float64
+	LineHeightLG float64
+	FontHeight   float64
+	FontHeightSM float64
+	FontHeightLG float64
+
+	// Spacing scale (sizeUnit 4, sizeStep 4).
+	SizeXXL float64
+	SizeXL  float64
+	SizeLG  float64
+	SizeMD  float64
+	SizeMS  float64
+	Size    float64
+	SizeSM  float64
+	SizeXS  float64
+	SizeXXS float64
+
+	// Control heights (base 32).
+	ControlHeight   float64
+	ControlHeightSM float64
+	ControlHeightXS float64
+	ControlHeightLG float64
+
+	// Radius scale (base 6).
+	RadiusXS    float64
+	RadiusSM    float64
+	RadiusLG    float64
+	RadiusOuter float64
+
+	// Padding / margin (from size scale).
+	PaddingXXS float64
+	PaddingXS  float64
+	PaddingSM  float64
+	Padding    float64
+	PaddingMD  float64
+	PaddingLG  float64
+	PaddingXL  float64
+	MarginXXS  float64
+	MarginXS   float64
+	MarginSM   float64
+	Margin     float64
+	MarginMD   float64
+	MarginLG   float64
+	MarginXL   float64
+	MarginXXL  float64
+
+	// Lines and interaction.
+	LineWidth              float64
+	LineWidthBold          float64
+	LineWidthFocus         float64
+	ControlOutlineWidth    float64
+	ControlInteractiveSize float64
+	FontWeightStrong       float64
+	FontSizeIcon           float64
+	OpacityLoading         float64
+
+	// Motion, zIndex, arrows (CSS-ish values kept as strings/numbers).
+	MotionDurationFast string
+	MotionDurationMid  string
+	MotionDurationSlow string
+	ZIndexBase         float64
+	ZIndexPopupBase    float64
+	SizePopupArrow     float64
+	BoxShadow          string
+	BoxShadowSecondary string
+	BoxShadowTertiary  string
+}
+    Tokens is the global seed token set, aligned to antd v6.5.1 default theme.
+
+    Old short names (Primary/Surface/...) stay for compat and now map to the Ant
+    values below. New Seed_* / Alias_* fields carry the full global seed so L2
+    assertions have numbers to check. Component-specific tokens land with each
+    ui/kit/<name>/ package, not here.
+
+func DefaultTokens() Tokens
+    DefaultTokens returns the Ant Design v6.5.1 default (light) seed.
+
+    Source: components/theme/themes/seed.ts + shared derivatives
+    (font/size/radius/control) + util/alias.ts (padding/margin/shadow).
+
+func (t Tokens) Space(n float64) float64
+    Space returns n × Spacing.
+

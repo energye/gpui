@@ -1,0 +1,21 @@
+Command ui_wr_c5_anim_over_static is the C5 composite real window (mode-1 first
+close): R6 layer animations composited OVER the R3 static nested-boundary cache,
+under the R4 retained present policy.
+
+§3 C5 thesis: 层动画盖在静态缓存上 — a semi-transparent floating card (FLOAT) animates
+position+opacity ON TOP of the static dense region while three animation
+boards (OPA breathing opacity / ROT rotation / CLIP radius) run alongside.
+The static cache must keep replaying untouched: damage stays inside the animated
+boundaries, the dense region keeps skipping, and the golden static mask is
+bitwise-stable across runs.
+
+Gates (§3 C5 row + §2.2 族 A 动画层档): fps_interval ≥55, p95 ≤22ms, hitch ≤5/min,
+retained policy, boundary skip/rerecord split, paint_count flat, pixel
+assertions, golden bitwise zero-tolerance.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=30 go run ./examples/ui_wr_c5_anim_over_static
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 30 (§2.5 动画层档,
+max(R6=30, R3=8, R4=15)). No RUN_SECONDS → interactive loop (pixel evidence
+off).

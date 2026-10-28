@@ -1,0 +1,25 @@
+Evidence helpers for ui_wr_r4_composite (R4 · U21).
+
+The gate snapshot is a GPU readback PNG (not a window screenshot). Color probes
+are sampled in logical coordinates (DPR-aware); text probes count ink pixels in
+a declared region against the panel background; the Golden baseline is compared
+bit for bit over header + legend + body (HUD excluded).
+
+Command ui_wr_r4_composite is the W2 R4 real-window: 层 Composite Present
+(Retained).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    go run ./examples/ui_wr_r4_composite -auto-only
+    go run ./examples/ui_wr_r4_composite -manual-seconds 15
+
+Window: 1200x800. Gate close duration: 15s (§2.5). GPU window required.
+
+Gate mode freezes the Steady phase so the GPU-readback snapshot and Golden
+baseline are deterministic, while still marking the local hot layer dirty on
+every tick (the retained path is exercised continuously). Manual mode runs the
+full Steady -> Spike -> Recover phase clock and never writes the gate PNG.
+
+The visible capability is retained composition: a large static grid and static
+information panel stay untouched while only the local hot layer is re-recorded
+/ presented. The hot layer is positioned with Flutter-style Align layout
+(wrkit.Panel.Align), not hand-computed coordinates.

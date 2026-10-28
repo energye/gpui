@@ -1,0 +1,88 @@
+package thread // import "github.com/energye/gpui/gpu/webgpu/internal/thread"
+
+Package thread provides thread abstraction for GPU operations.
+
+Architecture:
+  - Main thread: Window events, user input (must be OS main thread on Windows)
+  - Render thread: All GPU operations (device, swapchain, commands)
+
+This separation ensures window responsiveness during heavy GPU operations like
+swapchain recreation, which requires vkDeviceWaitIdle.
+
+TYPES
+
+type RenderLoop struct {
+	// Has unexported fields.
+}
+    RenderLoop manages the separation between UI and render threads.
+
+    Key pattern: All GPU operations (including vkDeviceWaitIdle) happen on the
+    render thread, never blocking the UI thread.
+
+func NewRenderLoop() *RenderLoop
+    NewRenderLoop creates a new render loop with a dedicated render thread.
+
+func (rl *RenderLoop) ConsumePendingResize() (width, height uint32, ok bool)
+    ConsumePendingResize returns the pending resize dimensions and clears the
+    flag. Returns (0, 0, false) if no resize is pending.
+
+func (rl *RenderLoop) HasPendingResize() bool
+    HasPendingResize returns true if a resize is pending.
+
+func (rl *RenderLoop) IsRenderingPaused() bool
+    IsRenderingPaused returns true if rendering is paused.
+
+func (rl *RenderLoop) PauseRendering()
+    PauseRendering pauses render operations (during modal resize).
+
+func (rl *RenderLoop) RequestResize(width, height uint32)
+    RequestResize queues a resize to be applied on the render thread. This is
+    called from the UI thread (WM_SIZE handler). The actual swapchain recreation
+    happens in ApplyPendingResize.
+
+func (rl *RenderLoop) ResumeRendering()
+    ResumeRendering resumes render operations.
+
+func (rl *RenderLoop) RunOnRenderThread(f func() any) any
+    RunOnRenderThread executes f on the render thread and waits for completion.
+    Use for GPU operations that need synchronous results.
+
+func (rl *RenderLoop) RunOnRenderThreadAsync(f func())
+    RunOnRenderThreadAsync executes f on the render thread without waiting.
+    Use for fire-and-forget GPU operations.
+
+func (rl *RenderLoop) RunOnRenderThreadVoid(f func())
+    RunOnRenderThreadVoid executes f on the render thread and waits for
+    completion. Use for GPU operations without return values.
+
+func (rl *RenderLoop) Stop()
+    Stop stops the render loop and its thread.
+
+type Thread struct {
+	// Has unexported fields.
+}
+    Thread represents a dedicated OS thread for specific operations. All
+    function calls are serialized and executed on the same thread.
+
+func New() *Thread
+    New creates a new thread and starts it. The thread is locked to an OS thread
+    (runtime.LockOSThread).
+
+func (t *Thread) Call(f func() any) any
+    Call executes f on the thread and waits for completion. Returns the result
+    from f.
+
+func (t *Thread) CallAsync(f func())
+    CallAsync executes f on the thread without waiting. Use for fire-and-forget
+    operations.
+
+func (t *Thread) CallVoid(f func())
+    CallVoid executes f on the thread and waits for completion. Use when no
+    return value is needed.
+
+func (t *Thread) IsRunning() bool
+    IsRunning returns true if the thread is running.
+
+func (t *Thread) Stop()
+    Stop stops the thread.
+

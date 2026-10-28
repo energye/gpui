@@ -1,0 +1,20 @@
+Command game_particles2d is the S83 particle对照窗 (case boom only).
+
+Fire cone (upward) plus smoke (box slow rise plus turbulence) plus boom
+(ring burst with child sparks) use the real engine/particle Emitter
+Spawn/Update/AppendToBatch and draw through the sprite batch. Sprites carry
+position plus opacity only; color goes through ColorOf into the atlas tint.
+Hand feel mirrors examples/engine/particle.
+
+Modes:
+
+    go run ./examples/engine/particles2d --case=boom -auto-only
+      headless probes plus ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/particles2d --case=boom -manual-seconds 30
+      manual for 30s (click/key retriggers the boom, events logged,
+      title shows the count), then summary.
+    go run ./examples/engine/particles2d
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_particles2d. First run writes the golden baseline
+into testdata/; later runs compare it with zero tolerance.

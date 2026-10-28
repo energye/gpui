@@ -1,0 +1,330 @@
+package input // import "github.com/energye/gpui/engine/input"
+
+Package input freezes the CPU-side action mapping every 2.5D play feeds.
+
+Frozen 2026-09-15: Source, Valid, DeviceAny, Binding, NewKeyBinding,
+NewPadButtonBinding, NewPadAxisBinding, NewPinchBinding, ParseSource,
+AllSources, Map, NewMap, AddAction, Has, RemoveAction, Actions, ActionCount,
+SetDeadzone, Deadzone, Bind, Unbind, Rebind, ClearBindings, Bindings, SetKey,
+SetPadButton, SetPadAxis, AddPinchDelta, Pinch, ClearPinch, ResetInputs,
+Strength, Pressed, Vector, StartRumble, StopRumble, UpdateRumbles, RumbleLevels,
+RumbleActive. Frozen 2026-09-15: MaxBuffered, MaxTouches, DefaultBufferWindow,
+BufferedPress, Buffer, NewBuffer, Window, SetWindow, Push, Prune, Consume, Peek,
+Len, LiveCount, Clear, Presses, Touch, TouchTracker, NewTouchTracker, Begin,
+Move, End, Position, ActiveCount, ActiveIDs, Touches. Additive changes only.
+
+The package draws nothing and makes no sound; it only turns hardware numbers
+into action numbers. The caller maps platform codes to the int ids stored here
+once at the boundary (for example ui/input.Key to int) and feeds stick values,
+pinch deltas, and rumble time; render and audio stay on the caller side.
+
+Actions: one name owns a deadzone plus a binding list. Any bound input fires
+the action; the reported strength is the maximum over all bindings after the
+per-action deadzone. Empty binding lists are legal and stay silent (never
+pressed, strength 0).
+
+Sources: key (digital code > 0), pad button (pad >= 0, button >= 0),
+pad axis (pad >= 0, axis >= 0, side +1/-1), pinch (spread +1, close -1).
+Device -1 (DeviceAny) matches any pad; key and pinch require DeviceAny. Only
+core numbers are used; bad inputs are core InvalidArg errors and change nothing,
+unknown actions are core NotFound.
+
+CONSTANTS
+
+const (
+	// MaxBuffered caps stored presses per Buffer.
+	MaxBuffered = 64
+	// MaxTouches caps simultaneous active touches per TouchTracker.
+	MaxTouches = 10
+	// DefaultBufferWindow is the combo cache window (ms).
+	DefaultBufferWindow core.Duration = 150
+)
+    Frozen buffer budgets. Push beyond MaxBuffered drops the oldest press and
+    keeps the newest, so long runs never grow.
+
+const DeviceAny = -1
+    DeviceAny matches any pad. Specific pads use their index (>= 0).
+
+
+FUNCTIONS
+
+func Valid(s Source) bool
+    Valid reports whether s names a frozen source.
+
+
+TYPES
+
+type Binding struct {
+	Source Source
+	Device int
+	Code   int
+	Sign   int
+}
+    Binding ties one hardware input to an action. Device is DeviceAny or a
+    pad index; key and pinch require DeviceAny. Code is the key code (> 0),
+    button/axis index (>= 0), or 0 for pinch (ignored). Sign is 0 for digital
+    sources and +1/-1 for axis/pinch sides.
+
+func NewKeyBinding(code int) (Binding, error)
+    NewKeyBinding builds a digital key binding. Code must be > 0.
+
+func NewPadAxisBinding(device, axis, sign int) (Binding, error)
+    NewPadAxisBinding builds one side of a stick axis. Device is DeviceAny or
+    a pad index; axis index must be >= 0; sign must be +1 (positive side) or -1
+    (negative side).
+
+func NewPadButtonBinding(device, button int) (Binding, error)
+    NewPadButtonBinding builds a pad button binding. Device is DeviceAny or a
+    pad index (>= 0); button index must be >= 0.
+
+func NewPinchBinding(sign int) (Binding, error)
+    NewPinchBinding builds one pinch direction: +1 spread (fingers apart),
+    -1 close (fingers together).
+
+type Buffer struct {
+	// Has unexported fields.
+}
+    Buffer caches recent action presses so a combo hit slightly early is not
+    lost. Presses expire window after push; Consume takes the oldest live match.
+    It stores strings only and draws nothing.
+
+func NewBuffer(window core.Duration) (*Buffer, error)
+    NewBuffer builds an empty buffer with the given cache window. Window must be
+    > 0; bad windows are core InvalidArg with nil buffer.
+
+func (b *Buffer) Clear()
+    Clear drops every stored press. Nil buffers do nothing.
+
+func (b *Buffer) Consume(action string, now core.Duration) (bool, error)
+    Consume takes the oldest live press for action at time now. Hit returns
+    true; miss returns false with no error. Empty actions and negative times are
+    core InvalidArg with false and change nothing.
+
+func (b *Buffer) Len() int
+    Len returns how many presses are stored (including expired not yet pruned).
+    Nil buffers return 0.
+
+func (b *Buffer) LiveCount(now core.Duration) int
+    LiveCount counts consumable presses at now. Nil buffers and negative times
+    return 0.
+
+func (b *Buffer) Peek(action string, now core.Duration) (bool, error)
+    Peek reports whether a live press for action exists at now without removing
+    it. Validation matches Consume.
+
+func (b *Buffer) Presses() []BufferedPress
+    Presses returns a copy of the stored presses. Writing the result cannot
+    change the buffer. Nil buffers return nil.
+
+func (b *Buffer) Prune(now core.Duration)
+    Prune drops expired presses at time now. Nil buffers and negative times do
+    nothing.
+
+func (b *Buffer) Push(action string, at core.Duration) error
+    Push caches one action press at time at. Empty actions and negative times
+    are core InvalidArg and store nothing. A full buffer drops the oldest press
+    to make room and still stores the new one.
+
+func (b *Buffer) SetWindow(window core.Duration) error
+    SetWindow retunes the cache window. Bad windows are core InvalidArg and
+    leave the old window untouched.
+
+func (b *Buffer) Window() core.Duration
+    Window returns the cache window. Nil buffers return 0.
+
+type BufferedPress struct {
+	Action string
+	At     core.Duration
+}
+    BufferedPress is one cached action press: action name plus push time.
+
+type Map struct {
+	// Has unexported fields.
+}
+    Map owns action names, their bindings, live hardware state, pinch
+    accumulation, and rumble requests. It draws nothing and makes no sound.
+
+func NewMap() *Map
+    NewMap builds an empty action map.
+
+func (m *Map) ActionCount() int
+    ActionCount returns how many actions are registered. Nil maps return 0.
+
+func (m *Map) Actions() []string
+    Actions returns every registered name in sorted order. Nil maps return nil.
+
+func (m *Map) AddAction(name string, deadzone float64) error
+    AddAction registers name with deadzone in [0,1). Empty names, duplicate
+    names, and deadzones outside [0,1) return core InvalidArg and store nothing.
+
+func (m *Map) AddPinchDelta(scaleDelta float64) error
+    AddPinchDelta feeds one two-finger zoom step: the multiplicative factor
+    since the last step (1.2 spread apart, 0.8 closed together). The map
+    accumulates (scaleDelta-1) clamped to [-1,1]; spread drives +1 bindings,
+    close drives -1 bindings. Non-finite and non-positive deltas return core
+    InvalidArg and change nothing.
+
+func (m *Map) Bind(name string, b Binding) error
+    Bind adds one hardware input to name (remap adds, never replaces). Exact
+    duplicate bindings return core InvalidArg and store nothing.
+
+func (m *Map) Bindings(name string) ([]Binding, error)
+    Bindings returns a copy of the binding list for name. Writing the result
+    cannot change the map.
+
+func (m *Map) ClearBindings(name string) error
+    ClearBindings removes every hardware input from name. The action stays
+    registered and silent.
+
+func (m *Map) ClearPinch()
+    ClearPinch resets the accumulated pinch span to 0. Nil maps do nothing.
+
+func (m *Map) Deadzone(name string) (float64, bool)
+    Deadzone returns the deadzone for name. Missing names and nil maps report
+    ok=false.
+
+func (m *Map) Has(name string) bool
+    Has reports whether name is registered. Nil maps and empty names report
+    false.
+
+func (m *Map) Pinch() float64
+    Pinch returns the accumulated pinch span in [-1,1]: positive spread,
+    negative close, 0 no gesture. Nil maps return 0.
+
+func (m *Map) Pressed(name string) (bool, error)
+    Pressed reports whether the deadzoned strength is above 0.
+
+func (m *Map) Rebind(name string, bindings []Binding) error
+    Rebind replaces the whole binding list of name (remap). An empty or nil list
+    clears the action and stays silent. Bad entries and duplicates inside the
+    new list return core InvalidArg and leave the old list untouched.
+
+func (m *Map) RemoveAction(name string) error
+    RemoveAction deletes name. Empty names are InvalidArg, missing names are
+    NotFound; either way the remaining actions stay untouched.
+
+func (m *Map) ResetInputs()
+    ResetInputs clears every live hardware state (keys, pad buttons, pad axes,
+    pinch). Bindings, deadzones, and rumble requests are kept.
+
+func (m *Map) RumbleActive(pad int) bool
+    RumbleActive reports whether pad has a live rumble request.
+
+func (m *Map) RumbleLevels(pad int) (weak, strong float64, active bool)
+    RumbleLevels returns the requested intensities for pad. Inactive pads (and
+    nil maps, negative pads) return 0,0,false and never panic.
+
+func (m *Map) SetDeadzone(name string, dz float64) error
+    SetDeadzone retunes the stick drift gate for name. Bad deadzones are core
+    InvalidArg and leave the old value untouched.
+
+func (m *Map) SetKey(code int, pressed bool) error
+    SetKey feeds one digital key state. Codes must be > 0.
+
+func (m *Map) SetPadAxis(pad, axis int, value float64) error
+    SetPadAxis feeds one stick axis value in [-1,1]. Out-of-range finite values
+    clamp to the ends; non-finite values return core InvalidArg and leave the
+    old value untouched.
+
+func (m *Map) SetPadButton(pad, button int, pressed bool) error
+    SetPadButton feeds one pad button state. Pad and button must be >= 0.
+
+func (m *Map) StartRumble(pad int, weak, strong float64, dur core.Duration) error
+    StartRumble requests pad vibration: weak (high-frequency) and strong
+    (low-frequency) intensities in [0,1] for dur. It only records the request;
+    the caller drives the hardware. Overwrites any running request on the same
+    pad.
+
+func (m *Map) StopRumble(pad int) error
+    StopRumble cancels the rumble request on pad. Unknown pads are a silent
+    no-op.
+
+func (m *Map) Strength(name string) (float64, error)
+    Strength returns the deadzoned action strength in [0,1]: the maximum over
+    all bindings. Unbound actions return 0 with no error. The result is always
+    finite, never NaN.
+
+func (m *Map) Unbind(name string, b Binding) error
+    Unbind removes one hardware input from name. A binding that is not present
+    returns core NotFound and changes nothing.
+
+func (m *Map) UpdateRumbles(dt core.Duration)
+    UpdateRumbles advances every rumble clock by dt and expires finished
+    requests. dt at or below zero advances nothing. Nil maps do nothing.
+
+func (m *Map) Vector(negX, posX, negY, posY string) (core.Vec2, error)
+    Vector combines four actions into one stick vector: x grows with posX and
+    shrinks with negX, y grows with posY and shrinks with negY. Lengths above
+    1 normalize to 1 so diagonals never run faster. Missing names return core
+    NotFound with a zero vector, never a guessed direction.
+
+type Source int
+    Source names which hardware feeds one binding.
+
+const (
+	// SourceKey is one digital key code (Code > 0).
+	SourceKey Source = 0
+	// SourcePadButton is one pad button (pad >= 0 or DeviceAny, Code >= 0).
+	SourcePadButton Source = 1
+	// SourcePadAxis is one side of one stick axis (side +1/-1).
+	SourcePadAxis Source = 2
+	// SourcePinch is one pinch direction (spread +1, close -1).
+	SourcePinch Source = 3
+)
+func AllSources() []Source
+    AllSources returns every frozen source in declaration order.
+
+func ParseSource(name string) (Source, error)
+    ParseSource looks s up by frozen name. Empty and unknown names return a core
+    InvalidArg error and never guess a source.
+
+func (s Source) String() string
+    String returns the frozen name of s, or "unknown" for bad sources.
+
+type Touch struct {
+	ID  int
+	Pos core.Vec2
+	At  core.Duration
+}
+    Touch is one tracked finger: id plus last position plus update time.
+
+type TouchTracker struct {
+	// Has unexported fields.
+}
+    TouchTracker tracks live touch ids to positions. Ids are caller assigned (>=
+    0); positions are game units. It draws nothing.
+
+func NewTouchTracker() *TouchTracker
+    NewTouchTracker builds an empty tracker.
+
+func (t *TouchTracker) ActiveCount() int
+    ActiveCount returns how many touches are live. Nil trackers return 0.
+
+func (t *TouchTracker) ActiveIDs() []int
+    ActiveIDs returns the live ids in sorted order. The result is fresh;
+    nil trackers return nil.
+
+func (t *TouchTracker) Begin(id int, pos core.Vec2, at core.Duration) error
+    Begin starts tracking id at pos. Duplicate ids are core InvalidArg; a full
+    tracker (MaxTouches live) is core OutOfMemory; either way the live set stays
+    untouched.
+
+func (t *TouchTracker) Clear()
+    Clear drops every live touch. Nil trackers do nothing.
+
+func (t *TouchTracker) End(id int, at core.Duration) error
+    End stops tracking id (lift or interrupt). Unknown ids are core NotFound and
+    change nothing, never a panic.
+
+func (t *TouchTracker) Move(id int, pos core.Vec2, at core.Duration) error
+    Move updates the position of a live id. Unknown ids are core NotFound and
+    change nothing.
+
+func (t *TouchTracker) Position(id int) (core.Vec2, bool)
+    Position returns the last position of id. Unknown ids and nil trackers
+    report ok=false.
+
+func (t *TouchTracker) Touches() []Touch
+    Touches returns the live touches sorted by id. The result is fresh;
+    nil trackers return nil.
+

@@ -1,0 +1,17 @@
+package indirect // import "github.com/energye/gpui/gpu/gwgpu/indirect"
+
+Package indirect provides overflow-safe arithmetic for indirect draw spans.
+
+FUNCTIONS
+
+func DelegatedValidationOffset(bufferSize, offset, recordSize uint64, count uint32) uint64
+    DelegatedValidationOffset returns the last record offset for a span, or the
+    buffer size when offset arithmetic overflows. Backends with single-record
+    validation can use it to delegate one deterministic failing operation.
+
+func RangeFits(bufferSize, offset, recordSize uint64, count uint32) bool
+    RangeFits reports whether count consecutive records fit in a buffer.
+
+func RecordOffset(offset, recordSize uint64, index uint32) (uint64, bool)
+    RecordOffset returns the byte offset of a record without uint64 wraparound.
+

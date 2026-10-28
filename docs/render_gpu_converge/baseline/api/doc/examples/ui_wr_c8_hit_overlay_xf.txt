@@ -1,0 +1,28 @@
+Command ui_wr_c8_hit_overlay_xf is the W4+ C8 combination real-window:
+hit testing under transform + overlay + layer animation (R13 + R6 + R8).
+
+Three abilities coexist on one screen and interact:
+  - R13 hit: scripted probes assert HitTestPointer identity under plain boxes,
+    a CONTINUOUSLY ROTATING target (angle advances every frame), an animated
+    scale-pulse target, rounded clip inside/outside, overlap top-wins,
+    empty-area miss — plus OVERLAY-band probes: barrier consumes main-tree
+    points, floating button inside an entry hits the entry child, non-barrier
+    tooltip lets the same point fall through to the main tree, and identity is
+    restored after the final close.
+  - R6 layer animation: rotation/scale targets animate continuously via
+    SetRotation/SetScale (paint-only, boundary-isolated); Spike phase doubles
+    animation speed; the static dense region never repaints.
+  - R8 overlay: Spike phase cycles popups open/closed (modal dialog with
+    full-screen barrier / tooltip sheet without), fresh entries per open;
+    band-separated observation asserts opening the overlay never dirties the
+    main band beyond its steady baseline.
+
+Gates = union(R13, R8) per §3 C8 row: scripted_ok == scripted_total AND hit
+>= 4 AND main_dirty_excess_frames == 0 AND overlay_entries_on_open >= 1.
+NOTE: C8 is integration only — it does NOT close R6 (its own single-R window
+ui_wr_r6_layer_anim is still pending, §5 W5).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_wr_c8_hit_overlay_xf
+
+Window: 1200x800. RUN_SECONDS>=5 (U16). GPU window required.

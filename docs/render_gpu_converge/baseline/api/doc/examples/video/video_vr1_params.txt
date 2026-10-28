@@ -1,0 +1,9 @@
+Command video_vr1_params is the VW0 VR1 real-window: H.264 params + split.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/video/video_vr1_params
+
+Window: 1200x800. RUN_SECONDS>=5. GPU window required. Left: parameter panel
+from real video/h264 parsing (out-of-band avcC plus in-band NALUs). Right: NALU
+histogram + cut frames. Bottom: missing-parameter stream must error readably,
+no panic.

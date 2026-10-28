@@ -1,0 +1,294 @@
+package wrkit // import "github.com/energye/gpui/examples/wrkit"
+
+Package wrkit is the shared quality-bar kit for ENGINE_UI_WIDGET_RENDER real
+windows (LiveHUD, phase clock, RUN_SECONDS helpers).
+
+Scope: examples only. Do not import wrkit from ui/ or use it to paper over
+engine holes — those go through wr-engine.
+
+Package wrkit evidence helpers shared by real-window gates: zero-tolerance
+Golden comparison with baseline seeding, and semantic pixel probes sampled from
+the same snapshot.
+
+Package wrkit golden helpers: bitwise PNG comparison for real-window evidence.
+Golden files are seeded once from a reviewed snapshot and then compared with
+zero tolerance; a seed run is never a PASS by itself.
+
+Package wrkit provides shared real-window helpers for ui_wr_* quality bars
+(LiveHUD, phase clock, run-duration helpers). HUD is example-local only — it
+must not introduce ui→gpu imports and must not be used to close engine holes.
+
+CONSTANTS
+
+const (
+	PhaseSteady  = "Steady"
+	PhaseSpike   = "Spike"
+	PhaseRecover = "Recover"
+)
+    Phase names for U17 phase scripts (Steady / Spike / Recover).
+
+const LegendLineH = legendLineH
+    LegendLineH is the vertical pitch of one legend line.
+
+
+FUNCTIONS
+
+func ApplyFace(t *rendering.RenderText, points float64)
+    ApplyFace sets Face on an existing RenderText (no-op if face unavailable).
+
+func CheckPixelProbes(path string, logicalW float64, probes []PixelProbe) error
+    CheckPixelProbes decodes snapshot at path and checks every probe with the
+    declared channel tolerance. The Golden comparison remains the exact gate;
+    these probes name the visible semantics so a green cannot be only a diff=0.
+
+func CompareGoldenPNG(curPath, basePath string, rects []GoldenRect) (diffPct float64, totalPx int64, err error)
+    CompareGoldenPNG compares curPath against basePath over rects in the shared
+    1200-wide logical space. Equality is exact (8-bit RGBA channels, zero
+    tolerance). It returns the differing percentage and the number of compared
+    pixels.
+
+func CompareGoldenPNGW(curPath, basePath string, logicalW float64, rects []GoldenRect) (diffPct float64, totalPx int64, err error)
+    CompareGoldenPNGW is CompareGoldenPNG for a window whose logical client
+    width is not 1200 (e.g. the 900x300 textinput window). Rects stay in that
+    window's logical space; the device scale is derived from logicalW.
+
+func EnsureUIFace() (text.Face, string, error)
+    EnsureUIFace loads a system UI font once (size 14 base). Safe to call often.
+    Returns (face, path, err). On err, text will still layout by rune estimate
+    but will not paint — callers should log and avoid relying on invisible
+    labels.
+
+    Default chain puts Source Han Sans SC (Noto Sans CJK SC — the open-source
+    Microsoft YaHei equivalent, covering Latin too) first, then the Latin UI
+    sans, Thai, Devanagari and Arabic role fallbacks. The system NotoSansCJK
+    TTC resolves to the JP sub-font by default collection index, so the SC
+    single-language file in the user font dir is preferred when present —
+    simplified-Han glyph forms with the YaHei-style design.
+
+func FaceAt(points float64) text.Face
+    FaceAt returns a face scaled to points (falls back to EnsureUIFace base).
+    The MultiFace chain is re-pinned to the production hinting mode
+    (HintingVertical = FT light, matching the GPU glyph-mask pipeline, engine
+    default is HintingFull) — MultiFace.Source() is nil, so the re-pin goes
+    through the engine's MultiFace.WithHinting + AtSize (options preserved).
+
+func FmtSkip(skip, rr int64) string
+    FmtSkip core string helper.
+
+func GoldenGate(curPath, basePath string, rects []GoldenRect) (diffPct float64, totalPx int64, seeded bool, err error)
+    GoldenGate compares curPath with basePath. When the baseline is absent
+    and GPUI_ACCEPT_GOLDEN=1, it seeds the baseline and returns seeded=true;
+    the caller must not treat that run as a PASS. All other errors are returned.
+
+func GoldenGateW(curPath, basePath string, logicalW float64, rects []GoldenRect) (diffPct float64, totalPx int64, seeded bool, err error)
+    GoldenGateW is GoldenGate for a non-1200-wide logical window (rects use that
+    window's logical coordinates).
+
+func HUDEnabled() bool
+    HUDEnabled is true unless WR_HUD=0 (CI may still leave HUD on by default).
+
+func Label(s string, size float64, r, g, b float64) *rendering.RenderText
+    Label builds a RenderText chrome label **with Face set** so Paint draws.
+    Without Face, DrawString no-ops → Place coords look empty.
+
+func LegendLineY(i int) float64
+    LegendLineY returns the panel-local y of legend line i (0-based).
+
+func MergeBoundaryCache(app *embedder.PipelineApp, snap *scheduler.FrameMetrics)
+    MergeBoundaryCache lifts cache lifetime counters into snap when metrics lag.
+
+func ProcessCPUJiffies() (float64, bool)
+    ProcessCPUJiffies returns process-wide utime+stime from /proc/self/stat.
+    Example measurement helper only: step-curve windows need a CPU delta per
+    phase, which scheduler.ProcessTracker (cumulative average) cannot provide.
+    /proc/self/stat utime/stime are USER_HZ ticks (Linux default 100).
+
+func ProcessCPUTicksPerSec() float64
+    ProcessCPUTicksPerSec returns Linux USER_HZ (100 on every supported
+    configuration here; scheduler.proc_linux uses the same constant).
+
+func RequireMinRun(secs int, abilityID string)
+    RequireMinRun fails (stderr + exit 1) when secs < 5 (U16).
+
+func RunSeconds(def int) int
+    RunSeconds reads RUN_SECONDS or returns def. Invalid/empty → def.
+
+func RunSecondsOpt() (int, bool)
+    RunSecondsOpt returns (secs, set): RUN_SECONDS set & valid → (n, true);
+    unset/invalid → (0, false). When set=false the example runs indefinitely and
+    only closes on user action (window X / close event).
+
+func SeedGoldenPNG(curPath, basePath string) error
+    SeedGoldenPNG copies curPath to basePath after review. It creates the parent
+    directory. The caller must run again without GPUI_ACCEPT_GOLDEN and require
+    a 0.0000% diff before claiming a green.
+
+
+TYPES
+
+type GoldenRect struct {
+	X, Y, W, H float64
+}
+    GoldenRect is a logical-coordinate rectangle (1200x800 client space) that
+    participates in a golden comparison. Rects outside the image are clamped.
+
+func ShellContentRects() []GoldenRect
+    ShellContentRects masks the shared wrkit shell: legend (260x656 at 12,60)
+    and body (904x656 at 284,60). The 48px top bar and 72px bottom HUD are
+    excluded because they carry live FPS/phase text that must not enter a
+    bitwise golden.
+
+func ShellFullRects() []GoldenRect
+    ShellFullRects additionally includes the static 1200x48 top bar. Use it only
+    when the title/phase chip is frozen as well.
+
+type LiveHUD struct {
+	Box    *rendering.RenderBox
+	Width  float64
+	Height float64
+
+	// Has unexported fields.
+}
+    LiveHUD is a bottom-band, non-RepaintBoundary node that refreshes live
+    metrics mid-run (U18). Place on the root AbsoluteBox at y = winH - Height.
+
+    Cost discipline: Update throttles MarkNeedsPaint to ~10 Hz (or on phase/gate
+    change). U18 allows "每帧或每 N 帧刷新" — full 60 Hz DrawString under FullPaint +
+    dense static was measured to drag fps_interval under the 55 gate on loaded
+    hosts. Damage from HUD is acceptable under full_paint; retained windows
+    should keep HUD in a dedicated band and prefer content-only damage.
+
+func NewLiveHUD(width, height float64) *LiveHUD
+    NewLiveHUD builds a fixed-size HUD band. Call Update each tick (cheap);
+    paint dirties at most ~10×/s unless phase/gate flips.
+
+func (h *LiveHUD) NoteTick(dt float64)
+    NoteTick advances the HUD refresh budget. Call once per frame before Update.
+
+func (h *LiveHUD) SetMinIntervalSec(v float64)
+    SetMinIntervalSec overrides the meter repaint throttle (default 0.1s = ~10
+    Hz). Demand-gated windows use a slower meter (e.g. 0.5s) so the HUD stays
+    live and honest without driving idle frames alone.
+
+func (h *LiveHUD) Update(s Snap)
+    Update stores the snap. Dirties the HUD at most every minIntervalSec,
+    or immediately when Phase / GateOK changes (human-visible transitions).
+
+type Panel struct {
+	Box *rendering.AbsoluteBox
+	// X,Y are the panel origin on the parent (window or outer panel).
+	X, Y float64
+	// W,H logical size.
+	W, H float64
+}
+    Panel is a nested AbsoluteBox region with background — use for shell layout
+    so children Place coords are **relative to the panel**, not the window.
+    This avoids "coordinate hole" UX where root-level Place looks unowned.
+
+func NewPanel(w, h, r, g, b, a float64) *Panel
+    NewPanel builds a fixed-size AbsoluteBox with solid background.
+
+func (p *Panel) Align(child rendering.RenderObject, ax, ay float64) *rendering.RenderAlignBox
+    Align places child inside this panel with Flutter Align semantics:
+    the wrapper fills the panel and offsets child by fractional alignment of
+    the leftover space (0=left/top, 0.5=center, 1=right/bottom). Positioning is
+    layout-driven — on panel resize Layout recomputes the offset automatically,
+    so the child follows the size without imperative coordinates or clamping.
+
+func (p *Panel) ColorAt(w, h, x, y, r, g, b, a float64, boundary bool) *rendering.RenderColorBox
+    ColorAt places a solid color box at panel-local coords (optional boundary).
+
+func (p *Panel) LabelAt(text string, size, x, y, r, g, b float64) *rendering.RenderText
+    LabelAt places a faced label at panel-local coords.
+
+func (p *Panel) Place(child rendering.RenderObject, x, y float64)
+    Place child at panel-local (x,y).
+
+func (p *Panel) PlaceOn(parent *rendering.AbsoluteBox, x, y float64)
+    PlaceOn puts this panel onto parent at (x,y).
+
+type PhaseClock struct {
+	// SteadyEnd is exclusive end of Steady (seconds from start).
+	SteadyEnd float64
+	// SpikeEnd is exclusive end of Spike; after that → Recover.
+	SpikeEnd float64
+
+	// Has unexported fields.
+}
+    PhaseClock maps elapsed seconds into Steady → Spike → Recover. Defaults
+    fit a 5s close window; longer runs stretch proportionally only when total >
+    SteadyEnd+SpikeEnd budget (callers pass absolute boundaries).
+
+func NewPhaseClock(steadyEnd, spikeEnd float64) *PhaseClock
+    NewPhaseClock builds a clock with absolute phase boundaries in seconds.
+    Zero values fall back to 0–1.5 Steady, 1.5–3.5 Spike, then Recover.
+
+func (p *PhaseClock) Advance(dt float64) string
+    Advance adds dt and returns the current phase name.
+
+func (p *PhaseClock) Elapsed() float64
+    Elapsed returns seconds since start.
+
+func (p *PhaseClock) Name() string
+    Name returns the last computed phase (or Steady if never advanced).
+
+type PixelProbe struct {
+	Name    string
+	X, Y    float64
+	R, G, B float64
+	Tol     uint8
+}
+    PixelProbe is one semantic color check in logical 1200-wide client space.
+    Tol is the per-channel tolerance in 8-bit steps; 0 means 3.
+
+type ShellChrome struct {
+	Root   *rendering.AbsoluteBox
+	Top    *Panel
+	Legend *Panel
+	Body   *Panel // main content band (example fills)
+	HUD    *LiveHUD
+	// WinW/WinH logical client.
+	WinW, WinH float64
+	HUDH       float64
+}
+    ShellChrome is the shared U17 top-bar + legend + HUD layout for ui_wr_*
+    quality bars. Ability-specific body content is placed by the example after
+    Attach.
+
+func NewShell(winW, winH float64, abilityTitle string, legendLines []string) *ShellChrome
+    NewShell builds root + TopBar + Legend + empty Body panel + optional
+    LiveHUD. bodyX is the left edge of the body panel (after legend); legendW
+    default 260.
+
+func (s *ShellChrome) NoteHUDTick(dt float64)
+    NoteHUDTick advances HUD refresh budget.
+
+func (s *ShellChrome) Resize(winW, winH float64)
+    Resize re-lays the shell for a new window size (responsive layout):
+    the root tracks the window, top/legend/body panels re-size, and the HUD is
+    pinned to the new bottom edge. Call from the example's EventResize handler.
+    Nodes whose size actually changed mark themselves dirty via MarkNeedsLayout,
+    so only the affected panels re-layout/re-paint (no blanket full repaint).
+
+func (s *ShellChrome) UpdateHUD(ability, phase string, app *embedder.PipelineApp, gateOK bool, core, extra string)
+    UpdateHUD fills LiveHUD from a metrics snapshot + phase (no-op if HUD off).
+
+type Snap struct {
+	AbilityID   string
+	Phase       string
+	FPS         float64 // prefer fps_interval
+	P95Ms       float64
+	Policy      string
+	PresentMode string
+	PaintCount  int64
+	Presents    int64
+	// Core is ability-specific counters shown on line 2 (e.g. "skip=12 rr=3").
+	Core string
+	// GateOK is a human preview only; end-of-run JSON gates still decide PASS.
+	GateOK bool
+	// Extra optional third line.
+	Extra string
+}
+    Snap is one LiveHUD frame of metrics (filled by the example from
+    Metrics/app).
+

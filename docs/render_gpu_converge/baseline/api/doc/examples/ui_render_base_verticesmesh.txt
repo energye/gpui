@@ -1,0 +1,14 @@
+Command ui_render_base_verticesmesh is the A-group real window for
+DrawVertices(Ex)/DrawMesh(Ex) (RENDER_FEATURE_COVERAGE §1 #32 / §3.1 item 11).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_verticesmesh -auto-only
+    go run ./examples/ui_render_base_verticesmesh   # manual: lives until window close
+    go run ./examples/ui_render_base_verticesmesh -manual-seconds 15  # manual, auto-close
+
+Evidence: 19 logical contract probes (value-level on an offscreen CPU context),
+point + region pixel probes on the GPU snapshot, a bitwise golden over header +
+legend + the four cards, a GPU-route assertion (gpu_ops > 0, cpu_fallback_ops
+== 0), and a live screen grab compared with the snapshot over the same rects.
+Card C compares indexed vs expanded output pixel for pixel; card D proves
+skipped/rejected meshes leave their slots empty.

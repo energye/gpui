@@ -1,0 +1,12 @@
+Command ui_render_base_textspacing is the A-group real window for
+RenderText.SetLetterSpacing (RENDER_FEATURE_COVERAGE §1 #41 / §3.1 item 10).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_textspacing -auto-only
+    go run ./examples/ui_render_base_textspacing   # manual: lives until window close
+    go run ./examples/ui_render_base_textspacing -manual-seconds 15  # manual, auto-close
+
+Evidence: 16 logical contract probes (value-level on an offscreen CPU context),
+point + region pixel probes on the GPU snapshot, a bitwise golden over header +
+legend + the four cards, a GPU-route assertion (gpu_ops > 0, cpu_fallback_ops ==
+0), and a live screen grab compared with the snapshot over the same rects.

@@ -1,0 +1,22 @@
+Command ui_render_base_svg is the C-group real window for render/svg icon
+rasterization. It exercises:
+
+  - svg.Render / RenderWithColor -> SVG icon raster
+  - DrawImageEx -> GPU image upload + present
+  - fill="none" inheritance -> stroke-only icon keeps a transparent center
+  - nested <g transform> -> transformed geometry lands where expected
+  - percentage root width/height -> resolved against the viewBox
+
+All four cards are real SVG documents rendered to RGBA, uploaded as ImageBufs
+and drawn through the normal UI/GPU image path. Value-level CPU probes and
+GPU-snapshot pixel probes share the same SVG sources.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_svg -auto-only
+    go run ./examples/ui_render_base_svg   # manual: lives until close
+    go run ./examples/ui_render_base_svg -manual-seconds 15
+
+Evidence: 7 value-level CPU contract probes, 9 GPU-snapshot pixel probes,
+a seeded golden over header + legend + four cards, a live screen grab compared
+with the snapshot over the same rects, and GPU-route assertions (gpu_ops > 0,
+cpu_fallback_ops == 0).

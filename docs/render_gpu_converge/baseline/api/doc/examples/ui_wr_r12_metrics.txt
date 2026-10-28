@@ -1,0 +1,8 @@
+Command ui_wr_r12_metrics is the W0 R12 real-window: 帧指标字段完备 (schema).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_wr_r12_metrics
+
+Window: 1200x800. RUN_SECONDS>=5 (U16). GPU window required. gate=schema_only
+(R12 唯一允许): 硬 FAIL = §2.2.1 A–J 全族字段必须全部存在, 且仍须真窗 Present (present_count>=1)。fps
+不做硬门禁 (非 R12 主判), 但如实输出。

@@ -1,0 +1,36 @@
+Evidence helpers for ui_wr_r10_async_image (R10 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_r10_async_image is the W3 R10 real-window: 图异步→局部脏.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=30 go run ./examples/ui_wr_r10_async_image -auto-only
+    go run ./examples/ui_wr_r10_async_image                 # manual: animate until close
+    go run ./examples/ui_wr_r10_async_image -manual-seconds 15
+
+Window: 1200x800. RUN_SECONDS>=30 (U16, §2.5: 关闭 30s/观察 60). GPU window
+required.
+
+Evidence (U21): logic probes, pixel probes on the GPU snapshot, and a bitwise
+Golden over header + legend + body. The 9s phase clock would land the 30s gate
+run on the Steady/Spike boundary, so gate mode pins the phase (and the HOT pose)
+to Steady for the final 3s; all 20 sources have decoded by then and the snapshot
+is bit-stable. Manual mode keeps the cycling and does not assert pixels.
+
+Gates (§2 R10 行 + §2.2 全族):
+  - 出图后 rerecord 仅一格: 每批到达后的 boundary_rerecord 增量 ≤ 到达格数
+  - hudBoundaryAllowance，违例批数必须为 0（若全局重绘，每批增量≈全部格数即 FAIL）
+  - 按格归因总量门（§18.1 #3）: RerecordByKeySnapshot 键级差分同线， changedKeys ≤ 到达格数 +
+    hudBoundaryAllowance，违例批数必须为 0（实测 keys==dRR 每批一致）
+  - 局部脏不触布局: paint-only 契约由引擎单测 TestRenderImage_SetImage_PaintOnly
+    证明（layout_count 数的是每帧布局趟数，不作窗内逐批观测）
+  - 滚动/持续 tick 60fps 档: fps_interval>=55 且 interval_p95_ms<=22
+  - 长 soak hitch 预算: hitch_rate_per_min<=5
+  - RSS 斜率预算（稳态最小二乘）: rss_slope_valid=true 时
+    rss_slope_steady_kb_per_min<=30000；valid=false 只记账不判
+  - vsync_source 必须输出（fallback 如实标注，不宣称锁 60Hz）

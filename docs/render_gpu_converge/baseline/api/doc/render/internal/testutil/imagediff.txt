@@ -1,0 +1,36 @@
+package imagediff // import "github.com/energye/gpui/render/internal/testutil/imagediff"
+
+
+FUNCTIONS
+
+func AbsInt(v int) int
+func DecodePNG(path string) (image.Image, error)
+func FormatRect(r image.Rectangle) string
+
+TYPES
+
+type Pixel struct {
+	R, G, B, A uint8
+}
+
+func PixelAt(img image.Image, x, y int) Pixel
+
+type RegionMetric struct {
+	Count  int
+	Bounds image.Rectangle
+}
+
+func MeasureRegion(img image.Image, rect image.Rectangle, match func(Pixel) bool) RegionMetric
+
+func MeasureRegionXY(img image.Image, rect image.Rectangle, match func(x, y int, p Pixel) bool) RegionMetric
+
+type Stats struct {
+	TotalPixels   int
+	ChangedPixels int
+	MeanAbs       float64
+	RMSE          float64
+	MaxDelta      uint32
+}
+
+func Images(a, b image.Image) (Stats, error)
+

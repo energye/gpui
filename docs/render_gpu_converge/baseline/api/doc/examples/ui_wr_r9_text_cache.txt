@@ -1,0 +1,24 @@
+Evidence helpers for ui_wr_r9_text_cache (R9 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_r9_text_cache is the W1 R9 real-window: text measure cache.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_wr_r9_text_cache -auto-only
+    go run ./examples/ui_wr_r9_text_cache -manual-seconds 15
+
+Window: 1200x800. R9 close duration is 5s; a gate run below 5s is rejected.
+
+Evidence: gate mode freezes Steady, forces a layout every tick, and resets the
+per-text counters only after the first layout has warmed every width. From that
+point on the same text/style must hit (miss stays 0) and every text node must
+keep its size. Manual mode runs Steady -> Spike -> Recover; Spike changes the
+two hot strings every tick (cold misses) while every static text keeps hitting,
+and Recover freezes the hot strings and stops the miss delta. Pixel probes and
+a zero-tolerance Golden baseline cover the rendered scene; manual mode never
+writes the gate snapshot.

@@ -1,0 +1,18 @@
+Evidence helpers for ui_text_m5_anycase (text_m5 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_text_m5_anycase is the M5 real-window: any-script close-out.
+
+Zones in one window: A multi-script, B emoji, C rich runs, D multi-DPR. Texts
+come from testdata/*.txt; main.go never invents corpus.
+
+    GPUI_M5_SELFTEST=1 go run ./examples/ui_text_m5_anycase  # headless baseline, no GPU window
+    RUN_SECONDS=30 go run ./examples/ui_text_m5_anycase -auto-only   # gate：三证据（内容静态，快照天然确定）
+    go run ./examples/ui_text_m5_anycase                     # manual：常驻观察
+
+Window: 1200x800. Headless probes print one JSON line (see README).

@@ -1,0 +1,9 @@
+Command kit_f0_decor is the F0-2 decor real window: decorated boxes, group
+opacity, transform, rounded clip, custom paint and a follower bar positioned by
+overlay.Resolve only.
+
+RUN_SECONDS=5 go run ./examples/kit_f0_decor
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Correctness window: slope_gate=off,
+fps gate on, pixel probes F0+F5.

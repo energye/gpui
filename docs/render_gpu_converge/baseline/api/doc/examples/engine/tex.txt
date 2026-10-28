@@ -1,0 +1,16 @@
+Command game_tex is the 3.2/3.3 texture dual-case independent window.
+
+Far view (mipmap switch) and background streaming (stream ledger) share one
+window, each case driving the real engine/tex package read-only:
+
+    go run ./examples/engine/tex --case=far -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/tex --case=stream -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/tex --case=far -manual-seconds 30
+      manual for 30s (events logged, title shows the count), then summary.
+    go run ./examples/engine/tex
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_tex. First run writes the per-case golden baseline
+into testdata/; later runs compare it with zero tolerance.

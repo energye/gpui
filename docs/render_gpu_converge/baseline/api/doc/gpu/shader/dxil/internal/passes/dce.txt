@@ -1,0 +1,37 @@
+package dce // import "github.com/energye/gpui/gpu/shader/dxil/internal/passes/dce"
+
+Package dce implements dead code elimination for DXIL shader functions.
+
+This pass removes expressions and statements that do not transitively contribute
+to any observable side effect: stores to global outputs, UAV writes, image
+stores, atomics, barriers, function calls, or shader returns.
+
+The algorithm is mark-and-sweep, inspired by LLVM's DeadCodeElimination pass
+(which DXC runs after mem2reg) and Mesa's nir_opt_dce:
+
+ 1. Mark: walk the statement tree, find "roots" — statements with observable
+    side effects. Transitively mark every expression reachable from those roots
+    as live.
+
+ 2. Identify dead locals: a local variable is dead if none of its loads are
+    reachable from any live root. Its stores are dead too.
+
+ 3. Sweep: walk the statement tree again, removing dead stores and shrinking
+    StmtEmit ranges to exclude dead expressions.
+
+Dead control-flow elimination (ADCE-style): after sweeping, a StmtIf or
+StmtSwitch whose sub-blocks are ALL empty and whose condition/selector is not
+marked live is removed entirely. This matches DXC's LLVM ADCE behavior. StmtLoop
+is kept even with an empty body (infinite loop = observable side effect).
+
+FUNCTIONS
+
+func Run(mod *ir.Module, fn *ir.Function)
+    Run eliminates dead code from fn. It must be called AFTER mem2reg so that
+    promoted locals have already been converted to SSA aliases, leaving only
+    genuinely-needed alloca/load/store triples and dead remnants.
+
+    The pass is conservative: anything it cannot prove dead is kept. On any
+    internal inconsistency it returns without modifying fn, making it safe to
+    call unconditionally.
+

@@ -1,0 +1,242 @@
+package gestures // import "github.com/energye/gpui/ui/gestures"
+
+Package gestures implements a Flutter-style GestureArena (P5a).
+
+Hit-test path order is deepest-first (leaf → root): recognizers on the deepest
+target add to the arena first. One pointer ID = one arena: mouse is
+
+Tap vs pan: movement within kTouchSlop keeps both pending; beyond slop pan
+accepts and tap is rejected; up within slop makes tap accept.
+
+Wheel (PointerScroll) bypasses the arena — use ScrollWheel or route directly to
+a viewport.
+
+Nested scroll (P5b) lives in rendering.Scrollable (Parent residual handoff),
+not by re-winning the arena mid-gesture. Hit paths should still list the deepest
+Scrollable first when joining the arena.
+
+Dependency: gestures → input only (no platform/rendering/gpu).
+
+CONSTANTS
+
+const PrimaryPointerID = input.PrimaryPointerID
+    PrimaryPointerID is the mouse cursor pointer id (0). Touch slots are ≥ 1.
+
+
+FUNCTIONS
+
+func ApplyScrollWheel(e PointerEvent, onScroll func(ScrollDelta)) bool
+    ApplyScrollWheel invokes onScroll for PointerScroll events without entering
+    the arena. Returns true if the event was a scroll and onScroll was called.
+
+
+TYPES
+
+type Dispatcher struct {
+	Manager *GestureArenaManager
+	// OnScroll is invoked for PointerScroll (bypasses arena).
+	OnScroll func(ScrollDelta)
+}
+    Dispatcher routes platform pointer events through a GestureArenaManager.
+
+    Down: call JoinPointer on each path target (deepest first), then CloseArena.
+    Move/Up: Route to arena (optionally coalesce moves). Scroll: never enters
+    the arena; use OnScroll.
+
+func NewDispatcher() *Dispatcher
+    NewDispatcher creates a dispatcher with a fresh manager.
+
+func (d *Dispatcher) HandleBatch(evs []PointerEvent, downPath func(e PointerEvent) []PointerTarget)
+    HandleBatch processes a list of events, coalescing consecutive PointerMove
+    samples to the latest point.
+
+func (d *Dispatcher) HandleDown(e PointerEvent, path []PointerTarget)
+    HandleDown starts an arena and lets path targets join (deepest-first).
+
+func (d *Dispatcher) HandleEvent(e PointerEvent)
+    HandleEvent routes a non-down pointer event (move/up). Prefer HandleBatch
+    for moves.
+
+type GestureArena struct {
+	PointerID int
+
+	// Has unexported fields.
+}
+    GestureArena is one competition for a single pointer (Flutter GestureArena
+    subset).
+
+    MVP: single winner. When a member Accepts, all others are Rejected. When all
+    but one have Rejected and the arena is closed, the last pending member is
+    auto-accepted (sweep).
+
+func (a *GestureArena) Accept(rec GestureRecognizer)
+    Accept resolves the arena in favor of rec.
+
+func (a *GestureArena) Add(rec GestureRecognizer)
+    Add registers a recognizer as pending. No-op if resolved or rec nil.
+
+func (a *GestureArena) Close()
+    Close stops accepting new members. If exactly one pending remains, it wins.
+
+func (a *GestureArena) MemberCount() int
+    MemberCount returns how many recognizers joined.
+
+func (a *GestureArena) PendingCount() int
+    PendingCount returns pending members.
+
+func (a *GestureArena) Reject(rec GestureRecognizer)
+    Reject marks rec as rejected and may auto-accept the last pending member.
+
+func (a *GestureArena) Resolved() bool
+    Resolved reports whether the arena has a final outcome.
+
+func (a *GestureArena) Winner() GestureRecognizer
+    Winner returns the accepted recognizer, or nil.
+
+type GestureArenaManager struct {
+	// Has unexported fields.
+}
+    GestureArenaManager owns arenas keyed by pointer id.
+
+func NewManager() *GestureArenaManager
+    NewManager creates an empty manager.
+
+func (m *GestureArenaManager) ActiveCount() int
+    ActiveCount is the number of live arenas (test helper).
+
+func (m *GestureArenaManager) Arena(pointerID int) *GestureArena
+    Arena returns the open or active arena for pointerID, creating one if
+    needed.
+
+func (m *GestureArenaManager) CloseArena(pointerID int)
+    CloseArena closes the arena for pointerID (end of down routing).
+
+func (m *GestureArenaManager) Get(pointerID int) *GestureArena
+    Get returns the arena for pointerID if present.
+
+func (m *GestureArenaManager) Route(e PointerEvent)
+    Route delivers e to all relevant members of the pointer's arena.
+
+type GestureRecognizer interface {
+	// AddPointer registers interest in pointerID and joins the arena for that down.
+	AddPointer(pointerID int, e PointerEvent)
+	// HandleEvent receives subsequent move/up/cancel for that pointer while pending or accepted.
+	HandleEvent(e PointerEvent)
+	// Accept is invoked when this recognizer wins the arena.
+	Accept()
+	// Reject is invoked when this recognizer loses the arena.
+	Reject()
+	// Dispose releases resources (idempotent).
+	Dispose()
+}
+    GestureRecognizer competes in a GestureArena for a pointer.
+
+    Lifecycle:
+
+        AddPointer → (HandleEvent)* → Accept or Reject → Dispose (optional cleanup)
+
+    Accept/Reject are called by the arena (or self-request via
+    Arena.Accept/Reject). Implementations must be safe to Reject after they
+    already lost.
+
+type PanGestureRecognizer struct {
+	OnPanStart  func(e PointerEvent)
+	OnPanUpdate func(e PointerEvent, dx, dy float64)
+	OnPanEnd    func(e PointerEvent)
+
+	// TouchSlop overrides kTouchSlop when > 0.
+	TouchSlop float64
+
+	// Has unexported fields.
+}
+    PanGestureRecognizer wins when movement exceeds touch slop, then tracks
+    drag.
+
+    OnPanUpdate receives the latest sample and delta since the previous sample
+    (after accept). Coalesce moves externally (Dispatcher) for "latest point
+    only".
+
+func NewPan() *PanGestureRecognizer
+    NewPan creates a pan recognizer.
+
+func (p *PanGestureRecognizer) Accept()
+    Accept implements GestureRecognizer.
+
+func (p *PanGestureRecognizer) AddPointer(pointerID int, e PointerEvent)
+    AddPointer implements GestureRecognizer.
+
+func (p *PanGestureRecognizer) Dispose()
+    Dispose implements GestureRecognizer.
+
+func (p *PanGestureRecognizer) HandleEvent(e PointerEvent)
+    HandleEvent implements GestureRecognizer.
+
+func (p *PanGestureRecognizer) Reject()
+    Reject implements GestureRecognizer.
+
+type PointerEvent = input.PointerEvent
+    PointerEvent is the unified pointer/touch sample consumed by the gesture
+    arena. It is an alias of input.PointerEvent — the cross-platform normalized
+    pointer type — so gestures and the rest of the UI speak one vocabulary:
+
+        ID = 0 → mouse primary cursor
+        ID ≥ 1 → touch slot (multi-touch)
+
+func FromInput(in input.Event) (PointerEvent, bool)
+    FromInput extracts a PointerEvent from a normalized input event.
+    Pointer/Scroll map straight to the pointer sample; Touch maps to its
+    PointerEvent-equivalent fields (Kind/ID/X/Y). Non-pointer events (key, text,
+    ime, lifecycle) yield ok=false.
+
+type PointerTarget interface {
+	// JoinPointer is called for each hit-test path entry from leaf to root.
+	JoinPointer(m *GestureArenaManager, pointerID int, e PointerEvent)
+}
+    PointerTarget can join an arena on pointer down (deepest-first path order).
+
+type RecognizerTarget struct {
+	Rec GestureRecognizer
+}
+    RecognizerTarget wraps a GestureRecognizer as a PointerTarget that joins the
+    arena.
+
+func (t *RecognizerTarget) JoinPointer(m *GestureArenaManager, pointerID int, e PointerEvent)
+    JoinPointer implements PointerTarget.
+
+type ScrollDelta struct {
+	ScrollX, ScrollY float64
+	X, Y             float64 // pointer position if known
+}
+    ScrollDelta is a wheel/trackpad scroll sample (logical px).
+
+type TapGestureRecognizer struct {
+
+	// OnTap is invoked once when the tap wins and pointer goes up within slop.
+	OnTap func(e PointerEvent)
+
+	// TouchSlop overrides kTouchSlop when > 0.
+	TouchSlop float64
+
+	// Has unexported fields.
+}
+    TapGestureRecognizer wins if pointer up occurs within kTouchSlop of down.
+    Exceeding slop (or losing the arena) rejects without firing OnTap.
+
+func NewTap() *TapGestureRecognizer
+    NewTap creates a tap recognizer.
+
+func (t *TapGestureRecognizer) Accept()
+    Accept implements GestureRecognizer.
+
+func (t *TapGestureRecognizer) AddPointer(pointerID int, e PointerEvent)
+    AddPointer implements GestureRecognizer.
+
+func (t *TapGestureRecognizer) Dispose()
+    Dispose implements GestureRecognizer.
+
+func (t *TapGestureRecognizer) HandleEvent(e PointerEvent)
+    HandleEvent implements GestureRecognizer.
+
+func (t *TapGestureRecognizer) Reject()
+    Reject implements GestureRecognizer.
+

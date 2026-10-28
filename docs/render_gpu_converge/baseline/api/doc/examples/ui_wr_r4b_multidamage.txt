@@ -1,0 +1,15 @@
+Command ui_wr_r4b_multidamage is the W2 R4b real-window: DirtyLayerID + 多
+damage。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_wr_r4b_multidamage
+
+Window: 1200x800. RUN_SECONDS>=15 (U16, §2.5: 15s/观察 30). GPU window
+required. Gates: dirty_layer_id_max>=2（两远离脏点 → 两独立 boundary id）;
+damage_multi_frames>=1（多矩形独立 scissor）; 中间大面积静态不重绘（skip>0）; damage_ratio
+稳态<<1（中央静区不脏）; present_mode 非 full; 持续 tick fps>=55。
+
+场景（§3 R4b 行）：左上 hot + 右下 hot 两个远离脏点同帧更新（每帧变脏）， 中间 6x5 色格 + 8 标签大面积静态（嵌套
+boundary，retained 下不重绘）。 两个 dirty layer 各自独立损伤，并集损伤不覆盖中央静区。 Flutter
+对齐布局驱动（§2.6.1 规则，对标 R4）：两热点由 Panel.Align 定位， offset = (父−子)×比例，相位切换
+SetAlignment——无固定坐标、resize 自动跟随。

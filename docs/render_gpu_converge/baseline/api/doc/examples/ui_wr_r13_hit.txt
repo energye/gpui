@@ -1,0 +1,27 @@
+Evidence helpers for ui_wr_r13_hit (R13 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_r13_hit is the W2 R13 real-window: hit testing ≡ paint identity.
+A scripted pointer probe set (8 probes) must hit exactly the drawn target under
+plain boxes, rounded clip, 30° rotation transform and overlap; out-of-clip
+and empty-area probes must not hit. A real X11 pointer click drives the same
+HitTestPointer path and highlights the target.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_wr_r13_hit -auto-only
+    go run ./examples/ui_wr_r13_hit                 # manual: animate until close
+    go run ./examples/ui_wr_r13_hit -manual-seconds 15
+
+Window: 1200x800. RUN_SECONDS>=5 (§2.5). GPU window required.
+
+Evidence (U21): logic probes (scripted hit set), color/ink probes on the GPU
+snapshot, and a bitwise Golden over header + legend + body (821184 logical px).
+Gate mode keeps the deterministic script (probes fire once, Spike glow then
+Recover restore) and only freezes the HOT hue (60-tick ramp then hold),
+so the snapshot shows the restored base colours bit-stably. Manual mode keeps
+the animated HOT spot and does not assert pixels.

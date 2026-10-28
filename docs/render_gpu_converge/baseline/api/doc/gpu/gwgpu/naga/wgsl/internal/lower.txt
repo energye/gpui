@@ -1,0 +1,41 @@
+package lower // import "github.com/energye/gpui/gpu/gwgpu/naga/wgsl/internal/lower"
+
+
+FUNCTIONS
+
+func Lower(ast *parser.Module) (*ir.Module, error)
+    Lower converts a WGSL AST module to Naga IR. All capabilities are enabled
+    (permissive mode for tools and tests).
+
+func LowerWithSource(ast *parser.Module, source string) (*ir.Module, error)
+    LowerWithSource converts a WGSL AST module to Naga IR, keeping source for
+    error messages. The lowerer is always permissive — all valid WGSL types are
+    accepted. Capability validation is performed by ir.ValidateWithCapabilities
+    after lowering.
+
+
+TYPES
+
+type LowerResult struct {
+	Module   *ir.Module
+	Warnings []Warning
+}
+    LowerResult contains the result of lowering, including any warnings.
+
+func LowerWithWarnings(ast *parser.Module, source string) (*LowerResult, error)
+    LowerWithWarnings converts a WGSL AST module to Naga IR, returning warnings.
+    The lowerer is always permissive — all valid WGSL types are accepted.
+    Capability validation is performed by ir.ValidateWithCapabilities after
+    lowering.
+
+type Lowerer struct {
+	// Has unexported fields.
+}
+    Lowerer converts WGSL AST to Naga IR.
+
+type Warning struct {
+	Message string
+	Span    parser.Span
+}
+    Warning represents a compiler warning (not an error).
+

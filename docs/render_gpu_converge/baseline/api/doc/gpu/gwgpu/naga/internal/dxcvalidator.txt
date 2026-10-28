@@ -1,0 +1,113 @@
+package dxcvalidator // import "github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator"
+
+The validator lives in dxil.dll, ships with the Windows 10 SDK, and is only
+available on Windows. On other platforms every call returns ErrUnsupported.
+
+dxil.dll initializes its allocator state via DllMain(DLL_THREAD_ATTACH)
+which only fires for OS threads created AFTER LoadLibrary returns.
+None of Go runtime's M's qualify. Run therefore spawns a fresh OS thread via
+kernel32!CreateThread, initializes the validator on that thread, and dispatches
+every Validate call back onto the same thread. A single Run invocation may issue
+many Validate calls.
+
+VARIABLES
+
+var (
+	// ErrTruncatedContainer — blob shorter than the DXBC header (32 B) or
+	// a later offset walks past the blob end.
+	ErrTruncatedContainer = errors.New("dxcvalidator: precheck: container truncated")
+
+	// ErrBadMagic — first 4 bytes are not "DXBC".
+	ErrBadMagic = errors.New("dxcvalidator: precheck: bad DXBC magic")
+
+	// ErrBadPartCount — part count is absurd (> 64) or the part offset
+	// table itself does not fit in the blob.
+	ErrBadPartCount = errors.New("dxcvalidator: precheck: bad part count")
+
+	// ErrMalformedPartHeader — a part offset points past the end of the
+	// blob, or the declared part data length walks past the end.
+	ErrMalformedPartHeader = errors.New("dxcvalidator: precheck: malformed part header")
+
+	// ErrMissingDXILPart — no "DXIL" or "ILDB" part present.
+	ErrMissingDXILPart = errors.New("dxcvalidator: precheck: missing DXIL part")
+
+	// ErrMissingPSV0 — no "PSV0" part present.
+	ErrMissingPSV0 = errors.New("dxcvalidator: precheck: missing PSV0 part")
+
+	// ErrMissingISGOSG — graphics stage missing "ISG1" or "OSG1".
+	ErrMissingISGOSG = errors.New("dxcvalidator: precheck: missing ISG1/OSG1 for graphics stage")
+
+	// ErrEmptyEntryName — PSV0 EntryFunctionName resolves to an empty
+	// string.
+	ErrEmptyEntryName = errors.New("dxcvalidator: precheck: empty PSV0 entry function name")
+
+	// ErrInvalidStageByte — PSVRuntimeInfo ShaderStage byte is outside
+	// the documented PSVShaderKind range [0..14].
+	ErrInvalidStageByte = errors.New("dxcvalidator: precheck: invalid PSV0 shader stage byte")
+
+	// ErrMalformedPSV0 — PSV0 payload is smaller than the PSVRuntimeInfo
+	// header requires, or declared sizes walk past the end.
+	ErrMalformedPSV0 = errors.New("dxcvalidator: precheck: malformed PSV0 part")
+)
+    Typed errors returned by PreCheckContainer. Callers use errors.Is to switch
+    on the specific invariant that failed.
+
+var ErrUnsupported = errors.New("dxcvalidator: requires Windows")
+    ErrUnsupported is returned by Run when invoked on a non-Windows build.
+
+
+FUNCTIONS
+
+func PreCheckContainer(blob []byte) error
+    PreCheckContainer runs a fast fixed-offset structural check over a DXBC
+    container blob. It returns nil when the container is structurally sane
+    enough to hand to IDxcValidator, or a wrapped typed error when any invariant
+    is violated.
+
+    PreCheckContainer never mutates the input and never allocates beyond small
+    bounded slices for the part table view.
+
+    The VALID count is unchanged (1/237 — the golden fixture), and the total
+    failing count is unchanged. The reshuffled entries are genuinely broken:
+    most are compute shaders whose PSV0 emitter still defaults ShaderStage=1
+    (Vertex) instead of 5 (Compute), so this check correctly flags them as
+    graphics stages missing ISG1/OSG1. Those are separate emitter bugs that
+    will be filed and fixed independently — precheck is not false-positive,
+    it is surfacing real underlying issues earlier in the pipeline.
+
+func Run(fn func(v *Validator) error) error
+    Run spawns a fresh OS thread, initializes IDxcValidator on it, invokes fn
+    with a Validator handle bound to that thread, and tears the validator down
+    on return. fn may call v.Validate any number of times; all calls run on the
+    same thread.
+
+    If fn returns an error, Run returns that error after teardown. On
+    non-Windows: returns ErrUnsupported without invoking fn.
+
+
+TYPES
+
+type Result struct {
+	// OK reports whether IDxcOperationResult::GetStatus returned S_OK.
+	OK bool
+	// Status is the raw HRESULT from GetStatus. Zero when OK.
+	Status uint32
+	// Error is the textual error blob returned by the validator. Empty
+	// when OK.
+	Error string
+}
+    Result is the outcome of a single Validate call.
+
+type Validator struct {
+	// Has unexported fields.
+}
+    Validator wraps an IDxcValidator instance bound to a worker OS thread.
+    Obtain one via Run. Validator is not safe for use outside the callback
+    passed to Run.
+
+func (v *Validator) Validate(dxil []byte) (Result, error)
+    Validate submits a DXBC container to IDxcValidator::Validate and returns
+    the HRESULT plus any error blob. The blob is copied into the Windows
+    process heap before the call because dxil.dll inspects buffer ownership via
+    HeapSize.
+

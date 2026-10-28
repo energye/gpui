@@ -1,0 +1,16 @@
+Command ui_pf_appkit is the macOS (AppKit/Cocoa) real-window full-capability
+verifier: the same shared pfkit driver as ui_pf_x11 / ui_pf_wayland, on the
+AppKit backend. ENGINE_WINDOW_API.md §2.6 (layer A) requires every platform to
+have its own real-window verifier — this is AppKit's.
+
+While the AppKit backend is a registered placeholder (Create returns the
+explicit "not implemented yet" error, S5), running this on macOS verifies
+exactly that promise: the open must fail clearly and without a panic — a probe
+that opens a window anyway, or crashes, is a FAIL of the honesty contract.
+Once S5 lands this same command automatically upgrades to the full-capability
+acceptance run (no example code change). On any other OS it reports SKIP (this
+window can only be verified on macOS).
+
+    go run ./examples/ui_pf_appkit   # on macOS
+
+Output: per-capability PASS/FAIL/⛔ table on stderr + JSON gate on stdout.

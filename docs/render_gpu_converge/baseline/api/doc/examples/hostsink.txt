@@ -1,0 +1,121 @@
+package hostsink // import "github.com/energye/gpui/examples/hostsink"
+
+Package hostsink carries decoded PCM to the host speaker for interactive windows
+(e.g. video_player).
+
+Say it plain: the engine (video.Player.PollAudio) hands us decoded PCM frames
+(float32 interleaved + stamp + waterline) and never touches the speaker; this
+package carries those frames to the OS sound service and reports back honestly.
+video/ stays device-free, so every device handle below lives window-side only.
+
+The A4 gate window (examples/video/video_a4_sink) keeps its own copy with
+gate extras (unplug-drill hooks, WAV chain proof, null sink); this package
+is the shared speaker path for windows that just play. Behavior matches A4's:
+paplay-pulse preferred, aplay-alsa fallback, device-paced blocking writes,
+pause + auto-resume on loss, pump thread that lingers past end-of-stream so
+replays keep sounding.
+
+ffmpeg peers (read-only, fftools/ffplay.c; Serial == Player generation):
+
+    audio_open (:2578-2640, SDL_OpenAudioDevice + fallback lists) ->
+      ProbeHostAudio + NewHostSink (obtained spec reported, never faked)
+    sdl_audio_callback (:2533-2576, pull frame, pad silence on error,
+      re-anchor clock) -> Pump.Once / PumpLoop (pull PollAudio,
+      FloatToS16, bad packets never surface: the engine conceals them)
+    SDL_PauseAudioDevice (:2814, start) -> the first Write starts the
+      stream; the pump thread and both clocks keep living across loss
+
+Platform table (one row per OS, no blank cells per repo discipline):
+
+    Linux/paplay-pulse | system Pulse client via raw stdin | default, tried first
+    Linux/aplay-alsa   | system ALSA writer via raw stdin  | fallback when paplay missing
+    darwin/*           | honest unsupported, readable err  | no speaker claim, video plays on
+    windows/*          | honest unsupported, readable err  | no speaker claim, video plays on
+
+CONSTANTS
+
+const (
+	BackendPaplay = "paplay-pulse"
+	BackendAplay  = "aplay-alsa"
+)
+    Backends in preference order (mirrors audio_open's fallback lists).
+
+
+FUNCTIONS
+
+func FloatToS16(dst []int16, src []float32)
+    FloatToS16 converts interleaved float PCM in [-1,1] to s16, clipping
+    over-range (and non-finite) samples. 1.0 maps to 32767, -1.0 to -32768;
+    dst must hold len(src) samples. Pure math, no device.
+
+func ProbeHostAudio() (backend string, available bool, reason string)
+    ProbeHostAudio names the backend NewHostSink would open without opening
+    anything. available false carries the honest reason (tried paplay then aplay
+    via PATH; darwin/windows have no writer yet). Callers with no speaker play
+    video silently instead of failing.
+
+func PumpLoop(pm *Pump, p *govideo.Player, stopCh <-chan struct{}, resumer func(Sink) bool)
+    PumpLoop is the SDL-audio-thread shape: it owns one goroutine, blocks on
+    the device, survives device loss (pause + retry every 2s), and only returns
+    when stop closes. End-of-stream does NOT end it: a replay re-seeks and
+    fresh frames arrive on the new serial, so the pump lingers instead of dying
+    mid-show.
+
+func S16Bytes(out []byte, s16 []int16) []byte
+    S16Bytes appends s16 samples as little-endian bytes (the wire format
+    paplay/aplay read with --format=s16le / -f S16_LE).
+
+
+TYPES
+
+type Pump struct {
+	Sink Sink
+
+	Stat PumpStats
+	// Has unexported fields.
+}
+    Pump pulls due PCM into its sink. The s16 scratch buffer is reused across
+    calls (no per-packet alloc); use one Pump per goroutine. Stat is sampled via
+    Snapshot (the pump goroutine writes, the owner samples under lock).
+
+func (pm *Pump) Once(p *govideo.Player) (wrote bool, ended bool, err error)
+    Once pulls the newest due PCM frame and feeds it to the sink. False, no
+    error means nothing due yet (caller advances its clock). Device loss parks
+    the sink paused and counts one drop; the pump thread stays alive for Resume.
+
+func (pm *Pump) Snapshot() PumpStats
+    Snapshot copies the counters for the owner thread.
+
+type PumpStats struct {
+	PlayedBytes int64 // PCM bytes accepted by the device
+	PlayedPkts  int64 // AudioFrames written
+	Starved     int64 // ticks with nothing due yet (stream alive)
+	Drops       int64 // device-loss events (paused, thread alive)
+	Resumes     int64 // successful Resume after a loss
+	LastPTS     int64 // newest played stamp
+}
+    PumpStats counts what reached the speaker (plain fields: one pump goroutine
+    writes, the owner samples under the pump lock).
+
+type Sink interface {
+	WritePCM(pcm []byte) error
+	Backend() string
+	ObtainedRate() int
+	ObtainedChannels() int
+	DeviceError() string
+	Paused() bool
+	Pause()
+	Resume() error
+	Close() error
+}
+    Sink is one speaker path. WritePCM blocks with backpressure (the device sets
+    the pace, like SDL's audio thread); any error means the device is gone:
+    the sink parks itself paused with a readable error and the pump thread stays
+    alive for Resume.
+
+func NewHostSink(rate, ch int) (Sink, error)
+    NewHostSink opens the preferred speaker path for rate/ch (taken from the
+    decoded AudioFrame, never defaulted here). No file fallback: when no writer
+    exists the caller gets the honest unavailable error and plays video silently
+    instead of faking a speaker.
+

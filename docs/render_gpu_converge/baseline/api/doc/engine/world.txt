@@ -1,0 +1,572 @@
+package world // import "github.com/energye/gpui/engine/world"
+
+Package world freezes the CPU-side entity math every 2.5D level feeds.
+
+Frozen 2026-09-15: ID, NoEntity, Transform, IdentityTransform, LocalMatrix,
+Comp, World, NewWorld, Spawn, Despawn, Alive, Count, Spawned, SetParent, Parent,
+Children, SetTransform, Local, WorldOf, WorldMatrix, AddComp, RemoveComp,
+HasComp, Comps, Clear. Additive changes only.
+
+This package only computes numbers; it draws nothing and steps nothing. The
+caller spawns entities, hangs capabilities (sprite, collider, script) as comps,
+links parents, then reads world transforms and feeds them to the existing render
+draws. Only core numbers are used; render types convert once at the render
+boundary in engine/renderconv. No Vec2, Color, or AssetID is redefined here.
+
+Identity: IDs start at 1 and never repeat inside one World; NoEntity (0) means
+no parent and never names a live entity. Spawned counts every birth so replays
+can prove no reuse; Count counts the living.
+
+Hierarchy (Godot node idea): each entity holds a local transform and at most
+one parent. WorldOf folds every ancestor from the root down: world scale is the
+component-wise product, world rotation is the plain sum, world position is the
+parent position plus the parent-rotated scaled local offset. WorldMatrix is the
+same fold as matrices (parent * local) and agrees with WorldOf inside 1e-9.
+Despawning a parent never deletes its children: they fall back to roots keeping
+their local transforms. Cycles and self-parenting are rejected, never guessed.
+
+Comps: Kind names the capability ("sprite", "collider", "script", ...) and must
+be non-empty; Ref carries the asset id and may stay empty for pure-logic comps.
+Duplicates are allowed (two scripts on one entity); RemoveComp drops the first
+match. Scene files (10.2) read this same shape: entity, comps, parent links,
+referenced asset ids.
+
+Errors: a missing entity is core NotFound, a bad number or bad link is core
+InvalidArg; bad writes store nothing. Nil receivers never panic: getters park
+at zero, writers report InvalidArg. Window intent: none, pure arithmetic,
+offscreen golden only.
+
+Frozen 2026-09-15: LifeState, LifeActive, LifeSleeping, Scene, NewScene, Spawn,
+Sleep, Wake, State, IsActive, IsSleeping, Alive, Dispose, Count, ActiveCount,
+SleepingCount, Spawned, Clear, World. Additive changes only. Scene owns one
+World for storage; births run active, Sleep parks, Wake resumes, Dispose clears
+comps and flags. Window intent: none, pure arithmetic, offscreen golden only.
+
+Frozen 2026-09-15: PrefabVersion, MaxPrefabNameLen, MaxPrefabComps,
+MaxPrefabBytes, Prefab, NewPrefab, Name, Version, Local, SetLocal, AddComp,
+Comps, Encode, Equal, Instantiate, ParsePrefab, LoadPrefab, SavePrefab,
+SceneFileVersion, MaxSceneNameLen, MaxSceneEntities, MaxSceneComps,
+MaxSceneBytes, SceneNode, SceneFile, NewSceneFile, Name, Version, Count,
+Entities, AddEntity, ParseScene, LoadScene, SaveScene, Open. Additive changes
+only. Prefab is one reusable entity template (name, local, comps); SceneFile is
+one level on disk (name, version, entities with parent links, comps, referenced
+asset ids). Parse/Load read scene JSON, Encode/Save write canonical bytes,
+Instantiate stamps a prefab into a World, Open builds a live Scene (every
+birth active) plus the filed-name to live-id index. Intentional deviation:
+the plan table names Scene{Load,Save}; File shape frozen: version "1.0", entity,
+comps, parent links, referenced asset ids. Window intent: game_world--case=open;
+pure file math, offscreen golden only (round-trip byte-identical).
+
+Frozen 2026-10-05 (S85): MaxCullEntities, Cull, ActiveSnap, NewCull, SetView,
+View, SetAutoSleep, AutoSleep, SetMaxActive, MaxActive, Track, Update, Untrack,
+Awake, Release, IsAwake, Refresh, Active, ActiveCount, Snapshot, Entered,
+Exited, IsActive, InView, Count, Dropped, Trimmed, Refreshes, LastRefreshUs,
+Reset. Additive changes only. Cull is the large-scene visibility index
+(in-view plus awake pins, sleep skips matrices, active-only layer/feetY sort,
+attach fold unbroken, enter/exit events with auto Sleep/Wake). Window intent:
+game_world--case=large; pure index math, offscreen golden only.
+
+CONSTANTS
+
+const (
+	// MaxPrefabNameLen caps prefab names in bytes.
+	MaxPrefabNameLen = 64
+	// MaxPrefabComps caps comps on one prefab.
+	MaxPrefabComps = 16
+	// MaxPrefabBytes caps one prefab file.
+	MaxPrefabBytes = 64 << 10
+)
+    Frozen budgets. A well-formed file beyond budget is OutOfMemory, never a
+    guessed load. A bad value is InvalidArg via constructors and BadData via
+    Parse.
+
+const (
+	// MaxSceneNameLen caps scene and entity names in bytes.
+	MaxSceneNameLen = 64
+	// MaxSceneEntities caps entities in one scene file.
+	MaxSceneEntities = 4096
+	// MaxSceneComps caps comps on one filed entity.
+	MaxSceneComps = 16
+	// MaxSceneBytes caps one scene file.
+	MaxSceneBytes = 4 << 20
+)
+    Frozen budgets. A well-formed file beyond budget is OutOfMemory, never a
+    guessed load. A bad value is InvalidArg via constructors and BadData via
+    Parse.
+
+const MaxCullEntities = 32768
+    MaxCullEntities caps one Cull index. Past it Track reports OutOfMemory,
+    never a half entry. 20000 large-scene entities fit with room to spare.
+
+
+VARIABLES
+
+var PrefabVersion = core.Version{Major: 1, Minor: 0}
+    PrefabVersion is the prefab file version every Encode writes. Bump Minor for
+    additive fields, Major for a breaking shape.
+
+var SceneFileVersion = core.Version{Major: 1, Minor: 0}
+    SceneFileVersion is the scene file version every Encode writes. Bump Minor
+    for additive fields, Major for a breaking shape.
+
+
+FUNCTIONS
+
+func LocalMatrix(t Transform) core.Mat2D
+    LocalMatrix renders t as Translate(Pos)*Rotate(Rot)*Scale(Scale). Same
+    layout as core.Mat2D; convert once at the render boundary.
+
+
+TYPES
+
+type ActiveSnap struct {
+	ID     ID
+	X, Y   float64
+	Layer  int
+	Pinned bool
+	Parent ID
+}
+    ActiveSnap is one update-set member with its world spot: the production read
+    path. Snapshot fills them during Refresh, so per-frame callers copy structs
+    instead of paying WorldOf plus three map lookups per active; the positions
+    equal WorldOf exactly (the unit test pins that agreement).
+
+type Comp struct {
+	Kind string
+	Ref  core.AssetID
+}
+    Comp is one capability hung on an entity: Kind names it ("sprite",
+    "collider", "script", ...) and must be non-empty; Ref carries the asset id
+    and may stay empty for pure-logic comps.
+
+type Cull struct {
+	// Has unexported fields.
+}
+    Cull is one visibility index over a World. The World stays the only
+    placement truth; Cull only caches the per-entity draw band, feet offset,
+    visibility box, and awake pin the caller registered. Refresh rebuilds the
+    active set from the live world numbers, so moving an entity in the World is
+    enough: no second placement table drifts.
+
+func NewCull(view core.Rect) (Cull, error)
+    NewCull builds a visibility index over view. The view must hold finite
+    numbers; anything else is InvalidArg. An empty view is allowed and means
+    awake pins only. AutoSleep starts off, MaxActive starts unlimited.
+
+func (c *Cull) Active() []ID
+    Active returns the update set in draw order: layer ascending, then feet Y
+    ascending, stable for ties. A fresh slice every call; nil on a nil index or
+    an empty set.
+
+func (c *Cull) ActiveCount() int
+    ActiveCount counts the update set, or 0 on a nil index.
+
+func (c *Cull) AutoSleep() bool
+    AutoSleep reports the enabler switch, or false on a nil index.
+
+func (c *Cull) Awake(id ID) error
+    Awake pins id: it stays in the update set even offscreen (the camera target,
+    the player). Unknown ids are NotFound.
+
+func (c *Cull) Count() int
+    Count returns the tracked entities, or 0 on a nil index.
+
+func (c *Cull) Dropped() int
+    Dropped returns how many dead ids the last Refresh dropped, or 0.
+
+func (c *Cull) Entered() []ID
+    Entered returns the ids that joined the visibility set since the last
+    Refresh, in id order. A fresh slice every call.
+
+func (c *Cull) Exited() []ID
+    Exited returns the ids that left the visibility set since the last Refresh,
+    in id order. A fresh slice every call.
+
+func (c *Cull) InView(id ID) bool
+    InView reports whether id sits in the current visibility set (in-view or
+    pinned), even when it sleeps out of the update set.
+
+func (c *Cull) IsActive(id ID) bool
+    IsActive reports whether id sits in the current update set. Linear scan:
+    call it for spot checks, not inside per-frame loops.
+
+func (c *Cull) IsAwake(id ID) bool
+    IsAwake reports the pin flag, or false for unknown and nil ids.
+
+func (c *Cull) LastRefreshUs() int64
+    LastRefreshUs reports the last Refresh cost in microseconds: the full 20000
+    fold plus the active-only sort. Informational only; the gate timing is
+    measured by the test and the window, never by this number.
+
+func (c *Cull) MaxActive() int
+    MaxActive returns the update cap (0 is unlimited), or 0 on nil.
+
+func (c *Cull) Refresh(w *World, sc *Scene) error
+    Refresh rebuilds the update set from the live world numbers: every tracked
+    entity folds its world position, in-view plus awake pins become visibility
+    candidates, entered/exited diff against the last refresh, the enabler
+    optionally drives Scene Sleep/Wake, and the final actives sort by layer
+    then feet Y. Dead ids drop silently and count in Dropped. A nil World is
+    InvalidArg and changes nothing; a nil Scene means pure query (no sleep
+    reads, no enabler writes).
+
+func (c *Cull) Refreshes() int64
+    Refreshes counts every Refresh call here, including failed ones before the
+    world check. Zero on a nil index.
+
+func (c *Cull) Release(id ID) error
+    Release unpins id. Unknown ids are NotFound.
+
+func (c *Cull) Reset()
+    Reset forgets every tracked entity, set, and counter. The view, the
+    AutoSleep switch, and the MaxActive cap stay: a level switch re-tracks into
+    the same frame.
+
+func (c *Cull) SetAutoSleep(on bool)
+    SetAutoSleep flips the enabler: with it on, Refresh wakes every visible
+    sleeper (entered or already inside) and sleeps exited non-pinned entities
+    through the Scene. With it off, Refresh never writes the Scene and only
+    reports sets.
+
+func (c *Cull) SetMaxActive(n int) error
+    SetMaxActive caps the update set: past n actives Refresh keeps the first
+    n in draw order and counts the rest in Trimmed. Zero means unlimited.
+    Negative numbers are InvalidArg and keep the old cap.
+
+func (c *Cull) SetView(view core.Rect) error
+    SetView replaces the view box. Non-finite numbers are InvalidArg and keep
+    the old view. Empty views are allowed (awake pins only).
+
+func (c *Cull) Snapshot() []ActiveSnap
+    Snapshot returns the update set with world spots in draw order, backed by
+    the index scratch: valid until the next Refresh or Reset, never nil-safe to
+    hold. It allocates nothing, so per-frame paint reads it instead of paying
+    WorldOf per active.
+
+func (c *Cull) Track(id ID, layer int, footDY, hw, hh float64) error
+    Track registers id with its draw band, feet offset, and visibility half
+    extents (0/0 is a point, like a spawn marker). Awake pins are set with
+    Awake, not here. NoEntity is InvalidArg, duplicates are InvalidArg,
+    past MaxCullEntities is OutOfMemory. The entity need not be alive yet;
+    dead ids drop at the next Refresh and count in Dropped.
+
+func (c *Cull) Trimmed() int
+    Trimmed returns how many actives the last Refresh cut past MaxActive.
+
+func (c *Cull) Untrack(id ID) error
+    Untrack forgets id. Unknown ids are NotFound. The World entity itself is
+    untouched; only the index entry drops.
+
+func (c *Cull) Update(id ID, layer int, footDY, hw, hh float64) error
+    Update rewrites the band, feet offset, and extents of a tracked id. Unknown
+    ids are NotFound; bad numbers change nothing.
+
+func (c *Cull) View() core.Rect
+    View returns the current view box, or zero on a nil index.
+
+type ID uint64
+    ID names one entity. NoEntity (0) never names a live entity and means "no
+    parent" in Spawn and SetParent.
+
+const NoEntity ID = 0
+    NoEntity is the null id: no parent, no match.
+
+type LifeState int
+    LifeState is the activation flag of one live entity.
+
+const (
+	// LifeActive runs; Spawn births here.
+	LifeActive LifeState = iota
+	// LifeSleeping parks alive but inactive until Wake.
+	LifeSleeping
+)
+func (s LifeState) String() string
+    String names the state for logs.
+
+type Prefab struct {
+	// Has unexported fields.
+}
+    Prefab is one reusable entity template: a name, a local placement, and
+    comps in stamp order. Fields stay private so every write passes validation;
+    readers use the accessors below, which copy.
+
+func LoadPrefab(path string) (Prefab, error)
+    LoadPrefab reads path as a prefab file. Empty paths are InvalidArg, missing
+    files are NotFound; the rest matches ParsePrefab.
+
+func NewPrefab(name string, local Transform) (Prefab, error)
+    NewPrefab builds a template with PrefabVersion, the given local, and no
+    comps. Empty or overlong names and non-finite numbers are a core InvalidArg
+    error and store nothing.
+
+func ParsePrefab(data []byte) (Prefab, error)
+    ParsePrefab validates file bytes into a Prefab. Empty input is InvalidArg,
+    size overruns are OutOfMemory, torn JSON and bad shapes are BadData, foreign
+    or newer versions are VersionMismatch. Missing comps default to empty.
+
+func (p *Prefab) AddComp(c Comp) error
+    AddComp appends c in stamp order. An empty Kind is InvalidArg; past
+    MaxPrefabComps is OutOfMemory. Failures change nothing. Nil prefabs report
+    InvalidArg.
+
+func (p *Prefab) Comps() []Comp
+    Comps returns the comps in stamp order. The result is a fresh slice; writing
+    it cannot change the prefab. Nil prefabs report nil.
+
+func (p *Prefab) Encode() ([]byte, error)
+    Encode renders the canonical file bytes. The prefab must already carry
+    PrefabVersion; otherwise the result is a core VersionMismatch error. Bad
+    shapes are InvalidArg, budget overruns are OutOfMemory. The input is never
+    mutated. Empty comp lists encode as [] so a file round-trips byte-identical.
+
+func (p *Prefab) Equal(o Prefab) bool
+    Equal reports whether o holds the same name, version, local, and comps in
+    order. A nil prefab only equals nothing, never a value.
+
+func (p *Prefab) Instantiate(w *World, parent ID) (ID, error)
+    Instantiate stamps the template into w under parent (NoEntity for a root):
+    one Spawn, the stored local, comps in order. A missing parent is NotFound;
+    a nil world is InvalidArg. A failed stamp births nothing: the half-born
+    entity is removed before the error returns.
+
+func (p *Prefab) Local() Transform
+    Local returns the template placement.
+
+func (p *Prefab) Name() string
+    Name returns the template name, or "" on a nil prefab.
+
+func (p *Prefab) SavePrefab(path string) error
+    SavePrefab writes the prefab to path, creating parent directories. Empty
+    paths are InvalidArg; OS failures are NotFound with the cause; prefab-shape
+    errors match Encode. Nil prefabs report InvalidArg.
+
+func (p *Prefab) SetLocal(t Transform) error
+    SetLocal replaces the template placement. Non-finite numbers are a core
+    InvalidArg error and change nothing. Nil prefabs report InvalidArg.
+
+func (p *Prefab) Version() core.Version
+    Version returns the stored file version.
+
+type Scene struct {
+	// Has unexported fields.
+}
+    Scene is one level: entity storage plus activation flags.
+
+func NewScene() Scene
+    NewScene builds an empty level issuing IDs from 1.
+
+func (s *Scene) ActiveCount() int
+    ActiveCount counts live entities flagged active.
+
+func (s *Scene) Alive(id ID) bool
+    Alive reports whether id names a live entity (active or sleeping).
+
+func (s *Scene) Clear()
+    Clear drops every entity, comp, and flag for a level switch. Issuance never
+    rewinds: the next Spawn still mints a fresh id.
+
+func (s *Scene) Count() int
+    Count returns the live entities (active plus sleeping).
+
+func (s *Scene) Dispose(id ID) error
+    Dispose destroys id and clears its resources: comps drop with the entity and
+    the lifecycle entry drops too. Children survive as roots keeping their own
+    states. Missing ids are NotFound, never a crash.
+
+func (s *Scene) IsActive(id ID) bool
+    IsActive reports whether id is alive and running.
+
+func (s *Scene) IsSleeping(id ID) bool
+    IsSleeping reports whether id is alive and parked.
+
+func (s *Scene) Sleep(id ID) error
+    Sleep parks id alive but inactive. Missing ids are NotFound; re-sleeping is
+    a no-op.
+
+func (s *Scene) SleepingCount() int
+    SleepingCount counts live entities flagged sleeping.
+
+func (s *Scene) Spawn(parent ID) (ID, error)
+    Spawn births one entity under parent (NoEntity for a root), active.
+    A missing parent is NotFound.
+
+func (s *Scene) Spawned() uint64
+    Spawned counts every birth here, including the disposed. It only grows,
+    so replays can prove ids never repeat and levels never leak.
+
+func (s *Scene) State(id ID) (LifeState, error)
+    State returns the activation flag of id.
+
+func (s *Scene) Wake(id ID) error
+    Wake reactivates id. Missing ids are NotFound; re-waking is a no-op.
+
+func (s *Scene) World() *World
+    World exposes placement and comp storage for this level. Births, deaths,
+    and level switches go through Scene; never call Spawn, Despawn, or Clear on
+    the result.
+
+type SceneFile struct {
+	// Has unexported fields.
+}
+    SceneFile is one level on disk: a name plus entities in file order (parents
+    before children). Fields stay private so every write passes validation;
+    Entities returns a deep copy.
+
+func LoadScene(path string) (SceneFile, error)
+    LoadScene reads path as a scene file. Empty paths are InvalidArg, missing
+    files are NotFound; the rest matches ParseScene.
+
+func NewSceneFile(name string) (SceneFile, error)
+    NewSceneFile builds an empty level with SceneFileVersion. Empty or overlong
+    names are a core InvalidArg error.
+
+func ParseScene(data []byte) (SceneFile, error)
+    ParseScene validates file bytes into a SceneFile. Empty input is InvalidArg,
+    size overruns are OutOfMemory, torn JSON and bad shapes (duplicates, unknown
+    or forward parents, bad links) are BadData, foreign or newer versions are
+    VersionMismatch. Missing entity and comp lists default to empty.
+
+func (s *SceneFile) AddEntity(name, parent string, local Transform, comps ...Comp) error
+    AddEntity files one entity after its parent ("" for a root). Duplicate
+    names, bad placements, and empty comp kinds are InvalidArg; an unknown
+    parent is NotFound (file the parent first); past MaxSceneEntities or
+    MaxSceneComps is OutOfMemory. Failures file nothing. Nil files report
+    InvalidArg.
+
+func (s *SceneFile) Count() int
+    Count returns the filed entities, or 0 on a nil file.
+
+func (s *SceneFile) Encode() ([]byte, error)
+    Encode renders the canonical file bytes. The file must already carry
+    SceneFileVersion; otherwise the result is a core VersionMismatch error. Bad
+    shapes are InvalidArg, budget overruns are OutOfMemory. The input is never
+    mutated. Empty entity and comp lists encode as [] so a file round-trips
+    byte-identical.
+
+func (s *SceneFile) Entities() []SceneNode
+    Entities returns the filed entities in file order with fresh comp slices;
+    writing the result cannot change the file. Nil files report nil.
+
+func (s *SceneFile) Equal(o SceneFile) bool
+    Equal reports whether o holds the same name, version, and entities in order
+    with the same comps. A nil file only equals nothing, never a value.
+
+func (s *SceneFile) Name() string
+    Name returns the level name, or "" on a nil file.
+
+func (s *SceneFile) Open() (Scene, map[string]ID, error)
+    Open builds the live level: every entity spawned in file order (so parents
+    exist before their children), locals and comps stamped, every birth active.
+    It also returns the filed-name to live-id index. A bad in-memory file is
+    InvalidArg or OutOfMemory and builds nothing. The filed shape is never
+    mutated.
+
+func (s *SceneFile) SaveScene(path string) error
+    SaveScene writes the file to path, creating parent directories. Empty paths
+    are InvalidArg; OS failures are NotFound with the cause; file-shape errors
+    match Encode. Nil files report InvalidArg.
+
+func (s *SceneFile) Version() core.Version
+    Version returns the stored file version.
+
+type SceneNode struct {
+	Name   string
+	Parent string
+	Local  Transform
+	Comps  []Comp
+}
+    SceneNode is one filed entity: its name, its parent's name ("" for a root),
+    its local placement, and its comps in stamp order.
+
+type Transform struct {
+	Pos   core.Vec2
+	Rot   float64
+	Scale core.Vec2
+}
+    Transform is a local placement: position plus rotation (radians,
+    counter-clockwise) plus scale. Scale may be zero (collapsed) or negative
+    (mirrored); only non-finite numbers are rejected.
+
+func IdentityTransform() Transform
+    IdentityTransform returns the neutral placement: origin, no rotation,
+    unit scale.
+
+type World struct {
+	// Has unexported fields.
+}
+    World owns every entity: ids, links, locals, comps. The zero value is
+    usable but NewWorld states the intent. IDs never repeat inside one World,
+    not even after Despawn or Clear.
+
+func NewWorld() World
+    NewWorld builds an empty world issuing IDs from 1.
+
+func (w *World) AddComp(id ID, c Comp) error
+    AddComp hangs c on id. An empty Kind is InvalidArg; duplicates are allowed
+    (two scripts on one entity queue in order).
+
+func (w *World) Alive(id ID) bool
+    Alive reports whether id names a live entity. Nil worlds and NoEntity report
+    false.
+
+func (w *World) Children(id ID) ([]ID, error)
+    Children returns the direct children of id in link order. The result is a
+    fresh slice; the input world is never exposed.
+
+func (w *World) Clear()
+    Clear drops every entity and comp. Issuance never rewinds: the next Spawn
+    still mints a fresh id above every id ever born here.
+
+func (w *World) Comps(id ID) ([]Comp, error)
+    Comps returns the comps of id in add order. The result is a fresh slice;
+    the stored order is never exposed.
+
+func (w *World) Count() int
+    Count returns the number of live entities, or 0 on a nil world.
+
+func (w *World) Despawn(id ID) error
+    Despawn deletes id and drops its comps. Children survive: they fall back
+    to roots keeping their local transforms. A missing id is NotFound, never a
+    crash.
+
+func (w *World) HasComp(id ID, kind string) bool
+    HasComp reports whether id carries at least one comp of that kind. Missing
+    entities and empty kinds report false.
+
+func (w *World) Local(id ID) (Transform, error)
+    Local returns the local transform of id.
+
+func (w *World) Parent(id ID) (ID, error)
+    Parent returns the parent of id (NoEntity for a root).
+
+func (w *World) RemoveComp(id ID, kind string) error
+    RemoveComp drops the first comp of that kind on id. An empty kind is
+    InvalidArg; a kind the entity does not carry is NotFound.
+
+func (w *World) SetParent(child, parent ID) error
+    SetParent re-links child under parent (NoEntity detaches to a root).
+    Self-parenting and cycles (parent on child's own chain) are InvalidArg;
+    missing ids are NotFound. Re-linking to the same parent is a no-op.
+
+func (w *World) SetTransform(id ID, t Transform) error
+    SetTransform replaces the local transform of id. Non-finite numbers are
+    InvalidArg and store nothing.
+
+func (w *World) Spawn(parent ID) (ID, error)
+    Spawn births one entity under parent (NoEntity for a root) with the identity
+    transform and no comps. A missing parent is NotFound.
+
+func (w *World) Spawned() uint64
+    Spawned returns how many entities were ever born here, including the
+    despawned. It only grows, so replays can prove ids never repeat.
+
+func (w *World) WorldMatrix(id ID) (core.Mat2D, error)
+    WorldMatrix returns the world matrix of id: each ancestor local folded as
+    parent * local from the root down. On rotation-free or uniform-scale chains
+    it matches LocalMatrix(WorldOf(id)) inside 1e-9; the translation always
+    matches.
+
+func (w *World) WorldOf(id ID) (Transform, error)
+    WorldOf returns the world transform of id: every ancestor folded from the
+    root down (see composeTransform).
+

@@ -1,0 +1,20 @@
+Command ui_render_base_pathbool is the C-group real window for path
+boolean geometry: Path.Op with Union / Intersect / Difference / Xor
+(RENDER_FEATURE_COVERAGE §1 #5 / §3.3).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_pathbool -auto-only
+    go run ./examples/ui_render_base_pathbool   # manual: lives until window close
+    go run ./examples/ui_render_base_pathbool -manual-seconds 15  # manual, auto-close
+
+Evidence: 10 value-level contract probes (Clipper geometry, fill-rule
+invariance, far-coordinate no-2048-cap), point pixel probes on the GPU snapshot,
+a bitwise golden over header + legend + the four cards, a GPU-route assertion
+(path fills ride the GPU, zero CPU fallbacks), and a live screen grab compared
+with the snapshot over the same rects.
+
+Scope: Path.Op returns polygonal output. Input curves are flattened at
+0.1 px and are not rebuilt as curves (Skia pathops preserves curves;
+this implementation deliberately does not). Output winding is valid
+under both NonZero and EvenOdd fill rules. Those limits are documented in
+RENDER_FEATURE_COVERAGE §6 and printed in the JSON `pathbool_scope` field.

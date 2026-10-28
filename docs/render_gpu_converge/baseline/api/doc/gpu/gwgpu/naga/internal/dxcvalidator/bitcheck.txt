@@ -1,0 +1,235 @@
+package bitcheck // import "github.com/energye/gpui/gpu/gwgpu/naga/internal/dxcvalidator/bitcheck"
+
+Package bitcheck implements a minimal LLVM 3.7 bitstream reader that walks a
+DXIL container far enough to verify the `!dx.entryPoints` named metadata is
+well-formed — specifically that every entry-point tuple has a non-null function
+reference in operand 0.
+
+Microsoft's IDxcValidator (dxil.dll) crashes with an access violation at
+dxil.dll+0xe9da (NULL+0x18) when it walks entry-point metadata and encounters a
+null function reference. This package runs as a defensive BEFORE being handed to
+dxil.dll. Malformed inputs return a clean Go error instead of triggering the AV.
+
+The reader is intentionally scoped — it only understands enough of the LLVM 3.7
+bitstream format to:
+
+ 1. Unwrap the DXBC container and find the DXIL part
+ 2. Unwrap the DxilProgramHeader and find the bitcode bytes
+ 3. Enumerate top-level blocks to find MODULE_BLOCK (id 8)
+ 4. Inside MODULE_BLOCK, find METADATA_BLOCK (id 15)
+ 5. Decode METADATA_NAME / METADATA_NAMED_NODE / METADATA_NODE /
+    METADATA_OLD_NODE / METADATA_VALUE records sufficient to identify the
+    "dx.entryPoints" named metadata and walk its operand tuples
+ 6. Verify operand 0 of each tuple is a non-null METADATA_VALUE that references
+    a function by index (not encoded as null)
+
+Everything else — function bodies, constants, types, instruction streams,
+non-metadata blocks — is skipped via block-length fast-forward. This is NOT a
+general-purpose LLVM bitcode parser; it is a targeted hardening layer for one
+specific AV class.
+
+LLVM 3.7 bitstream reference:
+https://releases.llvm.org/3.7.1/docs/BitCodeFormat.html
+
+The symmetry with dxil/internal/bitcode/writer.go (our emitter's bit- level
+writer) is intentional — both implement the same primitives from opposite
+directions.
+
+VARIABLES
+
+var (
+	// ErrMissingEntryPoints — the bitcode has a METADATA_BLOCK but no
+	// `dx.entryPoints` named metadata. Required for every DXIL shader.
+	ErrMissingEntryPoints = errors.New("bitcheck: missing !dx.entryPoints")
+
+	// ErrNullEntryPointFunction — an entry-point tuple references a
+	// null function reference in operand 0. Triggers IDxcValidator AV
+	// at dxil.dll+0xe9da on Windows.
+	ErrNullEntryPointFunction = errors.New("bitcheck: null entry-point function reference")
+
+	// ErrEmptyEntryPointTuple — an entry-point tuple has zero operands.
+	// Operand 0 is supposed to be the function pointer; an empty tuple
+	// is an immediate structural violation.
+	ErrEmptyEntryPointTuple = errors.New("bitcheck: empty entry-point tuple")
+)
+    Typed errors for the metadata walker.
+
+var ErrInvalidWidth = errors.New("bitcheck: invalid read width")
+    ErrInvalidWidth is returned when a read primitive is called with an
+    out-of-range width argument (e.g. Fixed(0) / Fixed(>64), VBR(<2)).
+
+var ErrMalformedBitstream = errors.New("bitcheck: malformed bitstream")
+    ErrMalformedBitstream is returned when any structural invariant of the
+    bitstream is violated.
+
+var ErrNoBitcode = errors.New("bitcheck: no LLVM bitcode in DXIL part")
+    ErrNoBitcode — the container does not contain a usable DXIL/ILDB part,
+    or the DXIL part wrapper is malformed, or the bitcode body does not carry
+    the LLVM bitstream magic.
+
+var ErrUnexpectedEOF = errors.New("bitcheck: unexpected end of bitstream")
+    ErrUnexpectedEOF is returned when a read primitive would advance the bit
+    cursor past the end of the blob.
+
+var ErrVBRTooWide = errors.New("bitcheck: VBR value exceeds 64 bits")
+    ErrVBRTooWide is returned when a VBR read accumulates more than 64 bits of
+    data without terminating. The stream is malformed.
+
+
+FUNCTIONS
+
+func Check(blob []byte) error
+    Check scans a DXBC container blob for the null-function-reference pattern
+    that makes IDxcValidator AV at dxil.dll+0xe9da. On success returns nil.
+    On failure returns a typed error from the set:
+
+        ErrNoBitcode — no DXIL part / bad program header / bad magic
+        ErrMalformedBitstream — structural violation inside the bitstream
+        ErrMissingEntryPoints — no dx.entryPoints named metadata
+        ErrNullEntryPointFunction — tuple operand 0 is null
+        ErrEmptyEntryPointTuple — tuple has zero operands
+
+    All errors are wrapped via fmt.Errorf for context; use errors.Is to switch
+    on the sentinel.
+
+func DecodeChar6(v uint32) (byte, error)
+    DecodeChar6 converts a 6-bit encoded value back to its ASCII byte. The
+    encoding is:
+
+        0..25 → 'a'..'z'
+        26..51 → 'A'..'Z'
+        52..61 → '0'..'9'
+        62 → '.'
+        63 → '_'
+
+
+TYPES
+
+type BlockReader struct {
+	// Has unexported fields.
+}
+    BlockReader walks a bitstream one entry at a time, tracking the nested block
+    scopes and per-block abbreviation tables. It is built on top of a Reader and
+    never owns the underlying slice.
+
+func NewBlockReader(r *Reader) *BlockReader
+    NewBlockReader wraps an existing Reader. The top-level scope has no end
+    position (the stream ends with the last byte of the blob) and starts with an
+    empty abbrev table.
+
+func (b *BlockReader) Depth() int
+    Depth returns the current block nesting depth (0 at the top level).
+
+func (b *BlockReader) EnterBlock() error
+    EnterBlock is called after Next() returns entrySubBlock. It reads the new
+    abbrev width, aligns, consumes the 32-bit block length word, pushes a new
+    scope, and switches the reader to the inner abbrev width. The block-length
+    word is remembered so SkipBlock / end-of- block detection is O(1).
+
+func (b *BlockReader) ExitBlock() error
+    ExitBlock is called after Next() returns entryEnd. It aligns the cursor to
+    the next 32-bit boundary (matching the writer's Align32 after END_BLOCK) and
+    pops back to the outer block's abbrev state.
+
+func (b *BlockReader) Next() (Entry, error)
+    Next returns the next structural entry at the current cursor. The caller
+    must act on it:
+
+        entrySubBlock → EnterBlock or SkipBlock
+        entryDefineAbbrev → ReadDefineAbbrev (already consumed header)
+        entryRecord → ReadRecord (pass e.AbbrevID)
+        entryEnd → block body complete; caller should ExitBlock
+        entryEOF → cursor is at (or past) end of top-level stream
+
+func (b *BlockReader) ReadDefineAbbrev() error
+    ReadDefineAbbrev parses a DEFINE_ABBREV record and appends it to the current
+    block's abbreviation table. Called after Next() returns entryDefineAbbrev.
+
+func (b *BlockReader) ReadRecord(abbrevID uint64) (Record, error)
+    ReadRecord consumes a record body given its abbrev id. For
+    abbrevUnabbrevRecord (id 3) the format is [code(VBR6), numops(VBR6),
+    op(VBR6)*]. For id >= 4 it is an abbreviated record against the table slot
+    (id - 4).
+
+func (b *BlockReader) SkipBlock() error
+    SkipBlock fast-forwards past a sub-block using the 32-bit block length word,
+    without decoding any records. The caller must NOT have already called
+    EnterBlock. SkipBlock is used to skip non-metadata blocks (TYPE_BLOCK,
+    CONSTANTS_BLOCK, FUNCTION_BLOCK, …) in O(1).
+
+type Entry struct {
+	Kind     entryKind
+	BlockID  uint64 // valid when Kind == entrySubBlock
+	AbbrevID uint64 // valid when Kind == entryRecord
+}
+    Entry categorizes the next structural element in the stream. The walker in
+    metadata.go uses this to decide whether to recurse into a block, consume a
+    record, or return.
+
+type Reader struct {
+	// Has unexported fields.
+}
+    Reader reads individual bits from an LLVM 3.7 bitstream. The cursor is a bit
+    offset from the start of the backing byte slice.
+
+func NewReader(data []byte, abbrevWidth uint) *Reader
+    NewReader creates a Reader positioned at bit 0 with the given initial
+    abbreviation ID width. The top-level bitstream abbreviation width in LLVM
+    3.7 is 2 (matching dxil/internal/bitcode/writer.go's NewWriter).
+
+func (r *Reader) AbbrevWidth() uint
+    AbbrevWidth returns the current abbreviation ID width.
+
+func (r *Reader) Align32() error
+    Align32 advances the bit cursor to the next 32-bit boundary, padding over
+    zero bits. Returns an error only if the alignment walks past the end of
+    the stream AND there were non-zero pad bits — callers may hit legitimate
+    end-of-stream alignment on the last word.
+
+func (r *Reader) AtEnd() bool
+    AtEnd reports whether the cursor has reached (or passed) the end.
+
+func (r *Reader) BitLen() uint64
+    BitLen returns the total number of bits in the underlying blob.
+
+func (r *Reader) BitPos() uint64
+    BitPos returns the current bit offset from the start of the blob.
+
+func (r *Reader) ReadChar6() (byte, error)
+    ReadChar6 reads a 6-bit character and returns its decoded ASCII byte.
+
+func (r *Reader) ReadFixed(width uint) (uint64, error)
+    ReadFixed reads a fixed-width integer value from the bitstream. width must
+    be in [1, 64]. Returns ErrInvalidWidth otherwise and ErrUnexpectedEOF if the
+    read would run past the end of the stream.
+
+func (r *Reader) ReadVBR(width uint) (uint64, error)
+    ReadVBR reads a variable-bit-rate integer from the bitstream.
+
+    VBR(n) splits the value into chunks of (n-1) data bits. The high bit of each
+    chunk is set to 1 when more chunks follow, 0 on the last chunk. width must
+    be >= 2.
+
+func (r *Reader) Remaining() uint64
+    Remaining returns the number of bits left in the stream. Callers can use
+    this to cheaply detect truncation before attempting a multi-bit read.
+
+func (r *Reader) SetAbbrevWidth(w uint)
+    SetAbbrevWidth overwrites the current abbreviation ID width. Used by block
+    enter / exit to switch scopes.
+
+func (r *Reader) SetBitPos(bit uint64)
+    SetBitPos moves the cursor to an absolute bit offset. Used by block skip
+    (fast-forward via the 32-bit block length word).
+
+type Record struct {
+	Code uint64
+	Ops  []uint64
+	// Blob holds the raw bytes of a BLOB-encoded operand, if any. Only
+	// the metadata walker uses this for METADATA_STRING records that
+	// happen to be encoded as abbreviated blobs. Nil for unabbrev'd
+	// records.
+	Blob []byte
+}
+    Record is a decoded bitstream record — one entry inside a block.
+

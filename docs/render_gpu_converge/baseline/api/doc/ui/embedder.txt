@@ -1,0 +1,471 @@
+package embedder // import "github.com/energye/gpui/ui/embedder"
+
+Package embedder glues Host + FrameScheduler + raster.Loop for L1.
+
+FUNCTIONS
+
+func DamageAreaLogical(dc *render.Context) int64
+    DamageAreaLogical returns the area (px²) of dc.FrameDamageUnion in logical
+    pixels.
+
+func EventQuits(ev platform.Event) bool
+func FrameDone(frameID uint64)
+    FrameDone 在 raster job 末尾调用
+
+func HitchNoteStage(frameID uint64, stage string, d time.Duration)
+    HitchNoteStage 记录帧 frameID 的某阶段耗时。
+
+func HitchNoteStageUI(stage string, d time.Duration)
+func HitchSpanMark(frameID uint64, stage string)
+func LastBoundaryFrame() (rerecord, skip int64)
+    LastBoundaryFrame returns the most recent paintPresentTree boundary
+    skip/rerecord.
+
+func LastOverlayBandFrame() (mainDirty, overlayDirty int)
+    LastOverlayBandFrame returns the last frame's band-separated dirty counts.
+    MainDirtyCount excludes overlay dirties; OverlayDirtyCount is the overlay
+    band portion only.
+
+func LastShellBoundaryFrame() (shellRerecord, shellSkip int64)
+    LastShellBoundaryFrame returns the last frame's shell-tagged boundary
+    skip/rerecord. A scrolling body must keep the shell rerecord at 0.
+
+func MapNativeSurface(ns platform.NativeSurface) render.PresentNativeSurface
+    MapNativeSurface converts platform handles to render.PresentNativeSurface.
+
+func OpenPresentTarget(host platform.Host) (*render.PresentTarget, error)
+    OpenPresentTarget opens a render.PresentTarget from the host surface and
+    size.
+
+func OpenPresentTargetWithBackend(host platform.Host, backend render.Backend) (*render.PresentTarget, error)
+    OpenPresentTargetWithBackend opens a render.PresentTarget with an explicit
+    GPU implementation choice. BackendNative (zero value) means default;
+    GPUI_BACKEND env still wins when set (see render.ResolveBackend).
+
+func PaintPresentLayerTree(dc *render.Context, root scene.Layer, cr, cg, cb, ca float64, force bool) scene.CompositeStats
+    PaintPresentLayerTree clears (when force) then composites a retained layer
+    tree via scene.CompositeToContext. Use when the frame is already recorded
+    into PictureLayers (tests / future PipelineApp packet path).
+
+func PaintPresentTree(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool)
+    PaintPresentTree draws the RO tree into dc for window/GPU present.
+
+        force=true → full-surface clear + full tree paint; MarkFullRedraw (bootstrap/resize).
+        force=false → no UI-side full clear; still **full tree paint** (CompositeOnly=false).
+
+    Steady retained frames go through PaintPresentTreeCompositeOnly +
+    PresentWithAuto damage (LoadOpLoad keeps clean pixels); force frames use the
+    full path. Partial CompositeOnly without damage present (GPU full Clear) is
+
+    Layer-tree Present walk: scene.CompositeToContext / PaintPresentLayerTree.
+
+func PaintPresentTreeCompositeOnly(dc *render.Context, pipe *rendering.PipelineOwner, root rendering.RenderObject, ov *overlay.State, cr, cg, cb, ca float64, force bool)
+    PaintPresentTreeCompositeOnly is the experimental partial-paint path:
+    force=false uses FlushPaint CompositeOnly (skip clean boundaries). Safe
+    on CPU pixmap tests; **unsafe** as default GPU window present until layer
+    textures exist (LoadOpClear drops skipped content). Prefer PaintPresentTree
+    for apps.
+
+func SurfaceAreaLogical(dc *render.Context) int64
+func NewImeAdapter(ime platform.IME) *imeAdapter
+    NewImeAdapter wraps a platform.IME capability into the facade's adapter
+    (exported: examples/kit assemble ImeSession themselves).
+
+
+TYPES
+
+type App struct {
+	// Has unexported fields.
+}
+    App is the L1 application shell (P0: clear present path).
+
+func New(host platform.Host, opts Options) *App
+    New creates an App. Call Open then Run.
+
+func (a *App) Close()
+    Close stops the raster loop and releases the present target.
+
+func (a *App) Metrics() *scheduler.MetricsStore
+    Metrics returns frame metrics.
+
+func (a *App) Open() error
+    Open creates the GPU present target from the host native surface.
+
+func (a *App) PresentCount() int64
+    PresentCount returns successful presents observed by Run.
+
+func (a *App) Quit()
+    Quit requests loop exit.
+
+func (a *App) Run() error
+    Run opens (if needed), starts the raster thread, and runs the UI event loop
+    until Quit, MaxFrames, RunFor, or EventClose.
+
+func (a *App) ScheduleFrame()
+    ScheduleFrame requests a clear/present frame.
+
+func (a *App) Scheduler() *scheduler.FrameScheduler
+    Scheduler returns the frame scheduler.
+
+func (a *App) SubmitLayerPacket(root rendering.RenderObject, frameID uint64, execute func(*scene.FramePacket) error) bool
+    SubmitLayerPacket builds a FramePacket from the render root and enqueues a
+    raster job. execute, if non-nil, runs on the raster thread with the packet.
+
+func (a *App) Target() *render.PresentTarget
+    Target returns the present target (nil before Open).
+
+type HitTestFunc func(x, y float64) (overlay.Band, rendering.RenderObject, *overlay.Entry)
+    HitTestFunc returns the top-most render object at logical (x, y) plus the
+    overlay band / entry, matching PipelineApp.HitTestPointer's shape.
+
+type InputRouter struct {
+
+	// OnPointer receives every pointer/touch/scroll sample plus the
+	// hit-tested target (nil when nothing hit). Handy for gesture arenas.
+	OnPointer func(ev input.PointerEvent, target rendering.RenderObject)
+	// OnKey receives every logical key event (before focus consumes it).
+	OnKey func(ev input.KeyEvent)
+	// OnText receives committed text (keyboard chars, paste, IME commits).
+	OnText func(ev input.TextEvent)
+	// OnIME receives in-progress IME events.
+	OnIME func(ev input.IMEEvent)
+	// OnEvent receives every normalized event without dedicated handling
+	// (window close/move/scale/occluded/hidden/focus/state/theme, frame and
+	// sync notices, monitor/locale changes, stylus, pinch/rotate, drag and
+	// device events...). It is a fallback observer: events with a dedicated
+	// path (pointer/key/text/IME) never reach it, and KindNone never does.
+	OnEvent func(ev input.Event)
+	// OnDelta receives TextEditingDelta when enableDeltaModel==true.
+	OnDelta func(delta textinput.TextEditingDelta)
+
+	// TextEditor is the FALLBACK editable control used when no focused
+	// TextEditTarget resolves (single-editor windows / tests). A focused
+	// target takes precedence (plan I5).
+	TextEditor *textinput.Editor
+
+	// SurroundingUpdates enables periodic set_surrounding_text reporting
+	// (context for IME reconversion). OFF by default: each push is a
+	// commit_state round-trip and chatty reporting starved the input
+	// method (observed: engine switching stopped responding). Enable
+	// deliberately when a target needs context-aware IME features.
+	SurroundingUpdates bool
+
+	// Has unexported fields.
+}
+    When attached to a PipelineApp (PipelineOptions.Input), platform events are
+    normalized via input.FromPlatform into the cross-platform input.Event and
+    routed automatically:
+
+        Pointer/Touch/Scroll → hit test → every control implementing
+                                input.PointerHandler on the hit path receives
+                                OnPointer; plus the optional OnPointer callback.
+        Key → focus manager (when provided) and the optional
+                                OnKey callback; logical modifiers tracked.
+        Text/IME → optional OnText / OnIME callbacks (textinput
+                                milestone consumes these).
+
+    Any RenderObject implementing the input.EventTarget sub-interfaces
+    (PointerHandler/KeyHandler/…) is auto-wired — no per-control platform code.
+    Attaching an InputRouter is opt-in: windows without it keep the existing
+    OnEvent path byte-for-byte, so current examples are unaffected.
+
+func NewInputRouter(hit HitTestFunc, f *focus.FocusManager) *InputRouter
+    NewInputRouter creates a router. Pass a hit-test function (typically
+    PipelineApp.HitTestPointer) and optionally the focus manager to auto-route
+    Tab/Enter/activation keys.
+
+func (r *InputRouter) AttachClipboard(c platform.Clipboard)
+    AttachClipboard wires the optional clipboard capability for automatic
+    injection: focused TextEditTargets that implement SetClipboard receive the
+    window's clipboard, so apps no longer hand-wire each box.
+
+func (r *InputRouter) AttachIME(ime platform.IME)
+    AttachIME wires the optional IME capability for automatic session
+    management: focus transitions of registered TextEditTargets open/close
+    sessions; edits refresh the anchor and surrounding text. Re-evaluates the
+    current primary immediately; safe before or after SetFocus.
+
+func (r *InputRouter) Clipboard() platform.Clipboard
+    Clipboard returns the attached clipboard capability (or nil).
+
+func (r *InputRouter) Modifiers() input.Modifiers
+    Modifiers returns the tracked modifier state (for FromPlatform).
+
+func (r *InputRouter) RefreshIMEAnchor()
+    RefreshIMEAnchor re-sends the open session's cursor rect and surrounding
+    text. Widgets call it after programmatic buffer/caret mutations that did not
+    flow through the router (SetText, click-to-place-caret).
+
+func (r *InputRouter) Route(ev input.Event)
+    Route dispatches one normalized input event.
+
+func (r *InputRouter) RoutePlatform(ev platform.Event)
+    RoutePlatform normalizes a platform event and routes it. The router tracks
+    modifier state across events (shift/ctrl/alt/meta press/release).
+
+func (r *InputRouter) SetFocus(f *focus.FocusManager)
+    SetFocus attaches the focus manager for key routing. When the IME capability
+    is already attached, focus observation starts here.
+
+func (r *InputRouter) SetHitTest(h HitTestFunc)
+    SetHitTest overrides the hit-test function (e.g. after the app is bound).
+
+type Options struct {
+	// Clear is the PresentClear color (0–1). Default dark gray-blue.
+	ClearR, ClearG, ClearB, ClearA float64
+	// RenderBackend selects the GPU implementation for this window
+	// Zero value means default; GPUI_BACKEND env still wins when set.
+	RenderBackend render.Backend
+	// ContinuousClear schedules a clear every frame while running (demo only).
+	// Production L1 demand mode leaves this false (IDLE until ScheduleFrame).
+	ContinuousClear bool
+	// OnEvent is called for each host event before default handling.
+	OnEvent func(ev platform.Event)
+	// MaxFrames stops after N presents when > 0 (tests / timed demos).
+	MaxFrames int64
+	// RunFor stops the loop after this duration when > 0.
+	RunFor time.Duration
+}
+    Options configures App.
+
+type PipelineApp struct {
+	// Has unexported fields.
+}
+    PipelineApp runs layout/paint → FramePacket → async raster present.
+    Steady-state submits never block the UI (SubmitLatest coalesces); open,
+    close, snapshot, warm-up and surface teardown synchronize with the raster
+    thread by design.
+
+func NewPipelineApp(host platform.Host, root rendering.RenderObject, opts PipelineOptions) *PipelineApp
+    NewPipelineApp builds a tree-driven app. Call Open then Run. PhaseSeq
+    assigns the pacing phase slot (see scheduler.SetPhaseSeq): windows spawned
+    later stagger their frame boundary within the display period so multi-window
+    submits spread out instead of colliding. 0 = legacy grid (single-window
+    behavior unchanged).
+
+func NewPipelineAppWithPhase(host platform.Host, root rendering.RenderObject, phaseSeq int, opts PipelineOptions) *PipelineApp
+    NewPipelineAppWithPhase is NewPipelineApp with an explicit pacing phase slot
+    for the window (see NewPipelineApp and scheduler.SetPhaseSeq). Application
+    shells pass each window's spawn-order slot here.
+
+func (a *PipelineApp) BoundaryCache() *rendering.BoundaryCache
+    BoundaryCache returns the PipelineOwner's long-lived boundary Picture cache.
+
+func (a *PipelineApp) CacheInvalidations() int64
+    CacheInvalidations returns the cumulative number of programmatic
+    boundary-cache invalidations.
+
+func (a *PipelineApp) Close()
+    Close stops raster and releases GPU.
+
+func (a *PipelineApp) CompletedFrameID() uint64
+    CompletedFrameID returns the last raster-completed frameID (D5 receipt).
+
+func (a *PipelineApp) DamageRectSumStats() (sumArea, maxArea, samples int64)
+    DamageRectSumStats returns cumulative physical-pixel damage measured as the
+    sum of the coalesced damage rects (not their union bbox). samples is shared
+    with DamageStats. Use this for retained cost when dirty layers are far
+    apart: union bbox also counts the untouched gap, while the rect sum tracks
+    the pixels actually handed to the compositor.
+
+func (a *PipelineApp) DamageStats() (sumArea, maxArea, samples, multiModeFrames int64)
+    DamageStats returns cumulative present damage samples (physical px² from
+    PresentTarget). samples is the number of steady presents that reported
+    area≥0.
+
+func (a *PipelineApp) DebugRepaintDraws() int64
+    DebugRepaintDraws returns cumulative debug overlay strokes.
+
+func (a *PipelineApp) HitTestPointer(x, y float64) (overlay.Band, rendering.RenderObject, *overlay.Entry)
+    HitTestPointer runs overlay-first then main hit testing (logical coords).
+
+func (a *PipelineApp) InputLatencyFrames() int64
+    InputLatencyFrames returns completedFrame minus inputFrame plus 1 for the
+    last input (0 when no input or completion has not caught up yet).
+
+func (a *PipelineApp) InvalidateBoundaryCache()
+    InvalidateBoundaryCache drops all Picture-backed boundary caches. Call after
+    programmatic size/DPR changes that do not go through EventResize.
+
+func (a *PipelineApp) LastDirtyLayerIDs() []uint64
+    LastDirtyLayerIDs returns a copy of the most recent frame's DirtyLayerIDs.
+
+func (a *PipelineApp) LastPresentMode() string
+    LastPresentMode is the last PresentOutcome mode string
+    (full|damage_union|damage_multi|idle).
+
+func (a *PipelineApp) LastPresentModeAgeSec() float64
+    LastPresentModeAgeSec is seconds since the last REAL (non-idle) present set
+    the mode (R3-6: idle preserves the value, so gate readers can tell fresh
+    steady-state from stale residue instead of trusting it blindly).
+
+func (a *PipelineApp) LastRasterStats() scene.RasterStats
+    LastRasterStats returns the last dirty-layer raster stats.
+
+func (a *PipelineApp) LayoutFlushCount() int64
+    LayoutFlushCount returns how many times layout actually ran during Run.
+
+func (a *PipelineApp) MaxDirtyLayerIDCount() int
+    MaxDirtyLayerIDCount is the peak len(DirtyLayerIDs) observed in one frame.
+
+func (a *PipelineApp) Metrics() *scheduler.MetricsStore
+    Metrics returns metrics store.
+
+func (a *PipelineApp) Minimized() bool
+    Minimized reports the iconified latch (StateChanged minimized bit). While
+    true the frame loop produces no frames, like Occluded.
+
+func (a *PipelineApp) NoteInputEvent()
+    NoteInputEvent stamps one routed input sample with a G9 stream number. Call
+    on the UI thread for each pointer/key/touch/scroll sample; the next built
+    frame carries this seq so raster completion can measure input-to-present
+    frames.
+
+func (a *PipelineApp) Occluded() bool
+    Occluded reports the fully-obscured latch (VisibilityNotify / Wayland
+    suspended). While true the frame loop produces no frames.
+
+func (a *PipelineApp) Open() error
+    Open creates the present target. Open creates the present target and wires
+    the optional platform notifications (swapchain size / hidden detach).
+    Called automatically by Run when the target is not yet open; examples may
+    call it eagerly.
+
+func (a *PipelineApp) Overlay() *overlay.State
+    Overlay returns the overlay stack (may be nil).
+
+func (a *PipelineApp) PendingCoalesceDrops() (pending, pre int64)
+    PendingCoalesceDrops returns SubmitLatest pending replaces plus G4
+    pre-drops.
+
+func (a *PipelineApp) PictureTextures() *scene.PictureTextureCache
+    PictureTextures returns the retained-path layer texture cache (raster-thread
+    owned; read-only inspection from snapshot closures is safe because drains
+    run serialized on the raster thread).
+
+func (a *PipelineApp) Pipeline() *rendering.PipelineOwner
+    Pipeline returns the pipeline owner.
+
+func (a *PipelineApp) PresentCount() int64
+    PresentCount returns completed presents: raster-job completions plus the
+    synchronous warm-up path (presentSyncFull, R4: mixed caliber by design — use
+    CompletedFrameID for the pure raster-completed sequence).
+
+func (a *PipelineApp) Quit()
+    Quit requests exit.
+
+func (a *PipelineApp) RetainedSnapshot(path string) bool
+    RetainedSnapshot replays the packet of the most recent retained composite on
+    the raster thread and writes it as a PNG to path. It reports false when no
+    retained frame has been composited yet or the write failed.
+
+    This is the pixel proof for the retained path. SnapshotPath repaints
+    the live tree (force, compositeOnly=false), so its PNG describes what a
+    FullPaint walk would show — not what the sealed packet actually shipped to
+    the screen. Here the same immutable packet is composited again into the
+    same context, so a video texture layer lands through scene.TextureLayer →
+    render.TextureSource exactly as it did on screen. Evidence-only: replaying
+    mid-loop costs one extra composite and re-records cacheable layers into the
+    live cache (measured on VR8: frame interval p95 22.5ms without a replay vs
+    22.5ms with two).
+
+    THREADING: the replay is a raster job that the UI thread has to submit,
+    so a caller that occupies the UI thread also blocks the frame carrying its
+    own request — call it from a goroutine, or from the UI thread only when the
+    loop is idle-stopped and the request itself drives the submit.
+
+func (a *PipelineApp) Run() error
+    Run pumps events, ticks animations, builds packets, presents asynchronously.
+
+func (a *PipelineApp) SaveLayerStats() (allow, reject int64)
+    SaveLayerStats returns the cumulative SaveLayer allow/reject outcomes.
+
+func (a *PipelineApp) ScheduleFrame()
+    ScheduleFrame requests a frame.
+
+func (a *PipelineApp) Scheduler() *scheduler.FrameScheduler
+    Scheduler returns the frame scheduler (for AddTicker / AnimationController).
+
+func (a *PipelineApp) SetDebugRepaint(on bool)
+    SetDebugRepaint toggles R12b repaint visualization for subsequent presents.
+
+func (a *PipelineApp) SetInputRouter(r *InputRouter)
+    SetInputRouter attaches (or replaces) the unified input router after
+    construction. The router's hit-test is bound to this app's HitTestPointer.
+    Pass nil to detach (fall back to OnEvent input handling).
+
+func (a *PipelineApp) SetOverlay(st *overlay.State)
+    SetOverlay attaches an overlay stack (P5d).
+
+func (a *PipelineApp) SetPresentPolicy(policy string)
+    SetPresentPolicy sets window present strategy and metrics present_policy.
+    Use scheduler.PresentPolicyFullPaint for correctness windows that need a
+    full tree repaint every frame.
+
+func (a *PipelineApp) SnapshotAsync(fn func())
+    SnapshotAsync schedules fn to run at the end of the next raster frame and
+    waits for it. The raster thread owns the render context and swapchain,
+    so GPU readback (context.Image / SavePNG) must execute there — calling it
+    from the UI thread races the present that owns the texture and aborts wgpu
+    ("invalid texture for image copy texture").
+
+func (a *PipelineApp) SubmittedCount() int64
+    SubmittedCount returns UI submissions (honesty: submitted vs completed).
+
+func (a *PipelineApp) Target() *render.PresentTarget
+    Target returns the present target (nil before Open). RASTER THREAD ONLY:
+    render.Context is raster-exclusive and Image() flushes + reads back
+    GPU state. UI-thread callers must go through SnapshotAsync (or another
+    raster-side hook); sampling the dc off raster races the present it observes.
+
+func (a *PipelineApp) TexturePaintStats() (painted, missed int64)
+    TexturePaintStats returns the texture-layer counts of the most recent
+    retained composite (painted = sources that drew pixels, missed = ids that
+    resolved to nothing). Both are 0 when the last frame carried no texture
+    layer. Safe from any thread: published through an atomic by the raster job.
+
+type PipelineOptions struct {
+	ClearR, ClearG, ClearB, ClearA float64
+	// MaxFrames / RunFor stop conditions.
+	MaxFrames int64
+	RunFor    time.Duration
+	// OnEvent optional.
+	OnEvent func(ev platform.Event)
+	// When set,
+	// pointer/key events are normalized and routed automatically via the
+	// router; the per-example OnEvent input handling is not needed. Windows
+	// without Input keep the existing OnEvent path unchanged.
+	Input *InputRouter
+	// IME is the optional input-method capability; when both are set it is
+	// attached to Input for automatic session management (plan I4).
+	IME platform.IME
+	// Clipboard is the optional cross-platform clipboard capability; when
+	// both are set it is auto-injected into focused TextEditTargets so
+	// apps no longer hand-wire each box (F-B5, X11 nil->fallback).
+	Clipboard platform.Clipboard
+	// WarmUp runs one full paint before the loop (F11).
+	WarmUp bool
+	// Overlay is the optional F13 overlay stack (P5d). Hit-test is overlay-first.
+	Overlay *overlay.State
+	// SaveLayerMaxOps / SaveLayerMaxArea configure the per-frame SaveLayerBudget
+	// . 0 = unlimited. Rejections are counted in savelayer_reject.
+	SaveLayerMaxOps  int
+	SaveLayerMaxArea float64
+	// SnapshotPath (optional) saves a GPU readback PNG of the final frame
+	// before Close. Use for AA/pixel verification windows: xwd reads the X11
+	// backing store, which can lag/diverge from the composited GPU content.
+	SnapshotPath string
+}
+    PipelineOptions configures a demand-driven tree present loop.
+
+type TextEditTarget interface {
+	// Editor returns the editing state this target edits (non-nil).
+	Editor() *textinput.Editor
+	// IMERect returns the current caret anchor rectangle in logical px,
+	// window-relative — candidate windows attach here. Compute it from the
+	// caret position (e.g. prefix width), not just the field bounds.
+	IMERect() platform.Rect
+	// ContentPurpose declares the field type for the input method.
+	ContentPurpose() platform.ContentPurpose
+}
+

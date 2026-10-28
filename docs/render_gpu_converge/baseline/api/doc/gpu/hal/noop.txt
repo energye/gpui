@@ -1,0 +1,515 @@
+package noop // import "github.com/energye/gpui/gpu/hal/noop"
+
+Package noop provides a no-operation GPU backend.
+
+The noop backend implements all HAL interfaces but performs no actual GPU
+operations. It is useful for:
+  - Testing code without GPU hardware
+  - CI/CD environments without GPU access
+  - Reference implementation showing minimal HAL requirements
+  - Fallback when no real backend is available
+
+All operations succeed immediately and return placeholder resources. The backend
+is identified as types.BackendEmpty.
+
+TYPES
+
+type Adapter struct{}
+    Adapter implements hal.Adapter for the noop backend.
+
+func (a *Adapter) Features() gputypes.Features
+    Features returns no features (noop backend).
+
+func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities
+    GetSurfaceCapabilities returns default surface capabilities.
+
+func (a *Adapter) Info() gputypes.AdapterInfo
+    Info returns noop adapter metadata.
+
+func (a *Adapter) Limits() gputypes.Limits
+    Limits returns default limits.
+
+func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.OpenDevice, error)
+    Open creates a noop device with the requested features and limits. Always
+    succeeds and returns a device/queue pair.
+
+func (a *Adapter) Release()
+    Release is a no-op for the noop adapter.
+
+func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error)
+    RequestDevice opens a noop device with the requested features and limits.
+    Queue is accessible via the returned Device.Queue().
+
+func (a *Adapter) TextureFormatCapabilities(_ gputypes.TextureFormat) hal.TextureFormatCapabilities
+    TextureFormatCapabilities returns default capabilities for all formats.
+
+type Backend struct{}
+    API implements hal.Backend for the noop backend.
+
+func NewBackend() Backend
+    NewBackend returns a noop backend instance.
+
+func (Backend) CreateInstance(_ *hal.InstanceDescriptor) (hal.Instance, error)
+    CreateInstance creates a new noop instance. Always succeeds and returns a
+    placeholder instance.
+
+func (Backend) Variant() gputypes.Backend
+    Variant returns the backend type identifier.
+
+type Buffer struct {
+	Resource
+
+	// Has unexported fields.
+}
+    Buffer implements hal.Buffer with in-memory data storage.
+
+func (b *Buffer) Label() string
+    Label returns the buffer's debug label.
+
+func (b *Buffer) NativeHandle() uintptr
+    NativeHandle returns 0 for noop buffers.
+
+func (b *Buffer) Size() uint64
+    Size returns the buffer size in bytes.
+
+func (b *Buffer) Usage() gputypes.BufferUsage
+    Usage returns the buffer's usage flags.
+
+type CommandEncoder struct{}
+    CommandEncoder implements hal.CommandEncoder for the noop backend.
+
+func (c *CommandEncoder) BeginComputePass(_ *hal.ComputePassDescriptor) (hal.ComputePassEncoder, error)
+    BeginComputePass returns a noop compute pass encoder.
+
+func (c *CommandEncoder) BeginEncoding(_ string) error
+    BeginEncoding is a no-op.
+
+func (c *CommandEncoder) BeginRenderPass(_ *hal.RenderPassDescriptor) (hal.RenderPassEncoder, error)
+    BeginRenderPass returns a noop render pass encoder.
+
+func (c *CommandEncoder) BuildAccelerationStructures(_ []hal.BuildAccelerationStructureDescriptor)
+    BuildAccelerationStructures is a no-op.
+
+func (c *CommandEncoder) ClearBuffer(_ hal.Buffer, _, _ uint64)
+    ClearBuffer is a no-op.
+
+func (c *CommandEncoder) CopyAccelerationStructure(_, _ hal.AccelerationStructure, _ gputypes.AccelerationStructureCopyMode)
+    CopyAccelerationStructure is a no-op.
+
+func (c *CommandEncoder) CopyBufferToBuffer(_ hal.Buffer, _ uint64, _ hal.Buffer, _ uint64, _ uint64)
+    CopyBufferToBuffer is a no-op.
+
+func (c *CommandEncoder) CopyBufferToTexture(_ hal.Buffer, _ hal.Texture, _ []hal.BufferTextureCopy)
+    CopyBufferToTexture is a no-op.
+
+func (c *CommandEncoder) CopyTextureToBuffer(_ hal.Texture, _ hal.Buffer, _ []hal.BufferTextureCopy)
+    CopyTextureToBuffer is a no-op.
+
+func (c *CommandEncoder) CopyTextureToTexture(_, _ hal.Texture, _ []hal.TextureCopy)
+    CopyTextureToTexture is a no-op.
+
+func (c *CommandEncoder) Destroy()
+    Destroy is a no-op for the noop backend.
+
+func (c *CommandEncoder) DiscardEncoding()
+    DiscardEncoding is a no-op.
+
+func (c *CommandEncoder) EndEncoding() (hal.CommandBuffer, error)
+    EndEncoding returns a placeholder command buffer.
+
+func (c *CommandEncoder) Finish() (hal.CommandBuffer, error)
+    Finish implements hal.CommandEncoder: same as EndEncoding.
+
+func (c *CommandEncoder) PlaceAccelerationStructureBarrier(_ hal.AccelerationStructureBarrier)
+    PlaceAccelerationStructureBarrier is a no-op.
+
+func (c *CommandEncoder) ReadAccelerationStructureCompactSize(_ hal.AccelerationStructure, _ hal.Buffer, _ uint64)
+    ReadAccelerationStructureCompactSize is a no-op.
+
+func (c *CommandEncoder) ResetAll(_ []hal.CommandBuffer)
+    ResetAll is a no-op.
+
+func (c *CommandEncoder) ResolveQuerySet(_ hal.QuerySet, _, _ uint32, _ hal.Buffer, _ uint64)
+    ResolveQuerySet is a no-op.
+
+func (c *CommandEncoder) TransitionBuffers(_ []hal.BufferBarrier)
+    TransitionBuffers is a no-op.
+
+func (c *CommandEncoder) TransitionTextures(_ []hal.TextureBarrier)
+    TransitionTextures is a no-op.
+
+type ComputePassEncoder struct{}
+    ComputePassEncoder implements hal.ComputePassEncoder for the noop backend.
+
+func (c *ComputePassEncoder) Dispatch(_, _, _ uint32)
+    Dispatch is a no-op.
+
+func (c *ComputePassEncoder) DispatchIndirect(_ hal.Buffer, _ uint64)
+    DispatchIndirect is a no-op.
+
+func (c *ComputePassEncoder) End() error
+    End is a no-op.
+
+func (c *ComputePassEncoder) SetBindGroup(_ uint32, _ hal.BindGroup, _ []uint32)
+    SetBindGroup is a no-op.
+
+func (c *ComputePassEncoder) SetPipeline(_ hal.ComputePipeline)
+    SetPipeline is a no-op.
+
+type Device struct {
+	// Has unexported fields.
+}
+    Device implements hal.Device for the noop backend.
+
+func (d *Device) CreateAccelerationStructure(_ *hal.AccelerationStructureDescriptor) (hal.AccelerationStructure, error)
+    CreateAccelerationStructure returns an error because the noop backend does
+    not support ray tracing.
+
+func (d *Device) CreateBindGroup(_ *hal.BindGroupDescriptor) (hal.BindGroup, error)
+    CreateBindGroup creates a noop bind group.
+
+func (d *Device) CreateBindGroupLayout(_ *hal.BindGroupLayoutDescriptor) (hal.BindGroupLayout, error)
+    CreateBindGroupLayout creates a noop bind group layout.
+
+func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (hal.Buffer, error)
+    CreateBuffer creates a noop buffer with in-memory backing storage.
+
+    All noop buffers allocate a Go slice so tests can round-trip data through
+    WriteBuffer/MapBuffer without backend-specific plumbing.
+
+func (d *Device) CreateCommandEncoder(_ *hal.CommandEncoderDescriptor) (hal.CommandEncoder, error)
+    CreateCommandEncoder creates a noop command encoder.
+
+func (d *Device) CreateComputePipeline(_ *hal.ComputePipelineDescriptor) (hal.ComputePipeline, error)
+    CreateComputePipeline creates a noop compute pipeline.
+
+func (d *Device) CreateFence() (hal.Fence, error)
+    CreateFence creates a noop fence with atomic counter.
+
+func (d *Device) CreatePipelineLayout(_ *hal.PipelineLayoutDescriptor) (hal.PipelineLayout, error)
+    CreatePipelineLayout creates a noop pipeline layout.
+
+func (d *Device) CreateQuerySet(_ *hal.QuerySetDescriptor) (hal.QuerySet, error)
+    CreateQuerySet returns ErrTimestampsNotSupported (noop backend has no GPU).
+
+func (d *Device) CreateRenderBundleEncoder(desc *hal.RenderBundleEncoderDescriptor) (hal.RenderBundleEncoder, error)
+    CreateRenderBundleEncoder is a no-op for the noop device.
+
+func (d *Device) CreateRenderPipeline(_ *hal.RenderPipelineDescriptor) (hal.RenderPipeline, error)
+    CreateRenderPipeline creates a noop render pipeline.
+
+func (d *Device) CreateSampler(_ *hal.SamplerDescriptor) (hal.Sampler, error)
+    CreateSampler creates a noop sampler.
+
+func (d *Device) CreateShaderModule(_ *hal.ShaderModuleDescriptor) (hal.ShaderModule, error)
+    CreateShaderModule creates a noop shader module.
+
+func (d *Device) CreateTexture(desc *hal.TextureDescriptor) (hal.Texture, error)
+    CreateTexture creates a noop texture.
+
+func (d *Device) CreateTextureView(parent hal.Texture, _ *hal.TextureViewDescriptor) (hal.TextureView, error)
+    CreateTextureView creates a noop texture view.
+
+func (d *Device) DestroyAccelerationStructure(_ hal.AccelerationStructure)
+    DestroyAccelerationStructure is a no-op.
+
+func (d *Device) DestroyBindGroup(_ hal.BindGroup)
+    DestroyBindGroup is a no-op.
+
+func (d *Device) DestroyBindGroupLayout(_ hal.BindGroupLayout)
+    DestroyBindGroupLayout is a no-op.
+
+func (d *Device) DestroyBuffer(_ hal.Buffer)
+    DestroyBuffer is a no-op.
+
+func (d *Device) DestroyComputePipeline(_ hal.ComputePipeline)
+    DestroyComputePipeline is a no-op.
+
+func (d *Device) DestroyFence(_ hal.Fence)
+    DestroyFence is a no-op.
+
+func (d *Device) DestroyPipelineLayout(_ hal.PipelineLayout)
+    DestroyPipelineLayout is a no-op.
+
+func (d *Device) DestroyQuerySet(_ hal.QuerySet)
+    DestroyQuerySet is a no-op.
+
+func (d *Device) DestroyRenderBundle(bundle hal.RenderBundle)
+    DestroyRenderBundle is a no-op for the noop device.
+
+func (d *Device) DestroyRenderPipeline(_ hal.RenderPipeline)
+    DestroyRenderPipeline is a no-op.
+
+func (d *Device) DestroySampler(_ hal.Sampler)
+    DestroySampler is a no-op.
+
+func (d *Device) DestroyShaderModule(_ hal.ShaderModule)
+    DestroyShaderModule is a no-op.
+
+func (d *Device) DestroyTexture(_ hal.Texture)
+    DestroyTexture is a no-op.
+
+func (d *Device) DestroyTextureView(_ hal.TextureView)
+    DestroyTextureView is a no-op.
+
+func (d *Device) Features() gputypes.Features
+    Features returns the device's enabled features.
+
+func (d *Device) FlushCallbacks()
+    FlushCallbacks is a no-op for the noop device.
+
+func (d *Device) FreeCommandBuffer(cmdBuffer hal.CommandBuffer)
+    FreeCommandBuffer is a no-op for the noop device.
+
+func (d *Device) GetAccelerationStructureBuildSizes(_ *hal.GetAccelerationStructureBuildSizesDescriptor) hal.AccelerationStructureBuildSizes
+    GetAccelerationStructureBuildSizes returns zero sizes (noop backend).
+
+func (d *Device) GetAccelerationStructureDeviceAddress(_ hal.AccelerationStructure) uint64
+    GetAccelerationStructureDeviceAddress returns 0 (noop backend).
+
+func (d *Device) GetFenceStatus(fence hal.Fence) (bool, error)
+    GetFenceStatus returns true if the fence is signaled (non-blocking).
+
+func (d *Device) IsLost() bool
+    IsLost returns false (noop device is never lost).
+
+func (d *Device) Limits() gputypes.Limits
+    Limits returns the device's resource limits.
+
+func (d *Device) MapBuffer(buffer hal.Buffer, offset, size uint64) (hal.BufferMapping, error)
+    MapBuffer returns a pointer into the in-memory noop buffer.
+
+func (d *Device) Poll(_ hal.PollType) bool
+    Poll returns true (noop backend is synchronous, all work complete).
+
+func (d *Device) PopErrorScope() *hal.GPUError
+    PopErrorScope returns nil (noop backend never captures errors).
+
+func (d *Device) PushErrorScope(_ hal.ErrorFilter)
+    PushErrorScope is a no-op for the noop device.
+
+func (d *Device) Queue() hal.Queue
+    Queue returns the device's command queue.
+
+func (d *Device) Release()
+    Release is a no-op for the noop device.
+
+func (d *Device) ResetFence(fence hal.Fence) error
+    ResetFence resets a fence to the unsignaled state.
+
+func (d *Device) TlasInstanceToBytes(_ hal.TlasInstance) []byte
+    TlasInstanceToBytes returns nil (noop backend).
+
+func (d *Device) UnmapBuffer(_ hal.Buffer) error
+    UnmapBuffer is a no-op for the noop backend.
+
+func (d *Device) WaitForFence(fence hal.Fence, value uint64, _ time.Duration) (bool, error)
+    WaitForFence simulates waiting for a fence value. Always returns true
+    immediately (fence reached).
+
+func (d *Device) WaitIdle() error
+    WaitIdle is a no-op for the noop device.
+
+type Fence struct {
+	Resource
+	// Has unexported fields.
+}
+    Fence implements hal.Fence with an atomic counter for synchronization.
+
+func (f *Fence) GetValue() uint64
+    GetValue returns the current fence value.
+
+func (f *Fence) Signal(value uint64)
+    Signal sets the fence value.
+
+func (f *Fence) Wait(value uint64, _ time.Duration) bool
+    Wait simulates waiting for the fence to reach a value. Returns true if
+    the fence has reached the value, false otherwise. The timeout parameter is
+    ignored in the noop implementation.
+
+type Instance struct{}
+    Instance implements hal.Instance for the noop backend.
+
+func (i *Instance) CreateSurface(_ hal.SurfaceTarget) (hal.Surface, error)
+    CreateSurface creates a noop surface. Always succeeds regardless of the
+    target.
+
+func (i *Instance) EnumerateAdapters(_ hal.Surface) []hal.ExposedAdapter
+    EnumerateAdapters returns a single default noop adapter. The surfaceHint is
+    ignored.
+
+func (i *Instance) ProcessEvents()
+    ProcessEvents is a no-op for the noop backend (synchronous, no async
+    callbacks).
+
+func (i *Instance) Release()
+    Release is a no-op for the noop instance.
+
+func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error)
+    RequestAdapter returns the default noop adapter.
+
+type Queue struct {
+	// Has unexported fields.
+}
+    Queue implements hal.Queue for the noop backend.
+
+func (q *Queue) GetTimestampPeriod() float32
+    GetTimestampPeriod returns 1.0 nanosecond timestamp period.
+
+func (q *Queue) LastSubmissionIndex() uint64
+    LastSubmissionIndex returns the most recent submission index.
+
+func (q *Queue) Poll() uint64
+    Poll returns the highest submission index known to be completed. Noop
+    backend is synchronous — all submissions are immediately complete. Backend
+    divergence: webgpu Queue.Poll always returns 0, noop returns the submission
+    index (submitted == completed).
+
+func (q *Queue) Present(_ hal.Surface, _ hal.SurfaceTexture, _ []image.Rectangle) error
+    Present simulates surface presentation. Always succeeds. damageRects is
+    accepted and ignored (noop backend).
+
+func (q *Queue) SetSwapchainSuppressed(_ bool)
+    SetSwapchainSuppressed is a no-op on the noop backend.
+
+func (q *Queue) StagedWriteOverlaps() int64
+    StagedWriteOverlaps implements hal.Queue: the noop backend never uploads to
+    a GPU, so there is no coalescing drain to guard. Always 0.
+
+func (q *Queue) Submit(_ ...hal.CommandBuffer) (uint64, error)
+    Submit simulates command buffer submission. Returns a monotonically
+    increasing submission index.
+
+func (q *Queue) SupportsCommandBufferCopies() bool
+    SupportsCommandBufferCopies returns false for the noop backend. Writes are
+    handled directly without command buffer batching.
+
+func (q *Queue) SupportsCrossThreadTextureWrites() bool
+    SupportsCrossThreadTextureWrites reports true: the noop queue keeps no
+    context or native state, so tests can exercise the worker-upload path.
+
+func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error
+    WriteBuffer simulates immediate buffer writes. If the buffer has storage,
+    copies data to it.
+
+func (q *Queue) WriteTexture(_ *hal.ImageCopyTexture, _ []byte, _ *hal.ImageDataLayout, _ *hal.Extent3D) error
+    WriteTexture simulates immediate texture writes. This is a no-op since
+    textures don't store data.
+
+type RenderPassEncoder struct{}
+    RenderPassEncoder implements hal.RenderPassEncoder for the noop backend.
+
+func (r *RenderPassEncoder) Draw(_, _, _, _ uint32)
+    Draw is a no-op.
+
+func (r *RenderPassEncoder) DrawIndexed(_, _, _ uint32, _ int32, _ uint32)
+    DrawIndexed is a no-op.
+
+func (r *RenderPassEncoder) DrawIndexedIndirect(_ hal.Buffer, _ uint64)
+    DrawIndexedIndirect is a no-op.
+
+func (r *RenderPassEncoder) DrawIndexedIndirectCount(_ hal.Buffer, _ uint64, _ hal.Buffer, _ uint64, _ uint32)
+    DrawIndexedIndirectCount is a no-op.
+
+func (r *RenderPassEncoder) DrawIndirect(_ hal.Buffer, _ uint64)
+    DrawIndirect is a no-op.
+
+func (r *RenderPassEncoder) DrawIndirectCount(_ hal.Buffer, _ uint64, _ hal.Buffer, _ uint64, _ uint32)
+    DrawIndirectCount is a no-op.
+
+func (r *RenderPassEncoder) End() error
+    End is a no-op.
+
+func (r *RenderPassEncoder) ExecuteBundle(_ hal.RenderBundle)
+    ExecuteBundle is a no-op.
+
+func (r *RenderPassEncoder) SetBindGroup(_ uint32, _ hal.BindGroup, _ []uint32)
+    SetBindGroup is a no-op.
+
+func (r *RenderPassEncoder) SetBlendConstant(_ *gputypes.Color)
+    SetBlendConstant is a no-op.
+
+func (r *RenderPassEncoder) SetIndexBuffer(_ hal.Buffer, _ gputypes.IndexFormat, _ uint64)
+    SetIndexBuffer is a no-op.
+
+func (r *RenderPassEncoder) SetPipeline(_ hal.RenderPipeline)
+    SetPipeline is a no-op.
+
+func (r *RenderPassEncoder) SetScissorRect(_, _, _, _ uint32)
+    SetScissorRect is a no-op.
+
+func (r *RenderPassEncoder) SetStencilReference(_ uint32)
+    SetStencilReference is a no-op.
+
+func (r *RenderPassEncoder) SetVertexBuffer(_ uint32, _ hal.Buffer, _ uint64)
+    SetVertexBuffer is a no-op.
+
+func (r *RenderPassEncoder) SetViewport(_, _, _, _, _, _ float32)
+    SetViewport is a no-op.
+
+type Resource struct{}
+    Resource is a placeholder implementation for most HAL resource types.
+    It implements the hal.Resource interface with a no-op Destroy method.
+
+func (r *Resource) Destroy()
+    Destroy is a no-op.
+
+func (r *Resource) NativeHandle() uintptr
+    NativeHandle returns 0 for noop resources (no real handle).
+
+type Surface struct {
+	Resource
+	// Has unexported fields.
+}
+    Surface implements hal.Surface for the noop backend.
+
+func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error)
+    AcquireTexture returns a placeholder surface texture. The fence parameter is
+    ignored.
+
+func (s *Surface) ActualExtent() (width, height uint32)
+    ActualExtent returns (0, 0) for the noop backend. The noop backend does not
+    track configured dimensions.
+
+func (s *Surface) Configure(_ hal.Device, _ *hal.SurfaceConfiguration) error
+    Configure marks the surface as configured.
+
+func (s *Surface) DiscardTexture(_ hal.SurfaceTexture)
+    DiscardTexture is a no-op.
+
+func (s *Surface) Unconfigure(_ hal.Device)
+    Unconfigure marks the surface as unconfigured.
+
+type SurfaceTexture struct {
+	Texture
+}
+    SurfaceTexture implements hal.SurfaceTexture.
+
+type Texture struct {
+	Resource
+	// Has unexported fields.
+}
+    Texture implements hal.Texture.
+
+func (t *Texture) AddPendingRef()
+
+func (t *Texture) CurrentUsage() gputypes.TextureUsage
+    CurrentUsage returns 0 — noop backend has no resource state tracking.
+
+func (t *Texture) DecPendingRef()
+
+func (t *Texture) Format() gputypes.TextureFormat
+    Format returns the texture format.
+
+func (t *Texture) NativeHandle() uintptr
+    NativeHandle returns 0 for noop textures.
+
+type TextureView struct {
+	Resource
+	// Has unexported fields.
+}
+    TextureView implements hal.TextureView for the noop backend.
+
+func (v *TextureView) Texture() hal.Texture
+    Texture returns the parent texture.
+

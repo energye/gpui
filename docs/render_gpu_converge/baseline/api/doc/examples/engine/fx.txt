@@ -1,0 +1,26 @@
+Custom case helpers for game_fx (capability 5.5, P3, S44/W6).
+
+Frozen look: transparent sheet, steel-blue block, white chip. Outline rings
+the block red, dissolve eats it with an orange edge. Only frozen engine/fx
+constructors are called here; render is only fed buffers.
+
+Command game_fx is the 5.3/5.4 independent real window: warp water wobble +
+grade film look.
+
+Window: 1200x800, title game_fx. Body left original, middle warp, right grade.
+Warp calls engine/fx Warp OffsetAt/WarpRGBA (frozen, direct use). Grade calls
+engine/fx Bloom/Vignette/LUT/Grade full chain bloom->vignette->lut->tonemap.
+
+Flags:
+
+    go run ./examples/engine/fx --case=all -auto-only
+      RUN_SECONDS=8 (default 8) auto gate, JSON on stdout, exit 1 on fail.
+    go run ./examples/engine/fx --case=warp -manual-seconds 30
+      resident 30s, real events logged + SetTitle, summary JSON.
+    go run ./examples/engine/fx
+      selftest then resident until close. RUN_SECONDS also times the run.
+
+Gates (hard): present>=1 via wrgate, parity_changed_pct<=1 (CPU vs
+GPU old DrawImage), logic probes all pass, pixel assertions pass,
+Golden static mask zero tolerance (second run on). Extra carries
+parity_changed_pct/warp_moved_px/grade_dark_corner/probe_ok.

@@ -1,0 +1,749 @@
+package video // import "github.com/energye/gpui/video"
+
+Package video is the root API for VR4 playback, VR5 seeking, VR6 faults and VR7
+limits: open a file, pull frames by timestamp, pause, resume, jump to a time and
+close.
+
+Seeks are requests, not chores (ffplay stream_seek model): SeekTo only posts
+the target and returns the landing stamp at once; the background drops
+decoded frames until the landing shows, and a second seek supersedes the first
+(drag-friendly). Seeking reports a seek still travelling; PositionMs reports
+the current stamp. Companion controls: SeekFast (keyframe-only, for dragging),
+SeekBy (relative jump), Next/PrevKeyframe, StepFrame (paused single step) and
+SetRate/Rate (0 < rate <= 8, speed-scaled clock; sound follows the same clock).
+True reverse decode does not exist.
+
+Scope is narrow on purpose: the player wires the pieces without
+reimplementing them. Decode backend is ffmpeg only (video/ffmpeg: demux +
+decode + sws to RGBA); the Player only does queue/clock/seek orchestration
+(player_types/open/playback/seek) on top. Decoding runs on a background thread;
+the caller only polls due frames. Every clip streams: the background decodes
+ahead through a bounded queue, so memory stays flat. Capability answers and
+shell probing live in the registry (video/registry_probe.go); bad inputs fail
+readably through Classify (video/fault_classify.go); streaming buffers come from
+fixed-size pools (video/mem_pool.go) with hit/leak/ cap stats. Data sources
+(file/memory/HTTP Range) are abstracted in video/io_source.go; audio sync math
+and the Player sound wiring live in video/sync_audio.go. Errors name the layer
+and the file, never a bare code. No CGO, standard library plus purego only.
+
+Say it plain: when a clip carries sound, the sound clock leads and the picture
+follows it; silent clips keep the old picture-only clock bit for bit. Both
+queues share one serial (the Player generation), so a seek retires old frames on
+both sides together.
+
+ffmpeg peers (read-only, no code copied):
+
+    fftools/ffplay.c:139-150 Clock{pts/serial/speed/paused/last_updated}
+    fftools/ffplay.c:1429 get_clock (serial mismatch -> NAN, paused freezes)
+    fftools/ffplay.c:1441-1457 set_clock/set_clock_at/set_clock_speed
+      (speed change re-anchors at the current reading, never jumps)
+    fftools/ffplay.c:1469 sync_clock_to_slave
+    fftools/ffplay.c:1477-1506 get_master_sync_type/get_master_clock
+      (default AV_SYNC_AUDIO_MASTER: sound leads when present, else video)
+    fftools/ffplay.c:1527 stream_seek + :493 packet_queue_flush
+      (seek flushes every queue and bumps each serial together)
+    fftools/ffplay.c:80-86 thresholds AV_SYNC_THRESHOLD_MIN 0.04,
+      AV_SYNC_THRESHOLD_MAX 0.1, AV_SYNC_FRAMEDUP_THRESHOLD 0.1,
+      AV_NOSYNC_THRESHOLD 10.0
+    fftools/ffplay.c:1580 compute_target_delay (late drops / early waits)
+    fftools/ffplay.c:1630 video_refresh (shows newest due, drops stale)
+    fftools/ffplay.c:2423 audio_decode_frame + :2571 sdl_audio_callback
+      (audio clock follows played PCM; non-audio-master trims samples;
+      we stay audio-master-or-video so no trim runs, see below)
+
+Where we differ, written down so nobody has to guess:
+  - ffplay drives three clocks (audio/video/external) off SDL time and updates
+    them per shown/played frame; we drive two wall clocks (audio + video,
+    same now source) anchored at each stream head. The picture picker reads the
+    master clock, which is the same early-wait / late-drop rule as video_refresh
+    with a zero pull threshold (stricter than 40-100ms: we never duplicate a
+    frame to fill time, we hold the old picture, so drops only ever match or
+    exceed ffplay, never hide lag).
+  - ffplay serials live per queue (audioq.serial, videoq.serial) and clocks
+    point at them; we keep one shared generation bumped once per seek
+    (packet_queue_flush on both queues at once). Same promise: frames decoded
+    before the seek never show after it.
+  - Audio trim (synchronize_audio swr compensation) only runs when audio is
+    NOT the master; we always run audio-master-when-present (ffplay default),
+    so the trim path stays parked. A3 owns resample.
+
+This file also carries the Player audio wiring: the A2 queue, the
+master-select/clock helpers above, HasAudio/Master/PollAudio and the ProbeAudio
+reporters below. Sound decodes on the same background thread as picture (one
+ffmpeg open per stream, pumped once per video frame); silent clips keep ffaud
+nil and stay honest at zero.
+
+CONSTANTS
+
+const (
+	KindBadBox     = "bad-box"
+	KindTruncated  = "truncated"
+	KindBadClip    = "bad-clip"
+	KindMemOverCap = "mem-over-cap"
+	KindUnknown    = "unknown"
+	// KindHwFallback 是硬解失败回落桶（P1）：设备建不起、谈判谈崩、
+	// 回传失败都记 hw_fallbacks 并走这里归类，不静默。
+	KindHwFallback = "hw-fallback"
+
+	// Deprecated: retired with the Go mp4/h264/h265/aac/color packages
+	// (ffmpeg absorbs these natively). Kept so old callers compile;
+	// Classify never returns them on the ffmpeg backend.
+	KindMissingParam = "missing-params"
+	KindF17          = "f17-old-tools"
+	KindF20          = "f20-lost-reference"
+	KindLevel        = "level-over-limit"
+	KindInterlace    = "f12-interlace"
+	KindProfile      = "profile-beyond-stage"
+	KindColor        = "color-unsupported"
+	KindAudio        = "audio-decode"
+	KindH265         = "h265-headers-only"
+)
+    Fault kinds for VR6 triage. Stable strings for JSON; Chinese text lives
+    in Fault.CN so the window can show it directly. The ffmpeg backend absorbs
+    decode details natively, so only the shell/clip/cap buckets remain; the
+    retired Go-decoder buckets stay as deprecated aliases so old callers still
+    compile.
+
+const (
+	MemCapKBFor480p  = 128 << 10
+	MemCapKBFor720p  = 256 << 10
+	MemCapKBFor1440p = 1024 << 10
+	MemCapKBFor4K    = 2048 << 10
+)
+    Grade caps backing MemCapKBFor: explicit per grade, same derivation as
+    above. New grades arrive here, never as window literals.
+
+const (
+	ContainerMP4 = "mp4"
+	CodecH264    = "h264"
+	CodecH265    = "h265"
+)
+    The player decodes through ffmpeg (video/ffmpeg + libgpui_ffmpeg);
+    these names are the stable capability answers, not a Go decode table.
+    Kept so callers can ask before opening without guessing.
+
+const (
+	A2SyncThresholdMinMs = 40
+	A2SyncThresholdMaxMs = 100
+	A2FramedupMs         = 100
+	A2NosyncMs           = 10000
+)
+    A2 sync thresholds in milliseconds. Direct copies of ffplay.c:80-86 (seconds
+    x1000): below MIN no correction, above MAX correct, past NOSYNC give up
+    (initial errors), FRAMEDUP guards repeat.
+
+const (
+	MasterAudio = "audio"
+	MasterVideo = "video"
+)
+    Master names. The window JSON reports one of these; silent clips always
+    report video (no fallback surprise).
+
+const DefaultAudioQueueCap = 8
+    DefaultAudioQueueCap bounds the PCM shock absorber (ffplay SAMPLE_QUEUE_SIZE
+    is 9; we run 8: one ~21ms packet each, ~170ms of sound, never clip length).
+
+const MemCapKBFor1080p = 512 << 10
+    MemCapKBFor1080p is the VR7 1080p decoder-side cap (pools + reference frames
+    + queue): 512MB. Tighter than the old 1GB window cap on purpose (VR7 most
+    strict); 4K takes a larger but still explicit cap (VC2). The window enforces
+    RSS peak against it and reports overruns, never silent growth.
+
+    side buckets (portrait uses min(w,h)). Each cap is ~2x the worst-case live
+    footprint below (refs=16, queue=DefaultCap, spare=3, work=256KB), rounded
+    up to a power of two, so normal clips pass with headroom for Go heap/GPU/UI
+    while oversize clips fail fast. Derivation (live max): 480p 854x480 ~49.7MB
+    -> 128MB; 720p ~111.4MB -> 256MB; 1080p ~250.4MB -> 512MB (kept); 1440p
+    ~445MB -> 1024MB; 4K ~1000.9MB -> 2048MB. Monotonic with pixels, 4K capped,
+    never silent.
+
+    ffmpeg peer (read-only, no code copied): libavutil/mem.c:76-77
+    av_max_alloc (single-block upper limit) + :102 av_malloc / :158
+    av_realloc refuse over-limit; libavutil/buffer.h:266 av_buffer_pool_init
+    + buffer.c:390 av_buffer_pool_get borrow/reuse; fftools/ffplay.c:126
+    VIDEO_PICTURE_QUEUE_SIZE 3 + :129 FRAME_QUEUE_SIZE + :705 max_size capped +
+    :751 peek_writable blocks when full (bounded, never grows to clip length) +
+    :789 frame_queue_next unrefs (return).
+
+
+VARIABLES
+
+var (
+	ErrNoVideo   = errors.New("video: no video track")
+	ErrNoAudio   = errors.New("video: no audio track")
+	ErrNoFrames  = errors.New("video: no decodable frames")
+	ErrClosed    = errors.New("video: player closed")
+	ErrBadClip   = errors.New("video: bad clip")
+	ErrDecodeEOF = errors.New("video: end of stream")
+	// the grade cap (assembling the clip would not fit). Callers triage
+	// it via Classify (KindMemOverCap), never as a silent OOM.
+	ErrMemOverCap = errors.New("video: memory over cap")
+)
+    Sentinel errors. Messages stay in plain English so callers can match with
+    errors.Is and show their own localized text on top.
+
+var (
+	ErrUnsupportedContainer = errors.New("video: unsupported container")
+	ErrUnsupportedCodec     = errors.New("video: unsupported codec")
+)
+    Sentinel errors. Messages stay in plain English so callers can match with
+    errors.Is and show their own localized text on top.
+
+
+FUNCTIONS
+
+func AudioStepMs(sampleRate int) int64
+    AudioStepMs maps one AAC packet (1024 samples) to milliseconds. Integer math
+    on purpose: the mp4 tables already quantize PTS to ms, so the queue and the
+    gate speak the same units.
+
+func ComputeTargetDelay(delayMs, diffMs float64, videoIsMaster bool) float64
+    ComputeTargetDelay mirrors compute_target_delay (ffplay.c:1580) in
+    milliseconds: diff = video - master. Late (diff very negative) shortens the
+    wait, early (diff very positive) stretches it. NaN-ish huge diffs (|diff| >=
+    NOSYNC) pass through: likely initial PTS errors, same as ffplay resetting
+    its A-V filter instead of jerking.
+
+func EstimateDecoderBytes(w, h, frames, workSize int) int64
+    EstimateDecoderBytes bounds one open of w×h: YUV+RGBA per frame plus one
+    workspace, times frames. The window compares it against the cap before
+    playing so oversize clips fail fast with a readable error.
+
+func EstimateLiveBytes(w, h, refs, queueCap, workSize int) int64
+    EstimateLiveBytes bounds the streaming live footprint: one YUV+RGBA frame
+    per reference slot plus queue plus in-flight spares, plus one workspace (max
+    sample size). Refs clamp to 1..16 (SPS truth, H.264 max 16); queue clamps to
+    >=1. Small clips use EstimateDecoderBytes (full cache); streaming clips use
+    this (bounded, never clip length).
+
+    ffmpeg peer: width×height×refs pre-estimate idea + buffer pool + bounded
+    FrameQueue above; we only copy the shape.
+
+func IsURL(path string) bool
+    IsURL reports http(s) sources (no os.Stat, Range GET instead).
+
+func MemCapKBFor(w, h int) int
+    Unknown/zero sizes fall back to the 1080p cap (never uncapped, never zero).
+
+func NV12Bytes(w, h int) (yN, uvN int)
+    NV12Bytes returns the Y and UV plane sizes for w×h.
+
+func ProbeFile(path string) (container, codec string, err error)
+    ProbeFile asks which shell/codec a path carries, without playing.
+    It opens through ffmpeg's own demuxer, so any container/codec the bundled
+    libgpui_ffmpeg supports answers honestly. Missing files keep their os error.
+
+func ProbeSource(src Source) (container, codec string, err error)
+    ProbeSource asks which shell/codec a Source carries, without playing.
+    Memory sources spool to a temp file since ffmpeg opens paths/URLs.
+
+func RGBABytes(w, h int) int
+    RGBABytes returns the packed RGBA size for w×h (window + player share the
+    same arithmetic so caps match the real buffers).
+
+func SelectMaster(hasAudio bool) string
+    SelectMaster mirrors get_master_sync_type with the default
+    AV_SYNC_AUDIO_MASTER: sound leads when a track exists, else video.
+    External-clock mode does not exist yet (N3 realtime); callers keep the
+    two-way choice so the default never silently changes.
+
+func SupportedCodecs() []string
+    SupportedCodecs lists codecs the ffmpeg backend decodes.
+
+func SupportedContainers() []string
+    SupportedContainers lists shells the ffmpeg backend opens.
+
+func SupportedSamplings() []string
+    SupportedSamplings lists color samplings the backend outputs as RGBA.
+
+func WallDeadline(ms int64) int64
+    WallDeadline returns a wall-clock deadline ms in the future.
+
+func WallPast(deadline int64) bool
+    WallPast reports whether a WallDeadline passed.
+
+func WallSleep(ms int64)
+    WallSleep sleeps ms wall-clock (paced tests yield the background).
+
+func YUVBytes(w, h int) int
+    YUVBytes returns the planar 4:2:0 total for w×h.
+
+
+TYPES
+
+type AudioFrame struct {
+	Data       []float32
+	SampleRate int
+	Channels   int
+	Samples    int
+	PTSMs      int64
+	Seq        int64
+	Serial     int64
+}
+    AudioFrame is one decoded AAC packet for the A2 queue: interleaved float
+    PCM plus its display stamp. Serial is the shared generation at decode time;
+    consumers drop frames whose serial already travelled.
+
+type AudioInfo struct {
+	Path       string
+	Codec      string
+	Profile    string
+	SampleRate int
+	Channels   int
+	Samples    int
+	DurationMs int64
+	ASC        []byte
+}
+    AudioInfo describes one audio track.
+
+func ProbeAudio(path string) (AudioInfo, error)
+    ProbeAudio reports the audio track without decoding: codec name, rate,
+    channels and container duration. Silent clips (and probe failures) report
+    ErrNoAudio; callers treat that as silent, never as an error.
+
+func ProbeAudioSource(src Source) (AudioInfo, error)
+    ProbeAudioSource is the Source twin of ProbeAudio. Memory sources spool to
+    temp first (same as playback); silent reports ErrNoAudio.
+
+type AudioQueue struct {
+	// Has unexported fields.
+}
+    AudioQueue is a bounded FIFO of PCM frames. Same contract as clock.Queue
+    (blocking Push backpressure, PollDue newest-due + stale count, Clear for
+    seek rewinds, Close parks end-of-stream), but over AudioFrame so video stats
+    never mix with sound. Use NewAudioQueue; the zero value is not usable.
+
+func NewAudioQueue(cap int) *AudioQueue
+    NewAudioQueue builds a queue holding at most cap frames (cap <= 0 means
+    DefaultAudioQueueCap).
+
+func (q *AudioQueue) Cap() int
+    Cap reports the configured depth.
+
+func (q *AudioQueue) Clear()
+    Clear drops every queued frame (seek rewind) and wakes one producer.
+
+func (q *AudioQueue) Close()
+    Close stops the queue: PushRealtime returns false afterwards.
+
+func (q *AudioQueue) Depth() int
+    Depth is the current fill.
+
+func (q *AudioQueue) Dropped() int64
+    Dropped counts stale frames superseded at play.
+
+func (q *AudioQueue) PollDue(nowMs int64) (f *AudioFrame, skipped int, ok bool)
+    PollDue returns the newest frame at or before nowMs, counting earlier
+    due frames stale. ok false when none due yet. One room wakes one producer
+    (Signal, same as clock.Queue).
+
+func (q *AudioQueue) PushRealtime(f *AudioFrame) bool
+    PushRealtime adds a frame without ever blocking: when full it drops the
+    oldest frame first (sound is realtime — stale sound behind the playhead is
+    worthless, same spirit as clock.Queue's追帧 drops). The background decode loop
+    uses this so an undrained sound line can never stall the picture line.
+
+type BytesSource struct {
+	// Has unexported fields.
+}
+    BytesSource is memory as a Source (tests, full-fallback).
+
+func NewBytesSource(b []byte, name string) *BytesSource
+
+func (s *BytesSource) Close() error
+
+func (s *BytesSource) Name() string
+
+func (s *BytesSource) ReadAt(p []byte, off int64) (int, error)
+
+func (s *BytesSource) Size() int64
+
+type Fault struct {
+	Kind  string
+	Layer string
+	Tool  string
+	CN    string
+}
+    Fault names the layer and the tool behind an error. Classify never panics;
+    unknown inputs map to KindUnknown.
+
+func Classify(err error) Fault
+    Classify sorts any open/decode/seek error into its fault bucket. It unwraps
+    with errors.Is, so wrapped player errors keep their bucket.
+
+func (f Fault) Readable() string
+    Readable renders the fault for the window list: kind + human text.
+
+type FileSource struct {
+	// Has unexported fields.
+}
+    FileSource is an OS file as a Source (Pread, thread-safe).
+
+func (s *FileSource) Close() error
+
+func (s *FileSource) Name() string
+
+func (s *FileSource) ReadAt(p []byte, off int64) (int, error)
+
+func (s *FileSource) Size() int64
+
+type HTTPSource struct {
+	// Has unexported fields.
+}
+    HTTPSource streams via HTTP Range with chunk cache: Size from HEAD (or Range
+    0-0), data in 1MB cached chunks so per-sample ReadAt coalesces into few
+    GETs. No Range -> full download fallback once.
+
+func (s *HTTPSource) Close() error
+
+func (s *HTTPSource) Name() string
+
+func (s *HTTPSource) ReadAt(p []byte, off int64) (int, error)
+
+func (s *HTTPSource) Size() int64
+
+type Info struct {
+	Path      string
+	Width     int
+	Height    int
+	Profile   string
+	FrameRate float64
+	DurMs     int64
+	Frames    int
+	KeyframeN int
+	// Container and Codec name the backend that opened the clip.
+	Container string
+	Codec     string
+	// Concealed counts bad samples skipped so far (always 0: ffmpeg
+	// absorbs corrupt frames inside native code).
+	Concealed int64
+	// Fault names the first problem, "" when clean.
+	Fault string
+	// P1 硬解水位（只加键，不改旧键语义）：HWActive 本路是否硬解，
+	// HWName 硬解类型名（vaapi/nvdec/…，软解记 soft），HWFallbacks
+	// 累计回落次数，HWTransferMsAvg 硬解回传耗时均值。
+	HWActive        bool    `json:"hw_active"`
+	HWName          string  `json:"hw_name"`
+	HWFallbacks     int64   `json:"hw_fallbacks"`
+	HWTransferMsAvg float64 `json:"hw_transfer_ms_avg"`
+	// A2 sound presence: true when the clip opened with a sound track
+	// (ffmpeg decodes it to 48kHz stereo float); silent clips stay
+	// false and play video-only bit for bit like before.
+	HasAudio        bool
+	AudioSampleRate int
+	AudioChannels   int
+	AudioSamples    int
+}
+    Info describes an opened clip.
+
+type Options struct {
+	QueueCap      int
+	NowMs         func() int64
+	Loop          bool
+	S2Parallel    bool
+	AudioQueueCap int
+}
+    Options tunes the player. QueueCap <= 0 means clock.DefaultCap; NowMs
+    nil means the wall clock. Loop replays from the first stamp (stamps keep
+    counting up so the clock never jumps back). S2Parallel stays accepted for
+    compatibility but is a no-op: ffmpeg owns threading natively. AudioQueueCap
+    <= 0 means DefaultAudioQueueCap.
+
+type Player struct {
+	// Has unexported fields.
+}
+    Player decodes in the background and serves frames by timestamp. Open with
+    OpenFile; poll with Poll; Pause truly stops the picture; Seek jumps to a
+    time (non-loop only); Close ends the thread. Poll is safe for one display
+    thread; Pause, Resume, Seek and Stats are safe from any thread.
+
+    Seeks are requests, not chores (ffplay stream_seek model): SeekTo only posts
+    the target and returns the landing stamp at once; the background runs the
+    actual av_seek_frame between two Next calls, drops stale tail frames until
+    the landing shows, and the caller keeps polling with the old picture held
+    (never black). A second seek supersedes the first.
+
+    Decode backend: ffmpeg (video/ffmpeg, libgpui_ffmpeg via purego) is the
+    only decode path: its demuxer opens the path directly, decodes the best
+    video stream, and scales each picture to RGBA straight into pooled buffers.
+    The background thread owns every ffmpeg call.
+
+func OpenFile(path string, opt Options) (*Player, error)
+    OpenFile opens path and starts the background decoder. The player owns
+    nothing caller-side; Close must be called. Decoding runs on ffmpeg
+    (video/ffmpeg): its demuxer opens the path directly, so any container,
+    codec, protocol or URL the bundled libgpui_ffmpeg supports plays — local
+    files, http(s), rtmp and friends included. Missing files keep their os
+    error; unopenable inputs fail readably, never silently.
+
+func OpenWithSource(src Source, opt Options) (*Player, error)
+    OpenWithSource opens a kept-open Source (file, memory, HTTP Range) and
+    starts the background decoder. Caller must not Close src after success
+    (Player owns it); on failure src is left open for the caller to close.
+
+    Backend note: ffmpeg opens the path/URL itself. File and URL sources route
+    by name; memory sources are spooled to a temp .mp4 which is removed on
+    Close, so old callers keep working.
+
+func (p *Player) AVDiffMs() int64
+    AVDiffMs is sound stamp minus picture stamp: the last served sound stamp
+    against the last shown picture stamp. Zero when silent.
+
+func (p *Player) BWindows() int64
+    BWindows reports frame-threaded laps run so far (tests only). Always 0:
+    the Go B machinery retired, ffmpeg reorders natively.
+
+func (p *Player) Buffered() bool
+    Buffered reports the small-clip full-cache path (tests only). Always false:
+    every clip streams on the ffmpeg backend.
+
+func (p *Player) Close()
+
+func (p *Player) ConcealedFault() error
+    ConcealedFault reports the first skipped sample's problem; always nil on the
+    ffmpeg backend (native code absorbs corrupt frames).
+
+func (p *Player) DecodePos() int
+    DecodePos reports samples consumed at open (tests only: streaming fast-open
+    proof). The ffmpeg open decodes headers + first displayable frame, so 1.
+
+func (p *Player) HasAudio() bool
+    Player audio wiring (ffmpeg backend decodes real sound now): HasAudio
+    reports the A2 sound path runs. True when the clip opened with a sound track
+    (ffaud non-nil).
+
+func (p *Player) Info() Info
+    Info describes the clip.
+
+func (p *Player) Master() string
+    Master names the leading clock: sound leads when a track exists (ffplay
+    default AV_SYNC_AUDIO_MASTER), else video.
+
+func (p *Player) Muted() bool
+    Muted reports the speaker park state.
+
+func (p *Player) NextKeyframe() (int64, error)
+    NextKeyframe lands one frame interval after the current position;
+    PrevKeyframe lands one interval before it (clamped to zero). The ffmpeg
+    demuxer owns keyframes; SeekTo lands on the keyframe anyway.
+
+func (p *Player) Pause()
+    Pause freezes the picture; the clock skips the held span on Resume.
+
+func (p *Player) Paused() bool
+    Paused reports the hold state.
+
+func (p *Player) Poll() (f *clock.Frame, ended bool)
+    Poll returns the newest due frame (at most one per tick), or (nil, true)
+    when playback ended. Streaming Pix lifetime: the returned Pix stays valid
+    until the next Poll or Close, then it is recycled — copy what the display
+    needs during the tick (the windows blit synchronously).
+
+func (p *Player) PollAudio() (f *AudioFrame, ended bool)
+    PollAudio returns the newest due PCM frame. Silent clips report (nil,
+    ended-mirrors-picture) so callers waiting on sound end still terminate;
+    sound clips serve newest-due with stale count dropped.
+
+func (p *Player) PositionMs() int64
+    SetRate scales playback speed (1 = normal, 2 = double, 0.5 = half):
+    the clock advances stamps faster or slower, and catch-up drops the surplus
+    at high rates. Range is 0 < rate <= 8.
+
+func (p *Player) PrevKeyframe() (int64, error)
+    PrevKeyframe lands the keyframe strictly before the current position.
+
+func (p *Player) Rate() float64
+    Rate reports the current playback speed.
+
+func (p *Player) ReorderDepth() int
+    ReorderDepth reports the B-delay used (tests only). ffmpeg reorders
+    natively; 2 covers single-B without stalling open.
+
+func (p *Player) Resume()
+    Resume continues after Pause.
+
+func (p *Player) S2Windows() int64
+    S2Windows reports parallel windows run so far (tests only). Always 0:
+    Options.S2Parallel stays accepted but ffmpeg owns threading.
+
+func (p *Player) SeekBy(deltaMs int64) (int64, error)
+    SeekBy jumps relative to the current position (negative rewinds).
+
+func (p *Player) SeekFast(targetMs int64) (int64, error)
+    SeekFast jumps without forward discard: on the ffmpeg backend it echoes like
+    SeekTo (ffmpeg always lands keyframes natively). Use it while dragging the
+    progress bar, then SeekTo once on release.
+
+func (p *Player) SeekInfo() (ok bool, targetMs, landedMs, keyMs, deltaMs int64, forward int64)
+    SeekInfo reports the last seek evidence.
+
+func (p *Player) SeekTo(targetMs int64) (landedMs int64, err error)
+
+func (p *Player) Seeking() bool
+    Seeking reports a seek is still travelling: SeekTo returned the landing
+    stamp but the background has not shown it yet.
+
+func (p *Player) Serial() int64
+    Serial is the shared seek serial both queues would retire on. The video
+    queue still bumps it on every seek, so tests can prove one seek moved the
+    picture line.
+
+func (p *Player) SetMuted(m bool)
+    SetMuted parks the speaker (true) or resumes it (false). Decode keeps
+    running while muted so unmute resumes in sync. Nil-safe.
+
+func (p *Player) SetRate(r float64) error
+
+func (p *Player) SetVolume(v float64) error
+    SetVolume scales speaker PCM (1 = unchanged, 0 = silent). Range is 0..4
+    (above 1 amplifies, may clip); NaN and out-of-range are refused. Nil-safe
+    and silent-clip-safe: soundless players accept and ignore.
+
+func (p *Player) Stats() Stats
+    Stats snapshots the waterline.
+
+func (p *Player) StepFrame() (int64, error)
+    StepFrame advances exactly one frame while paused (the frame-step key):
+    it seeks to one frame interval past the current picture and stays paused,
+    so the landed frame shows on the next poll. Calling it while playing pauses
+    first.
+
+func (p *Player) Volume() float64
+    Volume reports the speaker gain (default 1).
+
+type Pool struct {
+	// Has unexported fields.
+}
+    nothing. Stats stay readable for the window JSON (hits/misses/hit%,
+    outstanding for leak checks, bytes held, evictions on cap overflow).
+    Pure Go, standard library only.
+
+func NewPool(name string, bufSize, capByte int) *Pool
+    NewPool builds a pool for bufSize-byte slices holding at most capByte parked
+    bytes (capByte <= 0 means park everything; the window always passes a real
+    cap so overflow is visible as evictions, never silent).
+
+func (p *Pool) Acquire() []byte
+    Acquire borrows a bufSize slice: parked reuse counts a hit, fresh allocation
+    a miss. The caller owns the slice until Release.
+
+func (p *Pool) BufSize() int
+    BufSize reports the fixed slice length.
+
+func (p *Pool) Name() string
+    Name reports the pool label (yuv/rgba/work).
+
+func (p *Pool) Outstanding() int64
+    Outstanding reports borrowed-but-unreturned slices (leak check: must be 0
+    after Close, N while frames are held by design).
+
+func (p *Pool) Release(b []byte)
+    Release returns a slice. Wrong sizes and cap overflow are dropped and
+    counted (evictions), never silently grown.
+
+func (p *Pool) Stats() PoolStats
+    Stats snapshots the counters. HitPct is 0 with no acquires (honest
+    unavailable, never faked to 100).
+
+type PoolStats struct {
+	Acquires    int64
+	Hits        int64
+	Misses      int64
+	HitPct      float64
+	Releases    int64
+	Outstanding int64
+	HeldBytes   int
+	Evictions   int64
+	BufSize     int
+	CapBytes    int
+}
+    PoolStats is the readable snapshot for JSON and gates.
+
+type Pools struct {
+	YUV    *Pool
+	RGBA   *Pool
+	Work   *Pool
+	NV12Y  *Pool
+	NV12UV *Pool
+}
+    frames, bitstream workspace. Independent so one pressure never borrows from
+    another; leak-checked separately.
+
+func NewPools(w, h, workSize int, capBytes int) *Pools
+    NewPools sizes the pools for one resolution (call again on resolution
+    switch; steady reuse never regrows). workSize covers one sample payload
+    upper bound; capBytes is the legacy parked-memory budget shared by
+    YUV/RGBA/Work. NV12Y/UV carry queue + displayed + in-flight + 1 spare frame
+    each (qcap+3), so steady NV12 play never evicts either.
+
+func (ps *Pools) HitPctMin() float64
+    HitPctMin returns the smallest hit% among pools with acquires (the gate uses
+    the minimum so no pool hides behind another; 0 acquires pools are skipped,
+    all-empty returns 0).
+
+func (ps *Pools) OutstandingTotal() int64
+    OutstandingTotal sums borrowed-but-unreturned across the three pools.
+
+type Source interface {
+	io.ReaderAt
+	Size() int64
+	Close() error
+	Name() string
+}
+    Source is a random-access byte source for containers: local files, memory,
+    or network (HTTP Range). It mirrors io.ReaderAt so mp4 parsing reuses the
+    same path, plus Size for bounds and Close. Production rule: Open parses only
+    headers (moov), samples stream on demand — never full-download for length.
+
+func NewSource(path string) (Source, error)
+    NewSource creates a Source for a path or URL: http(s) -> Range source,
+    otherwise a local file. Caller must Close.
+
+func OpenHTTPSource(url string) (Source, error)
+
+type Stats struct {
+	Decoded     int64
+	Shown       int64
+	Dropped     int64
+	QueueDepth  int
+	QueueMax    int
+	QueueAvg    float64
+	DecodeMsAvg float64
+	DecodeMsP95 float64
+	DriftMs     int64
+	Ended       bool
+	Error       string
+	// PoolHitPct is the streaming RGBA pool hit%.
+	PoolHitPct float64
+	// Seek evidence (VR5): last seek landing vs request.
+	SeekOK       int
+	SeekDeltaMs  int64
+	SeekForward  int64
+	SeekLandedMs int64
+	// Concealed mirrors Info.Concealed for HUD/JSON (always 0).
+	Concealed int64
+	// Rate is the playback speed (1 = normal); Seeking reports a seek
+	// still travelling to its landing frame.
+	Rate    float64
+	Seeking int
+	// during play (cap overflow drops, never silent growth). Zero
+	// evictions is the healthy value.
+	MemCapKB      int
+	EstimateB     int64
+	PoolEvictions int64
+	// A2 AV sync evidence: audio master with real counts when a track
+	// exists, else video master with zero audio (honest, never faked).
+	Master       string
+	AVDiffMs     int64
+	AudioDecoded int64
+	AudioShown   int64
+	AudioDepth   int
+	AudioDropped int64
+	// P1 硬解水位（只加键，不改旧键语义）：见 Info 同名键。
+	HWActive        bool    `json:"hw_active"`
+	HWName          string  `json:"hw_name"`
+	HWFallbacks     int64   `json:"hw_fallbacks"`
+	HWTransferMsAvg float64 `json:"hw_transfer_ms_avg"`
+}
+    Stats is the playback waterline the window HUD and JSON report.
+

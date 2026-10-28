@@ -1,0 +1,132 @@
+package raster // import "github.com/energye/gpui/ui/raster"
+
+Package raster runs the L1 raster thread: consumes frame jobs, calls render
+present. Must not import gpu (only render).
+
+All loops in a process share one pinned OS thread (hub.go): the GL context
+is current-on-one-thread and the frame-end present paths keep it that way,
+so a per-window thread would strand it against the other windows (EGL 0x3002,
+GL silently no-ops, frozen picture). A Loop is the per-window submission handle
+on that thread, not a thread of its own.
+
+CONSTANTS
+
+const DefaultPipelineDepth = 2
+    DefaultPipelineDepth is Flutter-like double buffering (in-flight slots).
+
+
+TYPES
+
+type FrameJob struct {
+	// Run performs present/raster work. May be nil for a no-op slot.
+	Run func() error
+	// Done is closed after Run finishes (success or fail). Optional.
+	Done chan error
+}
+    FrameJob is work executed exclusively on the raster OS thread.
+
+type Loop struct {
+	// Has unexported fields.
+}
+    Loop is a window's submission handle on the process-wide GL thread (hub.go)
+    with bounded pipeline depth.
+
+func NewLoop(depth int, metrics *scheduler.MetricsStore) *Loop
+    NewLoop creates a raster loop with the given max in-flight jobs (min 1).
+
+func (l *Loop) AssertRasterThread()
+    AssertRasterThread panics when called off the raster thread. Raster-only
+    work (draw/composite/present) calls this first (G5).
+
+func (l *Loop) AssertUIThread()
+    AssertUIThread is UI convention only (G5): UI build/event code calls it
+    to document thread intent. It cannot enforce with a shared atomic while
+    a raster job runs concurrently on its own OS thread (a global flag would
+    false-fire on the UI thread mid-job), so it is a no-op. The sound direction
+    — AssertRasterThread inside FrameJob.Run — is enforced via inRaster.
+    (T2 lesson: cross-goroutine UI assertion needs goroutine-local state.)
+
+func (l *Loop) Depth() int
+    Depth returns the number of frames currently queued in the loop. Returns 0
+    for a nil Loop.
+
+func (l *Loop) Full() bool
+    Full reports G4 backpressure: true when the bounded queue holds depth jobs.
+    The UI thread checks this BEFORE building a packet (build-before-place):
+    full means skip this frame's build and retry next vsync instead of wasting a
+    build that SubmitLatest would only park in pending.
+
+func (l *Loop) HasPending() bool
+    HasPending reports whether an unstarted latest-wins job waits in pending.
+
+func (l *Loop) InFlight() int
+    InFlight returns approximate number of jobs running or queued.
+
+func (l *Loop) OnRasterThread() bool
+    OnRasterThread reports whether the caller runs inside a raster FrameJob (G5
+    thread assertion helper). UI build code must observe false.
+
+func (l *Loop) RunSync(fn func() error) error
+    RunSync runs fn on the GL thread and waits for it to return.
+
+    Frame work belongs to FrameJob; this is the handoff path for GL that is
+    not a frame: warm-up full presents, snapshot readback, teardown destroys.
+    The frame-end present paths keep the GL context current on the GL thread
+    (Impeller model), so running such work on the UI thread bind-fails with
+    EGL_BAD_ACCESS (0x3002) and every GL call silently no-ops.
+
+    On a started loop the job joins the queue, so it runs after the presents
+    already submitted; with no loop running it still reaches the GL thread.
+    Called from the GL thread itself (inside a FrameJob), fn runs inline — the
+    check is by thread id, not by loop state: a loop's own job running on the GL
+    thread does not make the UI thread a GL thread.
+
+func (l *Loop) Start()
+    Start registers the loop with the process-wide GL thread (starting it
+    if this is the first loop). Safe to call after Stop: A stale pending
+    latest-wins job is requeued so its Done waiter still fires.
+
+func (l *Loop) Stop()
+    Stop drains the loop's queued jobs on the GL thread and unregisters it.
+    Safe to call twice and to follow with Start.
+
+    After Stop returns, no job of this loop is running or queued, so the caller
+    may take the GPU over (snapshot readback, teardown destroys). The drain
+    itself runs on the GL thread: only that thread can issue GL work while a
+    context binding is kept.
+
+func (l *Loop) Submit(job FrameJob)
+    Submit enqueues a job, waiting if the pipeline is full (backpressure).
+    Prefer TrySubmit + drop/replace pending for Flutter-like coalesce of
+    unstarted frames.
+
+func (l *Loop) SubmitLatest(job FrameJob) (queued bool)
+    SubmitLatest tries to enqueue; if full, stores job in pending (replaces
+    previous unstarted pending). Never blocks the UI thread. Returns "queued" or
+    "pending".
+
+func (l *Loop) TryReserve() bool
+    TryReserve is the G4 build-before-place probe: false when the pipeline has
+    no free slot (queue full or pending occupied). True is advisory only — the
+    caller must still SubmitLatest and handle the pending path — but a false
+    lets the UI skip the expensive build entirely for this frame.
+
+func (l *Loop) TrySubmit(job FrameJob) bool
+    TrySubmit enqueues a job without blocking. Returns false if the pipeline is
+    full (backpressure).
+
+type PendingSlot struct {
+	// Has unexported fields.
+}
+    PendingSlot holds at most one unstarted frame job for latest-wins coalesce
+    when the pipeline queue is full (Flutter-like pending replace).
+
+func (p *PendingSlot) Has() bool
+    Has reports whether a pending job exists.
+
+func (p *PendingSlot) Store(j FrameJob)
+    Store replaces any pending unstarted job with j.
+
+func (p *PendingSlot) Take() (FrameJob, bool)
+    Take removes and returns the pending job if any.
+

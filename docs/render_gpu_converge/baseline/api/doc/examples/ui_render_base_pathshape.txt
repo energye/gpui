@@ -1,0 +1,11 @@
+Command ui_render_base_pathshape is the A-group real window for the path shaping
+APIs: Trim / WithCorners / Discrete (RENDER_FEATURE_COVERAGE §1 #4 / §3.1 item
+2).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_pathshape -auto-only
+    go run ./examples/ui_render_base_pathshape   # manual: lives until window close
+
+Evidence: 14 logical contract probes (value-level, same fixtures as
+render/pathops_subpath_test.go), 11 pixel probes on the GPU snapshot, and a
+bitwise golden over header + legend + the four cards.

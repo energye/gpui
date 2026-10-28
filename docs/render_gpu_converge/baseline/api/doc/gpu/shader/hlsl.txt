@@ -1,0 +1,487 @@
+package hlsl // import "github.com/energye/gpui/gpu/shader/hlsl"
+
+HLSL is Microsoft's shader language for DirectX and is used extensively on
+Windows platforms. This package generates HLSL source code compatible with both
+legacy FXC (Shader Model 5.x) and modern DXC (Shader Model 6.x) compilers.
+
+# Shader Model Support
+
+The package supports Shader Models from 5.0 to 6.7:
+  - SM 5.0-5.1: Legacy FXC compiler, DXBC output
+  - SM 6.0+: Modern DXC compiler, DXIL output
+
+# Usage
+
+    module := parseWGSL(source) // or other frontend
+    options := hlsl.DefaultOptions()
+    options.ShaderModel = hlsl.ShaderModel6_0
+
+    hlslCode, info, err := hlsl.Compile(module, options)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+# Register Binding
+
+HLSL uses register-based resource binding with spaces:
+
+    cbuffer : register(b#, space#) // Constant buffers
+    Texture : register(t#, space#) // Textures/SRVs
+    Sampler : register(s#, space#) // Samplers
+    RWTexture: register(u#, space#) // UAVs
+
+The BindingMap in Options allows explicit control over register assignment.
+
+CONSTANTS
+
+const (
+	NagaModfFunction               = "naga_modf"
+	NagaFrexpFunction              = "naga_frexp"
+	NagaExtractBitsFunction        = "naga_extractBits"
+	NagaInsertBitsFunction         = "naga_insertBits"
+	SamplerHeapVar                 = "_naga_sampler_heap"
+	ComparisonSamplerHeapVar       = "_naga_comparison_sampler_heap"
+	SampleExternalTextureFunction  = "_naga_sample_external_texture"
+	NagaAbsFunction                = "_naga_abs"
+	NagaDivFunction                = "naga_div"
+	NagaModFunction                = "naga_mod"
+	NagaNegFunction                = "_naga_neg"
+	NagaF2I32Function              = "_naga_f2i32"
+	NagaF2U32Function              = "_naga_f2u32"
+	NagaF2I64Function              = "_naga_f2i64"
+	NagaF2U64Function              = "_naga_f2u64"
+	ImageLoadExternalFunction      = "_naga_image_load_external"
+	ImageSampleBaseClampToEdgeFunc = "_naga_image_sample_base_clamp_to_edge"
+	DynamicBufferOffsetsPrefix     = "__dynamic_buffer_offsets"
+	ImageStorageLoadScalarWrapper  = "_naga_image_storage_load_scalar"
+)
+const UnnamedIdentifier = "_unnamed"
+    UnnamedIdentifier is the default name for empty identifiers.
+
+
+FUNCTIONS
+
+func AddressSpaceToHLSL(space ir.AddressSpace) string
+    AddressSpaceToHLSL converts an address space to HLSL representation.
+
+func AtomicOpToHLSL(op string) string
+    AtomicOpToHLSL converts an atomic operation to its HLSL function name.
+
+func BuiltInToSemantic(b ir.BuiltinValue) string
+    BuiltInToSemantic converts a built-in value to its HLSL semantic string.
+
+func Escape(name string) string
+    Escape returns a safe identifier name.
+
+func ImageClassToHLSL(class ir.ImageClass, readWrite bool) string
+    ImageClassToHLSL converts an image class to HLSL prefix.
+
+func ImageDimToHLSL(dim ir.ImageDimension, arrayed bool) string
+    ImageDimToHLSL converts an image dimension to HLSL suffix.
+
+func ImageToHLSL(img ir.ImageType, readWrite bool) string
+    ImageToHLSL converts an image type to full HLSL type string.
+
+func InterpolationToHLSL(k ir.InterpolationKind) string
+    InterpolationToHLSL converts an interpolation kind to HLSL modifier.
+
+func IsCaseInsensitiveReserved(name string) bool
+    IsCaseInsensitiveReserved checks if a name conflicts with case-insensitive
+    keywords.
+
+func IsReserved(name string) bool
+    IsReserved checks if a name is an HLSL reserved keyword.
+
+func MatrixToHLSL(m ir.MatrixType) string
+    MatrixToHLSL converts a matrix type to its HLSL string representation.
+
+func NeedsTrailingUnderscore(name string) bool
+    NeedsTrailingUnderscore reports whether a variable name requires a trailing
+    underscore suffix in HLSL output.
+
+func SamplerToHLSL(comparison bool) string
+    SamplerToHLSL returns the HLSL sampler type.
+
+func SamplingToHLSL(s ir.InterpolationSampling) string
+    SamplingToHLSL converts an interpolation sampling to HLSL modifier.
+
+func ScalarCast(k ir.ScalarKind) string
+    ScalarCast returns the HLSL cast function for a scalar kind.
+
+func ScalarToHLSL(s ir.ScalarType) string
+    ScalarToHLSL converts a scalar type to its HLSL string representation.
+
+func ShaderProfile(stage ir.ShaderStage, major, minor uint8) string
+    ShaderProfile returns the full HLSL shader profile string.
+
+func ShaderStageToHLSL(stage ir.ShaderStage) string
+    ShaderStageToHLSL converts a shader stage to HLSL attribute name.
+
+func VectorToHLSL(v ir.VectorType) string
+    VectorToHLSL converts a vector type to its HLSL string representation.
+
+
+TYPES
+
+type BindTarget struct {
+	// Space is the register space (0-based).
+	Space uint8
+
+	// Register is the register index within the space.
+	Register uint32
+
+	// BindingArraySize is the array size for binding arrays.
+	// If nil, the resource is not an array.
+	BindingArraySize *uint32
+
+	// DynamicStorageBufferOffsetsIndex is the index into the dynamic buffer offsets
+	// constant buffer for this binding.
+	DynamicStorageBufferOffsetsIndex *uint32
+
+	// RestrictIndexing indicates that this binding should have bounds checking.
+	RestrictIndexing bool
+}
+    BindTarget specifies the HLSL register binding for a resource.
+
+func DefaultBindTarget() BindTarget
+    DefaultBindTarget returns a BindTarget with default values.
+
+func (bt BindTarget) WithArraySize(size uint32) BindTarget
+    WithArraySize returns a copy of the BindTarget with the specified array
+    size.
+
+func (bt BindTarget) WithRegister(register uint32) BindTarget
+    WithRegister returns a copy of the BindTarget with the specified register.
+
+func (bt BindTarget) WithSpace(space uint8) BindTarget
+    WithSpace returns a copy of the BindTarget with the specified space.
+
+type Error struct {
+	// Kind categorizes the error.
+	Kind ErrorKind
+
+	// Message provides details about the error.
+	Message string
+
+	// Span optionally identifies the source location.
+	Span *Span
+}
+    Error represents an HLSL compilation error.
+
+func NewError(kind ErrorKind, message string) *Error
+    NewError creates a new HLSL error without span information.
+
+func NewErrorWithSpan(kind ErrorKind, message string, start, end uint32) *Error
+    NewErrorWithSpan creates a new HLSL error with span information.
+
+func (e *Error) Error() string
+    Error implements the error interface.
+
+func (e *Error) IsInternalError() bool
+    IsInternalError returns true if the error is ErrInternalError.
+
+func (e *Error) IsMissingBinding() bool
+    IsMissingBinding returns true if the error is ErrMissingBinding.
+
+func (e *Error) IsUnsupportedFeature() bool
+    IsUnsupportedFeature returns true if the error is ErrUnsupportedFeature.
+
+type ErrorKind uint8
+    ErrorKind categorizes HLSL compilation errors.
+
+const (
+	// ErrUnsupportedFeature indicates a shader feature not supported by the target.
+	ErrUnsupportedFeature ErrorKind = iota
+
+	// ErrMissingBinding indicates a resource binding was not found in BindingMap.
+	ErrMissingBinding
+
+	// ErrInvalidShaderModel indicates an invalid or unsupported shader model.
+	ErrInvalidShaderModel
+
+	// ErrInternalError indicates an internal compiler error.
+	ErrInternalError
+
+	// ErrInvalidModule indicates the IR module is malformed.
+	ErrInvalidModule
+
+	// ErrUnsupportedType indicates a type that cannot be represented in HLSL.
+	ErrUnsupportedType
+
+	// ErrEntryPointNotFound indicates the specified entry point doesn't exist.
+	ErrEntryPointNotFound
+)
+func (k ErrorKind) String() string
+    String returns a human-readable error kind name.
+
+type ExternalTextureBindTarget struct {
+	// Planes contains the bind targets for the 3 plane textures.
+	Planes [3]BindTarget
+	// Params is the bind target for the parameters cbuffer.
+	Params BindTarget
+}
+    ExternalTextureBindTarget specifies HLSL binding information for an external
+    texture global variable.
+
+type ExternalTextureBindingMap map[ResourceBinding]ExternalTextureBindTarget
+    ExternalTextureBindingMap maps resource bindings to external texture bind
+    targets.
+
+type FeatureFlags uint32
+    FeatureFlags indicates which HLSL features are used by the generated code.
+
+const (
+	// FeatureNone indicates no special features are used.
+	FeatureNone FeatureFlags = 0
+
+	// FeatureWaveOps indicates wave intrinsics are used (SM 6.0+).
+	FeatureWaveOps FeatureFlags = 1 << iota
+
+	// FeatureRayTracing indicates DXR features are used (SM 6.3+).
+	FeatureRayTracing
+
+	// FeatureMeshShaders indicates mesh shader features are used (SM 6.5+).
+	FeatureMeshShaders
+
+	// Feature64BitIntegers indicates 64-bit integer types are used.
+	Feature64BitIntegers
+
+	// Feature64BitAtomics indicates 64-bit atomic operations are used (SM 6.6+).
+	Feature64BitAtomics
+
+	// FeatureFloat16 indicates native float16 types are used (SM 6.2+).
+	FeatureFloat16
+
+	// FeatureSubgroupOps indicates subgroup operations are used.
+	FeatureSubgroupOps
+)
+func (f FeatureFlags) Has(feature FeatureFlags) bool
+    Has returns true if the flags contain the specified feature.
+
+func (f FeatureFlags) String() string
+    String returns a human-readable list of enabled features.
+
+type FragmentEntryPoint struct {
+	// Module is the IR module containing the fragment entry point.
+	Module *ir.Module
+	// Function is the fragment entry point function.
+	Function *ir.Function
+}
+    FragmentEntryPoint describes a fragment entry point used to filter vertex
+    shader outputs.
+
+type Io int
+    Io distinguishes input from output in entry point interfaces.
+
+const (
+	// IoInput marks entry point inputs.
+	IoInput Io = iota
+	// IoOutput marks entry point outputs.
+	IoOutput
+)
+type OffsetsBindTarget struct {
+	Space    uint8
+	Register uint32
+	Size     uint32
+}
+    OffsetsBindTarget specifies the HLSL register binding for a dynamic buffer
+    offsets constant buffer.
+
+type Options struct {
+	// ShaderModel specifies the target shader model.
+	ShaderModel ShaderModel
+
+	// BindingMap maps source resource bindings to HLSL register targets.
+	BindingMap map[ResourceBinding]BindTarget
+
+	// SamplerHeapTargets specifies binding targets for sampler heaps.
+	SamplerHeapTargets SamplerHeapBindTargets
+
+	// SamplerBufferBindingMap maps group numbers to bind targets for
+	// sampler index buffers.
+	SamplerBufferBindingMap map[uint32]BindTarget
+
+	// ExternalTextureBindingMap maps resource bindings to external texture bind targets.
+	ExternalTextureBindingMap ExternalTextureBindingMap
+
+	// FakeMissingBindings generates automatic bindings for resources
+	// not found in BindingMap.
+	FakeMissingBindings bool
+
+	// ZeroInitializeWorkgroupMemory emits code to zero-initialize
+	// groupshared variables at the start of compute shaders.
+	ZeroInitializeWorkgroupMemory bool
+
+	// RestrictIndexing adds bounds checks to array/buffer accesses.
+	RestrictIndexing bool
+
+	// ForceLoopBounding adds maximum iteration limits to loops.
+	ForceLoopBounding bool
+
+	// DynamicStorageBufferOffsetsTargets maps group indices to their bind targets
+	// for dynamic storage buffer offset constant buffers.
+	DynamicStorageBufferOffsetsTargets map[uint32]OffsetsBindTarget
+
+	// SpecialConstantsBinding specifies the binding for the NagaConstants
+	// constant buffer.
+	SpecialConstantsBinding *BindTarget
+
+	// EntryPoint specifies which entry point to compile.
+	EntryPoint string
+
+	// FragmentEntryPoint specifies a fragment entry point to consider when
+	// generating the output interface of vertex entry points.
+	FragmentEntryPoint *FragmentEntryPoint
+}
+    Options configures HLSL code generation.
+
+func DefaultOptions() *Options
+    DefaultOptions returns sensible default options for HLSL generation.
+
+type RegisterType uint8
+    RegisterType represents the HLSL register type.
+
+const (
+	// RegisterTypeB is for constant buffers (cbuffer).
+	RegisterTypeB RegisterType = iota
+
+	// RegisterTypeT is for textures and shader resource views.
+	RegisterTypeT
+
+	// RegisterTypeS is for samplers.
+	RegisterTypeS
+
+	// RegisterTypeU is for unordered access views (UAV).
+	RegisterTypeU
+)
+func (rt RegisterType) String() string
+    String returns the single-character register prefix.
+
+type ResourceBinding struct {
+	Group uint32
+
+	Binding uint32
+}
+    ResourceBinding identifies a resource in the source shader.
+
+type SamplerHeapBindTargets struct {
+	// StandardSamplers is the binding for non-comparison samplers.
+	StandardSamplers BindTarget
+
+	// ComparisonSamplers is the binding for comparison samplers.
+	ComparisonSamplers BindTarget
+}
+    SamplerHeapBindTargets specifies bind targets for sampler heaps.
+
+type ShaderModel uint8
+    ShaderModel represents a DirectX Shader Model version. Shader Models define
+    the feature set available for shader compilation.
+
+const (
+	// ShaderModel5_0 is the base SM5 version (DirectX 11).
+	ShaderModel5_0 ShaderModel = iota
+
+	// ShaderModel5_1 provides improved resource binding (default).
+	ShaderModel5_1
+
+	// ShaderModel6_0 introduces wave intrinsics and DXIL.
+	ShaderModel6_0
+
+	// ShaderModel6_1 adds SV_ViewID and barycentrics.
+	ShaderModel6_1
+
+	// ShaderModel6_2 adds float16 and denorm control.
+	ShaderModel6_2
+
+	// ShaderModel6_3 adds DirectX Raytracing (DXR).
+	ShaderModel6_3
+
+	// ShaderModel6_4 adds variable rate shading and library subobjects.
+	ShaderModel6_4
+
+	// ShaderModel6_5 adds mesh shaders and sampler feedback.
+	ShaderModel6_5
+
+	// ShaderModel6_6 adds 64-bit atomics and dynamic resources.
+	ShaderModel6_6
+
+	// ShaderModel6_7 adds advanced mesh shaders and work graphs.
+	ShaderModel6_7
+)
+    Supported Shader Model versions.
+
+func (sm ShaderModel) Major() uint8
+    Major returns the major version number.
+
+func (sm ShaderModel) Minor() uint8
+    Minor returns the minor version number.
+
+func (sm ShaderModel) ProfileSuffix() string
+    ProfileSuffix returns the shader profile suffix for this model. Example:
+    "5_1", "6_0". Used to construct profiles like "vs_5_1".
+
+func (sm ShaderModel) String() string
+    String returns a human-readable representation of the shader model.
+
+func (sm ShaderModel) Supports64BitAtomics() bool
+    Supports64BitAtomics returns true if this shader model supports 64-bit
+    atomics (SM 6.6+).
+
+func (sm ShaderModel) SupportsDXIL() bool
+    SupportsDXIL returns true if this shader model uses DXIL output (SM 6.0+).
+
+func (sm ShaderModel) SupportsFloat16() bool
+    SupportsFloat16 returns true if this shader model supports native float16
+    (SM 6.2+).
+
+func (sm ShaderModel) SupportsMeshShaders() bool
+    SupportsMeshShaders returns true if this shader model supports mesh shaders
+    (SM 6.5+).
+
+func (sm ShaderModel) SupportsRayTracing() bool
+    SupportsRayTracing returns true if this shader model supports ray tracing
+    (SM 6.3+).
+
+func (sm ShaderModel) SupportsVariableRateShading() bool
+    SupportsVariableRateShading returns true if this shader model supports VRS
+    (SM 6.4+).
+
+func (sm ShaderModel) SupportsWaveOps() bool
+    SupportsWaveOps returns true if this shader model supports wave intrinsics
+    (SM 6.0+).
+
+type Span struct {
+	// Start is the byte offset of the span start.
+	Start uint32
+
+	// End is the byte offset of the span end.
+	End uint32
+}
+    Span represents a source location for error reporting.
+
+type TranslationInfo struct {
+	// EntryPointNames maps original entry point names to generated HLSL names.
+	EntryPointNames map[string]string
+
+	// UsedFeatures indicates which shader features are used.
+	UsedFeatures FeatureFlags
+
+	// RequiredShaderModel is the minimum shader model needed for this shader.
+	RequiredShaderModel ShaderModel
+
+	// RegisterBindings maps resource names to their HLSL register bindings.
+	RegisterBindings map[string]string
+
+	// HelperFunctions lists any helper functions that were generated.
+	HelperFunctions []string
+}
+    TranslationInfo contains metadata about the HLSL translation.
+
+func Compile(module *ir.Module, options *Options) (string, *TranslationInfo, error)
+    Compile generates HLSL source code from an IR module. Returns the HLSL
+    source, translation info, or an error.
+
+type Writer = codegen.Writer
+    Writer generates HLSL source code from IR. Use Compile for the standard
+    compilation workflow.
+

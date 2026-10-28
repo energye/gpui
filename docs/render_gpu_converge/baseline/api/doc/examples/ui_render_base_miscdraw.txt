@@ -1,0 +1,17 @@
+Command ui_render_base_miscdraw is the A-group real window for the five misc
+render APIs (RENDER_FEATURE_COVERAGE §1 #42 / §3.1): DrawShadow, DrawColor,
+DrawPaint, ClipBounds and DrawParagraph.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_miscdraw -auto-only
+    go run ./examples/ui_render_base_miscdraw   # manual: lives until window close
+    go run ./examples/ui_render_base_miscdraw -manual-seconds 15
+
+Evidence: 14 value-level contract probes in a CPU child, point + region pixel
+probes over the GPU snapshot, a bitwise golden over header + legend + the five
+cards, a live screen grab compared with the snapshot over the same rects,
+and per-card GPU-route assertions (gpu_ops > 0, cpu_fallback_ops == 0).
+
+The window is a correctness scene: each card is baked once through the real
+render.Context API and then displayed as an ImageBuf, so the five APIs are
+exercised by the same engine path a widget would use.

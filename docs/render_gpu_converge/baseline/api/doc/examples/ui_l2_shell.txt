@@ -1,0 +1,76 @@
+Command ui_l2_shell smoke-tests P5 L2 packages: Tap/Pan, Focus, Overlay.
+
+Demo scene lives in this example only (scene.go) — not under ui/.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    CGO_ENABLED=0 go run ./examples/ui_l2_shell
+
+Controls:
+  - Green box: tap (flashes brighter)
+  - Slate box: drag the blue handle (pan) — slides, does not rotate
+  - Yellow focus boxes: click or Tab to focus
+  - Blue button / key O: toggle overlay; click dimmer to close
+
+Duration: default 120s; RUN_SECONDS overrides. Close window to exit safely.
+
+Demo scene for examples/ui_l2_shell only.
+
+This is NOT part of the ui library. It wires public L2 packages (gestures /
+focus / overlay / theme / rendering) into a fixed layout so the binary can
+smoke-test them. Architecture work belongs under ui/; layout and clamp quirks
+here are example-only.
+
+TYPES
+
+type Metrics struct {
+	Taps         int    `json:"taps"`
+	PanStarts    int    `json:"pan_starts"`
+	PanUpdates   int    `json:"pan_updates"`
+	OverlayCount int    `json:"overlay_count"`
+	FocusLabel   string `json:"focus_id"`
+	ArenaDepth   int    `json:"gesture_arena_depth"`
+	FocusChanges int    `json:"focus_changes"`
+}
+    Metrics are demo counters (JSON at exit).
+
+type Scene struct {
+	Width, Height float64
+	Root          *rendering.AbsoluteBox
+
+	Focus   *focus.FocusManager
+	Overlay *overlay.State
+	Theme   *theme.Provider
+
+	TapBox    *rendering.RenderColorBox
+	PanBox    *rendering.RenderColorBox
+	FocusBoxA *rendering.RenderColorBox
+	FocusBoxB *rendering.RenderColorBox
+	OpenBtn   *rendering.RenderColorBox
+
+	Metrics Metrics
+
+	OnDirty func()
+	// Has unexported fields.
+}
+    Scene is the fixed-layout demo graph for this example.
+
+func NewScene(w, h float64) *Scene
+    NewScene builds the demo scene of the given logical size.
+
+func (s *Scene) CloseOverlay()
+    CloseOverlay removes all overlay entries.
+
+func (s *Scene) HandleEvent(ev platform.Event)
+    HandleEvent routes one platform event through overlay → gestures/focus.
+
+func (s *Scene) Layout()
+    Layout sizes the absolute root and overlay band.
+
+func (s *Scene) PanKnobOffset() (x, y float64)
+    PanKnobOffset returns the handle top-left in root coordinates (tests).
+
+func (s *Scene) SnapshotMetrics() Metrics
+    SnapshotMetrics returns a copy of metrics.
+
+func (s *Scene) String() string
+

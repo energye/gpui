@@ -1,0 +1,11 @@
+Command video_vr4_play is the VW2 VR4 real-window: background decode, bounded
+queue, timestamp display, pause, end-of-stream.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=30 go run ./examples/video/video_vr4_play
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 30). GPU window required. Left:
+per-clip play gates from the real video player (B-reorder 96x96 loops, 480p
+crop, 720p, all through demux+decode+color+queue+clock). Right: the live picture
+plus a pause proof (second half of the run the player holds and the picture
+truly stops).

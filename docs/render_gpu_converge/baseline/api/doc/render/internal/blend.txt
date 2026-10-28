@@ -1,0 +1,398 @@
+package blend // import "github.com/energye/gpui/render/internal/blend"
+
+Package blend implements advanced separable and non-separable blend modes.
+
+This file implements advanced blend modes beyond Porter-Duff compositing,
+following the W3C Compositing and Blending Level 1 specification.
+
+Separable blend modes operate on each color channel independently. Non-separable
+blend modes require color space conversions (HSL/HSV).
+
+Package blend provides color blending operations.
+
+Package blend implements HSL-based non-separable blend modes.
+
+This file implements the non-separable blend modes (Hue, Saturation, Color,
+Luminosity) per W3C Compositing and Blending Level 1 specification.
+
+These modes require color space conversion and operate on the entire RGB triplet
+rather than individual channels.
+
+Package blend implements layer system for isolated drawing surfaces with
+compositing.
+
+Package blend implements linear color space blending operations.
+
+This file implements linear-space versions of all blend modes. Linear blending
+produces physically correct results by performing color math in linear RGB
+rather than sRGB space.
+
+Key principle: Alpha is ALWAYS linear - only RGB channels undergo gamma
+conversion.
+
+Package blend provides fast math utilities for alpha blending.
+
+The div255 family of functions avoid expensive integer division by using bit
+shifts and addition. These are critical for performance as mulDiv255 is called
+for every pixel in every blend operation.
+
+Package blend implements Porter-Duff compositing operators and blend modes.
+
+All blend operations work with premultiplied alpha values in the range 0-255.
+This follows the WebGPU and modern graphics conventions for efficient
+compositing.
+
+FUNCTIONS
+
+func Blend(src, dst render.RGBA, mode Mode) render.RGBA
+    Blend blends two colors using the specified mode.
+
+func BlendBatch(dst, src []byte, n int, mode BlendMode)
+    BlendBatch blends src over dst for n pixels using batch operations.
+    Automatically uses batch (16px) or scalar based on count.
+
+    This is the main entry point for optimized blending operations. It processes
+    pixels in batches of 16 where possible, falling back to scalar operations
+    for remaining pixels.
+
+    Parameters:
+      - dst: destination buffer (RGBA, premultiplied alpha)
+      - src: source buffer (RGBA, premultiplied alpha)
+      - n: number of pixels to blend
+      - mode: blend mode to use
+
+func BlendBatchAligned(dst, src []byte, n int, mode BlendMode)
+    BlendBatchAligned is a variant of BlendBatch that assumes dst and src are
+    properly aligned and n is a multiple of 16. This removes all boundary checks
+    and scalar fallback code for maximum performance.
+
+    REQUIREMENTS:
+      - n must be a multiple of 16
+      - dst and src must have at least n*4 bytes available
+
+    Use this for inner loops where alignment is guaranteed.
+
+func BlendLinear(src, dst color.ColorU8, mode BlendMode) color.ColorU8
+    BlendLinear performs blending in linear color space. This is a convenience
+    function that wraps GetBlendFuncLinear.
+
+func BlendSourceOverBatch(dst, src []byte, n int)
+    BlendSourceOverBatch is an optimized version of BlendBatch specifically
+    for SourceOver. This is the most common blend mode and deserves special
+    optimization.
+
+    SourceOver formula: Result = S + D * (1 - Sa)
+
+func BlendSourceOverBatchAligned(dst, src []byte, n int)
+    BlendSourceOverBatchAligned is the aligned version of BlendSourceOverBatch.
+    See BlendBatchAligned for requirements.
+
+func ClearBatch(b *wide.BatchState)
+    ClearBatch clears the destination to transparent black. Formula: Result = 0
+
+func ClipColor(r, g, b float32) (float32, float32, float32)
+    ClipColor clips color components to [0,1] while preserving luminance.
+    This implements the W3C spec ClipColor algorithm.
+
+    If any component is outside [0,1], the color is scaled towards the luminance
+    to bring it back into range while maintaining the relative relationships.
+
+func DarkenBatch(b *wide.BatchState)
+    DarkenBatch selects the darker of source and destination. Formula: Result =
+    min(S, D)
+
+    For premultiplied, we need to unpremultiply, compare, then repremultiply.
+    For simplicity in batch form, we compare premultiplied values directly.
+    This is an approximation but works well in practice.
+
+func DestinationAtopBatch(b *wide.BatchState)
+    DestinationAtopBatch composites destination over source, preserving source
+    alpha. Formula: Result = S * (1 - Da) + D * Sa
+
+func DestinationBatch(b *wide.BatchState)
+    DestinationBatch keeps destination unchanged (no-op). Formula: Result = D
+
+func DestinationInBatch(b *wide.BatchState)
+    DestinationInBatch shows destination where source is opaque. Formula:
+    Result = D * Sa
+
+func DestinationOutBatch(b *wide.BatchState)
+    DestinationOutBatch shows destination where source is transparent. Formula:
+    Result = D * (1 - Sa)
+
+func DestinationOverBatch(b *wide.BatchState)
+    DestinationOverBatch composites destination over source. Formula: Result = S
+    * (1 - Da) + D
+
+func DifferenceBatch(b *wide.BatchState)
+    DifferenceBatch produces the absolute difference between source and
+    destination. Formula: Result = |S - D|
+
+func ExclusionBatch(b *wide.BatchState)
+    ExclusionBatch is similar to Difference but with lower contrast. Formula:
+    Result = S + D - 2*S*D/255
+
+func LightenBatch(b *wide.BatchState)
+    LightenBatch selects the lighter of source and destination. Formula:
+    Result = max(S, D)
+
+func Lum(r, g, b float32) float32
+    Lum returns the luminance of a color using BT.601 coefficients. Formula:
+    Lum(r, g, b) = 0.30*r + 0.59*g + 0.11*b
+
+    Parameters are normalized float32 values in [0, 1].
+
+func ModulateBatch(b *wide.BatchState)
+    ModulateBatch multiplies source and destination colors. Formula: Result = S
+    * D / 255
+
+func MultiplyBatch(b *wide.BatchState)
+    MultiplyBatch multiplies source and destination colors. Formula: Result = S
+    * D / 255
+
+    This is already in premultiplied form, so we can compute directly.
+
+func OverlayBatch(b *wide.BatchState)
+    OverlayBatch combines Multiply and Screen based on destination. Formula:
+    if D < 128: 2*S*D/255, else: 255 - 2*(255-S)*(255-D)/255
+
+    This requires conditional logic per element.
+
+func PlusBatch(b *wide.BatchState)
+    PlusBatch adds source and destination colors (clamped to 255). Formula:
+    Result = min(S + D, 255)
+
+func Sat(r, g, b float32) float32
+    Sat returns the saturation (max - min) of a color. Formula: Sat(r, g,
+    b) = max(r, g, b) - min(r, g, b)
+
+    Parameters are normalized float32 values in [0, 1].
+
+func ScreenBatch(b *wide.BatchState)
+    ScreenBatch produces a lighter result than multiply. Formula: Result = S + D
+    - S*D/255
+
+    Equivalent to: 1 - (1-S)*(1-D)
+
+func SetLum(r, g, b, l float32) (float32, float32, float32)
+    SetLum sets the luminance of a color while preserving saturation and hue.
+    This implements the W3C spec SetLum algorithm.
+
+    The algorithm adjusts the color's luminance to the target value l, then
+    clips the result to [0,1] while maintaining relative relationships.
+
+func SetSat(r, g, b, s float32) (float32, float32, float32)
+    SetSat sets the saturation of a color while preserving hue and luminosity
+    relationships. This implements the W3C spec SetSat algorithm.
+
+    The algorithm works by identifying min, mid, max components and scaling them
+    to achieve the target saturation while preserving their relative ordering.
+
+func SourceAtopBatch(b *wide.BatchState)
+    SourceAtopBatch composites source over destination, preserving destination
+    alpha. Formula: Result = S * Da + D * (1 - Sa)
+
+func SourceBatch(b *wide.BatchState)
+    SourceBatch replaces destination with source. Formula: Result = S
+
+func SourceInBatch(b *wide.BatchState)
+    SourceInBatch shows source where destination is opaque. Formula: Result = S
+    * Da
+
+func SourceOutBatch(b *wide.BatchState)
+    SourceOutBatch shows source where destination is transparent. Formula:
+    Result = S * (1 - Da)
+
+func SourceOverBatch(b *wide.BatchState)
+    SourceOverBatch composites source over destination (default blend mode).
+    Formula: Result = S + D * (1 - Sa)
+
+    This is the most common blend mode, equivalent to CSS "normal" blending.
+    It places the source "over" the destination, with source alpha determining
+    visibility.
+
+func XorBatch(b *wide.BatchState)
+    XorBatch shows source and destination where they don't overlap. Formula:
+    Result = S * (1 - Da) + D * (1 - Sa)
+
+
+TYPES
+
+type BatchBlendFunc func(b *wide.BatchState)
+    BatchBlendFunc is signature for batch blend operations on 16 pixels. It
+    operates on a BatchState which contains source and destination RGBA channels
+    stored in Structure-of-Arrays (SoA) format for SIMD-friendly processing.
+
+    The function modifies b.DR, b.DG, b.DB, b.DA in-place with the blend result.
+
+func GetBatchBlendFunc(mode BlendMode) BatchBlendFunc
+    GetBatchBlendFunc returns the batch blend function for the given mode.
+    Returns SourceOverBatch for unknown modes (safe default).
+
+type BlendFunc func(sr, sg, sb, sa, dr, dg, db, da byte) (r, g, b, a byte)
+    BlendFunc is the signature for blend operations. All values are
+    premultiplied alpha, 0-255. Parameters:
+      - sr, sg, sb, sa: source color (red, green, blue, alpha)
+      - dr, dg, db, da: destination color (red, green, blue, alpha)
+
+    Returns: resulting color (r, g, b, a) after blending.
+
+func GetBlendFunc(mode BlendMode) BlendFunc
+    GetBlendFunc returns the blend function for the given mode. Returns
+    blendSourceOver for unknown modes.
+
+func GetBlendFuncLinear(mode BlendMode, linear bool) BlendFunc
+    GetBlendFuncLinear returns a blend function that optionally operates in
+    linear space. If linear is true, the function will:
+     1. Convert src/dst RGB from sRGB to linear (alpha stays linear)
+     2. Perform blending in linear space
+     3. Convert result RGB from linear to sRGB (alpha stays linear)
+
+    This produces physically correct blending without dark halos or incorrect
+    color mixing.
+
+type BlendMode uint8
+    BlendMode represents a Porter-Duff compositing operation.
+
+const (
+	// Separable blend modes
+	BlendMultiply   BlendMode = iota + 14 // Result: S * D
+	BlendScreen                           // Result: 1 - (1-S)*(1-D)
+	BlendOverlay                          // HardLight with swapped layers
+	BlendDarken                           // min(S, D)
+	BlendLighten                          // max(S, D)
+	BlendColorDodge                       // D / (1 - S)
+	BlendColorBurn                        // 1 - (1 - D) / S
+	BlendHardLight                        // Multiply or Screen depending on source
+	BlendSoftLight                        // Soft version of HardLight
+	BlendDifference                       // |S - D|
+	BlendExclusion                        // S + D - 2*S*D
+
+	// Non-separable blend modes (optional)
+	BlendHue        // Hue of source, saturation and luminosity of backdrop
+	BlendSaturation // Saturation of source, hue and luminosity of backdrop
+	BlendColor      // Hue and saturation of source, luminosity of backdrop
+	BlendLuminosity // Luminosity of source, hue and saturation of backdrop
+)
+    Advanced separable blend modes (extend BlendMode enum)
+
+const (
+	// Porter-Duff modes (standard compositing operators)
+	BlendClear           BlendMode = iota // Result: 0 (clear destination)
+	BlendSource                           // Result: S (replace with source)
+	BlendDestination                      // Result: D (keep destination)
+	BlendSourceOver                       // Result: S + D*(1-Sa) [default]
+	BlendDestinationOver                  // Result: S*(1-Da) + D
+	BlendSourceIn                         // Result: S*Da
+	BlendDestinationIn                    // Result: D*Sa
+	BlendSourceOut                        // Result: S*(1-Da)
+	BlendDestinationOut                   // Result: D*(1-Sa)
+	BlendSourceAtop                       // Result: S*Da + D*(1-Sa)
+	BlendDestinationAtop                  // Result: S*(1-Da) + D*Sa
+	BlendXor                              // Result: S*(1-Da) + D*(1-Sa)
+	BlendPlus                             // Result: S + D (clamped to 255)
+	BlendModulate                         // Result: S*D (multiply)
+)
+type BlendModeLinear struct {
+	Mode   BlendMode
+	Linear bool // If true, blend in linear space; if false, blend in sRGB
+}
+    BlendModeLinear indicates if blending should be performed in linear space.
+
+type Bounds struct {
+	X      int
+	Y      int
+	Width  int
+	Height int
+}
+    Bounds represents a rectangular region in pixel coordinates.
+
+type Layer struct {
+	// Has unexported fields.
+}
+    Layer represents an isolated drawing surface with blend mode and opacity.
+
+    Layer provides a buffer for drawing operations that can be composited onto a
+    parent layer using a specific blend mode and opacity. Layers form a stack,
+    allowing for nested compositing operations.
+
+    Thread safety: Layer is not safe for concurrent access. External
+    synchronization is required if multiple goroutines access the same layer.
+
+func NewLayer(blendMode BlendMode, opacity float64, bounds Bounds, pool *image.Pool) (*Layer, error)
+    NewLayer creates a new layer with the specified blend mode, opacity, and
+    bounds. The buffer is allocated from the pool for efficient memory reuse.
+    Opacity must be in range [0.0, 1.0] where 0 is fully transparent and 1 is
+    fully opaque.
+
+func (l *Layer) BlendMode() BlendMode
+    BlendMode returns the layer's blend mode.
+
+func (l *Layer) Bounds() Bounds
+    Bounds returns the layer's bounds.
+
+func (l *Layer) Buffer() *image.ImageBuf
+    Buffer returns the layer's image buffer.
+
+func (l *Layer) Opacity() float64
+    Opacity returns the layer's opacity (0.0 to 1.0).
+
+func (l *Layer) SetOpacity(opacity float64)
+    SetOpacity sets the layer's opacity, clamped to [0.0, 1.0].
+
+type LayerStack struct {
+	// Has unexported fields.
+}
+    LayerStack manages a stack of layers for nested compositing operations.
+
+    LayerStack provides push/pop semantics for creating temporary drawing
+    surfaces that can be composited back onto the parent layer. The base layer
+    represents the final output surface.
+
+    Thread safety: LayerStack is not safe for concurrent access. External
+    synchronization is required if multiple goroutines access the same stack.
+
+func NewLayerStack(base *image.ImageBuf, pool *image.Pool) *LayerStack
+    NewLayerStack creates a new layer stack with the given base image buffer.
+    The base buffer represents the final output surface. If pool is nil,
+    the default pool is used for layer allocation.
+
+func (s *LayerStack) Clear()
+    Clear pops all layers and returns their buffers to the pool.
+
+func (s *LayerStack) Current() *image.ImageBuf
+    Current returns the current drawing target (top layer or base). Returns the
+    base image if the stack is empty.
+
+func (s *LayerStack) CurrentBlendMode() BlendMode
+    CurrentBlendMode returns the blend mode of the current layer. Returns
+    BlendSourceOver if the stack is empty.
+
+func (s *LayerStack) Depth() int
+    Depth returns the number of layers in the stack (not including base).
+
+func (s *LayerStack) Pop() *image.ImageBuf
+    Pop removes and composites the top layer onto the parent layer or base.
+    Returns the composited buffer (either parent layer or base). Returns nil if
+    the stack is empty.
+
+func (s *LayerStack) Push(blendMode BlendMode, opacity float64, bounds Bounds) (*Layer, error)
+    Push creates a new layer with the given blend mode, opacity, and bounds,
+    and pushes it onto the stack. Returns the new layer. If bounds has zero or
+    negative dimensions, uses the base image dimensions.
+
+type Mode int
+    Mode represents a blending mode.
+
+const (
+	// ModeSourceOver is the default alpha blending mode.
+	ModeSourceOver Mode = iota
+	// ModeSourceCopy replaces the destination with the source.
+	ModeSourceCopy
+	// ModeDestinationOver draws destination over source.
+	ModeDestinationOver
+	// ModeDestinationIn keeps destination where source is opaque.
+	ModeDestinationIn
+	// ModeDestinationOut keeps destination where source is transparent.
+	ModeDestinationOut
+)

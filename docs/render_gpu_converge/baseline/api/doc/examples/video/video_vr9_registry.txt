@@ -1,0 +1,12 @@
+Command video_vr9_registry is the VW3 VR9 real-window: containers, codecs and
+colors all walk the registry; new formats plug in without touching the core
+flow.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/video/video_vr9_registry
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 15). GPU window required. Left:
+the registry proof on vr2_720p.mp4 (probe names, capability lists, same-clip
+play through the registry, window-side stub decoder, three readable unsupported
+cases with zero crash). Right: the same 720p clip looping for the whole run.
+Bottom HUD: fps / decode / queue / memory.

@@ -1,0 +1,35 @@
+package sroa // import "github.com/energye/gpui/gpu/shader/dxil/internal/passes/sroa"
+
+Package sroa implements Scalar Replacement of Aggregates for DXIL emit.
+
+This pass decomposes struct-typed and array-typed local variables into
+individual per-member/per-element local variables when all access paths use
+constant indices (ExprAccessIndex chains). After decomposition, the existing
+mem2reg pass can promote the resulting scalar/vector locals to SSA form,
+eliminating allocas entirely.
+
+This mirrors LLVM's ScalarReplAggregates (SROA) pass that DXC applies before
+mem2reg:
+
+    DXC pipeline: HLSL → SROA → mem2reg → DCE → DXIL emit
+    Our pipeline: WGSL → IR → SROA → mem2reg → DCE → DXIL emit
+
+Scope:
+  - Struct-typed locals where every use is either: (a)
+    AccessIndex(LocalVariable, const_idx) for field-level store/load (b)
+    Load(LocalVariable) for full-struct load (e.g., return)
+  - Single-level decomposition only (nested structs within members are not
+    recursively decomposed — each member becomes one new local of its member
+    type, which may still be a vector/matrix but is no longer a struct).
+
+FUNCTIONS
+
+func Run(mod *ir.Module, fn *ir.Function) int
+    Run performs SROA on fn, decomposing eligible struct locals into per-member
+    locals. Returns the number of variables decomposed.
+
+    The function's LocalVars, Expressions, and Body are mutated in place. The
+    original struct local variable slot is kept (so indices remain stable) but
+    will have zero references after rewriting, causing the emitter's liveness
+    check to skip its alloca.
+

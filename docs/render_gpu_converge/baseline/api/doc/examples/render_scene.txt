@@ -1,0 +1,11 @@
+Package main demonstrates the scene graph (retained mode) API for gogpu/gg.
+
+This example shows how to:
+  - Build a scene using SceneBuilder fluent API
+  - Use layers with blend modes and alpha
+  - Apply transforms
+  - Render the scene to a Pixmap
+  - Save the result to PNG
+
+The scene graph approach is more efficient for static or slowly-changing content
+as it can cache rendered layers and only re-render dirty regions.

@@ -1,0 +1,17 @@
+Command ui_render_base_dither is the A-group real window for SetDither/Dither
+(RENDER_FEATURE_COVERAGE §1 #34 / §3.1 item 12).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_dither -auto-only
+    go run ./examples/ui_render_base_dither   # manual: lives until window close
+    go run ./examples/ui_render_base_dither -manual-seconds 15  # manual, auto-close
+
+Evidence: 16 value-level contract probes (CPU child), point + region pixel
+probes on the GPU snapshot, a bitwise golden over header + legend + the four
+cards, a GPU-route assertion (dither_gpu_ops > 0 and no CPU fallbacks), and a
+live screen grab compared with the snapshot over the same rects.
+
+Scope: SetDither is a pixmap postprocess applied by Image()/FlushGPU() after
+GPU resolve. The window displays those baked readback images; the three known
+limits are documented in RENDER_FEATURE_COVERAGE §6 and printed in the JSON
+`dither_scope` field.

@@ -1,0 +1,12 @@
+Command video_4k_play is the P3 4K real-window: 3840x2160 loop play +
+same-source big+small views (one upload, two draws) + overlay.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    bash video/testdata/gen_p3_2k4k.sh   # clips are generated, never committed
+    RUN_SECONDS=60 go run ./examples/video/video_4k_play
+
+Window: 1600x900. GPU window required. One 960x540 view plus one 320x180 PiP
+of the same 4K frame (second draw reuses the texture). Gate: fps/p95 + upload
+discipline (uploads+fallbacks==frames, PiP draws free) + first/last frame
+non-black + memory cap + retained-path pixel proof (two sealed-packet replays
+must both carry video ink and differ).

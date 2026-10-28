@@ -1,0 +1,677 @@
+package anim // import "github.com/energye/gpui/engine/anim"
+
+Package anim freezes the CPU-side motion math every 2.5D play feeds.
+
+Frozen 2026-09-15: Kind, Ease, Lerp, Name, Parse, Valid. Additive changes only.
+
+Frozen 2026-09-15: LoopMode (LoopOnce/LoopLoop/LoopPingPong),
+Key{At,Value,Ease}, Event{At,Name},
+Timeline{NewTimeline,SetLoop,AddKey,AddEvent,Sample,Update,OnEvent,
+Seek,Pos,IsPlaying,Pause,Resume,TrackNames,KeyCount,EventCount}. Time is
+core.Duration (integer milliseconds); values are plain float64 sampled with the
+frozen 4.1 curves. Additive changes only.
+
+Frozen 2026-09-15: Skeleton, Bone, Slot, Skin, Attachment, VertexWeight,
+IKConstraint, TransformConstraint, BoneLocal, Pose, BlendMode
+(BlendReplace/BlendAdditive), CurrentSkeletonVersion, ParseSkeleton,
+LoadSkeletonFile, NewPose. Additive changes only.
+
+What is frozen (Spine JSON subset, Godot Skeleton2D math): bones (name,
+parent, x, y, rotation, scale, shear, length, color), slots (name, bone,
+attachment, blend, color), skins (region plus mesh attachments, uvs, triangles,
+hull, per-vertex bone weights), draw order (slots order plus SetDrawOrder
+permutation), IK (one-bone aim plus two-bone analytic with bend and mix) and
+transform constraints (mix rotate/translate/scale/shear). Pose holds per-bone
+local will drive. Only core numbers are used (Vec2, Mat2D, Color, AssetID,
+Version); render types are reached through engine/renderconv at the boundary,
+never imported here.
+
+What is reserved: physics inertia (JSON "physics" plus ApplyPhysics) and path
+constraints plus linkedmesh/boundingbox/path/point/clipping attachments report
+core Unsupported, never a guessed pose. Spine 3.x and 4.x both load when the
+major is 3 or 4; any other major reports VersionMismatch.
+
+Errors use engine/core codes: empty path is InvalidArg, a missing file is
+NotFound, torn JSON is BadData, an unfrozen kind is Unsupported, a payload with
+a foreign major is VersionMismatch, an unknown bone/slot/skin/attachment is
+NotFound, a bad draw order or NaN/Inf number is InvalidArg. A nil Skeleton or
+Pose never panics.
+
+Frozen 2026-09-16: State (Name, CanTo, Blend), Machine (NewMachine, AddState,
+Has, StateCount, States, Start, Request, Update, Current, From, To, Blending,
+Progress, Weights, BlendDur, Elapsed). Blend is the outgoing crossfade length
+in core.Duration (zero cuts instantly); Request on a forbidden hop reports
+InvalidArg, on an unknown target NotFound, before Start InvalidArg; the machine
+never moves on error and a nil Machine never panics. Additive changes only.
+
+This package only computes numbers; it draws nothing. The caller feeds the eased
+progress into existing draws (positions, alpha, scales). Only core errors are
+used; no new Vec2/Color/AssetID is defined here.
+
+Why a new library when ui/animation already has curves: ui/animation owns
+interface animation (controller plus 4 curves for opacity and widgets).
+Game play needs the full Godot-style family (sine, quad, cubic, quart, quint,
+expo, circ, back, bounce, elastic each in, out, in-out plus linear) with frozen
+string names so timeline keys and asset files can name a curve and replay it.
+The two packages stay separate on purpose and never import each other.
+
+Math (Godot Tween TransitionType plus EaseType, Penner analytic form;
+Flutter Curves only supplies the cubic-bezier subset, so Godot is the primary
+reference):
+
+    t is clamped to [0,1] first (NaN maps to 0, infinities clamp).
+    Clamped 0 returns 0 and clamped 1 returns 1 exactly for every kind,
+    so expo and elastic never drift at the ends. Unknown kinds fall back
+    to linear (the clamped t) and never panic. Back and elastic may leave
+    [0,1] mid-flight by design (overshoot); every other family stays in
+    [0,1] and rises monotonically.
+
+CONSTANTS
+
+const DefaultLodNearDist = 400.0
+    DefaultLodNearDist is the visible-near radius in game units.
+
+
+VARIABLES
+
+var CurrentSkeletonVersion = core.Version{Major: 4, Minor: 0}
+    CurrentSkeletonVersion is the engine side of the Spine subset contract.
+    Spine 3.x and 4.x files both load (major 3 or 4); any other major reports
+    VersionMismatch. Minor is checked the core way once the major matches.
+
+
+FUNCTIONS
+
+func Ease(k Kind, t float64) float64
+    Ease maps linear progress t to shaped progress. The input is clamped first,
+    clamped ends return exactly 0/1, unknown kinds fall back to linear, and the
+    result is always finite (never NaN/Inf, never a panic). Back and elastic may
+    leave [0,1] mid-flight by design; the rest stay in [0,1].
+
+func Lerp(a, b, t float64, kind Kind) float64
+    Lerp blends a to b with the eased progress: a+(b-a)*Ease(kind, t).
+    The t handling matches Ease (clamped, NaN parks at a); a and b pass through
+    untouched so callers see their own numbers back at the ends. It never
+    panics; non-finite a/b follow IEEE-754 without a guard.
+
+func Name(k Kind) string
+    Name returns the frozen asset name of k, or "unknown" for bad kinds.
+
+func ShouldUpdate(level LodLevel, tick uint64, index int) bool
+    ShouldUpdate reports whether slot index needs a pose update on tick.
+    Near updates every frame, far updates on alternating frames staggered by
+    index parity so half the far set runs each tick, off never updates.
+
+func Valid(k Kind) bool
+    Valid reports whether k names a frozen curve.
+
+
+TYPES
+
+type Attachment struct {
+	Name      string
+	Type      string
+	Path      core.AssetID
+	Color     core.Color
+	Verts     []core.Vec2
+	UVs       []core.Vec2
+	Triangles []int
+	Hull      int
+	Weights   [][]VertexWeight
+}
+    Attachment is one drawable under a slot in a skin. Type is region or mesh
+    (anything else is rejected at load with Unsupported). Path is the atlas
+    image id (defaults to the attachment name). Verts always holds bone-space
+    rest positions (region corners or mesh verts, attachment transform baked);
+    Weights is nil for unweighted verts and per-vertex influences otherwise.
+    Triangles index Verts; Hull counts hull verts.
+
+type BlendMode int
+    BlendMode selects how BlendFrom combines two poses.
+
+const (
+	// BlendReplace lerps base toward add by weight.
+	BlendReplace BlendMode = 0
+	// BlendAdditive adds (add minus setup) onto base by weight.
+	BlendAdditive BlendMode = 1
+)
+func (m BlendMode) String() string
+    String returns the stable log name of m.
+
+type Bone struct {
+	Name     string
+	Parent   string
+	X, Y     float64
+	Rotation float64
+	ScaleX   float64
+	ScaleY   float64
+	ShearX   float64
+	ShearY   float64
+	Length   float64
+	Color    core.Color
+}
+    Bone is one setup bone in Spine terms. Parent names the parent bone (empty
+    for the root). Rotation and shears are degrees. Scale defaults to 1 when the
+    file omits it. Color defaults to opaque white.
+
+type BoneLocal struct {
+	X, Y     float64
+	Rotation float64
+	ScaleX   float64
+	ScaleY   float64
+	ShearX   float64
+	ShearY   float64
+}
+    BoneLocal is one pose override in parent space. It mirrors the Bone TRS
+    fields so Reset can copy the setup back exactly.
+
+type Event struct {
+	At   core.Duration
+	Name string
+}
+    Event is one fired cue: Name crossed at At. Names are caller-owned (slash,
+    sfx, call, show); the engine never hardcodes user text.
+
+type IKConstraint struct {
+	Name         string
+	Bones        []string
+	Target       string
+	Mix          float64
+	BendPositive bool
+	Compress     bool
+	Stretch      bool
+
+	// Has unexported fields.
+}
+    IKConstraint is one frozen IK rule. Bones holds 1 or 2 bone names,
+    Target the target bone. Mix blends 0 (off) to 1 (full). BendPositive picks
+    the elbow side. Compress and Stretch are parsed and reported but do not move
+    bones yet (reserved).
+
+type Key struct {
+	At    core.Duration
+	Value float64
+	Ease  Kind
+}
+    Key is one keyframe: Value at At, eased toward the next key with Ease.
+    Ease rides on the starting key of each segment; the last key holds.
+
+type Kind int
+    Kind names one frozen easing curve. Values are frozen; new curves only
+    append after InOutElastic and never renumber the old ones.
+
+const (
+	Linear Kind = iota
+	InSine
+	OutSine
+	InOutSine
+	InQuad
+	OutQuad
+	InOutQuad
+	InCubic
+	OutCubic
+	InOutCubic
+	InQuart
+	OutQuart
+	InOutQuart
+	InQuint
+	OutQuint
+	InOutQuint
+	InExpo
+	OutExpo
+	InOutExpo
+	InCirc
+	OutCirc
+	InOutCirc
+	InBack
+	OutBack
+	InOutBack
+	InBounce
+	OutBounce
+	InOutBounce
+	InElastic
+	OutElastic
+	InOutElastic
+)
+func AllKinds() []Kind
+    AllKinds returns every frozen kind in declaration order.
+
+func Parse(name string) (Kind, error)
+    Parse looks k up by frozen name. Empty and unknown names return a core
+    InvalidArg error and never guess a curve.
+
+type LodFrame struct {
+	Levels  []LodLevel
+	Updates []bool
+	Off     int
+	Far     int
+	Near    int
+	Wanted  int
+}
+    LodFrame is one scheduling verdict: per-slot levels plus per-slot update
+    flags plus counts.
+
+type LodLevel int
+    LodLevel is the per-skeleton update rate: off skips, far runs at half rate,
+    near runs every frame. Only the scheduler owns the rate; Pose math in
+    skeleton.go stays untouched.
+
+const (
+	// LodOff culls: bounds sit outside the viewport, no update.
+	LodOff LodLevel = 0
+	// LodFar throttles: visible but far, every other frame.
+	LodFar LodLevel = 1
+	// LodNear tracks: visible and near, every frame.
+	LodNear LodLevel = 2
+)
+func (l LodLevel) String() string
+    String returns the stable log name of l.
+
+type LodPolicy struct {
+	// Has unexported fields.
+}
+    LodPolicy owns the near radius. Viewports arrive per frame so one policy
+    serves every window size.
+
+func NewLodPolicy(nearDist float64) (LodPolicy, error)
+    NewLodPolicy builds a policy. nearDist must be finite and >= 0. Bad inputs
+    are InvalidArg.
+
+func (p LodPolicy) Batch(bounds []core.Rect, viewport core.Rect) []LodLevel
+    Batch classifies every bound through one viewport in order. The input is
+    never mutated; the result is fresh every call. Bad slots park at off while
+    the rest still classify.
+
+func (p LodPolicy) Classify(bounds, viewport core.Rect) (LodLevel, bool)
+    Classify picks the level of bounds seen through viewport. Outside the
+    viewport is off and never updates; inside within nearDist of the viewport
+    center is near, the rest of the visible set is far. Empty or bad inputs park
+    at off with ok=false, never a panic.
+
+func (p LodPolicy) NearDist() float64
+    NearDist returns the near radius.
+
+type LodScheduler struct {
+	// Has unexported fields.
+}
+    LodScheduler counts frames so far slots alternate without caller state.
+
+func NewLodScheduler(policy LodPolicy) *LodScheduler
+    NewLodScheduler builds a scheduler around policy. A torn policy parks at the
+    default radius instead of failing the window.
+
+func (s *LodScheduler) NextFrame(bounds []core.Rect, viewport core.Rect) LodFrame
+    NextFrame classifies bounds through viewport for the current tick and
+    advances the counter. The input is never mutated; levels and updates are
+    fresh slices. A nil scheduler or bad viewport parks everything at off.
+    Tick wraps naturally at 2^64; parity scheduling never breaks.
+
+func (s *LodScheduler) Policy() LodPolicy
+    Policy returns the scheduling policy.
+
+func (s *LodScheduler) Reset()
+    Reset parks the frame counter at zero. Nil is a no-op.
+
+func (s *LodScheduler) Tick() uint64
+    Tick returns the frame counter, or 0 on nil.
+
+type LoopMode int
+    LoopMode selects what happens when the head runs past the duration.
+
+const (
+	// LoopOnce holds the last frame and stops at the end.
+	LoopOnce LoopMode = 0
+	// LoopLoop wraps to the start and keeps playing.
+	LoopLoop LoopMode = 1
+	// LoopPingPong bounces at both ends and keeps playing.
+	LoopPingPong LoopMode = 2
+)
+func (m LoopMode) String() string
+    String returns the stable log name of m.
+
+type Machine struct {
+	// Has unexported fields.
+}
+    Machine blends between named actions with a linear crossfade weight. It only
+    computes numbers; the caller feeds Weights into the frozen skeleton blend
+    entry (BlendReplace) or the flipbook Play picker and draws with the existing
+    render draws. Time is integer milliseconds, so long runs never drift.
+
+func NewMachine() *Machine
+    NewMachine builds an empty state library. States arrive via AddState,
+    the start state via Start.
+
+func (m *Machine) AddState(s State) error
+    AddState stores one action. Name must be non-empty and unique, Blend must
+    not be negative, every CanTo entry must be non-empty. Bad states return
+    core InvalidArg and store nothing; the CanTo list is copied so later writes
+    by the caller cannot change the library. Forward targets (added later) are
+    allowed here; an unknown Request target still reports NotFound.
+
+func (m *Machine) BlendDur() core.Duration
+    BlendDur returns the in-flight blend length, or 0 when settled.
+
+func (m *Machine) Blending() bool
+    Blending reports whether a crossfade is in flight.
+
+func (m *Machine) Current() string
+    Current returns the action the machine is heading to (the blend target while
+    blending, the settled action otherwise), or "" before Start.
+
+func (m *Machine) Elapsed() core.Duration
+    Elapsed returns how far the in-flight blend has advanced, or 0.
+
+func (m *Machine) From() string
+    From returns the blend origin (the settled action when idle). It returns ""
+    before Start.
+
+func (m *Machine) Has(name string) bool
+    Has reports whether the named action exists.
+
+func (m *Machine) Progress() float64
+    Progress returns the blend progress in [0,1]: 0 at request time, 1 when
+    settled. A settled machine reports 1; before Start it is 0.
+
+func (m *Machine) Request(to string) error
+    Request asks for the named action and starts (or retargets) the blend.
+    Requesting the settled current (or, mid-blend, the blend target) is a silent
+    no-op success. Requesting the blend origin mid-blend cancels the blend
+    and snaps back. A zero outgoing Blend cuts instantly instead of blending.
+    Errors never move the machine: empty names and switches the origin state
+    forbids report core InvalidArg, unknown targets report core NotFound,
+    and requesting before Start reports core InvalidArg.
+
+func (m *Machine) Start(name string) error
+    Start parks the machine on the named action with no blend in flight.
+    Empty names return core InvalidArg, unknown names core NotFound; either way
+    the previous current (if any) stays untouched.
+
+func (m *Machine) StateCount() int
+    StateCount returns how many actions the library holds.
+
+func (m *Machine) States() []string
+    States returns every action name, sorted. The slice is a fresh copy.
+
+func (m *Machine) To() string
+    To returns the blend target, or "" when no blend is in flight.
+
+func (m *Machine) Update(dt core.Duration) bool
+    Update advances the in-flight blend by dt and reports whether a blend is
+    still running. dt at or below zero advances nothing. A settled machine stays
+    settled and reports false. Reaching (or passing) the blend length snaps to
+    the target exactly.
+
+func (m *Machine) Weights() (fromW, toW float64)
+    Weights returns the linear crossfade pair (fromW, toW) with fromW+toW==1.
+    Settled it is (1,0); mid-blend it is (1-p,p). Feed toW into the skeleton
+    BlendReplace weight or an alpha lerp.
+
+type Pose struct {
+	// Has unexported fields.
+}
+    Pose holds live bone locals plus cached world matrices. Update recomputes
+    worlds from the root down; queries auto-update first so callers never see a
+    stale pose.
+
+func NewPose(skel *Skeleton) (*Pose, error)
+    NewPose builds a pose at the setup position. A nil skeleton is InvalidArg.
+
+func (p *Pose) ApplyIK(name string) error
+    ApplyIK solves one frozen IK rule and blends it by its mix. One bone aims
+    at the target; two bones solve the analytic elbow with the frozen bend side.
+    Unknown rules are NotFound; a nil pose is InvalidArg. Positions within 1e-9
+    of the target are already solved and stay put so long runs never jitter on
+    NaN.
+
+func (p *Pose) ApplyPhysics(name string) error
+    ApplyPhysics is the postponed inertia entry: it always reports Unsupported
+    (empty names report InvalidArg first) so callers can tell "not built yet"
+    from bad input. The JSON "physics" key is rejected the same way at load.
+
+func (p *Pose) ApplyTransform(name string) error
+    ApplyTransform blends one frozen transform rule into its bones: world
+    position lerps by MixX/MixY through the parent inverse so rotated parents
+    still land on the target, world rotation lerps by MixRotate, local scales
+    and shear lerp by their mixes. Unknown rules are NotFound; a nil pose is
+    InvalidArg.
+
+func (p *Pose) BlendFrom(base, add *Pose, w float64, mode BlendMode) error
+    BlendFrom combines base and add into the receiver: replace lerps every
+    channel by weight, additive adds (add minus setup) onto base by weight.
+    All three poses must share one skeleton, weight must be finite in [0,1],
+    mode must be frozen. Failures change nothing.
+
+func (p *Pose) BoneLocal(bone string) (BoneLocal, error)
+    BoneLocal reads one bone local copy. Unknown bones are NotFound.
+
+func (p *Pose) Reset()
+    Reset parks every bone back on its setup transform. Nil-safe.
+
+func (p *Pose) SetBoneLocal(bone string, l BoneLocal) error
+    SetBoneLocal overrides one bone local. Unknown bones are NotFound,
+    empty names and NaN/Inf numbers are InvalidArg; failures change nothing.
+    A nil pose is InvalidArg.
+
+func (p *Pose) Skeleton() *Skeleton
+    Skeleton returns the pose skeleton, or nil on a nil pose.
+
+func (p *Pose) SkinVertices(slot, attach string) ([]core.Vec2, error)
+    SkinVertices returns the world positions of one attachment in the active
+    skin. Unweighted verts ride their slot bone; weighted verts blend bone
+    matrices by influence. Unknown slots or attachments are NotFound; empty
+    names are InvalidArg. The result is fresh every call and never aliases the
+    skeleton or the pose.
+
+func (p *Pose) WorldPos(bone string) (core.Vec2, error)
+    WorldPos returns one bone world origin. Unknown bones are NotFound.
+
+func (p *Pose) WorldTransform(bone string) (core.Mat2D, error)
+    WorldTransform returns one bone world matrix. It never aliases the pose;
+    callers get a value. Unknown bones are NotFound.
+
+type Skeleton struct {
+	// Has unexported fields.
+}
+    Skeleton owns the frozen Spine subset. Bones and Slots keep file order;
+    DrawOrder starts as slots order and moves only through SetDrawOrder.
+    Skins keep file order with names sorted for replay.
+
+func LoadSkeletonFile(path string) (*Skeleton, error)
+    LoadSkeletonFile reads path and parses it. Empty path is InvalidArg,
+    an OS miss is NotFound, data faults replay the ParseSkeleton code.
+
+func ParseSkeleton(data []byte) (*Skeleton, error)
+    ParseSkeleton decodes one Spine JSON subset document. Empty input is
+    InvalidArg, torn JSON is BadData, a foreign major is VersionMismatch,
+    physics/path constraints and non-region/mesh attachments are Unsupported.
+    Dangling parents, duplicate names, and bad numbers are BadData, never a
+    guessed skeleton.
+
+func (s *Skeleton) Attachment(slot, attach string) (*Attachment, error)
+    Attachment returns a deep copy of one drawable in the active skin. Unknown
+    slots, attachments, or skins are NotFound; empty names are InvalidArg.
+    The copy never aliases the skeleton.
+
+func (s *Skeleton) Bone(name string) (Bone, error)
+    Bone returns a copy of the setup bone. The result never aliases the skeleton
+    so callers cannot mutate the setup through it.
+
+func (s *Skeleton) BoneCount() int
+    BoneCount reports the bone count, or 0 on nil.
+
+func (s *Skeleton) BoneIndex(name string) (int, error)
+    BoneIndex looks a bone up by name. Empty names are InvalidArg, unknown bones
+    are NotFound.
+
+func (s *Skeleton) CurrentSkin() string
+    CurrentSkin returns the active skin name, or "" when skinless.
+
+func (s *Skeleton) DrawOrder() []string
+    DrawOrder returns the slot names in draw order (a fresh slice).
+
+func (s *Skeleton) IK(name string) (IKConstraint, error)
+    IK returns a copy of one IK rule by name.
+
+func (s *Skeleton) IKNames() []string
+    IKNames returns the IK rule names in file order.
+
+func (s *Skeleton) SetDrawOrder(order []string) error
+    SetDrawOrder replaces the draw order. The input must be a permutation of the
+    slot names; anything else is InvalidArg and keeps the old order. The input
+    slice is never retained.
+
+func (s *Skeleton) SetSkin(name string) error
+    SetSkin picks the active skin. Unknown skins are NotFound and keep the old
+    skin; empty names are InvalidArg.
+
+func (s *Skeleton) SkinNames() []string
+    SkinNames returns every skin name sorted for replay.
+
+func (s *Skeleton) Slot(name string) (Slot, error)
+    Slot returns a copy of the setup slot.
+
+func (s *Skeleton) SlotCount() int
+    SlotCount reports the slot count, or 0 on nil.
+
+func (s *Skeleton) SlotIndex(name string) (int, error)
+    SlotIndex looks a slot up by name.
+
+func (s *Skeleton) TransformNames() []string
+    TransformNames returns the transform rule names in file order.
+
+func (s *Skeleton) Version() core.Version
+    Version returns the parsed Spine major.minor. A nil skeleton reports 0.0.
+
+type Skin struct {
+	Name string
+	// Attach maps slot -> attachment -> drawable.
+	Attach map[string]map[string]*Attachment
+}
+    Skin is one named attachment set: slot name to attachment name to drawable.
+    The map is owned by the Skeleton; callers get copies.
+
+type Slot struct {
+	Name       string
+	Bone       string
+	Attachment string
+	Blend      string
+	Color      core.Color
+}
+    Slot pins one draw entry to a bone. Attachment names the setup attachment
+    (may be empty). Blend is one of normal, additive, multiply, screen. Color
+    defaults to opaque white.
+
+type State struct {
+	Name  string
+	CanTo []string
+	Blend core.Duration
+}
+    State is one named action in the blend state machine: idle, run, jump
+    each own one. Name is caller-owned; the engine never hardcodes user text.
+    CanTo lists the legal switch targets (empty means terminal). Blend is how
+    long leaving this state blends toward the next one; zero cuts instantly.
+    Only core numbers are used.
+
+type Timeline struct {
+	// Has unexported fields.
+}
+    Timeline plays float tracks over a fixed duration plus a cue list. It only
+    computes numbers; the caller feeds samples into existing draws and maps
+    event names to slash, sound, method, or visibility actions. Time is integer
+    milliseconds, so long runs never drift.
+
+func NewTimeline(dur core.Duration) (*Timeline, error)
+    NewTimeline builds an empty timeline of dur. dur must be positive;
+    bad durations return a core InvalidArg error and nil. The head starts at 0,
+    forward, playing.
+
+func (t *Timeline) AddEvent(at core.Duration, name string) error
+    AddEvent stores one cue. At must land in [0, duration], name must be
+    non-empty; same-At cues keep insertion order. Bad cues return core
+    InvalidArg and store nothing.
+
+func (t *Timeline) AddKey(track string, k Key) error
+    AddKey stores one keyframe on track. track must be non-empty, At must land
+    in [0, duration], At must be unused on that track, Ease must name a frozen
+    curve. Bad keys return core InvalidArg and store nothing.
+
+func (t *Timeline) Duration() core.Duration
+    Duration returns the timeline length, or 0 on a nil timeline.
+
+func (t *Timeline) EventCount() int
+    EventCount returns how many cues the timeline holds.
+
+func (t *Timeline) IsPlaying() bool
+    IsPlaying reports whether Update advances the head. A finished once timeline
+    reports false until Seek plus Resume.
+
+func (t *Timeline) KeyCount(track string) int
+    KeyCount returns how many keys track holds, or 0 when unknown.
+
+func (t *Timeline) Loop() LoopMode
+    Loop returns the wrap mode, or LoopOnce on a nil timeline.
+
+func (t *Timeline) OnEvent(h func(Event))
+    OnEvent sets the cue callback; nil clears it. The handler runs synchronously
+    inside Update and must not call back into the same Timeline.
+
+func (t *Timeline) Pause()
+    Pause freezes the head; Resume restarts it. Both are nil-safe. Resume on a
+    finished once timeline replays from the end (no rewind); Seek first to play
+    again.
+
+func (t *Timeline) Pos() core.Duration
+    Pos returns the head position. A nil timeline reports 0.
+
+func (t *Timeline) Resume()
+    Resume restarts a paused head without moving it.
+
+func (t *Timeline) Sample(track string, at core.Duration) (float64, bool)
+    Sample reads one track at an absolute time without moving the head or firing
+    cues. ok is false for a nil timeline or an unknown track.
+
+func (t *Timeline) Seek(at core.Duration) error
+    Seek moves the head to at, clamped to [0, duration], facing forward.
+    It keeps the playing state and fires nothing. A nil timeline returns core
+    InvalidArg.
+
+func (t *Timeline) SetLoop(m LoopMode) error
+    SetLoop picks the wrap mode. Bad modes return core InvalidArg and keep the
+    old mode; a nil timeline also returns InvalidArg.
+
+func (t *Timeline) TrackNames() []string
+    TrackNames returns every track with at least one key, sorted.
+
+func (t *Timeline) Update(dt core.Duration) ([]Event, bool)
+    Update moves the head by dt and returns the cues crossed in order. dt at or
+    below zero, or a paused head, advances nothing and returns nil. A finished
+    once head stays at the end and returns nil. An Update covering a full period
+    or more reports each cue once in crossing order instead of repeating it
+    unboundedly. A pingpong head crossing the same cue in both directions inside
+    one Update reports it twice, once per crossing.
+
+type TransformConstraint struct {
+	Name      string
+	Bones     []string
+	Target    string
+	MixRotate float64
+	MixX      float64
+	MixY      float64
+	MixScaleX float64
+	MixScaleY float64
+	MixShearY float64
+
+	// Has unexported fields.
+}
+    TransformConstraint mixes target world motion into bones. Mix fields blend 0
+    (off) to 1 (full) per channel.
+
+type VertexWeight struct {
+	Bone   int
+	Offset core.Vec2
+	Weight float64
+}
+    VertexWeight is one bone influence on one mesh vertex. Offset sits in
+    slot-bone space (the attachment x/y/rotation/scale is baked at load);
+    World is the weighted sum over the vertex influences.
+

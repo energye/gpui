@@ -1,0 +1,127 @@
+package wgsl // import "github.com/energye/gpui/gpu/shader/wgsl"
+
+Package wgsl provides WGSL parsing and lowering.
+
+WGSL is the shader language for WebGPU, designed to be portable and map well to
+modern GPU APIs like Vulkan, Metal, and DX12.
+
+# Components
+
+The wgsl package consists of several components:
+
+  - Lexer: Tokenizes WGSL source code into tokens
+  - Parser: Parses tokens into an AST (Abstract Syntax Tree)
+  - Lowerer: Converts AST to IR (Intermediate Representation)
+
+# Usage
+
+To parse and lower a WGSL shader:
+
+    lexer := wgsl.NewLexer(source)
+    tokens, err := lexer.Tokenize()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    parser := wgsl.NewParser(tokens)
+    module, err := parser.Parse()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    irModule, err := wgsl.LowerWithSource(module, source)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+# WGSL Specification
+
+This implementation follows the WGSL specification: https://www.w3.org/TR/WGSL/
+
+# Supported Features
+
+FUNCTIONS
+
+func Lower(ast *Module) (*ir.Module, error)
+    Lower converts a WGSL AST module to Naga IR.
+
+func LowerWithSource(ast *Module, source string) (*ir.Module, error)
+    LowerWithSource converts a WGSL AST module to Naga IR, keeping source for
+    error messages.
+
+
+TYPES
+
+type Lexer struct {
+	// Has unexported fields.
+}
+    Lexer tokenizes WGSL source code into tokens.
+
+func NewLexer(source string) *Lexer
+    NewLexer creates a new lexer for the given source.
+
+func (l *Lexer) Tokenize() (*Tokens, error)
+    Tokenize returns all tokens from the source.
+
+type LowerResult struct {
+	Module   *ir.Module
+	Warnings []Warning
+}
+    LowerResult contains the result of lowering, including any warnings.
+
+func LowerWithWarnings(ast *Module, source string) (*LowerResult, error)
+    LowerWithWarnings converts a WGSL AST module to Naga IR, returning warnings
+    alongside the module.
+
+type Module struct {
+	// Has unexported fields.
+}
+    Module represents a parsed WGSL module (abstract syntax tree). It is
+    produced by Parser.Parse and consumed by Lower/LowerWithSource.
+
+type ParseError struct {
+	Message string
+	Line    int
+	Column  int
+}
+    ParseError represents a parsing error with location information.
+
+func (e ParseError) Error() string
+    Error implements the error interface.
+
+type Parser struct {
+	// Has unexported fields.
+}
+    Parser parses WGSL tokens into an AST.
+
+func NewParser(tokens *Tokens) *Parser
+    NewParser creates a new parser for the given tokens.
+
+func (p *Parser) Parse() (*Module, error)
+    Parse parses the tokens and returns a Module AST.
+
+type Position struct {
+	Line   int
+	Column int
+	Offset int
+}
+    Position represents a position in source code.
+
+type Span struct {
+	Start  Position
+	End    Position
+	Source string
+}
+    Span represents a source code location span.
+
+type Tokens struct {
+	// Has unexported fields.
+}
+    Tokens holds the result of lexical analysis. Pass it to NewParser.
+
+type Warning struct {
+	Message string
+	Span    Span
+}
+    Warning represents a compiler warning (not an error).
+

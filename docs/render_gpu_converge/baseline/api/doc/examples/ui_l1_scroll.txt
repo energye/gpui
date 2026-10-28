@@ -1,0 +1,9 @@
+Command ui_l1_scroll is the L1 P4 demo: VirtualList 1000 rows + auto-scroll.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    go run ./examples/ui_l1_scroll
+
+Auto window backend: Wayland or X11 (auto; force via platform.Options.Backend).
+Duration: default 60s; override with RUN_SECONDS. GPUI_VAR_EXTENT=1 enables
+mixed row heights (FScroll-VAR-EXTENT MVP). Window is resizable; list + viewport
+follow client size.

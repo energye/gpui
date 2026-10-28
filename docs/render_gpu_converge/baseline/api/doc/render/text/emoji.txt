@@ -1,0 +1,567 @@
+package emoji // import "github.com/energye/gpui/render/text/emoji"
+
+Package emoji provides emoji and color font support for text rendering.
+
+This package handles the detection, segmentation, and rendering of emoji
+characters in text. It supports:
+
+  - Single emoji characters (U+1F600 - U+1F64F emoticons)
+  - ZWJ (Zero-Width Joiner) sequences for complex emoji
+  - Skin tone modifiers (U+1F3FB - U+1F3FF)
+  - Regional indicator sequences for flag emoji
+  - Keycap sequences (digit + U+FE0F + U+20E3)
+  - Tag sequences for subdivision flags
+
+# Color Font Support
+
+The package supports rendering color emoji from fonts using:
+
+  - COLRv0/COLRv1 tables (layered color glyphs)
+  - Bitmap tables: sbix (Apple), CBDT/CBLC (Google)
+
+# Usage
+
+To segment text into emoji and non-emoji runs:
+
+    runs := emoji.Segment("Hello 😀 World")
+    for _, run := range runs {
+        if run.IsEmoji {
+            // Render with color emoji renderer
+        } else {
+            // Render with text renderer
+        }
+    }
+
+To detect if a rune is an emoji:
+
+    if emoji.IsEmoji(r) {
+        // Handle emoji character
+    }
+
+# Unicode Emoji Specification
+
+This implementation follows Unicode Technical Report #51:
+https://www.unicode.org/reports/tr51/
+
+Key concepts:
+  - Emoji_Presentation: Characters that default to emoji display
+  - Text_Presentation: Characters that default to text display
+  - Variation Selectors: U+FE0E (text) and U+FE0F (emoji)
+  - ZWJ Sequences: Multiple emoji joined by U+200D
+
+VARIABLES
+
+var (
+	// ErrNoSBIXTable indicates the font doesn't have an sbix table.
+	ErrNoSBIXTable = errors.New("emoji: font has no sbix table")
+
+	// ErrNoCBDTTable indicates the font doesn't have a CBDT table.
+	ErrNoCBDTTable = errors.New("emoji: font has no CBDT table")
+
+	// ErrInvalidSBIXData indicates the sbix table data is malformed.
+	ErrInvalidSBIXData = errors.New("emoji: invalid sbix table data")
+
+	// ErrInvalidCBDTData indicates the CBDT table data is malformed.
+	ErrInvalidCBDTData = errors.New("emoji: invalid CBDT table data")
+
+	// ErrGlyphNotInBitmap indicates the glyph has no bitmap data.
+	ErrGlyphNotInBitmap = errors.New("emoji: glyph not found in bitmap table")
+
+	// ErrUnsupportedBitmapFormat indicates an unsupported bitmap format.
+	ErrUnsupportedBitmapFormat = errors.New("emoji: unsupported bitmap format")
+)
+    Bitmap table format errors.
+
+var (
+	// ErrNoCBLCTable indicates the font doesn't have a CBLC table.
+	ErrNoCBLCTable = errors.New("emoji: font has no CBLC table")
+
+	// ErrInvalidCBLCData indicates the CBLC table data is malformed.
+	ErrInvalidCBLCData = errors.New("emoji: invalid CBLC table data")
+
+	// ErrUnsupportedIndexFormat indicates an unsupported index subtable format.
+	ErrUnsupportedIndexFormat = errors.New("emoji: unsupported index subtable format")
+
+	// ErrUnsupportedImageFormat indicates an unsupported image format.
+	ErrUnsupportedImageFormat = errors.New("emoji: unsupported image format")
+
+	// ErrNoStrikeAvailable indicates no bitmap strike is available.
+	ErrNoStrikeAvailable = errors.New("emoji: no bitmap strike available")
+)
+    CBDT/CBLC table format errors.
+
+var (
+	// ErrNoCOLRTable indicates the font doesn't have a COLR table.
+	ErrNoCOLRTable = errors.New("emoji: font has no COLR table")
+
+	// ErrNoCPALTable indicates the font doesn't have a CPAL table.
+	ErrNoCPALTable = errors.New("emoji: font has no CPAL table")
+
+	// ErrInvalidCOLRData indicates the COLR table data is malformed.
+	ErrInvalidCOLRData = errors.New("emoji: invalid COLR table data")
+
+	// ErrInvalidCPALData indicates the CPAL table data is malformed.
+	ErrInvalidCPALData = errors.New("emoji: invalid CPAL table data")
+
+	// ErrGlyphNotInCOLR indicates the glyph is not a color glyph.
+	ErrGlyphNotInCOLR = errors.New("emoji: glyph not found in COLR table")
+
+	// ErrUnsupportedCOLRVersion indicates an unsupported COLR version.
+	ErrUnsupportedCOLRVersion = errors.New("emoji: unsupported COLR version")
+)
+    COLR/CPAL table format errors.
+
+
+FUNCTIONS
+
+func GetFlagCode(seq Sequence) string
+    GetFlagCode extracts the two-letter country code from a flag sequence.
+    Returns empty string if not a valid flag sequence.
+
+func GetTagSequenceCode(seq Sequence) string
+    GetTagSequenceCode extracts the subdivision code from a tag sequence.
+    Returns empty string if not a valid tag sequence.
+
+func IsBlackFlag(r rune) bool
+    IsBlackFlag returns true for the black flag emoji. This is the base for
+    subdivision flag sequences.
+
+func IsCancelTag(r rune) bool
+    IsCancelTag returns true for the cancel tag character (U+E007F). This
+    terminates subdivision flag sequences.
+
+func IsCombiningEnclosingKeycap(r rune) bool
+    IsCombiningEnclosingKeycap returns true for the keycap combining mark.
+
+func IsEmoji(r rune) bool
+    IsEmoji returns true if the rune is an emoji character. This includes
+    characters with Emoji_Presentation=Yes or that are commonly used as emoji
+    with variation selector.
+
+func IsEmojiModifier(r rune) bool
+    IsEmojiModifier returns true if the rune is a skin tone modifier.
+    Fitzpatrick scale modifiers: U+1F3FB - U+1F3FF.
+
+func IsEmojiModifierBase(r rune) bool
+    IsEmojiModifierBase returns true if the rune can be modified by a skin tone.
+    This includes humans, body parts, and human activities.
+
+func IsEmojiPresentation(r rune) bool
+    IsEmojiPresentation returns true if the rune defaults to emoji presentation.
+    These characters display as emoji without requiring U+FE0F.
+
+func IsEmojiVariation(r rune) bool
+    IsEmojiVariation returns true for the emoji variation selector (U+FE0F).
+
+func IsKeycapBase(r rune) bool
+    IsKeycapBase returns true if the rune can form a keycap emoji. Digits 0-9,
+    # and * can be followed by U+FE0F U+20E3 to form keycaps.
+
+func IsRegionalIndicator(r rune) bool
+    IsRegionalIndicator returns true if the rune is a Regional Indicator (A-Z).
+    Two regional indicators form a flag emoji (e.g., U+1F1FA U+1F1F8 = US flag).
+
+func IsTagCharacter(r rune) bool
+    IsTagCharacter returns true for emoji tag characters. Tags U+E0020-U+E007E
+    are used in subdivision flag sequences.
+
+func IsTextPresentation(r rune) bool
+    IsTextPresentation returns true for the text variation selector (U+FE0E).
+
+func IsValidSequence(seq Sequence) bool
+    IsValidSequence returns true if the sequence is well-formed according to
+    Unicode emoji specification.
+
+func IsVariationSelector(r rune) bool
+    IsVariationSelector returns true for emoji-related variation selectors.
+    U+FE0E forces text presentation, U+FE0F forces emoji presentation.
+
+func IsZWJ(r rune) bool
+    IsZWJ returns true if the rune is Zero-Width Joiner (U+200D). ZWJ is used to
+    join emoji into composite sequences.
+
+func RenderCOLRToImage(
+	glyph *COLRGlyph,
+	renderLayer func(glyphID uint16) *image.Alpha,
+	width, height int,
+	foreground color.RGBA,
+) *image.RGBA
+    RenderCOLRToImage renders a COLR glyph to an RGBA image. This is a
+    simplified renderer that composites layers. For production use, each layer
+    glyph should be rasterized at the given size and composited with its color.
+
+    Parameters:
+      - glyph: The COLR glyph to render
+      - renderLayer: Function to render a single layer glyph to an alpha mask
+      - width, height: Size of the output image
+      - foreground: Color to use for foreground (text) layers
+
+func SkinToneRune(tone SkinTone) rune
+    SkinToneRune returns the rune for a skin tone. Returns 0 for SkinToneNone.
+
+
+TYPES
+
+type BitmapFormat int
+    BitmapFormat indicates the format of embedded bitmap data.
+
+const (
+	// FormatPNG is PNG-compressed bitmap data.
+	FormatPNG BitmapFormat = iota
+
+	// FormatJPEG is JPEG-compressed bitmap data.
+	FormatJPEG
+
+	// FormatTIFF is TIFF-compressed bitmap data.
+	FormatTIFF
+
+	// FormatDUPE indicates this glyph references another glyph's bitmap.
+	FormatDUPE
+
+	// FormatRaw is uncompressed RGBA or grayscale bitmap data.
+	FormatRaw
+)
+func (f BitmapFormat) String() string
+    String returns the string name of the bitmap format.
+
+type BitmapGlyph struct {
+	// GlyphID is the glyph ID this bitmap represents.
+	GlyphID uint16
+
+	// Data contains the raw bitmap data (PNG, JPEG, etc.).
+	Data []byte
+
+	// Format indicates how Data is encoded.
+	Format BitmapFormat
+
+	// Width is the bitmap width in pixels.
+	Width int
+
+	// Height is the bitmap height in pixels.
+	Height int
+
+	// OriginX is the horizontal offset from glyph origin.
+	OriginX float32
+
+	// OriginY is the vertical offset from glyph origin.
+	OriginY float32
+
+	// PPEM is the pixels-per-em for this bitmap size.
+	PPEM uint16
+}
+    BitmapGlyph represents a bitmap emoji from sbix/CBDT tables.
+
+func (b *BitmapGlyph) Decode() (image.Image, error)
+    Decode decodes the bitmap data to an image.Image. Currently only supports
+    PNG format. Returns nil if the format is not supported or data is invalid.
+
+type CBDTExtractor struct {
+	// Has unexported fields.
+}
+    CBDTExtractor extracts bitmap glyphs from CBDT/CBLC tables. CBDT (Color
+    Bitmap Data Table) stores the bitmap data. CBLC (Color Bitmap Location
+    Table) stores the index/location data.
+
+func NewCBDTExtractor(cbdtData, cblcData []byte) (*CBDTExtractor, error)
+    NewCBDTExtractor creates a new CBDT/CBLC extractor. cbdtData is the raw CBDT
+    table, cblcData is the raw CBLC table.
+
+func (e *CBDTExtractor) AvailablePPEMs() []uint16
+    AvailablePPEMs returns a list of available PPEM sizes.
+
+func (e *CBDTExtractor) GetGlyph(glyphID uint16, ppem uint16) (*BitmapGlyph, error)
+    GetGlyph extracts a bitmap glyph at the specified PPEM. Uses StrikeBestFit
+    strategy to select the strike.
+
+func (e *CBDTExtractor) GetGlyphAtStrike(glyphID uint16, strikeIndex int) (*BitmapGlyph, error)
+    GetGlyphAtStrike extracts a bitmap glyph at the specified strike index.
+
+func (e *CBDTExtractor) GetGlyphWithStrategy(glyphID uint16, ppem uint16, strategy StrikeStrategy) (*BitmapGlyph, error)
+    GetGlyphWithStrategy extracts a bitmap glyph using the specified strategy.
+
+func (e *CBDTExtractor) HasGlyph(glyphID uint16) bool
+    HasGlyph returns true if the glyph has bitmap data at any strike.
+
+func (e *CBDTExtractor) HasGlyphInStrike(glyphID uint16, strikeIndex int) bool
+    HasGlyphInStrike returns true if the glyph has bitmap data at the given
+    strike.
+
+func (e *CBDTExtractor) NumStrikes() int
+    NumStrikes returns the number of available bitmap strikes.
+
+func (e *CBDTExtractor) SelectStrike(ppem uint16, strategy StrikeStrategy) int
+    SelectStrike selects a bitmap strike based on the requested PPEM and
+    strategy. Returns the strike index, or -1 if no suitable strike is found.
+
+func (e *CBDTExtractor) StrikeBitDepth(index int) uint8
+    StrikeBitDepth returns the bit depth for a strike at the given index.
+    For color emoji, this is typically 32 (BGRA).
+
+func (e *CBDTExtractor) StrikePPEM(index int) uint16
+    StrikePPEM returns the PPEM for a strike at the given index. Returns 0 if
+    the index is out of range.
+
+type CBDTParser struct {
+	// Has unexported fields.
+}
+    CBDTParser parses the CBDT (Color Bitmap Data) table. CBDT is Google's
+    format for embedded bitmap graphics (emoji). It works together with CBLC
+    (Color Bitmap Location) table.
+
+func NewCBDTParser(cbdtData, cblcData []byte) (*CBDTParser, error)
+    NewCBDTParser creates a new CBDT parser.
+
+func (p *CBDTParser) HasTable() bool
+    HasTable returns true if CBDT/CBLC tables are present.
+
+type COLRGlyph struct {
+	// GlyphID is the original glyph ID for this color glyph.
+	GlyphID uint16
+
+	// Layers contains the color layers, bottom to top.
+	Layers []ColorLayer
+
+	// Bounds is the bounding box in font units.
+	Bounds Rect
+
+	// Version is the COLR table version (0 or 1).
+	Version uint16
+}
+    COLRGlyph represents a color glyph from COLR table. It consists of multiple
+    colored layers stacked on top of each other.
+
+type COLRParser struct {
+	// Has unexported fields.
+}
+    COLRParser parses COLR/CPAL tables from font data.
+
+func NewCOLRParser(colrData, cpalData []byte) (*COLRParser, error)
+    NewCOLRParser creates a new COLR parser from table data. colrData is the raw
+    COLR table, cpalData is the raw CPAL table.
+
+func (p *COLRParser) GetGlyph(glyphID uint16, paletteIndex int) (*COLRGlyph, error)
+    GetGlyph returns the COLRGlyph for the given glyph ID. Returns
+    ErrGlyphNotInCOLR if the glyph is not a color glyph.
+
+func (p *COLRParser) HasGlyph(glyphID uint16) bool
+    HasGlyph returns true if the glyph ID is a color glyph.
+
+func (p *COLRParser) NumPalettes() int
+    NumPalettes returns the number of color palettes.
+
+func (p *COLRParser) PaletteColors(paletteIndex int) []Color
+    PaletteColors returns the colors in a palette.
+
+type Color struct {
+	R, G, B, A uint8
+}
+    Color represents an RGBA color from CPAL palette.
+
+func (c Color) RGBA() (r, g, b, a uint32)
+    RGBA implements color.Color interface.
+
+func (c Color) ToRGBA() color.RGBA
+    ToRGBA returns the color as color.RGBA.
+
+type ColorLayer struct {
+	// GlyphID is the glyph to render for this layer.
+	GlyphID uint16
+
+	// PaletteIndex is the index into the CPAL color palette.
+	// 0xFFFF indicates foreground color (use the text color).
+	PaletteIndex uint16
+
+	// Color is the resolved color from the palette.
+	// This is set after calling ResolvePalette.
+	Color Color
+}
+    ColorLayer represents one layer of a color glyph. Each layer is a glyph
+    rendered in a specific color.
+
+func (l ColorLayer) IsForeground() bool
+    IsForeground returns true if this layer uses the foreground text color.
+
+type GlyphRenderer func(glyphID uint16, size float64) *image.Alpha
+    GlyphRenderer is a function type for rendering a glyph ID to an alpha mask.
+
+type Rect struct {
+	MinX, MinY float64
+	MaxX, MaxY float64
+}
+    Rect represents a bounding rectangle.
+
+func (r Rect) Empty() bool
+    Empty returns true if the rectangle has zero area.
+
+func (r Rect) Height() float64
+    Height returns the height of the rectangle.
+
+func (r Rect) Width() float64
+    Width returns the width of the rectangle.
+
+type Run struct {
+	// Text is the substring of the run.
+	Text string
+
+	// IsEmoji is true if this run contains emoji characters.
+	// For ZWJ sequences, this will be a single Run with multiple codepoints.
+	IsEmoji bool
+
+	// Codepoints contains the individual runes for emoji runs.
+	// For non-emoji runs, this is nil.
+	Codepoints []rune
+
+	// Start is the byte offset in the original string.
+	Start int
+
+	// End is the byte offset of the end (exclusive).
+	End int
+}
+    Run represents a contiguous run of text with uniform emoji status.
+
+func Segment(text string) []Run
+    Segment splits text into emoji and non-emoji runs. ZWJ sequences and
+    other multi-codepoint emoji are kept together. Flag sequences (regional
+    indicators) are combined. Keycap sequences are combined. Tag sequences are
+    combined.
+
+type SBIXParser struct {
+	// Has unexported fields.
+}
+    SBIXParser parses the sbix (Standard Bitmap Graphics) table. sbix is Apple's
+    format for embedded bitmap graphics (emoji).
+
+func NewSBIXParser(data []byte, numGlyphs uint16) (*SBIXParser, error)
+    NewSBIXParser creates a new sbix parser. numGlyphs should be from the maxp
+    table.
+
+func (p *SBIXParser) BestStrikeForPPEM(ppem uint16) int
+    BestStrikeForPPEM returns the strike index best matching the requested ppem.
+
+func (p *SBIXParser) GetGlyph(glyphID, strikeIndex int) (*BitmapGlyph, error)
+    GetGlyph extracts bitmap data for a glyph at the given strike.
+
+func (p *SBIXParser) HasGlyph(glyphID, strikeIndex int) bool
+    HasGlyph returns true if the glyph has bitmap data at the given strike.
+
+func (p *SBIXParser) NumStrikes() int
+    NumStrikes returns the number of bitmap strikes (sizes).
+
+func (p *SBIXParser) StrikePPEM(strikeIndex int) uint16
+    StrikePPEM returns the ppem for a strike index.
+
+type Sequence struct {
+	// Codepoints contains all runes forming this emoji.
+	Codepoints []rune
+
+	// Type indicates the sequence type.
+	Type SequenceType
+
+	// BaseCodepoint is the primary emoji character (for Modified sequences).
+	// For other types, this equals Codepoints[0].
+	BaseCodepoint rune
+
+	// Modifier is the skin tone modifier, if present.
+	// Zero if no modifier is applied.
+	Modifier rune
+}
+    Sequence represents an emoji sequence (single or multi-codepoint).
+
+func Normalize(seq Sequence) Sequence
+    Normalize normalizes an emoji sequence by:
+      - Removing text variation selectors (U+FE0E)
+      - Ensuring emoji variation selector (U+FE0F) where needed
+      - Validating skin tone modifiers are only on valid bases
+
+func Parse(runes []rune) []Sequence
+    Parse parses emoji sequences from a slice of runes. Returns a slice
+    of Sequence values, where each represents a complete emoji (possibly
+    multi-codepoint).
+
+func ParseString(text string) []Sequence
+    ParseString is a convenience function that parses emoji sequences from a
+    string.
+
+func (s Sequence) HasModifier() bool
+    HasModifier returns true if the sequence has a skin tone modifier.
+
+func (s Sequence) Len() int
+    Len returns the number of codepoints in the sequence.
+
+func (s Sequence) String() string
+    String returns a string representation of the sequence.
+
+type SequenceType int
+    SequenceType indicates the type of emoji sequence.
+
+const (
+	// SequenceSimple is a single emoji character.
+	SequenceSimple SequenceType = iota
+
+	// SequenceZWJ is a Zero-Width Joiner sequence (family, profession, etc.).
+	// Multiple emoji joined by U+200D.
+	SequenceZWJ
+
+	// SequenceFlag is a country flag formed by two regional indicators.
+	// E.g., U+1F1FA U+1F1F8 = US flag.
+	SequenceFlag
+
+	// SequenceKeycap is a keycap sequence.
+	// E.g., # + U+FE0F + U+20E3 = keycap number sign.
+	SequenceKeycap
+
+	// SequenceModified is a base emoji with skin tone modifier.
+	// E.g., U+1F44B + U+1F3FB = waving hand, light skin.
+	SequenceModified
+
+	// SequenceTag is a subdivision flag sequence.
+	// E.g., U+1F3F4 + tags + U+E007F = Scotland flag.
+	SequenceTag
+
+	// SequencePresentation is a text character with emoji variation selector.
+	// E.g., U+2764 + U+FE0F = red heart emoji.
+	SequencePresentation
+)
+func (t SequenceType) String() string
+    String returns the string name of the sequence type.
+
+type SkinTone int
+    SkinTone represents a Fitzpatrick skin tone modifier.
+
+const (
+	// SkinToneNone indicates no skin tone modifier.
+	SkinToneNone SkinTone = iota
+	// SkinToneLight is the light skin tone (Type I-II).
+	SkinToneLight
+	// SkinToneMediumLight is the medium-light skin tone (Type III).
+	SkinToneMediumLight
+	// SkinToneMedium is the medium skin tone (Type IV).
+	SkinToneMedium
+	// SkinToneMediumDark is the medium-dark skin tone (Type V).
+	SkinToneMediumDark
+	// SkinToneDark is the dark skin tone (Type VI).
+	SkinToneDark
+)
+func GetSkinTone(r rune) SkinTone
+    GetSkinTone returns the skin tone from a modifier rune. Returns SkinToneNone
+    if the rune is not a skin tone modifier.
+
+func (t SkinTone) String() string
+    String returns the string name of the skin tone.
+
+type StrikeStrategy int
+    StrikeStrategy determines how to select a bitmap strike.
+
+const (
+	// StrikeBestFit selects the smallest strike >= requested size, or largest if none.
+	StrikeBestFit StrikeStrategy = iota
+
+	// StrikeExact selects only an exact match.
+	StrikeExact
+
+	// StrikeLargest always selects the largest available strike.
+	StrikeLargest
+)
+func (s StrikeStrategy) String() string
+    String returns the string representation of the strike strategy.
+

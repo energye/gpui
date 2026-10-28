@@ -1,0 +1,1792 @@
+package context // import "github.com/energye/gpui/gpu/context"
+
+Package gpucontext provides shared GPU infrastructure for the gogpu ecosystem.
+
+This package defines interfaces and utilities used across multiple gogpu
+projects to enable GPU resource sharing without circular dependencies:
+
+  - DeviceProvider: Interface for providing GPU device and queue
+  - EventSource: Interface for window/input events (keyboard, mouse)
+  - PointerEventSource: Interface for unified pointer events (W3C Level 3,
+    mouse+touch+pen)
+  - WindowProvider: Interface for window geometry, DPI, and redraw requests
+  - PlatformProvider: Interface for clipboard, cursor, dark mode, accessibility
+  - ScrollEventSource: Interface for detailed scroll events
+  - WindowChrome: Interface for custom window chrome (frameless windows)
+  - Texture: Minimal interface for GPU textures
+  - TextureDrawer: Interface for drawing textures (2D rendering)
+  - TextureCreator: Interface for creating textures from pixel data
+
+# Consumers
+
+  - gogpu/gogpu: Implements DeviceProvider via App/Renderer
+  - gogpu/gg: Uses DeviceProvider for GPU-accelerated 2D rendering
+  - born-ml/born: Implements and uses for GPU compute
+
+# Design Principles
+
+This package follows the wgpu ecosystem pattern where shared types are separated
+from implementation.
+
+The key insight is that GPU context (device + queue + related state) is a
+universal concept across Vulkan, CUDA, OpenGL, and WebGPU. By defining a minimal
+interface here, different packages can share GPU resources without depending on
+each other.
+
+# GPU Handle Types
+
+Device, Queue, Adapter, Surface, Instance are opaque struct tokens wrapping
+unsafe.Pointer — same pattern as TextureView and CommandEncoder. 8 bytes,
+value type, zero allocations, GC-safe (reflect.Value precedent).
+
+# Example Usage
+
+    // In gogpu/gogpu — wraps *wgpu.Device into opaque handle
+    func (a *adapter) Device() gpucontext.Device {
+        return gpucontext.NewDevice(unsafe.Pointer(a.renderer.device))
+    }
+
+    // In gogpu/gg — extracts concrete type from handle
+    func initGPU(provider gpucontext.DeviceProvider) {
+        dev := provider.Device()
+        wgpuDev :=(dev.Pointer())
+    }
+
+FUNCTIONS
+
+func UnpackAdapter(h Adapter) hal.Adapter
+    UnpackAdapter recovers the hal.Adapter from an opaque handle. Returns nil
+    for nil handles and for legacy raw-pointer handles.
+
+func UnpackDevice(h Device) hal.Device
+    UnpackDevice recovers the hal.Device from an opaque handle. Returns nil for
+    nil handles and for legacy raw-pointer handles (fail closed, never garbage).
+
+func UnpackQueue(h Queue) hal.Queue
+    UnpackQueue recovers the hal.Queue from an opaque handle. Returns nil for
+    nil handles and for legacy raw-pointer handles.
+
+func UnpackTextureView(h TextureView) hal.TextureView
+    UnpackTextureView recovers the hal.TextureView from an opaque handle.
+    Returns nil for nil handles and for handles that do not carry a packed box
+    (fail closed, never garbage).
+
+func UnpackTextureViewRaw(p unsafe.Pointer) hal.TextureView
+    UnpackTextureViewRaw recovers the hal.TextureView from a res.View.Raw
+    pointer, which is a copy of a packed handle pointer (queue-time fallback
+    path). Returns nil for nil or foreign pointers.
+
+
+TYPES
+
+type Adapter struct {
+	// Has unexported fields.
+}
+    Adapter is a type-safe opaque handle to a physical GPU adapter. 8 bytes,
+    value type, zero allocations. GC-safe.
+
+func NewAdapter(ptr unsafe.Pointer) Adapter
+    NewAdapter creates an Adapter handle.
+
+func PackAdapter(v hal.Adapter) Adapter
+    PackAdapter boxes a hal.Adapter into an opaque handle. A nil adapter yields
+    the zero handle.
+
+func (a Adapter) IsNil() bool
+    IsNil reports whether the handle holds no resource.
+
+func (a Adapter) Pointer() unsafe.Pointer
+    Pointer returns the underlying unsafe.Pointer.
+
+type AdapterInfo struct {
+	// Name is the adapter name (e.g., "NVIDIA GeForce RTX 4090", "Software Renderer").
+	Name string
+	// Type is the adapter type (Discrete, Integrated, Software, Unknown).
+	Type AdapterType
+}
+    AdapterInfo describes the physical GPU adapter. Provided by DeviceProvider
+    for render mode decisions.
+
+type AdapterType int
+    AdapterType describes the physical GPU adapter type. Used by rendering
+    libraries (gg) for render mode auto-selection.
+
+const (
+	// AdapterTypeDiscrete is a dedicated GPU (NVIDIA, AMD discrete).
+	AdapterTypeDiscrete AdapterType = iota
+	// AdapterTypeIntegrated is an integrated GPU (Intel Iris, AMD Vega iGPU).
+	AdapterTypeIntegrated
+	// AdapterTypeSoftware is a CPU-based software renderer.
+	AdapterTypeSoftware
+	// AdapterTypeUnknown means the adapter type could not be determined.
+	AdapterTypeUnknown
+)
+func (t AdapterType) String() string
+    String returns the adapter type name.
+
+type Button int8
+    Button identifies which button triggered a pointer event. This follows the
+    W3C Pointer Events specification button values.
+
+const (
+	// ButtonNone indicates no button or no change in button state.
+	// Used for move events where no button triggered the event.
+	ButtonNone Button = -1
+
+	// ButtonLeft is the primary button (usually left mouse button).
+	ButtonLeft Button = 0
+
+	// ButtonMiddle is the auxiliary button (usually middle mouse button or wheel click).
+	ButtonMiddle Button = 1
+
+	// ButtonRight is the secondary button (usually right mouse button).
+	ButtonRight Button = 2
+
+	// ButtonX1 is the first extra button (usually "back" button).
+	ButtonX1 Button = 3
+
+	// ButtonX2 is the second extra button (usually "forward" button).
+	ButtonX2 Button = 4
+
+	// ButtonEraser is the eraser button on a pen (if available).
+	ButtonEraser Button = 5
+)
+func (b Button) String() string
+    String returns the button name for debugging.
+
+type Buttons uint8
+    Buttons is a bitmask representing currently pressed buttons. This allows
+    tracking multiple button states simultaneously.
+
+const (
+	// ButtonsNone indicates no buttons are pressed.
+	ButtonsNone Buttons = 0
+
+	// ButtonsLeft indicates the left button is pressed.
+	ButtonsLeft Buttons = 1 << 0
+
+	// ButtonsRight indicates the right button is pressed.
+	ButtonsRight Buttons = 1 << 1
+
+	// ButtonsMiddle indicates the middle button is pressed.
+	ButtonsMiddle Buttons = 1 << 2
+
+	// ButtonsX1 indicates the X1 (back) button is pressed.
+	ButtonsX1 Buttons = 1 << 3
+
+	// ButtonsX2 indicates the X2 (forward) button is pressed.
+	ButtonsX2 Buttons = 1 << 4
+
+	// ButtonsEraser indicates the eraser button is pressed.
+	ButtonsEraser Buttons = 1 << 5
+)
+func (b Buttons) Count() int
+    Count returns the number of pressed buttons.
+
+func (b Buttons) HasEraser() bool
+    HasEraser returns true if the eraser button is pressed.
+
+func (b Buttons) HasLeft() bool
+    HasLeft returns true if the left button is pressed.
+
+func (b Buttons) HasMiddle() bool
+    HasMiddle returns true if the middle button is pressed.
+
+func (b Buttons) HasRight() bool
+    HasRight returns true if the right button is pressed.
+
+func (b Buttons) HasX1() bool
+    HasX1 returns true if the X1 (back) button is pressed.
+
+func (b Buttons) HasX2() bool
+    HasX2 returns true if the X2 (forward) button is pressed.
+
+type CommandEncoder struct {
+	// Has unexported fields.
+}
+    CommandEncoder is a type-safe opaque handle to a GPU command encoder.
+
+    Same pattern as TextureView. Used for the shared encoder pipeline (ADR-017).
+    8 bytes, value type, zero allocations.
+
+func NewCommandEncoder(ptr unsafe.Pointer) CommandEncoder
+    NewCommandEncoder creates a CommandEncoder from an unsafe.Pointer to a
+    concrete GPU command encoder.
+
+func (ce CommandEncoder) IsNil() bool
+    IsNil reports whether the handle holds no resource (zero value).
+
+func (ce CommandEncoder) Pointer() unsafe.Pointer
+    Pointer returns the underlying unsafe.Pointer. Consumers type-convert to the
+    concrete type:(ce.Pointer()).
+
+type CursorMode int
+    CursorMode controls how the mouse cursor behaves within the window.
+
+    This follows the pattern established by SDL_SetRelativeMouseMode and
+    SDL_SetWindowMouseGrab, providing three modes that cover the common use
+    cases for games and interactive applications.
+
+const (
+	// CursorModeNormal is the default mode: cursor is visible and moves freely.
+	CursorModeNormal CursorMode = iota
+
+	// CursorModeLocked hides the cursor and confines it to the window.
+	// Mouse movement is reported as relative deltas (DeltaX/DeltaY on PointerEvent).
+	// The cursor is warped to the window center on each frame.
+	// Equivalent to SDL_SetRelativeMouseMode(SDL_TRUE).
+	CursorModeLocked
+
+	// CursorModeConfined keeps the cursor visible but confines it to the window bounds.
+	// Equivalent to SDL_SetWindowMouseGrab(SDL_TRUE).
+	CursorModeConfined
+)
+func (m CursorMode) String() string
+    String returns the cursor mode name for debugging.
+
+type CursorShape int
+    CursorShape represents the mouse cursor shape.
+
+    These values cover the most common cursor shapes across platforms (Windows,
+    macOS, Linux). They map directly to platform-specific cursor constants.
+
+    For applications that need cursor changes:
+
+        if pp, ok := provider.(gpucontext.PlatformProvider); ok {
+            pp.SetCursor(gpucontext.CursorText) // I-beam for text input
+        }
+
+const (
+	// CursorDefault is the standard arrow cursor.
+	CursorDefault CursorShape = iota
+
+	// CursorPointer is the hand cursor for clickable elements.
+	CursorPointer
+
+	// CursorText is the I-beam cursor for text input areas.
+	CursorText
+
+	// CursorCrosshair is the crosshair cursor for precise selection.
+	CursorCrosshair
+
+	// CursorMove is the four-arrow cursor for movable elements.
+	CursorMove
+
+	// CursorResizeNS is the north-south resize cursor.
+	CursorResizeNS
+
+	// CursorResizeEW is the east-west resize cursor.
+	CursorResizeEW
+
+	// CursorResizeNWSE is the NW-SE diagonal resize cursor.
+	CursorResizeNWSE
+
+	// CursorResizeNESW is the NE-SW diagonal resize cursor.
+	CursorResizeNESW
+
+	// CursorNotAllowed is the circle-with-line cursor for forbidden actions.
+	CursorNotAllowed
+
+	// CursorWait is the busy/wait cursor.
+	CursorWait
+
+	// CursorNone hides the cursor.
+	CursorNone
+)
+func (c CursorShape) String() string
+    String returns the cursor shape name for debugging.
+
+type Device struct {
+	// Has unexported fields.
+}
+    Device is a type-safe opaque handle to a logical GPU device. 8 bytes,
+    value type, zero allocations. GC-safe.
+
+func NewDevice(ptr unsafe.Pointer) Device
+    NewDevice creates a Device handle from an unsafe.Pointer to a concrete GPU
+    device.
+
+func PackDevice(v hal.Device) Device
+    PackDevice boxes a hal.Device into an opaque handle. A nil device yields the
+    zero handle.
+
+func (d Device) IsNil() bool
+    IsNil reports whether the handle holds no resource (zero value).
+
+func (d Device) Pointer() unsafe.Pointer
+    Pointer returns the underlying unsafe.Pointer.
+
+type DeviceProvider interface {
+	// Device returns the WebGPU device handle.
+	// The device is used for creating GPU resources (buffers, textures, pipelines).
+	Device() Device
+
+	// Queue returns the WebGPU command queue.
+	// The queue is used for submitting command buffers to the GPU.
+	Queue() Queue
+
+	// SurfaceFormat returns the preferred texture format for the surface.
+	// May return gputypes.TextureFormatUndefined if no surface is attached (headless mode).
+	// This is useful for creating render targets that match the surface format.
+	SurfaceFormat() types.TextureFormat
+
+	// Adapter returns the WebGPU adapter (optional, may be nil).
+	// The adapter provides information about the GPU capabilities.
+	// Some implementations may not expose the adapter.
+	Adapter() Adapter
+
+	// AdapterInfo returns GPU adapter metadata (name, type).
+	// Used by gg for render mode auto-selection: software adapters
+	// prefer CPU rasterizer over GPU shader interpreter.
+	// Returns AdapterTypeUnknown if adapter info is not available.
+	AdapterInfo() AdapterInfo
+}
+    DeviceProvider provides access to GPU device, queue, and related resources.
+    This interface enables dependency injection of GPU capabilities between
+    packages without circular dependencies.
+
+    Implementations:
+      - gogpu.App implements DeviceProvider via renderer
+      - born.Session implements DeviceProvider for ML compute
+
+    Example usage in gg:
+
+        import (
+            "github.com/energye/gpui/gpu/context"
+            "github.com/energye/gpui/gpu/types"
+        )
+
+        func NewGPUCanvas(provider gpucontext.DeviceProvider) *Canvas {
+            format := provider.SurfaceFormat() // returns gputypes.TextureFormat
+            return &Canvas{
+                device: provider.Device(),
+                queue: provider.Queue(),
+                format: format,
+            }
+        }
+
+type EventSource interface {
+
+	// OnKeyPress registers a callback for key press events.
+	OnKeyPress(func(key Key, mods Modifiers))
+
+	// OnKeyRelease registers a callback for key release events.
+	OnKeyRelease(func(key Key, mods Modifiers))
+
+	// OnTextInput registers a callback for text input events.
+	// Text input is the result of key presses after applying keyboard layouts
+	// and input methods. This is the preferred way to handle text entry.
+	OnTextInput(func(text string))
+
+	// OnMouseMove registers a callback for mouse movement.
+	OnMouseMove(func(x, y float64))
+
+	// OnMousePress registers a callback for mouse button press.
+	OnMousePress(func(button MouseButton, x, y float64))
+
+	// OnMouseRelease registers a callback for mouse button release.
+	OnMouseRelease(func(button MouseButton, x, y float64))
+
+	// OnScroll registers a callback for scroll wheel events.
+	// dx and dy are the scroll deltas (positive = right/down).
+	OnScroll(func(dx, dy float64))
+
+	// OnResize registers a callback for window resize.
+	OnResize(func(width, height int))
+
+	// OnFocus registers a callback for focus change.
+	OnFocus(func(focused bool))
+
+	// OnIMECompositionStart registers a callback for when IME composition begins.
+	// This is called when the user starts typing in an IME (e.g., for CJK input).
+	OnIMECompositionStart(fn func())
+
+	// OnIMECompositionUpdate registers a callback for IME composition updates.
+	// Called during composition with the current state (preview text, cursor).
+	OnIMECompositionUpdate(fn func(state IMEState))
+
+	// OnIMECompositionEnd registers a callback for when IME composition ends.
+	// The committed parameter contains the final text that should be inserted.
+	OnIMECompositionEnd(fn func(committed string))
+}
+    EventSource provides input events from the host application to UI
+    frameworks.
+
+    This interface enables UI frameworks (like gogpu/ui) to receive user input
+    events from the host window system. The host application (e.g., gogpu.App)
+    implements EventSource and passes it to the UI layer.
+
+    Event callbacks are invoked on the main thread during the event loop.
+    Callback functions should be fast and non-blocking.
+
+    Example usage in a UI framework:
+
+        func (ui *UI) AttachEvents(source gpucontext.EventSource) {
+            source.OnMousePress(func(button MouseButton, x, y float64) {
+                widget := ui.hitTest(x, y)
+                if widget != nil {
+                    widget.HandleMouseDown(button, x, y)
+                }
+            })
+
+            source.OnKeyPress(func(key Key, mods Modifiers) {
+                ui.focused.HandleKeyDown(key, mods)
+            })
+        }
+
+    Note: This interface is designed for gogpu ↔ ui integration. The rendering
+    library (gg) does NOT use this interface.
+
+type GestureEvent struct {
+	// NumPointers is the number of active touch points.
+	// Gestures require at least 2 pointers.
+	NumPointers int
+
+	// ZoomDelta is the proportional zoom factor for this frame.
+	// 1.0 = no change, >1.0 = zoom in, <1.0 = zoom out.
+	// Computed from change in average distance from centroid.
+	ZoomDelta float64
+
+	// ZoomDelta2D provides non-proportional zoom (stretch) deltas.
+	// This allows independent X and Y scaling for non-uniform zoom.
+	// For most use cases, use ZoomDelta instead.
+	ZoomDelta2D Point
+
+	// RotationDelta is the rotation change in radians for this frame.
+	// Positive = counter-clockwise, negative = clockwise.
+	// Computed from angle change of first pointer relative to centroid.
+	RotationDelta float64
+
+	// TranslationDelta is the pan movement in logical pixels for this frame.
+	// Computed from change in centroid position.
+	TranslationDelta Point
+
+	// PinchType classifies the pinch gesture based on finger geometry.
+	// Useful for constraining zoom to one axis (e.g., timeline scrubbing).
+	PinchType PinchType
+
+	// Center is the centroid of all active touch points.
+	// Use this as the zoom/rotation pivot point.
+	Center Point
+
+	// Timestamp is the event time as duration since an arbitrary reference.
+	// Useful for velocity calculations or animation timing.
+	// Zero if timestamps are not available.
+	Timestamp time.Duration
+}
+    GestureEvent contains computed gesture deltas per frame.
+
+    This event follows the Vello multi-touch pattern where gesture deltas are
+    computed once per frame from the set of active pointers. This approach
+    avoids jitter from individual pointer moves and provides smooth, predictable
+    gesture values.
+
+    The event is designed for multi-touch gestures (pinch-to-zoom, rotation,
+    pan) but degrades gracefully with fewer pointers:
+      - 0-1 pointers: Empty event (no gesture possible)
+      - 2+ pointers: Full gesture with zoom, rotation, and translation
+
+    Example usage:
+
+        source.OnGesture(func(ev gpucontext.GestureEvent) {
+            if ev.NumPointers >= 2 {
+                camera.Zoom(ev.ZoomDelta)
+                camera.Rotate(ev.RotationDelta)
+                camera.Pan(ev.TranslationDelta)
+            }
+        })
+
+type GestureEventSource interface {
+	// OnGesture registers a callback for gesture events.
+	// The callback receives a GestureEvent containing computed deltas.
+	//
+	// Callback threading: Called on the main/UI thread at end of frame.
+	// Callbacks should be fast and non-blocking.
+	//
+	// Gesture events are delivered once per frame when 2+ pointers are active.
+	OnGesture(fn func(GestureEvent))
+}
+    GestureEventSource provides gesture event callbacks.
+
+    This interface extends EventSource with high-level gesture recognition.
+    The gesture recognizer computes deltas once per frame from pointer events,
+    following the Vello pattern for smooth, predictable gestures.
+
+    Type assertion pattern:
+
+        if ges, ok := eventSource.(gpucontext.GestureEventSource); ok {
+            ges.OnGesture(handleGestureEvent)
+        }
+
+    For applications that need gesture support:
+
+        ges.OnGesture(func(ev gpucontext.GestureEvent) {
+            if ev.NumPointers >= 2 {
+                handlePinchZoom(ev.ZoomDelta, ev.Center)
+            }
+        })
+
+type HitTestCallback func(x, y float64) HitTestResult
+    HitTestCallback is called by the platform layer to determine what region of
+    the window the cursor is in. The coordinates (x, y) are in logical points
+    (DIP) relative to the window's top-left corner.
+
+    The callback is invoked during mouse move events when the window is
+    frameless. It must return quickly to avoid input lag.
+
+type HitTestResult int
+    HitTestResult represents what region of the window the cursor is over.
+
+    When a window is frameless (no OS title bar), the application must tell the
+    OS what part of the window the cursor is in, so the OS can handle dragging,
+    resizing, and window button interactions.
+
+    These values map directly to platform-specific hit test constants:
+      - Windows: WM_NCHITTEST return values (HTCLIENT, HTCAPTION, etc.)
+      - macOS: NSWindow regions
+      - Linux: xdg-toplevel resize edges
+
+const (
+	// HitTestClient indicates the cursor is over the client (content) area.
+	// The application handles all input normally.
+	HitTestClient HitTestResult = iota
+
+	// HitTestCaption indicates the cursor is over the title bar / drag area.
+	// The OS handles window dragging on mouse down.
+	HitTestCaption
+
+	// HitTestClose indicates the cursor is over the close button region.
+	HitTestClose
+
+	// HitTestMaximize indicates the cursor is over the maximize button region.
+	HitTestMaximize
+
+	// HitTestMinimize indicates the cursor is over the minimize button region.
+	HitTestMinimize
+
+	// HitTestResizeN indicates the cursor is over the top resize edge.
+	HitTestResizeN
+
+	// HitTestResizeS indicates the cursor is over the bottom resize edge.
+	HitTestResizeS
+
+	// HitTestResizeW indicates the cursor is over the left resize edge.
+	HitTestResizeW
+
+	// HitTestResizeE indicates the cursor is over the right resize edge.
+	HitTestResizeE
+
+	// HitTestResizeNW indicates the cursor is over the top-left resize corner.
+	HitTestResizeNW
+
+	// HitTestResizeNE indicates the cursor is over the top-right resize corner.
+	HitTestResizeNE
+
+	// HitTestResizeSW indicates the cursor is over the bottom-left resize corner.
+	HitTestResizeSW
+
+	// HitTestResizeSE indicates the cursor is over the bottom-right resize corner.
+	HitTestResizeSE
+)
+func (h HitTestResult) String() string
+    String returns the hit test result name for debugging.
+
+type IMEController interface {
+	// SetIMEPosition tells the platform where to show the IME candidate window.
+	// The coordinates are in screen pixels relative to the window.
+	SetIMEPosition(x, y int)
+
+	// SetIMEEnabled enables or disables IME for the current input context.
+	// When disabled, key presses are delivered directly without IME processing.
+	// This is useful for password fields or non-text inputs.
+	SetIMEEnabled(enabled bool)
+}
+    IMEController allows widgets to control IME behavior. This interface is
+    typically implemented by the host window system.
+
+type IMEState struct {
+	// Composing indicates whether IME is currently in composition mode.
+	Composing bool
+
+	// CompositionText is the text currently being composed (e.g., pinyin for Chinese).
+	// This should be displayed inline at the cursor position with special styling.
+	CompositionText string
+
+	// CursorPos is the cursor position within the composition text.
+	CursorPos int
+
+	// SelectionStart is the start of the selection within the composition text.
+	// This is used for candidate selection in some IME systems.
+	SelectionStart int
+
+	// SelectionEnd is the end of the selection within the composition text.
+	SelectionEnd int
+}
+    IMEState represents the current state of the Input Method Editor. This is
+    used for CJK (Chinese, Japanese, Korean) and other complex text input.
+
+    During IME composition, the user types phonetic characters that are
+    converted to ideographic characters. The IMEState contains the current
+    preview text and cursor information for rendering the composition inline.
+
+type Instance struct {
+	// Has unexported fields.
+}
+    Instance is a type-safe opaque handle to the GPU instance entry point.
+    8 bytes, value type, zero allocations. GC-safe.
+
+func NewInstance(ptr unsafe.Pointer) Instance
+    NewInstance creates an Instance handle.
+
+func (i Instance) IsNil() bool
+    IsNil reports whether the handle holds no resource.
+
+func (i Instance) Pointer() unsafe.Pointer
+    Pointer returns the underlying unsafe.Pointer.
+
+type Key uint16
+    Key represents a keyboard key. Values follow a platform-independent virtual
+    key code scheme.
+
+const (
+	KeyUnknown Key = iota
+
+	// Letters
+	KeyA
+	KeyB
+	KeyC
+	KeyD
+	KeyE
+	KeyF
+	KeyG
+	KeyH
+	KeyI
+	KeyJ
+	KeyK
+	KeyL
+	KeyM
+	KeyN
+	KeyO
+	KeyP
+	KeyQ
+	KeyR
+	KeyS
+	KeyT
+	KeyU
+	KeyV
+	KeyW
+	KeyX
+	KeyY
+	KeyZ
+
+	// Numbers
+	Key0
+	Key1
+	Key2
+	Key3
+	Key4
+	Key5
+	Key6
+	Key7
+	Key8
+	Key9
+
+	// Function keys
+	KeyF1
+	KeyF2
+	KeyF3
+	KeyF4
+	KeyF5
+	KeyF6
+	KeyF7
+	KeyF8
+	KeyF9
+	KeyF10
+	KeyF11
+	KeyF12
+
+	// Navigation
+	KeyEscape
+	KeyTab
+	KeyBackspace
+	KeyEnter
+	KeySpace
+	KeyInsert
+	KeyDelete
+	KeyHome
+	KeyEnd
+	KeyPageUp
+	KeyPageDown
+	KeyLeft
+	KeyRight
+	KeyUp
+	KeyDown
+
+	// Modifiers (as keys, not modifiers)
+	KeyLeftShift
+	KeyRightShift
+	KeyLeftControl
+	KeyRightControl
+	KeyLeftAlt
+	KeyRightAlt
+	KeyLeftSuper
+	KeyRightSuper
+
+	// Punctuation
+	KeyMinus
+	KeyEqual
+	KeyLeftBracket
+	KeyRightBracket
+	KeyBackslash
+	KeySemicolon
+	KeyApostrophe
+	KeyGrave
+	KeyComma
+	KeyPeriod
+	KeySlash
+
+	// Numpad
+	KeyNumpad0
+	KeyNumpad1
+	KeyNumpad2
+	KeyNumpad3
+	KeyNumpad4
+	KeyNumpad5
+	KeyNumpad6
+	KeyNumpad7
+	KeyNumpad8
+	KeyNumpad9
+	KeyNumpadDecimal
+	KeyNumpadDivide
+	KeyNumpadMultiply
+	KeyNumpadSubtract
+	KeyNumpadAdd
+	KeyNumpadEnter
+
+	// Other
+	KeyCapsLock
+	KeyScrollLock
+	KeyNumLock
+	KeyPrintScreen
+	KeyPause
+)
+    Common key codes. These match typical USB HID usage codes for cross-platform
+    compatibility.
+
+type Modifiers uint8
+    Modifiers represents keyboard modifier keys.
+
+const (
+	// ModShift indicates the Shift key is pressed.
+	ModShift Modifiers = 1 << iota
+
+	// ModControl indicates the Control key is pressed.
+	ModControl
+
+	// ModAlt indicates the Alt key is pressed (Option on macOS).
+	ModAlt
+
+	// ModSuper indicates the Super key is pressed (Windows/Command).
+	ModSuper
+
+	// ModCapsLock indicates Caps Lock is active.
+	ModCapsLock
+
+	// ModNumLock indicates Num Lock is active.
+	ModNumLock
+)
+func (m Modifiers) HasAlt() bool
+    HasAlt returns true if the Alt modifier is set.
+
+func (m Modifiers) HasControl() bool
+    HasControl returns true if the Control modifier is set.
+
+func (m Modifiers) HasShift() bool
+    HasShift returns true if the Shift modifier is set.
+
+func (m Modifiers) HasSuper() bool
+    HasSuper returns true if the Super modifier is set.
+
+type MouseButton uint8
+    MouseButton represents a mouse button.
+
+const (
+	// MouseButtonLeft is the primary mouse button.
+	MouseButtonLeft MouseButton = iota
+
+	// MouseButtonRight is the secondary mouse button.
+	MouseButtonRight
+
+	// MouseButtonMiddle is the middle mouse button (scroll wheel click).
+	MouseButtonMiddle
+
+	// MouseButton4 is an extra mouse button.
+	MouseButton4
+
+	// MouseButton5 is an extra mouse button.
+	MouseButton5
+)
+type NullEventSource struct{}
+    NullEventSource is an EventSource that ignores all event registrations.
+    Used when events are not needed.
+
+func (NullEventSource) OnFocus(func(bool))
+    OnFocus does nothing.
+
+func (NullEventSource) OnIMECompositionEnd(func(string))
+    OnIMECompositionEnd does nothing.
+
+func (NullEventSource) OnIMECompositionStart(func())
+    OnIMECompositionStart does nothing.
+
+func (NullEventSource) OnIMECompositionUpdate(func(IMEState))
+    OnIMECompositionUpdate does nothing.
+
+func (NullEventSource) OnKeyPress(func(Key, Modifiers))
+    OnKeyPress does nothing.
+
+func (NullEventSource) OnKeyRelease(func(Key, Modifiers))
+    OnKeyRelease does nothing.
+
+func (NullEventSource) OnMouseMove(func(float64, float64))
+    OnMouseMove does nothing.
+
+func (NullEventSource) OnMousePress(func(MouseButton, float64, float64))
+    OnMousePress does nothing.
+
+func (NullEventSource) OnMouseRelease(func(MouseButton, float64, float64))
+    OnMouseRelease does nothing.
+
+func (NullEventSource) OnResize(func(int, int))
+    OnResize does nothing.
+
+func (NullEventSource) OnScroll(func(float64, float64))
+    OnScroll does nothing.
+
+func (NullEventSource) OnTextInput(func(string))
+    OnTextInput does nothing.
+
+type NullGestureEventSource struct{}
+    NullGestureEventSource implements GestureEventSource by ignoring all
+    registrations. Useful for platforms or configurations where gesture input is
+    not available.
+
+func (NullGestureEventSource) OnGesture(func(GestureEvent))
+    OnGesture does nothing.
+
+type NullPlatformProvider struct{}
+    NullPlatformProvider implements PlatformProvider with no-op behavior.
+    Used for testing and platforms without OS integration.
+
+    Default return values:
+      - ClipboardRead: "", nil
+      - ClipboardWrite: nil
+      - SetCursor: no-op
+      - DarkMode: false
+      - ReduceMotion: false
+      - HighContrast: false
+      - FontScale: 1.0
+
+func (NullPlatformProvider) ClipboardRead() (string, error)
+    ClipboardRead returns empty string and nil error.
+
+func (NullPlatformProvider) ClipboardWrite(string) error
+    ClipboardWrite does nothing and returns nil.
+
+func (NullPlatformProvider) DarkMode() bool
+    DarkMode returns false.
+
+func (NullPlatformProvider) FontScale() float32
+    FontScale returns 1.0.
+
+func (NullPlatformProvider) HighContrast() bool
+    HighContrast returns false.
+
+func (NullPlatformProvider) ReduceMotion() bool
+    ReduceMotion returns false.
+
+func (NullPlatformProvider) SetCursor(CursorShape)
+    SetCursor does nothing.
+
+func (NullPlatformProvider) SubpixelLayout() SubpixelLayout
+    SubpixelLayout returns SubpixelNone (grayscale AA).
+
+type NullPointerEventSource struct{}
+    NullPointerEventSource implements PointerEventSource by ignoring all
+    registrations. Useful for platforms or configurations where pointer input is
+    not available.
+
+func (NullPointerEventSource) OnPointer(func(PointerEvent))
+    OnPointer does nothing.
+
+type NullScrollEventSource struct{}
+    NullScrollEventSource implements ScrollEventSource by ignoring all
+    registrations. Useful for platforms or configurations where scroll input is
+    not available.
+
+func (NullScrollEventSource) OnScrollEvent(func(ScrollEvent))
+    OnScrollEvent does nothing.
+
+type NullWindowChrome struct{}
+    NullWindowChrome implements WindowChrome with no-op behavior. Used for
+    testing and platforms without window chrome support.
+
+    Default return values:
+      - IsFrameless: false
+      - IsMaximized: false
+      - IsFullscreen: false
+      - All actions: no-op
+
+func (NullWindowChrome) Close()
+    Close does nothing.
+
+func (NullWindowChrome) IsFrameless() bool
+    IsFrameless returns false.
+
+func (NullWindowChrome) IsFullscreen() bool
+    IsFullscreen returns false.
+
+func (NullWindowChrome) IsMaximized() bool
+    IsMaximized returns false.
+
+func (NullWindowChrome) Maximize()
+    Maximize does nothing.
+
+func (NullWindowChrome) Minimize()
+    Minimize does nothing.
+
+func (NullWindowChrome) SetFrameless(bool)
+    SetFrameless does nothing.
+
+func (NullWindowChrome) SetFullscreen(bool)
+    SetFullscreen does nothing.
+
+func (NullWindowChrome) SetHitTestCallback(HitTestCallback)
+    SetHitTestCallback does nothing.
+
+type NullWindowProvider struct {
+	// W is the window width in logical points (DIP).
+	W int
+
+	// H is the window height in logical points (DIP).
+	H int
+
+	// SF is the DPI scale factor. When zero, ScaleFactor returns 1.0.
+	SF float64
+}
+    NullWindowProvider implements WindowProvider with configurable defaults.
+    Used for testing and headless operation.
+
+    When SF is zero (the default), ScaleFactor returns 1.0.
+
+    Example:
+
+        wp := gpucontext.NullWindowProvider{W: 800, H: 600, SF: 2.0}
+        w, h := wp.Size() // 800, 600 (logical points)
+        scale := wp.ScaleFactor() // 2.0
+
+func (n NullWindowProvider) RequestRedraw()
+    RequestRedraw does nothing.
+
+func (n NullWindowProvider) ScaleFactor() float64
+    ScaleFactor returns the configured scale factor, defaulting to 1.0 when
+    zero.
+
+func (n NullWindowProvider) Size() (int, int)
+    Size returns the configured window dimensions.
+
+type OpenDevice struct {
+	Device Device
+	Queue  Queue
+}
+    OpenDevice bundles a device and queue together.
+
+type PinchType uint8
+    PinchType classifies a two-finger pinch gesture based on finger geometry.
+
+const (
+	// PinchNone indicates no pinch gesture (fewer than 2 pointers).
+	PinchNone PinchType = iota
+
+	// PinchHorizontal indicates horizontal separation exceeds vertical by 3x.
+	// The fingers are spread horizontally, suggesting horizontal zoom/scrub.
+	PinchHorizontal
+
+	// PinchVertical indicates vertical separation exceeds horizontal by 3x.
+	// The fingers are spread vertically, suggesting vertical zoom.
+	PinchVertical
+
+	// PinchProportional indicates uniform pinch (default).
+	// Neither axis dominates, suggesting proportional zoom.
+	PinchProportional
+)
+func (p PinchType) String() string
+    String returns the pinch type name for debugging.
+
+type PlatformProvider interface {
+	// ClipboardRead reads text content from the system clipboard.
+	// Returns empty string and nil error if clipboard is empty or not text.
+	ClipboardRead() (string, error)
+
+	// ClipboardWrite writes text content to the system clipboard.
+	ClipboardWrite(text string) error
+
+	// SetCursor changes the mouse cursor shape.
+	// The cursor is typically reset to CursorDefault at the start of each frame.
+	SetCursor(cursor CursorShape)
+
+	// DarkMode returns true if the system dark mode is active.
+	// Used for automatic theme switching.
+	DarkMode() bool
+
+	// ReduceMotion returns true if the user prefers reduced animation.
+	// Used to disable or simplify animations for accessibility.
+	ReduceMotion() bool
+
+	// HighContrast returns true if the user needs high contrast mode.
+	// Used to adjust colors and borders for accessibility.
+	HighContrast() bool
+
+	// FontScale returns the user's font size preference multiplier.
+	// 1.0 = default system font size. Used to scale Sp (scale-independent pixels).
+	FontScale() float32
+
+	// SubpixelLayout returns the display's subpixel arrangement for LCD text rendering.
+	// Used by 2D graphics libraries (gg) to enable ClearType-quality font rendering.
+	// Returns SubpixelNone when subpixel info is unavailable or on HiDPI displays
+	// where subpixels are too small to be visible.
+	SubpixelLayout() SubpixelLayout
+}
+    PlatformProvider provides OS integration features.
+
+    This interface enables UI frameworks (like gogpu/ui) to access platform
+    capabilities such as clipboard, cursor management, and system accessibility
+    preferences.
+
+    Implementations:
+      - gogpu.App implements PlatformProvider via platform-specific code
+      - NullPlatformProvider provides no-op defaults for testing
+
+    PlatformProvider is optional. Not all WindowProviders support platform
+    integration (e.g., headless or embedded systems). Use type assertion to
+    check availability:
+
+        if pp, ok := provider.(gpucontext.PlatformProvider); ok {
+            pp.SetCursor(gpucontext.CursorPointer)
+        }
+
+    Note: This interface is designed for gogpu <-> ui integration. The rendering
+    library (gg) does NOT use this interface.
+
+type Point struct {
+	X, Y float64
+}
+    Point represents a 2D coordinate in logical pixels.
+
+func (p Point) Add(other Point) Point
+    Add returns the sum of two points.
+
+func (p Point) Scale(factor float64) Point
+    Scale returns the point scaled by a factor.
+
+func (p Point) Sub(other Point) Point
+    Sub returns the difference of two points.
+
+type PointerEvent struct {
+	// Type indicates the type of pointer event (down, up, move, etc.).
+	Type PointerEventType
+
+	// PointerID uniquely identifies the pointer causing this event.
+	// For mouse, this is typically 1. For touch/pen, each contact has a unique ID.
+	// The ID remains constant from PointerDown through PointerUp/PointerCancel.
+	PointerID int
+
+	// X is the horizontal position relative to the window content area.
+	// Uses logical pixels (CSS pixels equivalent).
+	X float64
+
+	// Y is the vertical position relative to the window content area.
+	// Uses logical pixels (CSS pixels equivalent).
+	Y float64
+
+	// Pressure indicates the normalized pressure of the pointer input.
+	// Range: 0.0 (no pressure) to 1.0 (maximum pressure).
+	// For devices without pressure support (e.g., mouse), this is:
+	//   - 0.5 when buttons are pressed
+	//   - 0.0 when no buttons are pressed
+	Pressure float32
+
+	// TiltX is the plane angle between the Y-Z plane and the plane containing
+	// the pointer axis and the Y axis, in degrees.
+	// Range: -90 to 90 degrees.
+	// Positive values tilt toward the right.
+	// 0 when the pointer is perpendicular to the surface or not supported.
+	TiltX float32
+
+	// TiltY is the plane angle between the X-Z plane and the plane containing
+	// the pointer axis and the X axis, in degrees.
+	// Range: -90 to 90 degrees.
+	// Positive values tilt toward the user.
+	// 0 when the pointer is perpendicular to the surface or not supported.
+	TiltY float32
+
+	// Twist is the clockwise rotation of the pointer around its major axis,
+	// in degrees.
+	// Range: 0 to 359 degrees.
+	// 0 when not supported.
+	Twist float32
+
+	// Width is the width of the contact geometry in logical pixels.
+	// For devices that don't support contact geometry, this is 1.
+	Width float32
+
+	// Height is the height of the contact geometry in logical pixels.
+	// For devices that don't support contact geometry, this is 1.
+	Height float32
+
+	// PointerType indicates the type of pointing device.
+	PointerType PointerType
+
+	// IsPrimary indicates if this is the primary pointer of its type.
+	// For single-pointer devices (mouse), this is always true.
+	// For multi-touch, the first finger down is primary.
+	IsPrimary bool
+
+	// Button indicates which button triggered this event.
+	// Only meaningful for PointerDown and PointerUp events.
+	// For PointerMove, this is ButtonNone.
+	Button Button
+
+	// Buttons is a bitmask of all currently pressed buttons.
+	// This allows tracking multiple button states during movement.
+	Buttons Buttons
+
+	// Modifiers contains the keyboard modifier state at event time.
+	Modifiers Modifiers
+
+	// DeltaX is the relative horizontal movement in logical pixels.
+	// Non-zero only when CursorModeLocked is active; zero otherwise.
+	// Use for first-person camera, drag, and other relative-motion input.
+	DeltaX float64
+
+	// DeltaY is the relative vertical movement in logical pixels.
+	// Non-zero only when CursorModeLocked is active; zero otherwise.
+	DeltaY float64
+
+	// Timestamp is the event time as duration since an arbitrary reference.
+	// Useful for calculating velocities and detecting double-clicks.
+	// Zero if timestamps are not available on the platform.
+	Timestamp time.Duration
+}
+    PointerEvent represents a unified pointer event following W3C Pointer Events
+    Level 3.
+
+    This event unifies mouse, touch, and pen input into a single abstraction,
+    enabling applications to handle all pointing devices uniformly.
+
+    W3C Pointer Events Level 3 Specification:
+    https://www.w3.org/TR/pointerevents3/
+
+    Key concepts:
+      - PointerID: Unique identifier for each active pointer
+      - PointerType: Distinguishes mouse, touch, and pen
+      - IsPrimary: Identifies the "main" pointer in multi-pointer scenarios
+      - Pressure/Tilt: Extended properties for pen/touch input
+
+    Example usage:
+
+        source.OnPointer(func(ev gpucontext.PointerEvent) {
+            switch ev.Type {
+            case gpucontext.PointerDown:
+                startDrag(ev.PointerID, ev.X, ev.Y)
+            case gpucontext.PointerMove:
+                if ev.Pressure > 0 {
+                    updateDrag(ev.PointerID, ev.X, ev.Y, ev.Pressure)
+                }
+            case gpucontext.PointerUp:
+                endDrag(ev.PointerID)
+            }
+        })
+
+type PointerEventSource interface {
+	// OnPointer registers a callback for pointer events.
+	// The callback receives a PointerEvent containing all pointer information.
+	//
+	// Callback threading: Called on the main/UI thread.
+	// Callbacks should be fast and non-blocking.
+	//
+	// Pointer events are delivered in order:
+	//   PointerEnter -> PointerDown -> PointerMove* -> PointerUp/PointerCancel -> PointerLeave
+	OnPointer(fn func(PointerEvent))
+}
+    PointerEventSource extends EventSource with unified pointer event
+    capabilities.
+
+    This interface provides W3C Pointer Events Level 3 compliant pointer input,
+    unifying mouse, touch, and pen input into a single event stream.
+
+    Implementation note: Rather than adding to EventSource directly, we use
+    a separate interface to maintain backward compatibility and allow type
+    assertion:
+
+        if pes, ok := eventSource.(gpucontext.PointerEventSource); ok {
+            pes.OnPointer(handlePointerEvent)
+        }
+
+    For applications that need only unified pointer events:
+
+        pes.OnPointer(func(ev gpucontext.PointerEvent) {
+            // Handle all pointer types uniformly
+        })
+
+type PointerEventType uint8
+    PointerEventType indicates the type of pointer event.
+
+const (
+	// PointerDown is fired when a pointer becomes active.
+	// For mouse: button press.
+	// For touch: contact starts.
+	// For pen: contact with or hover above the digitizer.
+	PointerDown PointerEventType = iota
+
+	// PointerUp is fired when a pointer is no longer active.
+	// For mouse: button release.
+	// For touch: contact ends.
+	// For pen: leaves the digitizer detection range.
+	PointerUp
+
+	// PointerMove is fired when a pointer changes coordinates.
+	// Also fired when pressure, tilt, or other properties change.
+	PointerMove
+
+	// PointerEnter is fired when a pointer enters the window bounds.
+	// Does not bubble in W3C spec, but we deliver it directly.
+	PointerEnter
+
+	// PointerLeave is fired when a pointer leaves the window bounds.
+	// Does not bubble in W3C spec, but we deliver it directly.
+	PointerLeave
+
+	// PointerCancel is fired when the system cancels the pointer.
+	// This happens when:
+	//   - The browser decides the pointer is unlikely to produce more events
+	//   - A device orientation change occurs
+	//   - The application loses focus during an active pointer
+	// Always handle cancellation to reset state properly.
+	PointerCancel
+)
+func (t PointerEventType) String() string
+    String returns the event type name for debugging.
+
+type PointerType uint8
+    PointerType indicates the type of pointing device.
+
+const (
+	// PointerTypeMouse indicates a mouse or similar device.
+	// Includes trackpads when they emulate mouse behavior.
+	PointerTypeMouse PointerType = iota
+
+	// PointerTypeTouch indicates direct touch input.
+	// Includes touchscreens and touch-enabled trackpads.
+	PointerTypeTouch
+
+	// PointerTypePen indicates a stylus or pen input.
+	// Includes graphics tablets and pen-enabled displays.
+	PointerTypePen
+)
+func (t PointerType) String() string
+    String returns the pointer type name for debugging.
+
+type Queue struct {
+	// Has unexported fields.
+}
+    Queue is a type-safe opaque handle to a GPU command queue. 8 bytes, value
+    type, zero allocations. GC-safe.
+
+func NewQueue(ptr unsafe.Pointer) Queue
+    NewQueue creates a Queue handle.
+
+func PackQueue(v hal.Queue) Queue
+    PackQueue boxes a hal.Queue into an opaque handle. A nil queue yields the
+    zero handle.
+
+func (q Queue) IsNil() bool
+    IsNil reports whether the handle holds no resource.
+
+func (q Queue) Pointer() unsafe.Pointer
+    Pointer returns the underlying unsafe.Pointer.
+
+type Registry[T any] struct {
+	// Has unexported fields.
+}
+    Registry provides thread-safe registration and lookup of named factories.
+    It supports priority-based selection when multiple implementations exist.
+
+    Type parameter T is the type returned by factories.
+
+    Example:
+
+        var backends = gpucontext.NewRegistry[Backend](
+            gpucontext.WithPriority("vulkan", "dx12", "metal", "gles", "software"),
+        )
+
+        backends.Register("vulkan", func() Backend { return NewVulkanBackend() })
+        backends.Register("software", func() Backend { return NewSoftwareBackend() })
+
+        best := backends.Best() // Returns vulkan if available, otherwise software
+
+func NewRegistry[T any](opts ...RegistryOption) *Registry[T]
+    NewRegistry creates a new Registry with optional configuration.
+
+func (r *Registry[T]) Available() []string
+    Available returns all registered names. Thread-safe.
+
+func (r *Registry[T]) Best() T
+    Best returns the highest-priority registered implementation. Returns the
+    zero value of T if no implementations are registered. Thread-safe.
+
+func (r *Registry[T]) BestName() string
+    BestName returns the name of the highest-priority registered implementation.
+    Returns empty string if no implementations are registered. Thread-safe.
+
+func (r *Registry[T]) Count() int
+    Count returns the number of registered factories. Thread-safe.
+
+func (r *Registry[T]) Get(name string) T
+    Get returns the factory output for the given name. Returns the zero value of
+    T if not found. Thread-safe.
+
+func (r *Registry[T]) Has(name string) bool
+    Has returns true if a factory with the given name is registered.
+    Thread-safe.
+
+func (r *Registry[T]) Register(name string, factory func() T)
+    Register adds a factory for the given name. If a factory with the same name
+    already exists, it is replaced. Thread-safe.
+
+func (r *Registry[T]) Unregister(name string)
+    Unregister removes the factory with the given name. Thread-safe.
+
+type RegistryOption func(*registryConfig)
+    RegistryOption configures a Registry.
+
+func WithPriority(names ...string) RegistryOption
+    WithPriority sets the priority order for backend selection. Backends listed
+    first are preferred over backends listed later. Backends not in the list
+    have lowest priority (in registration order).
+
+type ScrollDeltaMode uint8
+    ScrollDeltaMode indicates the unit of scroll delta values.
+
+const (
+	// ScrollDeltaPixel indicates delta values are in logical pixels.
+	// This is typical for touchpad scrolling.
+	ScrollDeltaPixel ScrollDeltaMode = iota
+
+	// ScrollDeltaLine indicates delta values are in lines.
+	// This is typical for traditional mouse wheel scrolling.
+	// Applications should convert to pixels using their line height.
+	ScrollDeltaLine
+
+	// ScrollDeltaPage indicates delta values are in pages.
+	// This is rare but may occur for Page Up/Down emulation.
+	// Applications should convert to pixels using their viewport height.
+	ScrollDeltaPage
+)
+func (m ScrollDeltaMode) String() string
+    String returns the delta mode name for debugging.
+
+type ScrollEvent struct {
+	// X is the pointer horizontal position at the time of scrolling.
+	// Uses logical pixels relative to the window content area.
+	X float64
+
+	// Y is the pointer vertical position at the time of scrolling.
+	// Uses logical pixels relative to the window content area.
+	Y float64
+
+	// DeltaX is the horizontal scroll amount.
+	// Positive values scroll content to the right (or indicate rightward intent).
+	// The unit depends on DeltaMode.
+	DeltaX float64
+
+	// DeltaY is the vertical scroll amount.
+	// Positive values scroll content down (or indicate downward intent).
+	// The unit depends on DeltaMode.
+	DeltaY float64
+
+	// DeltaMode indicates the unit of the delta values.
+	DeltaMode ScrollDeltaMode
+
+	// Modifiers contains the keyboard modifier state at event time.
+	// Commonly used for Ctrl+scroll zoom behavior.
+	Modifiers Modifiers
+
+	// Timestamp is the event time as duration since an arbitrary reference.
+	// Useful for smooth scrolling animations.
+	// Zero if timestamps are not available on the platform.
+	Timestamp time.Duration
+
+	// Phase indicates the scroll gesture phase.
+	// On macOS: reflects NSEvent.phase (active touch gesture).
+	// On Wayland: derived from axis_source and axis_stop events.
+	// For discrete mouse wheel: always ScrollPhaseNone.
+	Phase ScrollPhase
+
+	// IsMomentum indicates this is an inertial/momentum scroll event.
+	// On macOS trackpad: true when NSEvent.momentumPhase is active
+	// (user lifted fingers but scroll continues with deceleration).
+	// Applications can filter momentum events to stop coasting on cursor exit.
+	// On platforms without momentum scrolling: always false.
+	IsMomentum bool
+}
+    ScrollEvent represents a scroll wheel or touchpad scroll event.
+
+    This event is separate from PointerEvent because scroll events have
+    different semantics:
+      - They don't have a persistent pointer ID
+      - They provide delta values rather than absolute positions
+      - They may have different units (lines, pages, pixels)
+
+    For touchpad gestures, consider using GestureEvent (if available) for
+    pinch-to-zoom and other multi-finger gestures.
+
+    Example usage:
+
+        source.OnScroll(func(ev gpucontext.ScrollEvent) {
+            scrollY += ev.DeltaY * scrollSpeed
+            if ev.Modifiers.HasControl() {
+                // Ctrl+scroll for zoom
+                zoom *= 1.0 + ev.DeltaY * 0.1
+            }
+        })
+
+type ScrollEventSource interface {
+	// OnScrollEvent registers a callback for detailed scroll events.
+	// The callback receives a ScrollEvent containing all scroll information.
+	//
+	// Callback threading: Called on the main/UI thread.
+	// Callbacks should be fast and non-blocking.
+	OnScrollEvent(fn func(ScrollEvent))
+}
+    ScrollEventSource extends EventSource with scroll event capabilities.
+
+    This interface provides detailed scroll events with position, delta mode,
+    and timing information beyond what the basic EventSource.OnScroll provides.
+
+    For basic scroll handling, EventSource.OnScroll(dx, dy) is sufficient.
+    Use ScrollEventSource when you need:
+      - Pointer position at scroll time
+      - Delta mode (pixels vs lines vs pages)
+      - Timestamps for smooth scrolling
+
+    Type assertion pattern:
+
+        if ses, ok := eventSource.(gpucontext.ScrollEventSource); ok {
+            ses.OnScrollEvent(handleScrollEvent)
+        } else {
+            // Fall back to basic scroll handler
+            eventSource.OnScroll(handleBasicScroll)
+        }
+
+type ScrollPhase uint8
+    ScrollPhase indicates the phase of a scroll gesture. On macOS trackpad:
+    reflects active touch or inertial momentum. On Wayland: reflects axis source
+    start/stop. For discrete mouse wheel or platforms without gesture phases:
+    always ScrollPhaseNone.
+
+const (
+	// ScrollPhaseNone indicates a discrete scroll event (e.g. mouse wheel click).
+	// No gesture phase tracking is available.
+	ScrollPhaseNone ScrollPhase = iota
+
+	// ScrollPhaseBegan indicates the start of a scroll gesture or momentum phase.
+	ScrollPhaseBegan
+
+	// ScrollPhaseChanged indicates an ongoing scroll gesture or momentum phase.
+	ScrollPhaseChanged
+
+	// ScrollPhaseEnded indicates the end of a scroll gesture or momentum phase.
+	ScrollPhaseEnded
+
+	// ScrollPhaseCanceled indicates the scroll gesture was interrupted.
+	ScrollPhaseCanceled
+)
+func (p ScrollPhase) String() string
+    String returns the name of the scroll phase.
+
+type SubpixelLayout int
+    SubpixelLayout describes the physical arrangement of RGB subpixels on a
+    display. Used for LCD/ClearType font rendering to achieve sharper text
+    by exploiting the subpixel structure. Qt6 (QPlatformScreen), Wayland
+    (wl_output.geometry), and DRM/KMS (drmModeConnector) all expose this as a
+    display property.
+
+const (
+	// SubpixelNone means no subpixel information is available or applicable.
+	// Text rendering falls back to grayscale anti-aliasing.
+	// Used on HiDPI displays where subpixels are too small to exploit.
+	SubpixelNone SubpixelLayout = iota
+
+	// SubpixelRGB is horizontal RGB ordering (most common: Windows LCD, most external monitors).
+	SubpixelRGB
+
+	// SubpixelBGR is horizontal BGR ordering (some Samsung and older displays).
+	SubpixelBGR
+
+	// SubpixelVRGB is vertical RGB ordering (rare, some rotated displays).
+	SubpixelVRGB
+
+	// SubpixelVBGR is vertical BGR ordering (rare).
+	SubpixelVBGR
+)
+func (s SubpixelLayout) String() string
+    String returns the subpixel layout name for debugging.
+
+type Surface struct {
+	// Has unexported fields.
+}
+    Surface is a type-safe opaque handle to a rendering surface (window).
+    8 bytes, value type, zero allocations. GC-safe.
+
+func NewSurface(ptr unsafe.Pointer) Surface
+    NewSurface creates a Surface handle.
+
+func (s Surface) IsNil() bool
+    IsNil reports whether the handle holds no resource.
+
+func (s Surface) Pointer() unsafe.Pointer
+    Pointer returns the underlying unsafe.Pointer.
+
+type Texture interface {
+	// Width returns the texture width in pixels.
+	Width() int
+
+	// Height returns the texture height in pixels.
+	Height() int
+}
+    Texture is the minimal interface for GPU textures. This interface enables
+    type-safe cross-package texture handling without circular dependencies.
+
+    Implementations:
+      - gogpu.Texture implements Texture
+
+    Design note: This interface intentionally contains only read-only methods
+    that are universally needed for texture operations. Implementation-specific
+    methods (like UpdateData) remain on concrete types.
+
+type TextureCreator interface {
+	// NewTextureFromRGBA creates a texture from RGBA pixel data.
+	// The data must be width * height * 4 bytes (RGBA, 8 bits per channel).
+	//
+	// The returned Texture can be drawn using TextureDrawer.DrawTexture.
+	//
+	// Returns error if:
+	//   - Data size doesn't match width * height * 4
+	//   - GPU texture creation fails
+	NewTextureFromRGBA(width, height int, data []byte) (Texture, error)
+}
+    TextureCreator provides texture creation from raw pixel data. This interface
+    enables packages to create GPU textures without depending directly on
+    specific GPU implementations.
+
+    Implementations:
+      - gogpu.Renderer implements TextureCreator (via adapter)
+
+    Example usage:
+
+        creator := drawer.TextureCreator()
+        tex, err := creator.NewTextureFromRGBA(800, 600, pixelData)
+        if err != nil {
+            return err
+        }
+        drawer.DrawTexture(tex, 0, 0)
+
+type TextureDrawer interface {
+	// DrawTexture draws a texture at the specified position.
+	//
+	// Coordinate system:
+	//   - (0, 0) is the top-left corner
+	//   - Positive X goes right
+	//   - Positive Y goes down
+	//   - Coordinates are in pixels
+	//
+	// The texture must have been created by TextureCreator from this drawer.
+	DrawTexture(tex Texture, x, y float32) error
+
+	// TextureCreator returns the texture creator associated with this drawer.
+	// Use this to create textures that can be drawn by this drawer.
+	TextureCreator() TextureCreator
+}
+    TextureDrawer provides texture drawing capabilities for 2D rendering. This
+    interface enables packages like ggcanvas to draw textures without depending
+    directly on gogpu, following the Dependency Inversion Principle.
+
+    Implementations:
+      - gogpu.Context implements TextureDrawer (via adapter)
+
+    Example usage in ggcanvas:
+
+        func (c *Canvas) RenderTo(drawer gpucontext.TextureDrawer) error {
+            tex, _ := c.Flush()
+            return drawer.DrawTexture(tex, 0, 0)
+        }
+
+type TextureRegionUpdater interface {
+	// UpdateRegion uploads a sub-rectangle of pixel data to the texture.
+	// x, y is the top-left corner of the region in the texture.
+	// w, h is the size of the region.
+	// data must be exactly w * h * bytesPerPixel bytes (densely packed RGBA rows).
+	//
+	// Returns error if the region exceeds texture bounds, data size is invalid,
+	// or the texture has been destroyed.
+	UpdateRegion(x, y, w, h int, data []byte) error
+}
+    TextureRegionUpdater uploads a sub-rectangle of pixel data to the texture.
+    Use for incremental rendering where only a small portion of the texture
+    changes per frame (e.g., dirty region upload).
+
+    Implementations:
+      - gogpu.Texture implements TextureRegionUpdater
+
+type TextureUpdater interface {
+	// UpdateData uploads new pixel data to the texture.
+	// Data must be exactly width * height * bytesPerPixel bytes (typically RGBA).
+	//
+	// Returns error if the texture has been destroyed or data size is invalid.
+	UpdateData(data []byte) error
+}
+    TextureUpdater updates existing texture pixel data. Use for dynamic content
+    such as canvas rendering and video frames.
+
+    Implementations:
+      - gogpu.Texture implements TextureUpdater
+
+type TextureView struct {
+	// Has unexported fields.
+}
+    TextureView is a type-safe opaque handle to a GPU texture view.
+
+    Provides compile-time type safety: TextureView cannot be confused with
+    CommandEncoder or other GPU resource types (unlike the previous interface{}
+    token approach).
+
+    The ptr field is unexported, preventing construction outside this package.
+    Use NewTextureView to create, Pointer to extract, IsNil to check. 8 bytes,
+    value type, zero allocations.
+
+func NewTextureView(ptr unsafe.Pointer) TextureView
+    NewTextureView creates a TextureView from an unsafe.Pointer to a concrete
+    GPU texture view. The caller must ensure the pointer remains valid for the
+    lifetime of the returned handle.
+
+func PackTextureView(v hal.TextureView) TextureView
+    PackTextureView boxes a hal.TextureView into an opaque handle. A nil view
+    yields the zero handle.
+
+func (tv TextureView) IsNil() bool
+    IsNil reports whether the handle holds no resource (zero value).
+
+func (tv TextureView) Pointer() unsafe.Pointer
+    Pointer returns the underlying unsafe.Pointer. Consumers type-convert to the
+    concrete type:(tv.Pointer()).
+
+type WindowChrome interface {
+	// SetFrameless enables or disables frameless (borderless) window mode.
+	// When true, the OS title bar and borders are removed.
+	// The application must provide its own title bar via SetHitTestCallback.
+	SetFrameless(frameless bool)
+
+	// IsFrameless returns true if the window is in frameless mode.
+	IsFrameless() bool
+
+	// SetHitTestCallback sets the callback that determines what region
+	// of the window the cursor is over. This is used by the platform layer
+	// to route mouse events to the OS for dragging, resizing, etc.
+	//
+	// Pass nil to clear the callback (all areas become HitTestClient).
+	SetHitTestCallback(callback HitTestCallback)
+
+	// Minimize minimizes the window to the taskbar/dock.
+	Minimize()
+
+	// Maximize toggles between maximized and restored window state.
+	// If the window is currently maximized, it is restored to its previous size.
+	Maximize()
+
+	// IsMaximized returns true if the window is currently maximized.
+	IsMaximized() bool
+
+	// SetFullscreen enters or exits fullscreen mode.
+	// On Windows: borderless fullscreen (Chromium pattern).
+	// On macOS: native toggleFullScreen with animation.
+	// On X11: _NET_WM_STATE_FULLSCREEN.
+	// On Wayland: xdg_toplevel.set_fullscreen / unset_fullscreen.
+	SetFullscreen(fullscreen bool)
+
+	// IsFullscreen returns true if the window is currently in fullscreen mode.
+	IsFullscreen() bool
+
+	// Close requests the window to close.
+	// This triggers the normal close flow (close events, cleanup).
+	Close()
+}
+    WindowChrome provides control over window chrome (title bar, borders).
+
+    This interface enables replacing the OS window chrome with a custom
+    GPU-rendered title bar. When frameless mode is enabled, the OS removes the
+    title bar and borders, and the application takes responsibility for:
+      - Rendering its own title bar
+      - Providing hit-test regions (drag area, buttons, resize edges)
+      - Handling minimize/maximize/close actions
+
+    Implementations:
+      - gogpu.App implements WindowChrome via platform-specific code
+      - NullWindowChrome provides no-op defaults for testing
+
+    WindowChrome is optional. Use type assertion to check availability:
+
+        if wc, ok := provider.(gpucontext.WindowChrome); ok {
+            wc.SetFrameless(true)
+            wc.SetHitTestCallback(myHitTest)
+        }
+
+type WindowProvider interface {
+	// Size returns the current window client area dimensions in logical points (DIP).
+	// On HiDPI displays, multiply by ScaleFactor() to get physical pixel dimensions.
+	Size() (width, height int)
+
+	// ScaleFactor returns the DPI scale factor.
+	// 1.0 = standard (96 DPI on Windows, 72 on macOS), 2.0 = Retina/HiDPI.
+	ScaleFactor() float64
+
+	// RequestRedraw requests the host to render a new frame.
+	// In on-demand rendering mode, this triggers a single frame render.
+	// In continuous mode, this is a no-op.
+	RequestRedraw()
+}
+    WindowProvider provides window geometry and DPI information.
+
+    This interface enables UI frameworks (like gogpu/ui) and rendering
+    libraries (like gg/ggcanvas) to query window dimensions and scale factor for
+    HiDPI-aware layout and rendering.
+
+    Size() returns logical points (DIP — density-independent pixels). To get
+    physical pixel dimensions, multiply by ScaleFactor():
+
+        physW := int(float64(w) * scale)
+
+    Implementations:
+      - gogpu.App implements WindowProvider via platform window
+      - gogpu.gpuContextAdapter implements WindowProvider (returned by
+        GPUContextProvider)
+      - NullWindowProvider provides configurable defaults for testing
+
+    Example usage:
+
+        func (ui *UI) Layout(wp gpucontext.WindowProvider) {
+            w, h := wp.Size() // logical points
+            scale := wp.ScaleFactor() // 2.0 on Retina
+            ui.root.Layout(w, h, scale)
+        }
+

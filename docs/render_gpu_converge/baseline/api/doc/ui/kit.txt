@@ -1,0 +1,2916 @@
+package kit // import "github.com/energye/gpui/ui/kit"
+
+Package kit hosts the flat antd component library.
+
+Every component lives directly in this package as <prefix>_*.go files
+(no per-component subpackages). Exported component names carry their
+prefix (ButtonProps, BuildButton). Foundation facades live here too:
+prim.go (layout/decor/content over ui/rendering), behavior.go
+(interaction/motion/semantics/performance/direction), gate.go (the four F0
+central-gate checks), scope.go (Ctx, WidgetState, resolve helpers). Internal
+implementations sit under ui/kit/internal/...; examples/kit_* windows use only
+the public kit API and never import internal paths.
+
+CONSTANTS
+
+const (
+	ColorModelPanelW       = 234.0
+	ColorModelPanelPad     = 12.0
+	ColorModelSVH          = 210.0
+	ColorModelStripH       = 8.0
+	ColorModelStripGap     = 8.0
+	ColorModelHandleSmall  = 12.0
+	ColorModelHandleNormal = 16.0
+)
+    Painting stays in prim when F0-2 lands; this file only computes rects.
+
+    Panel 234 wide; SV square fills width minus 2*12 padding; hue/alpha strips 8
+    tall; handles 12 (small) / 16.
+
+const (
+	ColorModelSwatchSmall  = 16.0
+	ColorModelSwatchMedium = 24.0
+	ColorModelSwatchLarge  = 32.0
+)
+const (
+	NoticeQueueMessageWidthMax   = 520.0
+	NoticeQueueMessageItemH      = 40.0
+	NoticeQueueMessageGap        = 8.0
+	NoticeQueueNotificationWidth = 384.0
+	NoticeQueueNotificationH     = 120.0
+	NoticeQueueNotificationGap   = 16.0
+	NoticeQueueEdge              = 24.0
+)
+    Fixed notice geometry aligned to antd 6.5.1 component tokens. Painting stays
+    in prim when F0-2 lands; this file only computes rects.
+
+const (
+	// PrimDirLTR lays Row children left to right.
+	PrimDirLTR = prim.DirLTR
+	// PrimDirRTL lays Row children right to left.
+	PrimDirRTL = prim.DirRTL
+	// PrimPicturePlaceholder shows the fill color, no pixels yet.
+	PrimPicturePlaceholder = prim.PicturePlaceholder
+	// PrimPictureReady shows decoded pixels.
+	PrimPictureReady = prim.PictureReady
+	// PrimPictureError shows the error chrome.
+	PrimPictureError = prim.PictureError
+	// PrimCrossStart packs at the cross start.
+	PrimCrossStart = prim.CrossStart
+	// PrimCrossCenter centers on the cross axis.
+	PrimCrossCenter = prim.CrossCenter
+	// PrimCrossStretch documents full-cross fill.
+	PrimCrossStretch = prim.CrossStretch
+)
+const (
+	// QRCodeDefaultSize is the outer edge (160).
+	QRCodeDefaultSize = 160.0
+	// QRCodePad is the bordered inner padding (paddingSM = 12).
+	QRCodePad = 12.0
+	// QRCodeRadius is the outer corner radius (borderRadiusLG = 8,
+	// not the generic radius 6).
+	QRCodeRadius = 8.0
+	// QRCodeLineWidth is the border width (1).
+	QRCodeLineWidth = 1.0
+	// QRCodeDefaultIcon is the default center icon edge (40).
+	QRCodeDefaultIcon = 40.0
+)
+    Painting stays in prim when F0-2 lands; this file only computes rects.
+
+const (
+	// ScopeSizeSmall is the compact tier.
+	ScopeSizeSmall = scope.SizeSmall
+	// ScopeSizeMedium is the default tier.
+	ScopeSizeMedium = scope.SizeMedium
+	// ScopeSizeLarge is the roomy tier.
+	ScopeSizeLarge = scope.SizeLarge
+	// ScopeDirLTR lays out left to right.
+	ScopeDirLTR = scope.DirLTR
+	// ScopeDirRTL lays out right to left.
+	ScopeDirRTL = scope.DirRTL
+	// ScopeOverflowViewport clips inside the viewport.
+	ScopeOverflowViewport = scope.OverflowViewport
+	// ScopeOverflowScroll scrolls with the container.
+	ScopeOverflowScroll = scope.OverflowScroll
+	// ScopeVariantOutlined draws bordered inputs.
+	ScopeVariantOutlined = scope.VariantOutlined
+	// ScopeVariantFilled draws filled inputs.
+	ScopeVariantFilled = scope.VariantFilled
+	// ScopeVariantBorderless draws chromeless inputs.
+	ScopeVariantBorderless = scope.VariantBorderless
+
+	// ScopeAspectTheme subscribes to token tables.
+	ScopeAspectTheme = scope.AspectTheme
+	// ScopeAspectSize subscribes to the size tier.
+	ScopeAspectSize = scope.AspectSize
+	// ScopeAspectDisabled subscribes to subtree disable.
+	ScopeAspectDisabled = scope.AspectDisabled
+	// ScopeAspectDir subscribes to base direction.
+	ScopeAspectDir = scope.AspectDir
+	// ScopeAspectMotion subscribes to motion config.
+	ScopeAspectMotion = scope.AspectMotion
+	// ScopeAspectLocale subscribes to locale.
+	ScopeAspectLocale = scope.AspectLocale
+	// ScopeAspectPopup subscribes to popup behavior.
+	ScopeAspectPopup = scope.AspectPopup
+	// ScopeAspectEmpty subscribes to empty/holder renders.
+	ScopeAspectEmpty = scope.AspectEmpty
+	// ScopeAspectVariant subscribes to the input look.
+	ScopeAspectVariant = scope.AspectVariant
+)
+const (
+	// ScopeStateHover reports pointer over.
+	ScopeStateHover = scope.StateHover
+	// ScopeStatePressed reports held down.
+	ScopeStatePressed = scope.StatePressed
+	// ScopeStateFocused reports keyboard focus.
+	ScopeStateFocused = scope.StateFocused
+	// ScopeStateDisabled reports disabled.
+	ScopeStateDisabled = scope.StateDisabled
+	// ScopeStateLoading reports pending action.
+	ScopeStateLoading = scope.StateLoading
+	// ScopeStateSelected reports toggled-on.
+	ScopeStateSelected = scope.StateSelected
+	// ScopeStateError reports validation error.
+	ScopeStateError = scope.StateError
+)
+const (
+	TourMaskPanelWidthMax = 520.0
+	TourMaskPanelH        = 180.0
+	TourMaskPanelPad      = 16.0
+	TourMaskPanelGap      = 12.0
+	TourMaskZDefault      = 1001
+)
+    Fixed tour geometry aligned to antd 6.5.1 component tokens. Painting stays
+    in prim when F0-2 lands; this file only computes rects.
+
+const (
+	// UploadPictureCardSize is the photo-wall cell edge (~102).
+	UploadPictureCardSize = 102.0
+	// UploadThumbnailSize is the picture-list thumbnail edge (48).
+	UploadThumbnailSize = 48.0
+	// UploadProgressLine is the list progress line width (2).
+	UploadProgressLine = 2.0
+	// UploadItemPadX is the list item horizontal padding (4).
+	UploadItemPadX = 4.0
+	// UploadItemMarginTop is the list item top margin (4).
+	UploadItemMarginTop = 4.0
+	// UploadDragPad is the drag area inner padding (16).
+	UploadDragPad = 16.0
+	// UploadDragRadius is the drag area corner radius (8).
+	UploadDragRadius = 8.0
+	// UploadItemH is the text list row height.
+	UploadItemH = 32.0
+)
+    Painting stays in prim when F0-2 lands; this file only computes rects.
+
+const DefaultIconSize = 16.0
+    DefaultIconSize is the 16px default edge (icon.md 6.2.1).
+
+
+FUNCTIONS
+
+func BehaviorArrowPrevNext(dir scope.Direction, prev, next string) (string, string)
+    BehaviorArrowPrevNext returns (prev,next) arrows for dir.
+
+func BehaviorAuditOne(n *semantics.Node) (bool, string)
+    BehaviorAuditOne checks a single semantics node for name plus role.
+
+func BehaviorAuditTree(root *semantics.Node) (int, int)
+    BehaviorAuditTree counts named-and-roled nodes.
+
+func BehaviorCanWave(motion scope.MotionConfig, cfg BehaviorWaveConfig) bool
+    BehaviorCanWave reports whether a ripple may start.
+
+func BehaviorCheckIsolation(animatedDirty, siblingDirty bool) bool
+    BehaviorCheckIsolation reports the repaint-boundary contract.
+
+func BehaviorContains(x, y, w, h, px, py float64) bool
+    BehaviorContains reports rect hit for window routing.
+
+func BehaviorContrastRatio(fg, bg theme.Color) float64
+    BehaviorContrastRatio returns the WCAG ratio of fg over bg.
+
+func BehaviorEmptyText(ctx scope.Ctx, component string) string
+    BehaviorEmptyText resolves empty copy via Ctx.
+
+func BehaviorFadeAt(t float64) float64
+    BehaviorFadeAt returns implicit fade opacity for t in [0,1].
+
+func BehaviorIsRTL(ctx scope.Ctx) bool
+    BehaviorIsRTL reports right-to-left layout.
+
+func BehaviorMinTouchOK(w, h float64) bool
+    BehaviorMinTouchOK is the advisory 44px touch target check.
+
+func BehaviorMirrorX(x, width float64, dir scope.Direction) float64
+    BehaviorMirrorX mirrors an offset inside width for RTL.
+
+func BehaviorParseDuration(s string) float64
+    BehaviorParseDuration parses "0.1s"/"200ms" into seconds.
+
+func BehaviorPassContrast(ratio float64) bool
+    BehaviorPassContrast reports ratio >= 4.5 (advisory only).
+
+func BehaviorResolveCurve(name string) animation.Curve
+    BehaviorResolveCurve maps a token-style name to an engine curve.
+
+func BehaviorVirtualBoundOK(total, bound int) bool
+    BehaviorVirtualBoundOK checks bind_count far below item_count.
+
+func BehaviorWaveColor(border, bg theme.Color, hasBorder bool) theme.Color
+    BehaviorWaveColor picks border color when bordered, else background.
+
+func CenturyStartOf(year int) int
+    CenturyStartOf returns the century floor of a year.
+
+func ColorModelAlphaXY(alpha float64, layout ColorModelPanelLayout) (x, y float64)
+    ColorModelAlphaXY returns the alpha handle center for alpha 0..1.
+
+func ColorModelHSBToRGB(h, s, b float64) (r, g, bl int)
+    ColorModelHSBToRGB converts H(0..360) S/B/A(0..1) to 0..255 ints.
+
+func ColorModelHandleXY(hue float64, layout ColorModelPanelLayout) (x, y float64)
+    ColorModelHandleXY returns the hue handle center for hue 0..360.
+
+func ColorModelModeAllowed(props ColorModelProps, m ColorModelMode) bool
+    ColorModelModeAllowed reports whether m is switchable.
+
+func ColorModelRGBToHSB(r, g, bl int) (h, s, b float64)
+    ColorModelRGBToHSB converts 0..255 ints to H(0..360) S/B(0..1).
+
+func ColorModelSVXY(s, b float64, layout ColorModelPanelLayout) (x, y float64)
+    ColorModelSVXY returns the SV thumb for s/b 0..1.
+
+func ColorModelSubscribedAspects() []scope.Aspect
+    ColorModelSubscribedAspects reports Ctx aspects the model reads.
+
+func ColorModelSwatch(in *ColorModelInstance) (r, g, b, a float64)
+    ColorModelSwatch returns the current color for the trigger swatch. Cleared
+    renders transparent (alpha 0).
+
+func ColorModelSwatchSize(size ColorModelSize) float64
+    ColorModelSwatchSize returns the trigger swatch edge.
+
+func DateEngineSubscribedAspects() []scope.Aspect
+    DateEngineSubscribedAspects reports Ctx aspects the engine reads.
+
+func DecadeDateEngineCells(centuryStart int) [10][2]int
+    DecadeDateEngineCells returns the 10 decade cells of a century.
+
+func DecadeStartOf(year int) int
+    DecadeStartOf returns the decade floor of a year.
+
+func DisplayDateEngineFormat(props DateEngineProps) string
+    DisplayDateEngineFormat returns formats[0] else the picker default.
+
+func ExcavateQRCodeIcon(matrix [][]bool, iconX, iconY, iconW, iconH, module float64) [][]bool
+    ExcavateQRCodeIcon clears the modules overlapped by the center icon.
+    iconX/Y/W/H are content-relative logical pixels; module is the module edge
+    from QRCodeModuleSize. Returns a copy; the input matrix is kept. Draw layers
+    call this before rasterizing so the icon sits on white.
+
+func FormatDateEngineDate(d DateEngineDate, format string, buddhist bool, loc DateEngineLocaleText, weekStart int) string
+    FormatDateEngineDate renders d with dayjs-style tokens. BBBB is the Buddhist
+    year (YYYY+543); Q the quarter; wo the week-of-year label for weekStart.
+
+func GateCheckProps(c GatePropsCoverage) (bool, []string)
+    GateCheckProps reports whether every documented param is covered.
+
+func GateCheckState(f GateStateFlow) bool
+    GateCheckState reports whether every claimed state resolves.
+
+func GateCheckToken(u GateTokenUse) bool
+    GateCheckToken passes only when values come from theme.
+
+func GateCheckWiring(imports []string) (bool, []string)
+    GateCheckWiring reports whether imports avoid direct render/gpu.
+
+func GetTwoToneColorGlobal() string
+    GetTwoToneColorGlobal returns the global double-color default.
+
+func GradientColorModelCSS(stops []ColorModelStop) string
+    GradientColorModelCSS renders linear-gradient(90deg, c1 p1%, ...).
+
+func IconPainterForSpec(spec IconPaintSpec) prim.Painter
+    IconPainterForSpec returns the L1 painter for a spec. Custom keys resolve
+    first as offline custom SVG (custom.tsx heart/panda, iconfont.cn symbols
+    vendored in prim); then as glyph names when known (offline iconfont maps
+    type to a glyph key); unknown custom keys draw a heart stand-in, never
+    blank.
+
+func IconSubscribedAspects() []scope.Aspect
+    IconSubscribedAspects reports Ctx aspects icons read.
+
+func IconTransformAngleRad(in *IconInstance) float64
+    IconTransformAngleRad reports the outer layer angle for in (radians).
+
+func IsUploadImage(name, mime string) bool
+    IsUploadImage reports the default thumbnail rule by extension.
+
+func MatchDateEngineFormats(props DateEngineProps) []string
+    MatchDateEngineFormats returns the format list for parsing.
+
+func MatchUploadAccept(accept, name, mime string) bool
+    MatchUploadAccept reports whether name/mime passes the accept filter.
+    Empty accept passes everything. Tokens are comma-separated: ".png" matches
+    extension (case-insensitive), "image/*" matches MIME prefix, anything else
+    matches MIME exactly.
+
+func ModalHostOkBg(seed theme.Tokens, st scope.WidgetState) theme.Color
+    ModalHostOkBg resolves the OK button fill with disabled-first lookup.
+
+func ModalHostSubscribedAspects() []scope.Aspect
+    ModalHostSubscribedAspects reports Ctx aspects the host reads.
+
+func MonthDateEngineCells(in *DateEngineInstance, year, month int) [6][7]DateEngineCell
+    MonthDateEngineCells decorates the matrix with view/disabled/selection.
+
+func MonthDateEngineMatrix(gen DateEngineGenerateConfig, year, month, weekStart int) [6][7]DateEngineDate
+    MonthDateEngineMatrix returns the 6x7 date panel grid for year/month.
+    Weeks run weekStart..weekStart+6; leading/trailing days fill the grid.
+
+func NoticeQueueMessageBg(seed theme.Tokens, cfg NoticeQueueMessageConfig) theme.Color
+    NoticeQueueMessageBg applies the shallow style-class root override.
+
+func NoticeQueueMessageIconBg(seed theme.Tokens, t NoticeQueueMessageType) theme.Color
+    NoticeQueueMessageIconBg resolves the semantic icon color for a tip.
+
+func NoticeQueueMessageRadius(seed theme.Tokens, cfg NoticeQueueMessageConfig) float64
+    NoticeQueueMessageRadius resolves root radius with shallow override.
+
+func NoticeQueueNotificationBg(seed theme.Tokens, cfg NoticeQueueNotificationConfig) theme.Color
+    NoticeQueueNotificationBg applies the shallow style-class root override.
+
+func NoticeQueueNotificationIconBg(seed theme.Tokens, t NoticeQueueNotificationType) theme.Color
+    NoticeQueueNotificationIconBg resolves the semantic icon color for a card.
+
+func NoticeQueueNotificationRadius(seed theme.Tokens, cfg NoticeQueueNotificationConfig) float64
+    NoticeQueueNotificationRadius resolves card radius with shallow override.
+
+func NoticeQueueSubscribedAspects() []scope.Aspect
+    NoticeQueueSubscribedAspects reports Ctx aspects the queue reads.
+
+func NoticeQueueVisibleCount(total int, enabled bool, threshold int) (visible int, folded int)
+    NoticeQueueVisibleCount folds the queue when stack is over threshold:
+    at most threshold triggers, over threshold only the latest shows.
+
+func PrimAlignBox(child rendering.RenderObject, ax, ay float64) *rendering.RenderAlignBox
+    PrimAlignBox aligns the child fractionally.
+
+func PrimAntdIconCount() int
+    PrimAntdIconCount reports the official library total (848).
+
+func PrimAntdIconEntry(i int) (key, name, iconTheme string, ok bool)
+    PrimAntdIconEntry returns key/name/theme for index i.
+
+func PrimAspectFit(parent rendering.Constraints, ratio float64) rendering.Size
+    PrimAspectFit fits the largest ratio box inside parent.
+
+func PrimBlendSrcOver(dst, src [3]float64, opacity float64) [3]float64
+    Decor facades.
+
+func PrimCenter(child rendering.RenderObject) *rendering.RenderAlignBox
+    PrimCenter centers the child.
+
+func PrimColored(w, h float64, c theme.Color) *rendering.RenderColorBox
+    PrimColored builds a solid box.
+
+func PrimConstrainSize(l PrimLimits, parent rendering.Constraints, child rendering.Size) rendering.Size
+    PrimConstrainSize tightens a child size into limits.
+
+func PrimEstimateSize(s string, fontSize, approxW, lineMult, maxWidth float64, maxLines int, ellipsis bool) rendering.Size
+    PrimEstimateSize measures text with the no-face heuristic.
+
+func PrimFittedScale(parentW, parentH, childW, childH float64) float64
+    PrimFittedScale computes the fit scale.
+
+func PrimGradientMonotonic(from, mid, to theme.Color) bool
+    PrimGradientMonotonic checks midpoint_claim.
+
+func PrimGradientSample(from, to theme.Color, t float64) theme.Color
+    PrimGradientSample samples a two-stop gradient.
+
+func PrimIconBoxSize(spec PrimIconSpec) rendering.Size
+    PrimIconBoxSize reports the square icon box.
+
+func PrimIndexedOuter(parent rendering.Constraints, pages []rendering.Size) rendering.Size
+    PrimIndexedOuter sizes a page switcher to the largest page.
+
+func PrimIsKnownCustomSVG(key string) bool
+    PrimIsKnownCustomSVG reports offline custom coverage.
+
+func PrimNewClipRRect(radius float64, child rendering.RenderObject) *rendering.RenderClipRRect
+    PrimNewClipRRect clips to a rounded rectangle.
+
+func PrimNewClipRect(child rendering.RenderObject) *rendering.RenderClipRRect
+    PrimNewClipRect clips to a hard rectangle.
+
+func PrimNewCustomPaint(w, h float64, painter PrimPainter, boundary bool, child rendering.RenderObject) *rendering.RenderBox
+    PrimNewCustomPaint builds a custom-paint box.
+
+func PrimNewDecoratedBox(w, h float64, spec PrimDecorSpec, child rendering.RenderObject) *rendering.RenderClipRRect
+    PrimNewDecoratedBox builds the decorated box.
+
+func PrimNewLabel(p PrimLabelProps) *rendering.RenderText
+    PrimNewLabel builds single-style text.
+
+func PrimNewOpacity(opacity float64, children ...rendering.RenderObject) *rendering.RenderOpacity
+    PrimNewOpacity wraps group opacity.
+
+func PrimNewPadBox(child rendering.RenderObject, pad float64) *rendering.RenderBox
+    PrimNewPadBox wraps child with uniform pad.
+
+func PrimNewPicture(spec PrimPictureSpec) *rendering.RenderImage
+    PrimNewPicture builds the placeholder image node.
+
+func PrimNewRichLabel(p PrimRichProps) *rendering.RenderText
+    PrimNewRichLabel builds multi-span text.
+
+func PrimNewSizedBox(w, h float64, child rendering.RenderObject) *rendering.RenderBox
+    PrimNewSizedBox builds a fixed-size host.
+
+func PrimNewTransformed(rotation, sx, sy float64, children ...rendering.RenderObject) *rendering.RenderTransform
+    PrimNewTransformed wraps rotation and scale.
+
+func PrimOvalContains(x, y, w, h float64) bool
+    PrimOvalContains reports ellipse containment.
+
+func PrimPadChildConstraints(parent rendering.Constraints, l, t, r, b float64) rendering.Constraints
+    PrimPadChildConstraints shrinks parent constraints by insets.
+
+func PrimPadOuter(child rendering.Size, l, t, r, b float64) rendering.Size
+    Layout facades.
+
+func PrimPaintAntdIcon(pc *rendering.PaintContext, size float64, name, iconTheme string, main, second theme.Color, hasSecond bool) bool
+    PrimPaintAntdIcon draws the official glyph (1:1); false when unknown.
+
+func PrimPaintCustomSVG(pc *rendering.PaintContext, size float64, key string, main theme.Color) bool
+    PrimPaintCustomSVG fills one offline custom symbol; false when unknown.
+
+func PrimRRectContains(x, y, w, h, radius float64) bool
+    PrimRRectContains reports rounded-rect containment.
+
+func PrimRegisterCustomSVG(e PrimCustomSVGEntry)
+    PrimRegisterCustomSVG adds one offline custom symbol; later keys win.
+
+func QRCodeModuleSize(contentEdge float64, modules, margin int) float64
+    QRCodeModuleSize returns the module edge for a matrix with margin.
+
+func QRCodeModuleXY(contentX, contentY, module float64, r, c, margin int) (x, y float64)
+    QRCodeModuleXY returns the top-left of module (r, c) with margin.
+
+func QRCodePaddedSize(modules, margin int) int
+    QRCodePaddedSize returns the padded matrix edge (modules + 2*margin).
+
+func QRCodeSubscribedAspects() []scope.Aspect
+    QRCodeSubscribedAspects reports Ctx aspects the QR code reads.
+
+func RegisterIconSource(sourceID string, icons map[string]string)
+    RegisterIconSource adds an offline source; later sources override same names
+    (matches antd multi scriptUrl order). Same-source registers merge (later
+    keys win, earlier keys survive).
+
+func ResolveDateEngineOrder(props DateEngineProps) bool
+    ResolveDateEngineOrder returns explicit order else true.
+
+func ResolveDateEngineWeekStart(props DateEngineProps, locale string) int
+    ResolveDateEngineWeekStart returns explicit weekStart else locale default
+    (zh* Monday=1, others Sunday=0).
+
+func ResolveIconSize(p IconProps) float64
+    ResolveIconSize returns explicit size else DefaultIconSize.
+
+func ResolveModalHostConfirmText(cfg ModalHostConfirmConfig, locale string) (ok, cancel string)
+    ResolveModalHostConfirmText fills ok/cancel copy from locale when empty.
+
+func ResolveModalHostWidth(cfg ModalHostConfirmConfig) float64
+    ResolveModalHostWidth returns explicit width else 416 for confirm family.
+
+func ResolveNoticeQueueMessageDuration(p NoticeQueueProps) float64
+    ResolveNoticeQueueMessageDuration returns the tip lifetime (default 3).
+
+func ResolveNoticeQueueMessageTop(p NoticeQueueProps) float64
+    ResolveNoticeQueueMessageTop returns the top-center offset (default 8).
+
+func ResolveNoticeQueueNotificationDuration(p NoticeQueueProps) float64
+    ResolveNoticeQueueNotificationDuration returns the card lifetime (default
+    4.5).
+
+func ResolveQRCodeIconSize(props QRCodeProps) (w, h float64)
+    ResolveQRCodeIconSize returns the icon box (default 40x40).
+
+func ResolveQRCodeLocale(locale string) (expired, refresh, scanned string)
+    ResolveQRCodeLocale returns the status copy (en default, zh override).
+
+func ResolveQRCodePadding(bordered bool) float64
+    ResolveQRCodePadding returns 12 bordered else 0 (borderless).
+
+func ResolveQRCodeSize(props QRCodeProps) float64
+    ResolveQRCodeSize returns explicit size else 160.
+
+func ResolveQRCodeValues(props QRCodeProps) []string
+    ResolveQRCodeValues returns the encode inputs: Values wins when set,
+    otherwise the single Value. Empty means no matrix (antd renders null).
+
+func ResolveTourMaskIndicatorText(current, total int, locale string) string
+    ResolveTourMaskIndicatorText fills the custom indicator copy.
+
+func ResolveTourMaskStepButtons(prev, next string, last bool, locale string) (prevOut, nextOut string)
+    ResolveTourMaskStepButtons fills Prev/Next/Finish copy from locale.
+
+func ResolveTourMaskZ(props TourMaskProps) int
+    ResolveTourMaskZ returns explicit zIndex else 1001 above modal 1000.
+
+func ScopeDisabledOr(subtree, widget bool) bool
+    ScopeDisabledOr combines subtree and widget disable with OR.
+
+func ScopeResolveColor(props *theme.Color, ctheme *theme.Color, seed theme.Color) theme.Color
+    ScopeResolveColor resolves one color through props > theme > seed.
+
+func ScopeResolveFloat(props *float64, ctheme *float64, seed float64) float64
+    ScopeResolveFloat resolves one number through props > theme > seed.
+
+func ScopeShowFocusRing(s ScopeState) bool
+    ScopeShowFocusRing reports whether the ring paints for a state.
+
+func ScopeSubscribed(changed []ScopeAspect, want ...ScopeAspect) bool
+    ScopeSubscribed reports whether changed contains a wanted aspect.
+
+func SetTwoToneColorGlobal(c string)
+    SetTwoToneColorGlobal sets the global double-color default. Single primary
+    form derives secondary via the official palette generate(primary)[0];
+    use SetTwoToneColorsGlobal for explicit pair.
+
+func SetTwoToneColorsGlobal(primary, secondary string)
+    SetTwoToneColorsGlobal sets an explicit global primary+secondary pair.
+
+func StdDateEngineDaysInMonth(y, m int) int
+    StdDateEngineDaysInMonth is the shared month length.
+
+func StdDateEngineIsLeapYear(y int) bool
+    StdDateEngineIsLeapYear is the shared leap rule (also used by IsValid).
+
+func TourMaskMaskColor(seed theme.Tokens, props TourMaskProps) theme.Color
+    TourMaskMaskColor resolves the mask fill with shallow color override.
+
+func TourMaskPanelBg(seed theme.Tokens, in *TourMaskInstance) theme.Color
+    TourMaskPanelBg resolves the visible panel fill with shallow override.
+
+func TourMaskPanelText(seed theme.Tokens, in *TourMaskInstance) theme.Color
+    TourMaskPanelText resolves the panel text color for the effective type.
+
+func TourMaskSubscribedAspects() []scope.Aspect
+    TourMaskSubscribedAspects reports Ctx aspects the tour reads.
+
+func UploadStatusColor(seed theme.Tokens, s UploadFileStatus) theme.Color
+    UploadStatusColor resolves the status tint for one file.
+
+func UploadSubscribedAspects() []scope.Aspect
+    UploadSubscribedAspects reports Ctx aspects the upload reads.
+
+func UploadTriggerVisible(count, maxCount int) bool
+    UploadTriggerVisible reports whether the card trigger shows: maxCount
+    reached hides it.
+
+func ZIndexForDepth(base, depth int) int
+    ZIndexForDepth returns base + depth*10 stacking.
+
+func ZIndexForNoticeKind(base int, kind string) int
+    ZIndexForNoticeKind returns 2010 for message and 2050 for notification off
+    base 1000 (antd zIndexPopup message +10, notification +50 over the 1000
+    container offset).
+
+
+TYPES
+
+type BehaviorBudgets = behavior.Budgets
+    BehaviorBudgets carries the steady-window fps budget.
+
+func BehaviorDefaultBudgets() BehaviorBudgets
+    BehaviorDefaultBudgets is the motion-window gate.
+
+type BehaviorCacheBudget = behavior.CacheBudget
+    BehaviorCacheBudget is the tiny LRU eviction rule.
+
+func NewBehaviorCacheBudget(cap int) *BehaviorCacheBudget
+    NewBehaviorCacheBudget builds a budget holding at most cap entries.
+
+type BehaviorField = behavior.Field
+    BehaviorField owns the committed value plus IME composition.
+
+func NewBehaviorField(cfg BehaviorFieldConfig) *BehaviorField
+    NewBehaviorField builds the form controller.
+
+type BehaviorFieldConfig = behavior.FieldConfig
+    BehaviorFieldConfig describes one form value.
+
+type BehaviorInteractive = behavior.Interactive
+    BehaviorInteractive owns the five-state machine.
+
+func NewBehaviorInteractive(cfg BehaviorInteractiveConfig) *BehaviorInteractive
+    NewBehaviorInteractive builds the five-state machine.
+
+type BehaviorInteractiveConfig = behavior.InteractiveConfig
+    BehaviorInteractiveConfig describes one pressable control.
+
+type BehaviorMotionDurations = behavior.MotionDurations
+    BehaviorMotionDurations carries resolved fast/mid/slow seconds.
+
+func BehaviorResolveDurations(tok theme.Tokens) BehaviorMotionDurations
+    BehaviorResolveDurations reads the three duration tokens.
+
+type BehaviorPlacement = overlay.Placement
+    BehaviorPlacement is the twelve-direction vocabulary.
+
+type BehaviorResolveOptions = overlay.ResolveOptions
+    BehaviorResolveOptions tunes placement.
+
+type BehaviorResolved = overlay.Resolved
+    BehaviorResolved is the placement outcome.
+
+func BehaviorResolveFollower(anchor rendering.Rect, ow, oh float64, want BehaviorPlacement, opt *BehaviorResolveOptions) BehaviorResolved
+    BehaviorResolveFollower positions a follower via overlay only.
+
+type BehaviorSpinner = behavior.Spinner
+    BehaviorSpinner drives true rotation via a repeating Controller.
+
+func NewBehaviorSpinner(durSec float64, curve animation.Curve) *BehaviorSpinner
+    NewBehaviorSpinner builds a looping spinner.
+
+type BehaviorTrigger = behavior.OverlayTrigger
+    BehaviorTrigger owns open state, placement and focus lock.
+
+func NewBehaviorTrigger(cfg BehaviorTriggerConfig, mgr *focus.FocusManager, st *overlay.State) *BehaviorTrigger
+    NewBehaviorTrigger builds the floating trigger.
+
+type BehaviorTriggerConfig = behavior.TriggerConfig
+    BehaviorTriggerConfig describes one floating layer trigger.
+
+type BehaviorWave = behavior.Wave
+    BehaviorWave is the one-shot ripple.
+
+func NewBehaviorWave() *BehaviorWave
+    NewBehaviorWave builds an idle ripple.
+
+type BehaviorWaveConfig = behavior.WaveConfig
+    BehaviorWaveConfig describes one ripple.
+
+type ColorModelColor struct {
+	H, S, B, A float64
+	R, G, BL   int
+}
+    ColorModelColor is one opaque-or-transparent color. H is 0..360, S/B/A are
+    0..1, R/G/B are 0..255 ints. Both sides are kept so a string parse formats
+    back to the identical string (no precision loss); the HSB side is canonical
+    for panel math.
+
+func DefaultColorModelColor() ColorModelColor
+    DefaultColorModelColor returns opaque blue #1677ff.
+
+func NewColorModelColor(h, s, b float64, a ...float64) ColorModelColor
+    NewColorModelColor builds a color from HSB; alpha defaults to 1 unless
+    given.
+
+func NewColorModelColorRGB(r, g, bl int, a ...float64) ColorModelColor
+    NewColorModelColorRGB builds a color from RGB ints; HSB is derived.
+
+func ParseColorModelColor(text string) (ColorModelColor, bool)
+    ParseColorModelColor parses #rrggbb, #rrggbbaa, rgb()/rgba(), hsb(). Unknown
+    input returns false.
+
+func (c ColorModelColor) ToCssString() string
+    ToCssString renders the CSS form: rgb string for a single color.
+
+func (c ColorModelColor) ToHSB() (h, s, b, a float64)
+    ToHSB renders h/s/b/a fields.
+
+func (c ColorModelColor) ToHex() string
+    ToHex renders hex without the leading #.
+
+func (c ColorModelColor) ToHexString() string
+    ToHexString renders #rrggbb, or #rrggbbaa when transparent.
+
+func (c ColorModelColor) ToHsbString() string
+    ToHsbString renders hsb(h, s%, b%).
+
+func (c ColorModelColor) ToRGB() (r, g, bl int, a float64)
+    ToRGB renders r/g/b/a fields.
+
+func (c ColorModelColor) ToRgbString() string
+    ToRgbString renders rgb(...) or rgba(...) with trimmed alpha.
+
+type ColorModelFocus string
+    ColorModelFocus names the keyboard trap target.
+
+const (
+	ColorModelFocusNone    ColorModelFocus = ""
+	ColorModelFocusTrigger ColorModelFocus = "trigger"
+	ColorModelFocusSV      ColorModelFocus = "sv"
+	ColorModelFocusHue     ColorModelFocus = "hue"
+	ColorModelFocusAlpha   ColorModelFocus = "alpha"
+	ColorModelFocusStop    ColorModelFocus = "stop"
+	ColorModelFocusClose   ColorModelFocus = "close"
+)
+type ColorModelFormat string
+    ColorModelFormat selects the display/parse format.
+
+const (
+	ColorModelFormatHex ColorModelFormat = "hex"
+	ColorModelFormatRGB ColorModelFormat = "rgb"
+	ColorModelFormatHSB ColorModelFormat = "hsb"
+)
+func ResolveColorModelFormat(props ColorModelProps, current ColorModelFormat) ColorModelFormat
+    ResolveColorModelFormat returns the explicit format else hex.
+
+type ColorModelInstance struct {
+	// Has unexported fields.
+}
+    ColorModelInstance owns the color value plus the controlled panel
+    (open/format/mode) for one model mount.
+
+func BuildColorModel(ctx scope.Ctx, props ColorModelProps) *ColorModelInstance
+    BuildColorModel is the sole color construction entry.
+
+func (in *ColorModelInstance) ActiveStop() int
+    ActiveStop reports the edited gradient stop.
+
+func (in *ColorModelInstance) AddStop(percent float64) bool
+    AddStop inserts a stop copying the active color (gradient only).
+
+func (in *ColorModelInstance) BeginDrag()
+    BeginDrag marks a panel drag; EndDrag fires onComplete.
+
+func (in *ColorModelInstance) Clear() bool
+    Clear empties the value when allowClear.
+
+func (in *ColorModelInstance) CommitChange()
+    CommitChange fires onComplete without a drag.
+
+func (in *ColorModelInstance) CurrentColor() ColorModelColor
+    CurrentColor returns a copy of the edited color.
+
+func (in *ColorModelInstance) Disabled() bool
+    Disabled reports the OR of subtree and widget disable.
+
+func (in *ColorModelInstance) DisplayText() string
+    DisplayText renders the trigger text for the current format.
+
+func (in *ColorModelInstance) DragAlpha(t float64) bool
+    DragAlpha moves the alpha slider (0..1).
+
+func (in *ColorModelInstance) DragHue(t float64) bool
+    DragHue moves the hue slider (0..1 maps 0..360).
+
+func (in *ColorModelInstance) DragSV(x, y float64) bool
+    DragSV moves saturation/brightness on the 2D panel (0..1 each).
+
+func (in *ColorModelInstance) EndDrag()
+    EndDrag ends a panel drag and fires onComplete.
+
+func (in *ColorModelInstance) Focus(f ColorModelFocus)
+    Focus moves the keyboard trap target.
+
+func (in *ColorModelInstance) Focused() ColorModelFocus
+    Focused reports the keyboard trap target.
+
+func (in *ColorModelInstance) Format() ColorModelFormat
+    Format returns the current format.
+
+func (in *ColorModelInstance) HasAlphaSlider() bool
+    EffectiveAlphaForcings reports the alpha slider visibility.
+
+func (in *ColorModelInstance) HolderContent() string
+    HolderContent renders static-call holder copy through Ctx.
+
+func (in *ColorModelInstance) IsOpen() bool
+    IsOpen reports the popup visibility.
+
+func (in *ColorModelInstance) Mode() ColorModelMode
+    Mode returns the current value mode.
+
+func (in *ColorModelInstance) Mount(ctx scope.Ctx)
+    Mount marks the host live.
+
+func (in *ColorModelInstance) MoveStop(i int, percent float64) bool
+    MoveStop drags one stop percent (fires onChange, not complete).
+
+func (in *ColorModelInstance) PressArrow(dir string) bool
+    PressArrow steps the focused handle by 1% (CP keyboard rule).
+
+func (in *ColorModelInstance) PressEsc() bool
+    PressEsc closes the popup.
+
+func (in *ColorModelInstance) PressTriggerKey() bool
+    PressTriggerKey opens/closes with Space/Enter and enters the panel.
+
+func (in *ColorModelInstance) RemoveStop(i int) bool
+    RemoveStop deletes a non-terminal stop (Delete key semantics).
+
+func (in *ColorModelInstance) RenderPanel() string
+    RenderPanel runs the panelRender hook or returns the default desc.
+
+func (in *ColorModelInstance) SelectPreset(group, index int) bool
+    SelectPreset applies one preset entry.
+
+func (in *ColorModelInstance) SelectStop(i int) bool
+    SelectStop picks the edited stop handle.
+
+func (in *ColorModelInstance) SetColor(c ColorModelColor) bool
+    SetColor applies one parsed color.
+
+func (in *ColorModelInstance) SetFormat(f ColorModelFormat) bool
+    SetFormat switches the display format unless disabledFormat.
+
+func (in *ColorModelInstance) SetHSB(h, s, b, a float64) bool
+    SetHSB changes the color and fires onChange.
+
+func (in *ColorModelInstance) SetHex(text string) bool
+    SetHex parses and applies one color string.
+
+func (in *ColorModelInstance) SetMode(m ColorModelMode) bool
+    SetMode switches single/gradient when allowed, converting the value.
+
+func (in *ColorModelInstance) SetOnChange(fn func(v ColorModelValue, css string))
+    SetOnChange registers the drag/change callback.
+
+func (in *ColorModelInstance) SetOnClear(fn func())
+    SetOnClear registers the clear callback.
+
+func (in *ColorModelInstance) SetOnComplete(fn func(v ColorModelValue))
+    SetOnComplete registers the release/commit callback.
+
+func (in *ColorModelInstance) SetOnFormatChange(fn func(f ColorModelFormat))
+    SetOnFormatChange registers the format callback.
+
+func (in *ColorModelInstance) SetOnOpenChange(fn func(open bool))
+    SetOnOpenChange registers the visibility callback.
+
+func (in *ColorModelInstance) SetOpen(open bool)
+    SetOpen drives controlled visibility from outside.
+
+func (in *ColorModelInstance) SetState(f func(*ColorModelInstance))
+    SetState runs f under the lock (sole state mutation gate).
+
+func (in *ColorModelInstance) SetValue(v ColorModelValue)
+    SetValue drives controlled value from outside without callbacks.
+
+func (in *ColorModelInstance) ToggleOpen() bool
+    ToggleOpen flips the popup unless disabled.
+
+func (in *ColorModelInstance) Unmount()
+    Unmount marks the host dead.
+
+func (in *ColorModelInstance) Update(ctx scope.Ctx, next ColorModelProps)
+    Update swaps props/ctx snapshots. Controlled value/open/format/mode win.
+
+func (in *ColorModelInstance) Value() ColorModelValue
+    Value returns a copy of the current value.
+
+type ColorModelMode string
+    ColorModelMode selects the value shape.
+
+const (
+	ColorModelModeSingle   ColorModelMode = "single"
+	ColorModelModeGradient ColorModelMode = "gradient"
+)
+func ResolveColorModelMode(props ColorModelProps, current ColorModelMode) ColorModelMode
+    ResolveColorModelMode returns the explicit mode else single.
+
+func ResolveColorModelModes(props ColorModelProps) []ColorModelMode
+    ResolveColorModelModes returns the switchable mode list.
+
+type ColorModelPanelLayout struct {
+	SV       ColorModelRect
+	Hue      ColorModelRect
+	Alpha    ColorModelRect
+	HasAlpha bool
+	Height   float64
+}
+    ColorModelPanelLayout carries the three interactive rects.
+
+func ComputeColorModelPanel(disabledAlpha bool) ColorModelPanelLayout
+    ComputeColorModelPanel returns SV/hue/alpha rects for a 234 panel.
+    disabledAlpha hides the alpha strip and collapses panel height.
+
+type ColorModelPanelRender func(panel string, hasPicker bool, hasPresets bool) string
+    ColorModelPanelRender customizes the panel wrapper (P0 string hook; the full
+    ReactNode visual lands with the F3 component).
+
+type ColorModelPreset struct {
+	Label       string
+	DefaultOpen bool
+	Colors      []ColorModelValue
+}
+    ColorModelPreset is one preset group; each entry is a single color or a
+    gradient stop list.
+
+type ColorModelProps struct {
+	Value           *ColorModelValue
+	DefaultValue    ColorModelValue
+	DefaultValueSet bool
+	Format          ColorModelFormat
+	FormatSet       bool
+	DefaultFormat   ColorModelFormat
+	Mode            ColorModelMode
+	ModeSet         bool
+	Modes           []ColorModelMode
+	Disabled        bool
+	DisabledAlpha   bool
+	DisabledFormat  bool
+	AllowClear      bool
+	ShowText        bool
+	ShowTextRender  ColorModelShowTextRender
+	PanelRender     ColorModelPanelRender
+	Presets         []ColorModelPreset
+	Size            ColorModelSize
+	SizeSet         bool
+	Placement       string
+	Trigger         ColorModelTrigger
+	Open            bool
+	OpenSet         bool
+	DefaultOpen     bool
+	AriaLabel       string
+}
+    ColorModelProps configures one color model host.
+
+func DefaultColorModelProps() ColorModelProps
+    DefaultColorModelProps returns antd 6.5.1 aligned defaults.
+
+type ColorModelRect struct {
+	X, Y, W, H float64
+}
+    ColorModelRect is one panel part rect in logical pixels.
+
+type ColorModelResolved struct {
+	PanelBg   theme.Color
+	Text      theme.Color
+	TriggerBg theme.Color
+	Border    theme.Color
+	Selected  theme.Color
+	Disabled  theme.Color
+	Focus     scope.FocusRing
+}
+    ColorModelResolved carries picker chrome colors resolved from seed.
+
+func ResolveColorModel(seed theme.Tokens) ColorModelResolved
+    ResolveColorModel resolves panel/trigger chrome (props > ctx theme > seed).
+
+type ColorModelShowTextRender func(v ColorModelValue) string
+    ColorModelShowTextRender customizes the trigger text (P0 string hook).
+
+type ColorModelSize string
+    ColorModelSize selects the trigger tier.
+
+const (
+	ColorModelSizeSmall  ColorModelSize = "small"
+	ColorModelSizeMedium ColorModelSize = "medium"
+	ColorModelSizeLarge  ColorModelSize = "large"
+)
+type ColorModelStop struct {
+	Color   ColorModelColor
+	Percent float64
+}
+    ColorModelStop is one gradient stop.
+
+func NormalizeColorModelStops(stops []ColorModelStop) []ColorModelStop
+    NormalizeColorModelStops clamps percents to 0..100 and sorts ascending.
+
+type ColorModelTrigger string
+    ColorModelTrigger selects the popup trigger gesture.
+
+const (
+	ColorModelTriggerClick ColorModelTrigger = "click"
+	ColorModelTriggerHover ColorModelTrigger = "hover"
+)
+type ColorModelValue struct {
+	Single   ColorModelColor
+	Stops    []ColorModelStop
+	Gradient bool
+	Cleared  bool
+}
+    ColorModelValue is the AggregationColor equivalent: either a single color or
+    an ordered stop list. Cleared means empty.
+
+func (v ColorModelValue) Equals(o ColorModelValue) bool
+    Equals compares by hex strings (single) or stop-wise (gradient).
+
+func (v ColorModelValue) IsEmpty() bool
+    IsEmpty reports the cleared state.
+
+func (v ColorModelValue) IsGradient() bool
+    IsGradient reports a live gradient value.
+
+func (v ColorModelValue) ToCssString() string
+    ToCssString renders the value: gradient css or single rgb string. Cleared
+    renders the transparent single form.
+
+type DateEngineCell struct {
+	Date     DateEngineDate
+	InView   bool
+	Disabled bool
+	IsToday  bool
+	Selected bool
+	InRange  bool
+	RangeEnd bool
+	Label    string
+}
+    DateEngineCell is one panel unit.
+
+type DateEngineDate struct {
+	Year   int
+	Month  int
+	Day    int
+	Hour   int
+	Minute int
+	Second int
+}
+    DateEngineDate is a proleptic Gregorian civil datetime. Zero value (Year ==
+    0) means invalid / empty.
+
+func ClampDateEnginePanel(gen DateEngineGenerateConfig, d DateEngineDate, minD, maxD *DateEngineDate) DateEngineDate
+    ClampDateEnginePanel clamps a panel date into min/max bounds.
+
+func DateEngineDateOf(y, m, d int) DateEngineDate
+    DateOf builds a date at midnight.
+
+func DateEngineToday(gen DateEngineGenerateConfig) DateEngineDate
+    DateEngineToday returns today at midnight under the generate config.
+
+func ParseDateEngineDate(text string, formats []string, buddhist bool, loc DateEngineLocaleText) (DateEngineDate, bool)
+    ParseDateEngineDate tries each format in order; the first full match wins.
+    Returns false when nothing matches or fields are wild.
+
+func QuarterDateEngineCells(year int) [4]DateEngineDate
+    QuarterDateEngineCells returns the 4 quarter cells of a year.
+
+func YearDateEngineCells(decadeStart int) [10]DateEngineDate
+    YearDateEngineCells returns the 10 year cells of a decade.
+
+func YearMonthDateEngineCells(year int) [12]DateEngineDate
+    YearMonthDateEngineCells returns the 12 month cells of a year.
+
+func (d DateEngineDate) IsValid() bool
+    IsValid reports whether the date holds a real civil value.
+
+func (d DateEngineDate) SameDay(o DateEngineDate) bool
+    SameDay reports y/m/d equality ignoring the clock.
+
+type DateEngineDisabledTime struct {
+	Hours   []int
+	Minutes []int
+	Seconds []int
+}
+    DateEngineDisabledTime lists unselectable clock units.
+
+type DateEngineGenerateConfig interface {
+	// Name identifies the implementation (e.g. "std").
+	Name() string
+	// DaysInMonth returns the month length (leap-aware).
+	DaysInMonth(year, month int) int
+	// IsLeapYear reports Gregorian leap years.
+	IsLeapYear(year int) bool
+	// DayOfWeek returns 0=Sunday..6=Saturday (proleptic Gregorian).
+	DayOfWeek(d DateEngineDate) int
+	// Compare orders full datetimes: -1, 0, +1.
+	Compare(a, b DateEngineDate) int
+	// AddDays shifts by days across month/year bounds.
+	AddDays(d DateEngineDate, n int) DateEngineDate
+	// AddMonths shifts by months, clamping the day.
+	AddMonths(d DateEngineDate, n int) DateEngineDate
+	// AddYears shifts by years, clamping Feb 29.
+	AddYears(d DateEngineDate, n int) DateEngineDate
+	// AddQuarters shifts by quarters.
+	AddQuarters(d DateEngineDate, n int) DateEngineDate
+	// StartOfDay/Month/Year truncate the clock or calendar.
+	StartOfDay(d DateEngineDate) DateEngineDate
+	StartOfMonth(d DateEngineDate) DateEngineDate
+	StartOfYear(d DateEngineDate) DateEngineDate
+	// QuarterOf returns 1..4.
+	QuarterOf(d DateEngineDate) int
+	// WeekNumber returns the week-of-year label for weekStart.
+	WeekNumber(d DateEngineDate, weekStart int) int
+}
+    DateEngineGenerateConfig is the pluggable date implementation (antd
+    GenerateConfig<DateType>). Components only talk to this interface,
+    so swapping the date library never touches component code. The std
+    implementation below is pure civil math with no timezone database.
+
+func DefaultDateEngineGenerateConfig() DateEngineGenerateConfig
+    DefaultDateEngineGenerateConfig returns the std implementation.
+
+type DateEngineInstance struct {
+	// Has unexported fields.
+}
+    DateEngineInstance owns value/range/multiple plus the controlled panel
+    (mode/pickerValue) for one engine mount.
+
+func BuildDateEngine(ctx scope.Ctx, props DateEngineProps) *DateEngineInstance
+    BuildDateEngine is the sole engine construction entry (std impl).
+
+func BuildDateEngineWithGenerate(ctx scope.Ctx, props DateEngineProps, gen DateEngineGenerateConfig) *DateEngineInstance
+    BuildDateEngineWithGenerate binds a custom date implementation. Components
+    keep working unchanged: only the generate config swaps.
+
+func (in *DateEngineInstance) ClearRange(end int)
+    ClearRange clears one or both ends honoring allowEmpty.
+
+func (in *DateEngineInstance) DisabledClock(d DateEngineDate, part string) DateEngineDisabledTime
+    DisabledClock returns disabled clock units for one datetime.
+
+func (in *DateEngineInstance) DrillDown()
+    DrillDown moves date->month->year->decade on header click.
+
+func (in *DateEngineInstance) Generate() DateEngineGenerateConfig
+    Generate returns the bound implementation.
+
+func (in *DateEngineInstance) GoPanel(delta int)
+    GoPanel steps the panel date by one unit of the current mode.
+
+func (in *DateEngineInstance) HolderContent() string
+    HolderContent renders static-call holder copy through Ctx.
+
+func (in *DateEngineInstance) IsDisabledDate(d DateEngineDate) bool
+    IsDisabledDate reports min/max plus DisabledDate for one day.
+
+func (in *DateEngineInstance) Locale() string
+    Locale resolves props locale over Ctx locale.
+
+func (in *DateEngineInstance) Mode() DateEngineMode
+    Mode returns the visible panel mode.
+
+func (in *DateEngineInstance) Mount(ctx scope.Ctx)
+    Mount marks the host live.
+
+func (in *DateEngineInstance) Multiple() []DateEngineDate
+    Multiple returns a copy of the multi list.
+
+func (in *DateEngineInstance) PickerValue() *DateEngineDate
+    PickerValue returns a copy of the panel date.
+
+func (in *DateEngineInstance) Range() [2]*DateEngineDate
+    Range returns copies of the range ends.
+
+func (in *DateEngineInstance) Select(d DateEngineDate) bool
+    Select picks one date through single/multiple/range semantics.
+
+func (in *DateEngineInstance) SelectPreset(i int) bool
+    SelectPreset resolves one preset (func values supported) and applies it.
+
+func (in *DateEngineInstance) SetMode(m DateEngineMode)
+    SetMode drives controlled mode from outside.
+
+func (in *DateEngineInstance) SetOnCalendarChange(fn func(dates []*DateEngineDate))
+    SetOnCalendarChange registers the pending-date callback.
+
+func (in *DateEngineInstance) SetOnChange(fn func(d *DateEngineDate, s string))
+    SetOnChange registers the value callback.
+
+func (in *DateEngineInstance) SetOnPanelChange(fn func(value *DateEngineDate, mode DateEngineMode))
+    SetOnPanelChange registers the panel callback.
+
+func (in *DateEngineInstance) SetOnRangeChange(fn func(dates [2]*DateEngineDate, strs [2]string))
+    SetOnRangeChange registers the range callback.
+
+func (in *DateEngineInstance) SetPickerValue(d *DateEngineDate)
+    SetPickerValue drives controlled panel date from outside.
+
+func (in *DateEngineInstance) SetState(f func(*DateEngineInstance))
+    SetState runs f under the lock (sole state mutation gate).
+
+func (in *DateEngineInstance) SetValue(d *DateEngineDate)
+    SetValue drives controlled value from outside.
+
+func (in *DateEngineInstance) Unmount()
+    Unmount clears live state.
+
+func (in *DateEngineInstance) Update(ctx scope.Ctx, next DateEngineProps)
+    Update swaps props/ctx snapshots.
+
+func (in *DateEngineInstance) Value() *DateEngineDate
+    Value returns a copy of the single value.
+
+func (in *DateEngineInstance) WeekStart() int
+    WeekStart resolves the week start for this host.
+
+type DateEngineLocaleText struct {
+	Locale          string
+	Placeholder     string
+	RangePlace      [2]string
+	Today           string
+	Now             string
+	Ok              string
+	Clear           string
+	MonthBeforeYear bool
+	ShortWeekDays   [7]string
+	ShortMonths     [12]string
+	FullMonths      [12]string
+}
+    DateEngineLocaleText carries picker copy (antd locale/example.json).
+
+func ResolveDateEngineLocale(locale string) DateEngineLocaleText
+    ResolveDateEngineLocale returns en defaults with zh-CN overrides. Unknown
+    locales fall back to en so panels never render empty.
+
+func (l DateEngineLocaleText) FullMonth(m int) string
+    FullMonth returns the full month name (1-based).
+
+func (l DateEngineLocaleText) MonthByName(s string) int
+    MonthByName matches short or full month names case-insensitively.
+
+func (l DateEngineLocaleText) PanelTitle(mode DateEngineMode, year, month int) string
+    PanelTitle renders the header copy for a panel.
+
+func (l DateEngineLocaleText) ShortMonth(m int) string
+    ShortMonth returns the month abbreviation (1-based).
+
+func (l DateEngineLocaleText) WeekHeader(weekStart int) [7]string
+    WeekHeader rotates short weekdays by weekStart.
+
+type DateEngineMode string
+    DateEngineMode selects the visible panel.
+
+const (
+	DateEngineModeTime   DateEngineMode = "time"
+	DateEngineModeDate   DateEngineMode = "date"
+	DateEngineModeMonth  DateEngineMode = "month"
+	DateEngineModeYear   DateEngineMode = "year"
+	DateEngineModeDecade DateEngineMode = "decade"
+)
+type DateEnginePicker string
+    DateEnginePicker selects the selector family.
+
+const (
+	DateEnginePickerDate     DateEnginePicker = "date"
+	DateEnginePickerWeek     DateEnginePicker = "week"
+	DateEnginePickerMonth    DateEnginePicker = "month"
+	DateEnginePickerQuarter  DateEnginePicker = "quarter"
+	DateEnginePickerYear     DateEnginePicker = "year"
+	DateEnginePickerTime     DateEnginePicker = "time"
+	DateEnginePickerDatetime DateEnginePicker = "datetime"
+)
+type DateEnginePreset struct {
+	Label     string
+	Value     []DateEngineDate
+	ValueFunc func() []DateEngineDate
+}
+    DateEnginePreset is one shortcut entry. ValueFunc (5.8.0+ function values)
+    wins over Value when both are set.
+
+func (p DateEnginePreset) Resolve() []DateEngineDate
+    Resolve returns the preset dates, calling ValueFunc when present.
+
+type DateEngineProps struct {
+	Picker          DateEnginePicker
+	Mode            DateEngineMode
+	ModeSet         bool
+	DefaultMode     DateEngineMode
+	Locale          string
+	WeekStart       int
+	WeekStartSet    bool
+	BuddhistEra     bool
+	Formats         []string
+	MinDate         *DateEngineDate
+	MinDateSet      bool
+	MaxDate         *DateEngineDate
+	MaxDateSet      bool
+	DisabledDate    func(current DateEngineDate, from *DateEngineDate, pickerType DateEnginePicker) bool
+	DisabledTime    func(current DateEngineDate, part string) DateEngineDisabledTime
+	Order           bool
+	OrderSet        bool
+	AllowEmpty      [2]bool
+	Range           bool
+	Multiple        bool
+	Presets         []DateEnginePreset
+	ShowTime        bool
+	DefaultValue    *DateEngineDate
+	DefaultRange    [2]*DateEngineDate
+	DefaultMultiple []DateEngineDate
+	DefaultPicker   *DateEngineDate
+}
+    DateEngineProps configures one date engine host.
+
+func DefaultDateEngineProps() DateEngineProps
+    DefaultDateEngineProps returns antd 6.5.1 aligned defaults.
+
+type DateEngineResolved struct {
+	PanelBg  theme.Color
+	Text     theme.Color
+	Selected theme.Color
+	OnSelect theme.Color
+	Disabled theme.Color
+	InRange  theme.Color
+	Focus    scope.FocusRing
+}
+    DateEngineResolved carries panel chrome from seed.
+
+func ResolveDateEngine(seed theme.Tokens) DateEngineResolved
+    ResolveDateEngine resolves panel chrome (props > ctx theme > seed).
+
+type GatePropsCoverage = gate.PropsCoverage
+    GatePropsCoverage is the window-reported Props audit.
+
+type GateStateFlow = gate.StateFlow
+    GateStateFlow is the window-reported state audit.
+
+type GateTokenUse = gate.TokenUse
+    GateTokenUse is the window-reported theme audit.
+
+type IconBox struct {
+	Inner *rendering.RenderBox
+	Outer *rendering.RenderTransform
+	Inst  *IconInstance
+}
+    IconBox is the Render-side icon host (WIDGET_MODEL Render segment).
+    Static glyph content lives in the inner repaint-boundary box; spin rotation
+    lives on the outer transform layer only (Flutter RotationTransition parity):
+    per-frame ticks never re-resolve the paint spec, never swap OnPaint,
+    never re-record the glyph.
+
+func BuildIconBox(ctx ScopeCtx, props IconProps, size float64, debug string) *IconBox
+    BuildIconBox builds one icon render box: static paint inside, transform
+    outside. Size<=0 means the kit default edge; otherwise the size is passed
+    into props so the painter draws exactly edge-sized (box == glyph).
+
+func (b *IconBox) SyncIconTransform()
+    SyncIconTransform pushes the instance angle to the outer layer. Call after
+    Tick; paint-only, never layout.
+
+type IconInstance struct {
+	// Has unexported fields.
+}
+    IconInstance owns one mounted icon (WIDGET_MODEL State segment).
+
+func BuildIcon(ctx scope.Ctx, props IconProps) *IconInstance
+    BuildIcon is the sole icon construction entry (WIDGET_MODEL Build).
+
+func NewIcon(name string) *IconInstance
+    NewIcon builds with default context (convenience for tests/demos).
+
+func (in *IconInstance) EffectiveAngle() float64
+    EffectiveAngle reports rotate + spinPhase*360 in degrees.
+
+func (in *IconInstance) EffectiveSize() float64
+    EffectiveSize reports layout edge (default 16).
+
+func (in *IconInstance) HitDefer() bool
+    HitDefer reports true for decorative icons.
+
+func (in *IconInstance) IsSpinning() bool
+    IsSpinning reports active ticker need.
+
+func (in *IconInstance) Known() bool
+    Known reports registry hit (official 848, offline source, or custom).
+
+func (in *IconInstance) Mount(ctx scope.Ctx)
+    Mount marks the host live.
+
+func (in *IconInstance) ResolveIconPaintSpec() IconPaintSpec
+    ResolveIconPaintSpec snapshots instance paint inputs.
+
+func (in *IconInstance) Role() string
+    Role reports img for labeled icons, empty for decorative.
+
+func (in *IconInstance) SetState(f func(*IconInstance))
+    SetState runs f under the lock (sole state mutation gate).
+
+func (in *IconInstance) SpinPhase() float64
+    SpinPhase reports 0..1 ticker progress.
+
+func (in *IconInstance) TabStop() bool
+    TabStop reports false always: pure icons never take Tab (hosts do).
+
+func (in *IconInstance) Tick(dt float64) bool
+    Tick advances spin; returns false when idle so hosts drop the ticker
+    (matches Button idle convention, fixes icon E5 class bug).
+
+func (in *IconInstance) Unmount()
+    Unmount marks the host dead.
+
+func (in *IconInstance) Update(ctx scope.Ctx, next IconProps)
+    Update swaps props/ctx snapshots.
+
+type IconLayout struct {
+	Edge float64
+}
+    IconLayout is the square layout box (WIDGET_MODEL Render segment).
+
+func ComputeIconLayout(edge float64) IconLayout
+    ComputeIconLayout returns the size x size box; hit == layout == paint.
+
+func (l IconLayout) Hit(x, y float64) bool
+    IconHit reports square containment.
+
+type IconPaintSpec struct {
+	Name      string
+	Variant   string
+	Size      float64
+	AngleDeg  float64
+	TwoTone   bool
+	HasSecond bool
+	Main      theme.Color
+	Secondary theme.Color
+	CustomKey string
+}
+    IconPaintSpec binds resolved colors to a glyph name for paint.
+
+func ResolveStaticIconPaintSpec(in *IconInstance) IconPaintSpec
+    ResolveStaticIconPaintSpec snapshots instance paint inputs with the static
+    Rotate only: spin phase never enters the painter (it rides the transform
+    layer via SyncIconTransform).
+
+type IconProps struct {
+	Name string
+	// Size edge in logical px; 0 means DefaultIconSize (16).
+	Size    float64
+	SizeSet bool
+	// Color single-tone; zero alpha falls back to theme colorText.
+	Color    string
+	ColorSet bool
+	// Rotate static degrees.
+	Rotate float64
+	// Spin enables ticker rotation.
+	Spin bool
+	// TwoTone primary or [primary, secondary].
+	TwoTonePrimary   string
+	TwoToneSecondary string
+	TwoToneSet       bool
+	HasSecondary     bool
+	// Custom painter wins over name (antd component). Stored as a
+	// painter key so props stay comparable without func values.
+	CustomPainter   string
+	CustomPainterID string
+	// Variant selects the official theme: outlined|filled|twotone.
+	// Empty means outlined (antd default).
+	Variant string
+	// Decorative defaults true (aria-hidden equivalent).
+	Decorative   bool
+	DecorSet     bool
+	Disabled     bool
+	AriaLabel    string
+	ClassName    string
+	RegistryName string
+}
+    IconProps configures one icon host (WIDGET_MODEL Props segment). Value
+    semantics: create, pass to BuildIcon, mutate via Update with a copy.
+
+func DefaultIconProps(name string) IconProps
+    DefaultIconProps returns antd-aligned defaults: size 0->16, spin false,
+    rotate 0, decorative true.
+
+type IconResolved struct {
+	Main      theme.Color
+	Secondary theme.Color
+	HasSecond bool
+	TwoTone   bool
+	Size      float64
+}
+    IconResolved carries theme-resolved colors (WIDGET_MODEL Theme segment).
+
+func ResolveIcon(seed theme.Tokens, p IconProps) IconResolved
+    ResolveIcon merges explicit props > global two-tone > theme seed.
+    Empty color string falls back to theme colorText; disabled maps to
+    colorTextDisabled. Two-tone defaults follow the official IconBase: primary
+    '#333', secondary '#E6E6E6'; setTwoToneColor(primary) switches to primary +
+    generate(primary)[0] (derived in prim painter).
+
+func ResolveIconCtx(ctx scope.Ctx, p IconProps) IconResolved
+    ResolveIconCtx resolves with Ctx theme seed.
+
+type IconfontFamily struct {
+	// Has unexported fields.
+}
+    IconfontFamily is the offline family handle.
+
+func CreateFromIconfont(opts IconfontOptions) *IconfontFamily
+    CreateFromIconfont builds the offline family (never fetches network).
+
+func (f *IconfontFamily) NewIcon(typeName string) IconProps
+    NewIcon builds props resolving typeName via offline sources.
+
+func (f *IconfontFamily) Register(sourceID, typeName, painterKey string)
+    Register binds typeName to a painter key in the named source.
+
+type IconfontOptions struct {
+	Sources []string
+}
+    IconfontOptions carries offline source ids (maps scriptUrl[] order).
+
+type ModalHostConfirmConfig struct {
+	Kind            ModalHostConfirmKind
+	Title           string
+	Content         string
+	OkText          string
+	CancelText      string
+	Width           float64
+	WidthSet        bool
+	Centered        bool
+	Mask            ModalHostMask
+	MaskSet         bool
+	MaskClosable    *bool
+	Keyboard        bool
+	KeyboardSet     bool
+	Closable        bool
+	ClosableSet     bool
+	Loading         bool
+	DestroyOnHidden bool
+	OkLoading       bool
+}
+    ModalHostConfirmConfig is one imperative dialog (confirm/info/...).
+
+func DefaultModalHostConfirmConfig() ModalHostConfirmConfig
+    DefaultModalHostConfirmConfig returns method defaults (width 416).
+
+type ModalHostConfirmKind string
+    ModalHostConfirmKind selects the imperative confirm family.
+
+const (
+	ModalHostKindConfirm ModalHostConfirmKind = "confirm"
+	ModalHostKindInfo    ModalHostConfirmKind = "info"
+	ModalHostKindSuccess ModalHostConfirmKind = "success"
+	ModalHostKindError   ModalHostConfirmKind = "error"
+	ModalHostKindWarning ModalHostConfirmKind = "warning"
+)
+type ModalHostEntry struct {
+	ID            uint64
+	Kind          ModalHostConfirmKind
+	Config        ModalHostConfirmConfig
+	ZIndex        int
+	Open          bool
+	Closing       bool
+	OkLoading     bool
+	OkClicks      int
+	FocusButton   string
+	PrevFocusedID uint64
+}
+    ModalHostEntry is one stacked dialog.
+
+type ModalHostHandle struct {
+	// Has unexported fields.
+}
+    ModalHostHandle is the imperative handle (destroy/update/promise).
+
+func (h *ModalHostHandle) Destroy()
+    Destroy closes and removes the entry.
+
+func (h *ModalHostHandle) Done() <-chan ModalHostResult
+    Done returns the promise channel closed exactly once on close.
+
+func (h *ModalHostHandle) ID() uint64
+    ID returns the entry id.
+
+func (h *ModalHostHandle) Update(next ModalHostConfirmConfig)
+    Update replaces title/content/width for a live entry (memo frozen while
+    closing).
+
+type ModalHostInstance struct {
+	// Has unexported fields.
+}
+    ModalHostInstance owns the dialog stack for one host mount.
+
+func BuildModalHost(ctx scope.Ctx, props ModalHostProps) *ModalHostInstance
+    BuildModalHost is the sole host construction entry (Props/State/Render/Theme
+    glue).
+
+func (in *ModalHostInstance) ClickCancel(id uint64)
+    ClickCancel closes via cancel path.
+
+func (in *ModalHostInstance) ClickMask(id uint64) bool
+    ClickMask closes when merged mask is enabled and closable.
+
+func (in *ModalHostInstance) ClickOk(id uint64) bool
+    ClickOk records one OK; duplicate clicks while loading are swallowed.
+
+func (in *ModalHostInstance) CompleteOk(id uint64, allow bool)
+    CompleteOk resolves async OK and closes when allow is true.
+
+func (in *ModalHostInstance) Confirm(cfg ModalHostConfirmConfig) *ModalHostHandle
+    Confirm pushes a confirm dialog.
+
+func (in *ModalHostInstance) Depth() int
+    Depth returns open stack depth.
+
+func (in *ModalHostInstance) DestroyAll()
+    DestroyAll clears the stack top-down (route change path).
+
+func (in *ModalHostInstance) Entries() []*ModalHostEntry
+    Entries returns a snapshot bottom to top.
+
+func (in *ModalHostInstance) Error(cfg ModalHostConfirmConfig) *ModalHostHandle
+    Error pushes an error dialog.
+
+func (in *ModalHostInstance) HolderContent() string
+    HolderContent renders static-call holder copy through Ctx.
+
+func (in *ModalHostInstance) Info(cfg ModalHostConfirmConfig) *ModalHostHandle
+    Info pushes an info dialog.
+
+func (in *ModalHostInstance) Mount(ctx scope.Ctx)
+    Mount marks the host live.
+
+func (in *ModalHostInstance) PressEsc(id uint64) bool
+    PressEsc closes the top entry when its keyboard flag is on.
+
+func (in *ModalHostInstance) PressTab(id uint64) string
+    PressTab cycles focus inside the top dialog (trap).
+
+func (in *ModalHostInstance) ScrollLocked() bool
+    ScrollLocked reports body scroll lock while any entry is open.
+
+func (in *ModalHostInstance) SetOkLoading(id uint64, loading bool)
+    SetOkLoading marks async pending state.
+
+func (in *ModalHostInstance) SetState(f func(*ModalHostInstance))
+    SetState runs f under the host lock (sole state mutation gate).
+
+func (in *ModalHostInstance) Success(cfg ModalHostConfirmConfig) *ModalHostHandle
+    Success pushes a success dialog.
+
+func (in *ModalHostInstance) Unmount()
+    Unmount destroys all entries in top-down order.
+
+func (in *ModalHostInstance) Update(ctx scope.Ctx, next ModalHostProps)
+    Update swaps props/ctx snapshots.
+
+func (in *ModalHostInstance) Warning(cfg ModalHostConfirmConfig) *ModalHostHandle
+    Warning pushes a warning dialog.
+
+type ModalHostMask struct {
+	Enabled  bool
+	Blur     bool
+	Closable bool
+}
+    ModalHostMask carries mask.enabled/blur/closable (antd 6.5.1 mask object).
+
+func DefaultModalHostMask() ModalHostMask
+    DefaultModalHostMask returns mask=true semantics.
+
+func MergeModalHostMask(mask ModalHostMask, maskSet bool, maskClosable *bool) ModalHostMask
+    MergeModalHostMask resolves mask object over deprecated maskClosable.
+    maskClosable nil means unset; explicit mask.Closable wins when set.
+
+type ModalHostPanelRect struct {
+	X, Y, W, H float64
+	ZIndex     int
+	Centered   bool
+}
+    ModalHostPanelRect is the pure panel geometry for one entry. Painting stays
+    in prim when F0-2 lands; this file only computes rects.
+
+func ComputeModalHostPanel(viewportW, viewportH float64, cfg ModalHostConfirmConfig, zIndex int) ModalHostPanelRect
+    ComputeModalHostPanel centers horizontally; Y is top 100 unless centered.
+
+type ModalHostProps struct {
+	ZIndexBase int
+	Mask       ModalHostMask
+	MaskSet    bool
+	ScrollLock bool
+}
+    ModalHostProps configures the App-level dialog stack host.
+
+func DefaultModalHostProps() ModalHostProps
+    DefaultModalHostProps returns zIndex 1000 with mask and scroll lock on.
+
+type ModalHostResolved struct {
+	PanelBg theme.Color
+	Mask    theme.Color
+	Title   theme.Color
+	Content theme.Color
+	Focus   scope.FocusRing
+}
+    ModalHostResolved carries host chrome colors resolved from seed.
+
+func ResolveModalHost(seed theme.Tokens) ModalHostResolved
+    ResolveModalHost resolves panel/mask/text colors (props > ctx theme > seed).
+
+type ModalHostResult struct {
+	Confirmed bool
+}
+    ModalHostResult is the promise outcome: true means OK, false means Cancel.
+
+type NoticeQueueAction struct {
+	Label   string
+	Primary bool
+	OnClick func()
+}
+    NoticeQueueAction is one notification button.
+
+type NoticeQueueInstance struct {
+	// Has unexported fields.
+}
+    NoticeQueueInstance owns the message single queue plus the notification
+    six-corner pools for one host mount.
+
+func BuildNoticeQueue(ctx scope.Ctx, props NoticeQueueProps) *NoticeQueueInstance
+    BuildNoticeQueue is the sole queue construction entry.
+
+func (in *NoticeQueueInstance) ClickMessage(id uint64)
+    ClickMessage triggers onClick without closing.
+
+func (in *NoticeQueueInstance) ClickNotification(id uint64)
+    ClickNotification triggers the card onClick without closing.
+
+func (in *NoticeQueueInstance) ClickNotificationAction(id uint64, action int)
+    ClickNotificationAction triggers one action callback without closing.
+
+func (in *NoticeQueueInstance) ClickNotificationClose(id uint64) bool
+    ClickNotificationClose closes via the close button when closable.
+
+func (in *NoticeQueueInstance) DestroyAll()
+    DestroyAll clears messages plus all notification pools top-down.
+
+func (in *NoticeQueueInstance) DestroyMessage(key ...string)
+    DestroyMessage closes one key or clears the message queue when key empty.
+
+func (in *NoticeQueueInstance) DestroyNotification(key ...string)
+    DestroyNotification closes one key or clears all pools when key empty.
+
+func (in *NoticeQueueInstance) HolderContent(kind string) string
+    HolderContent renders static-call holder copy through Ctx.
+
+func (in *NoticeQueueInstance) MessageCount() int
+    MessageCount reports open tips.
+
+func (in *NoticeQueueInstance) MessageError(content string, duration ...float64) *NoticeQueueMessageHandle
+
+func (in *NoticeQueueInstance) MessageInfo(content string, duration ...float64) *NoticeQueueMessageHandle
+    Message convenience openers (content + optional duration).
+
+func (in *NoticeQueueInstance) MessageLoading(content string, duration ...float64) *NoticeQueueMessageHandle
+
+func (in *NoticeQueueInstance) MessageProgress(id uint64) float64
+    MessageProgress reports 1-remaining/duration frozen while hovered.
+
+func (in *NoticeQueueInstance) MessageSuccess(content string, duration ...float64) *NoticeQueueMessageHandle
+
+func (in *NoticeQueueInstance) MessageWarning(content string, duration ...float64) *NoticeQueueMessageHandle
+
+func (in *NoticeQueueInstance) Messages() []*NoticeQueueMessageEntry
+    Messages returns a snapshot in open order.
+
+func (in *NoticeQueueInstance) Mount(ctx scope.Ctx)
+    Mount marks the host live.
+
+func (in *NoticeQueueInstance) NotificationCount(pl ...NoticeQueuePlacement) int
+    NotificationCount reports open cards, optionally filtered by pool.
+
+func (in *NoticeQueueInstance) NotificationProgress(id uint64) float64
+    NotificationProgress reports the showProgress fraction for one card.
+
+func (in *NoticeQueueInstance) Notifications() []*NoticeQueueNotificationEntry
+    Notifications returns a snapshot in open order.
+
+func (in *NoticeQueueInstance) NotifyError(title, desc string) *NoticeQueueNotificationHandle
+
+func (in *NoticeQueueInstance) NotifyInfo(title, desc string) *NoticeQueueNotificationHandle
+
+func (in *NoticeQueueInstance) NotifyOpen(title, desc string) *NoticeQueueNotificationHandle
+    Notification convenience openers.
+
+func (in *NoticeQueueInstance) NotifySuccess(title, desc string) *NoticeQueueNotificationHandle
+
+func (in *NoticeQueueInstance) NotifyWarning(title, desc string) *NoticeQueueNotificationHandle
+
+func (in *NoticeQueueInstance) OpenMessage(cfg NoticeQueueMessageConfig) *NoticeQueueMessageHandle
+    OpenMessage appends a tip or updates the same key in place.
+
+func (in *NoticeQueueInstance) OpenNotification(cfg NoticeQueueNotificationConfig) *NoticeQueueNotificationHandle
+    OpenNotification appends a card into its placement pool or updates same key.
+
+func (in *NoticeQueueInstance) PressEsc() bool
+    PressEsc closes the latest notification (message has no keyboard).
+
+func (in *NoticeQueueInstance) SetMessageHovered(key string, hovered bool)
+    SetMessageHovered freezes or resumes one message by key.
+
+func (in *NoticeQueueInstance) SetNotificationHovered(key string, hovered bool)
+    SetNotificationHovered freezes or resumes one card by key.
+
+func (in *NoticeQueueInstance) SetState(f func(*NoticeQueueInstance))
+    SetState runs f under the host lock (sole state mutation gate).
+
+func (in *NoticeQueueInstance) Tick(dt float64)
+    Tick advances the virtual clock; hovered pauseOnHover entries freeze.
+
+func (in *NoticeQueueInstance) Unmount()
+    Unmount destroys all entries top-down.
+
+func (in *NoticeQueueInstance) Update(ctx scope.Ctx, next NoticeQueueProps)
+    Update swaps props/ctx snapshots.
+
+type NoticeQueueMessageConfig struct {
+	Content         string
+	Type            NoticeQueueMessageType
+	Duration        float64
+	DurationSet     bool
+	Key             string
+	PauseOnHover    bool
+	PauseOnHoverSet bool
+	IconName        string
+	OnClick         func()
+	OnClose         func()
+	StyleBgSet      bool
+	StyleBgR        float64
+	StyleBgG        float64
+	StyleBgB        float64
+	StyleRadiusSet  bool
+	StyleRadius     float64
+}
+    NoticeQueueMessageConfig is one lightweight top-center tip.
+
+func DefaultNoticeQueueMessageConfig() NoticeQueueMessageConfig
+    DefaultNoticeQueueMessageConfig returns info type with unset duration.
+
+type NoticeQueueMessageEntry struct {
+	ID           uint64
+	Key          string
+	Content      string
+	Type         NoticeQueueMessageType
+	Duration     float64
+	Remaining    float64
+	PauseOnHover bool
+	Hovered      bool
+	IconName     string
+	OnClick      func()
+	OnClose      func()
+}
+    NoticeQueueMessageEntry is one lightweight top-center tip.
+
+type NoticeQueueMessageHandle struct {
+	// Has unexported fields.
+}
+    NoticeQueueMessageHandle is the imperative message handle.
+
+func (h *NoticeQueueMessageHandle) Destroy()
+    Destroy closes one message by handle.
+
+func (h *NoticeQueueMessageHandle) Done() <-chan NoticeQueueResult
+    Done returns the promise channel closed exactly once on close.
+
+func (h *NoticeQueueMessageHandle) ID() uint64
+    ID returns the entry id.
+
+func (h *NoticeQueueMessageHandle) Then(fn func())
+    Then registers afterClose invoked exactly once on close.
+
+type NoticeQueueMessageType string
+    NoticeQueueMessageType selects the message semantic icon.
+
+const (
+	NoticeQueueMessageInfo    NoticeQueueMessageType = "info"
+	NoticeQueueMessageSuccess NoticeQueueMessageType = "success"
+	NoticeQueueMessageError   NoticeQueueMessageType = "error"
+	NoticeQueueMessageWarning NoticeQueueMessageType = "warning"
+	NoticeQueueMessageLoading NoticeQueueMessageType = "loading"
+)
+type NoticeQueueNotificationConfig struct {
+	Title           string
+	Description     string
+	Type            NoticeQueueNotificationType
+	Duration        float64
+	DurationSet     bool
+	Key             string
+	Placement       NoticeQueuePlacement
+	PlacementSet    bool
+	Closable        bool
+	ClosableSet     bool
+	ShowProgress    bool
+	PauseOnHover    bool
+	PauseOnHoverSet bool
+	IconName        string
+	Actions         []NoticeQueueAction
+	Role            string
+	OnClick         func()
+	OnClose         func()
+	StyleBgSet      bool
+	StyleBgR        float64
+	StyleBgG        float64
+	StyleBgB        float64
+	StyleRadiusSet  bool
+	StyleRadius     float64
+}
+    NoticeQueueNotificationConfig is one corner card.
+
+func DefaultNoticeQueueNotificationConfig() NoticeQueueNotificationConfig
+    DefaultNoticeQueueNotificationConfig returns open type, closable, alert role
+    with unset placement and duration.
+
+type NoticeQueueNotificationEntry struct {
+	ID           uint64
+	Key          string
+	Title        string
+	Description  string
+	Type         NoticeQueueNotificationType
+	Placement    NoticeQueuePlacement
+	Duration     float64
+	Remaining    float64
+	Closable     bool
+	ShowProgress bool
+	PauseOnHover bool
+	Hovered      bool
+	IconName     string
+	Actions      []NoticeQueueAction
+	Role         string
+	OnClick      func()
+	OnClose      func()
+}
+    NoticeQueueNotificationEntry is one corner card.
+
+type NoticeQueueNotificationHandle struct {
+	// Has unexported fields.
+}
+    NoticeQueueNotificationHandle is the imperative notification handle.
+
+func (h *NoticeQueueNotificationHandle) Destroy()
+    Destroy closes one notification by handle.
+
+func (h *NoticeQueueNotificationHandle) Done() <-chan NoticeQueueResult
+    Done returns the promise channel closed exactly once on close.
+
+func (h *NoticeQueueNotificationHandle) ID() uint64
+    ID returns the entry id.
+
+func (h *NoticeQueueNotificationHandle) Then(fn func())
+    Then registers afterClose invoked exactly once on close.
+
+type NoticeQueueNotificationType string
+    NoticeQueueNotificationType selects the notification semantic icon. Open
+    carries no preset icon; the rest bring a semantic icon.
+
+const (
+	NoticeQueueNotificationOpen    NoticeQueueNotificationType = "open"
+	NoticeQueueNotificationInfo    NoticeQueueNotificationType = "info"
+	NoticeQueueNotificationSuccess NoticeQueueNotificationType = "success"
+	NoticeQueueNotificationWarning NoticeQueueNotificationType = "warning"
+	NoticeQueueNotificationError   NoticeQueueNotificationType = "error"
+)
+type NoticeQueuePlacement string
+    NoticeQueuePlacement selects the notification corner pool.
+
+const (
+	NoticeQueuePlacementTop         NoticeQueuePlacement = "top"
+	NoticeQueuePlacementTopLeft     NoticeQueuePlacement = "topLeft"
+	NoticeQueuePlacementTopRight    NoticeQueuePlacement = "topRight"
+	NoticeQueuePlacementBottom      NoticeQueuePlacement = "bottom"
+	NoticeQueuePlacementBottomLeft  NoticeQueuePlacement = "bottomLeft"
+	NoticeQueuePlacementBottomRight NoticeQueuePlacement = "bottomRight"
+)
+func ResolveNoticeQueuePlacement(p NoticeQueueProps) NoticeQueuePlacement
+    ResolveNoticeQueuePlacement returns the default corner (topRight).
+
+type NoticeQueueProps struct {
+	ZIndexBase            int
+	MessageTop            float64
+	MessageTopSet         bool
+	MessageDuration       float64
+	MessageDurationSet    bool
+	NotificationDuration  float64
+	NotificationDurSet    bool
+	NotificationPlacement NoticeQueuePlacement
+	NotificationPlaceSet  bool
+	NotificationTop       float64
+	NotificationTopSet    bool
+	NotificationBottom    float64
+	NotificationBotSet    bool
+	MaxCount              int
+	StackEnabled          bool
+	StackThreshold        int
+	StackThresholdSet     bool
+	PauseOnHover          bool
+	PauseOnHoverSet       bool
+}
+    NoticeQueueProps configures the shared message/notification host.
+
+func DefaultNoticeQueueProps() NoticeQueueProps
+    DefaultNoticeQueueProps returns antd 6.5.1 aligned defaults: message top
+    8 duration 3s, notification duration 4.5s placement topRight edge 24,
+    stack off threshold 3, pause on hover on.
+
+type NoticeQueueRect struct {
+	X, Y, W, H float64
+	ZIndex     int
+}
+    NoticeQueueRect is one card/bar rect in logical pixels.
+
+func ComputeNoticeQueueMessageBar(viewportW float64, top float64, index int, zIndex int) NoticeQueueRect
+    ComputeNoticeQueueMessageBar centers one tip; Y stacks from top.
+
+func ComputeNoticeQueueNotificationCard(viewportW, viewportH float64, pl NoticeQueuePlacement, index int, topEdge, bottomEdge float64, zIndex int) NoticeQueueRect
+    ComputeNoticeQueueNotificationCard places one card inside its corner pool.
+
+type NoticeQueueResolved struct {
+	MessageBg   theme.Color
+	NoticeBg    theme.Color
+	Title       theme.Color
+	Description theme.Color
+	Focus       scope.FocusRing
+	Progress    theme.Color
+	CloseActive theme.Color
+}
+    NoticeQueueResolved carries queue chrome colors resolved from seed.
+
+func ResolveNoticeQueue(seed theme.Tokens) NoticeQueueResolved
+    ResolveNoticeQueue resolves message/notice chrome (props > ctx theme >
+    seed).
+
+type NoticeQueueResult struct {
+	Closed bool
+	Key    string
+}
+    NoticeQueueResult is the promise outcome: closed exactly once.
+
+type PrimCrossAlign = prim.CrossAlign
+    PrimCrossAlign selects cross-axis placement.
+
+type PrimCustomSVGEntry = prim.CustomSVGEntry
+    PrimCustomSVGEntry is one offline custom symbol.
+
+type PrimCustomSVGPath = prim.CustomSVGPath
+    PrimCustomSVGPath is one offline custom subpath.
+
+type PrimDecorProps = prim.DecorProps
+    PrimDecorProps carries decoration overrides.
+
+type PrimDecorSpec = prim.DecorSpec
+    PrimDecorSpec is the resolved decoration.
+
+func PrimResolveDecor(props PrimDecorProps, ctheme *PrimDecorSpec, seed theme.Tokens) PrimDecorSpec
+    PrimResolveDecor merges decoration levels.
+
+type PrimDirection = prim.Direction
+    PrimDirection follows scope.Direction for Row RTL.
+
+type PrimFlexResult = prim.FlexResult
+    PrimFlexResult is computed flex geometry.
+
+func PrimFlexLayout(horizontal bool, mainMax, crossMax, spacing float64, dir PrimDirection, cross PrimCrossAlign, items []PrimFlexSpec) PrimFlexResult
+    PrimFlexLayout computes Row/Column geometry.
+
+type PrimFlexSpec = prim.FlexSpec
+    PrimFlexSpec is one flex child spec.
+
+func PrimExpandedSpec(flex int) PrimFlexSpec
+    PrimExpandedSpec must fill its share.
+
+func PrimFixedSpec(w, h float64) PrimFlexSpec
+    PrimFixedSpec wraps a measured child.
+
+func PrimFlexibleSpec(flex int) PrimFlexSpec
+    PrimFlexibleSpec may be smaller than its share.
+
+func PrimSpacerSpec(flex int) PrimFlexSpec
+    PrimSpacerSpec is empty flex space.
+
+type PrimIconSpec = prim.IconSpec
+    PrimIconSpec resolves icon size and color.
+
+func PrimResolveIcon(ctx ScopeCtx, seed theme.Tokens) PrimIconSpec
+    PrimResolveIcon resolves icon size and color from Ctx.
+
+type PrimLabelProps = prim.LabelProps
+    PrimLabelProps configures single-style text.
+
+type PrimLimits = prim.Limits
+    PrimLimits carries constrained-box min/max edges.
+
+type PrimOffstage = prim.Offstage
+    PrimOffstage keeps measured size while hidden.
+
+type PrimOvalClipSpec = prim.OvalClipSpec
+    PrimOvalClipSpec describes an oval clip box.
+
+type PrimPainter = prim.Painter
+    PrimPainter draws custom content.
+
+type PrimPictureSpec = prim.PictureSpec
+    PrimPictureSpec resolves placeholder geometry.
+
+func PrimResolvePicture(w, h float64, seed theme.Tokens) PrimPictureSpec
+    PrimResolvePicture fills placeholder geometry.
+
+type PrimPictureState = prim.PictureState
+    PrimPictureState names the async image phase.
+
+func PrimPicturePhase(im *rendering.RenderImage) PrimPictureState
+    PrimPicturePhase maps the node state to the facade phase.
+
+type PrimRichProps = prim.RichProps
+    PrimRichProps configures multi-span text.
+
+type PrimSpan = prim.Span
+    PrimSpan is one styled run.
+
+type PrimStackResult = prim.StackResult
+    PrimStackResult is computed stack geometry.
+
+func PrimStackLayout(parent rendering.Constraints, layers []PrimStackSpec) PrimStackResult
+    PrimStackLayout computes stack geometry.
+
+type PrimStackSpec = prim.StackSpec
+    PrimStackSpec is one stack layer spec.
+
+func PrimPositionedSpec(w, h, x, y, pw, ph float64) PrimStackSpec
+    PrimPositionedSpec wraps an explicit layer.
+
+func PrimStackedSpec(w, h float64) PrimStackSpec
+    PrimStackedSpec wraps a normal layer.
+
+type PrimTextStyle = prim.TextStyle
+    PrimTextStyle is the inheritable text look.
+
+func PrimResolveTextStyle(seed theme.Tokens, chain ...PrimTextStyle) PrimTextStyle
+    Content facades.
+
+type PrimTextStyleScope = prim.TextStyleScope
+    PrimTextStyleScope carries one inherited style level.
+
+type PrimViewportBox = prim.ViewportBox
+    PrimViewportBox wires a virtual list under a viewport.
+
+func PrimNewVariableViewportBox(count int, fallback float64, extentAt rendering.ItemExtentFunc, builder rendering.ItemBuilder) *PrimViewportBox
+    PrimNewVariableViewportBox builds a variable-height host.
+
+func PrimNewViewportBox(count int, extent float64, builder rendering.ItemBuilder) *PrimViewportBox
+    PrimNewViewportBox builds a scrollable fixed-extent host.
+
+type PrimWrapResult = prim.WrapResult
+    PrimWrapResult is computed flow geometry.
+
+func PrimWrapLayout(parent rendering.Constraints, spacing, runSpacing float64, cross PrimCrossAlign, children []rendering.Size) PrimWrapResult
+    PrimWrapLayout flows children into runs.
+
+type QRCodeGenerateConfig interface {
+	// Name identifies the implementation (e.g. "skip2").
+	Name() string
+	// Encode returns the raw module matrix (true = dark) for one
+	// value at the given level. Empty value returns (nil, nil):
+	// antd renders null, it never crashes.
+	Encode(value string, level QRErrorLevel) ([][]bool, error)
+}
+    QRCodeGenerateConfig is the pluggable QR matrix implementation.
+    Components only talk to this interface, so swapping the encode library never
+    touches component code. The default backend is the MIT-licensed pure-Go
+    skip2/go-qrcode.
+
+func DefaultQRCodeGenerateConfig() QRCodeGenerateConfig
+    DefaultQRCodeGenerateConfig returns the default backend.
+
+type QRCodeInstance struct {
+	// Has unexported fields.
+}
+    QRCodeInstance owns the encoded matrices plus status/cover state.
+
+func BuildQRCode(ctx scope.Ctx, props QRCodeProps) *QRCodeInstance
+    BuildQRCode is the sole QR construction entry.
+
+func BuildQRCodeWithGenerate(ctx scope.Ctx, props QRCodeProps, gen QRCodeGenerateConfig) *QRCodeInstance
+    BuildQRCodeWithGenerate binds a custom encode implementation. Components
+    keep working unchanged: only the generate config swaps.
+
+func (in *QRCodeInstance) ClickRefresh() bool
+    ClickRefresh fires onRefresh exactly once per click (expired only).
+
+func (in *QRCodeInstance) CoverText() string
+    CoverText renders the default cover copy for the current status.
+    StatusRender hook wins when set (P0 string form).
+
+func (in *QRCodeInstance) EncodeError() error
+    EncodeError reports the last encode failure, if any.
+
+func (in *QRCodeInstance) Generate() QRCodeGenerateConfig
+    Generate returns the bound implementation.
+
+func (in *QRCodeInstance) HasCover() bool
+    HasCover reports whether a cover overlays the matrix.
+
+func (in *QRCodeInstance) HasIcon() bool
+    HasIcon reports whether a center icon is configured.
+
+func (in *QRCodeInstance) HolderContent() string
+    HolderContent renders static-call holder copy through Ctx.
+
+func (in *QRCodeInstance) Locale() string
+    Locale resolves props locale over Ctx locale.
+
+func (in *QRCodeInstance) Matrix() [][]bool
+    Matrix returns a snapshot copy of the first-value matrix. Empty value yields
+    nil (antd renders null, never crashes).
+
+func (in *QRCodeInstance) Modules() int
+    Modules reports the matrix edge (0 when empty). Always >= 21 live.
+
+func (in *QRCodeInstance) Mount(ctx scope.Ctx)
+    Mount marks the host live.
+
+func (in *QRCodeInstance) SetCoverStatus(s QRCodeStatus)
+    SetCoverStatus flips active/expired/loading/scanned (uncontrolled).
+
+func (in *QRCodeInstance) SetOnRefresh(fn func())
+    SetOnRefresh registers the expired-refresh callback.
+
+func (in *QRCodeInstance) SetState(f func(*QRCodeInstance))
+    SetState runs f under the lock (sole state mutation gate).
+
+func (in *QRCodeInstance) SetStatus(s QRCodeStatus)
+    SetStatus drives controlled status from outside.
+
+func (in *QRCodeInstance) SetValue(v string)
+    SetValue drives the value from outside and re-encodes.
+
+func (in *QRCodeInstance) SpinAngle() float64
+    SpinAngle reports the loading spinner angle in degrees.
+
+func (in *QRCodeInstance) Status() QRCodeStatus
+    Status returns the current cover state.
+
+func (in *QRCodeInstance) Tick(dt float64)
+    Tick advances the loading spinner (host drives the clock).
+
+func (in *QRCodeInstance) Unmount()
+    Unmount marks the host dead.
+
+func (in *QRCodeInstance) Update(ctx scope.Ctx, next QRCodeProps)
+    Update swaps props/ctx snapshots, re-encoding only when the encode inputs
+    (values, level, boost) changed. Theme/status-only updates skip the encode,
+    which dominates Update cost on long content.
+
+func (in *QRCodeInstance) UsedLevel() QRErrorLevel
+    UsedLevel reports the effective error level after boost.
+
+func (in *QRCodeInstance) Values() []string
+    Values returns the resolved encode inputs.
+
+type QRCodeLayout struct {
+	Outer   QRCodeRect
+	Content QRCodeRect
+	Icon    QRCodeRect
+	HasIcon bool
+	Pad     float64
+	Radius  float64
+}
+    QRCodeLayout carries the outer/content/icon rects.
+
+func ComputeQRCodeLayout(edge float64, bordered bool, iconW, iconH float64, hasIcon bool) QRCodeLayout
+    ComputeQRCodeLayout returns outer/content/icon rects for an edge. Icon is
+    centered in content; empty icon source hides it.
+
+type QRCodeMatrix [][]bool
+    QRCodeMatrix is a snapshot copy of the module matrix.
+
+type QRCodeProps struct {
+	Value         string
+	Values        []string
+	ValuesSet     bool
+	Type          QRCodeType
+	TypeSet       bool
+	Size          float64
+	SizeSet       bool
+	Icon          string
+	IconSize      float64
+	IconSizeSet   bool
+	IconSizeW     float64
+	IconSizeH     float64
+	IconSizeWHSet bool
+	Color         string
+	ColorSet      bool
+	BgColor       string
+	BgColorSet    bool
+	MarginSize    int
+	Bordered      bool
+	BorderedSet   bool
+	ErrorLevel    QRErrorLevel
+	BoostLevel    bool
+	BoostLevelSet bool
+	Status        QRCodeStatus
+	OnRefresh     func()
+	StatusRender  QRCodeStatusRender
+	AriaLabel     string
+}
+    QRCodeProps configures one QR code host.
+
+func DefaultQRCodeProps() QRCodeProps
+    DefaultQRCodeProps returns antd 6.5.1 aligned defaults.
+
+type QRCodeRect struct {
+	X, Y, W, H float64
+}
+    QRCodeRect is one QR part rect in logical pixels.
+
+type QRCodeResolved struct {
+	Module   theme.Color
+	Bg       theme.Color
+	RootBg   theme.Color
+	Border   theme.Color
+	CoverBg  theme.Color
+	CoverTxt theme.Color
+	Focus    scope.FocusRing
+}
+    QRCodeResolved carries QR chrome colors resolved from seed.
+
+func ResolveQRCode(seed theme.Tokens, colorStr, bgStr string) QRCodeResolved
+    ResolveQRCode resolves module/border/cover colors. Explicit color/bgColor
+    strings win; empty or invalid falls back to seed tokens (colorText / white
+    root / transparent bg), never a hardcoded brand color.
+
+type QRCodeStatus string
+    QRCodeStatus selects the cover state.
+
+const (
+	QRCodeStatusActive  QRCodeStatus = "active"
+	QRCodeStatusExpired QRCodeStatus = "expired"
+	QRCodeStatusLoading QRCodeStatus = "loading"
+	QRCodeStatusScanned QRCodeStatus = "scanned"
+)
+type QRCodeStatusInfo struct {
+	Status    QRCodeStatus
+	Expired   string
+	Refresh   string
+	Scanned   string
+	OnRefresh func()
+}
+    QRCodeStatusInfo feeds the statusRender hook.
+
+type QRCodeStatusRender func(info QRCodeStatusInfo) string
+    QRCodeStatusRender customizes the cover content (P0 string hook; the full
+    ReactNode visual lands with the F component).
+
+type QRCodeType string
+    QRCodeType selects the render backend label. Both backends draw the same
+    module matrix; the type only changes the semantic/export label.
+
+const (
+	QRCodeTypeCanvas QRCodeType = "canvas"
+	QRCodeTypeSVG    QRCodeType = "svg"
+)
+type QRErrorLevel string
+    QRErrorLevel selects the error-correction level.
+
+const (
+	QRErrorLevelL QRErrorLevel = "L"
+	QRErrorLevelM QRErrorLevel = "M"
+	QRErrorLevelQ QRErrorLevel = "Q"
+	QRErrorLevelH QRErrorLevel = "H"
+)
+func EncodeQRCodeValue(gen QRCodeGenerateConfig, value string, requested QRErrorLevel, boost bool) (matrix [][]bool, used QRErrorLevel, err error)
+    EncodeQRCodeValue encodes one value, boosting when enabled.
+
+func QRCodeBoostLevels(requested QRErrorLevel) []QRErrorLevel
+    QRCodeBoostLevels returns the attempt order for boostLevel: levels above the
+    requested one first (high to requested), then below down to L so over-long
+    content still encodes.
+
+type ScopeAspect = scope.Aspect
+    ScopeAspect names one subscribable Ctx field group.
+
+func ScopeChangedAspects(before, after ScopeCtx) []ScopeAspect
+    ScopeChangedAspects reports which aspects differ.
+
+type ScopeCtx = scope.Ctx
+    ScopeCtx is the value threaded through Build/Layout/Paint.
+
+func DefaultScopeCtx() ScopeCtx
+    DefaultScopeCtx returns the F0-1 default context.
+
+type ScopeDirection = scope.Direction
+    ScopeDirection selects the inline base direction.
+
+type ScopeEmptyFn = scope.EmptyFn
+    ScopeEmptyFn renders the empty placeholder.
+
+type ScopeFocusRing = scope.FocusRing
+    ScopeFocusRing is the library-wide keyboard focus outline.
+
+func ScopeResolveFocusRing(seed theme.Tokens) ScopeFocusRing
+    ScopeResolveFocusRing derives the keyboard focus ring from seed.
+
+type ScopeHolderFn = scope.HolderFn
+    ScopeHolderFn renders static-call holder content.
+
+type ScopeMotionConfig = scope.MotionConfig
+    ScopeMotionConfig carries the motion switch.
+
+type ScopeOverflowMode = scope.OverflowMode
+    ScopeOverflowMode selects popup overflow behavior.
+
+type ScopeSizeType = scope.SizeType
+    ScopeSizeType selects the global control-size tier.
+
+type ScopeState = scope.WidgetState
+    ScopeState names the current interaction situation.
+
+type ScopeTargetRef = scope.TargetRef
+    ScopeTargetRef names a floating-layer mount point.
+
+type ScopeVariantType = scope.VariantType
+    ScopeVariantType selects the global input look.
+
+type StdDateEngineGenerateConfig struct{}
+    StdDateEngineGenerateConfig is the default pure-Go implementation.
+
+func (c StdDateEngineGenerateConfig) AddDays(d DateEngineDate, n int) DateEngineDate
+    AddDays shifts by days across month/year bounds.
+
+func (c StdDateEngineGenerateConfig) AddMonths(d DateEngineDate, n int) DateEngineDate
+    AddMonths shifts by months, clamping the day.
+
+func (c StdDateEngineGenerateConfig) AddQuarters(d DateEngineDate, n int) DateEngineDate
+    AddQuarters shifts by quarters.
+
+func (c StdDateEngineGenerateConfig) AddYears(d DateEngineDate, n int) DateEngineDate
+    AddYears shifts by years, clamping Feb 29.
+
+func (StdDateEngineGenerateConfig) Compare(a, b DateEngineDate) int
+    Compare orders full datetimes: -1, 0, +1.
+
+func (StdDateEngineGenerateConfig) DayOfWeek(d DateEngineDate) int
+    DayOfWeek returns 0=Sunday..6=Saturday.
+
+func (StdDateEngineGenerateConfig) DaysInMonth(y, m int) int
+    DaysInMonth returns the month length (leap-aware).
+
+func (StdDateEngineGenerateConfig) IsLeapYear(y int) bool
+    IsLeapYear reports Gregorian leap years.
+
+func (StdDateEngineGenerateConfig) Name() string
+    Name identifies the std implementation.
+
+func (StdDateEngineGenerateConfig) QuarterOf(d DateEngineDate) int
+    QuarterOf returns 1..4.
+
+func (StdDateEngineGenerateConfig) StartOfDay(d DateEngineDate) DateEngineDate
+    StartOfDay truncates the clock.
+
+func (StdDateEngineGenerateConfig) StartOfMonth(d DateEngineDate) DateEngineDate
+    StartOfMonth truncates to the first day.
+
+func (StdDateEngineGenerateConfig) StartOfYear(d DateEngineDate) DateEngineDate
+    StartOfYear truncates to January first.
+
+func (c StdDateEngineGenerateConfig) WeekNumber(d DateEngineDate, weekStart int) int
+    WeekNumber returns the week-of-year label: week 1 holds Jan 1, weeks run
+    weekStart..weekStart+6.
+
+type TourMaskGap struct {
+	OffsetX float64
+	OffsetY float64
+	Radius  float64
+}
+    TourMaskGap controls the highlight hole outset and corner radius.
+
+func DefaultTourMaskGap() TourMaskGap
+    DefaultTourMaskGap returns offset 6 radius 2 per antd 6.5.1.
+
+type TourMaskHoleRect struct {
+	X, Y, W, H float64
+	Radius     float64
+}
+    TourMaskHoleRect is the highlight hole in logical pixels.
+
+func ComputeTourMaskHole(target TourMaskRect, gap TourMaskGap) TourMaskHoleRect
+    ComputeTourMaskHole expands the host-written target by gap offsets.
+
+type TourMaskInstance struct {
+	// Has unexported fields.
+}
+    TourMaskInstance owns one guided tour run.
+
+func BuildTourMask(ctx scope.Ctx, props TourMaskProps, steps []TourMaskStep) *TourMaskInstance
+    BuildTourMask is the sole tour construction entry.
+
+func (in *TourMaskInstance) ClickHole(x, y float64) bool
+    ClickHole reports pass-through: false blocks, true lets it reach target.
+
+func (in *TourMaskInstance) ClickMask() bool
+    ClickMask closes only when the merged mask is enabled.
+
+func (in *TourMaskInstance) Close()
+    Close shuts the tour via close icon or mask click.
+
+func (in *TourMaskInstance) ConsumeScroll()
+    ConsumeScroll clears the pending scroll request after the host scrolls.
+
+func (in *TourMaskInstance) Current() int
+    Current reports the visible step index.
+
+func (in *TourMaskInstance) CurrentStep() (TourMaskStep, bool)
+    CurrentStep returns a copy of the visible step.
+
+func (in *TourMaskInstance) EffectiveMask() bool
+    EffectiveMask reports the merged mask for the visible step.
+
+func (in *TourMaskInstance) EffectivePlacement() TourMaskPlacement
+    EffectivePlacement reports step placement over host placement.
+
+func (in *TourMaskInstance) EffectiveType() TourMaskType
+    EffectiveType reports step type over host type.
+
+func (in *TourMaskInstance) Focused() string
+    Focused reports the trapped focus inside the panel.
+
+func (in *TourMaskInstance) HitHole(x, y float64) bool
+    HitHole reports whether a point lands inside the highlight hole. The hole
+    never takes focus; it only decides click pass-through.
+
+func (in *TourMaskInstance) HolderContent() string
+    HolderContent renders static-call holder copy through Ctx.
+
+func (in *TourMaskInstance) IsOpen() bool
+    IsOpen reports whether the tour shows.
+
+func (in *TourMaskInstance) Mount(ctx scope.Ctx)
+    Mount marks the host live.
+
+func (in *TourMaskInstance) Next()
+    Next advances or finishes on the last step.
+
+func (in *TourMaskInstance) PressArrow(dir string) bool
+    PressArrow moves with left/right keys when keyboard is on.
+
+func (in *TourMaskInstance) PressEsc() bool
+    PressEsc closes when keyboard is on.
+
+func (in *TourMaskInstance) PressTab() string
+    PressTab cycles focus inside the panel (trap).
+
+func (in *TourMaskInstance) Prev()
+    Prev steps back when past the first step.
+
+func (in *TourMaskInstance) ScrollNeeded() bool
+    ScrollNeeded reports a pending scrollIntoView request.
+
+func (in *TourMaskInstance) SetCurrent(current int)
+    SetCurrent drives controlled current from outside.
+
+func (in *TourMaskInstance) SetOnChange(fn func(current int))
+    SetOnChange registers the step-change callback.
+
+func (in *TourMaskInstance) SetOnClose(fn func())
+    SetOnClose registers the close callback.
+
+func (in *TourMaskInstance) SetOnFinish(fn func())
+    SetOnFinish registers the finish callback.
+
+func (in *TourMaskInstance) SetOpen(open bool)
+    SetOpen opens or closes the tour. Closing via SetOpen(false) fires onClose.
+
+func (in *TourMaskInstance) SetState(f func(*TourMaskInstance))
+    SetState runs f under the lock (sole state mutation gate).
+
+func (in *TourMaskInstance) SetSteps(steps []TourMaskStep)
+    SetSteps replaces the step list and clamps current.
+
+func (in *TourMaskInstance) SetTarget(index int, r TourMaskRect)
+    SetTarget rewrites one step target rect after layout or scroll.
+
+func (in *TourMaskInstance) StepCount() int
+    StepCount reports total steps.
+
+func (in *TourMaskInstance) Unmount()
+    Unmount closes without callbacks.
+
+func (in *TourMaskInstance) Update(ctx scope.Ctx, next TourMaskProps)
+    Update swaps props/ctx snapshots. Controlled current wins.
+
+type TourMaskPanelRect struct {
+	X, Y, W, H float64
+	ZIndex     int
+	Placement  TourMaskPlacement
+}
+    TourMaskPanelRect is the guided panel rect in logical pixels.
+
+func ComputeTourMaskPanel(viewportW, viewportH float64, hole TourMaskHoleRect, target TourMaskRect, placement TourMaskPlacement, zIndex int) TourMaskPanelRect
+    ComputeTourMaskPanel places the panel by placement around the hole. Empty
+    target or center placement centers in the viewport.
+
+type TourMaskPlacement string
+    TourMaskPlacement selects the panel side relative to the target. Center (or
+    empty target) means viewport centered.
+
+const (
+	TourMaskPlacementCenter      TourMaskPlacement = "center"
+	TourMaskPlacementLeft        TourMaskPlacement = "left"
+	TourMaskPlacementLeftTop     TourMaskPlacement = "leftTop"
+	TourMaskPlacementLeftBottom  TourMaskPlacement = "leftBottom"
+	TourMaskPlacementRight       TourMaskPlacement = "right"
+	TourMaskPlacementRightTop    TourMaskPlacement = "rightTop"
+	TourMaskPlacementRightBottom TourMaskPlacement = "rightBottom"
+	TourMaskPlacementTop         TourMaskPlacement = "top"
+	TourMaskPlacementTopLeft     TourMaskPlacement = "topLeft"
+	TourMaskPlacementTopRight    TourMaskPlacement = "topRight"
+	TourMaskPlacementBottom      TourMaskPlacement = "bottom"
+	TourMaskPlacementBottomLeft  TourMaskPlacement = "bottomLeft"
+	TourMaskPlacementBottomRight TourMaskPlacement = "bottomRight"
+)
+type TourMaskProps struct {
+	Open                bool
+	Current             int
+	CurrentSet          bool
+	DefaultCurrent      int
+	Type                TourMaskType
+	Placement           TourMaskPlacement
+	PlacementSet        bool
+	Mask                bool
+	MaskSet             bool
+	MaskColorSet        bool
+	MaskColorR          float64
+	MaskColorG          float64
+	MaskColorB          float64
+	MaskColorA          float64
+	Gap                 TourMaskGap
+	GapSet              bool
+	Arrow               bool
+	ArrowSet            bool
+	Keyboard            bool
+	KeyboardSet         bool
+	CloseIcon           bool
+	CloseIconSet        bool
+	DisabledInteraction bool
+	ZIndex              int
+	ZIndexSet           bool
+	ScrollIntoView      bool
+	ScrollIntoViewSet   bool
+}
+    TourMaskProps configures the guided tour host.
+
+func DefaultTourMaskProps() TourMaskProps
+    DefaultTourMaskProps returns antd 6.5.1 aligned defaults.
+
+type TourMaskRect struct {
+	X, Y, W, H float64
+}
+    TourMaskRect is a host-written absolute target rectangle. Empty (W<=0 or
+    H<=0) means no target: panel centers in viewport.
+
+func (r TourMaskRect) IsEmpty() bool
+    IsEmpty reports whether the rect carries no target.
+
+type TourMaskResolved struct {
+	PanelBg      theme.Color
+	PanelText    theme.Color
+	PrimaryBg    theme.Color
+	PrimaryText  theme.Color
+	Mask         theme.Color
+	HoleBorder   theme.Color
+	IndicatorOn  theme.Color
+	IndicatorOff theme.Color
+	Focus        scope.FocusRing
+}
+    TourMaskResolved carries tour chrome colors resolved from seed.
+
+func ResolveTourMask(seed theme.Tokens) TourMaskResolved
+    ResolveTourMask resolves panel/mask/indicator colors (props > ctx theme >
+    seed).
+
+type TourMaskStep struct {
+	Title           string
+	Description     string
+	CoverSet        bool
+	Target          TourMaskRect
+	TargetSet       bool
+	Placement       TourMaskPlacement
+	PlacementSet    bool
+	Type            TourMaskType
+	TypeSet         bool
+	Mask            bool
+	MaskSet         bool
+	Arrow           bool
+	ArrowSet        bool
+	NextText        string
+	PrevText        string
+	StyleSectionSet bool
+	StyleSectionR   float64
+	StyleSectionG   float64
+	StyleSectionB   float64
+}
+    TourMaskStep is one guided card.
+
+type TourMaskType string
+    TourMaskType selects the panel skin.
+
+const (
+	TourMaskTypeDefault TourMaskType = "default"
+	TourMaskTypePrimary TourMaskType = "primary"
+)
+type UploadBeforeAction string
+    UploadBeforeAction is the beforeUpload verdict.
+
+const (
+	// UploadBeforeProceed uploads normally.
+	UploadBeforeProceed UploadBeforeAction = "proceed"
+	// UploadBeforeSkip keeps the file in the list without uploading.
+	UploadBeforeSkip UploadBeforeAction = "skip"
+	// UploadBeforeIgnore drops the file entirely (LIST_IGNORE).
+	UploadBeforeIgnore UploadBeforeAction = "ignore"
+)
+type UploadChangeParam struct {
+	File     UploadFile
+	FileList []UploadFile
+	Percent  float64
+}
+    UploadChangeParam is the onChange payload.
+
+type UploadFile struct {
+	UID      string
+	Name     string
+	Size     int64
+	Type     string
+	Path     string
+	URL      string
+	ThumbURL string
+	Status   UploadFileStatus
+	Percent  float64
+	Response string
+	Error    string
+}
+    UploadFile is one list entry.
+
+type UploadFilePicker func() ([]UploadLocalFile, bool)
+    UploadFilePicker injects the system file dialog. Tests use a fake.
+
+type UploadFileStatus string
+    UploadFileStatus names the per-file upload phase.
+
+const (
+	UploadStatusNone      UploadFileStatus = ""
+	UploadStatusUploading UploadFileStatus = "uploading"
+	UploadStatusDone      UploadFileStatus = "done"
+	UploadStatusError     UploadFileStatus = "error"
+	UploadStatusRemoved   UploadFileStatus = "removed"
+)
+type UploadInstance struct {
+	// Has unexported fields.
+}
+    UploadInstance owns the file list plus upload sessions for one host.
+
+func BuildUpload(ctx scope.Ctx, props UploadProps) *UploadInstance
+    BuildUpload is the sole upload construction entry.
+
+func BuildUploadDragger(ctx scope.Ctx, props UploadProps) *UploadInstance
+    BuildUploadDragger is the drag-type sugar entry.
+
+func (in *UploadInstance) Disabled() bool
+    Disabled reports the OR of subtree and widget disable.
+
+func (in *UploadInstance) DropFiles(locals []UploadLocalFile) []UploadFile
+    DropFiles lists dropped files and fires onDrop.
+
+func (in *UploadInstance) FileList() []UploadFile
+    FileList returns a copy of the list in order.
+
+func (in *UploadInstance) Find(uid string) (UploadFile, bool)
+    Find returns a copy of one entry by uid.
+
+func (in *UploadInstance) HolderContent() string
+    HolderContent renders static-call holder copy through Ctx.
+
+func (in *UploadInstance) Mount(ctx scope.Ctx)
+    Mount marks the host live.
+
+func (in *UploadInstance) PasteFiles(locals []UploadLocalFile) []UploadFile
+    PasteFiles lists pasted files when pastable.
+
+func (in *UploadInstance) PasteFromHost() []UploadFile
+    PasteFromHost pulls files through the paste provider.
+
+func (in *UploadInstance) PickFromHost() []UploadFile
+    PickFromHost pulls files through the injected picker.
+
+func (in *UploadInstance) Preview(uid string) (string, bool)
+    Preview runs the previewFile pipeline then onPreview.
+
+func (in *UploadInstance) Remove(uid string) bool
+    Remove deletes one entry unless onRemove vetoes (false).
+
+func (in *UploadInstance) ReportError(uid, message string)
+    ReportError applies a customRequest error event; percent freezes.
+
+func (in *UploadInstance) ReportProgress(uid string, percent float64)
+    ReportProgress applies a customRequest progress event. Files outside the
+    controlled list are ignored (antd FAQ).
+
+func (in *UploadInstance) ReportSuccess(uid, body string)
+    ReportSuccess applies a customRequest success event.
+
+func (in *UploadInstance) SelectFiles(locals []UploadLocalFile) []UploadFile
+    SelectFiles lists picked files (host picker or programmatic).
+
+func (in *UploadInstance) SetControlled(controlled bool)
+    SetControlled flips the controlled flag.
+
+func (in *UploadInstance) SetFileList(files []UploadFile)
+    SetFileList drives controlled list from outside without callbacks.
+
+func (in *UploadInstance) SetState(f func(*UploadInstance))
+    SetState runs f under the lock (sole state mutation gate).
+
+func (in *UploadInstance) Tick(dt float64)
+    Tick advances default-request uploads in small slices so a single Tick
+    call reports intermediate progress; business customRequest files only move
+    through their own callbacks.
+
+func (in *UploadInstance) Unmount()
+    Unmount marks the host dead.
+
+func (in *UploadInstance) Update(ctx scope.Ctx, next UploadProps)
+    Update swaps props/ctx snapshots. Controlled list wins.
+
+func (in *UploadInstance) UploadingCount() int
+    UploadingCount reports in-flight files.
+
+type UploadListType string
+    UploadListType selects the list chrome.
+
+const (
+	UploadListText          UploadListType = "text"
+	UploadListPicture       UploadListType = "picture"
+	UploadListPictureCard   UploadListType = "picture-card"
+	UploadListPictureCircle UploadListType = "picture-circle"
+)
+type UploadLocalFile struct {
+	Name string
+	Path string
+	Type string
+	Size int64
+}
+    UploadLocalFile is one picked/dropped/pasted file before listing.
+
+type UploadProps struct {
+	Type            UploadType
+	ListType        UploadListType
+	Disabled        bool
+	Multiple        bool
+	Pastable        bool
+	Controlled      bool
+	ShowUploadList  bool
+	ShowUploadSet   bool
+	MaxCount        int
+	Accept          string
+	TriggerLabel    string
+	DragText        string
+	DragHint        string
+	AriaLabel       string
+	DefaultFileList []UploadFile
+	BeforeUpload    func(file UploadLocalFile, batch []UploadLocalFile) UploadBeforeAction
+	CustomRequest   func(opts UploadRequestOptions)
+	OnChange        func(p UploadChangeParam)
+	OnRemove        func(file UploadFile) bool
+	OnPreview       func(file UploadFile)
+	OnDrop          func(files []UploadLocalFile)
+	PreviewFile     func(local UploadLocalFile) (string, bool)
+	Picker          UploadFilePicker
+	PasteProvider   func() []UploadLocalFile
+}
+    UploadProps configures one upload host. Multiple gates the host file dialog
+    (single vs multi-select); programmatic SelectFiles still lists the batch and
+    MaxCount trims.
+
+func DefaultUploadDraggerProps() UploadProps
+    DefaultUploadDraggerProps returns the drag-type sugar defaults.
+
+func DefaultUploadProps() UploadProps
+    DefaultUploadProps returns antd 6.5.1 aligned defaults.
+
+type UploadRect struct {
+	X, Y, W, H float64
+}
+    UploadRect is one list/trigger rect in logical pixels.
+
+func ComputeUploadCardCell(viewportW float64, index, columns int, gap float64) UploadRect
+    ComputeUploadCardCell places one photo-wall cell in a wrapping row.
+    viewportW is reserved for responsive columns; callers currently pass an
+    explicit column count.
+
+func ComputeUploadTextRow(index int, width float64) UploadRect
+    ComputeUploadTextRow stacks one text list row.
+
+type UploadRequestOptions struct {
+	File       UploadFile
+	OnProgress func(percent float64)
+	OnSuccess  func(body string)
+	OnError    func(message string)
+}
+    UploadRequestOptions is the customRequest contract. The business
+    implementation drives the upload and reports back through the three
+    callbacks; the default request (nil customRequest) advances on Tick instead.
+
+type UploadResolved struct {
+	PanelBg  theme.Color
+	Text     theme.Color
+	SubText  theme.Color
+	Selected theme.Color
+	Error    theme.Color
+	Disabled theme.Color
+	Focus    scope.FocusRing
+}
+    UploadResolved carries list chrome colors resolved from seed.
+
+func ResolveUpload(seed theme.Tokens) UploadResolved
+    ResolveUpload resolves list chrome (props > ctx theme > seed).
+
+type UploadType string
+    UploadType selects the trigger shape.
+
+const (
+	UploadTypeSelect UploadType = "select"
+	UploadTypeDrag   UploadType = "drag"
+)

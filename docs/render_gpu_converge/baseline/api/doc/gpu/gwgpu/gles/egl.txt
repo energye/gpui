@@ -1,0 +1,598 @@
+package egl // import "github.com/energye/gpui/gpu/gwgpu/gles/egl"
+
+Package egl provides EGL (EGL) context management for OpenGL ES on Linux.
+
+EGL is the native interface for OpenGL ES on Linux, supporting:
+  - X11 displays (via EGL_PLATFORM_X11_KHR)
+  - Wayland displays (via EGL_PLATFORM_WAYLAND_KHR)
+  - Surfaceless contexts (via EGL_PLATFORM_SURFACELESS_MESA)
+
+This implementation uses gpu/gwgpu/ffishim (purego-backed, no CGO, no external
+goffi dependency) for Pure Go FFI.
+
+FFI error handling follows ADR-049 three-tier strategy:
+
+EGL calls are Tier 2: EGL errors are reported via eglGetError(), not FFI return
+values. EGLBoolean returns are checked after the call, not at the FFI transport
+level.
+
+Package egl provides EGL bindings for OpenGL context management.
+
+This file adds libwayland-egl.so bindings for creating EGL window surfaces
+on Wayland. Unlike X11 where eglCreateWindowSurface takes the raw X11 Window
+handle, Wayland requires an intermediate wl_egl_window object.
+
+CONSTANTS
+
+const (
+	DefaultDisplay  EGLNativeDisplayType = 0
+	NoContext       EGLContext           = 0
+	NoDisplay       EGLDisplay           = 0
+	NoSurface       EGLSurface           = 0
+	DontCare        EGLInt               = -1
+	Unknown         EGLInt               = -1
+	NoNativeDisplay EGLNativeDisplayType = 0
+	NoNativeWindow  EGLNativeWindowType  = 0
+)
+    EGL constants - Special values
+
+
+FUNCTIONS
+
+func BufferAge(dpy EGLDisplay, surface EGLSurface) (age int, ok bool)
+    BufferAge returns EGL_BUFFER_AGE_EXT for the surface: the number of back
+    buffer swaps since the current back buffer was last displayed. ok is false
+    when EGL_EXT_buffer_age is unavailable or the query fails; callers must then
+    present the full surface.
+
+func DeviceEnumerationSupported() bool
+    DeviceEnumerationSupported reports whether the loader exposes device
+    enumeration (client extensions). Presence only — see QueryDevices.
+
+func FindDiscreteDevice() uintptr
+    FindDiscreteDevice returns the first NVIDIA device, or 0 when enumeration
+    is unavailable or none matches. Visible windows still present through the
+    platform display; the picked device drives offscreen/surfaceless work.
+
+func GetEGLDisplay(nativeDisplay uintptr) (EGLDisplay, WindowKind, *DisplayOwner, error)
+    GetEGLDisplay returns an EGL display for the detected platform.
+    nativeDisplay is the platform-specific native display handle:
+      - Wayland: the app's wl_display* — must NOT be 0, otherwise EGL opens a
+        second wl_display connection and wl_surface proxies will mismatch on
+        configure.
+      - X11: the X11 Display* (0 = use DISPLAY env var via OpenX11Display).
+      - Surfaceless: ignored.
+
+func GetGLProcAddress(name string) unsafe.Pointer
+    GetGLProcAddress returns the address of an OpenGL function. It uses
+    eglGetProcAddress to load both core and extension functions. Returns
+    unsafe.Pointer for the GL entry-point table.
+
+func GetProcAddress(procname string) uintptr
+    GetProcAddress returns the address of an EGL or client API extension
+    function.
+
+func HasPartialUpdate() bool
+    HasPartialUpdate reports whether EGL_KHR_partial_update
+    (eglSetDamageRegionKHR) was successfully loaded. Present only takes the
+    damage path when this and HasSwapBuffersWithDamage are both true.
+
+func HasPlatformWindowSurface() bool
+    HasPlatformWindowSurface reports whether eglCreatePlatformWindowSurface
+    (EGL 1.5) is available. When true, CreatePlatformWindowSurface should be
+    preferred over CreateWindowSurface on Wayland for spec-correct void* native
+    window handling.
+
+func HasSurfacelessSupport() bool
+    HasSurfacelessSupport checks if Mesa surfaceless platform is available.
+
+func HasSwapBuffersWithDamage() bool
+    HasSwapBuffersWithDamage reports whether the
+    EGL_KHR_swap_buffers_with_damage extension was successfully loaded and is
+    available for use.
+
+func HasWaylandEGL() bool
+    HasWaylandEGL reports whether libwayland-egl.so was loaded successfully.
+
+func Init() error
+    Init loads the EGL library and initializes function pointers.
+
+func InitWaylandEGL() bool
+    InitWaylandEGL loads libwayland-egl.so and prepares CIFs. Safe to call
+    multiple times; only the first call does work.
+
+func QueryClientExtensions() string
+    QueryClientExtensions returns EGL client extensions available without a
+    display. This MUST be called with EGL_NO_DISPLAY to get client extensions.
+    EGL client extensions are extensions that can be queried before display
+    initialization.
+
+func QueryString(dpy EGLDisplay, name EGLInt) string
+    QueryString returns a string describing properties of the EGL client or
+    display.
+
+func WlEGLWindowCreate(wlSurface uintptr, width, height int32) uintptr
+    WlEGLWindowCreate creates a wl_egl_window from a wl_surface. Returns 0 on
+    failure.
+
+func WlEGLWindowDestroy(eglWindow uintptr)
+    WlEGLWindowDestroy destroys a wl_egl_window.
+
+func WlEGLWindowResize(eglWindow uintptr, width, height, dx, dy int32)
+    WlEGLWindowResize resizes a wl_egl_window.
+
+
+TYPES
+
+type Context struct {
+	// Has unexported fields.
+}
+    Context wraps an EGL rendering context with its display, config, and
+    surface.
+
+func NewContext(config ContextConfig) (*Context, error)
+    NewContext creates a new EGL context. An explicit WindowKind selects that
+    platform directly; otherwise it detects X11, Wayland, or Surfaceless.
+
+    PRIME note: EGL on X11 follows DRI_PRIME for the render node. Callers
+    that want the discrete GPU set DRI_PRIME=1 in the process env before
+    the first EGL display init (Mesa resolves the node at display bring-up,
+    not per context). No EGL code change needed here; selection lives one layer
+    up (adapter policy), this comment only pins the mechanism.
+
+func NewContextOnDisplay(display EGLDisplay, config ContextConfig) (*Context, error)
+    NewContextOnDisplay creates an EGL context on an already-opened EGL display
+    (e.g. PlatformDisplayForDevice for a picked GPU from device enumeration).
+    Takes over the display: Destroy terminates it, and error paths terminate it
+    too — same ownership as NewContext. The display is reported as surfaceless:
+    device displays have no window system, so the context must never be mistaken
+    for a shareable window context.
+
+func (c *Context) Config() EGLConfig
+    Config returns the EGL config handle.
+
+func (c *Context) CreateWindowSurface(nativeWindow uintptr) (EGLSurface, error)
+    CreateWindowSurface creates an EGL window surface for presentation.
+    The surface shares this context's display and config.
+
+func (c *Context) Destroy()
+    Destroy releases the context and its associated resources. Order matters:
+    EGL resources first, then the native display connection. Closing the native
+    display (e.g. XCloseDisplay) before eglTerminate would cause EGL to access a
+    freed connection.
+
+func (c *Context) Display() EGLDisplay
+    Display returns the EGL display handle.
+
+func (c *Context) EGLContext() EGLContext
+    EGLContext returns the EGL context handle.
+
+func (c *Context) MakeCurrent() error
+    MakeCurrent makes this context current on the pbuffer (headless rendering).
+
+func (c *Context) MakeCurrentSurface(surface EGLSurface) error
+    MakeCurrentSurface makes this context current on a window surface (for
+    Present).
+
+func (c *Context) Pbuffer() EGLSurface
+    Pbuffer returns the pbuffer surface.
+
+func (c *Context) WindowKind() WindowKind
+    WindowKind returns the detected window system type.
+
+type ContextConfig struct {
+	// GLVersionMajor is the major OpenGL version (e.g., 3 for OpenGL 3.3).
+	GLVersionMajor int
+	// GLVersionMinor is the minor OpenGL version (e.g., 3 for OpenGL 3.3).
+	GLVersionMinor int
+	// CoreProfile requests a core profile context (vs compatibility).
+	CoreProfile bool
+	// Debug enables debug context with validation.
+	Debug bool
+	// GLES requests OpenGL ES instead of desktop OpenGL.
+	GLES bool
+	// Surfaceless creates a context without a surface (headless rendering).
+	Surfaceless bool
+	// NativeDisplay is the native display handle to use for EGL display creation.
+	// On Wayland: must be the app's wl_display* — passing 0 causes EGL to open
+	// a second connection, which makes wl_surface proxies mismatched on configure.
+	// On X11: the X11 Display*. Zero uses the default display.
+	NativeDisplay uintptr
+	// marked SLOW/NON_CONFORMANT become eligible. Default false (a software
+	// rasterizer must never shadow a real GPU on the shared display); set it
+	// only when the caller explicitly picked a software device display
+	// , where slow is the honest answer.
+	AllowSoftwareConfigs bool
+	// WindowKind selects the native window system explicitly. Nil preserves
+	// automatic environment-based detection and keeps ContextConfig's zero value
+	// independent of WindowKind's numeric constants.
+	WindowKind *WindowKind
+}
+    ContextConfig holds configuration options for creating an EGL context.
+
+func DefaultContextConfig() ContextConfig
+    DefaultContextConfig returns a sensible default context configuration.
+    Creates an OpenGL 3.3 core profile context.
+
+type DeviceInfo struct {
+	// Device is the opaque EGLDeviceEXT handle.
+	Device uintptr
+	// Name is the driver-reported device string (may be empty).
+	Name string
+	// IsNVIDIA reports an NVIDIA vendor/renderer string.
+	IsNVIDIA bool
+	// IsMesa reports a Mesa/Intel/AMD string (integrated on this box).
+	IsMesa bool
+	// IsSoftware reports a software-rasterizer marker (llvmpipe/swrast/
+	// SwiftShader/MESA_device_software).
+	IsSoftware bool
+}
+    DeviceInfo describes one EGL device.
+
+func QueryDevices() []DeviceInfo
+    QueryDevices lists EGL devices. Empty (not an error) on drivers where
+    enumeration is unsupported or the call cannot marshal (see ABI note).
+    No process may die probing GPUs; falling back to the platform display is the
+    correct answer on such drivers.
+
+    ABI note: eglQueryDevicesEXT resolves via eglGetProcAddress (GetSymbol on
+    the loader segfaults — 2026-09 regression), and its (EGLint, EGLDevice*,
+    EGLint*) triple must go through the ffishim RegisterFunc trampoline
+    (CallTrampoline): the SyscallN/cgocall path carries stale al/XMM state that
+    this loader dispatch reads as the count register (ok=0 under SyscallN,
+    ok=1 under trampoline, same bytes — verified 2026-09). The trampoline
+    shape is covered by the ffishim three-arg shape test; if it ever goes red,
+    this stays empty.
+
+type DisplayOwner struct {
+	// Has unexported fields.
+}
+    DisplayOwner manages the lifetime of a native display connection. It ensures
+    the display is properly closed when the owner is destroyed.
+
+func OpenX11Display() *DisplayOwner
+    OpenX11Display opens an X11 display connection. Returns nil if X11 libraries
+    are not available or display cannot be opened.
+
+func TestWaylandDisplay() *DisplayOwner
+    TestWaylandDisplay tests if a Wayland display connection is available.
+    Returns nil if Wayland libraries are not available or display cannot
+    be opened. This function connects and immediately disconnects to test
+    availability.
+
+func (d *DisplayOwner) Close()
+    Close closes the native display connection and unloads the library.
+
+func (d *DisplayOwner) Display() uintptr
+    Display returns the native display pointer.
+
+func (d *DisplayOwner) Kind() WindowKind
+    Kind returns the window system type.
+
+type EGLAttrib uintptr
+    EGLAttrib represents an attribute value (EGL 1.5+).
+
+type EGLBoolean uint32
+    EGLBoolean represents a boolean value (EGL_TRUE or EGL_FALSE).
+
+const (
+	False EGLBoolean = 0
+	True  EGLBoolean = 1
+)
+    EGL constants - Boolean values
+
+func BindAPI(api EGLEnum) EGLBoolean
+    BindAPI sets the current rendering API.
+
+func ChooseConfig(dpy EGLDisplay, attribList *EGLInt, configs *EGLConfig, configSize EGLInt, numConfig *EGLInt) EGLBoolean
+    ChooseConfig returns EGL frame buffer configurations that match specified
+    attributes.
+
+func DestroyContext(dpy EGLDisplay, ctx EGLContext) EGLBoolean
+    DestroyContext destroys an EGL rendering context.
+
+func DestroySurface(dpy EGLDisplay, surface EGLSurface) EGLBoolean
+    DestroySurface destroys an EGL surface.
+
+func GetConfigAttrib(dpy EGLDisplay, config EGLConfig, attribute EGLInt, value *EGLInt) EGLBoolean
+    GetConfigAttrib returns information about an EGL frame buffer configuration.
+
+func Initialize(dpy EGLDisplay, major *EGLInt, minor *EGLInt) EGLBoolean
+    Initialize initializes an EGL display connection.
+
+func MakeCurrent(dpy EGLDisplay, draw EGLSurface, read EGLSurface, ctx EGLContext) EGLBoolean
+    MakeCurrent binds context to the current rendering thread and surfaces.
+
+func QuerySurface(dpy EGLDisplay, surface EGLSurface, attribute EGLInt, value *EGLInt) EGLBoolean
+    QuerySurface returns information about an EGL surface.
+
+func SetDamageRegionKHR(dpy EGLDisplay, surface EGLSurface, rects *int32, nRects int32) EGLBoolean
+    SetDamageRegionKHR tells EGL which surface region the frame will modify
+    so the driver preserves the rest of the back buffer. rects uses the same
+    packed {x, y, width, height} bottom-left layout as SwapBuffersWithDamage.
+    Must be called before modifying the back buffer.
+
+func SwapBuffers(dpy EGLDisplay, surface EGLSurface) EGLBoolean
+    SwapBuffers posts EGL surface color buffer to a native window.
+
+func SwapBuffersWithDamage(dpy EGLDisplay, surface EGLSurface, rects *int32, nRects int32) EGLBoolean
+    SwapBuffersWithDamage presents the EGL surface with damage rectangle hints.
+    rects is a packed array of int32 quadruples {x, y, width, height} using
+    bottom-left origin (EGL convention — caller must Y-flip from top-left).
+    nRects is the number of rectangles (NOT the number of ints). Returns False
+    on failure.
+
+    Falls back to SwapBuffers when EGL_KHR_swap_buffers_with_damage is not
+    available or nRects is 0.
+
+func SwapInterval(dpy EGLDisplay, interval EGLInt) EGLBoolean
+    SwapInterval specifies the minimum number of video frames between buffer
+    swaps.
+
+func Terminate(dpy EGLDisplay) EGLBoolean
+    Terminate terminates an EGL display connection.
+
+type EGLConfig uintptr
+    EGLConfig represents an EGL frame buffer configuration.
+
+type EGLContext uintptr
+    EGLContext represents an EGL rendering context.
+
+func CreateContext(dpy EGLDisplay, config EGLConfig, shareContext EGLContext, attribList *EGLInt) EGLContext
+    CreateContext creates a new EGL rendering context.
+
+func GetCurrentContext() EGLContext
+    GetCurrentContext returns the current EGL rendering context.
+
+type EGLDisplay uintptr
+    EGLDisplay represents an EGL display connection.
+
+func GetCurrentDisplay() EGLDisplay
+    GetCurrentDisplay returns the current EGL display connection.
+
+func GetDisplay(displayID EGLNativeDisplayType) EGLDisplay
+    GetDisplay returns an EGL display connection.
+
+func GetPlatformDisplay(platform EGLEnum, nativeDisplay uintptr, attribList *EGLAttrib) EGLDisplay
+    GetPlatformDisplay returns an EGL display connection for a specific platform
+    (EGL 1.5). Falls back to GetDisplay if EGL 1.5 is not available.
+
+func PlatformDisplayForDevice(dev uintptr) EGLDisplay
+    PlatformDisplayForDevice opens an EGLDisplay on an enumerated device
+    (EGL_PLATFORM_DEVICE_EXT). 0/empty device falls back to NoDisplay so callers
+    keep the platform path.
+
+type EGLEnum uint32
+    EGLEnum represents an enumeration value.
+
+const (
+	OpenGLESAPI EGLEnum = 0x30A0
+	OpenVGAPI   EGLEnum = 0x30A1
+	OpenGLAPI   EGLEnum = 0x30A2
+)
+    EGL constants - API identifiers
+
+const (
+	PlatformX11KHR          EGLEnum = 0x31D5
+	PlatformWaylandKHR      EGLEnum = 0x31D8
+	PlatformSurfacelessMesa EGLEnum = 0x31DD
+	PlatformAngleAngle      EGLEnum = 0x3202
+)
+    EGL constants - Platform types (EGL 1.5 and extensions)
+
+const PlatformDeviceEXT EGLEnum = 0x313F
+    PlatformDeviceEXT is EGL_PLATFORM_DEVICE_EXT (0x313F).
+
+type EGLInt int32
+    EGLInt represents a 32-bit signed integer.
+
+const (
+	Success           EGLInt = 0x3000
+	NotInitialized    EGLInt = 0x3001
+	BadAccess         EGLInt = 0x3002
+	BadAlloc          EGLInt = 0x3003
+	BadAttribute      EGLInt = 0x3004
+	BadConfig         EGLInt = 0x3005
+	BadContext        EGLInt = 0x3006
+	BadCurrentSurface EGLInt = 0x3007
+	BadDisplay        EGLInt = 0x3008
+	BadMatch          EGLInt = 0x3009
+	BadNativePixmap   EGLInt = 0x300A
+	BadNativeWindow   EGLInt = 0x300B
+	BadParameter      EGLInt = 0x300C
+	BadSurface        EGLInt = 0x300D
+	ContextLost       EGLInt = 0x300E
+)
+    EGL constants - Errors (returned by eglGetError)
+
+const (
+	BufferSize            EGLInt = 0x3020
+	AlphaSize             EGLInt = 0x3021
+	BlueSize              EGLInt = 0x3022
+	GreenSize             EGLInt = 0x3023
+	RedSize               EGLInt = 0x3024
+	DepthSize             EGLInt = 0x3025
+	StencilSize           EGLInt = 0x3026
+	ConfigCaveat          EGLInt = 0x3027
+	SlowConfig            EGLInt = 0x3050
+	NonConformantConfig   EGLInt = 0x3051
+	ConfigID              EGLInt = 0x3028
+	Level                 EGLInt = 0x3029
+	MaxPbufferHeight      EGLInt = 0x302A
+	MaxPbufferPixels      EGLInt = 0x302B
+	MaxPbufferWidth       EGLInt = 0x302C
+	NativeRenderable      EGLInt = 0x302D
+	NativeVisualID        EGLInt = 0x302E
+	NativeVisualType      EGLInt = 0x302F
+	Samples               EGLInt = 0x3031
+	SampleBuffers         EGLInt = 0x3032
+	SurfaceType           EGLInt = 0x3033
+	TransparentType       EGLInt = 0x3034
+	TransparentBlueValue  EGLInt = 0x3035
+	TransparentGreenValue EGLInt = 0x3036
+	TransparentRedValue   EGLInt = 0x3037
+	None                  EGLInt = 0x3038
+	BindToTextureRGB      EGLInt = 0x3039
+	BindToTextureRGBA     EGLInt = 0x303A
+	MinSwapInterval       EGLInt = 0x303B
+	MaxSwapInterval       EGLInt = 0x303C
+	LuminanceSize         EGLInt = 0x303D
+	AlphaMaskSize         EGLInt = 0x303E
+	ColorBufferType       EGLInt = 0x303F
+	RenderableType        EGLInt = 0x3040
+	Conformant            EGLInt = 0x3042
+)
+    EGL constants - Config attributes
+
+const (
+	Height               EGLInt = 0x3056
+	Width                EGLInt = 0x3057
+	LargestPbuffer       EGLInt = 0x3058
+	TextureFormat        EGLInt = 0x3080
+	TextureTarget        EGLInt = 0x3081
+	MipmapTexture        EGLInt = 0x3082
+	MipmapLevel          EGLInt = 0x3083
+	RenderBuffer         EGLInt = 0x3086
+	VGColorspace         EGLInt = 0x3087
+	VGAlphaFormat        EGLInt = 0x3088
+	HorizontalResolution EGLInt = 0x3090
+	VerticalResolution   EGLInt = 0x3091
+	PixelAspectRatio     EGLInt = 0x3092
+	SwapBehavior         EGLInt = 0x3093
+	MultisampleResolve   EGLInt = 0x3099
+	// BufferAgeExt is EGL_BUFFER_AGE_EXT (EGL_EXT_buffer_age): the number of
+	// back buffer swaps since the current back buffer was last displayed.
+	BufferAgeExt EGLInt = 0x313D
+)
+    EGL constants - Surface attributes
+
+const (
+	ContextMajorVersion                  EGLInt = 0x3098
+	ContextMinorVersion                  EGLInt = 0x30FB
+	ContextOpenGLProfileMask             EGLInt = 0x30FD
+	ContextOpenGLResetNotification       EGLInt = 0x31BD
+	ContextOpenGLCoreProfileBit          EGLInt = 0x00000001
+	ContextOpenGLCompatibilityProfileBit EGLInt = 0x00000002
+	ContextOpenGLDebug                   EGLInt = 0x31B0
+	ContextOpenGLForwardCompatible       EGLInt = 0x31B1
+	ContextOpenGLRobustAccess            EGLInt = 0x31B2
+	NoResetNotification                  EGLInt = 0x31BE
+	LoseContextOnReset                   EGLInt = 0x31BF
+)
+    EGL constants - Context attributes
+
+const (
+	OpenGLESBit  EGLInt = 0x0001
+	OpenVGBit    EGLInt = 0x0002
+	OpenGLES2Bit EGLInt = 0x0004
+	OpenGLBit    EGLInt = 0x0008
+	OpenGLES3Bit EGLInt = 0x0040
+)
+    EGL constants - Renderable type mask bits
+
+const (
+	PbufferBit               EGLInt = 0x0001
+	PixmapBit                EGLInt = 0x0002
+	WindowBit                EGLInt = 0x0004
+	VGColorspaceLinearBit    EGLInt = 0x0020
+	VGAlphaFormatPreBit      EGLInt = 0x0040
+	MultisampleResolveBoxBit EGLInt = 0x0200
+	SwapBehaviorPreservedBit EGLInt = 0x0400
+)
+    EGL constants - Surface type mask bits
+
+const (
+	Vendor     EGLInt = 0x3053
+	Version    EGLInt = 0x3054
+	Extensions EGLInt = 0x3055
+	ClientAPIs EGLInt = 0x308D
+)
+    EGL constants - QueryString targets
+
+const (
+	RGBBuffer       EGLInt = 0x308E
+	LuminanceBuffer EGLInt = 0x308F
+)
+    EGL constants - Color buffer type
+
+const (
+	ContextFlagsKHR                      EGLInt = 0x30FC
+	ContextOpenGLDebugBitKHR             EGLInt = 0x0001
+	ContextOpenGLRobustAccessExt         EGLInt = 0x30BF
+	PlatformAngleNativePlatformTypeAngle EGLInt = 0x348F
+	PlatformAngleDebugLayersEnabled      EGLInt = 0x3451
+	GLColorspaceKHR                      EGLInt = 0x309D
+	GLColorspaceSRGBKHR                  EGLInt = 0x3089
+)
+    EGL constants - Extension-specific
+
+const (
+	BufferPreserved EGLInt = 0x3094
+	BufferDestroyed EGLInt = 0x3095
+)
+    EGL constants - Swap behavior
+
+const (
+	SingleBuffer EGLInt = 0x3085
+	BackBuffer   EGLInt = 0x3084
+)
+    EGL constants - Back buffer
+
+const (
+	ContextClientType    EGLInt = 0x3097
+	ContextClientVersion EGLInt = 0x3098
+)
+    EGL constants - QueryContext targets
+
+func GetError() EGLInt
+    GetError returns the last EGL error.
+
+type EGLNativeDisplayType uintptr
+    EGLNativeDisplayType represents a native platform display.
+
+type EGLNativePixmapType uintptr
+    EGLNativePixmapType represents a native platform pixmap.
+
+type EGLNativeWindowType uintptr
+    EGLNativeWindowType represents a native platform window.
+
+type EGLSurface uintptr
+    EGLSurface represents an EGL rendering surface.
+
+func CreatePbufferSurface(dpy EGLDisplay, config EGLConfig, attribList *EGLInt) EGLSurface
+    CreatePbufferSurface creates a new EGL pixel buffer surface.
+
+func CreatePlatformWindowSurface(dpy EGLDisplay, config EGLConfig, nativeWindow uintptr, attribList *EGLAttrib) EGLSurface
+    CreatePlatformWindowSurface creates a new EGL window surface using
+    the EGL 1.5 platform-aware API. Takes void* native window instead of
+    EGLNativeWindowType. On Wayland: nativeWindow is wl_egl_window*. Attribs use
+    EGLAttrib (pointer-sized). Falls back to CreateWindowSurface when EGL 1.5 is
+    not available.
+
+func CreateWindowSurface(dpy EGLDisplay, config EGLConfig, win EGLNativeWindowType, attribList *EGLInt) EGLSurface
+    CreateWindowSurface creates a new EGL window surface.
+
+type WindowKind int
+    WindowKind represents the type of window system.
+
+const (
+	// WindowKindX11 represents X11 window system.
+	WindowKindX11 WindowKind = iota
+	// WindowKindWayland represents Wayland window system.
+	WindowKindWayland
+	// WindowKindSurfaceless represents surfaceless (headless) rendering.
+	WindowKindSurfaceless
+	// WindowKindUnknown represents unknown window system.
+	WindowKindUnknown
+)
+func DetectWindowKind() WindowKind
+    DetectWindowKind detects the available window system. Priority order:
+     1. If no DISPLAY/WAYLAND_DISPLAY set AND surfaceless available ->
+        Surfaceless (for CI)
+     2. Wayland (if WAYLAND_DISPLAY is set and works)
+     3. X11 (if DISPLAY is set and works)
+     4. Surfaceless (final fallback)
+
+func (w WindowKind) String() string
+    String returns the string representation of WindowKind.
+

@@ -1,0 +1,16 @@
+Command ui_ruler_parity is the gpui side of the P3 comparison rulers.
+
+It deliberately mirrors the reference scenes instead of reusing the
+production capability windows: same client size, same content geometry,
+same animation/scroll phases, so Flutter/Godot numbers have a same-shape arm on
+the gpui side. See docs/RENDER_BASE_RESOURCE_MATRIX.md §5.5 and README.md for
+the remaining cross-engine differences (font rasterizer, Flutter's ListView vs
+gpui's VirtualList, Godot's PhysicsServer).
+
+    export DISPLAY=:0 LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RULER_SCENE=list RUN_SECONDS=60 go run ./examples/ui_ruler_parity
+    RULER_SCENE=list RUN_SECONDS=5 go run ./examples/ui_ruler_parity -auto-only
+    GPUI_ACCEPT_GOLDEN=1 RULER_SCENE=list RUN_SECONDS=5 go run ./examples/ui_ruler_parity -auto-only
+    go run ./examples/ui_ruler_parity                 # manual, stays until close
+
+Scenes: spin / list / text (Flutter ruler) and godot (Godot bullet_shower).

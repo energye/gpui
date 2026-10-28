@@ -1,0 +1,21 @@
+Command ui_wr_r14_cache_budget is the R14 real window (mode-1 first close):
+cache budget / eviction under sustained scroll pressure.
+
+§2 R14 thesis: 大量 boundary 区域 + 持续滚动产生新缓存 + 超预算淘汰 — a 600-row virtual-list
+scrolls for the whole window so fresh cells keep producing new cache keys,
+while the retained-path texture LRU runs under an EXPLICIT budget (SetBudget,
+default 128 — above the per-frame live set of ~107 distinct keys so the cap can
+bind, below the scroll churn total). The budget bounds cross-frame accumulation:
+texture entries stay ≤ cap, cache_evictions grows monotonically (~590/60s), RSS
+slope stays flat, and the visible picture stays correct (pixel probes + golden).
+
+Gates (§2 R14 row + §2.5 预算/压力 档): texture_entries 触顶且 ≤ budget, cache_evictions
+≥3 且严格单调, rss_slope_kb_per_min ≤30000, retained policy, fps_interval ≥55,
+p95 ≤22ms, hitch ≤5/min, CPU 非双 0, pixel assertions 3/3, golden bitwise
+zero-tolerance from run 2.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=60 go run ./examples/ui_wr_r14_cache_budget
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 60 (§2.5 预算/ 压力 档).
+No RUN_SECONDS → interactive loop (pixel evidence off).

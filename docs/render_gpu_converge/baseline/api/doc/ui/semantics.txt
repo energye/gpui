@@ -1,0 +1,55 @@
+package semantics // import "github.com/energye/gpui/ui/semantics"
+
+Package semantics is a minimal role/label skeleton (P5e).
+
+This is not a full a11y tree and does not bridge to platform screen readers.
+Widgets may attach a SemanticsNode for future tooling and P7 a11y hooks.
+
+TYPES
+
+type Flat struct {
+	Depth int
+	Role  Role
+	Label string
+	Value string
+}
+    Flat is one row of a flattened export (debug / tests).
+
+func Flatten(root *Node) []Flat
+    Flatten walks the tree pre-order into a flat list.
+
+type Node struct {
+	Role  Role
+	Label string
+	// Value optional current value (switch on/off, progress, …).
+	Value string
+	// Focusable hints that the node participates in focus (informational).
+	Focusable bool
+	// Children for a lightweight parallel tree.
+	Children []*Node
+}
+    Node is one semantics record (parallel to, or embedded by, a widget).
+
+func New(role Role, label string) *Node
+    New creates a node with role and label.
+
+func (n *Node) Add(child *Node) *Node
+    Add appends a child and returns the child.
+
+type Role string
+    Role is a coarse widget role (ARIA-inspired subset, not full ARIA).
+
+const (
+	RoleNone       Role = ""
+	RoleButton     Role = "button"
+	RoleText       Role = "text"
+	RoleImage      Role = "image"
+	RoleList       Role = "list"
+	RoleListItem   Role = "listitem"
+	RoleTextField  Role = "textfield"
+	RoleCheckbox   Role = "checkbox"
+	RoleSwitch     Role = "switch"
+	RoleDialog     Role = "dialog"
+	RoleNavigation Role = "navigation"
+	RoleGeneric    Role = "generic"
+)

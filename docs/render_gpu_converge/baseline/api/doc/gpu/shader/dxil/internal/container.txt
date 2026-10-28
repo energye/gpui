@@ -1,0 +1,513 @@
+package container // import "github.com/energye/gpui/gpu/shader/dxil/internal/container"
+
+Package container implements the DXBC container format used to wrap DXIL shader
+bitcode.
+
+A DXBC container consists of a header followed by a series of parts,
+each identified by a FourCC code. The DXIL bitcode is stored in the DXIL part,
+and the container hash is stored in the HASH part.
+
+Package container — PSV0 (Pipeline State Validation) part encoding.
+
+PSV0 contains runtime information used by the D3D12 driver to validate pipeline
+state without running the shader. The format consists of:
+
+ 1. PSV runtime info size (uint32) + runtime info struct
+ 2. Resource count (uint32) + optional resource bindings
+ 3. String table (uint32 size + data, 4-byte aligned)
+ 4. Semantic index table (uint32 count + data)
+ 5. Optional: PSV signature elements
+ 6. Optional: I/O dependency tables
+
+For SM 6.0 (validator < 1.6), the runtime info is PSVRuntimeInfo1 (the minimum
+required version that includes signature element counts).
+
+Package container — naga IR binding to DXIL semantic mapping.
+
+Maps naga IR bindings (BuiltinBinding, LocationBinding) to DXIL semantic names
+and system value kinds used in ISG1/OSG1 signatures.
+
+Package container — signature encoding for ISG1/OSG1 parts.
+
+Each signature part has the layout:
+
+    Header:
+      ParamCount uint32 // total number of signature elements
+      ParamOffset uint32 // byte offset from part start to first element (always 8)
+    Elements:
+      [ParamCount]SignatureElement // each 32 bytes
+    StringTable:
+      null-terminated semantic name strings, 4-byte aligned
+
+CONSTANTS
+
+const MaxParts = 8
+    MaxParts is the maximum number of parts in a container.
+
+
+VARIABLES
+
+var (
+	FourCCDXBC = fourCC('D', 'X', 'B', 'C')
+	FourCCDXIL = fourCC('D', 'X', 'I', 'L')
+	FourCCSFI0 = fourCC('S', 'F', 'I', '0')
+	FourCCHASH = fourCC('H', 'A', 'S', 'H')
+	FourCCISG1 = fourCC('I', 'S', 'G', '1')
+	FourCCOSG1 = fourCC('O', 'S', 'G', '1')
+	FourCCPSV0 = fourCC('P', 'S', 'V', '0')
+	FourCCPSG1 = fourCC('P', 'S', 'G', '1')
+)
+    FourCC codes for container parts.
+
+var BypassHash = [16]byte{
+	0x01, 0x01, 0x01, 0x01,
+	0x01, 0x01, 0x01, 0x01,
+	0x01, 0x01, 0x01, 0x01,
+	0x01, 0x01, 0x01, 0x01,
+}
+    BypassHash is the BYPASS sentinel hash value. When this 16-byte value is
+    placed in the container header's digest field, the D3D12 runtime (AgilitySDK
+    1.615+) allows the shader to execute without validating the hash.
+
+var FourCCSTAT = fourCC('S', 'T', 'A', 'T')
+    FourCCSTAT is the DXBC container part tag for the "Shader Statistics" part.
+    DXC calls this DFCC_ShaderStatistics. It is consumed by:
+
+      - the D3D12 runtime's CreateGraphicsPipelineState format validator
+        (empirically, as of 2026 the runtime rejects graphics containers
+        without STAT with STATE_CREATION error id 67 "Vertex Shader is corrupt
+        or in an unrecognized format" — even though the same container passes
+        IDxcValidator with S_OK)
+      - ID3D12ShaderReflection API consumers (tooling path, not the pipeline
+        creation path)
+
+    IDxcValidator does NOT require STAT; only the runtime does. BUG-DXIL-011 for
+    the empirical proof (2026-04-14 session). Mesa's dxil_container.h defines
+    the same FourCC but does not emit the part — Mesa-driven Vulkan-on-D3D12
+    (dzn/dozen) is almost entirely compute and slips under the runtime's format
+    check. Our target is graphics pipelines, so STAT is mandatory.
+
+var PreviewBypassHash = [16]byte{
+	0x02, 0x02, 0x02, 0x02,
+	0x02, 0x02, 0x02, 0x02,
+	0x02, 0x02, 0x02, 0x02,
+	0x02, 0x02, 0x02, 0x02,
+}
+    PreviewBypassHash is the PREVIEW_BYPASS sentinel. Shaders with this hash
+    only execute when developer mode and D3D12ExperimentalShaderModels are
+    enabled.
+
+
+FUNCTIONS
+
+func BuildPSVStringTable(entryName string) (table []byte, entryOffset uint32)
+    BuildPSVStringTable constructs a minimal PSV0 string table containing the
+    entry function name and returns the byte slice plus the offset of the entry
+    name within the table.
+
+    Layout mirrors the convention used by DXC for non-mesh shaders:
+
+        offset 0: '\0' — empty string for signature elements without
+                                      explicit semantic names
+        offset 1: entryName + '\0' — the shader entry point name
+        offset n: zero padding up to 4-byte alignment
+
+    The returned offset is always 1 (the position immediately after the leading
+    '\0'). Caller assigns it to PSVInfo.EntryFunctionName and the slice to
+    PSVInfo.StringTable.
+
+    If entryName is empty the table contains just a single '\0' aligned to 4
+    bytes and the returned offset is 0.
+
+func ComputeRetailHash(containerData []byte)
+    ComputeRetailHash computes the retail (modified MD5) hash of the container
+    data and writes it into the digest field (bytes 4..20).
+
+    This implements the "Retail Hash" algorithm from INF-0004, which is a
+    modified MD5 that puts the byte count at x[0] instead of x[14], and uses a
+    different x[15] encoding.
+
+    The hash input spans bytes 20..end (starting at the Version field in
+    DxilContainerHeader). DXC's DxcContainerBuilder.cpp:189-192:
+
+        HashStartOffset = offsetof(DxilContainerHeader, Version) = 20
+        DataToHash = ContainerHeader + HashStartOffset
+        AmountToHash = ContainerSizeInBytes - HashStartOffset
+
+    NOT the whole buffer with the digest zeroed — that produced hashes that
+    D3D12 runtime rejected as mismatched and returned id=67/93 "shader is
+    corrupt" even for otherwise valid DXIL. Using the DXC start offset yields
+    byte-for-byte matching hashes against DXC- compiled golden blobs.
+
+func EncodePSV0(info PSVInfo) []byte
+    EncodePSV0 serializes PSVInfo into the PSV0 part binary format.
+
+    The runtime-info struct is always emitted at PSVRuntimeInfo3 size (52 B)
+    regardless of shader stage. NumThreadsX/Y/Z and EntryFunctionName fields for
+    non-compute/non-mesh/non-amplification stages are zero-padded. See
+
+func EncodeSignature(elements []SignatureElement) []byte
+    EncodeSignature serializes a list of SignatureElements into the ISG1/OSG1
+    binary format. The result is the part data (not including the FourCC/size
+    part envelope).
+
+func SetBypassHash(containerData []byte)
+    SetBypassHash writes the BYPASS sentinel hash into the container's digest
+    field (bytes 4-19 of the DXBC header).
+
+func WriteShaderHashPart(containerData []byte) error
+    WriteShaderHashPart fills the HASH part body (flags=0, digest=MD5(bitcode))
+    inside the given container. The "shader hash" stored in the HASH part is a
+    standard MD5 (NOT the retail modified MD5) of the raw LLVM bitcode content —
+    everything from the bitcode wrapper magic (0x42 0x43 0xC0 0xDE) through the
+    end of the bitcode stream. The bitcode content is the payload of the DXIL
+    part's inner bitcode wrapper (DxilProgramHeader followed by BitcodeHeader:
+    BitcodeOffset and BitcodeSize fields point to it).
+
+    Without this value set correctly, D3D12 rejects graphics pipelines with
+    "Shader is corrupt" (HRESULT 0x80070057) even when the container hash and
+    bitcode are valid.
+
+    Flags byte is retail (0).
+
+
+TYPES
+
+type Container struct {
+	// Has unexported fields.
+}
+    Container represents a DXBC container holding shader parts.
+
+func New() *Container
+    New creates an empty DXBC container.
+
+func (c *Container) AddDXILPart(shaderKind uint32, majorVer, minorVer uint32, bitcodeData []byte)
+    AddDXILPart adds the DXIL bitcode part to the container.
+
+    The DXIL part has a program header before the bitcode:
+
+        ProgramVersion: (shaderKind << 16) | (majorVersion << 4) | minorVersion
+        ProgramSize: total size in 32-bit words (header + bitcode)
+        DXILMagic: 0x4C495844 ("DXIL" in LE)
+        DXILVersion: 0x100 (DXIL bitcode version)
+        BitcodeOffset: 16 (bytes from DXIL magic to bitcode start)
+        BitcodeSize: size of bitcode in bytes
+
+func (c *Container) AddFeaturesPart(features uint64)
+    AddFeaturesPart adds the SFI0 (Shader Feature Info) part. The features are
+    encoded as a 64-bit bitmask.
+
+func (c *Container) AddHashPart()
+    AddHashPart adds the HASH part with the BYPASS sentinel.
+
+    The HASH part format is:
+
+        Flags: uint32 (0 = retail hash present)
+        Digest: [16]byte (hash value)
+
+    Total: 20 bytes. The actual hash is set by SetBypassHash or
+    ComputeRetailHash which operate on the container header's digest field,
+    not on the HASH part itself. The HASH part just reserves space for the DXC
+    dumpbin reader.
+
+func (c *Container) AddInputSignature(elements []SignatureElement)
+    AddInputSignature adds an ISG1 part to the container.
+
+func (c *Container) AddOutputSignature(elements []SignatureElement)
+    AddOutputSignature adds an OSG1 part to the container.
+
+func (c *Container) AddPSV0(info PSVInfo)
+    AddPSV0 adds a PSV0 part to the container.
+
+func (c *Container) AddPrimitiveSignature(elements []SignatureElement)
+    AddPrimitiveSignature adds a PSG1 part to the container. PSG1 is used for
+    mesh shader primitive output signatures.
+
+func (c *Container) AddRawPart(fc uint32, data []byte)
+    AddRawPart adds an arbitrary part with the given FourCC and data.
+
+func (c *Container) AddSTATPart(shaderKind, majorVer, minorVer uint32, bitcodeData []byte)
+    AddSTATPart emits a "Shader Statistics" part whose body wraps the same LLVM
+    3.7 bitcode as the main DXIL part under a DxilProgramHeader
+
+    DXC constructs STAT by cloning the LLVM module, stripping function bodies
+    via StripAndCreateReflectionStream, and re-serializing. The resulting
+    bitcode is ~96 bytes smaller than the main DXIL part for a trivial
+    VS (function-body instructions removed) but structurally identical:
+    same module header, same types, same metadata, same function declarations,
+    and an empty function body list. D3D12 runtime's reflection consumer does
+    NOT execute the stripped bodies; it only reads the module-level metadata.
+    Therefore a full (non-stripped) duplicate of the main DXIL bitcode is an
+    accepted superset of what DXC emits:
+
+      - Same DxilProgramHeader wrapper (version, shader kind, bitcode offset =
+        16, bitcode size).
+      - Same LLVM 3.7 bitcode (BC\xc0\xde ... module block).
+
+    The only observable difference vs DXC is body presence inside function
+    blocks. The runtime accepts this per experimental verification of the wgpu
+    `GOGPU_DX12_DXIL_VALIDATE=1` hook.
+
+    Option B (truncated reflection module with only !dx.version /
+    !dx.shaderModel / !dx.entryPoints / empty function) is reserved for future
+    compatibility if a future D3D12 runtime tightens the format check. As of
+    validator 1.8 / AgilitySDK 1.615, Option A suffices.
+
+func (c *Container) Bytes() []byte
+    Bytes serializes the container to the DXBC binary format.
+
+    Layout:
+
+        [Header: 28 bytes]
+          Magic: "DXBC" (0x44584243)
+          Digest: 16 bytes (zeros = unsigned, or BYPASS sentinel)
+          Version: uint16 major=1, uint16 minor=0
+          FileSize: uint32 total size
+          PartCount: uint32
+
+        [PartOffsets: 4 * PartCount bytes]
+          uint32 offsets from start of file to each part
+
+        [Parts:]
+          For each part:
+            FourCC: uint32
+            PartSize: uint32
+            Data: PartSize bytes
+
+type PSVInfo struct {
+	ShaderStage PSVShaderKind
+
+	// Vertex shader specific.
+	OutputPositionPresent bool
+
+	// Pixel shader specific.
+	DepthOutput     bool
+	SampleFrequency bool
+
+	// Mesh shader specific (PSVRuntimeInfo0 union + PSVRuntimeInfo1 union + PSVRuntimeInfo2).
+	MaxOutputVertices   uint16
+	MaxOutputPrimitives uint16
+	MeshOutputTopology  uint8 // 0=undefined, 1=line, 2=triangle
+	NumThreadsX         uint32
+	NumThreadsY         uint32
+	NumThreadsZ         uint32
+
+	// PSVRuntimeInfo3 extension: entry function name offset in string table.
+	EntryFunctionName uint32
+
+	// Signature element counts (for PSV1).
+	SigInputElements            uint8
+	SigOutputElements           uint8
+	SigPatchConstOrPrimElements uint8 // patch constant (hull) or primitive (mesh) element count
+
+	// Number of packed signature vectors.
+	SigInputVectors  uint8
+	SigOutputVectors uint8
+
+	// Wave lane counts (0 = unused, 0xFFFFFFFF = any).
+	MinWaveLaneCount uint32
+	MaxWaveLaneCount uint32
+
+	// UsesViewID is true when the entry point reads SV_ViewID via
+	// dx.op.viewID. Encoded as RTI1 byte 1 (offset 25 from RTI0 base).
+	// The validator regenerates this flag from the bitcode's
+	// dx.op.viewID instruction usage and memcmp's against PSV0.
+	UsesViewID bool
+
+	// Semantic string table entries (null-terminated, will be 4-byte aligned).
+	StringTable []byte
+
+	// Semantic index table entries.
+	SemanticIndexTable []uint32
+
+	// PSV signature elements (optional).
+	PSVSigInputs  []PSVSignatureElement
+	PSVSigOutputs []PSVSignatureElement
+
+	// Resource bindings. dxil.dll validator compares PSV0
+	// resource count against the bitcode !dx.resources list; a stale 0
+	// here fails "ResourceCount mismatch" for any shader touching buffers,
+	// textures, or samplers.
+	ResourceBindings []PSVResourceBinding
+
+	// InputToOutputTable is the per-input-component dependency bitmap in
+	// the layout PSVDependencyTable expects: 4 components per input
+	// vector, MaskDwordsForComponents(SigOutputVectors) dwords per input
+	// component. Total size: 4 * SigInputVectors * MaskDwords(SigOutputVectors).
+	//
+	// Each dword is a bitmap whose bit `c` is set when the given input
+	// component contributes to output component `c`. Populated by
+	// buildPSV from the dxil/internal/viewid analyzer output.
+	//
+	// Nil for shaders with no input or output signature vectors.
+	InputToOutputTable []uint32
+}
+    PSVInfo holds the data needed to build a PSV0 part.
+
+type PSVResourceBinding struct {
+	ResType    PSVResourceType
+	Space      uint32
+	LowerBound uint32
+	UpperBound uint32
+	ResKind    PSVResourceKind
+	ResFlags   uint32
+}
+    PSVResourceBinding matches DXC PSVResourceBindInfo1 (24 bytes on-wire).
+
+type PSVResourceKind uint32
+    PSVResourceKind mirrors DXC DxilPipelineStateValidation.h enum class
+    PSVResourceKind.
+
+const (
+	PSVResKindInvalid                 PSVResourceKind = 0
+	PSVResKindTexture1D               PSVResourceKind = 1
+	PSVResKindTexture2D               PSVResourceKind = 2
+	PSVResKindTexture2DMS             PSVResourceKind = 3
+	PSVResKindTexture3D               PSVResourceKind = 4
+	PSVResKindTextureCube             PSVResourceKind = 5
+	PSVResKindTexture1DArray          PSVResourceKind = 6
+	PSVResKindTexture2DArray          PSVResourceKind = 7
+	PSVResKindTexture2DMSArray        PSVResourceKind = 8
+	PSVResKindTextureCubeArray        PSVResourceKind = 9
+	PSVResKindTypedBuffer             PSVResourceKind = 10
+	PSVResKindRawBuffer               PSVResourceKind = 11
+	PSVResKindStructuredBuffer        PSVResourceKind = 12
+	PSVResKindCBuffer                 PSVResourceKind = 13
+	PSVResKindSampler                 PSVResourceKind = 14
+	PSVResKindTBuffer                 PSVResourceKind = 15
+	PSVResKindRTAccelerationStructure PSVResourceKind = 16
+)
+type PSVResourceType uint32
+    PSVResourceType mirrors DXC DxilPipelineStateValidation.h enum class
+    PSVResourceType. Values are ABI-locked — see dxc include file.
+
+const (
+	PSVResTypeInvalid                  PSVResourceType = 0
+	PSVResTypeSampler                  PSVResourceType = 1
+	PSVResTypeCBV                      PSVResourceType = 2
+	PSVResTypeSRVTyped                 PSVResourceType = 3
+	PSVResTypeSRVRaw                   PSVResourceType = 4
+	PSVResTypeSRVStructured            PSVResourceType = 5
+	PSVResTypeUAVTyped                 PSVResourceType = 6
+	PSVResTypeUAVRaw                   PSVResourceType = 7
+	PSVResTypeUAVStructured            PSVResourceType = 8
+	PSVResTypeUAVStructuredWithCounter PSVResourceType = 9
+)
+type PSVShaderKind uint8
+    PSVShaderKind matches the Microsoft D3D12 DXIL runtime ABI for the PSV0
+    (Pipeline State Validation) ShaderStage byte. Values MUST be bit-exact
+    with D3D11_SHADER_VERSION_TYPE — D3D12 validates the stage byte during
+    CreateGraphicsPipelineState and rejects mismatched blobs with E_INVALIDARG.
+
+    Source of truth (keep in sync):
+      - DXC: reference/dxil/dxc/include/dxc/DXIL/DxilConstants.h:244 enum
+        class ShaderKind { Pixel=0, Vertex=1, Geometry=2, ... } "Must match
+        D3D11_SHADER_VERSION_TYPE"
+      - Mesa: reference/dxil/mesa/src/microsoft/compiler/dxil_module.h:44
+        DXIL_PIXEL_SHADER=0, DXIL_VERTEX_SHADER=1, ...
+
+    This enum is ABI-locked by TestPSVShaderKindMatchesMicrosoftABI in
+    psv_test.go. Do not change values without updating both upstream references
+    and the lock test in the same commit.
+
+const (
+	PSVPixel         PSVShaderKind = 0
+	PSVVertex        PSVShaderKind = 1
+	PSVGeometry      PSVShaderKind = 2
+	PSVHull          PSVShaderKind = 3
+	PSVDomain        PSVShaderKind = 4
+	PSVCompute       PSVShaderKind = 5
+	PSVLibrary       PSVShaderKind = 6
+	PSVRayGeneration PSVShaderKind = 7
+	PSVIntersection  PSVShaderKind = 8
+	PSVAnyHit        PSVShaderKind = 9
+	PSVClosestHit    PSVShaderKind = 10
+	PSVMiss          PSVShaderKind = 11
+	PSVCallable      PSVShaderKind = 12
+	PSVMesh          PSVShaderKind = 13
+	PSVAmplification PSVShaderKind = 14
+	PSVNode          PSVShaderKind = 15
+	PSVInvalid       PSVShaderKind = 16
+)
+type PSVSignatureElement struct {
+	SemanticNameOffset    uint32
+	SemanticIndexesOffset uint32
+	Rows                  uint8
+	StartRow              uint8
+	ColsAndStart          uint8 // 0:4=Cols, 4:6=StartCol, 6:7=Allocated
+	SemanticKind          uint8
+	ComponentType         uint8
+	InterpolationMode     uint8
+	DynamicMaskAndStream  uint8
+	Reserved              uint8
+}
+    PSVSignatureElement matches Mesa's dxil_psv_signature_element (8 bytes).
+
+type ProgSigCompType uint32
+    ProgSigCompType identifies the component data type in a signature element.
+    Values match Mesa's enum dxil_prog_sig_comp_type.
+
+const (
+	CompTypeUnknown ProgSigCompType = 0
+	CompTypeUint32  ProgSigCompType = 1
+	CompTypeSint32  ProgSigCompType = 2
+	CompTypeFloat32 ProgSigCompType = 3
+)
+type SemanticMapping struct {
+	SemanticName  string
+	SemanticIndex uint32
+	SystemValue   SystemValueKind
+}
+    SemanticMapping maps a naga IR binding to its DXIL semantic representation.
+
+func MapBindingToSemantic(binding ir.Binding, isOutput bool, isFragment bool) SemanticMapping
+    MapBindingToSemantic converts any naga IR binding to a DXIL semantic.
+    isOutput and isFragment control the semantic mapping for LocationBindings.
+
+func MapBuiltinToSemantic(builtin ir.BuiltinValue) SemanticMapping
+
+func MapLocationToInputSemantic(loc uint32) SemanticMapping
+    MapLocationToInputSemantic converts a location binding to an input semantic.
+
+func MapLocationToOutputSemantic(loc uint32, isFragment bool) SemanticMapping
+    MapLocationToOutputSemantic converts a location binding to an output
+    semantic. Fragment outputs map to SV_Target; non-fragment (VS / DS / HS /
+    GS) outputs use LocationSemantic so VS→FS wiring stays consistent with the
+    input side.
+
+type SignatureElement struct {
+	SemanticName  string
+	SemanticIndex uint32
+	SystemValue   SystemValueKind
+	CompType      ProgSigCompType
+	Register      uint32
+	Mask          uint8 // Component mask: x=1, y=2, z=4, w=8
+	RWMask        uint8 // NeverWritesMask (output) or AlwaysReadsMask (input)
+}
+    SignatureElement describes one element of an input or output signature.
+
+type SystemValueKind uint32
+    SystemValueKind identifies DXIL system-value semantics. Values match Mesa's
+    enum dxil_semantic_kind.
+
+const (
+	SVArbitrary         SystemValueKind = 0  // D3D_NAME_UNDEFINED — user-defined (TEXCOORD, etc.)
+	SVPosition          SystemValueKind = 1  // D3D_NAME_POSITION — SV_Position
+	SVClipDistance      SystemValueKind = 2  // D3D_NAME_CLIP_DISTANCE — SV_ClipDistance
+	SVCullDistance      SystemValueKind = 3  // D3D_NAME_CULL_DISTANCE — SV_CullDistance
+	SVVertexID          SystemValueKind = 6  // D3D_NAME_VERTEX_ID — SV_VertexID
+	SVPrimitiveID       SystemValueKind = 7  // D3D_NAME_PRIMITIVE_ID — SV_PrimitiveID
+	SVInstanceID        SystemValueKind = 8  // D3D_NAME_INSTANCE_ID — SV_InstanceID
+	SVIsFrontFace       SystemValueKind = 9  // D3D_NAME_IS_FRONT_FACE — SV_IsFrontFace
+	SVSampleIndex       SystemValueKind = 10 // D3D_NAME_SAMPLE_INDEX — SV_SampleIndex
+	SVTarget            SystemValueKind = 64 // D3D_NAME_TARGET — SV_Target
+	SVDepth             SystemValueKind = 65 // D3D_NAME_DEPTH — SV_Depth
+	SVCoverage          SystemValueKind = 66 // D3D_NAME_COVERAGE — SV_Coverage
+	SVDepthGreaterEqual SystemValueKind = 67 // D3D_NAME_DEPTH_GREATER_EQUAL — SV_DepthGreaterEqual
+	SVDepthLessEqual    SystemValueKind = 68 // D3D_NAME_DEPTH_LESS_EQUAL — SV_DepthLessEqual
+	SVStencilRef        SystemValueKind = 69 // D3D_NAME_STENCIL_REF — SV_StencilRef
+	SVCullPrimitive     SystemValueKind = 24 // SV_CullPrimitive (mesh shader)
+)
+    D3D_NAME values for ISG1/OSG1 signature elements. These match the D3D_NAME
+    enumeration from d3dcommon.h, NOT the DXIL semantic kind.
+

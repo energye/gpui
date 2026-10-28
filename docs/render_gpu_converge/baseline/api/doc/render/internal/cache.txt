@@ -1,0 +1,202 @@
+package cache // import "github.com/energye/gpui/render/internal/cache"
+
+Package cache provides generic, high-performance caching primitives.
+
+This package offers two cache implementations optimized for different use cases:
+
+# Cache[K, V]
+
+A simple thread-safe LRU cache suitable for single-threaded or low-contention
+scenarios. Uses a soft limit with 25% eviction when capacity is exceeded.
+
+    cache := cache.New[string, int](100)
+    cache.Set("key", 42)
+    value, ok := cache.Get("key")
+
+# ShardedCache[K, V]
+
+A high-performance sharded cache designed for high-concurrency scenarios.
+Uses 16 shards to reduce lock contention, with proper LRU eviction per shard.
+
+    cache := cache.NewSharded[string, int](256, cache.StringHasher)
+    cache.Set("key", 42)
+    value, ok := cache.Get("key")
+
+# Performance
+
+Benchmarked on Intel i7-1255U:
+  - Cache hit: ~75ns (zero allocations)
+  - Cache miss: ~35ns
+  - Parallel (12 cores): ~170ns/op
+
+# Thread Safety
+
+Both Cache and ShardedCache are safe for concurrent use. Neither should be
+copied after creation (they contain mutexes).
+
+CONSTANTS
+
+const (
+	// DefaultShardCount is the number of shards for reduced lock contention.
+	// Must be a power of 2 for fast modulo via bitwise AND.
+	DefaultShardCount = 16
+
+	// DefaultCapacity is the default maximum entries per shard.
+	DefaultCapacity = 256
+)
+    Default configuration constants.
+
+
+FUNCTIONS
+
+func IntHasher(i int) uint64
+    IntHasher computes a hash of an int key using FNV-1a.
+
+func StringHasher(s string) uint64
+    StringHasher computes FNV-1a hash of a string key.
+
+func Uint64Hasher(u uint64) uint64
+    Uint64Hasher returns the key itself as the hash (identity hash).
+
+
+TYPES
+
+type Cache[K comparable, V any] struct {
+	// Has unexported fields.
+}
+    Cache is a generic thread-safe LRU cache with soft limit. When the cache
+    exceeds softLimit, oldest entries are evicted.
+
+    Cache is safe for concurrent use. Cache must not be copied after creation
+    (has mutex).
+
+func New[K comparable, V any](softLimit int) *Cache[K, V]
+    New creates a new cache with the given soft limit. A softLimit of 0 means
+    unlimited.
+
+func (c *Cache[K, V]) Capacity() int
+    Capacity returns the soft limit of the cache.
+
+func (c *Cache[K, V]) Clear()
+    Clear removes all entries from the cache.
+
+func (c *Cache[K, V]) Delete(key K) bool
+    Delete removes an entry from the cache. Returns true if the entry was found
+    and removed.
+
+func (c *Cache[K, V]) Get(key K) (V, bool)
+    Get retrieves a value from the cache. Returns (value, true) if found, (zero,
+    false) otherwise.
+
+func (c *Cache[K, V]) GetOrCreate(key K, create func() V) V
+    GetOrCreate returns cached value or creates it. Thread-safe: create is
+    called under lock to prevent duplicate creation.
+
+func (c *Cache[K, V]) Len() int
+    Len returns the number of entries in the cache.
+
+func (c *Cache[K, V]) Set(key K, value V)
+    Set stores a value in the cache. If the cache exceeds softLimit after
+    insertion, oldest entries are evicted.
+
+func (c *Cache[K, V]) Stats() Stats
+    Stats returns cache statistics.
+
+type Hasher[K any] func(K) uint64
+    Hasher is a function that computes a hash for a key. Used by ShardedCache
+    for shard selection.
+
+type ShardedCache[K comparable, V any] struct {
+	// Has unexported fields.
+}
+    ShardedCache is a thread-safe, sharded LRU cache for high-concurrency
+    scenarios.
+
+    Features:
+      - 16 shards for reduced lock contention
+      - LRU eviction with configurable capacity per shard
+      - Thread-safe for concurrent access
+      - Atomic statistics for monitoring
+      - Zero allocations on cache hit
+
+    Performance (Intel i7-1255U):
+      - Cache hit: ~75ns
+      - Cache miss: ~35ns
+      - Parallel: ~170ns/op
+
+func NewSharded[K comparable, V any](capacity int, hasher Hasher[K]) *ShardedCache[K, V]
+    NewSharded creates a new sharded cache with the specified capacity per
+    shard. Total capacity is approximately capacity * DefaultShardCount (16).
+
+    The hasher function is used to compute hash values for shard selection.
+    Use StringHasher, IntHasher, or Uint64Hasher for common key types.
+
+    If capacity <= 0, DefaultCapacity (256) is used.
+
+func (c *ShardedCache[K, V]) Capacity() int
+    Capacity returns the per-shard capacity.
+
+func (c *ShardedCache[K, V]) Clear()
+    Clear removes all entries from the cache.
+
+func (c *ShardedCache[K, V]) Delete(key K) bool
+    Delete removes an entry from the cache. Returns true if the entry was found
+    and removed.
+
+func (c *ShardedCache[K, V]) Get(key K) (V, bool)
+    Get retrieves a cached value by key. Returns (value, true) if found, (zero,
+    false) otherwise.
+
+    On cache hit, the entry is moved to the front of the LRU list. This
+    operation is thread-safe and optimized for minimal lock contention.
+
+func (c *ShardedCache[K, V]) GetOrCreate(key K, create func() V) V
+    GetOrCreate returns a cached value or creates it using the provided
+    function. This is the preferred method for cache access as it prevents
+    duplicate computation.
+
+    The create function is called with the shard lock held to prevent thundering
+    herd. Keep the create function fast to minimize lock contention.
+
+func (c *ShardedCache[K, V]) Len() int
+    Len returns the total number of entries across all shards.
+
+func (c *ShardedCache[K, V]) ResetStats()
+    ResetStats resets all statistics counters to zero.
+
+func (c *ShardedCache[K, V]) Set(key K, value V)
+    Set stores a value in the cache. If the shard exceeds capacity after
+    insertion, oldest entries are evicted.
+
+    The value is stored as-is (not copied). Callers should not modify it after
+    caching.
+
+func (c *ShardedCache[K, V]) ShardLen() [DefaultShardCount]int
+    ShardLen returns the number of entries in each shard. Useful for debugging
+    load distribution.
+
+func (c *ShardedCache[K, V]) Stats() Stats
+    Stats returns current cache statistics. This operation is mostly lock-free
+    (atomic counters).
+
+func (c *ShardedCache[K, V]) TotalCapacity() int
+    TotalCapacity returns the total capacity across all shards.
+
+type Stats struct {
+	// Len is the current number of entries.
+	Len int
+	// Capacity is the cache capacity (soft limit, or per-shard for ShardedCache).
+	Capacity int
+	// TotalCapacity is the total capacity across all shards (ShardedCache only).
+	TotalCapacity int
+	// Hits is the number of cache hits (ShardedCache only).
+	Hits uint64
+	// Misses is the number of cache misses (ShardedCache only).
+	Misses uint64
+	// HitRate is the cache hit rate 0.0 to 1.0 (ShardedCache only).
+	HitRate float64
+	// Evictions is the number of evicted entries (ShardedCache only).
+	Evictions uint64
+}
+    Stats contains cache statistics.
+

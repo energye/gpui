@@ -1,0 +1,24 @@
+Evidence helpers for ui_wr_r3b_compbits (R3b · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_r3b_compbits is the W1 R3b real-window: compositing bits /
+boundary discovery.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=8 go run ./examples/ui_wr_r3b_compbits -auto-only
+    go run ./examples/ui_wr_r3b_compbits                 # manual: animate until close
+    go run ./examples/ui_wr_r3b_compbits -manual-seconds 15
+
+Window: 1200x800. R3b close duration is 8s; a gate run below 8s is rejected.
+
+Evidence: compositing-bit logic probes (per-node expected true/false), color and
+ink probes on the GPU snapshot, and a bitwise Golden over header + legend + body
+(821184 logical px). Every probed node has a green (true) / magenta (false) chip
+in the status panel, so a wrong bit is also a wrong pixel. Gate mode freezes
+Steady for a deterministic snapshot; manual mode keeps the Steady -> Spike ->
+Recover animation and does not assert pixels.

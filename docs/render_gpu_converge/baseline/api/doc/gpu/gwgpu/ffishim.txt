@@ -1,0 +1,159 @@
+package ffishim // import "github.com/energye/gpui/gpu/gwgpu/ffishim"
+
+ABI trampolines for float and small-struct signatures.
+
+Integer/pointer-only signatures go through purego.SyscallN (see CallFunction).
+Anything containing a float, double, or struct needs a real ABI call: floats
+ride in SIMD registers, small structs split across registers, large structs pass
+indirectly. Those go through cached purego.RegisterFunc trampolines built per
+exact signature.
+
+The trampoline cache is process-global (keyed by signature + function address)
+because some callers — notably the Metal ObjC bridge's msgSend — build a fresh
+CallInterface per call; caching per cif would mint a new trampoline every call.
+
+Supported signatures are exactly the ones the ported backends emit:
+  - GLES: (f32), (f32,f32), (f32*4), (u32,u32,f32), all void.
+  - Metal ObjC: setClearDepth (doubles), setBlendColor (4 floats), and the
+    fixed set of small-struct messages (viewports, scissor rects, clear colors,
+    origins, sizes, ranges, regions), plus the single struct-returning query
+    (acceleration-structure sizes) and the two struct-returning test helpers.
+
+Anything else errors loudly so a new call shape can be added deliberately.
+
+Package ffishim is gpui's self-maintained replacement for the external goffi
+C-ABI call layer used by the ported backends (gpu/gwgpu/gles, gpu/gwgpu/metal).
+
+What it is: the same operations the ported code needs — LoadLibrary, GetSymbol,
+PrepareCallInterface, CallFunction, NewCallback — plus the type-descriptor
+vocabulary (including struct descriptors), implemented on top of the purego FFI
+already used by gpu/rwgpu. No libffi, no external goffi dependency.
+
+How calls run: integer/pointer signatures go through purego.SyscallN. Signatures
+containing floats, doubles, or structs go through cached purego.RegisterFunc
+trampolines built per exact signature (see abi.go), because those ride in SIMD
+registers or split across registers. Only the signatures the ported backends
+actually emit are supported; anything else errors loudly so it can be added
+deliberately.
+
+VARIABLES
+
+var (
+	VoidTypeDescriptor    = &TypeDescriptor{Size: 1, Alignment: 1, Kind: VoidType}
+	IntTypeDescriptor     = &TypeDescriptor{Size: 4, Alignment: 4, Kind: IntType}
+	FloatTypeDescriptor   = &TypeDescriptor{Size: 4, Alignment: 4, Kind: FloatType}
+	DoubleTypeDescriptor  = &TypeDescriptor{Size: 8, Alignment: 8, Kind: DoubleType}
+	UInt8TypeDescriptor   = &TypeDescriptor{Size: 1, Alignment: 1, Kind: UInt8Type}
+	SInt8TypeDescriptor   = &TypeDescriptor{Size: 1, Alignment: 1, Kind: SInt8Type}
+	UInt16TypeDescriptor  = &TypeDescriptor{Size: 2, Alignment: 2, Kind: UInt16Type}
+	SInt16TypeDescriptor  = &TypeDescriptor{Size: 2, Alignment: 2, Kind: SInt16Type}
+	UInt32TypeDescriptor  = &TypeDescriptor{Size: 4, Alignment: 4, Kind: UInt32Type}
+	SInt32TypeDescriptor  = &TypeDescriptor{Size: 4, Alignment: 4, Kind: SInt32Type}
+	UInt64TypeDescriptor  = &TypeDescriptor{Size: 8, Alignment: 8, Kind: UInt64Type}
+	SInt64TypeDescriptor  = &TypeDescriptor{Size: 8, Alignment: 8, Kind: SInt64Type}
+	PointerTypeDescriptor = &TypeDescriptor{Size: 8, Alignment: 8, Kind: PointerType}
+)
+
+FUNCTIONS
+
+func CallFunction(
+	cif *CallInterface,
+	fn unsafe.Pointer,
+	rvalue unsafe.Pointer,
+	avalue []unsafe.Pointer,
+) (uintptr, error)
+    CallFunction invokes fn with the prepared signature. Each avalue element is
+    a pointer to the argument value; rvalue points at the return buffer (nil for
+    void). Returns the C errno (always 0 here) and error.
+
+func CallTrampoline(
+	cif *CallInterface,
+	fn unsafe.Pointer,
+	rvalue unsafe.Pointer,
+	avalue []unsafe.Pointer,
+) error
+    CallTrampoline invokes fn through the cached RegisterFunc trampoline for its
+    exact signature (see abi.go), bypassing the SyscallN/cgocall path. Argument
+    and return conventions match CallFunction (avalue elements point at argument
+    values, rvalue at the return buffer). Use it only for signatures with a
+    trampoline case in abi.go whose callee is verified sensitive to the SyscallN
+    path state (EGL device dispatch); anything else errors loudly like callABI.
+
+func FreeLibrary(handle unsafe.Pointer) error
+    FreeLibrary closes an opened library.
+
+func GetSymbol(handle unsafe.Pointer, name string) (unsafe.Pointer, error)
+    GetSymbol resolves a symbol from an opened library.
+
+func LoadLibrary(name string) (unsafe.Pointer, error)
+    LoadLibrary opens a shared library (RTLD_NOW|RTLD_GLOBAL, same as rwgpu).
+
+func NewCallback(fn any) uintptr
+    NewCallback converts a Go function to a C function pointer (ObjC block
+    trampolines in the ported Metal backend). Backed by purego.NewCallback: the
+    function must take uintptr-sized arguments with zero or one uintptr-sized
+    result. At least 1024 callbacks can always be created; memory for created
+    callbacks is never released.
+
+func PrepareCallInterface(
+	cif *CallInterface,
+	convention CallingConvention,
+	returnType *TypeDescriptor,
+	argTypes []*TypeDescriptor,
+) error
+    PrepareCallInterface records the signature into cif. Only scalar and pointer
+    kinds are supported — the GLES call set needs nothing else.
+
+
+TYPES
+
+type CallInterface struct {
+	ArgTypes   []*TypeDescriptor
+	ReturnType *TypeDescriptor
+}
+    CallInterface is a prepared call signature: return type plus argument types.
+    Prepared once by PrepareCallInterface, reused per call.
+
+type CallingConvention int
+    CallingConvention selects the platform native call convention. Only
+    DefaultCall is used by the ported code.
+
+const (
+	// DefaultCall resolves to the platform native convention (SysV on
+	// Linux, Win64 on Windows) — same meaning as goffi's DefaultCall.
+	DefaultCall CallingConvention = 0
+)
+type TypeDescriptor struct {
+	Size      uintptr
+	Alignment uintptr
+	Kind      TypeKind
+	Members   []*TypeDescriptor
+}
+    TypeDescriptor describes one C ABI type (size/alignment/kind). For
+    StructType, Members holds the member descriptors in order. Size/Alignment
+    are uintptr, matching the upstream goffi vocabulary.
+
+type TypeKind int
+    TypeKind identifies one scalar C ABI type.
+
+const (
+	VoidType TypeKind = iota
+	IntType
+	UInt8Type
+	SInt8Type
+	UInt16Type
+	SInt16Type
+	UInt32Type
+	SInt32Type
+	UInt64Type
+	SInt64Type
+	FloatType
+	DoubleType
+	PointerType
+	// StructType is a small fixed-layout C struct (Metal ObjC bridge:
+	// CGSize, MTLOrigin/Size/Region, viewports, scissor rects, ranges).
+	// Members holds the member descriptors in order; all members used
+	// by the ported code are 8 bytes (uint64 or double), naturally
+	// aligned, without padding.
+	StructType
+)

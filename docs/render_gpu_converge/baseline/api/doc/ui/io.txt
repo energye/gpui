@@ -1,0 +1,120 @@
+package io // import "github.com/energye/gpui/ui/io"
+
+Package io provides async image decoding off the UI thread (F12).
+
+T4 image lane: the pool keeps 2 small-image workers and adds one dedicated
+large-image worker (single flight). Pictures larger than LargeImagePixels never
+run on the small workers, so a burst of big pictures cannot stall small UI
+images. Window close cancels via context: jobs whose context is done before or
+after decoding are dropped without invoking the callback. Decoders live behind a
+small registry (G8): PNG/JPEG/WebP are registered in init, tests register stubs
+by name. Callers must hop to the UI thread before mutating RenderObjects.
+
+CONSTANTS
+
+const LargeImagePixels = 2000000
+    LargeImagePixels routes pictures above this pixel count to the single
+    large-image worker (T4: big pictures >2MP fly solo).
+
+
+VARIABLES
+
+var Default = NewPool(2)
+    Default is a process-wide pool with 2 workers. Never Close it: windows share
+    it, per-window cancel uses request contexts.
+
+
+FUNCTIONS
+
+func DecodeBytes(data []byte, done func(Result))
+    DecodeBytes uses Default pool.
+
+func DecodeBytesWithContext(ctx context.Context, data []byte, done func(Result))
+    DecodeBytesWithContext uses Default pool bound to ctx.
+
+func DecodeFile(path string, done func(Result))
+    DecodeFileDefault uses Default pool.
+
+func DecodeFileWithContext(ctx context.Context, path string, done func(Result))
+    DecodeFileWithContext uses Default pool bound to ctx.
+
+func RegisterDecoder(name string, d Decoder)
+    RegisterDecoder plugs a new image format in (G8). Registering an existing
+    name replaces it (tests use this to prove the table is consulted). Empty
+    name or nil Decode/Config is ignored.
+
+func SupportedDecoders() []string
+    SupportedDecoders lists registered format names in sorted order.
+
+
+TYPES
+
+type Decoder struct {
+	Decode func(r io.Reader) (*render.ImageBuf, error)
+	Config func(r io.Reader) (image.Config, error)
+}
+    Decoder is one registered image format (G8). Decode turns a byte stream
+    into a buffer; Config reports dimensions without full decode so the pool can
+    route big pictures before paying for pixels.
+
+type Pool struct {
+	// Has unexported fields.
+}
+    Pool runs decode jobs on worker goroutines. Never call decode inside
+    Layout/Paint.
+
+func NewPool(n int) *Pool
+    NewPool starts n small-image workers (min 1) plus one dedicated large-image
+    worker that drains largeJobs serially (single flight).
+
+func (p *Pool) Close()
+    Close drains the pool and waits for workers. Only close pools you created
+    (never Default); in-flight request contexts still suppress their callbacks.
+    Double Close is safe.
+
+func (p *Pool) DecodeBytes(data []byte, done func(Result))
+    DecodeBytes decodes in-memory bytes on a worker and calls done (may be any
+    goroutine). Format is sniffed via the registry.
+
+func (p *Pool) DecodeBytesWithContext(ctx context.Context, data []byte, done func(Result))
+    DecodeBytesWithContext is DecodeBytes bound to ctx (window close cancels).
+
+func (p *Pool) DecodeFile(path string, done func(Result))
+    DecodeFile loads an image path on a worker and calls done (may be any
+    goroutine). Callers must hop to the UI thread before mutating RenderObjects.
+
+func (p *Pool) DecodeFileWithContext(ctx context.Context, path string, done func(Result))
+    DecodeFileWithContext is DecodeFile bound to ctx (window close cancels):
+    jobs dropped before or after decoding never invoke done.
+
+func (p *Pool) Run(fn func())
+    Run enqueues fn onto the decode worker pool for asynchronous execution.
+    A nil fn is a no-op. Results are delivered via the caller's own channel.
+
+func (p *Pool) RunWithContext(ctx context.Context, fn func())
+    RunWithContext enqueues fn unless ctx is already done; a func that waits in
+    queue past cancel is dropped without running.
+
+func (p *Pool) Stats() PoolStats
+    Stats snapshots the pool counters.
+
+type PoolStats struct {
+	Submitted   int64 `json:"submitted"`
+	Completed   int64 `json:"completed"`
+	Cancelled   int64 `json:"cancelled"`
+	LargeRouted int64 `json:"large_routed"`
+}
+    PoolStats is a point-in-time copy of pool counters.
+
+type Result struct {
+	Img    *render.ImageBuf
+	Err    error
+	Format string
+	Width  int
+	Height int
+	Large  bool
+}
+    Result is delivered after DecodeFile/DecodeBytes completes. Img/Err are the
+    original fields; Format/Width/Height/Large describe what was decoded (zero
+    when Err != nil).
+

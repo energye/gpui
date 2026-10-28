@@ -1,0 +1,34 @@
+Evidence helpers for ui_wr_r7b_scroll_reuse (R7b · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_r7b_scroll_reuse is the W3 R7b real-window: 滚动少重录 cell.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=60 go run ./examples/ui_wr_r7b_scroll_reuse -auto-only
+    go run ./examples/ui_wr_r7b_scroll_reuse                 # manual: scroll until close
+    go run ./examples/ui_wr_r7b_scroll_reuse -manual-seconds 15
+
+Window: 1200x800. RUN_SECONDS>=60 (U16, §2.5: 关闭 60s/观察 120). GPU window
+required.
+
+Evidence (U21): logic probes, pixel probes on the GPU snapshot, and a bitwise
+Golden over header + legend + body. The scroll position integrates dt (not
+bit-stable), so gate mode freezes the offset at a fixed y for the final 3s;
+the visible rows are then a pure function of the rowHeight table and every probe
+want is derived from the construction constants. Manual mode keeps scrolling and
+does not assert pixels.
+
+Gates (§2 R7b 行 + §2.2 全族):
+  - scroll_rerecord 有上限: 累计 ≤ 3×item_count（每 cell 进入窗口只录一次）
+  - 静 cell 保持（结构门禁）: 每 tick 重录增量 ≤ 该 tick 新进入行数上界 (⌊|dy|/minRow⌋ +
+    ⌊|dvh|/minRow⌋ + cache 两侧 + 边缘)，违例 tick 数必须为 0 ——若每帧全量重录挂载 cell（≈11–15 个），稳态
+    tick 增量恒超上界即 FAIL
+  - 滚动/持续 tick 60fps 档: fps_interval>=55 且 interval_p95_ms<=22
+  - 长 soak hitch 预算: hitch_rate_per_min<=5
+  - RSS 斜率预算（稳态最小二乘）: rss_slope_kb_per_min<=30000
+  - vsync_source 必须输出（fallback 如实标注，不宣称锁 60Hz）

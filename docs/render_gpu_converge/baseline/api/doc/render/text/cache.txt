@@ -1,0 +1,167 @@
+package cache // import "github.com/energye/gpui/render/text/cache"
+
+Package cache provides high-performance caching for text shaping and rendering.
+
+The main type is ShapingCache, which caches ShapedRun results using a sharded
+map architecture with LRU eviction. The 16-shard design reduces lock contention
+for concurrent access.
+
+# Performance
+
+Benchmarked on Intel i7-1255U:
+  - Cache hit: ~75ns (zero allocations)
+  - Cache miss: ~35ns
+  - Parallel (12 cores): ~170ns/op
+  - Concurrent contention: ~210ns/op
+
+The LRU update on hit requires a write lock, which adds latency compared to
+a pure read-only cache. For hot paths where LRU accuracy is less critical,
+consider using GetOrCreate with a fast create function.
+
+This package is designed for GPU text rendering pipelines where caching shaped
+glyphs is critical for performance.
+
+CONSTANTS
+
+const (
+	// DefaultShardCount is the number of shards for reduced lock contention.
+	// Must be a power of 2 for fast modulo via bitwise AND.
+	DefaultShardCount = 16
+
+	// DefaultCapacity is the default maximum entries per shard.
+	DefaultCapacity = 256
+)
+    Default configuration constants.
+
+
+FUNCTIONS
+
+func HashFeatures(features map[string]int) uint64
+    HashFeatures computes a hash of OpenType feature settings. This is a helper
+    function for creating ShapingKey.
+
+    Features should be passed as tag/value pairs, e.g.:
+
+        HashFeatures(map[string]int{"liga": 1, "kern": 1})
+
+
+TYPES
+
+type CacheStats struct {
+	// Len is the current number of entries.
+	Len int
+	// Capacity is the per-shard capacity.
+	Capacity int
+	// TotalCapacity is the total capacity across all shards.
+	TotalCapacity int
+	// Hits is the number of cache hits.
+	Hits uint64
+	// Misses is the number of cache misses.
+	Misses uint64
+	// HitRate is the cache hit rate (0.0 to 1.0).
+	HitRate float64
+	// Evictions is the number of entries evicted.
+	Evictions uint64
+}
+    CacheStats contains cache statistics for monitoring.
+
+type ShapingCache struct {
+	// Has unexported fields.
+}
+    ShapingCache is a thread-safe, sharded LRU cache for shaped text runs.
+
+    Features:
+      - 16 shards for reduced lock contention
+      - LRU eviction with configurable capacity per shard
+      - Thread-safe for concurrent access
+      - Atomic statistics for monitoring
+      - Zero allocations on cache hit
+
+    Performance (Intel i7-1255U):
+      - Cache hit: ~75ns
+      - Cache miss: ~35ns
+      - Parallel: ~170ns/op
+
+func DefaultShapingCache() *ShapingCache
+    DefaultShapingCache creates a shaping cache with default configuration.
+    Total capacity: 16 shards * 256 entries = 4096 entries.
+
+func NewShapingCache(capacity int) *ShapingCache
+    NewShapingCache creates a new shaping cache with the specified capacity per
+    shard. Total capacity is approximately capacity * DefaultShardCount (16).
+
+    If capacity <= 0, DefaultCapacity (256) is used.
+
+func (c *ShapingCache) Capacity() int
+    Capacity returns the per-shard capacity.
+
+func (c *ShapingCache) Clear()
+    Clear removes all entries from the cache.
+
+func (c *ShapingCache) Delete(key ShapingKey) bool
+    Delete removes an entry from the cache. Returns true if the entry was found
+    and removed.
+
+func (c *ShapingCache) Get(key ShapingKey) (*text.ShapedRun, bool)
+    Get retrieves a cached ShapedRun by key. Returns (value, true) if found,
+    (nil, false) otherwise.
+
+    On cache hit, the entry is moved to the front of the LRU list. This
+    operation is thread-safe and optimized for minimal lock contention.
+
+func (c *ShapingCache) GetOrCreate(key ShapingKey, create func() *text.ShapedRun) *text.ShapedRun
+    GetOrCreate returns a cached ShapedRun or creates it using the provided
+    function. This is the preferred method for cache access as it prevents
+    duplicate computation.
+
+    The create function is called with the shard lock held to prevent thundering
+    herd. Keep the create function fast to minimize lock contention.
+
+func (c *ShapingCache) Len() int
+    Len returns the total number of entries across all shards.
+
+func (c *ShapingCache) ResetStats()
+    ResetStats resets all statistics counters to zero.
+
+func (c *ShapingCache) Set(key ShapingKey, value *text.ShapedRun)
+    Set stores a ShapedRun in the cache. If the shard exceeds capacity after
+    insertion, oldest entries are evicted.
+
+    The value is stored as-is (not copied). Callers should not modify it after
+    caching.
+
+func (c *ShapingCache) ShardLen() [DefaultShardCount]int
+    ShardLen returns the number of entries in each shard. Useful for debugging
+    load distribution.
+
+func (c *ShapingCache) Stats() CacheStats
+    Stats returns current cache statistics. This operation is mostly lock-free
+    (atomic counters).
+
+func (c *ShapingCache) TotalCapacity() int
+    TotalCapacity returns the total capacity across all shards.
+
+type ShapingKey struct {
+	// TextHash is FNV-1a hash of the text string.
+	TextHash uint64
+
+	// FontID is the font source identifier.
+	FontID uint64
+
+	// SizeBits is the IEEE 754 bit pattern of the font size (float32).
+	// Using bit pattern ensures exact matching without floating-point issues.
+	SizeBits uint32
+
+	// Direction is the text direction (LTR, RTL, TTB, BTT).
+	Direction uint8
+
+	// Features is a hash of OpenType feature settings.
+	Features uint64
+}
+    ShapingKey identifies shaped text in the shaping cache. All shaping
+    parameters that affect the result must be included.
+
+func NewShapingKey(textStr string, fontID uint64, size float32, direction text.Direction, features uint64) ShapingKey
+    NewShapingKey creates a ShapingKey from shaping parameters. This is the
+    canonical way to create cache keys.
+

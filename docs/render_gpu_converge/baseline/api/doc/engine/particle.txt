@@ -1,0 +1,486 @@
+package particle // import "github.com/energye/gpui/engine/particle"
+
+Package particle freezes the CPU-side emission math every 2.5D effect feeds.
+
+Frozen 2026-09-15: ShapeKind, ShapePoint/ShapeCone/ShapeBox/ShapeRing, String,
+ParseShape, Shape, PointShape, ConeShape, BoxShape, RingShape, Validate,
+Turbulence, NoTurbulence, NewTurbulence, Vec, Sub, NoSub, NewSub, EmitterConfig,
+MaxParticlesCap, MaxSubPerDeath, MaxRate, MaxSpeed, Particle, AgeFrac, Alive,
+ColorAt, Emitter, NewEmitter, Config, Spawn, Update, Alive, Spawned, Died,
+ChildSpawned, Particles, Clear, ColorOf, AppendToBatch. Additive changes only.
+
+This package only computes numbers; it draws nothing. The caller feeds
+AppendToBatch into the existing sprite Batch (engine/sprite) and draws each
+flushed group with the existing render DrawAtlas. Only core numbers are used;
+no Vec2, Color, or AssetID is redefined here.
+
+Emission (main reference Godot CPUParticles2D, Go replay): one emitter owns a
+fixed budget (Max), a spawn rate, speed/life ranges, gravity, a start-to-end
+color ramp, one shape, one turbulence, and one one-level sub-emitter. Spawn
+samples position and direction from the shape, speed and life from their ranges,
+and a replay seed from the seeded generator. Update integrates existing
+particles first, then births the rate share, so newborns start at Age 0 in the
+same tick. Deaths spawn Sub.Count children at the death spot when the parent is
+not itself a child; children never spawn further.
+
+Shapes: point spawns at Origin with Dir; cone adds a uniform spread in [-Angle,
++Angle] around Dir; box samples uniformly in [-Extents, +Extents] with Dir;
+ring samples uniformly in the annulus [Inner, Outer] with a radial outward
+direction. Turbulence is a deterministic swirl from (Seed, Age): Vec returns
+Strength-scaled sin/cos, so the same seed replays the same drift without
+consuming the generator per tick. Color is Start.Lerp(End, AgeFrac).
+
+Errors use engine/core codes: bad constructor arguments are InvalidArg and
+store nothing; Max beyond MaxParticlesCap is OutOfMemory. Spawn beyond the
+budget drops the excess quietly (no error) so bursts never crash the frame.
+Nil receivers never panic: getters park at zero, writers report InvalidArg.
+Window intent: game_particle --case=fire (fire cone plus drifting smoke);
+pure math stays offscreen golden.
+
+Frozen 2026-09-15: JointKind, JointMiter/JointBevel/JointRound, MiterLimit,
+RoundArcSteps, MaxTrailPointsCap, String, ParseJoint, TrailConfig,
+NewTrailConfig, Validate, Trail, NewTrail, Config, Len, Points, Push, Clear,
+WidthAt, ColorAt, TrailVert, Segments, TrailSegment, Verts, AppendToBatch,
+MaxPoolTrailsCap, GPUPool, NewGPUPool, Config, TrailConfig, Alive, Spawned,
+Died, ChildSpawned, Trails, TotalPoints, Particles, ColorOf, TrailOf, Clear,
+Spawn, Update, AppendToBatch.
+
+Trail (main reference Godot Line2D): one trajectory ring oldest to newest.
+Width lerps TailWidth (oldest) to HeadWidth (newest) so a knife slash reads
+wide-to-narrow; color lerps Start (head) to End (tail). Miter extends sharp
+corners up to MiterLimit then cuts to bevel, bevel cuts flat with one pair,
+round fans RoundArcSteps interior pairs. Verts carries the exact joint geometry;
+Segments carries the drawable center line (one rotated atlas sprite per segment
+through the existing sprite AtlasToRender plus DrawAtlasEx, no new submit path).
+GPUPool (main reference Godot GPUParticles2D) owns one 5.1 Emitter for positions
+plus one Trail ring per live particle keyed by birth Seed; Spawn/Update
+semantics are the frozen 5.1 ones. Window intent: game_particle --case=trail
+(knife slash wide to narrow).
+
+CONSTANTS
+
+const (
+	// MaxParticlesCap bounds one emitter budget (D thousand plus headroom).
+	MaxParticlesCap = 8192
+	// MaxSubPerDeath bounds children per death (one level, no recursion).
+	MaxSubPerDeath = 8
+	// MaxRate bounds spawns per second.
+	MaxRate = 20000
+	// MaxSpeed bounds sampled speed in world units per second.
+	MaxSpeed = 5000
+)
+const MaxPoolTrailsCap = MaxParticlesCap
+    MaxPoolTrailsCap bounds one pool: one trail per particle at most, same
+    budget as the 5.1 emitter so the pool never promises more than the CPU math
+    can birth.
+
+const MaxTrailPointsCap = 512
+    MaxTrailPointsCap bounds one trail ring buffer (D thousands plus headroom,
+    shared with the pool budget below).
+
+const MiterLimit = 4.0
+    MiterLimit bounds the miter extension in half-widths. Sharper corners
+    degrade to bevel (same rule family as Godot Line2D antialiased joints).
+
+const RoundArcSteps = 4
+    RoundArcSteps is the fan size per round corner (interior pairs only,
+    endpoints are never duplicated).
+
+
+TYPES
+
+type Emitter struct {
+	// Has unexported fields.
+}
+    Emitter owns the live set plus the seeded generator. The same config with
+    the same seed replays the same births. Not safe for concurrent use.
+
+func NewEmitter(cfg EmitterConfig, seed uint64) (*Emitter, error)
+    NewEmitter builds an emitter from cfg with the replay seed. Bad recipes
+    return InvalidArg (Max over cap is OutOfMemory) and nil.
+
+func (e *Emitter) Alive() int
+    Alive returns the live particle count.
+
+func (e *Emitter) AppendParticles(buf []Particle) []Particle
+    AppendParticles appends the live set into buf and returns the extended
+    slice. Pass a reused backing (buf[:0]) to avoid per-frame allocation; a nil
+    buf allocates like Particles. A nil or empty emitter returns buf unchanged.
+    The caller must not retain the result past the next Spawn/Update/Clear.
+
+func (e *Emitter) AppendToBatch(b *sprite.Batch, image core.AssetID, src core.Rect, size float64) (int, error)
+    AppendToBatch appends one sprite per live particle centered at Pos with
+    size by size: Src is the caller atlas block, Opacity the current alpha.
+    Alpha at or below zero is skipped (fully transparent, saves a draw);
+    non-finite positions are skipped so a burst never poisons the batch.
+    Bad arguments return InvalidArg and append nothing.
+
+func (e *Emitter) ChildSpawned() int
+    ChildSpawned returns total child births.
+
+func (e *Emitter) Clear()
+    Clear drops every live particle and resets the accumulator plus the
+    counters. Config and generator sequence are kept.
+
+func (e *Emitter) ColorOf(p Particle) core.Color
+    ColorOf lerps the emitter ramp by the particle age fraction.
+
+func (e *Emitter) Config() EmitterConfig
+    Config returns a copy of the spawn recipe.
+
+func (e *Emitter) Died() int
+    Died returns total deaths.
+
+func (e *Emitter) Particles() []Particle
+    Particles returns a fresh copy of the live set; writing it cannot alias the
+    emitter.
+
+func (e *Emitter) Spawn(n int) (int, error)
+    Spawn births n parents now, capped by the remaining budget. Excess drops
+    quietly. Negative n is InvalidArg; zero is a no-op.
+
+func (e *Emitter) Spawned() int
+    Spawned returns total births (rate plus children).
+
+func (e *Emitter) Update(dt core.Duration) (spawned, died int)
+    Update advances by dt: integrates existing particles, drops the dead,
+    births children for non-child deaths, then births the rate share. Newborns
+    start at Age 0 in the same tick. dt at or below zero is a no-op returning 0,
+    0. The live set never exceeds Max.
+
+type EmitterConfig struct {
+	Origin     core.Vec2
+	Rate       float64
+	Max        int
+	SpeedMin   float64
+	SpeedMax   float64
+	LifeMin    core.Duration
+	LifeMax    core.Duration
+	Gravity    core.Vec2
+	Start      core.Color
+	End        core.Color
+	Shape      Shape
+	Turbulence Turbulence
+	Sub        Sub
+}
+    EmitterConfig is the frozen spawn recipe: Origin is the spawn center, Rate
+    births per second, Max the live budget, Speed/Life the per-birth ranges,
+    Gravity the constant acceleration, Start/End the color ramp, Shape the
+    position rule, Turbulence the drift, Sub the child rule.
+
+func (c EmitterConfig) Validate() error
+    Validate checks the full recipe: Max beyond MaxParticlesCap is OutOfMemory,
+    everything else bad is InvalidArg.
+
+type GPUPool struct {
+	// Has unexported fields.
+}
+    GPUPool is the 5.2 bulk particle pool (main reference Godot GPUParticles2D):
+    positions come from the frozen 5.1 Emitter math (Spawn/Update semantics
+    unchanged, same object), while every live particle owns one Trail ring
+    recording its trajectory. Trails are keyed by the particle birth Seed:
+    the same config with the same seed replays the same tracks. Two births
+    sharing one Seed (53-bit space) share one trail by design, never crash.
+    Drawing reuses the existing sprite Batch/DrawAtlas; only core numbers and
+    core error codes are used. Not safe for concurrent use.
+
+func NewGPUPool(cfg EmitterConfig, seed uint64, trail TrailConfig) (*GPUPool, error)
+    NewGPUPool builds a pool from the 5.1 emitter recipe plus the trail recipe.
+    Bad emitter recipes report their Emitter error, bad trail recipes report
+    InvalidArg; both return nil.
+
+func (p *GPUPool) Alive() int
+    Alive returns the live particle count.
+
+func (p *GPUPool) AppendParticles(buf []Particle) []Particle
+    AppendParticles appends the live set into buf and returns the extended
+    slice. Pass a reused backing (buf[:0]) to avoid per-frame allocation.
+    See Emitter.AppendParticles for retention rules.
+
+func (p *GPUPool) AppendToBatch(b *sprite.Batch, image core.AssetID, src core.Rect) (int, error)
+    AppendToBatch appends one square sprite per stored trail point with the
+    WidthAt size and the ColorAt alpha, mirroring the Emitter skip rules.
+    Bad arguments return InvalidArg and append nothing.
+
+func (p *GPUPool) ChildSpawned() int
+    ChildSpawned returns total child births.
+
+func (p *GPUPool) Clear()
+    Clear drops every live particle and every trail, resetting the counters.
+    Recipes are kept.
+
+func (p *GPUPool) ColorOf(pt Particle) core.Color
+    ColorOf lerps the emitter ramp by the particle age fraction.
+
+func (p *GPUPool) Config() EmitterConfig
+    Config returns a copy of the emitter recipe.
+
+func (p *GPUPool) Died() int
+    Died returns total deaths.
+
+func (p *GPUPool) Particles() []Particle
+    Particles returns a fresh copy of the live set; writing it cannot alias the
+    pool.
+
+func (p *GPUPool) Spawn(n int) (int, error)
+    Spawn births n parents now, capped by the remaining budget. Excess drops
+    quietly. Negative n is InvalidArg; zero is a no-op. Nil is InvalidArg.
+
+func (p *GPUPool) Spawned() int
+    Spawned returns total births (rate plus children).
+
+func (p *GPUPool) TotalPoints() int
+    TotalPoints returns the stored trajectory point count across all trails.
+
+func (p *GPUPool) TrailConfig() TrailConfig
+    TrailConfig returns a copy of the trail recipe.
+
+func (p *GPUPool) TrailOf(seed float64) *Trail
+    TrailOf returns a fresh copy of the trail for seed, or nil when the seed has
+    no live trail. Writing it cannot alias the pool.
+
+func (p *GPUPool) Trails() int
+    Trails returns the live trail count (one per live particle, shared on Seed
+    collision).
+
+func (p *GPUPool) Update(dt core.Duration) (spawned, died int)
+    Update advances by dt with the frozen 5.1 semantics, then records one
+    trajectory point per live particle and drops dead tracks. dt at or below
+    zero is a quiet no-op returning 0, 0. Nil is 0, 0.
+
+type JointKind int
+    JointKind names the corner rule between two trail segments (main reference
+    Godot Line2D joints: sharp, cut, or round corners).
+
+const (
+	// JointMiter extends the corner to a sharp point. Past MiterLimit the
+	// corner falls back to a bevel cut so spikes never explode.
+	JointMiter JointKind = 0
+	// JointBevel cuts the corner flat with one vertex pair.
+	JointBevel JointKind = 1
+	// JointRound fans RoundArcSteps pairs around the corner.
+	JointRound JointKind = 2
+)
+func ParseJoint(s string) (JointKind, bool)
+    ParseJoint maps "miter"/"bevel"/"round" to a kind, else JointMiter with
+    ok=false (never guessed).
+
+func (k JointKind) String() string
+    String returns the stable log name of k.
+
+type Particle struct {
+	Pos   core.Vec2
+	Vel   core.Vec2
+	Age   core.Duration
+	Life  core.Duration
+	Seed  float64
+	Child bool
+}
+    Particle is one live CPU particle: position and velocity in world units,
+    age and life in integer milliseconds, a replay seed in [0, 1), and the child
+    flag marking sub-emitter births. Only core numbers are used.
+
+func (p Particle) AgeFrac() float64
+    AgeFrac returns Age/Life clamped to [0, 1]. Non-positive Life parks at 1.
+
+func (p Particle) Alive() bool
+    Alive reports whether Age is strictly below Life with a positive Life.
+
+func (p Particle) ColorAt(start, end core.Color) core.Color
+    ColorAt lerps start to end by AgeFrac. NaN frac never leaks: AgeFrac is
+    already clamped, so the result stays finite for finite endpoints.
+
+type Shape struct {
+	Kind    ShapeKind
+	Dir     core.Vec2
+	Angle   float64
+	Extents core.Vec2
+	Inner   float64
+	Outer   float64
+}
+    Shape is one spawn rule: Kind picks the position sample, Dir picks the
+    velocity direction (cone adds spread, ring uses radial instead). Angle is
+    the cone half-angle in radians, Extents the box half size, Inner/Outer the
+    ring radii. Only core numbers are used.
+
+func BoxShape(dir, extents core.Vec2) (Shape, error)
+    BoxShape builds a box emitter: Dir is the velocity direction (finite),
+    Extents the half size per axis (finite, >= 0). Bad input is InvalidArg.
+
+func ConeShape(dir core.Vec2, angle float64) (Shape, error)
+    ConeShape builds a cone emitter: Dir is the center axis (finite, non-zero),
+    Angle the half-spread in [0, pi]. Bad input is InvalidArg.
+
+func PointShape(dir core.Vec2) (Shape, error)
+    PointShape builds a point emitter in direction dir. Dir must be finite;
+    zero is allowed and yields zero velocity.
+
+func RingShape(inner, outer float64) (Shape, error)
+    RingShape builds a ring emitter: radii must be finite, >= 0, Inner <= Outer.
+    Direction is radial outward. Bad input is InvalidArg.
+
+func (s Shape) Validate() error
+    Validate reports whether s is a constructor-built shape.
+
+type ShapeKind int
+    ShapeKind names the spawn-position rule.
+
+const (
+	// ShapePoint spawns at Origin.
+	ShapePoint ShapeKind = 0
+	// ShapeCone spawns at Origin with spread around Dir.
+	ShapeCone ShapeKind = 1
+	// ShapeBox samples uniformly in [-Extents, +Extents].
+	ShapeBox ShapeKind = 2
+	// ShapeRing samples uniformly in the annulus [Inner, Outer].
+	ShapeRing ShapeKind = 3
+)
+func ParseShape(s string) (ShapeKind, bool)
+    ParseShape maps "point"/"cone"/"box"/"ring" to a kind, else ShapePoint with
+    ok=false (never guessed).
+
+func (k ShapeKind) String() string
+    String returns the stable log name of k.
+
+type Sub struct {
+	Count    int
+	SpeedMin float64
+	SpeedMax float64
+	LifeMin  core.Duration
+	LifeMax  core.Duration
+}
+    Sub is the one-level child rule: each non-child death spawns Count children
+    with speeds in [SpeedMin, SpeedMax] and lives in [LifeMin, LifeMax].
+    Children inherit the death spot plus a quarter of the parent velocity and
+    never spawn further.
+
+func NewSub(count int, speedMin, speedMax float64, lifeMin, lifeMax core.Duration) (Sub, error)
+    NewSub builds a child rule: Count in [0, MaxSubPerDeath]; Count 0 ignores
+    the remaining fields. Positive counts need finite speeds with Min <= Max
+    within MaxSpeed and positive lives with Min <= Max.
+
+func NoSub() Sub
+    NoSub returns the disabled child rule.
+
+type Trail struct {
+	// Has unexported fields.
+}
+    Trail is one trajectory ribbon: points run oldest (tail) to newest (head).
+    The ring drops the oldest point past MaxPoints. Width lerps TailWidth to
+    HeadWidth along the same order, color lerps Start (head) to End (tail).
+    Not safe for concurrent use.
+
+func NewTrail(cfg TrailConfig) (*Trail, error)
+    NewTrail builds an empty trail from cfg. Bad recipes return InvalidArg and
+    nil.
+
+func (t *Trail) AppendPoints(buf []core.Vec2) []core.Vec2
+    AppendPoints appends the stored points oldest to newest into buf and
+    returns the extended slice. Pass a reused backing (buf[:0]) to avoid
+    per-frame allocation; a nil buf allocates like Points. A nil or empty trail
+    returns buf unchanged. The caller must not retain the result past the next
+    Push/Clear.
+
+func (t *Trail) AppendToBatch(b *sprite.Batch, image core.AssetID, src core.Rect) (int, error)
+    AppendToBatch appends one square sprite per trail point centered at the
+    point with the WidthAt size and the ColorAt alpha, mirroring the Emitter
+    skip rules: zero-alpha and non-finite entries are skipped, bad arguments
+    return InvalidArg and append nothing.
+
+func (t *Trail) Clear()
+    Clear drops every stored point. Config is kept.
+
+func (t *Trail) ColorAt(i int) (core.Color, error)
+    ColorAt returns the ramp color at raw index i: Start at the head, End at the
+    tail. Empty trail and bad indexes are InvalidArg.
+
+func (t *Trail) Config() TrailConfig
+    Config returns a copy of the trail recipe.
+
+func (t *Trail) Len() int
+    Len returns the stored point count.
+
+func (t *Trail) Points() []core.Vec2
+    Points returns a fresh copy oldest to newest; writing it cannot alias the
+    trail.
+
+func (t *Trail) Push(p core.Vec2) error
+    Push appends p as the newest point, dropping the oldest past MaxPoints.
+    Non-finite p returns InvalidArg and stores nothing. Nil is InvalidArg.
+
+func (t *Trail) Segments() ([]TrailSegment, error)
+    Segments returns the center-line pieces oldest to newest. Empty and
+    single-point trails return nil with nil error (nothing to draw).
+
+func (t *Trail) Verts() ([]TrailVert, error)
+    Verts expands the ribbon to vertex pairs oldest to newest. Empty trails
+    return nil with nil error (skip-friendly: an empty track draws nothing).
+    Miter corners extend up to MiterLimit then cut to bevel; bevel corners emit
+    one pair; round corners fan RoundArcSteps interior pairs. A lone point parks
+    facing +X. Duplicate neighbors reuse the neighbor direction so degenerate
+    tracks never produce NaN.
+
+func (t *Trail) WidthAt(i int) (float64, error)
+    WidthAt returns the ribbon width at raw index i (oldest 0). Empty trail and
+    bad indexes are InvalidArg.
+
+type TrailConfig struct {
+	MaxPoints int
+	HeadWidth float64
+	TailWidth float64
+	Start     core.Color
+	End       core.Color
+	Joint     JointKind
+}
+    TrailConfig is the frozen trail recipe: MaxPoints caps the ring buffer,
+    HeadWidth/TailWidth set the knife taper (head is the newest point),
+    Start/End set the head-to-tail color ramp, Joint sets the corner rule.
+    Only core numbers are used.
+
+func NewTrailConfig(maxPoints int, headWidth, tailWidth float64, start, end core.Color, joint JointKind) (TrailConfig, error)
+    NewTrailConfig builds a trail recipe: MaxPoints in [1, MaxTrailPointsCap],
+    widths finite and >= 0, colors finite, joint known. Anything else is
+    InvalidArg.
+
+func (c TrailConfig) Validate() error
+    Validate reports whether c is a constructor-built recipe.
+
+type TrailSegment struct {
+	P0    core.Vec2
+	P1    core.Vec2
+	Angle float64
+	W0    float64
+	W1    float64
+	C0    core.Color
+	C1    core.Color
+}
+    colors. The window turns each segment into one rotated atlas sprite plus one
+    joint square, so no new submit path is needed.
+
+type TrailVert struct {
+	Center core.Vec2
+	Left   core.Vec2
+	Right  core.Vec2
+}
+    TrailVert is one ribbon vertex pair: Center plus the Left/Right edge at half
+    width along the joint normal. Round corners fan extra pairs with the same
+    Center.
+
+type Turbulence struct {
+	Strength float64
+	Scale    float64
+}
+    Turbulence is a deterministic drift: Strength in world units per second
+    squared, Scale in radians per second. Zero strength disables it.
+
+func NewTurbulence(strength, scale float64) (Turbulence, error)
+    NewTurbulence builds a drift: Strength must be finite and >= 0, Scale
+    finite. Bad input is InvalidArg.
+
+func NoTurbulence() Turbulence
+    NoTurbulence returns the disabled drift.
+
+func (t Turbulence) Vec(seed, ageSec float64) core.Vec2
+    Vec returns the acceleration at (seed, ageSec): Strength-scaled sin/cos so
+    the same seed replays the same drift without per-tick randomness.
+

@@ -1,0 +1,7 @@
+Command upload is the G6 real window: upload list plus trigger.
+
+RUN_SECONDS=5 go run ./examples/kit/upload
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Correctness window
+(RUN_SECONDS>=5): slope_gate=off, fps gate on.

@@ -1,0 +1,1 @@
+Package main demonstrates WebGPU error handling using error scopes.

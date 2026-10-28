@@ -1,0 +1,433 @@
+package fx // import "github.com/energye/gpui/engine/fx"
+
+Package fx freezes the CPU-side full-screen effect math every 2.5D play feeds.
+
+Frozen 2026-09-15: Noise, Warp, NewWarp, OffsetAt, WarpPoint, SampleClamped,
+WarpRGBA, SetStrength, SetNoise, MaxWarpPixels. Additive changes only.
+
+What it does: heat-haze and water wobble sample the picture at a noise-shifted
+position instead of the raw pixel. Warp only computes the shift; the caller
+applies it to a fresh intermediate copy, never to the live frame, and the render
+main path stays untouched.
+
+Only core numbers are used (core.Vec2, core.Rect, core codes). This package
+draws nothing; the caller feeds WarpPoint into the existing render draws.
+No new Vec2/Color/AssetID is defined here.
+
+Math (frozen, both backends share it): 2D value noise over an integer lattice,
+splitmix64 hash of (ix, iy, seed, channel), smoothstep blend, mapped to [-1,
+1] per channel. Offset(p, t) = strength * noise(p* freq + drift*t), one channel
+per axis with a different channel salt. Pure function of its inputs: same inputs
+replay bitwise identical on every machine, so the CPU and GPU sides agree by
+construction.
+
+Errors use engine/core codes: bad constructor and wiring arguments are
+InvalidArg, a pixel slice whose length disagrees with its size is BadData,
+a picture beyond MaxWarpPixels is OutOfMemory. The per-pixel hot path OffsetAt
+stays total instead: strength 0 (including the zero Warp) is the exact identity,
+and any non-finite input yields the zero offset, never a panic and never a NaN
+leaking downstream.
+
+Frozen 2026-09-15: Custom, NewCustom, NewIdentity, NewOutline, NewDissolve,
+Registry, MaxCustomNameLen, MaxCustomParams, MaxCustomOutlineWidth,
+MaxCustomSeed, MaxCustomSlots, CustomIdentity, CustomOutline, CustomDissolve.
+Additive changes only.
+
+What it does: artist hooks for outline and dissolve. Custom holds a name plus
+float params; Registry attaches hooks to handles and calls them by handle. Apply
+takes an Image and returns a fresh Image plus a degraded bit plus an error:
+identity is exact (degraded false), outline and dissolve are CPU reference paths
+the GPU replaces with a filtered shader (degraded true). A valid src with a bad
+hook still returns a placeholder copy so the main path never breaks. Only core
+numbers and core codes are used; render is never imported here.
+
+CONSTANTS
+
+const (
+	// MaxCustomNameLen caps a material name in bytes.
+	MaxCustomNameLen = 64
+	// MaxCustomParams caps entries in Custom.Params.
+	MaxCustomParams = 8
+	// MaxCustomOutlineWidth caps outline width in pixels.
+	MaxCustomOutlineWidth = 8
+	// MaxCustomSeed caps the dissolve seed (uint32 range).
+	MaxCustomSeed = 4294967295
+	// MaxCustomSlots caps live Registry handles.
+	MaxCustomSlots = 256
+)
+    Frozen custom-material budgets and names.
+
+const (
+	CustomIdentity = "identity"
+	CustomOutline  = "outline"
+	CustomDissolve = "dissolve"
+)
+    Frozen material names. Unknown names are Unsupported, never a guess.
+
+const (
+	MinLUTSize = 2
+	MaxLUTSize = 256
+)
+    LUT sizes: 1D per-channel tables this short cannot bend color (identity
+    would be the only curve); this long belongs to a 3D cube, not this file.
+
+const (
+	// MaxWarpDimension caps one side in pixels.
+	MaxWarpDimension = 8192
+	// MaxWarpPixels caps the area in pixels.
+	MaxWarpPixels = 8192 * 8192
+)
+    Frozen warp budgets. A picture beyond budget is well-formed but too big:
+    OutOfMemory, never a guess. Same cap as the tex intake so a warped frame
+    always fits where its source fit.
+
+const DefaultTonemap = TonemapReinhard
+    DefaultTonemap freezes the S66 curve choice: Reinhard. Selectable in code,
+    but the windows and goldens pin this value.
+
+const MaxBloomIntensity = 4
+    MaxBloomIntensity caps the additive glow strength.
+
+const MaxBloomRadius = 16
+    MaxBloomRadius caps the box-blur radius (16px each pass is plenty for a
+    glow; bigger radii belong to a GPU blur, not this CPU grade path).
+
+const MaxExposure = 16
+    MaxExposure caps tonemap exposure (16x is already daylight-to-night).
+
+const MaxImagePixels = 16 << 20
+    MaxImagePixels caps one grading intermediate (16M pixels, 64MB at RGBA8).
+    Bigger pictures report core OutOfMemory instead of allocating.
+
+const MaxVignetteRadius = 2
+    MaxVignetteRadius caps Inner/Outer in UV units (2 covers any corner from any
+    center inside the frame).
+
+
+FUNCTIONS
+
+func SampleClamped(px []uint8, w, h, x, y int) ([4]uint8, error)
+    SampleClamped reads one RGBA8 pixel with clamped edges: out-of-range
+    coordinates pin to the nearest edge texel, exactly like the GPU
+    clamp-to-edge sampler, so both sides agree at the border. Bad arguments are
+    InvalidArg and read nothing.
+
+func WarpRGBA(src []uint8, w, h int, t float64, wv Warp) ([]uint8, error)
+    WarpRGBA applies w to src (w-by-h RGBA8) at time t and returns a fresh
+    intermediate copy: dst[i] samples src at WarpPoint rounded to the nearest
+    texel with clamped edges. src is never written; the caller keeps the live
+    frame and swaps in the returned copy. Strength 0 returns an exact copy.
+    A length mismatch is BadData, an over-budget picture OutOfMemory, a zero or
+    negative side InvalidArg.
+
+
+TYPES
+
+type Bloom struct {
+	Threshold float64
+	Radius    int
+	Intensity float64
+}
+    Bloom glows bright areas: pixels above Threshold are masked, box-blurred by
+    Radius, and added back scaled by Intensity. Radius 0 (or Intensity 0) is a
+    valid near-identity: the mask still applies but (almost) nothing is added,
+    so callers can freeze one Grade and fade the glow with Intensity.
+
+func NewBloom(threshold float64, radius int, intensity float64) (Bloom, error)
+    NewBloom builds a Bloom. Threshold must be in [0,1], Radius in
+    [0,MaxBloomRadius], Intensity in [0,MaxBloomIntensity]; all floats must be
+    finite. Anything else is InvalidArg and builds nothing.
+
+func (b Bloom) Apply(src *Image) (*Image, error)
+    Apply returns src plus the blurred bright-pass, as a fresh image.
+    src is never mutated. A nil src is InvalidArg, a corrupt src is BadData,
+    an invalid Bloom is InvalidArg; all leave nothing allocated to the caller.
+
+func (b Bloom) IsIdentity() bool
+    IsIdentity reports whether Apply adds (almost) nothing: zero intensity
+    always, or zero radius with zero threshold-mask output handled by Apply.
+
+func (b Bloom) Validate() error
+    Validate reports InvalidArg for non-finite or out-of-range fields.
+
+type Custom struct {
+	Name   string
+	Params map[string]float64
+}
+    Custom is one artist material hook: a name plus float params. Only
+    game-layer numbers are stored; this package draws nothing. The caller feeds
+    Apply into the existing render draws.
+
+func NewCustom(name string, params map[string]float64) (Custom, error)
+    NewCustom builds a Custom copying params. Empty or overlong names are
+    InvalidArg, unknown names Unsupported, bad params InvalidArg.
+
+func NewDissolve(amount, edge, seed, r, g, b float64) (Custom, error)
+    NewDissolve builds a dissolve hook: per-pixel hash above amount+edge keeps
+    src, the edge band shows (r,g,b,1), below amount is transparent.
+
+func NewIdentity() Custom
+    NewIdentity builds the do-nothing hook (no params, never degraded).
+
+func NewOutline(width, threshold, r, g, b float64) (Custom, error)
+    NewOutline builds an outline hook: pixels below threshold whose square
+    neighbour within width holds opaque become (r,g,b,1).
+
+func (c Custom) Apply(src *Image) (*Image, bool, error)
+    Apply runs c on src and returns a fresh image plus the frozen degraded mark.
+    src is never mutated. Nil src is InvalidArg, corrupt src BadData,
+    over-budget OutOfMemory, an invalid hook InvalidArg, an unknown hook
+    Unsupported; a valid src with a bad hook still returns a placeholder copy so
+    the main path never breaks.
+
+func (c Custom) Degraded() bool
+    Degraded reports the frozen CPU fallback mark: identity is exact (false),
+    outline and dissolve are reference CPU paths the GPU replaces with a
+    filtered shader (true). Callers gate parity on this bit.
+
+func (c Custom) IsIdentity() bool
+    IsIdentity reports whether c is the do-nothing hook.
+
+func (c Custom) Param(key string) (float64, bool)
+    Param returns one param value, or false for a missing key.
+
+func (c *Custom) SetParam(key string, v float64) error
+    SetParam swaps one param. Unknown keys or out-of-range values are InvalidArg
+    and leave c unchanged.
+
+func (c Custom) Validate() error
+    Validate reports InvalidArg for bad names or params, Unsupported for an
+    unknown material name.
+
+type Grade struct {
+	Bloom    Bloom
+	Vignette Vignette
+	LUT      *LUT
+	Tonemap  Tonemap
+	Exposure float64
+}
+    Grade chains the whole post look in filter-chain order: bloom, vignette,
+    LUT, tonemap. A nil LUT skips the LUT stage; TonemapNone skips the tonemap
+    stage. Every stage allocates its own fresh image, so a 4-stage grade holds
+    at most two intermediates at once and never touches the caller's pixels.
+
+func NewGrade(bloom Bloom, vig Vignette, lut *LUT, tm Tonemap, exposure float64) (Grade, error)
+    NewGrade builds a Grade validating every stage (a nil lut skips LUT).
+    A bad tonemap is InvalidArg; exposure is checked only when tonemap is not
+    None (None ignores it).
+
+func (g Grade) Apply(src *Image) (*Image, error)
+    Apply runs bloom, vignette, LUT (unless nil), tonemap (unless None)
+    and returns the final fresh image. src is never mutated. A nil src is
+    InvalidArg, a corrupt src is BadData.
+
+func (g Grade) Degraded() bool
+    Degraded reports the frozen CPU fallback mark: true when the tonemap stage
+    is on (no GPU shader yet, CPU reference runs). Callers gate parity on this
+    bit; a set bit without a log line is a fake-green bug.
+
+func (g Grade) ExposureValue() (float64, bool)
+    ExposureValue returns the frozen exposure plus whether tonemapping is on:
+    the queryable S66 knob. TonemapNone reports (0, false).
+
+func (g Grade) Stages() []string
+    Stages returns the frozen filter-chain order this grade runs.
+
+type Image struct {
+	W, H int
+	Pix  []core.Color
+}
+    Image is one isolated grading intermediate: W*H straight-alpha core.Colors
+    in row-major order. It never aliases another Image: constructors copy,
+    Apply returns fresh images, Clone copies again.
+
+func ApplyTonemap(src *Image, t Tonemap, exposure float64) (*Image, error)
+    ApplyTonemap returns src tonemapped, as a fresh image. TonemapNone returns
+    a copy (still isolated, never an alias). A nil src is InvalidArg, a corrupt
+    src is BadData, a bad tonemap or exposure is InvalidArg.
+
+func NewImage(w, h int) (*Image, error)
+    NewImage builds a W-by-H transparent-black image. Non-positive sizes are
+    InvalidArg; W*H beyond MaxImagePixels is OutOfMemory.
+
+func NewImageFromColors(w, h int, pix []core.Color) (*Image, error)
+    NewImageFromColors builds an image copying pix (row-major, len W*H).
+    Bad sizes are InvalidArg, a length mismatch is BadData, over-budget is
+    OutOfMemory. A NaN/Inf component is BadData, never a silent pixel.
+
+func (img *Image) ApproxEqual(o *Image, eps float64) bool
+    ApproxEqual reports whether o has the same size and every component differs
+    by less than eps. Non-positive eps means exact equality.
+
+func (img *Image) At(x, y int) (core.Color, bool)
+    At returns the pixel at (x, y), or false when out of range.
+
+func (img *Image) Clone() *Image
+    Clone returns a fresh copy, or nil for a nil/corrupt image (never panics).
+
+func (img *Image) Set(x, y int, c core.Color) bool
+    Set stores c at (x, y). False on bad coordinates or a corrupt image;
+    a non-finite c is rejected (false) and stores nothing.
+
+type LUT struct {
+	Size int
+	R    []float64
+	G    []float64
+	B    []float64
+}
+    LUT remaps each channel through its own 1D table with linear interp.
+    R/G/B each hold Size samples of input 0..1 (index 0 is black, index Size-1
+    is white). Tables are always copied on the way in and never shared with the
+    caller.
+
+func NewIdentityLUT(size int) (LUT, error)
+    NewIdentityLUT builds the do-nothing table of size entries: table[i] =
+    i/(size-1). size outside [MinLUTSize,MaxLUTSize] is InvalidArg.
+
+func NewLUT(r, g, b []float64) (LUT, error)
+    NewLUT builds a LUT copying r/g/b. All three must share one length in
+    [MinLUTSize,MaxLUTSize] with every entry finite in [0,1]. Anything else is
+    InvalidArg and builds nothing.
+
+func (l LUT) Apply(src *Image) (*Image, error)
+    Apply returns src remapped through the tables, as a fresh image. Alpha
+    preserved exactly, src never mutated. A nil src is InvalidArg, a corrupt src
+    is BadData, an invalid LUT is InvalidArg.
+
+func (l LUT) Sample(ch int, x float64) float64
+    Sample maps one channel value through the matching table (for probes).
+    ch is 0/1/2 for R/G/B; anything else clamps x through R by design? No:
+    unknown channels are InvalidArg-safe only via Apply; Sample returns 0 for a
+    bad channel and never panics.
+
+func (l LUT) Validate() error
+    Validate reports InvalidArg for a zero value or a table the constructors
+    would reject (wrong lengths, non-finite or out-of-range entries).
+
+type Noise struct {
+	Seed  uint64
+	Freq  float64
+	Drift core.Vec2
+}
+    Noise names the offset field one Warp samples: which lattice (Seed),
+    how tight the wobble is (Freq, cycles per pixel), and how fast the field
+    drifts with time (Drift, lattice units per second).
+
+func DefaultNoise() Noise
+    DefaultNoise is the frozen water-wobble field: seed 20260915, one wobble
+    every 32 pixels, slow drift down-right. Tests pin it.
+
+type Registry struct {
+	// Has unexported fields.
+}
+    Registry holds attached hooks by handle. Attach copies in, Detach deletes,
+    Apply calls by handle. Zero value is unusable: use NewRegistry.
+
+func NewRegistry() *Registry
+    NewRegistry builds an empty hook table.
+
+func (r *Registry) Apply(id int, src *Image) (*Image, bool, error)
+    Apply calls the hook at id on src. A bad src reports the image error,
+    a missing handle NotFound with a placeholder copy when src is valid,
+    an invalid stored hook its own error; valid src always yields a drawable
+    placeholder so the main path never breaks.
+
+func (r *Registry) Attach(c Custom) (int, error)
+    Attach validates c and returns a fresh handle. Bad hooks are InvalidArg or
+    Unsupported and attach nothing; a full table is OutOfMemory.
+
+func (r *Registry) Detach(id int) error
+    Detach removes id. Non-positive ids are InvalidArg, missing ids NotFound.
+
+func (r *Registry) Get(id int) (Custom, bool)
+    Get returns a copy of the hook at id, or false for a missing handle.
+
+func (r *Registry) Len() int
+    Len returns the live handle count.
+
+type Tonemap int
+    Tonemap names the highlight rolloff applied after the LUT.
+
+const (
+	// TonemapNone disables tonemapping (Grade skips the stage entirely).
+	TonemapNone Tonemap = iota
+	// TonemapReinhard is x/(1+x) per channel (Godot Reinhard mode idea).
+	TonemapReinhard
+	// TonemapACES is the Narkowicz filmic approximation (Godot ACES idea,
+	// Skia has no built-in curve so games carry this formula).
+	TonemapACES
+	// TonemapFilmic is the Hejl-Burgess-Dawson shoulder curve (the third
+	// S66 option; selectable, never the default).
+	TonemapFilmic
+)
+func ParseTonemap(s string) (Tonemap, error)
+    ParseTonemap maps "none"/"reinhard"/"aces"/"filmic" to a Tonemap. Anything
+    else is InvalidArg and returns TonemapNone.
+
+func (t Tonemap) Map(x, exposure float64) float64
+    Map maps one channel value through t at exposure (for probes).
+
+func (t Tonemap) String() string
+    String returns the stable log name of t.
+
+type Vignette struct {
+	Center   core.Vec2
+	Inner    float64
+	Outer    float64
+	Strength float64
+}
+    Vignette darkens frame corners: pixels inside Inner keep full brightness,
+    pixels outside Outer are scaled by (1-Strength), and the ring between is a
+    smooth Hermite ramp. Center is in normalized UV (0..1, 0.5,0.5 is the frame
+    middle); distances are plain UV Euclidean, so wide frames fall off faster
+    horizontally by design (a future aspect-correct mode adds, never changes,
+    this math).
+
+func NewVignette(center core.Vec2, inner, outer, strength float64) (Vignette, error)
+    NewVignette builds a Vignette. Center must be finite, Inner in
+    [0,MaxVignetteRadius], Outer in (Inner,MaxVignetteRadius], Strength in
+    [0,1]. Anything else is InvalidArg and builds nothing.
+
+func (v Vignette) Apply(src *Image) (*Image, error)
+    Apply returns src darkened by the vignette factor, as a fresh image. RGB is
+    scaled, alpha preserved exactly, src never mutated. A nil src is InvalidArg,
+    a corrupt src is BadData, an invalid Vignette is InvalidArg.
+
+func (v Vignette) FactorAt(uv core.Vec2) float64
+    FactorAt returns the brightness multiplier at normalized uv (for probes and
+    tests): 1 inside Inner, (1-Strength) outside Outer, smooth between.
+
+func (v Vignette) Validate() error
+    Validate reports InvalidArg for non-finite or out-of-range fields.
+
+type Warp struct {
+	Strength float64
+	Noise    Noise
+}
+    Warp is a heat-haze / water-wobble sampler: picture pixels are read at p +
+    OffsetAt(p, t) instead of p, with the offset scaled by Strength (pixels at
+    noise output 1). The zero value is valid and is the exact identity (strength
+    0 reads every pixel in place).
+
+func NewWarp(strength float64, n Noise) (Warp, error)
+    NewWarp builds a Warp. Strength must be finite and non-negative, Freq finite
+    and positive, Drift finite. A bad argument is InvalidArg and builds nothing.
+
+func (w Warp) OffsetAt(p core.Vec2, t float64) core.Vec2
+    OffsetAt returns the sample shift at picture point p and time t (seconds):
+    strength * noise(p*freq + drift*t), one channel per axis. Total: strength
+    0 is the exact identity, and any non-finite p, t, or warp field yields the
+    zero offset, never a panic and never a NaN leaking downstream.
+
+func (w *Warp) SetNoise(n Noise) error
+    SetNoise swaps the sampled field. Bad input is InvalidArg and leaves w
+    unchanged.
+
+func (w *Warp) SetStrength(strength float64) error
+    SetStrength swaps the wobble amplitude. Bad input is InvalidArg and leaves w
+    unchanged.
+
+func (w Warp) WarpPoint(p core.Vec2, t float64) core.Vec2
+    WarpPoint returns where picture point p is sampled from at time t: p +
+    OffsetAt(p, t). Same totality as OffsetAt.
+

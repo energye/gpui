@@ -1,0 +1,23 @@
+Command ui_render_base_cliprrect is the C-group real window for rounded
+rectangle clipping of image and text consumers. It pins ClipRoundRect on:
+
+  - DrawGPUTexture -> textured_quad.wgsl rrect_clip_coverage
+  - DrawImageEx -> image/cover pipeline
+  - DrawString -> glyph mask / MSDF pipeline
+  - Push/Pop -> clip restoration
+
+The rrect coverage code existed but had no direct real-window pixel proof;
+this window samples the corner cut-outs and the visible center of each consumer,
+checks glyph ink cannot escape the clip, compares the live screen with the
+snapshot, and compares a seeded golden.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_cliprrect -auto-only
+    go run ./examples/ui_render_base_cliprrect   # manual: lives until close
+    go run ./examples/ui_render_base_cliprrect -manual-seconds 15
+
+Evidence: 11 value-level CPU contract probes, 15 GPU-snapshot pixel probes
+(including two text-ink region probes), a seeded golden over header + legend +
+four cards, a live screen grab compared with the snapshot over the same rects,
+and GPU-route assertions (texture view published, gpu_ops > 0, cpu_fallback_ops
+== 0).

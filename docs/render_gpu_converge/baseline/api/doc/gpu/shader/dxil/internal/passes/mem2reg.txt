@@ -1,0 +1,60 @@
+package mem2reg // import "github.com/energye/gpui/gpu/shader/dxil/internal/passes/mem2reg"
+
+Package mem2reg promotes function-scope local variables of scalar type to SSA
+values, eliminating the corresponding alloca / load / store triples that the
+DXIL emitter would otherwise produce.
+
+This pass mirrors the LLVM "Promote Memory To Register" transform , specialized
+to naga IR's structured control flow.
+
+  - For each LocalVariable whose every use is a direct Load/Store (no GEP,
+    no AccessIndex chain, no pointer escape), the alloca is considered
+    "promotable".
+  - Phase A (this implementation) only promotes variables whose entire set of
+    stores AND loads is confined to a single Block of the structured CFG. The
+    rewrite walks that block in textual order tracking a per-variable current
+    value:
+  - StmtStore updates the current value and is removed from the statement
+    stream.
+  - Each load expression is rewritten in place to an ExprAlias pointing at the
+    current value (or, when the load precedes every store, at the variable's
+    Init expression or a synthesized ExprZeroValue).
+
+Phase A scope:
+  - Scalar-typed local variables only. Aggregate types (vector, matrix, struct,
+    array, atomic) keep their alloca-form lowering because the existing emit
+    pipeline has many aggregate-specific paths that depend on the alloca
+    pointer.
+  - Single-block colocation only. Multi-block cases that would require phi
+    insertion at structured-CFG merge points are left as alloca; they are
+    tracked separately for Phase B.
+
+Phase B will add ExprPhi expressions placed at structured-CFG merge points
+(if-merge, loop-header, switch-merge), the corresponding emit-side support for
+LLVM phi instructions in basic-block prologue position, and the bitcode writer
+extension for sign-rotated VBR encoding of phi value operands.
+
+FUNCTIONS
+
+func Run(mod *ir.Module, fn *ir.Function) error
+    Run promotes promotable scalar local variables in fn to SSA form.
+
+    On success the function's Body and Expressions arrays are mutated in place:
+      - Promoted-variable loads (ExprLoad{ExprLocalVariable{i}}) are rewritten
+        to ExprAlias pointing at the value last stored into the variable (or,
+        on first read, at the variable's Init expression or a synthesized
+        ExprZeroValue).
+      - Stores into promoted variables are removed from the statement stream.
+      - The LocalVariable slot itself stays in fn.LocalVars (so existing
+        index-based references remain valid) but no expression references it
+        any more — the emitter's reachability check skips allocas with zero
+        remaining uses.
+
+    The pass is idempotent: a second invocation is a no-op because every alloca
+    that survives the first pass has at least one address-taken use (which means
+    it failed the promotability predicate to begin with).
+
+    On any internal failure the pass leaves fn untouched. Callers may safely
+    ignore the returned error and proceed with the original IR; mem2reg is a
+    pure optimization, not a correctness requirement.
+

@@ -1,0 +1,24 @@
+Command ui_wr_shadermask is the real window for the user-space ShaderMask
+capability (render.DrawShaderMask / PaintContext.DrawShaderMask): content is
+drawn into an isolated layer, then modulated by the alpha of a mask brush —
+Flutter ShaderMaskLayer / Skia saveLayer(bounds) + drawRect(mask, dstIn).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_wr_shadermask -auto-only
+    go run ./examples/ui_wr_shadermask                         # manual: until close
+    go run ./examples/ui_wr_shadermask -manual-seconds 15      # manual: auto-close
+
+Full-window content: two columns of four cells. The left column paints the
+mask in the retained UI walk (PaintContext.DrawShaderMask); the right column
+replays a Recorder picture built with render.DrawShaderMask. Both columns must
+land on the same pixels (pair probes), the analytic mask oracle (pixel probes),
+a bitwise golden, and a live screen grab must agree.
+
+Each cell: base fill, then a masked layer with kind-specific content:
+
+    fade     vertical gradient white 1→0; image + text fade out, a blue bar in
+             the zero-alpha tail is erased
+    vignette radial white 1→0; the orange panel keeps its centre only
+    solid    constant white alpha=0.5; opaque stripes come out at half alpha
+    overlap  two translucent blocks composite INSIDE the layer first, then the
+             whole composite is masked (proves compose-then-mask)

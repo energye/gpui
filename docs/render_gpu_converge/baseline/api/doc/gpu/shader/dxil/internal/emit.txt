@@ -1,0 +1,465 @@
+package emit // import "github.com/energye/gpui/gpu/shader/dxil/internal/emit"
+
+Package emit implements naga IR to DXIL module lowering.
+
+This package translates naga IR types, expressions, and statements into
+DXIL module constructs (LLVM 3.7 IR with dx.op intrinsics). The output is a
+module.Module that can be serialized to bitcode and wrapped in a DXBC container.
+
+CONSTANTS
+
+const (
+	AtomicOrderingMonotonic uint32 = 2 // Monotonic (relaxed)
+	AtomicOrderingAcquire   uint32 = 4 // Acquire
+	AtomicOrderingRelease   uint32 = 5 // Release
+	AtomicOrderingAcqRel    uint32 = 6 // Acquire-Release
+	AtomicOrderingSeqCst    uint32 = 7 // Sequentially Consistent
+)
+    LLVM memory ordering constants.
+
+
+FUNCTIONS
+
+func ComponentCount(inner ir.TypeInner) int
+    ComponentCount returns the flat scalar component count of the given IR type
+    inner. Exported for the inline policy mirror.
+
+func Emit(irMod *ir.Module, opts EmitOptions) (*module.Module, error)
+    Emit translates a naga IR module into a DXIL module.Module.
+
+    The caller is responsible for serializing the result to bitcode and wrapping
+    it in a DXBC container.
+
+func EmitWithFlags(irMod *ir.Module, opts EmitOptions) (*module.Module, uint64, error)
+    EmitWithFlags is like Emit but also returns the bitcode ShaderFlags value
+    computed for the (single) entry point. Callers that build a DXBC container
+    need this to regenerate a matching SFI0 (Feature Info) part — DXC's
+    validator memcmp's that part against what it reconstructs from the bitcode
+    ShaderFlags.
+
+func FunctionAccessesGlobals(fn *ir.Function) bool
+    FunctionAccessesGlobals reports whether the function reads any module global
+    variable. Exported for the inline policy mirror.
+
+func FunctionHasComplexExpressions(fn *ir.Function, irMod *ir.Module) bool
+    FunctionHasComplexExpressions reports whether the function body uses
+    expression kinds that cannot be emitted inside a standalone LLVM helper
+    function. Exported for the inline policy mirror.
+
+func FunctionHasComplexLocals(fn *ir.Function, irMod *ir.Module) bool
+    FunctionHasComplexLocals reports whether any local variable of fn has a type
+    our standalone-helper emission cannot scalarize. Exported so dxil.Compile
+    can mirror the same eligibility gate inside the IR inline policy.
+
+func IsScalarizableType(inner ir.TypeInner) bool
+    IsScalarizableType reports whether the IR type can be safely expanded into
+    its scalar components for helper-function argument/return scalarization.
+    Exported for the inline policy mirror.
+
+
+TYPES
+
+type AtomicRMWOp uint32
+    AtomicRMWOp represents LLVM atomicrmw operation codes. Used in
+    FUNC_CODE_INST_ATOMICRMW record.
+
+const (
+	AtomicRMWXchg AtomicRMWOp = 0  // exchange
+	AtomicRMWAdd  AtomicRMWOp = 1  // add
+	AtomicRMWSub  AtomicRMWOp = 2  // subtract
+	AtomicRMWAnd  AtomicRMWOp = 3  // bitwise and
+	AtomicRMWNand AtomicRMWOp = 4  // bitwise nand
+	AtomicRMWOr   AtomicRMWOp = 5  // bitwise or
+	AtomicRMWXor  AtomicRMWOp = 6  // bitwise xor
+	AtomicRMWMax  AtomicRMWOp = 7  // signed max
+	AtomicRMWMin  AtomicRMWOp = 8  // signed min
+	AtomicRMWUMax AtomicRMWOp = 9  // unsigned max
+	AtomicRMWUMin AtomicRMWOp = 10 // unsigned min
+)
+type BinOpKind uint32
+    BinOpKind represents LLVM binary operation opcodes for DXIL. These are used
+    in the FUNC_CODE_INST_BINOP record.
+
+const (
+	BinOpAdd  BinOpKind = 0  // add (int) / fadd (float)
+	BinOpFAdd BinOpKind = 0  // same as Add — float add uses opcode 0 with float operands
+	BinOpSub  BinOpKind = 1  // sub (int) / fsub (float)
+	BinOpFSub BinOpKind = 1  // same as Sub
+	BinOpMul  BinOpKind = 2  // mul (int) / fmul (float)
+	BinOpFMul BinOpKind = 2  // same as Mul
+	BinOpUDiv BinOpKind = 3  // udiv (int only)
+	BinOpSDiv BinOpKind = 4  // sdiv (int) / fdiv (float)
+	BinOpFDiv BinOpKind = 4  // same as SDiv
+	BinOpURem BinOpKind = 5  // urem (int) / frem (float)
+	BinOpSRem BinOpKind = 6  // srem (int only)
+	BinOpFRem BinOpKind = 5  // same as URem
+	BinOpShl  BinOpKind = 7  // shift left
+	BinOpLShr BinOpKind = 8  // logical shift right
+	BinOpAShr BinOpKind = 9  // arithmetic shift right
+	BinOpAnd  BinOpKind = 10 // bitwise and
+	BinOpOr   BinOpKind = 11 // bitwise or
+	BinOpXor  BinOpKind = 12 // bitwise xor
+)
+    LLVM 3.7 bitcode binary operation codes. In LLVM bitcode, int and float ops
+    share the same opcode. The reader distinguishes float vs int by the operand
+    type.
+
+type BindTarget struct {
+	Space            uint32
+	Register         uint32
+	BindingArraySize *uint32
+}
+    BindTarget specifies the DXIL register binding for a resource.
+
+type BindingLocation struct {
+	Group   uint32
+	Binding uint32
+}
+    BindingLocation identifies a resource in the source shader.
+
+type BindingMap map[BindingLocation]BindTarget
+    BindingMap maps source-shader binding locations to DXIL register bindings.
+
+type CastOpKind uint32
+    CastOpKind represents LLVM cast operation codes.
+
+const (
+	CastTrunc   CastOpKind = 0  // Truncate integers
+	CastZExt    CastOpKind = 1  // Zero-extend integers
+	CastSExt    CastOpKind = 2  // Sign-extend integers
+	CastFPToUI  CastOpKind = 3  // Float to unsigned integer
+	CastFPToSI  CastOpKind = 4  // Float to signed integer
+	CastUIToFP  CastOpKind = 5  // Unsigned integer to float
+	CastSIToFP  CastOpKind = 6  // Signed integer to float
+	CastFPTrunc CastOpKind = 7  // Truncate float (e.g., double→float)
+	CastFPExt   CastOpKind = 8  // Extend float (e.g., float→double)
+	CastBitcast CastOpKind = 11 // Bitcast (same size, different type)
+)
+    LLVM 3.7 cast operation codes.
+
+type CmpPredicate uint32
+    CmpPredicate represents LLVM comparison predicates.
+
+const (
+	FCmpFalse CmpPredicate = 0  // Always false
+	FCmpOEQ   CmpPredicate = 1  // Ordered and equal
+	FCmpOGT   CmpPredicate = 2  // Ordered and greater than
+	FCmpOGE   CmpPredicate = 3  // Ordered and greater/equal
+	FCmpOLT   CmpPredicate = 4  // Ordered and less than
+	FCmpOLE   CmpPredicate = 5  // Ordered and less/equal
+	FCmpONE   CmpPredicate = 6  // Ordered and not equal
+	FCmpORD   CmpPredicate = 7  // Ordered (no NaNs)
+	FCmpUNO   CmpPredicate = 8  // Unordered (at least one NaN)
+	FCmpUEQ   CmpPredicate = 9  // Unordered or equal
+	FCmpUGT   CmpPredicate = 10 // Unordered or greater than
+	FCmpUGE   CmpPredicate = 11 // Unordered or greater/equal
+	FCmpULT   CmpPredicate = 12 // Unordered or less than
+	FCmpULE   CmpPredicate = 13 // Unordered or less/equal
+	FCmpUNE   CmpPredicate = 14 // Unordered or not equal
+	FCmpTrue  CmpPredicate = 15 // Always true
+)
+    LLVM 3.7 floating-point comparison predicates (FCMP).
+
+const (
+	ICmpEQ  CmpPredicate = 32 // Equal
+	ICmpNE  CmpPredicate = 33 // Not equal
+	ICmpUGT CmpPredicate = 34 // Unsigned greater than
+	ICmpUGE CmpPredicate = 35 // Unsigned greater/equal
+	ICmpULT CmpPredicate = 36 // Unsigned less than
+	ICmpULE CmpPredicate = 37 // Unsigned less/equal
+	ICmpSGT CmpPredicate = 38 // Signed greater than
+	ICmpSGE CmpPredicate = 39 // Signed greater/equal
+	ICmpSLT CmpPredicate = 40 // Signed less than
+	ICmpSLE CmpPredicate = 41 // Signed less/equal
+)
+    LLVM 3.7 integer comparison predicates (ICMP).
+
+type DXILAtomicOp uint32
+    DXILAtomicOp represents the atomic operation kind for dx.op.atomicBinOp.
+
+const (
+	DXILAtomicAdd      DXILAtomicOp = 0
+	DXILAtomicAnd      DXILAtomicOp = 1
+	DXILAtomicOr       DXILAtomicOp = 2
+	DXILAtomicXor      DXILAtomicOp = 3
+	DXILAtomicIMin     DXILAtomicOp = 4
+	DXILAtomicIMax     DXILAtomicOp = 5
+	DXILAtomicUMin     DXILAtomicOp = 6
+	DXILAtomicUMax     DXILAtomicOp = 7
+	DXILAtomicExchange DXILAtomicOp = 8
+)
+type DXILBarrierMode uint32
+    DXILBarrierMode represents DXIL barrier mode flags. These can be combined
+    with bitwise OR.
+
+const (
+	BarrierModeSyncThreadGroup     DXILBarrierMode = 1
+	BarrierModeUAVFenceGlobal      DXILBarrierMode = 2
+	BarrierModeUAVFenceThreadGroup DXILBarrierMode = 4
+	BarrierModeGroupSharedMemFence DXILBarrierMode = 8
+)
+type DXILOpcode uint32
+    DXILOpcode represents a dx.op intrinsic opcode number.
+
+const (
+	// I/O operations.
+	OpLoadInput   DXILOpcode = 4
+	OpStoreOutput DXILOpcode = 5
+
+	// Unary float operations.
+	OpFAbs             DXILOpcode = 6
+	OpSaturate         DXILOpcode = 7
+	OpIsNaN            DXILOpcode = 8
+	OpIsInf            DXILOpcode = 9
+	OpIsFinite         DXILOpcode = 10
+	OpIsNormal         DXILOpcode = 11
+	OpCos              DXILOpcode = 12
+	OpSin              DXILOpcode = 13
+	OpTan              DXILOpcode = 14
+	OpAcos             DXILOpcode = 15
+	OpAsin             DXILOpcode = 16
+	OpAtan             DXILOpcode = 17
+	OpHCos             DXILOpcode = 18
+	OpHSin             DXILOpcode = 19
+	OpHTan             DXILOpcode = 20
+	OpExp              DXILOpcode = 21
+	OpFrc              DXILOpcode = 22
+	OpLog              DXILOpcode = 23
+	OpSqrt             DXILOpcode = 24
+	OpRsqrt            DXILOpcode = 25
+	OpRoundNE          DXILOpcode = 26
+	OpRoundNI          DXILOpcode = 27
+	OpRoundPI          DXILOpcode = 28
+	OpRoundZ           DXILOpcode = 29
+	OpReverseBits      DXILOpcode = 30
+	OpCountBits        DXILOpcode = 31
+	OpFirstbitLo       DXILOpcode = 32
+	OpFirstbitHi       DXILOpcode = 33
+	OpFirstbitShiHi    DXILOpcode = 34 // firstbit_shi_hi (signed high bit)
+	OpBfrev            DXILOpcode = 30 // alias for ReverseBits
+	OpLdexp            DXILOpcode = 43 // ldexp(value, exp)
+	OpMakeDouble       DXILOpcode = 101
+	OpSplitDouble      DXILOpcode = 102
+	OpBitcastI16toF16  DXILOpcode = 125
+	OpBitcastF16toI16  DXILOpcode = 126
+	OpLegacyF32ToF16   DXILOpcode = 130
+	OpLegacyF16ToF32   DXILOpcode = 131
+	OpFirstbitShiHiAlt DXILOpcode = 34
+
+	// Bit field operations.
+	OpBfi  DXILOpcode = 53 // bit field insert
+	OpIBfe DXILOpcode = 51 // signed bit field extract
+	OpUBfe DXILOpcode = 52 // unsigned bit field extract
+
+	// Binary float/int operations.
+	OpFMax DXILOpcode = 35
+	OpFMin DXILOpcode = 36
+	OpIMax DXILOpcode = 37
+	OpIMin DXILOpcode = 38
+	OpUMax DXILOpcode = 39
+	OpUMin DXILOpcode = 40
+
+	// Ternary operations.
+	OpFMad DXILOpcode = 46
+	OpFma  DXILOpcode = 47
+	OpIMad DXILOpcode = 48
+	OpUMad DXILOpcode = 49
+
+	// Dot product operations.
+	OpDot2 DXILOpcode = 54
+	OpDot3 DXILOpcode = 55
+	OpDot4 DXILOpcode = 56
+
+	// Resource operations.
+	OpCreateHandle       DXILOpcode = 57
+	OpCBufferLoadLegacy  DXILOpcode = 59
+	OpSample             DXILOpcode = 60
+	OpSampleBias         DXILOpcode = 61
+	OpSampleLevel        DXILOpcode = 62
+	OpSampleGrad         DXILOpcode = 63
+	OpSampleCmp          DXILOpcode = 64
+	OpSampleCmpLevelZero DXILOpcode = 65
+	OpTextureLoad        DXILOpcode = 66
+	OpTextureStore       DXILOpcode = 67
+	OpBufferLoad         DXILOpcode = 68
+	OpBufferStore        DXILOpcode = 69
+	OpRawBufferLoad      DXILOpcode = 139
+	OpRawBufferStore     DXILOpcode = 140
+	OpViewID             DXILOpcode = 138
+	OpCoverage           DXILOpcode = 91
+
+	// Query operations.
+	OpGetDimensions DXILOpcode = 72
+
+	// Gather operations.
+	OpTextureGather    DXILOpcode = 73
+	OpTextureGatherCmp DXILOpcode = 74
+
+	// Derivative operations.
+	OpDerivCoarseX DXILOpcode = 83
+	OpDerivCoarseY DXILOpcode = 84
+	OpDerivFineX   DXILOpcode = 85
+	OpDerivFineY   DXILOpcode = 86
+
+	// Atomic operations.
+	OpAtomicBinOp   DXILOpcode = 78
+	OpAtomicCmpXchg DXILOpcode = 79
+
+	// Barrier.
+	OpBarrier DXILOpcode = 80
+
+	// Thread/dispatch ID operations.
+	OpThreadID            DXILOpcode = 93
+	OpGroupID             DXILOpcode = 94
+	OpThreadIDInGroup     DXILOpcode = 95
+	OpFlattenedTIDInGroup DXILOpcode = 96
+
+	// Wave (subgroup) operations.
+	OpWaveIsFirstLane   DXILOpcode = 110
+	OpWaveGetLaneIndex  DXILOpcode = 111
+	OpWaveGetLaneCount  DXILOpcode = 112
+	OpWaveAnyTrue       DXILOpcode = 113
+	OpWaveAllTrue       DXILOpcode = 114
+	OpWaveBallot        DXILOpcode = 116
+	OpWaveReadLaneAt    DXILOpcode = 117
+	OpWaveReadLaneFirst DXILOpcode = 118
+	OpWaveActiveOp      DXILOpcode = 119
+	OpWaveActiveBit     DXILOpcode = 120
+	OpWavePrefixOp      DXILOpcode = 121
+	OpQuadReadLaneAt    DXILOpcode = 122
+	OpQuadOp            DXILOpcode = 123
+
+	// Ray query operations (SM 6.5).
+	OpAllocateRayQuery                              DXILOpcode = 178
+	OpRayQueryTraceRayInline                        DXILOpcode = 179
+	OpRayQueryProceed                               DXILOpcode = 180
+	OpRayQueryAbort                                 DXILOpcode = 181
+	OpRayQueryCommitNonOpaqueTriangleHit            DXILOpcode = 182
+	OpRayQueryCommitProceduralPrimitiveHit          DXILOpcode = 183
+	OpRayQueryCommittedStatus                       DXILOpcode = 184
+	OpRayQueryCandidateType                         DXILOpcode = 185
+	OpRayQueryCandidateObjectToWorld3x4             DXILOpcode = 186
+	OpRayQueryCandidateWorldToObject3x4             DXILOpcode = 187
+	OpRayQueryCommittedObjectToWorld3x4             DXILOpcode = 188
+	OpRayQueryCommittedWorldToObject3x4             DXILOpcode = 189
+	OpRayQueryCandidateProceduralPrimitiveNonOpaque DXILOpcode = 190
+	OpRayQueryCandidateTriangleFrontFace            DXILOpcode = 191
+	OpRayQueryCommittedTriangleFrontFace            DXILOpcode = 192
+	OpRayQueryCandidateTriangleBarycentrics         DXILOpcode = 193
+	OpRayQueryCommittedTriangleBarycentrics         DXILOpcode = 194
+	OpRayQueryRayFlags                              DXILOpcode = 195
+	OpRayQueryWorldRayOrigin                        DXILOpcode = 196
+	OpRayQueryWorldRayDirection                     DXILOpcode = 197
+	OpRayQueryRayTMin                               DXILOpcode = 198
+	OpRayQueryCandidateTriangleRayT                 DXILOpcode = 199
+	OpRayQueryCommittedRayT                         DXILOpcode = 200
+	OpRayQueryCandidateInstanceIndex                DXILOpcode = 201
+	OpRayQueryCandidateInstanceID                   DXILOpcode = 202
+	OpRayQueryCandidateGeometryIndex                DXILOpcode = 203
+	OpRayQueryCandidatePrimitiveIndex               DXILOpcode = 204
+	OpRayQueryCandidateObjectRayOrigin              DXILOpcode = 205
+	OpRayQueryCandidateObjectRayDirection           DXILOpcode = 206
+	OpRayQueryCommittedInstanceIndex                DXILOpcode = 207
+	OpRayQueryCommittedInstanceID                   DXILOpcode = 208
+	OpRayQueryCommittedGeometryIndex                DXILOpcode = 209
+	OpRayQueryCommittedPrimitiveIndex               DXILOpcode = 210
+	OpRayQueryCommittedObjectRayOrigin              DXILOpcode = 211
+	OpRayQueryCommittedObjectRayDirection           DXILOpcode = 212
+
+	// Mesh shader operations.
+	OpSetMeshOutputCounts  DXILOpcode = 168
+	OpEmitIndices          DXILOpcode = 169
+	OpGetMeshPayload       DXILOpcode = 170
+	OpStoreVertexOutput    DXILOpcode = 171
+	OpStorePrimitiveOutput DXILOpcode = 172
+	OpDispatchMesh         DXILOpcode = 173
+)
+    dx.op opcode values from the DXIL specification.
+
+type DXILQuadOpKind uint32
+    DXILQuadOpKind represents the operation kind for dx.op.quadOp.
+
+const (
+	DXILQuadOpReadAcrossX    DXILQuadOpKind = 0 // SwapX (horizontal)
+	DXILQuadOpReadAcrossY    DXILQuadOpKind = 1 // SwapY (vertical)
+	DXILQuadOpReadAcrossDiag DXILQuadOpKind = 2 // SwapDiagonal
+)
+type DXILWaveBitOp uint32
+    DXILWaveBitOp represents the bit operation kind for dx.op.waveActiveBit.
+
+const (
+	DXILWaveBitAnd DXILWaveBitOp = 0
+	DXILWaveBitOr  DXILWaveBitOp = 1
+	DXILWaveBitXor DXILWaveBitOp = 2
+)
+type DXILWaveOp uint32
+    DXILWaveOp represents the operation kind for dx.op.waveActiveOp /
+    dx.op.wavePrefixOp.
+
+const (
+	DXILWaveOpSum DXILWaveOp = 0 // Add
+	DXILWaveOpMul DXILWaveOp = 1 // Product (Mul)
+	DXILWaveOpMin DXILWaveOp = 2 // Min
+	DXILWaveOpMax DXILWaveOp = 3 // Max
+)
+type DXILWaveOpSign uint32
+    DXILWaveOpSign represents the signed/unsigned flag for dx.op.waveActiveOp.
+
+const (
+	DXILWaveOpSignSigned   DXILWaveOpSign = 0
+	DXILWaveOpSignUnsigned DXILWaveOpSign = 1
+)
+type EmitOptions struct {
+	ShaderModelMajor uint32
+	ShaderModelMinor uint32
+
+	// BindingMap remaps (group, binding) to (space, register) at emit
+	// time. If nil or a binding is not present, raw WGSL numbers are
+	// used. See dxil.Options.BindingMap for rationale.
+	BindingMap BindingMap
+
+	// SamplerHeapTargets overrides the (space, register) for synthesized
+	// sampler heap arrays. When nil the emitter uses the defaults:
+	// standard at (space=0, register=0), comparison at (space=1, register=0).
+	SamplerHeapTargets *SamplerHeapBindTargets
+
+	// SamplerBufferBindingMap overrides the (space, register) for per-group
+	// sampler index buffer SRVs. Key is the bind group number. When nil
+	// the emitter uses the defaults: (space=255, register=group).
+	SamplerBufferBindingMap map[uint32]BindTarget
+
+	// ReachableGlobals is the set of GlobalVariableHandles transitively
+	// referenced by the entry point being compiled. analyzeResources
+	// skips globals not in this set so multi-EP modules don't leak
+	// unrelated bindings into the per-EP DXIL container. nil means
+	// "include every global" (single-EP modules / tests).
+	ReachableGlobals map[ir.GlobalVariableHandle]bool
+
+	// InputUsedMasks holds per-input-argument component usage masks
+	// computed from IR body analysis. Used by the metadata builder to
+	// emit null extended-properties for unused inputs (matching DXC's
+	// MarkUsedSignatureElements). Key is InputUsageKey{argIdx, memberIdx},
+	// value is a bitmask of used components (0 = unused). nil means
+	// "assume all inputs used" (conservative).
+	InputUsedMasks map[InputUsageKey]uint8
+}
+    EmitOptions configures DXIL emission.
+
+type Emitter struct {
+	// Has unexported fields.
+}
+    Emitter translates naga IR into a DXIL module.
+
+type InputUsageKey struct {
+	ArgIdx    int
+	MemberIdx int // -1 for non-struct direct arg access
+}
+    InputUsageKey identifies a signature element by its argument and member.
+
+type SamplerHeapBindTargets struct {
+	StandardSamplers   BindTarget
+	ComparisonSamplers BindTarget
+}
+    SamplerHeapBindTargets specifies binding targets for synthesized sampler
+    heap arrays.
+

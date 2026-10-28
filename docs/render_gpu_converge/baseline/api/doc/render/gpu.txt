@@ -1,0 +1,86 @@
+package gpu // import "github.com/energye/gpui/render/gpu"
+
+Package gpu registers the GPU accelerator and coverage filler for
+hardware-accelerated rendering.
+
+Import this package to enable both GPU-based shape rendering (SDF for circles,
+rounded rectangles) and adaptive tile-based rasterization for complex paths.
+The GPU accelerator uses wgpu/hal compute shaders for parallel evaluation.
+
+If GPU initialization fails (no Vulkan/Metal/DX12 available), the registration
+is silently skipped and rendering falls back to CPU.
+
+Usage:
+
+    import _ "github.com/energye/gpui/render/gpu" // enable GPU acceleration + tile rasterization
+
+FUNCTIONS
+
+func AbandonDevice()
+    AbandonDevice drops GPU objects on the current shared device without
+    a replacement. Wire to webgpu.Swapchain.OnDeviceAbandon before
+    Destroy/Release.
+
+func NoteTextureOOM()
+    NoteTextureOOM records a GPU texture allocation failure that looks like OOM.
+    Safe from any goroutine. Escalates future ResolveSurfaceLifecycle to
+    Recreate.
+
+func PurgeSurfaceResources()
+    PurgeSurfaceResources frees surface-sized GPU attachments process-wide
+    without destroying the logical device.
+
+func ResetAccelerator() error
+    ResetAccelerator closes the current accelerator and registers a fresh
+    SDF accelerator. Used by tests that inject a temporary window device via
+    SetDeviceProvider so later tests are not left holding a released device.
+
+func ResetTextureOOMCount()
+    ResetTextureOOMCount clears the adaptive OOM counter (tests only).
+
+func SetDeviceProvider(provider gpucontext.DeviceProvider) error
+    SetDeviceProvider configures the GPU accelerator to use a shared GPU device
+    from an external provider (e.g., gogpu). This avoids creating a separate GPU
+    instance and enables efficient device sharing.
+
+    The provider should be a gpucontext.DeviceProvider. The accelerator
+    type-asserts provider.Device() to *wgpu.Device for HAL access.
+
+    Call this before drawing operations, typically from ggcanvas.New() or
+    manually after registering the accelerator.
+
+func TextureOOMCount() uint32
+    TextureOOMCount returns how many OOM-class texture failures were noted.
+
+
+TYPES
+
+type SurfaceLifecycle int
+    SurfaceLifecycle is a portable host policy for unpresentable windows
+    (minimize / fully obscured) and resume. It is intentionally tiered so
+    high-VRAM desktops stay close to Flutter defaults while tight GPUs escalate
+    toward Skia freeGpuResources / abandon+recreate.
+
+        Normal — pause present + Unconfigure only (Flutter-like)
+        Purge — also DropGPU sessions / offscreen pools
+        Recreate — also AbandonDevice on hide; ForceRecoverHealthy on show (tight VRAM)
+
+    Auto selection:
+
+        GPUI_LIFECYCLE=normal|purge|recreate|auto (default auto → Purge)
+        any CreateTexture OOM observed this process → Recreate (adaptive)
+
+const (
+	// LifecycleNormal: Unconfigure while hidden; reconfigure on show.
+	LifecycleNormal SurfaceLifecycle = iota
+	// LifecyclePurge: Normal + drop per-context GPU sessions while hidden.
+	LifecyclePurge
+	// LifecycleRecreate: Purge + abandon shared device on hide; healthy recreate on show.
+	LifecycleRecreate
+)
+func ResolveSurfaceLifecycle(adpt hal.Adapter) SurfaceLifecycle
+    ResolveSurfaceLifecycle picks the host tier for this process/adapter. adpt
+    is accepted for API stability; auto tier does not branch on adapter type.
+
+func (t SurfaceLifecycle) String() string
+

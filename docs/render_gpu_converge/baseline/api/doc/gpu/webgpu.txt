@@ -1,0 +1,1616 @@
+package webgpu // import "github.com/energye/gpui/gpu/webgpu"
+
+Package webgpu provides a safe, ergonomic WebGPU API for Go applications.
+
+This package is backed by wgpu-native through gpu/rwgpu.
+
+# Quick Start
+
+Import this package:
+
+    import (
+        "github.com/energye/gpui/gpu/webgpu"
+    )
+
+    instance, err := webgpu.CreateInstance(nil)
+    // ...
+
+# Resource Lifecycle
+
+All GPU resources must be explicitly released with Release(). Resources are
+reference-counted internally. Using a released resource panics.
+
+# Thread Safety
+
+Instance, Adapter, and Device are safe for concurrent use. Encoders
+(CommandEncoder, RenderPassEncoder, ComputePassEncoder) are NOT thread-safe.
+
+CONSTANTS
+
+const (
+	MapModeRead  = types.MapModeRead
+	MapModeWrite = types.MapModeWrite
+)
+const (
+	PollPoll = hal.PollPoll
+	PollWait = hal.PollWait
+)
+const (
+	BackendVulkan = types.BackendVulkan
+	BackendMetal  = types.BackendMetal
+	BackendDX12   = types.BackendDX12
+	BackendGL     = types.BackendGL
+)
+    Backend constants
+
+const (
+	ShaderStageVertex   = types.ShaderStageVertex
+	ShaderStageFragment = types.ShaderStageFragment
+	ShaderStageCompute  = types.ShaderStageCompute
+)
+const (
+	MipmapFilterModeNearest = types.MipmapFilterModeNearest
+	MipmapFilterModeLinear  = types.MipmapFilterModeLinear
+)
+const (
+	PresentModeImmediate   = types.PresentModeImmediate
+	PresentModeMailbox     = types.PresentModeMailbox
+	PresentModeFifo        = types.PresentModeFifo
+	PresentModeFifoRelaxed = types.PresentModeFifoRelaxed
+)
+const MaxBindGroups = 8
+    MaxBindGroups is the HAL hard cap on bind groups. Devices may support up to
+    8, but only MinBindGroups (4) is guaranteed.
+
+const MinBindGroups = 4
+    MinBindGroups is the minimum guaranteed number of bind groups per WebGPU
+    spec. All compliant devices support at least 4 bind groups. Portable code
+    should use no more than MinBindGroups.
+
+
+VARIABLES
+
+var (
+	// ErrReleased is returned when operating on a released resource.
+	ErrReleased = errors.New("wgpu: resource already released")
+
+	// ErrNoAdapters is returned when no GPU adapters are found.
+	ErrNoAdapters = errors.New("wgpu: no GPU adapters available")
+
+	// ErrNoBackends is returned when no backends are registered.
+	ErrNoBackends = errors.New("wgpu: no backends registered (import a backend package)")
+
+	// ErrRecovered: one skip after AutoRecover (VRAM/driver settle).
+	ErrRecovered = errors.New("wgpu: device recovered, skip frame")
+
+	// ErrOutOfMemory is returned when the GPU is out of memory.
+	ErrOutOfMemory = errors.New("wgpu: out of memory")
+
+	// ErrInvalidHandle is returned when operating on a nil/released/zero handle.
+	ErrInvalidHandle = errors.New("wgpu: invalid handle")
+
+	// ErrFrameInFlight is returned when BeginFrame is called while a prior
+	// frame has not been EndFrame/DiscardFrame'd (pairing violation).
+	ErrFrameInFlight = errors.New("wgpu: frame already in flight (BeginFrame/Present unpaired)")
+
+	// ErrNoFrame is returned when EndFrame/Present is called without a live frame.
+	ErrNoFrame = errors.New("wgpu: no frame in flight")
+
+	// ErrSurfaceOccluded is returned when the window is minimized/covered and
+	// no surface texture is available. Callers should skip the frame (do not reconfigure).
+	ErrSurfaceOccluded = errors.New("wgpu: surface occluded")
+
+	// ErrSubmitCommandBufferInvalid is returned when a command buffer is submitted twice.
+	ErrSubmitCommandBufferInvalid = errors.New("wgpu: command buffer already submitted")
+
+	// ErrSubmitBufferDestroyed is returned when a submitted command buffer references a destroyed buffer.
+	ErrSubmitBufferDestroyed = errors.New("wgpu: submitted command buffer references destroyed buffer")
+
+	// ErrSubmitBufferMapped is returned when a submitted command buffer references a mapped buffer.
+	ErrSubmitBufferMapped = errors.New("wgpu: submitted command buffer references mapped buffer")
+
+	// ErrSubmitTextureDestroyed is returned when a submitted command buffer references a destroyed texture.
+	ErrSubmitTextureDestroyed = errors.New("wgpu: submitted command buffer references destroyed texture")
+
+	// ErrSubmitBindGroupDestroyed is returned when a submitted command buffer references a destroyed bind group.
+	ErrSubmitBindGroupDestroyed = errors.New("wgpu: submitted command buffer references destroyed bind group")
+)
+    Public API sentinel errors.
+
+var (
+	ErrDrawMissingPipeline            = errors.New("wgpu: draw called without SetPipeline")
+	ErrDrawMissingBindGroup           = errors.New("wgpu: draw called with missing bind group")
+	ErrDrawIncompatibleBindGroup      = errors.New("wgpu: draw called with incompatible bind group layout")
+	ErrDrawMissingVertexBuffer        = errors.New("wgpu: draw called with insufficient vertex buffers")
+	ErrDrawMissingIndexBuffer         = errors.New("wgpu: DrawIndexed called without SetIndexBuffer")
+	ErrDrawMissingBlendConstant       = errors.New("wgpu: draw called without SetBlendConstant (pipeline uses constant blend factor)")
+	ErrDrawLateBufferTooSmall         = errors.New("wgpu: bound buffer smaller than shader-required minimum")
+	ErrDispatchMissingPipeline        = errors.New("wgpu: dispatch called without SetPipeline")
+	ErrDispatchMissingBindGroup       = errors.New("wgpu: dispatch called with missing bind group")
+	ErrDispatchIncompatibleBindGroup  = errors.New("wgpu: dispatch called with incompatible bind group layout")
+	ErrDispatchLateBufferTooSmall     = errors.New("wgpu: dispatch: bound buffer smaller than shader-required minimum")
+	ErrDispatchWorkgroupCountExceeded = errors.New("wgpu: dispatch workgroup count exceeds device limit")
+
+	ErrDrawIndexFormatMismatch         = errors.New("wgpu: index buffer format does not match pipeline strip index format")
+	ErrDrawIndirectBufferUsage         = errors.New("wgpu: indirect draw buffer missing INDIRECT usage")
+	ErrDrawIndirectOffsetAlignment     = errors.New("wgpu: indirect draw buffer offset not 4-byte aligned")
+	ErrDispatchIndirectBufferUsage     = errors.New("wgpu: indirect dispatch buffer missing INDIRECT usage")
+	ErrDispatchIndirectOffsetAlignment = errors.New("wgpu: indirect dispatch buffer offset not 4-byte aligned")
+	ErrDrawIndirectBufferOverrun       = errors.New("wgpu: indirect draw args exceed buffer size")
+	ErrDispatchIndirectBufferOverrun   = errors.New("wgpu: indirect dispatch args exceed buffer size")
+)
+    Draw-time validation sentinel errors.
+
+var (
+	ErrMapAlreadyPending = errors.New("wgpu: buffer map already pending")
+	ErrMapAlreadyMapped  = errors.New("wgpu: buffer is already mapped")
+	ErrMapNotMapped      = errors.New("wgpu: buffer is not mapped")
+	ErrMapRangeOverlap   = errors.New("wgpu: mapped range overlaps existing")
+	ErrMapRangeDetached  = errors.New("wgpu: mapped range detached (buffer unmapped)")
+	ErrMapAlignment      = errors.New("wgpu: map offset/size not aligned")
+	ErrMapCanceled       = errors.New("wgpu: map canceled")
+	ErrBufferDestroyed   = errors.New("wgpu: buffer destroyed")
+	ErrMapDeviceLost     = errors.New("wgpu: device lost during map")
+	ErrMapInvalidMode    = errors.New("wgpu: buffer not created with required MAP_READ/MAP_WRITE usage")
+	ErrMapRangeOverflow  = errors.New("wgpu: map range exceeds buffer size")
+)
+    Typed buffer mapping errors.
+
+var AfterSurfaceUnconfigure func()
+    AfterSurfaceUnconfigure is invoked after a successful Surface.Unconfigure.
+    render/gpu registers PurgeSurfaceResources here.
+
+var BeforeDeviceRecover func()
+    BeforeDeviceRecover is invoked at the start of ForceRecoverHealthy /
+    tryRecoverDeviceLocked abandon sequence so the engine can purge+abandon even
+    if OnDeviceAbandon is unset.
+
+var (
+	DefaultInstanceDescriptor = types.DefaultInstanceDescriptor
+)
+    Default functions (re-exported for convenience)
+
+var ErrAcquireTimeout = errors.New("wgpu: surface acquire timed out")
+    ErrAcquireTimeout reports a surface acquire that did not return in time.
+    The swapchain is recreated (Configure) before the next acquire attempt.
+
+
+FUNCTIONS
+
+func AdapterToHandle(a *Adapter) gpucontext.Adapter
+    AdapterToHandle wraps *Adapter into a gpucontext.Adapter handle.
+
+func DeviceFromHandle(h gpucontext.Device) hal.Device
+    DeviceFromHandle extracts the hal.Device from a gpucontext.Device handle.
+    DeviceToHandle stores *Device (which implements hal.Device); the assertion
+    keeps render free of concrete backend types.
+
+func DeviceToHandle(d *Device) gpucontext.Device
+    DeviceToHandle wraps *Device into a gpucontext.Device handle.
+
+func InstanceToHandle(i *Instance) gpucontext.Instance
+    InstanceToHandle wraps *Instance into a gpucontext.Instance handle.
+
+func Logger() *slog.Logger
+    Logger returns the current logger used by the wgpu stack. On the wgpu-native
+    backend, returns nil.
+
+func QueueToHandle(q *Queue) gpucontext.Queue
+    QueueToHandle wraps *Queue into a gpucontext.Queue handle.
+
+func SetLogger(_ *slog.Logger)
+    SetLogger configures the logger for the wgpu stack. On the wgpu-native
+    backend, logging is handled by wgpu-native internally.
+
+func SurfaceToHandle(s *Surface) gpucontext.Surface
+    SurfaceToHandle wraps *Surface into a gpucontext.Surface handle.
+
+func TextureViewToHandle(v *TextureView) gpucontext.TextureView
+    TextureViewToHandle wraps *TextureView into a gpucontext.TextureView handle.
+    The view is packed as a hal interface via the shared box in gpu/context
+    — the same encoding render decodes with unpackView. Packing the concrete
+    pointer directly here once blacked out every window (presents counted,
+    nothing drawn), so always go through the box.
+
+func VramBudgetMB() int64
+    VramBudgetMB exposes the process VRAM budget (GPUI_VRAM_BUDGET_MB, default
+    768, 0 = disabled) from the same source the gate enforces.
+
+func VramLiveBytes() uint64
+    VramLiveBytes reports the process VRAM ledger total (same account the
+    texture/buffer/pipeline/sampler/surface gate enforces). Re-exported so
+    render (adapter watermarks) reads one number without importing rwgpu.
+
+func VramLiveCount() int
+    VramLiveCount reports how many allocations the ledger tracks.
+
+func VramPeakBytes() uint64
+    VramPeakBytes reports the high-water mark.
+
+func VramTestAdd(handle uintptr, need uint64)
+    VramTestAdd records a synthetic live entry. Test-only companion to
+    VramTestReset (bypasses the cpu-mode skip so tests are hermetic).
+
+func VramTestReset()
+    VramTestReset clears the process VRAM ledger. Test-only forwarder so render
+    waterline tests can seed exact live totals without a GPU.
+
+
+TYPES
+
+type Adapter struct {
+	// Has unexported fields.
+}
+    Adapter represents a physical GPU. On the wgpu-native backend, this wraps
+    rwgpu Adapter.
+
+func AdapterFromHandle(h gpucontext.Adapter) *Adapter
+    AdapterFromHandle extracts *Adapter from a gpucontext.Adapter handle.
+
+func (a *Adapter) Features() Features
+    Features returns supported features.
+
+func (a *Adapter) GetSurfaceCapabilities(surface hal.Surface) *hal.SurfaceCapabilities
+    GetSurfaceCapabilities returns the capabilities of a surface for this
+    adapter. Implements hal.Adapter (takes hal.Surface interface, internal
+    unpack).
+
+func (a *Adapter) Info() AdapterInfo
+    Info returns adapter metadata.
+
+func (a *Adapter) Limits() Limits
+    Limits returns the adapter's resource limits.
+
+func (a *Adapter) Open(_ types.Features, _ types.Limits) (hal.OpenDevice, error)
+    Open implements hal.Adapter: not supported on wgpu-native (devices come from
+    RequestDevice).
+
+func (a *Adapter) Release()
+    Release releases the adapter.
+
+func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error)
+    RequestDevice creates a logical device from this adapter. If desc is nil,
+    default features and limits are used. Takes hal.DeviceDescriptor (canonical,
+    片7a以 hal 为准；DeviceDescriptor 是 hal 别名，同形). Implements hal.Adapter (returns
+    hal.Device interface).
+
+func (a *Adapter) TextureFormatCapabilities(_ types.TextureFormat) hal.TextureFormatCapabilities
+    TextureFormatCapabilities implements hal.Adapter: returns a conservative
+    default.
+
+type AdapterInfo = types.AdapterInfo
+    Adapter types
+
+type AddressMode = types.AddressMode
+    Sampler types
+
+type Backend = types.Backend
+    Backend types
+
+type Backends = types.Backends
+
+type BindGroup struct {
+	// Has unexported fields.
+}
+    BindGroup represents bound GPU resources for shader access. On the
+    wgpu-native backend, this wraps rwgpu BindGroup.
+
+func (g *BindGroup) Destroy()
+    Destroy implements hal.BindGroup: same as Release.
+
+func (g *BindGroup) Release()
+    Release marks the bind group for destruction.
+
+type BindGroupLayout struct {
+	// Has unexported fields.
+}
+    BindGroupLayout defines the structure of resource bindings for shaders.
+    On the wgpu-native backend, this wraps rwgpu BindGroupLayout.
+
+func (l *BindGroupLayout) Destroy()
+    Destroy implements hal.BindGroupLayout: same as Release.
+
+func (l *BindGroupLayout) Release()
+    Release destroys the bind group layout.
+
+type BindGroupLayoutEntry = types.BindGroupLayoutEntry
+    Bind group types
+
+type Buffer struct {
+	// Has unexported fields.
+}
+    Buffer represents a GPU buffer. On the wgpu-native backend, this wraps rwgpu
+    Buffer.
+
+func (b *Buffer) Destroy()
+    Destroy implements hal.Buffer: same as Release.
+
+func (b *Buffer) Label() string
+    Label returns the buffer's debug label.
+
+func (b *Buffer) Map(ctx context.Context, mode types.MapMode, offset, size uint64) error
+    Map blocks until a CPU-visible mapping is established for the given byte
+    range, or until ctx is canceled. Mode is types.MapMode (canonical, 片7a以
+    types 为准).
+
+func (b *Buffer) MapAsync(mode types.MapMode, offset, size uint64) (*MapPending, error)
+    MapAsync initiates a buffer map without blocking the caller.
+
+func (b *Buffer) MapState() MapState
+    MapState returns the current mapping state of the buffer.
+
+func (b *Buffer) MappedRange(offset, size uint64) (*MappedRange, error)
+    MappedRange returns a safe view over the mapped region [offset,
+    offset+size).
+
+func (b *Buffer) NativeHandle() uintptr
+
+func (b *Buffer) Release()
+    Release destroys the buffer.
+
+func (b *Buffer) Released() bool
+    Released reports whether Release has been called (diagnostics/tests).
+
+func (b *Buffer) Size() uint64
+    Size returns the buffer size in bytes.
+
+func (b *Buffer) Unmap() error
+    Unmap releases the current mapping.
+
+func (b *Buffer) Usage() BufferUsage
+    Usage returns the buffer's usage flags.
+
+type BufferUsage = types.BufferUsage
+    Buffer usage
+
+type Color = types.Color
+
+type ColorTargetState = types.ColorTargetState
+
+type CommandBuffer struct {
+	// Has unexported fields.
+}
+    CommandBuffer holds recorded GPU commands ready for submission. On the
+    wgpu-native backend, this wraps rwgpu CommandBuffer.
+
+func (cb *CommandBuffer) Destroy()
+    Destroy implements hal.CommandBuffer: same as Release.
+
+func (cb *CommandBuffer) Release()
+    Release drops the native command-buffer reference. Safe after Submit once
+    the GPU has finished using it (or after Device.WaitIdle / next-frame drain).
+
+type CommandEncoder struct {
+	// Has unexported fields.
+}
+    CommandEncoder records GPU commands for later submission. On the wgpu-native
+    backend, this wraps rwgpu CommandEncoder.
+
+func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) (hal.ComputePassEncoder, error)
+    BeginComputePass begins a compute pass. Param is hal.ComputePassDescriptor
+    (render passes Label only). Implements hal.CommandEncoder (returns
+    hal.ComputePassEncoder interface).
+
+func (e *CommandEncoder) BeginEncoding(_ string) error
+
+func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.RenderPassEncoder, error)
+    BeginRenderPass begins a render pass. convert attachments on the caller's
+    stack so the common 1-color-target path does not allocate. Descriptors are
+    only live for the duration of the rwgpu BeginRenderPass call (native copies
+    immediately). Param is hal.RenderPassDescriptor (callers' keyed literals
+    unchanged). Implements hal.CommandEncoder (returns hal.RenderPassEncoder
+    interface).
+
+func (e *CommandEncoder) BuildAccelerationStructures(_ []hal.BuildAccelerationStructureDescriptor)
+
+func (e *CommandEncoder) ClearBuffer(buffer hal.Buffer, offset, size uint64)
+    ClearBuffer clears a buffer region to zero. Implements hal.CommandEncoder
+    (takes hal.Buffer interface, internal unpack).
+
+func (e *CommandEncoder) CopyAccelerationStructure(_, _ hal.AccelerationStructure, _ types.AccelerationStructureCopyMode)
+
+func (e *CommandEncoder) CopyBufferToBuffer(src hal.Buffer, srcOffset uint64, dst hal.Buffer, dstOffset uint64, size uint64)
+    CopyBufferToBuffer copies data between buffers. Implements
+    hal.CommandEncoder (takes hal.Buffer interfaces, internal unpack).
+
+func (e *CommandEncoder) CopyBufferToTexture(src hal.Buffer, dst hal.Texture, regions []hal.BufferTextureCopy)
+    CopyBufferToTexture copies data from a buffer to a texture. Implements
+    hal.CommandEncoder (BufferTextureCopy is aliased to hal; region
+    .TextureBase.Texture is hal.Texture, unpacked per region).
+
+func (e *CommandEncoder) CopyTextureToBuffer(src hal.Texture, dst hal.Buffer, regions []hal.BufferTextureCopy)
+    CopyTextureToBuffer copies data from a texture to a buffer. Implements
+    hal.CommandEncoder (BufferTextureCopy is aliased to hal; region
+    .TextureBase.Texture is hal.Texture, unpacked per region).
+
+func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []hal.TextureCopy)
+    CopyTextureToTexture copies data between textures. Implements
+    hal.CommandEncoder (TextureCopy is aliased to hal; region
+    .Source/.Destination.Texture are hal.Texture, unpacked per region).
+
+func (e *CommandEncoder) Destroy()
+    Destroy implements hal.CommandEncoder: same as DiscardEncoding.
+
+func (e *CommandEncoder) DiscardEncoding()
+    DiscardEncoding discards the encoder without producing a command buffer.
+
+func (e *CommandEncoder) EndEncoding() (hal.CommandBuffer, error)
+    EndEncoding implements hal.CommandEncoder: same as Finish.
+
+func (e *CommandEncoder) Finish() (hal.CommandBuffer, error)
+    Finish completes command recording and returns a CommandBuffer.
+    The native command encoder is released after Finish; callers must still
+    FreeCommandBuffer/Release the resulting CommandBuffer after GPU completion.
+    Implements hal.CommandEncoder (returns hal.CommandBuffer interface).
+
+func (e *CommandEncoder) PlaceAccelerationStructureBarrier(_ hal.AccelerationStructureBarrier)
+
+func (e *CommandEncoder) ReadAccelerationStructureCompactSize(_ hal.AccelerationStructure, _ hal.Buffer, _ uint64)
+
+func (e *CommandEncoder) ResetAll(_ []hal.CommandBuffer)
+
+func (e *CommandEncoder) ResolveQuerySet(_ hal.QuerySet, _, _ uint32, _ hal.Buffer, _ uint64)
+
+func (e *CommandEncoder) TransitionBuffers(_ []hal.BufferBarrier)
+
+func (e *CommandEncoder) TransitionTextures(_ []hal.TextureBarrier)
+    TransitionTextures transitions texture states for synchronization.
+    On the wgpu-native backend, this is a no-op. wgpu-native handles barriers
+    internally. Implements hal.CommandEncoder (param is hal.TextureBarrier;
+    body ignores barriers).
+
+type CompareFunction = types.CompareFunction
+
+type CompositeAlphaMode = types.CompositeAlphaMode
+
+type ComputePassEncoder struct {
+	// Has unexported fields.
+}
+    ComputePassEncoder records compute dispatch commands. On the wgpu-native
+    backend, this wraps rwgpu ComputePassEncoder.
+
+func (p *ComputePassEncoder) Dispatch(x, y, z uint32)
+    Dispatch dispatches compute work.
+
+func (p *ComputePassEncoder) DispatchIndirect(buffer hal.Buffer, offset uint64)
+    DispatchIndirect dispatches compute work with GPU-generated parameters.
+    Implements hal.ComputePassEncoder (takes hal.Buffer interface, internal
+    unpack).
+
+func (p *ComputePassEncoder) End() error
+    End ends the compute pass.
+
+func (p *ComputePassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offsets []uint32)
+    SetBindGroup sets a bind group for the given index. Implements
+    hal.ComputePassEncoder (takes hal.BindGroup interface, internal unpack).
+
+func (p *ComputePassEncoder) SetPipeline(pipeline hal.ComputePipeline)
+    SetPipeline sets the active compute pipeline. Implements
+    hal.ComputePassEncoder (takes hal.ComputePipeline interface, internal
+    unpack).
+
+type ComputePipeline struct {
+	// Has unexported fields.
+}
+    ComputePipeline represents a configured compute pipeline. On the wgpu-native
+    backend, this wraps rwgpu ComputePipeline.
+
+func (p *ComputePipeline) Destroy()
+    Destroy implements hal.ComputePipeline: same as Release.
+
+func (p *ComputePipeline) Release()
+    Release destroys the compute pipeline.
+
+type CullMode = types.CullMode
+
+type Device struct {
+	// Has unexported fields.
+}
+    Device represents a logical GPU device. On the wgpu-native backend, this
+    wraps rwgpu Device.
+
+func NewDeviceFromHAL(
+	_ any,
+	_ any,
+	_ Features,
+	limits Limits,
+	_ string,
+) (*Device, error)
+    NewDeviceFromHAL is not supported with the wgpu-native backend. Devices are
+    created through wgpu-native, not through Go HAL.
+
+func (d *Device) CreateAccelerationStructure(_ *hal.AccelerationStructureDescriptor) (hal.AccelerationStructure, error)
+    DestroyRenderBundle implements hal.Device: no-op (CreateRenderBundleEncoder
+    never succeeds). CreateAccelerationStructure implements hal.Device:
+    ray tracing is not supported on the wgpu-native backend.
+
+func (d *Device) CreateBindGroup(desc *hal.BindGroupDescriptor) (hal.BindGroup, error)
+    CreateBindGroup creates a bind group. Takes hal.BindGroupDescriptor;
+    internal unpack of hal interfaces to concrete handles. CreateBindGroup
+    creates a bind group. Takes hal.BindGroupDescriptor; internal unpack of hal
+    interfaces to concrete handles.
+
+func (d *Device) CreateBindGroupLayout(desc *hal.BindGroupLayoutDescriptor) (hal.BindGroupLayout, error)
+    CreateBindGroupLayout creates a bind group layout. CreateBindGroupLayout
+    creates a bind group layout.
+
+func (d *Device) CreateBuffer(desc *hal.BufferDescriptor) (hal.Buffer, error)
+    CreateBuffer creates a GPU buffer. CreateBuffer creates a GPU buffer.
+
+func (d *Device) CreateCommandEncoder(desc *hal.CommandEncoderDescriptor) (hal.CommandEncoder, error)
+    CreateCommandEncoder creates a command encoder for recording GPU commands.
+    Implements hal.Device (returns hal.CommandEncoder interface).
+    CreateCommandEncoder creates a command encoder for recording GPU commands.
+    Implements hal.Device (returns hal.CommandEncoder interface).
+
+func (d *Device) CreateComputePipeline(desc *hal.ComputePipelineDescriptor) (hal.ComputePipeline, error)
+    CreateComputePipeline creates a compute pipeline. CreateComputePipeline
+    creates a compute pipeline.
+
+func (d *Device) CreateFence() (hal.Fence, error)
+    CreateFence creates a GPU synchronization fence. On the wgpu-native backend,
+    fences are not exposed by wgpu-native. Returns a no-op fence for API
+    compatibility. Implements hal.Device (returns hal.Fence interface).
+
+func (d *Device) CreatePipelineLayout(desc *hal.PipelineLayoutDescriptor) (hal.PipelineLayout, error)
+    CreatePipelineLayout creates a pipeline layout. CreatePipelineLayout creates
+    a pipeline layout.
+
+func (d *Device) CreateQuerySet(_ *hal.QuerySetDescriptor) (hal.QuerySet, error)
+    UnmapBuffer implements hal.Device: unwraps hal.Buffer. CreateQuerySet
+    implements hal.Device: timestamp queries are not supported on the
+    wgpu-native backend.
+
+func (d *Device) CreateRenderBundleEncoder(_ *hal.RenderBundleEncoderDescriptor) (hal.RenderBundleEncoder, error)
+    DestroyQuerySet implements hal.Device: no-op (CreateQuerySet never
+    succeeds). CreateRenderBundleEncoder implements hal.Device: render bundles
+    are not supported on the wgpu-native backend.
+
+func (d *Device) CreateRenderPipeline(desc *hal.RenderPipelineDescriptor) (hal.RenderPipeline, error)
+    CreateRenderPipeline creates a render pipeline. CreateRenderPipeline creates
+    a render pipeline.
+
+func (d *Device) CreateSampler(desc *hal.SamplerDescriptor) (hal.Sampler, error)
+    CreateSampler creates a texture sampler. CreateSampler creates a texture
+    sampler.
+
+func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (hal.ShaderModule, error)
+    CreateShaderModule creates a shader module. CreateShaderModule creates a
+    shader module.
+
+func (d *Device) CreateTexture(desc *hal.TextureDescriptor) (hal.Texture, error)
+    CreateTexture creates a GPU texture. CreateTexture creates a GPU texture.
+
+func (d *Device) CreateTextureView(texture hal.Texture, desc *hal.TextureViewDescriptor) (hal.TextureView, error)
+    CreateTextureView creates a view into a texture. In rwgpu, CreateView is a
+    method on Texture, not Device. Takes hal.Texture (片7d); internal unpack to
+    concrete handle. CreateTextureView creates a view into a texture. In rwgpu,
+    CreateView is a method on Texture, not Device. Takes hal.Texture (片7d);
+    internal unpack to concrete handle.
+
+func (d *Device) DestroyAccelerationStructure(_ hal.AccelerationStructure)
+    CreateAccelerationStructure implements hal.Device: ray tracing is not
+    supported on the wgpu-native backend. DestroyAccelerationStructure
+    implements hal.Device: no-op (no ray tracing).
+
+func (d *Device) DestroyBindGroup(group hal.BindGroup)
+    DestroyBindGroup implements hal.Device: unwraps hal.BindGroup.
+    DestroyBindGroup implements hal.Device: unwraps hal.BindGroup.
+
+func (d *Device) DestroyBindGroupLayout(layout hal.BindGroupLayout)
+    DestroyBindGroupLayout implements hal.Device: unwraps hal.BindGroupLayout.
+    DestroyBindGroupLayout implements hal.Device: unwraps hal.BindGroupLayout.
+
+func (d *Device) DestroyBuffer(buffer hal.Buffer)
+    HalDevice returns nil on wgpu-native backend. There is no HAL layer.
+    DestroyBuffer implements hal.Device: unwraps hal.Buffer.
+
+func (d *Device) DestroyComputePipeline(pipeline hal.ComputePipeline)
+    DestroyComputePipeline implements hal.Device: unwraps hal.ComputePipeline.
+    DestroyComputePipeline implements hal.Device: unwraps hal.ComputePipeline.
+
+func (d *Device) DestroyFence(fence hal.Fence)
+    DestroyFence destroys a fence. On the wgpu-native backend, fences are
+    no-ops — this is a no-op. Implements hal.Device (takes hal.Fence interface,
+    internal unpack).
+
+    Deprecated: Use Fence.Release() instead. DestroyFence destroys a fence.
+    On the wgpu-native backend, fences are no-ops — this is a no-op. Implements
+    hal.Device (takes hal.Fence interface, internal unpack).
+
+    Deprecated: Use Fence.Release() instead.
+
+func (d *Device) DestroyPipelineLayout(layout hal.PipelineLayout)
+    DestroyPipelineLayout implements hal.Device: unwraps hal.PipelineLayout.
+    DestroyPipelineLayout implements hal.Device: unwraps hal.PipelineLayout.
+
+func (d *Device) DestroyQuerySet(_ hal.QuerySet)
+    CreateQuerySet implements hal.Device: timestamp queries are not supported
+    on the wgpu-native backend. DestroyQuerySet implements hal.Device: no-op
+    (CreateQuerySet never succeeds).
+
+func (d *Device) DestroyRenderBundle(_ hal.RenderBundle)
+    CreateRenderBundleEncoder implements hal.Device: render bundles are not
+    supported on the wgpu-native backend. DestroyRenderBundle implements
+    hal.Device: no-op (CreateRenderBundleEncoder never succeeds).
+
+func (d *Device) DestroyRenderPipeline(pipeline hal.RenderPipeline)
+    DestroyRenderPipeline implements hal.Device: unwraps hal.RenderPipeline.
+    DestroyRenderPipeline implements hal.Device: unwraps hal.RenderPipeline.
+
+func (d *Device) DestroySampler(sampler hal.Sampler)
+    DestroySampler implements hal.Device: unwraps hal.Sampler. DestroySampler
+    implements hal.Device: unwraps hal.Sampler.
+
+func (d *Device) DestroyShaderModule(module hal.ShaderModule)
+    DestroyShaderModule implements hal.Device: unwraps hal.ShaderModule.
+    DestroyShaderModule implements hal.Device: unwraps hal.ShaderModule.
+
+func (d *Device) DestroyTexture(texture hal.Texture)
+    DestroyTexture implements hal.Device: unwraps hal.Texture. DestroyTexture
+    implements hal.Device: unwraps hal.Texture.
+
+func (d *Device) DestroyTextureView(view hal.TextureView)
+    DestroyTextureView implements hal.Device: unwraps hal.TextureView.
+    DestroyTextureView implements hal.Device: unwraps hal.TextureView.
+
+func (d *Device) Features() Features
+    Features returns the device's enabled features. Features returns the
+    device's enabled features.
+
+func (d *Device) FlushCallbacks()
+    FlushCallbacks pumps pending wgpu callbacks and folds Uncaptured/DeviceLost
+    into sticky IsLost. Safe on nil / released / lost devices. FlushCallbacks
+    pumps pending wgpu callbacks and folds Uncaptured/DeviceLost into sticky
+    IsLost. Safe on nil / released / lost devices.
+
+func (d *Device) FreeCommandBuffer(cb hal.CommandBuffer)
+    FreeCommandBuffer releases a command buffer after GPU work that used it
+    has completed (or after WaitIdle). wgpu-native command buffers hold device
+    resources; leaving them unreleased prevents Device.Release from reclaiming
+    VRAM and causes subsequent CreateTexture failures under ResetAccelerator.
+    FreeCommandBuffer releases a command buffer after GPU work that used it
+    has completed (or after WaitIdle). wgpu-native command buffers hold device
+    resources; leaving them unreleased prevents Device.Release from reclaiming
+    VRAM and causes subsequent CreateTexture failures under ResetAccelerator.
+
+func (d *Device) GetAccelerationStructureBuildSizes(_ *hal.GetAccelerationStructureBuildSizesDescriptor) hal.AccelerationStructureBuildSizes
+    GetAccelerationStructureBuildSizes implements hal.Device: no ray tracing,
+    returns zero sizes. GetAccelerationStructureBuildSizes implements
+    hal.Device: no ray tracing, returns zero sizes.
+
+func (d *Device) GetAccelerationStructureDeviceAddress(_ hal.AccelerationStructure) uint64
+    GetAccelerationStructureDeviceAddress implements hal.Device: no ray tracing,
+    returns 0. GetAccelerationStructureDeviceAddress implements hal.Device:
+    no ray tracing, returns 0.
+
+func (d *Device) GetFenceStatus(fence hal.Fence) (bool, error)
+    GetFenceStatus returns true if the fence is signaled (non-blocking).
+    On the wgpu-native backend, fences are no-ops — always reports signaled.
+    Implements hal.Device (takes hal.Fence interface, internal unpack).
+    GetFenceStatus returns true if the fence is signaled (non-blocking).
+    On the wgpu-native backend, fences are no-ops — always reports signaled.
+    Implements hal.Device (takes hal.Fence interface, internal unpack).
+
+func (d *Device) HalDevice() any
+    CreateFence creates a GPU synchronization fence. On the wgpu-native backend,
+    fences are not exposed by wgpu-native. Returns a no-op fence for API
+    compatibility. Implements hal.Device (returns hal.Fence interface).
+    HalDevice returns nil on wgpu-native backend. There is no HAL layer.
+
+func (d *Device) IsLost() bool
+    IsLost reports whether this device handle was marked lost by
+    WGPUDeviceLostCallback. Per-device only; recreate via RequestDevice (and
+    swapchain auto-recover) to continue. IsLost reports whether this device
+    handle was marked lost by WGPUDeviceLostCallback. Per-device only; recreate
+    via RequestDevice (and swapchain auto-recover) to continue.
+
+func (d *Device) Limits() Limits
+    Limits returns the device's resource limits. Limits returns the device's
+    resource limits.
+
+func (d *Device) MapBuffer(buffer hal.Buffer, offset, size uint64) (hal.BufferMapping, error)
+    DestroyBuffer implements hal.Device: unwraps hal.Buffer. MapBuffer
+    implements hal.Device: blocking map via Buffer.Map.
+
+func (d *Device) MarkLost()
+    MarkLost sets sticky device-lost on this facade device (same as native
+    callback). Safe on nil. Used by tests and recovery injection.
+
+func (d *Device) Poll(pollType hal.PollType) bool
+    Poll drives the per-device pending-map triage loop and pumps instance
+    callbacks when available (device-lost / map async). Prefer calling Poll
+    (or Instance.ProcessEvents) once per frame before Swapchain.BeginFrame.
+    Takes hal.PollType (canonical, 片7a以 hal 为准). Poll drives the per-device
+    pending-map triage loop and pumps instance callbacks when available
+    (device-lost / map async). Prefer calling Poll (or Instance.ProcessEvents)
+    once per frame before Swapchain.BeginFrame. Takes hal.PollType (canonical,
+    片7a以 hal 为准).
+
+func (d *Device) PopErrorScope() *hal.GPUError
+    PopErrorScope pops the most recently pushed error scope. Returns the
+    captured error, or nil if no error occurred. Implements hal.Device (returns
+    *hal.GPUError). PopErrorScope pops the most recently pushed error scope.
+    Returns the captured error, or nil if no error occurred. Implements
+    hal.Device (returns *hal.GPUError).
+
+func (d *Device) PushErrorScope(filter hal.ErrorFilter)
+    PushErrorScope pushes a new error scope onto the device's error scope stack.
+    Implements hal.Device (takes hal.ErrorFilter). PushErrorScope pushes a new
+    error scope onto the device's error scope stack. Implements hal.Device
+    (takes hal.ErrorFilter).
+
+func (d *Device) Queue() hal.Queue
+    Queue returns the device's command queue (hal.Queue conformance).
+
+func (d *Device) Release()
+    Release releases the device and all associated resources. Release releases
+    the device and all associated resources.
+
+func (d *Device) ResetFence(fence hal.Fence) error
+    ResetFence resets a fence to the unsignaled state. On the wgpu-native
+    backend, fences are no-ops — this always succeeds. Implements hal.Device
+    (takes hal.Fence interface, internal unpack). ResetFence resets a fence
+    to the unsignaled state. On the wgpu-native backend, fences are no-ops —
+    this always succeeds. Implements hal.Device (takes hal.Fence interface,
+    internal unpack).
+
+func (d *Device) SyncLostState()
+    SyncLostState pumps callbacks and folds pending lost signals into sticky
+    IsLost. Safe on nil / released / lost devices. SyncLostState pumps callbacks
+    and folds pending lost signals into sticky IsLost. Safe on nil / released /
+    lost devices.
+
+func (d *Device) TlasInstanceToBytes(_ hal.TlasInstance) []byte
+    MarkLost sets sticky device-lost on this facade device (same as
+    native callback). Safe on nil. Used by tests and recovery injection.
+    TlasInstanceToBytes implements hal.Device: no ray tracing, returns nil.
+
+func (d *Device) UnmapBuffer(buffer hal.Buffer) error
+    MapBuffer implements hal.Device: blocking map via Buffer.Map. UnmapBuffer
+    implements hal.Device: unwraps hal.Buffer.
+
+func (d *Device) WaitForFence(fence hal.Fence, _ uint64, _ time.Duration) (bool, error)
+    WaitForFence waits for a fence to reach the specified value. On the
+    wgpu-native backend, fences are no-ops — polls the device and returns
+    immediately. Implements hal.Device (takes hal.Fence interface, internal
+    unpack). WaitForFence waits for a fence to reach the specified value.
+    On the wgpu-native backend, fences are no-ops — polls the device and returns
+    immediately. Implements hal.Device (takes hal.Fence interface, internal
+    unpack).
+
+func (d *Device) WaitIdle() error
+    WaitIdle waits for all GPU work to complete. WaitIdle waits for all GPU work
+    to complete.
+
+type DeviceType = types.DeviceType
+
+type Features = types.Features
+    Feature and limit types
+
+type Fence struct {
+	// Has unexported fields.
+}
+    Fence is a GPU synchronization primitive. On the wgpu-native backend,
+    fences are no-ops — wgpu-native handles synchronization internally via
+    device polling. This type exists for API compatibility.
+
+func (f *Fence) Destroy()
+    Destroy implements hal.Fence: same as Release.
+
+func (f *Fence) Release()
+    Release destroys the fence.
+
+type FilterMode = types.FilterMode
+
+type Frame struct {
+	SurfaceTexture *SurfaceTexture
+	View           *TextureView
+	// Handle is the gpucontext-facing view for render.FlushGPUWithView.
+	Handle     gpucontext.TextureView
+	Suboptimal bool
+	Width      uint32
+	Height     uint32
+	// DamageRects optionally records dirty regions for EndFrameWithDamage.
+	// wgpu-native currently ignores them at present; still used for diagnostics
+	// and future partial-present backends.
+	DamageRects []image.Rectangle
+}
+    Frame is one acquired swapchain image ready for rendering.
+
+type FrontFace = types.FrontFace
+
+type IndexFormat = types.IndexFormat
+
+type Instance struct {
+	// Has unexported fields.
+}
+    Instance is the entry point for GPU operations. On the wgpu-native backend,
+    this wraps rwgpu Instance.
+
+func CreateInstance(desc *hal.InstanceDescriptor) (*Instance, error)
+    CreateInstance creates a new GPU instance. If desc is nil, all available
+    backends are used (unless GPUI_BACKEND / GPUI_VRAM_BUDGET_PCT env apply —
+    see rwgpu.CreateInstance). Takes hal.InstanceDescriptor (canonical, 片7a以 hal
+    为准；InstanceDescriptor 是 hal 别名，超集； Dx12ShaderCompiler/GLBackend 暂忽略，rwgpu
+    无对应字段).
+
+func InstanceFromHandle(h gpucontext.Instance) *Instance
+    InstanceFromHandle extracts *Instance from a gpucontext.Instance handle.
+
+func (i *Instance) CreateSurface(target hal.SurfaceTarget) (hal.Surface, error)
+    CreateSurface creates a rendering surface from a typed platform target.
+    Implements hal.Instance (takes hal.SurfaceTarget, returns hal.Surface).
+    Kind selects the window-system path; handles stay caller-owned.
+
+    displayHandle and windowHandle are platform-specific:
+      - Windows: displayHandle=HINSTANCE (can be 0), windowHandle=HWND
+      - macOS: displayHandle=0, windowHandle=CAMetalLayer*
+      - Linux/X11: displayHandle=Display*, windowHandle=Window
+      - Linux/Wayland: displayHandle=wl_display*, windowHandle=wl_surface*
+
+func (i *Instance) CreateSurfaceFor(backend SurfaceBackend, displayHandle, windowHandle uintptr) (*Surface, error)
+    CreateSurfaceFor creates a surface using an explicit window-system backend.
+    On Linux, backend must match the handle types (Xlib vs Wayland); mismatch
+    causes native SIGSEGV in Configure/GetCapabilities.
+
+func (i *Instance) CreateSurfaceFromHandles(displayHandle, windowHandle uintptr) (*Surface, error)
+    CreateSurfaceFromHandles creates a rendering surface from platform-specific
+    handles. On Linux this uses SurfaceBackendAuto (DISPLAY/WAYLAND_DISPLAY
+    heuristic). Prefer CreateSurfaceFor when the window system is already known
+    (X11 vs Wayland handles must match).
+
+    This is the pre-hal entry point kept for existing callers (tests, swapchain
+    recovery); new code should pass a hal.SurfaceTarget to CreateSurface.
+
+func (i *Instance) EnumerateAdapters(hint hal.Surface) []hal.ExposedAdapter
+    EnumerateAdapters implements hal.Instance: returns the RequestAdapter result
+    as a single-element list.
+
+func (i *Instance) ProcessEvents()
+    ProcessEvents pumps pending wgpu async callbacks (device-lost, map async,
+    etc.). Call periodically from the render loop so device-lost is observed
+    as a Go sticky fuse before the next Surface.GetCurrentTexture (which aborts
+    native when the parent device is already lost).
+
+func (i *Instance) Release()
+    Release releases the instance and all associated resources.
+
+func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error)
+    RequestAdapter requests a GPU adapter matching the options. If opts is nil,
+    the best available adapter is returned. Takes hal.RequestAdapterOptions
+    (canonical, 7f CompatibleSurface→hal.Surface). Implements hal.Instance
+    (returns hal.Adapter interface).
+
+type LateBufferBindingInfo struct {
+	BindingIndex uint32
+	Size         uint64
+}
+    LateBufferBindingInfo records the actual buffer binding size for a layout
+    entry with MinBindingSize == 0.
+
+type LateSizedBufferGroup struct {
+	ShaderSizes []uint64
+}
+    LateSizedBufferGroup holds the shader-required minimum buffer sizes for bind
+    group entries whose layout specifies MinBindingSize == 0.
+
+type Limits = types.Limits
+
+type LoadOp = types.LoadOp
+    Render types
+
+type MapPending struct {
+	// Has unexported fields.
+}
+    MapPending is a handle to an in-flight Buffer.MapAsync on the wgpu-native
+    backend. On the wgpu-native backend, this wraps rwgpu MapPending which uses
+    wgpu-native's callback mechanism.
+
+func (p *MapPending) Release()
+    Release discards the MapPending handle.
+
+func (p *MapPending) Status() (ready bool, err error)
+    Status returns the current state of the pending map without blocking.
+
+func (p *MapPending) Wait(ctx context.Context) error
+    Wait blocks until the pending map resolves or ctx is canceled.
+
+type MapState uint8
+    MapState reports the current mapping state of a buffer.
+
+const (
+	MapStateUnmapped MapState = iota
+	MapStatePending
+	MapStateMapped
+	MapStateDestroyed
+)
+type MappedRange struct {
+	// Has unexported fields.
+}
+    MappedRange is a safe view over a region of a mapped GPU buffer. On the
+    wgpu-native backend, this wraps rwgpu MappedRange.
+
+func (m *MappedRange) Bytes() []byte
+    Bytes returns the mapped data as a read-only byte slice.
+
+func (m *MappedRange) BytesMut() []byte
+    BytesMut returns a mutable byte slice for writing into the mapped region.
+    On the wgpu-native backend, this returns the same underlying data as Bytes()
+    since the mapped range is already writable through the FFI pointer.
+
+func (m *MappedRange) Flush() error
+    Flush writes the cached data back. On the wgpu-native backend, data is
+    written through the direct pointer, so this is a no-op.
+
+func (m *MappedRange) Len() int
+    Len returns the size of the mapped range in bytes.
+
+func (m *MappedRange) Offset() uint64
+    Offset returns the byte offset of the mapped range within its buffer.
+
+func (m *MappedRange) Release()
+    Release invalidates the MappedRange.
+
+type MipmapFilterMode = types.MipmapFilterMode
+
+type MultisampleState = types.MultisampleState
+
+type PipelineLayout struct {
+	// Has unexported fields.
+}
+    PipelineLayout defines the bind group layout arrangement for a pipeline.
+    On the wgpu-native backend, this wraps rwgpu PipelineLayout.
+
+func (l *PipelineLayout) Destroy()
+    Destroy implements hal.PipelineLayout: same as Release.
+
+func (l *PipelineLayout) Release()
+    Release destroys the pipeline layout.
+
+type PresentMode = types.PresentMode
+    Surface/presentation types
+
+type PrimitiveState = types.PrimitiveState
+
+type PrimitiveTopology = types.PrimitiveTopology
+    Primitive types
+
+type Queue struct {
+	// Has unexported fields.
+}
+    Queue handles command submission and data transfers. On the wgpu-native
+    backend, this wraps rwgpu Queue.
+
+func QueueFromHandle(h gpucontext.Queue) *Queue
+    QueueFromHandle extracts *Queue from a gpucontext.Queue handle.
+
+func (q *Queue) GetTimestampPeriod() float32
+    GetTimestampPeriod implements hal.Queue: wgpu-native does not expose it,
+    returns 0.
+
+func (q *Queue) LastSubmissionIndex() uint64
+    LastSubmissionIndex returns the most recent submission index. On the
+    wgpu-native backend, submission indices are not tracked. Returns 0.
+
+func (q *Queue) OnSubmittedWorkDone() (rwgpu.Future, error)
+    OnSubmittedWorkDone registers a callback that fires once all GPU work
+    submitted before this call has completed. The returned rwgpu Future must
+    be polled (Device.Poll / rwgpu.WaitForFuture) for the callback to fire;
+    the frame path uses the existing BeginFrame vsync/drainQueue sync points
+    instead of blocking.
+
+func (q *Queue) Poll() uint64
+    Poll returns the last completed submission index. Non-blocking. On the
+    wgpu-native backend, returns 0.
+
+func (q *Queue) Present(surface hal.Surface, texture hal.SurfaceTexture, _ []image.Rectangle) error
+    Present presents a surface texture (hal.Queue conformance). has no
+    damage-aware present). Surface/texture are unpacked; wrong types or nils
+    fail without touching GPU state.
+
+func (q *Queue) Release()
+    Release drops the native queue reference obtained via Device.Queue /
+    wgpuDeviceGetQueue. Must be called before or as part of Device.Release so
+    the logical device can fully tear down and VRAM can be reclaimed.
+
+func (q *Queue) SetSwapchainSuppressed(_ bool)
+    SetSwapchainSuppressed is a no-op on the wgpu-native backend.
+
+func (q *Queue) StagedWriteOverlaps() int64
+    StagedWriteOverlaps implements hal.Queue: wgpu owns the staging buffer
+    and applies each writeBuffer before the submission that follows it,
+    so this queue never collapses two engine writes into one destination region.
+    Always 0 (the gles write batch is the only coalescing uploader in the tree).
+
+func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error)
+    Submit submits command buffers for execution. Returns a submission index
+    that can be used to track completion.
+
+    avoid per-submit heap allocation on the dominant 1-CB path and for
+    small multi-CB submits (≤8). Semantics unchanged: non-nil CBs are marked
+    submitted; only CBs with a live native handle are passed to rwgpu.
+    Implements hal.Queue (takes hal.CommandBuffer interfaces, internal unpack;
+    wrong-type elements fail before anything is marked or submitted).
+
+func (q *Queue) SupportsCommandBufferCopies() bool
+
+func (q *Queue) SupportsCrossThreadTextureWrites() bool
+    SupportsCrossThreadTextureWrites reports true: every rwgpu call serializes
+    on the process-wide GPU mutex and the native wgpu queue is thread-safe,
+    so a video upload worker may write while the raster thread submits.
+
+func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error
+    WriteBuffer writes data to a buffer. Implements hal.Queue (takes hal.Buffer
+    interface, internal unpack).
+
+func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal.ImageDataLayout, size *hal.Extent3D) error
+    WriteTexture writes data to a texture. stack-allocate
+    destination/layout/size descriptors (no per-call heap). Implements hal.Queue
+    (ImageCopyTexture aliased to hal; .Texture unpacked).
+
+type RenderPassEncoder struct {
+	// Has unexported fields.
+}
+    RenderPassEncoder records draw commands within a render pass. On the
+    wgpu-native backend, this wraps rwgpu RenderPassEncoder.
+
+    dedup cache: identical repeats are skipped instead of forwarded (GL
+    glExecState parity — the GL backend already gates redundant sets at Execute;
+    native had no equivalent and paid full FFI per repeat). Only EXACT
+    duplicates are skipped, so pixels can't change: same pipeline pointer, same
+    group/buffer handles with same offsets, same viewport/ scissor/stencil/blend
+    values. Explicit unsets (nil group) always forward. Fixed small arrays,
+    no per-call alloc; out-of-range indices forward.
+
+func (p *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32)
+    Draw draws primitives.
+
+func (p *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32)
+    DrawIndexed draws indexed primitives.
+
+func (p *RenderPassEncoder) DrawIndexedIndirect(buffer hal.Buffer, offset uint64)
+    DrawIndexedIndirect draws indexed primitives with GPU-generated parameters.
+    Implements hal.RenderPassEncoder (takes hal.Buffer interface, internal
+    unpack).
+
+func (p *RenderPassEncoder) DrawIndexedIndirectCount(buffer hal.Buffer, offset uint64, countBuffer hal.Buffer, countOffset uint64, maxDrawCount uint32)
+    DrawIndexedIndirectCount implements hal.RenderPassEncoder: lowers to max.
+
+func (p *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64)
+    DrawIndirect draws primitives with GPU-generated parameters. Implements
+    hal.RenderPassEncoder (takes hal.Buffer interface, internal unpack).
+
+func (p *RenderPassEncoder) DrawIndirectCount(buffer hal.Buffer, offset uint64, countBuffer hal.Buffer, countOffset uint64, maxDrawCount uint32)
+
+func (p *RenderPassEncoder) End() error
+    End ends the render pass and drops the native pass-encoder reference.
+    wgpu requires wgpuRenderPassEncoderRelease after End; without it the encoder
+    handle (and associated device memory) leaks.
+
+func (p *RenderPassEncoder) ExecuteBundle(_ hal.RenderBundle)
+
+func (p *RenderPassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offsets []uint32)
+    SetBindGroup sets a bind group for the given index. Passing group ==
+    nil unsets the bind group (required before switching to a pipeline with
+    an incompatible bind-group layout in the same render pass). Implements
+    hal.RenderPassEncoder (takes hal.BindGroup interface, internal unpack).
+
+func (p *RenderPassEncoder) SetBlendConstant(color *Color)
+    SetBlendConstant sets the blend constant color.
+
+func (p *RenderPassEncoder) SetIndexBuffer(buffer hal.Buffer, format IndexFormat, offset uint64)
+    SetIndexBuffer sets the index buffer. Implements hal.RenderPassEncoder
+    (takes hal.Buffer interface, internal unpack).
+
+func (p *RenderPassEncoder) SetPipeline(pipeline hal.RenderPipeline)
+    SetPipeline sets the active render pipeline. Implements
+    hal.RenderPassEncoder (takes hal.RenderPipeline interface, internal unpack).
+
+func (p *RenderPassEncoder) SetScissorRect(x, y, width, height uint32)
+    SetScissorRect sets the scissor rectangle for clipping.
+
+func (p *RenderPassEncoder) SetStencilReference(reference uint32)
+    SetStencilReference sets the stencil reference value.
+
+func (p *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer hal.Buffer, offset uint64)
+    SetVertexBuffer sets a vertex buffer for the given slot. Offset is in bytes.
+    Implements hal.RenderPassEncoder (takes hal.Buffer interface, internal
+    unpack).
+
+func (p *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth float32)
+    SetViewport sets the viewport transformation.
+
+type RenderPipeline struct {
+	// Has unexported fields.
+}
+    RenderPipeline represents a configured render pipeline. On the wgpu-native
+    backend, this wraps rwgpu RenderPipeline.
+
+func (p *RenderPipeline) Destroy()
+    Destroy implements hal.RenderPipeline: same as Release.
+
+func (p *RenderPipeline) Release()
+    Release destroys the render pipeline.
+
+type Sampler struct {
+	// Has unexported fields.
+}
+    Sampler represents a texture sampler. On the wgpu-native backend, this wraps
+    rwgpu Sampler.
+
+func NewSamplerFromHAL(_ any, _ *Device) *Sampler
+    NewSamplerFromHAL is not supported with the wgpu-native backend.
+
+func (s *Sampler) Destroy()
+    Destroy implements hal.Sampler: same as Release.
+
+func (s *Sampler) NativeHandle() uintptr
+
+func (s *Sampler) Release()
+    Release destroys the sampler.
+
+type ShaderModule struct {
+	// Has unexported fields.
+}
+    ShaderModule represents a compiled shader module. On the wgpu-native
+    backend, this wraps rwgpu ShaderModule.
+
+func (m *ShaderModule) Destroy()
+    Destroy implements hal.ShaderModule: same as Release.
+
+func (m *ShaderModule) Release()
+    Release destroys the shader module.
+
+type ShaderStages = types.ShaderStages
+    Shader types
+
+type SimpleDeviceProvider struct {
+	Dev    hal.Device
+	Adpt   hal.Adapter
+	Format TextureFormat
+}
+    SimpleDeviceProvider adapts hal.Device/hal.Adapter into
+    gpucontext.DeviceProvider so apps can inject a window/swapchain device into
+    render (GPUShared). Without this, render creates a second device and MSAA
+    resolve into a foreign surface texture fails validation. Dev/Adpt store hal
+    interfaces (7f Device→hal.Device); concrete access is a direct internal
+    assert to *Device/*Adapter (same package unpack pattern).
+
+func (p *SimpleDeviceProvider) Adapter() gpucontext.Adapter
+    Adapter implements gpucontext.DeviceProvider.
+
+func (p *SimpleDeviceProvider) AdapterInfo() gpucontext.AdapterInfo
+    AdapterInfo implements gpucontext.DeviceProvider.
+
+func (p *SimpleDeviceProvider) Device() gpucontext.Device
+    Device implements gpucontext.DeviceProvider.
+
+func (p *SimpleDeviceProvider) Queue() gpucontext.Queue
+    Queue implements gpucontext.DeviceProvider.
+
+func (p *SimpleDeviceProvider) SurfaceFormat() types.TextureFormat
+    SurfaceFormat implements gpucontext.DeviceProvider.
+
+type StoreOp = types.StoreOp
+
+type Surface struct {
+	// Has unexported fields.
+}
+    Surface represents a platform rendering surface. On the wgpu-native backend,
+    this wraps rwgpu Surface.
+
+func NewSurfaceFromHAL(_ any, _ string) *Surface
+    NewSurfaceFromHAL is not supported with the wgpu-native backend.
+
+func SurfaceFromHandle(h gpucontext.Surface) *Surface
+    SurfaceFromHandle extracts *Surface from a gpucontext.Surface handle.
+
+func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error)
+    AcquireTexture acquires the next surface texture for rendering. Implements
+    hal.Surface.
+
+func (s *Surface) ActualExtent() (width, height uint32)
+    ActualExtent returns the configured surface dimensions.
+
+func (s *Surface) BumpAcquireEpoch()
+    BumpAcquireEpoch invalidates every GetCurrentTexture already in flight.
+    The swapchain calls it when an acquire times out; the abandoned goroutine
+    will discard its own late result instead of installing it as current.
+
+func (s *Surface) Configure(device hal.Device, config *SurfaceConfiguration) error
+    Configure configures the surface for presentation. Implements hal.Surface
+    (takes hal.Device interface, internal unpack).
+
+func (s *Surface) Destroy()
+    Destroy implements hal.Surface (via hal.Resource): same as Release.
+
+func (s *Surface) DiscardTexture(_ hal.SurfaceTexture)
+    DiscardTexture drops the last acquired surface texture without presenting
+    it. Implements hal.Surface (takes hal.SurfaceTexture, ignored when nil;
+    drops current). Safe to call when no texture is held. Must run before
+    Configure if a previous GetCurrentTexture succeeded and the texture was not
+    Released.
+
+func (s *Surface) GetCurrentTexture() (*SurfaceTexture, bool, error)
+    GetCurrentTexture acquires the next texture for rendering. Returns the
+    surface texture and whether the surface is suboptimal.
+
+func (s *Surface) Present(texture *SurfaceTexture) error
+    Present presents a surface texture to the screen.
+
+func (s *Surface) PresentWithDamage(st *SurfaceTexture, _ []image.Rectangle) error
+    PresentWithDamage presents a surface texture, optionally with damage rects.
+    On the wgpu-native backend, damage rects are ignored. wgpu-native does not
+    support them.
+
+func (s *Surface) Release()
+    Release releases the surface. Nil-safe and idempotent. Kept as門面 for
+    existing callers; hal.Surface.Destroy forwards here.
+
+func (s *Surface) SetPrepareFrame(_ any)
+    SetPrepareFrame registers a platform hook called before each
+    GetCurrentTexture. This is a no-op: wgpu-native handles HiDPI internally.
+    The function signature uses any to avoid importing core in the native build
+    path.
+
+func (s *Surface) Unconfigure(_ hal.Device)
+    Unconfigure removes the surface configuration. Implements hal.Surface (takes
+    hal.Device, ignored; device tracked internally). Nil-safe and released-safe.
+    Skips native when device is lost (rwgpu lost-safe path).
+
+func (s *Surface) WindowSize() (width, height uint32, ok bool)
+    WindowSize returns the current native window extent when the platform can
+    probe it (X11: XGetGeometry, fresh at call time). ok=false falls back to the
+    applied/configured swapchain size (Wayland/Windows/macOS are told the size
+    by the window system instead of probing).
+
+type SurfaceBackend int
+    SurfaceBackend selects which native window-system path CreateSurface uses on
+    Linux. Windows/macOS ignore this and always use their platform path.
+
+const (
+	// SurfaceBackendAuto picks from environment when no explicit platform is known.
+	// Prefer CreateSurfaceFor / PresentNativeSurface.Platform instead.
+	SurfaceBackendAuto SurfaceBackend = iota
+	// SurfaceBackendXlib is X11 Display* + Window (XID), including XWayland.
+	SurfaceBackendXlib
+	// SurfaceBackendWayland is wl_display* + wl_surface*.
+	SurfaceBackendWayland
+	// SurfaceBackendWin32 is HWND (Windows).
+	SurfaceBackendWin32
+	// SurfaceBackendMetal is CAMetalLayer* (macOS).
+	SurfaceBackendMetal
+)
+func (b SurfaceBackend) String() string
+    String returns a short backend name for logs.
+
+type SurfaceConfiguration = hal.SurfaceConfiguration
+    SurfaceConfiguration configures surface presentation.
+
+type SurfaceTexture struct {
+	// Has unexported fields.
+}
+    SurfaceTexture is a texture acquired from a surface for rendering.
+
+func (st *SurfaceTexture) AddPendingRef()
+
+func (st *SurfaceTexture) AsTexture() hal.Texture
+    AsTexture returns the underlying Texture for direct WriteTexture access.
+
+func (st *SurfaceTexture) CreateView(desc *hal.TextureViewDescriptor) (hal.TextureView, error)
+    CreateView creates a texture view of this surface texture.
+
+func (st *SurfaceTexture) CurrentUsage() TextureUsage
+
+func (st *SurfaceTexture) DecPendingRef()
+
+func (st *SurfaceTexture) Destroy()
+    Destroy implements hal.SurfaceTexture: same as Release.
+
+func (st *SurfaceTexture) Format() TextureFormat
+    Format implements hal.Texture: delegates to underlying texture.
+
+func (st *SurfaceTexture) NativeHandle() uintptr
+
+func (st *SurfaceTexture) Release()
+    Release drops ownership of the surface texture returned by
+    GetCurrentTexture. webgpu.h marks WGPUSurfaceTexture.texture as
+    ReturnedWithOwnership — callers must release exactly once after Present or
+    discard.
+
+func (st *SurfaceTexture) Texture() hal.Texture
+    Texture returns the underlying Texture.
+
+type Swapchain struct {
+	Surface     *Surface
+	Device      hal.Device
+	Width       uint32
+	Height      uint32
+	Format      TextureFormat
+	Usage       TextureUsage
+	PresentMode PresentMode
+	AlphaMode   CompositeAlphaMode
+
+	// PreferPresentModes, when non-empty, is tried in order during
+	// ConfigureFromCapabilities. Empty → prefer Fifo then first available.
+	PreferPresentModes []PresentMode
+
+	// --- Device-lost auto recovery (library-level, optional) ---
+	// When RecoveryAdapter is set, BeginFrame attempts RequestDevice + reconfigure
+	// instead of permanently failing.
+	RecoveryAdapter hal.Adapter
+	// OnDeviceAbandon is called on the sticky-lost device BEFORE it is Destroy/Release'd
+	// and before RequestDevice. Host must drop all GPU objects (pipelines, pools,
+	// sessions via deviceGen) so VRAM is free for the new device — otherwise the
+	// next CreateTexture hits "Not enough memory left".
+	OnDeviceAbandon func(oldDevice hal.Device)
+	// OnDeviceRecreated is called after a successful recovery with the new device.
+	// Apps rebind accelerators / device providers here.
+	OnDeviceRecreated func(newDevice hal.Device)
+	// DeviceLabel is passed to RequestDevice during recovery.
+	DeviceLabel string
+
+	// Has unexported fields.
+}
+
+func NewSwapchain(surface hal.Surface, device hal.Device, width, height uint32) *Swapchain
+    NewSwapchain builds a swapchain for an existing surface + device.
+    Call Configure before BeginFrame. Implements hal-facing flow (device stored
+    as hal.Device interface). NewSwapchain builds a swapchain for an existing
+    surface + device. Call Configure before BeginFrame. Implements hal-facing
+    flow (device stored as hal.Device interface).
+
+func (sc *Swapchain) BeginFrame() (*Frame, error)
+    SetPresentModeForce reconfigures the surface with an explicit present mode
+    even when the extent is unchanged (Resize no-ops same-size calls). Used by
+    the runtime vsync switch (Fifo steady ↔ Mailbox/Immediate during resize).
+    A reconfigure invalidates the swapchain buffers — the caller owes full
+    frames until each buffer is fully written.
+
+func (sc *Swapchain) ClearRecoverCooldown()
+    ClearRecoverCooldown allows the next tryRecoverDeviceLocked to run
+    immediately (e.g. when the window becomes visible again after occlusion
+    device-lost). ClearRecoverCooldown allows the next tryRecoverDeviceLocked to
+    run immediately (e.g. when the window becomes visible again after occlusion
+    device-lost).
+
+func (sc *Swapchain) Configure() error
+    Configure applies SurfaceConfiguration to the underlying surface.
+    Prefer choosing Format/PresentMode from Adapter.GetSurfaceCapabilities when
+    available. Configure applies SurfaceConfiguration to the underlying surface.
+    Prefer choosing Format/PresentMode from Adapter.GetSurfaceCapabilities when
+    available.
+
+func (sc *Swapchain) ConfigureFromCapabilities(adapter hal.Adapter) error
+    ConfigureFromCapabilities picks a supported format/present/alpha mode then
+    configures. ConfigureFromCapabilities picks a supported format/present/alpha
+    mode then configures.
+
+func (sc *Swapchain) DiscardFrame(frame *Frame)
+    DiscardFrame drops an acquired frame without presenting. Releases the
+    surface texture immediately (ReturnedWithOwnership). DiscardFrame drops an
+    acquired frame without presenting. Releases the surface texture immediately
+    (ReturnedWithOwnership).
+
+func (sc *Swapchain) EnableAutoRecover(adapter hal.Adapter, deviceLabel string, onRecreated func(hal.Device))
+    EnableAutoRecover recreates the device after DeviceLostCallback (optional).
+    onRecreated rebinds app GPU state; adapter must outlive the swapchain.
+
+    Optional: set sc.OnDeviceAbandon before EnableAutoRecover so the host can
+    drop GPUShared/session resources while the old device is still addressable.
+    tryRecover then Destroy/Release's the old device *before* RequestDevice
+    Adapter/callback device params use hal interfaces (7f Device→hal.Device).
+
+func (sc *Swapchain) EndFrame(frame *Frame) error
+    EndFrame presents the frame to the platform surface. EndFrame presents the
+    frame to the platform surface.
+
+func (sc *Swapchain) EndFrameWithDamage(frame *Frame, rects []image.Rectangle) error
+    EndFrameWithDamage presents the frame, forwarding damage rects when the
+    backend supports partial present. EndFrameWithDamage presents the frame,
+    forwarding damage rects when the backend supports partial present.
+
+func (sc *Swapchain) ForceRecoverHealthy() error
+    ForceRecoverHealthy abandons the current device while it is still healthy
+    (native Release reclaims VRAM), then RequestDevice + recreate surface +
+    Configure. Used by hosts that can tear down before sticky-lost (force-lost
+    proof, scheduled context reset). Prefer over MarkLost alone when the .so
+    leaves VRAM pinned after Release-on-lost of a fully-loaded UI device.
+    ForceRecoverHealthy abandons the current device while it is still healthy
+    (native Release reclaims VRAM), then RequestDevice + recreate surface +
+    Configure. Used by hosts that can tear down before sticky-lost (force-lost
+    proof, scheduled context reset). Prefer over MarkLost alone when the .so
+    leaves VRAM pinned after Release-on-lost of a fully-loaded UI device.
+
+func (sc *Swapchain) MarkNeedsReconfigure()
+    MarkNeedsReconfigure schedules a reconfigure on the next BeginFrame.
+    Call after window resize events or when the compositor reports outdated.
+    MarkNeedsReconfigure schedules a reconfigure on the next BeginFrame.
+    Call after window resize events or when the compositor reports outdated.
+
+func (sc *Swapchain) NewHalSwapchain() hal.Swapchain
+    NewHalSwapchain builds the hal.Swapchain view of this swapchain so render
+    talks hal only.
+
+func (sc *Swapchain) PresentModeForVsync(on bool) PresentMode
+    Stats returns cumulative present-path counters. PresentModeForVsync
+    picks the present mode for a runtime vsync switch from the modes cached
+    at ConfigureFromCapabilities. on=true → Fifo (steady UI, no tearing);
+    on=false → Mailbox (latest-frame-wins, no tearing), falling back to
+    FifoRelaxed/Immediate per availability — the low-latency path used while an
+    interactive resize storm is active so content tracks the window instead of
+    waiting one Fifo vblank (~16.5ms) per frame.
+
+func (sc *Swapchain) PresentModeName() string
+    PresentModeName returns a short label for the active present mode.
+
+func (sc *Swapchain) Recoveries() uint64
+    Recoveries returns how many successful device recreations have completed.
+    Recoveries returns how many successful device recreations have completed.
+
+func (sc *Swapchain) Release()
+    PresentModeName returns a short label for the active present mode. Release
+    unconfigures the surface; does not release Surface/Device ownership.
+
+func (sc *Swapchain) ResetStats()
+    ResetStats clears counters (configuration retained). ResetStats clears
+    counters (configuration retained).
+
+func (sc *Swapchain) Resize(width, height uint32) error
+    Resize updates extent and reconfigures when the size actually changes.
+    Same-size calls are no-ops to avoid Surface.Configure thrash (black flash).
+
+    Callers should draw + Present a full frame immediately after a successful
+    size-changing Resize (Skia/Flutter: first frame after surface recreate must
+    be complete before the compositor samples it). Resize updates extent and
+    reconfigures when the size actually changes. Same-size calls are no-ops to
+    avoid Surface.Configure thrash (black flash).
+
+    Callers should draw + Present a full frame immediately after a successful
+    size-changing Resize (Skia/Flutter: first frame after surface recreate must
+    be complete before the compositor samples it).
+
+func (sc *Swapchain) SetPreferFifoRelaxed()
+    SetPreferFifoRelaxed selects the non-blocking but vsync-preferring mode
+    (ENGINE_FRAME_PRESENT_STANDARD.md 块3): FifoRelaxed waits for the vblank
+    when the frame is ready in time and submits immediately when late — the
+    steady Wayland mode, where the compositor's vblank swap guarantees no
+    tearing and a client-side Fifo wait would only block. Mailbox/Immediate are
+    fallbacks per availability. SetPreferFifoRelaxed selects the non-blocking
+    but vsync-preferring mode (ENGINE_FRAME_PRESENT_STANDARD.md 块3): FifoRelaxed
+    waits for the vblank when the frame is ready in time and submits immediately
+    when late — the steady Wayland mode, where the compositor's vblank swap
+    guarantees no tearing and a client-side Fifo wait would only block.
+    Mailbox/Immediate are fallbacks per availability.
+
+func (sc *Swapchain) SetPreferLowLatency()
+    SetPreferLowLatency prefers Mailbox/Immediate when supported (gamesing;
+    may tear). SetPreferLowLatency prefers Mailbox/Immediate when supported
+    (gamesing; may tear).
+
+func (sc *Swapchain) SetPreferVSync()
+    EnableAutoRecover recreates the device after DeviceLostCallback (optional).
+    onRecreated rebinds app GPU state; adapter must outlive the swapchain.
+
+    Optional: set sc.OnDeviceAbandon before EnableAutoRecover so the host can
+    drop GPUShared/session resources while the old device is still addressable.
+    tryRecover then Destroy/Release's the old device *before* RequestDevice
+    Adapter/callback device params use hal interfaces (7f Device→hal.Device).
+    SetPreferVSync selects Fifo when available (default production UI path).
+
+func (sc *Swapchain) SetPresentModeForce(mode PresentMode) error
+    PresentModeForVsync picks the present mode for a runtime vsync switch from
+    the modes cached at ConfigureFromCapabilities. on=true → Fifo (steady UI,
+    no tearing); on=false → Mailbox (latest-frame-wins, no tearing), falling
+    back to FifoRelaxed/Immediate per availability — the low-latency path used
+    while an interactive resize storm is active so content tracks the window
+    instead of waiting one Fifo vblank (~16.5ms) per frame. SetPresentModeForce
+    reconfigures the surface with an explicit present mode even when the extent
+    is unchanged (Resize no-ops same-size calls). Used by the runtime vsync
+    switch (Fifo steady ↔ Mailbox/Immediate during resize). A reconfigure
+    invalidates the swapchain buffers — the caller owes full frames until each
+    buffer is fully written.
+
+func (sc *Swapchain) SetSupportedPresentModesForTest(modes []types.PresentMode)
+    SetPreferVSync selects Fifo when available (default production UI path).
+    SetSupportedPresentModesForTest overrides the cached surface-capability
+    list (test-only; ConfigureFromCapabilities normally populates it from the
+    adapter). Used to unit-test PresentModeForVsync without a real surface.
+
+func (sc *Swapchain) Stats() SwapchainStats
+    Stats returns cumulative present-path counters.
+
+type SwapchainStats struct {
+	Acquires       uint64
+	Presents       uint64
+	Discards       uint64
+	Reconfigures   uint64
+	Suboptimal     uint64
+	AcquireRetries uint64
+	LastAcquireNs  int64
+	LastPresentNs  int64
+	// Derived: last present wall time in milliseconds.
+	LastPresentMs float64
+	LastAcquireMs float64
+}
+
+type Texture struct {
+	// Has unexported fields.
+}
+    Texture represents a GPU texture. On the wgpu-native backend, this wraps
+    rwgpu Texture.
+
+func NewTextureFromHAL(_ any, _ *Device, _ TextureFormat) *Texture
+    NewTextureFromHAL is not supported with the wgpu-native backend.
+
+func (t *Texture) AddPendingRef()
+
+func (t *Texture) CurrentUsage() TextureUsage
+
+func (t *Texture) DecPendingRef()
+
+func (t *Texture) Destroy()
+    Destroy implements hal.Texture: same as Release.
+
+func (t *Texture) Format() TextureFormat
+    Format returns the texture format.
+
+func (t *Texture) NativeHandle() uintptr
+
+func (t *Texture) Release()
+    Release frees the texture. On native this maps to wgpuTextureDestroy +
+    Release so GPU memory is reclaimed immediately. Release-only left device
+    heaps pinned across AutoRecover on libwgpu_native (process VRAM ≈ old+new
+    RequestDevice reserve → CreateTexture OOM).
+
+func (t *Texture) Released() bool
+    Released reports whether Release has been called (diagnostics/tests).
+
+type TextureAspect = types.TextureAspect
+
+type TextureDimension = types.TextureDimension
+
+type TextureFormat = types.TextureFormat
+
+type TextureRange = hal.TextureRange
+    TextureRange specifies a range of texture subresources.
+
+type TextureUsage = types.TextureUsage
+    Texture types
+
+type TextureView struct {
+	// Has unexported fields.
+}
+    TextureView represents a view into a texture. On the wgpu-native backend,
+    this wraps rwgpu TextureView.
+
+func NewTextureViewFromHAL(_ any, _ *Device) *TextureView
+    NewTextureViewFromHAL is not supported with the wgpu-native backend.
+
+func TextureViewFromHandle(h gpucontext.TextureView) *TextureView
+    TextureViewFromHandle extracts *TextureView from a gpucontext.TextureView
+    handle. Boxed handles unbox first; legacy direct-pointer handles fall back
+    to the concrete cast. Returns nil when the handle carries another backend's
+    view.
+
+func (v *TextureView) Destroy()
+    Destroy implements hal.TextureView: same as Release.
+
+func (v *TextureView) NativeHandle() uintptr
+
+func (v *TextureView) Release()
+    Release marks the texture view for destruction.
+
+func (v *TextureView) Released() bool
+    Released reports whether Release has been called (diagnostics/tests).
+
+func (v *TextureView) Texture() hal.Texture
+    Texture returns the parent Texture that this view was created from.
+    Implements hal.TextureView (returns hal.Texture interface). Callers needing
+    the concrete type can assert to *Texture.
+
+type TextureViewDimension = types.TextureViewDimension
+
+type VertexBufferLayout = types.VertexBufferLayout
+

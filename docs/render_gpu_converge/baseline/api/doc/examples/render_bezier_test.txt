@@ -1,0 +1,2 @@
+Package main demonstrates smooth bezier curve rendering. This example tests
+Issue #48 fix - analytic anti-aliasing for curves.

@@ -1,0 +1,11 @@
+Command video_2k_play is the P3 2K real-window: 2560x1440 loop play + GPU scale
++ overlay on the same screen, through the P2 direct bridge.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    bash video/testdata/gen_p3_2k4k.sh   # clips are generated, never committed
+    RUN_SECONDS=30 go run ./examples/video/video_2k_play
+
+Window: 1600x900. GPU window required. One 960x540 view of the 2K stream (decode
+resolution fixed, display scaled by the GPU quad). Gate: fps/p95 + upload
+discipline (uploads+fallbacks==frames, zero evictions) + first/last frame
+non-black + memory cap.

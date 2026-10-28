@@ -1,0 +1,9 @@
+Command video_vr3_color is the VW1 VR3 real-window: YUV to RGBA color.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/video/video_vr3_color
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 5). GPU window required. Left:
+retired vector count (history) plus backend self-consistency, patches, skin,
+both ranges, 601+709). Right: ours-vs-theory patches plus one real decoded I
+frame in color.

@@ -1,0 +1,22 @@
+Command game_stage_chase is the P3 combination gate: camera follow (1.3) plus
+ysort/depth occlusion (2.3/1.2) plus GPU particle trail (5.2) plus tile chunks
+(7.2) plus dynamic dirty update (8.3) in one chase.
+
+World: 64x40 tiles at 32px (2048x1280), 8x8-tile chunks (8x5=40). A red chase
+car loops horizontally; the camera follows with smoothing and limits; only
+Visible chunks draw; 1000 props sort far-to-near; a car Trail plus a bonfire
+GPUPool prove 5.2; a DirtyTracker plus a scene DirtyLayer prove 8.3 (static
+chunks never dirtied).
+
+Modes:
+
+    RUN_SECONDS=120 go run ./examples/engine/stage_chase -auto-only
+      probes + 2-minute window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/stage_chase -manual-seconds 60
+      manual 60s (events logged, title shows count), then summary.
+    go run ./examples/engine/stage_chase
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_stage_chase. First run writes the golden baseline
+into testdata/; later runs compare it with zero tolerance. Night battle
+(lighting+grade) stays unopened until this gate is green.

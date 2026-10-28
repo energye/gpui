@@ -1,0 +1,34 @@
+Evidence helpers for ui_wr_r12b_debug_repaint (R12b · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+R12b has two evidence states (overlay on / off). Each state has its own snapshot
+and Golden baseline, so the magenta live-paint overlay cannot be "proved" by an
+image that silently dropped it.
+
+Command ui_wr_r12b_debug_repaint is the W1 R12b real-window: debug repaint
+visualization.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=8 go run ./examples/ui_wr_r12b_debug_repaint -auto-only
+    WR_DEBUG_REPAINT=0 RUN_SECONDS=8 go run ./examples/ui_wr_r12b_debug_repaint -auto-only
+    go run ./examples/ui_wr_r12b_debug_repaint -manual-seconds 15
+
+Window: 1200x800. R12b close duration is 8s; a gate run below 8s is rejected.
+
+Evidence: the overlay is a real PaintContext.NoteDebugRepaint stroke on live
+color-box paints, not an example-side drawing. Gate mode freezes Steady and
+deterministically exercises both sides of the contract:
+  - gateLive is a plain (non-boundary) leaf, so FullPaint repaints it every
+    frame; its centre is a fixed magenta blend in the on run and raw red in the
+    off run.
+  - hotA/hotB and all static panels are clean RepaintBoundaries, so they Replay
+    from cache and stay raw-coloured (no magenta).
+
+On/off are separate gate runs with separate snapshots and Golden baselines
+(showcase_r12b_debug_on*.png / showcase_r12b_debug_off*.png). Manual mode keeps
+Steady -> Spike -> Recover animation and does not assert pixels.

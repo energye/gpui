@@ -1,6 +1,6 @@
 # P1.4 全部真窗基线采集
 
-> 生成时间：2026-10-29T06:20:37；仓库 `/home/yanghy/app/projects/gogpu/gpui`；HEAD `73df408c`；运行 worktree `/home/yanghy/app/projects/gogpu/gpui-p14`。
+> 生成时间：2026-10-29T06:36:45；仓库 `/home/yanghy/app/projects/gogpu/gpui`；HEAD `73df408c`；运行 worktree `/home/yanghy/app/projects/gogpu/gpui-p14`。
 
 ## 范围与口径
 
@@ -9,6 +9,7 @@
 - 单进程串行、一轮一窗；隔离显示 `DISPLAY=:3`（独立 Xwayland，未使用当前 `:1`）；标准自关窗，M 探针先 WM_DELETE，未响应才按 AGENTS 兜底。批量窗（multiwin/vram/zz_soak）排在最后。
 - 金图零容差；运行期 `0*` 首遍播种、次遍确认。`GPUI_BACKEND=go` 是**呈现层**切换；JSON `gpu_backend` 仍为 `integrated`，不能宣称纯 Go 加速器（P0.4 口径）。
 - rootless Xwayland 的 x11grab 是黑图，已禁用屏幕抓图；视觉证据用窗内 GPU readback 快照或冻结金图，引擎窗归档冻结金图 + offscreen diff。
+- 播种轮（run_kind=seed）原始状态 FAIL（rc=1）但 `golden_first_run=true` 的，汇总显示为 `SEED`：首跑只产基线不做门禁，退出码不代表产品红。原始状态保留在 record.json，`summary.tsv` 的 notes 可溯源；确认轮（confirm）不做此映射，FAIL 就是 FAIL。
 
 ## 状态计数
 

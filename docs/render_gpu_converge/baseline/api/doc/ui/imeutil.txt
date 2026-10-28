@@ -1,0 +1,12 @@
+package imeutil // import "github.com/energye/gpui/ui/imeutil"
+
+
+FUNCTIONS
+
+func TruncateSurrounding(text string, cursorByte int) (string, int)
+    TruncateSurrounding implements 4000 bytes including NUL, centered at cursor.
+    Single source for textinput, Wayland and X11 to avoid B10 divergence.
+
+func TruncateSurroundingWithAnchor(text string, cursor, anchor int) (string, int, int)
+    TruncateSurroundingWithAnchor is the X11 3-arg variant (cursor+anchor).
+

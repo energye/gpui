@@ -1,0 +1,25 @@
+Command game_physics is the S61 game_physics dual-case window plus the S76 rider
+alignment rider (snap + MOTION_MODE two gears).
+
+Hit case: a hero box sweeps a trigger door and a solid wall, a +X ray probes
+ahead every frame, all through the real engine/physics body and ray API
+(14.1a/b). Jump case: a jumper arcs through a one-way platform and lands via
+StepWithSnap, a ramp rider holds through the S76 snap window, and a moving body
+platform carries its rider via CarryRider; slopes live in +Y-down tilemap units,
+carry bodies in +Y-up math units, the carry panel flips Y at paint time only.
+
+Modes:
+
+    go run ./examples/engine/physics --case=hit -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/physics --case=jump -manual-seconds 30
+      manual for 30s (events logged, title shows the count), then summary.
+    go run ./examples/engine/physics --case=hit
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+GAME_PHYSICS_PROBE_ONLY=1 runs the selected case probes headlessly (logic
++ pixels + golden, JSON on stdout, no window) for CI and for producing the
+testdata baselines without a display.
+
+Window: 1200x800, title game_physics. First run writes the golden baseline into
+testdata/; later runs compare it with zero tolerance.

@@ -1,0 +1,214 @@
+package stroke // import "github.com/energye/gpui/render/internal/stroke"
+
+Package stroke provides stroke expansion algorithms for converting stroked paths
+to filled outlines.
+
+This package implements CPU-side stroke expansion following tiny-skia and kurbo
+patterns. The algorithm converts a path with stroke style into a filled path
+suitable for GPU rasterization.
+
+# Algorithm Overview
+
+Stroke expansion works by building two parallel offset paths:
+  - Forward path: Offset by +width/2 perpendicular to the tangent
+  - Backward path: Offset by -width/2 perpendicular to the tangent
+
+The final filled path is constructed by:
+ 1. Forward path goes forward
+ 2. End cap connects forward to backward
+ 3. Backward path is reversed
+ 4. Start cap connects backward to forward and closes
+
+# Line Caps
+
+Line caps define the shape of stroke endpoints:
+  - LineCapButt: Flat cap ending exactly at the endpoint
+  - LineCapRound: Semicircular cap with radius = width/2
+  - LineCapSquare: Square cap extending width/2 beyond the endpoint
+
+# Line Joins
+
+Line joins define how stroke segments connect:
+  - LineJoinMiter: Sharp corner (limited by miter limit)
+  - LineJoinRound: Circular arc at corners
+  - LineJoinBevel: Straight line across the corner
+
+# Usage
+
+    style := stroke.Stroke{
+        Width: 2.0,
+        Cap: stroke.LineCapRound,
+        Join: stroke.LineJoinMiter,
+        MiterLimit: 4.0,
+    }
+
+    expander := stroke.NewStrokeExpander(style)
+    expander.SetTolerance(0.1) // Optional: adjust curve flattening
+
+    verbs := []stroke.PathVerb{stroke.VerbMoveTo, stroke.VerbLineTo, stroke.VerbLineTo}
+    coords := []float64{0, 0, 100, 0, 100, 100}
+
+    outVerbs, outCoords := expander.Expand(verbs, coords)
+
+# Performance
+
+The expander is optimized for typical use cases:
+  - Simple lines: ~2 microseconds
+  - Complex paths (100 segments): ~50-60 microseconds
+  - Cubic curves are flattened to line segments based on tolerance
+
+# References
+
+See GPU-STK-001 in docs/dev/kanban/ for the full task specification.
+
+Package stroke provides stroke expansion algorithms for converting stroked paths
+to filled outlines.
+
+This package implements CPU-side stroke expansion following tiny-skia and kurbo
+patterns. The algorithm converts a path with stroke style into a filled path
+suitable for GPU rasterization.
+
+Key algorithm insight: A stroke is converted to a FILL path where:
+  - The outer offset path goes forward
+  - The inner offset path is reversed
+  - Line caps connect the endpoints
+  - Line joins connect the segments
+
+TYPES
+
+type LineCap int
+    LineCap specifies the shape of line endpoints.
+
+const (
+	// LineCapButt specifies a flat line cap.
+	LineCapButt LineCap = iota
+	// LineCapRound specifies a rounded line cap.
+	LineCapRound
+	// LineCapSquare specifies a square line cap.
+	LineCapSquare
+)
+type LineJoin int
+    LineJoin specifies the shape of line joins.
+
+const (
+	// LineJoinMiter specifies a sharp (mitered) join.
+	LineJoinMiter LineJoin = iota
+	// LineJoinRound specifies a rounded join.
+	LineJoinRound
+	// LineJoinBevel specifies a beveled join.
+	LineJoinBevel
+)
+type PathVerb byte
+    PathVerb represents a path construction command. Values match
+    render.PathVerb for zero-cost conversion.
+
+const (
+	// VerbMoveTo moves the current point without drawing. Consumes 2 coords (x, y).
+	VerbMoveTo PathVerb = iota
+	// VerbLineTo draws a line to the specified point. Consumes 2 coords (x, y).
+	VerbLineTo
+	// VerbQuadTo draws a quadratic Bezier curve. Consumes 4 coords (cx, cy, x, y).
+	VerbQuadTo
+	// VerbCubicTo draws a cubic Bezier curve. Consumes 6 coords (c1x, c1y, c2x, c2y, x, y).
+	VerbCubicTo
+	// VerbClose closes the current subpath. Consumes 0 coords.
+	VerbClose
+)
+type Point struct {
+	X, Y float64
+}
+    Point represents a 2D point (internal copy to avoid import cycle).
+
+func (p Point) Add(v Vec2) Point
+    Add returns the sum of two points.
+
+func (p Point) Distance(q Point) float64
+    Distance returns the distance between two points.
+
+func (p Point) Lerp(q Point, t float64) Point
+    Lerp performs linear interpolation between two points.
+
+func (p Point) Sub(q Point) Vec2
+    Sub returns the difference between two points as a vector.
+
+func (p Point) Vec2() Vec2
+    Vec2 returns the point as a vector from the origin.
+
+type Stroke struct {
+	Width      float64
+	Cap        LineCap
+	Join       LineJoin
+	MiterLimit float64
+}
+    Stroke defines the style for stroke expansion.
+
+func DefaultStroke() Stroke
+    DefaultStroke returns a stroke with default settings.
+
+type StrokeExpander struct {
+	// Has unexported fields.
+}
+    StrokeExpander converts stroked paths to filled paths. This follows the
+    tiny-skia/Skia stroke expansion algorithm.
+
+    StrokeExpander is designed for reuse: call Expand() multiple times on the
+    same instance. Internal buffers are retained and reused between calls to
+    minimize heap allocations.
+
+func NewStrokeExpander(style Stroke) *StrokeExpander
+    NewStrokeExpander creates a new stroke expander with the given style.
+
+func (e *StrokeExpander) Expand(verbs []PathVerb, coords []float64) ([]PathVerb, []float64)
+    Expand converts a stroked path (given as SOA verb+coords) to a filled path.
+    Returns the expanded path as (verbs, coords) slices.
+
+func (e *StrokeExpander) HadInnerJoin() bool
+    HadInnerJoin reports whether handleInnerJoin was called during the last
+    Expand. When false, all joins were skipped (smooth path) and the expansion
+    produces no inner-pivot V-shapes, making it safe to use NonZero fill rule.
+
+func (e *StrokeExpander) SetTolerance(tolerance float64)
+    SetTolerance sets the curve flattening tolerance.
+
+type Vec2 struct {
+	X, Y float64
+}
+    Vec2 represents a 2D vector.
+
+func (v Vec2) Add(w Vec2) Vec2
+    Add returns the sum of two vectors.
+
+func (v Vec2) Angle() float64
+    Angle returns the angle of the vector in radians.
+
+func (v Vec2) Cross(w Vec2) float64
+    Cross returns the 2D cross product (z-component of 3D cross).
+
+func (v Vec2) Dot(w Vec2) float64
+    Dot returns the dot product of two vectors.
+
+func (v Vec2) Length() float64
+    Length returns the length of the vector.
+
+func (v Vec2) LengthSquared() float64
+    LengthSquared returns the squared length of the vector.
+
+func (v Vec2) Neg() Vec2
+    Neg returns the negated vector.
+
+func (v Vec2) Normalize() Vec2
+    Normalize returns a unit vector in the same direction.
+
+func (v Vec2) Perp() Vec2
+    Perp returns the perpendicular vector (rotated 90 degrees
+    counter-clockwise).
+
+func (v Vec2) Scale(s float64) Vec2
+    Scale returns the vector scaled by s.
+
+func (v Vec2) Sub(w Vec2) Vec2
+    Sub returns the difference of two vectors.
+
+func (v Vec2) ToPoint() Point
+    ToPoint converts the vector to a point.
+

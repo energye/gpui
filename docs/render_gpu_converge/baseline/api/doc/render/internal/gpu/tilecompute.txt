@@ -1,0 +1,419 @@
+package tilecompute // import "github.com/energye/gpui/render/internal/gpu/tilecompute"
+
+Package tilecompute is a direct 1:1 port of Vello's CPU rasterization pipeline.
+This is intentionally NOT idiomatic Go — it prioritizes pixel-perfect matching.
+
+Source: linebender/vello vello_shaders/src/cpu/
+
+CONSTANTS
+
+const (
+	CmdEnd       uint32 = 0  // End of command list for this tile
+	CmdFill      uint32 = 1  // Compute area coverage from segments
+	CmdSolid     uint32 = 3  // Fully covered tile (backdrop != 0, no segments)
+	CmdColor     uint32 = 5  // Apply solid color
+	CmdBeginClip uint32 = 10 // Begin clip layer
+	CmdEndClip   uint32 = 11 // End clip layer + composite
+)
+const (
+	DrawTagNop       uint32 = 0
+	DrawTagColor     uint32 = 0x44 // info_size=1 (bits 6-9), scene_size=1 (bits 2-4)
+	DrawTagBeginClip uint32 = 0x9
+	DrawTagEndClip   uint32 = 0x21
+)
+const (
+	PathTagLineToF32  uint8 = 0x9
+	PathTagQuadToF32  uint8 = 0xA
+	PathTagCubicToF32 uint8 = 0xB
+	PathTagPath       uint8 = 0x10 // Path marker (end of path)
+	PathTagTransform  uint8 = 0x20
+	PathTagStyle      uint8 = 0x40
+)
+const (
+	TileWidth  = 16
+	TileHeight = 16
+)
+    Tile dimensions (matching Vello TILE_WIDTH/TILE_HEIGHT).
+
+const BlendStackSplit = 4
+    BlendStackSplit is the number of clip levels stored in local registers
+    before spilling to the blend_spill SSBO.
+
+const CmdStartOffset = 1
+    CmdStartOffset is the word offset where commands begin (after blend_offset).
+
+const PixelsPerThread = 4
+    PixelsPerThread is the number of pixels each fine rasterizer thread handles.
+    Matches Vello's PIXELS_PER_THREAD constant. With workgroup_size(4, 16, 1),
+    each of the 64 threads processes 4 consecutive horizontal pixels, covering
+    the full 16x16 tile (4 threads x 4 pixels = 16 columns, 16 rows).
+
+
+TYPES
+
+type BumpAllocators struct {
+	Lines     uint32
+	SegCounts uint32
+	Segments  uint32
+}
+    BumpAllocators matches vello_encoding::BumpAllocators (subset).
+
+type ClipInp struct {
+	// Ix is the draw object index.
+	Ix uint32
+	// PathIx encodes the path index for BeginClip (positive) or
+	// the bitwise complement of the draw object index for EndClip (negative).
+	PathIx int32
+}
+    ClipInp holds input data for clip matching (output of draw_leaf, input to
+    clip_leaf).
+
+type CmdColorData struct {
+	RGBA uint32 // Packed: R | (G << 8) | (B << 16) | (A << 24)
+}
+    CmdColorData is the payload for CmdColor. Encoded as 1 uint32 after the tag:
+    packed premultiplied RGBA.
+
+type CmdEndClipData struct {
+	Blend uint32
+	Alpha float32
+}
+    CmdEndClipData is the payload for CmdEndClip. Encoded as 2 uint32 after the
+    tag:
+
+        [0] = blend mode (0 = normal source-over)
+        [1] = alpha as float32 bits
+
+type CmdFillData struct {
+	SegCount uint32
+	EvenOdd  bool
+	SegIndex uint32
+	Backdrop int32
+}
+    CmdFillData is the payload for CmdFill. Encoded as 3 uint32 after the tag:
+
+        [0] = (segCount << 1) | evenOddFlag
+        [1] = segIndex (into PathSegment buffer)
+        [2] = backdrop (winding at left edge, stored as uint32 bitcast of int32)
+
+type CoarseOutput struct {
+	// TilePTCLs contains one PTCL per tile (row-major, widthInTiles * heightInTiles).
+	TilePTCLs []*PTCL
+
+	// Paths contains per-path metadata (bbox in tiles, tile offset).
+	Paths []Path
+
+	// Tiles contains per-tile segment counts/indices and backdrops.
+	// This is a flat array; each path's tiles start at Paths[i].Tiles offset.
+	Tiles []Tile
+
+	// Segments contains clipped path segments from all paths.
+	Segments []PathSegment
+
+	// WidthInTiles is the tile grid width.
+	WidthInTiles int
+
+	// HeightInTiles is the tile grid height.
+	HeightInTiles int
+
+	// Has unexported fields.
+}
+    CoarseOutput holds the results of coarse rasterization.
+
+func CoarseRasterize(
+	scene *PackedScene,
+	drawMonoids []DrawMonoid,
+	info []uint32,
+	lines []LineSoup,
+	widthPx, heightPx int,
+) *CoarseOutput
+    CoarseRasterize performs the full coarse pipeline:
+     1. Tile allocation (assign tiles to each draw object based on path bbox)
+     2. Path stages (pathCount + pathTiling + backdrop) per path
+     3. PTCL generation (per-tile command lists in scene order)
+
+    This function combines stages 11-18 of the Vello pipeline into one CPU pass.
+    On GPU, these would be separate compute dispatches.
+
+    Parameters:
+      - scene: the packed scene encoding (draw tags, draw data, etc.)
+      - drawMonoids: exclusive prefix sum of DrawMonoids (one per draw object)
+      - info: extracted draw info buffer (packed RGBA colors at InfoOffset)
+      - lines: all LineSoup segments (PathIx indexes into paths)
+      - widthPx, heightPx: canvas size in pixels
+
+type CubicBezier struct {
+	P0, P1, P2, P3 [2]float32
+}
+    CubicBezier represents a cubic Bezier curve segment.
+
+type DrawMonoid struct {
+	PathIx      uint32 // Cumulative path index
+	ClipIx      uint32 // Cumulative clip index
+	SceneOffset uint32 // Cumulative offset into draw data (scene_size from tag)
+	InfoOffset  uint32 // Cumulative offset into info buffer (info_size from tag)
+}
+    DrawMonoid is the monoid for draw tag prefix sum.
+
+type ElementType uint8
+    ElementType distinguishes draw, clip-begin, and clip-end scene elements.
+
+const (
+	// ElementDraw is a solid color fill.
+	ElementDraw ElementType = iota
+
+	// ElementBeginClip pushes a clip layer with a clip path.
+	ElementBeginClip
+
+	// ElementEndClip pops the innermost clip layer.
+	ElementEndClip
+)
+type FillRule int
+    FillRule for winding number computation.
+
+const (
+	FillRuleNonZero FillRule = iota
+	FillRuleEvenOdd
+)
+type LineSoup struct {
+	PathIx uint32
+	P0     [2]float32 // Start point in pixel coordinates
+	P1     [2]float32 // End point in pixel coordinates
+}
+    LineSoup matches vello_encoding::LineSoup. Lines are stored in their
+    ORIGINAL direction (NOT pre-sorted by Y).
+
+func FlattenFill(cubics []CubicBezier) []LineSoup
+    FlattenFill flattens a sequence of cubic Bezier curves into line segments
+    using Vello's Euler Spiral based adaptive subdivision.
+
+func LineSoupFromVelloLine(p0, p1 [2]float32, isDown bool) LineSoup
+    LineSoupFromVelloLine converts a pre-sorted VelloLine back to original
+    LineSoup direction (unsorted, as Vello's flattener would emit).
+
+type PTCL struct {
+	Cmds []uint32 // Raw command stream (word 0 = blend_offset, words 1+ = commands)
+}
+    PTCL is a Per-Tile Command List. Commands are encoded as a flat stream of
+    uint32 words. The first word is reserved for the blend_offset (index into
+    the blend_spill buffer for deep clip levels). Commands start at word index
+    1.
+
+func NewPTCL() *PTCL
+    NewPTCL creates a new PTCL with initial capacity. The first word
+    (blend_offset) is initialized to 0.
+
+func (p *PTCL) BlendOffset() uint32
+    BlendOffset returns the blend spill offset stored in word 0.
+
+func (p *PTCL) ReadCmd(offset int) (tag uint32, nextOffset int)
+    ReadCmd reads a command at the given offset and returns the tag and next
+    offset. Returns CmdEnd and same offset if at end of stream.
+
+func (p *PTCL) ReadColorData(offset int) (CmdColorData, int)
+    ReadColorData reads CmdColor payload at the given offset. Returns the color
+    data and the offset past the payload.
+
+func (p *PTCL) ReadEndClipData(offset int) (CmdEndClipData, int)
+    ReadEndClipData reads CmdEndClip payload at the given offset. Returns the
+    end-clip data and the offset past the payload.
+
+func (p *PTCL) ReadFillData(offset int) (CmdFillData, int)
+    ReadFillData reads CmdFill payload at the given offset. Returns the fill
+    data and the offset past the payload.
+
+func (p *PTCL) SetBlendOffset(offset uint32)
+    SetBlendOffset sets the blend spill offset for this tile's PTCL. This value
+    is stored in word 0 and read by the fine rasterizer to locate spilled blend
+    stack entries in the blend_spill buffer.
+
+func (p *PTCL) WriteBeginClip()
+    WriteBeginClip writes a CmdBeginClip command (no payload).
+
+func (p *PTCL) WriteColor(rgba uint32)
+    WriteColor writes a CmdColor command. Payload: [packed premultiplied RGBA]
+
+func (p *PTCL) WriteEnd()
+    WriteEnd writes CmdEnd to terminate the list.
+
+func (p *PTCL) WriteEndClip(blend uint32, alpha float32)
+    WriteEndClip writes a CmdEndClip command. Payload: [blend mode,
+    alpha_as_float32_bits]
+
+func (p *PTCL) WriteFill(segCount uint32, evenOdd bool, segIndex uint32, backdrop int32)
+    WriteFill writes a CmdFill command. Payload: [(segCount << 1) | evenOdd,
+    segIndex, backdrop_as_uint32]
+
+func (p *PTCL) WriteSolid()
+    WriteSolid writes a CmdSolid command (no payload).
+
+type PackedScene struct {
+	Data   []uint32
+	Layout SceneLayout
+}
+    PackedScene holds the resolved scene: a flat buffer + layout.
+
+func PackScene(enc *SceneEncoding) *PackedScene
+    PackScene resolves a SceneEncoding into a flat PackedScene buffer.
+    This is our simplified version of Vello's resolve stage. The packed
+    buffer concatenates: pathTags (padded) | pathData | drawTags | drawData |
+    transforms | styles
+
+type Path struct {
+	BBox  [4]uint32 // Bounding box in TILE coordinates [x0, y0, x1, y1]
+	Tiles uint32    // Offset into the Tile array
+}
+    Path matches vello_encoding::Path.
+
+type PathDef struct {
+	Lines    []LineSoup
+	Color    [4]uint8 // RGBA (straight alpha)
+	FillRule FillRule
+}
+    PathDef defines a single path for multi-path rendering. Color is in straight
+    (non-premultiplied) RGBA format.
+
+type PathMonoid struct {
+	TransIx       uint32 // Cumulative transform index
+	PathSegIx     uint32 // Cumulative path segment count
+	PathSegOffset uint32 // Cumulative offset into path data (in uint32s)
+	StyleIx       uint32 // Cumulative style index
+	PathIx        uint32 // Cumulative path index
+}
+    PathMonoid is the monoid for path tag prefix sum. Each field accumulates
+    counts from the start of the path tag stream.
+
+type PathSegment struct {
+	Point0 [2]float32 // Tile-relative start point
+	Point1 [2]float32 // Tile-relative end point
+	YEdge  float32    // Y where segment touches x=0 (tile-relative), or 1e9
+}
+    PathSegment matches vello_encoding::PathSegment. Coordinates are
+    tile-relative.
+
+type Rasterizer struct {
+	// Has unexported fields.
+}
+    Rasterizer runs the complete Vello CPU rasterization pipeline.
+
+func NewRasterizer(width, height int) *Rasterizer
+    NewRasterizer creates a new rasterizer for the given canvas size.
+
+func (r *Rasterizer) Rasterize(lines []LineSoup, fillRule FillRule) []float32
+    Rasterize runs the full pipeline and returns per-pixel alpha values [0.0,
+    1.0]. The result is a flat array of width*height float32 values in row-major
+    order.
+
+func (r *Rasterizer) RasterizeScene(bgColor [4]uint8, paths []PathDef) *image.RGBA
+    RasterizeScene renders multiple paths with compositing onto a single image.
+    Paths are composited in order (painter's algorithm, back-to-front) using
+    premultiplied source-over blending. Each path is independently rasterized
+    through the full Vello pipeline, then composited onto the output. Returns
+    the final composited RGBA image.
+
+func (r *Rasterizer) RasterizeSceneDefPTCL(bgColor [4]uint8, elements []SceneElement) *image.RGBA
+    RasterizeSceneDefPTCL renders a scene defined by SceneElements (with clip
+    support) using the full Vello compute pipeline. This is the clip-aware
+    version of RasterizeScenePTCL.
+
+    SceneElements can include Draw, BeginClip, and EndClip operations.
+    BeginClip/EndClip pairs define clip regions: only content drawn between them
+    that falls inside the clip path is visible.
+
+func (r *Rasterizer) RasterizeScenePTCL(bgColor [4]uint8, paths []PathDef) *image.RGBA
+    RasterizeScenePTCL renders multiple paths using the full Vello compute
+    pipeline: scene encoding -> pathtag reduce/scan -> draw reduce/scan ->
+    flatten -> coarse -> fine PTCL.
+
+    The result should be pixel-identical (within rounding tolerance) to
+    RasterizeScene, which processes paths individually and composites in a
+    separate step.
+
+type SceneElement struct {
+	Type      ElementType
+	Lines     []LineSoup // Path geometry (for Draw and BeginClip)
+	Color     [4]uint8   // RGBA straight alpha (for Draw)
+	FillRule  FillRule   // Fill rule (for Draw)
+	BlendMode uint32     // Blend mode (for BeginClip; 0x8003 = simple clip)
+	Alpha     float32    // Group alpha (for BeginClip; [0.0, 1.0])
+}
+    SceneElement describes a single element in a scene with clip support.
+    It replaces PathDef for scenes that use clip layers.
+
+    For ElementDraw: Lines + Color + FillRule are used. For ElementBeginClip:
+    Lines + BlendMode + Alpha are used. For ElementEndClip: no fields are needed
+    (the match is done by clip_leaf).
+
+type SceneEncoding struct {
+	// PathTags contains packed path commands (4 tags per uint32).
+	// Tags: LineToF32=0x9, Path=0x10, Transform=0x20, Style=0x40.
+	PathTags []uint32
+
+	// PathData contains path coordinates as float32 bits (via math.Float32bits).
+	PathData []uint32
+
+	// DrawTags contains draw commands (one uint32 per draw object).
+	// DrawTagColor=0x44, DrawTagBeginClip=0x9, DrawTagEndClip=0x21.
+	DrawTags []uint32
+
+	// DrawData contains draw parameters (e.g., packed RGBA for colors).
+	DrawData []uint32
+
+	// Transforms contains affine transforms (6 float32 per transform).
+	Transforms []float32
+
+	// Styles contains fill/stroke style flags.
+	// For fills: [flags_u32] where bit 0 = fill(0)/stroke(1).
+	Styles []uint32
+
+	// NumPaths is the number of paths in the scene.
+	NumPaths uint32
+
+	// NumDrawObjects is the number of draw commands.
+	NumDrawObjects uint32
+
+	// NumClips is the number of clip operations.
+	NumClips uint32
+}
+    SceneEncoding holds the encoded scene in flat buffers. This is a simplified
+    version of Vello's Encoding struct, focused on solid fills without
+    gradients/images/glyphs.
+
+func EncodeScene(paths []PathDef) *SceneEncoding
+    EncodeScene converts a list of PathDefs into a SceneEncoding. Each PathDef
+    becomes: TRANSFORM tag + STYLE tag + line segments + PATH marker. Each
+    PathDef also generates a DrawTagColor draw object.
+
+func EncodeSceneDef(elements []SceneElement) *SceneEncoding
+    EncodeSceneDef converts a list of SceneElements (with clip support) into a
+    SceneEncoding. This extends EncodeScene to handle BeginClip/EndClip elements
+    alongside Draw elements.
+
+    NumClips counts the total number of BeginClip + EndClip elements.
+
+type SceneLayout struct {
+	NumDrawObjects uint32
+	NumPaths       uint32
+	NumClips       uint32
+	PathTagBase    uint32 // Offset (in uint32s) to path tags
+	PathDataBase   uint32 // Offset to path data
+	DrawTagBase    uint32 // Offset to draw tags
+	DrawDataBase   uint32 // Offset to draw data
+	TransformBase  uint32 // Offset to transforms (in uint32s, float32 stored via Float32bits)
+	StyleBase      uint32 // Offset to styles
+}
+    SceneLayout describes offsets into the packed scene buffer.
+
+type SegmentCount struct {
+	LineIx uint32 // Index into LineSoup array
+	Counts uint32 // (seg_within_slice << 16) | seg_within_line
+}
+    SegmentCount matches vello_encoding::SegmentCount. Bridge between path_count
+    (stage 1) and path_tiling (stage 2).
+
+type Tile struct {
+	Backdrop         int32
+	SegmentCountOrIx uint32 // Count in path_count, inverted index after coarse
+}
+    Tile matches vello_encoding::Tile.
+

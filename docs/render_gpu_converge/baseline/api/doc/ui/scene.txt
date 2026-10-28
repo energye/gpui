@@ -1,0 +1,1015 @@
+package scene // import "github.com/energye/gpui/ui/scene"
+
+Package scene dynamic dirty layer.
+
+Frozen 2026-09-15: DirtyRect, DirtyCode, DirtyError, DirtyCodeOf, MaxDirtyRects,
+DirtyStats, DirtyLayer, NewDirtyLayer, NewSpriteDirtyLayer. Additive changes
+only.
+
+Dynamic world partial update ("move what is dirty"): the static scene stays
+retained, the dynamic layer records only the union of each moved sprite's old
+and new boxes, and the sprite layer updates independently of the static layer.
+More than MaxDirtyRects dirty boxes in one frame falls back to a full repaint
+and reports no per-rect list, mirroring render Scene (maxDirtyRects = 16): len
+> 16 clears rects, DirtyRects is nil, NeedsFullRedraw is true. Dirty boxes are
+clipped to the layer bounds; empty and non-finite inputs are ignored quietly,
+never an error. A nil *DirtyLayer never panics: marks are no-ops, getters park
+at zero.
+
+CONSTANTS
+
+const (
+	ProducerUnknown = ""
+	ProducerUI      = "ui"
+)
+    Producer identities (G1).
+
+const MaxDirtyRects = 16
+    MaxDirtyRects caps per-frame dirty boxes before a full repaint.
+
+
+FUNCTIONS
+
+func ClassifyDirty(muts []Mutation) (rasterIDs, compositorIDs []uint64)
+    ClassifyDirty splits layer ids into raster vs compositor-only using
+    mutations.
+
+func CollectCacheableKeys(pkt *FramePacket) ([]uint64, int)
+    CollectCacheableKeys returns every cacheable picture-layer key in pkt (main
+    + overlay bands) plus its count — the frame's live working set.
+
+func CollectLayerIDs(root Layer) []uint64
+    CollectLayerIDs walks the tree and returns all non-zero ids (test helper).
+
+func CountCacheablePictureLayers(pkt *FramePacket) int
+    CountCacheablePictureLayers walks pkt and counts picture layers that would
+    occupy a texture-cache entry (CacheKey != 0, main + overlay bands). Used to
+    size the texture cache to the frame's working set.
+
+func CountPictureOps(pkt *FramePacket) int
+    CountPictureOps sums display-list draw-command counts of every PictureLayer
+    in the packet. Replay-free: walks the tree only.
+
+func NextLayerID() uint64
+    NextLayerID returns a new non-zero layer id.
+
+func ResetLayerIDGen()
+    ResetLayerIDGen is for tests only.
+
+func ShareRoot(a, b *FramePacket) bool
+    ShareRoot reports whether a and b reference the same root pointer (COW
+    share).
+
+func Walk(l Layer, fn func(Layer)) int
+    Walk visits this layer then children (pre-order). Returns visit count.
+
+
+TYPES
+
+type BackdropFilterLayer struct {
+	ContainerLayer
+	// BlurRadius is Gaussian blur applied to the backdrop snapshot (0 = no blur).
+	BlurRadius float64
+	// Opacity is layer composite opacity (0..1; ≤0 treated as 1 at apply time).
+	Opacity float64
+}
+    BackdropFilterLayer snapshots the parent canvas, optionally blurs it,
+    then paints children on top (Flutter BackdropFilterLayer subset /
+    FF-BACKDROP). Not a clip-local product backdrop; composite uses full-surface
+    PushBackdropLayer.
+
+func NewBackdropFilterLayer(blurRadius, opacity float64) *BackdropFilterLayer
+    NewBackdropFilterLayer creates a backdrop filter layer.
+
+func (b *BackdropFilterLayer) Kind() string
+
+type BoundaryLayer struct {
+	OffsetLayer
+	// Source is an optional debug tag (e.g. "spinner").
+	Source string
+	// Shell marks a window-shell boundary. The
+	// retained textured composite partitions its per-frame skip/rerecord by
+	// this flag so a scrolling body proves the shell texture never re-records.
+	Shell bool
+}
+    BoundaryLayer is a repaint-boundary root: independent dirty / raster unit.
+
+func NewBoundaryLayer(dx, dy float64, source string) *BoundaryLayer
+    NewBoundaryLayer creates a repaint boundary layer at offset.
+
+func (b *BoundaryLayer) Kind() string
+
+type ClipRRectLayer struct {
+	ContainerLayer
+	X, Y, W, H float64
+	Radius     float64
+}
+    ClipRRectLayer clips children to a rounded rect (uniform corner radius,
+    logical px). Radius <= 0 is treated as a hard rect at composite/paint apply
+    time.
+
+func NewClipRRectLayer(x, y, w, h, radius float64) *ClipRRectLayer
+    NewClipRRectLayer creates a rounded-rect clip layer.
+
+func (c *ClipRRectLayer) Kind() string
+
+type ClipRectLayer struct {
+	ContainerLayer
+	X, Y, W, H float64
+}
+    ClipRectLayer clips children to a logical rect (local to parent).
+
+func NewClipRectLayer(x, y, w, h float64) *ClipRectLayer
+    NewClipRectLayer creates a clip layer.
+
+func (c *ClipRectLayer) Kind() string
+
+type ColorFilterLayer struct {
+	ContainerLayer
+	Matrix [20]float32
+	// CacheKey is the stable cross-frame identity of the originating render
+	// object (EnsureCacheID) — per-tree layer ids cannot key result caches.
+	CacheKey uint64
+}
+    ColorFilterLayer applies a 4×5 color matrix to descendants at composite
+    time (Flutter ColorFilterLayer subset). Matrix is row-major [20]float32
+    like render.ApplyColorMatrix. Identity leaves colors unchanged. Present-time
+    application is still limited (full-frame Present); this type retains the
+    filter intent in the scene tree.
+
+func NewColorFilterLayer(matrix [20]float32) *ColorFilterLayer
+    NewColorFilterLayer creates a color-filter layer. Pass grayscale/sepia/etc.
+    matrix.
+
+func NewGrayscaleColorFilterLayer() *ColorFilterLayer
+    NewGrayscaleColorFilterLayer builds a standard luminance grayscale matrix
+    layer.
+
+func (c *ColorFilterLayer) Kind() string
+
+func (c *ColorFilterLayer) SetCacheKey(k uint64)
+    SetCacheKey binds the stable render-object identity (layer_build wiring).
+
+type CompositeStats struct {
+	LayersVisited     int
+	PicturesDrawn     int
+	OpsReplayed       int
+	ClipsApplied      int
+	TransformsApplied int
+	FiltersApplied    int
+	// TexturesVisited counts texture layers walked; TexturesPainted counts the
+	// ones whose source drew pixels, TexturesMissed the ones that resolved to
+	// nothing (closed producer / no frame). Visited == Painted+Missed.
+	TexturesVisited int
+	TexturesPainted int
+	TexturesMissed  int
+}
+    CompositeStats counts layers visited / pictures drawn during
+    CompositeToContext.
+
+func CompositeFramePacket(pkt *FramePacket, dc *render.Context) CompositeStats
+    CompositeFramePacket composites pkt.Root then pkt.Overlay (if any).
+
+func CompositeToContext(root Layer, dc *render.Context) CompositeStats
+    CompositeToContext walks the retained layer tree in paint order and applies
+    each node onto dc (Flutter-like layer composite subset on a single canvas):
+
+        Offset / Boundary → Translate
+        ClipRect / ClipRRect → clip stack
+        Transform → TX/TY → Rotate → Scale (matches TransformLayer docs)
+        Picture → recording playback onto dc
+        Texture → the registered source paints its quad under dc's CTM
+        Opacity → PushLayer(Normal, opacity) isolation
+        ColorFilter / ImageFilter → isolate children, Apply*, composite back
+
+    This does not claim dirty-rect Present, BackdropFilter product, or full
+    Flutter multi-RT compositor. dc must be non-nil.
+
+type ContainerLayer struct {
+	// Has unexported fields.
+}
+    ContainerLayer holds ordered children.
+
+func NewContainerLayer() *ContainerLayer
+    NewContainerLayer creates an empty container.
+
+func (c *ContainerLayer) Add(child Layer)
+    Add appends a child layer.
+
+func (c *ContainerLayer) Children() []Layer
+
+func (c *ContainerLayer) Kind() string
+
+func (c *ContainerLayer) LayerID() uint64
+
+type DirtyCode string
+    DirtyCode classifies a dirty-layer construction failure.
+
+const (
+	// DirtyCodeInvalidArg reports an empty, zero-size, or non-finite argument.
+	DirtyCodeInvalidArg DirtyCode = "invalid-arg"
+)
+func DirtyCodeOf(err error) DirtyCode
+    DirtyCodeOf classifies err: the DirtyCode of a *DirtyError, or "" for nil
+    and foreign errors.
+
+type DirtyError struct {
+	Code DirtyCode
+	Op   string
+	ID   string
+}
+    DirtyError is the ui/scene dirty-layer error: what kind, which operation.
+
+func (e *DirtyError) Error() string
+    Error renders `op "id": code`.
+
+type DirtyLayer struct {
+	// Has unexported fields.
+}
+    DirtyLayer is one dynamic repaint unit: a bounded rect list plus a
+    full-repaint fallback. Sprite layers (NewSpriteDirtyLayer) update
+    independently of static layers: the caller marks only moved sprites and
+    never touches the static layer, so a still background keeps zero dirty boxes
+    while the car moves. Implements Layer without touching the retained picture
+    / boundary cache path.
+
+func NewDirtyLayer(x, y, w, h float64) (*DirtyLayer, error)
+    NewDirtyLayer builds a dynamic layer over bounds (x,y,w,h). Non-finite
+    coordinates or W <= 0 or H <= 0 return invalid-arg.
+
+func NewSpriteDirtyLayer(x, y, w, h float64) (*DirtyLayer, error)
+    NewSpriteDirtyLayer builds the independent sprite update layer. Same
+    validation as NewDirtyLayer; Kind reports "dirty_sprite".
+
+func (l *DirtyLayer) Add(child Layer)
+    Add appends a child layer.
+
+func (l *DirtyLayer) Bounds() DirtyRect
+    Bounds returns the layer bounds.
+
+func (l *DirtyLayer) Children() []Layer
+    Children returns child layers in paint order.
+
+func (l *DirtyLayer) Clear()
+    Clear ends the frame: records accounting, then resets rects and full.
+    Every Clear counts one frame, including still frames with zero boxes.
+
+func (l *DirtyLayer) Coverage() float64
+    Coverage returns DirtyArea over bounds area (0 when full or nil). Observed
+    only; it never forces a fallback by itself.
+
+func (l *DirtyLayer) DirtyArea() float64
+    DirtyArea sums kept box areas (0 when full).
+
+func (l *DirtyLayer) DirtyCount() int
+    DirtyCount returns kept dirty boxes (0 when full or nil).
+
+func (l *DirtyLayer) DirtyRects() []DirtyRect
+    DirtyRects returns a copy of the kept boxes, or nil when full. The caller
+    may mutate the result; the layer keeps no alias.
+
+func (l *DirtyLayer) IsSprite() bool
+    IsSprite reports whether this is the independent sprite layer.
+
+func (l *DirtyLayer) Kind() string
+    Kind is "dirty" for dynamic layers, "dirty_sprite" for sprite layers.
+
+func (l *DirtyLayer) LayerID() uint64
+    LayerID returns the stable dirty identity (0 on nil).
+
+func (l *DirtyLayer) MarkDirty(r DirtyRect) bool
+    MarkDirty clips r to the layer bounds and keeps it. Empty, non-finite,
+    or fully outside boxes are ignored quietly. True means one box was kept.
+    A nil layer or a full layer keeps nothing.
+
+func (l *DirtyLayer) MarkFull()
+    MarkFull forces a full repaint: rects are dropped, NeedsFull is true.
+
+func (l *DirtyLayer) MarkMoved(from, to DirtyRect) bool
+    MarkMoved dirties the union of a sprite's old and new boxes so both the
+    trail and the arrival repaint (chase-car semantics). Identical boxes
+    mean no motion and keep nothing. Either side empty means spawn/despawn:
+    the non-empty side alone is dirtied. Fully outside or non-finite input keeps
+    nothing. True means one box was kept.
+
+func (l *DirtyLayer) NeedsFull() bool
+    NeedsFull reports whether the frame must repaint everything.
+
+func (l *DirtyLayer) Stats() DirtyStats
+    Stats returns a copy of the frame accounting.
+
+type DirtyRect struct {
+	X, Y, W, H float64
+}
+    DirtyRect is one repaint box in layer-local coordinates (Y-down).
+
+func (r DirtyRect) Area() float64
+    Area returns W*H, or 0 for an empty rect.
+
+func (r DirtyRect) Intersect(o DirtyRect) (DirtyRect, bool)
+    Intersect returns the overlap box, or false when there is none.
+
+func (r DirtyRect) IsEmpty() bool
+    IsEmpty reports whether the rect has no area.
+
+func (r DirtyRect) Union(o DirtyRect) DirtyRect
+    Union returns the smallest box holding both. Empty side is ignored.
+
+type DirtyStats struct {
+	Frames        int
+	TotalRects    int
+	FullFallbacks int
+	MaxRects      int
+}
+    DirtyStats reports per-layer frame accounting. Frames counts Clear calls,
+    TotalRects sums kept dirty boxes over non-full frames, FullFallbacks counts
+    frames that fell back to full repaint, MaxRects is the largest kept count.
+
+type FilterResultCache struct {
+	// Has unexported fields.
+}
+    FilterResultCache is owned by the composite pass; all methods run on the
+    raster thread.
+
+func NewFilterResultCache() *FilterResultCache
+
+func (c *FilterResultCache) BeginFrame()
+    BeginFrame ages the cache; entries unused for 240 frames are dropped (they
+    hold CPU pixmaps + GPU image-cache slots, so stale leaves must not linger).
+
+func (c *FilterResultCache) Clear()
+
+type FramePacket struct {
+	FrameID uint64
+	DPR     float64
+	// Width/Height are logical viewport size.
+	Width, Height float64
+
+	// Root is the main-band layer tree (shared / COW).
+	Root Layer
+	// Overlay is the overlay-band root (may be nil). Reserved F13.
+	Overlay Layer
+
+	// Mutations are this frame's deltas (optional if DirtyLayerIDs is enough).
+	Mutations []Mutation
+
+	// DirtyLayerIDs must re-raster (picture/boundary content).
+	DirtyLayerIDs []uint64
+	// OverlayDirtyLayerIDs is the overlay-band portion of the frame's dirty
+	// set (F13). Kept separate so consumers can assert "opening an overlay
+	// dirtied only the overlay band" — main-band ids stay in DirtyLayerIDs.
+	OverlayDirtyLayerIDs []uint64
+	// CompositorDirtyIDs only need attribute re-composite (opacity/offset).
+	CompositorDirtyIDs []uint64
+
+	// Generation is a monotonic producer stamp (not a deep clone id).
+	Generation uint64
+
+	// Sealed marks EndFrame (G3): BuildPacket seals the main band.
+	// True = handed-off read-only (overlay tail excepted, see above).
+	Sealed bool
+	// OverlaySealed marks the overlay tail done: AttachToPacket ran once.
+	// A second attach is refused (returns false) — double-attach used to
+	// silently duplicate overlay dirties. Copied by CloneShallow.
+	OverlaySealed bool
+	// Producer names the building thread (G1 platform-line split).
+	// "ui" = interface thread; "" = unknown (pre-T1 packets in tests).
+	Producer string
+
+	// Per-frame four stamps (G10, UnixNano): build begin/end are stamped
+	// by ui/rendering at build time; raster begin/end by the raster thread
+	// around draw+present (T2 wires the raster pair; zero until then).
+	BuildBeginNs  int64
+	BuildEndNs    int64
+	RasterBeginNs int64
+	RasterEndNs   int64
+
+	// PostFrameHooks run after present (G12 secondary-callback slot).
+	// Registered pre-Seal on the UI thread; executed on the raster thread.
+	// Copied (not shared) by CloneShallow like the dirty slices.
+	PostFrameHooks []func(frameID uint64)
+
+	// RetainedImages pins every ImageBuf referenced by display-list
+	// OpDrawImage ops until the packet is dropped after present (D15).
+	// The ops hold the same pointers (GC liveness), but the explicit list
+	// is the audit trail for "what must survive this frame" and keeps
+	// shared/disowned buffers alive after the tree drops them (image
+	// replace clears the node while the packet is still in flight).
+	// Collected at build (BuildPacket) and overlay attach; carried by
+	// CloneShallow. Nil = no image content (zero cost).
+	RetainedImages []*render.ImageBuf
+}
+    FramePacket is the cross-thread frame description (UI → Raster). Root layers
+    are shared by pointer (no deep copy of the tree).
+
+    After Seal, the UI thread must not mutate the shared Root tree in place
+    nor the packet slices in place — derivatives go through CloneShallow.
+    Overlay attach (overlay.State.AttachToPacket) is the documented EndFrame
+    tail: it fills Overlay/OverlayDirtyLayerIDs before the handoff to raster.
+    After the handoff, no mutation at all; the raster thread only reads.
+
+func (p *FramePacket) AddPostFrameHook(fn func(frameID uint64)) bool
+    AddPostFrameHook registers a G12 hook. Must be called pre-Seal; returns
+    false (no-op) when sealed or fn is nil.
+
+func (p *FramePacket) BuildMs() float64
+    BuildMs returns (BuildEnd-BuildBegin) in ms, or 0 when unstamped.
+
+func (p *FramePacket) CloneShallow() *FramePacket
+    CloneShallow shares Root/Overlay pointers and copies mutation/dirty slices.
+    This is the only supported "copy" path — never deep-clone the layer tree.
+
+func (p *FramePacket) IsSealed() bool
+    IsSealed reports the EndFrame seal (false on nil).
+
+func (p *FramePacket) MarkBuildBegin()
+    MarkBuildBegin stamps the build start (UI thread, UnixNano).
+
+func (p *FramePacket) MarkBuildEnd()
+    MarkBuildEnd stamps the build end (UI thread, UnixNano).
+
+func (p *FramePacket) MarkRasterBegin()
+    MarkRasterBegin stamps the raster start (raster thread, UnixNano).
+
+func (p *FramePacket) MarkRasterEnd()
+    MarkRasterEnd stamps the raster end (raster thread, UnixNano).
+
+func (p *FramePacket) RasterMs() float64
+    RasterMs returns (RasterEnd-RasterBegin) in ms, or 0 when unstamped.
+
+func (p *FramePacket) RetainImagesFrom(l Layer)
+    RetainImagesFrom collects the ImageBufs referenced by picture layers under
+    l into the packet (D15). Called at build for the main band and by overlay
+    attach for the overlay band (attached post-Seal, pre-handoff).
+
+func (p *FramePacket) Seal()
+    Seal marks EndFrame: the main band is handed off read-only (G3). Idempotent.
+    The overlay tail (AttachToPacket, once) is the only legal post-Seal
+    mutation; everything else must happen pre-Seal.
+
+type ImageFilterLayer struct {
+	ContainerLayer
+	// BlurRadius is the Gaussian blur sigma/radius in logical px (uniform).
+	BlurRadius float64
+	// CacheKey is the stable cross-frame identity of the originating render
+	// object (EnsureCacheID) — per-tree layer ids cannot key result caches.
+	CacheKey uint64
+}
+    ImageFilterLayer applies a blur (or future image filter) to descendants
+    (Flutter ImageFilterLayer subset — blur radius first). Radius <= 0 is a
+    no-op at apply time. Not a full BackdropFilterLayer (no live background
+    sampling).
+
+func NewImageFilterLayer(blurRadius float64) *ImageFilterLayer
+    NewImageFilterLayer creates an image-filter layer with uniform blur radius.
+
+func (i *ImageFilterLayer) Kind() string
+
+func (i *ImageFilterLayer) SetCacheKey(k uint64)
+    SetCacheKey binds the stable render-object identity (layer_build wiring).
+
+type Layer interface {
+	// LayerID is a stable identity for dirty sets (0 = anonymous / no dirty tracking).
+	LayerID() uint64
+	// Children returns child layers in paint order.
+	Children() []Layer
+	// Kind is a debug/type tag.
+	Kind() string
+}
+    Layer is a retained scene-graph node (Flutter Layer subset). Layers are
+    shared across frames when unchanged (COW / pointer reuse).
+
+func EnsureOverlayBand(overlay Layer) Layer
+    EnsureOverlayBand returns overlay if non-nil, else an empty container (F13
+    reserve).
+
+type LayerBand int
+    LayerBand selects main vs overlay stacking (F13).
+
+const (
+	// BandMain is the application retained tree.
+	BandMain LayerBand = iota
+	// BandOverlay is reserved for portals/modals above main (may be empty).
+	BandOverlay
+)
+type LayerBuilder struct {
+
+	// DirtyBoundaryIDs collected when a boundary reports needs paint.
+	DirtyBoundaryIDs []uint64
+
+	// Has unexported fields.
+}
+    LayerBuilder constructs a retained layer tree from paint-time callbacks.
+    used by rendering.BuildLayerTree.
+
+func NewLayerBuilder() *LayerBuilder
+    NewLayerBuilder starts with a root container.
+
+func (b *LayerBuilder) AddPicture(needsRaster bool) *PictureLayer
+    AddPicture appends a picture layer to the current container.
+
+func (b *LayerBuilder) AddTexture(textureID uint64, x, y, w, h float64) *TextureLayer
+    AddTexture appends a texture layer (GPU-texture content by source id) to
+    the current container. The builder stays responsible for placement only:
+    the source is resolved at paint time on the raster thread, so nothing here
+    holds a reference to a mutable producer.
+
+func (b *LayerBuilder) BuildPacket(frameID uint64, dpr, w, h float64) *FramePacket
+    BuildPacket creates a FramePacket sharing the built root (no deep copy).
+
+func (b *LayerBuilder) PictureOpCount() int
+    PictureOpCount returns the display-list op total summed over every
+    PictureLayer under the built root during the last BuildPacket call.
+    It is gathered inside the packet-finalize walk that already collects dirty
+    picture layers, so readers pay no extra tree walk (E2: replaces a separate
+    counting pass over the finished packet). The overlay band is still an empty
+    reserve at BuildPacket time (attached later), so this equals the op total of
+    the fresh packet.
+
+func (b *LayerBuilder) Pop()
+    Pop removes the current layer from the stack (not the root).
+
+func (b *LayerBuilder) PushBackdropFilter(blurRadius, opacity float64) *BackdropFilterLayer
+    PushBackdropFilter pushes a BackdropFilterLayer (snapshot + optional blur).
+
+func (b *LayerBuilder) PushBoundary(dx, dy float64, source string, paintDirty bool) *BoundaryLayer
+    PushBoundary pushes a repaint boundary layer.
+
+func (b *LayerBuilder) PushClipRRect(x, y, w, h, radius float64) *ClipRRectLayer
+    PushClipRRect pushes a rounded-rect clip layer (uniform radius).
+
+func (b *LayerBuilder) PushClipRect(x, y, w, h float64) *ClipRectLayer
+    PushClipRect pushes a clip-rect layer.
+
+func (b *LayerBuilder) PushColorFilter(matrix [20]float32) *ColorFilterLayer
+    PushColorFilter pushes a ColorFilterLayer (4×5 matrix on descendants).
+
+func (b *LayerBuilder) PushGrayscaleFilter() *ColorFilterLayer
+    PushGrayscaleFilter pushes a ColorFilterLayer with a standard grayscale
+    matrix.
+
+func (b *LayerBuilder) PushImageFilter(blurRadius float64) *ImageFilterLayer
+    PushImageFilter pushes an ImageFilterLayer with uniform blur radius.
+
+func (b *LayerBuilder) PushOffset(dx, dy float64) *OffsetLayer
+    PushOffset pushes an offset layer.
+
+func (b *LayerBuilder) PushOpacity(opacity float64) *OpacityLayer
+    PushOpacity pushes an opacity layer.
+
+func (b *LayerBuilder) PushTransform(tx, ty, rotation, sx, sy float64) *TransformLayer
+    PushTransform pushes a 2D transform layer (translate / rotate / scale).
+
+func (b *LayerBuilder) Root() Layer
+    Root returns the built main-band root.
+
+type Mutation struct {
+	Kind    MutationKind
+	LayerID uint64
+	// Optional payload
+	Opacity float64
+	DX, DY  float64
+	// Transform payload (MutSetTransform)
+	Rotation float64
+	SX, SY   float64
+}
+    Mutation is a COW delta against a shared layer tree.
+
+type MutationKind int
+    MutationKind classifies FramePacket mutations (incremental updates).
+
+const (
+	// MutNone is unused.
+	MutNone MutationKind = iota
+	// MutReplacePicture marks a picture layer for re-record/raster.
+	MutReplacePicture
+	// MutSetOpacity updates opacity without re-raster of children pictures.
+	MutSetOpacity
+	// MutSetOffset updates offset (compositor-only).
+	MutSetOffset
+	// MutSetTransform updates transform attributes (compositor-only candidate).
+	MutSetTransform
+	// MutAddChild / MutRemoveChild are structural (rare).
+	MutAddChild
+	MutRemoveChild
+)
+type OffsetLayer struct {
+	ContainerLayer
+	DX, DY float64
+}
+    OffsetLayer applies a logical pixel offset to children (Y-down).
+
+func NewOffsetLayer(dx, dy float64) *OffsetLayer
+    NewOffsetLayer creates an offset layer.
+
+func (o *OffsetLayer) Kind() string
+
+type OpacityLayer struct {
+	ContainerLayer
+	Opacity float64 // 0..1
+}
+    OpacityLayer multiplies opacity for descendants (compositor-only candidate).
+
+func NewOpacityLayer(opacity float64) *OpacityLayer
+    NewOpacityLayer creates an opacity layer.
+
+func (o *OpacityLayer) Kind() string
+
+type PictureLayer struct {
+
+	// Recording is this layer's display list in layer-local coordinates at
+	// scale 1; the raster thread's offset and device scale compose onto it at
+	// playback. nil = no content was recorded.
+	Recording *recording.Recording
+	// NeedsRaster is true when the recording content must be re-drawn (dirty).
+	NeedsRaster bool
+	// CacheKey is a stable cross-frame identity for retained texture caching
+	// (boundary cacheID / RO identity). LayerID is per-tree (rebuilt every
+	// frame) so texture caches must key on CacheKey. 0 = not cacheable.
+	CacheKey uint64
+	// Has unexported fields.
+}
+    PictureLayer holds a retained display list.
+
+    The content is a recording the UI thread produced and sealed: replayable
+    onto a context without re-walking the render-object tree, and carrying no
+    live object, callback or widget reference. That is what keeps the raster
+    thread out of UI state — a layer hands over immutable data, never a function
+    that reads shared objects when it runs.
+
+    NeedsRaster still tracks dirty vs static reuse in RasterizeDirty (flag/stats
+    path — not dirty-rect Present).
+
+func NewPictureLayer() *PictureLayer
+    NewPictureLayer creates a picture layer.
+
+func (p *PictureLayer) Children() []Layer
+
+func (p *PictureLayer) Kind() string
+
+func (p *PictureLayer) LayerID() uint64
+
+func (p *PictureLayer) SetCacheKey(k uint64)
+    SetCacheKey binds a stable cross-frame identity (see CacheKey).
+
+func (p *PictureLayer) SetRecording(rec *recording.Recording)
+    SetRecording installs this layer's display list. It is a pure content
+    install and does not touch NeedsRaster: the builder decides dirt when it
+    creates the layer (LayerBuilder.AddPicture(needsRaster), driven by the
+    node's NeedsPaint), which is what lets a frame that re-records every node
+    still report only the changed ones as dirty. A caller installing content
+    outside a builder must mark NeedsRaster itself.
+
+type PictureTextureCache struct {
+
+	// FrameRerecord / FrameSkip are per-frame counters for boundary metrics
+	// (texture re-record = rerecord, cached blit = skip). Atomic: raster
+	// EndFrame resets them serialized with the composite below.
+	FrameRerecord atomic.Int64
+	FrameSkip     atomic.Int64
+	// Evictions is the cumulative count of entries dropped by the capacity
+	// LRU in evictForNew. Guarded by mu.
+	Evictions int64
+
+	// Has unexported fields.
+}
+    PictureTextureCache keeps offscreen GPU textures for PictureLayers across
+    frames.
+
+    Clean layers blit their cached texture (zero raster); dirty layers re-record
+    their display list into the texture via FlushGPUWithView (offscreen RTs
+    always LoadOpClear, so re-record replaces stale content). The composited
+    frame therefore contains only textured-quad draws → GPU blit-only path →
+    LoadOpLoad + per-rect scissor for the dirty layer rects.
+
+    Persistent double-buffered layer surfaces (skia / Flutter raster-thread
+    pattern): each entry owns TWO texture slots that are reused across frames.
+    Every re-record alternates the write slot, so a texture is never both
+    sampled (blit RESOURCE) and re-recorded (COLOR_TARGET) within the
+    same usage scope — wgpu rejects exclusive-usage conflicts inside one
+    render pass (observed as TXFLUSHERR "submit failed … conflicting usages
+    RESOURCE/COLOR_TARGET" whenever a re-record coalesced with a stashed blit of
+    the same texture). The other slot keeps serving blits while the written slot
+    is refreshed; slots are reallocated only when their size changes (resize
+    / recordLocal↔record switch), which keeps animated layers at zero GPU
+    allocations per frame (no RSS slope from per-frame churn). The released view
+    stays deferred a couple of frames so in-flight command buffers never see a
+    destroyed texture.
+
+    Textures are normally bounds-sized (recording content bounds + AA pad)
+    for the common pure-translate case, so a large grid of small layers stays
+    far below the GPU's texture budget; recordings without content bounds
+    (filters that report the whole canvas) fall back to full-window textures.
+    Each layer's display list is built once on the UI thread (render/recording)
+    and replayed here as an immutable object — the raster thread never touches
+    live render-tree state. Replay runs in the same layer-local coordinate
+    space the composite walk establishes (via translate/clip), then blits
+    back 1:1. Entries not used for a frame are evicted (LRU cap). Without GPU
+    (CreateOffscreenTexture returns nil) every operation degrades to a no-op and
+    callers fall back to direct vector replay — correctness never depends on the
+    cache.
+
+    Thread-safety (T3 pinned call sites, Flutter raster-thread pattern): the
+    cache draws only on the raster thread — CompositeFramePacketTextured (phase
+    1 record + phase 2 blit), record/recordLocal, blit, BeginFrame, allocEntry,
+    evictForNew all run serialized in the raster FrameJob. Frame-boundary
+    housekeeping is record-only from any thread: Resize stores a pending
+    size applied at the next raster BeginFrame, Clear stays mutex-guarded
+    with deferred releases for in-flight views. SetLiveKeys/EnsureCapacity
+    publish the frame working set; production caller is the raster job
+    (presentPacketTextured), tests call directly single-threaded. Like the GPU
+    resource cache, all map/state access is mutex-guarded; internal helpers
+    (evictForNew/releaseDeferred/drainDeferred) must only be called while the
+    caller already holds mu.
+
+func NewPictureTextureCache(dc *render.Context, max int) *PictureTextureCache
+    NewPictureTextureCache creates a cache bound to dc (logical size) with a
+    max-entry LRU cap. max <= 0 defaults to 64.
+
+func (c *PictureTextureCache) BeginFrame()
+    BeginFrame marks the start of a composite frame (raster thread via
+    CompositeFramePacketTextured): applies any pending Resize first so the whole
+    frame records/blits at one size, then increments the record frame counter
+    used by RecordedThisFrame and drains releases safe to execute now.
+
+func (c *PictureTextureCache) Bounds(id uint64) image.Rectangle
+    Bounds returns the last recorded geometry bounds for id.
+
+func (c *PictureTextureCache) BoundsMismatch(id uint64, b image.Rectangle) bool
+    BoundsMismatch reports whether the cached entry's recorded geometry no
+    longer matches the layer's live bounds. A match means the blit shows
+    what a re-record would; a mismatch (e.g. a resize the retained path never
+    re-recorded) must re-record instead of blitting stale content.
+
+    Only the SIZE (Dx/Dy) is compared, never the position: scrolling shifts
+    a band's layer-local origin while the margin-covered content stays valid
+    (repositioned blit, no re-record by design), whereas a resize changes the
+    size of every affected layer. Comparing positions would turn every small
+    scroll step into a re-record and kill the margin optimization.
+
+func (c *PictureTextureCache) Budget() int
+    Budget returns the pinned explicit budget (0 = automatic sizing).
+
+func (c *PictureTextureCache) BudgetRefusals() int64
+    BudgetRefusals reports cumulative EnsureCapacity growth refusals under
+    multi-window budget pressure. Lock-guarded (unlike the legacy bare Evictions
+    read — do not add new bare reads).
+
+func (c *PictureTextureCache) Clear()
+    Clear releases all cached textures (force frame / resize / cache drop).
+    Releases are deferred a couple of frames so in-flight command buffers that
+    reference the views are never left dangling.
+
+func (c *PictureTextureCache) ClearLocked()
+
+func (c *PictureTextureCache) Close()
+    Close releases all cached textures and executes every queued deferred
+    release immediately. Call after the raster loop drained with the GPU idle
+    (PipelineApp.Close waits via PresentTarget.WaitIdle first): after Close no
+    frames run, so BeginFrame never drains again — without this every entry and
+    queued release leaks until device death. Shares the deferredFrames hazard
+    discipline with drainDeferred: callers must ensure no submission still
+    references the views (loop stopped + WaitIdle), else destruction races
+    in-flight GPU reads. Idempotent; nil-safe.
+
+func (c *PictureTextureCache) DebugDumpEntries(tag string)
+    DebugDumpEntries logs every cache entry (id, size, offset) — C8 live-probe
+    diagnostics only, guarded by the caller.
+
+func (c *PictureTextureCache) DebugDumpEntryTexture(dc *render.Context, path string, id uint64)
+    DebugDumpEntryTexture renders one cache entry's current content into a PNG
+    (C8 live-probe diagnostics).
+
+func (c *PictureTextureCache) DebugEntryIDs() []uint64
+    DebugEntryIDs lists live cache entry ids for diagnostics (accept-window
+    texture dumps). Order undefined.
+
+func (c *PictureTextureCache) DebugEntrySlot(id uint64) (w, h int, ok bool)
+    DebugEntrySlot exposes one entry's current content slot dimensions for
+    GPU-pixel diagnostics (gpupixel test package). Returns ok=false when the
+    entry is absent.
+
+func (c *PictureTextureCache) EndFrame()
+    EndFrame resets per-frame counters and the usedNow scratch set. It does NOT
+    evict: usedNow is filled by the raster thread's composite of the *previous*
+    job, so any UI-side eviction decision races the raster thread (whenever
+    UI runs ahead, every entry looks unused → full-band re-record bursts,
+    measured in C4). Eviction is handled solely by the capacity LRU in
+    evictForNew (oldest lastUse wins), which consults the stamp clock advanced
+    by BeginFrame.
+
+func (c *PictureTextureCache) EnsureCapacity(n int)
+    EnsureCapacity grows the LRU cap to cover n entries (never shrinks — a
+    shrink mid-run would thrash evict→record every frame). Callers size the cap
+    from the current frame's cacheable picture-layer count so scenes with more
+    layers than the default 64 keep their whole working set cached instead of
+    cycling through the LRU (each eviction forces an offscreen re-record).
+
+    SetLiveKeys records the current frame's cache keys so evictForNew never
+    picks a live-tree layer as its victim (a live layer not yet blitted this
+    frame would otherwise look "old" during phase 1 and get evicted mid-frame,
+    forcing a re-record next frame).
+
+func (c *PictureTextureCache) EvictionCount() int64
+    EvictionCount reports cumulative LRU evictions. Lock-guarded: read this,
+    not the bare Evictions field, off the owner thread.
+
+func (c *PictureTextureCache) Has(id uint64) bool
+    Has reports whether a live texture entry exists for id.
+
+func (c *PictureTextureCache) Len() int
+    Len returns the number of live texture entries (tests).
+
+func (c *PictureTextureCache) OversizedBounds(id uint64) image.Rectangle
+    OversizedBounds returns the bounds refused this frame for exceeding the
+    surface (empty when the layer cached normally).
+
+func (c *PictureTextureCache) PrevBounds(id uint64) image.Rectangle
+    PrevBounds returns the geometry bounds from before this frame's re-record
+    (empty unless recorded in the current frame). Damage for a re-recorded
+    layer is the union of previous and current bounds so shrunk-away pixels are
+    repainted (Flutter damage semantics).
+
+func (c *PictureTextureCache) PurgeEvictable() (freed int64)
+    PurgeEvictable drops every cached layer texture that is neither in-flight
+    this frame (usedNow) nor live in the current tree (liveKeys) for the
+    texture-OOM recovery round. Releases are deferred so in-flight submissions
+    keep sampling valid views; misses replay vector content on next blit.
+
+func (c *PictureTextureCache) RecordForTest(id uint64, rec *recording.Recording) (image.Rectangle, bool)
+    RecordForTest is the exported record for unit tests (no-GPU degrades).
+
+func (c *PictureTextureCache) RecordedThisFrame(id uint64) bool
+    RecordedThisFrame reports whether id was re-recorded in the current frame
+    (recordedIn matches the current recordFrame). Used to emit damage rects for
+    exactly the layers whose textures were refreshed — blits do NOT count.
+
+func (c *PictureTextureCache) RefusedBounds(id uint64) image.Rectangle
+    RefusedBounds returns the damage bounds noted for an admission-refused layer
+    this frame (empty when the layer recorded normally).
+
+func (c *PictureTextureCache) RerecordByKeySnapshot() map[uint64]map[string]int64
+    RerecordByKeySnapshot returns a copy of the per-key re-record attribution
+    (key → cause → cumulative count), for window-side per-grid gates.
+
+func (c *PictureTextureCache) Resize(w, h int)
+    Resize records the full-window texture budget (record-only, T3). Any thread
+    may call; the size is applied at the next raster BeginFrame before any
+    record/blit of that frame. Entries are NOT cleared: record/ recordLocal
+    rebuild a view when its recorded size no longer matches, so unchanged layers
+    keep their textures across a resize and only affected layers re-record.
+    Record-only keeps dimensions from changing mid-frame under a concurrent
+    raster record.
+
+func (c *PictureTextureCache) SetBudget(n int)
+    SetBudget pins an explicit entry budget. 0 = automatic (default: the
+    composite path sizes the LRU to the live working set via EnsureCapacity).
+    When set, the pinned value REPLACES the automatic cap for eviction purposes.
+
+    Correctness note: evictForNew never victimizes an entry used in the current
+    frame, so a budget BELOW the per-frame live working set cannot bind — entry
+    count floats up to the per-frame distinct-key count instead (same-frame
+    eviction would thrash re-records). A budget ABOVE the working set bounds
+    the cross-frame accumulation (scroll-in/out churn) and is the honest stress
+    configuration. Either way correctness never depends on the cache: an evicted
+    layer re-records (vector replay fallback).
+
+func (c *PictureTextureCache) SetLiveKeys(keys []uint64)
+    SetLiveKeys publishes the frame's live cache-key set (raster job, before
+    phase 1 record runs). Guarded by mu like every other cross-thread field.
+
+type RasterStats struct {
+	// RasterLayerCount is how many layers were re-rasterized this frame.
+	RasterLayerCount int
+	// SkippedLayerCount is picture/boundary layers reused without re-raster.
+	SkippedLayerCount int
+	// DirtyIDs is the dirty set considered.
+	DirtyIDs []uint64
+	// ReplayedOps is the total display-list draw-command count of dirty
+	// layers when a Context is provided.
+	ReplayedOps int
+}
+    RasterStats records per-frame dirty-layer raster work (F02).
+
+func RasterizeDirty(pkt *FramePacket) RasterStats
+    RasterizeDirty walks the packet layer tree and counts re-raster vs skip.
+    A PictureLayer or BoundaryLayer is re-rasterized iff its id is in
+    DirtyLayerIDs (or NeedsRaster for pictures). Clean layers are "static
+    reuse".
+
+    Recordings are immutable once built on the UI thread; replay happens only
+    for layers in the dirty set. This is not dirty-rect Present.
+
+func RasterizeDirtyToContext(pkt *FramePacket, dc *render.Context) RasterStats
+    RasterizeDirtyToContext is RasterizeDirty plus optional replay of dirty
+    PictureLayers that hold a non-empty recording onto dc. Clean pictures skip
+    replay (static reuse of prior surface content is the caller's responsibility
+    when dc is used only for dirty layers). dc may be nil for stats-only.
+
+type TextureLayer struct {
+
+	// TextureID is render.RegisterTextureSource's id for the source to paint
+	// (0 = no source: paints nothing).
+	TextureID uint64
+	// X, Y, W, H place the quad in the parent's coordinates, like a picture's
+	// geometry — the ancestor offset/clip/transform chain still applies.
+	X, Y, W, H float64
+	// DrawIndex tells the source which of its views this layer shows, in paint
+	// order (0 = first). One route feeding a main view plus a picture-in-picture
+	// overlay emits one layer per view so "did the second view draw" stays
+	// observable per view instead of collapsed into one counter.
+	DrawIndex int
+
+	// Has unexported fields.
+}
+    TextureLayer paints GPU texture content that no display list can describe
+    (Flutter TextureLayer subset). The layer carries only an id: the producer (a
+    video route, registered in render's texture registry) owns the texture and
+    rewrites it in place, and the raster thread resolves id → source at paint
+    time. A layer whose id no longer resolves paints nothing and reports a miss.
+
+    Like Flutter's, a texture layer is never raster-cached and repaints every
+    frame it is in: its content can change without the UI tree changing at all,
+    so the honest damage model is "paint, then damage what was painted" — a
+    cached blit of a texture the producer already rewrote would show a stale
+    frame.
+
+func NewTextureLayer(textureID uint64, x, y, w, h float64) *TextureLayer
+    NewTextureLayer creates a texture layer for the given source id and rect.
+
+func (t *TextureLayer) Children() []Layer
+
+func (t *TextureLayer) Kind() string
+
+func (t *TextureLayer) LayerID() uint64
+
+func (t *TextureLayer) Rect() (x, y, w, h float64)
+    Rect returns the layer's quad in parent coordinates (logical px).
+
+type TexturedStats struct {
+	RasterLayerCount  int
+	SkippedLayerCount int
+	ReplayedOps       int
+	// RejectedUnsealed marks a refused composite: the packet never sealed
+	// (R2-1 — every BuildPacket seals, so this only fires on hand-rolled
+	// packets bypassing the builders). Fail closed with zero counts.
+	RejectedUnsealed bool
+	// FiltersApplied counts color/image filter layers applied this frame
+	FiltersApplied int
+	// ShellSkip / ShellRerecord are the shell-partition portions of this
+	// frame's blits / texture re-records.
+	ShellSkip     int64
+	ShellRerecord int64
+	// TexturesPainted counts texture layers whose source drew pixels this
+	// frame; TexturesMissed counts the ones that resolved to nothing
+	// (unregistered producer / no device). A retained video window with
+	// painted==0 and visited>0 is a hole, not a skip.
+	TexturesPainted int
+	TexturesMissed  int
+	// DamageRects are the dirty layer geometry rects (logical coords) for
+	// PresentFrameDamageRects / TrackDamageRect.
+	DamageRects []image.Rectangle
+}
+    TexturedStats mirrors RasterStats for the textured composite path.
+
+func CompositeFramePacketTextured(pkt *FramePacket, dc *render.Context, tex *PictureTextureCache) TexturedStats
+    CompositeFramePacketTextured composites a packet via the retained texture
+    path: dirty PictureLayers re-record into cached offscreen textures (phase 1,
+    same CTM/clip walk as composite so picture ops land correctly), then the
+    tree is composited with texture blits only (phase 2) so the frame is GPU
+    blit-only and damage rects (dirty layer bounds) drive LoadOpLoad scissor.
+
+    Layers without a cacheable texture (CacheKey==0, no GPU, filter/backdrop
+    layers) fall back to direct vector replay in phase 2 — the frame may
+    then leave blit-only (honest degradation: MSAA full clear, content still
+    correct).
+
+type TransformLayer struct {
+	ContainerLayer
+	TX, TY   float64 // translation (logical px, Y-down)
+	Rotation float64 // radians, clockwise in Y-down canvas matches render.Rotate
+	SX, SY   float64 // scale; treat 0 as 1 when applying
+	// CX, CY is the rotation/scale pivot in layer-local coordinates (the
+	// transformed node's content center). Zero values mean the layer origin —
+	// callers that know the subtree size should always set the center so the
+	// vector paint path and the retained composite path rotate identically.
+	CX, CY float64
+}
+    TransformLayer applies a 2D similarity transform to children (Flutter
+    TransformLayer subset). Order when applied at paint/composite: translate
+    (TX,TY) → rotate about local origin → scale. SX/SY default to 1 when zero is
+    stored as "unset" — callers should set SX=SY=1 explicitly.
+
+func NewTransformLayer(tx, ty, rotation, sx, sy float64) *TransformLayer
+    NewTransformLayer creates a transform layer. Pass sx,sy=1 for pure
+    rotate/translate.
+
+func (t *TransformLayer) EffectiveScale() (sx, sy float64)
+    EffectiveScale returns SX,SY with 0 treated as 1.
+
+func (t *TransformLayer) Kind() string
+
+func (t *TransformLayer) SetPivot(cx, cy float64) *TransformLayer
+    SetPivot sets the rotation/scale pivot (subtree content center,
+    layer-local).
+

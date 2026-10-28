@@ -1,0 +1,539 @@
+package tilemap // import "github.com/energye/gpui/engine/tilemap"
+
+Package tilemap freezes the CPU-side tile math every 2.5D map feeds.
+
+Frozen 2026-09-15: Orientation, LayerKind, Tileset, Layer, Object, Tilemap,
+NewTilemap, AddLayer, AddObject, LayerIndex, At, CellToWorld, WorldToCell,
+CellBounds, ObjectsIn, IsSolidAt, NavCostAt, OccludedAt, AutoMaskAt,
+AutoVariant4, ParseTMX, Iso, NewIso, TileToWorld, WorldToTile, TileCenter,
+DiamondContains. Frozen 2026-09-15: Chunk, ChunkID, NewChunker, MaxChunks,
+ChunkOf, ChunkBounds, Needed, Load, Unload, Update, Visible, Loaded,
+IsLoaded, Reset, LoadedCount, ChunkCols, ChunkRows. The caller feeds camera
+VisibleWorldRect in as a core.Rect and draws the returned ids with the
+existing render draws. Additive changes only. Frozen 2026-09-15: Level,
+LevelNear, LevelFar, LOD, NewLOD, ChunkDist. The caller feeds the camera
+focus (VisibleWorldRect center as core.Vec2) and draws each chunk at its
+returned level. The LOD rule file format stays unfrozen (后冻): no file is read,
+thresholds come from NewLOD only. Additive changes only. Frozen 2026-10-04
+(S84): Large, LargeChunkW, LargeChunkH, MaxLargeTiles, DefaultMergePerFrame,
+NewLarge, NewLargeSized, Request, MergeBudget, Update, Needed, Visible, Loaded,
+Pending, IsLoaded, IsMissing, ChunkOf, ChunkBounds, ChunkCount, LoadedCount,
+PendingCount, Requests, Merges, Reset. Additive changes only. Geometry comes
+from Chunk; this file owns the loaded/pending sets and the per-frame merge
+budget. Objects ride the Tilemap list (ObjectsIn).
+
+The package draws nothing; the caller draws the returned cells and objects in
+order with the existing render draws. Only core numbers are used; render types
+convert once at the render boundary in engine/renderconv.
+
+Grid (orthogonal): cell (col,row) top-left is (col*TileW, row*TileH).
+Grid (isometric,斜45度): cell bounding-box top-left is ((col-row)*TileW/2,
+(col+row)*TileH/2), diamond center adds half a tile. WorldToCell floors to the
+owning cell; out-of-map reports ok=false.
+
+Layers: ground/decoration hold art GIDs, collision holds solid cells, navigation
+holds move costs, occlusion holds shade cells. GID 0 is empty and never solid,
+never a cost, never shade. Layer W/H always equals the map W/H; anything else is
+a core InvalidArg error.
+
+Objects:摆怪摆箱摆出生点. Bounds are pixel rects in the same world units as CellToWorld.
+ID must be > 0, Bounds must be finite with W/H >= 0.
+
+Auto tile (路沿自接, internal rule only): AutoMaskAt reads the 4-neighbour presence
+on one layer (N=1,E=2,S=4,W=8, out-of-map counts as empty), AutoVariant4 maps
+mask 0..15 to the variant index (identity today). The rule file format stays
+unfrozen (后冻): no file is read, the caller adds a GID base to the variant.
+
+TMX subset (认TMX子集,先冻): orientation orthogonal/isometric, map
+width/height/tilewidth/tileheight, tileset firstgid/name/tilecount/columns,
+layer name/width/height/data csv, objectgroup/object
+id/name/type/x/y/width/height, layer kind property (kind=ground|
+decoration|collision|navigation|occlusion, missing defaults to ground).
+Anything else (hexagonal/staggered, infinite chunks, non-csv encoding,
+ellipse/polygon/polyline/template objects) is a core Unsupported error, never a
+guessed map. Malformed XML/numbers/counts are core BadData.
+
+CONSTANTS
+
+const (
+	LargeChunkW = 32
+	LargeChunkH = 32
+)
+    LargeChunkW/H is the frozen V3 partition: 32x32 tiles per chunk.
+
+const DefaultMergePerFrame = 4
+    DefaultMergePerFrame caps one foreground merge so walking stays under the
+    per-frame budget (S84: streaming a frame costs at most 2ms).
+
+const MaxChunks = 1 << 20
+    MaxChunks caps one grid so a bad size fails fast instead of hanging the
+    Needed scan. Beyond it NewChunker reports OutOfMemory, never a guess.
+
+const MaxLargeTiles = 1024 * 1024
+    MaxLargeTiles caps one large map: 1024x1024 = a million tiles. Beyond it
+    NewLarge reports OutOfMemory, never a half index.
+
+
+FUNCTIONS
+
+func AutoVariant4(mask int) (variant int, ok bool)
+    AutoVariant4 maps a 4-bit edge mask 0..15 to the art variant index. Identity
+    today (variant == mask); the rule file stays unfrozen so no file is read
+    here. Out-of-range masks report ok=false.
+
+func ChunkDist(focus core.Vec2, bounds core.Rect) (float64, bool)
+    ChunkDist measures focus to bounds: 0 inside or edge-touching, else the
+    Euclidean gap to the nearest edge. Bad or empty inputs report ok=false.
+
+
+TYPES
+
+type Chunk struct {
+	// Has unexported fields.
+}
+    Chunk cuts a map into chunkW x chunkH tile blocks and tracks which
+    blocks are loaded. It draws nothing; the caller draws Loaded chunks that
+    intersect the camera view (see Visible) with the existing render draws.
+    Only core numbers are used; the view is the camera VisibleWorldRect fed in
+    as a core.Rect, so this package never imports the camera package.
+
+func NewChunker(orient Orientation, mapW, mapH int, tileW, tileH float64, chunkW, chunkH int) (Chunk, error)
+    NewChunker builds a partition over a mapW x mapH tile map with the given
+    tile size and chunk size (in tiles). Chunks bigger than the map collapse
+    to one chunk; the tail row/column keeps the leftover tiles. Bad sizes are
+    InvalidArg, a grid beyond MaxChunks is OutOfMemory.
+
+func (c *Chunk) ChunkBounds(id ChunkID) (core.Rect, bool)
+    ChunkBounds returns the world box a chunk covers: orthogonal tile block,
+    isometric union of member diamond boxes (conservative, neighbours overlap by
+    design). Unknown ids report ok=false with zero.
+
+func (c *Chunk) ChunkCols() int
+    ChunkCols returns how many chunks span the map width.
+
+func (c *Chunk) ChunkH() int
+    ChunkH returns the chunk height in tiles.
+
+func (c *Chunk) ChunkOf(col, row int) (ChunkID, bool)
+    ChunkOf maps one tile to its chunk. OOB tiles report ok=false.
+
+func (c *Chunk) ChunkRows() int
+    ChunkRows returns how many chunks span the map height.
+
+func (c *Chunk) ChunkW() int
+    ChunkW returns the chunk width in tiles.
+
+func (c *Chunk) H() int
+    H returns the map height in tiles.
+
+func (c *Chunk) IsLoaded(id ChunkID) bool
+    IsLoaded reports whether id is loaded. Unknown ids are false, nil grids are
+    never loaded, never panic.
+
+func (c *Chunk) Load(view core.Rect) []ChunkID
+    Load marks Needed(view) loaded and returns the newly loaded chunks (sorted,
+    nil when nothing new). Invalid views change nothing.
+
+func (c *Chunk) Loaded() []ChunkID
+    Loaded returns the loaded chunk ids, sorted. A fresh slice every call:
+    writing it cannot alias the grid.
+
+func (c *Chunk) LoadedCount() int
+    LoadedCount returns how many chunks are loaded now.
+
+func (c *Chunk) Needed(view core.Rect) []ChunkID
+    Needed lists chunks touching view, sorted by (CY,CX) so replays match
+    bit for bit. Edge-touching chunks stay out (positive-area overlap only).
+    Bad or empty views need nothing, never panic.
+
+func (c *Chunk) Orient() Orientation
+    Orient returns the grid math selector.
+
+func (c *Chunk) Reset()
+    Reset unloads everything. Nil grids stay silent.
+
+func (c *Chunk) TileH() float64
+    TileH returns the tile height in world units.
+
+func (c *Chunk) TileW() float64
+    TileW returns the tile width in world units.
+
+func (c *Chunk) Unload(view core.Rect) []ChunkID
+    Unload drops loaded chunks outside view and returns the dropped ones
+    (sorted, nil when nothing dropped). An empty (but finite) view sees nothing,
+    so everything unloads; an invalid view changes nothing.
+
+func (c *Chunk) Update(view core.Rect) (loaded, unloaded []ChunkID)
+    Update loads what view needs and unloads the rest in one step, so a
+    teleporting camera (跳跃镜头) never leaves stale chunks behind and never grows:
+    afterwards Loaded == Needed(view). Invalid views change nothing and return
+    nils.
+
+func (c *Chunk) Visible(view core.Rect) []ChunkID
+    Visible lists loaded chunks touching view: the draw list (镜头外不画). It never
+    mutates the loaded set. Sorted, nil when nothing to draw.
+
+func (c *Chunk) W() int
+    W returns the map width in tiles.
+
+type ChunkID struct {
+	CX int
+	CY int
+}
+    ChunkID names one partition: CX/CY count chunks, not tiles. Chunk (0,0)
+    covers tiles col [0,chunkW), row [0,chunkH).
+
+type Iso struct {
+	// Has unexported fields.
+}
+    Iso is the 斜45度 helper: tile (col,row) bounding-box top-left is
+    ((col-row)*TileW/2, (col+row)*TileH/2), diamond center adds half a tile.
+    It draws nothing; TileToWorld feeds camera/projector math.
+
+func NewIso(tileW, tileH float64) (Iso, error)
+    NewIso builds the projector. Tiles must be finite and > 0.
+
+func (iso Iso) DiamondContains(col, row int, world core.Vec2) bool
+    DiamondContains reports whether world sits inside the (col,row) diamond
+    (edges count as inside). Bad input is always false, never panics.
+
+func (iso Iso) TileBounds(col, row int) (core.Rect, bool)
+    TileBounds returns the diamond bounding box (W=tileW,H=tileH).
+
+func (iso Iso) TileCenter(col, row int) (core.Vec2, bool)
+    TileCenter returns the diamond center for (col,row).
+
+func (iso Iso) TileH() float64
+    TileH returns the tile height.
+
+func (iso Iso) TileToWorld(col, row int) (core.Vec2, bool)
+    TileToWorld returns the diamond bounding-box top-left for (col,row).
+    Any integer cell maps fine; NaN can only come from overflow, which reports
+    ok=false with zero instead.
+
+func (iso Iso) TileW() float64
+    TileW returns the tile width.
+
+func (iso Iso) WorldToTile(world core.Vec2) (col, row int, ok bool)
+    WorldToTile floors world to the diamond that contains it. Bounding
+    boxes overlap, so the inverse formula only seeds a 3x3 search around the
+    candidate; the diamond test picks the owner. Shared edges belong to two
+    diamonds and vertices to three: the candidate-first order above returns one
+    owner deterministically, centers always return their own tile. Bad input
+    reports ok=false with zeros.
+
+type LOD struct {
+	// Has unexported fields.
+}
+    LOD switches chunks by distance with a hysteresis band: at or below Near
+    stays detailed, at or above Far stays simple, inside (Near,Far) keeps the
+    previous level so a jittering camera never flickers. It draws nothing;
+    the caller feeds the camera focus (VisibleWorldRect center as core.Vec2,
+    so this package never imports the camera package) and draws each chunk at
+    its returned level.
+
+func NewLOD(near, far float64) (LOD, error)
+    NewLOD builds the switch. Distances must be finite with 0 < near < far.
+    Bad sizes are InvalidArg, never a guessed band.
+
+func (l LOD) Band() float64
+    Band returns the hysteresis width: Far - Near, always > 0.
+
+func (l LOD) ChunkLevel(focus core.Vec2, bounds core.Rect, cur Level) (Level, bool)
+    ChunkLevel picks the level for one chunk box from the camera focus.
+    Bad inputs keep cur and report ok=false, never panic.
+
+func (l LOD) Far() float64
+    Far returns the simplified distance line.
+
+func (l LOD) Near() float64
+    Near returns the detailed distance line.
+
+func (l LOD) Select(dist float64, cur Level) Level
+    Select picks the level for dist keeping cur inside (Near,Far). At or below
+    Near is Near, at or above Far is Far, bad distances keep cur. An invalid cur
+    inside the band splits at the midpoint; outside the band the distance alone
+    decides, so a fresh chunk still lands.
+
+type Large struct {
+	// Has unexported fields.
+}
+    Large is one streaming map index over a Chunk grid. The grid is held by
+    pointer and never copied after construction: Chunk carries a lock.
+
+func NewLarge(mapW, mapH int) (Large, error)
+    NewLarge builds a 1024-capable index over a mapW x mapH tile map with the
+    frozen 32x32 partition and 32x32 world tiles. For other tile or chunk sizes
+    use NewLargeSized.
+
+func NewLargeSized(orient Orientation, mapW, mapH int, tileW, tileH float64, chunkW, chunkH int) (Large, error)
+    NewLargeSized builds a streaming index with explicit geometry. Tile and
+    chunk sizes must be finite and > 0; the tile total must fit MaxLargeTiles
+    and the chunk grid must fit MaxChunks.
+
+func (l *Large) ChunkBounds(id ChunkID) (core.Rect, bool)
+    ChunkBounds returns the world box a chunk covers. Unknown ids report
+    ok=false with zero.
+
+func (l *Large) ChunkCount() int
+    ChunkCount returns Cols*Rows: 1024 for the full 1024x1024 map.
+
+func (l *Large) ChunkH() int
+    ChunkH returns the chunk height in tiles, or 0 on a nil index.
+
+func (l *Large) ChunkOf(col, row int) (ChunkID, bool)
+    ChunkOf maps one tile to its chunk. OOB tiles report ok=false.
+
+func (l *Large) ChunkW() int
+    ChunkW returns the chunk width in tiles, or 0 on a nil index.
+
+func (l *Large) Cols() int
+    Cols returns how many chunks span the map width, or 0 on a nil index.
+
+func (l *Large) H() int
+    H returns the map height in tiles, or 0 on a nil index.
+
+func (l *Large) IsLoaded(id ChunkID) bool
+    IsLoaded reports whether id is loaded. Unknown ids are false.
+
+func (l *Large) IsMissing(id ChunkID) bool
+    IsMissing reports whether id is a valid chunk still showing the magenta
+    placeholder: known to the grid but not loaded. Unknown ids are false.
+
+func (l *Large) Loaded() []ChunkID
+    Loaded returns the loaded chunk ids, sorted. A fresh slice every call.
+
+func (l *Large) LoadedCount() int
+    LoadedCount returns how many chunks are loaded now.
+
+func (l *Large) MergeBudget(maxPerFrame int) []ChunkID
+    MergeBudget moves at most maxPerFrame queued chunks into loaded (foreground
+    merge under the per-frame budget) and returns the merged chunks in queue
+    order. maxPerFrame <= 0 merges nothing; an empty queue returns nil.
+
+func (l *Large) Merges() int64
+    Merges returns how many chunks ever reached loaded.
+
+func (l *Large) Needed(view core.Rect) []ChunkID
+    Needed lists chunks touching view, sorted by (CY,CX). Bad or empty views
+    need nothing, never panic.
+
+func (l *Large) Pending() []ChunkID
+    Pending returns the queued chunk ids in queue order. A fresh slice every
+    call: the window paints them amber so the budget stays visible.
+
+func (l *Large) PendingCount() int
+    PendingCount returns how many chunks wait for the foreground merge.
+
+func (l *Large) Request(view core.Rect) []ChunkID
+    Request queues the chunks view needs that are neither loaded nor queued
+    (background parse). It returns the newly queued chunks, sorted, nil when
+    nothing new. Empty or invalid views queue nothing.
+
+func (l *Large) Requests() int64
+    Requests returns how many chunks were ever queued.
+
+func (l *Large) Reset()
+    Reset unloads everything and clears the queue. Nil grids stay silent.
+
+func (l *Large) Rows() int
+    Rows returns how many chunks span the map height, or 0 on a nil index.
+
+func (l *Large) Update(view core.Rect, maxPerFrame int) (merged, dropped []ChunkID)
+    Update streams one frame: queue what view needs, merge at most maxPerFrame,
+    drop what view left. It returns (merged, dropped): merged is queue order,
+    dropped is sorted. A jumping lens never leaves stale chunks and never grows:
+    afterwards Loaded is a subset of Needed(view). Empty views keep everything
+    (resize safety): unlike Chunk.Update, a transient zero-size view never
+    unloads the map. Invalid views change nothing and return nils.
+
+func (l *Large) Visible(view core.Rect) []ChunkID
+    Visible lists loaded chunks touching view: the draw list. Sorted, nil when
+    nothing to draw.
+
+func (l *Large) W() int
+    W returns the map width in tiles, or 0 on a nil index.
+
+type Layer struct {
+	// Has unexported fields.
+}
+    Layer is one tile plane: W*H GIDs in row-major order, 0 is empty.
+
+func NewLayer(name string, kind LayerKind, w, h int, gids []int) (Layer, error)
+    NewLayer builds a tile plane. GIDs are copied; length must be W*H, every GID
+    >= 0, name non-empty, kind one of the five frozen kinds.
+
+func (l Layer) GIDs() []int
+    GIDs returns a copy of the row-major GIDs (0 is empty).
+
+func (l Layer) Kind() LayerKind
+    Kind returns what the layer means.
+
+func (l Layer) Name() string
+    Name returns the layer name.
+
+type LayerKind int
+    LayerKind selects what a layer means: art, solid, cost, or shade.
+
+const (
+	// KindGround holds walk art GIDs.
+	KindGround LayerKind = 0
+	// KindDecoration holds deco art GIDs over the ground.
+	KindDecoration LayerKind = 1
+	// KindCollision holds solid cells: non-zero GID blocks.
+	KindCollision LayerKind = 2
+	// KindNavigation holds move costs: non-zero GID is the cost.
+	KindNavigation LayerKind = 3
+	// KindOcclusion holds shade cells: non-zero GID darkens.
+	KindOcclusion LayerKind = 4
+)
+type Level int
+    Level selects which art a chunk draws: detailed near, simple far. The caller
+    draws LevelNear chunks full and LevelFar chunks simplified with the existing
+    render draws.
+
+const (
+	// LevelNear is full detail: distance at or below the near line.
+	LevelNear Level = 0
+	// LevelFar is simplified: distance at or above the far line.
+	LevelFar Level = 1
+)
+func (l Level) String() string
+    String returns "near", "far", or "unknown" for logging and JSON.
+
+type Object struct {
+	// Has unexported fields.
+}
+    Object is one摆怪摆箱摆出生点: pixel rect in CellToWorld units.
+
+func NewObject(id int, name, typ string, bounds core.Rect) (Object, error)
+    NewObject builds one object. ID must be > 0, bounds finite with W/H >= 0
+    (zero size is a point spawn, still matchable by ObjectsIn).
+
+func (o Object) Bounds() core.Rect
+    Bounds returns the pixel rect in CellToWorld units.
+
+func (o Object) ID() int
+    ID returns the object id.
+
+func (o Object) Name() string
+    Name returns the object name.
+
+func (o Object) Type() string
+    Type returns the object type (spawn, chest, ...).
+
+type Orientation int
+    Orientation selects the grid math: square cells or 斜45度 diamonds.
+
+const (
+	// OrientOrthogonal is square cells: world is col*TileW, row*TileH.
+	OrientOrthogonal Orientation = 0
+	// OrientIsometric is 斜45度 diamonds: see Iso for the exact math.
+	OrientIsometric Orientation = 1
+)
+type Tilemap struct {
+	// Has unexported fields.
+}
+    Tilemap is the whole grid plus its object list.
+
+func NewTilemap(orient Orientation, mapW, mapH int, tileW, tileH float64) (Tilemap, error)
+    NewTilemap builds an empty map. Sizes must be > 0, tiles finite and > 0.
+
+func ParseTMX(data []byte) (Tilemap, error)
+    ParseTMX parses the frozen TMX subset (orthogonal/isometric, csv layers,
+    plain rect objects, kind property). Malformed content is BadData,
+    reserved-but-unbuilt shapes are Unsupported, empty input is InvalidArg.
+
+func (m *Tilemap) AddLayer(l Layer) error
+    AddLayer appends a layer. Size must equal the map size, name unique.
+
+func (m *Tilemap) AddObject(o Object) error
+    AddObject appends an object. ID must be unique.
+
+func (m *Tilemap) AddTileset(s Tileset) error
+    AddTileset appends a tileset entry.
+
+func (m Tilemap) At(layerIdx, col, row int) (gid int, ok bool)
+    At returns the GID at (col,row) on layerIdx. OOB reports ok=false with gid 0
+    (缺块占位不崩: callers treat empty as walkable art hole).
+
+func (m Tilemap) AutoMaskAt(layerIdx, col, row int) (mask int, ok bool)
+    AutoMaskAt reads the 4-neighbour presence on one layer: N=1,E=2,S=4,W=8.
+    Out-of-map neighbours count as empty. Bad layer or OOB cell reports
+    ok=false.
+
+func (m Tilemap) CellBounds(col, row int) (core.Rect, bool)
+    CellBounds returns the cell bounding box (W=tileW,H=tileH).
+
+func (m Tilemap) CellToWorld(col, row int) (core.Vec2, bool)
+    CellToWorld returns the cell origin in world units: orthogonal top-left,
+    isometric bounding-box top-left. OOB reports ok=false with zero.
+
+func (m Tilemap) H() int
+    H returns the map height in tiles.
+
+func (m Tilemap) IsSolidAt(col, row int) bool
+    IsSolidAt reports whether any collision layer covers (col,row). OOB is not
+    solid (empty air), never an error.
+
+func (m Tilemap) LayerIndex(name string) (int, bool)
+    LayerIndex finds a layer by name.
+
+func (m Tilemap) Layers() []Layer
+    Layers returns a copy of the layer list.
+
+func (m Tilemap) NavCostAt(col, row int) (cost int, ok bool)
+    NavCostAt returns the move cost at (col,row): first non-zero navigation GID
+    in layer order. No data or OOB reports ok=false.
+
+func (m Tilemap) Objects() []Object
+    Objects returns a copy of the object list.
+
+func (m Tilemap) ObjectsIn(rect core.Rect) []Object
+    ObjectsIn returns objects touching rect: box objects by overlap, point
+    objects (empty bounds) by the point sitting inside rect. Bad or empty rect
+    returns nil, never panics.
+
+func (m Tilemap) OccludedAt(col, row int) bool
+    OccludedAt reports whether any occlusion layer shades (col,row). OOB is
+    never shaded.
+
+func (m Tilemap) Orient() Orientation
+    Orient returns the grid math selector.
+
+func (m Tilemap) TileH() float64
+    TileH returns the tile height in world units.
+
+func (m Tilemap) TileW() float64
+    TileW returns the tile width in world units.
+
+func (m Tilemap) Tilesets() []Tileset
+    Tilesets returns a copy of the tileset list.
+
+func (m Tilemap) W() int
+    W returns the map width in tiles.
+
+func (m Tilemap) WorldToCell(world core.Vec2) (col, row int, ok bool)
+    WorldToCell floors world to the owning cell. Isometric picks the diamond
+    that contains the point. Bad input or outside the map is ok=false.
+
+type Tileset struct {
+	// Has unexported fields.
+}
+    Tileset names one art sheet behind a GID range.
+
+func NewTileset(firstGID int, name string, tileCount, columns int) (Tileset, error)
+    NewTileset builds a tileset entry. FirstGID must be > 0, name non-empty.
+
+func (s Tileset) Columns() int
+    Columns returns the sheet columns.
+
+func (s Tileset) FirstGID() int
+    FirstGID returns the tileset base GID.
+
+func (s Tileset) Name() string
+    Name returns the tileset name.
+
+func (s Tileset) TileCount() int
+    TileCount returns the tile count.
+

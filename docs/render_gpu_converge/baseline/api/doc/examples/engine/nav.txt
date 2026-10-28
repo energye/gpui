@@ -1,0 +1,14 @@
+Command game_nav is the S87 navigation gate: a baked 10x10 wall grid plus the
+256x256 bake tier, all through the real engine/nav package.
+
+Modes:
+
+    RUN_SECONDS=8 go run ./examples/engine/nav -auto-only
+      probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/nav -manual-seconds 30
+      manual 30s (clicks queue paths, events logged), then summary.
+    go run ./examples/engine/nav
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_nav. First run writes the golden baseline into
+testdata/nav_golden.png; later runs compare it with zero tolerance.

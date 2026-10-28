@@ -1,0 +1,1790 @@
+package ir // import "github.com/energye/gpui/gpu/gwgpu/naga/ir"
+
+The IR is designed to be:
+  - Shader-agnostic: Not tied to any specific shading language
+  - Complete: Can represent all features needed for modern shaders
+  - Efficient: Optimized for analysis and transformation
+
+# Structure
+
+The IR is organized around a Module type that contains:
+  - Types: All type definitions used in the shader
+  - Constants: Module-scope constant values
+  - GlobalVariables: Module-scope variables (uniforms, storage, etc.)
+  - Functions: All function definitions
+  - EntryPoints: Shader entry points with stage information
+
+# Translation Pipeline
+
+The typical translation pipeline is:
+
+    Source (WGSL/GLSL) → AST → IR → Target (SPIR-V/GLSL/MSL)
+
+This allows for source-independent analysis and optimization, as well as
+multi-target compilation from a single IR.
+
+# References
+
+The IR is a shader-agnostic representation that can be translated from various
+source languages (WGSL, GLSL) and compiled to various target languages (SPIR-V,
+GLSL, MSL, HLSL).
+
+FUNCTIONS
+
+func CompactConstants(module *Module)
+    CompactConstants removes abstract-typed constants from the module and remaps
+    all ConstantHandle references. This matches Rust the compact pass which
+    unnamed constants. With KeepUnused::Yes (which the WGSL frontend uses),
+    named non-abstract constants are always kept.
+
+    Since our lowerer concretizes abstract types during lowering, we use the
+    IsAbstract flag (set during lowering for constants that originated from
+    abstract-typed WGSL const declarations) to identify removable constants.
+
+func CompactExpressions(module *Module)
+    CompactExpressions removes unreferenced expressions from each function in
+    the module and renumbers all expression handles.
+
+    1. Mark expressions directly used by statements (NOT Emit ranges - those are
+    no-ops) 2. Mark named expressions and local variable initializers as used 3.
+    Propagate usage back-to-front through expressions (transitive closure) 4.
+    Remove unused expressions, remap handles, adjust Emit ranges
+
+func CompactTypes(module *Module)
+    CompactTypes removes anonymous types that are not referenced by any handle
+    in the module, and renumbers all type handles to be contiguous.
+
+    which the WGSL frontend calls at the end of lowering. The key effect is
+    removing scalar types that were registered during vec/mat type resolution
+    but are only embedded by value (not referenced by handle) in Vector/Matrix
+    types. Named types are always kept.
+
+    See docs/dev/research/IR-DEEP-ANALYSIS.md for analysis.
+
+func CompactUnused(module *Module)
+    CompactUnused removes globals and functions not reachable from any entry
+    point.
+
+func DeduplicateEmits(module *Module)
+    DeduplicateEmits removes duplicate and redundant Emit statements from
+    all functions. An Emit is redundant if its range is already covered by a
+    previous Emit in the same block. This handles cases where the emitter flush
+    in function calls generates duplicate ranges.
+
+func EvalBinaryFloat(op BinaryOperator, left, right float64) float64
+    EvalBinaryFloat evaluates a binary operation on two float64 values.
+
+func EvalUnaryFloat(op UnaryOperator, val float64) float64
+    EvalUnaryFloat evaluates a unary operation on a float64 value.
+
+func InlineUserFunctions(module *Module, shouldInline func(callee *Function) bool) error
+    InlineUserFunctions rewrites the module so that every user-defined helper
+    function called from an entry point (directly or transitively) is expanded
+    inline at its call site. After the pass, entry-point function bodies contain
+    no StmtCall to user helpers; the Functions[] array is preserved (the
+    handles it holds remain valid for any lingering references) but no StmtCall
+    statement targets it.
+
+    Enterprise rationale:
+
+    DXIL's bitcode validator and several backend code paths do not support user
+    helper functions in full generality — specifically, functions that access
+    module globals, return aggregate types, or contain complex local variable
+    shapes. DXC resolves this by running LLVM's AlwaysInliner as a post-emit
+    pass; Mesa runs nir_inline_functions as a NIR pre-pass before nir_to_dxil.
+    We mirror the Mesa approach at the naga IR level: transform the module once,
+    then let each backend emit from the simplified IR.
+
+    Phase 1 covers:
+      - Helpers with single tail return (StmtReturn at the very end of the
+        top-level block, or void return with no explicit StmtReturn at all)
+      - Any argument / return type, including aggregates
+      - Any expression kind (handles are remapped into the caller's expression
+        array)
+      - Any statement kind except nested StmtCall inside a helper body; those
+        are handled by topological processing — callees are inlined first so by
+        the time a caller reaches them, they contain no nested StmtCall
+      - Globals and constants: no remap needed, they are module-scoped and stay
+        referenced from the inlined expressions verbatim
+
+    Phase 2 (future) will add:
+      - Early returns via loop-break wrap (same transform DXC's AlwaysInliner
+        applies when a callee has multiple return sites)
+      - Mutual recursion detection (WGSL forbids recursion, but defense in depth
+        keeps the pass hardened against malformed IR)
+
+    The pass is idempotent: running it twice is a no-op on the second run
+    because after the first pass no StmtCall targets a user helper.
+
+func IsAbstractType(inner TypeInner, types []Type) bool
+    markTypeInnerRefs marks type handles referenced by a TypeInner. Only types
+    that use handles (not embedded values) are marked. Abstract types are
+    removed by compact and must never reach backends.
+
+func LiteralToFloat(v LiteralValue) float64
+    LiteralToFloat converts a LiteralValue to float64.
+
+func ProcessOverrides(module *Module, constants PipelineConstants) error
+    ProcessOverrides resolves all overrides in the module to concrete constants
+    using provided pipeline constant values. Modifies the module in place:
+    - Overrides become Constants with resolved values - ExprOverride in global
+    expressions become ExprConstant - ExprOverride in function expressions
+    become Literal with resolved values - Global variable initializers using
+    overrides are evaluated
+
+func ReorderTypes(module *Module)
+    ReorderTypes reorders the type arena so that types appear in first-use order
+    when scanning: constants → overrides → globals → functions → entry points.
+
+    Must be called AFTER CompactTypes (which removes unreferenced types).
+
+func TypeSize(module *Module, handle TypeHandle) uint32
+    TypeSize returns the byte size of a type following WGSL/WebGPU alignment
+    rules. Returns 0 for opaque types (samplers, images, pointers) and
+    runtime-sized arrays.
+
+
+TYPES
+
+type AccelerationStructureType struct{}
+    AccelerationStructureType represents an opaque acceleration structure for
+    ray tracing. In SPIR-V, this maps to OpTypeAccelerationStructureKHR.
+
+type AddressSpace uint8
+    AddressSpace represents memory address spaces.
+
+const (
+	SpaceFunction AddressSpace = iota
+	SpacePrivate
+	SpaceWorkGroup
+	SpaceUniform
+	SpaceStorage
+	SpacePushConstant
+	SpaceHandle
+	SpaceImmediate
+	SpaceTaskPayload
+)
+type ArraySize struct {
+	Constant *uint32 // nil for runtime-sized arrays
+}
+    ArraySize represents array size.
+
+type ArrayType struct {
+	Base   TypeHandle
+	Size   ArraySize
+	Stride uint32
+}
+    ArrayType represents array types.
+
+type AtomicAdd struct{}
+    AtomicAdd performs atomic addition.
+
+type AtomicAnd struct{}
+    AtomicAnd performs atomic bitwise AND.
+
+type AtomicExchange struct {
+	Compare *ExpressionHandle
+}
+    AtomicExchange performs atomic exchange. If Compare is set, performs
+    compare-and-exchange operation.
+
+type AtomicExclusiveOr struct{}
+    AtomicExclusiveOr performs atomic bitwise XOR.
+
+type AtomicFunction interface {
+	// Has unexported methods.
+}
+    AtomicFunction represents atomic operations.
+
+type AtomicInclusiveOr struct{}
+    AtomicInclusiveOr performs atomic bitwise OR.
+
+type AtomicLoad struct{}
+    AtomicLoad performs atomic load. Has no value operand.
+
+type AtomicMax struct{}
+    AtomicMax performs atomic maximum.
+
+type AtomicMin struct{}
+    AtomicMin performs atomic minimum.
+
+type AtomicStore struct{}
+    AtomicStore performs atomic store. Has no result.
+
+type AtomicSubtract struct{}
+    AtomicSubtract performs atomic subtraction.
+
+type AtomicType struct {
+	Scalar ScalarType
+}
+    AtomicType represents atomic types for thread-safe operations.
+
+type BarrierFlags uint32
+    BarrierFlags represents memory barrier flags using bitflags pattern.
+
+const (
+	// BarrierStorage affects all Storage address space accesses.
+	BarrierStorage BarrierFlags = 1 << 0
+	// BarrierWorkGroup affects all WorkGroup address space accesses.
+	BarrierWorkGroup BarrierFlags = 1 << 1
+	// BarrierSubGroup synchronizes execution across invocations within a subgroup.
+	BarrierSubGroup BarrierFlags = 1 << 2
+	// BarrierTexture synchronizes texture memory accesses in a workgroup.
+	BarrierTexture BarrierFlags = 1 << 3
+)
+type BinaryOperator uint8
+    BinaryOperator represents binary operations.
+
+const (
+	// Arithmetic operations
+	BinaryAdd      BinaryOperator = iota // Addition
+	BinarySubtract                       // Subtraction
+	BinaryMultiply                       // Multiplication
+	BinaryDivide                         // Division
+	BinaryModulo                         // Modulo (remainder)
+
+	// Comparison operations
+	BinaryEqual        // Equal (==)
+	BinaryNotEqual     // Not equal (!=)
+	BinaryLess         // Less than (<)
+	BinaryLessEqual    // Less than or equal (<=)
+	BinaryGreater      // Greater than (>)
+	BinaryGreaterEqual // Greater than or equal (>=)
+
+	// Bitwise operations
+	BinaryAnd         // Bitwise AND
+	BinaryExclusiveOr // Bitwise XOR
+	BinaryInclusiveOr // Bitwise OR
+
+	// Logical operations
+	BinaryLogicalAnd // Logical AND (&&)
+	BinaryLogicalOr  // Logical OR (||)
+
+	// Shift operations
+	BinaryShiftLeft  // Left shift (<<)
+	BinaryShiftRight // Right shift (>>) - arithmetic for signed, logical for unsigned
+)
+type Binding interface {
+	// Has unexported methods.
+}
+    Binding represents shader bindings.
+
+type BindingArrayType struct {
+	Base TypeHandle
+	Size *uint32 // nil for unbounded
+}
+    BindingArrayType represents a binding array type (binding_array<T, N>).
+    In SPIR-V, this maps to an array of uniform resources (textures, samplers).
+
+type Block []Statement
+    Block represents a sequence of statements executed in order. This is a
+    simplified version without span tracking (spans will be added later if
+    needed).
+
+type BuiltinBinding struct {
+	Builtin   BuiltinValue
+	Invariant bool // only meaningful for Position built-in
+}
+    BuiltinBinding represents a built-in binding.
+
+type BuiltinValue uint8
+    BuiltinValue represents built-in values.
+
+const (
+	BuiltinPosition BuiltinValue = iota
+	BuiltinVertexIndex
+	BuiltinInstanceIndex
+	BuiltinFrontFacing
+	BuiltinFragDepth
+	BuiltinSampleIndex
+	BuiltinSampleMask
+	BuiltinLocalInvocationID
+	BuiltinLocalInvocationIndex
+	BuiltinGlobalInvocationID
+	BuiltinWorkGroupID
+	BuiltinNumWorkGroups
+	BuiltinNumSubgroups
+	BuiltinSubgroupID
+	BuiltinSubgroupSize
+	BuiltinSubgroupInvocationID
+	BuiltinBarycentric
+	BuiltinViewIndex
+	BuiltinPrimitiveIndex
+	BuiltinPointSize
+	BuiltinMeshTaskSize
+	BuiltinCullPrimitive
+	BuiltinPointIndex
+	BuiltinLineIndices
+	BuiltinTriangleIndices
+	BuiltinVertexCount
+	BuiltinVertices
+	BuiltinPrimitiveCount
+	BuiltinPrimitives
+	BuiltinClipDistance
+)
+type Capabilities uint32
+    Capabilities represents hardware/API features available to the shader.
+
+    When compiling WGSL, types like f64, i64, u64, and f16 are only valid if the
+    caller enables the corresponding capability. Without it, the lowerer rejects
+    the shader with a descriptive error.
+
+const (
+	// CapFloat64 enables f64 scalar type (Float width=8).
+	CapFloat64 Capabilities = 1 << 1
+
+	// CapShaderInt64 enables i64 and u64 scalar types (Sint/Uint width=8).
+	CapShaderInt64 Capabilities = 1 << 16
+
+	// CapShaderFloat16 enables f16 scalar type (Float width=2).
+	CapShaderFloat16 Capabilities = 1 << 26
+
+	// CapAll enables all capabilities. Used by test infrastructure
+	// and tools that need to accept any valid WGSL without restriction.
+	CapAll Capabilities = CapFloat64 | CapShaderInt64 | CapShaderFloat16
+)
+func (c Capabilities) Contains(flag Capabilities) bool
+    Contains reports whether c includes all the flags in flag.
+
+type CollectiveOperation uint8
+    CollectiveOperation represents how subgroup results are combined.
+
+const (
+	CollectiveReduce        CollectiveOperation = iota // Reduce across all invocations
+	CollectiveInclusiveScan                            // Inclusive prefix scan
+	CollectiveExclusiveScan                            // Exclusive prefix scan
+)
+type CompositeValue struct {
+	Components []ConstantHandle
+}
+    CompositeValue represents a composite constant.
+
+type ConservativeDepth uint8
+    ConservativeDepth specifies how the depth value may be modified.
+
+const (
+	// ConservativeDepthUnchanged means the depth value will not be modified.
+	ConservativeDepthUnchanged ConservativeDepth = iota
+	// ConservativeDepthGreaterEqual means the depth value may be increased.
+	ConservativeDepthGreaterEqual
+	// ConservativeDepthLessEqual means the depth value may be decreased.
+	ConservativeDepthLessEqual
+)
+type Constant struct {
+	Name  string
+	Type  TypeHandle
+	Value ConstantValue
+
+	// Init is a handle into Module.GlobalExpressions that holds the init expression
+	// for this constant.
+	// When GlobalExpressions is populated, this is the canonical init reference.
+	Init ExpressionHandle
+
+	// IsAbstract indicates this constant originated from a WGSL `const` declaration
+	// without an explicit type (e.g., `const ONE = 1;`). In Rust naga, such constants
+	IsAbstract bool
+}
+    Constant represents a constant value.
+
+type ConstantHandle uint32
+    Handle types for referencing IR objects
+
+type ConstantValue interface {
+	// Has unexported methods.
+}
+    ConstantValue represents constant values.
+
+type DerivativeAxis uint8
+    DerivativeAxis specifies the axis for derivative computation.
+
+const (
+	DerivativeX     DerivativeAxis = iota // Partial derivative with respect to X
+	DerivativeY                           // Partial derivative with respect to Y
+	DerivativeWidth                       // Sum of absolute derivatives (fwidth)
+)
+type DerivativeControl uint8
+    DerivativeControl specifies the precision hint for derivative computation.
+
+const (
+	DerivativeCoarse DerivativeControl = iota // Coarse precision
+	DerivativeFine                            // Fine precision
+	DerivativeNone                            // No specific precision
+)
+type EarlyDepthTest struct {
+	Conservative ConservativeDepth
+}
+    EarlyDepthTest represents early fragment test configuration.
+
+type EntryPoint struct {
+	Name           string
+	Stage          ShaderStage
+	Function       Function              // Inline function (NOT in Module.Functions[])
+	Workgroup      [3]uint32             // For compute/mesh/task shaders
+	EarlyDepthTest *EarlyDepthTest       // For fragment shaders with early depth testing
+	MeshInfo       *MeshStageInfo        // For mesh shaders
+	TaskPayload    *GlobalVariableHandle // For mesh/task shaders referencing task payload variable
+}
+    EntryPoint represents a shader entry point.
+
+type ExprAccess struct {
+	Base  ExpressionHandle
+	Index ExpressionHandle
+}
+    ExprAccess performs array/vector/matrix access with a computed index.
+    The index operand must be an integer type (signed or unsigned).
+
+type ExprAccessIndex struct {
+	Base  ExpressionHandle
+	Index uint32
+}
+    ExprAccessIndex performs access with a compile-time constant index.
+    Can access arrays, vectors, matrices, and struct fields.
+
+type ExprAlias struct {
+	Source ExpressionHandle
+}
+    ExprAlias is a transparent passthrough that resolves to another expression.
+
+    # Backend visibility invariant
+
+    ExprAlias is a DXIL-internal IR kind. It MUST NOT appear in any module
+    produced by parsing alone: the WGSL frontend never synthesizes it.
+    The only production site is the DXIL backend's mem2reg pass
+    (dxil/internal/passes/mem2reg). Other backends (MSL/GLSL/HLSL/SPIR-V)
+    process the original module (or their own CloneModuleForOverrides clone) and
+    never invoke mem2reg, so they never observe this kind. Their expression-kind
+    type switches treat unknown kinds as errors (e.g. msl/expressions.go
+    writeExpressionInline default returns "unsupported expression kind"),
+    which gives a clear failure mode if the invariant is ever violated.
+
+    The runtime invariant is verified by TestNoDxilOnlyKindsAfterParse in
+    package ir, which parses every shader in snapshot/testdata/in and asserts no
+    ExprAlias / ExprPhi appears in the resulting module.
+
+    # Production
+
+    It is produced by the DXIL backend's mem2reg pass when a promoted local
+    variable's load is rewritten to refer directly to the value last stored
+    into that variable (or, on the first load, to the variable's initializer
+    or a zero value). The DXIL emitter resolves it by returning the source
+    expression's value ID without emitting any instruction of its own.
+
+    instruction is erased. We achieve the same effect at the IR level with
+    this alias indirection so the existing emit pipeline continues to walk the
+    function's expression arena unmodified.
+
+type ExprArrayLength struct {
+	Array ExpressionHandle
+}
+    ExprArrayLength gets the length of a runtime-sized array. The expression
+    must resolve to a pointer to an array with dynamic size.
+
+type ExprAs struct {
+	Expr    ExpressionHandle
+	Kind    ScalarKind
+	Convert *uint8 // If set, convert to this byte width; otherwise bitcast
+}
+    ExprAs performs a type cast or conversion.
+
+type ExprAtomicResult struct {
+	Ty         TypeHandle
+	Comparison bool
+}
+    ExprAtomicResult represents the result of an atomic operation. This is
+    created by StmtAtomic and holds the previous value. For CompareExchange,
+    Comparison=true and Ty is the result struct type. For other atomics,
+    Comparison=false and Ty is the scalar type.
+
+type ExprBinary struct {
+	Op    BinaryOperator
+	Left  ExpressionHandle
+	Right ExpressionHandle
+}
+    ExprBinary applies a binary operator to two expressions.
+
+type ExprCallResult struct {
+	Function FunctionHandle
+}
+    ExprCallResult represents the result of a function call.
+
+type ExprCompose struct {
+	Type       TypeHandle
+	Components []ExpressionHandle
+}
+    ExprCompose constructs a composite value (vector, matrix, array, or struct).
+
+type ExprConstant struct {
+	Constant ConstantHandle
+}
+    ExprConstant references a module-scope constant.
+
+type ExprDerivative struct {
+	Axis    DerivativeAxis
+	Control DerivativeControl
+	Expr    ExpressionHandle
+}
+    ExprDerivative computes the derivative of an expression.
+
+type ExprFunctionArgument struct {
+	Index uint32
+}
+    ExprFunctionArgument references a function parameter by its index.
+
+type ExprGlobalVariable struct {
+	Variable GlobalVariableHandle
+}
+    ExprGlobalVariable references a global variable. For handle address space,
+    produces the variable's value directly. For other address spaces, produces a
+    pointer to the variable.
+
+type ExprImageLoad struct {
+	Image      ExpressionHandle
+	Coordinate ExpressionHandle
+	ArrayIndex *ExpressionHandle
+	Sample     *ExpressionHandle // For multisampled images
+	Level      *ExpressionHandle // For mipmapped images
+}
+    ExprImageLoad loads a texel from an image.
+
+type ExprImageQuery struct {
+	Image ExpressionHandle
+	Query ImageQuery
+}
+    ExprImageQuery queries information from an image.
+
+type ExprImageSample struct {
+	Image       ExpressionHandle
+	Sampler     ExpressionHandle
+	Gather      *SwizzleComponent // If set, perform a gather operation
+	Coordinate  ExpressionHandle
+	ArrayIndex  *ExpressionHandle
+	Offset      *ExpressionHandle // Must be a const-expression
+	Level       SampleLevel
+	DepthRef    *ExpressionHandle
+	ClampToEdge bool // Clamp coordinates to [half_texel, 1 - half_texel]
+}
+    ExprImageSample samples a point from a sampled or depth image.
+
+type ExprLoad struct {
+	Pointer ExpressionHandle
+}
+    ExprLoad loads a value indirectly through a pointer.
+
+type ExprLocalVariable struct {
+	Variable uint32 // Index into Function.LocalVars
+}
+    ExprLocalVariable references a local variable. Produces a pointer to the
+    variable's value.
+
+type ExprMath struct {
+	Fun  MathFunction
+	Arg  ExpressionHandle
+	Arg1 *ExpressionHandle
+	Arg2 *ExpressionHandle
+	Arg3 *ExpressionHandle
+}
+    ExprMath applies a mathematical function.
+
+type ExprOverride struct {
+	// Override is the index into Module.Overrides.
+	Override OverrideHandle
+}
+    ExprOverride references a pipeline-overridable constant. Used in
+    global_expressions and function expressions for override references.
+
+type ExprPhi struct {
+	Incoming []PhiIncoming
+}
+    ExprPhi is an SSA phi node merging values from multiple structured-CFG
+    predecessors.
+
+    # Backend visibility invariant
+
+    Same as ExprAlias: DXIL-internal kind, never produced by parsing alone,
+    only synthesized by dxil/internal/passes/mem2reg. Verified by
+    TestNoDxilOnlyKindsAfterParse in package ir.
+
+    # Production
+
+    Produced by the DXIL backend's mem2reg pass at if/switch merge points and
+    at loop headers when a promoted local variable is stored on more than one
+    incoming path. The DXIL emitter lowers it to LLVM's FUNC_CODE_INST_PHI
+    at the bitcode-level basic-block prologue, with each incoming value's
+    per-predecessor value-ID resolved via emit-time snapshots taken at the end
+    of each predecessor branch.
+
+    Structured CFG makes IDF computation trivial: the merge point is the
+    statement after the StmtIf/StmtSwitch, or the header of a StmtLoop body.
+
+type ExprRayQueryGetIntersection struct {
+	Query     ExpressionHandle
+	Committed bool
+}
+    ExprRayQueryGetIntersection returns the intersection found by a ray query.
+    If Committed is true, returns the committed intersection (after Proceed
+    returns false). If Committed is false, returns the candidate intersection
+    (during Proceed).
+
+type ExprRayQueryProceedResult struct{}
+    ExprRayQueryProceedResult represents the result of a RayQueryProceed
+    statement. The result is a bool indicating whether there are more
+    intersection candidates.
+
+type ExprRelational struct {
+	Fun      RelationalFunction
+	Argument ExpressionHandle
+}
+    ExprRelational applies a relational function.
+
+type ExprSelect struct {
+	Condition ExpressionHandle
+	Accept    ExpressionHandle
+	Reject    ExpressionHandle
+}
+    ExprSelect selects between two values based on a boolean condition.
+    Equivalent to the ternary operator (condition ? accept : reject).
+
+type ExprSplat struct {
+	Size  VectorSize
+	Value ExpressionHandle
+}
+    ExprSplat broadcasts a scalar value to all components of a vector.
+
+type ExprSubgroupBallotResult struct{}
+    ExprSubgroupBallotResult represents the result of a SubgroupBallot
+    statement. The result type is always vec4<u32>.
+
+type ExprSubgroupOperationResult struct {
+	Type TypeHandle
+}
+    ExprSubgroupOperationResult represents the result of a
+    SubgroupCollectiveOperation or SubgroupGather statement. The Type field
+    holds the result type.
+
+type ExprSwizzle struct {
+	Size    VectorSize
+	Vector  ExpressionHandle
+	Pattern [4]SwizzleComponent
+}
+    ExprSwizzle reorders or duplicates vector components.
+
+type ExprUnary struct {
+	Op   UnaryOperator
+	Expr ExpressionHandle
+}
+    ExprUnary applies a unary operator to an expression.
+
+type ExprWorkGroupUniformLoadResult struct{}
+    ExprWorkGroupUniformLoadResult represents the result of a workgroup uniform
+    load. Created by StmtWorkGroupUniformLoad, holds the loaded value.
+
+type ExprZeroValue struct {
+	Type TypeHandle
+}
+    ExprZeroValue represents a zero-initialized value of a given type.
+
+type Expression struct {
+	Kind ExpressionKind
+}
+    Expression represents an expression in the IR. Expressions follow Single
+    Static Assignment (SSA) form similar to SPIR-V.
+
+type ExpressionHandle uint32
+    Handle types for referencing IR objects
+
+type ExpressionKind interface {
+	// Has unexported methods.
+}
+    ExpressionKind represents the different kinds of expressions.
+
+type Function struct {
+	Name            string
+	Arguments       []FunctionArgument
+	Result          *FunctionResult
+	LocalVars       []LocalVariable
+	Expressions     []Expression
+	ExpressionTypes []TypeResolution // Type of each expression (parallel to Expressions)
+	Body            []Statement
+
+	// NamedExpressions maps expression handles to user-given names.
+	// This is used for let bindings and phony assignments (_ = expr).
+	// Backends use these names when baking (materializing) expressions,
+	// producing e.g. "float a = ..." instead of "float _e3 = ...".
+	NamedExpressions map[ExpressionHandle]string
+}
+    Function represents a function definition.
+
+type FunctionArgument struct {
+	Name    string
+	Type    TypeHandle
+	Binding *Binding
+}
+    FunctionArgument represents a function argument.
+
+type FunctionHandle uint32
+    Handle types for referencing IR objects
+
+type FunctionResult struct {
+	Type    TypeHandle
+	Binding *Binding
+}
+    FunctionResult represents a function return type.
+
+type GatherBroadcast struct {
+	Index ExpressionHandle
+}
+    GatherBroadcast gathers from the same lane at the given index.
+
+type GatherBroadcastFirst struct{}
+    GatherBroadcastFirst gathers from the active lane with the smallest index.
+
+type GatherMode interface {
+	// Has unexported methods.
+}
+    GatherMode represents the specific behavior of a SubgroupGather statement.
+
+type GatherQuadBroadcast struct {
+	Index ExpressionHandle
+}
+    GatherQuadBroadcast gathers from the same quad lane at the given index.
+
+type GatherQuadSwap struct {
+	Direction QuadDirection
+}
+    GatherQuadSwap gathers from the opposite quad lane along the given
+    direction.
+
+type GatherShuffle struct {
+	Index ExpressionHandle
+}
+    GatherShuffle gathers from a different lane at the given index.
+
+type GatherShuffleDown struct {
+	Delta ExpressionHandle
+}
+    GatherShuffleDown gathers from the lane plus the given shift.
+
+type GatherShuffleUp struct {
+	Delta ExpressionHandle
+}
+    GatherShuffleUp gathers from the lane minus the given shift.
+
+type GatherShuffleXor struct {
+	Mask ExpressionHandle
+}
+    GatherShuffleXor gathers from the lane xored with the given value.
+
+type GlobalVariable struct {
+	Name    string
+	Space   AddressSpace
+	Binding *ResourceBinding
+	Type    TypeHandle
+	Init    *ConstantHandle
+	// InitExpr is an optional handle into Module.GlobalExpressions for the
+	// init expression.
+	// When set, this is the canonical init reference into GlobalExpressions.
+	InitExpr *ExpressionHandle
+	// Access stores the access mode for storage address space variables.
+	// Only meaningful when Space == SpaceStorage.
+	Access StorageAccessMode
+}
+    GlobalVariable represents a global variable.
+
+type GlobalVariableHandle uint32
+    Handle types for referencing IR objects
+
+type ImageClass uint8
+    ImageClass represents image classification.
+
+const (
+	ImageClassSampled ImageClass = iota
+	ImageClassDepth
+	ImageClassExternal
+	ImageClassStorage
+)
+type ImageDimension uint8
+    ImageDimension represents image dimensions.
+
+const (
+	Dim1D ImageDimension = iota
+	Dim2D
+	Dim3D
+	DimCube
+)
+type ImageQuery interface {
+	// Has unexported methods.
+}
+    ImageQuery represents the type of image query.
+
+type ImageQueryNumLayers struct{}
+    ImageQueryNumLayers gets the number of array layers.
+
+type ImageQueryNumLevels struct{}
+    ImageQueryNumLevels gets the number of mipmap levels.
+
+type ImageQueryNumSamples struct{}
+    ImageQueryNumSamples gets the number of samples.
+
+type ImageQuerySize struct {
+	Level *ExpressionHandle // If nil, uses base level
+}
+    ImageQuerySize gets the image size at a specified level.
+
+type ImageType struct {
+	Dim           ImageDimension
+	Arrayed       bool
+	Class         ImageClass
+	Multisampled  bool
+	SampledKind   ScalarKind    // Kind of values for sampled textures (only valid when Class == ImageClassSampled)
+	StorageFormat StorageFormat // Format for storage textures (only valid when Class == ImageClassStorage)
+	StorageAccess StorageAccess // Access mode for storage textures (only valid when Class == ImageClassStorage)
+}
+    ImageType represents image/texture types.
+
+type Interpolation struct {
+	Kind     InterpolationKind
+	Sampling InterpolationSampling
+}
+    Interpolation represents interpolation settings.
+
+type InterpolationKind uint8
+    InterpolationKind represents interpolation kinds.
+
+const (
+	InterpolationFlat InterpolationKind = iota
+	InterpolationLinear
+	InterpolationPerspective
+)
+type InterpolationSampling uint8
+    InterpolationSampling represents interpolation sampling.
+
+const (
+	SamplingCenter InterpolationSampling = iota
+	SamplingCentroid
+	SamplingSample
+)
+type Literal struct {
+	Value LiteralValue
+}
+    Literal represents a literal constant value.
+
+type LiteralAbstractFloat float64
+    LiteralAbstractFloat represents an abstract float literal.
+
+type LiteralAbstractInt int64
+    LiteralAbstractInt represents an abstract integer literal.
+
+type LiteralBool bool
+    LiteralBool represents a boolean literal.
+
+type LiteralF16 float32
+    LiteralF16 represents a 16-bit float literal stored as float32. The value
+    has been rounded to half precision, but is stored as float32 for ease of
+    use. Backends should emit with the appropriate f16 suffix.
+
+type LiteralF32 float32
+    LiteralF32 represents a 32-bit float literal (may not be NaN or infinity).
+
+type LiteralF64 float64
+    LiteralF64 represents a 64-bit float literal (may not be NaN or infinity).
+
+type LiteralI32 int32
+    LiteralI32 represents a 32-bit signed integer literal.
+
+type LiteralI64 int64
+    LiteralI64 represents a 64-bit signed integer literal.
+
+type LiteralU32 uint32
+    LiteralU32 represents a 32-bit unsigned integer literal.
+
+type LiteralU64 uint64
+    LiteralU64 represents a 64-bit unsigned integer literal.
+
+type LiteralValue interface {
+	// Has unexported methods.
+}
+    LiteralValue represents the value of a literal.
+
+type LocalVariable struct {
+	Name string
+	Type TypeHandle
+	Init *ExpressionHandle
+}
+    LocalVariable represents a function-local variable.
+
+type LocationBinding struct {
+	Location      uint32
+	Interpolation *Interpolation
+	// Nil when not using dual-source blending.
+	BlendSrc *uint32
+}
+    LocationBinding represents a location binding.
+
+type MathFunction uint8
+    MathFunction represents built-in mathematical functions.
+
+const (
+	// Comparison functions
+	MathAbs      MathFunction = iota // Absolute value
+	MathMin                          // Minimum
+	MathMax                          // Maximum
+	MathClamp                        // Clamp to range
+	MathSaturate                     // Clamp to [0, 1]
+
+	// Trigonometric functions
+	MathCos   // Cosine
+	MathCosh  // Hyperbolic cosine
+	MathSin   // Sine
+	MathSinh  // Hyperbolic sine
+	MathTan   // Tangent
+	MathTanh  // Hyperbolic tangent
+	MathAcos  // Arc cosine
+	MathAsin  // Arc sine
+	MathAtan  // Arc tangent
+	MathAtan2 // Two-argument arc tangent
+	MathAsinh // Inverse hyperbolic sine
+	MathAcosh // Inverse hyperbolic cosine
+	MathAtanh // Inverse hyperbolic tangent
+
+	// Angle conversion
+	MathRadians // Convert degrees to radians
+	MathDegrees // Convert radians to degrees
+
+	// Decomposition functions
+	MathCeil  // Round up to integer
+	MathFloor // Round down to integer
+	MathRound // Round to nearest integer
+	MathFract // Fractional part
+	MathTrunc // Truncate to integer
+	MathModf  // Split into integer and fractional parts
+	MathFrexp // Split into mantissa and exponent
+	MathLdexp // Combine mantissa and exponent
+
+	// Exponential functions
+	MathExp  // Natural exponential (e^x)
+	MathExp2 // Base-2 exponential (2^x)
+	MathLog  // Natural logarithm
+	MathLog2 // Base-2 logarithm
+	MathPow  // Power (x^y)
+
+	// Geometric functions
+	MathDot          // Dot product
+	MathDot4I8Packed // Dot product of packed 4xi8
+	MathDot4U8Packed // Dot product of packed 4xu8
+	MathOuter        // Outer product
+	MathCross        // Cross product
+	MathDistance     // Distance between points
+	MathLength       // Vector length
+	MathNormalize    // Normalize vector
+	MathFaceForward  // Orient vector
+	MathReflect      // Reflect vector
+	MathRefract      // Refract vector
+
+	// Computational functions
+	MathSign        // Sign of value (-1, 0, or 1)
+	MathFma         // Fused multiply-add
+	MathMix         // Linear interpolation
+	MathStep        // Step function
+	MathSmoothStep  // Smooth step function
+	MathSqrt        // Square root
+	MathInverseSqrt // Inverse square root
+	MathInverse     // Matrix inverse
+	MathTranspose   // Matrix transpose
+	MathDeterminant // Matrix determinant
+	MathQuantizeF16 // Round to 16-bit float precision
+
+	// Bit manipulation functions
+	MathCountTrailingZeros // Count trailing zero bits
+	MathCountLeadingZeros  // Count leading zero bits
+	MathCountOneBits       // Count one bits
+	MathReverseBits        // Reverse bit order
+	MathExtractBits        // Extract bit range
+	MathInsertBits         // Insert bit range
+	MathFirstTrailingBit   // Find first trailing one bit
+	MathFirstLeadingBit    // Find first leading one bit
+
+	// Data packing functions
+	MathPack4x8snorm  // Pack 4 normalized signed floats to bytes
+	MathPack4x8unorm  // Pack 4 normalized unsigned floats to bytes
+	MathPack2x16snorm // Pack 2 normalized signed floats to shorts
+	MathPack2x16unorm // Pack 2 normalized unsigned floats to shorts
+	MathPack2x16float // Pack 2 floats to half-precision shorts
+	MathPack4xI8      // Pack 4 signed ints to bytes
+	MathPack4xU8      // Pack 4 unsigned ints to bytes
+	MathPack4xI8Clamp // Pack 4 signed ints to bytes with clamping
+	MathPack4xU8Clamp // Pack 4 unsigned ints to bytes with clamping
+
+	// Data unpacking functions
+	MathUnpack4x8snorm  // Unpack bytes to 4 normalized signed floats
+	MathUnpack4x8unorm  // Unpack bytes to 4 normalized unsigned floats
+	MathUnpack2x16snorm // Unpack shorts to 2 normalized signed floats
+	MathUnpack2x16unorm // Unpack shorts to 2 normalized unsigned floats
+	MathUnpack2x16float // Unpack half-precision shorts to 2 floats
+	MathUnpack4xI8      // Unpack bytes to 4 signed ints
+	MathUnpack4xU8      // Unpack bytes to 4 unsigned ints
+)
+type MatrixType struct {
+	Columns VectorSize
+	Rows    VectorSize
+	Scalar  ScalarType
+}
+    MatrixType represents matrix types.
+
+type MeshOutputTopology uint8
+    MeshOutputTopology specifies the primitive topology for mesh shader output.
+
+const (
+	MeshTopologyPoints MeshOutputTopology = iota
+	MeshTopologyLines
+	MeshTopologyTriangles
+)
+type MeshStageInfo struct {
+	Topology              MeshOutputTopology
+	MaxVertices           uint32
+	MaxVerticesOverride   *ExpressionHandle
+	MaxPrimitives         uint32
+	MaxPrimitivesOverride *ExpressionHandle
+	VertexOutputType      TypeHandle
+	PrimitiveOutputType   TypeHandle
+	OutputVariable        GlobalVariableHandle
+}
+    MeshStageInfo holds information specific to mesh shader entry points.
+
+type Module struct {
+	// Types holds all type definitions.
+	Types []Type
+
+	// Constants holds module-scope `const` declarations (NOT overrides).
+	Constants []Constant
+
+	// GlobalVariables holds module-scope variables (var<storage>, var<uniform>, etc.)
+	GlobalVariables []GlobalVariable
+
+	// GlobalExpressions holds expressions used at module scope:
+	// Constant.Init, Override.Init, and GlobalVariable.Init reference into this.
+	GlobalExpressions []Expression
+
+	// Functions holds regular (non-entry-point) function definitions.
+	// Entry point functions are NOT here — they're inline in EntryPoints[].Function.
+	Functions []Function
+
+	// EntryPoints holds shader entry points with inline Function bodies.
+	EntryPoints []EntryPoint
+
+	// Overrides holds pipeline-overridable constants (WGSL `override` declarations).
+	Overrides []Override
+
+	// SpecialTypes holds handles to compiler-generated types (external textures, etc.)
+	SpecialTypes SpecialTypes
+
+	// TypeAliasNames records names from type alias declarations so the namer can register them and detect collisions with variables sharing the same name.
+	TypeAliasNames []string
+
+	// TypeUseOrder records the order in which types were first registered
+	// during lowering. Used by ReorderTypes to reorder the type arena
+	TypeUseOrder []TypeHandle
+}
+    Module represents a shader module in IR form. Module is the IR
+    representation of a shader module.
+
+func CloneModuleForOverrides(src *Module) *Module
+    CloneModuleForOverrides creates a deep enough copy of a module for
+    ProcessOverrides to safely mutate. Clones: GlobalExpressions, Constants,
+    Functions (expressions), EntryPoints (expressions). Shared immutable data
+    (Types, GlobalVariables) is not copied.
+
+type Override struct {
+	// Name is the identifier name of the override.
+	Name string
+	ID   *uint16
+	// Ty is the type of this override (handle into Module.Types).
+	Ty TypeHandle
+	// Init is an optional handle into Module.GlobalExpressions that holds the
+	// default value expression. None if the override has no default.
+	Init *ExpressionHandle
+}
+    Override represents a pipeline-overridable constant.
+
+type OverrideHandle uint32
+    Handle types for referencing IR objects
+
+type OverrideInitBinary struct {
+	Op    BinaryOperator
+	Left  OverrideInitExpr
+	Right OverrideInitExpr
+}
+    OverrideInitBinary represents a binary operation on two override init
+    expressions.
+
+type OverrideInitBoolLiteral struct {
+	Value bool
+}
+    OverrideInitBoolLiteral represents a literal bool value for override init.
+
+type OverrideInitExpr interface {
+	// Has unexported methods.
+}
+    OverrideInitExpr represents a simplified expression for override init
+    re-evaluation. Used during pipeline constant processing to re-evaluate
+    derived overrides.
+
+type OverrideInitLiteral struct {
+	Value float64
+}
+    OverrideInitLiteral represents a literal float value.
+
+type OverrideInitRef struct {
+	Handle OverrideHandle
+}
+    OverrideInitRef represents a reference to another override.
+
+type OverrideInitUintLiteral struct {
+	Value uint32
+}
+    OverrideInitUintLiteral represents a literal uint value for override init.
+
+type OverrideInitUnary struct {
+	Op   UnaryOperator
+	Expr OverrideInitExpr
+}
+    OverrideInitUnary represents a unary operation on an override init
+    expression.
+
+type PhiIncoming struct {
+	PredKey PhiPredKey
+	CaseIdx uint32
+	Value   ExpressionHandle
+}
+    PhiIncoming is one (predecessor, value) pair attached to an ExprPhi.
+    PredKey identifies the structured-CFG edge the value flows along. CaseIdx is
+    meaningful only when PredKey == PhiPredSwitchCase.
+
+type PhiPredKey uint8
+    PhiPredKey identifies which structured-CFG predecessor an ExprPhi incoming
+    value flows from.
+
+const (
+	// PhiPredIfAccept — value at end of StmtIf.Accept body.
+	PhiPredIfAccept PhiPredKey = iota
+	// PhiPredIfReject — value at end of StmtIf.Reject body (or pre-if value
+	// when Reject is empty / variable not stored there).
+	PhiPredIfReject
+	// PhiPredLoopInit — value at loop header from the pre-loop fall-through edge.
+	PhiPredLoopInit
+	// PhiPredLoopBackEdge — value at loop header from the back-edge
+	// (end of StmtLoop.Continuing or StmtLoop.Body when Continuing is empty).
+	PhiPredLoopBackEdge
+	// PhiPredSwitchCase — base for switch-case predecessors. The actual
+	// predecessor index = uint(PhiPredSwitchCase) + caseIdx, encoded in the
+	// CaseIdx field on PhiIncoming.
+	PhiPredSwitchCase
+	// PhiPredFallThrough — pre-construct value (e.g. into a switch merge
+	// when no case writes to the variable; rarely used in practice but kept
+	// for completeness).
+	PhiPredFallThrough
+)
+type PipelineConstants map[string]float64
+    PipelineConstants maps override keys (ID as string or name) to float64
+    values. NaN means "not set" (use default initializer).
+
+type PointerType struct {
+	Base  TypeHandle
+	Space AddressSpace
+}
+    PointerType represents pointer types.
+
+type QuadDirection uint8
+    QuadDirection represents the direction for quad swap operations.
+
+const (
+	QuadDirectionX        QuadDirection = iota // Horizontal swap
+	QuadDirectionY                             // Vertical swap
+	QuadDirectionDiagonal                      // Diagonal swap
+)
+type Range struct {
+	Start ExpressionHandle
+	End   ExpressionHandle // Exclusive
+}
+    Range represents a range of expression handles for Emit statements.
+
+type RayQueryConfirmIntersection struct{}
+    RayQueryConfirmIntersection confirms the current candidate intersection.
+    Used during candidate intersection processing (triangles).
+
+type RayQueryFunction interface {
+	// Has unexported methods.
+}
+    RayQueryFunction represents ray query operations.
+
+type RayQueryGenerateIntersection struct {
+	HitT ExpressionHandle // f32 intersection distance
+}
+    RayQueryGenerateIntersection generates a new intersection at the given
+    distance. Used during candidate intersection processing (AABB).
+
+type RayQueryInitialize struct {
+	AccelerationStructure ExpressionHandle
+	Descriptor            ExpressionHandle // Ray descriptor struct
+}
+    RayQueryInitialize initializes a RayQuery object.
+
+type RayQueryProceed struct {
+	Result ExpressionHandle // RayQueryProceedResult expression
+}
+    RayQueryProceed starts or continues a ray query. After execution, Result is
+    a Bool indicating if there are more intersection candidates.
+
+type RayQueryTerminate struct{}
+    RayQueryTerminate terminates a ray query.
+
+type RayQueryType struct{}
+    RayQueryType represents an opaque ray query handle for ray tracing.
+    In SPIR-V, this maps to OpTypeRayQueryKHR.
+
+type RelationalFunction uint8
+    RelationalFunction represents built-in relational test functions.
+
+const (
+	RelationalAll   RelationalFunction = iota // All components are true
+	RelationalAny                             // Any component is true
+	RelationalIsNan                           // Test for NaN
+	RelationalIsInf                           // Test for infinity
+)
+type ResourceBinding struct {
+	Group   uint32
+	Binding uint32
+}
+    ResourceBinding represents a resource binding.
+
+type SampleLevel interface {
+	// Has unexported methods.
+}
+    SampleLevel controls the level of detail for texture sampling.
+
+type SampleLevelAuto struct{}
+    SampleLevelAuto uses automatic level of detail.
+
+type SampleLevelBias struct {
+	Bias ExpressionHandle
+}
+    SampleLevelBias uses automatic level of detail with a bias.
+
+type SampleLevelExact struct {
+	Level ExpressionHandle
+}
+    SampleLevelExact uses an explicit level of detail.
+
+type SampleLevelGradient struct {
+	X ExpressionHandle
+	Y ExpressionHandle
+}
+    SampleLevelGradient uses explicit gradients for level of detail.
+
+type SampleLevelZero struct{}
+    SampleLevelZero uses mipmap level 0.
+
+type SamplerType struct {
+	Comparison bool
+}
+    SamplerType represents sampler types.
+
+type ScalarKind uint8
+    ScalarKind represents scalar type kinds.
+
+const (
+	ScalarSint  ScalarKind = iota // Signed integer
+	ScalarUint                    // Unsigned integer
+	ScalarFloat                   // Floating point
+	ScalarBool                    // Boolean
+
+	// Abstract types: used during WGSL lowering, removed by compact before backends.
+	ScalarAbstractInt   // WGSL abstract integer (unsuffixed int literals)
+	ScalarAbstractFloat // WGSL abstract float (unsuffixed float literals)
+)
+type ScalarType struct {
+	Kind  ScalarKind
+	Width uint8 // in bytes
+}
+    ScalarType represents scalar types.
+
+func ResolveAtomicPointerScalar(module *Module, fn *Function, pointer ExpressionHandle) *ScalarType
+    ResolveAtomicPointerScalar resolves a pointer expression to its atomic
+    scalar type.
+
+type ScalarValue struct {
+	Bits uint64 // Bit representation
+	Kind ScalarKind
+}
+    ScalarValue represents a scalar constant.
+
+type ShaderStage uint8
+    ShaderStage represents a shader stage.
+
+const (
+	StageVertex ShaderStage = iota
+	StageTask
+	StageMesh
+	StageFragment
+	StageCompute
+)
+type SpecialTypes struct {
+	// ExternalTextureParams is the handle of the NagaExternalTextureParams struct type.
+	ExternalTextureParams *TypeHandle
+
+	// ExternalTextureTransferFunction is the handle of the NagaExternalTextureTransferFn struct type.
+	ExternalTextureTransferFunction *TypeHandle
+
+	// RayIntersection is the handle of the RayIntersection struct type used by ray query get intersection expressions.
+	RayIntersection *TypeHandle
+}
+    SpecialTypes holds handles to compiler-generated types used by backends.
+
+type Statement struct {
+	Kind StatementKind
+}
+    Statement represents a statement in the IR. Statements have side effects
+    and structured control flow, but do not produce values. The function body is
+    represented as a tree of statements, with references to expressions.
+
+type StatementKind interface {
+	// Has unexported methods.
+}
+    StatementKind represents the different kinds of statements.
+
+type StmtAtomic struct {
+	Pointer ExpressionHandle
+	Fun     AtomicFunction
+	Value   ExpressionHandle
+	Result  *ExpressionHandle // AtomicResult expression, required for some operations
+}
+    StmtAtomic performs an atomic operation on a value. The pointer must point
+    to an Atomic type with scalar type I32, U32, I64, U64, or F32. Support for
+    I64/U64/F32 depends on enabled capabilities.
+
+type StmtBarrier struct {
+	Flags BarrierFlags
+}
+    StmtBarrier synchronizes invocations within the work group. The Barrier
+    flags control which memory accesses should be synchronized. If empty,
+    this becomes purely an execution barrier.
+
+type StmtBlock struct {
+	Block Block
+}
+    StmtBlock contains a sequence of statements to be executed in order.
+
+type StmtBreak struct{}
+    StmtBreak exits the innermost enclosing Loop or Switch statement. May not
+    break out of a Loop from within its continuing block.
+
+type StmtCall struct {
+	Function  FunctionHandle
+	Arguments []ExpressionHandle
+	Result    *ExpressionHandle
+}
+    StmtCall calls a function. If Result is set, it must be a CallResult
+    expression. The Call statement acts as a barrier for operations on the
+    result expression.
+
+type StmtContinue struct{}
+    StmtContinue skips to the continuing block of the innermost enclosing Loop.
+    May only appear within the body block of a Loop (not in the continuing
+    block).
+
+type StmtEmit struct {
+	Range Range
+}
+    StmtEmit emits a range of expressions, making them visible to all statements
+    that follow. This is used to mark when expressions should be evaluated
+    in SSA form. See module-level IR documentation for details on expression
+    evaluation timing.
+
+type StmtIf struct {
+	Condition ExpressionHandle // Must be a bool expression
+	Accept    Block
+	Reject    Block
+}
+    StmtIf conditionally executes one of two blocks based on the condition
+    value. Naga IR does not have phi instructions. To use values computed
+    in accept or reject blocks after the If statement, store them in a
+    LocalVariable.
+
+type StmtImageAtomic struct {
+	Image      ExpressionHandle
+	Coordinate ExpressionHandle
+	ArrayIndex *ExpressionHandle
+	Fun        AtomicFunction
+	Value      ExpressionHandle
+}
+    StmtImageAtomic performs an atomic operation on a texel in a storage
+    texture. The image must have atomic access. The coordinate type must match
+    the image dimension.
+
+type StmtImageStore struct {
+	Image      ExpressionHandle
+	Coordinate ExpressionHandle
+	ArrayIndex *ExpressionHandle
+	Value      ExpressionHandle
+}
+    StmtImageStore stores a texel value to an image. Storing into multisampled
+    images or images with mipmaps is not supported. This acts as a barrier for
+    operations on the image GlobalVariable.
+
+type StmtKill struct{}
+    StmtKill aborts the current shader execution (fragment shader discard).
+    Forbidden within the continuing block of a Loop statement.
+
+type StmtLoop struct {
+	Body       Block
+	Continuing Block
+	BreakIf    *ExpressionHandle // Optional break-if expression evaluated after continuing
+}
+    StmtLoop executes a block repeatedly. Each iteration executes the Body
+    block, followed by the Continuing block. The Continuing block is used for
+    loop increment expressions (like C for-loop's third expression). Break,
+    Return, or Kill statements exit the loop. Continue statements in Body jump
+    to the Continuing block.
+
+type StmtRayQuery struct {
+	Query ExpressionHandle // Must be a RayQuery type
+	Fun   RayQueryFunction
+}
+    StmtRayQuery performs a ray tracing query operation.
+
+type StmtReturn struct {
+	Value *ExpressionHandle
+}
+    StmtReturn returns from the function, possibly with a value. Forbidden
+    within the continuing block of a Loop statement.
+
+type StmtStore struct {
+	Pointer ExpressionHandle
+	Value   ExpressionHandle
+}
+    StmtStore stores a value at an address through a pointer. For Atomic types,
+    the value must be a corresponding scalar. For other types behind pointer<T>,
+    the value is T. This acts as a barrier for operations on the underlying
+    variable.
+
+type StmtSubgroupBallot struct {
+	Result    ExpressionHandle  // SubgroupBallotResult expression
+	Predicate *ExpressionHandle // Optional boolean predicate
+}
+    StmtSubgroupBallot calculates a bitmask using a boolean from each active
+    thread in the subgroup. The result is a vec4<u32> (SubgroupBallotResult
+    expression).
+
+type StmtSubgroupCollectiveOperation struct {
+	Op           SubgroupOperation   // What operation to compute
+	CollectiveOp CollectiveOperation // How to combine the results
+	Argument     ExpressionHandle    // The value to compute over
+	Result       ExpressionHandle    // SubgroupOperationResult expression
+}
+    StmtSubgroupCollectiveOperation computes a collective operation across
+    active threads.
+
+type StmtSubgroupGather struct {
+	Mode     GatherMode       // Specifies which thread to gather from
+	Argument ExpressionHandle // The value to broadcast over
+	Result   ExpressionHandle // SubgroupOperationResult expression
+}
+    StmtSubgroupGather gathers a value from another active thread in the
+    subgroup.
+
+type StmtSwitch struct {
+	Selector ExpressionHandle
+	Cases    []SwitchCase
+}
+    StmtSwitch conditionally executes one of multiple blocks based on the
+    selector value. Each case must have a distinct value, and exactly one must
+    be Default. The Default may appear at any position and covers all values not
+    explicitly listed.
+
+type StmtWorkGroupUniformLoad struct {
+	Pointer ExpressionHandle // Must be Pointer in WorkGroup address space
+	Result  ExpressionHandle // WorkGroupUniformLoadResult expression
+}
+    StmtWorkGroupUniformLoad loads uniformly from a uniform pointer in workgroup
+    address space. Corresponds to WGSL workgroupUniformLoad built-in function
+    with barrier semantics.
+
+type StorageAccess uint8
+    StorageAccess represents access modes for storage textures.
+
+const (
+	StorageAccessRead StorageAccess = iota
+	StorageAccessWrite
+	StorageAccessReadWrite
+	StorageAccessAtomic
+)
+type StorageAccessMode uint8
+    StorageAccessMode represents access modes for storage buffers. This is
+    separate from StorageAccess (used for storage textures).
+
+const (
+	// StorageReadWrite indicates read-write access (default for storage buffers).
+	StorageReadWrite StorageAccessMode = iota
+	// StorageRead indicates read-only access.
+	StorageRead
+)
+type StorageFormat uint8
+    StorageFormat represents storage texture formats. These are the formats that
+    can be used with storage textures in WGSL.
+
+const (
+	StorageFormatUnknown StorageFormat = iota
+
+	// 8-bit formats
+	StorageFormatR8Unorm
+	StorageFormatR8Snorm
+	StorageFormatR8Uint
+	StorageFormatR8Sint
+
+	// 16-bit formats
+	StorageFormatR16Uint
+	StorageFormatR16Sint
+	StorageFormatR16Float
+	StorageFormatRg8Unorm
+	StorageFormatRg8Snorm
+	StorageFormatRg8Uint
+	StorageFormatRg8Sint
+
+	// 32-bit formats
+	StorageFormatR32Uint
+	StorageFormatR32Sint
+	StorageFormatR32Float
+	StorageFormatRg16Uint
+	StorageFormatRg16Sint
+	StorageFormatRg16Float
+	StorageFormatRgba8Unorm
+	StorageFormatRgba8Snorm
+	StorageFormatRgba8Uint
+	StorageFormatRgba8Sint
+	StorageFormatBgra8Unorm
+
+	// Packed 32-bit formats
+	StorageFormatRgb10a2Uint
+	StorageFormatRgb10a2Unorm
+	StorageFormatRg11b10Ufloat
+
+	// 64-bit formats
+	StorageFormatRg32Uint
+	StorageFormatRg32Sint
+	StorageFormatRg32Float
+	StorageFormatRgba16Uint
+	StorageFormatRgba16Sint
+	StorageFormatRgba16Float
+
+	// 128-bit formats
+	StorageFormatRgba32Uint
+	StorageFormatRgba32Sint
+	StorageFormatRgba32Float
+
+	// Normalized 16-bit per channel formats
+	StorageFormatR16Unorm
+	StorageFormatR16Snorm
+	StorageFormatRg16Unorm
+	StorageFormatRg16Snorm
+	StorageFormatRgba16Unorm
+	StorageFormatRgba16Snorm
+
+	// 64-bit storage formats (require Metal 3.1 for atomic textures)
+	StorageFormatR64Uint
+	StorageFormatR64Sint
+)
+func (f StorageFormat) IsSnorm() bool
+    IsSnorm returns true for storage formats with signed normalized components
+    (e.g., rgba8snorm, r16snorm). DXIL metadata requires distinguishing SNormF32
+    (component type 13) from plain F32 (9) for typed UAV resources.
+
+func (f StorageFormat) IsUnorm() bool
+    IsUnorm returns true for storage formats with unsigned normalized components
+    (e.g., rgba8unorm, rgb10a2unorm). DXIL metadata requires distinguishing
+    UNormF32 (component type 14) from plain F32 (9) for typed UAV resources.
+
+func (f StorageFormat) Scalar() ScalarType
+    Scalar returns the full ScalarType (kind + width) for this storage format.
+    Width is 8 for R64Uint/R64Sint, 4 for all other formats.
+
+func (f StorageFormat) ScalarKind() ScalarKind
+    ScalarKind returns the scalar kind associated with this storage format.
+    Unorm/Snorm/Float formats return ScalarFloat, Uint formats return
+    ScalarUint, Sint formats return ScalarSint.
+
+type StructMember struct {
+	Name    string
+	Type    TypeHandle
+	Binding *Binding
+	Offset  uint32
+}
+    StructMember represents a struct member.
+
+type StructType struct {
+	Members []StructMember
+	Span    uint32 // Size in bytes
+}
+    StructType represents struct types.
+
+type SubgroupOperation uint8
+    SubgroupOperation represents the kind of subgroup collective operation.
+
+const (
+	SubgroupOperationAll SubgroupOperation = iota
+	SubgroupOperationAny
+	SubgroupOperationAdd
+	SubgroupOperationMul
+	SubgroupOperationMin
+	SubgroupOperationMax
+	SubgroupOperationAnd
+	SubgroupOperationOr
+	SubgroupOperationXor
+)
+type SwitchCase struct {
+	Value       SwitchValue
+	Body        Block
+	FallThrough bool // If true, execution continues to next case
+}
+    SwitchCase represents a case in a switch statement.
+
+type SwitchValue interface {
+	// Has unexported methods.
+}
+    SwitchValue represents the value that triggers a switch case.
+
+type SwitchValueDefault struct{}
+    SwitchValueDefault represents the default case in a switch statement.
+
+type SwitchValueI32 int32
+    SwitchValueI32 represents a signed 32-bit integer switch value.
+
+type SwitchValueU32 uint32
+    SwitchValueU32 represents an unsigned 32-bit integer switch value.
+
+type SwizzleComponent uint8
+    SwizzleComponent represents a single component in a vector swizzle.
+
+const (
+	SwizzleX SwizzleComponent = 0
+	SwizzleY SwizzleComponent = 1
+	SwizzleZ SwizzleComponent = 2
+	SwizzleW SwizzleComponent = 3
+)
+type Type struct {
+	Name  string
+	Inner TypeInner
+}
+    Type represents a type in the IR.
+
+type TypeHandle uint32
+    Handle types for referencing IR objects
+
+func FindFrexpResultType(module *Module, argType TypeResolution) TypeHandle
+    FindFrexpResultType returns the TypeHandle for the frexp result struct for a
+    given argument type. Returns -1 if not found.
+
+func FindModfResultType(module *Module, argType TypeResolution) TypeHandle
+    FindModfResultType returns the TypeHandle for the modf result struct for a
+    given argument type. Returns -1 if not found.
+
+type TypeInner interface {
+	// Has unexported methods.
+}
+    TypeInner represents the inner type kind.
+
+func TypeResInner(module *Module, res TypeResolution) TypeInner
+    TypeResInner returns the inner type of a TypeResolution.
+
+type TypeResolution struct {
+	Handle *TypeHandle // If set, references a module type
+	Value  TypeInner   // If Handle is nil, this is the inline type
+}
+    TypeResolution represents the resolved type of an expression. It can
+    either reference a type in the module's type arena (Handle) or represent an
+    inline/computed type (Value).
+
+func ResolveExpressionType(module *Module, fn *Function, handle ExpressionHandle) (TypeResolution, error)
+    ResolveExpressionType resolves the type of an expression in a function.
+    Returns a TypeResolution that either references a module type or contains an
+    inline type.
+
+func ResolveLiteralType(lit Literal) (TypeResolution, error)
+    ResolveLiteralType resolves the type of a literal expression.
+
+type UnaryOperator uint8
+    UnaryOperator represents unary operations.
+
+const (
+	UnaryNegate     UnaryOperator = iota // Arithmetic negation
+	UnaryLogicalNot                      // Logical not (!)
+	UnaryBitwiseNot                      // Bitwise not (~)
+)
+type ValidationError struct {
+	Message string
+	// Optional context
+	Function   string
+	Expression *ExpressionHandle
+	Statement  int
+}
+    ValidationError represents a validation error.
+
+func Validate(module *Module) ([]ValidationError, error)
+    Validate checks the IR module for correctness. All capabilities are enabled
+    (CapAll) — backward-compatible with existing callers. For strict capability
+    validation, use ValidateWithCapabilities.
+
+func ValidateWithCapabilities(module *Module, caps Capabilities) ([]ValidationError, error)
+    ValidateWithCapabilities checks the IR module for correctness, enforcing
+    capability restrictions on scalar types.
+
+    Types that require specific capabilities (f64, i64, u64, f16) produce
+    validation errors unless the corresponding capability flag is set. This is
+    the SINGLE gate for capability validation — neither the lowerer nor the
+    backends check capabilities.
+
+func (e ValidationError) Error() string
+    Error implements the error interface.
+
+type Validator struct {
+	// Has unexported fields.
+}
+    Validator validates IR modules.
+
+func (v *Validator) ValidateModule()
+    ValidateModule validates the complete module.
+
+type ValuePointerType struct {
+	Size   *VectorSize // nil for pointer-to-scalar, non-nil for pointer-to-vector
+	Scalar ScalarType
+	Space  AddressSpace
+}
+    ValuePointerType represents a pointer to a scalar or vector value. Unlike
+    PointerType (whose Base is a TypeHandle in the arena), ValuePointerType
+    stores the pointee type inline. This exists only in TypeResolution — never
+    in the type arena.
+
+    Produced by the typifier when accessing components through pointers:
+      - Pointer<Matrix>[i] → ValuePointerType{Size: &rows, Scalar, Space}
+        (pointer to column vector)
+      - Pointer<Vector>[i] → ValuePointerType{Size: nil, Scalar, Space} (pointer
+        to scalar)
+      - ValuePointerType{Size: &s}[i] → ValuePointerType{Size: nil, Scalar,
+        Space} (pointer to element)
+
+type VectorSize uint8
+    VectorSize represents vector sizes.
+
+const (
+	Vec2 VectorSize = 2
+	Vec3 VectorSize = 3
+	Vec4 VectorSize = 4
+)
+type VectorType struct {
+	Size   VectorSize
+	Scalar ScalarType
+}
+    VectorType represents vector types.
+
+type ZeroConstantValue struct{}
+    ZeroConstantValue represents a zero-initialized constant. In MSL, this
+    renders as "type {}" (brace initialization).
+

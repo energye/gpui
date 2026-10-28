@@ -1,0 +1,35 @@
+Evidence helpers for ui_wr_c3_list_scroll (C3 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_c3_list_scroll is the W3 C3 composite real-window: 虚拟列表(R7) +
+滚复用(R7b) + 异步图格(R10) 集成（壳层静态区局部脏承 R4 语义）。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=60 go run ./examples/ui_wr_c3_list_scroll -auto-only
+    go run ./examples/ui_wr_c3_list_scroll                 # manual: scroll until close
+    go run ./examples/ui_wr_c3_list_scroll -manual-seconds 15
+
+Window: 1200x800. RUN_SECONDS>=60 (U16, §2.5: 关闭 60s/观察 120). GPU required.
+
+Evidence (U21): logic probes, pixel probes on the GPU snapshot, and a bitwise
+Golden over header + legend + body. The scroll offset integrates dt (not
+bit-stable), so gate mode freezes it at a fixed y for the final 3s; visible rows
+(and the async-decoded checkerboard sources) are then a pure function of the
+construction tables and every probe want is derived from them. Manual mode keeps
+scrolling and does not assert pixels.
+
+Gates (§3 C3 行指标要点 bind/scroll_rerecord/p95 + §2.2 全族):
+  - bind_count ≪ item_count: item>=1200 且 bind<=64 且 bind*10<=item
+  - scroll_rerecord 上限: 累计 <= 3×item_count
+  - 滚复用结构门禁: 每 tick 全部重录增量 ≤ 滚动进入上界 + 出图额度池， 违例 tick 必须为 0（出图重录可能延迟到 cell 重入视口的
+    tick，由额度吸收）
+  - 异步出图完成: images_loaded == 24
+  - 持续 tick 60fps 档: fps_interval>=55 且 interval_p95_ms<=22；hitch<=5/min
+  - RSS 斜率预算（稳态最小二乘）: rss_slope_valid=true 时
+    rss_slope_steady_kb_per_min<=30000；valid=false 只记账不判
+  - vsync_source 必须输出；boundary_skip>0（静区/保留 cell 回放）

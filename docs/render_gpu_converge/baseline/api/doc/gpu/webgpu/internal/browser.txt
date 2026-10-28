@@ -1,0 +1,104 @@
+package browser // import "github.com/energye/gpui/gpu/webgpu/internal/browser"
+
+
+FUNCTIONS
+
+func AddressModeToJS(m types.AddressMode) string
+    AddressModeToJS converts a gputypes.AddressMode to JS string.
+
+func BlendFactorToJS(f types.BlendFactor) string
+    BlendFactorToJS converts a gputypes.BlendFactor to JS string.
+
+func BlendOperationToJS(op types.BlendOperation) string
+    BlendOperationToJS converts a gputypes.BlendOperation to JS string.
+
+func BufferBindingTypeToJS(t types.BufferBindingType) string
+    BufferBindingTypeToJS converts a gputypes.BufferBindingType to JS string.
+
+func CompareFunctionToJS(f types.CompareFunction) string
+    CompareFunctionToJS converts a gputypes.CompareFunction to JS string.
+
+func CompositeAlphaModeToJS(mode types.CompositeAlphaMode) string
+    CompositeAlphaModeToJS converts a gputypes.CompositeAlphaMode to the WebGPU
+    JS canvas alpha mode string.
+
+    Browser WebGPU only supports "opaque" and "premultiplied". PostMultiplied
+    and Inherit are not valid on the web. Auto and Opaque both map to "opaque".
+
+    See: https://www.w3.org/TR/webgpu/#enumdef-gpucanvasalphamode
+
+func CullModeToJS(m types.CullMode) string
+    CullModeToJS converts a gputypes.CullMode to JS string.
+
+func FilterModeToJS(m types.FilterMode) string
+    FilterModeToJS converts a gputypes.FilterMode to JS string.
+
+func FrontFaceToJS(f types.FrontFace) string
+    FrontFaceToJS converts a gputypes.FrontFace to JS string.
+
+func IndexFormatToJS(f types.IndexFormat) string
+    IndexFormatToJS converts a gputypes.IndexFormat to JS string.
+
+func LoadOpToJS(op types.LoadOp) string
+    LoadOpToJS converts a gputypes.LoadOp to the WebGPU JS string. Returns
+    "load" for LoadOpLoad, "clear" for LoadOpClear, and "load" as default.
+
+func PresentModeToJS(mode types.PresentMode) string
+    PresentModeToJS converts a gputypes.PresentMode to the WebGPU JS present
+    mode string.
+
+    Browser WebGPU does not expose present mode control; the browser always uses
+    FIFO (VSync). We return "fifo" for all modes since the browser ignores it
+    anyway.
+
+func PrimitiveTopologyToJS(t types.PrimitiveTopology) string
+    PrimitiveTopologyToJS converts a gputypes.PrimitiveTopology to JS string.
+
+func SamplerBindingTypeToJS(t types.SamplerBindingType) string
+    SamplerBindingTypeToJS converts a gputypes.SamplerBindingType to JS string.
+
+func StencilOperationToJS(op types.StencilOperation) string
+    StencilOperationToJS converts a gputypes.StencilOperation to JS string.
+
+func StorageTextureAccessToJS(a types.StorageTextureAccess) string
+    StorageTextureAccessToJS converts a gputypes.StorageTextureAccess to JS
+    string.
+
+func StoreOpToJS(op types.StoreOp) string
+    StoreOpToJS converts a gputypes.StoreOp to the WebGPU JS string. Returns
+    "store" for StoreOpStore, "discard" for StoreOpDiscard, and "store" as
+    default.
+
+func TextureAspectToJS(a types.TextureAspect) string
+    TextureAspectToJS converts a gputypes.TextureAspect to JS string.
+
+func TextureDimensionToJS(d types.TextureDimension) string
+    TextureDimensionToJS converts a gputypes.TextureDimension to the WebGPU JS
+    string.
+
+func TextureFormatFromJS(s string) types.TextureFormat
+    TextureFormatFromJS converts a WebGPU JS texture format string to the
+    corresponding gputypes.TextureFormat. Returns TextureFormatUndefined if the
+    string is not recognized.
+
+    This is the reverse of TextureFormatToJS and is needed
+    for parsing the preferred canvas format returned by
+    navigator.gpu.getPreferredCanvasFormat().
+
+func TextureFormatToJS(f types.TextureFormat) string
+    TextureFormatToJS converts a gputypes.TextureFormat to the WebGPU JS string.
+    Returns "" for TextureFormatUndefined.
+
+func TextureSampleTypeToJS(t types.TextureSampleType) string
+    TextureSampleTypeToJS converts a gputypes.TextureSampleType to JS string.
+
+func TextureViewDimensionToJS(d types.TextureViewDimension) string
+    TextureViewDimensionToJS converts a gputypes.TextureViewDimension to JS
+    string.
+
+func VertexFormatToJS(f types.VertexFormat) string
+    VertexFormatToJS converts a gputypes.VertexFormat to JS string.
+
+func VertexStepModeToJS(m types.VertexStepMode) string
+    VertexStepModeToJS converts a gputypes.VertexStepMode to JS string.
+

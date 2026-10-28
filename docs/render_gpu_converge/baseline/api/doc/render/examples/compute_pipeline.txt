@@ -1,0 +1,11 @@
+Command compute_pipeline is a visual demo comparing the Vello compute pipeline
+GPU output against the CPU reference implementation.
+
+It renders a rich scene through both paths and produces a triptych image (CPU |
+GPU | Diff) for visual inspection.
+
+Output:
+
+    tmp/compute_pipeline_cpu.png — CPU reference
+    tmp/compute_pipeline_gpu.png — GPU compute output
+    tmp/compute_pipeline_comparison.png — Side-by-side triptych with diff

@@ -1,0 +1,36 @@
+Evidence helpers for ui_wr_r8_overlay (R8 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run. The overlay window keeps TWO baselines (open /
+closed gate states), like ui_wr_r12b's on/off pair.
+
+Command ui_wr_r8_overlay is the W4 R8 real-window: overlay independent
+compositing. A dense static main tree (grid + labels + nested boundary + HOT
+live-paint spot) runs under a scripted overlay stack: Steady (no overlay) →
+Spike (panel + barrier + inner interactive button stacked) → Recover (overlay
+removed). Opening/closing the overlay must dirty ONLY the overlay band —
+main-band dirty ids stay at their pre-overlay baseline and pipe paint_count does
+not grow from the overlay open.
+
+Retained policy (Plan C, Flutter-aligned): steady frames CompositeOnly + damage
+present; clean boundaries replay, only dirty layers re-record.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_wr_r8_overlay -auto-only
+    R8_GATE_STATE=closed RUN_SECONDS=15 go run ./examples/ui_wr_r8_overlay -auto-only
+    go run ./examples/ui_wr_r8_overlay                 # manual: cycling until close
+    go run ./examples/ui_wr_r8_overlay -manual-seconds 15
+
+Window: 1200x800. RUN_SECONDS>=5 is the generic floor, but a gate run below 15s
+cannot close R8 (§2.5). GPU window required.
+
+Evidence (U21): logic probes, two-state pixel probes on the GPU snapshot
+(R8_GATE_STATE=open: fixed modal popup stacked above the dimming barrier;
+closed: main band only), and a bitwise Golden per state over header + legend +
+body. Gate mode freezes the script — hot converges over 60 ticks then holds,
+the overlay opens once after the 1.2s baseline window and stays; the main-dirty
+isolation gate still runs against the frozen open. Manual mode keeps the Steady
+→ SpikeCycle → Recover popup cycling and does not assert pixels.

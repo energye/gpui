@@ -1,0 +1,132 @@
+package bitcode // import "github.com/energye/gpui/gpu/shader/dxil/internal/bitcode"
+
+Package bitcode implements a bit-level writer for LLVM 3.7 bitcode format.
+
+DXIL uses LLVM 3.7 bitcode as its binary encoding. This writer implements
+the primitives specified in the LLVM Bitcode Format documentation:
+https://releases.llvm.org/3.7.1/docs/BitCodeFormat.html
+
+The writer supports fixed-width integers, variable-width integers (VBR), 6-bit
+character encoding, block enter/exit with size backpatching, and unabbreviated
+record emission.
+
+CONSTANTS
+
+const (
+	EndBlock       = 0 // END_BLOCK — marks end of current block
+	EnterSubblock  = 1 // ENTER_SUBBLOCK — begins a new block
+	DefineAbbrev   = 2 // DEFINE_ABBREV — defines a new abbreviation
+	UnabbrevRecord = 3 // UNABBREV_RECORD — unabbreviated record
+)
+    Abbreviation IDs defined by the LLVM bitstream format.
+
+
+FUNCTIONS
+
+func EncodeChar6(ch byte) uint32
+    EncodeChar6 converts a character to its 6-bit encoding.
+
+        'a'..'z' → 0..25
+        'A'..'Z' → 26..51
+        '0'..'9' → 52..61
+        '.' → 62
+        '_' → 63
+
+func EncodeSignedVBR(value int64) uint64
+    EncodeSignedVBR ZigZag-encodes a signed integer for VBR transmission. LLVM
+    bitcode uses this for instruction operands that may be forward references
+    — most notably FUNC_CODE_INST_PHI value operands, which can reference
+    instructions that appear later in basic-block order than the phi itself.
+
+    Mapping (LSB carries the sign, magnitude in the upper bits):
+
+        v >= 0 → v << 1
+        v < 0 → (-v << 1) | 1
+
+    Symmetric to LLVM's BitstreamReader::ReadVBR + sign decode on the read side.
+
+func IsChar6String(s string) bool
+    IsChar6String returns true if all bytes in s are representable in char6.
+
+
+TYPES
+
+type Writer struct {
+	// Has unexported fields.
+}
+    Writer writes individual bits to build LLVM 3.7 bitcode output.
+
+    Bits accumulate in a 64-bit buffer and are flushed as little-endian
+    32-bit words when the buffer reaches 32 bits, matching Mesa's dxil_buffer
+    implementation.
+
+func NewWriter(abbrevWidth uint) *Writer
+    NewWriter creates a Writer with the given initial abbreviation ID width.
+    The LLVM bitstream starts with abbrevWidth=2 for the outermost scope.
+
+func (w *Writer) Align32()
+    Align32 pads the bitstream with zero bits until the bit position is a
+    multiple of 32. This is required after END_BLOCK and before the block size
+    word in ENTER_SUBBLOCK.
+
+func (w *Writer) Bytes() []byte
+    Bytes returns the finalized bitcode output. The caller must ensure all
+    blocks have been exited before calling this method.
+
+func (w *Writer) EmitRecord(code uint, values []uint64)
+    EmitRecord writes an unabbreviated record.
+
+    Format: [UNABBREV_RECORD, code(vbr6), numops(vbr6), [op(vbr6)]*]
+
+func (w *Writer) EmitRecordWithBlob(code uint, values []uint64, blob []byte)
+    EmitRecordWithBlob writes an unabbreviated record followed by a blob.
+    This is used for encoding raw byte data (e.g., strings) in records.
+
+func (w *Writer) EnterBlock(blockID uint, abbrevLen uint)
+    EnterBlock begins a new sub-block with the given block ID and abbreviation
+    width for the block body.
+
+    Format: [ENTER_SUBBLOCK, blockID(vbr8), newAbbrevLen(vbr4), <align32>,
+    blockLen(32)]
+
+    The block length is backpatched when ExitBlock is called.
+
+func (w *Writer) ExitBlock()
+    ExitBlock ends the current sub-block.
+
+    Format: [END_BLOCK, <align32>]
+
+    The block size placeholder written by EnterBlock is backpatched with the
+    actual size in 32-bit words.
+
+func (w *Writer) Len() int
+    Len returns the current output size in bytes.
+
+func (w *Writer) WriteBits(data uint32, width uint)
+    WriteBits writes the lowest `width` bits of data to the bitstream. width
+    must be in [1, 32] and data must fit in width bits.
+
+func (w *Writer) WriteChar6(ch byte)
+    WriteChar6 writes a 6-bit character code. Only the characters [a-zA-Z0-9._]
+    are representable.
+
+func (w *Writer) WriteFixed(value uint64, width uint)
+    WriteFixed writes a fixed-width integer value. If width is 0, nothing is
+    written. For values > 32 bits wide, the value is split across two WriteBits
+    calls.
+
+func (w *Writer) WriteVBR(value uint64, width uint)
+    WriteVBR writes a variable bit-rate encoded integer.
+
+    VBR(n) splits the value into chunks of (n-1) data bits. The high bit of each
+    chunk is set to 1 if more chunks follow, 0 for the last chunk.
+
+    For example, VBR(4) encoding of 27:
+
+        27 = 0b11011
+        First chunk: 011 with continuation=1 → 1011
+        Second chunk: 011 with continuation=0 → 0011
+        Written as: 1011 0011
+
+    width must be >= 2.
+

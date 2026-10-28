@@ -1,0 +1,38 @@
+Command ui_wr_c4_shell_overlay is the W4 C4 composite real-window (mode-2
+rewrite, 2026-08-24; scene layout revised per user review: the virtual list is
+the LEFT column with its explanation text beside it, the right side keeps the
+§3.1.2 standard bands).
+
+Integration thesis (§3 C4 row): 顶栏壳(R21) + 可滚体内容(R3) + 浮层面板叠加 (R8) 三层同屏独立。Three
+bands share one frame and must not interfere:
+
+    SHELL demo band (top strip): one RepaintBoundary tagged
+      SetShellBoundary — body scrolling AND overlay cycling must never
+      re-record it (shell_rerecord_scroll == 0, replays grow shell_skip).
+    CONTENT band (left): a 90-row VirtualList scrolls every frame inside a
+      RenderViewport, with a caption explaining what to watch. Right side:
+      static dense grid of nested RepaintBoundaries replays throughout (R3,
+      boundary_skip > 0) plus a custom-painted HOT spot dirtying itself
+      every frame (part of the main-band baseline).
+    OVERLAY band: Spike phase cycles popups open/closed (1.6s open /
+      1.0s closed; modal dialog + menu stack / dropdown / tooltip sheet,
+      fresh entries per open). Opening must dirty ONLY the overlay band —
+      main-band dirty count stays at its closed-state baseline
+      (main_dirty_excess_frames == 0). Recover removes everything.
+
+Present policy: retained (Plan C, Flutter-aligned; user-confirmed at the
+stop-report node) — steady frames CompositeOnly + damage present; only
+dirty layers re-record, which makes both the shell-rerecord=0 gate and the
+overlay-does-not-grow-main-paint gate strict.
+
+§2.7/U21 visual correctness: scripted hit-probes paired with pixel assertions
+(F0 exact points / F5 barrier blend formula / F6 text-region density / F8
+open-close dual state), plus Golden bitwise comparison of the STATIC regions
+between consecutive runs (zero tolerance, same-engine baseline semantics;
+the first run only produces the baseline).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=25 go run ./examples/ui_wr_c4_shell_overlay
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 25 (§2.5). GPU window
+required (needs_gpu_window otherwise).

@@ -1,0 +1,3896 @@
+package text // import "github.com/energye/gpui/render/text"
+
+Arabic joining analysis for presentation-form feature masks (ENGINE_GAPS G1.c).
+
+Assigns each glyph a joining form (isol/init/medi/fina) so GSUB features of
+those tags only apply to the correct positions. This is a lightweight state
+machine over Unicode Arabic joining types — not a full HarfBuzz complex shaper,
+but enough for fonts that encode forms under init/medi/fina/isol.
+
+Package text provides GPU text rendering infrastructure.
+
+This file implements the main auto-hinter pipeline for Latin script. It is a Go
+port of the FreeType auto-hinter (aflatin.c) and skrifa . The pipeline:
+
+ 1. Compute standard stem widths from a reference glyph ('o')
+ 2. Detect blue zones from reference characters (THEZOCQS, etc.)
+ 3. Scale widths and blue zones to target pixel size
+ 4. Per-glyph: detect segments, link into stems, group into edges
+ 5. Match edges to blue zones
+ 6. Grid-fit edges: blue-anchored → stems → serifs → singles
+ 7. Propagate edge positions to all outline points
+
+Package text provides GPU text rendering infrastructure.
+
+This file implements the OpenType avar (Axis Variations) table parser. The
+avar table provides piecewise linear remapping of normalized axis coordinates,
+allowing font designers to define non-linear relationships between user-facing
+axis values and internal design-space coordinates.
+
+Spec: https://learn.microsoft.com/en-us/typography/opentype/spec/avar
+
+CFF outline path for ownParsedFont (ENGINE_GAPS G1.b).
+
+TrueType fonts keep using the pure-Go glyf path. OpenType fonts with a "CFF "
+table (and no glyf) load outlines via golang.org/x/image/font/sfnt, which is
+already a module dependency. This restores out-of-box rendering for system OTF /
+Noto CJK CFF collections without re-implementing Type2 charstrings in-tree.
+
+Scope:
+  - CFF (OpenType OTTO) outlines → GlyphOutline segments (incl. cubics)
+  - GlyphBounds for CFF (from loaded segments)
+  - TTC/OTC via sfnt.ParseCollection + collection index
+
+CFF2: parsed via github.com/go-text/typesetting/font/cff (default instance;
+coords empty) and with axis blend when FontVariation coords are supplied
+(normalized F2.14 via fvar/avar → go-text tables.Coord). CFF has no TT/auto-hint
+(unhinted outlines still draw).
+
+Package text provides text rendering for render. It implements a modern text API
+inspired by Ebitengine text/v2.
+
+The text rendering pipeline follows a separation of concerns:
+
+  - FontSource: Heavyweight, shared font resource (parses TTF/OTF files)
+  - Face: Lightweight font instance at a specific size
+  - FontParser: Pluggable font parsing backend (default: own Pure Go parser)
+  - Shaper: Pluggable text shaper (default: OwnShaper with GSUB/GPOS)
+
+# Example usage
+
+    // Load font (do once, share across application)
+    source, err := text.NewFontSourceFromFile("Roboto-Regular.ttf")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer source.Close()
+
+    // Create face at specific size (lightweight)
+    face := source.Face(24)
+
+    // Use with render.Context
+    ctx := render.NewContext(800, 600)
+    ctx.SetFont(face)
+    ctx.DrawString("Hello, GoGPU!", 100, 100)
+
+# Font Parsing
+
+The default parser is "own" — a Pure Go font parser with zero external
+dependencies (ADR-048). Custom parsers can be registered via RegisterParser.
+
+# Text Shaping
+
+The default shaper is OwnShaper with GSUB/GPOS support (ligatures, kerning,
+contextual alternates). Custom shapers can be set via SetShaper.
+
+Cmap table parser — character to glyph ID mapping.
+
+Supports the three most common cmap subtable formats:
+  - Format 4: Segment mapping to delta values (BMP characters)
+  - Format 6: Trimmed table mapping (sequential range)
+  - Format 12: Segmented coverage (full Unicode, 32-bit code points)
+
+Selection priority: format 12 > format 4 > format 6.
+
+This file is part of Phase 3a (ADR-048: Pure Go Font Stack).
+
+Font metrics parsers — hhea, hmtx, OS/2, head.
+
+Provides horizontal metrics (advance widths, LSBs) and font-level metrics
+(ascent, descent, line gap, xHeight, capHeight) from the hhea, hmtx, OS/2,
+and head tables.
+
+Reuses parseHmtx() from tt_glyph.go for hmtx parsing. Reuses
+parseHeadUnitsPerEm() from tt_font.go for head parsing.
+
+This file is part of Phase 3a (ADR-048: Pure Go Font Stack).
+
+Name table parser — font family and full name extraction.
+
+Parses the OpenType 'name' table to extract human-readable font names. Supports
+Windows Unicode (platform 3, encoding 1) with UTF-16BE decoding and Mac Roman
+(platform 1, encoding 0) as a fallback.
+
+This file is part of Phase 3a (ADR-048: Pure Go Font Stack).
+
+Own font parser — Pure Go implementation of ParsedFont.
+
+ownParsedFont replaces ximageParsedFont with direct binary parsing of
+TrueType/OpenType tables. Zero external dependencies for font parsing.
+
+Implements:
+  - ParsedFont (core interface)
+  - VariableAdvanceProvider (HVAR-based variable font advance)
+  - RawFontDataProvider (raw bytes for auto-hinter and TT interpreter)
+
+Lazy initialization: table directory is parsed eagerly (cheap), individual
+tables are parsed on first access via sync.Once (thread-safe).
+
+This file is part of Phase 3a (ADR-048: Pure Go Font Stack).
+
+Font table directory parser — Pure Go binary parsing.
+
+Provides indexed table directory access for TrueType/OpenType fonts and font
+collections (TTC/OTC). Reuses parseFontTables() from tt_font.go for single-font
+cases and adds collection index support.
+
+This file is part of Phase 3a (ADR-048: Pure Go Font Stack).
+
+GDEF table — glyph class definition for lookup flag filtering.
+
+ENGINE_GAPS G1.c: IgnoreBase/Ligature/Marks, MarkAttachmentType, and
+MarkFilteringSet (GDEF MarkGlyphSets + LookupFlag bit 4).
+
+Package text provides GPU text rendering infrastructure.
+
+This file implements a raw TrueType glyf table contour point parser. It reads
+raw contour points from the glyf table, providing the exact same data that
+FreeType's FT_Load_Glyph or skrifa's Outline::fill produces: unscaled font-unit
+coordinates with on-curve/off-curve flags and contour end indices.
+
+This is critical for the auto-hinter: FreeType works on raw contour points
+(e.g., 32 points for a glyph), not pen-derived outline segments (which may
+expand to 42+ points due to curve decomposition). The auto-hinter's segment
+detection, stem linking, and point propagation must operate on the raw TrueType
+point representation to achieve coordinate parity with FreeType.
+
+Package text provides GPU text rendering infrastructure.
+
+Package text provides GPU text rendering infrastructure.
+
+Package text provides GPU text rendering infrastructure.
+
+GPOS table parser and glyph positioning engine.
+
+Implements OpenType GPOS (Glyph Positioning) table parsing and application.
+Supported lookup types:
+
+  - Type 1: Single adjustment (position a single glyph)
+  - Type 2: Pair adjustment (kerning: position two adjacent glyphs)
+  - Type 3: Cursive attachment (ENGINE_GAPS G1.c)
+  - Type 4: Mark-to-base (ENGINE_GAPS G1.c)
+  - Type 5: Mark-to-ligature (ENGINE_GAPS G1.c)
+  - Type 6: Mark-to-mark (ENGINE_GAPS G1.c)
+  - Type 7: Contextual positioning (ENGINE_GAPS G1.c)
+  - Type 8: Chained contextual positioning (ENGINE_GAPS G1.c)
+  - Type 9: Extension positioning (wrapper for above types in large fonts)
+
+This file is part of Phase 5 (ADR-048: Pure Go Font Stack).
+
+GPOS Lookup Type 7 (Contextual) and Type 8 (Chained Contextual).
+
+ENGINE_GAPS G1.c — remaining GPOS context/chaining positioning. Nested lookups
+resolve through Type 1–6 (and Type 9 extension) via the parent gposTable lookup
+list. Glyph length is not changed by positioning.
+
+Formats: Type 7/8 Format 1 (glyph rules), 2 (class), 3 (coverage).
+PosLookupRecord layout matches SubstLookupRecord (sequenceIndex +
+lookupListIndex).
+
+GPOS Lookup Type 3 (Cursive), Type 4 (MarkToBase), Type 6 (MarkToMark).
+
+ENGINE_GAPS G1.c — mark attachment / cursive positioning for complex scripts.
+Anchor Format 1–3 coordinates supported; device tables ignored.
+
+GSUB table parser and glyph substitution engine.
+
+Implements OpenType GSUB (Glyph Substitution) table parsing and application.
+Supported lookup types:
+
+  - Type 1: Single substitution (one-to-one glyph replacement)
+  - Type 2: Multiple substitution (one-to-many expansion)
+  - Type 3: Alternate substitution (one-of-many selection)
+  - Type 4: Ligature substitution (many-to-one contraction, e.g. fi, ffi)
+  - Type 5: Contextual substitution (ENGINE_GAPS G1.c)
+  - Type 6: Chaining contextual substitution (ENGINE_GAPS G1.c)
+  - Type 7: Extension substitution (wrapper for above types in large fonts)
+  - Type 8: Reverse chaining single substitution (ENGINE_GAPS G1.c)
+
+This file is part of Phase 5 (ADR-048: Pure Go Font Stack).
+
+GSUB Lookup Type 5 (Contextual), Type 6 (Chaining Contextual), Type 8 (Reverse).
+
+ENGINE_GAPS G1.c — complex OT shaping. Nested substitutions resolve through
+the existing Type 1–4 (and Type 7 extension) implementations via the parent
+gsubTable lookup list.
+
+Formats:
+  - Type 5 Format 1/2/3
+  - Type 6 Format 1/2/3
+  - Type 8 Format 1 (single reverse chaining)
+
+Lookup flags IgnoreMarks/Base/Ligature, MarkAttachmentType, and MarkFilteringSet
+are honored via GDEF (see gdef.go / otLookup.markFilterSet).
+
+Package text provides GPU text rendering infrastructure.
+
+This file implements the OpenType gvar (Glyph Variations) table parser. The gvar
+table stores per-glyph variation deltas that modify outline points for variable
+fonts based on the current design-space coordinates.
+
+Spec: https://learn.microsoft.com/en-us/typography/opentype/spec/gvar
+
+Package text provides GPU text rendering infrastructure.
+
+This file implements the packed point numbers and packed deltas decoders used by
+the gvar table, plus the IUP (Inferred Untouched Points) interpolation algorithm
+for sparse delta sets.
+
+Spec:
+https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats
+
+Package text provides GPU text rendering infrastructure.
+
+This file implements the OpenType HVAR (Horizontal Metrics Variations) table
+parser. HVAR provides advance width deltas for variable fonts, allowing precise
+advance adjustment without reprocessing gvar outlines.
+
+Spec: https://learn.microsoft.com/en-us/typography/opentype/spec/hvar
+
+Per-font Indic positional classes from GSUB feature coverages (ENGINE_GAPS
+G1.c).
+
+Static Unicode tables (indicConsonantPos) cover common scripts. Real fonts
+encode below/post-base consonants under blwf / pstf / rkrf / vatu coverage.
+We harvest those coverages so final reordering can bucket glyph IDs correctly
+when the static table is incomplete or font-specific.
+
+This is not full Uniscribe OT class machinery (no per-lookup match-class
+rewriting); it only refines final below/post consonant buckets and base skipping
+after cmap when a glyph is listed in those features.
+
+Indic syllable reordering (ENGINE_GAPS G1.c lightweight subset).
+
+Implements a Devanagari-oriented initial + final reorder sufficient for common
+Ra+Halant (reph), multi-consonant base selection, and pre-base matras across
+major Indic scripts, plus lightweight Khmer / Myanmar:
+  - Khmer coeng (U+17D2) + pre-base vowels (េ ែ ៃ)
+  - Myanmar kinzi (Nga+Asat+Virama) + pre-base e (ေ)
+
+Matra classification covers pre / above / below / post for Devanagari and common
+peer-script pre-base signs. Not a full Uniscribe/HarfBuzz Indic engine (no full
+font-driven below-base OT class tables).
+
+Below/post-base consonant positions use a *static* OT-style table
+(Unicode-driven, not per-font GSUB class defs). Base selection walks backward
+skipping below/post consonants when an earlier base exists.
+
+Pipeline position (OwnShaper):
+ 1. initial reorder on logical runes (reph after base for feature application)
+ 2. cmap → glyphs (clusters = original source indices)
+ 3. staged GSUB / GPOS
+ 4. final reorder on glyphs by cluster (pre | base-group | below | above | post
+    | reph)
+
+Indic GSUB feature staging (ENGINE_GAPS G1.c lightweight state machine).
+
+Full Uniscribe/HarfBuzz Indic reordering is out of scope. We apply OpenType
+features in the conventional Indic stage order so fonts that encode behavior
+under rphf/half/vatu/pres/… get a deterministic, script-aware pass instead of a
+single sorted-lookup soup.
+
+Package text provides GPU text rendering infrastructure.
+
+This file implements the OpenType ItemVariationStore (IVS) and DeltaSetIndexMap
+parsers. These are reusable components used by HVAR, VVAR, MVAR, GDEF, and COLR
+tables for variation deltas.
+
+kern table parser — fallback kerning for fonts without GPOS.
+
+Parses the legacy 'kern' table (format 0) which stores kerning as a flat list
+of (left, right) → value pairs. This is the pre-OpenType kerning mechanism,
+still present in many fonts alongside or instead of GPOS Lookup Type 2.
+
+The kern table is only used as a fallback when:
+  - No GPOS table is present, OR
+  - The GPOS table does not contain a 'kern' feature
+
+This file is part of Phase 5 (ADR-048: Pure Go Font Stack).
+
+OpenType Layout shared structures — ScriptList, FeatureList, LookupList,
+Coverage.
+
+These structures are shared between GSUB and GPOS table parsers. They follow the
+OpenType specification binary layout:
+
+  - ScriptList → Script → LangSys → feature indices
+  - FeatureList → Feature → lookup indices
+  - LookupList → Lookup → subtables
+  - Coverage → glyph containment check (Format 1: list, Format 2: ranges)
+  - ClassDef → glyph class assignment (Format 1: array, Format 2: ranges)
+
+This file is part of Phase 5 (ADR-048: Pure Go Font Stack).
+
+HbShaper — HarfBuzz Go 移植（go-text/typesetting/harfbuzz）驱动的 shaper。
+
+分工对照（用户确认）：
+  - A 类（换用 HarfBuzz）：GSUB/GPOS 引擎、Indic/Arabic 复杂脚本、NFC、AAT…
+  - B 类（自研保留）：tt_*.go（TT 指令引擎）、autohint_*.go、光栅化、缓存层
+
+缩放约定：Font.XScale/YScale = size<<12（16.12 定点，Position 单位为 1/4096 像素），输出像素 =
+Position >> hbScaleBits。高精度定点使 HbShaper 与自研 float64 全精度的 advance 误差趋近于零（÷4096 ≤
+0.0003px）。
+
+OwnShaper — Pure Go text shaper with GSUB/GPOS support.
+
+OwnShaper implements the Shaper interface with direct binary parsing of OpenType
+GSUB and GPOS tables, replacing the legacy GoTextShaper as part of the Pure Go
+Font Stack (ADR-048, Phase 5).
+
+Shaping pipeline:
+ 1. Character → Glyph (cmap lookup via ownParsedFont)
+ 2. GSUB substitution (ligatures, single/multiple/alternate substitution)
+ 3. GPOS positioning (kerning, single adjustment)
+ 4. kern table fallback (if GPOS has no 'kern' feature)
+ 5. Scaling (font units → pixels)
+
+Supported features:
+  - GSUB: single (Type 1), multiple (Type 2), alternate (Type 3), ligature
+    (Type 4), contextual (Type 5), chaining (Type 6), extension (Type 7),
+    reverse chaining (Type 8)
+  - GPOS: single (Type 1), pair/kerning (Type 2), cursive (Type 3), mark-to-base
+    (Type 4), mark-to-ligature (Type 5), mark-to-mark (Type 6), contextual (Type
+    7), chaining (Type 8), extension (Type 9)
+  - kern: format 0 fallback pairs
+  - Default features: 'liga' (ligatures), 'kern' (kerning)
+
+OwnShaper is safe for concurrent use. Parsed table caches are protected by
+sync.Once (per FontSource) and sync.RWMutex (for the cache map).
+
+This file is part of Phase 5 (ADR-048: Pure Go Font Stack).
+
+Package text provides GPU text rendering infrastructure.
+
+System / default font resolution for render/text.
+
+Policy:
+
+  - Library default = ONE common system UI font (platform sans via build tags).
+  - Apps / examples / tests set fonts with functions only (no env vars):
+    SetDefaultFontPath, SetSystemFontPaths, FontResolver.SetFontFile / SetPaths,
+    or text.NewFontSourceFromFile.
+  - Multi-script MultiFace is opt-in (LoadMultiFace / FontResolver.SetChain).
+
+TrueType bytecode interpreter — call stack.
+
+Tracks nested function/instruction definition calls.
+
+TrueType bytecode interpreter — function/instruction definitions.
+
+Manages FDEF/IDEF function and instruction definitions.
+
+TrueType bytecode interpreter — opcode dispatch.
+
+Maps all ~200 TrueType opcodes to their handler functions.
+
+TrueType bytecode interpreter — main engine.
+
+The Engine is a stack-based virtual machine that executes font hinting
+instructions, manipulating glyph outline points to snap them to the pixel grid.
+
+TrueType bytecode interpreter — error definitions.
+
+TrueType bytecode interpreter — font program data.
+
+Loaded once per font file: fpgm, prep, CVT, and maxp limits. These are immutable
+after loading and shared across all sizes.
+
+TrueType bytecode interpreter — per-glyph outline for hinting.
+
+Loads raw contour points, appends phantom points, scales to 26.6, and prepares
+the outline for the TT bytecode interpreter.
+
+Phantom points encode glyph metrics:
+
+    [0] left side bearing origin (xMin - lsb, 0)
+    [1] advance width endpoint (phantom[0].x + advance, 0)
+    [2] top side bearing (0, yMax + tsb)
+    [3] vertical advance endpoint (0, phantom[2].y - vadvance)
+
+After hinting, the hinted advance = phantom[1].x - phantom[0].x.
+
+TrueType bytecode interpreter — graphics state.
+
+Manages the interpreter's graphics state including projection/freedom vectors,
+reference points, zone pointers, and retained state.
+
+TrueType bytecode interpreter — hint instance (per-size cached state).
+
+HintInstance caches the results of running fpgm + prep programs for a given font
+size. This state is reused across all glyph hints at that size.
+
+Lifecycle matching skrifa:
+ 1. newTTHintInstance() — allocate buffers, scale CVT, run fpgm + prep
+ 2. hintGlyph() — run per-glyph bytecode using cached state
+ 3. isEnabled() — check if prep disabled hinting
+
+TrueType bytecode interpreter — integration with glyph rendering pipeline.
+
+This file wires the TT bytecode interpreter into the existing glyph outline
+extraction and advance width computation. When a TrueType font has fpgm/prep
+bytecode instructions, this path produces professionally hinted glyph outlines
+and correct hinted advance widths.
+
+Priority chain for hinting:
+ 1. TT bytecode (this file) — if font has fpgm/prep instructions
+ 2. Auto-hinter — if TT bytecode fails or is absent
+ 3. Grid-fit — basic Y-snapping fallback
+
+Priority chain for advance width:
+ 1. TT bytecode phantom points — hinted advance from interpreter
+ 2. HVAR — if font has HVAR table (variable fonts)
+ 3. Raw hmtx — unhinted advance from horizontal metrics table
+
+TrueType bytecode interpreter — fixed-point math helpers.
+
+These are specific to TrueType hinting and operate on i32 values in 26.6, 16.16,
+or 2.14 fixed-point formats.
+
+TrueType opcode name table for the FT-go trace comparator.
+
+Maps raw opcodes to instruction names matching FreeType's trace mnemonics
+after normalization (see /tmp/opencode/ftrace_cmp.py norm()). Pair instructions
+(SVTCA/SHP/SHC/SHZ/IUP/MDAP/MIAP/… whose encoding carries an axis bit) use the
+shared normalized name, since FreeType prints both members of a pair as e.g.
+"IUP[x]"/"IUP[y]" and the comparator collapses them before diffing. Axis/bit
+digits are therefore omitted here.
+
+This table is only consulted when GPUI_TT_TRACE=1 (tt_engine.go doTrace);
+unlisted opcodes print "OP_<dec>". It is normative ONLY for trace output,
+never for interpreter semantics.
+
+TrueType bytecode interpreter — arithmetic and math instructions.
+
+Implements: ADD, SUB, DIV, MUL, ABS, NEG, FLOOR, CEILING, MAX, MIN.
+
+TrueType bytecode interpreter — control flow, definitions, CVT, storage, data,
+delta, and miscellaneous instructions.
+
+TrueType bytecode interpreter — graphics state instructions.
+
+Implements vector setting, reference points, zone pointers, and round mode
+instructions.
+
+TrueType bytecode interpreter — logical and comparison instructions.
+
+Implements: LT, LTEQ, GT, GTEQ, EQ, NEQ, ODD, EVEN, AND, OR, NOT.
+
+TrueType bytecode interpreter — outline manipulation instructions.
+
+THE CRITICAL FILE — the "big 10" point manipulation instructions: MDAP, MIAP,
+MDRP, MIRP, MSIRP, IUP, IP, ALIGNRP, ALIGNPTS, ISECT, SHP, SHC, SHZ, SHPIX, UTP,
+FLIPPT, FLIPRGON, FLIPRGOFF.
+
+TrueType bytecode interpreter — stack management and push instructions.
+
+Implements: DUP, POP, CLEAR, SWAP, DEPTH, CINDEX, MINDEX, ROLL, NPUSHB, NPUSHW,
+PUSHB, PUSHW.
+
+TrueType bytecode interpreter — program state.
+
+Manages bytecode storage, instruction decoding, and the call stack for the three
+program types (Font, ControlValue, Glyph).
+
+TrueType bytecode interpreter — round state.
+
+Implements all TrueType rounding modes: Grid, HalfGrid, DoubleGrid, DownToGrid,
+UpToGrid, Off, Super, Super45.
+
+TrueType bytecode interpreter — value stack.
+
+Manages the TrueType interpreter's operand stack.
+
+TrueType bytecode interpreter — glyph zones.
+
+Manages twilight and glyph zone point arrays for the interpreter.
+
+Package text provides GPU text rendering infrastructure.
+
+This file provides variation coordinate normalization: converting user-space
+variation values (e.g., weight=700) to F2.14 normalized coordinates (range -1.0
+to +1.0, stored as int16 -16384 to +16384).
+
+CONSTANTS
+
+const (
+	GlyphMaskFlagHintingShift uint8 = 4
+	GlyphMaskFlagHintingMask  uint8 = 0x3 << GlyphMaskFlagHintingShift
+)
+    GlyphMaskFlagHintingShift / GlyphMaskFlagHintingMask encode the hinting
+    mode (text.Hinting, 0..2) in Flags bits 4-5. Two faces from the same source
+    configured with different hinting produce different outlines and must
+    not share an atlas entry (Skia puts every scaler-affecting state in the
+    SkDescriptor for the same reason).
+
+const AFCJK_TOP_BLUE_FU = 816
+    AFCJK_TOP_BLUE_FU 是 Noto Sans CJK 的顶蓝线参考位（字体单位）。 来源：ftexp 实测——FT-light 顶横锚 =
+    round(816*px/1000) 在 10–16px 主字号域与 FT 输出精确一致（FU=816 由 12px 锚=10.0 反推）。
+
+const DefaultTabWidth = 8
+    DefaultTabWidth is the number of space characters per tab stop. Default
+    is 8, matching CSS tab-size, Pango, and POSIX terminal conventions.
+    Use SetTabWidth to change the default for all text rendering.
+
+const FontRoleLatin = FontRoleUI
+    FontRoleLatin is an alias of FontRoleUI.
+
+const GlyphMaskFlagAliased uint8 = 1 << 0
+    GlyphMaskFlagAliased marks the glyph mask as rasterized with binary coverage
+    (0 or 255 only) using the NoAAFiller. When set, the same glyph at the same
+    size gets a different cache key from its anti-aliased counterpart.
+
+const GlyphMaskFlagBold uint8 = 1 << 3
+    GlyphMaskFlagBold marks a mask rasterized from a synthetically expanded
+    outline (FreeType/Skia fakeBold class). Bold and regular masks of the same
+    glyph must never share an atlas entry.
+
+const GlyphMaskFlagLCD uint8 = 1 << 1
+    GlyphMaskFlagLCD marks the glyph mask as LCD/ClearType (3x horizontal
+    coverage stored in the R8 atlas). Must be distinct from grayscale AA keys so
+    enabling SetLCDLayout cannot reuse a previously cached gray mask.
+
+const GlyphMaskFlagLCDBGR uint8 = 1 << 2
+    GlyphMaskFlagLCDBGR marks LCD data stored in BGR subpixel order (vs RGB).
+
+
+VARIABLES
+
+var (
+	// ErrEmptyFontData is returned when font data is empty.
+	ErrEmptyFontData = errors.New("text: empty font data")
+
+	// ErrEmptyFaces is returned when no faces are provided to MultiFace.
+	ErrEmptyFaces = errors.New("text: faces cannot be empty")
+)
+    Sentinel errors for text package.
+
+var (
+	// Latin Scripts
+	RangeBasicLatin = UnicodeRange{0x0000, 0x007F} // ASCII
+	RangeLatin1Sup  = UnicodeRange{0x0080, 0x00FF} // Latin-1 Supplement
+	RangeLatinExtA  = UnicodeRange{0x0100, 0x017F} // Latin Extended-A
+	RangeLatinExtB  = UnicodeRange{0x0180, 0x024F} // Latin Extended-B
+
+	// Cyrillic Scripts
+	RangeCyrillic = UnicodeRange{0x0400, 0x04FF} // Cyrillic
+
+	// Greek Scripts
+	RangeGreek = UnicodeRange{0x0370, 0x03FF} // Greek and Coptic
+
+	// Middle Eastern Scripts
+	RangeArabic = UnicodeRange{0x0600, 0x06FF} // Arabic
+	RangeHebrew = UnicodeRange{0x0590, 0x05FF} // Hebrew
+
+	// CJK Scripts
+	RangeCJKUnified = UnicodeRange{0x4E00, 0x9FFF} // CJK Unified Ideographs
+	RangeHiragana   = UnicodeRange{0x3040, 0x309F} // Hiragana
+	RangeKatakana   = UnicodeRange{0x30A0, 0x30FF} // Katakana
+	RangeHangul     = UnicodeRange{0xAC00, 0xD7AF} // Hangul Syllables
+
+	// Emoji
+	RangeEmoji        = UnicodeRange{0x1F600, 0x1F64F} // Emoticons
+	RangeEmojiMisc    = UnicodeRange{0x1F300, 0x1F5FF} // Miscellaneous Symbols and Pictographs
+	RangeEmojiSymbols = UnicodeRange{0x1F680, 0x1F6FF} // Transport and Map Symbols
+	RangeEmojiFlags   = UnicodeRange{0x1F1E0, 0x1F1FF} // Regional Indicator Symbols (Flags)
+)
+    Common Unicode ranges for filtering faces.
+
+var (
+	// TabularNums enables tabular (monospaced) digit widths.
+	// This ensures that digits like 1 and 0 occupy the same horizontal space,
+	// which is essential for aligned numeric columns (e.g., axis tick labels).
+	TabularNums = FontFeature{Tag: [4]byte{'t', 'n', 'u', 'm'}, Value: 1}
+
+	// ProportionalNums explicitly requests proportional (variable-width) digit widths.
+	// This is the default for most fonts, but can be used to override a face
+	// that was configured with TabularNums.
+	ProportionalNums = FontFeature{Tag: [4]byte{'p', 'n', 'u', 'm'}, Value: 1}
+
+	// NoLigatures disables standard ligatures (fi, fl, ffi, etc.).
+	NoLigatures = FontFeature{Tag: [4]byte{'l', 'i', 'g', 'a'}, Value: 0}
+
+	// NoDLigatures disables discretionary ligatures.
+	// Some fonts (e.g. Times New Roman) place fi/fl ligatures under 'dlig'
+	// rather than 'liga'. The shaper enables 'dlig' by default for
+	// compatibility. Use this constant to disable discretionary ligatures
+	// when strict HarfBuzz-compatible behavior is needed.
+	NoDLigatures = FontFeature{Tag: [4]byte{'d', 'l', 'i', 'g'}, Value: 0}
+
+	// Kerning enables kerning (pair-wise glyph spacing adjustment).
+	// Kerning is enabled by default in most OpenType fonts; this constant
+	// is useful for explicitly requesting it when combined with other features.
+	Kerning = FontFeature{Tag: [4]byte{'k', 'e', 'r', 'n'}, Value: 1}
+
+	// NoKerning disables kerning.
+	NoKerning = FontFeature{Tag: [4]byte{'k', 'e', 'r', 'n'}, Value: 0}
+
+	// SmallCaps enables small capitals substitution.
+	// Lowercase letters are replaced with small capital forms.
+	SmallCaps = FontFeature{Tag: [4]byte{'s', 'm', 'c', 'p'}, Value: 1}
+
+	// OldstyleNums enables oldstyle (text) figures.
+	// Digits have varying heights and descenders (3, 4, 5, 7, 9 descend),
+	// matching the visual rhythm of body text.
+	OldstyleNums = FontFeature{Tag: [4]byte{'o', 'n', 'u', 'm'}, Value: 1}
+)
+    Predefined font feature constants for common use cases.
+
+var (
+	// AxisWeight is the "wght" axis — controls stroke thickness.
+	// Typical range: 100 (Thin) to 900 (Black). Default: 400 (Regular).
+	AxisWeight = [4]byte{'w', 'g', 'h', 't'}
+
+	// AxisWidth is the "wdth" axis — controls horizontal character width.
+	// Typical range: 75 (Condensed) to 125 (Expanded). Default: 100 (Normal).
+	AxisWidth = [4]byte{'w', 'd', 't', 'h'}
+
+	// AxisItalic is the "ital" axis — selects italic style.
+	// Values: 0 (Upright) or 1 (Italic). Default: 0.
+	AxisItalic = [4]byte{'i', 't', 'a', 'l'}
+
+	// AxisSlant is the "slnt" axis — controls oblique angle in degrees.
+	// Typical range: -90 to 90. Default: 0.
+	AxisSlant = [4]byte{'s', 'l', 'n', 't'}
+
+	// AxisOpticalSize is the "opsz" axis — adjusts for display size.
+	// Typical range: 6 to 144 (points). Default: varies by font.
+	AxisOpticalSize = [4]byte{'o', 'p', 's', 'z'}
+)
+    Standard registered axis tag constants. These are the five axes defined in
+    the OpenType specification. Custom fonts may define additional axes.
+
+    See https://learn.microsoft.com/en-us/typography/opentype/spec/dvaraxistag
+
+var DefaultMultiFontRoleChain = []FontRole{
+	FontRoleUI,
+	FontRoleCJK,
+	FontRoleThai,
+	FontRoleDevanagari,
+	FontRoleArabic,
+}
+    DefaultMultiFontRoleChain is optional MultiFace order for apps that need
+    multi-script coverage. Not used by LoadDefaultFace.
+
+var ErrCFF2Unsupported = errors.New("text: CFF2 outlines are not yet supported")
+    ErrCFF2Unsupported is returned when a CFF2 table is present but cannot be
+    parsed or loaded (corrupt/truncated table). Successful CFF2 fonts use the
+    go-text path and do not return this error.
+
+var ErrNotColorGlyph = errors.New("text: glyph is not a color glyph")
+    ErrNotColorGlyph is returned when a color raster is requested for a glyph
+    the font renders as a plain outline.
+
+var ErrUnsupportedFont = errors.New("text: unsupported font type for FT-light port")
+    ErrUnsupportedFont 表示字体类型不被 light 引擎支持。
+
+var ErrUnsupportedFontType = &FontError{Reason: "unsupported font type for outline extraction"}
+    ErrUnsupportedFontType is returned when the font type is not supported.
+
+
+FUNCTIONS
+
+func ApplySpacing(glyphs []ShapedGlyph, text string, letterSpacing, wordSpacing float64) float64
+    ApplySpacing shifts shaped glyphs for letter/word spacing in place and
+    returns the total width addition (for run Advance bumps). Glyph X positions
+    must already include their base offsets; spacing deltas add on top.
+    Horizontal text: shifts X. Vertical text is not shifted here (layout calls
+    ApplySpacingDir); this entry preserves the horizontal caret/paint stream.
+
+func ApplySpacingDir(glyphs []ShapedGlyph, text string, letterSpacing, wordSpacing float64, dir Direction) float64
+    ApplySpacingDir is ApplySpacing with an explicit vertical axis: vertical
+    text shifts Y/YAdvance, horizontal shifts X/XAdvance. Layout passes the
+    segment direction; single-line UI callers use ApplySpacing (horizontal).
+
+func CaretXForCluster(glyphs []ShapedGlyph, cluster int) float64
+    CaretXForCluster returns the visual X of the caret for a logical cluster
+    index in a shaped visual run.
+
+    For a glyph with matching Cluster, returns that glyph's X (leading edge in
+    paint order). If multiple glyphs share a cluster (ligature), returns the
+    minimum X among them. If no glyph has the cluster:
+      - cluster below min → first glyph X
+      - cluster above max → end of last glyph (X+XAdvance)
+      - otherwise nearest lower cluster's trailing edge
+
+    Empty run returns 0.
+
+func ClearAdvanceCache()
+    ClearAdvanceCache drops all cached advances and resets stats.
+
+func ClearAutoHintCache()
+    ClearAutoHintCache clears the auto-hinter metrics cache. This should be
+    called when fonts are unloaded or when font data changes (e.g., variable
+    font axis values change).
+
+func ClearFontScanFallbackCache()
+    ClearFontScanFallbackCache drops cached rune→font resolutions (tests).
+
+func ClearMultiFaceRunsCache()
+    ClearMultiFaceRunsCache drops cached MultiFace run splits (tests/tuning).
+
+func ClearShapeResultCache()
+    ClearShapeResultCache drops all cached shape/layout runs and resets stats.
+
+func ClearSystemFontPaths()
+    ClearSystemFontPaths clears all process path overrides.
+
+func ClusterStarts(s string) []int
+    ClusterStarts返回s中字素簇起点的字节偏移,末尾附len(s)哨兵.
+    空串返回[]int{0}.实现为UAX#29(复用内置segmenter,已覆盖GB11表情序列、
+    GB12/GB13地区指示符、Extend/ZWJ;wrap.go已依赖该包,零新依赖).
+
+func Draw(dst draw.Image, text string, face Face, x, y float64, col color.Color)
+    Draw renders text to a destination image. Position (x, y) is the baseline
+    origin. Supports sourceFace, MultiFace, and FilteredFace.
+
+func DrawAliased(dst draw.Image, text string, face Face, x, y float64, col color.Color)
+    DrawAliased renders text to a destination image using binary
+    (non-anti-aliased) coverage. Every pixel in the output is either fully
+    transparent or fully opaque (alpha 0 or 255).
+
+    The function uses GlyphMaskRasterizer.RasterizeAliased internally, which
+    routes through NoAAFiller (integer scanline, binary coverage) instead of
+    AnalyticFiller.
+
+    Position (x, y) is the baseline origin (same semantics as Draw). Supports
+    sourceFace only. For MultiFace and FilteredFace, this is a no-op — callers
+    should fall back to Draw() for complex font stacks.
+
+func DrawWithEmoji(dst draw.Image, text string, face Face, x, y float64, col color.Color)
+    DrawWithEmoji renders text with full color emoji support. This function
+    detects glyph types and routes to appropriate renderers:
+      - Outline glyphs: Standard font.Drawer rendering
+      - Bitmap glyphs: PNG bitmap scaling and compositing
+      - COLR glyphs: Layer-based color glyph rendering (future)
+
+    Position (x, y) is the baseline origin. For fonts without color tables,
+    this behaves identically to Draw().
+
+func FaceEmbolden(f Face) bool
+    FaceEmbolden is the nil-safe single entry for synthetic-bold checks.
+    All Face implementations carry Embolden (see Face interface); this wrapper
+    only adds nil safety so GPU/CPU callers never branch on concrete types.
+
+func FixedSize(size float64) int32
+    FixedSize converts a ppem size to the 26.6 fixed-point value stored in
+    OutlineCacheKey.Size. Negative sizes clamp to 0. Quantizing to 1/64 px keeps
+    fractional sizes distinct; the previous int16 ppem truncation made faces at
+    20.2 and 20.8 share one cached outline (Skia uses the same 26.6 convention
+    for glyph-cache keys).
+
+func FontSourceID(source *FontSource) uint64
+    FontSourceID returns a stable hash identity for a FontSource.
+
+func GlyphsHaveColor(face Face, glyphs []ShapedGlyph) bool
+    GlyphsHaveColor reports whether any shaped glyph is a color glyph
+    (CBDT/COLR) in face's font. Unicode emoji ranges alone cannot decide the
+    paint route: text-presentation dingbats and emoji without a color face shape
+    to ordinary outline glyphs, so sending them to the color atlas only produces
+    a CPU fallback and drops the glyph. Classification follows the font's glyph
+    type (Skia: typeface decides, not the codepoint).
+
+func HashFontFeatures(features []FontFeature) uint64
+    HashFontFeatures hashes OpenType feature settings for cache keys.
+
+func HashFontVariations(vars []FontVariation) uint64
+    HashFontVariations hashes variation axis settings for cache keys.
+
+func HintedAdvanceWidth(parsed ParsedFont, gid GlyphID, ppem float64) (float64, bool)
+    HintedAdvanceWidth returns the TT-bytecode hinted advance for gid at ppem
+    in pixels — the exact value CPU drawGlyphs uses for positioning (same
+    ttHintCache, same int-truncated ppem). Returns 0, false when TT hinting is
+    unavailable for the font or the glyph, in which case callers fall back to
+    the raw hmtx advance. GPU glyph-mask layout uses this so scaled/transformed
+    CTM placement matches CPU text.Draw's snapPen grid bit-exactly.
+
+func HitTestCluster(glyphs []ShapedGlyph, x float64) int
+    HitTestCluster returns the logical source cluster (character index) for a
+    horizontal hit at x (same coordinate space as glyph.X / XAdvance).
+
+    Rules (single visual run):
+      - x before the first glyph → first glyph's Cluster
+      - x in [g.X, g.X+g.XAdvance) → that glyph's Cluster
+      - x past the last glyph → last glyph's Cluster (clamped; callers that need
+        "after last" caret can use HitTestClusterEdge)
+
+    Empty run returns 0.
+
+func HitTestClusterEdge(glyphs []ShapedGlyph, x float64) (cluster int, trailing bool)
+    HitTestClusterEdge is like HitTestCluster but also reports trailing edge:
+    trailing is true when the hit is in the right half of the glyph's advance
+    (caret should sit after this cluster for LTR, or callers may flip for RTL
+    editing policies). For empty run: cluster=0, trailing=false.
+
+func IsCJKRune(r rune) bool
+    IsCJKRune returns true if the rune is a CJK character. Used for script-aware
+    text rendering (ADR-027: CJK hinting, bucket bypass) and line break
+    opportunities.
+
+func IsHighChurnLabel(s string) bool
+    IsHighChurnLabel reports live telemetry-style strings (FPS / RSS / frame
+    counters) that typically change every frame. Skipping soft-LRU result caches
+    for these keeps capacity for stable UI labels and avoids multi-MB RSS growth
+    under dynamic HUD load (unique full-string keys never hit).
+
+    Heuristic: moderately long strings with a high digit ratio.
+
+func IsPunctuation(r rune) bool
+func IsWhitespace(r rune) bool
+func LoadFontFamily(points float64, refs ...FontRef) (Face, *FontFamily, string, error)
+    LoadFontFamily loads refs and builds a FontFamily. Missing optional cuts
+    (for example a Bold file that is not installed) are skipped; an error
+    is returned only when no readable source remains. points is used for the
+    returned base face.
+
+func Measure(text string, face Face) (width, height float64)
+    Measure returns the dimensions of text. Width is the horizontal advance,
+    height is the font's line height.
+
+func MeasureText(text string, face Face) float64
+    MeasureText measures the total advance width of text. The font size is
+    obtained from face.Size().
+
+func PurgeFontSourceCache()
+    PurgeFontSourceCache drops every cached FontSource and the global caches
+    that would otherwise keep the dropped sources reachable. Faces and sources
+    already handed out stay valid; files are re-read on the next load.
+
+    Purge is meant for tests and explicit font reloads, not for use while a
+    frame is being painted.
+
+func Quantize(pos float64, mode SubpixelMode) (intPos int, subPos uint8)
+    Quantize converts a fractional position to quantized subpixel offset.
+    Returns the integer position and subpixel key component.
+
+    For example, with Subpixel4 mode:
+      - pos=10.0 returns (10, 0)
+      - pos=10.25 returns (10, 1)
+      - pos=10.5 returns (10, 2)
+      - pos=10.75 returns (10, 3)
+      - pos=10.99 returns (10, 3) // quantized to nearest
+
+func QuantizePoint(x, y float64, config SubpixelConfig) (intX, intY int, subX, subY uint8)
+    QuantizePoint quantizes both X and Y positions. Returns integer positions
+    and subpixel key components.
+
+func RasterizeFT26(pts []ftVec26, tags []ftOutlineTag, contours []int32, evenOdd bool) (mask []byte, left, top, width, height int32, err error)
+    RasterizeFT26 移植 gray_raster_render + gray_convert_glyph 的位图模式 （ftsmooth.c
+    ft_smooth_render：轮廓平移 → 光栅 → sweep）。
+
+    输入：26.6 定点轮廓点（Y-up）+ 每点 tag + 轮廓末点索引（inclusive）。 输出：256 级灰度位图（行序从上到下）+
+    bitmap_left/bitmap_top（FT 语义）。
+
+func RegisterParser(name string, parser FontParser)
+    RegisterParser registers a custom font parser. This allows users to provide
+    their own parsing implementation.
+
+func ResetAdvanceCacheStats()
+    ResetAdvanceCacheStats clears hit/miss/eviction counters (entries retained).
+
+func ResetFontSourceCacheStats()
+    ResetFontSourceCacheStats clears hit/miss/load/eviction counters (entries
+    are retained).
+
+func ResetShapeResultCacheStats()
+    ResetShapeResultCacheStats clears hit/miss/eviction counters (entries
+    retained).
+
+func RunAdvance(glyphs []ShapedGlyph) float64
+    RunAdvance returns total visual width of a shaped run (paint coordinates).
+
+func RuneAdvance(face Face, r rune) float64
+    RuneAdvance returns the horizontal advance for a single rune on face without
+    allocating a per-rune string. Flutter-aligned fast path for 5000-char
+    single-line viewports where per-rune string(r) would allocate 5000 strings
+    per layout and dominate the frame (P7).
+
+func SetDefaultFontPath(path string)
+    SetDefaultFontPath sets the process primary UI font file (FontRoleUI). Empty
+    path clears the override (platform default resumes). Prefer FontResolver in
+    multi-window apps.
+
+func SetShaper(s Shaper)
+    SetShaper sets the global shaper used by Shape(). Pass nil to reset to the
+    default HbShaper (HarfBuzz Go port).
+
+    Example usage with a custom shaper:
+
+        text.SetShaper(myCustomShaper)
+        defer text.SetShaper(nil) // Reset to default
+
+func SetSystemFontPaths(role FontRole, paths ...string)
+    SetSystemFontPaths replaces process candidates for one role. Empty paths
+    clear that role. LoadDefaultFace only uses FontRoleUI; other roles apply to
+    LoadMultiFace when using process defaults.
+
+func SetTabWidth(n int)
+    SetTabWidth sets the global tab width (number of space characters per tab).
+    Affects all text rendering (bitmap, outline, GPU paths). Pass 0 or negative
+    to reset to DefaultTabWidth.
+
+func ShapeForDrawFallbacks() uint64
+    ShapeForDrawFallbacks reports how many ShapeForDraw calls used the cmap
+    fallback (observability for the A1 fix).
+
+func SnapCluster(s string, off int, downstream bool) int
+    SnapCluster把off吸附到所在簇边界:已在边界保持不动; 在簇内时downstream取簇首,upstream取簇尾.
+
+func SnapInStarts(starts []int, off int, downstream bool) int
+    SnapInStarts在已算好的簇起点表上吸附off(供调用方复用缓存过的起点表, 免重复切分;语义与SnapCluster一致,唯一真源).
+
+func SpacingExtra(distinctClusters int, text string, letterSpacing, wordSpacing float64) float64
+    SpacingExtra reports the width addition spacing produces for a shaped run
+    with distinctClusters distinct clusters over text: letter gaps (clusters-1)
+    plus one word gap per word separator (shaping library CSS set).
+
+func SubpixelOffset(subPos uint8, mode SubpixelMode) float64
+    SubpixelOffset returns the rendering offset for a subpixel position.
+    For Subpixel4 mode: 0 -> 0.0, 1 -> 0.25, 2 -> 0.5, 3 -> 0.75 For Subpixel10
+    mode: 0 -> 0.0, 1 -> 0.1, ..., 9 -> 0.9
+
+func SubpixelOffsets(subX, subY uint8, config SubpixelConfig) (offsetX, offsetY float64)
+    SubpixelOffsets returns both X and Y rendering offsets.
+
+func SystemFontCandidates(role FontRole) []string
+    SystemFontCandidates returns probe paths for a role: function override
+    (SetDefaultFontPath / SetSystemFontPaths) → platform defaults.
+
+func SystemFontForFamily(family string) (path string, ok bool)
+    SystemFontForFamily returns the file path of the best system font
+    whose family name matches the given family (e.g. "Noto Sans CJK JP").
+    "Best" = highest aspect score among regular-weight candidates, matching
+    the rune-fallback bias toward normal faces. ok=false when the family is not
+    present in the system index.
+
+func SystemFontsByFamily(family string) []string
+    SystemFontsByFamily returns all system font file paths whose family name
+    matches the given family (case/space normalized). Useful for building a
+    per-family candidate list; order is the scan order (not ranked).
+
+func TabWidth() int
+    TabWidth returns the current global tab width.
+
+func VariationHash(vars []FontVariation) uint64
+    VariationHash computes an FNV-1a hash of font variation settings.
+    Returns 0 for nil or empty variations (no extra cost for static fonts).
+    Different variation coordinates produce different glyph outlines, so they
+    must be cached separately.
+
+
+TYPES
+
+type AdvanceCacheStats struct {
+	Hits      uint64
+	Misses    uint64
+	Entries   int
+	SoftLimit int
+	Evictions uint64
+}
+    AdvanceCacheStats reports global advance cache counters.
+
+func AdvanceCacheSnapshot() AdvanceCacheStats
+    AdvanceCacheStats returns counters for the global advance cache.
+
+type AffineTransform struct {
+	A, B, C, D float32 // Matrix coefficients
+	Tx, Ty     float32 // Translation
+}
+    AffineTransform represents a 2D affine transformation matrix. The matrix is:
+
+        [A B Tx]
+        [C D Ty]
+        [0 0 1 ]
+
+func IdentityTransform() *AffineTransform
+    IdentityTransform returns the identity transformation.
+
+func RotateTransform(angle float32) *AffineTransform
+    RotateTransform creates a rotation transformation (angle in radians).
+
+func ScaleTransform(sx, sy float32) *AffineTransform
+    ScaleTransform returns a scaling transformation.
+
+func ScaleTransformXY(sx, sy float32) *AffineTransform
+    ScaleTransformXY creates a non-uniform scaling transformation.
+
+func TranslateTransform(tx, ty float32) *AffineTransform
+    TranslateTransform returns a translation transformation.
+
+func (m *AffineTransform) Multiply(other *AffineTransform) *AffineTransform
+    Multiply returns the composition of two transformations.
+
+func (m *AffineTransform) TransformPoint(x, y float32) (float32, float32)
+    TransformPoint applies the transformation to a point.
+
+type Alignment int
+    Alignment specifies text horizontal alignment within the layout width.
+
+const (
+	// AlignLeft aligns text to the left edge (default).
+	AlignLeft Alignment = iota
+	// AlignCenter centers text horizontally.
+	AlignCenter
+	// AlignRight aligns text to the right edge.
+	AlignRight
+	// AlignJustify distributes text evenly (future implementation).
+	AlignJustify
+)
+func (a Alignment) String() string
+    String returns the string representation of the alignment.
+
+type BitmapGlyphCache struct {
+	// Has unexported fields.
+}
+    BitmapGlyphCache caches decoded bitmap glyphs to avoid repeated PNG
+    decoding. This is important for performance when rendering the same emoji
+    multiple times.
+
+func NewBitmapGlyphCache(maxSize int) *BitmapGlyphCache
+    NewBitmapGlyphCache creates a new bitmap glyph cache. maxSize is the maximum
+    number of cached entries.
+
+func (c *BitmapGlyphCache) Clear()
+    Clear removes all entries from the cache.
+
+func (c *BitmapGlyphCache) Get(fontID uintptr, glyphID, ppem uint16) *CachedBitmap
+    Get retrieves a cached bitmap, or nil if not cached.
+
+func (c *BitmapGlyphCache) Put(fontID uintptr, glyphID, ppem uint16, bitmap *emoji.BitmapGlyph, img image.Image)
+    Put stores a bitmap in the cache.
+
+func (c *BitmapGlyphCache) Size() int
+    Size returns the number of cached entries.
+
+type BreakClass uint8
+    BreakClass represents Unicode line breaking classes (UAX #14 simplified).
+
+type BreakOpportunity uint8
+    BreakOpportunity represents a line break opportunity.
+
+const (
+	// BreakNo means no break allowed here.
+	BreakNo BreakOpportunity = iota
+	// BreakAllowed means break is allowed here.
+	BreakAllowed
+	// BreakMandatory means break is required here (newline).
+	BreakMandatory
+)
+type BuiltinSegmenter struct {
+	BaseDirection Direction
+}
+
+func NewBuiltinSegmenter() *BuiltinSegmenter
+
+func NewBuiltinSegmenterWithDirection(dir Direction) *BuiltinSegmenter
+
+func (s *BuiltinSegmenter) Segment(text string) []Segment
+
+type BuiltinShaper struct{}
+    BuiltinShaper provides simple left-to-right text shaping. It supports Latin,
+    Cyrillic, Greek, CJK, and other scripts that don't require complex text
+    shaping (ligatures, contextual forms, etc.).
+
+    BuiltinShaper was the default shaper before ADR-048 Phase 6. The default is
+    now OwnShaper which provides GSUB/GPOS support.
+
+    BuiltinShaper is stateless and safe for concurrent use.
+
+func (s *BuiltinShaper) Shape(text string, face Face) []ShapedGlyph
+    Shape implements the Shaper interface. It converts text to positioned glyphs
+    using the font's glyph metrics. The font size is obtained from face.Size().
+
+    The shaping is simple left-to-right positioning without:
+      - Ligature substitution (fi, fl, etc.)
+      - Kerning pairs
+      - Contextual alternates
+      - Right-to-left reordering
+
+    For these features, use OwnShaper (the default) which provides GSUB/GPOS.
+
+type Cache[K comparable, V any] struct {
+	// Has unexported fields.
+}
+    Cache is a generic thread-safe LRU cache with soft limit.
+
+    Deprecated: For new code, use
+    github.com/energye/gpui/render/internal/cache.Cache or cache.ShardedCache
+    which offer better performance and more features. When the cache exceeds
+    softLimit, oldest entries are evicted.
+
+    Cache is safe for concurrent use. Cache must not be copied after creation
+    (has mutex).
+
+func NewCache[K comparable, V any](softLimit int) *Cache[K, V]
+    NewCache creates a new cache with the given soft limit. A softLimit of 0
+    means unlimited.
+
+func (c *Cache[K, V]) Clear()
+    Clear removes all entries from the cache.
+
+func (c *Cache[K, V]) Get(key K) (V, bool)
+    Get retrieves a value from the cache. Returns (value, true) if found, (zero,
+    false) otherwise.
+
+func (c *Cache[K, V]) GetOrCreate(key K, create func() V) V
+    GetOrCreate returns cached value or creates it. Thread-safe: create is
+    called under lock to prevent duplicate creation.
+
+func (c *Cache[K, V]) Len() int
+    Len returns the number of entries in the cache.
+
+func (c *Cache[K, V]) Set(key K, value V)
+    Set stores a value in the cache. If the cache exceeds softLimit after
+    insertion, oldest entries are evicted.
+
+type CachedBitmap struct {
+	Img     image.Image
+	OriginX float32
+	OriginY float32
+	Width   int
+	Height  int
+}
+    CachedBitmap holds a decoded and optionally scaled bitmap.
+
+type ColorFont interface {
+	// HasColorTables returns true if the font has any color tables
+	// (CBDT/CBLC, sbix, COLR/CPAL, or SVG).
+	HasColorTables() bool
+
+	// GlyphType returns the rendering type for a glyph.
+	// This determines which rendering path to use.
+	GlyphType(glyphID uint16) GlyphType
+
+	// BitmapGlyph extracts a bitmap glyph at the requested PPEM.
+	// Returns nil and error if the glyph is not a bitmap glyph.
+	// Uses StrikeBestFit strategy by default.
+	BitmapGlyph(glyphID uint16, ppem uint16) (*emoji.BitmapGlyph, error)
+
+	// COLRGlyph returns the COLR glyph data for layered rendering.
+	// Returns nil and error if the glyph is not a COLR glyph.
+	COLRGlyph(glyphID uint16, paletteIndex int) (*emoji.COLRGlyph, error)
+}
+    ColorFont is an optional interface that ParsedFont implementations can
+    satisfy to provide color glyph support (emoji, icons).
+
+    This interface is separate from ParsedFont to avoid breaking existing
+    implementations while adding color support.
+
+type ColorFontInfo struct {
+	// HasCBDT is true if the font has CBDT/CBLC tables (Google format).
+	HasCBDT bool
+
+	// HasSbix is true if the font has sbix table (Apple format).
+	HasSbix bool
+
+	// HasCOLR is true if the font has COLR/CPAL tables (Microsoft format).
+	HasCOLR bool
+
+	// HasSVG is true if the font has SVG table (Mozilla format).
+	HasSVG bool
+
+	// COLRVersion is the COLR table version (0 or 1), if HasCOLR is true.
+	COLRVersion uint16
+
+	// BitmapStrikes lists available bitmap sizes (PPEM values).
+	BitmapStrikes []uint16
+}
+    ColorFontInfo provides information about a font's color capabilities.
+
+func (info ColorFontInfo) HasAnyColorTable() bool
+    HasAnyColorTable returns true if any color table is present.
+
+func (info ColorFontInfo) PreferredColorFormat() string
+    PreferredColorFormat returns the recommended color format for a font.
+    Priority: CBDT > sbix > COLR > SVG (based on compatibility research).
+
+type ColorRasterCache struct {
+	// Has unexported fields.
+}
+    ColorRasterCache rasterizes color glyphs once per (font, glyph, size,
+    palette, foreground) and reuses the RGBA after that. the color-glyph cache
+    equivalent: CBDT bitmaps are decoded and scaled, COLR layers are flattened,
+    both into premultiplied RGBA the GPU can upload directly.
+
+func NewColorRasterCache(maxSize int) *ColorRasterCache
+    NewColorRasterCache creates a cache holding up to maxSize entries.
+
+func (c *ColorRasterCache) Image(font ParsedFont, glyphID uint16, ppem uint16, palette int, fg color.RGBA) (*ColorRasterImage, error)
+    Image returns the cached RGBA for a color glyph, rasterizing on miss.
+    Foreground (text-color) COLR layers resolve to fg; CBDT glyphs ignore it.
+    The mutex guards the map only: rasterization runs unlocked so concurrent
+    misses do not serialize behind PNG decode/scale/COLR flattening.
+
+type ColorRasterImage struct {
+	Pix     *image.RGBA
+	OriginX float32
+	OriginY float32
+	Advance float64
+}
+    ColorRasterImage is one GPU-ready color glyph: premultiplied RGBA pixels
+    plus baseline-relative placement at the requested PPEM.
+
+type ContourPoint struct {
+	X, Y    int32 // coordinates in font units (unscaled)
+	OnCurve bool  // true = on-curve point, false = off-curve control point
+}
+    ContourPoint represents a raw TrueType glyph contour point. Coordinates are
+    in font units (unscaled design space).
+
+type Direction int
+    Direction specifies text direction.
+
+const (
+	// DirectionLTR is left-to-right text (English, French, etc.)
+	DirectionLTR Direction = iota
+	// DirectionRTL is right-to-left text (Arabic, Hebrew)
+	DirectionRTL
+	// DirectionTTB is top-to-bottom text (traditional Chinese, Japanese)
+	DirectionTTB
+	// DirectionBTT is bottom-to-top text (rare)
+	DirectionBTT
+)
+func (d Direction) IsHorizontal() bool
+    IsHorizontal returns true if the direction is horizontal (LTR or RTL).
+
+func (d Direction) IsVertical() bool
+    IsVertical returns true if the direction is vertical (TTB or BTT).
+
+func (d Direction) String() string
+    String returns the string representation of the direction.
+
+type DirectionMismatchError struct {
+	Index    int
+	Got      Direction
+	Expected Direction
+}
+    DirectionMismatchError is returned when faces have different directions.
+
+func (e *DirectionMismatchError) Error() string
+
+type DrawCommand struct {
+	// Outline is the glyph outline path.
+	Outline *GlyphOutline
+
+	// Transform is the transformation to apply to the outline.
+	Transform *AffineTransform
+
+	// Instance is the original glyph instance.
+	Instance GlyphInstance
+}
+    DrawCommand represents a single glyph draw command. Contains the outline
+    path and the transformation to apply.
+
+type DrawOptions struct {
+	// Color for the text (default: black)
+	Color color.Color
+}
+    DrawOptions provides advanced options for text drawing. Reserved for future
+    enhancements.
+
+type Engine struct {
+	// Has unexported fields.
+}
+    Engine 是 FT-light 拟合的独立实现壳。
+
+func New() *Engine
+    New 创建 light 引擎壳。
+
+func (e *Engine) Hint(font ParsedFont, gid GlyphID, size float64, mode Mode) (*GlyphOutline, error)
+    Hint 对 glyph 执行 light 网格拟合，返回拟合后的轮廓。
+
+type Face interface {
+	// Metrics returns the font metrics at this face's size.
+	Metrics() Metrics
+
+	// Advance returns the total advance width of the text in pixels.
+	// This is the sum of all glyph advances.
+	Advance(text string) float64
+
+	// HasGlyph reports whether the font has a glyph for the given rune.
+	HasGlyph(r rune) bool
+
+	// Glyphs returns an iterator over all glyphs in the text.
+	// The glyphs are positioned relative to the origin (0, 0).
+	// Uses Go 1.25+ iter.Seq for zero-allocation iteration.
+	Glyphs(text string) iter.Seq[Glyph]
+
+	// AppendGlyphs appends glyphs for the text to dst and returns the extended slice.
+	// This is useful for building glyph slices without allocation.
+	AppendGlyphs(dst []Glyph, text string) []Glyph
+
+	// Direction returns the text direction for this face.
+	Direction() Direction
+
+	// Source returns the FontSource this face was created from.
+	Source() *FontSource
+
+	// Size returns the size of this face in points.
+	Size() float64
+
+	// Features returns the OpenType font features configured for this face.
+	// Features are set via [WithFeatures] when creating the face.
+	Features() []FontFeature
+
+	// Language returns the BCP 47 language tag for this face (e.g., "en", "ja", "ar").
+	// The language affects OpenType shaping: script-specific ligatures, localized
+	// forms, and language-dependent glyph selection.
+	// Language is set via [WithLanguage] when creating the face; defaults to "en".
+	Language() string
+
+	// Variations returns the font variation axis values configured for this face.
+	// Variations are set via [WithVariations] when creating the face.
+	// Returns nil for faces created without variations.
+	Variations() []FontVariation
+
+	// Weight returns the requested stroke-thickness grade (set via
+	// [WithWeight], 0 = unset/as designed). The resolved rendering is:
+	// a real family cut when available, else wght variation when the font
+	// has the axis, else synthetic outline embolden for grades >= 600
+	// (see Embolden).
+	Weight() FontWeight
+
+	// Embolden reports whether this face still needs synthetic outline
+	// embolden: requested weight >= 600, no wght axis, and no real
+	// SemiBold/Bold cut was selected. Advances are unchanged.
+	Embolden() bool
+
+	// Hinting returns the hinting mode configured for this face (set via
+	// [WithHinting], default HintingFull). Both the CPU text.Draw path and the
+	// GPU glyph-mask rasterizer consume the SAME face hinting so their masks
+	// are pixel-identical — the single glyph-cache semantic where CPU and
+	// GPU text share one strikemaker configuration.
+	Hinting() Hinting
+
+	// Has unexported methods.
+}
+    Face represents a font face at a specific size. This is a lightweight object
+    that can be created from a FontSource. Face is safe for concurrent use.
+
+func DeriveFace(face Face, size float64, w FontWeight) Face
+    DeriveFace returns a Face at size points carrying weight grade w.
+    Single entry for size+weight derivation (replaces separate faceForSize +
+    faceWithWeight passes): one src.Face allocation, one MultiFace component
+    pass. Size within 0.25pt and matching weight returns face as-is. Weight 0
+    means no override (preserve existing grade).
+
+func LoadDefaultFace(points float64) (Face, string, error)
+    LoadDefaultFace loads exactly one common system UI font at points (default
+    14). Honors SetDefaultFontPath when set; otherwise platform candidates.
+    No MultiFace — use LoadMultiFace or FontResolver in the app/example.
+
+func LoadDefaultFaceFor(points float64, chain []FontRole) (Face, string, error)
+    LoadDefaultFaceFor is LoadMultiFace with an explicit role chain.
+
+func LoadMultiFace(points float64, roles ...FontRole) (Face, string, error)
+    LoadMultiFace builds a MultiFace from roles (first face with glyph wins).
+    Empty roles → DefaultMultiFontRoleChain.
+
+type FaceOption func(*faceConfig)
+    FaceOption configures Face creation.
+
+func WithDirection(d Direction) FaceOption
+    WithDirection sets the text direction for the face.
+
+func WithFeatures(features ...FontFeature) FaceOption
+    WithFeatures sets OpenType font features for the face. Features are applied
+    during shaping when using OwnShaper (the default). The BuiltinShaper ignores
+    features since it does not perform OpenType shaping.
+
+    Note: Features affect shaped output via OwnShaper only. Methods like
+    [Face.Advance] and [Face.Glyphs] use raw glyph metrics without shaping.
+
+    Example — enable tabular figures for aligned numeric columns:
+
+        face := source.Face(12, text.WithFeatures(text.TabularNums))
+
+func WithHinting(h Hinting) FaceOption
+    WithHinting sets the hinting mode for the face.
+
+func WithLanguage(lang string) FaceOption
+    WithLanguage sets the language tag for the face (e.g., "en", "ja", "ar").
+
+func WithVariations(variations ...FontVariation) FaceOption
+    WithVariations sets font variation axis values for the face. Variations
+    are applied to both shaping and rendering via the own parser, which handles
+    gvar/HVAR/avar interpolation for TrueType variable fonts. Static fonts
+    ignore variations.
+
+    Variable fonts define continuous design axes (weight, width, slant,
+    etc.) that allow smooth interpolation between styles without separate font
+    files. Use FontSource.IsVariable to check if a font supports variations,
+    and FontSource.VariationAxes to discover available axes and their ranges.
+
+    An explicit wght axis value here takes precedence over WithWeight: weight
+    fills the axis only when no wght variation is present.
+
+    Example — set weight to Bold (700) and width to Condensed (75):
+
+        face := source.Face(16, text.WithVariations(
+            text.NewFontVariation("wght", 700),
+            text.NewFontVariation("wdth", 75),
+        ))
+
+func WithWeight(w FontWeight) FaceOption
+    WithWeight requests a stroke-thickness grade for the face (CSS/Flutter
+    font-weight). Resolution at Face creation:
+
+      - FontFamily member → closest real Regular/SemiBold/Bold cut is selected
+        first (CSS weight matching), so grade 600/700 uses real outlines;
+      - variable font with a wght axis → wght variation set to the grade (real
+        outlines; advances follow HVAR like any other variation);
+      - standalone static font with grade >= 600 → synthetic outline embolden
+        (EmboldenOutline, size/24 per side, FreeType/Skia fake bold; advances
+        unchanged);
+      - grade < 600 on a static font → as designed, no-op.
+
+    Weight 0 (unset) means as designed. The resolved state is observable via
+    Face.Weight (requested grade) and Face.Variations (effective list, including
+    a weight-derived wght entry when applicable).
+
+type FaceRun struct {
+	Face Face
+	Text string
+	// X is the horizontal offset of this run relative to the text origin.
+	X float64
+}
+    FaceRun is a contiguous substring rendered with one fallback face (X.06).
+
+type FilteredFace struct {
+	// Has unexported fields.
+}
+    FilteredFace wraps a face and restricts it to specific Unicode ranges.
+    Only glyphs in the specified ranges are considered available. FilteredFace
+    is safe for concurrent use.
+
+func NewFilteredFace(face Face, ranges ...UnicodeRange) *FilteredFace
+    NewFilteredFace creates a FilteredFace. Only glyphs in the specified
+    ranges are considered available. If no ranges are specified, all glyphs are
+    available (no filtering).
+
+func (f *FilteredFace) Advance(text string) float64
+    Advance implements Face.Advance. Only includes runes that are in the allowed
+    ranges. Iterates the wrapped face's whole-text Glyphs once (filtered),
+    instead of building a per-rune string (P7).
+
+func (f *FilteredFace) AppendGlyphs(dst []Glyph, text string) []Glyph
+    AppendGlyphs implements Face.AppendGlyphs. Only appends glyphs for runes in
+    the allowed ranges.
+
+func (f *FilteredFace) Direction() Direction
+    Direction implements Face.Direction.
+
+func (f *FilteredFace) Embolden() bool
+    Embolden reports synthetic embolden for the wrapped face.
+
+func (f *FilteredFace) Features() []FontFeature
+    Features implements Face.Features.
+
+func (f *FilteredFace) Glyphs(text string) iter.Seq[Glyph]
+    Glyphs implements Face.Glyphs. Only yields glyphs for runes in the allowed
+    ranges.
+
+func (f *FilteredFace) HasGlyph(r rune) bool
+    HasGlyph implements Face.HasGlyph. Returns true only if the rune is in the
+    allowed ranges and the wrapped face has it.
+
+func (f *FilteredFace) Hinting() Hinting
+    private implements the Face interface.
+
+func (f *FilteredFace) Language() string
+    Language implements Face.Language.
+
+func (f *FilteredFace) Metrics() Metrics
+    Metrics implements Face.Metrics.
+
+func (f *FilteredFace) Size() float64
+    Size implements Face.Size.
+
+func (f *FilteredFace) Source() *FontSource
+    Source implements Face.Source.
+
+func (f *FilteredFace) Variations() []FontVariation
+    Variations implements Face.Variations.
+
+func (f *FilteredFace) Weight() FontWeight
+    Weight implements Face.Weight.
+
+type FontError struct {
+	Reason string
+}
+    FontError represents a font-related error.
+
+func (e *FontError) Error() string
+
+type FontFamily struct {
+	// Has unexported fields.
+}
+    FontFamily groups the static weight cuts of one typeface.
+
+    This is the CSS/Flutter font-family model: a family owns Regular, SemiBold,
+    Bold, ... sources, and FontFamily.Face selects the closest real cut for the
+    requested FontWeight before falling back to synthetic embolden. A standalone
+    FontSource has no family and keeps the old single-face behavior.
+
+    FontFamily is safe for concurrent use after construction. It does not own
+    the sources: close them through their original owner.
+
+func NewFontFamily(sources ...*FontSource) (*FontFamily, error)
+    NewFontFamily builds a family from static cuts of the same typeface.
+    At least one source is required. Every source must report the same family
+    name and a unique OS/2 weight class; duplicates are rejected so font
+    configuration mistakes cannot silently pick an arbitrary cut.
+
+func (f *FontFamily) Face(size float64, opts ...FaceOption) Face
+    Face creates a face at size, selecting the real weight cut for opts.
+
+func (f *FontFamily) Name() string
+    Name returns the OpenType family name.
+
+func (f *FontFamily) Regular() *FontSource
+    Regular returns the family's regular cut (nearest to weight 400).
+
+func (f *FontFamily) Sources() []*FontSource
+    Sources returns the family cuts in ascending weight order.
+
+type FontFeature struct {
+	Tag   [4]byte // e.g., [4]byte{'t','n','u','m'}
+	Value uint32  // 1 = enable, 0 = disable
+}
+    FontFeature enables or disables an OpenType font feature. Features are
+    identified by a 4-byte tag (e.g., "tnum" for tabular figures) and controlled
+    by a uint32 value (1 = enable, 0 = disable).
+
+    See https://learn.microsoft.com/en-us/typography/opentype/spec/featurelist
+
+func NewFontFeature(tag string, value uint32) FontFeature
+    NewFontFeature creates a FontFeature from a 4-character OpenType tag string
+    and a value. The tag must be exactly 4 ASCII characters (e.g., "tnum",
+    "liga", "smcp"). Panics if the tag is not exactly 4 bytes.
+
+    Example:
+
+        tnum := text.NewFontFeature("tnum", 1) // enable tabular nums
+        liga := text.NewFontFeature("liga", 0) // disable ligatures
+
+type FontMetrics struct {
+	// Ascent is the distance from the baseline to the top of the font (positive).
+	Ascent float64
+
+	// Descent is the distance from the baseline to the bottom of the font (negative).
+	Descent float64
+
+	// LineGap is the recommended line gap between lines.
+	LineGap float64
+
+	// XHeight is the height of lowercase letters (like 'x').
+	XHeight float64
+
+	// CapHeight is the height of uppercase letters.
+	CapHeight float64
+
+	// VerticalAscent is the vertical typographic ascender (from vhea),
+	// positive; 0 when the font has no vhea table.
+	VerticalAscent float64
+
+	// VerticalDescent is the vertical typographic descender (from vhea),
+	// negative below the baseline; 0 when the font has no vhea table.
+	VerticalDescent float64
+
+	// VerticalLineGap is the vertical typographic line gap (from vhea);
+	// 0 when the font has no vhea table.
+	VerticalLineGap float64
+}
+    FontMetrics holds font-level metrics at a specific size.
+
+func (m FontMetrics) Height() float64
+    Height returns the total line height (ascent - descent + line gap).
+
+type FontParser interface {
+	// Parse parses font data (TTF or OTF) and returns a ParsedFont.
+	Parse(data []byte) (ParsedFont, error)
+}
+    FontParser is an interface for font parsing backends. This abstraction
+    allows swapping the font parsing library.
+
+    The default implementation is ownParser (Pure Go, zero external deps).
+    Custom parsers can be registered via RegisterParser.
+
+type FontRef struct {
+	Path            string
+	CollectionIndex int
+}
+    FontRef identifies one face inside a font file.
+
+    CollectionIndex selects a face inside a .ttc/.otc collection (0 = first);
+    it is ignored for single-face .ttf/.otf files.
+
+type FontResolver struct {
+	UsePlatform        bool
+	UseProcessOverride bool
+	// Has unexported fields.
+}
+    FontResolver holds per-role paths and optional MultiFace chain. Does not
+    mutate process globals unless UseProcessOverride is set.
+
+func DefaultFontResolver() *FontResolver
+    DefaultFontResolver mirrors process LoadDefaultFace (includes
+    SetDefaultFontPath).
+
+func NewFontResolver() *FontResolver
+    NewFontResolver returns a resolver for a single UI font (FontRoleUI).
+    SetFontFile / SetPaths / SetChain configure it; no environment variables.
+
+func (r *FontResolver) Candidates(role FontRole) []string
+    Candidates returns probe paths for a role under this resolver.
+
+func (r *FontResolver) Load(points float64) (Face, string, error)
+    Load builds a Face at points. Default = one UI font (system or SetFontFile).
+
+func (r *FontResolver) SetChain(roles ...FontRole) *FontResolver
+    SetChain sets roles assembled into MultiFace (or one face if len==1).
+
+func (r *FontResolver) SetFontFile(path string) *FontResolver
+    SetFontFile sets the single UI font file for this resolver.
+
+func (r *FontResolver) SetPaths(role FontRole, paths ...string) *FontResolver
+    SetPaths sets candidate files for one role on this resolver only.
+
+type FontRole int
+    FontRole groups candidate system font files (UI fallback roles, not Unicode
+    Script).
+
+const (
+	// FontRoleUI is the single default UI sans (Latin; often also Cyrillic/Greek).
+	FontRoleUI FontRole = iota
+	// FontRoleCJK optional Han/Hiragana/Katakana/Hangul coverage.
+	FontRoleCJK
+	// FontRoleThai optional Thai.
+	FontRoleThai
+	// FontRoleDevanagari optional Devanagari.
+	FontRoleDevanagari
+	// FontRoleArabic optional dedicated Arabic.
+	FontRoleArabic
+)
+type FontSource struct {
+	// Has unexported fields.
+}
+    FontSource represents a loaded font file. One FontSource can create multiple
+    Face instances at different sizes. FontSource is heavyweight and shared
+    across the application: sources loaded from a file are cached per (path,
+    collection index, parser), so every loader (UI chain, system resolver,
+    weight family, rune fallback) reuses the same object. Close on a cached
+    source is a no-op; release shared sources with PurgeFontSourceCache.
+
+    FontSource is safe for concurrent use. FontSource must not be copied after
+    creation (enforced by copyCheck).
+
+func NewFontSource(data []byte, opts ...SourceOption) (*FontSource, error)
+    NewFontSource creates a FontSource from font data (TTF or OTF). The data
+    slice is copied internally and can be reused after this call.
+
+    Options can be used to configure caching and parser backend.
+
+func NewFontSourceFromFile(path string, opts ...SourceOption) (*FontSource, error)
+    NewFontSourceFromFile loads a FontSource from a font file path.
+
+    Loads are shared process-wide per (absolute path, collection index, parser):
+    every caller gets the same FontSource, and each file is read and parsed
+    once. File updates on disk are not picked up until PurgeFontSourceCache is
+    called. Close on the returned source is a no-op.
+
+func (s *FontSource) Close() error
+    Close releases resources associated with the FontSource. All faces created
+    from this source become invalid after Close.
+
+    Sources loaded from a file are shared process-wide, so Close on them
+    is a no-op: the shared data stays valid for every other holder. Use
+    PurgeFontSourceCache to release cached sources.
+
+func (s *FontSource) Face(size float64, opts ...FaceOption) Face
+    Face creates a Face at the specified size (in points). Multiple faces can be
+    created from the same FontSource.
+
+    Face is a lightweight object that shares caches with the FontSource.
+    Panics if s is nil (e.g. when NewFontSourceFromFile error was ignored).
+
+func (s *FontSource) IsVariable() bool
+    IsVariable reports whether the font is a variable font with at least one
+    variation axis. Static fonts always return false.
+
+func (s *FontSource) Name() string
+    Name returns the font name (the OpenType family name).
+
+func (s *FontSource) NamedInstances() []NamedInstance
+    NamedInstances returns the predefined named instances in the font. Returns
+    nil for static fonts or variable fonts without named instances.
+
+    Named instances are specific axis configurations that the font designer has
+    designated with a name, such as "Bold", "Light Condensed", etc.
+
+func (s *FontSource) Parsed() ParsedFont
+    Parsed returns the parsed font for advanced operations. This is primarily
+    used by Face implementations.
+
+func (s *FontSource) VariationAxes() []VariationAxis
+    VariationAxes returns the variation axes defined in the font. Returns nil
+    for static (non-variable) fonts.
+
+    Each axis describes a continuous design dimension (e.g., weight from 100 to
+    900) with its valid range and default value.
+
+func (s *FontSource) WeightClass() FontWeight
+    WeightClass returns the OS/2 usWeightClass (1..1000, 400 = Regular). Fonts
+    without OS/2 or custom parsers without WeightClassProvider report Regular,
+    which keeps synthetic-bold fallback behavior for those sources.
+
+type FontSourceCacheStats struct {
+	Entries   int    // live entries
+	Bytes     int64  // file bytes held by live entries
+	Loads     uint64 // file reads + parses performed
+	Hits      uint64 // lookups served from a live entry
+	Misses    uint64 // lookups that started a load
+	Waits     uint64 // lookups that waited for an in-flight load
+	Evictions uint64 // entries dropped by the size limits
+	Purges    uint64 // PurgeFontSourceCache calls that dropped entries
+}
+    FontSourceCacheStats reports global font source cache counters.
+
+func FontSourceCacheSnapshot() FontSourceCacheStats
+    FontSourceCacheSnapshot returns counters for the global font source cache.
+
+type FontVariation struct {
+	Tag   [4]byte // OpenType axis tag (e.g., "wght", "wdth", "slnt")
+	Value float32 // Design-space value (e.g., 700 for Bold weight)
+}
+    FontVariation sets a font variation axis value for variable fonts. Variable
+    fonts define design-space axes (weight, width, slant, etc.) that allow
+    continuous interpolation between styles.
+
+    See https://learn.microsoft.com/en-us/typography/opentype/spec/fvar
+
+func NewFontVariation(tag string, value float32) FontVariation
+    NewFontVariation creates a FontVariation from a 4-character axis tag string
+    and a design-space value. The tag must be exactly 4 ASCII characters (e.g.,
+    "wght", "wdth", "slnt"). Panics if the tag is not exactly 4 bytes.
+
+    Example:
+
+        bold := text.NewFontVariation("wght", 700)
+        wide := text.NewFontVariation("wdth", 125)
+
+type FontWeight int
+    FontWeight is a text stroke thickness grade (CSS/Flutter font-weight).
+    400 Regular renders the font as designed; 700 Bold selects the bold cut of
+    the family when available.
+
+const (
+	WeightThin       FontWeight = 100
+	WeightExtraLight FontWeight = 200
+	WeightLight      FontWeight = 300
+	WeightRegular    FontWeight = 400
+	WeightMedium     FontWeight = 500
+	WeightSemiBold   FontWeight = 600
+	WeightBold       FontWeight = 700
+	WeightExtraBold  FontWeight = 800
+	WeightBlack      FontWeight = 900
+)
+type GlyfContours struct {
+	Points []ContourPoint // all contour points in order
+	EndPts []uint16       // index of last point in each contour (increasing)
+	XMin   int16          // glyph bounding box from glyf header
+	YMin   int16
+	XMax   int16
+	YMax   int16
+
+	// gvar point-number space for composites != merged simple-glyph space.
+	IsComposite bool
+}
+    GlyfContours holds the raw contour data parsed from the TrueType glyf table.
+    For simple glyphs this contains the direct contour points. For composite
+    glyphs (numContours < 0), the components are recursively loaded,
+    transformed, and merged into a single flattened contour set.
+
+func ParseGlyfContours(fontData []byte, gid GlyphID) (*GlyfContours, error)
+    ParseGlyfContours reads raw contour points from the TrueType glyf table for
+    the specified glyph. This parses the binary font data directly using pure
+    Go binary parsing, producing the same point representation that FreeType and
+    skrifa use internally.
+
+    Composite glyphs (numberOfContours < 0) are recursively flattened:
+    each component glyph is loaded, its affine transform (offset, scale,
+    2x2 matrix) is applied, and the resulting points and contour endpoints
+    are merged into a single GlyfContours. This ensures glyphs like 'i', 'j',
+    and accented characters (e.g., 'é', 'ñ') that are stored as composites are
+    correctly returned with their full outline data.
+
+    Returns nil, nil for:
+      - empty glyphs with no outline data (e.g., space)
+      - glyphs with zero contours
+
+    The font data must be valid TrueType (.ttf) or OpenType (.otf) with a glyf
+    table. CFF-based OpenType fonts do not have a glyf table and will return an
+    error.
+
+func ParseGlyfContoursFromSource(source *FontSource, gid GlyphID) (*GlyfContours, error)
+    ParseGlyfContoursFromSource reads raw contour points for a glyph from a
+    FontSource. This is a convenience method that extracts the raw font data
+    from the FontSource and delegates to ParseGlyfContours.
+
+    Composite glyphs are recursively flattened (same as ParseGlyfContours).
+    Returns nil, nil for empty glyphs (space, etc.).
+
+func ParseGlyfContoursFromTables(tables map[string][]byte, gid GlyphID) (*GlyfContours, error)
+    ParseGlyfContoursFromTables extracts contours using an already-parsed table
+    directory (ownParsedFont.tables). Avoids re-walking the sfnt table index on
+    every glyph raster — critical for glyph-mask warm-up / HUD text CPU.
+
+func (g *GlyfContours) ContourPoints(ci int) []ContourPoint
+    ContourPoints returns the points belonging to contour index ci. Returns nil
+    if ci is out of range.
+
+func (g *GlyfContours) NumContours() int
+    NumContours returns the number of contours in the glyph.
+
+type Glyph struct {
+	// Rune is the Unicode character this glyph represents.
+	// For ligatures, this may be the first character of the ligature.
+	Rune rune
+
+	// GID is the glyph index in the font.
+	GID GlyphID
+
+	// X, Y are the position of the glyph relative to the text origin.
+	// The origin is at the baseline of the first character.
+	X, Y float64
+
+	// OriginX, OriginY are the absolute position of the glyph's origin point.
+	// This is where the glyph should be drawn from.
+	OriginX float64
+	OriginY float64
+
+	// Advance is the horizontal advance width of the glyph.
+	// This is how much the cursor moves after drawing this glyph.
+	Advance float64
+
+	// Bounds is the bounding box of the glyph.
+	// This defines the area the glyph occupies.
+	Bounds Rect
+
+	// Index is the byte position in the original string where this glyph starts.
+	Index int
+
+	// Cluster is the character cluster index.
+	// Multiple glyphs can belong to the same cluster (e.g., ligatures).
+	Cluster int
+}
+    Glyph represents a single shaped glyph with its position and metrics.
+    This is the output of text shaping and is ready for rendering.
+
+type GlyphCache struct {
+	// Has unexported fields.
+}
+    GlyphCache is a thread-safe LRU cache for glyph outlines. It provides fast
+    lookups with automatic eviction of least recently used entries.
+
+    The cache is sharded to reduce lock contention in concurrent access
+    patterns. It supports both capacity-based eviction (when MaxEntries is
+    reached) and frame-based eviction (during Maintain() calls).
+
+    GlyphCache is safe for concurrent use.
+
+func GetGlobalGlyphCache() *GlyphCache
+    GetGlobalGlyphCache returns the global shared glyph cache.
+
+func NewGlyphCache() *GlyphCache
+    NewGlyphCache creates a new glyph cache with default configuration.
+
+func NewGlyphCacheWithConfig(config GlyphCacheConfig) *GlyphCache
+    NewGlyphCacheWithConfig creates a new glyph cache with the given
+    configuration.
+
+func SetGlobalGlyphCache(cache *GlyphCache) *GlyphCache
+    SetGlobalGlyphCache replaces the global glyph cache. The old cache is
+    returned for cleanup if needed.
+
+func (c *GlyphCache) Clear()
+    Clear removes all entries from the cache.
+
+func (c *GlyphCache) CurrentFrame() uint64
+    CurrentFrame returns the current frame number.
+
+func (c *GlyphCache) Delete(key OutlineCacheKey)
+    Delete removes an entry from the cache.
+
+func (c *GlyphCache) Get(key OutlineCacheKey) *GlyphOutline
+    Get retrieves a cached glyph outline. Returns nil if not found.
+
+func (c *GlyphCache) GetOrCreate(key OutlineCacheKey, create func() *GlyphOutline) *GlyphOutline
+    GetOrCreate retrieves a cached outline or creates one using the provided
+    function. This is an atomic operation that avoids redundant creation.
+
+func (c *GlyphCache) HitRate() float64
+    HitRate returns the cache hit rate as a percentage. Returns 0 if there are
+    no accesses.
+
+func (c *GlyphCache) Len() int
+    Len returns the total number of cached entries.
+
+func (c *GlyphCache) Maintain()
+    Maintain performs periodic maintenance on the cache. It evicts entries that
+    haven't been accessed for FrameLifetime frames. Call this once per frame for
+    frame-based eviction.
+
+func (c *GlyphCache) ResetStats()
+    ResetStats resets the cache statistics.
+
+func (c *GlyphCache) Set(key OutlineCacheKey, outline *GlyphOutline)
+    Set stores a glyph outline in the cache. If the cache is full, the least
+    recently used entry is evicted.
+
+func (c *GlyphCache) Stats() (hits, misses, evictions, insertions uint64)
+    Stats returns cache statistics.
+
+type GlyphCacheConfig struct {
+	// MaxEntries is the maximum number of cached glyph outlines.
+	// Default: 4096
+	MaxEntries int
+
+	// FrameLifetime is the number of frames an entry can be unused
+	// before being eligible for eviction during Maintain().
+	// Default: 64
+	FrameLifetime int
+}
+    GlyphCacheConfig holds configuration for GlyphCache.
+
+func DefaultGlyphCacheConfig() GlyphCacheConfig
+    DefaultGlyphCacheConfig returns the default cache configuration.
+
+type GlyphCachePool struct {
+	// Has unexported fields.
+}
+    GlyphCachePool manages a pool of GlyphCaches for per-thread usage. This can
+    further reduce contention in highly concurrent scenarios.
+
+func NewGlyphCachePool() *GlyphCachePool
+    NewGlyphCachePool creates a new pool of glyph caches.
+
+func (p *GlyphCachePool) Get() *GlyphCache
+    Get retrieves a cache from the pool.
+
+func (p *GlyphCachePool) Put(c *GlyphCache)
+    Put returns a cache to the pool.
+
+type GlyphCacheStats struct {
+	Hits       atomic.Uint64
+	Misses     atomic.Uint64
+	Evictions  atomic.Uint64
+	Insertions atomic.Uint64
+}
+    GlyphCacheStats holds cache statistics.
+
+type GlyphFlags uint8
+    GlyphFlags provides additional glyph information for rendering.
+
+const (
+	// GlyphFlagLigature indicates this glyph is the first in a ligature.
+	// The following glyphs with zero advance are part of the same ligature.
+	GlyphFlagLigature GlyphFlags = 1 << iota
+
+	// GlyphFlagMark indicates this glyph is a combining mark.
+	// Marks are positioned relative to their base glyph.
+	GlyphFlagMark
+
+	// GlyphFlagSafeToBreak indicates this is a safe line break point.
+	// Used by the layout engine for word wrapping.
+	GlyphFlagSafeToBreak
+
+	// GlyphFlagClusterStart indicates this glyph starts a new cluster.
+	// Clusters are groups of glyphs that map to one or more characters.
+	GlyphFlagClusterStart
+)
+func (f GlyphFlags) Has(flag GlyphFlags) bool
+    Has returns true if the flags contain the specified flag.
+
+func (f GlyphFlags) String() string
+    String returns a human-readable representation of the flags.
+
+type GlyphID uint16
+    GlyphID is a unique identifier for a glyph within a font. The glyph ID is
+    assigned by the font file and is font-specific.
+
+type GlyphInstance struct {
+	// FontID uniquely identifies the font.
+	FontID uint64
+
+	// GlyphID is the glyph index within the font.
+	GlyphID GlyphID
+
+	// Position is where the glyph should be drawn.
+	Position Point
+
+	// Size is the font size in pixels (ppem).
+	Size float32
+}
+    GlyphInstance represents a single glyph to be rendered at a specific
+    position. It contains all information needed to look up the glyph outline
+    and position it.
+
+type GlyphKey struct {
+	GID  GlyphID
+	Size float64
+}
+    GlyphKey identifies a rasterized glyph in the glyph cache.
+
+type GlyphMaskAtlas struct {
+	// Has unexported fields.
+}
+    GlyphMaskAtlas manages R8 alpha mask atlases for CPU-rasterized glyphs.
+
+    Architecture:
+     1. CPU rasterizes glyph at exact device pixel size via AnalyticFiller
+        (256-level AA)
+     2. Alpha mask is packed into R8 atlas page using shelf allocator
+     3. GPU composites as textured quad in render pass (Tier 6)
+
+    The atlas uses LRU eviction: when MaxEntries is reached, the least recently
+    used glyphs are evicted. Page-level eviction happens when all entries on a
+    page are evicted.
+
+    GlyphMaskAtlas is safe for concurrent use.
+
+func NewGlyphMaskAtlas(config GlyphMaskAtlasConfig) (*GlyphMaskAtlas, error)
+    NewGlyphMaskAtlas creates a new glyph mask atlas with the given
+    configuration.
+
+func NewGlyphMaskAtlasDefault() *GlyphMaskAtlas
+    NewGlyphMaskAtlasDefault creates a new glyph mask atlas with default
+    configuration.
+
+func (a *GlyphMaskAtlas) AdvanceFrame()
+    AdvanceFrame increments the frame counter and runs compaction. Call once per
+    frame (e.g., from GPU flush). This is the primary self-healing mechanism:
+    pages unused for 32+ frames are reset, reclaiming atlas space after zoom or
+    font size changes.
+
+func (a *GlyphMaskAtlas) Clear()
+    Clear removes all cached glyphs and resets all pages.
+
+func (a *GlyphMaskAtlas) Config() GlyphMaskAtlasConfig
+    Config returns the atlas configuration.
+
+func (a *GlyphMaskAtlas) DirtyPages() []int
+    DirtyPages returns indices of pages that have been modified since the last
+    MarkClean call and need GPU upload.
+
+func (a *GlyphMaskAtlas) DirtyUploads() []GlyphMaskDirtyUpload
+    DirtyUploads returns per-page dirty regions for GPU upload. Prefer partial
+    regions; falls back to full page when dirty covers ≥50% area or when region
+    is empty but page is marked dirty.
+
+func (a *GlyphMaskAtlas) EntryCount() int
+    EntryCount returns the number of cached glyph masks.
+
+func (a *GlyphMaskAtlas) Generation() uint64
+    Generation returns a monotonic counter bumped when atlas page contents are
+    discarded or reset (Clear / resetPage). Cached UV coordinates from before
+    the bump are unsafe to reuse.
+
+func (a *GlyphMaskAtlas) Get(key GlyphMaskKey) (GlyphMaskRegion, bool)
+    Get retrieves a cached glyph mask region. Returns the region and true if
+    found, or zero region and false if not cached.
+
+func (a *GlyphMaskAtlas) GetOrRasterize(
+	key GlyphMaskKey,
+	rasterize func() (mask []byte, maskW, maskH int, bearingX, bearingY, advance float32, err error),
+) (GlyphMaskRegion, error)
+    GetOrRasterize retrieves a cached glyph mask or rasterizes it using the
+    provided function. This is the primary API for the glyph mask pipeline.
+
+    The rasterize function is called on cache miss and should return:
+      - mask: R8 alpha buffer
+      - maskW, maskH: mask dimensions
+      - bearingX, bearingY: glyph positioning offsets
+      - err: any error during rasterization
+
+func (a *GlyphMaskAtlas) MarkClean(index int)
+    MarkClean marks a page as uploaded to GPU.
+
+func (a *GlyphMaskAtlas) MemoryUsage() int64
+    MemoryUsage returns the total memory used by all atlas pages in bytes.
+
+func (a *GlyphMaskAtlas) PageBytes(index int) int
+    PageBytes returns the full-page byte cost for budget estimates (R8: one byte
+    per texel). Unknown pages report 0.
+
+func (a *GlyphMaskAtlas) PageCount() int
+    PageCount returns the number of atlas pages currently in use.
+
+func (a *GlyphMaskAtlas) PageR8Data(index int) (data []byte, width, height int)
+    PageR8Data returns the R8 pixel data for a page. Returns nil if the index is
+    out of range.
+
+func (a *GlyphMaskAtlas) Put(key GlyphMaskKey, mask []byte, maskW, maskH int, bearingX, bearingY, advance float32) (GlyphMaskRegion, error)
+    Put stores a rasterized glyph mask in the atlas. The mask is an R8 alpha
+    buffer of dimensions (maskW x maskH). BearingX/BearingY are the glyph
+    positioning offsets from the origin. Advance is the (hinted) glyph advance
+    width used for GPU pen placement.
+
+    Returns the region where the mask was stored, or an error if the atlas is
+    full.
+
+func (a *GlyphMaskAtlas) PutLCD(key GlyphMaskKey, rgbMask []byte, logicalW, maskH int, bearingX, bearingY, advance float32) (GlyphMaskRegion, error)
+    PutLCD stores an LCD (ClearType) glyph mask in the atlas. The mask contains
+    RGB coverage data (3 bytes per pixel, logicalW pixels wide), which is packed
+    into the R8 atlas at 3x width. The region's Width is set to 3 * logicalW
+    (atlas texels), and IsLCD is set to true.
+
+    The caller must convert the RGB triplets to row-major R8 data before
+    calling: for each row, the 3*logicalW bytes are stored sequentially in the
+    atlas.
+
+func (a *GlyphMaskAtlas) Stats() (hits, misses uint64, entryCount, pageCount int)
+    Stats returns cache statistics.
+
+func (a *GlyphMaskAtlas) TouchPage(index int)
+    TouchPage marks an atlas page as recently used without a glyph lookup.
+    Used by layout templates that reuse UVs without calling Get each frame.
+
+func (a *GlyphMaskAtlas) UnderPressure() bool
+    UnderPressure returns true when callers should use MakeGlyphMaskKeyBucketed
+    to reduce unique entries. Uses hysteresis to prevent oscillation: enters
+    bucketed mode at 50% capacity, exits at 25%.
+
+type GlyphMaskAtlasConfig struct {
+	// Size is the atlas texture size (width = height).
+	// Must be power of 2. Default: 1024.
+	Size int
+
+	// Padding between glyphs to prevent texture bleeding.
+	// Default: 1.
+	Padding int
+
+	// MaxAtlases limits the number of atlas pages.
+	// Default: 4.
+	MaxAtlases int
+
+	// MaxEntries is the maximum number of cached glyph masks.
+	// When exceeded, LRU eviction removes the least recently used entries.
+	// Default: 8192.
+	MaxEntries int
+}
+    GlyphMaskAtlasConfig holds configuration for the glyph mask atlas.
+
+func DefaultGlyphMaskAtlasConfig() GlyphMaskAtlasConfig
+    DefaultGlyphMaskAtlasConfig returns the default configuration.
+
+func (c *GlyphMaskAtlasConfig) Validate() error
+    Validate checks if the configuration is valid.
+
+type GlyphMaskDirtyUpload struct {
+	Index      int
+	X, Y, W, H int  // region in page pixels
+	FullPage   bool // true → upload entire page (region still valid as full size)
+	// Deferred marks an upload held back by the per-frame upload budget:
+	// it stays dirty in the atlas and rides the next frame. DeferredBytes
+	// carries the byte estimate for pacing diagnostics.
+	Deferred      bool
+	DeferredBytes int
+}
+    GlyphMaskDirtyUpload describes a dirty page region for GPU upload.
+
+type GlyphMaskKey struct {
+	// FontID identifies the font (hash of font data or name).
+	FontID uint64
+
+	// GlyphID is the glyph index within the font.
+	GlyphID uint16
+
+	// SizeQ4 is the font size multiplied by 16, giving 1/16 pixel precision.
+	// For example, 13px = 208, 14.5px = 232.
+	// Range: 1..32767 covers sizes 0.0625..2048 px.
+	SizeQ4 int16
+
+	// SubpixelXQ2 is the fractional X position multiplied by 4 (0..3).
+	// This gives 4 horizontal subpixel variants per glyph (1/4 pixel positioning).
+	SubpixelXQ2 uint8
+
+	// SubpixelYQ2 is the fractional Y position multiplied by 4 (0..3).
+	// Typically 0 for horizontal text (no vertical subpixel positioning).
+	SubpixelYQ2 uint8
+
+	// Flags encodes rendering mode flags that affect the rasterized output.
+	// Different rasterization modes (AA vs aliased) produce different masks
+	// for the same glyph and must be cached separately.
+	//
+	// Bit 0 (GlyphMaskFlagAliased): binary coverage (0/255 only, NoAAFiller).
+	// Bit 1 (GlyphMaskFlagLCD): LCD/ClearType 3x horizontal mask.
+	// Bit 2 (GlyphMaskFlagLCDBGR): LCD BGR order (with FlagLCD).
+	// Bit 3 (GlyphMaskFlagBold): synthetic bold (expanded outline).
+	// Bits 4-5 (GlyphMaskFlagHintingShift): hinting mode (Skia SkDescriptor
+	// rule — the rasterized outline depends on hinting via
+	// ExtractOutlineHinted, so it MUST be part of the key).
+	// Bits 6-7: reserved for future use.
+	Flags uint8
+}
+    GlyphMaskKey uniquely identifies a rasterized glyph mask in the atlas.
+    The key captures all parameters that affect the rendered appearance:
+    font identity, glyph index, pixel size (quantized to 1/16 px), and subpixel
+    position (quantized to 1/4 px).
+
+    This follows the Skia/Chrome pattern where each (font, glyph, size,
+    subpixel) combination produces a distinct alpha mask.
+
+func MakeGlyphMaskKey(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64, hinting Hinting) GlyphMaskKey
+    MakeGlyphMaskKey creates a GlyphMaskKey from rendering parameters. The size
+    is in pixels (ppem). The subpixelX/Y are fractional pixel offsets [0, 1).
+    The hinting mode is part of the key: the rasterized outline depends on it.
+
+func MakeGlyphMaskKeyAliased(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64, hinting Hinting) GlyphMaskKey
+    MakeGlyphMaskKeyAliased creates a GlyphMaskKey with the aliased flag set.
+    The resulting cache entry is distinct from the anti-aliased version of the
+    same glyph — different rasterization modes produce different coverage data.
+
+func MakeGlyphMaskKeyBucketed(fontID uint64, glyphID GlyphID, size float64, subpixelX, subpixelY float64, hinting Hinting) GlyphMaskKey
+    MakeGlyphMaskKeyBucketed creates a GlyphMaskKey with size snapped to
+    discrete buckets. Use this when atlas pressure is detected (zoom scenarios
+    with many unique sizes). The GPU scales the rasterized glyph from bucket
+    size to actual size — quality loss is negligible.
+
+type GlyphMaskRasterizer struct {
+	// Has unexported fields.
+}
+    GlyphMaskRasterizer renders glyph outlines into R8 alpha masks using the
+    AnalyticFiller (256-level analytic anti-aliasing). This is the CPU side of
+    the Tier 6 glyph mask cache pipeline.
+
+    The rasterizer extracts glyph outlines from the font at the exact device
+    pixel size, builds edges via EdgeBuilder, and fills to an alpha buffer.
+    The result is a tight-bbox alpha mask suitable for packing into the
+    GlyphMaskAtlas R8 texture.
+
+    This follows the Skia/Chrome pattern:
+      - CPU rasterizes at exact pixel size (no scaling artifacts)
+      - 256-level coverage (vs MSDF's distance-based approximation)
+      - Hinting-ready (future TEXT-012)
+      - Subpixel positioning via fractional offset in outline coordinates
+
+    GlyphMaskRasterizer is NOT safe for concurrent use. Each goroutine should
+    use its own instance, or protect access with a mutex.
+
+func NewGlyphMaskRasterizer() *GlyphMaskRasterizer
+    NewGlyphMaskRasterizer creates a new glyph mask rasterizer.
+
+func (r *GlyphMaskRasterizer) Rasterize(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+) (*GlyphMaskResult, error)
+    Rasterize renders a single glyph into an R8 alpha mask.
+
+    Parameters:
+      - font: parsed font to extract outlines from
+      - gid: glyph index in the font
+      - size: font size in pixels (ppem)
+      - subpixelX: fractional X offset in pixels [0, 1) for subpixel positioning
+      - subpixelY: fractional Y offset in pixels [0, 1) for subpixel positioning
+
+    Returns nil result for empty glyphs (e.g., space character).
+
+func (r *GlyphMaskRasterizer) RasterizeAliased(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+	hinting Hinting,
+) (*GlyphMaskResult, error)
+    RasterizeAliased renders a single glyph into an R8 alpha mask with binary
+    coverage (0 or 255 only). No anti-aliasing, no sub-pixel coverage.
+
+    The result is a crisp, staircase-edged mask suitable for pixel-art
+    aesthetics, terminal emulators, or bitmap font emulation.
+
+    Unlike RasterizeHinted (which uses aaMargin=1 for AA fringe), aliased
+    rasterization uses aaMargin=0 because there is no sub-pixel fringe.
+
+    Parameters:
+      - font: parsed font to extract outlines from
+      - gid: glyph index in the font
+      - size: font size in pixels (ppem)
+      - subpixelX: fractional X offset in pixels [0, 1) for subpixel positioning
+      - subpixelY: fractional Y offset in pixels [0, 1) for subpixel positioning
+      - hinting: hinting mode (HintingNone, HintingVertical, HintingFull)
+
+    Returns nil result for empty glyphs (e.g., space character).
+
+func (r *GlyphMaskRasterizer) RasterizeAliasedBold(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+	hinting Hinting,
+	bold bool,
+) (*GlyphMaskResult, error)
+    RasterizeAliasedBold is RasterizeAliased with optional standard synthetic
+    bold applied to the outline before binary rasterization.
+
+func (r *GlyphMaskRasterizer) RasterizeHinted(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+	hinting Hinting,
+) (*GlyphMaskResult, error)
+    RasterizeHinted renders a single glyph into an R8 alpha mask with hinting.
+
+    When hinting is HintingVertical or HintingFull, the outline is grid-fitted
+    before rasterization, producing crisper horizontal stems and consistent stem
+    widths at small sizes (12-16px).
+
+    Parameters:
+      - font: parsed font to extract outlines from
+      - gid: glyph index in the font
+      - size: font size in pixels (ppem)
+      - subpixelX: fractional X offset in pixels [0, 1) for subpixel positioning
+      - subpixelY: fractional Y offset in pixels [0, 1) for subpixel positioning
+      - hinting: hinting mode (HintingNone, HintingVertical, HintingFull)
+
+    Returns nil result for empty glyphs (e.g., space character).
+
+func (r *GlyphMaskRasterizer) RasterizeHintedBold(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+	hinting Hinting,
+	bold bool,
+) (*GlyphMaskResult, error)
+    RasterizeHintedBold is RasterizeHinted with optional standard synthetic
+    bold. When bold is true the outline is expanded by EmboldenOutline(size/24)
+    before analytic-AA rasterization; the advance stays unchanged.
+
+func (r *GlyphMaskRasterizer) RasterizeHintedFT26(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	hinting Hinting,
+	variations []FontVariation,
+) (*GlyphMaskResult, bool, error)
+    RasterizeHintedFT26 renders a glyph through the FT-aligned rasterizer
+    (RasterizeFT26) using the 26.6 fixed-point outline from the CFF light
+    hinting engine, bypassing the float32 intermediate (A3 方案 A).
+
+    This path is used for CFF/CFF2 outline fonts with hinting enabled
+    (HintingVertical / HintingFull), where hint.LightHintVar already produces
+    26.6 fixed-point points aligned with FT_LOAD_TARGET_LIGHT. The outline is
+    fed directly to the ftgrays port for byte-exact parity with FT_Render_Glyph.
+
+    Returns nil when the direct path is not applicable (non-CFF font,
+    no hinting, engine failure) — callers fall back to RasterizeHinted.
+
+func (r *GlyphMaskRasterizer) RasterizeLCD(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+	hinting Hinting,
+	filter LCDFilter,
+	layout LCDLayout,
+) (*LCDMaskResult, error)
+    RasterizeLCD renders a glyph with 3x horizontal oversampling for LCD
+    subpixel (ClearType) rendering. The glyph outline is rasterized at 3x
+    horizontal width, then the LCD filter is applied row-by-row to produce
+    per-channel RGB coverage. The result is stored in the R8 atlas at 3x width
+    (3 atlas texels per logical pixel: R, G, B coverage).
+
+    For BGR layout, the R and B channels are swapped after filtering.
+
+    Parameters:
+      - font: parsed font to extract outlines from
+      - gid: glyph index in the font
+      - size: font size in pixels (ppem)
+      - subpixelX: fractional X offset in pixels [0, 1) for subpixel positioning
+      - subpixelY: fractional Y offset in pixels [0, 1) for subpixel positioning
+      - hinting: hinting mode (HintingNone, HintingVertical, HintingFull)
+      - filter: LCD FIR filter for fringe reduction
+      - layout: physical subpixel arrangement (RGB or BGR)
+
+    Returns nil result for empty glyphs (e.g., space character).
+
+func (r *GlyphMaskRasterizer) RasterizeLCDBold(
+	font ParsedFont,
+	gid GlyphID,
+	size float64,
+	subpixelX, subpixelY float64,
+	hinting Hinting,
+	filter LCDFilter,
+	layout LCDLayout,
+	bold bool,
+) (*LCDMaskResult, error)
+    RasterizeLCDBold is RasterizeLCD with optional standard synthetic bold
+    applied to the outline before 3x LCD rasterization.
+
+func (r *GlyphMaskRasterizer) RasterizeLCDOutline(
+	outline *GlyphOutline,
+	subpixelX, subpixelY float64,
+	filter LCDFilter,
+	layout LCDLayout,
+) (*LCDMaskResult, error)
+    RasterizeLCDOutline renders a pre-extracted glyph outline with 3x horizontal
+    oversampling for LCD subpixel rendering. This is useful when the outline has
+    already been extracted (e.g., from cache).
+
+func (r *GlyphMaskRasterizer) RasterizeOutline(
+	outline *GlyphOutline,
+	subpixelX, subpixelY float64,
+) (*GlyphMaskResult, error)
+    RasterizeOutline renders a pre-extracted glyph outline into an R8 alpha
+    mask. This is useful when the outline has already been extracted (e.g.,
+    from cache).
+
+func (r *GlyphMaskRasterizer) RasterizeOutlineAliased(
+	outline *GlyphOutline,
+	subpixelX, subpixelY float64,
+) (*GlyphMaskResult, error)
+    RasterizeOutlineAliased renders a pre-extracted glyph outline into an R8
+    alpha mask with binary (0 or 255) coverage. Same as RasterizeOutline but
+    with no anti-aliasing — matches the SkFont::Edging::kAlias applied to any
+    outline source (own parser, with optional gvar variations).
+
+type GlyphMaskRegion struct {
+	// AtlasIndex indicates which atlas page this glyph is in.
+	AtlasIndex int
+
+	// X, Y are the pixel coordinates of the mask in the atlas.
+	X, Y int
+
+	// Width, Height are the dimensions of the mask in pixels.
+	Width, Height int
+
+	// BearingX is the horizontal offset from the glyph origin to the left edge
+	// of the mask, in pixels. Used to position the quad correctly.
+	BearingX float32
+
+	// BearingY is the vertical offset from the baseline to the top edge of the
+	// mask, in pixels. Positive = above baseline (standard glyph rendering).
+	BearingY float32
+
+	// Advance is the glyph advance width (device pixels) of the rasterized
+	// outline — the HINTED advance when hinting is active. The GPU glyph-mask
+	// layout uses it to advance the pen exactly like CPU text.Draw, keeping
+	// glyph x-positions identical between GPU and CPU rendering.
+	Advance float32
+
+	// UV coordinates [0, 1] for texture sampling.
+	// Inset by 0.5 texels to prevent bilinear bleed.
+	U0, V0, U1, V1 float32
+
+	// IsLCD indicates that this region contains LCD subpixel data stored
+	// at 3x horizontal width in the R8 atlas. Each logical pixel occupies
+	// 3 consecutive R8 texels (R, G, B coverage). The Width field stores
+	// the atlas width (3 * logical width), not the logical pixel width.
+	IsLCD bool
+}
+    GlyphMaskRegion describes a glyph mask's location and metrics in the atlas.
+
+type GlyphMaskResult struct {
+	// Mask is the R8 alpha buffer (1 byte per pixel, row-major).
+	Mask []byte
+
+	// Width and Height of the mask in pixels.
+	Width, Height int
+
+	// BearingX is the horizontal offset from the glyph origin to the left
+	// edge of the mask bounding box, in pixels.
+	BearingX float32
+
+	// BearingY is the vertical offset from the baseline to the top edge
+	// of the mask bounding box, in pixels. Positive = above baseline.
+	BearingY float32
+
+	// Advance is the glyph advance width in pixels, taken from the outline
+	// used for rasterization. With hinting active this is the HINTED advance
+	// (CPU text.Draw lays glyphs out with it), so the GPU glyph-mask layout
+	// can place glyphs at exactly the same x positions as the CPU bitmap.
+	// Unhinted outlines report the raw hmtx advance.
+	Advance float32
+}
+    GlyphMaskResult holds the output of rasterizing a single glyph.
+
+type GlyphOutline struct {
+	// Segments is the list of path segments that make up the outline.
+	Segments []OutlineSegment
+
+	// Bounds is the bounding box of the outline in scaled units.
+	Bounds Rect
+
+	// Advance is the horizontal advance width of the glyph.
+	Advance float32
+
+	// LSB is the left side bearing.
+	LSB float32
+
+	// GID is the glyph ID this outline represents.
+	GID GlyphID
+
+	// Type indicates the type of glyph (outline, bitmap, COLR).
+	Type GlyphType
+}
+    GlyphOutline represents the vector outline of a glyph. The outline consists
+    of one or more closed contours.
+
+func EmboldenOutline(outline *GlyphOutline, sizePx float64) *GlyphOutline
+    EmboldenOutline expands a glyph outline by the standard synthetic-bold
+    amount used by FreeType/Skia outline fake bold: size/24 pixels per side.
+
+    Unlike bitmap mask dilation this works on the vector outline before
+    rasterization, so the result follows the same analytic-AA path as a real
+    font cut. Advances are intentionally unchanged: synthetic weight must not
+    reflow text, matching Skia's fake-bold contract.
+
+    The outline is expanded along each point's local normal, using the contour
+    winding to decide outward vs inward (outer contours grow, holes shrink).
+    This mirrors FT_Outline_Embolden's point-normal expansion without depending
+    on cgo.
+
+func (o *GlyphOutline) Clone() *GlyphOutline
+    Clone creates a deep copy of the outline.
+
+func (o *GlyphOutline) IsEmpty() bool
+    IsEmpty returns true if the outline has no segments.
+
+func (o *GlyphOutline) Scale(factor float32) *GlyphOutline
+    Scale returns a new outline with all coordinates scaled by the given factor.
+
+func (o *GlyphOutline) SegmentCount() int
+    SegmentCount returns the number of segments in the outline.
+
+func (o *GlyphOutline) Transform(m *AffineTransform) *GlyphOutline
+    Transform returns a new outline with all coordinates transformed.
+
+func (o *GlyphOutline) Translate(dx, dy float32) *GlyphOutline
+    Translate returns a new outline with all coordinates translated by (dx, dy).
+
+type GlyphRenderer struct {
+	// Has unexported fields.
+}
+    GlyphRenderer converts shaped glyphs to outline paths. It uses the
+    GlyphCache for efficient outline caching and OutlineExtractor for extracting
+    glyph outlines from fonts.
+
+    GlyphRenderer is safe for concurrent use.
+
+func NewGlyphRenderer() *GlyphRenderer
+    NewGlyphRenderer creates a new glyph renderer with the global cache.
+
+func NewGlyphRendererWithCache(cache *GlyphCache) *GlyphRenderer
+    NewGlyphRendererWithCache creates a new glyph renderer with a custom cache.
+
+func (r *GlyphRenderer) Cache() *GlyphCache
+    Cache returns the glyph cache used by this renderer.
+
+func (r *GlyphRenderer) RenderGlyph(
+	glyph *ShapedGlyph,
+	font ParsedFont,
+	size float64,
+	params RenderParams,
+) *GlyphOutline
+    RenderGlyph renders a single glyph to an outline. Returns the glyph outline
+    with positioning applied.
+
+    Parameters:
+      - glyph: The shaped glyph to render
+      - font: The parsed font to use for outline extraction
+      - size: Font size in pixels (ppem)
+      - params: Rendering parameters
+
+    Returns the transformed outline, or nil if the glyph has no outline.
+
+func (r *GlyphRenderer) RenderGlyphs(
+	glyphs []ShapedGlyph,
+	font ParsedFont,
+	size float64,
+	params RenderParams,
+) []*GlyphOutline
+    RenderGlyphs renders multiple glyphs to outlines. Returns a slice of
+    outlines corresponding to each input glyph. Glyphs with no outline (e.g.,
+    spaces) will have nil entries.
+
+func (r *GlyphRenderer) RenderLayout(layout *Layout, params RenderParams) [][]*GlyphOutline
+    RenderLayout renders a complete layout to outlines. Returns a 2D slice where
+    [line][glyph] contains the outlines.
+
+func (r *GlyphRenderer) RenderRun(run *ShapedRun, params RenderParams) []*GlyphOutline
+    RenderRun renders a shaped run to outlines.
+
+func (r *GlyphRenderer) SetCache(cache *GlyphCache)
+    SetCache sets the glyph cache used by this renderer.
+
+type GlyphRunBuilder struct {
+	// Has unexported fields.
+}
+    GlyphRunBuilder batches glyphs for efficient rendering. It accumulates
+    glyphs from shaped text and creates draw commands by looking up glyph
+    outlines from the cache.
+
+    GlyphRunBuilder is NOT safe for concurrent use. Each goroutine should have
+    its own builder.
+
+func NewGlyphRunBuilder(cache *GlyphCache) *GlyphRunBuilder
+    NewGlyphRunBuilder creates a builder that uses the given cache. If cache is
+    nil, the global glyph cache is used.
+
+func (b *GlyphRunBuilder) AddGlyph(fontID uint64, glyphID GlyphID, pos Point, size float32)
+    AddGlyph adds a glyph to the batch.
+
+func (b *GlyphRunBuilder) AddShapedGlyph(fontID uint64, glyph *ShapedGlyph, size float32)
+    AddShapedGlyph adds a ShapedGlyph to the batch.
+
+func (b *GlyphRunBuilder) AddShapedGlyphs(fontID uint64, glyphs []ShapedGlyph, origin Point, size float32)
+    AddShapedGlyphs adds multiple shaped glyphs from a slice. All glyphs are
+    assumed to be from the same font.
+
+func (b *GlyphRunBuilder) AddShapedRun(run *ShapedRun, origin Point)
+    AddShapedRun adds all glyphs from a ShapedRun. The origin parameter
+    specifies the starting position for the run.
+
+func (b *GlyphRunBuilder) Build(createGlyph func(fontID uint64, glyphID GlyphID, size float32) *GlyphOutline) []DrawCommand
+    Build retrieves all glyph outlines from cache and returns draw commands.
+    The createGlyph function is called to create outlines for cache misses.
+    If createGlyph is nil, cache misses result in nil outlines being skipped.
+
+    Returns a slice of DrawCommands ready for rendering.
+
+func (b *GlyphRunBuilder) BuildTransformed(
+	createGlyph func(fontID uint64, glyphID GlyphID, size float32) *GlyphOutline,
+	userTransform *AffineTransform,
+) []DrawCommand
+    BuildTransformed is like Build but applies an additional transformation to
+    all commands.
+
+func (b *GlyphRunBuilder) Cache() *GlyphCache
+    Cache returns the glyph cache used by this builder.
+
+func (b *GlyphRunBuilder) Clear()
+    Clear resets the builder for reuse. The cache is not cleared.
+
+func (b *GlyphRunBuilder) Instances() []GlyphInstance
+    Instances returns a copy of the current glyph instances.
+
+func (b *GlyphRunBuilder) Len() int
+    Len returns the number of glyph instances currently buffered.
+
+func (b *GlyphRunBuilder) SetCache(cache *GlyphCache)
+    SetCache sets the glyph cache used by this builder. If cache is nil,
+    the global glyph cache is used.
+
+type GlyphRunBuilderPool struct {
+	// Has unexported fields.
+}
+    GlyphRunBuilderPool provides pooled GlyphRunBuilders for high-concurrency
+    scenarios.
+
+func NewGlyphRunBuilderPool(cache *GlyphCache) *GlyphRunBuilderPool
+    NewGlyphRunBuilderPool creates a new pool with the given cache. If cache is
+    nil, the global glyph cache is used.
+
+func (p *GlyphRunBuilderPool) Get() *GlyphRunBuilder
+    Get retrieves a GlyphRunBuilder from the pool.
+
+func (p *GlyphRunBuilderPool) Put(builder *GlyphRunBuilder)
+    Put returns a GlyphRunBuilder to the pool. The builder is cleared before
+    being returned.
+
+type GlyphType uint8
+    GlyphType indicates how to render a glyph.
+
+const (
+	// GlyphTypeOutline is a vector path glyph (default).
+	// Rendered via sparse strips or MSDF.
+	GlyphTypeOutline GlyphType = iota
+
+	// GlyphTypeBitmap is an embedded bitmap glyph.
+	// Found in sbix (Apple) or CBDT/CBLC (Google) tables.
+	// Used for color emoji.
+	GlyphTypeBitmap
+
+	// GlyphTypeCOLR is a color layers glyph.
+	// Uses COLRv0 or COLRv1 tables for layered color glyphs.
+	GlyphTypeCOLR
+
+	// GlyphTypeSVG is an SVG document glyph.
+	// Found in SVG table, used for complex color glyphs.
+	GlyphTypeSVG
+)
+func DetectGlyphType(font ParsedFont, glyphID uint16) GlyphType
+    DetectGlyphType determines the glyph type for rendering. This is a helper
+    function that checks for color tables.
+
+    Priority order:
+     1. COLR (vector, scalable without quality loss)
+     2. Bitmap (CBDT/sbix - PNG based, widely compatible)
+     3. Outline (fallback for non-color glyphs)
+
+    Note: In practice, CBDT is often more compatible than COLR (see cosmic-text
+    #2546 - COLRv1 renders blank on some systems).
+
+func (t GlyphType) String() string
+    String returns the string representation of the glyph type.
+
+type HbShaper struct {
+	// Has unexported fields.
+}
+    HbShaper implements the Shaper interface with the HarfBuzz Go port. It
+    caches parsed fonts per FontSource + variation instance. Safe for concurrent
+    use.
+
+func NewHbShaper() *HbShaper
+    NewHbShaper creates a new HarfBuzz-backed shaper.
+
+func (s *HbShaper) ClearCache()
+    ClearCache removes all cached font data.
+
+func (s *HbShaper) RemoveSource(source *FontSource)
+    RemoveSource removes cached data for a specific FontSource.
+
+func (s *HbShaper) Shape(text string, face Face) []ShapedGlyph
+    Shape implements the Shaper interface.
+
+type Hinting int
+    Hinting specifies font hinting mode.
+
+const (
+	// HintingNone disables hinting.
+	HintingNone Hinting = iota
+	// HintingVertical applies vertical hinting only.
+	HintingVertical
+	// HintingFull applies full hinting.
+	HintingFull
+)
+func (h Hinting) String() string
+    String returns the string representation of the hinting.
+
+type LCDFilter struct {
+	// Weights are the 5-tap FIR filter coefficients, centered on the
+	// current subpixel column. Weights[2] is the center tap.
+	Weights [5]float32
+}
+    LCDFilter applies a 5-tap FIR (Finite Impulse Response) filter to a
+    3x-oversampled coverage buffer to reduce color fringing in ClearType
+    subpixel rendering.
+
+    The filter convolves each subpixel column with 5 weights, distributing
+    energy from adjacent subpixels to reduce chromatic artifacts at glyph edges.
+    This is the same approach used by FreeType's LCD filtering.
+
+    The default weights [0.08, 0.24, 0.36, 0.24, 0.08] (sum = 1.0) provide a
+    good balance between sharpness and fringe reduction ("light" filter).
+
+func DefaultLCDFilter() LCDFilter
+    DefaultLCDFilter returns the FreeType-compatible "light" LCD filter.
+    Weights: [0.08, 0.24, 0.36, 0.24, 0.08] (sum = 1.0). This provides good
+    fringe reduction without excessive blurring.
+
+func (f *LCDFilter) Apply(dst []byte, src []byte, width int)
+    Apply runs the 5-tap horizontal FIR filter on a 3x-oversampled R8 buffer,
+    producing per-channel RGB coverage values.
+
+    Parameters:
+      - dst: output buffer, must be at least width*3 bytes (RGB triplets)
+      - src: input buffer of 3*width alpha samples (3x horizontal oversampling)
+      - width: number of output pixels (dst has width*3 bytes, src has 3*width
+        bytes)
+
+    For each output pixel at position i, the three subpixel columns are at
+    src indices i*3+0 (red), i*3+1 (green), i*3+2 (blue). The 5-tap filter is
+    centered on each subpixel column independently. Out-of-bounds samples are
+    treated as zero.
+
+type LCDLayout int
+    LCDLayout describes the physical subpixel arrangement on the display. Most
+    LCD monitors use horizontal RGB stripe ordering, where each pixel consists
+    of three vertical subpixel columns (red, green, blue) from left to right.
+    ClearType-style rendering exploits this to triple the effective horizontal
+    resolution for text.
+
+const (
+	// LCDLayoutNone disables subpixel rendering (grayscale fallback).
+	LCDLayoutNone LCDLayout = iota
+
+	// LCDLayoutRGB is horizontal RGB ordering (most common: Windows, most monitors).
+	// Physical subpixels left-to-right: Red, Green, Blue.
+	LCDLayoutRGB
+
+	// LCDLayoutBGR is horizontal BGR ordering (rare, some monitors).
+	// Physical subpixels left-to-right: Blue, Green, Red.
+	LCDLayoutBGR
+)
+func (l LCDLayout) String() string
+    String returns the string representation of the LCD layout.
+
+type LCDMaskResult struct {
+	// Mask is the RGB coverage buffer (3 bytes per pixel: R, G, B).
+	// Row-major, width x height pixels, 3*width bytes per row.
+	Mask []byte
+
+	// Width and Height of the mask in pixels (NOT the 3x oversampled width).
+	Width, Height int
+
+	// BearingX is the horizontal offset from the glyph origin to the left
+	// edge of the mask bounding box, in pixels.
+	BearingX float32
+
+	// BearingY is the vertical offset from the baseline to the top edge
+	// of the mask bounding box, in pixels. Positive = above baseline.
+	BearingY float32
+}
+    LCDMaskResult holds the output of LCD subpixel rasterization.
+
+type Layout struct {
+	// Lines contains all lines of laid out text.
+	Lines []Line
+
+	// Width is the maximum width among all lines.
+	Width float64
+
+	// Height is the total height of all lines.
+	Height float64
+}
+    Layout represents the result of text layout.
+
+func LayoutText(text string, face Face, opts LayoutOptions) *Layout
+    LayoutText performs text layout with the given options. It segments text
+    by direction/script, shapes each segment, wraps lines if MaxWidth > 0, and
+    positions lines with alignment. The font size is obtained from face.Size().
+
+    For cancellable layout, use LayoutTextWithContext.
+
+func LayoutTextSimple(text string, face Face) *Layout
+    LayoutTextSimple is a convenience wrapper with default options. The font
+    size is obtained from face.Size().
+
+func LayoutTextWithContext(ctx context.Context, text string, face Face, opts LayoutOptions) (*Layout, error)
+    LayoutTextWithContext performs text layout with the given options and
+    cancellation support. It segments text by direction/script, shapes each
+    segment, wraps lines if MaxWidth > 0, and positions lines with alignment.
+    The font size is obtained from face.Size().
+
+    The context can be used to cancel long-running layout operations. When
+    canceled, returns nil and ctx.Err().
+
+type LayoutOptions struct {
+	// MaxWidth is the maximum line width in pixels.
+	// If 0, no line wrapping is performed (single-line paragraphs).
+	MaxWidth float64
+
+	// LineSpacing is a multiplier for line height.
+	// 1.0 uses the font's natural line height; 1.5 adds 50% extra space.
+	LineSpacing float64
+
+	// Alignment specifies horizontal text alignment.
+	Alignment Alignment
+
+	// Direction is the base text direction (LTR or RTL).
+	// Used for paragraph-level direction when no strong directional text is present.
+	Direction Direction
+
+	// WrapMode specifies how text is wrapped when it exceeds MaxWidth.
+	// Default is WrapWordChar which breaks at word boundaries first,
+	// then falls back to character boundaries for long words.
+	WrapMode WrapMode
+
+	// LetterSpacing adds space between each letter (glyph cluster) in
+	// logical px (negative tightens). Gaps = clusters-1: no trailing
+	// phantom width. Combining marks share their base cluster.
+	LetterSpacing float64
+
+	// WordSpacing adds space at each maximal whitespace run in logical
+	// px (negative tightens).
+	WordSpacing float64
+}
+    LayoutOptions configures text layout behavior.
+
+func DefaultLayoutOptions() LayoutOptions
+    DefaultLayoutOptions returns sensible default layout options.
+
+type Line struct {
+	// Runs contains the shaped runs that make up this line.
+	// Multiple runs occur with mixed scripts or directions.
+	Runs []ShapedRun
+
+	// Glyphs contains all glyphs from Runs, positioned for rendering.
+	// Glyph X positions are absolute within the layout.
+	Glyphs []ShapedGlyph
+
+	// Width is the total advance width of all glyphs in this line.
+	Width float64
+
+	// Ascent is the maximum ascent of all runs (distance above baseline).
+	Ascent float64
+
+	// Descent is the maximum descent of all runs (distance below baseline).
+	Descent float64
+
+	// Y is the baseline Y position of this line within the layout.
+	Y float64
+}
+    Line represents a positioned line of text ready for rendering.
+
+func (l *Line) Height() float64
+    Height returns the total height of the line (ascent + descent).
+
+type Metrics struct {
+	// Ascent is the distance from the baseline to the top of the font (positive).
+	// This is the maximum height a glyph can reach above the baseline.
+	Ascent float64
+
+	// Descent is the distance from the baseline to the bottom of the font (positive, below baseline).
+	// This is the maximum depth a glyph can reach below the baseline.
+	// Note: Unlike FontMetrics.Descent, this is stored as a positive value.
+	Descent float64
+
+	// LineGap is the recommended gap between lines.
+	LineGap float64
+
+	// XHeight is the height of lowercase letters (like 'x').
+	XHeight float64
+
+	// CapHeight is the height of uppercase letters.
+	CapHeight float64
+
+	// VerticalAscent is the vertical typographic ascender (from vhea).
+	// Positive when present; 0 when the font has no vhea table.
+	VerticalAscent float64
+
+	// VerticalDescent is the vertical typographic descender (from vhea),
+	// stored positive (below the vertical baseline); 0 when no vhea table.
+	VerticalDescent float64
+
+	// VerticalLineGap is the vertical typographic gap (from vhea);
+	// 0 when the font has no vhea table.
+	VerticalLineGap float64
+}
+    Metrics holds font metrics at a specific size. These metrics are derived
+    from the font file and scaled to the face size. Metrics represents the
+    overall font metrics.
+
+func (m Metrics) LineHeight() float64
+    LineHeight returns the total line height (ascent + descent + line gap). This
+    is the recommended vertical distance between baselines of consecutive lines.
+
+type Mode uint8
+    Mode 是目标 FreeType 渲染模式。
+
+const (
+	// ModeLightCJK 对应 pshinter light / afcjk（CFF→cffcs+psh_light，glyf→afcjk）。
+	ModeLightCJK Mode = iota
+
+	// ModeLightLatin 对应 TrueType 解释器 light 模式（bytecode Y-only）。
+	ModeLightLatin
+)
+type MultiFace struct {
+	// Has unexported fields.
+}
+    MultiFace combines multiple faces with fallback. Glyph lookup is
+    first-match with one script correction: a CJK-covering face (it also bundles
+    Latin/Greek/Cyrillic) is skipped for non-CJK runes when a later non-CJK face
+    covers them. CJK fonts grid their bundled Latin on fractional advances,
+    which jitters same-line spacing on the integer pixel grid; routing Latin
+    to its own hinted face keeps advances near integers (Pango/fontconfig
+    per-script matching). CJK-related runes (Han, Kana, Hangul, Bopomofo,
+    CJK punctuation, fullwidth forms) always stay on the first match so CJK grid
+    widths never change. MultiFace is safe for concurrent use.
+
+func NewMultiFace(faces ...Face) (*MultiFace, error)
+    NewMultiFace creates a MultiFace from faces. All faces must have the same
+    direction. Returns error if faces is empty or directions don't match.
+
+func (m *MultiFace) Advance(text string) float64
+    Advance implements Face.Advance. Calculates total advance using the
+    appropriate face for each rune.
+
+func (m *MultiFace) AppendGlyphs(dst []Glyph, text string) []Glyph
+    AppendGlyphs implements Face.AppendGlyphs. Appends glyphs using the
+    appropriate face for each rune.
+
+func (m *MultiFace) AtSize(size float64) Face
+    AtSize returns a MultiFace with every component face re-derived at size.
+    Source() is nil on MultiFace (composite), so callers that only do
+    Source().Face(size) would keep the old size or drop CJK fallbacks. UI kit
+    uses this when SetFace(14) then SetFontSize(16/20) for titles.
+
+func (m *MultiFace) Direction() Direction
+    Direction implements Face.Direction.
+
+func (m *MultiFace) Embolden() bool
+    Embolden reports synthetic embolden for the effective face (first face).
+
+func (m *MultiFace) Features() []FontFeature
+    Features implements Face.Features. Returns features from the first face.
+
+func (m *MultiFace) Glyphs(text string) iter.Seq[Glyph]
+    Glyphs implements Face.Glyphs. Returns an iterator over all glyphs, using
+    the appropriate face for each rune.
+
+func (m *MultiFace) HasGlyph(r rune) bool
+    HasGlyph implements Face.HasGlyph. Returns true if any face has the glyph.
+
+func (m *MultiFace) Hinting() Hinting
+    private implements the Face interface.
+
+func (m *MultiFace) Language() string
+    Language implements Face.Language. Returns the language from the first face.
+
+func (m *MultiFace) Metrics() Metrics
+    Metrics implements Face.Metrics. Returns metrics from the first face.
+
+func (m *MultiFace) Runs(text string) []FaceRun
+    Runs splits text into contiguous face runs using the same fallback policy as
+    Glyphs.
+
+func (m *MultiFace) Size() float64
+    Size implements Face.Size. Returns the size from the first face.
+
+func (m *MultiFace) Source() *FontSource
+    Source implements Face.Source. Returns nil since MultiFace is a composite
+    face.
+
+func (m *MultiFace) Variations() []FontVariation
+    Variations implements Face.Variations. Returns variations from the first
+    face.
+
+func (m *MultiFace) Weight() FontWeight
+    Weight implements Face.Weight. Returns the requested grade from the first
+    face.
+
+func (m *MultiFace) WithHinting(h Hinting) *MultiFace
+    WithHinting returns a new MultiFace with every component face re-derived at
+    its current size with the given hinting mode; all other rendering options
+    (features/variations/language/direction) are preserved. UI chrome uses this
+    to pin its faces to the production hinting mode (HintingVertical = FT light)
+    instead of the engine default HintingFull.
+
+func (m *MultiFace) WithWeight(w FontWeight) *MultiFace
+    WithWeight returns a new MultiFace with every component face re-derived at
+    its current size with the given weight grade; all other rendering options
+    are preserved. Weight 0 clears to as-designed.
+
+type NamedInstance struct {
+	Name       string          // Instance name from the font's name table
+	Variations []FontVariation // Axis values for this instance
+}
+    NamedInstance describes a predefined variation instance in a variable font.
+    Named instances represent specific points on the variation axes that the
+    font designer has designated with a name (e.g., "Bold", "Light Condensed").
+
+type OutlineCacheKey struct {
+	// FontID is a unique identifier for the font.
+	FontID uint64
+
+	// GID is the glyph index within the font.
+	GID GlyphID
+
+	// Size is the font size in ppem (pixels per em), quantized to 26.6 fixed
+	// point (Skia's SkScalar cache-key convention). Convert with [FixedSize].
+	// The old int16 ppem key truncated fractional sizes — faces at 20.2 and
+	// 20.8 shared one cached outline (2026-10-19).
+	Size int32
+
+	// Hinting indicates the hinting mode used.
+	Hinting Hinting
+
+	// VariationHash distinguishes cache entries for different font variations.
+	// Zero means no variations (static font or default instance).
+	// Computed via [VariationHash].
+	VariationHash uint64
+}
+    OutlineCacheKey uniquely identifies a cached glyph outline.
+
+type OutlineExtractor struct{}
+    OutlineExtractor extracts glyph outlines from fonts.
+
+func NewOutlineExtractor() *OutlineExtractor
+    NewOutlineExtractor creates a new outline extractor.
+
+func (e *OutlineExtractor) ExtractOutline(parsedFont ParsedFont, gid GlyphID, size float64) (*GlyphOutline, error)
+    ExtractOutline extracts the outline for a glyph at the given size. The size
+    is in pixels (ppem - pixels per em). Returns nil if the glyph has no outline
+    (e.g., space character).
+
+func (e *OutlineExtractor) ExtractOutlineHinted(parsedFont ParsedFont, gid GlyphID, size float64, hinting Hinting) (*GlyphOutline, error)
+    ExtractOutlineHinted extracts the outline for a glyph at the given size with
+    the specified hinting mode.
+
+    When hinting is enabled:
+      - Y-coordinates of horizontal segments are snapped to pixel grid (crisp
+        baselines, x-heights, cap-heights)
+      - HintingVertical snaps only Y-coordinates (horizontal stems)
+      - HintingFull snaps both X and Y coordinates
+
+    Hinting should be disabled for rotated/scaled text where grid-fitting
+    doesn't apply (the pixel grid is no longer axis-aligned).
+
+func (e *OutlineExtractor) ExtractOutlineHintedVar(
+	parsedFont ParsedFont,
+	gid GlyphID,
+	size float64,
+	hinting Hinting,
+	variations []FontVariation,
+) (*GlyphOutline, error)
+    ExtractOutlineHintedVar extracts a glyph outline with font variations AND
+    hinting applied in a single unified path.
+
+    This fixes the variable font rendering bug where variable fonts skipped TT
+    bytecode hinting and auto-hinting, causing them to render bolder than static
+    fonts at the same weight.
+
+    The hinting priority chain (same as static fonts):
+     1. TT bytecode hinting with gvar-varied unscaled points
+     2. Auto-hinter on the gvar-varied outline
+     3. Grid-fit fallback
+
+    When variations is nil or empty, this produces identical output to
+    ExtractOutlineHinted (delegates to the static path).
+
+type OutlineOp uint8
+    OutlineOp is the type of path operation.
+
+const (
+	// OutlineOpMoveTo moves to a new point without drawing.
+	OutlineOpMoveTo OutlineOp = iota
+
+	// OutlineOpLineTo draws a line to the target point.
+	OutlineOpLineTo
+
+	// OutlineOpQuadTo draws a quadratic bezier curve.
+	OutlineOpQuadTo
+
+	// OutlineOpCubicTo draws a cubic bezier curve.
+	OutlineOpCubicTo
+)
+func (op OutlineOp) String() string
+    String returns a string representation of the operation.
+
+type OutlinePoint struct {
+	X, Y float32
+}
+    OutlinePoint represents a point in a glyph outline. All coordinates are in
+    font units and should be scaled by size/unitsPerEm.
+
+type OutlineSegment struct {
+	// Op is the segment operation type.
+	Op OutlineOp
+
+	// Points contains the control and end points for this segment.
+	// - MoveTo: Points[0] is the target point
+	// - LineTo: Points[0] is the target point
+	// - QuadTo: Points[0] is control, Points[1] is target
+	// - CubicTo: Points[0], Points[1] are controls, Points[2] is target
+	Points [3]OutlinePoint
+}
+    OutlineSegment represents a segment of a glyph outline.
+
+type OwnShaper struct {
+	// Has unexported fields.
+}
+    OwnShaper provides text shaping using Pure Go GSUB/GPOS parsing. It supports
+    ligature substitution, kerning, and other OpenType features without external
+    dependencies.
+
+    OwnShaper caches parsed GSUB/GPOS/kern tables per FontSource. The cached
+    data is read-only and safe for concurrent use.
+
+func NewOwnShaper() *OwnShaper
+    NewOwnShaper creates a new OwnShaper.
+
+func (s *OwnShaper) ClearCache()
+    ClearCache removes all cached shaping data.
+
+func (s *OwnShaper) RemoveSource(source *FontSource)
+    RemoveSource removes cached data for a specific FontSource.
+
+func (s *OwnShaper) Shape(text string, face Face) []ShapedGlyph
+    Shape implements the Shaper interface. It converts text into positioned
+    glyphs using Pure Go GSUB/GPOS shaping. The font size is obtained from
+    face.Size().
+
+type ParsedFont interface {
+	// Name returns the font family name.
+	// Returns empty string if not available.
+	Name() string
+
+	// FullName returns the full font name.
+	// Returns empty string if not available.
+	FullName() string
+
+	// NumGlyphs returns the number of glyphs in the font.
+	NumGlyphs() int
+
+	// UnitsPerEm returns the units per em for the font.
+	UnitsPerEm() int
+
+	// GlyphIndex returns the glyph index for a rune.
+	// Returns 0 if the glyph is not found.
+	GlyphIndex(r rune) uint16
+
+	// GlyphAdvance returns the advance width for a glyph at the given size (in points).
+	// The ppem (pixels per em) is derived from size and DPI.
+	GlyphAdvance(glyphIndex uint16, ppem float64) float64
+
+	// GlyphBounds returns the bounding box for a glyph at the given size.
+	GlyphBounds(glyphIndex uint16, ppem float64) Rect
+
+	// Metrics returns the font metrics at the given size.
+	Metrics(ppem float64) FontMetrics
+}
+    ParsedFont represents a parsed font file. This interface abstracts the
+    underlying font representation.
+
+type Point struct {
+	X, Y float32
+}
+    Point represents a 2D point for glyph positioning.
+
+type RawFontDataProvider interface {
+	// RawFontData returns the raw font file bytes. Returns nil if the raw
+	// data is not available (e.g., font was parsed from a stream).
+	RawFontData() []byte
+}
+    RawFontDataProvider is an optional interface that ParsedFont implementations
+    may implement to provide access to the underlying raw font data. This is
+    needed for the contour-based auto-hinter path, which reads raw TrueType glyf
+    table points for FreeType/skrifa coordinate parity.
+
+    Fonts that don't implement this interface will use the legacy outline-based
+    auto-hinter path (which produces correct results but operates on a different
+    point count than FreeType/skrifa due to pen decomposition).
+
+type Rect struct {
+	// Min is the top-left corner
+	MinX, MinY float64
+	// Max is the bottom-right corner
+	MaxX, MaxY float64
+}
+    Rect represents a rectangle for glyph bounds.
+
+func (r Rect) Empty() bool
+    Empty reports whether the rectangle is empty.
+
+func (r Rect) Height() float64
+    Height returns the height of the rectangle.
+
+func (r Rect) Width() float64
+    Width returns the width of the rectangle.
+
+type RenderParams struct {
+	// Transform is an optional affine transformation to apply to all glyphs.
+	// If nil, identity transform is used.
+	Transform *AffineTransform
+
+	// Color is the fill color for glyphs.
+	Color color.RGBA
+
+	// Opacity is the overall opacity [0, 1].
+	// 1.0 means fully opaque, 0.0 means fully transparent.
+	Opacity float64
+}
+    RenderParams holds parameters for glyph rendering.
+
+func DefaultRenderParams() RenderParams
+    DefaultRenderParams returns default rendering parameters.
+
+func (p RenderParams) WithColor(c color.RGBA) RenderParams
+    WithColor returns a copy of params with the given color.
+
+func (p RenderParams) WithOpacity(opacity float64) RenderParams
+    WithOpacity returns a copy of params with the given opacity.
+
+func (p RenderParams) WithTransform(t *AffineTransform) RenderParams
+    WithTransform returns a copy of params with the given transform.
+
+type RuneToBoolMap struct {
+	// Has unexported fields.
+}
+    RuneToBoolMap is a memory-efficient map from rune to bool. Uses 2 bits per
+    rune: (checked, hasGlyph). Optimized for sparse access patterns in Unicode
+    space.
+
+    Each block covers 256 runes (512 bits = 64 bytes). Blocks are allocated
+    on-demand only when a rune in that range is accessed.
+
+    RuneToBoolMap is safe for concurrent use. RuneToBoolMap must not be copied
+    after creation (has mutex).
+
+func NewRuneToBoolMap() *RuneToBoolMap
+    NewRuneToBoolMap creates a new rune-to-bool map.
+
+func (m *RuneToBoolMap) Clear()
+    Clear removes all entries from the map.
+
+func (m *RuneToBoolMap) Get(r rune) (hasGlyph, checked bool)
+    Get returns (hasGlyph, checked). If checked is false, the rune hasn't been
+    queried yet.
+
+func (m *RuneToBoolMap) Set(r rune, hasGlyph bool)
+    Set stores the hasGlyph value for a rune. Marks the rune as checked.
+
+type Script uint32
+    Script represents a Unicode script for text segmentation. Scripts are used
+    to identify runs of text that should be shaped together.
+
+const (
+	// ScriptCommon is used for punctuation, numbers, and symbols shared across scripts.
+	ScriptCommon Script = iota
+	// ScriptInherited is used for combining marks that inherit the script of the base character.
+	ScriptInherited
+	// ScriptLatin is used for Latin-based scripts (English, French, German, etc.)
+	ScriptLatin
+	// ScriptCyrillic is used for Cyrillic script (Russian, Ukrainian, Bulgarian, etc.)
+	ScriptCyrillic
+	// ScriptGreek is used for Greek script.
+	ScriptGreek
+	// ScriptArabic is used for Arabic script (Arabic, Persian, Urdu, etc.)
+	ScriptArabic
+	// ScriptHebrew is used for Hebrew script.
+	ScriptHebrew
+	// ScriptHan is used for Chinese/Japanese Kanji characters.
+	ScriptHan
+	// ScriptHiragana is used for Japanese Hiragana.
+	ScriptHiragana
+	// ScriptKatakana is used for Japanese Katakana.
+	ScriptKatakana
+	// ScriptHangul is used for Korean script.
+	ScriptHangul
+	// ScriptDevanagari is used for Devanagari script (Hindi, Sanskrit, etc.)
+	ScriptDevanagari
+	// ScriptThai is used for Thai script.
+	ScriptThai
+	// ScriptGeorgian is used for Georgian script.
+	ScriptGeorgian
+	// ScriptArmenian is used for Armenian script.
+	ScriptArmenian
+	// ScriptBengali is used for Bengali script.
+	ScriptBengali
+	// ScriptTamil is used for Tamil script.
+	ScriptTamil
+	// ScriptTelugu is used for Telugu script.
+	ScriptTelugu
+	// ScriptKannada is used for Kannada script.
+	ScriptKannada
+	// ScriptMalayalam is used for Malayalam script.
+	ScriptMalayalam
+	// ScriptGujarati is used for Gujarati script.
+	ScriptGujarati
+	// ScriptOriya is used for Oriya script.
+	ScriptOriya
+	// ScriptGurmukhi is used for Gurmukhi script (Punjabi).
+	ScriptGurmukhi
+	// ScriptSinhala is used for Sinhala script.
+	ScriptSinhala
+	// ScriptKhmer is used for Khmer script (Cambodian).
+	ScriptKhmer
+	// ScriptLao is used for Lao script.
+	ScriptLao
+	// ScriptMyanmar is used for Myanmar (Burmese) script.
+	ScriptMyanmar
+	// ScriptTibetan is used for Tibetan script.
+	ScriptTibetan
+	// ScriptEthiopic is used for Ethiopic script.
+	ScriptEthiopic
+	// ScriptUnknown is used for unrecognized scripts.
+	ScriptUnknown
+)
+    Script constants for common Unicode scripts. The values are based on Unicode
+    script codes but simplified for our use case.
+
+func DetectScript(r rune) Script
+    DetectScript returns the Unicode script for a given rune. This uses
+    hardcoded Unicode ranges for common scripts to avoid external dependencies.
+
+    For characters that appear in multiple scripts or are shared (like
+    punctuation and numbers), ScriptCommon is returned. For combining marks,
+    ScriptInherited is returned.
+
+func (s Script) IsRTL() bool
+    IsRTL returns true if the script is typically written right-to-left.
+
+func (s Script) RequiresComplexShaping() bool
+    RequiresComplexShaping returns true if the script typically needs advanced
+    shaping features (ligatures, contextual forms, etc.) that are not supported
+    by BuiltinShaper.
+
+func (s Script) String() string
+    String returns the name of the script.
+
+type Segment struct {
+	Text      string
+	Start     int
+	End       int
+	Direction Direction
+	Script    Script
+	Level     int
+}
+    Segment represents a contiguous run of text with the same direction and
+    script.
+
+func SegmentReuse(oldText string, oldSegs []Segment, newText string, oldA, oldB, newA, newB int) []Segment
+    SegmentReuse incrementally segments newText by reusing oldSegs across a
+    single edit range [oldA,oldB) -> [newA,newB).
+
+    LTR-only fast path: old levels are even and the new window holds no strong
+    RTL, so levels stay 0 and only script runs matter. Segments fully inside
+    the common head/tail are reused; only the straddling window plus adjacent
+    Common/Inherited runs is re-segmented. Seams with equal scripts merge.
+
+    Any unsafe shape falls back to SegmentText(newText), so the result always
+    equals the full pass.
+
+func SegmentText(text string) []Segment
+
+func SegmentTextRTL(text string) []Segment
+
+func (s Segment) RuneCount() int
+
+type Segmenter interface {
+	Segment(text string) []Segment
+}
+
+type ShapeResultStats struct {
+	Hits      uint64
+	Misses    uint64
+	Entries   int
+	SoftLimit int
+	Evictions uint64
+}
+    ShapeResultStats reports global shape/layout result cache counters.
+
+func ShapeResultCacheStats() ShapeResultStats
+    ShapeResultCacheStats returns counters for the global shape/layout result
+    cache.
+
+type ShapedGlyph struct {
+	// GID is the glyph index in the font.
+	GID GlyphID
+
+	// Cluster is the source character index in the original text.
+	// Used for hit testing and cursor positioning.
+	Cluster int
+
+	// IsCJK indicates that this glyph belongs to a CJK script (Han, Hiragana,
+	// Katakana, Hangul). Used for script-aware rendering: CJK glyphs use
+	// reduced hinting and bypass bucket quantization (ADR-027).
+	IsCJK bool
+
+	// X is the horizontal position relative to the text origin.
+	X float64
+
+	// Y is the vertical position relative to the baseline.
+	Y float64
+
+	// XAdvance is the horizontal advance to the next glyph.
+	XAdvance float64
+
+	// YAdvance is the vertical advance (for vertical text).
+	YAdvance float64
+}
+    ShapedGlyph represents a positioned glyph ready for GPU rendering. Unlike
+    Glyph which contains CPU rasterization data (Mask), ShapedGlyph is minimal
+    and designed for efficient GPU text rendering pipelines.
+
+func LayoutGlyphs(face Face, s string) []ShapedGlyph
+    LayoutGlyphs converts text into positioned glyphs using Face.Glyphs (cmap +
+    advance; no GSUB/GPOS). Results are cached for the GPU LayoutText hot path.
+    The returned slice must not be modified by callers. High-churn telemetry
+    labels bypass the cache (see IsHighChurnLabel).
+
+func ReorderRTLShapedGlyphs(glyphs []ShapedGlyph) []ShapedGlyph
+    ReorderRTLShapedGlyphs reverses a logical-order shaped run into visual order
+    for RTL scripts, recomputing X so the pen still advances left-to-right for
+    drawing (origin at the left of the run). Cluster indices are preserved on
+    each glyph (logical source indices).
+
+    ENGINE_GAPS G1.c: pairs with BuiltinSegmenter bidi levels — layout places
+    RTL segments after Shape, then reorders for paint/hit-test consistency.
+
+func Shape(textStr string, face Face) []ShapedGlyph
+    Shape is a convenience function that uses the global shaper. It converts
+    text to positioned glyphs using the given face. The font size is obtained
+    from face.Size().
+
+    Cached slices must not be modified by callers. Use ClearShapeResultCache /
+    ShapeResultCacheStats for diagnostics.
+
+func ShapeForDraw(s string, face Face) []ShapedGlyph
+    ShapeForDraw shapes s for direct-draw consumers (the render layer's default
+    string path). Skia SkShaper posture: shape first, then draw.
+      - MultiFace inputs split into per-face runs first (Source() is nil, the
+        shaper cannot take a MultiFace wholesale) — the same rule layout uses.
+      - Falls back to the cmap+hmtx iteration (LayoutGlyphs) when shaping yields
+        nothing, and counts it via ShapeForDrawFallbacks.
+
+func ShapeUncached(textStr string, face Face) []ShapedGlyph
+    Useful for tests and one-shot offline work.
+
+type ShapedRun struct {
+	// Glyphs is the sequence of positioned glyphs.
+	Glyphs []ShapedGlyph
+
+	// Advance is the total advance of all glyphs.
+	// For horizontal text, this is width; for vertical, height.
+	Advance float64
+
+	// Ascent is the maximum ascent above the baseline.
+	Ascent float64
+
+	// Descent is the maximum descent below the baseline (positive value).
+	Descent float64
+
+	// Direction is the text direction for this run.
+	Direction Direction
+
+	// Face is the font face used for this run.
+	Face Face
+
+	// Size is the font size in pixels.
+	Size float64
+}
+    ShapedRun is a sequence of shaped glyphs with uniform style. Used by the
+    Layout Engine for multi-line and multi-style text rendering.
+
+func (r *ShapedRun) Bounds() (x, y, width, height float64)
+    Bounds returns the bounding rectangle of the run. The origin is at the
+    baseline start.
+
+func (r *ShapedRun) Height() float64
+    Height returns the total height of the run. For horizontal text, this is
+    Ascent + Descent. For vertical text, this equals Advance.
+
+func (r *ShapedRun) LineHeight() float64
+    LineHeight returns the recommended line height for this run.
+
+func (r *ShapedRun) Width() float64
+    Width returns the total width of the run. For horizontal text, this equals
+    Advance. For vertical text, this is based on glyph widths.
+
+type Shaper interface {
+	// Shape converts text into positioned glyphs using the given face.
+	// The font size is obtained from face.Size().
+	// The returned ShapedGlyph slice is ready for GPU rendering.
+	Shape(text string, face Face) []ShapedGlyph
+}
+    Shaper converts text to positioned glyphs. Implementations provide different
+    levels of text shaping support:
+      - HbShaper: HarfBuzz Go port with full GSUB/GPOS shaping (default)
+      - OwnShaper: Pure Go shaper with GSUB/GPOS support
+      - BuiltinShaper: Simple LTR shaper for Latin, Cyrillic, Greek, CJK (no
+        GSUB/GPOS)
+
+func GetShaper() Shaper
+    GetShaper returns the current global shaper.
+
+type ShapingKey struct {
+	Text      string
+	Size      float64
+	Direction Direction
+}
+    ShapingKey identifies shaped text in the shaping cache.
+
+type SourceOption func(*sourceConfig)
+    SourceOption configures FontSource creation.
+
+func WithCacheLimit(n int) SourceOption
+    WithCacheLimit sets the maximum number of cached glyphs. A value of 0
+    disables the cache limit.
+
+func WithCollectionIndex(index int) SourceOption
+    WithCollectionIndex selects a font within a TrueType/OpenType collection
+    (.ttc/.otc). Index 0 is the first font (default). Ignored for single fonts.
+
+    Example: msyh.ttc contains Microsoft YaHei (0) and Microsoft YaHei UI (1).
+
+func WithParser(name string) SourceOption
+    WithParser specifies the font parser backend. The default is "own" which
+    uses Pure Go binary parsing (ADR-048).
+
+    Custom parsers can be registered with RegisterParser. This allows using
+    alternative font parsing libraries or a pure Go implementation in the
+    future.
+
+type SubpixelCache struct {
+	// Has unexported fields.
+}
+    SubpixelCache wraps GlyphCache with subpixel awareness. It provides the same
+    interface as GlyphCache but uses SubpixelKey to differentiate between the
+    same glyph at different subpixel offsets.
+
+    SubpixelCache is safe for concurrent use.
+
+func GetGlobalSubpixelCache() *SubpixelCache
+    GetGlobalSubpixelCache returns the global shared subpixel cache.
+
+func NewSubpixelCache(config SubpixelConfig) *SubpixelCache
+    NewSubpixelCache creates a cache with subpixel support.
+
+func NewSubpixelCacheWithConfig(config SubpixelConfig, glyphConfig GlyphCacheConfig) *SubpixelCache
+    NewSubpixelCacheWithConfig creates a cache with custom glyph cache config.
+
+func SetGlobalSubpixelCache(cache *SubpixelCache) *SubpixelCache
+    SetGlobalSubpixelCache replaces the global subpixel cache. The old cache is
+    returned for cleanup if needed.
+
+func (c *SubpixelCache) Clear()
+    Clear removes all entries from the cache.
+
+func (c *SubpixelCache) Config() SubpixelConfig
+    Config returns the subpixel configuration.
+
+func (c *SubpixelCache) Delete(key SubpixelKey)
+    Delete removes an entry from the cache.
+
+func (c *SubpixelCache) Get(key SubpixelKey) *GlyphOutline
+    Get retrieves a glyph at the specified subpixel position. Returns nil if not
+    found.
+
+func (c *SubpixelCache) GetOrCreate(
+	key SubpixelKey,
+	create func(offsetX, offsetY float64) *GlyphOutline,
+) *GlyphOutline
+    GetOrCreate retrieves or creates a glyph at subpixel position. The create
+    function receives the subpixel offsets to apply during rasterization.
+
+func (c *SubpixelCache) HitRate() float64
+    HitRate returns the cache hit rate as a percentage.
+
+func (c *SubpixelCache) Len() int
+    Len returns the total number of cached entries.
+
+func (c *SubpixelCache) Maintain()
+    Maintain performs periodic maintenance on the cache.
+
+func (c *SubpixelCache) ResetStats()
+    ResetStats resets the cache statistics.
+
+func (c *SubpixelCache) Set(key SubpixelKey, outline *GlyphOutline)
+    Set stores a glyph outline at the specified subpixel position.
+
+func (c *SubpixelCache) SetConfig(config SubpixelConfig)
+    SetConfig updates the subpixel configuration. Note: This clears the cache as
+    existing entries may be invalid.
+
+func (c *SubpixelCache) Stats() SubpixelCacheStats
+    Stats returns subpixel cache statistics.
+
+type SubpixelCacheStats struct {
+	// Hits is the number of cache hits
+	Hits uint64
+
+	// Misses is the number of cache misses
+	Misses uint64
+
+	// SubpixelHits is hits where subpixel position matched
+	SubpixelHits uint64
+
+	// SubpixelCreates is glyphs created for subpixel positions
+	SubpixelCreates uint64
+}
+    SubpixelCacheStats holds subpixel cache statistics.
+
+type SubpixelConfig struct {
+	// Mode determines the number of subpixel positions.
+	Mode SubpixelMode
+
+	// Horizontal enables subpixel positioning on X axis.
+	Horizontal bool
+
+	// Vertical enables subpixel positioning on Y axis (rarely needed).
+	Vertical bool
+}
+    SubpixelConfig holds subpixel positioning configuration.
+
+func DefaultSubpixelConfig() SubpixelConfig
+    DefaultSubpixelConfig returns default configuration. Uses 4 horizontal
+    subpixel positions.
+
+func HighQualitySubpixelConfig() SubpixelConfig
+    HighQualitySubpixelConfig returns a configuration with maximum subpixel
+    quality. Uses 10 horizontal subpixel positions.
+
+func NoSubpixelConfig() SubpixelConfig
+    NoSubpixelConfig returns a configuration with subpixel positioning disabled.
+
+func (c SubpixelConfig) CacheMultiplier() int
+    CacheMultiplier returns the factor by which cache size increases. For
+    Subpixel4 with horizontal only: 4x For Subpixel10 with both: 100x
+
+func (c SubpixelConfig) IsEnabled() bool
+    IsEnabled returns true if any subpixel positioning is enabled.
+
+type SubpixelKey struct {
+	OutlineCacheKey
+
+	// SubX is the quantized horizontal subpixel position (0 to Mode-1).
+	SubX uint8
+
+	// SubY is the quantized vertical subpixel position (0 to Mode-1).
+	SubY uint8
+}
+    SubpixelKey extends OutlineCacheKey with subpixel offset. This allows
+    caching separate rasterized glyphs for each subpixel position.
+
+func MakeSubpixelKey(baseKey OutlineCacheKey, x, y float64, config SubpixelConfig) SubpixelKey
+    MakeSubpixelKey creates a SubpixelKey from glyph position and base cache
+    key.
+
+type SubpixelMode int
+    SubpixelMode controls subpixel text positioning. Subpixel positioning
+    improves text quality by allowing glyphs to be rendered at fractional pixel
+    positions. This is especially important for small text where the difference
+    between whole pixel positions is noticeable.
+
+const (
+	// SubpixelNone disables subpixel positioning.
+	// Glyphs snap to whole pixels. Fastest but lower quality.
+	SubpixelNone SubpixelMode = 0
+
+	// Subpixel4 uses 4 subpixel positions (0.0, 0.25, 0.5, 0.75).
+	// Good balance of quality and cache size.
+	Subpixel4 SubpixelMode = 4
+
+	// Subpixel10 uses 10 subpixel positions (0.0, 0.1, ..., 0.9).
+	// Highest quality but 10x cache entries per glyph.
+	Subpixel10 SubpixelMode = 10
+)
+func (m SubpixelMode) Divisions() int
+    Divisions returns the number of subpixel divisions. Returns 1 for
+    SubpixelNone (no divisions).
+
+func (m SubpixelMode) IsEnabled() bool
+    IsEnabled returns true if subpixel positioning is enabled.
+
+func (m SubpixelMode) String() string
+    String returns the string representation of the subpixel mode.
+
+type TextRenderer struct {
+	// Has unexported fields.
+}
+    TextRenderer provides a high-level API for text rendering. It combines
+    shaping and glyph outline extraction.
+
+    Note: For rendering to a scene.Scene, use scene.TextRenderer instead,
+    which provides direct scene integration.
+
+func GetGlobalTextRenderer() *TextRenderer
+    GetGlobalTextRenderer returns the global shared text renderer.
+
+func NewTextRenderer() *TextRenderer
+    NewTextRenderer creates a new text renderer.
+
+func (tr *TextRenderer) GlyphRenderer() *GlyphRenderer
+    GlyphRenderer returns the underlying glyph renderer.
+
+func (tr *TextRenderer) SetDefaultColor(c color.RGBA)
+    SetDefaultColor sets the default text color.
+
+func (tr *TextRenderer) SetDefaultFace(face Face)
+    SetDefaultFace sets the default font face for rendering.
+
+func (tr *TextRenderer) SetDefaultSize(size float64)
+    SetDefaultSize sets the default font size.
+
+func (tr *TextRenderer) ShapeAndRender(text string) ([]*GlyphOutline, error)
+    ShapeAndRender shapes text and returns the glyph outlines.
+
+func (tr *TextRenderer) ShapeAndRenderAt(text string, x, y float64) ([]*GlyphOutline, error)
+    ShapeAndRenderAt shapes text and returns outlines at the specified position.
+
+type UnicodeRange struct {
+	Start rune
+	End   rune
+}
+    UnicodeRange represents a contiguous range of code points.
+
+func (ur UnicodeRange) Contains(r rune) bool
+    Contains reports whether the rune is in the range.
+
+type VariableAdvanceProvider interface {
+	// GlyphAdvanceVar returns the advance width for a glyph in pixels,
+	// adjusted for the given font variations. The ppem is the pixel size.
+	GlyphAdvanceVar(glyphIndex uint16, ppem float64, variations []FontVariation) float64
+}
+    VariableAdvanceProvider is an optional interface that ParsedFont
+    implementations may implement to provide variation-aware advance widths.
+    When a face has font variations set, the advance width may differ from the
+    static (default) advance stored in the hmtx table.
+
+    Implementations use the HVAR table to compute advance deltas efficiently,
+    without reprocessing gvar outlines.
+
+    See: RawFontDataProvider for a similar optional-interface pattern.
+
+type VariationAxis struct {
+	Tag     [4]byte // OpenType axis tag (e.g., "wght")
+	Name    string  // Human-readable axis name (e.g., "Weight")
+	Minimum float32 // Minimum design-space value
+	Default float32 // Default design-space value
+	Maximum float32 // Maximum design-space value
+}
+    VariationAxis describes a design variation axis in a variable font. Each
+    axis has a tag, display name, and valid range of values.
+
+type WeightClassProvider interface {
+	// WeightClass returns the OS/2 usWeightClass (1..1000). Implementations
+	// return 400 when the table is absent, matching the CSS Regular default.
+	WeightClass() int
+}
+    WeightClassProvider is an optional interface that ParsedFont implementations
+    may implement to expose the font's OS/2 usWeightClass. Static families
+    use it to select the real Regular/Semibold/Bold cut before falling back to
+    synthetic embolden.
+
+type WrapMode uint8
+    WrapMode specifies how text is wrapped when it exceeds the maximum width.
+
+const (
+	// WrapWordChar breaks at word boundaries first,
+	// then falls back to character boundaries for long words.
+	// This is the default and most common mode (zero value for backward compatibility).
+	WrapWordChar WrapMode = iota
+
+	// WrapNone disables text wrapping; text may exceed MaxWidth.
+	WrapNone
+
+	// WrapWord breaks at word boundaries only.
+	// Long words that exceed MaxWidth will overflow.
+	WrapWord
+
+	// WrapChar breaks at character boundaries.
+	// Any character can be a break point.
+	WrapChar
+)
+func (m WrapMode) String() string
+    String returns the string representation of the wrap mode.
+
+type WrapResult struct {
+	// Text is the content of this line.
+	Text string
+	// Start is the byte offset in the original text.
+	Start int
+	// End is the byte offset in the original text.
+	End int
+}
+    WrapResult represents a wrapped line of text.
+
+func WrapText(text string, face Face, maxWidth float64, mode WrapMode) []WrapResult
+    WrapText wraps text to fit within maxWidth using the specified face and
+    options. Hard line breaks (\n, \r\n, \r) are respected — each paragraph is
+    wrapped independently. The font size is obtained from face.Size(). Returns a
+    slice of wrapped line results.
+
+func WrapTextWithSpacing(text string, face Face, maxWidth float64, mode WrapMode, letterSpacing, wordSpacing float64) []WrapResult
+    WrapTextWithSpacing is WrapText with letter/word spacing counted in break
+    measurement (same totals as the shaping library: each rune after the
+    line start adds one letter gap; each word separator adds one word gap).
+    Shaped and wrap paths agree whenever shaping preserves rune↔cluster 1:1 (no
+    ligature merging); ligature lines may break one cluster earlier or later
+    (same approximation class as the existing per-rune measurement).
+

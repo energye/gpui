@@ -1,0 +1,176 @@
+package focus // import "github.com/energye/gpui/ui/focus"
+
+Package focus provides a minimal focus tree and keyboard routing skeleton (P5c).
+
+    FocusManager — one primary focus per window/scope
+    FocusNode — RequestFocus / Unfocus / OnKey / OnFocusChange
+    Tab order — registration order; optional TabIndex > 0 sorts first
+
+Non-goals: Shortcuts/Actions system, IME, platform a11y bridge.
+
+Dependency: focus → platform only (no rendering/gpu). Paint dirty is signaled
+via OnFocusChange callbacks so callers can MarkNeedsPaint without layout.
+
+CONSTANTS
+
+const (
+	KeyTab    = 0xFF09
+	KeyReturn = 0xFF0D
+	KeyEnter  = KeyReturn
+	KeySpace  = 0x0020
+	KeyShiftL = 0xFFE1
+	KeyShiftR = 0xFFE2
+	// KeyTabASCII is accepted as Tab when hosts only send ASCII 9.
+	KeyTabASCII = 0x0009
+	// KeyEnterASCII is ASCII CR.
+	KeyEnterASCII = 0x000D
+)
+    Logical key codes for routing (host maps platform scancodes into these).
+    Values match common ASCII / X11 keysyms where practical.
+
+const FocusRingOutset = 1.5
+    FocusRingOutset is the default logical-pixel outset for a focus ring (≈1.5
+    design tokens).
+
+
+FUNCTIONS
+
+func FocusRingRect(x, y, w, h, outset float64) (rx, ry, rw, rh float64)
+    FocusRingRect returns an outset rectangle around (x,y,w,h) for painting a
+    focus ring. Does not allocate layers or saveLayer — callers stroke/fill in
+    their paint.
+
+
+TYPES
+
+type FocusManager struct {
+	// Has unexported fields.
+}
+    FocusManager owns the primary focus and the focusable set for one scope
+    (typically one window).
+
+func NewManager() *FocusManager
+    NewManager creates an empty focus manager.
+
+func (m *FocusManager) AddFocusObserver(fn func(from, to *FocusNode))
+    AddFocusObserver registers fn to run after every primary transition with
+    (previous, current) nodes (either may be nil). Idempotent adds are NOT
+    deduplicated — register once at wiring time.
+
+func (m *FocusManager) Blur()
+    Blur clears primary focus.
+
+func (m *FocusManager) Count() int
+    Count returns registered node count.
+
+func (m *FocusManager) FocusChanges() int
+    FocusChanges returns how many times primary changed (including blur-to-nil).
+
+func (m *FocusManager) FocusFromHit(n *FocusNode) bool
+    FocusFromHit requests focus on n when non-nil and focusable (pointer down
+    helper).
+
+func (m *FocusManager) FocusNext() *FocusNode
+    FocusNext moves primary to the next focusable (wraps).
+
+func (m *FocusManager) FocusPrevious() *FocusNode
+    FocusPrevious moves primary to the previous focusable (wraps).
+
+func (m *FocusManager) HandleKey(e KeyEvent) bool
+    HandleKey routes a key event. Safe with nil primary (no panic).
+
+    Order:
+     1. Track Shift press/release
+     2. On Tab press: FocusNext / FocusPrevious (consumes)
+     3. Primary.OnKey if set
+     4. Activate keys → OnActivate if not consumed
+
+    Returns true if the event was consumed.
+
+func (m *FocusManager) PaintHints() int
+    PaintHints returns OnFocusChange call count (for C5 dirty-path tests).
+
+func (m *FocusManager) Primary() *FocusNode
+    Primary returns the current focus node, or nil.
+
+func (m *FocusManager) Register(n *FocusNode)
+    Register adds n to the focusable set. Idempotent if already registered here.
+
+func (m *FocusManager) RequestFocus(n *FocusNode) bool
+    RequestFocus makes n the primary focus. Returns false if n cannot focus.
+
+func (m *FocusManager) Unregister(n *FocusNode)
+    Unregister removes n. If it was primary, blurs first.
+
+type FocusNode struct {
+	// DebugLabel optional name for tests/logs.
+	DebugLabel string
+
+	// Enabled when false: skipped in Tab order and cannot become primary.
+	Enabled bool
+
+	// TabIndex: <0 skip traversal; 0 = natural (registration) order;
+	// >0 = explicit order among positive indices (stable by index then regSeq).
+	TabIndex int
+
+	// OnKey is invoked for key events when this node is primary.
+	// Return true if the key was consumed (stops further default handling
+	// except Tab which is handled by the manager before OnKey when navigating).
+	OnKey func(e KeyEvent) bool
+
+	// OnFocusChange is called when focus is gained (true) or lost (false).
+	// Typical use: MarkNeedsPaint on a repaint boundary — must not force full-tree layout.
+	OnFocusChange func(focused bool)
+
+	// OnActivate optional Space/Enter when OnKey is nil or does not consume.
+	OnActivate func()
+
+	// Target is the widget/control this node represents (optional payload).
+	// The framework reads it to route capability flows — e.g. an
+	// embedder.InputRouter resolves the focused control by type-asserting
+	// Target to TextEditTarget for IME session management (plan I4/I5).
+	Target any
+
+	// Has unexported fields.
+}
+    FocusNode is a focusable entity (not necessarily a RenderObject).
+
+    Widgets hold a FocusNode and register it with FocusManager. Detach/dispose
+    must Unregister to avoid a dangling primary.
+
+func NewFocusNode(label string) *FocusNode
+    NewFocusNode creates an enabled focus node.
+
+func (n *FocusNode) CanFocus() bool
+    CanFocus reports whether the node may receive focus.
+
+func (n *FocusNode) HasFocus() bool
+    HasFocus reports whether this node is the manager's primary focus.
+
+func (n *FocusNode) RequestFocus() bool
+    RequestFocus asks the manager to make this node primary.
+
+func (n *FocusNode) Unfocus()
+    Unfocus clears primary if this node holds it.
+
+func (n *FocusNode) Unregister()
+    Unregister removes this node from its manager (safe if unregistered).
+
+type KeyEvent struct {
+	KeyCode int
+	Rune    rune
+	Pressed bool
+	// Shift is true if either shift is held (host may set) or manager tracked it.
+	Shift bool
+}
+    KeyEvent is the focus-layer keyboard event.
+
+func (e KeyEvent) IsActivate() bool
+    IsActivate reports Space or Enter (activation keys).
+
+func (e KeyEvent) IsShift() bool
+    IsShift reports a shift key itself.
+
+func (e KeyEvent) IsTab() bool
+    IsTab reports Tab key (including ASCII 9).
+

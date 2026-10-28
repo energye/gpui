@@ -1,0 +1,8 @@
+Command kit_f0_layout is the F0-2 layout real window: Row/Column/Stack/ Wrap
+plus a virtual long-list segment, all positioned by prim math.
+
+RUN_SECONDS=5 go run ./examples/kit_f0_layout
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Correctness window: slope_gate=off,
+fps gate on, pixel probes F0.

@@ -1,0 +1,484 @@
+package audio // import "github.com/energye/gpui/engine/audio"
+
+Package audio freezes the CPU-side 2D positional math every 2.5D play feeds.
+
+Frozen 2026-09-15: PosSound, NewPosSound, Mix, MixAll, Stereo,
+DefaultAttenuation, DefaultPanStrength. Additive changes only.
+
+Frozen 2026-09-15: MusicPlayer, NewMusicPlayer, Play, Push, Pop, CrossfadeTo,
+Stop, Update, Depth, Top, From, IsFading, Progress, Blend, Bus, NewBus,
+Name, Volume, SetVolume, SetMute, Muted, Gain, Mixer, NewMixer, MaxVoices,
+SetMaxVoices, Mix, MixResult, Ducker, NewDucker, Trigger, Active, Depth,
+Gain, CombineGains, DefaultBusVolume, DefaultMaxVoices, MaxMixerVoices,
+DefaultDuckDepth, DefaultFade, MaxMusicStack. Additive changes only.
+
+This package only computes numbers; it plays nothing. The caller feeds the
+returned gain and pan into the platform audio backend (or a test oscillator).
+Only core numbers are used; no new Vec2/Color/AssetID is defined here. The old
+render and ui paths stay untouched.
+
+Math (main reference Godot AudioStreamPlayer2D three knobs, Go replay):
+
+    d = |source - listener| (Euclidean game units)
+    t = d / Range, Range > 0
+    gain = 1 inside Range when Range == 0 or Attenuation == 0,
+           0 when d >= Range,
+           pow(1-t, Attenuation) otherwise (1 linear, 2 squared)
+    pan = clamp(dx*PanStrength, -1, 1) when Range == 0,
+          clamp(dx/Range*PanStrength, -1, 1) otherwise
+          (dx = source.x - listener.x; -1 left, +1 right, 0 center)
+    stereo = linear balance: l = mono*gain*min(1,1-pan),
+             r = mono*gain*min(1,1+pan)
+
+Intentional differences from Godot (documented, not drift):
+  - Distance is Euclidean. Godot 2D only looks at the horizontal gap; 2.5D needs
+    near/far depth (Y) to hush far sounds, so Y joins the mix.
+  - Falloff is pow(1-t, att): bigger att hushes faster (1 linear, 2 squared).
+    att 0 means no falloff inside the range.
+  - Range 0 means never attenuate but pan still applies; UI clicks should use
+    PanStrength 0 for mono.
+  - Pan sign: source right of the listener pans right (+1). Center is 0.
+
+Errors use engine/core codes: bad constructor arguments are InvalidArg and store
+nothing. Mix reports ok=false for bad inputs (non-finite positions, negative or
+non-finite range/attenuation/strength) with a silent mix, never NaN and never
+a panic. Out-of-range is valid data: ok=true with gain 0 and Audible=false,
+so callers tell far apart from bad.
+
+Music chain (capability 15.2, main reference Godot music buses plus a game music
+stack, Go replay): the player is a LIFO stack of AssetID with linear crossfade;
+buses carry volume plus mute; the mixer keeps the loudest MaxVoices and ceilings
+at 1; the ducker holds music down while hits ring then climbs back; CombineGains
+multiplies one voice by its bus and duck gains. Empty track ids never play:
+Play/Push/ CrossfadeTo reject them with InvalidArg and keep the old stack.
+Pop on an empty stack is NotFound. Push beyond MaxMusicStack is OutOfMemory.
+New switches while fading snap the previous fade to its target first, then
+restart from full target, so gains never jump through NaN. Crossfade gains are
+1-t/t; fade-ins climb from silence, fade-outs fall to silence. Nil receivers
+never panic: players report silence, buses report 0, mixers report zero, duckers
+report 1.
+
+CONSTANTS
+
+const (
+	// DefaultBusVolume is the flat 0dB bus level.
+	DefaultBusVolume = 1.0
+	// DefaultMaxVoices caps simultaneous mixed voices.
+	DefaultMaxVoices = 32
+	// MaxMixerVoices bounds NewMixer/SetMaxVoices.
+	MaxMixerVoices = 256
+	// DefaultDuckDepth is how far a full-strength hit ducks music.
+	DefaultDuckDepth = 0.5
+	// DefaultFade is the standard music switch time.
+	DefaultFade = core.Second
+	// MaxMusicStack bounds pushed music layers so long runs never grow.
+	MaxMusicStack = 8
+)
+    Frozen budgets and defaults for the music chain.
+
+const (
+	// MaxVoiceRequests bounds one frame of voice asks.
+	MaxVoiceRequests = 128
+	// MaxVoiceChannels bounds simultaneous channels.
+	MaxVoiceChannels = 64
+	// AudibleVoices keeps the loudest channels.
+	AudibleVoices = DefaultMaxVoices
+)
+    Large-voice reuse budget (S89, N6 subset).
+
+    128 requests feed 64 channels, the loudest 32 stay audible. The keep count
+    matches DefaultMaxVoices so the mixer ceiling never moves.
+
+const (
+	// MinBPM floors usable tempos.
+	MinBPM = 30
+	// MaxBPM ceilings usable tempos.
+	MaxBPM = 300
+	// MinBeatsPerBar floors time signatures.
+	MinBeatsPerBar = 1
+	// MaxBeatsPerBar ceilings time signatures.
+	MaxBeatsPerBar = 12
+)
+    Beat clock limits: musical range only, caller owns tempo meaning.
+
+const DefaultAttenuation = 1.0
+    DefaultAttenuation is the linear falloff: gain falls straight with distance.
+
+const DefaultPanStrength = 1.0
+    DefaultPanStrength is normal stereo spread: the range edge pans fully.
+
+
+FUNCTIONS
+
+func ApplyExplosionDuck(d *Ducker, stats VoiceStats, strength float64) (bool, error)
+    ApplyExplosionDuck holds music down while an audible explosion rings.
+    It triggers d only when stats report an audible explosion; otherwise it is
+    a no-op returning false. Nil duckers report InvalidArg and change nothing.
+    Strength must be finite in [0,1].
+
+func CombineGains(music, bus, duck float64) float64
+    CombineGains multiplies one music voice by its bus and duck gains and
+    ceilings at 1. Non-finite inputs fail closed at 0 so a bad clock never
+    blasts the backend. The caller applies it per audible track: the from and to
+    gains from Blend each pass through here with the same bus/duck.
+
+func FollowAndSelect(l *Listener2D, cameraPos core.Vec2, reqs []VoiceRequest) ([]VoicePick, VoiceStats, bool)
+    FollowAndSelect glues l to cameraPos then ranks reqs there. It is the
+    hear-point rider: the caller passes the camera effective center each frame,
+    no camera type is imported. A nil listener or bad cameraPos returns ok=false
+    with silent picks and moves nothing.
+
+func SelectAtListener(l Listener2D, reqs []VoiceRequest) ([]VoicePick, VoiceStats, bool)
+    SelectAtListener ranks reqs heard at the current listener position. Nobody
+    current returns ok=false with silent picks.
+
+func SelectVoices(listener core.Vec2, reqs []VoiceRequest) ([]VoicePick, VoiceStats, bool)
+    SelectVoices ranks reqs heard at listener and keeps the loudest.
+    Loudness is mix gain times request level; out-of-range voices rank 0
+    and never win a channel. The loudest MaxVoiceChannels take channels,
+    the loudest AudibleVoices of those stay audible. The input is never mutated;
+    the result is fresh every call. A bad listener returns ok=false with silent
+    picks. Nil or empty input returns empty picks with ok=true. Requests beyond
+    MaxVoiceRequests still select: only the first MaxVoiceRequests rank,
+    the rest park silent so long runs never grow.
+
+func Stereo(mono float64, m Mix) (l, r float64)
+    Stereo spreads one mono sample into left and right with linear balance:
+    l = mono*gain*min(1,1-pan), r = mono*gain*min(1,1+pan). Center stays full
+    on both sides, full right mutes left (and mirrored). A mix the constructor
+    could never produce, silence, or non-finite input returns 0,0 (fail closed,
+    no NaN into the backend), never a panic.
+
+
+TYPES
+
+type BeatClock struct {
+	// Has unexported fields.
+}
+    BeatClock is the S89 beat ruler for rhythm plays and timeline cues.
+    It only counts beats; the caller maps beat numbers to its own event names,
+    sounds, or timeline seeks. Time stays integer milliseconds so long songs
+    never drift.
+
+func NewBeatClock(bpm float64, beatsPerBar int) (*BeatClock, error)
+    NewBeatClock builds a ruler. BPM must be finite in [MinBPM,MaxBPM],
+    beatsPerBar in [MinBeatsPerBar,MaxBeatsPerBar]. Bad inputs are InvalidArg.
+
+func (c *BeatClock) BPM() float64
+    BPM returns the tempo, or 0 on nil.
+
+func (c *BeatClock) Bar() int64
+    Bar returns the current bar (beat / meter), or 0 on nil.
+
+func (c *BeatClock) Beat() int64
+    Beat returns crossed beats, or 0 on nil.
+
+func (c *BeatClock) BeatInBar() int64
+    BeatInBar returns the beat inside the bar, or 0 on nil.
+
+func (c *BeatClock) BeatsPerBar() int
+    BeatsPerBar returns the meter, or 0 on nil.
+
+func (c *BeatClock) Interval() core.Duration
+    Interval returns one beat in milliseconds, or 0 on nil.
+
+func (c *BeatClock) Phase() float64
+    Phase returns the position inside the beat in [0,1), or 0 on nil.
+
+func (c *BeatClock) Pos() core.Duration
+    Pos returns the song position, or 0 on nil.
+
+func (c *BeatClock) Reset()
+    Reset parks the ruler at zero. Nil is a no-op.
+
+func (c *BeatClock) Seek(pos core.Duration) error
+    Seek moves the song position. Negative targets are InvalidArg and move
+    nothing. The beat count follows the new pos.
+
+func (c *BeatClock) SetBPM(bpm float64) error
+    SetBPM retunes the tempo. Bad values are InvalidArg and keep the old.
+    The beat count restats from the current pos so the next Update never jumps
+    through NaN.
+
+func (c *BeatClock) SetBeatsPerBar(n int) error
+    SetBeatsPerBar retunes the meter. Bad values are InvalidArg.
+
+func (c *BeatClock) TimeOfBeat(n int64) (core.Duration, error)
+    TimeOfBeat returns the song position of beat n. Negative n is InvalidArg
+    with 0. Nil returns 0.
+
+func (c *BeatClock) Update(dt core.Duration) []int64
+    Update advances the song clock and returns newly crossed beat numbers.
+    Non-positive dt, settled nil, and nil receivers return nil and move nothing.
+    The returned slice is fresh; the caller fires its own cues.
+
+type Bus struct {
+	// Has unexported fields.
+}
+    Bus is one mix bus: a volume plus a mute switch.
+
+func NewBus(name string, volume float64) (*Bus, error)
+    NewBus builds a bus. Empty names and volumes outside finite [0,1] are
+    InvalidArg.
+
+func (b *Bus) Gain() float64
+    Gain returns 0 when muted, else the volume. Nil returns 0.
+
+func (b *Bus) Muted() bool
+    Muted reports the mute switch. Nil reports false.
+
+func (b *Bus) Name() string
+    Name returns the bus name. Nil returns "".
+
+func (b *Bus) SetMute(m bool) error
+    SetMute flips the mute switch. Nil buses report InvalidArg.
+
+func (b *Bus) SetVolume(v float64) error
+    SetVolume retunes the bus. Bad values are InvalidArg and keep the old.
+
+func (b *Bus) Volume() float64
+    Volume returns the bus volume. Nil returns 0.
+
+type Ducker struct {
+	// Has unexported fields.
+}
+    Ducker ducks music while loud hits ring: full duck during hold, then a
+    linear climb back during release. Only core numbers are used.
+
+func NewDucker(depth float64, hold, release core.Duration) (*Ducker, error)
+    NewDucker builds a ducker. Depth must be finite [0,1]; negative hold/release
+    are InvalidArg.
+
+func (d *Ducker) Active() bool
+    Active reports whether the duck timer runs. Nil reports false.
+
+func (d *Ducker) Depth() float64
+    Depth returns the duck depth. Nil returns 0.
+
+func (d *Ducker) Gain() float64
+    Gain returns the music multiplier in [0,1]: 1 at rest, 1-depth*strength
+    during hold, linear climb during release. Nil and idle return 1.
+
+func (d *Ducker) Trigger(strength float64) error
+    Trigger starts (or extends) a duck. Strength must be finite [0,1]; bad
+    values are InvalidArg. Retriggers keep the louder strength.
+
+func (d *Ducker) Update(dt core.Duration)
+    Update ticks the duck clock down. Non-positive dt and nil duckers do
+    nothing.
+
+type Listener2D struct {
+	// Has unexported fields.
+}
+    Listener2D is the 2D hear point (Godot AudioListener2D replay).
+
+    Frozen 2026-10-01: NewListener2D, Pos, SetPos, FollowCamera, MakeCurrent,
+    ClearCurrent, IsCurrent, CurrentListener, MixSource, MixCurrent, MixStereo.
+    Additive changes only.
+
+    Only core numbers are used; nothing is played here. The listener holds a
+    position; MakeCurrent publishes it as the single current hear point (Godot
+    make_current singleton). Positional mixes read the current position,
+    so the window keeps one listener glued to the camera and mixes through it.
+    Nil receivers never panic.
+
+func CurrentListener() (Listener2D, bool)
+    CurrentListener returns the published hear point copy plus true, or zero
+    plus false when nobody is current.
+
+func NewListener2D(pos core.Vec2) (Listener2D, error)
+    NewListener2D builds a listener at pos. Non-finite pos is InvalidArg.
+
+func (l *Listener2D) ClearCurrent()
+    ClearCurrent withdraws this listener when it is current. Other listeners are
+    untouched. Nil is a no-op.
+
+func (l *Listener2D) FollowCamera(cameraPos core.Vec2) error
+    FollowCamera glues the listener to the camera center: pos = cameraPos.
+    Non-finite input is InvalidArg and moves nothing. The caller passes the
+    camera effective center each frame; no camera type is imported.
+
+func (l Listener2D) IsCurrent() bool
+    IsCurrent reports whether this listener is the published hear point.
+
+func (l *Listener2D) MakeCurrent()
+    MakeCurrent publishes this listener as the single hear point. The previous
+    current listener drops out silently. Nil is a no-op. Zero-value listeners
+    take an id on first publish so copies share it.
+
+func (l Listener2D) MixSource(s PosSound) (Mix, bool)
+    MixSource mixes one source heard at this listener position.
+
+func (l Listener2D) MixStereo(s PosSound, mono float64) (left, right float64, ok bool)
+    MixStereo mixes one source at this listener and spreads one mono sample into
+    left/right. ok reports the mix validity, not audibility: far-but-valid stays
+    ok=true with 0,0 samples.
+
+func (l Listener2D) Pos() core.Vec2
+    Pos returns the listener position.
+
+func (l *Listener2D) SetPos(p core.Vec2) error
+    SetPos moves the listener. Non-finite input is InvalidArg and moves nothing.
+    When this listener is current, the published hear point moves with it so the
+    next mix hears the new spot.
+
+type Mix struct {
+	Gain     float64
+	Pan      float64
+	Distance float64
+	Audible  bool
+}
+    Mix is the audible result: Gain multiplier in [0,1], Pan in [-1,1] (-1 full
+    left, +1 full right), Distance Euclidean game units, Audible true only when
+    the backend should emit samples.
+
+func MixAll(listener core.Vec2, sources []PosSound) ([]Mix, bool)
+    MixAll computes every source heard at listener in order. The input slice is
+    never mutated; the result is a fresh slice the caller mixes. A bad listener
+    returns nil,false. Bad sources do not fail the whole call: their slots hold
+    a silent mix while the rest still compute, so one torn sound never mutes the
+    scene. A nil or empty input returns an empty non-nil slice with ok=true.
+
+func MixCurrent(sources []PosSound) ([]Mix, bool)
+    MixCurrent mixes every source heard at the current listener in order.
+    Nobody current returns nil,false. Bad slots stay silent per MixAll.
+
+type MixResult struct {
+	Total   float64
+	Clipped bool
+	Audible int
+	Kept    int
+}
+    MixResult is the capped voice sum for one frame.
+
+type Mixer struct {
+	// Has unexported fields.
+}
+    Mixer caps simultaneous voices to the loudest MaxVoices.
+
+func NewMixer(maxVoices int) (*Mixer, error)
+    NewMixer builds a voice cap in [1,MaxMixerVoices]. Others are InvalidArg.
+
+func (m *Mixer) MaxVoices() int
+    MaxVoices returns the cap. Nil returns 0.
+
+func (m *Mixer) Mix(gains []float64) MixResult
+    Mix sums the loudest kept voices and ceilings at 1. Non-finite and
+    non-positive entries are silent. The input is never mutated; the result is
+    always finite in [0,1]. Nil mixers return a zero result.
+
+func (m *Mixer) SetMaxVoices(n int) error
+    SetMaxVoices retunes the cap. Out-of-range values are InvalidArg.
+
+type MusicPlayer struct {
+	// Has unexported fields.
+}
+    MusicPlayer is a LIFO stack of music tracks with linear crossfade. The stack
+    top is the target; Blend reports the audible mix of the fading-out source
+    and the fading-in target. Only AssetID and Duration from core are used;
+    nothing is played here.
+
+func NewMusicPlayer() *MusicPlayer
+    NewMusicPlayer builds an empty (silent) player.
+
+func (p *MusicPlayer) Blend() (from core.AssetID, fromGain float64, to core.AssetID, toGain float64)
+    Blend returns the audible pair: fading-out source with its gain and
+    fading-in target with its gain. Gains are linear 1-t/t in [0,1]. Empty ids
+    are silent; their gain is ignored by the backend. Settled players report
+    ("",0,top,1); silent ones ("",0,"",0).
+
+func (p *MusicPlayer) CrossfadeTo(id core.AssetID, fade core.Duration) error
+    CrossfadeTo replaces the top without changing depth. Empty ids are
+    InvalidArg (use Stop for silence). Same-id retargets are a no-op.
+
+func (p *MusicPlayer) Depth() int
+    Depth returns the stack depth. Nil players report 0.
+
+func (p *MusicPlayer) From() core.AssetID
+    From returns the fading-out source, or "" when settled. Nil returns "".
+
+func (p *MusicPlayer) IsFading() bool
+    IsFading reports whether a switch is in flight. Nil reports false.
+
+func (p *MusicPlayer) Play(id core.AssetID) error
+    Play resets the stack to id with no fade. Empty ids are InvalidArg.
+
+func (p *MusicPlayer) Pop(fade core.Duration) error
+    Pop crossfades back to the layer below. Empty stacks are NotFound. Negative
+    fades are InvalidArg; zero fades switch instantly.
+
+func (p *MusicPlayer) Progress() float64
+    Progress returns elapsed/total in [0,1]; settled players report 1.
+
+func (p *MusicPlayer) Push(id core.AssetID, fade core.Duration) error
+    Push crossfades to a new top layer. Stack beyond MaxMusicStack is
+    OutOfMemory. Empty ids and negative fades are InvalidArg.
+
+func (p *MusicPlayer) Stop(fade core.Duration) error
+    Stop fades the stack to silence and clears it. Negative fades are
+    InvalidArg; silent players are a no-op.
+
+func (p *MusicPlayer) Top() core.AssetID
+    Top returns the target track, or "" when silent. Nil players return "".
+
+func (p *MusicPlayer) Update(dt core.Duration)
+    Update advances the fade clock. Non-positive dt, settled, and nil players do
+    nothing.
+
+type PosSound struct {
+	Pos         core.Vec2
+	Range       float64
+	Attenuation float64
+	PanStrength float64
+}
+    PosSound is one 2D sound source: where it plays, how far it carries,
+    how fast it hushes, how wide it spreads. It plays nothing by itself;
+    Mix computes the numbers the backend needs.
+
+func NewPosSound(pos core.Vec2, rng, att, panStrength float64) (PosSound, error)
+    NewPosSound builds a source. Pos must be finite, Range finite and >= 0 ,
+    Attenuation finite and >= 0 (1 linear, 2 squared, 0 no falloff inside the
+    range), PanStrength finite and >= 0 (0 mono, 1 normal). Bad arguments return
+    a core InvalidArg error and store nothing.
+
+func (s PosSound) Mix(listener core.Vec2) (Mix, bool)
+    Mix computes the gain and pan of s heard at listener. Valid inputs always
+    return ok=true, even when silent beyond the range (gain 0, Audible false,
+    pan still shows the direction). Bad inputs (non-finite listener, invalid
+    source) return ok=false with a silent mix, never NaN and never a panic.
+    The input source is never mutated.
+
+type VoicePick struct {
+	Index   int
+	Loud    float64
+	Gain    float64
+	Pan     float64
+	Audible bool
+}
+    VoicePick is the per-request verdict: Loud ranks, Gain/Pan feed the backend,
+    Audible tells whether this frame emits samples.
+
+type VoiceRequest struct {
+	Sound     PosSound
+	Level     float64
+	Explosive bool
+}
+    VoiceRequest is one voice ask: where it plays plus how loud it is and
+    whether it is an explosion that should duck music. Level is the base voice
+    level in [0,1] before distance hush. Names stay out: the caller maps indices
+    back to its own assets.
+
+func NewVoiceRequest(sound PosSound, level float64, explosive bool) (VoiceRequest, error)
+    NewVoiceRequest builds one ask. Sound must come from NewPosSound, Level must
+    be finite in [0,1]. Bad inputs are InvalidArg.
+
+type VoiceStats struct {
+	Requested    int
+	Channels     int
+	Audible      int
+	Total        float64
+	Clipped      bool
+	HasExplosion bool
+}
+    VoiceStats sums one selection: counts plus the capped total.
+

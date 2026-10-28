@@ -1,0 +1,5 @@
+Command ui_wr_ime_r4_selection is the IME R4 real-window: selection & editing.
+
+Window: 1200x800, 手动关闭（无自动关闭，RunFor=0 无限运行，点 X 关闭）。 最小观察时长 RUN_SECONDS>=10（R4
+10族 A/C/D/E/J 硬，U16底线5s） Scenarios (8): 双击选词/三击选段, Shift扩展+拖选跨行, 密码圆点+禁组合,
+只读/NONE, 撤销分组, 词删除, 锚点仅composing实报, 原子替换.

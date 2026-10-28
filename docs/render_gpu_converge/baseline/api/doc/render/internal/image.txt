@@ -1,0 +1,758 @@
+package image // import "github.com/energye/gpui/render/internal/image"
+
+Package image provides image buffer management for gogpu/gg.
+
+Package image provides image buffer management for gogpu/gg.
+
+This package implements enterprise-grade image handling with support for
+multiple pixel formats, lazy premultiplication, and memory-efficient operations.
+
+Package image provides image buffer management for gogpu/gg.
+
+Package image provides image buffer management for gogpu/gg.
+
+This package implements enterprise-grade image handling with support for
+multiple pixel formats, lazy premultiplication, and memory-efficient operations.
+
+Package image provides image buffer management for gogpu/gg.
+
+Package image provides image buffer management for gogpu/gg.
+
+Package image provides image buffer management for gogpu/gg.
+
+Package image provides image buffer management for gogpu/gg.
+
+VARIABLES
+
+var (
+	// ErrInvalidDimensions is returned when width or height is non-positive.
+	ErrInvalidDimensions = errors.New("image: invalid dimensions")
+
+	// ErrInvalidFormat is returned when the format is not recognized.
+	ErrInvalidFormat = errors.New("image: invalid format")
+
+	// ErrInvalidStride is returned when stride is less than minimum required.
+	ErrInvalidStride = errors.New("image: stride too small for width")
+
+	// ErrDataTooSmall is returned when provided data is smaller than required.
+	ErrDataTooSmall = errors.New("image: data buffer too small")
+
+	// ErrOutOfBounds is returned when pixel coordinates are outside image bounds.
+	ErrOutOfBounds = errors.New("image: coordinates out of bounds")
+)
+    Common errors for image operations.
+
+var (
+	// ErrUnsupportedFormat is returned when the image format is not supported.
+	ErrUnsupportedFormat = errors.New("image: unsupported format")
+
+	// ErrEmptyData is returned when image data is empty.
+	ErrEmptyData = errors.New("image: empty data")
+)
+    I/O errors.
+
+
+FUNCTIONS
+
+func DrawImage(dst, src *ImageBuf, params DrawParams)
+    DrawImage draws the source image onto the destination image using the
+    specified parameters.
+
+    The operation performs the following steps:
+     1. For each pixel in the destination rectangle
+     2. Apply inverse transformation to find source coordinates
+     3. Sample source image using specified interpolation
+     4. Apply opacity to the sampled color
+     5. Blend with destination using specified blend mode
+
+    The destination image is modified in place.
+
+func PutToDefault(buf *ImageBuf)
+    PutToDefault returns an image buffer to the default pool. This is a
+    convenience wrapper around defaultPool.Put().
+
+func Sample(img *ImageBuf, u, v float64, mode InterpolationMode) (r, g, b, a byte)
+    Sample samples the image at normalized coordinates (u, v) using the
+    specified interpolation mode. u and v are in the range [0.0, 1.0] where
+    (0,0) is top-left and (1,1) is bottom-right. Out-of-bounds coordinates are
+    clamped to the edge.
+
+func SampleBicubic(img *ImageBuf, u, v float64) (r, g, b, a byte)
+    SampleBicubic performs bicubic interpolation at normalized coordinates (u,
+    v). Uses Catmull-Rom splines with a 4x4 pixel neighborhood for smooth
+    results.
+
+func SampleBilinear(img *ImageBuf, u, v float64) (r, g, b, a byte)
+    SampleBilinear performs bilinear interpolation at normalized coordinates (u,
+    v). Interpolates between 4 neighboring pixels using linear weights.
+
+func SampleNearest(img *ImageBuf, u, v float64) (r, g, b, a byte)
+    SampleNearest performs nearest-neighbor sampling at normalized coordinates
+    (u, v). This is the fastest sampling method but produces blocky results when
+    scaling.
+
+
+TYPES
+
+type Affine struct {
+	// Has unexported fields.
+}
+    Affine represents a 2D affine transformation matrix.
+
+    The transformation is represented as a 3x3 matrix:
+
+        | a b c |
+        | d e f |
+        | 0 0 1 |
+
+    This allows for translation, rotation, scaling, and shearing operations.
+
+func Identity() Affine
+    Identity returns the identity transformation (no change).
+
+func Rotate(angle float64) Affine
+    Rotate returns a rotation transformation that rotates by angle (in radians)
+    around the origin. Positive angles rotate counter-clockwise.
+
+func RotateAt(angle, cx, cy float64) Affine
+    RotateAt returns a rotation transformation that rotates by angle (in
+    radians) around the point (cx, cy).
+
+func Scale(sx, sy float64) Affine
+    Scale returns a scaling transformation that scales by (sx, sy) around the
+    origin. Use negative values to flip the image.
+
+func ScaleAt(sx, sy, cx, cy float64) Affine
+    ScaleAt returns a scaling transformation that scales by (sx, sy) around the
+    point (cx, cy).
+
+func Shear(sx, sy float64) Affine
+    Shear returns a shearing transformation that shears by (sx, sy). sx controls
+    horizontal shear (skew along x-axis). sy controls vertical shear (skew along
+    y-axis).
+
+func Translate(tx, ty float64) Affine
+    Translate returns a translation transformation that shifts points by (tx,
+    ty).
+
+func (a Affine) Invert() (Affine, bool)
+    Invert returns the inverse transformation. Returns false if the matrix is
+    singular (non-invertible).
+
+func (a Affine) Multiply(other Affine) Affine
+    Multiply returns the result of multiplying this affine transform by another.
+    The result applies 'other' first, then 'this'. This is equivalent to matrix
+    multiplication: this * other.
+
+func (a Affine) TransformPoint(x, y float64) (float64, float64)
+    TransformPoint applies the affine transformation to point (x, y). Returns
+    the transformed coordinates (x', y').
+
+type BlendMode uint8
+    BlendMode defines how source pixels are blended with destination pixels.
+
+const (
+	// BlendNormal performs standard alpha blending (source over destination).
+	BlendNormal BlendMode = iota
+
+	// BlendMultiply multiplies source and destination colors.
+	// Result is always darker or equal. Formula: dst * src
+	BlendMultiply
+
+	// BlendScreen performs inverse multiply for lighter results.
+	// Formula: 1 - (1-dst) * (1-src)
+	BlendScreen
+
+	// BlendOverlay combines multiply and screen based on destination brightness.
+	// Dark areas are multiplied, bright areas are screened.
+	BlendOverlay
+
+	// BlendHue (non-separable): hue of source, saturation/luminosity of destination.
+	BlendHue
+	// BlendSaturation (non-separable): saturation of source, hue/luminosity of destination.
+	BlendSaturation
+	// BlendColor (non-separable): hue+saturation of source, luminosity of destination.
+	BlendColor
+	// BlendLuminosity (non-separable): luminosity of source, hue+saturation of destination.
+	BlendLuminosity
+
+	// Porter-Duff fixed-function modes (B.02). Values continue after HSL modes.
+	// BlendClear: result is transparent black (0).
+	BlendClear
+	// BlendCopy: result is source (Src / Replace).
+	BlendCopy
+	// BlendPlus: result is clamped source+destination (additive).
+	BlendPlus
+	// BlendDestinationOut: dst * (1 - srcA) — eraser / cutout.
+	BlendDestinationOut
+	// BlendSourceAtop: src*dstA + dst*(1-srcA).
+	BlendSourceAtop
+	// BlendXor: src*(1-dstA) + dst*(1-srcA).
+	BlendXor
+	// BlendDestinationOver: src*(1-dstA) + dst (DstOver).
+	BlendDestinationOver
+	// BlendSourceIn: src * dstA (SrcIn).
+	BlendSourceIn
+	// BlendSourceOut: src * (1-dstA) (SrcOut).
+	BlendSourceOut
+	// BlendDestinationIn: dst * srcA (DstIn).
+	BlendDestinationIn
+	// BlendDestinationAtop: src*(1-dstA) + dst*srcA (DstAtop).
+	BlendDestinationAtop
+
+	// Separable advanced modes (B.03 extended). Appended after Porter-Duff so
+	// existing iota values stay stable.
+	// BlendDarken selects the darker of source and destination per channel.
+	BlendDarken
+	// BlendLighten selects the lighter of source and destination per channel.
+	BlendLighten
+	// BlendColorDodge brightens destination to reflect source.
+	BlendColorDodge
+	// BlendColorBurn darkens destination to reflect source.
+	BlendColorBurn
+	// BlendHardLight is Multiply or Screen depending on source.
+	BlendHardLight
+	// BlendSoftLight is a softer HardLight variant.
+	BlendSoftLight
+	// BlendDifference is absolute difference of channels.
+	BlendDifference
+	// BlendExclusion is a lower-contrast difference.
+	BlendExclusion
+
+	// BlendModulate multiplies source and destination.
+	// Premul: out = src * dst (component-wise). Fixed-function GPU factors: Src*Dst + Dst*0.
+	BlendModulate
+)
+func (b BlendMode) String() string
+    String returns a string representation of the blend mode.
+
+type DrawParams struct {
+	// SrcRect defines the source rectangle to sample from.
+	// If nil, the entire source image is used.
+	SrcRect *Rect
+
+	// DstRect defines the destination rectangle to draw into.
+	DstRect Rect
+
+	// Transform is an optional affine transformation applied to source coordinates.
+	// If nil, identity transform is used.
+	Transform *Affine
+
+	// Interp specifies the interpolation mode for sampling.
+	Interp InterpolationMode
+
+	// Opacity controls the overall transparency of the source image (0.0 to 1.0).
+	// 1.0 means fully opaque, 0.0 means fully transparent.
+	Opacity float64
+
+	// BlendMode specifies how to blend source and destination pixels.
+	BlendMode BlendMode
+
+	// UseMipmaps selects a prefiltered mip level when drawing smaller than 1:1 (I.04).
+	UseMipmaps bool
+}
+    DrawParams specifies parameters for the DrawImage operation.
+
+type Format uint8
+    Format represents a pixel storage format.
+
+const (
+	// FormatGray8 is 8-bit grayscale (1 byte per pixel).
+	FormatGray8 Format = iota
+
+	// FormatGray16 is 16-bit grayscale (2 bytes per pixel).
+	FormatGray16
+
+	// FormatRGB8 is 24-bit RGB (3 bytes per pixel, no alpha).
+	FormatRGB8
+
+	// FormatRGBA8 is 32-bit RGBA in sRGB color space (4 bytes per pixel).
+	// This is the standard format for most operations.
+	FormatRGBA8
+
+	// FormatRGBAPremul is 32-bit RGBA with premultiplied alpha (4 bytes per pixel).
+	// Used for correct alpha blending operations.
+	FormatRGBAPremul
+
+	// FormatBGRA8 is 32-bit BGRA in sRGB color space (4 bytes per pixel).
+	// Common on Windows and some GPU formats.
+	FormatBGRA8
+
+	// FormatBGRAPremul is 32-bit BGRA with premultiplied alpha (4 bytes per pixel).
+	FormatBGRAPremul
+)
+func (f Format) BitsPerChannel() int
+    BitsPerChannel returns the number of bits per color channel.
+
+func (f Format) BytesPerPixel() int
+    BytesPerPixel returns the number of bytes per pixel for this format.
+
+func (f Format) Channels() int
+    Channels returns the number of color channels.
+
+func (f Format) HasAlpha() bool
+    HasAlpha returns true if this format has an alpha channel.
+
+func (f Format) ImageBytes(width, height int) int
+    ImageBytes calculates the total number of bytes needed for an image.
+
+func (f Format) Info() FormatInfo
+    Info returns the FormatInfo for this format.
+
+func (f Format) IsGrayscale() bool
+    IsGrayscale returns true if this is a grayscale format.
+
+func (f Format) IsPremultiplied() bool
+    IsPremultiplied returns true if alpha is premultiplied.
+
+func (f Format) IsValid() bool
+    IsValid returns true if the format is a valid known format.
+
+func (f Format) PremultipliedVersion() Format
+    PremultipliedVersion returns the premultiplied version of this format.
+    Returns the same format if already premultiplied or has no alpha.
+
+func (f Format) RowBytes(width int) int
+    RowBytes calculates the number of bytes needed for a row of the given width.
+
+func (f Format) String() string
+    String returns a string representation of the format.
+
+func (f Format) UnpremultipliedVersion() Format
+    UnpremultipliedVersion returns the non-premultiplied version of this format.
+    Returns the same format if already non-premultiplied or has no alpha.
+
+type FormatInfo struct {
+	// BytesPerPixel is the number of bytes per pixel.
+	BytesPerPixel int
+
+	// Channels is the number of color channels.
+	Channels int
+
+	// HasAlpha indicates if the format has an alpha channel.
+	HasAlpha bool
+
+	// IsPremultiplied indicates if alpha is premultiplied.
+	IsPremultiplied bool
+
+	// IsGrayscale indicates if this is a grayscale format.
+	IsGrayscale bool
+
+	// BitsPerChannel is the number of bits per color channel.
+	BitsPerChannel int
+}
+    FormatInfo contains metadata about a pixel format.
+
+type ImageBuf struct {
+	// Has unexported fields.
+}
+    ImageBuf is a memory-efficient image buffer with support for multiple pixel
+    formats.
+
+func Decode(r io.Reader) (*ImageBuf, error)
+    Decode decodes an image from the given reader, auto-detecting the format.
+
+func DecodeJPEG(r io.Reader) (*ImageBuf, error)
+    DecodeJPEG decodes a JPEG image from the given reader.
+
+func DecodePNG(r io.Reader) (*ImageBuf, error)
+    DecodePNG decodes a PNG image from the given reader.
+
+func DecodeWebP(r io.Reader) (*ImageBuf, error)
+    DecodeWebP decodes a WebP image from the given reader.
+
+func FromRaw(data []byte, width, height int, format Format, stride int) (*ImageBuf, error)
+    FromRaw creates an ImageBuf from existing data without copying. The caller
+    must ensure data remains valid for the lifetime of the ImageBuf. Stride must
+    be at least format.RowBytes(width).
+
+func FromStdImage(img image.Image) *ImageBuf
+    FromStdImage creates an ImageBuf from a standard library image.Image.
+    The resulting ImageBuf will be in RGBA8 format.
+
+func GetFromDefault(width, height int, format Format) *ImageBuf
+    GetFromDefault retrieves an image buffer from the default pool. This is a
+    convenience wrapper around defaultPool.Get().
+
+func LoadImage(path string) (*ImageBuf, error)
+    LoadImage loads an image from the given file path, auto-detecting the
+    format. Supported formats: PNG, JPEG, WebP.
+
+func LoadImageFromBytes(data []byte) (*ImageBuf, error)
+    LoadImageFromBytes loads an image from a byte slice, auto-detecting the
+    format.
+
+func LoadJPEG(path string) (*ImageBuf, error)
+    LoadJPEG loads a JPEG image from the given file path.
+
+func LoadPNG(path string) (*ImageBuf, error)
+    LoadPNG loads a PNG image from the given file path.
+
+func LoadWebP(path string) (*ImageBuf, error)
+    LoadWebP loads a WebP image from the given file path.
+
+func NewImageBuf(width, height int, format Format) (*ImageBuf, error)
+    NewImageBuf creates a new image buffer with the given dimensions and format.
+    Returns an error if dimensions are invalid or format is unknown.
+
+func NewImageBufWithStride(width, height int, format Format, stride int) (*ImageBuf, error)
+    NewImageBufWithStride creates a new image buffer with custom stride for
+    alignment. Stride must be at least format.RowBytes(width).
+
+func (b *ImageBuf) Bounds() (int, int)
+    Bounds returns the image dimensions as (width, height) (0,0 if disposed).
+
+func (b *ImageBuf) ByteSize() int
+    ByteSize returns the total size of the image data in bytes.
+
+func (b *ImageBuf) Clear()
+    Clear sets all pixels to zero (transparent black for RGBA formats). No-op if
+    disposed or nil.
+
+func (b *ImageBuf) Clone() *ImageBuf
+    Clone creates a deep copy of the image buffer.
+
+func (b *ImageBuf) Data() []byte
+    Data returns the raw pixel data slice (nil if disposed). Modifying this data
+    will affect the image; call InvalidatePremulCache() after modifications if
+    premultiplied data may have been cached.
+
+func (b *ImageBuf) Dispose()
+    Dispose releases pixel storage and marks the buffer unusable for draw.
+    Safe on nil; idempotent (second call is a no-op). After Dispose, Bounds are
+    empty, Data is nil, and Disposed() reports true. Callers that own a buffer
+    (e.g. RenderImage after SetImage) must Dispose when replacing or clearing.
+
+    This does not return the buffer to a pool; it drops CPU backing so GC can
+    reclaim and so accidental draws after release fail closed (no-op / empty).
+
+func (b *ImageBuf) Disposed() bool
+    Disposed reports whether Dispose has been called (or b is nil).
+
+func (b *ImageBuf) EncodeJPEG(w io.Writer, quality int) error
+    EncodeJPEG encodes the image as JPEG to the given writer.
+
+func (b *ImageBuf) EncodePNG(w io.Writer) error
+    EncodePNG encodes the image as PNG to the given writer.
+
+func (b *ImageBuf) EncodeToBytes() ([]byte, error)
+    EncodeToBytes encodes the image to PNG format and returns the bytes.
+
+func (b *ImageBuf) EncodeToJPEGBytes(quality int) ([]byte, error)
+    EncodeToJPEGBytes encodes the image to JPEG format and returns the bytes.
+
+func (b *ImageBuf) Fill(r, g, bl, a uint8)
+    Fill sets all pixels to the given RGBA color.
+
+func (b *ImageBuf) Format() Format
+    Format returns the pixel format.
+
+func (b *ImageBuf) GenerationID() uint64
+    GenerationID returns the unique identifier for this image buffer's content.
+    Used by GPU texture cache to avoid stale texture reuse (ADR-014).
+
+func (b *ImageBuf) GetRGBA(x, y int) (r, g, bl, a uint8)
+    GetRGBA returns the color at (x, y) as (r, g, b, a) in 0-255 range. For
+    grayscale formats, r=g=b=gray and a=255. For formats without alpha, a=255.
+    Returns (0,0,0,0) if coordinates are out of bounds.
+
+func (b *ImageBuf) Height() int
+    Height returns the image height in pixels (0 if disposed/nil).
+
+func (b *ImageBuf) InvalidatePremulCache()
+    InvalidatePremulCache marks the premultiplication cache as stale. Call this
+    after modifying pixel data directly via Data() or RowBytes().
+
+func (b *ImageBuf) IsEmpty() bool
+    IsEmpty returns true if the image has zero dimensions.
+
+func (b *ImageBuf) IsGPUDirty() bool
+    IsGPUDirty reports whether MarkPixelsDirty is pending (tests/diagnostics).
+
+func (b *ImageBuf) IsPremulCached() bool
+    IsPremulCached returns true if premultiplied data is currently cached.
+
+func (b *ImageBuf) MarkEphemeral()
+    MarkEphemeral sets GenerationID to 0 so the GPU image cache uploads this
+    buffer for a single frame and releases it via ReleaseEphemeral. Use for
+    continuous animated offscreen effect RTs republished every frame — bumping a
+    new genID each frame would grow the long-term cache / VRAM.
+
+func (b *ImageBuf) MarkPixelsDirty()
+    MarkPixelsDirty keeps GenerationID stable and flags GPU cache for
+    in-place reupload. Use for continuous effect RTs that rewrite the same
+    ImageBuf (ExportImageBuf reuse) — avoids ImageCache entry explosion from
+    NotifyPixelsChanged.
+
+func (b *ImageBuf) NotifyPixelsChanged()
+    NotifyPixelsChanged assigns a new generation ID and invalidates the premul
+    cache. Call after mutating pixel data in place (e.g. offscreen effect RT
+    republish).
+
+func (b *ImageBuf) PixelBytes(x, y int) []byte
+    PixelBytes returns a slice of the raw bytes for pixel (x, y). Returns nil if
+    coordinates are out of bounds.
+
+func (b *ImageBuf) PixelOffset(x, y int) int
+    PixelOffset returns the byte offset of pixel (x, y) in the data slice.
+    Returns -1 if coordinates are out of bounds.
+
+func (b *ImageBuf) PremultipliedData() []byte
+    PremultipliedData returns the image data with premultiplied alpha. For
+    formats already premultiplied or without alpha, returns the original data.
+    The result is cached for efficiency; call InvalidatePremulCache() if the
+    original data has been modified.
+
+func (b *ImageBuf) RowBytes(y int) []byte
+    RowBytes returns a slice of the pixel data for row y. Returns nil if y is
+    out of bounds.
+
+func (b *ImageBuf) SaveJPEG(path string, quality int) error
+    SaveJPEG saves the image as a JPEG file with the given quality (1-100).
+
+func (b *ImageBuf) SavePNG(path string) error
+    SavePNG saves the image as a PNG file.
+
+func (b *ImageBuf) SetPixelBytes(x, y int, pixel []byte) error
+    SetPixelBytes sets the raw bytes for pixel (x, y). Returns ErrOutOfBounds
+    if coordinates are outside image bounds. Automatically invalidates the
+    premultiplication cache.
+
+func (b *ImageBuf) SetRGBA(x, y int, r, g, bl, a uint8) error
+    SetRGBA sets the color at (x, y) from (r, g, b, a) in 0-255 range. For
+    grayscale formats, uses standard luminance weights. Returns ErrOutOfBounds
+    if coordinates are outside image bounds.
+
+func (b *ImageBuf) Stride() int
+    Stride returns the number of bytes per row (including padding).
+
+func (b *ImageBuf) SubImage(x, y, width, height int) *ImageBuf
+    SubImage returns a view into a rectangular region of the image. The returned
+    ImageBuf shares the underlying data with the original. Modifications to the
+    sub-image affect the original and vice versa. Returns nil if the bounds are
+    invalid or outside the image.
+
+func (b *ImageBuf) TakeGPUDirty() bool
+    TakeGPUDirty returns whether GPU texture content is stale and clears the
+    flag. Called by the GPU DrawImage path when queuing an upload.
+
+func (b *ImageBuf) ToStdImage() image.Image
+    ToStdImage converts the ImageBuf to a standard library image.Image. Returns
+    *image.RGBA for most formats, *image.Gray for grayscale.
+
+func (b *ImageBuf) Width() int
+    Width returns the image width in pixels (0 if disposed/nil).
+
+type ImagePattern struct {
+	// Has unexported fields.
+}
+    ImagePattern represents an image-based fill pattern.
+
+    ImagePattern applies transformations, spread modes, and interpolation to
+    sample colors from an image. It supports optional mipmap chains for quality
+    downscaling at different scales.
+
+    The pattern operates in pattern space where coordinates are transformed via
+    the inverse transform before sampling from the image.
+
+func NewImagePattern(img *ImageBuf) *ImagePattern
+    NewImagePattern creates a pattern from an image.
+
+    Default settings:
+      - Identity transform
+      - SpreadPad mode
+      - InterpBilinear interpolation
+      - Opacity 1.0 (fully opaque)
+      - No mipmaps
+
+    Returns nil if img is nil.
+
+func (p *ImagePattern) Image() *ImageBuf
+    Image returns the underlying image buffer.
+
+func (p *ImagePattern) Interpolation() InterpolationMode
+    Interpolation returns the current interpolation mode.
+
+func (p *ImagePattern) Mipmaps() *MipmapChain
+    Mipmaps returns the mipmap chain, or nil if not set.
+
+func (p *ImagePattern) Opacity() float64
+    Opacity returns the current opacity value.
+
+func (p *ImagePattern) Sample(x, y float64) (r, g, b, a byte)
+    Sample returns the color at the given pattern-space coordinates.
+
+    The sampling process:
+     1. Apply inverse transform to convert pattern coords to image coords
+     2. Apply spread mode to handle coordinates outside [0,1]
+     3. Apply interpolation to sample the image
+     4. Apply opacity
+
+    Returns (0,0,0,0) if the pattern or image is nil.
+
+func (p *ImagePattern) SampleWithScale(x, y, scale float64) (r, g, b, a byte)
+    SampleWithScale selects mipmap level based on scale if mipmaps available.
+
+    The scale parameter represents the ratio of displayed size to original size:
+      - scale = 1.0: original size
+      - scale = 0.5: half size (select mipmap level 1)
+      - scale = 0.25: quarter size (select mipmap level 2)
+
+    Falls back to Sample if no mipmaps are available or scale >= 1.0.
+
+func (p *ImagePattern) SpreadMode() SpreadMode
+    SpreadMode returns the current spread mode.
+
+func (p *ImagePattern) Transform() Affine
+    Transform returns the current transformation matrix.
+
+func (p *ImagePattern) WithInterpolation(mode InterpolationMode) *ImagePattern
+    WithInterpolation sets the interpolation mode for sampling. Returns the
+    pattern for method chaining.
+
+func (p *ImagePattern) WithMipmaps(chain *MipmapChain) *ImagePattern
+    WithMipmaps sets the mipmap chain for quality downscaling. Returns the
+    pattern for method chaining.
+
+    The mipmap chain is optional. If provided, SampleWithScale will select the
+    appropriate mipmap level based on the scale factor.
+
+func (p *ImagePattern) WithOpacity(opacity float64) *ImagePattern
+    WithOpacity sets the opacity multiplier (0.0 = transparent, 1.0 = opaque).
+    Returns the pattern for method chaining.
+
+    Opacity is clamped to [0.0, 1.0].
+
+func (p *ImagePattern) WithSpreadMode(mode SpreadMode) *ImagePattern
+    WithSpreadMode sets the spread mode for coordinates outside [0,1]. Returns
+    the pattern for method chaining.
+
+func (p *ImagePattern) WithTransform(t Affine) *ImagePattern
+    WithTransform sets the transformation matrix for the pattern. Returns the
+    pattern for method chaining.
+
+    The transform converts from pattern space to image space. The inverse is
+    cached for efficient sampling.
+
+type InterpolationMode uint8
+    InterpolationMode defines how texture sampling is performed.
+
+const (
+	// Zero value means "unspecified" and DrawImageEx maps it to InterpBilinear.
+	// Modes start at 1 so InterpNearest is not swallowed by defaulting.
+	// InterpNearest selects the closest pixel (no interpolation).
+	// Fast but produces blocky results when scaling.
+	InterpNearest InterpolationMode = 1 + iota
+
+	// InterpBilinear performs linear interpolation between 4 neighboring pixels.
+	// Good balance between quality and performance.
+	InterpBilinear
+
+	// InterpBicubic performs cubic interpolation using a 4x4 pixel neighborhood.
+	// Highest quality but slower than bilinear.
+	InterpBicubic
+)
+func (m InterpolationMode) String() string
+    String returns a string representation of the interpolation mode.
+
+type MipmapChain struct {
+	// Has unexported fields.
+}
+    MipmapChain holds pre-computed downscaled versions of an image.
+
+    A mipmap chain consists of multiple levels, where each level is half the
+    size of the previous level (both width and height). Level 0 is the original
+    full-resolution image. The chain continues until the smallest dimension
+    reaches 1 pixel.
+
+    Mipmaps are used for efficient texture filtering at different scales,
+    reducing aliasing artifacts when rendering scaled images.
+
+func GenerateMipmaps(src *ImageBuf) *MipmapChain
+    GenerateMipmaps creates a mipmap chain from the source image.
+
+    Uses a box filter (2x2 average) to downsample each level. The process
+    continues until the smallest dimension reaches 1 pixel. The source image
+    becomes level 0 and is not copied.
+
+    Returns nil if src is nil or empty.
+
+func (m *MipmapChain) Level(n int) *ImageBuf
+    Level returns the mipmap at the specified level. Level 0 is the original
+    image. Returns nil if level is out of range.
+
+func (m *MipmapChain) LevelForScale(scale float64) *ImageBuf
+    LevelForScale returns the appropriate mipmap level for a given scale factor.
+
+    The scale parameter represents the ratio of displayed size to original size:
+      - scale = 1.0: original size (level 0)
+      - scale = 0.5: half size (level 1)
+      - scale = 0.25: quarter size (level 2)
+      - etc.
+
+    The level is calculated as: level = floor(-log2(scale)) The result is
+    clamped to [0, NumLevels-1].
+
+    Returns 0 if scale is >= 1.0 or if the chain is nil.
+
+func (m *MipmapChain) NumLevels() int
+    NumLevels returns the total number of mipmap levels in the chain. Returns 0
+    if the chain is nil.
+
+func (m *MipmapChain) Release()
+    Release returns all mipmap buffers to the pool except level 0.
+
+    Level 0 is the original image and is not returned to the pool since it was
+    provided by the caller. After calling Release, the chain should not be used.
+
+type Pool struct {
+	// Has unexported fields.
+}
+    Pool is a thread-safe pool for reusing ImageBuf instances.
+
+    Pool groups buffers by their dimensions and format, allowing efficient reuse
+    of identically-sized buffers. This reduces GC pressure for applications that
+    frequently create and destroy images of similar sizes.
+
+    Thread safety: All methods are safe for concurrent use.
+
+func NewPool(maxPerBucket int) *Pool
+    NewPool creates a new image buffer pool with the given maximum buffers
+    per bucket. maxPerBucket limits how many buffers of each size/format are
+    retained. A maxPerBucket of 0 means unlimited (use with caution).
+
+func (p *Pool) Get(width, height int, format Format) *ImageBuf
+    Get retrieves an image buffer from the pool or creates a new one. The
+    returned buffer is guaranteed to have the specified dimensions and format.
+    If a buffer is reused from the pool, it will be cleared (all pixels zeroed).
+
+func (p *Pool) Put(buf *ImageBuf)
+    Put returns an image buffer to the pool for reuse. The buffer will be
+    cleared before being stored. If buf is nil, disposed, or the pool bucket is
+    at max capacity, the buffer is discarded.
+
+type Rect struct {
+	X, Y          int // Top-left corner
+	Width, Height int // Dimensions
+}
+    Rect represents a rectangular region in pixel coordinates.
+
+type SpreadMode uint8
+    SpreadMode determines how to handle coordinates outside [0,1].
+
+const (
+	// SpreadPad clamps coordinates to the edge (default).
+	// Values outside [0,1] are clamped to the nearest edge pixel.
+	SpreadPad SpreadMode = iota
+
+	// SpreadRepeat tiles/repeats the image.
+	// Coordinates wrap around at the boundaries.
+	SpreadRepeat
+
+	// SpreadReflect mirrors the image at boundaries.
+	// Creates a mirrored tiling effect.
+	SpreadReflect
+)
+func (s SpreadMode) String() string
+    String returns a string representation of the spread mode.
+

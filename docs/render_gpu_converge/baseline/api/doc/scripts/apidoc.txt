@@ -1,0 +1,10 @@
+Command apidoc 校验 docs/RENDER_API_CATALOG.md 与 render
+主包（以及 scene/recording/surface/svg 子包）公开 API 的一致性：任何顶层符号与
+导出方法必须出现在目录文档文本中，否则报缺失并以非零码退出（可挂 CI）。
+
+用途：AGENTS.md「API 文档同步纪律」的机器抓手。改 render 代码后跑：
+
+    go run ./scripts/apidoc
+
+跳过规则：render/text 采用族级归纳（附录以 go doc 为准），不参与逐符号检查； render/filters 是纯 init
+副作用包（无顶层符号），跳过。

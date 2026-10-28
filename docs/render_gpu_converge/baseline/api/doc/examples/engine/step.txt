@@ -1,0 +1,18 @@
+Command game_step is the 8.3 dynamic-partial-update independent window.
+
+Chase scene: retained static blocks (never dirtied, boundary replay) plus one
+chase car whose old+new union alone is dirtied every frame through the real
+engine/dirty DirtyTracker and ui/scene DirtyLayer. Burst full-motion frames fall
+back to full repaint and raise the cyan对照条.
+
+Modes:
+
+    go run ./examples/engine/step --case=dirty -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/step --case=dirty -manual-seconds 30
+      manual for 30s (events logged, title shows the count), then summary.
+    go run ./examples/engine/step
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_step. First run writes the golden baseline into
+testdata/; later runs compare it with zero tolerance.

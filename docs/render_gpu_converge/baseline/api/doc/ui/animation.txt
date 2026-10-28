@@ -1,0 +1,165 @@
+package animation // import "github.com/energye/gpui/ui/animation"
+
+Package animation provides a Flutter-style AnimationController.
+
+Package animation provides Flutter-style AnimationController + curves.
+
+Default animation path is compositor-only (F09): prefer MutSetOpacity /
+MutSetOffset over re-recording pictures. Use saveLayer only when filters require
+isolation (see painting.SaveLayerBudget).
+
+Controllers auto-unregister from the TickerRegistry when one-shot animations
+complete or Stop is called (F17) — no zombie tickers / idle CPU.
+
+FUNCTIONS
+
+func EaseIn(t float64) float64
+    EaseIn is quadratic ease-in.
+
+func EaseInOut(t float64) float64
+    EaseInOut is a smoothstep cubic (3t²−2t³), flat at 0 and 1.
+
+func EaseOut(t float64) float64
+    EaseOut is quadratic ease-out.
+
+func Linear(t float64) float64
+    Linear is y = t.
+
+
+TYPES
+
+type AnimatedOpacity struct {
+	// LayerID is the opacity/boundary layer to mutate (must be non-zero for ClassifyDirty).
+	LayerID uint64
+	// From/To opacity in [0,1].
+	From, To float64
+
+	// OnMutation is called each tick with the compositor-only mutation.
+	OnMutation func(m scene.Mutation)
+	// OnComplete optional when one-shot finishes.
+	OnComplete func()
+
+	// last mutations for tests
+	Mutations []scene.Mutation
+	// Has unexported fields.
+}
+    AnimatedOpacity drives layer opacity via MutSetOpacity (compositor-only,
+    F09).
+
+    It does not re-record pictures: each tick emits a Mutation{Kind:
+    MutSetOpacity}. Callers apply mutations to their FramePacket / compositor
+    path.
+
+    Default animation path = compositor-only; do not MarkNeedsPaint the whole
+    subtree for opacity alone.
+
+func NewAnimatedOpacity(layerID uint64, from, to, durationSec float64, curve Curve) *AnimatedOpacity
+    NewAnimatedOpacity creates an implicit opacity animation. durationSec <= 0
+    defaults to 1s. curve nil → EaseInOut (pleasant default for opacity).
+
+func (a *AnimatedOpacity) Controller() *Controller
+    Controller returns the underlying controller.
+
+func (a *AnimatedOpacity) IsRunning() bool
+    IsRunning reports whether the opacity animation is active.
+
+func (a *AnimatedOpacity) OpacityAt(t float64) float64
+    OpacityAt returns interpolated opacity for curved t in [0,1].
+
+func (a *AnimatedOpacity) Start(reg *scheduler.TickerRegistry)
+    Start begins the animation on reg.
+
+func (a *AnimatedOpacity) Stop()
+    Stop aborts and unregisters.
+
+type Controller struct {
+	// Has unexported fields.
+}
+    Controller drives a 0..1 value over DurationSec via the ticker registry.
+    When the animation completes (or Stop is called), Tick returns false so the
+    registry auto-unregisters (no zombie tickers / F17).
+
+    Value() is the curved progress (after Curve). Linear progress is internal.
+
+func NewController(durationSec float64) *Controller
+    NewController creates a controller. durationSec <= 0 defaults to 1s. Default
+    curve is Linear; status is Dismissed.
+
+func (c *Controller) Curve() Curve
+    Curve returns the active curve (never nil after NewController).
+
+func (c *Controller) IsRunning() bool
+    IsRunning reports whether the controller is active.
+
+func (c *Controller) LinearProgress() float64
+    LinearProgress returns uncurved progress in [0,1] (tests / advanced).
+
+func (c *Controller) OnStatus(fn func(s Status))
+    OnStatus sets a callback for status transitions.
+
+func (c *Controller) OnValue(fn func(v float64))
+    OnValue sets the per-tick callback (may call MarkNeedsPaint / emit
+    mutations). Receives the curved value in [0,1].
+
+func (c *Controller) Reverse(reg *scheduler.TickerRegistry)
+    Reverse starts or continues animating from current linear progress toward 0.
+    Registers with reg if not already running.
+
+func (c *Controller) SetCurve(curve Curve)
+    SetCurve sets the progress curve (nil → Linear).
+
+func (c *Controller) SetRepeat(v bool)
+    SetRepeat enables looping (spinner). When true, Tick never auto-stops.
+
+func (c *Controller) Start(reg *scheduler.TickerRegistry)
+    Start registers with reg and begins advancing from 0 forward.
+
+func (c *Controller) Status() Status
+    Status returns the current lifecycle status.
+
+func (c *Controller) Stop()
+    Stop unregisters and marks not running (status → Dismissed).
+
+func (c *Controller) Tick(dt float64) bool
+    Tick implements scheduler.Ticker.
+
+func (c *Controller) Value() float64
+    Value returns the current curved 0..1 progress.
+
+type Curve interface {
+	Transform(t float64) float64
+}
+    Curve maps linear progress t∈[0,1] to a shaped progress y∈[0,1].
+    Implementations should clamp or be well-defined outside [0,1].
+
+var (
+	CurveLinear    Curve = CurveFunc(Linear)
+	CurveEaseInOut Curve = CurveFunc(EaseInOut)
+	CurveEaseIn    Curve = CurveFunc(EaseIn)
+	CurveEaseOut   Curve = CurveFunc(EaseOut)
+)
+    Curves for SetCurve without allocating when using package funcs as
+    CurveFunc.
+
+type CurveFunc func(t float64) float64
+    CurveFunc adapts a function to Curve.
+
+func (f CurveFunc) Transform(t float64) float64
+    Transform implements Curve.
+
+type Status int
+    Status is the lifecycle of a Controller (Flutter AnimationStatus subset).
+
+const (
+	// StatusDismissed: not running, progress at start (0 for forward).
+	StatusDismissed Status = iota
+	// StatusForward: animating 0→1.
+	StatusForward
+	// StatusReverse: animating 1→0 (optional path).
+	StatusReverse
+	// StatusCompleted: finished at end (1 for forward, 0 for reverse).
+	StatusCompleted
+)
+func (s Status) String() string
+    String implements fmt.Stringer.
+

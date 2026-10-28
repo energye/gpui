@@ -1,0 +1,4 @@
+Example: Variable Font rendering with different weights and named instances.
+
+Demonstrates the WithVariations() API for OpenType variable fonts. Uses
+Bahnschrift (Windows), SF Pro (macOS), or DejaVu Sans (Linux).

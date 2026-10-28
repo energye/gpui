@@ -1,0 +1,391 @@
+package behavior // import "github.com/energye/gpui/ui/kit/internal/behavior"
+
+Package behavior hosts the F0-4 interaction facades.
+
+Every facade wraps existing engine capability only: gestures for tap
+arbitration, focus for keyboard traversal, overlay for placement and
+outside-close, textinput concepts via a small controller interface. No new
+GPU code lives here. Behavior never draws; it owns state transitions and event
+routing, while prim owns nodes and paint.
+
+FUNCTIONS
+
+func ArrowPrevNext(dir scope.Direction, prev, next string) (string, string)
+    ArrowPrevNext returns (prev,next) arrow labels for dir. RTL swaps the pair
+    so pagination arrows follow reading order.
+
+func AuditOne(n *semantics.Node) (ok bool, missing string)
+    AuditOne checks a single node: it must carry a non-empty name and a
+    non-empty role. Unnamed or role-less nodes fail (screen readers would see a
+    nameless control).
+
+func AuditTree(root *semantics.Node) (total, named int)
+    AuditTree counts named-and-roled nodes over a flattened tree.
+
+func CanWave(motion scope.MotionConfig, cfg WaveConfig) bool
+    CanWave reports whether a ripple may start. Press-and-hold must not
+    ripple (only post-tap starts call this); disabled, loading, text/link and
+    reduced-motion never ripple.
+
+func CheckIsolation(animatedDirty, siblingDirty bool) bool
+    CheckIsolation reports the repaint-boundary contract: the animated node is
+    dirty while its static sibling stays clean.
+
+func Contains(x, y, w, h, px, py float64) bool
+    Contains reports rect hit for window routing: Hit must equal paint.
+
+func ContrastRatio(fg, bg theme.Color) float64
+    ContrastRatio returns the WCAG relative-luminance ratio of fg over bg.
+
+func EmptyText(ctx scope.Ctx, component string) string
+    EmptyText resolves empty copy for component via Ctx. Custom renders
+    run first; otherwise it falls back to the built-in empty render so no
+    user-facing copy is hardcoded in behavior.
+
+func FadeAt(t float64) float64
+    FadeAt returns implicit fade opacity for linear t in [0,1].
+
+func IsRTL(ctx scope.Ctx) bool
+    IsRTL reports right-to-left layout.
+
+func MinTouchOK(w, h float64) bool
+    MinTouchOK is the advisory minimum touch target (44px). F0 reports it as a
+    warning, never a gate: small targets advise, they do not fail.
+
+func MirrorX(x, width float64, dir scope.Direction) float64
+    MirrorX mirrors a horizontal offset inside width for RTL. LTR returns x
+    unchanged.
+
+func ParseDuration(s string) float64
+    ParseDuration parses CSS-ish "0.1s"/"200ms" into seconds. Unknown or empty
+    input falls back to 0.2s (Mid).
+
+func PassContrast(ratio float64) bool
+    PassContrast reports ratio >= 4.5 (advisory only in F0).
+
+func ResolveCurve(name string) animation.Curve
+    ResolveCurve maps a token-style name to an engine curve. Unknown names fall
+    back to EaseInOut (pleasant default).
+
+func ResolveFollower(anchor rendering.Rect, ow, oh float64, want overlay.Placement, opt *overlay.ResolveOptions) overlay.Resolved
+    ResolveFollower is the canonical D-class placement entry: anchor plus
+    overlay size through overlay.Resolve with no local math. Prim keeps its F0-2
+    helper for layout windows; new floating layers call this one.
+
+func VirtualBoundOK(total, bound int) bool
+    VirtualBoundOK checks the long-list contract: bound rows serve total rows
+    with bind_count far below item_count (at least 8x fewer binds).
+
+func WaveColor(border, bg theme.Color, hasBorder bool) theme.Color
+
+TYPES
+
+type Budgets struct {
+	MinFPSWall float64
+	MaxP95Ms   float64
+}
+
+func DefaultBudgets() Budgets
+    DefaultBudgets is the motion-window gate: fps>=55, p95<=22ms.
+
+func (b Budgets) CheckFPS(fpsWall, p95Ms float64) bool
+    CheckFPS reports whether the steady window meets the budget.
+
+type CacheBudget struct {
+	Cap int
+
+	// Has unexported fields.
+}
+    CacheBudget is a tiny LRU: full budgets evict the oldest key. Product image
+    caches wrap this; F0 only needs the eviction rule.
+
+func NewCacheBudget(cap int) *CacheBudget
+    NewCacheBudget builds a budget holding at most cap entries.
+
+func (c *CacheBudget) Has(key string) bool
+    Has reports membership.
+
+func (c *CacheBudget) Len() int
+    Len reports held entries.
+
+func (c *CacheBudget) Set(key string) string
+    Set inserts key, evicting the oldest when full. Returns the evicted key,
+    or "" when nothing was evicted.
+
+type Field struct {
+	// Has unexported fields.
+}
+    Field owns the committed value plus the in-progress IME composition.
+    Composition shows but never counts as the value; OnChange fires only on
+    committed submits. Controlled fields never store; they only notify.
+
+func NewField(cfg FieldConfig) *Field
+    NewField builds the controller from config.
+
+func (f *Field) ChangeCalls() int
+    ChangeCalls counts OnChange invocations.
+
+func (f *Field) CommitComposing() bool
+    CommitComposing submits the active pre-edit as one committed input.
+
+func (f *Field) CommitText(s string)
+    CommitText satisfies IMEController.
+
+func (f *Field) Committed() string
+    Committed satisfies IMEController.
+
+func (f *Field) Display() string
+    Display returns what render shows: composition while active.
+
+func (f *Field) Error() string
+    Error returns the last validation text.
+
+func (f *Field) ErrorState() scope.WidgetState
+    ErrorState maps validation to the scope error bit for StateResolver.
+
+func (f *Field) HasError() bool
+    HasError reports a non-empty validation text.
+
+func (f *Field) Input(s string)
+    Input commits one submitted text. Controlled fields only notify;
+    uncontrolled fields store then notify.
+
+func (f *Field) IsComposing() bool
+    IsComposing reports an active pre-edit string.
+
+func (f *Field) IsControlled() bool
+    IsControlled reports whether the value comes from outside props.
+
+func (f *Field) LastNotified() string
+    LastNotified returns the last value passed to OnChange.
+
+func (f *Field) SetComposing(s string)
+    SetComposing sets the display-only pre-edit string. No value change,
+    no callback, so counters and search stay on the committed value.
+
+func (f *Field) SyncExternal(v string) bool
+    SyncExternal applies a props-side value change for controlled fields without
+    notifying. Uncontrolled fields ignore it: they own the value.
+
+func (f *Field) Validate() string
+    Validate runs the configured check on the committed value.
+
+func (f *Field) Value() string
+    Value returns the committed value, never the composition.
+
+type FieldConfig struct {
+	Value        *string
+	DefaultValue string
+	OnChange     func(string)
+	Validate     func(string) string
+}
+    FieldConfig describes one form value: controlled when Value is set,
+    uncontrolled when only DefaultValue is set.
+
+type IMEController interface {
+	Committed() string
+	SetComposing(string)
+	CommitText(string)
+}
+    IMEController is the narrow bridge to textinput.Editor. Field satisfies it;
+    product adapters wrap Editor without importing textinput here, so field
+    never depends on the IME implementation (no inverted dependency).
+
+type Interactive struct {
+	// Has unexported fields.
+}
+    Interactive owns the five-state machine for one pressable control: idle,
+    hover, pressed, keyboard focus, disabled, loading.
+
+    It wraps ui/gestures tap arbitration and ui/focus keyboard handling.
+    It never draws and never hardcodes colors; render resolves appearance from
+    States via scope.StateResolver.
+
+func NewInteractive(cfg InteractiveConfig) *Interactive
+    NewInteractive builds the machine from config.
+
+func (in *Interactive) Activations() int
+    Activations counts keyboard activations only.
+
+func (in *Interactive) CanActivate() bool
+    CanActivate reports whether a press counts: neither disabled nor loading.
+
+func (in *Interactive) Clicks() int
+    Clicks counts accepted activations (pointer plus keyboard).
+
+func (in *Interactive) DirectTap() bool
+    DirectTap simulates one arena-winning tap for scripted checks.
+
+func (in *Interactive) FocusNode() *focus.FocusNode
+    FocusNode exposes the keyboard node for window wiring.
+
+func (in *Interactive) HandleKey(e focus.KeyEvent) bool
+    HandleKey routes Tab through the manager and Space/Enter as activation.
+    Pointer clicks never set focus; only this keyboard path can activate with
+    the focused bit managed by onFocusChange.
+
+func (in *Interactive) JoinArena(m *gestures.GestureArenaManager, id int, e gestures.PointerEvent)
+    JoinArena adds the tap member to an arena for one pointer down.
+
+func (in *Interactive) Mount(mgr *focus.FocusManager)
+    Mount registers the focus node with mgr.
+
+func (in *Interactive) Semantics() *semantics.Node
+    Semantics reports the accessible name, role and focusability. Every
+    pressable keeps a name and a role; unnamed callers fall back to the button
+    role so screen readers never see a nameless control.
+
+func (in *Interactive) SetDisabled(disabled bool)
+    SetDisabled flips the disabled bit with OR semantics: callers pass the
+    per-widget flag, while scope.DisabledOr combines it with the subtree flag at
+    resolve time. Disabling clears hover, pressed and focus.
+
+func (in *Interactive) SetHover(over bool) bool
+    SetHover tracks pointer enter and leave. Disabled clears hover.
+
+func (in *Interactive) SetLoading(loading bool)
+    SetLoading flips the loading bit. Loading suppresses activation.
+
+func (in *Interactive) SetPressed(down bool) bool
+    SetPressed tracks pointer down and up. Disabled clears pressed.
+
+func (in *Interactive) States() scope.WidgetState
+    States reports the current machine bits.
+
+func (in *Interactive) TapRecognizer() *gestures.TapGestureRecognizer
+    TapRecognizer exposes the arena member for window wiring.
+
+func (in *Interactive) Unmount()
+    Unmount unregisters the focus node.
+
+type InteractiveConfig struct {
+	Disabled  bool
+	Loading   bool
+	Focusable bool
+	Label     string
+	Role      semantics.Role
+}
+    InteractiveConfig describes one pressable control.
+
+type MotionDurations struct {
+	Fast float64
+	Mid  float64
+	Slow float64
+}
+    MotionDurations carries resolved fast/mid/slow seconds.
+
+func ResolveDurations(tok theme.Tokens) MotionDurations
+    ResolveDurations reads the three duration tokens.
+
+type OverlayTrigger struct {
+	// Has unexported fields.
+}
+    OverlayTrigger owns open state, placement, outside-close and focus lock.
+    Placement always delegates to overlay.Resolve; this type never reimplements
+    the twelve-direction math.
+
+func NewTrigger(cfg TriggerConfig, mgr *focus.FocusManager, st *overlay.State) *OverlayTrigger
+    NewTrigger builds the trigger over an overlay stack and focus manager.
+    Either ref may be nil for pure resolve tests; Open then only resolves.
+
+func (t *OverlayTrigger) Close() bool
+    Close removes the entry and restores the saved focus.
+
+func (t *OverlayTrigger) Entry() *overlay.Entry
+    Entry exposes the stack entry for HitTest assertions.
+
+func (t *OverlayTrigger) FocusNode() *focus.FocusNode
+    FocusNode exposes the trapped node for tests.
+
+func (t *OverlayTrigger) HandleKey(e focus.KeyEvent) bool
+    HandleKey closes on Esc when configured. Tab stays with the manager.
+
+func (t *OverlayTrigger) HandleOutside(p rendering.Point) bool
+    HandleOutside closes on pointer down outside every entry.
+
+func (t *OverlayTrigger) IsFocusInside(n *focus.FocusNode) bool
+    IsFocusInside reports whether n belongs to the trapped set.
+
+func (t *OverlayTrigger) IsOpen() bool
+    IsOpen reports whether the layer is up.
+
+func (t *OverlayTrigger) Open(anchor rendering.Rect, ow, oh float64) bool
+    Open resolves and inserts the entry, then traps focus when configured.
+
+func (t *OverlayTrigger) Resolve(anchor rendering.Rect, ow, oh float64) overlay.Resolved
+    Resolve positions without changing open state.
+
+func (t *OverlayTrigger) ResolvedBox() overlay.Resolved
+    ResolvedBox returns the last placement outcome.
+
+type Spinner struct {
+	// Has unexported fields.
+}
+    Spinner drives a true rotation angle via a repeating Controller. Angle = 360
+    * curved progress. Reduced-motion or a disabled master switch freezes the
+    spinner (Stop + no restart).
+
+func NewSpinner(durSec float64, curve animation.Curve) *Spinner
+    NewSpinner builds a looping spinner over durSec seconds.
+
+func (s *Spinner) Angle() float64
+    Angle returns the current rotation degrees in [0,360).
+
+func (s *Spinner) Controller() *animation.Controller
+    Controller exposes the engine ticker for window wiring.
+
+func (s *Spinner) IsSpinning() bool
+    IsSpinning reports active ticking.
+
+func (s *Spinner) Start(reg *scheduler.TickerRegistry, motion scope.MotionConfig)
+    Start begins ticking when motion is allowed.
+
+func (s *Spinner) Stop()
+    Stop freezes the spinner.
+
+type TriggerConfig struct {
+	Want      overlay.Placement
+	Options   *overlay.ResolveOptions
+	Barrier   bool
+	FocusTrap bool
+	EscCloses bool
+}
+    TriggerConfig describes one floating layer trigger.
+
+type Wave struct {
+	// Has unexported fields.
+}
+    Wave is a one-shot ripple: 0→6 radius spread over 0.4s, full fade over 2s,
+    initial depth 20%. Driven by wall-clock ticks.
+
+func NewWave() *Wave
+    NewWave builds an idle ripple.
+
+func (w *Wave) Alpha() float64
+    Alpha returns the ripple alpha in [0,0.2].
+
+func (w *Wave) Elapsed() float64
+    Elapsed reports seconds since start (tests).
+
+func (w *Wave) IsRunning() bool
+    IsRunning reports an active ripple.
+
+func (w *Wave) Radius() float64
+    Radius returns the spread radius in [0,6].
+
+func (w *Wave) Start(motion scope.MotionConfig, cfg WaveConfig) bool
+    Start begins the ripple when allowed; returns false when suppressed.
+
+func (w *Wave) Tick(dt float64) bool
+    Tick advances the ripple; returns false when finished.
+
+type WaveConfig struct {
+	Enabled    bool
+	HasBorder  bool
+	IsTextLink bool
+	Disabled   bool
+	Loading    bool
+}
+    WaveConfig describes one ripple: enabled switch, border presence, text/link
+    suppression, and disabled/loading suppression.
+

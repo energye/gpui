@@ -1,0 +1,207 @@
+package dxil // import "github.com/energye/gpui/gpu/shader/dxil"
+
+DXIL is LLVM 3.7 bitcode with DirectX-specific metadata and dx.op intrinsic
+calls, wrapped in a DXBC container. This backend generates DXIL directly from
+naga IR, eliminating the need for external HLSL compilers (FXC/DXC).
+
+This package provides the public API surface. All implementation details
+(bitcode writer, module builder, container assembly) are in internal
+sub-packages.
+
+Current status: Phase 1 — vertex + fragment shader lowering (SM 6.0). The
+Compile function translates naga IR entry points to DXIL bytecode.
+
+VARIABLES
+
+var (
+	SM6_0 = ShaderModel{6, 0}
+	SM6_1 = ShaderModel{6, 1}
+	SM6_2 = ShaderModel{6, 2}
+	SM6_3 = ShaderModel{6, 3}
+	SM6_4 = ShaderModel{6, 4}
+	SM6_5 = ShaderModel{6, 5}
+	SM6_6 = ShaderModel{6, 6}
+	SM6_7 = ShaderModel{6, 7}
+	SM6_8 = ShaderModel{6, 8}
+	SM6_9 = ShaderModel{6, 9}
+)
+    Predefined shader model versions.
+
+
+FUNCTIONS
+
+func Compile(irModule *ir.Module, opts Options) ([]byte, error)
+    Compile translates a naga IR module to DXIL bytecode wrapped in a DXBC
+    container.
+
+    The compilation pipeline:
+     1. Emit: naga IR -> DXIL module (types, expressions, statements)
+     2. Serialize: DXIL module -> LLVM 3.7 bitcode
+     3. Container: wrap bitcode in DXBC with program header and hash
+
+    The result is a valid DXBC container that can be loaded by D3D12 or
+    inspected with dxc.exe -dumpbin.
+
+func Validate(blob []byte, level ValidationLevel) error
+    Validate inspects a DXBC container produced by Compile and returns a non-nil
+    error if any layer rejects it. Intended to be called by consumers right
+    after Compile so that bogus bytecode surfaces a readable diagnostic *before*
+    the D3D12 runtime folds it into an opaque E_INVALIDARG at pipeline creation
+    time.
+
+    The three levels form an inclusion chain; picking Full on Linux or macOS is
+    safe — it simply stops one layer short.
+
+
+TYPES
+
+type BindTarget struct {
+	// Space is the register space (0-based).
+	Space uint32
+
+	// Register is the register index within the space. This is the
+	// DXIL metadata "lowerBound" and, for non-array resources, also
+	// the dx.op.createHandle index.
+	Register uint32
+
+	// BindingArraySize is the array size for binding arrays. If nil,
+	// the resource is not an array.
+	//
+	// Note: the DXIL backend takes the actual array size from the IR
+	// type (BindingArrayType.Size). This field is accepted for parity
+	// with hlsl.BindTarget so callers can share a single binding-map
+	// builder; it is currently not consulted by the DXIL backend.
+	BindingArraySize *uint32
+}
+    BindTarget specifies the DXIL register binding for a resource. DXIL uses
+    (space, register) just like HLSL — a resource declared at (space=S,
+    lowerBound=R) in DXIL metadata corresponds to HLSL register(tR, spaceS) /
+    (uR, spaceS) / (bR, spaceS) depending on class.
+
+    The Register field is both the DXIL metadata "lowerBound" field and the
+    dx.op.createHandle "index" argument for non-array resources (they must match
+    — createHandle.index is the absolute register number, not an offset within
+    the range).
+
+type BindingLocation struct {
+	Group uint32
+
+	Binding uint32
+}
+    BindingLocation identifies a resource in the source shader.
+
+type BindingMap map[BindingLocation]BindTarget
+    BindingMap maps WGSL/SPIR-V binding locations to DXIL register bindings.
+
+    The DXIL backend consults this map in analyzeResources(): for each global
+    variable with a (group, binding) pair present in the map, the raw WGSL
+    numbers are replaced with the mapped (space, register) before being
+    written into DXIL resource metadata and dx.op.createHandle calls. Bindings
+    not present in the map keep their raw WGSL numbers, preserving backward
+    compatibility when the map is nil.
+
+    This is the DXIL analog of hlsl.Options.BindingMap. It is required when
+    the shader is consumed by a pipeline whose root signature uses a different
+    register scheme than the raw WGSL binding numbers — notably wgpu/hal/dx12,
+    which assigns registers via monotonic per-class counters (SRV=t0,t1,...
+    / UAV=u0,u1,... / CBV=b0,b1,...).
+
+type Options struct {
+	// ShaderModel is the target shader model version.
+	ShaderModel ShaderModel
+
+	// UseBypassHash uses the BYPASS sentinel hash (16×0x01) instead of
+	// the retail validator hash. The BYPASS form is accepted by
+	// AgilitySDK 1.615+ (January 2025) ONLY with developer mode
+	// enabled; on consumer systems it is rejected by the D3D12
+	// runtime format validator with STATE_CREATION error id 67 /
+	// 93 "Shader is corrupt or in an unrecognized format" even
+	// though IDxcValidator accepts either hash form.
+	//
+	// Default: false (retail hash). Set to true explicitly only
+	// when the target system is guaranteed to be in dev mode with
+	// the right AgilitySDK version.
+	UseBypassHash bool
+
+	// at emit time. If a shader binding is not present in the map, its raw
+	// WGSL numbers are used (current behavior, preserved for backward
+	// compatibility when the map is nil).
+	//
+	// This is the DXIL analog of hlsl.Options.BindingMap. It is required
+	// when the shader is consumed by a pipeline whose root signature uses
+	// a different register scheme than the raw WGSL binding numbers —
+	// notably wgpu/hal/dx12, which assigns registers via monotonic per-class
+	// counters (SRV=t0,t1,... / UAV=u0,u1,... / CBV=b0,b1,...).
+	BindingMap BindingMap
+
+	// SamplerHeapTargets specifies binding targets for the synthesized
+	// sampler heap arrays (nagaSamplerHeap / nagaComparisonSamplerHeap).
+	// Mirrors hlsl.Options.SamplerHeapTargets. When nil, falls back to
+	// the defaults: standard at (space=0, register=0), comparison at
+	// (space=1, register=0).
+	//
+	// The D3D12 root signature allocates sampler heap arrays at specific
+	// (space, register) positions; these targets must match or the PSO
+	// creation will fail with E_INVALIDARG.
+	SamplerHeapTargets *SamplerHeapBindTargets
+
+	// SamplerBufferBindingMap maps bind group numbers to SRV binding
+	// targets for per-group sampler index buffers
+	// (StructuredBuffer<uint> nagaGroup<N>SamplerIndexArray).
+	//
+	// When nil, falls back to the current defaults: each group's index
+	// buffer at (space=255, register=group). The D3D12 HAL should
+	// populate this map so that the generated DXIL matches the root
+	// signature's SRV layout for sampler index buffers.
+	SamplerBufferBindingMap map[uint32]BindTarget
+}
+    Options configures DXIL compilation.
+
+func DefaultOptions() Options
+    DefaultOptions returns the default DXIL compilation options.
+
+type SamplerHeapBindTargets struct {
+	// StandardSamplers is the binding for non-comparison samplers.
+	// Default: (space=0, register=0).
+	StandardSamplers BindTarget
+
+	// ComparisonSamplers is the binding for comparison samplers.
+	// Default: (space=1, register=0).
+	ComparisonSamplers BindTarget
+}
+    SamplerHeapBindTargets specifies binding targets for the synthesized sampler
+    heap arrays (nagaSamplerHeap / nagaComparisonSamplerHeap).
+
+    The D3D12 root signature allocates sampler heap arrays at specific (space,
+    register) positions; these targets must match or the pipeline state object
+    creation will fail with E_INVALIDARG.
+
+type ShaderModel struct {
+	Major uint32
+	Minor uint32
+}
+    ShaderModel represents a DXIL shader model version.
+
+type ValidationLevel int
+    ValidationLevel selects how deeply Validate inspects a DXIL container.
+
+const (
+	// ValidateStructural runs PreCheckContainer only — DXBC header,
+	// part list, PSV0/ISG1/OSG1 presence, PSV0 stage byte sanity. Fast,
+	// cross-platform, catches the big structural bugs that dxil.dll
+	// would reject with HRESULT 0x80aa0004..6 family.
+	ValidateStructural ValidationLevel = iota
+
+	// ValidateBitcode extends ValidateStructural with a defensive
+	// LLVM 3.7 bitstream walk (bitcheck.Check) that catches null
+	// dx.entryPoints function pointers and malformed METADATA_BLOCK
+	// records before IDxcValidator access-violates on them.
+	ValidateBitcode
+
+	// ValidateFull extends ValidateBitcode with a real IDxcValidator
+	// call (Windows-only; on non-Windows platforms degrades to
+	// ValidateBitcode silently). Returns the exact HRESULT + error
+	// string that dxil.dll would report, matching what D3D12
+	// CreateGraphicsPipelineState sees internally.
+	ValidateFull
+)

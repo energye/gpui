@@ -1,0 +1,343 @@
+package scope // import "github.com/energye/gpui/ui/kit/internal/scope"
+
+Package scope carries the F0-1 theme-and-range context.
+
+Ctx is the explicit value threaded through Build/Layout/Paint, following
+the InheritedWidget data flow. A zero Ctx reads as the documented defaults;
+providers build a derived copy instead of mutating the parent. Consumers
+subscribe by aspect so only the fields they read can mark them dirty.
+
+Package scope carries the F0-1 theme-and-range context (P5).
+
+Ctx is the explicit parameter threaded through Build/Layout/Paint, mirroring
+the InheritedWidget data flow without globals. WidgetState plus StateResolver
+cover per-state value lookup, mirroring WidgetStateProperty. Three-level merge
+(this call's props, then the Ctx component theme, then the global seed default)
+mirrors ButtonStyle resolution. This package only reads ui/theme; it never
+touches render or gpu.
+
+FUNCTIONS
+
+func DefaultHolderRender(kind string) string
+    DefaultHolderRender is the built-in static-call holder content.
+
+func DefaultRenderEmpty(componentName string) string
+    DefaultRenderEmpty is the built-in empty placeholder.
+
+func DisabledOr(subtree, widget bool) bool
+    DisabledOr reports the effective disabled state. The subtree flag and the
+    per-widget flag combine with OR: either one disables the widget, and a
+    per-widget false never clears a subtree disable.
+
+func MergedColor(props theme.Color, propsSet bool, ctheme theme.Color, cthemeSet bool, seed theme.Color) theme.Color
+    MergedColor resolves one color token through the three levels. Set flags
+    mark which levels actually carry a value; an unset level never wins over a
+    set lower level.
+
+func ResolveColor(props *theme.Color, ctheme *theme.Color, seed theme.Color) theme.Color
+    ResolveColor resolves one color through the standard chain: explicit
+    call-site color, else the component theme entry, else the seed default
+    passed in. It is the value-level spelling of MergedColor for callers that
+    already picked their seed.
+
+func ResolveFloat(props *float64, ctheme *float64, seed float64) float64
+    ResolveFloat resolves one numeric token through the standard chain.
+    Nil means "not set at this level".
+
+func ShowFocusRing(s WidgetState) bool
+    ShowFocusRing reports whether the ring paints for the given state:
+    keyboard-focused and not disabled. Pointer clicks never set the focused bit,
+    so this also encodes the focus-visible rule.
+
+func Subscribed(changed []Aspect, want ...Aspect) bool
+    Subscribed reports whether the aspect list contains at least one of the
+    given aspects. Components call it with the aspects their current build
+    actually read.
+
+
+TYPES
+
+type Aspect string
+    Aspect names one subscribable Ctx field group.
+
+const (
+	// AspectTheme subscribes to the token tables.
+	AspectTheme Aspect = "theme"
+	// AspectSize subscribes to the control-size tier.
+	AspectSize Aspect = "size"
+	// AspectDisabled subscribes to the subtree disabled flag.
+	AspectDisabled Aspect = "disabled"
+	// AspectDir subscribes to the base direction.
+	AspectDir Aspect = "dir"
+	// AspectMotion subscribes to the motion config.
+	AspectMotion Aspect = "motion"
+	// AspectLocale subscribes to the locale.
+	AspectLocale Aspect = "locale"
+	// AspectPopup subscribes to popup mount/overflow behavior.
+	AspectPopup Aspect = "popup"
+	// AspectEmpty subscribes to the empty/holder renders.
+	AspectEmpty Aspect = "empty"
+	// AspectVariant subscribes to the global input look.
+	AspectVariant Aspect = "variant"
+)
+func ChangedAspects(before, after Ctx) []Aspect
+    ChangedAspects reports which aspects differ between two contexts.
+    RenderEmpty and HolderRender compare by presence only because function
+    values cannot be compared deeply; swapping either counts as an empty-aspect
+    change.
+
+type Ctx struct {
+	// Theme carries seed plus alias plus per-component token tables.
+	Theme theme.Tokens
+	// Size is the global control-size tier.
+	Size SizeType
+	// Disabled disables the whole subtree (OR with per-widget disabled).
+	Disabled bool
+	// Dir is the inline base direction.
+	Dir Direction
+	// Motion carries the motion switch plus reduced-motion preference.
+	Motion MotionConfig
+	// Locale selects language-sensitive copy such as empty text.
+	Locale string
+	// PopupContainer names the floating-layer mount point.
+	PopupContainer TargetRef
+	// TargetContainer names the scroll-listener container.
+	TargetContainer TargetRef
+	// PopupMatchWidth forces dropdown layers to match trigger width.
+	// Nil means follow the component default.
+	PopupMatchWidth *bool
+	// PopupOverflow selects the popup overflow behavior.
+	PopupOverflow OverflowMode
+	// RenderEmpty renders the empty placeholder for a component.
+	RenderEmpty EmptyFn
+	// HolderRender renders static-call holder content.
+	HolderRender HolderFn
+	// Variant selects the global input look.
+	Variant VariantType
+}
+    Ctx is the value threaded through Build/Layout/Paint. Every field has a
+    default (see DefaultCtx); consumers subscribe by aspect and only re-resolve
+    when a subscribed aspect changes.
+
+func DefaultCtx() Ctx
+    DefaultCtx returns the F0-1 default context: default light seed, medium
+    size, LTR, motion on, zh-CN locale, viewport overflow, outlined inputs,
+    and the built-in empty/holder renders.
+
+func (c Ctx) Normalize() Ctx
+    Normalize fills missing values with the F0-1 defaults so a partially built
+    Ctx still behaves like DefaultCtx.
+
+func (c Ctx) WithDir(d Direction) Ctx
+    WithDir returns a copy with the base direction replaced.
+
+func (c Ctx) WithDisabled(disabled bool) Ctx
+    WithDisabled returns a copy with the subtree disabled flag replaced.
+
+func (c Ctx) WithHolderRender(fn HolderFn) Ctx
+    WithHolderRender returns a copy with the holder render replaced.
+
+func (c Ctx) WithLocale(locale string) Ctx
+    WithLocale returns a copy with the locale replaced.
+
+func (c Ctx) WithMotion(m MotionConfig) Ctx
+    WithMotion returns a copy with the motion config replaced.
+
+func (c Ctx) WithPopupContainer(ref TargetRef) Ctx
+    WithPopupContainer returns a copy with the mount point replaced.
+
+func (c Ctx) WithPopupMatchWidth(match *bool) Ctx
+    WithPopupMatchWidth returns a copy with the match-width flag replaced.
+
+func (c Ctx) WithPopupOverflow(mode OverflowMode) Ctx
+    WithPopupOverflow returns a copy with the overflow mode replaced.
+
+func (c Ctx) WithRenderEmpty(fn EmptyFn) Ctx
+    WithRenderEmpty returns a copy with the empty render replaced.
+
+func (c Ctx) WithSize(s SizeType) Ctx
+    WithSize returns a copy with the size tier replaced.
+
+func (c Ctx) WithTargetContainer(ref TargetRef) Ctx
+    WithTargetContainer returns a copy with the scroll container replaced.
+
+func (c Ctx) WithTheme(t theme.Tokens) Ctx
+    WithTheme returns a copy with the token tables replaced.
+
+func (c Ctx) WithVariant(v VariantType) Ctx
+    WithVariant returns a copy with the global input look replaced.
+
+type Direction string
+    Direction selects the inline base direction.
+
+const (
+	// DirLTR lays out left to right.
+	DirLTR Direction = "ltr"
+	// DirRTL lays out right to left.
+	DirRTL Direction = "rtl"
+)
+type DisabledFirstResolver[T any] struct {
+	Disabled T
+	Rest     StateResolver[T]
+}
+    DisabledFirstResolver picks Disabled whenever the disabled bit is set,
+    otherwise it delegates. This keeps the disabled look from leaking
+    hover/pressed colors.
+
+func (r DisabledFirstResolver[T]) Resolve(s WidgetState) T
+    Resolve returns Disabled when StateDisabled is set.
+
+type EmptyFn func(componentName string) string
+    EmptyFn renders the empty placeholder for a named component.
+
+type FocusRing struct {
+	// Width is the outline width in logical pixels.
+	Width float64
+	// Color is the outline color (seed primary border).
+	Color theme.Color
+	// Offset is the outline offset in logical pixels.
+	Offset float64
+}
+    FocusRing is the library-wide keyboard focus outline: 3px wide in the
+    primary border color, offset by 1, shown for keyboard focus only and never
+    while disabled.
+
+func ResolveFocusRing(seed theme.Tokens) FocusRing
+    ResolveFocusRing derives the focus ring from the seed tokens: width 3,
+    primary border color, offset 1.
+
+type HolderFn func(kind string) string
+    HolderFn renders static-call content (message/modal/notice holders).
+
+type MapResolver[T any] struct {
+	Values  map[WidgetState]T
+	Default T
+}
+    MapResolver looks up each state exactly. Missing states fall back to
+    Default, so tables stay total even when a caller forgets a row.
+
+func (r MapResolver[T]) Resolve(s WidgetState) T
+    Resolve returns the table entry or Default when absent.
+
+type MotionConfig struct {
+	// Enabled is the explicit motion switch (ConfigProvider motion).
+	Enabled bool
+	// ReducedMotion mirrors the OS reduced-motion preference.
+	ReducedMotion bool
+}
+    MotionConfig carries the motion master switch plus the system reduced-motion
+    preference. MotionEnabled reports whether animated effects may run.
+
+func DefaultMotionConfig() MotionConfig
+    DefaultMotionConfig is the F0-1 default: motion on, no reduced-motion
+    preference asserted.
+
+func (m MotionConfig) MotionEnabled() bool
+    MotionEnabled reports whether animated effects may run.
+
+type OverflowMode string
+    OverflowMode selects how a popup layer handles viewport overflow.
+
+const (
+	// OverflowViewport clips and flips inside the viewport.
+	OverflowViewport OverflowMode = "viewport"
+	// OverflowScroll lets the layer scroll with its container.
+	OverflowScroll OverflowMode = "scroll"
+)
+type ResolvePriority int
+    ResolvePriority names the three-level token merge order. Larger values win:
+    an explicit call-site value beats the Ctx component theme, which beats the
+    global seed default.
+
+const (
+	// PrioritySeed is the global seed default (lowest).
+	PrioritySeed ResolvePriority = iota
+	// PriorityTheme is the Ctx component theme.
+	PriorityTheme
+	// PriorityProps is the explicit call-site value (highest).
+	PriorityProps
+)
+func Merged(props, ctheme, seed string) (value string, from ResolvePriority)
+    Merged resolves one token through the three levels. Explicit wins:
+    a non-empty props value beats the theme value, which beats the seed default.
+    Empty means "not set at this level".
+
+type SizeType string
+    SizeType selects the global control-size tier.
+
+const (
+	// SizeSmall is the compact tier.
+	SizeSmall SizeType = "small"
+	// SizeMedium is the default tier.
+	SizeMedium SizeType = "medium"
+	// SizeLarge is the roomy tier.
+	SizeLarge SizeType = "large"
+)
+type StateResolver[T any] interface {
+	Resolve(s WidgetState) T
+}
+    StateResolver maps the current WidgetState to one value, mirroring the
+    WidgetStateProperty. Render code calls Resolve instead of branching on
+    hover/pressed/focused inline.
+
+type StateResolverFunc[T any] func(WidgetState) T
+    StateResolverFunc adapts a plain function to StateResolver.
+
+func (f StateResolverFunc[T]) Resolve(s WidgetState) T
+    Resolve calls the adapted function.
+
+type StaticResolver[T any] struct {
+	Value T
+}
+    StaticResolver always returns the same value.
+
+func (r StaticResolver[T]) Resolve(WidgetState) T
+    Resolve returns the static value.
+
+type TargetRef string
+    TargetRef names the container a floating layer mounts into. Empty means the
+    current position (the antd getPopupContainer default of mounting where the
+    trigger sits).
+
+type VariantType string
+    VariantType selects the global input look.
+
+const (
+	// VariantOutlined draws a border around inputs.
+	VariantOutlined VariantType = "outlined"
+	// VariantFilled draws inputs on a filled background.
+	VariantFilled VariantType = "filled"
+	// VariantBorderless draws inputs without chrome.
+	VariantBorderless VariantType = "borderless"
+)
+type WidgetState uint32
+    WidgetState names the current interaction situation of one mounted instance.
+    States combine as bits; idle is the zero value.
+
+const (
+	// StateHover reports the pointer is over the widget.
+	StateHover WidgetState = 1 << iota
+	// StatePressed reports the widget is held down.
+	StatePressed
+	// StateFocused reports keyboard focus (focus-visible only;
+	// pointer clicks never set it).
+	StateFocused
+	// StateDisabled reports the widget (or its subtree) is disabled.
+	// Disabled swallows events and never shows a focus ring.
+	StateDisabled
+	// StateLoading reports a pending action with spinner state.
+	StateLoading
+	// StateSelected reports a toggled-on state.
+	StateSelected
+	// StateError reports a validation error state.
+	StateError
+)
+func (s WidgetState) Has(want WidgetState) bool
+    Has reports whether all bits in want are set.
+
+func (s WidgetState) With(want WidgetState) WidgetState
+    With returns the state with want bits set.
+
+func (s WidgetState) Without(want WidgetState) WidgetState
+    Without returns the state with want bits cleared.
+

@@ -1,0 +1,78 @@
+package shader // import "github.com/energye/gpui/gpu/shader"
+
+The package provides a simple, high-level API for shader compilation as well as
+lower-level access to individual compilation stages.
+
+Example usage (SPIR-V):
+
+For MSL output, use the msl package:
+
+For GLSL output, use the glsl package:
+
+FUNCTIONS
+
+func Compile(source string) ([]byte, error)
+    Compile compiles WGSL source code to SPIR-V binary using default options.
+
+    This is the simplest way to compile a shader. For more control, use
+    CompileWithOptions or the individual Parse/Lower/Generate functions.
+
+func CompileWithOptions(source string, opts CompileOptions) ([]byte, error)
+    CompileWithOptions compiles WGSL source code to SPIR-V binary with custom
+    options.
+
+    The compilation pipeline is:
+     1. Parse WGSL source to AST
+     2. Lower AST to IR (intermediate representation)
+     3. Validate IR (if enabled)
+     4. Generate SPIR-V binary
+
+func GenerateSPIRV(module *ir.Module, opts spirv.Options) ([]byte, error)
+    GenerateSPIRV generates SPIR-V binary from IR module.
+
+    This is the final stage of compilation. The output is a binary blob that can
+    be directly consumed by Vulkan or other SPIR-V consumers.
+
+func Lower(ast *wgsl.Module) (*ir.Module, error)
+    Lower converts WGSL AST to IR (Intermediate Representation).
+
+    The IR is a lower-level representation that includes type information,
+    resolved identifiers, and a simpler structure suitable for code generation.
+
+func LowerWithSource(ast *wgsl.Module, source string) (*ir.Module, error)
+    LowerWithSource converts WGSL AST to IR, keeping source for error messages.
+
+    When source is provided, errors will include line:column information and can
+    show source context using ErrorList.FormatAll().
+
+func Parse(source string) (*wgsl.Module, error)
+    Parse parses WGSL source code to AST (Abstract Syntax Tree).
+
+    This is the first stage of compilation. The AST represents the syntactic
+    structure of the shader but does not include semantic information like
+    types.
+
+func Validate(module *ir.Module) ([]ir.ValidationError, error)
+    Validate validates an IR module for correctness.
+
+    Returns a slice of validation errors. If the slice is empty, validation
+    passed.
+
+
+TYPES
+
+type CompileOptions struct {
+	// SPIRVVersion is the target SPIR-V version (default: 1.3)
+	SPIRVVersion spirv.Version
+
+	// Debug enables debug info in output (OpName, OpLine, etc.)
+	Debug bool
+
+	// Validate enables IR validation before code generation
+	Validate bool
+}
+    CompileOptions configures shader compilation.
+
+func DefaultOptions() CompileOptions
+    DefaultOptions returns sensible default options.
+

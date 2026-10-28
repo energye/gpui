@@ -1,0 +1,17 @@
+Command ui_wr_r7_virtlist is the W3 R7 real-window: 虚拟化宿主（VirtualList）.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=60 go run ./examples/ui_wr_r7_virtlist
+
+Window: 1200x800. RUN_SECONDS>=60 (U16, §2.5: 关闭 60s/观察 120). GPU window
+required.
+
+Gates (§2 R7 行 + §2.2 全族):
+  - bind_count ≪ item_count: item_count>=1000 且 bind_count<=64 且 bind*10<=item
+  - 滚动/持续 tick 60fps 档: fps_interval>=55 且 interval_p95_ms<=22
+  - 长 soak hitch 预算: hitch_rate_per_min<=5
+  - RSS 斜率预算: rss_slope_kb_per_min<=30000
+  - vsync_source 必须输出（fallback 如实标注，不宣称锁 60Hz）
+
+场景（§2.6）: 1200 项变高异构列表（文字行/色块/图片混排）+ 滚动条指示器 + 右栏静态密集区（4×4 色格 + 标签，嵌套
+boundary）。相位脚本: Steady 慢滚 → Spike 快滑 → Recover 减速，循环往复，到顶/底 ping-pong 反向。

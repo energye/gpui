@@ -1,0 +1,10 @@
+Command ui_pf_wayland is the Wayland real-window full-capability verifier:
+the exact same driver as ui_pf_x11, running on the Wayland backend. Ops the
+protocol forbids (Position/Show/Focus/AlwaysOnTop/…) must return ErrUnsupported
+— a probe that unexpectedly succeeds or fails is a FAIL (honesty contract,
+ENGINE_WINDOW_API.md §2.5.4).
+
+    export WAYLAND_DISPLAY=wayland-0
+    go run ./examples/ui_pf_wayland
+
+Output is a per-capability PASS/FAIL table on stderr (exit != 0 on FAIL).

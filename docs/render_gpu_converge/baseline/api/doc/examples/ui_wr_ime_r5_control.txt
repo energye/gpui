@@ -1,0 +1,5 @@
+Command ui_wr_ime_r5_control is the IME R5 real-window: control & scroll.
+
+Window: 1200x800, 手动关闭（无自动关闭，RunFor=0 无限运行，点 X 关闭）。 最小观察时长
+RUN_SECONDS>=15（滚动 30s，10族全硬，零容忍 hitch/泄露）。 Scenarios (7):
+单行5000横滚、组合期横滚、粘滞列、MaxLines/Ellipsis、占位+禁用、单行拒换行/多行允换行、首帧有内容。

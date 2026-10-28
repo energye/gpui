@@ -1,0 +1,20 @@
+Command game_sprite is the sprite standalone true window (2.1 batch, 2.2 atlas
+rot/tint/flip/pivot/filter, 1.2 depth via R5 branch).
+
+Window: 1200x800, title game_sprite. --case=rot|depth|batch (default all: three
+cards side by side). Offscreen CPU/GPU parity runs before the window opens;
+final offscreen canvas is snapshotted to testdata and compared against the
+frozen golden with zero tolerance.
+
+Modes:
+
+    GOGPU_RENDER_MODE=cpu go run ./examples/engine/sprite --case=all -auto-only
+      short real window (RUN_SECONDS, default 8; JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/sprite --case=rot -manual-seconds 30
+      resident 30s (or until close); true Pointer/Key/Resize events are
+      logged and shown in the title as events=N; summary JSON at the end.
+    go run ./examples/engine/sprite
+      selftest first, then resident until close.
+
+Gate (auto and final): present>=1, parity_changed_pct<=1, probes all pass,
+golden exact (after baseline exists); otherwise exit 1.

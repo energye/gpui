@@ -1,0 +1,26 @@
+Evidence helpers for ui_wr_r11_dpr (R11 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_r11_dpr is the W2 R11 real-window: DPR / size cache invalidation.
+BoundaryCache must drop on programmatic size/DPR change, then re-record exactly
+one wave and return to replay (skip).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_wr_r11_dpr -auto-only
+    go run ./examples/ui_wr_r11_dpr                 # manual: animate until close
+    go run ./examples/ui_wr_r11_dpr -manual-seconds 15
+
+Window: 1200x800. RUN_SECONDS>=5 is the generic floor, but a gate run below 15s
+cannot close R11 (§2.5). GPU window required.
+
+Evidence (U21): logic probes, color/ink probes on the GPU snapshot, and a
+bitwise Golden over header + legend + body (821184 logical px). Gate mode keeps
+the deterministic two-wave script (resize ~3s, cache invalidation ~6s) and only
+freezes the HOT hue (60-tick ramp then hold), so the snapshot shows the final
+re-recorded state bit-stably while the wave counters still gate. Manual mode
+keeps the animated HOT spot and does not assert pixels.

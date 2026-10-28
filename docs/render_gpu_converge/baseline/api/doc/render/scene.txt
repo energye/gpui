@@ -1,0 +1,2316 @@
+package scene // import "github.com/energye/gpui/render/scene"
+
+Package scene provides blend mode integration with internal/blend package.
+
+Package scene provides a retained-mode scene graph encoding system for efficient
+GPU rendering.
+
+The encoding system uses a dual-stream architecture inspired by vello:
+  - A compact tags stream (1 byte per command)
+  - Separate data streams for paths, draws, and transforms
+
+This design is cache-friendly and GPU-ready, minimizing memory bandwidth and
+enabling efficient batched rendering.
+
+CONSTANTS
+
+const (
+	// DefaultMaxSizeMB is the default maximum cache size in megabytes.
+	DefaultMaxSizeMB = 64
+)
+    Default cache configuration constants.
+
+
+VARIABLES
+
+var DefaultPool = NewEncodingPool()
+    DefaultPool is a global encoding pool for convenience. For
+    performance-critical code, consider creating dedicated pools.
+
+
+FUNCTIONS
+
+func CanUseGPU() bool
+    CanUseGPU returns true if a GPU accelerator is registered and can render
+    directly. This is used by scene.Renderer to auto-select the GPU path when
+    available.
+
+func PutEncoding(enc *Encoding)
+    PutEncoding returns an encoding to the default pool.
+
+func TextAdvance(glyphs []*RenderedGlyph) float32
+    TextAdvance returns the total advance width of rendered glyphs.
+
+
+TYPES
+
+type Affine struct {
+	A, B, C float32
+	D, E, F float32
+}
+    Affine represents a 2D affine transformation matrix. The matrix is stored in
+    row-major order as:
+
+        | A B C |
+        | D E F |
+
+    Where a point (x, y) is transformed to:
+
+        x' = A*x + B*y + C
+        y' = D*x + E*y + F
+
+func AffineFromMatrix(m render.Matrix) Affine
+    AffineFromMatrix converts a render.Matrix to an Affine.
+
+func IdentityAffine() Affine
+    IdentityAffine returns the identity transformation.
+
+func NewAffine(a, b, c, d, e, f float32) Affine
+    NewAffine creates an affine transformation from individual matrix
+    components.
+
+        | a b c |
+        | d e f |
+
+func RotateAffine(angle float32) Affine
+    RotateAffine creates a rotation transformation (angle in radians).
+
+func ScaleAffine(x, y float32) Affine
+    ScaleAffine creates a scaling transformation.
+
+func TranslateAffine(x, y float32) Affine
+    TranslateAffine creates a translation transformation.
+
+func (a Affine) IsIdentity() bool
+    IsIdentity returns true if this is the identity transformation.
+
+func (a Affine) Multiply(b Affine) Affine
+    Multiply returns the product of two affine transformations.
+
+func (a Affine) TransformPoint(x, y float32) (float32, float32)
+    TransformPoint transforms a point by the affine matrix.
+
+type ArcShape struct {
+	CX, CY         float32 // Center
+	RX, RY         float32 // Radii
+	StartAngle     float32 // Start angle in radians
+	EndAngle       float32 // End angle in radians
+	SweepClockwise bool    // Direction
+}
+    ArcShape represents an arc (portion of an ellipse outline).
+
+func NewArcShape(cx, cy, rx, ry, startAngle, endAngle float32, sweepClockwise bool) *ArcShape
+    NewArcShape creates a new arc shape.
+
+func (a *ArcShape) Bounds() Rect
+    Bounds returns a conservative bounding rectangle.
+
+func (a *ArcShape) ToPath() *Path
+    ToPath converts the arc to a Path.
+
+type BlendMode uint32
+    BlendMode represents a compositing blend mode.
+
+const (
+	BlendNormal BlendMode = iota
+	BlendMultiply
+	BlendScreen
+	BlendOverlay
+	BlendDarken
+	BlendLighten
+	BlendColorDodge
+	BlendColorBurn
+	BlendHardLight
+	BlendSoftLight
+	BlendDifference
+	BlendExclusion
+	BlendHue
+	BlendSaturation
+	BlendColor
+	BlendLuminosity
+	// Porter-Duff modes
+	BlendClear
+	BlendCopy
+	BlendDestination
+	BlendSourceOver
+	BlendDestinationOver
+	BlendSourceIn
+	BlendDestinationIn
+	BlendSourceOut
+	BlendDestinationOut
+	BlendSourceAtop
+	BlendDestinationAtop
+	BlendXor
+	BlendPlus
+)
+    Blend mode constants following Porter-Duff and advanced blend modes.
+
+func AdvancedModes() []BlendMode
+    AdvancedModes returns a slice of advanced separable blend modes.
+
+func AllBlendModes() []BlendMode
+    AllBlendModes returns a slice of all supported blend modes. This is useful
+    for testing and iteration.
+
+func BlendModeFromInternal(internal blend.BlendMode) BlendMode
+    BlendModeFromInternal converts an internal blend.BlendMode to
+    scene.BlendMode. This is the reverse mapping for cases where you need to
+    convert from internal representation back to the scene graph representation.
+
+func HSLModes() []BlendMode
+    HSLModes returns a slice of HSL-based non-separable blend modes.
+
+func PaintBlendModeToScene(mode render.BlendMode) BlendMode
+    PaintBlendModeToScene converts a paint-level render.BlendMode to
+    scene.BlendMode.
+
+func PorterDuffModes() []BlendMode
+    PorterDuffModes returns a slice of Porter-Duff compositing modes.
+
+func (mode BlendMode) GetBlendFunc() blend.BlendFunc
+    GetBlendFunc returns the internal blend function for this mode.
+    This is a convenience method that combines ToInternalBlendMode with
+    blend.GetBlendFunc.
+
+    Usage:
+
+        blendFn := scene.BlendMultiply.GetBlendFunc()
+        r, g, b, a := blendFn(sr, sg, sb, sa, dr, dg, db, da)
+
+func (mode BlendMode) IsAdvanced() bool
+    IsAdvanced returns true if this is an advanced separable blend mode.
+
+func (mode BlendMode) IsHSL() bool
+    IsHSL returns true if this is an HSL-based non-separable blend mode.
+
+func (mode BlendMode) IsPorterDuff() bool
+    IsPorterDuff returns true if this is a Porter-Duff compositing mode.
+
+func (mode BlendMode) String() string
+    String returns a human-readable name for the blend mode.
+
+func (mode BlendMode) ToInternalBlendMode() blend.BlendMode
+    ToInternalBlendMode converts scene.BlendMode to internal blend.BlendMode.
+    This provides the mapping between the scene graph blend modes and the
+    low-level pixel blending implementation.
+
+    The internal blend.BlendMode uses a different enumeration order, so this
+    function provides the translation.
+
+func (mode BlendMode) ToPaintBlendMode() render.BlendMode
+    ToPaintBlendMode converts scene.BlendMode (wire/shader encoding) to the
+    canonical paint-level render.BlendMode used by render.Context.
+
+    scene and paint enums share names but NOT numeric values past the first few
+    modes — never cast with render.BlendMode(sceneMode).
+
+type Brush struct {
+	Kind  BrushKind
+	Color render.RGBA // For solid brushes
+
+}
+    Brush represents a paint source for fill/stroke operations.
+
+func SolidBrush(c render.RGBA) Brush
+    SolidBrush creates a solid color brush.
+
+type BrushKind uint32
+    BrushKind identifies the type of brush.
+
+const (
+	BrushSolid BrushKind = iota
+	BrushLinearGradient
+	BrushRadialGradient
+	BrushImage
+)
+type CacheEntry struct {
+	// Has unexported fields.
+}
+    CacheEntry represents a single cached pixmap with metadata.
+
+type CacheStats struct {
+	// Size is the current memory usage in bytes.
+	Size int64
+	// MaxSize is the memory budget in bytes.
+	MaxSize int64
+	// Entries is the number of cached entries.
+	Entries int
+	// Hits is the number of cache hits.
+	Hits uint64
+	// Misses is the number of cache misses.
+	Misses uint64
+	// HitRate is the cache hit rate (0.0 to 1.0).
+	HitRate float64
+	// Evictions is the number of entries evicted.
+	Evictions uint64
+}
+    CacheStats contains cache statistics for monitoring.
+
+type CircleShape struct {
+	CX, CY float32 // Center
+	R      float32 // Radius
+}
+    CircleShape represents a circle.
+
+func NewCircleShape(cx, cy, r float32) *CircleShape
+    NewCircleShape creates a new circle shape.
+
+func (c *CircleShape) Bounds() Rect
+    Bounds returns the bounding rectangle.
+
+func (c *CircleShape) BuildPathInto(p *Path)
+    BuildPathInto builds the circle path into an existing Path.
+
+func (c *CircleShape) Contains(px, py float32) bool
+    Contains returns true if the point (px, py) is inside the circle.
+
+func (c *CircleShape) ToPath() *Path
+    ToPath converts the circle to a Path.
+
+type ClipStack struct {
+	// Has unexported fields.
+}
+    ClipStack manages a stack of clip regions.
+
+func NewClipStack() *ClipStack
+    NewClipStack creates a new empty clip stack.
+
+func (s *ClipStack) CombinedBounds() Rect
+    CombinedBounds returns the intersection of all clip bounds. Returns an empty
+    rect if any clip is empty.
+
+func (s *ClipStack) Contains(x, y float32) bool
+    Contains returns true if the point is inside all clip regions.
+
+func (s *ClipStack) Depth() int
+    Depth returns the current stack depth.
+
+func (s *ClipStack) Intersects(r Rect) bool
+    Intersects returns true if the rectangle intersects all clip regions.
+
+func (s *ClipStack) IsEmpty() bool
+    IsEmpty returns true if there are no clips on the stack.
+
+func (s *ClipStack) Pop() *ClipState
+    Pop removes and returns the top clip region.
+
+func (s *ClipStack) Push(clip *ClipState)
+    Push adds a clip region to the stack.
+
+func (s *ClipStack) Reset()
+    Reset clears the clip stack.
+
+func (s *ClipStack) Top() *ClipState
+    Top returns the current clip region without removing it.
+
+type ClipState struct {
+	// Shape is the clip shape
+	Shape Shape
+
+	// Bounds is the clip bounds (for quick rejection)
+	Bounds Rect
+
+	// Transform is the transform that was active when clip was pushed
+	Transform Affine
+}
+    ClipState represents a clip region on the clip stack.
+
+func NewClipState(shape Shape, transform Affine) *ClipState
+    NewClipState creates a new clip state.
+
+func (cs *ClipState) Contains(x, y float32) bool
+    Contains returns true if the point is inside the clip region. This is a
+    conservative test using the bounding box.
+
+func (cs *ClipState) Intersects(r Rect) bool
+    Intersects returns true if the rectangle intersects the clip region. This is
+    a conservative test using bounding boxes.
+
+type CompositeShape struct {
+	// Has unexported fields.
+}
+    CompositeShape combines multiple shapes into one.
+
+func NewCompositeShape(shapes ...Shape) *CompositeShape
+    NewCompositeShape creates a new composite shape.
+
+func (cs *CompositeShape) AddShape(shape Shape)
+    AddShape adds a shape to the composite.
+
+func (cs *CompositeShape) Bounds() Rect
+    Bounds returns the union of all shape bounds.
+
+func (cs *CompositeShape) ShapeCount() int
+    ShapeCount returns the number of shapes in the composite.
+
+func (cs *CompositeShape) ToPath() *Path
+    ToPath converts all shapes to a single Path.
+
+type DamageTracker struct {
+	// Has unexported fields.
+}
+    DamageTracker computes the minimal dirty region between frames by comparing
+    per-object bounding boxes. This is Level 1 of the four-level damage pipeline
+    (ADR-021): Object Diff → Tile Dirty → GPU Scissor → OS Present.
+
+    Usage:
+
+        tracker := NewDamageTracker()
+        // Each frame:
+        damage := tracker.ComputeDamage(scene.TaggedBounds())
+        if !damage.Empty() {
+            renderer.dirty.MarkRect(damage)
+            renderer.RenderDirty(target, scene)
+        }
+
+func NewDamageTracker() *DamageTracker
+    NewDamageTracker creates a new damage tracker.
+
+func (dt *DamageTracker) ComputeDamage(objects []TaggedBounds) image.Rectangle
+    ComputeDamage compares current frame's objects with previous frame's,
+    returning the union of all changed/added/removed bounding boxes.
+
+    Returns image.Rectangle{} (zero rect) if nothing changed. Returns full scene
+    bounds on first frame (must render everything).
+
+    The algorithm is O(N) where N = max(current objects, previous objects).
+
+func (dt *DamageTracker) IsFirstRender() bool
+    IsFirstRender returns true if RenderWithDamage hasn't rendered a frame yet.
+
+func (dt *DamageTracker) MarkRendered()
+    MarkRendered records that the first full render has completed.
+
+func (dt *DamageTracker) Reset()
+    Reset clears all tracked state. Next ComputeDamage will be treated as first
+    frame.
+
+type Decoder struct {
+	// Has unexported fields.
+}
+    Decoder provides sequential decoding of an Encoding's command stream.
+    It tracks position indices across all data streams (tags, paths, draws,
+    transforms) and provides methods to read each command type's associated
+    data.
+
+    The decoder is designed for efficient rendering playback, supporting both
+    full traversal and selective decoding for tile-based rendering.
+
+    Example usage:
+
+        dec := NewDecoder(encoding)
+        for dec.Next() {
+            switch dec.Tag() {
+            case TagMoveTo:
+                x, y := dec.MoveTo()
+                // handle move
+            case TagLineTo:
+                x, y := dec.LineTo()
+                // handle line
+            case TagFill:
+                brush, style := dec.Fill()
+                // handle fill
+            }
+        }
+
+func NewDecoder(enc *Encoding) *Decoder
+    NewDecoder creates a new decoder for the given encoding. Returns nil if
+    encoding is nil.
+
+func (d *Decoder) AntiAlias() bool
+    AntiAlias reads the current SetAntiAlias command data. Returns true if
+    anti-aliasing is enabled, false if disabled. Only valid when Tag() ==
+    TagSetAntiAlias.
+
+func (d *Decoder) Brush() (r, g, b, a float32)
+    Brush reads the current Brush command data. Returns the RGBA color values.
+    Only valid when Tag() == TagBrush.
+
+func (d *Decoder) CollectPath() *Path
+    CollectPath collects all path commands until EndPath into a new Path.
+    Returns the collected path. The decoder is advanced past the path data.
+    Returns nil if not currently at the start of a path.
+
+func (d *Decoder) CubicTo() (c1x, c1y, c2x, c2y, x, y float32)
+    CubicTo reads the current CubicTo command data. Returns control point 1
+    (c1x, c1y), control point 2 (c2x, c2y), and destination (x, y). Only valid
+    when Tag() == TagCubicTo.
+
+func (d *Decoder) Encoding() *Encoding
+    Encoding returns the encoding being decoded.
+
+func (d *Decoder) Fill() (brush Brush, style FillStyle)
+    Fill reads the current Fill command data. Returns the brush and fill style.
+    Only valid when Tag() == TagFill.
+
+func (d *Decoder) FillRoundRect() (brush Brush, style FillStyle, rect Rect, rx, ry float32)
+    FillRoundRect reads the current FillRoundRect command data. Returns the
+    brush, fill style, bounding rectangle, and corner radii. Only valid when
+    Tag() == TagFillRoundRect.
+
+func (d *Decoder) HasMore() bool
+    HasMore returns true if there are more commands to decode.
+
+func (d *Decoder) Image() (imageIndex uint32, transform Affine)
+    Image reads the current Image command data. Returns the image index and
+    transform. Only valid when Tag() == TagImage.
+
+func (d *Decoder) LineTo() (x, y float32)
+    LineTo reads the current LineTo command data. Returns the destination point
+    (x, y). Only valid when Tag() == TagLineTo.
+
+func (d *Decoder) MoveTo() (x, y float32)
+    MoveTo reads the current MoveTo command data. Returns the destination point
+    (x, y). Only valid when Tag() == TagMoveTo.
+
+func (d *Decoder) Next() bool
+    Next advances to the next command in the stream. Returns true if there is
+    another command, false when iteration is complete. After calling Next,
+    use Tag() to get the current command type, then call the appropriate method
+    (MoveTo, LineTo, Fill, etc.) to get the data.
+
+func (d *Decoder) Peek() Tag
+    Peek returns the next tag without advancing the decoder. Returns 0 if at end
+    of stream.
+
+func (d *Decoder) Position() int
+    Position returns the current position in the tag stream.
+
+func (d *Decoder) PushLayer() (blend BlendMode, alpha float32)
+    PushLayer reads the current PushLayer command data. Returns the blend mode
+    and alpha value. Only valid when Tag() == TagPushLayer.
+
+func (d *Decoder) QuadTo() (cx, cy, x, y float32)
+    QuadTo reads the current QuadTo command data. Returns the control point (cx,
+    cy) and destination point (x, y). Only valid when Tag() == TagQuadTo.
+
+func (d *Decoder) Reset(enc *Encoding)
+    Reset resets the decoder to the beginning of the encoding. This allows
+    reusing the decoder for multiple passes.
+
+func (d *Decoder) SkipPath()
+    SkipPath advances past all path commands until EndPath is found. This is
+    useful for quickly skipping paths that are outside the clip region.
+
+func (d *Decoder) Stroke() (brush Brush, style *StrokeStyle)
+    Stroke reads the current Stroke command data. Returns the brush and stroke
+    style. Only valid when Tag() == TagStroke.
+
+func (d *Decoder) Tag() Tag
+    Tag returns the current command tag. Call this after Next() returns true to
+    determine which data method to call.
+
+func (d *Decoder) Text() (run GlyphRunData, glyphs []GlyphEntry, str string, brush Brush)
+    Text reads the current TagText command data. Returns the glyph run header,
+    glyph entries, original text string, and the brush. Only valid when Tag() ==
+    TagText.
+
+func (d *Decoder) Transform() Affine
+    Transform reads the current Transform command data. Returns the affine
+    transformation matrix. Only valid when Tag() == TagTransform.
+
+type EllipseShape struct {
+	CX, CY float32 // Center
+	RX, RY float32 // Radii
+}
+    EllipseShape represents an axis-aligned ellipse.
+
+func NewEllipseShape(cx, cy, rx, ry float32) *EllipseShape
+    NewEllipseShape creates a new ellipse shape.
+
+func (e *EllipseShape) Bounds() Rect
+    Bounds returns the bounding rectangle.
+
+func (e *EllipseShape) BuildPathInto(p *Path)
+    BuildPathInto builds the ellipse path into an existing Path.
+
+func (e *EllipseShape) Contains(px, py float32) bool
+    Contains returns true if the point (px, py) is inside the ellipse.
+
+func (e *EllipseShape) ToPath() *Path
+    ToPath converts the ellipse to a Path.
+
+type Encoding struct {
+	// Has unexported fields.
+}
+    Encoding holds the dual-stream encoded representation of drawing commands.
+    It uses separate streams for tags (1 byte each), path data, draw data,
+    and transforms to maximize cache efficiency and GPU compatibility.
+
+func GetEncoding() *Encoding
+    GetEncoding retrieves an encoding from the default pool.
+
+func NewEncoding() *Encoding
+    NewEncoding creates a new empty encoding.
+
+func (e *Encoding) Append(other *Encoding)
+    Append merges another encoding into this one. The other encoding's content
+    is appended after the current content. Append merges another Encoding
+    into this one, adjusting brush indices. For scene-level merging with image
+    registry offset, use AppendWithImages.
+
+func (e *Encoding) AppendWithImages(other *Encoding, imageOffset uint32)
+    AppendWithImages merges another Encoding into this one, adjusting both brush
+    indices and image indices by their respective offsets. imageOffset is the
+    number of images already registered in the target scene; it shifts TagImage
+    drawData entries so they reference the correct images after merging two
+    image registries.
+
+func (e *Encoding) AppendWithTranslation(other *Encoding, dx, dy float32, imageOffset uint32)
+    AppendWithTranslation merges another encoding with a translation offset
+    applied to all path coordinates.
+
+    Architecture: pathData coordinate offset approach.
+
+    Our SceneCanvas pre-bakes absolute coordinates via applyTransform() and
+    records Identity transforms in the encoding. This differs from Vello where
+    paths stay in local coordinates and the transform stream carries the full
+    transformation (Vello composes transforms at append: parent * child).
+
+    Because our pathData already contains absolute coordinates with Identity
+    transforms, the correct offset strategy is:
+
+      - pathData: offset all coordinate float32 values by (dx, dy)
+      - transforms: copy VERBATIM (they are Identity; composing translation
+        would cause double-offset since the renderer applies transforms to
+        already-offset pathData coordinates)
+
+    Alternative approaches considered:
+
+      - Vello pattern (transform composition only): multiply each child
+        transform by TranslateAffine(dx, dy). Does NOT work with our pre-baked
+        coordinate architecture — coordinates would stay at (0,0) since
+        transforms are Identity.
+
+      - Skia/Flutter pattern (replay-time canvas transform): wrap replay in
+        Push/Translate/Pop on the target canvas. Works with render.Canvas (used
+        by current desktop compositor) but NOT with SceneCanvas (Scene.Append
+        has no canvas context).
+
+      - Migrate to Vello architecture: stop pre-baking coordinates, record
+        transforms in encoding, compose at append. Correct long-term but
+        requires rewriting SceneCanvas coordinate handling.
+
+    Tag exhaustiveness: every Tag that consumes pathData floats MUST have a case
+    in the switch below. Adding a new tag with pathData without updating this
+    switch will cause silent coordinate corruption. The default case handles
+    tags with zero pathData/drawData (markers, clip, pop).
+
+func (e *Encoding) Bounds() Rect
+    Bounds returns the cumulative bounding box of all encoded content.
+
+func (e *Encoding) Brushes() []Brush
+    Brushes returns the brush definitions.
+
+func (e *Encoding) Capacity() int
+    Capacity returns the total allocated capacity in bytes.
+
+func (e *Encoding) Clone() *Encoding
+    Clone creates a deep copy of the encoding.
+
+func (e *Encoding) CommandBounds() []TaggedBounds
+    CommandBounds returns per-draw-command bounding boxes as TaggedBounds.
+    The command index serves as a stable ID — valid when scene is built in the
+    same order each frame (standard immediate-mode pattern).
+
+func (e *Encoding) DrawData() []uint32
+    DrawData returns the draw data stream.
+
+func (e *Encoding) EncodeAntiAlias(enabled bool)
+    EncodeAntiAlias adds an anti-aliasing state change command. The value is
+    stored as 1 uint32 in drawData (0 = disabled, 1 = enabled).
+
+func (e *Encoding) EncodeBeginClip()
+    EncodeBeginClip begins a clipping region.
+
+func (e *Encoding) EncodeBrush(brush Brush) int
+    EncodeBrush encodes a brush definition.
+
+func (e *Encoding) EncodeDrawTransform(t Affine)
+    EncodeDrawTransform emits the transform a draw command depends on, skipping
+    the TagTransform only when the stream is already in that state.
+
+    TagTransform is stateful in both decoders (GPU SetTransform,
+    CPU currentTransform). Skipping identity transforms without tracking
+    the previous value made every command after a transformed draw inherit
+    the rotation/translation, which moved clips and fills off their intended
+    positions.
+
+func (e *Encoding) EncodeEndClip()
+    EncodeEndClip ends the current clipping region.
+
+func (e *Encoding) EncodeFill(brush Brush, style FillStyle)
+    EncodeFill adds a fill command with the given brush and fill style.
+
+func (e *Encoding) EncodeFillRoundRect(brush Brush, style FillStyle, rect Rect, rx, ry float32)
+    EncodeFillRoundRect adds a rounded rectangle fill command using SDF
+    rendering. This bypasses path encoding entirely, storing the rectangle
+    geometry directly in the data streams for dedicated SDF per-pixel rendering
+    in the tile renderer.
+
+func (e *Encoding) EncodeImage(imageIndex uint32, transform Affine)
+    EncodeImage encodes an image reference.
+
+func (e *Encoding) EncodePath(p *render.Path)
+    EncodePath encodes a complete path from a render.Path.
+
+func (e *Encoding) EncodePopLayer()
+    EncodePopLayer pops the current compositing layer.
+
+func (e *Encoding) EncodePushLayer(blend BlendMode, alpha float32)
+    EncodePushLayer pushes a new compositing layer.
+
+func (e *Encoding) EncodeStroke(brush Brush, style *StrokeStyle)
+    EncodeStroke adds a stroke command with the given brush and stroke style.
+
+func (e *Encoding) EncodeText(run GlyphRunData, glyphs []GlyphEntry, str string)
+    EncodeText encodes a pre-shaped text run as a TagText command. The glyph run
+    header, glyph entries, and original text are serialized into the textData
+    stream.
+
+func (e *Encoding) EncodeTransform(t Affine)
+    EncodeTransform adds a transform command and records it as the stream's
+    current transform state.
+
+func (e *Encoding) EncodeTransformFromMatrix(m render.Matrix)
+    EncodeTransformFromMatrix adds a transform from a render.Matrix.
+
+func (e *Encoding) Hash() uint64
+    Hash computes a 64-bit FNV-1a hash of the encoding for cache keys. The hash
+    includes all stream data to ensure uniqueness.
+
+func (e *Encoding) IsEmpty() bool
+    IsEmpty returns true if the encoding contains no commands.
+
+func (e *Encoding) NewIterator() *Iterator
+    NewIterator creates an iterator for the encoding.
+
+func (e *Encoding) PathCount() int
+    PathCount returns the number of paths encoded.
+
+func (e *Encoding) PathData() []float32
+    PathData returns the path data stream.
+
+func (e *Encoding) RecordCommandBounds(bounds Rect)
+    RecordCommandBounds stores the bounding box for the current draw command.
+    Called by Scene after each Fill/Stroke/DrawImage with the transformed shape
+    bounds. Used by DamageTracker (ADR-021) for frame-to-frame object diff.
+
+func (e *Encoding) Reset()
+    Reset clears the encoding for reuse without deallocating memory. This is the
+    key method for zero-allocation pooling.
+
+func (e *Encoding) ShapeCount() int
+    ShapeCount returns the number of shapes (fills + strokes) encoded.
+
+func (e *Encoding) Size() int
+    Size returns the approximate memory size in bytes.
+
+func (e *Encoding) Tags() []Tag
+    Tags returns the tag stream (read-only access for iteration).
+
+func (e *Encoding) TextData() []byte
+    TextData returns the text data stream.
+
+func (e *Encoding) Transforms() []Affine
+    Transforms returns the transform stream.
+
+func (e *Encoding) UpdateBounds(bounds Rect)
+    UpdateBounds expands the encoding's bounding box to include the given rect.
+    This is used to propagate transformed bounds from Scene to Encoding,
+    ensuring that the tile-based renderer's early-out intersection test uses
+    correct post-transform coordinates.
+
+type EncodingPool struct {
+	// Has unexported fields.
+}
+    EncodingPool manages a pool of reusable Encoding objects. After warmup,
+    allocations are minimized by reusing encodings.
+
+    Usage:
+
+        pool := NewEncodingPool()
+        enc := pool.Get()
+        defer pool.Put(enc)
+        // use enc...
+
+func NewEncodingPool() *EncodingPool
+    NewEncodingPool creates a new encoding pool.
+
+func (p *EncodingPool) Get() *Encoding
+    Get retrieves an encoding from the pool. The encoding is reset and ready for
+    use.
+
+func (p *EncodingPool) Put(enc *Encoding)
+    Put returns an encoding to the pool for reuse. The encoding will be reset on
+    the next Get.
+
+func (p *EncodingPool) Warmup(count int)
+    Warmup pre-allocates encodings to avoid allocation during critical paths.
+    Call this during initialization if allocation-free operation is required.
+
+type FillStyle uint32
+    FillStyle represents the fill rule for paths.
+
+const (
+	// FillNonZero uses the non-zero winding rule.
+	FillNonZero FillStyle = 0
+	// FillEvenOdd uses the even-odd rule.
+	FillEvenOdd FillStyle = 1
+)
+type Filter interface {
+	// Apply processes src pixmap and writes result to dst.
+	// bounds specifies the affected region in pixel coordinates.
+	// The filter may read pixels outside bounds but only writes within bounds.
+	Apply(src, dst *render.Pixmap, bounds Rect)
+
+	// ExpandBounds returns the expanded bounds after filter application.
+	// This is used for buffer allocation:
+	// - Blur expands by radius in all directions
+	// - Shadow expands by offset + blur radius
+	// - Color matrix does not expand
+	ExpandBounds(input Rect) Rect
+}
+    Filter applies visual effects to rendered layers. Filters are applied during
+    layer pop when LayerFiltered is used.
+
+    The filter interface supports both in-place and copy operations: - If src ==
+    dst, the filter operates in-place when possible - Some filters (like blur)
+    may require temporary buffers internally
+
+    Bounds handling: - Input bounds specify the region to process - ExpandBounds
+    returns how much the output grows (e.g., blur radius)
+
+type FilterChain struct {
+	// Has unexported fields.
+}
+    FilterChain represents multiple filters applied in sequence. Filters are
+    applied in order from first to last.
+
+func NewFilterChain(filters ...Filter) *FilterChain
+    NewFilterChain creates a new filter chain from the given filters.
+
+func (fc *FilterChain) Add(f Filter)
+    Add appends a filter to the chain.
+
+func (fc *FilterChain) Apply(src, dst *render.Pixmap, bounds Rect)
+    Apply processes src through all filters in sequence. For chains with more
+    than one filter, temporary buffers are used.
+
+func (fc *FilterChain) ExpandBounds(input Rect) Rect
+    ExpandBounds returns the combined expansion of all filters.
+
+func (fc *FilterChain) IsEmpty() bool
+    IsEmpty returns true if the chain has no filters.
+
+func (fc *FilterChain) Len() int
+    Len returns the number of filters in the chain.
+
+type FilterType uint8
+    FilterType identifies the type of filter for serialization and debugging.
+
+const (
+	// FilterNone represents no filter (identity).
+	FilterNone FilterType = iota
+
+	// FilterBlur represents Gaussian blur filter.
+	FilterBlur
+
+	// FilterDropShadow represents drop shadow filter.
+	FilterDropShadow
+
+	// FilterColorMatrix represents color matrix transformation.
+	FilterColorMatrix
+)
+    Filter type constants.
+
+func (ft FilterType) ExpandsOutput() bool
+    ExpandsOutput returns true if this filter type typically expands output
+    bounds.
+
+func (ft FilterType) String() string
+    String returns a human-readable name for the filter type.
+
+type GPUSceneRenderer struct {
+	// Has unexported fields.
+}
+    GPUSceneRenderer provides GPU-accelerated scene rendering by decoding scene
+    commands into render.Context draw calls. The render.Context handles GPU/CPU
+    dispatch automatically via its accelerator system.
+
+    This follows the Vello pattern: scene encoding is stateless, and rendering
+    decodes the encoding atomically into draw calls. The GPU accelerator
+    receives shapes via FillShape/FillPath and flushes them in a single render
+    pass.
+
+    For scenes with simple fill/stroke operations (the common case in UI
+    rendering), this provides a direct GPU path that avoids the tile-based CPU
+    decomposition in scene.Renderer.
+
+    Usage:
+
+        gpuR := scene.NewGPUSceneRenderer(dc)
+        err := gpuR.RenderScene(myScene)
+
+func NewGPUSceneRenderer(dc *render.Context) *GPUSceneRenderer
+    NewGPUSceneRenderer creates a GPU scene renderer that renders through the
+    given render.Context. The context's GPU accelerator (if registered) will
+    handle shape rendering; CPU fallback is automatic.
+
+func (r *GPUSceneRenderer) RenderScene(scene *Scene) error
+    RenderScene decodes scene commands and renders them through the
+    render.Context. The decoder walks the binary encoding tag-by-tag,
+    building paths and dispatching fill/stroke calls that route through the GPU
+    accelerator.
+
+    Transform handling: scene transforms are applied via dc.SetTransform()
+    (direct matrix replacement) instead of dc.Push()/Pop(). This avoids
+    corrupting the clip stack. Push/Pop is reserved for clip and layer
+    boundaries only, ensuring that TagTransform inside a clip region does not
+    accidentally pop the clip's saved state.
+
+    Returns nil if the scene is empty.
+
+type GlyphEntry struct {
+	GlyphID text.GlyphID // uint16
+	X       float32
+	Y       float32
+}
+    GlyphEntry is a single positioned glyph in a text run (10 bytes).
+
+type GlyphRunData struct {
+	FontSourceID uint64
+	FontSize     float32
+	GlyphCount   uint16
+	Flags        TextFlags
+	OriginX      float32
+	OriginY      float32
+	BrushIndex   uint32
+	TextLen      uint16
+}
+    GlyphRunData is the header for a TagText scene encoding element. Followed by
+    GlyphCount × GlyphEntry, then TextLen bytes of UTF-8 text.
+
+type Image struct {
+	// Width is the image width in pixels
+	Width int
+
+	// Height is the image height in pixels
+	Height int
+
+	// Data holds the pixel data (RGBA format)
+	// This will be populated during integration phase
+	Data []byte
+}
+    Image represents an image resource for drawing. This is a placeholder that
+    will be expanded during integration.
+
+func NewImage(width, height int) *Image
+    NewImage creates a new image with the given dimensions.
+
+func (img *Image) Bounds() Rect
+    Bounds returns the image bounds as a Rect.
+
+func (img *Image) IsEmpty() bool
+    IsEmpty returns true if the image has no dimensions.
+
+type Iterator struct {
+	// Has unexported fields.
+}
+    Iterator provides sequential access to encoded commands.
+
+func (it *Iterator) GetBrush(idx uint32) (Brush, bool)
+    GetBrush returns the brush at the given index.
+
+func (it *Iterator) Next() (Tag, bool)
+    Next advances to the next command and returns its tag. Returns false when
+    iteration is complete.
+
+func (it *Iterator) ReadDrawData(n int) []uint32
+    ReadDrawData reads n uint32 values from the draw data stream.
+
+func (it *Iterator) ReadPathData(n int) []float32
+    ReadPathData reads n float32 values from the path data stream.
+
+func (it *Iterator) ReadTransform() (Affine, bool)
+    ReadTransform reads the next transform from the stream.
+
+func (it *Iterator) Reset()
+    Reset resets the iterator to the beginning.
+
+type LayerCache struct {
+	// Has unexported fields.
+}
+    LayerCache provides an LRU cache for rendered layer pixmaps. It is
+    thread-safe and uses atomic counters for statistics.
+
+    The cache evicts least recently used entries when the memory limit is
+    exceeded. Cache entries are keyed by a 64-bit hash computed from the
+    encoding content.
+
+func DefaultLayerCache() *LayerCache
+    DefaultLayerCache creates a new layer cache with the default 64MB limit.
+
+func NewLayerCache(maxSizeMB int) *LayerCache
+    NewLayerCache creates a new layer cache with the specified maximum size.
+    The maxSizeMB parameter sets the memory budget in megabytes.
+
+func (c *LayerCache) Contains(hash uint64) bool
+    Contains checks if an entry with the given hash exists in the cache.
+    This does not update the LRU order.
+
+func (c *LayerCache) EntryCount() int
+    EntryCount returns the number of entries in the cache.
+
+func (c *LayerCache) Get(hash uint64) (*render.Pixmap, bool)
+    Get retrieves a cached pixmap by its hash. Returns the pixmap and true if
+    found, nil and false otherwise. On cache hit, the entry is moved to the
+    front of the LRU list.
+
+func (c *LayerCache) GetVersion(hash uint64) (uint64, bool)
+    GetVersion returns the version of a cached entry if it exists. Returns 0 and
+    false if the entry is not found.
+
+func (c *LayerCache) Invalidate(hash uint64)
+    Invalidate removes a specific entry from the cache by hash.
+
+func (c *LayerCache) InvalidateAll()
+    InvalidateAll clears the entire cache.
+
+func (c *LayerCache) MaxSize() int64
+    MaxSize returns the memory budget in bytes.
+
+func (c *LayerCache) Put(hash uint64, pixmap *render.Pixmap, version uint64)
+    Put stores a pixmap in the cache with the given hash and version. If the
+    cache exceeds its memory budget, least recently used entries are evicted.
+    If an entry with the same hash exists, it is replaced.
+
+func (c *LayerCache) ResetStats()
+    ResetStats resets the hit, miss, and eviction counters to zero.
+
+func (c *LayerCache) SetMaxSize(mb int)
+    SetMaxSize updates the memory budget. If the new budget is smaller than
+    current usage, entries are evicted. The mb parameter is the new budget in
+    megabytes.
+
+func (c *LayerCache) Size() int64
+    Size returns the current memory usage in bytes.
+
+func (c *LayerCache) Stats() CacheStats
+    Stats returns current cache statistics. This operation is lock-free for the
+    atomic counters.
+
+func (c *LayerCache) Trim(targetSize int64)
+    Trim evicts entries until the cache size is at or below the target size.
+    The targetSize parameter is in bytes.
+
+type LayerKind uint8
+    LayerKind identifies the type of compositing layer.
+
+const (
+	// LayerRegular is a normal blend layer with alpha and blend mode.
+	LayerRegular LayerKind = iota
+
+	// LayerFiltered is a layer that will have filter effects applied.
+	// This layer's contents are rendered to an offscreen buffer for processing.
+	LayerFiltered
+
+	// LayerClip is a clip-only layer that masks subsequent content.
+	// No rendering is done to this layer; it only defines a clip region.
+	LayerClip
+)
+    Layer kind constants.
+
+func (k LayerKind) IsClipOnly() bool
+    IsClipOnly returns true if this layer is only for clipping (no rendering).
+
+func (k LayerKind) NeedsOffscreen() bool
+    NeedsOffscreen returns true if this layer kind requires an offscreen buffer.
+
+func (k LayerKind) String() string
+    String returns a human-readable name for the layer kind.
+
+type LayerStack struct {
+	// Has unexported fields.
+}
+    LayerStack manages a stack of active layers. The stack always has at least
+    one layer (the root layer).
+
+func NewLayerStack() *LayerStack
+    NewLayerStack creates a new layer stack with a root layer.
+
+func (s *LayerStack) AcquireLayer() *LayerState
+    AcquireLayer gets a layer from the pool.
+
+func (s *LayerStack) All() []*LayerState
+    All returns all layers in the stack (bottom to top).
+
+func (s *LayerStack) Depth() int
+    Depth returns the current stack depth (1 = only root).
+
+func (s *LayerStack) IsRoot() bool
+    IsRoot returns true if only the root layer is on the stack.
+
+func (s *LayerStack) Pop() *LayerState
+    Pop removes and returns the top layer. Returns nil if only the root layer
+    remains.
+
+func (s *LayerStack) Push(layer *LayerState)
+    Push adds a new layer to the stack.
+
+func (s *LayerStack) ReleaseLayer(layer *LayerState)
+    ReleaseLayer returns a layer to the pool.
+
+func (s *LayerStack) Reset()
+    Reset clears the stack, returning to just the root layer.
+
+func (s *LayerStack) Root() *LayerState
+    Root returns the root (bottom) layer.
+
+func (s *LayerStack) Top() *LayerState
+    Top returns the current (topmost) layer without removing it.
+
+type LayerState struct {
+	// Kind identifies the type of layer
+	Kind LayerKind
+
+	// BlendMode specifies how this layer composites with layers below
+	BlendMode BlendMode
+
+	// Alpha is the layer opacity (0.0 to 1.0)
+	Alpha float32
+
+	// Clip is the optional clip shape for this layer.
+	// If nil, the layer has no clip (infinite bounds).
+	Clip Shape
+
+	// Encoding holds the layer's drawing commands.
+	// This is populated as drawing commands are added to the scene
+	// while this layer is active.
+	Encoding *Encoding
+
+	// Bounds tracks the cumulative bounding box of layer content.
+	// This is updated as content is added.
+	Bounds Rect
+
+	// Transform is the transform active when the layer was pushed.
+	// Used to restore transform state on pop.
+	Transform Affine
+
+	// ClipStackDepth records the clip stack depth when layer was pushed.
+	// Used to restore clip state on pop.
+	ClipStackDepth int
+}
+    LayerState represents the state of an active compositing layer. Each layer
+    has its own encoding for isolated rendering.
+
+func NewClipLayer(clip Shape) *LayerState
+    NewClipLayer creates a new clip-only layer.
+
+func NewFilteredLayer(blend BlendMode, alpha float32) *LayerState
+    NewFilteredLayer creates a new layer for filter effects.
+
+func NewLayerState(kind LayerKind, blend BlendMode, alpha float32) *LayerState
+    NewLayerState creates a new layer state with default values.
+
+func (ls *LayerState) HasClip() bool
+    HasClip returns true if the layer has a clip shape.
+
+func (ls *LayerState) IsEmpty() bool
+    IsEmpty returns true if the layer has no content.
+
+func (ls *LayerState) Reset()
+    Reset clears the layer state for reuse.
+
+func (ls *LayerState) UpdateBounds(r Rect)
+    UpdateBounds expands the layer bounds to include the given rectangle.
+
+type LineCap uint32
+    LineCap represents line endpoint shapes.
+
+const (
+	LineCapButt LineCap = iota
+	LineCapRound
+	LineCapSquare
+)
+type LineJoin uint32
+    LineJoin represents line join shapes.
+
+const (
+	LineJoinMiter LineJoin = iota
+	LineJoinRound
+	LineJoinBevel
+)
+type LineShape struct {
+	X1, Y1 float32 // Start point
+	X2, Y2 float32 // End point
+}
+    LineShape represents a line segment.
+
+func NewLineShape(x1, y1, x2, y2 float32) *LineShape
+    NewLineShape creates a new line shape.
+
+func (l *LineShape) Bounds() Rect
+    Bounds returns the bounding rectangle.
+
+func (l *LineShape) BuildPathInto(p *Path)
+    BuildPathInto builds the line path into an existing Path.
+
+func (l *LineShape) Length() float32
+    Length returns the length of the line segment.
+
+func (l *LineShape) ToPath() *Path
+    ToPath converts the line to a Path.
+
+type Path struct {
+	// Has unexported fields.
+}
+    Path represents a vector path for encoding. It stores path commands (verbs)
+    and coordinate data separately for efficient processing and encoding.
+
+func NewPath() *Path
+    NewPath creates a new empty path.
+
+func (p *Path) Arc(cx, cy, rx, ry, startAngle, endAngle float32, sweepClockwise bool) *Path
+    Arc adds an arc path (portion of an ellipse). The arc is drawn from
+    startAngle to endAngle (in radians). If sweepClockwise is true, the arc is
+    drawn clockwise.
+
+func (p *Path) Bounds() Rect
+    Bounds returns the bounding rectangle of the path. Note: This is a
+    conservative approximation that includes control points.
+
+func (p *Path) Circle(cx, cy, r float32) *Path
+    Circle adds a circle path.
+
+func (p *Path) Clone() *Path
+    Clone creates a deep copy of the path.
+
+func (p *Path) Close() *Path
+    Close closes the current subpath by drawing a line back to its start.
+
+func (p *Path) Contains(px, py float32) bool
+    Contains returns true if the point (px, py) is inside the path. This uses
+    the non-zero winding rule to determine containment. The test is performed
+    by casting a ray from the point to infinity and counting the number of times
+    the path crosses the ray.
+
+func (p *Path) CubicTo(c1x, c1y, c2x, c2y, x, y float32) *Path
+    CubicTo draws a cubic Bezier curve. The curve goes from the current point to
+    (x, y) using (c1x, c1y) and (c2x, c2y) as control points.
+
+func (p *Path) Elements() iter.Seq[PathElement]
+    Elements returns an iterator over all path elements. This uses Go 1.25+
+    iter.Seq for efficient, zero-allocation iteration when used with a for-range
+    loop.
+
+    Example:
+
+        for elem := range path.Elements() {
+            switch elem.Verb {
+            case MoveTo:
+                fmt.Printf("Move to %v\n", elem.Points[0])
+            case LineTo:
+                fmt.Printf("Line to %v\n", elem.Points[0])
+            case QuadTo:
+                fmt.Printf("Quad to %v via %v\n", elem.Points[1], elem.Points[0])
+            case CubicTo:
+                fmt.Printf("Cubic to %v\n", elem.Points[2])
+            case Close:
+                fmt.Println("Close")
+            }
+        }
+
+func (p *Path) ElementsWithCursor() iter.Seq2[Point, PathElement]
+    ElementsWithCursor returns an iterator that includes the current cursor
+    position. This is useful when you need to know the starting point of each
+    segment.
+
+func (p *Path) Ellipse(cx, cy, rx, ry float32) *Path
+    Ellipse adds an ellipse path.
+
+func (p *Path) IsEmpty() bool
+    IsEmpty returns true if the path has no commands.
+
+func (p *Path) LineTo(x, y float32) *Path
+    LineTo draws a line from the current point to (x, y).
+
+func (p *Path) MoveTo(x, y float32) *Path
+    MoveTo begins a new subpath at the specified point.
+
+func (p *Path) PointCount() int
+    PointCount returns the number of float32 values in the point stream.
+
+func (p *Path) Points() []float32
+    Points returns the point data stream.
+
+func (p *Path) QuadTo(cx, cy, x, y float32) *Path
+    QuadTo draws a quadratic Bezier curve. The curve goes from the current point
+    to (x, y) using (cx, cy) as control point.
+
+func (p *Path) Rectangle(x, y, w, h float32) *Path
+    Rectangle adds a rectangle path.
+
+func (p *Path) Reset()
+    Reset clears the path for reuse without deallocating memory.
+
+func (p *Path) Reverse() *Path
+    Reverse returns a new path with the direction reversed. This is useful for
+    creating cut-out shapes.
+
+func (p *Path) RoundedRectangle(x, y, w, h, r float32) *Path
+    RoundedRectangle adds a rounded rectangle path.
+
+func (p *Path) Transform(t Affine) *Path
+    Transform returns a new path with all points transformed by the affine
+    matrix.
+
+func (p *Path) VerbCount() int
+    VerbCount returns the number of verbs in the path.
+
+func (p *Path) Verbs() []PathVerb
+    Verbs returns the verb stream.
+
+type PathBuilder interface {
+	// BuildPathInto resets p and builds the shape's path data into it.
+	BuildPathInto(p *Path)
+}
+    PathBuilder is an optional interface that shapes can implement to build
+    their path into an existing Path object, avoiding allocation of a new Path.
+    Scene.Fill/Stroke check for this interface and use a pooled Path when
+    available.
+
+type PathElement struct {
+	// Verb is the path command type.
+	Verb PathVerb
+
+	// Points contains the coordinates for this element.
+	// The number of points depends on the verb:
+	//   - MoveTo: 1 point (destination)
+	//   - LineTo: 1 point (destination)
+	//   - QuadTo: 2 points (control, destination)
+	//   - CubicTo: 3 points (control1, control2, destination)
+	//   - Close: 0 points
+	Points []Point
+}
+    PathElement represents a single path command with its associated points.
+    This type is used by the Elements() iterator for ergonomic path traversal.
+
+type PathPool struct {
+	// Has unexported fields.
+}
+    PathPool manages a pool of reusable Path objects.
+
+func NewPathPool() *PathPool
+    NewPathPool creates a new path pool.
+
+func (pp *PathPool) Get() *Path
+    Get retrieves a path from the pool or creates a new one.
+
+func (pp *PathPool) Put(p *Path)
+    Put returns a path to the pool for reuse.
+
+type PathShape struct {
+	// Has unexported fields.
+}
+    PathShape wraps a Path as a Shape.
+
+func NewGGPathShape(ggPath *render.Path) *PathShape
+    NewGGPathShape creates a PathShape from a render.Path (float64 → float32
+    conversion). Use this when working with paths from gg APIs (e.g.,
+    render.ParseSVGPath).
+
+func NewPathShape(path *Path) *PathShape
+    NewPathShape creates a new path shape.
+
+func (ps *PathShape) Bounds() Rect
+    Bounds returns the bounding rectangle of the path.
+
+func (ps *PathShape) ToPath() *Path
+    ToPath returns the underlying path.
+
+type PathVerb uint8
+    PathVerb represents a path construction command.
+
+const (
+	// MoveTo moves the current point without drawing.
+	MoveTo PathVerb = iota
+	// LineTo draws a line to the specified point.
+	LineTo
+	// QuadTo draws a quadratic Bezier curve.
+	QuadTo
+	// CubicTo draws a cubic Bezier curve.
+	CubicTo
+	// Close closes the current subpath.
+	Close
+)
+    Path verb constants.
+
+func (v PathVerb) PointCount() int
+    PointCount returns the number of points this verb consumes.
+
+func (v PathVerb) String() string
+    String returns a human-readable name for the verb.
+
+type PieShape struct {
+	CX, CY         float32 // Center
+	R              float32 // Radius
+	StartAngle     float32 // Start angle in radians
+	EndAngle       float32 // End angle in radians
+	SweepClockwise bool    // Direction
+}
+    PieShape represents a pie slice (wedge).
+
+func NewPieShape(cx, cy, r, startAngle, endAngle float32, sweepClockwise bool) *PieShape
+    NewPieShape creates a new pie shape.
+
+func (p *PieShape) Bounds() Rect
+    Bounds returns a conservative bounding rectangle.
+
+func (p *PieShape) ToPath() *Path
+    ToPath converts the pie to a Path.
+
+type Point struct {
+	X, Y float32
+}
+    Point represents a 2D point with float32 coordinates. This is used by
+    PathElement for iterator-based path traversal.
+
+type PolygonShape struct {
+	// Has unexported fields.
+}
+    PolygonShape represents a closed polygon.
+
+func NewPolygonShape(points ...float32) *PolygonShape
+    NewPolygonShape creates a new polygon shape from a list of points. Points
+    should be provided as x, y pairs.
+
+func (p *PolygonShape) Bounds() Rect
+    Bounds returns the bounding rectangle.
+
+func (p *PolygonShape) BuildPathInto(dst *Path)
+    BuildPathInto builds the polygon path into an existing Path.
+
+func (p *PolygonShape) Point(i int) (x, y float32, ok bool)
+    Point returns the i-th vertex of the polygon.
+
+func (p *PolygonShape) PointCount() int
+    PointCount returns the number of vertices in the polygon.
+
+func (p *PolygonShape) ToPath() *Path
+    ToPath converts the polygon to a Path.
+
+type Rect struct {
+	MinX, MinY float32
+	MaxX, MaxY float32
+}
+    Rect represents a bounding rectangle.
+
+func EmptyRect() Rect
+    EmptyRect returns an empty rectangle (inverted bounds for union operations).
+
+func TextBounds(glyphs []*RenderedGlyph) Rect
+    TextBounds computes the bounding box for rendered text.
+
+func (r Rect) Height() float32
+    Height returns the height of the rectangle.
+
+func (r Rect) ImageRect() image.Rectangle
+    ImageRect converts to image.Rectangle (floor min, ceil max for pixel
+    coverage).
+
+func (r Rect) IsEmpty() bool
+    IsEmpty returns true if the rectangle has no area.
+
+func (r Rect) Union(other Rect) Rect
+    Union returns the smallest rectangle containing both r and other.
+
+func (r Rect) UnionPoint(x, y float32) Rect
+    UnionPoint expands the rectangle to include the point.
+
+func (r Rect) Width() float32
+    Width returns the width of the rectangle.
+
+type RectShape struct {
+	X, Y          float32 // Top-left corner
+	Width, Height float32 // Dimensions
+}
+    RectShape represents an axis-aligned rectangle.
+
+func NewRectShape(x, y, width, height float32) *RectShape
+    NewRectShape creates a new rectangle shape.
+
+func (r *RectShape) Bounds() Rect
+    Bounds returns the bounding rectangle.
+
+func (r *RectShape) BuildPathInto(p *Path)
+    BuildPathInto builds the rectangle path into an existing Path, avoiding
+    allocation.
+
+func (r *RectShape) Contains(px, py float32) bool
+    Contains returns true if the point (px, py) is inside the rectangle.
+
+func (r *RectShape) ToPath() *Path
+    ToPath converts the rectangle to a Path.
+
+type RegularPolygonShape struct {
+	CX, CY   float32 // Center
+	R        float32 // Radius (distance from center to vertices)
+	Sides    int     // Number of sides
+	Rotation float32 // Rotation angle in radians
+}
+    RegularPolygonShape represents a regular polygon (all sides equal length).
+
+func NewRegularPolygonShape(cx, cy, r float32, sides int, rotation float32) *RegularPolygonShape
+    NewRegularPolygonShape creates a new regular polygon shape.
+
+func (rp *RegularPolygonShape) Bounds() Rect
+    Bounds returns the bounding rectangle.
+
+func (rp *RegularPolygonShape) ToPath() *Path
+    ToPath converts the regular polygon to a Path.
+
+type RenderStats struct {
+	// Tile statistics
+	TilesTotal    int
+	TilesDirty    int
+	TilesRendered int
+
+	// Layer statistics
+	LayersCached   int
+	LayersRendered int
+
+	// Timing (durations for the last render)
+	TimeEncode    time.Duration
+	TimeRaster    time.Duration
+	TimeComposite time.Duration
+	TimeTotal     time.Duration
+
+	// Frame timing
+	FrameTime time.Duration
+	FPS       float64
+}
+    RenderStats contains performance statistics for a render operation.
+
+type RenderedGlyph struct {
+	// Path is the vector path representing the glyph outline.
+	// May be nil for non-outline glyphs (bitmap, empty).
+	Path *Path
+
+	// Bounds is the bounding box of the rendered glyph.
+	Bounds Rect
+
+	// Advance is the distance to the next glyph position.
+	Advance float32
+
+	// Position is the glyph position relative to the text origin.
+	X, Y float32
+
+	// GID is the glyph ID.
+	GID text.GlyphID
+
+	// Type indicates the glyph type.
+	Type text.GlyphType
+
+	// Cluster is the source character index.
+	Cluster int
+}
+    RenderedGlyph represents a glyph that has been converted to a path.
+
+type Renderer struct {
+	// Has unexported fields.
+}
+    Renderer renders Scene content to a target Pixmap using parallel tile-based
+    processing. It integrates with TileGrid for spatial subdivision and
+    WorkerPool for concurrent execution.
+
+    The renderer supports:
+      - Full scene rendering (all tiles)
+      - Incremental rendering (dirty tiles only)
+      - Layer caching for static content
+      - Performance statistics collection
+
+    Thread safety: Renderer methods are safe for concurrent use after
+    initialization.
+
+func NewRenderer(width, height int, opts ...RendererOption) *Renderer
+    NewRenderer creates a new scene renderer for the given dimensions. Options
+    can be used to configure caching, parallelism, and other settings.
+
+func (r *Renderer) Cache() *LayerCache
+    Cache returns the layer cache.
+
+func (r *Renderer) CacheStats() CacheStats
+    CacheStats returns the layer cache statistics.
+
+func (r *Renderer) Close()
+    Close releases all resources used by the renderer. The renderer should not
+    be used after Close is called.
+
+func (r *Renderer) DirtyTileCount() int
+    DirtyTileCount returns the number of dirty tiles.
+
+func (r *Renderer) Height() int
+    Height returns the renderer height in pixels.
+
+func (r *Renderer) MarkAllDirty()
+    MarkAllDirty marks all tiles as needing redraw.
+
+func (r *Renderer) MarkDirty(x, y, w, h int)
+    MarkDirty marks the specified rectangle as needing redraw. Coordinates are
+    in pixel space.
+
+func (r *Renderer) Render(target *render.Pixmap, scene *Scene) error
+    Render renders the entire scene to the target pixmap. This processes all
+    tiles regardless of dirty state.
+
+    For cancellable rendering, use RenderWithContext.
+
+func (r *Renderer) RenderDirty(target *render.Pixmap, scene *Scene, dirty *parallel.DirtyRegion) error
+    RenderDirty renders only the dirty regions of the scene. This is more
+    efficient when only parts of the scene have changed. The dirty parameter
+    specifies which tiles need re-rendering.
+
+    For cancellable rendering, use RenderDirtyWithContext.
+
+func (r *Renderer) RenderDirtyWithContext(ctx context.Context, target *render.Pixmap, scene *Scene, dirty *parallel.DirtyRegion) error
+    RenderDirtyWithContext renders only the dirty regions of the scene with
+    cancellation support. This is more efficient when only parts of the scene
+    have changed. The dirty parameter specifies which tiles need re-rendering.
+
+    The context can be used to cancel long-running renders. When canceled,
+    the function returns ctx.Err() and the target may contain partial results.
+
+func (r *Renderer) RenderWithContext(ctx context.Context, target *render.Pixmap, scene *Scene) error
+    RenderWithContext renders the entire scene to the target pixmap with
+    cancellation support. This processes all tiles regardless of dirty state.
+
+    The context can be used to cancel long-running renders. When canceled,
+    the function returns ctx.Err() and the target may contain partial results.
+
+func (r *Renderer) RenderWithDamage(target *render.Pixmap, scene *Scene, tracker *DamageTracker) (
+	damageRect image.Rectangle, err error,
+)
+    RenderWithDamage uses a DamageTracker to compute the minimal dirty region
+    from frame-to-frame object changes, then renders only affected tiles.
+    This is Level 1-2 of the four-level damage pipeline (ADR-021).
+
+    Returns the damage rect (in pixels) for downstream use by ggcanvas/gogpu
+    (Level 3-4: GPU scissor + OS present). Returns image.Rectangle{} if nothing
+    changed (caller can skip GPU upload + present entirely).
+
+    On first frame, renders everything (full scene).
+
+func (r *Renderer) Resize(width, height int)
+    Resize updates the renderer dimensions. All tiles will be marked dirty after
+    resize.
+
+func (r *Renderer) Stats() RenderStats
+    Stats returns the current render statistics.
+
+func (r *Renderer) TileCount() int
+    TileCount returns the total number of tiles.
+
+func (r *Renderer) Width() int
+    Width returns the renderer width in pixels.
+
+func (r *Renderer) Workers() int
+    Workers returns the number of worker goroutines used for parallel rendering.
+
+type RendererOption func(*Renderer)
+    RendererOption configures a Renderer.
+
+func WithCache(cache *LayerCache) RendererOption
+    WithCache sets a custom layer cache. If nil, a default cache is created.
+
+func WithCacheSize(mb int) RendererOption
+    WithCacheSize sets the layer cache size in megabytes. Default is 64MB.
+
+func WithTileSize(size int) RendererOption
+    WithTileSize sets the tile size for rendering. This is informational only;
+    actual tile size is fixed at 64x64.
+
+func WithWorkers(n int) RendererOption
+    WithWorkers sets the number of worker goroutines for parallel rendering.
+    If n <= 0, GOMAXPROCS is used.
+
+type RoundRectShape struct {
+	Rect             Rect    // Bounding rectangle
+	RadiusX, RadiusY float32 // Corner radii (clamped to half-width/height)
+}
+    RoundRectShape represents a rounded rectangle with independent X/Y corner
+    radii. Unlike RoundedRectShape which only supports path-based rendering
+    via ToPath(), RoundRectShape supports dedicated SDF-based rendering in the
+    tile renderer for high-quality anti-aliased output without path encoding
+    overhead.
+
+func NewRoundRectShape(rect Rect, rx, ry float32) *RoundRectShape
+    NewRoundRectShape creates a new rounded rectangle shape with independent
+    X/Y corner radii. Radii are clamped to half the rectangle's width/height
+    respectively.
+
+func NewRoundRectShapeUniform(rect Rect, r float32) *RoundRectShape
+    NewRoundRectShapeUniform creates a new rounded rectangle shape with uniform
+    corner radius. The radius is clamped to half the smaller dimension.
+
+func (s *RoundRectShape) Bounds() Rect
+    Bounds returns the bounding rectangle.
+
+func (s *RoundRectShape) Contains(px, py float32) bool
+    Contains returns true if the point (px, py) is inside the rounded rectangle,
+    using SDF-based point containment for accurate corner testing.
+
+func (s *RoundRectShape) ToPath() *Path
+    ToPath converts the rounded rectangle to a Path.
+
+type RoundedRectShape struct {
+	X, Y          float32 // Top-left corner
+	Width, Height float32 // Dimensions
+	Radius        float32 // Corner radius (same for all corners)
+}
+    RoundedRectShape represents a rectangle with rounded corners.
+
+func NewRoundedRectShape(x, y, width, height, radius float32) *RoundedRectShape
+    NewRoundedRectShape creates a new rounded rectangle shape.
+
+func (r *RoundedRectShape) Bounds() Rect
+    Bounds returns the bounding rectangle.
+
+func (r *RoundedRectShape) BuildPathInto(p *Path)
+    BuildPathInto builds the rounded rectangle path into an existing Path.
+
+func (r *RoundedRectShape) ToPath() *Path
+    ToPath converts the rounded rectangle to a Path.
+
+type Scene struct {
+	// Has unexported fields.
+}
+    Scene is the main retained mode container for accumulating drawing
+    operations. It builds an Encoding that can be efficiently rendered or
+    cached.
+
+    Scene provides a familiar drawing API with Fill, Stroke, layers, clips,
+    and transforms. All operations are recorded into an internal Encoding for
+    later playback or GPU submission.
+
+    Example:
+
+        scene := NewScene()
+        scene.Fill(FillNonZero, IdentityAffine(), SolidBrush(render.Red), circle)
+        scene.PushLayer(BlendMultiply, 0.5, nil)
+        scene.Stroke(DefaultStrokeStyle(), IdentityAffine(), SolidBrush(render.Blue), rect)
+        scene.PopLayer()
+        enc := scene.Encoding()
+
+func NewScene() *Scene
+    NewScene creates a new empty scene.
+
+func (s *Scene) AntiAlias() bool
+    AntiAlias returns whether anti-aliasing is enabled for subsequent draws.
+
+func (s *Scene) Append(other *Scene)
+    Append merges another Scene into this one, combining encodings, image
+    registries, and bounds. Image indices in the appended scene's encoding are
+    adjusted to account for images already registered in this scene.
+
+    This is the Scene-level equivalent of the SceneBuilder.addPicture() —
+    composing cached display lists from multiple RepaintBoundary nodes into a
+    single scene for rendering.
+
+    The other scene is flattened (layers collapsed) before appending.
+
+func (s *Scene) AppendWithTranslation(other *Scene, dx, dy float32)
+    AppendWithTranslation merges another scene into this one, offsetting all
+    coordinates by (dx, dy). Image indices are adjusted to avoid conflicts.
+
+    This is the Vello-derived pattern for composing child scenes recorded at
+    local (0,0) into a parent at a specific position. Used by RepaintBoundary
+    scene composition (ADR-007 Phase 5).
+
+func (s *Scene) Bounds() Rect
+    Bounds returns the cumulative bounding box of all scene content.
+
+func (s *Scene) ClipBounds() Rect
+    ClipBounds returns the intersection of all active clip regions.
+
+func (s *Scene) ClipDepth() int
+    ClipDepth returns the current clip stack depth.
+
+func (s *Scene) DrawGlyphs(str string, glyphs []text.ShapedGlyph, face text.Face, x, y float32, brush Brush) error
+    DrawGlyphs draws pre-shaped glyphs to the scene as a TagText glyph run.
+    Like DrawText but skips shaping — use when glyphs are already shaped.
+    The original text string is required for GPU renderer's DrawString path.
+
+func (s *Scene) DrawImage(img *Image, transform Affine)
+    DrawImage draws an image at the given transform.
+
+func (s *Scene) DrawText(str string, face text.Face, x, y float32, brush Brush) error
+    DrawText shapes text and records it as a TagText glyph run in the scene.
+    Shaping (HarfBuzz) is performed once at recording time. Resolution to
+    pixels (atlas, outline, text op) is deferred to render/playback time via the
+    renderer's text resolution capability. See ADR-022.
+
+    Breaking change from v0.45: previously converted glyphs to vector paths
+    (one Fill per glyph, no hinting). Now stores compact glyph references that
+    renderers resolve at playback time with full hinting and atlas batching.
+
+func (s *Scene) Encoding() *Encoding
+    Encoding returns the root encoding containing all scene commands. This
+    encoding can be used for rendering or caching.
+
+func (s *Scene) Fill(style FillStyle, transform Affine, brush Brush, shape Shape)
+    Fill fills a shape with the given style, transform, and brush.
+
+func (s *Scene) Flatten() *Encoding
+    Flatten composites all layers into a single encoding. This is useful for
+    rendering the complete scene as a single flattened representation.
+
+    Unlike Encoding(), this method returns a new cloned encoding that is
+    independent of the scene's internal state. This allows the scene to be
+    modified after calling Flatten() without affecting the returned encoding.
+
+    The flattening process:
+     1. All open layers are popped and composited
+     2. Layer blend modes and alpha values are applied
+     3. The result is a single encoding with all content merged
+
+    Example:
+
+        scene := NewScene()
+        scene.Fill(FillNonZero, IdentityAffine(), SolidBrush(render.Red), rect)
+        scene.PushLayer(BlendMultiply, 0.5, nil)
+        scene.Fill(FillNonZero, IdentityAffine(), SolidBrush(render.Blue), circle)
+        flat := scene.Flatten()
+        // flat contains both shapes with layer compositing applied
+
+func (s *Scene) FontRegistry() map[uint64]*text.FontSource
+    FontRegistry returns the scene's font registry for render-time font lookup.
+
+func (s *Scene) Images() []*Image
+    Images returns all registered images.
+
+func (s *Scene) IsEmpty() bool
+    IsEmpty returns true if the scene has no content.
+
+func (s *Scene) LayerDepth() int
+    LayerDepth returns the current layer stack depth.
+
+func (s *Scene) PopClip() bool
+    PopClip pops the current clip region. Returns false if there's no clip to
+    pop.
+
+func (s *Scene) PopLayer() bool
+    PopLayer pops the current layer and composites it with the content below.
+    Returns false if there's no layer to pop (only root layer remains).
+
+func (s *Scene) PopTransform() bool
+    PopTransform pops the current transform from the stack. Returns false if
+    there's no transform to pop.
+
+func (s *Scene) PushClip(shape Shape)
+    PushClip pushes a clip region. All subsequent drawing operations will be
+    clipped to this shape until PopClip is called.
+
+func (s *Scene) PushLayer(blend BlendMode, alpha float32, clip Shape)
+    PushLayer pushes a new compositing layer. All subsequent drawing operations
+    will be rendered to this layer. Call PopLayer to composite the layer with
+    the content below.
+
+func (s *Scene) PushTransform(t Affine)
+    PushTransform pushes a transform onto the transform stack. The transform is
+    concatenated with the current transform.
+
+func (s *Scene) RegisterFont(source *text.FontSource) uint64
+    RegisterFont registers a FontSource in the scene's font registry. Returns
+    the FontSourceID used to reference this font in TagText commands.
+
+func (s *Scene) Reset()
+    Reset clears the scene for reuse without deallocating memory.
+
+func (s *Scene) Rotate(angle float32)
+    Rotate applies a rotation to the current transform (angle in radians).
+
+func (s *Scene) Scale(x, y float32)
+    Scale applies a scale to the current transform.
+
+func (s *Scene) SetAntiAlias(enabled bool)
+    SetAntiAlias enables or disables anti-aliasing for subsequent fill
+    and stroke operations. When disabled, shapes are rendered with binary
+    (pixel-perfect) coverage, producing crisp edges ideal for UI elements at
+    exact pixel boundaries.
+
+    The state change is delta-encoded: TagSetAntiAlias is emitted into the
+    encoding only when the value differs from the previously encoded state.
+    Default is true.
+
+func (s *Scene) SetTransform(t Affine)
+    SetTransform sets the current transform, replacing the existing one.
+    This does not affect the transform stack.
+
+func (s *Scene) Stroke(style *StrokeStyle, transform Affine, brush Brush, shape Shape)
+    Stroke strokes a shape with the given style, transform, and brush.
+
+func (s *Scene) TaggedBounds() []TaggedBounds
+    TaggedBounds returns per-draw-command bounding boxes with stable IDs.
+    Used by DamageTracker (ADR-021) for frame-to-frame object diff.
+
+func (s *Scene) Transform() Affine
+    Transform returns the current transform.
+
+func (s *Scene) TransformDepth() int
+    TransformDepth returns the current transform stack depth.
+
+func (s *Scene) Translate(x, y float32)
+    Translate applies a translation to the current transform.
+
+func (s *Scene) Version() uint64
+    Version returns the scene version number. This is incremented on each
+    modification and can be used for cache invalidation.
+
+type SceneBuilder struct {
+	// Has unexported fields.
+}
+    SceneBuilder provides a fluent API for constructing scenes ergonomically.
+    It wraps a Scene and provides chainable methods for drawing operations,
+    transform management, and layer composition.
+
+    The builder maintains its own transform state that accumulates with each
+    transform operation. Use ResetTransform to clear the accumulated transform.
+
+    Example:
+
+        scene := NewSceneBuilder().
+            Fill(NewRectShape(0, 0, 800, 600), SolidBrush(White)).
+            Translate(100, 100).
+            Layer(BlendMultiply, 0.8, nil, func(b *SceneBuilder) {
+                b.Fill(NewCircleShape(0, 0, 50), SolidBrush(Red)).
+                  Stroke(NewCircleShape(0, 0, 50), SolidBrush(Black), 2)
+            }).
+            Build()
+
+func NewSceneBuilder() *SceneBuilder
+    NewSceneBuilder creates a new scene builder with an empty scene.
+
+func NewSceneBuilderFrom(scene *Scene) *SceneBuilder
+    NewSceneBuilderFrom creates a scene builder wrapping an existing scene.
+    This is useful for adding to a scene that already has content.
+
+func (b *SceneBuilder) AntiAlias() bool
+    AntiAlias returns whether anti-aliasing is enabled for subsequent draws.
+
+func (b *SceneBuilder) Build() *Scene
+    Build returns the constructed scene and resets the builder for reuse.
+    The builder is left in a clean state with a new empty scene.
+
+func (b *SceneBuilder) Clip(shape Shape, fn func(*SceneBuilder)) *SceneBuilder
+    Clip creates a clipping region from the given shape. The callback receives
+    the same builder to add clipped content.
+
+    Example:
+
+        builder.Clip(circle, func(b *SceneBuilder) {
+            b.Fill(largeRect, SolidBrush(Blue)) // clipped to circle
+        })
+
+func (b *SceneBuilder) CurrentTransform() Affine
+    CurrentTransform returns the builder's current transform.
+
+func (b *SceneBuilder) DrawLine(x1, y1, x2, y2 float32, brush Brush, lineWidth float32) *SceneBuilder
+    DrawLine is a convenience method to draw a line.
+
+func (b *SceneBuilder) Fill(shape Shape, brush Brush) *SceneBuilder
+    Fill fills a shape with the given brush using the non-zero winding rule.
+
+func (b *SceneBuilder) FillCircle(cx, cy, r float32, brush Brush) *SceneBuilder
+    FillCircle is a convenience method to fill a circle.
+
+func (b *SceneBuilder) FillPath(path *Path, brush Brush) *SceneBuilder
+    FillPath is a convenience method to fill a path wrapped as a shape.
+
+func (b *SceneBuilder) FillRect(x, y, width, height float32, brush Brush) *SceneBuilder
+    FillRect is a convenience method to fill a rectangle.
+
+func (b *SceneBuilder) FillRoundRect(x, y, w, h, rx, ry float32, brush Brush) *SceneBuilder
+    FillRoundRect is a convenience method to fill a rounded rectangle with
+    independent corner radii. Uses SDF-based rendering for high-quality
+    anti-aliased output.
+
+func (b *SceneBuilder) FillWith(shape Shape, brush Brush, style FillStyle) *SceneBuilder
+    FillWith fills a shape with the given brush and fill style.
+
+func (b *SceneBuilder) Group(fn func(*SceneBuilder)) *SceneBuilder
+    Group creates a logical grouping of drawing operations. This is primarily
+    for organizational purposes; no blending or clipping is applied. The
+    callback receives the same builder.
+
+    Example:
+
+        builder.Group(func(b *SceneBuilder) {
+            b.Fill(rect1, SolidBrush(Red))
+            b.Fill(rect2, SolidBrush(Blue))
+        })
+
+func (b *SceneBuilder) Image(img *Image, rect Rect) *SceneBuilder
+    Image draws an image at the given rectangle. The image is scaled to fit the
+    rectangle bounds.
+
+func (b *SceneBuilder) Layer(blend BlendMode, alpha float32, clip Shape, fn func(*SceneBuilder)) *SceneBuilder
+    Layer creates a compositing layer with the given blend mode and alpha.
+    The callback receives the same builder to add content to the layer. If clip
+    is not nil, the layer content is clipped to that shape.
+
+    Example:
+
+        builder.Layer(BlendMultiply, 0.8, nil, func(b *SceneBuilder) {
+            b.Fill(circle, SolidBrush(Red))
+        })
+
+func (b *SceneBuilder) Reset() *SceneBuilder
+    Reset clears the builder's scene and transform for reuse. Unlike Build(),
+    this does not return the scene.
+
+func (b *SceneBuilder) ResetTransform() *SceneBuilder
+    ResetTransform resets the current transform to identity.
+
+func (b *SceneBuilder) Rotate(angle float32) *SceneBuilder
+    Rotate applies a rotation to the current transform (angle in radians).
+    Rotations accumulate - use ResetTransform to clear.
+
+func (b *SceneBuilder) Scale(x, y float32) *SceneBuilder
+    Scale applies a scale to the current transform. Scales accumulate - use
+    ResetTransform to clear.
+
+func (b *SceneBuilder) Scene() *Scene
+    Scene returns the current scene without resetting the builder. Use this to
+    inspect the scene during construction.
+
+func (b *SceneBuilder) SetAntiAlias(enabled bool) *SceneBuilder
+    SetAntiAlias enables or disables anti-aliasing for subsequent draw
+    operations. When disabled, shapes use binary coverage for pixel-perfect
+    rendering.
+
+func (b *SceneBuilder) Stroke(shape Shape, brush Brush, width float32) *SceneBuilder
+    Stroke strokes a shape with the given brush and line width.
+
+func (b *SceneBuilder) StrokeCircle(cx, cy, r float32, brush Brush, lineWidth float32) *SceneBuilder
+    StrokeCircle is a convenience method to stroke a circle.
+
+func (b *SceneBuilder) StrokePath(path *Path, brush Brush, lineWidth float32) *SceneBuilder
+    StrokePath is a convenience method to stroke a path wrapped as a shape.
+
+func (b *SceneBuilder) StrokeRect(x, y, width, height float32, brush Brush, lineWidth float32) *SceneBuilder
+    StrokeRect is a convenience method to stroke a rectangle.
+
+func (b *SceneBuilder) StrokeWith(shape Shape, brush Brush, style *StrokeStyle) *SceneBuilder
+    StrokeWith strokes a shape with the given brush and stroke style.
+
+func (b *SceneBuilder) Transform(t Affine) *SceneBuilder
+    Transform sets the current transform, replacing any existing transform.
+
+func (b *SceneBuilder) Translate(x, y float32) *SceneBuilder
+    Translate applies a translation to the current transform. Translations
+    accumulate - use ResetTransform to clear.
+
+func (b *SceneBuilder) WithTransform(t Affine, fn func(*SceneBuilder)) *SceneBuilder
+    WithTransform executes the callback with a temporary transform applied.
+    The transform is reset after the callback completes.
+
+    Example:
+
+        builder.WithTransform(TranslateAffine(100, 100), func(b *SceneBuilder) {
+            b.Fill(shape, brush) // drawn at (100, 100)
+        })
+
+type ScenePool struct {
+	// Has unexported fields.
+}
+    ScenePool manages a pool of reusable Scene objects.
+
+func NewScenePool() *ScenePool
+    NewScenePool creates a new scene pool.
+
+func (sp *ScenePool) Get() *Scene
+    Get retrieves a scene from the pool or creates a new one.
+
+func (sp *ScenePool) Put(scene *Scene)
+    Put returns a scene to the pool for reuse.
+
+func (sp *ScenePool) Warmup(count int)
+    Warmup pre-allocates scenes to avoid allocation during critical paths.
+
+type Shape interface {
+	// ToPath converts the shape to a Path for encoding.
+	ToPath() *Path
+
+	// Bounds returns the bounding rectangle of the shape.
+	Bounds() Rect
+}
+    Shape is the interface for geometric shapes that can be converted to paths.
+    All shapes must be able to provide a path representation and their bounds.
+
+type StarShape struct {
+	CX, CY      float32 // Center
+	OuterRadius float32 // Outer radius (points)
+	InnerRadius float32 // Inner radius (valleys)
+	Points      int     // Number of points
+	Rotation    float32 // Rotation angle in radians
+}
+    StarShape represents a star shape.
+
+func NewStarShape(cx, cy, outerRadius, innerRadius float32, points int, rotation float32) *StarShape
+    NewStarShape creates a new star shape.
+
+func (s *StarShape) Bounds() Rect
+    Bounds returns the bounding rectangle.
+
+func (s *StarShape) ToPath() *Path
+    ToPath converts the star to a Path.
+
+type StrokeStyle struct {
+	Width      float32
+	MiterLimit float32
+	Cap        LineCap
+	Join       LineJoin
+}
+    StrokeStyle contains stroke parameters.
+
+func DefaultStrokeStyle() *StrokeStyle
+    DefaultStrokeStyle returns default stroke parameters.
+
+type Tag byte
+    Tag represents a single-byte command identifier in the encoding stream.
+    Tags are organized into groups by their high nibble:
+
+        0x0X: Transform operations
+        0x1X: Path commands
+        0x2X: Fill/Stroke operations
+        0x3X: Layer operations
+        0x4X: Clip operations
+        0x5X: Brush/Image operations
+
+const (
+	// TagTransform encodes an affine transformation.
+	// Data: 6 float32 values [a, b, c, d, e, f] representing the matrix:
+	//   | a b c |
+	//   | d e f |
+	TagTransform Tag = 0x01
+
+	// TagSetAntiAlias sets the anti-aliasing state for subsequent draw commands.
+	// Data: 1 uint32 in drawData (0 = disabled, 1 = enabled).
+	// Emitted only when the AA state changes (delta encoding, like TagTransform).
+	TagSetAntiAlias Tag = 0x02
+
+	// TagBeginPath marks the start of a new path.
+	// Data: none (marker only)
+	TagBeginPath Tag = 0x10
+
+	// TagMoveTo moves the current point without drawing.
+	// Data: 2 float32 values [x, y]
+	TagMoveTo Tag = 0x11
+
+	// TagLineTo draws a line to the specified point.
+	// Data: 2 float32 values [x, y]
+	TagLineTo Tag = 0x12
+
+	// TagQuadTo draws a quadratic Bezier curve.
+	// Data: 4 float32 values [cx, cy, x, y] (control point, end point)
+	TagQuadTo Tag = 0x13
+
+	// TagCubicTo draws a cubic Bezier curve.
+	// Data: 6 float32 values [c1x, c1y, c2x, c2y, x, y] (control1, control2, end)
+	TagCubicTo Tag = 0x14
+
+	// TagClosePath closes the current subpath.
+	// Data: none (uses implicit return to subpath start)
+	TagClosePath Tag = 0x16
+
+	// TagEndPath marks the end of a path definition.
+	// Data: none (marker only)
+	TagEndPath Tag = 0x17
+
+	// TagFill fills the current path.
+	// Data: 1 uint32 for brush index, 1 uint32 for fill style (NonZero=0, EvenOdd=1)
+	TagFill Tag = 0x20
+
+	// TagStroke strokes the current path.
+	// Data: 1 uint32 for brush index, then stroke style:
+	//   4 float32: [lineWidth, miterLimit, lineCap, lineJoin]
+	TagStroke Tag = 0x21
+
+	// TagPushLayer pushes a new compositing layer.
+	// Data: 1 uint32 for blend mode, 1 float32 for alpha
+	TagPushLayer Tag = 0x30
+
+	// TagPopLayer pops the current compositing layer.
+	// Data: none
+	TagPopLayer Tag = 0x31
+
+	// TagBeginClip begins a clipping region using the current path.
+	// Data: none (uses current path as clip)
+	TagBeginClip Tag = 0x40
+
+	// TagEndClip ends the current clipping region.
+	// Data: none
+	TagEndClip Tag = 0x41
+
+	// TagFillRoundRect fills a rounded rectangle using SDF (no path encoding needed).
+	// Data: 1 uint32 brush index, 1 uint32 fill style in drawData;
+	//       6 float32 in pathData: [minX, minY, maxX, maxY, radiusX, radiusY]
+	TagFillRoundRect Tag = 0x22
+
+	// TagBrush defines a brush (solid color, gradient, etc.).
+	// Data: variable depending on brush type
+	//   Solid: 4 float32 [r, g, b, a]
+	TagBrush Tag = 0x50
+
+	// TagImage references an image resource.
+	// Data: 1 uint32 for image index, 6 float32 for transform
+	TagImage Tag = 0x51
+
+	// TagText encodes a pre-shaped text run as a late-bound glyph reference.
+	// Data: textData stream containing GlyphRunData header + GlyphEntry array.
+	// Resolution to pixels (atlas, outline, text op) is deferred to render time.
+	// See ADR-022.
+	TagText Tag = 0x60
+)
+    Tag constants define all encoding commands. Each tag has a fixed data layout
+    documented in its comment.
+
+func (t Tag) DataSize() int
+    DataSize returns the number of float32 values this tag consumes from
+    pathData. Returns -1 for tags that don't use pathData.
+
+func (t Tag) IsClipCommand() bool
+    IsClipCommand returns true if the tag is a clip command.
+
+func (t Tag) IsDrawCommand() bool
+    IsDrawCommand returns true if the tag is a draw command (fill/stroke/text).
+
+func (t Tag) IsLayerCommand() bool
+    IsLayerCommand returns true if the tag is a layer command.
+
+func (t Tag) IsPathCommand() bool
+    IsPathCommand returns true if the tag is a path construction command.
+
+func (t Tag) String() string
+    String returns a human-readable name for the tag.
+
+type TaggedBounds struct {
+	ID   uint64
+	Rect image.Rectangle
+}
+    TaggedBounds associates a stable object ID with its bounding rectangle.
+    Objects with the same ID across frames are compared for movement/resize.
+
+type TextFlags uint16
+    TextFlags controls text rendering behavior.
+
+const (
+	TextFlagHinting TextFlags = 1 << iota
+	TextFlagCJK               // ADR-027: text contains CJK characters
+)
+type TextRenderer struct {
+	// Has unexported fields.
+}
+    TextRenderer converts shaped text to scene paths for GPU rendering.
+    It supports glyph outlines and handles positioning, transforms, and caching.
+
+    TextRenderer is safe for concurrent use.
+
+func NewTextRenderer() *TextRenderer
+    NewTextRenderer creates a new text renderer with default configuration.
+
+func NewTextRendererWithConfig(config TextRendererConfig) *TextRenderer
+    NewTextRendererWithConfig creates a new text renderer with the given
+    configuration.
+
+func (r *TextRenderer) Config() TextRendererConfig
+    Config returns the current configuration.
+
+func (r *TextRenderer) RenderGlyph(glyph text.ShapedGlyph, face text.Face) (*RenderedGlyph, error)
+    RenderGlyph converts a single shaped glyph to a renderable path. The path is
+    positioned at the glyph's location and scaled appropriately.
+
+func (r *TextRenderer) RenderGlyphs(glyphs []text.ShapedGlyph, face text.Face) ([]*RenderedGlyph, error)
+    RenderGlyphs converts multiple shaped glyphs to renderable paths. Returns a
+    slice of rendered glyphs in the same order as input.
+
+func (r *TextRenderer) RenderRun(run *text.ShapedRun) ([]*RenderedGlyph, error)
+    RenderRun converts a shaped run to renderable glyphs.
+
+func (r *TextRenderer) RenderText(str string, face text.Face) ([]*RenderedGlyph, error)
+    RenderText shapes and renders text in one operation. Uses the global shaper
+    for text shaping.
+
+func (r *TextRenderer) SetConfig(config TextRendererConfig)
+    SetConfig updates the configuration.
+
+func (r *TextRenderer) ToCompositePath(glyphs []*RenderedGlyph) *Path
+    ToCompositePath combines multiple rendered glyphs into a single path.
+    This is useful for text that will be rendered as a single unit.
+
+type TextRendererConfig struct {
+	// FlipY inverts the Y-axis for glyph outlines (default: false).
+	// Our OutlineExtractor preserves sfnt's Y-down convention
+	// (Y=0 at baseline, Y<0 above, Y>0 below), which matches
+	// screen coordinates directly. Set to true only if your
+	// coordinate system has Y increasing upward.
+	FlipY bool
+
+	// SubpixelPositioning enables fractional glyph positioning.
+	// When false, glyphs are snapped to integer pixel positions.
+	SubpixelPositioning bool
+
+	// HintingEnabled enables font hinting for sharper rendering at small sizes.
+	HintingEnabled bool
+}
+    TextRendererConfig holds configuration for TextRenderer.
+
+func DefaultTextRendererConfig() TextRendererConfig
+    DefaultTextRendererConfig returns the default configuration.
+
+type TextRendererPool struct {
+	// Has unexported fields.
+}
+    TextRendererPool manages a pool of TextRenderers for concurrent use.
+
+func NewTextRendererPool() *TextRendererPool
+    NewTextRendererPool creates a new pool of text renderers.
+
+func (p *TextRendererPool) Get() *TextRenderer
+    Get retrieves a renderer from the pool.
+
+func (p *TextRendererPool) Put(r *TextRenderer)
+    Put returns a renderer to the pool.
+
+type TextShape struct {
+	// Has unexported fields.
+}
+    TextShape represents a shaped text string as a scene Shape. This allows text
+    to be used with fill/stroke operations.
+
+func NewTextShape(str string, face text.Face, x, y float32) (*TextShape, error)
+    NewTextShape creates a TextShape from text. The text is shaped and converted
+    to a path at the specified position.
+
+func (ts *TextShape) Bounds() Rect
+    Bounds returns the bounding rectangle of the text.
+
+func (ts *TextShape) ToPath() *Path
+    ToPath returns the path representation of the text.
+
+type TransformShape struct {
+	// Has unexported fields.
+}
+    TransformShape wraps a shape with a transformation.
+
+func NewTransformShape(shape Shape, transform Affine) *TransformShape
+    NewTransformShape creates a transformed shape.
+
+func (ts *TransformShape) Bounds() Rect
+    Bounds returns the transformed bounding rectangle. Note: This is a
+    conservative approximation.
+
+func (ts *TransformShape) ToPath() *Path
+    ToPath converts the shape to a transformed Path.
+

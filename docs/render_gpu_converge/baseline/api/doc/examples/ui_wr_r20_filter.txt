@@ -1,0 +1,27 @@
+Command ui_wr_r20_filter is the R20 Filter-layer single-ability real window
+(mode-1 first close).
+
+§2 R20 thesis: 模糊/灰度滤镜子树 + 外部不变内容 — a subtree wrapped in RenderGrayscale /
+RenderImageFilter must gray/blur ONLY its own pixels and leave everything
+outside untouched; changing the filter (matrix swap / radius step) dirties ONLY
+the filtered boundary (局部 rerecord).
+
+Boards:
+
+    GRAY   RenderGrayscale over a colored patch card; Spike swaps the matrix
+           identity ↔ grayscale (the observable "filter range change")
+    BLUR   RenderImageFilter over color bars; radius steps with the phase
+    RAW    same card shape WITHOUT a filter — the outside-invariant control
+    PULSE  breathing scale card (no filter) — the persistent motion hotspot
+    DENSE  static nested-boundary grid + labels, never touched
+
+Gates (§2 主表 R20 行「局部 rerecord」+ §2.2 全族): retained policy, boundary_rerecord>0
+on phase steps, filter_layer_count>=1, paint_count flat, pixel assertions (group
+blend exactness / outside-invariance), golden static mask bitwise-stable across
+runs.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=10 go run ./examples/ui_wr_r20_filter
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 10 (§2.5
+SaveLayer/Filter 档). No RUN_SECONDS → interactive loop (pixel evidence off).

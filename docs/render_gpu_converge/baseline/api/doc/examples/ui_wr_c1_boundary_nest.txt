@@ -1,0 +1,25 @@
+Evidence helpers for ui_wr_c1_boundary_nest (C1 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_c1_boundary_nest is the W1 C1 composite real-window:
+R2+R3+R3b+R12b integrated — nested boundaries + dirty isolation + debug overlay.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=10 go run ./examples/ui_wr_c1_boundary_nest -auto-only
+    go run ./examples/ui_wr_c1_boundary_nest                 # manual: animate until close
+    go run ./examples/ui_wr_c1_boundary_nest -manual-seconds 15
+
+Window: 1200x800. RUN_SECONDS>=5 is the generic floor, but a gate run below 10s
+cannot close C1 (§2.5). GPU window required.
+
+Evidence (U21): boundary logic probes, color/ink probes on the GPU snapshot,
+and a bitwise Golden over header + legend + body (821184 logical px). Gate mode
+freezes Steady: hot/hotS ramp once over 60 ticks then hold fixed colors and stop
+marking dirty, so every boundary replays clean (the debug overlay never bakes
+into a cached replay) and the snapshot is bit-stable. Manual mode keeps the
+Steady -> Spike -> Recover animation and does not assert pixels.

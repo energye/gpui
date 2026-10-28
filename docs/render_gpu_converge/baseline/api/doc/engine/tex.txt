@@ -1,0 +1,551 @@
+package tex // import "github.com/energye/gpui/engine/tex"
+
+Frozen 2026-09-15: Format, FormatBC1RGBAUnorm, ParseKTX2, LoadKTX2,
+ParseBasis, LoadBasis, Image accessors. Additive changes only.
+Frozen 2026-09-15 (3.3): State, StateLoading/Ready/Missing/Failed, Stats,
+MaxStreams/MaxStreamBytes/MaxStreamAssetBytes/MaxStreamIDLen, PlaceholderImage,
+Stream{Request,RequestFile,Poll,Wait,Get,Placeholder}. Additive changes only.
+
+What is frozen: one container plus one block format. KTX2 (Khronos container v2,
+little-endian header) carrying VK_FORMAT_BC1_RGBA_UNORM_BLOCK (133),
+supercompression NONE, single 2D level, faceCount 1, layerCount 0, pixelDepth 0,
+width and height multiples of 4. The 8 block bytes upload to the GPU as-is;
+the CPU decodes the same blocks to RGBA8 for the offscreen comparison. One
+frozen kind first; a second kind freezes separately later.
+
+What is reserved: every other vkFormat, every non-zero supercompressionScheme
+(BasisLZ/Zstd/Zlib), multi-level (mipmaps go to 3.2), arrays/cubemaps/3D,
+uncompressed KTX2. They parse the header far enough to name the kind, then
+report core Unsupported, never a guessed image. The old PNG/JPG/WebP 8-bit path
+stays untouched.
+
+Errors use engine/core codes: empty input is InvalidArg, a missing file is
+NotFound, a torn header or mismatched level bytes is BadData, a valid header
+naming an unfrozen kind is Unsupported, a picture beyond the MaxPixels budget
+is OutOfMemory. Only core numbers are used; decoded pixels cross to render as
+core.Color at the boundary.
+
+Streaming (3.3): Stream decodes KTX2+BC1 off the play path in the background
+(Request/RequestFile copy input, Poll never blocks, Wait caps at 5s).
+Unknown ids are StateEmpty plus NotFound; Loading duplicates are no-ops;
+missing files serve the shared 4x4 magenta placeholder (PlaceholderImage, never
+nil) with Missing/Failed replaying the stored cause. Budgets mirror engine/asset
+(MaxStreams 1024, MaxStreamBytes 64MB, MaxStreamAssetBytes 8MB) but the ledger
+is standalone: engine/asset reads tex, so tex cannot import asset (cycle);
+Stream reuses only core.Manager plus tex.ParseKTX2.
+
+Sampling switch: Filter, Kind, MipMode, Table plus
+NumLevels/LevelForScale/LevelSize (mipmap.go). One picture carries
+one Filter: Near (magnify), Far (minify), Mip (between-level select),
+MaxAniso (1..16, 1 is off). SetFilter is the frozen near/far/aniso switch,
+SetMipmap the frozen level-blend switch; both validate loudly (InvalidArg)
+and leave the receiver untouched on error. SamplerParams is the single
+render-boundary mapping; a fully nearest picture masks mip/aniso exactly
+like the GPU nearest sampler. Level math mirrors the CPU box chain
+(render/internal/image/mipmap.go): NumLevels is 1+floor(log2(max)),
+LevelForScale is floor(-log2(scale)) clamped, bad scales fall back to 0.
+The render sampler bottom lives in render/internal/gpu/image_pipeline.go
+(ImageSamplerKey, SamplerDescriptorForImageFilter, SamplerForFilter, per-command
+SetPerImageFilter); the old Nearest/Bicubic path is untouched and the zero value
+keeps historic behaviour. Additive changes only.
+
+CONSTANTS
+
+const (
+
+	// MaxDimension caps one side; MaxPixels caps the area. Beyond either
+	// the file is well-formed but beyond budget: OutOfMemory, never a guess.
+	MaxDimension = 8192
+	MaxPixels    = 8192 * 8192
+	// LargeTranscodePixels marks a big picture: at or above this pixel
+	// count callers must use TranscodeAsync so transcode never runs on
+	// the play thread. 256x256 sits exactly on the line.
+	LargeTranscodePixels = 256 * 256
+)
+    Frozen block geometry for FormatBC1RGBAUnorm. S64 (2026-10-02, additive):
+    FormatASTC_RGBA_4x4 frozen as the second kind (ASTC picked over ETC2,
+    one kind only). ASTC 4x4 is the top ASTC tier (16 bytes per 4x4 block,
+    1/4 of RGBA8); Go carries and validates the blocks and never ships an ASTC
+    software decoder.
+
+const (
+	// SchemeNone means no supercompression: level bytes are blocks as-is.
+	SchemeNone = 0
+	// SchemeBasisLZ is Basis Universal / BasisLZ supercompression.
+	SchemeBasisLZ = 1
+	// SchemeZstd is Zstd supercompression.
+	SchemeZstd = 2
+	// SchemeZlib is Zlib supercompression.
+	SchemeZlib = 3
+)
+    KTX2 supercompressionScheme values (header offset 44). Only SchemeNone
+    uploads as-is; the rest are rejected with the scheme named in the cause.
+
+const (
+	// AnisoMin disables extra filtering, AnisoMax is the device cap.
+	AnisoMin = 1
+	AnisoMax = 16
+	// DefaultAniso is the historic sampler behaviour (off).
+	DefaultAniso = 1
+)
+const (
+	// MaxStreams caps ready plus in-flight ids in one Stream.
+	MaxStreams = 1024
+	// MaxStreamBytes caps retained decoded RGBA8 bytes in one Stream.
+	MaxStreamBytes = 64 << 20
+	// MaxStreamAssetBytes caps one KTX2 file payload.
+	MaxStreamAssetBytes = 8 << 20
+	// MaxStreamIDLen caps the id text length in bytes.
+	MaxStreamIDLen = 128
+)
+    Frozen stream budgets. Beyond budget is OutOfMemory, never a guess.
+
+const RealisticAniso = 4
+    RealisticAniso is the S65写实 default aniso for 45-degree ground.
+
+
+VARIABLES
+
+var (
+	// CapsDesktopBC1 decodes BC1 only: ASTC must transcode or go pink.
+	CapsDesktopBC1 = GPUCaps{Name: "desktop-bc1", BC1: true}
+	// CapsMobileASTC decodes ASTC only.
+	CapsMobileASTC = GPUCaps{Name: "mobile-astc", ASTC: true}
+	// CapsUniversal decodes both frozen kinds.
+	CapsUniversal = GPUCaps{Name: "universal", BC1: true, ASTC: true}
+	// CapsNone decodes neither: every compressed picture goes pink.
+	CapsNone = GPUCaps{Name: "none"}
+)
+    Frozen per-card profiles. Desktop GL/DX without ASTC lands on desktop-bc1;
+    ASTC phones land on mobile-astc; universal keeps both.
+
+
+FUNCTIONS
+
+func CheckUsage(f Format, u Usage) error
+    CheckUsage refuses a format/usage pair that would smear. BC1 is the lowest
+    tier (4-color 4x4 blocks) and is color-only; ASTC 4x4 is the top ASTC tier
+    and may carry normals. Anything unknown is refused loudly.
+
+func IsPink(im *Image) bool
+    IsPink reports whether im is all-magenta (transcode fallback or ASTC CPU
+    proxy). Nil is never pink.
+
+func IsPixelAligned(v float64) bool
+    IsPixelAligned reports whether v sits on an integer pixel.
+
+func LevelForScale(scale float64, w, h int) int
+    LevelForScale returns the level index for scale (displayed/original): 1.0 or
+    larger is level 0, each halving steps one deeper, clamped to the last level.
+    NaN, infinities, zero, and negatives fall back to 0, mirroring the CPU chain
+    clamps so both sides pick the same level.
+
+func LevelSize(w, h, level int) (lw, lh int, ok bool)
+    LevelSize returns the dimensions of level (0 is the original, each level
+    halves, min 1). Out-of-range input reports ok=false, never a panic and never
+    a zero size leaking out as valid.
+
+func NeedsAsync(im *Image) bool
+    NeedsAsync reports whether im is a big picture whose transcode must go
+    through TranscodeAsync instead of the play thread.
+
+func NumLevels(w, h int) int
+    NumLevels returns the mipmap level count for a w-by-h picture: 1 +
+    floor(log2(max(w, h))). Non-positive sides hold 0 levels and never crash
+    (tiny-picture guard).
+
+func SnapPixel(v float64) float64
+    SnapPixel rounds v to the nearest integer pixel center.
+
+func SnapPixelInt(v float64) int
+    SnapPixelInt rounds v to the nearest integer pixel index.
+
+func TranscodeAsync(im *Image, caps GPUCaps, fn Transcoder) <-chan TranscodeResult
+    TranscodeAsync runs Transcode off the caller thread and delivers one
+    TranscodeResult on the returned buffered channel. The call itself never
+    blocks; a failing transcode still delivers pink, never a panic.
+
+
+TYPES
+
+type Filter struct {
+	Near     Kind
+	Far      Kind
+	Mip      MipMode
+	MaxAniso uint16
+}
+    Filter is one picture's sampling switch: Near is the magnify filter,
+    Far the minify filter, Mip the between-level select, MaxAniso the anisotropy
+    cap (1..16, 1 is off). The zero value is valid: Normalized maps it to
+    DefaultFilter.
+
+func DefaultFilter() Filter
+    DefaultFilter matches the historic GPU linear sampler: smooth both axes,
+    nearest level, anisotropy off.
+
+func NearestFilter() Filter
+    NearestFilter matches the historic GPU nearest sampler: sharp both axes.
+    Mip and MaxAniso ride along but SamplerParams masks them, exactly like the
+    GPU nearest path does.
+
+func PixelArtFilter() Filter
+    PixelArtFilter is the像素风 preset: Nearest plus integer coords. Pair it with
+    SnapPixel/IsPixelAligned on positions and UVs.
+
+func RealisticFilter() Filter
+    RealisticFilter is the one-click写实 default: mipmap plus trilinear plus 4x
+    aniso. Render sampling switch stays on the old path.
+
+func (f Filter) AnisoWarning() string
+    AnisoWarning names the S65 invalid config: aniso above 1 without
+    mipmap-linear, or aniso carried by a fully nearest picture (masked by the
+    sampler). Empty means valid, non-empty is the warning text.
+
+func (f Filter) IsAnisoValid() bool
+    IsAnisoValid reports whether f carries a usable aniso switch.
+
+func (f Filter) LogAnisoWarning() string
+    LogAnisoWarning emits the invalid-config warning through the std log and
+    returns it. Empty means valid and logs nothing.
+
+func (f Filter) Normalized() Filter
+    Normalized returns f with every Unknown axis mapped to the historic default
+    (Linear axes, Nearest level) and aniso pinned to [1, 16]. It never fails;
+    use SetFilter/SetMipmap for loud validation.
+
+func (f Filter) SamplerParams() (magLinear, minLinear, mipLinear bool, aniso uint16)
+    SamplerParams maps f to the effective GPU sampler choice at the render
+    boundary: magLinear/minLinear/mipLinear plus the aniso cap. A fully nearest
+    picture masks mip/aniso (the GPU nearest sampler ignores both), so two
+    nearest pictures always merge even when their carried Mip/MaxAniso differ.
+
+func (f *Filter) SetFilter(near, far Kind, maxAniso int) error
+    SetFilter switches both axes plus the anisotropy cap of this picture (the
+    frozen 3.2 interface: near/far per picture, aniso tunable). An Unknown Mip
+    rides along as MipNearest (the historic select), so a zero-value Filter
+    becomes valid after one SetFilter call; an already set Mip is left untouched
+    so old callers keep their level select. Bad input returns InvalidArg and
+    leaves f unchanged.
+
+func (f *Filter) SetMipmap(m MipMode) error
+    SetMipmap switches the between-level select of this picture (new branch for
+    the far-stable view). Bad input returns InvalidArg and leaves f unchanged.
+
+type Format int
+    Format names the frozen block kind. BC1 plus ASTC 4x4 are built; the rest
+    are reserved and report Unsupported through ParseKTX2.
+
+const (
+	// FormatUnknown is the zero value: no kind recognized.
+	FormatUnknown Format = iota
+	// FormatBC1RGBAUnorm is KTX2 + BC1 RGBA (8 bytes per 4x4 block).
+	FormatBC1RGBAUnorm
+	// FormatASTCRGBA4x4 is KTX2 + ASTC 4x4 RGBA (16 bytes per 4x4 block).
+	// S64 second kind: ETC2 stays reserved.
+	FormatASTCRGBA4x4
+)
+func (f Format) BlockBytes() int
+    BlockBytes returns the GPU upload bytes per block (8 BC1, 16 ASTC,
+    0 unknown).
+
+func (f Format) BlockExtent() (w, h int)
+    BlockExtent returns the block footprint (4x4 for both kinds, 0 unknown).
+
+func (f Format) String() string
+    String returns the stable log name of f.
+
+func (f Format) VkFormat() uint32
+    VkFormat returns the Vulkan enum carried in the KTX2 header (133 BC1 RGBA,
+    157 ASTC 4x4, 0 unknown).
+
+type GPUCaps struct {
+	// Name is the stable log name (e.g. "desktop-bc1").
+	Name string
+	// BC1 decodes VK 133 natively.
+	BC1 bool
+	// ASTC decodes VK 157 natively.
+	ASTC bool
+}
+    GPUCaps names what the card decodes natively. Go routes on this table;
+    the driver owns the pixels.
+
+type Image struct {
+	// Has unexported fields.
+}
+    Image is one decoded KTX2 picture: the block bytes that upload to the GPU
+    as-is plus the CPU-decoded RGBA8 pixels for the offscreen comparison.
+    BC1 pixels are decoded from the blocks. ASTC is GPU-only in Go (no ASTC
+    software decoder ships here): pixels hold the tiled magenta proxy so the
+    picture still measures honestly and shows pink on CPU; real colors come from
+    Transcode with a driver hook.
+
+func LoadBasis(path string) (*Image, error)
+    LoadBasis reads path far enough to name the miss: missing file is NotFound,
+    any present file is Unsupported (Basis decoders live later).
+
+func LoadKTX2(path string) (*Image, error)
+    LoadKTX2 reads path and parses it as KTX2.
+
+func ParseBasis(data []byte) (*Image, error)
+    ParseBasis is the reserved Basis entry: frozen as unsupported so callers can
+    probe it without guessing. Empty input stays InvalidArg.
+
+func ParseKTX2(data []byte) (*Image, error)
+    ParseKTX2 validates a KTX2 file image and carries its blocks. BC1 blocks
+    also decode to RGBA8; ASTC blocks ride as-is with the pink CPU proxy (see
+    Image). See doc.go for the frozen subset; anything else is Unsupported or
+    BadData.
+
+func PlaceholderImage() *Image
+    PlaceholderImage returns the shared 4x4 magenta stand-in. Never nil; callers
+    must not mutate it (accessors already copy).
+
+func Transcode(im *Image, caps GPUCaps, fn Transcoder) (*Image, error)
+    Transcode routes im for caps. Native returns im as-is. BC1 routes run fn and
+    decode the result with the frozen BC1 decoder; fn missing, failing, or short
+    returns a same-size pink image plus the cause, never a panic and never nil.
+    Nil im returns the shared placeholder.
+
+func (im *Image) At(x, y int) (core.Color, bool)
+    At returns the pixel at (x, y) as a core.Color. Out-of-range or nil reports
+    ok=false, never a panic.
+
+func (im *Image) BlockCount() int
+    BlockCount returns the number of 4x4 blocks (format-aware: BC1 divides by 8,
+    ASTC by 16).
+
+func (im *Image) Blocks() []byte
+    Blocks returns a copy of the GPU block bytes. The copy never aliases the
+    image; mutating it cannot corrupt a replay.
+
+func (im *Image) Equal(o *Image) bool
+    Equal reports whether o holds bitwise the same picture.
+
+func (im *Image) Format() Format
+    Format returns the block kind.
+
+func (im *Image) Height() int
+    Height returns the picture height in pixels.
+
+func (im *Image) PixelSize() int
+    PixelSize returns the decoded RGBA8 bytes (w*h*4).
+
+func (im *Image) Pixels() []byte
+    Pixels returns a copy of the decoded RGBA8 bytes, row-major top-left.
+
+func (im *Image) Ratio() float64
+    Ratio returns decoded bytes per upload byte (8 for BC1).
+
+func (im *Image) UploadSize() int
+    UploadSize returns the GPU upload bytes (blocks as-is).
+
+func (im *Image) Width() int
+    Width returns the picture width in pixels.
+
+type Kind int
+    Kind names one axis filter. Nearest keeps texels sharp, Linear smooths.
+
+const (
+	// KindUnknown is the zero value: no choice made, Normalized maps it
+	// to KindLinear (the historic smooth default).
+	KindUnknown Kind = iota
+	// KindNearest samples the closest texel (near/crisp pictures).
+	KindNearest
+	// KindLinear blends neighbours (far/stable pictures).
+	KindLinear
+)
+func ParseKind(s string) Kind
+    ParseKind maps "nearest"/"linear" to a Kind. Anything else is Unknown.
+
+func (k Kind) String() string
+    String returns the stable log name of k.
+
+type MipMode int
+    MipMode names the between-level select. Nearest picks one level (stable,
+    the historic default), Linear blends two (smoother far view).
+
+const (
+	// MipUnknown is the zero value: Normalized maps it to MipNearest.
+	MipUnknown MipMode = iota
+	// MipNearest selects the closest level only.
+	MipNearest
+	// MipLinear blends adjacent levels (trilinear).
+	MipLinear
+)
+func ParseMipMode(s string) MipMode
+    ParseMipMode maps "nearest"/"linear" to a MipMode, else MipUnknown.
+
+func (m MipMode) String() string
+    String returns the stable log name of m.
+
+type State int
+    State names the lifecycle of one streamed id.
+
+const (
+	// StateEmpty means no record for the id.
+	StateEmpty State = iota
+	// StateLoading means a background Request is in flight.
+	StateLoading
+	// StateReady means the decoded image is cached.
+	StateReady
+	// StateMissing is the placeholder for a NotFound id or file.
+	StateMissing
+	// StateFailed is the placeholder for BadData/Unsupported/OutOfMemory.
+	StateFailed
+)
+func (s State) String() string
+    String returns the stable log name of s.
+
+type Stats struct {
+	Count       int
+	TotalBytes  int64
+	TotalUpload int64
+	Loads       int64
+	Unloads     int64
+	Requests    int64
+}
+    Stats reports Stream counters. Count is Ready entries; TotalBytes sums their
+    decoded RGBA8 bytes; TotalUpload sums their GPU block bytes.
+
+type Stream struct {
+	// Has unexported fields.
+}
+    Stream owns one background texture ledger: ids decode off the play path
+    through tex.ParseKTX2, Poll never blocks, missing ids serve the shared
+    magenta placeholder. A nil Stream never panics. Only core numbers are used;
+    the old PNG/JPG/WebP sync path stays untouched.
+
+func NewStream() *Stream
+    NewStream builds an empty background ledger.
+
+func (s *Stream) Count() int
+    Count returns the Ready entry count.
+
+func (s *Stream) Evict(id core.AssetID) error
+    Evict frees the cached image of id when it has no live claims. Live ids
+    report InvalidArg; unknown ids report NotFound.
+
+func (s *Stream) Get(id core.AssetID) (*Image, bool)
+    Get returns the Ready image without blocking. Ready ids report (image,
+    true); anything else reports (placeholder, false). Never nil, never panics.
+
+func (s *Stream) LiveCount(id core.AssetID) int
+    LiveCount returns the live reference count of id.
+
+func (s *Stream) Placeholder(id core.AssetID) *Image
+    Placeholder returns a usable stand-in for id so missing textures never
+    branch on nil. Ready ids return their image; anything else returns the
+    shared 4x4 magenta. Never nil.
+
+func (s *Stream) Poll(id core.AssetID) (State, error)
+    Poll reports the lifecycle state of id without blocking. Unknown ids are
+    StateEmpty plus NotFound; Loading and Ready report nil; Missing and Failed
+    replay the stored cause.
+
+func (s *Stream) Ready(id core.AssetID) bool
+    Ready reports whether id holds a decoded image.
+
+func (s *Stream) Ref(id core.AssetID) (*Image, error)
+    Ref adds one claim on a Ready id and returns its image. Loading ids report
+    NotFound; Missing/Failed replay the cause.
+
+func (s *Stream) Request(id core.AssetID, data []byte) error
+    Request starts a background decode of data under id. Data is copied before
+    the worker starts, so the caller may reuse it. Poll reports Loading until
+    the worker stores Ready, Missing, or Failed. Duplicate Requests while
+    Loading are no-ops.
+
+func (s *Stream) RequestFile(id core.AssetID, path string) error
+    RequestFile starts a background load of path under id. Missing files surface
+    as Missing through Poll/Wait, never as a Request error.
+
+func (s *Stream) StateOf(id core.AssetID) State
+    StateOf returns the lifecycle state of id.
+
+func (s *Stream) Stats() Stats
+    Stats returns a copy of the Stream counters.
+
+func (s *Stream) TotalBytes() int64
+    TotalBytes returns the retained decoded RGBA8 bytes.
+
+func (s *Stream) Unload(id core.AssetID) error
+    Unload drops one claim on id. Unknown ids are NotFound; ids with no live
+    claims are InvalidArg and change nothing. Cached bytes stay for quick
+    reload; use Evict to free them.
+
+func (s *Stream) Wait(id core.AssetID) (*Image, error)
+    Wait blocks until id leaves Loading, then returns its image. Unknown ids
+    return NotFound; Missing/Failed replay the cause. Images are immutable:
+    the returned pointer stays valid. The wait caps at 5 seconds so a stuck
+    worker cannot hang play.
+
+type Table struct {
+	// Has unexported fields.
+}
+    Table is the per-picture filter switch: one Filter per AssetID.
+
+func NewTable() *Table
+    NewTable builds an empty per-picture switch.
+
+func (t *Table) Clear()
+    Clear drops every stored picture.
+
+func (t *Table) Get(id core.AssetID) (Filter, bool)
+    Get returns the Filter stored for id, or false when id is unknown.
+
+func (t *Table) Len() int
+    Len returns the stored picture count.
+
+func (t *Table) Remove(id core.AssetID) bool
+    Remove drops id, reporting whether anything was stored.
+
+func (t *Table) Set(id core.AssetID, f Filter) error
+    Set records f for id. Empty ids and invalid filters return InvalidArg and
+    store nothing.
+
+type TranscodeResult struct {
+	Image    *Image
+	Err      error
+	Fallback bool
+}
+    TranscodeResult is one background transcode outcome. Fallback is true
+    exactly when Err is non-nil (pink served); Image is never nil.
+
+type TranscodeTarget int
+    TranscodeTarget is the routing decision for one picture on one card.
+
+const (
+	// TargetNative uploads the blocks as-is; the card decodes them.
+	TargetNative TranscodeTarget = iota
+	// TargetBC1 re-packs to BC1 (driver hook); Go only validates.
+	TargetBC1
+	// TargetPink serves the magenta stand-in; no pixels are guessed.
+	TargetPink
+)
+func TranscodeTargetFor(f Format, caps GPUCaps) TranscodeTarget
+    TranscodeTargetFor routes format f on caps: native where the card decodes,
+    ASTC falls back to BC1 where only BC1 exists, everything else falls back to
+    pink. Pure table, never touches pixels.
+
+func (t TranscodeTarget) String() string
+    String returns the stable log name of t.
+
+type Transcoder func(blocks []byte, w, h int) (bc1Blocks []byte, err error)
+    Transcoder is the driver hook that re-packs ASTC blocks to BC1 blocks (same
+    geometry, 8 bytes per 4x4 block). Nil means no driver here: the caller gets
+    pink plus Unsupported. Engine ships no ASTC decoder, so a test or driver
+    must supply this.
+
+type Usage int
+    Usage names what a picture is sampled as. Normal maps need precision:
+    the lowest block tier stays color-only.
+
+const (
+	// UsageColor is base color / diffuse: any frozen format may sample it.
+	UsageColor Usage = iota
+	// UsageNormal is a tangent-space normal map: BC1 is refused.
+	UsageNormal
+)
+func (u Usage) String() string
+    String returns the stable log name of u.
+

@@ -1,0 +1,706 @@
+package gl // import "github.com/energye/gpui/gpu/gwgpu/gles/gl"
+
+Package gl provides OpenGL constants and types for the GLES backend.
+
+FFI error handling follows ADR-049 three-tier strategy:
+
+All GL commands in this file are Tier 2: GL errors are reported via
+glGetError(), not through FFI return values. The GL spec guarantees these calls
+never fail at the transport level.
+
+Package gl provides low-level OpenGL function bindings using syscall.
+
+This package is used internally by the GLES HAL backend. It loads OpenGL
+functions at runtime via wglGetProcAddress (Windows) or platform-specific
+loaders.
+
+# Usage
+
+The Context type holds function pointers loaded at runtime:
+
+    ctx := &gl.Context{}
+    ctx.Load(wgl.GetGLProcAddress)
+    ctx.ClearColor(0.2, 0.3, 0.3, 1.0)
+    ctx.Clear(gl.COLOR_BUFFER_BIT)
+
+CONSTANTS
+
+const (
+	// Boolean values
+	FALSE = 0
+	TRUE  = 1
+
+	// Data types
+	BYTE              = 0x1400
+	UNSIGNED_BYTE     = 0x1401
+	SHORT             = 0x1402
+	UNSIGNED_SHORT    = 0x1403
+	INT               = 0x1404
+	UNSIGNED_INT      = 0x1405
+	FLOAT             = 0x1406
+	HALF_FLOAT        = 0x140B
+	UNSIGNED_INT_24_8 = 0x84FA
+
+	// Errors
+	NO_ERROR                      = 0
+	INVALID_ENUM                  = 0x0500
+	INVALID_VALUE                 = 0x0501
+	INVALID_OPERATION             = 0x0502
+	OUT_OF_MEMORY                 = 0x0505
+	INVALID_FRAMEBUFFER_OPERATION = 0x0506
+
+	// Capabilities
+	BLEND        = 0x0BE2
+	CULL_FACE    = 0x0B44
+	DEPTH_TEST   = 0x0B71
+	DITHER       = 0x0BD0
+	SCISSOR_TEST = 0x0C11
+	STENCIL_TEST = 0x0B90
+
+	// Buffer targets
+	ARRAY_BUFFER              = 0x8892
+	ELEMENT_ARRAY_BUFFER      = 0x8893
+	UNIFORM_BUFFER            = 0x8A11
+	COPY_READ_BUFFER          = 0x8F36
+	COPY_WRITE_BUFFER         = 0x8F37
+	PIXEL_PACK_BUFFER         = 0x88EB
+	PIXEL_UNPACK_BUFFER       = 0x88EC
+	TRANSFORM_FEEDBACK_BUFFER = 0x8C8E
+
+	// Buffer access modes
+	READ_ONLY  = 0x88B8
+	WRITE_ONLY = 0x88B9
+	READ_WRITE = 0x88BA
+
+	// Buffer usage
+	STREAM_DRAW  = 0x88E0
+	STREAM_READ  = 0x88E1
+	STREAM_COPY  = 0x88E2
+	STATIC_DRAW  = 0x88E4
+	STATIC_READ  = 0x88E5
+	STATIC_COPY  = 0x88E6
+	DYNAMIC_DRAW = 0x88E8
+	DYNAMIC_READ = 0x88E9
+	DYNAMIC_COPY = 0x88EA
+
+	// Texture units
+	TEXTURE0 = 0x84C0
+
+	// Texture targets
+	TEXTURE_2D                  = 0x0DE1
+	TEXTURE_3D                  = 0x806F
+	TEXTURE_2D_ARRAY            = 0x8C1A
+	TEXTURE_2D_MULTISAMPLE      = 0x9100
+	TEXTURE_CUBE_MAP            = 0x8513
+	TEXTURE_CUBE_MAP_POSITIVE_X = 0x8515
+	TEXTURE_CUBE_MAP_NEGATIVE_X = 0x8516
+	TEXTURE_CUBE_MAP_POSITIVE_Y = 0x8517
+	TEXTURE_CUBE_MAP_NEGATIVE_Y = 0x8518
+	TEXTURE_CUBE_MAP_POSITIVE_Z = 0x8519
+	TEXTURE_CUBE_MAP_NEGATIVE_Z = 0x851A
+
+	// Texture parameters
+	TEXTURE_MAG_FILTER     = 0x2800
+	TEXTURE_MIN_FILTER     = 0x2801
+	TEXTURE_WRAP_S         = 0x2802
+	TEXTURE_WRAP_T         = 0x2803
+	TEXTURE_WRAP_R         = 0x8072
+	TEXTURE_MIN_LOD        = 0x813A
+	TEXTURE_MAX_LOD        = 0x813B
+	TEXTURE_COMPARE_MODE   = 0x884C
+	TEXTURE_COMPARE_FUNC   = 0x884D
+	COMPARE_REF_TO_TEXTURE = 0x884E
+	TEXTURE_BASE_LEVEL     = 0x813C
+	TEXTURE_MAX_LEVEL      = 0x813D
+	TEXTURE_MAX_ANISOTROPY = 0x84FE
+
+	// Texture filter modes
+	NEAREST                = 0x2600
+	LINEAR                 = 0x2601
+	NEAREST_MIPMAP_NEAREST = 0x2700
+	LINEAR_MIPMAP_NEAREST  = 0x2701
+	NEAREST_MIPMAP_LINEAR  = 0x2702
+	LINEAR_MIPMAP_LINEAR   = 0x2703
+
+	// Texture wrap modes
+	REPEAT          = 0x2901
+	CLAMP_TO_EDGE   = 0x812F
+	MIRRORED_REPEAT = 0x8370
+
+	// Pixel formats
+	DEPTH_COMPONENT   = 0x1902
+	RED               = 0x1903
+	RG                = 0x8227
+	RGB               = 0x1907
+	RGBA              = 0x1908
+	DEPTH_STENCIL     = 0x84F9
+	RED_INTEGER       = 0x8D94
+	RG_INTEGER        = 0x8228
+	RGB_INTEGER       = 0x8D98
+	RGBA_INTEGER      = 0x8D99
+	BGRA              = 0x80E1
+	DEPTH_COMPONENT16 = 0x81A5
+	DEPTH_COMPONENT24 = 0x81A6
+	DEPTH_COMPONENT32 = 0x81A7
+	DEPTH24_STENCIL8  = 0x88F0
+
+	// Internal formats
+	R8                = 0x8229
+	R16F              = 0x822D
+	R32F              = 0x822E
+	RG8               = 0x822B
+	RG16F             = 0x822F
+	RG32F             = 0x8230
+	RGB8              = 0x8051
+	RGBA8             = 0x8058
+	SRGB8             = 0x8C41
+	SRGB8_ALPHA8      = 0x8C43
+	RGB16F            = 0x881B
+	RGBA16F           = 0x881A
+	RGB32F            = 0x8815
+	RGBA32F           = 0x8814
+	R8I               = 0x8231
+	R8UI              = 0x8232
+	R16I              = 0x8233
+	R16UI             = 0x8234
+	R32I              = 0x8235
+	R32UI             = 0x8236
+	RG8I              = 0x8237
+	RG8UI             = 0x8238
+	RG16I             = 0x8239
+	RG16UI            = 0x823A
+	RG32I             = 0x823B
+	RG32UI            = 0x823C
+	RGBA8I            = 0x8D8E
+	RGBA8UI           = 0x8D7C
+	RGBA16I           = 0x8D88
+	RGBA16UI          = 0x8D76
+	RGBA32I           = 0x8D82
+	RGBA32UI          = 0x8D70
+	DEPTH32F_STENCIL8 = 0x8CAD
+
+	// Shader types
+	FRAGMENT_SHADER = 0x8B30
+	VERTEX_SHADER   = 0x8B31
+	COMPUTE_SHADER  = 0x91B9
+
+	// Shader parameters
+	COMPILE_STATUS       = 0x8B81
+	LINK_STATUS          = 0x8B82
+	INFO_LOG_LENGTH      = 0x8B84
+	ACTIVE_UNIFORMS      = 0x8B86
+	ACTIVE_ATTRIBUTES    = 0x8B89
+	SHADER_SOURCE_LENGTH = 0x8B88
+
+	// Draw modes
+	POINTS         = 0x0000
+	LINES          = 0x0001
+	LINE_LOOP      = 0x0002
+	LINE_STRIP     = 0x0003
+	TRIANGLES      = 0x0004
+	TRIANGLE_STRIP = 0x0005
+	TRIANGLE_FAN   = 0x0006
+
+	// Blend factors
+	ZERO                     = 0
+	ONE                      = 1
+	SRC_COLOR                = 0x0300
+	ONE_MINUS_SRC_COLOR      = 0x0301
+	SRC_ALPHA                = 0x0302
+	ONE_MINUS_SRC_ALPHA      = 0x0303
+	DST_ALPHA                = 0x0304
+	ONE_MINUS_DST_ALPHA      = 0x0305
+	DST_COLOR                = 0x0306
+	ONE_MINUS_DST_COLOR      = 0x0307
+	SRC_ALPHA_SATURATE       = 0x0308
+	CONSTANT_COLOR           = 0x8001
+	ONE_MINUS_CONSTANT_COLOR = 0x8002
+	CONSTANT_ALPHA           = 0x8003
+	ONE_MINUS_CONSTANT_ALPHA = 0x8004
+
+	// Blend equations
+	FUNC_ADD              = 0x8006
+	FUNC_SUBTRACT         = 0x800A
+	FUNC_REVERSE_SUBTRACT = 0x800B
+	MIN                   = 0x8007
+	MAX                   = 0x8008
+
+	// Depth functions
+	NEVER    = 0x0200
+	LESS     = 0x0201
+	EQUAL    = 0x0202
+	LEQUAL   = 0x0203
+	GREATER  = 0x0204
+	NOTEQUAL = 0x0205
+	GEQUAL   = 0x0206
+	ALWAYS   = 0x0207
+
+	// Stencil operations
+	KEEP      = 0x1E00
+	REPLACE   = 0x1E01
+	INCR      = 0x1E02
+	DECR      = 0x1E03
+	INVERT    = 0x150A
+	INCR_WRAP = 0x8507
+	DECR_WRAP = 0x8508
+
+	// Face culling
+	FRONT          = 0x0404
+	BACK           = 0x0405
+	FRONT_AND_BACK = 0x0408
+	CW             = 0x0900
+	CCW            = 0x0901
+
+	// Framebuffer
+	FRAMEBUFFER              = 0x8D40
+	FRAMEBUFFER_BINDING      = 0x8CA6
+	READ_FRAMEBUFFER         = 0x8CA8
+	DRAW_FRAMEBUFFER         = 0x8CA9
+	RENDERBUFFER             = 0x8D41
+	COLOR_ATTACHMENT0        = 0x8CE0
+	DEPTH_ATTACHMENT         = 0x8D00
+	STENCIL_ATTACHMENT       = 0x8D20
+	DEPTH_STENCIL_ATTACHMENT = 0x821A
+	FRAMEBUFFER_COMPLETE     = 0x8CD5
+
+	// Pixel storage
+	PACK_ALIGNMENT   = 0x0D05
+	UNPACK_ALIGNMENT = 0x0CF5
+
+	// Clear bits
+	COLOR_BUFFER_BIT   = 0x00004000
+	DEPTH_BUFFER_BIT   = 0x00000100
+	STENCIL_BUFFER_BIT = 0x00000400
+
+	// Clear buffer target (for glClearBufferfv/iv/uiv)
+	COLOR = 0x1800
+
+	// Get parameters
+	VENDOR                           = 0x1F00
+	RENDERER                         = 0x1F01
+	VERSION                          = 0x1F02
+	SHADING_LANGUAGE_VERSION         = 0x8B8C
+	EXTENSIONS                       = 0x1F03
+	NUM_EXTENSIONS                   = 0x821D
+	MAX_TEXTURE_SIZE                 = 0x0D33
+	MAX_3D_TEXTURE_SIZE              = 0x8073
+	MAX_TEXTURE_IMAGE_UNITS          = 0x8872
+	MAX_ARRAY_TEXTURE_LAYERS         = 0x88FF
+	MAX_VERTEX_ATTRIBS               = 0x8869
+	MAX_VERTEX_ATTRIB_BINDINGS       = 0x82DA
+	MAX_VERTEX_ATTRIB_STRIDE         = 0x82E5
+	MAX_VERTEX_UNIFORM_COMPONENTS    = 0x8B4A
+	MAX_FRAGMENT_UNIFORM_COMPONENTS  = 0x8B49
+	MAX_VERTEX_UNIFORM_BLOCKS        = 0x8A2B
+	MAX_FRAGMENT_UNIFORM_BLOCKS      = 0x8A2D
+	MAX_UNIFORM_BUFFER_BINDINGS      = 0x8A2F
+	MAX_UNIFORM_BLOCK_SIZE           = 0x8A30
+	UNIFORM_BUFFER_OFFSET_ALIGNMENT  = 0x8A34
+	MAX_COMBINED_TEXTURE_IMAGE_UNITS = 0x8B4D
+	MAX_COLOR_ATTACHMENTS            = 0x8CDF
+	MAX_DRAW_BUFFERS                 = 0x8824
+	MAX_RENDERBUFFER_SIZE            = 0x84E8
+	MAX_SAMPLES                      = 0x8D57
+	MAX_ELEMENT_INDEX                = 0x8D6B
+	MAX_VARYING_COMPONENTS           = 0x8B4B
+
+	// Shader storage buffer (GL 4.3+ / ES 3.1+)
+	MAX_VERTEX_SHADER_STORAGE_BLOCKS       = 0x90D6
+	MAX_FRAGMENT_SHADER_STORAGE_BLOCKS     = 0x90DA
+	MAX_COMPUTE_SHADER_STORAGE_BLOCKS      = 0x90DB
+	MAX_SHADER_STORAGE_BLOCK_SIZE          = 0x90DE
+	SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT = 0x90DF
+	MAX_VERTEX_IMAGE_UNIFORMS              = 0x90CA
+	MAX_FRAGMENT_IMAGE_UNIFORMS            = 0x90CE
+
+	// Compute shader parameters (GL 4.3+ / ES 3.1+)
+	MAX_COMPUTE_SHARED_MEMORY_SIZE = 0x8262
+
+	// Anisotropic filtering
+	MAX_TEXTURE_MAX_ANISOTROPY = 0x84FF
+
+	// VAO
+	VERTEX_ARRAY_BINDING = 0x85B5
+
+	// Sync objects
+	SYNC_GPU_COMMANDS_COMPLETE = 0x9117
+	ALREADY_SIGNALED           = 0x911A
+	TIMEOUT_EXPIRED            = 0x911B
+	CONDITION_SATISFIED        = 0x911C
+	WAIT_FAILED                = 0x911D
+	SYNC_FLUSH_COMMANDS_BIT    = 0x00000001
+	TIMEOUT_IGNORED            = 0xFFFFFFFFFFFFFFFF
+
+	// Compute shader constants (OpenGL ES 3.1+ / OpenGL 4.3+)
+	MAX_COMPUTE_WORK_GROUP_COUNT       = 0x91BE
+	MAX_COMPUTE_WORK_GROUP_SIZE        = 0x91BF
+	MAX_COMPUTE_WORK_GROUP_INVOCATIONS = 0x90EB
+
+	// Memory barrier bits (OpenGL ES 3.1+ / OpenGL 4.2+)
+	VERTEX_ATTRIB_ARRAY_BARRIER_BIT = 0x00000001
+	ELEMENT_ARRAY_BARRIER_BIT       = 0x00000002
+	UNIFORM_BARRIER_BIT             = 0x00000004
+	TEXTURE_FETCH_BARRIER_BIT       = 0x00000008
+	SHADER_IMAGE_ACCESS_BARRIER_BIT = 0x00000020
+	COMMAND_BARRIER_BIT             = 0x00000040
+	PIXEL_BUFFER_BARRIER_BIT        = 0x00000080
+	TEXTURE_UPDATE_BARRIER_BIT      = 0x00000100
+	BUFFER_UPDATE_BARRIER_BIT       = 0x00000200
+	FRAMEBUFFER_BARRIER_BIT         = 0x00000400
+	TRANSFORM_FEEDBACK_BARRIER_BIT  = 0x00000800
+	ATOMIC_COUNTER_BARRIER_BIT      = 0x00001000
+	SHADER_STORAGE_BARRIER_BIT      = 0x00002000
+	ALL_BARRIER_BITS                = 0xFFFFFFFF
+
+	// Indirect dispatch buffer (OpenGL ES 3.1+ / OpenGL 4.3+)
+	DISPATCH_INDIRECT_BUFFER = 0x90EE
+
+	// Shader storage buffer (OpenGL ES 3.1+ / OpenGL 4.3+)
+	SHADER_STORAGE_BUFFER = 0x90D2
+
+	// Query objects (GL 3.3+ / GL_EXT_disjoint_timer_query)
+	TIMESTAMP    = 0x8E28
+	QUERY_RESULT = 0x8866
+
+	// Sync object status (GL 3.2+)
+	SIGNALED    = 0x9119
+	SYNC_STATUS = 0x9114
+
+	// Pixel storage (GL 3.0+ / ES 3.0+)
+	UNPACK_ROW_LENGTH = 0x0CF2
+)
+    OpenGL ES 3.0 / OpenGL 3.3 constants. These are the subset needed for WebGPU
+    implementation. OpenGL constants use ALL_CAPS by industry convention.
+
+
+TYPES
+
+type Context struct {
+	// Has unexported fields.
+}
+    Context holds OpenGL function pointers loaded at runtime via goffi.
+    Functions are loaded via eglGetProcAddress for all OpenGL functions.
+
+func (c *Context) ActiveTexture(texture uint32)
+
+func (c *Context) AttachShader(program, shader uint32)
+
+func (c *Context) BindBuffer(target, buffer uint32)
+
+func (c *Context) BindBufferBase(target, index, buffer uint32)
+    BindBufferBase binds a buffer to an indexed binding point.
+
+func (c *Context) BindBufferRange(target, index, buffer uint32, offset, size int)
+    BindBufferRange binds a range of a buffer to an indexed binding point.
+
+func (c *Context) BindFramebuffer(target, framebuffer uint32)
+
+func (c *Context) BindRenderbuffer(target, renderbuffer uint32)
+    BindRenderbuffer binds a renderbuffer object to the given target (typically
+    GL_RENDERBUFFER).
+
+func (c *Context) BindSampler(unit, sampler uint32)
+    BindSampler binds a sampler object to a texture unit. No-op if sampler
+    objects are not supported.
+
+func (c *Context) BindTexture(target, texture uint32)
+
+func (c *Context) BindVertexArray(array uint32)
+
+func (c *Context) BlendColor(r, g, b, a float32)
+    BlendColor sets the constant blend color.
+
+func (c *Context) BlendEquation(mode uint32)
+
+func (c *Context) BlendEquationSeparate(modeRGB, modeAlpha uint32)
+    BlendEquationSeparate sets separate blend equations for RGB and alpha.
+
+func (c *Context) BlendFunc(sfactor, dfactor uint32)
+
+func (c *Context) BlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha uint32)
+
+func (c *Context) BlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1 int32, mask, filter uint32)
+    BlitFramebuffer copies a block of pixels between framebuffers. Requires
+    OpenGL 3.0+ or OpenGL ES 3.0+. No-op if not supported.
+
+func (c *Context) BufferData(target uint32, size int, data uintptr, usage uint32)
+
+func (c *Context) BufferSubData(target uint32, offset, size int, data unsafe.Pointer)
+
+func (c *Context) CheckFramebufferStatus(target uint32) uint32
+
+func (c *Context) Clear(mask uint32)
+
+func (c *Context) ClearBufferfv(buffer uint32, drawBuffer int32, value *[4]float32)
+    ClearBufferfv clears a specific draw buffer with float values. buffer must
+    be GL_COLOR, drawBuffer is the index (0..MAX_DRAW_BUFFERS-1), value points
+    to 4 float32 values (RGBA).
+
+func (c *Context) ClearColor(r, g, b, a float32)
+
+func (c *Context) ClearDepth(depth float64)
+    ClearDepth sets the depth value used by glClear(GL_DEPTH_BUFFER_BIT).
+    On GLES the loaded function is glClearDepthf (float32). On desktop GL it is
+    glClearDepth (double) — but Linux GLES contexts always load glClearDepthf,
+    so we pass float32 unconditionally.
+
+func (c *Context) ClientWaitSync(sync uintptr, flags uint32, timeout uint64) uint32
+    ClientWaitSync blocks until the sync object is signaled or timeout expires.
+    Returns ALREADY_SIGNALED, CONDITION_SATISFIED, TIMEOUT_EXPIRED, or
+    WAIT_FAILED.
+
+func (c *Context) ColorMask(r, g, b, a bool)
+    ColorMask enables or disables writing of color components.
+
+func (c *Context) CompileShader(shader uint32)
+
+func (c *Context) CopyBufferSubData(readTarget, writeTarget uint32, readOffset, writeOffset, size int)
+    CopyBufferSubData copies part of one buffer to another. Requires GL 3.1+ /
+    ES 3.0+.
+
+func (c *Context) CopyTexSubImage2D(target uint32, level, xoffset, yoffset, x, y, width, height int32)
+    CopyTexSubImage2D copies pixels from the read framebuffer into a 2D texture.
+    Reads from the currently bound GL_READ_FRAMEBUFFER.
+
+func (c *Context) CreateProgram() uint32
+
+func (c *Context) CreateShader(shaderType uint32) uint32
+
+func (c *Context) CullFace(mode uint32)
+
+func (c *Context) DeleteBuffers(buffers ...uint32)
+
+func (c *Context) DeleteFramebuffers(framebuffers ...uint32)
+
+func (c *Context) DeleteProgram(program uint32)
+
+func (c *Context) DeleteQueries(n int32, queries *uint32)
+    DeleteQueries deletes query objects.
+
+func (c *Context) DeleteRenderbuffers(renderbuffers ...uint32)
+    DeleteRenderbuffers deletes the named renderbuffer objects.
+
+func (c *Context) DeleteSamplers(samplers ...uint32)
+    DeleteSamplers deletes sampler objects. No-op if sampler objects are not
+    supported.
+
+func (c *Context) DeleteShader(shader uint32)
+
+func (c *Context) DeleteSync(sync uintptr)
+    DeleteSync deletes a sync object.
+
+func (c *Context) DeleteTextures(textures ...uint32)
+
+func (c *Context) DeleteVertexArrays(arrays ...uint32)
+
+func (c *Context) DepthFunc(fn uint32)
+
+func (c *Context) DepthMask(flag bool)
+
+func (c *Context) DepthRange(near, far float64)
+    DepthRange sets the mapping of NDC depth to window depth. On GLES the loaded
+    function is glDepthRangef (float32).
+
+func (c *Context) Disable(capability uint32)
+
+func (c *Context) DisableVertexAttribArray(index uint32)
+
+func (c *Context) DispatchCompute(numGroupsX, numGroupsY, numGroupsZ uint32)
+    DispatchCompute launches compute shader workgroups. Requires OpenGL 4.3+ or
+    OpenGL ES 3.1+. No-op if compute shaders are not supported.
+
+func (c *Context) DispatchComputeIndirect(indirect uintptr)
+    DispatchComputeIndirect launches compute workgroups with parameters from
+    a buffer. The indirect parameter is an offset into the currently bound
+    GL_DISPATCH_INDIRECT_BUFFER. Requires OpenGL 4.3+ or OpenGL ES 3.1+.
+    No-op if compute shaders are not supported.
+
+func (c *Context) DrawArrays(mode uint32, first, count int32)
+
+func (c *Context) DrawArraysInstanced(mode uint32, first, count, instanceCount int32)
+
+func (c *Context) DrawBuffers(bufs []uint32)
+    DrawBuffers specifies a list of color buffers to be drawn into.
+
+func (c *Context) DrawElements(mode uint32, count int32, typ uint32, indices uintptr)
+
+func (c *Context) DrawElementsInstanced(mode uint32, count int32, typ uint32, indices uintptr, instanceCount int32)
+
+func (c *Context) Enable(capability uint32)
+
+func (c *Context) EnableVertexAttribArray(index uint32)
+
+func (c *Context) FenceSync(condition, flags uint32) uintptr
+    FenceSync creates a sync object and inserts it into the GL command stream.
+    Returns the sync object handle, or 0 on failure.
+
+func (c *Context) Finish()
+
+func (c *Context) Flush()
+
+func (c *Context) FramebufferRenderbuffer(target, attachment, renderbufferTarget, renderbuffer uint32)
+    FramebufferRenderbuffer attaches a renderbuffer to the currently bound
+    framebuffer at the specified attachment point.
+
+func (c *Context) FramebufferTexture2D(target, attachment, textarget, texture uint32, level int32)
+
+func (c *Context) FrontFace(mode uint32)
+
+func (c *Context) GenBuffers(n int32) uint32
+
+func (c *Context) GenFramebuffers(n int32) uint32
+
+func (c *Context) GenQueries(n int32) uint32
+    GenQueries generates query object names. Returns 0 if query objects are not
+    supported.
+
+func (c *Context) GenRenderbuffers(n int32) uint32
+    GenRenderbuffers generates a single renderbuffer object and returns its
+    name.
+
+func (c *Context) GenSamplers(n int32) uint32
+    GenSamplers generates sampler object names. Requires OpenGL 3.3+ or OpenGL
+    ES 3.0+. Returns 0 if sampler objects are not supported.
+
+func (c *Context) GenTextures(n int32) uint32
+
+func (c *Context) GenVertexArrays(n int32) uint32
+
+func (c *Context) GenerateMipmap(target uint32)
+
+func (c *Context) GetAttribLocation(program uint32, name string) int32
+
+func (c *Context) GetError() uint32
+
+func (c *Context) GetIntegerv(pname uint32, data *int32)
+
+func (c *Context) GetProgramInfoLog(program uint32) string
+
+func (c *Context) GetProgramiv(program uint32, pname uint32, params *int32)
+
+func (c *Context) GetQueryObjectui64v(query, pname uint32, result *uint64)
+    GetQueryObjectui64v retrieves a 64-bit query result.
+
+func (c *Context) GetShaderInfoLog(shader uint32) string
+
+func (c *Context) GetShaderiv(shader uint32, pname uint32, params *int32)
+
+func (c *Context) GetString(name uint32) string
+
+func (c *Context) GetStringi(name, index uint32) string
+    GetStringi returns an indexed string from an OpenGL string array (GL 3.0+).
+    Used for querying GL_EXTENSIONS one at a time (the modern way). Returns ""
+    if glGetStringi is not available or the index is out of range.
+
+func (c *Context) GetSyncStatus(sync uintptr) uint32
+    GetSyncStatus returns the signaled status of a sync object.
+
+func (c *Context) GetUniformBlockIndex(program uint32, name string) uint32
+    GetUniformBlockIndex returns the index of a named uniform block.
+
+func (c *Context) GetUniformLocation(program uint32, name string) int32
+
+func (c *Context) LinkProgram(program uint32)
+
+func (c *Context) Load(getProcAddr ProcAddressFunc, isGLES ...bool) error
+    Load loads all OpenGL function pointers using the provided loader. isGLES
+    indicates the context is OpenGL ES — some functions have different names
+    (glClearDepthf vs glClearDepth, glMapBufferRange vs glMapBuffer). Mesa d3d12
+    gallium returns dispatch stubs for desktop GL names on GLES contexts that
+    generate GL_INVALID_ENUM at call time.
+
+func (c *Context) MapBuffer(target, access uint32) uintptr
+    MapBuffer maps a buffer object's data store into the client's address space.
+    target: GL_ARRAY_BUFFER, GL_COPY_READ_BUFFER, etc. access: GL_READ_ONLY,
+    GL_WRITE_ONLY, GL_READ_WRITE. Returns the mapped pointer, or 0 if
+    glMapBuffer is not available or the call fails.
+
+func (c *Context) MemoryBarrier(barriers uint32)
+    MemoryBarrier inserts a memory barrier for specified access types.
+    barriers is a bitwise OR of GL_*_BARRIER_BIT constants. Requires OpenGL 4.2+
+    or OpenGL ES 3.1+. No-op if memory barriers are not supported.
+
+func (c *Context) PixelStorei(pname uint32, param int32)
+    PixelStorei sets pixel storage modes that affect ReadPixels and TexImage
+    operations.
+
+func (c *Context) QueryCounter(query, target uint32)
+    QueryCounter records a timestamp into a query object. Requires
+    GL_ARB_timer_query (GL 3.3+) or GL_EXT_disjoint_timer_query (ES 3.0+).
+
+func (c *Context) ReadPixels(x, y, width, height int32, format, dataType uint32, pixels unsafe.Pointer)
+    ReadPixels reads a block of pixels from the framebuffer.
+
+func (c *Context) RenderbufferStorage(target, internalFormat uint32, width, height int32)
+    RenderbufferStorage allocates storage for the currently bound renderbuffer.
+    internalFormat is a sized format like GL_RGBA8 or GL_DEPTH24_STENCIL8.
+
+func (c *Context) SamplerParameterf(sampler, pname uint32, param float32)
+    SamplerParameterf sets a float parameter on a sampler object. No-op if
+    sampler objects are not supported.
+
+func (c *Context) SamplerParameteri(sampler, pname uint32, param int32)
+    SamplerParameteri sets an integer parameter on a sampler object. No-op if
+    sampler objects are not supported.
+
+func (c *Context) Scissor(x, y, width, height int32)
+
+func (c *Context) ShaderSource(shader uint32, source string)
+
+func (c *Context) StencilFuncSeparate(face, fn uint32, ref int32, mask uint32)
+    StencilFuncSeparate sets stencil test function per face.
+
+func (c *Context) StencilMaskSeparate(face, mask uint32)
+    StencilMaskSeparate sets stencil write mask per face.
+
+func (c *Context) StencilOpSeparate(face, sfail, dpfail, dppass uint32)
+    StencilOpSeparate sets stencil operations per face.
+
+func (c *Context) SupportsCompute() bool
+    SupportsCompute returns true if compute shaders are supported.
+
+func (c *Context) SupportsFenceSync() bool
+    SupportsFenceSync returns true if GL fence sync objects are available.
+
+func (c *Context) SupportsSamplerObjects() bool
+    SupportsSamplerObjects returns true if GL sampler objects are supported.
+
+func (c *Context) SupportsTimestampQueries() bool
+    SupportsTimestampQueries returns true if timestamp queries are supported.
+
+func (c *Context) TexImage2D(target uint32, level int32, internalformat int32, width, height int32, border int32, format, typ uint32, pixels uintptr)
+
+func (c *Context) TexImage2DMultisample(target uint32, samples int32, internalformat uint32, width, height int32, fixedsamplelocations bool)
+    TexImage2DMultisample creates a multisample 2D texture image. Requires
+    OpenGL 3.2+ or OpenGL ES 3.1+. No-op if not supported.
+
+func (c *Context) TexParameteri(target, pname uint32, param int32)
+
+func (c *Context) TexSubImage2D(target uint32, level int32, xoffset, yoffset, width, height int32, format, typ uint32, pixels unsafe.Pointer)
+
+func (c *Context) Uniform1i(location, value int32)
+    Uniform1i sets an integer uniform value.
+
+func (c *Context) UniformBlockBinding(program, blockIndex, blockBinding uint32)
+    UniformBlockBinding assigns a uniform block to a binding point.
+
+func (c *Context) UnmapBuffer(target uint32) bool
+    UnmapBuffer releases the mapping of a buffer object's data store. Returns
+    true if the buffer was successfully unmapped, false if the buffer contents
+    became corrupt during the mapping (GL_FALSE from driver) or glUnmapBuffer is
+    unavailable.
+
+func (c *Context) UseProgram(program uint32)
+
+func (c *Context) VertexAttribDivisor(index, divisor uint32)
+    VertexAttribDivisor sets the instance divisor for a vertex attribute.
+    divisor=0 means per-vertex, divisor=1 means per-instance.
+
+func (c *Context) VertexAttribPointer(index uint32, size int32, typ uint32, normalized bool, stride int32, offset uintptr)
+
+func (c *Context) Viewport(x, y, width, height int32)
+
+type ProcAddressFunc func(name string) unsafe.Pointer
+    ProcAddressFunc is a function that returns the address of an OpenGL
+    function.
+

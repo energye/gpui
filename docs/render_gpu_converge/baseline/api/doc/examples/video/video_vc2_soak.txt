@@ -1,0 +1,13 @@
+Command video_vc2_soak is the VW3 VC2 combo real-window: VR4 playback + VR7
+limits held for 120 wall seconds on the same 1080p clip.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=120 go run ./examples/video/video_vc2_soak
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 120). GPU window required. Left:
+the five startup gates on vr2_1080p.mp4 (demux 1920x1080, params, cold decode 5
+frames with monotonic stamps, variance non-black, estimate vs 512MB cap, three
+pools warmed). Right: the live 1080p picture looping the same clip for the whole
+run; every shown frame cycles the work pool (acquire-copy-release) for black
+detection, so pool_hit_pct is measured steady reuse, never faked. Bottom HUD:
+fps / decode / queue / memory four curves plus alloc/pool/GC.

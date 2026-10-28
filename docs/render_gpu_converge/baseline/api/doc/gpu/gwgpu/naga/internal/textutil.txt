@@ -1,0 +1,30 @@
+package textutil // import "github.com/energye/gpui/gpu/gwgpu/naga/internal/textutil"
+
+All three text backends (GLSL, HLSL, MSL) need indent-aware text writing.
+This package extracts the common IndentWriter to eliminate duplication.
+
+TYPES
+
+type IndentWriter struct {
+	// Out is the output buffer.
+	Out strings.Builder
+
+	// Indent is the current indentation level (each level = 4 spaces).
+	Indent int
+}
+    IndentWriter writes indented text to a strings.Builder. Embed this in
+    backend Writer structs to get indent-aware output methods.
+
+func (w *IndentWriter) PopIndent()
+    PopIndent decreases indentation by one level. Does not go below zero.
+
+func (w *IndentWriter) PushIndent()
+    PushIndent increases indentation by one level.
+
+func (w *IndentWriter) WriteIndent()
+    WriteIndent writes the current indentation (4 spaces per level).
+
+func (w *IndentWriter) WriteLine(format string, args ...any)
+    WriteLine writes indented text followed by a newline. If args are provided,
+    format is treated as a fmt.Fprintf format string.
+

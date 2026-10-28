@@ -1,0 +1,10 @@
+Command game_quad is the R1 (1.4) independent real window: trapezoid alignment.
+
+Quad corners are user-space TL,TR,BR,BL. GPU splits TL-TR-BL + TR-BR-BL. CPU
+uses the same split for pixel parity (R1). Degenerate quads no-op, Ex variant
+returns sentinel errors instead of drawing wrong.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=8 go run ./examples/engine/quad
+
+Window: 1200x800. RUN_SECONDS>=5 auto gate, unset runs resident for manual view.

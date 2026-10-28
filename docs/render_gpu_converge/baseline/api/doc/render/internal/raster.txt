@@ -1,0 +1,1220 @@
+package raster // import "github.com/energye/gpui/render/internal/raster"
+
+Package raster provides CPU-based rasterization primitives for render.
+
+This package contains the core algorithms for scanline conversion, edge
+processing, and anti-aliased filling. It is independent of any GPU backend and
+can be used for pure software rendering.
+
+# Architecture
+
+The raster package follows the Skia/tiny-skia design where CPU rendering code is
+separated from GPU code. This allows:
+
+  - Clear separation of concerns (CPU vs GPU)
+  - Reuse of CPU algorithms in different contexts
+  - Testing of rendering logic without GPU dependencies
+
+# Key Components
+
+  - Fixed-point math (FDot6, FDot16) for precise curve rasterization
+  - Edge types (Line, Quadratic, Cubic) with forward differencing
+  - EdgeBuilder for converting paths to edges
+  - AET (Active Edge Table) for scanline processing
+  - Filler for analytic anti-aliased rendering
+  - AlphaRuns for RLE-compressed coverage storage
+
+# Usage
+
+The typical flow is:
+
+ 1. Convert path to edges using EdgeBuilder
+ 2. Process edges through AET (Active Edge Table)
+ 3. Accumulate coverage using AlphaRuns
+ 4. Call Filler to render with anti-aliasing
+
+# References
+
+  - Skia: https://skia.googlesource.com/skia/+/main/src/core/
+  - tiny-skia: https://github.com/AhornGraphics/tiny-skia
+
+CONSTANTS
+
+const (
+	// FDot6One is 1.0 in FDot6 representation (2^6 = 64).
+	FDot6One FDot6 = 64
+
+	// FDot6Half is 0.5 in FDot6 representation (2^5 = 32).
+	FDot6Half FDot6 = 32
+
+	// FDot6Shift is the number of fractional bits in FDot6.
+	FDot6Shift = 6
+
+	// FDot6Mask is the mask for the fractional part of FDot6.
+	FDot6Mask = FDot6One - 1
+)
+    Fixed-point constants for FDot6.
+
+const (
+	// FDot16One is 1.0 in FDot16 representation (2^16 = 65536).
+	FDot16One FDot16 = 1 << 16
+
+	// FDot16Half is 0.5 in FDot16 representation (2^15 = 32768).
+	FDot16Half FDot16 = 1 << 15
+
+	// FDot16Shift is the number of fractional bits in FDot16.
+	FDot16Shift = 16
+
+	// FDot16Mask is the mask for the fractional part of FDot16.
+	FDot16Mask = FDot16One - 1
+)
+    Fixed-point constants for FDot16.
+
+const Epsilon = 1e-6
+    Epsilon is a small value for floating point comparison.
+
+const MaxCoeffShift = 6
+    MaxCoeffShift limits the number of subdivisions for a curve. We store
+    1<<shift in a signed byte (int8), so max value is 1<<6 = 64. This limits the
+    number of line segments per curve.
+
+
+FUNCTIONS
+
+func ChopCubicAtYExtrema(src [4]GeomPoint, dst *[10]GeomPoint) int
+    ChopCubicAtYExtrema chops a cubic Bezier at its Y extrema (if any).
+
+    A cubic Bezier can have up to 2 Y extrema. This function splits the curve at
+    all extrema to produce 1-3 monotonic cubic segments.
+
+    Parameters:
+      - src: 4 control points [p0, p1, p2, p3]
+      - dst: output array, must have capacity for 10 points
+
+    Returns:
+      - number of chops (0, 1, or 2)
+      - 0 means dst[0..4] contains the original (already monotonic)
+      - 1 means dst[0..4] and dst[3..7] are two monotonic cubics
+      - 2 means dst[0..4], dst[3..7], and dst[6..10] are three monotonic cubics
+
+func ChopQuadAtYExtrema(src [3]GeomPoint, dst *[5]GeomPoint) int
+    ChopQuadAtYExtrema chops a quadratic Bezier at its Y extremum (if any).
+
+    A quadratic Bezier can have at most one Y extremum. If the curve is not
+    monotonic in Y, this function splits it at the extremum point.
+
+    Parameters:
+      - src: 3 control points [p0, p1, p2]
+      - dst: output array, must have capacity for 5 points
+
+    Returns:
+      - number of chops (0 or 1)
+      - 0 means dst[0..3] contains the original (already monotonic)
+      - 1 means dst[0..3] and dst[2..5] are two monotonic quads
+
+    The control points are structured as:
+      - dst[0] = first quad start
+      - dst[1] = first quad control
+      - dst[2] = first quad end = second quad start (shared)
+      - dst[3] = second quad control
+      - dst[4] = second quad end
+
+func CubicIsYMonotonic(p0, p1, p2, p3 GeomPoint) bool
+    CubicIsYMonotonic returns true if the cubic is monotonic in Y. A cubic is
+    Y-monotonic if it has no Y extrema in (0, 1).
+
+func FDot16CeilToInt(v FDot16) int32
+    FDot16CeilToInt returns the ceiling of an FDot16.
+
+func FDot16FloorToInt(v FDot16) int32
+    FDot16FloorToInt returns the integer part (floor) of an FDot16.
+
+func FDot16RoundToInt(v FDot16) int32
+    FDot16RoundToInt returns the nearest integer to an FDot16.
+
+func FDot16ToFloat32(v FDot16) float32
+    FDot16ToFloat32 converts an FDot16 to float32.
+
+func FDot16ToFloat64(v FDot16) float64
+    FDot16ToFloat64 converts an FDot16 to float64.
+
+func FDot6CanConvertToFDot16(v FDot6) bool
+    FDot6CanConvertToFDot16 returns true if the FDot6 value can be converted to
+    FDot16 without overflow.
+
+func FDot6Ceil(v FDot6) int32
+    FDot6Ceil returns the ceiling of an FDot6.
+
+func FDot6Floor(v FDot6) int32
+    FDot6Floor returns the integer part (floor) of an FDot6.
+
+func FDot6Round(v FDot6) int32
+    FDot6Round returns the nearest integer to an FDot6.
+
+func FDot6SmallScale(value uint8, dot6 FDot6) uint8
+    FDot6SmallScale scales a byte value by an FDot6 factor (0 to 64). Used for
+    alpha blending calculations.
+
+func FDot6ToFloat32(v FDot6) float32
+    FDot6ToFloat32 converts an FDot6 to float32.
+
+func FDot6ToFloat64(v FDot6) float64
+    FDot6ToFloat64 converts an FDot6 to float64.
+
+func FDot6UpShift(v FDot6, upShift int) int32
+    FDot6UpShift performs a left shift on an FDot6 value. Used in cubic edge
+    coefficient computation.
+
+func FillConvexToBuffer(
+	eb *EdgeBuilder,
+	width, height int,
+	buffer []uint8,
+)
+    FillConvexToBuffer fills a convex path and writes coverage to a buffer.
+    The buffer must have width * height elements. Coverage values are written as
+    0-255 alpha values.
+
+func FillPath(
+	eb *EdgeBuilder,
+	width, height int,
+	fillRule FillRule,
+	callback func(y int, runs *AlphaRuns),
+)
+    FillPath is a convenience function that creates a filler and fills a path.
+
+func FillToBuffer(
+	eb *EdgeBuilder,
+	width, height int,
+	fillRule FillRule,
+	buffer []uint8,
+)
+    FillToBuffer fills a path and writes coverage to a buffer. The buffer must
+    have width * height elements. Coverage values are written as 0-255 alpha
+    values.
+
+func FillToBufferNoAA(
+	eb *EdgeBuilder,
+	width, height int,
+	fillRule FillRule,
+	buffer []uint8,
+)
+    FillToBufferNoAA renders path edges to a byte buffer with binary coverage (0
+    or 255). Uses NoAAFiller (integer scanline, no sub-pixel coverage).
+
+    The buffer must have width*height elements. Each pixel is either 0 (outside)
+    or 255 (inside) — no intermediate alpha values.
+
+    This is the aliased counterpart of FillToBuffer (which produces 256-level
+    anti-aliased coverage via the AnalyticFiller).
+
+func QuadIsYMonotonic(p0, p1, p2 GeomPoint) bool
+    QuadIsYMonotonic returns true if the quadratic is monotonic in Y. A
+    quadratic is Y-monotonic if its control point's Y is between the endpoints'
+    Y values. This is more permissive than isNotMonotonic to handle curves
+    flattened at extrema.
+
+
+TYPES
+
+type ActiveEdge struct {
+	Edge *Edge
+	X    float32 // Current X position at current scanline
+}
+    ActiveEdge holds an edge with its current X position.
+
+type AlphaRun struct {
+	X     int   // Starting X position
+	Alpha uint8 // Coverage value (0-255)
+	Count int   // Run length
+}
+    AlphaRun represents a single run of coverage. Used for iteration output.
+
+type AlphaRuns struct {
+	// Has unexported fields.
+}
+    AlphaRuns provides run-length-encoded (RLE) storage for coverage values.
+
+    This is efficient for paths with long horizontal spans of constant coverage.
+    Instead of storing per-pixel alpha values, it stores runs of consecutive
+    pixels with the same alpha.
+
+    Usage:
+
+        ar := NewAlphaRuns(width)
+        ar.Reset()
+        ar.Add(10, 128, 20, 128) // Add coverage from x=10, 20 pixels wide
+        for x, alpha := range ar.Iter() {
+            // Process pixel at x with alpha value
+        }
+
+func NewAlphaRuns(width int) *AlphaRuns
+    NewAlphaRuns creates a new AlphaRuns buffer for the given width.
+
+func (ar *AlphaRuns) Add(x int, startAlpha uint8, middleCount int, endAlpha uint8)
+    Add inserts coverage into the buffer.
+
+    Parameters:
+      - x: starting x coordinate
+      - startAlpha: alpha for first pixel (fractional left edge)
+      - middleCount: number of full-coverage pixels
+      - endAlpha: alpha for last pixel (fractional right edge)
+
+    The method accumulates coverage - multiple Add calls can contribute to the
+    same pixels. This is essential for correct winding rule handling.
+
+func (ar *AlphaRuns) AddWithCoverage(x int, startAlpha uint8, middleCount int, endAlpha uint8, maxValue uint8)
+    AddWithCoverage inserts coverage with a specified maximum value. This is
+    useful when the coverage itself represents partial opacity.
+
+func (ar *AlphaRuns) Clear()
+    Clear sets all alpha values to zero and resets to a single run.
+
+func (ar *AlphaRuns) CopyTo(dst []uint8)
+    CopyTo copies the coverage values to a destination slice. The destination
+    must have at least ar.width elements.
+
+func (ar *AlphaRuns) GetAlpha(x int) uint8
+    GetAlpha returns the alpha value at position x. Returns 0 if x is out of
+    bounds.
+
+func (ar *AlphaRuns) IsEmpty() bool
+    IsEmpty returns true if the scanline contains only a single run of alpha 0.
+
+func (ar *AlphaRuns) Iter() iter.Seq2[int, uint8]
+    Iter returns an iterator over all runs with non-zero alpha. Each iteration
+    yields the X position and alpha value. This uses Go 1.25+ iter.Seq2 for
+    efficient iteration.
+
+func (ar *AlphaRuns) IterRuns() iter.Seq[AlphaRun]
+    IterRuns returns an iterator over runs (not individual pixels). More
+    efficient when processing entire runs at once.
+
+func (ar *AlphaRuns) Reset()
+    Reset reinitializes the buffer for a new scanline. This is O(1) - it doesn't
+    clear the entire buffer.
+
+func (ar *AlphaRuns) SetOffset(offset int)
+    SetOffset sets the offset for the next Add call. Use 0 when starting a new
+    scanline.
+
+func (ar *AlphaRuns) Width() int
+    Width returns the scanline width.
+
+type AnalyticFiller struct {
+
+	// WindingCallback, if set, is called after edge accumulation with (y, winding[])
+	// before applyFillRule. Used by winding residual tests to verify contour closure.
+	// For compatibility, we synthesize a float32 winding buffer from coverage.
+	WindingCallback func(y int, winding []float32)
+
+	// Has unexported fields.
+}
+    AnalyticFiller computes per-pixel coverage using Skia AAA trapezoid
+    decomposition.
+
+    For each scanline strip, edges are walked left-to-right in pairs (left edge,
+    right edge) determined by winding number. Between each pair, coverage is
+    computed geometrically from the trapezoid formed by the two edges and the
+    strip's top/bottom scan lines.
+
+    Adaptive Y stepping (Phase 2): each pixel row is split into sub-strips at
+    edge endpoints within that row. An edge starting at y=10.3 produces strips
+    [10.0, 10.3) with fullAlpha~77 and [10.3, 11.0) with fullAlpha~179.
+
+    Usage:
+
+        filler := NewAnalyticFiller(width, height)
+        filler.Fill(edgeBuilder, FillRuleNonZero, func(y int, runs *AlphaRuns) {
+            // Blend alpha runs to the destination row
+        })
+
+func NewAnalyticFiller(width, height int) *AnalyticFiller
+    NewAnalyticFiller creates a new analytic filler for the given dimensions.
+
+func (af *AnalyticFiller) AlphaRuns() *AlphaRuns
+    AlphaRuns returns the alpha runs for the last processed scanline.
+
+func (af *AnalyticFiller) Coverage() []float32
+    Coverage returns the raw coverage buffer for the last processed scanline.
+    Values are in [0, 1] range. The buffer is reused between scanlines.
+
+func (af *AnalyticFiller) Fill(
+	eb *EdgeBuilder,
+	fillRule FillRule,
+	callback func(y int, runs *AlphaRuns),
+)
+    Fill renders a path using Skia AAA trapezoid decomposition.
+
+    Parameters:
+      - eb: EdgeBuilder containing the path edges
+      - fillRule: NonZero or EvenOdd fill rule
+      - callback: called for each scanline with the alpha runs
+
+func (af *AnalyticFiller) FillConvex(
+	eb *EdgeBuilder,
+	fillRule FillRule,
+	callback func(y int, runs *AlphaRuns),
+)
+    FillConvex renders a convex path using the aaa_walk_convex_edges algorithm.
+
+    This is 3.27x faster than the general Fill() walker per Skia nanobench
+    because it bypasses the AET and winding machinery entirely. Instead,
+    it walks exactly two edges at a time (left and right), advancing to the next
+    edge when one expires.
+
+    The convex walker has two fast paths:
+     1. Rect path (dLeft|dRite == 0): both edges are vertical, uses direct
+        blitAntiRect for multi-row spans with no per-row overhead.
+     2. General path: 3-stage Y walk (partial top, full middle, partial bottom)
+        with kSnapDigit X snapping to avoid tiny triangles and precision errors.
+
+    IMPORTANT: Only call for convex shapes. Non-convex shapes will produce
+    incorrect results because there is no winding number tracking.
+
+    Parameters:
+      - eb: EdgeBuilder containing the path edges
+      - fillRule: fill rule (ignored for convex, but kept for API consistency)
+      - callback: called for each scanline with the alpha runs
+
+func (af *AnalyticFiller) Height() int
+    Height returns the filler height.
+
+func (af *AnalyticFiller) Reset()
+    Reset clears the filler state for reuse.
+
+func (af *AnalyticFiller) Width() int
+    Width returns the filler width.
+
+type CubicEdge struct {
+	// TopY is the curve's overall top scanline (for AET insertion timing).
+	// This is set once at creation and never changes, unlike line.FirstY
+	// which changes as we step through curve segments.
+	TopY int32
+
+	// BottomY is the curve's overall bottom scanline.
+	BottomY int32
+
+	// Has unexported fields.
+}
+    CubicEdge represents a cubic Bezier curve for scanline conversion. Uses
+    forward differencing for O(1) per-step evaluation.
+
+    A cubic Bezier is defined by:
+
+        p(t) = (1-t)^3 * p0 + 3*t*(1-t)^2 * p1 + 3*t^2*(1-t) * p2 + t^3 * p3
+
+    Rewritten in polynomial form:
+
+        p(t) = A*t^3 + B*t^2 + C*t + D
+        where:
+        A = -p0 + 3*p1 - 3*p2 + p3
+        B = 3*p0 - 6*p1 + 3*p2
+        C = -3*p0 + 3*p1
+        D = p0
+
+func NewCubicEdge(p0, p1, p2, p3 CurvePoint, shift int) *CubicEdge
+    NewCubicEdge creates a cubic edge from control points. Returns nil if the
+    curve has no vertical extent.
+
+    Parameters:
+      - p0: start point
+      - p1: first control point
+      - p2: second control point
+      - p3: end point
+      - shift: AA shift (0 for no AA, 2 for 4x AA quality)
+
+func (c *CubicEdge) CurveCount() int8
+    CurveCount returns the remaining number of segments. For cubic, this is
+    negative (counts up to 0).
+
+func (c *CubicEdge) Line() *LineEdge
+    Line returns the current line segment for AET processing.
+
+func (c *CubicEdge) Update() bool
+    Update advances the cubic curve to the next line segment. Returns true if a
+    valid segment was produced.
+
+    Forward differencing for cubic:
+
+        newx = oldx + (dx >> dshift)
+        dx += ddx >> ddshift
+        ddx += dddx // Third derivative is constant!
+
+func (c *CubicEdge) Winding() int8
+    Winding returns the winding direction.
+
+type CurveAwareAET struct {
+	// Has unexported fields.
+}
+    CurveAwareAET is an Active Edge Table that handles all edge types.
+
+    Unlike a simple line-based AET, this table can hold LineEdge, QuadraticEdge,
+    and CubicEdge types. Curve edges are stepped through their segments during
+    scanline traversal using forward differencing.
+
+    The AET maintains edges sorted by their current X position, which is
+    essential for correct scanline rasterization and winding number calculation.
+
+    Usage:
+
+        aet := NewCurveAwareAET()
+        for y := yMin; y < yMax; y++ {
+            aet.RemoveExpired(y)
+            for edge := range eb.EdgesStartingAt(y) {
+                aet.Insert(edge)
+            }
+            aet.StepCurves()
+            aet.SortByX()
+            // Process edges in X order
+        }
+
+func NewCurveAwareAET() *CurveAwareAET
+    NewCurveAwareAET creates a new curve-aware Active Edge Table.
+
+func (aet *CurveAwareAET) AdvanceX()
+    AdvanceX advances all edges to the next scanline. This updates the X
+    position based on the slope (DX).
+
+func (aet *CurveAwareAET) ComputeSpans(_ int32, fillRule FillRule, callback func(x, width int, coverage float32))
+    ComputeSpans computes the horizontal spans for the current scanline.
+    This implements the core of scanline rasterization:
+
+     1. For each pair of edges, compute the winding contribution
+     2. Apply fill rule to determine coverage
+     3. Return spans with their coverage values
+
+    The callback is called for each span with x, width, and coverage.
+
+func (aet *CurveAwareAET) EdgeAt(i int) *CurveEdgeVariant
+    EdgeAt returns the edge at index i. Panics if i is out of bounds.
+
+func (aet *CurveAwareAET) EdgeSrcIdx(i int) int
+    EdgeSrcIdx returns the source edgeBuf index of the edge at AET index i.
+    Returns -1 if the edge was inserted without a source index.
+
+func (aet *CurveAwareAET) Edges() []CurveEdgeVariant
+    Edges returns the slice of edge variants for processing. The edges are in
+    X-sorted order after SortByX() is called.
+
+func (aet *CurveAwareAET) ForEach(fn func(edge *CurveEdgeVariant) bool)
+    ForEach calls fn for each edge in the AET. Iteration stops if fn returns
+    false.
+
+func (aet *CurveAwareAET) Insert(e CurveEdgeVariant)
+    Insert adds an edge to the AET. The edge's current line segment is used for
+    initial positioning.
+
+func (aet *CurveAwareAET) InsertWithIndex(e CurveEdgeVariant, srcIdx int)
+    InsertWithIndex adds an edge to the AET with its source edgeBuf index.
+    The srcIdx is used by AnalyticFiller to maintain persistent per-edge X state
+    across pixel rows (matching the incremental fX accumulation).
+
+func (aet *CurveAwareAET) IsEmpty() bool
+    IsEmpty returns true if there are no active edges.
+
+func (aet *CurveAwareAET) Len() int
+    Len returns the number of active edges.
+
+func (aet *CurveAwareAET) RemoveExpired(y int32)
+    RemoveExpired removes edges that have ended before scanline y. An edge is
+    expired when its LastY < y.
+
+func (aet *CurveAwareAET) RemoveExpiredSubpixel(ySubpixel int32)
+    RemoveExpiredSubpixel removes edges that have completely ended. Uses the
+    edge's overall BottomY (not current segment) for expiration.
+
+    This is used when coordinates are in sub-pixel space with AA scaling.
+    An edge is expired when its BottomY <= ySubpixel.
+
+func (aet *CurveAwareAET) Reset()
+    Reset clears the AET for reuse.
+
+func (aet *CurveAwareAET) SortByX()
+    SortByX sorts all edges by their current X position. This is essential for
+    correct scanline processing.
+
+func (aet *CurveAwareAET) StepCurves()
+    StepCurves advances curve edges to their next line segment. This should be
+    called once per scanline after RemoveExpired.
+
+    For each curve edge whose current segment has ended, Update() is called to
+    compute the next segment. This is where forward differencing happens.
+
+type CurveEdgeVariant struct {
+	Type      EdgeType
+	Line      *LineEdge
+	Quadratic *QuadraticEdge
+	Cubic     *CubicEdge
+}
+    CurveEdgeVariant wraps different edge types for uniform handling in the AET.
+
+func NewCubicEdgeVariant(p0, p1, p2, p3 CurvePoint, shift int) *CurveEdgeVariant
+    NewCubicEdgeVariant creates a CurveEdgeVariant for a cubic.
+
+func NewLineEdgeVariant(p0, p1 CurvePoint, shift int) *CurveEdgeVariant
+    NewLineEdgeVariant creates a CurveEdgeVariant for a line.
+
+func NewQuadraticEdgeVariant(p0, p1, p2 CurvePoint, shift int) *CurveEdgeVariant
+    NewQuadraticEdgeVariant creates a CurveEdgeVariant for a quadratic.
+
+func (e *CurveEdgeVariant) AsLine() *LineEdge
+    AsLine returns the LineEdge for this edge, regardless of type. All edge
+    types contain a LineEdge for AET compatibility.
+
+func (e *CurveEdgeVariant) BottomY() int32
+    BottomY returns the curve's overall bottom Y coordinate. For line edges,
+    this is the same as LastY + 1. For curve edges, this is the curve's original
+    bottom Y.
+
+func (e *CurveEdgeVariant) TopY() int32
+    TopY returns the curve's overall top Y coordinate (for AET insertion
+    timing). For line edges, this is the same as FirstY. For curve edges,
+    this is the curve's original top Y before stepping.
+
+func (e *CurveEdgeVariant) Update() bool
+    Update advances a curve edge to the next line segment. Returns true if a
+    valid segment was produced. For line edges, always returns false (no more
+    segments).
+
+type CurveEdger interface {
+	// Update advances the curve to the next line segment.
+	// Returns true if a valid segment was produced, false if done.
+	Update() bool
+
+	// Line returns the current line segment for AET processing.
+	Line() *LineEdge
+
+	// CurveCount returns the remaining number of segments.
+	CurveCount() int8
+
+	// Winding returns the winding direction (+1 or -1).
+	Winding() int8
+}
+    CurveEdger is the interface implemented by curve edges (quadratic, cubic).
+    It allows polymorphic handling of different curve types in the AET.
+
+type CurvePoint struct {
+	X, Y float32
+}
+    CurvePoint represents a 2D point for curve edge construction. Using separate
+    type to avoid coupling with scene.Point.
+
+type Edge struct {
+	// YMin is the minimum Y coordinate (top of edge)
+	YMin float32
+
+	// YMax is the maximum Y coordinate (bottom of edge)
+	YMax float32
+
+	// XAtYMin is the X coordinate at YMin
+	XAtYMin float32
+
+	// DXDY is the inverse slope: change in X per unit Y
+	DXDY float32
+
+	// Winding indicates the direction: +1 for downward, -1 for upward
+	Winding int8
+}
+    Edge represents a line segment for scanline conversion. Edges are derived
+    from path segments (lines, curves flattened to lines) and used by the Active
+    Edge Table algorithm.
+
+func NewEdge(x0, y0, x1, y1 float32) *Edge
+    NewEdge creates a new edge from two points. Returns nil if the edge is
+    horizontal (no Y extent).
+
+func NewEdgeWithWinding(x0, y0, x1, y1 float32, winding int8) *Edge
+    NewEdgeWithWinding creates a new edge with explicit winding.
+
+func (e *Edge) ContainsY(y float32) bool
+    ContainsY returns true if Y is within the edge's Y range (inclusive).
+
+func (e *Edge) Height() float32
+    Height returns the vertical extent of the edge.
+
+func (e *Edge) IsActiveAt(y float32) bool
+    IsActiveAt returns true if the edge is active at the given Y coordinate.
+    An edge is active when YMin <= y < YMax.
+
+func (e *Edge) XAtY(y float32) float32
+    XAtY calculates the X coordinate at a given Y value. This is the core
+    calculation for scanline intersection.
+
+type EdgeBuilder struct {
+	// Has unexported fields.
+}
+    EdgeBuilder converts paths to typed edges for analytic anti-aliasing.
+
+    By default, EdgeBuilder preserves curve information (QuadraticEdge,
+    CubicEdge) which enables higher quality anti-aliasing by evaluating curve
+    coverage analytically.
+
+    Alternatively, with flattenCurves=true, all curves are converted to
+    line segments at build time. This is simpler and more reliable for the
+    AnalyticFiller.
+
+    The builder ensures all edges are Y-monotonic by chopping curves at their Y
+    extrema before creating edge objects.
+
+    When a clip rect is set via SetClipRect, all edges are clipped to the rect
+    before fixed-point conversion. This prevents FDot6→FDot16 integer overflow
+    (RAST-010) by ensuring coordinates stay within safe range. Out-of-bounds
+    portions are replaced with sentinel vertical lines at clip boundaries to
+    preserve correct winding numbers for fill operations.
+
+    Usage:
+
+        eb := NewEdgeBuilder(2) // 4x AA quality
+        eb.SetFlattenCurves(true) // Flatten curves to lines
+        eb.SetClipRect(&Rect{MinX: -2, MinY: -2, MaxX: 802, MaxY: 602})
+        eb.BuildFromPath(path, IdentityTransform{})
+
+        for edge := range eb.AllEdges() {
+            // Process edges sorted by top Y
+        }
+
+func NewEdgeBuilder(aaShift int) *EdgeBuilder
+    NewEdgeBuilder creates a new edge builder with specified AA quality.
+
+    Parameters:
+      - aaShift: anti-aliasing shift (0 = no AA, 2 = 4x AA quality)
+
+    Higher shift values provide better AA quality but require more memory and
+    computation.
+
+func (eb *EdgeBuilder) AAShift() int
+    AAShift returns the anti-aliasing shift value.
+
+func (eb *EdgeBuilder) AllEdges() iter.Seq[CurveEdgeVariant]
+
+func (eb *EdgeBuilder) Bounds() Rect
+    Bounds returns the bounding rectangle of all edges.
+
+func (eb *EdgeBuilder) BuildFromPath(path PathLike, transform Transform)
+    BuildFromPath processes a PathLike and creates typed edges.
+
+    This is the main entry point for path processing. It:
+     1. Iterates through path verbs
+     2. Applies transform to all points
+     3. Chops curves at Y extrema for monotonicity
+     4. Creates appropriate edge types
+
+    Parameters:
+      - path: the path to process (implements PathLike interface)
+      - transform: transformation to apply to all points
+
+func (eb *EdgeBuilder) BuildFromPathF64(verbs []byte, coords []float64)
+    BuildFromPathF64 processes a path with float64 coordinates directly,
+    bypassing the PathLike interface and float64→float32 conversion buffers.
+    This eliminates 3 heap allocations per call (verb slice, point slice,
+    ScenePathAdapter) that convertGGPathToCorePath would create.
+
+    Parameters:
+      - verbs: path verb bytes (render.PathVerb values: 0=MoveTo, 1=LineTo,
+        2=QuadTo, 3=CubicTo, 4=Close)
+      - coords: float64 coordinate pairs (x,y for each point)
+
+    The verb values must match raster.PathVerb constants (MoveTo=0, LineTo=1,
+    etc.). Since render.PathVerb is byte and raster.PathVerb is uint8, this is
+    guaranteed.
+
+func (eb *EdgeBuilder) ClipRect() *Rect
+    ClipRect returns the current clip rectangle, or nil if not set.
+
+func (eb *EdgeBuilder) CubicEdgeCount() int
+    CubicEdgeCount returns the number of cubic edges.
+
+func (eb *EdgeBuilder) CubicEdges() iter.Seq[*CubicEdge]
+    CubicEdges returns an iterator over cubic edges only.
+
+func (eb *EdgeBuilder) EdgeCount() int
+    EdgeCount returns the total number of edges.
+
+func (eb *EdgeBuilder) FlattenCurves() bool
+    FlattenCurves returns whether curve flattening is enabled.
+
+func (eb *EdgeBuilder) FlattenTolerance() float32
+    FlattenTolerance returns the current curve flattening tolerance. Returns 0
+    if using the default (0.1 px).
+
+func (eb *EdgeBuilder) IsEmpty() bool
+    IsEmpty returns true if no edges have been added.
+
+func (eb *EdgeBuilder) LineEdgeCount() int
+    LineEdgeCount returns the number of line edges.
+
+func (eb *EdgeBuilder) LineEdges() iter.Seq[*LineEdge]
+    LineEdges returns an iterator over line edges only.
+
+func (eb *EdgeBuilder) QuadraticEdgeCount() int
+    QuadraticEdgeCount returns the number of quadratic edges.
+
+func (eb *EdgeBuilder) QuadraticEdges() iter.Seq[*QuadraticEdge]
+    QuadraticEdges returns an iterator over quadratic edges only.
+
+func (eb *EdgeBuilder) Reset()
+    Reset clears the builder for reuse without deallocating memory.
+
+func (eb *EdgeBuilder) SetClipRect(r *Rect)
+    SetClipRect sets the clipping rectangle for edge building. When set,
+    all edges are clipped to this rect before fixed-point conversion, preventing
+    FDot6→FDot16 integer overflow (RAST-010). Out-of-bounds line portions are
+    replaced with sentinel vertical lines at clip boundaries to preserve correct
+    winding numbers.
+
+    Pass nil to disable clipping (default). The clip rect is preserved across
+    Reset() calls.
+
+func (eb *EdgeBuilder) SetFlattenCurves(flatten bool)
+    SetFlattenCurves enables or disables curve flattening mode. When enabled,
+    all curves are converted to line segments at build time. This is simpler and
+    more reliable for AnalyticFiller.
+
+func (eb *EdgeBuilder) SetFlattenTolerance(tol float32)
+    SetFlattenTolerance sets the curve flattening tolerance in pixels. When > 0,
+    this overrides the default 0.1 px tolerance used for converting curves to
+    line segments. Smaller values produce more segments (smoother curves).
+
+    On HiDPI displays, set to baseTol/deviceScale for finer subdivision:
+
+        eb.SetFlattenTolerance(0.1 / deviceScale) // e.g., 0.05 for 2x Retina
+
+    Set to 0 to use the default tolerance.
+
+func (eb *EdgeBuilder) VelloLines() []VelloLine
+    VelloLines returns the stored float-coordinate lines. Only populated when
+    flattenCurves is true.
+
+type EdgeList struct {
+	// Has unexported fields.
+}
+    EdgeList is a collection of edges with utility methods.
+
+func NewEdgeList() *EdgeList
+    NewEdgeList creates a new empty edge list.
+
+func (el *EdgeList) Add(e *Edge)
+    Add adds an edge to the list.
+
+func (el *EdgeList) AddLine(x0, y0, x1, y1 float32)
+    AddLine adds a line segment as an edge.
+
+func (el *EdgeList) Bounds() (minX, minY, maxX, maxY float32)
+    Bounds returns the bounding rectangle of all edges.
+
+func (el *EdgeList) Edges() []Edge
+    Edges returns the underlying slice.
+
+func (el *EdgeList) Len() int
+    Len returns the number of edges.
+
+func (el *EdgeList) Reset()
+    Reset clears the edge list for reuse.
+
+func (el *EdgeList) SortByYMin()
+    SortByYMin sorts edges by their minimum Y coordinate.
+
+type EdgeRange struct {
+	StartX    int32   // Left X of the span
+	EndX      int32   // Right X of the span
+	Winding   int32   // Accumulated winding number
+	Coverage  float32 // Accumulated coverage
+	EdgeCount int     // Number of edges in this range
+}
+    EdgeRange represents a range of edges for a scanline span.
+
+type EdgeType int
+    EdgeType represents the type of an edge for polymorphic handling.
+
+const (
+	// EdgeTypeLine represents a simple line edge.
+	EdgeTypeLine EdgeType = iota
+
+	// EdgeTypeQuadratic represents a quadratic Bezier edge.
+	EdgeTypeQuadratic
+
+	// EdgeTypeCubic represents a cubic Bezier edge.
+	EdgeTypeCubic
+)
+type FDot16 = int32
+    FDot16 is a 16.16 fixed-point number (16 fractional bits). Used for
+    positions, slopes, and forward differencing coefficients where higher
+    precision is needed.
+
+    Range: approximately -32768 to +32768 with 1/65536 precision.
+
+func FDot16Div(numer, denom int32) FDot16
+    FDot16Div divides two FDot6/FDot16 values and returns an FDot16. Uses 64-bit
+    intermediate to avoid overflow.
+
+func FDot16FastDiv(a, b FDot6) FDot16
+    FDot16FastDiv divides two FDot6 values using fast 32-bit math. Only valid
+    when the numerator fits in 16 bits.
+
+func FDot16FromFloat32(f float32) FDot16
+    FDot16FromFloat32 converts a float32 to FDot16.
+
+func FDot16FromFloat64(f float64) FDot16
+    FDot16FromFloat64 converts a float64 to FDot16.
+
+func FDot16Mul(a, b FDot16) FDot16
+    FDot16Mul multiplies two FDot16 values. Uses 64-bit intermediate to avoid
+    overflow, then truncates.
+
+func FDot6Div(a, b FDot6) FDot16
+    FDot6Div divides two FDot6 values and returns an FDot16. This is used for
+    computing slopes (dx / dy). If the numerator fits in 16 bits, uses fast
+    path.
+
+func FDot6ToFDot16(v FDot6) FDot16
+    FDot6ToFDot16 converts an FDot6 to FDot16 with saturating arithmetic. This
+    is a left shift by 10 bits (16 - 6 = 10). Values that would overflow int32
+    are clamped to MaxInt32/MinInt32 instead of wrapping, preventing silent data
+    corruption (RAST-010).
+
+func FDot6ToFixedDiv2(v FDot6) FDot16
+    FDot6ToFixedDiv2 converts an FDot6 to FDot16 divided by 2. This is used in
+    quadratic edge setup to avoid overflow. The result is (value / 2) in FDot16
+    representation.
+
+type FDot6 = int32
+    FDot6 is a 26.6 fixed-point number (6 fractional bits). Used for
+    intermediate calculations in edge setup where sub-pixel precision (1/64
+    pixel) is sufficient.
+
+    Range: approximately -33 million to +33 million with 1/64 precision.
+
+func FDot6FromFloat32(f float32) FDot6
+    FDot6FromFloat32 converts a float32 to FDot6. Values are scaled by 64 and
+    truncated toward zero.
+
+func FDot6FromFloat64(f float64) FDot6
+    FDot6FromFloat64 converts a float64 to FDot6.
+
+func FDot6FromInt(n int32) FDot6
+    FDot6FromInt converts an integer to FDot6. The integer must fit in 26 bits
+    (approximately -33M to +33M).
+
+type FDot8 = int32
+    FDot8 is a 24.8 fixed-point number (8 fractional bits). Used for
+    anti-aliased coverage values.
+
+func FDot8FromFDot16(v FDot16) FDot8
+    FDot8FromFDot16 converts an FDot16 to FDot8 with rounding.
+
+type FillRule int
+    FillRule determines how overlapping paths are filled.
+
+const (
+	// FillRuleNonZero fills regions where the winding number is non-zero.
+	// This is the default fill rule and handles self-intersecting paths well.
+	FillRuleNonZero FillRule = iota
+
+	// FillRuleEvenOdd fills regions where the winding number is odd.
+	// This creates a checkerboard pattern for self-intersecting paths.
+	FillRuleEvenOdd
+)
+func (fr FillRule) String() string
+    String returns the string representation of the fill rule.
+
+type GeomPoint struct {
+	X, Y float32
+}
+    GeomPoint represents a 2D point for geometry calculations. Using a local
+    type to avoid coupling with scene.Point and CurvePoint.
+
+func ZeroGeomPoint() GeomPoint
+    ZeroGeomPoint returns the origin point.
+
+type IdentityTransform struct{}
+    IdentityTransform is a no-op transform that returns points unchanged.
+
+func (IdentityTransform) TransformPoint(x, y float32) (float32, float32)
+    TransformPoint returns the point unchanged.
+
+type LineEdge struct {
+	// Linked list pointers (indices into edge array).
+	Prev int32
+	Next int32
+
+	// X is the current X position in FDot16 (16.16 fixed-point).
+	X FDot16
+
+	// DX is the slope: change in X per scanline (in FDot16).
+	DX FDot16
+
+	// FirstY is the first scanline this edge covers (integer sub-pixel row, for AET).
+	FirstY int32
+
+	// LastY is the last scanline this edge covers (inclusive, integer sub-pixel row, for AET).
+	LastY int32
+
+	// UpperY is the precise upper Y endpoint in FDot16 (16.16 fixed-point).
+	// Used by AnalyticFiller for sub-strip boundary computation.
+	// When zero, falls back to FirstY-based computation.
+	UpperY FDot16
+
+	// LowerY is the precise lower Y endpoint in FDot16 (16.16 fixed-point).
+	// Used by AnalyticFiller for sub-strip boundary computation.
+	// When zero, falls back to LastY-based computation.
+	LowerY FDot16
+
+	// UpperX is the X position at UpperY in pixel-space SkFixed (16.16).
+	// Computed using the exact setLine() conversion chain to avoid rounding
+	// errors from sub-pixel-to-pixel division. Only set for line edges created
+	// by NewLineEdge (zero for curve sub-segments).
+	// Used by computeEdgeX via the goY(): X(Y) = UpperX + PixelDX*(Y-UpperY).
+	UpperX int32
+
+	// PixelDX is the slope in pixel-space SkFixed (16.16), matching the fDX.
+	PixelDX int32
+
+	// PixelDY is the fDY = abs(1/slope) for partialTriangleToAlpha.
+	// Computed as abs(FDot6Div(dy_fdot6, dx_fdot6)) from ORIGINAL pixel-space
+	// edge coordinates, matching SkAnalyticEdge::setLine line 197-199.
+	// NOT derived from PixelDX (1/slope ≠ FDot6Div(dy,dx) due to integer rounding).
+	PixelDY int32
+
+	// Winding indicates direction: +1 for downward, -1 for upward.
+	Winding int8
+}
+    LineEdge represents a single line segment in the Active Edge Table.
+    This is the base type that QuadraticEdge and CubicEdge use internally.
+    Derived from tiny-skia's LineEdge.
+
+func NewLineEdge(p0, p1 CurvePoint, shift int) (LineEdge, bool)
+    NewLineEdge creates a new line edge from two points. Returns (edge,
+    true) on success, or (zero, false) if the edge is horizontal (no Y extent).
+    Returning by value avoids a heap allocation per edge.
+
+    Parameters:
+      - p0, p1: endpoints in pixel coordinates
+      - shift: AA shift (0 for no AA, 2 for 4x AA quality)
+
+func (e *LineEdge) IsVertical() bool
+    IsVertical returns true if the edge has zero slope.
+
+type NoAAFiller struct {
+	// Has unexported fields.
+}
+    NoAAFiller performs non-anti-aliased (binary) scanline rasterization.
+
+    This is a dedicated integer scanline walker that produces solid horizontal
+    spans with full coverage (255) or zero coverage. No sub-pixel arithmetic,
+    no fractional coverage, no AlphaRuns.
+
+    The algorithm follows the SkScan::FillPath and tiny-skia's scan::path — a
+    completely separate code path from the AA rasterizer, not a flag on the
+    AnalyticFiller. Every enterprise 2D engine uses separate non-AA code paths
+    because:
+      - Integer arithmetic only (no fixed-point fractional bits for coverage)
+      - Solid span output (no alpha blending at edges)
+      - ~2-3x faster than analytic AA
+
+    The filler reuses EdgeBuilder infrastructure and CurveAwareAET for edge
+    management, but iterates at integer Y steps and rounds edge X positions to
+    integer pixels via FixedRoundToInt.
+
+    Usage:
+
+        filler := NewNoAAFiller(width, height)
+        filler.Fill(edgeBuilder, FillRuleNonZero, func(y, left, width int) {
+            // Blit solid span: all pixels in [left, left+width) get coverage=255
+        })
+
+func NewNoAAFiller(width, height int) *NoAAFiller
+    NewNoAAFiller creates a new non-AA filler for the given dimensions.
+
+func (nf *NoAAFiller) Fill(
+	eb *EdgeBuilder,
+	fillRule FillRule,
+	blitH func(y, left, width int),
+)
+    Fill performs non-anti-aliased rasterization using integer scanline walking.
+
+    The callback receives solid horizontal spans: (y, left, spanWidth) where
+    every pixel in [left, left+spanWidth) should be blitted with full coverage.
+
+    Parameters:
+      - eb: EdgeBuilder containing the path edges (aaShift=0 for non-AA)
+      - fillRule: NonZero or EvenOdd fill rule
+      - blitH: callback for each solid span (y, leftX, spanWidth)
+
+type PathLike interface {
+	// IsEmpty returns true if the path has no commands.
+	IsEmpty() bool
+
+	// Verbs returns the verb stream.
+	Verbs() []PathVerb
+
+	// Points returns the point data stream (pairs of float32 x,y coordinates).
+	Points() []float32
+}
+    PathLike is the interface for path-like objects that can be processed by
+    EdgeBuilder. This allows core package to work with any path implementation
+    without importing scene.
+
+type PathVerb uint8
+    PathVerb represents a path construction command.
+
+const (
+	// MoveTo moves the current point without drawing.
+	MoveTo PathVerb = iota
+	// LineTo draws a line to the specified point.
+	LineTo
+	// QuadTo draws a quadratic Bezier curve.
+	QuadTo
+	// CubicTo draws a cubic Bezier curve.
+	CubicTo
+	// Close closes the current subpath.
+	Close
+)
+    Path verb constants.
+
+type QuadraticEdge struct {
+	// TopY is the curve's overall top scanline (for AET insertion timing).
+	// This is set once at creation and never changes, unlike line.FirstY
+	// which changes as we step through curve segments.
+	TopY int32
+
+	// BottomY is the curve's overall bottom scanline.
+	BottomY int32
+
+	// Has unexported fields.
+}
+    QuadraticEdge represents a quadratic Bezier curve for scanline conversion.
+    Uses forward differencing for O(1) per-step evaluation.
+
+    A quadratic Bezier is defined by:
+
+        p(t) = (1-t)^2 * p0 + 2*t*(1-t) * p1 + t^2 * p2
+
+    Rewritten in polynomial form:
+
+        p(t) = A*t^2 + B*t + C
+        where A = p0 - 2*p1 + p2, B = 2*(p1 - p0), C = p0
+
+func NewQuadraticEdge(p0, p1, p2 CurvePoint, shift int) *QuadraticEdge
+    NewQuadraticEdge creates a quadratic edge from control points. Returns nil
+    if the curve has no vertical extent.
+
+    Parameters:
+      - p0: start point
+      - p1: control point
+      - p2: end point
+      - shift: AA shift (0 for no AA, 2 for 4x AA quality)
+
+func (q *QuadraticEdge) CurveCount() int8
+    CurveCount returns the remaining number of segments.
+
+func (q *QuadraticEdge) Line() *LineEdge
+    Line returns the current line segment for AET processing.
+
+func (q *QuadraticEdge) Update() bool
+    Update advances the quadratic curve to the next line segment. Returns true
+    if a valid segment was produced.
+
+    This is the core of the forward differencing algorithm:
+
+        newx = oldx + (dx >> shift)
+        dx += ddx // Second derivative is constant!
+
+func (q *QuadraticEdge) Winding() int8
+    Winding returns the winding direction.
+
+type Rect struct {
+	MinX, MinY float32
+	MaxX, MaxY float32
+}
+    Rect represents a bounding rectangle.
+
+func EmptyRect() Rect
+    EmptyRect returns an empty rectangle (inverted bounds for union operations).
+
+func (r Rect) IsEmpty() bool
+    IsEmpty returns true if the rectangle has no area.
+
+type ScenePathAdapter struct {
+	// Has unexported fields.
+}
+    ScenePathAdapter adapts a scene-like path to the core.PathLike interface.
+    This allows EdgeBuilder to work with any path implementation without
+    creating an import cycle.
+
+    Usage:
+
+        // In a package that can import scene:
+        type scenePathWrapper struct {
+            path *scene.Path
+        }
+        func (w *scenePathWrapper) IsEmpty() bool { return w.path.IsEmpty() }
+        func (w *scenePathWrapper) Verbs() []core.PathVerb {
+            // Convert scene.PathVerb to core.PathVerb
+            return convertVerbs(w.path.Verbs())
+        }
+        func (w *scenePathWrapper) Points() []float32 { return w.path.Points() }
+
+    Then create an EdgeBuilder and use:
+
+        eb.BuildFromPath(&scenePathWrapper{path}, core.IdentityTransform{})
+
+func NewScenePathAdapter(isEmpty bool, verbs []PathVerb, points []float32) *ScenePathAdapter
+    NewScenePathAdapter creates a new adapter from verb and point data.
+
+    This is a low-level constructor. Higher-level packages should provide
+    convenience functions that convert from their path types.
+
+func (a *ScenePathAdapter) IsEmpty() bool
+    IsEmpty returns true if the path has no commands.
+
+func (a *ScenePathAdapter) Points() []float32
+    Points returns the point data stream.
+
+func (a *ScenePathAdapter) Verbs() []PathVerb
+    Verbs returns the verb stream.
+
+type SimpleAET struct {
+	// Has unexported fields.
+}
+    SimpleAET manages active edges during scanline conversion. This is the
+    simple linear edge table (not curve-aware).
+
+func NewSimpleAET() *SimpleAET
+    NewSimpleAET creates a new simple active edge table.
+
+func (aet *SimpleAET) Active() []ActiveEdge
+    Active returns the list of active edges for iteration.
+
+func (aet *SimpleAET) InsertEdge(e *Edge, y float32)
+    InsertEdge adds an edge to the active list.
+
+func (aet *SimpleAET) Len() int
+    Len returns the number of active edges.
+
+func (aet *SimpleAET) RemoveExpired(y float32)
+    RemoveExpired removes edges that end at or before the given Y.
+
+func (aet *SimpleAET) Reset()
+    Reset clears the active edge table.
+
+func (aet *SimpleAET) SortByX()
+    SortByX sorts active edges by their current X position.
+
+func (aet *SimpleAET) UpdateX(y float32)
+    UpdateX updates X positions for all active edges at the new Y.
+
+type Transform interface {
+	// TransformPoint transforms a point (x, y) and returns the result.
+	TransformPoint(x, y float32) (float32, float32)
+}
+    Transform is the interface for affine transformations. This allows core
+    package to work with any transform implementation.
+
+type VelloLine struct {
+	P0     [2]float32 // Start point
+	P1     [2]float32 // End point (pixel coords)
+	IsDown bool       // true if original direction was downward (y0 < y1)
+}
+    VelloLine stores a line segment with original float32 coordinates. Used by
+    Vello tile rasterizer to avoid fixed-point quantization loss.
+

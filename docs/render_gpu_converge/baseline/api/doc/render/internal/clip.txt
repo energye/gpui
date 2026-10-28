@@ -1,0 +1,272 @@
+package clip // import "github.com/energye/gpui/render/internal/clip"
+
+Package clip provides geometric clipping for paths and shapes.
+
+TYPES
+
+type ClipStack struct {
+	// Has unexported fields.
+}
+    ClipStack manages hierarchical clip regions with push/pop operations.
+    It maintains a stack of clip entries, where each entry can be either a
+    rectangular clip, a rounded rectangle clip, or a path-based mask clip.
+
+func NewClipStack(bounds Rect) *ClipStack
+    NewClipStack creates a new clip stack with the given bounds. The bounds
+    represent the maximum clipping area (typically the canvas size).
+
+func (cs *ClipStack) Bounds() Rect
+    Bounds returns the current effective clip bounds. This is the intersection
+    of all pushed clip regions.
+
+func (cs *ClipStack) Coverage(x, y float64) byte
+    Coverage returns the combined coverage value (0-255) at the given point.
+    This multiplies the coverage from all clip entries (RRect and mask) in the
+    stack. Returns 0 if the point is outside the current bounds.
+
+func (cs *ClipStack) Depth() int
+    Depth returns the current depth of the clip stack. This is primarily useful
+    for debugging and testing.
+
+func (cs *ClipStack) HasMaskClip() bool
+    HasMaskClip reports whether the clip stack contains any mask-based clip
+    entries (path/mask clips requiring per-pixel coverage).
+
+func (cs *ClipStack) IsRRectOnly() bool
+    IsRRectOnly reports whether the clip stack contains only rectangular and/or
+    rounded rectangle clips (no path-based masks). When true, clipping can be
+    handled via hardware scissor rect (for the bounding box) plus analytic SDF
+    in the fragment shader (for rounded corners).
+
+func (cs *ClipStack) IsRectOnly() bool
+    IsRectOnly reports whether the clip stack contains only rectangular clips
+    (no path-based masks and no rounded rectangle clips). When true, clipping
+    can be applied by restricting the destination bounds rather than per-pixel
+    coverage, which preserves bitmap text quality and is significantly faster.
+
+func (cs *ClipStack) IsVisible(x, y float64) bool
+    IsVisible returns true if the point (x, y) is within the current clip
+    region. For rectangular clips, this is a simple bounds check. For RRect
+    clips, this checks the SDF distance. For mask clips, this checks if the
+    coverage is non-zero.
+
+func (cs *ClipStack) Pop()
+    Pop removes the most recent clip region from the stack. If the stack is
+    empty, this is a no-op.
+
+func (cs *ClipStack) PushPath(verbs []PathVerb, coords []float64, antiAlias bool, fillRule FillRule) error
+    PushPath pushes a path-based clip region onto the stack. The path (given
+    as SOA verb+coords) is rasterized into a mask using the current bounds.
+    If antiAlias is true, the mask will use anti-aliased rendering. fillRule
+    selects how self-overlapping contours resolve (winding or even-odd).
+
+func (cs *ClipStack) PushPathDifference(verbs []PathVerb, coords []float64, antiAlias bool, fillRule FillRule) error
+    PushPathDifference subtracts path coverage from the current clip.
+    Implemented by rasterizing the path and inverting coverage inside current
+    bounds.
+
+func (cs *ClipStack) PushRRect(r Rect, radius float64)
+    PushRRect pushes a rounded rectangle clip region onto the stack.
+    The new clip bounds are the intersection of the current bounds and the given
+    rectangle. The radius is the corner radius (clamped to half the minimum
+    dimension). If radius is zero, this is equivalent to PushRect.
+
+func (cs *ClipStack) PushRect(r Rect)
+    PushRect pushes a rectangular clip region onto the stack. The new clip
+    bounds are the intersection of the current bounds and the given rectangle.
+
+func (cs *ClipStack) PushRectDifference(r Rect) error
+    PushRectDifference subtracts rectangle r from the current clip. Coverage
+    becomes zero inside r while remaining clip outside r is preserved.
+
+func (cs *ClipStack) RRectBounds() (Rect, float64, bool)
+    RRectBounds returns the bounds and radius of the innermost (most recently
+    pushed) rounded rectangle clip entry, or false if no RRect clip is active.
+    When multiple RRect clips are nested, only the innermost is returned — the
+    scissor rect already handles the outer bounds intersection.
+
+func (cs *ClipStack) ReplacePath(canvas Rect, verbs []PathVerb, coords []float64, antiAlias bool, fillRule FillRule) error
+    ReplacePath replaces the clip stack with a single path clip on the canvas.
+
+func (cs *ClipStack) ReplaceRect(canvas, r Rect)
+    ReplaceRect replaces the entire clip stack with a single rectangular clip
+    relative to the original canvas bounds (bottom of stack / max area).
+
+func (cs *ClipStack) Reset(bounds Rect)
+    Reset clears all clip entries and restores the original bounds.
+
+func (cs *ClipStack) Signature() uint64
+    Signature returns a content hash of the effective clip stack. Unlike a
+    mutation counter, it stays equal across push/pop cycles that reconstruct the
+    same clip, so an already-built full-surface clip plane can be reused while
+    replaying many pictures under one viewport clip.
+
+type CubicSeg struct {
+	P0, P1, P2, P3 Point
+}
+    CubicSeg represents a cubic Bezier segment.
+
+func (c CubicSeg) Bounds() Rect
+    Bounds returns the bounding box of a cubic Bezier.
+
+type EdgeClipper struct {
+	// Has unexported fields.
+}
+    EdgeClipper clips path edges against a rectangular clip region.
+
+func NewEdgeClipper(clip Rect) *EdgeClipper
+    NewEdgeClipper creates an edge clipper for the given bounds.
+
+func (ec *EdgeClipper) Clip() Rect
+    Clip returns the clip rectangle.
+
+func (ec *EdgeClipper) ClipCubic(p0, p1, p2, p3 Point) []CubicSeg
+    ClipCubic clips a cubic Bezier curve to the clip region.
+
+func (ec *EdgeClipper) ClipLine(p0, p1 Point) []LineSeg
+    ClipLine clips a line segment to the clip rectangle using Cohen-Sutherland
+    algorithm. Returns nil if the line is entirely outside, or a slice with the
+    clipped segment.
+
+func (ec *EdgeClipper) ClipQuadratic(p0, p1, p2 Point) []QuadSeg
+    ClipQuadratic clips a quadratic Bezier curve to the clip region. The curve
+    is first chopped at extrema to ensure monotonicity, then clipped.
+
+type FillRule int
+    FillRule selects how path contour overlaps resolve when a clip mask is
+    rasterized. Values match render.FillRule for zero-cost conversion (Skia:
+    clip paths are filled using the path fill type).
+
+const (
+	// FillRuleNonZero keeps pixels where the signed winding number is non-zero.
+	FillRuleNonZero FillRule = iota
+	// FillRuleEvenOdd keeps pixels crossed an odd number of times.
+	FillRuleEvenOdd
+)
+type LineSeg struct {
+	P0, P1 Point
+}
+    LineSeg represents a line segment.
+
+type MaskClipper struct {
+	// Has unexported fields.
+}
+    MaskClipper performs alpha mask-based clipping for anti-aliased complex
+    clips. It rasterizes a path into a grayscale mask where each pixel's value
+    represents coverage (0 = outside, 255 = fully inside).
+
+func NewMaskClipper(verbs []PathVerb, coords []float64, bounds Rect, antiAlias bool, fillRule FillRule) (*MaskClipper, error)
+    NewMaskClipper creates a mask clipper by rasterizing the given path (as SOA
+    verb+coords slices) into an alpha mask.
+
+    Parameters:
+      - verbs: Path verb stream
+      - coords: Path coordinate stream
+      - bounds: Bounding rectangle for the mask
+      - antiAlias: Enable anti-aliased rendering (currently always on)
+      - fillRule: How contour overlaps resolve (winding or even-odd)
+
+    The mask is stored as FormatGray8 (1 byte per pixel) for memory efficiency.
+
+func NewRectDifferenceMask(bounds, hole Rect) (*MaskClipper, error)
+    NewRectDifferenceMask builds a mask covering bounds where pixels inside
+    hole are 0 (clipped out) and outside hole (but in bounds) are 255.
+    Used for ClipOpDifference of a rectangle. Pixels straddling a hole edge
+    receive analytic partial coverage, so the difference clip is anti-aliased at
+    fractional hole coordinates (Skia clip AA semantics).
+
+func (mc *MaskClipper) ApplyCoverage(x, y float64, srcAlpha byte) byte
+    ApplyCoverage modulates the source alpha by the mask coverage at the given
+    point. Returns the modulated alpha value (0-255).
+
+func (mc *MaskClipper) Bounds() Rect
+    Bounds returns the bounding rectangle of the mask.
+
+func (mc *MaskClipper) Coverage(x, y float64) byte
+    Coverage returns the coverage value (0-255) at the given point. Points
+    outside the mask bounds return 0 (no coverage).
+
+func (mc *MaskClipper) Mask() *image.ImageBuf
+    Mask returns the underlying grayscale image buffer. This is useful for
+    debugging or advanced use cases.
+
+type PathVerb byte
+    PathVerb represents a path construction command. Values match
+    render.PathVerb for zero-cost conversion.
+
+const (
+	// VerbMoveTo moves the current point. Consumes 2 coords (x, y).
+	VerbMoveTo PathVerb = iota
+	// VerbLineTo draws a line. Consumes 2 coords (x, y).
+	VerbLineTo
+	// VerbQuadTo draws a quadratic Bezier. Consumes 4 coords (cx, cy, x, y).
+	VerbQuadTo
+	// VerbCubicTo draws a cubic Bezier. Consumes 6 coords (c1x, c1y, c2x, c2y, x, y).
+	VerbCubicTo
+	// VerbClose closes the current subpath. Consumes 0 coords.
+	VerbClose
+)
+type Point struct {
+	X, Y float64
+}
+    Point represents a 2D point with float64 coordinates.
+
+func Pt(x, y float64) Point
+    Pt creates a Point from x, y coordinates.
+
+func (p Point) Add(q Point) Point
+    Add returns the sum of two points.
+
+func (p Point) Lerp(q Point, t float64) Point
+    Lerp performs linear interpolation between p and q.
+
+func (p Point) Mul(s float64) Point
+    Mul returns the point scaled by s.
+
+func (p Point) Sub(q Point) Point
+    Sub returns the difference of two points.
+
+type QuadSeg struct {
+	P0, P1, P2 Point
+}
+    QuadSeg represents a quadratic Bezier segment.
+
+func (q QuadSeg) Bounds() Rect
+    Bounds returns the bounding box of a quadratic Bezier.
+
+type RRectClip struct {
+	Rect   Rect
+	Radius float64
+}
+    RRectClip describes a rounded rectangle clip region. The Rect field holds
+    the bounding rectangle in device coordinates, and Radius is the corner
+    radius (uniform for all four corners).
+
+type Rect struct {
+	X, Y float64 // Top-left corner
+	W, H float64 // Width and height
+}
+    Rect represents a rectangle with float64 coordinates.
+
+func NewRect(x, y, w, h float64) Rect
+    NewRect creates a Rect from position and size.
+
+func (r Rect) Bottom() float64
+    Bottom returns the bottom edge y-coordinate.
+
+func (r Rect) Contains(p Point) bool
+    Contains returns true if the point is inside the rectangle.
+
+func (r Rect) Intersect(other Rect) Rect
+    Intersect returns the intersection of two rectangles. Returns an empty
+    rectangle if they don't intersect.
+
+func (r Rect) Intersects(other Rect) bool
+    Intersects returns true if two rectangles overlap.
+
+func (r Rect) IsEmpty() bool
+    IsEmpty returns true if the rectangle has zero area.
+
+func (r Rect) Right() float64
+    Right returns the right edge x-coordinate.
+

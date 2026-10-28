@@ -1,0 +1,158 @@
+package step // import "github.com/energye/gpui/engine/step"
+
+Package step freezes the CPU-side fixed-step plus layered time every 2.5D
+loop feeds. Pool lives in engine/pool and dirty tracking in engine/dirty since
+2026-09-30 (E03).
+
+Frozen 2026-09-15: Fixed, NewFixed, Dt, Steps, Elapsed, Accum, Alpha, Advance,
+Reset, Interp, InterpFloat, InterpVec, MaxFrame. Additive changes only.
+
+Fixed-step (8.1 logic beat plus 11.1 render blend in one file, tested together):
+the caller feeds each real frame into Advance, runs the returned number of fixed
+logic ticks, then blends the last two logic states with Alpha for the picture.
+Only core numbers are used; the caller converts once at the render boundary in
+engine/renderconv. No Vec2, Color, or AssetID is redefined here.
+
+Frozen 2026-09-15: Clock, NewClock, MaxScale, SetTimeScale, TimeScale,
+SetPaused, Paused, Pause, Resume, Split, Advance, WorldElapsed, UIElapsed,
+Reset. Additive changes only.
+
+Layered time (11.2, Godot time-scale): one real frame splits into a scaled world
+delta and an unscaled UI delta. Pause stops the world only; the UI keeps moving.
+The frame clamps to [0, MaxFrame] first (shared with Fixed); world may exceed
+MaxFrame at scale > 1 and the caller feeds it into Fixed.Advance which clamps
+again. Bad scales clamp to [0, MaxScale] and never error: NaN/zero/negative park
+at 0.
+
+Math (Fix Your Timestep, Gaffer classic):
+
+    frame clamped to [0, MaxFrame] first (negative parks at 0, huge
+    clamps to MaxFrame so a hitch never spirals into hundreds of ticks).
+    accum += frame; while accum >= dt: accum -= dt, steps++.
+    alpha = accum / dt in [0, 1).
+    picture = prev + (curr - prev) * alpha.
+
+The ledger is integer milliseconds (core.Duration), so a million ticks land
+on the exact millisecond and slow and fast machines agree. Dt never changes
+mid-run. Interp clamps its alpha to [0, 1] first (NaN parks at prev); the
+blended ends pass through untouched, like anim.Lerp.
+
+CONSTANTS
+
+const MaxFrame = 250 * core.Millisecond
+    MaxFrame caps one Advance input. A hitch longer than this parks at the cap
+    so the loop never spirals into hundreds of catch-up ticks. 250ms follows Fix
+    Your Timestep (Gaffer classic: frameTime = min(0.25)).
+
+const MaxScale = 8.0
+    MaxScale caps one SetTimeScale input. Larger parks at the cap so a bad
+    slider never explodes the fixed loop (250ms*8 stays bounded; Fixed clamps
+    the fed world delta again).
+
+
+FUNCTIONS
+
+func Interp(prev, curr, alpha float64) float64
+    Interp blends prev to curr with alpha. Alpha clamps to [0,1] first (NaN
+    parks at prev); the ends pass through untouched. Prev and curr follow
+    IEEE-754 without a guard, like anim.Lerp.
+
+func InterpFloat(prev, curr, alpha float64) float64
+    InterpFloat is the explicit float64 blend; identical to Interp. Both names
+    stay frozen so asset files and code read the same way.
+
+func InterpVec(prev, curr core.Vec2, alpha float64) core.Vec2
+    InterpVec blends two positions with alpha. Alpha handling matches Interp
+    (clamped, NaN parks at prev); the ends pass through untouched.
+
+func Split(frame core.Duration, scale float64, paused bool) (world, ui core.Duration)
+    Split folds one real frame into world and UI deltas without state. The frame
+    clamps to [0, MaxFrame] first (shared with Fixed); the UI takes the clamped
+    frame, the world takes the scaled frame or 0 when paused. World may exceed
+    MaxFrame at scale > 1; feed it into Fixed.Advance which clamps again so a
+    hitch never spirals.
+
+
+TYPES
+
+type Clock struct {
+	// Has unexported fields.
+}
+    Clock is layered game time: one real frame splits into a scaled world delta
+    and an unscaled UI delta. Pause stops the world only; the UI keeps moving.
+    Only core numbers are used.
+
+func NewClock() Clock
+    NewClock builds an unpaused clock at 1x with zero totals.
+
+func (c *Clock) Advance(frame core.Duration) (world, ui core.Duration)
+    Advance splits one real frame and adds both deltas to the totals. Nil clocks
+    report 0, 0 and change nothing.
+
+func (c *Clock) Pause()
+    Pause stops the world; the UI keeps moving. Nil clocks do nothing.
+
+func (c *Clock) Paused() bool
+    Paused reports whether the world is stopped. Nil clocks report false.
+
+func (c *Clock) Reset()
+    Reset clears both totals, keeping scale and pause. Nil clocks do nothing.
+
+func (c *Clock) Resume()
+    Resume restarts the world. Nil clocks do nothing.
+
+func (c *Clock) SetPaused(b bool)
+    SetPaused stores the pause flag. Nil clocks do nothing.
+
+func (c *Clock) SetTimeScale(s float64)
+    SetTimeScale stores s clamped to [0, MaxScale]. Nil clocks do nothing.
+
+func (c *Clock) TimeScale() float64
+    TimeScale returns the stored scale, or 0 on a nil clock.
+
+func (c *Clock) UIElapsed() core.Duration
+    UIElapsed returns the unscaled UI total. Nil clocks return 0.
+
+func (c *Clock) WorldElapsed() core.Duration
+    WorldElapsed returns the scaled world total. Nil clocks return 0.
+
+type Fixed struct {
+	// Has unexported fields.
+}
+    Fixed is one fixed logic beat plus the render blend factor.
+
+    The caller feeds each real frame into Advance, runs the returned number of
+    fixed logic ticks, then blends the last two logic states with Alpha for the
+    picture. Dt never changes mid-run; the ledger is integer milliseconds so
+    slow and fast machines agree.
+
+func NewFixed(dt core.Duration) (Fixed, error)
+    NewFixed builds a loop with tick width dt. dt must be positive; zero or
+    negative dt is a core InvalidArg error and stores nothing.
+
+func (f *Fixed) Accum() core.Duration
+    Accum returns the leftover frame time waiting for the next tick.
+
+func (f *Fixed) Advance(frame core.Duration) int
+    Advance folds one real frame into the loop and reports how many fixed ticks
+    the caller must run. Negative frames park at 0, frames beyond MaxFrame clamp
+    to MaxFrame. Nil loops report 0 and change nothing.
+
+func (f *Fixed) Alpha() float64
+    Alpha returns accum/dt in [0,1): the blend factor for the picture. Advance
+    keeps accum below dt and Reset clears it, so the division is already in
+    range; nil and broken loops park at 0.
+
+func (f *Fixed) Dt() core.Duration
+    Dt returns the frozen tick width, or 0 on a nil loop.
+
+func (f *Fixed) Elapsed() core.Duration
+    Elapsed returns steps*dt: logic time consumed so far.
+
+func (f *Fixed) Reset()
+    Reset clears the remainder plus the totals, keeping Dt. Nil loops do
+    nothing.
+
+func (f *Fixed) Steps() uint64
+    Steps returns how many logic ticks Advance has produced in total.
+

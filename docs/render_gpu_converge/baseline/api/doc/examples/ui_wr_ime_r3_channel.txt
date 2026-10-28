@@ -1,0 +1,5 @@
+Command ui_wr_ime_r3_channel is the IME R3 real-window: channel & platform.
+
+Window: 1200x800, 手动关闭（无自动关闭，RunFor=0 无限运行，点 X 关闭）。 最小观察时长 RUN_SECONDS>=10（R3
+10族全硬），短于5直接 FAIL。 Scenarios (9): 6信号/retrieve/delete, 风暴锁, filter_keypress,
+二次覆盖, enableDelta定值, 4000居中4锚点, autofillHints, 死键, 双引擎。

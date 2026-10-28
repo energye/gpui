@@ -1,0 +1,7 @@
+package filters // import "github.com/energye/gpui/render/filters"
+
+Package filters registers CPU image-filter implementations on render.Context.
+
+Import for side effects:
+
+    import _ "github.com/energye/gpui/render/filters"

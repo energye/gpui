@@ -1,0 +1,19 @@
+Command ui_render_base_textstroke is the A-group real window for the text stroke
+/ outline-path family: StrokeString, StrokeStringAnchored, TextPath (+ FillPath
+/ StrokePath / DrawString reference) (RENDER_FEATURE_COVERAGE §1 #29 / §3.1 item
+8).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_textstroke -auto-only
+    go run ./examples/ui_render_base_textstroke   # manual: lives until window close
+    go run ./examples/ui_render_base_textstroke -manual-seconds 15  # manual, auto-close
+
+Evidence: 14 logical contract probes (value-level on an offscreen CPU context),
+21 pixel probes on the GPU snapshot (oracle = layout-measured glyph geometry
++ palette constants), a bitwise golden over header + legend + the four cards,
+a GPU-route assertion (gpu_ops > 0, cpu_fallback_ops == 0), and a live screen
+grab compared with the snapshot over the same rects.
+
+Both defects found while closing this window are pinned twice:
+in render/stroke_damage_bounds_test.go (atomic) and here (window-level,
+stroke_damage_covers_width + textpath_fractional_sizes_distinct).

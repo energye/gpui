@@ -1,0 +1,11 @@
+Example: Color Emoji Extraction
+
+This example demonstrates extracting and rendering color emoji from fonts.
+Supports both CBDT/CBLC (bitmap) and COLR/CPAL (vector) color font formats.
+
+Run: go run main.go
+
+Outputs:
+  - tmp/render_color_emoji_bitmap.png (36 color emoji from CBDT/CBLC font)
+  - tmp/render_color_emoji_palette.png (COLR/CPAL color palette visualization)
+  - tmp/render_color_emoji_sample.png (single emoji at high resolution)

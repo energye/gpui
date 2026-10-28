@@ -1,0 +1,1523 @@
+package gles // import "github.com/energye/gpui/gpu/gwgpu/gles"
+
+Package gles implements the HAL backend for OpenGL ES 3.0 / OpenGL 3.3+.
+
+This backend provides a Pure Go implementation using syscall directly, without
+any CGO or external dependencies.
+
+# Platform Support
+
+Currently supported:
+  - Windows (WGL) - via hal/gles/wgl package
+
+Planned:
+  - Linux (GLX/EGL)
+  - macOS (CGL/EGL)
+  - Android (EGL)
+  - WebGL (via wasm)
+
+# Architecture
+
+The backend is organized into subpackages:
+
+    hal/gles/
+    ├── gl/ - OpenGL function bindings
+    ├── wgl/ - Windows GL context management
+    ├── glx/ - Linux X11 GL context (planned)
+    ├── egl/ - EGL context for mobile/modern Linux (planned)
+    └── cgl/ - macOS CGL context (planned)
+
+# Usage
+
+Import this package to register the OpenGL backend:
+
+    import _ "github.com/energye/gpui/gpu/gwgpu/gles"
+
+The backend is then available via hal.GetBackend(types.BackendGL).
+
+# OpenGL Version Requirements
+
+Minimum requirements:
+  - OpenGL 3.3 Core Profile (desktop)
+  - OpenGL ES 3.0 (mobile/embedded)
+
+The backend queries actual capabilities at runtime and adjusts feature
+availability accordingly.
+
+# Limitations
+
+Compared to Vulkan/Metal/DX12:
+  - No async compute (compute runs on graphics queue)
+  - Limited bindless resource support
+  - Single command queue
+  - Synchronous texture uploads
+
+# Command Recording
+
+Commands are recorded during render/compute pass encoding and executed during
+Queue.Submit. This allows for:
+  - State tracking and optimization
+  - Better error handling
+  - Potential future multithreading
+
+VARIABLES
+
+var LockMakeCurrentErr = fmt.Errorf("gles: AdapterContext: MakeCurrent failed")
+    LockMakeCurrentErr is returned when the EGL context cannot be made current.
+    Callers must stop: GL calls with no current context are silent no-ops (0
+    handles, FALSE status, empty info logs).
+
+
+FUNCTIONS
+
+func GLSLVersionToNaga(glslVersion int, isES bool) glsl.Version
+    The integer encoding matches GL_SHADING_LANGUAGE_VERSION parsing: "4.30" ->
+    430, "3.30" -> 330, "3.00 ES" -> 300 with isES=true. In the Version struct,
+    Major is the hundreds digit and Minor is the tens+units. For example,
+    430 -> {Major: 4, Minor: 30}, 300 -> {Major: 3, Minor: 0}.
+
+
+TYPES
+
+type Adapter struct {
+	// Has unexported fields.
+}
+    Adapter implements hal.Adapter for OpenGL on Linux. Holds a shared
+    *AdapterContext (owned by Instance on X11/headless, or by Surface on
+    Wayland).
+
+func (a *Adapter) Features() gputypes.Features
+    Features returns probed GL features.
+
+func (a *Adapter) GetSurfaceCapabilities(_ hal.Surface) *hal.SurfaceCapabilities
+    GetSurfaceCapabilities returns surface capabilities.
+
+func (a *Adapter) Info() gputypes.AdapterInfo
+    Info returns adapter metadata built from probed GL strings.
+
+func (a *Adapter) Limits() gputypes.Limits
+    Limits returns probed GL limits.
+
+func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.OpenDevice, error)
+    Open creates a logical device with the requested features and limits.
+
+func (a *Adapter) Release()
+    Release releases the adapter.
+
+func (a *Adapter) RequestDevice(desc *hal.DeviceDescriptor) (hal.Device, error)
+    RequestDevice opens a device with the requested features and limits.
+    Queue is accessible via the returned Device.Queue().
+
+func (a *Adapter) TextureFormatCapabilities(format gputypes.TextureFormat) hal.TextureFormatCapabilities
+    TextureFormatCapabilities returns capabilities for a texture format. Uses
+    probed GL extension and MSAA information for accurate per-format detection.
+
+type AdapterCapabilities struct {
+	Vendor   string
+	Renderer string
+	Version  string
+
+	// Parsed GL version numbers (e.g., [4, 6] for OpenGL 4.6).
+	GLMajor int
+	GLMinor int
+
+	// True if this is an OpenGL ES context (as opposed to desktop GL).
+	IsES bool
+
+	// GLSL version number (e.g., 460 for GLSL 4.60).
+	GLSLVersion int
+
+	// Set of supported GL extensions.
+	Extensions map[string]bool
+
+	// Maximum MSAA sample count (from GL_MAX_SAMPLES).
+	MaxMSAASamples int32
+
+	// Detected features.
+	Features gputypes.Features
+
+	// Queried limits.
+	Limits gputypes.Limits
+
+	// Downlevel capability flags.
+	DownlevelFlags gputypes.DownlevelFlags
+
+	// Inferred device type.
+	DeviceType gputypes.DeviceType
+
+	// Inferred vendor ID.
+	VendorID uint32
+}
+    AdapterCapabilities holds parsed adapter information queried from GL at
+    adapter enumeration time. Populated by queryAdapterCapabilities and consumed
+    by GetAdapterInfo in the platform-specific resource files.
+
+type AdapterContext struct {
+	// Has unexported fields.
+}
+    AdapterContext wraps an EGL/GL context with mutex-protected MakeCurrent
+    switching. Shared by Instance → Adapter → Device → Queue (X11/headless),
+    or owned by Surface on Wayland (intentional context-per-surface divergence —
+    no wl_display* at Instance init).
+
+func NewAdapterContext(eglCtx *egl.Context, glCtx *gl.Context, owns bool) *AdapterContext
+    NewAdapterContext wraps an already-created EGL context and GL function
+    table. owns=true means Destroy() will call eglCtx.Destroy(); owns=false for
+    borrowed refs.
+
+func (c *AdapterContext) Destroy()
+    Destroy deletes the EGL context when this AdapterContext owns it. Takes the
+    mutex so Destroy cannot race with Lock/Unlock on another goroutine.
+
+func (c *AdapterContext) EGL() *egl.Context
+    EGL returns the underlying EGL context wrapper.
+
+func (c *AdapterContext) GL() *gl.Context
+    GL returns the GL function table. Safe to read without Lock; GL calls on the
+    returned context require Lock.
+
+func (c *AdapterContext) Lock() *gl.Context
+    Lock acquires the mutex, pins the goroutine to the current OS thread,
+    and makes the GL context current on the pbuffer / surfaceless draw surface.
+
+    A bind failure is logged; callers that need a usable context use TryLock and
+    stop on error instead of running GL calls with nothing current.
+
+func (c *AdapterContext) LockForSurface(surf egl.EGLSurface) *gl.Context
+    LockForSurface acquires the mutex, pins the goroutine to the current OS
+    thread, and makes the GL context current on the given window EGLSurface.
+
+func (c *AdapterContext) TryLock() (*gl.Context, error)
+    TryLock is Lock with a usable error: non-nil gl + nil error means ready,
+    nil gl + LockMakeCurrentErr means the context did not bind (typically
+    EGL_BAD_ACCESS 0x3002: another thread holds it, or the display went away).
+    Callers stop instead of issuing GL calls into the void.
+
+func (c *AdapterContext) TryLockForSurface(surf egl.EGLSurface) (*gl.Context, error)
+    TryLockForSurface is the TryLock twin for a window EGLSurface: non-nil gl
+    + nil error means ready, nil gl + LockMakeCurrentErr means the bind failed
+    (dead surface, BadAlloc 0x3003, display lost). Callers stop instead of
+    issuing GL calls into the void — the old LockForSurface logged and still
+    returned gl, so Present blitted and swapped unbound (transparent stall).
+
+func (c *AdapterContext) Unlock()
+    Unlock unmakes the GL context current, unpins the goroutine from the OS
+    thread, and releases the mutex.
+
+    The unmake is unconditional: the mutex guarantees this Lock/Unlock pair
+    owns the bind, so no GetCurrentContext query is needed to guard against
+    double-unmake (pprof: the query cost 250ms/2.32s on spin_min — every
+    CreateCommandEncoder/Submit/Present Unlock paid one FFI round trip).
+    Unlock stays safe before egl.Init (unit tests, teardown) via the nil check.
+
+func (c *AdapterContext) UnlockKeepBinding()
+    UnlockKeepBinding releases the mutex and unpins the goroutine but keeps
+    the GL context current on this OS thread (skips the UnmakeCurrent FFI).
+    Safe only when the next GL user re-makes before use on the same thread:
+    the raster loop runs Submit→Present on one pinned OS thread (G5),
+    and Present's TryLockForSurface always makes before drawing, so the kept
+    binding is either reused (same thread, EGL cover semantics) or covered.
+    pprof: UnmakeCurrent costs 170ms/1.87s on spin_min (one per Submit and
+    one per Present); Submit keeps, Present still clears (frame-end Unlock,
+    Flutter parity). Other callers keep Unlock.
+
+    Only one OS thread may keep it: the first frame-end caller claims keepTid,
+    which is the process-wide GL thread (ui/raster hub) in every windowed app.
+    A keep from any other thread would strand the shared context — the real GL
+    thread's next MakeCurrent fails with EGL_BAD_ACCESS (0x3002) and every GL
+    call of that window silently no-ops (frozen picture, UI keeps ticking),
+    so foreign threads unmake exactly like Unlock.
+
+type AttachColorCommand struct {
+	// Has unexported fields.
+}
+    AttachColorCommand attaches a color texture to a specific FBO attachment
+    point. Used for MRT (Multiple Render Targets) to bind attachments 1..N.
+    Attachment 0 is bound by EnsureOffscreenFBOCommand.
+
+func (c *AttachColorCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type AttachDepthStencilCommand struct {
+	// Has unexported fields.
+}
+    AttachDepthStencilCommand attaches a depth/stencil texture to the currently
+    bound FBO (the one associated with the color texture). This must be recorded
+    after EnsureOffscreenFBOCommand so the FBO is already bound.
+
+func (c *AttachDepthStencilCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type AttachDepthStencilToFBOCommand struct {
+	// Has unexported fields.
+}
+    AttachDepthStencilToFBOCommand attaches a depth/stencil texture to the
+    currently bound FBO. Unlike AttachDepthStencilCommand, this does not
+    reference a color texture — it operates on whatever FBO is currently bound
+    (typically the surface swapchain FBO).
+
+    The attachment point is chosen by texture format:
+      - depth-only → GL_DEPTH_ATTACHMENT
+      - stencil-only → GL_STENCIL_ATTACHMENT
+      - depth+stencil → GL_DEPTH_STENCIL_ATTACHMENT
+
+func (c *AttachDepthStencilToFBOCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type Backend struct{}
+    Backend implements hal.Backend for OpenGL ES / OpenGL 3.3+ on Linux.
+
+func NewBackend() Backend
+    NewBackend returns a GLES backend instance.
+
+func (Backend) CreateInstance(_ *hal.InstanceDescriptor) (hal.Instance, error)
+    CreateInstance creates a new OpenGL instance with an optional EGL context.
+    parity) for adapter enumeration without a surface. Uses surfaceless/pbuffer
+    context — same role as Windows hidden 1×1 HWND (v0.28.6).
+
+    On Wayland, this may fail (EGL needs wl_display*) — that's OK, CreateSurface
+    provides the proper context later. On X11/headless, this succeeds.
+
+func (Backend) Variant() gputypes.Backend
+    Variant returns the backend type identifier.
+
+type BindFramebufferCommand struct {
+	// Has unexported fields.
+}
+    BindFramebufferCommand binds a framebuffer object.
+
+func (c *BindFramebufferCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type BindGroup struct {
+	// Has unexported fields.
+}
+    BindGroup implements hal.BindGroup for OpenGL. Entries hold the canonical
+    hal flat shape directly: CreateBindGroup stores desc.Entries verbatim,
+    Execute unpacks to *Buffer/ *TextureView/*Sampler internally (gpu unpack
+    pattern, not red-line assert).
+
+func (g *BindGroup) Destroy()
+    Destroy is a no-op for bind groups.
+
+type BindGroupDescriptor = hal.BindGroupDescriptor
+    Type aliases for hal descriptors
+
+type BindGroupLayout struct {
+	// Has unexported fields.
+}
+    BindGroupLayout implements hal.BindGroupLayout for OpenGL.
+
+func (l *BindGroupLayout) Destroy()
+    Destroy is a no-op for bind group layouts.
+
+type BindGroupLayoutDescriptor = hal.BindGroupLayoutDescriptor
+    Type aliases for hal descriptors
+
+type BindGroupLayoutInfo struct {
+	BindingToSlot []uint8 // indexed by binding number, 0xFF = unused
+}
+    BindGroupLayoutInfo stores per-group binding-to-slot mapping computed at
+    PipelineLayout creation time. Each entry in BindingToSlot is indexed by
+    the WGSL binding number and maps to the sequential GL slot index for that
+    resource type. 0xFF means unused.
+
+type BindSurfaceFramebufferCommand struct {
+	// Has unexported fields.
+}
+    BindSurfaceFramebufferCommand binds the Surface's swapchain offscreen
+    framebuffer. Reads surface.swapchainFBO at execute time so reconfigure (e.g.
+    window resize) between encode and submit is handled correctly.
+
+func (c *BindSurfaceFramebufferCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type BindVAOCommand struct {
+	// Has unexported fields.
+}
+    BindVAOCommand binds a vertex array object.
+
+func (c *BindVAOCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type Buffer struct {
+	// Has unexported fields.
+}
+    Buffer implements hal.Buffer for OpenGL.
+
+func (b *Buffer) Destroy()
+    Destroy releases the buffer. Self-locked via the owning AdapterContext:
+    deferred-release queues (pendingTexRetire/pendingBufRetire,
+    offscreen/stencil pools) drain without holding the GL lock, and a delete
+    with no current context is a silent no-op on NVIDIA — ledger forgets but
+    driver keeps the memory, so every resize leaks until OOM. Locking here makes
+    direct Destroy safe anywhere; Device.DestroyBuffer delegates here without
+    pre-locking (no nesting). Bind failure leaves the id AND the ledger slot in
+    place for the next attempt (same retry contract as Sampler.Destroy).
+
+func (b *Buffer) Label() string
+    Label returns the buffer's debug label.
+
+func (b *Buffer) NativeHandle() uintptr
+    NativeHandle returns the GL buffer object ID.
+
+func (b *Buffer) Size() uint64
+    Size returns the buffer size in bytes.
+
+func (b *Buffer) Usage() gputypes.BufferUsage
+    Usage returns the buffer's usage flags.
+
+type BufferDescriptor = hal.BufferDescriptor
+    Type aliases for hal descriptors
+
+type ClearBufferCommand struct {
+	// Has unexported fields.
+}
+    ClearBufferCommand clears a buffer region.
+
+func (c *ClearBufferCommand) Execute(_ *gl.Context, _ *glExecState)
+
+type ClearColorBufferCommand struct {
+	// Has unexported fields.
+}
+    ClearColorBufferCommand clears a specific color draw buffer using
+    glClearBufferfv. This replaces the old global glClearColor+glClear approach
+    for MRT correctness: each color attachment can have a different clear value.
+
+func (c *ClearColorBufferCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type ClearColorCommand struct {
+	// Has unexported fields.
+}
+    ClearColorCommand clears a color attachment using the legacy global clear
+    path. Retained for backward compatibility with tests and single-target
+    code paths. For MRT, use ClearColorBufferCommand instead (per-buffer via
+    glClearBufferfv).
+
+func (c *ClearColorCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type ClearDepthCommand struct {
+	// Has unexported fields.
+}
+    ClearDepthCommand clears the depth buffer.
+
+func (c *ClearDepthCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type ClearStencilCommand struct {
+	// Has unexported fields.
+}
+    ClearStencilCommand clears the stencil buffer.
+
+func (c *ClearStencilCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type ColorTargetDesc struct {
+	Blend     *gputypes.BlendState
+	WriteMask gputypes.ColorWriteMask
+}
+    ColorTargetDesc describes per-render-target blend and write mask state.
+
+type Command interface {
+	Execute(ctx *gl.Context, st *glExecState)
+}
+    Command represents a recorded GL command.
+
+type CommandBuffer struct {
+	// Has unexported fields.
+}
+    CommandBuffer holds recorded commands for later execution.
+
+func (c *CommandBuffer) Destroy()
+    Destroy releases the command buffer resources.
+
+type CommandEncoder struct {
+	// Has unexported fields.
+}
+    CommandEncoder implements hal.CommandEncoder for OpenGL. Platform-specific
+    fields are defined in command_<platform>.go files.
+
+func (e *CommandEncoder) BeginComputePass(desc *hal.ComputePassDescriptor) (hal.ComputePassEncoder, error)
+    BeginComputePass begins a compute pass. BeginComputePass begins a compute
+    pass.
+
+func (e *CommandEncoder) BeginEncoding(label string) error
+    BeginEncoding begins command recording. BeginEncoding begins command
+    recording.
+
+func (e *CommandEncoder) BeginRenderPass(desc *hal.RenderPassDescriptor) (hal.RenderPassEncoder, error)
+    BeginRenderPass begins a render pass. BeginRenderPass begins a render pass.
+
+func (e *CommandEncoder) BuildAccelerationStructures(_ []hal.BuildAccelerationStructureDescriptor)
+    BuildAccelerationStructures is a no-op (GLES has no ray tracing).
+    BuildAccelerationStructures is a no-op (GLES has no ray tracing).
+
+func (e *CommandEncoder) ClearBuffer(buffer hal.Buffer, offset, size uint64)
+    ClearBuffer clears a buffer region to zero. ClearBuffer clears a buffer
+    region to zero.
+
+func (e *CommandEncoder) CopyAccelerationStructure(_, _ hal.AccelerationStructure, _ gputypes.AccelerationStructureCopyMode)
+    CopyAccelerationStructure is a no-op (GLES has no ray tracing).
+    CopyAccelerationStructure is a no-op (GLES has no ray tracing).
+
+func (e *CommandEncoder) CopyBufferToBuffer(src hal.Buffer, srcOffset uint64, dst hal.Buffer, dstOffset uint64, size uint64)
+    CopyBufferToBuffer copies data between buffers. CopyBufferToBuffer copies
+    data between buffers.
+
+func (e *CommandEncoder) CopyBufferToTexture(src hal.Buffer, dst hal.Texture, regions []hal.BufferTextureCopy)
+    CopyBufferToTexture copies buffer data to a texture via PBO (pixel
+    unpack buffer). Binds the source buffer as GL_PIXEL_UNPACK_BUFFER,
+    then calls glTexSubImage2D with offset 0 so that GL reads pixel data from
+    the bound PBO. CopyBufferToTexture copies buffer data to a texture via PBO
+    (pixel unpack buffer). Binds the source buffer as GL_PIXEL_UNPACK_BUFFER,
+    then calls glTexSubImage2D with offset 0 so that GL reads pixel data from
+    the bound PBO.
+
+func (e *CommandEncoder) CopyTextureToBuffer(src hal.Texture, dst hal.Buffer, regions []hal.BufferTextureCopy)
+    CopyTextureToBuffer copies texture data to a buffer via FBO + glReadPixels.
+    For each region, it binds the source texture's FBO and reads pixels into the
+    destination buffer's CPU-side data slice. CopyTextureToBuffer copies texture
+    data to a buffer via FBO + glReadPixels. For each region, it binds the
+    source texture's FBO and reads pixels into the destination buffer's CPU-side
+    data slice.
+
+func (e *CommandEncoder) CopyTextureToTexture(src, dst hal.Texture, regions []hal.TextureCopy)
+    CopyTextureToTexture copies between textures using FBO read +
+    glCopyTexSubImage2D. Attaches the source texture to the read framebuffer,
+    then copies pixels into the destination texture. This works on GL 3.0+ /
+    ES 3.0+ without glCopyImageSubData. CopyTextureToTexture copies between
+    textures using FBO read + glCopyTexSubImage2D. Attaches the source texture
+    to the read framebuffer, then copies pixels into the destination texture.
+    This works on GL 3.0+ / ES 3.0+ without glCopyImageSubData.
+
+func (e *CommandEncoder) Destroy()
+    Destroy is a no-op for OpenGL (no persistent GPU resources owned by
+    encoder). Destroy is a no-op for OpenGL (no persistent GPU resources owned
+    by encoder).
+
+func (e *CommandEncoder) DiscardEncoding()
+    DiscardEncoding discards the encoder. DiscardEncoding discards the encoder.
+
+func (e *CommandEncoder) EndEncoding() (hal.CommandBuffer, error)
+    EndEncoding finishes command recording and returns a command buffer.
+    EndEncoding finishes command recording and returns a command buffer.
+
+func (e *CommandEncoder) Finish() (hal.CommandBuffer, error)
+    Finish implements hal.CommandEncoder: same as EndEncoding. Finish implements
+    hal.CommandEncoder: same as EndEncoding.
+
+func (e *CommandEncoder) PlaceAccelerationStructureBarrier(_ hal.AccelerationStructureBarrier)
+    PlaceAccelerationStructureBarrier is a no-op (GLES has no ray tracing).
+    PlaceAccelerationStructureBarrier is a no-op (GLES has no ray tracing).
+
+func (e *CommandEncoder) ReadAccelerationStructureCompactSize(_ hal.AccelerationStructure, _ hal.Buffer, _ uint64)
+    ReadAccelerationStructureCompactSize is a no-op (GLES has no ray tracing).
+    ReadAccelerationStructureCompactSize is a no-op (GLES has no ray tracing).
+
+func (e *CommandEncoder) ResetAll(_ []hal.CommandBuffer)
+    ResetAll resets command buffers for reuse. ResetAll resets command buffers
+    for reuse.
+
+func (e *CommandEncoder) ResolveQuerySet(querySet hal.QuerySet, firstQuery, queryCount uint32, destination hal.Buffer, destinationOffset uint64)
+    ResolveQuerySet copies query results from a query set into a
+    destination buffer. Each result is a uint64 (8 bytes) written starting
+    at destinationOffset. Uses glGetQueryObjectui64v to read results,
+    then glBufferSubData to write them. Nil or foreign query sets/buffers are
+    ignored (nil-safe). ResolveQuerySet copies query results from a query
+    set into a destination buffer. Each result is a uint64 (8 bytes) written
+    starting at destinationOffset. Uses glGetQueryObjectui64v to read results,
+    then glBufferSubData to write them. Nil or foreign query sets/buffers are
+    ignored (nil-safe).
+
+func (e *CommandEncoder) TransitionBuffers(barriers []hal.BufferBarrier)
+    TransitionBuffers emits memory barriers for buffer state transitions. GLES
+    only needs explicit barriers when transitioning FROM storage write (compute
+    shader output) to any other usage (vertex, uniform, draw). TransitionBuffers
+    emits memory barriers for buffer state transitions. GLES only needs explicit
+    barriers when transitioning FROM storage write (compute shader output) to
+    any other usage (vertex, uniform, draw).
+
+func (e *CommandEncoder) TransitionTextures(barriers []hal.TextureBarrier)
+    TransitionTextures emits memory barriers for texture state transitions.
+    GLES only needs explicit barriers when transitioning FROM storage write to
+    any other usage (texture fetch, framebuffer attachment). TransitionTextures
+    emits memory barriers for texture state transitions. GLES only needs
+    explicit barriers when transitioning FROM storage write to any other usage
+    (texture fetch, framebuffer attachment).
+
+type CommandEncoderDescriptor = hal.CommandEncoderDescriptor
+    Type aliases for hal descriptors
+
+type ComputePassEncoder struct {
+	// Has unexported fields.
+}
+    ComputePassEncoder implements hal.ComputePassEncoder for OpenGL.
+
+func (e *ComputePassEncoder) Dispatch(x, y, z uint32)
+    Dispatch dispatches compute work. Dispatch dispatches compute work.
+
+func (e *ComputePassEncoder) DispatchIndirect(buffer hal.Buffer, offset uint64)
+    DispatchIndirect dispatches compute work with GPU-generated parameters.
+    DispatchIndirect dispatches compute work with GPU-generated parameters.
+
+func (e *ComputePassEncoder) End() error
+    End finishes the compute pass.
+
+func (e *ComputePassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offsets []uint32)
+    SetBindGroup sets a bind group. SetBindGroup sets a bind group.
+
+func (e *ComputePassEncoder) SetPipeline(pipeline hal.ComputePipeline)
+    SetPipeline sets the compute pipeline. SetPipeline sets the compute
+    pipeline.
+
+type ComputePipeline struct {
+	// Has unexported fields.
+}
+    ComputePipeline implements hal.ComputePipeline for OpenGL.
+
+func (p *ComputePipeline) Destroy()
+    Destroy releases the compute pipeline. Same retry contract as
+    RenderPipeline.Destroy.
+
+type ComputePipelineDescriptor = hal.ComputePipelineDescriptor
+    Type aliases for hal descriptors
+
+type CopyBufferCommand struct {
+	// Has unexported fields.
+}
+    CopyBufferCommand copies between buffers.
+
+func (c *CopyBufferCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type CopyBufferToTextureCommand struct {
+	// Has unexported fields.
+}
+    CopyBufferToTextureCommand copies buffer data to a texture using a pixel
+    unpack buffer. Binds the source GL buffer as GL_PIXEL_UNPACK_BUFFER,
+    then calls glTexSubImage2D with offset=0 so GL reads from the bound PBO.
+
+func (c *CopyBufferToTextureCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type CopyTextureToBufferCommand struct {
+	// Has unexported fields.
+}
+    CopyTextureToBufferCommand reads pixels from a texture's FBO into a buffer's
+    CPU-side data slice. This is the standard GLES readback path since GLES
+    lacks glGetTexImage. The approach: bind texture FBO -> glReadPixels -> copy
+    to buffer.
+
+func (c *CopyTextureToBufferCommand) Execute(ctx *gl.Context, st *glExecState)
+    Execute reads pixels from the source texture's FBO into the destination
+    buffer. Execute reads pixels from the source texture's FBO into the
+    destination buffer.
+
+type CopyTextureToTextureCommand struct {
+	// Has unexported fields.
+}
+    CopyTextureToTextureCommand copies pixels between textures using an FBO.
+    Attaches the source texture to GL_READ_FRAMEBUFFER, then copies into the
+    destination via glCopyTexSubImage2D.
+
+func (c *CopyTextureToTextureCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type Device struct {
+	// Has unexported fields.
+}
+    Device implements hal.Device for OpenGL on Linux. Holds a shared
+    *AdapterContext (owned by Instance or Surface). All GL operations acquire
+    the context lock, do MakeCurrent, execute, and unlock. vao access: created
+    lazily under the context lock (Mesa d3d12 gallium invalidates pbuffer-born
+    objects on the window surface, so it must be born on the window surface,
+    not at Open). After creation it is read-only and read via atomic so the
+    steady-state CreateCommandEncoder fast path skips the Lock/Unlock round trip
+    (pprof: 110ms/2.32s on spin_min).
+
+func (d *Device) CreateAccelerationStructure(_ *hal.AccelerationStructureDescriptor) (hal.AccelerationStructure, error)
+    CreateAccelerationStructure returns a plain gles error (no sentinel):
+    no ray tracing on OpenGL ES (Metal keeps the real implementation).
+
+func (d *Device) CreateBindGroup(desc *BindGroupDescriptor) (hal.BindGroup, error)
+    CreateBindGroup creates a bind group.
+
+func (d *Device) CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (hal.BindGroupLayout, error)
+    CreateBindGroupLayout creates a bind group layout.
+
+func (d *Device) CreateBuffer(desc *BufferDescriptor) (hal.Buffer, error)
+    CreateBuffer creates a GPU buffer.
+
+func (d *Device) CreateCommandEncoder(_ *CommandEncoderDescriptor) (hal.CommandEncoder, error)
+    CreateCommandEncoder creates a command encoder. VAO is lazily created on
+    first call — ensures it's allocated on the window surface (after Configure),
+    not on the pbuffer (during Open). Mesa d3d12 gallium invalidates GL
+    objects when switching from pbuffer to window surface. Steady state skips
+    the Lock/Unlock round trip: the VAO is read-only after creation (atomic
+    load) and the encoder only records commands — GL executes them later under
+    Queue.Submit's lock. Only the first creation takes the lock.
+
+func (d *Device) CreateComputePipeline(desc *ComputePipelineDescriptor) (hal.ComputePipeline, error)
+    CreateComputePipeline creates a compute pipeline.
+
+func (d *Device) CreateFence() (hal.Fence, error)
+    CreateFence creates a synchronization fence.
+
+func (d *Device) CreatePipelineLayout(desc *PipelineLayoutDescriptor) (hal.PipelineLayout, error)
+    CreatePipelineLayout creates a pipeline layout. . Five resource type
+    counters (samplers, textures, images, uniform buffers, storage buffers) are
+    incremented sequentially across all bind group layouts, producing a flat GL
+    slot index per binding.
+
+func (d *Device) CreateQuerySet(_ *hal.QuerySetDescriptor) (hal.QuerySet, error)
+    CreateQuerySet always returns hal.ErrTimestampsNotSupported on Windows.
+    Timestamp queries need GL_EXT_disjoint_timer_query (not wired yet);
+    the Linux file (device.go) holds the real GL query implementation.
+
+func (d *Device) CreateRenderBundleEncoder(desc *hal.RenderBundleEncoderDescriptor) (hal.RenderBundleEncoder, error)
+    CreateRenderBundleEncoder returns a plain gles error (no sentinel): render
+    bundles are supported on neither GL build.
+
+func (d *Device) CreateRenderPipeline(desc *RenderPipelineDescriptor) (hal.RenderPipeline, error)
+    CreateRenderPipeline creates a render pipeline.
+
+func (d *Device) CreateSampler(desc *SamplerDescriptor) (hal.Sampler, error)
+    CreateSampler creates a texture sampler using GL sampler objects (GL 3.3+).
+
+func (d *Device) CreateShaderModule(desc *ShaderModuleDescriptor) (hal.ShaderModule, error)
+    CreateShaderModule creates a shader module.
+
+func (d *Device) CreateTexture(desc *TextureDescriptor) (hal.Texture, error)
+    CreateTexture creates a GPU texture.
+
+func (d *Device) CreateTextureView(texture hal.Texture, desc *TextureViewDescriptor) (hal.TextureView, error)
+    CreateTextureView creates a view into a texture. Accepts both *Texture and
+    *SurfaceTexture (default framebuffer).
+
+func (d *Device) DestroyAccelerationStructure(_ hal.AccelerationStructure)
+    DestroyAccelerationStructure is a nil-safe no-op (GLES has no ray tracing).
+
+func (d *Device) DestroyBindGroup(group hal.BindGroup)
+    DestroyBindGroup destroys a bind group.
+
+func (d *Device) DestroyBindGroupLayout(layout hal.BindGroupLayout)
+    DestroyBindGroupLayout destroys a bind group layout.
+
+func (d *Device) DestroyBuffer(buffer hal.Buffer)
+    DestroyBuffer destroys a GPU buffer. Delegates to the self-locked
+    Buffer.Destroy (Windows twin: device.go); no pre-lock (non-reentrant).
+
+func (d *Device) DestroyComputePipeline(pipeline hal.ComputePipeline)
+    DestroyComputePipeline destroys a compute pipeline. Delegates to the
+    self-locked ComputePipeline.Destroy (no pre-lock: see DestroyBuffer).
+
+func (d *Device) DestroyFence(fence hal.Fence)
+    DestroyFence destroys a fence. Delegates to the self-locked Fence.Destroy
+    (no pre-lock: see DestroyBuffer).
+
+func (d *Device) DestroyPipelineLayout(layout hal.PipelineLayout)
+    DestroyPipelineLayout destroys a pipeline layout.
+
+func (d *Device) DestroyQuerySet(qs hal.QuerySet)
+    DestroyQuerySet destroys a query set. Delegates to the self-locked
+    QuerySet.Destroy (no pre-lock: see DestroyBuffer).
+
+func (d *Device) DestroyRenderBundle(bundle hal.RenderBundle)
+    DestroyRenderBundle is a nil-safe no-op (creation never succeeds).
+
+func (d *Device) DestroyRenderPipeline(pipeline hal.RenderPipeline)
+    DestroyRenderPipeline destroys a render pipeline. Delegates to the
+    self-locked RenderPipeline.Destroy (no pre-lock: see DestroyBuffer).
+
+func (d *Device) DestroySampler(sampler hal.Sampler)
+    DestroySampler destroys a sampler. Delegates to the self-locked
+    Sampler.Destroy (no pre-lock: see DestroyBuffer).
+
+func (d *Device) DestroyShaderModule(module hal.ShaderModule)
+    DestroyShaderModule destroys a shader module. Delegates to the self-locked
+    ShaderModule.Destroy (no pre-lock: see DestroyBuffer).
+
+func (d *Device) DestroyTexture(texture hal.Texture)
+    DestroyTexture destroys a GPU texture. Delegates to the self-locked
+    Texture.Destroy (Windows twin: device.go); no pre-lock (non-reentrant).
+
+func (d *Device) DestroyTextureView(view hal.TextureView)
+    DestroyTextureView destroys a texture view.
+
+func (d *Device) Features() gputypes.Features
+    Features returns the device's enabled features.
+
+func (d *Device) FlushCallbacks()
+    FlushCallbacks is a no-op for GLES.
+
+func (d *Device) FreeCommandBuffer(cmdBuffer hal.CommandBuffer)
+    FreeCommandBuffer is a no-op for GLES. GLES doesn't have Vulkan-style
+    command pools - commands are recorded directly.
+
+func (d *Device) GetAccelerationStructureBuildSizes(_ *hal.GetAccelerationStructureBuildSizesDescriptor) hal.AccelerationStructureBuildSizes
+    GetAccelerationStructureBuildSizes returns zero sizes (GLES has no ray
+    tracing).
+
+func (d *Device) GetAccelerationStructureDeviceAddress(_ hal.AccelerationStructure) uint64
+    GetAccelerationStructureDeviceAddress returns 0 (GLES has no ray tracing).
+
+func (d *Device) GetFenceStatus(fence hal.Fence) (bool, error)
+    GetFenceStatus returns true if the fence is signaled (non-blocking).
+    Binds first like WaitForFence; on bind failure answers from cache.
+
+func (d *Device) IsLost() bool
+    IsLost returns false (GLES has no device-lost tracking yet).
+
+func (d *Device) Limits() gputypes.Limits
+    Limits returns the device's resource limits.
+
+func (d *Device) MapBuffer(buffer hal.Buffer, offset, size uint64) (hal.BufferMapping, error)
+    MapBuffer establishes a CPU-visible mapping for a GL buffer via a CPU shadow
+    slice. See device.go (Windows variant) for rationale.
+
+func (d *Device) Poll(_ hal.PollType) bool
+    Poll returns true (GLES is synchronous after Finish).
+
+func (d *Device) PopErrorScope() *hal.GPUError
+    PopErrorScope returns nil (GLES never captures errors).
+
+func (d *Device) PushErrorScope(_ hal.ErrorFilter)
+    PushErrorScope is a no-op for GLES.
+
+func (d *Device) Queue() hal.Queue
+    Queue returns the device's command queue.
+
+func (d *Device) Release()
+    Release releases the device. Bind failure (driver gone) still clears the VAO
+    bookkeeping: handles die with the driver (Windows twin parity).
+
+func (d *Device) ResetFence(fence hal.Fence) error
+    ResetFence resets a fence to the unsignaled state. Binds first: Reset
+    deletes GL sync objects, which is a silent no-op with nothing current.
+    No-context devices (nil EGL in tests, nil ctx) reset the bookkeeping
+    directly — same as the counter fallback path, no GL touched.
+
+func (d *Device) TlasInstanceToBytes(_ hal.TlasInstance) []byte
+    TlasInstanceToBytes returns nil (GLES has no ray tracing).
+
+func (d *Device) UnmapBuffer(buffer hal.Buffer) error
+    UnmapBuffer releases a GL buffer mapping. Writable buffers push the shadow
+    back into the GL buffer via glBufferSubData; the shadow is then released so
+    subsequent MapBuffer calls pick up fresh contents.
+
+func (d *Device) WaitForFence(fence hal.Fence, value uint64, timeout time.Duration) (bool, error)
+    WaitForFence waits for a fence to reach the specified value. The wait
+    issues GL queries (see Fence contract in resource.go), so it binds first;
+    on bind failure it answers from the cached value.
+
+func (d *Device) WaitIdle() error
+    WaitIdle waits for all GPU work to complete.
+
+type DispatchCommand struct {
+	// Has unexported fields.
+}
+    DispatchCommand dispatches compute work.
+
+func (c *DispatchCommand) Execute(ctx *gl.Context, st *glExecState)
+    Execute dispatches compute work and inserts a memory barrier. Execute
+    dispatches compute work and inserts a memory barrier.
+
+type DispatchIndirectCommand struct {
+	// Has unexported fields.
+}
+    DispatchIndirectCommand dispatches compute work with GPU-generated
+    parameters.
+
+func (c *DispatchIndirectCommand) Execute(ctx *gl.Context, st *glExecState)
+    Execute dispatches compute work from indirect buffer and inserts a memory
+    barrier. Execute dispatches compute work from indirect buffer and inserts a
+    memory barrier.
+
+type DrawCommand struct {
+	// Has unexported fields.
+}
+    DrawCommand executes a non-indexed draw.
+
+func (c *DrawCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type DrawIndexedCommand struct {
+	// Has unexported fields.
+}
+    DrawIndexedCommand executes an indexed draw.
+
+func (c *DrawIndexedCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type EnsureOffscreenFBOCommand struct {
+	// Has unexported fields.
+}
+    EnsureOffscreenFBOCommand lazily creates a framebuffer object for an
+    offscreen texture and binds it. If the texture already has an FBO, it simply
+    binds it.
+
+func (c *EnsureOffscreenFBOCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type Fence struct {
+	// Has unexported fields.
+}
+    Fence implements hal.Fence using GL sync objects (glFenceSync). Tracks
+    pending GL sync objects and polls their completion status.
+
+    Threading contract: every method below issues GL calls on the calling
+    thread, so the caller must hold the AdapterContext lock (which pins the
+    goroutine and makes the context current) — Queue.Submit holds it for
+    Signal/Maintain, Queue.Poll and Device.WaitForFence/GetFenceStatus take it
+    around GetLatest/Wait/Reset. Destroy/Maintain self-lock via Fence.ctx like
+    any other GL object. The only lock-free path is the counter fallback (nil
+    glCtx or no fence-sync support), which touches no GL.
+
+func NewFence(glCtx *gl.Context) *Fence
+    NewFence creates a new fence. Callers that own an AdapterContext should set
+    Fence.ctx (e.g. Device.CreateFence does) so Destroy/Reset can self-lock and
+    retry on bind failure; queue-owned fences are covered by the Submit/Poll
+    lock instead.
+
+func (f *Fence) Destroy()
+    Destroy releases all fence resources. Same retry contract as Reset: bind
+    failure restores pending so a later Destroy retries instead of leaking sync
+    objects.
+
+func (f *Fence) GetLatest() uint64
+    GetLatest polls pending sync objects and returns the highest completed
+    value.
+
+func (f *Fence) GetValue() uint64
+    GetValue returns the current fence value (non-blocking poll).
+
+func (f *Fence) Maintain()
+    Maintain cleans up completed sync objects.
+
+func (f *Fence) Reset()
+    Reset resets the fence to the unsignaled state. Same retry contract as
+    Buffer.Destroy: bind failure restores the pending sync list so a later Reset
+    retries instead of leaking sync objects.
+
+func (f *Fence) Signal(value uint64) error
+    Signal inserts a GL fence sync object into the command stream at the given
+    value. Must be called on the GL thread BEFORE glFlush — the flush sends both
+    the preceding commands and this fence to the GPU together. Returns an error
+    if glFenceSync fails (typically OOM).
+
+func (f *Fence) Wait(waitValue uint64, timeout time.Duration) bool
+    Wait waits for the fence to reach the specified value with timeout.
+
+type Frame struct {
+	SurfaceTexture hal.SurfaceTexture
+	View           hal.TextureView
+	Handle         gpucontext.TextureView
+	Width          uint32
+	Height         uint32
+}
+    Frame is one acquired GL surface image.
+
+type Instance struct {
+	// Has unexported fields.
+}
+    Instance implements hal.Instance for the OpenGL backend on Linux.
+    ctx is non-nil when an instance-level EGL context was created successfully
+    (X11/headless). On Wayland it may be nil — CreateSurface provides a
+    Surface-owned AdapterContext when a window handle is available.
+
+func (i *Instance) CreateSurface(target hal.SurfaceTarget) (hal.Surface, error)
+    CreateSurface creates an OpenGL surface from window handles. On Linux:
+    displayHandle and windowHandle are platform-specific. For X11: displayHandle
+    is X11 Display*, windowHandle is Window. For Wayland: displayHandle is
+    wl_display*, windowHandle is wl_surface*.
+
+    When Instance has a pre-created EGL context (X11/headless), the context is
+    SHARED — Surface only creates an EGL window surface for presentation. This
+
+    When Instance has no context (Wayland — no wl_display* at init),
+    CreateSurface creates a new EGL context with the caller's displayHandle and
+    wraps it in a Surface-owned AdapterContext (intentional Wayland divergence).
+
+func (i *Instance) EnumerateAdapters(surfaceHint hal.Surface) []hal.ExposedAdapter
+    RequestAdapter). Devices from the live family are skipped (already
+    represented live); displays that fail init are skipped (fail-soft).
+
+func (i *Instance) ProcessEvents()
+    ProcessEvents is a no-op for GLES (synchronous, no async callbacks).
+
+func (i *Instance) Release()
+    Release releases the instance resources.
+
+func (i *Instance) RequestAdapter(opts *hal.RequestAdapterOptions) (hal.Adapter, error)
+    RequestAdapter honors PowerPreference: HighPerformance → NVIDIA device,
+    LowPower → Mesa hardware device, ForceFallbackAdapter → software device,
+    None → the live default-display adapter (the screen's own GPU: zero-copy,
+    no app-level transfer). Surface hints win over everything (the window's
+    display decides the GPU). A family pick that cannot serve a window surface
+    warns and falls back to the live screen adapter so the window still lights;
+    the log names the final adapter (no silent substitution). Cross-family
+    ordering stays in render (presentLevels).
+
+type MSAAResolveCommand struct {
+	// Has unexported fields.
+}
+    MSAAResolveCommand resolves an MSAA framebuffer to a single-sample
+    framebuffer using glBlitFramebuffer. This is recorded at render pass End()
+    when a ResolveTarget is specified in the color attachment.
+
+    When resolveToSurface is true, the destination is the Surface's swapchain
+    offscreen FBO (NOT FBO 0). No Y-flip is applied here — the Y-flip is the
+    sole responsibility of Queue.Present, which blits the swapchain FBO to FBO 0
+    with srcY0=height, srcY1=0 before SwapBuffers.
+
+func (c *MSAAResolveCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type MemoryBarrierCommand struct {
+	// Has unexported fields.
+}
+    MemoryBarrierCommand inserts a glMemoryBarrier call. Ensures compute shader
+    writes are visible to subsequent draw/dispatch commands.
+
+func (c *MemoryBarrierCommand) Execute(ctx *gl.Context, st *glExecState)
+    recycleCommandList returns a consumed command slice backing to the pool.
+    Headers must already be cleared (all nil): Submit nils each header as it
+    releases the command, Destroy callers have no live references.
+
+type PipelineLayout struct {
+	// Has unexported fields.
+}
+    PipelineLayout implements hal.PipelineLayout for OpenGL. Stores pre-computed
+    per-type sequential binding indices.
+
+func (l *PipelineLayout) Destroy()
+    Destroy is a no-op for pipeline layouts.
+
+type PipelineLayoutDescriptor = hal.PipelineLayoutDescriptor
+    Type aliases for hal descriptors
+
+type QuerySet struct {
+	// Has unexported fields.
+}
+    QuerySet implements hal.QuerySet for OpenGL. Stores GL query object IDs and
+    the target type (GL_TIMESTAMP or GL_ANY_SAMPLES_PASSED).
+
+func (q *QuerySet) Destroy()
+    Destroy releases all GL query objects. Self-locked via the owning
+    AdapterContext (same contract as Buffer.Destroy): queries carry no ledger
+    charge, only the ids are restored for retry on bind failure.
+
+func (q *QuerySet) NativeHandle() uintptr
+    NativeHandle returns 0 (no single native handle for a query set).
+
+func (q *QuerySet) Target() uint32
+    Target returns the GL query target type (GL_TIMESTAMP or
+    GL_ANY_SAMPLES_PASSED).
+
+type Queue struct {
+	// Has unexported fields.
+}
+    Queue implements hal.Queue for OpenGL on Linux. Holds a shared
+    *AdapterContext (owned by Instance or Surface).
+
+func (q *Queue) GetTimestampPeriod() float32
+    GetTimestampPeriod returns the timestamp period in nanoseconds.
+
+func (q *Queue) LastSubmissionIndex() uint64
+    LastSubmissionIndex returns the most recent submission index.
+
+func (q *Queue) Poll() uint64
+    Poll returns the highest submission index known to be completed.
+    Polls pending GL sync objects via glGetSynciv (non-blocking, no flush).
+    Safe because Submit() always flushes after inserting the fence — the
+    fence is guaranteed to be in the GPU command queue by the time we poll it.
+    Maintenance (cleanup of completed sync objects) happens in Submit(),
+    not here Backend divergence: webgpu Queue.Poll always returns 0, gles
+    returns Fence.GetLatest (or submissionIndex when queueless), metal returns
+    the GPU-callback-driven completedIndex.
+
+func (q *Queue) Present(surface hal.Surface, tex hal.SurfaceTexture, damageRects []image.Rectangle) (retErr error)
+    Present presents a surface texture to the screen.
+
+    Makes the GL context current on the window EGLSurface (via LockForSurface),
+    blits the Surface's swapchain offscreen FBO to the default framebuffer with
+    an explicit Y-flip, then SwapBuffers.
+
+    damageRects is an optional list of rectangles (physical pixels, top-left
+    origin) indicating which surface regions changed this frame.
+
+    Partial present requires all three pieces: EGL_KHR_swap_buffers_with_damage
+    (compositor hint), EGL_KHR_partial_update (preserve the back buffer
+    outside the written region) and EGL_EXT_buffer_age (union damage until
+    that buffer rotates back). Any missing piece falls back to the full blit +
+    eglSwapBuffers path — the same behavior as before damage was wired through.
+
+func (q *Queue) SetSwapchainSuppressed(_ bool)
+    SetSwapchainSuppressed is a no-op on GLES. GLES uses eglSwapBuffers for
+    presentation, which is not affected by command submission ordering.
+
+func (q *Queue) StagedWriteOverlaps() int64
+    StagedWriteOverlaps reports how many staged uploads this process coalesced
+    with an earlier staged upload of an overlapping range in the same drain (see
+    write_batch.go). 0 on a healthy run; gate on that.
+
+func (q *Queue) Submit(commandBuffers ...hal.CommandBuffer) (uint64, error)
+    Submit submits command buffers to the GPU. One Lock for the whole submit:
+    staged uploads flush first, then all GL commands run under a per-submit
+    state cache that drops repeated setup. Keeps the binding on unlock
+    (UnlockKeepBinding): the raster loop runs Submit→Present on one pinned OS
+    thread and Present re-makes before use, so Submit skips its UnmakeCurrent
+    FFI (pprof: ~half of 170ms/1.87s).
+
+func (q *Queue) SupportsCommandBufferCopies() bool
+    SupportsCommandBufferCopies returns false for GLES on Linux. GLES uses
+    direct GL calls for writes, not command buffer copy operations.
+
+func (q *Queue) SupportsCrossThreadTextureWrites() bool
+    SupportsCrossThreadTextureWrites reports false: the Linux frame path keeps
+    the EGL context bound to the raster thread (Submit uses UnlockKeepBinding),
+    and a foreign-thread WriteTexture would MakeCurrent into failure.
+
+func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error
+    WriteBuffer stages data for upload. No GL runs here (no MakeCurrent):
+    the payload flushes with the next Submit/Present under that Lock.
+
+func (q *Queue) WriteTexture(dst *hal.ImageCopyTexture, data []byte, layout *hal.ImageDataLayout, size *hal.Extent3D) error
+    WriteTexture writes data to a texture immediately.
+
+type RenderPassEncoder struct {
+	// Has unexported fields.
+}
+    RenderPassEncoder implements hal.RenderPassEncoder for OpenGL.
+
+func (e *RenderPassEncoder) Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32)
+    Draw draws primitives. Draw draws primitives.
+
+func (e *RenderPassEncoder) DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32)
+    DrawIndexed draws indexed primitives. DrawIndexed draws indexed primitives.
+
+func (e *RenderPassEncoder) DrawIndexedIndirect(buffer hal.Buffer, offset uint64)
+    DrawIndexedIndirect draws a single indexed indirect record.
+    DrawIndexedIndirect draws a single indexed indirect record.
+
+func (e *RenderPassEncoder) DrawIndexedIndirectCount(_ hal.Buffer, _ uint64, _ hal.Buffer, _ uint64, _ uint32)
+    DrawIndexedIndirectCount is not supported by the GLES backend.
+    DrawIndexedIndirectCount is not supported by the GLES backend.
+
+func (e *RenderPassEncoder) DrawIndirect(buffer hal.Buffer, offset uint64)
+    DrawIndirect draws a single indirect record. DrawIndirect draws a single
+    indirect record.
+
+func (e *RenderPassEncoder) DrawIndirectCount(_ hal.Buffer, _ uint64, _ hal.Buffer, _ uint64, _ uint32)
+    DrawIndirectCount is not supported by the GLES backend. DrawIndirectCount is
+    not supported by the GLES backend.
+
+func (e *RenderPassEncoder) End() error
+    End finishes the render pass. If MSAA resolve is needed, blits the MSAA FBO
+    to the resolve target FBO. If the pass was rendering to an offscreen FBO,
+    rebinds the default framebuffer so subsequent operations do not accidentally
+    target the offscreen texture. End finishes the render pass. If MSAA resolve
+    is needed, blits the MSAA FBO to the resolve target FBO. If the pass was
+    rendering to an offscreen FBO, rebinds the default framebuffer so subsequent
+    operations do not accidentally target the offscreen texture.
+
+func (e *RenderPassEncoder) ExecuteBundle(bundle hal.RenderBundle)
+    ExecuteBundle executes a pre-recorded render bundle. Note: Render bundles
+    are not natively supported in OpenGL. OpenGL uses display lists (deprecated)
+    or VAO/VBO state caching. This is a no-op - bundles are expanded inline
+    in the command stream. Nil bundles are ignored (nil-safe). ExecuteBundle
+    executes a pre-recorded render bundle. Note: Render bundles are not natively
+    supported in OpenGL. OpenGL uses display lists (deprecated) or VAO/VBO
+    state caching. This is a no-op - bundles are expanded inline in the command
+    stream. Nil bundles are ignored (nil-safe).
+
+func (e *RenderPassEncoder) SetBindGroup(index uint32, group hal.BindGroup, offsets []uint32)
+    SetBindGroup sets a bind group. Exact duplicates on the same index emit
+    once (webgpu SetBindGroup 对等）；显式空组永远下发，不记缓存. SetBindGroup sets a bind group.
+    Exact duplicates on the same index emit once (webgpu SetBindGroup
+    对等）；显式空组永远下发，不记缓存.
+
+func (e *RenderPassEncoder) SetBlendConstant(color *gputypes.Color)
+    SetBlendConstant sets the blend constant. Identical values emit once.
+    SetBlendConstant sets the blend constant. Identical values emit once.
+
+func (e *RenderPassEncoder) SetIndexBuffer(buffer hal.Buffer, format gputypes.IndexFormat, offset uint64)
+    SetIndexBuffer sets the index buffer. Same buffer+format+offset emits once.
+    SetIndexBuffer sets the index buffer. Same buffer+format+offset emits once.
+
+func (e *RenderPassEncoder) SetPipeline(pipeline hal.RenderPipeline)
+    SetPipeline sets the render pipeline. Same pointer twice emits once (webgpu
+    SetPipeline 对等：顶点重打也是同一布局，跳过无损). SetPipeline sets the render pipeline.
+    Same pointer twice emits once (webgpu SetPipeline 对等：顶点重打也是同一布局，跳过无损).
+
+func (e *RenderPassEncoder) SetScissorRect(x, y, width, height uint32)
+    SetScissorRect sets the scissor rectangle. With ADJUST_COORDINATE_SPACE,
+    no Y-flip is needed — coordinates pass through directly. Identical
+    values emit once. SetScissorRect sets the scissor rectangle. With
+    ADJUST_COORDINATE_SPACE, no Y-flip is needed — coordinates pass through
+    directly. Identical values emit once.
+
+func (e *RenderPassEncoder) SetStencilReference(ref uint32)
+    SetStencilReference sets the stencil reference value. Same ref on the same
+    depth-stencil state emits once; ref 或管线变都照发，模板语义不动。 SetStencilReference sets
+    the stencil reference value. Same ref on the same depth-stencil state emits
+    once; ref 或管线变都照发，模板语义不动。
+
+func (e *RenderPassEncoder) SetVertexBuffer(slot uint32, buffer hal.Buffer, offset uint64)
+    SetVertexBuffer sets a vertex buffer and configures vertex attributes.
+    In OpenGL, vertex attribute configuration (glVertexAttribPointer +
+    glEnableVertexAttribArray) must be done explicitly. The layout is taken from
+    the currently bound render pipeline's vertex buffer descriptors. The offset
+    is remembered so a later SetPipeline can re-emit the setup with the new
+    pipeline's layout (see SetPipeline). SetVertexBuffer sets a vertex buffer
+    and configures vertex attributes. In OpenGL, vertex attribute configuration
+    (glVertexAttribPointer + glEnableVertexAttribArray) must be done explicitly.
+    The layout is taken from the currently bound render pipeline's vertex buffer
+    descriptors. The offset is remembered so a later SetPipeline can re-emit the
+    setup with the new pipeline's layout (see SetPipeline).
+
+func (e *RenderPassEncoder) SetViewport(x, y, width, height, minDepth, maxDepth float32)
+    SetViewport sets the viewport. Identical values emit once. SetViewport sets
+    the viewport. Identical values emit once.
+
+type RenderPipeline struct {
+	// Has unexported fields.
+}
+    RenderPipeline implements hal.RenderPipeline for OpenGL.
+
+func (p *RenderPipeline) Destroy()
+    Destroy releases the render pipeline. Same retry contract as Buffer.Destroy:
+    bind failure restores programID AND the ledger slot so a later Destroy
+    retries instead of leaking.
+
+type RenderPipelineDescriptor = hal.RenderPipelineDescriptor
+    Type aliases for hal descriptors
+
+type ResolveQuerySetCommand struct {
+	// Has unexported fields.
+}
+    ResolveQuerySetCommand reads query results via glGetQueryObjectui64v and
+    writes them into the destination buffer via glBufferSubData. Uses the CPU
+    fallback path (no QUERY_BUFFER) to stay compatible with GLES 3.0+ / GL 3.3+.
+    Each result is a uint64 (8 bytes).
+
+func (c *ResolveQuerySetCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type Sampler struct {
+	// Has unexported fields.
+}
+    Sampler implements hal.Sampler for OpenGL using GL sampler objects (GL
+    3.3+).
+
+func (s *Sampler) Destroy()
+    Destroy releases the GL sampler object. Self-locked via the owning
+    AdapterContext (same contract as Buffer.Destroy): a delete with no current
+    context is a silent no-op while the ledger already refunded, so bind
+    failure leaves the ids AND the ledger slot in place for the next attempt.
+    Device.DestroySampler delegates here without pre-locking (no nesting).
+
+func (s *Sampler) NativeHandle() uintptr
+    NativeHandle returns the GL sampler object ID.
+
+type SamplerDescriptor = hal.SamplerDescriptor
+    Type aliases for hal descriptors
+
+type SetBindGroupCommand struct {
+	// Has unexported fields.
+}
+    SetBindGroupCommand binds resources.
+
+func (c *SetBindGroupCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type SetBlendConstantCommand struct {
+	// Has unexported fields.
+}
+    SetBlendConstantCommand sets blend constant.
+
+func (c *SetBlendConstantCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type SetDrawColorBuffersCommand struct {
+	// Has unexported fields.
+}
+    SetDrawColorBuffersCommand configures the list of draw buffers for MRT
+    output.
+
+func (c *SetDrawColorBuffersCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type SetIndexBufferCommand struct {
+	// Has unexported fields.
+}
+    SetIndexBufferCommand binds an index buffer.
+
+func (c *SetIndexBufferCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type SetPipelineStateCommand struct {
+	// Has unexported fields.
+}
+    SetPipelineStateCommand sets pipeline state (culling, depth, stencil,
+    blending, color mask).
+
+func (c *SetPipelineStateCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type SetScissorCommand struct {
+	// Has unexported fields.
+}
+    SetScissorCommand sets the scissor rectangle. With ADJUST_COORDINATE_SPACE
+    enabled, the scene is rendered upside-down in GL. The scissor coordinates
+    are passed through directly (no Y-flip needed) because the scissor operates
+    in the same flipped coordinate space as the rendered content.
+
+func (c *SetScissorCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type SetStencilRefCommand struct {
+	// Has unexported fields.
+}
+    SetStencilRefCommand updates the stencil reference value. This re-applies
+    glStencilFuncSeparate with the new reference while keeping the compare
+    function and read mask from the current pipeline.
+
+func (c *SetStencilRefCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type SetVertexBufferCommand struct {
+	// Has unexported fields.
+}
+    SetVertexBufferCommand binds a vertex buffer and configures vertex
+    attributes. In OpenGL, vertex attributes must be configured explicitly via
+    glVertexAttribPointer + glEnableVertexAttribArray. The layout describes how
+    vertex data is interpreted (attribute locations, formats, strides).
+
+func (c *SetVertexBufferCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type SetViewportCommand struct {
+	// Has unexported fields.
+}
+    SetViewportCommand sets the viewport.
+
+func (c *SetViewportCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type ShaderModule struct {
+	// Has unexported fields.
+}
+    ShaderModule implements hal.ShaderModule for OpenGL.
+
+func (m *ShaderModule) Destroy()
+    Destroy releases the shader module. Same retry contract as Buffer.Destroy:
+    bind failure restores ids AND any ledger slot via withGL accounting below
+    (shaders carry no ledger charge; only the GL ids are restored for retry).
+
+type ShaderModuleDescriptor = hal.ShaderModuleDescriptor
+    Type aliases for hal descriptors
+
+type Surface struct {
+	// Has unexported fields.
+}
+    Surface implements hal.Surface for OpenGL on Linux. When Instance has a
+    pre-created AdapterContext (X11/headless), ownsContext=false — Surface
+    shares Instance's context. When Instance has no context (Wayland),
+    ownsContext=true — Surface owns its own AdapterContext (intentional Wayland
+    divergence).
+
+func (s *Surface) AcquireTexture(_ hal.Fence) (*hal.AcquiredSurfaceTexture, error)
+    AcquireTexture returns the next surface texture for rendering.
+
+    Strict codes: nil receiver, unconfigured surface (!configured/config==nil)
+    or a lost context (ctx==nil) all report hal.ErrSurfaceLost
+    (errors.Is-compatible); a previous in-flight frame is discarded first.
+    Timeout/NotReady do not apply: GL acquire is synchronous and always succeeds
+    once configured.
+
+func (s *Surface) ActualExtent() (width, height uint32)
+    ActualExtent returns the configured surface dimensions. GLES does not
+    clamp the extent, so these always match the requested values. Returns (0,
+    0) if the surface is not configured.
+
+func (s *Surface) Configure(_ hal.Device, config *hal.SurfaceConfiguration) error
+    Configure configures the surface for presentation.
+
+    On Wayland, this creates a wl_egl_window via libwayland-egl.so and then an
+    EGL window surface. On X11, eglCreateWindowSurface takes the raw X11 Window
+    handle directly.
+
+    Returns hal.ErrZeroArea if width or height is zero. This commonly happens
+    when the window is minimized or not yet fully visible. Wait until the window
+    has valid dimensions before calling Configure again.
+
+func (s *Surface) Destroy()
+    Destroy releases the surface resources. Order: GL resources → EGL surface →
+    wl_egl_window → AdapterContext (if owned). Bind failure (driver gone) still
+    clears bookkeeping: handles die with the driver.
+
+func (s *Surface) DiscardTexture(tex hal.SurfaceTexture)
+    DiscardTexture discards a previously acquired texture without presenting.
+    Nil-safe; drops the tracked in-flight frame when tex is nil or matches it,
+    ignores foreign textures.
+
+func (s *Surface) GetAdapterInfo() hal.ExposedAdapter
+    GetAdapterInfo returns adapter information from this surface's GL context.
+    Probes GL version, extensions, features, limits, and MSAA support to build
+    an accurate ExposedAdapter.
+
+func (s *Surface) Unconfigure(_ hal.Device)
+    Unconfigure marks the surface as unconfigured and releases the EGL window
+    surface and wl_egl_window (on Wayland). Bind failure (driver gone) still
+    clears bookkeeping: handles die with the driver.
+
+type SurfaceTexture struct {
+	// Has unexported fields.
+}
+    SurfaceTexture implements hal.SurfaceTexture for OpenGL. It represents the
+    default framebuffer.
+
+func (t *SurfaceTexture) AddPendingRef()
+
+func (t *SurfaceTexture) CurrentUsage() gputypes.TextureUsage
+    CurrentUsage returns 0 — GLES surface textures have no state tracking.
+
+func (t *SurfaceTexture) DecPendingRef()
+
+func (t *SurfaceTexture) Destroy()
+    Destroy is a no-op for surface textures.
+
+func (t *SurfaceTexture) Format() gputypes.TextureFormat
+    Format returns the surface configuration format, or Undefined if
+    unconfigured.
+
+func (t *SurfaceTexture) NativeHandle() uintptr
+    NativeHandle returns 0 (OpenGL default framebuffer has no handle).
+
+type Swapchain struct {
+	Width       uint32
+	Height      uint32
+	Format      gputypes.TextureFormat
+	Usage       gputypes.TextureUsage
+	PresentMode gputypes.PresentMode
+	AlphaMode   gputypes.CompositeAlphaMode
+
+	PreferPresentModes []gputypes.PresentMode
+
+	OnDeviceAbandon   func(oldDevice hal.Device)
+	OnDeviceRecreated func(newDevice hal.Device)
+
+	// Has unexported fields.
+}
+    Swapchain presents through hal.Surface Acquire +
+    Device.CreateTextureView(isSurface) + Queue.Present (swapchainFBO blit +
+    Y-flip + SwapBuffers).
+
+func NewSwapchain(surface hal.Surface, device hal.Device, width, height uint32) *Swapchain
+    NewSwapchain builds a GL swapchain for an existing surface + device.
+
+func (sc *Swapchain) BeginFrame() (*Frame, error)
+    BeginFrame acquires the next surface texture and boxes its view.
+
+func (sc *Swapchain) Configure() error
+    Configure applies the surface configuration.
+
+func (sc *Swapchain) ConfigureFromCapabilities(adapter hal.Adapter) error
+    ConfigureFromCapabilities picks a supported format then configures. GL only
+    advertises Fifo/Immediate, so present-mode preference is a no-op beyond
+    keeping Fifo steady.
+
+func (sc *Swapchain) DiscardFrame(frame *Frame)
+    DiscardFrame drops an acquired frame without presenting.
+
+func (sc *Swapchain) EndFrame(frame *Frame) error
+    EndFrame presents the frame via Queue.Present (blit + SwapBuffers).
+
+func (sc *Swapchain) EndFrameWithDamage(frame *Frame, rects []image.Rectangle) error
+    EndFrameWithDamage presents the frame, forwarding damage rects (physical
+    pixels, top-left origin) to the backend. Backends that cannot use them
+    present the full surface.
+
+func (sc *Swapchain) FireOnDeviceRecreated(dev hal.Device)
+    FireOnDeviceRecreated invokes the recreation hook when armed.
+
+func (sc *Swapchain) GetDevice() hal.Device
+    GetDevice reports the bound device for the render interface.
+
+func (sc *Swapchain) GetFormat() gputypes.TextureFormat
+    GetFormat reports the configured format (render interface accessor).
+
+func (sc *Swapchain) GetPresentMode() gputypes.PresentMode
+    GetPresentMode reports the active present mode.
+
+func (sc *Swapchain) NewHalSwapchain() hal.Swapchain
+    NewHalSwapchain exposes this swapchain as hal.Swapchain so render only names
+    the backend in the one creation sentence.
+
+func (sc *Swapchain) PresentModeForVsync(on bool) gputypes.PresentMode
+    PresentModeForVsync picks Fifo steady vs Immediate low-latency.
+
+func (sc *Swapchain) PresentModeName() string
+    PresentModeName labels the active mode for logs.
+
+func (sc *Swapchain) Release()
+    Release unconfigures the surface; Surface/Device ownership stays out.
+
+func (sc *Swapchain) Resize(width, height uint32) error
+    Resize updates extent and reconfigures on change. The new size is only
+    committed when Configure succeeds (via applyOrRevert).
+
+func (sc *Swapchain) SetDevice(dev hal.Device)
+    SetDevice rebinds to a new device (shared recovery path).
+
+func (sc *Swapchain) SetPreferFifoRelaxed()
+    SetPreferFifoRelaxed keeps Fifo steady (no relaxed mode on GL).
+
+func (sc *Swapchain) SetPreferVSync()
+    SetPreferVSync selects Fifo when available (steady UI path).
+
+func (sc *Swapchain) SetPresentModeForce(mode gputypes.PresentMode) error
+    SetPresentModeForce reconfigures with an explicit mode. The mode is only
+    committed when Configure succeeds (via applyOrRevert, same as Resize).
+
+func (sc *Swapchain) SetUsage(u gputypes.TextureUsage)
+    SetUsage updates the surface usage before Configure.
+
+type Texture struct {
+	// Has unexported fields.
+}
+    Texture implements hal.Texture for OpenGL.
+
+func (t *Texture) AddPendingRef()
+
+func (t *Texture) CurrentUsage() gputypes.TextureUsage
+    CurrentUsage returns 0 — GLES has no explicit resource state tracking.
+
+func (t *Texture) DecPendingRef()
+
+func (t *Texture) Destroy()
+    Destroy releases the texture and any associated framebuffer object.
+    Self-locked via the owning AdapterContext for the same reason as
+    Buffer.Destroy: resize churn retires depth/stencil textures through pending
+    queues that drain with no context current; without the lock the driver keeps
+    the storage while the ledger already refunded it — each size change adds
+    VRAM until OOM. Device.DestroyTexture delegates here without pre-locking (no
+    nesting).
+
+func (t *Texture) Format() gputypes.TextureFormat
+    Format returns the texture format.
+
+func (t *Texture) NativeHandle() uintptr
+    NativeHandle returns the GL texture object ID.
+
+type TextureDescriptor = hal.TextureDescriptor
+    Type aliases for hal descriptors
+
+type TextureView struct {
+	// Has unexported fields.
+}
+    TextureView implements hal.TextureView for OpenGL.
+
+func (v *TextureView) Destroy()
+    Destroy is a no-op for texture views in OpenGL.
+
+func (v *TextureView) NativeHandle() uintptr
+    NativeHandle returns the underlying texture's GL object ID.
+
+func (v *TextureView) Texture() hal.Texture
+    Texture returns the parent texture.
+
+type TextureViewDescriptor = hal.TextureViewDescriptor
+    Type aliases for hal descriptors
+
+type TimestampQueryCommand struct {
+	// Has unexported fields.
+}
+    TimestampQueryCommand records a timestamp via glQueryCounter. Used
+    internally by render/compute pass timestamp writes.
+
+func (c *TimestampQueryCommand) Execute(ctx *gl.Context, st *glExecState)
+
+type UseProgramCommand struct {
+	// Has unexported fields.
+}
+    UseProgramCommand activates a shader program.
+
+func (c *UseProgramCommand) Execute(ctx *gl.Context, st *glExecState)
+

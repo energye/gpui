@@ -1,0 +1,105 @@
+Command particleprev previews one 2.5D particle effect exactly as the game
+simulates it.
+
+Frozen 2026-09-16: Effect, OpenEffect, BuildEmitter, ReplayEffect, VerifyReplay.
+Additive changes only.
+
+Usage:
+
+    go run ./tools/particleprev -project tools/particleprev/testdata -effect fire -auto-only
+    go run ./tools/particleprev -project <dir> -effect smoke -manual-seconds 60
+    go run ./tools/particleprev -project <dir> -effect fire
+
+Project layout (one file per effect, missing file is a placeholder):
+
+    <dir>/effect_<name>.json emitter recipe plus probe steps:
+      name, origin[2], shape{kind,dir,angle_deg,extents,ring_inner,ring_outer},
+      rate, max, speed[2], life_ms[2], gravity[2], start[4], end[4],
+      strength, scale, sub_count, sub_speed[2], sub_life_ms[2], seed,
+      spawn, update_ms. The shape names match engine/particle
+      (point, cone, box, ring). A "want" section may sit beside the recipe
+      for tests; the preview ignores it.
+
+What comes out: an Effect with the recipe echo plus one fixed probe replay
+(Spawn probe.spawn, Update probe.update_ms) reporting Spawned/Alive/Child,
+and a window that ticks the same emitter live so fire and smoke read as fire and
+smoke. Keys + and - halve or double the rate and replay from the same seed so
+tuning shows immediately; key 0 restores the filed rate.
+
+Bad effects never crash: a torn file is core BadData in FileErr with a zeroed
+preview, and the returned error carries it for scripts. A missing effect file is
+a clean placeholder open (HasFile false, zero live) with a nil error so an empty
+project still opens. An empty dir path is core InvalidArg, a missing directory
+is core NotFound.
+
+Parity口径 (C两边齐): the number layer matches the engine bit for bit. The window and
+the preview replay through engine/particle itself (NewEmitter/Spawn/Update),
+so Effect.Spawned/Alive/Child equal a direct engine replay of the same file with
+zero difference. Pixels are NOT hard-compared against game windows (different
+scenes); instead the same effect painted twice offscreen is byte-identical.
+Numbers only use engine/core types; this tool defines no Vec2, Color, or AssetID
+of its own.
+
+FUNCTIONS
+
+func ReplayEffect(e *Effect) (spawned, alive, child int, err error)
+    ReplayEffect runs the filed probe (Spawn then Update) on a fresh emitter and
+    returns spawned/alive/child straight from the engine.
+
+func VerifyReplay(eff Effect) error
+    VerifyReplay reports whether eff carries exactly the engine replay numbers.
+    Zero difference passes; anything else is BadData.
+
+
+TYPES
+
+type Effect struct {
+	Dir     string
+	Name    string
+	HasFile bool
+
+	Rate      float64
+	Max       int
+	SpeedMin  float64
+	SpeedMax  float64
+	LifeMinMs int64
+	LifeMaxMs int64
+	ShapeKind string
+	Seed      uint64
+
+	ProbeSpawn    int
+	ProbeUpdateMs int64
+	Spawned       int
+	Alive         int
+	Child         int
+
+	Notes   []string
+	FileErr string
+
+	// Has unexported fields.
+}
+    Effect is one opened particle effect: the filed recipe echo plus one
+    fixed probe replay through the real engine. Missing files open as a clean
+    placeholder (HasFile false, nil error); torn files set FileErr and return
+    the core error with a zeroed effect. Nothing here panics.
+
+func OpenEffect(dir, name string) (Effect, error)
+    OpenEffect opens dir/effect_<name>.json as a particle effect. A missing file
+    is a clean placeholder (HasFile false, nil error) so an empty project still
+    opens; a torn file sets FileErr and returns the core error with a zeroed
+    effect. Empty dir paths are InvalidArg, missing directories are NotFound.
+
+func ParseEffect(data []byte) (Effect, error)
+    ParseEffect validates effect file bytes into an Effect with its probe
+    already replayed. Empty input is InvalidArg, torn JSON or a bad recipe
+    is BadData, an over-cap Max is OutOfMemory; all straight from the engine
+    constructors, never guessed.
+
+func (e *Effect) BuildEmitter() (*particle.Emitter, error)
+    BuildEmitter builds a fresh engine emitter from the filed recipe with the
+    filed seed. The window and the tests replay through this so the numbers
+    always come from engine/particle itself.
+
+func (e *Effect) Config() particle.EmitterConfig
+    Config returns the engine recipe this effect replays.
+

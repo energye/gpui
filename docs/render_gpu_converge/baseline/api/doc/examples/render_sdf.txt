@@ -1,0 +1,8 @@
+Example: SDF Accelerator Demo
+
+This example demonstrates the SDF (Signed Distance Field) accelerator for smooth
+circle and rounded rectangle rendering. It shows:
+  - Registering the CPU SDF accelerator
+  - Drawing filled and stroked circles with smooth anti-aliasing
+  - Drawing filled and stroked rounded rectangles
+  - Comparing SDF vs standard rasterizer quality

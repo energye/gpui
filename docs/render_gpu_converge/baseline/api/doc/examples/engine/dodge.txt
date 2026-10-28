@@ -1,0 +1,15 @@
+Command game_dodge is the S78 dodge-the-creeps gate: a 400px/s player dodges
+edge-spawned mobs (150-250px/s, perpendicular +-45deg) with a per-second score,
+all through the real engine/physics bodies.
+
+Modes:
+
+    RUN_SECONDS=8 go run ./examples/engine/dodge -auto-only
+      probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/dodge -manual-seconds 30
+      manual 30s (WASD/arrows move, hit dies once, events logged), then summary.
+    go run ./examples/engine/dodge
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_dodge. First run writes the golden baseline into
+testdata/; later runs compare it with zero tolerance.

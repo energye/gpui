@@ -1,0 +1,9 @@
+Command video_vr2_decode is the VW1 VR2 real-window: H.264 full decode.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/video/video_vr2_decode
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 15). GPU window required. Left:
+per-clip decode gates from the real video/h264 engine (B门禁, 480p裁边, 720p,
+all byte-exact vs the ffmpeg oracle). Right: first display frame side by side,
+decoded vs oracle (luma gray; color lives in VR3, VR2 proves YUV exactness).

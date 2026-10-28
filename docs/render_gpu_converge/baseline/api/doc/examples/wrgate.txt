@@ -1,0 +1,233 @@
+package wrgate // import "github.com/energye/gpui/examples/wrgate"
+
+Package wrgate builds ENGINE_UI_WIDGET_RENDER §2.2 metrics reports and FAIL
+gates for ui_wr_* real-window examples (W0+).
+
+Pure helpers are unit-tested without a display; examples wire PipelineApp +
+ProcessTracker.
+
+VARIABLES
+
+var RequiredSchemaKeys = []string{
+	"ability_id", "scenario", "present_policy", "target_hz", "fps_wall",
+	"interval_p50_ms", "interval_p95_ms", "hitch_count", "hitch_rate_per_min", "vsync_source",
+	"frame_build_ms", "frame_raster_ms", "layout_count", "paint_count",
+	"damage_area_px", "damage_ratio", "present_mode", "present_count", "frame_count",
+	"cpu_pct_avg", "cpu_ui_pct", "cpu_raster_pct",
+	"rss_start_kb", "rss_end_kb", "rss_peak_kb", "rss_slope_kb_per_min", "rss_slope_valid",
+	"gpu_ops", "cpu_fallback_ops", "elapsed_sec",
+
+	"ruler_name", "ruler_cpu_pct", "ruler_rss_mb", "ruler_ratio_cpu", "ruler_ratio_rss",
+}
+    RequiredSchemaKeys are always required in emitted JSON (R12 / C0 schema
+    gate).
+
+
+FUNCTIONS
+
+func CheckSchema(jsonBytes []byte) error
+    CheckSchema ensures the marshaled JSON contains required keys (string
+    search).
+
+func EvaluateGates(r Report, opt GateOptions) error
+    EvaluateGates returns a FAIL error or nil. Pure: no I/O.
+
+func EvaluateRetainedExtras(r Report, opt GateOptions) error
+    EvaluateRetainedExtras checks R4b dirty-id gates against AbilityExtra:
+      - MinDirtyLayerIDs: dirty_layer_id_max (peak len of dirty_layer_ids in one
+        frame) must be >= N — two distant hot spots → two ids.
+      - MinDamageMultiFrames: damage_multi_frames (cumulative multi-rect present
+        count) must be >= N.
+
+    Thresholds are read from GateOptions; values are read from Extra so each
+    window decides what it reports. Returns a FAIL error or nil.
+
+func Marshal(r Report) ([]byte, error)
+    Marshal formats the report as compact JSON.
+
+
+TYPES
+
+type BuildInput struct {
+	AbilityID     string
+	Scenario      string
+	Backend       string // win.Backend().String(); empty = not recorded
+	Snap          scheduler.FrameMetrics
+	PresentCount  int64
+	ElapsedSec    float64
+	SurfaceAreaPx int64 // logical w*h; 0 → damage_ratio 0
+	Warmup        bool
+	Extra         map[string]any
+	// Ruler feeds the 对齐线 fields (RENDER_BASE_RESOURCE_MATRIX §4): set from
+	// wrgate.RulerFromEnv when P4 runners measured the ruler arm for this row.
+	// nil = no ruler run — five ruler_* JSON keys stay null (禁假绿).
+	Ruler *RulerInput
+}
+    BuildInput is everything needed to assemble a Report from a finished run.
+
+type GateOptions struct {
+	// MinPresents fails when present_count < MinPresents (default 1).
+	MinPresents int64
+	// RequireFullPaintPolicy fails when present_policy != full_paint.
+	RequireFullPaintPolicy bool
+	// RequirePersistentFPS applies fps >= MinFPSWall (default 55) when ElapsedSec >= MinFPSElapsed.
+	// The fps read is interval-preferred (1000/interval_avg_ms steady pace,
+	// wall fps only as fallback including open/close overhead).
+	RequirePersistentFPS bool
+	MinFPSWall           float64
+	MinFPSElapsed        float64 // default 2s — short smokes skip FPS hard gate
+	// MaxP95Ms when >0 fails if interval_p95_ms > MaxP95Ms (animation/scroll).
+	MaxP95Ms float64
+	// SchemaOnly only checks schema (R12); skips present/FPS gates when true.
+	SchemaOnly bool
+	// MinBoundarySkip fails when boundary_skip < N (R3; 0 = off).
+	MinBoundarySkip int64
+	// MinBoundaryRerecord fails when boundary_rerecord < N (dirty path must record; 0 = off).
+	MinBoundaryRerecord int64
+	// MinBoundaryCount fails when boundary_count < N (R3b; 0 = off).
+	MinBoundaryCount int64
+	// MinBoundaryMaxDepth fails when boundary_max_depth < N (R3b nest; 0 = off).
+	MinBoundaryMaxDepth int64
+	// MinPictureOpCount fails when picture_op_count < N (R5; 0 = off).
+	MinPictureOpCount int64
+	// MinMeasureCacheHit fails when measure_cache_hit < N (R9; 0 = off).
+	MinMeasureCacheHit int64
+	// RequireHitsGEMiss fails when measure_cache_hit < measure_cache_miss (R9; false = off).
+	RequireHitsGEMMiss bool
+	// DebugRepaintOnGate fails when debug_repaint_on is false and RequireDebugOn (R12b).
+	RequireDebugOn bool
+	// RequireRetainedPolicy fails when present_policy != retained (W2 R4).
+	RequireRetainedPolicy bool
+	// MaxDamageRatio fails when DamageRatio > threshold (W2; 0 = off). Use steady-state ratio.
+	MaxDamageRatio float64
+	// MinDirtyLayerIDs fails when ability_extra dirty_layer_id_max < N (0 = off); checked via Extra if set.
+	// Prefer calling EvaluateRetainedExtras from examples for dirty id gates.
+	MinDirtyLayerIDs int64
+	// MinDamageMultiFrames fails when ability_extra damage_multi_frames < N (R4b; 0 = off).
+	MinDamageMultiFrames int64
+	// MinCacheInvalidations fails when ability_extra cache_invalidations < N (R11; 0 = off).
+	MinCacheInvalidations int64
+}
+    GateOptions configures FAIL thresholds for a window run.
+
+type Report struct {
+	AbilityID string `json:"ability_id"`
+	Scenario  string `json:"scenario"`
+	// Backend is the display backend backing the window (x11/wayland/...).
+	// Set from win.Backend() by examples; empty means "not recorded".
+	// Wayland evidence requires backend=wayland (see ENGINE_WAYLAND_NESTED_TEST §4).
+	Backend       string  `json:"backend,omitempty"`
+	PresentPolicy string  `json:"present_policy"`
+	TargetHz      float64 `json:"target_hz"`
+	// FPSWall is present_count/elapsed_sec (includes open/close overhead — often low).
+	FPSWall float64 `json:"fps_wall"`
+	// FPSInterval is 1000/interval_avg_ms when samples exist (honest steady-frame rate).
+	FPSInterval     float64 `json:"fps_interval,omitempty"`
+	IntervalAvgMs   float64 `json:"interval_avg_ms"`
+	IntervalP50Ms   float64 `json:"interval_p50_ms"`
+	IntervalP95Ms   float64 `json:"interval_p95_ms"`
+	IntervalP99Ms   float64 `json:"interval_p99_ms"`
+	HitchCount      int64   `json:"hitch_count"`
+	HitchRatePerMin float64 `json:"hitch_rate_per_min"`
+	VSyncSource     string  `json:"vsync_source"`
+	FrameBuildMs    float64 `json:"frame_build_ms"`
+	FrameRasterMs   float64 `json:"frame_raster_ms"`
+	PipelineDepth   int     `json:"pipeline_depth"`
+	PipelineMax     int     `json:"pipeline_max"`
+	LayoutCount     int64   `json:"layout_count"`
+	PaintCount      int64   `json:"paint_count"`
+	DamageAreaPx    int64   `json:"damage_area_px"`
+	DamageRatio     float64 `json:"damage_ratio"`
+	PresentMode     string  `json:"present_mode"`
+	// R4b: last-frame dirty layer/boundary ids + cumulative damage_multi presents.
+	DirtyLayerIDs     []uint64 `json:"dirty_layer_ids,omitempty"`
+	DamageMultiFrames int64    `json:"damage_multi_frames,omitempty"`
+	PresentCount      int64    `json:"present_count"`
+	FrameCount        int64    `json:"frame_count"`
+	CPUPctAvg         float64  `json:"cpu_pct_avg"`
+	CPUUIPct          float64  `json:"cpu_ui_pct"`
+	CPURasterPct      float64  `json:"cpu_raster_pct"`
+	CPUUnavailable    bool     `json:"cpu_unavailable,omitempty"`
+	RSSStartKB        int64    `json:"rss_start_kb"`
+	RSSEndKB          int64    `json:"rss_end_kb"`
+	RSSPeakKB         int64    `json:"rss_peak_kb"`
+	RSSSlopeKBPerMin  float64  `json:"rss_slope_kb_per_min"`
+	// RSSSlopeSteadyKBPerMin is valid only when RSSSlopeValid; short runs
+	// report the raw startup-inclusive slope above and false here.
+	RSSSlopeSteadyKBPerMin float64 `json:"rss_slope_steady_kb_per_min,omitempty"`
+	RSSSlopeValid          bool    `json:"rss_slope_valid"`
+	RSSWarmupSec           float64 `json:"rss_warmup_sec,omitempty"`
+	RSSAfterCloseKB        int64   `json:"rss_after_close_kb,omitempty"`
+	RSSUnavailable         bool    `json:"rss_unavailable,omitempty"`
+	GPUOps                 int64   `json:"gpu_ops"`
+	CPUFallbackOps         int64   `json:"cpu_fallback_ops"`
+	FrameFlushes           int64   `json:"frame_flushes,omitempty"`
+	LastCPUFallback        string  `json:"last_cpu_fallback"`
+	// Multiwindow 1.3: actual adapter category + open-time downgrade count.
+	GPUBackend   string `json:"gpu_backend"`
+	GPUFallbacks int    `json:"gpu_fallbacks"`
+	// H-family first-present (R16): Warmup is observed by PipelineApp (first
+	// present); TimeToFirstPresentMs / FirstPresentPaintCount are observations.
+	Warmup                 bool    `json:"warmup"`
+	TimeToFirstPresentMs   float64 `json:"time_to_first_present_ms,omitempty"`
+	FirstPresentPaintCount int64   `json:"first_present_paint_count,omitempty"`
+	ElapsedSec             float64 `json:"elapsed_sec"`
+	// W1 boundary cache (from MetricsStore; also mirrored in ability_extra).
+	BoundaryRerecord int64 `json:"boundary_rerecord"`
+	BoundarySkip     int64 `json:"boundary_skip"`
+	// R20 filter layers applied in the last composite (0 on blit-cache hits).
+	FilterLayerCount int64 `json:"filter_layer_count"`
+	BoundaryCount    int64 `json:"boundary_count,omitempty"`
+	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
+	// W1 R5 / R9 / R12b counters.
+	PictureOpCount   int64 `json:"picture_op_count,omitempty"`
+	MeasureCacheHit  int64 `json:"measure_cache_hit"`
+	MeasureCacheMiss int64 `json:"measure_cache_miss"`
+	// Always present: R12b's off state must show an explicit 0/false, not an
+	// omitted field that looks like missing evidence.
+	DebugRepaintDraws int64 `json:"debug_repaint_draws"`
+	DebugRepaintOn    bool  `json:"debug_repaint_on"`
+	// 对齐线 (RENDER_BASE_RESOURCE_MATRIX §4): same-machine comparison-ruler
+	// fields. All five keys are always present in the JSON; pointer fields are
+	// nil until a ruler run actually happened, marshaling as JSON null —
+	// "没跑如实 null（禁假绿）". Ratio = window value / ruler value, so the
+	// matrix alignment rule reads 行指标 ≤ 同机对照 × 系数 as ratio ≤ 系数.
+	RulerName     *string  `json:"ruler_name"`
+	RulerCPUPct   *float64 `json:"ruler_cpu_pct"`
+	RulerRSSMB    *float64 `json:"ruler_rss_mb"`
+	RulerRatioCPU *float64 `json:"ruler_ratio_cpu"`
+	RulerRatioRSS *float64 `json:"ruler_ratio_rss"`
+	// AbilityExtra holds R-specific keys (optional).
+	AbilityExtra map[string]any `json:"ability_extra,omitempty"`
+}
+    Report is the §2.2 JSON shell emitted by every ui_wr_* window example.
+
+func BuildReport(in BuildInput) Report
+    BuildReport maps a metrics snapshot into the §2.2 shell.
+
+type RulerInput struct {
+	// Name is the ruler arm id recorded by measure.py (e.g. "flutter_spin",
+	// "godot_bullet_shower"); empty means "not measured" — never fabricate.
+	Name string
+	// CPUPct is the ruler arm's whole-process mean CPU%, percent of one core
+	// (/proc utime+stime, no Xorg/compositor side — same scope as this
+	// window's cpu_pct_avg). measure.py report key: "cpu_pct".
+	CPUPct float64
+	// RSSMB is the ruler arm's run-end resident MB (measure.py "rss_end_mb"),
+	// paired with this window's rss_end_kb.
+	RSSMB float64
+}
+    RulerInput is one ruler-arm measurement feeding the 对齐线 fields
+    (RENDER_BASE_RESOURCE_MATRIX §4). Produced by tools/ruler_flutter
+    scripts/measure.py against the ruler arm (three-run median, P4 procedure);
+    runners re-export the median value and wrgate.RulerFromEnv hands it to the
+    window's BuildInput.
+
+func RulerFromEnv() *RulerInput
+    RulerFromEnv reads optional GPUI_RULER_NAME / GPUI_RULER_CPU_PCT /
+    GPUI_RULER_RSS_MB environment exports set by P4 runners after measuring
+    the ruler arm (three-run median). No GPUI_RULER_NAME → (nil report, ruler
+    not run). A partially set or unparseable export is an orchestrator bug:
+    it is reported on stderr and treated as "not measured", so no ratio is ever
+    fabricated from half a ruler.
+

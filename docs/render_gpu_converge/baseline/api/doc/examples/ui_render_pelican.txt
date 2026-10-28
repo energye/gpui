@@ -1,0 +1,24 @@
+Command ui_render_pelican 是渲染层 2D 场景动画演示真窗： 按 pelican-bike.html 参考实现 1:1
+移植「鹈鹕骑自行车」动画—— 天空渐变 + 旋转光芒太阳 + 三朵漂移云 + 两只扇翅飞鸟 + 远山/树木/车道线/草丛 四层视差滚动 + 辐条车轮 +
+曲柄踏频 + 双腿两段式逆运动学踩踏 + 鹈鹕身体起伏、 扇翅、围巾飘动、后轮扬尘，右下角暂停/调速控制条（空格 / ↑↓ 可控）。
+
+同步模型与参考实现一致：环境时钟 t 驱动 CSS/SMIL 类动画（云/鸟/太阳/围巾/
+翅膀/扬尘），骑行时钟驱动视差/车轮/曲柄/腿/身体起伏；暂停只冻结骑行时钟， 环境动画继续（与浏览器里 CSS 动画不受 JS 暂停影响的行为一致）。
+
+多窗：经 ui/application 标准壳跑（每窗独立 scene + 独立循环，共享一块 GPU 设备）；右下调速条右端的 +
+钮点一下多开一扇同样的窗，开到显存满为止 （开不出时报一句人话，已有的窗不受影响）。
+
+运行（需 GPU 窗口）：
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    go run ./examples/ui_render_pelican              # 不限时长，关窗退出
+    RUN_SECONDS=15 go run ./examples/ui_render_pelican   # 定时退出
+    PELICAN_WINDOWS=2 RUN_SECONDS=12 go run ./examples/ui_render_pelican # 预开两窗同跑
+    SNAPSHOT=tmp/pelican_shot.png RUN_SECONDS=5 go run ./examples/ui_render_pelican
+
+指标：结束打印 JSON（fps / p50 / p95 / hitch / gpu_ops / cpu_fallback / rss），
+门禁：有帧即过；RUN_SECONDS>=10 时主窗 fps>=30。
+
+Command ui_render_pelican_stepdiag 是 pelican 示例的步距诊断变体： 不改示例本身，通过环境变量
+PELICAN_STEPDIAG=1 开启步距记录—— 每帧记录 (时刻, dist)，结束时输出步距直方图 + 最大停顿时长。
+用于量化「公路/草地滚动卡顿」：理想 60Hz 下每帧 dist 步进应恒定 ≈1.6px；若出现 0 步（重复）或 ≥2 倍步长（追帧），即用户看到的顿挫。

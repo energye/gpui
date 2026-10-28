@@ -1,0 +1,19 @@
+Command ui_text_edit_accept is the M6 acceptance window (ENGINE_TEXT_SCALE_PLAN
+§5.6).
+
+Real single-line + multi-line input boxes for layout/paint performance
+acceptance. The boxes themselves are engine controls (ui/textinput); this window
+only places controls, preloads text, and runs probes.
+
+Modes:
+
+    go run ./examples/ui_text_edit_accept            # interactive window
+    GPUI_ACCEPT_SELFTEST=1 go run ./examples/ui_text_edit_accept  # headless probes, no window
+
+Scripted true-window verification for text boxes (env-gated).
+
+GPUI_ACCEPT_SCRIPT=1 drives the reported-issue scenarios on the real window and
+present path. Pixel capture happens OUTSIDE the process with xwd (live pixels
+per docs/TEXT_EDIT_PROBLEMS.md; window-context readback is blank by design):
+each steady state prints a SCRIPT_MARK line, the checker captures on the mark.
+Default runs stay manual.
