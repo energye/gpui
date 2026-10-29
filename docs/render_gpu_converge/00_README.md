@@ -38,7 +38,7 @@
 | `baseline/perf/` | **P1.7 性能基线**：`summary.md`（首帧/A 族/p99 基线 + 门禁适用域 + 字段契约定性 + P2 移交）、`perf_baseline.tsv`（366 轮逐轮 A/H 族字段 + 门禁判定 + P1.4 状态交叉）、`tools/`（extract_perf 再生成 + verify_perf 机器校验） | 不装阈值（归 P0.1 §2/§3）；不装原始窗口 JSON（归 P1.4 `baseline/windows/`）；不修 FAIL（归 P2） |
 | `baseline/negative/` | **P1.8 负向对照**：`summary.md`（三破坏红/还原绿 + 尝试记录 + P2 移交）、`shift1px/`（像素断言红）、`skipdraw/`（红 + report 证据：gpu_ops 计数下限偏松）、`skipforget/`（K1 上界收紧红 + 还原绿 + 第一方案不红的语义发现）、`green-baseline.txt`/`green-after-revert.txt`、`patch.diff`（临时补丁全文，已还原）、`threshold-mutation.txt`（§8.2 三态）、`tools/`（verify_negative） | 不装新阈值（归 P0.1）；破坏注入只留红/绿输出与 diff，不留任何代码改动 |
 
-## 当前进度（P0 与 P1 基线冻结全部收口，待打正式基线 tag 后进入 P2）
+## 当前进度（P0 与 P1 基线冻结全部收口；正式基线 tag `baseline-p1` 已打在 `92ca9216`，P2 待开工）
 
 > 状态真源是 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2；本表只是索引镜像，两边不一致以台账为准。
 
