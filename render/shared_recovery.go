@@ -88,7 +88,7 @@ func RecoverSharedDevice() error {
 	oldDev.Release()
 
 	// Phase B: recreate exactly once.
-	dev, err := requestPresentDeviceWithRetry(adapter, DeviceDescriptorForAdapter("ui-l1-present", adapter), "ui-l1-shared-recover")
+	dev, err := requestDeviceWithRetry(adapter, DeviceDescriptorForAdapter("ui-l1-present", adapter), "ui-l1-shared-recover")
 	if err != nil {
 		detachDeadShare(oldDev)
 		return fmt.Errorf("render: shared recovery RequestDevice: %w", err)

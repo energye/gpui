@@ -47,10 +47,21 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：**无**（P2.1 已完成，提交 `bbb0a4e4`，未推送）
-- 下一任务：P2.4a（依赖 P2.1–P2.3 已全部满足；P2.3 已提交 `4e348fd3`）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**（2026-10-29，附注）——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
-- 最近完成：P2.1 shader 合并——naga 144 文件迁入 `gpu/shader`，删 `gpu/shader` 独有三后端 167 文件与 `gpu/gwgpu/naga` 目录，15 处 import 改路径，根 5 个 SPIR-V 符号与 `CompileShaderToSPIRV` 死函数删除；GLSL/MSL 快照 681 文件逐字节一致、GL 离屏 md5 不变、五目标构建绿、vet 61/58 不变、API 41→11 包、负向对照红过复绿，见 `evidence/P2.1/summary.md`
-- 阻塞项：无（GPU 真窗加强证据按计划留 P2.6 全量重放）
+- 当前进行中：**无**（P2.4a 已完成，待提交；提交号收口后补记）
+- 下一任务：P2.4b（依赖 P2.4a ✅）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 最近完成：P2.4a 设备创建/选卡收敛（三份 → 一份）——`webgpu.CreateInstance` 白名单 3→1（`render/backend.go createNativeInstance` 唯一句），新增导出 `render.OpenStandaloneDevice` 唯一独立入口，gpu_shared/vello 两处独立建链改调；删 device.go 镜像 2 组 + 死代码 6 符号；五目标构建绿、vet 61/58 逐条不变、逐测试文件 321 个（28 FAIL 全定性既有）、API 快照对账、负向对照红过复绿、-race 过；A3 解剖关闭（显存 OOM 假 Validation Error）、C7 根因落定修复归 P2.4e，见 `evidence/P2.4a/summary.md`
+- 阻塞项：无（生命周期 multiwin go 档撞 C7 既有根因，native 档账本稳态 PASS）
+
+**P2.4a 收口载体（2026-10-30 已完成，评估见 `evidence/P2.4a/assessment.md`，结果见 `summary.md`；D1–D5 经用户拍板）**
+
+- 结果：创建入口唯一化（backend.go `createNativeInstance` 单句）+ 独立入口 `OpenStandaloneDevice`（严格 Vulkan 掩码、env 不劫持、policy 选卡、OOM 重试、半开回收）+ 重试助手归一；删 `render/internal/gpu` 9 符号（2 镜像 + 6 死码 + 常量）；`render/gpu` 包装标实验（D5）；vello 获 policy 选卡（D1 语义收敛，本机选卡不变）+ Close 补 adapter 释放（原局部句柄泄漏）
+- 能力单测：`render/device_open_test.go` 5 用例（重试 4 + 真机探针）PASS；双分支真机验证（RenderSceneAuto/compute_pipeline 例 + TestGoldenSoftware_GPUvsCPU/TestLinearDiagonalRamp）；逐测试文件 321 个（280 PASS / 12 仅编译 / 1 标签排除 / 28 FAIL = 27 与 P1.3 逐文件一致 + 1 并发竞态单跑 7/7 PASS）
+- 真窗：ui_l1_blank native+go 双档（嵌套 Wayland 隔离，rc=0，3582/3596 帧）；multiwin native `-auto-only` 8 窗三相位 PASS（rss 稳态 316MB）
+- 金图：ui_l1_blank 设计内无金图（baseline/windows.md 记载），替代判定 = JSON 探针 + P1.4 对账；逐位对账归 P2.6
+- 双后端：webgpu native 真窗 ✅；gwgpu-gles go 档真窗 ✅（multiwin go 第 8 窗撞 C7 既有根因，与本步无关）；gwgpu-metal 本机不可运行（无 macOS），darwin×2 交叉编译 ✅
+- 负向对照：探针引用已删符号 → 编译红 5 处；撤销复绿零残留；漏斗唯一 grep 守卫
+- 解剖产出：`a3-dissection.md`（A3 关闭：显存 OOM 假 Validation Error，46/46 同因）、`c7-dissection.md`（X11 机制链落定 + Wayland 第二机制待解剖，修复归 P2.4e）
+- 审计发现：**P2.1/P2.3 的 `render/internal/gpu` 逐文件轮为无 GPU 假绿**（脚本未带 `WGPU_NATIVE_PATH`，GPU 用例全 SKIP 文件级 rc=0）；本轮带 lib 恢复 P1.3 纪律；待办池 H1 登记，P2.6 重放必须修正
 
 **P2.1 收口载体（2026-10-29 已完成，评估见 `evidence/P2.1/assessment.md`，结果见 `summary.md`）**
 
@@ -85,7 +96,7 @@
 | P2.1 | shader 合并：naga 迁顶层 `gpu/shader`，删旧副本与 SPIR-V/HLSL/DXIL | P1.8 | ✅ | `evidence/P2.1/` |
 | P2.2 | 删 `render/render` 旧原型；`FloatTarget` 迁 `render/hdr` | P1.8 | ✅ | `evidence/P2.2/` |
 | P2.3 | 删老一代 GPU 场景渲染器闭合簇 | P1.8 | ✅ | `evidence/P2.3/` |
-| P2.4a | 设备创建 / 选卡收敛（三份 → 一份） | P2.1–P2.3 | ⬜ | `evidence/P2.4a/` |
+| P2.4a | 设备创建 / 选卡收敛（三份 → 一份） | P2.1–P2.3 | ✅ | `evidence/P2.4a/` |
 | P2.4b | 预算统一（六口径 → 一套 Budget，按域分账） | P2.4a | ⬜ | `evidence/P2.4b/` |
 | P2.4c | 延迟释放统一（三队列 → `res/registry`） | P2.4b | ⬜ | `evidence/P2.4c/` |
 | P2.4d | 同尺寸纹理分配收敛（六处 → `res/cache`） | P2.4c | ⬜ | `evidence/P2.4d/` |
@@ -120,7 +131,7 @@
 |---|---|---|---|---|
 | A1 | 审计 | AGENTS.md:78 称「`webgpu.Vram*` 仅 Rust 记账、GL 窗暂不依赖」已过时：账本在 `gpu/hal/vram_ledger.go`，`gpu/rwgpu/texture.go:342` 与 `gpu/gwgpu/gles/resource.go:103/174` 双端真实记账，`gpu/webgpu/vram.go:20` 只转发查询 | 就地修正 AGENTS（本次提交） | ✅ |
 | A2 | 审计 + P1.7 | 帧指标两代 json tag 并存：`ui/scheduler/metrics.go:58-61` 发 `avg_frame_interval_ms` + `frame_interval_p50/p95/p99_ms`，`examples/wrgate/report.go:32-33` 等发 `interval_p50/p95_ms`；旧代窗还缺 `fps_wall`/`target_hz`（6 窗 × 2 后端，见 `baseline/perf/summary.md` §4） | P2.5（接口全量切换制：一次切到 `interval_*` 并补齐 fps_wall/target_hz；切换前以 perf 别名列为准） | ⬜ |
-| A3 | 审计 | 46 个 `RequestDevice unavailable` SKIP 的根因未解剖，首轮与干净重跑均复现（`baseline/tests/summary.md:13`；原始错误 `:135` `RequestDevice: Validation Error`） | P2.4a 解剖；解剖前不定修复方向 | ⬜ |
+| A3 | 审计 | 46 个 `RequestDevice unavailable` SKIP 的根因未解剖，首轮与干净重跑均复现（`baseline/tests/summary.md:13`；原始错误 `:135` `RequestDevice: Validation Error`） | P2.4a 解剖；解剖前不定修复方向 | ✅ 2026-10-30 解剖闭合（`evidence/P2.4a/a3-dissection.md`）：真因是显存 OOM——wgpu 把 RequestDevice 阶段的 "Not enough memory left" 包装成 Validation Error，46 例全同因；显存压力决定 OOM 浮现层级（P1.3 在 RequestDevice 层、2026-10-30 在 CreateBuffer 层、单独跑全 PASS），环境依赖非代码缺陷；`IsGPUOutOfMemory` 对包装后文案仍命中（生产重试/降级健壮），不安排修复 |
 | A4 | 审计 + P1.1b | `render/gpu/gpu_nogpu.go` 是 B1 的空包补丁（163 个消费方 blank import 不动）；最小侵入性质与消解路径（消费方按能力门控 / 顶层包拆分）未登记 | P2.5 评估归位 | ⬜ |
 | B1 | P1.6 | `baseline/windows.md:213` 的 `ui_base_vram_cap` 运行档写 A/60s，代码 `examples/ui_base_vram_cap/main.go:67` 是 `gateSeconds=300`；P1.6 证伪后未回填 | P0.2 勘误（baseline 只增不改：在 windows.md 修订表追加勘误行） | ⬜ |
 | B2 | P1.4 | `ui_wr_r6_layer_anim` 表内金图 `golden/baseline_igpu.png` 与代码真源不一致（代码读 `R6_SNAP_DIR`，默认 `/tmp/r6_layer_anim/r6_final_base.png`，仓内图未被读取）；`baseline/windows/README.md:42-44` | P2.6 对齐真源/代码 | ⬜ |
@@ -131,7 +142,7 @@
 | C4 | P1.4 重审 | T2：`ui_wr_r1_layout`/`r20_filter`/`r22_selection_stub`/`c6_savelayer_group` 两轮 rc=1 而 JSON 自报通过、金图 diff=0，病因未解剖（§3 已知问题 T2） | P2.6 前诊断 | ⬜ |
 | C5 | P1.6 | 10 条 PASS 记录 RSS 稳态斜率过 30000KB/min 泄漏线（`r17_bg_throttle` 88801 最高）；`baseline/vram/summary.md` §3 | P2 判定窗门禁集是否含 RSS 线 | ⬜ |
 | C6 | P1.6 | `ui_base_batch_cap` p95 双后端 55.7/62.1ms 超 22ms 门禁（P1.4 同因同量级） | P2 性能线 | ⬜ |
-| C7 | P1.6 | `ui_base_vram_cap` ladder 的 go 档在 GL 第 4 窗起 `eglMakeCurrent 0x3002`，8 窗阶梯跑不了；`baseline/vram/summary.md:18` | P2.4a/P2.4e（gles 多窗上下文） | ⬜ |
+| C7 | P1.6 | `ui_base_vram_cap` ladder 的 go 档在 GL 第 4 窗起 `eglMakeCurrent 0x3002`，8 窗阶梯跑不了；`baseline/vram/summary.md:18` | P2.4a/P2.4e（gles 多窗上下文） | 🔍 2026-10-30 根因已解剖（`evidence/P2.4a/c7-dissection.md`）：开窗的 EGL 绑定操作跑在控制器线程，撞上唯一 GL 线程（ui/raster/hub）的 Submit keep 窗口期 → EGL 单绑定拒绝；竞态非确定窗号（P2.4a 生命周期复跑在嵌套 Wayland multiwin 第 8 窗同码复现——Wayland 为 context-per-surface，具体触发路径是**第二个待解剖机制**，随 P2.4e 一并解剖）；修复归 **P2.4e**（X11 推荐方案：开窗 GL 步骤投递 hub FrameJob），P2.4a 建设备收敛与本根因无交集 |
 | D1 | P1.3 | T1：`gpu/rwgpu/queue_workdone_test.go:45` 失败后 cleanup `Release()` 在 `device_misc.go:313/314` SIGSEGV（原始栈 `baseline/tests/failures/queue_workdone_test.log`） | P2.4c/P2.4e | ⬜ |
 | D2 | P1.3 | 48 FAIL 分组归属：老 backend 并发 SIGABRT→P2.3；StubHost 假 X11 句柄→P2.4e；nil ImageCache / 共享布局未 pin / 无 GPU 前置 / depcheck 测试缝→P2.5；video 3 文件 + 顺序耦合→P2.6；CPU 彩色字形无 ink→P2.3（`baseline/tests/summary.md` §4） | 见左 | 🟡 P2.3 两组已结（2026-10-29）：老 backend 并发 SIGABRT 随 `integration_test.go` 一起删除；`m5_color_glyph_api` 4 用例在 `92ca9216` 与 HEAD 均 PASS（环境性 FAIL，非代码债）；其余归属不变 |
 | D3 | P1.2b | vet 3 条测试伪造指针 → P2.5 测试卫生；2 条 `unreachable`（`render/internal/gpu/gpu_render_context.go:4296,4344`）→ P2.5（`evidence/P1.2b/summary.md:53-54`） | P2.5 | ⬜ |
@@ -144,6 +155,7 @@
 | G1 | P2.3 | `gpu/shader/spirv/internal/codegen/shader_test.go` 6 个「生产 shader 编译」用例读 `../../gg/internal/gpu/shaders/*.wgsl`——该路径在本仓从未存在，一直 `t.Skipf` 空转；P2.3 删 4 份 shader 后其中 4 条永久失去目标，另 2 条（flatten/coarse/fine）也不能直接改读 `tilecompute/shaders/*`（阶段不同） | P2.1（shader 线） | ✅ 随 P2.1 删 `spirv/` 整包闭合（2026-10-29） |
 | G2 | P2.3 | `render/internal/gpu` 第二层老抽象：`command_encoder.go`/`commands.go`/`atlas.go`/`gpu_texture.go` 只被测试/示例可达，但 `RectAllocator`（`atlas.go`）被 `glyph_color_atlas.go` 用、`IndexFormat` 被 `render_pass.go` 用、`*RenderPass` 出现在 `text_pipeline.go` 签名 → 不是整块死代码，需逐符号拆解 | P2.4e（入口收敛） | ⬜ |
 | G3 | P2.1 | `gpu/gwgpu/gles/present_damage_x11_test.go:TestPresentDamageX11` 在当前 X11/NVIDIA 环境失败（`partial present never engaged: full=12 partial=0`，另一次表现为 `BadMatch` on `X_GetImage`）；在改动前 `4e348fd3` 干净 worktree 上同断言失败，与 P2.1 无因果 | GL 增量呈现线（诊断 EGL 局部提交为何未启用） | ⬜ |
+| H1 | P2.4a | P2.1/P2.3 的 `render/internal/gpu` 逐文件轮为**无 GPU 假绿**：门禁脚本未导出 `WGPU_NATIVE_PATH`，native GPU 用例全部 `t.Skipf`（CreateInstance unavailable）→ 文件级 rc=0 记 PASS（本轮带 lib 重跑恢复 P1.3 真实红面 27 个，`evidence/P2.4a/per-file-tests.txt` 对照 `a3-dissection.md`） | P2.6 重放纪律：GPU 包逐文件门禁必须带 lib 或显式记「无 GPU 轮」；P2.5 顺手把 native_device_test skip 文案补 OOM 说明 | ⬜ |
 
 ## 3 每个任务的开工条件与完成标准
 
@@ -415,6 +427,8 @@ docs/render_gpu_converge/
 | 2026-10-29 | P2.3 | 🟡→✅ 删老一代 GPU 场景渲染器闭合簇（10 源 6515 行 + 10 测试 5635 行 + 7 WGSL 2071 行；3 处存活面迁移；`doc.go` 重写） | `evidence/P2.3/`：删前先做能力替代核对（§0.1：8 项有新载体、2 项特殊——`PipelineCacheCore` 真实创建被注释从未工作，`MemoryManager` 功能完整但唯一实例化点在旧渲染器内、能力已分域承接），确认「功能等价」后执行；`Backend` 精简落 `device.go`（字段名不变，7 处既有测试零改动）、4 个 `Stub*ID` 搬 `commands.go`、`GPUTexture` 摘 manager 钩子；`benchmark_test.go` 12→1（留 `BenchmarkSceneCreation`）；五目标构建 step3/4 全绿（raw `./...` 仅 `ui_wr_t_stress` 缺组件红）、vet 61/58 与 P2.2 **逐条一致**；逐测试文件 131 个：125 PASS / 5 仅编译 / 1 构建标签排除 / **0 FAIL**；API `render/internal/gpu` 761→630 符号（**−131 / +0**），测试 141/1008/109 → **131/852/79**，其余包零差异；负向对照 `NewBackend`/`newGPURenderer`/`NewGPUSceneRenderer` 编译红 → 撤销复绿零残留；`webgpu.CreateInstance` 白名单 4→3。无真窗：删除不触生产路径，按 §4.1 例外，1 扇基类窗金图对账并入 P2.6。公开 API 零变化（仅 internal 包）。归位：C2 移出本任务、D2 两组已结、新增 G1（spirv 空转用例）/G2（第二层老抽象） |
 | 2026-10-29 | P2.1 | ⬜→🟡 开工；影响面评估落盘（未动工作区） | `evidence/P2.1/assessment.md`：两树同名 138 文件（128 仅 import 差、10 处真实差且方向全是 naga 更新：能力校验/swizzle 赋值/MSL 括号/64 位原子）；`gpu/shader` 独有 140 文件（57 源 + 83 测试，126,048 行）全是 SPIR-V/HLSL/DXIL 后端；合并后包 41→11、路径限定符号 1386→428（−962/+4）、测试 240/5850/68/4 → 70/2139/21/0（−170/−3711/−47/−4）；快照探针预演 27 WGSL/48 入口点/681 文件，两次逐字节一致；`gpu/shader` 根连带删 5 个 SPIR-V 符号、`render/internal/gpu` 连带删 `CompileShaderToSPIRV`（0 调用）——待 D1–D4 拍板后执行 |
 | 2026-10-29 | P2.1 | 🟡→✅ 迁移完成：naga 144 文件落 `gpu/shader`，删三后端 167 文件 + 5 个根 SPIR-V 符号 + `CompileShaderToSPIRV`，15 处 import 改路径，补根冒烟（D4） | `evidence/P2.1/summary.md`：GLSL/MSL 快照 **681 文件逐字节一致**（sha256 清单相等、diff rc=0）、GL 离屏 md5 `59ca40…9824` 不变；五目标 step3/4 全绿（raw 仅 `ui_wr_t_stress` 缺组件红）、vet **61/58 逐条不变**；逐测试文件 248 个：220 PASS / 9 仅编译 / 18 构建标签排除 / **1 FAIL 为既有环境红**（`TestPresentDamageX11` 在 `4e348fd3` 同样失败，登记 G3）；API 41→11 包，根 9→5 符号（−5 SPIR-V / +`LowerWithCapabilities`），`ir` 增能力 API，`render/internal/gpu` 761→629（−132/+0 = P2.3 131 + 死函数 1），322 包同集合测试 1226→1210 文件 / 10,600→10,353 函数；负向对照 4 探针全红、撤销复绿零残留；残留 grep 全 0（唯一 `naga.` 为注释）；G1 随 `spirv/` 整包删除闭合。无真窗（零行为，§4.1 例外），P2.6 全量重放 |
+| 2026-10-30 | P2.4a | ⬜→🟡 开工登记：影响面评估落盘，验证载体已登记，**方向待用户确认后才动代码** | `evidence/P2.4a/assessment.md`：三份现状 = 标准呈现链（`present_construct.go`，不动）+ `gpu_shared.initGPU`（先借共享、借不到自开 Vulkan）+ `vello_accelerator.initGPU`（`RequestAdapter(nil)` 绕过 policy）；`webgpu.CreateInstance` 白名单 3 处（backend.go + 两处 internal 直调）；`device.go` 镜像 2 组 + 死代码簇 6 符号（含测试 0 引用已证）；A3 现行探针：设备创建正常（TestBuffer 8 PASS），P1.3 Validation Error 当前不复现、P1.3 当时 conformance 编排用例 SKIP 无同环境对照，按 §4 四步解剖；C7 现场 = GL 第 4 窗 `eglMakeCurrent 0x3002`（EGL_BAD_ACCESS），本步只解剖定位；收敛设计 = render 导出唯一独立设备入口（严格 Vulkan 掩码 env 不劫持）+ 上收重试助手 + 删 8 符号；5 项拍板 D1–D5 待用户确认 |
+| 2026-10-30 | P2.4a | 🟡→✅ 收敛完成：`webgpu.CreateInstance` 白名单 3→1（backend.go `createNativeInstance` 唯一句），新增 `render.OpenStandaloneDevice` 唯一独立入口，两处独立建链改调，删 device.go 镜像+死码 9 符号；D1–D5 用户拍板（方案 A/Vulkan 钉死/descriptor 归 P2.4b/先解剖/标实验） | `evidence/P2.4a/summary.md`：五目标构建段3/4 全绿、vet 61/58 逐条不变、残留 grep 漏斗唯一+零引用、API render +1func+1type（重试助手保持未导出）、逐测试文件 321 个 280 PASS（28 FAIL=27 既有 P1.3 同红 + 1 竞态单跑 7/7）、负向对照红过复绿、-race 过、能力单测 5 用例 + 双独立分支真机验证（compute_pipeline 例 CPU/GPU 像素一致）；真窗 ui_l1_blank native/go 双档 rc=0（嵌套 Wayland 隔离 3582/3596 帧）、multiwin native 8 窗三相位 PASS（rss 稳态）；multiwin go 第 8 窗撞 C7 既有根因（Wayland 第二机制待解剖，归 P2.4e）；A3 关闭（显存 OOM 假 Validation Error，`a3-dissection.md`）、C7 机制落定（`c7-dissection.md`）；**审计发现 P2.1/P2.3 internal/gpu 逐文件轮无 GPU 假绿 → 池 H1**。公开 API render +2 符号需同步 `RENDER_API_CATALOG.md`（提交前跑目录覆盖检查） |
 
 ## 8 修订记录
 

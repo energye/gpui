@@ -766,48 +766,29 @@ func (s *GPUShared) initGPU() error {
 		slogger().Info("gpu-shared: borrowed shared present device for standalone use")
 		return nil
 	}
-	instance, err := webgpu.CreateInstance(&hal.InstanceDescriptor{
-		Backends: types.BackendsVulkan,
-	})
+	// Standalone open goes through the single creation funnel
+	// (render.OpenStandaloneDevice, P2.4a): strict Vulkan mask, window-policy
+	// adapter selection (Default prefers integrated on hybrid machines so a
+	// probe device never parks on the small dGPU while windows present on
+	// the iGPU), OOM-retried device request. Cleanup on partial failure
+	// moved into the entry.
+	sd, err := render.OpenStandaloneDevice("gg-shared")
 	if err != nil {
-		return fmt.Errorf("create instance: %w", err)
+		return err
 	}
-	s.instance = instance
-
-	// Adapter choice follows the same window policy (render.ResolveAdapterPolicy,
-	// GPUI_POWER): Default prefers integrated on hybrid machines so a
-	// standalone/probe device never parks on the small dGPU while windows
-	// present on the iGPU (multi-app OOM on 1GB cards). A hardcoded
-	// HighPerformance here put the chase probe on the 940MX ahead of an
-	// iGPU window — cross-adapter pressure the window downgrade chain
-	// (present_target.go) cannot see. Windows borrow one device via
-	// buildSharedSurface; standalone contexts at least share the adapter.
-	adapter, forceFallback, err := render.RequestAdapterWithPolicy(instance, nil, render.ResolveAdapterPolicy())
-	if err != nil {
-		instance.Release()
-		s.instance = nil
-		return fmt.Errorf("request adapter: %w", err)
-	}
-	s.adapter = adapter
+	s.instance = sd.Instance
+	s.adapter = sd.Adapter
 
 	// Check for software/CPU adapter before creating device.
-	adapterInfo := adapter.Info()
-	if forceFallback || adapterInfo.DeviceType == types.DeviceTypeCPU {
+	adapterInfo := sd.Adapter.Info()
+	if sd.ForceFallback || adapterInfo.DeviceType == types.DeviceTypeCPU {
 		slogger().Info("gpu-shared: software adapter detected, SDF pipeline disabled",
 			"adapter", adapterInfo.Name)
 		s.softwareMode = true
 	}
 
-	device, err := requestDeviceWithRetry(adapter, renderDeviceDescriptor("gg-shared"), "gg-shared")
-	if err != nil {
-		adapter.Release()
-		s.adapter = nil
-		instance.Release()
-		s.instance = nil
-		return fmt.Errorf("request device: %w", err)
-	}
-	s.device = device
-	s.queue = device.Queue()
+	s.device = sd.Device
+	s.queue = sd.Device.Queue()
 	s.deviceGen++
 
 	// Probe MSAA support.

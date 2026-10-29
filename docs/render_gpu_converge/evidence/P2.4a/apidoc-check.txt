@@ -1,0 +1,1 @@
+OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg 全部公开符号

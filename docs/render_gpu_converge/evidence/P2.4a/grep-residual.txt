@@ -1,0 +1,18 @@
+=== 1) webgpu.CreateInstance 残留（期望仅 backend.go createNativeInstance 一处）===
+render/backend.go:111:// createNativeInstance is the single webgpu.CreateInstance sentence in the
+render/backend.go:118:	return webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: mask})
+render/device_open.go:69:// only webgpu.CreateInstance sentence), adapter selection follows the
+render/device_open.go:75://     webgpu.CreateInstance(BackendsVulkan) did; GPUI_BACKEND deliberately
+rc=0
+
+=== 2) RequestAdapter 裸调用（期望仅 adapter_policy.go 与 device_open.go 的经口调用）===
+render/present_construct.go:418:		adapter, err = inst.RequestAdapter(&hal.RequestAdapterOptions{
+render/adapter_policy.go:128:		return inst.RequestAdapter(opts)
+
+=== 3) 删除符号残留（期望 0）===
+render/internal/gpu/device.go:25:// (renderDeviceDescriptor/requestDeviceWithRetry) and the never-called
+render/internal/gpu/device.go:26:// GPUInfo/createDevice/getDeviceQueue/releaseAdapter cluster were removed;
+rc=0
+
+=== 4) 分层：ui 直引 gpu（期望仅白名单/测试缝）===
+ui/kit/internal/gate/wiring.go:41:	if strings.Contains(p, "/render/") || strings.Contains(p, "/gpu/") {

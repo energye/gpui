@@ -8,6 +8,7 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
+	"github.com/energye/gpui/render"
 )
 
 func createNativeTestDevice(t *testing.T) (hal.Device, hal.Queue, func()) {
@@ -28,7 +29,7 @@ func createNativeTestDevice(t *testing.T) (hal.Device, hal.Queue, func()) {
 		t.Skipf("webgpu RequestAdapter unavailable: %v", err)
 	}
 
-	device, err := adapter.RequestDevice(renderDeviceDescriptor("render-gpu-test"))
+	device, err := adapter.RequestDevice(render.DeviceDescriptor("render-gpu-test"))
 	if err != nil {
 		adapter.Release()
 		instance.Release()

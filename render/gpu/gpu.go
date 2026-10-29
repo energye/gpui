@@ -57,6 +57,12 @@ func init() {
 // from an external provider (e.g., gogpu). This avoids creating a separate
 // GPU instance and enables efficient device sharing.
 //
+// EXPERIMENTAL (P2.4a D5): production wiring is not connected yet — the only
+// in-repo caller is the P0.4 conformance test. The sanctioned entry for
+// embedders stays render.SetAcceleratorDeviceProvider; this wrapper and
+// AbandonDevice are convenience aliases pending the embedder integration
+// decision (PLAN §2.3-B4).
+//
 // The provider should be a gpucontext.DeviceProvider. The accelerator
 // type-asserts provider.Device() to *wgpu.Device for HAL access.
 //
@@ -67,7 +73,9 @@ func SetDeviceProvider(provider gpucontext.DeviceProvider) error {
 }
 
 // AbandonDevice drops GPU objects on the current shared device without a
-// replacement. Wire to webgpu.Swapchain.OnDeviceAbandon before Destroy/Release.
+// replacement. EXPERIMENTAL (P2.4a D5, see SetDeviceProvider): production
+// wiring is not connected yet. Wire to webgpu.Swapchain.OnDeviceAbandon
+// before Destroy/Release.
 func AbandonDevice() {
 	render.AbandonAcceleratorDevice()
 }

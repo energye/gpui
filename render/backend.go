@@ -84,23 +84,36 @@ func ResolveBackendFor(code Backend) (Backend, error) {
 // window creation, or direct user code — creation funnels here so the
 // branch stays in this one sentence.
 func SelectBackend(want Backend) (hal.Instance, error) {
-	desc := &hal.InstanceDescriptor{Backends: types.BackendsPrimary}
+	want, err := ResolveBackendFor(want)
+	if err != nil {
+		return nil, err
+	}
 	switch want {
 	case BackendGo:
 		be, ok := hal.GetBackend(types.BackendGL)
 		if !ok || be == nil {
 			return nil, fmt.Errorf("render: Go GL backend not registered (BackendGL)")
 		}
-		inst, err := be.CreateInstance(desc)
+		inst, err := be.CreateInstance(&hal.InstanceDescriptor{Backends: types.BackendsPrimary})
 		if err != nil {
 			return nil, fmt.Errorf("render: Go GL CreateInstance: %w", err)
 		}
 		return inst, nil
 	default:
-		inst, err := webgpu.CreateInstance(desc)
+		inst, err := createNativeInstance(types.BackendsPrimary)
 		if err != nil {
 			return nil, fmt.Errorf("render: CreateInstance: %w", err)
 		}
 		return inst, nil
 	}
+}
+
+// createNativeInstance is the single webgpu.CreateInstance sentence in the
+// repo — the backend-choice whitelist entry (PLAN 创建入口唯一; AGENTS
+// 渲染层后端解耦). SelectBackend funnels present/external opens
+// (BackendsPrimary, GPUI_BACKEND decides native|go); OpenStandaloneDevice
+// funnels standalone probe/offscreen/compute opens through the strict
+// Vulkan mask via device_open.go.
+func createNativeInstance(mask types.Backends) (hal.Instance, error) {
+	return webgpu.CreateInstance(&hal.InstanceDescriptor{Backends: mask})
 }

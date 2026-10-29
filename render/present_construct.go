@@ -22,31 +22,9 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
-// requestPresentDeviceWithRetry retries device creation when the adapter is
-// temporarily out of GPU memory (multi-window stolen-memory budget on iGPUs).
-// Other windows/processes may release memory between retries; this mirrors
-// the degrade-not-crash behavior on transient resource pressure.
-// Implemented here rather than render/internal/gpu to avoid an import cycle.
-func requestPresentDeviceWithRetry(adapter hal.Adapter, desc *hal.DeviceDescriptor, label string) (hal.Device, error) {
-	if adapter == nil {
-		return nil, fmt.Errorf("adapter is nil")
-	}
-	var device hal.Device
-	var err error
-	for attempt := 1; attempt <= 3; attempt++ {
-		device, err = adapter.RequestDevice(desc)
-		if err == nil {
-			return device, nil
-		}
-		if !IsGPUOutOfMemory(err) {
-			return nil, err
-		}
-		// Present device creation is not on a hot path; a short backoff
-		// gives other processes time to release GPU memory.
-		time.Sleep(time.Second)
-	}
-	return nil, err
-}
+// requestPresentDeviceWithRetry was moved to device_open.go as
+// requestDeviceWithRetry — the single OOM-retry implementation shared with
+// OpenStandaloneDevice (P2.4a 设备创建收敛).
 
 // waitDeviceReady polls a 1x1 probe texture until the driver heap accepts
 // allocations or the deadline passes. Deadline from GPUI_GPU_READY_TIMEOUT_MS
@@ -469,7 +447,7 @@ func buildPresentTarget(ns PresentNativeSurface, logicalW, logicalH int, scale f
 			ai.Name, ai.Vendor, ai.DeviceType, ai.Backend)
 	}
 
-	device, err := requestPresentDeviceWithRetry(adapter, DeviceDescriptorForAdapter("ui-l1-present", adapter), "ui-l1-present")
+	device, err := requestDeviceWithRetry(adapter, DeviceDescriptorForAdapter("ui-l1-present", adapter), "ui-l1-present")
 	if err != nil {
 		adapter.Release()
 		surf.Destroy()

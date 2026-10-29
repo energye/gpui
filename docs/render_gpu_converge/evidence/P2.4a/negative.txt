@@ -1,0 +1,23 @@
+# P2.4a negative control
+# date: 2026-10-30T03:41:53+08:00
+
+# step 1: clean tree builds green
+# exit: 0
+
+# step 2: probe references deleted mirror/dead symbols (must be compile red)
+# github.com/energye/gpui/render/internal/gpu
+render/internal/gpu/zz_p24a_negative_probe.go:8:45: undefined: renderDeviceDescriptor
+render/internal/gpu/zz_p24a_negative_probe.go:9:6: undefined: createDevice
+render/internal/gpu/zz_p24a_negative_probe.go:10:6: undefined: getDeviceQueue
+render/internal/gpu/zz_p24a_negative_probe.go:11:6: undefined: releaseAdapter
+render/internal/gpu/zz_p24a_negative_probe.go:12:8: undefined: GPUInfo
+# exit: 1  (expect non-zero: symbols deleted)
+
+# step 3: remove probe, rebuild green
+# exit: 0  (expect 0)
+
+# step 4: residue grep after revert (expect empty)
+# grep exit: 1  (1 = zero residue)
+
+# step 5: funnel guard — webgpu.CreateInstance outside backend.go (expect only comment/doc hits)
+# grep exit: 1  (1 = only the single funnel sentence remains)

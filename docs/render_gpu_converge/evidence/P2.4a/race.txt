@@ -1,0 +1,15 @@
+# P2.4a -race（触及共享数据的改动，P2.4 附加门禁）
+# date: 2026-10-30T04:43:58+08:00
+# env: CGO_ENABLED=1 WGPU_NATIVE_PATH set
+
+## render（device_open/policy/backend 单测）
+CGO_ENABLED=1 go test -race ./render/ -run '^(TestRequestDeviceWithRetry|TestOpenStandaloneDevice|TestAdapterPolicy|TestResolveAdapterPolicy|TestResolveBackend|TestSelectBackend)'
+# exit: 0 (ok 6.284s)
+
+## render/internal/gpu（GPUShared/vello standalone/设备消费）
+CGO_ENABLED=1 go test -race ./render/internal/gpu/ -run '^(TestGPUShared|TestGoldenSoftware_GPUvsCPU|TestRenderSceneAuto|TestBuffer_MapAsync_Success|TestBackend_Close)'
+# exit: 0 (ok 1.922s)
+
+## render/internal/gpu（ensureGPU 独立分支）
+CGO_ENABLED=1 go test -race ./render/internal/gpu/ -run 'TestLinearDiagonalRamp'
+# exit: 0 (ok 1.423s)

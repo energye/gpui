@@ -1,0 +1,79 @@
+# P2.4a API 快照对账（触面 3 包定向 diff，对 P1.5 基线）
+# 其余 349 包源码零改动（git status 佐证），API 不可能变化；P2.1-P2.3 的包级删减已在各自 evidence 登记为白名单。
+
+## render（基线 6705 → 现 6742）
+6061a6062,6098
+> type StandaloneDevice struct {
+> 	Instance hal.Instance
+> 	Adapter  hal.Adapter
+> 	Device   hal.Device
+> 
+> 	// ForceFallback reports that only the software/CPU adapter answered.
+> 	ForceFallback bool
+> }
+>     StandaloneDevice is one standalone GPU chain opened by OpenStandaloneDevice.
+>     The caller owns every handle: Release/Destroy them in reverse order (Device,
+>     Adapter, Instance) when done — the 资源谁建谁放 ledger counts them like any other
+>     resource.
+> 
+> func OpenStandaloneDevice(label string) (*StandaloneDevice, error)
+>     OpenStandaloneDevice opens the one standalone GPU device for
+>     probe/offscreen/compute use (VelloAccelerator standalone, GPUShared
+>     standalone, test probes). This is the single non-present creation funnel:
+>     instance creation goes through backend.go's createNativeInstance (the only
+>     webgpu.CreateInstance sentence), adapter selection follows the window policy
+>     (RequestAdapterWithPolicy + ResolveAdapterPolicy), and the device request
+>     reuses the present chain's OOM retry.
+> 
+>     Zero-behavior notes (P2.4a):
+>       - Backends stay pinned to Vulkan exactly as the previous per-callsite
+>         webgpu.CreateInstance(BackendsVulkan) did; GPUI_BACKEND deliberately
+>         does not hijack standalone opens (pure-Go GL has no surfaceless
+>         standalone — GL users must go through a window's shared device).
+>       - The descriptor is the plain DeviceDescriptor; the present chain's
+>         waterline-aware DeviceDescriptorForAdapter stays present-only until
+>         P2.4b unifies budget semantics.
+>       - No waitDeviceReady gate: that is a present-path heap-reclaim gate,
+>         and standalone opens never had it.
+> 
+>     On error every partially opened handle is released and nil handles are
+>     returned; error texts match the previous per-callsite wrapping ("create
+>     instance" / "request adapter" / "request device").
+> 
+rc=1
+
+## render/gpu（基线 86 → 现 93）
+20,21c20,22
+<     AbandonDevice drops GPU objects on the current shared device without
+<     a replacement. Wire to webgpu.Swapchain.OnDeviceAbandon before
+---
+>     AbandonDevice drops GPU objects on the current shared device without a
+>     replacement. EXPERIMENTAL (P2.4a D5, see SetDeviceProvider): production
+>     wiring is not connected yet. Wire to webgpu.Swapchain.OnDeviceAbandon before
+44a46,51
+> 
+>     EXPERIMENTAL (P2.4a D5): production wiring is not connected yet — the
+>     only in-repo caller is the P0.4 conformance test. The sanctioned entry
+>     for embedders stays render.SetAcceleratorDeviceProvider; this wrapper and
+>     AbandonDevice are convenience aliases pending the embedder integration
+>     decision (PLAN §2.3-B4).
+rc=1
+
+## render/internal/gpu（基线 7800 行 → 现 6383 行；含 P2.3 −131/P2.1 −1 已登记删减）
+
+- go doc -all 只含导出符号；本步导出面 delta = **−1（`GPUInfo` 类型，5 行）**，其余 diff 行为 P2.3 的 131 符号删减 + doc.go 重写 + P2.1 的 `CompileShaderToSPIRV` 删除（各自 evidence 已登记白名单）。
+- 本步删除的 8 个**未导出**符号（`renderDeviceDescriptor`/`requestDeviceWithRetry`/`getGPUInfo`/`logGPUInfo`/`createDevice`/`getDeviceQueue`/`releaseDevice`/`releaseAdapter` + 常量 `minRenderStorageBuffersPerShaderStage`）不出现在 go doc，由 grep-residual.txt 第 3 节证全仓零引用（源码+测试）。
+- `Backend` 类型按 P2.3 拍板保留（`gpu_texture.go` 与测试在用）。
+
+## 声明计数（func/type/const/var 行口径，go doc -all）
+
+| 包 | P1.5 基线 | P2.4a 现 | delta 归属 |
+|---|---:|---:|---|
+| render | 812 | 814 | +1 `OpenStandaloneDevice`（func）+1 `StandaloneDevice`（type）；重试助手 `requestDeviceWithRetry` 保持未导出（比评估 §3 预案的「+2 导出」少一个公共函数） |
+| render/gpu | 7 | 7 | 签名零变化，纯 doc 注释（D5 标实验） |
+| render/internal/gpu | 1098 | 898 | P2.3/P2.1 已登记 −132 + doc.go 重写 + 本步 −1 `GPUInfo`（导出）/−8（未导出，grep 证） |
+
+## 收敛核对（grep-residual.txt 佐证）
+
+- `webgpu.CreateInstance` 白名单 3 → **1**（`render/backend.go:118 createNativeInstance` 唯一句）。
+- P2.3 时的 3 处 = backend.go + vello_accelerator.go:1330 + gpu_shared.go:769，后两处已改走 `render.OpenStandaloneDevice`。

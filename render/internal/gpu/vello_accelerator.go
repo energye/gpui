@@ -46,6 +46,7 @@ type VelloAccelerator struct {
 	mu sync.Mutex
 
 	instance hal.Instance // standalone mode only; nil when using external device
+	adapter  hal.Adapter  // standalone mode only; released with the instance in Close
 	device   hal.Device
 	queue    hal.Queue
 
@@ -100,6 +101,10 @@ func (a *VelloAccelerator) Close() {
 			a.device.Release()
 			a.device = nil
 		}
+		if a.adapter != nil {
+			a.adapter.Release()
+			a.adapter = nil
+		}
 		if a.instance != nil {
 			a.instance.Release()
 			a.instance = nil
@@ -107,6 +112,7 @@ func (a *VelloAccelerator) Close() {
 	} else {
 		// Don't destroy shared resources -- we don't own them.
 		a.device = nil
+		a.adapter = nil
 		a.instance = nil
 	}
 	a.queue = nil
@@ -1326,26 +1332,25 @@ func (a *VelloAccelerator) InitStandalone() error {
 // initGPU creates a standalone Vulkan device for compute-only use.
 // This is the fallback path when no external device is provided via
 // SetDeviceProvider (e.g., when gg is used without gogpu).
+//
+// P2.4a: opens through the single standalone creation funnel
+// (render.OpenStandaloneDevice) — policy-selected adapter (previously a raw
+// RequestAdapter(nil) that bypassed GPUI_POWER and the OOM downgrade ladder)
+// and the shared OOM retry. On hybrid machines the compute path now follows
+// the same adapter policy as windows; on this single-GPU dev machine the
+// selection is unchanged (registered in evidence/P2.4a/assessment.md D1).
+// The adapter handle is kept and released with the instance in Close —
+// previously the local adapter handle was never released.
 func (a *VelloAccelerator) initGPU() error {
-	instance, err := webgpu.CreateInstance(&hal.InstanceDescriptor{
-		Backends: types.BackendsVulkan,
-	})
+	sd, err := render.OpenStandaloneDevice("gg-vello")
 	if err != nil {
-		return fmt.Errorf("create instance: %w", err)
+		return err
 	}
-	a.instance = instance
+	a.instance = sd.Instance
+	a.adapter = sd.Adapter
 
-	adapter, err := instance.RequestAdapter(nil)
-	if err != nil {
-		return fmt.Errorf("request adapter: %w", err)
-	}
-
-	device, err := requestDeviceWithRetry(adapter, renderDeviceDescriptor("gg-vello"), "gg-vello")
-	if err != nil {
-		return fmt.Errorf("request device: %w", err)
-	}
-	a.device = device
-	a.queue = device.Queue()
+	a.device = sd.Device
+	a.queue = sd.Device.Queue()
 
 	// Create dispatcher with the standalone device/queue.
 	dispatcher := NewVelloComputeDispatcher(a.device, a.queue)
@@ -1357,6 +1362,6 @@ func (a *VelloAccelerator) initGPU() error {
 	a.dispatcher = dispatcher
 
 	a.gpuReady = true
-	slogger().Info("vello-compute: GPU initialized (standalone)", "adapter", adapter.Info().Name)
+	slogger().Info("vello-compute: GPU initialized (standalone)", "adapter", sd.Adapter.Info().Name)
 	return nil
 }
