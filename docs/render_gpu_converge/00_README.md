@@ -36,8 +36,9 @@
 | `baseline/api/` | **P1.5 每包公开 API 快照 + 测试计数**：`summary.md`（口径/数字/对账/机器校验）、`packages.txt`（352 包，P1.2 vet 同尺）、`doc/`（351 份逐包 `go doc -all`，gpupixel 登记例外、16 个 main 空输出）、`doc_empty_main.txt`（空输出白名单）、`test_counts.tsv`（逐包静态测试函数计数，1397 文件 / 14388 函数）、`tools/`（随仓再生成 + 机器校验脚本） | 不装阈值（归 P0.1）；不装运行期动态发现数（归 P1.3 `baseline/tests/`） |
 | `baseline/vram/` | **P1.6 显存账本快照**：`summary.md`（三 cap 窗 8 轮 + K1 复核 + RSS 盘点 + P2 移交）、`ui_base_{vram,multiwin,batch}_cap/<变体>/<后端>/`（record.json 原始 JSON + stdout/stderr）、`conformance/`（K1 复跑 6 份 report/frame/run + summary）、`rss_settle.tsv`（223 条全窗 RSS 盘点）、`tools/`（verify_vram 机器校验 + rss_settle 重生成） | 不装阈值（归 P0.1 §4）；不装逐窗金图（归 P1.4）；不修 FAIL（归 P2） |
 | `baseline/perf/` | **P1.7 性能基线**：`summary.md`（首帧/A 族/p99 基线 + 门禁适用域 + 字段契约定性 + P2 移交）、`perf_baseline.tsv`（366 轮逐轮 A/H 族字段 + 门禁判定 + P1.4 状态交叉）、`tools/`（extract_perf 再生成 + verify_perf 机器校验） | 不装阈值（归 P0.1 §2/§3）；不装原始窗口 JSON（归 P1.4 `baseline/windows/`）；不修 FAIL（归 P2） |
+| `baseline/negative/` | **P1.8 负向对照**：`summary.md`（三破坏红/还原绿 + 尝试记录 + P2 移交）、`shift1px/`（像素断言红）、`skipdraw/`（红 + report 证据：gpu_ops 计数下限偏松）、`skipforget/`（K1 上界收紧红 + 还原绿 + 第一方案不红的语义发现）、`green-baseline.txt`/`green-after-revert.txt`、`patch.diff`（临时补丁全文，已还原）、`threshold-mutation.txt`（§8.2 三态）、`tools/`（verify_negative） | 不装新阈值（归 P0.1）；破坏注入只留红/绿输出与 diff，不留任何代码改动 |
 
-## 当前进度（P0 已收口；P1 基线冻结进行中，下一任务 P1.8）
+## 当前进度（P0 与 P1 基线冻结全部收口，待打正式基线 tag 后进入 P2）
 
 > 状态真源是 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2；本表只是索引镜像，两边不一致以台账为准。
 
@@ -56,6 +57,7 @@
 | P1.5 | 每包公开 API 快照 + 测试计数快照 | ✅ 2026-10-29 | `baseline/api/`：352 包（P1.2 vet 同尺）逐包 `go doc -all`（351 文件；gpupixel 仅测试文件登记例外；16 个 main 示例包空输出白名单）；静态测试计数 1397 文件 / 14388 函数（Test 13602 / Bench 753 / Example 18 / Fuzz 15）；磁盘 1468 = 352 包内 1397 + 1 stress 标签 + 70 third_party（独立模块）逐项对账零缺口；机器校验随仓脚本 ALL PASS 幂等 |
 | P1.6 | 显存账本快照 | ✅ 2026-10-29 | `baseline/vram/`：三 cap 窗全协议 × 双后端 8 轮（隔离 :3 串行标准关闭）；ladder native 账本峰值 372.0MB 未破 0.9 水线、拒增曲线 4/8 窗触发；oom 注入后账本精确回落 delta 0.00（双后端一致）；batch 双后端 p95 FAIL（55.7/62.1ms，同 P1.4 登记）；ladder go 档 GL 4 窗 MakeCurrent 跑不了（stderr 证据在案）；K1 复核逐位复现每轮 +2 条/+131072B；RSS 盘点 223 条、10 条 PASS 过 30000 泄漏线登记 P2；机器校验 14 断言 ALL PASS |
 | P1.7 | 性能基线 | ✅ 2026-10-29 | `baseline/perf/`：P1.4 存量 366 轮纯分析零补采零 GPU；首帧 275 轮 0 FAIL（median 174ms / max 515ms，文本/IME 紧预算 18 轮全达标）；A 族 44 轮默认门禁超限 8 处集中 4 轮（c3/r7/r7b）与 P1.4 状态零冲突；p99 观测基线 median 20.7ms 落盘（P2 起 8ms 回归带对照）；「缺 A 族字段」定性为字段两代命名、别名映射解决、契约统一登记 P2；机器校验 8 断言 ALL PASS |
+| P1.8 | 负向对照 | ✅ 2026-10-29 | `baseline/negative/`：三破坏全转红——偏移 1px（像素断言双后端红）、跳过一次绘制（红；gpu_ops 计数下限 1 抓不住单跳登记 P2）、少释放一次（K1 释放缺口真实现场 + 用例上界收紧 → 账本断言双后端红）；全部当场还原复绿、代码零残留；§8.2 阈值文件变异对成立（22→4 红 / 30→0 漏报 / 还原→4 报警）；机器校验 9 断言 ALL PASS。P1 基线冻结全部收口 |
 
 ## 先看哪个
 

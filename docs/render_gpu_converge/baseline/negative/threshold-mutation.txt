@@ -1,0 +1,23 @@
+=== §8.2 阈值文件变异自校验（P0.1 §8.2，成对）===
+--- 正常态：thresholds.md p95 = 22ms（extractor 读 doc）---
+p95 门禁（读自 thresholds.md）: 22ms
+p95_fail: 4
+p95_fail 明细:
+p95_fail: 4
+   ('ui_wr_c3_list_scroll', 'default', 'native', 26.429111000000002, 22.0)
+   ('ui_wr_r7_virtlist', 'default', 'go', 22.65954, 22.0)
+   ('ui_wr_r7_virtlist', 'default', 'native', 24.886993999999998, 22.0)
+   ('ui_wr_r7b_scroll_reuse', 'default', 'native', 22.424591, 22.0)
+hitch_fail: 3
+
+--- 变异态：thresholds.md p95 22→30（临时，即还原）---
+87:| p95 帧间隔 | `interval_p95_ms ≤ 30` | 硬 FAIL | 同上 |
+p95 门禁（读自 thresholds.md）: 30ms
+p95_fail: 0
+（p95_fail 消失 = 改错后判绿，漏报得证）
+
+--- 还原态：p95 回 22 ---
+87:| p95 帧间隔 | `interval_p95_ms ≤ 22` | 硬 FAIL | 同上 |
+p95 门禁（读自 thresholds.md）: 22ms
+p95_fail: 4
+（p95_fail 回归 4 条 = 还原后正确报警）

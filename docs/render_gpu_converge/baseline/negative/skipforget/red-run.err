@@ -1,0 +1,4 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot: examples/ui_base_vram_cap/testdata/vram_oom_probe.png
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_oom_probe_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap oom-probe: OK spec=180:1 presents=3770 pre=12.43MB post=12.43MB delta=0.00MB recovered=true survived=true mode=gate elapsed=63.2s

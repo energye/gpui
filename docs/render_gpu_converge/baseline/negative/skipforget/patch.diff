@@ -1,0 +1,17 @@
+diff --git a/gpu/hal/vram_ledger.go b/gpu/hal/vram_ledger.go
+index 10152866..60aed383 100644
+--- a/gpu/hal/vram_ledger.go
++++ b/gpu/hal/vram_ledger.go
+@@ -161,6 +161,12 @@ func VramForget(handle uintptr) {
+ 	if handle == 0 {
+ 		return
+ 	}
++	// P1.8 negative control (temporary, env-gated, reverted after the run):
++	// skip this release so the ledger stays elevated and the oom probe's
++	// recovered gate must go red.
++	if os.Getenv("GPUI_NEG_SKIP_FORGET") == "1" {
++		return
++	}
+ 	vramLedger.Lock()
+ 	defer vramLedger.Unlock()
+ 	if old, ok := vramLedger.bytes[handle]; ok {

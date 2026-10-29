@@ -1,0 +1,6 @@
+          go clip_blend: sample boundary_out @(64,48): got [0 0 0 0] want [0 0 255 255] ±2; sample clip_outside @(80,48): got [0 0 0 0] want [0 0 255 255] ±2; sample far_right @(120,48): got [0 0 0 0] want [0 0 255 255] ±2; region right_blue_band: coverage=0.0000 want [1.00,1.00] ±0.0pp
+          go solid_gradient: sample solid_center @(32,32): got [0 0 0 255] want [255 0 0 255] ±2; region left_red_fill: coverage=0.0000 want [1.00,1.00] ±0.0pp
+          go text_image: region glyph_coverage: coverage=0.0000 want [0.30,0.40] ±5.0pp; region glyph_bbox: bbox=[] want [8 24 87 63] ±1
+FAIL
+FAIL	github.com/energye/gpui/render	0.727s
+FAIL

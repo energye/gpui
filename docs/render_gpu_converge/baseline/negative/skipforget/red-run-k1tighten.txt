@@ -1,0 +1,5 @@
+          native solid_gradient: resource: steady count delta=2 (max 2) bytes delta=131072 (max 0) contexts=[0 0 0]
+          go solid_gradient: resource: steady count delta=2 (max 2) bytes delta=131072 (max 0) contexts=[0 0 0]
+FAIL
+FAIL	github.com/energye/gpui/render	0.732s
+FAIL

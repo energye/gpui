@@ -21,6 +21,7 @@ agree-FAIL stays registered; PASS-vs-FAIL mismatch = 门禁口径差异 → P2.
 import glob
 import json
 import os
+import re
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../.."))
 BASE = os.path.join(ROOT, "docs/render_gpu_converge/baseline")
@@ -37,6 +38,17 @@ for line in open(os.path.join(BASE, "windows.md"), encoding="utf-8"):
     cells = [c.strip() for c in line.split("|")[1:-1]]
     if len(cells) >= 4 and "帧时" in " ".join(cells):
         ftag.add(cells[0].strip("`"))
+
+def p95_gate_from_doc():
+    """§8.2: the threshold doc is load-bearing — read the p95 hard line from it."""
+    for line in open(os.path.join(BASE, "thresholds.md"), encoding="utf-8"):
+        m = re.search(r"interval_p95_ms\s*≤\s*([\d.]+)", line)
+        if m:
+            return float(m.group(1))
+    raise SystemExit("thresholds.md 的 p95 门禁行未找到")
+
+
+P95_GATE = p95_gate_from_doc()
 
 A_FIELDS = ["fps_wall", "interval_avg_ms", "interval_p50_ms", "interval_p95_ms",
             "interval_p99_ms", "hitch_count", "hitch_rate_per_min", "vsync_source", "target_hz"]
@@ -124,9 +136,9 @@ for p in sorted(glob.glob(os.path.join(WIN, "**", "record.json"), recursive=True
             if fps_v == "FAIL(<55)":
                 reg["fps_fail"].append((w, v, be, fi))
         if vals["interval_p95_ms"] != "":
-            p95_v = "FAIL(>22)" if vals["interval_p95_ms"] > 22 else "ok"
+            p95_v = f"FAIL(>{P95_GATE:g})" if vals["interval_p95_ms"] > P95_GATE else "ok"
             if p95_v == "FAIL(>22)":
-                reg["p95_fail"].append((w, v, be, vals["interval_p95_ms"]))
+                reg["p95_fail"].append((w, v, be, vals["interval_p95_ms"], P95_GATE))
         if (vals["hitch_rate_per_min"] != "" and isinstance(elapsed, (int, float))
                 and elapsed >= 60 and vals["hitch_rate_per_min"] > 5):
             hitch_v = "FAIL(>5)"
@@ -155,6 +167,7 @@ for p in sorted(glob.glob(os.path.join(WIN, "**", "record.json"), recursive=True
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 open(OUT, "w", encoding="utf-8").write("\n".join(rows) + "\n")
 
+print(f"p95 门禁（读自 thresholds.md）: {P95_GATE:g}ms")
 print(f"records {stats['records']} | 有首帧 {stats['have_h']} | A 族适用轮 {stats['a_class']}（九字段齐 {stats['a_class_full']}）")
 print("A 族适用集:", len(ftag), "窗")
 for k, lst in reg.items():

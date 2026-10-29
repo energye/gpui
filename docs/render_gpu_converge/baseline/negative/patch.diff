@@ -1,0 +1,53 @@
+diff --git a/gpu/hal/vram_ledger.go b/gpu/hal/vram_ledger.go
+index 10152866..60aed383 100644
+--- a/gpu/hal/vram_ledger.go
++++ b/gpu/hal/vram_ledger.go
+@@ -161,6 +161,12 @@ func VramForget(handle uintptr) {
+ 	if handle == 0 {
+ 		return
+ 	}
++	// P1.8 negative control (temporary, env-gated, reverted after the run):
++	// skip this release so the ledger stays elevated and the oom probe's
++	// recovered gate must go red.
++	if os.Getenv("GPUI_NEG_SKIP_FORGET") == "1" {
++		return
++	}
+ 	vramLedger.Lock()
+ 	defer vramLedger.Unlock()
+ 	if old, ok := vramLedger.bytes[handle]; ok {
+diff --git a/render/internal/conformance/run.go b/render/internal/conformance/run.go
+index 31ccfcd5..cf1f650b 100644
+--- a/render/internal/conformance/run.go
++++ b/render/internal/conformance/run.go
+@@ -12,6 +12,7 @@ package conformance
+ 
+ import (
+ 	"fmt"
++	"os"
+ 	"path/filepath"
+ 
+ 	"github.com/energye/gpui/render"
+@@ -21,8 +22,23 @@ import (
+ // Draw replays the case ops on dc. Paths in ops (images, fonts) resolve
+ // against baseDir.
+ func Draw(dc *render.Context, c *Case, baseDir string) error {
++	// P1.8 negative controls (temporary, env-gated, reverted after the run):
++	// GPUI_NEG_SHIFT_1PX=1 shifts every fill_rect by 1px (pixel assertion must
++	// go red); GPUI_NEG_SKIP_DRAW=1 skips exactly one non-clear draw (the
++	// gpu_ops logic probe must go red).
++	shift := os.Getenv("GPUI_NEG_SHIFT_1PX") == "1"
++	skipDraw := os.Getenv("GPUI_NEG_SKIP_DRAW") == "1"
++	skipped := false
+ 	for i := range c.Ops {
+ 		op := &c.Ops[i]
++		if skipDraw && !skipped && op.Kind != OpClear {
++			skipped = true
++			continue
++		}
++		if shift && op.Kind == OpFillRect {
++			op.Rect[0] += 1
++			op.Rect[1] += 1
++		}
+ 		if err := drawOp(dc, op, baseDir); err != nil {
+ 			return fmt.Errorf("%s: op %d (%s): %w", c.Name, i, op.Kind, err)
+ 		}
