@@ -23,7 +23,7 @@
 | 文件 | 装什么 | 不装什么 |
 |---|---|---|
 | `docs/ENGINE_RENDER_GPU_CONVERGE_PLAN.md` | 标准选型、去重/合并决策、包组织目标、双后端矩阵、缺失/半成品登记、批次与门禁 | 不含代码改动 |
-| `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` | **任务状态唯一真源**：可执行任务清单、依赖、开工/完成标准、统一门禁、证据目录、即时同步规则、状态流水 | 不重复 PLAN 的方案论证 |
+| `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` | **任务状态唯一真源**：可执行任务清单、依赖、开工/完成标准、统一门禁、证据目录、即时同步规则、状态流水、**§2.2 P2 待办池**（审计新发现 + P1 散落登记统一收口，P2 开工从这里取项） | 不重复 PLAN 的方案论证 |
 | `baseline/thresholds.md` | **P0.1 验收阈值与环境清单**：首帧、滚动帧率、p95/p99、显存上限、金图容差的写死数字与来源；基线机实测配置 | 不装逐窗金图清单（归 P0.2 `baseline/windows.md`） |
 | `baseline/windows.md` | **P0.2 真窗与金图清单**：162 真窗 + 28 headless 逐窗金图/容差/运行档/平台后端/能力标签；PLAN §5/§6 能力→窗映射；P1.4 采集顺序与自校验脚本 | 不装阈值数字（归 P0.1）；不装采集结果（归 `baseline/windows/`） |
 | `baseline/conformance/` | **P0.4 双后端一致性证据**：`summary.md`（回归/负向命令 + PASS 表 + 已知差异表）、`<scene>/<backend>/{report.json,frame.png,run.txt}`、`negative/` 一套转红证据 | 不装阈值（归 P0.1）；不做像素相等金图（归 P1.4 真窗） |

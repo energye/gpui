@@ -75,7 +75,7 @@
 - **render 层不许出现后端特有类型**：`render/` 只存 `hal.xxx` 接口 + `types.xxx` + `gpucontext` 桥，不许直接写 `webgpu.Xxx` / `gwgpu/gles.Xxx` / `rwgpu` 等具体后端类型（结构体字段、函数签名、类型断言都不许）。
 - 有就统一到 `hal`：需要在 `render` 用的能力，先在 `gpu/hal` 定接口（方法名/签名与 `webgpu` 对齐），再让 `gpu/webgpu` 与 `gpu/gwgpu/*` 两端同步实现，`render` 只调 `hal` 口。
 - 创建那一句话除外：后端二选一只允许出现在创建入口（`SelectBackend` 装实现那一句，P3 前暂用临时开关），之后全走接口无感知；不许双句柄 + 标记分支满天飞。创建入口指：`render/present_swapchain*.go` 的建链、`render/present_target.go` 的 `CreateInstance` 那一行、`_ "…/gwgpu/gles"` 注册行。
-- 合入前必查：`grep -rn "webgpu\.\|gwgpu/\|gles\." render/*.go | grep -v _test.go | grep -v "present_swapchain" | grep -v "CreateInstance" | grep -v "_ \"` 有命中就打回；`Vram*` 账本统一到 `hal` 留 P3（当前 `webgpu.Vram*` 仅 Rust 记账，GL 窗暂不依赖，见迁移计划）。
+- 合入前必查：`grep -rn "webgpu\.\|gwgpu/\|gles\." render/*.go | grep -v _test.go | grep -v "present_swapchain" | grep -v "CreateInstance" | grep -v "_ \"` 有命中就打回；`Vram*` 账本已统一在 `hal`（`gpu/hal/vram_ledger.go`）：`gpu/rwgpu` 与 `gpu/gwgpu/gles` 双端在资源建/放处真实调 `VramAdd`/`VramForget`（`gpu/webgpu/vram.go` 只是转发查询），GL 窗与 native 同等依赖；新增资源路径必须双端记账，不许单端记账或绕过 `hal`。
 
 ## 渲染分层归位（硬）
 
