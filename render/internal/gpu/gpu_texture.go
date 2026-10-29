@@ -116,7 +116,6 @@ type GPUTexture struct {
 
 	// Memory tracking
 	sizeBytes uint64
-	manager   *MemoryManager // optional, for memory tracking
 
 	// State
 	released atomic.Bool
@@ -560,28 +559,11 @@ func (t *GPUTexture) DownloadPixmap() (*render.Pixmap, error) {
 	return pixmap, nil
 }
 
-// SetMemoryManager sets the memory manager for tracking.
-// This is called internally when allocating through MemoryManager.
-func (t *GPUTexture) SetMemoryManager(m *MemoryManager) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.manager = m
-}
-
 // Close releases the GPU texture resources.
 // The texture should not be used after Close is called.
 func (t *GPUTexture) Close() {
 	if t.released.Swap(true) {
 		return // Already released
-	}
-
-	t.mu.Lock()
-	manager := t.manager
-	t.mu.Unlock()
-
-	// Notify memory manager if present
-	if manager != nil {
-		manager.unregisterTexture(t)
 	}
 
 	t.mu.Lock()
@@ -591,7 +573,6 @@ func (t *GPUTexture) Close() {
 	t.texture = nil
 	t.device = nil
 	t.queue = nil
-	t.manager = nil
 	t.mu.Unlock()
 
 	if view != nil {

@@ -1,0 +1,109 @@
+package main
+
+import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+var cluster = map[string]bool{}
+var clusterTests = map[string]bool{}
+
+func decls(f *ast.File) []string {
+	var out []string
+	for _, d := range f.Decls {
+		switch dd := d.(type) {
+		case *ast.FuncDecl:
+			if dd.Recv == nil { out = append(out, dd.Name.Name) }
+		case *ast.GenDecl:
+			for _, s := range dd.Specs {
+				switch sp := s.(type) {
+				case *ast.TypeSpec: out = append(out, sp.Name.Name)
+				case *ast.ValueSpec:
+					for _, n := range sp.Names { out = append(out, n.Name) }
+				}
+			}
+		}
+	}
+	return out
+}
+
+func main() {
+	dir, root := os.Args[1], os.Args[2]
+	for _, n := range strings.Split(os.Args[3], ",") {
+		if n = strings.TrimSpace(n); n != "" { cluster[n] = true }
+		if strings.HasSuffix(n, ".go") { continue }
+	}
+	fset := token.NewFileSet()
+	ents, _ := os.ReadDir(dir)
+	fileDecls := map[string][]string{}
+	for _, e := range ents {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") { continue }
+		f, err := parser.ParseFile(fset, filepath.Join(dir, e.Name()), nil, 0)
+		if err != nil { panic(err) }
+		fileDecls[e.Name()] = decls(f)
+	}
+	// gather usage: samePkg[idents] and extSel[selName] (gpu.X)
+	samePkg := map[string]int{}
+	extSel := map[string]int{}
+	samePkgTest := map[string]int{}
+	filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".go") { return nil }
+		inPkgDir := filepath.Dir(p) == dir
+		base := filepath.Base(p)
+		if inPkgDir && cluster[base] { return nil }
+		if inPkgDir && strings.HasSuffix(base, "_test.go") && clusterTests[base] { return nil }
+		if inPkgDir && base == "doc.go" { return nil }
+		f, err := parser.ParseFile(fset, p, nil, 0)
+		if err != nil { return nil }
+		isExt := !inPkgDir
+		// detect import alias for package in dir
+		alias := ""
+		if isExt {
+			for _, im := range f.Imports {
+				path := strings.Trim(im.Path.Value, "\"")
+				if path == "github.com/..." || strings.HasSuffix(path, "/render/internal/gpu") {
+					alias = "gpu"
+					if im.Name != nil { alias = im.Name.Name }
+				}
+			}
+			if alias == "" { return nil }
+		}
+		selNames := map[*ast.Ident]bool{}
+		ast.Inspect(f, func(n ast.Node) bool {
+			if sel, ok := n.(*ast.SelectorExpr); ok {
+				selNames[sel.Sel] = true
+				if x, ok2 := sel.X.(*ast.Ident); ok2 && isExt && x.Name == alias {
+					extSel[sel.Sel.Name]++
+				}
+			}
+			return true
+		})
+		ast.Inspect(f, func(n ast.Node) bool {
+			id, ok := n.(*ast.Ident)
+			if !ok || isExt || selNames[id] { return true }
+			if strings.HasSuffix(base, "_test.go") { samePkgTest[id.Name]++ } else { samePkg[id.Name]++ }
+			return true
+		})
+		return nil
+	})
+	keys := make([]string, 0, len(fileDecls))
+	for k := range fileDecls { if cluster[k] { keys = append(keys, k) } }
+	sort.Strings(keys)
+	fmt.Printf("%-28s %-40s %8s %8s %8s %8s\n", "FILE", "DECL", "retUse", "retTest", "extSel", "VERDICT")
+	for _, f := range keys {
+		names := fileDecls[f]
+		sort.Strings(names)
+		for _, n := range names {
+			r, t, e := samePkg[n], samePkgTest[n], extSel[n]
+			v := "DEAD"
+			if r+e > 0 { v = "LIVE-CODE" } else if t > 0 { v = "TEST-ONLY" }
+			fmt.Printf("%-28s %-40s %8d %8d %8d %8s\n", f, n, r, t, e, v)
+		}
+	}
+}

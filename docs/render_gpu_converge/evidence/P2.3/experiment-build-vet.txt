@@ -1,0 +1,24 @@
+# P2.3 deletion experiment (worktree at 6e913abf)
+# date: 2026-10-29
+
+$ go build ./render/...
+rc=0
+
+$ go test -run=XXXNONE -count=1 ./render/internal/gpu/
+ok  	github.com/energye/gpui/render/internal/gpu	0.007s [no tests to run]
+rc=0
+
+$ go vet ./render/internal/gpu/
+# github.com/energye/gpui/render/internal/gpu
+# [github.com/energye/gpui/render/internal/gpu]
+render/internal/gpu/gpu_render_context.go:4296:2: unreachable code
+render/internal/gpu/gpu_render_context.go:4344:2: unreachable code
+render/internal/gpu/view_raw_attack_test.go:13:55: possible misuse of unsafe.Pointer
+rc=1
+
+$ go build ./...   # full module
+examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
+	go get github.com/energye/gpui/ui/kit/button
+examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
+	go get github.com/energye/gpui/ui/kit/icon
+rc=1

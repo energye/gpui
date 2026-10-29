@@ -38,6 +38,18 @@ type StubCommandEncoderID uint64
 // StubCommandBufferID is a legacy logical marker for command-buffer tests.
 type StubCommandBufferID uint64
 
+// StubPipelineID is a legacy logical marker for render-pipeline tests.
+type StubPipelineID uint64
+
+// StubComputePipelineID is a legacy logical marker for compute-pipeline tests.
+type StubComputePipelineID uint64
+
+// StubBindGroupID is a legacy logical marker for bind-group tests.
+type StubBindGroupID uint64
+
+// StubBufferID is a legacy logical marker for buffer tests.
+type StubBufferID uint64
+
 // NewCommandEncoder creates a legacy test command encoder.
 func NewCommandEncoder(device hal.Device) *CommandEncoder {
 	return &CommandEncoder{

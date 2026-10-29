@@ -47,14 +47,20 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无——**P2.2 已完成**（2026-10-29，证据 `evidence/P2.2/`）；下一项从 §2.2 待办池取，取走一项即在本节按 §4.2 登记载体并把状态改 🟡；P0.1–P0.4、P1.1–P1.2b、P1.3–P1.8 仍全 ✅，P1 基线冻结收口
-- 下一任务：P2 收敛整合（P2.1–P2.3 可并行开工）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**（2026-10-29，附注）——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
-- 最近完成：P2.2 删 `render/render`（15 文件 + 测试/testdata）并把 `FloatTarget` 迁 `render/hdr`——五目标编译与 P1.1b 逐项一致、全仓 vet 61/58 不变、API 快照仅白名单差异、负向对照红过复绿
-- 阻塞项：无
+- 当前进行中：**无**（P2.3 已于 2026-10-29 完成，证据落盘，等待提交确认）
+- 下一任务：P2.1 / P2.4a（P2.1–P2.3 可并行，P2.4a 依赖二者）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**（2026-10-29，附注）——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 最近完成：P2.3 删老一代 GPU 场景渲染器闭合簇——10 源（6515 行）+ 10 测试（5635 行 / Test 156 / Bench 19）+ 7 WGSL（2071 行）删除，3 处存活面迁移，`doc.go` 重写；五目标构建绿、vet 61/58 与 P2.2 逐条一致、逐测试文件 0 FAIL、API −131/+0、负向对照红过复绿，见 `evidence/P2.3/summary.md`
+- 阻塞项：无（P2.3 待提交确认；GPU 真窗加强证据按计划留 P2.6 全量重放）
 
-**下一任务验证载体（开工前必须填，不填不得开工）**
+**当前任务验证载体（P2.3 已完成，结果已回填）**
 
-- 待登记：从 §2.2 池取下一项后，按 §4.2 模板替换本块（任务 / 能力单测 / 真窗 / 金图容差 / 双后端 / 负向对照 / 证据目录）
+- 任务：P2.3 删 `render/internal/gpu` 老一代场景渲染器：10 源 + 10 测试 + 7 个旧 WGSL；`doc.go` 重写；最小存活面 3 处处理（`Backend` 精简落 `device.go`、4 个 `Stub*ID` 搬 `commands.go`、`MemoryManager` 钩子摘除）——**已全部执行**
+- 能力单测：无新增（能力替代核对见 `assessment.md` §0.1：8 项已由新实现承接，2 项特殊；走 §4.1 例外）；替代证据：① 每项能力的替代载体逐一列明（文件:行号）② 保留测试集合 131 文件 / 852 Test / 79 Bench，逐文件 125 PASS / 5 仅编译 / 1 标签排除 / 0 FAIL ③ P2.6 基线重放（待）
+- 真窗：无（§4.1 例外）；加强证据「1 扇 render 基类窗 + P1.4 金图对账」并入 P2.6 全量重放
+- 金图：无（同上）
+- 双后端：不适用（被删簇无 GPU 后端分支）；五目标交叉编译 + `-tags nogpu` + `go vet` 全绿（61/58 与 P2.2 逐条一致）
+- 负向对照：探针引用 `NewBackend`/`newGPURenderer`/`NewGPUSceneRenderer` → 编译必红；撤销后复绿、零残留（`evidence/P2.3/negative.txt`）
+- 证据：`evidence/P2.3/`（`assessment.md`、`summary.md`、`refs.tsv`、`build/`、`api-diff.txt`、`per-file-tests.txt`、`grep-residual.txt`、`negative.txt`、`vet-full-*.txt`、`tools/`）
 
 > 每次状态变更必须同时更新本小节；新会话从这里接着做，开工前先把上面这块换成新任务的载体登记。
 
@@ -78,7 +84,7 @@
 | P1.8 | 负向对照（改 1px / 少画一次 / 漏释放一次，确认门禁会红） | P1.3–P1.7 | ✅ | `baseline/negative/` |
 | P2.1 | shader 合并：naga 迁顶层 `gpu/shader`，删旧副本与 SPIR-V/HLSL/DXIL | P1.8 | ⬜ | `evidence/P2.1/` |
 | P2.2 | 删 `render/render` 旧原型；`FloatTarget` 迁 `render/hdr` | P1.8 | ✅ | `evidence/P2.2/` |
-| P2.3 | 删老一代 GPU 场景渲染器闭合簇 | P1.8 | ⬜ | `evidence/P2.3/` |
+| P2.3 | 删老一代 GPU 场景渲染器闭合簇 | P1.8 | ✅ | `evidence/P2.3/` |
 | P2.4a | 设备创建 / 选卡收敛（三份 → 一份） | P2.1–P2.3 | ⬜ | `evidence/P2.4a/` |
 | P2.4b | 预算统一（六口径 → 一套 Budget，按域分账） | P2.4a | ⬜ | `evidence/P2.4b/` |
 | P2.4c | 延迟释放统一（三队列 → `res/registry`） | P2.4b | ⬜ | `evidence/P2.4c/` |
@@ -120,14 +126,14 @@
 | B2 | P1.4 | `ui_wr_r6_layer_anim` 表内金图 `golden/baseline_igpu.png` 与代码真源不一致（代码读 `R6_SNAP_DIR`，默认 `/tmp/r6_layer_anim/r6_final_base.png`，仓内图未被读取）；`baseline/windows/README.md:42-44` | P2.6 对齐真源/代码 | ⬜ |
 | B3 | P1.4 | `ui_text_edit_accept` 的 script 金图自动模式不逐位比较 | P2.6 决策（补逐位或写清替代判定） | ⬜ |
 | C1 | P1.4 | 14 窗自带 x11grab screen check 在 rootless Xwayland 抓黑图 → 环境 FAIL（`backdrop` p95≈137ms 也被拉高）；`baseline/windows/README.md:33-37` | P2.6 重放环境（隔离真 Xorg/可抓图显示） | ⬜ |
-| C2 | P1.4 | `ui_wr_t_stress` BUILD_FAIL：引用不存在的 `ui/kit/button`、`ui/kit/icon`；`baseline/windows/README.md:41` | P2.3（老组件删除后的调用方清理） | ⬜ |
+| C2 | P1.4 | `ui_wr_t_stress` BUILD_FAIL：引用不存在的 `ui/kit/button`、`ui/kit/icon`；`baseline/windows/README.md:41` | 组件线：kit `button`/`icon` 能力补齐后示例才能建（P2.3 已确认与老 GPU 簇无因果，2026-10-29 移出） | ⬜ |
 | C3 | P1.4 | `ui_ime_probe` 不响应 WM_DELETE，人工探针按兜底 SIGTERM 记 PROBE | P2.4e（窗口关闭协议） | ⬜ |
 | C4 | P1.4 重审 | T2：`ui_wr_r1_layout`/`r20_filter`/`r22_selection_stub`/`c6_savelayer_group` 两轮 rc=1 而 JSON 自报通过、金图 diff=0，病因未解剖（§3 已知问题 T2） | P2.6 前诊断 | ⬜ |
 | C5 | P1.6 | 10 条 PASS 记录 RSS 稳态斜率过 30000KB/min 泄漏线（`r17_bg_throttle` 88801 最高）；`baseline/vram/summary.md` §3 | P2 判定窗门禁集是否含 RSS 线 | ⬜ |
 | C6 | P1.6 | `ui_base_batch_cap` p95 双后端 55.7/62.1ms 超 22ms 门禁（P1.4 同因同量级） | P2 性能线 | ⬜ |
 | C7 | P1.6 | `ui_base_vram_cap` ladder 的 go 档在 GL 第 4 窗起 `eglMakeCurrent 0x3002`，8 窗阶梯跑不了；`baseline/vram/summary.md:18` | P2.4a/P2.4e（gles 多窗上下文） | ⬜ |
 | D1 | P1.3 | T1：`gpu/rwgpu/queue_workdone_test.go:45` 失败后 cleanup `Release()` 在 `device_misc.go:313/314` SIGSEGV（原始栈 `baseline/tests/failures/queue_workdone_test.log`） | P2.4c/P2.4e | ⬜ |
-| D2 | P1.3 | 48 FAIL 分组归属：老 backend 并发 SIGABRT→P2.3；StubHost 假 X11 句柄→P2.4e；nil ImageCache / 共享布局未 pin / 无 GPU 前置 / depcheck 测试缝→P2.5；video 3 文件 + 顺序耦合→P2.6；CPU 彩色字形无 ink→P2.3（`baseline/tests/summary.md` §4） | 见左 | ⬜ |
+| D2 | P1.3 | 48 FAIL 分组归属：老 backend 并发 SIGABRT→P2.3；StubHost 假 X11 句柄→P2.4e；nil ImageCache / 共享布局未 pin / 无 GPU 前置 / depcheck 测试缝→P2.5；video 3 文件 + 顺序耦合→P2.6；CPU 彩色字形无 ink→P2.3（`baseline/tests/summary.md` §4） | 见左 | 🟡 P2.3 两组已结（2026-10-29）：老 backend 并发 SIGABRT 随 `integration_test.go` 一起删除；`m5_color_glyph_api` 4 用例在 `92ca9216` 与 HEAD 均 PASS（环境性 FAIL，非代码债）；其余归属不变 |
 | D3 | P1.2b | vet 3 条测试伪造指针 → P2.5 测试卫生；2 条 `unreachable`（`render/internal/gpu/gpu_render_context.go:4296,4344`）→ P2.5（`evidence/P1.2b/summary.md:53-54`） | P2.5 | ⬜ |
 | D4 | P0.4/P1.6 | K1：`solid_gradient`/`text_image` 每轮 +2 条/+131072B（native/go 逐位一致），conformance JSON 上界暂时放宽 2/131072 | P2.4c（已写进正文：修完收紧回 0） | ⬜ |
 | E1 | P1.7 | A 族超限 8 处集中 4 轮：c3_list_scroll（fps+p95+hitch）、r7_virtlist（p95+hitch）、r7b_scroll_reuse p95 22.42 临界 | P2 性能修复，修后按 `baseline/perf/perf_baseline.tsv` + p99 8ms 带复测 | ⬜ |
@@ -135,6 +141,8 @@
 | E3 | P1.4/P1.7 | 6 轮采不了档（NO_JSON / BUILD_FAIL）沿用 P1.4 登记 | 随 C2 及对应窗修复 | ⬜ |
 | F1 | P1.8 | 一致性台 `gpu_ops` 计数下限是 1，单次跳绘抓不住 | P2 收紧为用例精确 op 数 | ⬜ |
 | F2 | P1.8 | oom probe 的 `pre==post` 对「整体抬底」型泄漏不敏感（只对注入窗内单笔退款失败敏感） | P2 probe 语义补强 | ⬜ |
+| G1 | P2.3 | `gpu/shader/spirv/internal/codegen/shader_test.go` 6 个「生产 shader 编译」用例读 `../../gg/internal/gpu/shaders/*.wgsl`——该路径在本仓从未存在，一直 `t.Skipf` 空转；P2.3 删 4 份 shader 后其中 4 条永久失去目标，另 2 条（flatten/coarse/fine）也不能直接改读 `tilecompute/shaders/*`（阶段不同） | P2.1（shader 线：按新 WGSL 集合重指或删除空转用例） | ⬜ |
+| G2 | P2.3 | `render/internal/gpu` 第二层老抽象：`command_encoder.go`/`commands.go`/`atlas.go`/`gpu_texture.go` 只被测试/示例可达，但 `RectAllocator`（`atlas.go`）被 `glyph_color_atlas.go` 用、`IndexFormat` 被 `render_pass.go` 用、`*RenderPass` 出现在 `text_pipeline.go` 签名 → 不是整块死代码，需逐符号拆解 | P2.4e（入口收敛） | ⬜ |
 
 ## 3 每个任务的开工条件与完成标准
 
@@ -403,6 +411,7 @@ docs/render_gpu_converge/
 | 2026-10-29 | P1 收口 | 正式基线 tag `baseline-p1` 打在 `92ca9216`（附注；P2 起分支点/回滚锚点/P2.6 对账基准） | `baseline/rollback.md` §7 登记用途与回退方法；tag 本体信息见 `git show baseline-p1` |
 | 2026-10-29 | P2 待办池 | 建池：§2.2 收 **23 项**——审计 4 项新发现（A1–A4）+ P1 期间散落的真窗/测试/性能/门禁覆盖面登记；A1（AGENTS.md:78 过时 Vram 描述）当场修正 | 台账 §2.2；AGENTS.md:78；审计其余发现归位见各 baseline summary（tests §4、vram §3、perf §4、negative 结论） |
 | 2026-10-29 | P2.2 | 🟡→✅ 删 `render/render` 15 文件（含测试/testdata，PLAN §7.7 白名单），`FloatTarget` 迁 `render/hdr` | `evidence/P2.2/`：迁移前 `render/render` 86 PASS / 迁移后 `render/hdr` 3 PASS（`TestFloatTargetSoftwareDeclines` 的被测对象随包删除）；五目标默认/nogpu 主体与库范围 351/347/141、357/353/140、349/345/140 全绿，与 P1.1b **逐项一致**，加载失败 0；全仓 vet 默认 61 / nogpu 58 与 P1.2 逐条一致；残留 grep rc=1 零引用；API 快照 352 包仅 `render/render.txt` 消失 + `render/hdr.txt` 新增（其余 350 份逐字节不变），测试 1397→1390 文件 / 14388→14302 函数（差=被删 8 文件/89 函数 − 新包 1 文件/3 函数）；负向对照：临时 `import "…/render/render"` 编译红 → 删除探针复绿零残留。无真窗：零生产消费者死代码删除，按 §4.1 例外，P2.6 基线重放复核。文档同步：`RENDER_API_CATALOG.md` §0/§7.2/§9 注、`ENGINE_UI_WIDGET_RENDER.md` §10、apidoc rc=0 |
+| 2026-10-29 | P2.3 | 🟡→✅ 删老一代 GPU 场景渲染器闭合簇（10 源 6515 行 + 10 测试 5635 行 + 7 WGSL 2071 行；3 处存活面迁移；`doc.go` 重写） | `evidence/P2.3/`：删前先做能力替代核对（§0.1：8 项有新载体、2 项特殊——`PipelineCacheCore` 真实创建被注释从未工作，`MemoryManager` 功能完整但唯一实例化点在旧渲染器内、能力已分域承接），确认「功能等价」后执行；`Backend` 精简落 `device.go`（字段名不变，7 处既有测试零改动）、4 个 `Stub*ID` 搬 `commands.go`、`GPUTexture` 摘 manager 钩子；`benchmark_test.go` 12→1（留 `BenchmarkSceneCreation`）；五目标构建 step3/4 全绿（raw `./...` 仅 `ui_wr_t_stress` 缺组件红）、vet 61/58 与 P2.2 **逐条一致**；逐测试文件 131 个：125 PASS / 5 仅编译 / 1 构建标签排除 / **0 FAIL**；API `render/internal/gpu` 761→630 符号（**−131 / +0**），测试 141/1008/109 → **131/852/79**，其余包零差异；负向对照 `NewBackend`/`newGPURenderer`/`NewGPUSceneRenderer` 编译红 → 撤销复绿零残留；`webgpu.CreateInstance` 白名单 4→3。无真窗：删除不触生产路径，按 §4.1 例外，1 扇基类窗金图对账并入 P2.6。公开 API 零变化（仅 internal 包）。归位：C2 移出本任务、D2 两组已结、新增 G1（spirv 空转用例）/G2（第二层老抽象） |
 
 ## 8 修订记录
 
@@ -419,3 +428,4 @@ docs/render_gpu_converge/
 | 2026-10-29 | P1.5 收口：352 包 API 快照 + 1397 文件/14388 函数测试计数落盘 `baseline/api/`；机器校验零缺失零多余 ALL PASS；§2.1 焦点切到 P1.6 |
 | 2026-10-29 | P1.7 收口：性能基线落盘 `baseline/perf/`，首帧 0 FAIL、A 族超限 4 轮与 P1.4 零冲突、字段两代命名定性并别名映射；§2.1 焦点切到 P1.8 |
 | 2026-10-29 | 新增 §2.2 P2 待办池：审计 4 项新发现 + P1 散落「登记 P2」条目统一收口（23 项）；§2.1 注明 P2 开工先取池；P1.7/P1.8 两条流水从 §8 末尾归位回 §7；AGENTS.md:78 Vram 描述按代码事实修正（hal 账本 + rwgpu/gles 双端真实记账） |
+| 2026-10-29 | P2.3 收口：删除依据从「无生产消费者」改为「能力替代核对」（§0.1 逐项载体），确认功能等价后执行；修正评估 §5 测试计数 142→147（+integration 9 = 156）；C2 移出 P2.3 归组件线，D2 两组已结，新增 G1（spirv 空转用例）/G2（第二层老抽象） |

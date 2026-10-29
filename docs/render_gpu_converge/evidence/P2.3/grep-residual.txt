@@ -1,0 +1,59 @@
+# P2.3 residual grep (Go code only)
+# date: 2026-10-29T20:57:35+08:00
+
+## deleted package symbols
+NewGPUSceneRenderer        hits=19
+    ./render/scene/gpu_renderer_regression_test.go:17:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:46:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:74:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:95:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:122:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:170:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:209:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:254:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:299:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:312:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:320:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:348:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:388:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer_regression_test.go:424:	renderer := NewGPUSceneRenderer(dc)
+    ./render/scene/renderer.go:292:	gpuR := NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer.go:35://	gpuR := scene.NewGPUSceneRenderer(dc)
+    ./render/scene/gpu_renderer.go:41:// NewGPUSceneRenderer creates a GPU scene renderer that renders through
+    ./render/scene/gpu_renderer.go:44:func NewGPUSceneRenderer(dc *render.Context) *GPUSceneRenderer {
+    ./examples/ui_render_base_scene/scene.go:776:		_ = scene.NewGPUSceneRenderer(live).RenderScene(slay.ab)
+HybridPipeline             hits=0
+HybridFineRasterizer       hits=0
+GPUCoarseRasterizer        hits=0
+GPUFineRasterizer          hits=0
+GPUFlattenRasterizer       hits=0
+MemoryManager              hits=0
+PipelineCacheCore          hits=0
+NewPipelineCache           hits=0
+CompileShaders             hits=0
+ShaderModules              hits=0
+BackendGPU                 hits=0
+newGPURenderer             hits=0
+GPURenderer                hits=0
+StubBindGroupLayoutID      hits=0
+InvalidPipelineID          hits=0
+
+## note: remaining GPUSceneRenderer hits are render/scene.GPUSceneRenderer,
+## a different type declared in render/scene/gpu_renderer.go:37.
+
+## deleted WGSL embed paths
+shaders/blit.wgsl: embed/0
+shaders/blend.wgsl: embed/1
+shaders/strip.wgsl: embed/1
+shaders/composite.wgsl: embed/1
+shaders/coarse.wgsl: embed/2
+shaders/fine.wgsl: embed/2
+shaders/flatten.wgsl: embed/1
+
+## internal/gpu now imports gpu/webgpu only at the whitelisted entries
+render/backend.go:100:		inst, err := webgpu.CreateInstance(desc)
+render/internal/gpu/vello_accelerator.go:1330:	instance, err := webgpu.CreateInstance(&hal.InstanceDescriptor{
+render/internal/gpu/gpu_shared.go:769:	instance, err := webgpu.CreateInstance(&hal.InstanceDescriptor{
+gpu/webgpu/doc.go:23://	instance, err := webgpu.CreateInstance(nil)
+gpu/webgpu/examples/browser-compute/main.go:46:	instance, err := webgpu.CreateInstance(nil)
+gpu/webgpu/examples/browser-test/main.go:32:	instance, err := webgpu.CreateInstance(nil)

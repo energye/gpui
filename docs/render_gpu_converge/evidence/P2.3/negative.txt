@@ -1,0 +1,18 @@
+# P2.3 negative control: deleted symbols must be undefined
+# date: 2026-10-29T20:56:34+08:00
+
+# step 1: clean tree builds green
+# exit: 0
+
+# step 2: add probe referencing NewBackend / newGPURenderer / NewGPUSceneRenderer
+# github.com/energye/gpui/render/internal/gpu
+render/internal/gpu/zz_p23_negative_probe.go:6:6: undefined: NewBackend
+render/internal/gpu/zz_p23_negative_probe.go:7:6: undefined: newGPURenderer
+render/internal/gpu/zz_p23_negative_probe.go:8:6: undefined: NewGPUSceneRenderer
+# exit: 1
+
+# step 3: remove probe, rebuild
+# exit: 0
+
+# step 4: residual probe check
+probe removed: clean

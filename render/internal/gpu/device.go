@@ -14,6 +14,7 @@ package gpu
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/energye/gpui/gpu/hal"
@@ -149,4 +150,59 @@ func releaseAdapter(adapter hal.Adapter) error {
 	}
 	adapter.Release()
 	return nil
+}
+
+// Backend is a minimal device holder for legacy command/texture helpers.
+// Device creation and scene rendering are owned by VelloAccelerator; this type
+// only carries a device/queue pair so CoreCommandEncoder and GPUTexture keep
+// working.
+type Backend struct {
+	mu sync.RWMutex
+
+	device hal.Device
+	queue  hal.Queue
+
+	initialized bool
+}
+
+// IsInitialized reports whether the backend holds a usable device.
+func (b *Backend) IsInitialized() bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.initialized
+}
+
+// Device returns the logical device.
+func (b *Backend) Device() hal.Device {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.device
+}
+
+// Queue returns the device queue.
+func (b *Backend) Queue() hal.Queue {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.queue
+}
+
+// Close releases the device. Surviving paths never attach an adapter or
+// instance, so only the device needs releasing.
+func (b *Backend) Close() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if !b.initialized {
+		return
+	}
+
+	if b.device != nil {
+		if err := releaseDevice(b.device); err != nil {
+			slogger().Warn("error releasing device", "err", err)
+		}
+		b.device = nil
+	}
+
+	b.queue = nil
+	b.initialized = false
 }

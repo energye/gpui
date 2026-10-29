@@ -1,0 +1,166 @@
+# P2.3 API snapshot diff vs baseline/api (P1.5)
+# date: 2026-10-29T21:06:18+08:00
+# method: packages.txt unchanged (352), full gen_api.py rerun into /tmp/p23_api_post
+
+## doc/ byte diff (-rq)
+Files /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/baseline/api/doc/render/internal/gpu.txt and /tmp/p23_api_post/doc/render/internal/gpu.txt differ
+Only in /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/baseline/api/doc/render: render.txt
+# rc=1
+
+## doc/ symbol-set diff (render/internal/gpu only)
+baseline symbols: 761
+post symbols:     630
+removed: 131
+  - const BackendGPU
+  - const DefaultCoarseThreshold
+  - const DefaultFineThreshold
+  - const DefaultFlattenThreshold
+  - const DefaultGPUSegmentThreshold
+  - const FlattenMaxSegmentsPerCurve
+  - const InvalidPipelineID
+  - const InvalidShaderModule
+  - func AllocTexture
+  - func BlendModeToShader
+  - func BlendPipelineCount
+  - func Build
+  - func CheckGPUComputeSupport
+  - func CodeHash
+  - func CompileShaders
+  - func ComputeCursorStates
+  - func ComputePipelineCount
+  - func ConvertAffineToGPU
+  - func ConvertPathToGPU
+  - func CreateBlendBindGroup
+  - func CreateBlitBindGroup
+  - func CreateStripBindGroup
+  - func EstimateSegmentCount
+  - func FillRuleToGPU
+  - func Flatten
+  - func FlattenWithContext
+  - func FreeTexture
+  - func GPUInfo
+  - func GetBlendLayout
+  - func GetBlendPipeline
+  - func GetBlendShaderSource
+  - func GetBlitLayout
+  - func GetBlitPipeline
+  - func GetBlitShaderSource
+  - func GetCompositePipeline
+  - func GetCompositeShaderSource
+  - func GetOrCreateComputePipeline
+  - func GetOrCreateRenderPipeline
+  - func GetStripLayout
+  - func GetStripPipeline
+  - func GetStripShaderSource
+  - func GetTileEntries
+  - func HasNativeModules
+  - func HasNativePipelines
+  - func HashComputePipelineDescriptor
+  - func HashRenderPipelineDescriptor
+  - func HitRate
+  - func IsGPUAvailable
+  - func IsShaderReady
+  - func IsStageGPUAvailable
+  - func LayerDepth
+  - func MaxPaths
+  - func MaxSegments
+  - func NativeBlendPipeline
+  - func NativeBlitPipeline
+  - func NativeCompositePipeline
+  - func NativeStripPipeline
+  - func NewBackend
+  - func NewBindGroupBuilder
+  - func NewGPUCoarseRasterizer
+  - func NewGPUFineRasterizer
+  - func NewGPUFlattenRasterizer
+  - func NewGPUSceneRenderer
+  - func NewHybridFineRasterizer
+  - func NewHybridPipeline
+  - func NewMemoryManager
+  - func NewPipelineCache
+  - func NewPipelineCacheCore
+  - func NewRenderer
+  - func NewShaderModule
+  - func RenderPipelineCount
+  - func RenderScene
+  - func RenderSceneWithContext
+  - func RenderToPixmap
+  - func RenderToPixmapWithContext
+  - func Resize
+  - func SPIRVCode
+  - func SetMemoryManager
+  - func SetTolerance
+  - func ShaderToBlendMode
+  - func Stroke
+  - func Textures
+  - func Tolerance
+  - func TouchTexture
+  - func ValidateBlendModeMapping
+  - func WarmupBlendPipelines
+  - type BindGroupBuilder
+  - type BlendComponent
+  - type BlendParams
+  - type BlendState
+  - type CompositeParams
+  - type ComputePipelineDescriptor
+  - type GPUAffineTransform
+  - type GPUCoarseConfig
+  - type GPUCoarseRasterizer
+  - type GPUCursorState
+  - type GPUFineConfig
+  - type GPUFineRasterizer
+  - type GPUFlattenConfig
+  - type GPUFlattenRasterizer
+  - type GPUPathElement
+  - type GPURasterizer
+  - type GPURasterizerStats
+  - type GPURenderer
+  - type GPUSceneRenderer
+  - type GPUSceneRendererConfig
+  - type GPUSegment
+  - type GPUSegmentCount
+  - type GPUTileInfo
+  - type GPUTileSegmentRef
+  - type GridRasterParams
+  - type HybridFineRasterizer
+  - type HybridFineRasterizerConfig
+  - type HybridPipeline
+  - type HybridPipelineConfig
+  - type HybridPipelineStats
+  - type LayerDescriptor
+  - type MemoryManager
+  - type MemoryManagerConfig
+  - type MemoryStats
+  - type PipelineCache
+  - type PipelineCacheCore
+  - type PipelineStage
+  - type RenderPipelineDescriptor
+  - type ShaderModule
+  - type ShaderModuleID
+  - type ShaderModules
+  - type StripParams
+  - type StubBindGroupLayoutID
+  - type VertexAttribute
+  - type VertexBufferLayout
+added: 0
+
+## test_counts.tsv diff
+300c300
+< github.com/energye/gpui/render/internal/gpu	141	1008	109	0	0
+---
+> github.com/energye/gpui/render/internal/gpu	131	852	79	0	0
+311c311
+< github.com/energye/gpui/render/render	8	75	4	10	0
+---
+> github.com/energye/gpui/render/render	0	0	0	0	0
+# rc=1
+
+## totals
+baseline: packages=352 files=1397 funcs=14388 (Test 13602 / Benchmark 753 / Example 18 / Fuzz 15)
+post: packages=352 files=1379 funcs=14113 (Test 13371 / Benchmark 719 / Example 8 / Fuzz 15)
+
+## empty-main whitelist diff
+# rc=0
+
+## whitelist check
+RESULT: PASS (only render/internal/gpu changed; render/render absence inherited from P2.2)
