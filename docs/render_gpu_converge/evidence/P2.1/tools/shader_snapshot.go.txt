@@ -1,0 +1,144 @@
+// P2.1 GLSL/MSL snapshot harness (stored as .go.txt so it is not part of ./...).
+// Run: sed "s#gpu/gwgpu/naga#gpu/shader#g" <this> > .p21_tmp/main.go && go run ./.p21_tmp -out <dir>
+// The sed converts the "before" (naga tree) imports to the "after" (merged gpu/shader) imports.
+package main
+
+import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+
+	"github.com/energye/gpui/gpu/gwgpu/metal/mslmap"
+	"github.com/energye/gpui/gpu/gwgpu/naga"
+	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
+	"github.com/energye/gpui/gpu/gwgpu/naga/msl"
+)
+
+func main() {
+	out := flag.String("out", "", "output dir")
+	flag.Parse()
+	if *out == "" {
+		fmt.Fprintln(os.Stderr, "missing -out")
+		os.Exit(2)
+	}
+	root, _ := os.Getwd()
+	var files []string
+	filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			n := info.Name()
+			if n == ".git" || n == ".qoder" || n == ".atomcode" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(p) == ".wgsl" {
+			rel, _ := filepath.Rel(root, p)
+			files = append(files, rel)
+		}
+		return nil
+	})
+	sort.Strings(files)
+	type entry struct {
+		Shader      string   `json:"shader"`
+		EntryPoints []string `json:"entryPoints"`
+		ParseError  string   `json:"parseError,omitempty"`
+	}
+	var report []entry
+	okGLSL, okMSL, errs := 0, 0, map[string]int{}
+	for _, rel := range files {
+		src, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "read", rel, err)
+			os.Exit(1)
+		}
+		e := entry{Shader: rel}
+		ast, err := naga.Parse(string(src))
+		if err != nil {
+			e.ParseError = err.Error()
+			report = append(report, e)
+			errs["parse"]++
+			continue
+		}
+		mod, err := naga.LowerWithSource(ast, string(src))
+		if err != nil {
+			e.ParseError = "lower: " + err.Error()
+			report = append(report, e)
+			errs["lower"]++
+			continue
+		}
+		for _, ep := range mod.EntryPoints {
+			e.EntryPoints = append(e.EntryPoints, ep.Name)
+			for _, v := range []struct {
+				tag string
+				ver glsl.Version
+			}{
+				{"gl330", glsl.Version330}, {"gl430", glsl.Version430},
+				{"gl450", glsl.Version450}, {"es300", glsl.VersionES300},
+				{"es310", glsl.VersionES310}, {"es320", glsl.VersionES320},
+			} {
+				code, info, err := glsl.Compile(mod, glsl.Options{
+					LangVersion:        v.ver,
+					EntryPoint:         ep.Name,
+					ForceHighPrecision: true,
+					WriterFlags:        glsl.WriterFlagAdjustCoordinateSpace | glsl.WriterFlagForcePointSize,
+				})
+				dir := filepath.Join(*out, "glsl", filepath.Dir(rel))
+				os.MkdirAll(dir, 0o755)
+				base := filepath.Base(rel) + "." + ep.Name + "." + v.tag
+				if err != nil {
+					os.WriteFile(filepath.Join(dir, base+".err.txt"), []byte(err.Error()), 0o644)
+					errs["glsl_"+v.tag]++
+				} else {
+					os.WriteFile(filepath.Join(dir, base+".glsl"), []byte(code), 0o644)
+					b, _ := json.Marshal(info)
+					os.WriteFile(filepath.Join(dir, base+".info.json"), b, 0o644)
+					okGLSL++
+				}
+			}
+		}
+		// MSL: default options
+		{
+			code, info, err := msl.Compile(mod, msl.DefaultOptions())
+			dir := filepath.Join(*out, "msl", filepath.Dir(rel))
+			os.MkdirAll(dir, 0o755)
+			base := filepath.Base(rel) + ".default"
+			if err != nil {
+				os.WriteFile(filepath.Join(dir, base+".err.txt"), []byte(err.Error()), 0o644)
+				errs["msl_default"]++
+			} else {
+				os.WriteFile(filepath.Join(dir, base+".msl"), []byte(code), 0o644)
+				b, _ := json.Marshal(info)
+				os.WriteFile(filepath.Join(dir, base+".info.json"), b, 0o644)
+				okMSL++
+			}
+		}
+		// MSL: mslmap options (production path for runtime-sized arrays)
+		if opts, err := mslmap.Options(mod, 30); err == nil {
+			code, info, err := msl.Compile(mod, opts)
+			dir := filepath.Join(*out, "msl", filepath.Dir(rel))
+			base := filepath.Base(rel) + ".mslmap"
+			if err != nil {
+				os.WriteFile(filepath.Join(dir, base+".err.txt"), []byte(err.Error()), 0o644)
+				errs["msl_mslmap"]++
+			} else {
+				os.WriteFile(filepath.Join(dir, base+".msl"), []byte(code), 0o644)
+				b, _ := json.Marshal(info)
+				os.WriteFile(filepath.Join(dir, base+".info.json"), b, 0o644)
+				okMSL++
+			}
+		} else {
+			errs["mslmap_options_err"]++
+		}
+		report = append(report, e)
+	}
+	os.MkdirAll(*out, 0o755)
+	b, _ := json.MarshalIndent(report, "", " ")
+	os.WriteFile(filepath.Join(*out, "report.json"), b, 0o644)
+	fmt.Printf("shaders=%d glsl_ok=%d msl_ok=%d errors=%v\n", len(files), okGLSL, okMSL, errs)
+}

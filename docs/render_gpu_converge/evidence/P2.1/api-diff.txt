@@ -1,0 +1,199 @@
+# P2.1 API snapshot diff vs baseline/api (P1.5)
+# date: 2026-10-29T22:01:23+08:00
+# method: baseline packages minus the 30 P2.1-deleted packages, full gen_api.py rerun into /tmp/p21_api_post
+#         baseline side filtered the same way: /tmp/p21_api_base_filtered
+
+## doc/ byte diff (-rq)
+Files /tmp/p21_api_base_filtered/doc/gpu/shader/ir.txt and /tmp/p21_api_post/doc/gpu/shader/ir.txt differ
+Files /tmp/p21_api_base_filtered/doc/gpu/shader/wgsl/internal/lower.txt and /tmp/p21_api_post/doc/gpu/shader/wgsl/internal/lower.txt differ
+Files /tmp/p21_api_base_filtered/doc/gpu/shader/wgsl.txt and /tmp/p21_api_post/doc/gpu/shader/wgsl.txt differ
+Files /tmp/p21_api_base_filtered/doc/gpu/shader.txt and /tmp/p21_api_post/doc/gpu/shader.txt differ
+Files /tmp/p21_api_base_filtered/doc/render/internal/gpu.txt and /tmp/p21_api_post/doc/render/internal/gpu.txt differ
+Only in /tmp/p21_api_base_filtered/doc/render: render.txt
+# rc=1
+
+## test_counts.tsv diff (filtered baseline vs post)
+243c243
+< github.com/energye/gpui/gpu/shader	2	16	10	0	0
+---
+> github.com/energye/gpui/gpu/shader	1	2	0	0	0
+248c248
+< github.com/energye/gpui/gpu/shader/ir	14	322	5	0	0
+---
+> github.com/energye/gpui/gpu/shader/ir	15	331	5	0	0
+250c250
+< github.com/energye/gpui/gpu/shader/msl/internal/codegen	17	524	3	0	0
+---
+> github.com/energye/gpui/gpu/shader/msl/internal/codegen	18	529	3	0	0
+252c252
+< github.com/energye/gpui/gpu/shader/wgsl/internal/lower	14	618	10	0	0
+---
+> github.com/energye/gpui/gpu/shader/wgsl/internal/lower	15	656	10	0	0
+270c270
+< github.com/energye/gpui/render/internal/gpu	141	1008	109	0	0
+---
+> github.com/energye/gpui/render/internal/gpu	131	852	79	0	0
+281c281
+< github.com/energye/gpui/render/render	8	75	4	10	0
+---
+> github.com/energye/gpui/render/render	0	0	0	0	0
+# rc=1
+
+## totals (filtered baseline vs post)
+filtered-baseline: packages=322 files=1226 funcs=10600 (Test 9855 / Benchmark 716 / Example 14 / Fuzz 15)
+post: packages=322 files=1210 funcs=10353 (Test 9662 / Benchmark 672 / Example 4 / Fuzz 15)
+
+## empty-main whitelist diff
+# rc=0
+
+## gpu/shader root symbol-set diff
+baseline symbols: 9
+post symbols:     5
+removed: 5
+  - func Compile
+  - func CompileWithOptions
+  - func DefaultOptions
+  - func GenerateSPIRV
+  - type CompileOptions
+added: 1
+  + func LowerWithCapabilities
+
+## render/internal/gpu symbol-set diff (expect only CompileShaderToSPIRV)
+baseline symbols: 761
+post symbols:     629
+removed: 132
+  - const BackendGPU
+  - const DefaultCoarseThreshold
+  - const DefaultFineThreshold
+  - const DefaultFlattenThreshold
+  - const DefaultGPUSegmentThreshold
+  - const FlattenMaxSegmentsPerCurve
+  - const InvalidPipelineID
+  - const InvalidShaderModule
+  - func AllocTexture
+  - func BlendModeToShader
+  - func BlendPipelineCount
+  - func Build
+  - func CheckGPUComputeSupport
+  - func CodeHash
+  - func CompileShaderToSPIRV
+  - func CompileShaders
+  - func ComputeCursorStates
+  - func ComputePipelineCount
+  - func ConvertAffineToGPU
+  - func ConvertPathToGPU
+  - func CreateBlendBindGroup
+  - func CreateBlitBindGroup
+  - func CreateStripBindGroup
+  - func EstimateSegmentCount
+  - func FillRuleToGPU
+  - func Flatten
+  - func FlattenWithContext
+  - func FreeTexture
+  - func GPUInfo
+  - func GetBlendLayout
+  - func GetBlendPipeline
+  - func GetBlendShaderSource
+  - func GetBlitLayout
+  - func GetBlitPipeline
+  - func GetBlitShaderSource
+  - func GetCompositePipeline
+  - func GetCompositeShaderSource
+  - func GetOrCreateComputePipeline
+  - func GetOrCreateRenderPipeline
+  - func GetStripLayout
+  - func GetStripPipeline
+  - func GetStripShaderSource
+  - func GetTileEntries
+  - func HasNativeModules
+  - func HasNativePipelines
+  - func HashComputePipelineDescriptor
+  - func HashRenderPipelineDescriptor
+  - func HitRate
+  - func IsGPUAvailable
+  - func IsShaderReady
+  - func IsStageGPUAvailable
+  - func LayerDepth
+  - func MaxPaths
+  - func MaxSegments
+  - func NativeBlendPipeline
+  - func NativeBlitPipeline
+  - func NativeCompositePipeline
+  - func NativeStripPipeline
+  - func NewBackend
+  - func NewBindGroupBuilder
+  - func NewGPUCoarseRasterizer
+  - func NewGPUFineRasterizer
+  - func NewGPUFlattenRasterizer
+  - func NewGPUSceneRenderer
+  - func NewHybridFineRasterizer
+  - func NewHybridPipeline
+  - func NewMemoryManager
+  - func NewPipelineCache
+  - func NewPipelineCacheCore
+  - func NewRenderer
+  - func NewShaderModule
+  - func RenderPipelineCount
+  - func RenderScene
+  - func RenderSceneWithContext
+  - func RenderToPixmap
+  - func RenderToPixmapWithContext
+  - func Resize
+  - func SPIRVCode
+  - func SetMemoryManager
+  - func SetTolerance
+  - func ShaderToBlendMode
+  - func Stroke
+  - func Textures
+  - func Tolerance
+  - func TouchTexture
+  - func ValidateBlendModeMapping
+  - func WarmupBlendPipelines
+  - type BindGroupBuilder
+  - type BlendComponent
+  - type BlendParams
+  - type BlendState
+  - type CompositeParams
+  - type ComputePipelineDescriptor
+  - type GPUAffineTransform
+  - type GPUCoarseConfig
+  - type GPUCoarseRasterizer
+  - type GPUCursorState
+  - type GPUFineConfig
+  - type GPUFineRasterizer
+  - type GPUFlattenConfig
+  - type GPUFlattenRasterizer
+  - type GPUPathElement
+  - type GPURasterizer
+  - type GPURasterizerStats
+  - type GPURenderer
+  - type GPUSceneRenderer
+  - type GPUSceneRendererConfig
+  - type GPUSegment
+  - type GPUSegmentCount
+  - type GPUTileInfo
+  - type GPUTileSegmentRef
+  - type GridRasterParams
+  - type HybridFineRasterizer
+  - type HybridFineRasterizerConfig
+  - type HybridPipeline
+  - type HybridPipelineConfig
+  - type HybridPipelineStats
+  - type LayerDescriptor
+  - type MemoryManager
+  - type MemoryManagerConfig
+  - type MemoryStats
+  - type PipelineCache
+  - type PipelineCacheCore
+  - type PipelineStage
+  - type RenderPipelineDescriptor
+  - type ShaderModule
+  - type ShaderModuleID
+  - type ShaderModules
+  - type StripParams
+  - type StubBindGroupLayoutID
+  - type VertexAttribute
+  - type VertexBufferLayout
+added: 0
+## whitelist check
+RESULT: PASS (only gpu/shader* and render/internal/gpu changed; render/render absence inherited from P2.2)

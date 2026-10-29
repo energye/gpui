@@ -5,7 +5,7 @@ package metal
 import (
 	"testing"
 
-	"github.com/energye/gpui/gpu/gwgpu/naga/ir"
+	"github.com/energye/gpui/gpu/shader/ir"
 )
 
 // TestMetalComputePipelineCreation tests MTLComputePipelineState creation.

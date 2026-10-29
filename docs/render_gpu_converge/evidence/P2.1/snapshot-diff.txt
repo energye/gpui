@@ -1,0 +1,4 @@
+# P2.1 GLSL/MSL snapshot diff (before = gpu/gwgpu/naga, after = gpu/shader)
+# command: diff -r /tmp/p21_before /tmp/p21_after
+# result: rc=0, 0 lines
+# manifest: snapshot-before.sha256 == snapshot-after.sha256 (681 files)

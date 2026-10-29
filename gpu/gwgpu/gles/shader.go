@@ -22,9 +22,9 @@ import (
 	"sync/atomic"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
-	"github.com/energye/gpui/gpu/gwgpu/naga"
-	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
 	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/shader"
+	"github.com/energye/gpui/gpu/shader/glsl"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
@@ -152,13 +152,13 @@ func compileWGSLToGLSL(version glsl.Version, wgsl string, entryPoint string, bin
 	shaderCache.RUnlock()
 
 	// Parse WGSL to AST.
-	ast, err := naga.Parse(wgsl)
+	ast, err := shader.Parse(wgsl)
 	if err != nil {
 		return "", glsl.TranslationInfo{}, fmt.Errorf("gles: WGSL parse error: %w", err)
 	}
 
 	// Lower AST to IR.
-	module, err := naga.Lower(ast)
+	module, err := shader.Lower(ast)
 	if err != nil {
 		return "", glsl.TranslationInfo{}, fmt.Errorf("gles: WGSL lower error: %w", err)
 	}

@@ -1,0 +1,6 @@
+=== RUN   TestH4C_TriangleOffscreenPixel
+    shader_pipeline_offscreen_test.go:115: GL offscreen: 3.3.0 NVIDIA 580.178.04
+    shader_pipeline_offscreen_test.go:195: offscreen pixels md5: 59ca40337ff5e016579ea53a09549824
+--- PASS: TestH4C_TriangleOffscreenPixel (0.13s)
+PASS
+ok  	github.com/energye/gpui/gpu/gwgpu/gles	0.148s

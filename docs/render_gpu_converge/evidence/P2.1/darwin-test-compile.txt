@@ -1,0 +1,11 @@
+# P2.1 darwin cross test-compile (vet type-checks _test.go for GOOS=darwin)
+# date: 2026-10-29T22:12:42+08:00
+
+## GOOS=darwin GOARCH=amd64
+# ./gpu/gwgpu/metal/... exit: 0
+# ./gpu/shader/msl/internal/codegen exit: 0
+# ./gpu/gwgpu/metal/mslmap exit: 0
+## GOOS=darwin GOARCH=arm64
+# ./gpu/gwgpu/metal/... exit: 0
+# ./gpu/shader/msl/internal/codegen exit: 0
+# ./gpu/gwgpu/metal/mslmap exit: 0

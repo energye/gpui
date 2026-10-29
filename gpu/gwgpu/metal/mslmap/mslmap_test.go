@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/gpu/gwgpu/metal/mslmap"
-	"github.com/energye/gpui/gpu/gwgpu/naga"
-	"github.com/energye/gpui/gpu/gwgpu/naga/msl"
+	"github.com/energye/gpui/gpu/shader"
+	"github.com/energye/gpui/gpu/shader/msl"
 )
 
 // wgslRuntimeArray calls arrayLength() on a runtime-sized storage array and
@@ -36,13 +36,13 @@ var bufferParamRe = regexp.MustCompile(`(\w+)\s*\[\[buffer\((\d+)\)\]\]`)
 func compile(t *testing.T, source string, opts msl.Options) (string, msl.TranslationInfo) {
 	t.Helper()
 
-	ast, err := naga.Parse(source)
+	ast, err := shader.Parse(source)
 	if err != nil {
-		t.Fatalf("naga.Parse: %v", err)
+		t.Fatalf("shader.Parse: %v", err)
 	}
-	module, err := naga.LowerWithSource(ast, source)
+	module, err := shader.LowerWithSource(ast, source)
 	if err != nil {
-		t.Fatalf("naga.LowerWithSource: %v", err)
+		t.Fatalf("shader.LowerWithSource: %v", err)
 	}
 	out, info, err := msl.Compile(module, opts)
 	if err != nil {
@@ -82,13 +82,13 @@ func TestDefaultOptionsLeaveSizesBufferUnbound(t *testing.T) {
 func TestOptionsBindSizesBuffer(t *testing.T) {
 	t.Parallel()
 
-	ast, err := naga.Parse(wgslRuntimeArray)
+	ast, err := shader.Parse(wgslRuntimeArray)
 	if err != nil {
-		t.Fatalf("naga.Parse: %v", err)
+		t.Fatalf("shader.Parse: %v", err)
 	}
-	module, err := naga.LowerWithSource(ast, wgslRuntimeArray)
+	module, err := shader.LowerWithSource(ast, wgslRuntimeArray)
 	if err != nil {
-		t.Fatalf("naga.LowerWithSource: %v", err)
+		t.Fatalf("shader.LowerWithSource: %v", err)
 	}
 
 	const sizesSlot = 2
@@ -129,13 +129,13 @@ func TestOptionsBindSizesBuffer(t *testing.T) {
 func TestOptionsPreserveOrdinaryBindings(t *testing.T) {
 	t.Parallel()
 
-	ast, err := naga.Parse(wgslRuntimeArray)
+	ast, err := shader.Parse(wgslRuntimeArray)
 	if err != nil {
-		t.Fatalf("naga.Parse: %v", err)
+		t.Fatalf("shader.Parse: %v", err)
 	}
-	module, err := naga.LowerWithSource(ast, wgslRuntimeArray)
+	module, err := shader.LowerWithSource(ast, wgslRuntimeArray)
 	if err != nil {
-		t.Fatalf("naga.LowerWithSource: %v", err)
+		t.Fatalf("shader.LowerWithSource: %v", err)
 	}
 
 	auto, _, err := msl.Compile(module, msl.DefaultOptions())
@@ -180,13 +180,13 @@ func TestOptionsPreserveOrdinaryBindings(t *testing.T) {
 func TestOptionsRejectsOutOfRangeSlot(t *testing.T) {
 	t.Parallel()
 
-	ast, err := naga.Parse(wgslRuntimeArray)
+	ast, err := shader.Parse(wgslRuntimeArray)
 	if err != nil {
-		t.Fatalf("naga.Parse: %v", err)
+		t.Fatalf("shader.Parse: %v", err)
 	}
-	module, err := naga.LowerWithSource(ast, wgslRuntimeArray)
+	module, err := shader.LowerWithSource(ast, wgslRuntimeArray)
 	if err != nil {
-		t.Fatalf("naga.LowerWithSource: %v", err)
+		t.Fatalf("shader.LowerWithSource: %v", err)
 	}
 
 	if _, err := mslmap.Options(module, 256); err == nil {

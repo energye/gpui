@@ -13,33 +13,8 @@
 package gpu
 
 import (
-	"fmt"
-
 	"github.com/energye/gpui/gpu/hal"
-	"github.com/energye/gpui/gpu/shader"
 )
-
-// CompileShaderToSPIRV compiles WGSL source to SPIR-V uint32 slice.
-// This is the common shader compilation logic used by all GPU rasterizers.
-func CompileShaderToSPIRV(wgslSource string) ([]uint32, error) {
-	// Compile WGSL to SPIR-V bytes
-	spirvBytes, err := shader.Compile(wgslSource)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile shader: %w", err)
-	}
-
-	// Convert bytes to uint32 slice for SPIR-V
-	// SPIR-V is little-endian 32-bit words
-	spirvCode := make([]uint32, len(spirvBytes)/4)
-	for i := range spirvCode {
-		spirvCode[i] = uint32(spirvBytes[i*4]) |
-			uint32(spirvBytes[i*4+1])<<8 |
-			uint32(spirvBytes[i*4+2])<<16 |
-			uint32(spirvBytes[i*4+3])<<24
-	}
-
-	return spirvCode, nil
-}
 
 // CreateShaderModule creates a shader module from WGSL source.
 func CreateShaderModule(device hal.Device, label string, wgslSource string) (hal.ShaderModule, error) {

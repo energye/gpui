@@ -1136,6 +1136,9 @@ func (w *Writer) writeStore(store ir.StmtStore) error {
 func (w *Writer) writeUncheckedStore(store ir.StmtStore) error {
 	// Check if the pointer target is an atomic type.
 	if w.isAtomicPointer(store.Pointer) {
+		if err := w.validateAtomicOperation(store.Pointer, ir.AtomicStore{}, nil); err != nil {
+			return err
+		}
 		w.WriteIndent()
 		w.write("%satomic_store_explicit(&", Namespace)
 		if err := w.writeExpression(store.Pointer); err != nil {
@@ -1162,6 +1165,71 @@ func (w *Writer) writeUncheckedStore(store ir.StmtStore) error {
 	}
 	w.write(";\n")
 	return nil
+}
+
+// validateAtomicOperation enforces the subset of 64-bit atomics supported by
+// the MSL backend. This matches Rust the SHADER_INT64_ATOMIC_MIN_MAX
+func (w *Writer) validateAtomicOperation(
+	pointer ir.ExpressionHandle,
+	fun ir.AtomicFunction,
+	result *ir.ExpressionHandle,
+) error {
+	if w.currentFunction == nil {
+		return nil
+	}
+
+	scalar := w.resolveAtomicScalarFromPointer(w.currentFunction, pointer)
+	if scalar == nil || scalar.Width != 8 {
+		return nil
+	}
+
+	resultDiscardedMinMax := false
+	switch fun.(type) {
+	case ir.AtomicMin, ir.AtomicMax:
+		resultDiscardedMinMax = result == nil
+	}
+	if resultDiscardedMinMax {
+		if space, ok := w.getPointerAddressSpace(pointer); ok && space == ir.SpaceStorage {
+			return nil
+		}
+	}
+
+	return fmt.Errorf(
+		"64-bit atomic %s is unsupported by MSL; only result-discarded min/max in the storage address space are supported",
+		atomicFunctionName(fun),
+	)
+}
+
+// atomicFunctionName returns the WGSL-facing name used in MSL capability
+// errors. Keeping these stable makes backend errors actionable to callers.
+func atomicFunctionName(fun ir.AtomicFunction) string {
+	switch f := fun.(type) {
+	case ir.AtomicAdd:
+		return "add"
+	case ir.AtomicSubtract:
+		return "subtract"
+	case ir.AtomicAnd:
+		return "and"
+	case ir.AtomicExclusiveOr:
+		return "xor"
+	case ir.AtomicInclusiveOr:
+		return "or"
+	case ir.AtomicMin:
+		return "min"
+	case ir.AtomicMax:
+		return "max"
+	case ir.AtomicExchange:
+		if f.Compare != nil {
+			return "compare exchange"
+		}
+		return "exchange"
+	case ir.AtomicLoad:
+		return "load"
+	case ir.AtomicStore:
+		return "store"
+	default:
+		return fmt.Sprintf("%T", fun)
+	}
 }
 
 // isAtomicPointer checks if an expression is a pointer to an atomic type.
@@ -1537,6 +1605,10 @@ func (w *Writer) writeImageAtomic(imgAtomic ir.StmtImageAtomic) error {
 
 // writeAtomic writes an atomic operation statement.
 func (w *Writer) writeAtomic(atomic ir.StmtAtomic) error {
+	if err := w.validateAtomicOperation(atomic.Pointer, atomic.Fun, atomic.Result); err != nil {
+		return err
+	}
+
 	// Determine the function based on atomic operation type
 	var funcName string
 	switch f := atomic.Fun.(type) {

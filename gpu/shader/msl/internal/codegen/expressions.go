@@ -1077,8 +1077,18 @@ func (w *Writer) writeSwizzle(swizzle ir.ExprSwizzle) error {
 			w.write("%sfloat3(", Namespace)
 		}
 	}
+	// Wrap in parens if vector is a binary/select expression.
+	// C++ member access (.) binds tighter than arithmetic operators,
+	// so (mat * vec).xyz must not be emitted as mat * vec.xyz.
+	needParens := !needsUnpack && w.needsParensInContext(swizzle.Vector)
+	if needParens {
+		w.write("(")
+	}
 	if err := w.writeExpression(swizzle.Vector); err != nil {
 		return err
+	}
+	if needParens {
+		w.write(")")
 	}
 	if needsUnpack {
 		w.write(")")
@@ -1149,6 +1159,9 @@ func (w *Writer) writeLoad(load ir.ExprLoad) error {
 // If the pointer is to an atomic type, wraps with metal::atomic_load_explicit.
 func (w *Writer) writeUncheckedLoad(pointer ir.ExpressionHandle) error {
 	if w.isAtomicPointer(pointer) {
+		if err := w.validateAtomicOperation(pointer, ir.AtomicLoad{}, nil); err != nil {
+			return err
+		}
 		w.write("metal::atomic_load_explicit(&")
 		if err := w.writeExpression(pointer); err != nil {
 			return err

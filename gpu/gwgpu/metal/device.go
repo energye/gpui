@@ -21,10 +21,10 @@ import (
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/gwgpu/metal/mslmap"
-	"github.com/energye/gpui/gpu/gwgpu/naga"
-	"github.com/energye/gpui/gpu/gwgpu/naga/ir"
-	"github.com/energye/gpui/gpu/gwgpu/naga/msl"
 	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/shader"
+	"github.com/energye/gpui/gpu/shader/ir"
+	"github.com/energye/gpui/gpu/shader/msl"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 
@@ -549,13 +549,13 @@ func (d *Device) CreateShaderModule(desc *hal.ShaderModuleDescriptor) (hal.Shade
 	start := time.Now()
 
 	// Parse WGSL to AST
-	ast, err := naga.Parse(desc.WGSL)
+	ast, err := shader.Parse(desc.WGSL)
 	if err != nil {
 		return nil, fmt.Errorf("metal: failed to parse WGSL: %w", err)
 	}
 
 	// Lower AST to IR
-	irModule, err := naga.LowerWithSource(ast, desc.WGSL)
+	irModule, err := shader.LowerWithSource(ast, desc.WGSL)
 	if err != nil {
 		return nil, fmt.Errorf("metal: failed to lower WGSL to IR: %w", err)
 	}

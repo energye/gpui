@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/gpu/shader"
+	"github.com/energye/gpui/gpu/shader/ir"
 )
 
 func TestMSLCompilesWithXcrun(t *testing.T) {
@@ -41,15 +42,56 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
 	ast, err := shader.Parse(wgslSource)
 	if err != nil {
-		t.Fatalf("naga.Parse failed: %v", err)
+		t.Fatalf("shader.Parse failed: %v", err)
 	}
 
 	module, err := shader.LowerWithSource(ast, wgslSource)
 	if err != nil {
-		t.Fatalf("naga.LowerWithSource failed: %v", err)
+		t.Fatalf("shader.LowerWithSource failed: %v", err)
 	}
 
 	mslSource, _, err := Compile(module, DefaultOptions())
+	if err != nil {
+		t.Fatalf("msl.Compile failed: %v", err)
+	}
+	verifyMSLWithXcrun(t, mslSource)
+}
+
+func TestMSLInt64AtomicMinMaxCompilesWithXcrun(t *testing.T) {
+	const wgslSource = `
+@group(0) @binding(0)
+var<storage, read_write> value: atomic<u64>;
+
+@compute @workgroup_size(1)
+fn main() {
+    atomicMin(&value, 1lu);
+    atomicMax(&value, 2lu);
+}
+`
+
+	ast, err := shader.Parse(wgslSource)
+	if err != nil {
+		t.Fatalf("shader.Parse failed: %v", err)
+	}
+	module, err := shader.LowerWithSource(ast, wgslSource)
+	if err != nil {
+		t.Fatalf("shader.LowerWithSource failed: %v", err)
+	}
+
+	bufferSlot := uint8(0)
+	options := DefaultOptions()
+	options.LangVersion = Version2_4
+	options.PerEntryPointMap = map[string]EntryPointResources{
+		"main": {
+			Resources: map[ir.ResourceBinding]BindTarget{
+				{Group: 0, Binding: 0}: {
+					Buffer:  &bufferSlot,
+					Mutable: true,
+				},
+			},
+		},
+	}
+	mslSource, _, err := Compile(module, options)
 	if err != nil {
 		t.Fatalf("msl.Compile failed: %v", err)
 	}

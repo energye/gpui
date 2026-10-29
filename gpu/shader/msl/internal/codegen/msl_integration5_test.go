@@ -581,6 +581,66 @@ fn main() {
 	mustContainMSL(t, code, ".yx")
 }
 
+func TestIntegration_SwizzleOfBinaryNeedsParens(t *testing.T) {
+	src := `
+struct Uniforms { model: mat4x4<f32> };
+@group(0) @binding(0) var<uniform> u: Uniforms;
+struct In { pos: vec4<f32> };
+@group(0) @binding(1) var<storage, read> inp: In;
+struct Out { v: vec3<f32> };
+@group(0) @binding(2) var<storage, read_write> out: Out;
+@compute @workgroup_size(1)
+fn main() {
+    out.v = (u.model * inp.pos).xyz;
+}
+`
+	code := compileWGSL(t, src)
+	if strings.Contains(code, "* ") && strings.Contains(code, ".xyz") {
+		lines := strings.Split(code, "\n")
+		for _, line := range lines {
+			if strings.Contains(line, ".xyz") && strings.Contains(line, "*") {
+				if !strings.Contains(line, ").xyz") {
+					t.Errorf("swizzle of binary missing parens — C++ . binds tighter than *:\n%s", line)
+				}
+			}
+		}
+	}
+	mustContainMSL(t, code, ").xyz")
+	mustNotContainMSL(t, code, "* metal::float4(")
+}
+
+func TestIntegration_SwizzleOfAddNeedsParens(t *testing.T) {
+	src := `
+struct In { a: vec4<f32>, b: vec4<f32> };
+@group(0) @binding(0) var<storage, read> inp: In;
+struct Out { v: vec2<f32> };
+@group(0) @binding(1) var<storage, read_write> out: Out;
+@compute @workgroup_size(1)
+fn main() {
+    out.v = (inp.a + inp.b).xy;
+}
+`
+	code := compileWGSL(t, src)
+	mustContainMSL(t, code, ").xy")
+}
+
+func TestIntegration_SwizzleOfVariableNoParens(t *testing.T) {
+	src := `
+struct In { v: vec4<f32> };
+@group(0) @binding(0) var<storage, read> inp: In;
+struct Out { v: vec3<f32> };
+@group(0) @binding(1) var<storage, read_write> out: Out;
+@compute @workgroup_size(1)
+fn main() {
+    let tmp = inp.v;
+    out.v = tmp.xyz;
+}
+`
+	code := compileWGSL(t, src)
+	mustContainMSL(t, code, ".xyz")
+	mustNotContainMSL(t, code, ").xyz")
+}
+
 // =============================================================================
 // Test: Modf and frexp math (covers writeModf, writeFrexp)
 // =============================================================================

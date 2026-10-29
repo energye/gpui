@@ -1,0 +1,308 @@
+# P2.1 per-test-file run
+# date: 2026-10-29T22:12:27+08:00
+# head: 4e348fd3
+# ruler: for each *_test.go, go test -run '^(TestA|TestB|...)$' (benchmarks excluded);
+#        build-tag-excluded files show as SKIP_TAGGED (go test: no tests to run)
+
+## gpu/shader
+shader_test.go: PASS rc=0
+
+  subtotal: PASS=1 NO_TEST=0 SKIP_TAGGED=0 FAIL=0
+## gpu/shader/glsl/internal/codegen
+backend_test.go: PASS rc=0
+bench_test.go: NO_TEST_FUNCS compile-only rc=0
+compile_test.go: PASS rc=0
+continue_forward_test.go: PASS rc=0
+coverage_test.go: PASS rc=0
+expressions_test.go: PASS rc=0
+features_test.go: PASS rc=0
+reachability_test.go: PASS rc=0
+statements_test.go: PASS rc=0
+struct_io_test.go: PASS rc=0
+texture_sampler_test.go: PASS rc=0
+types_test.go: PASS rc=0
+unsupported_test.go: PASS rc=0
+writer_utils_test.go: PASS rc=0
+
+  subtotal: PASS=13 NO_TEST=1 SKIP_TAGGED=0 FAIL=0
+## gpu/shader/ir
+bench_test.go: NO_TEST_FUNCS compile-only rc=0
+compact_test.go: PASS rc=0
+inline_coverage_test.go: PASS rc=0
+inline_test.go: PASS rc=0
+ir_coverage_test.go: PASS rc=0
+ir_test.go: PASS rc=0
+process_overrides_coverage_test.go: PASS rc=0
+process_overrides_test.go: PASS rc=0
+resolve_coverage_test.go: PASS rc=0
+resolve_extended_test.go: PASS rc=0
+resolve_test.go: PASS rc=0
+type_size_test.go: PASS rc=0
+validate_capabilities_test.go: PASS rc=0
+validate_expression_test.go: PASS rc=0
+validate_semantic_test.go: PASS rc=0
+
+  subtotal: PASS=14 NO_TEST=1 SKIP_TAGGED=0 FAIL=0
+## gpu/shader/msl/internal/codegen
+backend_test.go: PASS rc=0
+bench_test.go: NO_TEST_FUNCS compile-only rc=0
+coverage_test.go: PASS rc=0
+expressions_test.go: PASS rc=0
+int64_atomics_test.go: PASS rc=0
+msl_integration2_test.go: PASS rc=0
+msl_integration3_test.go: PASS rc=0
+msl_integration4_test.go: PASS rc=0
+msl_integration5_test.go: PASS rc=0
+msl_integration6_test.go: PASS rc=0
+msl_integration7_test.go: PASS rc=0
+msl_integration8_test.go: PASS rc=0
+msl_integration_test.go: PASS rc=0
+msl_xcrun_test.go: SKIP_TAGGED rc=0
+pipeline_constants_test.go: PASS rc=0
+statements_test.go: PASS rc=0
+types_test.go: PASS rc=0
+unsupported_test.go: PASS rc=0
+
+  subtotal: PASS=16 NO_TEST=1 SKIP_TAGGED=1 FAIL=0
+## gpu/shader/wgsl
+errors_test.go: PASS rc=0
+wgsl_errors_test.go: PASS rc=0
+
+  subtotal: PASS=2 NO_TEST=0 SKIP_TAGGED=0 FAIL=0
+## gpu/shader/wgsl/internal/lower
+bench_test.go: NO_TEST_FUNCS compile-only rc=0
+coverage10_test.go: PASS rc=0
+coverage2_test.go: PASS rc=0
+coverage3_test.go: PASS rc=0
+coverage4_test.go: PASS rc=0
+coverage5_test.go: PASS rc=0
+coverage6_test.go: PASS rc=0
+coverage7_test.go: PASS rc=0
+coverage8_test.go: PASS rc=0
+coverage9_test.go: PASS rc=0
+coverage_test.go: PASS rc=0
+deduplication_test.go: PASS rc=0
+lower_test.go: PASS rc=0
+lower_type_inference_test.go: PASS rc=0
+swizzle_assignment_test.go: PASS rc=0
+
+  subtotal: PASS=14 NO_TEST=1 SKIP_TAGGED=0 FAIL=0
+## gpu/shader/wgsl/internal/parser
+coverage_test.go: PASS rc=0
+errors_test.go: PASS rc=0
+lexer_test.go: PASS rc=0
+parser_test.go: PASS rc=0
+
+  subtotal: PASS=4 NO_TEST=0 SKIP_TAGGED=0 FAIL=0
+## gpu/shader/internal/registry
+registry_test.go: PASS rc=0
+
+  subtotal: PASS=1 NO_TEST=0 SKIP_TAGGED=0 FAIL=0
+## gpu/shader/internal/textutil
+textutil_test.go: PASS rc=0
+
+  subtotal: PASS=1 NO_TEST=0 SKIP_TAGGED=0 FAIL=0
+## gpu/gwgpu/gles
+adapter_context_linux_test.go: PASS rc=0
+adapter_open_test.go: PASS rc=0
+adapter_trylock_test.go: PASS rc=0
+behavior_linux_test.go: PASS rc=0
+behavior_shared_test.go: PASS rc=0
+behavior_windows_test.go: SKIP_TAGGED rc=0
+binding_test.go: PASS rc=0
+capabilities_test.go: PASS rc=0
+command_test.go: SKIP_TAGGED rc=0
+compute_test.go: PASS rc=0
+convert_test.go: SKIP_TAGGED rc=0
+device_enum_test.go: PASS rc=0
+device_select_linux_test.go: PASS rc=0
+indirect_test.go: PASS rc=0
+integration_test.go: SKIP_TAGGED rc=0
+p1_texsample_probe_test.go: PASS rc=0
+present_damage_x11_test.go: FAIL rc=1
+    --- FAIL: TestPresentDamageX11 (1.59s)
+        present_damage_x11_test.go:176: full frame 1: inside=0xff0000 outside=0xff0000
+        present_damage_x11_test.go:176: full frame 2: inside=0xff00 outside=0xff00
+        present_damage_x11_test.go:176: full frame 3: inside=0xff outside=0xff
+        present_damage_x11_test.go:223: damage frame 1: inside=0xff outside=0xff00 full=7 partial=0
+        present_damage_x11_test.go:223: damage frame 2: inside=0xffff00 outside=0xff00 full=8 partial=0
+        present_damage_x11_test.go:223: damage frame 3: inside=0xff00ff outside=0xff00 full=9 partial=0
+        present_damage_x11_test.go:223: damage frame 4: inside=0xffff outside=0xff00 full=10 partial=0
+        present_damage_x11_test.go:223: damage frame 5: inside=0xff0000 outside=0xff00 full=11 partial=0
+        present_damage_x11_test.go:223: damage frame 6: inside=0xff outside=0xff00 full=12 partial=0
+        present_damage_x11_test.go:235: partial present never engaged: full=12 partial=0
+    FAIL
+    FAIL	github.com/energye/gpui/gpu/gwgpu/gles	1.604s
+    FAIL
+prime_linux_test.go: PASS rc=0
+renderpass_dedup_test.go: PASS rc=0
+sampler_test.go: PASS rc=0
+shader_cache_test.go: PASS rc=0
+shader_pipeline_offscreen_test.go: PASS rc=0
+spin_blit_damage_test.go: PASS rc=0
+stub_test.go: PASS rc=0
+surface_acquire_strict_test.go: PASS rc=0
+surface_damage_linux_test.go: PASS rc=0
+surface_frame_offscreen_test.go: PASS rc=0
+surface_pelican_x11_test.go: PASS rc=0
+surface_present_x11_test.go: PASS rc=0
+vendor_linux_test.go: PASS rc=0
+version_test.go: PASS rc=0
+vram_handle_test.go: PASS rc=0
+write_batch_overlap_test.go: PASS rc=0
+
+  subtotal: PASS=28 NO_TEST=0 SKIP_TAGGED=4 FAIL=1
+## gpu/gwgpu/metal
+behavior_test.go: SKIP_TAGGED rc=0
+compute_test.go: SKIP_TAGGED rc=0
+conv_test.go: SKIP_TAGGED rc=0
+encoder_test.go: SKIP_TAGGED rc=0
+icb_indexed_test.go: SKIP_TAGGED rc=0
+icb_pipeline_test.go: SKIP_TAGGED rc=0
+indirect_count_test.go: SKIP_TAGGED rc=0
+main_test.go: SKIP_TAGGED rc=0
+objc_test.go: SKIP_TAGGED rc=0
+stub_test.go: SKIP_TAGGED rc=0
+surface_test.go: SKIP_TAGGED rc=0
+texture_copy_test.go: SKIP_TAGGED rc=0
+
+  subtotal: PASS=0 NO_TEST=0 SKIP_TAGGED=12 FAIL=0
+## gpu/gwgpu/metal/mslmap
+mslmap_test.go: PASS rc=0
+
+  subtotal: PASS=1 NO_TEST=0 SKIP_TAGGED=0 FAIL=0
+## render/internal/gpu
+alloc_bench_test.go: NO_TEST_FUNCS compile-only rc=0
+analytic_benchmark_test.go: NO_TEST_FUNCS compile-only rc=0
+analytic_coverage_test.go: PASS rc=0
+analytic_edgecases_test.go: PASS rc=0
+analytic_filler_test.go: PASS rc=0
+batch_coalescing_test.go: PASS rc=0
+benchmark_test.go: NO_TEST_FUNCS compile-only rc=0
+bg_cache_semantics_test.go: PASS rc=0
+bindgroup_switch_test.go: PASS rc=0
+brush_blend_rect_test.go: PASS rc=0
+brush_field_memo_bench_test.go: NO_TEST_FUNCS compile-only rc=0
+buffer_test.go: PASS rc=0
+clip_leaf_host_test.go: PASS rc=0
+command_encoder_test.go: PASS rc=0
+compute_pass_test.go: PASS rc=0
+convex_renderer_test.go: PASS rc=0
+convexity_test.go: PASS rc=0
+curve_edge_test.go: PASS rc=0
+damage_blit_e2e_test.go: PASS rc=0
+damage_scissor_test.go: PASS rc=0
+depth_clip_test.go: PASS rc=0
+edge_builder_test.go: PASS rc=0
+empty_clip_skip_test.go: PASS rc=0
+fine_curves_test.go: PASS rc=0
+flatten_nan_test.go: PASS rc=0
+glyph_color_atlas_test.go: PASS rc=0
+glyph_color_engine_test.go: PASS rc=0
+glyph_color_shader_test.go: PASS rc=0
+glyph_mask_color_reject_test.go: PASS rc=0
+glyph_mask_engine_test.go: PASS rc=0
+glyph_mask_gpu_repro_test.go: PASS rc=0
+glyph_mask_hinting_test.go: PASS rc=0
+glyph_mask_lcd_layout_cache_test.go: PASS rc=0
+glyph_mask_lcd_test.go: PASS rc=0
+glyph_mask_multipage_test.go: PASS rc=0
+glyph_mask_renderframe_test.go: PASS rc=0
+glyph_mask_s42_test.go: PASS rc=0
+glyph_mask_shaped_default_test.go: PASS rc=0
+glyph_mask_spacing_test.go: PASS rc=0
+glyph_mask_span_exact_test.go: PASS rc=0
+glyph_mask_uniform_staging_test.go: PASS rc=0
+glyph_placement_test.go: PASS rc=0
+glyphmask_drawcalls_test.go: PASS rc=0
+golden_software_test.go: PASS rc=0
+golden_test.go: PASS rc=0
+gpu_text_cjk_test.go: PASS rc=0
+gpu_text_test.go: PASS rc=0
+gpu_texture_test.go: PASS rc=0
+image_batch_s41_test.go: PASS rc=0
+image_bicubic_test.go: PASS rc=0
+image_cache_rewrite_test.go: PASS rc=0
+linear_diagonal_ramp_test.go: PASS rc=0
+msaa_load_store_test.go: PASS rc=0
+native_device_test.go: NO_TEST_FUNCS compile-only rc=0
+offscreen_pass_test.go: PASS rc=0
+offscreen_pool_r6_test.go: PASS rc=0
+oom_fallback_test.go: PASS rc=0
+opt19_packed_mesh_test.go: PASS rc=0
+opt21_layer_defer_submit_test.go: PASS rc=0
+opt22_indexed_mesh_test.go: PASS rc=0
+opt23_mesh_pack_test.go: PASS rc=0
+opt24_sticky_index_uniform_test.go: PASS rc=0
+opt25_contiguous_pack_test.go: PASS rc=0
+opt26_dualtex_bg_fontid_test.go: PASS rc=0
+opt27_gputex_bg_cache_test.go: PASS rc=0
+opt28_sticky_image_gputex_verts_test.go: PASS rc=0
+opt29_image_uniform_slab_test.go: PASS rc=0
+opt30_compact_convex_color_test.go: PASS rc=0
+opt31_fast_unorm_pack_test.go: PASS rc=0
+opt32_dual_tex_composite_encoder_test.go: PASS rc=0
+opt33_mesh_compact_stride_test.go: PASS rc=0
+opt34_shared_encoder_no_flush_leading_test.go: PASS rc=0
+opt35_filter_pass_uniform_slab_test.go: PASS rc=0
+opt36_filter_seed_shared_encoder_test.go: PASS rc=0
+opt37_dualtex_uniform_slab_test.go: PASS rc=0
+opt38_ensure_pipelines_ready_test.go: PASS rc=0
+opt39_convex_vert_sticky_test.go: PASS rc=0
+opt40_gputex_uniform_slab_test.go: PASS rc=0
+opt41_surface_rp_reuse_test.go: PASS rc=0
+opt42_dualtex_scratch_test.go: PASS rc=0
+opt44_filter_pass_rp_reuse_test.go: PASS rc=0
+p0_format_readback_test.go: PASS rc=0
+p1_device_box_test.go: PASS rc=0
+pass_bind_ledger_test.go: PASS rc=0
+path_convert_test.go: PASS rc=0
+path_geometry_cache_test.go: PASS rc=0
+pipeline_wiring_test.go: PASS rc=0
+present_stash_glyph_test.go: PASS rc=0
+r7_1_scratch_test.go: PASS rc=0
+r7_3_submit_coalesce_test.go: PASS rc=0
+r7_5_layout_template_test.go: PASS rc=0
+registry_retire_test.go: PASS rc=0
+render_pass_test.go: PASS rc=0
+render_session_test.go: PASS rc=0
+retire_queue_test.go: PASS rc=0
+ring_band_direction_test.go: PASS rc=0
+s4_cache_damage_test.go: PASS rc=0
+s6_2_submit_path_test.go: PASS rc=0
+s6_3_batch_deepen_test.go: PASS rc=0
+s6_5_text_atlas_test.go: PASS rc=0
+s6_6_path_geometry_test.go: PASS rc=0
+s6_7_resources_test.go: PASS rc=0
+scene_auto_test.go: PASS rc=0
+sdf_render_test.go: PASS rc=0
+sdf_transparent_test.go: PASS rc=0
+sparse_strips_test.go: PASS rc=0
+stencil_metal_repro_test.go: SKIP_TAGGED rc=0
+stencil_pipeline_test.go: PASS rc=0
+stencil_pool_prune_test.go: PASS rc=0
+stencil_render_test.go: PASS rc=0
+stencil_renderer_test.go: PASS rc=0
+stroke_fast_path_test.go: PASS rc=0
+stroke_width_test.go: PASS rc=0
+submission_gate_test.go: PASS rc=0
+tessellate_aa_test.go: PASS rc=0
+tessellate_test.go: PASS rc=0
+tex_shrink_r6_test.go: PASS rc=0
+text_pipeline_test.go: PASS rc=0
+texture_test.go: PASS rc=0
+transform_mask_isolate_test.go: PASS rc=0
+transform_mask_raster_test.go: PASS rc=0
+transform_uniform_test.go: PASS rc=0
+ttc_4face_mixed_repro_test.go: PASS rc=0
+ttc_cjk_gpu_repro_test.go: PASS rc=0
+ttc_cjk_repro_test.go: PASS rc=0
+varfont_atlas_test.go: PASS rc=0
+vello_accumulate_test.go: PASS rc=0
+vello_antialias_test.go: PASS rc=0
+vello_tiles_test.go: PASS rc=0
+video_yuv_pipeline_test.go: PASS rc=0
+view_raw_attack_test.go: PASS rc=0
+
+  subtotal: PASS=125 NO_TEST=5 SKIP_TAGGED=1 FAIL=0
+SUMMARY: PASS=220 NO_TEST=9 SKIP_TAGGED=18 FAIL=1

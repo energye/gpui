@@ -5,8 +5,8 @@ package gles
 import (
 	"testing"
 
-	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
-	"github.com/energye/gpui/gpu/gwgpu/naga/ir"
+	"github.com/energye/gpui/gpu/shader/glsl"
+	"github.com/energye/gpui/gpu/shader/ir"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 

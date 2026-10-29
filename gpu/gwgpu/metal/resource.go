@@ -15,8 +15,8 @@ package metal
 import (
 	"unsafe"
 
-	"github.com/energye/gpui/gpu/gwgpu/naga/ir"
 	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/shader/ir"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 

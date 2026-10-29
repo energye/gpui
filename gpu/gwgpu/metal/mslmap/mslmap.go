@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/energye/gpui/gpu/gwgpu/naga/ir"
-	"github.com/energye/gpui/gpu/gwgpu/naga/msl"
+	"github.com/energye/gpui/gpu/shader/ir"
+	"github.com/energye/gpui/gpu/shader/msl"
 )
 
 // msl.BindTarget stores the slot in a uint8. Real Metal devices allow only 31

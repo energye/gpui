@@ -1,0 +1,31 @@
+# P2.1 negative control: deleted packages/symbols must be unreachable
+# date: 2026-10-29T22:05:34+08:00
+
+# step 1: clean tree builds green
+# exit: 0
+
+# step 2: probe re-imports gpu/shader/spirv + gpu/gwgpu/naga (deleted trees)
+gpu/shader/zz_p21_negative_probe.go:4:2: no required module provides package github.com/energye/gpui/gpu/gwgpu/naga; to add it:
+	go get github.com/energye/gpui/gpu/gwgpu/naga
+gpu/shader/zz_p21_negative_probe.go:5:2: no required module provides package github.com/energye/gpui/gpu/shader/spirv; to add it:
+	go get github.com/energye/gpui/gpu/shader/spirv
+# exit: 1
+
+# step 3: probe references removed root symbols (Compile / GenerateSPIRV / CompileWithOptions)
+# github.com/energye/gpui/gpu/shader
+gpu/shader/zz_p21_negative_probe.go:4:6: undefined: Compile
+gpu/shader/zz_p21_negative_probe.go:5:6: undefined: CompileWithOptions
+gpu/shader/zz_p21_negative_probe.go:6:6: undefined: GenerateSPIRV
+# exit: 1
+
+# step 4: probe calls removed render/internal/gpu.CompileShaderToSPIRV
+# github.com/energye/gpui/render/internal/gpu
+render/internal/gpu/zz_p21_negative_probe.go:5:9: undefined: CompileShaderToSPIRV
+# exit: 1
+
+# step 5: probes removed, rebuild green
+# exit: 0
+
+# step 6: residual probe check
+zz_p21_negative_probe.go: removed clean
+zz_p21_negative_probe.go: removed clean

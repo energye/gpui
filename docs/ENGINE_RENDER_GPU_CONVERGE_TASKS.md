@@ -47,20 +47,20 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：**无**（P2.3 已于 2026-10-29 完成，证据落盘，等待提交确认）
-- 下一任务：P2.1 / P2.4a（P2.1–P2.3 可并行，P2.4a 依赖二者）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**（2026-10-29，附注）——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
-- 最近完成：P2.3 删老一代 GPU 场景渲染器闭合簇——10 源（6515 行）+ 10 测试（5635 行 / Test 156 / Bench 19）+ 7 WGSL（2071 行）删除，3 处存活面迁移，`doc.go` 重写；五目标构建绿、vet 61/58 与 P2.2 逐条一致、逐测试文件 0 FAIL、API −131/+0、负向对照红过复绿，见 `evidence/P2.3/summary.md`
-- 阻塞项：无（P2.3 待提交确认；GPU 真窗加强证据按计划留 P2.6 全量重放）
+- 当前进行中：**无**（P2.1 已完成并落盘，等提交确认）
+- 下一任务：P2.4a（依赖 P2.1–P2.3 已全部满足；P2.3 已提交 `4e348fd3`）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**（2026-10-29，附注）——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 最近完成：P2.1 shader 合并——naga 144 文件迁入 `gpu/shader`，删 `gpu/shader` 独有三后端 167 文件与 `gpu/gwgpu/naga` 目录，15 处 import 改路径，根 5 个 SPIR-V 符号与 `CompileShaderToSPIRV` 死函数删除；GLSL/MSL 快照 681 文件逐字节一致、GL 离屏 md5 不变、五目标构建绿、vet 61/58 不变、API 41→11 包、负向对照红过复绿，见 `evidence/P2.1/summary.md`
+- 阻塞项：无（GPU 真窗加强证据按计划留 P2.6 全量重放）
 
-**当前任务验证载体（P2.3 已完成，结果已回填）**
+**P2.1 收口载体（2026-10-29 已完成，评估见 `evidence/P2.1/assessment.md`，结果见 `summary.md`）**
 
-- 任务：P2.3 删 `render/internal/gpu` 老一代场景渲染器：10 源 + 10 测试 + 7 个旧 WGSL；`doc.go` 重写；最小存活面 3 处处理（`Backend` 精简落 `device.go`、4 个 `Stub*ID` 搬 `commands.go`、`MemoryManager` 钩子摘除）——**已全部执行**
-- 能力单测：无新增（能力替代核对见 `assessment.md` §0.1：8 项已由新实现承接，2 项特殊；走 §4.1 例外）；替代证据：① 每项能力的替代载体逐一列明（文件:行号）② 保留测试集合 131 文件 / 852 Test / 79 Bench，逐文件 125 PASS / 5 仅编译 / 1 标签排除 / 0 FAIL ③ P2.6 基线重放（待）
-- 真窗：无（§4.1 例外）；加强证据「1 扇 render 基类窗 + P1.4 金图对账」并入 P2.6 全量重放
-- 金图：无（同上）
-- 双后端：不适用（被删簇无 GPU 后端分支）；五目标交叉编译 + `-tags nogpu` + `go vet` 全绿（61/58 与 P2.2 逐条一致）
-- 负向对照：探针引用 `NewBackend`/`newGPURenderer`/`NewGPUSceneRenderer` → 编译必红；撤销后复绿、零残留（`evidence/P2.3/negative.txt`）
-- 证据：`evidence/P2.3/`（`assessment.md`、`summary.md`、`refs.tsv`、`build/`、`api-diff.txt`、`per-file-tests.txt`、`grep-residual.txt`、`negative.txt`、`vet-full-*.txt`、`tools/`）
+- 结果：迁移 144 文件 / 116,060 行（根 `naga.go`→`shader.go`，D1）；删 `gpu/shader` 独有三后端 167 文件 / 132,395 行与 `gpu/gwgpu/naga` 目录；根 SPIR-V 5 符号 + `CompileShaderToSPIRV` 删除（D3）；`GLSLVersionToNaga` 名保留（D2）；补根冒烟测试（D4）
+- 能力单测：naga 70 文件 / 2,139 Test / 21 Bench 全部随迁跑绿 + 新根冒烟；等价证明：GLSL/MSL 逐字节快照 681 文件 `diff -r` 为空（27 WGSL / 48 入口点 × GL330/430/450/ES300/ES310/ES320 + MSL 默认/mslmap）+ GL 离屏 md5 `59ca40337ff5e016579ea53a09549824` 不变
+- 真窗：本步零行为，按 §4.1 例外不新增；全量真窗重放归 P2.6
+- 金图：无新增；像素级等价用 `shader_pipeline_offscreen_test.go` md5 对 P1.3 基线
+- 双后端：webgpu WGSL 直通不变；gles 真实 GL 离屏 + GLSL 快照；metal 本机无 Metal，用 darwin 交叉编译（含测试文件 `go vet`）+ MSL 快照，真机归 P2.6/macOS
+- 负向对照：探针 import `gpu/shader/spirv`、`gpu/gwgpu/naga`、根 SPIR-V 符号、`CompileShaderToSPIRV` → 4 处全红；撤销复绿零残留
+- 证据：`evidence/P2.1/`（`assessment.md`、`summary.md`、`snapshot-*`、`build/`、`vet-*.txt`、`per-file-tests.txt`+notes、`api-diff.txt`、`grep-residual.txt`、`negative.txt`、`darwin-test-compile.txt`、`gl-offscreen-pixel.txt`、`tools/`）
 
 > 每次状态变更必须同时更新本小节；新会话从这里接着做，开工前先把上面这块换成新任务的载体登记。
 
@@ -82,7 +82,7 @@
 | P1.6 | 开窗/关窗/压测后显存账本快照 | P0.1、P0.2 | ✅ | `baseline/vram/` |
 | P1.7 | 首帧、滚动帧率、p95/p99 性能基线 | P0.1、P0.2 | ✅ | `baseline/perf/` |
 | P1.8 | 负向对照（改 1px / 少画一次 / 漏释放一次，确认门禁会红） | P1.3–P1.7 | ✅ | `baseline/negative/` |
-| P2.1 | shader 合并：naga 迁顶层 `gpu/shader`，删旧副本与 SPIR-V/HLSL/DXIL | P1.8 | ⬜ | `evidence/P2.1/` |
+| P2.1 | shader 合并：naga 迁顶层 `gpu/shader`，删旧副本与 SPIR-V/HLSL/DXIL | P1.8 | ✅ | `evidence/P2.1/` |
 | P2.2 | 删 `render/render` 旧原型；`FloatTarget` 迁 `render/hdr` | P1.8 | ✅ | `evidence/P2.2/` |
 | P2.3 | 删老一代 GPU 场景渲染器闭合簇 | P1.8 | ✅ | `evidence/P2.3/` |
 | P2.4a | 设备创建 / 选卡收敛（三份 → 一份） | P2.1–P2.3 | ⬜ | `evidence/P2.4a/` |
@@ -141,8 +141,9 @@
 | E3 | P1.4/P1.7 | 6 轮采不了档（NO_JSON / BUILD_FAIL）沿用 P1.4 登记 | 随 C2 及对应窗修复 | ⬜ |
 | F1 | P1.8 | 一致性台 `gpu_ops` 计数下限是 1，单次跳绘抓不住 | P2 收紧为用例精确 op 数 | ⬜ |
 | F2 | P1.8 | oom probe 的 `pre==post` 对「整体抬底」型泄漏不敏感（只对注入窗内单笔退款失败敏感） | P2 probe 语义补强 | ⬜ |
-| G1 | P2.3 | `gpu/shader/spirv/internal/codegen/shader_test.go` 6 个「生产 shader 编译」用例读 `../../gg/internal/gpu/shaders/*.wgsl`——该路径在本仓从未存在，一直 `t.Skipf` 空转；P2.3 删 4 份 shader 后其中 4 条永久失去目标，另 2 条（flatten/coarse/fine）也不能直接改读 `tilecompute/shaders/*`（阶段不同） | P2.1（shader 线：按新 WGSL 集合重指或删除空转用例） | ⬜ |
+| G1 | P2.3 | `gpu/shader/spirv/internal/codegen/shader_test.go` 6 个「生产 shader 编译」用例读 `../../gg/internal/gpu/shaders/*.wgsl`——该路径在本仓从未存在，一直 `t.Skipf` 空转；P2.3 删 4 份 shader 后其中 4 条永久失去目标，另 2 条（flatten/coarse/fine）也不能直接改读 `tilecompute/shaders/*`（阶段不同） | P2.1（shader 线） | ✅ 随 P2.1 删 `spirv/` 整包闭合（2026-10-29） |
 | G2 | P2.3 | `render/internal/gpu` 第二层老抽象：`command_encoder.go`/`commands.go`/`atlas.go`/`gpu_texture.go` 只被测试/示例可达，但 `RectAllocator`（`atlas.go`）被 `glyph_color_atlas.go` 用、`IndexFormat` 被 `render_pass.go` 用、`*RenderPass` 出现在 `text_pipeline.go` 签名 → 不是整块死代码，需逐符号拆解 | P2.4e（入口收敛） | ⬜ |
+| G3 | P2.1 | `gpu/gwgpu/gles/present_damage_x11_test.go:TestPresentDamageX11` 在当前 X11/NVIDIA 环境失败（`partial present never engaged: full=12 partial=0`，另一次表现为 `BadMatch` on `X_GetImage`）；在改动前 `4e348fd3` 干净 worktree 上同断言失败，与 P2.1 无因果 | GL 增量呈现线（诊断 EGL 局部提交为何未启用） | ⬜ |
 
 ## 3 每个任务的开工条件与完成标准
 
@@ -412,6 +413,8 @@ docs/render_gpu_converge/
 | 2026-10-29 | P2 待办池 | 建池：§2.2 收 **23 项**——审计 4 项新发现（A1–A4）+ P1 期间散落的真窗/测试/性能/门禁覆盖面登记；A1（AGENTS.md:78 过时 Vram 描述）当场修正 | 台账 §2.2；AGENTS.md:78；审计其余发现归位见各 baseline summary（tests §4、vram §3、perf §4、negative 结论） |
 | 2026-10-29 | P2.2 | 🟡→✅ 删 `render/render` 15 文件（含测试/testdata，PLAN §7.7 白名单），`FloatTarget` 迁 `render/hdr` | `evidence/P2.2/`：迁移前 `render/render` 86 PASS / 迁移后 `render/hdr` 3 PASS（`TestFloatTargetSoftwareDeclines` 的被测对象随包删除）；五目标默认/nogpu 主体与库范围 351/347/141、357/353/140、349/345/140 全绿，与 P1.1b **逐项一致**，加载失败 0；全仓 vet 默认 61 / nogpu 58 与 P1.2 逐条一致；残留 grep rc=1 零引用；API 快照 352 包仅 `render/render.txt` 消失 + `render/hdr.txt` 新增（其余 350 份逐字节不变），测试 1397→1390 文件 / 14388→14302 函数（差=被删 8 文件/89 函数 − 新包 1 文件/3 函数）；负向对照：临时 `import "…/render/render"` 编译红 → 删除探针复绿零残留。无真窗：零生产消费者死代码删除，按 §4.1 例外，P2.6 基线重放复核。文档同步：`RENDER_API_CATALOG.md` §0/§7.2/§9 注、`ENGINE_UI_WIDGET_RENDER.md` §10、apidoc rc=0 |
 | 2026-10-29 | P2.3 | 🟡→✅ 删老一代 GPU 场景渲染器闭合簇（10 源 6515 行 + 10 测试 5635 行 + 7 WGSL 2071 行；3 处存活面迁移；`doc.go` 重写） | `evidence/P2.3/`：删前先做能力替代核对（§0.1：8 项有新载体、2 项特殊——`PipelineCacheCore` 真实创建被注释从未工作，`MemoryManager` 功能完整但唯一实例化点在旧渲染器内、能力已分域承接），确认「功能等价」后执行；`Backend` 精简落 `device.go`（字段名不变，7 处既有测试零改动）、4 个 `Stub*ID` 搬 `commands.go`、`GPUTexture` 摘 manager 钩子；`benchmark_test.go` 12→1（留 `BenchmarkSceneCreation`）；五目标构建 step3/4 全绿（raw `./...` 仅 `ui_wr_t_stress` 缺组件红）、vet 61/58 与 P2.2 **逐条一致**；逐测试文件 131 个：125 PASS / 5 仅编译 / 1 构建标签排除 / **0 FAIL**；API `render/internal/gpu` 761→630 符号（**−131 / +0**），测试 141/1008/109 → **131/852/79**，其余包零差异；负向对照 `NewBackend`/`newGPURenderer`/`NewGPUSceneRenderer` 编译红 → 撤销复绿零残留；`webgpu.CreateInstance` 白名单 4→3。无真窗：删除不触生产路径，按 §4.1 例外，1 扇基类窗金图对账并入 P2.6。公开 API 零变化（仅 internal 包）。归位：C2 移出本任务、D2 两组已结、新增 G1（spirv 空转用例）/G2（第二层老抽象） |
+| 2026-10-29 | P2.1 | ⬜→🟡 开工；影响面评估落盘（未动工作区） | `evidence/P2.1/assessment.md`：两树同名 138 文件（128 仅 import 差、10 处真实差且方向全是 naga 更新：能力校验/swizzle 赋值/MSL 括号/64 位原子）；`gpu/shader` 独有 140 文件（57 源 + 83 测试，126,048 行）全是 SPIR-V/HLSL/DXIL 后端；合并后包 41→11、路径限定符号 1386→428（−962/+4）、测试 240/5850/68/4 → 70/2139/21/0（−170/−3711/−47/−4）；快照探针预演 27 WGSL/48 入口点/681 文件，两次逐字节一致；`gpu/shader` 根连带删 5 个 SPIR-V 符号、`render/internal/gpu` 连带删 `CompileShaderToSPIRV`（0 调用）——待 D1–D4 拍板后执行 |
+| 2026-10-29 | P2.1 | 🟡→✅ 迁移完成：naga 144 文件落 `gpu/shader`，删三后端 167 文件 + 5 个根 SPIR-V 符号 + `CompileShaderToSPIRV`，15 处 import 改路径，补根冒烟（D4） | `evidence/P2.1/summary.md`：GLSL/MSL 快照 **681 文件逐字节一致**（sha256 清单相等、diff rc=0）、GL 离屏 md5 `59ca40…9824` 不变；五目标 step3/4 全绿（raw 仅 `ui_wr_t_stress` 缺组件红）、vet **61/58 逐条不变**；逐测试文件 248 个：220 PASS / 9 仅编译 / 18 构建标签排除 / **1 FAIL 为既有环境红**（`TestPresentDamageX11` 在 `4e348fd3` 同样失败，登记 G3）；API 41→11 包，根 9→5 符号（−5 SPIR-V / +`LowerWithCapabilities`），`ir` 增能力 API，`render/internal/gpu` 761→629（−132/+0 = P2.3 131 + 死函数 1），322 包同集合测试 1226→1210 文件 / 10,600→10,353 函数；负向对照 4 探针全红、撤销复绿零残留；残留 grep 全 0（唯一 `naga.` 为注释）；G1 随 `spirv/` 整包删除闭合。无真窗（零行为，§4.1 例外），P2.6 全量重放 |
 
 ## 8 修订记录
 
@@ -429,3 +432,4 @@ docs/render_gpu_converge/
 | 2026-10-29 | P1.7 收口：性能基线落盘 `baseline/perf/`，首帧 0 FAIL、A 族超限 4 轮与 P1.4 零冲突、字段两代命名定性并别名映射；§2.1 焦点切到 P1.8 |
 | 2026-10-29 | 新增 §2.2 P2 待办池：审计 4 项新发现 + P1 散落「登记 P2」条目统一收口（23 项）；§2.1 注明 P2 开工先取池；P1.7/P1.8 两条流水从 §8 末尾归位回 §7；AGENTS.md:78 Vram 描述按代码事实修正（hal 账本 + rwgpu/gles 双端真实记账） |
 | 2026-10-29 | P2.3 收口：删除依据从「无生产消费者」改为「能力替代核对」（§0.1 逐项载体），确认功能等价后执行；修正评估 §5 测试计数 142→147（+integration 9 = 156）；C2 移出 P2.3 归组件线，D2 两组已结，新增 G1（spirv 空转用例）/G2（第二层老抽象） |
+| 2026-10-29 | P2.1 收口：按用户拍板 D1（根文件改 `shader.go`）/D2（`GLSLVersionToNaga` 留 P5）/D3（删根 SPIR-V API + `CompileShaderToSPIRV`）/D4（补根冒烟）执行；GLSL/MSL 快照 681 文件逐字节一致、GL 离屏 md5 不变、vet 61/58 不变、API 41→11 包；G1 随 `spirv/` 整包删除闭合；新增 G3（`TestPresentDamageX11` 既有环境红，`4e348fd3` 复现）；§2.1 焦点切到 P2.4a |

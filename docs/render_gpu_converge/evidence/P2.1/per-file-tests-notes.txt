@@ -1,0 +1,26 @@
+# P2.1 逐测试文件跑批补充说明（2026-10-29）
+
+## 1. metal 包 12 个测试文件在 linux 上不可执行（SKIP_TAGGED）
+
+`gpu/gwgpu/metal/*_test.go` 全部带 `//go:build darwin`，linux 上该包没有生效的测试文件，
+`go test` 打印 `? ... [no test files]`，脚本按 SKIP_TAGGED 计。它们的 darwin 编译由
+`darwin-test-compile.txt` 补证（GOOS=darwin amd64/arm64 下对 `./gpu/gwgpu/metal/...`、
+`./gpu/gwgpu/metal/mslmap`、`./gpu/shader/msl/internal/codegen` 跑 `go vet`，vet 会连测试文件一起类型检查，全部 exit 0）。
+`gpu/shader/msl/internal/codegen/msl_xcrun_test.go`（`//go:build darwin`）同理。
+
+## 2. 唯一 FAIL：gles `TestPresentDamageX11` 是迁移前既有环境性失败
+
+失败断言：`partial present never engaged: full=12 partial=0`（EGL 局部增量呈现没启用）。
+该用例只走 X11 窗 + EGL 增量提交，不碰 shader 工具链；P2.1 对 gles 源码只改了 import 路径。
+
+对照实验：在 P2.1 改动之前的提交 `4e348fd3` 上开干净 worktree
+（`/home/yanghy/app/projects/gogpu/gpui-p21-base`，`GOWORK=off`），同一用例报同一断言失败：
+
+```
+$ cd .../gpui-p21-base/gpu/gwgpu/gles && GOWORK=off go test -count=1 -v -run '^TestPresentDamageX11$' .
+present_damage_x11_test.go:235: partial present never engaged: full=12 partial=0
+--- FAIL: TestPresentDamageX11 (1.58s)
+```
+
+原始输出：`present_damage_x11-baseline-4e348fd3.txt`。
+结论：与 P2.1 无因果，属 GL 增量呈现线在当前 X11/NVIDIA 环境下的既有红，已登记进台账池，归该线处理。

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
-	"github.com/energye/gpui/gpu/gwgpu/naga/ir"
+	"github.com/energye/gpui/gpu/shader/glsl"
+	"github.com/energye/gpui/gpu/shader/ir"
 )
 
 // WGSL 输入一律读 testdata，不在测试里硬编码标准数据。

@@ -20,8 +20,8 @@ import (
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/egl"
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
-	"github.com/energye/gpui/gpu/gwgpu/naga/glsl"
 	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/shader/glsl"
 	gputypes "github.com/energye/gpui/gpu/types"
 )
 

@@ -1,0 +1,121 @@
+# P2.1 residual grep (Go code + shell/test data, excluding /docs/ evidence)
+# date: 2026-10-29T22:03:00+08:00
+
+## deleted import paths
+gpu/gwgpu/naga                     hits=0
+gpu/shader/spirv                   hits=0
+gpu/shader/hlsl                    hits=0
+gpu/shader/dxil                    hits=0
+gpu/shader/internal/backend        hits=0
+gpu/shader/internal/dxcvalidator   hits=0
+
+## deleted root symbols (P2.1 D3) and old package qualifier
+CompileShaderToSPIRV       hits=0
+CompileWithOptions         hits=0
+GenerateSPIRV              hits=0
+dxcvalidator               hits=0
+naga.                      hits=1
+    ./gpu/shader/wgsl/internal/lower/lower.go:9329:	// after compact the expression ordering matches Rust naga. When handles are
+
+## note: the single 'naga.' hit is a code comment in
+##       gpu/shader/wgsl/internal/lower/lower.go:9329 ('matches Rust naga'), not a qualifier.
+## note: root shader.Compile is intentionally gone (SPIR-V only);
+##       msl.DefaultOptions / glsl.Compile remain and are the live API.
+
+## deleted dirs on disk
+gpu/gwgpu/naga: absent
+gpu/shader/spirv: absent
+gpu/shader/hlsl: absent
+gpu/shader/dxil: absent
+gpu/shader/internal/backend: absent
+gpu/shader/internal/dxcvalidator: absent
+
+## temporary snapshot work dirs (must be absent before commit)
+.p21_tmp: absent
+.p21_tmp_after: absent
+
+## live importers of the merged package
+./gpu/gwgpu/gles/binding_test.go
+./gpu/gwgpu/gles/capabilities.go
+./gpu/gwgpu/gles/device.go
+./gpu/gwgpu/gles/device_linux.go
+./gpu/gwgpu/gles/resource.go
+./gpu/gwgpu/gles/shader.go
+./gpu/gwgpu/gles/shader_cache_test.go
+./gpu/gwgpu/gles/shader_pipeline_offscreen_test.go
+./gpu/gwgpu/gles/version_test.go
+./gpu/gwgpu/metal/compute_test.go
+./gpu/gwgpu/metal/device.go
+./gpu/gwgpu/metal/encoder_test.go
+./gpu/gwgpu/metal/mslmap/mslmap.go
+./gpu/gwgpu/metal/mslmap/mslmap_test.go
+./gpu/gwgpu/metal/resource.go
+./gpu/shader/glsl/glsl.go
+./gpu/shader/glsl/internal/codegen/backend.go
+./gpu/shader/glsl/internal/codegen/backend_test.go
+./gpu/shader/glsl/internal/codegen/bench_test.go
+./gpu/shader/glsl/internal/codegen/compile_test.go
+./gpu/shader/glsl/internal/codegen/continue_forward_test.go
+./gpu/shader/glsl/internal/codegen/coverage_test.go
+./gpu/shader/glsl/internal/codegen/expressions.go
+./gpu/shader/glsl/internal/codegen/expressions_test.go
+./gpu/shader/glsl/internal/codegen/features.go
+./gpu/shader/glsl/internal/codegen/features_test.go
+./gpu/shader/glsl/internal/codegen/reachability.go
+./gpu/shader/glsl/internal/codegen/reachability_test.go
+./gpu/shader/glsl/internal/codegen/statements.go
+./gpu/shader/glsl/internal/codegen/statements_test.go
+./gpu/shader/glsl/internal/codegen/struct_io_test.go
+./gpu/shader/glsl/internal/codegen/texture_sampler_test.go
+./gpu/shader/glsl/internal/codegen/types.go
+./gpu/shader/glsl/internal/codegen/types_test.go
+./gpu/shader/glsl/internal/codegen/unsupported_test.go
+./gpu/shader/glsl/internal/codegen/writer.go
+./gpu/shader/glsl/internal/codegen/writer_utils_test.go
+./gpu/shader/internal/registry/registry.go
+./gpu/shader/internal/registry/registry_test.go
+./gpu/shader/msl/internal/codegen/backend.go
+./gpu/shader/msl/internal/codegen/backend_test.go
+./gpu/shader/msl/internal/codegen/bench_test.go
+./gpu/shader/msl/internal/codegen/coverage_test.go
+./gpu/shader/msl/internal/codegen/expressions.go
+./gpu/shader/msl/internal/codegen/expressions_test.go
+./gpu/shader/msl/internal/codegen/functions.go
+./gpu/shader/msl/internal/codegen/int64_atomics_test.go
+./gpu/shader/msl/internal/codegen/msl_integration2_test.go
+./gpu/shader/msl/internal/codegen/msl_integration3_test.go
+./gpu/shader/msl/internal/codegen/msl_integration4_test.go
+./gpu/shader/msl/internal/codegen/msl_integration5_test.go
+./gpu/shader/msl/internal/codegen/msl_integration7_test.go
+./gpu/shader/msl/internal/codegen/msl_integration8_test.go
+./gpu/shader/msl/internal/codegen/msl_integration_test.go
+./gpu/shader/msl/internal/codegen/msl_xcrun_test.go
+./gpu/shader/msl/internal/codegen/pipeline_constants.go
+./gpu/shader/msl/internal/codegen/pipeline_constants_test.go
+./gpu/shader/msl/internal/codegen/statements.go
+./gpu/shader/msl/internal/codegen/statements_test.go
+./gpu/shader/msl/internal/codegen/types.go
+./gpu/shader/msl/internal/codegen/types_test.go
+./gpu/shader/msl/internal/codegen/unsupported_test.go
+./gpu/shader/msl/internal/codegen/vertex_pulling.go
+./gpu/shader/msl/internal/codegen/writer.go
+./gpu/shader/msl/msl.go
+./gpu/shader/shader.go
+./gpu/shader/shader_test.go
+./gpu/shader/wgsl/internal/lower/bench_test.go
+./gpu/shader/wgsl/internal/lower/coverage10_test.go
+./gpu/shader/wgsl/internal/lower/coverage2_test.go
+./gpu/shader/wgsl/internal/lower/coverage3_test.go
+./gpu/shader/wgsl/internal/lower/coverage4_test.go
+./gpu/shader/wgsl/internal/lower/coverage5_test.go
+./gpu/shader/wgsl/internal/lower/coverage6_test.go
+./gpu/shader/wgsl/internal/lower/coverage7_test.go
+./gpu/shader/wgsl/internal/lower/coverage8_test.go
+./gpu/shader/wgsl/internal/lower/coverage9_test.go
+./gpu/shader/wgsl/internal/lower/coverage_test.go
+./gpu/shader/wgsl/internal/lower/deduplication_test.go
+./gpu/shader/wgsl/internal/lower/lower.go
+./gpu/shader/wgsl/internal/lower/lower_test.go
+./gpu/shader/wgsl/internal/lower/lower_type_inference_test.go
+./gpu/shader/wgsl/internal/lower/swizzle_assignment_test.go
+./gpu/shader/wgsl/wgsl.go
