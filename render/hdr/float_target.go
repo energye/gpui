@@ -8,7 +8,8 @@
 //
 //----------------------------------------
 
-package render
+// Package hdr holds CPU-side linear HDR render targets.
+package hdr
 
 import (
 	"errors"
@@ -18,8 +19,14 @@ import (
 	"github.com/energye/gpui/gpu/types"
 )
 
+// TextureView is the GPU-side view a target would expose. FloatTarget is
+// CPU staging only, so its TextureView method returns nil.
+type TextureView interface {
+	Destroy()
+}
+
 // Float budgets. Over-area targets report an error at construction;
-// the 8-bit PixmapTarget path never sees this file.
+// 8-bit targets never see this file.
 const (
 	// MaxFloatDimension caps one side of a float target.
 	MaxFloatDimension = 8192
@@ -29,10 +36,9 @@ const (
 
 // FloatTarget is a CPU-backed linear HDR render target (S66, 9.1 thaw).
 // Each texel is 4 float32s (R,G,B,A); values above 1.0 are legal light,
-// not clamped storage. It implements RenderTarget with the RGBA16Float
-// format tag, but Pixels returns nil on purpose: the 8-bit software
-// renderer refuses it, so the old main road cannot wander in by mistake.
-// Only new S66 code paths touch FloatPixels and Encode.
+// not clamped storage. It reports the RGBA16Float format tag, and Pixels
+// returns nil on purpose so 8-bit (RGBA8/BGRA8) paths can never mistake
+// it for a byte target. Only HDR paths touch FloatPixels and Encode.
 type FloatTarget struct {
 	w, h int
 	pix  []float32
@@ -42,7 +48,7 @@ type FloatTarget struct {
 // black. Non-positive sizes or over-budget areas are errors, never a
 // half-built target.
 func NewFloatTarget(w, h int) (*FloatTarget, error) {
-	const op = "render.NewFloatTarget"
+	const op = "hdr.NewFloatTarget"
 	if w <= 0 || h <= 0 || w > MaxFloatDimension || h > MaxFloatDimension {
 		return nil, errors.New(op + ": bad size")
 	}
@@ -67,7 +73,7 @@ func (t *FloatTarget) Format() types.TextureFormat {
 // TextureView returns nil: CPU-side staging only in this thaw.
 func (t *FloatTarget) TextureView() TextureView { return nil }
 
-// Pixels returns nil: no 8-bit backing, the software renderer declines.
+// Pixels returns nil: no 8-bit backing.
 func (t *FloatTarget) Pixels() []byte { return nil }
 
 // Stride returns the bytes per row (width times 16).
@@ -121,7 +127,7 @@ func (t *FloatTarget) ClearFloat(c [4]float32) bool {
 // This is the screenshot-vs-design compare path: HDR explains itself,
 // 8-bit stays the comparison language.
 func (t *FloatTarget) Encode(exposure float64) (*image.RGBA, error) {
-	const op = "render.FloatTarget.Encode"
+	const op = "hdr.FloatTarget.Encode"
 	if math.IsNaN(exposure) || math.IsInf(exposure, 0) || exposure <= 0 || exposure > MaxEncodeExposure {
 		return nil, errors.New(op + ": bad exposure")
 	}

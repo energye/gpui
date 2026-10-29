@@ -47,18 +47,14 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无——**P1 基线冻结全部收口并已打正式基线 tag**（P0.1–P0.4、P1.1–P1.2b、P1.3–P1.8 全 ✅）
-- 下一任务：P2 收敛整合（P2.1–P2.3 可并行开工）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**（2026-10-29，附注）——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7；**P2 开工前先取 §2.2 待办池**，取走一项即在本节按 §4.2 登记载体并把状态改 🟡
-- 最近完成：P1.8 负向对照（2026-10-29，`baseline/negative/`）：三种破坏全转红——偏移 1px（像素断言双后端红）、跳过一次绘制（红；gpu_ops 计数下限 1 抓不住单跳，登记 P2）、少释放一次（K1 上界收紧让账本断言双后端红）；全部还原复绿、代码零残留；§8.2 阈值文件变异对（22→4 红 / 30→0 漏报 / 还原→4 报警）成立；机器校验 9 断言 ALL PASS
+- 当前进行中：无——**P2.2 已完成**（2026-10-29，证据 `evidence/P2.2/`）；下一项从 §2.2 待办池取，取走一项即在本节按 §4.2 登记载体并把状态改 🟡；P0.1–P0.4、P1.1–P1.2b、P1.3–P1.8 仍全 ✅，P1 基线冻结收口
+- 下一任务：P2 收敛整合（P2.1–P2.3 可并行开工）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**（2026-10-29，附注）——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 最近完成：P2.2 删 `render/render`（15 文件 + 测试/testdata）并把 `FloatTarget` 迁 `render/hdr`——五目标编译与 P1.1b 逐项一致、全仓 vet 61/58 不变、API 快照仅白名单差异、负向对照红过复绿
 - 阻塞项：无
 
 **下一任务验证载体（开工前必须填，不填不得开工）**
 
-- 任务：P1 收口动作——正式基线 tag（P2.1–P2.3 开工前置）✅ 已完成
-- 判据：tag 打在 P1 全部证据的最新提交 `92ca9216` 上，名称 `baseline-p1`（用户 2026-10-29 确认）
-- 真窗 / 金图 / 双后端 / 负向对照：无新增采集（P1 已全部收口）
-- 证据：tag `baseline-p1` + `baseline/rollback.md` §7 登记 + 本行
-- 边界：tag 不推送（推送需用户确认）
+- 待登记：从 §2.2 池取下一项后，按 §4.2 模板替换本块（任务 / 能力单测 / 真窗 / 金图容差 / 双后端 / 负向对照 / 证据目录）
 
 > 每次状态变更必须同时更新本小节；新会话从这里接着做，开工前先把上面这块换成新任务的载体登记。
 
@@ -81,7 +77,7 @@
 | P1.7 | 首帧、滚动帧率、p95/p99 性能基线 | P0.1、P0.2 | ✅ | `baseline/perf/` |
 | P1.8 | 负向对照（改 1px / 少画一次 / 漏释放一次，确认门禁会红） | P1.3–P1.7 | ✅ | `baseline/negative/` |
 | P2.1 | shader 合并：naga 迁顶层 `gpu/shader`，删旧副本与 SPIR-V/HLSL/DXIL | P1.8 | ⬜ | `evidence/P2.1/` |
-| P2.2 | 删 `render/render` 旧原型；`FloatTarget` 迁 `render/hdr` | P1.8 | ⬜ | `evidence/P2.2/` |
+| P2.2 | 删 `render/render` 旧原型；`FloatTarget` 迁 `render/hdr` | P1.8 | ✅ | `evidence/P2.2/` |
 | P2.3 | 删老一代 GPU 场景渲染器闭合簇 | P1.8 | ⬜ | `evidence/P2.3/` |
 | P2.4a | 设备创建 / 选卡收敛（三份 → 一份） | P2.1–P2.3 | ⬜ | `evidence/P2.4a/` |
 | P2.4b | 预算统一（六口径 → 一套 Budget，按域分账） | P2.4a | ⬜ | `evidence/P2.4b/` |
@@ -406,6 +402,7 @@ docs/render_gpu_converge/
 | 2026-10-29 | P1.8 | ⬜→✅ 负向对照三破坏全红 + §8.2 阈值变异对成立 | `baseline/negative/`：①偏移 1px（`GPUI_NEG_SHIFT_1PX=1` 临时补丁）→ 像素断言双后端红（coverage 0.92/0.87 ≠ 1.00）；②跳过一次绘制（`GPUI_NEG_SKIP_DRAW=1`）→ 红，诚实发现 `gpu_ops` 计数下限 1 抓不住单跳（计数收紧登记 P2）；③少释放一次 → K1 释放缺口真实现场（solid_gradient 每轮 +2 条/+131072B），把用例 JSON 放宽上界临时收紧 131072→0 → resource 断言双后端红，还原即绿；第一方案（全局跳 VramForget）不红的 probe 语义覆盖面发现（pre==post 对整体抬底不敏感）登记 P2。三破坏全部当场还原、代码零残留、复绿留档。§8.2：extractor 的 p95 门禁改为读 thresholds.md（阈值文件承重），22→4 红 / 30→0 漏报 / 还原→4 报警成对成立，thresholds.md 零残留。机器校验 `tools/verify_negative.py` 9 断言 **ALL PASS** 幂等。P1 基线冻结全部收口，待打正式基线 tag |
 | 2026-10-29 | P1 收口 | 正式基线 tag `baseline-p1` 打在 `92ca9216`（附注；P2 起分支点/回滚锚点/P2.6 对账基准） | `baseline/rollback.md` §7 登记用途与回退方法；tag 本体信息见 `git show baseline-p1` |
 | 2026-10-29 | P2 待办池 | 建池：§2.2 收 **23 项**——审计 4 项新发现（A1–A4）+ P1 期间散落的真窗/测试/性能/门禁覆盖面登记；A1（AGENTS.md:78 过时 Vram 描述）当场修正 | 台账 §2.2；AGENTS.md:78；审计其余发现归位见各 baseline summary（tests §4、vram §3、perf §4、negative 结论） |
+| 2026-10-29 | P2.2 | 🟡→✅ 删 `render/render` 15 文件（含测试/testdata，PLAN §7.7 白名单），`FloatTarget` 迁 `render/hdr` | `evidence/P2.2/`：迁移前 `render/render` 86 PASS / 迁移后 `render/hdr` 3 PASS（`TestFloatTargetSoftwareDeclines` 的被测对象随包删除）；五目标默认/nogpu 主体与库范围 351/347/141、357/353/140、349/345/140 全绿，与 P1.1b **逐项一致**，加载失败 0；全仓 vet 默认 61 / nogpu 58 与 P1.2 逐条一致；残留 grep rc=1 零引用；API 快照 352 包仅 `render/render.txt` 消失 + `render/hdr.txt` 新增（其余 350 份逐字节不变），测试 1397→1390 文件 / 14388→14302 函数（差=被删 8 文件/89 函数 − 新包 1 文件/3 函数）；负向对照：临时 `import "…/render/render"` 编译红 → 删除探针复绿零残留。无真窗：零生产消费者死代码删除，按 §4.1 例外，P2.6 基线重放复核。文档同步：`RENDER_API_CATALOG.md` §0/§7.2/§9 注、`ENGINE_UI_WIDGET_RENDER.md` §10、apidoc rc=0 |
 
 ## 8 修订记录
 

@@ -1,0 +1,7 @@
+# P2.2 residual grep (code references only)
+# command: grep -rn "render/render" --exclude-dir=third_party --exclude-dir=.git --exclude-dir=docs --include=*.go --include=*.sh --include=*.yml --include=*.yaml --include=Makefile .
+# rc=1 (1 = no code match)
+
+# note: tools/cleanup-audit/t2_exports.json (T0 审计快照数据, 2026-10-07) still lists
+# render/render/*.go as evidence paths. It is tool output data, not a Go import and not
+# part of any build; left as historical snapshot (refresh belongs to the T0 tool line).

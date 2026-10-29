@@ -1,0 +1,17 @@
+# P2.2 negative control: re-add a dead import of the deleted package
+# date: 2026-10-29T18:59:17+08:00
+# step 1: clean tree builds green
+# exit: 0
+
+# step 2: add render/hdr/zz_p22_negative_probe.go with _ "github.com/energye/gpui/render/render"
+render/hdr/zz_p22_negative_probe.go:3:8: no required module provides package github.com/energye/gpui/render/render; to add it:
+	go get github.com/energye/gpui/render/render
+# exit: 1
+
+# step 3: remove probe, rebuild
+# exit: 0
+
+# step 4: residual check
+# probe removed: clean
+# residual grep (code refs to render/render):
+# grep rc: 1 (1 = none)

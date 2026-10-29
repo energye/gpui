@@ -8,7 +8,7 @@
 //
 //----------------------------------------
 
-package render
+package hdr
 
 import (
 	"encoding/json"
@@ -55,23 +55,6 @@ func TestFloatTargetConstruct(t *testing.T) {
 	}
 	if tg.ClearFloat([4]float32{1, 1, 1, 1}); false {
 		t.Fatal("unreachable")
-	}
-}
-
-// B: software renderer declines the float branch (old road untouched).
-func TestFloatTargetSoftwareDeclines(t *testing.T) {
-	tg, err := NewFloatTarget(4, 4)
-	if err != nil {
-		t.Fatalf("build: %v", err)
-	}
-	sr := NewSoftwareRenderer()
-	if err := sr.Render(tg, NewScene()); err == nil {
-		t.Fatal("software must decline float target")
-	}
-	// The 8-bit road still renders fine.
-	px := NewPixmapTarget(4, 4)
-	if err := sr.Render(px, NewScene()); err != nil {
-		t.Fatalf("8-bit road must still work: %v", err)
 	}
 }
 

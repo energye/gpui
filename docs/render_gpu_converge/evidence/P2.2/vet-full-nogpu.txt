@@ -1,0 +1,69 @@
+# P2.2 full-repo go vet, -tags nogpu (P1.2b package list, render/render -> render/hdr)
+# date: 2026-10-29T19:19:08+08:00
+# pkgs: 348
+# head: 51b9a5f6 dirty=28
+# github.com/energye/gpui/render/internal/gpu/res
+# [github.com/energye/gpui/render/internal/gpu/res]
+render/internal/gpu/res/view_test.go:12:8: possible misuse of unsafe.Pointer
+render/internal/gpu/res/view_test.go:13:8: possible misuse of unsafe.Pointer
+# github.com/energye/gpui/ui/platform
+# [github.com/energye/gpui/ui/platform]
+ui/platform/wayland_clipboard_linux.go:172:30: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_linux.go:1211:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_linux.go:1215:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_linux.go:1219:27: possible misuse of unsafe.Pointer
+ui/platform/wayland_cursor_linux.go:274:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_cursor_linux.go:279:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_cursor_linux.go:284:30: possible misuse of unsafe.Pointer
+ui/platform/wayland_keyboard_linux.go:223:28: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1025:27: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1366:21: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1367:22: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1372:19: possible misuse of unsafe.Pointer
+ui/platform/wayland_linux.go:1424:17: possible misuse of unsafe.Pointer
+ui/platform/wayland_output_linux.go:66:26: possible misuse of unsafe.Pointer
+ui/platform/wayland_pointer_linux.go:187:27: possible misuse of unsafe.Pointer
+ui/platform/wayland_seat_linux.go:120:24: possible misuse of unsafe.Pointer
+ui/platform/wayland_textinput_linux.go:489:22: possible misuse of unsafe.Pointer
+ui/platform/wayland_textinput_linux.go:600:21: possible misuse of unsafe.Pointer
+ui/platform/wayland_touch_linux.go:117:25: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:157:30: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:210:33: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:217:30: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:223:35: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:228:26: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:352:33: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:356:30: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:363:35: possible misuse of unsafe.Pointer
+ui/platform/x11_device_linux.go:368:22: possible misuse of unsafe.Pointer
+ui/platform/x11_linux.go:1919:44: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:113:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:114:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:115:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:116:30: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:266:31: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:267:31: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:271:26: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:272:26: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:277:23: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:285:22: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:292:18: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:295:22: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:296:21: possible misuse of unsafe.Pointer
+ui/platform/x11_randr_linux.go:297:21: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:173:27: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:176:31: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:222:33: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:228:30: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:234:38: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:303:33: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:310:30: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:316:38: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:427:31: possible misuse of unsafe.Pointer
+ui/platform/x11_stylus_linux.go:439:36: possible misuse of unsafe.Pointer
+ui/platform/probe_cursor_theme_test.go:43:25: possible misuse of unsafe.Pointer
+ui/platform/probe_cursor_theme_test.go:44:37: possible misuse of unsafe.Pointer
+ui/platform/wayland_csd_behavior_test.go:455:20: possible misuse of unsafe.Pointer
+# exit: 1
+# warning lines (unsafe.Pointer|unreachable):
+58

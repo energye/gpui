@@ -1,6 +1,6 @@
 # render 公开 API 目录（RENDER_API_CATALOG）
 
-> **一句话**：这是 `render/`（含 `render/text`、`render/scene`、`render/recording`、`render/svg`、`render/filters`、`render/gpu`）全部公开 API 的总账，并标注「已接线 / 未接线 / 半成品 / 仅测试」状态。
+> **一句话**：这是 `render/`（含 `render/text`、`render/scene`、`render/recording`、`render/svg`、`render/filters`、`render/gpu`、`render/hdr`）全部公开 API 的总账，并标注「已接线 / 未接线 / 半成品 / 仅测试」状态。
 >
 > **维护义务（硬）**：**每次增加、修改、删除 render 公开 API（功能或签名），或改变其接线状态，必须同步更新本文件**（新增/变更的行写进对应分类表 + 更新 §7 状态表），并在主体文档 `docs/ENGINE_UI_WIDGET_RENDER.md` §10 修订表追加一行。判定「公开 API」的口径：`go doc ./render`（以及各子包 `go doc ./render/xxx`）可见的顶层符号与导出方法；方法级变更需同步 §3 与 §8 方法速查表。
 >
@@ -28,6 +28,7 @@
 | `render/svg` | 顶层 15 | 🔌 直调真窗 `ui_render_base_svg` | 图标风 SVG 渲染（Render/RenderWithColor/Parse）；生产消费者仍为零 |
 | `render/filters` | 0（仅 init 副作用注册） | 🔗 经 render/gpu 副作用注册 | 让 DC.ApplyBlur 等可用；ui 侧 facade 无生产调用 |
 | `render/gpu` | 顶层 12（8 函数 + 1 类型 + 3 常量，go doc 实数） | 🔗 真窗/门禁全量接线 | GPU 加速注册 + 设备生命周期（2026-09-05 1.2：适配器策略 AdapterPolicy 等 13 符号搬入 render 主包） |
+| `render/hdr` | 类型 2（`FloatTarget`/`TextureView`）· 顶层函数 1（`NewFloatTarget`）· 常量 3（`MaxFloatDimension`/`MaxFloatPixels`/`MaxEncodeExposure`）· `FloatTarget` 导出方法 11（2026-10-29 P2.2 从 `render/render` 迁入，`go doc -all` 实测） | 🔌 无生产消费者（仅迁移随行的 3 条单测） | CPU 侧线性 HDR 渲染目标：RGBA16Float 标记、字节面 `Pixels()` 恒 nil（8-bit 路拿不到字节面）、Reinhard + sRGB 编码；GPU 侧未接（`TextureView()` 恒 nil），HDR 管线留给 P3/P4 |
 
 > text 子树内部还有分层子包（`render/text/hint` 等），非本次快照范围，改动时按其自身文档维护。
 
@@ -400,6 +401,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 | 内容滤镜 `ApplyInvert/ApplyBlurXY/ApplyImageFilterGraph/GPUFilterTexture` | 仅测试/真窗（`filter_ops_contract_test.go` 3 例 + `filter_ops_gpu_test.go` 5 例 + 直调真窗 `ui_render_base_filterops`，2026-10-20 **原子验证**：逻辑 16 + 像素 26 + golden 627200px 逐位零差 + 抓屏 vs 快照 `0.0000%`；同批修 GPU 反色预乘 + 零读回滤镜 RT 丢 CPU 底；3 项限界见 `RENDER_FEATURE_COVERAGE` §6） |
 | 杂项绘制 `DrawShadow/DrawColor/DrawPaint/ClipBounds/DrawParagraph` | 仅测试/真窗（`context_misc_draw_test.go` CPU 契约 + `context_misc_draw_gpu_test.go` 5 API/连续高混/隔离父层内高混/效果面高级着色 GPU 回归 + 直调真窗 `ui_render_base_miscdraw`，2026-10-20 **原子验证**：逻辑 14 + 像素 17 + golden 737760px 逐位零差 + 抓屏 vs 快照 `0.0000%`；同批修顺序高混层丢合成 / MultiFace 段落 0 字形 / ClipBounds 路径全画布 / HiDPI 图层逻辑尺寸 / 模糊投影未标全量合成 / CPU 模式仍建 GPU 上下文 6 缺陷；3 项限界见 `RENDER_FEATURE_COVERAGE` §6） |
 | ui/rendering 滤镜 facade（ApplyGrayscale 等 FF-*） | 无生产调用方（需 blank-import filters，由 gpu 包侧效应顶替） |
+| `render/hdr` 整包（`FloatTarget`/`TextureView`/`NewFloatTarget`） | 仅测试（`render/hdr/float_target_test.go` 3 测：构造与越界拒绝 / 编码金图 `testdata/float_encode.json` / 2×白编 213 的 HDR 解释）；2026-10-29 P2.2 从 `render/render` 迁入，全仓无引用（生产消费者零），GPU 侧 `TextureView()` 恒 nil，HDR 管线 P3/P4 再接 |
 | 视频直传地基 P0（2026-09-30：`VideoBackendCaps/QueryVideoBackend/BorrowVideoBackend/VideoSlot/VideoTexturePool(+Acquire/Release/Stats/Close/VideoPoolStats)/RecordVideoFallback/VideoFallbackTotal`，render/video_direct.go） | 仅测试（video_direct_test.go 四用例绿：双拷贝模式查询/无窗借用/池借还零泄漏零淘汰/回落记 cpu_fallback_ops）；P2 接直传后转生产 |
 | 视频直传 P2+P3-A（2026-10-02：`VideoDrawOptions/VideoUploadTotal/Context.DrawVideoFrame/DrawVideoSlot/VideoBridge(+New/Ensure/Show/ShowSeq/UploadFrame/DrawCurrent/Stats/Close/BridgeStats)`；P3-A 加 `VideoPlaneSlot/VideoPlanePool(+Acquire/Release/Stats/Close/AcquireForFrame/UploadPlanes)/Context.DrawVideoPlanes/VideoBridge.UploadPlanesFrame`，render/video_direct.go + context_image.go；layer 4 加 YUV 转色管线 `render/internal/gpu/shaders/video_yuv.wgsl` + `video_yuv_pipeline.go`，一份 WGSL 两后端通用；layer 5 窗口只调节点单新口 `RenderVideo.UploadPlanes`（平面走 GPU 转色，奇数/异形帧走桥老口兜底记数，`PlanesLast` 作证） | 生产在用（17 扇窗 tick 上传 + paint 绘制：上传+回落==帧数；render 单测绿含平面池借还/紧凑与垫行上传/三原色±1/解码器对拍 mean≤2；YUV 着色器 WebGPU 真编译绿 + GLES 翻译双纹理映射绿，无会话走 CPU 转回落；2K 真窗 80/80 上传零回落首尾亮、yuv_ready=1，p95 随整机抖动待压） |
 | `ui.SetMask` widget API（antd 文献提及） | 未实现（非 render 层） |
@@ -530,7 +532,7 @@ Present/帧/呈现链路（frame/present/present_target → ui/embedder）、Con
 
 > 本表由 go/ast 对 `render/` 主包（package render，非测试文件）顶层声明提取；增删常量时同步本表。
 >
-> 注：上一版此处曾列 `TextureUsage` 族 5 个常量——它们不在主包，属 `render/render` 子包（`render/render/device.go`，与主包同名但独立 import 路径），已从本表移除；需要时以 `go doc ./render/render` 为准。
+> 注：上一版此处曾列 `TextureUsage` 族 5 个常量——它们不在主包，曾属 `render/render` 子包（与主包同名但独立 import 路径）。`render/render` 已于 P2.2（2026-10-29）按 PLAN §7.7 整包删除，`FloatTarget` 随迁 `render/hdr`；`TextureUsage` 现只有 `gpu/types`（`types.TextureUsage*`）一处真源。
 
 ---
 

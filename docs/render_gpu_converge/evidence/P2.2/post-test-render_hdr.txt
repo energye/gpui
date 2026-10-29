@@ -1,0 +1,8 @@
+=== RUN   TestFloatTargetConstruct
+--- PASS: TestFloatTargetConstruct (0.00s)
+=== RUN   TestFloatTargetEncodeGolden
+--- PASS: TestFloatTargetEncodeGolden (0.00s)
+=== RUN   TestFloatTargetHDRVs8Bit
+--- PASS: TestFloatTargetHDRVs8Bit (0.00s)
+PASS
+ok  	github.com/energye/gpui/render/hdr	0.005s

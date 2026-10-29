@@ -36,8 +36,8 @@ const docPath = "docs/RENDER_API_CATALOG.md"
 
 // scanPkg 解析包顶层目录下的 .go 文件（非递归、排除 _test.go），返回：
 // 顶层导出符号（func/type/const/var）与各导出类型的导出方法。
-// 注意：render/ 下还有 render/internal、render/text、render/render 等子包，
-// 包名同为 render，必须只读目录直属文件（子包自成 import 路径，不在目录内）。
+// 注意：render/ 下还有 render/internal、render/text 等子包，包名同为 render，
+// 必须只读目录直属文件（子包自成 import 路径，不在目录内）。
 func scanPkg(dir string) (top []string, methods map[string][]string) {
 	methods = map[string][]string{}
 	fset := token.NewFileSet()

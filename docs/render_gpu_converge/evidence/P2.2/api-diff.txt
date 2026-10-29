@@ -1,0 +1,30 @@
+# P2.2 API snapshot diff vs baseline/api (P1.5)
+# date: 2026-10-29T18:40:33+08:00
+# method: packages.txt = P1.5 352 packages, render/render removed, render/hdr added (same 352 count)
+#         full gen_api.py rerun into evidence/P2.2/api-post with OUT/EVID repointed (script copy /tmp/p22_gen_api.py)
+
+## doc/ file-set diff
+290a291
+> ./render/hdr.txt
+309d309
+< ./render/render.txt
+# rc=1
+
+## doc/ byte diff (-rq)
+只在 docs/render_gpu_converge/evidence/P2.2/api-post/doc/render 中存在：hdr.txt
+只在 docs/render_gpu_converge/baseline/api/doc/render 中存在：render.txt
+# rc=1
+
+## test_counts.tsv diff
+292a293
+> github.com/energye/gpui/render/hdr	1	3	0	0	0
+311d311
+< github.com/energye/gpui/render/render	8	75	4	10	0
+# rc=1
+
+## totals
+baseline: packages=352 files=1397 funcs=14388 (Test 13602 / Bench 753 / Example 18 / Fuzz 15)
+post: packages=352 files=1390 funcs=14302 (Test 13530 / Bench 749 / Example 8 / Fuzz 15)
+
+## empty-main whitelist diff
+# rc=0
