@@ -47,7 +47,7 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：**无**（P2.1 已完成并落盘，等提交确认）
+- 当前进行中：**无**（P2.1 已完成，提交 `bbb0a4e4`，未推送）
 - 下一任务：P2.4a（依赖 P2.1–P2.3 已全部满足；P2.3 已提交 `4e348fd3`）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**（2026-10-29，附注）——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
 - 最近完成：P2.1 shader 合并——naga 144 文件迁入 `gpu/shader`，删 `gpu/shader` 独有三后端 167 文件与 `gpu/gwgpu/naga` 目录，15 处 import 改路径，根 5 个 SPIR-V 符号与 `CompileShaderToSPIRV` 死函数删除；GLSL/MSL 快照 681 文件逐字节一致、GL 离屏 md5 不变、五目标构建绿、vet 61/58 不变、API 41→11 包、负向对照红过复绿，见 `evidence/P2.1/summary.md`
 - 阻塞项：无（GPU 真窗加强证据按计划留 P2.6 全量重放）
