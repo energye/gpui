@@ -511,9 +511,8 @@ func (a *SDFAccelerator) ImageCacheStatsFromDefault() ImageCacheStats {
 }
 
 type ResourceUploadStats struct {
-	Image   ImageCacheStats
-	Texture TexturePoolStats
-	Memory  GPUMemoryStats
+	Image  ImageCacheStats
+	Memory GPUMemoryStats
 }
 
 // ResourceUploadStats returns combined resource diagnostics.
@@ -525,9 +524,6 @@ func (a *SDFAccelerator) ResourceUploadStats() ResourceUploadStats {
 	out.Image = a.ImageCacheStatsFromDefault()
 	if a.shared != nil {
 		out.Memory = a.shared.MemoryStats()
-		if a.shared.texturePool != nil {
-			out.Texture = a.shared.texturePool.Stats()
-		}
 	}
 	return out
 }

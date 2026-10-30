@@ -13,23 +13,26 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/energye/gpui/gpu/hal"
-	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
-// textureSet holds a set of MSAA color, depth/stencil, and resolve textures
-// for offscreen rendering. This is shared by GPURenderSession and
-// StencilRenderer to avoid code duplication.
+// textureSet holds the MSAA color, depth/stencil, and resolve textures an
+// owner renders into. Since P2.4d the trio itself lives in the device-level
+// surfaceCache (surface_cache.go): the set keeps the owner-facing fields that
+// the render paths read directly, and holds one strong Ref for as long as it
+// owns the trio.
 //
 // The texture set supports stencil-then-cover and SDF rendering:
 //   - MSAA color: 1x default (BGRA8Unorm, RenderAttachment; 4x explicit opt-in)
 //   - Depth/stencil: 1x default (Depth24PlusStencil8, RenderAttachment)
-//   - Resolve: 1x sample, BGRA8Unorm, RenderAttachment | CopySrc
+//   - Resolve: 1x sample, BGRA8Unorm, RenderAttachment | CopySrc (offscreen only)
 type textureSet struct {
 	msaaTex     hal.Texture
 	msaaView    hal.TextureView
@@ -40,23 +43,30 @@ type textureSet struct {
 	width       uint32
 	height      uint32
 
-	// retireFn decides how retired textures are handled: nil = release
-	// immediately (default); the session injects a deferred-release queue —
-	// on rebuild the old views may still be referenced by commands queued
-	// earlier in the frame, so releasing them right away leaves dangling
-	// handles (the resize-crash root cause).
-	retireFn func(tex hal.Texture, view hal.TextureView)
+	// surfaceCache is the device-level trio cache this set acquires from;
+	// surfaceRef is its strong reference. A nil cache keeps the direct
+	// create/destroy path (standalone tests, renderers built without a
+	// registry).
+	surfaceCache *surfaceCache
+	surfaceRef   res.Ref
+	surfaceKey   res.CacheKey
 
-	// stencilPool caches depth/stencil textures by size for sc==1 surface
-	// passes. Within one retained frame, per-layer offscreen
-	// records alternate the pass target size (main band → body panel → hot
-	// spot), and without a pool each flip destroyed+recreated the shared
-	// stencil texture (~3 GPU alloc cycles per frame; 15s log showed 4293
-	// "created surface textures"). Pooled entries rotate instead. Capped and
-	// LRU-stamped; evicted entries go through retireFn like any other retired
-	// texture (in-flight CBs keep them alive until the GPU is done).
-	stencilPool  map[stencilPoolKey]*pooledStencil
-	stencilStamp uint64
+	// deferRelease hands a released trio back to the caller instead of the
+	// cache directly. The session installs it to track the ref as in-flight
+	// for the current submission: on rebuild the old views may still be
+	// referenced by commands queued earlier in the frame, so releasing them
+	// right away leaves dangling handles (the resize-crash root cause).
+	deferRelease func(ref res.Ref, retire bool)
+
+	// retireOnRelease destroys the trio instead of pooling it. Owners whose
+	// command buffers are submitted outside res.Submission (shared stencil
+	// renderer, textured stencil caches) keep the pre-pooling
+	// "destroy on rebuild" contract; degraded 1x1 trios always retire.
+	retireOnRelease bool
+	degradedTrio    bool
+
+	// directTrio owns the trio when surfaceCache is nil.
+	directTrio *surfaceTrio
 
 	// failedErr latches a terminal double-failure OOM (full size + 1x1
 	// fallback both failed) for failedW/failedH: later draws fail fast with
@@ -111,87 +121,24 @@ func (ts *textureSet) clearDegraded() {
 	ts.degradedW, ts.degradedH, ts.degradedFrames = 0, 0, 0
 }
 
-// stencilPoolKey identifies a pooled depth/stencil texture.
-type stencilPoolKey struct {
-	w, h uint32
-}
-
-// pooledStencil is one cached depth/stencil texture + its last-use stamp.
-type pooledStencil struct {
-	tex   hal.Texture
-	view  hal.TextureView
-	stamp uint64
-}
-
-// stencilPoolCap bounds the size-bucketed stencil cache. Retained frames
-// alternate a handful of layer-record sizes; 8 covers far more than any
-// observed working set while bounding VRAM (each entry is Depth24PlusStencil8,
-// RenderAttachment-only — cheap relative to color textures).
-var stencilPoolCap = render.DefaultBudget(render.BudgetStencilScratch).MaxEntries
-
-// takePooledStencil fetches (or creates) a depth/stencil texture for (w,h).
-// Returns nil when the caller should fall back to direct creation (pool
-// disabled / OOM fallback path). sc must be 1 — MSAA textures are not pooled.
-func (ts *textureSet) takePooledStencil(device hal.Device, w, h uint32, labelPrefix string) hal.TextureView {
-	if ts.stencilPool == nil {
-		ts.stencilPool = make(map[stencilPoolKey]*pooledStencil)
-	}
-	key := stencilPoolKey{w: w, h: h}
-	ts.stencilStamp++
-	if e := ts.stencilPool[key]; e != nil {
-		e.stamp = ts.stencilStamp
-		return e.view
-	}
-	tex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
-		Label:         labelPrefix + "_depth_stencil",
-		Size:          hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1},
-		MipLevelCount: 1,
-		SampleCount:   1,
-		Dimension:     types.TextureDimension2D,
-		Format:        types.TextureFormatDepth24PlusStencil8,
-		Usage:         types.TextureUsageRenderAttachment,
-	})
-	if err != nil {
-		return nil
-	}
-	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
-		Label:         labelPrefix + "_depth_stencil_view",
-		Format:        types.TextureFormatDepth24PlusStencil8,
-		Dimension:     types.TextureViewDimension2D,
-		Aspect:        types.TextureAspectAll,
-		MipLevelCount: 1,
-	})
-	if err != nil {
-		tex.Destroy()
-		return nil
-	}
-	// Evict LRU when at capacity (never the entry we are about to add).
-	for len(ts.stencilPool) >= stencilPoolCap {
-		var victimKey stencilPoolKey
-		var oldest uint64 = ^uint64(0)
-		for k, e := range ts.stencilPool {
-			if e.stamp < oldest {
-				oldest = e.stamp
-				victimKey = k
-			}
-		}
-		if v := ts.stencilPool[victimKey]; v != nil {
-			ts.releaseOrRetire(v.tex, v.view)
-		}
-		delete(ts.stencilPool, victimKey)
-	}
-	ts.stencilPool[key] = &pooledStencil{tex: tex, view: view, stamp: ts.stencilStamp}
-	return view
-}
-
-// ensureTextures creates or recreates textures if the requested dimensions
-// differ from the current size. If dimensions match and textures exist,
-// this is a no-op. The labelPrefix parameter distinguishes GPU debug labels
-// between different owners (e.g., "session" vs "stencil").
-//
-// The samples parameter sets the MSAA sample count for color and depth/stencil
-// textures.
+// ensureTextures ensures an offscreen trio: MSAA (sc>1), depth and resolve.
+// The resolve target is required for CPU readback.
 func (ts *textureSet) ensureTextures(device hal.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
+	return ts.ensure(device, w, h, labelPrefix, true, samples...)
+}
+
+// ensureSurfaceTextures ensures a surface trio: MSAA (sc>1) and depth only.
+// The surface view is the resolve target (positive VRAM save on low-GPU
+// hosts).
+func (ts *textureSet) ensureSurfaceTextures(device hal.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
+	return ts.ensure(device, w, h, labelPrefix, false, samples...)
+}
+
+// ensure acquires (or reuses) the trio for size + mode. A same-size request in
+// the other mode swaps the whole trio (surface and offscreen are distinct
+// cache keys): the old same-size path dropped resolve in place, which under
+// pooling would hand the surface trio to a readback pass with resolveTex nil.
+func (ts *textureSet) ensure(device hal.Device, w, h uint32, labelPrefix string, withResolve bool, samples ...uint32) error {
 	if device == nil {
 		return fmt.Errorf("ensureTextures: device is nil")
 	}
@@ -205,324 +152,110 @@ func (ts *textureSet) ensureTextures(device hal.Device, w, h uint32, labelPrefix
 	if len(samples) > 0 && samples[0] > 0 {
 		sc = samples[0]
 	}
-
-	// Offscreen mode requires a resolve texture for readback. After a surface-mode
-	// pass (ensureSurfaceTextures), msaa/stencil may exist at the same size with
-	// resolveTex == nil. Do not early-return in that state or encodeSubmitReadback
-	// fails with "offscreen textures destroyed (concurrent resize?)".
-	// sc==1 does not allocate msaa color (colorAttachment draws to resolve directly).
 	needMSAA := sc > 1
-	haveMSAA := ts.msaaTex != nil && ts.msaaView != nil
-	if ts.width == w && ts.height == h && ts.resolveTex != nil && ts.resolveView != nil &&
-		ts.stencilView != nil && (!needMSAA || haveMSAA) {
+
+	key := surfaceKey(w, h, sc, withResolve, false)
+	if ts.width == w && ts.height == h && ts.surfaceKey == key &&
+		ts.stencilView != nil && (!needMSAA || ts.msaaView != nil) {
 		return nil
 	}
 	ts.destroyTextures()
 
-	size := hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
-
-	if needMSAA {
-		msaaTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
-			Label:         labelPrefix + "_msaa_color",
-			Size:          size,
-			MipLevelCount: 1,
-			SampleCount:   sc,
-			Dimension:     types.TextureDimension2D,
-			Format:        types.TextureFormatBGRA8Unorm,
-			Usage:         types.TextureUsageRenderAttachment,
-		})
-		if err != nil {
-			return fmt.Errorf("create MSAA color texture: %w", err)
-		}
-		ts.msaaTex = msaaTex
-
-		msaaView, err := device.CreateTextureView(msaaTex, &hal.TextureViewDescriptor{
-			Label:         labelPrefix + "_msaa_color_view",
-			Format:        types.TextureFormatBGRA8Unorm,
-			Dimension:     types.TextureViewDimension2D,
-			Aspect:        types.TextureAspectAll,
-			MipLevelCount: 1,
-		})
-		if err != nil {
+	if err := ts.acquireSurface(device, key, labelPrefix); err != nil {
+		var depthOOM *surfaceDepthOOMError
+		if errors.As(err, &depthOOM) {
+			// Post-TDR / AutoRecover: full-size depth may OOM while device
+			// heap is still reclaiming. Fall back to 1x1 depth (stencil
+			// Always/Keep still valid) and latch the degraded window.
+			log.Printf("depth %dx%d samples=%d OOM, falling back to 1x1: %v", w, h, sc, depthOOM.err)
+			degradedKey := surfaceKey(w, h, sc, withResolve, true)
+			if err := ts.acquireSurface(device, degradedKey, labelPrefix); err != nil {
+				if term := surfaceTerminalError(err); term != nil {
+					return ts.failTerminal(w, h, term.tried, term.label, term.err)
+				}
+				return err
+			}
+			ts.latchDegraded(w, h)
+		} else if term := surfaceTerminalError(err); term != nil {
 			ts.destroyTextures()
-			return fmt.Errorf("create MSAA color view: %w", err)
+			return ts.failTerminal(w, h, term.tried, term.label, term.err)
+		} else {
+			return err
 		}
-		ts.msaaView = msaaView
-	}
-
-	// Depth/stencil texture (sc samples, Depth24PlusStencil8).
-	stencilTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
-		Label:         labelPrefix + "_depth_stencil",
-		Size:          size,
-		MipLevelCount: 1,
-		SampleCount:   sc,
-		Dimension:     types.TextureDimension2D,
-		Format:        types.TextureFormatDepth24PlusStencil8,
-		Usage:         types.TextureUsageRenderAttachment,
-	})
-	if err != nil {
-		// Post-TDR / AutoRecover: full-size depth may OOM while device heap is
-		// still reclaiming. Fall back to 1x1 depth (stencil Always/Keep still valid).
-		log.Printf("depth %dx%d samples=%d OOM, falling back to 1x1: %v", size.Width, size.Height, sc, err)
-		stencilTex, err = createTextureRetryOOM(device, &hal.TextureDescriptor{
-			Label:         labelPrefix + "_depth_stencil_1x1",
-			Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
-			MipLevelCount: 1,
-			SampleCount:   1,
-			Dimension:     types.TextureDimension2D,
-			Format:        types.TextureFormatDepth24PlusStencil8,
-			Usage:         types.TextureUsageRenderAttachment,
-		})
-		if err != nil {
-			ts.destroyTextures()
-			return ts.failTerminal(w, h, "full size and 1x1 fallback", labelPrefix+"_depth_stencil", err)
-		}
-		// Latch the 1x1 fallback: keep serving it, re-probe full size at most
-		// once per degradedReprobeFrames instead of every frame.
-		ts.latchDegraded(w, h)
 	} else {
 		ts.clearDegraded()
 	}
-	ts.stencilTex = stencilTex
 
-	stencilView, err := device.CreateTextureView(stencilTex, &hal.TextureViewDescriptor{
-		Label:         labelPrefix + "_depth_stencil_view",
-		Format:        types.TextureFormatDepth24PlusStencil8,
-		Dimension:     types.TextureViewDimension2D,
-		Aspect:        types.TextureAspectAll,
-		MipLevelCount: 1,
-	})
-	if err != nil {
-		ts.destroyTextures()
-		return fmt.Errorf("create depth/stencil view: %w", err)
+	if withResolve {
+		slogger().Info("created offscreen textures",
+			"label", labelPrefix,
+			"width", w, "height", h,
+			"msaa_samples", sc,
+			"msaa_color", needMSAA,
+			"degraded", ts.degradedTrio,
+		)
+	} else {
+		slogger().Info("created surface textures",
+			"label", labelPrefix,
+			"width", w, "height", h,
+			"msaa_samples", sc,
+			"msaa_color", needMSAA,
+			"degraded", ts.degradedTrio,
+		)
 	}
-	ts.stencilView = stencilView
-
-	// Single-sample resolve target (CopySrc for readback). For sc==1 this is
-	// also the color attachment (no MSAA resolve).
-	resolveTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
-		Label:         labelPrefix + "_resolve",
-		Size:          size,
-		MipLevelCount: 1,
-		SampleCount:   1,
-		Dimension:     types.TextureDimension2D,
-		Format:        types.TextureFormatBGRA8Unorm,
-		Usage:         types.TextureUsageRenderAttachment | types.TextureUsageCopySrc,
-	})
-	if err != nil {
-		ts.destroyTextures()
-		return ts.failTerminal(w, h, "flush + cache-purge retries exhausted", labelPrefix+"_resolve", err)
-	}
-	ts.resolveTex = resolveTex
-
-	resolveView, err := device.CreateTextureView(resolveTex, &hal.TextureViewDescriptor{
-		Label:         labelPrefix + "_resolve_view",
-		Format:        types.TextureFormatBGRA8Unorm,
-		Dimension:     types.TextureViewDimension2D,
-		Aspect:        types.TextureAspectAll,
-		MipLevelCount: 1,
-	})
-	if err != nil {
-		ts.destroyTextures()
-		return fmt.Errorf("create resolve view: %w", err)
-	}
-	ts.resolveView = resolveView
-
-	ts.width = w
-	ts.height = h
-	slogger().Info("created offscreen textures",
-		"label", labelPrefix,
-		"width", w, "height", h,
-		"msaa_samples", sc,
-		"msaa_color", needMSAA,
-	)
 	return nil
 }
 
-func (ts *textureSet) ensureSurfaceTextures(device hal.Device, w, h uint32, labelPrefix string, samples ...uint32) error {
-	if device == nil {
-		return fmt.Errorf("ensureSurfaceTextures: device is nil")
+// acquireSurface takes the trio for key from the cache (or creates it
+// directly when no cache is bound) and publishes its fields.
+func (ts *textureSet) acquireSurface(device hal.Device, key res.CacheKey, labelPrefix string) error {
+	if ts.surfaceCache != nil {
+		ref, trio, err := ts.surfaceCache.acquire(device, key)
+		if err != nil {
+			return err
+		}
+		ts.surfaceRef = ref
+		ts.directTrio = nil
+		ts.surfaceKey = key
+		ts.degradedTrio = trio.degraded
+		ts.publishTrio(trio)
+		return nil
 	}
-	if err := ts.failedFast(w, h); err != nil {
+	trio, err := createSurfaceTrio(device, key, labelPrefix)
+	if err != nil {
 		return err
 	}
-	if ts.degradedServe(w, h) {
-		return nil
-	}
-	sc := uint32(1) // engine default is 1x; 4x is an explicit opt-in
-	if len(samples) > 0 && samples[0] > 0 {
-		sc = samples[0]
-	}
-	needMSAA := sc > 1
-	haveMSAA := ts.msaaTex != nil && ts.msaaView != nil
-	// Surface mode does not use resolveTex. sc==1 draws directly to the surface
-	// view, so only depth/stencil is required (positive VRAM save on low-GPU hosts).
-	if ts.width == w && ts.height == h && ts.stencilView != nil && (!needMSAA || haveMSAA) {
-		if ts.resolveView != nil {
-			ts.resolveView.Destroy()
-			ts.resolveView = nil
-		}
-		if ts.resolveTex != nil {
-			ts.resolveTex.Destroy()
-			ts.resolveTex = nil
-		}
-		// Drop leftover MSAA when switching into sc==1.
-		if !needMSAA && haveMSAA {
-			if ts.msaaView != nil {
-				ts.msaaView.Destroy()
-				ts.msaaView = nil
-			}
-			if ts.msaaTex != nil {
-				ts.msaaTex.Destroy()
-				ts.msaaTex = nil
-			}
-		}
-		return nil
-	}
-	ts.destroyTextures()
-	// Drop pool entries from older window sizes: without this each storm
-	// step pins one more full-window depth texture (see
-	// pruneStencilPoolExcept). Queued through retireFn — no WaitIdle stall.
-	ts.pruneStencilPoolExcept(w, h)
-
-	size := hal.Extent3D{Width: w, Height: h, DepthOrArrayLayers: 1}
-
-	// sc==1 surface passes take depth/stencil from the size-keyed pool:
-	// retained frames alternate the pass target size per layer record (main
-	// band → body panel → hot spot) and a fresh stencil alloc per flip cost
-	// ~3 destroy/create cycles per frame. MSAA keeps its own path.
-	if !needMSAA {
-		if view := ts.takePooledStencil(device, w, h, labelPrefix); view != nil {
-			ts.stencilView = view
-			ts.stencilTex = nil // owned by the pool; never released here
-			ts.width = w
-			ts.height = h
-			return nil
-		}
-	}
-
-	if needMSAA {
-		msaaTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
-			Label:         labelPrefix + "_msaa_color",
-			Size:          size,
-			MipLevelCount: 1,
-			SampleCount:   sc,
-			Dimension:     types.TextureDimension2D,
-			Format:        types.TextureFormatBGRA8Unorm,
-			Usage:         types.TextureUsageRenderAttachment,
-		})
-		if err != nil {
-			return fmt.Errorf("create MSAA color texture: %w", err)
-		}
-		ts.msaaTex = msaaTex
-
-		msaaView, err := device.CreateTextureView(msaaTex, &hal.TextureViewDescriptor{
-			Label:         labelPrefix + "_msaa_color_view",
-			Format:        types.TextureFormatBGRA8Unorm,
-			Dimension:     types.TextureViewDimension2D,
-			Aspect:        types.TextureAspectAll,
-			MipLevelCount: 1,
-		})
-		if err != nil {
-			ts.destroyTextures()
-			return fmt.Errorf("create MSAA color view: %w", err)
-		}
-		ts.msaaView = msaaView
-	}
-
-	stencilTex, err := createTextureRetryOOM(device, &hal.TextureDescriptor{
-		Label:         labelPrefix + "_depth_stencil",
-		Size:          size,
-		MipLevelCount: 1,
-		SampleCount:   sc,
-		Dimension:     types.TextureDimension2D,
-		Format:        types.TextureFormatDepth24PlusStencil8,
-		Usage:         types.TextureUsageRenderAttachment,
-	})
-	if err != nil {
-		// Post-TDR / AutoRecover: full-size depth may OOM while device heap is
-		// still reclaiming. Fall back to 1x1 depth (stencil Always/Keep still valid).
-		log.Printf("depth %dx%d samples=%d OOM, falling back to 1x1: %v", size.Width, size.Height, sc, err)
-		stencilTex, err = createTextureRetryOOM(device, &hal.TextureDescriptor{
-			Label:         labelPrefix + "_depth_stencil_1x1",
-			Size:          hal.Extent3D{Width: 1, Height: 1, DepthOrArrayLayers: 1},
-			MipLevelCount: 1,
-			SampleCount:   1,
-			Dimension:     types.TextureDimension2D,
-			Format:        types.TextureFormatDepth24PlusStencil8,
-			Usage:         types.TextureUsageRenderAttachment,
-		})
-		if err != nil {
-			ts.destroyTextures()
-			return ts.failTerminal(w, h, "full size and 1x1 fallback", labelPrefix+"_depth_stencil", err)
-		}
-		// Latch the 1x1 fallback: keep serving it, re-probe full size at most
-		// once per degradedReprobeFrames instead of every frame.
-		ts.latchDegraded(w, h)
-	} else {
-		ts.clearDegraded()
-	}
-	ts.stencilTex = stencilTex
-
-	stencilView, err := device.CreateTextureView(stencilTex, &hal.TextureViewDescriptor{
-		Label:         labelPrefix + "_depth_stencil_view",
-		Format:        types.TextureFormatDepth24PlusStencil8,
-		Dimension:     types.TextureViewDimension2D,
-		Aspect:        types.TextureAspectAll,
-		MipLevelCount: 1,
-	})
-	if err != nil {
-		ts.destroyTextures()
-		return fmt.Errorf("create depth/stencil view: %w", err)
-	}
-	ts.stencilView = stencilView
-
-	// No resolve texture -- surface view is the resolve target.
-	ts.width = w
-	ts.height = h
-	slogger().Info("created surface textures",
-		"label", labelPrefix,
-		"width", w, "height", h,
-		"msaa_samples", sc,
-		"msaa_color", needMSAA,
-	)
+	ts.directTrio = trio
+	ts.surfaceKey = key
+	ts.degradedTrio = trio.degraded
+	ts.publishTrio(trio)
 	return nil
 }
 
-// pruneStencilPoolExcept releases every pooled depth/stencil entry except
-// (w,h). Called on window size change: each drag-storm step would otherwise
-// leave its size behind, pinning up to stencilPoolCap stale full-window
-// depth textures (~60MB at 1868x1016) after the storm settles — measured
-// 80M baseline growing to 170M on repeated drags. Evicted entries go
-// through releaseOrRetire (deferred via retireFn, no WaitIdle stall), like
-// LRU evictions and ClearStencilPool.
-func (ts *textureSet) pruneStencilPoolExcept(w, h uint32) {
-	if ts.stencilPool == nil {
+// publishTrio copies the trio handles into the owner-facing fields. The
+// render paths read these fields directly (20+ sites), so the set keeps the
+// historical shape while the cache owns lifetime.
+func (ts *textureSet) publishTrio(trio *surfaceTrio) {
+	if trio == nil {
 		return
 	}
-	for k, e := range ts.stencilPool {
-		if k.w == w && k.h == h {
-			continue
-		}
-		if e != nil {
-			ts.releaseOrRetire(e.tex, e.view)
-		}
-		delete(ts.stencilPool, k)
-	}
+	ts.msaaTex = trio.msaaTex
+	ts.msaaView = trio.msaaView
+	ts.stencilTex = trio.stencilTex
+	ts.stencilView = trio.stencilView
+	ts.resolveTex = trio.resolveTex
+	ts.resolveView = trio.resolveView
+	ts.width = trio.width
+	ts.height = trio.height
 }
 
-// ClearStencilPool releases every pooled depth/stencil texture (session
-// teardown). Call only when the GPU is idle/drained.
-func (ts *textureSet) ClearStencilPool() {
-	if ts.stencilPool == nil {
-		return
+// surfaceTerminalError unwraps the terminal OOM marker, if present.
+func surfaceTerminalError(err error) *surfaceTerminalOOMError {
+	var term *surfaceTerminalOOMError
+	if errors.As(err, &term) {
+		return term
 	}
-	for k, e := range ts.stencilPool {
-		if e != nil {
-			ts.releaseOrRetire(e.tex, e.view)
-		}
-		delete(ts.stencilPool, k)
-	}
+	return nil
 }
 
 // failedFast returns the latched terminal OOM error when the same size is
@@ -557,56 +290,69 @@ func (ts *textureSet) clearFailed() {
 	ts.failedErr = nil
 }
 
+// destroyTextures releases this owner's trio. Cache-bound sets hand the ref
+// back (pooled or retired); direct sets destroy it now. Fields always clear so
+// a failed re-acquire cannot be mistaken for a live set.
 func (ts *textureSet) destroyTextures() {
-	// Pool entries survive destroyTextures: their whole purpose is to ride
-	// out per-frame size flips of the pass target. Flushing here
-	// would evict every pooled stencil on each flip — the exact churn the
-	// pool exists to prevent. The pool drains via takePooledStencil LRU
-	// eviction, via pruneStencilPoolExcept on window size change, and via
-	// ClearPool on session teardown.
-	if ts.resolveView != nil {
-		ts.releaseOrRetire(nil, ts.resolveView)
-		ts.resolveView = nil
-	}
-	if ts.resolveTex != nil {
-		ts.releaseOrRetire(ts.resolveTex, nil)
-		ts.resolveTex = nil
-	}
-	if ts.stencilView != nil {
-		// Pooled stencils are owned by the pool (destroyTextures flushes the
-		// pool separately above); releasing the view here would leave the
-		// pool entry dangling. Only release session-owned stencils.
-		if ts.stencilTex != nil {
-			ts.releaseOrRetire(nil, ts.stencilView)
-			ts.releaseOrRetire(ts.stencilTex, nil)
-			ts.stencilTex = nil
+	ref := ts.surfaceRef
+	trio := ts.directTrio
+	ts.surfaceRef = res.Ref{}
+	ts.directTrio = nil
+	degraded := ts.degradedTrio
+	ts.degradedTrio = false
+
+	switch {
+	case !ref.IsNil():
+		retire := degraded || ts.retireOnRelease
+		if ts.deferRelease != nil {
+			ts.deferRelease(ref, retire)
+		} else if c := ts.surfaceCache; c != nil {
+			if retire {
+				c.releaseRetire(ref)
+			} else {
+				c.release(ref)
+			}
 		}
-		ts.stencilView = nil
+		ts.surfaceKey = res.CacheKey{}
+	case trio != nil:
+		trio.Release()
+		ts.surfaceKey = res.CacheKey{}
+	default:
+		// Manually populated set (tests / legacy direct handles): release the
+		// individual handles inline, matching the pre-cache contract.
+		ts.releaseLooseTextures()
 	}
-	if ts.msaaView != nil {
-		ts.releaseOrRetire(nil, ts.msaaView)
-		ts.msaaView = nil
-	}
-	if ts.msaaTex != nil {
-		ts.releaseOrRetire(ts.msaaTex, nil)
-		ts.msaaTex = nil
-	}
+
+	ts.msaaTex = nil
+	ts.msaaView = nil
+	ts.stencilTex = nil
+	ts.stencilView = nil
+	ts.resolveTex = nil
+	ts.resolveView = nil
 	ts.width = 0
 	ts.height = 0
 }
 
-// releaseOrRetire releases the resource immediately, or hands it to the
-// retire callback when one is installed (deferred release on rebuild).
-func (ts *textureSet) releaseOrRetire(tex hal.Texture, view hal.TextureView) {
-	if ts.retireFn != nil {
-		ts.retireFn(tex, view)
-		return
+// releaseLooseTextures destroys handles assigned directly to the set fields
+// (no trio owns them). Views go first, matching surfaceTrio.Release.
+func (ts *textureSet) releaseLooseTextures() {
+	if ts.msaaView != nil {
+		ts.msaaView.Destroy()
 	}
-	if view != nil {
-		view.Destroy()
+	if ts.stencilView != nil {
+		ts.stencilView.Destroy()
 	}
-	if tex != nil {
-		tex.Destroy()
+	if ts.resolveView != nil {
+		ts.resolveView.Destroy()
+	}
+	if ts.msaaTex != nil {
+		ts.msaaTex.Destroy()
+	}
+	if ts.stencilTex != nil {
+		ts.stencilTex.Destroy()
+	}
+	if ts.resolveTex != nil {
+		ts.resolveTex.Destroy()
 	}
 }
 
@@ -654,10 +400,10 @@ func createTextureRetryOOM(device hal.Device, desc *hal.TextureDescriptor) (hal.
 		}
 	}
 	// Still failing: drop surface-sized attachments process-wide (Skia
-	// freeGpuResources: session MSAA/depth, offscreen pools via
-	// drainOffscreenPool, texture pool; includes pending drains), then retry
-	// once. The current ensure may lose just-built siblings to this purge;
-	// all error paths below destroyTextures (nil-safe), and the render pass
+	// freeGpuResources: session MSAA/depth, surface trio cache, offscreen
+	// pools, texture pool; includes pending drains), then retry once. The
+	// current ensure may lose just-built siblings to this purge; all error
+	// paths below destroy the partial trio (nil-safe), and the render pass
 	// guards nil msaaView (falls back to direct-to-view), so the worst case
 	// is one degraded frame, never a dangling handle.
 	render.PurgeAcceleratorSurfaceResources()

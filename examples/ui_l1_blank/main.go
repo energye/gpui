@@ -8,10 +8,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/energye/gpui/render"
 
 	"github.com/energye/gpui/ui/embedder"
 	"github.com/energye/gpui/ui/platform"
@@ -54,6 +57,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "run:", err)
 		os.Exit(1)
 	}
+	// Snapshot the pool probe before app.Close(): Close unregisters the device
+	// holder, and a post-close snapshot would read null (no pools) even though
+	// this window allocated and released surface trios while it ran.
+	pool := render.GPUPoolStats()
 	app.Close()
 
 	elapsed := time.Since(t0).Seconds()
@@ -67,8 +74,26 @@ func main() {
 	m := app.Metrics().Snapshot()
 	printFrameSummary("ui_l1_blank", win.Backend().String(), app.PresentCount(), elapsed, secs, m)
 	if b, err := app.Metrics().JSON(); err == nil {
-		fmt.Println(string(b))
+		fmt.Println(string(withPoolSection(b, pool)))
 	}
+}
+
+// withPoolSection appends the P2.4d GPU pool-reuse probe to the scheduler
+// metrics JSON ("pool": [domains...]), so the L1 control window records whether
+// same-size textures were actually reused. pool must be sampled while the
+// device holder is alive (before app.Close). A malformed input is passed
+// through unchanged (the probe must never eat the primary evidence).
+func withPoolSection(metricsJSON []byte, pool []render.PoolDomainStats) []byte {
+	var shell map[string]any
+	if err := json.Unmarshal(metricsJSON, &shell); err != nil {
+		return metricsJSON
+	}
+	shell["pool"] = pool
+	out, err := json.Marshal(shell)
+	if err != nil {
+		return metricsJSON
+	}
+	return out
 }
 
 func runSeconds(def int) int {

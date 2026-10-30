@@ -147,8 +147,8 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 	// succeeds (each build re-resolves and releases its transient ref).
 	keyA := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 1}
 	keyB := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 2}
-	s.Reg().Bind(keyA, s.Reg().Register(&texViewNative{v1}))
-	s.Reg().Bind(keyB, s.Reg().Register(&texViewNative{v2}))
+	s.Res().Bind(keyA, s.Res().Register(&texViewNative{v1}))
+	s.Res().Bind(keyB, s.Res().Register(&texViewNative{v2}))
 
 	cmdA := GPUTextureDrawCommand{
 		DstX: 0, DstY: 0, DstW: 8, DstH: 8,

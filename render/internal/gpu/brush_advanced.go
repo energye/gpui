@@ -111,7 +111,7 @@ func (rc *GPURenderContext) fillAdvancedBlendTiled(target render.GPURenderTarget
 	rc.shared.mu.Lock()
 	device := rc.shared.device
 	queue := rc.shared.queue
-	cache := &rc.shared.dualTexBlend
+	cache := rc.shared.dualTexBlendLocked()
 	rc.shared.mu.Unlock()
 	if device == nil || queue == nil {
 		return render.ErrFallbackToCPU

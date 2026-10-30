@@ -44,6 +44,18 @@ func (q *Queue) LastSubmissionIndex() uint64 {
 	return q.submissionIndex
 }
 
+// OnSubmittedWorkDone returns an already-complete token: the noop backend is
+// synchronous, so submitted work is complete when Submit returns.
+func (q *Queue) OnSubmittedWorkDone() (hal.CompletionToken, error) {
+	return completedToken{}, nil
+}
+
+// completedToken implements hal.CompletionToken for synchronous backends.
+type completedToken struct{}
+
+func (completedToken) Done() bool  { return true }
+func (completedToken) Wait() error { return nil }
+
 // WriteBuffer simulates immediate buffer writes.
 // If the buffer has storage, copies data to it.
 func (q *Queue) WriteBuffer(buffer hal.Buffer, offset uint64, data []byte) error {

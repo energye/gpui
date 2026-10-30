@@ -47,8 +47,8 @@ func TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot(t *testing.T) {
 	// register test views under deferred SourceKeys for build resolution.
 	k1 := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 1}
 	k2 := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 2}
-	s.Reg().Bind(k1, s.Reg().Register(&texViewNative{v1}))
-	s.Reg().Bind(k2, s.Reg().Register(&texViewNative{v2}))
+	s.Res().Bind(k1, s.Res().Register(&texViewNative{v1}))
+	s.Res().Bind(k2, s.Res().Register(&texViewNative{v2}))
 	cmd := func(k res.SourceKey, op float32, x float32) GPUTextureDrawCommand {
 		return GPUTextureDrawCommand{
 			View: res.ViewFromKey(k),

@@ -16,7 +16,7 @@ func (f *fakeNative) Release() { f.released++ }
 func TestReleaseSequenceTiming(t *testing.T) {
 	reg := NewRegistry()
 	f := &fakeNative{tag: 1}
-	ref := reg.Register(f)
+	ref := reg.DeviceOwner().Register(f)
 
 	// 1) retire while referenced → no release
 	reg.Retire(ref)
@@ -34,7 +34,7 @@ func TestRegistry_InflightBlocksReleaseUntilSubmitDone(t *testing.T) {
 	reg := NewRegistry()
 	sub := NewSubmission(reg)
 	f := &fakeNative{tag: 1}
-	ref := reg.Register(f)
+	ref := reg.DeviceOwner().Register(f)
 
 	reg.Retire(ref)  // mark for destruction
 	sub.Track(ref)   // referenced by a submitted CB (refs still >=1)
@@ -53,10 +53,10 @@ func TestRegistry_ResolveRebindReturnsNewInstance(t *testing.T) {
 	key := SourceKey{Kind: KindTextureView, Role: RoleSessionResolve}
 
 	a := &fakeNative{tag: 1}
-	refA := reg.Register(a)
-	reg.Bind(key, refA)
+	refA := reg.DeviceOwner().Register(a)
+	reg.DeviceOwner().Bind(key, refA)
 
-	got, ok := reg.Resolve(key)
+	got, ok := reg.DeviceOwner().Resolve(key)
 	if !ok || reg.NativeOf(got) != a {
 		t.Fatalf("Resolve before rebuild must return instance A")
 	}
@@ -64,10 +64,10 @@ func TestRegistry_ResolveRebindReturnsNewInstance(t *testing.T) {
 
 	// Rebuild: new instance B replaces A; A is retired.
 	b := &fakeNative{tag: 2}
-	refB := reg.Register(b)
-	reg.Bind(key, refB)
+	refB := reg.DeviceOwner().Register(b)
+	reg.DeviceOwner().Bind(key, refB)
 
-	got2, ok := reg.Resolve(key)
+	got2, ok := reg.DeviceOwner().Resolve(key)
 	if !ok {
 		t.Fatalf("Resolve after rebuild must succeed")
 	}
@@ -92,8 +92,8 @@ func TestRegistry_ResolveRebindReturnsNewInstance(t *testing.T) {
 	}
 	// Replacing B with C retires B; with no refs left, B is released.
 	c3 := &fakeNative{tag: 3}
-	refC := reg.Register(c3)
-	reg.Bind(key, refC)
+	refC := reg.DeviceOwner().Register(c3)
+	reg.DeviceOwner().Bind(key, refC)
 	if b.released != 1 {
 		t.Fatalf("B must release after being replaced and unreferenced, got %d", b.released)
 	}
@@ -105,7 +105,7 @@ func TestRegistry_MonotonicIDsNeverReused(t *testing.T) {
 	ids := make(map[uint32]bool)
 	for i := 0; i < 100; i++ {
 		f := &fakeNative{tag: i}
-		ref := reg.Register(f)
+		ref := reg.DeviceOwner().Register(f)
 		if ids[ref.id] {
 			t.Fatalf("registry id %d reused", ref.id)
 		}
@@ -119,7 +119,7 @@ func TestRegistry_InvalidateAllSkipsNativeRelease(t *testing.T) {
 	var natives []*fakeNative
 	for i := 0; i < 3; i++ {
 		f := &fakeNative{tag: i}
-		reg.Register(f)
+		reg.DeviceOwner().Register(f)
 		natives = append(natives, f)
 	}
 	reg.Retire(Ref{reg: reg, id: 0}) // no-op, must be safe
@@ -140,15 +140,15 @@ func TestRegistry_BindRetiresPredecessor(t *testing.T) {
 	key := SourceKey{Kind: KindTextureView, Role: RoleFrameScratch}
 
 	a := &fakeNative{tag: 1}
-	refA := reg.Register(a)
-	reg.Bind(key, refA)
+	refA := reg.DeviceOwner().Register(a)
+	reg.DeviceOwner().Bind(key, refA)
 
 	b := &fakeNative{tag: 2}
-	refB := reg.Register(b)
-	reg.Bind(key, refB)
+	refB := reg.DeviceOwner().Register(b)
+	reg.DeviceOwner().Bind(key, refB)
 
 	// A is retired by the rebind; B is now active.
-	if _, ok := reg.Resolve(key); !ok {
+	if _, ok := reg.DeviceOwner().Resolve(key); !ok {
 		t.Fatalf("new instance must be resolvable")
 	}
 	reg.Release(refB) // keep B bound release ordering: refB dropped then refA

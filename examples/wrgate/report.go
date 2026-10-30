@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/scheduler"
 )
 
@@ -92,6 +93,11 @@ type Report struct {
 	// omitted field that looks like missing evidence.
 	DebugRepaintDraws int64 `json:"debug_repaint_draws"`
 	DebugRepaintOn    bool  `json:"debug_repaint_on"`
+	// Pool is the GPU texture-pool reuse probe (P2.4d): one entry per res.Cache
+	// domain of every live device holder. Always present — an empty list means
+	// no GPU pools were built, which the pool gate then fails instead of
+	// reading a missing key as silence.
+	Pool []render.PoolDomainStats `json:"pool"`
 	// 对齐线 (RENDER_BASE_RESOURCE_MATRIX §4): same-machine comparison-ruler
 	// fields. All five keys are always present in the JSON; pointer fields are
 	// nil until a ruler run actually happened, marshaling as JSON null —
@@ -249,6 +255,7 @@ func BuildReport(in BuildInput) Report {
 		BoundaryMaxDepth:       in.Snap.BoundaryMaxDepth,
 		PictureOpCount:         in.Snap.PictureOpCount,
 		MeasureCacheHit:        in.Snap.MeasureCacheHit,
+		Pool:                   render.GPUPoolStats(),
 		MeasureCacheMiss:       in.Snap.MeasureCacheMiss,
 		AbilityExtra:           in.Extra,
 	}
@@ -303,6 +310,9 @@ var RequiredSchemaKeys = []string{
 	// 对齐线 (matrix §4): keys must exist in every report; nil ruler marshals
 	// them as JSON null ("没跑如实 null"), never as missing evidence.
 	"ruler_name", "ruler_cpu_pct", "ruler_rss_mb", "ruler_ratio_cpu", "ruler_ratio_rss",
+	// P2.4d reuse probe: the pool section must be in every report (empty array
+	// = no pools, which the MinPoolHits gate turns into a FAIL, not silence).
+	"pool",
 }
 
 // CheckSchema ensures the marshaled JSON contains required keys (string search).
@@ -364,6 +374,26 @@ type GateOptions struct {
 	MinDamageMultiFrames int64
 	// MinCacheInvalidations fails when ability_extra cache_invalidations < N (R11; 0 = off).
 	MinCacheInvalidations int64
+	// MinPoolHits fails when the GPU pool probe reports fewer than N same-size
+	// reuses across all domains (P2.4d; 0 = off).
+	MinPoolHits int64
+	// MinPoolMisses fails when the GPU pool probe reports fewer than N
+	// allocations across all domains (P2.4d; 0 = off). A concurrent same-size
+	// workload must allocate one entry per live window (strong refs are never
+	// shared), so the miss count proves every window actually went through the
+	// shared cache instead of allocating around it.
+	MinPoolMisses int64
+	// RequirePoolDomains names domains that must be present in the probe
+	// (P2.4d). Hits may legitimately be zero when the workload holds its
+	// entries for the whole run or draws a composited layer only once, so this
+	// gate only rejects a domain that never appeared at all — use
+	// RequirePoolHitDomains when reuse must be proven.
+	RequirePoolDomains []string
+	// RequirePoolHitDomains names domains that must each report at least one
+	// reuse (P2.4d). A listed domain that is missing entirely, or present with
+	// zero hits, fails — the pool must be proven to pay off where it is used,
+	// not just somewhere.
+	RequirePoolHitDomains []string
 }
 
 // EvaluateRetainedExtras checks R4b dirty-id gates against AbilityExtra:
@@ -391,6 +421,42 @@ func EvaluateRetainedExtras(r Report, opt GateOptions) error {
 		v, ok := numExtra(r.AbilityExtra, "cache_invalidations")
 		if !ok || v < opt.MinCacheInvalidations {
 			return fmt.Errorf("FAIL: cache_invalidations=%v want >=%d (DPR/size invalidation must fire)", v, opt.MinCacheInvalidations)
+		}
+	}
+	return nil
+}
+
+// EvaluatePoolGates checks the P2.4d reuse probe: the aggregate hit/miss
+// floors, domain presence, and the per-domain "this pool actually got reused"
+// list. Returns a FAIL error or nil.
+func EvaluatePoolGates(r Report, opt GateOptions) error {
+	if opt.MinPoolHits <= 0 && opt.MinPoolMisses <= 0 &&
+		len(opt.RequirePoolDomains) == 0 && len(opt.RequirePoolHitDomains) == 0 {
+		return nil
+	}
+	var totalHits, totalMisses uint64
+	byName := make(map[string]uint64, len(r.Pool))
+	seen := make(map[string]bool, len(r.Pool))
+	for _, d := range r.Pool {
+		totalHits += d.Hits
+		totalMisses += d.Misses
+		byName[d.Name] += d.Hits
+		seen[d.Name] = true
+	}
+	if opt.MinPoolHits > 0 && totalHits < uint64(opt.MinPoolHits) {
+		return fmt.Errorf("FAIL: pool_hits=%d want >=%d (same-size reuse must actually happen, not just allocate)", totalHits, opt.MinPoolHits)
+	}
+	if opt.MinPoolMisses > 0 && totalMisses < uint64(opt.MinPoolMisses) {
+		return fmt.Errorf("FAIL: pool_misses=%d want >=%d (every live window must allocate its own entry through the shared cache)", totalMisses, opt.MinPoolMisses)
+	}
+	for _, name := range opt.RequirePoolDomains {
+		if !seen[name] {
+			return fmt.Errorf("FAIL: pool domain %q missing from probe (probe: %+v)", name, r.Pool)
+		}
+	}
+	for _, name := range opt.RequirePoolHitDomains {
+		if byName[name] == 0 {
+			return fmt.Errorf("FAIL: pool domain %q reports 0 hits (probe: %+v)", name, r.Pool)
 		}
 	}
 	return nil
@@ -497,6 +563,9 @@ func EvaluateGates(r Report, opt GateOptions) error {
 	}
 	if opt.RequireDebugOn && !r.DebugRepaintOn {
 		return fmt.Errorf("FAIL: debug_repaint_on=false want true (R12b overlay active)")
+	}
+	if err := EvaluatePoolGates(r, opt); err != nil {
+		return err
 	}
 	if err := EvaluateRetainedExtras(r, opt); err != nil {
 		return err

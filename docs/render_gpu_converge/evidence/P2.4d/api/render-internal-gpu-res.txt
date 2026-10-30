@@ -1,0 +1,470 @@
+package res // import "github.com/energye/gpui/render/internal/gpu/res"
+
+Package res implements Skia-style GPU resource lifecycle management: logical
+references (SourceKey), strong usage references (Ref), a resolution registry,
+a resource cache, and submission-tracked deferred destruction.
+
+Naming alignment with Skia:
+  - SourceKey + Ref ≈ GrSurfaceProxy (logical + strong reference)
+  - Registry ≈ proxy → resource mapping + GrGpuResource refcounts
+  - Cache ≈ GrResourceCache (keyed reuse, budget, LRU)
+  - Submission ≈ command-buffer refs (keep alive until fence)
+
+The package is pure Go: it never touches wgpu directly. Native resources are
+abstracted behind the Native interface so everything is unit-testable without
+a GPU. View.Raw is the only opaque-pointer escape hatch, used for queue-time
+fallback registration.
+
+Concurrency: instances are NOT thread-safe, matching the serialized GPU render
+path (one GPURenderContext at a time).
+
+TYPES
+
+type Cache struct {
+	// Has unexported fields.
+}
+    Cache is a GrResourceCache-style pool: keyed reuse, byte budget with LRU
+    eviction, per-key idle cap, explicit idle purge, and "in-flight items are
+    never lent out" safety. Entries returned by Acquire are strong Refs; Release
+    returns them to the pool. Over-budget idle entries are retired (destroyed
+    once no longer in-flight).
+
+    Thread contract: one cache may be shared by several window threads on the
+    same device (shared filter/dualtex domains), so every method locks. Lock
+    order is cache → registry; the registry runs idle callbacks after releasing
+    its own lock, so the callback may re-enter the cache safely.
+
+func NewCache(owner Owner, create CreateFn, opt CacheOptions) *Cache
+    NewCache creates a cache whose entries are attributed to owner, so the
+    owning session's teardown releases exactly them from the device-level
+    registry.
+
+func (c *Cache) Acquire(key CacheKey) (Ref, error)
+    Acquire returns a strong Ref for the key, reusing an idle pooled entry when
+    possible. In-flight or currently-referenced entries are never lent out.
+
+    The create callback runs WITHOUT the cache lock: real allocators invoke
+    the OOM purge chain (PurgeAcceleratorSurfaceResources → Cache.PurgeIdle),
+    which re-enters this cache. Holding the lock across create would deadlock.
+
+func (c *Cache) Evictions() uint64
+    Evictions returns the number of budget/cap-driven retirements.
+
+func (c *Cache) HitRate() (hits, misses uint64)
+    HitRate returns cache hit/miss counters (diagnostics / anti-fake-green).
+
+func (c *Cache) InvalidateAll()
+    InvalidateAll clears the pool without touching native resources (device
+    loss path). Registry entries are dropped by Registry.InvalidateAll /
+    Owner.InvalidateOwned; counters stay for post-mortem diagnostics.
+
+func (c *Cache) KeyOf(id uint32) (CacheKey, bool)
+    KeyOf returns the cache key for a registry id (diagnostics).
+
+func (c *Cache) PurgeIdle() (int, uint64)
+    PurgeIdle retires every idle pooled entry and returns how many were purged
+    and how many bytes were freed. Checked-out and in-flight entries are left
+    alone (they retire through their normal path). This is the OOM/purge outlet:
+    caches are drained before a device-wide fallback.
+
+func (c *Cache) Release(ref Ref)
+    Release returns a Ref to the pool. The registry refcount is decremented;
+    the entry becomes recombinable when its last ref is gone and it is not
+    in-flight — the registry idle callback repools it at that point, so an entry
+    still referenced by a submitted command buffer waits for SubmitDone.
+
+func (c *Cache) ReleaseAll()
+    ReleaseAll force-releases every entry (native Release) and clears the cache.
+    Device-teardown path (healthy device): the device-abandon flow calls this
+    so pooled natives do not outlive the device. Device loss uses InvalidateAll
+    instead (no Release).
+
+func (c *Cache) ReleaseRetire(ref Ref)
+    ReleaseRetire drops ref and destroys the entry instead of returning it
+    to the pool. Used by owners whose resources may still be referenced by a
+    directly submitted (untracked) command buffer: hand-off to a pool could
+    reissue the same native while the GPU is not done, so they keep the
+    pre-pooling "destroy on release" contract.
+
+func (c *Cache) Stats() CacheStats
+    Stats returns a per-domain snapshot. Idle counts entries that are actually
+    sitting in a key bucket AND still reusable per the registry — the exact set
+    Acquire can lend and PurgeIdle can drain. Registry-only would over-report:
+    a hold cleared by the device-loss path leaves the entry reusable in the
+    registry but never queued in the cache, so it can no longer be lent. The
+    registry check runs outside the cache lock (lock order cache → registry).
+
+type CacheKey struct {
+	W, H    uint32
+	Format  uint32 // opaque format tag; callers map to their own enum
+	Samples uint32
+	Usage   uint64 // opaque usage tag
+	Role    Role
+}
+    CacheKey identifies a reusable GPU resource class (GrResourceCache key).
+
+type CacheOptions struct {
+	// Name labels the domain in Stats ("" = unnamed).
+	Name string
+	// Budget caps estimated bytes of live+pooled entries; 0 disables.
+	Budget uint64
+	// SizeFn gives real per-resource bytes (nil = defaultEntryBytes).
+	SizeFn SizeFn
+	// MaxPerKey caps idle entries kept per key; 0 = unlimited. Overflow is
+	// retired immediately, so identical-size bursts cannot grow a bucket
+	// without bound.
+	MaxPerKey int
+}
+    CacheOptions configures one cache domain.
+
+type CacheStats struct {
+	Name      string
+	Hits      uint64
+	Misses    uint64
+	Evictions uint64
+	Purged    uint64
+	Entries   uint64
+	Idle      uint64
+	Bytes     uint64
+	PeakBytes uint64
+	Budget    uint64
+}
+    CacheStats is a per-domain snapshot (diagnostics / real-window JSON pool
+    section). Entries includes checked-out and pooled; Idle is pooled-and-idle.
+
+type CreateFn func(key CacheKey) (Native, error)
+    CreateFn fabricates a native resource for a key (device.createTexture etc).
+
+type GateHandle struct {
+	// Has unexported fields.
+}
+    GateHandle is one outstanding hold. Resolve / Invalidate are idempotent:
+    the first caller that removes it from the gate does the work, later
+    ones no-op, so a token pump and a teardown path can both fire without
+    double-decrementing the in-flight counters.
+
+func (h *GateHandle) Invalidate()
+    Invalidate drops the hold without decrementing the in-flight counters — the
+    device-loss path, where no fence will ever arrive and the abandon flow owns
+    native teardown.
+
+func (h *GateHandle) Resolve()
+    Resolve completes the submission: every held entry leaves the in-flight
+    state, which is what finally lets a retired entry be destroyed and an idle
+    entry be re-lent. No-op on an unknown or already-resolved handle.
+
+type InflightGate struct {
+	// Has unexported fields.
+}
+    InflightGate holds pooled resources in flight for submissions that are NOT
+    framed by a Session (the filter and dual-tex caches submit straight to the
+    queue). It is the multi-outstanding counterpart to Submission: Submission is
+    one per-session window that opens at BeginFrame and closes at SubmitDone; a
+    device-level pool may have any number of command buffers in flight at once,
+    each with its own completion token.
+
+    Lifecycle: Hold(refs) before Queue.Submit → attach the returned GateHandle
+    to the hal.CompletionToken → Resolve once the token reports Done.
+    Retired entries cannot be destroyed and idle entries cannot be re-lent while
+    a handle holds them, which is exactly the race a size flip or purge could
+    otherwise hit: the pool hands a texture to window B while window A's copy of
+    it is still running on the GPU.
+
+    Thread-safe: a device-level pool is shared by every window thread on that
+    device, so submits and completions arrive concurrently.
+
+func NewInflightGate(reg *Registry) *InflightGate
+    NewInflightGate creates a gate bound to reg.
+
+func (g *InflightGate) Hold(refs ...Ref) *GateHandle
+    Hold marks every ref in flight and returns the handle that must be resolved
+    once the GPU reports the submission finished. Nil refs and refs from another
+    registry are skipped (same tolerance as Submission.Track).
+
+    The registry is never touched while the gate lock is held: in-flight
+    transitions can fire idle callbacks that re-enter a cache, and the lock
+    order is cache → gate → registry.
+
+func (g *InflightGate) InvalidateAll()
+    InvalidateAll drops every outstanding hold (device loss).
+
+func (g *InflightGate) Pending() int
+    Pending handles returns the number of unresolved holds (diagnostics).
+
+func (g *InflightGate) ResolveAll()
+    ResolveAll settles every outstanding hold (after an explicit device drain:
+    WaitIdle proved the GPU finished, so no token needs to be waited on).
+
+type Kind uint8
+    Kind identifies the kind of GPU resource a handle refers to.
+
+const (
+	KindTextureView Kind = iota
+	KindTexture
+	KindBuffer
+	KindSampler
+	KindBindGroup
+)
+type Native interface {
+	Release()
+}
+    Native abstracts a native GPU resource. Release must be called exactly once,
+    at the moment the resource is guaranteed safe to destroy.
+
+type Owner struct {
+	// Has unexported fields.
+}
+    Owner is an owner-scoped handle over the device-level Registry.
+    All registrations made through it are attributed to its id; ReleaseOwned /
+    InvalidateOwned drop exactly those entries.
+
+func (o Owner) Bind(key SourceKey, ref Ref)
+    Bind makes ref the current active instance of a role for this owner.
+    The previous bound instance (if any) is retired.
+
+func (o Owner) Count() int
+    Count returns the number of live entries owned by this owner.
+
+func (o Owner) ID() OwnerID
+    ID returns the owner id.
+
+func (o Owner) InvalidateOwned()
+    InvalidateOwned discards every entry and role owned by this owner WITHOUT
+    calling native Release — the device-abandon flow owns native teardown.
+    Used on device loss / AutoRecover.
+
+func (o Owner) IsNil() bool
+    IsNil reports whether the handle is unbound (zero value).
+
+func (o Owner) PendingReleaseCount() int
+    PendingReleaseCount returns how many of this owner's entries are retired but
+    still waiting for their last ref / in-flight submission (diagnostics).
+
+func (o Owner) Register(res Native) Ref
+    Register adds a native resource owned by this owner and returns a strong Ref
+    (refcount = 1).
+
+func (o Owner) RegisterBorrowed(res Native) Ref
+    RegisterBorrowed tracks a view owned outside the res system (texture cache
+    slots, swapchain views) under this owner. Removal never calls the native
+    Release — the external owner owns destruction.
+
+func (o Owner) Registry() *Registry
+    Registry returns the underlying registry.
+
+func (o Owner) ReleaseOwned()
+    ReleaseOwned force-releases every native entry owned by this owner and
+    drops its role bindings. Used on session teardown while the device is still
+    healthy (the GPU must be drained first) — NOT the device-loss path (use
+    InvalidateOwned there). Borrowed entries are dropped without Release.
+
+func (o Owner) Resolve(key SourceKey) (Ref, bool)
+    Resolve returns the current active instance for a role key owned by this
+    owner, incrementing its refcount (caller must Release the returned Ref).
+
+type OwnerID uint64
+    OwnerID identifies who owns registry entries. OwnerDevice (0) is the device
+    itself — shared pipelines/caches. Every render session allocates its own id
+    so a window close can drop exactly its entries from the one device-level
+    registry (Skia GrContext: one resource cache, N surfaces).
+
+const OwnerDevice OwnerID = 0
+    OwnerDevice is the device-wide owner (shared resources).
+
+type Ref struct {
+	// Has unexported fields.
+}
+    Ref is a strong usage reference (GrGpuResource::ref semantics). While a
+    Ref exists the underlying resource is guaranteed alive; a ref>0 resource is
+    never destroyed.
+
+func (r Ref) IsNil() bool
+    IsNil reports whether the Ref is the zero value.
+
+type Registry struct {
+	// Has unexported fields.
+}
+    Registry is one device's resource state machine, shared by every window
+    session on that device (Skia GrResourceCache). Ids are monotonic and never
+    reused (no ABA problem). Actual native destruction is deferred until refs==0
+    && inflight==0 && retire, mirroring Skia command-buffer refs.
+
+    All methods are safe for concurrent use: window sessions on the same device
+    may retire resources from different raster threads. Idle callbacks fire
+    outside the lock so they can safely re-enter the registry.
+
+func NewRegistry() *Registry
+    NewRegistry creates an empty registry.
+
+func (r *Registry) Acquire(id uint32) Ref
+    Acquire increments the refcount of an existing entry and returns a new Ref.
+    Returns a nil Ref if the id is unknown.
+
+func (r *Registry) Count() int
+    Count returns the number of live entries (diagnostics).
+
+func (r *Registry) DeviceOwner() Owner
+    DeviceOwner returns the device-wide owner handle (shared resources).
+
+func (r *Registry) ID(ref Ref) uint32
+    ID returns the registry id carried by the Ref (diagnostics / cache keys).
+
+func (r *Registry) InvalidateAll()
+    InvalidateAll discards every entry WITHOUT calling native Release — native
+    teardown is handled by the device-abandon flow (abandonDeviceOwnedLocked),
+    keeping a single release outlet. Used on device loss / AutoRecover.
+
+func (r *Registry) NativeOf(ref Ref) Native
+    NativeOf returns the native resource behind a Ref (diagnostics / tests).
+    Returns nil if the id is unknown or has been released.
+
+func (r *Registry) NewOwner() Owner
+    NewOwner allocates a fresh owner id and returns its handle.
+
+func (r *Registry) PendingReleaseCount() int
+    PendingReleaseCount returns how many live entries are retired but still
+    waiting for their last ref / in-flight submission (diagnostics).
+
+func (r *Registry) Release(ref Ref)
+    Release decrements the refcount. The native resource is released only when
+    refs==0 && inflight==0 && retire (see removeIfReady).
+
+func (r *Registry) ReleaseAll()
+    ReleaseAll force-releases every registered native resource and clears
+    the registry. Used on device teardown while the device is still healthy
+    — NOT the device-loss path (use InvalidateAll there). Safe to call with
+    outstanding Refs: native Release is idempotent at the facade layer. Borrowed
+    entries are dropped without Release (their owner destroys them).
+
+func (r *Registry) ResolveStats() (hits, misses uint64)
+    The frame gate is: ResolveMiss must stay 0 under resize — a miss means a
+    command resolved to a role whose active instance was unavailable.
+
+func (r *Registry) Retire(ref Ref)
+    Retire marks an entry for destruction. The native resource is released only
+    once no usage refs and no in-flight submissions remain.
+
+func (r *Registry) SetIdleCallback(id uint32, fn func())
+    SetIdleCallback registers fn to run whenever the entry transitions to idle
+    (refs==0 && inflight==0 and not retired). Replaces the per-cache pending
+    queue: the callback runs from Release or from the submission completion that
+    clears the in-flight count, whichever comes last.
+
+type Role uint8
+    Role identifies a logical texture role for deferred resolution, aligned with
+    real view sources in the engine (no invented roles).
+
+const (
+	RoleNone Role = iota
+	// RoleSessionResolve / RoleSessionMSAA / RoleSessionStencil are the
+	// textureSet trio (offscreen MSAA color, depth/stencil, resolve).
+	RoleSessionResolve
+	RoleSessionMSAA
+	RoleSessionStencil
+	// RoleFrameScratch is the advanced-blend intermediate BGRA texture.
+	RoleFrameScratch
+	// RoleLayerRT is a pooled layer offscreen render target.
+	RoleLayerRT
+	// RoleFilterRT tags the GPU filter graph's pooled render targets. Like
+	// RoleLayerRT here it only discriminates a res.Cache key/bucket — it is
+	// never a deferred view source.
+	RoleFilterRT
+	// RoleCoverResult is a per-draw stencil-cover texture.
+	RoleCoverResult
+	// RoleAtlasPage is a glyph/MSDF atlas texture page.
+	RoleAtlasPage
+	// RoleExternal marks borrowed views owned outside the res system
+	// (swapchain views, shared atlases). Tracked but never released here.
+	RoleExternal
+)
+type SizeFn func(key CacheKey) uint64
+    SizeFn reports the byte size of a key's resource. Caches use it for real
+    budget accounting; nil falls back to defaultEntryBytes per entry.
+
+type SourceKey struct {
+	Kind  Kind
+	Role  Role
+	Index uint32 // 0 = current active instance for the role; atlas pages = page number
+}
+    SourceKey is a logical reference to a texture, resolved at flush
+    time — never a snapshot of the concrete resource. This mirrors
+    GrSurfaceProxy::lazyInstantiation timing: resolution happens when the draw
+    is recorded, so a texture rebuilt between queue and flush resolves to the
+    current active instance.
+
+func (k SourceKey) IsNil() bool
+    IsNil reports whether the key is the zero value.
+
+type Submission struct {
+	// Has unexported fields.
+}
+    Submission models one Queue.Submit lifecycle (command-buffer refs). Begin
+    frames a submission; Track marks the resources referenced by the submitted
+    command buffers as in-flight; SubmitDone (reached via OnSubmittedWorkDone
+    callback or a synchronous readback point) releases the in-flight count,
+    which is what finally allows retired resources to be destroyed. Invalidate
+    handles device loss where the fence never arrives.
+
+func NewSubmission(reg *Registry) *Submission
+    NewSubmission creates a submission bound to reg.
+
+func (s *Submission) Begin()
+    Begin starts a new submission window. Any prior un-resolved jobs are dropped
+    (callers must ensure the previous submission completed or was invalidated
+    first).
+
+func (s *Submission) InFlight() []uint32
+    InFlight returns the set of registry ids currently tracked (diagnostics).
+
+func (s *Submission) Invalidate()
+    Invalidate force-resolves the submission on device loss, where no fence will
+    arrive. Native resources are NOT released here (the abandon flow owns that);
+    the in-flight state is simply cleared so further bookkeeping is consistent.
+
+func (s *Submission) SubmitDone()
+    SubmitDone resolves the submission: every tracked entry leaves the in-flight
+    state, allowing retired resources to be released.
+
+func (s *Submission) Track(ref Ref)
+    Track marks ref as referenced by this submission: the underlying entry is
+    placed in-flight until SubmitDone.
+
+type View struct {
+	Key SourceKey      // nonzero → deferred resolution
+	Ref Ref            // used when Key is nil
+	Raw unsafe.Pointer // used when both Key and Ref are nil (queue-time fallback)
+}
+    View is the texture reference carried by draw commands. It has three states,
+    mirroring GrSurfaceProxy's deferred vs instantiated forms:
+      - Deferred: Key is set → the view is resolved at flush time to the current
+        active instance (never a stale snapshot).
+      - Direct: Key is nil and Ref is set → a strong reference to a specific
+        resource (rc-owned temporaries); the resource is guaranteed alive
+        through the command's lifetime.
+      - Raw (queue-time fallback): Key and Ref are nil but Raw carries the
+        opaque view pointer captured when no registry existed yet (first frame /
+        after a device rebuild). The consumer registers it at flush time.
+
+    Commands must Release any Direct Ref after consumption (frame end).
+
+func ViewFromKey(k SourceKey) View
+    ViewFromKey builds a deferred View resolved at flush time.
+
+func ViewFromRaw(p unsafe.Pointer) View
+    ViewFromRaw builds a queue-time fallback View carrying the opaque view
+    pointer; the consumer registers it once a registry is available.
+
+func ViewFromRef(r Ref) View
+    ViewFromRef builds a direct (strongly referenced) View.
+
+func (v View) Equals(o View) bool
+    Equals reports whether two Views reference the same logical texture:
+    identical deferred keys, identical direct registry ids, or the same raw
+    pointer (queue-time fallback).
+
+func (v View) IsNil() bool
+    IsNil reports whether the View is the zero value (no texture).
+
+func (v View) RefID() uint32
+    RefID returns the direct-reference registry id (0 for deferred/raw views).
+

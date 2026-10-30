@@ -38,7 +38,8 @@
 //   - ImageCache: entry and byte LRU caps (SetBudgets to tune)
 //   - glyph atlases: page-level LRU eviction
 //   - depth-clip mask cache: count/byte budget
-//   - TexturePool: render-target reuse (deprecated, kept for the shared cache)
+//   - surface trio / offscreen / filter / dual-tex pools: res.Cache domains
+//     (size-keyed, byte budget, per-key cap, idle purge)
 //
 // # Legacy helpers
 //

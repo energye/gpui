@@ -91,7 +91,7 @@ func TestOpt28_GPUTexVertSticky_SkipsRepeatWrite(t *testing.T) {
 	// resolution succeeds on every repeated build (transient refs are
 	// resolved-and-released per call).
 	key := res.SourceKey{Kind: res.KindTextureView, Role: res.RoleCoverResult, Index: 3}
-	s.Reg().Bind(key, s.Reg().Register(&texViewNative{view}))
+	s.Res().Bind(key, s.Res().Register(&texViewNative{view}))
 
 	cmd := GPUTextureDrawCommand{
 		DstX: 10, DstY: 20, DstW: 30, DstH: 40,

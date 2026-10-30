@@ -9,6 +9,7 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/hal/noop"
 	"github.com/energye/gpui/gpu/types"
+	"github.com/energye/gpui/render/internal/gpu/res"
 	"github.com/energye/gpui/render/text"
 )
 
@@ -125,115 +126,126 @@ func TestDepthClipMaskCache_LastEntryNeverEvicted(t *testing.T) {
 	}
 }
 
-// --- dual-tex out pool (total bytes + per-size-bucket cap) ---
+// --- dual-tex snap pool (device-level res.Cache: byte budget + per-size cap) ---
 
-func TestDualTexOutPool_ByteBudgetEviction(t *testing.T) {
+// newPooledDualTexCache returns a dual-tex cache bound to a fresh device
+// registry, so its snaps go through the real res.Cache path (P2.4d) instead of
+// the removed hand-rolled bucket map.
+func newPooledDualTexCache(t *testing.T) *dualTexBlendCache {
+	t.Helper()
 	c := &dualTexBlendCache{}
+	c.bindRes(res.NewRegistry().DeviceOwner(), nil)
+	t.Cleanup(c.release)
+	return c
+}
+
+// snapOut takes one pooled snap and hands it straight back.
+func poolSnapInOut(t *testing.T, c *dualTexBlendCache, dev hal.Device, w, h int) dualTexViewBlendOut {
+	t.Helper()
+	tex, view, ref, err := c.getOutBGRA(dev, nil, w, h)
+	if err != nil {
+		t.Fatalf("getOutBGRA(%d,%d): %v", w, h, err)
+	}
+	if ref.IsNil() {
+		t.Fatalf("getOutBGRA(%d,%d): snap is not pooled", w, h)
+	}
+	return dualTexViewBlendOut{tex: tex, view: view, ref: ref}
+}
+
+func dualTexSnapCache(t *testing.T, c *dualTexBlendCache) *res.Cache {
+	t.Helper()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// Nine 1024x1024 BGRA temps (4 MiB each = 36 MiB) across two buckets
-	// exceeds the 32 MiB pool budget; the largest bucket drains first.
-	for i := 0; i < 5; i++ {
-		c.outPool = map[[2]int][]dualTexPooledTex{}
-		c.outPool[[2]int{1024, 1024}] = append(c.outPool[[2]int{1024, 1024}],
-			dualTexPooledTex{}, dualTexPooledTex{}, dualTexPooledTex{}, dualTexPooledTex{}, dualTexPooledTex{})
-		c.outPool[[2]int{512, 512}] = append(c.outPool[[2]int{512, 512}],
-			dualTexPooledTex{}, dualTexPooledTex{}, dualTexPooledTex{}, dualTexPooledTex{})
-		break
+	if c.outCache == nil {
+		t.Fatal("dual-tex snap cache was never built")
 	}
-	// Rebuild deterministically: 5×4MiB + 4×1MiB = 24MiB (within budget).
-	c.outPool = map[[2]int][]dualTexPooledTex{
-		{1024, 1024}: make([]dualTexPooledTex, 5),
-		{512, 512}:   make([]dualTexPooledTex, 4),
+	return c.outCache
+}
+
+// TestDualTexOutPool_ByteBudgetEviction pins the domain byte budget on the
+// unified cache: a frame may hold more than the budget (live entries are not
+// evictable), but everything handed back above the cap is retired LRU-first
+// until the pooled bytes fit again. Same 32 MiB number the pre-P2.4d
+// hand-rolled enforce used.
+func TestDualTexOutPool_ByteBudgetEviction(t *testing.T) {
+	dev := newNoopTestDevice(t)
+	c := newPooledDualTexCache(t)
+	// 8 × 1024² BGRA (4 MiB) + 8 × 512² (1 MiB) = 40 MiB, all checked out.
+	var held []dualTexViewBlendOut
+	for i := 0; i < 8; i++ {
+		held = append(held, poolSnapInOut(t, c, dev, 1024, 1024))
 	}
-	c.enforceOutPoolBudgetLocked()
-	used := 0
-	for key, bucket := range c.outPool {
-		used += key[0] * key[1] * 4 * len(bucket)
+	for i := 0; i < 8; i++ {
+		held = append(held, poolSnapInOut(t, c, dev, 512, 512))
 	}
-	if used > 32<<20 {
-		t.Fatalf("pooled bytes = %d, want <= 32MiB after enforce", used)
+	cache := dualTexSnapCache(t, c)
+	if st := cache.Stats(); st.Bytes != 40<<20 || st.Evictions != 0 {
+		t.Fatalf("live domain: bytes=%d evictions=%d, want 40MiB and 0 (checked-out entries are not evictable)",
+			st.Bytes, st.Evictions)
 	}
-	if len(c.outPool[[2]int{1024, 1024}]) != 5 || len(c.outPool[[2]int{512, 512}]) != 4 {
-		t.Fatalf("within-budget state changed: %+v", c.outPool)
+	// Hand everything back: the LRU head (oldest recycled 1024² snaps) is
+	// retired until the pool fits the 32 MiB budget again.
+	for _, o := range held {
+		c.recycleOut(o, nil)
 	}
-	// Push past the budget: three more 4MiB entries (cap 8 per bucket →
-	// 8×4MiB + 4×1MiB = 36MiB) — the biggest bucket drains until the total
-	// fits exactly (7×4MiB + 4×1MiB = 32MiB).
-	c.outPool[[2]int{1024, 1024}] = append(c.outPool[[2]int{1024, 1024}],
-		dualTexPooledTex{}, dualTexPooledTex{}, dualTexPooledTex{})
-	c.enforceOutPoolBudgetLocked()
-	used = 0
-	for key, bucket := range c.outPool {
-		used += key[0] * key[1] * 4 * len(bucket)
+	st := cache.Stats()
+	if st.Bytes != 32<<20 {
+		t.Fatalf("pooled bytes = %d, want exactly 32MiB after overflow", st.Bytes)
 	}
-	if used != 32<<20 {
-		t.Fatalf("pooled bytes = %d, want exactly 32MiB after overflow enforce", used)
+	if st.Evictions != 2 {
+		t.Fatalf("evictions = %d, want 2 (two 4MiB snaps retired to fit)", st.Evictions)
 	}
-	if got := len(c.outPool[[2]int{1024, 1024}]); got != 7 {
-		t.Fatalf("largest bucket len = %d, want 7 (drained to the byte cap)", got)
+	if st.Entries != 14 || st.Idle != 14 {
+		t.Fatalf("entries=%d idle=%d, want 14/14 (6×1024² + 8×512²)", st.Entries, st.Idle)
 	}
 }
 
+// TestDualTexOutPool_PerBucketCap pins the per-size-bucket cap: below the byte
+// budget, an identical-size burst still cannot grow one bucket without bound.
 func TestDualTexOutPool_PerBucketCap(t *testing.T) {
 	dev := newNoopTestDevice(t)
-	c := &dualTexBlendCache{}
-	defer c.release()
-	// The 9th same-size put must be rejected (destroyed, not pooled).
-	var kept int
-	for i := 0; i < 9; i++ {
-		tex, err := dev.CreateTexture(&hal.TextureDescriptor{
-			Label: "dualtex_cap_test", Size: hal.Extent3D{Width: 64, Height: 64, DepthOrArrayLayers: 1},
-			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
-			Format: types.TextureFormatBGRA8Unorm, Usage: types.TextureUsageRenderAttachment,
-		})
-		if err != nil {
-			t.Fatalf("CreateTexture: %v", err)
-		}
-		view, err := dev.CreateTextureView(tex, nil)
-		if err != nil {
-			tex.Destroy()
-			t.Fatalf("CreateTextureView: %v", err)
-		}
-		c.putOutBGRA(tex, view, 64, 64)
+	c := newPooledDualTexCache(t)
+	var held []dualTexViewBlendOut
+	for i := 0; i < 10; i++ {
+		held = append(held, poolSnapInOut(t, c, dev, 512, 512))
 	}
-	c.mu.Lock()
-	kept = len(c.outPool[[2]int{64, 64}])
-	c.mu.Unlock()
-	if kept != 8 {
-		t.Fatalf("bucket len = %d, want cap 8", kept)
+	cache := dualTexSnapCache(t, c)
+	// Return them: the 9th and 10th past the cap of 8 are retired, not pooled.
+	for _, o := range held {
+		c.recycleOut(o, nil)
+	}
+	st := cache.Stats()
+	if st.Entries != 8 || st.Idle != 8 {
+		t.Fatalf("entries=%d idle=%d, want 8/8 (bucket cap 8)", st.Entries, st.Idle)
+	}
+	if st.Evictions != 2 {
+		t.Fatalf("evictions = %d, want 2 (overflow retired)", st.Evictions)
+	}
+	if st.Bytes != 8<<20 {
+		t.Fatalf("pooled bytes = %d, want 8MiB", st.Bytes)
 	}
 }
 
-// --- stencil scratch pool (size buckets, LRU at cap 8) ---
-
-func TestStencilPool_LRUEviction(t *testing.T) {
+// TestDualTexOutPool_PurgeKeepsCheckedOut pins the OOM/purge outlet: an
+// idle-drain frees everything pooled while a frame is still using its snaps.
+func TestDualTexOutPool_PurgeKeepsCheckedOut(t *testing.T) {
 	dev := newNoopTestDevice(t)
-	ts := &textureSet{}
-	for i := 0; i < 9; i++ {
-		w := uint32(64 + i)
-		if v := ts.takePooledStencil(dev, w, 64, "stencil_budget_test"); v == nil {
-			t.Fatalf("take %d returned nil", i)
-		}
+	c := newPooledDualTexCache(t)
+	held := poolSnapInOut(t, c, dev, 256, 256)
+	back := poolSnapInOut(t, c, dev, 256, 256)
+	c.recycleOut(back, nil)
+	cache := dualTexSnapCache(t, c)
+	if st := cache.Stats(); st.Idle != 1 {
+		t.Fatalf("idle = %d, want 1 before purge", st.Idle)
 	}
-	if len(ts.stencilPool) != 8 {
-		t.Fatalf("pool len = %d, want cap 8", len(ts.stencilPool))
+	c.releasePooledVRAM()
+	st := cache.Stats()
+	if st.Entries != 1 || st.Idle != 0 {
+		t.Fatalf("after purge: entries=%d idle=%d, want the checked-out snap only", st.Entries, st.Idle)
 	}
-	if _, ok := ts.stencilPool[stencilPoolKey{w: 64, h: 64}]; ok {
-		t.Fatal("size 64x64 (oldest) still pooled — LRU eviction did not run")
-	}
-	// Touch an existing entry, then overflow again: the touched one survives.
-	if v := ts.takePooledStencil(dev, 65, 64, "stencil_budget_test"); v == nil {
-		t.Fatal("re-take 65x64 returned nil")
-	}
-	if v := ts.takePooledStencil(dev, 73, 64, "stencil_budget_test"); v == nil {
-		t.Fatal("take 73x64 returned nil")
-	}
-	if _, ok := ts.stencilPool[stencilPoolKey{w: 65, h: 64}]; !ok {
-		t.Fatal("touched entry 65x64 was evicted — LRU order broken")
-	}
-	if _, ok := ts.stencilPool[stencilPoolKey{w: 66, h: 64}]; ok {
-		t.Fatal("untouched entry 66x64 survived — wrong victim")
+	c.recycleOut(held, nil)
+	if st := cache.Stats(); st.Entries != 1 {
+		t.Fatalf("after the last release: entries=%d, want 1", st.Entries)
 	}
 }
 

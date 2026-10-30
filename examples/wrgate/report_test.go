@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/examples/wrgate"
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/ui/scheduler"
 )
 
@@ -453,5 +454,92 @@ func TestRulerFromEnv(t *testing.T) {
 	got := wrgate.RulerFromEnv()
 	if got == nil || got.Name != "flutter_spin" || got.CPUPct != 25.41 || got.RSSMB != 300.0 {
 		t.Fatalf("complete export must parse, got %+v", got)
+	}
+}
+
+// P2.4d: the GPU pool-reuse probe rides every report, and the gate fails when a
+// window that must reuse same-size textures reports zero hits.
+func TestBuildReport_PoolSectionFromProbe(t *testing.T) {
+	owner := new(any)
+	render.RegisterGPUPoolStatsCollector(owner, func() []render.PoolDomainStats {
+		return []render.PoolDomainStats{
+			{Device: "device-1", Name: "device-surface", Hits: 40, Misses: 3, Budget: 128 << 20},
+			{Device: "device-1", Name: "filter-graph", Hits: 0, Misses: 9},
+		}
+	})
+	t.Cleanup(func() { render.UnregisterGPUPoolStatsCollector(owner) })
+
+	r := wrgate.BuildReport(wrgate.BuildInput{
+		AbilityID:     "R20",
+		Scenario:      "ui_wr_r20_filter",
+		Snap:          scheduler.FrameMetrics{PresentPolicy: scheduler.PresentPolicyFullPaint, VSyncSource: "fallback"},
+		PresentCount:  10,
+		ElapsedSec:    1.0,
+		SurfaceAreaPx: 100 * 100,
+	})
+	if len(r.Pool) != 2 {
+		t.Fatalf("pool domains = %d, want the probe's two", len(r.Pool))
+	}
+	b, err := wrgate.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wrgate.CheckSchema(b); err != nil {
+		t.Fatalf("pool section must be part of the required schema: %v", err)
+	}
+	for _, needle := range []string{`"pool"`, `"device-surface"`, `"filter-graph"`, `"hits":40`} {
+		if !strings.Contains(string(b), needle) {
+			t.Fatalf("JSON missing %s: %s", needle, b)
+		}
+	}
+}
+
+func TestEvaluatePoolGates(t *testing.T) {
+	r := wrgate.Report{Pool: []render.PoolDomainStats{
+		{Name: "device-surface", Hits: 12, Misses: 26},
+		{Name: "filter-graph", Hits: 0, Misses: 3},
+		{Name: "layer-offscreen", Hits: 0, Misses: 1},
+	}}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{}); err != nil {
+		t.Fatalf("gates off must pass: %v", err)
+	}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{MinPoolHits: 20}); err == nil {
+		t.Fatal("total hits 12 < floor 20 must FAIL")
+	}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{MinPoolHits: 10}); err != nil {
+		t.Fatalf("total hits 12 >= floor 10 must pass: %v", err)
+	}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{MinPoolMisses: 31}); err == nil {
+		t.Fatal("total misses 30 < floor 31 must FAIL")
+	}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{MinPoolMisses: 30}); err != nil {
+		t.Fatalf("total misses 30 >= floor 30 must pass: %v", err)
+	}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{RequirePoolHitDomains: []string{"filter-graph"}}); err == nil {
+		t.Fatal("a required domain with 0 hits must FAIL (no fake green)")
+	}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{RequirePoolHitDomains: []string{"dualtex-snap"}}); err == nil {
+		t.Fatal("a missing required hit domain must FAIL, not read as silence")
+	}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{RequirePoolHitDomains: []string{"device-surface"}}); err != nil {
+		t.Fatalf("device-surface reused 12 times must pass: %v", err)
+	}
+	// Presence-only domains: the workload may hold its entry for the whole run
+	// (0 hits) or draw the composited layer only once; the gate must accept
+	// that while still rejecting a domain that never appeared.
+	for _, name := range []string{"filter-graph", "layer-offscreen", "device-surface"} {
+		if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{RequirePoolDomains: []string{name}}); err != nil {
+			t.Fatalf("present domain %q must pass presence gate: %v", name, err)
+		}
+	}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{RequirePoolDomains: []string{"dualtex-snap"}}); err == nil {
+		t.Fatal("a missing presence-only domain must FAIL")
+	}
+	if err := wrgate.EvaluatePoolGates(r, wrgate.GateOptions{
+		MinPoolMisses:         30,
+		RequirePoolDomains:    []string{"device-surface", "filter-graph"},
+		RequirePoolHitDomains: []string{"device-surface"},
+	}); err != nil {
+		t.Fatalf("multiwin-shaped gate (misses floor + hit domain) must pass: %v", err)
 	}
 }

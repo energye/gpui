@@ -172,6 +172,24 @@ func (sr *StencilRenderer) SetMaskBindLayout(layout hal.BindGroupLayout) {
 	sr.maskLayoutOwned = false
 }
 
+// setSurfaceCache binds the renderer's texture set to the device-level trio
+// cache. Shared renderers are wired by GPUShared at pipeline creation; the
+// binding is idempotent. Release retires instead of pooling: this renderer
+// submits outside res.Submission, so rebuilds keep the pre-pooling
+// "destroy on resize" contract.
+func (sr *StencilRenderer) setSurfaceCache(c *surfaceCache) {
+	if sr == nil || c == nil {
+		return
+	}
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+	if sr.textures.surfaceCache != nil {
+		return
+	}
+	sr.textures.surfaceCache = c
+	sr.textures.retireOnRelease = true
+}
+
 // EnsureTextures creates or recreates the MSAA color, stencil, and resolve textures
 // if the requested dimensions differ from the current size. If dimensions match the
 // current textures, this is a no-op.

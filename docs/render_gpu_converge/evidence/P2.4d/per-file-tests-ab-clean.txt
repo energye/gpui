@@ -1,0 +1,127 @@
+# P2.4d per-test-file A/B on clean tree
+# date: 2026-10-30T17:14:14+08:00
+# worktree: /home/yanghy/app/projects/gogpu/gpui-p24d-base @ ac2e58b3（不含 P2.4d 工作区改动）
+# scope: 本轮新增的 5 个包（主仓 9 包口径减去 P2.4c 已对照过的 4 包）
+# env: WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so, GOWORK=off（脱离父级 go.work）
+
+## gpu/hal
+backends_test.go: PASS rc=0
+bench_cross_backend_test.go: NO_TEST_FUNCS compile-only rc=0
+bench_raytracing_test.go: NO_TEST_FUNCS compile-only rc=0
+error_test.go: PASS rc=0
+indirect_count_test.go: PASS rc=0
+logger_test.go: PASS rc=0
+registry_test.go: PASS rc=0
+surface_target_test.go: PASS rc=0
+vram_ledger_test.go: PASS rc=0
+
+  subtotal: PASS=7 NO_TEST=2 SKIP_TAGGED=0 FAIL=0
+## gpu/hal/noop
+behavior_test.go: PASS rc=0
+bench_test.go: NO_TEST_FUNCS compile-only rc=0
+noop_test.go: PASS rc=0
+swapchain_suppressed_test.go: PASS rc=0
+
+  subtotal: PASS=3 NO_TEST=1 SKIP_TAGGED=0 FAIL=0
+## gpu/webgpu
+auto_recover_depth_test.go: PASS rc=0
+device_conversion_test.go: PASS rc=0
+frame_pair_test.go: PASS rc=0
+gate_test.go: PASS rc=0
+h2b_hal_conformance_test.go: PASS rc=0
+h4b3_behavior_test.go: PASS rc=0
+r7_0_hotpath_test.go: PASS rc=0
+r7_6_pipeline_convert_test.go: PASS rc=0
+recover_vram_test.go: PASS rc=0
+s2_ae_smoke_test.go: PASS rc=0
+s2_facade_conversion_test.go: PASS rc=0
+s6_8_swapchain_test.go: PASS rc=0
+stub_not_supported_test.go: PASS rc=0
+surface_acquire_epoch_test.go: PASS rc=0
+surface_error_test.go: PASS rc=0
+swapchain_acquire_internal_test.go: PASS rc=0
+swapchain_pairing_internal_test.go: PASS rc=0
+swapchain_test.go: PASS rc=0
+swapchain_x11_linux_test.go: FAIL rc=1
+    --- FAIL: TestS68_Swapchain_X11_MultiFramePresent (0.37s)
+        swapchain_x11_linux_test.go:213: S6.8 swapchain multi-frame mode=fifo acquires=12 presents=12 reconfig=0 suboptimal=0 lastPresentMs=16.981
+        swapchain_x11_linux_test.go:219: expected reconfigure counter, got 0
+    FAIL
+    FAIL	github.com/energye/gpui/gpu/webgpu	0.869s
+    FAIL
+
+  subtotal: PASS=18 NO_TEST=0 SKIP_TAGGED=0 FAIL=1
+## gpu/rwgpu
+abi_test.go: PASS rc=0
+adapter_info_test.go: PASS rc=0
+adapter_test.go: PASS rc=0
+bindgroup_entry_test.go: PASS rc=0
+bindgroup_test.go: PASS rc=0
+buffer_test.go: PASS rc=0
+clear_pass_test.go: PASS rc=0
+command_new_test.go: PASS rc=0
+command_test.go: PASS rc=0
+debug_render_test.go: PASS rc=0
+debug_test.go: PASS rc=0
+device_lost_test.go: PASS rc=0
+device_test.go: PASS rc=0
+encoder_lost_test.go: PASS rc=0
+errors_test.go: PASS rc=0
+example_math_test.go: NO_TEST_FUNCS compile-only rc=0
+fuzz_test.go: PASS rc=0
+indirect_test.go: PASS rc=0
+instance_helper_test.go: NO_TEST_FUNCS compile-only rc=0
+instance_test.go: PASS rc=0
+math_test.go: PASS rc=0
+null_guard_test.go: PASS rc=0
+opt42_string_view_test.go: PASS rc=0
+pipeline_test.go: PASS rc=0
+queue_workdone_test.go: FAIL rc=1
+    runtime.runFinalizers()
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/runtime/mfinal.go:210 +0x107 fp=0xc0000487e0 sp=0xc000048620 pc=0x4207a7
+    runtime.goexit({})
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/runtime/asm_amd64.s:1693 +0x1 fp=0xc0000487e8 sp=0xc0000487e0 pc=0x482441
+    created by runtime.createfing in goroutine 1
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/runtime/mfinal.go:172 +0x3d
+    
+    rax    0x1
+    rbx    0xffffffffffffffff
+    rcx    0x0
+    rdx    0x0
+    rdi    0x1
+    rsi    0x0
+    rbp    0x74dccbf1bdd8
+    rsp    0x7fffe574c668
+    r8     0x0
+    r9     0x0
+    r10    0x74dccbfec328
+    r11    0x246
+    r12    0x1
+    r13    0x74dccba9d740
+    r14    0x7fffe574c688
+    r15    0x3ca40660
+    rip    0x1
+    rflags 0x10246
+    cs     0x33
+    fs     0x0
+    gs     0x0
+    FAIL	github.com/energye/gpui/gpu/rwgpu	0.226s
+    FAIL
+release_lost_test.go: PASS rc=0
+render_bundle_test.go: PASS rc=0
+render_pipeline_test.go: PASS rc=0
+s1_ae_smoke_test.go: PASS rc=0
+s1_skia_subset_enum_test.go: PASS rc=0
+safety_test.go: PASS rc=0
+shader_test.go: PASS rc=0
+sizeof_test.go: PASS rc=0
+surface_test.go: PASS rc=0
+texture_test.go: PASS rc=0
+thread_safety_test.go: PASS rc=0
+wgpu_errors_test.go: PASS rc=0
+
+  subtotal: PASS=34 NO_TEST=2 SKIP_TAGGED=0 FAIL=1
+## examples/wrgate
+report_test.go: PASS rc=0
+
+  subtotal: PASS=1 NO_TEST=0 SKIP_TAGGED=0 FAIL=0

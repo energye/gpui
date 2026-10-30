@@ -1,0 +1,140 @@
+# P2.4d -race
+# date: 2026-10-30T17:17:41+08:00
+# head: ac2e58b3
+# env: CGO_ENABLED=1 WGPU_NATIVE_PATH set
+
+## render/internal/gpu/res（registry 槽位 + owner 分账 / Cache 桶与 lru / Submission / InflightGate）
+# 入选用例 44 条:
+    TestRegistry_ResolveTransientRefMustBeReleased
+    TestRegistry_ReleaseAndReacquireIndependentRefs
+    TestRegistry_InvalidateThenReuse
+    TestSubmission_DoubleTrackSingleSubmitDone
+    TestCache_InvalidateThenAcquire
+    TestRegistry_ResolveStatsCountsHitsAndMisses
+    TestCache_ReleaseUnknownRefNoPanic
+    TestCache_SizeFnDrivesBudget
+    TestCache_MaxPerKeyCapsIdleBucket
+    TestCache_PurgeIdle
+    TestCache_ReleaseRetireDoesNotPool
+    TestCache_ReleaseRetireWaitsInflight
+    TestCache_ReleaseAll
+    TestCache_StatsPerDomain
+    TestCache_ConcurrentAcquireRelease
+    TestCache_AcquireReuse
+    TestCache_InflightNotLentAndRepooledAfterSubmit
+    TestCache_BudgetRetireIdleAndNotInFlight
+    TestCache_InvalidateAll
+    TestSessionRetireSequence_GatedBySubmitDone
+    TestIdleCallback_FiresOnlyWhenRefsAndInflightClear
+    TestIdleCallback_SkippedForRetiredEntry
+    TestSubmissionInvalidate_NoNativeRelease
+    TestGate_HoldBlocksRelendAndDestroy
+    TestGate_RetireWaitsForResolve
+    TestGate_InvalidateClearsWithoutRelease
+    TestGate_InvalidateLeavesEntryUnpoolable
+    TestGate_DoubleHoldResolvesOncePerHandle
+    TestGate_SkipsNilAndForeignRefs
+    TestGate_SettleAll
+    TestGate_ConcurrentHoldResolve
+    TestRegistry_OwnerIsolation
+    TestRegistry_InvalidateOwnedSkipsRelease
+    TestRegistry_IdleCallbackMayReenter
+    TestRegistry_ConcurrentOwners
+    TestReleaseSequenceTiming
+    TestRegistry_InflightBlocksReleaseUntilSubmitDone
+    TestRegistry_ResolveRebindReturnsNewInstance
+    TestRegistry_MonotonicIDsNeverReused
+    TestRegistry_InvalidateAllSkipsNativeRelease
+    TestRegistry_BindRetiresPredecessor
+    TestSubmission_Lifecycle
+    TestSubmission_InvalidateOnDeviceLoss
+    TestSubmission_TrackAfterInvalidateShortCircuits
+ok  	github.com/energye/gpui/render/internal/gpu/res	1.041s
+# exit: 0
+
+## render/internal/gpu（设备级池：surface trio / offscreen / dualtex / filter / directSubmit / purge 链 / 探针）
+# 入选用例 64 条:
+    TestDepthClipMaskCache_CountEviction
+    TestDepthClipMaskCache_ByteEviction
+    TestDepthClipMaskCache_TTLPrune
+    TestDepthClipMaskCache_LastEntryNeverEvicted
+    TestDualTexOutPool_ByteBudgetEviction
+    TestDualTexOutPool_PerBucketCap
+    TestDualTexOutPool_PurgeKeepsCheckedOut
+    TestDirectSubmit_HoldBlocksRepoolUntilTokenDone
+    TestDirectSubmit_SubmitErrorClosesHold
+    TestDirectSubmit_MissingTokenWaitsForDrain
+    TestDirectSubmit_InvalidateNeverResurrectsNative
+    TestSubmitGated_WithoutGateIsPlainSubmit
+    TestImageCache_RetireHookDefersRelease
+    TestImageCache_NoHookDestroysImmediately
+    TestImageCache_RewriteInPlaceStableGen
+    TestTexturedQuadPipeline_DestroyReleasesAllOwnedResources
+    TestOffscreenCache_ReuseAndAbandon
+    TestOffscreenCache_NoPoolAllocatesFresh
+    TestTextureSet_FailFastLatch
+    TestTextureSet_DegradedLatch
+    TestGPUShared_SampleCount_Default
+    TestGPUShared_SampleCount_AfterInit
+    TestGPUShared_RasterAtlas_DeviceReadyWithoutPipelines
+    TestGPUShared_FullStrategy_BothReady
+    TestGPUShared_Close_ResetsBothFlags
+    TestGPUShared_AbandonKeepsMSDFAtlasMapsWritable
+    TestGPUShared_PurgeEvictable_NeverTakesSharedLock
+    TestGPUShared_PoolsAreOnTheOOMChain
+    TestGPUShared_PoolStats_ReportsEveryDomainWithRealCounters
+    TestGPUShared_PoolStats_ClosedHolderStopsReporting
+    TestGPUShared_PoolStats_LabelsArePerHolder
+    TestRegTransientView_LifecycleClosesAtFrameBoundary
+    TestRegBorrowed_RetireSkipsNativeRelease
+    TestRegTransientView_RawResolvePathRetired
+    TestTextureSet_SurfaceToOffscreenSameSize
+    TestTextureSet_OffscreenToSurfaceSameSize
+    TestTextureSet_DestroyDefersTrioToSubmission
+    TestTextureSet_DestroyRetiresDegradedTrio
+    TestTextureSet_DestroyDirectTrioReleasesInline
+    TestTextureSet_DestroyLooseTexturesReleasesImmediately
+    TestS67_ImageCache_HitUploadBytes
+    TestS67_ImageCache_GenerationInvalidation
+    TestS67_ImageCache_ByteBudgetEvicts
+    TestS67_ImageCache_EphemeralReleased
+    TestS67_ImageCache_StrideStaging
+    TestSessionRegistry_SharedDeviceOwnerScope
+    TestSessionRegistry_InvalidateForDeviceLossScoped
+    TestP6_SessionRetireBufferNilSafe
+    TestP6_InvalidateForDeviceLoss_DropsBookkeeping
+    TestSurfaceCache_TwoOwnersSameSizeGetDistinctTrios
+    TestSurfaceCache_ResolveModeIsDistinctKey
+    TestSurfaceCache_SampleCountIsDistinctKey
+    TestSurfaceCache_DegradedReleaseRetires
+    TestSurfaceCache_MaxPerKeyCapsIdleBucket
+    TestSurfaceCache_ByteBudgetEvictsLRU
+    TestSurfaceCache_PurgeIdleKeepsCheckedOut
+    TestSurfaceCache_ReleaseAllDestroysEveryTrio
+    TestSurfaceCache_InvalidateAllLeavesNativesToAbandon
+    TestSurfaceCache_StatsProbePerDomain
+    TestSurfaceCache_ProductionLimitsMatchBudget
+    TestTextureSet_ReleaseRoutingPoolsOrRetires
+    TestShrinkDue_Matrix
+    TestSessionFrameBufferShrink
+    TestSessionShrinkViaBeginFrame
+ok  	github.com/energye/gpui/render/internal/gpu	3.109s
+# exit: 0
+
+## render（探针注册表并发）
+# 入选用例 6 条:
+    TestGPUPoolStats_RegisterSnapshotUnregister
+    TestRegisterGPUPoolStatsCollector_NilIgnored
+    TestPoolDomainStats_HitRate
+    TestPurgeEvictables_RunsRegistered
+    TestPurgeEvictables_NilIgnored
+    TestIsGPUOutOfMemory
+ok  	github.com/energye/gpui/render	1.040s
+# exit: 0
+
+## examples/wrgate（pool 段与门禁）
+# 入选用例 2 条:
+    TestBuildReport_PoolSectionFromProbe
+    TestEvaluatePoolGates
+ok  	github.com/energye/gpui/examples/wrgate	1.032s
+# exit: 0

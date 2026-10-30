@@ -70,7 +70,7 @@ func TestOpt36_FilterSeedSharedEncoder_OneFinish(t *testing.T) {
 	}
 
 	nodes := []render.ImageFilterNode{{Kind: render.ImageFilterBlur, Radius: 1.5}}
-	outView, release, err := runGPUFilterGraphFromViewIntoEncoder(device, queue, cache, srcView, int(w), int(h), nodes, enc)
+	outView, release, err := runGPUFilterGraphFromViewIntoEncoder(device, queue, cache, srcView, int(w), int(h), nodes, enc, nil)
 	if err != nil {
 		t.Fatalf("into encoder: %v", err)
 	}

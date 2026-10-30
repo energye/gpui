@@ -25,6 +25,7 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
 // dual-tex advanced blend shader: sample dest + src, write composited premul RGBA.
@@ -266,8 +267,15 @@ type dualTexBlendCache struct {
 	// Diagnostics for unit tests (last multi IntoEncoder run).
 	lastMultiUniformSlots int
 	lastMultiUniformWB    int
-	// F1: pool bounds-sized BGRA temps (out / dest snaps).
-	outPool map[[2]int][]dualTexPooledTex
+	// F1: pool bounds-sized BGRA temps (out / dest snaps) in the device-level
+	// res.Cache (P2.4d): same-size reuse across windows, byte budget + per-size
+	// cap, and an entry still referenced by an in-flight submit is never lent
+	// out again. resOwner/gate come from GPUShared; without them (bare cache in
+	// tests) the create/destroy path stays direct.
+	outCache       *res.Cache
+	outCacheDevice hal.Device
+	resOwner       res.Owner
+	gate           *directSubmit
 	// Bind groups keyed by dst/src/uniform view pointers.
 	bgCache map[dualTexBGKey]hal.BindGroup
 	// multiBG: per-op slot reuse for dualTexAdvancedBlendViewsMultiBundle.
@@ -287,9 +295,39 @@ type dualTexMultiBGSlot struct {
 	bg  hal.BindGroup
 }
 
-type dualTexPooledTex struct {
+// dualTexSnapNative is one pooled BGRA snap texture: the texture plus its only
+// view. It is the res.Native the device-level out cache owns.
+type dualTexSnapNative struct {
 	tex  hal.Texture
 	view hal.TextureView
+}
+
+// Release destroys the pair; the registry calls it exactly once, at the moment
+// no usage ref and no in-flight submit reference the snap.
+func (n *dualTexSnapNative) Release() {
+	if n == nil {
+		return
+	}
+	if n.view != nil {
+		n.view.Destroy()
+		n.view = nil
+	}
+	if n.tex != nil {
+		n.tex.Destroy()
+		n.tex = nil
+	}
+}
+
+// bindRes attaches the device-level registry owner and submission gate. Called
+// by GPUShared every time it hands out this cache.
+func (c *dualTexBlendCache) bindRes(owner res.Owner, gate *directSubmit) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.resOwner = owner
+	c.gate = gate
 }
 
 func (c *dualTexBlendCache) release() {
@@ -330,17 +368,9 @@ func (c *dualTexBlendCache) release() {
 	}
 	c.lastMultiUniformSlots = 0
 	c.lastMultiUniformWB = 0
-	for _, bucket := range c.outPool {
-		for _, it := range bucket {
-			if it.view != nil {
-				it.view.Destroy()
-			}
-			if it.tex != nil {
-				it.tex.Destroy()
-			}
-		}
-	}
-	c.outPool = nil
+	c.outCache.ReleaseAll()
+	c.outCache = nil
+	c.outCacheDevice = nil
 	for _, bg := range c.bgCache {
 		if bg != nil {
 			bg.Destroy()
@@ -1105,134 +1135,186 @@ func dualTexQuantizeWH(w, h int) (int, int) {
 	return w, h
 }
 
-func (c *dualTexBlendCache) getOutBGRA(device hal.Device, queue hal.Queue, w, h int) (hal.Texture, hal.TextureView, error) {
-	if c == nil || device == nil || w <= 0 || h <= 0 {
-		return nil, nil, fmt.Errorf("dual-tex out pool: bad args")
-	}
-	// Requested (w,h) is the logical damage size; allocate quantized bucket.
-	// Callers that copy/sample only use the top-left w×h of the bucket must
-	// pass exact sizes into copy; into-dest uses exact bw/bh for copy size and
-	// only samples 0-1 of the tight content via viewport-mapped draw — so keep
-	// allocation exact for correctness, but still quantize pool keys by
-	// allocating quantized and requiring callers to use exact copy extents.
-	qw, qh := dualTexQuantizeWH(w, h)
-	key := [2]int{qw, qh}
-	c.mu.Lock()
-	if c.outPool != nil {
-		if b := c.outPool[key]; len(b) > 0 {
-			it := b[len(b)-1]
-			c.outPool[key] = b[:len(b)-1]
-			c.mu.Unlock()
-			return it.tex, it.view, nil
-		}
-	}
-	c.mu.Unlock()
-	// COPY_DST required for into-dest snap path (CopyTextureToTexture from frameScratch).
-	usage := types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding
-	return dualTexCreateTexFmt(device, queue, "dual_tex_snap_bgra", qw, qh, nil, usage, types.TextureFormatBGRA8Unorm)
+// dualTexSnapUsageBits is the usage mask every snap bucket is allocated with:
+// the blend pass renders into it, the composite samples it, and the into-dest
+// path copies into it.
+func dualTexSnapUsageBits() types.TextureUsage {
+	return types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding
 }
 
-// putOutBGRA returns an out texture to the pool after the frame no longer needs it.
-// Currently retainBrushCoverResult owns lifetime until flush; pooling is hooked via
-// release path when hold list is drained — callers may put after QueueGPUTextureDraw flush.
-func (c *dualTexBlendCache) putOutBGRA(tex hal.Texture, view hal.TextureView, w, h int) {
-	if c == nil || tex == nil || view == nil || w <= 0 || h <= 0 {
-		if view != nil {
-			view.Destroy()
-		}
-		if tex != nil {
-			tex.Destroy()
-		}
-		return
+// dualTexSnapKey maps a quantized bucket to the device-level cache key. Format
+// carries the pixel format tag so a future RGBA8 snap class cannot collide
+// with the BGRA one.
+func dualTexSnapKey(qw, qh int) res.CacheKey {
+	return res.CacheKey{
+		W:       uint32(qw), //nolint:gosec // quantized buckets are capped at 4096
+		H:       uint32(qh), //nolint:gosec
+		Format:  uint32(types.TextureFormatBGRA8Unorm),
+		Samples: 1,
+		Usage:   uint64(dualTexSnapUsageBits()),
+		Role:    res.RoleFrameScratch,
 	}
-	w, h = dualTexQuantizeWH(w, h)
-	key := [2]int{w, h}
+}
+
+// outCacheLocked returns the snap cache for device, rebuilding it when the
+// device changed (the create closure captures the device). A cache without a
+// bound registry owner stays nil and callers keep the direct path. Caller
+// holds c.mu; no native allocation happens here.
+func (c *dualTexBlendCache) outCacheLocked(device hal.Device) *res.Cache {
+	if c.resOwner.IsNil() || device == nil {
+		return nil
+	}
+	if c.outCache != nil && c.outCacheDevice == device {
+		return c.outCache
+	}
+	c.outCache.ReleaseAll()
+	cache := res.NewCache(c.resOwner, func(key res.CacheKey) (res.Native, error) {
+		tex, view, err := dualTexCreateTexFmt(device, nil, "dual_tex_snap_bgra",
+			int(key.W), int(key.H), nil, dualTexSnapUsageBits(), types.TextureFormatBGRA8Unorm)
+		if err != nil {
+			return nil, err
+		}
+		return &dualTexSnapNative{tex: tex, view: view}, nil
+	}, res.CacheOptions{
+		Name:      "dualtex-snap",
+		Budget:    uint64(dualTexOutPoolBudgetBytes),
+		MaxPerKey: dualTexOutPoolBucketCap,
+		SizeFn:    func(key res.CacheKey) uint64 { return uint64(key.W) * uint64(key.H) * 4 },
+	})
+	c.outCache = cache
+	c.outCacheDevice = device
+	return cache
+}
+
+// getOutBGRA takes a bounds-sized BGRA snap for the quantized bucket of (w,h).
+// The returned Ref is the strong cache reference the caller must hand back to
+// recycleOut; a nil Ref means the texture came from outside the cache (no
+// registry bound) and the caller must destroy it.
+//
+// Requested (w,h) is the logical damage size; allocation is quantized. Callers
+// that copy/sample only the top-left w×h of a bucket must pass exact sizes into
+// the copy — the pool key is quantized, the content extent is not.
+func (c *dualTexBlendCache) getOutBGRA(device hal.Device, queue hal.Queue, w, h int) (hal.Texture, hal.TextureView, res.Ref, error) {
+	if c == nil || device == nil || w <= 0 || h <= 0 {
+		return nil, nil, res.Ref{}, fmt.Errorf("dual-tex out pool: bad args")
+	}
+	qw, qh := dualTexQuantizeWH(w, h)
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.outPool == nil {
-		c.outPool = make(map[[2]int][]dualTexPooledTex)
+	cache := c.outCacheLocked(device)
+	owner := c.resOwner
+	c.mu.Unlock()
+	if cache != nil {
+		key := dualTexSnapKey(qw, qh)
+		ref, err := cache.Acquire(key)
+		if err != nil {
+			return nil, nil, res.Ref{}, err
+		}
+		native, ok := owner.Registry().NativeOf(ref).(*dualTexSnapNative)
+		if !ok || native == nil {
+			cache.ReleaseRetire(ref)
+			return nil, nil, res.Ref{}, fmt.Errorf("dual-tex out pool: unexpected native for %dx%d", qw, qh)
+		}
+		return native.tex, native.view, ref, nil
 	}
-	b := c.outPool[key]
-	if len(b) >= dualTexOutPoolBucketCap {
-		view.Destroy()
-		tex.Destroy()
+	tex, view, err := dualTexCreateTexFmt(device, queue, "dual_tex_snap_bgra", qw, qh, nil, dualTexSnapUsageBits(), types.TextureFormatBGRA8Unorm)
+	return tex, view, res.Ref{}, err
+}
+
+// recycleOut returns a snap to the pool, or destroys it when it was created
+// outside the cache.
+//
+// track (may be nil) marks the ref in flight for the submission that sampled
+// the snap — the session's own submission for coalesced frames, the device
+// gate for the pool's direct submits. Without it, re-pooling could hand the
+// texture to another window while the GPU is still writing it.
+func (c *dualTexBlendCache) recycleOut(o dualTexViewBlendOut, track func(res.Ref)) {
+	if !o.ref.IsNil() {
+		if c == nil {
+			return
+		}
+		c.mu.Lock()
+		cache := c.outCache
+		c.mu.Unlock()
+		if track != nil {
+			track(o.ref)
+		}
+		cache.Release(o.ref)
 		return
 	}
-	c.outPool[key] = append(b, dualTexPooledTex{tex: tex, view: view})
-	c.enforceOutPoolBudgetLocked()
+	if o.view != nil {
+		o.view.Destroy()
+	}
+	if o.tex != nil {
+		o.tex.Destroy()
+	}
+}
+
+// outRefs collects the cache refs of a bundle's outputs (gate input).
+func outRefs(outs []dualTexViewBlendOut) []res.Ref {
+	refs := make([]res.Ref, 0, len(outs))
+	for _, o := range outs {
+		if !o.ref.IsNil() {
+			refs = append(refs, o.ref)
+		}
+	}
+	return refs
+}
+
+// refsOf wraps one ref for the gate's slice input (nil ref → nothing to hold).
+func refsOf(ref res.Ref) []res.Ref {
+	if ref.IsNil() {
+		return nil
+	}
+	return []res.Ref{ref}
+}
+
+// dropOuts returns every snap of a pass that never reached a submit (or failed
+// on the way) to the pool. Nothing referenced them on the GPU, so no tracking.
+func (c *dualTexBlendCache) dropOuts(outs []dualTexViewBlendOut) {
+	if c == nil {
+		return
+	}
+	for _, o := range outs {
+		c.recycleOut(o, nil)
+	}
 }
 
 // dualTexOutPoolBudgetBytes caps reusable dual-tex snap textures. Resize/churn
 // can accumulate many size buckets; without a total budget, pooled BGRA temps
 // compete with glyph atlases on low-VRAM hosts ("Not enough memory left").
 // P2.4b: pool byte budget and per-size-bucket cap come from the
-// declaration table (render.DefaultBudget(BudgetBlendDualTex)).
+// declaration table (render.DefaultBudget(BudgetBlendDualTex)); P2.4d hands
+// both to res.Cache, which counts checked-out entries against the budget too.
 var (
 	dualTexOutPoolBudgetBytes = render.DefaultBudget(render.BudgetBlendDualTex).MaxBytes
 	dualTexOutPoolBucketCap   = render.DefaultBudget(render.BudgetBlendDualTex).MaxEntries
 )
 
-// releasePooledVRAM frees outPool textures while keeping pipelines.
-// Call under VRAM pressure before critical CreateTexture (glyph atlas, etc.).
-func (c *dualTexBlendCache) releasePooledVRAM() {
+// stats snapshots the snap domain for the pool probe (render.GPUPoolStats).
+// It never builds the cache: a domain that was never used reports an empty
+// snapshot, not a freshly created pool.
+func (c *dualTexBlendCache) stats() res.CacheStats {
 	if c == nil {
-		return
+		return res.CacheStats{}
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, bucket := range c.outPool {
-		for _, it := range bucket {
-			if it.view != nil {
-				it.view.Destroy()
-			}
-			if it.tex != nil {
-				it.tex.Destroy()
-			}
-		}
-	}
-	c.outPool = nil
+	cache := c.outCache
+	c.mu.Unlock()
+	return cache.Stats()
 }
 
-// enforceOutPoolBudgetLocked drops pooled outs until estimated usage fits budget.
-// Caller must hold c.mu.
-func (c *dualTexBlendCache) enforceOutPoolBudgetLocked() {
-	if c == nil || c.outPool == nil {
-		return
+// releasePooledVRAM drops every idle snap while keeping checked-out ones and
+// the pipelines; returns the number of entries freed. Call under VRAM pressure
+// before a critical CreateTexture (glyph atlas, etc.).
+func (c *dualTexBlendCache) releasePooledVRAM() int {
+	if c == nil {
+		return 0
 	}
-	for {
-		var used int64
-		var worstKey [2]int
-		worstN := 0
-		for key, bucket := range c.outPool {
-			if len(bucket) == 0 {
-				continue
-			}
-			// BGRA8 temps: w*h*4
-			bytes := int64(key[0]) * int64(key[1]) * 4 * int64(len(bucket))
-			used += bytes
-			if len(bucket) > worstN {
-				worstN = len(bucket)
-				worstKey = key
-			}
-		}
-		if used <= dualTexOutPoolBudgetBytes || worstN == 0 {
-			return
-		}
-		b := c.outPool[worstKey]
-		it := b[len(b)-1]
-		if it.view != nil {
-			it.view.Destroy()
-		}
-		if it.tex != nil {
-			it.tex.Destroy()
-		}
-		b = b[:len(b)-1]
-		if len(b) == 0 {
-			delete(c.outPool, worstKey)
-		} else {
-			c.outPool[worstKey] = b
-		}
-	}
+	c.mu.Lock()
+	cache := c.outCache
+	c.mu.Unlock()
+	n, _ := cache.PurgeIdle()
+	return n
 }
 
 // dualTexBlendLayersIntoDest composites advanced layers into dstTex (frameScratch)
@@ -1248,8 +1330,11 @@ type dualTexViewBlendOp struct {
 }
 
 type dualTexViewBlendOut struct {
-	tex     hal.Texture
-	view    hal.TextureView
+	tex  hal.Texture
+	view hal.TextureView
+	// ref is the strong cache reference holding the snap out of the pool
+	// while the frame uses it (nil = created outside the cache).
+	ref     res.Ref
 	bounds  image.Rectangle
 	opacity float32
 }
@@ -1413,8 +1498,17 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 		bounds  image.Rectangle
 		outTex  hal.Texture
 		outView hal.TextureView
+		outRef  res.Ref
 		slot    int
 		offset  uint64
+	}
+	// dropPrepared hands each recorded output back to the pool (or destroys it
+	// when it is not pooled): a pass that never made it into the submit must
+	// not pin its snap.
+	dropPrepared := func(items []preparedOp) {
+		for _, p := range items {
+			cache.recycleOut(dualTexViewBlendOut{tex: p.outTex, view: p.outView, ref: p.outRef}, nil)
+		}
 	}
 	prepared := make([]preparedOp, 0, len(ops))
 	full := image.Rect(0, 0, dstW, dstH)
@@ -1428,12 +1522,9 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 		if bw <= 0 || bh <= 0 {
 			continue
 		}
-		outTex, outView, oerr := cache.getOutBGRA(device, queue, bw, bh)
+		outTex, outView, outRef, oerr := cache.getOutBGRA(device, queue, bw, bh)
 		if oerr != nil {
-			for _, p := range prepared {
-				p.outView.Destroy()
-				p.outTex.Destroy()
-			}
+			dropPrepared(prepared)
 			return nil, oerr
 		}
 		slot := len(prepared)
@@ -1445,7 +1536,7 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 		modeU := dualTexModeU(op.mode)
 		packDualTexParams(paramsScratch[offset:offset+dualTexUniformPayloadSize], modeU, u0, v0, u1, v1, 1, false)
 		prepared = append(prepared, preparedOp{
-			op: op, bounds: bounds, outTex: outTex, outView: outView, slot: slot, offset: offset,
+			op: op, bounds: bounds, outTex: outTex, outView: outView, outRef: outRef, slot: slot, offset: offset,
 		})
 	}
 	if len(prepared) == 0 {
@@ -1454,10 +1545,7 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	// one WriteBuffer for all multi-op uniforms.
 	packBytes := len(prepared) * dualTexUniformSlotStride
 	if err := queue.WriteBuffer(slab, 0, paramsScratch[:packBytes]); err != nil {
-		for _, p := range prepared {
-			p.outView.Destroy()
-			p.outTex.Destroy()
-		}
+		dropPrepared(prepared)
 		return nil, err
 	}
 	cache.mu.Lock()
@@ -1469,12 +1557,8 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 	for _, p := range prepared {
 		bg, berr := cache.multiBindGroup(device, bgl, sampler, dstView, p.op.srcView, slab, p.offset, p.slot)
 		if berr != nil {
-			p.outView.Destroy()
-			p.outTex.Destroy()
-			for _, o := range outs {
-				o.view.Destroy()
-				o.tex.Destroy()
-			}
+			cache.recycleOut(dualTexViewBlendOut{tex: p.outTex, view: p.outView, ref: p.outRef}, nil)
+			cache.dropOuts(outs)
 			return nil, berr
 		}
 		rp, rerr := enc.BeginRenderPass(&hal.RenderPassDescriptor{
@@ -1487,12 +1571,8 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 			}},
 		})
 		if rerr != nil {
-			p.outView.Destroy()
-			p.outTex.Destroy()
-			for _, o := range outs {
-				o.view.Destroy()
-				o.tex.Destroy()
-			}
+			cache.recycleOut(dualTexViewBlendOut{tex: p.outTex, view: p.outView, ref: p.outRef}, nil)
+			cache.dropOuts(outs)
 			return nil, rerr
 		}
 		rp.SetPipeline(pipeline)
@@ -1500,7 +1580,7 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 		rp.Draw(3, 1, 0, 0)
 		rp.End()
 		outs = append(outs, dualTexViewBlendOut{
-			tex: p.outTex, view: p.outView, bounds: p.bounds, opacity: p.op.opacity,
+			tex: p.outTex, view: p.outView, ref: p.outRef, bounds: p.bounds, opacity: p.op.opacity,
 		})
 	}
 	return outs, nil
@@ -1534,31 +1614,17 @@ func dualTexAdvancedBlendViewsMultiBundle(
 	}
 	cmd, err := enc.Finish()
 	if err != nil {
-		for _, o := range outs {
-			if o.view != nil {
-				o.view.Destroy()
-			}
-			if o.tex != nil {
-				o.tex.Destroy()
-			}
-		}
+		cache.dropOuts(outs)
 		return dualTexMultiBundle{}, err
 	}
 
 	if submitNow {
 		defer device.FreeCommandBuffer(cmd)
-		if _, err := queue.Submit(cmd); err != nil {
-			for _, o := range outs {
-				if o.view != nil {
-					o.view.Destroy()
-				}
-				if o.tex != nil {
-					o.tex.Destroy()
-				}
-			}
+		if _, err := submitGated(cache.gate, queue, outRefs(outs), cmd); err != nil {
+			cache.dropOuts(outs)
 			return dualTexMultiBundle{}, err
 		}
-		// BGs owned by cache; outs released by caller via putOutBGRA/cool.
+		// BGs owned by cache; outs returned to the pool by the caller's recycle.
 		return dualTexMultiBundle{Outs: outs, Cleanup: func() {}}, nil
 	}
 
@@ -1581,19 +1647,19 @@ func dualTexAdvancedBlendViewsRegionSized(
 	bounds image.Rectangle,
 	mode render.BlendMode,
 	dstW, dstH int,
-) (hal.Texture, hal.TextureView, error) {
+) (hal.Texture, hal.TextureView, res.Ref, error) {
 	if device == nil || queue == nil || cache == nil || dstView == nil || srcView == nil {
-		return nil, nil, fmt.Errorf("dual-tex views: nil args")
+		return nil, nil, res.Ref{}, fmt.Errorf("dual-tex views: nil args")
 	}
 	bw, bh := bounds.Dx(), bounds.Dy()
 	if bw <= 0 || bh <= 0 {
-		return nil, nil, fmt.Errorf("dual-tex views: empty bounds")
+		return nil, nil, res.Ref{}, fmt.Errorf("dual-tex views: empty bounds")
 	}
 	if err := cache.ensure(device); err != nil {
-		return nil, nil, err
+		return nil, nil, res.Ref{}, err
 	}
 	if cache.pipelineBGRA == nil {
-		return nil, nil, fmt.Errorf("dual-tex views: no BGRA pipeline")
+		return nil, nil, res.Ref{}, fmt.Errorf("dual-tex views: no BGRA pipeline")
 	}
 	if dstW <= 0 || dstH <= 0 {
 		// Infer a lower bound; correct for full-surface damage.
@@ -1610,12 +1676,15 @@ func dualTexAdvancedBlendViewsRegionSized(
 	bounds = bounds.Intersect(full)
 	bw, bh = bounds.Dx(), bounds.Dy()
 	if bw <= 0 || bh <= 0 {
-		return nil, nil, fmt.Errorf("dual-tex views: empty bounds after intersect")
+		return nil, nil, res.Ref{}, fmt.Errorf("dual-tex views: empty bounds after intersect")
 	}
 
-	outTex, outView, err := cache.getOutBGRA(device, queue, bw, bh)
+	outTex, outView, outRef, err := cache.getOutBGRA(device, queue, bw, bh)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, res.Ref{}, err
+	}
+	drop := func() {
+		cache.recycleOut(dualTexViewBlendOut{tex: outTex, view: outView, ref: outRef}, nil)
 	}
 
 	u0 := float32(bounds.Min.X) / float32(dstW)
@@ -1627,9 +1696,8 @@ func dualTexAdvancedBlendViewsRegionSized(
 	// (bounds in pixel space, UV y down). textureSample uses top-left 0,0.
 	modeU := dualTexModeU(mode)
 	if err := dualTexWriteParams(queue, cache.uniform, modeU, u0, v0, u1, v1, 1, false); err != nil {
-		outView.Destroy()
-		outTex.Destroy()
-		return nil, nil, err
+		drop()
+		return nil, nil, res.Ref{}, err
 	}
 
 	cache.mu.Lock()
@@ -1650,17 +1718,15 @@ func dualTexAdvancedBlendViewsRegionSized(
 		},
 	})
 	if err != nil {
-		outView.Destroy()
-		outTex.Destroy()
-		return nil, nil, err
+		drop()
+		return nil, nil, res.Ref{}, err
 	}
 	defer bg.Destroy()
 
 	enc, err := device.CreateCommandEncoder(dualTexViewsEncoderDesc)
 	if err != nil {
-		outView.Destroy()
-		outTex.Destroy()
-		return nil, nil, err
+		drop()
+		return nil, nil, res.Ref{}, err
 	}
 	rp, err := enc.BeginRenderPass(&hal.RenderPassDescriptor{
 		Label: "dual_tex_views_bgra_pass",
@@ -1672,9 +1738,8 @@ func dualTexAdvancedBlendViewsRegionSized(
 		}},
 	})
 	if err != nil {
-		outView.Destroy()
-		outTex.Destroy()
-		return nil, nil, err
+		drop()
+		return nil, nil, res.Ref{}, err
 	}
 	rp.SetPipeline(pipeline)
 	rp.SetBindGroup(0, bg, nil)
@@ -1682,17 +1747,15 @@ func dualTexAdvancedBlendViewsRegionSized(
 	rp.End()
 	cmd, err := enc.Finish()
 	if err != nil {
-		outView.Destroy()
-		outTex.Destroy()
-		return nil, nil, err
+		drop()
+		return nil, nil, res.Ref{}, err
 	}
 	defer device.FreeCommandBuffer(cmd)
-	if _, err := queue.Submit(cmd); err != nil {
-		outView.Destroy()
-		outTex.Destroy()
-		return nil, nil, err
+	if _, err := submitGated(cache.gate, queue, refsOf(outRef), cmd); err != nil {
+		drop()
+		return nil, nil, res.Ref{}, err
 	}
-	return outTex, outView, nil
+	return outTex, outView, outRef, nil
 }
 
 // readTextureViewRegionRGBA copies a rectangle from a TextureView into tight

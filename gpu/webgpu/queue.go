@@ -28,19 +28,53 @@ type Queue struct {
 	released bool
 }
 
-// OnSubmittedWorkDone registers a callback that fires once all GPU work
-// submitted before this call has completed.
-// The returned rwgpu Future must be polled (Device.Poll /
-// rwgpu.WaitForFuture) for the callback to fire; the frame path uses the
-// existing BeginFrame vsync/drainQueue sync points instead of blocking.
-func (q *Queue) OnSubmittedWorkDone() (rwgpu.Future, error) {
+// OnSubmittedWorkDone returns a completion token for the current point on the
+// submission timeline (hal.CompletionToken). wgpu-native has callback-mode
+// futures, so the token pumps the device callbacks on Done and falls back to a
+// blocking future wait on Wait. The frame path must never block: poll Done.
+func (q *Queue) OnSubmittedWorkDone() (hal.CompletionToken, error) {
 	if q == nil || q.released {
-		return rwgpu.Future{}, ErrReleased
+		return nil, ErrReleased
 	}
+	tok := &workDoneToken{q: q}
 	if q.r == nil {
-		return rwgpu.Future{}, nil
+		return tok, nil
 	}
-	return q.r.OnSubmittedWorkDone()
+	future, err := q.r.OnSubmittedWorkDone()
+	if err != nil {
+		return nil, err
+	}
+	tok.future = future
+	return tok, nil
+}
+
+// workDoneToken implements hal.CompletionToken over an rwgpu callback-mode
+// future. A zero future (nil native queue) is complete.
+type workDoneToken struct {
+	q      *Queue
+	future rwgpu.Future
+}
+
+func (t *workDoneToken) Done() bool {
+	if t == nil || t.q == nil {
+		return true
+	}
+	if t.q.device != nil {
+		t.q.device.FlushCallbacks()
+	}
+	_, done := rwgpu.FutureDone(t.future)
+	return done
+}
+
+func (t *workDoneToken) Wait() error {
+	if t == nil || t.q == nil {
+		return nil
+	}
+	d := t.q.device
+	if d == nil || d.instance == nil || d.instance.r == nil {
+		return nil
+	}
+	return rwgpu.WaitForFuture(d.instance.r, t.future)
 }
 
 // Submit submits command buffers for execution.

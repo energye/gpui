@@ -17,6 +17,7 @@ import (
 	"log/slog"
 
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -25,6 +26,7 @@ import (
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/internal/gpu/res"
 	"github.com/energye/gpui/render/text"
 )
 
@@ -131,8 +133,11 @@ type GPUShared struct {
 	dashGeomCache   *DashGeometryCache
 	convexPathCache *ConvexPathCache
 
-	// Texture pool for per-context MSAA/stencil textures (Flutter RenderTargetCache pattern).
-	texturePool *TexturePool
+	// resReg is the device-level resource state machine shared by every window
+	// session on this device (Skia GrContext: one cache, N surfaces). Sessions
+	// register through their own owner handle, so a window close drops exactly
+	// its entries; device loss invalidates it wholesale.
+	resReg *res.Registry
 
 	// Dual-texture advanced blend (B.03 Multiply/Screen/Overlay) pipeline cache.
 	dualTexBlend           dualTexBlendCache
@@ -142,6 +147,25 @@ type GPUShared struct {
 	texturedStencilLinear  texturedStencilLinearCache
 	texturedStencilPattern texturedStencilPatternCache
 	filterGPU              filterGPUCache
+
+	// surfaceCache is the device-level surface trio pool (P2.4d): session,
+	// shared stencil renderer and textured stencil caches acquire same-size
+	// MSAA/depth/resolve sets from this one cache instead of keeping four
+	// private copies. Created lazily while s.mu is held (the struct only —
+	// natives are allocated from Acquire, outside s.mu).
+	surfaceCache *surfaceCache
+
+	// direct is the device-level submission gate for the shared pools that
+	// record and submit their own command buffers (filter graph, dual-tex
+	// blend): it holds the pooled natives in flight until the queue reports
+	// that work done, so a same-size reuse can never hand out a texture the
+	// GPU is still writing.
+	direct *directSubmit
+
+	// poolLabel names this device holder in the pool probe output
+	// (render.GPUPoolStats), so a multi-window diagnostic can tell which
+	// holder's domains reported.
+	poolLabel string
 
 	// L.06 GPU-resident alpha mask (MaskAware). Full-surface R8 plane + texture.
 	maskData   []byte
@@ -187,17 +211,86 @@ type GPUShared struct {
 	fieldCache fieldCache
 }
 
+// deviceSerial numbers device holders within the process, for the pool probe
+// label only (no behavior depends on it).
+var deviceSerial atomic.Uint64
+
 // NewGPUShared creates a new shared GPU resource holder. GPU initialization
 // is deferred until the first render or SetDeviceProvider call to avoid
 // creating a standalone Vulkan device that may interfere with an external
 // DX12/Metal device.
 func NewGPUShared() *GPUShared {
-	return &GPUShared{
-		texturePool:    NewTexturePool(defaultTexturePoolBudgetMB),
+	s := &GPUShared{
+		resReg:         res.NewRegistry(),
 		liveCtxs:       make(map[*GPURenderContext]struct{}),
 		msdfAtlasTexes: make(map[int]hal.Texture),
 		msdfAtlasViews: make(map[int]hal.TextureView),
+		poolLabel:      fmt.Sprintf("device-%d", deviceSerial.Add(1)),
 	}
+	// The device-level shared pools (dual-tex snaps, filter render targets)
+	// hold rebuildable VRAM and are the first thing resize churn piles up, so
+	// they join the texture-OOM purge chain for as long as this holder lives.
+	render.RegisterPurgeEvictable("gpu-shared-pools", s)
+	// Same lifetime for the reuse probe: a real window asserts hits > 0 on the
+	// domains it exercised instead of trusting that pooling happened.
+	render.RegisterGPUPoolStatsCollector(s, s.poolStats)
+	return s
+}
+
+// poolStats snapshots every res.Cache domain of this device holder: the
+// device-level surface trio pool and shared pools, plus each live context's
+// layer RT pool. Lock order matches the purge path — s.mu is held only while
+// collecting the live objects, then released before any pool lock.
+func (s *GPUShared) poolStats() []render.PoolDomainStats {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	surfaces := s.surfaceCache
+	ctxs := make([]*GPURenderContext, 0, len(s.liveCtxs))
+	for rc := range s.liveCtxs {
+		ctxs = append(ctxs, rc)
+	}
+	label := s.poolLabel
+	s.mu.Unlock()
+
+	out := make([]render.PoolDomainStats, 0, 3+len(ctxs))
+	appendDomain := func(st res.CacheStats) {
+		if st.Name == "" {
+			return // domain never built: nothing to report
+		}
+		out = append(out, render.PoolDomainStats{
+			Device:    label,
+			Name:      st.Name,
+			Hits:      st.Hits,
+			Misses:    st.Misses,
+			Evictions: st.Evictions,
+			Purged:    st.Purged,
+			Entries:   st.Entries,
+			Idle:      st.Idle,
+			Bytes:     st.Bytes,
+			PeakBytes: st.PeakBytes,
+			Budget:    st.Budget,
+		})
+	}
+	appendDomain(surfaces.stats())
+	appendDomain(s.dualTexBlend.stats())
+	appendDomain(s.filterGPU.stats())
+	for _, rc := range ctxs {
+		appendDomain(rc.offscreenStats())
+	}
+	return out
+}
+
+// PurgeEvictable drains this device's shared pool domains under VRAM pressure.
+// It takes only the pool locks and never s.mu: the OOM retry chain runs inside
+// texture creates that already hold the shared lock, and a purge that grabbed
+// it would deadlock on itself.
+func (s *GPUShared) PurgeEvictable() (freed int64) {
+	if s == nil {
+		return 0
+	}
+	return int64(s.dualTexBlend.releasePooledVRAM() + s.filterGPU.releasePooledVRAM())
 }
 
 // NewRenderContext creates a new per-context GPU render context that references
@@ -394,12 +487,6 @@ func (s *GPUShared) PurgeAllSurfaceResources() {
 				rc.PurgeSurfaceResources()
 			}
 		}
-		// Texture pool holds surface-sized sets — drop while unpresentable.
-		s.mu.Lock()
-		if s.texturePool != nil {
-			s.texturePool.DestroyAll()
-		}
-		s.mu.Unlock()
 	})
 }
 
@@ -462,14 +549,6 @@ func (s *GPUShared) CanCompute() bool {
 	return s.velloAccel != nil && s.velloAccel.CanCompute()
 }
 
-// SetTexturePoolBudget sets the maximum memory budget for the texture pool
-// in megabytes. Default is 128MB (~5 concurrent 1080p MSAA4x contexts).
-func (s *GPUShared) SetTexturePoolBudget(mb int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.texturePool.SetBudget(mb)
-}
-
 // abandonDeviceOwnedLocked drops every GPU object tied to the current device.
 // Caller holds s.mu. releaseOwnedDevice=true releases owned instance/adapter/device
 // (Close path for non-external). false keeps external device ownership with the host
@@ -485,6 +564,38 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 	if s.device != nil && !s.device.IsLost() {
 		_ = s.device.WaitIdle()
 	}
+
+	// Device-owned registry entries point at natives the teardown below
+	// destroys directly (shared caches/pipelines): drop the bookkeeping
+	// without Release (single release outlet). Session-owned entries stay
+	// with their sessions, which release them on Destroy.
+	//
+	// Surface trio + offscreen caches hold device-owned natives: a healthy
+	// switch force-releases them (device still alive), device loss only drops
+	// bookkeeping (the abandon flow owns native teardown).
+	deviceLost := s.device != nil && s.device.IsLost()
+	// Shared-pool submits (filter/dualtex) may still be held in flight. The
+	// WaitIdle above proved the GPU finished, so a healthy switch resolves
+	// them normally; a lost device never gets its fence, so the holds drop
+	// without touching in-flight counters (the abandon flow owns teardown).
+	if deviceLost {
+		s.direct.invalidate()
+	} else {
+		s.direct.drain()
+	}
+	if s.surfaceCache != nil {
+		if deviceLost {
+			s.surfaceCache.invalidateAll()
+		} else {
+			s.surfaceCache.releaseAll()
+		}
+	}
+	for rc := range s.liveCtxs {
+		if rc != nil {
+			rc.abandonOffscreenCache(deviceLost)
+		}
+	}
+	s.resReg.DeviceOwner().InvalidateOwned()
 
 	s.textEngine = nil
 	for _, v := range s.msdfAtlasViews {
@@ -507,9 +618,6 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 	if s.velloAccel != nil {
 		s.velloAccel.Close()
 		s.velloAccel = nil
-	}
-	if s.texturePool != nil {
-		s.texturePool.DestroyAll()
 	}
 	s.pathGeomCache = nil
 	s.strokeGeomCache = nil
@@ -549,6 +657,8 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 // Close releases all shared GPU resources. After this call, GPU rendering
 // is no longer possible. Idempotent.
 func (s *GPUShared) Close() {
+	render.UnregisterPurgeEvictable(s)
+	render.UnregisterGPUPoolStatsCollector(s)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -582,12 +692,10 @@ func (s *GPUShared) RequestMSAADowngrade() {
 	s.msaaDowngraded = true
 	s.sampleCount = 1
 	// Drain so pooled 4x textures are safe to destroy, then release every
-	// 4x-bound resource: MSAA/stencil pool, shape pipelines and glyph atlas.
+	// 4x-bound shared resource: shape pipelines and glyph atlas (sessions
+	// rebuild their 4x surface trios on the deviceGen bump below).
 	if s.device != nil && !s.device.IsLost() {
 		_ = s.device.WaitIdle()
-	}
-	if s.texturePool != nil {
-		s.texturePool.DestroyAll()
 	}
 	s.destroyPipelinesLocked()
 	if s.glyphMaskEngine != nil {
@@ -668,6 +776,65 @@ func (s *GPUShared) ensureSharedLayoutsLocked() error {
 	return nil
 }
 
+// surfaceCacheLocked returns the device-level surface trio cache, creating the
+// (empty) cache on first use. Caller holds s.mu. No native allocation happens
+// here: res.Cache runs create from Acquire, outside s.mu.
+func (s *GPUShared) surfaceCacheLocked() *surfaceCache {
+	if s == nil {
+		return nil
+	}
+	if s.surfaceCache == nil {
+		s.surfaceCache = newSurfaceCache(s.resReg.DeviceOwner(), "device-surface")
+	}
+	return s.surfaceCache
+}
+
+// directSubmitLocked returns the device-level submission gate for the shared
+// pools that submit outside a session frame. Caller holds s.mu.
+func (s *GPUShared) directSubmitLocked() *directSubmit {
+	if s == nil {
+		return nil
+	}
+	if s.direct == nil {
+		s.direct = newDirectSubmit(s.resReg)
+	}
+	return s.direct
+}
+
+// dualTexBlendLocked returns the device-level dual-tex blend cache, bound to
+// this device's registry owner and submission gate (idempotent). Caller holds
+// s.mu; the binding installs pointers only — no native allocation.
+func (s *GPUShared) dualTexBlendLocked() *dualTexBlendCache {
+	if s == nil {
+		return nil
+	}
+	c := &s.dualTexBlend
+	c.bindRes(s.resReg.DeviceOwner(), s.directSubmitLocked())
+	return c
+}
+
+// filterGPULocked returns the device-level filter graph cache, bound to this
+// device's registry owner and submission gate. Caller holds s.mu.
+func (s *GPUShared) filterGPULocked() *filterGPUCache {
+	if s == nil {
+		return nil
+	}
+	c := &s.filterGPU
+	c.bindRes(s.resReg.DeviceOwner(), s.directSubmitLocked())
+	return c
+}
+
+// wireStencilSurfaceCacheLocked binds the shared stencil renderer's texture
+
+// set to the device-level trio cache. That renderer submits outside
+// res.Submission, so its sets retire on rebuild instead of pooling.
+func (s *GPUShared) wireStencilSurfaceCacheLocked() {
+	if s == nil || s.stencilRenderer == nil {
+		return
+	}
+	s.stencilRenderer.setSurfaceCache(s.surfaceCacheLocked())
+}
+
 // ensurePipelines lazily creates shape rendering pipelines. Skipped on
 // rasterAtlas — SDF/stencil/convex pipelines hang on software SPIR-V
 // interpreter. Must be called with s.mu held.
@@ -684,6 +851,7 @@ func (s *GPUShared) ensurePipelines() {
 	if s.stencilRenderer == nil {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
 	}
+	s.wireStencilSurfaceCacheLocked()
 	// Base pipelines are built once here under mu: every window's session
 	// then only reads pipeline handles. Lazy per-frame create/destroy on the
 	// shared objects is what let one window's close free handles another
@@ -895,11 +1063,7 @@ func (s *GPUShared) submitLocked(fn func() (uint64, error)) (uint64, error) {
 
 // GPUMemoryStats holds diagnostic information about GPU resource usage.
 type GPUMemoryStats struct {
-	TexturePoolPooled int
-	TexturePoolMB     int
-	TexturePoolHits   uint64
-	TexturePoolMisses uint64
-	TilePoolPooled    int
+	TilePoolPooled int
 	// ImageCache* filled when a live session image cache is reported via session; shared path leaves 0.
 	ImageCacheEntries int
 	ImageCacheBytes   int64
@@ -914,13 +1078,6 @@ func (s *GPUShared) MemoryStats() GPUMemoryStats {
 	defer s.mu.Unlock()
 
 	stats := GPUMemoryStats{}
-	if s.texturePool != nil {
-		st := s.texturePool.Stats()
-		stats.TexturePoolPooled = st.Pooled
-		stats.TexturePoolMB = st.UsageMB
-		stats.TexturePoolHits = st.Hits
-		stats.TexturePoolMisses = st.Misses
-	}
 	stats.TilePoolPooled = globalTilePool.Stats().Pooled
 	return stats
 }
@@ -1105,7 +1262,7 @@ func (s *GPUShared) registerFilterGraphIfNeeded() {
 			return nil, err
 		}
 		device, queue := s.device, s.queue
-		cache := &s.filterGPU
+		cache := s.filterGPULocked()
 		s.mu.Unlock()
 		return runGPUFilterGraph(device, queue, cache, src, w, h, nodes)
 	})
@@ -1116,7 +1273,7 @@ func (s *GPUShared) registerFilterGraphIfNeeded() {
 			return gpucontext.TextureView{}, nil, err
 		}
 		device, queue := s.device, s.queue
-		cache := &s.filterGPU
+		cache := s.filterGPULocked()
 		s.mu.Unlock()
 		return runGPUFilterGraphGPUOnly(device, queue, cache, src, w, h, nodes)
 	})
@@ -1127,7 +1284,7 @@ func (s *GPUShared) registerFilterGraphIfNeeded() {
 			return gpucontext.TextureView{}, nil, err
 		}
 		device, queue := s.device, s.queue
-		cache := &s.filterGPU
+		cache := s.filterGPULocked()
 		s.mu.Unlock()
 		return runGPUFilterGraphFromView(device, queue, cache, srcView, w, h, nodes)
 	})

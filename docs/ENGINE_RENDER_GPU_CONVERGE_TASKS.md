@@ -47,10 +47,36 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无（P2.4c 已收口，等提交确认）
-- 下一任务：P2.4d（同尺寸纹理分配六处 → `res/cache`，依赖 P2.4c 的 registry/inflight 语义与 idle 回池）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
-- 最近完成：P2.4c 延迟释放统一（三队列 → `res/registry` + K1 闭合），见 `evidence/P2.4c/summary.md`
-- 阻塞项：无。两条真窗阻塞均用 P2.4a 干净树（`55495fdd`）在同一隔离合成器 A/B 证明为**既有缺陷**，非本步回归：vram ladder 8 窗 native present 卡死（新增待办池 I1）、l1_blank go 单窗 `eglMakeCurrent 0x3002`（既有 C7）；两者修复均归 P2.4e
+- 当前进行中：无（P2.4d 已完成，提交号待补；七段实现 + 全量门禁 + 真窗数字全部落盘，见 `evidence/P2.4d/summary.md`）
+- 下一任务：P2.4e（依赖 P2.4d，承接 I1 / C7 / I2 修复）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 最近完成：P2.4d 同尺寸纹理分配收敛（六处 → `res.Cache`，D1–D7 全落地），见 `evidence/P2.4d/summary.md`；前一项 P2.4c 延迟释放统一（提交 `00dc07d4`），见 `evidence/P2.4c/summary.md`
+- 阻塞项：无。真窗侧既有缺陷按 §2.2 待办池开项：I1（nested Wayland ladder 8 窗 present 卡死，最终 headless 环境未复现，仍开）、C7（gles 多窗/单窗 `eglMakeCurrent 0x3002`）、I2（swapchain 同尺寸 Resize 语义）、I3（R20 灰度矩阵既有红）、I4（R20 steady/recover 黑图）；修复均不属 P2.4d
+
+**P2.4d 开工载体（2026-10-30 开工登记，方向已确认，评估见 `evidence/P2.4d/assessment.md`）**
+
+- 任务：P2.4d 同尺寸纹理分配收敛（六处 → `res/cache`）；评估已列六处 file:line、四种 textureSet owner、三种释放安全模型、`res.Cache` 四缺、purge/OOM 链断点
+- 已拍板：D1 六处全收（含 textureSet 合并）/ D2 registry 升设备级（Skia GrContext 形态，session 每窗一份 submission + owner 分账）/ D3 本步给 hal 加完成 token（native + gles 双实现）/ D4 每域一个 Cache + SizeFn + MaxPerKey + PurgeIdle / D5 新增 `BudgetFilterGraph`、`BudgetTexturePool` 改名 `BudgetSurfacePool` / D6 purge 链本步闭合 / D7 命中率探针单测 + 真窗 JSON
+- 实施顺序：hal token → registry 设备级化 → Cache 能力 → 六处迁移（surface trio → stencil → offscreen → filter → dualtex）→ purge/探针 → 全量门禁
+- 能力单测：`res/cache_size_test.go`（真实字节/每桶上限/PurgeIdle/按域统计/并发）、`res/owner_test.go` + `session_registry_owner_test.go`（设备级 registry 按窗分账，按窗释放不误伤）、`render/internal/gpu/surface_cache_test.go`（surface trio 池 + owner 路由，已落地）、`offscreen_pool_r6_test.go`（层 RT 池，已改写为 `res.Cache` 口径）、`pool_stats_probe_test.go`（各域命中率探针，已落地）、`pool_purge_lock_test.go`（注册→purge→释放 + purge 不得拿 `GPUShared.mu`，已落地）、`direct_submit_test.go`（直提闸门 hold/pump/drain/invalidate/无 gate 兜底，已落地）、`res/gate_test.go`（闸门原语 8 条，已落地）；沿用 `budget_evict_test.go`、`opt44_filter_pass_rp_reuse_test.go`；`stencil_pool_prune_test.go` 已随手写 stencilPool 删除（其覆盖由 surface_cache 的 key/cap/budget/purge 四条接住）
+- 真窗：`examples/ui_l1_blank`（native，JSON pool 段）+ `examples/ui_base_multiwin_cap`（native `-auto-only` 8 窗）+ `examples/ui_wr_r20_filter`（native，filter/dualtex 两域命中率，池新域唯一真负载来源）+ `examples/ui_render_base_scene`（native `-auto-only`，`dualtex-snap` 唯一现有负载）+ `examples/ui_base_vram_cap`（native `-auto-only` `RUN_SECONDS=300` 峰值对账 P1.6 的 372MB 档），隔离 headless Wayland 1600x1000@60；R20 另在桌面 X11 `:1` 复跑 30s 拆分环境 hitch
+- 金图：ui_l1_blank 设计内无金图；替代判定 = JSON 探针（含 pool 段）+ conformance 三场景 `frame.png` 与 P0.4 基线逐字节一致
+- 双后端：conformance native + go 必跑（保持 0/0 上界）；真窗 native 必跑；go 真窗撞既有 C7（`eglMakeCurrent 0x3002`）如实登记，修复归 P2.4e
+- 负向对照：四条已跑完全部红→绿零残留（`tools/negative.sh` → `negative/pool-negative.txt`）——N1 断开回桶的 `MaxPerKey` 检查 → res + dualtex 两条上限单测红；N2 第一轮只摘 `repool` 里的 `trimLocked()` 调用**两处仍绿**（预算有两个执行点，Acquire 与 Release 都 trim），如实登记后改为关掉 `trimLocked` 的逐出循环本身 → res/dualtex/surface 三条预算单测全红；N3 摘掉 dualtex `releasePooledVRAM` 的 `PurgeIdle` → OOM 链单测报出 `freed 1 want 2`；N4 把 `Report.Pool` 置 nil → wrgate 探针段单测报出 `pool domains = 0`
+- 证据：`evidence/P2.4d/`（assessment / summary / hal_token / registry_device / cache_caps / remove_texturepool / surface_pools / filter_dualtex / hit_rate / build / vet-full / per-file-tests / race / conformance / negative / window-gates + window-gates-run1-bad-env / r20_snapshots + r20_snapshots_x11 / api / grep-residual / tools）
+- 进度（2026-10-30）：**hal 完成 token 已落地**（`hal.CompletionToken` + `Queue.OnSubmittedWorkDone`；webgpu-native / gles win+linux / metal / noop 五端；rwgpu 非阻塞 `FutureDone`），单测 + 构建 + 两向交叉编译全绿。顺带查实并修复 T1 根因：v29 回调结构体缺 `mode`、回调签名缺 `WStringView`、状态枚举仍是旧值、native `wgpuQueueOnSubmittedWorkDone` 返回空 future（C 垫片实测）；`TestQueue_OnSubmittedWorkDone` 由失败+清理 SIGSEGV 转 PASS
+- 进度（2026-10-30）：**registry 设备级化已落地**——`Registry` 挂 `GPUShared`（每 device 一份、加锁、idle 回调锁外执行），`Owner` 句柄 + `slot/roleKey.owner` 分账；session `Destroy` 改 `ReleaseOwned`、设备丢失改 `InvalidateOwned`；生产两处建 session 传设备级 registry；`res.Cache` 改 owner 构造并走 registry 原子助手。新增 `owner_test.go`（隔离/失效/回调重入/并发）与 `session_registry_owner_test.go`（双窗共 registry 只关本窗），res 逐文件 + `-race` + 会话级测试全绿，六处池未动。见 `evidence/P2.4d/registry_device.md`
+- 进度（2026-10-30）：**res.Cache 能力补齐**——键加 `Role`（同尺寸不同用途不互顶）、`SizeFn` 真实字节预算（零值兜底 4096）、`MaxPerKey` 每键空闲上限、`PurgeIdle` 只收空闲、`CacheStats` 按域统计（含 Name/PeakBytes/Budget）；回池走 registry idle 回调（retire && refs==0 && inflight==0 才借出），固定锁序 cache→registry、`Release` 不持 cache 锁调 registry。新增 `cache_size_test.go` 5 组，Cache 12 用例 + `-race` + res 8 文件逐文件全绿。六处池仍未迁移。见 `evidence/P2.4d/cache_caps.md`
+- 进度（2026-10-30）：**废弃 TexturePool 已删除、预算域改名**——`render/internal/gpu/texture_pool.go` 整文件删（Acquire/Release/EndFrame 自 P2.4c 后无生产调用），`GPUShared` 三处空池 `DestroyAll` + 遥测字段 + `SetTexturePoolBudget` 同步删；`BudgetTexturePool`→`BudgetSurfacePool`（`"surface-pool"`，128 MiB pin 原值不动），`ResourceUploadStats.Texture` 删除，API 目录同步。三组死池单测 + bench 同步删。构建/逐文件测试/gofmt 绿，vet 仅既有 3 条。见 `evidence/P2.4d/remove_texturepool.md`
+- 进度（2026-10-30）：**surface trio / stencil / offscreen 三池已迁 `res.Cache`**——新增设备级 `surfaceCache`（域 `BudgetSurfacePool` 字节 + `BudgetStencilScratch.MaxEntries` 每键上限，key = 尺寸×样本×resolve/degraded 位），四个 `textureSet` owner（session、shared stencilRenderer、textured linear/pattern cover）统一从这里取套装，手写 `stencilPool` 与 `offscreenPool` map 删除；`GPURenderContext` 的层 RT 改每 context 一个 `res.Cache`（域 `BudgetLayerOffscreen`，Close→`ReleaseAll`+`ReleaseOwned`，设备切换→`abandon`）。owner 侧三条契约：session 重建走 `deferRelease`（先 `sub.Track` 再归还，resize 崩溃根因位）、degraded 1x1 与 `retireOnRelease` owner 归还即销毁不进池、`CreateFn` 在 cache 锁外跑（OOM purge 可重入）。新增 `surface_cache_test.go` 12 条（noop 设备，无 GPU 不 skip）+ offscreen 两条改写 + `retire_queue_test.go` 四条转钉 trio 路由；负向注入 6 条全部红→绿，其中第一轮抓到真洞——只测原语不测 owner 路由时 degraded 注入全绿，补 `TestTextureSet_ReleaseRoutingPoolsOrRetires` 才转红。`-race` 抓到测试替身 `fakeNativeTracker.create` 裸 append（`CreateFn` 本就该并发），加锁后 res 包 `-count=3 -race` 绿。整包 FAIL 仍为基线 7 条（P2.4a/b/c 逐条同名），零新增红。过程如实记录：负向脚本里一条 `git checkout` 误冲 `gpu_textures.go` 未提交重构，已按会话转录同文件完整内容重建并核验（numstat 回到 182/436、构建与整包回归一致）。见 `evidence/P2.4d/surface_pools.md`
+
+**P2.4d 收口载体（2026-10-30 已完成，提交待补，见 `evidence/P2.4d/summary.md`）**
+
+- 任务：P2.4d 同尺寸纹理分配收敛（六处 → `res.Cache`）；评估 `evidence/P2.4d/assessment.md`（六处 file:line、四种 textureSet owner、三种释放安全模型、`res.Cache` 四缺、purge/OOM 链断点）
+- 结果：六处全部收敛为五域——`device-surface`（四个 owner 的 MSAA/depth/resolve + stencil 合并）、`layer-offscreen`（每 context 一个 Cache）、`filter-graph`、`dualtex-snap`，加测试缝 `session-surface`；`TexturePool` 整文件删、`BudgetTexturePool`→`BudgetSurfacePool`、新增 `BudgetFilterGraph`；registry 升设备级（`Owner` 分账、session `ReleaseOwned`/`InvalidateOwned`）；`hal.CompletionToken` 五端 + `directSubmit` 直提闸门；`SizeFn/MaxPerKey/PurgeIdle` + purge/OOM 链闭合；`GPUPoolStats` 三层出口 + wrgate `pool` 段四判据
+- 门禁：五目标构建 321/317、327/323、319/315 全绿；vet 119 条逐条同名同文案零新增；逐测试文件 421 个 375 PASS/17 仅编译/1 标签排除/28 FAIL（= P2.4c 27 条同名 + I2 既有，干净树同红）；`-race` 4 包 exit 0；conformance 双后端 6 帧与 P0.4 逐字节一致、上界 0/0；负向 N1–N4 全红→绿零残留；API 仅白名单变化 + apidoc rc=0；残留 grep 0
+- 真窗（隔离 headless Wayland 1600x1000@60，标准关闭）：l1_blank 60s rc=0（3497 帧，池 0/1 纯分配对照）；multiwin 75s rc=0（8 窗、`max_windows_60fps=4`、16/16 金图 0%、池 4/32 + purge 24）；R20 30s ×2（headless 池 `filter-graph` 6/15、`device-surface` 531/46、`layer-offscreen` 0/1×3；窗自身 `scripted=4/5` 既有红 + headless hitch 环境红，X11 30s 复核 hitch 6.0/min 只剩既有红）；bscene 10s rc=0（`dualtex-snap` 0/1，仅有分配无复用）；vram 300s rc=0（8 窗、`ledger_peak=372.2MB`、16/16 金图 0%、池 28/27）
+- 偏差：`dualtex-snap` 没有第二次同尺寸复用负载，0 命中只算单测覆盖；R20 灰度矩阵红（I3）与 steady/recover 黑图（I4）为既有问题入 §2.2；I1 在最终 headless 环境未复现但未修，仍归 P2.4e；四条实现偏差见 `summary.md` §6
+- 证据：`evidence/P2.4d/`（assessment / summary / hal_token / registry_device / cache_caps / remove_texturepool / surface_pools / filter_dualtex / hit_rate / build / vet-full / per-file-tests(+ab-clean+notes) / race / conformance / negative / window-gates(+run1-bad-env) / r20_snapshots(+x11) / api(+diff) / apidoc-check / grep-residual / tools）
 
 **P2.4c 收口载体（2026-10-30 已完成，提交 `00dc07d4`，见 `evidence/P2.4c/summary.md`）**
 
@@ -120,7 +146,7 @@
 | P2.4a | 设备创建 / 选卡收敛（三份 → 一份） | P2.1–P2.3 | ✅ | `evidence/P2.4a/` |
 | P2.4b | 预算统一（六口径 → 一套 Budget，按域分账） | P2.4a | ✅ | `evidence/P2.4b/` |
 | P2.4c | 延迟释放统一（三队列 → `res/registry`） | P2.4b | ✅ | `evidence/P2.4c/` |
-| P2.4d | 同尺寸纹理分配收敛（六处 → `res/cache`） | P2.4c | ⬜ | `evidence/P2.4d/` |
+| P2.4d | 同尺寸纹理分配收敛（六处 → `res/cache`） | P2.4c | ✅ | `evidence/P2.4d/` |
 | P2.4e | 裁剪 / 混合枚举 / 呈现入口收敛 | P2.4d | ⬜ | `evidence/P2.4e/` |
 | P2.5 | 包组织收口：`go list` 对比、分层约束测试、索引与总账同步 | P2.4e | ⬜ | `evidence/P2.5/` |
 | P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ⬜ | `evidence/P2.6/` |
@@ -178,6 +204,9 @@
 | G3 | P2.1 | `gpu/gwgpu/gles/present_damage_x11_test.go:TestPresentDamageX11` 在当前 X11/NVIDIA 环境失败（`partial present never engaged: full=12 partial=0`，另一次表现为 `BadMatch` on `X_GetImage`）；在改动前 `4e348fd3` 干净 worktree 上同断言失败，与 P2.1 无因果 | GL 增量呈现线（诊断 EGL 局部提交为何未启用） | ⬜ |
 | H1 | P2.4a | P2.1/P2.3 的 `render/internal/gpu` 逐文件轮为**无 GPU 假绿**：门禁脚本未导出 `WGPU_NATIVE_PATH`，native GPU 用例全部 `t.Skipf`（CreateInstance unavailable）→ 文件级 rc=0 记 PASS（本轮带 lib 重跑恢复 P1.3 真实红面 27 个，`evidence/P2.4a/per-file-tests.txt` 对照 `a3-dissection.md`） | P2.6 重放纪律：GPU 包逐文件门禁必须带 lib 或显式记「无 GPU 轮」；P2.5 顺手把 native_device_test skip 文案补 OOM 说明 | ⬜ |
 | I1 | P2.4b | `ui_base_vram_cap` ladder **native** 在隔离嵌套 Wayland 上卡在 8 窗相位：hub 线线程阻塞在 `rwgpu.(*Surface).Present → wgpuSurfacePresent`（C 调用不返回），`fps_min=0.0`、拒增 +0、live 停在 201MB；RUN_SECONDS 到期后连关窗都退不出（主线程 `PipelineApp.Close → Loop.RunSync` 等 hub，另 7 个窗口 goroutine 堵在 `Loop.Submit`）。**P2.4a 干净树 `55495fdd` 在同一合成器逐项复现**（n=8 fps 0.0 / 拒增 +0 / 203.4MB / 同一栈），非 P2.4b 回归；P1.6 的隔离 X11 :3 同窗 PASS（拒增 [2,0]→[4,550]→[8,747]、峰值 372MB）→ 判为 Wayland/驱动面既有缺陷 | P2.4e（后端呈现入口 / 多表面 present）；解剖前不定修复方向，修后补跑 8 窗拒增曲线与 hold 斜率（P2.6 全量重放必跑） | ⬜ |
+| I2 | P2.4d | `gpu/webgpu/swapchain_x11_linux_test.go:219`（`TestS68_Swapchain_X11_MultiFramePresent`）期望第 6 帧 `sc.Resize(160,120)`（与原尺寸同值）能抬 `reconfigures`，实测 `acquires=12 presents=12 reconfig=0` → FAIL。产品侧 `swapchain_configure.go:213` 自 `34d9785e`（T1.2 swapchain 拆刀）起把同尺寸 `Resize` 定为 no-op（避 `Surface.Configure` 抖动致黑闪），该用例由 `8e4c0e99`（S6）引入、早于这次语义变更。**P2.4d 干净树 `ac2e58b3` 同断言同日志逐项复现**，非 P2.4d 回归；本轮把 `gpu/webgpu` 纳入逐文件口径（P2.4c 口径只含 4 包）才把它暴露出来 | P2.4e（呈现入口收敛，与 I1 同一条线）：先拍板「用例期望改绑真实尺寸变化」还是「`Resize` 需要显式 force 重配口」，两边都对齐 Skia/Flutter 语义后再动，禁止为凑绿直接删断言；证据 `evidence/P2.4d/per-file-tests-notes.md` §4 | ⬜ |
+| I3 | P2.4d | R20 `gray_red_band_matrix_exact @(408,274)` 红：`got=(0.898,0.200,0.149) want=(0.404,0.404,0.404)`——Spike 把灰度矩阵换成 identity、Recover 恢复后，GRAY 卡仍保持彩色（层录制没有按新矩阵重录）。P1.4 基线 native seed/confirm 的 stderr 是同一行、同一 got/want（`baseline/windows/ui_wr_r20_filter/default/native/{seed,confirm}/stderr.log:5`），故非 P2.4d 回归。R20 关闭于 2026-08-25（`6a752a5d`），P1.4 采集前唯一动 layer recording 的提交是 `b7deb056`（2026-10-23，hand layers immutable recordings），目前只是疑点，**未做该提交前后 A/B，不作因果结论** | P2.6 前诊断（C4 的 R20 子项）：先 A/B 定位重录路径，再对齐 Skia/Flutter 的不可变录制语义 | ⬜ |
+| I4 | P2.4d | R20 `r20_steady.png` / `r20_recover.png` 全黑：1200x800、RGB 全 0、5585 B；本轮 stderr 另有 `embedder: snapshot request timed out`。P1.4 归档的基线两张图同尺寸同全黑，属既有问题；`r20_final.png` 正常（extrema 14–249）说明不是整条截图链坏 | P2.6 前诊断（SnapshotAsync 黑图）：与 R20 的 steady/recover 探针一起解剖，禁止用 final 金图掩盖 | ⬜ |
 
 ## 3 每个任务的开工条件与完成标准
 
@@ -301,7 +330,7 @@
 - **P2.4b 预算统一**：六口径 → 一套 Budget，按域分账；淘汰语义有单测。
 - **P2.4c 延迟释放统一**：三队列 → `res/registry`；释放时序有单测。（✅ 已完成，见 `evidence/P2.4c/summary.md`；K1 已闭合，上界已收紧回 0/0）
   - 已知差异 K1（P0.4 移交）：修掉 brush/glyph/image 纹理每轮 +2 条 / +131072 字节的释放缺口；修完把 `render/testdata/conformance/{solid_gradient,text_image}.json` 的 `max_steady_count_delta` / `max_steady_bytes_delta` 收紧回 0，并用 P0.4 回归命令重跑（`baseline/conformance/summary.md` 已知差异表应清空）。**已完成（2026-10-30）**：根因 = `TexturedQuadPipeline.destroyPipeline()` 漏销毁 bicubic 两管线 + `bicubicShader`，已就地修；双后端复绿，基线已知差异表已标注闭合。
-- **P2.4d 纹理分配收敛**：六处同尺寸管理器 → `res/cache`；复用命中率有探针。
+- **P2.4d 纹理分配收敛**：六处同尺寸管理器 → `res/cache`；复用命中率有探针。（✅ 已完成 2026-10-30，见 `evidence/P2.4d/summary.md`；`dualtex-snap` 复用只有单测覆盖）
 - **P2.4e 入口收敛**：裁剪栈、混合枚举、呈现入口各归一处；旧入口删除且调用方全改。
   - 每条子步附加门禁：生命周期测试台（开窗/关窗/切场景 → 显存账本归零、堆无增长）+ 触及共享数据跑 `-race` + 真窗三证据。
   - 每条子步独立分支与提交点；出问题整步回退，不带着半截往前走。
@@ -474,3 +503,4 @@ docs/render_gpu_converge/
 | 2026-10-29 | P2.1 收口：按用户拍板 D1（根文件改 `shader.go`）/D2（`GLSLVersionToNaga` 留 P5）/D3（删根 SPIR-V API + `CompileShaderToSPIRV`）/D4（补根冒烟）执行；GLSL/MSL 快照 681 文件逐字节一致、GL 离屏 md5 不变、vet 61/58 不变、API 41→11 包；G1 随 `spirv/` 整包删除闭合；新增 G3（`TestPresentDamageX11` 既有环境红，`4e348fd3` 复现）；§2.1 焦点切到 P2.4a |
 | 2026-10-30 | P2.4b 收口：预算声明表收敛为唯一来源（零行为）；真窗阻塞两条按「干净树 A/B」定性为既有缺陷而非本步回归，**新增待办池 I1**（ladder 8 窗 native present 卡死，归 P2.4e）、C7 追加单窗形态证据；修正 `RENDER_API_CATALOG.md` 粘连坏行（apidoc 只查符号不查表形，登记为检查缺口）；§2.1 焦点切到 P2.4c。提交 `3600e052`（仅本线文件） |
 | 2026-10-30 | P2.4c 收口：三队列（`pendingTex/Buf`、`ImageCache.ephemeral+pending`、`res.Cache.pending`）全删，统一走 `res.Registry` 槽位状态机（Register→Track→Release→Retire）+ 5 个 `SubmitDone` 同步点；`Cache` 回池改 idle 回调；图片纹理释放点按批准 D2 后移一帧（multiwin 峰值 +0.09% 实测无抬升）。K1 按 D5 跨文件就地修（`TexturedQuadPipeline.destroyPipeline` 补销毁 bicubic 两管线 + `bicubicShader`），conformance 上界收紧 0/0、双后端复绿，基线已知差异表标注闭合。门禁：五目标构建同 P2.4b、vet 119 条逐行不变、逐文件 341 个 301 PASS/27 FAIL（干净树 27/27 同红零新增）、`-race`、负向两处红→绿零残留、API 仅 internal 面变化。真窗：l1_blank native 3588 帧、multiwin native 8 窗 PASS（316MB/峰值 348064KB）、ladder 8 窗 I1 同栈复现、go 真窗 C7 沿用 P2.4b A/B。§2.1 焦点切到 P2.4d。见 `evidence/P2.4c/summary.md` |
+| 2026-10-30 | P2.4d 收口：六处同尺寸管理器 → `res.Cache` 五域（`device-surface`/`layer-offscreen`/`filter-graph`/`dualtex-snap` + 测试缝 `session-surface`），含 textureSet 四 owner 合并、`TexturePool` 删除、`BudgetSurfacePool` 改名、新增 `BudgetFilterGraph`；registry 升设备级 + Owner 分账、`hal.CompletionToken` 五端 + 直提闸门、`SizeFn/MaxPerKey/PurgeIdle`、purge/OOM 链闭合、三层命中率探针 + wrgate 四判据。门禁：五目标构建全绿、vet 119 条逐行不变、逐文件 421 个 375 PASS/28 FAIL（27 同 P2.4c + I2 既有）、`-race`、conformance 6 帧逐字节一致 0/0、负向 N1–N4 红→绿零残留、API 白名单。真窗改用隔离 headless Wayland 1600x1000@60：l1 3497 帧、multiwin 8 窗 rc=0、R20 池 6/15 + 531/46、bscene `dualtex-snap` 0/1、ladder 8 窗 rc=0 峰值 372.2MB（I1 未复现但不标修）；R20 灰度矩阵红与 steady/recover 黑图入 §2.2 I3/I4。§2.1 焦点切到 P2.4e。见 `evidence/P2.4d/summary.md` |

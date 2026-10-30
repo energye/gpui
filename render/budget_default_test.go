@@ -28,11 +28,12 @@ func TestDefaultBudget_PinnedToPreP24bValues(t *testing.T) {
 		{BudgetProcessGlobal, Budget{MaxBytes: 768 << 20}}, // GPUI_VRAM_BUDGET_MB default
 		{BudgetImageCache, Budget{MaxEntries: 128, MaxBytes: 64 << 20, MinEntries: 16, MinBytes: 8 << 20}},
 		{BudgetPictureCache, Budget{MinEntries: 64}}, // divisor=4 lives in pictureCacheBudgetDivisor
-		{BudgetTexturePool, Budget{MaxBytes: 128 << 20}},
+		{BudgetSurfacePool, Budget{MaxBytes: 128 << 20}},
 		{BudgetStencilScratch, Budget{MaxEntries: 8}},
 		{BudgetClipMask, Budget{MaxEntries: 24, MaxBytes: 16 << 20, TTL: 5 * time.Second}},
 		{BudgetBlendDualTex, Budget{MaxEntries: 8, MaxBytes: 32 << 20}},
 		{BudgetLayerOffscreen, Budget{MaxEntries: 4, MaxBytes: 32 << 20}},
+		{BudgetFilterGraph, Budget{MaxEntries: 8, MaxBytes: 128 << 20}},
 		{BudgetGlyphColor, Budget{MaxEntries: 4}},                       // NewColorGlyphAtlas(1024, 4)
 		{BudgetGlyphMask, Budget{MaxEntries: 16384, MaxBytes: 4 << 20}}, // 4 pages × 1024² R8
 		{BudgetVideoStage, Budget{MaxEntries: 8, MaxBytes: 64 << 20}},
@@ -57,11 +58,12 @@ func TestBudgetDomain_String(t *testing.T) {
 		BudgetProcessGlobal:  "process-global",
 		BudgetImageCache:     "image-cache",
 		BudgetPictureCache:   "picture-cache",
-		BudgetTexturePool:    "texture-pool",
+		BudgetSurfacePool:    "surface-pool",
 		BudgetStencilScratch: "stencil-scratch",
 		BudgetClipMask:       "clip-mask",
 		BudgetBlendDualTex:   "blend-dualtex",
 		BudgetLayerOffscreen: "layer-offscreen",
+		BudgetFilterGraph:    "filter-graph",
 		BudgetGlyphColor:     "glyph-color",
 		BudgetGlyphMask:      "glyph-mask",
 		BudgetVideoStage:     "video-stage",

@@ -1,0 +1,11 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot stored: r20_steady.png
+snapshot stored: r20_recover.png
+snapshot: /tmp/r20_filter/r20_final.png
+ui_wr_r20_filter: pixel gray_red_band_matrix_exact   @( 408, 274) got=(0.110,0.118,0.149) want=(0.404,0.404,0.404) ok=false
+ui_wr_r20_filter: pixel raw_control_outside_invariant @( 417, 481) got=(0.110,0.118,0.149) want=(0.600,0.300,0.800) ok=false
+ui_wr_r20_filter: pixel blur_bar_center_preserved    @( 618, 177) got=(0.129,0.137,0.188) want=(0.950,0.520,0.080) ok=false
+ui_wr_r20_filter: pixel pulse_disc_center_invariant  @( 697, 491) got=(0.129,0.137,0.188) want=(0.250,0.750,0.350) ok=false
+ui_wr_r20_filter: pixel dense_note_text_density      text_px=848 (want >=120) ok=true
+golden baseline stored: /tmp/r20_filter/r20_final_base.png
+FAIL: FAIL: fps=18.36 (interval=18.36 wall=17.76) < 45.00 (60Hz-class gate)

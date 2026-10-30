@@ -104,7 +104,7 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 	}
 	device.FreeCommandBuffer(cmd)
 	for _, o := range outs {
-		cache.putOutBGRA(o.tex, o.view, o.bounds.Dx(), o.bounds.Dy())
+		cache.recycleOut(o, nil)
 	}
 	cache.mu.Lock()
 	slots := cache.lastMultiUniformSlots
@@ -137,7 +137,7 @@ func TestOpt37_DualTexMultiUniformSlab_OneWrite(t *testing.T) {
 	_, _ = queue.Submit(cmd2)
 	device.FreeCommandBuffer(cmd2)
 	for _, o := range outs2 {
-		cache.putOutBGRA(o.tex, o.view, o.bounds.Dx(), o.bounds.Dy())
+		cache.recycleOut(o, nil)
 	}
 	cache.mu.Lock()
 	wb2 := cache.lastMultiUniformWB

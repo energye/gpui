@@ -22,6 +22,7 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/render"
+	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
 // F.03: true multi-RT GPU image filter graph with texture ping-pong.
@@ -167,10 +168,12 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
 }
 `
 
+// filterPublishSlot is one graph result handed to the compositor: the RT plus
+// the strong cache ref keeping it out of the pool until the caller releases it.
 type filterPublishSlot struct {
 	tex  hal.Texture
 	view hal.TextureView
-	w, h int
+	ref  res.Ref
 }
 
 type filterGPUCache struct {
@@ -183,10 +186,16 @@ type filterGPUCache struct {
 	dummyTex  hal.Texture
 	dummyView hal.TextureView
 
-	// Pooled ping-pong RTs for continuous effect frames.
-	poolW, poolH        int
-	texA, texB, texH    hal.Texture
-	viewA, viewB, viewH hal.TextureView
+	// P2.4d: the graph's RGBA8 render targets (ping-pong A/B, hold, and
+	// published results) are one device-level res.Cache keyed by size, so
+	// windows sharing a device share same-size RTs, the domain has a byte
+	// budget, and an entry still referenced by an in-flight submit is never
+	// lent out again. resOwner/gate come from GPUShared; without them (bare
+	// cache in tests) RTs are created and destroyed directly.
+	rtCache       *res.Cache
+	rtCacheDevice hal.Device
+	resOwner      res.Owner
+	gate          *directSubmit
 
 	// Reused uniform + CPU staging/readback buffers.
 	uniform    hal.Buffer
@@ -195,9 +204,6 @@ type filterGPUCache struct {
 	stagingCap uint64
 	outScratch []byte
 	uploadPad  []byte
-
-	// Published result textures (owned until caller Release).
-	publishFree []filterPublishSlot
 
 	// single slab for all pass uniforms (stride filterPassUniformSlotStride).
 	// Each pass bind group uses a fixed Offset into the slab; one WriteBuffer
@@ -214,6 +220,13 @@ type filterGPUCache struct {
 	// Stable bind-group cache for continuous effect frames (glow).
 	// Keyed by view/uniform pointer + slab offset; cleared when pool/slab rebuilds.
 	bgCache map[filterBGKey]hal.BindGroup
+	// rtDropGen is the RT cache's destroy counter observed the last time
+	// bgCache was validated. Pooled RT views can be destroyed by budget trim /
+	// purge without going through a pool rebuild, and a Go allocator happily
+	// reuses the freed pointer for the next texture — which would make an old
+	// bind group key alias a different texture. Bumped whenever that counter
+	// moves, so stale keys can never be hit.
+	rtDropGen uint64
 
 	// reuse filter-pass RP descriptor (no per-pass ColorAttachments alloc).
 	filterPassRPDesc   hal.RenderPassDescriptor
@@ -233,33 +246,14 @@ func (c *filterGPUCache) release() {
 	c.releaseUnlocked()
 }
 
+// releasePoolUnlocked drains the RT domain. Checked-out RTs (a published
+// result the compositor still holds, or a graph run in progress) are left to
+// their owners' release path; the cache itself is dropped with the device.
 func (c *filterGPUCache) releasePoolUnlocked() {
 	c.clearBGCacheUnlocked()
-	if c.viewA != nil {
-		c.viewA.Destroy()
-		c.viewA = nil
-	}
-	if c.texA != nil {
-		c.texA.Destroy()
-		c.texA = nil
-	}
-	if c.viewB != nil {
-		c.viewB.Destroy()
-		c.viewB = nil
-	}
-	if c.texB != nil {
-		c.texB.Destroy()
-		c.texB = nil
-	}
-	if c.viewH != nil {
-		c.viewH.Destroy()
-		c.viewH = nil
-	}
-	if c.texH != nil {
-		c.texH.Destroy()
-		c.texH = nil
-	}
-	c.poolW, c.poolH = 0, 0
+	c.rtCache.ReleaseAll()
+	c.rtCache = nil
+	c.rtCacheDevice = nil
 }
 
 func (c *filterGPUCache) releaseUnlocked() {
@@ -273,15 +267,6 @@ func (c *filterGPUCache) releaseUnlocked() {
 		c.staging = nil
 		c.stagingCap = 0
 	}
-	for i := range c.publishFree {
-		if c.publishFree[i].view != nil {
-			c.publishFree[i].view.Destroy()
-		}
-		if c.publishFree[i].tex != nil {
-			c.publishFree[i].tex.Destroy()
-		}
-	}
-	c.publishFree = nil
 	if c.passUniformSlab != nil {
 		c.passUniformSlab.Destroy()
 		c.passUniformSlab = nil
@@ -470,50 +455,230 @@ func (c *filterGPUCache) ensure(device hal.Device) error {
 	return nil
 }
 
-func (c *filterGPUCache) ensurePool(device hal.Device, w, h int) error {
-	if c.texA != nil && c.poolW == w && c.poolH == h && c.device == device {
+// filterRTUsage is the usage mask every graph render target needs: sampled as
+// a source, written as an attachment, and copied to/from (publish copy,
+// readback).
+func filterRTUsage() types.TextureUsage {
+	return types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment |
+		types.TextureUsageCopySrc | types.TextureUsageCopyDst
+}
+
+// filterRTKey is the RT cache key for one w×h RGBA8 target.
+func filterRTKey(w, h int) res.CacheKey {
+	return res.CacheKey{
+		W:       uint32(w), //nolint:gosec // filterGPUMaxPixels caps the size
+		H:       uint32(h), //nolint:gosec
+		Format:  uint32(types.TextureFormatRGBA8Unorm),
+		Samples: 1,
+		Usage:   uint64(filterRTUsage()),
+		Role:    res.RoleFilterRT,
+	}
+}
+
+// filterRTNative is one pooled graph render target plus its only view.
+type filterRTNative struct {
+	tex  hal.Texture
+	view hal.TextureView
+}
+
+// Release destroys the pair; the registry calls it exactly once, when no
+// usage ref and no in-flight submit reference the target.
+func (n *filterRTNative) Release() {
+	if n == nil {
+		return
+	}
+	if n.view != nil {
+		n.view.Destroy()
+		n.view = nil
+	}
+	if n.tex != nil {
+		n.tex.Destroy()
+		n.tex = nil
+	}
+}
+
+// bindRes attaches the device-level registry owner and submission gate. Called
+// by GPUShared every time it hands out this cache.
+func (c *filterGPUCache) bindRes(owner res.Owner, gate *directSubmit) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.resOwner = owner
+	c.gate = gate
+}
+
+// gateOf returns the device-level submission gate (nil in bare-cache mode,
+// where submits stay plain Queue.Submit).
+func (c *filterGPUCache) gateOf() *directSubmit {
+	if c == nil {
 		return nil
 	}
-	c.releasePoolUnlocked()
-	usageRT := types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst
-	mk := func(label string) (hal.Texture, hal.TextureView, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.gate
+}
+
+// rtCacheLocked returns the RT cache for device, rebuilding it when the device
+// changed (the create closure captures the device). A cache without a bound
+// registry owner stays nil and callers keep the direct path. Caller holds c.mu;
+// no native allocation happens here.
+func (c *filterGPUCache) rtCacheLocked(device hal.Device) *res.Cache {
+	if c.resOwner.IsNil() || device == nil {
+		return nil
+	}
+	if c.rtCache != nil && c.rtCacheDevice == device {
+		return c.rtCache
+	}
+	c.rtCache.ReleaseAll()
+	budget := render.DefaultBudget(render.BudgetFilterGraph)
+	cache := res.NewCache(c.resOwner, func(key res.CacheKey) (res.Native, error) {
 		tex, err := device.CreateTexture(&hal.TextureDescriptor{
-			Label:         label,
-			Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+			Label:         "filter_rt",
+			Size:          hal.Extent3D{Width: key.W, Height: key.H, DepthOrArrayLayers: 1},
 			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
 			Format: types.TextureFormatRGBA8Unorm,
-			Usage:  usageRT,
+			Usage:  filterRTUsage(),
 		})
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
-			Label: label + "_view", Format: types.TextureFormatRGBA8Unorm,
+			Label: "filter_rt_view", Format: types.TextureFormatRGBA8Unorm,
 			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
 		})
 		if err != nil {
 			tex.Destroy()
-			return nil, nil, err
+			return nil, err
 		}
-		return tex, view, nil
+		return &filterRTNative{tex: tex, view: view}, nil
+	}, res.CacheOptions{
+		Name:      "filter-graph",
+		Budget:    uint64(budget.MaxBytes),
+		MaxPerKey: budget.MaxEntries,
+		SizeFn:    func(key res.CacheKey) uint64 { return uint64(key.W) * uint64(key.H) * 4 },
+	})
+	c.rtCache = cache
+	c.rtCacheDevice = device
+	c.rtDropGen = rtDrops(cache)
+	return cache
+}
+
+// rtDrops is the RT cache's destroy counter (evictions + purges): every way a
+// pooled view can disappear moves it, so it doubles as the bind-group cache's
+// invalidation generation.
+func rtDrops(cache *res.Cache) uint64 {
+	if cache == nil {
+		return 0
 	}
-	var err error
-	c.texA, c.viewA, err = mk("filter_rt_a")
+	st := cache.Stats()
+	return st.Evictions + st.Purged
+}
+
+// stats snapshots the RT domain for the pool probe (render.GPUPoolStats). It
+// never builds the cache: an unused domain reports an empty snapshot, not a
+// freshly created pool.
+func (c *filterGPUCache) stats() res.CacheStats {
+	if c == nil {
+		return res.CacheStats{}
+	}
+	c.mu.Lock()
+	cache := c.rtCache
+	c.mu.Unlock()
+	return cache.Stats()
+}
+
+// acquireRT takes one w×h graph render target. The returned Ref is the strong
+// cache reference the caller must hand back to recycleRT; a nil Ref means the
+// target came from outside the cache (no registry bound) and the caller must
+// destroy it.
+func (c *filterGPUCache) acquireRT(device hal.Device, w, h int) (hal.Texture, hal.TextureView, res.Ref, error) {
+	if w <= 0 || h <= 0 {
+		return nil, nil, res.Ref{}, fmt.Errorf("filter gpu rt: bad size %dx%d", w, h)
+	}
+	c.mu.Lock()
+	cache := c.rtCacheLocked(device)
+	owner := c.resOwner
+	c.mu.Unlock()
+	if cache != nil {
+		ref, err := cache.Acquire(filterRTKey(w, h))
+		if err != nil {
+			return nil, nil, res.Ref{}, err
+		}
+		native, ok := owner.Registry().NativeOf(ref).(*filterRTNative)
+		if !ok || native == nil {
+			cache.ReleaseRetire(ref)
+			return nil, nil, res.Ref{}, fmt.Errorf("filter gpu rt: unexpected native for %dx%d", w, h)
+		}
+		return native.tex, native.view, ref, nil
+	}
+	tex, err := device.CreateTexture(&hal.TextureDescriptor{
+		Label:         "filter_rt",
+		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
+		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
+		Format: types.TextureFormatRGBA8Unorm,
+		Usage:  filterRTUsage(),
+	})
 	if err != nil {
-		return err
+		return nil, nil, res.Ref{}, err
 	}
-	c.texB, c.viewB, err = mk("filter_rt_b")
+	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
+		Label: "filter_rt_view", Format: types.TextureFormatRGBA8Unorm,
+		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
+	})
 	if err != nil {
-		c.releasePoolUnlocked()
-		return err
+		tex.Destroy()
+		return nil, nil, res.Ref{}, err
 	}
-	c.texH, c.viewH, err = mk("filter_rt_hold")
-	if err != nil {
-		c.releasePoolUnlocked()
-		return err
+	return tex, view, res.Ref{}, nil
+}
+
+// recycleRT returns a target to the pool, or destroys it when it was created
+// outside the cache. track (may be nil) marks the ref in flight for the
+// submission that touched it: the session's own submission when the graph ran
+// into a shared encoder, nothing for paths that waited on the GPU. Without it,
+// re-pooling could lend the target to another window while the GPU is still
+// writing it.
+func (c *filterGPUCache) recycleRT(ref res.Ref, track func(res.Ref)) {
+	if ref.IsNil() {
+		return
 	}
-	c.poolW, c.poolH = w, h
-	return nil
+	c.mu.Lock()
+	cache := c.rtCache
+	c.mu.Unlock()
+	if cache == nil {
+		return
+	}
+	if track != nil {
+		track(ref)
+	}
+	cache.Release(ref)
+}
+
+// rtRefs collects the non-nil refs of a run (gate input).
+func rtRefs(refs ...res.Ref) []res.Ref {
+	out := make([]res.Ref, 0, len(refs))
+	for _, r := range refs {
+		if !r.IsNil() {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// releasePooledVRAM drops every idle render target while keeping checked-out
+// ones and the pipelines; returns the number of entries freed. Call under VRAM
+// pressure before a critical CreateTexture (glyph atlas, etc.).
+func (c *filterGPUCache) releasePooledVRAM() int {
+	if c == nil {
+		return 0
+	}
+	c.mu.Lock()
+	cache := c.rtCache
+	c.mu.Unlock()
+	n, _ := cache.PurgeIdle()
+	return n
 }
 
 func (c *filterGPUCache) ensureStaging(device hal.Device, size uint64) error {
@@ -642,117 +807,38 @@ func (c *filterGPUCache) ensurePassUniformSlab(device hal.Device, nSlots int) (h
 	return b, nil
 }
 
-// promotePoolResultToPublish zero-copy publishes a finished A/B pool RT by
-// swapping it out of the pool. Replacement prefers the publish free-list so
-// steady-state glow frames do not CopyTextureToTexture or allocate VRAM.
-// Safe to call after encode and before Submit: the command buffer retains the
-// promoted texture; the pool receives a recycled/new RT for the next graph.
-func (c *filterGPUCache) promotePoolResultToPublish(device hal.Device, tex hal.Texture, view hal.TextureView, w, h int) (filterPublishSlot, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if device == nil || tex == nil || view == nil || c.poolW != w || c.poolH != h {
-		return filterPublishSlot{}, fmt.Errorf("filter gpu promote: pool mismatch")
-	}
-	if c.texA != tex && c.texB != tex {
-		return filterPublishSlot{}, fmt.Errorf("filter gpu promote: tex not in pool")
-	}
-
-	// Recycle a free publish slot as the new pool RT (steady-state: no alloc).
-	var replTex hal.Texture
-	var replView hal.TextureView
-	for i := range c.publishFree {
-		s := c.publishFree[i]
-		if s.w == w && s.h == h && s.tex != nil && s.view != nil {
-			c.publishFree = append(c.publishFree[:i], c.publishFree[i+1:]...)
-			replTex, replView = s.tex, s.view
-			break
-		}
-	}
-	if replTex == nil {
-		usageRT := types.TextureUsageTextureBinding | types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst
-		texNew, err := device.CreateTexture(&hal.TextureDescriptor{
-			Label:         "filter_rt_repl",
-			Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
-			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
-			Format: types.TextureFormatRGBA8Unorm,
-			Usage:  usageRT,
-		})
-		if err != nil {
-			return filterPublishSlot{}, err
-		}
-		viewNew, err := device.CreateTextureView(texNew, &hal.TextureViewDescriptor{
-			Label: "filter_rt_repl_view", Format: types.TextureFormatRGBA8Unorm,
-			Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
-		})
-		if err != nil {
-			texNew.Destroy()
-			return filterPublishSlot{}, err
-		}
-		replTex, replView = texNew, viewNew
-	}
-
-	// Keep bgCache: promoted views leave the pool; recycled slots retain the
-	// same TextureView pointers so subsequent frames still hit the cache.
-	// Full clear only happens on pool rebuild (ensurePool / releasePool).
-
-	if c.texA == tex {
-		c.texA, c.viewA = replTex, replView
-	} else {
-		c.texB, c.viewB = replTex, replView
-	}
-	return filterPublishSlot{tex: tex, view: view, w: w, h: h}, nil
-}
-
+// acquirePublish takes a w×h target for a result that must not be one of the
+// run's own ping-pong/hold targets (an external-only source). Same pool as the
+// graph RTs, so steady-state glow frames neither allocate VRAM nor copy: the
+// pool hands back what the previous frame released.
 func (c *filterGPUCache) acquirePublish(device hal.Device, w, h int) (filterPublishSlot, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for i := range c.publishFree {
-		s := c.publishFree[i]
-		if s.w == w && s.h == h && s.tex != nil && s.view != nil {
-			c.publishFree = append(c.publishFree[:i], c.publishFree[i+1:]...)
-			return s, nil
-		}
-	}
-	usage := types.TextureUsageTextureBinding | types.TextureUsageCopyDst | types.TextureUsageCopySrc | types.TextureUsageRenderAttachment
-	tex, err := device.CreateTexture(&hal.TextureDescriptor{
-		Label:         "filter_publish",
-		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
-		MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
-		Format: types.TextureFormatRGBA8Unorm,
-		Usage:  usage,
-	})
+	tex, view, ref, err := c.acquireRT(device, w, h)
 	if err != nil {
 		return filterPublishSlot{}, err
 	}
-	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
-		Label: "filter_publish_view", Format: types.TextureFormatRGBA8Unorm,
-		Dimension: types.TextureViewDimension2D, Aspect: types.TextureAspectAll, MipLevelCount: 1,
-	})
-	if err != nil {
-		tex.Destroy()
-		return filterPublishSlot{}, err
-	}
-	return filterPublishSlot{tex: tex, view: view, w: w, h: h}, nil
+	return filterPublishSlot{tex: tex, view: view, ref: ref}, nil
 }
 
-func (c *filterGPUCache) releasePublish(slot filterPublishSlot) {
+// releasePublish returns a published result to the pool (destroying it when it
+// predates the cache). track marks the submission that still samples the
+// result, so it cannot be re-lent or drained before the GPU is done with it;
+// nil track matches the pre-P2.4d contract (the strong ref protected it while
+// published, and the pool takes it back as soon as that ref is gone).
+func (c *filterGPUCache) releasePublish(slot filterPublishSlot, track func(res.Ref)) {
 	if slot.tex == nil || slot.view == nil {
 		return
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// Keep a small free list (cap 4) to absorb glow RT cadence without VRAM creep.
-	if len(c.publishFree) < 4 {
-		c.publishFree = append(c.publishFree, slot)
+	if slot.ref.IsNil() {
+		slot.view.Destroy()
+		slot.tex.Destroy()
 		return
 	}
-	slot.view.Destroy()
-	slot.tex.Destroy()
+	c.recycleRT(slot.ref, track)
 }
 
 // runGPUFilterGraph executes multi-RT ping-pong filter nodes on GPU and readbacks.
 func runGPUFilterGraph(device hal.Device, queue hal.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) ([]byte, error) {
-	out, _, _, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, true, nil, nil)
+	out, _, _, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, true, nil, nil, nil)
 	return out, err
 }
 
@@ -760,7 +846,7 @@ func runGPUFilterGraph(device hal.Device, queue hal.Queue, cache *filterGPUCache
 // for zero-copy compositing (DrawGPUTexture). No CPU Map/readback.
 // Caller must invoke release when the view is no longer sampled.
 func runGPUFilterGraphGPUOnly(device hal.Device, queue hal.Queue, cache *filterGPUCache, src []byte, w, h int, nodes []render.ImageFilterNode) (gpucontext.TextureView, func(), error) {
-	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, false, nil, nil)
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, src, nil, w, h, nodes, false, nil, nil, nil)
 	return view, release, err
 }
 
@@ -781,7 +867,7 @@ func runGPUFilterGraphFromViewWithLeading(device hal.Device, queue hal.Queue, ca
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
 	}
 	halView := unpackView(srcView)
-	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, halView, w, h, nodes, false, leading, nil)
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, halView, w, h, nodes, false, leading, nil, nil)
 	return view, release, err
 }
 
@@ -789,7 +875,7 @@ func runGPUFilterGraphFromViewWithLeading(device hal.Device, queue hal.Queue, ca
 // encoder that already contains the mesh-seed render passes. One Finish
 // covers seed+filter. On failure the encoder is left open so the caller can
 // Finish+Submit seed-only recovery (mesh draws are only applied if submitted).
-func runGPUFilterGraphFromViewIntoEncoder(device hal.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, sharedEnc hal.CommandEncoder) (gpucontext.TextureView, func(), error) {
+func runGPUFilterGraphFromViewIntoEncoder(device hal.Device, queue hal.Queue, cache *filterGPUCache, srcView gpucontext.TextureView, w, h int, nodes []render.ImageFilterNode, sharedEnc hal.CommandEncoder, track func(res.Ref)) (gpucontext.TextureView, func(), error) {
 	if srcView.IsNil() {
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil src view")
 	}
@@ -797,14 +883,14 @@ func runGPUFilterGraphFromViewIntoEncoder(device hal.Device, queue hal.Queue, ca
 		return gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: nil shared encoder")
 	}
 	halView := unpackView(srcView)
-	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, halView, w, h, nodes, false, nil, sharedEnc)
+	_, view, release, err := runGPUFilterGraphEx(device, queue, cache, nil, halView, w, h, nodes, false, nil, sharedEnc, track)
 	return view, release, err
 }
 
 func runGPUFilterGraphEx(
 	device hal.Device, queue hal.Queue, cache *filterGPUCache,
 	src []byte, srcView hal.TextureView, w, h int, nodes []render.ImageFilterNode, wantPixels bool,
-	leading []hal.CommandBuffer, sharedEnc hal.CommandEncoder,
+	leading []hal.CommandBuffer, sharedEnc hal.CommandEncoder, track func(res.Ref),
 ) (out []byte, pubView gpucontext.TextureView, pubRelease func(), err error) {
 	if device == nil || queue == nil || cache == nil || w <= 0 || h <= 0 {
 		return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu: invalid args")
@@ -822,25 +908,89 @@ func runGPUFilterGraphEx(
 	}
 
 	cache.mu.Lock()
-	if err := cache.ensurePool(device, w, h); err != nil {
-		cache.mu.Unlock()
-		return nil, gpucontext.TextureView{}, nil, err
-	}
-	texA, viewA := cache.texA, cache.viewA
-	texB, viewB := cache.texB, cache.viewB
-	texH, viewH := cache.texH, cache.viewH
 	uGPU := cache.uniform
 	ubuf := cache.uniformCPU
 	pipe, bgl, samp, dummy := cache.pipeline, cache.bgl, cache.sampler, cache.dummyView
+	// Bind groups are keyed by view pointers; a pooled target destroyed since
+	// the last validation could have had its pointer reused by the next
+	// texture, so re-validate the whole map when the drop counter moves.
+	if rtDrops(cache.rtCache) != cache.rtDropGen {
+		cache.clearBGCacheUnlocked()
+		cache.rtDropGen = rtDrops(cache.rtCache)
+	}
 	cache.mu.Unlock()
+
+	// Three targets per run: ping-pong A/B plus the shadow-hold input. The
+	// refs travel with the views through the swap; the one that ends up
+	// published leaves the run with the slot, the rest go back to the pool.
+	var pubRef res.Ref
+	var slot filterPublishSlot
+	var submitted bool
+	// giveBack returns one run target (or a discarded publish slot). A ref
+	// that reached the published slot stays with it. Once the graph's own
+	// Submit succeeded, the run's refs are covered by the device submission
+	// gate until the fence resolves, so pooling them needs no tracker; in the
+	// bare-cache path (no registry) the run owns its targets outright.
+	giveBack := func(r res.Ref, tex hal.Texture, view hal.TextureView) {
+		if r.IsNil() {
+			if tex != nil && tex != slot.tex {
+				if view != nil {
+					view.Destroy()
+				}
+				tex.Destroy()
+			}
+			return
+		}
+		if r == pubRef {
+			return
+		}
+		if !submitted && sharedEnc != nil {
+			// Recovery hand-off: the caller may still Finish+Submit the open
+			// encoder, which references this target. Hold the ref — the old
+			// fixed pool left the targets alive in exactly this case, and the
+			// registry owner frees them at device teardown.
+			return
+		}
+		cache.recycleRT(r, nil)
+	}
+	texA, viewA, refA, errA := cache.acquireRT(device, w, h)
+	if errA != nil {
+		return nil, gpucontext.TextureView{}, nil, errA
+	}
+	texB, viewB, refB, errB := cache.acquireRT(device, w, h)
+	if errB != nil {
+		giveBack(refA, texA, viewA)
+		return nil, gpucontext.TextureView{}, nil, errB
+	}
+	texH, viewH, refH, errH := cache.acquireRT(device, w, h)
+	if errH != nil {
+		giveBack(refA, texA, viewA)
+		giveBack(refB, texB, viewB)
+		return nil, gpucontext.TextureView{}, nil, errH
+	}
+	defer func() {
+		giveBack(refA, texA, viewA)
+		giveBack(refB, texB, viewB)
+		giveBack(refH, texH, viewH)
+	}()
+	// dropSlot discards a publish slot taken on the fallback copy path (error
+	// returns only — the success path hands it to the caller).
+	dropSlot := func() {
+		if slot.tex == nil {
+			return
+		}
+		giveBack(slot.ref, slot.tex, slot.view)
+		slot = filterPublishSlot{}
+	}
 
 	if texA == nil || viewA == nil || texB == nil || viewB == nil || texH == nil || viewH == nil ||
 		uGPU == nil || len(ubuf) < filterGPUUniformSize || pipe == nil || bgl == nil || samp == nil || dummy == nil {
 		return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu pool missing")
 	}
 
-	curTex, curView := texA, viewA
-	nxtTex, nxtView := texB, viewB
+	curTex, curView, curRef := texA, viewA, refA
+	nxtTex, nxtView, nxtRef := texB, viewB, refB
+	gate := cache.gateOf()
 
 	// Seed content into A: either CPU upload or copy-sample from GPU view.
 	if srcView != nil {
@@ -1052,20 +1202,21 @@ func runGPUFilterGraphEx(
 	// First write goes into A; then A/B ping-pong as usual.
 	fromExternal := srcView != nil
 	if fromExternal {
-		curTex, curView = nil, srcView
-		nxtTex, nxtView = texA, viewA
+		curTex, curView, curRef = nil, srcView, res.Ref{}
+		nxtTex, nxtView, nxtRef = texA, viewA, refA
 	}
 
 	swap := func() {
 		if fromExternal && curTex == nil {
 			// First result is in nxt (A). Next destination must be B.
-			curTex, curView = nxtTex, nxtView
-			nxtTex, nxtView = texB, viewB
+			curTex, curView, curRef = nxtTex, nxtView, nxtRef
+			nxtTex, nxtView, nxtRef = texB, viewB, refB
 			fromExternal = false
 			return
 		}
 		curTex, nxtTex = nxtTex, curTex
 		curView, nxtView = nxtView, curView
+		curRef, nxtRef = nxtRef, curRef
 	}
 
 	for i := range nodes {
@@ -1169,20 +1320,23 @@ func runGPUFilterGraphEx(
 		}
 	}
 
-	// Finish graph: zero-copy promote of A/B result into a publish slot when
-	// possible (steady-state glow). Fall back to publish-slot copy only when
-	// the result is not a pool RT (should be rare after real filter passes).
-	var slot filterPublishSlot
+	// Finish graph: the result's own pool ref travels into the publish slot —
+	// zero-copy, zero-alloc in steady state (the compositor's release is what
+	// hands it back). Only a result that is not one of the run's targets
+	// (external-only source with no pass written into A/B) needs a second
+	// pooled target and a GPU copy.
 	if !wantPixels {
-		if curTex != nil {
-			slot, err = cache.promotePoolResultToPublish(device, curTex, curView, w, h)
-		} else {
+		if curTex == nil || curView == nil {
 			err = fmt.Errorf("filter gpu publish: nil result tex")
+		} else {
+			slot = filterPublishSlot{tex: curTex, view: curView, ref: curRef}
+			pubRef = curRef
 		}
 		if err != nil {
 			// Fallback: acquire publish RT + GPU copy (keeps correctness).
 			slot, err = cache.acquirePublish(device, w, h)
 			if err != nil {
+				pubRef = res.Ref{}
 				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
@@ -1202,13 +1356,13 @@ func runGPUFilterGraphEx(
 			} else if curView != nil {
 				// External-only: sample-copy into publish via mode-6 pass.
 				if err := doPass(passArgs{mode: 6, srcView: curView, dstView: slot.view}); err != nil {
-					cache.releasePublish(slot)
+					dropSlot()
 					discardOnErr()
 					cleanupPasses()
 					return nil, gpucontext.TextureView{}, nil, err
 				}
 			} else {
-				cache.releasePublish(slot)
+				dropSlot()
 				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, fmt.Errorf("filter gpu publish: no source")
@@ -1217,9 +1371,7 @@ func runGPUFilterGraphEx(
 	}
 	// one WriteBuffer for all pass uniforms before Finish/Submit.
 	if err := flushPassUniforms(); err != nil {
-		if slot.tex != nil {
-			cache.releasePublish(slot)
-		}
+		dropSlot()
 		discardOnErr()
 		cleanupPasses()
 		return nil, gpucontext.TextureView{}, nil, err
@@ -1230,9 +1382,7 @@ func runGPUFilterGraphEx(
 	}
 	cmd, err := enc.Finish()
 	if err != nil {
-		if slot.tex != nil {
-			cache.releasePublish(slot)
-		}
+		dropSlot()
 		cleanupPasses()
 		return nil, gpucontext.TextureView{}, nil, err
 	}
@@ -1256,16 +1406,14 @@ func runGPUFilterGraphEx(
 	for _, cb := range all {
 		halAll = append(halAll, cb)
 	}
-	if _, err := queue.Submit(halAll...); err != nil {
+	if _, err := submitGated(gate, queue, rtRefs(refA, refB, refH, slot.ref), halAll...); err != nil {
 		for _, c := range leading {
 			if c != nil {
 				device.FreeCommandBuffer(c)
 			}
 		}
 		device.FreeCommandBuffer(cmd)
-		if slot.tex != nil {
-			cache.releasePublish(slot)
-		}
+		dropSlot()
 		cleanupPasses()
 		return nil, gpucontext.TextureView{}, nil, err
 	}
@@ -1277,9 +1425,10 @@ func runGPUFilterGraphEx(
 	device.FreeCommandBuffer(cmd)
 	cleanupPasses()
 
+	submitted = true
 	if !wantPixels {
 		view := packView(slot.view)
-		release := func() { cache.releasePublish(slot) }
+		release := func() { cache.releasePublish(slot, track) }
 		return nil, view, release, nil
 	}
 
@@ -1308,7 +1457,7 @@ func runGPUFilterGraphEx(
 	if err != nil {
 		return nil, gpucontext.TextureView{}, nil, err
 	}
-	if _, err := queue.Submit(cmd2); err != nil {
+	if _, err := submitGated(gate, queue, rtRefs(curRef), cmd2); err != nil {
 		device.FreeCommandBuffer(cmd2)
 		return nil, gpucontext.TextureView{}, nil, err
 	}

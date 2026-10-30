@@ -58,10 +58,13 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 	rc.shared.ensurePipelines()
 	device := rc.shared.device
 	queue := rc.shared.queue
-	cache := &rc.shared.filterGPU
+	cache := rc.shared.filterGPULocked()
 	sdfPipeline := rc.shared.sdfRenderPipeline
 	convexRend := rc.shared.convexRenderer
 	stencilRend := rc.shared.stencilRenderer
+	sharedReg := rc.shared.resReg
+	sharedSurface := rc.shared.surfaceCacheLocked()
+	sharedDirect := rc.shared.directSubmitLocked()
 	rc.shared.mu.Unlock()
 
 	if device == nil || queue == nil {
@@ -73,7 +76,8 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 		if rc.preferSampleCount1 {
 			sc = 1
 		}
-		rc.session = NewGPURenderSession(device, queue, sc)
+		rc.session = NewGPURenderSessionWithRegistry(device, queue, sc, sharedReg, sharedSurface)
+		rc.session.SetDirectSubmit(sharedDirect)
 		if rc.preferSampleCount1 {
 			rc.session.MarkOwnsShapePipelines()
 		} else {
@@ -111,7 +115,7 @@ func (rc *GPURenderContext) FlushAndFilterFromView(
 
 	// continue filter graph on the same encoder → one Finish for seed+filter.
 	view, release, err := runGPUFilterGraphFromViewIntoEncoder(
-		device, queue, cache, srcView, w, h, nodes, enc,
+		device, queue, cache, srcView, w, h, nodes, enc, rc.session.trackRef,
 	)
 	if err != nil {
 		// Mesh seed is only applied if the CB is submitted. Finish the open encoder

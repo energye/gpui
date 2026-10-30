@@ -107,7 +107,7 @@ func TestR73_DualTexMultiBundle_DeferredSubmit(t *testing.T) {
 		t.Fatalf("CoalescedCBs=%d want 1", st.CoalescedCBs)
 	}
 	for _, o := range bundle.Outs {
-		cache.putOutBGRA(o.tex, o.view, o.bounds.Dx(), o.bounds.Dy())
+		cache.recycleOut(o, nil)
 	}
 }
 

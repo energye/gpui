@@ -157,28 +157,41 @@ type GPURenderContext struct {
 	// dual-tex resolve scratch (avoid per-resolve make on L3 blend path).
 	dualTexViewOpsScratch []dualTexViewBlendOp
 
-	// Pool of offscreen layer RTs by size to avoid per-PushLayer alloc/OOM.
-	// Guarded by offscreenPoolMu: takes run on the raster thread while
-	// returns (deferred releases), purges and Close may run elsewhere.
-	offscreenPool   map[[2]int][]offscreenPooled
-	offscreenPoolMu sync.Mutex
+	// offscreenCache pools layer/effect RTs by size through res.Cache
+	// (BudgetLayerOffscreen). Natives register under a dedicated per-context
+	// owner in the shared device registry; the cache is thread-safe, the
+	// mutex only guards lazy construction / teardown. Takes run on the raster
+	// thread while returns (deferred releases ≥2 frames later), purges and
+	// Close may run elsewhere.
+	offscreenCache   *res.Cache
+	offscreenOwner   res.Owner
+	offscreenCacheMu sync.Mutex
 }
 
-// offscreenPoolBucketCap bounds one size bucket: a layer ring holds ≤2
-// same-size slots, plus transient effect/filter users.
-var offscreenPoolBucketCap = render.DefaultBudget(render.BudgetLayerOffscreen).MaxEntries
-
-// offscreenPoolBytesCap bounds total pooled bytes per context (~8 full-HD
-// RGBA surfaces); overflow falls back to native release.
-var offscreenPoolBytesCap = uint64(render.DefaultBudget(render.BudgetLayerOffscreen).MaxBytes)
-
-type offscreenPooled struct {
+// offscreenRT is one pooled layer/effect render target (BGRA8 + view).
+type offscreenRT struct {
 	tex  hal.Texture
 	view hal.TextureView
-	// dev is the device the texture was created on. Takes reject items
-	// from a previous device (shared recovery replaces it) instead of
-	// handing a dead-device texture to a new-device record.
-	dev hal.Device
+}
+
+// Release destroys the view before its texture.
+func (o *offscreenRT) Release() {
+	if o == nil {
+		return
+	}
+	if o.view != nil {
+		o.view.Destroy()
+		o.view = nil
+	}
+	if o.tex != nil {
+		o.tex.Destroy()
+		o.tex = nil
+	}
+}
+
+// offscreenRTBytes is the real per-entry byte size (RGBA8).
+func offscreenRTBytes(k res.CacheKey) uint64 {
+	return uint64(k.W) * uint64(k.H) * 4
 }
 
 // pendingAdvancedLayer is a PopLayer advanced blend resolved at Flush.
@@ -1468,7 +1481,7 @@ func (rc *GPURenderContext) viewToResView(view gpucontext.TextureView) res.View 
 	if v := extractTextureView(view); v != nil {
 		// Borrowed: the view is owned by its cache (PictureTextureCache slot),
 		// so the registry tracks it but never destroys it on retire.
-		ref := rc.session.Reg().RegisterBorrowed(&texViewNative{v})
+		ref := rc.session.Res().RegisterBorrowed(&texViewNative{v})
 		rc.session.notePendingViewRetire(ref)
 		return res.ViewFromRef(ref)
 	}
@@ -2660,6 +2673,9 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	textEng := rc.shared.textEngine
 	glyphEng := rc.shared.glyphMaskEngine
 	sharedGen := rc.shared.deviceGen
+	sharedReg := rc.shared.resReg
+	sharedSurface := rc.shared.surfaceCacheLocked()
+	sharedDirect := rc.shared.directSubmitLocked()
 	rc.shared.mu.Unlock()
 
 	// After AutoRecover / SetDeviceProvider, shared pipelines are Destroy()'d and
@@ -2698,7 +2714,8 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 		if rc.preferSampleCount1 {
 			sc = 1
 		}
-		rc.session = NewGPURenderSession(device, queue, sc)
+		rc.session = NewGPURenderSessionWithRegistry(device, queue, sc, sharedReg, sharedSurface)
+		rc.session.SetDirectSubmit(sharedDirect)
 		for _, v := range rc.seededViews {
 			rc.session.MarkColorContent(v)
 		}
@@ -3309,7 +3326,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	rc.shared.mu.Lock()
 	device := rc.shared.device
 	queue := rc.shared.queue
-	cache := &rc.shared.dualTexBlend
+	cache := rc.shared.dualTexBlendLocked()
 	rc.shared.mu.Unlock()
 
 	var dstTex hal.Texture
@@ -3382,13 +3399,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	var err error
 	// Live path: dualTexAdvancedBlendViewsRegionSized / multi bundle → out RT → blit.
 	// batch all layers into one dual-tex Submit when possible.
-	type outBlit struct {
-		view    hal.TextureView
-		tex     hal.Texture
-		bounds  image.Rectangle
-		opacity float32
-	}
-	var outs []outBlit
+	var outs []dualTexViewBlendOut
 	// F1: dual-tex passes must not share an encoder with the composite blit
 	// that samples their outputs. Recording both into one encoder resolved
 	// the blend outputs to transparent on wgpu-native (multiply stayed
@@ -3418,17 +3429,17 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 				// Fallback: per-op path (still correct, more submits).
 				for i := range viewOps {
 					op := viewOps[i]
-					outTex, outView, oerr := dualTexAdvancedBlendViewsRegionSized(
+					outTex, outView, outRef, oerr := dualTexAdvancedBlendViewsRegionSized(
 						device, queue, cache, dstView, op.srcView, op.bounds, op.mode, tw, th)
 					if oerr != nil {
 						err = oerr
 						continue
 					}
-					outs = append(outs, outBlit{view: outView, tex: outTex, bounds: op.bounds, opacity: op.opacity})
+					outs = append(outs, dualTexViewBlendOut{view: outView, tex: outTex, ref: outRef, bounds: op.bounds, opacity: op.opacity})
 				}
 			} else {
 				for _, mo := range bundle.Outs {
-					outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
+					outs = append(outs, dualTexViewBlendOut{view: mo.view, tex: mo.tex, ref: mo.ref, bounds: mo.bounds, opacity: mo.opacity})
 				}
 				if bundle.Cmd != nil && rc.session != nil {
 					rc.session.EnqueueLeadingSubmit(bundle.Cmd, bundle.Cleanup)
@@ -3438,7 +3449,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 			}
 		} else {
 			for _, mo := range mout {
-				outs = append(outs, outBlit{view: mo.view, tex: mo.tex, bounds: mo.bounds, opacity: mo.opacity})
+				outs = append(outs, dualTexViewBlendOut{view: mo.view, tex: mo.tex, ref: mo.ref, bounds: mo.bounds, opacity: mo.opacity})
 			}
 			// Dual-tex passes live on enc — no separate lead CB.
 		}
@@ -3478,20 +3489,12 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 			float32(o.bounds.Min.X), float32(o.bounds.Min.Y),
 			float32(o.bounds.Dx()), float32(o.bounds.Dy()),
 			o.opacity, vpW, vpH, u0, v0, u1, v1)
-		// Keep outTex/view alive until after Flush samples them.
-		tex, view := o.tex, o.view
-		bw, bh := o.bounds.Dx(), o.bounds.Dy()
+		// Keep outTex/view alive until after Flush samples them, then hand the
+		// snap back to the device-level pool: the frame's submission tracks the
+		// ref, so the pool cannot re-lend it before the GPU is done with it.
+		out := *o
 		holds = append(holds, func() {
-			if cache != nil && tex != nil && view != nil {
-				cache.putOutBGRA(tex, view, bw, bh)
-				return
-			}
-			if view != nil {
-				view.Destroy()
-			}
-			if tex != nil {
-				tex.Destroy()
-			}
+			cache.recycleOut(out, rc.session.trackRef)
 		})
 	}
 
@@ -3692,7 +3695,16 @@ func (rc *GPURenderContext) Device() hal.Device {
 }
 
 // CreateOffscreenTexture allocates a GPU texture for offscreen rendering.
-// Reuses pooled textures by (w,h) to avoid VRAM OOM from per-layer alloc.
+// Reuses pooled textures by (w,h) through res.Cache (BudgetLayerOffscreen) to
+// avoid VRAM OOM from per-layer alloc.
+//
+// R6-3 quarantine by construction: the scene runs the returned release on its
+// deferred path (≥2 composite frames after last use), so a pooled entry is
+// always past any command buffer that sampled it — the exact case that forced
+// the old disable (RESOURCE-sampled by an earlier CB while a re-record takes
+// it as COLOR_TARGET in the same usage scope → TXFLUSHERR submit failed).
+// Record paths LoadOpClear before drawing, so stale pixels never show.
+// GPUI_NO_OFFSCREEN_POOL=1 restores always-fresh allocation.
 func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func()) {
 	if rc.shared == nil {
 		slogger().Warn("CreateOffscreenTexture: shared is nil")
@@ -3716,58 +3728,103 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		slogger().Warn("CreateOffscreenTexture: device is nil")
 		return gpucontext.TextureView{}, nil
 	}
-	key := [2]int{w, h}
-	// Live device read BEFORE the pool lock (lock order: shared.mu never
-	// inside offscreenPoolMu). The pool lock itself is held only for
-	// map surgery below — never across the slow native allocs further
-	// down, so a stalled CreateTexture cannot block pool returns/purges.
-	var liveDev hal.Device
+	key := offscreenKey(w, h)
 	poolOn := os.Getenv("GPUI_NO_OFFSCREEN_POOL") != "1"
-	if poolOn && rc.shared != nil {
-		liveDev = rc.shared.Device()
-	}
-	// R6-3 re-enable (quarantine by construction): every pooled item
-	// entered through a deferred release (scene releaseDeferred: ≥2
-	// composite frames after last use), so no in-flight command buffer can
-	// still sample it — the exact case that forced the disable
-	// (RESOURCE-sampled by an earlier CB while a re-record takes it as
-	// COLOR_TARGET in the same usage scope → TXFLUSHERR submit failed).
-	// Record paths LoadOpClear before drawing, so stale pixels never show.
-	// GPUI_NO_OFFSCREEN_POOL=1 restores always-fresh allocation.
-	if poolOn && liveDev != nil {
-		rc.offscreenPoolMu.Lock()
-		if rc.offscreenPool == nil {
-			rc.offscreenPool = make(map[[2]int][]offscreenPooled)
-		}
-		bucket := rc.offscreenPool[key]
-		var hit *offscreenPooled
-		for len(bucket) > 0 {
-			item := bucket[len(bucket)-1]
-			bucket = bucket[:len(bucket)-1]
-			rc.offscreenPool[key] = bucket
-			if item.tex == nil || item.view == nil || item.dev != liveDev {
-				// Previous-device residue (shared recovery replaced it)
-				// or a torn entry: destroy, never hand out.
-				if item.view != nil {
-					item.view.Destroy()
-				}
-				if item.tex != nil {
-					item.tex.Destroy()
-				}
-				continue
-			}
-			hit = &offscreenPooled{tex: item.tex, view: item.view, dev: item.dev}
-			break
-		}
-		rc.offscreenPoolMu.Unlock()
-		if hit != nil {
-			return packView(hit.view), rc.makePoolRelease(key, hit.tex, hit.view, hit.dev) //nolint:gosec
-		}
-	}
 
+	cache, owner := rc.offscreenCacheFor()
+	if cache == nil {
+		// No registry (bare test contexts): allocate directly and destroy on
+		// release, the pre-cache contract.
+		rt, err := createOffscreenRT(device, key)
+		if err != nil {
+			slogger().Warn("CreateOffscreenTexture: allocation failed",
+				"error", err, "width", w, "height", h)
+			return gpucontext.TextureView{}, nil
+		}
+		return packView(rt.view), rt.Release
+	}
+	if !poolOn {
+		// Always-fresh mode: retire anything parked in the pool before the
+		// request; the new entry is retired on release instead of pooled.
+		cache.PurgeIdle()
+	}
+	ref, err := cache.Acquire(key)
+	if err != nil {
+		slogger().Warn("CreateOffscreenTexture: allocation failed",
+			"error", err, "width", w, "height", h)
+		return gpucontext.TextureView{}, nil
+	}
+	native := owner.Registry().NativeOf(ref)
+	rt, ok := native.(*offscreenRT)
+	if !ok || rt == nil || rt.view == nil {
+		cache.ReleaseRetire(ref)
+		slogger().Warn("CreateOffscreenTexture: unexpected pooled native",
+			"native", native, "width", w, "height", h)
+		return gpucontext.TextureView{}, nil
+	}
+	retire := !poolOn
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			if retire {
+				cache.ReleaseRetire(ref)
+			} else {
+				cache.Release(ref)
+			}
+		})
+	}
+	return packView(rt.view), release //nolint:gosec // Go spec Rule 1 (ADR-018)
+}
+
+// offscreenKey maps (w,h) to the pooled layer-RT cache key. RoleLayerRT keeps
+// these entries distinct from same-size surface trios.
+func offscreenKey(w, h int) res.CacheKey {
+	return res.CacheKey{W: uint32(w), H: uint32(h), Samples: 1, Role: res.RoleLayerRT}
+}
+
+// offscreenCacheFor returns this context's offscreen RT cache, creating the
+// (empty) cache and its registry owner on first use. No native allocation
+// happens here: res.Cache runs create from Acquire, outside this lock. A
+// context built without a shared registry (bare unit-test fixtures) gets nil
+// and falls back to direct allocation.
+func (rc *GPURenderContext) offscreenCacheFor() (*res.Cache, res.Owner) {
+	rc.offscreenCacheMu.Lock()
+	defer rc.offscreenCacheMu.Unlock()
+	if rc.offscreenCache != nil {
+		return rc.offscreenCache, rc.offscreenOwner
+	}
+	if rc.shared == nil || rc.shared.resReg == nil {
+		return nil, res.Owner{}
+	}
+	owner := rc.shared.resReg.NewOwner()
+	bo := render.DefaultBudget(render.BudgetLayerOffscreen)
+	cache := res.NewCache(owner, rc.createOffscreenNative, res.CacheOptions{
+		Name:      "layer-offscreen",
+		Budget:    uint64(bo.MaxBytes),
+		SizeFn:    offscreenRTBytes,
+		MaxPerKey: bo.MaxEntries,
+	})
+	rc.offscreenOwner = owner
+	rc.offscreenCache = cache
+	return cache, owner
+}
+
+// createOffscreenNative is the res.Cache CreateFn. It runs without the cache
+// lock (the OOM purge chain re-enters the cache through PurgeIdle).
+func (rc *GPURenderContext) createOffscreenNative(key res.CacheKey) (res.Native, error) {
+	device := rc.shared.Device()
+	if device == nil {
+		return nil, fmt.Errorf("offscreen cache: device is nil")
+	}
+	return createOffscreenRT(device, key)
+}
+
+// createOffscreenRT allocates one BGRA8 layer/effect render target (texture
+// then view) for key.
+func createOffscreenRT(device hal.Device, key res.CacheKey) (*offscreenRT, error) {
 	tex, err := device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "offscreen_cache",
-		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // bounded
+		Size:          hal.Extent3D{Width: key.W, Height: key.H, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
@@ -3775,12 +3832,8 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		Usage:         types.TextureUsageRenderAttachment | types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding,
 	})
 	if err != nil {
-		slogger().Warn("CreateOffscreenTexture: CreateTexture failed",
-			"error", err, "width", w, "height", h,
-			"format", "BGRA8Unorm", "usage", "RenderAttachment|CopySrc|TextureBinding")
-		return gpucontext.TextureView{}, nil
+		return nil, fmt.Errorf("CreateTexture failed: %w", err)
 	}
-
 	view, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
 		Label:         "offscreen_cache_view",
 		Format:        types.TextureFormatBGRA8Unorm,
@@ -3789,60 +3842,75 @@ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.Texture
 		MipLevelCount: 1,
 	})
 	if err != nil {
-		slogger().Warn("CreateOffscreenTexture: CreateTextureView failed",
-			"error", err, "width", w, "height", h)
 		tex.Destroy()
-		return gpucontext.TextureView{}, nil
+		return nil, fmt.Errorf("CreateTextureView failed: %w", err)
 	}
-
-	release := rc.makePoolRelease(key, tex, view, device)
-	return packView(view), release //nolint:gosec // Go spec Rule 1 (ADR-018)
+	return &offscreenRT{tex: tex, view: view}, nil
 }
 
-// makePoolRelease returns the release closure for an offscreen texture:
-// back to the pool when there is room, native destroy on
-// overflow. The closure may run on the release path
-// (deferred ≥2 frames after last use), so pooled items are always past
-// in-flight command buffers by construction.
-func (rc *GPURenderContext) makePoolRelease(key [2]int, tex hal.Texture, view hal.TextureView, dev hal.Device) func() {
-	return func() {
-		if rc == nil {
-			if view != nil {
-				view.Destroy()
-			}
-			if tex != nil {
-				tex.Destroy()
-			}
-			return
-		}
-		rc.offscreenPoolMu.Lock()
-		defer rc.offscreenPoolMu.Unlock()
-		if rc.offscreenPool != nil &&
-			len(rc.offscreenPool[key]) < offscreenPoolBucketCap &&
-			rc.pooledBytesLocked()+uint64(key[0]*key[1]*4) <= offscreenPoolBytesCap {
-			rc.offscreenPool[key] = append(rc.offscreenPool[key], offscreenPooled{tex: tex, view: view, dev: dev})
-			return
-		}
-		if view != nil {
-			view.Destroy()
-		}
-		if tex != nil {
-			tex.Destroy()
-		}
+// purgeOffscreenCache retires the context's idle layer RTs (OOM / surface
+// purge outlet). Checked-out entries keep their normal release path.
+func (rc *GPURenderContext) purgeOffscreenCache() {
+	if rc == nil {
+		return
+	}
+	rc.offscreenCacheMu.Lock()
+	cache := rc.offscreenCache
+	rc.offscreenCacheMu.Unlock()
+	if cache != nil {
+		cache.PurgeIdle()
 	}
 }
 
-// pooledBytesLocked estimates pooled bytes (caller holds offscreenPoolMu).
-func (rc *GPURenderContext) pooledBytesLocked() uint64 {
-	var n uint64
-	for key, bucket := range rc.offscreenPool {
-		n += uint64(len(bucket) * key[0] * key[1] * 4)
+// offscreenStats snapshots this context's layer RT domain for the pool probe.
+// Never builds the cache — an unused domain reports an empty snapshot.
+func (rc *GPURenderContext) offscreenStats() res.CacheStats {
+	if rc == nil {
+		return res.CacheStats{}
 	}
-	return n
+	rc.offscreenCacheMu.Lock()
+	cache := rc.offscreenCache
+	rc.offscreenCacheMu.Unlock()
+	return cache.Stats()
 }
 
-// Close releases this context's GPU resources. Shared resources are NOT
-// released — they are owned by GPUShared.
+// releaseOffscreenCache force-releases every pooled or checked-out layer RT
+// and drops the context's registry entries (Close path, device still alive).
+func (rc *GPURenderContext) releaseOffscreenCache() {
+	if rc == nil {
+		return
+	}
+	rc.offscreenCacheMu.Lock()
+	cache, owner := rc.offscreenCache, rc.offscreenOwner
+	rc.offscreenCache = nil
+	rc.offscreenOwner = res.Owner{}
+	rc.offscreenCacheMu.Unlock()
+	if cache != nil {
+		cache.ReleaseAll()
+	}
+	owner.ReleaseOwned()
+}
+
+// abandonOffscreenCache drops this context's layer RTs during a device switch.
+// Healthy switch: force-release natives before the device goes away. Device
+// loss: drop bookkeeping only — the abandon flow owns native teardown.
+// Runs under GPUShared.mu, so it must not allocate or wait on GPU work.
+func (rc *GPURenderContext) abandonOffscreenCache(deviceLost bool) {
+	if rc == nil {
+		return
+	}
+	rc.offscreenCacheMu.Lock()
+	cache := rc.offscreenCache
+	rc.offscreenCacheMu.Unlock()
+	if cache == nil {
+		return
+	}
+	if deviceLost {
+		cache.InvalidateAll()
+	} else {
+		cache.ReleaseAll()
+	}
+}
 
 // PurgeSurfaceResources drops surface-sized GPU attachments and offscreen
 // pools without unregistering the context or destroying shared pipelines.
@@ -3853,10 +3921,12 @@ func (rc *GPURenderContext) PurgeSurfaceResources() {
 	if rc.session != nil {
 		rc.session.PurgeSurfaceTextures()
 	}
-	rc.drainOffscreenPool()
+	rc.purgeOffscreenCache()
 	rc.releaseBrushCoverResults()
 }
 
+// Close releases this context's GPU resources. Shared resources are NOT
+// released — they are owned by GPUShared.
 func (rc *GPURenderContext) Close() {
 	if rc.shared != nil {
 		rc.shared.unregisterContext(rc)
@@ -3865,9 +3935,10 @@ func (rc *GPURenderContext) Close() {
 		rc.session.Destroy()
 		rc.session = nil
 	}
-	// Layer offscreen pool (CreateOffscreenTexture "offscreen_cache") pins device
-	// VRAM across AutoRecover if not drained — measured 3×tex+view after abandon.
-	rc.drainOffscreenPool()
+	// Layer offscreen cache (CreateOffscreenTexture "offscreen_cache") pins
+	// device VRAM across AutoRecover if not released — measured 3×tex+view
+	// after abandon.
+	rc.releaseOffscreenCache()
 	if rc.frameScratchView != nil {
 		rc.frameScratchView.Destroy()
 		rc.frameScratchView = nil
@@ -3899,32 +3970,6 @@ func (rc *GPURenderContext) Close() {
 	rc.textBatchSealed = false
 	rc.glyphBatchSealed = false
 	rc.sceneStats = render.SceneStats{}
-}
-
-// drainOffscreenPool releases every pooled layer RT texture/view.
-func (rc *GPURenderContext) drainOffscreenPool() {
-	if rc == nil {
-		return
-	}
-	rc.offscreenPoolMu.Lock()
-	defer rc.offscreenPoolMu.Unlock()
-	if rc.offscreenPool == nil {
-		return
-	}
-	for key, bucket := range rc.offscreenPool {
-		for i := range bucket {
-			if bucket[i].view != nil {
-				bucket[i].view.Destroy()
-				bucket[i].view = nil
-			}
-			if bucket[i].tex != nil {
-				bucket[i].tex.Destroy()
-				bucket[i].tex = nil
-			}
-		}
-		delete(rc.offscreenPool, key)
-	}
-	rc.offscreenPool = nil
 }
 
 // Draw-order tiers match GPURenderSession.recordGroupDraws pass order.
@@ -4223,9 +4268,11 @@ func (rc *GPURenderContext) syncTextAtlases() error {
 func (rc *GPURenderContext) syncGlyphMaskAtlases(batches []GlyphMaskBatch) error {
 	s := rc.shared
 	if err := s.glyphMaskEngine.SyncAtlasTextures(s.device, s.queue); err != nil {
-		// Positive reclaim: free dual-tex snap pools then retry once. Under resize
-		// churn those pools can hold tens of MB and starve glyph_mask_atlas_0.
+		// Positive reclaim: free the device-level shared pools then retry
+		// once. Under resize churn those pools can hold tens of MB and starve
+		// glyph_mask_atlas_0.
 		s.dualTexBlend.releasePooledVRAM()
+		s.filterGPU.releasePooledVRAM()
 		if s.device != nil {
 			_ = s.device.WaitIdle()
 		}

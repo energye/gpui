@@ -583,11 +583,13 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	texCache := &rc.shared.texturedStencilLinear
 	rampCache := &rc.shared.linearRampMask
 	maskCache := &rc.shared.maskR8
+	surfaceCache := rc.shared.surfaceCacheLocked()
 	sc := uint32(4)
 	if rc.shared.stencilRenderer != nil && rc.shared.stencilRenderer.sampleCount > 0 {
 		sc = rc.shared.stencilRenderer.sampleCount
 	}
 	rc.shared.mu.Unlock()
+	texCache.setSurfaceCache(surfaceCache)
 
 	usedGPURamp := false
 	covGPU := false
@@ -982,11 +984,13 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	queue := rc.shared.queue
 	texCache := &rc.shared.texturedStencilLinear
 	rampCache := &rc.shared.linearRampMask
+	surfaceCache := rc.shared.surfaceCacheLocked()
 	sc := uint32(4)
 	if rc.shared.stencilRenderer != nil && rc.shared.stencilRenderer.sampleCount > 0 {
 		sc = rc.shared.stencilRenderer.sampleCount
 	}
 	rc.shared.mu.Unlock()
+	texCache.setSurfaceCache(surfaceCache)
 	if device == nil || queue == nil {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedRadial(g))
 	}
@@ -1373,11 +1377,13 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 	queue := rc.shared.queue
 	texCache := &rc.shared.texturedStencilLinear
 	rampCache := &rc.shared.linearRampMask
+	surfaceCache := rc.shared.surfaceCacheLocked()
 	sc := uint32(4)
 	if rc.shared.stencilRenderer != nil && rc.shared.stencilRenderer.sampleCount > 0 {
 		sc = rc.shared.stencilRenderer.sampleCount
 	}
 	rc.shared.mu.Unlock()
+	texCache.setSurfaceCache(surfaceCache)
 	if device == nil || queue == nil {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, g.ColorAt, brushFieldSeedSweep(g))
 	}
@@ -1671,11 +1677,13 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	queue := rc.shared.queue
 	patCoverCache := &rc.shared.texturedStencilPattern
 	maskCache := &rc.shared.patternMaskSample
+	surfaceCache := rc.shared.surfaceCacheLocked()
 	sc := uint32(4)
 	if rc.shared.stencilRenderer != nil && rc.shared.stencilRenderer.sampleCount > 0 {
 		sc = rc.shared.stencilRenderer.sampleCount
 	}
 	rc.shared.mu.Unlock()
+	patCoverCache.setSurfaceCache(surfaceCache)
 	if device == nil || queue == nil {
 		return rc.fillColorAtFieldMaskedGPU(target, path, paint, pat.ColorAt, patternFieldSeed(pat))
 	}

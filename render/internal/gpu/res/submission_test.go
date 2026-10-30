@@ -7,7 +7,7 @@ func TestSubmission_Lifecycle(t *testing.T) {
 	sub := NewSubmission(reg)
 
 	f := &fakeNative{tag: 1}
-	ref := reg.Register(f)
+	ref := reg.DeviceOwner().Register(f)
 	reg.Retire(ref) // mark for destruction
 
 	sub.Begin()
@@ -35,7 +35,7 @@ func TestSubmission_InvalidateOnDeviceLoss(t *testing.T) {
 	sub := NewSubmission(reg)
 
 	f := &fakeNative{tag: 1}
-	ref := reg.Register(f)
+	ref := reg.DeviceOwner().Register(f)
 	reg.Retire(ref)
 	sub.Track(ref)
 	reg.Release(ref)
@@ -61,7 +61,7 @@ func TestSubmission_TrackAfterInvalidateShortCircuits(t *testing.T) {
 	sub := NewSubmission(reg)
 	f := &fakeNative{tag: 2}
 
-	ref := reg.Register(f)
+	ref := reg.DeviceOwner().Register(f)
 	sub.Invalidate()
 	sub.Track(ref)   // device lost: tracking must be harmless
 	sub.SubmitDone() // no jobs → no-op

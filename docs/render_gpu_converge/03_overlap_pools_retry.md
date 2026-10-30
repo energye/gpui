@@ -60,3 +60,12 @@
 ## 4 证据缺口（确认没有）
 
 - glyph atlas / filter / dualTex 未注册 purge 链；offscreenPool 当前只分配不复用；TexturePool Acquire/Release 生产无调用。
+
+## 5 修订（2026-10-30，P2.4c/P2.4d 收口后）
+
+> 本节只改结论，不改上面审计快照（行号是当时 HEAD 的读法）。当前实现以 `docs/ENGINE_RENDER_GPU_CONVERGE_TASKS.md` §2.1 与 `evidence/P2.4c/`、`evidence/P2.4d/` 为准。
+
+1. **六处同尺寸管理器已收敛**（P2.4d）：`TexturePool` 整文件删除；`stencilPool`、`offscreenPool`、filter 乒乓池、dualtex `outPool` 全部改由 `res.Cache` 承载；四个 `textureSet` owner 的 MSAA/depth/resolve 套装合并到设备级 `surfaceCache`（域 `device-surface`）。§1 与 §2.1 里逐条手写桶的形态已不存在，只剩 `res.NewCache` 四个调用点（`grep-residual.txt` §3）。
+2. **延迟释放三队列已收敛**（P2.4c）：`pendingTex/Buf`、`ImageCache.pending`、`res.Cache.pending` 全删；唯一销毁出口是 `res.Registry` 的 `SubmitDone` 后 `removeIfReady`，回池走 registry idle 回调。§1 「延迟释放三条平行队列」与 §2.2 已过期。
+3. **`res.Cache` 已补齐**（P2.4d）：`SizeFn` 真实字节、`MaxPerKey`、`PurgeIdle`、按域 `CacheStats`、`Role` 进键；registry 升设备级并按 owner 分账；filter/dualtex 直提走 `InflightGate` + `hal.CompletionToken`。§1 「长期池归宿」描述的 `OnSubmissionFinished`/`pending` 已删除。
+4. **purge/OOM 链已闭合**（P2.4d）：`gpu-shared-pools`（dualtex + filter）注册进 `RegisterPurgeEvictable`；surface 套装与 offscreen 层 RT 走 `PurgeAcceleratorSurfaceResources` 的两个 `PurgeIdle` 出口；锁序单测 `pool_purge_lock_test.go` 钉住 purge 不拿 `GPUShared.mu`。§2.3 的「glyph/filter/dualTex 不在链上」与 §4 的缺口结论已被覆盖（glyph atlas 仍走自身重试，未改）。

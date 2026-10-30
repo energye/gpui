@@ -1,0 +1,46 @@
+# P2.4d 真窗补充：桌面 X11 :1 单窗复核（R20）
+# 目的：headless Wayland 下 R20 的 hitch 92/min 是环境性；用同一二进制在 X11 复跑，
+#       证明池数字跨环境一致，窗自身只剩 P1.4 基线同款的 scripted=4/5 红。
+# 安全：当前桌面只跑单窗、一轮一窗；RUN_SECONDS 自己退出（标准关闭），未发 kill；
+#       每轮前后查 X :1 存活。
+
+## 环境
+- DISPLAY=:1（桌面 X11，非隔离批量环境）
+- binary: /tmp/p24d-bin/ui_wr_r20_filter（window-gates.sh 预编译，HEAD ac2e58b3 + P2.4d 工作区）
+- R20_SNAP_DIR=docs/render_gpu_converge/evidence/P2.4d/r20_snapshots_x11
+
+## 命令
+env -u WAYLAND_DISPLAY DISPLAY=:1 \
+  R20_SNAP_DIR="$PWD/docs/render_gpu_converge/evidence/P2.4d/r20_snapshots_x11" \
+  RUN_SECONDS=30 timeout 120 /tmp/p24d-bin/ui_wr_r20_filter \
+  > ui_wr_r20_filter_native-x11.json 2> ui_wr_r20_filter_native-x11.stderr
+# 第二遍确认（金图已在第一遍播种）
+env -u WAYLAND_DISPLAY DISPLAY=:1 \
+  R20_SNAP_DIR="$PWD/docs/render_gpu_converge/evidence/P2.4d/r20_snapshots_x11" \
+  RUN_SECONDS=30 timeout 120 /tmp/p24d-bin/ui_wr_r20_filter \
+  > ui_wr_r20_filter_native-x11-confirm.json 2> ui_wr_r20_filter_native-x11-confirm.stderr
+
+## 结果（第二遍 confirm）
+rc=1
+hitch_rate_per_min=6.0077675744673975（< 30 门禁）
+fps_wall=57.16578613762789
+golden r20_final.png: diff=0.0000% over 306280 px
+pixel gray_red_band_matrix_exact @(408,274) got=(0.898,0.200,0.149) want=(0.404,0.404,0.404) ok=false
+FAIL: scripted=4/5 want 5/5 (像素断言)
+pool:
+  device-surface  567/46  peak=16113552  budget=134217728
+  filter-graph      6/15  entries=15 idle=12  bytes=31740096  budget=134217728
+  layer-offscreen   0/1 ×3 context（162816 / 132912 / 132912）
+
+## 对照
+- headless confirm：`device-surface` 531/46、`filter-graph` 6/15、`layer-offscreen` 0/1×3；
+  hitch 92.06/min；golden diff=0；`scripted=4/5` 同红。
+- P1.4 基线 native confirm：hitch 17.98/min、`scripted=4/5` 同 got/want 红
+  （`baseline/windows/ui_wr_r20_filter/default/native/confirm/stderr.log`）。
+- 结论：池数字跨 headless/X11 一致；R20 窗自身红是 P1.4 已有的灰度矩阵回归；
+  headless 的 hitch 高是环境性，不拿它当门禁变更依据。
+
+## 收尾
+- 两轮均 RUN_SECONDS 正常退出；跑后 `xdpyinfo -display :1` 存活。
+- `r20_steady.png` / `r20_recover.png` 仍为 1200x800 全 0（5585 B），与 P1.4 归档基线同形，
+  登记 §2.2 I4；`r20_final.png` 正常。

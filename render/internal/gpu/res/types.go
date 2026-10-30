@@ -56,6 +56,10 @@ const (
 	RoleFrameScratch
 	// RoleLayerRT is a pooled layer offscreen render target.
 	RoleLayerRT
+	// RoleFilterRT tags the GPU filter graph's pooled render targets. Like
+	// RoleLayerRT here it only discriminates a res.Cache key/bucket — it is
+	// never a deferred view source.
+	RoleFilterRT
 	// RoleCoverResult is a per-draw stencil-cover texture.
 	RoleCoverResult
 	// RoleAtlasPage is a glyph/MSDF atlas texture page.

@@ -274,12 +274,24 @@ type GPURenderSession struct {
 	// rendering instead of a permanently black window.
 	onTextureOOM func()
 
-	// Shared textures (MSAA 4x color + depth/stencil + 1x resolve).
+	// Shared textures (MSAA 4x color + depth/stencil + 1x resolve), acquired
+	// from the device-level surface cache (one trio per size/mode, strong
+	// ref per owner).
 	textures textureSet
 
-	// Resource registry for command views: view registration at queue
-	// time and deferred SourceKey resolution at flush time.
-	resReg *res.Registry
+	// surfaceCache is the device-level trio cache this session acquires
+	// from. Production sessions receive GPUShared's cache; standalone
+	// sessions own one. ownsSurfaceCache marks the self-owned case so
+	// Destroy releases the pool instead of only this window's ref.
+	surfaceCache     *surfaceCache
+	ownsSurfaceCache bool
+
+	// resReg is the device-level resource registry shared by every window
+	// session on this device (Skia GrContext: one cache, N surfaces). resOwner
+	// scopes this session's entries so Destroy drops exactly them; other
+	// windows' bookkeeping is untouched.
+	resReg   *res.Registry
+	resOwner res.Owner
 
 	// pendingViewRetires holds the strong refs registered by viewToResView /
 	// ResolveCommandView (transient command views). They are released and
@@ -292,6 +304,13 @@ type GPURenderSession struct {
 	// submission (P6). SubmitDone fires at the existing sync points
 	// (BeginFrame vsync/drainQueue; readback Map), never blocking the frame.
 	sub *res.Submission
+
+	// direct is the device-level gate for the shared pools that submit their
+	// own command buffers (filter graph, dual-tex blend). They share this
+	// device but not this frame, so the session only serves as the pump: every
+	// point where this session learns the GPU caught up also lets those pools
+	// resolve their holds.
+	direct *directSubmit
 	// lastSubmissionIndex is the WGPUSubmissionIndex of the most recent
 	// submit (diagnostics / future fence alignment).
 	lastSubmissionIndex uint64
@@ -686,17 +705,38 @@ type GPURenderSession struct {
 	clipPoolUsed    int // number of pool entries used in current frame
 }
 
-// NewGPURenderSession creates a new render session with the given device,
-// queue, and MSAA sample count. Textures and pipelines are not allocated
-// until RenderFrame is called.
+// NewGPURenderSession creates a new render session with its own isolated
+// resource registry and its own surface trio cache. Used by tests and
+// standalone sessions; production window sessions share the device-level
+// registry and cache through NewGPURenderSessionWithRegistry.
 func NewGPURenderSession(device hal.Device, queue hal.Queue, sampleCount uint32) *GPURenderSession {
+	return newGPURenderSession(device, queue, sampleCount, res.NewRegistry(), nil)
+}
+
+// NewGPURenderSessionWithRegistry creates a render session that shares reg
+// (the device-level registry owned by GPUShared) and surfaceCache (the
+// device-level trio pool). A nil cache falls back to a session-owned one, so
+// tests can share a registry without sharing textures. The session allocates
+// its own owner id, so Destroy releases only this window's entries.
+func NewGPURenderSessionWithRegistry(device hal.Device, queue hal.Queue, sampleCount uint32, reg *res.Registry, surfaceCache *surfaceCache) *GPURenderSession {
+	return newGPURenderSession(device, queue, sampleCount, reg, surfaceCache)
+}
+
+func newGPURenderSession(device hal.Device, queue hal.Queue, sampleCount uint32, reg *res.Registry, sharedSurfaceCache *surfaceCache) *GPURenderSession {
+	if reg == nil {
+		// Contexts built from a bare GPUShared literal (tests) have no
+		// device-level registry yet: give the session its own rather than
+		// dropping deferred release on the floor.
+		reg = res.NewRegistry()
+	}
 	s := &GPURenderSession{
 		device:      device,
 		queue:       queue,
 		sampleCount: sampleCount,
 		antiAlias:   true,
-		resReg:      res.NewRegistry(),
+		resReg:      reg,
 	}
+	s.resOwner = reg.NewOwner()
 	// GPU-CLIP-003a: depth-clip pipeline for arbitrary path clipping
 	// . Constructed eagerly — no GPU work happens
 	// until ensurePipeline() compiles on first depth-clipped frame.
@@ -704,10 +744,16 @@ func NewGPURenderSession(device hal.Device, queue hal.Queue, sampleCount uint32)
 	// P6: submission-tracked deferred release (in-flight resources survive
 	// until the GPU finishes the submit).
 	s.sub = res.NewSubmission(s.resReg)
-	// rebuild must not immediately destroy old texture views — commands
-	// queued earlier in the frame may still reference them. Route retired
-	// session textures through the shared registry state machine instead.
-	s.textures.retireFn = s.RetireTexture
+	// Surface trios come from the device-level cache; rebuilds hand the old
+	// ref to the submission (Track + Release) instead of destroying views
+	// that queued commands may still reference.
+	s.surfaceCache = sharedSurfaceCache
+	if s.surfaceCache == nil {
+		s.surfaceCache = newSurfaceCache(reg.DeviceOwner(), "session-surface")
+		s.ownsSurfaceCache = true
+	}
+	s.textures.surfaceCache = s.surfaceCache
+	s.textures.deferRelease = s.releaseSurfaceRef
 	return s
 }
 
@@ -718,6 +764,36 @@ func NewGPURenderSession(device hal.Device, queue hal.Queue, sampleCount uint32)
 // as 1x rendering instead of a permanently black window.
 func (s *GPURenderSession) SetTextureOOMHook(fn func()) {
 	s.onTextureOOM = fn
+}
+
+// SetDirectSubmit binds the device-level gate whose holds this session pumps
+// at its own GPU-completion points. Production window sessions receive
+// GPUShared's gate; nil leaves the shared pools unpumped by this session.
+func (s *GPURenderSession) SetDirectSubmit(d *directSubmit) {
+	if s != nil {
+		s.direct = d
+	}
+}
+
+// endSubmission resolves the frame submission and pumps the device-level
+// direct-submit gate: both only become safe once the GPU caught up with the
+// work the session just waited on.
+func (s *GPURenderSession) endSubmission() {
+	if s.sub != nil {
+		s.sub.SubmitDone()
+	}
+	s.direct.pump()
+}
+
+// trackRef marks a resource borrowed from a device-level pool as referenced by
+// this session's current submission. Pool owners call it when they hand a
+// resource back: the pool may recycle it only after SubmitDone proves the GPU
+// finished the frame that sampled it. Nil session (no frame to attach to) is a
+// no-op.
+func (s *GPURenderSession) trackRef(ref res.Ref) {
+	if s != nil && s.sub != nil {
+		s.sub.Track(ref)
+	}
 }
 
 // retireNative registers a native for deferred release in the shared registry
@@ -734,7 +810,7 @@ func (s *GPURenderSession) retireNative(n res.Native) {
 		n.Release()
 		return
 	}
-	ref := s.resReg.Register(n)
+	ref := s.resOwner.Register(n)
 	if s.sub != nil {
 		s.sub.Track(ref)
 	}
@@ -763,9 +839,12 @@ func (s *GPURenderSession) InvalidateForDeviceLoss() {
 	// A fresh device gets a fresh OOM probe: drop the terminal-failure latch
 	// so recovered heaps are not failed-fast forever (multiwindow 1.3).
 	s.textures.clearFailed()
-	if s.resReg != nil {
-		s.resReg.InvalidateAll()
-	}
+	// Surface trio bookkeeping is device-level (not session-owned): drop it
+	// without releasing natives — the abandon flow owns native teardown.
+	s.surfaceCache.invalidateAll()
+	// Drop only this session's entries: the registry is device-level and the
+	// abandon flow invalidates the device-wide pools separately.
+	s.resOwner.InvalidateOwned()
 	if s.sub != nil {
 		s.sub.Invalidate()
 	}
@@ -776,6 +855,15 @@ func (s *GPURenderSession) Reg() *res.Registry {
 		return nil
 	}
 	return s.resReg
+}
+
+// Res returns this session's owner handle in the device-level registry.
+// Registrations made through it are released by this session's Destroy.
+func (s *GPURenderSession) Res() res.Owner {
+	if s == nil {
+		return res.Owner{}
+	}
+	return s.resOwner
 }
 
 func (s *GPURenderSession) ResolveStats() (hits, misses uint64) {
@@ -797,7 +885,7 @@ func (s *GPURenderSession) ResolveCommandView(view *res.View) (hal.TextureView, 
 		return nil, false
 	}
 	if !view.Key.IsNil() {
-		ref, ok := s.resReg.Resolve(view.Key)
+		ref, ok := s.resOwner.Resolve(view.Key)
 		if !ok {
 			return nil, false
 		}
@@ -813,7 +901,7 @@ func (s *GPURenderSession) ResolveCommandView(view *res.View) (hal.TextureView, 
 		if tv == nil {
 			return nil, false
 		}
-		ref := s.resReg.RegisterBorrowed(&texViewNative{tv})
+		ref := s.resOwner.RegisterBorrowed(&texViewNative{tv})
 		s.notePendingViewRetire(ref)
 		defer s.resReg.Release(ref)
 		return s.commandViewOf(ref), true
@@ -881,13 +969,35 @@ func (s *GPURenderSession) RetireTexture(tex hal.Texture, view hal.TextureView) 
 	s.retireNative(&texRetireNative{tex: tex, view: view})
 }
 
-// PendingTexRetireCount reports retired resources still waiting for a
-// submission-completion point (diagnostics; reads the shared registry).
+// releaseSurfaceRef hands a surface trio ref back after tracking it for the
+// current submission. Rebuilds can still be referenced by commands queued
+// earlier in the frame, so the pool may only re-issue the natives after the
+// next SubmitDone. retire=true destroys the trio instead of pooling it
+// (degraded 1x1 fallback).
+func (s *GPURenderSession) releaseSurfaceRef(ref res.Ref, retire bool) {
+	if s == nil || ref.IsNil() {
+		return
+	}
+	if s.sub != nil {
+		s.sub.Track(ref)
+	}
+	if s.surfaceCache == nil {
+		return
+	}
+	if retire {
+		s.surfaceCache.releaseRetire(ref)
+	} else {
+		s.surfaceCache.release(ref)
+	}
+}
+
+// PendingTexRetireCount reports this session's retired resources still waiting
+// for a submission-completion point (diagnostics).
 func (s *GPURenderSession) PendingTexRetireCount() int {
 	if s == nil || s.resReg == nil {
 		return 0
 	}
-	return s.resReg.PendingReleaseCount()
+	return s.resOwner.PendingReleaseCount()
 }
 
 // SetSurfaceTarget configures the session to render directly to the given
@@ -927,7 +1037,7 @@ func (s *GPURenderSession) SetSurfaceTarget(view hal.TextureView, width, height 
 			// submission so everything retired — before and during this
 			// rebuild — is released now. Surface mode defers to the next
 			// BeginFrame post-present drain instead.
-			s.sub.SubmitDone()
+			s.endSubmission()
 		}
 	}
 
@@ -1011,7 +1121,7 @@ func (s *GPURenderSession) BeginFrame() {
 	// bookkeeping, which releases every resource retired by that frame's
 	// rebuilds (textures, grow-only buffers, image-cache entries).
 	if s.sub != nil {
-		s.sub.SubmitDone()
+		s.endSubmission()
 	}
 	// Transient command views registered last frame are now safe to retire:
 	// the frame's submissions have completed (vsync barrier / drainQueue above).
@@ -2040,16 +2150,14 @@ func (s *GPURenderSession) PurgeSurfaceTextures() {
 	s.deferredConvexUses = 0
 	s.freePrevCmdBufs()
 	s.textures.destroyTextures()
-	// The size-keyed stencil pool is not covered by destroyTextures: without
-	// this an OOM purge leaves up to stencilPoolCap stale depth textures
-	// pinned while the retry runs. Queued through retireFn (no WaitIdle
-	// stall here — same semantics as destroyTextures above).
-	s.textures.ClearStencilPool()
 	// GPU drained above: resolve tracked submissions so anything retired by
-	// this purge releases through the registry now.
+	// this purge releases through the registry now, then drop every idle
+	// surface trio (the old size-keyed stencil pool is part of this cache).
+	// Without the purge an OOM retry leaves stale full-window trios pinned.
 	if s.sub != nil {
-		s.sub.SubmitDone()
+		s.endSubmission()
 	}
+	s.surfaceCache.purgeIdle()
 	s.surfaceView = nil
 	s.surfaceWidth = 0
 	s.surfaceHeight = 0
@@ -2121,19 +2229,23 @@ func (s *GPURenderSession) Destroy() {
 		s.textPipeline = nil
 	}
 	s.textures.destroyTextures()
-	// Session teardown: the size-keyed stencil pool survives destroyTextures
-	// by design (per-frame size flips), so it must be flushed explicitly here.
-	s.textures.ClearStencilPool()
 	// GPU drained above: resolve tracked submissions so anything retired during
 	// teardown releases through the registry before it is dropped.
 	if s.sub != nil {
-		s.sub.SubmitDone()
+		s.endSubmission()
 	}
-	// drop command-view registry entries (idempotent; device-loss teardown
-	// goes through abandon → InvalidateAll, not here).
+	// A session-owned cache holds no other window's trios: force-release its
+	// pooled entries too. A shared cache keeps them for the remaining windows.
+	if s.ownsSurfaceCache {
+		s.surfaceCache.releaseAll()
+	}
+	// Drop this window's registry entries only: the registry is device-level and
+	// other windows keep theirs (device-loss teardown goes through abandon →
+	// InvalidateAll, not here).
 	if s.resReg != nil {
-		s.resReg.ReleaseAll()
+		s.resOwner.ReleaseOwned()
 		s.resReg = nil
+		s.resOwner = res.Owner{}
 	}
 	s.surfaceView = nil
 	s.surfaceWidth = 0
@@ -2499,6 +2611,7 @@ func (s *GPURenderSession) ensureStencilPipelines() error {
 		s.stencilRenderer = NewStencilRenderer(s.device, s.queue, s.sampleCount)
 		s.ownsShapePipelines = true
 	}
+	s.stencilRenderer.setSurfaceCache(s.surfaceCache)
 	if s.ownsShapePipelines {
 		stencilMaskMismatch := s.maskBindLayout != nil &&
 			s.stencilRenderer.coverPipeMaskLayout != s.maskBindLayout
@@ -5638,7 +5751,7 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	// without this the deferred releases accumulate across resize/rebuild
 	// cycles (VRAM leak).
 	if s.sub != nil {
-		s.sub.SubmitDone()
+		s.endSubmission()
 	}
 	// Same sync point as BeginFrame: the readback Map proves the GPU finished,
 	// so transient command views registered for this work are safe to retire.

@@ -66,9 +66,7 @@ func (s *Submission) Invalidate() {
 		return
 	}
 	for _, id := range s.jobs {
-		if e, ok := s.reg.slots[id]; ok {
-			e.inflight = 0
-		}
+		s.reg.clearInflight(id)
 	}
 	s.jobs = s.jobs[:0]
 }

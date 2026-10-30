@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"image"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/energye/gpui/gpu/hal"
@@ -117,6 +118,32 @@ func (q *Queue) Poll() uint64 {
 // LastSubmissionIndex returns the most recent submission index.
 func (q *Queue) LastSubmissionIndex() uint64 {
 	return q.submissionIndex
+}
+
+// OnSubmittedWorkDone captures the queue's submission index. The token is
+// complete once the GPU-advanced completedIndex reaches that point.
+func (q *Queue) OnSubmittedWorkDone() (hal.CompletionToken, error) {
+	return &submissionToken{q: q, index: q.submissionIndex}, nil
+}
+
+// submissionToken implements hal.CompletionToken over a Metal submission index.
+type submissionToken struct {
+	q     *Queue
+	index uint64
+}
+
+func (t *submissionToken) Done() bool {
+	if t == nil || t.q == nil {
+		return true
+	}
+	return t.q.completedIndex.Load() >= t.index
+}
+
+func (t *submissionToken) Wait() error {
+	for !t.Done() {
+		time.Sleep(time.Millisecond)
+	}
+	return nil
 }
 
 // registerSubmissionCompletionHandler attaches an addCompletedHandler: block to

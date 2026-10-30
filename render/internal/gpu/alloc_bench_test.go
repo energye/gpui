@@ -43,14 +43,3 @@ func BenchmarkGPURenderContext_ScissorSegment(b *testing.B) {
 		}
 	}
 }
-
-func BenchmarkTexturePool_AcquireRelease(b *testing.B) {
-	pool := NewTexturePool(128)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ts := pool.Acquire(1920, 1080, 4)
-		if ts != nil {
-			pool.Release(ts, 4)
-		}
-	}
-}

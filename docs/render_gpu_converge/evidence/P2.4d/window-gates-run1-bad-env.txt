@@ -1,0 +1,52 @@
+# P2.4d window gates (isolated nested Wayland)
+# date: 2026-10-30T17:48:40+08:00
+# head: ac2e58b3
+
+## step 0: desktop health
+desktop X display :1: alive
+
+## step 1: nested gnome-shell (wayland display gpui-p24d)
+nested wayland socket: alive (connect ok)
+
+## step 2: build binaries (信号直接打在被测进程上)
+  build ui_l1_blank: rc=0 ok
+  build ui_base_multiwin_cap: rc=0 ok
+  build ui_wr_r20_filter: rc=0 ok
+  build ui_base_vram_cap: rc=0 ok
+
+## ui_l1_blank (native, RUN_SECONDS=60, timeout=200)
+  rc=0
+  pool 段: 
+  stderr 尾:
+    ui_l1_blank: running 60s (RUN_SECONDS); close window to exit safely
+    ui_l1_blank: backend=wayland presents=3405 ~56.7 fps (wall 60.0s, cap 60s) avg=17.62ms max=221.19ms last=17.41ms hitches(>33.4ms)=13
+
+## ui_base_multiwin_cap (native, RUN_SECONDS=75, timeout=200)
+  rc=1
+  pool 段: "pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":8,"evictions":0,"purged":8,"entries":0,"idle":0,"bytes":0,"peak_bytes":4915200,"budget":134217728}]
+  stderr 尾:
+    ui_base_multiwin_cap: pixel win8_bg            bg  @(  10, 300) got=(0.098,0.118,0.157) want=(0.100,0.120,0.160) ok=true
+    ui_base_multiwin_cap: ink   win8_ink           region=( 180, 100 120x120) ink_px=1972 want>=400 ok=true
+    ui_base_multiwin_cap: golden examples/ui_base_multiwin_cap/testdata/multiwin_win8_base.png: diff=99.7887% over 134400 px
+    FAIL: multi-window floor failed: max_windows_60fps=0 want >=2
+
+## ui_wr_r20_filter (native, RUN_SECONDS=30, timeout=300)
+  rc=1
+  pool 段: "pool":[{"device":"device-1","name":"device-surface","hits":2,"misses":2,"evictions":0,"purged":0,"entries":2,"idle":2,"bytes":4856016,"peak_bytes":4856016,"budget":134217728},{"device":"device-1","name":"filter-graph","hits":19,"misses":26,"evictions":0,"purged":0,"entries":26,"idle":23,"bytes":45677296,"peak_bytes":45677296,"budget":134217728}]
+  stderr 尾:
+    ui_wr_r20_filter: pixel pulse_disc_center_invariant  @( 697, 491) got=(0.129,0.137,0.188) want=(0.250,0.750,0.350) ok=false
+    ui_wr_r20_filter: pixel dense_note_text_density      text_px=848 (want >=120) ok=true
+    golden baseline stored: /tmp/r20_filter/r20_final_base.png
+    FAIL: FAIL: fps=18.36 (interval=18.36 wall=17.76) < 45.00 (60Hz-class gate)
+
+## ui_base_vram_cap (native, RUN_SECONDS=300, timeout=500)
+  rc=124 (被 timeout 杀掉：窗没有自己退出，不算正常关闭)
+  pool 段: 
+  stderr 尾:
+    wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+    ui_base_vram_cap: phase n=2 shared=2 fps_min=2.5 refusals=+4 (total 4) live=93.0MB (max 93.0) fair/win=96.0MB
+    ui_base_vram_cap: phase n=4 shared=4 fps_min=1.2 refusals=+22 (total 29) live=182.6MB (max 182.6) fair/win=48.0MB
+    ui_base_vram_cap: phase n=8 shared=8 fps_min=0.0 refusals=+0 (total 38) live=199.7MB (max 199.7) fair/win=24.0MB
+
+## step 6: 桌面健康收尾
+desktop X display: alive after run

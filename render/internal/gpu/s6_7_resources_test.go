@@ -150,25 +150,3 @@ func TestS67_ImageCache_StrideStaging(t *testing.T) {
 		t.Fatalf("upload bytes %d", ic.Stats().LastUploadBytes)
 	}
 }
-
-func TestS67_TexturePool_HitMissStats(t *testing.T) {
-	tp := NewTexturePool(64)
-	// Without real textures we only exercise bookkeeping via Acquire nil path.
-	if ts := tp.Acquire(100, 100, 4); ts != nil {
-		t.Fatal("empty pool should miss")
-	}
-	st := tp.Stats()
-	if st.Misses != 1 {
-		t.Fatalf("misses=%d", st.Misses)
-	}
-	// Can't fully hit without textureSet construction (internal). Stats API green.
-}
-
-func TestS67_TexturePool_EndFrameBudget(t *testing.T) {
-	tp := NewTexturePool(1) // 1MB budget — EndFrame should not panic with empty pool
-	tp.EndFrame()
-	st := tp.Stats()
-	if st.EndFrames != 1 {
-		t.Fatalf("endFrames=%d", st.EndFrames)
-	}
-}

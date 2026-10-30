@@ -1,0 +1,36 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_base_vram_cap: phase n=2 shared=2 fps_min=55.3 refusals=+0 (total 4) live=94.4MB (max 94.4) fair/win=96.0MB
+ui_base_vram_cap: phase n=4 shared=4 fps_min=33.5 refusals=+672 (total 907) live=180.6MB (max 180.6) fair/win=48.0MB
+ui_base_vram_cap: phase n=8 shared=8 fps_min=13.3 refusals=+802 (total 2022) live=359.3MB (max 359.3) fair/win=24.0MB
+snapshot: examples/ui_base_vram_cap/testdata/vram_win4.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win5.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win6.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win7.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win8.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win2.png
+snapshot: examples/ui_base_vram_cap/testdata/vram_win3.png
+ui_base_vram_cap: pixel win1_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win1_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win1_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win2_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win2_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win2_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win3_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win3_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win3_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win4_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win4_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win4_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win5_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win5_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win5_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win6_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win6_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win6_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win7_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win7_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win7_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: pixel win8_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+ui_base_vram_cap: ink   win8_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win8_base.png: diff=0.0000% over 281600 px
+ui_base_vram_cap: OK presents=32834 refusals=23005 ledger_peak=372.2MB px=16/16 golden=0.0000% mode=gate elapsed=299.7s

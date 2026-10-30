@@ -39,8 +39,8 @@ func TestView_RawFallbackSemantics(t *testing.T) {
 
 func TestView_DeferredAndDirectEquality(t *testing.T) {
 	reg := NewRegistry()
-	refA := reg.Register(&fakeNative{tag: 1})
-	refB := reg.Register(&fakeNative{tag: 2})
+	refA := reg.DeviceOwner().Register(&fakeNative{tag: 1})
+	refB := reg.DeviceOwner().Register(&fakeNative{tag: 2})
 
 	a1 := ViewFromRef(refA)
 	a2 := ViewFromRef(refA)

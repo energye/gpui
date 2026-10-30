@@ -1,0 +1,113 @@
+# P2.4d negative controls（四处红→绿）
+# date: 2026-10-30T16:57:19+08:00
+# head: ac2e58b3
+
+## N1 每键空闲上限（MaxPerKey 是不是真在挡回桶）
+### 断言前移：确认测试名存在（防拼错名 = 假红）
+    render/internal/gpu/budget_evict_test.go:205:func TestDualTexOutPool_PerBucketCap(t *testing.T) {
+    render/internal/gpu/res/cache_size_test.go:64:func TestCache_MaxPerKeyCapsIdleBucket(t *testing.T) {
+### 干净态
+ok  	github.com/energye/gpui/render/internal/gpu/res	0.003s
+# exit: 0 (期望 0) — res 层上限
+ok  	github.com/energye/gpui/render/internal/gpu	0.008s
+# exit: 0 (期望 0) — dualtex 域上限
+### 断开：回桶不再查 MaxPerKey
+    252:	if false && len(c.pool[key]) >= c.opt.MaxPerKey {
+    cache_size_test.go:76: evictions=0 want 1 (per-key cap)
+FAIL
+FAIL	github.com/energye/gpui/render/internal/gpu/res	0.003s
+FAIL
+# exit: 1 (期望 1) — 无上限则桶无限增长
+    budget_evict_test.go:219: entries=10 idle=10, want 8/8 (bucket cap 8)
+FAIL
+FAIL	github.com/energye/gpui/render/internal/gpu	0.009s
+FAIL
+# exit: 1 (期望 1) — 同一断言在真域上
+    复原一致: 是
+### 复原
+ok  	github.com/energye/gpui/render/internal/gpu/res	0.003s
+# exit: 0 (期望 0) — 复原
+
+## N2 字节预算逐出：trimLocked 是否真在管字节上限
+# 第一轮注错位置：只摘 repool 里的 trimLocked() 调用 → 两处仍绿（Release 也调 trim）。
+# 这说明预算有两个执行点，负向必须关掉执行点本身（按实测保留本段说明）。
+    render/internal/gpu/budget_evict_test.go:170:func TestDualTexOutPool_ByteBudgetEviction(t *testing.T) {
+    render/internal/gpu/res/cache_test.go:90:func TestCache_BudgetRetireIdleAndNotInFlight(t *testing.T) {
+### 干净态
+ok  	github.com/energye/gpui/render/internal/gpu/res	0.004s
+# exit: 0 (期望 0) — res 层预算
+### 断开一：只摘 repool 的 trim 调用（预期仍绿：Release 也 trim）
+ok  	github.com/energye/gpui/render/internal/gpu/res	0.003s
+# exit: 0 (期望 0) — 两个执行点之一失效，另一个仍在
+    复原一致: 是
+### 断开二：关掉 trimLocked 的逐出循环本身（预算声明仍在、无人执行）
+    373:func (c *Cache) trimLocked() {
+    374-	if true {
+    375-		return
+    cache_test.go:105: expected 1 eviction after releasing idle over budget, got 0
+FAIL
+FAIL	github.com/energye/gpui/render/internal/gpu/res	0.004s
+FAIL
+# exit: 1 (期望 1) — 超预算条目不再被逐出
+    budget_evict_test.go:193: pooled bytes = 41943040, want exactly 32MiB after overflow
+FAIL
+FAIL	github.com/energye/gpui/render/internal/gpu	0.008s
+FAIL
+# exit: 1 (期望 1) — dualtex 域同一断言
+    surface_cache_test.go:231: releasing an over-budget idle entry must evict
+FAIL
+FAIL	github.com/energye/gpui/render/internal/gpu	0.008s
+FAIL
+# exit: 1 (期望 1) — surface 域同一断言
+    复原一致: 是
+### 复原
+ok  	github.com/energye/gpui/render/internal/gpu/res	0.004s
+# exit: 0 (期望 0) — 复原
+
+## N3 purge/OOM 链：GPUShared.PurgeEvictable 是否真的清到 dualtex 域
+### 干净态
+ok  	github.com/energye/gpui/render/internal/gpu	0.010s
+# exit: 0 (期望 0) — 两域都在链上
+### 断开：dualtex 的 PurgeIdle 调用摘掉（域仍在，但 OOM 清不动）
+    补丁后的 releasePooledVRAM:
+    1309:func (c *dualTexBlendCache) releasePooledVRAM() int {
+    1310-	if c == nil {
+    1311-		return 0
+    1312-	}
+    1313-	c.mu.Lock()
+    1314-	cache := c.outCache
+    1315-	c.mu.Unlock()
+    1316-	_ = cache
+    1317-	return 0
+    1318-}
+    pool_purge_lock_test.go:185: OOM chain freed 1 entries under gpu-shared-pools, want 2 (snap + filter RT): map[gpu-shared-pools:1]
+FAIL
+FAIL	github.com/energye/gpui/render/internal/gpu	0.008s
+FAIL
+# exit: 1 (期望 1) — gpu-shared-pools 只报出 filter 一条
+    复原一致: 是
+### 复原
+ok  	github.com/energye/gpui/render/internal/gpu	0.007s
+# exit: 0 (期望 0) — 复原
+
+## N4 命中率探针出口：Report.Pool 必须由探针填（漏填不能读成沉默通过）
+### 干净态
+ok  	github.com/energye/gpui/examples/wrgate	0.008s
+# exit: 0 (期望 0) — 探针段与门禁
+### 断开：BuildReport 不再问探针（Pool 置 nil）
+    补丁后的 Pool 赋值:
+    258:		Pool:                   nil,
+    report_test.go:481: pool domains = 0, want the probe's two
+FAIL
+FAIL	github.com/energye/gpui/examples/wrgate	0.008s
+FAIL
+# exit: 1 (期望 1) — pool 段的域名与数字消失
+    复原一致: 是
+### 复原
+ok  	github.com/energye/gpui/examples/wrgate	0.008s
+# exit: 0 (期望 0) — 复原
+
+## 残留检查（四处补丁必须全部还原）
+  cache.go 差异行数: 0
+  dual.go 差异行数: 0
+  report.go 差异行数: 0

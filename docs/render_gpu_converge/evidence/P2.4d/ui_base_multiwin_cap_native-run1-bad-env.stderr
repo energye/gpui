@@ -1,0 +1,39 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_base_multiwin_cap: win 3 event type=9
+ui_base_multiwin_cap: phase n=1 fps_avg=34.8 min=34.8 p95max=30.6 cpu=100.5% rss=394->399MB presents=[418]
+ui_base_multiwin_cap: phase n=2 fps_avg=17.1 min=17.1 p95max=246.4 cpu=104.8% rss=399->405MB presents=[206 205]
+ui_base_multiwin_cap: phase n=4 fps_avg=8.4 min=8.4 p95max=250.6 cpu=107.1% rss=405->407MB presents=[101 101 101 101]
+ui_base_multiwin_cap: phase n=8 fps_avg=4.1 min=4.0 p95max=263.0 cpu=109.6% rss=408->409MB presents=[49 48 49 48 49 49 48 49]
+snapshot: examples/ui_base_multiwin_cap/testdata/multiwin_win6.png
+snapshot: examples/ui_base_multiwin_cap/testdata/multiwin_win1.png
+snapshot: examples/ui_base_multiwin_cap/testdata/multiwin_win8.png
+snapshot: examples/ui_base_multiwin_cap/testdata/multiwin_win4.png
+snapshot: examples/ui_base_multiwin_cap/testdata/multiwin_win7.png
+snapshot: examples/ui_base_multiwin_cap/testdata/multiwin_win2.png
+snapshot: examples/ui_base_multiwin_cap/testdata/multiwin_win3.png
+snapshot: examples/ui_base_multiwin_cap/testdata/multiwin_win5.png
+ui_base_multiwin_cap: pixel win1_bg            bg  @(  10, 300) got=(0.098,0.118,0.157) want=(0.100,0.120,0.160) ok=true
+ui_base_multiwin_cap: ink   win1_ink           region=( 180, 100 120x120) ink_px=1972 want>=400 ok=true
+ui_base_multiwin_cap: golden examples/ui_base_multiwin_cap/testdata/multiwin_win1_base.png: diff=99.7850% over 134400 px
+ui_base_multiwin_cap: pixel win2_bg            bg  @(  10, 300) got=(0.098,0.118,0.157) want=(0.100,0.120,0.160) ok=true
+ui_base_multiwin_cap: ink   win2_ink           region=( 180, 100 120x120) ink_px=1972 want>=400 ok=true
+ui_base_multiwin_cap: golden examples/ui_base_multiwin_cap/testdata/multiwin_win2_base.png: diff=99.7842% over 134400 px
+ui_base_multiwin_cap: pixel win3_bg            bg  @(  10, 300) got=(0.098,0.118,0.157) want=(0.100,0.120,0.160) ok=true
+ui_base_multiwin_cap: ink   win3_ink           region=( 180, 100 120x120) ink_px=1972 want>=400 ok=true
+ui_base_multiwin_cap: golden examples/ui_base_multiwin_cap/testdata/multiwin_win3_base.png: diff=99.7894% over 134400 px
+ui_base_multiwin_cap: pixel win4_bg            bg  @(  10, 300) got=(0.098,0.118,0.157) want=(0.100,0.120,0.160) ok=true
+ui_base_multiwin_cap: ink   win4_ink           region=( 180, 100 120x120) ink_px=1972 want>=400 ok=true
+ui_base_multiwin_cap: golden examples/ui_base_multiwin_cap/testdata/multiwin_win4_base.png: diff=99.7820% over 134400 px
+ui_base_multiwin_cap: pixel win5_bg            bg  @(  10, 300) got=(0.098,0.118,0.157) want=(0.100,0.120,0.160) ok=true
+ui_base_multiwin_cap: ink   win5_ink           region=( 180, 100 120x120) ink_px=1972 want>=400 ok=true
+ui_base_multiwin_cap: golden examples/ui_base_multiwin_cap/testdata/multiwin_win5_base.png: diff=99.7894% over 134400 px
+ui_base_multiwin_cap: pixel win6_bg            bg  @(  10, 300) got=(0.098,0.118,0.157) want=(0.100,0.120,0.160) ok=true
+ui_base_multiwin_cap: ink   win6_ink           region=( 180, 100 120x120) ink_px=1972 want>=400 ok=true
+ui_base_multiwin_cap: golden examples/ui_base_multiwin_cap/testdata/multiwin_win6_base.png: diff=99.7879% over 134400 px
+ui_base_multiwin_cap: pixel win7_bg            bg  @(  10, 300) got=(0.098,0.118,0.157) want=(0.100,0.120,0.160) ok=true
+ui_base_multiwin_cap: ink   win7_ink           region=( 180, 100 120x120) ink_px=1972 want>=400 ok=true
+ui_base_multiwin_cap: golden examples/ui_base_multiwin_cap/testdata/multiwin_win7_base.png: diff=99.7872% over 134400 px
+ui_base_multiwin_cap: pixel win8_bg            bg  @(  10, 300) got=(0.098,0.118,0.157) want=(0.100,0.120,0.160) ok=true
+ui_base_multiwin_cap: ink   win8_ink           region=( 180, 100 120x120) ink_px=1972 want>=400 ok=true
+ui_base_multiwin_cap: golden examples/ui_base_multiwin_cap/testdata/multiwin_win8_base.png: diff=99.7887% over 134400 px
+FAIL: multi-window floor failed: max_windows_60fps=0 want >=2

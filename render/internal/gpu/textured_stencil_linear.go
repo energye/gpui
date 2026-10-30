@@ -224,6 +224,19 @@ func (c *texturedStencilLinearCache) release() {
 	c.device = nil
 }
 
+// setSurfaceCache binds the cover pass trio to the device-level surface cache.
+// The cover path submits outside res.Submission, so the set retires on rebuild
+// instead of pooling (pre-pooling destroy-on-resize contract).
+func (c *texturedStencilLinearCache) setSurfaceCache(sc *surfaceCache) {
+	if c == nil || sc == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.tex.surfaceCache = sc
+	c.tex.retireOnRelease = true
+}
+
 func (c *texturedStencilLinearCache) destroyPipelinesLocked() {
 	if c.coverPipe != nil {
 		c.coverPipe.Destroy()

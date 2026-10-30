@@ -53,7 +53,7 @@ func TestRegTransientView_LifecycleClosesAtFrameBoundary(t *testing.T) {
 	// owned by the texture cache — so retire removes the registry slot
 	// without destroying the underlying view.
 	for frame := 0; frame < 3; frame++ {
-		ref := s.Reg().RegisterBorrowed(&texViewNative{v})
+		ref := s.Res().RegisterBorrowed(&texViewNative{v})
 		s.notePendingViewRetire(ref)
 		// Consumer release (buildGPUTextureResources defer) drops refs to 0;
 		// the slot must survive until the frame boundary.
@@ -76,7 +76,7 @@ func TestRegTransientView_LifecycleClosesAtFrameBoundary(t *testing.T) {
 
 	// Reusing the same underlying view for another frame must not re-leak:
 	// retire is per-registration, each new registration is independent.
-	ref := s.Reg().RegisterBorrowed(&texViewNative{v})
+	ref := s.Res().RegisterBorrowed(&texViewNative{v})
 	s.notePendingViewRetire(ref)
 	s.Reg().Release(ref)
 	s.retirePendingViews()
@@ -104,7 +104,7 @@ func TestRegBorrowed_RetireSkipsNativeRelease(t *testing.T) {
 	// Borrowed (texture-cache-owned) entry: retire must drop the slot but
 	// NOT release the native — the owner owns destruction.
 	owned := &countingNative{}
-	ref := s.Reg().RegisterBorrowed(owned)
+	ref := s.Res().RegisterBorrowed(owned)
 	s.notePendingViewRetire(ref)
 	s.Reg().Release(ref)
 	s.retirePendingViews()
@@ -117,7 +117,7 @@ func TestRegBorrowed_RetireSkipsNativeRelease(t *testing.T) {
 
 	// Owned (registry-owned) entry: retire must release the native exactly once.
 	owned2 := &countingNative{}
-	ref2 := s.Reg().Register(owned2)
+	ref2 := s.Res().Register(owned2)
 	s.notePendingViewRetire(ref2)
 	s.Reg().Release(ref2)
 	s.retirePendingViews()

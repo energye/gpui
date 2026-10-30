@@ -1,0 +1,72 @@
+# P2.4d window gates (isolated headless Wayland, 1600x1000@60)
+# date: 2026-10-30T18:32:11+08:00
+# head: ac2e58b3
+
+## step 0: desktop health
+desktop X display :1: alive
+
+## step 1: isolated gnome-shell (headless wayland display gpui-p24d, virtual monitor 1600x1000@60)
+spawned pid 1613766
+wayland socket: alive (connect ok)
+
+## step 2: build binaries (信号直接打在被测进程上)
+  build ui_l1_blank: rc=0 ok
+  build ui_base_multiwin_cap: rc=0 ok
+  build ui_wr_r20_filter: rc=0 ok
+  build ui_render_base_scene: rc=0 ok
+  build ui_base_vram_cap: rc=0 ok
+
+## ui_l1_blank_native (native, RUN_SECONDS=60, timeout=200)
+  rc=0
+  pool 段: "pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":1,"evictions":0,"purged":0,"entries":1,"idle":1,"bytes":614400,"peak_bytes":614400,"budget":134217728}]
+  stderr 尾:
+    ui_l1_blank: running 60s (RUN_SECONDS); close window to exit safely
+    ui_l1_blank: backend=wayland presents=3497 ~58.3 fps (wall 60.0s, cap 60s) avg=17.15ms max=115.66ms last=17.10ms hitches(>33.4ms)=96
+
+## ui_base_multiwin_cap_native (native, RUN_SECONDS=75, timeout=200)
+  rc=0
+  pool 段: "pool":[{"device":"device-1","name":"device-surface","hits":4,"misses":32,"evictions":8,"purged":24,"entries":0,"idle":0,"bytes":0,"peak_bytes":20326528,"budget":134217728}]
+  stderr 尾:
+      phase n=1 fps=60.1 (min 60.1) p95max=26.3ms cpu=13.7% cpu/win=13.7% cpu_ms/present=2.27ms marginal=0.0% rss=307->309MB avg60=true steady60=false
+      phase n=2 fps=60.0 (min 60.0) p95max=27.0ms cpu=22.3% cpu/win=11.2% cpu_ms/present=1.86ms marginal=8.7% rss=309->311MB avg60=true steady60=false
+      phase n=4 fps=59.0 (min 58.9) p95max=26.7ms cpu=41.5% cpu/win=10.4% cpu_ms/present=1.76ms marginal=9.6% rss=311->312MB avg60=true steady60=false
+      phase n=8 fps=38.5 (min 38.4) p95max=36.7ms cpu=55.5% cpu/win=6.9% cpu_ms/present=1.80ms marginal=3.5% rss=312->312MB avg60=false steady60=false
+
+## ui_wr_r20_filter_native-seed (native, RUN_SECONDS=30, timeout=300)
+  rc=1
+  pool 段: "pool":[{"device":"device-1","name":"device-surface","hits":543,"misses":46,"evictions":0,"purged":6,"entries":0,"idle":0,"bytes":0,"peak_bytes":16113552,"budget":134217728},{"device":"device-1","name":"filter-graph","hits":6,"misses":15,"evictions":0,"purged":0,"entries":15,"idle":12,"bytes":31740096,"peak_bytes":31740096,"budget":134217728},{"device":"device-1","name":"layer-offscreen","hits":0,
+  stderr 尾:
+    ui_wr_r20_filter: pixel pulse_disc_center_invariant  @( 697, 491) got=(0.251,0.749,0.349) want=(0.250,0.750,0.350) ok=true
+    ui_wr_r20_filter: pixel dense_note_text_density      text_px=784 (want >=120) ok=true
+    golden baseline stored: /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/r20_snapshots/r20_final_base.png
+    FAIL: hitch_rate_per_min=98.12 > 30
+
+## ui_wr_r20_filter_native (native, RUN_SECONDS=30, timeout=300)
+  rc=1
+  pool 段: "pool":[{"device":"device-1","name":"device-surface","hits":531,"misses":46,"evictions":0,"purged":6,"entries":0,"idle":0,"bytes":0,"peak_bytes":16113552,"budget":134217728},{"device":"device-1","name":"filter-graph","hits":6,"misses":15,"evictions":0,"purged":0,"entries":15,"idle":12,"bytes":31740096,"peak_bytes":31740096,"budget":134217728},{"device":"device-1","name":"layer-offscreen","hits":0,
+  stderr 尾:
+    ui_wr_r20_filter: pixel pulse_disc_center_invariant  @( 697, 491) got=(0.251,0.749,0.349) want=(0.250,0.750,0.350) ok=true
+    ui_wr_r20_filter: pixel dense_note_text_density      text_px=784 (want >=120) ok=true
+    golden r20_final.png: diff=0.0000% over 306280 px
+    FAIL: hitch_rate_per_min=92.06 > 30
+
+## ui_render_base_scene_native (native, RUN_SECONDS=10, timeout=200)
+  rc=0
+  pool 段: "pool":[{"device":"device-1","name":"device-surface","hits":0,"misses":3,"evictions":0,"purged":0,"entries":3,"idle":3,"bytes":15360000,"peak_bytes":15360000,"budget":134217728},{"device":"device-1","name":"dualtex-snap","hits":0,"misses":1,"evictions":0,"purged":0,"entries":1,"idle":1,"bytes":65536,"peak_bytes":65536,"budget":33554432}]
+  stderr 尾:
+    ui_render_base_scene: parity A/B mismatch=1.4376% high=0.0259% worst=111 valid=true ok=true
+    ui_render_base_scene: ink   D_text             scene DrawText ink         n= 298 ok=true
+    golden showcase_scene.png: diff=0.0000% over 627200 px
+    ui_render_base_scene: OK presents=601 logic=21/21 point=17/17 ink=1/1 parity=1.4376% golden=0.0000% resize=0 1200x800 mode=gate elapsed=10.2s
+
+## ui_base_vram_cap_native (native, RUN_SECONDS=300, timeout=500)
+  rc=0
+  pool 段: "pool":[{"device":"device-1","name":"device-surface","hits":28,"misses":27,"evictions":3,"purged":24,"entries":0,"idle":0,"bytes":0,"peak_bytes":30640464,"budget":134217728}]
+  stderr 尾:
+    ui_base_vram_cap: pixel win8_bg            bg  @(  10, 470) got=(0.078,0.090,0.122) want=(0.080,0.090,0.120) ok=true
+    ui_base_vram_cap: ink   win8_ink           region=(  40, 120 200x200) ink_px=40000 want>=400 ok=true
+    ui_base_vram_cap: golden examples/ui_base_vram_cap/testdata/vram_win8_base.png: diff=0.0000% over 281600 px
+    ui_base_vram_cap: OK presents=32834 refusals=23005 ledger_peak=372.2MB px=16/16 golden=0.0000% mode=gate elapsed=299.7s
+
+## step 6: 桌面健康收尾
+desktop X display: alive after run

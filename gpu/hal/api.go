@@ -334,6 +334,26 @@ type Device interface {
 	Release()
 }
 
+// CompletionToken tracks one point on a queue's submission timeline.
+//
+// It is the backend-neutral primitive the resource layer uses to learn when
+// work referencing a pooled or retired native resource has finished on the
+// GPU, so the resource can be recycled or destroyed without racing an
+// in-flight submission (Skia command-buffer completion refs, P2.4d).
+//
+// A token returned by Queue.OnSubmittedWorkDone completes once every piece of
+// work submitted to that queue before the call has finished; later submissions
+// do not extend it.
+type CompletionToken interface {
+	// Done reports whether the tracked work has completed. Non-blocking.
+	// Backends may pump their own callback machinery while checking.
+	Done() bool
+
+	// Wait blocks until the tracked work has completed. Shutdown / teardown
+	// only — never on the per-frame hot path.
+	Wait() error
+}
+
 // Queue handles command submission and presentation.
 // Queues are typically thread-safe (backend-specific).
 type Queue interface {
@@ -357,6 +377,21 @@ type Queue interface {
 	// ; gles/metal/noop return their own
 	// monotonically increasing counter.
 	LastSubmissionIndex() uint64
+
+	// OnSubmittedWorkDone returns a completion token for the current point on
+	// the queue's submission timeline: the token completes once all work
+	// submitted before this call has finished on the GPU.
+	//
+	// Backend divergence: webgpu-native resolves a callback-mode future
+	// (pumped by Device.FlushCallbacks / Device.Poll); gles and metal compare
+	// the captured submission index against Poll(); noop completes
+	// immediately (synchronous backend).
+	//
+	// The token is the only cross-backend way to gate native-resource
+	// destruction on GPU completion (hal fences are no-ops on wgpu-native).
+	// Callers must eventually consume every token (Done/Wait) so backends can
+	// release their completion records; tokens are not free.
+	OnSubmittedWorkDone() (CompletionToken, error)
 
 	// WriteBuffer writes data to a buffer immediately.
 	// This is a convenience method that creates a staging buffer internally.

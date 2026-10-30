@@ -1,0 +1,86 @@
+# P2.4d residual grep
+# date: 2026-10-30T16:45:35+08:00
+
+## 1) 六处旧管理器符号（期望 0 代码命中；docs/ 与注释里的历史名不算）
+### #1 TexturePool / #3 stencilPool / #4 offscreenPool / #5 filter 乒乓 / #6 dualtex outPool
+### 匹配按整词（(?<!ident)pat(?!ident)），所以 VideoTexturePool / poolHitPct 不算命中
+TexturePool: 整词命中 2，其中非测试非整行注释 0
+    render/budget.go:43:	// (P2.4d). (Named SurfacePool since P2.4d: the old TexturePool was a
+    render/budget.go:142:		// pre-P2.4b TexturePool default, kept bit-for-bit).
+textureKey: 整词命中 0，其中非测试非整行注释 0
+NewTexturePool: 整词命中 0，其中非测试非整行注释 0
+TexturePoolStats: 整词命中 0，其中非测试非整行注释 0
+BudgetTexturePool: 整词命中 0，其中非测试非整行注释 0
+stencilPool: 整词命中 0，其中非测试非整行注释 0
+pooledStencil: 整词命中 0，其中非测试非整行注释 0
+stencilPoolKey: 整词命中 0，其中非测试非整行注释 0
+takePooledStencil: 整词命中 0，其中非测试非整行注释 0
+pruneStencilPoolExcept: 整词命中 0，其中非测试非整行注释 0
+offscreenPool: 整词命中 0，其中非测试非整行注释 0
+offscreenPooled: 整词命中 0，其中非测试非整行注释 0
+makePoolRelease: 整词命中 0，其中非测试非整行注释 0
+pooledBytesLocked: 整词命中 0，其中非测试非整行注释 0
+drainOffscreenPool: 整词命中 0，其中非测试非整行注释 0
+poolW: 整词命中 0，其中非测试非整行注释 0
+poolH: 整词命中 0，其中非测试非整行注释 0
+publishFree: 整词命中 0，其中非测试非整行注释 0
+ensurePool: 整词命中 0，其中非测试非整行注释 0
+promotePoolResultToPublish: 整词命中 0，其中非测试非整行注释 0
+dualTexPooledTex: 整词命中 0，其中非测试非整行注释 0
+putOutBGRA: 整词命中 0，其中非测试非整行注释 0
+enforceOutPoolBudgetLocked: 整词命中 0，其中非测试非整行注释 0
+(注释/测试里的历史名保留是预期：budget.go 的 P2.4d 改名说明、budget_evict_test 的旧域引用)
+
+## 2) 按尺寸分桶的裸 map（期望 0 命中：同尺寸桶只剩 res.Cache）
+size-bucketed slice maps: 0 命中
+
+## 3) 收敛后的唯一分配口：res.NewCache 调用点 + 池域名
+    render/internal/gpu/surface_cache.go:147:	c.cache = res.NewCache(owner, c.create, res.CacheOptions{
+    render/internal/gpu/gpu_render_context.go:3801:	cache := res.NewCache(owner, rc.createOffscreenNative, res.CacheOptions{
+    render/internal/gpu/dual_tex_blend.go:1171:	cache := res.NewCache(c.resOwner, func(key res.CacheKey) (res.Native, error) {
+    render/internal/gpu/filter_gpu_graph.go:536:	cache := res.NewCache(c.resOwner, func(key res.CacheKey) (res.Native, error) {
+池域名（探针按域名上报）:
+    "device-surface"
+    "session-surface"
+    Name:      "dualtex-snap"
+    Name:      "filter-graph"
+    Name:      "layer-offscreen"
+
+## 4) 保留的包装函数（新语义 = Cache 的薄壳，非旧池）
+getOutBGRA:
+    render/internal/gpu/dual_tex_blend.go:1189:// getOutBGRA takes a bounds-sized BGRA snap for the quantized bucket of (w,h).
+    render/internal/gpu/dual_tex_blend.go:1197:func (c *dualTexBlendCache) getOutBGRA(device hal.Device, queue hal.Queue, w, h int) (hal.Texture, hal.TextureView, res.Ref, error) {
+    render/internal/gpu/dual_tex_blend.go:1525:		outTex, outView, outRef, oerr := cache.getOutBGRA(device, queue, bw, bh)
+    render/internal/gpu/dual_tex_blend.go:1682:	outTex, outView, outRef, err := cache.getOutBGRA(device, queue, bw, bh)
+releasePooledVRAM:
+    render/internal/gpu/gpu_shared.go:293:	return int64(s.dualTexBlend.releasePooledVRAM() + s.filterGPU.releasePooledVRAM())
+    render/internal/gpu/gpu_render_context.go:4274:		s.dualTexBlend.releasePooledVRAM()
+    render/internal/gpu/gpu_render_context.go:4275:		s.filterGPU.releasePooledVRAM()
+    render/internal/gpu/dual_tex_blend.go:1306:// releasePooledVRAM drops every idle snap while keeping checked-out ones and
+    render/internal/gpu/dual_tex_blend.go:1309:func (c *dualTexBlendCache) releasePooledVRAM() int {
+    render/internal/gpu/filter_gpu_graph.go:670:// releasePooledVRAM drops every idle render target while keeping checked-out
+    render/internal/gpu/filter_gpu_graph.go:673:func (c *filterGPUCache) releasePooledVRAM() int {
+releasePoolUnlocked:
+    render/internal/gpu/filter_gpu_graph.go:249:// releasePoolUnlocked drains the RT domain. Checked-out RTs (a published
+    render/internal/gpu/filter_gpu_graph.go:252:func (c *filterGPUCache) releasePoolUnlocked() {
+    render/internal/gpu/filter_gpu_graph.go:260:	c.releasePoolUnlocked()
+filterPublishSlot:
+    render/internal/gpu/filter_gpu_graph.go:171:// filterPublishSlot is one graph result handed to the compositor: the RT plus
+    render/internal/gpu/filter_gpu_graph.go:173:type filterPublishSlot struct {
+    render/internal/gpu/filter_gpu_graph.go:814:func (c *filterGPUCache) acquirePublish(device hal.Device, w, h int) (filterPublishSlot, error) {
+    render/internal/gpu/filter_gpu_graph.go:817:		return filterPublishSlot{}, err
+    render/internal/gpu/filter_gpu_graph.go:819:	return filterPublishSlot{tex: tex, view: view, ref: ref}, nil
+    render/internal/gpu/filter_gpu_graph.go:827:func (c *filterGPUCache) releasePublish(slot filterPublishSlot, track func(res.Ref)) {
+    render/internal/gpu/filter_gpu_graph.go:927:	var slot filterPublishSlot
+    render/internal/gpu/filter_gpu_graph.go:983:		slot = filterPublishSlot{}
+    render/internal/gpu/filter_gpu_graph.go:1332:			slot = filterPublishSlot{tex: curTex, view: curView, ref: curRef}
+
+## 5) 分层：render 非测试代码中的后端特有类型（期望 0；创建入口除外）
+(空 = 合规)
+
+## 6) render → internal 反向 import（期望 0：探针与 purge 都由 internal 注册进来）
+render 主包 import internal/gpu: 0 命中
+(注释里提到 internal/gpu 不算 import：本项只匹配引号包住的包路径)
+
+## 7) ui 层直引 gpu（期望 0，测试缝除外）
+ui/ import gpu/ 非测试: 0 命中

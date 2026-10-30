@@ -84,7 +84,7 @@ func TestOpt32_DualTexMultiIntoEncoder_OneFinish(t *testing.T) {
 	}
 	device.FreeCommandBuffer(cmd)
 	for _, o := range outs {
-		cache.putOutBGRA(o.tex, o.view, o.bounds.Dx(), o.bounds.Dy())
+		cache.recycleOut(o, nil)
 	}
 }
 

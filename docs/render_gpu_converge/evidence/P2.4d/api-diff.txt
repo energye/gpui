@@ -1,0 +1,739 @@
+# P2.4d API snapshot diff（对 P2.4c 收口 = HEAD ac2e58b3）
+# date: 2026-10-30T17:24:43+08:00
+
+## render
+--- /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/api/base-render.txt	2026-10-30 17:24:39.815190770 +0800
++++ /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/api/render.txt	2026-10-30 17:24:40.170196148 +0800
+@@ -580,6 +580,10 @@
+     publisher. Result textures are composited with DrawGPUTexture; CPU pixels
+     materialise lazily.
+ 
++func RegisterGPUPoolStatsCollector(owner any, fn GPUPoolStatsFunc)
++    RegisterGPUPoolStatsCollector adds a device holder's pool snapshot source,
++    keyed by owner identity so it can be removed again. A nil func is ignored.
++
+ func RegisterPurgeEvictable(name string, cache PurgeEvictable)
+     RegisterPurgeEvictable adds a rebuildable cache to the texture-OOM purge
+     chain. Registration is additive; packages with evictable caches call this
+@@ -755,6 +759,10 @@
+     disable texture/from-view publishers — use DisableGPUFilterGraphForTest to
+     force the pure CPU filter path.
+ 
++func UnregisterGPUPoolStatsCollector(owner any)
++    UnregisterGPUPoolStatsCollector drops a device holder's collector at
++    teardown, so a closed window never reports pools whose natives are gone.
++
+ func UnregisterPurgeEvictable(cache PurgeEvictable)
+     UnregisterPurgeEvictable removes a cache from the purge chain. Call at
+     teardown so post-close purges never touch released native resources.
+@@ -1053,10 +1061,13 @@
+ 	// converts to entries with the MinEntries floor. MaxEntries is
+ 	// unused (the cache auto-sizes to its frame working set).
+ 	BudgetPictureCache
+-	// BudgetTexturePool is the deprecated render-target pool kept for
+-	// purge/telemetry until P2.4d removes it. MaxBytes = pool budget in
+-	// bytes (the site reads MB via MaxBytes>>20; MaxEntries unused).
+-	BudgetTexturePool
++	// BudgetSurfacePool is the surface-sized textureSet pool (MSAA +
++	// depth/stencil + resolve trio) shared by every window session on a
++	// device. MaxBytes = resident surface bytes; the live site reads the
++	// limit through DefaultBudget when the trio moves onto res.Cache
++	// (P2.4d). (Named SurfacePool since P2.4d: the old TexturePool was a
++	// per-process Go struct, this domain is the per-device surface trio.)
++	BudgetSurfacePool
+ 	// BudgetStencilScratch is the size-bucketed sc==1 depth/stencil cache
+ 	// on each session textureSet. MaxEntries = size buckets.
+ 	BudgetStencilScratch
+@@ -1069,6 +1080,10 @@
+ 	// BudgetLayerOffscreen is the per-context layer/effect offscreen RT
+ 	// pool. MaxBytes = total pool bytes; MaxEntries = per-size-bucket cap.
+ 	BudgetLayerOffscreen
++	// BudgetFilterGraph is the GPU filter graph's RGBA8 render-target pool
++	// (ping-pong A/B + hold + published results), shared by every window on a
++	// device. MaxEntries = per-size-bucket cap; MaxBytes = total pool bytes.
++	BudgetFilterGraph
+ 	// BudgetGlyphColor is the color-glyph atlas. MaxEntries = atlas pages
+ 	// (each page is PageSize² RGBA at the construction site).
+ 	BudgetGlyphColor
+@@ -3902,6 +3917,12 @@
+     The MSDF pipeline (GPUTextAccelerator) remains the preferred path for
+     rotated, scaled, or large text where resolution-independence matters.
+ 
++type GPUPoolStatsFunc func() []PoolDomainStats
++    GPUPoolStatsFunc snapshots the pool domains of one live GPU device holder.
++    The GPU layer registers one per device holder (render never imports the
++    internal GPU package, so the bridge is a callback, like the OOM purge
++    chain).
++
+ type GPURenderContextProvider interface {
+ 	// NewGPURenderContext creates a new per-context GPU render context.
+ 	// The returned value should be stored on the render.Context and closed
+@@ -5345,6 +5366,37 @@
+ func (p Point) Sub(q Point) Point
+     Sub returns the difference of two points (vector subtraction).
+ 
++type PoolDomainStats struct {
++	Device    string `json:"device"` // device holder label (multi-window diagnostics)
++	Name      string `json:"name"`   // domain name: surface-pool, filter-graph, ...
++	Hits      uint64 `json:"hits"`
++	Misses    uint64 `json:"misses"`
++	Evictions uint64 `json:"evictions"`
++	Purged    uint64 `json:"purged"`
++	Entries   uint64 `json:"entries"`
++	Idle      uint64 `json:"idle"`
++	Bytes     uint64 `json:"bytes"`
++	PeakBytes uint64 `json:"peak_bytes"`
++	Budget    uint64 `json:"budget"`
++}
++    PoolDomainStats is one GPU pool domain's reuse snapshot (P2.4d probe). The
++    GPU layer owns its pools internally; this is the read-only shape the engine
++    publishes so a real window can assert that same-size reuse actually happens
++    (hits > 0) instead of trusting a pool that silently allocates every frame.
++
++    Entries counts checked-out plus pooled resources; Idle counts pooled
++    entries nothing is using. Bytes is the domain's estimated live footprint
++    (checked-out entries count against the budget too, so a burst cannot dodge
++    the cap).
++
++func GPUPoolStats() []PoolDomainStats
++    GPUPoolStats collects every registered device holder's pool domain
++    snapshots. Empty when no GPU device is live (CPU rendering).
++
++func (s PoolDomainStats) HitRate() float64
++    HitRate reports reuse as a fraction of acquisitions. Zero hits with zero
++    misses means the domain was never used — not that it worked perfectly.
++
+ type PresentMode int
+     PresentMode describes how PresentFrameAuto / PlanFramePresent should hit the
+     surface.
+
+## gpu/hal
+--- /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/api/base-gpu-hal.txt	2026-10-30 17:24:40.260197511 +0800
++++ /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/api/gpu-hal.txt	2026-10-30 17:24:40.398199601 +0800
+@@ -830,6 +830,26 @@
+ }
+     CommandEncoderDescriptor describes a command encoder.
+ 
++type CompletionToken interface {
++	// Done reports whether the tracked work has completed. Non-blocking.
++	// Backends may pump their own callback machinery while checking.
++	Done() bool
++
++	// Wait blocks until the tracked work has completed. Shutdown / teardown
++	// only — never on the per-frame hot path.
++	Wait() error
++}
++    CompletionToken tracks one point on a queue's submission timeline.
++
++    It is the backend-neutral primitive the resource layer uses to learn when
++    work referencing a pooled or retired native resource has finished on
++    the GPU, so the resource can be recycled or destroyed without racing an
++    in-flight submission (Skia command-buffer completion refs, P2.4d).
++
++    A token returned by Queue.OnSubmittedWorkDone completes once every piece of
++    work submitted to that queue before the call has finished; later submissions
++    do not extend it.
++
+ type ComputePassDescriptor struct {
+ 	// Label is an optional debug name.
+ 	Label string
+@@ -1448,6 +1468,21 @@
+ 	// monotonically increasing counter.
+ 	LastSubmissionIndex() uint64
+ 
++	// OnSubmittedWorkDone returns a completion token for the current point on
++	// the queue's submission timeline: the token completes once all work
++	// submitted before this call has finished on the GPU.
++	//
++	// Backend divergence: webgpu-native resolves a callback-mode future
++	// (pumped by Device.FlushCallbacks / Device.Poll); gles and metal compare
++	// the captured submission index against Poll(); noop completes
++	// immediately (synchronous backend).
++	//
++	// The token is the only cross-backend way to gate native-resource
++	// destruction on GPU completion (hal fences are no-ops on wgpu-native).
++	// Callers must eventually consume every token (Done/Wait) so backends can
++	// release their completion records; tokens are not free.
++	OnSubmittedWorkDone() (CompletionToken, error)
++
+ 	// WriteBuffer writes data to a buffer immediately.
+ 	// This is a convenience method that creates a staging buffer internally.
+ 	// Returns an error if the buffer is invalid or the write fails.
+
+## render/internal/gpu
+--- /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/api/base-render-internal-gpu.txt	2026-10-30 17:24:40.915207433 +0800
++++ /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/api/render-internal-gpu.txt	2026-10-30 17:24:41.746220021 +0800
+@@ -34,7 +34,8 @@
+   - ImageCache: entry and byte LRU caps (SetBudgets to tune)
+   - glyph atlases: page-level LRU eviction
+   - depth-clip mask cache: count/byte budget
+-  - TexturePool: render-target reuse (deprecated, kept for the shared cache)
++  - surface trio / offscreen / filter / dual-tex pools: res.Cache domains
++    (size-keyed, byte budget, per-key cap, idle purge)
+ 
+ # Legacy helpers
+ 
+@@ -2082,11 +2083,7 @@
+     Segments returns the flattened segments.
+ 
+ type GPUMemoryStats struct {
+-	TexturePoolPooled int
+-	TexturePoolMB     int
+-	TexturePoolHits   uint64
+-	TexturePoolMisses uint64
+-	TilePoolPooled    int
++	TilePoolPooled int
+ 	// ImageCache* filled when a live session image cache is reported via session; shared path leaves 0.
+ 	ImageCacheEntries int
+ 	ImageCacheBytes   int64
+@@ -2134,6 +2131,8 @@
+ func (rc *GPURenderContext) ClearMidFrameDataFlush()
+ 
+ func (rc *GPURenderContext) Close()
++    Close releases this context's GPU resources. Shared resources are NOT
++    released — they are owned by GPUShared.
+ 
+ func (rc *GPURenderContext) CommitScratchRegion(view gpucontext.TextureView, payload []byte, bytesPerRow, rows, w, h int) error
+     CommitScratchRegion writes CPU-rasterized retained-pass pixels into an
+@@ -2168,7 +2167,16 @@
+ 
+ func (rc *GPURenderContext) CreateOffscreenTexture(w, h int) (gpucontext.TextureView, func())
+     CreateOffscreenTexture allocates a GPU texture for offscreen rendering.
+-    Reuses pooled textures by (w,h) to avoid VRAM OOM from per-layer alloc.
++    Reuses pooled textures by (w,h) through res.Cache (BudgetLayerOffscreen) to
++    avoid VRAM OOM from per-layer alloc.
++
++    R6-3 quarantine by construction: the scene runs the returned release on its
++    deferred path (≥2 composite frames after last use), so a pooled entry is
++    always past any command buffer that sampled it — the exact case that forced
++    the old disable (RESOURCE-sampled by an earlier CB while a re-record takes
++    it as COLOR_TARGET in the same usage scope → TXFLUSHERR submit failed).
++    Record paths LoadOpClear before drawing, so stale pixels never show.
++    GPUI_NO_OFFSCREEN_POOL=1 restores always-fresh allocation.
+ 
+ func (rc *GPURenderContext) Device() hal.Device
+     Device returns the shared GPU device this context draws on, or nil when no
+@@ -2583,9 +2591,17 @@
+           +-- Single readback (offscreen) or resolve to surface (direct)
+ 
+ func NewGPURenderSession(device hal.Device, queue hal.Queue, sampleCount uint32) *GPURenderSession
+-    NewGPURenderSession creates a new render session with the given device,
+-    queue, and MSAA sample count. Textures and pipelines are not allocated until
+-    RenderFrame is called.
++    NewGPURenderSession creates a new render session with its own isolated
++    resource registry and its own surface trio cache. Used by tests and
++    standalone sessions; production window sessions share the device-level
++    registry and cache through NewGPURenderSessionWithRegistry.
++
++func NewGPURenderSessionWithRegistry(device hal.Device, queue hal.Queue, sampleCount uint32, reg *res.Registry, surfaceCache *surfaceCache) *GPURenderSession
++    NewGPURenderSessionWithRegistry creates a render session that shares
++    reg (the device-level registry owned by GPUShared) and surfaceCache (the
++    device-level trio pool). A nil cache falls back to a session-owned one, so
++    tests can share a registry without sharing textures. The session allocates
++    its own owner id, so Destroy releases only this window's entries.
+ 
+ func (s *GPURenderSession) BeginFrame()
+     BeginFrame resets per-frame state. Call this at the start of each frame
+@@ -2655,8 +2671,8 @@
+     SDF/convex/stencil pipelines (effect offscreens with preferSampleCount1).
+ 
+ func (s *GPURenderSession) PendingTexRetireCount() int
+-    PendingTexRetireCount reports retired resources still waiting for a
+-    submission-completion point (diagnostics; reads the shared registry).
++    PendingTexRetireCount reports this session's retired resources still waiting
++    for a submission-completion point (diagnostics).
+ 
+ func (s *GPURenderSession) PrepareFrameMask(shared *GPUShared) error
+     When shared has an active MaskAware R8 texture, cover shaders sample it
+@@ -2704,6 +2720,10 @@
+     RenderMode returns the current render mode based on whether a surface target
+     has been set.
+ 
++func (s *GPURenderSession) Res() res.Owner
++    Res returns this session's owner handle in the device-level registry.
++    Registrations made through it are released by this session's Destroy.
++
+ func (s *GPURenderSession) ResolveCommandView(view *res.View) (hal.TextureView, bool)
+     ResolveCommandView resolves a command View to its concrete texture view at
+     flush time:
+@@ -2742,6 +2762,11 @@
+     via EnqueueLeadingSubmit instead of Queue.Submit — caller must later
+     submitWithLeading / FlushLeadingSubmitsOnly (usually Present).
+ 
++func (s *GPURenderSession) SetDirectSubmit(d *directSubmit)
++    SetDirectSubmit binds the device-level gate whose holds this session
++    pumps at its own GPU-completion points. Production window sessions receive
++    GPUShared's gate; nil leaves the shared pools unpumped by this session.
++
+ func (s *GPURenderSession) SetFrameState(frameRendered bool, lastView hal.TextureView)
+     GPURenderContext transfers its frameRendered/lastView into the session so
+     the session can compute the correct LoadOp (Clear vs Load) for this context.
+@@ -2933,6 +2958,12 @@
+     context (depth/MSAA/offscreen pools) without abandoning the device. Call
+     when the window is unpresentable.
+ 
++func (s *GPUShared) PurgeEvictable() (freed int64)
++    PurgeEvictable drains this device's shared pool domains under VRAM pressure.
++    It takes only the pool locks and never s.mu: the OOM retry chain runs inside
++    texture creates that already hold the shared lock, and a purge that grabbed
++    it would deadlock on itself.
++
+ func (s *GPUShared) Queue() hal.Queue
+     Queue returns the shared wgpu queue, or nil if not initialized.
+ 
+@@ -2974,10 +3005,6 @@
+     data is width*height bytes; nil deactivates the mask but keeps its texture
+     for cheap reactivation. Pass through ClearMaskTexture to release memory.
+ 
+-func (s *GPUShared) SetTexturePoolBudget(mb int)
+-    SetTexturePoolBudget sets the maximum memory budget for the texture pool in
+-    megabytes. Default is 128MB (~5 concurrent 1080p MSAA4x contexts).
+-
+ func (s *GPUShared) StrokeGeomCache() *StrokeGeometryCache
+     StrokeGeomCache returns the shared stroke expansion cache.
+ 
+@@ -4284,9 +4311,8 @@
+     RenderSessionStats holds diagnostic statistics for the render session.
+ 
+ type ResourceUploadStats struct {
+-	Image   ImageCacheStats
+-	Texture TexturePoolStats
+-	Memory  GPUMemoryStats
++	Image  ImageCacheStats
++	Memory GPUMemoryStats
+ }
+ 
+ type SDFAccelerator struct {
+@@ -5553,68 +5579,6 @@
+ func (f TextureFormat) ToWGPUFormat() types.TextureFormat
+     ToWGPUFormat converts to WebGPU TextureFormat.
+ 
+-type TexturePool struct {
+-	// Has unexported fields.
+-}
+-    TexturePool manages reusable MSAA/stencil texture sets across
+-    GPURenderContexts. It follows the Flutter RenderTargetCache pattern:
+-    Acquire during flush, Release at frame end, EndFrame frees unused entries.
+-
+-    Deprecated (P5): production paths never call Acquire/Release/EndFrame —
+-    only DestroyAll/SetBudget/Stats are used for telemetry. Session textures go
+-    through textureSet + the res registry retire path, and the res.Cache is the
+-    long-term pooling home.
+-
+-    This avoids creating expensive GPU textures (MSAA, depth/stencil) per
+-    context per frame when multiple contexts share the same dimensions.
+-
+-func NewTexturePool(budgetMB int) *TexturePool
+-    NewTexturePool creates a texture pool with the given memory budget in MB.
+-
+-func (tp *TexturePool) Acquire(w, h, samples uint32) *textureSet
+-    Acquire returns a textureSet matching the requested dimensions. If a
+-    matching set exists in the pool, it is reused. Otherwise nil is returned and
+-    the caller should create a new textureSet.
+-
+-func (tp *TexturePool) DestroyAll()
+-    DestroyAll releases all pooled textures.
+-
+-func (tp *TexturePool) EndFrame()
+-    EndFrame frees unused texture sets that were not acquired during this frame.
+-    Call this once per frame after all contexts have flushed.
+-
+-func (tp *TexturePool) EstimatedUsageMB() int
+-    EstimatedUsageMB returns the estimated GPU memory used by all pooled
+-    textures in MB.
+-
+-func (tp *TexturePool) PooledCount() int
+-    PooledCount returns the total number of texture sets currently in the pool
+-    (available for reuse, not currently in use).
+-
+-func (tp *TexturePool) Release(ts *textureSet, samples uint32)
+-    Release returns a textureSet to the pool for reuse. The caller must not
+-    use the textureSet after calling Release. The samples parameter is the MSAA
+-    sample count used when the texture was created (4 or 1).
+-
+-func (tp *TexturePool) ResetStats()
+-    ResetStats clears hit/miss counters.
+-
+-func (tp *TexturePool) SetBudget(mb int)
+-    SetBudget changes the memory budget. Excess textures are freed on EndFrame.
+-
+-func (tp *TexturePool) Stats() TexturePoolStats
+-    Stats returns pool counters.
+-
+-type TexturePoolStats struct {
+-	Hits      uint64
+-	Misses    uint64
+-	Releases  uint64
+-	EndFrames uint64
+-	Pooled    int
+-	UsageMB   int
+-	BudgetMB  int
+-}
+-
+ type TextureView struct {
+ 	// Has unexported fields.
+ }
+
+## render/internal/gpu/res
+--- /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/api/base-render-internal-gpu-res.txt	2026-10-30 17:24:41.939222944 +0800
++++ /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/api/render-internal-gpu-res.txt	2026-10-30 17:24:42.182226625 +0800
+@@ -24,36 +24,76 @@
+ 	// Has unexported fields.
+ }
+     Cache is a GrResourceCache-style pool: keyed reuse, byte budget with LRU
+-    eviction, and "in-flight items are never lent out" safety. Entries returned
+-    by Acquire are strong Refs; Release returns them to the pool. Over-budget
+-    idle entries are retired (destroyed once no longer in-flight).
+-
+-func NewCache(reg *Registry, create CreateFn, budget uint64) *Cache
+-    NewCache creates a cache bound to reg. budget==0 disables byte budgeting.
++    eviction, per-key idle cap, explicit idle purge, and "in-flight items are
++    never lent out" safety. Entries returned by Acquire are strong Refs; Release
++    returns them to the pool. Over-budget idle entries are retired (destroyed
++    once no longer in-flight).
++
++    Thread contract: one cache may be shared by several window threads on the
++    same device (shared filter/dualtex domains), so every method locks. Lock
++    order is cache → registry; the registry runs idle callbacks after releasing
++    its own lock, so the callback may re-enter the cache safely.
++
++func NewCache(owner Owner, create CreateFn, opt CacheOptions) *Cache
++    NewCache creates a cache whose entries are attributed to owner, so the
++    owning session's teardown releases exactly them from the device-level
++    registry.
+ 
+ func (c *Cache) Acquire(key CacheKey) (Ref, error)
+     Acquire returns a strong Ref for the key, reusing an idle pooled entry when
+     possible. In-flight or currently-referenced entries are never lent out.
+ 
++    The create callback runs WITHOUT the cache lock: real allocators invoke
++    the OOM purge chain (PurgeAcceleratorSurfaceResources → Cache.PurgeIdle),
++    which re-enters this cache. Holding the lock across create would deadlock.
++
+ func (c *Cache) Evictions() uint64
+-    Evictions returns the number of budget-driven retirements.
++    Evictions returns the number of budget/cap-driven retirements.
+ 
+ func (c *Cache) HitRate() (hits, misses uint64)
+     HitRate returns cache hit/miss counters (diagnostics / anti-fake-green).
+ 
+ func (c *Cache) InvalidateAll()
+-    InvalidateAll clears the pool without touching native resources (device loss
+-    path). Registry entries are dropped by Registry.InvalidateAll.
++    InvalidateAll clears the pool without touching native resources (device
++    loss path). Registry entries are dropped by Registry.InvalidateAll /
++    Owner.InvalidateOwned; counters stay for post-mortem diagnostics.
+ 
+ func (c *Cache) KeyOf(id uint32) (CacheKey, bool)
+     KeyOf returns the cache key for a registry id (diagnostics).
+ 
++func (c *Cache) PurgeIdle() (int, uint64)
++    PurgeIdle retires every idle pooled entry and returns how many were purged
++    and how many bytes were freed. Checked-out and in-flight entries are left
++    alone (they retire through their normal path). This is the OOM/purge outlet:
++    caches are drained before a device-wide fallback.
++
+ func (c *Cache) Release(ref Ref)
+     Release returns a Ref to the pool. The registry refcount is decremented;
+     the entry becomes recombinable when its last ref is gone and it is not
+     in-flight — the registry idle callback repools it at that point, so an entry
+     still referenced by a submitted command buffer waits for SubmitDone.
+ 
++func (c *Cache) ReleaseAll()
++    ReleaseAll force-releases every entry (native Release) and clears the cache.
++    Device-teardown path (healthy device): the device-abandon flow calls this
++    so pooled natives do not outlive the device. Device loss uses InvalidateAll
++    instead (no Release).
++
++func (c *Cache) ReleaseRetire(ref Ref)
++    ReleaseRetire drops ref and destroys the entry instead of returning it
++    to the pool. Used by owners whose resources may still be referenced by a
++    directly submitted (untracked) command buffer: hand-off to a pool could
++    reissue the same native while the GPU is not done, so they keep the
++    pre-pooling "destroy on release" contract.
++
++func (c *Cache) Stats() CacheStats
++    Stats returns a per-domain snapshot. Idle counts entries that are actually
++    sitting in a key bucket AND still reusable per the registry — the exact set
++    Acquire can lend and PurgeIdle can drain. Registry-only would over-report:
++    a hold cleared by the device-loss path leaves the entry reusable in the
++    registry but never queued in the cache, so it can no longer be lent. The
++    registry check runs outside the cache lock (lock order cache → registry).
++
+ type CacheKey struct {
+ 	W, H    uint32
+ 	Format  uint32 // opaque format tag; callers map to their own enum
+@@ -63,9 +103,98 @@
+ }
+     CacheKey identifies a reusable GPU resource class (GrResourceCache key).
+ 
++type CacheOptions struct {
++	// Name labels the domain in Stats ("" = unnamed).
++	Name string
++	// Budget caps estimated bytes of live+pooled entries; 0 disables.
++	Budget uint64
++	// SizeFn gives real per-resource bytes (nil = defaultEntryBytes).
++	SizeFn SizeFn
++	// MaxPerKey caps idle entries kept per key; 0 = unlimited. Overflow is
++	// retired immediately, so identical-size bursts cannot grow a bucket
++	// without bound.
++	MaxPerKey int
++}
++    CacheOptions configures one cache domain.
++
++type CacheStats struct {
++	Name      string
++	Hits      uint64
++	Misses    uint64
++	Evictions uint64
++	Purged    uint64
++	Entries   uint64
++	Idle      uint64
++	Bytes     uint64
++	PeakBytes uint64
++	Budget    uint64
++}
++    CacheStats is a per-domain snapshot (diagnostics / real-window JSON pool
++    section). Entries includes checked-out and pooled; Idle is pooled-and-idle.
++
+ type CreateFn func(key CacheKey) (Native, error)
+     CreateFn fabricates a native resource for a key (device.createTexture etc).
+ 
++type GateHandle struct {
++	// Has unexported fields.
++}
++    GateHandle is one outstanding hold. Resolve / Invalidate are idempotent:
++    the first caller that removes it from the gate does the work, later
++    ones no-op, so a token pump and a teardown path can both fire without
++    double-decrementing the in-flight counters.
++
++func (h *GateHandle) Invalidate()
++    Invalidate drops the hold without decrementing the in-flight counters — the
++    device-loss path, where no fence will ever arrive and the abandon flow owns
++    native teardown.
++
++func (h *GateHandle) Resolve()
++    Resolve completes the submission: every held entry leaves the in-flight
++    state, which is what finally lets a retired entry be destroyed and an idle
++    entry be re-lent. No-op on an unknown or already-resolved handle.
++
++type InflightGate struct {
++	// Has unexported fields.
++}
++    InflightGate holds pooled resources in flight for submissions that are NOT
++    framed by a Session (the filter and dual-tex caches submit straight to the
++    queue). It is the multi-outstanding counterpart to Submission: Submission is
++    one per-session window that opens at BeginFrame and closes at SubmitDone; a
++    device-level pool may have any number of command buffers in flight at once,
++    each with its own completion token.
++
++    Lifecycle: Hold(refs) before Queue.Submit → attach the returned GateHandle
++    to the hal.CompletionToken → Resolve once the token reports Done.
++    Retired entries cannot be destroyed and idle entries cannot be re-lent while
++    a handle holds them, which is exactly the race a size flip or purge could
++    otherwise hit: the pool hands a texture to window B while window A's copy of
++    it is still running on the GPU.
++
++    Thread-safe: a device-level pool is shared by every window thread on that
++    device, so submits and completions arrive concurrently.
++
++func NewInflightGate(reg *Registry) *InflightGate
++    NewInflightGate creates a gate bound to reg.
++
++func (g *InflightGate) Hold(refs ...Ref) *GateHandle
++    Hold marks every ref in flight and returns the handle that must be resolved
++    once the GPU reports the submission finished. Nil refs and refs from another
++    registry are skipped (same tolerance as Submission.Track).
++
++    The registry is never touched while the gate lock is held: in-flight
++    transitions can fire idle callbacks that re-enter a cache, and the lock
++    order is cache → gate → registry.
++
++func (g *InflightGate) InvalidateAll()
++    InvalidateAll drops every outstanding hold (device loss).
++
++func (g *InflightGate) Pending() int
++    Pending handles returns the number of unresolved holds (diagnostics).
++
++func (g *InflightGate) ResolveAll()
++    ResolveAll settles every outstanding hold (after an explicit device drain:
++    WaitIdle proved the GPU finished, so no token needs to be waited on).
++
+ type Kind uint8
+     Kind identifies the kind of GPU resource a handle refers to.
+ 
+@@ -82,6 +211,66 @@
+     Native abstracts a native GPU resource. Release must be called exactly once,
+     at the moment the resource is guaranteed safe to destroy.
+ 
++type Owner struct {
++	// Has unexported fields.
++}
++    Owner is an owner-scoped handle over the device-level Registry.
++    All registrations made through it are attributed to its id; ReleaseOwned /
++    InvalidateOwned drop exactly those entries.
++
++func (o Owner) Bind(key SourceKey, ref Ref)
++    Bind makes ref the current active instance of a role for this owner.
++    The previous bound instance (if any) is retired.
++
++func (o Owner) Count() int
++    Count returns the number of live entries owned by this owner.
++
++func (o Owner) ID() OwnerID
++    ID returns the owner id.
++
++func (o Owner) InvalidateOwned()
++    InvalidateOwned discards every entry and role owned by this owner WITHOUT
++    calling native Release — the device-abandon flow owns native teardown.
++    Used on device loss / AutoRecover.
++
++func (o Owner) IsNil() bool
++    IsNil reports whether the handle is unbound (zero value).
++
++func (o Owner) PendingReleaseCount() int
++    PendingReleaseCount returns how many of this owner's entries are retired but
++    still waiting for their last ref / in-flight submission (diagnostics).
++
++func (o Owner) Register(res Native) Ref
++    Register adds a native resource owned by this owner and returns a strong Ref
++    (refcount = 1).
++
++func (o Owner) RegisterBorrowed(res Native) Ref
++    RegisterBorrowed tracks a view owned outside the res system (texture cache
++    slots, swapchain views) under this owner. Removal never calls the native
++    Release — the external owner owns destruction.
++
++func (o Owner) Registry() *Registry
++    Registry returns the underlying registry.
++
++func (o Owner) ReleaseOwned()
++    ReleaseOwned force-releases every native entry owned by this owner and
++    drops its role bindings. Used on session teardown while the device is still
++    healthy (the GPU must be drained first) — NOT the device-loss path (use
++    InvalidateOwned there). Borrowed entries are dropped without Release.
++
++func (o Owner) Resolve(key SourceKey) (Ref, bool)
++    Resolve returns the current active instance for a role key owned by this
++    owner, incrementing its refcount (caller must Release the returned Ref).
++
++type OwnerID uint64
++    OwnerID identifies who owns registry entries. OwnerDevice (0) is the device
++    itself — shared pipelines/caches. Every render session allocates its own id
++    so a window close can drop exactly its entries from the one device-level
++    registry (Skia GrContext: one resource cache, N surfaces).
++
++const OwnerDevice OwnerID = 0
++    OwnerDevice is the device-wide owner (shared resources).
++
+ type Ref struct {
+ 	// Has unexported fields.
+ }
+@@ -95,13 +284,14 @@
+ type Registry struct {
+ 	// Has unexported fields.
+ }
+-    Registry maps ids to resources with reference counts. Ids are monotonic and
+-    never reused (uint64 semantics with uint32, no ABA problem). Actual native
+-    destruction is deferred until refs==0 && inflight==0 && retire, mirroring
+-    Skia command-buffer refs.
+-
+-    instance was unavailable (rebuilt mid-flush / device loss). The frame gate
+-    is ResolveMiss == 0 under resize storms.
++    Registry is one device's resource state machine, shared by every window
++    session on that device (Skia GrResourceCache). Ids are monotonic and never
++    reused (no ABA problem). Actual native destruction is deferred until refs==0
++    && inflight==0 && retire, mirroring Skia command-buffer refs.
++
++    All methods are safe for concurrent use: window sessions on the same device
++    may retire resources from different raster threads. Idle callbacks fire
++    outside the lock so they can safely re-enter the registry.
+ 
+ func NewRegistry() *Registry
+     NewRegistry creates an empty registry.
+@@ -110,13 +300,12 @@
+     Acquire increments the refcount of an existing entry and returns a new Ref.
+     Returns a nil Ref if the id is unknown.
+ 
+-func (r *Registry) Bind(key SourceKey, ref Ref)
+-    Bind makes ref the current active instance of a role. The previous bound
+-    instance (if any) is retired — it will be destroyed once unused.
+-
+ func (r *Registry) Count() int
+     Count returns the number of live entries (diagnostics).
+ 
++func (r *Registry) DeviceOwner() Owner
++    DeviceOwner returns the device-wide owner handle (shared resources).
++
+ func (r *Registry) ID(ref Ref) uint32
+     ID returns the registry id carried by the Ref (diagnostics / cache keys).
+ 
+@@ -129,35 +318,24 @@
+     NativeOf returns the native resource behind a Ref (diagnostics / tests).
+     Returns nil if the id is unknown or has been released.
+ 
++func (r *Registry) NewOwner() Owner
++    NewOwner allocates a fresh owner id and returns its handle.
++
+ func (r *Registry) PendingReleaseCount() int
+     PendingReleaseCount returns how many live entries are retired but still
+     waiting for their last ref / in-flight submission (diagnostics).
+ 
+-func (r *Registry) Register(res Native) Ref
+-    Register adds a native resource and returns a strong Ref (refcount = 1).
+-
+-func (r *Registry) RegisterBorrowed(res Native) Ref
+-    RegisterBorrowed tracks a view owned outside the res system (texture
+-    cache slots, swapchain views). The entry protects the reference from ABA /
+-    use-after-free bookkeeping exactly like Register, but removal never calls
+-    the native Release — the external owner owns destruction.
+-
+ func (r *Registry) Release(ref Ref)
+     Release decrements the refcount. The native resource is released only when
+     refs==0 && inflight==0 && retire (see removeIfReady).
+ 
+ func (r *Registry) ReleaseAll()
+     ReleaseAll force-releases every registered native resource and clears
+-    the registry. Used on session teardown while the device is still healthy
++    the registry. Used on device teardown while the device is still healthy
+     — NOT the device-loss path (use InvalidateAll there). Safe to call with
+     outstanding Refs: native Release is idempotent at the facade layer. Borrowed
+     entries are dropped without Release (their owner destroys them).
+ 
+-func (r *Registry) Resolve(key SourceKey) (Ref, bool)
+-    Resolve returns the current active instance for a role key, incrementing its
+-    refcount (caller must Release the returned Ref). Resolution happens at flush
+-    time; the resolved instance is by construction the current one.
+-
+ func (r *Registry) ResolveStats() (hits, misses uint64)
+     The frame gate is: ResolveMiss must stay 0 under resize — a miss means a
+     command resolved to a role whose active instance was unavailable.
+@@ -187,6 +365,10 @@
+ 	RoleFrameScratch
+ 	// RoleLayerRT is a pooled layer offscreen render target.
+ 	RoleLayerRT
++	// RoleFilterRT tags the GPU filter graph's pooled render targets. Like
++	// RoleLayerRT here it only discriminates a res.Cache key/bucket — it is
++	// never a deferred view source.
++	RoleFilterRT
+ 	// RoleCoverResult is a per-draw stencil-cover texture.
+ 	RoleCoverResult
+ 	// RoleAtlasPage is a glyph/MSDF atlas texture page.
+@@ -195,6 +377,10 @@
+ 	// (swapchain views, shared atlases). Tracked but never released here.
+ 	RoleExternal
+ )
++type SizeFn func(key CacheKey) uint64
++    SizeFn reports the byte size of a key's resource. Caches use it for real
++    budget accounting; nil falls back to defaultEntryBytes per entry.
++
+ type SourceKey struct {
+ 	Kind  Kind
+ 	Role  Role
+
+## 预期变化摘要
+- render/budget.go：BudgetTexturePool 更名 BudgetSurfacePool（语义=共享 surface trio 池）；新增 BudgetFilterGraph（8 条 / 128MiB，等价收敛前『3 乒乓 + publish 自由表 ≤4』）。常量净增 0（删 1 增 1，预算域 10→11）。
+- render 新增 GPU 池命中率探针出口：PoolDomainStats（+HitRate）、GPUPoolStatsFunc、Register/UnregisterGPUPoolStatsCollector、GPUPoolStats。
+- gpu/hal 新增 CompletionToken（Done/Wait）与 Queue.OnSubmittedWorkDone，供 res 闸门等直提完成。
+- res 侧：Cache 升为 GrResourceCache 形态（CacheOptions{Budget,SizeFn,MaxPerKey}、CacheStats、PurgeIdle、按域统计、SetIdleCallback 回池），新增 RoleFilterRT 与 InflightGate/GateHandle；Registry 设备级化（DeviceOwner/NewOwner、owner 分账、retireEntry/idleEntry、acquireIfIdle、releaseIDs）。
+- render/internal/gpu：TexturePool（手写同尺寸池）删除，五域（surface/stencil/offscreen/filter/dualtex）统一到 res.Cache；新增 directSubmit、surfaceCache 等导出面仅内部可见（go doc 不列未导出符号，预期为空变化）。

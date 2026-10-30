@@ -9,11 +9,11 @@ import "testing"
 func TestRegistry_ResolveTransientRefMustBeReleased(t *testing.T) {
 	reg := NewRegistry()
 	key := SourceKey{Kind: KindTextureView, Role: RoleSessionResolve}
-	ref := reg.Register(&fakeNative{tag: 1})
-	reg.Bind(key, ref)
+	ref := reg.DeviceOwner().Register(&fakeNative{tag: 1})
+	reg.DeviceOwner().Bind(key, ref)
 
 	// Resolve hands out a transient ref; the caller must Release it.
-	g1, ok := reg.Resolve(key)
+	g1, ok := reg.DeviceOwner().Resolve(key)
 	if !ok {
 		t.Fatal("resolve must succeed")
 	}
@@ -34,7 +34,7 @@ func TestRegistry_ResolveTransientRefMustBeReleased(t *testing.T) {
 
 func TestRegistry_ReleaseAndReacquireIndependentRefs(t *testing.T) {
 	reg := NewRegistry()
-	ref := reg.Register(&fakeNative{tag: 1})
+	ref := reg.DeviceOwner().Register(&fakeNative{tag: 1})
 
 	extra := reg.Acquire(ref.id)
 	if reg.slots[ref.id].refs != 2 {
@@ -56,20 +56,20 @@ func TestRegistry_ReleaseAndReacquireIndependentRefs(t *testing.T) {
 func TestRegistry_InvalidateThenReuse(t *testing.T) {
 	reg := NewRegistry()
 	key := SourceKey{Kind: KindTextureView, Role: RoleFrameScratch}
-	ref := reg.Register(&fakeNative{tag: 1})
-	reg.Bind(key, ref)
+	ref := reg.DeviceOwner().Register(&fakeNative{tag: 1})
+	reg.DeviceOwner().Bind(key, ref)
 
 	reg.InvalidateAll() // device loss
 	if reg.Count() != 0 {
 		t.Fatalf("expected empty registry, got %d", reg.Count())
 	}
-	if _, ok := reg.Resolve(key); ok {
+	if _, ok := reg.DeviceOwner().Resolve(key); ok {
 		t.Fatal("resolve after invalidation must fail")
 	}
 	// Re-register on the recovered device.
-	ref2 := reg.Register(&fakeNative{tag: 2})
-	reg.Bind(key, ref2)
-	if _, ok := reg.Resolve(key); !ok {
+	ref2 := reg.DeviceOwner().Register(&fakeNative{tag: 2})
+	reg.DeviceOwner().Bind(key, ref2)
+	if _, ok := reg.DeviceOwner().Resolve(key); !ok {
 		t.Fatal("resolve after re-register must succeed")
 	}
 	reg.Release(ref2)
@@ -83,7 +83,7 @@ func TestSubmission_DoubleTrackSingleSubmitDone(t *testing.T) {
 	reg := NewRegistry()
 	sub := NewSubmission(reg)
 	f := &fakeNative{tag: 1}
-	ref := reg.Register(f)
+	ref := reg.DeviceOwner().Register(f)
 	reg.Retire(ref)
 
 	sub.Track(ref)
@@ -105,7 +105,7 @@ func TestSubmission_DoubleTrackSingleSubmitDone(t *testing.T) {
 
 func TestCache_InvalidateThenAcquire(t *testing.T) {
 	reg := NewRegistry()
-	c := NewCache(reg, func(k CacheKey) (Native, error) { return &fakeNative{tag: 1}, nil }, 0)
+	c := NewCache(reg.DeviceOwner(), func(k CacheKey) (Native, error) { return &fakeNative{tag: 1}, nil }, CacheOptions{})
 	k := CacheKey{W: 4, H: 4, Role: RoleLayerRT}
 	r1, err := c.Acquire(k)
 	if err != nil {
@@ -137,10 +137,10 @@ func TestRegistry_ResolveStatsCountsHitsAndMisses(t *testing.T) {
 	}
 
 	key := SourceKey{Kind: KindTextureView, Role: RoleSessionResolve}
-	ref := reg.Register(&fakeNative{tag: 1})
-	reg.Bind(key, ref)
+	ref := reg.DeviceOwner().Register(&fakeNative{tag: 1})
+	reg.DeviceOwner().Bind(key, ref)
 
-	r1, ok := reg.Resolve(key)
+	r1, ok := reg.DeviceOwner().Resolve(key)
 	if !ok {
 		t.Fatal("resolve must succeed after bind")
 	}
@@ -151,7 +151,7 @@ func TestRegistry_ResolveStatsCountsHitsAndMisses(t *testing.T) {
 	}
 
 	// Miss: unresolvable key → miss counter increments.
-	if _, ok := reg.Resolve(SourceKey{Kind: KindTextureView, Role: RoleAtlasPage, Index: 9}); ok {
+	if _, ok := reg.DeviceOwner().Resolve(SourceKey{Kind: KindTextureView, Role: RoleAtlasPage, Index: 9}); ok {
 		t.Fatal("unbound role must not resolve")
 	}
 	h, m = reg.ResolveStats()
@@ -160,9 +160,9 @@ func TestRegistry_ResolveStatsCountsHitsAndMisses(t *testing.T) {
 	}
 
 	// Miss: retired bound instance (rebuild replaced it mid-flush).
-	ref2 := reg.Register(&fakeNative{tag: 2})
-	reg.Bind(key, ref2) // ref retired
-	if _, ok := reg.Resolve(key); !ok {
+	ref2 := reg.DeviceOwner().Register(&fakeNative{tag: 2})
+	reg.DeviceOwner().Bind(key, ref2) // ref retired
+	if _, ok := reg.DeviceOwner().Resolve(key); !ok {
 		t.Fatal("resolving the new bound instance must succeed")
 	}
 	h, m = reg.ResolveStats()
@@ -175,10 +175,10 @@ func TestRegistry_ResolveStatsCountsHitsAndMisses(t *testing.T) {
 
 func TestCache_ReleaseUnknownRefNoPanic(t *testing.T) {
 	reg := NewRegistry()
-	c := NewCache(reg, func(k CacheKey) (Native, error) { return &fakeNative{}, nil }, 0)
+	c := NewCache(reg.DeviceOwner(), func(k CacheKey) (Native, error) { return &fakeNative{}, nil }, CacheOptions{})
 	// A ref not tracked by this cache: Release must not panic (falls through
 	// to the registry).
-	ref := reg.Register(&fakeNative{tag: 9})
+	ref := reg.DeviceOwner().Register(&fakeNative{tag: 9})
 	c.Release(ref)
 	reg.Release(ref)
 }

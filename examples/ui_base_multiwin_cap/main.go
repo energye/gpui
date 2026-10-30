@@ -650,6 +650,17 @@ func main() {
 		if cpuFallback > 0 {
 			fail("cpu_fallback_ops_total=%d want 0", cpuFallback)
 		}
+		// P2.4d 复用探针：同尺寸 8 窗共用一个设备级 surface 池。并发窗各自
+		// 持强引用（D1：同一块 native 不能借给两个窗），所以稳态命中本来就
+		// 不会随窗数增长——本窗要证的是「8 个窗都从这个池分配（misses≥8）」
+		// 与「池确实回桶再借出过（device-surface 至少 1 次命中）」，而不是
+		// 拿一个和并发结构无关的命中总数装绿。
+		if err := wrgate.EvaluatePoolGates(report, wrgate.GateOptions{
+			MinPoolMisses:         8,
+			RequirePoolHitDomains: []string{"device-surface"},
+		}); err != nil {
+			fail("%v", err)
+		}
 		if pixelOK != pixelTotal {
 			fail("pixel probes %d/%d bad=%v", pixelOK, pixelTotal, pixelBad)
 		}

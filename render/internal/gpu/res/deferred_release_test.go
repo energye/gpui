@@ -23,10 +23,10 @@ func TestSessionRetireSequence_GatedBySubmitDone(t *testing.T) {
 	sub := NewSubmission(reg)
 	f := &fakeNative{tag: 1}
 
-	ref := reg.Register(f) // refs=1 (usage ref owned by the caller)
-	sub.Track(ref)         // inflight=1 (current submission references it)
-	reg.Release(ref)       // refs=0, inflight=1 → still alive
-	reg.Retire(ref)        // retire requested while in flight
+	ref := reg.DeviceOwner().Register(f) // refs=1 (usage ref owned by the caller)
+	sub.Track(ref)                       // inflight=1 (current submission references it)
+	reg.Release(ref)                     // refs=0, inflight=1 → still alive
+	reg.Retire(ref)                      // retire requested while in flight
 	if f.released != 0 {
 		t.Fatalf("released before SubmitDone: %d", f.released)
 	}
@@ -57,7 +57,7 @@ func TestIdleCallback_FiresOnlyWhenRefsAndInflightClear(t *testing.T) {
 	reg := NewRegistry()
 	sub := NewSubmission(reg)
 	f := &fakeNative{tag: 1}
-	ref := reg.Register(f)
+	ref := reg.DeviceOwner().Register(f)
 	idle := 0
 	reg.SetIdleCallback(reg.ID(ref), func() { idle++ })
 
@@ -79,7 +79,7 @@ func TestIdleCallback_FiresOnlyWhenRefsAndInflightClear(t *testing.T) {
 func TestIdleCallback_SkippedForRetiredEntry(t *testing.T) {
 	reg := NewRegistry()
 	f := &fakeNative{tag: 1}
-	ref := reg.Register(f)
+	ref := reg.DeviceOwner().Register(f)
 	idle := 0
 	reg.SetIdleCallback(reg.ID(ref), func() { idle++ })
 
@@ -100,7 +100,7 @@ func TestSubmissionInvalidate_NoNativeRelease(t *testing.T) {
 	reg := NewRegistry()
 	sub := NewSubmission(reg)
 	f := &fakeNative{tag: 1}
-	ref := reg.Register(f)
+	ref := reg.DeviceOwner().Register(f)
 	sub.Track(ref)
 	reg.Release(ref)
 	reg.Retire(ref)

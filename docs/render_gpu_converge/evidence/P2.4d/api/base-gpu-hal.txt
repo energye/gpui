@@ -1,0 +1,2196 @@
+package hal // import "github.com/energye/gpui/gpu/hal"
+
+Package hal provides the Hardware Abstraction Layer for WebGPU implementations.
+
+The HAL defines backend-agnostic interfaces for GPU operations,
+allowing different graphics backends (Vulkan, Metal, DX12, GL) to be used
+interchangeably.
+
+# Architecture
+
+The HAL is organized into several layers:
+
+ 1. Backend - Factory for creating instances (entry point)
+ 2. Instance - Entry point for adapter enumeration and surface creation
+ 3. Adapter - Physical GPU representation with capability queries
+ 4. Device - Logical device for resource creation and command submission
+ 5. Queue - Command buffer submission and presentation
+ 6. CommandEncoder - Command recording
+
+# Validation Contract
+
+The HAL follows a defense-in-depth validation pattern:
+
+  - The core layer performs exhaustive spec-level validation BEFORE calling HAL
+    methods. This includes dimension checks, format validation, usage flags,
+    mip levels, sample counts, and all WebGPU spec rules.
+
+  - HAL methods assume their input has been validated by core. They do NOT
+    re-validate spec rules (size > 0, valid format, usage checks, etc.).
+
+  - HAL methods DO retain nil/null pointer checks as defense-in-depth guards.
+    These checks use a "BUG:" prefix in their error messages to indicate that
+    they should never fire in normal operation. If a "BUG:" error is returned,
+    it means the core validation layer has a gap that must be fixed.
+
+  - Example BUG error: "BUG: buffer descriptor is nil in Vulkan.CreateBuffer —
+    core validation gap"
+
+This contract ensures:
+  - No redundant validation between core and HAL (single source of truth)
+  - No panics from nil pointer dereferences (safety-critical)
+  - Clear diagnostics when core validation is incomplete
+
+# Resource Types
+
+All GPU resources (buffers, textures, pipelines, etc.) implement the Resource
+interface which provides a Destroy method. Resources must be explicitly
+destroyed to free GPU memory.
+
+# Backend Registration
+
+Backends register themselves using RegisterBackend. The core layer can then
+query available backends and create instances dynamically:
+
+    backend, ok := hal.GetBackend(types.BackendVulkan)
+    if !ok {
+    	return fmt.Errorf("vulkan backend not available")
+    }
+    instance, err := backend.CreateInstance(desc)
+
+# Thread Safety
+
+Unless explicitly stated, HAL interfaces are not thread-safe. Synchronization is
+the caller's responsibility. Notable exceptions:
+
+  - Backend registration (RegisterBackend, GetBackend) is thread-safe
+  - Queue.Submit is typically thread-safe (backend-specific)
+
+# Error Handling
+
+The HAL uses error values for unrecoverable errors:
+
+  - ErrDeviceOutOfMemory - GPU memory exhausted
+  - ErrDeviceLost - GPU disconnected or driver reset
+  - ErrSurfaceLost - Window destroyed or surface invalidated
+  - ErrSurfaceOutdated - Window resized, need reconfiguration
+
+Validation errors (invalid descriptors, incorrect usage) are the core
+layer's responsibility and are not checked by the HAL. HAL nil checks are
+defense-in-depth only, prefixed with "BUG:" to signal a core validation gap.
+
+# Reference
+
+CONSTANTS
+
+const (
+	PresentModeImmediate   = gputypes.PresentModeImmediate
+	PresentModeMailbox     = gputypes.PresentModeMailbox
+	PresentModeFifo        = gputypes.PresentModeFifo
+	PresentModeFifoRelaxed = gputypes.PresentModeFifoRelaxed
+)
+    PresentMode constants re-exported for convenience.
+
+const (
+	CompositeAlphaModeAuto            = gputypes.CompositeAlphaModeAuto
+	CompositeAlphaModeOpaque          = gputypes.CompositeAlphaModeOpaque
+	CompositeAlphaModePremultiplied   = gputypes.CompositeAlphaModePremultiplied
+	CompositeAlphaModeUnpremultiplied = gputypes.CompositeAlphaModeUnpremultiplied
+	CompositeAlphaModeInherit         = gputypes.CompositeAlphaModeInherit
+)
+    CompositeAlphaMode constants re-exported for convenience.
+
+const (
+	StencilOperationKeep           = gputypes.StencilOperationKeep
+	StencilOperationZero           = gputypes.StencilOperationZero
+	StencilOperationReplace        = gputypes.StencilOperationReplace
+	StencilOperationInvert         = gputypes.StencilOperationInvert
+	StencilOperationIncrementClamp = gputypes.StencilOperationIncrementClamp
+	StencilOperationDecrementClamp = gputypes.StencilOperationDecrementClamp
+	StencilOperationIncrementWrap  = gputypes.StencilOperationIncrementWrap
+	StencilOperationDecrementWrap  = gputypes.StencilOperationDecrementWrap
+)
+    StencilOperation constants re-exported for convenience.
+
+const (
+	VramSamplerBytes  = 4 * 1024
+	VramPipelineBytes = 64 * 1024
+)
+    Fixed estimates for objects without extents. Samplers are tiny driver
+    handles; pipelines hold compiled shaders (tens of KB). Exact driver cost is
+    opaque — these exist so the ledger has no blind categories, not to predict
+    the heap to the byte. All far below the 768MB budget, so normal windows
+    never trip on them; only runaway creation does.
+
+const MaxColorAttachments = 8
+    MaxColorAttachments is the WebGPU specification limit for the number of
+    color attachments per render pass.
+
+const MaxTotalAttachments = MaxColorAttachments*2 + 1
+    MaxTotalAttachments is the maximum number of Vulkan attachments in a
+    single render pass: up to 8 color + 8 resolve (one per color for MSAA) + 1
+    depth/stencil.
+
+
+VARIABLES
+
+var (
+	// ErrBackendNotFound indicates the requested backend is not registered.
+	ErrBackendNotFound = errors.New("hal: backend not found")
+	// ErrDeviceOutOfMemory indicates the GPU has exhausted its memory.
+	// This is unrecoverable - the application should reduce resource usage
+	// or gracefully terminate.
+	ErrDeviceOutOfMemory = errors.New("hal: device out of memory")
+
+	// ErrDeviceLost indicates the GPU device has been lost.
+	// This can happen due to:
+	//   - GPU driver crash or reset
+	//   - GPU hardware disconnection
+	//   - Driver timeout (TDR on Windows)
+	// The device cannot be recovered and must be recreated.
+	ErrDeviceLost = errors.New("hal: device lost")
+
+	// ErrSurfaceLost indicates the rendering surface has been destroyed.
+	// This typically happens when the window is closed.
+	// The surface cannot be recovered - create a new one if needed.
+	ErrSurfaceLost = errors.New("hal: surface lost")
+
+	// ErrSurfaceOutdated indicates the surface configuration is stale.
+	// This happens when:
+	//   - Window was resized
+	//   - Display mode changed
+	//   - Surface pixel format changed
+	// Call Surface.Configure again with updated parameters.
+	ErrSurfaceOutdated = errors.New("hal: surface outdated")
+
+	// ErrTimeout indicates an operation timed out.
+	// This is typically returned by Wait operations.
+	ErrTimeout = errors.New("hal: timeout")
+
+	// ErrNotReady indicates the resource is not ready yet.
+	// For AcquireTexture, this means no image is available right now.
+	// The caller should skip this frame and try again next frame.
+	// This is NOT an error - it's a normal condition for non-blocking acquire.
+	ErrNotReady = errors.New("hal: not ready")
+
+	// ErrZeroArea indicates that both surface width and height must be non-zero.
+	// This error is returned by Surface.Configure when the window has zero area.
+	// Wait to recreate the surface until the window has non-zero area.
+	// This commonly happens when:
+	//   - Window is minimized
+	//   - Window is not yet fully visible (timing issue on macOS)
+	//   - Invalid dimensions passed to Configure
+	ErrZeroArea = errors.New("hal: surface width and height must be non-zero")
+
+	// ErrTimestampsNotSupported indicates the backend does not support timestamp queries.
+	// This is returned by CreateQuerySet when QueryTypeTimestamp is requested
+	// on backends that lack GPU timestamp support (e.g., Software, Noop, GLES without
+	// GL_EXT_disjoint_timer_query).
+	ErrTimestampsNotSupported = errors.New("hal: timestamp queries not supported by this backend")
+
+	// ErrDriverBug indicates the GPU driver returned an invalid or unexpected result
+	// that violates the graphics API specification. This typically indicates a
+	// driver bug rather than an application error.
+	//
+	// Known cases:
+	//   - Intel Iris Xe: vkCreateGraphicsPipelines returns VK_SUCCESS but writes
+	//     VK_NULL_HANDLE to pipeline output (Vulkan spec violation)
+	//
+	// The operation cannot be completed. Possible workarounds:
+	//   - Update GPU driver to latest version
+	//   - Use a different backend (e.g., DX12 instead of Vulkan)
+	//   - Use software rendering backend
+	//
+	// See: https://github.com/gogpu/wgpu/issues/24
+	ErrDriverBug = errors.New("hal: driver bug detected (API spec violation)")
+
+	// ErrInvalidMapRange indicates MapBuffer was called with an offset+size
+	// range that exceeds the buffer, or the buffer has no host-visible memory
+	// so it cannot be mapped on the CPU.
+	ErrInvalidMapRange = errors.New("hal: invalid buffer map range or non-mappable buffer")
+)
+    Common HAL errors representing unrecoverable GPU states.
+
+var ErrUnsupportedSurfaceTarget = errors.New("hal: unsupported surface target")
+    ErrUnsupportedSurfaceTarget indicates that a HAL backend cannot create a
+    surface for the supplied platform target kind.
+
+
+FUNCTIONS
+
+func AvailableBackends() []gputypes.Backend
+    AvailableBackends returns all registered backend gputypes. The order is
+    non-deterministic.
+
+func Logger() *slog.Logger
+    Logger returns the current logger used by the wgpu HAL layer.
+    Backend packages call this to share the same logger configuration without
+    introducing import cycles.
+
+    Logger is safe for concurrent use.
+
+func RecordIndirectCountMax(
+	record IndirectCountRecorder,
+	buffer Buffer,
+	offset uint64,
+	countBuffer Buffer,
+	countOffset uint64,
+	maxDrawCount uint32,
+)
+    RecordIndirectCountMax records an indirect draw using maxDrawCount when the
+    backend cannot consume a GPU-provided count buffer.
+
+func RegisterBackend(backend Backend)
+    RegisterBackend registers a backend implementation. This is typically called
+    from init() functions in backend packages. Registering the same backend type
+    multiple times will replace the previous registration.
+
+func RegisterBackendFactory(variant gputypes.Backend, factory BackendFactory)
+    RegisterBackendFactory registers a factory for lazy backend creation. This
+    is preferred over RegisterBackend for backends that may fail initialization
+    (e.g., missing GPU drivers).
+
+func SetLogger(l *slog.Logger)
+    SetLogger configures the logger for the wgpu HAL layer and all backends
+    (Vulkan, DX12, GLES, Metal, Software). By default, wgpu produces no log
+    output. Call SetLogger to enable logging.
+
+    SetLogger is safe for concurrent use: it stores the new logger atomically.
+    Pass nil to disable logging (restore default silent behavior).
+
+    Log levels used by wgpu:
+      - slog.LevelDebug: internal diagnostics (buffer copies, texture uploads)
+      - slog.LevelInfo: important lifecycle events (debug layer attached)
+      - slog.LevelWarn: non-fatal issues (debug layer fallback, device errors)
+      - slog.LevelError: critical issues (device removed, validation errors)
+
+    Example:
+
+        // Enable info-level logging to stderr:
+        hal.SetLogger(slog.Default())
+
+        // Enable debug-level logging for full diagnostics:
+        hal.SetLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+            Level: slog.LevelDebug,
+        })))
+
+func VramAdd(handle uintptr, need uint64)
+    VramAdd records a live allocation. Call only after native success. CPU-only
+    sessions skip the ledger (see VramCheck); refund stays unconditional so a
+    mode flip between create and release never leaks.
+
+func VramBudgetMB() int64
+    VramBudgetMB exposes the process VRAM budget (GPUI_VRAM_BUDGET_MB, default
+    768, 0 = disabled) so upper layers can derive watermarks from the same
+    number the gate enforces — one budget, no second constant.
+
+func VramCheck(op string, need uint64) error
+    VramCheck charges need bytes against the budget. Nil return means go ahead
+    and call native; non-nil is an OOM error shaped for IsGPUOutOfMemory and
+    render.IsGPUOutOfMemory (both match "out of memory"/"not enough memory").
+    CPU-only sessions (standalone probe contexts) draw nothing to the window
+    device and must not consume its budget: their allocs free almost immediately
+    and double-count against the window's headroom.
+
+func VramForget(handle uintptr)
+    VramForget refunds an allocation. Idempotent; safe to call from both Destroy
+    and a following Release (the second is a no-op).
+
+func VramLiveBytes() uint64
+    VramLiveBytes reports the ledger total for diagnostics and tests.
+
+func VramLiveCount() int
+    VramLiveCount reports how many allocations the ledger tracks.
+
+func VramPeakBytes() uint64
+    VramPeakBytes reports the high-water mark since process start (or the last
+    VramTestReset), for post-fix measurement via WR_MEMDIG.
+
+func VramSurfaceBytes(w, h uint32, f types.TextureFormat) uint64
+    VramSurfaceBytes estimates one swapchain surface allocation: the driver
+    backs Configure(w,h) with at least one presented frame (single-sample).
+
+func VramTestAdd(handle uintptr, need uint64)
+    VramTestAdd records a synthetic live entry. Test-only companion to
+    VramTestReset (bypasses the cpu-mode skip so tests are hermetic).
+
+func VramTestReset()
+    VramTestReset clears the ledger. Test-only: lets render waterline tests seed
+    exact live totals without a GPU.
+
+func VramTextureBytes(size types.Extent3D, layers, mips, samples uint32, f types.TextureFormat) uint64
+    VramTextureBytes estimates one texture in bytes: extent × layers × samples ×
+    bytes-per-texel, with a 4/3 mip-chain factor when mipmapped.
+
+
+TYPES
+
+type AccelerationStructure interface {
+	Resource
+	NativeHandle
+}
+    AccelerationStructure represents a GPU acceleration structure (BLAS or
+    TLAS).
+
+type AccelerationStructureAABBs struct {
+	Buffer Buffer
+	Offset uint32
+	Count  uint32
+	Stride uint64
+	Flags  gputypes.AccelerationStructureGeometryFlags
+}
+    AccelerationStructureAABBs describes AABB geometry for BLAS build.
+
+type AccelerationStructureBarrier struct {
+	Usage AccelerationStructureUsageTransition
+}
+    AccelerationStructureBarrier defines an AS state transition.
+
+type AccelerationStructureBuildMode uint8
+    AccelerationStructureBuildMode selects full build vs incremental update.
+
+const (
+	AccelerationStructureBuildModeBuild AccelerationStructureBuildMode = iota
+	AccelerationStructureBuildModeUpdate
+)
+type AccelerationStructureBuildSizes struct {
+	AccelerationStructureSize uint64
+	UpdateScratchSize         uint64
+	BuildScratchSize          uint64
+}
+    AccelerationStructureBuildSizes contains the sizes needed for AS build.
+
+type AccelerationStructureDescriptor struct {
+	Label           string
+	Size            uint64
+	Format          AccelerationStructureFormat
+	AllowCompaction bool
+}
+    AccelerationStructureDescriptor describes an acceleration structure to
+    create.
+
+type AccelerationStructureEntries struct {
+	Instances *AccelerationStructureInstances
+	Triangles []AccelerationStructureTriangles
+	AABBs     []AccelerationStructureAABBs
+}
+    AccelerationStructureEntries is a discriminated union of build input
+    geometry. Exactly one field must be set.
+
+type AccelerationStructureFormat uint8
+    AccelerationStructureFormat distinguishes BLAS from TLAS at the HAL level.
+
+const (
+	AccelerationStructureFormatTopLevel AccelerationStructureFormat = iota
+	AccelerationStructureFormatBottomLevel
+)
+type AccelerationStructureInstances struct {
+	Buffer Buffer
+	Offset uint32
+	Count  uint32
+}
+    AccelerationStructureInstances describes instance data for TLAS build.
+
+type AccelerationStructureTriangleIndices struct {
+	Format gputypes.IndexFormat
+	Buffer Buffer
+	Offset uint32
+	Count  uint32
+}
+    AccelerationStructureTriangleIndices describes index data for triangle
+    geometry.
+
+type AccelerationStructureTriangleTransform struct {
+	Buffer Buffer
+	Offset uint32
+}
+    AccelerationStructureTriangleTransform describes transform data for triangle
+    geometry.
+
+type AccelerationStructureTriangles struct {
+	VertexBuffer Buffer
+	VertexFormat gputypes.VertexFormat
+	FirstVertex  uint32
+	VertexCount  uint32
+	VertexStride uint64
+	Indices      *AccelerationStructureTriangleIndices
+	Transform    *AccelerationStructureTriangleTransform
+	Flags        gputypes.AccelerationStructureGeometryFlags
+}
+    AccelerationStructureTriangles describes triangle geometry for BLAS build.
+
+type AccelerationStructureUsageTransition struct {
+	OldUsage AccelerationStructureUses
+	NewUsage AccelerationStructureUses
+}
+    AccelerationStructureUsageTransition defines an AS usage state transition.
+
+type AccelerationStructureUses uint8
+    AccelerationStructureUses is a bitflag for AS usage state transitions.
+
+const (
+	AccelerationStructureUsesBuildInput  AccelerationStructureUses = 0x01
+	AccelerationStructureUsesBuildOutput AccelerationStructureUses = 0x02
+	AccelerationStructureUsesShaderInput AccelerationStructureUses = 0x04
+	AccelerationStructureUsesQueryInput  AccelerationStructureUses = 0x08
+	AccelerationStructureUsesCopySrc     AccelerationStructureUses = 0x10
+	AccelerationStructureUsesCopyDst     AccelerationStructureUses = 0x20
+)
+type AcquiredSurfaceTexture struct {
+	// Texture is the acquired surface texture.
+	Texture SurfaceTexture
+
+	// Suboptimal indicates the surface configuration is suboptimal but usable.
+	// Consider reconfiguring the surface at a convenient time.
+	Suboptimal bool
+}
+    AcquiredSurfaceTexture bundles a surface texture with metadata.
+
+type Adapter interface {
+	// Open opens a logical device with the requested features and limits.
+	// Returns an error if the adapter cannot support the requested configuration.
+	Open(features gputypes.Features, limits gputypes.Limits) (OpenDevice, error)
+
+	// TextureFormatCapabilities returns capabilities for a specific texture format.
+	TextureFormatCapabilities(format gputypes.TextureFormat) TextureFormatCapabilities
+
+	// Info returns adapter metadata.
+	Info() gputypes.AdapterInfo
+
+	// Features returns supported features.
+	Features() gputypes.Features
+
+	// Limits returns the adapter's resource limits.
+	Limits() gputypes.Limits
+
+	// RequestDevice creates a logical device from this adapter.
+	// If desc is nil, default features and limits are used.
+	// Queue is accessible via the returned Device.Queue().
+	RequestDevice(desc *DeviceDescriptor) (Device, error)
+
+	// GetSurfaceCapabilities returns capabilities for a specific surface.
+	// Returns nil if the adapter is not compatible with the surface.
+	GetSurfaceCapabilities(surface Surface) *SurfaceCapabilities
+
+	// Release releases the adapter.
+	// Any devices created from this adapter must be destroyed first.
+	Release()
+}
+    Adapter represents a physical GPU. Adapters are enumerated from instances
+    and provide capability queries.
+
+type Alignments struct {
+	// BufferCopyOffset is the required alignment for buffer copy offsets.
+	BufferCopyOffset uint64
+
+	// BufferCopyPitch is the required alignment for buffer copy pitch (bytes per row).
+	BufferCopyPitch uint64
+
+	// RawTlasInstanceSize is the per-backend packed instance size in bytes (Vulkan=64, DX12=64, Metal=64).
+	RawTlasInstanceSize uint32
+
+	// RayTracingScratchBufferAlignment is the required alignment for AS scratch buffers.
+	RayTracingScratchBufferAlignment uint32
+}
+    Alignments specifies buffer alignment requirements.
+
+type Backend interface {
+	// Variant returns the backend type identifier.
+	Variant() gputypes.Backend
+
+	// CreateInstance creates a new GPU instance with the given configuration.
+	// Returns an error if instance creation fails (e.g., drivers not available).
+	CreateInstance(desc *InstanceDescriptor) (Instance, error)
+}
+    Backend identifies a graphics backend implementation. Backends are
+    registered globally and provide factory methods for instances.
+
+func CreateBackend(variant gputypes.Backend) (Backend, error)
+    CreateBackend creates a backend instance using registered factory. Returns
+    error if no factory is registered for the variant.
+
+func GetBackend(variant gputypes.Backend) (Backend, bool)
+    GetBackend returns a registered backend by type. Returns (nil, false) if the
+    backend is not registered.
+
+func SelectBestBackend() (Backend, error)
+    SelectBestBackend chooses the most capable available backend. Priority:
+    Vulkan > Metal > DX12 > OpenGL > Noop
+
+type BackendFactory func() (Backend, error)
+    BackendFactory creates backend instances. This allows lazy initialization of
+    backends.
+
+type BackendFeatures struct {
+	// SupportsCompute indicates compute shader support.
+	SupportsCompute bool
+
+	// SupportsMultiQueue indicates multiple queue support.
+	SupportsMultiQueue bool
+
+	// SupportsRayTracing indicates ray tracing support.
+	SupportsRayTracing bool
+
+	// MaxTextureSize is the maximum texture dimension.
+	MaxTextureSize uint32
+
+	// MaxBufferSize is the maximum buffer size.
+	MaxBufferSize uint64
+}
+    BackendFeatures describes capabilities of a backend.
+
+type BackendInfo struct {
+	// Variant identifies the backend type.
+	Variant gputypes.Backend
+
+	// Name is a human-readable backend name.
+	Name string
+
+	// Version of the backend implementation.
+	Version string
+
+	// Features supported by this backend.
+	Features BackendFeatures
+
+	// Limitations of this backend.
+	Limitations BackendLimitations
+}
+    BackendInfo provides metadata about a backend implementation.
+
+func ProbeBackend(variant gputypes.Backend) (*BackendInfo, error)
+    ProbeBackend tests if a backend is available without fully initializing it.
+    Returns BackendInfo if available, error otherwise.
+
+type BackendLimitations struct {
+	// NoAsyncCompute means compute must run on graphics queue.
+	NoAsyncCompute bool
+
+	// LimitedFormats means some texture formats unavailable.
+	LimitedFormats bool
+
+	// NoBindlessResources means bindless not supported.
+	NoBindlessResources bool
+}
+    BackendLimitations describes known limitations.
+
+type BindGroup interface {
+	Resource
+}
+    BindGroup represents bound resources. Bind groups associate actual resources
+    with bind group layouts.
+
+type BindGroupDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// Layout is the bind group layout.
+	Layout BindGroupLayout
+
+	// Entries are the resource bindings.
+	// Canonical hal shape: []BindGroupEntry above.
+	// gputypes.BindGroupEntry (uintptr 柄形) remains for gwgpu internal
+	// use until H4收敛, see gpu/types/binding.go:106.
+	Entries []BindGroupEntry
+}
+    BindGroupDescriptor describes a bind group.
+
+type BindGroupEntry struct {
+	Binding uint32
+
+	// Buffer binds a buffer range (nil if not a buffer binding).
+	Buffer Buffer
+
+	// Offset is the byte offset into the buffer.
+	Offset uint64
+
+	// Size is the byte size of the binding (0 for entire buffer from offset).
+	Size uint64
+
+	// Sampler binds a sampler (nil if not a sampler binding).
+	Sampler Sampler
+
+	// TextureView binds a texture view (nil if not a texture binding).
+	TextureView TextureView
+}
+    BindGroupEntry describes a single resource binding in a bind group.
+    Canonical hal shape (片5, 以旧 webgpu 扁平形为准: Binding/Buffer/Offset/Size/
+    Sampler/TextureView), 类型提取为 hal 接口以避免 webgpu 循环引用. Exactly one of Buffer,
+    Sampler, TextureView should be set.
+
+type BindGroupLayout interface {
+	Resource
+}
+    BindGroupLayout defines the layout of a bind group. Layouts specify the
+    structure of resource bindings for shaders.
+
+type BindGroupLayoutDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// Entries define the bindings in this layout.
+	Entries []gputypes.BindGroupLayoutEntry
+}
+    BindGroupLayoutDescriptor describes a bind group layout.
+
+type Buffer interface {
+	Resource
+	NativeHandle
+
+	// Size returns the buffer size in bytes.
+	Size() uint64
+
+	// Usage returns the buffer's usage flags.
+	Usage() gputypes.BufferUsage
+
+	// Label returns the buffer's debug label.
+	Label() string
+}
+    Buffer represents a GPU buffer. Buffers are contiguous memory regions
+    accessible by the GPU.
+
+type BufferBarrier struct {
+	Buffer Buffer
+	Usage  BufferUsageTransition
+}
+    BufferBarrier defines a buffer state transition.
+
+type BufferDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// Size in bytes.
+	Size uint64
+
+	// Usage specifies how the buffer will be used.
+	Usage gputypes.BufferUsage
+
+	// MappedAtCreation creates the buffer pre-mapped for writing.
+	MappedAtCreation bool
+}
+    BufferDescriptor describes how to create a buffer.
+
+type BufferMapping struct {
+	// Ptr is the host-visible pointer to the start of the mapped range.
+	// Never nil on success.
+	Ptr unsafe.Pointer
+
+	// IsCoherent indicates whether the underlying memory is coherent
+	// with GPU writes without explicit flush/invalidate.
+	//   - true → DX12 (always), Metal Shared storage, coherent Vulkan memory
+	//   - false → non-coherent Vulkan memory; caller must invalidate before
+	//             reading GPU-written data and flush after writing
+	//
+	// When false, core is responsible for calling FlushMappedRanges /
+	// InvalidateMappedRanges at the appropriate times.
+	IsCoherent bool
+}
+    BufferMapping describes a CPU-visible mapping of a GPU buffer.
+
+    Returned by Device.MapBuffer. The memory remains valid until the
+    corresponding Device.UnmapBuffer call. Callers must ensure the GPU is not
+    writing to the mapped region during CPU access — this is the caller's
+    responsibility (core coordinates this via submission fences).
+
+type BufferTextureCopy struct {
+	BufferLayout ImageDataLayout
+	TextureBase  ImageCopyTexture
+	Size         Extent3D
+}
+    BufferTextureCopy defines a buffer-texture copy region.
+
+type BufferUsageTransition struct {
+	OldUsage gputypes.BufferUsage
+	NewUsage gputypes.BufferUsage
+}
+    BufferUsageTransition defines a buffer usage state transition.
+
+type BuildAccelerationStructureDescriptor struct {
+	Entries                          *AccelerationStructureEntries
+	Mode                             AccelerationStructureBuildMode
+	Flags                            gputypes.AccelerationStructureFlags
+	SourceAccelerationStructure      AccelerationStructure
+	DestinationAccelerationStructure AccelerationStructure
+	ScratchBuffer                    Buffer
+	ScratchBufferOffset              uint64
+}
+    BuildAccelerationStructureDescriptor describes a single AS build operation.
+
+type Capabilities struct {
+	// Limits are the maximum supported limits.
+	Limits gputypes.Limits
+
+	// AlignmentsMask specifies required buffer alignment (bitmask).
+	AlignmentsMask Alignments
+
+	// DownlevelCapabilities for GL/GLES backends.
+	DownlevelCapabilities gputypes.DownlevelCapabilities
+}
+    Capabilities contains detailed adapter capabilities.
+
+type CommandBuffer interface {
+	Resource
+}
+    CommandBuffer holds recorded GPU commands. Command buffers are immutable
+    after encoding and can be submitted to a queue.
+
+type CommandEncoder interface {
+	// BeginEncoding begins command recording with an optional label.
+	BeginEncoding(label string) error
+
+	// EndEncoding finishes command recording and returns a command buffer.
+	// The encoder enters "closed" state but retains its internal resources
+	// (e.g., DX12 allocator, Vulkan command pool). Call ResetAll after GPU
+	// completion to prepare for the next BeginEncoding cycle.
+	EndEncoding() (CommandBuffer, error)
+
+	// Finish finishes command recording and returns a command buffer.
+	// Canonical alias of EndEncoding for webgpu parity; backends implement
+	// it as EndEncoding.
+	Finish() (CommandBuffer, error)
+
+	// DiscardEncoding discards the encoder without creating a command buffer.
+	// Use this to cancel encoding that encountered errors.
+	DiscardEncoding()
+
+	// ResetAll resets the encoder and associated command buffers for reuse.
+	// Must be called after the GPU has completed all commands from previous
+	// EndEncoding calls. After ResetAll, the encoder is ready for BeginEncoding.
+	// Not all backends need this (GLES/Software/Metal/Noop are no-ops).
+	ResetAll(commandBuffers []CommandBuffer)
+
+	// Destroy releases all GPU resources owned by this encoder.
+	// Must be called when the encoder is no longer needed (e.g., during
+	// device shutdown or encoder pool cleanup). The encoder must not be
+	// in recording state when Destroy is called.
+	Destroy()
+
+	// TransitionBuffers transitions buffer states for synchronization.
+	// This is required on some backends (Vulkan, DX12) but no-op on others (Metal).
+	TransitionBuffers(barriers []BufferBarrier)
+
+	// TransitionTextures transitions texture states for synchronization.
+	// This is required on some backends (Vulkan, DX12) but no-op on others (Metal).
+	TransitionTextures(barriers []TextureBarrier)
+
+	// ClearBuffer clears a buffer region to zero.
+	ClearBuffer(buffer Buffer, offset, size uint64)
+
+	// CopyBufferToBuffer copies data between buffers.
+	CopyBufferToBuffer(src Buffer, srcOffset uint64, dst Buffer, dstOffset uint64, size uint64)
+
+	// CopyBufferToTexture copies data from a buffer to a texture.
+	CopyBufferToTexture(src Buffer, dst Texture, regions []BufferTextureCopy)
+
+	// CopyTextureToBuffer copies data from a texture to a buffer.
+	CopyTextureToBuffer(src Texture, dst Buffer, regions []BufferTextureCopy)
+
+	// CopyTextureToTexture copies data between textures.
+	CopyTextureToTexture(src, dst Texture, regions []TextureCopy)
+
+	// ResolveQuerySet copies query results from a query set into a buffer.
+	// firstQuery is the index of the first query to resolve.
+	// queryCount is the number of queries to resolve.
+	// destination is the buffer to write results to.
+	// destinationOffset is the byte offset into the destination buffer.
+	// Each timestamp result is a uint64 (8 bytes).
+	ResolveQuerySet(querySet QuerySet, firstQuery, queryCount uint32, destination Buffer, destinationOffset uint64)
+
+	// BeginRenderPass begins a render pass.
+	// Returns a render pass encoder for recording draw commands.
+	BeginRenderPass(desc *RenderPassDescriptor) (RenderPassEncoder, error)
+
+	// BeginComputePass begins a compute pass.
+	// Returns a compute pass encoder for recording dispatch commands.
+	BeginComputePass(desc *ComputePassDescriptor) (ComputePassEncoder, error)
+
+	// BuildAccelerationStructures builds one or more acceleration structures.
+	// Batched to match Vulkan vkCmdBuildAccelerationStructuresKHR.
+	// No-op on backends without RT support.
+	BuildAccelerationStructures(descriptors []BuildAccelerationStructureDescriptor)
+
+	// PlaceAccelerationStructureBarrier inserts an AS memory barrier.
+	PlaceAccelerationStructureBarrier(barrier AccelerationStructureBarrier)
+
+	// CopyAccelerationStructure copies or compacts an AS.
+	CopyAccelerationStructure(src, dst AccelerationStructure, copyMode gputypes.AccelerationStructureCopyMode)
+
+	// ReadAccelerationStructureCompactSize reads the post-compact size of an AS
+	// into the given buffer. Used for the compaction state machine.
+	ReadAccelerationStructureCompactSize(as AccelerationStructure, buffer Buffer, offset uint64)
+}
+    CommandEncoder records GPU commands.
+
+    Lifecycle: After EndEncoding, the encoder is in "closed" state. After
+    ResetAll (with completed command buffers), the encoder is ready for a new
+    BeginEncoding cycle. This enables encoder pooling at the wgpu core
+
+type CommandEncoderDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+}
+    CommandEncoderDescriptor describes a command encoder.
+
+type ComputePassDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// TimestampWrites are timestamp queries (optional).
+	TimestampWrites *ComputePassTimestampWrites
+}
+    ComputePassDescriptor describes a compute pass.
+
+type ComputePassEncoder interface {
+	// End finishes the compute pass.
+	// After this call, the encoder cannot be used again.
+	End() error
+
+	// SetPipeline sets the active compute pipeline.
+	SetPipeline(pipeline ComputePipeline)
+
+	// SetBindGroup sets a bind group for the given index.
+	// offsets are dynamic offsets for dynamic uniform/storage buffers.
+	SetBindGroup(index uint32, group BindGroup, offsets []uint32)
+
+	// Dispatch dispatches compute work.
+	// x, y, z are the number of workgroups to dispatch in each dimension.
+	Dispatch(x, y, z uint32)
+
+	// DispatchIndirect dispatches compute work with GPU-generated parameters.
+	// buffer contains DispatchIndirectArgs at the given offset.
+	DispatchIndirect(buffer Buffer, offset uint64)
+}
+    ComputePassEncoder records compute commands within a compute pass.
+
+type ComputePassTimestampWrites struct {
+	// QuerySet is the query set to write to.
+	QuerySet QuerySet
+
+	// BeginningOfPassWriteIndex is the query index for pass start.
+	// Use nil to skip.
+	BeginningOfPassWriteIndex *uint32
+
+	// EndOfPassWriteIndex is the query index for pass end.
+	// Use nil to skip.
+	EndOfPassWriteIndex *uint32
+}
+    ComputePassTimestampWrites describes timestamp query writes.
+
+type ComputePipeline interface {
+	Resource
+}
+    ComputePipeline is a configured compute pipeline. Compute pipelines define
+    the compute shader and resource layout.
+
+type ComputePipelineDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// Layout is the pipeline layout.
+	Layout PipelineLayout
+
+	// Module is the compute shader module.
+	Module ShaderModule
+
+	// EntryPoint is the shader entry point function name.
+	EntryPoint string
+}
+    ComputePipelineDescriptor describes a compute pipeline. Canonical flat
+    shape Label/Layout/Module/EntryPoint (native webgpu copy deleted in 片3b,
+    render now uses this hal type); browser variant adds Constants at
+    gpu/webgpu/descriptor_browser.go:172 (unsupported in hal, H4 定).
+
+type CrossThreadTextureWriter interface {
+	SupportsCrossThreadTextureWrites() bool
+}
+    CrossThreadTextureWriter is an optional interface implemented by HAL queues
+    whose WriteTexture may be called from a goroutine other than the raster
+    thread. Callers ask before handing GPU work to a copy worker.
+
+    A backend reports false when its queue owns thread-affine state: the GLES
+    context is made current on the calling thread and the frame path keeps that
+    context bound to the raster thread, so a foreign-thread write would silently
+    run without a current context. Absence of this interface means false.
+
+type DepthStencilState struct {
+	// Format is the depth/stencil texture format.
+	Format gputypes.TextureFormat
+
+	// DepthWriteEnabled enables depth writes.
+	DepthWriteEnabled bool
+
+	// DepthCompare is the depth comparison function.
+	DepthCompare gputypes.CompareFunction
+
+	// StencilFront is the stencil state for front faces.
+	StencilFront StencilFaceState
+
+	// StencilBack is the stencil state for back faces.
+	StencilBack StencilFaceState
+
+	// StencilReadMask is the stencil read mask.
+	StencilReadMask uint32
+
+	// StencilWriteMask is the stencil write mask.
+	StencilWriteMask uint32
+
+	// DepthBias is the constant depth bias.
+	DepthBias int32
+
+	// DepthBiasSlopeScale is the slope-scaled depth bias.
+	DepthBiasSlopeScale float32
+
+	// DepthBiasClamp is the maximum depth bias.
+	DepthBiasClamp float32
+}
+    DepthStencilState describes depth and stencil testing.
+
+type Device interface {
+	// Queue returns the device's command queue.
+	Queue() Queue
+
+	// Features returns the device's enabled features.
+	Features() gputypes.Features
+
+	// Limits returns the device's resource limits.
+	Limits() gputypes.Limits
+
+	// CreateBuffer creates a GPU buffer.
+	CreateBuffer(desc *BufferDescriptor) (Buffer, error)
+
+	// DestroyBuffer destroys a GPU buffer.
+	DestroyBuffer(buffer Buffer)
+
+	// MapBuffer establishes a CPU-visible mapping for the given byte range
+	// of a host-visible buffer.
+	//
+	// The buffer must have been created with BufferUsageMapRead or
+	// BufferUsageMapWrite (or have been created with MappedAtCreation: true,
+	// in which case backends may return the existing mapping directly).
+	//
+	// Thread-safety contract: the caller (core) must ensure the GPU is not
+	// writing to the mapped range while the mapping is active. Typically
+	// this means core has observed a submission fence reaching completion
+	// before calling MapBuffer.
+	//
+	// Some backends (Vulkan, Metal Shared, DX12 UPLOAD/READBACK, software)
+	// keep buffers persistently mapped; MapBuffer for those backends returns
+	// the cached pointer and is cheap. Backends without persistent mappings
+	// call the native map API on each call.
+	//
+	// Returns ErrInvalidMapRange if offset+size exceeds the buffer size or
+	// the buffer has no host-visible memory.
+	MapBuffer(buffer Buffer, offset, size uint64) (BufferMapping, error)
+
+	// UnmapBuffer releases a CPU-visible mapping established by MapBuffer.
+	//
+	// For backends with persistent mappings this is a no-op that simply
+	// returns nil. For backends without persistent mappings the native
+	// unmap API is called.
+	//
+	// Calling UnmapBuffer on a buffer that is not mapped is undefined —
+	// core guarantees the state machine never calls this on an unmapped
+	// buffer.
+	UnmapBuffer(buffer Buffer) error
+
+	// CreateTexture creates a GPU texture.
+	CreateTexture(desc *TextureDescriptor) (Texture, error)
+
+	// DestroyTexture destroys a GPU texture.
+	DestroyTexture(texture Texture)
+
+	// CreateTextureView creates a view into a texture.
+	CreateTextureView(texture Texture, desc *TextureViewDescriptor) (TextureView, error)
+
+	// DestroyTextureView destroys a texture view.
+	DestroyTextureView(view TextureView)
+
+	// CreateSampler creates a texture sampler.
+	CreateSampler(desc *SamplerDescriptor) (Sampler, error)
+
+	// DestroySampler destroys a sampler.
+	DestroySampler(sampler Sampler)
+
+	// CreateBindGroupLayout creates a bind group layout.
+	CreateBindGroupLayout(desc *BindGroupLayoutDescriptor) (BindGroupLayout, error)
+
+	// DestroyBindGroupLayout destroys a bind group layout.
+	DestroyBindGroupLayout(layout BindGroupLayout)
+
+	// CreateBindGroup creates a bind group.
+	CreateBindGroup(desc *BindGroupDescriptor) (BindGroup, error)
+
+	// DestroyBindGroup destroys a bind group.
+	DestroyBindGroup(group BindGroup)
+
+	// CreatePipelineLayout creates a pipeline layout.
+	CreatePipelineLayout(desc *PipelineLayoutDescriptor) (PipelineLayout, error)
+
+	// DestroyPipelineLayout destroys a pipeline layout.
+	DestroyPipelineLayout(layout PipelineLayout)
+
+	// CreateShaderModule creates a shader module.
+	CreateShaderModule(desc *ShaderModuleDescriptor) (ShaderModule, error)
+
+	// DestroyShaderModule destroys a shader module.
+	DestroyShaderModule(module ShaderModule)
+
+	// CreateRenderPipeline creates a render pipeline.
+	CreateRenderPipeline(desc *RenderPipelineDescriptor) (RenderPipeline, error)
+
+	// DestroyRenderPipeline destroys a render pipeline.
+	DestroyRenderPipeline(pipeline RenderPipeline)
+
+	// CreateComputePipeline creates a compute pipeline.
+	CreateComputePipeline(desc *ComputePipelineDescriptor) (ComputePipeline, error)
+
+	// DestroyComputePipeline destroys a compute pipeline.
+	DestroyComputePipeline(pipeline ComputePipeline)
+
+	// CreateQuerySet creates a query set for timestamp or occlusion queries.
+	// Returns ErrTimestampsNotSupported if the backend does not support the query type.
+	CreateQuerySet(desc *QuerySetDescriptor) (QuerySet, error)
+
+	// DestroyQuerySet destroys a query set.
+	DestroyQuerySet(querySet QuerySet)
+
+	// CreateCommandEncoder creates a command encoder.
+	CreateCommandEncoder(desc *CommandEncoderDescriptor) (CommandEncoder, error)
+
+	// CreateRenderBundleEncoder creates a render bundle encoder.
+	// Render bundles are pre-recorded command sequences that can be replayed
+	// multiple times for better performance.
+	CreateRenderBundleEncoder(desc *RenderBundleEncoderDescriptor) (RenderBundleEncoder, error)
+
+	// DestroyRenderBundle destroys a render bundle.
+	DestroyRenderBundle(bundle RenderBundle)
+
+	// FreeCommandBuffer returns a command buffer to the command pool.
+	// This must be called after the GPU has finished using the command buffer.
+	// The command buffer handle becomes invalid after this call.
+	FreeCommandBuffer(cmdBuffer CommandBuffer)
+
+	// CreateFence creates a synchronization fence.
+	CreateFence() (Fence, error)
+
+	// DestroyFence destroys a fence.
+	DestroyFence(fence Fence)
+
+	// WaitForFence waits for a fence to reach the specified value.
+	// Returns true if the fence reached the value, false if timeout.
+	// Returns ErrDeviceLost if the device is lost.
+	WaitForFence(fence Fence, value uint64, timeout time.Duration) (bool, error)
+
+	// ResetFence resets a fence to the unsignaled state.
+	// The fence must not be in use by the GPU.
+	ResetFence(fence Fence) error
+
+	// GetFenceStatus returns true if the fence is signaled (non-blocking).
+	// This is used for polling completion without blocking.
+	GetFenceStatus(fence Fence) (bool, error)
+
+	// WaitIdle waits for all GPU work to complete.
+	// Call this before destroying resources to ensure the GPU is not using them.
+	WaitIdle() error
+
+	// Poll drives pending work and pumps callbacks.
+	Poll(pollType PollType) bool
+
+	// IsLost reports whether the device was marked lost.
+	IsLost() bool
+
+	// FlushCallbacks pumps pending callbacks and folds lost signals.
+	FlushCallbacks()
+
+	// PushErrorScope pushes a new error scope onto the device's error scope stack.
+	PushErrorScope(filter ErrorFilter)
+
+	// PopErrorScope pops the most recently pushed error scope.
+	PopErrorScope() *GPUError
+
+	// CreateAccelerationStructure creates an acceleration structure (BLAS or TLAS).
+	// Requires FeatureRayQuery. Returns ErrUnsupported if RT is not available.
+	CreateAccelerationStructure(desc *AccelerationStructureDescriptor) (AccelerationStructure, error)
+
+	// DestroyAccelerationStructure destroys an acceleration structure.
+	DestroyAccelerationStructure(as AccelerationStructure)
+
+	// GetAccelerationStructureBuildSizes returns the sizes needed for building an AS.
+	GetAccelerationStructureBuildSizes(desc *GetAccelerationStructureBuildSizesDescriptor) AccelerationStructureBuildSizes
+
+	// GetAccelerationStructureDeviceAddress returns the GPU device address of an AS.
+	// Used for TLAS instance buffer population (BlasAddress field).
+	GetAccelerationStructureDeviceAddress(as AccelerationStructure) uint64
+
+	// TlasInstanceToBytes converts a TlasInstance to the backend-specific
+	// packed byte representation (64 bytes for Vulkan/DX12/Metal).
+	TlasInstanceToBytes(instance TlasInstance) []byte
+
+	// Release releases the device.
+	// All resources created from this device must be destroyed first.
+	Release()
+}
+    Device represents a logical GPU device. Devices are used to create resources
+    and command encoders.
+
+type DeviceDescriptor struct {
+	Label            string
+	RequiredFeatures gputypes.Features
+	RequiredLimits   gputypes.Limits
+}
+    DeviceDescriptor configures device creation.
+
+type ErrorFilter int
+    ErrorFilter selects which errors an error scope captures.
+
+const (
+	ErrorFilterValidation  ErrorFilter = 0x00000001
+	ErrorFilterOutOfMemory ErrorFilter = 0x00000002
+	ErrorFilterInternal    ErrorFilter = 0x00000003
+)
+func (f ErrorFilter) String() string
+
+type ExposedAdapter struct {
+	// Adapter is the physical GPU.
+	Adapter Adapter
+
+	// Info contains adapter metadata.
+	Info gputypes.AdapterInfo
+
+	// Features are the supported optional features.
+	Features gputypes.Features
+
+	// Capabilities contains detailed capability information.
+	Capabilities Capabilities
+}
+    ExposedAdapter bundles an adapter with its capabilities. This is returned by
+    Instance.EnumerateAdapters.
+
+type Extent3D struct {
+	Width              uint32
+	Height             uint32
+	DepthOrArrayLayers uint32
+}
+    Extent3D is a 3D extent.
+
+type Fence interface {
+	Resource
+}
+    Fence is a GPU synchronization primitive. Fences allow CPU-GPU
+    synchronization via signaled values.
+
+type FragmentState struct {
+	// Module is the shader module.
+	Module ShaderModule
+
+	// EntryPoint is the shader entry point function name.
+	EntryPoint string
+
+	// Targets describe the render target formats and blend state.
+	Targets []gputypes.ColorTargetState
+}
+    FragmentState describes the fragment shader stage.
+
+type GPUError struct {
+	Type    ErrorFilter
+	Message string
+}
+    GPUError represents a captured GPU error from an error scope.
+
+func (e *GPUError) Error() string
+    Error implements the error interface.
+
+type GetAccelerationStructureBuildSizesDescriptor struct {
+	Entries *AccelerationStructureEntries
+	Flags   gputypes.AccelerationStructureFlags
+}
+    GetAccelerationStructureBuildSizesDescriptor describes a build size query.
+
+type ImageCopyTexture struct {
+	// Texture is the texture to copy to/from.
+	Texture Texture
+
+	// MipLevel is the mip level to copy.
+	MipLevel uint32
+
+	// Origin is the starting point of the copy.
+	Origin Origin3D
+
+	// Aspect specifies which aspect to copy (color, depth, stencil).
+	Aspect gputypes.TextureAspect
+}
+    ImageCopyTexture specifies a texture location for copying.
+
+type ImageDataLayout struct {
+	// Offset is the offset in bytes from the start of the buffer.
+	Offset uint64
+
+	// BytesPerRow is the stride in bytes between rows of the image.
+	// Must be a multiple of 256 for texture copies.
+	// Can be 0 for single-row images.
+	BytesPerRow uint32
+
+	// RowsPerImage is the number of rows per image slice.
+	// Only needed for 3D textures.
+	// Can be 0 to use the image height.
+	RowsPerImage uint32
+}
+    ImageDataLayout describes the layout of image data in a buffer.
+
+type IndirectCountRecorder func(buffer Buffer, offset uint64)
+    IndirectCountRecorder issues a multi-draw indirect call.
+
+type Instance interface {
+	// CreateSurface creates a rendering surface from a typed raw platform target.
+	// The target's native objects remain caller-owned and must outlive the Surface.
+	CreateSurface(target SurfaceTarget) (Surface, error)
+
+	// EnumerateAdapters enumerates available physical GPUs.
+	// surfaceHint is optional - if provided, only adapters compatible with
+	// the surface are returned.
+	EnumerateAdapters(surfaceHint Surface) []ExposedAdapter
+
+	// RequestAdapter requests a GPU adapter matching the options.
+	// If opts is nil, the best available adapter is returned.
+	RequestAdapter(opts *RequestAdapterOptions) (Adapter, error)
+
+	// ProcessEvents pumps pending async callbacks (device-lost, map async, etc.).
+	// Synchronous backends (noop/gles/metal) are no-ops.
+	ProcessEvents()
+
+	// Release releases the instance.
+	// All adapters and surfaces created from this instance must be destroyed first.
+	Release()
+}
+    Instance is the entry point for GPU operations. An instance manages adapter
+    enumeration and surface creation.
+
+type InstanceDescriptor struct {
+	// Backends specifies which backends to enable.
+	Backends gputypes.Backends
+
+	// Flags controls instance behavior (debug, validation, etc.).
+	Flags gputypes.InstanceFlags
+
+	// Dx12ShaderCompiler specifies the DX12 shader compiler (FXC or DXC).
+	Dx12ShaderCompiler gputypes.Dx12ShaderCompiler
+
+	// GLBackend specifies the OpenGL backend flavor (GL or GLES).
+	GLBackend gputypes.GLBackend
+
+	// XlibDisplay is Display* for GL/X11 instance association (optional,
+	// X11-only; 0 means use the default display).
+	XlibDisplay uintptr
+
+	// XlibScreen is the X11 screen index (DefaultScreen), X11-only.
+	XlibScreen int32
+}
+    InstanceDescriptor describes how to create a GPU instance. Superset of
+    gpu/webgpu InstanceDescriptor: backend selectors plus the X11 connection
+    fields (XlibDisplay/XlibScreen, X11-only, ignored by non-X11 backends).
+    Wayland/Windows/macOS need no instance fields: their handles ride the
+    SurfaceTarget at surface creation (hal/surface_target.go:19).
+
+type MaxStagingBufferSizer interface {
+	// MaxStagingBufferSize returns the maximum size in bytes for a single
+	// staging buffer allocation. Returns 0 to use the default (64MB).
+	MaxStagingBufferSize() uint64
+}
+    MaxStagingBufferSizer is an optional interface implemented by HAL devices
+    that can report the maximum safe staging buffer allocation size.
+
+    For Vulkan, this returns min(64MB, maxMemoryAllocationSize) from
+    VkPhysicalDeviceMaintenance3Properties. Without this limit, staging
+    belt allocations can silently fail when they exceed the driver's maximum
+    allocation size, leading to SIGSEGV.
+
+    Backends that do not implement this interface default to 64MB
+    (stagingBeltMaxOversizedSize), which is safe for DX12, Metal, and GLES.
+
+type NativeHandle interface {
+	// NativeHandle returns the raw API handle as uintptr.
+	// For Vulkan: VkBuffer, VkImage, VkSampler, etc.
+	// For Metal: MTLBuffer, MTLTexture, etc.
+	NativeHandle() uintptr
+}
+    NativeHandle provides access to the underlying API handle. Used for advanced
+    interop scenarios like bind group creation.
+
+type OpenDevice struct {
+	// Device is the logical GPU device.
+	Device Device
+
+	// Queue is the device's command queue.
+	Queue Queue
+}
+    OpenDevice is returned when Adapter.Open succeeds. It bundles the device and
+    queue together since they're created atomically.
+
+type Origin3D struct {
+	X uint32
+	Y uint32
+	Z uint32
+}
+    Origin3D is a 3D origin point.
+
+type PipelineLayout interface {
+	Resource
+}
+    PipelineLayout defines the layout of a pipeline. Pipeline layouts specify
+    the bind group layouts used by a pipeline.
+
+type PipelineLayoutDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// BindGroupLayouts are the bind group layouts used by the pipeline.
+	BindGroupLayouts []BindGroupLayout
+
+	// PushConstantRanges define push constant ranges (Vulkan-specific).
+	PushConstantRanges []PushConstantRange
+}
+    PipelineLayoutDescriptor describes a pipeline layout.
+
+type PixelPresenter interface {
+	PresentPixels(data []byte, width, height uint32, damageRects []image.Rectangle) error
+}
+    PixelPresenter is an optional Surface capability for direct CPU pixel
+    presentation. Only the software backend implements this — GPU backends use
+    the standard AcquireTexture → render pass → Present flow.
+
+    This follows the io.WriterTo pattern: optional capability interface
+    alongside the core Surface interface, not embedded in it.
+
+    Extension: not part of WebGPU specification.
+
+type PixelReader interface {
+	ReadPixels() []byte
+}
+    PixelReader is an optional Surface capability for capturing the current
+    framebuffer without exposing backend-owned memory.
+
+    ReadPixels returns a caller-owned, tightly packed RGBA8 snapshot in
+    top-left, row-major order. The returned slice remains valid after later
+    rendering or surface destruction.
+
+    Extension: not part of WebGPU specification.
+
+type PixelWriter interface {
+	WritePixels(data []byte, width, height uint32) error
+}
+    PixelWriter is an optional Surface capability for writing CPU pixels into
+    the surface framebuffer without presenting.
+
+    Extension: not part of WebGPU specification.
+
+type PollType uint8
+    PollType selects the blocking behavior of Device.Poll. PollType is canonical
+    here since 7f.
+
+const (
+	PollPoll PollType = iota
+	PollWait
+)
+type PushConstantRange struct {
+	// Stages are the shader stages that can access this range.
+	Stages gputypes.ShaderStages
+
+	// Range is the byte range of the push constants.
+	Range Range
+}
+    PushConstantRange defines a push constant range.
+
+type QuerySet interface {
+	Resource
+}
+    QuerySet represents a set of queries.
+
+type QuerySetDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// Type is the type of queries in this set.
+	Type QueryType
+
+	// Count is the number of queries in the set.
+	Count uint32
+}
+    QuerySetDescriptor describes how to create a query set.
+
+type QueryType uint32
+    QueryType specifies the type of queries in a query set.
+
+const (
+	// QueryTypeOcclusion counts the number of samples that pass depth/stencil tests.
+	QueryTypeOcclusion QueryType = iota
+
+	// QueryTypeTimestamp writes GPU timestamps for profiling.
+	QueryTypeTimestamp
+)
+type Queue interface {
+	// Submit submits command buffers to the GPU for execution.
+	// Returns a monotonically increasing submission index that can be used
+	// with Poll to determine when the GPU has finished the work.
+	// The HAL manages its own internal fences/synchronization.
+	Submit(commandBuffers ...CommandBuffer) (submissionIndex uint64, err error)
+
+	// Poll returns the highest submission index known to be completed
+	// by the GPU. Non-blocking. Returns 0 if no submissions have completed.
+	// Backend divergence: webgpu always returns 0
+	// ; gles returns Fence.GetLatest
+	// (or the submission index when queueless); metal returns the
+	// GPU-callback-driven completedIndex; noop returns the submission
+	// index (synchronous, submitted == completed).
+	Poll() uint64
+
+	// LastSubmissionIndex returns the most recent submission index.
+	// Backend divergence: webgpu always returns 0
+	// ; gles/metal/noop return their own
+	// monotonically increasing counter.
+	LastSubmissionIndex() uint64
+
+	// WriteBuffer writes data to a buffer immediately.
+	// This is a convenience method that creates a staging buffer internally.
+	// Returns an error if the buffer is invalid or the write fails.
+	WriteBuffer(buffer Buffer, offset uint64, data []byte) error
+
+	// WriteTexture writes data to a texture immediately.
+	// This is a convenience method that creates a staging buffer internally.
+	// Returns an error if any step in the upload pipeline fails (VK-003).
+	WriteTexture(dst *ImageCopyTexture, data []byte, layout *ImageDataLayout, size *Extent3D) error
+
+	// Present presents a surface texture to the screen.
+	// The texture must have been acquired via Surface.AcquireTexture.
+	// After this call, the texture is consumed and must not be used.
+	//
+	// damageRects is an optional list of rectangles (physical pixels, top-left
+	// origin) indicating which regions of the surface changed this frame.
+	// When nil or empty, the entire surface is presented — EXACT same code
+	// path as a call without damage. Backends that support damage rects
+	// (DX12 FLIP_SEQUENTIAL, Vulkan VK_KHR_incremental_present, GLES
+	// EGL_KHR_swap_buffers_with_damage, software partial blit) use them
+	// as compositor hints. Backends without support accept and ignore them.
+	Present(surface Surface, texture SurfaceTexture, damageRects []image.Rectangle) error
+
+	// GetTimestampPeriod returns the timestamp period in nanoseconds.
+	// Used to convert timestamp query results to real time.
+	GetTimestampPeriod() float32
+
+	// SupportsCommandBufferCopies reports whether this queue uses command-buffer-based
+	// copy operations (true for DX12, Vulkan, Metal) or direct API calls (false for
+	// GLES, Software). When false, PendingWrites passes WriteBuffer/WriteTexture
+	// directly to the HAL without batching.
+	SupportsCommandBufferCopies() bool
+
+	// StagedWriteOverlaps reports how many buffer uploads this queue coalesced
+	// with an earlier still-staged upload of an overlapping range inside one
+	// drain (guard counter, cumulative per process).
+	//
+	// Uploaders that reuse one buffer region per flush stay correct only because
+	// the queue drains once per command buffer; a drain that collapses two
+	// overlapping writes uploads just the later bytes, so every command buffer
+	// before the last one reads the wrong data. Non-zero means that invariant
+	// broke — see docs/RENDER_CPU_1PCT_REPLAY_PLAN.md §4 (the merged-present
+	// regression is exactly this shape).
+	//
+	// Backend divergence: gles counts real overlaps (it is the only backend with
+	// a coalescing write batch); webgpu/metal/noop return 0 because their
+	// staging is library-owned and never collapses two engine writes into one
+	// region.
+	StagedWriteOverlaps() int64
+
+	// SetSwapchainSuppressed temporarily disables swapchain semaphore binding
+	// for subsequent Submit calls. Used for offscreen renders (e.g., RepaintBoundary)
+	// that must not consume acquire/present semaphores intended for the compositor
+	// submit. Call with true before offscreen submits, false after.
+	//
+	// Without this, the first Submit per frame hijacks swapchain
+	// semaphores even when rendering to an offscreen texture, causing the compositor
+	// submit to run without synchronization (race condition -> flickering).
+	//
+	// Only meaningful on Vulkan — other backends are no-ops (DX12/Metal/GLES/Software
+	// have different synchronization models that don't exhibit this issue).
+	//
+	// Thread-safe: acquires the queue mutex internally.
+	// Zero allocations: two pointer writes + one bool write.
+	//
+	// Callers must restore state with SetSwapchainSuppressed(false) after offscreen
+	// submits complete. Use defer for safety:
+	//
+	//   queue.SetSwapchainSuppressed(true)
+	//   defer queue.SetSwapchainSuppressed(false)
+	//   queue.Submit(offscreenCmds...)
+	//
+	// Precedent: save/restore pattern in webgpu Queue.WriteTexture
+	SetSwapchainSuppressed(suppressed bool)
+}
+    Queue handles command submission and presentation. Queues are typically
+    thread-safe (backend-specific).
+
+type Range struct {
+	Start uint32
+	End   uint32
+}
+    Range is a byte range.
+
+type RenderBundle interface {
+	Resource
+}
+    RenderBundle is a pre-recorded set of render commands. Bundles can be
+    executed multiple times for better performance.
+
+type RenderBundleEncoder interface {
+	// SetPipeline sets the active render pipeline.
+	SetPipeline(pipeline RenderPipeline)
+
+	// SetBindGroup sets a bind group for the given index.
+	SetBindGroup(index uint32, group BindGroup, offsets []uint32)
+
+	// SetVertexBuffer sets a vertex buffer for the given slot.
+	SetVertexBuffer(slot uint32, buffer Buffer, offset uint64)
+
+	// SetIndexBuffer sets the index buffer.
+	SetIndexBuffer(buffer Buffer, format gputypes.IndexFormat, offset uint64)
+
+	// Draw draws primitives.
+	Draw(args gputypes.DrawArgs)
+
+	// DrawIndexed draws indexed primitives.
+	DrawIndexed(args gputypes.DrawIndexedArgs)
+
+	// Finish finalizes the bundle and returns it.
+	// The encoder cannot be used after this call.
+	Finish() RenderBundle
+}
+    RenderBundleEncoder records commands into a render bundle. The recorded
+    commands can be replayed multiple times via ExecuteBundle.
+
+type RenderBundleEncoderDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// ColorFormats are the formats of the color attachments the bundle will render to.
+	ColorFormats []gputypes.TextureFormat
+
+	// DepthStencilFormat is the format of the depth/stencil attachment.
+	// Use TextureFormatUndefined if no depth/stencil attachment is used.
+	DepthStencilFormat gputypes.TextureFormat
+
+	// SampleCount is the number of samples for multisampling.
+	// Use 1 for no multisampling.
+	SampleCount uint32
+
+	// DepthReadOnly indicates the depth attachment is read-only during the render pass.
+	DepthReadOnly bool
+
+	// StencilReadOnly indicates the stencil attachment is read-only during the render pass.
+	StencilReadOnly bool
+}
+    RenderBundleEncoderDescriptor describes a render bundle encoder.
+
+type RenderPassColorAttachment struct {
+	// View is the texture view to render to.
+	View TextureView
+
+	// ResolveTarget is the MSAA resolve target (optional).
+	ResolveTarget TextureView
+
+	// LoadOp specifies what to do at pass start.
+	LoadOp gputypes.LoadOp
+
+	// StoreOp specifies what to do at pass end.
+	StoreOp gputypes.StoreOp
+
+	// ClearValue is the clear color (used if LoadOp is Clear).
+	ClearValue gputypes.Color
+}
+    RenderPassColorAttachment describes a color attachment.
+
+type RenderPassDepthStencilAttachment struct {
+	// View is the texture view to use.
+	View TextureView
+
+	// DepthLoadOp specifies what to do with depth at pass start.
+	DepthLoadOp gputypes.LoadOp
+
+	// DepthStoreOp specifies what to do with depth at pass end.
+	DepthStoreOp gputypes.StoreOp
+
+	// DepthClearValue is the depth clear value (used if DepthLoadOp is Clear).
+	DepthClearValue float32
+
+	// DepthReadOnly makes the depth aspect read-only.
+	DepthReadOnly bool
+
+	// StencilLoadOp specifies what to do with stencil at pass start.
+	StencilLoadOp gputypes.LoadOp
+
+	// StencilStoreOp specifies what to do with stencil at pass end.
+	StencilStoreOp gputypes.StoreOp
+
+	// StencilClearValue is the stencil clear value (used if StencilLoadOp is Clear).
+	StencilClearValue uint32
+
+	// StencilReadOnly makes the stencil aspect read-only.
+	StencilReadOnly bool
+}
+    RenderPassDepthStencilAttachment describes a depth/stencil attachment.
+
+type RenderPassDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// ColorAttachments are the color render targets.
+	ColorAttachments []RenderPassColorAttachment
+
+	// DepthStencilAttachment is the depth/stencil target (optional).
+	DepthStencilAttachment *RenderPassDepthStencilAttachment
+
+	// TimestampWrites are timestamp queries (optional).
+	TimestampWrites *RenderPassTimestampWrites
+}
+    RenderPassDescriptor describes a render pass.
+
+type RenderPassEncoder interface {
+	// End finishes the render pass.
+	// After this call, the encoder cannot be used again.
+	End() error
+
+	// SetPipeline sets the active render pipeline.
+	SetPipeline(pipeline RenderPipeline)
+
+	// SetBindGroup sets a bind group for the given index.
+	// offsets are dynamic offsets for dynamic uniform/storage buffers.
+	SetBindGroup(index uint32, group BindGroup, offsets []uint32)
+
+	// SetVertexBuffer sets a vertex buffer for the given slot.
+	SetVertexBuffer(slot uint32, buffer Buffer, offset uint64)
+
+	// SetIndexBuffer sets the index buffer.
+	SetIndexBuffer(buffer Buffer, format gputypes.IndexFormat, offset uint64)
+
+	// SetViewport sets the viewport transformation.
+	SetViewport(x, y, width, height, minDepth, maxDepth float32)
+
+	// SetScissorRect sets the scissor rectangle for clipping.
+	SetScissorRect(x, y, width, height uint32)
+
+	// SetBlendConstant sets the blend constant color.
+	SetBlendConstant(color *gputypes.Color)
+
+	// SetStencilReference sets the stencil reference value.
+	SetStencilReference(reference uint32)
+
+	// Draw draws primitives.
+	Draw(vertexCount, instanceCount, firstVertex, firstInstance uint32)
+
+	// DrawIndexed draws indexed primitives.
+	DrawIndexed(indexCount, instanceCount, firstIndex uint32, baseVertex int32, firstInstance uint32)
+
+	// DrawIndirect draws primitives with GPU-generated parameters.
+	DrawIndirect(buffer Buffer, offset uint64)
+
+	// DrawIndexedIndirect draws indexed primitives with GPU-generated parameters.
+	DrawIndexedIndirect(buffer Buffer, offset uint64)
+
+	// DrawIndirectCount draws primitives using a GPU count buffer (Vulkan 1.2+).
+	// countBuffer holds a single uint32 draw count at countOffset.
+	DrawIndirectCount(buffer Buffer, offset uint64, countBuffer Buffer, countOffset uint64, maxDrawCount uint32)
+
+	// DrawIndexedIndirectCount draws indexed primitives using a GPU count buffer.
+	DrawIndexedIndirectCount(buffer Buffer, offset uint64, countBuffer Buffer, countOffset uint64, maxDrawCount uint32)
+
+	// ExecuteBundle executes a pre-recorded render bundle.
+	// Bundles are an optimization for repeated draw calls.
+	ExecuteBundle(bundle RenderBundle)
+}
+    RenderPassEncoder records render commands within a render pass. Render
+    passes define rendering targets and operations.
+
+type RenderPassTimestampWrites struct {
+	// QuerySet is the query set to write to.
+	QuerySet QuerySet
+
+	// BeginningOfPassWriteIndex is the query index for pass start.
+	// Use nil to skip.
+	BeginningOfPassWriteIndex *uint32
+
+	// EndOfPassWriteIndex is the query index for pass end.
+	// Use nil to skip.
+	EndOfPassWriteIndex *uint32
+}
+    RenderPassTimestampWrites describes timestamp query writes.
+
+type RenderPipeline interface {
+	Resource
+}
+    RenderPipeline is a configured render pipeline. Render pipelines define the
+    complete graphics pipeline state.
+
+type RenderPipelineDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// Layout is the pipeline layout.
+	Layout PipelineLayout
+
+	// Vertex is the vertex stage.
+	Vertex VertexState
+
+	// Primitive is the primitive assembly state.
+	Primitive gputypes.PrimitiveState
+
+	// DepthStencil is the depth/stencil state (optional).
+	DepthStencil *DepthStencilState
+
+	// Multisample is the multisample state.
+	Multisample gputypes.MultisampleState
+
+	// Fragment is the fragment stage (optional for depth-only passes).
+	Fragment *FragmentState
+}
+    RenderPipelineDescriptor describes a render pipeline.
+
+type RequestAdapterOptions struct {
+	// PowerPreference indicates power consumption preference.
+	PowerPreference gputypes.PowerPreference
+	// ForceFallbackAdapter forces the use of a fallback (software) adapter.
+	ForceFallbackAdapter bool
+	// CompatibleSurface, if non-nil, indicates that the adapter must support
+	// rendering to this surface.
+	CompatibleSurface Surface
+}
+    RequestAdapterOptions controls adapter selection. CompatibleSurface
+    stays the hal.Surface interface: hal cannot name *webgpu.Surface (webgpu
+    already imports hal, so that would be an import cycle). It is the
+    hal-side equivalent of webgpu's *Surface (nilable surface reference);
+    full unification waits for slice 7 creation entry.
+
+type Resource interface {
+	// Destroy releases the GPU resource.
+	// After this call, the resource must not be used.
+	// Calling Destroy multiple times is undefined behavior.
+	Destroy()
+}
+    Resource is the base interface for all GPU resources. Resources must be
+    explicitly destroyed to free GPU memory.
+
+type Sampler interface {
+	Resource
+	NativeHandle
+}
+    Sampler represents a texture sampler. Samplers define how textures are
+    filtered and addressed.
+
+type SamplerDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// AddressModeU is the addressing mode for U coordinates.
+	AddressModeU gputypes.AddressMode
+
+	// AddressModeV is the addressing mode for V coordinates.
+	AddressModeV gputypes.AddressMode
+
+	// AddressModeW is the addressing mode for W coordinates.
+	AddressModeW gputypes.AddressMode
+
+	// MagFilter is the magnification filter.
+	MagFilter gputypes.FilterMode
+
+	// MinFilter is the minification filter.
+	MinFilter gputypes.FilterMode
+
+	// MipmapFilter is the mipmap filter.
+	MipmapFilter gputypes.MipmapFilterMode
+
+	// LodMinClamp is the minimum LOD clamp.
+	LodMinClamp float32
+
+	// LodMaxClamp is the maximum LOD clamp.
+	LodMaxClamp float32
+
+	// Compare is the comparison function for depth textures.
+	Compare gputypes.CompareFunction
+
+	// Anisotropy is the anisotropic filtering level (1-16, 1 is off).
+	Anisotropy uint16
+}
+    SamplerDescriptor describes how to create a sampler.
+
+type ShaderModule interface {
+	Resource
+}
+    ShaderModule represents a compiled shader module. Shader modules contain
+    executable GPU code in a backend-specific format.
+
+type ShaderModuleDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// WGSL is WGSL source code.
+	WGSL string
+
+	// SPIRV is SPIR-V bytecode (alternative to WGSL).
+	SPIRV []uint32
+}
+    ShaderModuleDescriptor describes a shader module.
+
+type StencilFaceState struct {
+	// Compare is the stencil comparison function.
+	Compare gputypes.CompareFunction
+
+	// FailOp is the operation when stencil test fails.
+	FailOp gputypes.StencilOperation
+
+	// DepthFailOp is the operation when depth test fails.
+	DepthFailOp gputypes.StencilOperation
+
+	// PassOp is the operation when both tests pass.
+	PassOp gputypes.StencilOperation
+}
+    StencilFaceState describes stencil operations for a face.
+
+type Surface interface {
+	Resource
+
+	// Configure configures the surface with the given device and settings.
+	// Must be called before acquiring textures.
+	Configure(device Device, config *SurfaceConfiguration) error
+
+	// Unconfigure removes the surface configuration.
+	// Call before destroying the device.
+	Unconfigure(device Device)
+
+	// AcquireTexture acquires the next surface texture for rendering.
+	// The texture must be presented via Queue.Present or discarded via DiscardTexture.
+	// Returns ErrSurfaceOutdated if the surface needs reconfiguration.
+	// Returns ErrSurfaceLost if the surface has been destroyed.
+	// Returns ErrTimeout if the timeout expires before a texture is available.
+	AcquireTexture(fence Fence) (*AcquiredSurfaceTexture, error)
+
+	// DiscardTexture discards a surface texture without presenting it.
+	// Use this if rendering failed or was canceled.
+	DiscardTexture(texture SurfaceTexture)
+
+	// ActualExtent returns the dimensions selected for the swapchain.
+	//
+	// On Vulkan, a defined CurrentExtent is compositor-owned and used verbatim
+	// (common on Android). When CurrentExtent is undefined, the requested extent
+	// is clamped to the driver's supported range. The result may therefore differ
+	// from SurfaceConfiguration.Width/Height.
+	//
+	// On non-Vulkan backends (DX12, Metal, GLES, Software), the returned
+	// values match the configured dimensions since those backends do not
+	// clamp the extent. Returns (0, 0) if the surface is not configured.
+	ActualExtent() (width, height uint32)
+}
+    Surface represents a rendering surface. Surfaces are platform-specific
+    presentation targets (windows).
+
+type SurfaceCapabilities struct {
+	// Formats are the supported surface texture formats.
+	Formats []gputypes.TextureFormat
+
+	// PresentModes are the supported presentation modes.
+	PresentModes []gputypes.PresentMode
+
+	// AlphaModes are the supported alpha modes.
+	AlphaModes []gputypes.CompositeAlphaMode
+}
+    SurfaceCapabilities describes surface capabilities.
+
+type SurfaceConfiguration struct {
+	// Width of the surface in pixels.
+	Width uint32
+
+	// Height of the surface in pixels.
+	Height uint32
+
+	// Format is the texture format for surface textures.
+	Format gputypes.TextureFormat
+
+	// Usage specifies how surface textures will be used.
+	Usage gputypes.TextureUsage
+
+	// PresentMode controls presentation timing.
+	PresentMode gputypes.PresentMode
+
+	// AlphaMode controls alpha compositing.
+	AlphaMode gputypes.CompositeAlphaMode
+}
+    SurfaceConfiguration describes surface settings.
+
+type SurfaceTarget struct {
+	Kind          SurfaceTargetKind
+	DisplayHandle uintptr
+	WindowHandle  uintptr
+}
+    SurfaceTarget is the typed raw-window contract passed from core to HAL.
+    DisplayHandle is unused for Android and Metal. WindowHandle is HWND, Xlib
+    Window, wl_surface*, ANativeWindow*, or CAMetalLayer* according to Kind.
+    HAL never owns these raw handles; they must outlive the created Surface.
+    Headless is a Go software/noop extension and carries no handles.
+
+func (t SurfaceTarget) RequireKind(expected SurfaceTargetKind) error
+    RequireKind rejects a target intended for a different window system.
+
+type SurfaceTargetKind uint8
+    SurfaceTargetKind identifies the native window-system representation carried
+    by a SurfaceTarget.
+
+const (
+	SurfaceTargetInvalid SurfaceTargetKind = iota
+	SurfaceTargetHeadless
+	SurfaceTargetWindowsHWND
+	SurfaceTargetXlibWindow
+	SurfaceTargetWaylandSurface
+	SurfaceTargetAndroidNativeWindow
+	SurfaceTargetMetalLayer
+)
+func (k SurfaceTargetKind) String() string
+    String returns a stable diagnostic name for the target kind.
+
+type SurfaceTexture interface {
+	Texture
+}
+    SurfaceTexture is a texture acquired from a surface. Surface textures have
+    special lifetime constraints - they must be presented or discarded before
+    the next frame.
+
+type Swapchain interface {
+	Configure() error
+	ConfigureFromCapabilities(adapter Adapter) error
+	Resize(w, h uint32) error
+	BeginFrame() (*SwapchainFrame, error)
+	EndFrame(frame *SwapchainFrame) error
+	DiscardFrame(frame *SwapchainFrame)
+	// EndFrameWithDamage forwards damage rects when the backend supports
+	// partial present; backends without support present full.
+	EndFrameWithDamage(frame *SwapchainFrame, rects []image.Rectangle) error
+	// MarkNeedsReconfigure schedules a reconfigure on the next BeginFrame.
+	MarkNeedsReconfigure()
+	Release()
+	SetPreferVSync()
+	SetPreferFifoRelaxed()
+	PresentModeForVsync(on bool) gputypes.PresentMode
+	SetPresentModeForce(mode gputypes.PresentMode) error
+	PresentModeName() string
+	GetPresentMode() gputypes.PresentMode
+	GetFormat() gputypes.TextureFormat
+	SetUsage(u gputypes.TextureUsage)
+	GetDevice() Device
+	SetDevice(dev Device)
+	GetOnDeviceAbandon() func(Device)
+	GetOnDeviceRecreated() func(Device)
+	FireOnDeviceRecreated(dev Device)
+}
+    Swapchain is the backend-neutral online present surface. webgpu.Swapchain
+    and gwgpu/gles.Swapchain both implement it so render stays single-path:
+    creation picks a backend once, afterwards render only talks this interface.
+    No backend-specific types leak into render.
+
+type SwapchainFrame struct {
+	ViewHandle unsafe.Pointer
+	Width      uint32
+	Height     uint32
+	// Suboptimal reports the surface config is usable but not optimal.
+	Suboptimal bool
+	// DamageRects optionally records dirty regions (backend may ignore).
+	DamageRects []image.Rectangle
+	// Payload keeps the backend frame alive until EndFrame/DiscardFrame.
+	// render must not inspect it; only the owning backend unwraps it.
+	Payload any
+}
+    SwapchainFrame is one acquired swapchain image ready for rendering.
+    ViewHandle carries the opaque gpucontext.TextureView word (single
+    unsafe.Pointer): backends store h.Pointer(), render rebuilds the typed
+    handle with gpucontext.NewTextureView. Words (not interface values) cross
+    hal so hal stays free of the context import cycle.
+
+    The word must stay an unsafe.Pointer, never a uintptr round trip: checkptr
+    (enabled by -race) rejects uintptr→unsafe.Pointer conversions, which used to
+    abort every GPU window under -race at render/present_frame.go.
+
+type Texture interface {
+	Resource
+	NativeHandle
+
+	// Format returns the texture format.
+	Format() gputypes.TextureFormat
+
+	// CurrentUsage returns the texture's tracked usage state for barrier computation.
+	// On DX12, this maps the tracked D3D12 resource state back to gputypes.TextureUsage.
+	// On backends without state tracking (GLES, Software, Metal, Noop), returns 0.
+	// Used by PendingWrites to determine the correct "before" state for copy barriers.
+	CurrentUsage() gputypes.TextureUsage
+
+	// AddPendingRef/DecPendingRef manage reference counting for in-flight GPU work.
+	// PendingWrites calls AddPendingRef when recording CopyBufferToTexture, and
+	// DecPendingRef when GPU confirms completion. Destroy() is deferred if refs > 0.
+	// This prevents use-after-free on DX12.
+	// No-op on backends that don't need deferred destruction.
+	AddPendingRef()
+	DecPendingRef()
+}
+    Texture represents a GPU texture. Textures are multi-dimensional images with
+    specific formats.
+
+type TextureBarrier struct {
+	Texture Texture
+	Range   TextureRange
+	Usage   TextureUsageTransition
+}
+    TextureBarrier defines a texture state transition.
+
+type TextureCopy struct {
+	Source      ImageCopyTexture
+	Destination ImageCopyTexture
+	Size        Extent3D
+}
+    TextureCopy defines a texture-to-texture copy region.
+
+type TextureDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// Size is the texture dimensions.
+	Size Extent3D
+
+	// MipLevelCount is the number of mip levels (1+ required).
+	MipLevelCount uint32
+
+	// SampleCount is the number of samples per pixel (1 for non-MSAA).
+	SampleCount uint32
+
+	// Dimension is the texture dimension (1D, 2D, 3D).
+	Dimension gputypes.TextureDimension
+
+	// Format is the texture pixel format.
+	Format gputypes.TextureFormat
+
+	// Usage specifies how the texture will be used.
+	Usage gputypes.TextureUsage
+
+	// ViewFormats are additional formats for texture views.
+	// Required for creating views with different (but compatible) formats.
+	ViewFormats []gputypes.TextureFormat
+}
+    TextureDescriptor describes how to create a texture.
+
+type TextureFormatCapabilities struct {
+	// Flags indicate what operations are supported for this format.
+	Flags TextureFormatCapabilityFlags
+}
+    TextureFormatCapabilities describes texture format capabilities.
+
+type TextureFormatCapabilityFlags uint32
+    TextureFormatCapabilityFlags are capability flags for texture formats.
+
+const (
+	// TextureFormatCapabilitySampled indicates the format can be sampled in shaders.
+	TextureFormatCapabilitySampled TextureFormatCapabilityFlags = 1 << iota
+
+	// TextureFormatCapabilityStorage indicates the format can be used for storage textures.
+	TextureFormatCapabilityStorage
+
+	// TextureFormatCapabilityStorageReadWrite indicates read-write storage support.
+	TextureFormatCapabilityStorageReadWrite
+
+	// TextureFormatCapabilityRenderAttachment indicates render target support.
+	TextureFormatCapabilityRenderAttachment
+
+	// TextureFormatCapabilityBlendable indicates blending support as render target.
+	TextureFormatCapabilityBlendable
+
+	// TextureFormatCapabilityMultisample indicates multisampling support.
+	TextureFormatCapabilityMultisample
+
+	// TextureFormatCapabilityMultisampleResolve indicates multisample resolve support.
+	TextureFormatCapabilityMultisampleResolve
+)
+type TextureRange struct {
+	// Aspect specifies which aspect of the texture (color, depth, stencil).
+	Aspect gputypes.TextureAspect
+
+	// BaseMipLevel is the first mip level in the range.
+	BaseMipLevel uint32
+
+	// MipLevelCount is the number of mip levels (0 means all remaining levels).
+	MipLevelCount uint32
+
+	// BaseArrayLayer is the first array layer in the range.
+	BaseArrayLayer uint32
+
+	// ArrayLayerCount is the number of array layers (0 means all remaining layers).
+	ArrayLayerCount uint32
+}
+    TextureRange specifies a range of texture subresources.
+
+type TextureUsageTransition struct {
+	OldUsage gputypes.TextureUsage
+	NewUsage gputypes.TextureUsage
+}
+    TextureUsageTransition defines a texture usage state transition.
+
+type TextureView interface {
+	Resource
+	NativeHandle
+
+	// Texture returns the parent Texture that this view was created from.
+	Texture() Texture
+}
+    TextureView represents a view into a texture. Views specify how a texture is
+    interpreted (format, dimensions, layers).
+
+type TextureViewDescriptor struct {
+	// Label is an optional debug name.
+	Label string
+
+	// Format is the view format (can differ from texture format if compatible).
+	// Use TextureFormatUndefined to inherit from the texture.
+	Format gputypes.TextureFormat
+
+	// Dimension is the view dimension (can differ from texture dimension).
+	// Use TextureViewDimensionUndefined to inherit from the texture.
+	Dimension gputypes.TextureViewDimension
+
+	// Aspect specifies which aspect to view (color, depth, stencil).
+	Aspect gputypes.TextureAspect
+
+	// BaseMipLevel is the first mip level in the view.
+	BaseMipLevel uint32
+
+	// MipLevelCount is the number of mip levels (0 means all remaining levels).
+	MipLevelCount uint32
+
+	// BaseArrayLayer is the first array layer in the view.
+	BaseArrayLayer uint32
+
+	// ArrayLayerCount is the number of array layers (0 means all remaining layers).
+	ArrayLayerCount uint32
+}
+    TextureViewDescriptor describes how to create a texture view.
+
+type TlasInstance struct {
+	Transform                      [12]float32
+	CustomData                     uint32
+	Mask                           uint8
+	BlasAddress                    uint64
+	ShaderBindingTableRecordOffset uint32
+}
+    TlasInstance describes a single TLAS instance referencing a BLAS.
+    This is the CPU-side representation; TlasInstanceToBytes converts it to the
+    backend-specific 64-byte packed format.
+
+type VertexState struct {
+	// Module is the shader module.
+	Module ShaderModule
+
+	// EntryPoint is the shader entry point function name.
+	EntryPoint string
+
+	// Buffers describe the vertex buffer layouts.
+	Buffers []gputypes.VertexBufferLayout
+}
+    VertexState describes the vertex shader stage.
+

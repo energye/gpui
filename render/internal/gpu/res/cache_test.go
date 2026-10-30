@@ -1,19 +1,28 @@
 package res
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
 func newTestCache(budget uint64) (*Registry, *Cache, *fakeNativeTracker) {
 	reg := NewRegistry()
 	tracker := &fakeNativeTracker{}
-	c := NewCache(reg, tracker.create, budget)
+	c := NewCache(reg.DeviceOwner(), tracker.create, CacheOptions{Budget: budget})
 	return reg, c, tracker
 }
 
 type fakeNativeTracker struct {
+	mu      sync.Mutex
 	created []*fakeNative
 }
 
+// create runs without the cache lock (Cache calls CreateFn off-lock so an OOM
+// purge can re-enter), so concurrent acquires may create concurrently — the
+// tracker must be thread-safe like a real device create path.
 func (t *fakeNativeTracker) create(key CacheKey) (Native, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	f := &fakeNative{tag: len(t.created)}
 	t.created = append(t.created, f)
 	return f, nil

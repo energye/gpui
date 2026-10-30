@@ -1,0 +1,12 @@
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+snapshot stored: r20_steady.png
+embedder: snapshot request timed out
+snapshot stored: r20_recover.png
+snapshot: /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/r20_snapshots/r20_final.png
+ui_wr_r20_filter: pixel gray_red_band_matrix_exact   @( 408, 274) got=(0.898,0.200,0.149) want=(0.404,0.404,0.404) ok=false
+ui_wr_r20_filter: pixel raw_control_outside_invariant @( 417, 481) got=(0.600,0.298,0.800) want=(0.600,0.300,0.800) ok=true
+ui_wr_r20_filter: pixel blur_bar_center_preserved    @( 618, 177) got=(0.949,0.522,0.078) want=(0.950,0.520,0.080) ok=true
+ui_wr_r20_filter: pixel pulse_disc_center_invariant  @( 697, 491) got=(0.251,0.749,0.349) want=(0.250,0.750,0.350) ok=true
+ui_wr_r20_filter: pixel dense_note_text_density      text_px=784 (want >=120) ok=true
+golden baseline stored: /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4d/r20_snapshots/r20_final_base.png
+FAIL: hitch_rate_per_min=98.12 > 30

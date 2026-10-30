@@ -36,10 +36,13 @@ const (
 	// converts to entries with the MinEntries floor. MaxEntries is
 	// unused (the cache auto-sizes to its frame working set).
 	BudgetPictureCache
-	// BudgetTexturePool is the deprecated render-target pool kept for
-	// purge/telemetry until P2.4d removes it. MaxBytes = pool budget in
-	// bytes (the site reads MB via MaxBytes>>20; MaxEntries unused).
-	BudgetTexturePool
+	// BudgetSurfacePool is the surface-sized textureSet pool (MSAA +
+	// depth/stencil + resolve trio) shared by every window session on a
+	// device. MaxBytes = resident surface bytes; the live site reads the
+	// limit through DefaultBudget when the trio moves onto res.Cache
+	// (P2.4d). (Named SurfacePool since P2.4d: the old TexturePool was a
+	// per-process Go struct, this domain is the per-device surface trio.)
+	BudgetSurfacePool
 	// BudgetStencilScratch is the size-bucketed sc==1 depth/stencil cache
 	// on each session textureSet. MaxEntries = size buckets.
 	BudgetStencilScratch
@@ -52,6 +55,10 @@ const (
 	// BudgetLayerOffscreen is the per-context layer/effect offscreen RT
 	// pool. MaxBytes = total pool bytes; MaxEntries = per-size-bucket cap.
 	BudgetLayerOffscreen
+	// BudgetFilterGraph is the GPU filter graph's RGBA8 render-target pool
+	// (ping-pong A/B + hold + published results), shared by every window on a
+	// device. MaxEntries = per-size-bucket cap; MaxBytes = total pool bytes.
+	BudgetFilterGraph
 	// BudgetGlyphColor is the color-glyph atlas. MaxEntries = atlas pages
 	// (each page is PageSize² RGBA at the construction site).
 	BudgetGlyphColor
@@ -72,8 +79,8 @@ func (d BudgetDomain) String() string {
 		return "image-cache"
 	case BudgetPictureCache:
 		return "picture-cache"
-	case BudgetTexturePool:
-		return "texture-pool"
+	case BudgetSurfacePool:
+		return "surface-pool"
 	case BudgetStencilScratch:
 		return "stencil-scratch"
 	case BudgetClipMask:
@@ -82,6 +89,8 @@ func (d BudgetDomain) String() string {
 		return "blend-dualtex"
 	case BudgetLayerOffscreen:
 		return "layer-offscreen"
+	case BudgetFilterGraph:
+		return "filter-graph"
 	case BudgetGlyphColor:
 		return "glyph-color"
 	case BudgetGlyphMask:
@@ -128,9 +137,9 @@ func DefaultBudget(d BudgetDomain) Budget {
 	case BudgetPictureCache:
 		// Fair-share floor for the derived per-window entry cap.
 		return Budget{MinEntries: 64}
-	case BudgetTexturePool:
-		// MB semantics; MaxBytes carries 128 MiB, the site reads MB via
-		// MaxBytes>>20.
+	case BudgetSurfacePool:
+		// 128 MiB ≈ 5 concurrent 1080p MSAA4x surface trios (the audited
+		// pre-P2.4b TexturePool default, kept bit-for-bit).
 		return Budget{MaxBytes: 128 << 20}
 	case BudgetStencilScratch:
 		return Budget{MaxEntries: 8}
@@ -140,6 +149,14 @@ func DefaultBudget(d BudgetDomain) Budget {
 		return Budget{MaxEntries: 8, MaxBytes: 32 << 20}
 	case BudgetLayerOffscreen:
 		return Budget{MaxEntries: 4, MaxBytes: 32 << 20}
+	case BudgetFilterGraph:
+		// Pre-P2.4d the graph held 3 fixed ping-pong/hold RTs plus a publish
+		// free-list capped at 4 (7 same-size RGBA8 entries, no byte cap). 8 per
+		// size bucket keeps that working set; 128 MiB = 8 × the largest legal
+		// RT (filterGPUMaxPixels 4 Mpx RGBA8 = 16 MiB), so the entry cap is what
+		// binds and the byte ceiling only backstops the worst case — steady
+		// state stays bit-for-bit what the hand-rolled pool did.
+		return Budget{MaxEntries: 8, MaxBytes: 128 << 20}
 	case BudgetGlyphColor:
 		// MaxEntries = atlas pages (NewColorGlyphAtlas(1024, 4)).
 		return Budget{MaxEntries: 4}

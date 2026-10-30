@@ -355,53 +355,6 @@ func TestGPURenderContext_FrameTracking(t *testing.T) {
 	rc2.Close()
 }
 
-// TestTexturePool_AcquireRelease verifies texture pool acquire/release lifecycle.
-func TestTexturePool_AcquireRelease(t *testing.T) {
-	pool := NewTexturePool(128)
-
-	// Acquire with no pooled textures should return nil.
-	ts := pool.Acquire(1920, 1080, 4)
-	if ts != nil {
-		t.Error("expected nil from empty pool")
-	}
-
-	// Release a textureSet.
-	pool.Release(&textureSet{width: 1920, height: 1080}, 4)
-
-	// Now acquire should return it.
-	ts = pool.Acquire(1920, 1080, 4)
-	if ts == nil {
-		t.Fatal("expected non-nil after Release")
-	}
-	if ts.width != 1920 || ts.height != 1080 {
-		t.Errorf("got %dx%d, want 1920x1080", ts.width, ts.height)
-	}
-
-	// Pool should be empty again.
-	if pool.PooledCount() != 0 {
-		t.Errorf("pool should be empty, got %d", pool.PooledCount())
-	}
-}
-
-// TestTexturePool_EndFrame verifies unused textures are trimmed.
-func TestTexturePool_EndFrame(t *testing.T) {
-	pool := NewTexturePool(128)
-
-	// Add 5 texture sets with same key.
-	for i := 0; i < 5; i++ {
-		pool.Release(&textureSet{width: 800, height: 600}, 4)
-	}
-	if pool.PooledCount() != 5 {
-		t.Errorf("expected 5 pooled, got %d", pool.PooledCount())
-	}
-
-	// EndFrame should trim to 2 per key.
-	pool.EndFrame()
-	if pool.PooledCount() != 2 {
-		t.Errorf("expected 2 pooled after EndFrame, got %d", pool.PooledCount())
-	}
-}
-
 // TestGPURenderContext_BaseLayer_PendingCount verifies base layer is included in PendingCount.
 func TestGPURenderContext_BaseLayer_PendingCount(t *testing.T) {
 	s := NewGPUShared()
