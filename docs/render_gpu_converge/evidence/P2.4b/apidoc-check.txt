@@ -1,0 +1,5 @@
+# 复跑 2026-10-30T10:54:51+08:00（修正 RENDER_API_CATALOG.md Budget/StandaloneDevice 粘连坏行之后）
+OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg 全部公开符号
+# exit: 0
+# 附：上一轮输出
+#   OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg 全部公开符号

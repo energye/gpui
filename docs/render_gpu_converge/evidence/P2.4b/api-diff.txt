@@ -1,0 +1,23 @@
+# P2.4b API 快照对账（对 P2.4a 收口状态）
+
+## render（go doc -all diff，对 evidence/P2.4a/api-render.txt）
+
+新增 5 个导出面（计划内，§4）：
+> func FairSplit(total, windows, floor int64) int64
+> type Budget struct { MaxEntries int; MaxBytes int64; MinEntries int; MinBytes int64; TTL time.Duration }
+> func DefaultBudget(d BudgetDomain) Budget
+> type BudgetDomain int
+> func (d BudgetDomain) String() string
+
+其余 render 符号零变化；shared_budget.go 的 pictureCacheFairMaxN 保持未导出（算术内部改调 FairSplit）。
+
+## render/internal/gpu
+
+**零差异**（P2.4a 快照逐字节一致）——预算切换全部经未导出 var/调用点，导出面不动。
+
+## 预期声明计数（func/type/const/var 行口径）
+
+| 包 | P2.4a | P2.4b | delta |
+|---|---:|---:|---|
+| render | 814 | 820 | +6 行声明（Budget/BudgetDomain 2 type + DefaultBudget/FairSplit/String 3 func + BudgetDomain 无 const——结构体字段与枚举常量不计此口径；行数按 grep 口径）|
+| render/internal/gpu | 898 | 898 | 0 |

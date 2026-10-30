@@ -1,0 +1,55 @@
+# P2.4b 真窗门禁补跑（第二轮，2026-10-30）
+# head: 51a5dec5（工作区 = P2.4b 未提交改动）
+# 隔离显示：嵌套 gnome-shell Wayland（dbus-run-session -- gnome-shell --nested --no-x11）
+#   compositor gpui-p24b2（09:36 起）→ 退役；gpui-p24b3（10:17 起）全新
+# 当前桌面 X :1 全程只做健康检查，未在其上开任何窗
+
+## step 0 桌面健康
+desktop X display :1: alive
+
+## step 1 vram ladder native（WAYLAND_DISPLAY=gpui-p24b2，RUN_SECONDS=300，timeout 1200）
+rc=124（到 300s 截止仍未退出；SIGQUIT 抓栈后进程结束）
+  phase n=2 shared=2 fps_min=44.1 refusals=+0 (total 4) live=91.5MB fair/win=96.0MB
+  phase n=4 shared=4 fps_min=23.5 refusals=+472 (total 623) live=181.5MB fair/win=48.0MB
+  phase n=8 shared=8 fps_min=0.0 refusals=+0 (total 643) live=201.0MB fair/win=24.0MB   ← 卡死点
+栈（vram_ladder_hang-stack.txt）：
+  goroutine 3 [syscall, 18 minutes, locked to thread] = raster hub 线程
+    ui/raster.(*hub).run → sweep → Loop.exec → presentPacketTextured
+    → PresentTarget.PresentWithAuto → render.Context.PresentFrameAuto
+    → PresentTarget.present → Swapchain.EndFrameWithDamage
+    → rwgpu.(*Surface).Present → rwgpu.(*unixProc).Call → syscall（wgpuSurfacePresent 不返回）
+  goroutine 1 [chan receive] = 主线程 PipelineApp.Close → raster.Loop.RunSync（等 hub）
+  goroutine 38 [sync.Mutex.Lock] = PipelineApp.Run → PresentTarget.InFullRecovery（等 hub 持有的 target 锁）
+  另外 7 个窗口 goroutine 全堵在 raster.(*Loop).Submit（hub 不消费）
+
+A/B 对照（同一合成器、同一参数、P2.4a 干净树 55495fdd worktree）：
+rc=124（同样到截止不退；SIGQUIT 抓栈）
+  phase n=2 fps_min=52.2 refusals=+0 (total 4) live=91.5MB (max 92.9)
+  phase n=4 fps_min=26.9 refusals=+538 (total 721) live=181.5MB
+  phase n=8 fps_min=0.0 refusals=+0 (total 739) live=203.4MB   ← 同样卡死
+栈（ab-clean-55495fdd.stderr）：
+  goroutine 34 [syscall, 7 minutes, locked to thread] → rwgpu.(*Surface).Present（同一位置）
+  goroutine 18 [sync.Mutex.Lock] / 7 个窗口 goroutine [chan send]（同一形态）
+结论：8 窗 native present 阻塞是**既有缺陷**（Wayland/驱动面），非 P2.4b 回归；
+  登记待办池 I1，拟归属 P2.4e；P1.6 的 X11 :3 同窗 PASS（拒增 [2,0]→[4,550]→[8,747]、峰值 372MB）。
+
+## step 2 ui_l1_blank go（单窗，RUN_SECONDS=60）
+gpui-p24b2（旧合成器）: rc=124，无 JSON（挂住）
+gpui-p24b3（全新合成器、首个应用）: rc=124，无 JSON（挂住）
+gpui-p24b3 补跑两次（RUN_SECONDS=10，35s 判挂）：
+  run1: rc=1  —— stderr: eglMakeCurrent failed: error 0x3002 ×3，随后
+        "open present: ConfigureFromCapabilities: gles: failed to bind GL context for swapchain framebuffer"
+  run2: 挂住 —— 关窗死锁：hub 线程 gles.(*AdapterContext).Destroy 等 AdapterContext 互斥锁，
+        主线程 embedder.(*App).Close → raster.Loop.RunSync 等 hub
+A/B 对照（55495fdd 干净树，同合成器）：同样关窗死锁，栈同为 AdapterContext.Destroy
+结论：即既有 C7 根因（eglMakeCurrent 0x3002，Wayland 形态），非 P2.4b 回归；
+  证据 l1_blank_go_c7-0x3002.stderr / l1_blank_go_hang-stack.txt / ab-clean-55495fdd.stderr。
+
+## step 3 沿用第一轮（08:15，同 head 工作区）
+ui_l1_blank native rc=0：frame 3571 / present 3572 / missed_vsync 0 / hitch 9
+ui_base_multiwin_cap native -auto-only rc=0：8 窗三相位（n=2 59.7 / n=4 58.5 / n=8 40.1 fps），
+  账本稳态 316MB，门禁自判 PASS（pixel_bad 空、probes 16/16、golden per-window diff=0）
+
+## 退出方式
+所有窗走 RUN_SECONDS 自退出；未按期退出的两次在**隔离合成器内**用 SIGQUIT 抓栈取证
+（进程已无力响应 WM_DELETE，且不在当前桌面）；未对当前桌面执行任何信号。

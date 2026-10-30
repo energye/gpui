@@ -105,11 +105,27 @@ type glyphLayoutTemplateEntry struct {
 	atime          uint64
 }
 
+// newGlyphMaskAtlasFromBudget builds the default R8 atlas with the budget
+// table values (P2.4b): page geometry (size/padding) stays the text-package
+// default; the entry cap and page count come from BudgetGlyphMask. render/text
+// does not import render, so the caller injects the numbers here.
+func newGlyphMaskAtlasFromBudget() *text.GlyphMaskAtlas {
+	cfg := text.DefaultGlyphMaskAtlasConfig()
+	b := render.DefaultBudget(render.BudgetGlyphMask)
+	cfg.MaxEntries = b.MaxEntries
+	pageBytes := cfg.Size * cfg.Size // R8: one byte per texel
+	if pageBytes > 0 {
+		cfg.MaxAtlases = int(b.MaxBytes / int64(pageBytes))
+	}
+	atlas, _ := text.NewGlyphMaskAtlas(cfg)
+	return atlas
+}
+
 // NewGlyphMaskEngine creates a new glyph mask engine with the default atlas
 // configuration. LCD subpixel rendering is disabled by default (LCDLayoutNone).
 func NewGlyphMaskEngine() *GlyphMaskEngine {
 	return &GlyphMaskEngine{
-		atlas:              text.NewGlyphMaskAtlasDefault(),
+		atlas:              newGlyphMaskAtlasFromBudget(),
 		rasterizer:         text.NewGlyphMaskRasterizer(),
 		variationExtractor: text.NewOutlineExtractor(),
 		lcdLayout:          text.LCDLayoutNone,

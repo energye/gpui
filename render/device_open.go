@@ -70,14 +70,16 @@ type StandaloneDevice struct {
 // window policy (RequestAdapterWithPolicy + ResolveAdapterPolicy), and the
 // device request reuses the present chain's OOM retry.
 //
-// Zero-behavior notes (P2.4a):
+// Zero-behavior notes (P2.4a → P2.4b):
 //   - Backends stay pinned to Vulkan exactly as the previous per-callsite
 //     webgpu.CreateInstance(BackendsVulkan) did; GPUI_BACKEND deliberately
 //     does not hijack standalone opens (pure-Go GL has no surfaceless
 //     standalone — GL users must go through a window's shared device).
-//   - The descriptor is the plain DeviceDescriptor; the present chain's
-//     waterline-aware DeviceDescriptorForAdapter stays present-only until
-//     P2.4b unifies budget semantics.
+//   - P2.4b (D2 拍板): the descriptor is now the waterline-aware
+//     DeviceDescriptorForAdapter — standalone probes/compute follow the
+//     same LowVRAM policy as windows on integrated adapters or when the
+//     ledger waterline trips. On discrete adapters with headroom the
+//     result is identical to the previous plain DeviceDescriptor.
 //   - No waitDeviceReady gate: that is a present-path heap-reclaim gate,
 //     and standalone opens never had it.
 //
@@ -94,7 +96,7 @@ func OpenStandaloneDevice(label string) (*StandaloneDevice, error) {
 		instance.Release()
 		return nil, fmt.Errorf("request adapter: %w", err)
 	}
-	device, err := requestDeviceWithRetry(adapter, DeviceDescriptor(label), label)
+	device, err := requestDeviceWithRetry(adapter, DeviceDescriptorForAdapter(label, adapter), label)
 	if err != nil {
 		adapter.Release()
 		instance.Release()

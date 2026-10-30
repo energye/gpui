@@ -1,0 +1,32 @@
+# P2.4b window gates (isolated nested Wayland)
+# date: 2026-10-30T08:15:07+08:00
+# head: 51a5dec5
+
+## step 0: desktop health
+desktop X display :1: alive
+
+## step 1: nested gnome-shell (wayland display gpui-p24b)
+spawned pid 1357359
+nested wayland socket: alive
+
+## step 2: ui_l1_blank (native) on nested Wayland gpui-p24b
+rc=0
+{"frame_count":3571,"present_count":3572,"missed_vsync":0,"hitch_count":9,"hitch_rate_per_min":9.013424009198754,"pipeline_depth":0,"pipeline_max":2,"last_frame_interval_ms":16.015491,"max_frame_inter
+
+## step 2: ui_l1_blank (go) on nested Wayland gpui-p24b
+rc=124
+
+
+## step 3: ui_base_multiwin_cap (native) on nested Wayland gpui-p24b
+rc=0
+  phase n=2 fps=59.7 (min 59.7) p95max=18.6ms cpu=30.7% cpu/win=15.4% cpu_ms/present=2.58ms marginal=15.4% rss=312->314MB avg60=true steady60=true
+  phase n=4 fps=58.5 (min 58.4) p95max=23.2ms cpu=51.7% cpu/win=12.9% cpu_ms/present=2.21ms marginal=10.5% rss=314->315MB avg60=true steady60=false
+  phase n=8 fps=40.1 (min 40.1) p95max=33.3ms cpu=70.5% cpu/win=8.8% cpu_ms/present=2.20ms marginal=4.7% rss=315->316MB avg60=false steady60=false
+
+## step 4: ui_base_vram_cap ladder (native, RUN_SECONDS=300) on nested Wayland gpui-p24b
+rc=124
+wrkit: UI font /home/yanghy/.local/share/fonts/NotoSansCJKsc-Regular.otf + /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf + /usr/share/fonts/truetype/tlwg/Garuda.ttf + /usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf + /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf (MultiFace)
+ui_base_vram_cap: phase n=2 shared=2 fps_min=51.6 refusals=+0 (total 4) live=91.5MB (max 91.5) fair/win=96.0MB
+ui_base_vram_cap: phase n=4 shared=4 fps_min=28.4 refusals=+569 (total 754) live=181.5MB (max 181.5) fair/win=48.0MB
+ui_base_vram_cap: phase n=8 shared=8 fps_min=0.0 refusals=+0 (total 775) live=201.0MB (max 201.0) fair/win=24.0MB
+rc=1

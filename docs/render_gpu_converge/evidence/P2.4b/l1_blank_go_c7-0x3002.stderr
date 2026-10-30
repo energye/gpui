@@ -1,0 +1,6 @@
+ui_l1_blank: running 10s (RUN_SECONDS); close window to exit safely
+2026/10/30 10:27:08 ERROR gles: AdapterContext.Lock MakeCurrent failed err="eglMakeCurrent failed: error 0x3002"
+2026/10/30 10:27:08 ERROR gles: AdapterContext.Lock MakeCurrent failed err="eglMakeCurrent failed: error 0x3002"
+2026/10/30 10:27:08 ERROR gles: AdapterContext.Lock MakeCurrent failed err="eglMakeCurrent failed: error 0x3002"
+open present: render: ConfigureFromCapabilities: gles: failed to bind GL context for swapchain framebuffer: gles: AdapterContext: MakeCurrent failed: eglMakeCurrent failed: error 0x3002
+exit status 1

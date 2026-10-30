@@ -1,0 +1,850 @@
+# P2.4b per-test-file run
+# date: 2026-10-30T06:50:03+08:00
+# head: 51a5dec5
+# env: WGPU_NATIVE_PATH set (H1 discipline), DISPLAY=:1
+# ruler: for each *_test.go, go test -run '^(TestA|TestB|...)$' (benchmarks excluded);
+#        build-tag-excluded files show as SKIP_TAGGED
+
+## render
+aa_probe_quality_test.go: PASS rc=0
+accelerator_integration_test.go: PASS rc=0
+accelerator_test.go: PASS rc=0
+adapter_policy_test.go: PASS rc=0
+antialias_test.go: PASS rc=0
+atlas_r4_test.go: PASS rc=0
+backdrop_layer_msaa_test.go: PASS rc=0
+backdrop_layer_present_test.go: PASS rc=0
+backend_test.go: PASS rc=0
+basic_gpu_visual_test.go: PASS rc=0
+benchmark_test.go: NO_TEST_FUNCS compile-only rc=0
+blend_porterduff_test.go: PASS rc=0
+brush_custom_test.go: PASS rc=0
+brush_test.go: PASS rc=0
+budget_default_test.go: PASS rc=0
+cjk_text_gpu_visual_test.go: PASS rc=0
+clip_ops_semantics_test.go: PASS rc=0
+clip_rotated_rect_test.go: PASS rc=0
+clipping_gpu_visual_test.go: PASS rc=0
+cliprrect_consumer_test.go: PASS rc=0
+color_extended_test.go: PASS rc=0
+color_test.go: PASS rc=0
+conformance_test.go: PASS rc=0
+context_clip_depth_test.go: FAIL rc=1
+    --- FAIL: TestClipCircle_CPUPixels (0.32s)
+        context_clip_depth_test.go:31: center pixel should be red, got R=0.00 G=0.00 B=0.00
+        context_clip_depth_test.go:51: pixel at (50,25) should be red (inside circle clip), got R=0.00 G=0.00 B=0.00
+    FAIL
+    FAIL	github.com/energye/gpui/render	0.381s
+    FAIL
+context_clip_test.go: PASS rc=0
+context_coverage_test.go: FAIL rc=1
+    --- FAIL: TestContextSetFillBrushCoverage (0.00s)
+        context_coverage_test.go:454: fill brush red R = 0.000000, want >= 0.8
+    FAIL
+    FAIL	github.com/energye/gpui/render	0.569s
+    FAIL
+context_device_scale_test.go: PASS rc=0
+context_gpu_registry_test.go: PASS rc=0
+context_image_test.go: PASS rc=0
+context_layer_test.go: PASS rc=0
+context_misc_draw_gpu_test.go: FAIL rc=1
+    --- FAIL: TestMiscDrawGPUPath (0.36s)
+        --- FAIL: TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend (0.02s)
+            context_misc_draw_gpu_test.go:141: effect multiply = (255,0,0,255), want approx (229,0,0,255)
+    FAIL
+    FAIL	github.com/energye/gpui/render	0.435s
+    FAIL
+context_misc_draw_test.go: PASS rc=0
+context_output_test.go: PASS rc=0
+context_resize_test.go: PASS rc=0
+context_stroke_test.go: PASS rc=0
+coverage_extended_test.go: PASS rc=0
+curve_test.go: PASS rc=0
+damage_scale_test.go: PASS rc=0
+dash_test.go: PASS rc=0
+depth_r5_test.go: PASS rc=0
+device_open_test.go: PASS rc=0
+device_scale_race_test.go: PASS rc=0
+dither_contract_test.go: PASS rc=0
+draw_shader_mask_gpu_test.go: PASS rc=0
+draw_shader_mask_test.go: PASS rc=0
+export_imagebuf_dirty_test.go: PASS rc=0
+f14_effect_flush_publish_test.go: PASS rc=0
+f1_adv_layer_present_test.go: PASS rc=0
+filter_ops_contract_test.go: PASS rc=0
+filter_ops_gpu_test.go: PASS rc=0
+filter_present_coherence_test.go: FAIL rc=1
+    --- FAIL: TestPresentDamage_ImageMatchesView (0.00s)
+        filter_present_coherence_test.go:85: Image() still white after present rgba=255,255,255,255
+    FAIL
+    FAIL	github.com/energye/gpui/render	0.361s
+    FAIL
+frame_test.go: PASS rc=0
+g2_damage_contract_test.go: PASS rc=0
+gg_test.go: PASS rc=0
+glyphmask_lcd_mix_test.go: PASS rc=0
+gpu_example_visual_test.go: PASS rc=0
+gradient_ctm_gpu_test.go: PASS rc=0
+gradient_ctm_test.go: PASS rc=0
+gradient_extended_test.go: PASS rc=0
+gradient_test.go: PASS rc=0
+hairline_visual_test.go: PASS rc=0
+images_gpu_visual_test.go: PASS rc=0
+layer_rt_clear_test.go: PASS rc=0
+lcd_layout_test.go: PASS rc=0
+logger_test.go: PASS rc=0
+m5_color_glyph_api_test.go: FAIL rc=1
+    --- FAIL: TestDrawShapedColorGlyphsCPU_Emoji (0.32s)
+        m5_color_glyph_api_test.go:94: no ink from DrawShapedColorGlyphs CPU fallback on NotoColorEmoji
+    FAIL
+    FAIL	github.com/energye/gpui/render	0.401s
+    FAIL
+m5_emoji_draw_test.go: PASS rc=0
+mask_test.go: PASS rc=0
+matrix_test.go: PASS rc=0
+mem_complex_offscreen_test.go: PASS rc=0
+mem_gpu_lifecycle_test.go: PASS rc=0
+mem_harness_test.go: NO_TEST_FUNCS compile-only rc=0
+mem_window_x11_linux_test.go: PASS rc=0
+misc_extended_test.go: PASS rc=0
+nan_safety_test.go: PASS rc=0
+offscreen_record_mask_test.go: PASS rc=0
+oom_exit_test.go: PASS rc=0
+oom_purge_test.go: PASS rc=0
+opt18_filter_submit_coalesce_test.go: PASS rc=0
+options_test.go: PASS rc=0
+p01_layer_gpu_test.go: PASS rc=0
+p02_brush_native_test.go: PASS rc=0
+p03_advanced_blend_test.go: PASS rc=0
+p04_filter_gpu_test.go: PASS rc=0
+p11_text_shape_cache_test.go: PASS rc=0
+p12_clip_mask_gpu_test.go: PASS rc=0
+p13_frame_flush_test.go: PASS rc=0
+p1_capability_matrix_closers_test.go: PASS rc=0
+p1_complex_ui_matrix_test.go: PASS rc=0
+p1_gl_offscreen_probe_test.go: PASS rc=0
+p1_gl_present_x11_test.go: PASS rc=0
+p1_gpu_blend_fixed_pixel_test.go: PASS rc=0
+p1_gpu_fixed_pixel_test.go: PASS rc=0
+paint_test.go: PASS rc=0
+painter_test.go: PASS rc=0
+pass_scratch_test.go: PASS rc=0
+path_boolean_test.go: PASS rc=0
+path_bounds_test.go: PASS rc=0
+path_builder_test.go: PASS rc=0
+path_ops_extended_test.go: PASS rc=0
+path_ops_test.go: PASS rc=0
+path_svg_test.go: PASS rc=0
+path_test.go: PASS rc=0
+pathops_subpath_test.go: PASS rc=0
+pattern_render_test.go: PASS rc=0
+pipeline_mode_test.go: PASS rc=0
+pixmap_bench_test.go: NO_TEST_FUNCS compile-only rc=0
+pixmap_pool_test.go: PASS rc=0
+pixmap_test.go: PASS rc=0
+point_test.go: PASS rc=0
+present_damage_test.go: PASS rc=0
+present_record_test.go: PASS rc=0
+present_resize_test.go: PASS rc=0
+present_waitidle_test.go: PASS rc=0
+quad_cpu_test.go: PASS rc=0
+r1_residual_gpu_test.go: PASS rc=0
+r7_2_filter_export_test.go: PASS rc=0
+r7_4_damage_coalesce_test.go: PASS rc=0
+rasterizer_tile_bench_test.go: NO_TEST_FUNCS compile-only rc=0
+rasterizer_tile_value_test.go: FAIL rc=1
+    --- FAIL: TestRasterizerValueMatchesAnalytic (0.32s)
+        --- FAIL: TestRasterizerValueMatchesAnalytic/菱形(分数行起止) (0.00s)
+            rasterizer_tile_value_test.go:260: SparseStrips: max diff 8, differing px 102, ink px 504
+            rasterizer_tile_value_test.go:260: TileCompute: max diff 8, differing px 102, ink px 504
+            rasterizer_tile_value_test.go:270: Auto: ink runs mismatch at row 5: golden="" got="[19..20] "
+            rasterizer_tile_value_test.go:270: SDF: ink runs mismatch at row 5: golden="" got="[19..20] "
+    FAIL
+    FAIL	github.com/energye/gpui/render	0.402s
+    FAIL
+s3a_m0m1_gpu_gate_test.go: PASS rc=0
+s3b_m2_gpu_gate_test.go: PASS rc=0
+s3c_m3_gpu_gate_test.go: PASS rc=0
+s3c_m3_residual_gate_test.go: PASS rc=0
+s3c_m3_window_present_test.go: PASS rc=0
+s5_present_helpers_test.go: NO_TEST_FUNCS compile-only rc=0
+s6_1_frame_enforce_test.go: PASS rc=0
+s6_2_submit_path_test.go: PASS rc=0
+s6_3_batch_deepen_test.go: PASS rc=0
+s6_4_coalesce_matrix_test.go: PASS rc=0
+s6_4_layer_filter_test.go: PASS rc=0
+s6_5_text_atlas_test.go: PASS rc=0
+s6_6_path_geometry_test.go: PASS rc=0
+s6_7_resources_test.go: PASS rc=0
+s6_8_window_present_x11_linux_test.go: PASS rc=0
+s6_9_heavy_budget_test.go: FAIL rc=1
+    --- FAIL: TestS69_HeavyBudget_TierGates (0.70s)
+        s6_9_heavy_budget_test.go:349: P01_SolidPresent tier=floor s6.0=0.42 s6.9=0.51 ratio=1.216 abs=16.7 rel=0.5 eff=16.7 gpu=1 PASS
+        s6_9_heavy_budget_test.go:349: U01_StaticShell tier=P0_main s6.0=0.90 s6.9=0.83 ratio=0.921 abs=16.7 rel=1.0 eff=16.7 gpu=3 PASS
+        s6_9_heavy_budget_test.go:349: U02_ListScrollMorph tier=P0_main s6.0=0.27 s6.9=0.40 ratio=1.494 abs=16.7 rel=0.3 eff=16.7 gpu=9 PASS
+        s6_9_heavy_budget_test.go:349: U03_FormFieldDamage tier=P0_main s6.0=0.21 s6.9=0.34 ratio=1.598 abs=16.7 rel=0.2 eff=16.7 gpu=3 PASS
+        s6_9_heavy_budget_test.go:349: U04_ModalStatic tier=P0_main s6.0=0.16 s6.9=0.20 ratio=1.209 abs=16.7 rel=0.2 eff=16.7 gpu=6 PASS
+        s6_9_heavy_budget_test.go:349: B15like_MultiDamage tier=P0_main s6.0=0.16 s6.9=0.21 ratio=1.305 abs=16.7 rel=0.2 eff=16.7 gpu=4 PASS
+        s6_9_heavy_budget_test.go:349: H01_FullRedrawShell tier=P1_density s6.0=0.37 s6.9=0.34 ratio=0.906 abs=33.4 rel=0.4 eff=0.4 gpu=19 PASS
+        s6_9_heavy_budget_test.go:349: H04_TextRows40 tier=P1_density s6.0=1.16 s6.9=0.81 ratio=0.693 abs=16.7 rel=1.3 eff=1.3 gpu=41 PASS
+        s6_9_heavy_budget_test.go:349: H05_ImageTileGrid tier=P1_density s6.0=0.29 s6.9=0.20 ratio=0.714 abs=16.7 rel=0.3 eff=0.3 gpu=65 PASS
+        s6_9_heavy_budget_test.go:349: U05_KitchenSinkStress tier=P2_heavy s6.0=7.27 s6.9=6.28 ratio=0.864 abs=145.0 rel=6.7 eff=6.7 gpu=18 PASS
+        s6_9_heavy_budget_test.go:349: H03_PathStrokeCloud tier=P2_heavy s6.0=1.32 s6.9=1.99 ratio=1.504 abs=90.0 rel=0.9 eff=0.9 gpu=25 FAIL
+        s6_9_heavy_budget_test.go:349: H02_LayerBlendStack tier=P2_heavy s6.0=7.65 s6.9=6.99 ratio=0.913 abs=210.0 rel=7.0 eff=7.0 gpu=13 PASS
+        s6_9_heavy_budget_test.go:349: H06_NestedClipLayerText tier=P3_stress s6.0=0.24 s6.9=0.31 ratio=1.271 abs=150.0 rel=0.3 eff=0.3 gpu=9 FAIL
+        s6_9_heavy_budget_test.go:367: wrote /home/yanghy/app/projects/gogpu/gpui/tmp/s6_9_heavy_budget.json (13 rows)
+        s6_9_heavy_budget_test.go:370: S6.9 budget failures (2):
+              H03_PathStrokeCloud: P2 p50=1.99 worse than S6.0 1.32
+              H06_NestedClipLayerText: P3 p50=0.31 > S6.0×1.15 (0.28)
+    --- FAIL: TestS69_Contract_FromJSON (0.00s)
+        s6_9_heavy_budget_test.go:419: S6.9 contract fails:
+              H03_PathStrokeCloud: status=FAIL
+              H03_PathStrokeCloud: P2 p50=1.99 worse than S6.0 1.32
+              H06_NestedClipLayerText: status=FAIL
+              H06_NestedClipLayerText: P3 p50=0.31 > S6.0×1.15 (0.28)
+    FAIL
+    FAIL	github.com/energye/gpui/render	0.766s
+    FAIL
+s6_perf_baseline_test.go: PASS rc=0
+sample_count_test.go: PASS rc=0
+scene_gpu_visual_test.go: PASS rc=0
+sdf_accelerator_coverage_test.go: PASS rc=0
+sdf_accelerator_test.go: PASS rc=0
+sdf_test.go: PASS rc=0
+shape_arc_detect_test.go: PASS rc=0
+shape_detect_coverage_test.go: PASS rc=0
+shape_detect_test.go: PASS rc=0
+shapes_gpu_visual_test.go: PASS rc=0
+shapes_test.go: PASS rc=0
+shared_r0_test.go: PASS rc=0
+software_coverage_test.go: PASS rc=0
+software_extended_test.go: PASS rc=0
+software_stroke_dash_test.go: PASS rc=0
+software_test.go: PASS rc=0
+solver_test.go: PASS rc=0
+stroke_damage_bounds_test.go: PASS rc=0
+stroke_join_solid_test.go: PASS rc=0
+stroke_subpixel_gpu_test.go: PASS rc=0
+stroke_subpixel_test.go: PASS rc=0
+stroke_test.go: PASS rc=0
+text_aliased_test.go: PASS rc=0
+text_artifact_test.go: PASS rc=0
+text_clip_bounds_test.go: PASS rc=0
+text_gpu_visual_test.go: PASS rc=0
+text_hidpi_outline_test.go: PASS rc=0
+text_integration_test.go: PASS rc=0
+text_mode_test.go: PASS rc=0
+text_quality_test.go: PASS rc=0
+text_stroke_test.go: PASS rc=0
+text_transform_gpu_test.go: FAIL rc=1
+    --- FAIL: TestTextTransformAutoRoutesOutlines (0.44s)
+        text_transform_gpu_test.go:76: Auto vs Vector diff: 569 px | Auto vs MSDF diff: 1016 px
+        text_transform_gpu_test.go:88: TextModeAuto rotated text differs from TextModeVector by 569 px (want ≤8): auto must route transforms to outlines
+    FAIL
+    FAIL	github.com/energye/gpui/render	0.523s
+    FAIL
+text_transform_gpu_visual_test.go: PASS rc=0
+text_transform_test.go: PASS rc=0
+text_variable_path_test.go: PASS rc=0
+text_wrap_test.go: PASS rc=0
+texture_source_test.go: PASS rc=0
+vec_extended_test.go: PASS rc=0
+vec_test.go: PASS rc=0
+vertices_cpu_test.go: PASS rc=0
+vertices_mesh_contract_test.go: PASS rc=0
+vertices_mesh_gpu_test.go: PASS rc=0
+video_async_upload_test.go: PASS rc=0
+video_device_test.go: PASS rc=0
+video_direct_test.go: PASS rc=0
+video_direct_upload_test.go: FAIL rc=1
+    --- FAIL: TestVideoDrawFrameMarksDamage (0.18s)
+        video_direct_upload_test.go:161: DrawVideoFrame left no damage
+    --- FAIL: TestVideoBridgeFallbackConverged (0.00s)
+        video_direct_upload_test.go:226: Bridge fallback left no damage
+    --- FAIL: TestVideoBridgePlanesFallback (0.00s)
+        video_direct_upload_test.go:508: planes fallback left no damage
+    FAIL
+    FAIL	github.com/energye/gpui/render	0.724s
+    FAIL
+video_texpool_budget_test.go: PASS rc=0
+video_v3_window_x11_linux_test.go: PASS rc=0
+video_yuv_color_gpu_test.go: PASS rc=0
+visual_diagnostic_test.go: NO_TEST_FUNCS compile-only rc=0
+visual_parallel_test.go: PASS rc=0
+visual_path_stats_test.go: PASS rc=0
+vram_test_hook_test.go: NO_TEST_FUNCS compile-only rc=0
+webp_contract_test.go: PASS rc=0
+y_orientation_gpu_test.go: PASS rc=0
+
+  subtotal: PASS=175 NO_TEST=7 SKIP_TAGGED=0 FAIL=9
+## render/gpu
+lifecycle_policy_test.go: PASS rc=0
+
+  subtotal: PASS=1 NO_TEST=0 SKIP_TAGGED=0 FAIL=0
+## render/internal/gpu
+alloc_bench_test.go: NO_TEST_FUNCS compile-only rc=0
+analytic_benchmark_test.go: NO_TEST_FUNCS compile-only rc=0
+analytic_coverage_test.go: PASS rc=0
+analytic_edgecases_test.go: PASS rc=0
+analytic_filler_test.go: PASS rc=0
+batch_coalescing_test.go: PASS rc=0
+benchmark_test.go: NO_TEST_FUNCS compile-only rc=0
+bg_cache_semantics_test.go: PASS rc=0
+bindgroup_switch_test.go: FAIL rc=1
+    --- FAIL: TestBindGroupLayoutSwitch_StencilThenSDF (0.23s)
+        bindgroup_switch_test.go:25: sdf pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.238s
+    FAIL
+brush_blend_rect_test.go: PASS rc=0
+brush_field_memo_bench_test.go: NO_TEST_FUNCS compile-only rc=0
+budget_evict_test.go: PASS rc=0
+buffer_test.go: PASS rc=0
+clip_leaf_host_test.go: PASS rc=0
+command_encoder_test.go: PASS rc=0
+compute_pass_test.go: PASS rc=0
+convex_renderer_test.go: FAIL rc=1
+    --- FAIL: TestConvexRendererPipeline (0.19s)
+        convex_renderer_test.go:46: ensurePipeline failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestConvexRendererPipelineWithStencil (0.19s)
+        convex_renderer_test.go:82: ensurePipelineWithStencil failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestConvexRendererDestroy (0.15s)
+        convex_renderer_test.go:112: ensurePipelineWithStencil failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestConvexRendererRecordDrawsEmpty (0.09s)
+        convex_renderer_test.go:176: ensurePipelineWithStencil failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	1.458s
+    FAIL
+convexity_test.go: PASS rc=0
+curve_edge_test.go: PASS rc=0
+damage_blit_e2e_test.go: PASS rc=0
+damage_scissor_test.go: PASS rc=0
+depth_clip_test.go: FAIL rc=1
+    --- FAIL: TestStencilRenderer_EnsureDepthClipPipelines (0.19s)
+        depth_clip_test.go:373: ensureDepthClipPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	2.507s
+    FAIL
+edge_builder_test.go: PASS rc=0
+empty_clip_skip_test.go: PASS rc=0
+fine_curves_test.go: PASS rc=0
+flatten_nan_test.go: PASS rc=0
+glyph_color_atlas_test.go: PASS rc=0
+glyph_color_engine_test.go: PASS rc=0
+glyph_color_shader_test.go: PASS rc=0
+glyph_mask_color_reject_test.go: PASS rc=0
+glyph_mask_engine_test.go: PASS rc=0
+glyph_mask_gpu_repro_test.go: PASS rc=0
+glyph_mask_hinting_test.go: PASS rc=0
+glyph_mask_lcd_layout_cache_test.go: PASS rc=0
+glyph_mask_lcd_test.go: PASS rc=0
+glyph_mask_multipage_test.go: PASS rc=0
+glyph_mask_renderframe_test.go: PASS rc=0
+glyph_mask_s42_test.go: PASS rc=0
+glyph_mask_shaped_default_test.go: PASS rc=0
+glyph_mask_spacing_test.go: PASS rc=0
+glyph_mask_span_exact_test.go: PASS rc=0
+glyph_mask_uniform_staging_test.go: PASS rc=0
+glyph_placement_test.go: PASS rc=0
+glyphmask_drawcalls_test.go: PASS rc=0
+golden_software_test.go: PASS rc=0
+golden_test.go: PASS rc=0
+gpu_text_cjk_test.go: PASS rc=0
+gpu_text_test.go: PASS rc=0
+gpu_texture_test.go: FAIL rc=1
+    --- FAIL: TestBuildGPUTextureResources_SeparateVertexBuffers (0.16s)
+        gpu_texture_test.go:476: overlay build: create gpu texture vertex buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+            
+            Caused by:
+              In wgpuDeviceCreateRenderPipeline
+                Error matching ShaderStages(FRAGMENT) shader requirements against the pipeline
+                  Shader global ResourceBinding { group: 1, binding: 0 } is not available in the pipeline layout
+                    Binding is missing from the pipeline layout
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	1.847s
+    FAIL
+image_batch_s41_test.go: PASS rc=0
+image_bicubic_test.go: PASS rc=0
+image_cache_rewrite_test.go: PASS rc=0
+linear_diagonal_ramp_test.go: PASS rc=0
+msaa_load_store_test.go: PASS rc=0
+native_device_test.go: NO_TEST_FUNCS compile-only rc=0
+offscreen_pass_test.go: PASS rc=0
+offscreen_pool_r6_test.go: PASS rc=0
+oom_fallback_test.go: PASS rc=0
+opt19_packed_mesh_test.go: PASS rc=0
+opt21_layer_defer_submit_test.go: FAIL rc=1
+    --- FAIL: TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills (0.29s)
+        opt21_layer_defer_submit_test.go:76: layer 0 encode: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.327s
+    FAIL
+opt22_indexed_mesh_test.go: PASS rc=0
+opt23_mesh_pack_test.go: PASS rc=0
+opt24_sticky_index_uniform_test.go: FAIL rc=1
+    --- FAIL: TestOpt24_ImageUniformSkip_SameViewportOpacity (0.21s)
+    panic: runtime error: invalid memory address or nil pointer dereference [recovered, repanicked]
+    [signal SIGSEGV: segmentation violation code=0x1 addr=0x20 pc=0x841051]
+    
+    goroutine 5 [running]:
+    testing.tRunner.func1.2({0xa5a0a0, 0x105a200})
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1872 +0x237
+    testing.tRunner.func1()
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1875 +0x35b
+    panic({0xa5a0a0?, 0x105a200?})
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/panic.go:783 +0x132
+    github.com/energye/gpui/render/internal/gpu.(*ImageCache).GetOrUpload(0x0, 0xc000041eb0)
+    	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/image_cache.go:212 +0x111
+    github.com/energye/gpui/render/internal/gpu.(*GPURenderSession).buildImageResources(0xc000278008, {0xc000041eb0, 0x1, 0xc000302018?}, 0x64, 0x50, {0x0, 0x0, 0xf21be8?})
+    	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/render_session.go:4195 +0x73b
+    github.com/energye/gpui/render/internal/gpu.TestOpt24_ImageUniformSkip_SameViewportOpacity(0xc000002000)
+    	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/opt24_sticky_index_uniform_test.go:140 +0x265
+    testing.tRunner(0xc000002000, 0xb86080)
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1934 +0xea
+    created by testing.(*T).Run in goroutine 1
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1997 +0x465
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.470s
+    FAIL
+opt25_contiguous_pack_test.go: PASS rc=0
+opt26_dualtex_bg_fontid_test.go: PASS rc=0
+opt27_gputex_bg_cache_test.go: FAIL rc=1
+    --- FAIL: TestOpt27_BuildGPUTextureResources_MultiViewBGCache (0.07s)
+        opt27_gputex_bg_cache_test.go:172: build 0: create gpu texture vertex buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+            
+            Caused by:
+              In wgpuDeviceCreateRenderPipeline
+                Error matching ShaderStages(FRAGMENT) shader requirements against the pipeline
+                  Shader global ResourceBinding { group: 1, binding: 0 } is not available in the pipeline layout
+                    Binding is missing from the pipeline layout
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.318s
+    FAIL
+opt28_sticky_image_gputex_verts_test.go: FAIL rc=1
+    --- FAIL: TestOpt28_ImageVertSticky_SkipsRepeatWrite (0.24s)
+    panic: runtime error: invalid memory address or nil pointer dereference [recovered, repanicked]
+    [signal SIGSEGV: segmentation violation code=0x1 addr=0x20 pc=0x841051]
+    
+    goroutine 20 [running]:
+    testing.tRunner.func1.2({0xa5a0a0, 0x105a200})
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1872 +0x237
+    testing.tRunner.func1()
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1875 +0x35b
+    panic({0xa5a0a0?, 0x105a200?})
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/panic.go:783 +0x132
+    github.com/energye/gpui/render/internal/gpu.(*ImageCache).GetOrUpload(0x0, 0xc000041eb0)
+    	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/image_cache.go:212 +0x111
+    github.com/energye/gpui/render/internal/gpu.(*GPURenderSession).buildImageResources(0xc000336008, {0xc000041eb0, 0x1, 0xc00031a030?}, 0x40, 0x40, {0x0, 0x0, 0xc76f69?})
+    	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/render_session.go:4195 +0x73b
+    github.com/energye/gpui/render/internal/gpu.TestOpt28_ImageVertSticky_SkipsRepeatWrite(0xc000102c40)
+    	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/opt28_sticky_image_gputex_verts_test.go:34 +0x265
+    testing.tRunner(0xc000102c40, 0xb860e0)
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1934 +0xea
+    created by testing.(*T).Run in goroutine 1
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1997 +0x465
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.261s
+    FAIL
+opt29_image_uniform_slab_test.go: FAIL rc=1
+    --- FAIL: TestOpt29_ImageUniformSlab_OneWriteForManyOpacities (0.23s)
+    panic: runtime error: invalid memory address or nil pointer dereference [recovered, repanicked]
+    [signal SIGSEGV: segmentation violation code=0x1 addr=0x20 pc=0x841051]
+    
+    goroutine 7 [running]:
+    testing.tRunner.func1.2({0xa5a0a0, 0x105a200})
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1872 +0x237
+    testing.tRunner.func1()
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1875 +0x35b
+    panic({0xa5a0a0?, 0x105a200?})
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/runtime/panic.go:783 +0x132
+    github.com/energye/gpui/render/internal/gpu.(*ImageCache).GetOrUpload(0x0, 0xc000040b30)
+    	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/image_cache.go:212 +0x111
+    github.com/energye/gpui/render/internal/gpu.(*GPURenderSession).buildImageResources(0xc00011e008, {0xc000040b30, 0x20, 0xc000110018?}, 0xc8, 0x64, {0x0, 0x0, 0x0?})
+    	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/render_session.go:4195 +0x73b
+    github.com/energye/gpui/render/internal/gpu.TestOpt29_ImageUniformSlab_OneWriteForManyOpacities(0xc0000a6380)
+    	/home/yanghy/app/projects/gogpu/gpui/render/internal/gpu/opt29_image_uniform_slab_test.go:37 +0x305
+    testing.tRunner(0xc0000a6380, 0xb860e8)
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1934 +0xea
+    created by testing.(*T).Run in goroutine 1
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1997 +0x465
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.249s
+    FAIL
+opt30_compact_convex_color_test.go: PASS rc=0
+opt31_fast_unorm_pack_test.go: PASS rc=0
+opt32_dual_tex_composite_encoder_test.go: PASS rc=0
+opt33_mesh_compact_stride_test.go: PASS rc=0
+opt34_shared_encoder_no_flush_leading_test.go: FAIL rc=1
+    --- FAIL: TestOpt34_SharedEncoder_DoesNotFlushLeading (0.19s)
+        opt34_shared_encoder_no_flush_leading_test.go:85: sharedEncoder RenderFrameGrouped: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestOpt34_NoSharedEncoder_StillFlushesLeading (0.12s)
+        opt34_shared_encoder_no_flush_leading_test.go:179: present RenderFrameGrouped: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.339s
+    FAIL
+opt35_filter_pass_uniform_slab_test.go: PASS rc=0
+opt36_filter_seed_shared_encoder_test.go: FAIL rc=1
+    --- FAIL: TestOpt36_FilterSeedSharedEncoder_OneFinish (0.18s)
+        opt36_filter_seed_shared_encoder_test.go:69: seed encode: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.388s
+    FAIL
+opt37_dualtex_uniform_slab_test.go: PASS rc=0
+opt38_ensure_pipelines_ready_test.go: FAIL rc=1
+    --- FAIL: TestOpt38_EnsurePipelines_ReadyFastPath (0.19s)
+        opt38_ensure_pipelines_ready_test.go:36: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestOpt38_EnsurePipelines_WarmRenderFrame (0.06s)
+        opt38_ensure_pipelines_ready_test.go:120: frame 0: ensure pipelines: SDF pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.289s
+    FAIL
+opt39_convex_vert_sticky_test.go: PASS rc=0
+opt40_gputex_uniform_slab_test.go: FAIL rc=1
+    --- FAIL: TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot (0.19s)
+        opt40_gputex_uniform_slab_test.go:65: build: res=<nil> err=create gpu texture vertex buffer: wgpu: failed to create buffer: wgpu: CreateBuffer: Validation Error
+            
+            Caused by:
+              In wgpuDeviceCreateRenderPipeline
+                Error matching ShaderStages(FRAGMENT) shader requirements against the pipeline
+                  Shader global ResourceBinding { group: 1, binding: 0 } is not available in the pipeline layout
+                    Binding is missing from the pipeline layout
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.220s
+    FAIL
+opt41_surface_rp_reuse_test.go: PASS rc=0
+opt42_dualtex_scratch_test.go: PASS rc=0
+opt44_filter_pass_rp_reuse_test.go: PASS rc=0
+p0_format_readback_test.go: PASS rc=0
+p1_device_box_test.go: PASS rc=0
+pass_bind_ledger_test.go: PASS rc=0
+path_convert_test.go: PASS rc=0
+path_geometry_cache_test.go: PASS rc=0
+pipeline_wiring_test.go: PASS rc=0
+present_stash_glyph_test.go: PASS rc=0
+r7_1_scratch_test.go: PASS rc=0
+r7_3_submit_coalesce_test.go: PASS rc=0
+r7_5_layout_template_test.go: PASS rc=0
+registry_retire_test.go: PASS rc=0
+render_pass_test.go: PASS rc=0
+render_session_test.go: FAIL rc=1
+    --- FAIL: TestSDFRenderPipelineWithStencil (0.19s)
+        render_session_test.go:490: ensurePipelineWithStencil failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestSDFRenderPipelineDestroyWithStencilVariant (0.16s)
+        render_session_test.go:520: ensurePipelineWithStencil failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestRenderSessionSurfaceMode (0.12s)
+        render_session_test.go:608: expected non-nil stencil textures
+    --- FAIL: TestRenderSessionSurfaceModeTextures (0.10s)
+        render_session_test.go:679: expected non-nil stencil textures
+    --- FAIL: TestRenderSessionSurfaceModeResize (0.10s)
+        render_session_test.go:730: expected non-nil stencil textures
+    --- FAIL: TestStencilRendererRecordPath (0.10s)
+        render_session_test.go:816: createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestEnsurePipelines_ClipLayoutRecreation (0.09s)
+        render_session_test.go:845: initial createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestEnsurePipelines_ConvexClipRecreation (0.08s)
+        render_session_test.go:900: initial createPipeline failed: convex pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestEnsurePipelines_StencilClipRecreation (0.09s)
+        render_session_test.go:946: initial createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestRenderSessionEnsurePipelines_FullFlow (0.11s)
+        render_session_test.go:1161: expected non-nil stencilRenderer
+    --- FAIL: TestTextureSet_SurfaceToOffscreenSameSize (0.05s)
+        render_session_test.go:1318: surface mode must allocate stencil
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	4.956s
+    FAIL
+retire_queue_test.go: PASS rc=0
+ring_band_direction_test.go: PASS rc=0
+s4_cache_damage_test.go: PASS rc=0
+s6_2_submit_path_test.go: PASS rc=0
+s6_3_batch_deepen_test.go: PASS rc=0
+s6_5_text_atlas_test.go: PASS rc=0
+s6_6_path_geometry_test.go: PASS rc=0
+s6_7_resources_test.go: PASS rc=0
+scene_auto_test.go: PASS rc=0
+sdf_render_test.go: FAIL rc=1
+    --- FAIL: TestSDFRenderPipelineCreation (0.22s)
+        sdf_render_test.go:23: createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestSDFRenderPipelineDestroy (0.16s)
+        sdf_render_test.go:48: createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestSDFRenderPipelineFullDestroy (0.07s)
+        sdf_render_test.go:189: createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestSDFRenderPipelineRecreate (0.13s)
+        sdf_render_test.go:223: first createPipeline failed: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestSDFRenderPipelineEnsureReady (0.13s)
+        sdf_render_test.go:678: ensureReady failed: create pipeline: sdf pipeline: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	1.505s
+    FAIL
+sdf_transparent_test.go: PASS rc=0
+sparse_strips_test.go: PASS rc=0
+stencil_metal_repro_test.go: SKIP_TAGGED rc=0
+stencil_pipeline_test.go: FAIL rc=1
+    --- FAIL: TestStencilPipelineCreation (0.22s)
+        stencil_pipeline_test.go:21: createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestStencilPipelineDestroy (0.15s)
+        stencil_pipeline_test.go:63: createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestStencilPipelineFullDestroy (0.06s)
+        stencil_pipeline_test.go:127: createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestStencilPipelineRecreate (0.12s)
+        stencil_pipeline_test.go:200: first createPipelines failed: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.757s
+    FAIL
+stencil_pool_prune_test.go: PASS rc=0
+stencil_render_test.go: FAIL rc=1
+    --- FAIL: TestRenderPathTriangle (0.23s)
+        stencil_render_test.go:37: RenderPath failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestRenderPathEmpty (0.20s)
+        stencil_render_test.go:61: RenderPath with nil elements should return nil, got: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestRenderPathCircle (0.22s)
+        stencil_render_test.go:92: RenderPath circle failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestRenderPathEvenOdd (0.22s)
+        stencil_render_test.go:120: RenderPath with EvenOdd fill rule failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestRenderPathBothFillRules (0.24s)
+        stencil_render_test.go:152: RenderPath NonZero failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestRenderPathPipelinesCreatedOnce (0.25s)
+        stencil_render_test.go:196: first RenderPath failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    --- FAIL: TestRenderPathResizesTextures (0.21s)
+        stencil_render_test.go:238: RenderPath at 64x64 failed: create pipelines: stencil pipelines: no mask layout (shared layouts must be pinned by GPUShared first)
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	1.593s
+    FAIL
+stencil_renderer_test.go: PASS rc=0
+stroke_fast_path_test.go: PASS rc=0
+stroke_width_test.go: PASS rc=0
+submission_gate_test.go: PASS rc=0
+tessellate_aa_test.go: PASS rc=0
+tessellate_test.go: PASS rc=0
+tex_shrink_r6_test.go: PASS rc=0
+text_pipeline_test.go: PASS rc=0
+texture_test.go: PASS rc=0
+transform_mask_isolate_test.go: PASS rc=0
+transform_mask_raster_test.go: PASS rc=0
+transform_uniform_test.go: PASS rc=0
+ttc_4face_mixed_repro_test.go: PASS rc=0
+ttc_cjk_gpu_repro_test.go: FAIL rc=1
+    --- FAIL: TestProbeTTC_CJKGlyphMaskGPURender (0.87s)
+        ttc_cjk_gpu_repro_test.go:45: sampleCount=1
+        ttc_cjk_gpu_repro_test.go:53: filler quads=2000 page=0
+        ttc_cjk_gpu_repro_test.go:65: line "GROUP-A allowed" quads=14 page=1
+        ttc_cjk_gpu_repro_test.go:65: line "合成" quads=2 page=1
+        ttc_cjk_gpu_repro_test.go:65: line "BUDGET REJECT" quads=12 page=1
+        ttc_cjk_gpu_repro_test.go:78: batches on page>0: 3
+        ttc_cjk_gpu_repro_test.go:99: nil atlas view for batch 0
+    FAIL
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.933s
+    FAIL
+ttc_cjk_repro_test.go: PASS rc=0
+varfont_atlas_test.go: PASS rc=0
+vello_accumulate_test.go: PASS rc=0
+vello_antialias_test.go: PASS rc=0
+vello_tiles_test.go: PASS rc=0
+video_yuv_pipeline_test.go: PASS rc=0
+view_raw_attack_test.go: PASS rc=0
+
+  subtotal: PASS=108 NO_TEST=5 SKIP_TAGGED=1 FAIL=18
+## render/text
+advance_cache_test.go: PASS rc=0
+arabic_joining_test.go: PASS rc=0
+autohint_blues_ft_test.go: PASS rc=0
+autohint_golden_test.go: PASS rc=0
+autohint_test.go: PASS rc=0
+avar_test.go: PASS rc=0
+bench_test.go: NO_TEST_FUNCS compile-only rc=0
+benchmark_text_test.go: NO_TEST_FUNCS compile-only rc=0
+bidi_reorder_test.go: PASS rc=0
+cache_test.go: PASS rc=0
+cff2_ftexp_test.go: PASS rc=0
+cff_outline_test.go: PASS rc=0
+color_font_adapter_test.go: PASS rc=0
+color_raster_test.go: PASS rc=0
+composite_hardening_test.go: PASS rc=0
+coverage_test.go: PASS rc=0
+draw_aliased_test.go: PASS rc=0
+draw_emoji_test.go: PASS rc=0
+draw_shaped_test.go: PASS rc=0
+draw_test.go: PASS rc=0
+embolden_test.go: PASS rc=0
+face_test.go: PASS rc=0
+family_multi_test.go: PASS rc=0
+family_test.go: PASS rc=0
+filtered_test.go: PASS rc=0
+font_bench_test.go: NO_TEST_FUNCS compile-only rc=0
+font_tables_test.go: PASS rc=0
+fontscan_fallback_share_test.go: PASS rc=0
+g1a_soak_test.go: PASS rc=0
+gdef_test.go: PASS rc=0
+glyf_parser_test.go: PASS rc=0
+glyph_cache_test.go: PASS rc=0
+glyph_hinting_test.go: PASS rc=0
+glyph_mask_atlas_test.go: PASS rc=0
+glyph_mask_rasterizer_test.go: PASS rc=0
+glyph_outline_test.go: PASS rc=0
+glyph_renderer_test.go: PASS rc=0
+glyph_run_test.go: PASS rc=0
+gpos_context_test.go: PASS rc=0
+gpos_mark_test.go: PASS rc=0
+grapheme_test.go: PASS rc=0
+gsub_context_test.go: PASS rc=0
+gsub_liga_test.go: PASS rc=0
+gvar_test.go: PASS rc=0
+hb_warm_m38_test.go: PASS rc=0
+hvar_test.go: PASS rc=0
+indic_font_pos_test.go: PASS rc=0
+indic_reorder_test.go: PASS rc=0
+indic_shaping_test.go: PASS rc=0
+layout_test.go: PASS rc=0
+lcd_filter_test.go: PASS rc=0
+light_engine_test.go: PASS rc=0
+m5_dpr_quant_test.go: PASS rc=0
+m5_khmer_tibetan_test.go: PASS rc=0
+multi_test.go: PASS rc=0
+options_test.go: PASS rc=0
+parser_collection_test.go: PASS rc=0
+script_detect_test.go: PASS rc=0
+segment_reuse_test.go: PASS rc=0
+segment_test.go: PASS rc=0
+shape_result_cache_test.go: PASS rc=0
+shaper_hb_race_test.go: PASS rc=0
+shaper_own_test.go: PASS rc=0
+shaper_test.go: PASS rc=0
+shaping_runs_test.go: PASS rc=0
+source_cache_test.go: PASS rc=0
+source_test.go: PASS rc=0
+spacing_test.go: PASS rc=0
+subpixel_test.go: PASS rc=0
+system_font_test.go: PASS rc=0
+tab_test.go: PASS rc=0
+testfont_test.go: NO_TEST_FUNCS compile-only rc=0
+tt_engine_test.go: PASS rc=0
+tt_glyph_test.go: PASS rc=0
+tt_golden_data_test.go: NO_TEST_FUNCS compile-only rc=0
+tt_golden_test.go: PASS rc=0
+tt_segoeui_golden_test.go: PASS rc=0
+types_test.go: PASS rc=0
+varfont_outline_test.go: PASS rc=0
+varfont_shape_test.go: PASS rc=0
+varfont_test.go: PASS rc=0
+visual_test.go: PASS rc=0
+weight_test.go: PASS rc=0
+wrap_test.go: PASS rc=0
+zz_afindic_scan_test.go: PASS rc=0
+zz_b1_ttf_scan_test.go: PASS rc=0
+zz_b1_vf_test.go: PASS rc=0
+zz_b2_bitmap_scan_test.go: FAIL rc=1
+    created by time.goFunc
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/time/sleep.go:215 +0x2d
+    
+    goroutine 1 [chan receive]:
+    testing.(*T).Run(0xc000082a80, {0x95cbc9?, 0xc000211b30?}, 0x99a3c0)
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:2005 +0x485
+    testing.runTests.func1(0xc000082a80)
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:2477 +0x37
+    testing.tRunner(0xc000082a80, 0xc000211c70)
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1934 +0xea
+    testing.runTests(0xc0000ba7b0, {0xd91720, 0x3e9, 0x3e9}, {0x7?, 0xc00009d1c0?, 0xda8340?})
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:2475 +0x4b4
+    testing.(*M).Run(0xc0000ac140)
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:2337 +0x63a
+    main.main()
+    	_testmain.go:2235 +0x9b
+    
+    goroutine 210 [runnable]:
+    github.com/energye/gpui/render/text.RasterizeFT26({0xc0000a8380, 0x1c, 0x1?}, {0xc0002133c8, 0x1c, 0x1c}, {0xc000012110, 0x3, 0x4}, 0x0)
+    	/home/yanghy/app/projects/gogpu/gpui/render/text/ftgrays.go:663 +0x2ae
+    github.com/energye/gpui/render/text.b2BitmapRunScan(0xc0000a48c0, {0x958ea0, 0xa}, {0x9731d7, 0x20}, 0x0, {0x9689ae, 0x19}, 0xbb8, 0x12c, ...)
+    	/home/yanghy/app/projects/gogpu/gpui/render/text/zz_b2_bitmap_scan_test.go:175 +0x1850
+    github.com/energye/gpui/render/text.TestB2BitmapTTF(0xc0000a48c0)
+    	/home/yanghy/app/projects/gogpu/gpui/render/text/zz_b2_bitmap_scan_test.go:33 +0x18e
+    testing.tRunner(0xc0000a48c0, 0x99a3c0)
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1934 +0xea
+    created by testing.(*T).Run in goroutine 1
+    	/home/yanghy/app/gopath/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.5.linux-amd64/src/testing/testing.go:1997 +0x465
+    FAIL	github.com/energye/gpui/render/text	1200.018s
+    FAIL
+zz_dbg_box_test.go: PASS rc=0
+zz_dbg_bridge_test.go: PASS rc=0
+zz_dbg_dump_test.go: PASS rc=0
+zz_dbg_ftbox_test.go: PASS rc=0
+zz_dbg_ftgrays_byteexact_test.go: PASS rc=0
+zz_dbg_ftgrays_direct_test.go: PASS rc=0
+zz_dbg_ftgrays_directdiff_test.go: PASS rc=0
+zz_dbg_ftgrays_scan_test.go: PASS rc=0
+zz_dbg_ftgrays_scripts_test.go: PASS rc=0
+zz_dbg_ftgrays_wqy_test.go: PASS rc=0
+zz_dbg_hintpts_test.go: PASS rc=0
+zz_dbg_jing_test.go: PASS rc=0
+zz_dbg_none_test.go: PASS rc=0
+zz_dbg_nosnap_test.go: PASS rc=0
+zz_dbg_png_test.go: PASS rc=0
+zz_dbg_prod_pixels_test.go: PASS rc=0
+zz_dbg_raster_byteexact_test.go: PASS rc=0
+zz_dbg_raster_src_test.go: PASS rc=0
+zz_dbg_segs_test.go: PASS rc=0
+zz_dbg_snap3_test.go: PASS rc=0
+zz_dbg_which_test.go: PASS rc=0
+zz_dbg_whyfail2_test.go: PASS rc=0
+zz_dbg_whyfail_test.go: PASS rc=0
+zz_dbg_y_test.go: PASS rc=0
+zz_freesans_scan_test.go: PASS rc=0
+zz_light_bytecode_scan_test.go: PASS rc=0
+zz_m6_vertical_test.go: PASS rc=0
+zz_m7_fcmatch_test.go: PASS rc=0
+zz_probe_outline_match_test.go: PASS rc=0
+zz_s1_hb_native_test.go: PASS rc=0
+zz_scriptdispatch_test.go: PASS rc=0
+zz_tt_full_scan_test.go: PASS rc=0
+zz_tt_trace_batch_test.go: PASS rc=0
+zz_wqy_scan_test.go: PASS rc=0
+
+  subtotal: PASS=116 NO_TEST=5 SKIP_TAGGED=0 FAIL=1
+## ui/scene
+accept_retained_diff_test.go: PASS rc=0
+caret_transparent_rerecord_test.go: FAIL rc=1
+    --- FAIL: TestCaretTransparentRerecordClearsStale (0.35s)
+        caret_transparent_rerecord_test.go:115: f2: caret bar has no live texture (test needs the GPU path)
+    FAIL
+    FAIL	github.com/energye/gpui/ui/scene	0.440s
+    FAIL
+composite_seal_test.go: PASS rc=0
+composite_test.go: PASS rc=0
+dirty_test.go: PASS rc=0
+filter_cache_test.go: PASS rc=0
+layer_test.go: PASS rc=0
+packet_freeze_test.go: PASS rc=0
+packet_race_test.go: PASS rc=0
+packet_retain_test.go: PASS rc=0
+retained_spill_loop_test.go: PASS rc=0
+shrink_damage_test.go: FAIL rc=1
+    --- FAIL: TestShrinkRerecordDamagesClearedTail (0.35s)
+        shrink_damage_test.go:127: f2 shrink damage [(304,121)-(315,137) (314,121)-(316,145)] does not cover grown ink (304,121)-(319,137): cleared tail not repainted
+    FAIL
+    FAIL	github.com/energye/gpui/ui/scene	0.486s
+    FAIL
+texture_layer_test.go: PASS rc=0
+textured_admission_internal_test.go: PASS rc=0
+textured_budget_internal_test.go: PASS rc=0
+textured_budget_test.go: FAIL rc=1
+    --- FAIL: TestPictureTextureCache_ExplicitBudget (0.25s)
+        textured_budget_test.go:33: record without GPU should fail
+    FAIL
+    FAIL	github.com/energye/gpui/ui/scene	0.317s
+    FAIL
+textured_close_test.go: PASS rc=0
+textured_fallback_extra_test.go: PASS rc=0
+textured_oversized_test.go: PASS rc=0
+textured_r0_test.go: PASS rc=0
+textured_r6_internal_test.go: PASS rc=0
+textured_rerecord_by_test.go: PASS rc=0
+textured_ring_test.go: PASS rc=0
+textured_shrink_internal_test.go: PASS rc=0
+textured_test.go: FAIL rc=1
+    --- FAIL: TestCompositeFramePacketTextured_Fallback (0.28s)
+        textured_test.go:35: RasterLayerCount=1 want 0 (no GPU)
+    --- FAIL: TestCompositeFramePacketTextured_OpacityGroup (0.01s)
+        textured_test.go:80: ReplayedOps=0 want ≥1
+    FAIL
+    FAIL	github.com/energye/gpui/ui/scene	0.371s
+    FAIL
+textured_transform_internal_test.go: PASS rc=0
+textured_transform_test.go: PASS rc=0
+
+  subtotal: PASS=23 NO_TEST=0 SKIP_TAGGED=0 FAIL=4
+SUMMARY: PASS=423 NO_TEST=17 SKIP_TAGGED=1 FAIL=32

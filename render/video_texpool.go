@@ -21,6 +21,14 @@ import (
 
 // NewVideoTexturePool creates an independent video pool on device.
 // Device is borrowed, not owned; Close destroys textures, not the device.
+// P2.4b: the routing-slot cap and the single-upload staging cap come from
+// the declaration table (render.DefaultBudget(BudgetVideoStage); the
+// staging value matches the hal default of 64 MiB).
+var (
+	videoPoolMaxSlots      = DefaultBudget(BudgetVideoStage).MaxEntries
+	videoDefaultMaxStaging = uint64(DefaultBudget(BudgetVideoStage).MaxBytes)
+)
+
 func NewVideoTexturePool(device hal.Device) *VideoTexturePool {
 	return &VideoTexturePool{
 		device:   device,

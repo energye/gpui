@@ -127,7 +127,7 @@ type pooledStencil struct {
 // alternate a handful of layer-record sizes; 8 covers far more than any
 // observed working set while bounding VRAM (each entry is Depth24PlusStencil8,
 // RenderAttachment-only — cheap relative to color textures).
-const stencilPoolCap = 8
+var stencilPoolCap = render.DefaultBudget(render.BudgetStencilScratch).MaxEntries
 
 // takePooledStencil fetches (or creates) a depth/stencil texture for (w,h).
 // Returns nil when the caller should fall back to direct creation (pool

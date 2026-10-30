@@ -1153,7 +1153,7 @@ func (c *dualTexBlendCache) putOutBGRA(tex hal.Texture, view hal.TextureView, w,
 		c.outPool = make(map[[2]int][]dualTexPooledTex)
 	}
 	b := c.outPool[key]
-	if len(b) >= 8 {
+	if len(b) >= dualTexOutPoolBucketCap {
 		view.Destroy()
 		tex.Destroy()
 		return
@@ -1165,7 +1165,12 @@ func (c *dualTexBlendCache) putOutBGRA(tex hal.Texture, view hal.TextureView, w,
 // dualTexOutPoolBudgetBytes caps reusable dual-tex snap textures. Resize/churn
 // can accumulate many size buckets; without a total budget, pooled BGRA temps
 // compete with glyph atlases on low-VRAM hosts ("Not enough memory left").
-const dualTexOutPoolBudgetBytes int64 = 32 << 20 // 32 MiB
+// P2.4b: pool byte budget and per-size-bucket cap come from the
+// declaration table (render.DefaultBudget(BudgetBlendDualTex)).
+var (
+	dualTexOutPoolBudgetBytes = render.DefaultBudget(render.BudgetBlendDualTex).MaxBytes
+	dualTexOutPoolBucketCap   = render.DefaultBudget(render.BudgetBlendDualTex).MaxEntries
+)
 
 // releasePooledVRAM frees outPool textures while keeping pipelines.
 // Call under VRAM pressure before critical CreateTexture (glyph atlas, etc.).

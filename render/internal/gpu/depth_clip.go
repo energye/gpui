@@ -179,15 +179,16 @@ type depthClipGeom struct {
 	bandCount  uint32
 }
 
-const (
+var (
 	// maskCacheTTL bounds how long an unused mask may keep GPU memory. It is
 	// far longer than the raster pipeline depth, so an in-flight frame can
 	// never reference an entry we evict.
-	maskCacheTTL = 5 * time.Second
+	maskCacheTTL = render.DefaultBudget(render.BudgetClipMask).TTL
 	// maskCacheMaxBytes/maxEntries bound the cache; 16 MiB covers ~17
 	// full-HD R8 masks. R7's shared viewport clip needs one entry.
-	maskCacheMaxBytes   = 16 << 20
-	maskCacheMaxEntries = 24
+	// P2.4b: values come from the declaration table (render/budget.go).
+	maskCacheMaxBytes   = render.DefaultBudget(render.BudgetClipMask).MaxBytes
+	maskCacheMaxEntries = render.DefaultBudget(render.BudgetClipMask).MaxEntries
 )
 
 // NewDepthClipPipeline creates a new depth clip pipeline for the given device.
@@ -803,7 +804,7 @@ func (p *DepthClipPipeline) pruneMaskCacheLocked(now time.Time) {
 func (p *DepthClipPipeline) addMaskLocked(entry *depthMaskEntry) {
 	p.maskCache = append(p.maskCache, entry)
 	p.maskCacheBytes += entry.bytes
-	for (len(p.maskCache) > maskCacheMaxEntries || p.maskCacheBytes > maskCacheMaxBytes) && len(p.maskCache) > 1 {
+	for (len(p.maskCache) > maskCacheMaxEntries || p.maskCacheBytes > int(maskCacheMaxBytes)) && len(p.maskCache) > 1 {
 		victim := p.maskCache[0]
 		copy(p.maskCache, p.maskCache[1:])
 		p.maskCache[len(p.maskCache)-1] = nil

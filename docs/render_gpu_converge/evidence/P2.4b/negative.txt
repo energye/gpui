@@ -1,0 +1,17 @@
+# P2.4b negative control: budget table mutation
+# date: 2026-10-30T06:26:16+08:00
+
+# step 1: clean pin test green
+ok  	github.com/energye/gpui/render	0.013s
+
+# step 2: mutate BudgetImageCache.MaxBytes 64MiB -> 32MiB (temporary patch)
+FAIL
+FAIL	github.com/energye/gpui/render	0.047s
+FAIL
+# test exit: 1  (expect 1: pin caught the drift)
+
+# step 3: revert, pin test green again
+ok  	github.com/energye/gpui/render	0.026s
+
+# step 4: residue grep (expect no 32 MiB image budget left)
+# grep exit: 1  (1 = zero residue)

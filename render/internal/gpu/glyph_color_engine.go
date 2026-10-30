@@ -45,7 +45,7 @@ type ColorGlyphEngine struct {
 // NewColorGlyphEngine creates a color glyph engine with default atlas pages.
 func NewColorGlyphEngine() *ColorGlyphEngine {
 	return &ColorGlyphEngine{
-		atlas:  NewColorGlyphAtlas(1024, 4),
+		atlas:  NewColorGlyphAtlas(1024, render.DefaultBudget(render.BudgetGlyphColor).MaxEntries),
 		raster: text.NewColorRasterCache(256),
 	}
 }

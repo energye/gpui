@@ -22,18 +22,15 @@ import (
 	"github.com/energye/gpui/render"
 )
 
-// defaultImageCacheBudget is the maximum number of cached image textures.
-// LRU eviction removes the least recently used entry when exceeded.
-const defaultImageCacheBudget = 128
-
-// defaultImageCacheBudgetBytes caps resident image texture bytes (~64 MiB).
-const defaultImageCacheBudgetBytes int64 = 64 << 20
-
-// Fair-share floors: per-window image-cache caps never shrink below
-// these, no matter how many windows share the device.
-const (
-	minImageCacheBudget      = 16
-	minImageCacheBudgetBytes = 8 << 20
+// Budget limits come from the single declaration table (P2.4b 预算统一,
+// render.DefaultBudget(BudgetImageCache)): MaxEntries=128 textures,
+// MaxBytes=64 MiB, fair-share floors 16 entries / 8 MiB. The vars keep the
+// historic names so call sites are unchanged.
+var (
+	defaultImageCacheBudget      = render.DefaultBudget(render.BudgetImageCache).MaxEntries
+	defaultImageCacheBudgetBytes = render.DefaultBudget(render.BudgetImageCache).MaxBytes
+	minImageCacheBudget          = render.DefaultBudget(render.BudgetImageCache).MinEntries
+	minImageCacheBudgetBytes     = render.DefaultBudget(render.BudgetImageCache).MinBytes
 )
 
 // imageCacheEntry holds a GPU texture and view for a cached image.
@@ -155,14 +152,16 @@ func (c *ImageCache) SetBudgets(entries int, bytes int64) {
 // fair share — N per-window 128-entry caches would otherwise hold N× the
 // process budget). Single-window behavior is unchanged.
 func (c *ImageCache) effBudget() int {
+	return c.effBudgetFor(render.SharedWindowCount())
+}
+
+// effBudgetFor is effBudget with the window count injected (test seam).
+func (c *ImageCache) effBudgetFor(w int) int {
 	if c != nil && c.explicitBudgets && c.budget > 0 {
 		return c.budget
 	}
-	if w := render.SharedWindowCount(); w > 1 {
-		if fair := defaultImageCacheBudget / w; fair >= minImageCacheBudget {
-			return fair
-		}
-		return minImageCacheBudget
+	if w > 1 {
+		return int(render.FairSplit(int64(defaultImageCacheBudget), int64(w), int64(minImageCacheBudget)))
 	}
 	if c != nil && c.budget > 0 {
 		return c.budget
@@ -172,14 +171,16 @@ func (c *ImageCache) effBudget() int {
 
 // effBudgetBytes returns the binding byte cap (same fair-share rule).
 func (c *ImageCache) effBudgetBytes() int64 {
+	return c.effBudgetBytesFor(render.SharedWindowCount())
+}
+
+// effBudgetBytesFor is effBudgetBytes with the window count injected.
+func (c *ImageCache) effBudgetBytesFor(w int) int64 {
 	if c != nil && c.explicitBudgets && c.budgetBytes > 0 {
 		return c.budgetBytes
 	}
-	if w := render.SharedWindowCount(); w > 1 {
-		if fair := defaultImageCacheBudgetBytes / int64(w); fair >= minImageCacheBudgetBytes {
-			return fair
-		}
-		return minImageCacheBudgetBytes
+	if w > 1 {
+		return render.FairSplit(defaultImageCacheBudgetBytes, int64(w), minImageCacheBudgetBytes)
 	}
 	if c != nil && c.budgetBytes > 0 {
 		return c.budgetBytes

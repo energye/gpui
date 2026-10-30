@@ -14,8 +14,8 @@ func TestPictureCacheFairMaxN_SplitsBudget(t *testing.T) {
 		t.Fatalf("2 windows got %d want 96", got)
 	}
 	// 4 windows → 48MB → 48 entries of 1MB, raised to the 64 floor.
-	if got := pictureCacheFairMaxN(4, 768, 1<<20, 0); got != minPictureCacheEntries {
-		t.Fatalf("4 windows got %d want floor %d", got, minPictureCacheEntries)
+	if got := pictureCacheFairMaxN(4, 768, 1<<20, 0); got != DefaultBudget(BudgetPictureCache).MinEntries {
+		t.Fatalf("4 windows got %d want floor %d", got, DefaultBudget(BudgetPictureCache).MinEntries)
 	}
 	// 4 windows of 256KB entries → 192, above the floor.
 	if got := pictureCacheFairMaxN(4, 768, 256<<10, 0); got != 192 {
@@ -26,8 +26,8 @@ func TestPictureCacheFairMaxN_SplitsBudget(t *testing.T) {
 		t.Fatalf("fallback got %d want 96", got)
 	}
 	// Absurdly large entries clamp to the 64-entry floor, never 0/negative.
-	if got := pictureCacheFairMaxN(8, 768, 1<<30, 0); got != minPictureCacheEntries {
-		t.Fatalf("huge entries got %d want floor %d", got, minPictureCacheEntries)
+	if got := pictureCacheFairMaxN(8, 768, 1<<30, 0); got != DefaultBudget(BudgetPictureCache).MinEntries {
+		t.Fatalf("huge entries got %d want floor %d", got, DefaultBudget(BudgetPictureCache).MinEntries)
 	}
 }
 

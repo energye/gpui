@@ -1,0 +1,20 @@
+# P2.4b 残留 grep：旧私有常量声明应归零（声明表是唯一来源）
+# date: 2026-10-30T06:24:27+08:00
+
+## 1) 旧常量声明残留（期望全部 0 命中）
+const defaultImageCacheBudget:            0 命中
+const defaultTexturePoolBudgetMB:         0 命中
+const stencilPoolCap:                     0 命中
+maskCacheMaxBytes   = 16:                 0 命中
+dualTexOutPoolBudgetBytes int64 = 32:     0 命中
+const offscreenPoolBucketCap:             0 命中
+const offscreenPoolBytesCap:              0 命中
+videoDefaultMaxStaging = uint64(64:       0 命中
+const minPictureCacheEntries:             0 命中
+minPictureCacheEntries = 64:              0 命中
+
+## 2) 声明表引用数（DefaultBudget 调用点）
+22
+
+## 3) 分层：ui 直引 gpu 白名单检查
+5

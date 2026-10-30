@@ -14,11 +14,14 @@ package gpu
 
 import (
 	"sync"
+
+	"github.com/energye/gpui/render"
 )
 
-// defaultTexturePoolBudgetMB is the default memory budget for the texture pool.
-// 128MB supports ~5 concurrent 1080p MSAA4x contexts.
-const defaultTexturePoolBudgetMB = 128
+// defaultTexturePoolBudgetMB comes from the declaration table (P2.4b,
+// render.DefaultBudget(BudgetTexturePool) = 128 MiB). The pool itself is
+// deprecated — allocation is unused; purge/telemetry remain until P2.4d.
+var defaultTexturePoolBudgetMB = int(render.DefaultBudget(render.BudgetTexturePool).MaxBytes >> 20)
 
 // textureKey identifies a texture set by its dimensions and sample count.
 type textureKey struct {

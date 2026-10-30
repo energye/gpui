@@ -1,0 +1,11 @@
+# P2.4b -race（触及共享数据的预算/淘汰面，P2.4 附加门禁）
+# date: 2026-10-30T06:52:02+08:00
+# env: CGO_ENABLED=1 WGPU_NATIVE_PATH set
+
+## render（声明表/FairSplit/公平份额/video 池/设备入口）
+CGO_ENABLED=1 go test -race ./render/ -run '^(TestDefaultBudget|TestFairSplit|TestBudgetDomain|TestPictureCacheFairMax|TestVideoTexturePool_MaxSlots|TestRequestDeviceWithRetry|TestOpenStandaloneDevice)'
+# exit: 0 (ok 6.868s)
+
+## render/internal/gpu（公平份额分支/depth-clip/dualTex/stencil/ImageCache/TexturePool 淘汰面）
+CGO_ENABLED=1 go test -race ./render/internal/gpu/ -run '^(TestImageCacheFairShare|TestDepthClipMaskCache|TestDualTexOutPool|TestStencilPool_LRUEviction|TestS67_ImageCache_ByteBudgetEvicts|TestS67_TexturePool_EndFrameBudget)'
+# exit: 0 (ok 1.340s)

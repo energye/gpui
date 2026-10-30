@@ -29,13 +29,6 @@ const (
 	// WebGPU requires 256-byte BytesPerRow; GL accepts it as well.
 	videoRowPitchAlignment = 256
 
-	// videoDefaultMaxStaging caps one staging upload when the backend
-	// does not report its own limit (64MB, same as hal default).
-	videoDefaultMaxStaging = uint64(64 << 20)
-
-	// videoPoolMaxSlots bounds concurrent video routes per process.
-	videoPoolMaxSlots = 8
-
 	// videoMaxViews bounds the per-view paint accounting of one bridge: the
 	// main view plus picture-in-picture overlays sharing the same uploaded
 	// frame. Paints naming a higher view index fold into the last slot, so the

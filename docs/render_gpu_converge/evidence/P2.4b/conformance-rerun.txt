@@ -1,0 +1,5 @@
+# P2.4b conformance 重跑（K1 资源断言不回退）
+# date: 2026-10-30T07:55:48+08:00
+# 命令: WGPU_NATIVE_PATH=... DISPLAY=:1 go test ./render -run '^TestConformanceDualBackend$' -count=1 -v
+# 结果: PASS (1.079s)
+# 对照: baseline/conformance/summary.md（3 场景 × native/go 全 PASS）；K1 上界 ±2 条/131072B 维持在用例 JSON（solid_gradient/text_image），clip_blend 0/0

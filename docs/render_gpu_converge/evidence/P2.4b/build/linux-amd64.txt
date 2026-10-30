@@ -1,0 +1,31 @@
+# P2.4b build gate: linux/amd64
+# env: CGO_ENABLED=0 GOOS=linux GOARCH=amd64
+# date: 2026-10-30T06:24:27+08:00
+# head: 51a5dec5
+# dirty: 25 paths (P2.1 working tree, uncommitted)
+
+## 1. go build ./... (raw)
+examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
+	go get github.com/energye/gpui/ui/kit/button
+examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
+	go get github.com/energye/gpui/ui/kit/icon
+# exit: 1
+
+## 2. known-broken packages (expected red, unchanged from P1.1b/P2.2/P2.3)
+### go build ./examples/ui_wr_t_stress
+examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
+	go get github.com/energye/gpui/ui/kit/button
+examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
+	go get github.com/energye/gpui/ui/kit/icon
+# exit: 1
+### go build ./ui/scene/internal/gpupixel
+github.com/energye/gpui/ui/scene/internal/gpupixel: no non-test Go files in /home/yanghy/app/projects/gogpu/gpui/ui/scene/internal/gpupixel
+# exit: 1
+
+## 3. go build <all buildable except known-broken>
+# pkgs: 321
+# exit: 0
+
+## 4. go build -tags nogpu <all buildable except known-broken>
+# pkgs: 317
+# exit: 0

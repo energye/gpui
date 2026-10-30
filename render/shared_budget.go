@@ -79,17 +79,8 @@ func VramPressureHigh() bool {
 	return lowVRAMWaterlineTripped()
 }
 
-// pictureCacheBudgetDivisor splits the process budget across its big
-// consumers: swapchain surfaces, the picture texture cache, the image
-// cache, and staging/vertex buffers. The picture cache of one window may
-// therefore use at most budget/windows/divisor bytes. Conservative on
-// purpose: refusing growth only forces re-records (correctness fallback),
-// while over-growing OOMs every window at native-alloc time.
-const pictureCacheBudgetDivisor = 4
-
-// minPictureCacheEntries is the floor for the fair-share entry cap: a
-// window always keeps at least the historic default working set.
-const minPictureCacheEntries = 64
+// pictureCacheBudgetDivisor and the entry floor live in budget.go — the
+// single declaration point (P2.4b 预算统一).
 
 // PictureCacheFairMax computes the per-window entry ceiling for the
 // picture texture cache. avgEntryBytes estimates one entry
@@ -110,6 +101,8 @@ func PictureCacheFairMax(avgEntryBytes, fallbackBytes uint64) int {
 
 // pictureCacheFairMaxN is the pure fair-share core: budgetMB/(windows×
 // divisor) bytes per window converted to entries. 0 budget disables.
+// P2.4b: derivation goes through FairSplit; floor and divisor read the
+// declaration table (identical integer arithmetic to the pre-P2.4b form).
 func pictureCacheFairMaxN(windows int, budgetMB int64, avgEntryBytes, fallbackBytes uint64) int {
 	if windows <= 1 || budgetMB <= 0 {
 		return 0
@@ -121,10 +114,10 @@ func pictureCacheFairMaxN(windows int, budgetMB int64, avgEntryBytes, fallbackBy
 	if perEntry == 0 {
 		perEntry = 256 * 256 * 4
 	}
-	fairBytes := uint64(budgetMB) * 1024 * 1024 / uint64(windows) / pictureCacheBudgetDivisor
-	fair := int(fairBytes / perEntry)
-	if fair < minPictureCacheEntries {
-		fair = minPictureCacheEntries
+	fairBytes := FairSplit(int64(budgetMB)*1024*1024, int64(windows), 0) / pictureCacheBudgetDivisor
+	fair := int(fairBytes / int64(perEntry))
+	if floor := DefaultBudget(BudgetPictureCache).MinEntries; fair < floor {
+		fair = floor
 	}
 	return fair
 }

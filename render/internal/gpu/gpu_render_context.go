@@ -166,11 +166,11 @@ type GPURenderContext struct {
 
 // offscreenPoolBucketCap bounds one size bucket: a layer ring holds ≤2
 // same-size slots, plus transient effect/filter users.
-const offscreenPoolBucketCap = 4
+var offscreenPoolBucketCap = render.DefaultBudget(render.BudgetLayerOffscreen).MaxEntries
 
 // offscreenPoolBytesCap bounds total pooled bytes per context (~8 full-HD
 // RGBA surfaces); overflow falls back to native release.
-const offscreenPoolBytesCap = 32 << 20
+var offscreenPoolBytesCap = uint64(render.DefaultBudget(render.BudgetLayerOffscreen).MaxBytes)
 
 type offscreenPooled struct {
 	tex  hal.Texture
