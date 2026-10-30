@@ -802,6 +802,14 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 	}
 	p.destroyYUV()
 	p.destroyBlendPipelines()
+	if p.pipelineWithBicubicDepthClip != nil {
+		p.pipelineWithBicubicDepthClip.Destroy()
+		p.pipelineWithBicubicDepthClip = nil
+	}
+	if p.pipelineWithBicubic != nil {
+		p.pipelineWithBicubic.Destroy()
+		p.pipelineWithBicubic = nil
+	}
 	if p.pipelineWithDepthClip != nil {
 		p.pipelineWithDepthClip.Destroy()
 		p.pipelineWithDepthClip = nil
@@ -846,6 +854,10 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 	if p.shader != nil {
 		p.shader.Destroy()
 		p.shader = nil
+	}
+	if p.bicubicShader != nil {
+		p.bicubicShader.Destroy()
+		p.bicubicShader = nil
 	}
 }
 

@@ -2,7 +2,7 @@
   "name": "text_image",
   "width": 160,
   "height": 96,
-  "notes": "Ahem glyphs (deterministic filled squares) at size 40 plus a 16x16 quadrant bitmap. Ahem's ascent is 0.8em and descent 0.2em, and its glyph box spans the full em square, so AB at baseline y=56 covers y=24..63 and x=8..87. Expected glyph area is 2 glyph squares over the 96x96 text region; the bbox pins the glyph band. The font path is relative to the render package root (the harness cwd). Resource bounds are non-zero: a known per-context ledger leak (+2 entries / 131072 bytes per run) on brush, glyph and image textures is registered as K1 (render domain, P1.6/P2.4c); tighten these to 0 once fixed.",
+  "notes": "Ahem glyphs (deterministic filled squares) at size 40 plus a 16x16 quadrant bitmap. Ahem's ascent is 0.8em and descent 0.2em, and its glyph box spans the full em square, so AB at baseline y=56 covers y=24..63 and x=8..87. Expected glyph area is 2 glyph squares over the 96x96 text region; the bbox pins the glyph band. The font path is relative to the render package root (the harness cwd). Resource bounds are zero: the K1 per-context ledger leak (two TexturedQuadPipeline bicubic variants per run, 131072 bytes) was traced and fixed in P2.4c; a non-zero steady delta now fails the gate.",
   "ops": [
     {
       "kind": "clear",
@@ -138,7 +138,7 @@
   },
   "resource": {
     "repeats": 3,
-    "max_steady_count_delta": 2,
-    "max_steady_bytes_delta": 131072
+    "max_steady_count_delta": 0,
+    "max_steady_bytes_delta": 0
   }
 }

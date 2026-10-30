@@ -1,0 +1,6 @@
+=== RUN   TestConformanceInner
+    conformance_test.go:169: go/clip_blend ok=true 
+    conformance_test.go:169: go/solid_gradient ok=false resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+    conformance_test.go:169: go/text_image ok=false resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+--- PASS: TestConformanceInner (0.39s)
+PASS

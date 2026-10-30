@@ -4,6 +4,8 @@ package gpu
 
 import (
 	"testing"
+
+	"github.com/energye/gpui/gpu/hal"
 )
 
 func TestS67_ImageCache_HitUploadBytes(t *testing.T) {
@@ -92,27 +94,37 @@ func TestS67_ImageCache_EphemeralReleased(t *testing.T) {
 	device, queue, cleanup := createNativeTestDevice(t)
 	defer cleanup()
 	ic := NewImageCache(device, queue)
+	var retired int
+	ic.SetRetireHook(func(tex hal.Texture, view hal.TextureView) {
+		retired++
+		if view != nil {
+			view.Destroy()
+		}
+		if tex != nil {
+			tex.Destroy()
+		}
+	})
 	px := make([]byte, 4*4*4)
 	cmd := &ImageDrawCommand{PixelData: px, GenerationID: 0, ImgWidth: 4, ImgHeight: 4, ImgStride: 16}
 	if _, err := ic.GetOrUpload(cmd); err != nil {
 		t.Fatal(err)
 	}
 	st := ic.Stats()
-	if st.EphemeralPending != 1 || st.EphemeralUploads != 1 {
+	if st.EphemeralUploads != 1 || st.Entries != 0 {
 		t.Fatalf("ephemeral: %+v", st)
 	}
-	ic.ReleaseEphemeral()
-	st = ic.Stats()
-	if st.EphemeralPending != 0 {
-		t.Fatalf("pending after release: %d", st.EphemeralPending)
+	if retired != 1 {
+		t.Fatalf("gen==0 must hand the pair to the retire hook, got %d calls", retired)
 	}
-	// Second frame ephemeral
+	// Second frame ephemeral: never accumulates in the entry map.
 	if _, err := ic.GetOrUpload(cmd); err != nil {
 		t.Fatal(err)
 	}
-	ic.ReleaseEphemeral()
-	if ic.Stats().EphemeralPending != 0 {
-		t.Fatal("leak")
+	if ic.Stats().Entries != 0 {
+		t.Fatal("gen==0 uploads must not stay cached")
+	}
+	if retired != 2 {
+		t.Fatalf("retire hook calls=%d want 2", retired)
 	}
 }
 

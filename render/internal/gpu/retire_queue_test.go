@@ -10,33 +10,9 @@ import (
 
 // rebuild must not immediately destroy old texture views — commands
 // queued earlier in the frame may still reference them. These tests pin the
-// deferred-release queue and the textureSet retire-fn behavior with fake
-// resources (Destroy-recording stubs; no concrete type named).
-
-func TestPendingTexRetire_AddDrain(t *testing.T) {
-	var q pendingTexRetire
-	v1 := &testTextureView{}
-	v2 := &testTextureView{}
-	tx1 := &testTexture{}
-	q.Add(v1, nil)
-	q.Add(v2, tx1)
-	if got := q.PendingCount(); got != 3 {
-		t.Fatalf("expected 3 pending after adds, got %d", got)
-	}
-	q.Drain()
-	if got := q.PendingCount(); got != 0 {
-		t.Fatalf("expected 0 pending after drain, got %d", got)
-	}
-	if !v1.destroyed || !v2.destroyed || !tx1.destroyed {
-		t.Fatalf("drain must release every queued resource")
-	}
-	// Idempotent + nil-safe.
-	q.Drain()
-	q.Add(nil, nil)
-	if got := q.PendingCount(); got != 0 {
-		t.Fatalf("nil adds must be no-ops, got %d", got)
-	}
-}
+// textureSet retire-fn behavior with fake resources (Destroy-recording stubs;
+// no concrete type named). Deferred releases themselves are owned by the
+// res registry (see render_session retireNative).
 
 func TestTextureSet_DestroyWithRetireFnDefersRelease(t *testing.T) {
 	ts := &textureSet{}

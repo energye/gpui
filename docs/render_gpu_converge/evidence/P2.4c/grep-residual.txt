@@ -1,0 +1,29 @@
+# P2.4c residual grep
+# date: 2026-10-30T11:55:37+08:00
+
+## 1) 旧队列/旧释放口符号（期望 0 命中；docs/ 与基线快照不算）
+pendingTexRetire: 0 命中
+pendingBufRetire: 0 命中
+ReleaseEphemeral: 0 命中
+OnSubmissionFinished: 0 命中
+EphemeralPending: 0 命中
+EphemeralPending:: 0 命中
+
+## 2) 裸 Drain()（期望 0 命中：释放只在 SubmitDone 走 registry）
+.Drain(): 0 命中
+
+## 3) 延迟释放唯一入口调用点
+retireNative 调用点:
+    render/internal/gpu/render_session.go:729:func (s *GPURenderSession) retireNative(n res.Native) {
+    render/internal/gpu/render_session.go:751:	s.retireNative(&bufRetireNative{buf: b})
+    render/internal/gpu/render_session.go:881:	s.retireNative(&texRetireNative{tex: tex, view: view})
+SubmitDone 同步点:
+    render/internal/gpu/render_session.go:930:			s.sub.SubmitDone()
+    render/internal/gpu/render_session.go:1014:		s.sub.SubmitDone()
+    render/internal/gpu/render_session.go:2051:		s.sub.SubmitDone()
+    render/internal/gpu/render_session.go:2130:		s.sub.SubmitDone()
+    render/internal/gpu/render_session.go:5641:		s.sub.SubmitDone()
+    render/internal/gpu/res/submission.go:51:func (s *Submission) SubmitDone() {
+
+## 4) 分层：render 非测试代码中的后端特有类型（期望 0；创建入口除外）
+(空 = 合规；注意 'rectangles.' 这类英文词不是 gles 引用，用词边界排除)

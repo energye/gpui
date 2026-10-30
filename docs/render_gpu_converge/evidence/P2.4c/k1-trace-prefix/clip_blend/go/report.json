@@ -1,0 +1,184 @@
+{
+  "backend": "go",
+  "scene": "clip_blend",
+  "status": "ok",
+  "width": 128,
+  "height": 96,
+  "image_sha256": "7fd12d76c599faeca0f9abe4ac1b5bc9434785ea20c0776195fbbfa4a1e8e889",
+  "samples": [
+    {
+      "name": "inside_red",
+      "x": 8,
+      "y": 48,
+      "want_rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "got_rgba": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "blend_inside",
+      "x": 48,
+      "y": 48,
+      "want_rgba": [
+        255,
+        128,
+        128,
+        255
+      ],
+      "got_rgba": [
+        255,
+        128,
+        128,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "boundary_in",
+      "x": 63,
+      "y": 48,
+      "want_rgba": [
+        255,
+        128,
+        128,
+        255
+      ],
+      "got_rgba": [
+        255,
+        128,
+        128,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "boundary_out",
+      "x": 64,
+      "y": 48,
+      "want_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "got_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "clip_outside",
+      "x": 80,
+      "y": 48,
+      "want_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "got_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    },
+    {
+      "name": "far_right",
+      "x": 120,
+      "y": 48,
+      "want_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "got_rgba": [
+        0,
+        0,
+        255,
+        255
+      ],
+      "tol": 2,
+      "ok": true
+    }
+  ],
+  "regions": [
+    {
+      "name": "left_red_band",
+      "kind": "coverage",
+      "got_ratio": 1,
+      "min_ratio": 1,
+      "max_ratio": 1,
+      "ok": true
+    },
+    {
+      "name": "blend_band",
+      "kind": "coverage",
+      "got_ratio": 1,
+      "min_ratio": 1,
+      "max_ratio": 1,
+      "ok": true
+    },
+    {
+      "name": "right_blue_band",
+      "kind": "coverage",
+      "got_ratio": 1,
+      "min_ratio": 1,
+      "max_ratio": 1,
+      "ok": true
+    }
+  ],
+  "path": {
+    "gpu_ops": 3,
+    "cpu_fallback_ops": 0,
+    "frame_flushes": 1,
+    "min_gpu_ops": 1,
+    "max_cpu_fallback_ops": 0,
+    "gpu_ops_ok": true,
+    "fallback_ok": true,
+    "ok": true
+  },
+  "resource": {
+    "repeats": 3,
+    "live_count": [
+      9,
+      9,
+      9
+    ],
+    "live_bytes": [
+      589824,
+      589824,
+      589824
+    ],
+    "steady_count_delta": 0,
+    "steady_bytes_delta": 0,
+    "max_steady_count_delta": 0,
+    "max_steady_bytes_delta": 0,
+    "gpu_contexts_after": [
+      0,
+      0,
+      0
+    ],
+    "ok": true
+  },
+  "ok": true
+}

@@ -33,10 +33,11 @@ func TestShrinkDue_Matrix(t *testing.T) {
 
 // TestSessionFrameBufferShrink drives the session hysteresis headlessly
 // : sustained tiny use retires grow-only buffers; steady use
-// never shrinks. Fake buffers only flow through RetireBuffer (deferred
-// queue, no native calls).
+// never shrinks. Fake buffers only flow through RetireBuffer (registry
+// deferred release, no native calls).
 func TestSessionFrameBufferShrink(t *testing.T) {
-	s := &GPURenderSession{}
+	s := NewGPURenderSession(nil, nil, 4)
+	t.Cleanup(s.Destroy)
 	const big = 1 << 20
 	s.gpuTexVertexStaging = make([]byte, big)
 	s.imageVertexStaging = make([]byte, big)
@@ -69,7 +70,7 @@ func TestSessionFrameBufferShrink(t *testing.T) {
 			t.Fatalf("%s must be retired after sustained disuse", name)
 		}
 	}
-	if n := s.pendingBufRetire.PendingCount(); n != 5 {
+	if n := s.PendingTexRetireCount(); n != 5 {
 		t.Fatalf("retire queue=%d want 5 (vert+base+slab+imgVert+imgSlab)", n)
 	}
 	if len(s.gpuTexBGCaches) != 1 || s.gpuTexBGCaches[0].entries[0].bg != nil {
@@ -77,7 +78,8 @@ func TestSessionFrameBufferShrink(t *testing.T) {
 	}
 
 	// Steady use never shrinks: fresh peak at capacity stays put.
-	s2 := &GPURenderSession{}
+	s2 := NewGPURenderSession(nil, nil, 4)
+	t.Cleanup(s2.Destroy)
 	s2.gpuTexVertBuf = &noop.Buffer{}
 	s2.gpuTexVertBufCap = big
 	s2.texLastVertNeed = big
@@ -87,7 +89,7 @@ func TestSessionFrameBufferShrink(t *testing.T) {
 	if s2.gpuTexVertBuf == nil {
 		t.Fatal("steady use must never shrink")
 	}
-	if n := s2.pendingBufRetire.PendingCount(); n != 0 {
+	if n := s2.PendingTexRetireCount(); n != 0 {
 		t.Fatalf("steady use retire queue=%d want 0", n)
 	}
 }

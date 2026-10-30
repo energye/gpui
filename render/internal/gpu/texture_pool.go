@@ -36,7 +36,7 @@ type textureKey struct {
 //
 // Deprecated (P5): production paths never call Acquire/Release/EndFrame —
 // only DestroyAll/SetBudget/Stats are used for telemetry. Session textures go
-// through textureSet + pendingTexRetire, and the res.Cache is the
+// through textureSet + the res registry retire path, and the res.Cache is the
 // long-term pooling home.
 //
 // This avoids creating expensive GPU textures (MSAA, depth/stencil) per context

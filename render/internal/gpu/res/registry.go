@@ -34,6 +34,10 @@ type slot struct {
 	// slots, swapchain views). The registry tracks them for lifetime/ABA
 	// safety but never calls Release — the owner decides when to destroy.
 	borrowed bool
+	// onIdle runs each time the entry becomes idle (refs==0 && inflight==0,
+	// not retired). Cache uses it to re-pool released entries without a
+	// separate pending queue.
+	onIdle func()
 }
 
 // Ref is a strong usage reference (GrGpuResource::ref semantics). While a Ref
@@ -124,6 +128,7 @@ func (r *Registry) Release(ref Ref) {
 		s.refs--
 	}
 	r.removeIfReady(s)
+	r.notifyIdle(s)
 }
 
 // Retire marks an entry for destruction. The native resource is released only
@@ -211,7 +216,29 @@ func (r *Registry) markInflight(id uint32, delta int32) {
 	}
 	if s.inflight == 0 {
 		r.removeIfReady(s)
+		r.notifyIdle(s)
 	}
+}
+
+// SetIdleCallback registers fn to run whenever the entry transitions to idle
+// (refs==0 && inflight==0 and not retired). Replaces the per-cache pending
+// queue: the callback runs from Release or from the submission completion
+// that clears the in-flight count, whichever comes last.
+func (r *Registry) SetIdleCallback(id uint32, fn func()) {
+	if r == nil || id == 0 {
+		return
+	}
+	if s, ok := r.slots[id]; ok {
+		s.onIdle = fn
+	}
+}
+
+// notifyIdle fires the idle callback when the entry is idle and not retired.
+func (r *Registry) notifyIdle(s *slot) {
+	if s == nil || s.retire || s.refs != 0 || s.inflight != 0 || s.onIdle == nil {
+		return
+	}
+	s.onIdle()
 }
 
 // InvalidateAll discards every entry WITHOUT calling native Release — native
@@ -269,6 +296,21 @@ func (r *Registry) Count() int {
 		return 0
 	}
 	return len(r.slots)
+}
+
+// PendingReleaseCount returns how many live entries are retired but still
+// waiting for their last ref / in-flight submission (diagnostics).
+func (r *Registry) PendingReleaseCount() int {
+	if r == nil {
+		return 0
+	}
+	n := 0
+	for _, s := range r.slots {
+		if s != nil && s.retire {
+			n++
+		}
+	}
+	return n
 }
 
 // removeIfReady releases the native resource when the entry is retired and

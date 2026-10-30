@@ -77,14 +77,13 @@ type ImageCache struct {
 	evictions        uint64
 	ephemeralUploads uint64
 
-	// gen==0 textures live for one frame then must be released.
-	ephemeral []*imageCacheEntry
-
-	// pending holds entries retired by eviction / size-replace during encode.
-	// Their views may still be referenced by this frame's already-encoded
-	// commands (shared-encoder path encodes before the final Submit), so the
-	// native release is deferred to a submission-completion point.
-	pending []*imageCacheEntry
+	// gen==0 textures live for one frame then must be released; entries retired
+	// by eviction / size-replace during encode also outlive their map slot until
+	// the current submission completes. Both paths hand the native pair to
+	// retire when set (the session defers release to a submission-completion
+	// point through the res registry); without a hook the pair is destroyed
+	// immediately (tests / standalone caches).
+	retire func(tex hal.Texture, view hal.TextureView)
 
 	// destroyed latches session teardown; a destroyed cache purges to zero
 	// without touching native resources (multiwindow 1.3 purge chain).
@@ -129,6 +128,34 @@ func NewImageCache(device hal.Device, queue hal.Queue) *ImageCache {
 	}
 	render.RegisterPurgeEvictable("image-cache", c)
 	return c
+}
+
+// SetRetireHook installs the deferred-release outlet for textures leaving the
+// cache. The hook must guarantee the pair stays alive until the submission
+// referencing it completes. Without a hook the pair is destroyed immediately.
+func (c *ImageCache) SetRetireHook(fn func(tex hal.Texture, view hal.TextureView)) {
+	if c == nil {
+		return
+	}
+	c.retire = fn
+}
+
+// retireEntry hands one entry's native pair to the retire hook (immediate
+// destroy when no hook is installed).
+func (c *ImageCache) retireEntry(entry *imageCacheEntry) {
+	if entry == nil {
+		return
+	}
+	if c.retire != nil {
+		c.retire(entry.texture, entry.view)
+		return
+	}
+	if entry.view != nil {
+		entry.view.Destroy()
+	}
+	if entry.texture != nil {
+		entry.texture.Destroy()
+	}
 }
 
 // SetBudgets updates entry and byte soft limits (tests/tuning).
@@ -205,7 +232,7 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 		}
 		c.uploads++
 		c.ephemeralUploads++
-		c.ephemeral = append(c.ephemeral, entry)
+		c.retireEntry(entry)
 		return entry.view, nil
 	}
 
@@ -243,33 +270,6 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 	c.usedBytes += entry.bytes
 
 	return entry.view, nil
-}
-
-// ReleaseEphemeral frees textures whose frame lifetime is over: gen==0
-// uploads (ephemeral) and entries retired by eviction / size-replace
-// (pending). Must be called AFTER the GPU has finished the frame (submit
-func (c *ImageCache) ReleaseEphemeral() {
-	if c == nil {
-		return
-	}
-	for _, entry := range c.ephemeral {
-		if entry.view != nil {
-			entry.view.Destroy()
-		}
-		if entry.texture != nil {
-			entry.texture.Destroy()
-		}
-	}
-	c.ephemeral = c.ephemeral[:0]
-	for _, entry := range c.pending {
-		if entry.view != nil {
-			entry.view.Destroy()
-		}
-		if entry.texture != nil {
-			entry.texture.Destroy()
-		}
-	}
-	c.pending = c.pending[:0]
 }
 
 // rewriteImage uploads new pixels into an existing cache entry texture (in-place).
@@ -326,10 +326,8 @@ func (c *ImageCache) Destroy() {
 	}
 	render.UnregisterPurgeEvictable(c)
 	c.destroyed.Store(true)
-	c.ReleaseEphemeral()
 	for key, entry := range c.entries {
-		entry.view.Destroy()
-		entry.texture.Destroy()
+		c.retireEntry(entry)
 		delete(c.entries, key)
 	}
 	c.usedBytes = 0
@@ -442,10 +440,10 @@ func (c *ImageCache) removeEntry(key uint64, entry *imageCacheEntry) {
 	if entry == nil {
 		return
 	}
-	// defer the native release to a submission-completion point. The view
-	// may still be referenced by this frame's already-encoded commands; the
-	// entry stays in `pending` until ReleaseEphemeral runs post-submit.
-	c.pending = append(c.pending, entry)
+	// Hand the native pair to the retire outlet: this frame's already-encoded
+	// commands may still reference the view, so release waits for the
+	// submission-completion sync point.
+	c.retireEntry(entry)
 	c.usedBytes -= entry.bytes
 	if c.usedBytes < 0 {
 		c.usedBytes = 0
@@ -498,7 +496,6 @@ type ImageCacheStats struct {
 	LastUploadBytes  int64
 	Evictions        uint64
 	EphemeralUploads uint64
-	EphemeralPending int
 }
 
 // Stats returns cache statistics.
@@ -519,7 +516,6 @@ func (c *ImageCache) Stats() ImageCacheStats {
 		LastUploadBytes:  c.lastUploadBytes,
 		Evictions:        c.evictions,
 		EphemeralUploads: c.ephemeralUploads,
-		EphemeralPending: len(c.ephemeral),
 	}
 }
 

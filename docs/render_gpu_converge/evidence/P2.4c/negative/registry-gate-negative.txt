@@ -1,0 +1,27 @@
+# P2.4c negative control: registry in-flight gate
+# date: 2026-10-30T11:56:24+08:00
+# target test: TestSessionRetireSequence_GatedBySubmitDone + TestRegistry_InflightBlocksReleaseUntilSubmitDone
+
+## step 1: clean state green
+ok  	github.com/energye/gpui/render/internal/gpu/res	0.018s
+# exit: 0 (expect 0)
+
+## step 2: remove the inflight gate in removeIfReady (temporary patch)
+    318:func (r *Registry) removeIfReady(s *slot) {
+    319-	if s == nil || !s.retire || s.refs != 0 {
+    320-		return
+--- FAIL: TestSessionRetireSequence_GatedBySubmitDone (0.00s)
+    deferred_release_test.go:31: released before SubmitDone: 1
+--- FAIL: TestRegistry_InflightBlocksReleaseUntilSubmitDone (0.00s)
+    registry_test.go:43: released while submission in flight: 1
+FAIL
+FAIL	github.com/energye/gpui/render/internal/gpu/res	0.018s
+FAIL
+# exit: 1 (expect 1: release escaped the submission gate)
+
+## step 3: restored, green again
+ok  	github.com/energye/gpui/render/internal/gpu/res	0.013s
+# exit: 0 (expect 0)
+
+## step 4: residue grep (expect 0 hits of the patched form)
+0

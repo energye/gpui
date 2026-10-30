@@ -67,8 +67,7 @@ func TestCache_InflightNotLentAndRepooledAfterSubmit(t *testing.T) {
 		t.Fatalf("in-flight entry must not be released")
 	}
 
-	sub.SubmitDone()         // fence arrives
-	c.OnSubmissionFinished() // pending entry becomes recombinable
+	sub.SubmitDone() // fence arrives; registry idle callback repools the entry
 
 	r3, _ := c.Acquire(k)
 	n3 := reg.NativeOf(r3).(*fakeNative)

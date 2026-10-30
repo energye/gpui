@@ -1,0 +1,50 @@
+# P2.4c 真窗门禁（隔离嵌套 Wayland，标准关闭）
+
+- date: 2026-10-30T12:49–12:58+08:00
+- head: 2204ad5a（工作区 = P2.4c 未提交改动）
+- 隔离显示：`dbus-run-session -- gnome-shell --nested --wayland-display=gpui-p24c --no-x11`（12:49 起，全程只做健康检查；当前桌面 X :1 未在其上开任何窗）
+- 环境：`WGPU_NATIVE_PATH=<repo>/lib/libwgpu_native.so`，`XDG_RUNTIME_DIR=/run/user/1000`，`WAYLAND_DISPLAY=gpui-p24c`
+- 二进制：`go build -o /tmp/p24c-bin/{ui_l1_blank,ui_base_multiwin_cap,ui_base_vram_cap}`（先构建再直接跑，信号打到被测进程本身，避免 `go run` 信号转发问题）
+
+## step 0 桌面健康
+desktop X display :1: alive（开窗前）；收尾复查仍 alive
+
+## step 1 ui_l1_blank native（RUN_SECONDS=60）
+rc=0
+- frame_count=3588 / present_count=3589 / missed_vsync=0 / hitch=4（4.0/min）
+- avg 16.71ms / p95 18.25ms / max 111.79ms；`backend=wayland presents=3588 ~59.8 fps`
+- 对照 P2.4b：3571 帧 / hitch 9 → 同档，无回归
+- 证据：`l1_blank_native.json` / `l1_blank_native.stderr`
+
+## step 2 ui_base_multiwin_cap native（-auto-only，RUN_SECONDS=75）
+rc=0，自判 OK：`presents=12641 phases=4 max_windows_60fps=4 steady60=4 cpu8=75.7% scale8/1=4.33 px=16/16 golden=0.0000%`
+- phase n=1 fps 59.8 / n=2 57.5 / n=4 59.6 / n=8 37.6（p95max 34.7ms，8 窗 CPU 饱和属 P1.4 已知性能档，非资源面）
+- 账本 RSS：311→311 / 311→314 / 314→314 / 315→316MB（8 窗稳态 316MB，与 P2.4b 的 315.2→315.9MB 一致）
+- rss_peak_kb=348064（P2.4b 347736，**+328KB / +0.09%**，噪声内）；steady 斜率 6391.7KB/min（P2.4b 6630.0，略降）
+- 证据：`multiwin_native.json` / `multiwin_native.stderr`
+
+## step 3 ui_base_vram_cap ladder native（-auto-only，RUN_SECONDS=300，隔离合成器内 timeout -s QUIT 330）
+rc=124：300s 到期仍未退出（既有 I1），SIGQUIT 抓栈后进程自行结束
+- phase n=2 fps_min=53.2 refusals=+0 (total 4) live=91.5MB
+- phase n=4 fps_min=26.7 refusals=+534 (total 721) live=181.5MB
+- phase n=8 fps_min=0.0 refusals=+0 (total 738) live=205.9MB ← 卡死点
+- 栈：hub 线程 locked to thread → `rwgpu.(*Surface).Present → wgpuSurfacePresent`（C 调用不返回）；主线程 `Loop.RunSync` 等 hub。与 P2.4b（201.0MB / 干净树 55495fdd 203.4MB、同一栈）同形 → **I1 既有缺陷复现，非 P2.4c 回归**，修复归 P2.4e
+- 证据：`vram_ladder_native.stderr`（含 21 个 goroutine 栈），`vram_ladder_native.json` 为空（未走完不出 JSON）
+
+## B 队列释放点后移的峰值影响（D2 风险对账）
+| 窗口 | P2.4b | P2.4c | 差值 |
+|---|---|---|---|
+| multiwin RSS 峰值 | 347736KB | 348064KB | +328KB（+0.09%） |
+| multiwin steady 斜率 | 6630.0KB/min | 6391.7KB/min | -238.3KB/min |
+| ladder n=2 / n=4 live | 91.5 / 181.5MB | 91.5 / 181.5MB | 0 |
+| ladder n=8 live（卡死态） | 201.0MB（干净树 203.4） | 205.9MB | +4.9MB，处 I1 卡死态抖动带内 |
+
+结论：图片纹理多活一帧在可测窗口上无可辨识的峰值抬升（multiwin +0.09%；ladder 到达相位逐位一致；8 窗卡死态差值属 I1 本身抖动），不需要回退到「同帧 submit 后」方案。
+
+## go 真窗（C7）
+本步未重跑：既有 C7（`eglMakeCurrent 0x3002`，Wayland 形态）已在 P2.4b 两次复现并做干净树 `55495fdd` A/B（`evidence/P2.4b/l1_blank_go_c7-0x3002.stderr`、`l1_blank_go_hang-stack.txt`、`ab-clean-55495fdd.stderr`）；P2.4c 改动在 `render/internal/gpu` 释放时序，与呈现后端无关。如实登记，修复归 P2.4e。
+
+## 退出方式
+- l1_blank / multiwin：RUN_SECONDS 到期自退出（rc=0），走正常关窗路径
+- ladder：卡死态无法响应 WM_DELETE，仅在**隔离合成器内**发 SIGQUIT 抓栈取证（进程自结束）；未对当前桌面执行任何信号，未使用 `kill -9` / `pkill` / `killall`
+- 收尾：桌面 X :1 健康检查 alive；无残留被测进程

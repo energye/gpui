@@ -1,0 +1,120 @@
+=== RUN   TestConformanceInner
+    conformance_test.go:167: K1TRACE backend=go scene=clip_blend round=0
+        live=9 total=589824
+              65536  0x3000000000000015  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000012  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000001b  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000009  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000003  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000006  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000c  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000f  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000018  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+    conformance_test.go:167: K1TRACE backend=go scene=clip_blend round=1
+        live=9 total=589824
+              65536  0x3000000000000012  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000001b  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000009  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000003  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000006  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000c  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000f  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000018  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000015  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+    conformance_test.go:167: K1TRACE backend=go scene=clip_blend round=2
+        live=9 total=589824
+              65536  0x3000000000000009  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000003  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000006  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000c  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000f  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000018  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000015  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000012  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000001b  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+    conformance_test.go:169: go/clip_blend ok=true 
+    conformance_test.go:167: K1TRACE backend=go scene=solid_gradient round=0
+        live=11 total=659456
+              65536  0x300000000000001b  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000009  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000003  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000006  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000c  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000f  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000018  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000015  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000012  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000027  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+               4096  0x2000000000000007  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:395)
+    conformance_test.go:167: K1TRACE backend=go scene=solid_gradient round=1
+        live=11 total=659456
+              65536  0x3000000000000009  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000003  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000006  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000c  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000f  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000018  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000015  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000012  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000027  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000001b  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+               4096  0x2000000000000007  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:395)
+    conformance_test.go:167: K1TRACE backend=go scene=solid_gradient round=2
+        live=11 total=659456
+              65536  0x3000000000000006  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000c  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000f  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000018  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000015  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000012  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000027  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000001b  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000009  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000003  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+               4096  0x2000000000000007  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:395)
+    conformance_test.go:169: go/solid_gradient ok=true 
+    conformance_test.go:167: K1TRACE backend=go scene=text_image round=0
+        live=12 total=1708032
+            1048576  0x33  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateTexture (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:326)
+              65536  0x3000000000000003  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000006  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000c  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000f  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000018  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000015  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000012  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000027  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000001b  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000009  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+               4096  0x2000000000000007  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:395)
+    conformance_test.go:167: K1TRACE backend=go scene=text_image round=1
+        live=12 total=1708032
+            1048576  0x33  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateTexture (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:326)
+              65536  0x3000000000000027  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000001b  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000009  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000003  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000006  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000c  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000f  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000018  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000015  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000012  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+               4096  0x2000000000000007  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:395)
+    conformance_test.go:167: K1TRACE backend=go scene=text_image round=2
+        live=12 total=1708032
+            1048576  0x33  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateTexture (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:326)
+              65536  0x3000000000000003  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000006  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000c  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000000f  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000018  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000015  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000012  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000027  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x300000000000001b  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+              65536  0x3000000000000009  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:623)
+               4096  0x2000000000000007  github.com/energye/gpui/gpu/gwgpu/gles.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/gwgpu/gles/device_linux.go:395)
+    conformance_test.go:169: go/text_image ok=true 
+--- PASS: TestConformanceInner (0.42s)
+PASS

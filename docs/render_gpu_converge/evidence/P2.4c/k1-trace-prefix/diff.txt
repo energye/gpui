@@ -1,0 +1,45 @@
+== clip_blend (P2.4c/k1-trace-prefix/clip_blend/native)
+== solid_gradient (P2.4c/k1-trace-prefix/clip_blend/native)
+  r0->r1 +2:
+    + 0x78c5f000d130    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+    + 0x78c5f0004860    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+  r1->r2 +2:
+    + 0x78c5b4045080    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+    + 0x78c5b40a9690    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+== text_image (P2.4c/k1-trace-prefix/clip_blend/native)
+  r0->r1 +2:
+    + 0x78c5f0027840    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+    + 0x78c5f0015fc0    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+  r1->r2 +2:
+    + 0x78c5f8044640    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+    + 0x78c5f8019cb0    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+== clip_blend (P2.4c/k1-trace-prefix/solid_gradient/native)
+== solid_gradient (P2.4c/k1-trace-prefix/solid_gradient/native)
+  r0->r1 +2:
+    + 0x78c5f000d130    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+    + 0x78c5f0004860    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+  r1->r2 +2:
+    + 0x78c5b4045080    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+    + 0x78c5b40a9690    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+== text_image (P2.4c/k1-trace-prefix/solid_gradient/native)
+  r0->r1 +2:
+    + 0x78c5f0027840    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+    + 0x78c5f0015fc0    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+  r1->r2 +2:
+    + 0x78c5f8044640    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+    + 0x78c5f8019cb0    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+== clip_blend (P2.4c/k1-trace-prefix/text_image/native)
+== solid_gradient (P2.4c/k1-trace-prefix/text_image/native)
+  r0->r1 +2:
+    + 0x78c5f000d130    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+    + 0x78c5f0004860    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+  r1->r2 +2:
+    + 0x78c5b4045080    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+    + 0x78c5b40a9690    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+== text_image (P2.4c/k1-trace-prefix/text_image/native)
+  r0->r1 +2:
+    + 0x78c5f0027840    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+    + 0x78c5f0015fc0    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+  r1->r2 +2:
+    + 0x78c5f8044640    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+    + 0x78c5f8019cb0    65536B  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]

@@ -29,6 +29,35 @@ func (n texViewNative) Release() {
 	}
 }
 
+// texRetireNative adapts a texture (+ optional view) to res.Native for the
+// shared deferred-release state machine. Destroy is idempotent at the facade
+// layer, so the pointer form may be released exactly once by the registry.
+type texRetireNative struct {
+	tex  hal.Texture
+	view hal.TextureView
+}
+
+func (n *texRetireNative) Release() {
+	if n.view != nil {
+		n.view.Destroy()
+		n.view = nil
+	}
+	if n.tex != nil {
+		n.tex.Destroy()
+		n.tex = nil
+	}
+}
+
+// bufRetireNative adapts a buffer to res.Native (grow-only rebuild retires).
+type bufRetireNative struct{ buf hal.Buffer }
+
+func (n *bufRetireNative) Release() {
+	if n.buf != nil {
+		n.buf.Destroy()
+		n.buf = nil
+	}
+}
+
 // GPUTextureDrawCommand represents a GPU-to-GPU texture compositing command.
 // Unlike ImageDrawCommand (CPU pixel upload), this draws a pre-existing GPU
 // texture view directly — zero CPU readback, zero re-upload.

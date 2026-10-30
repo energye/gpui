@@ -1,0 +1,129 @@
+# P2.4c API snapshot diff（对 P2.4b 收口 = HEAD 2204ad5a）
+# date: 2026-10-30T11:57:03+08:00
+
+## render/internal/gpu
+--- /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4c/api/base-render-internal-gpu.txt	2026-10-30 11:56:59.841793156 +0800
++++ /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4c/api/render-internal-gpu.txt	2026-10-30 11:57:01.736781349 +0800
+@@ -2655,6 +2655,8 @@
+     SDF/convex/stencil pipelines (effect offscreens with preferSampleCount1).
+ 
+ func (s *GPURenderSession) PendingTexRetireCount() int
++    PendingTexRetireCount reports retired resources still waiting for a
++    submission-completion point (diagnostics; reads the shared registry).
+ 
+ func (s *GPURenderSession) PrepareFrameMask(shared *GPUShared) error
+     When shared has an active MaskAware R8 texture, cover shaders sample it
+@@ -2714,13 +2716,13 @@
+ func (s *GPURenderSession) ResolveStats() (hits, misses uint64)
+ 
+ func (s *GPURenderSession) RetireBuffer(b hal.Buffer)
+-    RetireBuffer hands a buffer to the deferred-release queue (P6 grow fix);
++    RetireBuffer hands a buffer to the deferred-release state machine; it is
+     released once the GPU has finished the frame that may still reference it.
+ 
+ func (s *GPURenderSession) RetireTexture(tex hal.Texture, view hal.TextureView)
+-    RetireTexture hands a texture/view to the deferred-release queue; it is
+-    released once the GPU has finished the frame that may still reference it
+-    (next BeginFrame / after a drainQueue). With a nil receiver the resources
++    RetireTexture hands a texture/view to the deferred-release state machine;
++    it is released once the GPU has finished the frame that may still reference
++    it (next BeginFrame / after a drainQueue). With a nil receiver the resources
+     are released immediately (fallback).
+ 
+ func (s *GPURenderSession) SDFPipeline() *SDFRenderPipeline
+@@ -3449,11 +3451,6 @@
+     recovery round. Misses re-upload on next use. A destroyed cache frees
+     nothing.
+ 
+-func (c *ImageCache) ReleaseEphemeral()
+-    ReleaseEphemeral frees textures whose frame lifetime is over: gen==0 uploads
+-    (ephemeral) and entries retired by eviction / size-replace (pending).
+-    Must be called AFTER the GPU has finished the frame (submit
+-
+ func (c *ImageCache) ResetStats()
+     ResetStats clears hit/miss/upload counters (entries retained).
+ 
+@@ -3461,6 +3458,11 @@
+     SetBudgets updates entry and byte soft limits (tests/tuning). Explicit
+     values win over the multi-window fair share.
+ 
++func (c *ImageCache) SetRetireHook(fn func(tex hal.Texture, view hal.TextureView))
++    SetRetireHook installs the deferred-release outlet for textures leaving the
++    cache. The hook must guarantee the pair stays alive until the submission
++    referencing it completes. Without a hook the pair is destroyed immediately.
++
+ func (c *ImageCache) Stats() ImageCacheStats
+     Stats returns cache statistics.
+ 
+@@ -3477,7 +3479,6 @@
+ 	LastUploadBytes  int64
+ 	Evictions        uint64
+ 	EphemeralUploads uint64
+-	EphemeralPending int
+ }
+     ImageCacheStats returns cache statistics for diagnostics.
+ 
+@@ -5561,8 +5562,8 @@
+ 
+     Deprecated (P5): production paths never call Acquire/Release/EndFrame —
+     only DestroyAll/SetBudget/Stats are used for telemetry. Session textures go
+-    through textureSet + pendingTexRetire, and the res.Cache is the long-term
+-    pooling home.
++    through textureSet + the res registry retire path, and the res.Cache is the
++    long-term pooling home.
+ 
+     This avoids creating expensive GPU textures (MSAA, depth/stencil) per
+     context per frame when multiple contexts share the same dimensions.
+
+## render/internal/gpu/res
+--- /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4c/api/base-render-internal-gpu-res.txt	2026-10-30 11:56:59.991792221 +0800
++++ /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.4c/api/render-internal-gpu-res.txt	2026-10-30 11:57:01.867780533 +0800
+@@ -48,15 +48,11 @@
+ func (c *Cache) KeyOf(id uint32) (CacheKey, bool)
+     KeyOf returns the cache key for a registry id (diagnostics).
+ 
+-func (c *Cache) OnSubmissionFinished()
+-    OnSubmissionFinished is called at submission-completion points: pending
+-    entries whose in-flight state has cleared become recombinable.
+-
+ func (c *Cache) Release(ref Ref)
+-    Release returns a Ref to the pool. The registry refcount is decremented; the
+-    entry becomes recombinable once references reach zero and the resource is
+-    not in-flight. If the entry is still in-flight (submitted but not finished),
+-    it waits in the pending queue until OnSubmissionFinished.
++    Release returns a Ref to the pool. The registry refcount is decremented;
++    the entry becomes recombinable when its last ref is gone and it is not
++    in-flight — the registry idle callback repools it at that point, so an entry
++    still referenced by a submitted command buffer waits for SubmitDone.
+ 
+ type CacheKey struct {
+ 	W, H    uint32
+@@ -133,6 +129,10 @@
+     NativeOf returns the native resource behind a Ref (diagnostics / tests).
+     Returns nil if the id is unknown or has been released.
+ 
++func (r *Registry) PendingReleaseCount() int
++    PendingReleaseCount returns how many live entries are retired but still
++    waiting for their last ref / in-flight submission (diagnostics).
++
+ func (r *Registry) Register(res Native) Ref
+     Register adds a native resource and returns a strong Ref (refcount = 1).
+ 
+@@ -166,6 +166,12 @@
+     Retire marks an entry for destruction. The native resource is released only
+     once no usage refs and no in-flight submissions remain.
+ 
++func (r *Registry) SetIdleCallback(id uint32, fn func())
++    SetIdleCallback registers fn to run whenever the entry transitions to idle
++    (refs==0 && inflight==0 and not retired). Replaces the per-cache pending
++    queue: the callback runs from Release or from the submission completion that
++    clears the in-flight count, whichever comes last.
++
+ type Role uint8
+     Role identifies a logical texture role for deferred resolution, aligned with
+     real view sources in the engine (no invented roles).
+
+## 预期变化摘要
+- ImageCache: ReleaseEphemeral 删除；SetRetireHook 新增；ImageCacheStats.EphemeralPending 删除（retire 钩子取代裸 ephemeral/pending 队列）。
+- res.Cache: OnSubmissionFinished 删除（idle 回调自动回池）；Registry.SetIdleCallback / PendingReleaseCount 新增。
+- render / gpu/hal / gpu 其余包导出面零变化（本步只动 internal 实现 + 一条 gles 注释）。

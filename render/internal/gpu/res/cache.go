@@ -37,7 +37,6 @@ type Cache struct {
 	create    CreateFn
 	pool      map[CacheKey][]uint32 // key → idle registry ids (refs==0 && inflight==0)
 	keyOf     map[uint32]CacheKey   // registry id → key
-	pending   []uint32              // released while in-flight; re-pooled on submission finish
 	used      uint64                // estimated bytes of live+pooled entries
 	budget    uint64
 	hits      uint64
@@ -84,63 +83,33 @@ func (c *Cache) Acquire(key CacheKey) (Ref, error) {
 	}
 	ref := c.reg.Register(native)
 	c.keyOf[ref.id] = key
+	// Re-pool through the registry idle callback: the entry returns to its
+	// bucket when the last ref is released AND no submission is in flight,
+	// whichever comes last (no separate pending queue).
+	id := ref.id
+	c.reg.SetIdleCallback(id, func() { c.repool(id, key) })
 	// Enforce budget: retire the oldest idle entries until under limit.
 	c.trimLocked()
 	return ref, nil
 }
 
 // Release returns a Ref to the pool. The registry refcount is decremented;
-// the entry becomes recombinable once references reach zero and the resource
-// is not in-flight. If the entry is still in-flight (submitted but not
-// finished), it waits in the pending queue until OnSubmissionFinished.
+// the entry becomes recombinable when its last ref is gone and it is not
+// in-flight — the registry idle callback repools it at that point, so an
+// entry still referenced by a submitted command buffer waits for SubmitDone.
 func (c *Cache) Release(ref Ref) {
 	if c == nil || ref.IsNil() || ref.reg != c.reg {
 		return
 	}
 	id := ref.id
-	key, ok := c.keyOf[id]
-	if !ok {
-		c.reg.Release(ref)
-		return
-	}
+	_, known := c.keyOf[id]
 	c.reg.Release(ref)
-	s, ok := c.reg.slots[id]
-	if !ok {
+	if !known {
+		return
+	}
+	if _, ok := c.reg.slots[id]; !ok {
 		delete(c.keyOf, id)
-		return
 	}
-	if s.retire {
-		return // registry already owns destruction (removeIfReady fired)
-	}
-	if s.refs == 0 && s.inflight == 0 {
-		c.repool(id, key)
-	} else if s.inflight > 0 {
-		c.pending = append(c.pending, id)
-	}
-	c.trimLocked()
-}
-
-// OnSubmissionFinished is called at submission-completion points: pending
-// entries whose in-flight state has cleared become recombinable.
-func (c *Cache) OnSubmissionFinished() {
-	if c == nil {
-		return
-	}
-	for _, id := range c.pending {
-		s, ok := c.reg.slots[id]
-		if !ok {
-			delete(c.keyOf, id)
-			continue
-		}
-		if s.refs == 0 && s.inflight == 0 && !s.retire {
-			if key, ok := c.keyOf[id]; ok {
-				c.repool(id, key)
-			}
-			// Defensive: entry without a cache key stays in the registry
-			// (its owner decides lifetime); nothing to pool here.
-		}
-	}
-	c.pending = c.pending[:0]
 	c.trimLocked()
 }
 
@@ -175,7 +144,6 @@ func (c *Cache) InvalidateAll() {
 	c.pool = make(map[CacheKey][]uint32)
 	c.keyOf = make(map[uint32]CacheKey)
 	c.lru = c.lru[:0]
-	c.pending = c.pending[:0]
 }
 
 // trimLocked retires the LRU-most idle entries until estimated usage fits the

@@ -76,8 +76,8 @@ func withGL(ctx *AdapterContext, fallback *gl.Context, fn func(glCtx *gl.Context
 }
 
 // Destroy releases the buffer.
-// Self-locked via the owning AdapterContext: deferred-release queues
-// (pendingTexRetire/pendingBufRetire, offscreen/stencil pools) drain without
+// Self-locked via the owning AdapterContext: deferred-release paths
+// (res registry retire queue, offscreen/stencil pools) drain without
 // holding the GL lock, and a delete with no current context is a silent
 // no-op on NVIDIA — ledger forgets but driver keeps the memory, so every
 // resize leaks until OOM. Locking here makes direct Destroy safe anywhere;

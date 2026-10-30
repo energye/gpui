@@ -1,0 +1,117 @@
+# P2.4c per-file FAIL A/B on clean HEAD 2204ad5a (worktree /tmp/p24c-clean)
+# date: 2026-10-30T12:39:31+08:00
+# env: WGPU_NATIVE_PATH=/home/yanghy/app/projects/gogpu/gpui/lib/libwgpu_native.so
+
+## render
+context_clip_depth_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestClipCircle_CPUPixels (0.27s)
+    FAIL	github.com/energye/gpui/render	0.344s
+context_coverage_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestContextSetFillBrushCoverage (0.00s)
+    FAIL	github.com/energye/gpui/render	0.402s
+context_misc_draw_gpu_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestMiscDrawGPUPath (0.35s)
+        --- FAIL: TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend (0.02s)
+    FAIL	github.com/energye/gpui/render	0.427s
+filter_present_coherence_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestPresentDamage_ImageMatchesView (0.00s)
+    FAIL	github.com/energye/gpui/render	0.333s
+m5_color_glyph_api_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestDrawShapedColorGlyphsCPU_Emoji (0.28s)
+    FAIL	github.com/energye/gpui/render	0.326s
+rasterizer_tile_value_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestRasterizerValueMatchesAnalytic (0.31s)
+        --- FAIL: TestRasterizerValueMatchesAnalytic/菱形(分数行起止) (0.00s)
+    FAIL	github.com/energye/gpui/render	0.395s
+s6_9_heavy_budget_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestS69_HeavyBudget_TierGates (0.25s)
+    FAIL	github.com/energye/gpui/render	0.360s
+text_transform_gpu_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestTextTransformAutoRoutesOutlines (0.40s)
+    FAIL	github.com/energye/gpui/render	0.424s
+video_direct_upload_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestVideoDrawFrameMarksDamage (0.18s)
+    --- FAIL: TestVideoBridgeFallbackConverged (0.00s)
+    --- FAIL: TestVideoBridgePlanesFallback (0.00s)
+    FAIL	github.com/energye/gpui/render	0.559s
+
+## render/internal/gpu
+bindgroup_switch_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestBindGroupLayoutSwitch_StencilThenSDF (0.21s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.224s
+convex_renderer_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestConvexRendererPipeline (0.19s)
+    --- FAIL: TestConvexRendererPipelineWithStencil (0.18s)
+    --- FAIL: TestConvexRendererDestroy (0.14s)
+    --- FAIL: TestConvexRendererRecordDrawsEmpty (0.08s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	1.387s
+depth_clip_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestStencilRenderer_EnsureDepthClipPipelines (0.18s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	2.343s
+gpu_texture_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestBuildGPUTextureResources_SeparateVertexBuffers (0.15s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	1.788s
+opt21_layer_defer_submit_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills (0.19s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.217s
+opt24_sticky_index_uniform_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestOpt24_ImageUniformSkip_SameViewportOpacity (0.20s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.461s
+opt27_gputex_bg_cache_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestOpt27_BuildGPUTextureResources_MultiViewBGCache (0.06s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.270s
+opt28_sticky_image_gputex_verts_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestOpt28_ImageVertSticky_SkipsRepeatWrite (0.23s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.245s
+opt29_image_uniform_slab_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestOpt29_ImageUniformSlab_OneWriteForManyOpacities (0.26s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.272s
+opt34_shared_encoder_no_flush_leading_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestOpt34_SharedEncoder_DoesNotFlushLeading (0.18s)
+    --- FAIL: TestOpt34_NoSharedEncoder_StillFlushesLeading (0.11s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.329s
+opt36_filter_seed_shared_encoder_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestOpt36_FilterSeedSharedEncoder_OneFinish (0.17s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.402s
+opt38_ensure_pipelines_ready_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestOpt38_EnsurePipelines_ReadyFastPath (0.19s)
+    --- FAIL: TestOpt38_EnsurePipelines_WarmRenderFrame (0.07s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.312s
+opt40_gputex_uniform_slab_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestOpt40_GPUTexUniformSlab_OneWriteForMultiSlot (0.19s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.221s
+render_session_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestSDFRenderPipelineWithStencil (0.17s)
+    --- FAIL: TestSDFRenderPipelineDestroyWithStencilVariant (0.15s)
+    --- FAIL: TestRenderSessionSurfaceMode (0.10s)
+    --- FAIL: TestRenderSessionSurfaceModeTextures (0.09s)
+    --- FAIL: TestRenderSessionSurfaceModeResize (0.09s)
+    --- FAIL: TestStencilRendererRecordPath (0.08s)
+    --- FAIL: TestEnsurePipelines_ClipLayoutRecreation (0.08s)
+    --- FAIL: TestEnsurePipelines_ConvexClipRecreation (0.08s)
+sdf_render_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestSDFRenderPipelineCreation (0.22s)
+    --- FAIL: TestSDFRenderPipelineDestroy (0.15s)
+    --- FAIL: TestSDFRenderPipelineFullDestroy (0.05s)
+    --- FAIL: TestSDFRenderPipelineRecreate (0.08s)
+    --- FAIL: TestSDFRenderPipelineEnsureReady (0.12s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	1.307s
+stencil_pipeline_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestStencilPipelineCreation (0.21s)
+    --- FAIL: TestStencilPipelineDestroy (0.15s)
+    --- FAIL: TestStencilPipelineFullDestroy (0.06s)
+    --- FAIL: TestStencilPipelineRecreate (0.11s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.713s
+stencil_render_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestRenderPathTriangle (0.22s)
+    --- FAIL: TestRenderPathEmpty (0.20s)
+    --- FAIL: TestRenderPathCircle (0.20s)
+    --- FAIL: TestRenderPathEvenOdd (0.20s)
+    --- FAIL: TestRenderPathBothFillRules (0.18s)
+    --- FAIL: TestRenderPathPipelinesCreatedOnce (0.19s)
+    --- FAIL: TestRenderPathResizesTextures (0.19s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	1.397s
+ttc_cjk_gpu_repro_test.go: FAIL rc=1 (clean HEAD)
+    --- FAIL: TestProbeTTC_CJKGlyphMaskGPURender (0.79s)
+    FAIL	github.com/energye/gpui/render/internal/gpu	0.842s
+

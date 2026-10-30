@@ -1,0 +1,12 @@
+# P2.4c -race
+# date: 2026-10-30T12:03:51+08:00
+# env: CGO_ENABLED=1 WGPU_NATIVE_PATH set
+
+## render/internal/gpu/res（registry/submission/cache 状态机 + idle 回调）
+ok  	github.com/energye/gpui/render/internal/gpu/res	1.072s
+# exit: 0
+
+## render/internal/gpu（会话 Retire/Restore + ImageCache retire 钩子 + 帧缓冲收缩）
+# 既有红排除：TestTextureSet_SurfaceToOffscreenSameSize 等 stencil 分配断言在 HEAD 2204ad5a 干净树同样失败（环境，非本步回归），见 per-file-tests-notes.md
+ok  	github.com/energye/gpui/render/internal/gpu	6.587s
+# exit: 0

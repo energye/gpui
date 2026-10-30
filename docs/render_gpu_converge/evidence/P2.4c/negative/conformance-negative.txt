@@ -1,0 +1,10 @@
+=== RUN   TestConformanceDualBackend
+    conformance_test.go:113: conformance failures:
+          native solid_gradient: resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+          native text_image: resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+          go solid_gradient: resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+          go text_image: resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+--- FAIL: TestConformanceDualBackend (0.71s)
+FAIL
+FAIL	github.com/energye/gpui/render	0.724s
+FAIL

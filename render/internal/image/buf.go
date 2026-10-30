@@ -278,7 +278,7 @@ func (b *ImageBuf) NotifyPixelsChanged() {
 }
 
 // MarkEphemeral sets GenerationID to 0 so the GPU image cache uploads this
-// buffer for a single frame and releases it via ReleaseEphemeral.
+// buffer for a single frame and releases it through the cache retire outlet.
 // Use for continuous animated offscreen effect RTs republished every frame —
 // bumping a new genID each frame would grow the long-term cache / VRAM.
 func (b *ImageBuf) MarkEphemeral() {

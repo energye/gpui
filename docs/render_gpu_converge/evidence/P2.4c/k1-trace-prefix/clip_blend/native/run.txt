@@ -1,0 +1,162 @@
+=== RUN   TestConformanceInner
+    conformance_test.go:167: K1TRACE backend=native scene=clip_blend round=0
+        live=9 total=589824
+              65536  0x30a0e400  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline]
+              65536  0x30a12710  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline_with_stencil]
+              65536  0x30a64370  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_band_pipeline]
+              65536  0x30ad8bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_inner_band_pipeline]
+              65536  0x30ab9300  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_pipeline]
+              65536  0x30a2b040  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline]
+              65536  0x3074b000  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline_with_stencil]
+              65536  0x30a678a0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_even_odd_pipeline]
+              65536  0x30aadb40  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_pipeline]
+    conformance_test.go:167: K1TRACE backend=native scene=clip_blend round=1
+        live=9 total=589824
+              65536  0x30a0e400  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline]
+              65536  0x30a12710  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline_with_stencil]
+              65536  0x30a64370  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_band_pipeline]
+              65536  0x30ad8bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_inner_band_pipeline]
+              65536  0x30ab9300  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_pipeline]
+              65536  0x30a2b040  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline]
+              65536  0x3074b000  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline_with_stencil]
+              65536  0x30a678a0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_even_odd_pipeline]
+              65536  0x30aadb40  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_pipeline]
+    conformance_test.go:167: K1TRACE backend=native scene=clip_blend round=2
+        live=9 total=589824
+              65536  0x30a0e400  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline]
+              65536  0x30a12710  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline_with_stencil]
+              65536  0x30a64370  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_band_pipeline]
+              65536  0x30ad8bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_inner_band_pipeline]
+              65536  0x30ab9300  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_pipeline]
+              65536  0x30a2b040  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline]
+              65536  0x3074b000  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline_with_stencil]
+              65536  0x30a678a0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_even_odd_pipeline]
+              65536  0x30aadb40  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_pipeline]
+    conformance_test.go:169: native/clip_blend ok=true 
+    conformance_test.go:167: K1TRACE backend=native scene=solid_gradient round=0
+        live=13 total=790528
+              65536  0x30a0e400  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline]
+              65536  0x30a12710  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline_with_stencil]
+              65536  0x30a64370  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_band_pipeline]
+              65536  0x30ad8bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_inner_band_pipeline]
+              65536  0x30ab9300  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_pipeline]
+              65536  0x30a2b040  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline]
+              65536  0x3074b000  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline_with_stencil]
+              65536  0x30a678a0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_even_odd_pipeline]
+              65536  0x30aadb40  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_pipeline]
+              65536  0x78c5b4083220  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_cover_pipeline]
+              65536  0x78c5b403dfd0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5b4040a50  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+               4096  0x78c5b40603d0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/sampler.go:106)
+    conformance_test.go:167: K1TRACE backend=native scene=solid_gradient round=1
+        live=15 total=921600
+              65536  0x30a0e400  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline]
+              65536  0x30a12710  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline_with_stencil]
+              65536  0x30a64370  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_band_pipeline]
+              65536  0x30ad8bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_inner_band_pipeline]
+              65536  0x30ab9300  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_pipeline]
+              65536  0x30a2b040  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline]
+              65536  0x3074b000  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline_with_stencil]
+              65536  0x30a678a0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_even_odd_pipeline]
+              65536  0x30aadb40  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_pipeline]
+              65536  0x78c5b4083220  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_cover_pipeline]
+              65536  0x78c5b403dfd0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f000d130  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f0004860  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5b4040a50  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+               4096  0x78c5b40603d0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/sampler.go:106)
+    conformance_test.go:167: K1TRACE backend=native scene=solid_gradient round=2
+        live=17 total=1052672
+              65536  0x30a0e400  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline]
+              65536  0x30a12710  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline_with_stencil]
+              65536  0x30a64370  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_band_pipeline]
+              65536  0x30ad8bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_inner_band_pipeline]
+              65536  0x30ab9300  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_pipeline]
+              65536  0x30a2b040  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline]
+              65536  0x3074b000  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline_with_stencil]
+              65536  0x30a678a0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_even_odd_pipeline]
+              65536  0x30aadb40  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_pipeline]
+              65536  0x78c5b4083220  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_cover_pipeline]
+              65536  0x78c5b4045080  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f000d130  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5b403dfd0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5b4040a50  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5b40a9690  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5f0004860  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+               4096  0x78c5b40603d0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/sampler.go:106)
+    conformance_test.go:169: native/solid_gradient ok=false resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+    conformance_test.go:167: K1TRACE backend=native scene=text_image round=0
+        live=20 total=2232320
+            1048576  0x78c5f0038840  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateTexture (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/texture.go:342)
+              65536  0x30a0e400  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline]
+              65536  0x30a12710  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline_with_stencil]
+              65536  0x30a64370  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_band_pipeline]
+              65536  0x30ad8bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_inner_band_pipeline]
+              65536  0x30ab9300  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_pipeline]
+              65536  0x30a2b040  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline]
+              65536  0x3074b000  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline_with_stencil]
+              65536  0x30a678a0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_even_odd_pipeline]
+              65536  0x30aadb40  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_pipeline]
+              65536  0x78c5b4083220  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_cover_pipeline]
+              65536  0x78c5b403dfd0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f0003bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5b4045080  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f000d130  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5b40a9690  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5b4040a50  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5f004eff0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5f0004860  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+               4096  0x78c5b40603d0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/sampler.go:106)
+    conformance_test.go:167: K1TRACE backend=native scene=text_image round=1
+        live=22 total=2363392
+            1048576  0x78c5f0038840  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateTexture (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/texture.go:342)
+              65536  0x30a0e400  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline]
+              65536  0x30a12710  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline_with_stencil]
+              65536  0x30a64370  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_band_pipeline]
+              65536  0x30ad8bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_inner_band_pipeline]
+              65536  0x30ab9300  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_pipeline]
+              65536  0x30a2b040  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline]
+              65536  0x3074b000  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline_with_stencil]
+              65536  0x30a678a0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_even_odd_pipeline]
+              65536  0x30aadb40  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_pipeline]
+              65536  0x78c5b4083220  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_cover_pipeline]
+              65536  0x78c5f0027840  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5b403dfd0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f000d130  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5b4045080  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f0003bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f004eff0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5b40a9690  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5b4040a50  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5f0004860  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5f0015fc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+               4096  0x78c5b40603d0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/sampler.go:106)
+    conformance_test.go:167: K1TRACE backend=native scene=text_image round=2
+        live=24 total=2494464
+            1048576  0x78c5f0038840  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateTexture (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/texture.go:342)
+              65536  0x30a0e400  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline]
+              65536  0x30a12710  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [convex_pipeline_with_stencil]
+              65536  0x30a64370  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_band_pipeline]
+              65536  0x30ad8bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_aa_inner_band_pipeline]
+              65536  0x30ab9300  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [cover_pipeline]
+              65536  0x30a2b040  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline]
+              65536  0x3074b000  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [sdf_render_pipeline_with_stencil]
+              65536  0x30a678a0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_even_odd_pipeline]
+              65536  0x30aadb40  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [stencil_fill_pipeline]
+              65536  0x78c5b4083220  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_cover_pipeline]
+              65536  0x78c5b403dfd0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5b4045080  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f8019cb0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f0003bc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f0027840  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f000d130  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic]
+              65536  0x78c5f8044640  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5b40a9690  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5f0004860  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5f004eff0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5b4040a50  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+              65536  0x78c5f0015fc0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateRenderPipeline (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/render_pipeline.go:470) [textured_quad_pipeline_bicubic_depth_clip]
+               4096  0x78c5b40603d0  github.com/energye/gpui/gpu/rwgpu.(*Device).CreateSampler (/home/yanghy/app/projects/gogpu/gpui/gpu/rwgpu/sampler.go:106)
+    conformance_test.go:169: native/text_image ok=false resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+--- PASS: TestConformanceInner (0.28s)
+PASS

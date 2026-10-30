@@ -2,7 +2,7 @@
   "name": "solid_gradient",
   "width": 128,
   "height": 96,
-  "notes": "Left half solid red; right half linear gradient (red@0, green@0.5, blue@1 over x=64..128) with a radial overlay (red@0 -> blue@1, center 96,80 r=32) in the bottom-right quadrant. Expected values are the gradient interpolation at each pixel center in LINEAR-LIGHT space, then sRGB-encoded (measured: both backends agree within 1/255). Region rects inset 1px because integer-aligned fill edges lose ~7% coverage in the outer pixel row/column (both backends identical). Resource bounds are non-zero: a known per-context ledger leak (+2 entries / 131072 bytes per run) on brush, glyph and image textures is registered as K1 (render domain, P1.6/P2.4c); tighten these to 0 once fixed.",
+  "notes": "Left half solid red; right half linear gradient (red@0, green@0.5, blue@1 over x=64..128) with a radial overlay (red@0 -> blue@1, center 96,80 r=32) in the bottom-right quadrant. Expected values are the gradient interpolation at each pixel center in LINEAR-LIGHT space, then sRGB-encoded (measured: both backends agree within 1/255). Region rects inset 1px because integer-aligned fill edges lose ~7% coverage in the outer pixel row/column (both backends identical). Resource bounds are zero: the K1 per-context ledger leak (two TexturedQuadPipeline bicubic variants per run, 131072 bytes) was traced and fixed in P2.4c; a non-zero steady delta now fails the gate.",
   "ops": [
     {
       "kind": "clear",
@@ -239,7 +239,7 @@
   },
   "resource": {
     "repeats": 3,
-    "max_steady_count_delta": 2,
-    "max_steady_bytes_delta": 131072
+    "max_steady_count_delta": 0,
+    "max_steady_bytes_delta": 0
   }
 }

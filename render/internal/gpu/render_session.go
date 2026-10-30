@@ -99,79 +99,10 @@ var (
 	sessionBlitEncoderDesc    = &hal.CommandEncoderDescriptor{Label: "session_blit_encoder"}
 )
 
-// pendingTexRetire holds textures/views retired during a rebuild.
-type pendingTexRetire struct {
-	views []hal.TextureView
-	texs  []hal.Texture
-}
-
-// Add queues a retired texture and/or view for deferred release.
-func (q *pendingTexRetire) Add(view hal.TextureView, tex hal.Texture) {
-	if view != nil {
-		q.views = append(q.views, view)
-	}
-	if tex != nil {
-		q.texs = append(q.texs, tex)
-	}
-}
-
-// Drain releases every queued resource (call only when the GPU is done).
-// Idempotent; safe to call with an empty queue.
-func (q *pendingTexRetire) Drain() {
-	for _, v := range q.views {
-		if v != nil {
-			v.Destroy()
-		}
-	}
-	for _, t := range q.texs {
-		if t != nil {
-			t.Destroy()
-		}
-	}
-	q.views = q.views[:0]
-	q.texs = q.texs[:0]
-}
-
-// PendingCount returns the number of queued resources (diagnostics).
-func (q *pendingTexRetire) PendingCount() int {
-	if q == nil {
-		return 0
-	}
-	return len(q.views) + len(q.texs)
-}
-
-// pendingBufRetire mirrors pendingTexRetire for buffers retired during
-// grow-only rebuilds: an old buffer may still be referenced by the previous
-// frame's command buffers, so it is released only at the next safe point
-// (BeginFrame / drainQueue), never immediately (P6, v0.4 grow fix).
-type pendingBufRetire struct {
-	bufs []hal.Buffer
-}
-
-// Add queues a retired buffer for deferred release.
-func (q *pendingBufRetire) Add(b hal.Buffer) {
-	if b != nil {
-		q.bufs = append(q.bufs, b)
-	}
-}
-
-// Drain releases every queued buffer (call only when the GPU is done).
-func (q *pendingBufRetire) Drain() {
-	for _, b := range q.bufs {
-		if b != nil {
-			b.Destroy()
-		}
-	}
-	q.bufs = q.bufs[:0]
-}
-
-// PendingCount returns the number of queued buffers (diagnostics).
-func (q *pendingBufRetire) PendingCount() int {
-	if q == nil {
-		return 0
-	}
-	return len(q.bufs)
-}
+// deferred release goes through the registry slot state machine
+// (Register → Track → Release → Retire); the native reaches Destroy only at a
+// submission-completion point (res.Submission.SubmitDone), never at retire
+// time. See retireNative.
 
 // SubmitPathStats records per-frame encode/submit CPU-path counters.
 type SubmitPathStats struct {
@@ -346,12 +277,6 @@ type GPURenderSession struct {
 	// Shared textures (MSAA 4x color + depth/stencil + 1x resolve).
 	textures textureSet
 
-	// Deferred-release queue for textures retired during rebuild.
-	// Old views may still be referenced by commands queued this frame, so
-	// they are released only after the GPU has finished (BeginFrame /
-	// drainQueue points), never immediately on rebuild.
-	pendingTexRetire pendingTexRetire
-
 	// Resource registry for command views: view registration at queue
 	// time and deferred SourceKey resolution at flush time.
 	resReg *res.Registry
@@ -370,10 +295,6 @@ type GPURenderSession struct {
 	// lastSubmissionIndex is the WGPUSubmissionIndex of the most recent
 	// submit (diagnostics / future fence alignment).
 	lastSubmissionIndex uint64
-
-	// Buffers retired during grow-only rebuilds (P6, v0.4 grow fix):
-	// released at the next safe point, not immediately.
-	pendingBufRetire pendingBufRetire
 
 	// Shape pipelines may be injected from GPUShared (not owned) or created
 	// lazily by ensurePipelines (owned). ownsShapePipelines tracks which.
@@ -785,10 +706,8 @@ func NewGPURenderSession(device hal.Device, queue hal.Queue, sampleCount uint32)
 	s.sub = res.NewSubmission(s.resReg)
 	// rebuild must not immediately destroy old texture views — commands
 	// queued earlier in the frame may still reference them. Route retired
-	// session textures through the deferred-release queue instead.
-	s.textures.retireFn = func(tex hal.Texture, view hal.TextureView) {
-		s.pendingTexRetire.Add(view, tex)
-	}
+	// session textures through the shared registry state machine instead.
+	s.textures.retireFn = s.RetireTexture
 	return s
 }
 
@@ -801,13 +720,35 @@ func (s *GPURenderSession) SetTextureOOMHook(fn func()) {
 	s.onTextureOOM = fn
 }
 
-// RetireBuffer hands a buffer to the deferred-release queue (P6 grow fix);
+// retireNative registers a native for deferred release in the shared registry
+// state machine: it is marked in-flight for the current submission, its usage
+// ref is dropped, and it is retired. The native reaches Destroy only when the
+// submission completes (SubmitDone at BeginFrame / readback sync points), or
+// earlier via wait-idle release points that also call SubmitDone. A session
+// without a registry releases immediately (zero-value sessions in tests).
+func (s *GPURenderSession) retireNative(n res.Native) {
+	if n == nil {
+		return
+	}
+	if s == nil || s.resReg == nil {
+		n.Release()
+		return
+	}
+	ref := s.resReg.Register(n)
+	if s.sub != nil {
+		s.sub.Track(ref)
+	}
+	s.resReg.Release(ref)
+	s.resReg.Retire(ref)
+}
+
+// RetireBuffer hands a buffer to the deferred-release state machine; it is
 // released once the GPU has finished the frame that may still reference it.
 func (s *GPURenderSession) RetireBuffer(b hal.Buffer) {
 	if s == nil || b == nil {
 		return
 	}
-	s.pendingBufRetire.Add(b)
+	s.retireNative(&bufRetireNative{buf: b})
 }
 
 // InvalidateForDeviceLoss discards all resource bookkeeping WITHOUT touching
@@ -828,9 +769,6 @@ func (s *GPURenderSession) InvalidateForDeviceLoss() {
 	if s.sub != nil {
 		s.sub.Invalidate()
 	}
-	s.pendingTexRetire.views = s.pendingTexRetire.views[:0]
-	s.pendingTexRetire.texs = s.pendingTexRetire.texs[:0]
-	s.pendingBufRetire.bufs = s.pendingBufRetire.bufs[:0]
 }
 
 func (s *GPURenderSession) Reg() *res.Registry {
@@ -923,11 +861,14 @@ func (s *GPURenderSession) commandViewOf(ref res.Ref) hal.TextureView {
 	return nil
 }
 
-// RetireTexture hands a texture/view to the deferred-release queue; it is
-// released once the GPU has finished the frame that may still reference it
-// (next BeginFrame / after a drainQueue). With a nil receiver the resources
+// RetireTexture hands a texture/view to the deferred-release state machine;
+// it is released once the GPU has finished the frame that may still reference
+// it (next BeginFrame / after a drainQueue). With a nil receiver the resources
 // are released immediately (fallback).
 func (s *GPURenderSession) RetireTexture(tex hal.Texture, view hal.TextureView) {
+	if tex == nil && view == nil {
+		return
+	}
 	if s == nil {
 		if view != nil {
 			view.Destroy()
@@ -937,14 +878,16 @@ func (s *GPURenderSession) RetireTexture(tex hal.Texture, view hal.TextureView) 
 		}
 		return
 	}
-	s.pendingTexRetire.Add(view, tex)
+	s.retireNative(&texRetireNative{tex: tex, view: view})
 }
 
+// PendingTexRetireCount reports retired resources still waiting for a
+// submission-completion point (diagnostics; reads the shared registry).
 func (s *GPURenderSession) PendingTexRetireCount() int {
-	if s == nil {
+	if s == nil || s.resReg == nil {
 		return 0
 	}
-	return s.pendingTexRetire.PendingCount()
+	return s.resReg.PendingReleaseCount()
 }
 
 // SetSurfaceTarget configures the session to render directly to the given
@@ -966,9 +909,10 @@ func (s *GPURenderSession) SetSurfaceTarget(view hal.TextureView, width, height 
 	if modeChanged || sizeChanged {
 		// Offscreen (view == nil) only: no present barrier exists, so drain
 		// before destroying. Surface resizes skip the drain: retired
-		// textures ride pendingTexRetire and release at the next BeginFrame
-		// after the present barrier (same parity as ensureTexturesForView).
-		// The BeginFrame below frees previous-frame CBs the same way.
+		// textures stay in-flight in the registry and release at the next
+		// BeginFrame after the present barrier (same parity as
+		// ensureTexturesForView). The BeginFrame below frees previous-frame
+		// CBs the same way.
 		if view == nil {
 			// Drain the GPU before destroying textures — an in-flight command
 			// buffer may still reference framebuffers built from these views.
@@ -978,12 +922,12 @@ func (s *GPURenderSession) SetSurfaceTarget(view hal.TextureView, width, height 
 			}
 		}
 		s.textures.destroyTextures()
-		if view == nil {
-			// GPU was drained above (or nothing in flight): safe to release the
-			// textures and grow-retired buffers immediately. Surface mode
-			// defers to the next BeginFrame post-present drain instead.
-			s.pendingTexRetire.Drain()
-			s.pendingBufRetire.Drain()
+		if view == nil && s.sub != nil {
+			// GPU was drained above (or nothing in flight): resolve the
+			// submission so everything retired — before and during this
+			// rebuild — is released now. Surface mode defers to the next
+			// BeginFrame post-present drain instead.
+			s.sub.SubmitDone()
 		}
 	}
 
@@ -1063,12 +1007,9 @@ func (s *GPURenderSession) BeginFrame() {
 	s.freePrevCmdBufs()
 	s.lastSubmitUsedSurface = false
 	// the previous frame's GPU work has completed at this point (vsync
-	// barrier or the drainQueue above) — release textures retired by that
-	// frame's rebuilds.
-	s.pendingTexRetire.Drain()
-	// P6: same for buffers retired by grow-only rebuilds, and resolve the
-	// submission's in-flight bookkeeping (fence reached).
-	s.pendingBufRetire.Drain()
+	// barrier or the drainQueue above) — resolve the submission's in-flight
+	// bookkeeping, which releases every resource retired by that frame's
+	// rebuilds (textures, grow-only buffers, image-cache entries).
 	if s.sub != nil {
 		s.sub.SubmitDone()
 	}
@@ -1398,10 +1339,11 @@ func (s *GPURenderSession) ensureTexturesForView(activeView hal.TextureView, w, 
 	if (sizeChanged || modeChanged) && (len(s.prevCmdBufs) > 0 || hasSessionTex) && activeView == nil {
 		// Offscreen only: no present barrier exists, so drain before
 		// destroying. Surface mode (activeView != nil) skips the drain:
-		// retired textures ride pendingTexRetire and release at the next
-		// BeginFrame after the present barrier (Flutter fl_framebuffer
-		// parity: glDelete with no glFinish). Draining here stalled every
-		// resize-storm frame (glFinish each step, p99 ~376ms on GL).
+		// retired textures go through the res registry and release at the
+		// next BeginFrame SubmitDone after the present barrier (Flutter
+		// fl_framebuffer parity: glDelete with no glFinish). Draining here
+		// stalled every resize-storm frame (glFinish each step, p99 ~376ms
+		// on GL).
 		s.drainQueue()
 		s.freePrevCmdBufs()
 	}
@@ -2103,9 +2045,11 @@ func (s *GPURenderSession) PurgeSurfaceTextures() {
 	// pinned while the retry runs. Queued through retireFn (no WaitIdle
 	// stall here — same semantics as destroyTextures above).
 	s.textures.ClearStencilPool()
-	// GPU drained above: release anything retired by this purge now.
-	s.pendingTexRetire.Drain()
-	s.pendingBufRetire.Drain()
+	// GPU drained above: resolve tracked submissions so anything retired by
+	// this purge releases through the registry now.
+	if s.sub != nil {
+		s.sub.SubmitDone()
+	}
 	s.surfaceView = nil
 	s.surfaceWidth = 0
 	s.surfaceHeight = 0
@@ -2180,9 +2124,11 @@ func (s *GPURenderSession) Destroy() {
 	// Session teardown: the size-keyed stencil pool survives destroyTextures
 	// by design (per-frame size flips), so it must be flushed explicitly here.
 	s.textures.ClearStencilPool()
-	// GPU drained above: release anything retired during teardown now.
-	s.pendingTexRetire.Drain()
-	s.pendingBufRetire.Drain()
+	// GPU drained above: resolve tracked submissions so anything retired during
+	// teardown releases through the registry before it is dropped.
+	if s.sub != nil {
+		s.sub.SubmitDone()
+	}
 	// drop command-view registry entries (idempotent; device-loss teardown
 	// goes through abandon → InvalidateAll, not here).
 	if s.resReg != nil {
@@ -2595,6 +2541,7 @@ func (s *GPURenderSession) ensureImagePipeline() error {
 	}
 	if s.imageCache == nil {
 		s.imageCache = NewImageCache(s.device, s.queue)
+		s.imageCache.SetRetireHook(s.RetireTexture)
 	}
 	return nil
 }
@@ -4488,16 +4435,14 @@ func (s *GPURenderSession) submitWithLeading(cmd hal.CommandBuffer) error {
 	cleans := s.leadSubmitClean
 	s.leadSubmitClean = nil
 	s.deferredConvexUses = 0
+	// ImageCache retirements (evict/size-replace/gen==0) go through the
+	// session retire hook into the registry, so they release at the next
+	// SubmitDone instead of immediately after this submit returns.
 	runClean := func() {
 		for _, c := range cleans {
 			if c != nil {
 				c()
 			}
-		}
-		// ImageCache retirements (evict/size-replace/gen==0) release only
-		// AFTER the submit — their views may be referenced by this submit.
-		if s.imageCache != nil {
-			s.imageCache.ReleaseEphemeral()
 		}
 	}
 	var all []hal.CommandBuffer
@@ -5687,14 +5632,11 @@ func (s *GPURenderSession) copySubmitAndReadback(
 	if err != nil {
 		return fmt.Errorf("map staging: %w", err)
 	}
-	// buffers, image-cache pending) and resolve the submission. Critical for
-	// offscreen readback paths that may never reach BeginFrame: without this
-	// the retire queues accumulate across resize/rebuild cycles (VRAM leak).
-	s.pendingTexRetire.Drain()
-	s.pendingBufRetire.Drain()
-	if s.imageCache != nil {
-		s.imageCache.ReleaseEphemeral()
-	}
+	// Resolve the submission: Map proves the GPU finished, so SubmitDone
+	// releases retired textures/buffers and image-cache entries queued above.
+	// Critical for offscreen readback paths that may never reach BeginFrame:
+	// without this the deferred releases accumulate across resize/rebuild
+	// cycles (VRAM leak).
 	if s.sub != nil {
 		s.sub.SubmitDone()
 	}
