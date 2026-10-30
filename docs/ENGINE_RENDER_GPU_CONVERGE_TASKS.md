@@ -52,7 +52,7 @@
 - 最近完成：P2.4c 延迟释放统一（三队列 → `res/registry` + K1 闭合），见 `evidence/P2.4c/summary.md`
 - 阻塞项：无。两条真窗阻塞均用 P2.4a 干净树（`55495fdd`）在同一隔离合成器 A/B 证明为**既有缺陷**，非本步回归：vram ladder 8 窗 native present 卡死（新增待办池 I1）、l1_blank go 单窗 `eglMakeCurrent 0x3002`（既有 C7）；两者修复均归 P2.4e
 
-**P2.4c 收口载体（2026-10-30 已完成，见 `evidence/P2.4c/summary.md`）**
+**P2.4c 收口载体（2026-10-30 已完成，提交 `00dc07d4`，见 `evidence/P2.4c/summary.md`）**
 
 - 任务：P2.4c 延迟释放统一（三队列 → `res/registry`）；评估：`evidence/P2.4c/assessment.md`（三队列 file:line、时序对照、收敛设计、K1 定位计划）
 - 结果：A `pendingTex/Buf`、B `ImageCache.ephemeral+pending`、C `res.Cache.pending` 三队列全删；`retireNative`（Register→Track→Release→Retire）+ 5 个 `SubmitDone` 同步点是唯一销毁出口；`Cache` 回池改 registry idle 回调；图片纹理释放点按 D2 后移到提交完成同步点；D2 峰值实测 multiwin +0.09%、ladder 到达相位 0 差
