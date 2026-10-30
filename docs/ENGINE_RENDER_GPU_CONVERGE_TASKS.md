@@ -47,7 +47,7 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无（P2.4d 已完成，提交号待补；七段实现 + 全量门禁 + 真窗数字全部落盘，见 `evidence/P2.4d/summary.md`）
+- 当前进行中：无（P2.4d 已完成，提交 `599149ee`；七段实现 + 全量门禁 + 真窗数字全部落盘，见 `evidence/P2.4d/summary.md`）
 - 下一任务：P2.4e（依赖 P2.4d，承接 I1 / C7 / I2 修复）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
 - 最近完成：P2.4d 同尺寸纹理分配收敛（六处 → `res.Cache`，D1–D7 全落地），见 `evidence/P2.4d/summary.md`；前一项 P2.4c 延迟释放统一（提交 `00dc07d4`），见 `evidence/P2.4c/summary.md`
 - 阻塞项：无。真窗侧既有缺陷按 §2.2 待办池开项：I1（nested Wayland ladder 8 窗 present 卡死，最终 headless 环境未复现，仍开）、C7（gles 多窗/单窗 `eglMakeCurrent 0x3002`）、I2（swapchain 同尺寸 Resize 语义）、I3（R20 灰度矩阵既有红）、I4（R20 steady/recover 黑图）；修复均不属 P2.4d
@@ -69,7 +69,7 @@
 - 进度（2026-10-30）：**废弃 TexturePool 已删除、预算域改名**——`render/internal/gpu/texture_pool.go` 整文件删（Acquire/Release/EndFrame 自 P2.4c 后无生产调用），`GPUShared` 三处空池 `DestroyAll` + 遥测字段 + `SetTexturePoolBudget` 同步删；`BudgetTexturePool`→`BudgetSurfacePool`（`"surface-pool"`，128 MiB pin 原值不动），`ResourceUploadStats.Texture` 删除，API 目录同步。三组死池单测 + bench 同步删。构建/逐文件测试/gofmt 绿，vet 仅既有 3 条。见 `evidence/P2.4d/remove_texturepool.md`
 - 进度（2026-10-30）：**surface trio / stencil / offscreen 三池已迁 `res.Cache`**——新增设备级 `surfaceCache`（域 `BudgetSurfacePool` 字节 + `BudgetStencilScratch.MaxEntries` 每键上限，key = 尺寸×样本×resolve/degraded 位），四个 `textureSet` owner（session、shared stencilRenderer、textured linear/pattern cover）统一从这里取套装，手写 `stencilPool` 与 `offscreenPool` map 删除；`GPURenderContext` 的层 RT 改每 context 一个 `res.Cache`（域 `BudgetLayerOffscreen`，Close→`ReleaseAll`+`ReleaseOwned`，设备切换→`abandon`）。owner 侧三条契约：session 重建走 `deferRelease`（先 `sub.Track` 再归还，resize 崩溃根因位）、degraded 1x1 与 `retireOnRelease` owner 归还即销毁不进池、`CreateFn` 在 cache 锁外跑（OOM purge 可重入）。新增 `surface_cache_test.go` 12 条（noop 设备，无 GPU 不 skip）+ offscreen 两条改写 + `retire_queue_test.go` 四条转钉 trio 路由；负向注入 6 条全部红→绿，其中第一轮抓到真洞——只测原语不测 owner 路由时 degraded 注入全绿，补 `TestTextureSet_ReleaseRoutingPoolsOrRetires` 才转红。`-race` 抓到测试替身 `fakeNativeTracker.create` 裸 append（`CreateFn` 本就该并发），加锁后 res 包 `-count=3 -race` 绿。整包 FAIL 仍为基线 7 条（P2.4a/b/c 逐条同名），零新增红。过程如实记录：负向脚本里一条 `git checkout` 误冲 `gpu_textures.go` 未提交重构，已按会话转录同文件完整内容重建并核验（numstat 回到 182/436、构建与整包回归一致）。见 `evidence/P2.4d/surface_pools.md`
 
-**P2.4d 收口载体（2026-10-30 已完成，提交待补，见 `evidence/P2.4d/summary.md`）**
+**P2.4d 收口载体（2026-10-30 已完成，提交 `599149ee`，见 `evidence/P2.4d/summary.md`）**
 
 - 任务：P2.4d 同尺寸纹理分配收敛（六处 → `res.Cache`）；评估 `evidence/P2.4d/assessment.md`（六处 file:line、四种 textureSet owner、三种释放安全模型、`res.Cache` 四缺、purge/OOM 链断点）
 - 结果：六处全部收敛为五域——`device-surface`（四个 owner 的 MSAA/depth/resolve + stencil 合并）、`layer-offscreen`（每 context 一个 Cache）、`filter-graph`、`dualtex-snap`，加测试缝 `session-surface`；`TexturePool` 整文件删、`BudgetTexturePool`→`BudgetSurfacePool`、新增 `BudgetFilterGraph`；registry 升设备级（`Owner` 分账、session `ReleaseOwned`/`InvalidateOwned`）；`hal.CompletionToken` 五端 + `directSubmit` 直提闸门；`SizeFn/MaxPerKey/PurgeIdle` + purge/OOM 链闭合；`GPUPoolStats` 三层出口 + wrgate `pool` 段四判据
