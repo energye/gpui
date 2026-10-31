@@ -81,3 +81,9 @@
 | rasterizer_tile_value 菱形分数行 | 待定性（无 lib 过、带 lib 挂——filler 注册或精度受 GPU 状态影响） | 深潜项 |
 | context_misc_draw_gpu 高级混色 | **双模式都挂 = 真问题**：effect multiply (255,0,0) want (229,0,0) | 深潜项（高级混色 effect-surface 路径） |
 | s6_9_heavy_budget | **双模式都挂 = 真问题**：预算档位比 | 深潜项 |
+
+## 2026-10-31 续5：批次6（gpu 逐文件 1→1，render_session 清零）
+
+- 已修：render_session_test 全文件绿——FullFlow 补 `ensureStencilPipelines`（ensurePipelines 只管 SDF/convex，stencil 走 ensureStagePipelines 按需路径，生产由注入+帧路径调）；凸重建 mask-only 变体 ×2；ClipLayoutRecreation 撤误 pin。ensureImagePipeline/ensureYUV/blit 三变体补 `ensureClipBindLayout`（textured_quad.wgsl group(1)=clip 契约，standalone session 直接调 buildGPUTextureResources 时 clip 布局未惰性创建 → 管线验证失败）。
+- ttc_cjk_gpu_repro 定性：`SyncAtlasTextures` 只为脏页建视图，测试的 page 0 无脏标记 → PageTextureView nil——引擎构造与 Sync 守卫条件的匹配问题，下一窗口开篇处理（testprobeTTC_4FaceMixedGPURender 同源已 PASS 说明主路径通，仅 CJK 掩码路径的页标记缺失）。
+- gpu 包现状：整包绿、逐文件仅 ttc 1 条（其余全清）。

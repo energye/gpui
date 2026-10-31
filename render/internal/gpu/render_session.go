@@ -2643,6 +2643,13 @@ func (s *GPURenderSession) ensureImagePipeline() error {
 	if s.imagePipeline == nil {
 		s.imagePipeline = NewTexturedQuadPipeline(s.device, s.queue, s.sampleCount)
 	}
+	// The textured_quad shader declares clip params at group(1): the layout
+	// must include the clip BGL or CreateRenderPipeline fails validation
+	// (J5 campaign — standalone sessions reach here before
+	// ensureClipBindLayout has lazily created it).
+	if err := s.ensureClipBindLayout(); err != nil {
+		return fmt.Errorf("ensure clip bind layout: %w", err)
+	}
 	s.imagePipeline.SetClipBindLayout(s.clipBindLayout)
 	if err := s.imagePipeline.ensurePipelineWithStencil(); err != nil {
 		return fmt.Errorf("image pipeline: %w", err)
@@ -2669,6 +2676,9 @@ func (s *GPURenderSession) ensureYUVSessionPipelines() error {
 	if s.imagePipeline == nil {
 		s.imagePipeline = NewTexturedQuadPipeline(s.device, s.queue, s.sampleCount)
 	}
+	if err := s.ensureClipBindLayout(); err != nil {
+		return fmt.Errorf("ensure clip bind layout: %w", err)
+	}
 	s.imagePipeline.SetClipBindLayout(s.clipBindLayout)
 	if err := s.imagePipeline.ensureYUVPipelines(); err != nil {
 		return err
@@ -2687,6 +2697,9 @@ func (s *GPURenderSession) ensureImageBlitPipeline() error {
 	// Wire the shared RRect clip layout: clipped subtrees are cacheable since
 	// C8, so compositor blits can carry a rounded clip (ensureBlitPipeline
 	// rebuilds its layout from this).
+	if err := s.ensureClipBindLayout(); err != nil {
+		return fmt.Errorf("ensure clip bind layout: %w", err)
+	}
 	s.imagePipeline.SetClipBindLayout(s.clipBindLayout)
 	// Was recursive self-call → stack overflow on particle/image blit path.
 	if err := s.imagePipeline.ensureBlitPipeline(); err != nil {

@@ -732,8 +732,9 @@ func (sr *StencilRenderer) destroyPipelines() {
 	}
 	if sr.maskLayoutOwned && sr.maskBindLayout != nil {
 		sr.maskBindLayout.Destroy()
+		sr.maskBindLayout = nil
 	}
-	sr.maskBindLayout = nil
+	// Borrowed (pinned) mask layout survives destroy — see convex twin.
 	sr.maskLayoutOwned = false
 	if sr.stencilPipeLayout != nil {
 		sr.stencilPipeLayout.Destroy()

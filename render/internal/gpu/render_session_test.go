@@ -880,6 +880,10 @@ func TestEnsurePipelines_ClipLayoutRecreation(t *testing.T) {
 	// Step 1: Create SDF pipeline and force pipeline creation WITHOUT clip layout.
 	sdf := NewSDFRenderPipeline(device, queue, 4)
 	defer sdf.Destroy()
+	// Mask-only: sdf.createPipeline requires the mask layout even in the
+	// no-clip phase (shader group 1); only CLIP presence is the variable.
+	_, mask := testSharedLayouts(t, device)
+	sdf.SetMaskBindLayout(mask)
 
 	// Trigger base pipeline creation (shader, layouts, pipeLayout) without clip.
 	if err := sdf.createPipeline(); err != nil {
@@ -965,6 +969,10 @@ func TestEnsurePipelines_ConvexClipRecreation(t *testing.T) {
 	defer clipLayout.Destroy()
 
 	cr.SetClipBindLayout(clipLayout)
+	// Convex pipelines require the mask layout too (shader group 1); the
+	// test's own minimal clip layout only covers the clip slot.
+	_, j5mask := testSharedLayouts(t, device)
+	cr.SetMaskBindLayout(j5mask)
 	if err := cr.ensurePipelineWithStencil(); err != nil {
 		t.Fatalf("ensurePipelineWithStencil failed: %v", err)
 	}
@@ -984,7 +992,10 @@ func TestEnsurePipelines_StencilClipRecreation(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
-	testSharedLayouts(t, device, sr)
+	// Mask-only: the test asserts coverPipeLayoutHasClip=false on the first
+	// createPipelines — the helper's clip pin would flip it (J5 campaign).
+	_, mask := testSharedLayouts(t, device)
+	sr.SetMaskBindLayout(mask)
 	defer sr.Destroy()
 
 	// Create pipelines without clip.
@@ -1194,6 +1205,12 @@ func TestRenderSessionEnsurePipelines_FullFlow(t *testing.T) {
 
 	if err := s.ensurePipelines(); err != nil {
 		t.Fatalf("ensurePipelines failed: %v", err)
+	}
+	// The frame path ensures stage pipelines per command mix
+	// (ensureStagePipelines → ensureStencilPipelines); production injects the
+	// stencil renderer, this standalone flow must ensure it explicitly.
+	if err := s.ensureStencilPipelines(); err != nil {
+		t.Fatalf("ensureStencilPipelines failed: %v", err)
 	}
 
 	// All pipelines should have clip layout.

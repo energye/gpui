@@ -712,8 +712,11 @@ func (cr *ConvexRenderer) destroyPipeline() {
 	}
 	if cr.maskLayoutOwned && cr.maskBindLayout != nil {
 		cr.maskBindLayout.Destroy()
+		cr.maskBindLayout = nil
 	}
-	cr.maskBindLayout = nil
+	// A borrowed (pinned) mask layout survives destroy: recreate flows
+	// (ensurePipelineWithStencil internal destroy→create) still need it —
+	// forgetting it made every recreate fail "no mask layout" (J5 campaign).
 	cr.maskLayoutOwned = false
 	if cr.uniformLayout != nil {
 		cr.uniformLayout.Destroy()

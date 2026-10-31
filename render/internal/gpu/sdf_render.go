@@ -599,8 +599,9 @@ func (p *SDFRenderPipeline) destroyPipeline() {
 	}
 	if p.maskLayoutOwned && p.maskBindLayout != nil {
 		p.maskBindLayout.Destroy()
+		p.maskBindLayout = nil
 	}
-	p.maskBindLayout = nil
+	// Borrowed (pinned) mask layout survives destroy — see convex twin.
 	p.maskLayoutOwned = false
 	if p.uniformLayout != nil {
 		p.uniformLayout.Destroy()
