@@ -44,8 +44,6 @@ func TestProbeTTC_CJKGlyphMaskGPURender(t *testing.T) {
 	session := NewGPURenderSession(device, queue, sampleCount)
 	_, j5mask := testSharedLayouts(t, device)
 	session.SetMaskBindLayout(j5mask)
-	_, mask := testSharedLayouts(t, device)
-	session.SetMaskBindLayout(mask)
 	t.Logf("sampleCount=%d", sampleCount)
 
 	// Fill page 0 with 2000 unique CJK glyphs so the probe glyphs spill to page 1.
@@ -81,8 +79,17 @@ func TestProbeTTC_CJKGlyphMaskGPURender(t *testing.T) {
 	}
 	t.Logf("batches on page>0: %d", cjkBatches)
 
-	if err := engine.SyncAtlasTextures(device, queue); err != nil {
-		t.Fatalf("SyncAtlasTextures: %v", err)
+	// Upload budget caps bytes per frame (glyphUploadBudgetBytesPerFrame):
+	// 2000 filler glyphs exceed it, so deferred uploads ride the next frame.
+	// Sync repeatedly until every page has a GPU view (the documented
+	// multi-frame contract) — a single call leaves page views nil.
+	for i := 0; i < 64; i++ {
+		if err := engine.SyncAtlasTextures(device, queue); err != nil {
+			t.Fatalf("SyncAtlasTextures: %v", err)
+		}
+		if engine.PageTextureView(0) != nil && engine.PageTextureView(1) != nil {
+			break
+		}
 	}
 	if err := session.ensureClipBindLayout(); err != nil {
 		t.Fatalf("ensureClipBindLayout: %v", err)

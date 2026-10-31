@@ -1106,6 +1106,17 @@ func applyGlyphUploadBudget(pageBytes func(idx int) int, uploads []text.GlyphMas
 	if budget <= 0 || len(uploads) == 0 {
 		return uploads
 	}
+	// Full-page uploads are atomic page rebuilds (compaction after the page
+	// filled): a whole page always exceeds the per-frame partial-upload
+	// budget, so budgeting them defers the same entry every frame and
+	// starves the page's text forever (largest-first drops it first). Exempt
+	// them — the budget governs partial-region uploads only (Skia uploads
+	// whole rebuilt pages on demand). (J5 campaign, P2.4e.)
+	for _, up := range uploads {
+		if up.FullPage {
+			return uploads
+		}
+	}
 	cost := func(up text.GlyphMaskDirtyUpload) int {
 		if up.FullPage {
 			return pageBytes(up.Index)
