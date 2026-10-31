@@ -47,10 +47,20 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：**P2.4e**（开工登记见下；评估 `evidence/P2.4e/assessment.md`，四子步 e1–e4 各自独立提交+门禁）
-- 下一任务：P2.5（依赖 P2.4e，包组织收口）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
-- 最近完成：P2.4d 同尺寸纹理分配收敛（提交 `599149ee`，六处 → `res.Cache`，D1–D7 全落地），见 `evidence/P2.4d/summary.md`；前一项 P2.4c 延迟释放统一（提交 `00dc07d4`），见 `evidence/P2.4c/summary.md`
+- 当前进行中：无（P2.4e 已完成，提交号待补；四子步 + 红修战役 13 批全部落地，见 `evidence/P2.4e/summary.md`）
+- 下一任务：P2.5（依赖 P2.4e，包组织收口：go list 对比、分层约束测试、索引与总账同步——J4 的 ui 门禁清单补充归此）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 最近完成：P2.4e 裁剪/混合枚举/呈现入口收敛（提交号待补，四子步+红修战役 13 批），见 `evidence/P2.4e/summary.md`；前一项 P2.4d 同尺寸纹理分配收敛（提交 `599149ee`），见 `evidence/P2.4d/summary.md`
 - 阻塞项：无。真窗侧既有缺陷 I1 / C7 / I2 / C3 已取入 P2.4e 载体（I1 解剖归本步、修复方向解剖后拍板）；I3 / I4 仍归 P2.6 前诊断
+
+**P2.4e 收口载体（2026-10-31 已完成，提交号待补，见 `evidence/P2.4e/summary.md`）**
+
+- 任务：P2.4e 裁剪/混合枚举/呈现入口收敛 + 池带入 I1/C7/I2/C3/G2/J1/J2 + 红修战役 13 批
+- 四子步：e1（G2 四老抽象文件整删 ~2100 行 + J1/J2 防护）→ e2（B2 裁剪收敛，能力保留派生）→ e3（B3 混合枚举值域合一，三表删单边界表）→ e4（B4 呈现单计划化 + I2 + C3 + C7 拆半）——各子步独立提交+全量门禁
+- 红修战役 13 批：gpu 包共享布局测试缝（12 文件）、session SetMaskBindLayout+25 处注入、buildImageResources 时序对齐、releaseShared 生命周期修复（abandon 前置）、resetAccelerator 保存/恢复、s6_9 门禁设计修正（同日基线重采+0.3ms 绝对下限+P2 regress-only）、m5/filter_present CPU 强制、X11/seat 环境类 2/3
+- **三个真产品 bug**：整页上传永久饥饿（compaction 页文字永不上屏）、上下文所有权（Wayland ownsContext 共享设备被首窗连带销毁）、Tab 空环吞键——全部修复带回归验证
+- 门禁终态：gpu 包整包+逐文件全绿、render 包**整包 0 红**、ui 全绿、构建五目标、vet、conformance 双后端 0/0、-race
+- 遗留立案（不属本步闭合）：misc_draw wgpu 执行态（需 GPU capture 工具）、SeatCapCB 回调 robustness（flaky 实证）、G3 在册、I1 修复方向待评估
+- 证据：`evidence/P2.4e/`（assessment / summary / red-fix-campaign 18 节 / j1-j3 / e1-e4 各批门禁 / 各专项档案）
 
 **P2.4e 开工载体（2026-10-31 开工登记，方向已拍板，评估见 `evidence/P2.4e/assessment.md`）**
 
@@ -166,7 +176,7 @@
 | P2.4b | 预算统一（六口径 → 一套 Budget，按域分账） | P2.4a | ✅ | `evidence/P2.4b/` |
 | P2.4c | 延迟释放统一（三队列 → `res/registry`） | P2.4b | ✅ | `evidence/P2.4c/` |
 | P2.4d | 同尺寸纹理分配收敛（六处 → `res/cache`） | P2.4c | ✅ | `evidence/P2.4d/` |
-| P2.4e | 裁剪 / 混合枚举 / 呈现入口收敛 | P2.4d | 🟡 | `evidence/P2.4e/` |
+| P2.4e | 裁剪 / 混合枚举 / 呈现入口收敛 | P2.4d | ✅ | `evidence/P2.4e/` |
 | P2.5 | 包组织收口：`go list` 对比、分层约束测试、索引与总账同步 | P2.4e | ⬜ | `evidence/P2.5/` |
 | P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ⬜ | `evidence/P2.6/` |
 | P3.0 | 依赖图 + 文档更新（PLAN §5 + `RENDER_API_CATALOG.md`），再实现 | P2.6 | ⬜ | `evidence/P3.0/` |
@@ -507,10 +517,14 @@ docs/render_gpu_converge/
 | 2026-10-30 | P2.4b | ⬜→🟡 开工登记：计划经批准（D1 全 GPU 侧 10 点/D2 descriptor 统一 ForAdapter/D3 声明级分域/D4 TexturePool 只入表），影响面评估落盘 | `evidence/P2.4b/assessment.md`：盘点 10 处 GPU 侧预算声明点（含 file:line/现值/淘汰语义/单测缺口）；MemoryManager 已随 P2.3 删净（B6 的删除项已完成）；公平份额两套算术合一；hal 全局账本与双端记账不动；res.Cache 未接线归 P2.4c/d；CPU 侧池不入表归 P2.5；本步唯一语义变化 = standalone descriptor 统一 ForAdapter（P2.4a D3 推迟项） |
 | 2026-10-30 | P2.4b | 🟡→✅ 预算统一收敛完成（提交 `3600e052`）：GPU 侧 10 域 + 全局口径 → `render.DefaultBudget` 唯一声明表（22 调用点、旧常量残留 0），公平份额合一 `FairSplit`，`OpenStandaloneDevice` 改 `DeviceDescriptorForAdapter`（P2.4a D3），`render/text` 零新增 import | `evidence/P2.4b/summary.md`：新增 `budget.go`（11 域枚举 + `Budget` + 表 + `FairSplit`）；12 处切表（image_cache/texture_pool/gpu_textures/depth_clip/dual_tex_blend/gpu_render_context/glyph_color_engine/glyph_mask_engine/shared_budget/video_texpool+video_direct）；等价性 = 先补 pin（11 组）+10 个淘汰语义用例对现状跑绿再切表复绿；五目标构建段3/4 全绿、vet 61/58 逐字节不变、残留 grep 全 0、API render +4 导出+1 方法（internal/gpu 898→898 零差异）+ apidoc rc=0、逐测试文件 473 个（423 PASS/17 仅编译/1 标签排除/**32 FAIL 全定性既有零新增红**，长跑 zz_b2 3600s 复跑 1264.3s 4/4）、`-race` 双包过、conformance K1 不回退、负向对照红过复绿；真窗 l1_blank native ✅ 3571 帧、multiwin native ✅ 8 窗三相位 316MB 稳态；两扇真窗受**既有缺陷**阻塞并已 A/B 证明非本步回归——vram ladder 8 窗 native `wgpuSurfacePresent` 卡死（新增池 I1 归 P2.4e）、l1_blank go 单窗 `eglMakeCurrent 0x3002`（既有 C7 追加单窗形态）；另修正 `RENDER_API_CATALOG.md` 上一轮 Budget/StandaloneDevice 粘连坏行 |
 | 2026-10-30 | P2.4c | ⬜→🟡 开工登记：影响面评估落盘、验证载体已登记；D1–D5 用户拍板（registry 单一状态机 / 图片释放点后移到同步点 / Cache.pending 本步删+idle 回池 / K1 追踪临时做 / 按根因跨文件修） | `evidence/P2.4c/assessment.md`：三队列盘点（A `pendingTex/Buf` `render_session.go:102-174` 在跑、B `ImageCache.ephemeral+pending` `image_cache.go:81/87` 在跑且**在异步 submit 返回后立即 Destroy**、C `res.Cache.pending` 生产零实例）；`Submission.Track` 生产零调用 → `SubmitDone` 空转；registry 当前只做 command view 借用记账；收敛设计 = 全部走 registry 槽位状态机（Register→Track→Release→Retire）+ idle 回池；K1（conformance 每轮 +2 条 / +131072B，双后端一致）**先探后修**，临时 env 账本追踪定位创建调用点，修完把上界收紧到 0；D1 形态/D2 图片释放点后移/D3 Cache.pending 删除/D4 追踪工具去留/D5 根因超出 res 包时跨文件修 |
+| 2026-10-31 | P2.4e | 🟡→✅ 四子步+红修战役13批收口（提交号待补）：e1 G2 老抽象拆解/J1J2、e2 B2 裁剪收敛、e3 B3 混合枚举收敛、e4 B4 呈现单计划化+I2+C3+C7 拆半；三真产品 bug（整页饥饿/上下文所有权/Tab 吞键）；门禁终态 gpu+render+ui 全绿、五目标/conformance/-race 全绿；遗留 misc_draw wgpu 执行态+SeatCapCB robustness 两专项立案（`evidence/P2.4e/summary.md`） | `evidence/P2.4e/summary.md` |
 
 ## 8 修订记录
 
 | 日期 | 修订 |
+|---|---|
+| 2026-10-31 | P2.4e 收口：四子步（G2 老抽象拆解/B2 裁剪/B3 混合枚举/B4 呈现单计划化）+ 红修战役 13 批（gpu/render/ui 全绿）+ 三真产品 bug 修复（整页上传饥饿/上下文所有权/Tab 空环吞键）；遗留 misc_draw wgpu 执行态 + SeatCapCB robustness 两专项立案；s6_9 门禁设计修正（绝对下限+regress-only 默认）；详见 `evidence/P2.4e/summary.md` |
+
 |---|---|
 | 2026-10-28 | 首版：从 PLAN §7 拆出可执行任务清单，补状态图例、开工协议、开工/完成标准、门禁口径、证据约定、即时同步规则 |
 | 2026-10-28 | 补新会话可续跑能力：§0 开场话术、§2.1 当前焦点、镜像允许按阶段聚合；同步规则改为同步 §2.1 与 PLAN |
