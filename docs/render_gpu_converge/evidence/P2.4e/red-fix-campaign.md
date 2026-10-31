@@ -101,3 +101,11 @@
 - **已排除**：CPU 合成未跑（正确，pendingAdvanced 排队）；resolve 未执行（已执行）；BeginFrame 丢弃（探针未触发）；offscreen stash 吞层（探针未触发）；取色路径（solidColorFromPaint 全兼容）。
 - **剩余嫌疑（下一窗口）**：dual-tex 执行链三分支（IntoEncoder / R7.3 bundle / per-op）中实际走的分支上，multiply 未应用——需运行时追踪 `dualTexAdvancedBlendViews*` 的 derr/outs/fallbacks 与 layer srcView 内容（src 是否含灰填充：若 src 空 = 层内填充未进 RT，另开一线）。
 - 临时探针已全部移除（J5PROBE ×4 + probe3_test.go）。
+
+## 2026-10-31 续8：misc_draw 深潜二轮（seed 前置 + bundle 探针，定位到 dual_tex 内部）
+
+- **已修**：`resolvePendingAdvancedLayersEnc` 入口补 dst seed 前置（CPU 底色 seed 原在 pending==0 早返回之后永不执行 → 现合成前先 seed，效果视图不再空白）。结果从 (255,0,0) 变 (0,0,0,255)——seed 生效但 multiply 输出黑。
+- **探针链完整结论**（5 点全插实测）：resolve 执行 ✓（n=1、view 非空）、layer srcView 内容正确（229,229,229 灰填充在 RT）✓、dual-tex bundle 执行 ✓（outs=1、cmd 入 lead 队列 ✓）、out RT 在入队时刻为空（延迟 CB 未执行，合法）→ **最终视图黑色**。
+- **剩余嫌疑（下一窗口专项）**：`dual_tex_blend.go` 的 `dualTexAdvancedBlendViewsMultiBundle` 内部——dst 采样源（scratch vs dstView）、multiply shader 的 dst 读取、lead-submit 与 blit-submit 的顺序。需通读 bundle 内部（~150 行）+ 必要时在 bundle 的 render pass 内加探针。
+- 顺带确认：recordEnc=nil 时 else 分支人为制造 "no encoder" 错误再走 bundle 补救——流程怪但功能可达，bundle 成功（outs=1 cmd=true）。
+- 探针已全部移除。
