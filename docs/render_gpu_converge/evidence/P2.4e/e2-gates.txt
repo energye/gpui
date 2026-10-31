@@ -1,0 +1,7 @@
+# e2（B2 裁剪收敛）门禁汇总 2026-10-31
+残留 grep：scene.ClipState/ClipStack 0（排除标准实现 internal/clip 与无关 tilecompute）
+五目标：linux default 321=基线 exit0；windows/darwin render 树交叉绿
+vet：默认 59+2 既有 unreachable=61 / nogpu 58，精确回基线零新增
+scene 包：全部测试 PASS（含新钉 TestSceneClipQueriesWithTransformAndLayers：变换边界/跨层深度/空哨兵/不相交折叠）+ -race 绿
+render 包：FAIL 8 条与 e1 基线逐名一致零新增（DrawShadow/P1GLPresent/PresentResize/S3c/S64/S69 既有红）
+wrgate：ok；conformance 双后端 PASS exit 0（e2-conformance.txt）

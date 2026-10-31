@@ -37,8 +37,14 @@ type Scene struct {
 	// transformStack holds the transform state stack
 	transformStack []Affine
 
-	// clipStack holds the clip state stack
-	clipStack *ClipStack
+	// clipDepth/clipBounds are the minimal record-time clip bookkeeping
+	// (B2/P2.4e): depth for PopClip validity + PushLayer snapshots, and the
+	// transform-adjusted bounds of each active clip for ClipBounds. The
+	// redundant scene.ClipState/ClipStack implementation was removed — the
+	// standard clip machinery lives in render/internal/clip (replay side),
+	// while these two query capabilities stay on Scene.
+	clipDepth  int
+	clipBounds []Rect
 
 	// version is incremented on each modification for cache invalidation
 	version uint64
@@ -76,7 +82,6 @@ func NewScene() *Scene {
 		encoding:         NewEncoding(),
 		layerStack:       NewLayerStack(),
 		transformStack:   make([]Affine, 0, 8),
-		clipStack:        NewClipStack(),
 		version:          0,
 		bounds:           EmptyRect(),
 		currentTransform: IdentityAffine(),
@@ -92,7 +97,8 @@ func (s *Scene) Reset() {
 	s.encoding.Reset()
 	s.layerStack.Reset()
 	s.transformStack = s.transformStack[:0]
-	s.clipStack.Reset()
+	s.clipDepth = 0
+	s.clipBounds = s.clipBounds[:0]
 	s.version++
 	s.bounds = EmptyRect()
 	s.currentTransform = IdentityAffine()
@@ -298,7 +304,7 @@ func (s *Scene) PushLayer(blend BlendMode, alpha float32, clip Shape) {
 	layer.Alpha = clampedAlpha
 	layer.Clip = clip
 	layer.Transform = s.currentTransform
-	layer.ClipStackDepth = s.clipStack.Depth()
+	layer.ClipStackDepth = s.clipDepth
 
 	// Initialize layer encoding
 	if layer.Encoding == nil {
@@ -370,8 +376,15 @@ func (s *Scene) PushClip(shape Shape) {
 		return
 	}
 
-	clipState := NewClipState(shape, s.currentTransform)
-	s.clipStack.Push(clipState)
+	// Record-time bookkeeping happens before the path guard, matching the
+	// pre-B2 behavior: even a shape with an empty path counts toward depth
+	// and clip bounds.
+	b := shape.Bounds()
+	if !s.currentTransform.IsIdentity() {
+		b = transformBounds(b, s.currentTransform)
+	}
+	s.clipBounds = append(s.clipBounds, b)
+	s.clipDepth++
 
 	// Encode clip in current layer
 	enc := s.currentEncoding()
@@ -389,11 +402,12 @@ func (s *Scene) PushClip(shape Shape) {
 // PopClip pops the current clip region.
 // Returns false if there's no clip to pop.
 func (s *Scene) PopClip() bool {
-	if s.clipStack.IsEmpty() {
+	if s.clipDepth == 0 {
 		return false
 	}
 
-	s.clipStack.Pop()
+	s.clipDepth--
+	s.clipBounds = s.clipBounds[:len(s.clipBounds)-1]
 
 	// Encode end clip
 	enc := s.currentEncoding()
@@ -577,7 +591,7 @@ func (s *Scene) LayerDepth() int {
 
 // ClipDepth returns the current clip stack depth.
 func (s *Scene) ClipDepth() int {
-	return s.clipStack.Depth()
+	return s.clipDepth
 }
 
 // TransformDepth returns the current transform stack depth.
@@ -586,8 +600,29 @@ func (s *Scene) TransformDepth() int {
 }
 
 // ClipBounds returns the intersection of all active clip regions.
+// Returns the infinite sentinel rect when no clip is active.
 func (s *Scene) ClipBounds() Rect {
-	return s.clipStack.CombinedBounds()
+	if len(s.clipBounds) == 0 {
+		return Rect{
+			MinX: -1e30,
+			MinY: -1e30,
+			MaxX: 1e30,
+			MaxY: 1e30,
+		}
+	}
+	result := s.clipBounds[0]
+	for _, b := range s.clipBounds[1:] {
+		result = Rect{
+			MinX: max32(result.MinX, b.MinX),
+			MinY: max32(result.MinY, b.MinY),
+			MaxX: min32(result.MaxX, b.MaxX),
+			MaxY: min32(result.MaxY, b.MaxY),
+		}
+		if result.IsEmpty() {
+			return EmptyRect()
+		}
+	}
+	return result
 }
 
 // currentEncoding returns the encoding for the current layer.

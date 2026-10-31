@@ -735,108 +735,6 @@ func TestLayerStackReset(t *testing.T) {
 	}
 }
 
-func TestClipState(t *testing.T) {
-	shape := NewRectShape(10, 20, 80, 60)
-	clip := NewClipState(shape, IdentityAffine())
-
-	bounds := clip.Bounds
-	if bounds.MinX != 10 || bounds.MinY != 20 || bounds.MaxX != 90 || bounds.MaxY != 80 {
-		t.Errorf("bounds = %+v, want (10,20)-(90,80)", bounds)
-	}
-
-	// Test Contains
-	if !clip.Contains(50, 50) {
-		t.Error("Contains(50,50) = false, want true")
-	}
-	if clip.Contains(0, 0) {
-		t.Error("Contains(0,0) = true, want false")
-	}
-
-	// Test Intersects
-	if !clip.Intersects(Rect{MinX: 0, MinY: 0, MaxX: 50, MaxY: 50}) {
-		t.Error("Intersects overlapping rect = false, want true")
-	}
-	if clip.Intersects(Rect{MinX: 100, MinY: 100, MaxX: 200, MaxY: 200}) {
-		t.Error("Intersects non-overlapping rect = true, want false")
-	}
-}
-
-func TestClipStateWithTransform(t *testing.T) {
-	shape := NewRectShape(0, 0, 100, 100)
-	transform := TranslateAffine(50, 50)
-	clip := NewClipState(shape, transform)
-
-	bounds := clip.Bounds
-	if bounds.MinX != 50 || bounds.MinY != 50 || bounds.MaxX != 150 || bounds.MaxY != 150 {
-		t.Errorf("transformed bounds = %+v, want (50,50)-(150,150)", bounds)
-	}
-}
-
-func TestClipStack(t *testing.T) {
-	stack := NewClipStack()
-
-	// Initial state
-	if !stack.IsEmpty() {
-		t.Error("initial stack should be empty")
-	}
-	if stack.Depth() != 0 {
-		t.Errorf("initial Depth() = %d, want 0", stack.Depth())
-	}
-	if stack.Top() != nil {
-		t.Error("Top() of empty stack should be nil")
-	}
-
-	// Push clip
-	clip1 := NewClipState(NewRectShape(0, 0, 100, 100), IdentityAffine())
-	stack.Push(clip1)
-	if stack.Depth() != 1 {
-		t.Errorf("Depth() after push = %d, want 1", stack.Depth())
-	}
-	if stack.Top() != clip1 {
-		t.Error("Top() should be pushed clip")
-	}
-
-	// Push another clip
-	clip2 := NewClipState(NewRectShape(50, 50, 100, 100), IdentityAffine())
-	stack.Push(clip2)
-	if stack.Depth() != 2 {
-		t.Errorf("Depth() = %d, want 2", stack.Depth())
-	}
-
-	// Test combined bounds (intersection)
-	combined := stack.CombinedBounds()
-	// (0,0)-(100,100) intersect (50,50)-(150,150) = (50,50)-(100,100)
-	if combined.MinX != 50 || combined.MinY != 50 || combined.MaxX != 100 || combined.MaxY != 100 {
-		t.Errorf("CombinedBounds() = %+v, want (50,50)-(100,100)", combined)
-	}
-
-	// Pop clips
-	popped := stack.Pop()
-	if popped != clip2 {
-		t.Error("Pop() should return last pushed clip")
-	}
-	popped = stack.Pop()
-	if popped != clip1 {
-		t.Error("Pop() should return first pushed clip")
-	}
-	popped = stack.Pop()
-	if popped != nil {
-		t.Error("Pop() from empty should return nil")
-	}
-}
-
-func TestClipStackReset(t *testing.T) {
-	stack := NewClipStack()
-	stack.Push(NewClipState(NewRectShape(0, 0, 100, 100), IdentityAffine()))
-	stack.Push(NewClipState(NewRectShape(0, 0, 50, 50), IdentityAffine()))
-
-	stack.Reset()
-
-	if !stack.IsEmpty() {
-		t.Error("stack should be empty after reset")
-	}
-}
-
 // Benchmarks
 
 func BenchmarkSceneFill(b *testing.B) {
@@ -986,5 +884,64 @@ func TestEncodingBoundsClipDoesNotExpand(t *testing.T) {
 	if boundsAfterClip.MaxX > boundsBeforeClip.MaxX+1 || boundsAfterClip.MaxY > boundsBeforeClip.MaxY+1 {
 		t.Errorf("clip expanded encoding bounds: before=%+v after=%+v (clip should restrict, not expand)",
 			boundsBeforeClip, boundsAfterClip)
+	}
+}
+
+// TestSceneClipQueriesWithTransformAndLayers pins the B2/P2.4e minimal clip
+// bookkeeping: transform-adjusted bounds, nesting depth across layers, the
+// infinite sentinel when no clip is active, and disjoint-clip collapse — the
+// query capabilities retained after the redundant scene.ClipState/ClipStack
+// implementation was removed (capability kept, duplicate implementation gone).
+func TestSceneClipQueriesWithTransformAndLayers(t *testing.T) {
+	scene := NewScene()
+
+	// No clip: infinite sentinel bounds (same contract as the old CombinedBounds).
+	b := scene.ClipBounds()
+	if b.MinX != -1e30 || b.MaxX != 1e30 {
+		t.Fatalf("ClipBounds with no clip = %v, want infinite sentinel", b)
+	}
+
+	scene.PushClip(NewRectShape(0, 0, 100, 100))
+	scene.PushTransform(TranslateAffine(10, 0))
+	scene.PushClip(NewRectShape(0, 0, 50, 50)) // transformed: x 10..60, y 0..50
+	if scene.ClipDepth() != 2 {
+		t.Fatalf("ClipDepth = %d, want 2", scene.ClipDepth())
+	}
+	got := scene.ClipBounds()
+	if got.MinX != 10 || got.MaxX != 60 || got.MinY != 0 || got.MaxY != 50 {
+		t.Fatalf("ClipBounds = %v, want x 10..60 y 0..50", got)
+	}
+
+	// Depth spans layers: a clip pushed inside a layer stays on the same
+	// tracker, and popping the layer does not pop the clip.
+	scene.PushLayer(BlendNormal, 1.0, nil)
+	scene.PushClip(NewRectShape(0, 0, 20, 20))
+	if scene.ClipDepth() != 3 {
+		t.Fatalf("ClipDepth inside layer = %d, want 3", scene.ClipDepth())
+	}
+	scene.PopClip()
+	if ok := scene.PopLayer(); !ok {
+		t.Fatal("PopLayer = false, want true")
+	}
+	if scene.ClipDepth() != 2 {
+		t.Fatalf("ClipDepth after PopLayer = %d, want 2", scene.ClipDepth())
+	}
+
+	scene.PopTransform()
+	if ok := scene.PopClip(); !ok {
+		t.Fatal("PopClip = false, want true")
+	}
+	if ok := scene.PopClip(); !ok {
+		t.Fatal("PopClip = false, want true")
+	}
+	if scene.ClipDepth() != 0 {
+		t.Fatalf("ClipDepth = %d, want 0", scene.ClipDepth())
+	}
+
+	// Disjoint clips collapse to an empty rect.
+	scene.PushClip(NewRectShape(0, 0, 10, 10))
+	scene.PushClip(NewRectShape(100, 100, 10, 10))
+	if !scene.ClipBounds().IsEmpty() {
+		t.Fatalf("disjoint clips bounds = %v, want empty", scene.ClipBounds())
 	}
 }
