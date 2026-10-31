@@ -34,7 +34,10 @@ import (
 // read via atomic so the steady-state CreateCommandEncoder fast path skips
 // the Lock/Unlock round trip (pprof: 110ms/2.32s on spin_min).
 type Device struct {
-	ctx             *AdapterContext
+	ctx *AdapterContext
+	// lost marks the device Released/unusable (J5 campaign): ensureGPU checks
+	// IsLost to re-create instead of handing sessions a released device.
+	lost            atomic.Bool
 	displayHandle   uintptr
 	windowHandle    uintptr
 	vao             atomic.Uint32 // persistent VAO (Core Profile requires one bound)
@@ -206,6 +209,12 @@ func (d *Device) CreateTexture(desc *TextureDescriptor) (hal.Texture, error) {
 		return nil, err
 	}
 
+	// J5 campaign: a Released device has a nil ctx — fail gracefully instead
+	// of SIGSEGV (sessions created before the release hold the stale wrapper;
+	// the AutoRecover/ensureGPU path re-creates for subsequent use).
+	if d.ctx == nil {
+		return nil, fmt.Errorf("gles: CreateTexture on released device")
+	}
 	glCtx := d.ctx.Lock()
 	defer d.ctx.Unlock()
 
@@ -926,8 +935,12 @@ func (d *Device) WaitIdle() error {
 // Poll returns true (GLES is synchronous after Finish).
 func (d *Device) Poll(_ hal.PollType) bool { return true }
 
-// IsLost returns false (GLES has no device-lost tracking yet).
-func (d *Device) IsLost() bool { return false }
+// IsLost reports the device Released/unusable (J5 campaign: Release marks
+// lost so GPUShared.ensureGPU re-creates instead of reusing the released
+// device).
+func (d *Device) IsLost() bool {
+	return d != nil && (d.lost.Load() || d.ctx == nil)
+}
 
 // FlushCallbacks is a no-op for GLES.
 func (d *Device) FlushCallbacks() {}
@@ -956,6 +969,7 @@ func (d *Device) Release() {
 		}
 		d.vao.Store(0)
 	}
+	d.lost.Store(true)
 	if d.ctx != nil {
 		d.ctx.release()
 		d.ctx = nil

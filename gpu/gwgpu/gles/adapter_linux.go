@@ -14,6 +14,7 @@ package gles
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/energye/gpui/gpu/gwgpu/gles/gl"
 	"github.com/energye/gpui/gpu/hal"
@@ -95,6 +96,7 @@ func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.
 	// consumers). Submit/Poll both nil-guard fence, so a nil fence simply
 	// skips Signal/Maintain and Poll falls back to submissionIndex.
 	// Device.CreateFence stays for explicit external sync.
+	fmt.Fprintf(os.Stderr, "J5TRACE Open device=%p ctx=%p\n", device, a.ctx)
 	queue := &Queue{
 		ctx: a.ctx,
 	}

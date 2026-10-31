@@ -741,9 +741,16 @@ func resolveSampleCount(_ hal.Device) uint32 {
 // ensureGPU lazily initializes a standalone GPU device if no shared device
 // was provided. Must be called with s.mu held.
 func (s *GPUShared) ensureGPU() error {
-	if s.device != nil {
+	// J5 campaign: a Released device reports IsLost — re-create instead of
+	// handing sessions a released device (the stale wrapper SIGSEGVs on the
+	// next CreateTexture).
+	if s.device != nil && !s.device.IsLost() {
 		s.registerFilterGraphIfNeeded()
 		return nil
+	}
+	if s.device != nil {
+		// Drop the released device's borrowed state before re-creating.
+		s.device = nil
 	}
 	if err := s.initGPU(); err != nil {
 		return err

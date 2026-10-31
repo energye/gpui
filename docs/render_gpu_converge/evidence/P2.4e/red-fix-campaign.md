@@ -160,3 +160,10 @@
 - **SIGSEGV 精确定位**（WaitIdle 后回读实测）：`Device.CreateTexture → AdapterContext.Lock(0x0)`——**Device 包装非 nil 但 `ctx` 字段为 nil**。Device{ctx:nil} 的来源链：`Adapter.Open` 的 retain 前置已挡占位适配器，剩余链 = 共享设备 teardown（J5 的 `Device.Release → d.ctx=nil`）后，**缓存的 Device 包装被后续路径复用**（注册表/单例持引用）。
 - **下一窗口专项**：追踪失败包跑中的设备创建链（Open 时 adapter ctx、创建时 device ctx）+ `Device.Release` 后包装器的存活引用面（谁在 Release 后仍持有并复用）。
 - 二轮探针已移除；自动二分结论（集合交互、非单调）维持。
+
+## 2026-10-31 续16：批次11（优雅守卫揭开真实规模 = 17 条同类）
+
+- **已修**：`Device.CreateTexture` nil-ctx 优雅守卫（SIGSEGV → 错误）——揭开真实规模：设备释放点之后的**整段测试尾部 17 条**全在拿已释放设备（"CreateTexture on released device"）。
+- **机制精化**：会话的 device 字段固定于**创建时刻**——设备释放点之后的会话创建时拿到已释放包装器；ensureGPU 的重建（IsLost 检测已落地）只刷新 shared 自己的字段，**不传导到已创建的会话**。
+- **修法（下一窗口）**：(a) rc 创建/首用路径的 ensureGPU 先于 session 创建（时序对齐）；或 (b) session 设备活性检查 + 重绑（session 持 shared 引用或 rc 级刷新）。(a) 优先。
+- 现状：render 17 红（同类）、gpu 包全绿、misc_draw（wgpu 执行态专项）。
