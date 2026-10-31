@@ -85,28 +85,38 @@
 
 ```
 gpu/
-  hal/           接口（唯一抽象）
+  hal/           接口（唯一抽象）+ noop/（无 GPU 后端，测试缝与降级用）
   types/         类型与常量
   context/       设备桥
-  webgpu/        native 后端（Windows/Linux/macOS/Web）
+  webgpu/        native 后端门面（Windows/Linux/macOS/Web；internal/{browser,thread} 组成）
+  rwgpu/         wgpu-native 的 purego FFI 绑定层（包名 wgpu；webgpu 门面之下，Web 路径不经）
   gwgpu/
-    gles/        GL/EGL/WGL
-    metal/       Metal
-    ffi/...      ffi 垫片
-  shader/        唯一 shader 翻译器：ir / wgsl / glsl / msl
+    gles/        GL/EGL/WGL（egl/ gl/ wgl/ 组成）
+    metal/       Metal（mslmap/ 组成）
+    indirect/    间接绘制跨度算术（metal 专用）
+    ffishim/     ffi 垫片（purego C-ABI）
+  shader/        唯一 shader 翻译器：ir / wgsl / glsl / msl（各带 internal 实现子包）
 render/
   *.go           门面：Context / Canvas / Path / Paint / Text / Image ...
+  gpu/           GPU 注册包（!nogpu/nogpu 双形态）
+  filters/       CPU 图像滤镜注册
+  integration/   ggcanvas 等对接桥
   scene/         保留场景
   recording/     录制回放（含 backends/raster）
-  text/          排版与字形
+  text/          排版与字形（cache/ emoji/ hint/ msdf/ 组成）
   svg/           SVG 图标子集
-  hdr/           新：FloatTarget + 色调映射（从 render/render 迁出）
+  hdr/           FloatTarget + 色调映射（从 render/render 迁出）
   internal/
-    gpu/         只留主路径：SDF、AdaptiveFiller、session、texture、text、mask、filter
+    gpu/         主路径：SDF、AdaptiveFiller、session、texture、text、mask、filter
+                 + res/（资源生命周期，P2.4c）+ tilecompute/（Vello CPU 移植）
     image/ color/ blend/ filter/ raster/ cache/ parallel/
+    clip/ stroke/ wide/            通用图形件
+    conformance/ testutil/         测试设施（P0.4 测试台 / imagediff）
 ```
 
 三条硬规则：后端目录只放后端实现；通用图形能力在 `render`；不存在 `render/render` 这种同名子包。
+
+> 修订（2026-10-31 P2.5 go list 对账，证据 `evidence/P2.5/golist-compare.md`）：目标树补列 `gpu/rwgpu` 层、`ffishim` 实名、`render/{gpu,filters,integration}`、internal 补列 `clip/stroke/wide/conformance/testutil` 与 `gpu/{res,tilecompute}`；逐包登记理由见对比文档。已登记豁免：`gpu/rwgpu/examples`、`gpu/webgpu/examples` 示例混居后端目录（迁出为可选后续小步）。
 
 ## 4 双后端 × 平台能力矩阵
 
