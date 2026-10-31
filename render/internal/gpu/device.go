@@ -28,8 +28,8 @@ import (
 
 // Backend is a minimal device holder for legacy command/texture helpers.
 // Device creation and scene rendering are owned by VelloAccelerator; this type
-// only carries a device/queue pair so CoreCommandEncoder and GPUTexture keep
-// working.
+// only carries a device/queue pair (the CoreCommandEncoder/GPUTexture legacy
+// cluster was removed in P2.4e G2).
 type Backend struct {
 	mu sync.RWMutex
 

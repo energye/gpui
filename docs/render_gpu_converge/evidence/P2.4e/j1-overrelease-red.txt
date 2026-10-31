@@ -1,0 +1,6 @@
+=== RUN   TestProbe_CacheOverReleaseKeepsPoolConsistent
+    p24e_confirm_probe_test.go:25: over-release 后池桶应仍是 1 条，实际 2（重复入桶）
+--- FAIL: TestProbe_CacheOverReleaseKeepsPoolConsistent (0.00s)
+FAIL
+FAIL	github.com/energye/gpui/render/internal/gpu/res	0.003s
+FAIL

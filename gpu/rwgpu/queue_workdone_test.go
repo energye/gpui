@@ -124,3 +124,28 @@ func TestQueue_FutureDoneNonBlocking(t *testing.T) {
 		t.Fatal("consumed record must report completed")
 	}
 }
+
+// TestFutureForgetDropsRecord pins J2 (P2.4e): an unobserved work-done record
+// can be dropped explicitly (device-loss path), and the drop is idempotent.
+func TestFutureForgetDropsRecord(t *testing.T) {
+	queueWorkDoneResultsMu.Lock()
+	queueWorkDoneResultID++
+	id := queueWorkDoneResultID
+	queueWorkDoneResults[id] = &queueWorkDoneResult{nativeID: 999}
+	queueWorkDoneResultsMu.Unlock()
+
+	f := Future{ID: uint64(id)}
+	if _, done := FutureDone(f); done {
+		t.Fatal("fresh record must not report completed")
+	}
+	FutureForget(f)
+	queueWorkDoneResultsMu.Lock()
+	_, ok := queueWorkDoneResults[uintptr(id)]
+	queueWorkDoneResultsMu.Unlock()
+	if ok {
+		t.Fatal("FutureForget must delete the record")
+	}
+	// Repeat and unknown ids are no-ops (no panic).
+	FutureForget(f)
+	FutureForget(Future{ID: 0})
+}

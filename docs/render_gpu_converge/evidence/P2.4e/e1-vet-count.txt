@@ -1,0 +1,3 @@
+== e1 vet 计数（排除 2 破损包 + nogpu 下 4 个 GPU-only 包）==
+default: 61 (含 2 条既有 unreachable，基线 61)
+nogpu: 58 (基线 58)

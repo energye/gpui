@@ -249,6 +249,11 @@ func (c *Cache) repool(id uint32, key CacheKey) {
 	if _, ok := c.keyOf[id]; !ok {
 		return // purged / invalidated: never resurrect a dropped entry
 	}
+	for _, pooled := range c.pool[key] {
+		if pooled == id {
+			return // already pooled: never duplicate a bucket entry (J1, P2.4e)
+		}
+	}
 	if c.opt.MaxPerKey > 0 && len(c.pool[key]) >= c.opt.MaxPerKey {
 		if c.reg.retireEntry(id) {
 			c.evictions++

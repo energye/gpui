@@ -1,0 +1,10 @@
+== ./render/internal/gpu/res ==
+ok  	github.com/energye/gpui/render/internal/gpu/res	1.043s
+== ./render/internal/gpu ==
+FAIL	github.com/energye/gpui/render/internal/gpu	26.546s
+FAIL
+== ./examples/wrgate ==
+ok  	github.com/energye/gpui/examples/wrgate	1.048s
+== ./render ==
+FAIL	github.com/energye/gpui/render	30.923s
+FAIL

@@ -1,0 +1,15 @@
+# P2.4d conformance dual backend
+# date: 2026-10-31T09:12:09+08:00
+# head: 68a69e69
+# 上界口径：P2.4c 已把 solid_gradient/text_image 的 max_steady_count_delta/bytes 收紧到 0/0
+
+## 双后端（GPUI_CONFORMANCE_BACKENDS 默认 native+go）
+=== RUN   TestConformanceDualBackend
+--- PASS: TestConformanceDualBackend (0.68s)
+PASS
+ok  	github.com/energye/gpui/render	0.686s
+# exit: 0
+
+## 三场景逐字节对账（frame.png vs 提交前基线）
+    （上面只应出现 json 的上界/说明改动，不该出现 frame.png 改动）
+    render/testdata/conformance/comparator/: 0 项变更

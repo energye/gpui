@@ -1,0 +1,13 @@
+# e1 整包真机回归（WGPU_NATIVE_PATH=lib/libwgpu_native.so，2026-10-31）
+# gpu 包 FAIL 7 条与 evidence/P2.4d/surface_pools.md:72-76 基线名单逐名一致（零新增红）；
+# gpu/webgpu FAIL 1 条 = §2.2 I2 既有红（swapchain_x11_test.go:219 同断言）；rwgpu/hal 绿
+--- FAIL: TestBindGroupLayoutSwitch_StencilThenSDF (0.18s)
+--- FAIL: TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills (0.07s)
+--- FAIL: TestOpt34_SharedEncoder_DoesNotFlushLeading (0.07s)
+--- FAIL: TestOpt34_NoSharedEncoder_StillFlushesLeading (0.12s)
+--- FAIL: TestOpt36_FilterSeedSharedEncoder_OneFinish (0.07s)
+--- FAIL: TestOpt38_EnsurePipelines_ReadyFastPath (0.07s)
+--- FAIL: TestOpt38_EnsurePipelines_WarmRenderFrame (0.07s)
+FAIL
+FAIL	github.com/energye/gpui/render/internal/gpu	20.749s
+FAIL

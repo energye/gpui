@@ -118,8 +118,15 @@ func (d *directSubmit) pump() {
 	}
 }
 
+// tokenDiscarder is the optional device-loss escape for completion tokens:
+// backends whose token wraps an unobserved callback record implement it so
+// invalidate can drop the record instead of leaking it (J2, P2.4e).
+type tokenDiscarder interface{ Discard() }
+
 // drain resolves everything after the caller proved the GPU is idle (WaitIdle /
-// device teardown): no fence needs to be waited on.
+// device teardown): no fence needs to be waited on. Each token is observed
+// once so the backend releases its completion record instead of leaking it
+// (J2, P2.4e).
 func (d *directSubmit) drain() {
 	if d == nil {
 		return
@@ -129,13 +136,17 @@ func (d *directSubmit) drain() {
 	d.live = nil
 	d.mu.Unlock()
 	for _, c := range live {
+		if c.token != nil {
+			c.token.Done()
+		}
 		c.hold.Resolve()
 	}
 	d.gate.ResolveAll()
 }
 
 // invalidate drops every hold without decrementing in-flight (device loss: the
-// fence never arrives and the abandon flow owns native teardown).
+// fence never arrives and the abandon flow owns native teardown). Tokens
+// backing unobserved callback records are discarded (J2, P2.4e).
 func (d *directSubmit) invalidate() {
 	if d == nil {
 		return
@@ -145,6 +156,11 @@ func (d *directSubmit) invalidate() {
 	d.live = nil
 	d.mu.Unlock()
 	for _, c := range live {
+		if c.token != nil {
+			if disc, ok := c.token.(tokenDiscarder); ok {
+				disc.Discard()
+			}
+		}
 		c.hold.Invalidate()
 	}
 	d.gate.InvalidateAll()

@@ -182,3 +182,58 @@ func TestCache_ReleaseUnknownRefNoPanic(t *testing.T) {
 	c.Release(ref)
 	reg.Release(ref)
 }
+
+// TestRegistry_ReleaseIdleCallbackIsEdgeTriggered pins J1 (P2.4e): the idle
+// callback fires exactly once on the transition into idle — a repeated Release
+// of an already-released Ref must not re-fire it.
+func TestRegistry_ReleaseIdleCallbackIsEdgeTriggered(t *testing.T) {
+	reg := NewRegistry()
+	ref := reg.DeviceOwner().Register(&fakeNative{tag: 1})
+	fires := 0
+	reg.SetIdleCallback(ref.id, func() { fires++ })
+	reg.Release(ref)
+	reg.Release(ref) // contract violation: over-release
+	if fires != 1 {
+		t.Fatalf("idle callback must fire exactly once, got %d", fires)
+	}
+}
+
+// TestCache_OverReleaseWithIdleCallbackKeepsPoolConsistent pins J1 (P2.4e) at
+// the cache level: a double Release of a cache-owned Ref must not duplicate
+// the pooled entry nor force a re-create on the next acquire.
+func TestCache_OverReleaseWithIdleCallbackKeepsPoolConsistent(t *testing.T) {
+	reg := NewRegistry()
+	created := 0
+	c := NewCache(reg.DeviceOwner(), func(k CacheKey) (Native, error) {
+		created++
+		return &fakeNative{tag: created}, nil
+	}, CacheOptions{})
+	k := CacheKey{W: 4, H: 4, Role: RoleLayerRT}
+	r1, err := c.Acquire(k)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Release(r1)
+	c.Release(r1) // contract violation: over-release
+
+	c.mu.Lock()
+	n := len(c.pool[k])
+	c.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("pool bucket must hold exactly 1 entry after over-release, got %d", n)
+	}
+
+	// The pooled entry must remain lendable and must not be poisoned: no
+	// re-create, and releasing the re-lent ref must not destroy anything.
+	r2, err := c.Acquire(k)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r2.IsNil() {
+		t.Fatal("pooled entry must remain lendable")
+	}
+	if created != 1 {
+		t.Fatalf("over-release must not force a re-create, created=%d", created)
+	}
+	c.Release(r2)
+}

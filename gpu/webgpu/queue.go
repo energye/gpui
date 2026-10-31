@@ -77,6 +77,17 @@ func (t *workDoneToken) Wait() error {
 	return rwgpu.WaitForFuture(d.instance.r, t.future)
 }
 
+// Discard drops the underlying completion record without observing it.
+// Device-loss path (P2.4e J2): the callback will never fire, so the record
+// must be dropped explicitly instead of leaking in the rwgpu map. Reached by
+// directSubmit.invalidate through the optional discard interface.
+func (t *workDoneToken) Discard() {
+	if t == nil || t.q == nil {
+		return
+	}
+	rwgpu.FutureForget(t.future)
+}
+
 // Submit submits command buffers for execution.
 // Returns a submission index that can be used to track completion.
 //

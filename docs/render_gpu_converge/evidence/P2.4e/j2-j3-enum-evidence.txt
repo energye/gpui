@@ -1,0 +1,35 @@
+== J2 闭环枚举（2026-10-31）==
+-- work-done 记录全仓观察点（应只有 webgpu/queue.go 两处）--
+gpu/webgpu/queue.go:65:	_, done := rwgpu.FutureDone(t.future)
+gpu/webgpu/queue.go:77:	return rwgpu.WaitForFuture(d.instance.r, t.future)
+-- drain/invalidate 唯一调用点 --
+render/internal/gpu/gpu_shared.go:582:		s.direct.invalidate()
+render/internal/gpu/gpu_shared.go:584:		s.direct.drain()
+-- pump 全部调用点 --
+render/internal/gpu/direct_submit.go:69:	d.pump()
+render/internal/gpu/render_session.go:785:	s.direct.pump()
+
+== J3 配对闭合证据（2026-10-31）==
+-- endSubmission 5 处同步点 --
+1040:			s.endSubmission()
+1124:		s.endSubmission()
+2158:		s.endSubmission()
+2235:		s.endSubmission()
+5754:		s.endSubmission()
+-- Destroy 末尾强制解析 --
+2153:	// GPU drained above: resolve tracked submissions so anything retired by
+2154-	// this purge releases through the registry now, then drop every idle
+2155-	// surface trio (the old size-keyed stencil pool is part of this cache).
+2156-	// Without the purge an OOM retry leaves stale full-window trios pinned.
+--
+2232:	// GPU drained above: resolve tracked submissions so anything retired during
+2233-	// teardown releases through the registry before it is dropped.
+2234-	if s.sub != nil {
+2235-		s.endSubmission()
+-- 设备丢失 Invalidate --
+	s.resOwner.InvalidateOwned()
+	if s.sub != nil {
+		s.sub.Invalidate()
+	}
+-- Begin 生产调用数（应为 0）--
+0

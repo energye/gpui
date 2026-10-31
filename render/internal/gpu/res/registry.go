@@ -292,6 +292,13 @@ func (r *Registry) retireEntry(id uint32) bool {
 
 // Release decrements the refcount. The native resource is released only when
 // refs==0 && inflight==0 && retire (see removeIfReady).
+//
+// The idle callback is edge-triggered: it fires only on the actual transition
+// into idle, so a repeated Release of an already-released Ref (caller contract
+// violation) cannot re-fire it — a cache entry must never be pooled twice
+// (J1, P2.4e). Note the registry counts refs, not handles (Skia GrGpuResource
+// ref semantics): releasing a Ref whose id another holder still holds steals
+// that holder's ref — release each Ref exactly once.
 func (r *Registry) Release(ref Ref) {
 	if r == nil || ref.reg != r || ref.id == 0 {
 		return
@@ -301,9 +308,11 @@ func (r *Registry) Release(ref Ref) {
 	if s, ok := r.slots[ref.id]; ok {
 		if s.refs > 0 {
 			s.refs--
+			r.removeIfReady(s)
+			if s.refs == 0 && s.inflight == 0 && !s.retire {
+				cb = s.onIdle
+			}
 		}
-		r.removeIfReady(s)
-		cb = idleCallbackOf(s)
 	}
 	r.mu.Unlock()
 	if cb != nil {
@@ -390,13 +399,21 @@ func (r *Registry) markInflight(id uint32, delta int32) {
 	var cb func()
 	r.mu.Lock()
 	if s, ok := r.slots[id]; ok {
-		s.inflight += delta
-		if s.inflight < 0 {
-			s.inflight = 0
-		}
-		if s.inflight == 0 {
-			r.removeIfReady(s)
-			cb = idleCallbackOf(s)
+		if delta < 0 {
+			// Edge-triggered completion: only an actual drop to zero settles
+			// the entry; a spurious extra decrement must not re-fire the idle
+			// callback (J1, P2.4e).
+			if s.inflight > 0 {
+				s.inflight--
+				if s.inflight == 0 {
+					r.removeIfReady(s)
+					if !s.retire && s.refs == 0 {
+						cb = s.onIdle
+					}
+				}
+			}
+		} else if delta > 0 {
+			s.inflight += delta
 		}
 	}
 	r.mu.Unlock()
@@ -431,15 +448,6 @@ func (r *Registry) SetIdleCallback(id uint32, fn func()) {
 		s.onIdle = fn
 	}
 	r.mu.Unlock()
-}
-
-// idleCallbackOf returns the idle callback to run after unlocking, or nil when
-// the entry is not idle or not callable.
-func idleCallbackOf(s *slot) func() {
-	if s == nil || s.retire || s.refs != 0 || s.inflight != 0 {
-		return nil
-	}
-	return s.onIdle
 }
 
 // InvalidateAll discards every entry WITHOUT calling native Release — native

@@ -152,6 +152,20 @@ func FutureDone(future Future) (QueueWorkDoneStatus, bool) {
 	return result.status, true
 }
 
+// FutureForget drops an unobserved work-done record without waiting. Device-
+// loss path (P2.4e J2): the callback will never fire and nothing observes
+// this future again, so without the explicit drop the record would stay in
+// the map forever. Idempotent; unknown or zero ids are no-ops.
+func FutureForget(future Future) {
+	id := uintptr(future.ID)
+	if id == 0 {
+		return
+	}
+	queueWorkDoneResultsMu.Lock()
+	delete(queueWorkDoneResults, id)
+	queueWorkDoneResultsMu.Unlock()
+}
+
 // WaitForFuture blocks until the given work-done record completes. It pumps
 // instance callbacks itself (wgpu-native needs ProcessEvents for callback-mode
 // futures). Do NOT use on the per-frame hot path (P6; use BeginFrame sync

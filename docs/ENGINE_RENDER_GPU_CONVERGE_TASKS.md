@@ -47,10 +47,22 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无（P2.4d 已完成，提交 `599149ee`；七段实现 + 全量门禁 + 真窗数字全部落盘，见 `evidence/P2.4d/summary.md`）
-- 下一任务：P2.4e（依赖 P2.4d，承接 I1 / C7 / I2 修复）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
-- 最近完成：P2.4d 同尺寸纹理分配收敛（六处 → `res.Cache`，D1–D7 全落地），见 `evidence/P2.4d/summary.md`；前一项 P2.4c 延迟释放统一（提交 `00dc07d4`），见 `evidence/P2.4c/summary.md`
-- 阻塞项：无。真窗侧既有缺陷按 §2.2 待办池开项：I1（nested Wayland ladder 8 窗 present 卡死，最终 headless 环境未复现，仍开）、C7（gles 多窗/单窗 `eglMakeCurrent 0x3002`）、I2（swapchain 同尺寸 Resize 语义）、I3（R20 灰度矩阵既有红）、I4（R20 steady/recover 黑图）；修复均不属 P2.4d
+- 当前进行中：**P2.4e**（开工登记见下；评估 `evidence/P2.4e/assessment.md`，四子步 e1–e4 各自独立提交+门禁）
+- 下一任务：P2.5（依赖 P2.4e，包组织收口）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 最近完成：P2.4d 同尺寸纹理分配收敛（提交 `599149ee`，六处 → `res.Cache`，D1–D7 全落地），见 `evidence/P2.4d/summary.md`；前一项 P2.4c 延迟释放统一（提交 `00dc07d4`），见 `evidence/P2.4c/summary.md`
+- 阻塞项：无。真窗侧既有缺陷 I1 / C7 / I2 / C3 已取入 P2.4e 载体（I1 解剖归本步、修复方向解剖后拍板）；I3 / I4 仍归 P2.6 前诊断
+
+**P2.4e 开工载体（2026-10-31 开工登记，方向已拍板，评估见 `evidence/P2.4e/assessment.md`）**
+
+- 任务：P2.4e 裁剪 / 混合枚举 / 呈现入口收敛（B2/B3/B4 三套各收敛为一）+ 池带入 I1 / C7 / I2 / C3 / G2 / J1 / J2；评估已盘点三套裁剪（真栈 3 个）、三套混合枚举（6 张手写转换表、值域第 5 个起分叉）、呈现决策实为 5 层（damage 合并两份平行、resize 三份规则互异、webgpu PresentWithDamage 丢 damage 参数）、G2 四文件 ~2300 行生产可达仅 ~200 行、C7/I2/C3/I1 锚点现状
+- 已拍板：D7 四子步 **e1（G2 删/搬 + J1/J2 防护）→ e2（B2 clip）→ e3（B3 blend）→ e4（B4 present + C7/I2/C3 + I1 解剖）**，各子步独立提交+全量门禁；B2 删冗余 `scene.ClipStack` 实现、`ClipDepth/ClipBounds` 场景标准查询能力保留（Tag 序列派生）——**能力存留不以消费者数为删除依据，删除依据=实现冗余**（PLAN §0/③ + AGENTS「已验证待接线是正常中间态」）；B3 `internal/blend` 枚举改绑 render 值域删 2 表（`GetBlendFunc` 算法保留）、`scene.BlendMode` 保留线格式只留 1 张边界表（wire 不变零重录）；I2 改测试期望对齐同尺寸 no-op + 新增显式 `ForceReconfigure` 口；D3/D5/D6 按评估推荐（clipPresentDamage 并入 PlanFramePresent / C7 开窗 GL 步骤投递 hub FrameJob / p0 测试改写直连 hal）
+- 能力单测：e1 `attack_test.go` 补「带 idle 回调 over-release」负向（J1）+ rwgpu 记录清理（FutureForget/Discard）单测（J2）；e2 ClipDepth/ClipBounds 派生单测 + scene 重放等价；e3 wire 往返 pin + CPU blend 场景集；e4 PlanFramePresent 决策表扩展 + swapchain 期望改绑 + gles 开窗投递单测
+- 真窗：e4 四扇 `ui_l1_blank` / `ui_base_multiwin_cap` / `ui_render_base_scene` / `ui_wr_r20_filter`（native，隔离 headless Wayland）+ go 档（C7 修后应绿，撞 I3/I4 既有红如实登记）+ swapchain X11 单窗；e1–e3 零行为子步按 §4.1 例外以构建/测试/conformance 门禁替代
+- 金图：multiwin 16/16 + bscene + r20 final diff=0（e4）；R20 自身既有红 I3/I4 沿用登记不属本步
+- 双后端：conformance native+go 每子步 0/0 不回退；真窗 native 必跑；metal darwin×2 交叉编译
+- 证据：`evidence/P2.4e/`（assessment / j1-overrelease-red / j2-j3-enum-evidence / 各子步 build/vet/per-file-tests/race/conformance/api/grep-residual/window-gates）
+
+- 进度（2026-10-31）：**e1 代码+本机门禁已落地（未提交）**——G2：`command_encoder.go`/`commands.go`/`render_pass.go`/`compute_pass.go` 及三份测试整删（孤儿簇，生产零可达）、`atlas.go` 删 `TextureAtlas` 死块（连测试都零引用）、`RectAllocator` 簇全表面（含 UsedArea/Utilization/AllocCount/Reset/Contains，能力不裁）搬 `rect_allocator.go`、`gpu_texture.go` 删 `GPUTexture` 家族、`alignTextureBytesPerRow` 搬 `texture_align.go`、p0 读回校准改写直连 hal（真机 4 用例 PASS，P0.2 能力保留）、text_pipeline 删 legacy `RenderText/RenderTextBatch`；J1 修复：idle 回调改边沿触发（Release 仅 refs 真转移到 0、markInflight 仅真降到 0 时触发）+ `repool` 查重 + `attack_test.go` 两条新钉，复现红→绿；J2 修复：`drain` 观察 token、`invalidate` 经可选 `Discard()` 口丢记录（webgpu `workDoneToken.Discard` → 新 `rwgpu.FutureForget`），三包测试绿。门禁：全仓构建绿（raw 红仅 C2 既有破损包）、vet 双标签 **61/58 精确回基线零新增**（nogpu 须排除 4 个 GPU-only 全排除包，否则 vet 整轮中止——新发现采集口径坑）、已删符号残留 grep 0（余下命中=别包同名函数/过时注释已修）、windows/darwin 交叉绿、gpu 包整包真机 FAIL 7 条与 `surface_pools.md:72-76` 基线**逐名一致零新增**、webgpu 1 条=I2 既有、res `-race -count=2` 绿、gpu/rwgpu/webgpu/wrgate 测试绿。**门禁已全部跑完**：conformance 双后端 PASS（`e1-conformance.txt`）、逐文件 419 个（421−3 删+1 增）373/17/1/28 与基线对账吻合、FAIL 名单逐名一致零新增（`e1-per-file-tests-detailed.txt`）、`-race` 四包零竞态（全包 FAIL 均为既有断言红非竞态，`e1-race.txt`）、五目标构建 321/317/327/319/315（`e1-build-five-target.txt`）；真窗按 §4.1 例外以门禁替代。踩坑记录：P2.4d 门禁脚本输出路径硬编码到本阶段目录，复用会覆盖上阶段证据（per-file-tests.txt、conformance/rerun-*.txt 两处已踩中并 git 恢复），后续复用须改路径参数。证据：`evidence/P2.4e/`（assessment / j1-overrelease-red / j2-j3-enum-evidence / e1-vet-count / e1-vet-default / e1-vet-nogpu / e1-gpu-pkg-test / e1-build-five-target / e1-conformance / e1-per-file-tests(+detailed) / e1-race）
 
 **P2.4d 开工载体（2026-10-30 开工登记，方向已确认，评估见 `evidence/P2.4d/assessment.md`）**
 
@@ -147,7 +159,7 @@
 | P2.4b | 预算统一（六口径 → 一套 Budget，按域分账） | P2.4a | ✅ | `evidence/P2.4b/` |
 | P2.4c | 延迟释放统一（三队列 → `res/registry`） | P2.4b | ✅ | `evidence/P2.4c/` |
 | P2.4d | 同尺寸纹理分配收敛（六处 → `res/cache`） | P2.4c | ✅ | `evidence/P2.4d/` |
-| P2.4e | 裁剪 / 混合枚举 / 呈现入口收敛 | P2.4d | ⬜ | `evidence/P2.4e/` |
+| P2.4e | 裁剪 / 混合枚举 / 呈现入口收敛 | P2.4d | 🟡 | `evidence/P2.4e/` |
 | P2.5 | 包组织收口：`go list` 对比、分层约束测试、索引与总账同步 | P2.4e | ⬜ | `evidence/P2.5/` |
 | P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ⬜ | `evidence/P2.6/` |
 | P3.0 | 依赖图 + 文档更新（PLAN §5 + `RENDER_API_CATALOG.md`），再实现 | P2.6 | ⬜ | `evidence/P3.0/` |
@@ -207,6 +219,9 @@
 | I2 | P2.4d | `gpu/webgpu/swapchain_x11_linux_test.go:219`（`TestS68_Swapchain_X11_MultiFramePresent`）期望第 6 帧 `sc.Resize(160,120)`（与原尺寸同值）能抬 `reconfigures`，实测 `acquires=12 presents=12 reconfig=0` → FAIL。产品侧 `swapchain_configure.go:213` 自 `34d9785e`（T1.2 swapchain 拆刀）起把同尺寸 `Resize` 定为 no-op（避 `Surface.Configure` 抖动致黑闪），该用例由 `8e4c0e99`（S6）引入、早于这次语义变更。**P2.4d 干净树 `ac2e58b3` 同断言同日志逐项复现**，非 P2.4d 回归；本轮把 `gpu/webgpu` 纳入逐文件口径（P2.4c 口径只含 4 包）才把它暴露出来 | P2.4e（呈现入口收敛，与 I1 同一条线）：先拍板「用例期望改绑真实尺寸变化」还是「`Resize` 需要显式 force 重配口」，两边都对齐 Skia/Flutter 语义后再动，禁止为凑绿直接删断言；证据 `evidence/P2.4d/per-file-tests-notes.md` §4 | ⬜ |
 | I3 | P2.4d | R20 `gray_red_band_matrix_exact @(408,274)` 红：`got=(0.898,0.200,0.149) want=(0.404,0.404,0.404)`——Spike 把灰度矩阵换成 identity、Recover 恢复后，GRAY 卡仍保持彩色（层录制没有按新矩阵重录）。P1.4 基线 native seed/confirm 的 stderr 是同一行、同一 got/want（`baseline/windows/ui_wr_r20_filter/default/native/{seed,confirm}/stderr.log:5`），故非 P2.4d 回归。R20 关闭于 2026-08-25（`6a752a5d`），P1.4 采集前唯一动 layer recording 的提交是 `b7deb056`（2026-10-23，hand layers immutable recordings），目前只是疑点，**未做该提交前后 A/B，不作因果结论** | P2.6 前诊断（C4 的 R20 子项）：先 A/B 定位重录路径，再对齐 Skia/Flutter 的不可变录制语义 | ⬜ |
 | I4 | P2.4d | R20 `r20_steady.png` / `r20_recover.png` 全黑：1200x800、RGB 全 0、5585 B；本轮 stderr 另有 `embedder: snapshot request timed out`。P1.4 归档的基线两张图同尺寸同全黑，属既有问题；`r20_final.png` 正常（extrema 14–249）说明不是整条截图链坏 | P2.6 前诊断（SnapshotAsync 黑图）：与 R20 的 steady/recover 探针一起解剖，禁止用 final 金图掩盖 | ⬜ |
+| J1 | P2.4d 收口审计（2026-10-31） | `res.Registry` idle 回调电平触发（`registry.go:438` 只查当前状态不查转移沿）+ `res.Cache.repool` 无查重（`cache.go:243`）：调用方对同一 `Ref` 双重 `Release`（违约）时池桶重复入桶——复现红测试 1→2（`evidence/P2.4e/j1-overrelease-red.txt`）；进而在下次 `Acquire` 弹出重复 id 时 `acquireIfIdle` 失败走 `retireEntry` 把在借条目标死，若恰逢他窗刚借出则把他人 ref 减掉提前回池（后者为源码推演，同根因）。`attack_test.go:43` 只钉裸 registry refcount 的 over-release，带 idle 回调的 cache 路径未覆盖 | P2.4e：`repool` 查重 + 回调边沿触发（或 Ref 恰一次防护）+ `attack_test.go` 补「带回调 over-release」负向用例 | ⬜ |
+| J2 | P2.4d 收口审计（2026-10-31） | `rwgpu` work-done 记录包级 map（`queue_workdone.go:61`）仅 `FutureDone`/`WaitForFuture` 观察时删除——全仓观察点闭环枚举只有 `gpu/webgpu/queue.go:65/77`（token 的 Done/Wait）；`directSubmit.drain/invalidate` 不解 token（唯一调用点 `gpu_shared.go:582-584`，设备切换/丢失时）→ 该时刻仍在飞的提交的记录永久滞留。量级小：稳态由 pump 每提交/每次 endSubmission 观察兜住（`endSubmission` 内含 `s.direct.pump()`） | P2.4e：`drain` 对 token 补一次观察（GPU 已 WaitIdle，观察即删）+ invalidate 路径给记录加清理出口 | ⬜ |
+| J3 | P2.4d 收口审计（2026-10-31） | 疑点「`Submission.Begin` 丢未决 jobs → 错误路径 inflight 泄漏」经全调用点核查**收回**：`Begin` 生产零调用（jobs 由 `SubmitDone` 清）；`endSubmission` 5 处同步点（`render_session.go:1040/1124/2158/2235/5754`）+ `Destroy` 末尾 WaitIdle 后强制 endSubmission + 设备丢失 `sub.Invalidate()`（:849）配对闭合，无洞（证据 `evidence/P2.4e/j2-j3-enum-evidence.txt`） | 无需修复（核查闭合，登记防重查） | ✅ 2026-10-31 核查闭合 |
 
 ## 3 每个任务的开工条件与完成标准
 
