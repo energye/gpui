@@ -109,3 +109,11 @@
 - **剩余嫌疑（下一窗口专项）**：`dual_tex_blend.go` 的 `dualTexAdvancedBlendViewsMultiBundle` 内部——dst 采样源（scratch vs dstView）、multiply shader 的 dst 读取、lead-submit 与 blit-submit 的顺序。需通读 bundle 内部（~150 行）+ 必要时在 bundle 的 render pass 内加探针。
 - 顺带确认：recordEnc=nil 时 else 分支人为制造 "no encoder" 错误再走 bundle 补救——流程怪但功能可达，bundle 成功（outs=1 cmd=true）。
 - 探针已全部移除。
+
+## 2026-10-31 续9：misc_draw 三轮（探针到 wgpu 边界，dual_tex 专项立案）
+
+- **探针链终点数据**（WaitIdle 后回读实测）：resolve ✓ 执行、layer srcView@(16,16)=(229,229,229,255) ✓ 灰在、dst view seed ✓ 红、**dual-tex bundle 的 out RT @(16,16)=(0,0,0,255)**——shader 的 dst 采样在执行时读到黑（seed 写入与 lead 队列 CB 的时序/绑定错位），multiply 输出 0。
+- out RT dims=88x48（layer RT 尺寸，非 clip 24x12）——UV 映射跨尺寸换算本身自洽（中心点透明=填充区外，符合预期），病灶在 dst 采样内容非几何。
+- **专项立案（下一窗口）**：通读 `dual_tex_blend.go` 的 `dualTexAdvancedBlendViewsMultiIntoEncoder` bind group 链（multiBindGroup 的 dst 绑定纹理 vs seed 写入纹理是否同一）+ `seedViewFromRGBA` 的写入目标 + lead 队列与 WriteTexture 的队列时序（wgpu queue write 立即性 vs CB 提交序）。
+- 顺带收获：misc_draw 的 GPU 意图子测试群已全部分类；layer RT 88x48 尺寸链（层 bounds 计算）值得单独看一眼。
+- 探针全部移除。
