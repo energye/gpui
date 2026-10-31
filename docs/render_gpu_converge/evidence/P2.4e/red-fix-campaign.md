@@ -87,3 +87,10 @@
 - 已修：render_session_test 全文件绿——FullFlow 补 `ensureStencilPipelines`（ensurePipelines 只管 SDF/convex，stencil 走 ensureStagePipelines 按需路径，生产由注入+帧路径调）；凸重建 mask-only 变体 ×2；ClipLayoutRecreation 撤误 pin。ensureImagePipeline/ensureYUV/blit 三变体补 `ensureClipBindLayout`（textured_quad.wgsl group(1)=clip 契约，standalone session 直接调 buildGPUTextureResources 时 clip 布局未惰性创建 → 管线验证失败）。
 - ttc_cjk_gpu_repro 定性：`SyncAtlasTextures` 只为脏页建视图，测试的 page 0 无脏标记 → PageTextureView nil——引擎构造与 Sync 守卫条件的匹配问题，下一窗口开篇处理（testprobeTTC_4FaceMixedGPURender 同源已 PASS 说明主路径通，仅 CJK 掩码路径的页标记缺失）。
 - gpu 包现状：整包绿、逐文件仅 ttc 1 条（其余全清）。
+
+## 2026-10-31 续6：批次7 落档（ttc 闭合 + 预算钉改写）
+
+- ttc_cjk_gpu_repro 三用例全绿（Sync 循环至页视图就绪 + 预算豁免后整页上传通过）。
+- 预算钉改写：TestUploadBudget_DefersLargeFirst 钉的正是旧饥饿契约 → 改写为 TestUploadBudget_FullPageExempt_PartialTrimmed（双口径：整页豁免 / 局部最大者先裁 / 预算内不裁）。
+- **gpu 包整包+逐文件全绿**。真产品 bug 收获：整页上传永久饥饿（compaction 页文字永不上屏）。
+- 剩余：深潜 4（misc_draw 混色 / s6_9 预算 / filter_present readback / text_transform+video）+ rasterizer 定性 + 包级耦合 8 + X11/seat 3 定性落实。
