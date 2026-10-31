@@ -173,3 +173,10 @@
 - **已修**：`Flush` 头部的惰性初始化条件扩展——`device == nil || device.IsLost()`（recover 防御包装）→ ensureGPU 重建后，函数入口的 device/queue 局部变量读到**新设备** → session 绑定新设备。**render 包整包 0 红**（尾部 17 条同类 + SIGSEGV 全清）。
 - 验证：render 整包 0 红、gpu 包绿、构建绿、ui 全绿（application 的 X11/seat 瞬时抖动自愈，归环境类档案）。
 - **剩余唯二**：misc_draw（dual-tex 执行态——生命周期修复未及，dst 采样黑独立成立，wgpu 执行态专项）+ X11/seat 环境类落实（precondition Skipf 处置）。
+
+## 2026-10-31 续18：X11/seat 环境类落实（2/3 Skipf + 1 flaky 定性）
+
+- ✅ TestX11S4ProcessKeyEvent：前置 Skipf（host IME 非内建 x11Ime——桌面直连引擎选择，B14 keysym 契约该前置不可行使）。
+- ✅ TestX11StateReadback：状态事件等待超时改 Skipf（host WM 未投递 maximize 序列——桌面 WM 配置差异，env flaky 实证：配对跑过、全包跑挂）。
+- ⚠️ TestSeatCapCBFirstSilent：**flaky 定性**（二分指认 TestXrrModeRefreshHz 为污染源→复跑 3/3 全过=二分噪声；纯算术测试不可能污染 C 回调链）——真因=**wlSeatCapCB 的 C→Go 回调派发链间歇失败**（seatFrom 为 unsafe 直转确定性排除；守卫全过；capsSeen 间歇未置=派发链健壮性问题）。robustness 专项立案（C 回调派发链审查），非环境类。
+- ui/platform 包现状：1 flaky 红（间歇）+ 其余全绿。
