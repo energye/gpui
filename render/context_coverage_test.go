@@ -442,6 +442,9 @@ func TestContextSetTextMode(t *testing.T) {
 // --- Brush API ---
 
 func TestContextSetFillBrushCoverage(t *testing.T) {
+	// CPU-pixel assertions: force the CPU rasterizer (GPU interception
+	// leaves dc.pixmap untouched when the GPU library is available).
+	t.Setenv("GOGPU_RENDER_MODE", "cpu")
 	dc := NewContext(100, 100)
 	defer func() { _ = dc.Close() }()
 

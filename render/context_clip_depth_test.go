@@ -5,6 +5,8 @@ import (
 )
 
 func TestClipCircle_CPUPixels(t *testing.T) {
+	// CPU-pixel assertions: force the CPU rasterizer (see P2.4e red-fix campaign).
+	t.Setenv("GOGPU_RENDER_MODE", "cpu")
 	// Verify CPU arbitrary path clip works at pixel level.
 	// This is the baseline — if CPU clip works, GPU depth clip should match.
 	dc := NewContext(100, 100)

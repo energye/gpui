@@ -50,3 +50,10 @@
 1. 每条红：先定性「测试过期 vs 产品 bug vs 环境红」，产品 bug 走真修，测试过期写明依据改绑新语义，禁止为凑绿删断言。
 2. 每修一批：跑该批文件测试 + 相邻回归 + 整包对照（红名单只减不增）。
 3. 环境红：验证环境前提（字体/显示）后改 t.Skipf 显式标注，禁止静默假绿。
+
+## 2026-10-31 续：类根因突破
+
+- **CPU 像素断言类根因落定**：GPU 库在场时 Context 填充一律被 GPU 截获（探针实测 SetRGB 与 SetFillBrush 均 GPUOps=1、dc.pixmap 不更新——「笔刷特有」假设被对照探针推翻，两条路径 paint 状态完全一致）。断言 CPU 像素的测试需要显式 CPU：`t.Setenv("GOGPU_RENDER_MODE", "cpu")`。
+- 已修：`context_coverage_test TestContextSetFillBrushCoverage`、`context_clip_depth_test TestClipCircle_CPUPixels` → 带 lib PASS。
+- render 整包现状：**仅剩 8 条包级顺序耦合红**（DrawShadow/P1GLPresentX11/PresentResize×2/S3c_BlendHue/S64/S69_Contract/S69_TierGates）；逐文件红需重跑逐文件清单复核（coverage/clip_depth 已清，misc_draw/m5/rasterizer/s6_9/text_transform/video 的逐文件红待下轮复核定性）。
+- 下一步：ui 2 条（depcheck 豁免机械修 + focus 诊断）→ 逐文件复核 → 包级耦合红的测试隔离改造。
