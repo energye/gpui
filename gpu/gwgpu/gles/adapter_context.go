@@ -52,6 +52,10 @@ type AdapterContext struct {
 	// see UnlockKeepBinding.
 	keepTid            int32
 	keepFallbackLogged bool
+
+	// refs counts ownership claims (creator starts at 1); release()
+	// destroys when the last drops (J5, P2.4e — windows twin).
+	refs int
 }
 
 // NewAdapterContext creates an AdapterContext with a hidden window DC.
@@ -60,6 +64,25 @@ type AdapterContext struct {
 func NewAdapterContext(hiddenDC wgl.HDC) *AdapterContext {
 	return &AdapterContext{
 		hiddenDC: hiddenDC,
+		refs:     1,
+	}
+}
+
+// retain adds one ownership claim (Device.Open).
+func (c *AdapterContext) retain() {
+	c.mu.Lock()
+	c.refs++
+	c.mu.Unlock()
+}
+
+// release drops one ownership claim and destroys when the last drops.
+func (c *AdapterContext) release() {
+	c.mu.Lock()
+	c.refs--
+	dead := c.refs <= 0
+	c.mu.Unlock()
+	if dead {
+		c.Destroy()
 	}
 }
 

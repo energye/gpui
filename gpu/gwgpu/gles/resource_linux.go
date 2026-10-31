@@ -428,10 +428,13 @@ func (s *Surface) Destroy() {
 		s.eglWindow = 0
 	}
 
-	// Only destroy AdapterContext if Surface owns it (Wayland path).
-	// When shared from Instance (X11/headless), Instance.Destroy handles cleanup.
+	// Only release the AdapterContext claim if Surface owns it (Wayland
+	// path); when shared from Instance (X11/headless), Instance.Release
+	// handles cleanup. release() (J5, P2.4e) destroys only when no Device
+	// still holds a claim — the first window's close must not kill the
+	// shared device's context.
 	if s.ownsContext && s.ctx != nil {
-		s.ctx.Destroy()
+		s.ctx.release()
 	}
 	s.ctx = nil
 }

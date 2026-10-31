@@ -48,6 +48,10 @@ func (a *Adapter) Open(features gputypes.Features, limits gputypes.Limits) (hal.
 	if a.ctx == nil || a.ctx.GL() == nil {
 		return hal.OpenDevice{}, fmt.Errorf("gles: adapter has no GL context — pass a surface hint to CreateSurface before RequestDevice")
 	}
+	// J5 (P2.4e): the device borrows this context for its whole life — take
+	// the ownership claim BEFORE Lock (Open holds mu to the end; retain
+	// re-locks and would self-deadlock inside the held span).
+	a.ctx.retain()
 
 	glCtx := a.ctx.Lock()
 	defer a.ctx.Unlock()

@@ -941,20 +941,25 @@ func (d *Device) PopErrorScope() *hal.GPUError { return nil }
 // Release releases the device. Bind failure (driver gone) still clears
 // the VAO bookkeeping: handles die with the driver (Windows twin parity).
 func (d *Device) Release() {
-	if d == nil || d.vao.Load() == 0 {
+	if d == nil {
 		return
 	}
-	if d.ctx == nil || d.ctx.GL() == nil {
-		d.vao.Store(0)
-		return
-	}
-	if glCtx, err := d.ctx.TryLock(); err == nil {
-		defer d.ctx.Unlock()
-		if glCtx != nil {
-			glCtx.DeleteVertexArrays(d.vao.Load())
+	if d.vao.Load() != 0 && d.ctx != nil && d.ctx.GL() != nil {
+		// Scoped unlock ON PURPOSE (J5 lesson): the release below must run
+		// after this block, and a function-wide defer would still hold the
+		// claim ordering fine but reads better scoped.
+		if glCtx, err := d.ctx.TryLock(); err == nil {
+			if glCtx != nil {
+				glCtx.DeleteVertexArrays(d.vao.Load())
+			}
+			d.ctx.Unlock()
 		}
+		d.vao.Store(0)
 	}
-	d.vao.Store(0)
+	if d.ctx != nil {
+		d.ctx.release()
+		d.ctx = nil
+	}
 }
 
 // Type aliases for hal descriptors

@@ -352,20 +352,22 @@ func makeAdapterFromContext(ctx *AdapterContext) hal.ExposedAdapter {
 
 // Release releases the instance resources.
 func (i *Instance) Release() {
+	// release() (J5, P2.4e) instead of unconditional Destroy: a context a
+	// still-alive Device holds a claim on survives until that claim drops.
 	if i.ctx != nil {
-		i.ctx.Destroy()
+		i.ctx.release()
 		i.ctx = nil
 	}
 	if i.x11 != nil {
 		if i.x11.ctx != nil {
-			i.x11.ctx.Destroy()
+			i.x11.ctx.release()
 			i.x11.ctx = nil
 		}
 		i.x11 = nil
 	}
 	for _, c := range i.devCtxs {
 		if c != nil {
-			c.Destroy()
+			c.release()
 		}
 	}
 	i.devCtxs = nil

@@ -38,6 +38,14 @@ type AdapterContext struct {
 	// (ui/raster hub); see UnlockKeepBinding.
 	keepTid            int
 	keepFallbackLogged bool
+
+	// refs counts ownership claims on the context (creator starts at 1). A
+	// Device opened from this context holds one, so the creator's teardown
+	// (Wayland: the first window's Surface.Destroy) cannot destroy a context
+	// other windows' shared device still uses (J5, P2.4e). release() destroys
+	// when the last claim drops; borrowed contexts (owns=false) never destroy
+	// here — their owner (Instance) releases them.
+	refs int
 }
 
 // NewAdapterContext wraps an already-created EGL context and GL function table.
@@ -47,6 +55,27 @@ func NewAdapterContext(eglCtx *egl.Context, glCtx *gl.Context, owns bool) *Adapt
 		eglCtx: eglCtx,
 		gl:     glCtx,
 		owns:   owns,
+		refs:   1,
+	}
+}
+
+// retain adds one ownership claim (Device.Open).
+func (c *AdapterContext) retain() {
+	c.mu.Lock()
+	c.refs++
+	c.mu.Unlock()
+}
+
+// release drops one ownership claim and destroys the context when the last
+// claim drops (owned contexts only — borrowed ones are released by their
+// owner, see Instance.Release).
+func (c *AdapterContext) release() {
+	c.mu.Lock()
+	c.refs--
+	dead := c.refs <= 0 && c.owns
+	c.mu.Unlock()
+	if dead {
+		c.Destroy()
 	}
 }
 

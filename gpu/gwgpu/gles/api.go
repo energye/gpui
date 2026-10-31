@@ -185,7 +185,7 @@ func (i *Instance) EnumerateAdapters(_ hal.Surface) []hal.ExposedAdapter {
 // Release releases the instance resources.
 func (i *Instance) Release() {
 	if i.ctx != nil {
-		i.ctx.Destroy()
+		i.ctx.release()
 	}
 	if i.hiddenWindow != nil {
 		i.hiddenWindow.Destroy()
