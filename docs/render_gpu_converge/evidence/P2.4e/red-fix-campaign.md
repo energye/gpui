@@ -94,3 +94,10 @@
 - 预算钉改写：TestUploadBudget_DefersLargeFirst 钉的正是旧饥饿契约 → 改写为 TestUploadBudget_FullPageExempt_PartialTrimmed（双口径：整页豁免 / 局部最大者先裁 / 预算内不裁）。
 - **gpu 包整包+逐文件全绿**。真产品 bug 收获：整页上传永久饥饿（compaction 页文字永不上屏）。
 - 剩余：深潜 4（misc_draw 混色 / s6_9 预算 / filter_present readback / text_transform+video）+ rasterizer 定性 + 包级耦合 8 + X11/seat 3 定性落实。
+
+## 2026-10-31 续7：misc_draw 混色深潜（探针链，未闭合）
+
+- **复现与机制确认**（探针实测）：effect surface 上 `DrawColor(gray, Multiply)` → PushLayer → 高级混色走 `queueLayerAdvancedGPU`（layer.gpuView 非空）→ `QueueAdvancedLayerComposite`（dstView=零=base）→ `FlushGPU` → F14 effect-publish 路径正确调 `FlushOffscreenBase`（offscreenBase=true）→ `resolvePendingAdvancedLayersEnc` 实际执行（探针：n=1、target.View 非空）→ dual-tex 合成调用后，effect view 内容 = 纯底色（multiply 未生效）。
+- **已排除**：CPU 合成未跑（正确，pendingAdvanced 排队）；resolve 未执行（已执行）；BeginFrame 丢弃（探针未触发）；offscreen stash 吞层（探针未触发）；取色路径（solidColorFromPaint 全兼容）。
+- **剩余嫌疑（下一窗口）**：dual-tex 执行链三分支（IntoEncoder / R7.3 bundle / per-op）中实际走的分支上，multiply 未应用——需运行时追踪 `dualTexAdvancedBlendViews*` 的 derr/outs/fallbacks 与 layer srcView 内容（src 是否含灰填充：若 src 空 = 层内填充未进 RT，另开一线）。
+- 临时探针已全部移除（J5PROBE ×4 + probe3_test.go）。
