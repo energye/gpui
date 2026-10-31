@@ -153,3 +153,10 @@
 - **结构性定案**：render 包测试共享 GPU 会话状态（全局加速器、共享设备、效果视图池、purge 注册表），特定测试组合互相作用——需要测试隔离基础设施（每测试的 GPU 状态保存/恢复或进程级隔离），非逐条修。
 - P1GLPresentX11 在部分组合中被牵连（其 X11 窗口/瘦交换链呈现与共享状态交互），非根因。
 - **剩余红的清偿路径**：(1) 测试隔离基础设施（TestMain 级 GPU 状态管理）一次性收敛耦合类 9+ 条；(2) wgpu 执行态专项（misc_draw，需 capture 工具）；(3) GPU 意图测试深潜（text_transform/video）按档进行。
+
+## 2026-10-31 续15：耦合类四轮（SIGSEGV 精确定位 + releaseShared 生命周期修复落地）
+
+- **已修（落地）**：`releaseShared` 重构——末笔释放前先 `abandonAllContextGPU()`（全部已注册 Context 丢弃 GPU 状态，下次使用重建；shareMu 落锁规避重入死锁）。**render 包 8→1**。
+- **SIGSEGV 精确定位**（WaitIdle 后回读实测）：`Device.CreateTexture → AdapterContext.Lock(0x0)`——**Device 包装非 nil 但 `ctx` 字段为 nil**。Device{ctx:nil} 的来源链：`Adapter.Open` 的 retain 前置已挡占位适配器，剩余链 = 共享设备 teardown（J5 的 `Device.Release → d.ctx=nil`）后，**缓存的 Device 包装被后续路径复用**（注册表/单例持引用）。
+- **下一窗口专项**：追踪失败包跑中的设备创建链（Open 时 adapter ctx、创建时 device ctx）+ `Device.Release` 后包装器的存活引用面（谁在 Release 后仍持有并复用）。
+- 二轮探针已移除；自动二分结论（集合交互、非单调）维持。
