@@ -74,33 +74,50 @@ func TestS42_SyncAtlasTextures_PartialThenHit(t *testing.T) {
 	}
 }
 
-func TestUploadBudget_DefersLargeFirst(t *testing.T) {
+// TestUploadBudget_FullPageExempt_PartialTrimmed pins the upload-budget
+// contract (J5/P2.4e starvation fix): full-page entries are EXEMPT — a whole
+// page always exceeds the per-frame budget, so budgeting it defers the same
+// entry every frame and the page's text never uploads. The budget's real
+// job is trimming over-budget PARTIAL regions largest-first.
+func TestUploadBudget_FullPageExempt_PartialTrimmed(t *testing.T) {
 	full := text.GlyphMaskDirtyUpload{Index: 0, FullPage: true}
 	small := text.GlyphMaskDirtyUpload{Index: 1, X: 0, Y: 0, W: 64, H: 64}
+	big := text.GlyphMaskDirtyUpload{Index: 1, X: 0, Y: 0, W: 1024, H: 256}
 	pageBytes := func(idx int) int {
 		if idx == 0 {
 			return 1024 * 1024
 		}
 		return 0
 	}
-	// Budget below the full page but above the small region: full page
-	// defers, small region still uploads the same frame.
 	out := applyGlyphUploadBudget(pageBytes, []text.GlyphMaskDirtyUpload{full, small}, 256*1024)
-	if len(out) != 2 {
-		t.Fatalf("want 2 entries back, got %d", len(out))
-	}
-	var sawDeferredFull, sawLiveSmall bool
+	var sawLiveFull, sawLiveSmall bool
 	for _, up := range out {
-		if up.FullPage && up.Deferred {
-			sawDeferredFull = true
+		if up.FullPage && !up.Deferred {
+			sawLiveFull = true
 		}
 		if !up.FullPage && !up.Deferred && up.W == 64 && up.H == 64 {
 			sawLiveSmall = true
 		}
 	}
-	if !sawDeferredFull || !sawLiveSmall {
-		t.Fatalf("budget must defer the full page and keep the small region: %+v", out)
+	if !sawLiveFull || !sawLiveSmall {
+		t.Fatalf("full page must be budget-exempt; small region must stay live: %+v", out)
 	}
+
+	// Partial regions over budget: largest partial defers, smallest survives.
+	out = applyGlyphUploadBudget(pageBytes, []text.GlyphMaskDirtyUpload{big, small}, 64*1024)
+	var sawDeferredBig, sawLiveSmall2 bool
+	for _, up := range out {
+		if up.W == 1024 && up.Deferred {
+			sawDeferredBig = true
+		}
+		if up.W == 64 && up.H == 64 && !up.Deferred {
+			sawLiveSmall2 = true
+		}
+	}
+	if !sawDeferredBig || !sawLiveSmall2 {
+		t.Fatalf("over-budget partials must trim largest-first: %+v", out)
+	}
+
 	// Within budget: nothing defers.
 	clean := applyGlyphUploadBudget(pageBytes, []text.GlyphMaskDirtyUpload{small}, 256*1024)
 	if clean[0].Deferred {
