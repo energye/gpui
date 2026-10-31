@@ -232,6 +232,12 @@ func main() {
 					ev.KeyCode, ev.Rune, ev.Pressed)
 			case platform.EventPointer:
 				fmt.Fprintf(os.Stderr, "probe: PTR kind=%d at (%.0f,%.0f)\n", ev.Pointer, ev.X, ev.Y)
+			case platform.EventCloseRequested:
+				// C3 (P2.4e): WM_DELETE_WINDOW arrives as EventCloseRequested
+				// (x11_linux.go:1552); the probe used to swallow it and hang
+				// until the harness SIGTERM fallback.
+				fmt.Fprintf(os.Stderr, "probe: close requested (WM_DELETE)\n")
+				return
 			case platform.EventClose:
 				fmt.Fprintf(os.Stderr, "probe: close\n")
 				return

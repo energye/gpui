@@ -287,7 +287,20 @@ func (c *Context) PresentFrameAuto(view gpucontext.TextureView, width, height ui
 	if c == nil {
 		return PresentOutcome{}, errors.New("render: nil context")
 	}
-	plan := c.PlanPresent(int(width), int(height))
+	// B4/P2.4e: PlanFramePresent is the single damage decision; this thin
+	// shell only dispatches the precomputed plan (PresentFramePlan).
+	return c.PresentFramePlan(view, width, height, c.PlanPresent(int(width), int(height)), present)
+}
+
+// PresentFramePlan executes a precomputed FramePresentPlan. Callers that
+// already hold a plan (the PresentTarget path clips the damage for metrics
+// before acquiring) must dispatch through here instead of re-planning, so
+// the mode and the presented rects can never come from two different
+// decisions.
+func (c *Context) PresentFramePlan(view gpucontext.TextureView, width, height uint32, plan FramePresentPlan, present func() error) (PresentOutcome, error) {
+	if c == nil {
+		return PresentOutcome{}, errors.New("render: nil context")
+	}
 	out := PresentOutcome{Mode: plan.Mode, Rects: len(plan.Rects)}
 
 	switch plan.Mode {

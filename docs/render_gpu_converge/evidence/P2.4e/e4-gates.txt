@@ -1,0 +1,9 @@
+# e4（B4 呈现入口收敛 + C7/I2/C3 + I1 解剖）门禁汇总 2026-10-31
+B4：present() 单计划化（PlanFramePresent 唯一决策 + PresentFramePlan 直通分发），平行 clipPresentDamage 删除（模式与矩形不再可能来自两份决策）；idle 判定归一到 plan.Mode；PresentFrameAuto 变薄壳
+I2：swapchain_x11 测试改绑同尺寸 no-op 语义 + MarkNeedsReconfigure 显式口钉 —— 桌面 X11 实跑 PASS
+C3：ui_ime_probe 补 EventCloseRequested 分支（WM_DELETE 不再被吞）
+C7 拆半：Surface.Destroy 函数级 defer Unlock vs ownsContext Destroy 再加锁 = 同 goroutine 自死锁（真因，dump 证实）→ Unlock 收紧作用域落地（Windows twin 无此洞）；开窗投递 hub（RunGLSync）两形态隔离验证通过（go l1 853帧 rc=0、multiwin go 8窗 rc=0）但 native multiwin 池 0 命中回归未根因 → 暂缓（e4-c7-pool-regression.md 三轮 A/B）
+I1：解剖落盘 i1-dissection.md（阻塞 FFI 持进程 gpuMu + 三环境三态 + H1-H3 候选链；修复方向待解剖闭合后拍板）
+门禁：构建绿、五目标计数 321/317/327/319/315=基线、vet 61/58 回基线、win/darwin 交叉绿、render 8 条既有红同名、scene/blend/raster/embedder 测试+race 绿、wrgate ok、conformance PASS（e4-conformance）
+真窗（headless Wayland gpui-p24e）：multiwin native rc=0 hits=10（C7-parked 树）、bscene rc=0（dualtex 域）、r20 rc=1=I3 既有红同名；l1_blank go + multiwin go 8 窗 rc=0 为 hub 开窗包裹版验证记录（暂缓前取证）；残留 clipPresentDamage=0
+门禁缺口新发现：ui/ 不在逐文件门禁清单 → TestUIDoesNotImportGPU（gpu 测试缝无豁免）与 TestFocus_KeyWithNoPrimary 潜伏既有红（干净树同红，已验）→ J4

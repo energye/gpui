@@ -989,6 +989,17 @@ func (a *PipelineApp) Open() error {
 	if a.target != nil {
 		return nil
 	}
+	// C7 (P2.4e): run the whole open sequence on the process GL thread. The
+	// open path binds the shared EGL contexts from this controller thread
+	// (surface create, adapter probe, swapchain FBO configure); the frame
+	// C7 (P2.4e): the open-path GL binding ops must not race the frame
+	// path's keep-binding. raster.RunGLSync (hub job) fixes both C7 open
+	// forms — validated go 档 l1_blank/multiwin 8 窗 rc=0 — BUT the native
+	// multiwin pool gate regressed to device-surface 0 hits (caps probing
+	// succeeds on-hub and perturbs downstream present config; mechanism not
+	// root-caused, see evidence/P2.4e/e4-c7-pool-regression.md). The wrap is
+	// parked until that dissection lands; the Destroy self-deadlock fix in
+	// gles/resource_linux.go is independent and stays.
 	t, err := OpenPresentTarget(a.host)
 	if err != nil {
 		return err

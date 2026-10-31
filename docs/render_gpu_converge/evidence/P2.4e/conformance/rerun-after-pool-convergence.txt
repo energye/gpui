@@ -1,13 +1,13 @@
 # P2.4d conformance dual backend
-# date: 2026-10-31T10:08:19+08:00
-# head: 39e71c79
+# date: 2026-10-31T11:30:50+08:00
+# head: e1605d51
 # 上界口径：P2.4c 已把 solid_gradient/text_image 的 max_steady_count_delta/bytes 收紧到 0/0
 
 ## 双后端（GPUI_CONFORMANCE_BACKENDS 默认 native+go）
 === RUN   TestConformanceDualBackend
---- PASS: TestConformanceDualBackend (0.79s)
+--- PASS: TestConformanceDualBackend (0.74s)
 PASS
-ok  	github.com/energye/gpui/render	0.801s
+ok  	github.com/energye/gpui/render	0.757s
 # exit: 0
 
 ## 三场景逐字节对账（frame.png vs 提交前基线）

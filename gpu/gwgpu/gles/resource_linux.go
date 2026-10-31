@@ -401,11 +401,15 @@ func (s *Surface) ActualExtent() (width, height uint32) {
 // Bind failure (driver gone) still clears bookkeeping: handles die
 // with the driver.
 func (s *Surface) Destroy() {
-	// Release swapchain FBO before tearing down the GL context.
+	// Release swapchain FBO before tearing down the GL context. The Unlock
+	// is scoped to this block ON PURPOSE: the ownsContext Destroy below
+	// re-locks the same AdapterContext mutex, and a function-wide defer
+	// would self-deadlock the closer (C7 close form, P2.4e root cause —
+	// Go mutexes are not reentrant).
 	if s.ctx != nil {
 		if glCtx, err := s.ctx.TryLock(); err == nil {
-			defer s.ctx.Unlock()
 			destroySwapchainFBO(glCtx, s.swapchainFBO, s.colorTexture)
+			s.ctx.Unlock()
 		}
 	}
 	s.swapchainFBO = 0

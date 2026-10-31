@@ -159,26 +159,6 @@ func damageRectsAreaSum(rects []image.Rectangle) int64 {
 	return sum
 }
 
-// clipPresentDamage clips physical damage rects to the surface and coalesces
-// touching rects. Returns nil when nothing remains (full present / idle).
-func clipPresentDamage(rects []image.Rectangle, w, h int) []image.Rectangle {
-	if len(rects) == 0 || w <= 0 || h <= 0 {
-		return nil
-	}
-	surface := image.Rect(0, 0, w, h)
-	out := make([]image.Rectangle, 0, len(rects))
-	for _, r := range rects {
-		r = r.Intersect(surface)
-		if !r.Empty() {
-			out = append(out, r)
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return CoalesceDamageRects(out, MaxTrackedDamageRects)
-}
-
 func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (PresentOutcome, error) {
 	out := PresentOutcome{}
 	if t == nil {
@@ -227,7 +207,7 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		draw(t.dc)
 	}
 
-	// Snapshot damage for metrics before PresentFrameAuto consumes the plan.
+	// Snapshot damage for metrics before the plan consumes it.
 	// Clipped to the physical surface: damage fully outside it (e.g. spinner
 	// rects below the viewport fold) presents nothing — acquiring a buffer
 	// for them only to discard repeats the swapchain poison below every
@@ -239,16 +219,19 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 	if t.lastDamageArea < 0 {
 		t.lastDamageArea = 0
 	}
-	// Damage for the OS compositor: every changed rect, clipped to the
-	// physical surface. The backend decides whether it can present partially
-	// (GL: three EGL extensions + buffer age); the others present full.
-	presentRects := clipPresentDamage(t.dc.FrameDamage(), int(pw), int(ph))
-	t.lastDamageRectSum = damageRectsAreaSum(presentRects)
+	// B4/P2.4e: ONE damage decision. PlanFramePresent clips, coalesces and
+	// picks the mode; plan.Rects feeds both the flush path and the OS
+	// compositor damage below. The parallel clipPresentDamage copy is gone —
+	// the presented mode and the presented rects can no longer disagree.
+	plan := t.dc.PlanPresent(int(pw), int(ph))
+	t.lastDamageRectSum = damageRectsAreaSum(plan.Rects)
 	// Idle frames skip the swapchain entirely: acquiring a buffer and then
 	// discarding it without present leaves the image unrecycled in the
 	// driver, draining the swapchain until acquire times out (~250ms) and
-	// forces a ~1s reconfigure loop on static windows.
-	if !forceFull && clipped.Empty() && t.postResizeFull <= 0 && !t.inResizeStormLocked() {
+	// forces a ~1s reconfigure loop on static windows. Debts (postResizeFull)
+	// and resize storms already forced forceFull above, so an idle plan here
+	// really means nothing to present.
+	if plan.Mode == PresentModeIdle && !forceFull {
 		out = PresentOutcome{Mode: PresentModeIdle, Idle: true}
 		t.lastOutcome = out
 		return out, nil
@@ -369,7 +352,15 @@ func (t *PresentTarget) present(draw func(dc *Context), forceFull bool) (Present
 		t.lastOutcome = out
 		return out, nil
 	}
-	out, err = t.dc.PresentFrameAuto(view, frame.Width, frame.Height, func() error { return presentFn(presentRects) })
+	// B4/P2.4e: dispatch the precomputed plan — mode and rects come from the
+	// same decision. Full coverage presents without a damage rect list
+	// (EndFrame), matching the pre-convergence full path.
+	out, err = t.dc.PresentFramePlan(view, frame.Width, frame.Height, plan, func() error {
+		if plan.Mode == PresentModeFull {
+			return presentFn(nil)
+		}
+		return presentFn(plan.Rects)
+	})
 	if err != nil {
 		t.sc.DiscardFrame(frame)
 		return out, fmt.Errorf("render: PresentFrameAuto: %w", err)

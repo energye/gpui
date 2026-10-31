@@ -204,6 +204,10 @@ func TestS68_Swapchain_X11_MultiFramePresent(t *testing.T) {
 			t.Fatalf("EndFrame %d: %v", i, err)
 		}
 		if i == 5 {
+			// I2 (P2.4e): same-size Resize is a deliberate no-op — it avoids
+			// Surface.Configure thrash/black flash (34d9785e). The old
+			// expectation that it reconfigures predates that semantics; the
+			// explicit escape is MarkNeedsReconfigure (asserted below).
 			if err := sc.Resize(160, 120); err != nil {
 				t.Fatalf("Resize: %v", err)
 			}
@@ -215,8 +219,21 @@ func TestS68_Swapchain_X11_MultiFramePresent(t *testing.T) {
 	if st.Acquires != n || st.Presents != n {
 		t.Fatalf("stats acquires=%d presents=%d want %d", st.Acquires, st.Presents, n)
 	}
-	if st.Reconfigures < 1 {
-		t.Fatalf("expected reconfigure counter, got %d", st.Reconfigures)
+	if st.Reconfigures != 0 {
+		t.Fatalf("same-size Resize must be a no-op, reconfigures=%d", st.Reconfigures)
+	}
+
+	// Explicit reconfigure escape: schedule and verify it fires on BeginFrame.
+	sc.MarkNeedsReconfigure()
+	frame, err := sc.BeginFrame()
+	if err != nil {
+		t.Fatalf("BeginFrame after MarkNeedsReconfigure: %v", err)
+	}
+	if err := sc.EndFrameWithDamage(frame, nil); err != nil {
+		t.Fatalf("EndFrame after MarkNeedsReconfigure: %v", err)
+	}
+	if st = sc.Stats(); st.Reconfigures < 1 {
+		t.Fatalf("MarkNeedsReconfigure must reconfigure on BeginFrame, got %d", st.Reconfigures)
 	}
 }
 

@@ -15,11 +15,12 @@ import (
 	"testing"
 )
 
-// TestClipPresentDamage pins the rects handed to the OS present path:
-// clipped to the physical surface, empty rects dropped, touching rects
-// coalesced (the same policy PlanFramePresent uses).
-func TestClipPresentDamage(t *testing.T) {
-	got := clipPresentDamage([]image.Rectangle{
+// TestPlanFramePresentRects pins the rects the single damage decision hands
+// to the present path: clipped to the physical surface, empty rects dropped,
+// touching rects coalesced (B4/P2.4e — the parallel clipPresentDamage copy
+// was removed; plan.Rects feeds both the flush path and the OS compositor).
+func TestPlanFramePresentRects(t *testing.T) {
+	plan := PlanFramePresent([]image.Rectangle{
 		image.Rect(10, 10, 20, 20),
 		image.Rect(20, 10, 30, 20), // touches the first → one rect
 		image.Rect(-50, -50, -10, -10),
@@ -29,22 +30,26 @@ func TestClipPresentDamage(t *testing.T) {
 		image.Rect(10, 10, 30, 20),
 		image.Rect(90, 90, 100, 100),
 	}
-	if len(got) != len(want) {
-		t.Fatalf("rects = %v, want %v", got, want)
+	if plan.Mode != PresentModeDamageMulti {
+		t.Fatalf("mode = %v, want DamageMulti (300px << 85%% coverage)", plan.Mode)
+	}
+	if len(plan.Rects) != len(want) {
+		t.Fatalf("rects = %v, want %v", plan.Rects, want)
 	}
 	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("rects = %v, want %v", got, want)
+		if plan.Rects[i] != want[i] {
+			t.Fatalf("rects = %v, want %v", plan.Rects, want)
 		}
 	}
-	if clipPresentDamage(nil, 100, 100) != nil {
-		t.Fatal("nil input must stay nil")
+
+	if plan := PlanFramePresent(nil, 100, 100); plan.Mode != PresentModeIdle {
+		t.Fatalf("nil input mode = %v, want Idle", plan.Mode)
 	}
-	if clipPresentDamage([]image.Rectangle{image.Rect(10, 10, 20, 20)}, 0, 100) != nil {
-		t.Fatal("zero surface must return nil")
+	if plan := PlanFramePresent([]image.Rectangle{image.Rect(10, 10, 20, 20)}, 0, 100); plan.Mode != PresentModeIdle {
+		t.Fatalf("zero surface mode = %v, want Idle", plan.Mode)
 	}
-	if clipPresentDamage([]image.Rectangle{image.Rect(-10, -10, 0, 0)}, 100, 100) != nil {
-		t.Fatal("fully outside damage must return nil")
+	if plan := PlanFramePresent([]image.Rectangle{image.Rect(-10, -10, 0, 0)}, 100, 100); plan.Mode != PresentModeIdle {
+		t.Fatalf("fully outside damage mode = %v, want Idle", plan.Mode)
 	}
 }
 
