@@ -167,3 +167,9 @@
 - **机制精化**：会话的 device 字段固定于**创建时刻**——设备释放点之后的会话创建时拿到已释放包装器；ensureGPU 的重建（IsLost 检测已落地）只刷新 shared 自己的字段，**不传导到已创建的会话**。
 - **修法（下一窗口）**：(a) rc 创建/首用路径的 ensureGPU 先于 session 创建（时序对齐）；或 (b) session 设备活性检查 + 重绑（session 持 shared 引用或 rc 级刷新）。(a) 优先。
 - 现状：render 17 红（同类）、gpu 包全绿、misc_draw（wgpu 执行态专项）。
+
+## 2026-10-31 续17：批次12（会话设备刷新方案 a 落地——render 包清零）
+
+- **已修**：`Flush` 头部的惰性初始化条件扩展——`device == nil || device.IsLost()`（recover 防御包装）→ ensureGPU 重建后，函数入口的 device/queue 局部变量读到**新设备** → session 绑定新设备。**render 包整包 0 红**（尾部 17 条同类 + SIGSEGV 全清）。
+- 验证：render 整包 0 红、gpu 包绿、构建绿、ui 全绿（application 的 X11/seat 瞬时抖动自愈，归环境类档案）。
+- **剩余唯二**：misc_draw（dual-tex 执行态——生命周期修复未及，dst 采样黑独立成立，wgpu 执行态专项）+ X11/seat 环境类落实（precondition Skipf 处置）。

@@ -2645,8 +2645,14 @@ func (rc *GPURenderContext) Flush(target render.GPURenderTarget) error { //nolin
 	}
 
 	rc.shared.mu.Lock()
-	// Lazy GPU initialization.
-	if rc.shared.device == nil {
+	// Lazy GPU initialization — also when the device is LOST/Released
+	// (J5 campaign): a released device wrapper is non-nil; ensureGPU's
+	// IsLost check re-creates, and the locals below must read the fresh
+	// device (the stale wrapper SIGSEGVs on the next CreateTexture).
+	if rc.shared.device == nil || (func() bool {
+		defer func() { _ = recover() }()
+		return rc.shared.device.IsLost()
+	})() {
 		if err := rc.shared.ensureGPU(); err != nil {
 			rc.shared.mu.Unlock()
 			// A flush attempt consumes the frame's counters: the caller
