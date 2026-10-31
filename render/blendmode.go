@@ -17,18 +17,18 @@ import intImage "github.com/energye/gpui/render/internal/image"
 //
 // # Representations in this repo
 //
-// Several packages historically defined their own BlendMode enums. They are
-// NOT interchangeable by raw numeric cast:
+// Historically several packages defined their own BlendMode enums. Since B3
+// (P2.4e) there is ONE shared numeric domain and ONE boundary:
 //
 //   - render.BlendMode (this type) — paint API; alias of internal/image.BlendMode
-//   - scene.BlendMode (uint32) — scene-graph / WGSL wire encoding (CSS-like order)
-//   - internal/blend.BlendMode — CPU Porter-Duff + advanced dispatch order
-//   - surface.BlendMode — surface capability subset; values align with this type
+//   - internal/blend.BlendMode — CPU dispatch; alias of the same
+//     internal/image.BlendMode, so it needs no conversion
+//   - scene.BlendMode (uint32) — scene-graph / WGSL wire encoding (CSS-like
+//     order); wire values are its own and stay stable (no re-recording)
 //
-// Always convert explicitly:
+// The single scene→paint boundary:
 //
 //	paint := sceneMode.ToPaintBlendMode() // scene → render
-//	fn := sceneMode.ToInternalBlendMode() // scene → internal/blend
 //
-// Never write render.BlendMode(sceneMode) or scene.BlendMode(paintMode).
+// Never cast with render.BlendMode(sceneMode).
 type BlendMode = intImage.BlendMode

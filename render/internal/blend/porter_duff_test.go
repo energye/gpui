@@ -617,26 +617,44 @@ func TestGetBlendFunc(t *testing.T) {
 	})
 }
 
-// TestBlendModeConstants verifies blend mode constant values.
+// TestBlendModeConstants verifies blend mode constant values on the shared
+// image value domain (B3/P2.4e renumbering: the old private iota order is
+// gone; these pin the deliberate new placement — Normal=0..Modulate=27 plus
+// the BlendDestination extension at 28).
 func TestBlendModeConstants(t *testing.T) {
 	tests := []struct {
 		mode BlendMode
 		want uint8
 	}{
-		{BlendClear, 0},
-		{BlendSource, 1},
-		{BlendDestination, 2},
-		{BlendSourceOver, 3},
-		{BlendDestinationOver, 4},
-		{BlendSourceIn, 5},
-		{BlendDestinationIn, 6},
-		{BlendSourceOut, 7},
-		{BlendDestinationOut, 8},
-		{BlendSourceAtop, 9},
-		{BlendDestinationAtop, 10},
-		{BlendXor, 11},
-		{BlendPlus, 12},
-		{BlendModulate, 13},
+		{BlendSourceOver, 0}, // = image.BlendNormal
+		{BlendMultiply, 1},
+		{BlendScreen, 2},
+		{BlendOverlay, 3},
+		{BlendHue, 4},
+		{BlendSaturation, 5},
+		{BlendColor, 6},
+		{BlendLuminosity, 7},
+		{BlendClear, 8},
+		{BlendSource, 9}, // = image.BlendCopy
+		{BlendPlus, 10},
+		{BlendDestinationOut, 11},
+		{BlendSourceAtop, 12},
+		{BlendXor, 13},
+		{BlendDestinationOver, 14},
+		{BlendSourceIn, 15},
+		{BlendSourceOut, 16},
+		{BlendDestinationIn, 17},
+		{BlendDestinationAtop, 18},
+		{BlendDarken, 19},
+		{BlendLighten, 20},
+		{BlendColorDodge, 21},
+		{BlendColorBurn, 22},
+		{BlendHardLight, 23},
+		{BlendSoftLight, 24},
+		{BlendDifference, 25},
+		{BlendExclusion, 26},
+		{BlendModulate, 27},
+		{BlendDestination, 28}, // internal/blend extension, outside the render domain
 	}
 
 	for _, tt := range tests {

@@ -16,10 +16,6 @@ func TestPaintBlendMode_RoundTripAndClearDivergence(t *testing.T) {
 	if BlendClear.ToPaintBlendMode() != render.BlendClear {
 		t.Fatalf("ToPaintBlendMode(Clear)=%v want %v", BlendClear.ToPaintBlendMode(), render.BlendClear)
 	}
-	if PaintBlendModeToScene(render.BlendClear) != BlendClear {
-		t.Fatalf("PaintBlendModeToScene(Clear)=%v want scene.BlendClear", PaintBlendModeToScene(render.BlendClear))
-	}
-
 	// Darken: scene=4, paint Darken is after Porter-Duff block — must not match.
 	if uint32(BlendDarken) == uint32(render.BlendDarken) {
 		t.Fatalf("scene.BlendDarken equals paint value %d; conversion still required", BlendDarken)

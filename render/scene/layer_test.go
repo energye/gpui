@@ -154,91 +154,91 @@ func TestBlendModeIsHSL(t *testing.T) {
 // Blend Mode Conversion Tests
 // =============================================================================
 
-func TestToInternalBlendMode_PorterDuff(t *testing.T) {
+func TestToPaintBlendMode_PorterDuff(t *testing.T) {
 	tests := []struct {
-		scene    BlendMode
-		internal blend.BlendMode
+		scene BlendMode
+		paint render.BlendMode
 	}{
-		{BlendClear, blend.BlendClear},
-		{BlendCopy, blend.BlendSource},
-		{BlendDestination, blend.BlendDestination},
-		{BlendSourceOver, blend.BlendSourceOver},
-		{BlendNormal, blend.BlendSourceOver}, // BlendNormal maps to SourceOver
-		{BlendDestinationOver, blend.BlendDestinationOver},
-		{BlendSourceIn, blend.BlendSourceIn},
-		{BlendDestinationIn, blend.BlendDestinationIn},
-		{BlendSourceOut, blend.BlendSourceOut},
-		{BlendDestinationOut, blend.BlendDestinationOut},
-		{BlendSourceAtop, blend.BlendSourceAtop},
-		{BlendDestinationAtop, blend.BlendDestinationAtop},
-		{BlendXor, blend.BlendXor},
-		{BlendPlus, blend.BlendPlus},
+		{BlendClear, render.BlendClear},
+		{BlendCopy, render.BlendCopy},
+		{BlendDestination, render.BlendNormal}, // no paint-level Destination: degrade to Normal
+		{BlendSourceOver, render.BlendNormal},
+		{BlendNormal, render.BlendNormal},
+		{BlendDestinationOver, render.BlendDestinationOver},
+		{BlendSourceIn, render.BlendSourceIn},
+		{BlendDestinationIn, render.BlendDestinationIn},
+		{BlendSourceOut, render.BlendSourceOut},
+		{BlendDestinationOut, render.BlendDestinationOut},
+		{BlendSourceAtop, render.BlendSourceAtop},
+		{BlendDestinationAtop, render.BlendDestinationAtop},
+		{BlendXor, render.BlendXor},
+		{BlendPlus, render.BlendPlus},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.scene.String(), func(t *testing.T) {
-			got := tt.scene.ToInternalBlendMode()
-			if got != tt.internal {
-				t.Errorf("%s.ToInternalBlendMode() = %d, want %d", tt.scene.String(), got, tt.internal)
+			got := tt.scene.ToPaintBlendMode()
+			if got != tt.paint {
+				t.Errorf("ToPaintBlendMode(%s) = %d, want %d", tt.scene.String(), got, tt.paint)
 			}
 		})
 	}
 }
 
-func TestToInternalBlendMode_Advanced(t *testing.T) {
+func TestToPaintBlendMode_Advanced(t *testing.T) {
 	tests := []struct {
-		scene    BlendMode
-		internal blend.BlendMode
+		scene BlendMode
+		paint render.BlendMode
 	}{
-		{BlendMultiply, blend.BlendMultiply},
-		{BlendScreen, blend.BlendScreen},
-		{BlendOverlay, blend.BlendOverlay},
-		{BlendDarken, blend.BlendDarken},
-		{BlendLighten, blend.BlendLighten},
-		{BlendColorDodge, blend.BlendColorDodge},
-		{BlendColorBurn, blend.BlendColorBurn},
-		{BlendHardLight, blend.BlendHardLight},
-		{BlendSoftLight, blend.BlendSoftLight},
-		{BlendDifference, blend.BlendDifference},
-		{BlendExclusion, blend.BlendExclusion},
+		{BlendMultiply, render.BlendMultiply},
+		{BlendScreen, render.BlendScreen},
+		{BlendOverlay, render.BlendOverlay},
+		{BlendDarken, render.BlendDarken},
+		{BlendLighten, render.BlendLighten},
+		{BlendColorDodge, render.BlendColorDodge},
+		{BlendColorBurn, render.BlendColorBurn},
+		{BlendHardLight, render.BlendHardLight},
+		{BlendSoftLight, render.BlendSoftLight},
+		{BlendDifference, render.BlendDifference},
+		{BlendExclusion, render.BlendExclusion},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.scene.String(), func(t *testing.T) {
-			got := tt.scene.ToInternalBlendMode()
-			if got != tt.internal {
-				t.Errorf("%s.ToInternalBlendMode() = %d, want %d", tt.scene.String(), got, tt.internal)
+			got := tt.scene.ToPaintBlendMode()
+			if got != tt.paint {
+				t.Errorf("TestToPaintBlendMode_Advanced(%s) = %d, want %d", tt.scene.String(), got, tt.paint)
 			}
 		})
 	}
 }
 
-func TestToInternalBlendMode_HSL(t *testing.T) {
+func TestToPaintBlendMode_HSL(t *testing.T) {
 	tests := []struct {
-		scene    BlendMode
-		internal blend.BlendMode
+		scene BlendMode
+		paint render.BlendMode
 	}{
-		{BlendHue, blend.BlendHue},
-		{BlendSaturation, blend.BlendSaturation},
-		{BlendColor, blend.BlendColor},
-		{BlendLuminosity, blend.BlendLuminosity},
+		{BlendHue, render.BlendHue},
+		{BlendSaturation, render.BlendSaturation},
+		{BlendColor, render.BlendColor},
+		{BlendLuminosity, render.BlendLuminosity},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.scene.String(), func(t *testing.T) {
-			got := tt.scene.ToInternalBlendMode()
-			if got != tt.internal {
-				t.Errorf("%s.ToInternalBlendMode() = %d, want %d", tt.scene.String(), got, tt.internal)
+			got := tt.scene.ToPaintBlendMode()
+			if got != tt.paint {
+				t.Errorf("TestToPaintBlendMode_HSL(%s) = %d, want %d", tt.scene.String(), got, tt.paint)
 			}
 		})
 	}
 }
 
-func TestToInternalBlendMode_Unknown(t *testing.T) {
+func TestToPaintBlendMode_Unknown(t *testing.T) {
 	unknown := BlendMode(255)
-	got := unknown.ToInternalBlendMode()
-	if got != blend.BlendSourceOver {
-		t.Errorf("unknown blend mode should default to SourceOver, got %d", got)
+	got := unknown.ToPaintBlendMode()
+	if got != render.BlendNormal {
+		t.Errorf("unknown blend mode should default to Normal, got %d", got)
 	}
 }
 
@@ -264,27 +264,21 @@ func TestGetBlendFunc(t *testing.T) {
 	}
 }
 
-func TestBlendModeFromInternal(t *testing.T) {
-	// Test round-trip conversion
-	modes := AllBlendModes()
-	for _, mode := range modes {
-		t.Run(mode.String(), func(t *testing.T) {
-			internal := mode.ToInternalBlendMode()
-			back := BlendModeFromInternal(internal)
-			// Note: BlendNormal and BlendSourceOver both map to SourceOver
-			// so we need to handle that special case
-			if mode == BlendNormal {
-				if back != BlendSourceOver && back != BlendNormal {
-					t.Errorf("round-trip for %s failed: got %s", mode.String(), back.String())
-				}
-			} else if back != mode {
-				// BlendCopy maps to BlendSource, which maps back to BlendCopy
-				if mode == BlendCopy && back == BlendCopy {
-					return // OK
-				}
-				t.Errorf("round-trip for %s failed: got %s", mode.String(), back.String())
-			}
-		})
+// TestBlendSharedValueDomain pins the B3 (P2.4e) value-domain unification:
+// internal/blend.BlendMode aliases internal/image.BlendMode — the same domain
+// as render.BlendMode — so the CPU path consumes ToPaintBlendMode output
+// directly and needs no numeric translation.
+func TestBlendSharedValueDomain(t *testing.T) {
+	var _ blend.BlendMode = render.BlendNormal
+
+	if blend.BlendSourceOver != render.BlendNormal {
+		t.Error("blend.BlendSourceOver must equal render.BlendNormal (shared domain)")
+	}
+	if blend.BlendSource != render.BlendCopy {
+		t.Error("blend.BlendSource must equal render.BlendCopy (shared domain)")
+	}
+	if blend.BlendMultiply != 1 || blend.BlendClear != 8 || blend.BlendModulate != 27 {
+		t.Error("blend constants must sit on the image value domain (Normal=0..Modulate=27)")
 	}
 }
 
@@ -866,12 +860,12 @@ func BenchmarkBlendModeString(b *testing.B) {
 	}
 }
 
-func BenchmarkToInternalBlendMode(b *testing.B) {
+func BenchmarkToPaintBlendMode(b *testing.B) {
 	modes := AllBlendModes()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, mode := range modes {
-			_ = mode.ToInternalBlendMode()
+			_ = mode.ToPaintBlendMode()
 		}
 	}
 }

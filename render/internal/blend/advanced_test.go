@@ -582,25 +582,26 @@ func TestGetBlendFuncAdvanced(t *testing.T) {
 
 // TestAdvancedBlendModeConstants verifies blend mode constant values.
 func TestAdvancedBlendModeConstants(t *testing.T) {
+	// B3/P2.4e: advanced modes sit on the shared image value domain.
 	tests := []struct {
 		mode BlendMode
 		want uint8
 	}{
-		{BlendMultiply, 14},
-		{BlendScreen, 15},
-		{BlendOverlay, 16},
-		{BlendDarken, 17},
-		{BlendLighten, 18},
-		{BlendColorDodge, 19},
-		{BlendColorBurn, 20},
-		{BlendHardLight, 21},
-		{BlendSoftLight, 22},
-		{BlendDifference, 23},
-		{BlendExclusion, 24},
-		{BlendHue, 25},
-		{BlendSaturation, 26},
-		{BlendColor, 27},
-		{BlendLuminosity, 28},
+		{BlendMultiply, 1},
+		{BlendScreen, 2},
+		{BlendOverlay, 3},
+		{BlendDarken, 19},
+		{BlendLighten, 20},
+		{BlendColorDodge, 21},
+		{BlendColorBurn, 22},
+		{BlendHardLight, 23},
+		{BlendSoftLight, 24},
+		{BlendDifference, 25},
+		{BlendExclusion, 26},
+		{BlendHue, 4},
+		{BlendSaturation, 5},
+		{BlendColor, 6},
+		{BlendLuminosity, 7},
 	}
 
 	for _, tt := range tests {

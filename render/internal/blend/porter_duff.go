@@ -14,25 +14,39 @@
 // This follows the WebGPU and modern graphics conventions for efficient compositing.
 package blend
 
-// BlendMode represents a Porter-Duff compositing operation.
-type BlendMode uint8
+import intImage "github.com/energye/gpui/render/internal/image"
+
+// BlendMode is the CPU compositing mode. Since B3 (P2.4e) it is an alias of
+// internal/image.BlendMode — the same value domain as render.BlendMode — so
+// the scene→CPU path needs no numeric translation (the old private iota
+// order and its two conversion tables are gone; the single scene→render
+// boundary is scene.BlendMode.ToPaintBlendMode).
+type BlendMode = intImage.BlendMode
 
 const (
-	// Porter-Duff modes (standard compositing operators)
-	BlendClear           BlendMode = iota // Result: 0 (clear destination)
-	BlendSource                           // Result: S (replace with source)
-	BlendDestination                      // Result: D (keep destination)
-	BlendSourceOver                       // Result: S + D*(1-Sa) [default]
-	BlendDestinationOver                  // Result: S*(1-Da) + D
-	BlendSourceIn                         // Result: S*Da
-	BlendDestinationIn                    // Result: D*Sa
-	BlendSourceOut                        // Result: S*(1-Da)
-	BlendDestinationOut                   // Result: D*(1-Sa)
-	BlendSourceAtop                       // Result: S*Da + D*(1-Sa)
-	BlendDestinationAtop                  // Result: S*(1-Da) + D*Sa
-	BlendXor                              // Result: S*(1-Da) + D*(1-Sa)
-	BlendPlus                             // Result: S + D (clamped to 255)
-	BlendModulate                         // Result: S*D (multiply)
+	// Porter-Duff modes rebound to the shared image value domain (B3/P2.4e).
+	// Names keep the historical blend-package spelling so call sites and the
+	// GetBlendFunc switch read unchanged.
+	BlendClear           = intImage.BlendClear           // Result: 0 (clear destination)
+	BlendSource          = intImage.BlendCopy            // Result: S (replace with source)
+	BlendSourceOver      = intImage.BlendNormal          // Result: S + D*(1-Sa) [default]
+	BlendDestinationOver = intImage.BlendDestinationOver // Result: S*(1-Da) + D
+	BlendSourceIn        = intImage.BlendSourceIn        // Result: S*Da
+	BlendDestinationIn   = intImage.BlendDestinationIn   // Result: D*Sa
+	BlendSourceOut       = intImage.BlendSourceOut       // Result: S*(1-Da)
+	BlendDestinationOut  = intImage.BlendDestinationOut  // Result: D*(1-Sa)
+	BlendSourceAtop      = intImage.BlendSourceAtop      // Result: S*Da + D*(1-Sa)
+	BlendDestinationAtop = intImage.BlendDestinationAtop // Result: S*(1-Da) + D*Sa
+	BlendXor             = intImage.BlendXor             // Result: S*(1-Da) + D*(1-Sa)
+	BlendPlus            = intImage.BlendPlus            // Result: S + D (clamped to 255)
+	BlendModulate        = intImage.BlendModulate        // Result: S*D (multiply)
+
+	// BlendDestination is an internal/blend extension beyond the shared render
+	// value domain (keep destination only). Nothing in the scene wire produces
+	// it — scene's Destination degrades to Normal at the single scene→render
+	// boundary (blend_integration.ToPaintBlendMode). The CPU operator stays
+	// available for direct users of this package.
+	BlendDestination BlendMode = 28
 )
 
 // BlendFunc is the signature for blend operations.

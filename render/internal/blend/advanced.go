@@ -17,28 +17,33 @@
 // Non-separable blend modes require color space conversions (HSL/HSV).
 package blend
 
-import "math"
+import (
+	"math"
 
-// Advanced separable blend modes (extend BlendMode enum)
+	intImage "github.com/energye/gpui/render/internal/image"
+)
+
+// Advanced separable blend modes rebound to the shared image value domain
+// (B3/P2.4e) — names keep the historical blend-package spelling.
 const (
 	// Separable blend modes
-	BlendMultiply   BlendMode = iota + 14 // Result: S * D
-	BlendScreen                           // Result: 1 - (1-S)*(1-D)
-	BlendOverlay                          // HardLight with swapped layers
-	BlendDarken                           // min(S, D)
-	BlendLighten                          // max(S, D)
-	BlendColorDodge                       // D / (1 - S)
-	BlendColorBurn                        // 1 - (1 - D) / S
-	BlendHardLight                        // Multiply or Screen depending on source
-	BlendSoftLight                        // Soft version of HardLight
-	BlendDifference                       // |S - D|
-	BlendExclusion                        // S + D - 2*S*D
+	BlendMultiply   = intImage.BlendMultiply   // Result: S * D
+	BlendScreen     = intImage.BlendScreen     // Result: 1 - (1-S)*(1-D)
+	BlendOverlay    = intImage.BlendOverlay    // HardLight with swapped layers
+	BlendDarken     = intImage.BlendDarken     // min(S, D)
+	BlendLighten    = intImage.BlendLighten    // max(S, D)
+	BlendColorDodge = intImage.BlendColorDodge // D / (1 - S)
+	BlendColorBurn  = intImage.BlendColorBurn  // 1 - (1 - D) / S
+	BlendHardLight  = intImage.BlendHardLight  // Multiply or Screen depending on source
+	BlendSoftLight  = intImage.BlendSoftLight  // Soft version of HardLight
+	BlendDifference = intImage.BlendDifference // |S - D|
+	BlendExclusion  = intImage.BlendExclusion  // S + D - 2*S*D
 
 	// Non-separable blend modes (optional)
-	BlendHue        // Hue of source, saturation and luminosity of backdrop
-	BlendSaturation // Saturation of source, hue and luminosity of backdrop
-	BlendColor      // Hue and saturation of source, luminosity of backdrop
-	BlendLuminosity // Luminosity of source, hue and saturation of backdrop
+	BlendHue        = intImage.BlendHue        // Hue of source, saturation and luminosity of backdrop
+	BlendSaturation = intImage.BlendSaturation // Saturation of source, hue and luminosity of backdrop
+	BlendColor      = intImage.BlendColor      // Hue and saturation of source, luminosity of backdrop
+	BlendLuminosity = intImage.BlendLuminosity // Luminosity of source, hue and saturation of backdrop
 )
 
 // separableBlend is a helper function that applies a per-channel blend function.

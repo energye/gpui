@@ -1,0 +1,6 @@
+# e3（B3 混合枚举收敛）门禁汇总 2026-10-31
+残留 grep：ToInternalBlendMode/BlendModeFromInternal/PaintBlendModeToScene = 0（三表删除，唯一边界表 ToPaintBlendMode 保留）
+值域合一：blend.BlendMode = image.BlendMode 别名（常量重编号钉 TestBlendModeConstants/TestAdvancedBlendModeConstants/scene TestBlendSharedValueDomain）；scene.BlendMode 线格式值不变（零重录）；BlendDestination=28 为包内扩展
+五目标计数 linux 321/nogpu 317/win 327/darwin 319 = 基线；vet 61/58 回基线；win/darwin 交叉绿
+scene/blend 包测试+race 绿；wrgate ok；conformance 双后端 PASS exit 0（P2.4e 参数化脚本首跑，不再覆盖 P2.4d）
+render 包 FAIL 8 条与 e1/e2 基线逐名一致零新增

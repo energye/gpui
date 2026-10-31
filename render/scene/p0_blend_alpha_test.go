@@ -78,9 +78,9 @@ func TestP03SceneModeMapping_Internal(t *testing.T) {
 		{BlendMultiply, blend.BlendMultiply},
 	}
 	for _, c := range checks {
-		got := c.scene.ToInternalBlendMode()
+		got := c.scene.ToPaintBlendMode()
 		if got != c.internal {
-			t.Fatalf("%s.ToInternalBlendMode() = %v, want %v", c.scene, got, c.internal)
+			t.Fatalf("%s.ToPaintBlendMode() = %v, want %v", c.scene, got, c.internal)
 		}
 	}
 }
