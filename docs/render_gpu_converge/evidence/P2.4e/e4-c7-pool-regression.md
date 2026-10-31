@@ -21,3 +21,10 @@
 - 落地：`gles/resource_linux.go` Destroy 锁作用域修复（独立正确，纯 bug 修）；`ui/raster/glsync.go` 导出 `RunGLSync`（复落载体）；C3 分支；I2 测试改绑 no-op+MarkNeedsReconfigure。
 - 暂缓：`PipelineApp.Open` 的 RunGLSync 包裹（代码与验证记录留本档，根因闭合后重落）。
 - 复跑证据：`/tmp/mwab.stderr`（A）、`/tmp/mwn.stderr`（B）、`/tmp/mwnoc7.stderr`（C）——关键数字已抄录本档。
+
+## 2026-10-31 根因闭合（当日续）
+
+- **0 命中回归的定性：门禁 flaky，非 hub 开窗回归**。命中事件 = mutter 对 480x320 窗的偶发 +2px configure 抖动引发的 session resize 释放→再获取，实测命中数 0-14 随合成器时序波动（同二进制 5 轮：14/10/12/10/6/2，与开窗方式无关；hub 开窗转正后反而跑出 14）。`RequirePoolHitDomains`（≥1 命中）压在波动区间上 → 必然偶发红。
+- **处置**：multiwin 池门禁口径修订——去掉偶发命中要求，保留 `MinPoolMisses: 8`（32 个同尺寸 key 无重复创建的结构断言）；复用语义由 surface_cache 单测 12 例钉死。trace 打点（GPUI_TRIO_TRACE）与开窗开关（GPUI_OPEN_ON_HUB）实验代码移除。
+- **C7 hub 开窗转正落地**：`PipelineApp.Open` 的 open 序列作为单个 hub job 执行；l1_blank go rc=0、multiwin go 8 窗 rc=0（hits=14）验证。
+- **转正后新暴露 J5**（下一个尾巴）：go 档 multiwin 关窗阶段 SIGSEGV——Wayland ownsContext 下共享 Device 的 AdapterContext 被首窗关闭连带销毁，见 §2.2 J5 与 `mwgoF3.stderr` dump。此为 C7 修复前不可达代码段的既有隐患，独立立案。

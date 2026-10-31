@@ -992,15 +992,21 @@ func (a *PipelineApp) Open() error {
 	// C7 (P2.4e): run the whole open sequence on the process GL thread. The
 	// open path binds the shared EGL contexts from this controller thread
 	// (surface create, adapter probe, swapchain FBO configure); the frame
-	// C7 (P2.4e): the open-path GL binding ops must not race the frame
-	// path's keep-binding. raster.RunGLSync (hub job) fixes both C7 open
-	// forms — validated go 档 l1_blank/multiwin 8 窗 rc=0 — BUT the native
-	// multiwin pool gate regressed to device-surface 0 hits (caps probing
-	// succeeds on-hub and perturbs downstream present config; mechanism not
-	// root-caused, see evidence/P2.4e/e4-c7-pool-regression.md). The wrap is
-	// parked until that dissection lands; the Destroy self-deadlock fix in
-	// gles/resource_linux.go is independent and stays.
-	t, err := OpenPresentTarget(a.host)
+	// C7 (P2.4e): the open sequence runs as ONE hub GL-thread job. The open
+	// path binds the shared EGL contexts from this controller thread; the
+	// frame path keeps its binding across Submit→Present, and a contending
+	// MakeCurrent fails with EGL_BAD_ACCESS 0x3002 — the C7 open race. One
+	// hub job serializes the open with every frame by construction (the
+	// GL-thread inline fast-path keeps nested RunSync deadlock-free).
+	// Validated: go 档 l1_blank 853 帧 rc=0、multiwin go 8 窗 rc=0（此前两
+	// 形态必挂）。副作用排查结论：multiwin 池命中波动是 mutter configure
+	// 抖动的环境附属事件，与开窗方式无关（e4-c7-pool-regression.md）。
+	var t *render.PresentTarget
+	err := raster.RunGLSync(func() error {
+		var rerr error
+		t, rerr = OpenPresentTarget(a.host)
+		return rerr
+	})
 	if err != nil {
 		return err
 	}

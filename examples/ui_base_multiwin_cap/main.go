@@ -652,12 +652,14 @@ func main() {
 		}
 		// P2.4d 复用探针：同尺寸 8 窗共用一个设备级 surface 池。并发窗各自
 		// 持强引用（D1：同一块 native 不能借给两个窗），所以稳态命中本来就
-		// 不会随窗数增长——本窗要证的是「8 个窗都从这个池分配（misses≥8）」
-		// 与「池确实回桶再借出过（device-surface 至少 1 次命中）」，而不是
-		// 拿一个和并发结构无关的命中总数装绿。
+		// 不会随窗数增长——本窗要证的是「8 个窗都从这个池分配（misses≥8，
+		// 32 个同尺寸 key 无重复创建）」。旧口径还要求 device-surface 至少
+		// 1 次命中，但该命中来自 mutter 对 480x320 窗的偶发 +2px configure
+		// 抖动（实测 0-14 次随环境波动，P2.4e e4-c7-pool-regression.md），
+		// 属环境附属事件不是池性质——复用语义由 surface_cache 单测钉死，
+		// 窗口门禁只留结构断言（2026-10-31 口径修订）。
 		if err := wrgate.EvaluatePoolGates(report, wrgate.GateOptions{
-			MinPoolMisses:         8,
-			RequirePoolHitDomains: []string{"device-surface"},
+			MinPoolMisses: 8,
 		}); err != nil {
 			fail("%v", err)
 		}
