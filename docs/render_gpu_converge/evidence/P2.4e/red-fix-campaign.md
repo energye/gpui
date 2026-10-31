@@ -146,3 +146,10 @@
   2. ContextFrameDamage 全包 SIGSEGV：`ensureMaskDefaults` 的 `s.device` 接口非 nil 但**具体设备已释放**（共享设备 teardown 与 context 惰性会话时序错位）→ nil-interface 守卫接不住，需设备生命周期架构处理（session 绑定/重建或 IsReleased 探测）。
   3. seed 前置修复曾被探针清理的 checkout 一并回滚 → 已恢复 ✓（misc_draw 进度保住）。
 - **当前 render 包**：2 红（PurgeEvictables 算术已修后余 ContextFrameDamage SIGSEGV + 1）——全部收敛到「会话/设备生命周期 + 全局注册表」两类，修法已明确，需独立窗口处理。
+
+## 2026-10-31 续14：耦合类三轮（自动二分，定性为集合交互）
+
+- 自动二分（595 顶层测试对数收敛，8 轮）：非单调（149 红 / 74 绿 / 37 绿 / 19 红）——**违反单调污染假设，无单一污染源**。
+- **结构性定案**：render 包测试共享 GPU 会话状态（全局加速器、共享设备、效果视图池、purge 注册表），特定测试组合互相作用——需要测试隔离基础设施（每测试的 GPU 状态保存/恢复或进程级隔离），非逐条修。
+- P1GLPresentX11 在部分组合中被牵连（其 X11 窗口/瘦交换链呈现与共享状态交互），非根因。
+- **剩余红的清偿路径**：(1) 测试隔离基础设施（TestMain 级 GPU 状态管理）一次性收敛耦合类 9+ 条；(2) wgpu 执行态专项（misc_draw，需 capture 工具）；(3) GPU 意图测试深潜（text_transform/video）按档进行。
