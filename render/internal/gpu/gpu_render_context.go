@@ -3224,6 +3224,20 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 	if rc == nil || len(rc.pendingAdvancedLayers) == 0 {
 		return nil
 	}
+	// Seed the destination BEFORE compositing (J5 campaign): the advanced
+	// blend's dual-tex samples the dst view — on the effect-publish path the
+	// CPU base seed must land first, or the multiply reads an empty dst and
+	// the later seed overwrites the blended result (misc_draw red-fix).
+	if target.SeedFromData && !target.View.IsNil() && len(target.Data) > 0 {
+		seedW, seedH := target.Width, target.Height
+		if seedW <= 0 || seedH <= 0 {
+			seedW, seedH = int(target.ViewWidth), int(target.ViewHeight)
+		}
+		if err := rc.seedViewFromRGBA(target.View, target.Data, seedW, seedH); err != nil {
+			return err
+		}
+		target.SeedFromData = false
+	}
 	// A pop is ready only for its actual destination. In particular an
 	// offscreen layer self-flush must not consume a pop destined for the base
 	// surface: doing so blended the earlier DrawColor overlay into the next

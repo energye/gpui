@@ -18,7 +18,6 @@ func (s *stubPurgeCache) PurgeEvictable() int64 {
 }
 
 func TestPurgeEvictables_RunsRegistered(t *testing.T) {
-	withoutAccelerator(t)
 	a := &stubPurgeCache{entries: 3}
 	b := &stubPurgeCache{entries: 5}
 	RegisterPurgeEvictable("test-a", a)
@@ -34,9 +33,15 @@ func TestPurgeEvictables_RunsRegistered(t *testing.T) {
 		t.Fatal("registered caches must be invoked")
 	}
 	// Registry keeps entries: second purge frees nothing from the stubs.
-	total2, _ := PurgeEvictables()
-	if total2 != total-8 {
-		t.Fatalf("second total=%d want %d (stubs already empty)", total2, total-8)
+	// (J5 campaign: assert the STUB contract via byName — the total includes
+	// the production accelerator's registered caches, whose inventory varies
+	// with the accelerator save/restore lifecycle.)
+	total2, byName2 := PurgeEvictables()
+	if byName2["test-a"] != 0 || byName2["test-b"] != 0 {
+		t.Fatalf("second byName=%v want test-a=0 test-b=0 (stubs already empty)", byName2)
+	}
+	if total2 > total {
+		t.Fatalf("second total=%d must not exceed first %d", total2, total)
 	}
 }
 

@@ -132,3 +132,17 @@
 - **排除完毕**：shader 数学、UV 几何、params 打包、纹理 usage、seed 写入机制（WriteTexture+BGRA 换位+MarkColorContent）、种子内容（readback 实证红在）。
 - **剩余唯一嫌疑（wgpu 执行态）**：dual-tex CB（lead 队列）执行时，src(layer RT) 或 dst(effect view) 的纹理状态与 resolve 时刻的回读不一致—— WriteTexture/CopyTexture 的队列时间线 vs render pass 执行序，或 view 包装（unpackView/packView）指向了不同纹理实例。需 wgpu 调试标签/GPU capture 级工具。
 - **影响面**：effect surface + 高级混色（glow/blur 类 effect 的层合成）——黑带=采样越界/未初始化区，内容丢失。
+
+## 2026-10-31 续12：批次9（耦合类主修复，render 8→2）
+
+- **根因修复**：`resetAccelerator` 改保存/恢复（init 注册的生产加速器不再被测试清杀）——一次性清掉 8 条包级耦合红中的 6 条（P1GLPresentX11/S69_HeavyBudget/S69_Contract/DrawShadow/S3c/S64/PresentResize×2 中 6 条）；helper `withoutAccelerator(t)` + 反向耦合注入（3 条断言无加速器行为的测试显式隔离）。
+- **残余 2 条（下一窗口）**：`oom_purge_test TestPurgeEvictables_RunsRegistered`（"second total=0 want 35"——purge evictable 全局注册表被先行测试清空，另一全局耦合点）+ 1 条待定名。连同 X11/seat 3 条，均为此类全局状态隔离问题，修法同构。
+- gpu 包不含此文件不受影响；render 包整包 3→2。
+
+## 2026-10-31 续13：耦合类二轮（save/restore 的反向耦合暴露 + 生命周期缺口）
+
+- **A/B 定责**：两红（PurgeEvictables 算术 + ContextFrameDamage SIGSEGV）为本战役 save/restore 改动引入——旧世界后行测试跑在 accel=nil 下；新世界后行测试带着生产加速器运行，暴露三类前提假设：
+  1. PurgeEvictables 的 total 算术未计入生产加速器注册的缓存 → 断言改绑 stubs 契约（byName 归零）✅ 已修。
+  2. ContextFrameDamage 全包 SIGSEGV：`ensureMaskDefaults` 的 `s.device` 接口非 nil 但**具体设备已释放**（共享设备 teardown 与 context 惰性会话时序错位）→ nil-interface 守卫接不住，需设备生命周期架构处理（session 绑定/重建或 IsReleased 探测）。
+  3. seed 前置修复曾被探针清理的 checkout 一并回滚 → 已恢复 ✓（misc_draw 进度保住）。
+- **当前 render 包**：2 红（PurgeEvictables 算术已修后余 ContextFrameDamage SIGSEGV + 1）——全部收敛到「会话/设备生命周期 + 全局注册表」两类，修法已明确，需独立窗口处理。

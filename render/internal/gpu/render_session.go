@@ -2910,6 +2910,9 @@ func (s *GPURenderSession) ensureMaskDefaults() error {
 	if s.noMaskBindGroup != nil {
 		return nil
 	}
+	if s.device == nil {
+		return fmt.Errorf("ensure mask defaults: nil device (session not bound)")
+	}
 	if err := s.ensureMaskBindLayout(); err != nil {
 		return err
 	}
