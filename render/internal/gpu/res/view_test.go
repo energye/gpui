@@ -9,17 +9,20 @@ import (
 // pointer.
 
 func TestView_RawFallbackSemantics(t *testing.T) {
-	p1 := unsafe.Pointer(uintptr(0x1000))
-	p2 := unsafe.Pointer(uintptr(0x2000))
-
-	raw1 := ViewFromRaw(p1)
+	// Distinct opaque identities via real addresses (vet-clean); the raw
+	// views are only compared, never dereferenced. [1]byte, not struct{}:
+	// zero-size variables may share one address, which would collapse the
+	// two identities this test needs to differ.
+	var p1, p2 [1]byte
+	raw1 := ViewFromRaw(unsafe.Pointer(&p1))
+	p2ref := unsafe.Pointer(&p2)
 	if raw1.IsNil() {
 		t.Fatal("raw view must not be nil")
 	}
-	if !raw1.Equals(ViewFromRaw(p1)) {
+	if !raw1.Equals(ViewFromRaw(unsafe.Pointer(&p1))) {
 		t.Fatal("same raw pointer must compare equal")
 	}
-	if raw1.Equals(ViewFromRaw(p2)) {
+	if raw1.Equals(ViewFromRaw(p2ref)) {
 		t.Fatal("different raw pointers must differ")
 	}
 	if raw1.RefID() != 0 {
@@ -34,9 +37,8 @@ func TestView_RawFallbackSemantics(t *testing.T) {
 	if !(View{}).IsNil() {
 		t.Fatal("zero view must be nil")
 	}
-	_ = p2
+	_ = p2ref
 }
-
 func TestView_DeferredAndDirectEquality(t *testing.T) {
 	reg := NewRegistry()
 	refA := reg.DeviceOwner().Register(&fakeNative{tag: 1})

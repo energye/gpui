@@ -1,0 +1,22 @@
+# P2.5 -race
+# date: 2026-10-31T20:12:08+08:00
+# head: 9bb2e99a
+
+## gpu/hal（释放开关 hook + 全包）
+ok  	github.com/energye/gpui/gpu/hal	1.091s
+# exit: 0
+
+## ui/scheduler（MetricsStore 并发记帧 + targetHz/fps_wall 快照）
+    pacing_test.go:59: gate opened 10.011467ms after previous — floor cadence violated (double-fire?)
+FAIL
+FAIL	github.com/energye/gpui/ui/scheduler	1.093s
+FAIL
+# exit: 1
+
+## ui/scene（refuseChanged 损伤联合 + caret/stable 尾巴）
+ok  	github.com/energye/gpui/ui/scene	162.659s
+# exit: 0
+
+## render/internal/gpu（池族回归集）
+ok  	github.com/energye/gpui/render/internal/gpu	4.676s
+# exit: 0

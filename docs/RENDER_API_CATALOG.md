@@ -1,6 +1,6 @@
 # render 公开 API 目录（RENDER_API_CATALOG）
 
-> **一句话**：这是 `render/`（含 `render/text`、`render/scene`、`render/recording`、`render/svg`、`render/filters`、`render/gpu`、`render/hdr`）全部公开 API 的总账，并标注「已接线 / 未接线 / 半成品 / 仅测试」状态。
+> **一句话**：这是 `render/`（含 `render/text`、`render/scene`、`render/recording`、`render/svg`、`render/filters`、`render/gpu`、`render/hdr`）全部公开 API 的总账，并标注「已接线 / 未接线 / 半成品 / 仅测试」状态；§12 为 `gpu/hal` 的**汇总级**登记（抽象层面向双后端实现者而非应用层消费者，逐符号权威清单以 `go doc ./gpu/hal` 为准，机器校验只扫 render 树——口径登记见 P2.5 评估）。
 >
 > **维护义务（硬）**：**每次增加、修改、删除 render 公开 API（功能或签名），或改变其接线状态，必须同步更新本文件**（新增/变更的行写进对应分类表 + 更新 §7 状态表），并在主体文档 `docs/ENGINE_UI_WIDGET_RENDER.md` §10 修订表追加一行。判定「公开 API」的口径：`go doc ./render`（以及各子包 `go doc ./render/xxx`）可见的顶层符号与导出方法；方法级变更需同步 §3 与 §8 方法速查表。
 >
@@ -165,7 +165,7 @@
 | `BeginFrame/Invalidate/MarkFullRedraw/ResetFrameDamage` | 帧生命周期：重置统计、标记损伤、强制全量重绘 | 帧生命周期 | ✅ |
 | `PresentFrame/PresentFrameDamage/PresentFrameDamageRects`（present.go） | 提交 GPU 内容到视图并调用 present（带单/多损伤区） | 呈现提交 | ✅ |
 | `PresentFrameAuto/PresentFrameFull`（frame.go） | 自动选路径 / 强制全帧呈现 | 自动/全帧呈现 | ✅（PresentFrameAuto 内部用；2026-10-21 GL 后端经 `EndFrameWithDamage` 走 EGL 局部提交——三扩展齐备且 FBO 1:1 时 `SetDamageRegionKHR` + 剪刀 blit + `SwapBuffersWithDamage`，缺一/大损伤/首帧全量兜底；wgpu-native 仍全量。原子验证 `TestPresentDamageX11`） |
-| `PlanFramePresent/PlanPresent/FramePresentPlan/PresentOutcome/PresentMode` | 依据损伤区与 surface 尺寸规划呈现策略 | 呈现策略规划 | ✅（PresentFrameAuto 内部用） |
+| `PlanFramePresent/PlanPresent/FramePresentPlan/PresentOutcome/PresentMode` | 依据损伤区与 surface 尺寸规划呈现策略 | 呈现策略规划 | ✅（2026-10-31 P2.4e e4 单计划化：`PlanFramePresent` 唯一决策，新增 **`Context.PresentFramePlan`** 直通分发，`PresentFrameAuto` 变薄壳，平行 `clipPresentDamage` 删除） |
 | `CoalesceDamageRects` | 把多条损伤矩形合并/裁剪到上限 | 损伤合并 | 🔗 |
 | `PresentTarget` + `NewPresentTarget`（方法：Context/Resize/SetVsync/PresentWith/PresentWithAuto/PresentClear/LastPresentOutcome/LastDamageAreaPx/LastDamageRectSumPx/GPUBackend/Fallbacks/InFullRecovery/SetResizeStormWindow/SetOnSwapchainResized/LogicalSize/Scale/WaitIdle/Close） | 呈现目标对象（X11/Wayland/Win32/AppKit；风暴 resize 状态机；`LastDamageAreaPx`=末帧损伤**并集框**面积，`LastDamageRectSumPx`=末帧合并后**各损伤矩形面积之和**——散点脏层时并集框会把中间没动的缝隙也算进去，rect-sum 才是真实提交代价，2026-10-22 R4 指标新增，`render/present_frame.go:144`） | 呈现目标 | ✅ embedder 在用（R4 风暴窗口状态机所在；**SetOnSwapchainResized 🔗 Wayland 宿主在用作 xdg 窗口几何声明**；**SetVsync 🔗 embedder 在 resize 风暴期切 Mailbox/Immediate 免 Fifo 阻塞；两平台均生效（2026-08-26 修3 起 Wayland 不再 no-op）**；**GPUBackend 🔗 实际显卡类别上报口（discrete/integrated/software），多窗降级链（1.3）复用**；**WaitIdle 🔗 关窗先等 GPU 空闲再清图块缓存（2026-10-04 关窗漏修，ui/embedder PipelineApp.Close 在用）**） |
 | `AdapterPolicy`（PolicyDefault/PolicyHigh/PolicyLow + 别名 PolicyNone/PolicyAuto/PolicyHighPerformance/PolicyLowPower）+ `ResolveAdapterPolicy` + `RequestAdapterWithPolicy` + `DeviceDescriptor/DeviceDescriptorLowVRAM/DeviceDescriptorForAdapter`（adapter_policy.go，2026-09-05 自 render/gpu 搬入，函数名与行为一字不动；2026-09-18 B4：`DeviceDescriptorForAdapter` 加台账水位自动 LowVRAM（≥80% 预算，`GPUI_LOW_VRAM_WATERLINE_PCT` 可调）+ `AcquireSharedPresentDevice`（present_target.go，探针/离屏借共享设备，单设备多表面）） | 选卡策略（GPUI_POWER=high/low，默认混搭优先核显）与设备描述符（核显/CPU/水位超限走 LowVRAM 紧限） | 适配器策略 | 🔗 NewPresentTarget 建窗调用（render/present_target.go）；forceFallback 时 stderr 如实记日志 |
@@ -373,7 +373,7 @@
 |-----|------|------|------|
 | `SetDeviceProvider(provider)/ResetAccelerator/AbandonDevice/PurgeSurfaceResources` | 注入共享 GPU 设备、重建加速器、设备放弃、清理表面资源 | 设备生命周期 | 🔗 examples/ggcanvas 注入；**ui/embedder 生产未调 ⚠️** |
 | `AdapterPolicy/ResolveAdapterPolicy/RequestAdapterWithPolicy/DeviceDescriptor*/DeviceDescriptorLowVRAM` | 适配器/设备策略选择与描述符（2026-09-05 已搬入 render 主包，本包不再导出；见 §3.7） | 适配器策略（已搬迁） | 🔗 主包 NewPresentTarget 在用 |
-| `SurfaceLifecycle/NoteTextureOOM/TextureOOMCount/ResetTextureOOMCount/ResolveSurfaceLifecycle` | 表面生命周期（正常/清理/重建）与纹理 OOM 钩子 | 表面/OOM | 🔗 |
+| `SurfaceLifecycle/NoteTextureOOM/TextureOOMCount/ResetTextureOOMCount/ResolveSurfaceLifecycle` + 常量 `LifecycleNormal/LifecyclePurge/LifecycleRecreate` | 表面生命周期（正常/清理/重建）与纹理 OOM 钩子（按 adapter 能力/环境变量解析策略） | 表面/OOM | 🔗 |
 | init() 副作用：注册 SDF GPU 加速器 + AdaptiveFiller + filters + OOM/lifecycle 钩子 | 一次 import 激活全部 GPU 加速与滤镜 | 加速注册 | ✅ 全部真窗 blank import 接线 |
 
 ---
@@ -572,9 +572,8 @@ scene      type BlendMode uint32
 scene          const BlendNormal BlendMode = iota ...
 scene          func AdvancedModes() []BlendMode
 scene          func AllBlendModes() []BlendMode
-scene          func BlendModeFromInternal(internal blend.BlendMode) BlendMode
+scene          func (m BlendMode) ToPaintBlendMode() render.BlendMode（**2026-10-31 P2.4e e3 值域合一后唯一边界表**：`BlendModeFromInternal`/`PaintBlendModeToScene` 两表随冗余值域删除，`internal/blend.BlendMode` 改绑 `image.BlendMode` 别名与 `render.BlendMode` 同值域）
 scene          func HSLModes() []BlendMode
-scene          func PaintBlendModeToScene(mode render.BlendMode) BlendMode
 scene          func PorterDuffModes() []BlendMode
 scene      type Brush struct{ ... }
 scene          func SolidBrush(c render.RGBA) Brush
@@ -849,3 +848,17 @@ svg        type ViewBox struct{ ... }
 [recording] LineJoin: LineJoinBevel LineJoinMiter LineJoinRound（同上，`= render.LineJoin` 别名再导出）
 [recording] ~~RepeatMode~~（**2026-10-23 S2b C2b 删除**：`RepeatMode` 与 `RepeatNone/RepeatX/RepeatY/RepeatBoth` 一并移除，图样重复语义由 `render.ImagePattern` 的源矩形 + clamp 承担，`recording.PatternBrush` 改存完整可描述数据，不留第二套真值）
 ```
+
+## 12. gpu/hal 公开面（P2.5 加节，汇总级）
+
+> 口径：`gpu/hal` 是「唯一抽象」接口层，消费者是 `gpu/webgpu`/`gpu/gwgpu` 双后端与 `render`（经 hal 调显卡），**不面向应用层**；逐符号清单以 `go doc ./gpu/hal` 为权威（实测顶层符号 156 个，2026-10-31），本节只登记家族与新 API，不做逐符号表（156 行手工表必腐，登记为口径决定）。机器校验 `go run ./scripts/apidoc` 扫 render 树；hal 面回归靠 `gpu/hal` 逐文件门禁。
+
+| 家族 | 内容 | 状态 |
+|---|---|---|
+| 设备/适配器接口 | `Backend/BackendFactory/Adapter/Device/Queue/...` 全套接口 + `RegisterBackend/RegisterBackendFactory/AvailableBackends` | 🔗 双后端实现 |
+| 类型/常量 | PresentMode/CompositeAlphaMode/StencilOperation/MaxColorAttachments 等（`gputypes` 同源再导出） | 🔗 |
+| 显存账本 | `VramAdd/VramForget/VramCheck/VramLiveBytes/VramLiveCount/VramPeakBytes/VramBudgetMB/VramSurfaceBytes/VramTextureBytes/VramTestAdd/VramTestReset`（进程级预算 768MB，`GPUI_VRAM_BUDGET_MB`） | 🔗 双端记账（AGENTS 硬规） |
+| 完成令牌（P2.4d） | `CompletionToken` + `Queue.OnSubmittedWorkDone`（native/gles/metal/noop 五端） | 🔗 延迟释放同步点 |
+| 原生释放开关（P2.5 D2） | `WithForceNativeReleaseOnLost` + `SetForceNativeReleaseOnLostHook`（webgpu init 注册 rwgpu 实现；render 侧经此翻转 sticky-lost 下的子资源原生释放） | 🔗 软恢复路径 |
+| 错误/日志 | `ErrDeviceLost/ErrSurfaceLost/ErrBackendNotFound/...`、`Logger/SetLogger` | 🔗 |
+| 不支持声明 | `hal_assert*.go` 逐后端显式「不支持」错误（RenderBundle@gles、QuerySet@metal 等，PLAN §4 矩阵） | 🔗 |

@@ -140,8 +140,8 @@ func main() {
 		check("method", methods[recv])
 	}
 
-	// 子包顶层（scene/recording/svg；text 族级、filters 无符号）
-	for _, sub := range []string{"scene", "recording", "svg"} {
+	// 子包顶层（scene/recording/svg/gpu/hdr；text 族级、filters 无符号）
+	for _, sub := range []string{"scene", "recording", "svg", "gpu", "hdr"} {
 		t, _ := scanPkg("render/" + sub)
 		check("subpkg", t)
 	}
@@ -154,7 +154,7 @@ func main() {
 		fmt.Println("→ 请在 docs/RENDER_API_CATALOG.md 对应分类表补齐（增/改/删 API 时同步更新）。")
 		os.Exit(1)
 	}
-	fmt.Println("OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg 全部公开符号")
+	fmt.Println("OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg/gpu/hdr 全部公开符号")
 }
 
 func mapToPrefixed(names []string, prefix string) []string {

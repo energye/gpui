@@ -4358,47 +4358,10 @@ func (rc *GPURenderContext) syncGlyphMaskAtlases(batches []GlyphMaskBatch) error
 func (rc *GPURenderContext) tryFillMaskedConvexInline(target render.GPURenderTarget, path *render.Path, paint *render.Paint) bool {
 	// Temporarily prefer fillMaskedAsImage (SetMask+layer correctness).
 	// Cover-inline R8 path can skip mask sampling on layer RTs (WithSetMask).
+	// The inline body (convex cover pipeline + L.06 R8 mask sampling) stays
+	// parked until that correctness gap closes — see git history for the
+	// full implementation (unreachable-code cleanup, P2.5 D3).
 	return false
-
-	if path == nil || paint == nil || paint.MaskCoverage == nil {
-		return false
-	}
-	if !isGPUSolidPaint(paint) || !paintUsesSourceOver(paint) {
-		return false
-	}
-	if paint.FillRule == render.FillRuleEvenOdd {
-		return false
-	}
-	if !rc.shared.HasGPUMask() {
-		return false
-	}
-	if !rc.shared.gpuReady {
-		rc.shared.mu.Lock()
-		err := rc.shared.ensureGPU()
-		rc.shared.mu.Unlock()
-		if err != nil || !rc.shared.gpuReady {
-			return false
-		}
-	}
-	points, ok := extractConvexPolygon(path)
-	if !ok {
-		return false
-	}
-	color := getColorFromPaint(paint)
-	cmd := ConvexDrawCommand{
-		Points: points,
-		Color: [4]float32{
-			float32(color.R * color.A),
-			float32(color.G * color.A),
-			float32(color.B * color.A),
-			float32(color.A),
-		},
-		BlendMode: paintBlendMode(paint),
-	}
-	rc.QueueConvex(target, cmd)
-	rc.sceneStats.PathCount++
-	rc.sceneStats.ShapeCount++
-	return true
 }
 
 // tryFillMaskedSDFInline routes solid SDF shapes through the SDF cover pipeline
@@ -4406,32 +4369,8 @@ func (rc *GPURenderContext) tryFillMaskedConvexInline(target render.GPURenderTar
 func (rc *GPURenderContext) tryFillMaskedSDFInline(target render.GPURenderTarget, shape render.DetectedShape, paint *render.Paint) bool {
 	// Temporarily prefer fillMaskedAsImage (SetMask+layer correctness).
 	// Cover-inline R8 path can skip mask sampling on layer RTs (WithSetMask).
+	// The inline body (SDF cover pipeline + L.06 R8 mask sampling) stays
+	// parked until that correctness gap closes — see git history for the
+	// full implementation (unreachable-code cleanup, P2.5 D3).
 	return false
-
-	if paint == nil || paint.MaskCoverage == nil {
-		return false
-	}
-	if !isGPUSolidPaint(paint) || !paintUsesSourceOver(paint) {
-		return false
-	}
-	if !rc.shared.HasGPUMask() {
-		return false
-	}
-	switch shape.Kind {
-	case render.ShapeCircle, render.ShapeEllipse, render.ShapeRect, render.ShapeRRect:
-	default:
-		return false
-	}
-	if !rc.shared.gpuReady {
-		rc.shared.mu.Lock()
-		err := rc.shared.ensureGPU()
-		rc.shared.mu.Unlock()
-		if err != nil || !rc.shared.gpuReady {
-			return false
-		}
-	}
-	if err := rc.QueueShape(target, shape, paint, false); err != nil {
-		return false
-	}
-	return true
 }

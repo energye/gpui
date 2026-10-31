@@ -10,11 +10,16 @@ import (
 	"github.com/energye/gpui/render/internal/gpu/res"
 )
 
-func unsafePointer(v uintptr) unsafe.Pointer { return unsafe.Pointer(v) }
+// fakeRawAddrs fabricates distinct opaque view identities without converting
+// uintptr constants to unsafe.Pointer (go vet "possible misuse"); the views
+// are never dereferenced, only compared for identity.
+var fakeRawAddrs [8]byte
+
+func unsafePointer(i int) unsafe.Pointer { return unsafe.Pointer(&fakeRawAddrs[i]) }
 
 func TestViewToResView_SessionNil_CarriesRaw(t *testing.T) {
 	rc := &GPURenderContext{} // session == nil (first-frame state)
-	view := gpucontext.NewTextureView(unsafePointer(0x1234))
+	view := gpucontext.NewTextureView(unsafePointer(1))
 
 	rv := rc.viewToResView(view)
 	if rv.IsNil() {
@@ -37,13 +42,13 @@ func TestViewToResView_SessionNil_CarriesRaw(t *testing.T) {
 
 func TestViewToResView_RawEquality(t *testing.T) {
 	rc := &GPURenderContext{}
-	p := unsafePointer(0xABCD)
+	p := unsafePointer(2)
 	a := rc.viewToResView(gpucontext.NewTextureView(p))
 	b := rc.viewToResView(gpucontext.NewTextureView(p))
 	if !a.Equals(b) {
 		t.Fatal("two raw views of the same pointer must merge (Equals)")
 	}
-	c := rc.viewToResView(gpucontext.NewTextureView(unsafePointer(0xBEEF)))
+	c := rc.viewToResView(gpucontext.NewTextureView(unsafePointer(3)))
 	if a.Equals(c) {
 		t.Fatal("different raw pointers must not merge")
 	}

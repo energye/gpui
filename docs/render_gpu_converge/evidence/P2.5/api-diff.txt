@@ -1,0 +1,85 @@
+# P2.5 API snapshot diff（working tree vs HEAD 9bb2e99a）
+# date: 2026-10-31T20:11:40+08:00
+
+## render
+
+## gpu/hal
+--- /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.5/api/base-gpu-hal.txt	2026-10-31 20:11:35.228411062 +0800
++++ /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.5/api/gpu-hal.txt	2026-10-31 20:11:35.512415226 +0800
+@@ -250,6 +250,11 @@
+     is preferred over RegisterBackend for backends that may fail initialization
+     (e.g., missing GPU drivers).
+ 
++func SetForceNativeReleaseOnLostHook(hook func(func()))
++    SetForceNativeReleaseOnLostHook registers the backend implementation of
++    WithForceNativeReleaseOnLost. Init-time wiring by the owning backend,
++    like the Vram ledger's env read; not goroutine-safe by design.
++
+ func SetLogger(l *slog.Logger)
+     SetLogger configures the logger for the wgpu HAL layer and all backends
+     (Vulkan, DX12, GLES, Metal, Software). By default, wgpu produces no log
+@@ -322,6 +327,11 @@
+     VramTextureBytes estimates one texture in bytes: extent × layers × samples ×
+     bytes-per-texel, with a 4/3 mip-chain factor when mipmapped.
+ 
++func WithForceNativeReleaseOnLost(fn func())
++    WithForceNativeReleaseOnLost runs fn with native child Release enabled even
++    when the parent device is sticky-lost. With no hook registered (backends
++    without skip-on-lost semantics) this is just fn().
++
+ 
+ TYPES
+ 
+
+## gpu/webgpu
+
+## render/internal/gpu
+
+## render/internal/gpu/res
+
+## ui/scheduler
+--- /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.5/api/base-ui-scheduler.txt	2026-10-31 20:11:38.440458142 +0800
++++ /home/yanghy/app/projects/gogpu/gpui/docs/render_gpu_converge/evidence/P2.5/api/ui-scheduler.txt	2026-10-31 20:11:38.684461717 +0800
+@@ -68,7 +68,7 @@
+ type BaselineTolerance struct {
+ 	// HitchRatePerMin max allowed increase (current - baseline).
+ 	HitchRatePerMin float64
+-	// P95IntervalMs max allowed increase in frame_interval_p95_ms.
++	// P95IntervalMs max allowed increase in interval_p95_ms.
+ 	P95IntervalMs float64
+ 	// RSSSlopeKBPerMin max allowed increase in rss_slope_kb_per_min.
+ 	RSSSlopeKBPerMin float64
+@@ -112,12 +112,20 @@
+ 	// Timing (milliseconds)
+ 	LastFrameIntervalMs float64 `json:"last_frame_interval_ms"`
+ 	MaxFrameIntervalMs  float64 `json:"max_frame_interval_ms"`
+-	AvgFrameIntervalMs  float64 `json:"avg_frame_interval_ms"`
+-	P50FrameIntervalMs  float64 `json:"frame_interval_p50_ms,omitempty"`
+-	P95FrameIntervalMs  float64 `json:"frame_interval_p95_ms,omitempty"`
+-	P99FrameIntervalMs  float64 `json:"frame_interval_p99_ms,omitempty"`
+-	LastBuildMs         float64 `json:"frame_build_ms"`
+-	LastRasterMs        float64 `json:"frame_raster_ms"`
++	AvgFrameIntervalMs  float64 `json:"interval_avg_ms"`
++	P50FrameIntervalMs  float64 `json:"interval_p50_ms,omitempty"`
++	P95FrameIntervalMs  float64 `json:"interval_p95_ms,omitempty"`
++	P99FrameIntervalMs  float64 `json:"interval_p99_ms,omitempty"`
++	// FPSWall is present_count / wall seconds between the first and last
++	// interval note (A-family contract, same definition as wrgate's
++	// fps_wall: includes open/close overhead — often low). 0/omitted until
++	// both a present and an interval span exist.
++	FPSWall float64 `json:"fps_wall,omitempty"`
++	// TargetHz is the display refresh rate the pacer was seeded with
++	// (SeedDisplayRefreshHz); 0/omitted when the host never reported one.
++	TargetHz     float64 `json:"target_hz,omitempty"`
++	LastBuildMs  float64 `json:"frame_build_ms"`
++	LastRasterMs float64 `json:"frame_raster_ms"`
+ 	// F期干活计时独立：Flush(干活)与present(等显示器)分开记。
+ 	// LastFlushMs = GPU干活耗时(重录+画画)；LastPresentWaitMs = 等显示器耗时。
+ 	// 6ms口径看 LastFlushMs，不被 Fifo 等待带偏。
+
+## ui/scene
+
+## 预期变化（本步白名单）
+- gpu/hal：+WithForceNativeReleaseOnLost / +SetForceNativeReleaseOnLostHook（P2.5 D2 rwgpu 直引收敛）。
+- ui/scheduler FrameMetrics：+FPSWall / +TargetHz 字段（A2 A-family 补齐）；json 标签 interval_* 一次切换。
+- 其余包零变化。

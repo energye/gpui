@@ -1,0 +1,7 @@
+ui_render_base_perfsoak: PerfSoak axis — 20s (set RUN_SECONDS for longer)
+ui_render_base_perfsoak: multi-boundary + transform; metrics JSON; not P6
+J5TRACE Open device=0xc003ef4000 ctx=0xc003ed8040
+ui_render_base_perfsoak: backend=wayland presents=1139 ~56.4 fps layout_flushes=1
+ui_render_base_perfsoak: avg=17.56 p50=16.86 p95=17.90 p99=74.53 hitches=24 hitch_rate=72.11/min vsync=true
+ui_render_base_perfsoak: rss start=11800 end=191432 peak=202340 after_close=191324 KB slope=5775.8 KB/min (8833.1 KB/s) cpu=12.5% (ui=0.1 raster=12.4 path-proxy)
+ui_render_base_perfsoak: gpu_ops=2331 cpu_fallback_ops=0 last_cpu_fb="" frame_flushes=1 damage_px=3249 mode=damage_union

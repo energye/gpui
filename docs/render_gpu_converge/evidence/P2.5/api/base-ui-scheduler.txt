@@ -1,0 +1,681 @@
+package scheduler // import "github.com/energye/gpui/ui/scheduler"
+
+
+CONSTANTS
+
+const (
+	PresentPolicyFullPaint = "full_paint"
+	PresentPolicyRetained  = "retained"
+	PresentPolicyHybrid    = "hybrid"
+)
+    Present-policy names for Metrics JSON.
+
+const DefaultAnimTick = 16 * time.Millisecond
+    DefaultAnimTick is the fallback period when no display timing is known
+    (~60 Hz nominal). It is only a last-resort floor: the scheduler prefers,
+    in order, (1) the learned display period from vsync stamps, (2) the display
+    refresh reported by the platform host (see platform.DisplayRefreshReporter),
+    and only then this constant. Never hardcode a measured machine-specific
+    period here — every display has its own real refresh (59.88Hz, 60Hz, 120Hz,
+    ...).
+
+const HitchThresholdMs = 33.4
+    HitchThresholdMs counts a frame interval as a hitch when it exceeds this
+    wall-time gap (≈2× 60 Hz vsync). Used for soak / jank observation.
+
+
+FUNCTIONS
+
+func NearlyEqual(a, b, eps float64) bool
+    NearlyEqual is a small helper for tests (absolute epsilon).
+
+func ReadRSSKB() int64
+    ReadRSSKB returns process VmRSS in KiB from /proc/self/status, or 0 if
+    unavailable.
+
+func SaveBaseline(path string, m FrameMetrics) error
+    SaveBaseline writes m as pretty JSON to path (for hand-curated / CI
+    artifacts).
+
+
+TYPES
+
+type BaselineDelta struct {
+	// OK is true when every checked field is within tolerance.
+	OK bool `json:"ok"`
+	// Failures lists human-readable reasons when OK is false.
+	Failures []string `json:"failures,omitempty"`
+
+	HitchRateDelta     float64 `json:"hitch_rate_delta,omitempty"`
+	P95IntervalDeltaMs float64 `json:"p95_interval_delta_ms,omitempty"`
+	RSSSlopeDelta      float64 `json:"rss_slope_delta,omitempty"`
+	CPUFallbackDelta   int64   `json:"cpu_fallback_delta,omitempty"`
+	HitchCountDelta    int64   `json:"hitch_count_delta,omitempty"`
+
+	// Current / baseline snapshots of key fields (for JSON logs).
+	Current  FrameMetrics `json:"current,omitempty"`
+	Baseline FrameMetrics `json:"baseline,omitempty"`
+}
+    BaselineDelta is the result of CompareToBaseline (I 回归).
+
+func CompareToBaseline(cur, base FrameMetrics, tol BaselineTolerance) BaselineDelta
+    CompareToBaseline diffs cur against base using tol. Only fields with
+    non-zero tolerance are enforced; deltas are always filled for logging.
+
+    Direction: "worse" means higher hitch/p95/slope/fallback/hitch_count.
+    Improvements (negative deltas) always pass.
+
+type BaselineTolerance struct {
+	// HitchRatePerMin max allowed increase (current - baseline).
+	HitchRatePerMin float64
+	// P95IntervalMs max allowed increase in frame_interval_p95_ms.
+	P95IntervalMs float64
+	// RSSSlopeKBPerMin max allowed increase in rss_slope_kb_per_min.
+	RSSSlopeKBPerMin float64
+	// CPUFallbackOps max allowed increase in cumulative cpu_fallback_ops.
+	CPUFallbackOps int64
+	// HitchCount max allowed increase in hitch_count.
+	HitchCount int64
+}
+    BaselineTolerance holds absolute deltas allowed when comparing a run to a
+    saved baseline (M-BASELINE-DELTA). Zero fields mean "ignore that metric".
+
+func DefaultBaselineTolerance() BaselineTolerance
+    DefaultBaselineTolerance is a loose soak-friendly band (not a product SLO).
+    Tighten per scenario JSON once machines stabilize.
+
+type DeadlineWanter interface {
+	NextWake() (time.Duration, bool)
+}
+    DeadlineWanter is an optional next-wakeup expression for tickers that do
+    not want per-tick frames (blink phase, HUD budgets). It reports how long
+    the event loop may sleep before this ticker needs Tick again; ok=false
+    means no deadline (sleep until an event). Events always interrupt the wait,
+    so an early wake only recomputes state without forcing work. Tickers that do
+    not implement it keep the legacy pacing cadence.
+
+type FrameMetrics struct {
+	// Counts
+	FrameCount   int64 `json:"frame_count"`
+	PresentCount int64 `json:"present_count"`
+	MissedVSync  int64 `json:"missed_vsync"`
+	HitchCount   int64 `json:"hitch_count"` // intervals > HitchThresholdMs
+
+	// HitchRatePerMin is hitch_count / wall minutes between first and last
+	// NoteFrameInterval (0 until at least one interval sample exists).
+	HitchRatePerMin float64 `json:"hitch_rate_per_min,omitempty"`
+
+	// Pipeline
+	PipelineDepth int `json:"pipeline_depth"`
+	PipelineMax   int `json:"pipeline_max"`
+
+	// Timing (milliseconds)
+	LastFrameIntervalMs float64 `json:"last_frame_interval_ms"`
+	MaxFrameIntervalMs  float64 `json:"max_frame_interval_ms"`
+	AvgFrameIntervalMs  float64 `json:"avg_frame_interval_ms"`
+	P50FrameIntervalMs  float64 `json:"frame_interval_p50_ms,omitempty"`
+	P95FrameIntervalMs  float64 `json:"frame_interval_p95_ms,omitempty"`
+	P99FrameIntervalMs  float64 `json:"frame_interval_p99_ms,omitempty"`
+	LastBuildMs         float64 `json:"frame_build_ms"`
+	LastRasterMs        float64 `json:"frame_raster_ms"`
+	// F期干活计时独立：Flush(干活)与present(等显示器)分开记。
+	// LastFlushMs = GPU干活耗时(重录+画画)；LastPresentWaitMs = 等显示器耗时。
+	// 6ms口径看 LastFlushMs，不被 Fifo 等待带偏。
+	LastFlushMs       float64 `json:"frame_flush_ms,omitempty"`
+	LastPresentWaitMs float64 `json:"frame_present_wait_ms,omitempty"`
+	// LastAcquireWaitMs = BeginFrame 等空闲缓冲(Fifo 背压)。F期三段尺子
+	// 之三：干活(Flush) / 等缓冲(Acquire) / 等显示(PresentWait)。
+	LastAcquireWaitMs float64 `json:"frame_acquire_wait_ms,omitempty"`
+
+	// Layout/paint flush counters (cumulative; wired by PipelineApp)
+	LayoutCount         int64 `json:"layout_count"`
+	PaintCount          int64 `json:"paint_count"`
+	PaintVisits         int64 `json:"paint_visits,omitempty"` // last frame node visits
+	RasterLayerCount    int64 `json:"raster_layer_count"`
+	CompositeLayerCount int64 `json:"composite_layer_count"`
+	FilterLayerCount    int64 `json:"filter_layer_count"` // color/image filter layers applied last composite
+
+	// Present locality (序13 dirty-rect path; 0/empty when unavailable).
+	// DamageAreaPx is physical-pixel area of the last present's FrameDamage union.
+	DamageAreaPx int64  `json:"damage_area_px,omitempty"`
+	PresentMode  string `json:"present_mode,omitempty"` // full|damage_union|damage_multi (idle inputs preserve last real)
+	// PresentModeAgeSec is seconds since the last REAL (non-idle) present
+	// set the mode (R3-6: idle frames preserve the value, so readers need
+	// its age to tell fresh steady-state from hours-stale residue).
+	PresentModeAgeSec float64 `json:"present_mode_age_s,omitempty"`
+	// PresentModeAtNs is the internal timestamp behind PresentModeAgeSec
+	// (UnixNano, never marshalled).
+	PresentModeAtNs int64 `json:"-"`
+	DamageAreaLast  int64 `json:"damage_area_last_px,omitempty"`
+
+	// DirtyLayerIDs is the last frame's dirty layer/boundary id list (R4b; the
+	// C-family dirty_layer_ids). Two distant hot spots → two ids. Empty/omitted
+	// when the window path does not collect them. DamageMultiFrames is the
+	// cumulative count of damage_multi presents (multi-rect independent scissors).
+	DirtyLayerIDs     []uint64 `json:"dirty_layer_ids,omitempty"`
+	DamageMultiFrames int64    `json:"damage_multi_frames,omitempty"`
+
+	// PresentPolicy is the window paint/present strategy name.
+	// Values: PresentPolicyFullPaint | PresentPolicyRetained | PresentPolicyHybrid.
+	PresentPolicy string `json:"present_policy,omitempty"`
+
+	// VSyncSource is "true" | "fallback" | "" (unknown).
+	VSyncSource string `json:"vsync_source,omitempty"`
+
+	// Process resource samples (Wave P0 closeout; Linux /proc; 0 = unavailable).
+	RSSStartKB      int64 `json:"rss_start_kb,omitempty"`
+	RSSEndKB        int64 `json:"rss_end_kb,omitempty"`
+	RSSPeakKB       int64 `json:"rss_peak_kb,omitempty"`
+	RSSAfterCloseKB int64 `json:"rss_after_close_kb,omitempty"`
+	// RSSSlopeKBPerMin is the raw least-squares RSS trend over samples after
+	// 25% of elapsed (M-RSS-SLOPE). Positive = growth. On a short run the
+	// one-time startup ramp is included, so this is NOT a leak verdict; use
+	// RSSSlopeSteadyKBPerMin for that. Zero when wall span is
+	// missing/negligible or RSS samples unavailable.
+	RSSSlopeKBPerMin float64 `json:"rss_slope_kb_per_min,omitempty"`
+	// RSSSlopeSteadyKBPerMin is the least-squares trend after
+	// max(25% elapsed, 15s) warmup. Only meaningful when RSSSlopeValid;
+	// valid requires >=15s of post-warmup samples (a >=30s run).
+	RSSSlopeSteadyKBPerMin float64 `json:"rss_slope_steady_kb_per_min,omitempty"`
+	// RSSSlopeValid reports whether the steady slope has enough post-warmup
+	// span to be a leak verdict. false = cannot conclude (run too short or
+	// RSS unavailable), not "no leak".
+	RSSSlopeValid bool `json:"rss_slope_valid"`
+	// RSSWarmupSec is the warmup discarded by the steady fit; reported even
+	// when invalid so short runs explain why.
+	RSSWarmupSec float64 `json:"rss_warmup_sec,omitempty"`
+	// RSSElapsedSec is wall seconds used for slope (honest denominator).
+	RSSElapsedSec float64 `json:"rss_elapsed_sec,omitempty"`
+	CPUPctAvg     float64 `json:"cpu_pct_avg,omitempty"`
+
+	// CPUUIPct / CPURasterPct are **path work-share proxies**, not OS-thread DevTools %.
+	// They split cumulative NoteBuildMs vs NoteRasterMs wall work:
+	//   share = pathSum / (buildSum+rasterSum) * 100 (sums to ~100 when both sides fed)
+	// When cpu_pct_avg > 0, values are further scaled: processCPU * share
+	// so UI+Raster ≈ process CPU and still diverge when work is one-sided.
+	// Zero/omitted when no build/raster notes yet (honest unavailable).
+	CPUUIPct     float64 `json:"cpu_ui_pct,omitempty"`
+	CPURasterPct float64 `json:"cpu_raster_pct,omitempty"`
+
+	// GPU path routing (from render.Context.RenderPathStats; M-GPU-* UI JSON).
+	// GPUOps / CPUFallbackOps are cumulative on the present Context for the run
+	// (not reset each frame). FrameFlushes is last-frame (BeginFrame clears it).
+	GPUOps                int64  `json:"gpu_ops,omitempty"`
+	CPUFallbackOps        int64  `json:"cpu_fallback_ops,omitempty"`
+	FrameFlushes          int64  `json:"frame_flushes,omitempty"`
+	LastCPUFallbackReason string `json:"last_cpu_fallback,omitempty"`
+	// StagedWriteOverlaps is the backend upload guard from
+	// render.Context.RenderPathStats (cumulative per process): uploads a drain
+	// collapsed onto bytes an earlier staged write of the same window already
+	// covered. A healthy run keeps it 0; non-zero = an upload window reused a
+	// buffer region and earlier command buffers read later bytes.
+	StagedWriteOverlaps int64 `json:"staged_write_overlaps,omitempty"`
+
+	// GPUBackend is the actual adapter category behind the window
+	// (discrete/integrated/software/gl), reported once at open from
+	// PresentTarget.GPUBackend (multiwindow 1.3 downgrade chain).
+	GPUBackend string `json:"gpu_backend,omitempty"`
+	// GPUFallbacks counts open-time downgrade levels retried before the
+	// window opened (0 = first level succeeded). Always emitted (zero is
+	// the honest common case, not "unavailable").
+	GPUFallbacks int `json:"gpu_fallbacks"`
+
+	// Boundary cache counters.
+	BoundaryRerecord int64 `json:"boundary_rerecord,omitempty"`
+	BoundarySkip     int64 `json:"boundary_skip,omitempty"`
+	// BoundaryCount is last reported tree boundary count (R3b; optional).
+	BoundaryCount int64 `json:"boundary_count,omitempty"`
+	// BoundaryMaxDepth is max nesting depth of repaint boundaries (R3b).
+	BoundaryMaxDepth int64 `json:"boundary_max_depth,omitempty"`
+	// Shell partitioning of the boundary caches (R21 shell/content layering;
+	// cumulative across NoteShellBoundaryFrame calls). A scrolling body must
+	// keep ShellRerecord == 0 while the shell Picture cache Replays.
+	ShellRerecord int64 `json:"shell_rerecord,omitempty"`
+	ShellSkip     int64 `json:"shell_skip,omitempty"`
+
+	SaveLayerAllow  int64 `json:"savelayer_allow,omitempty"`
+	SaveLayerReject int64 `json:"savelayer_reject,omitempty"`
+
+	// PictureOpCount is last-frame display-list op count.
+	PictureOpCount int64 `json:"picture_op_count,omitempty"`
+
+	// Cache budget observability: CacheEntries is the current
+	// combined entry count of the two layer caches (boundary Picture cache +
+	// retained-path texture LRU); CacheEvictions is the cumulative count of
+	// entries dropped by the explicit budgets / capacity LRU / generational
+	// sweep. Sampled per frame by PipelineApp.
+	CacheEntries   int64 `json:"cache_entries,omitempty"`
+	CacheEvictions int64 `json:"cache_evictions,omitempty"`
+	// BudgetRefusals is the cumulative count of EnsureCapacity growth
+	// refusals under multi-window budget pressure.
+	BudgetRefusals int64 `json:"budget_refusals,omitempty"`
+
+	// MeasureCacheHit is cumulative text-measure cache hits since last reset
+	// . MeasureCacheMiss is the miss counterpart for hits≥miss proof.
+	MeasureCacheHit  int64 `json:"measure_cache_hit"`
+	MeasureCacheMiss int64 `json:"measure_cache_miss"`
+
+	// Virtual-list virtualization.
+	// BindCount/ItemCount describe the most recently rebound VirtualList: the
+	// R7 gate is bind_count ≪ item_count (only viewport cells mounted).
+	// Omitted while no VirtualList has bound (windows without lists).
+	BindCount int64 `json:"bind_count,omitempty"`
+	ItemCount int64 `json:"item_count,omitempty"`
+	// ScrollRerecord is the cumulative count of cells freshly mounted because
+	// they scrolled into the viewport (R7b/C3 scroll reuse); kept cells replay
+	// their cached Picture and are not counted.
+	ScrollRerecord int64 `json:"scroll_rerecord,omitempty"`
+
+	// H-family first-present observation.
+	// Warmup is true when the Open-time warm-up full paint actually ran before
+	// the first loop present. TimeToFirstPresentMs is wall ms from Open to the
+	// first present completing. FirstPresentPaintCount is the pipe paint count
+	// at that moment (>0 proves the first frame has content, not a black/empty
+	// boot). All three are set once by SetFirstPresent; zero/empty when never.
+	Warmup                 bool    `json:"warmup,omitempty"`
+	TimeToFirstPresentMs   float64 `json:"time_to_first_present_ms,omitempty"`
+	FirstPresentPaintCount int64   `json:"first_present_paint_count,omitempty"`
+}
+    FrameMetrics is the L1 observability snapshot (F14). JSON field names are
+    stable for baseline tooling.
+
+func LoadBaseline(path string) (FrameMetrics, error)
+    LoadBaseline reads a FrameMetrics JSON file previously written by
+    SaveBaseline or MetricsStore.JSON (same schema).
+
+type FrameScheduler struct {
+	// Has unexported fields.
+}
+    FrameScheduler decides wait timeouts and tracks schedule demand.
+
+func New() *FrameScheduler
+    New creates a FrameScheduler with default anim tick.
+
+func (s *FrameScheduler) ClearPending()
+    ClearPending clears the frame-needed flag after a successful frame path.
+
+func (s *FrameScheduler) FrameDue() bool
+    FrameDue is the non-blocking frame-pacing gate (Flutter frame callback
+    semantics): a frame may render when a fresh vsync signal arrived since the
+    last rendered frame, or when the software interval (animTick) has elapsed.
+    It never blocks; the caller skips rendering otherwise. The frame timestamp
+    advances only when the gate opens.
+
+    The software floor is unconditional (not gated on the vsync signal being
+    stale): compositor frame-done notices can arrive much slower than the
+    display refresh (observed ~2×-delayed wl_surface.frame callbacks), and a
+    once-per-stamp gate alone would then throttle animation below the software
+    interval. A fresh stamp still opens the gate immediately (fast vsync sources
+    — e.g. 120Hz DRM vblank — pace at their own rate).
+
+func (s *FrameScheduler) FrameWanted() bool
+    FrameWanted reports whether the last Tick saw frame demand from any
+    surviving ticker (see FrameWanter). Tickers that do not implement
+    FrameWanter count as wanting a frame, preserving the legacy
+    stay-registered-means-frames behavior.
+
+func (s *FrameScheduler) Metrics() *MetricsStore
+    Metrics returns the metrics store.
+
+func (s *FrameScheduler) Mode() Mode
+    Mode returns the current mode.
+
+func (s *FrameScheduler) NextWake() (time.Duration, bool)
+    NextWake reports the minimum ticker deadline from the last Tick (see
+    DeadlineWanter). False when no surviving ticker reported one.
+
+func (s *FrameScheduler) NoteFramePresented()
+    NoteFramePresented records a compositor "frame presented" notice as a
+    fresh pacing timestamp (ENGINE_FRAME_PRESENT_STANDARD.md 块2). Like the DRM
+    listener stamp it does NOT schedule a frame — on-demand rendering keeps
+    demand exclusively with events/tickers; this only opens the FrameDue gate
+    for the next demanded frame.
+
+func (s *FrameScheduler) Pending() bool
+    Pending reports whether a frame was requested.
+
+func (s *FrameScheduler) RecomputeMode()
+    RecomputeMode updates mode from tickers + pending (call after events/ticks).
+
+func (s *FrameScheduler) ScheduleFrame()
+    ScheduleFrame requests a frame (wakes IDLE).
+
+func (s *FrameScheduler) SeedDisplayRefreshHz(hz float64)
+    SeedDisplayRefreshHz sets the pacing baseline from the display's real
+    refresh rate. 20–240Hz only; 0/unknown keeps the nominal floor. The learned
+    displayPeriod keeps trimming on top. Safe to re-call on output/mode changes.
+
+func (s *FrameScheduler) SetAnimTick(d time.Duration)
+    SetAnimTick overrides fallback frame period.
+
+func (s *FrameScheduler) SetMode(m Mode)
+    SetMode sets the demand mode.
+
+func (s *FrameScheduler) SetPhaseSeq(n int)
+    SetPhaseSeq assigns this scheduler's phase slot (0 = legacy grid, no shift).
+    Called once at window setup; safe for concurrent use.
+
+func (s *FrameScheduler) Tick() bool
+    Tick advances tickers with the wall-clock elapsed time since the last
+    tick (Flutter Ticker semantics: elapsed = timestamp - startTime,
+    where the timestamp is the vsync target snapped forward to wall now via
+    SnapToNextTick — a late wake jumps multiple periods so animation catches up
+    instead of falling behind forever). On a healthy cadence the elapsed time
+    equals one display period, so steps stay uniform. Gaps over 100ms mean time
+    spent hidden/minimized (the loop stops ticking there), not animation time,
+    so they resync with one normal step instead of jumping. The first tick uses
+    one display period.
+
+func (s *FrameScheduler) Tickers() *TickerRegistry
+    Tickers returns the ticker registry.
+
+func (s *FrameScheduler) WaitFramePace(host platform.Host)
+    WaitFramePace runs the non-blocking pacing bookkeeping before a frame.
+    Call after WaitEvents when ModePersistent / need steady cadence.
+
+    Flutter VsyncWaiter model: vsync waits happen on the listener goroutine
+    (ensureVsyncListener); the frame loop itself never blocks on vsync.
+    This call starts the listener (once) and reports vsync honesty for metrics —
+    it does NOT sleep and does NOT wait. Actual frame gating is FrameDue (fresh
+    vsync signal or software interval elapsed), so a hung vblank cannot freeze
+    the loop: pacing silently falls back to the software interval.
+
+    When a fresh vsync signal exists, metrics vsync_source is "true";
+    when the waiter is missing or the timestamp went stale, it is "fallback"
+    (missed_vsync is counted by the listener on WaitVSync error).
+
+func (s *FrameScheduler) WaitTimeout() time.Duration
+    WaitTimeout returns how long the host should WaitEvents. IDLE → -1
+    (infinite); persistent → time until the next frame boundary (≤animTick),
+    so the event loop wakes exactly at the pacing deadline instead of quantizing
+    it to event-arrival boundaries; transient with pending → 0 poll after wake.
+
+type FrameWanter interface {
+	WantsFrame() bool
+}
+    FrameWanter is an optional per-tick frame-demand expression. Tickers that
+    do not implement it keep the legacy behavior (registered means every tick
+    requests a frame). Returning false on state-only ticks (blink phase, HUD
+    budgets) lets the frame loop stay event-driven; frames then follow dirtiness
+    instead of ticker aliveness.
+
+type MetricsStore struct {
+	// Has unexported fields.
+}
+    MetricsStore is a concurrency-safe metrics accumulator.
+
+func (s *MetricsStore) BuildSumMs() float64
+    BuildSumMs returns cumulative UI build wall ms (tests / diagnostics).
+
+func (s *MetricsStore) JSON() ([]byte, error)
+    JSON returns metrics as JSON bytes.
+
+func (s *MetricsStore) NoteAcquireWaitMs(ms float64)
+    NoteAcquireWaitMs records BeginFrame acquire-wait duration. 等空闲缓冲的耗时。
+
+func (s *MetricsStore) NoteBoundaryFrame(rerecord, skip int64)
+    NoteBoundaryFrame accumulates per-frame RepaintBoundary cache stats.
+    rerecord/skip are typically that frame's FrameRerecord/FrameSkip from
+    BoundaryCache.
+
+func (s *MetricsStore) NoteBuildMs(ms float64)
+    NoteBuildMs records UI frame build duration and accumulates path work for
+    cpu_ui_pct.
+
+func (s *MetricsStore) NoteDamageMultiFrame()
+    NoteDamageMultiFrame increments the cumulative damage_multi present count
+    (R4b).
+
+func (s *MetricsStore) NoteFlushMs(ms float64)
+    NoteFlushMs records GPU work duration (Flush, no present wait). 6ms口径看这个数。
+
+func (s *MetricsStore) NoteFrameInterval(now time.Time)
+    NoteFrameInterval records wall time since previous frame note. Tracks
+    max/avg interval, hitch count, and a ring for p50/p95/p99.
+
+func (s *MetricsStore) NoteGPUBackend(backend string, fallbacks int)
+    NoteGPUBackend records the actual adapter category + open-time downgrade
+    count once per window (multiwindow 1.3). Called by embedder Open after the
+    present target opens.
+
+func (s *MetricsStore) NoteGPUPathStats(gpuOps, cpuFallbackOps, frameFlushes int, lastFallbackReason string)
+    NoteGPUPathStats records render path routing counters into UI JSON
+    (M-GPU-SUBMIT / M-GPU-FALLBACK / M-GPU-FALLBACK-N). Values are
+    typically cumulative Context stats snapshotted after Present (gpu_ops,
+    cpu_fallback_ops) plus last-frame flushes.
+
+func (s *MetricsStore) NoteMissedVSync()
+    NoteMissedVSync increments missed vsync counter.
+
+func (s *MetricsStore) NotePresent()
+    NotePresent increments present counter.
+
+func (s *MetricsStore) NotePresentOutcome(mode string, areaPx int64)
+    NotePresentOutcome records present mode + damage area for the last
+    frame (M-DAMAGE-AREA). mode should be render.PresentMode.String();
+    areaPx is physical dirty union area. Does NOT bump PresentCount:
+    the raster loop already counted this frame via NotePresent, so counting here
+    too double-books every frame (spin_min: PresentCount read 2x FrameCount).
+    Idle presents carry no drawing: they still count as presents but preserve
+    the last real mode + area so JSON/gates observe the true steady-state
+    (damage_union/damage_multi) instead of event-noise zeros.
+
+func (s *MetricsStore) NotePresentWaitMs(ms float64)
+    NotePresentWaitMs records present-wait duration (Fifo wait for display).
+    等的耗时记这里，不掺进干活。
+
+func (s *MetricsStore) NoteRasterMs(ms float64)
+    NoteRasterMs records raster duration and accumulates path work for
+    cpu_raster_pct.
+
+func (s *MetricsStore) NoteSaveLayer(allow, reject int64)
+    NoteSaveLayer accumulates per-frame SaveLayer budget outcomes. allow/reject
+    are that frame's accepted / budget-refused SaveLayer pushes.
+
+func (s *MetricsStore) NoteShellBoundaryFrame(shellRerecord, shellSkip int64)
+    NoteShellBoundaryFrame accumulates the shell-tagged boundary cache stats .
+    A scrolling body must keep shellRerecord == 0 while its shell Picture cache
+    Replays.
+
+func (s *MetricsStore) NoteStagedWriteOverlaps(n int64)
+    NoteStagedWriteOverlaps records the backend upload guard (cumulative).
+    Called with the same RenderPathStats snapshot as NoteGPUPathStats.
+
+func (s *MetricsStore) PresentPolicy() string
+    PresentPolicy returns the current present_policy string (may be empty if
+    unset).
+
+func (s *MetricsStore) RasterSumMs() float64
+    RasterSumMs returns cumulative raster wall ms (tests / diagnostics).
+
+func (s *MetricsStore) SetBoundaryDiscovery(count, maxDepth int)
+    SetBoundaryDiscovery records R3b compositing-bits / boundary walk counts.
+
+func (s *MetricsStore) SetBudgetRefusals(n int64)
+    SetBudgetRefusals records the cumulative EnsureCapacity growth refusal
+    count. Sampled per frame by PipelineApp.
+
+func (s *MetricsStore) SetCacheBudget(entries, evictions int64)
+    SetCacheBudget records the R14 cache-budget observability sample:
+    entries is the current combined boundary-Picture + texture-LRU entry count,
+    evictions the cumulative count of budget/LRU/sweep drops.
+
+func (s *MetricsStore) SetDirtyLayerIDs(ids []uint64)
+    SetDirtyLayerIDs records the last frame's dirty layer/boundary id list
+    (R4b).
+
+func (s *MetricsStore) SetFilterLayerCount(n int64)
+    SetFilterLayerCount records filter layers applied in the last composite.
+
+func (s *MetricsStore) SetFirstPresent(ms float64, warmup bool, paintCount int64)
+    SetFirstPresent records the H-family first-present observation: warmup =
+    Open-time warm-up full paint ran; ms = wall ms from Open to first present
+    completing; paintCount = pipe paint count at that moment (>0 = first frame
+    has content). Call exactly once at the first present.
+
+func (s *MetricsStore) SetLayoutCount(n int64)
+    SetLayoutCount records layout flush count snapshot.
+
+func (s *MetricsStore) SetMeasureCacheStats(hits, misses int64)
+    SetMeasureCacheStats records cumulative text measure hit/miss.
+
+func (s *MetricsStore) SetPaintCount(n int64)
+    SetPaintCount records paint flush count snapshot.
+
+func (s *MetricsStore) SetPaintVisits(n int64)
+    SetPaintVisits records the last frame's node paint visits.
+
+func (s *MetricsStore) SetPictureOpCount(n int)
+    SetPictureOpCount records last-frame display-list op count.
+
+func (s *MetricsStore) SetPipeline(depth, max int)
+    SetPipeline records current and max pipeline depth.
+
+func (s *MetricsStore) SetPresentPolicy(policy string)
+    SetPresentPolicy records the window present/paint strategy (present_policy
+    JSON). Empty policy is ignored; use PresentPolicyFullPaint / Retained /
+    Hybrid.
+
+func (s *MetricsStore) SetProcessStats(startKB, endKB, peakKB, afterCloseKB int64, cpuPctAvg float64)
+    SetProcessStats records RSS (KiB) and average process CPU% for JSON
+    baselines.
+
+func (s *MetricsStore) SetRSSSlope(slopeKBPerMin, elapsedSec float64)
+    SetRSSSlope records M-RSS-SLOPE (KB/min) and the wall seconds used as
+    denominator. slope may be negative (RSS dropped). elapsedSec ≤0 clears slope
+    to 0.
+
+func (s *MetricsStore) SetRSSSlopeSteady(slopeKBPerMin, warmupSec float64, valid bool)
+    SetRSSSlopeSteady records M-RSS-SLOPE-STEADY (KB/min), the warmup actually
+    discarded, and whether the result is valid as a leak verdict. When valid is
+    false the steady slope is cleared but the warmup is kept so short-run JSON
+    explains why (e.g. rss_warmup_sec=15, rss_slope_valid=false on a 5s window).
+
+func (s *MetricsStore) SetRasterLayerCount(n int64)
+    SetRasterLayerCount records dirty-layer re-raster count for this frame
+    (F02).
+
+func (s *MetricsStore) SetScrollRerecord(n int64)
+    SetScrollRerecord records the cumulative scroll fresh-mount total (R7b/C3).
+
+func (s *MetricsStore) SetVSyncSource(src string)
+    SetVSyncSource records whether pacing uses true vsync or software fallback.
+
+func (s *MetricsStore) SetVirtualBind(bind, itemCount int64)
+    SetVirtualBind samples the most recently rebound VirtualList window:
+    bind = currently mounted cells, itemCount = logical row count.
+
+func (s *MetricsStore) Snapshot() FrameMetrics
+    Snapshot returns a copy of current metrics (includes p50/p95/p99, hitch
+    rate, path CPU).
+
+type Mode int
+    Mode is the demand-driven frame mode (Flutter-like).
+
+const (
+	// ModeIdle blocks on events only (no anim tick).
+	ModeIdle Mode = iota
+	// ModeTransient draws until no pending frame / tickers.
+	ModeTransient
+	// ModePersistent keeps vsync/fallback ticks while tickers active.
+	ModePersistent
+)
+type ProcessTracker struct {
+	StartRSSKB   int64
+	EndRSSKB     int64
+	PeakRSSKB    int64
+	AfterCloseKB int64
+	CPUPctAvg    float64
+	SampleCount  int
+	// ElapsedSec is wall time from Start to last Sample/Stop (for M-RSS-SLOPE).
+	ElapsedSec float64
+
+	// Has unexported fields.
+}
+    ProcessTracker samples process RSS and coarse CPU% over a run (Wave P0
+    closeout). Not a substitute for per-thread DevTools; good enough for example
+    soak gates.
+
+func (t *ProcessTracker) Apply(s *MetricsStore)
+    Apply copies tracker fields into the metrics store for JSON export,
+    including automatic rss_slope_kb_per_min.
+
+func (t *ProcessTracker) NoteAfterClose()
+    NoteAfterClose records RSS after app/window teardown (release gate).
+
+func (t *ProcessTracker) RSSSlopeKBPerMin() float64
+    RSSSlopeKBPerMin returns the least-squares RSS trend over samples after 25%
+    of elapsed wall, in KB/min (M-RSS-SLOPE). It is the raw compatibility trend:
+    on a short run the one-time startup ramp (device creation, caches,
+    Go heap growth) is included, so it must NOT be read as a leak verdict.
+    Use RSSSlopeSteadyKBPerMin for the verdict. Falls back to the two-point
+    estimate when fewer than 2 post-cut points exist. Zero when not started,
+    no wall span, or stub /proc (non-Linux) — honest unavailable.
+
+func (t *ProcessTracker) RSSSlopeSteadyKBPerMin() (slopeKBPerMin, warmupSec float64, valid bool)
+    RSSSlopeSteadyKBPerMin returns the least-squares RSS trend over samples
+    after max(elapsed/4, 15s), plus the warmup actually used and whether the
+    result is valid as a leak verdict (M-RSS-SLOPE-STEADY). Valid requires at
+    least 15s of post-warmup samples, so the smallest honest verdict is a 30s
+    run; a 5s/15s window returns valid=false and callers must not treat it as a
+    leak. warmupSec is still returned when invalid so the JSON can explain why.
+    Zero/false when not started, no wall span, stub /proc, or fewer than 2
+    points.
+
+func (t *ProcessTracker) Sample()
+    Sample updates peak RSS, elapsed wall, and running average process CPU%.
+
+func (t *ProcessTracker) Start()
+    Start records baseline RSS and wall clock (and CPU jiffies when available).
+
+func (t *ProcessTracker) Stop()
+    Stop finalizes end RSS (call before Close of GPU if measuring run RSS).
+
+type Ticker interface {
+	Tick(dt float64) bool
+}
+    Ticker is driven once per active frame (Flutter-style). The dt is the
+    wall-clock elapsed time since the last tick (Flutter Ticker elapsed
+    = timestamp - startTime, timestamp snapped forward to wall now).
+    Healthy cadence gives one display period; a late wake gives a larger step
+    so animation catches up with a visible jump instead of falling behind.
+    Gaps over 100ms (hidden/minimized) resync with one normal step. Return false
+    to unregister after this tick.
+
+type TickerRegistry struct {
+	// Has unexported fields.
+}
+    TickerRegistry holds active tickers.
+
+func (r *TickerRegistry) Add(t Ticker)
+    Add registers a ticker if not already present.
+
+func (r *TickerRegistry) FrameWanted() bool
+    FrameWanted reports whether the last TickAll saw frame demand from any
+    surviving ticker. False before the first tick and whenever every ticker
+    either unregistered or opted out via FrameWanter.
+
+func (r *TickerRegistry) HasActive() bool
+    HasActive reports whether any ticker is registered.
+
+func (r *TickerRegistry) MayWantFrames() bool
+    MayWantFrames reports whether any registered ticker could request a
+    frame (non-implementers count as yes, preserving legacy behavior).
+    Unlike FrameWanted (the last tick's data) it reflects the current registry,
+    so a loop that has not ticked yet still keeps cadence for legacy tickers.
+
+func (r *TickerRegistry) NextWake() (time.Duration, bool)
+    NextWake reports the minimum deadline from surviving tickers that implement
+    DeadlineWanter. False before the first tick and whenever none reported one
+    (the loop then waits on events, or keeps legacy cadence while any ticker
+    wants frames).
+
+func (r *TickerRegistry) Remove(t Ticker)
+    Remove unregisters a ticker.
+
+func (r *TickerRegistry) TickAll(dt float64)
+    TickAll advances all tickers with dt seconds; drops those returning false.
+    Tickers added from inside a Tick join the registry and survive this round
+    (they tick from the next TickAll). Tickers removed inside a Tick stay
+    removed even when their Tick returned true.
+
