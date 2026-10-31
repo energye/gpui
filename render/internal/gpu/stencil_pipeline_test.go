@@ -13,6 +13,7 @@ func TestStencilPipelineCreation(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	// Pipelines only need the device, not textures.
@@ -57,6 +58,7 @@ func TestStencilPipelineDestroy(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 
 	err := sr.createPipelines()
 	if err != nil {
@@ -105,6 +107,7 @@ func TestStencilPipelineDestroyBeforeCreate(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 
 	// Destroying pipelines that were never created should not panic.
 	sr.destroyPipelines()
@@ -115,6 +118,7 @@ func TestStencilPipelineFullDestroy(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 
 	// Create textures and pipelines.
 	err := sr.EnsureTextures(800, 600)
@@ -192,6 +196,7 @@ func TestStencilPipelineRecreate(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	// Create, destroy, recreate -- simulates device reset scenario.
@@ -201,6 +206,7 @@ func TestStencilPipelineRecreate(t *testing.T) {
 	}
 
 	sr.destroyPipelines()
+	testSharedLayouts(t, device, sr)
 
 	err = sr.createPipelines()
 	if err != nil {

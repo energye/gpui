@@ -16,9 +16,13 @@ func TestOpt34_SharedEncoder_DoesNotFlushLeading(t *testing.T) {
 		t.Skip("WGPU_NATIVE_PATH required")
 	}
 	shared, s := r73Session(t)
-	s.SetConvexRenderer(NewConvexRenderer(shared.device, shared.queue, 1))
-	s.SetSDFPipeline(NewSDFRenderPipeline(shared.device, shared.queue, 1))
-	s.SetStencilRenderer(NewStencilRenderer(shared.device, shared.queue, 1))
+	cr := NewConvexRenderer(shared.device, shared.queue, 1)
+	sdf := NewSDFRenderPipeline(shared.device, shared.queue, 1)
+	sr := NewStencilRenderer(shared.device, shared.queue, 1)
+	testSharedLayouts(t, shared.device, cr, sdf, sr)
+	s.SetConvexRenderer(cr)
+	s.SetSDFPipeline(sdf)
+	s.SetStencilRenderer(sr)
 
 	const w, h uint32 = 64, 64
 	mkView := func(label string) (hal.Texture, hal.TextureView) {
@@ -116,9 +120,13 @@ func TestOpt34_NoSharedEncoder_StillFlushesLeading(t *testing.T) {
 		t.Skip("WGPU_NATIVE_PATH required")
 	}
 	shared, s := r73Session(t)
-	s.SetConvexRenderer(NewConvexRenderer(shared.device, shared.queue, 1))
-	s.SetSDFPipeline(NewSDFRenderPipeline(shared.device, shared.queue, 1))
-	s.SetStencilRenderer(NewStencilRenderer(shared.device, shared.queue, 1))
+	cr := NewConvexRenderer(shared.device, shared.queue, 1)
+	sdf := NewSDFRenderPipeline(shared.device, shared.queue, 1)
+	sr := NewStencilRenderer(shared.device, shared.queue, 1)
+	testSharedLayouts(t, shared.device, cr, sdf, sr)
+	s.SetConvexRenderer(cr)
+	s.SetSDFPipeline(sdf)
+	s.SetStencilRenderer(sr)
 
 	const w, h uint32 = 64, 64
 	mkView := func(label string) (hal.Texture, hal.TextureView) {

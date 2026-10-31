@@ -69,7 +69,7 @@ type ColorGlyphAtlas struct {
 	maxPages int
 	entries  map[ColorGlyphKey]ColorGlyphRegion
 	// lastUse[key] is the put/get stamp; eviction picks the coldest page.
-	lastUse map[ColorGlyphKey]uint64
+	lastUse  map[ColorGlyphKey]uint64
 	useStamp uint64
 }
 

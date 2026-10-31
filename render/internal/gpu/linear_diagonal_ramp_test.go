@@ -61,7 +61,7 @@ func TestLinearDiagonalRampMatchesColorAt(t *testing.T) {
 		r, g, b := at(x, y)
 		c := brush.ColorAt(float64(x)+0.5, float64(y)+0.5)
 		want := [3]uint8{uint8(clamp255(c.R * c.A * 255)), uint8(clamp255(c.G * c.A * 255)), uint8(clamp255(c.B * c.A * 255))}
-		d := math.Abs(float64(r)-float64(want[0]))
+		d := math.Abs(float64(r) - float64(want[0]))
 		if dg := math.Abs(float64(g) - float64(want[1])); dg > d {
 			d = dg
 		}

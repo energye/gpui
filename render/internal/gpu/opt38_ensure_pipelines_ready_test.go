@@ -25,9 +25,13 @@ func TestOpt38_EnsurePipelines_ReadyFastPath(t *testing.T) {
 	shared.ensurePipelines()
 	s := NewGPURenderSession(shared.device, shared.queue, 1)
 	t.Cleanup(func() { s.Destroy() })
-	s.SetConvexRenderer(NewConvexRenderer(shared.device, shared.queue, 1))
-	s.SetSDFPipeline(NewSDFRenderPipeline(shared.device, shared.queue, 1))
-	s.SetStencilRenderer(NewStencilRenderer(shared.device, shared.queue, 1))
+	cr := NewConvexRenderer(shared.device, shared.queue, 1)
+	sdf := NewSDFRenderPipeline(shared.device, shared.queue, 1)
+	sr := NewStencilRenderer(shared.device, shared.queue, 1)
+	testSharedLayouts(t, shared.device, cr, sdf, sr)
+	s.SetConvexRenderer(cr)
+	s.SetSDFPipeline(sdf)
+	s.SetStencilRenderer(sr)
 
 	if err := s.ensureClipBindLayout(); err != nil {
 		t.Fatal(err)
@@ -55,7 +59,9 @@ func TestOpt38_EnsurePipelines_ReadyFastPath(t *testing.T) {
 		t.Fatalf("ensurePipelinesFullN=%d want ≥1", s.ensurePipelinesFullN)
 	}
 	// Inject new convex renderer → must re-enter full ensure.
-	s.SetConvexRenderer(NewConvexRenderer(shared.device, shared.queue, 1))
+	cr = NewConvexRenderer(shared.device, shared.queue, 1)
+	testSharedLayouts(t, shared.device, cr)
+	s.SetConvexRenderer(cr)
 	if s.pipelinesReady {
 		t.Fatal("SetConvexRenderer should clear pipelinesReady")
 	}
@@ -80,9 +86,13 @@ func TestOpt38_EnsurePipelines_WarmRenderFrame(t *testing.T) {
 	}
 	s := NewGPURenderSession(shared.device, shared.queue, 1)
 	t.Cleanup(func() { s.Destroy() })
-	s.SetConvexRenderer(NewConvexRenderer(shared.device, shared.queue, 1))
-	s.SetSDFPipeline(NewSDFRenderPipeline(shared.device, shared.queue, 1))
-	s.SetStencilRenderer(NewStencilRenderer(shared.device, shared.queue, 1))
+	cr := NewConvexRenderer(shared.device, shared.queue, 1)
+	sdf := NewSDFRenderPipeline(shared.device, shared.queue, 1)
+	sr := NewStencilRenderer(shared.device, shared.queue, 1)
+	testSharedLayouts(t, shared.device, cr, sdf, sr)
+	s.SetConvexRenderer(cr)
+	s.SetSDFPipeline(sdf)
+	s.SetStencilRenderer(sr)
 
 	const w, h uint32 = 64, 64
 	mk := func(label string) (hal.Texture, hal.TextureView) {

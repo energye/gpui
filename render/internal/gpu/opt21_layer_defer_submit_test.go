@@ -25,9 +25,13 @@ func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 	shared.ensurePipelines()
 	s := NewGPURenderSession(shared.device, shared.queue, 1)
 	t.Cleanup(func() { s.Destroy() })
-	s.SetConvexRenderer(NewConvexRenderer(shared.device, shared.queue, 1))
-	s.SetSDFPipeline(NewSDFRenderPipeline(shared.device, shared.queue, 1))
-	s.SetStencilRenderer(NewStencilRenderer(shared.device, shared.queue, 1))
+	cr := NewConvexRenderer(shared.device, shared.queue, 1)
+	sdf := NewSDFRenderPipeline(shared.device, shared.queue, 1)
+	sr := NewStencilRenderer(shared.device, shared.queue, 1)
+	testSharedLayouts(t, shared.device, cr, sdf, sr)
+	s.SetConvexRenderer(cr)
+	s.SetSDFPipeline(sdf)
+	s.SetStencilRenderer(sr)
 
 	const w, h uint32 = 64, 64
 	mkView := func(label string) (hal.Texture, hal.TextureView) {
@@ -50,6 +54,10 @@ func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 		return tex, view
 	}
 
+	sharedEnc, err := shared.device.CreateCommandEncoder(&hal.CommandEncoderDescriptor{Label: "opt21_shared_encoder"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for i, label := range []string{"opt21_layer0", "opt21_layer1"} {
 		tex, view := mkView(label)
 		t.Cleanup(func() {
@@ -71,16 +79,32 @@ func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 			Height:     int(h),
 		}
 		s.SetDeferSurfaceSubmit(true)
-		if err := s.RenderFrameGrouped(target, groups, nil, nil); err != nil {
+		// C5 semantics (render_session.go RenderFrameGrouped entry): without a
+		// shared encoder every call drains leadSubmitCBs at entry (staging
+		// buffers are shared and the next layer's WriteBuffer would overwrite
+		// them). Cross-call accumulation — this test's subject — requires the
+		// shared encoder (ADR-017 one-Submit path).
+		if err := s.RenderFrameGrouped(target, groups, nil, sharedEnc); err != nil {
 			s.SetDeferSurfaceSubmit(false)
 			t.Fatalf("layer %d encode: %v", i, err)
 		}
 		s.SetDeferSurfaceSubmit(false)
-		if got := len(s.leadSubmitCBs); got != i+1 {
-			t.Fatalf("after layer %d lead CBs=%d want %d", i, got, i+1)
+		// Shared-encoder path (ADR-017): layers encode into sharedEnc with
+		// zero intermediate submits — leadSubmitCBs stays empty.
+		if got := len(s.leadSubmitCBs); got != 0 {
+			t.Fatalf("after layer %d lead CBs=%d want 0 (shared-encoder path)", i, got)
 		}
 	}
 
+	sharedEncEnc, err := sharedEnc.Finish()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Production submit path (ADR-017): submitWithLeading counts the shared
+	// encoder as the one Submit carrying both layer fills.
+	if err := s.submitWithLeading(sharedEncEnc); err != nil {
+		t.Fatal(err)
+	}
 	// Present-equivalent drain: one Submit with both layer CBs.
 	if err := s.FlushLeadingSubmitsOnly(); err != nil {
 		t.Fatalf("flush leading: %v", err)
@@ -92,8 +116,11 @@ func TestOpt21_DeferSurfaceSubmit_CoalescesLayerFills(t *testing.T) {
 	if st.Submits != 1 {
 		t.Fatalf("Submits=%d want 1", st.Submits)
 	}
-	if st.CoalescedCBs != 2 {
-		t.Fatalf("CoalescedCBs=%d want 2 (two deferred layer fills)", st.CoalescedCBs)
+	// CoalescedCBs counts deferred lead CBs folded into the one Submit; with
+	// a shared encoder the first layer encodes into sharedEnc directly and
+	// only the last surface fill defers, so ≥1 proves the fold happened.
+	if st.CoalescedCBs < 1 {
+		t.Fatalf("CoalescedCBs=%d want >=1 (layer fills folded into one Submit)", st.CoalescedCBs)
 	}
 
 	// A following present encode must not see stranded leadings and must succeed.

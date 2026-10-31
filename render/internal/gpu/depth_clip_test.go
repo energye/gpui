@@ -366,6 +366,7 @@ func TestStencilRenderer_EnsureDepthClipPipelines(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	// Base pipelines must be created first (or ensureDepthClipPipelines handles it).

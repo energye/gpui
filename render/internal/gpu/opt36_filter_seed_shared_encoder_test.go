@@ -52,9 +52,13 @@ func TestOpt36_FilterSeedSharedEncoder_OneFinish(t *testing.T) {
 	}
 	s := NewGPURenderSession(device, queue, 1)
 	t.Cleanup(func() { s.Destroy() })
-	s.SetConvexRenderer(NewConvexRenderer(device, queue, 1))
-	s.SetSDFPipeline(NewSDFRenderPipeline(device, queue, 1))
-	s.SetStencilRenderer(NewStencilRenderer(device, queue, 1))
+	cr := NewConvexRenderer(device, queue, 1)
+	sdf := NewSDFRenderPipeline(device, queue, 1)
+	sr := NewStencilRenderer(device, queue, 1)
+	testSharedLayouts(t, device, cr, sdf, sr)
+	s.SetConvexRenderer(cr)
+	s.SetSDFPipeline(sdf)
+	s.SetStencilRenderer(sr)
 
 	srcView := packView(view)
 	target := render.GPURenderTarget{

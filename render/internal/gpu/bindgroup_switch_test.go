@@ -21,12 +21,14 @@ func TestBindGroupLayoutSwitch_StencilThenSDF(t *testing.T) {
 
 	sdf := NewSDFRenderPipeline(device, queue, sampleCount)
 	defer sdf.Destroy()
+	testSharedLayouts(t, device, sdf)
 	if err := sdf.ensurePipelineWithStencil(); err != nil {
 		t.Fatalf("sdf pipeline: %v", err)
 	}
 
 	stencil := NewStencilRenderer(device, queue, sampleCount)
 	defer stencil.Destroy()
+	testSharedLayouts(t, device, stencil)
 	if err := stencil.createPipelines(); err != nil {
 		t.Fatalf("stencil pipelines: %v", err)
 	}

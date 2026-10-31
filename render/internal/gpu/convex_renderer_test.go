@@ -16,6 +16,7 @@ func TestConvexRendererCreation(t *testing.T) {
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
+	testSharedLayouts(t, device, cr)
 	defer cr.Destroy()
 
 	if cr.device == nil {
@@ -39,6 +40,7 @@ func TestConvexRendererPipeline(t *testing.T) {
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
+	testSharedLayouts(t, device, cr)
 	defer cr.Destroy()
 
 	err := cr.ensurePipeline()
@@ -75,6 +77,7 @@ func TestConvexRendererPipelineWithStencil(t *testing.T) {
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
+	testSharedLayouts(t, device, cr)
 	defer cr.Destroy()
 
 	err := cr.ensurePipelineWithStencil()
@@ -106,6 +109,7 @@ func TestConvexRendererDestroy(t *testing.T) {
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
+	testSharedLayouts(t, device, cr)
 
 	err := cr.ensurePipelineWithStencil()
 	if err != nil {
@@ -139,6 +143,7 @@ func TestConvexRendererDestroyBeforeCreate(t *testing.T) {
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
+	testSharedLayouts(t, device, cr)
 
 	// Destroying without creating should not panic.
 	cr.Destroy()
@@ -169,6 +174,7 @@ func TestConvexRendererRecordDrawsEmpty(t *testing.T) {
 	defer cleanup()
 
 	cr := NewConvexRenderer(device, queue, 4)
+	testSharedLayouts(t, device, cr)
 	defer cr.Destroy()
 
 	err := cr.ensurePipelineWithStencil()
@@ -850,6 +856,7 @@ func TestRenderSessionConvexRendererSetter(t *testing.T) {
 	}
 
 	cr := NewConvexRenderer(device, queue, 4)
+	testSharedLayouts(t, device, cr)
 	defer cr.Destroy()
 
 	s.SetConvexRenderer(cr)

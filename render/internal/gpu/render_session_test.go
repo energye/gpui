@@ -440,8 +440,10 @@ func TestRenderSessionPipelineSetters(t *testing.T) {
 
 	// Set external pipelines.
 	sdfP := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, sdfP)
 	defer sdfP.Destroy()
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	s.SetSDFPipeline(sdfP)
@@ -483,6 +485,7 @@ func TestSDFRenderPipelineWithStencil(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 	defer p.Destroy()
 
 	err := p.ensurePipelineWithStencil()
@@ -514,6 +517,7 @@ func TestSDFRenderPipelineDestroyWithStencilVariant(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 
 	err := p.ensurePipelineWithStencil()
 	if err != nil {
@@ -808,6 +812,7 @@ func TestStencilRendererRecordPath(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	// Create pipelines first.
@@ -838,6 +843,7 @@ func TestEnsurePipelines_ClipLayoutRecreation(t *testing.T) {
 
 	// Step 1: Create SDF pipeline and force pipeline creation WITHOUT clip layout.
 	sdf := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, sdf)
 	defer sdf.Destroy()
 
 	// Trigger base pipeline creation (shader, layouts, pipeLayout) without clip.
@@ -939,6 +945,7 @@ func TestEnsurePipelines_StencilClipRecreation(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	// Create pipelines without clip.

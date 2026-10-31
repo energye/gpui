@@ -6709,6 +6709,18 @@ func (s *GPURenderSession) ConvexRendererRef() *ConvexRenderer {
 
 // SetConvexRenderer sets an external convex renderer for the session to use.
 // The session does not own the renderer and will not destroy it.
+// SetMaskBindLayout injects the shared mask bind layout for standalone
+// sessions: production sessions receive it from GPUShared
+// (gpu_render_context.go hands sharedMask over); tests building sessions
+// without a shared must inject it or pipelines needing the mask layout fail
+// validation (J5 campaign, P2.4e).
+func (s *GPURenderSession) SetMaskBindLayout(layout hal.BindGroupLayout) {
+	if s == nil || layout == nil {
+		return
+	}
+	s.maskBindLayout = layout
+}
+
 func (s *GPURenderSession) SetConvexRenderer(r *ConvexRenderer) {
 	s.convexRenderer = r
 	s.ownsShapePipelines = false

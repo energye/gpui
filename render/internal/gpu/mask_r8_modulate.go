@@ -243,7 +243,7 @@ func createRGBAUploadTexture(device hal.Device, queue hal.Queue, label string, d
 	if err := queue.WriteTexture(
 		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		upload,
-		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(h)},        //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(h)},       //nolint:gosec
 		&hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		view.Destroy()
@@ -292,7 +292,7 @@ func createR8UploadTexture(device hal.Device, queue hal.Queue, label string, dat
 	if err := queue.WriteTexture(
 		&hal.ImageCopyTexture{Texture: tex, MipLevel: 0},
 		upload,
-		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(h)},        //nolint:gosec
+		&hal.ImageDataLayout{BytesPerRow: aligned, RowsPerImage: uint32(h)},       //nolint:gosec
 		&hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
 	); err != nil {
 		view.Destroy()

@@ -15,6 +15,7 @@ func TestRenderPathTriangle(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	// Build a simple triangle path.
@@ -46,6 +47,7 @@ func TestRenderPathEmpty(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	target := render.GPURenderTarget{
@@ -73,6 +75,7 @@ func TestRenderPathCircle(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	// Build a circle path using render.Path.Circle.
@@ -98,6 +101,7 @@ func TestRenderPathEvenOdd(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	// Build a simple triangle path.
@@ -131,6 +135,7 @@ func TestRenderPathBothFillRules(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	path := render.NewPath()
@@ -175,6 +180,7 @@ func TestRenderPathPipelinesCreatedOnce(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	path := render.NewPath()
@@ -218,6 +224,7 @@ func TestRenderPathResizesTextures(t *testing.T) {
 	defer cleanup()
 
 	sr := NewStencilRenderer(device, queue, 4)
+	testSharedLayouts(t, device, sr)
 	defer sr.Destroy()
 
 	path := render.NewPath()

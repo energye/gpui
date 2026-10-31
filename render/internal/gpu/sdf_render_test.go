@@ -16,6 +16,7 @@ func TestSDFRenderPipelineCreation(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 	defer p.Destroy()
 
 	err := p.createPipeline()
@@ -42,6 +43,7 @@ func TestSDFRenderPipelineDestroy(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 
 	err := p.createPipeline()
 	if err != nil {
@@ -76,6 +78,7 @@ func TestSDFRenderPipelineDestroyBeforeCreate(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 
 	// Destroying a pipeline that was never created should not panic.
 	p.destroyPipeline()
@@ -86,6 +89,7 @@ func TestSDFRenderPipelineTextures(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 	defer p.Destroy()
 
 	err := p.ensureTextures(800, 600)
@@ -117,6 +121,7 @@ func TestSDFRenderPipelineTexturesIdempotent(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 	defer p.Destroy()
 
 	err := p.ensureTextures(640, 480)
@@ -146,6 +151,7 @@ func TestSDFRenderPipelineTexturesResize(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 	defer p.Destroy()
 
 	err := p.ensureTextures(800, 600)
@@ -179,6 +185,7 @@ func TestSDFRenderPipelineFullDestroy(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 
 	err := p.ensureTextures(512, 512)
 	if err != nil {
@@ -215,6 +222,7 @@ func TestSDFRenderPipelineRecreate(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 	defer p.Destroy()
 
 	// Create, destroy, recreate.
@@ -223,6 +231,7 @@ func TestSDFRenderPipelineRecreate(t *testing.T) {
 		t.Fatalf("first createPipeline failed: %v", err)
 	}
 	p.destroyPipeline()
+	testSharedLayouts(t, device, p)
 
 	err = p.createPipeline()
 	if err != nil {
@@ -635,6 +644,7 @@ func TestSDFRenderPipelineRenderShapesEmpty(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 	defer p.Destroy()
 
 	target := render.GPURenderTarget{
@@ -666,6 +676,7 @@ func TestSDFRenderPipelineEnsureReady(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 	defer p.Destroy()
 
 	// Before ensureReady, nothing is allocated.
@@ -696,6 +707,7 @@ func TestSDFRenderPipelineTexturesAfterDestroy(t *testing.T) {
 	defer cleanup()
 
 	p := NewSDFRenderPipeline(device, queue, 4)
+	testSharedLayouts(t, device, p)
 
 	// Create, destroy, recreate.
 	err := p.ensureTextures(256, 256)
