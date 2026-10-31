@@ -117,3 +117,10 @@
 - **专项立案（下一窗口）**：通读 `dual_tex_blend.go` 的 `dualTexAdvancedBlendViewsMultiIntoEncoder` bind group 链（multiBindGroup 的 dst 绑定纹理 vs seed 写入纹理是否同一）+ `seedViewFromRGBA` 的写入目标 + lead 队列与 WriteTexture 的队列时序（wgpu queue write 立即性 vs CB 提交序）。
 - 顺带收获：misc_draw 的 GPU 意图子测试群已全部分类；layer RT 88x48 尺寸链（层 bounds 计算）值得单独看一眼。
 - 探针全部移除。
+
+## 2026-10-31 续10：dual_tex 专项一轮（探针矩阵完成，定位到执行时序/绑定）
+
+- **排除**：offscreen 纹理 usage 全带 CopyDst（seed 的 WriteTexture 不会因 usage 被拒）；seed 的 BGRA 换位正确；UV 映射跨尺寸自洽（out 中心透明=填充区外，符合几何）。
+- **探针矩阵终态**：resolve 时刻 src(layerRT@(16,16))=(229,229,229,255) ✓ 灰在、dst view seeded 红 ✓、bundle 成功（outs=1, cmd 入 lead 队列）、**lead 提交执行后（drainQueue 同步）out@(中心)=透明、最终 view@(16,16)=(0,0,0,255) 黑**——dual-tex CB 执行时的 src 或 dst 采样读到空。
+- **下一窗口专项**：通读 `dual_tex_blend.go` 的 multiBindGroup 绑定链（dst 绑定纹理实例 vs seed 写入实例同一性）+ lead 队列 CB 与 WriteTexture 的 wgpu 时间线（writeTexture 立即序 vs CB 提交序是否跨队列）+ multiply shader 的 dst 采样 UV。必要时在 bundle 的 render pass 记录前后加 queue 边界标记（writeBuffer 哨兵）验证执行序。
+- 顺带：render 包 path_ops/pathops_area 的既有未格式化状态已还原（宽域 gofmt 误碰还原，非本线改动）。
