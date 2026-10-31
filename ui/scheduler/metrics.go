@@ -55,10 +55,18 @@ type FrameMetrics struct {
 	// Timing (milliseconds)
 	LastFrameIntervalMs float64 `json:"last_frame_interval_ms"`
 	MaxFrameIntervalMs  float64 `json:"max_frame_interval_ms"`
-	AvgFrameIntervalMs  float64 `json:"avg_frame_interval_ms"`
-	P50FrameIntervalMs  float64 `json:"frame_interval_p50_ms,omitempty"`
-	P95FrameIntervalMs  float64 `json:"frame_interval_p95_ms,omitempty"`
-	P99FrameIntervalMs  float64 `json:"frame_interval_p99_ms,omitempty"`
+	AvgFrameIntervalMs  float64 `json:"interval_avg_ms"`
+	P50FrameIntervalMs  float64 `json:"interval_p50_ms,omitempty"`
+	P95FrameIntervalMs  float64 `json:"interval_p95_ms,omitempty"`
+	P99FrameIntervalMs  float64 `json:"interval_p99_ms,omitempty"`
+	// FPSWall is present_count / wall seconds between the first and last
+	// interval note (A-family contract, same definition as wrgate's
+	// fps_wall: includes open/close overhead — often low). 0/omitted until
+	// both a present and an interval span exist.
+	FPSWall float64 `json:"fps_wall,omitempty"`
+	// TargetHz is the display refresh rate the pacer was seeded with
+	// (SeedDisplayRefreshHz); 0/omitted when the host never reported one.
+	TargetHz float64 `json:"target_hz,omitempty"`
 	LastBuildMs         float64 `json:"frame_build_ms"`
 	LastRasterMs        float64 `json:"frame_raster_ms"`
 	// F期干活计时独立：Flush(干活)与present(等显示器)分开记。
@@ -231,6 +239,7 @@ type MetricsStore struct {
 	ring        [intervalRingCap]float64
 	ringN       int
 	ringI       int
+	targetHz    float64 // display refresh seeded by SeedDisplayRefreshHz
 
 	// Cumulative UI-build and Raster-present wall times (ms) for path CPU split.
 	buildSumMs  float64
@@ -248,10 +257,26 @@ func (s *MetricsStore) Snapshot() FrameMetrics {
 	out.P50FrameIntervalMs, out.P95FrameIntervalMs, out.P99FrameIntervalMs = s.percentilesLocked()
 	out.HitchRatePerMin = s.hitchRatePerMinLocked()
 	out.CPUUIPct, out.CPURasterPct = s.pathCPULocked()
+	out.TargetHz = s.targetHz
+	if s.m.PresentCount > 0 && !s.firstAt.IsZero() && s.lastAt.After(s.firstAt) {
+		out.FPSWall = float64(s.m.PresentCount) / s.lastAt.Sub(s.firstAt).Seconds()
+	}
 	if out.PresentModeAtNs > 0 {
 		out.PresentModeAgeSec = time.Since(time.Unix(0, out.PresentModeAtNs)).Seconds()
 	}
 	return out
+}
+
+// setTargetHz records the display refresh rate for the metrics JSON
+// (target_hz A-family field). Same package as FrameScheduler, which forwards
+// from SeedDisplayRefreshHz — no separate public knob.
+func (s *MetricsStore) setTargetHz(hz float64) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.targetHz = hz
+	s.mu.Unlock()
 }
 
 // JSON returns metrics as JSON bytes.

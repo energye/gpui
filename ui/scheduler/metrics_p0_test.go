@@ -104,8 +104,42 @@ func TestMetrics_P95BetweenP50AndP99(t *testing.T) {
 		t.Fatal(err)
 	}
 	js := string(b)
-	if !containsAll(js, `"frame_interval_p95_ms"`) {
-		t.Fatalf("JSON missing p95 key: %s", js)
+	if !containsAll(js, `"interval_p95_ms"`) {
+		t.Fatalf("JSON missing p95 key (A2 契约 interval_*): %s", js)
+	}
+}
+
+// TestMetrics_AFamilyJSONKeys pins the A-family JSON contract after the A2
+// one-shot switch: interval_* naming plus fps_wall/target_hz presence rules
+// (fps_wall only once a present + interval span exist; target_hz once the
+// pacer was seeded — wired through the public SeedDisplayRefreshHz).
+func TestMetrics_AFamilyJSONKeys(t *testing.T) {
+	sched := scheduler.New()
+	s := sched.Metrics()
+	b, err := s.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if containsAll(string(b), `"fps_wall"`) || containsAll(string(b), `"target_hz"`) {
+		t.Fatalf("idle store must omit fps_wall/target_hz: %s", b)
+	}
+	now := time.Now()
+	s.NotePresent()
+	tAt := now
+	for i := 0; i < 3; i++ {
+		tAt = tAt.Add(16 * time.Millisecond)
+		s.NoteFrameInterval(tAt)
+	}
+	sched.SeedDisplayRefreshHz(60)
+	b, err = s.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	for _, key := range []string{`"interval_avg_ms"`, `"interval_p50_ms"`, `"interval_p95_ms"`, `"interval_p99_ms"`, `"fps_wall"`, `"target_hz":60`} {
+		if !containsAll(js, key) {
+			t.Fatalf("JSON missing A-family key %s: %s", key, js)
+		}
 	}
 }
 

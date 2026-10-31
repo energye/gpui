@@ -96,10 +96,12 @@ for p in sorted(glob.glob(os.path.join(WIN, "**", "record.json"), recursive=True
 
     ttfp = num(H_FIELD)
     fpc = num("first_present_paint_count")
-    # Two field generations coexist in window JSONs (P1.4 finding): the
-    # current `interval_*` family and the older `frame_interval_*` /
-    # `avg_frame_interval_ms` one.  Alias-map the old names so the baseline
-    # covers those windows; the naming unification itself is registered P2.
+    # Two field generations in window JSONs: emitters switched one-shot to
+    # the `interval_*` family in P2.5 (A2), but the frozen P1.4/P1.7 record.json
+    # evidence keeps the older `frame_interval_*` / `avg_frame_interval_ms`
+    # names. Keep the alias fallback so this reader still revalidates frozen
+    # evidence byte-for-byte; retire the aliases when P2.6 swaps the frozen
+    # set for new-generation captures.
     vals = {k: num(k) for k in A_FIELDS}
     vals["interval_avg_ms"] = num("interval_avg_ms", "avg_frame_interval_ms")
     vals["interval_p50_ms"] = num("interval_p50_ms", "frame_interval_p50_ms")

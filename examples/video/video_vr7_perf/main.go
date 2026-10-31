@@ -475,6 +475,7 @@ type report struct {
 	IntervalAvgMs   float64 `json:"interval_avg_ms"`
 	IntervalP50Ms   float64 `json:"interval_p50_ms"`
 	IntervalP95Ms   float64 `json:"interval_p95_ms"`
+	IntervalP99Ms   float64 `json:"interval_p99_ms"`
 	HitchCount      int64   `json:"hitch_count"`
 	HitchRatePerMin float64 `json:"hitch_rate_per_min"`
 	VSyncSource     string  `json:"vsync_source"`
@@ -563,7 +564,7 @@ func buildReport(snap scheduler.FrameMetrics, presents int64, elapsed float64, s
 	}
 	return report{
 		AbilityID: "VR7", Scenario: "video_vr7_perf", ElapsedSec: elapsed,
-		FPSWall: fpsWall, IntervalAvgMs: snap.AvgFrameIntervalMs, IntervalP50Ms: snap.P50FrameIntervalMs, IntervalP95Ms: snap.P95FrameIntervalMs,
+		FPSWall: fpsWall, IntervalAvgMs: snap.AvgFrameIntervalMs, IntervalP50Ms: snap.P50FrameIntervalMs, IntervalP95Ms: snap.P95FrameIntervalMs, IntervalP99Ms: snap.P99FrameIntervalMs,
 		HitchCount: snap.HitchCount, HitchRatePerMin: snap.HitchRatePerMin, VSyncSource: vsync, TargetHz: 60,
 		DecodeMsAvg: st.decodeAvg, DecodeMsP95: st.decodeP95,
 		QueueDepthAvg: liveStats.QueueAvg, QueueDepthMax: liveStats.QueueMax, DroppedOldFrames: liveStats.Dropped, AllocPerFrameB: allocPerFrame, PoolHitPct: poolHit,
@@ -599,7 +600,7 @@ func gcPauseP99(m *runtime.MemStats) float64 {
 
 var requiredKeys = []string{
 	"ability_id", "scenario", "elapsed_sec",
-	"fps_wall", "interval_avg_ms", "interval_p50_ms", "interval_p95_ms", "hitch_count", "hitch_rate_per_min", "vsync_source", "target_hz",
+	"fps_wall", "interval_avg_ms", "interval_p50_ms", "interval_p95_ms", "interval_p99_ms", "hitch_count", "hitch_rate_per_min", "vsync_source", "target_hz",
 	"decode_ms_avg", "decode_ms_p95", "queue_depth_avg", "queue_depth_max", "dropped_old_frames", "alloc_per_frame_B", "pool_hit_pct",
 	"frames_decoded", "frames_shown", "clock_drift_ms", "seek_ok", "seek_landing_delta_ms",
 	"cpu_pct_avg", "cpu_ui_pct", "cpu_raster_pct", "cpu_decode_pct",

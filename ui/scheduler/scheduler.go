@@ -536,6 +536,7 @@ func (s *FrameScheduler) SeedDisplayRefreshHz(hz float64) {
 	s.mu.Lock()
 	s.basePeriod = time.Duration(float64(time.Second) / hz)
 	s.mu.Unlock()
+	s.metrics.setTargetHz(hz)
 }
 
 // ScheduleFrame requests a frame (wakes IDLE).

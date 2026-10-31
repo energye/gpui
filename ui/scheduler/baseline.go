@@ -22,7 +22,7 @@ import (
 type BaselineTolerance struct {
 	// HitchRatePerMin max allowed increase (current - baseline).
 	HitchRatePerMin float64
-	// P95IntervalMs max allowed increase in frame_interval_p95_ms.
+	// P95IntervalMs max allowed increase in interval_p95_ms.
 	P95IntervalMs float64
 	// RSSSlopeKBPerMin max allowed increase in rss_slope_kb_per_min.
 	RSSSlopeKBPerMin float64
@@ -101,7 +101,7 @@ func CompareToBaseline(cur, base FrameMetrics, tol BaselineTolerance) BaselineDe
 	}
 
 	check("hitch_rate_per_min", d.HitchRateDelta, tol.HitchRatePerMin)
-	check("frame_interval_p95_ms", d.P95IntervalDeltaMs, tol.P95IntervalMs)
+	check("interval_p95_ms", d.P95IntervalDeltaMs, tol.P95IntervalMs)
 	check("rss_slope_kb_per_min", d.RSSSlopeDelta, tol.RSSSlopeKBPerMin)
 	checkInt("cpu_fallback_ops", d.CPUFallbackDelta, tol.CPUFallbackOps)
 	checkInt("hitch_count", d.HitchCountDelta, tol.HitchCount)

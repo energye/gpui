@@ -40,7 +40,8 @@ bad = [r for r in gate_fail if r["p14_status"] != "FAIL" or r["gate_vs_p14"] == 
 check(f"A 族门禁 FAIL {len(gate_fail)} 轮全部与 P1.4 状态一致（零 MISMATCH）",
       len(bad) == 0, f"{len(gate_fail)} FAIL / 异常 {len(bad)}")
 
-# 别名列只出现在两代命名并存的窗
+# 别名列只出现在两代命名并存的窗（P2.5 A2 已切发射端；冻结证据仍旧代，
+# 本断言对冻结证据保持成立，P2.6 证据换代后归零退役）
 OLD_GEN = {"kit/spin_min", "ui_l1_spinner", "ui_render_base_perfsoak",
            "ui_render_jumprope", "ui_render_particle", "ui_render_pelican"}
 alias_rows = [r for r in rows if "alias-mapped" in r["missing_a_fields"]]
