@@ -264,12 +264,27 @@ var errSharedNotOpen = errors.New("render: shared present device not open")
 // releaseShared drops one share refcount; the last one releases the device.
 func releaseShared() {
 	shareMu.Lock()
-	defer shareMu.Unlock()
 	if shareRefs > 0 {
 		shareRefs--
 	}
 	if shareRefs > 0 || shareDevice == nil {
+		shareMu.Unlock()
 		return
+	}
+	shareMu.Unlock()
+
+	// J5 campaign: invalidate every registered Context's GPU state BEFORE the
+	// device release — their cached sessions hold this device and would
+	// SIGSEGV on the next use (a stale wrapper over the released concrete).
+	// The next use rebuilds fresh via ensureGPUCtx/ensureGPU. The abandon
+	// runs WITHOUT shareMu: a Context drop may reach back into releaseShared
+	// (idempotent, terminates at depth 2).
+	abandonAllContextGPU()
+
+	shareMu.Lock()
+	defer shareMu.Unlock()
+	if shareDevice == nil {
+		return // a Context drop re-entered and released already
 	}
 	shareDevice.Release()
 	shareDevice = nil
