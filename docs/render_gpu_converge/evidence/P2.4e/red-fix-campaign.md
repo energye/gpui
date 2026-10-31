@@ -57,3 +57,9 @@
 - 已修：`context_coverage_test TestContextSetFillBrushCoverage`、`context_clip_depth_test TestClipCircle_CPUPixels` → 带 lib PASS。
 - render 整包现状：**仅剩 8 条包级顺序耦合红**（DrawShadow/P1GLPresentX11/PresentResize×2/S3c_BlendHue/S64/S69_Contract/S69_TierGates）；逐文件红需重跑逐文件清单复核（coverage/clip_depth 已清，misc_draw/m5/rasterizer/s6_9/text_transform/video 的逐文件红待下轮复核定性）。
 - 下一步：ui 2 条（depcheck 豁免机械修 + focus 诊断）→ 逐文件复核 → 包级耦合红的测试隔离改造。
+
+## 2026-10-31 续2：批次3（ui 2→0）+ 新暴露
+
+- 已修：depcheck 测试缝豁免（J4 闭合）、FocusManager Tab 空环穿透语义（KeyWithNoPrimary 红→绿）——提交 9cca54e6。
+- 新暴露（ui 全量扫描，此前未入逐文件清单的包）：TestSeatCapCBFirstSilent / TestX11S4ProcessKeyEvent / TestX11StateReadback——X11/seat 相关，疑似显示环境依赖（无 DISPLAY 或 NVIDIA 环境行为），下轮先定性（干净环境 A/B + 是否需 display 前置 Skipf）。
+- 当前累计进度：gpu 7→0 ✅、render CPU 像素类 2 条 ✅、ui 2→0 ✅；剩余 = render 逐文件复核 7 条 + 包级耦合 8 条 + 新暴露 3 条 + gles G3（在册车道）。
