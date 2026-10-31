@@ -19,6 +19,8 @@ func TestOpt24_StickyIndex_ReusesRingSlotOnSameTopology(t *testing.T) {
 	device, queue, cleanup := createNativeTestDevice(t)
 	t.Cleanup(cleanup)
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	t.Cleanup(func() { s.Destroy() })
 	if err := s.ensurePipelines(); err != nil {
 		t.Fatalf("pipelines: %v", err)
@@ -124,6 +126,8 @@ func TestOpt24_ImageUniformSkip_SameViewportOpacity(t *testing.T) {
 	device, queue, cleanup := createNativeTestDevice(t)
 	t.Cleanup(cleanup)
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	t.Cleanup(func() { s.Destroy() })
 	if err := s.ensurePipelines(); err != nil {
 		t.Fatalf("pipelines: %v", err)

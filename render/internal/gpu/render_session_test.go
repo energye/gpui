@@ -42,6 +42,8 @@ func TestRenderSessionCreation(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	if s == nil {
 		t.Fatal("expected non-nil session")
 	}
@@ -62,6 +64,8 @@ func TestRenderSessionTextures(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	err := s.EnsureTextures(800, 600)
@@ -83,6 +87,8 @@ func TestRenderSessionTexturesIdempotent(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	err := s.EnsureTextures(640, 480)
@@ -116,6 +122,8 @@ func TestRenderSessionTexturesResize(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	err := s.EnsureTextures(800, 600)
@@ -141,6 +149,8 @@ func TestRenderSessionDestroyAndRecreate(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 
 	err := s.EnsureTextures(256, 256)
 	if err != nil {
@@ -171,6 +181,8 @@ func TestRenderSessionEmpty(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{
@@ -202,6 +214,8 @@ func TestRenderSessionSDFOnly(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{
@@ -246,6 +260,8 @@ func TestRenderSessionStencilOnly(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{
@@ -286,6 +302,8 @@ func TestRenderSessionStencilPremultipliedColor(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{
@@ -334,6 +352,8 @@ func TestRenderSessionMixed(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{
@@ -393,6 +413,8 @@ func TestRenderSessionMultipleFrames(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{
@@ -428,6 +450,8 @@ func TestRenderSessionPipelineSetters(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	// Initially nil.
@@ -566,6 +590,8 @@ func TestRenderSessionSurfaceMode(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	// Initially in offscreen mode.
@@ -617,6 +643,8 @@ func TestRenderSessionSurfaceModeReset(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	// Enter surface mode.
@@ -667,6 +695,8 @@ func TestRenderSessionSurfaceModeTextures(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	tex, view := createMockSurfaceView(t, device, 1024, 768)
@@ -694,6 +724,8 @@ func TestRenderSessionSurfaceModeResize(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	tex1, view1 := createMockSurfaceView(t, device, 800, 600)
@@ -744,6 +776,8 @@ func TestRenderSessionSurfaceModeStencilPaths(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	tex, view := createMockSurfaceView(t, device, 400, 300)
@@ -789,6 +823,8 @@ func TestRenderSessionDestroyClearsSurface(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 
 	tex, view := createMockSurfaceView(t, device, 640, 480)
 	defer view.Destroy()
@@ -843,7 +879,6 @@ func TestEnsurePipelines_ClipLayoutRecreation(t *testing.T) {
 
 	// Step 1: Create SDF pipeline and force pipeline creation WITHOUT clip layout.
 	sdf := NewSDFRenderPipeline(device, queue, 4)
-	testSharedLayouts(t, device, sdf)
 	defer sdf.Destroy()
 
 	// Trigger base pipeline creation (shader, layouts, pipeLayout) without clip.
@@ -900,6 +935,10 @@ func TestEnsurePipelines_ConvexClipRecreation(t *testing.T) {
 
 	cr := NewConvexRenderer(device, queue, 4)
 	defer cr.Destroy()
+	// Mask layout is required even for the no-clip base pipeline (shader
+	// group 1 validation); only the CLIP layout is the variable here.
+	_, mask := testSharedLayouts(t, device)
+	cr.SetMaskBindLayout(mask)
 
 	// Create pipeline without clip.
 	if err := cr.createPipeline(); err != nil {
@@ -993,6 +1032,8 @@ func TestRenderSession_EncoderLifecycleRecovery(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{
@@ -1068,6 +1109,8 @@ func TestRenderSession_EncoderLifecycleSurface(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	// Create a texture to use as the surface view.
@@ -1134,6 +1177,8 @@ func TestRenderSessionEnsurePipelines_FullFlow(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	// Simulate the normal RenderFrame flow.
@@ -1178,6 +1223,8 @@ func TestIsBlitOnly(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	baseRes := &imageFrameResources{
@@ -1241,6 +1288,8 @@ func TestReadbackGrouped_NilTexturesReturnsError(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{
@@ -1264,6 +1313,8 @@ func TestReadback_NilTexturesReturnsError(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{
@@ -1286,6 +1337,8 @@ func TestCopySubmitAndReadback_NilResolveTexReturnsError(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	target := render.GPURenderTarget{

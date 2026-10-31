@@ -42,6 +42,10 @@ func TestProbeTTC_CJKGlyphMaskGPURender(t *testing.T) {
 		sampleCount = 4
 	}
 	session := NewGPURenderSession(device, queue, sampleCount)
+	_, j5mask := testSharedLayouts(t, device)
+	session.SetMaskBindLayout(j5mask)
+	_, mask := testSharedLayouts(t, device)
+	session.SetMaskBindLayout(mask)
 	t.Logf("sampleCount=%d", sampleCount)
 
 	// Fill page 0 with 2000 unique CJK glyphs so the probe glyphs spill to page 1.

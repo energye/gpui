@@ -4173,6 +4173,13 @@ func (s *GPURenderSession) prepareGlyphMaskResources(batches []GlyphMaskBatch) (
 // group + multi-quad Draw, except where batchSeal[i] is true (cannot
 // merge command i with the previous one — typically a scissor-group boundary).
 func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uint32, batchSeal []bool) (*imageFrameResources, error) {
+	// Ensure the image pipeline + cache before use (J5 campaign): standalone
+	// sessions (tests) may reach the GetOrUpload/bind-group path without
+	// ensureImagePipeline having run — production reaches it via the encode
+	// path's ensure ordering.
+	if err := s.ensureImagePipeline(); err != nil {
+		return nil, err
+	}
 	if len(cmds) == 0 {
 		return nil, nil //nolint:nilnil // no images
 	}

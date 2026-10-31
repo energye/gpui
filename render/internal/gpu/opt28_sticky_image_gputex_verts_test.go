@@ -18,6 +18,8 @@ func TestOpt28_ImageVertSticky_SkipsRepeatWrite(t *testing.T) {
 	device, queue, cleanup := createNativeTestDevice(t)
 	t.Cleanup(cleanup)
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	t.Cleanup(func() { s.Destroy() })
 	if err := s.ensurePipelines(); err != nil {
 		t.Fatal(err)
@@ -64,6 +66,8 @@ func TestOpt28_GPUTexVertSticky_SkipsRepeatWrite(t *testing.T) {
 	device, queue, cleanup := createNativeTestDevice(t)
 	t.Cleanup(cleanup)
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	t.Cleanup(func() { s.Destroy() })
 	if err := s.ensurePipelines(); err != nil {
 		t.Fatal(err)

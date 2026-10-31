@@ -15,6 +15,8 @@ func TestOpt27_GPUTexBGSlotCache_ReusesView(t *testing.T) {
 	t.Cleanup(cleanup)
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	t.Cleanup(func() { s.Destroy() })
 	if err := s.ensureImagePipeline(); err != nil {
 		t.Fatalf("ensureImagePipeline: %v", err)
@@ -113,6 +115,8 @@ func TestOpt27_BuildGPUTextureResources_MultiViewBGCache(t *testing.T) {
 	device, queue, cleanup := createNativeTestDevice(t)
 	t.Cleanup(cleanup)
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	t.Cleanup(func() { s.Destroy() })
 
 	mkView := func(label string) (hal.Texture, hal.TextureView) {

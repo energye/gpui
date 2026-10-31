@@ -277,6 +277,8 @@ func TestIsBlitOnly_BaseLayerOnly(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	baseRes := &imageFrameResources{
@@ -293,6 +295,8 @@ func TestIsBlitOnly_NoBaseLayer(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	if s.isBlitOnly(nil, nil) {
@@ -305,6 +309,8 @@ func TestIsBlitOnly_WithSDFShapes(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	baseRes := &imageFrameResources{
@@ -327,6 +333,8 @@ func TestRenderFrameGrouped_BaseLayerOnlyGuard(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	// Verify: nil groups + nil baseLayer → should return nil (skip).
@@ -407,6 +415,8 @@ func TestBlitLoadOp_DamageRectWithoutFrameRendered(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	// Simulate: BeginGPUFrame was called → frameRendered = false
@@ -438,6 +448,8 @@ func TestBlitLoadOp_NoDamageRect(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	damageRect := image.Rectangle{} // empty
@@ -458,6 +470,8 @@ func TestBuildGPUTextureResources_SeparateVertexBuffers(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	overlayCmd := GPUTextureDrawCommand{
@@ -504,6 +518,8 @@ func TestIsBlitOnly_BaseOnly(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	baseRes := &imageFrameResources{drawCalls: []imageDrawCall{{firstVertex: 0}}}
@@ -519,6 +535,8 @@ func TestIsBlitOnly_OverlayOnly(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	grpRes := []groupResources{{
@@ -535,6 +553,8 @@ func TestIsBlitOnly_BaseAndOverlay(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	baseRes := &imageFrameResources{drawCalls: []imageDrawCall{{firstVertex: 0}}}
@@ -552,6 +572,8 @@ func TestIsBlitOnly_VectorShapesRejectsBlit(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	baseRes := &imageFrameResources{drawCalls: []imageDrawCall{{firstVertex: 0}}}
@@ -582,6 +604,8 @@ func TestIsBlitOnly_EmptyFrame(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	grpRes := []groupResources{{}}
@@ -596,6 +620,8 @@ func TestRenderFrameGrouped_OverlayOnlyNotSkipped(t *testing.T) {
 	defer cleanup()
 
 	s := NewGPURenderSession(device, queue, testSampleCount(t, device))
+	_, mask := testSharedLayouts(t, device)
+	s.SetMaskBindLayout(mask)
 	defer s.Destroy()
 
 	groups := []ScissorGroup{{
