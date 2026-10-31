@@ -259,12 +259,13 @@ func (m *FocusManager) HandleKey(e KeyEvent) bool {
 	shift := m.shiftDown || e.Shift
 
 	if e.Pressed && e.IsTab() {
+		// Tab is consumed only when focus actually moved: an empty ring must
+		// pass the key through to the platform (J4 focus red, P2.4e —
+		// Flutter/HTML convention).
 		if shift {
-			m.FocusPrevious()
-		} else {
-			m.FocusNext()
+			return m.FocusPrevious() != nil
 		}
-		return true
+		return m.FocusNext() != nil
 	}
 
 	p := m.primary

@@ -25,7 +25,10 @@ func TestUIDoesNotImportGPU(t *testing.T) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") {
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			// _test.go files are test seams: importing gpu packages for
+			// fixtures is legitimate (AGENTS 分层豁免口径) — the ban covers
+			// production imports only (P2.4e J4).
 			return nil
 		}
 		fset := token.NewFileSet()
