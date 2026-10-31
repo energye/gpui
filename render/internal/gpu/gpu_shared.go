@@ -22,7 +22,6 @@ import (
 
 	gpucontext "github.com/energye/gpui/gpu/context"
 	"github.com/energye/gpui/gpu/hal"
-	"github.com/energye/gpui/gpu/rwgpu"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/gpu/webgpu"
 	"github.com/energye/gpui/render"
@@ -475,7 +474,7 @@ func (s *GPUShared) PurgeAllSurfaceResources() {
 	if s == nil {
 		return
 	}
-	rwgpu.WithForceNativeReleaseOnLost(func() {
+	hal.WithForceNativeReleaseOnLost(func() {
 		s.mu.Lock()
 		ctxs := make([]*GPURenderContext, 0, len(s.liveCtxs))
 		for rc := range s.liveCtxs {
@@ -495,7 +494,7 @@ func (s *GPUShared) AbandonExternalDevice() {
 		return
 	}
 	// Soft-native reclaim: child Release must run even when parent is sticky-lost.
-	rwgpu.WithForceNativeReleaseOnLost(func() {
+	hal.WithForceNativeReleaseOnLost(func() {
 		s.mu.Lock()
 		ctxs := make([]*GPURenderContext, 0, len(s.liveCtxs))
 		for rc := range s.liveCtxs {

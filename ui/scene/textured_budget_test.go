@@ -15,6 +15,10 @@ import (
 func TestPictureTextureCache_ExplicitBudget(t *testing.T) {
 	dc := render.NewContext(20, 20)
 	defer dc.Close()
+	dc.BeginFrame()
+	if gpuOffscreenActive(dc) {
+		t.Skipf("GPU offscreen device active: record succeeds on the textured path; the no-GPU degradation contract needs a no-GPU environment")
+	}
 	tex := scene.NewPictureTextureCache(dc, 8)
 	tex.SetBudget(2)
 	if got := tex.Budget(); got != 2 {

@@ -9,6 +9,21 @@ import (
 	"github.com/energye/gpui/ui/scene"
 )
 
+// gpuOffscreenActive reports whether the retained-texture (GPU) path is
+// active in this environment. The no-GPU tests below pin vector-replay
+// semantics that only exist without an accelerator; with one attached they
+// legitimately take the textured path instead, so they skip honestly
+// (P2.5 潜伏红对齐: 环境类前置 Skipf 口径同 P2.4e X11/seat — GPU 缺席时
+// 这些断言照常执行).
+func gpuOffscreenActive(dc *render.Context) bool {
+	v, rel := dc.CreateOffscreenTexture(8, 8)
+	if !v.IsNil() && rel != nil {
+		rel()
+		return true
+	}
+	return false
+}
+
 // TestCompositeFramePacketTextured_Fallback matches CompositeToContext output
 // on the no-GPU fallback path (no offscreen textures → vector replay) while
 // collecting dirty-layer damage rects.
@@ -27,6 +42,9 @@ func TestCompositeFramePacketTextured_Fallback(t *testing.T) {
 	dc := render.NewContext(100, 80)
 	defer dc.Close()
 	dc.BeginFrame()
+	if gpuOffscreenActive(dc) {
+		t.Skipf("GPU offscreen device active: textured path replaces the no-GPU vector fallback (run on a no-GPU environment to exercise this path)")
+	}
 	dc.ClearWithColor(render.White)
 	tex := scene.NewPictureTextureCache(dc, 0) // no GPU → record() degrades
 
@@ -73,6 +91,9 @@ func TestCompositeFramePacketTextured_OpacityGroup(t *testing.T) {
 	dc := render.NewContext(50, 50)
 	defer dc.Close()
 	dc.BeginFrame()
+	if gpuOffscreenActive(dc) {
+		t.Skipf("GPU offscreen device active: textured path replaces the no-GPU vector fallback (run on a no-GPU environment to exercise this path)")
+	}
 	dc.ClearWithColor(render.White)
 	tex := scene.NewPictureTextureCache(dc, 0)
 	st := scene.CompositeFramePacketTextured(pkt, dc, tex)

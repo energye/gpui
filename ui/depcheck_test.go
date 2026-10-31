@@ -37,10 +37,10 @@ func TestUIDoesNotImportGPU(t *testing.T) {
 			return err
 		}
 		for _, imp := range f.Imports {
-			path := strings.Trim(imp.Path.Value, `"`)
-			if path == "github.com/energye/gpui/gpu" ||
-				strings.HasPrefix(path, "github.com/energye/gpui/gpu/") {
-				t.Errorf("%s imports forbidden %s", path, path)
+			impPath := strings.Trim(imp.Path.Value, `"`)
+			if impPath == "github.com/energye/gpui/gpu" ||
+				strings.HasPrefix(impPath, "github.com/energye/gpui/gpu/") {
+				t.Errorf("%s imports forbidden %q", path, impPath)
 			}
 		}
 		return nil
@@ -50,5 +50,3 @@ func TestUIDoesNotImportGPU(t *testing.T) {
 		t.Logf("walk . : %v (retry subpackages via import graph is enough if empty)", err)
 	}
 }
-
-// TestUISubpackagesDoNotImportGPU walks platform/scheduler/raster/embedder relative to module.

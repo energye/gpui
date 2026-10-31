@@ -1264,6 +1264,13 @@ func (c *PictureTextureCache) refuseChanged(id uint64, b image.Rectangle) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if e := c.entries[id]; e != nil {
+		// Flutter/Skia damage = previous ∪ current: a refusal often follows a
+		// SHRINK of the layer content, and the dropped entry's old bounds are
+		// the only record of the cleared tail — current bounds alone leave
+		// the tail unpainted under a LoadOpLoad present (ghost glyphs).
+		if !e.bounds.Empty() {
+			b = b.Union(e.bounds)
+		}
 		c.releaseEntryLocked(e)
 		delete(c.entries, id)
 	}

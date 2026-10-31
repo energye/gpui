@@ -111,8 +111,13 @@ func TestCaretTransparentRerecordClearsStale(t *testing.T) {
 	if bar == 0 {
 		t.Fatalf("f2: caret bar entry not found among live keys")
 	}
-	if !tex.Has(bar) {
-		t.Fatalf("f2: caret bar has no live texture (test needs the GPU path)")
+	// Sustained-blink churn is refused by the texture admission threshold
+	// (admissionThreshold mirrors Flutter RasterCache access_threshold): the
+	// bar changed at f1 (recorded) and changed again by f2, so refuseChanged
+	// drops the entry and phase 2 vector-replays it — the caret pixels
+	// asserted above are the contract here, not a live texture.
+	if tex.Has(bar) {
+		t.Fatalf("f2: churn-refused caret bar kept a live texture (admission threshold must refuse sustained blink re-records)")
 	}
 	box.TickCaret(0.6)
 	owner.FlushLayout(rendering.Size{Width: 1200, Height: 800}, false)
@@ -143,6 +148,37 @@ func TestCaretTransparentRerecordClearsStale(t *testing.T) {
 		}
 		if got := carets(img); len(got) > 0 {
 			t.Fatalf("blink %d off: stale caret pixels remain: %v", i, got)
+		}
+	}
+	// Stable OFF sightings: once blinking stops, unchanged sightings pass the
+	// admission threshold and the bar attempts a re-record — the recording is
+	// fully transparent, and the cache must DROP it instead of keeping a slot
+	// (the original stale-slot hazard: a reused slot would keep the previous
+	// ON pixels while the entry still reports recorded). Force the caret OFF
+	// first so the stable phase is deterministic, then the frame stays clean
+	// and no live bar texture may appear.
+	for i := 0; i < 4 && box.IsCaretOn(); i++ {
+		box.TickCaret(0.6)
+	}
+	owner.FlushLayout(rendering.Size{Width: 1200, Height: 800}, false)
+	dc.BeginFrame()
+	if img, _, _ := frame(8); box.IsCaretOn() {
+		t.Fatalf("stable phase: caret still on after force-off ticks")
+	} else if got := carets(img); len(got) > 0 {
+		t.Fatalf("stable phase entry: stale caret pixels remain: %v", got)
+	}
+	for i := 0; i < 6; i++ {
+		owner.FlushLayout(rendering.Size{Width: 1200, Height: 800}, false)
+		dc.BeginFrame()
+		img, _, _ := frame(uint64(9 + i)) //nolint:gosec // small loop index
+		if box.IsCaretOn() {
+			t.Fatalf("stable off %d: caret toggled without TickCaret", i)
+		}
+		if got := carets(img); len(got) > 0 {
+			t.Fatalf("stable off %d: stale caret pixels remain: %v", i, got)
+		}
+		if tex.Has(bar) {
+			t.Fatalf("stable off %d: transparent re-record kept a live bar texture", i)
 		}
 	}
 }
