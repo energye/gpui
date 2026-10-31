@@ -69,3 +69,15 @@
 - 已修：session 级 `SetMaskBindLayout` 注入口 + 25 处 session 测试注入（opt24/27/28/29/40/gpu_texture/ttc/render_session——这些测试独立 session 渲染，管线需要 mask 布局，此前仅整包模式下被其它测试的全局状态掩盖）；`buildImageResources` 对齐 `ensureImagePipeline` 时序（首次可达的 GetOrUpload/绑组路径此前nil panic）；render_session 撤无 clip 语义测试的误 pin、凸重建测试 mask-only（hasClip=false 契约保持）；ttc 变量名修正。opt24/ttc 转绿。
 - **剩余独立立案：gpu-tex 管线 group1 布局契约缺口**——opt27/28/29/gpu_texture 残红（`CreateRenderPipeline: Shader global ResourceBinding { group: 1, binding: 0 } is not available in the pipeline layout`，错误经 wgpu 粘滞滞后面显示在 CreateBuffer 处）。GPU-tex 渲染管线的 layout 未含 shader 所需的 group 1——需专项：定位该管线构建点与 shader 契约，决定补布局还是改 shader 绑定。整包模式绿（其它测试的全局状态掩盖），逐文件必现。
 - 当前 gpu 包：整包绿、逐文件 1 个家族残红（上述专项）。
+
+## 2026-10-31 续4：GPU 截获类分类完成（带lib/无lib 对照）
+
+| 红 | 分类 | 处置 |
+|---|---|---|
+| m5_color_glyph CPU_Emoji | GPU 截获类（无 lib PASS） | ✅ 已修：测试意图=CPU fallback 验证 → GOGPU_RENDER_MODE=cpu，带 lib PASS |
+| filter_present_coherence ImageMatchesView | GPU 意图测试（自带 gpu_ops 门卫，CPU 强制会自 Skip） | 深潜项：GPU present 后 Image()/pixmap 读不到 presented 内容 = readback 语义缺口，需专门设计 |
+| text_transform_gpu Auto vs Vector | GPU 意图测试 | 深潜项：Auto 路由 569px 偏差，真 GPU 文本变换问题 |
+| video_direct_upload | GPU 意图测试 | 深潜项 |
+| rasterizer_tile_value 菱形分数行 | 待定性（无 lib 过、带 lib 挂——filler 注册或精度受 GPU 状态影响） | 深潜项 |
+| context_misc_draw_gpu 高级混色 | **双模式都挂 = 真问题**：effect multiply (255,0,0) want (229,0,0) | 深潜项（高级混色 effect-surface 路径） |
+| s6_9_heavy_budget | **双模式都挂 = 真问题**：预算档位比 | 深潜项 |

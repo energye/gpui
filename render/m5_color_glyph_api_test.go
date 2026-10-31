@@ -66,6 +66,10 @@ func colorEmojiFont(t *testing.T) string {
 }
 
 func TestDrawShapedColorGlyphsCPU_Emoji(t *testing.T) {
+	// CPU-fallback verification: force the CPU rasterizer — with the GPU
+	// accelerator registered the draw routes to GPU and the CPU-ink premise
+	// is void (P2.4e red-fix campaign, GPU-interception class).
+	t.Setenv("GOGPU_RENDER_MODE", "cpu")
 	dc := render.NewContext(160, 160)
 	defer dc.Close()
 	dc.ClearWithColor(render.White)
