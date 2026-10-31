@@ -10,6 +10,5 @@
 
 package render
 
-
 // Path operations for area calculation, winding number, containment testing,
 // bounding box computation, flattening, and arc length measurement.

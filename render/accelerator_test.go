@@ -57,15 +57,25 @@ func (m *mockAccelerator) Flush(_ GPURenderTarget) error { return nil }
 
 func (m *mockAccelerator) SetLogger(l *slog.Logger) { m.logger = l }
 
-// resetAccelerator clears the global accelerator state between tests.
-func resetAccelerator() {
+// resetAccelerator isolates a test from the global accelerator state for its
+// duration and RESTORES the previous value at cleanup. The production
+// accelerator is registered by render/gpu's init() — a plain nil-reset
+// killed it for every test running later in the same binary (the package-run
+// coupling reds, J5 campaign).
+func resetAccelerator(t *testing.T) {
 	accelMu.Lock()
+	saved := accel
 	accel = nil
 	accelMu.Unlock()
+	t.Cleanup(func() {
+		accelMu.Lock()
+		accel = saved
+		accelMu.Unlock()
+	})
 }
 
 func TestRegisterAcceleratorNil(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	err := RegisterAccelerator(nil)
 	if err == nil {
@@ -80,7 +90,7 @@ func TestRegisterAcceleratorNil(t *testing.T) {
 }
 
 func TestRegisterAcceleratorInitError(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	initErr := errors.New("GPU init failed")
 	mock := &mockAccelerator{name: "failing", initErr: initErr}
@@ -98,7 +108,7 @@ func TestRegisterAcceleratorInitError(t *testing.T) {
 }
 
 func TestRegisterAcceleratorSuccess(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	mock := &mockAccelerator{name: "test-gpu", canAccel: AccelFill | AccelStroke}
 	err := RegisterAccelerator(mock)
@@ -114,11 +124,11 @@ func TestRegisterAcceleratorSuccess(t *testing.T) {
 		t.Errorf("expected name %q, got %q", "test-gpu", a.Name())
 	}
 
-	resetAccelerator()
+	resetAccelerator(t)
 }
 
 func TestRegisterAcceleratorReplacesOld(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	first := &mockAccelerator{name: "first"}
 	second := &mockAccelerator{name: "second"}
@@ -149,11 +159,11 @@ func TestRegisterAcceleratorReplacesOld(t *testing.T) {
 		t.Error("second accelerator should not be closed")
 	}
 
-	resetAccelerator()
+	resetAccelerator(t)
 }
 
 func TestAcceleratorReturnsNilWhenNoneRegistered(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	a := Accelerator()
 	if a != nil {
@@ -190,7 +200,7 @@ func TestAcceleratedOpBitfield(t *testing.T) {
 }
 
 func TestCanAccelerate(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	mock := &mockAccelerator{
 		name:     "capable",
@@ -222,11 +232,11 @@ func TestCanAccelerate(t *testing.T) {
 		})
 	}
 
-	resetAccelerator()
+	resetAccelerator(t)
 }
 
 func TestCloseAcceleratorClosesAndUnregisters(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	mock := &mockAccelerator{name: "closeable"}
 	if err := RegisterAccelerator(mock); err != nil {
@@ -252,7 +262,7 @@ func TestCloseAcceleratorClosesAndUnregisters(t *testing.T) {
 }
 
 func TestCloseAcceleratorIdempotent(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	mock := &mockAccelerator{name: "idempotent"}
 	if err := RegisterAccelerator(mock); err != nil {
@@ -270,7 +280,7 @@ func TestCloseAcceleratorIdempotent(t *testing.T) {
 }
 
 func TestCloseAcceleratorNoop(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	// Should not panic when no accelerator is registered.
 	CloseAccelerator()
@@ -316,7 +326,15 @@ func TestAcceleratedOpValues(t *testing.T) {
 }
 
 func BenchmarkAcceleratorNilCheck(b *testing.B) {
-	resetAccelerator()
+	accelMu.Lock()
+	saved := accel
+	accel = nil
+	accelMu.Unlock()
+	b.Cleanup(func() {
+		accelMu.Lock()
+		accel = saved
+		accelMu.Unlock()
+	})
 
 	b.ReportAllocs()
 	for b.Loop() {
@@ -328,12 +346,19 @@ func BenchmarkAcceleratorNilCheck(b *testing.B) {
 }
 
 func BenchmarkAcceleratorRegistered(b *testing.B) {
-	resetAccelerator()
+	accelMu.Lock()
+	saved := accel
+	accel = nil
+	accelMu.Unlock()
+	b.Cleanup(func() {
+		accelMu.Lock()
+		accel = saved
+		accelMu.Unlock()
+	})
 	mock := &mockAccelerator{name: "bench"}
 	if err := RegisterAccelerator(mock); err != nil {
 		b.Fatalf("unexpected error: %v", err)
 	}
-	defer resetAccelerator()
 
 	b.ReportAllocs()
 	for b.Loop() {
@@ -345,16 +370,39 @@ func BenchmarkAcceleratorRegistered(b *testing.B) {
 }
 
 func BenchmarkCanAccelerate(b *testing.B) {
-	resetAccelerator()
+	accelMu.Lock()
+	saved2 := accel
+	accel = nil
+	accelMu.Unlock()
+	b.Cleanup(func() {
+		accelMu.Lock()
+		accel = saved2
+		accelMu.Unlock()
+	})
 	mock := &mockAccelerator{name: "bench", canAccel: AccelFill | AccelStroke}
 	if err := RegisterAccelerator(mock); err != nil {
 		b.Fatalf("unexpected error: %v", err)
 	}
-	defer resetAccelerator()
 
 	a := Accelerator()
 	b.ReportAllocs()
 	for b.Loop() {
 		_ = a.CanAccelerate(AccelFill)
 	}
+}
+
+// withoutAccelerator isolates a test from ANY accelerator for its duration
+// (the init-registered production accelerator is restored at cleanup) — the
+// inverse of the save/restore resetAccelerator, for tests asserting the
+// no-accelerator behavior (J5 campaign).
+func withoutAccelerator(t *testing.T) {
+	accelMu.Lock()
+	saved := accel
+	accel = nil
+	accelMu.Unlock()
+	t.Cleanup(func() {
+		accelMu.Lock()
+		accel = saved
+		accelMu.Unlock()
+	})
 }

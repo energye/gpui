@@ -10,7 +10,6 @@
 
 package render
 
-
 // Area returns the signed area enclosed by the path.
 // Positive for clockwise paths, negative for counter-clockwise.
 // Uses the shoelace formula extended for curves (Green's theorem).

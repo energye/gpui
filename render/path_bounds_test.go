@@ -114,6 +114,7 @@ func TestContextFrameDamage_Empty(t *testing.T) {
 }
 
 func TestContextFrameDamage_AfterFill(t *testing.T) {
+	withoutAccelerator(t)
 	dc := NewContext(200, 200)
 	defer dc.Close()
 

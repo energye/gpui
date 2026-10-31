@@ -18,6 +18,7 @@ func (s *stubPurgeCache) PurgeEvictable() int64 {
 }
 
 func TestPurgeEvictables_RunsRegistered(t *testing.T) {
+	withoutAccelerator(t)
 	a := &stubPurgeCache{entries: 3}
 	b := &stubPurgeCache{entries: 5}
 	RegisterPurgeEvictable("test-a", a)

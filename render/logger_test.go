@@ -100,9 +100,9 @@ func TestSetLoggerPropagatesToAccelerator(t *testing.T) {
 	orig := Logger()
 	t.Cleanup(func() {
 		SetLogger(orig)
-		resetAccelerator()
+		resetAccelerator(t)
 	})
-	resetAccelerator()
+	resetAccelerator(t)
 
 	mock := &mockAccelerator{name: "logger-test"}
 	accelMu.Lock()
@@ -121,9 +121,9 @@ func TestRegisterAcceleratorPropagatesCurrentLogger(t *testing.T) {
 	orig := Logger()
 	t.Cleanup(func() {
 		SetLogger(orig)
-		resetAccelerator()
+		resetAccelerator(t)
 	})
-	resetAccelerator()
+	resetAccelerator(t)
 
 	// Set a custom logger before registration.
 	custom := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))

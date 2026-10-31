@@ -74,8 +74,8 @@ func (a *flushTrackingAccelerator) Flush(_ GPURenderTarget) error {
 }
 
 func TestContextCloseFlushesGPU(t *testing.T) {
-	resetAccelerator()
-	defer resetAccelerator()
+	resetAccelerator(t)
+	defer resetAccelerator(t)
 
 	tracker := &flushTrackingAccelerator{}
 	if err := RegisterAccelerator(tracker); err != nil {
@@ -110,7 +110,7 @@ func TestContextCloseFlushesGPU(t *testing.T) {
 }
 
 func TestContextCloseWithoutAccelerator(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	// Verify Close works without panic when no accelerator is registered.
 	dc := NewContext(100, 100)
@@ -123,8 +123,8 @@ func TestContextCloseWithoutAccelerator(t *testing.T) {
 }
 
 func TestContextWithSDFAcceleratorFillCircle(t *testing.T) {
-	resetAccelerator()
-	defer resetAccelerator()
+	resetAccelerator(t)
+	defer resetAccelerator(t)
 
 	tracker := &trackingAccelerator{}
 	if err := RegisterAccelerator(tracker); err != nil {
@@ -160,8 +160,8 @@ func TestContextWithSDFAcceleratorFillCircle(t *testing.T) {
 }
 
 func TestContextWithSDFAcceleratorStrokeCircle(t *testing.T) {
-	resetAccelerator()
-	defer resetAccelerator()
+	resetAccelerator(t)
+	defer resetAccelerator(t)
 
 	tracker := &trackingAccelerator{}
 	if err := RegisterAccelerator(tracker); err != nil {
@@ -192,8 +192,8 @@ func TestContextWithSDFAcceleratorStrokeCircle(t *testing.T) {
 }
 
 func TestContextFallbackToSoftware(t *testing.T) {
-	resetAccelerator()
-	defer resetAccelerator()
+	resetAccelerator(t)
+	defer resetAccelerator(t)
 
 	tracker := &trackingAccelerator{}
 	if err := RegisterAccelerator(tracker); err != nil {
@@ -235,7 +235,7 @@ func TestContextFallbackToSoftware(t *testing.T) {
 }
 
 func TestContextNoAcceleratorSoftwarePath(t *testing.T) {
-	resetAccelerator()
+	resetAccelerator(t)
 
 	dc := NewContext(100, 100)
 	defer func() { _ = dc.Close() }()
@@ -257,8 +257,8 @@ func TestContextNoAcceleratorSoftwarePath(t *testing.T) {
 }
 
 func TestContextFillPreserveWithAccelerator(t *testing.T) {
-	resetAccelerator()
-	defer resetAccelerator()
+	resetAccelerator(t)
+	defer resetAccelerator(t)
 
 	tracker := &trackingAccelerator{}
 	if err := RegisterAccelerator(tracker); err != nil {
@@ -291,8 +291,8 @@ func TestContextFillPreserveWithAccelerator(t *testing.T) {
 }
 
 func TestContextStrokePreserveWithAccelerator(t *testing.T) {
-	resetAccelerator()
-	defer resetAccelerator()
+	resetAccelerator(t)
+	defer resetAccelerator(t)
 
 	tracker := &trackingAccelerator{}
 	if err := RegisterAccelerator(tracker); err != nil {

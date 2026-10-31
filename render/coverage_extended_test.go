@@ -159,6 +159,7 @@ func TestSetAcceleratorDeviceProvider(t *testing.T) {
 }
 
 func TestAcceleratorCanRenderDirect(t *testing.T) {
+	withoutAccelerator(t)
 	// With no accelerator registered, should return false
 	if AcceleratorCanRenderDirect() {
 		t.Error("expected false with no accelerator")
