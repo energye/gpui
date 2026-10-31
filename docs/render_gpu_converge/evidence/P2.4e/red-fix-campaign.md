@@ -63,3 +63,9 @@
 - 已修：depcheck 测试缝豁免（J4 闭合）、FocusManager Tab 空环穿透语义（KeyWithNoPrimary 红→绿）——提交 9cca54e6。
 - 新暴露（ui 全量扫描，此前未入逐文件清单的包）：TestSeatCapCBFirstSilent / TestX11S4ProcessKeyEvent / TestX11StateReadback——X11/seat 相关，疑似显示环境依赖（无 DISPLAY 或 NVIDIA 环境行为），下轮先定性（干净环境 A/B + 是否需 display 前置 Skipf）。
 - 当前累计进度：gpu 7→0 ✅、render CPU 像素类 2 条 ✅、ui 2→0 ✅；剩余 = render 逐文件复核 7 条 + 包级耦合 8 条 + 新暴露 3 条 + gles G3（在册车道）。
+
+## 2026-10-31 续3：批次4（gpu 逐文件残红 7→1）
+
+- 已修：session 级 `SetMaskBindLayout` 注入口 + 25 处 session 测试注入（opt24/27/28/29/40/gpu_texture/ttc/render_session——这些测试独立 session 渲染，管线需要 mask 布局，此前仅整包模式下被其它测试的全局状态掩盖）；`buildImageResources` 对齐 `ensureImagePipeline` 时序（首次可达的 GetOrUpload/绑组路径此前nil panic）；render_session 撤无 clip 语义测试的误 pin、凸重建测试 mask-only（hasClip=false 契约保持）；ttc 变量名修正。opt24/ttc 转绿。
+- **剩余独立立案：gpu-tex 管线 group1 布局契约缺口**——opt27/28/29/gpu_texture 残红（`CreateRenderPipeline: Shader global ResourceBinding { group: 1, binding: 0 } is not available in the pipeline layout`，错误经 wgpu 粘滞滞后面显示在 CreateBuffer 处）。GPU-tex 渲染管线的 layout 未含 shader 所需的 group 1——需专项：定位该管线构建点与 shader 契约，决定补布局还是改 shader 绑定。整包模式绿（其它测试的全局状态掩盖），逐文件必现。
+- 当前 gpu 包：整包绿、逐文件 1 个家族残红（上述专项）。
