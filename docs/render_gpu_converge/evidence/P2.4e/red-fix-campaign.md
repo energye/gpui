@@ -124,3 +124,11 @@
 - **探针矩阵终态**：resolve 时刻 src(layerRT@(16,16))=(229,229,229,255) ✓ 灰在、dst view seeded 红 ✓、bundle 成功（outs=1, cmd 入 lead 队列）、**lead 提交执行后（drainQueue 同步）out@(中心)=透明、最终 view@(16,16)=(0,0,0,255) 黑**——dual-tex CB 执行时的 src 或 dst 采样读到空。
 - **下一窗口专项**：通读 `dual_tex_blend.go` 的 multiBindGroup 绑定链（dst 绑定纹理实例 vs seed 写入实例同一性）+ lead 队列 CB 与 WriteTexture 的 wgpu 时间线（writeTexture 立即序 vs CB 提交序是否跨队列）+ multiply shader 的 dst 采样 UV。必要时在 bundle 的 render pass 记录前后加 queue 边界标记（writeBuffer 哨兵）验证执行序。
 - 顺带：render 包 path_ops/pathops_area 的既有未格式化状态已还原（宽域 gofmt 误碰还原，非本线改动）。
+
+## 2026-10-31 续11：dual_tex 专项二轮（shader 契约验证通过，问题定界到 GPU 执行态）
+
+- **dualTexBlendWGSL 全文复核**：W3C 混色数学 ✓（multiply=cb×cs、co/ao Porter-Duff 公式标准）、fullscreen 三角形 UV 插值 ✓（可见域映射 [0,1]，含 Y 翻转）、params 打包 ✓（dstTight=false → duv=suv 矩形内采样）、纹理 OOB 不可能（UV 全在 rect 内）。
+- **数学定案**：gray(src, as=1) × red(dst, ab=1) → co=(0.9,0,0)、ao=1 → 应得 (229,0,0,255)。实测 out=透明带（采样返回 alpha 0）→ **执行时 src 或 dst 纹理内容为空**。
+- **排除完毕**：shader 数学、UV 几何、params 打包、纹理 usage、seed 写入机制（WriteTexture+BGRA 换位+MarkColorContent）、种子内容（readback 实证红在）。
+- **剩余唯一嫌疑（wgpu 执行态）**：dual-tex CB（lead 队列）执行时，src(layer RT) 或 dst(effect view) 的纹理状态与 resolve 时刻的回读不一致—— WriteTexture/CopyTexture 的队列时间线 vs render pass 执行序，或 view 包装（unpackView/packView）指向了不同纹理实例。需 wgpu 调试标签/GPU capture 级工具。
+- **影响面**：effect surface + 高级混色（glow/blur 类 effect 的层合成）——黑带=采样越界/未初始化区，内容丢失。
