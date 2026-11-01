@@ -63,3 +63,11 @@
 - displacement 的贴图坐标约定（channel→offset 映射、clamp/scale）——Skia 文档语义锁。
 - mask A8 blur 的 GPU 路径：R8 采样 or 转 RGBA 图——批 4 设计时按 glyph R8 基建取舍。
 - erode/dilate 的 O(n·r²) CPU 实现（Skia 有 O(n) 两 pass 优化）——第一版简单实现+性能登记。
+
+---
+
+## 7. 批 5 真窗现场（2026-11-01，🟡 部分收口）
+
+真窗 `ui_wr_p34_filters` 三卡：A 卡形态学对偶 2/2 ✅、B 卡 merge 双层 2/2 ✅（三根因修复：不透明 base 层覆盖一切（数学事实，卡改透明底）、层2 base 拷贝被层1 over 污染（pristine 层派生修复 `3ae47859` 后续）、GPU FromView 种子含前层（层跑改 CPU-only，GPU per-layer seeding 登记后续））、C 卡 Paint.MaskFilter 1/2 ✅（硬边钉绿；**羽化钉未达**——fillPaintFilteredAsImage 路由未触发：doFill 收到 radius=4 → tryGPUFillWithMode(4) ✓ → tryGPUOpRC 零进入——bake dc 的 gpuCtx 建立问题，六轮诊断现场存档 /tmp/p34_d*.log 摘要）。C 卡 CPU 模式钉 `TestPaintMaskFilterSoftensEdges` 绿。
+
+**收口状态**：4/6 探针+既有族回归绿；C 卡 GPU 路径专项诊断遗留。
