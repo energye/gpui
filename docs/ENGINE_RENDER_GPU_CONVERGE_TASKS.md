@@ -47,9 +47,9 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：**P3.1 色彩管理地基（线性混合接线，前移项）**（开工登记完成，评估见 `evidence/P3.1/assessment.md`，方向 D1–D5 待拍板后才动代码）
+- 当前进行中：无（P3.1 已完成，提交 `76f8723f`；下一任务 P3.2 自定义 shader）
 - 下一任务：P3.1 收口后按定稿主序进 P3.2 自定义 shader（依赖图 `evidence/P3.0/dependency-graph.md` §4）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
-- 最近完成：P3.0 依赖图 + 文档更新（2026-11-01，用户拍板 D1–D4 全按推荐：依赖修订 5 条/串行主序/catalog §13/PLAN §5 现状列），见 `evidence/P3.0/dependency-graph.md`；前一项 P2.6 行为零变化总验收（P1 八项基线全量重放零回归），见 `evidence/P2.6/summary.md`
+- 最近完成：P3.1 色彩管理地基（线性混合 opt-in，GPU dual-tex 线性域合成双后端逐位 168 vs float ref 167.6，负向红→绿，提交 `76f8723f`），见 `evidence/P3.1/summary.md`；前一项 P3.0 依赖图+文档，见 `evidence/P3.0/dependency-graph.md`
 - 阻塞项：无（尾巴 I3/I4/C4/T2 诊断、ui 5 既有红、gles DeviceLost/X11KeyRepeat 两新立案随尾巴专项，不阻塞 P3 文档与实现开工）
 
 **P3.1 开工载体（2026-11-01 开工登记，方向待拍板，评估见 `evidence/P3.1/assessment.md`）**
@@ -232,7 +232,7 @@
 | P2.5 | 包组织收口：`go list` 对比、分层约束测试、索引与总账同步 | P2.4e | ✅ | `evidence/P2.5/` |
 | P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ✅ | `evidence/P2.6/` |
 | P3.0 | 依赖图 + 文档更新（PLAN §5 + `RENDER_API_CATALOG.md`），再实现 | P2.6 | ✅ | `evidence/P3.0/` |
-| P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | 🟡（收口中：代码+真窗+负向全绿，34 包逐文件后台跑完落盘后转 ✅） | `evidence/P3.1/` |
+| P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | ✅ | `evidence/P3.1/` |
 | P3.2 | 自定义 shader（依赖 P2.1 翻译器 + 新公开 API） | P3.0、P2.1 | ⬜ | `evidence/P3.2/` |
 | P3.3 | 富文本（含 `DrawParagraph` 逐 run 样式，原半成品前移） | P3.0 | ⬜ | `evidence/P3.3/` |
 | P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1（软） | ⬜ | `evidence/P3.4/` |
@@ -587,6 +587,7 @@ docs/render_gpu_converge/
 | 2026-11-01 | P3.0 | 🟡 D1–D4 用户拍板（全按推荐）：依赖修订 5 条全改 / 串行主序 / catalog 新增 §13 / PLAN §5 加现状列；产出落盘 | 依赖图正本 `evidence/P3.0/dependency-graph.md`（节点/边/修订对照/顺序/自校验清单）；PLAN §5.1/§5.2/§5.3 三表加「代码现状（2026-11-01 实测）」列+口径修正（布尔已有 Clipper 版/路径效果已有 dash+两 1D 子集/Filter 已有子面/2.5D 引擎库已有 Projector+YSort25D）、§6 半成品表刷三行（线性混合 0 调用复核/COLRv1 实为 v0 误读 v1/DrawParagraph :276 自述）、§7.4 回写 P3.0 定稿；`RENDER_API_CATALOG.md` 新增 §13「P3 计划新增公开 API（规划登记）」8 行逐项锁层与形态（实现时转正式登记+apidoc）；台账 §2 依赖列 4 行按 D1 修订（本行）；待办：apidoc rc=0 复跑留档+自校验清单跑通后收口 |
 | 2026-11-01 | P3.0 | 🟡→✅ 收口：apidoc rc=0（catalog 加节后机器校验无冲突，`apidoc-p30.txt`）+ 自校验 8 断言全绿（`selfcheck-p30.txt`，第 7 条首轮宽模式 18 行误报逐行定性为 texture.go 描述符搬运层后修正断言复绿）；P3 文档面全部就位，零代码变更；§2.1 焦点切 P3.1 | `evidence/P3.0/`（assessment / dependency-graph / apidoc-p30 / selfcheck-p30）；提交 `ff2e9fa5` |
 | 2026-11-01 | P3.1 | ⬜→🟡 开工登记：影响面评估落盘（两路只读深查：GPU 色彩格式链路/混合路径全图，全部 file:line），**方向 D1–D5 待拍板后才动代码** | `evidence/P3.1/assessment.md`：GPU 混合两条执行路（13 固定功能硬件 blend 在 sRGB 编码域混、15 advanced dual-tex shader 可插转换）；~50 处管线 target 硬编码 Unorm、swapchain 白名单排除 Srgb、hal/types Srgb 枚举与双后端映射已就绪；CPU 混合三套并存（生产两套接线点 image/draw.go+software_blend.go）；管线键/batch 谓词正确性约束；sRGB 目标格式全局切换定性为 P3.1b 整链专项（~50 处 target+swapchain+基线重采）；能力定义/API 草案/验证方案/拍板项五条成形 |
+| 2026-11-01 | P3.1 | 🟡→✅ 收口：per-file 34 包正本（带 lib）679 PASS / 9 FAIL（逐条对照 P2.6 基线重放同名日志全部同红，零新增）/ 21 SKIP / 1 NO_TESTS，结果落盘 `per-file-tests/`；五目标构建绿（render/gpu/新窗）；P3.1 全部门禁齐（能力钉 14+真窗双后端逐位+负向红→绿+conformance+apidoc rc=0）；焦点切 P3.2 | `evidence/P3.1/per-file-tests/`（summary.txt + 702 逐文件日志 + run.log）、`build-five-target.txt` |
 | 2026-11-01 | P3.1 | 🟡 D1–D5 拍板（全按推荐：路线 B advanced+CPU 先行固定功能显式降级 / BlendSpace 枚举 / 默认 SRGB opt-in / 新真窗 / hdr GPU 面移出挂 HDR 专项）；实现+门禁主体完成 | 实现五层：公开 API（BlendSpace+三口+Canvas 102→104+录制四命令+Backend 契约 38→40）/GPU（dual-tex Params.linear@offset28+WGSL 线性域合成一份双后端+全链透传+降级计数）/CPU（draw.go straight 域包装+compositeAdvancedLinear 委托 u8 正本+internal→render 反向依赖修复 blend.go→color.ColorF32）/录制面/降级探针。**语义收紧两条（summary §2）**：linear 生效域=advanced 15 模式全后端统一（CPU Normal 原接真线性与 GPU 降级不一致，改双端统一降级，P3.1b 解锁）；CPU 精度口径 u8 域分级（亮/中 ±2、暗部 ±5 实测）。管线键/batch 谓词改动取消（uniform 标志零管线变体）。门禁：构建/vet/能力钉 14 条/conformance 双后端 rc=0/真窗 ui_wr_p31_linear_blend 双后端逐位（A=77 B=168 vs float ref 167.6 C=128 降级）/负向摘 WGSL linear 分支红→还原绿/apidoc rc=0（catalog §13 P3.1 行转正+§1/§0）；per-file 34 包后台跑（唯一 FAIL=TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend 与 P2.6 基线同名同红，零新增）。P3.1b 立项（sRGB 目标格式整链，HDR/广色域前置） | `evidence/P3.1/`（assessment/summary/window-gates/window-runs×5/conformance/apidoc×2/build-five-target） |
 
 ## 8 修订记录

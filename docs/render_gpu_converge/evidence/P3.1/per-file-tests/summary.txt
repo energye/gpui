@@ -1,0 +1,11 @@
+# P3.1 per-file 门禁（tools/per-file-tests.sh 正本 34 包，带 lib）
+679 PASS / 9 FAIL / 21 SKIP_TAGGED / 1 NO_TESTS
+9 FAIL 逐条对照 P2.6 基线重放同名日志全部同红（零新增）：
+TestCompositeFramePacketTextured_BlitzRRectCornerPixels → ui_scene_internal_gpupixel__blit_rrect_corner_test
+TestKeystrokeRatio_M5 → ui_rendering__m5_keystroke_g1_test
+TestMiscDrawGPUPath → render__context_misc_draw_gpu_test
+TestPresentDamage_ImageMatchesView → render__filter_present_coherence_test
+TestRasterizerValueMatchesAnalytic → render__rasterizer_tile_value_test
+TestTextTransformAutoRoutesOutlines → render__text_transform_gpu_test
+TestVideoBridgeFallbackConverged / TestVideoBridgePlanesFallback / TestVideoDrawFrameMarksDamage → render__video_direct_upload_test
+TestX11KeyRepeat → ui_platform__x11_s6_p0_test
