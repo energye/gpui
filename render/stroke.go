@@ -30,6 +30,14 @@ type Stroke struct {
 	// Dash is the dash pattern for the stroke.
 	// nil means a solid line (no dashing).
 	Dash *Dash
+
+	// PathEffect transforms the path before stroke expansion (P3.5 batch 4,
+	// SkPathEffect analogue). When non-nil it takes precedence over Dash —
+	// the convenience Dash field is then ignored, matching Skia where one
+	// effect slot owns all 1D/2D path transformation.
+	// Implementations must be pure (see PathEffect); recording stores the
+	// effect by reference, replay applies it read-only.
+	PathEffect PathEffect
 }
 
 // DefaultStroke returns a Stroke with default settings.
@@ -106,7 +114,20 @@ func (s Stroke) IsDashed() bool {
 	return s.Dash != nil && s.Dash.IsDashed()
 }
 
+// HasPathEffect returns true if this stroke carries a path effect.
+// When true, PathEffect (not Dash) drives pre-expansion geometry.
+func (s Stroke) HasPathEffect() bool { return s.PathEffect != nil }
+
+// WithPathEffect returns a copy of the Stroke with the given path effect
+// (P3.5 batch 4). Pass nil to remove the effect and fall back to Dash/solid.
+func (s Stroke) WithPathEffect(e PathEffect) Stroke {
+	s.PathEffect = e
+	return s
+}
+
 // Clone creates a deep copy of the Stroke.
+// PathEffect is copied by reference: effects are immutable value objects
+// (constructors clone their prototypes; the purity contract keeps replay safe).
 func (s Stroke) Clone() Stroke {
 	result := s
 	if s.Dash != nil {

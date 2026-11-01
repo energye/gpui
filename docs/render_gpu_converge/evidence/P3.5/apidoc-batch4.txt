@@ -1,0 +1,3 @@
+# apidoc 机器校验（最终树，独立 rc）2026-11-02T05:58:57+08:00
+OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg/gpu/hdr 全部公开符号
+apidoc rc=0

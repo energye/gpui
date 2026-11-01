@@ -502,6 +502,79 @@ func (c *DashGeometryCache) GetOrApply(path *render.Path, dash *render.Dash, tra
 	return stored
 }
 
+// GetOrApplyEffect returns the path transformed by a PathEffect for
+// (path, effect, transformScale), computing on miss (P3.5 batch 4). It shares
+// the dash cache machinery: the key is path content + effect hash + scale,
+// so different effects never collide and a repeated effect+path hits.
+// A value-shaped custom effect (effect hash 0 = unkeyable) is applied directly
+// and never stored. Returns nil when the effect rejects the path (caller draws
+// nothing). Returned path is immutable shared storage.
+func (c *DashGeometryCache) GetOrApplyEffect(path *render.Path, effect render.PathEffect, transformScale float64) *render.Path {
+	if c == nil || path == nil || effect == nil {
+		return nil
+	}
+	if transformScale <= 0 {
+		transformScale = 1
+	}
+	eh := render.PathEffectHash(effect)
+	if eh == 0 {
+		// Unkeyable custom effect (value-shaped): no identity to store under,
+		// so applying it fresh every call — sharing one entry between two
+		// different values would paint the wrong geometry.
+		out, ok := render.ScalePathEffect(effect, transformScale).FilterPath(path)
+		if !ok || out == nil || out.NumVerbs() == 0 {
+			return nil
+		}
+		return out
+	}
+	key := dashGeomKey{
+		pathHash:  hashPathContent(path),
+		dashHash:  eh,
+		scaleBits: math.Float64bits(transformScale),
+	}
+
+	c.mu.Lock()
+	if e, ok := c.entries[key]; ok {
+		c.gen++
+		e.gen = c.gen
+		c.lru.moveFront(e.lru)
+		c.hits++
+		out := e.path
+		c.mu.Unlock()
+		return out
+	}
+	c.mu.Unlock()
+
+	// Apply outside lock (stamp effects can be heavy).
+	out, ok := render.ScalePathEffect(effect, transformScale).FilterPath(path)
+	if !ok || out == nil || out.NumVerbs() == 0 {
+		c.mu.Lock()
+		c.misses++
+		c.mu.Unlock()
+		return nil
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e, ok := c.entries[key]; ok {
+		c.gen++
+		e.gen = c.gen
+		c.lru.moveFront(e.lru)
+		c.hits++
+		return e.path
+	}
+	c.misses++
+	if len(c.entries) >= c.budget {
+		c.evictOldestLocked()
+	}
+	c.gen++
+	stored := out.Clone()
+	e := &dashGeomEntry{path: stored, gen: c.gen, lru: &lruNode[dashGeomKey]{key: key}}
+	c.lru.pushFront(e.lru)
+	c.entries[key] = e
+	return stored
+}
+
 // Stats returns hit/miss/entry counts.
 func (c *DashGeometryCache) Stats() (hits, misses uint64, entries int) {
 	if c == nil {

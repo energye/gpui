@@ -150,6 +150,7 @@ func (r *Recorder) recordStroke(clear bool) error {
 		MiterLimit:  r.miterLimit,
 		DashPattern: r.dashPattern,
 		DashOffset:  r.dashOffset,
+		PathEffect:  r.pathEffect,
 	}
 
 	r.commands = append(r.commands, StrokePathCommand{
@@ -355,6 +356,7 @@ func (r *Recorder) StrokeRectangle(x, y, w, h float64) {
 		MiterLimit:  r.miterLimit,
 		DashPattern: r.dashPattern,
 		DashOffset:  r.dashOffset,
+		PathEffect:  r.pathEffect,
 	}
 
 	r.commands = append(r.commands, StrokeRectCommand{
@@ -543,6 +545,7 @@ func (r *Recorder) StrokeString(s string, x, y float64) {
 		MiterLimit:  r.miterLimit,
 		DashPattern: r.dashPattern,
 		DashOffset:  r.dashOffset,
+		PathEffect:  r.pathEffect,
 	}
 
 	r.commands = append(r.commands, StrokeTextCommand{

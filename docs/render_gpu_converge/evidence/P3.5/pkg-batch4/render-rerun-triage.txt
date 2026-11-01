@@ -1,0 +1,8 @@
+# rerun package-wide ./render (determinism) 2026-11-02T05:13:36+08:00
+thread '<unnamed>' (337857) panicked at src/conv.rs:519:22:
+thread '<unnamed>' (337857) panicked at library/core/src/panicking.rs:225:5:
+SIGABRT: abort
+github.com/energye/gpui/render.TestContextFrameDamage_MultipleFillsSeparateRects(0xc0019fc1c0)
+created by testing.(*T).Run in goroutine 1
+FAIL	github.com/energye/gpui/render	6.706s
+FAIL

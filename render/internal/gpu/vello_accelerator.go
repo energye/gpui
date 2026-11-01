@@ -248,12 +248,12 @@ func (a *VelloAccelerator) FillPath(target render.GPURenderTarget, path *render.
 }
 
 // StrokePath expands the stroke to a filled outline and accumulates the result
-// for the next Flush. Dashed strokes fall back to CPU rendering.
+// for the next Flush. Dashed and path-effected strokes fall back to CPU.
 func (a *VelloAccelerator) StrokePath(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
 	if path == nil || path.NumVerbs() == 0 {
 		return nil
 	}
-	if paint != nil && paint.IsDashed() {
+	if paint != nil && (paint.IsDashed() || paint.HasPathEffect()) {
 		return render.ErrFallbackToCPU
 	}
 

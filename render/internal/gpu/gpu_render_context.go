@@ -2216,7 +2216,7 @@ func strokeSolidFastPathEligible(antiAlias bool, path, pathToStroke *render.Path
 	if paint == nil || !isGPUSolidPaint(paint) {
 		return false
 	}
-	return antiAlias && pathToStroke == path && !paint.IsDashed() && paint.MaskCoverage == nil
+	return antiAlias && pathToStroke == path && !paint.IsDashed() && !paint.HasPathEffect() && paint.MaskCoverage == nil
 }
 
 // StrokePath renders a stroked path by expanding to filled outline.
@@ -2293,7 +2293,29 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		}
 	}
 	var dashHash uint64
-	if paint.IsDashed() {
+	if eff := paint.EffectivePathEffect(); eff != nil {
+		// P3.5 batch 4: a path effect takes precedence over the convenience
+		// Dash field (Skia's single effect slot). The transformed geometry is
+		// cached under path+effect+scale; dashHash carries the effect hash so
+		// the stroke geometry key distinguishes effects.
+		transformScale := paint.TransformScale
+		if transformScale <= 0 {
+			transformScale = 1.0
+		}
+		dashHash = render.PathEffectHash(eff)
+		if dc := rc.shared.DashGeomCache(); dc != nil {
+			pathToStroke = dc.GetOrApplyEffect(pathToStroke, eff, transformScale)
+		} else {
+			out, ok := render.ScalePathEffect(eff, transformScale).FilterPath(pathToStroke)
+			if !ok {
+				out = nil
+			}
+			pathToStroke = out
+		}
+		if pathToStroke == nil || pathToStroke.NumVerbs() == 0 {
+			return nil
+		}
+	} else if paint.IsDashed() {
 		dash := paint.EffectiveDash()
 		if dash != nil && dash.IsDashed() {
 			transformScale := paint.TransformScale
@@ -2550,7 +2572,7 @@ func (rc *GPURenderContext) StrokeShape(target render.GPURenderTarget, shape ren
 	// the window (CPU software AA in ui_ant_compare looked fine by comparison).
 	// Floor matches CPU sdfMinStrokeWidth (1.0); sub-1px still expands.
 	w := effectiveStrokeWidth(paint)
-	if paint.IsDashed() || !paintUsesSourceOver(paint) || w < 1.0 || !isGPUSolidPaint(paint) {
+	if paint.HasPathEffect() || paint.IsDashed() || !paintUsesSourceOver(paint) || w < 1.0 || !isGPUSolidPaint(paint) {
 		p := detectedShapeToPath(shape)
 		if p == nil {
 			return render.ErrFallbackToCPU

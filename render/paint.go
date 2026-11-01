@@ -330,3 +330,17 @@ func (p *Paint) EffectiveDash() *Dash {
 func (p *Paint) IsDashed() bool {
 	return p.Stroke != nil && p.Stroke.IsDashed()
 }
+
+// EffectivePathEffect returns the stroke's path effect (P3.5 batch 4), or
+// nil when unset. A non-nil effect takes precedence over Dash.
+func (p *Paint) EffectivePathEffect() PathEffect {
+	if p.Stroke != nil {
+		return p.Stroke.PathEffect
+	}
+	return nil
+}
+
+// HasPathEffect reports whether the current stroke carries a path effect.
+func (p *Paint) HasPathEffect() bool {
+	return p.Stroke != nil && p.Stroke.PathEffect != nil
+}

@@ -1,0 +1,5 @@
+# conformance 双后端（最终树）2026-11-02T05:58:02+08:00
+=== RUN   TestConformanceDualBackend
+--- PASS: TestConformanceDualBackend (0.80s)
+PASS
+ok  	github.com/energye/gpui/render	0.810s

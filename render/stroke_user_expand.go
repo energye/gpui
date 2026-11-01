@@ -50,7 +50,16 @@ func (c *Context) expandStrokeToPathSpace() *Path {
 	}
 
 	pathToStroke := userPath
-	if c.paint.IsDashed() {
+	if eff := c.paint.EffectivePathEffect(); eff != nil {
+		// P3.5 batch 4: user-space path — effect parameters are user-space
+		// units too (SkDashPathEffect convention); the CTM applies to the
+		// expanded outline afterwards. No scaling here.
+		out, ok := eff.FilterPath(userPath)
+		if !ok || out == nil || out.NumVerbs() == 0 {
+			return nil
+		}
+		pathToStroke = out
+	} else if c.paint.IsDashed() {
 		dash := c.paint.EffectiveDash()
 		if dash != nil && dash.IsDashed() {
 			// Flutter/Skia convention (SkDashPathEffect): dash periods and

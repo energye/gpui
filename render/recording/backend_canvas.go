@@ -506,6 +506,19 @@ func ApplyBrush(dc render.Canvas, brush Brush, fill bool) {
 
 // ApplyStroke copies a recorded stroke style onto the context.
 func ApplyStroke(dc render.Canvas, stroke Stroke) {
+	if stroke.PathEffect != nil {
+		// One-shot SetStroke carries the effect (the Canvas port sets the
+		// whole style struct); dash fields stay unset because the live effect
+		// takes precedence over them.
+		dc.SetStroke(render.Stroke{
+			Width:      stroke.Width,
+			Cap:        stroke.Cap,
+			Join:       stroke.Join,
+			MiterLimit: stroke.MiterLimit,
+			PathEffect: stroke.PathEffect,
+		})
+		return
+	}
 	dc.SetLineWidth(stroke.Width)
 	dc.SetLineCap(stroke.Cap)
 	dc.SetLineJoin(stroke.Join)

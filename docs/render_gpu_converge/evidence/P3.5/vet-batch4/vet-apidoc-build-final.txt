@@ -1,0 +1,14 @@
+# vet + apidoc + 五目标 touched-pkg 交叉构建 2026-11-02T05:58:05+08:00
+vet rc=0
+OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg/gpu/hdr 全部公开符号
+apidoc rc=0
+linux/amd64 tags='' rc=0 
+linux/amd64 tags='nogpu' rc=0 
+linux/arm64 tags='' rc=0 
+linux/arm64 tags='nogpu' rc=0 
+windows/amd64 tags='' rc=0 
+windows/amd64 tags='nogpu' rc=0 
+darwin/amd64 tags='' rc=0 
+darwin/amd64 tags='nogpu' rc=0 
+darwin/arm64 tags='' rc=0 
+darwin/arm64 tags='nogpu' rc=0 

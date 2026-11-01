@@ -35,7 +35,17 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 	// Apply dash pattern if set
 	// Scale dash pattern by transform scale
 	pathToDraw := p
-	if paint.IsDashed() {
+	if eff := paint.EffectivePathEffect(); eff != nil {
+		// P3.5 batch 4: a path effect takes precedence over the convenience
+		// Dash field (Skia's single effect slot). Device-space path here —
+		// effect lengths are user-space units, scale with the CTM like dash.
+		scaled := ScalePathEffect(eff, transformScale)
+		out, ok := scaled.FilterPath(p)
+		if !ok || out == nil || out.NumVerbs() == 0 {
+			return nil
+		}
+		pathToDraw = out
+	} else if paint.IsDashed() {
 		dash := paint.EffectiveDash()
 		// B2: dash lengths live in device space — scale by the full CTM
 		// factor in BOTH directions (zoom-in and zoom-out), matching

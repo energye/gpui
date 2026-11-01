@@ -1,0 +1,26 @@
+# 批 4 定向复跑（含两处自审修复后）2026-11-02T05:56:28+08:00
+--- PASS: TestPathEffectConstructorsRejectInvalid (0.00s)
+--- PASS: TestDashPathEffectMatchesApplyDash (0.00s)
+--- PASS: TestCornerPathEffectCutsCorners (0.00s)
+--- PASS: TestDiscretePathEffectDeterministic (0.00s)
+--- PASS: TestPath1DWalkBoundsAndPhase (0.00s)
+--- PASS: TestPath1DRotateFollowsTangent (0.00s)
+--- PASS: TestPath1DMorphPointWiseAlongPath (0.00s)
+--- PASS: TestPath2DGridCoversBounds (0.00s)
+--- PASS: TestComposeOrderPins (0.00s)
+--- PASS: TestSumPathEffectsUnionsBoth (0.00s)
+--- PASS: TestStampEffectsRejectPathologicalDensity (0.34s)
+--- PASS: TestPathEffectHashIsParameterStable (0.00s)
+--- PASS: TestStrokePathEffectCPUPath (0.00s)
+--- PASS: TestStrokePathEffectTakesPrecedenceOverDash (0.00s)
+--- PASS: TestStrokePathEffectSoftwareRendererMount (0.00s)
+--- PASS: TestPathEffectGPUStrokeParity (0.27s)
+PASS
+ok  	github.com/energye/gpui/render	0.867s
+--- internal/gpu ---
+--- PASS: TestDashGeomCacheGetOrApplyEffect (0.00s)
+--- PASS: TestDashGeomCacheUnkeyableEffectNeverSharesAnEntry (0.00s)
+ok  	github.com/energye/gpui/render/internal/gpu	0.008s
+--- recording ---
+--- PASS: TestRecorderStrokePathEffectPassThrough (0.00s)
+ok  	github.com/energye/gpui/render/recording	0.012s

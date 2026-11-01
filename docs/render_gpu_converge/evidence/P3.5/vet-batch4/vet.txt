@@ -1,0 +1,10 @@
+# go vet batch-4 touched packages 2026-11-02T05:16:40+08:00
+vet rc=0
+
+# 附：./render/... 全扫描命中 HEAD 存量坏包（P3.1 raster 线，非本批）
+# github.com/energye/gpui/render/recording/backends/raster
+# [github.com/energye/gpui/render/recording/backends/raster]
+vet: render/recording/backends/raster/backend_coverage_test.go:24:49: not enough arguments in call to backend.FillRect
+	have (recording.Rect, *recording.LinearGradientBrush, "github.com/energye/gpui/render/internal/image".BlendMode)
+	want (recording.Rect, recording.Brush, render.BlendMode, render.BlendSpace)
+backends rc=0

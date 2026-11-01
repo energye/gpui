@@ -561,6 +561,12 @@ type Stroke struct {
 	DashPattern []float64
 	// DashOffset is the starting offset into the dash pattern.
 	DashOffset float64
+	// PathEffect transforms the path before stroke expansion (P3.5 batch 4,
+	// render-side analogue of SkPaint's path effect slot). nil = none. It
+	// takes precedence over the dash fields, matching the live semantics.
+	// Effects are immutable pure objects (render.PathEffect contract), so the
+	// command stores the reference and replay applies it read-only.
+	PathEffect render.PathEffect
 }
 
 // DefaultStroke returns a Stroke with default settings.

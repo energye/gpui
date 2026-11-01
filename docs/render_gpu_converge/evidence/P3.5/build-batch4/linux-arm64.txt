@@ -1,0 +1,20 @@
+# P3.5 build gate: linux/arm64
+# env: CGO_ENABLED=0 GOOS=linux GOARCH=arm64
+# date: 2026-11-02T05:16:52+08:00
+# head: c892ba29
+# dirty: 31 paths (P3.5 working tree, uncommitted)
+
+## 1. go build ./... (raw)
+examples/ui_wr_t_stress/main.go:38:2: no required module provides package github.com/energye/gpui/ui/kit/button; to add it:
+	go get github.com/energye/gpui/ui/kit/button
+examples/ui_wr_t_stress/main.go:39:2: no required module provides package github.com/energye/gpui/ui/kit/icon; to add it:
+	go get github.com/energye/gpui/ui/kit/icon
+# exit: 1 (expected 1: known-broken pkgs excluded below, pre-existing)
+
+## 2. go build <all buildable except known-broken>
+# pkgs: 326
+# exit: 0
+
+## 3. go build -tags nogpu <all buildable except known-broken>
+# pkgs: 322
+# exit: 0

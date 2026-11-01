@@ -1,0 +1,11 @@
+# HEAD(c892ba29) worktree A/B: package-wide ./render 2026-11-02T05:13:58+08:00
+thread '<unnamed>' (338556) panicked at src/conv.rs:519:22:
+thread '<unnamed>' (338556) panicked at library/core/src/panicking.rs:225:5:
+  12:     0x7907ef25c68a - wgpuDeviceCreatePipelineLayout
+SIGABRT: abort
+github.com/energye/gpui/gpu/rwgpu.(*Device).CreatePipelineLayout(0xc00096c210, 0xc00004f590)
+github.com/energye/gpui/gpu/webgpu.(*Device).CreatePipelineLayout(0xc0003080c0, 0xc0019ee080)
+github.com/energye/gpui/render/internal/gpu.(*GPUShared).ensurePipelines(0xc000194a88)
+github.com/energye/gpui/render.TestContextFrameDamage_MultipleFillsSeparateRects(0xc00110efc0)
+FAIL	github.com/energye/gpui/render	6.736s
+FAIL

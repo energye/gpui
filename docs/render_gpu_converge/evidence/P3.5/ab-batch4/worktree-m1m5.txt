@@ -1,0 +1,26 @@
+# 批 4 工作区 — 同一命令（隔离复跑 5 次）2026-11-02T06:23:24+08:00
+--- run 1
+    m5_keystroke_g1_test.go:28: G1未达标NoWrap:文本×1000耗时×1.6,门禁≤1.5
+FAIL
+FAIL	github.com/energye/gpui/ui/rendering	0.239s
+FAIL
+--- run 2
+    m5_keystroke_g1_test.go:28: G1未达标NoWrap:文本×1000耗时×2.0,门禁≤1.5
+FAIL
+FAIL	github.com/energye/gpui/ui/rendering	0.266s
+FAIL
+--- run 3
+    m5_keystroke_g1_test.go:28: G1未达标NoWrap:文本×1000耗时×1.6,门禁≤1.5
+FAIL
+FAIL	github.com/energye/gpui/ui/rendering	0.251s
+FAIL
+--- run 4
+    m5_keystroke_g1_test.go:28: G1未达标NoWrap:文本×1000耗时×1.9,门禁≤1.5
+FAIL
+FAIL	github.com/energye/gpui/ui/rendering	0.247s
+FAIL
+--- run 5
+    m5_keystroke_g1_test.go:28: G1未达标NoWrap:文本×1000耗时×2.3,门禁≤1.5
+FAIL
+FAIL	github.com/energye/gpui/ui/rendering	0.252s
+FAIL

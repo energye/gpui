@@ -1,0 +1,6 @@
+# -race -count=2 批 4 最终树 2026-11-02T05:56:52+08:00
+ok  	github.com/energye/gpui/render	6.085s
+--- internal/gpu ---
+ok  	github.com/energye/gpui/render/internal/gpu	1.039s
+--- recording ---
+ok  	github.com/energye/gpui/render/recording	1.065s

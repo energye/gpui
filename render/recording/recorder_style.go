@@ -183,6 +183,9 @@ func (r *Recorder) SetStroke(stroke render.Stroke) {
 	r.SetLineCap(stroke.Cap)
 	r.SetLineJoin(stroke.Join)
 	r.SetMiterLimit(stroke.MiterLimit)
+	// P3.5 batch 4: a path effect rides subsequent stroke commands; like the
+	// live path it takes precedence over the convenience dash field.
+	r.pathEffect = stroke.PathEffect
 	if stroke.Dash != nil && len(stroke.Dash.Array) > 0 {
 		r.SetDash(stroke.Dash.Array...)
 		r.SetDashOffset(stroke.Dash.Offset)

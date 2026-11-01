@@ -33,6 +33,7 @@ func (r *Recorder) Save() {
 		miterLimit:  r.miterLimit,
 		dashPattern: dashCopy,
 		dashOffset:  r.dashOffset,
+		pathEffect:  r.pathEffect,
 		fillRule:    r.fillRule,
 		antiAlias:   r.antiAlias,
 		transform:   r.transform,
@@ -62,6 +63,7 @@ func (r *Recorder) Restore() {
 	r.miterLimit = state.miterLimit
 	r.dashPattern = state.dashPattern
 	r.dashOffset = state.dashOffset
+	r.pathEffect = state.pathEffect
 	r.fillRule = state.fillRule
 	r.antiAlias = state.antiAlias
 	r.transform = state.transform

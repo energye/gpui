@@ -58,6 +58,10 @@ type Recorder struct {
 	miterLimit  float64
 	dashPattern []float64
 	dashOffset  float64
+	// pathEffect rides draws recorded after it was set (P3.5 batch 4).
+	// Effects are immutable pure objects (render.PathEffect contract), so
+	// state save/restore and command capture share one reference.
+	pathEffect  render.PathEffect
 	fillRule    FillRule
 	antiAlias   bool
 	blendMode   render.BlendMode
@@ -83,6 +87,7 @@ type recorderState struct {
 	miterLimit  float64
 	dashPattern []float64
 	dashOffset  float64
+	pathEffect  render.PathEffect
 	fillRule    FillRule
 	antiAlias   bool
 	transform   Matrix

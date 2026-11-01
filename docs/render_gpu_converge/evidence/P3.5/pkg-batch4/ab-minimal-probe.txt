@@ -1,0 +1,4 @@
+=== run filter: ^TestPathEffectGPUStrokeParity$|^TestContextFrameDamage_MultipleFillsSeparateRects$
+ok  	github.com/energye/gpui/render	0.454s
+=== run filter: ^TestConformanceDualBackend$|^TestContextFrameDamage_MultipleFillsSeparateRects$
+ok  	github.com/energye/gpui/render	1.225s
