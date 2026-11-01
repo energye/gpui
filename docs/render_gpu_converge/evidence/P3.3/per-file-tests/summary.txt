@@ -1,0 +1,4 @@
+# P3.3 per-file 门禁（tools/per-file-tests.sh 正本 34 包，带 lib）
+FAIL_TOTAL=10（去重 12 名），与 P3.2 轮红名单逐名一致（comm 差集为空，零新增）：
+- 10 名 P2.6 基线同红（BlitzRRect/M5/MiscDrawGPU/PresentDamage/Rasterizer/TextTransform/Video×3/X11KeyRepeat）
+- 2 名 S69 顺序耦合既有红（tmp/s6_present_baseline.json 缺失，P3.2 收口时 A/B 干净树定性在案）
