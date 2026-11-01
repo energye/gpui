@@ -1,0 +1,18 @@
+Command game_25d_basis is the S79 true-2.5D basis window.
+
+Six view modes press 3D points flat through the real engine/camera Basis25D
+(read-only from here); YSort25D orders the blocks back to front; ShadowMath25D
+lands one shadow per block on the ground line. Keys 1-6 switch the view;
+WASD nudges the hero block.
+
+Modes:
+
+    go run ./examples/engine/25d_basis -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/25d_basis -manual-seconds 30
+      manual for 30s (events logged, title shows the count), then summary.
+    go run ./examples/engine/25d_basis
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_25d_basis. First run writes the golden baseline
+into testdata/; later runs compare it with zero tolerance.

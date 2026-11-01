@@ -1,0 +1,84 @@
+package raster // import "github.com/energye/gpui/render/recording/backends/raster"
+
+Package raster provides a raster backend for the recording system. It renders
+recordings to pixel images using render.Context.
+
+The raster backend serves multiple purposes:
+  - Architecture validation for the recording system
+  - Reference implementation for other backends
+  - Pixel-accurate comparison testing
+  - Caching/buffering of drawing operations
+
+All drawing semantics live in recording.CanvasBackend — this package owns
+only the image-sized context and the PNG/pixmap output, so the raster and the
+live-context playback paths cannot drift apart.
+
+# Limitations
+
+Gradient brushes (linear, radial, sweep) are translated to render brush types,
+but the software renderer currently only supports solid colors. Gradients render
+as black until render adds software gradient support; on a GPU-backed context
+they work.
+
+# Example
+
+    // Import to register the backend
+    import _ "github.com/energye/gpui/render/recording/backends/raster"
+
+    // Create via registry
+    backend, _ := recording.NewBackend("raster")
+
+    // Or create directly
+    backend := raster.NewBackend()
+
+    // Playback recording
+    rec.Playback(backend)
+
+    // Get output
+    backend.SavePNG("output.png")
+    img := backend.Image()
+
+TYPES
+
+type Backend struct {
+	*recording.CanvasBackend
+
+	// Has unexported fields.
+}
+    Backend renders recordings to a pixel image. It owns a render.Context
+    sized to the recording and delegates every drawing operation to
+    recording.CanvasBackend.
+
+func NewBackend() *Backend
+    NewBackend creates a new raster backend. The backend must be initialized
+    with Begin before use.
+
+func (b *Backend) Begin(width, height int) error
+    Begin initializes an offscreen context at the recording's dimensions and
+    prepares the delegated playback onto it.
+
+func (b *Backend) End() error
+    End finalizes the rendering. After End is called, output methods (WriteTo,
+    SaveToFile) can be used.
+
+func (b *Backend) Height() int
+    Height returns the backend height.
+
+func (b *Backend) Image() image.Image
+    Image returns the rendered image.
+
+func (b *Backend) Pixmap() *render.Pixmap
+    Pixmap returns the rendered pixmap.
+
+func (b *Backend) SavePNG(path string) error
+    SavePNG is a convenience method to save the image as PNG.
+
+func (b *Backend) SaveToFile(path string) error
+    SaveToFile saves the rendered content as PNG to a file.
+
+func (b *Backend) Width() int
+    Width returns the backend width.
+
+func (b *Backend) WriteTo(w io.Writer) (int64, error)
+    WriteTo writes the rendered content as PNG to the given writer.
+

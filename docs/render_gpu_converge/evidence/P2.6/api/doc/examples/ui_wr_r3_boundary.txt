@@ -1,0 +1,24 @@
+Evidence helpers for ui_wr_r3_boundary (R3 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_r3_boundary is the W1 R3 real-window: nested RepaintBoundary cache
+isolation.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=10 go run ./examples/ui_wr_r3_boundary -auto-only
+    go run ./examples/ui_wr_r3_boundary                 # manual: animate until close
+    go run ./examples/ui_wr_r3_boundary -manual-seconds 15
+
+Window: 1200x800. R3 close duration is 10s (§2.5); RUN_SECONDS>=5 is the
+generic floor, but a gate run below 10s is rejected because it cannot close R3.
+GPU window required.
+
+Evidence: boundary logic probes, color/ink probes on the GPU snapshot,
+and a bitwise Golden over header + legend + body (821184 logical px). Gate mode
+freezes Steady (hot/hot2 fixed) so the snapshot is deterministic; manual mode
+keeps the Steady -> Spike -> Recover animation and does not assert pixels.

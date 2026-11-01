@@ -1,0 +1,10 @@
+Command ui_wr_r21_shell is the W2-W4 R21 real-window: shell/content layering.
+A static shell TopBar (title + buttons, tagged SetShellBoundary) sits above a
+scrollable body (RenderViewport + VirtualList). The body scrolls every frame
+through Steady/Spike/Recover phases; the shell boundary must never re-record:
+its Picture Replays (shell skip grows) while shell rerecord stays 0.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_wr_r21_shell
+
+Window: 1200x800. RUN_SECONDS>=5 (U16). GPU window required.

@@ -1,0 +1,90 @@
+package color // import "github.com/energye/gpui/render/internal/color"
+
+Package color provides color space types and conversions for render.
+
+Package color provides fast color space conversion using lookup tables.
+
+The lookup tables (LUT) provide O(1) sRGB ↔ Linear conversions, replacing
+expensive math.Pow calls with simple array lookups. This is critical for
+performance in alpha blending operations.
+
+sRGB is the standard color space for images and displays, but blending
+operations should be performed in linear space for physically correct results.
+
+FUNCTIONS
+
+func LinearToSRGB(l float32) float32
+    LinearToSRGB converts a linear component to sRGB (OETF - Opto-Electronic
+    Transfer Function). Formula: if l <= 0.0031308: l*12.92; else: 1.055*pow(l,
+    1/2.4)-0.055 Input and output are in range [0,1].
+
+func LinearToSRGBFast(l float32) uint8
+    LinearToSRGBFast converts linear float32 to sRGB byte using lookup table.
+
+    Input is clamped to [0.0, 1.0] range automatically. Uses 12-bit precision
+    (4096 entries) which is more than sufficient for 8-bit sRGB output.
+
+    Example:
+
+        s := LinearToSRGBFast(0.5) // 188 (not 128!)
+
+func LinearToSRGBSlow(l float32) uint8
+    LinearToSRGBSlow converts linear float32 to sRGB byte using math.Pow.
+
+    This is the reference implementation, ~15x slower than the LUT version.
+    Used for testing and verification only.
+
+func SRGBToLinear(s float32) float32
+    SRGBToLinear converts an sRGB component to linear (EOTF - Electro-Optical
+    Transfer Function). Formula: if s <= 0.04045: s/12.92; else:
+    pow((s+0.055)/1.055, 2.4) Input and output are in range [0,1].
+
+func SRGBToLinearFast(s uint8) float32
+    SRGBToLinearFast converts sRGB byte to linear float32 using lookup table.
+
+    This is ~20x faster than computing with math.Pow for each pixel. Used in
+    blend operations that require linear color space.
+
+    Example:
+
+        r := SRGBToLinearFast(128) // ~0.2159 (not 0.5!)
+
+func SRGBToLinearSlow(s uint8) float32
+    SRGBToLinearSlow converts sRGB byte to linear float32 using math.Pow.
+
+    This is the reference implementation, ~20x slower than the LUT version.
+    Used for testing and verification only.
+
+
+TYPES
+
+type ColorF32 struct {
+	R, G, B, A float32
+}
+    ColorF32 represents a color with float32 components in [0,1]. RGB components
+    are in the color space indicated by context. Alpha is always linear (never
+    gamma-encoded).
+
+func LinearToSRGBColor(c ColorF32) ColorF32
+    LinearToSRGBColor converts a full color from linear to sRGB space. Only RGB
+    components are converted; alpha remains linear (never gamma-encoded).
+
+func SRGBToLinearColor(c ColorF32) ColorF32
+    SRGBToLinearColor converts a full color from sRGB to linear space. Only RGB
+    components are converted; alpha remains linear (never gamma-encoded).
+
+func U8ToF32(c ColorU8) ColorF32
+    U8ToF32 converts ColorU8 to ColorF32. Each uint8 component [0,255] is mapped
+    to float32 [0,1].
+
+type ColorU8 struct {
+	R, G, B, A uint8
+}
+    ColorU8 represents a color with uint8 components in [0,255]. RGB components
+    are in the color space indicated by context. Alpha is always linear (never
+    gamma-encoded).
+
+func F32ToU8(c ColorF32) ColorU8
+    F32ToU8 converts ColorF32 to ColorU8. Each float32 component [0,1] is mapped
+    to uint8 [0,255] with rounding.
+

@@ -1,0 +1,37 @@
+p95 门禁（读自 thresholds.md）: 22ms
+records 366 | 有首帧 275 | A 族适用轮 44（九字段齐 24）
+A 族适用集: 22 窗
+first_frame_fail: 0
+fps_fail: 1
+   ('ui_wr_c3_list_scroll', 'default', 'native', 54.66473035809812)
+p95_fail: 4
+   ('ui_wr_c3_list_scroll', 'default', 'native', 26.429111000000002, 22.0)
+   ('ui_wr_r7_virtlist', 'default', 'go', 22.65954, 22.0)
+   ('ui_wr_r7_virtlist', 'default', 'native', 24.886993999999998, 22.0)
+   ('ui_wr_r7b_scroll_reuse', 'default', 'native', 22.424591, 22.0)
+hitch_fail: 3
+   ('ui_wr_c3_list_scroll', 'default', 'native', 51.99815814550798)
+   ('ui_wr_r7_virtlist', 'default', 'go', 15.016291118924915)
+   ('ui_wr_r7_virtlist', 'default', 'native', 16.01611232297825)
+missing_a: 20
+   ('kit/spin_min', 'default', 'go', 'PASS', 'fps_wall,target_hz;alias-mapped')
+   ('kit/spin_min', 'default', 'native', 'PASS', 'fps_wall,hitch_rate_per_min,target_hz;alias-mapped')
+   ('ui_l1_spinner', 'default', 'go', 'PASS', 'fps_wall,target_hz;alias-mapped')
+   ('ui_l1_spinner', 'default', 'native', 'PASS', 'fps_wall,hitch_rate_per_min,target_hz;alias-mapped')
+   ('ui_render_base_perfsoak', 'default', 'go', 'PASS', 'fps_wall,target_hz;alias-mapped')
+   ('ui_render_base_perfsoak', 'default', 'native', 'PASS', 'fps_wall,target_hz;alias-mapped')
+   ('ui_render_jumprope', 'default', 'go', 'PASS', 'fps_wall,hitch_rate_per_min,target_hz;alias-mapped')
+   ('ui_render_jumprope', 'default', 'native', 'PASS', 'fps_wall,hitch_rate_per_min,target_hz;alias-mapped')
+   ('ui_render_particle', 'default', 'go', 'PASS', 'fps_wall,target_hz;alias-mapped')
+   ('ui_render_particle', 'default', 'native', 'PASS', 'fps_wall,target_hz;alias-mapped')
+   ('ui_render_pelican', 'default', 'go', 'PASS', 'fps_wall,hitch_rate_per_min,target_hz;alias-mapped')
+   ('ui_render_pelican', 'default', 'native', 'PASS', 'fps_wall,target_hz;alias-mapped')
+   ('ui_wr_r15_soak', 'default', 'go', 'NO_JSON', 'fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz')
+   ('ui_wr_r7b_scroll_reuse', 'default', 'go', 'NO_JSON', 'fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz')
+   ('ui_wr_t_stress', 'default', 'go', 'BUILD_FAIL', 'fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz')
+   ('ui_wr_t_stress', 'default', 'native', 'BUILD_FAIL', 'fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz')
+   ('video_vr7_perf', 'default', 'go', 'FAIL', 'interval_p99_ms')
+   ('video_vr7_perf', 'default', 'native', 'FAIL', 'interval_p99_ms')
+   ('zz_soak_control', 'default', 'go', 'NO_JSON', 'fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz')
+   ('zz_soak_control', 'default', 'native', 'NO_JSON', 'fps_wall,interval_avg_ms,interval_p50_ms,interval_p95_ms,interval_p99_ms,hitch_count,hitch_rate_per_min,vsync_source,target_hz')
+gate_mismatch: 0

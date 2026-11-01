@@ -1,0 +1,2492 @@
+package rendering // import "github.com/energye/gpui/ui/rendering"
+
+
+CONSTANTS
+
+const (
+	VertexModeTriangles   = render.VertexModeTriangles
+	VertexModeTriangleFan = render.VertexModeTriangleFan
+)
+const (
+	AffinityDownstream = 0
+	AffinityUpstream   = 1
+)
+    Flutter-aligned caret APIs — TextPainter.getOffsetForCaret /
+    getPositionForOffset / getFullHeightForCaret
+
+const Unbounded = 1e9
+    Unbounded is a large constraint max meaning "no limit" for practical UI
+    trees.
+
+const WheelStepPx = 48.0
+    WheelStepPx converts one discrete wheel notch to logical pixels (3-line
+    convention: 3 × 16px base line). Applies only to exact ±1 notches;
+    continuous valuators pass through unscaled.
+
+
+FUNCTIONS
+
+func ApplyBlur(pc *PaintContext, radius float64)
+    ApplyBlur applies a uniform Gaussian blur to the current surface (FF-BLUR /
+    FP-IMAGE-FILTER). radius <= 0 is a no-op.
+
+func ApplyColorMatrix(pc *PaintContext, matrix [20]float32)
+    ApplyColorMatrix applies a 4×5 row-major color matrix to the current surface
+    (FF-COLOR-MATRIX). Matrix layout matches render.ApplyColorMatrix.
+
+func ApplyDropShadow(pc *PaintContext, offsetX, offsetY, blurRadius, r, g, b, a float64)
+    ApplyDropShadow composites a drop shadow under the current surface contents
+    (FC-DRAW-SHADOW / FF filter path). offset is in logical px (Y-down);
+    blurRadius is the shadow soft radius; color is 0..1 RGBA.
+
+    Full-surface filter — not a path-bound Material elevation API.
+    No explicit GPU flush here: render's own filter paths already drain
+    pending batches before reading back (filter_ops_cpu.go / m4_quadimage.go /
+    filter_ops_gpu.go).
+
+func ApplyGrayscale(pc *PaintContext)
+    ApplyGrayscale converts the current surface to grayscale via the shipped
+    render color-matrix path (FF-COLOR-MATRIX / FP-COLOR-FILTER).
+
+func BuildFramePacket(root RenderObject, frameID uint64, dpr, w, h float64) *scene.FramePacket
+    BuildFramePacket layouts are assumed already flushed; builds
+    a packet for raster. Overlay band is an empty F13 reserve; use
+    overlay.State.AttachToPacket to fill it.
+
+    D3 inline mode: this is the synchronous inline path for unit tests (no
+    raster Loop involved). Windows go through the async embedder+raster Loop;
+    the packet shape is identical on both paths.
+
+func BuildFramePacketOverlay(root RenderObject, frameID uint64, dpr, w, h float64, attach func(pkt *scene.FramePacket)) *scene.FramePacket
+    BuildFramePacketOverlay builds the main packet then attaches ov to
+    pkt.Overlay. ov may be nil (empty band). Main DirtyLayerIDs are preserved
+    and overlay dirties appended. The attach callback is the EndFrame tail:
+    it runs before the seal so the handed-off packet already carries both bands.
+
+func BuildFramePacketWithSaveLayer(root RenderObject, frameID uint64, dpr, w, h float64, stats *SaveLayerStats, budget *SaveLayerBudget) *scene.FramePacket
+    BuildFramePacketWithSaveLayer builds the packet like BuildFramePacket while
+    wiring the embedder-owned per-frame SaveLayer budget and outcome stats
+    into raster-time OnPaint callbacks. Retained mode defers RenderBox.OnPaint
+    to texture-record time; without this wiring a configured budget
+    (PipelineOptions SaveLayerMaxOps/MaxArea) never sees those requests.
+    stats/budget may be nil (= BuildFramePacket behavior).
+
+func BuildLayerTree(root RenderObject) *scene.LayerBuilder
+func CountRepaintBoundaries(root RenderObject) (count int, maxDepth int)
+    CountRepaintBoundaries walks the tree and returns boundary count and max
+    nesting depth. Used for R3b compositing-bits / boundary discovery gates.
+
+func DrawAtlas(pc *PaintContext, img *render.ImageBuf, sprites []AtlasSprite)
+    DrawAtlas draws multiple sprites from one atlas image (FImg-ATLAS). Each
+    sprite's DstX/DstY are origin-relative local coordinates (shifted by Abs).
+    Src* stay in image pixel space. Empty sprites slice is a no-op.
+
+func DrawGPUTexture(pc *PaintContext, view render.TextureView, x, y float64, width, height int) bool
+    DrawGPUTexture paints a live GPU texture view into the current walk
+    (render.Context.DrawGPUTexture subset). x,y are in the walk's user space
+    (pc.Abs for origin-relative paint), width/height in the same space.
+
+    A recording walk stores the command instead of refusing it; only a target
+    with no texture capability is refused, counted in LiveOnlySkips.
+
+func DrawImageBuf(pc *PaintContext, img *render.ImageBuf, x, y, dstW, dstH float64)
+    DrawImageBuf draws img at local (x,y). If dstW and dstH are both >0 the
+    image is scaled into that destination (DrawImageEx); otherwise it is drawn
+    1:1 (DrawImage). Skips disposed or nil buffers (FImg-DRAW / FC-DRAW-IMAGE).
+
+func DrawImageCircular(pc *PaintContext, img *render.ImageBuf, cx, cy, radius float64)
+    DrawImageCircular draws img centered at local (cx,cy), clipped to a circle
+    of the given radius and scaled to the circle diameter (FImg-CIRCLE).
+    radius<=0 is a no-op. Origin-aware.
+
+func DrawImageNine(pc *PaintContext, img *render.ImageBuf, center image.Rectangle, x, y, dstW, dstH float64)
+    DrawImageNine draws a nine-patch (lattice) image into a destination rect
+    (FImg-NINE / FC-DRAW-IMAGE-NINE). center is the stretchable center rectangle
+    in source image pixel coordinates. Corners stay unscaled; edges stretch on
+    one axis; center stretches on both. Origin-aware.
+
+func DrawImageRect(pc *PaintContext, img *render.ImageBuf, src image.Rectangle, x, y, dstW, dstH float64)
+    DrawImageRect draws a source rectangle of img into a destination rect in
+    local coordinates (FImg-RECT / FC-DRAW-IMAGE-RECT). src is in image pixel
+    space; if empty, the full image is used. dstW/dstH must be >0.
+
+func DrawImageRounded(pc *PaintContext, img *render.ImageBuf, x, y, radius float64)
+    DrawImageRounded draws img at its natural size with a uniform rounded-rect
+    clip (FImg-ROUND / FC-DRAW-IMAGE path). radius<=0 draws without rounding
+    (hard rect). Origin-aware like DrawImageBuf.
+
+func DrawPoints(pc *PaintContext, pts []float64, radius, r, g, b, a float64)
+    DrawPoints draws filled circular points at local (x,y) pairs
+    (FC-DRAW-POINTS). pts is [x0,y0, x1,y1, ...]; odd trailing coordinate is
+    ignored. radius is logical px.
+
+func DrawVertices(pc *PaintContext, positions []Point, colors []ColorRGBA, mode VertexMode)
+    DrawVertices draws a triangle mesh in local coordinates (FC-DRAW-VERTICES).
+    positions use package Point (logical); when len(colors)==len(positions),
+    per-vertex colors are used (CPU averages triangle color). mode is Triangles
+    or TriangleFan.
+
+func EstimateTextSize(s string, fontSize, approxCharW float64) (w, h float64)
+    EstimateTextSize estimates layout size without a font (rune-based).
+
+func FillArc(pc *PaintContext, cx, cy, radius, angle1, angle2, r, g, b, a float64)
+    FillArc fills a circular arc sector from angle1 to angle2 (radians,
+    FC-DRAW-ARC).
+
+func FillCircle(pc *PaintContext, cx, cy, radius, r, g, b, a float64)
+    FillCircle fills a circle centered at (cx,cy) (FC-DRAW-CIRCLE).
+
+func FillDRRect(pc *PaintContext, ox, oy, ow, oh, oRad, ix, iy, iw, ih, iRad, r, g, b, a float64)
+    FillDRRect fills the ring between an outer and inner rounded rect
+    (FC-DRAW-DRRECT). Uses even-odd fill on outer∪inner paths. Inner must lie
+    inside outer; degenerate sizes are no-ops. Uniform corner radii only (not
+    per-corner).
+
+func FillLinearGradient(pc *PaintContext, x, y, w, h, x0, y0, x1, y1, r0, g0, b0, a0, r1, g1, b1, a1 float64)
+    FillLinearGradient fills a rect with a two-stop linear gradient (FS-LINEAR).
+    (x0,y0)→(x1,y1) are gradient endpoints in local coordinates.
+
+func FillOval(pc *PaintContext, x, y, w, h, r, g, b, a float64)
+    FillOval fills an ellipse in the bounding box (x,y,w,h) (FC-DRAW-OVAL).
+
+func FillPath(pc *PaintContext, p *render.Path, r, g, b, a float64)
+    FillPath fills a path in local coordinates (origin applied via CTM
+    translate).
+
+func FillRadialGradient(pc *PaintContext, x, y, w, h, cx, cy, rad0, rad1, r0, g0, b0, a0, r1, g1, b1, a1 float64)
+    FillRadialGradient fills a rect with a two-stop radial gradient (FS-RADIAL).
+    (cx,cy) is center in local coordinates; rad0/rad1 are start/end radii.
+
+func FillRect(pc *PaintContext, x, y, w, h, r, g, b, a float64)
+    FillRect fills an axis-aligned rectangle (FC-DRAW-RECT fill).
+
+func FillRoundRect(pc *PaintContext, x, y, w, h, radius, r, g, b, a float64)
+    FillRoundRect fills a rounded rect with uniform corner radius (FC-DRAW-RRECT
+    fill).
+
+func FillSweepGradient(pc *PaintContext, x, y, w, h, cx, cy, startAngle, r0, g0, b0, a0, r1, g1, b1, a1 float64)
+    FillSweepGradient fills a rect with a two-stop sweep (conic) gradient
+    (FS-SWEEP). startAngle is radians; center (cx,cy) is local.
+
+func HitDebugName(n RenderObject) string
+    HitDebugName returns n.DebugName() when n embeds Base, else "".
+
+func IdentityMatrix() render.Matrix
+    IdentityMatrix returns the 2D identity matrix.
+
+func LastVirtualBind() (bind, itemCount int64)
+    LastVirtualBind returns the most recent VirtualList bind window (R7 gate:
+    bind_count ≪ item_count). Zero until a list has bound.
+
+func LiveOnlySkips() int64
+    LiveOnlySkips returns how many live-only draws met a recording walk and were
+    refused (process-wide). Read it before and after a paint to prove a window
+    records nothing it cannot replay.
+
+func LoadFaceByFamily(family string, points float64) (text.Face, string, error)
+    LoadFaceByFamily resolves a CSS-like family name (or file path) to a Face
+    (FT-STYLE-FAMILY string API). Supported generic names:
+
+        "" / "sans" / "sans-serif" → system UI sans (LoadDefaultFace)
+        "serif" → common serif TTF candidates
+        "mono" / "monospace" → common monospace TTF candidates
+
+    An absolute or relative path to a .ttf/.otf/.ttc is loaded directly.
+    Returns (nil, "", err) when no candidate exists (tests should Skip).
+
+func ManualLayoutOf(n RenderObject) bool
+    ManualLayoutOf reports whether n carries owner-managed geometry that flow
+    containers must not resize or reposition during Layout (paint only). Single
+    choke point for RenderBox/RenderClipRRect so the skip rule stays identical
+    everywhere; false for nil and non-Base nodes.
+
+func NeedsCompositingOf(n RenderObject) bool
+    NeedsCompositingOf reports the compositing bit of any render object (R3b
+    diagnostics / real-window gates). False when the node has no Base.
+
+func NewPath() *render.Path
+    NewPath creates a render.Path for UI CustomPaint-style drawing
+    (FC-DRAW-PATH).
+
+func PathAddOval(p *render.Path, x, y, w, h float64)
+    PathAddOval appends an ellipse in bounding box (x,y,w,h) (Path.addOval).
+
+func PathAddRRect(p *render.Path, x, y, w, h, radius float64)
+    PathAddRRect appends a uniform rounded rect to p (Path.addRRect subset).
+
+func PathAddRect(p *render.Path, x, y, w, h float64)
+    PathAddRect appends an axis-aligned rect to p in local coordinates
+    (Path.addRect).
+
+func PathPositionAt(p *render.Path, distance, tolerance float64) (x, y float64, ok bool)
+    PathPositionAt samples the first non-empty contour at arc-length distance.
+
+func PathTangentAt(p *render.Path, distance, tolerance float64) (x, y, tx, ty float64, ok bool)
+    PathTangentAt samples position and unit tangent on the first non-empty
+    contour.
+
+func PathTotalLength(p *render.Path, tolerance float64) float64
+    PathTotalLength returns the sum of contour lengths including Close edges.
+
+func PopBackdrop(pc *PaintContext)
+    PopBackdrop ends the most recent PushBackdrop (PopLayer).
+
+func PushBackdrop(pc *PaintContext, blurRadius, opacity float64) bool
+    PushBackdrop begins a backdrop filter layer: snapshots the current canvas,
+    optionally blurs it, then subsequent draws composite over that snapshot
+    until PopBackdrop (FF-BACKDROP / Flutter BackdropFilter subset).
+
+    opacity is the layer composite opacity (≤0 → 1). blurRadius ≤0 skips blur.
+    Returns false if pc/DC is nil. Pair with PopBackdrop.
+
+    Honest limits: full-surface snapshot (not a clip-local backdrop product);
+    requires render/filters import when blur > 0.
+
+func ResetLiveOnlySkips()
+    ResetLiveOnlySkips zeroes the counter (tests / per-window measurement).
+
+func RotateMatrix(radians float64) render.Matrix
+func ScaleMatrix(sx, sy float64) render.Matrix
+func ScrollRerecordTotal() int64
+    ScrollRerecordTotal returns the cumulative count of cells freshly mounted
+    because they scrolled into the viewport (R7b/C3). Each fresh cell records
+    once; kept cells replay their cached Picture and are not counted.
+
+func SetFillRule(pc *PaintContext, rule render.FillRule)
+    SetFillRule sets non-zero / even-odd fill for subsequent FillPath
+    (Path.fillType UI).
+
+func SetStrokeStyle(pc *PaintContext, lineWidth float64, cap render.LineCap, join render.LineJoin)
+    SetStrokeStyle sets line width, cap, and join on the current DC
+    (FP-STROKE-W/CAP/JOIN). Pass negative cap/join sentinels to leave unchanged:
+    use render.LineCap / LineJoin constants.
+
+func SnapCoord(v, scale float64) float64
+    SnapCoord rounds a logical coordinate onto the device pixel grid (R19 1px
+    alignment). Skia/Flutter-style: logical v maps to physical v*scale; rounding
+    to the nearest physical pixel and mapping back gives a coordinate that lands
+    exactly on a device pixel boundary, so hairlines stay crisp on HiDPI.
+
+        scale <= 0 falls back to 1 (identity DPR).
+
+func SnapLine(v, scale float64) float64
+    SnapLine returns the device-aligned centerline (x for vertical lines, y for
+    horizontal lines) of a 1px stroke so the stroke covers exactly one physical
+    pixel column/row (crisp, not blurred between two pixels). Flutter/Skia
+    hairline practice: a stroke of width 1/scale is centered on the middle of
+    a physical pixel, i.e. (floor(v*scale)+0.5)/scale. Keep SnapCoord (pixel
+    boundaries) for fills; this half-pixel center is only for line strokes.
+
+func SnapPixel(x, scale float64) float64
+    SnapPixel 对齐到物理像素（HiDPI 1.25/2.0 1px 采样，F0–F9）.
+
+func SnapRect(x, y, w, h, scale float64) (sx, sy, sw, sh float64)
+    SnapRect snaps a rectangle's origin and size onto the device grid, keeping
+    the right/bottom edges on grid too (used for 1px borders that must not
+    flicker between widths at fractional DPR).
+
+func StrokeArc(pc *PaintContext, cx, cy, radius, angle1, angle2, lineWidth, r, g, b, a float64)
+    StrokeArc strokes a circular arc (FC-DRAW-ARC).
+
+func StrokeCircle(pc *PaintContext, cx, cy, radius, lineWidth, r, g, b, a float64)
+    StrokeCircle strokes a circle (FC-DRAW-CIRCLE stroke).
+
+func StrokeLine(pc *PaintContext, x1, y1, x2, y2, lineWidth, r, g, b, a float64)
+    StrokeLine draws a segment (FC-DRAW-LINE).
+
+func StrokeOval(pc *PaintContext, x, y, w, h, lineWidth, r, g, b, a float64)
+    StrokeOval strokes an ellipse in the bounding box (FC-DRAW-OVAL stroke).
+
+func StrokePath(pc *PaintContext, p *render.Path, lineWidth, r, g, b, a float64)
+    StrokePath strokes a path in local coordinates.
+
+func StrokeRect(pc *PaintContext, x, y, w, h, lineWidth, r, g, b, a float64)
+    StrokeRect strokes an axis-aligned rectangle (FC-DRAW-RECT stroke /
+    FP-STYLE).
+
+func StrokeRoundRect(pc *PaintContext, x, y, w, h, radius, lineWidth, r, g, b, a float64)
+    StrokeRoundRect strokes a rounded rect with uniform corner radius
+    (FC-DRAW-RRECT stroke).
+
+func SubtreeNeedsLayout(n RenderObject) bool
+    SubtreeNeedsLayout reports whether n or any descendant needs layout.
+    Relayout boundaries stop the MarkNeedsLayout bubble, so ancestors above them
+    look clean while the bounded subtree is stale — callers must consult this
+    (not just self dirt) before skipping a subtree.
+
+func SubtreeNeedsPaint(n RenderObject) bool
+    SubtreeNeedsPaint reports whether n or any descendant needs paint.
+
+func TranslateMatrix(dx, dy float64) render.Matrix
+    TranslateMatrix / ScaleMatrix / RotateMatrix build common affines.
+
+func TreeMeasureCacheStats(root RenderObject) (hits, misses int64)
+    TreeMeasureCacheStats sums cumulative measure hit/miss over every RenderText
+    in the render tree.
+
+func TreeSubmittedGlyphEstimate(root RenderObject) int
+func TryLoadDefaultFace(points float64) (text.Face, string, error)
+    TryLoadDefaultFace loads one common system UI font (library default).
+
+    Configure fonts with functions only (no env):
+
+        text.SetDefaultFontPath("/path/App.ttf") // process
+        r := text.NewFontResolver().SetFontFile("a.ttf") // instance
+        face, _, _ := r.Load(16)
+        // or rendering.TryLoadDefaultFaceWith(r, 16)
+
+    Multi-script is opt-in in the app/example: text.LoadMultiFace(16).
+
+func TryLoadDefaultFaceWith(r *text.FontResolver, points float64) (text.Face, string, error)
+    TryLoadDefaultFaceWith uses an app-owned FontResolver.
+
+
+TYPES
+
+type AbsoluteBox struct {
+	Base
+	FixedWidth, FixedHeight float64
+	// Background optional solid fill under children (nil = transparent).
+	Background *Color
+}
+    AbsoluteBox is a fixed-size container that **preserves** each child's Offset
+    during Layout (unlike RenderBox, which resets children to Pad).
+
+    Use for HUD / demo shells where widgets are placed at absolute logical
+    coordinates inside the window.
+
+func NewAbsoluteBox(w, h float64) *AbsoluteBox
+    NewAbsoluteBox creates an absolute container of the given size.
+
+func (a *AbsoluteBox) HitTest(p Point) RenderObject
+    HitTest implements RenderObject (children front-to-back reverse).
+
+func (a *AbsoluteBox) Layout(c Constraints) Size
+    Layout implements RenderObject: size from Fixed*; layout each child loosely
+    without clobbering Offset.
+
+func (a *AbsoluteBox) Paint(pc *PaintContext)
+    Paint implements RenderObject.
+
+func (a *AbsoluteBox) Place(child RenderObject, x, y float64)
+    Place adds child (if not already a child) and sets its offset.
+
+type AtlasSprite = render.AtlasSprite
+    AtlasSprite is a thin alias of render.AtlasSprite for UI call sites
+    (FImg-ATLAS / FC-DRAW-ATLAS). Src* are image pixels; Dst* are local logical.
+
+type BallisticSimulation interface {
+	// Step integrates by dt seconds; returns new position and whether the sim ended.
+	Step(dt float64) (position float64, done bool)
+	// Velocity is the current px/s (may be 0 when done).
+	Velocity() float64
+}
+    BallisticSimulation advances an inertial scroll until stop or boundary.
+
+type Base struct {
+	Self RenderObject
+
+	// Has unexported fields.
+}
+    Base implements shared tree/dirty state. Embed and set Self to the outer
+    object.
+
+func (b *Base) AddChild(child RenderObject)
+    AddChild appends a child and dirties layout + compositing bits.
+
+func (b *Base) CacheID() uint64
+    CacheID returns the boundary cache identity (0 if never assigned).
+
+func (b *Base) Children() []RenderObject
+    Children implements RenderObject.
+
+func (b *Base) DebugName() string
+    DebugName returns the hit-test identity tag.
+
+func (b *Base) EnsureCacheID() uint64
+    EnsureCacheID assigns a stable identity on first call and returns it.
+    Any RenderObject may hold an identity (texture cache keys, debug tags);
+    BoundaryCache keys are a subset of these ids.
+
+func (b *Base) Init(self RenderObject)
+    Init sets Self identity (call from constructor).
+
+func (b *Base) IsRelayoutBoundary() bool
+    IsRelayoutBoundary implements RenderObject.
+
+func (b *Base) IsRepaintBoundary() bool
+    IsRepaintBoundary implements RenderObject.
+
+func (b *Base) IsShellBoundary() bool
+    IsShellBoundary reports whether this node was tagged as shell content.
+
+func (b *Base) LayoutSkipIfClean(c Constraints) (Size, bool)
+    LayoutSkipIfClean returns previous size when layout can be skipped:
+    self clean, constraints unchanged, and no descendant needs layout. A clean
+    container above a relayout boundary still returns false so the caller runs
+    its normal walk and reaches the dirty bounded subtree (clean parts skip per
+    node inside that walk).
+
+func (b *Base) ManualLayout() bool
+    ManualLayout reports the owner-managed geometry flag (false on nil).
+
+func (b *Base) MarkNeedsCompositingBitsUpdate()
+    MarkNeedsCompositingBitsUpdate dirties this node and all
+    ancestors up to the root for the next UpdateCompositingBits flush
+    (Flutter markNeedsCompositingBitsUpdate). Call after structural /
+    visibility-affecting changes (opacity, transform, filter, clip, boundary
+    add/remove).
+
+func (b *Base) MarkNeedsLayout()
+    MarkNeedsLayout dirties this node and ancestors until a relayout boundary
+    (the boundary itself is marked, then stop). Always marks root path for
+    owner.
+
+func (b *Base) MarkNeedsPaint()
+    MarkNeedsPaint dirties paint. Flutter-aligned: a node's own paint dirt
+    bubbles up through ancestors and STOPS at the nearest RepaintBoundary — the
+    boundary itself is marked dirty (its subtree must re-record), but nothing
+    above it is. A node that IS a repaint boundary only dirties itself.
+
+    Rationale (Flutter PaintingContext): the RepaintBoundary is the isolation
+    unit — repainting below it must not invalidate siblings or ancestors above.
+    MarkNeedsPaint is idempotent: already-dirty nodes skip redundant marking.
+
+func (b *Base) NeedsCompositing() bool
+    NeedsCompositing reports whether this node or descendants require a
+    compositing layer.
+
+func (b *Base) NeedsCompositingBitsUpdate() bool
+    NeedsCompositingBitsUpdate reports whether this subtree is dirty for the
+    compositing-bits flush (diagnostics / R3b).
+
+func (b *Base) NeedsLayout() bool
+    NeedsLayout implements RenderObject.
+
+func (b *Base) NeedsPaint() bool
+    NeedsPaint implements RenderObject.
+
+func (b *Base) Offset() Point
+    Offset implements RenderObject.
+
+func (b *Base) Owner() *PipelineOwner
+    Owner returns the attached pipeline owner, or nil when the node is not
+    attached to a tree (unit-built widgets).
+
+func (b *Base) Parent() RenderObject
+    Parent implements RenderObject.
+
+func (b *Base) RememberConstraints(c Constraints)
+    RememberConstraints stores constraints after layout for early-out.
+
+func (b *Base) RemoveChild(child RenderObject)
+    RemoveChild detaches child if present.
+
+func (b *Base) SetAlwaysNeedsCompositing(v bool)
+    SetAlwaysNeedsCompositing forces compositing (opacity/transform/filter
+    style).
+
+func (b *Base) SetDebugName(name string)
+    SetDebugName sets the hit-test identity tag.
+
+func (b *Base) SetManualLayout(v bool)
+    SetManualLayout marks owner-managed geometry: flow containers skip this
+    child in Layout (no resize, no reposition, no auto-size measure) and only
+    paint it. Default false — existing trees behave exactly as before.
+
+func (b *Base) SetOffset(p Point)
+    SetOffset implements RenderObject.
+
+func (b *Base) SetOwner(o *PipelineOwner)
+    SetOwner attaches a pipeline owner (for metrics / future schedule).
+
+func (b *Base) SetRelayoutBoundary(v bool)
+    SetRelayoutBoundary marks layout isolation (F03).
+
+func (b *Base) SetRepaintBoundary(v bool)
+    SetRepaintBoundary marks paint isolation.
+
+func (b *Base) SetShellBoundary(v bool)
+    SetShellBoundary tags this RepaintBoundary as window-shell content.
+    BoundaryCache then partitions rerecord/skip counters so a scrolling body can
+    prove the shell Picture cache is never re-recorded (shell_rerecord == 0).
+    The tag is only meaningful on a RepaintBoundary node; setting it on a
+    non-boundary is a no-op for cache partitioning.
+
+func (b *Base) ShouldRelayout(c Constraints) bool
+    ShouldRelayout is true if dirty or constraints changed.
+
+func (b *Base) Size() Size
+    Size implements RenderObject.
+
+func (b *Base) UpdateCompositingBits() bool
+    UpdateCompositingBits recomputes needsCompositing from children (F04 / R3b).
+    Flutter semantics: needsCompositing is a bottom-up union — a node needs a
+    compositing layer if it always does (opacity/transform/filter/boundary)
+    OR any descendant does. Propagation skips clean subtrees (no
+    needsCompositingBitsUpdate marker) so the flush stays O(changed), not
+    O(tree) every frame. Returns whether this node needs compositing.
+
+type BlinkDeadliner interface {
+	NextBlinkIn() (time.Duration, bool)
+}
+    BlinkDeadliner is an optional deadline expression for Blinkables:
+    how long until the next visible toggle (the event loop's sleep deadline).
+    ok=false means no deadline (unfocused or steady state).
+
+type Blinkable interface {
+	BlinkTick(dt float64) bool
+}
+    Blinkable is a widget whose blink phase advances on UI-thread dt. BlinkTick
+    reports whether the visible state toggled (the caller dirties via the
+    widget's own MarkNeedsPaint; frames come from dirtiness, never from ticker
+    aliveness).
+
+type BoundaryCache struct {
+	// Has unexported fields.
+}
+    BoundaryCache holds display-list-backed caches for RepaintBoundary nodes.
+    Clean boundaries replay the stored Recording (skip re-record); dirty ones
+    re-paint and re-record. Works under FullPaint so skip is observable without
+    Retained Present.
+
+    Nested model (Flutter layers, recording MVP):
+      - Each RepaintBoundary owns a Recording of **own content only**.
+      - Nested IsRepaintBoundary children are NEVER baked into the parent
+        Recording; after a container tryReplay the caller still walks nested RB
+        children so each child can tryReplay/rerecord independently.
+      - Therefore only-inner-dirty never forces an outer rerecord, and a clean
+        outer replay cannot show stale child colors.
+
+    Cacheability (correctness-first): a boundary whose own content contains
+    RO types the recorder cannot faithfully capture (e.g. Viewport) is marked
+    not-cacheable — tryReplay/store are no-ops for it, so the subtree always
+    live-paints and stale-frame content loss is impossible.
+
+func NewBoundaryCache() *BoundaryCache
+    NewBoundaryCache creates an empty cache.
+
+func (c *BoundaryCache) BeginFrame()
+    BeginFrame resets per-frame skip/rerecord/miss counters (call once per
+    present paint) and advances the eviction generation, periodically sweeping
+    untouched entries.
+
+func (c *BoundaryCache) Clear()
+    Clear drops all display-list entries.
+
+func (c *BoundaryCache) HasValid(n RenderObject) bool
+    HasValid reports whether n currently has a reusable display-list entry.
+
+func (c *BoundaryCache) Invalidate(n RenderObject)
+    Invalidate drops the recording for this node (size/content change).
+
+func (c *BoundaryCache) Len() int
+    Len returns the number of cached boundary entries.
+
+func (c *BoundaryCache) MaxEntries() int
+    MaxEntries returns the explicit budget cap (0 = unlimited).
+
+func (c *BoundaryCache) SetMaxEntries(n int)
+    SetMaxEntries sets the explicit budget cap. 0 = unlimited (default;
+    generational sweep still bounds long-run growth). A cap below the current
+    entry count takes effect on the next Store: the oldest-lastSeen entries are
+    dropped first until under budget. Correctness never depends on the cache —
+    an evicted boundary simply re-records.
+
+func (c *BoundaryCache) Stats() BoundaryCacheStats
+    Stats snapshots every counter under the cache lock. The paint threads own
+    these fields; metrics, examples and tests read them from other goroutines,
+    so Stats() is the only sanctioned cross-thread access.
+
+func (c *BoundaryCache) Store(pc *PaintContext, n RenderObject)
+    Store records n's own content into the cache after a live paint. No-op
+    for non-boundaries, non-cacheable content, or when caching is disabled.
+    Callers call this only when the boundary itself was dirty (or unrecorded).
+
+func (c *BoundaryCache) StoreRecording(pc *PaintContext, n RenderObject, rec *recording.Recording)
+    StoreRecording caches a caller-built recording for boundary n (single-build
+    path used by RenderPictureBox.Paint: live paint already replayed these
+    commands, so no second record pass). Same gates as Store plus non-empty:
+    empty recordings can never replay usefully (tryReplay rejects them),
+    so storing one would re-store every frame forever.
+
+type BoundaryCacheStats struct {
+	Rerecord int64
+	Skip     int64
+
+	FrameRerecord int64
+	FrameSkip     int64
+	FrameMiss     int64
+
+	ShellRerecord      int64
+	ShellSkip          int64
+	FrameShellRerecord int64
+	FrameShellSkip     int64
+
+	Evictions int64
+}
+    BoundaryCacheStats is a point-in-time snapshot of every BoundaryCache
+    counter. Counters are written by the paint threads under the cache lock,
+    so off-owner readers must take Stats() — bare field reads race with paint.
+
+type ClampingScrollPhysics struct {
+	// Deceleration is positive magnitude of friction in px/s² (default 6000).
+	Deceleration float64
+	// Tolerance stops the fling when |velocity| falls below this (default 50 px/s).
+	Tolerance float64
+}
+    ClampingScrollPhysics hard-clamps to [min,max] and flings with constant
+    deceleration until rest or edge (Android-like clamp, no bounce).
+
+func DefaultClampingScrollPhysics() *ClampingScrollPhysics
+    DefaultClampingScrollPhysics returns sensible fling defaults.
+
+func (p *ClampingScrollPhysics) AdjustPosition(position, min, max float64) float64
+    AdjustPosition implements ScrollPhysics (hard clamp).
+
+func (p *ClampingScrollPhysics) CreateBallistic(velocity, position, min, max float64) BallisticSimulation
+    CreateBallistic implements ScrollPhysics.
+
+type Color struct {
+	R, G, B, A float64
+}
+    Color is a simple RGBA for AbsoluteBox background.
+
+type ColorRGBA = render.RGBA
+    ColorRGBA is a 0..1 float color (alias of render.RGBA) for per-vertex
+    colors.
+
+type Constraints struct {
+	MinWidth, MaxWidth   float64
+	MinHeight, MaxHeight float64
+}
+    Constraints are Flutter-style box constraints in logical pixels.
+
+func Expand() Constraints
+    Expand returns min=0 max=Unbounded (or capped by parent if needed later).
+
+func Loose(w, h float64) Constraints
+    Loose returns 0..w, 0..h.
+
+func Tight(w, h float64) Constraints
+    Tight returns constraints that force exactly w×h.
+
+func (c Constraints) Equal(o Constraints) bool
+    Equal reports whether constraints are identical.
+
+func (c Constraints) Tighten(sz Size) Size
+    Tighten clamps size into the constraint range.
+
+type FrameBuildStats struct {
+	// BoundaryCount / BoundaryMaxDepth match CountRepaintBoundaries.
+	BoundaryCount    int
+	BoundaryMaxDepth int
+	// PictureOpCount matches CountPictureOps on the fresh packet
+	// (overlay band still empty at build time).
+	PictureOpCount int
+	// MeasureHits / MeasureMisses match TreeMeasureCacheStats read after
+	// the build. Read post-order per node: recording a node's own text
+	// warms its measure cache, so only a read after that node's content
+	// is recorded equals the old post-build number.
+	MeasureHits   int64
+	MeasureMisses int64
+}
+    BuildLayerTree walks the render tree and builds a retained scene.Layer tree.
+    RepaintBoundary nodes become scene.BoundaryLayer units with dirty flags.
+    The returned builder's Root is shared by pointer across frames (COW).
+
+    Leaf nodes record their own content into PictureLayers (layer-local
+    coordinates, 0-based under the ancestor offset/clip chain) so the retained
+    texture-composite path (scene.CompositeFramePacketTextured) has real
+    display lists to raster. CacheKey binds each picture to a stable RO identity
+    (EnsureCacheID) — layer ids are per-tree and cannot key cross-frame caches.
+    FrameBuildStats carries counts gathered during the single build walk
+    (E2: replaces separate CountRepaintBoundaries / CountPictureOps /
+    TreeMeasureCacheStats passes over the finished frame). Clearing of paint
+    flags is NOT part of the build — ConsumeNeedsPaint still runs separately.
+
+func BuildFramePacketWithSaveLayerStats(root RenderObject, frameID uint64, dpr, w, h float64, stats *SaveLayerStats, budget *SaveLayerBudget) (*scene.FramePacket, FrameBuildStats)
+    BuildFramePacketWithSaveLayerStats builds the packet like
+    BuildFramePacketWithSaveLayer and also returns the frame counts gathered
+    along the single build walk (boundary discovery, picture op total, text
+    measure-cache totals). Old standalone counters stay for other callers.
+
+func BuildLayerTreeStats(root RenderObject) (*scene.LayerBuilder, FrameBuildStats)
+    BuildLayerTreeStats builds the layer tree like BuildLayerTree and also
+    returns the frame counts gathered along the single walk.
+
+type GlyphCaret struct {
+	ByteOff int
+	X       float64
+}
+    GlyphCaret is one pen boundary between glyphs.
+
+type ImageState int
+    ImageState is the async image load state.
+
+const (
+	ImageIdle ImageState = iota
+	ImageLoading
+	ImageReady
+	ImageError
+)
+type ItemBuilder func(index int) RenderObject
+    ItemBuilder creates a row RenderObject for a logical index.
+
+type ItemExtentFunc func(index int) float64
+    ItemExtentFunc returns the logical height of row index (must be > 0).
+    Used for variable-height virtualization (FScroll-VAR-EXTENT).
+
+type LayerCache struct {
+
+	// ReusedSubs / ReusedPics count cache hits per frame (diagnostics: a
+	// clean frame should reuse everything — the Flutter _needsAddToScene
+	// contract that removes per-frame allocation).
+	ReusedSubs int
+	ReusedPics int
+	// Has unexported fields.
+}
+    LayerCache holds cross-frame retained layer/display-list objects for
+    the incremental layer build (Flutter RepaintBoundary semantics): a clean
+    boundary reuses its previous BoundaryLayer object (children re-walked) and
+    its recording is not re-recorded — only dirty paths rebuild. Without this,
+    BuildLayerTree allocated the whole layer tree + recorded every display list
+    every frame.
+
+    Liveness is bound to the render tree: Prune drops entries whose owner is no
+    longer reachable (scrolled-out VirtualList cells release their caches).
+
+func NewLayerCache() *LayerCache
+    NewLayerCache creates an empty incremental-build cache.
+
+func (c *LayerCache) BeginFrame()
+    BeginFrame resets the per-frame alive sets and reuse counters.
+
+func (c *LayerCache) Prune()
+    Prune drops entries not touched this build (owner no longer reachable from
+    the tree — unmounted cells release their layer + display list).
+
+func (c *LayerCache) ReuseRecording(cacheKey uint64) *recording.Recording
+    ReuseRecording returns a cached display list for cacheKey (or nil) and marks
+    it alive.
+
+func (c *LayerCache) ReuseSub(cacheID uint64) scene.Layer
+    ReuseSub returns a cached BoundaryLayer for cacheID (or nil) and marks it
+    alive.
+
+func (c *LayerCache) StoreRecording(cacheKey uint64, p *recording.Recording)
+    StoreRecording caches the display list for cacheKey.
+
+func (c *LayerCache) StoreSub(cacheID uint64, l scene.Layer)
+    StoreSub caches the BoundaryLayer for cacheID.
+
+type LineGlyphRun struct {
+	Face       text.Face
+	Start, End int
+	// IsColor marks color-glyph runs (emoji): Paint must NOT submit them
+	// through the mask batch (DrawShapedGlyphs) but through the string
+	// color path. TextStart/TextEnd is the run's byte range in the line.
+	IsColor            bool
+	TextStart, TextEnd int
+}
+    LineGlyphRun is one batchable glyph slice within a line.
+
+type Matrix = render.Matrix
+    Matrix is a 2D affine matrix alias (render.Matrix: x'=ax+by+c, y'=dx+ey+f).
+
+type NeverScrollPhysics struct{}
+    NeverScrollPhysics rejects all motion (keeps position; no fling).
+
+func (NeverScrollPhysics) AdjustPosition(position, min, max float64) float64
+
+func (NeverScrollPhysics) CreateBallistic(velocity, position, min, max float64) BallisticSimulation
+
+type PaintContext struct {
+	DC               render.Canvas
+	OriginX, OriginY float64
+	Scale            float64
+	CompositeOnly    bool
+	PaintVisits      *int64
+	// LayerBudget limits SaveLayer ops this frame (F16). Nil = unlimited.
+	LayerBudget *SaveLayerBudget
+	// LayerStats accumulates SaveLayer allow/reject outcomes.
+	// Nil = no counting. Lifetime owned by the embedder (PipelineApp).
+	LayerStats *SaveLayerStats
+
+	BoundaryCache *BoundaryCache
+	// UseBoundaryCache gates tryReplay/store on repaint boundaries.
+	UseBoundaryCache bool
+	// DebugRepaint (R12b): after a live (non-Replay) paint of a node, draw a
+	// translucent overlay so humans can see who is re-painting this frame.
+	DebugRepaint bool
+	// DebugRepaintDraws counts overlay strokes this walk (optional metrics).
+	DebugRepaintDraws *int64
+	// Has unexported fields.
+}
+    PaintContext is the UI tree paint-walk cursor (not a second 2D engine).
+    Drawing goes through DC (a render.Canvas — either a live *render.Context for
+    immediate painting, or a recording.Recorder that captures a display list);
+    UI controls order, origin, and CompositeOnly.
+
+    Default fonts live in render/text (LoadDefaultFace / SystemFontCandidates),
+    not here — see default_font.go for the thin UI wrapper.
+
+func NewPaintContext(dc render.Canvas, scale float64) *PaintContext
+    NewPaintContext roots a paint walk at (0,0).
+
+func (pc *PaintContext) Abs(x, y float64) (ax, ay float64)
+    Abs maps local logical (x,y) to absolute canvas coordinates.
+
+func (pc *PaintContext) Concat(m render.Matrix)
+    Concat multiplies the CTM by m in local paint space (Canvas.transform
+    subset). 2D affine only — not full Matrix4 / perspective.
+
+func (pc *PaintContext) DrawShaderMask(x, y, w, h float64, mask render.Brush, draw func()) bool
+    DrawShaderMask draws draw() masked by mask over the given user-space bounds
+    (engine form: render.DrawShaderMask). It consumes one SaveLayerBudget op and
+    returns false when the budget refuses, in which case nothing is drawn.
+
+func (pc *PaintContext) GetTransform() render.Matrix
+    GetTransform returns the current DC user matrix (copy).
+
+func (pc *PaintContext) LiveContext() (*render.Context, bool)
+    LiveContext returns the underlying live *render.Context, or false when the
+    walk is recording into a display list. GPU-bound draws (texture handles,
+    flushes, offscreen passes) cannot be described by a Recorder, so they must
+    come through this door and must say so — see DrawGPUTexture.
+
+func (pc *PaintContext) MaskCanvas() (render.MaskCanvas, bool)
+    MaskCanvas hands paint code the mask-capable canvas for this walk:
+    the live *render.Context or the display-list Recorder (FullPaint frames).
+    Masks are device-space post-processes; routing them through this façade
+    instead of Canvas keeps device-space planes out of the user-space Canvas
+    contract while still letting the recorder carry them. A target without the
+    capability is refused and counted in LiveOnlySkips, so a dropped mask always
+    leaves a number instead of an invisible hole.
+
+func (pc *PaintContext) NoteDebugRepaint(w, h float64)
+    NoteDebugRepaint draws a translucent magenta overlay at the current origin
+    covering w×h (logical). Used by R12b to mark live re-paints. No-op when
+    DebugRepaint is false or size non-positive.
+
+func (pc *PaintContext) NotePaintVisit()
+    NotePaintVisit increments PaintVisits when non-nil.
+
+func (pc *PaintContext) PopClip()
+    PopClip restores the clip/transform stack after PushClipRect, PushClipRRect,
+    or PushClipPath.
+
+func (pc *PaintContext) PopTransform()
+    PopTransform restores CTM after PushTransform (same as RestoreCanvas).
+
+func (pc *PaintContext) PushClipPath(path *render.Path)
+    PushClipPath clips subsequent draws to path in local coordinates (origin
+    applied by translating a clone — caller path is not mutated). Pairs with
+    PopClip. CTM is not left translated; FillRect/etc. still use Abs() as usual.
+
+func (pc *PaintContext) PushClipRRect(x, y, w, h, radius float64)
+    PushClipRRect clips subsequent draws to a rounded rect in logical
+    coordinates (uniform corner radius). radius<=0 falls back to a hard rect
+    clip. Origin-aware like PushClipRect; pairs with PopClip.
+
+func (pc *PaintContext) PushClipRect(x, y, w, h float64)
+    PushClipRect clips subsequent draws to a logical-axis-aligned rect (Y-down),
+    origin-relative. Pairs with PopClip (render.Push/Pop).
+
+func (pc *PaintContext) PushTransform(m render.Matrix)
+    PushTransform saves CTM then Concats m (local space). Pair with
+    PopTransform.
+
+func (pc *PaintContext) RequireLiveContext() (*render.Context, bool)
+    RequireLiveContext hands paint code the live *render.Context for a draw a
+    display list cannot describe: GPU flushes and glyph-outline extraction.
+    On a recording walk it returns nil, false and counts the refusal in
+    LiveOnlySkips, so "skipped because unrecordable" always leaves a number
+    instead of an invisible hole.
+
+func (pc *PaintContext) Restore()
+    Restore is an alias of RestoreLayer for Flutter-like saveLayer/restore
+    pairing. Does not pop CTM/clip — use RestoreCanvas for that.
+
+func (pc *PaintContext) RestoreCanvas()
+    RestoreCanvas pops the last Save() (CTM+clip). No-op if stack empty.
+
+func (pc *PaintContext) RestoreLayer()
+    RestoreLayer ends the most recent successful SaveLayer (PopLayer). No-op if
+    depth is 0. Prefer this name over Restore to avoid confusion with canvas
+    Save/Restore (CTM+clip stack).
+
+func (pc *PaintContext) Rotate(radians float64)
+    Rotate applies local-space rotation in radians about the paint origin
+    (Canvas.rotate).
+
+func (pc *PaintContext) RotateAbout(radians, cx, cy float64)
+    RotateAbout rotates about a local-space point (cx,cy).
+
+func (pc *PaintContext) Save()
+    Save pushes canvas state (CTM + clip + paint bits) — Canvas.save. Pair with
+    RestoreCanvas. Does not push a saveLayer.
+
+func (pc *PaintContext) SaveLayer(boundsW, boundsH, opacity float64) bool
+    SaveLayer begins an isolated offscreen layer (Flutter Canvas.saveLayer
+    subset).
+
+        boundsW/H — logical size used for SaveLayerBudget area accounting (must be >0
+                     when a budget is set; full-surface isolation is still used by render).
+        opacity — group opacity 0..1 when compositing back (≤0 treated as 1).
+
+    Returns false if LayerBudget rejects the op (no layer pushed).
+    Pair with Restore. Uses render.PushLayerIsolated (true offscreen, not F1
+    opacity-group).
+
+func (pc *PaintContext) SaveLayerDepth() int
+    SaveLayerDepth returns unmatched SaveLayer count (tests / diagnostics).
+
+func (pc *PaintContext) ScaleXY(sx, sy float64)
+    ScaleXY applies local-space scale about the paint origin (Canvas.scale).
+    Named ScaleXY to avoid clashing with the DPR Scale field on PaintContext.
+
+func (pc *PaintContext) Shear(shx, shy float64)
+    Shear applies local-space shear (Canvas.skew subset via Shear).
+
+func (pc *PaintContext) SnapLineX(v float64) float64
+    SnapLineX aligns a vertical 1px line's x to the device grid (crisp
+    hairline).
+
+func (pc *PaintContext) SnapLineY(v float64) float64
+    SnapLineY aligns a horizontal 1px line's y to the device grid.
+
+func (pc *PaintContext) SnapRect(x, y, w, h float64) (float64, float64, float64, float64)
+    SnapRect aligns a rect to the device grid (1px border crispness).
+
+func (pc *PaintContext) SnapX(v float64) float64
+    SnapX / SnapY are PaintContext-aware convenience wrappers over SnapCoord.
+
+func (pc *PaintContext) SnapY(v float64) float64
+    SnapY mirrors SnapX for the Y axis.
+
+func (pc *PaintContext) Translate(dx, dy float64)
+    Translate applies a local-space translation (Canvas.translate).
+
+func (pc *PaintContext) WithOrigin(absX, absY float64) *PaintContext
+    WithOrigin returns a child cursor with absolute origin (logical Y-down).
+    Shares LayerBudget, LayerStats and saveLayerDepth with the parent walk.
+
+type ParagraphBuilder struct {
+
+	// Defaults applied when AddText is used without an explicit run style.
+	Face        text.Face
+	FontSize    float64
+	R, G, B, A  float64
+	ApproxCharW float64
+	Decoration  render.TextDecoration
+	// Has unexported fields.
+}
+    ParagraphBuilder assembles ordered TextRuns for RenderText.SetRuns.
+    Supports a small style stack (PushStyle/PopStyle) for nested span styling.
+    Not full Flutter ParagraphBuilder parity (no locale/strut/placeholder).
+
+func NewParagraphBuilder() *ParagraphBuilder
+    NewParagraphBuilder creates an empty builder with neutral defaults.
+
+func (b *ParagraphBuilder) AddRun(run TextRun) *ParagraphBuilder
+    AddRun appends a fully specified run.
+
+func (b *ParagraphBuilder) AddText(s string) *ParagraphBuilder
+    AddText appends text using the builder default style (can change between
+    calls).
+
+func (b *ParagraphBuilder) Apply(t *RenderText)
+    Apply sets runs on an existing RenderText.
+
+func (b *ParagraphBuilder) Build() *RenderText
+    Build applies runs onto a new RenderText (MaxWidth/MaxLines still set by
+    caller).
+
+func (b *ParagraphBuilder) PopStyle() *ParagraphBuilder
+    PopStyle restores the style saved by the last PushStyle. No-op if stack
+    empty.
+
+func (b *ParagraphBuilder) PushStyle(face text.Face, fontSize float64, useColor bool, r, g, bl, a float64, dec render.TextDecoration) *ParagraphBuilder
+    PushStyle saves the current default style and optionally overrides fields.
+    Zero fontSize / nil face / negative alpha keep the previous value for that
+    field. Colors: pass useColor=true to replace RGBA.
+
+func (b *ParagraphBuilder) Runs() []TextRun
+    Runs returns a copy of accumulated runs.
+
+func (b *ParagraphBuilder) SetDecoration(d render.TextDecoration) *ParagraphBuilder
+    SetDecoration sets the current text decoration bitset for subsequent
+    AddText.
+
+func (b *ParagraphBuilder) SetDefaultStyle(face text.Face, fontSize, r, g, bl, a, approxCharW float64) *ParagraphBuilder
+    SetDefaultStyle sets style used by AddText.
+
+type PathMetric = render.PathMetric
+    PathMetric is the UI-facing alias of render.PathMetric (FPath-METRICS).
+
+func ComputePathMetrics(p *render.Path, tolerance float64) []PathMetric
+    ComputePathMetrics builds per-contour path metrics for arc-length queries
+    (Flutter Path.computeMetrics subset). tolerance ≤0 uses render default.
+
+    Use with NewPath / FillPath / StrokePath on the UI CustomPaint path.
+
+type PipelineOwner struct {
+
+	// Counters for tests / metrics (reset with ResetCounts).
+	LayoutCount int64
+	PaintCount  int64
+
+	// Has unexported fields.
+}
+    PipelineOwner flushes layout and paint for a root RenderObject (Flutter
+    subset).
+
+func NewPipelineOwner(root RenderObject) *PipelineOwner
+    NewPipelineOwner creates an owner with optional root.
+
+func (o *PipelineOwner) BlinkActive() bool
+    BlinkActive reports whether any blinkable is registered.
+
+func (o *PipelineOwner) BoundaryCache() *BoundaryCache
+    BoundaryCache returns the tree's Picture-backed RepaintBoundary cache (never
+    nil for a non-nil owner). Survives across frames so clean boundaries can
+    skip.
+
+func (o *PipelineOwner) ConsumeNeedsPaint()
+    ConsumeNeedsPaint clears all paint-dirty flags without drawing. Used by
+    the retained textured-composite path: content is captured into the layer
+    tree (BuildLayerTree records leaf display lists) and rasterized to cached
+    textures, so no live FlushPaint runs and the needs-paint marks must not keep
+    scheduling frames forever.
+
+func (o *PipelineOwner) DropBlinkable(b Blinkable)
+    DropBlinkable removes b from blink dt (idempotent). Notifies the embedder
+    when the set becomes empty.
+
+func (o *PipelineOwner) FlushLayout(viewport Size, force bool) bool
+    FlushLayout lays out the root under tight viewport constraints when dirty or
+    when force is true. Returns whether layout work ran. A second flush with no
+    dirty flags is a no-op (layout_count unchanged).
+
+func (o *PipelineOwner) FlushPaint(pc *PaintContext, force bool) bool
+    FlushPaint paints the root when paint-dirty or force. pc must be non-nil.
+    When force is false and the tree is only partially dirty, CompositeOnly is
+    set so clean subtrees are skipped. Returns whether paint ran.
+
+func (o *PipelineOwner) NeedsFrame() bool
+    NeedsFrame reports layout or paint dirty.
+
+func (o *PipelineOwner) NextBlinkWake() (time.Duration, bool)
+    NextBlinkWake reports the minimum time until any registered blinkable's
+    next visible toggle. False when none is registered or none reports one;
+    the loop then waits on events instead of holding a pacing cadence.
+
+func (o *PipelineOwner) NoteBlinkable(b Blinkable)
+    NoteBlinkable registers b for blink dt (idempotent). Notifies the embedder
+    when the set becomes non-empty.
+
+func (o *PipelineOwner) ResetCounts()
+    ResetCounts zeroes layout/paint counters.
+
+func (o *PipelineOwner) Root() RenderObject
+    Root returns the current root.
+
+func (o *PipelineOwner) SetBlinkTickerCtl(fn func(active bool))
+    SetBlinkTickerCtl installs the embedder callback that (de)registers the
+    blink pump ticker. Nil clears it (unit-built owners).
+
+func (o *PipelineOwner) SetRoot(root RenderObject)
+    SetRoot replaces the root and attaches owner.
+
+func (o *PipelineOwner) TickBlink(dt float64) bool
+    TickBlink advances every registered blinkable on the UI thread and reports
+    whether any toggled. Callbacks run without the owner lock held (widgets
+    dirty themselves, which re-enters the owner).
+
+func (o *PipelineOwner) UpdateCompositingBits()
+    UpdateCompositingBits runs F04 propagation from the root.
+
+type Point struct {
+	X, Y float64
+}
+    Point is a 2D point in logical pixels (Y-down, origin top-left).
+
+type Rect struct {
+	Min Point
+	// Max is exclusive bottom-right in layout space (Min + Size).
+	Max Point
+}
+    Rect is axis-aligned in logical pixels (Y-down).
+
+func NewRect(x, y, w, h float64) Rect
+    NewRect builds a rect from origin and size.
+
+func (r Rect) Contains(p Point) bool
+    Contains reports whether p is inside r (half-open on Max).
+
+func (r Rect) Size() Size
+    Size returns width/height of r.
+
+type RenderAlignBox struct {
+	Base
+	// AlignX/AlignY are fractional alignment in 0..1 (0 = left/top,
+	// 0.5 = center, 1 = right/bottom).
+	AlignX, AlignY float64
+	// FixedWidth/Height 0 = fill parent max constraints.
+	FixedWidth, FixedHeight float64
+
+	// Has unexported fields.
+}
+    RenderAlignBox is a Flutter-style Align: it fills the incoming constraints
+    and positions its child by fractional alignment of the leftover space
+    (Flutter FractionalOffset semantics). Positioning is layout-driven — on
+    parent resize the child offset is recomputed by Layout, so animated blocks
+    follow the parent size without imperative coordinates or clamping.
+
+func NewRenderAlignBox(child RenderObject, ax, ay float64) *RenderAlignBox
+    NewRenderAlignBox builds an align box with one child. The child is laid out
+    with loose constraints and offset by the fractional alignment.
+
+func (a *RenderAlignBox) HitTest(p Point) RenderObject
+    HitTest implements RenderObject (child offset relative to this box).
+
+func (a *RenderAlignBox) Layout(c Constraints) Size
+    Layout implements RenderObject: size from constraints, child laid out loose,
+    child offset = leftover space * alignment.
+
+func (a *RenderAlignBox) Paint(pc *PaintContext)
+    Paint implements RenderObject: only the child is drawn (no own content).
+
+func (a *RenderAlignBox) SetAlignment(ax, ay float64)
+    SetAlignment changes the fractional alignment and repositions the
+    child directly (no layout pass: the parent size is unchanged, only the
+    offset moves). Pure offset move marks nothing — like AbsoluteBox.Place,
+    the retained textured path reuses the child's cached texture and damages
+    old ∪ new footprints via blit (see PictureTextureCache.blit, d75dfe86).
+    Content changes still need an explicit MarkNeedsPaint by the caller.
+    Layout still recomputes the offset on parent resize.
+
+type RenderBox struct {
+	Base
+	// FixedWidth/Height if >0 force preferred size before constraints.
+	FixedWidth, FixedHeight float64
+	// Pad is logical padding when laying out a single expanding child.
+	Pad float64
+	// OnPaint optional custom paint under children.
+	OnPaint func(pc *PaintContext, size Size)
+}
+    RenderBox is a minimal box with optional fixed size and children stacked
+    from top-left. Y-down: first child at (pad, pad), subsequent children not
+    auto-positioned (caller SetOffset).
+
+func NewRenderBox(children ...RenderObject) *RenderBox
+    NewRenderBox constructs a box.
+
+func (b *RenderBox) HitTest(p Point) RenderObject
+    HitTest implements RenderObject (Y-down local coords relative to this box).
+
+func (b *RenderBox) Layout(c Constraints) Size
+    Layout implements RenderObject.
+
+func (b *RenderBox) OwnPaint() func(*PaintContext, Size)
+    OwnPaint exposes OnPaint for layer-tree capture. Wrappers embedding
+    *RenderBox promote it, so ownBoxPaint recognizes them without a type-list
+    entry (same pattern as Base.base for baseOf).
+
+func (b *RenderBox) Paint(pc *PaintContext)
+    Paint implements RenderObject.
+
+    Flutter PaintingContext paintChild walk (FPC-COMPOSITE-ONLY, FRO-REPAINT-B):
+     1. Skip node entirely if neither it nor any descendant needs paint.
+     2. If this node NeedsPaint: draw self and recurse into ALL children
+        that are not clean RepaintBoundaries (a dirty ancestor repaints its
+        non-isolated children; clean boundaries replay/skip).
+     3. If only descendants need paint (self clean): do not draw self; recurse
+        only into dirty paths (paint isolation — sibling subtrees untouched).
+
+    The walk never re-paints a clean RepaintBoundary subtree unless the boundary
+    itself is dirty, so paint_count/visits stay explainable.
+
+type RenderClipRRect struct {
+	Base
+	FixedWidth, FixedHeight float64
+	Radius                  float64
+}
+    RenderClipRRect clips its children to a rounded rect (uniform corner
+    radius). Paint path uses PaintContext.PushClipRRect; retained path
+    emits scene.ClipRRectLayer via BuildLayerTree (Flutter ClipRRectLayer /
+    pushClipRRect layer role).
+
+    Radius <= 0 falls back to a hard rect clip on the paint path (same as
+    PushClipRRect). Does not claim per-corner radii, ClipOp.difference,
+    or ClipPath.
+
+func NewRenderClipRRect(children ...RenderObject) *RenderClipRRect
+    NewRenderClipRRect wraps children under a rounded-rect clip.
+
+func (c *RenderClipRRect) ClipRRectParams() (w, h, radius float64)
+    ClipRRectParams returns local clip bounds (0,0,w,h) and radius for
+    scene.ClipRRectLayer. Width/height come from the laid-out size (or fixed
+    prefs before layout).
+
+func (c *RenderClipRRect) HitTest(p Point) RenderObject
+    HitTest uses the exact rounded-rect containment (Flutter RRect.contains,
+    engine/src/flutter/lib/ui/geometry.dart): the un-rounded AABB rejects fast,
+    then points inside a corner quadrant are tested against the corner's unit
+    circle — corner holes no longer hit.
+
+func (c *RenderClipRRect) Layout(cons Constraints) Size
+    Layout sizes to fixed or union of children (same model as RenderTransform).
+
+func (c *RenderClipRRect) Paint(pc *PaintContext)
+    Paint applies rounded clip then paints children.
+
+func (c *RenderClipRRect) SetRadius(radius float64)
+    SetRadius updates the uniform corner radius (paint + layer params).
+
+type RenderColorBox struct {
+	Base
+	Width, Height float64
+	R, G, B, A    float64
+}
+    RenderColorBox is a solid color rectangle (logical size).
+
+func NewRenderColorBox(w, h, r, g, b, a float64) *RenderColorBox
+    NewRenderColorBox creates a colored box; A defaults to 1 if all zero alpha
+    with color.
+
+func (c *RenderColorBox) HitTest(p Point) RenderObject
+    HitTest implements RenderObject.
+
+func (c *RenderColorBox) Layout(cons Constraints) Size
+    Layout implements RenderObject.
+
+func (c *RenderColorBox) MoveTo(x, y float64)
+    MoveTo repositions the box and dirties paint — the runtime-safe way to move
+    an absolutely-placed child (Base.SetOffset writes the field only; without a
+    dirty flag retained/CompositeOnly frames never repaint it).
+
+func (c *RenderColorBox) Paint(pc *PaintContext)
+    Paint implements RenderObject. If Paint is invoked, always draw
+    — CompositeOnly skipping is the caller's job (parent omits clean
+    RepaintBoundary children). Leaves must redraw when a scrolling ancestor
+    repaints.
+
+    with UseBoundaryCache, a clean RepaintBoundary ColorBox Replays its Picture
+    instead of re-recording (boundary_skip); dirty path re-records.
+
+func (c *RenderColorBox) SetAlpha(a float64)
+    SetAlpha updates opacity and dirties paint (same rationale as MoveTo).
+
+type RenderColorFilter struct {
+	Base
+	FixedWidth, FixedHeight float64
+	Matrix                  [20]float32
+}
+    RenderColorFilter applies a 4×5 row-major color matrix to descendants.
+
+func NewRenderColorFilter(matrix [20]float32, children ...RenderObject) *RenderColorFilter
+    NewRenderColorFilter wraps children with the given color matrix.
+
+func NewRenderGrayscale(children ...RenderObject) *RenderColorFilter
+    NewRenderGrayscale wraps children with the standard BT.601 grayscale matrix.
+
+func (t *RenderColorFilter) ColorMatrix() [20]float32
+    ColorMatrix returns the active matrix for scene.ColorFilterLayer.
+
+func (t *RenderColorFilter) HitTest(p Point) RenderObject
+    HitTest is filter-blind: containment follows the laid-out box.
+
+func (t *RenderColorFilter) Layout(c Constraints) Size
+    Layout sizes to fixed or union of children (same model as RenderOpacity /
+    RenderTransform: children get loose constraints, node takes its own pref).
+
+func (t *RenderColorFilter) Paint(pc *PaintContext)
+    Paint isolates children offscreen and applies the matrix on composite.
+    Identity matrices paint through with no layer (steady-state trees stay
+    unchanged), matching the retained-path layer omission in BuildLayerTree.
+
+func (t *RenderColorFilter) SetMatrix(matrix [20]float32)
+    SetMatrix updates the subtree color matrix (paint-only).
+
+type RenderImage struct {
+	Base
+	Width, Height float64
+	State         ImageState
+	Img           *render.ImageBuf
+
+	// Placeholder color while loading.
+	PR, PG, PB float64
+	// Has unexported fields.
+}
+    RenderImage shows a placeholder while loading, then a decoded ImageBuf.
+    Decoding must not run inside Layout/Paint — use ui/io helpers.
+
+    Ownership (FImg-DISPOSE):
+      - SetImage takes ownership of the buffer; the previous owned buffer is
+        Dispose'd.
+      - SetImageShared does not take ownership (caller remains responsible for
+        Dispose).
+      - Clear / SetError / replace paths release only buffers this node owns.
+      - Paint never draws a Disposed buffer (falls back to placeholder/error
+        chrome).
+
+func NewRenderImage(w, h float64) *RenderImage
+    NewRenderImage creates an image node with logical size.
+
+func (im *RenderImage) Clear()
+    Clear releases an owned image and returns to Idle placeholder (paint only).
+
+func (im *RenderImage) HitTest(p Point) RenderObject
+    HitTest implements RenderObject.
+
+func (im *RenderImage) Layout(c Constraints) Size
+    Layout implements RenderObject.
+
+func (im *RenderImage) OwnsImage() bool
+    OwnsImage reports whether the node will Dispose the current Img on
+    replace/clear.
+
+func (im *RenderImage) Paint(pc *PaintContext)
+    Paint implements RenderObject — never decodes images here.
+
+func (im *RenderImage) SetError()
+    SetError marks error state and releases any owned image.
+
+func (im *RenderImage) SetImage(img *render.ImageBuf)
+    SetImage applies a decoded buffer and **takes ownership**. The previous
+    owned buffer is Dispose'd (unless it is the same pointer). Call on the
+    UI thread after IO completes. Passing nil is equivalent to SetError
+    (releases owned image). Re-SetImage with the same live buffer is a no-op
+    ownership-wise (stays Ready, not disposed).
+
+func (im *RenderImage) SetImageShared(img *render.ImageBuf)
+    SetImageShared installs img without taking ownership (caller must Dispose).
+    Any previously owned buffer is still released unless it is the same pointer
+    (then ownership is only dropped; the buffer is not Dispose'd).
+
+func (im *RenderImage) SetLoading()
+    SetLoading marks loading state (paint only). Does not release the current
+    image.
+
+type RenderImageFilter struct {
+	Base
+	FixedWidth, FixedHeight float64
+	BlurRadius              float64
+}
+    RenderImageFilter applies a uniform Gaussian blur to descendants.
+
+func NewRenderImageFilter(blurRadius float64, children ...RenderObject) *RenderImageFilter
+    NewRenderImageFilter wraps children with a uniform blur of the given radius.
+
+func (t *RenderImageFilter) BlurParams() float64
+    BlurParams returns the clamped blur radius for scene.ImageFilterLayer.
+
+func (t *RenderImageFilter) HitTest(p Point) RenderObject
+    HitTest is filter-blind: containment follows the laid-out box.
+
+func (t *RenderImageFilter) Layout(c Constraints) Size
+    Layout sizes to fixed or union of children (same model as RenderOpacity).
+
+func (t *RenderImageFilter) Paint(pc *PaintContext)
+    Paint isolates children offscreen and blurs the group. Radius ≤ 0 paints
+    through with no layer, matching the retained-path layer omission.
+
+func (t *RenderImageFilter) SetBlurRadius(r float64)
+    SetBlurRadius updates the subtree blur radius (paint-only).
+
+type RenderObject interface {
+	// Parent / Children form the tree.
+	Parent() RenderObject
+	Children() []RenderObject
+
+	// Layout computes size under constraints; must set Size and clear needsLayout.
+	Layout(c Constraints) Size
+	// Paint draws this node and children using logical origin.
+	Paint(pc *PaintContext)
+	// HitTest returns the deepest object containing p in parent-local logical coords.
+	HitTest(p Point) RenderObject
+
+	// MarkNeedsLayout dirties layout and bubbles to relayout boundary / root.
+	MarkNeedsLayout()
+	// MarkNeedsPaint dirties paint.
+	MarkNeedsPaint()
+
+	NeedsLayout() bool
+	NeedsPaint() bool
+	Size() Size
+	// Offset is position relative to parent (logical).
+	Offset() Point
+	SetOffset(p Point)
+
+	// IsRelayoutBoundary stops markNeedsLayout bubbling past this node
+	// after marking this node dirty (Flutter relayout boundary).
+	IsRelayoutBoundary() bool
+	IsRepaintBoundary() bool
+
+	// Has unexported methods.
+}
+    RenderObject is the L1 layout/paint/hit unit (Flutter RenderObject subset).
+
+type RenderOpacity struct {
+	Base
+	FixedWidth, FixedHeight float64
+	Opacity                 float64 // 0..1; out-of-range clamped at use sites
+}
+    RenderOpacity applies a group opacity to its children during paint (Flutter
+    Opacity / OpacityLayer subset): SaveLayer(bounds, opacity) around the child
+    walk so overlapping children blend as one group instead of each child fading
+    against the backdrop. Maps to scene.OpacityLayer when building the retained
+    layer tree.
+
+    SetOpacity is paint-only (MarkNeedsPaint); HitTest is opacity-blind — a
+    faded subtree still receives hits (Flutter semantics).
+
+func NewRenderOpacity(opacity float64, children ...RenderObject) *RenderOpacity
+    NewRenderOpacity wraps children with the given group opacity.
+
+func (t *RenderOpacity) HitTest(p Point) RenderObject
+    HitTest is opacity-blind: a faded subtree still receives hits (Flutter
+    semantics), containment follows the laid-out box.
+
+func (t *RenderOpacity) Layout(c Constraints) Size
+    Layout sizes to fixed or union of children (same model as RenderTransform /
+    RenderClipRRect: children get loose constraints, node takes its own pref).
+
+func (t *RenderOpacity) OpacityParams() float64
+    OpacityParams returns the clamped group opacity for scene.OpacityLayer.
+
+func (t *RenderOpacity) Paint(pc *PaintContext)
+    Paint isolates children in an offscreen layer composited back at Opacity
+    (group semantics). op>=1 paints through with no layer (common case); op<=0
+    skips the subtree entirely — nothing is painted, matching scene composite.
+
+func (t *RenderOpacity) SetOpacity(opacity float64)
+    SetOpacity updates group opacity (paint-only).
+
+type RenderPictureBox struct {
+	Base
+	Width, Height float64
+	// Record builds the box's own display list at absolute origin (ox,oy) on
+	// any render.Canvas — the live context on a FullPaint frame, the parent's
+	// recorder on a retained frame. Nil Record paints nothing and is never
+	// cacheable.
+	Record func(dc render.Canvas, ox, oy float64)
+}
+    RenderPictureBox is a leaf box whose own content is a retained display list
+    built by Record (Flutter RepaintBoundary with a full display list).
+
+    Unlike RenderColorBox/RenderText/RenderImage (own content reconstructed from
+    fields), a picture box records arbitrary vector content: circles, ovals,
+    arcs, round rects, lines, gradients, paths, text and images. Live paint and
+    cache record run the SAME Record closure, so replay can never diverge from
+    live paint by construction.
+
+    Cache contract (correctness-first): Record must be a pure function of
+    the box state. The cache holds no content fingerprint for this type
+    (contentKeyOf returns 0) and relies on NeedsPaint for invalidation — call
+    MarkNeedsPaint whenever the produced commands would change, otherwise
+    clean frames replay a stale display list. Static content never changes,
+    so it skips forever after the first record. Use as a RepaintBoundary;
+    a non-boundary picture box inside an AbsoluteBox disables that parent's
+    caching (absoluteContentCacheable rejects it) instead of risking a stale
+    bake — same discipline as Viewport (boundaryCacheable).
+
+func NewRenderPictureBox(w, h float64, record func(dc render.Canvas, ox, oy float64)) *RenderPictureBox
+    NewRenderPictureBox creates a picture box; record may be nil (paints nothing
+    until SetRecord installs one).
+
+func (b *RenderPictureBox) HitTest(p Point) RenderObject
+    HitTest implements RenderObject.
+
+func (b *RenderPictureBox) Layout(c Constraints) Size
+    Layout implements RenderObject.
+
+func (b *RenderPictureBox) Paint(pc *PaintContext)
+    Paint implements RenderObject.
+
+    Clean + valid entry replays from cache (boundary_skip); dirty or missing
+    entry builds via Record, replays the same commands, and stores them.
+    Single build — live paint and cache record can never diverge.
+
+    Playback targets any Canvas: a live *render.Context rasters the commands
+    immediately, a recording.Recorder folds them into the enclosing display list
+    (FullPaint frames record on the UI thread). Either way the recording that
+    was replayed is exactly the one cached, so a later clean replay cannot show
+    stale content.
+
+func (b *RenderPictureBox) SetRecord(record func(dc render.Canvas, ox, oy float64))
+    SetRecord installs a new record closure and dirties paint (the cache holds
+    no fingerprint for this type, so any Record change must re-record).
+
+type RenderSpinner struct {
+	Base
+	// Edge is logical square edge length; default 24. (not named Size — conflicts with Size() method)
+	Edge float64
+	// Phase is rotation phase in [0,1).
+	Phase float64
+	// Color
+	R, G, B, A float64
+}
+    RenderSpinner is a test/demo spinner (not a product kit control). It is a
+    RepaintBoundary by default so phase updates only dirty this subtree.
+
+func NewRenderSpinner(edge float64) *RenderSpinner
+    NewRenderSpinner creates a spinner with repaint boundary enabled.
+
+func (s *RenderSpinner) HitTest(p Point) RenderObject
+    HitTest implements RenderObject.
+
+func (s *RenderSpinner) Layout(c Constraints) Size
+    Layout implements RenderObject — fixed size, never depends on phase.
+
+func (s *RenderSpinner) Paint(pc *PaintContext)
+    Paint draws 4 dots around a circle; phase rotates which is brightest.
+
+func (s *RenderSpinner) SetPhase(p float64)
+    SetPhase updates phase and marks paint only (no layout).
+
+type RenderText struct {
+	Base
+	Text       string
+	FontSize   float64 // logical; used for estimate and as draw Y baseline offset
+	R, G, B, A float64
+	// ApproxCharW factor for layout without a Face (latin ~0.55; CJK often ~1).
+	ApproxCharW float64
+	// Face optional shaped face for true Measure (from render/text).
+	Face text.Face
+	// MaxWidth > 0 enables word-wrap layout/paint (logical px).
+	MaxWidth float64
+	// LineSpacing multiplier for wrapped lines (default 1.2).
+	LineSpacing float64
+	// LetterSpacing adds space between each letter (glyph cluster) in
+	// logical px (negative tightens); single-string path only in 6a
+	// (runs path follows in 6c). Gaps = clusters-1, no trailing phantom.
+	LetterSpacing float64
+	// WordSpacing adds space at each maximal whitespace run in logical px;
+	// same 6a single-string scope as LetterSpacing.
+	WordSpacing float64
+	// FontWeight requests stroke-thickness grade (6b, Flutter FontWeight):
+	// variable font with wght axis resolves to real outlines, otherwise
+	// grade>=600 renders synthetic embolden (advance unchanged).
+	FontWeight text.FontWeight
+	Align      render.Align
+	// MaxLines caps visible lines; 0 = unlimited.
+	MaxLines int
+	// Overflow is applied when content exceeds MaxWidth and/or MaxLines.
+	Overflow TextOverflow
+	// Runs holds multi-span content from ParagraphBuilder / SetRuns.
+	// When len(Runs) > 0, Text is treated as a cache of concatenated plain text.
+	Runs []TextRun
+	// Decoration is a render.TextDecoration bitset for the single-string path
+	// (and default when a run has Decoration=0 and inherits — see paintRuns).
+	Decoration render.TextDecoration
+	// FontFamily is the last family string passed to SetFontFamily (diagnostics).
+	FontFamily string
+
+	// Has unexported fields.
+}
+    RenderText draws text via render.DrawString / per-line paint. Layout prefers
+    Face.Measure when Face is set; otherwise EstimateTextSize (rune-based).
+    When MaxWidth > 0, layout/paint wrap. MaxLines + Overflow cap the visible
+    content.
+
+    Multi-run (minimal Paragraph): when Runs is non-empty, layout/paint use
+    per-run style (color/face/size). Single-string Text path remains the default
+    when Runs is empty.
+
+func NewRenderText(textStr string) *RenderText
+    NewRenderText creates a text node.
+
+func (t *RenderText) ByteOffsetAt(x float64) int
+    ByteOffsetAt converts an x offset (logical px from the text origin) into
+    the nearest UTF-8 byte boundary — single-source via TextLayout (Flutter
+    GetPositionForOffset).
+
+func (t *RenderText) ByteOffsetAtPoint(x, y float64) int
+    ByteOffsetAtPoint converts a point (logical px, text-origin relative) into
+    the nearest UTF-8 byte boundary — single-source via TextLayout (Flutter
+    GetPositionForOffset).
+
+func (t *RenderText) CaretColumn(off int) (lineIdx int, penX float64, ok bool)
+    CaretColumn returns the caret geometry for a display byte offset, following
+    the standard text-caret model (Flutter TextPainter.getOffsetForCaret /
+    Skia): line index + the PEN BOUNDARY x between the glyphs left and right of
+    the offset. The bar's CENTER belongs on that boundary — advance boxes touch,
+    so this is exactly "between any two characters", for latin, CJK and mixed
+    text alike. No ink scanning involved.
+
+    The offset must lie on a rune boundary within t.Text; out-of-range clamps
+    to 0 / len(Text). Returns (lineIdx, penX, true); ok=false when there is no
+    content at all. Single-source: Flutter-aligned via GetOffsetForCaret.
+
+func (t *RenderText) DisplayLines() []string
+
+func (t *RenderText) DisplayText() string
+    DisplayText joins DisplayLines with newlines (for debugging / tests).
+
+func (t *RenderText) FontSizePt() float64
+    FontSizePt returns the effective font size in points (default 14 when
+    unset). Exposed for caret geometry consumers.
+
+func (t *RenderText) GlyphInkBounds(r rune) (bounds text.Rect, ok bool)
+    GlyphInkBounds returns the ink bounding box (glyph outline extents,
+    not the advance box) of r relative to the pen origin at x=0, using this
+    text's face and font size. ok=false when no Face is set or the rune has no
+    glyph (control chars); whitespace has an empty outline → MinX==MaxX==0.
+    General glyph-metric accessor for text-anchored overlays.
+
+func (t *RenderText) HasViewportHintY() bool
+    HasViewportHintY reports whether a vertical cull band is set.
+
+func (t *RenderText) HitTest(p Point) RenderObject
+    HitTest implements RenderObject — single-source via TextLayout (Flutter
+    Paragraph).
+
+func (t *RenderText) Layout(c Constraints) Size
+    Layout implements RenderObject.
+
+func (t *RenderText) LineHeight() float64
+    LineHeight returns the logical line height used for multi-line painting
+    (face metrics when available, else fontSize × lineSpacing). Exposed for
+    caret/candidate geometry (IME anchoring).
+
+func (t *RenderText) MeasureCacheStats() (hits, misses int64)
+    MeasureCacheStats returns R9 hit/miss counters (cumulative since last
+    reset).
+
+func (t *RenderText) MeasureWidth(s string) float64
+    DisplayLines returns the visible lines after wrap + maxLines + overflow.
+    Layout and paint both use this so measured size matches what is drawn. For
+    multi-run content, each line is the concatenation of that line's span texts.
+    MeasureWidth returns the rendered width of s using this text's face and
+    font size (single line, no wrap). Heuristic estimate when no Face is set.
+    Used for caret/candidate anchoring (IME cursor rectangles).
+
+func (t *RenderText) Metrics() (m text.Metrics, ok bool)
+    Metrics returns the effective face's font metrics at the effective size
+    (ascent/descent/lineGap — the typographic truth for caret/candidate
+    geometry). Returns ok=false when no face is set; callers fall back to the
+    heuristic (fontSize × 1.25).
+
+func (t *RenderText) Paint(pc *PaintContext)
+    Paint implements RenderObject — single-source via TextLayout +
+    DrawShapedGlyphs.
+
+func (t *RenderText) ResetMeasureCacheStats()
+    ResetMeasureCacheStats zeroes hit/miss counters (keeps cached widths).
+
+func (t *RenderText) RunCount() int
+    RunCount returns the number of styled runs (0 = single-string mode).
+
+func (t *RenderText) SetColor(r, g, b, a float64)
+    SetColor updates RGBA and dirties paint only (no layout).
+
+func (t *RenderText) SetDecoration(d render.TextDecoration)
+    SetDecoration sets text decorations for the single-string paint path
+    (FT-DECORATION).
+
+func (t *RenderText) SetFace(face text.Face)
+    SetFace sets an optional font face for measure/draw alignment with render
+    text. Layout and paint use Face scaled to FontSize when the face size
+    differs (via Source().Face or MultiFace.AtSize).
+
+func (t *RenderText) SetFontFamily(family string) error
+    SetFontFamily resolves family via LoadFaceByFamily and SetFace
+    (FT-STYLE-FAMILY). Returns the load error (caller may ignore and keep
+    heuristic layout).
+
+func (t *RenderText) SetFontSize(points float64)
+    SetFontSize updates logical font size and dirties layout+paint. When Face is
+    set, measure/paint re-derive a face at this size so layout tracks FontSize
+    (not only the size baked into the Face at SetFace time).
+
+func (t *RenderText) SetFontWeight(w text.FontWeight)
+    SetFontWeight requests a stroke-thickness grade (6b, Flutter FontWeight
+    semantics): 0/unset = as designed; a FontFamily member = closest real
+    Regular/SemiBold/Bold cut; variable wght axis = real outlines; standalone
+    static + >=600 = synthetic outline embolden. Dirties layout+paint+measure.
+    Real cuts may change advances; synthetic outline bold keeps advances
+    unchanged, so wrap only reflows when the selected cut itself is wider.
+
+func (t *RenderText) SetLetterSpacing(v float64)
+    SetLetterSpacing sets inter-letter space (logical px, may be negative);
+    dirties layout+paint+measure. Single-string path only in 6a.
+
+func (t *RenderText) SetMaxLines(n int)
+    SetMaxLines caps visible lines (0 = unlimited); dirties layout+paint.
+
+func (t *RenderText) SetMaxWidth(w float64)
+    SetMaxWidth enables (>0) or disables (≤0) wrap; dirties layout+paint.
+
+func (t *RenderText) SetOverflow(o TextOverflow)
+    SetOverflow sets clip vs ellipsis overflow; dirties layout+paint.
+
+func (t *RenderText) SetRuns(runs []TextRun)
+    SetRuns installs multi-span content (minimal paragraph). Copies runs.
+    Updates Text to the concatenation of run texts for debugging / DisplayText.
+
+func (t *RenderText) SetText(s string)
+    SetText updates the string and dirties layout+paint when changed. Clears
+    multi-run content so the single-string path is used. Same-footprint fast
+    path: when the new text measures to the exact same layout size under the
+    last constraints (e.g. fixed-width numeric labels like "rows 1102-1116"),
+    layout output would be identical, so only repaint is marked — ancestors
+    above the text's own repaint boundary stay clean instead of re-recording
+    their backgrounds every keystroke/tick.
+
+func (t *RenderText) SetTextSpan(s string, oldA, oldB, newA, newB int)
+    SetTextSpan同SetText,另带Editor记录的变更区间.区间经长度方程校验,
+    不一致回退普通SetText(保正确).调用方须保证区间描述的是本次变更 (密码掩码/占位替换等变换后的串不得用此通道).
+
+func (t *RenderText) SetViewportHint(scrollX, visW float64)
+    SetViewportHint enables culling for long single-line viewports (Flutter
+    RenderEditable). scrollX is the viewport ScrollOffset.X, visW is the
+    viewport width (>0). Call after SetText. Pass visW<=0 to clear the hint (no
+    culling). Does not mark dirty.
+
+func (t *RenderText) SetViewportRect(scrollX, visW, scrollY, visH float64)
+    SetViewportRect extends SetViewportHint with a vertical band for
+    wrapped/multi-line text. scrollY/visH bound the visible rows; visH<=0 clears
+    only the vertical band (horizontal hint kept). Does not mark dirty.
+
+func (t *RenderText) SetWordSpacing(v float64)
+    SetWordSpacing sets per-whitespace-run space (logical px, may be negative);
+    dirties layout+paint+measure. Same 6a scope as LetterSpacing.
+
+func (t *RenderText) SubmittedGlyphEstimate() int
+    SubmittedGlyphEstimate returns the glyphs Paint would submit under the
+    current viewport hints. Unbounded (no hints) = every line's glyphs;
+    with hints = the culled visible subset — the same gates Paint uses,
+    so the estimate tracks real submissions. Coordinates are untouched (I3:
+    culling only narrows submit range).
+
+func (t *RenderText) SubmittedMaskGlyphEstimate() int
+    observability). Color runs paint via the string color path and must not be
+    counted as mask load.
+
+func (t *RenderText) TextLayout() *TextLayout
+    TextLayout returns the cached single-source layout (builds if needed).
+
+func (t *RenderText) ViewportBandExpired(scrollX, visW float64) bool
+    ViewportBandExpired reports whether the retained texture (recorded for
+    the stored band) still covers [scrollX, scrollX+visW]. Same margin
+    as hCullWindow, so record and expiry can never disagree on coverage.
+    A band that was never established (no dirty build recorded yet — e.g.
+    the warm-up paint cleared the fresh flags before the first texture existed)
+    always expires: the next build is dirty, records, and establishes it.
+
+func (t *RenderText) ViewportBandExpiredY(scrollY, visH float64) bool
+    ViewportBandExpiredY reports whether a Y-culled recording still covers
+    [scrollY, scrollY+visH]. Any pixel move re-records: the visible slice
+    is only a few rows, so re-recording is cheap and record/expiry can never
+    disagree (no blank rows past the margin).
+
+type RenderTransform struct {
+	Base
+	FixedWidth, FixedHeight float64
+	Rotation                float64
+	SX, SY                  float64 // 0 treated as 1
+}
+    RenderTransform applies a 2D transform around its children during
+    paint (translate to center → rotate → scale → translate back). Maps to
+    scene.TransformLayer when building the retained layer tree.
+
+    Rotation is radians (Y-down canvas, matches render.Context.Rotate). HitTest
+    applies the inverse of the same center-based rotate+scale (not pure AABB).
+    Does not claim Matrix4 / perspective or nested arbitrary CTM stacks.
+
+func NewRenderTransform(children ...RenderObject) *RenderTransform
+    NewRenderTransform wraps children; default scale is 1,1.
+
+func (t *RenderTransform) HitTest(p Point) RenderObject
+    HitTest maps p through the inverse of the paint CTM, then hits
+    children in local space. Paint order is T(c)·R(θ)·S·T(-c); inverse is
+    T(c)·S⁻¹·R(-θ)·T(-c). A parent-local point inside the untransformed AABB can
+    miss after rotation/scale, and a point outside that AABB can still hit the
+    painted geometry.
+
+func (t *RenderTransform) Layout(c Constraints) Size
+    Layout sizes to fixed or union of children.
+
+func (t *RenderTransform) Paint(pc *PaintContext)
+    Paint applies DC transform then paints children.
+
+func (t *RenderTransform) SetRotation(rad float64)
+    SetRotation updates rotation (paint-only).
+
+func (t *RenderTransform) SetScale(sx, sy float64)
+    SetScale updates scale (paint-only).
+
+func (t *RenderTransform) TransformParams() (rot, sx, sy float64)
+    TransformParams for scene.TransformLayer (TX/TY come from RO offset).
+
+type RenderVideo struct {
+	Base
+	Width, Height float64
+
+	// Has unexported fields.
+}
+    RenderVideo shows one decoded stream through the P2 direct bridge.
+    Upload happens on the tick (UploadPlanes copies synchronously, so the
+    Poll planes may be recycled right after); Paint only draws the uploaded
+    frame (DrawCurrent, zero-upload quad, fallback counted). It never decodes,
+    never imports video/ffmpeg, never runs per-pixel loops.
+
+    Layering: this node knows render only (same as RenderImage); the Player
+    stays in the example, which Polls on the tick and feeds frames here.
+
+func NewRenderVideo(w, h float64, bridge *render.VideoBridge) *RenderVideo
+    NewRenderVideo creates a single-view video node of logical size w×h.
+
+func NewRenderVideoPiP(w, h, smallW, smallH float64, bridge *render.VideoBridge) *RenderVideo
+    NewRenderVideoPiP creates a video node with a same-source second view
+    (smallW×smallH overlay at the bottom-right): the second draw reuses the
+    uploaded frame without re-uploading (ShowSeq same seq redraw).
+
+func (v *RenderVideo) HitTest(p Point) RenderObject
+    HitTest implements RenderObject.
+
+func (v *RenderVideo) Layout(c Constraints) Size
+    Layout implements RenderObject.
+
+func (v *RenderVideo) NodeStats() VideoNodeStats
+    NodeStats snapshots the node.
+
+func (v *RenderVideo) Paint(pc *PaintContext)
+    Paint implements RenderObject — draws the latest frame via the bridge.
+    No new frame fed means Paint still runs (steady damage comes from the bridge
+    draws); frames below are skipped by the caller (no UploadPlanes, no upload,
+    damage stays clean).
+
+func (v *RenderVideo) TextureLeaves() []TextureLeaf
+    TextureLeaves implements TextureLeafProvider: the retained tree gets the
+    route's registry id plus this node's quads, never a pointer to the bridge.
+    Coordinates are layer-local (0-based) — the ancestor offset chain positions
+    them, which is how the PiP overlay lands without any absolute math here.
+    No frame yet (or a closed route) means no leaf: the builder then keeps the
+    ordinary empty picture slot rather than a layer that can never paint.
+
+func (v *RenderVideo) UploadPending() bool
+    UploadPending reports that the route still owns the planes handed to
+    UploadPlanesAsync: poll the next frame only after this turns false.
+
+func (v *RenderVideo) UploadPlanes(fw, fh int, y, uv, pix []byte) bool
+    UploadPlanes uploads one new frame on the tick. Only the first frame marks
+    paint dirty: the retained tree's texture layer repaints the live texture
+    on every composite, so the first build is what has to insert the leaf.
+    This is the only window-facing feed (P3-A layer 5): y/uv carry NV12 planes,
+    pix carries the RGBA fallback for odd-size or exotic frames (nil-safe,
+    shapes the decoder never emits together). Planes go through the GPU YUV
+    convert; the fallback shape goes through the bridge RGBA route and counts
+    one fallback. All slices are copied synchronously, so Poll may recycle them
+    right after this returns.
+
+func (v *RenderVideo) UploadPlanesAsync(fw, fh int, y, uv, pix []byte) bool
+    UploadPlanesAsync hands one NV12 frame to the bridge staging worker without
+    copying it on the tick. Ownership of y/uv transfers to the route until
+    UploadPending reports false — do not recycle them before then. Returns false
+    when the route rejects the frame (busy, odd size, no plane device), in which
+    case the caller keeps ownership. Like UploadPlanes, a rejected plane shape
+    falls through to the RGBA route when pix is present.
+
+type RenderViewport struct {
+	Base
+
+	// FixedWidth/FixedHeight are optional exact sizes that override the
+	// constraint-derived size when > 0. An unset height grows the viewport to
+	// the constraint max (full window under an AbsoluteBox), which can overlap
+	// bands placed below it — fixed sizes keep scrolled content inside bounds.
+	FixedWidth  float64
+	FixedHeight float64
+
+	// Physics applies boundary + ballistic fling (nil = hard clamp only).
+	Physics ScrollPhysics
+
+	// Has unexported fields.
+}
+    RenderViewport clips painting to its bounds and applies ScrollOffset to its
+    child.
+
+    Scroll convention (Y-down):
+
+        ScrollOffset.Y increases → content moves up relative to the viewport
+        (user scrolls the list downward).
+
+    SetScrollOffset / ScrollBy mark paint only (not layout), unless content's
+    OnViewportScroll triggers a bind-window layout (VirtualList).
+
+    Optional Physics (FScroll-PHYSICS) clamps and drives Fling/TickPhysics
+    ballistic motion. Nil Physics keeps the historical hard clamp with no fling.
+
+func NewRenderViewport(content RenderObject) *RenderViewport
+    NewRenderViewport creates a viewport with optional content child.
+
+func (v *RenderViewport) Content() RenderObject
+    Content returns the first child or nil.
+
+func (v *RenderViewport) Fling(velocityY float64)
+    Fling starts a vertical ballistic simulation from velocityY (px/s in scroll
+    space). No-op without Physics or when CreateBallistic returns nil. Cancels
+    prior fling.
+
+func (v *RenderViewport) HasBallistic() bool
+    HasBallistic reports whether a fling is in progress.
+
+func (v *RenderViewport) HitTest(p Point) RenderObject
+    HitTest implements RenderObject.
+
+func (v *RenderViewport) Layout(c Constraints) Size
+    Layout implements RenderObject: viewport size from constraints; content laid
+    out loosely.
+
+func (v *RenderViewport) MaxScrollX() float64
+    MaxScrollX is reserved; MVP vertical nesting only (always 0 clamp unless
+    extended).
+
+func (v *RenderViewport) MaxScrollY() float64
+    MaxScrollY returns the vertical clamp. <0 means unset / unlimited for
+    clamping purposes until Layout derives content-based max.
+
+func (v *RenderViewport) Paint(pc *PaintContext)
+    Paint implements RenderObject.
+
+func (v *RenderViewport) ScrollBy(dx, dy float64)
+    ScrollBy adds delta to scroll offset.
+
+func (v *RenderViewport) ScrollOffset() Point
+    ScrollOffset returns current scroll in logical pixels.
+
+func (v *RenderViewport) ScrollToIndex(index int) bool
+    ScrollToIndex scrolls so item index sits at the top of the viewport
+    when content is a *VirtualList (fixed or variable extent). Uses
+    VirtualList.ScrollOffsetForIndex (prefix-sum for variable rows — not
+    index×fixedExtent). Returns false if content is not a VirtualList. Clamping
+    uses the viewport max scroll after layout.
+
+func (v *RenderViewport) SetContent(c RenderObject)
+    SetContent replaces the single content child.
+
+func (v *RenderViewport) SetMaxScrollY(max float64)
+    SetMaxScrollY clamps vertical scroll; <0 means no explicit clamp (until
+    Layout sets one).
+
+func (v *RenderViewport) SetPhysics(p ScrollPhysics)
+    SetPhysics installs scroll physics (may be nil to restore hard clamp only).
+
+func (v *RenderViewport) SetScrollOffset(x, y float64)
+    SetScrollOffset sets scroll offset (paint-only path for viewport itself).
+    Applies Physics.AdjustPosition when set; otherwise hard-clamps to [0,
+    maxScrollY]. User-driven SetScrollOffset cancels an active ballistic fling.
+
+func (v *RenderViewport) TickPhysics(dt float64) bool
+    TickPhysics advances an active fling by dt seconds. Returns true if a
+    ballistic simulation is still running (caller should schedule frames).
+
+type SaveLayerBudget struct {
+	MaxOps  int
+	MaxArea float64
+
+	// Has unexported fields.
+}
+    SaveLayerBudget limits expensive saveLayer-style ops (F16).
+
+func (b *SaveLayerBudget) Allow(w, h float64) bool
+    Allow reports whether another saveLayer of the given logical area is within
+    budget.
+
+func (b *SaveLayerBudget) Reset()
+    Reset clears per-frame counters.
+
+type SaveLayerStats struct {
+	Allow  atomic.Int64
+	Reject atomic.Int64
+}
+    SaveLayerStats accumulates SaveLayer budget outcomes: Allow counts accepted
+    pushes, Reject counts budget-refused ones. Shared across frames by the
+    embedder; atomics keep paint-thread increments safe for main-thread reads.
+
+type ScrollAware interface {
+	OnViewportScroll(offsetY, viewportH float64)
+}
+    ScrollAware is implemented by content that must rebinding when the viewport
+    scrolls (e.g. VirtualList). Called with content-space scroll offset and
+    viewport height.
+
+type ScrollPhysics interface {
+	// AdjustPosition clamps or transforms a proposed scroll offset into [min,max].
+	// When max < min (unset range), only min is enforced if finite.
+	AdjustPosition(position, min, max float64) float64
+	// CreateBallistic starts a fling from velocity (px/s, content scroll space).
+	// Returns nil when velocity is negligible or physics does not fling.
+	CreateBallistic(velocity, position, min, max float64) BallisticSimulation
+}
+    ScrollPhysics applies boundary conditions and optional ballistic fling
+    (Flutter ScrollPhysics subset — FScroll-PHYSICS minimal).
+
+    Not claimed: BouncingScrollPhysics spring, platform pixel-perfect curves,
+    multi-axis simultaneous physics, overscroll glow.
+
+type Scrollable struct {
+	Viewport *RenderViewport
+
+	// Parent is the outer scrollable for edge handoff (nil = root).
+	Parent *Scrollable
+
+	// TransferAtEdge enables drag residual handoff to Parent (default true).
+	// Set false to pin scrolling to this viewport only.
+	TransferAtEdge bool
+
+	// BubbleWheel enables wheel residual handoff to Parent (default true).
+	BubbleWheel bool
+
+	// TouchSlop overrides pan slop when > 0 (logical px).
+	TouchSlop float64
+
+	// Has unexported fields.
+}
+    Scrollable is a pointer→scroll adapter for RenderViewport.
+
+    # Nested scroll competition (P5b)
+
+    Default rules (Flutter-like minimum set):
+
+     1. Deepest scrollable handles the gesture first (hit path / Parent chain).
+     2. Child not at edge: only the child ScrollOffset changes; parent stays
+        put.
+     3. Child at edge and drag continues in the overscroll direction: residual
+        delta is transferred to Parent (no double-apply of the absorbed part).
+     4. Wheel: deepest consumes first; residual bubbles to Parent when
+        BubbleWheel is true (default).
+
+    Arena note: when multiple Scrollables join a GestureArena, only one pan
+    wins. Nested handoff does **not** re-open the arena mid-gesture; it uses
+    the Parent chain residual after the winner applies ScrollBy. Wire Parent
+    for nesting; JoinPointer path should list deepest first for fair arena entry
+    order.
+
+    Non-goals: multi-axis simultaneous competition, overscroll glow, platform
+    pixel-perfect parity.
+
+    P5a: drag uses gestures.PanGestureRecognizer. Wheel bypasses the arena.
+
+func NewScrollable(vp *RenderViewport) *Scrollable
+    NewScrollable wraps a viewport with default nested-handoff enabled.
+
+func (s *Scrollable) ApplyScrollDeltaForTest(dx, dy float64)
+    ApplyScrollDeltaForTest exposes applyScrollDelta for nested unit tests.
+
+func (s *Scrollable) AtMaxY() bool
+    AtMaxY reports scrollY is at the bottom clamp.
+
+func (s *Scrollable) AtMinY() bool
+    AtMinY reports scrollY is at the top (cannot scroll further "up"
+    content-wise: decreasing scrollY is blocked).
+
+func (s *Scrollable) HandlePointer(ev platform.Event) bool
+    HandlePointer updates scroll from pointer events (logical coords). Returns
+    true if the event was consumed.
+
+func (s *Scrollable) HandlePointerLatest(evs []platform.Event)
+    HandlePointerLatest applies only the last move in a batch (coalesce).
+
+func (s *Scrollable) JoinPointer(m *gestures.GestureArenaManager, pointerID int, e gestures.PointerEvent)
+    JoinPointer implements gestures.PointerTarget (deepest-first path).
+
+func (s *Scrollable) Pan() *gestures.PanGestureRecognizer
+    Pan returns the underlying pan recognizer (for multi-recognizer arenas).
+
+func (s *Scrollable) SetParent(parent *Scrollable)
+    SetParent links an outer scrollable for residual handoff.
+
+type Size struct {
+	Width, Height float64
+}
+    Size is width/height in logical pixels.
+
+type TextLayout struct {
+	Text string
+
+	FontSize float64
+	// LineSpacing is the multiplier used when building this layout; kept for HitTest fallback.
+	LineSpacing float64
+	Generation  uint64
+	MaxWidth    float64
+	Face        text.Face
+	// MaxLines caps visible lines (0 = unlimited, mirrors RenderText.MaxLines).
+	MaxLines int
+	// Overflow applies when content exceeds MaxWidth/MaxLines (mirrors RenderText.Overflow).
+	Overflow TextOverflow
+	// Truncated is true when MaxLines dropped lines.
+	Truncated bool
+	// LineGen holds per-row validity marks for the row/segment cache.
+	// TextLayout.Generation stays a global monotonic counter (2 consumers rely
+	// on it); invalidation granularity is expressed here instead.
+	LineGen []uint64
+
+	// Has unexported fields.
+}
+    TextLayout is the single source for paint + queries.
+
+func BuildRenderTextLayout(t *RenderText) *TextLayout
+    HitTest returns byte offset for a point (x,y) in text-local coords.
+    BuildRenderTextLayout builds a TextLayout for a RenderText, handling both
+    single-string and multi-run (Paragraph) cases. Single-string delegates to
+    BuildTextLayout; multi-run shapes per-run with its own Face/FontSize so
+    mixed-size CJK/latin caret X is precise (Flutter TextPainter/SkParagraph).
+
+func BuildTextLayout(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64) *TextLayout
+    BuildTextLayout produces single-source layout (no line cap).
+
+func BuildTextLayoutEx(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64, approxCharW float64, maxLines int, overflow TextOverflow) *TextLayout
+    BuildTextLayoutEx is BuildTextLayout with an estimate width factor
+    (approxCharW, used only when face == nil) and a MaxLines/Overflow
+    cap applied to the built lines (layout-side truncation, I11). Single
+    implementation: unspaced layout is the zero-spacing case of the spaced
+    builder, so wrap measurement, row geometry and truncation cannot drift
+    apart.
+
+func BuildTextLayoutExWithSpacing(textStr string, face text.Face, fontSize float64, maxWidth float64, lineSpacing float64, approxCharW float64, maxLines int, overflow TextOverflow, letterSpacing, wordSpacing float64) *TextLayout
+    BuildTextLayoutExWithSpacing is BuildTextLayoutEx with letter/word spacing
+    baked into break measurement and row geometry (6a single-string fresh path).
+    Rows are built fresh every call — never shared with the row cache — so
+    unspaced cache keys, incremental patch paths and M-gates never see spaced
+    content. Faceless estimate stays unspaced (spacing needs shaped clusters).
+    Zero spacing takes the same code path with no shifts.
+
+func (l *TextLayout) BoxesForRange(startByte, endByte int) []Rect
+    BoxesForRange mirrors Flutter getBoxesForRange — line-box union for a
+    byte range. Returned boxes are in text-local coords (X from Carets,
+    Y from LineTop, H from LineHeight). Empty or out-of-range input returns nil.
+    Boxes are clipped to the line's carets.
+
+func (l *TextLayout) CaretAt(lineIdx int, byteOff int) (x float64, ok bool)
+    CaretAt返回指定行内绝对字节偏移的X(行内二分,I8). byteOff是文档全局偏移(含行基址),不是行内相对值;
+    行内相对表由LineCarets转绝对,此处做逆换算.传相对值会错一个行基址.
+
+func (l *TextLayout) CaretForOffset(off int) (lineIdx int, x float64, ok bool)
+    CaretForOffset returns line index and X for a global byte offset (downstream
+    affinity).
+
+func (l *TextLayout) DamageRectForRows(startRow, endRow int) Rect
+    DamageRectForRows返回行区间 [startRow,endRow) 的脏矩形. X 取区间内最大行宽,Y
+    取首行顶到底行底.调用方只把被改行/段传进来, damage 面积即 O(变动行/段).行号越界钳制,空区间返回零矩形.
+
+func (l *TextLayout) GetFullHeightForCaret(byteOff int, affinity int) float64
+    GetFullHeightForCaret mirrors TextPainter.getFullHeightForCaret.
+
+func (l *TextLayout) GetOffsetForCaret(byteOff int, affinity int, caretWidth float64) (x, y, h float64, ok bool)
+    GetOffsetForCaret mirrors Flutter TextPainter.getOffsetForCaret. byteOff
+    is a UTF-8 byte offset on a grapheme boundary, affinity selects leading vs
+    trailing edge. caretWidth is the prototype width (1.5) for RTL adjustment.
+
+func (l *TextLayout) GetPositionForOffset(x, y float64) (byteOff int, affinity int)
+    GetPositionForOffset mirrors TextPainter.getPositionForOffset. Returns byte
+    offset + affinity for a visual point (x,y) in text-local coords.
+
+func (l *TextLayout) HitTest(x, y float64, lineHeight float64) int
+
+func (l *TextLayout) Line(i int) (start, end int, width, height float64, ok bool)
+    Line返回第i行的几何(值拷贝,不暴露内部切片).
+
+func (l *TextLayout) LineBulkRoutable(i int) bool
+    LineBulkRoutable reports whether row i can be submitted in batches:
+    single-face bulk (real glyphs + sourced face, Paint's first branch) or
+    per-face composite partitions (Paint's second branch, see below). Engine
+    and example probes share this single source instead of reimplementing the
+    routing condition.
+
+    NOTE: paintCompositeRuns calls this only after the single-face branch
+    failed, so inside that call the first clause never fires — the comment stays
+    to keep the predicate total, not to change that call path.
+
+func (l *TextLayout) LineCarets(i int) []GlyphCaret
+    LineCarets返回第i行的caret表(绝对偏移拷贝,调用方可安全持有).
+
+func (l *TextLayout) LineClusterStarts(line int) []int
+    LineClusterStarts returns the grapheme cluster starts of line (relative
+    offsets plus len sentinel), cached per layout build. Identical to
+    text.ClusterStarts over the line slice; caret stepping reuses it instead of
+    re-segmenting the whole line per keystroke.
+
+func (l *TextLayout) LineCount() int
+    LineCount返回行数(面1迁移新API,值拷贝语义,供懒物化演进).
+
+func (l *TextLayout) LineGlyphRuns(i int) []LineGlyphRun
+    LineGlyphRuns返回第i行的批量分区(值拷贝,调用方可安全持有). 每个分区覆盖 Glyphs[Start:End],用 Face
+    独立批量提交. 无可批量字形时返回 nil,调用方走旧绘制路径.
+
+func (l *TextLayout) LineGlyphs(i int) []text.ShapedGlyph
+    LineGlyphs返回第i行的整形字形(内部切片只读共享,调用方不得修改). 绘制批量提交的唯一字形源(I1).
+
+func (l *TextLayout) LineHasColorRun(i int) bool
+    LineHasColorRun reports whether row i holds a color run (emoji/COLR).
+    Reads stored runs without copying, so Paint can call it per line per frame.
+    Lines with color runs must bypass single-face bulk mask submit (the mask
+    atlas is outline-only) and go through per-face partitions.
+
+func (l *TextLayout) LineHeight(idx int) float64
+    LineHeight returns the height of line idx, falling back to uniform
+    calculation.
+
+func (l *TextLayout) LineTop(idx int) float64
+    LineTop returns the Y offset of line idx from the text origin (sum of
+    previous line heights).
+
+func (l *TextLayout) RowForY(y float64) int
+    RowForY returns the row whose band contains y, mirroring the legacy linear
+    scan predicate (y in [top-0.01, top+h-0.01), first hit wins). Out-of-range y
+    falls through to row 0, same as the old loop. O(log n).
+
+func (l *TextLayout) SnappedX(byteOff int, scale float64) (float64, bool)
+    TextLayout.SnappedX 返回按 scale 像素对齐的 caret X（HiDPI）。
+
+func (l *TextLayout) VisibleLineRange(y0, y1 float64) (lo, hi int)
+    VisibleLineRange返回与纵向区间 [y0,y1) 相交的行区间 [lo,hi). 无交集时 lo==hi.行高前缀和二分定位,O(log
+    n),不遍历全表.
+
+type TextLayoutLine struct {
+	StartByte int
+	EndByte   int
+	Carets    []GlyphCaret
+	Width     float64
+	Height    float64
+	Glyphs    []text.ShapedGlyph
+	// GlyphRuns partitions Glyphs by submitting face:
+	// each run covers Glyphs[Start:End] and must be submitted with Run.Face.
+	// Single-face lines hold one run; empty when the line has no batchable
+	// glyphs (nil-face estimate or unshaped fallback keeps the old paint path).
+	// 与Carets/Glyphs一样,构建后只读共享,任何原地修改都会污染缓存快照.
+	GlyphRuns []LineGlyphRun
+
+	// Has unexported fields.
+}
+    TextLayoutLine is one visual line.
+
+type TextOverflow int
+    TextOverflow controls how RenderText handles content that exceeds MaxWidth /
+    MaxLines.
+
+const (
+	// TextOverflowClip truncates extra lines/width without a visual marker (default).
+	TextOverflowClip TextOverflow = iota
+	// TextOverflowEllipsis truncates and appends "…" so layout stays within the budget.
+	TextOverflowEllipsis
+)
+type TextRun struct {
+	Text        string
+	Face        text.Face
+	FontSize    float64 // 0 → inherit parent FontSize
+	R, G, B, A  float64
+	ApproxCharW float64 // 0 → inherit parent
+	// IsColor marks color-glyph runs (emoji): they paint via the string
+	// color path and never enter the mask batch. Auto-detected in
+	// AddRun/SetRuns; an explicit true is never cleared.
+	IsColor bool
+	// Decoration is a render.TextDecoration bitset (underline etc.); 0 = none.
+	Decoration render.TextDecoration
+}
+    TextRun is one styled span inside a multi-run paragraph (minimal
+    ParagraphBuilder model). Empty Face falls back to the parent RenderText.Face
+    / estimate metrics.
+
+type TextureLeaf struct {
+	// TextureID is the render texture-source registry id of the producer.
+	// 0 = nothing to show, which the builder treats as "no leaf".
+	TextureID uint64
+	X, Y      float64
+	W, H      float64
+	// DrawIndex selects which view of the producer this quad shows, in layer-tree
+	// paint order (0 = first). One producer feeding a main view plus a
+	// picture-in-picture overlay emits one leaf per view so "did the second view
+	// draw" stays observable per view instead of collapsing into one counter.
+	DrawIndex int
+}
+    TextureLeaf is one live-texture quad a node hands the retained layer tree,
+    in layer-local coordinates (the ancestor offset/clip/transform chain places
+    it).
+
+type TextureLeafProvider interface {
+	// TextureLeaves returns this node's quads for the frame being built (nil =
+	// show nothing). Called on the UI thread during the layer build.
+	TextureLeaves() []TextureLeaf
+}
+    TextureLeafProvider is implemented by render objects whose content is a GPU
+    texture that a display list cannot describe (video). The producer rewrites
+    the texture in place, so the retained tree names it by id and repaints
+    it every frame instead of caching pixels that are already stale (Flutter
+    TextureLayer).
+
+type VertexMode = render.VertexMode
+    VertexMode re-exports render triangle modes for DrawVertices.
+
+type VideoNodeStats struct {
+	DrewOK        bool
+	DrewLast      bool
+	DirectLast    bool
+	SmallDrew     bool
+	SmallDrewLast bool
+	FirstMean     float64
+	LastMean      float64
+	PlanesLast    bool
+	RecordSkips   int
+}
+    VideoNodeStats snapshots what the bridge proved: DrewOK/SmallDrew (something
+    drawn at least once), DrewLast/SmallDrewLast (the most recent paint outcome
+    — gates that assert the current picture must use the Last pair, or a
+    route that stopped painting would still pass on its old ever-drew flag),
+    DirectLast (fast path), first/last frame brightness (non-black gate),
+    planesLast (last upload took the NV12 planes path, not the RGBA fallback
+    shape), RecordSkips (Paints that met a recording walk and could not draw).
+
+    The draw outcomes come from the bridge, not from this node: the retained
+    path paints texture layers from the raster job, so the producer is
+    the only place that sees whether pixels reached the screen (see
+    render.VideoBridge.PaintStats).
+
+type VirtualList struct {
+	Base
+	ItemCount  int
+	ItemExtent float64 // fixed-row height, or fallback when ItemExtentAt returns ≤0
+	// ItemExtentAt when non-nil enables variable-height mode.
+	ItemExtentAt ItemExtentFunc
+	Builder      ItemBuilder
+	CacheExtent  float64 // extra logical px above/below viewport
+
+	// BindCount is the number of currently mounted children (test metric).
+	BindCount int
+
+	// Has unexported fields.
+}
+    VirtualList is a vertical list that only mounts children in the visible
+    window (+ cache). It is ScrollAware for use under RenderViewport.
+
+    Fixed path: ItemExtentAt == nil → ContentHeight = ItemCount * ItemExtent.
+    Variable path: ItemExtentAt provides per-index heights via a prefix-sum
+    cache (does not mount all rows to measure).
+
+func NewVariableVirtualList(count int, fallbackExtent float64, extentAt ItemExtentFunc, builder ItemBuilder) *VirtualList
+    NewVariableVirtualList creates a variable-height list. extentAt must return
+    > 0 for each index; fallbackExtent is used if it returns ≤0 and as the
+    default CacheExtent basis.
+
+func NewVirtualList(count int, extent float64, builder ItemBuilder) *VirtualList
+    NewVirtualList creates a fixed-extent virtual list. extent must be > 0.
+
+func (v *VirtualList) BoundRange() (first, lastExclusive int)
+    BoundRange returns the currently mounted index window [first,
+    lastExclusive). Empty list or no bind → (0, 0).
+
+func (v *VirtualList) ContentHeight() float64
+    ContentHeight returns total scrollable height.
+
+func (v *VirtualList) HitTest(p Point) RenderObject
+    HitTest implements RenderObject.
+
+func (v *VirtualList) IndexAtOffset(y float64) int
+    IndexAtOffset returns the item index whose vertical span contains content
+    Y (offset[i] ≤ y < offset[i]+extent[i]). Clamped to [0, ItemCount-1].
+    Uses the same prefix (variable) or fixed-extent arithmetic as rebind.
+
+func (v *VirtualList) InvalidateExtents()
+    InvalidateExtents drops the prefix cache (call after extentAt results
+    change).
+
+func (v *VirtualList) Layout(c Constraints) Size
+    Layout implements RenderObject.
+
+func (v *VirtualList) OffsetOfIndex(index int) float64
+    OffsetOfIndex returns the content-space Y of the top of item index. Variable
+    lists use the same prefix-sum extents as layout (not index×fixedExtent).
+    Indices are clamped: <0 → 0; ≥ItemCount → total content height (end
+    sentinel).
+
+func (v *VirtualList) OnViewportScroll(offsetY, viewportH float64)
+    OnViewportScroll implements ScrollAware.
+
+func (v *VirtualList) Paint(pc *PaintContext)
+    Paint implements RenderObject.
+
+func (v *VirtualList) RefreshExtents(first, last int) bool
+    RefreshExtents re-reads heights over [first, last) and patches the prefix
+    in place. Cost is O(last-first) extent calls + one O(n) suffix shift with
+    plain float adds and zero allocation — about 10x cheaper than a full rebuild
+    (which also pays per-row closure calls plus an 8MB alloc per 1e6 rows).
+    Reports whether any height changed. Falls back to a full rebuild when
+    no valid prefix exists or ItemCount changed; use InvalidateExtents for
+    those coarse cases (count changes). Threading posture is unchanged from
+    InvalidateExtents: call from the same thread that drives scrolling/layout.
+
+func (v *VirtualList) ScrollOffsetForIndex(index int) float64
+    ScrollOffsetForIndex returns the scrollY that places item index at the top
+    of the viewport window (content offset of that row). Callers typically pass
+    this to RenderViewport.SetScrollOffset / ScrollToIndex. Clamped to valid
+    indices.
+
+func (v *VirtualList) SetItemExtentAt(fn ItemExtentFunc)
+    SetItemExtentAt enables or disables variable-height mode and invalidates
+    caches.
+
+type VirtualTextLines struct {
+	// Has unexported fields.
+}
+    VirtualTextLines是M4的纵向行虚拟化+懒测量. 窗口数学直接复用 VirtualList 范式(含变高行前缀和),不加新概念:
+    定行高总高 O(1);变行高用 Fenwick 树做前缀和,Offset/Index/Total 均为 O(log
+    n)且实测只做增量修正.未显示过的行高度是估算值(I5):依赖精确总高 的逻辑不得直接使用 TotalHeight,须先 MeasureWindow
+    物化视口.
+
+    控件层接入即退回全量排版:不接入本类型,沿用既有 TextLayout 全量路径. 已接入 VirtualList 的控件可用 ExtentFunc
+    适配(变高模式),实测后调 InvalidateExtents 刷新其前缀缓存.
+
+func NewVariableVirtualTextLines(count int, estimate float64, measure func(i int) float64) *VirtualTextLines
+    NewVariableVirtualTextLines创建变行高虚拟化:未测行先按 estimate 估算, 滚动到视口后经
+    MeasureWindow/EnsureMeasured 懒实测并增量修正总高.
+
+func NewVirtualTextLines(count int, lineHeight float64) *VirtualTextLines
+    NewVirtualTextLines创建定行高虚拟化:零按行内存,总高=行数×行高.
+
+func (v *VirtualTextLines) EnsureMeasured(i int) float64
+    EnsureMeasured确保第 i 行已实测(调 measureFn),返回当前高度.
+
+func (v *VirtualTextLines) ExtentFunc() ItemExtentFunc
+    ExtentFunc把当前高度表导出为 VirtualList 的 ItemExtentAt, 供已接入 VirtualList
+    的控件复用.实测推进后须调 InvalidateExtents.
+
+func (v *VirtualTextLines) IndexAtOffset(y float64) int
+    IndexAtOffset返回包含内容区 Y 的行.钳制到 [0,count-1].
+
+func (v *VirtualTextLines) IsMeasured(i int) bool
+    IsMeasured报告第 i 行是否已实测(定行高恒 true).
+
+func (v *VirtualTextLines) LineCount() int
+    LineCount返回总行数.
+
+func (v *VirtualTextLines) Measure(i int, h float64)
+    Measure记录第 i 行实测高度(>0,否则回退估算),总高按差值增量修正. 重复实测按新差值再次修正;定行高模式为无操作.
+
+func (v *VirtualTextLines) MeasureWindow() int
+    MeasureWindow懒实测当前窗口内所有行,返回新增实测数. 只动窗口内行,窗口起点偏移不动(不跳变).
+
+func (v *VirtualTextLines) MeasuredCount() int
+    MeasuredCount返回已实测行数(定行高返回全行数).
+
+func (v *VirtualTextLines) OffsetOf(i int) float64
+    OffsetOf返回第 i 行行首的内容区 Y.越界钳制: <0→0, ≥count→总高.
+
+func (v *VirtualTextLines) ResetEstimate(h float64)
+    ResetEstimate更换估算高度:未测行回到新估算并 O(n) 重建前缀和, 已测行保持.字体/字号变化时调用.
+
+func (v *VirtualTextLines) ScrollOffsetForIndex(i int) float64
+    ScrollOffsetForIndex返回把第 i 行置于视口顶部的 scrollY(滚动条定位).
+
+func (v *VirtualTextLines) SetViewport(scrollY, viewportH float64) (first, last int)
+    SetViewport更新滚动窗口,返回待物化的行区间 [first,last).
+
+func (v *VirtualTextLines) TotalHeight() float64
+    TotalHeight返回内容总高.定行高 O(1);变行高为缓存的运行总和 O(1). 变高下含估算成分(I5),精确总高须先
+    MeasureWindow.
+
+func (v *VirtualTextLines) Window() (first, lastExclusive int)
+    Window返回当前待物化区间 [first,lastExclusive).
+

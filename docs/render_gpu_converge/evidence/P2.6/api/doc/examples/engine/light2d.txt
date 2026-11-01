@@ -1,0 +1,26 @@
+Command game_light2d is the S82 independent real window: light/shadow 对照
+(G21/W14, waits on S63). One case only: shadow.
+
+Scene: warm point torch plus one directional lamp over a person strip,
+a vertical wall occluder cuts the person in half; the right half falls back to
+night. All light math calls engine/light directly (Scene for night, Shadow for
+the wall, SoftShadow for the S63 None/PCF5/PCF13 grades); the lit pictures are
+drawn with the existing render DrawImageEx, render main path untouched.
+
+Flags:
+
+    go run ./examples/engine/light2d -case=shadow -auto-only
+      three-evidence selftest (logic probes + pixels + zero-tolerance
+      goldens, first run freezes the baselines), then a ~8s real window
+      (RUN_SECONDS overrides, at least 5s); wrgate JSON on stdout,
+      present>=1 else exit 1.
+    go run ./examples/engine/light2d -case=shadow -manual-seconds 30
+      resident 30s: click toggles the lamps, 1/2/3 or space switches the
+      soft grade; every event is logged and shown in the title, summary
+      JSON at the end.
+    go run ./examples/engine/light2d -case=shadow
+      selftest then resident until close.
+
+Dark switch copies the lights_and_shadows feel: one switch turns both lamps off
+(night only) and back on; the three soft grades stay switchable either way so
+the hand feel matches the reference demo.

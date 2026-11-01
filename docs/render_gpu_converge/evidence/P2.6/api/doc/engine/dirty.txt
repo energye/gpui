@@ -1,0 +1,105 @@
+package dirty // import "github.com/energye/gpui/engine/dirty"
+
+Dynamic dirty tracker: one repaint unit over core.Rect bounds. Package doc,
+frozen list, and twin-layer rule live in doc.go.
+
+Package dirty tracks per-frame repaint boxes over core numbers.
+
+Frozen 2026-09-15: MaxDirtyRects, DirtyStats, DirtyTracker, NewDirtyTracker,
+NewSpriteDirtyTracker, DirtyForMove. Moved from engine/step in 2026-09-30 (E03).
+Additive changes only.
+
+Game-side twin of ui/scene DirtyLayer: pure core numbers, no render import. The
+loop marks each moved sprite's old-plus-new union, leaves still sprites unmarked
+so the sprite layer updates independently, and falls back to a full repaint
+when more than MaxDirtyRects boxes gather in one frame (same len > 16 rule as
+render Scene and ui/scene). Boxes are clipped to the tracker bounds; empty and
+non-finite inputs are ignored quietly. A nil *DirtyTracker never panics.
+
+CONSTANTS
+
+const MaxDirtyRects = 16
+    MaxDirtyRects caps per-frame dirty boxes before a full repaint. Must equal
+    ui/scene MaxDirtyRects (len > 16 falls back to full).
+
+
+FUNCTIONS
+
+func DirtyForMove(from, to core.Rect) (core.Rect, bool)
+    DirtyForMove is the pure chase-car union: the box covering both the old and
+    the new sprite boxes so the trail and the arrival both repaint. Either side
+    empty means spawn/despawn: the non-empty side alone is the answer. Identical
+    boxes mean no motion (false). Non-finite or fully empty input is false.
+    Bounds clipping is left to MarkDirty/MarkMoved.
+
+
+TYPES
+
+type DirtyStats struct {
+	Frames        int
+	TotalRects    int
+	FullFallbacks int
+	MaxRects      int
+}
+    DirtyStats reports per-tracker frame accounting. Frames counts Clear calls,
+    TotalRects sums kept boxes over non-full frames, FullFallbacks counts frames
+    that fell back to full repaint, MaxRects is the largest kept count.
+
+type DirtyTracker struct {
+	// Has unexported fields.
+}
+    DirtyTracker is one dynamic repaint unit over core.Rect bounds. Sprite
+    trackers (NewSpriteDirtyTracker) update independently of the static world:
+    only moved sprites are marked, still ground keeps zero boxes. Not safe for
+    concurrent use; a nil tracker never panics.
+
+func NewDirtyTracker(bounds core.Rect) (*DirtyTracker, error)
+    NewDirtyTracker builds a dynamic tracker over bounds. Non-finite coordinates
+    or W <= 0 or H <= 0 return invalid-arg.
+
+func NewSpriteDirtyTracker(bounds core.Rect) (*DirtyTracker, error)
+    NewSpriteDirtyTracker builds the independent sprite update tracker. Same
+    validation as NewDirtyTracker.
+
+func (t *DirtyTracker) Bounds() core.Rect
+    Bounds returns the tracker bounds.
+
+func (t *DirtyTracker) Clear()
+    Clear ends the frame: records accounting, then resets rects and full.
+    Every Clear counts one frame, including still frames with zero boxes.
+
+func (t *DirtyTracker) Coverage() float64
+    Coverage returns DirtyArea over bounds area (0 when full or nil). Observed
+    only; it never forces a fallback by itself.
+
+func (t *DirtyTracker) DirtyArea() float64
+    DirtyArea sums kept box areas (0 when full).
+
+func (t *DirtyTracker) DirtyCount() int
+    DirtyCount returns kept dirty boxes (0 when full or nil).
+
+func (t *DirtyTracker) DirtyRects() []core.Rect
+    DirtyRects returns a copy of the kept boxes, or nil when full or empty.
+    The caller may mutate the result; the tracker keeps no alias.
+
+func (t *DirtyTracker) IsSprite() bool
+    IsSprite reports whether this is the independent sprite tracker.
+
+func (t *DirtyTracker) MarkDirty(r core.Rect) bool
+    MarkDirty clips r to the tracker bounds and keeps it. Empty, non-finite,
+    or fully outside boxes are ignored quietly. True means one box was kept.
+    A nil tracker or a full tracker keeps nothing.
+
+func (t *DirtyTracker) MarkFull()
+    MarkFull forces a full repaint: rects are dropped, NeedsFull is true.
+
+func (t *DirtyTracker) MarkMoved(from, to core.Rect) bool
+    MarkMoved dirties the union of a sprite's old and new boxes (see
+    DirtyForMove), clipped to the tracker bounds. True means one box kept.
+
+func (t *DirtyTracker) NeedsFull() bool
+    NeedsFull reports whether the frame must repaint everything.
+
+func (t *DirtyTracker) Stats() DirtyStats
+    Stats returns a copy of the frame accounting.
+

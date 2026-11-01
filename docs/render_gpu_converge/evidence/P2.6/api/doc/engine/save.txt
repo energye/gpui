@@ -1,0 +1,187 @@
+package save // import "github.com/energye/gpui/engine/save"
+
+Package save freezes the file-side progress math every 2.5D play feeds.
+
+Frozen 2026-09-15: CurrentVersion, MaxSlots, MaxInventory, MaxItemCount,
+MaxStars, MaxStarsPerLevel, MaxNameLen, MaxBytes, Item, NewItem, ID, Count,
+Progress, NewProgress, Level, Checkpoint, Play, PlayMs, Save, New, Slot,
+Version, Progress, Inventory, Stars, StarsOf, SetProgress, AddItem, SetStars,
+Equal, Encode, Store, Parse, Load, Migrate. Additive changes only.
+
+The package draws nothing and plays nothing; it only carries numbers between
+runs. The caller builds a Save with New plus SetProgress, AddItem, and SetStars,
+persists it with Store, reads it back with Load, and upgrades old files with
+Migrate. Only core numbers are used; no new Vec2/Color/AssetID is defined here.
+The old render and ui paths stay untouched.
+
+File (self JSON, frozen): version "1.0", slot, progress {level, checkpoint,
+play_ms}, inventory [{id, count}], stars {level: 0..3}. Unknown fields are
+ignored so a newer minor file still parses; missing progress/inventory/stars
+default to empty so a legacy file without stars still loads and Migrate fills
+the rest. One frozen shape first; a second shape freezes separately later.
+Parse levels by design: loadable past versions (legacy 0.x plus CompatibleWith
+minors) parse so the caller can Migrate them; foreign majors and newer minors
+are VersionMismatch, never a guessed load.
+
+Slots: 0..MaxSlots-1 (3 slots). Progress holds 进度: level and checkpoint
+are plain names (empty means new game), play_ms is integer milliseconds
+(core.Duration). Inventory holds 背包: id plus count 1..MaxItemCount, insertion
+order, duplicate ids never stored. Stars holds 关卡星: level to 0..3, 0 deletes the
+entry.
+
+Errors use engine/core codes: empty input or path is InvalidArg, a missing
+file is NotFound, a torn shape is BadData, a well-formed file beyond the
+MaxBytes/MaxInventory/MaxStars budget is OutOfMemory, a version newer than the
+engine (or a foreign major) is VersionMismatch. Constructors report bad values
+as InvalidArg; Parse reports the same bad shape as BadData. Only core numbers
+cross the boundary.
+
+CONSTANTS
+
+const (
+	// MaxSlots caps the slot ledger: slots are 0..MaxSlots-1.
+	MaxSlots = 3
+	// MaxInventory caps item entries in one save.
+	MaxInventory = 256
+	// MaxItemCount caps one stack: counts run 1..MaxItemCount.
+	MaxItemCount = 9999
+	// MaxStars caps starred levels in one save.
+	MaxStars = 64
+	// MaxStarsPerLevel caps one level: stars run 0..3, 0 deletes.
+	MaxStarsPerLevel = 3
+	// MaxNameLen caps level, checkpoint, item, and star keys.
+	MaxNameLen = 64
+	// MaxBytes caps one save file.
+	MaxBytes = 1 << 20
+)
+    Frozen budgets. A well-formed file beyond budget is OutOfMemory, never a
+    guessed load. A bad value is InvalidArg via constructors and BadData via
+    Parse.
+
+
+VARIABLES
+
+var CurrentVersion = core.Version{Major: 1, Minor: 0}
+    CurrentVersion is the engine save version every Store writes. Bump Minor for
+    additive fields, Major for a breaking shape.
+
+
+TYPES
+
+type Item struct {
+	// Has unexported fields.
+}
+    Item is one backpack entry: id plus count 1..MaxItemCount. Name is only a
+    debug key for tests and logs; counts never go negative.
+
+func NewItem(id string, count int) (Item, error)
+    NewItem builds one entry. Empty or overlong ids and counts outside
+    1..MaxItemCount are a core InvalidArg error and store nothing.
+
+func (it Item) Count() int
+    Count returns the stack count.
+
+func (it Item) ID() string
+    ID returns the item key.
+
+type Progress struct {
+	// Has unexported fields.
+}
+    Progress is one 进度 snapshot: where the run sits plus how long it ran.
+    Empty level/checkpoint means a new game; play time is integer milliseconds
+    so slow and fast machines agree.
+
+func NewProgress(level, checkpoint string, play core.Duration) (Progress, error)
+    NewProgress builds a snapshot. Overlong names and negative play are a core
+    InvalidArg error and store nothing. Empty names stay legal.
+
+func (p Progress) Checkpoint() string
+    Checkpoint returns the resume point (empty means none).
+
+func (p Progress) Level() string
+    Level returns the stage name (empty means new game).
+
+func (p Progress) Play() core.Duration
+    Play returns the played time.
+
+func (p Progress) PlayMs() int64
+    PlayMs returns the played milliseconds.
+
+type Save struct {
+	// Has unexported fields.
+}
+    Save is one slot file: slot plus version plus progress plus backpack plus
+    关卡星. Fields stay private so every write passes validation; readers use the
+    accessors below, which copy.
+
+func Load(path string) (Save, error)
+    Load reads path as a save file. Empty paths are InvalidArg, missing files
+    are NotFound; the rest matches Parse.
+
+func Migrate(s Save) (Save, error)
+    Migrate upgrades s to CurrentVersion, preserving slot, progress, backpack,
+    and stars. Current files return a copy; loadable older versions bump to
+    Current. Foreign majors and newer minors are a core VersionMismatch error;
+    torn shapes are InvalidArg and budget overruns are OutOfMemory. The input is
+    never mutated.
+
+func New(slot int) (Save, error)
+    New builds an empty save on slot with CurrentVersion. Slots outside
+    0..MaxSlots-1 are a core InvalidArg error.
+
+func Parse(data []byte) (Save, error)
+    Parse validates file bytes into a Save. Empty input is InvalidArg, OS-size
+    overruns are OutOfMemory, torn JSON and bad shapes are BadData, newer or
+    foreign versions are VersionMismatch. Legacy 0.x files parse fine so the
+    caller can Migrate them; missing progress/inventory/stars default to empty.
+
+func (s *Save) AddItem(id string, count int) error
+    AddItem adds count to id, merging when the id already exists. New ids
+    beyond MaxInventory are OutOfMemory; bad ids, bad counts, and merges beyond
+    MaxItemCount are InvalidArg. Failures change nothing.
+
+func (s Save) Encode() ([]byte, error)
+    Encode renders the canonical file bytes. The save must already carry
+    CurrentVersion (legacy saves Migrate first); otherwise the result is a
+    core VersionMismatch error. Bad shapes are InvalidArg, budget overruns are
+    OutOfMemory. The input is never mutated.
+
+func (s Save) Equal(o Save) bool
+    Equal reports whether o holds the same slot, version, progress, inventory
+    order, and stars. Nil and empty inventories compare equal when both hold no
+    entries; same for stars.
+
+func (s Save) Inventory() []Item
+    Inventory returns a copy of the backpack in stored order. Writing the result
+    cannot change the save.
+
+func (s Save) Progress() Progress
+    Progress returns the progress snapshot.
+
+func (s *Save) SetProgress(p Progress) error
+    SetProgress replaces the snapshot. Bad names or negative play are a core
+    InvalidArg error and change nothing. Nil saves report InvalidArg.
+
+func (s *Save) SetStars(level string, stars int) error
+    SetStars records stars for level (0 deletes the entry). Bad levels and stars
+    outside 0..MaxStarsPerLevel are InvalidArg; a new level beyond MaxStars is
+    OutOfMemory. Failures change nothing.
+
+func (s Save) Slot() int
+    Slot returns the slot number.
+
+func (s Save) Stars() map[string]int
+    Stars returns a copy of the level stars. Writing it cannot change the save;
+    a nil or empty save reports an empty non-nil map.
+
+func (s Save) StarsOf(level string) (int, bool)
+    StarsOf returns the stars of level. Missing levels report ok=false.
+
+func (s Save) Store(path string) error
+    Store writes the save to path, creating parent directories. Empty paths are
+    InvalidArg; OS failures are NotFound with the cause; save-shape errors match
+    Encode.
+
+func (s Save) Version() core.Version
+    Version returns the stored version.
+

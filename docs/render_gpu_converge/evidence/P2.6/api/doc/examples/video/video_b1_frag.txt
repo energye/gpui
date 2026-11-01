@@ -1,0 +1,11 @@
+Command video_b1_frag is the §12 B1 real-window: fragmented MP4
+(phone-style边录边存) plays end to end.
+
+    go run ./examples/video/video_b1_frag -auto-only
+    go run ./examples/video/video_b1_frag -manual-seconds 30
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 15). GPU window required. Left: the
+four B1 gates from the real engine (header 2 clips, decode 105 frames byte-exact
+vs the ffmpeg oracle, play 2 clips to Ended with zero drops, seek 5 jumps to the
+floor covering frame). Right: the live picture (fragmented long clip looping)
+proving the fragments actually play on screen.

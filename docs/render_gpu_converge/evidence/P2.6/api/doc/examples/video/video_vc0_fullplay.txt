@@ -1,0 +1,10 @@
+Command video_vc0_fullplay is the VW2 VC0 combo real-window: one clip (720p)
+from demux to picture, end to end, no black, no flower.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=30 go run ./examples/video/video_vc0_fullplay
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 30). GPU window required. Left: the
+five chain gates from the same file (VR0 numbers, VR1 params, VR2 decode count
++ monotonic stamps, VR3 first/last frame variance, VR4 full play to Ended with
+zero drops). Right: the live picture looping the same clip for the whole run.

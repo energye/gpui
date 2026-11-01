@@ -1,0 +1,15 @@
+Command video_vc3_embed_extend is the VW3 VC3 combo real-window: VR8 embed + VR9
+registry + VR4 playback, all three on one screen.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=30 go run ./examples/video/video_vc3_embed_extend
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 30). GPU window required. Left:
+the registry proof on vr2_720p.mp4 (probe names, capability lists, same-clip
+play through the registry, window-side stub decoder, three readable unsupported
+cases with zero crash) plus the embed cold gate (demux 1280x720, params,
+cold decode to Ended, monotonic stamps, non-black variance). Body: the same 720p
+clip looping inside the scene — main 480x270 target plus a second 240x135 target
+sharing the frame (scale via target rect), wrapped in clip + opacity nodes,
+with a translucent overlay covering one corner and panel text beside it; mid-run
+resize proves no assert crash. Bottom HUD: fps / decode / queue / memory.

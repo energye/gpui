@@ -1,0 +1,14 @@
+Command video_vc1_seek_fault is the VW2 VC1 combo real-window: play with seeks
+while bad files mix in — jumps recover, faults stay readable, and the good clip
+is never affected.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=30 go run ./examples/video/video_vc1_seek_fault
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 30). GPU window required. Left top:
+three seek gates on the good dual-IDR clip (target/landing/ key/forward/recover,
+budget 500ms, recover ≤3s). Left bottom: five fault gates (missing file,
+non-mp4, truncated tail, F20 flower isolation, F17 partition), each with its
+layer+tool note. Right: the live picture on the good clip — two scheduled
+mid-run jumps plus end-of-stream wrap via SeekTo; every jump shows at once,
+never black.

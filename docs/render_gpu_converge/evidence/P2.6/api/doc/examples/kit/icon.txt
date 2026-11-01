@@ -1,0 +1,19 @@
+Command icon is the F1 Icon real window: full-window kit icons only, no sidebar,
+no graphic chrome, metrics JSON only (no on-screen HUD).
+
+RUN_SECONDS=5 go run ./examples/kit/icon go run ./examples/kit/icon -auto-only
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Correctness window
+(RUN_SECONDS>=5): slope_gate=off, fps gate on.
+
+Layout references ant-design/components/icon for appearance only (order,
+sizes, colors, categories, card shape). Behavior and copy follow the Go
+implementation (ui/kit + docs/antd): hover highlights the hit instance, click
+selects it and logs the Go constructor — no web clipboard, no Copied overlay.
+demos (basic/two-tone/custom/iconfont/multi) with official order, names, themes,
+colors, sizes (default 16, panda 32, gap 8); catalog follows IconSearch default
+view: 6 categories with Chinese titles, 6-column cards (36px icon + name), All
+themes (Outlined/Filled/TwoTone as available). Custom heart/panda and 7 iconfont
+symbols are true vendored shapes (prim custom SVG registry), never placeholder
+glyphs. All icons built via kit public API only.

@@ -1,0 +1,23 @@
+# P2.6-f 负向对照重放
+# date: 2026-11-01T09:42:17+08:00  head: e67e4be7
+
+## 绿基线（无破坏）
+rc=0 (expect 0)
+
+## 破坏 1：画面偏移 1px（GPUI_NEG_SHIFT_1PX=1，patch.diff 打入）
+patch.diff 无法干净应用（conformance 代码在 P2 有变）——按 patch 内容手工重建破坏后重试
+patch check: error: can't open patch 'baseline/negative/patch.diff': No such file or directory
+
+## 破坏 2：跳过一次绘制（GPUI_NEG_SKIP_DRAW=1，同补丁）
+
+## 破坏 3：少释放一次（临时注释 bicubic 两管线+shader 销毁，P2.4c K1 原洞）
+K1 leak injected
+red rc=1 (expect 1)
+--- FAIL: TestConformanceDualBackend (0.74s)
+          native solid_gradient: resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+          native text_image: resource: steady count delta=2 (max 0) bytes delta=131072 (max 0) contexts=[0 0 0]
+ 2 files changed, 919 insertions(+), 757 deletions(-)
+还原 rc=1 (expect 0)
+
+## §8.2 阈值变异对（extractor 读 thresholds.md）
+正常态 p95_fail=1（对照基线 4）

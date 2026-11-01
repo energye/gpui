@@ -1,0 +1,8 @@
+gen_grid_png generates the 20 deck tiles for the RULER_SCENE=grid arm (matrix
+row 5, mirroring examples/ui_wr_r10_async_image). The pixel formula is the same
+as R10's makeSourcePNGs (96x56 striped tiles, per-index base hue) so the two
+arms decode identical imagery. Committing the outputs under assets/grid/ keeps
+the ruler arm free of runtime generation; rerunning this tool must produce
+byte-identical files.
+
+Usage: go run ./tools/ruler_flutter/gen_grid_png

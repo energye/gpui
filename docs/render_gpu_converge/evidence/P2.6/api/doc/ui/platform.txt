@@ -1,0 +1,895 @@
+package platform // import "github.com/energye/gpui/ui/platform"
+
+Package platform is the L0 SPI for the L1 UI engine: native window handles,
+input events, and optional vsync. Platform backends live in *_linux.go etc.
+
+CONSTANTS
+
+const (
+	ImeAttrUnderline = 1 // 下划线（IBus ATTR_UNDERLINE 单线；前景色属性亦归入此值）
+	ImeAttrDouble    = 2 // 双下划线（ATTR_UNDERLINE + UNDERLINE_DOUBLE）
+	ImeAttrSelected  = 3 // 背景反显（ATTR_BACKGROUND，候选选中态）
+	// ImeAttrHighlight 是无属性时的整段默认样式，与单下划线同值：
+	// singleSegment 产出该值，故「属性被丢弃、退化为单段」的检测以此为判据。
+	ImeAttrHighlight = ImeAttrUnderline
+)
+const DefaultAnimTickSeconds = 1.0 / 60.0
+    DefaultAnimTickSeconds is the fallback frame period when no VSyncWaiter is
+    available (~60 Hz).
+
+
+VARIABLES
+
+var ErrNoDRMVBlank = errors.New("platform: no DRM vblank (open/libdrm/wait failed)")
+    ErrNoDRMVBlank is returned when no usable DRM vblank path is available.
+
+var ErrUnsupported = errors.New("platform: window operation not supported")
+    ErrUnsupported is returned by WindowController operations the platform
+    cannot perform (e.g. Wayland has no client-side window positioning,
+    no programmatic focus). Callers should degrade gracefully. All errors are
+    cross-platform tagged; the returned error never carries a platform-specific
+    type.
+
+
+FUNCTIONS
+
+func ClearFallbackForTest()
+    ClearFallbackForTest clears the fallback (test only).
+
+func HasDRMVBlank() bool
+    HasDRMVBlank reports whether Init succeeded (per-call Wait may still error).
+
+func HasWaylandDisplay() bool
+    HasWaylandDisplay reports whether a Wayland display name is available.
+
+func HasX11Display() bool
+    HasX11Display reports whether an X11 display string is available.
+
+func InitDRMVBlank() error
+    InitDRMVBlank tries to open a DRM primary node and bind drmWaitVBlank via
+    purego. Safe to call multiple times; subsequent calls return the cached
+    result.
+
+func Register(kind PlatformKind, b Backend)
+    Register installs a backend for kind. Later registrations replace earlier
+    ones (tests / alternative implementations may override).
+
+func SetFallbackForTest(kind, data string)
+    SetFallbackForTest sets fallback directly (test only).
+
+func WaitDRMVBlank() error
+    WaitDRMVBlank blocks until the next vertical blank on the opened DRM device.
+    Returns ErrNoDRMVBlank (or wrap) when unavailable so callers fall back to
+    software tick.
+
+
+TYPES
+
+type Backend interface {
+	// Kind is the platform this backend serves.
+	Kind() PlatformKind
+	// Create opens a new native window and returns it bound to this backend.
+	Create(opts Options) (*Window, error)
+	// Adopt binds existing native handles (e.g. an embedding host window)
+	// and returns a Window wired to them. Returns an error when the handles
+	// are not recognized by this backend.
+	Adopt(ns NativeSurface) (*Window, error)
+}
+    Backend is a platform window backend registered via Register. Each platform
+    (X11/Wayland/Win32/AppKit) provides one; the engine picks by Kind or by
+    display detection.
+
+    The backend is deliberately split into three concerns (see the plan):
+      - Create: build a native window (own the event loop sources).
+      - Adopt: bind an existing native surface/handle (embedding scenarios).
+      - Window: the produced object owns Host (events/size/scale) plus optional
+        IME/Clipboard capabilities discovered at bind time.
+
+type Clipboard interface {
+	// Get returns clipboard content of the given kind ("text/plain" etc.).
+	Get(kind string) (string, error)
+	// Set writes content of the given kind.
+	Set(kind, data string) error
+}
+    Clipboard is the optional cross-platform clipboard capability. nil means
+    unsupported; UI must degrade (internal clipboard fallback).
+
+func FallbackClipboard() Clipboard
+    FallbackClipboard returns the process-global in-memory clipboard. Used when
+    the native selection is unavailable (nil Window.Clipboard) or as a fast
+    self-read mirror for X11/Wayland ownData.
+
+type ContentPurpose uint32
+    ContentPurpose classifies an editing field so the input method can adapt
+    (layout, prediction, masking). Values mirror the zwp_text_input_v3
+    content_purpose enum (which itself follows Android InputType); backends
+    without purpose support ignore it.
+
+const (
+	// PurposeNormal default text entry.
+	PurposeNormal ContentPurpose = 0
+	// PurposeAlpha alphabetic input.
+	PurposeAlpha ContentPurpose = 1
+	// PurposeDigits digits without numeric formatting (e.g. codes).
+	PurposeDigits ContentPurpose = 2
+	// PurposeNumber a number (with numeric formatting).
+	PurposeNumber ContentPurpose = 3
+	// PurposePhone a phone number.
+	PurposePhone ContentPurpose = 4
+	// PurposeURL a URL / file path.
+	PurposeURL ContentPurpose = 5
+	// PurposeEmail an email address.
+	PurposeEmail ContentPurpose = 6
+	// PurposeName a person name.
+	PurposeName ContentPurpose = 7
+	// PurposePassword a password (masking + no prediction).
+	PurposePassword ContentPurpose = 8
+	// PurposePin a PIN (numeric, masked).
+	PurposePin ContentPurpose = 9
+	// PurposeDate a date.
+	PurposeDate ContentPurpose = 10
+	// PurposeTime a time.
+	PurposeTime ContentPurpose = 11
+	// PurposeDatetime date and time.
+	PurposeDatetime ContentPurpose = 12
+	// PurposeTerminal shell input.
+	PurposeTerminal ContentPurpose = 13
+)
+type ContentType struct {
+	Purpose ContentPurpose
+	// Hints are advisory (autocap/spellcheck/private); Wayland maps the
+	// subset it supports, IMM32/TSF use InputScope, mac uses keyboardType.
+	Hints uint32
+}
+    ContentType bundles the purpose declaration with editing hints so every
+    backend receives one complete snapshot (design D8).
+
+type Cursor int
+    Cursor identifies a standard cross-platform cursor shape.
+
+const (
+	// CursorDefault is the platform default (arrow).
+	CursorDefault Cursor = iota
+	// CursorText is the I-beam text cursor.
+	CursorText
+	// CursorPointer is the hand cursor (links).
+	CursorPointer
+	// CursorCrosshair is the crosshair cursor.
+	CursorCrosshair
+	// CursorWait is the busy/wait cursor.
+	CursorWait
+	// CursorResizeH is the horizontal resize cursor (↔).
+	CursorResizeH
+	// CursorResizeV is the vertical resize cursor (↕).
+	CursorResizeV
+	// CursorResizeNE is the top-right / bottom-left diagonal cursor (╱).
+	CursorResizeNE
+	// CursorResizeNW is the top-left / bottom-right diagonal cursor (╲).
+	CursorResizeNW
+	// CursorHidden hides the pointer while it is over the window content.
+	// X11 draws a 1x1 transparent cursor; Wayland uses
+	// wl_pointer.set_cursor(NULL). CSD title-bar/edge regions may still show
+	// their system/resize cursor, matching a native decorated window.
+	CursorHidden
+)
+func (c Cursor) String() string
+    String implements fmt.Stringer.
+
+type DeviceClass int
+    DeviceClass identifies a hot-plugged device family (platform side). Values
+    mirror input.DeviceClass (platform cannot import input).
+
+const (
+	DeviceUnknown DeviceClass = iota
+	DeviceKeyboard
+	DeviceMouse
+	DeviceTouch
+	DevicePen
+)
+func (c DeviceClass) String() string
+    String implements fmt.Stringer.
+
+type DisplayBackend int
+    DisplayBackend is the preferred Linux window system for hosts/examples.
+
+const (
+	// DisplayAuto selects Wayland when available, else X11.
+	DisplayAuto DisplayBackend = iota
+	// DisplayX11 forces Xlib (including XWayland via DISPLAY).
+	DisplayX11
+	// DisplayWayland forces wl_display / wl_surface.
+	DisplayWayland
+	DisplayWin32
+	DisplayAppKit
+)
+func DetectDisplayBackend() DisplayBackend
+    DetectDisplayBackend chooses a Linux window backend for the Auto path.
+    Prefer the session's native backend: a GNOME/KDE Wayland session exports
+    WAYLAND_DISPLAY (and DISPLAY too, via Xwayland). Native Wayland is the
+    actual compositor there — X11 means Xwayland, which carries interactive
+    resize/present limitations (swapchain reconfigure stalls; no sync-request
+    resize) — so Wayland wins whenever it is available. X11 is the fallback for
+    X11-only sessions.
+
+func (b DisplayBackend) String() string
+    String implements fmt.Stringer.
+
+type DisplayRefreshReporter interface {
+	// DisplayRefreshHz reports the current display refresh rate in Hz.
+	// 0 means unknown.
+	DisplayRefreshHz() float64
+}
+    DisplayRefreshReporter is optional; a Host implementing it reports the
+    display's real refresh rate so frame pacing uses the display's own
+    frequency instead of guessing. 0 = unknown (old compositor, probe failed);
+    the scheduler then keeps its nominal 60Hz floor. Thread-safe.
+
+type DragOffer struct {
+	Files []string
+	Data  map[string][]byte
+}
+    DragOffer describes an outbound drag payload (this window is the source).
+    Files are local paths, announced as text/uri-list; Data carries the raw
+    bytes per MIME type (an explicit Data["text/uri-list"] overrides the
+    Files-derived list). Empty offer (no Files, no Data) is rejected.
+
+func (o DragOffer) MIMETypes() []string
+    MIMETypes lists the servable MIME types, uri-list first then the rest
+    sorted (deterministic Enter/offer order). Empty payloads are not announced,
+    so the set always matches OfferPayload keys. Empty when the offer is empty.
+
+func (o DragOffer) OfferPayload() map[string][]byte
+    OfferPayload resolves the servable bytes per MIME type: the uri-list slot
+    first (explicit Data wins over Files), then every other Data entry. Nil when
+    the offer is empty.
+
+func (o DragOffer) URIList() string
+    URIList encodes Files as a text/uri-list payload (file:// URLs, one per
+    line). An explicit Data["text/uri-list"] overrides it — see OfferPayload.
+
+type Event struct {
+	Type EventType
+
+	// Resize / Size (logical pixels).
+	Width  int
+	Height int
+	Scale  float64 // device pixel ratio; 0 means unchanged / unknown
+
+	// EventOccluded: true = fully obscured / minimized (stop rendering),
+	// false = visible again. (X11 VisibilityNotify; Wayland suspended state;
+	// Win32 WM_SHOWWINDOW; AppKit occlusionState.)
+	Occluded bool
+	// EventHidden: app-driven hide/show state (WindowController.Hide/Show;
+	// X11 + Wayland). true = the window content must be detached after the
+	// renderer stops; handled by the embedder like occlusion + surface
+	// detach.
+	Hidden bool
+
+	// Pointer (logical).
+	Pointer PointerKind
+	X, Y    float64
+	Button  int
+	ScrollX float64
+	ScrollY float64
+
+	// EventTouch: touch slot (≥ 1; mouse uses EventPointer, 0 = invalid).
+	// The phase rides in Pointer (Down/Move/Up/Cancel only); X/Y carry the
+	// position in logical px.
+	TouchID int
+
+	// EventStateChanged: derived minimized/maximized/fullscreen state.
+	Minimized  bool
+	Maximized  bool
+	Fullscreen bool
+
+	// EventMove: window top-left screen position in logical pixels (X11
+	// reports it; Wayland has no event and silently omits moves).
+	MoveX, MoveY int
+
+	// Key
+	KeyCode int
+	Rune    rune
+	Pressed bool
+	Repeat  bool // true = OS auto-repeat (backends set it; unset = single press)
+
+	// Focus / visibility (EventFocus)
+	Focused bool
+
+	// EventDrop: external files dropped onto the window (Wayland DnD;
+	// X11 XDND text/uri-list). Files holds absolute local paths
+	// (empty when the drop carried no text/uri-list payload).
+	Files []string
+	// EventDrop per-MIME payloads (MIME phase 2): raw bytes by offered
+	// type name (uri-list keeps its raw bytes too). Nil when the drop
+	// carried nothing usable; mirrors input.DragEvent.Data.
+	DropData map[string][]byte
+	// EventDragEnter / EventDragOver: offered MIME types (e.g. text/uri-list).
+	// Empty when the source announced none; mirrors input.DragEvent.MIMETypes.
+	MIMETypes []string
+
+	// IME (EventIME): pre-edit / commit / caret / delete-surrounding events from the input method.
+	IMEKind  int    // 0 = compose (pre-edit), 1 = commit, 2 = caret move, 3 = delete-surrounding
+	IMEText  string // compose pre-edit / commit text
+	IMEStart int    // affected range start (bytes); -1 = whole buffer
+	IMEEnd   int    // affected range end (bytes); -1 = whole buffer
+
+	// EventDeviceAdded / EventDeviceRemoved: hot-plugged device family +
+	// OS name (empty = unknown).
+	DeviceClass DeviceClass
+	DeviceName  string
+
+	// EventStylus: pen sample.
+	StylusID       int
+	StylusPressure float64
+	StylusTiltX    float64
+	StylusTiltY    float64
+	StylusEraser   bool
+
+	ModShift   bool
+	ModControl bool
+	ModAlt     bool
+	ModMeta    bool
+}
+    Event is a platform input or lifecycle event. Pointer coordinates are in
+    logical pixels, origin top-left (Y-down).
+
+type EventType int
+    EventType classifies platform events.
+
+const (
+	EventNone EventType = iota
+	// EventCloseRequested asks the app whether the window may close (title-bar
+	// ✕, WM_DELETE_WINDOW, xdg close). The window stays alive unless the app
+	// calls Window.Close; only after that (or native destruction) does
+	// EventClose fire.
+	EventCloseRequested
+	// EventClose reports that the window is already destroyed/unmapped.
+	// No further events will arrive for it.
+	EventClose
+	EventResize
+	EventExpose
+	// EventResizeSync: the windowing system requested a frame via the resize
+	// sync protocol (_NET_WM_SYNC_REQUEST). The app must schedule a frame;
+	// once presented it is expected to advance the sync counter (FrameSync).
+	EventResizeSync
+	EventMove     // window moved on screen (X11; Wayland has no event — see X/Y doc)
+	EventScale    // device pixel ratio changed (multi-monitor drag / OS scaling)
+	EventOccluded // window fully occluded or minimized (see Event.Occluded; stop rendering to save power)
+	EventPointer
+	EventKey
+	EventIME   // input-method session event (compose/commit/caret)
+	EventFocus // keyboard focus changed (see Event.Focused)
+	EventWake  // WakeUp from another goroutine (kept before the wayland-only
+	// additions below so its numeric value never shifts across backends)
+	EventDrop   // external file(s) dropped onto the window (see Event.Files)
+	EventHidden // app-driven hide/show (see Event.Hidden; WindowController.Hide/Show)
+	// EventFramePresented: the compositor/display server has shown a frame
+	// committed by this client (Wayland wl_surface.frame callback; X11 XPresent
+	// PresentCompleteNotify). Drives frame pacing (scheduler.NoteFramePresented);
+	// only arrives when a RequestFrameNotify was outstanding (ENGINE_FRAME_PRESENT_STANDARD.md).
+	EventFramePresented
+	// EventStateChanged: derived minimized/maximized/fullscreen state
+	// (X11 _NET_WM_STATE/WM_STATE readback; Wayland configure states).
+	EventStateChanged
+	// EventTouch: multi-touch slot sample (phase in Pointer: Down/Move/Up/
+	// Cancel only; X/Y carry the position; TouchID carries the slot).
+	EventTouch
+	// EventDragEnter / EventDragOver report a drag hovering the window
+	// (X11 XDND Enter/Position; Wayland wl_data_device enter/motion).
+	// X/Y carry the position in logical px; MIMETypes carries the offered types.
+	EventDragEnter
+	EventDragOver
+	// EventDragLeave reports the drag left the window (X11 XDND Leave;
+	// Wayland wl_data_device leave). No payload.
+	EventDragLeave
+	// EventDeviceAdded / EventDeviceRemoved report hot-plug (X11 XI
+	// hierarchy; Wayland seat capabilities diff). DeviceClass carries
+	// the family, DeviceName the OS name (empty = unknown).
+	EventDeviceAdded
+	EventDeviceRemoved
+	// EventStylus: pen sample.
+	// Phase rides in Pointer (Down/Move/Up only); X/Y carry the position in
+	// logical px; StylusID is the pen tool slot (0 = primary pen).
+	// StylusPressure is 0–1 (backend fills 1 when the device has no pressure
+	// sensor); StylusTiltX/Y are degrees (0 = unknown); StylusEraser marks
+	// the eraser tool. Appended at the end so earlier values never shift.
+	EventStylus
+	// ModShift/ModControl/ModAlt/ModMeta carry the new held state.
+	// Appended at the end so earlier values never shift.
+	EventModifiersChanged
+)
+func (t EventType) String() string
+    String implements fmt.Stringer.
+
+type FieldSnapshot struct {
+	Rect Rect
+	Type ContentType
+}
+    FieldSnapshot is everything Enable needs about the focused field.
+
+type FrameNotifier interface {
+	// RequestFrameNotify asks for the next "frame presented" notification.
+	// Call after a frame has been submitted for presentation. The notice
+	// arrives as an EventFramePresented from WaitEvents. While a request is
+	// already in flight the call is a no-op.
+	RequestFrameNotify()
+}
+    FrameNotifier is the compositor "frame presented" notification abstraction.
+    A Host implementing it drives frame pacing from the display server's "a
+    frame you committed has been shown" notice instead of the client-side DRM
+    vblank fallback (ENGINE_FRAME_PRESENT_STANDARD.md 块2):
+      - Wayland: wl_surface.frame callback (compositor vblank, no client wait)
+      - X11: XPresent PresentCompleteNotify (X server display-complete notice)
+
+    The scheduler prefers FrameNotifier over VSyncWaiter and never starts the
+    DRM listener while one is present (single pacing source, no double stamp).
+
+func HostFrameNotifier(h Host) FrameNotifier
+    HostFrameNotifier returns h as FrameNotifier if implemented AND
+    the notification path is functional: hosts that also implement
+    NotifierAvailability must report true, so a no-op notifier (missing protocol
+    extension) does not suppress the VSyncWaiter fallback.
+
+type FrameSync interface {
+	// NotifyFrameDrawn is called after a frame has been submitted for
+	// presentation.
+	NotifyFrameDrawn()
+}
+    FrameSync is optional; a Host implementing it is notified after each
+    presented frame so the windowing system can advance its resize-sync state.
+    On X11 this is the _NET_WM_SYNC_REQUEST counter: without it the compositor
+    stretches stale content during interactive resize drags and the app's live
+    frames are never shown until the drag ends.
+
+type HiddenSurface interface {
+	// ApplyHiddenDetach unmaps the window by destroying its native surface
+	// stack (wayland: wl_surface + xdg_surface + xdg_toplevel + CSD — xdg has
+	// no unmap request, so hide = destroy, show = recreate, GTK parity). The
+	// embedder must close the GPU present target (which owns the wgpu WSI
+	// surface backed by the same wl_surface) BEFORE calling this — a detach
+	// while a present is in flight corrupts the swapchain (present hangs).
+	ApplyHiddenDetach()
+}
+    HiddenSurface is optional; a Host implementing it lets the embedder tell
+    the platform to detach the window's content surface (attach NULL) once the
+    renderer has fully stopped. On Wayland the content surface is owned by the
+    renderer: detaching it while a present is in flight corrupts the swapchain,
+    so the detach must happen only after frame production has drained — which
+    only the embedder can observe.
+
+type Host interface {
+	// NativeSurface returns current GPU surface handles (may be zero before map).
+	NativeSurface() NativeSurface
+	// Size returns client area in logical pixels.
+	Size() (w, h int)
+	// ScaleFactor returns device pixel ratio (≥ 1 when known; default 1).
+	ScaleFactor() float64
+	// WaitEvents blocks until events or timeout. timeout < 0 means infinite
+	// (IDLE). timeout == 0 means non-blocking poll.
+	WaitEvents(timeout time.Duration) []Event
+	// WakeUp unblocks WaitEvents (from any goroutine).
+	WakeUp()
+}
+    Host is the cross-platform window/input SPI. Implementations must not call
+    into ui embedder re-entrantly from WaitEvents without care (prefer queue +
+    WakeUp).
+
+type IME interface {
+	// EnableIME opens an input session for the focused field at rect
+	// (logical px, Y-down). App → IME.
+	EnableIME(rect Rect)
+	// UpdateCursorRect moves the IME anchor to the current caret position
+	// (logical px, window-relative). Candidate windows anchor here; call it
+	// whenever the caret moves or the field scrolls. App → IME.
+	UpdateCursorRect(rect Rect)
+	// SetContentType declares the editing purpose for subsequent state
+	// commits (digits/email/password…). Backends without purpose support
+	// ignore it. App → IME.
+	SetContentType(purpose ContentPurpose)
+	// SetComposing pushes surrounding text + caret to the IME (App → IME).
+	// Despite the name, it does NOT set the IME's composing flag; composing
+	// is driven IME → App via UpdatePreeditText/CommitText signals.
+	SetComposing(text string, cursor int)
+	// Commit accepts the current composition as committed text.
+	Commit(text string)
+	// DisableIME ends the input session (focus left the field).
+	DisableIME()
+}
+    IME is the optional cross-platform input-method capability. A backend that
+    does not support IME leaves Window.IME() nil; the UI layer silently degrades
+    to plain keyboard text (same pattern as the optional VSyncWaiter).
+
+    Lifecycle (App → IME, cf B11): when a text field gains focus
+    the app calls EnableIME with the cursor/field rect (logical px,
+    window-relative); on blur it calls DisableIME. The app drives
+    SetComposing/SetContentType/UpdateCursorRect (surrounding/caret) to the IME;
+    the IME drives preedit/commit/delete back via platform.EventIME →
+    input.Event IME (IME → App). Directions are opposite.
+
+type IMEWantsSurrounding interface {
+	WantsSurrounding() bool
+}
+    IMEWantsSurrounding is an optional IME extension: when implemented and
+    true, the embedder pushes surrounding text on every edit (X11 D-Bus
+    SetSurroundingText). Wayland's retrieve-surrounding is on-demand, so its
+    implementation returns false and the push stays opt-in.
+
+type ImeSegment struct {
+	Start, End int
+	Attr       uint8
+}
+    ImeSegment mirrors ui/input.Segment for platform layer (avoid import cycle)
+    B9: Segments are currently parsed (DecodeIBusVariant/parseFcitxPreedit)
+    but only logged in handleSignal, not forwarded to the Editor/DrawPreedit.
+    Rich preedit styling (underline/highlight/selected) awaits a Segment-aware
+    IME event and DrawPreedit upgrade; until then this is intentional dead code
+    kept for debug.
+
+func DecodeIBusVariant(v dbus.Variant) (string, []ImeSegment)
+
+func IBusAttrsToSegments(text string, attrs []struct {
+	Type  uint32
+	Value uint32
+	Start uint32
+	End   uint32
+}) []ImeSegment
+
+type NativeSurface struct {
+	Kind    PlatformKind
+	Display uintptr // X11 Display* / Wayland wl_display*; often 0 on Win/mac
+	Window  uintptr // X11 Window / HWND / layer or view pointer
+}
+    NativeSurface holds OS handles required to create a GPU present surface.
+    The host creates the window; the engine receives handles only (no window
+    toolkit lock-in).
+
+type NotifierAvailability interface {
+	// FrameNotifyAvailable reports whether RequestFrameNotify will actually
+	// deliver EventFramePresented notices.
+	FrameNotifyAvailable() bool
+}
+    NotifierAvailability lets a Host report whether its frame-presented
+    notification path is actually functional (optional interface). A Host whose
+    underlying protocol extension is missing (e.g. X11 without libXpresent)
+    must return false so the scheduler falls back to the VSyncWaiter listener
+    instead of trusting a no-op notifier — otherwise pacing silently degrades to
+    software-interval guessing with ms-level jitter (visible scroll judder).
+
+type Options struct {
+	// Width/Height are the initial client area in logical pixels.
+	Width, Height int
+	// Title is the window title.
+	Title string
+	// Backend selects the display backend. DisplayAuto uses detection.
+	Backend DisplayBackend
+	// Decorations enables the standard window frame (title bar + borders).
+	// false (default) is a frameless plain window; pass true for standard
+	// decorations (X11 WM frame / Wayland client-side decorations).
+	//   - X11: false sends _MOTIF_WM_HINTS to hide the WM frame.
+	//   - Wayland: GNOME provides NO server-side decorations; true draws a
+	//     client-side title bar + borders (CSD) via wl_subsurface.
+	Decorations bool
+	// Min/Max size constraints (logical px; 0 = unconstrained).
+	MinWidth, MinHeight int
+	MaxWidth, MaxHeight int
+	// Position is the desired initial window position (X11 only; Wayland
+	// protocol forbids client-side positioning). nil = WM decides.
+	Position *Point
+	// Fullscreen requests the window start fullscreen (X11 EWMH hot zone /
+	// Wayland is a request that the compositor may defer until configure).
+	Fullscreen bool
+	// Cursor is the initial cursor (default CursorDefault).
+	Cursor Cursor
+	// Resizable controls whether the window can be resized by the user
+	// (X11 size hints: 0 = fixed; Wayland xdg_toplevel has no request —
+	// enforced via min==max when false).
+	Resizable bool
+	// IconName is the application icon / app-id name shown by the window
+	// manager (taskbar icon). Wayland: xdg_toplevel.set_app_id (the
+	// compositor matches it against installed .desktop files to resolve
+	// the icon); X11/Win32/AppKit: not wired yet ("" = backend default).
+	IconName string
+	// Maximized requests the window start maximized (X11 EWMH initial
+	// _NET_WM_STATE_MAXIMIZED; Wayland set_maximized before first commit;
+	// Win32 SW_MAXIMIZE; AppKit zoom:).
+	Maximized bool
+	// Visible controls the initial window visibility.
+	// nil = true (default, visible on open).
+	//   - X11: map control; Wayland: hideNative detaches the surface stack
+	//     (window opens hidden);
+	//   - Win32 SW_SHOW/SW_HIDE; AppKit orderFront:/orderOut:.
+	Visible *bool
+}
+    Options configures Open (framework-created windows).
+
+type PlatformKind int
+    PlatformKind identifies the window system used for NativeSurface handles.
+
+const (
+	// PlatformX11 is Linux Xlib (Display* + Window).
+	PlatformX11 PlatformKind = iota
+	// PlatformWayland is Linux Wayland (wl_display* + wl_surface*).
+	PlatformWayland
+	// PlatformWin32 is Windows (HWND in Window; Display may be 0 or HINSTANCE).
+	PlatformWin32
+	// PlatformAppKit is macOS (CAMetalLayer* / NSView* in Window per gpu binding).
+	PlatformAppKit
+)
+const PlatformNone PlatformKind = -1
+    PlatformNone is the unset PlatformKind (not a real window system).
+
+func (k PlatformKind) String() string
+    String implements fmt.Stringer.
+
+type Point struct {
+	X, Y int
+}
+    Point is a window position in logical pixels (X11 screen coords).
+
+type PointerKind int
+    PointerKind classifies pointer events.
+
+const (
+	PointerMove PointerKind = iota
+	PointerDown
+	PointerUp
+	PointerScroll
+	PointerEnter  // pointer (or window-level grab) entered the window
+	PointerLeave  // pointer left the window
+	PointerCancel // pointer sequence aborted (grab lost), not a release
+)
+func (k PointerKind) String() string
+    String implements fmt.Stringer.
+
+type Rect struct {
+	X, Y, W, H float64
+}
+    Rect is a rectangle in logical pixels (Y-down), used for IME cursor rects.
+
+type StubHost struct {
+	// Has unexported fields.
+}
+    StubHost is an in-memory Host for unit tests (no OS window).
+
+func NewStubHost(w, h int) *StubHost
+    NewStubHost creates a test host with the given logical size.
+
+func (h *StubHost) NativeSurface() NativeSurface
+    NativeSurface implements Host.
+
+func (h *StubHost) Push(ev ...Event)
+    Push injects events for the next WaitEvents.
+
+func (h *StubHost) ScaleFactor() float64
+    ScaleFactor implements Host.
+
+func (h *StubHost) SetNativeSurface(ns NativeSurface)
+    SetNativeSurface overrides handles (tests).
+
+func (h *StubHost) SetSize(w, hgt int)
+    SetSize updates logical size.
+
+func (h *StubHost) Size() (int, int)
+    Size implements Host.
+
+func (h *StubHost) WaitEvents(timeout time.Duration) []Event
+    WaitEvents implements Host.
+
+func (h *StubHost) WakeUp()
+    WakeUp implements Host.
+
+type SurfacePresenter interface {
+	// OnSurfaceResized reports that the render surface now serves buffers
+	// of logicalW×logicalH and the next commit carries one of them.
+	OnSurfaceResized(logicalW, logicalH int)
+}
+    SurfacePresenter is optional; a Host implementing it is notified as soon
+    as the renderer's present surface (swapchain) has been reconfigured to
+    a new logical size — before the first buffer at that size is committed.
+    The Wayland host uses the notification to declare xdg window geometry in the
+    same wire batch as the new-size buffer: declaring a geometry larger than the
+    current surface makes mutter cache negative frame extents, which corrupt
+    maximize/unmaximize restore size handling. The callback runs on the raster
+    thread; implementations must not block on UI-thread state.
+
+type VSyncWaiter interface {
+	// WaitVSync blocks until the next vertical blank (or returns error).
+	WaitVSync() error
+}
+    VSyncWaiter is optional; when provided by a Host that implements it,
+    the scheduler prefers true display timing over 16.67ms fallback.
+
+func HostVSync(h Host) VSyncWaiter
+    HostVSync returns h as VSyncWaiter if implemented.
+
+type Window struct {
+	// Has unexported fields.
+}
+    Window is the unified L0 platform window: native handles, the event pump
+    (Host), and optional IME/Clipboard capabilities discovered at bind time.
+
+    Create via Open (framework creates the window) or Adopt (bind an existing
+    native surface). The returned Window is already wired: Host.WaitEvents pumps
+    native events; PipelineApp / application layers consume them without any
+    per-platform code.
+
+func Adopt(ns NativeSurface) (*Window, error)
+    Adopt binds an existing native surface (embedding scenario: the host created
+    the window and passes handles in). The backend must recognize the handles;
+    otherwise it returns an error. Adopted windows are also Close-able (the
+    backend decides whether Close destroys the foreign window or just detaches).
+
+func Open(opts Options) (*Window, error)
+    Open creates a native window through the registered backend for the
+    requested (or detected) display backend. The window is mapped and its Host
+    event pump is ready; the caller must Close it.
+
+    On Linux the Auto path uses DetectDisplayBackend (X11 first when DISPLAY is
+    set, else native Wayland). Non-Linux stubs return an error until the backend
+    is implemented.
+
+func WrapHost(host Host) *Window
+    WrapHost wraps an already-implemented Host into a Window, using the host's
+    native surface kind. No capability probing (IME/Clipboard/Controls stay
+    nil). Useful for tests and embedding hosts that already implement Host.
+
+func (w *Window) Backend() DisplayBackend
+    Backend returns the display backend backing this window (DisplayAuto when
+    unknown/None).
+
+func (w *Window) Clipboard() Clipboard
+    Clipboard returns the clipboard capability, or nil when unsupported.
+
+func (w *Window) Close()
+    Close tears the window down. For created windows it destroys the native
+    window; for adopted windows it detaches (backend-dependent). Safe to call
+    multiple times. Callers must close the GPU PresentTarget first (same order
+    as the existing example discipline).
+
+func (w *Window) Closed() bool
+    Closed reports whether Close has been called.
+
+func (w *Window) Controls() WindowController
+    Controls returns the window-control SPI (title/size/state/cursor ops).
+    Returns nil when the backend does not support runtime window control;
+    callers must nil-check.
+
+func (w *Window) Host() Host
+    Host returns the window's Host (event pump / size / scale). Never nil for a
+    successfully opened/adopted window.
+
+func (w *Window) IME() IME
+    IME returns the input-method capability, or nil when the backend does not
+    support IME. Callers must nil-check.
+
+func (w *Window) Kind() PlatformKind
+    Kind returns the platform kind.
+
+type WindowController interface {
+	// Title returns the current window title.
+	Title() string
+	// SetTitle updates the window title.
+	SetTitle(t string)
+
+	// Size returns the client area in logical pixels.
+	Size() (w, h int)
+	// SetSize requests a new client area (X11: immediate resize; Wayland:
+	// a request routed through size hints — the compositor confirms with a
+	// configure event, so Size() reflects it after the next EventResize).
+	SetSize(w, h int)
+
+	// SetMinSize / SetMaxSize set size constraints (0 = unconstrained).
+	SetMinSize(w, h int)
+	SetMaxSize(w, h int)
+
+	// Resizable controls whether the user can resize the window.
+	// X11: size hints lock (min==max) / unlock; Wayland: same via xdg
+	// min/max requests. Query returns the effective state.
+	SetResizable(r bool)
+	IsResizable() bool
+
+	// SetDecorations toggles system/title-bar chrome at runtime.
+	//   - X11: _MOTIF_WM_HINTS decoration switch.
+	//   - Wayland: creation-time CSD cannot be rebuilt cheaply → ErrUnsupported.
+	// Query returns the effective decoration state (false = frameless).
+	SetDecorations(dec bool) error
+	IsDecorated() bool
+
+	// SetIgnoreCursorEvents makes the window pass pointer events through
+	// (input-transparent; used for overlays / click-through panels).
+	//   - Wayland: wl_surface.set_input_region empty region.
+	//   - X11: XShape input region empty → ErrUnsupported until landed.
+	SetIgnoreCursorEvents(ignore bool) error
+
+	// Position returns the window position in screen coords. ok=false when
+	// the backend cannot report it (Wayland).
+	Position() (x, y int, ok bool)
+	// SetPosition moves the window (X11 only). ErrUnsupported on Wayland.
+	SetPosition(x, y int) error
+
+	// Minimize iconifies the window. IsMinimized queries the state
+	// (X11: WM state IconicState; Wayland: set_minimized, query via
+	// configure; Win32 SW_MINIMIZE/IsIconic; AppKit miniaturize:/
+	// isMiniaturized).
+	Minimize()
+	IsMinimized() bool
+	// Maximize / Unmaximize toggle the maximized state.
+	Maximize()
+	Unmaximize()
+	IsMaximized() bool
+
+	// RequestMove starts an interactive window move from the current pointer
+	// position (required for frameless windows; X11 _NET_WM_MOVERESIZE,
+	// Wayland xdg move).
+	RequestMove() error
+	// RequestResize starts an interactive resize of the given edge from the
+	// current pointer position (frameless windows; X11 _NET_WM_MOVERESIZE,
+	// Wayland xdg resize).
+	RequestResize(edge WindowEdge) error
+
+	// SetFullscreen enters (true) or exits (false) fullscreen.
+	SetFullscreen(fs bool)
+	IsFullscreen() bool
+
+	// Show / Hide map / unmap the window (X11; Wayland destroys/recreates the surface stack and emits EventHidden).
+	Show() error
+	Hide() error
+	IsVisible() bool
+
+	// Focus requests keyboard focus (X11). ErrUnsupported on Wayland.
+	Focus() error
+	IsFocused() bool
+
+	// SetAlwaysOnTop pins the window above others (X11 _NET_WM_STATE_ABOVE).
+	// ErrUnsupported on Wayland.
+	SetAlwaysOnTop(on bool) error
+
+	// SetCursor changes the pointer cursor for the window.
+	SetCursor(c Cursor)
+
+	// StartDrag begins an outbound drag with this window as the source.
+	// The payload is served to the drop target until the drag ends
+	// (completion is silent — no new event, the source state just clears).
+	//   - Wayland: wl_data_device.start_drag with the last button serial
+	//     (call from a press handler; serial 0 → ErrUnsupported).
+	//   - X11: pointer-snapshot drop onto the XdndAware window under the
+	//     pointer (no grab/modal yet — the drop fires immediately).
+	StartDrag(offer DragOffer) error
+	// StartDragTo drops the payload onto an explicit target window now
+	// (programmatic drop, no pointer grab — dual-window pull + tests).
+	//   - X11: XDND Enter/Position/Drop to the target, served via
+	//     XdndSelection (owns the selection for the drag duration).
+	//   - Wayland: the protocol cannot address a window → ErrUnsupported
+	//     (use StartDrag, the compositor routes by pointer).
+	StartDragTo(target *Window, offer DragOffer) error
+}
+    WindowController is the platform window-control SPI. Each backend
+    (X11/Wayland/Win32/AppKit) implements it; the upper layer (ui/application
+    Window) exposes the same surface uniformly. The interface is deliberately
+    platform-neutral (ints/strings/bools only — no HWND/Display/NSView types),
+    so the same API drives all four backends.
+
+    Not every operation exists on every platform. Operations that are
+    fundamentally impossible on a protocol return ErrUnsupported (Wayland:
+    SetPosition/Focus/SetAlwaysOnTop/SetDecorations). Queries return zero
+    values when the backend cannot answer. See docs/ENGINE_WINDOW_API.md for the
+    per-platform column.
+
+type WindowEdge int
+    WindowEdge identifies a window edge/corner for RequestResize. Nine values,
+    matching native resize directions on every platform.
+
+const (
+	WindowEdgeNone WindowEdge = iota
+	WindowEdgeTop
+	WindowEdgeBottom
+	WindowEdgeLeft
+	WindowEdgeRight
+	WindowEdgeTopLeft
+	WindowEdgeTopRight
+	WindowEdgeBottomLeft
+	WindowEdgeBottomRight
+)
+func (e WindowEdge) String() string
+    String implements fmt.Stringer.
+

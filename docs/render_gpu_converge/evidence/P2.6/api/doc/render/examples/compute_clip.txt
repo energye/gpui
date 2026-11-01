@@ -1,0 +1,20 @@
+Command compute_clip is a visual demo exercising Vello compute-pipeline clip
+layers.
+
+The scene is described once as SceneElements (gpu.RenderSceneAuto): the engine
+automatically renders it through the GPU compute pipeline when available and
+falls back to the CPU reference otherwise — no manual CPU/GPU branching in the
+example.
+
+Scene layout:
+  - White background
+  - Green rectangle (full canvas)
+  - BeginClip: rounded-rectangle-approximated clip (centered, ~200x150)
+  - 8 colored circles inside clip (clipped to the rounded rect)
+  - Blue rectangle inside clip (partially clipped)
+  - EndClip
+  - Yellow star outside clip (fully visible, NOT clipped)
+
+Output:
+
+    tmp/compute_clip.png — rendered image (selected backend)

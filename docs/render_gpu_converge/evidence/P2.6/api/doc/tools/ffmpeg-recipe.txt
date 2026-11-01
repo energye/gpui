@@ -1,0 +1,7 @@
+Command ffmpeg-recipe 打印 gpui 自建单文件库的两档配方（基础版 base / 高级版 full）。
+
+大白话：编库的开关太多，散在脚本里容易改错，这里是唯一真源。 基础版只管看片（解码+拆盒+常用滤镜），高级版在基础版上加写文件 （复用+编码+烧字）。两档都不碰
+GPL（x264/x265/fdk 一个不开）， 许可保持 LGPL 2.1。实际编译在 docker 和 GitHub Actions 里跑，
+本文件只管配方字符串，拼好给脚本用。
+
+用法：go run ./tools/ffmpeg-recipe -variant base|full -target linux-x64

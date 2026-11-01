@@ -1,0 +1,9 @@
+Command ui_l1_spinner is the L1 P3 gate: spinner on RepaintBoundary + JSON
+metrics.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    go run ./examples/ui_l1_spinner
+
+Auto window backend: Wayland or X11 (ui/platform.Open; force via
+platform.Options.Backend). Duration: default 60s; override with RUN_SECONDS.
+P0 closeout: RSS/CPU process samples in JSON (rss_*_kb, cpu_pct_avg).

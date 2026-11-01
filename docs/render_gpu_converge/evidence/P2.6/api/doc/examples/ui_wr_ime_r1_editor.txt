@@ -1,0 +1,25 @@
+Evidence helpers for ui_wr_ime_r1_editor (ime_r1 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_wr_ime_r1_editor is the IME R1 real-window: Editor four-tuple.
+人工手动验证：单元测试自动，真窗必须人手敲键盘/鼠标来验功能。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    go run ./examples/ui_wr_ime_r1_editor                              # manual：手打验证
+    go run ./examples/ui_wr_ime_r1_editor -manual-seconds 15
+    RUN_SECONDS=5 go run ./examples/ui_wr_ime_r1_editor -auto-only     # gate：三证据
+
+Window: 1200x800. manual 手动关闭（点击窗口 X）；gate 5s 自动退出。 布局：左=中文族测试清单 |
+中=上R1能力说明+下人工真实测试 | 右=动态不规则边框
+
+Evidence (U21): gate mode freezes the animated parts (caret blink never toggles
+— editors hold their initial caret state, the right-panel shape is pinned at
+t=0, the phase label is static) so the snapshot of the initial editor contents
+is bit-stable; pixel probes pin the four font-size editors, the mixed-run line,
+the separator and the static panels. Manual mode keeps blinking/shaping for
+human verification and does not assert pixels.

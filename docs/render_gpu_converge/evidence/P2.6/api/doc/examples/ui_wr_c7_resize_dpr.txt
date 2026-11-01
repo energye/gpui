@@ -1,0 +1,29 @@
+Command ui_wr_c7_resize_dpr is the W2 C7 combined real-window: R11+R19+R3 集成 —
+两次尺寸/DPR 失效波 + 1px 对齐 + 嵌套 boundary。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_wr_c7_resize_dpr
+
+Window: 1200x800. RUN_SECONDS>=15 (U16, §2.5: C7 关闭用 15s). GPU window required.
+
+集成场景（§3.1.2 C7 行）：
+  - R11：区 A 两次尺寸变更之一（~3s，Align 布局驱动 FixedWidth/Height + MarkNeedsLayout → 缓存失效 →
+    一波 rerecord → 回 skip）；区 B DPR 全量失效（~6s InvalidateBoundaryCache → 一波 rerecord
+    → 回 skip）。
+  - R19：SnapLine/SnapRect 1px 网格（snapped crisp vs raw 对比），DPR/尺寸变更后重画， 收尾
+    SnapCoord 网格对齐断言。
+  - R3：3 层嵌套 boundary（outer→mid→inner）+ 内层 hot 每帧变（内脏不外溢， outer/mid skip）；R3 内层
+    hot 在失效波窗口（3–7s）暂停，波检测干净（steadyRR==0）。
+
+GateOptions = ∪(各 R 门禁)：cache_invalidations>=1 + boundary_rerecord>=1
++ boundary_skip>=1（R11）、snap 网格对齐（R19）、boundary_skip>=3 +
+boundary_rerecord>=2（R3）、持续 tick fps>=55。自定义：wave1>=1（尺寸波）、 wave2>=1（DPR
+波）、steadyRR==0（回 skip）。
+
+PhaseClock（§3.1.1：三阶段同时影响多能力）：
+  - Steady（0–3s）：HOT 每帧变 + R3 内层 hot 每帧变（inner rerecord、outer/mid skip）。
+  - Resize-Spike（3–3.8s）：区 A 尺寸 190×140→250×170（布局驱动）→ rerecord 波； R19 grid
+    重画；R3 内层 hot 暂停（波窗口干净）。
+  - DPR-Spike（6–6.8s）：app.InvalidateBoundaryCache() 全量失效 → rerecord 波； R19 grid
+    重画。
+  - Recover（8.5s+）：R3 内层 hot 恢复每帧变，skip 持续累积。

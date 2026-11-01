@@ -1,0 +1,17 @@
+Command ui_wr_c9_stress_cache is the W6 C9 combined real window: R14+R3+R7 集成 —
+大量 boundary + 虚拟列表滚动 + 缓存预算压测。
+
+§3 C9 thesis: 缓存+虚拟化压力下不泄漏 — 800 行虚拟列表持续滚动不断产生 新缓存键（R7），3 层嵌套 boundary
+与密集静态面板共存（R3），纹理 LRU 显式 预算封住跨帧累积（R14）：entries 触顶且 ≤ budget、evictions 单调、bind≪N、
+RSS slope 平、画面始终正确（像素探针/Golden）。
+
+Gates (§3 C9 行 + §2.5 预算/压力 档): texture_entries 触顶且 ≤ budget, cache_evictions
+≥3 且严格单调, bind≪item_count, scroll 有复用观测, rss_slope_steady_kb_per_min
+≤30000（valid=true 才判）, cpu_pct_avg ≤85, retained policy, fps_interval ≥55,
+p95 ≤22ms, hitch ≤5/min, CPU 非双 0, 像素断言 3/3, Golden 静态掩码零容差（次跑起）。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=60 go run ./examples/ui_wr_c9_stress_cache
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 60 (§2.5 预算/ 压力 档).
+No RUN_SECONDS → interactive loop (pixel evidence off).

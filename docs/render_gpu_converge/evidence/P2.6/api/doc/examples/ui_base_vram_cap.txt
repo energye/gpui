@@ -1,0 +1,42 @@
+Pixel/Golden evidence for ui_base_vram_cap.
+
+Same rules as the other base windows: gate snapshots are GPU readback PNGs (not
+window captures), probes are sampled in logical coordinates, and the Golden
+compare is bitwise over the content mask (HUD band excluded).
+
+Command ui_base_vram_cap is matrix row 17: VRAM budget pressure and
+device-recovery resource discipline (RENDER_BASE_RESOURCE_MATRIX §2 row 17).
+
+Mode A (default) — budget-refusal ladder: windows are OPENED INCREMENTALLY (2 ->
+4 -> 8) because the shared-budget fair share divides by the live window count
+at open time; each window carries 160 static repaint-boundary cards, so once the
+shared fair share (budget / windows / 4) drops below the per-window working set
+the picture-texture cache must refuse automatic growth and re-record instead.
+The gate asserts refusals actually fire at 4 and 8 windows, correctness survives
+them (bitwise Golden), and the process VRAM ledger never crosses the waterline.
+
+Mode B (-oom-probe) — OOM injection recovery: one window, light scene, run with
+GPUI_FAULT_OOM="after:1" (set by the harness). The probe parses the same env,
+samples hal.VramLiveBytes() around the injected submit failure and asserts the
+app survives (no 3-frame persistent-OOM quit) and the ledger returns to its
+pre-injection level: whatever the failed present path allocated must be refunded
+(资源谁建谁放).
+
+Mode A is a multi-window batch: run it in the isolated Wayland session (AGENTS
+GPU safety; desktop forbids 8-window batches). Mode B is a single window and may
+run on the desktop.
+
+    # mode A (isolated Wayland session)
+    GPUI_RULER_BACKEND=x11 RUN_SECONDS=60 go run ./examples/ui_base_vram_cap -auto-only
+    # mode B (desktop ok)
+    GPUI_FAULT_OOM=180:1 RUN_SECONDS=15 go run ./examples/ui_base_vram_cap -oom-probe -auto-only
+
+Scene for ui_base_vram_cap: cascading repaint-boundary cards.
+
+Every card is its own RepaintBoundary, so the retained packet carries one
+cacheable picture layer per card and the picture-texture cache working set
+(cards + headroom) is what the shared-budget fair share must refuse past. Cards
+are static and deterministic: once recorded they stay cached until the budget
+forces an eviction, so the only re-record churn visible in a phase is churn the
+refusal path itself caused. The HUD band (top 40px) is the only animated region
+and is excluded from the Golden mask.

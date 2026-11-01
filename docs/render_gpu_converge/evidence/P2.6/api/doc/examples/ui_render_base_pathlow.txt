@@ -1,0 +1,12 @@
+Command ui_render_base_pathlow is the A-group real window for the path
+low-frequency APIs: FillPreserve / StrokePreserve / GetCurrentPoint
+(RENDER_FEATURE_COVERAGE §1 #3 / §3.1 item 1).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_pathlow   # gate run
+    go run ./examples/ui_render_base_pathlow                 # manual: lives until window close
+    go run ./examples/ui_render_base_pathlow -auto-only      # gate mode: JSON + exit code
+
+Evidence: logical probes (path state across ops; exact current point in device
+space), 7 pixel probes on the GPU snapshot, and a bitwise golden over header +
+legend + the four cards.

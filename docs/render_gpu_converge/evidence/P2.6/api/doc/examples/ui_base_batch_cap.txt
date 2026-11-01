@@ -1,0 +1,37 @@
+Pixel/Golden evidence for ui_base_batch_cap.
+
+Rules match the other base windows: gate snapshots are GPU readback PNGs (not
+window captures), probes are sampled in logical coordinates, and the Golden
+compare is bitwise over the content mask (metric strip excluded).
+
+Command ui_base_batch_cap is matrix row 13: primitive/vector density ceiling.
+
+One full-window scene runs two ladders, 10s per rung:
+  - prims: 1k / 5k / 10k atlas quads (2.5D sprite base).
+  - vector: 100 / 300 / 600 curved paths, 24 cubic segments each (design-tool
+    base; FillPath re-tessellation is the cost).
+
+The window reports fps/p95/CPU per rung, "60fps max N*" per mode, and the
+process resource account. Three evidence: logical curve probes, pixel probes,
+bitwise Golden for both mode snapshots.
+
+Gate mode runs one unmeasured prewarm ladder first (raising every per-density
+GPU pool/heap high-water mark), then the measured ladder:
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=200 go run ./examples/ui_base_batch_cap -auto-only
+    go run ./examples/ui_base_batch_cap                     # manual: prewarm + repeat ladders
+    go run ./examples/ui_base_batch_cap -manual-seconds 200 # manual: timed
+
+Window: 1200x800. Gate needs 200s (two prewarm ladders + 6 x 10s rungs).
+
+Scene + measurement state for ui_base_batch_cap.
+
+Two primitive-dense modes share one window:
+  - prims: DrawAtlasEx with 1k/5k/10k atlas quads (2.5D sprite base).
+  - vector: FillPath with 100/300/600 curved paths (design-tool base,
+    re-tessellation cost is the measured work).
+
+The example only places/controls content; all drawing goes through the public
+render canvas API. Content is deterministic for a frozen phase so the Golden
+baseline can be bitwise.

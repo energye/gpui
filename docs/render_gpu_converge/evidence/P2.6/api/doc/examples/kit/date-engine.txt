@@ -1,0 +1,7 @@
+Command date-engine is the G4 real window: civil math plus panel grid.
+
+RUN_SECONDS=5 go run ./examples/kit/date-engine
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Correctness window
+(RUN_SECONDS>=5): slope_gate=off, fps gate on.

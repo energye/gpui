@@ -1,0 +1,76 @@
+package preview // import "github.com/energye/gpui/engine/preview"
+
+Package preview records WYSIWYG preview frames (level/particle) and breaks one
+frame down to named nodes for budget triage.
+
+The package is intentionally self-contained (stdlib only): callers hand one
+frame's pixels plus its node table to Record, which drops a JSON (node table)
+and a PNG (pixels) into the target directory. Breakdown then splits cost/pixel
+shares per node so the report can point at the node by name; nodes over budget
+carry OverBudget (red).
+
+CONSTANTS
+
+const MaxNameLen = 64
+    MaxNameLen caps frame and node names kept in one record.
+
+const MaxPixels = 32 << 20
+    MaxPixels caps one frame (32MP RGBA) so a bad size fails fast.
+
+
+FUNCTIONS
+
+func Record(dir string, f Frame) (jsonPath, pngPath string, err error)
+    Record drops one frame as <dir>/<name>.json (node table) and
+    <dir>/<name>.png (pixels), creating dir as needed. It returns both paths.
+    Empty dir or frame names are errors.
+
+func Text(rows []Row) string
+    Text renders rows for the manual preview: one line per node with cost,
+    shares, and the budget verdict. Over-budget rows wrap in red and end with
+    OVER so the eye (and the test) lands on the node by name.
+
+
+TYPES
+
+type Frame struct {
+	Name   string
+	Width  int
+	Height int
+	Pixels []byte // RGBA, len Width*Height*4.
+	Nodes  []Node
+}
+    Frame is one preview frame: RGBA pixels plus the node table. Pixels stay out
+    of JSON (the PNG file carries them); Nodes marshal.
+
+func NewFrame(name string, width, height int, px []byte, nodes []Node) (Frame, error)
+    NewFrame builds one frame. Bad sizes, pixel length mismatches, and bad nodes
+    are errors and store nothing.
+
+type Node struct {
+	Name   string  `json:"name"`
+	CostMs float64 `json:"cost_ms"`
+	Pixels int64   `json:"pixels"`
+}
+    Node is one cost/pixel contributor inside a frame, located by Name.
+
+func NewNode(name string, costMs float64, pixels int64) (Node, error)
+    NewNode builds one node. Empty or overlong names, negative cost, and
+    negative pixels are errors and store nothing.
+
+type Row struct {
+	Name       string  `json:"name"`
+	CostMs     float64 `json:"cost_ms"`
+	CostShare  float64 `json:"cost_share"`
+	PixelShare float64 `json:"pixel_share"`
+	OverBudget bool    `json:"over_budget"`
+}
+    Row is one node's share of a frame: cost and pixel fractions plus the
+    over-budget (red) flag. Exported so reports marshal directly.
+
+func Breakdown(f Frame, budgetMs float64) []Row
+    Breakdown splits one frame by node, sorted by cost descending (name breaks
+    ties) so index 0 names who eats the frame. CostShare divides by total
+    node cost and PixelShare by total node pixels (0 when empty). Nodes above
+    budgetMs carry OverBudget (red); budgetMs <= 0 disables it.
+

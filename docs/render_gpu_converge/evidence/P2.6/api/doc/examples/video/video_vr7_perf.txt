@@ -1,0 +1,14 @@
+Command video_vr7_perf is the VW3 VR7 real-window: 1080p looped 60s with
+zero-steady-alloc, three pooled buffers, bounded queue, memory cap and
+controllable GC.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=60 go run ./examples/video/video_vr7_perf
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 60). GPU window required. Left:
+the five startup gates on vr2_1080p.mp4 (demux 1920x1080, params, cold decode 5
+frames with monotonic stamps, variance non-black, estimate vs 512MB cap, three
+pools warmed). Right: the live 1080p picture looping the same clip for the whole
+run; every shown frame cycles the work pool (acquire-copy-release) for black
+detection, so pool_hit_pct is measured steady reuse, never faked. Bottom HUD:
+fps / decode / queue / memory four curves plus alloc/pool/GC.

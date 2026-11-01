@@ -1,0 +1,414 @@
+package parallel // import "github.com/energye/gpui/render/internal/parallel"
+
+Package parallel provides tile-based parallel rendering infrastructure for
+gogpu/gg.
+
+This package implements a tile-based rendering system where the canvas is
+divided into 64x64 pixel tiles that can be rendered independently in parallel.
+Key features:
+
+  - 64x64 tiles optimized for L1 cache (16KB per tile in RGBA)
+  - Tile pooling for memory reuse via sync.Pool
+  - Dirty region tracking for incremental rendering
+  - Lock-free operations where possible
+
+Thread safety: TileGrid operations are NOT thread-safe by default. Use external
+synchronization or the provided WorkerPool for parallel access.
+
+CONSTANTS
+
+const (
+	// TileWidth is the width of a tile in pixels.
+	// 64 pixels is optimal for work distribution (matches vello/tiny-skia).
+	TileWidth = 64
+
+	// TileHeight is the height of a tile in pixels.
+	// 64 pixels ensures 16KB per tile (fits L1 cache).
+	TileHeight = 64
+
+	// TilePixels is the total number of pixels in a full tile.
+	TilePixels = TileWidth * TileHeight
+
+	// TileBytes is the size of a full tile in bytes (RGBA = 4 bytes per pixel).
+	TileBytes = TilePixels * 4
+)
+    Tile size constants optimized for cache efficiency and work distribution.
+
+
+FUNCTIONS
+
+func PutTile(tile *Tile)
+    PutTile returns a tile to the default pool.
+
+
+TYPES
+
+type DirtyRegion struct {
+	// Has unexported fields.
+}
+    DirtyRegion tracks which tiles need redrawing using an atomic bitmap.
+    It provides lock-free, thread-safe operations for concurrent access.
+
+    The bitmap uses one bit per tile, packed into uint64 words (64 tiles
+    per word). All methods are safe for concurrent use without external
+    synchronization.
+
+    This is designed for incremental rendering where only changed regions need
+    to be redrawn, significantly improving performance for static content.
+
+func NewDirtyRegion(tilesX, tilesY int) *DirtyRegion
+    NewDirtyRegion creates a new dirty region tracker for the given tile grid
+    dimensions. All tiles start as clean (not dirty). Returns nil if dimensions
+    are invalid (zero or negative).
+
+func (d *DirtyRegion) Clear()
+    Clear clears all dirty flags (marks all tiles as clean).
+
+func (d *DirtyRegion) Count() int
+    Count returns the number of tiles marked as dirty.
+
+func (d *DirtyRegion) ForEachDirty(fn func(tx, ty int))
+    ForEachDirty calls fn for each dirty tile without clearing the dirty flags.
+    Tiles are visited in row-major order (left-to-right, top-to-bottom).
+
+func (d *DirtyRegion) GetAndClear() [][2]int
+    GetAndClear atomically retrieves all dirty tile coordinates and clears them.
+    Returns a slice of [2]int{tx, ty} for each dirty tile. This is the primary
+    method for processing dirty tiles during rendering.
+
+func (d *DirtyRegion) IsDirty(tx, ty int) bool
+    IsDirty returns true if the tile at (tx, ty) is marked as dirty. Returns
+    false for out-of-bounds coordinates.
+
+func (d *DirtyRegion) IsEmpty() bool
+    IsEmpty returns true if no tiles are marked as dirty.
+
+func (d *DirtyRegion) Mark(tx, ty int)
+    Mark marks a single tile as dirty (needs redrawing). This is a lock-free
+    O(1) operation using atomic OR. Does nothing if coordinates are out of
+    bounds.
+
+func (d *DirtyRegion) MarkAll()
+    MarkAll marks all tiles as dirty. This is useful when the entire content
+    needs to be redrawn.
+
+func (d *DirtyRegion) MarkRect(x, y, w, h int)
+    MarkRect marks all tiles that intersect the given pixel rectangle as dirty.
+    Coordinates are in pixel space, not tile space. Does nothing if the
+    rectangle is invalid or completely outside the grid.
+
+func (d *DirtyRegion) Resize(tilesX, tilesY int) *DirtyRegion
+    Resize creates a new dirty region with the specified dimensions. All tiles
+    in the new region are marked as dirty. Returns nil if dimensions are
+    invalid.
+
+    Note: This is not an in-place resize; it returns a new DirtyRegion.
+    For thread-safe usage, the caller should atomically swap the pointer.
+
+func (d *DirtyRegion) TilesX() int
+    TilesX returns the number of tiles horizontally.
+
+func (d *DirtyRegion) TilesY() int
+    TilesY returns the number of tiles vertically.
+
+func (d *DirtyRegion) TotalTiles() int
+    TotalTiles returns the total number of tiles in the region.
+
+type ParallelRasterizer struct {
+	// Has unexported fields.
+}
+    ParallelRasterizer renders to tiles in parallel using WorkerPool.
+
+    It divides the canvas into 64x64 pixel tiles that can be rendered
+    independently and in parallel. This is the primary entry point for parallel
+    rendering operations.
+
+    Thread safety: ParallelRasterizer methods are safe for concurrent use after
+    initialization. The internal WorkerPool handles synchronization.
+
+func NewParallelRasterizer(width, height int) *ParallelRasterizer
+    NewParallelRasterizer creates a new parallel rasterizer for the given
+    dimensions. It initializes a TileGrid and WorkerPool with GOMAXPROCS
+    workers. Returns nil if width or height is <= 0.
+
+func NewParallelRasterizerWithWorkers(width, height, workers int) *ParallelRasterizer
+    NewParallelRasterizerWithWorkers creates a parallel rasterizer with a
+    specific worker count. If workers <= 0, GOMAXPROCS is used. Returns nil if
+    width or height is <= 0.
+
+func (pr *ParallelRasterizer) Clear(c color.Color)
+    Clear fills all tiles with the specified color in parallel.
+
+func (pr *ParallelRasterizer) ClearDirty()
+    ClearDirty resets the dirty flag on all tiles.
+
+func (pr *ParallelRasterizer) Close()
+    Close releases all resources. The rasterizer should not be used after Close
+    is called.
+
+func (pr *ParallelRasterizer) Composite(dst []byte, stride int)
+    Composite copies all tile data to a destination buffer in row-major RGBA
+    order. The dst buffer must be at least width * height * 4 bytes. The stride
+    is the number of bytes per row in dst (typically width * 4). This operation
+    is performed in parallel across tiles.
+
+func (pr *ParallelRasterizer) CompositeDirty(dst []byte, stride int)
+    CompositeDirty copies only dirty tiles to a destination buffer. This is
+    useful for incremental rendering where only changed regions need updating.
+
+func (pr *ParallelRasterizer) DirtyTileCount() int
+    DirtyTileCount returns the number of tiles marked as dirty.
+
+func (pr *ParallelRasterizer) FillRect(x, y, w, h int, c color.Color)
+    FillRect fills a rectangle with the specified color across affected tiles in
+    parallel. Coordinates are in canvas pixel space. The rectangle is clipped to
+    canvas bounds.
+
+func (pr *ParallelRasterizer) FillTiles(tiles []*Tile, fn func(t *Tile))
+    FillTiles executes a function on each tile in parallel. The function
+    receives each tile and should only modify that tile's Data. This is the
+    generic parallel fill mechanism for custom operations.
+
+func (pr *ParallelRasterizer) Grid() *TileGrid
+    Grid returns the underlying TileGrid for advanced usage. Use with caution as
+    direct grid manipulation bypasses parallel safety.
+
+func (pr *ParallelRasterizer) Height() int
+    Height returns the canvas height in pixels.
+
+func (pr *ParallelRasterizer) MarkAllDirty()
+    MarkAllDirty marks all tiles for redraw.
+
+func (pr *ParallelRasterizer) MarkRectDirty(x, y, w, h int)
+    MarkRectDirty marks all tiles intersecting the rectangle as dirty.
+
+func (pr *ParallelRasterizer) Resize(width, height int)
+    Resize changes the canvas dimensions, reallocating tiles as needed.
+    All tiles will be marked dirty after resize. If dimensions are unchanged,
+    this is a no-op.
+
+func (pr *ParallelRasterizer) TileCount() int
+    TileCount returns the total number of tiles.
+
+func (pr *ParallelRasterizer) Width() int
+    Width returns the canvas width in pixels.
+
+type Tile struct {
+	// X is the tile column index (0-based).
+	X int
+
+	// Y is the tile row index (0-based).
+	Y int
+
+	// Width is the actual width in pixels (may be < TileWidth for edge tiles).
+	Width int
+
+	// Height is the actual height in pixels (may be < TileHeight for edge tiles).
+	Height int
+
+	// Dirty indicates whether this tile needs redrawing.
+	Dirty bool
+
+	// Data contains the RGBA pixel data owned by this tile.
+	// Length is Width * Height * 4 bytes.
+	Data []byte
+}
+    Tile represents a rectangular region for parallel processing.
+
+    Each tile contains its own pixel buffer that can be rendered independently.
+    Edge tiles may have smaller actual dimensions when the canvas is not evenly
+    divisible by the tile size.
+
+func GetTile(width, height int) *Tile
+    GetTile retrieves a tile from the default pool.
+
+func (t *Tile) Bounds() (x, y, w, h int)
+    Bounds returns the pixel bounds of this tile in canvas space. Returns (x, y,
+    width, height) where x,y is the top-left corner.
+
+func (t *Tile) ByteSize() int
+    ByteSize returns the total size of the tile data in bytes.
+
+func (t *Tile) CanvasPixelOffset(cx, cy int) int
+    CanvasPixelOffset returns the byte offset for a canvas-space pixel.
+    Coordinates cx, cy are in canvas space. Returns -1 if the pixel is not
+    within this tile.
+
+func (t *Tile) Contains(cx, cy int) bool
+    Contains returns true if the canvas-space pixel (cx, cy) is within this
+    tile.
+
+func (t *Tile) PixelOffset(px, py int) int
+    PixelOffset returns the byte offset into Data for the given pixel.
+    Coordinates px, py are relative to the tile (0,0 is top-left of tile).
+    Returns -1 if coordinates are out of bounds.
+
+func (t *Tile) Reset()
+    Reset clears the tile data for reuse. This zeros all pixel data and resets
+    the dirty flag.
+
+func (t *Tile) Stride() int
+    Stride returns the row stride in bytes.
+
+type TileGrid struct {
+	// Has unexported fields.
+}
+    TileGrid manages a grid of tiles for parallel rendering.
+
+    The grid divides a canvas into 64x64 pixel tiles. Edge tiles may have
+    smaller dimensions when the canvas is not evenly divisible by the tile size.
+    Tiles are stored in a flat slice for cache efficiency, accessed via index
+    calculation: index = ty * tilesX + tx.
+
+    Thread safety: TileGrid is NOT thread-safe. Use external synchronization for
+    concurrent access, or use the provided WorkerPool.
+
+func NewTileGrid(width, height int) *TileGrid
+    NewTileGrid creates a new tile grid for the given canvas dimensions.
+    The grid will contain enough tiles to cover the entire canvas. Edge tiles
+    will have reduced dimensions if the canvas is not evenly divisible by the
+    tile size (64x64).
+
+func (g *TileGrid) AllTiles() []*Tile
+    AllTiles returns all tiles in the grid. The returned slice should not be
+    modified.
+
+func (g *TileGrid) ClearDirty()
+    ClearDirty resets the dirty flag on all tiles.
+
+func (g *TileGrid) Close()
+    Close releases all tiles back to the pool. The grid should not be used after
+    calling Close.
+
+func (g *TileGrid) DirtyTiles() []*Tile
+    DirtyTiles returns all tiles that are marked as dirty. The returned slice is
+    newly allocated and can be safely modified.
+
+func (g *TileGrid) ForEach(fn func(tile *Tile))
+    ForEach calls fn for each tile in the grid. Tiles are visited in row-major
+    order (left-to-right, top-to-bottom).
+
+func (g *TileGrid) ForEachDirty(fn func(tile *Tile))
+    ForEachDirty calls fn for each dirty tile in the grid.
+
+func (g *TileGrid) Height() int
+    Height returns the canvas height in pixels.
+
+func (g *TileGrid) MarkAllDirty()
+    MarkAllDirty marks all tiles as dirty.
+
+func (g *TileGrid) MarkDirty(tx, ty int)
+    MarkDirty marks the tile at tile coordinates (tx, ty) as dirty. Does nothing
+    if coordinates are out of bounds.
+
+func (g *TileGrid) MarkRectDirty(x, y, w, h int)
+    MarkRectDirty marks all tiles intersecting the pixel rectangle as dirty.
+    Coordinates are in canvas pixel space.
+
+func (g *TileGrid) Resize(width, height int)
+    Resize changes the grid dimensions, reallocating tiles as needed. If
+    dimensions haven't changed, this is a no-op. All tiles will be marked dirty
+    after resize.
+
+func (g *TileGrid) TileAt(tx, ty int) *Tile
+    TileAt returns the tile at tile coordinates (tx, ty). Returns nil if
+    coordinates are out of bounds.
+
+func (g *TileGrid) TileAtPixel(px, py int) *Tile
+    TileAtPixel returns the tile containing the pixel at canvas coordinates (px,
+    py). Returns nil if coordinates are out of bounds.
+
+func (g *TileGrid) TileCount() int
+    TileCount returns the total number of tiles in the grid.
+
+func (g *TileGrid) TilesInRect(x, y, w, h int) []*Tile
+    TilesInRect returns all tiles that intersect the given rectangle.
+    Coordinates are in canvas pixel space. Returns nil if the rectangle is
+    completely outside the canvas.
+
+func (g *TileGrid) TilesX() int
+    TilesX returns the number of tiles horizontally.
+
+func (g *TileGrid) TilesY() int
+    TilesY returns the number of tiles vertically.
+
+func (g *TileGrid) Width() int
+    Width returns the canvas width in pixels.
+
+type TilePool struct {
+	// Has unexported fields.
+}
+    TilePool provides efficient reuse of Tile instances via sync.Pool.
+
+    The pool reduces GC pressure by reusing tile memory. When a tile is returned
+    to the pool, its data is cleared and ready for reuse.
+
+    Thread safety: TilePool is safe for concurrent use.
+
+func NewTilePool() *TilePool
+    NewTilePool creates a new tile pool.
+
+func (p *TilePool) Get(width, height int) *Tile
+    Get retrieves a tile from the pool or creates a new one. The tile is
+    guaranteed to have the specified dimensions. The tile data is zeroed and
+    ready for use.
+
+func (p *TilePool) Put(tile *Tile)
+    Put returns a tile to the pool for reuse. The tile data will be cleared.
+    If tile is nil, this is a no-op.
+
+type WorkerPool struct {
+	// Has unexported fields.
+}
+    WorkerPool is a pool of goroutines for parallel rendering.
+
+    The pool distributes work items across multiple workers, each with their
+    own queue. Workers can steal work from other workers when their own queue is
+    empty. This helps balance load when some tasks are slower than others.
+
+    Thread safety: WorkerPool is safe for concurrent use.
+
+func NewWorkerPool(workers int) *WorkerPool
+    NewWorkerPool creates a new worker pool with the specified number of
+    workers. If workers is 0 or negative, GOMAXPROCS is used. The pool starts
+    immediately and workers begin waiting for work.
+
+func (p *WorkerPool) Close()
+    Close gracefully shuts down the pool. It stops accepting new work, waits for
+    all queued work to complete, and then stops all workers. Close is safe to
+    call multiple times.
+
+func (p *WorkerPool) ExecuteAll(work []func())
+    ExecuteAll distributes work across workers and waits for all to complete.
+    This is the primary method for parallel processing. If the pool is closed,
+    this is a no-op.
+
+func (p *WorkerPool) ExecuteAsync(work []func())
+    ExecuteAsync distributes work across workers without waiting for completion.
+    Useful for fire-and-forget scenarios. If the pool is closed, this is a
+    no-op.
+
+func (p *WorkerPool) ExecuteIndexed(n int, fn func(i int))
+    ExecuteIndexed distributes n indexed work items across workers and waits
+    for all to complete. Unlike ExecuteAll, this takes a single function and
+    an index count, avoiding per-item closure allocations. The function fn is
+    called with indices [0, n).
+
+    This is significantly more efficient than ExecuteAll when each work item
+    only differs by index, as it allocates only one closure per worker instead
+    of one per work item.
+
+func (p *WorkerPool) IsRunning() bool
+    IsRunning returns true if the pool is still accepting work.
+
+func (p *WorkerPool) QueuedWork() int
+    QueuedWork returns the total number of work items currently queued. This is
+    an approximation as queues can change while iterating.
+
+func (p *WorkerPool) Submit(fn func())
+    Submit sends a single work item to the pool. The work is distributed to the
+    worker with the shortest queue. If the pool is closed, this is a no-op.
+
+func (p *WorkerPool) Workers() int
+    Workers returns the number of workers in the pool.
+

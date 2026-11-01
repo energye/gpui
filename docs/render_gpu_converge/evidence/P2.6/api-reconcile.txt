@@ -1,0 +1,64 @@
+# P2.6-a P1.5 API 快照重放对账
+# 基线包集 352 → 当前 323；差异包集见 git 留存首轮对账（全部落 PLAN §7.7 白名单：naga 14 + shader 三后端 16 + render/render 1；新增 gpu/render-hdr）
+
+## 共有包逐包 go doc 差异（递归全量；只列有变化的包）
+render.txt: 195 行差异
+render/scene.txt: 85 行差异
+render/gpu.txt: 11 行差异
+render/internal/image.txt: 6 行差异
+render/internal/blend.txt: 98 行差异
+render/internal/gpu.txt: 3003 行差异
+render/internal/gpu/res.txt: 279 行差异
+ui/raster.txt: 12 行差异
+ui/scheduler.txt: 22 行差异
+gpu/shader.txt: 89 行差异
+gpu/rwgpu.txt: 54 行差异
+gpu/hal.txt: 45 行差异
+gpu/webgpu.txt: 11 行差异
+gpu/shader/ir.txt: 38 行差异
+gpu/shader/wgsl.txt: 13 行差异
+gpu/shader/wgsl/internal/lower.txt: 10 行差异
+gpu/gwgpu/gles.txt: 24 行差异
+gpu/hal/noop.txt: 4 行差异
+examples/wrgate.txt: 32 行差异
+
+共有包无差异: 301；有差异: 19
+仅基线有 doc（包已删，白名单）: 31
+  - gpu/gwgpu/naga.txt
+  - gpu/gwgpu/naga/glsl.txt
+  - gpu/gwgpu/naga/glsl/internal/codegen.txt
+  - gpu/gwgpu/naga/internal/backend.txt
+  - gpu/gwgpu/naga/internal/dxcvalidator.txt
+  - gpu/gwgpu/naga/internal/dxcvalidator/bitcheck.txt
+  - gpu/gwgpu/naga/internal/registry.txt
+  - gpu/gwgpu/naga/internal/textutil.txt
+  - gpu/gwgpu/naga/ir.txt
+  - gpu/gwgpu/naga/msl.txt
+  - gpu/gwgpu/naga/msl/internal/codegen.txt
+  - gpu/gwgpu/naga/wgsl.txt
+  - gpu/gwgpu/naga/wgsl/internal/lower.txt
+  - gpu/gwgpu/naga/wgsl/internal/parser.txt
+  - gpu/shader/dxil.txt
+  - gpu/shader/dxil/internal/bitcode.txt
+  - gpu/shader/dxil/internal/container.txt
+  - gpu/shader/dxil/internal/emit.txt
+  - gpu/shader/dxil/internal/module.txt
+  - gpu/shader/dxil/internal/passes/dce.txt
+  - gpu/shader/dxil/internal/passes/mem2reg.txt
+  - gpu/shader/dxil/internal/passes/sroa.txt
+  - gpu/shader/dxil/internal/viewid.txt
+  - gpu/shader/hlsl.txt
+  - gpu/shader/hlsl/internal/codegen.txt
+  - gpu/shader/internal/backend.txt
+  - gpu/shader/internal/dxcvalidator.txt
+  - gpu/shader/internal/dxcvalidator/bitcheck.txt
+  - gpu/shader/spirv.txt
+  - gpu/shader/spirv/internal/codegen.txt
+  - render/render.txt
+仅当前有 doc（新包）: 2
+  - gpu.txt
+  - render/hdr.txt
+
+## 测试计数对账
+基线合计行: []
+当前合计行: ['TOTAL\t1230\t10376']

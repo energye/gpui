@@ -1,0 +1,22 @@
+{
+ "window": "ui_textinput_ime",
+ "dir": "examples/ui_textinput_ime",
+ "variant": "default",
+ "backend": "go",
+ "args": [
+  "-auto-only"
+ ],
+ "run_seconds": 20,
+ "date": "2026-11-01 07:00:17",
+ "json": {
+  "backend": "x11",
+  "blink_ticks": 0,
+  "compose_active": false,
+  "preedit_events": 0,
+  "selftest": false,
+  "snapshot": "examples/ui_textinput_ime/testdata/textinput_ime.png",
+  "text": "你好ba"
+ },
+ "rc": 0,
+ "status": "PASS"
+}

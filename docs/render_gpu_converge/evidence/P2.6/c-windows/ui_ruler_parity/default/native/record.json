@@ -1,0 +1,22 @@
+{
+ "window": "ui_ruler_parity",
+ "dir": "examples/ui_ruler_parity",
+ "variant": "default",
+ "backend": "native",
+ "args": [
+  "-auto-only"
+ ],
+ "run_seconds": 60,
+ "date": "2026-10-31 23:36:31",
+ "rc": 0,
+ "json": {
+  "event": "RULER_FINAL",
+  "fps_avg": 0.02,
+  "frames": 1,
+  "p95_ms": 0,
+  "raster_p95_ms": 37.84,
+  "scene": "flutter_spin",
+  "t_s": "60.2"
+ },
+ "status": "PASS"
+}

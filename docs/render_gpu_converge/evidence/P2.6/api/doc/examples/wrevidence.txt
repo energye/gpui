@@ -1,0 +1,124 @@
+package wrevidence // import "github.com/energye/gpui/examples/wrevidence"
+
+Package wrevidence provides snapshot pixel probes, retained-packet
+replay capture and bitwise Golden comparison for the real-window examples
+(ui_render_base_* / ui_render_graphics/* and examples/video/*).
+
+Example-local only (not a ui/ library package). The ui_wr_* R/C windows
+keep their own copy because they run under the wr-close skill; this package
+centralizes the same evidence rules for the render-axis windows.
+
+CONSTANTS
+
+const (
+	KindBG    = "bg"
+	KindNotBG = "ink"
+)
+const (
+	RetainedInkTol  = 0.05
+	RetainedMoveTol = 1.0 / 255.0
+)
+    Retained tolerances, measured rather than guessed (VR8 + ffmpeg,
+    2026-10-23):
+
+        InkTol  = 5%%/255 off the window clear color. Text antialiasing never
+                covers a whole rect, so this separates "content is here" from
+                "background".
+        MoveTol = one 8-bit level, counted at or above the floor (a sample that
+                moved by exactly one level is moved). A testsrc clip's
+                frame-to-frame mean abs difference is ~2/255 per channel, so a 2%%
+                floor would miss real movement; two replays of the *same* decoded
+                frame differ by exactly zero, which is what makes one level a
+                discriminator instead of noise.
+
+
+FUNCTIONS
+
+func CheckPairs(img image.Image, pairs []PairCheck, prefix string) (int, int)
+    CheckPairs compares two snapshot pixels and logs one line per pair.
+
+func CheckPixels(img image.Image, checks []PixelCheck, prefix string) map[string]bool
+    CheckPixels runs color probes and logs one line per probe.
+
+func Golden(snapPath, basePath string, rects []Rect, prefix string) (diffPct float64, totalPx int64, first bool)
+    Golden compares the current snapshot against a zero-tolerance masked
+    baseline. When the baseline is absent and GPUI_ACCEPT_GOLDEN=1, it copies
+    the snapshot to the baseline and returns first=true. The caller must still
+    run twice and require 0.0000% on the non-seed run.
+
+func Load(path string) image.Image
+    Load reads a PNG. It exits the caller-friendly way on error; callers in
+    examples already use os.Exit for missing GPU output.
+
+
+TYPES
+
+type PairCheck struct {
+	Desc   string
+	AX, AY float64
+	BX, BY float64
+	Tol    float64
+}
+    PairCheck compares two pixels (e.g. direct vs replay) at the same local
+    coordinate in two regions.
+
+type PixelCheck struct {
+	Desc string
+	X, Y float64
+	Want [3]float64
+	Tol  float64
+	Kind string
+}
+    PixelCheck is one GPU-snapshot color probe. Kind is "" (plain color),
+    KindBG (background color), or KindNotBG (ink against Want, which must be the
+    panel background for that probe).
+
+type Rect struct{ X, Y, W, H float64 }
+    Rect is a logical-pixel rectangle used by the Golden mask.
+
+type RetainedCapture struct {
+	// Has unexported fields.
+}
+    RetainedCapture fires one retained-packet replay (embedder.
+    PipelineApp.RetainedSnapshot) and remembers whether it produced a PNG.
+
+    The replay is a raster job that the UI thread has to submit, so start runs
+    it on its own goroutine: a caller that blocks the UI thread also blocks the
+    frame carrying its own request.
+
+func (c *RetainedCapture) OK() bool
+    OK reports whether a replay landed and wrote its PNG.
+
+func (c *RetainedCapture) Start(app *embedder.PipelineApp, path string) bool
+    Start fires the replay unless one is already in flight and reports whether
+    it fired (a full composite plus a PNG write is not worth stacking).
+
+func (c *RetainedCapture) Wait(d time.Duration)
+    Wait blocks until this capture is no longer in flight, bounded by d. Close
+    uses it: the replay touches the window's render context, which is gone after
+    the window closes. Pass a bound longer than embedder.RetainedSnapshot's
+    internal 3s submit bound — a shorter wait returns while the replay is still
+    queued and the window can be torn down under it. The video windows use 4s.
+
+type RetainedPair struct {
+	// Has unexported fields.
+}
+    RetainedPair is a pair of PNGs replayed from sealed retained packets
+    (embedder.PipelineApp.RetainedSnapshot). It is the pixel proof for the
+    retained path: a window present is zero-readback and opts.SnapshotPath
+    repaints the LIVE tree, so only a packet replay shows what the sealed packet
+    actually shipped.
+
+func OpenRetainedPair(aPath, bPath string, aOK, bOK bool, winW int) (*RetainedPair, string)
+    OpenRetainedPair decodes the two replays. Either capture failing to land
+    is reported as an error string (the caller's gate must not read that as "0
+    ink"). winW is the window's logical width; image width / winW restores the
+    device scale, so rect coordinates can stay in the layout space the app used.
+
+func (p *RetainedPair) RectEvidence(r Rect, clear [3]float64) (inkA, inkB, move float64)
+    RectEvidence samples a retainedGridX×retainedGridY grid over r in both
+    replays and reports the fraction of samples carrying ink over clear in each
+    one, plus the fraction that moved between them. Ink proves the content put
+    pixels on the retained path; movement proves the layer repaints in place
+    rather than freezing on one frame.
+

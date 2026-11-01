@@ -1,0 +1,18 @@
+Command ui_render_base_filterops is the A-group real window for content
+filters (RENDER_FEATURE_COVERAGE §1 #40 / §3.1): ApplyInvert, ApplyBlurXY,
+ApplyImageFilterGraph and GPUFilterTexture.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_filterops -auto-only
+    go run ./examples/ui_render_base_filterops   # manual: lives until window close
+    go run ./examples/ui_render_base_filterops -manual-seconds 15
+
+Evidence: 16 value-level contract probes in a CPU child, point + region pixel
+probes over the GPU snapshot, a bitwise golden over header + legend + the four
+cards, a live screen grab compared with the snapshot over the same rects,
+and per-card GPU-route assertions (filter gpu_ops > 0, cpu_fallback_ops == 0).
+
+Card D is the only zero-readback present path: ApplyBlurXY publishes a GPU
+texture through GPUFilterTexture and the card is painted with DrawGPUTexture
+every frame. The readback copy of that view only feeds the zoom/diff panels,
+never the presented result.

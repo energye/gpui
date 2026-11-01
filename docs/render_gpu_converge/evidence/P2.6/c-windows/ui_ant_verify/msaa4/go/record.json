@@ -1,0 +1,14 @@
+{
+ "window": "ui_ant_verify",
+ "dir": "examples/ui_ant_verify",
+ "variant": "msaa4",
+ "backend": "go",
+ "args": [
+  "-auto-only"
+ ],
+ "run_seconds": 5,
+ "date": "2026-10-31 23:36:25",
+ "rc": 0,
+ "json": null,
+ "status": "PASS"
+}

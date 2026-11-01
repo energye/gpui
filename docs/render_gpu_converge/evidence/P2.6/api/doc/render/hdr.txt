@@ -1,0 +1,81 @@
+package hdr // import "github.com/energye/gpui/render/hdr"
+
+Package hdr holds CPU-side linear HDR render targets.
+
+CONSTANTS
+
+const (
+	// MaxFloatDimension caps one side of a float target.
+	MaxFloatDimension = 8192
+	// MaxFloatPixels caps the total texel count.
+	MaxFloatPixels = 8192 * 8192
+)
+    Float budgets. Over-area targets report an error at construction; 8-bit
+    targets never see this file.
+
+const MaxEncodeExposure = 16
+    MaxEncodeExposure caps Encode exposure (16x matches fx.MaxExposure).
+
+
+TYPES
+
+type FloatTarget struct {
+	// Has unexported fields.
+}
+    FloatTarget is a CPU-backed linear HDR render target (S66, 9.1 thaw). Each
+    texel is 4 float32s (R,G,B,A); values above 1.0 are legal light, not clamped
+    storage. It reports the RGBA16Float format tag, and Pixels returns nil on
+    purpose so 8-bit (RGBA8/BGRA8) paths can never mistake it for a byte target.
+    Only HDR paths touch FloatPixels and Encode.
+
+func NewFloatTarget(w, h int) (*FloatTarget, error)
+    NewFloatTarget builds a W-by-H float target cleared to transparent black.
+    Non-positive sizes or over-budget areas are errors, never a half-built
+    target.
+
+func (t *FloatTarget) At(x, y int) [4]float32
+    At reads one texel. Out of range returns zeros, never a panic.
+
+func (t *FloatTarget) ClearFloat(c [4]float32) bool
+    ClearFloat fills the target with linear color c (alpha as given). Non-finite
+    components leave the target untouched (false).
+
+func (t *FloatTarget) Encode(exposure float64) (*image.RGBA, error)
+    Encode writes the target out as 8-bit sRGB: exposure first, then the
+    frozen Reinhard rolloff x/(1+x), then the sRGB curve. Exposure must be in
+    (0,MaxEncodeExposure]; anything else is an error, never a guess. This is
+    the screenshot-vs-design compare path: HDR explains itself, 8-bit stays the
+    comparison language.
+
+func (t *FloatTarget) FloatPixels() []float32
+    FloatPixels exposes the linear HDR texels in RGBA order for S66 paths.
+
+func (t *FloatTarget) Format() types.TextureFormat
+    Format tags the target RGBA16Float: new-branch only, 8-bit code keys off
+    RGBA8Unorm/BGRA8Unorm and never matches this.
+
+func (t *FloatTarget) Height() int
+    Height returns the target height in texels.
+
+func (t *FloatTarget) Pixels() []byte
+    Pixels returns nil: no 8-bit backing.
+
+func (t *FloatTarget) Set(x, y int, c [4]float32) bool
+    Set writes one texel. Non-finite components are rejected (false) so NaN can
+    never sneak into the HDR store; out of range is also false.
+
+func (t *FloatTarget) Stride() int
+    Stride returns the bytes per row (width times 16).
+
+func (t *FloatTarget) TextureView() TextureView
+    TextureView returns nil: CPU-side staging only in this thaw.
+
+func (t *FloatTarget) Width() int
+    Width returns the target width in texels.
+
+type TextureView interface {
+	Destroy()
+}
+    TextureView is the GPU-side view a target would expose. FloatTarget is CPU
+    staging only, so its TextureView method returns nil.
+

@@ -1,0 +1,31 @@
+Command game_tilemap is the S57 7.1/7.2/7.3 independent window.
+
+Three cases share one shell shape, each drives the real engine/tilemap package
+read-only (the window never writes engine code, it only calls the frozen
+map/chunk/lod APIs and draws the returned cells with the existing render draws):
+
+    map   (7.1 tiles): TMX-subset parse, firstgid exactness, monster/object
+      placement, terrain-brush stroke self-joining without seams.
+    chunk (7.2 partitions): viewport culling of a 10k-tile field, batched
+      load/unload while walking, teleport stability.
+    lod   (7.3 distance): near/far switch with a hysteresis band so a
+      jittering camera never flickers.
+    large (S84 streaming): million-tile index, 32x32 chunks, budgeted
+      background-request/foreground-merge, teleport stability, magenta
+      for missing chunks.
+
+Modes (same shape as game_step/game_save):
+
+    go run ./examples/engine/tilemap --case=map -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/tilemap --case=large -manual-seconds 60
+      manual for 60s (events logged, title shows the count), then summary.
+    go run ./examples/engine/tilemap --case=chunk
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+    No --case defaults to large (the S84 directory map).
+
+Manual keys (large case): WASD pans the view one chunk per press, so a manual
+run always carries real key-move events.
+
+Window: 1200x800. First run writes the per-case golden baseline into testdata/;
+later runs compare it with zero tolerance.

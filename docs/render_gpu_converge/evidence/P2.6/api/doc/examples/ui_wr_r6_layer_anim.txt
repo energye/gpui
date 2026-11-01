@@ -1,0 +1,39 @@
+Command ui_wr_r6_layer_anim is the R6 single-ability real window (mode-1 first
+close, 2026-08-24).
+
+§2 R6 thesis: Opacity/Transform/Clip 层动画三种同跑 + 大面积静态背景， 证明「控件层动画不影响静态缓存」。A 2×2
+grid of demo boards shares the body with a static dense nested-boundary region;
+one per-frame ticker drives all three layer kinds through the pipeline:
+
+    OPA   RenderOpacity   SaveLayer group isolation, breathing α 0.1..1.0
+    ROT   RenderTransform continuous rotation around the target center
+    PULSE RenderTransform breathing scale 0.85×–1.15×
+    CLIP  RenderClipRRect breathing corner radius + a STATIC twin card
+
+Present policy: retained — steady animation frames must re-record ONLY the four
+board boundaries (boundary_rerecord grows, boundary_skip grows for the static
+region) while the whole-tree paint walk count stays flat. That is exactly the §2
+gate 「paint_count 稳」: a regression to full-frame repaints makes paint_count grow
+~1/frame and fails the drift gate.
+
+Gates (§2.5 动画层档): fps_interval ≥55, p95 ≤22ms, hitch ≤5/min, 静背景不闪. "静背景不闪" is
+TWO hard gates:
+
+  - Golden bitwise diff == 0 over the STATIC mask across runs (U21 §2.7:
+    first run stores the baseline, later runs demand zero differing pixels;
+    the mask covers topbar/legend/dense — animation boards are excluded because
+    they move by design)
+
+  - Scripted pixel assertions at race-free invariant points: the CENTER of the
+    rotating/scaling/clipped targets is transform-invariant, and the opacity
+    board is snapshotted while ALL FOUR drivers are PAUSED (the ticker freezes
+    them before the raster-thread readback and resumes afterwards), so the
+    expected group blend is exact — no cross-frame race.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=30 go run ./examples/ui_wr_r6_layer_anim
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 30 (§2.5 动画层档). GPU
+window required (needs_gpu_window otherwise). No RUN_SECONDS → run indefinitely
+(user closes); the phase script loops forever and the snapshot machinery is
+skipped (closing evidence requires RUN_SECONDS).

@@ -1,0 +1,47 @@
+{
+ "window": "ui_pf_x11_dnd",
+ "dir": "examples/ui_pf_x11_dnd",
+ "variant": "default",
+ "backend": "native",
+ "args": [
+  "-auto-only"
+ ],
+ "run_seconds": 20,
+ "date": "2026-11-01 07:00:11",
+ "json": {
+  "backend": "x11",
+  "manual": {
+   "drop": 0,
+   "enter": 0,
+   "files": null,
+   "leave": 0,
+   "over": 0,
+   "timed": false
+  },
+  "pass": true,
+  "rows": [
+   {
+    "Name": "MapDragEnter",
+    "OK": true,
+    "Detail": "kind=drag-enter drag={X:10 Y:20 MIMETypes:[text/uri-list] Files:[] Data:map[]}"
+   },
+   {
+    "Name": "MapDragOver",
+    "OK": true,
+    "Detail": "kind=drag-over drag={X:30 Y:40 MIMETypes:[text/uri-list text/plain] Files:[] Data:map[]}"
+   },
+   {
+    "Name": "MapDragLeave",
+    "OK": true,
+    "Detail": "kind=drag-leave"
+   },
+   {
+    "Name": "MapDrop",
+    "OK": true,
+    "Detail": "kind=drop drag={X:50 Y:60 MIMETypes:[] Files:[/tmp/a] Data:map[]}"
+   }
+  ]
+ },
+ "rc": 0,
+ "status": "PASS"
+}

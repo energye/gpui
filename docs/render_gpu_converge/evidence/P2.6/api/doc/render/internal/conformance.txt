@@ -1,0 +1,234 @@
+package conformance // import "github.com/energye/gpui/render/internal/conformance"
+
+Package conformance runs JSON-authored drawing scenes on a render.Context and
+evaluates semantic assertions (sample colors, region coverage, glyph bounding
+boxes, GPU path counters, VRAM ledger steadiness) against the result image.
+
+The package is test-only: it is imported by render/conformance_test.go
+and never by library code. Scenes and expectations live in
+render/testdata/conformance/*.json so the test bodies carry no standard data.
+
+CONSTANTS
+
+const (
+	OpClear          = "clear"
+	OpFillRect       = "fill_rect"
+	OpLinearGradient = "linear_gradient"
+	OpRadialGradient = "radial_gradient"
+	OpClipRect       = "clip_rect"
+	OpClipRoundRect  = "clip_round_rect"
+	OpPushLayer      = "push_layer"
+	OpPopLayer       = "pop_layer"
+	OpDrawImage      = "draw_image"
+	OpText           = "text"
+)
+    Op kinds understood by Draw.
+
+const (
+	RegionCoverage = "coverage"
+	RegionBBox     = "bbox"
+)
+    Region kinds understood by Evaluate.
+
+
+FUNCTIONS
+
+func Draw(dc *render.Context, c *Case, baseDir string) error
+    Draw replays the case ops on dc. Paths in ops (images, fonts) resolve
+    against baseDir.
+
+func WriteFramePNG(path string, img image.Image) error
+    WriteFramePNG saves the rendered frame next to the report for review.
+
+func WriteReport(path string, rep *Report) error
+    WriteReport writes rep as indented JSON, creating parent directories.
+
+
+TYPES
+
+type Case struct {
+	Name     string   `json:"name"`
+	Width    int      `json:"width"`
+	Height   int      `json:"height"`
+	Notes    string   `json:"notes"`
+	Ops      []Op     `json:"ops"`
+	Samples  []Sample `json:"samples"`
+	Regions  []Region `json:"regions"`
+	Expect   Expect   `json:"expect"`
+	Resource Resource `json:"resource"`
+}
+    Case is one scene plus its expectations.
+
+func LoadCase(path string) (*Case, error)
+    LoadCase reads and validates one case file.
+
+func LoadCases(dir string) ([]*Case, error)
+    LoadCases loads every *.json directly under dir (subdirectories are fixture
+    storage and stay untouched), sorted by scene name.
+
+func (c *Case) Validate() error
+    Validate rejects malformed cases before any GPU work happens.
+
+type Color [4]float64
+    Color is straight (non-premultiplied) RGBA in 0..1.
+
+type Expect struct {
+	MinGPUOps         int `json:"min_gpu_ops"`
+	MaxCPUFallbackOps int `json:"max_cpu_fallback_ops"`
+}
+    Expect declares the GPU-path budget for a scene.
+
+type Op struct {
+	Kind    string     `json:"kind"`
+	Rect    [4]float64 `json:"rect"`
+	Color   *Color     `json:"color,omitempty"`
+	From    [2]float64 `json:"from"`
+	To      [2]float64 `json:"to"`
+	Center  [2]float64 `json:"center"`
+	Radius  float64    `json:"radius"`
+	Stops   []Stop     `json:"stops"`
+	Path    string     `json:"path"`
+	X       float64    `json:"x"`
+	Y       float64    `json:"y"`
+	Text    string     `json:"text"`
+	Font    string     `json:"font"`
+	Size    float64    `json:"size"`
+	Opacity float64    `json:"opacity"`
+	Blend   string     `json:"blend"`
+}
+    Op is one drawing step. Fields are populated per Kind; see Validate.
+
+type PathCheck struct {
+	GPUOps             int    `json:"gpu_ops"`
+	CPUFallbackOps     int    `json:"cpu_fallback_ops"`
+	FrameFlushes       int    `json:"frame_flushes"`
+	LastFallbackReason string `json:"last_cpu_fallback_reason,omitempty"`
+	MinGPUOps          int    `json:"min_gpu_ops"`
+	MaxCPUFallbackOps  int    `json:"max_cpu_fallback_ops"`
+	GPUOpsOK           bool   `json:"gpu_ops_ok"`
+	FallbackOK         bool   `json:"fallback_ok"`
+	OK                 bool   `json:"ok"`
+}
+    PathCheck records whether the scene actually ran on the GPU path.
+
+type PathStats struct {
+	GPUOps                int
+	CPUFallbackOps        int
+	FrameFlushes          int
+	LastCPUFallbackReason string
+}
+    PathStats mirrors render.RenderPathStats for the counters this harness
+    asserts on.
+
+type Region struct {
+	Name       string     `json:"name"`
+	Kind       string     `json:"kind"`
+	Rect       [4]float64 `json:"rect"`
+	AlphaAbove uint8      `json:"alpha_above"`
+	MatchRGBA  *[4]uint8  `json:"match_rgba,omitempty"`
+	MatchTol   uint8      `json:"match_tol"`
+	MinRatio   float64    `json:"min_ratio"`
+	MaxRatio   float64    `json:"max_ratio"`
+	TolPP      float64    `json:"tol_pp"`
+	ExpectBBox []int      `json:"expect_bbox,omitempty"`
+	BBoxTol    int        `json:"bbox_tol"`
+}
+    Region asserts an area property:
+
+      - coverage: fraction of pixels inside Rect that either
+        alpha-match (AlphaAbove) or color-match (MatchRGBA) must fall in
+        [MinRatio-TolPP/100, MaxRatio+TolPP/100].
+      - bbox: the inclusive pixel bounding box of pixels whose alpha is above
+        AlphaAbove inside Rect must match ExpectBBox within BBoxTol pixels.
+
+type RegionResult struct {
+	Name       string  `json:"name"`
+	Kind       string  `json:"kind"`
+	GotRatio   float64 `json:"got_ratio,omitempty"`
+	GotBBox    []int   `json:"got_bbox,omitempty"`
+	MinRatio   float64 `json:"min_ratio,omitempty"`
+	MaxRatio   float64 `json:"max_ratio,omitempty"`
+	TolPP      float64 `json:"tol_pp,omitempty"`
+	ExpectBBox []int   `json:"expect_bbox,omitempty"`
+	BBoxTol    int     `json:"bbox_tol,omitempty"`
+	OK         bool    `json:"ok"`
+}
+    RegionResult records one area assertion.
+
+type Report struct {
+	Backend     string          `json:"backend"`
+	Scene       string          `json:"scene"`
+	Status      string          `json:"status"` // ok | unavailable
+	Reason      string          `json:"reason,omitempty"`
+	Width       int             `json:"width,omitempty"`
+	Height      int             `json:"height,omitempty"`
+	ImageSHA256 string          `json:"image_sha256,omitempty"`
+	Samples     []SampleResult  `json:"samples,omitempty"`
+	Regions     []RegionResult  `json:"regions,omitempty"`
+	Path        *PathCheck      `json:"path,omitempty"`
+	Resource    *ResourceResult `json:"resource,omitempty"`
+	OK          bool            `json:"ok"`
+}
+    Report is the per-scene, per-backend evidence document.
+
+func Evaluate(backend string, c *Case, img image.Image, path PathStats, resource *ResourceResult) *Report
+    Evaluate compares img against the case assertions for one backend. resource
+    may be nil (comparator unit tests).
+
+func Unavailable(backend, scene, reason string) *Report
+    Unavailable builds a report for a backend that cannot run in this
+    environment. The reason is mandatory — a silent skip is not allowed.
+
+func (r *Report) Failed() []string
+    Failed lists every failed assertion with its name, for evidence and for the
+    orchestrator's failure message.
+
+type Resource struct {
+	Repeats             int   `json:"repeats"`
+	MaxSteadyCountDelta int   `json:"max_steady_count_delta"`
+	MaxSteadyBytesDelta int64 `json:"max_steady_bytes_delta"`
+}
+    Resource declares how many identical context runs feed the ledger check.
+    The steady deltas are upper bounds; a non-zero bound records a known,
+    measured divergence (echoed by summary.md) and must be tightened to zero
+    once the owning task fixes it.
+
+type ResourceResult struct {
+	Repeats             int      `json:"repeats"`
+	LiveCount           []int    `json:"live_count"`
+	LiveBytes           []uint64 `json:"live_bytes"`
+	SteadyCountDelta    int      `json:"steady_count_delta"`
+	SteadyBytesDelta    int64    `json:"steady_bytes_delta"`
+	MaxSteadyCountDelta int      `json:"max_steady_count_delta"`
+	MaxSteadyBytesDelta int64    `json:"max_steady_bytes_delta"`
+	GPUContextsAfter    []int    `json:"gpu_contexts_after"`
+	OK                  bool     `json:"ok"`
+}
+    ResourceResult records the VRAM ledger across repeated context runs.
+
+type Sample struct {
+	Name string   `json:"name"`
+	X    int      `json:"x"`
+	Y    int      `json:"y"`
+	RGBA [4]uint8 `json:"rgba"`
+	Tol  uint8    `json:"tol"`
+}
+    Sample asserts the straight RGBA at one pixel.
+
+type SampleResult struct {
+	Name     string   `json:"name"`
+	X        int      `json:"x"`
+	Y        int      `json:"y"`
+	WantRGBA [4]uint8 `json:"want_rgba"`
+	GotRGBA  [4]uint8 `json:"got_rgba"`
+	Tol      uint8    `json:"tol"`
+	OK       bool     `json:"ok"`
+}
+    SampleResult records one pixel assertion.
+
+type Stop struct {
+	Offset float64 `json:"offset"`
+	Color  Color   `json:"color"`
+}
+    Stop is one gradient color stop.
+

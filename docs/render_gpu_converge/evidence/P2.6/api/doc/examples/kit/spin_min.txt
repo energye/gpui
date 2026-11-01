@@ -1,0 +1,5 @@
+Command spin_min is the single-dynamic-icon truth window: one 64px spinning sync
+icon centered in a 480x320 window, nothing else moves. It exists for CPU testing
+and optimization (see README.md). Structure mirrors examples/ui_l1_spinner
+(verified visible); only the content is the kit icon (behavior lives in ui/kit,
+the example only places it and ticks it).

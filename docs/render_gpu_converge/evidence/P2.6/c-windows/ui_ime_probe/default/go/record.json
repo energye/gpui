@@ -1,0 +1,12 @@
+{
+ "window": "ui_ime_probe",
+ "dir": "examples/ui_ime_probe",
+ "variant": "default",
+ "backend": "go",
+ "args": [],
+ "run_seconds": 20,
+ "date": "2026-11-01 06:57:13",
+ "json": null,
+ "rc": 124,
+ "status": "TIMEOUT"
+}

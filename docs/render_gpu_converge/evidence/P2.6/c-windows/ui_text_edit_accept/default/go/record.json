@@ -1,0 +1,12 @@
+{
+ "window": "ui_text_edit_accept",
+ "dir": "examples/ui_text_edit_accept",
+ "variant": "default",
+ "backend": "go",
+ "args": [],
+ "run_seconds": 30,
+ "date": "2026-11-01 07:16:08",
+ "json": null,
+ "rc": 124,
+ "status": "TIMEOUT"
+}

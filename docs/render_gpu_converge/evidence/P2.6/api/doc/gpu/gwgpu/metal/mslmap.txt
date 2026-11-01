@@ -1,0 +1,30 @@
+package mslmap // import "github.com/energye/gpui/gpu/gwgpu/metal/mslmap"
+
+attribute only if msl.Options.PerEntryPointMap[ep].SizesBuffer is set. If it is
+not set, Metal binds nothing to the argument and arrayLength() returns a wrong
+value. The backend must therefore supply the map.
+
+The map must list every resource, not only the sizes buffer. does not number
+the other resources itself. A map with only SizesBuffer would therefore lose
+every normal binding. This package copies the own numbering rule, so the MSL for
+normal resources stays the same.
+
+The package has no build tags and does not call Objective-C, so its tests run on
+any CI runner.
+
+FUNCTIONS
+
+func Options(module *ir.Module, sizesSlot int) (msl.Options, error)
+    Options returns MSL options that put the `_buffer_sizes` argument at buffer
+    slot sizesSlot. It does this for every entry point in module, and it
+
+    sizesSlot is the number of buffer bindings that the pipeline layout
+    declares. That is the first free slot, directly after the last declared
+    buffer.
+
+func RuntimeArrayBindings(module *ir.Module) ([]ir.ResourceBinding, error)
+    RuntimeArrayBindings returns the bindings of the global variables whose type
+    holds a runtime-sized array. The order is the IR declaration order.
+
+    Each field must hold the byte size of the buffer that is bound to it.
+

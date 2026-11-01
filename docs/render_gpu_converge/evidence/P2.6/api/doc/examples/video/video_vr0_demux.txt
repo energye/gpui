@@ -1,0 +1,8 @@
+Command video_vr0_demux is the VW0 VR0 real-window: MP4 demux.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/video/video_vr0_demux
+
+Window: 1200x800. RUN_SECONDS>=5. GPU window required. Left: file info panel
+from a real ffmpeg demux. Right: keyframe position bar by PTS. Bottom: bad-box
+readable error.

@@ -1,0 +1,13 @@
+Command ui_render_base_emoji is the B-group direct real window for
+render/text/emoji: CBDT/CBLC bitmap extraction, Segment run splitting (ZWJ /
+flag / skin tone / keycap / VS16), and COLR layer compositing.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_emoji -auto-only
+    go run ./examples/ui_render_base_emoji   # manual: lives until window close
+    go run ./examples/ui_render_base_emoji -manual-seconds 15  # manual, auto-close
+
+Evidence: 14 logical contract probes, 12 pixel probes on the GPU snapshot
+(8 are font-independent: segmentation boxes + synthetic COLR), and a bitwise
+golden over header + legend + the four cards. A/B cards need a CBDT color font;
+when absent those probes are reported as skipped, never silently green.

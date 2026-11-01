@@ -1,0 +1,4 @@
+Command-free probe: opens a real window through ui/platform and checks whether
+the display's input-method capability is available and bindable. Works on both
+Wayland (zwp_text_input_v3) and X11 (XIM). No GPU needed — this validates the
+IME protocol chain end to end.

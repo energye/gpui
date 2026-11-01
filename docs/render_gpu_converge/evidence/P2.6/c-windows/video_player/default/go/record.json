@@ -1,0 +1,12 @@
+{
+ "window": "video_player",
+ "dir": "examples/video/video_player",
+ "variant": "default",
+ "backend": "go",
+ "args": [],
+ "run_seconds": 15,
+ "date": "2026-11-01 07:30:43",
+ "json": null,
+ "rc": 0,
+ "status": "PASS"
+}

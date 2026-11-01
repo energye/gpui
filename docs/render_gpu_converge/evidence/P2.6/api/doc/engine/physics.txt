@@ -1,0 +1,535 @@
+package physics // import "github.com/energye/gpui/engine/physics"
+
+Package physics freezes the CPU-side collision math every 2.5D play feeds.
+
+Frozen 2026-09-15: Shape, ShapeBox, ShapeCircle, Body, NewBox, NewCircle, Valid,
+Bounds, CanCollide, Overlaps, Contact, Query. Additive changes only. Frozen
+2026-09-15: Ray, NewRay, Hit, CastRay, IsStandingOn, CarryRider. 14.1a overlap
+semantics unchanged. Frozen 2026-09-15: Slope, NewSlope, NewOneWay, GroundYAt,
+Angle, Walkable, SlideDir, FeetOf, WithFeet, Grounded, Step. 14.1a/b semantics
+unchanged.
+
+This package only computes numbers; it draws nothing and steps nothing. The
+caller moves bodies (assign Pos or rebuild via NewBox/NewCircle), calls Query,
+then resolves solids and fires triggers. 14.1b adds rays and riding platforms:
+NewRay/CastRay for jump probes and bullet lines, IsStandingOn/CarryRider for a
+platform step carrying its rider. Only core numbers are used; no new Vec2/Rect
+is defined here.
+
+Shapes: box is a center plus half extents, circle is a center plus a radius.
+Pos is the center in world units. Half must be finite with X/Y >= 0 (zero is a
+point, negative is rejected). Radius must be finite and >= 0 (zero is a point).
+Non-finite or negative sizes are a core InvalidArg error and store nothing.
+
+Layers (Godot collision_layer/mask idea): Layer says which group this body
+sits on, Mask says which groups it scans. Both are plain bit masks; 0 scans
+or matches nothing. CanCollide is true only when each side scans the other:
+(a.Layer&b.Mask) != 0 && (b.Layer&a.Mask) != 0. Overlapping shapes on mismatched
+masks never meet in Query.
+
+Trigger: true means sensor (coin, door zone, jump probe). Query still reports
+the pair with Trigger set; the caller must not push solids out of a trigger.
+Solid pairs report Trigger false.
+
+Overlap rule (inclusive, replay-stable, no epsilon): edge touch counts as
+overlap so standing exactly on a platform still touches. Box-box compares
+|dx| <= hx sum and |dy| <= hy sum; circle-circle compares distSq <= (r1+r2)^2;
+box-circle clamps the circle center to the box and compares distSq <= r^2.
+Invalid bodies (bad numbers, unknown shape) never overlap: Overlaps reports
+false, Bounds reports ok=false, Query reports a core InvalidArg error with a nil
+result.
+
+Query order: pairs i<j in input order, never sorted, never mutated. The input
+slice is never mutated; the result is a fresh slice (nil when nothing touches).
+Bad inputs fail closed, never guessed.
+
+Ray rule (14.1b, probe and bullet line): NewRay needs a finite origin, a finite
+non-zero dir, and a finite MaxDist >= 0, else InvalidArg. CastRay takes the
+nearest body with a layer bit in the ray mask (one-sided: body.Layer&ray.Mask
+!= 0; the body mask is ignored, unlike Query which needs both sides).
+Box uses the slab test, circle the quadratic test; edge touch and tangent count,
+origin inside reports Dist 0 with a zero normal. Dist runs along the normalized
+dir in world units and must sit within [0, MaxDist]. Ties keep the smaller input
+index. Empty input or Mask 0 reports no hit without error. An invalid ray or
+any invalid body is InvalidArg. Tilemap solid cells feed this path as boxes:
+cell center with half tile/2, no tilemap import here.
+
+Platform rule (14.1b, moving platform carries its rider): IsStandingOn is
+true only when both bodies are valid, the rider center sits at or above the
+platform center, the rider bottom sits within 1e-9 of the platform top, and the
+horizontal spans overlap edge-included (circles use their bounds footprint).
+CarryRider applies the platform step delta to rider.Pos only in that pre-move
+standing pose, else leaves rider untouched and reports carried=false. Nil rider,
+invalid bodies, non-finite delta, or a delta pushing rider off finite numbers is
+InvalidArg with rider untouched.
+
+Slope rule (14.2, platform and slope): thin segment A-B with a one-way flag.
++Y runs down like tilemap cells; above means smaller Y. NewSlope is solid,
+NewOneWay is top-only; both need finite distinct endpoints else InvalidArg.
+GroundYAt interpolates Y at column x inside the inclusive span (vertical reports
+ok=false). Angle is radians from horizontal in [0, pi/2]. Walkable checks angle
+<= caller maxAngle. SlideDir is the downhill unit vector (flat reports ok=false,
+vertical reports (0,1)). FeetOf/WithFeet convert a Body center to the sole point
+and back, read-only over body.go. Grounded samples the highest surface within
+1e-9 at the feet column, invalid slopes skipped. Step integrates feet+vel*dt:
+falling still lands on the highest crossed surface, rising along the same slope
+stays grounded, a solid slope crossed from below reports hitHead clamped to the
+ceiling, one-way never reports head. Any invalid slope in Step is InvalidArg;
+bad feet/vel/dt is InvalidArg with feet unchanged. Tilemap feeds this path as
+cell top edges, no tilemap import here. Window intent: game_physics --case=jump.
+Frozen 2026-10-05 (S86): MaxBroadphaseBodies, DefaultBroadphaseCell,
+DefaultMaxCandidates, DefaultSleepEps, DefaultSleepFrames, Spring, NewSpring,
+Broadphase, NewBroadphase. Additive changes only. Broadphase is the large-yard
+index (uniform grid plus sleep plus candidate cap plus one region lookup);
+Query agrees with Query, QueryRegion answers one viewport box, Ray with CastRay,
+Spring fires the pad impulse. Window intent: game_physics--case=large; pure
+index math, offscreen golden only.
+
+CONSTANTS
+
+const (
+	// DefaultBroadphaseCell is the grid pitch in world units. 128px keeps
+	// a 64px box inside 1-4 cells; the yard bodies are smaller.
+	DefaultBroadphaseCell = 128.0
+	// MaxBroadphaseBodies caps one index. Past it Track reports
+	// OutOfMemory, never a half entry. The large yard holds 1200.
+	MaxBroadphaseBodies = 8192
+	// DefaultMaxCandidates caps pair evaluations per Query. Zero means
+	// unlimited. 40 covers a 128px pile-up with margin.
+	DefaultMaxCandidates = 40
+	// DefaultSleepEps is the per-Update displacement under which a
+	// dynamic counts as still, in world units.
+	DefaultSleepEps = 0.5
+	// DefaultSleepFrames stills in a row before a dynamic sleeps.
+	DefaultSleepFrames = 60
+)
+const (
+	// DefaultSnapLength bridges a small gap above the floor.
+	DefaultSnapLength = 0.1
+	// DefaultFloorMaxAngle is 45 degrees in radians; steeper is not floor.
+	DefaultFloorMaxAngle = math.Pi / 4
+	// DefaultSafeMargin allows sinking this far below the surface.
+	DefaultSafeMargin = 0.08
+)
+    Godot CharacterBody2D defaults (D18): floor snap 0.1, floor max angle 45
+    degrees, safe margin 0.08. Values only, no behavior: the caller owns the
+    config and passes it in.
+
+
+FUNCTIONS
+
+func Bounds(b Body) (core.Rect, bool)
+    Bounds returns the axis-aligned box holding b, or ok=false for an invalid
+    body. Zero-size bodies report their empty rect with ok=true; emptiness never
+    means invalid here.
+
+func CanCollide(a, b Body) bool
+    CanCollide reports whether a scans b and b scans a through the layer masks.
+    Pure bit math; validity never matters here. Query combines this with
+    Overlaps, so masked-out pairs never meet even when they overlap.
+
+func CarryRider(rider *Body, platform Body, delta core.Vec2) (bool, error)
+    CarryRider moves rider by the platform step delta when rider stands on
+    platform before the move. Standing is IsStandingOn on the pre-move pair.
+    Off-platform reports (false, nil) with rider untouched. A nil rider, invalid
+    bodies, a non-finite delta, or a delta pushing rider off finite numbers is a
+    core InvalidArg error with rider untouched.
+
+func FeetOf(b Body) (core.Vec2, bool)
+    FeetOf returns the sole point of b: box center plus half height, circle
+    center plus radius. It only reads b; invalid bodies report ok=false.
+
+func FloorNormal(s Slope) (core.Vec2, bool)
+    FloorNormal returns the up-pointing unit normal of s (Y <= 0, since +Y runs
+    down). Flat reports (0,-1); ramps tilt toward the low side exactly like
+    SlideDir reflected upright. Vertical segments have no up normal and report
+    ok=false; invalid slopes report ok=false.
+
+func IsOnFloor(feet core.Vec2, slopes []Slope, cfg SnapConfig) bool
+    IsOnFloor reports whether feet stand on a walkable floor under cfg:
+    SnapGrounded with the floor bit only. Floating gear is never on floor.
+
+func IsStandingOn(rider, platform Body) bool
+    IsStandingOn reports whether rider stands on top of platform:
+    both valid, rider center at or above the platform center, rider bottom
+    within standingSnap of the platform top, horizontal spans overlapping
+    edge-included. Circles use their bounds footprint. Invalid inputs report
+    false, never a panic.
+
+func Overlaps(a, b Body) bool
+    Overlaps reports whether a and b touch or interpenetrate, edge touch
+    included. Invalid bodies never overlap (false, never a panic).
+
+func UpDirection() core.Vec2
+    UpDirection returns the world up unit (0,-1): +Y runs down in slope space,
+    so up is negative Y. Godot up_direction default, same value.
+
+
+TYPES
+
+type Body struct {
+	Name    string
+	Shape   Shape
+	Pos     core.Vec2
+	Half    core.Vec2
+	Radius  float64
+	Layer   uint32
+	Mask    uint32
+	Trigger bool
+}
+    Body is one collision volume: shape plus center plus layer masks plus the
+    trigger flag. Name is only a debug key for tests and logs, never an asset
+    id; it may be empty. Half belongs to boxes, Radius to circles; the unused
+    side stays zero.
+
+func NewBox(name string, pos, half core.Vec2, layer, mask uint32, trigger bool) (Body, error)
+    NewBox builds a box body centered at pos with half extents half. Negative or
+    non-finite half, or a non-finite pos, is a core InvalidArg error and stores
+    nothing. Layer/Mask accept any bits (0 hits nothing).
+
+func NewCircle(name string, pos core.Vec2, radius float64, layer, mask uint32, trigger bool) (Body, error)
+    NewCircle builds a circle body centered at pos with radius. Negative or
+    non-finite radius, or a non-finite pos, is a core InvalidArg error and
+    stores nothing.
+
+func WithFeet(b Body, feet core.Vec2) (Body, bool)
+    WithFeet returns a copy of b whose sole sits at feet: Pos.X follows the
+    feet column, Pos.Y backs off by half height or radius. The input is never
+    mutated; bad bodies or bad feet report ok=false.
+
+func (b Body) Valid() bool
+    Valid reports whether b carries finite numbers and a known shape with a
+    legal size. Direct struct writes bypass the constructors, so every query
+    checks this first and fails closed.
+
+type Broadphase struct {
+	// Has unexported fields.
+}
+    Broadphase is one yard index over tracked bodies. The caller owns placement
+    truth through Track/Move; Refresh-free reads never drift because every Query
+    rebuilds from the stored volumes when dirty.
+
+func NewBroadphase() Broadphase
+    NewBroadphase builds a yard index over 128px cells. Auto-sleep starts on
+    with the default stillness (0.5 units, 60 frames); AutoWake starts on so
+    contacted sleepers rejoin at once. The cap starts at 40.
+
+func (b *Broadphase) AutoWake() bool
+    AutoWake reports the contact-wake switch, or false on nil.
+
+func (b *Broadphase) Cell() float64
+    Cell returns the grid pitch, or 0 on a nil index.
+
+func (b *Broadphase) Count() int
+    Count returns live tracked bodies, or 0 on nil.
+
+func (b *Broadphase) Evaluations() int
+    Evaluations returns the pair tests the last Query ran, or 0 on nil.
+
+func (b *Broadphase) IsActive(h int) bool
+    IsActive reports whether h is tracked and awake. Unknown and nil ids report
+    false.
+
+func (b *Broadphase) LastQueryUs() int64
+    LastQueryUs reports the last Query cost in microseconds, informational only;
+    gates are measured by the test and the window, never here.
+
+func (b *Broadphase) MaxCandidates() int
+    MaxCandidates returns the evaluation cap (0 is unlimited), or 0 on nil.
+
+func (b *Broadphase) Move(h int, body Body) error
+    Move rewrites the volume at h and wakes it: a repositioned body always
+    rejoins. Unknown handles are NotFound; invalid bodies change nothing.
+
+func (b *Broadphase) Queries() int64
+    Queries counts every Query call, or 0 on nil.
+
+func (b *Broadphase) Query() ([]Contact, error)
+    Query returns every touching pair with matching masks in track order,
+    shortlisted by the grid: identical pairs and order to Query over the same
+    bodies when nothing sleeps and no cap applies. The pair list is cached
+    while clean (Godot update() semantics): Track/Move/Remove/ SetStatic mark
+    dirty and rebuild once, steady frames reuse pairs and pay narrow tests only.
+    Evaluations count every grid pair tested; the cap trims contacts only, never
+    evaluations, so Trimmed plus contacts always reconcile with the pair count.
+    stay collidable and land in Woke when an awake non-static touches them
+    (auto-woken with AutoWake on; static rest and sleeper-sleeper rest never
+    wake). MaxCandidates Query keeps the first contacts and counts Trimmed;
+    the wake scan only sees kept contacts, documented and deterministic.
+
+func (b *Broadphase) QueryRegion(rect core.Rect) ([]int, error)
+    QueryRegion returns the handles whose bounds touch rect, in ascending handle
+    order: the Godot cull_aabb single query. Only the touched cells are walked,
+    so one viewport lookup costs microseconds, not a yard scan. Empty or
+    non-finite rects are InvalidArg; a clean miss returns nil.
+
+func (b *Broadphase) Ray(ray Ray) (Hit, bool, error)
+    Ray casts through the grid: bodies whose bounds miss the segment box are
+    skipped, the rest run the same slab/quadratic narrow tests as CastRay with
+    the same nearest-plus-smallest-index rule. Sleeping bodies still block rays.
+    Invalid rays are InvalidArg, matching CastRay.
+
+func (b *Broadphase) Remove(h int) error
+    Remove forgets h. Unknown handles are NotFound; the slot recycles.
+
+func (b *Broadphase) Reset()
+    Reset forgets every tracked body, set, and counter. Cell, cap, sleep tuning,
+    and wake switches stay: a yard switch re-tracks into the same frame.
+
+func (b *Broadphase) SetAutoSleep(on bool)
+    SetAutoSleep flips stillness sleep. With it off, only explicit Sleep parks
+    dynamics.
+
+func (b *Broadphase) SetAutoWake(on bool)
+    SetAutoWake flips contact wake: with it on, Query wakes contacted sleepers
+    before returning; with it off, they stay asleep and only appear in Woke for
+    the caller to wake.
+
+func (b *Broadphase) SetMaxCandidates(n int) error
+    SetMaxCandidates caps pair evaluations per Query: past n pairs Query keeps
+    the first n in track order and counts the rest in Trimmed. Zero means
+    unlimited. Negative is InvalidArg and keeps the old cap.
+
+func (b *Broadphase) SetSleep(eps float64, frames int) error
+    SetSleep tunes stillness sleep: displacement under eps for frames in a row
+    parks a dynamic. eps must be finite and >= 0, frames >= 1, else InvalidArg
+    keeps the old tuning.
+
+func (b *Broadphase) SetStatic(h int, static bool) error
+    SetStatic flips the static flag. Unknown handles are NotFound.
+
+func (b *Broadphase) Sleep(h int) error
+    Sleep parks a dynamic; statics refuse with InvalidArg (they never sleep,
+    they simply never move). Unknown handles are NotFound.
+
+func (b *Broadphase) SleepingCount() int
+    SleepingCount counts parked dynamics, or 0 on nil.
+
+func (b *Broadphase) Track(body Body, static bool) (int, error)
+    Track registers a body and returns its stable handle. The body must be
+    valid, else InvalidArg; past MaxBroadphaseBodies is OutOfMemory. static
+    bodies never auto-sleep. Handles stay stable across Remove (slots recycle
+    through a free list, never by swap).
+
+func (b *Broadphase) Trimmed() int
+    Trimmed returns pairs the last Query dropped past MaxCandidates.
+
+func (b *Broadphase) Update()
+    Update steps stillness sleep without querying: dynamics displaced under
+    eps since the last Update add a still frame and park at the tuned count;
+    anything that moved restarts. Statics never park.
+
+func (b *Broadphase) Wake(h int) error
+    Wake rejoins h. Unknown handles are NotFound. Waking also resyncs the
+    stillness baseline so a woken body never parks on its first Update.
+
+func (b *Broadphase) Woke() []int
+    Woke returns the handles parked-asleep but contacted by an awake non-static
+    in the last Query, in first-contact order. A fresh slice every call.
+
+type Contact struct {
+	AI      int
+	BI      int
+	A       string
+	B       string
+	Trigger bool
+}
+    Contact is one touching pair from Query: input indices plus debug names
+    plus the trigger flag. Trigger is true when either side is a trigger;
+    solid pairs report false. Indices disambiguate duplicate or empty names;
+    names are never parsed.
+
+func Query(bodies []Body) ([]Contact, error)
+    Query returns every touching pair with matching masks: CanCollide and
+    Overlaps both true. Pairs run i<j in input order. The input is never
+    mutated; the result is fresh (nil when nothing touches). Any invalid body is
+    a core InvalidArg error with a nil result.
+
+type Hit struct {
+	Index   int
+	Name    string
+	Dist    float64
+	Pos     core.Vec2
+	Normal  core.Vec2
+	Trigger bool
+}
+    Hit is the nearest body a ray meets: input index plus debug name plus
+    distance from Origin along the normalized Dir plus hit point plus the
+    outward face normal plus the body trigger flag. Dist is in world units.
+
+func CastRay(bodies []Body, ray Ray) (Hit, bool, error)
+    CastRay returns the nearest body the ray meets. Bodies with no layer bit in
+    the ray mask are skipped (one-sided, unlike Query which needs both sides).
+    Ties keep the smaller input index. Empty input reports no hit. An invalid
+    ray or any invalid body is a core InvalidArg error.
+
+type MotionMode int
+    MotionMode mirrors Godot CharacterBody2D motion_mode: the two gears GROUNDED
+    (platformer stick) and FLOATING (top-down drift, no floor).
+
+const (
+	// MotionModeGrounded sticks to walkable floors within the snap window.
+	MotionModeGrounded MotionMode = 0
+	// MotionModeFloating never reports floor and never snaps.
+	MotionModeFloating MotionMode = 1
+)
+func (m MotionMode) String() string
+    String returns the debug key, never parsed.
+
+func (m MotionMode) Valid() bool
+    Valid reports whether m is one of the two known gears.
+
+type Ray struct {
+	Origin  core.Vec2
+	Dir     core.Vec2
+	MaxDist float64
+	Mask    uint32
+}
+    Ray is one jump probe or bullet line: origin plus direction plus range plus
+    a one-sided layer mask. Dir need not be unit; length never scales the hit
+    distance. MaxDist bounds the hit in world units.
+
+func NewRay(origin, dir core.Vec2, maxDist float64, mask uint32) (Ray, error)
+    NewRay builds a ray. Origin must be finite, Dir finite and non-zero, MaxDist
+    finite and >= 0. Mask accepts any bits (0 hits nothing).
+
+func (r Ray) Valid() bool
+    Valid reports whether r can cast: finite origin, finite non-zero dir,
+    finite MaxDist >= 0. Mask never affects validity.
+
+type Shape int
+    Shape names which geometry a Body carries.
+
+const (
+	// ShapeBox is a center plus half extents.
+	ShapeBox Shape = 0
+	// ShapeCircle is a center plus a radius.
+	ShapeCircle Shape = 1
+)
+type Slope struct {
+	// Has unexported fields.
+}
+    Slope is one thin walk surface: segment A-B plus the one-way flag. +Y runs
+    down (tilemap CellToWorld units); above means smaller Y. A one-way slope
+    only lands from above, a solid slope also reports a head bump when crossed
+    from below. The segment is thin: top and bottom share one Y, so Grounded
+    alone cannot tell the side; Step tells by motion direction.
+
+func Grounded(feet core.Vec2, slopes []Slope) (Slope, bool)
+    Grounded reports the highest slope whose surface sits within slopeSnap of
+    feet at the feet column. Invalid slopes are skipped (soft, like tilemap At);
+    ties keep the first input. One-way counts the same as solid here:
+    directionless touch only, Step decides the side.
+
+func NewOneWay(name string, a, b core.Vec2) (Slope, error)
+    NewOneWay builds a one-way slope from a to b. Any angle is accepted; the
+    usual case is horizontal. Landing matches NewSlope, the rising pass-through
+    never reports a head bump.
+
+func NewSlope(name string, a, b core.Vec2) (Slope, error)
+    NewSlope builds a solid slope from a to b.
+
+func SnapGrounded(feet core.Vec2, slopes []Slope, cfg SnapConfig) (Slope, bool)
+    SnapGrounded reports the highest walkable slope whose surface sits
+    within reach of feet: at most SnapLength above (gap to bridge) or at most
+    SafeMargin below (sink allowance). Steep faces never count, so a ramp holds
+    while a wall does not. Floating gear reports no floor. Invalid configs or
+    bad feet report false, never a panic; invalid slopes are skipped soft like
+    Grounded.
+
+func Step(feet, vel core.Vec2, dt float64, slopes []Slope) (core.Vec2, Slope, bool, bool, error)
+    Step moves feet by vel*dt and resolves one thin-segment contact. Falling
+    or still (vel.Y >= 0): the highest crossed surface between the old and new
+    columns snaps to the surface and reports grounded. Rising (vel.Y < 0):
+    staying on the same slope still reports grounded, a solid slope crossed from
+    below reports hitHead with the feet clamped to the ceiling, one-way slopes
+    never report head. dt==0 only samples Grounded. Any invalid slope fails
+    closed with InvalidArg like Query; bad feet, vel, or dt (non-finite or dt
+    < 0) is InvalidArg with feet unchanged. The input slice is never mutated.
+    Walking a slope needs velocity along the slope (or gravity next step);
+    pure horizontal motion into a slope side does not auto-snap.
+
+func StepWithSnap(feet, vel core.Vec2, dt float64, slopes []Slope, cfg SnapConfig) (core.Vec2, Slope, bool, bool, error)
+    StepWithSnap moves feet by vel*dt like Step, then applies the Godot
+    apply_floor_snap window: a walkable surface within SnapLength below a
+    falling or still body snaps to the surface and reports onFloor. Rising
+    bodies never snap (jump passes through one-way, solid still bumps head
+    via Step). A Step landing on a non-walkable face touches but is not floor
+    (ground cleared, onFloor false). Floating gear delegates to Step for motion
+    and reports onFloor false. dt==0 only samples SnapGrounded. Bad feet/vel/dt,
+    any invalid slope, or an invalid config is InvalidArg with feet unchanged.
+    The input slice is never mutated. Deliberate difference from Godot:
+    the snap engages whenever a walkable surface sits inside the bounded window,
+    without a was-on-floor precondition.
+
+func (s Slope) A() core.Vec2
+    A returns the first endpoint.
+
+func (s Slope) Angle() (float64, bool)
+    Angle returns the slope angle from horizontal in [0, pi/2]: 0 is flat,
+    pi/2 is vertical. Invalid slopes report ok=false.
+
+func (s Slope) B() core.Vec2
+    B returns the second endpoint.
+
+func (s Slope) GroundYAt(x float64) (float64, bool)
+    GroundYAt returns the surface Y at column x. Vertical segments are not a
+    function of x and report ok=false; x outside the inclusive endpoint span
+    reports ok=false. Endpoints count as inside.
+
+func (s Slope) Name() string
+    Name returns the debug key, never parsed.
+
+func (s Slope) OneWay() bool
+    OneWay reports whether the slope is top-only.
+
+func (s Slope) SlideDir() (core.Vec2, bool)
+    SlideDir returns the downhill unit vector (+Y down). Flat segments have no
+    downhill and report ok=false; vertical segments slide straight down (0,1).
+    Invalid slopes report ok=false.
+
+func (s Slope) Valid() bool
+    Valid reports whether s carries finite distinct endpoints.
+
+func (s Slope) Walkable(maxAngle float64) bool
+    Walkable reports whether the slope is gentle enough to stand on: angle <=
+    maxAngle with exact comparison. Bad slopes or a bad maxAngle (non-finite or
+    negative) report false. The caller owns maxAngle.
+
+type SnapConfig struct {
+	Mode          MotionMode
+	SnapLength    float64
+	FloorMaxAngle float64
+	SafeMargin    float64
+}
+    SnapConfig carries caller-owned floor tuning. Zero value is invalid;
+    use DefaultSnapConfig and adjust from there.
+
+func DefaultSnapConfig() SnapConfig
+    DefaultSnapConfig returns the Godot D18 defaults in grounded gear.
+
+func (c SnapConfig) Valid() bool
+    Valid reports whether c carries a known gear with finite non-negative
+    tuning. Zero snap is valid (exact contact only); negative is not.
+
+type Spring struct {
+	Impulse float64
+	Damp    float64
+}
+    Spring is one jump pad: Impulse is the extra upward kick in world units
+    per second, Damp is the decay (fraction of incoming falling speed kept,
+    0 dead pad, 1 perfectly bouncy). +Y runs down like the slopes, so falling
+    means vy > 0 and the launch is negative.
+
+func NewSpring(impulse, damp float64) (Spring, error)
+    NewSpring builds a jump pad. Impulse must be finite and >= 0, Damp in [0,1],
+    else InvalidArg.
+
+func (s Spring) Bounce(vy float64) float64
+    Bounce fires the pad: a falling body (vy > 0) leaves with -(vy*Damp +
+    Impulse); a rising or still body passes through untouched (top-only, like
+    the one-way spirit). An invalid pad never fires and returns vy unchanged.
+
+func (s Spring) Valid() bool
+    Valid reports whether s carries a usable pad.
+

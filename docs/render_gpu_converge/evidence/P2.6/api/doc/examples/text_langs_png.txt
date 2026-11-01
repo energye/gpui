@@ -1,0 +1,18 @@
+Command text_langs_png — M0–M7 文本渲染全语言可视化输出（GPU 优先）。
+
+用 GPUI 文本引擎（HintingVertical=FT light + HbShaper/go-text shaping， GPU 走 Tier6
+glyph-mask/MSDF 管线）把所有支持的语言/脚本样本渲染进 大图，按「字号 + 字体样式」命名输出 PNG。
+
+每个语言样本渲染五种样式变体（字体样式展示）：
+ 1. Regular 常规
+ 2. Bold 粗体（同族 Bold 变体，无则回退 Regular）
+ 3. Oblique 斜体（同族 Oblique 变体，无则 Shear 变换合成）
+ 4. Color 带颜色（绿色着色）
+ 5. Vertical 竖排（TTB 方向，中/日/韩等按语言序号分列不重叠）
+
+渲染路径（render.Context.DrawString 自动调度）：
+  - GPU：空引入 render/gpu 注册 VelloAccelerator（headless Vulkan）
+  - CPU 降级：无 GPU/设备失败自动回落
+
+每个「样式」= 主字体（Regular）+/Bold/Oblique + 脚本 fallback 链。 命名:
+samples_<字号>px_<样式>.png；输出 ./out/（$OUT_DIR 覆盖）。

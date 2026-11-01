@@ -1,0 +1,17 @@
+Command ui_render_base_maskops is the A-group real window for the
+mask write-path family: SetMask / ClearMask / InvertMask / ApplyMask /
+PushMaskLayer(+PopLayer) (RENDER_FEATURE_COVERAGE §1 #14 / §3.1 item 6).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_maskops -auto-only
+    go run ./examples/ui_render_base_maskops   # manual: lives until window close
+    go run ./examples/ui_render_base_maskops -manual-seconds 15  # manual, auto-close
+
+Evidence: 14 logical contract probes (value-level on an offscreen CPU context),
+18 pixel probes on the GPU snapshot (oracle = mask coverage blend over the
+card background), a bitwise golden over header + legend + the four cards,
+a GPU-route assertion (gpu_ops > 0, cpu_fallback_ops == 0), and a live screen
+grab compared with the snapshot over the same rects. The screen check exists
+because the snapshot is a synthetic repaint at Close: it can stay correct while
+the presented window is black (mask write-path regression), so snapshot-green
+alone does not certify the real window.

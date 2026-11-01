@@ -1,0 +1,206 @@
+package wide // import "github.com/energye/gpui/render/internal/wide"
+
+Package wide provides SIMD-friendly wide types for batch pixel processing.
+This file implements batch anti-aliased blending operations.
+
+Package wide provides SIMD-friendly wide types for batch pixel processing.
+
+This package implements wide types (U16x16, F32x8) that are designed to enable
+Go compiler auto-vectorization. By using fixed-size arrays and simple loops,
+these types allow the compiler to generate SIMD instructions on supported
+architectures (SSE, AVX, NEON).
+
+# Wide Types
+
+U16x16: 16 uint16 values for integer operations (alpha blending, color
+channels). F32x8: 8 float32 values for floating-point operations (gradients,
+filters).
+
+# BatchState
+
+BatchState provides Structure-of-Arrays (SoA) layout for processing 16 RGBA
+pixels in parallel. This layout is SIMD-friendly and enables efficient batch
+operations.
+
+# Design Philosophy
+
+  - Use simple loops over fixed-size arrays for auto-vectorization
+  - Avoid unsafe and assembly - rely on compiler optimization
+  - Keep functions small and inlineable
+  - Provide benchmarks to verify SIMD performance gains
+
+# Usage Example
+
+    // Batch blend 16 pixels
+    var batch wide.BatchState
+    batch.LoadSrc(srcPixels)
+    batch.LoadDst(dstPixels)
+
+    // Perform blending operations on batch.SR, batch.SG, etc.
+    // ...
+
+    batch.StoreDst(dstPixels)
+
+FUNCTIONS
+
+func BlendBatchAA(b *BatchState, alpha uint8)
+    BlendBatchAA applies a constant alpha to 16 source pixels and blends them
+    over destination pixels using the SourceOver formula.
+
+    This is optimized for anti-aliased rendering where many pixels share the
+    same coverage alpha value. Instead of blending each pixel individually,
+    we process 16 at a time using SIMD-friendly operations.
+
+    Formula: Result = S * coverageAlpha + D * (1 - S.A * coverageAlpha)
+
+    For premultiplied alpha, the formula simplifies to:
+
+        R_out = S_R * alpha/255 + D_R * (255 - S_A * alpha/255) / 255
+
+    Parameters:
+      - b: BatchState containing source and destination pixels in SoA layout
+      - alpha: coverage alpha value (0-255) to apply to all 16 source pixels
+
+func BlendSolidColorSpanAA(dst []byte, count int, r, g, b, a, alpha uint8)
+    BlendSolidColorSpanAA blends a solid color over a span of pixels with
+    constant coverage alpha. This is the main entry point for AA rasterizer.
+
+    Automatically uses batch (16px) or scalar based on count.
+
+    Parameters:
+      - dst: destination buffer in RGBA format
+      - count: number of pixels to blend
+      - r, g, b, a: source color components (premultiplied alpha, 0-255)
+      - alpha: coverage alpha (0-255)
+
+func SourceOverBatchAA(b *BatchState)
+    SourceOverBatchAA performs SourceOver blending on 16 pixels. This is
+    identical to SourceOverBatch but duplicated here to avoid import cycles
+    between wide and blend packages.
+
+    Formula: Result = S + D * (1 - Sa)
+
+
+TYPES
+
+type BatchState struct {
+	SR, SG, SB, SA U16x16 // Source RGBA (16 pixels)
+	DR, DG, DB, DA U16x16 // Destination RGBA (16 pixels)
+}
+    BatchState holds 16 RGBA pixels for batch processing. Uses
+    Structure-of-Arrays (SoA) layout for SIMD-friendly access.
+
+    Traditional Array-of-Structures (AoS) layout:
+
+        [R0, G0, B0, A0, R1, G1, B1, A1, ...]
+
+    Structure-of-Arrays (SoA) layout:
+
+        SR: [R0, R1, R2, ..., R15]
+        SG: [G0, G1, G2, ..., G15]
+        SB: [B0, B1, B2, ..., B15]
+        SA: [A0, A1, A2, ..., A15]
+
+    SoA layout enables SIMD operations on entire color channels at once.
+
+func (b *BatchState) LoadDst(dst []byte)
+    LoadDst loads 16 RGBA pixels from byte slice into destination channels.
+    dst must have at least 64 bytes (16 pixels * 4 bytes). Each pixel is stored
+    as [R, G, B, A] in the byte slice.
+
+func (b *BatchState) LoadSrc(src []byte)
+    LoadSrc loads 16 RGBA pixels from byte slice into source channels. src must
+    have at least 64 bytes (16 pixels * 4 bytes). Each pixel is stored as [R, G,
+    B, A] in the byte slice.
+
+func (b *BatchState) StoreDst(dst []byte)
+    StoreDst stores 16 RGBA pixels from destination channels to byte slice.
+    dst must have at least 64 bytes (16 pixels * 4 bytes). Each pixel is stored
+    as [R, G, B, A] in the byte slice.
+
+type F32x8 [8]float32
+    F32x8 represents 8 float32 values for SIMD-style operations. Designed for Go
+    compiler auto-vectorization with fixed-size arrays. This type is ideal for
+    floating-point operations like gradients and filters.
+
+func SplatF32(n float32) F32x8
+    SplatF32 creates F32x8 with all elements set to n. This is useful for
+    initializing constants or broadcasting a single value.
+
+func (v F32x8) Add(other F32x8) F32x8
+    Add performs element-wise addition. Returns a new F32x8 with v[i] + other[i]
+    for each element.
+
+func (v F32x8) Clamp(minVal, maxVal float32) F32x8
+    Clamp clamps each element to [minVal, maxVal]. Any value less than minVal is
+    set to minVal, any value greater than maxVal is set to maxVal.
+
+func (v F32x8) Div(other F32x8) F32x8
+    Div performs element-wise division. Returns a new F32x8 with v[i] /
+    other[i] for each element. Note: Division by zero results in +Inf, -Inf,
+    or NaN according to IEEE 754.
+
+func (v F32x8) Lerp(other F32x8, t F32x8) F32x8
+    Lerp performs linear interpolation: v + (other - v) * t. When t=0, returns
+    v; when t=1, returns other. t is per-element interpolation factor.
+
+func (v F32x8) Max(other F32x8) F32x8
+    Max performs element-wise maximum. Returns a new F32x8 with max(v[i],
+    other[i]) for each element.
+
+func (v F32x8) Min(other F32x8) F32x8
+    Min performs element-wise minimum. Returns a new F32x8 with min(v[i],
+    other[i]) for each element.
+
+func (v F32x8) Mul(other F32x8) F32x8
+    Mul performs element-wise multiplication. Returns a new F32x8 with v[i] *
+    other[i] for each element.
+
+func (v F32x8) Sqrt() F32x8
+    Sqrt computes square root of each element. Returns a new F32x8 with
+    sqrt(v[i]) for each element. Negative values result in NaN according to IEEE
+    754.
+
+func (v F32x8) Sub(other F32x8) F32x8
+    Sub performs element-wise subtraction. Returns a new F32x8 with v[i] -
+    other[i] for each element.
+
+type U16x16 [16]uint16
+    U16x16 represents 16 uint16 values for SIMD-style operations. Designed for
+    Go compiler auto-vectorization with fixed-size arrays. This type is ideal
+    for processing alpha blending and color channel operations.
+
+func SplatU16(n uint16) U16x16
+    SplatU16 creates U16x16 with all elements set to n. This is useful for
+    initializing constants or broadcasting a single value.
+
+func (v U16x16) Add(other U16x16) U16x16
+    Add performs element-wise addition. Returns a new U16x16 with v[i] +
+    other[i] for each element.
+
+func (v U16x16) Clamp(maxVal uint16) U16x16
+    Clamp clamps each element to [0, maxVal]. Any value greater than maxVal is
+    set to maxVal.
+
+func (v U16x16) Div255() U16x16
+    Div255 divides each element by 255 using fast approximation. Uses the
+    formula: (x + 1 + (x >> 8)) >> 8 This is equivalent to (x * 257) >> 16 and
+    provides accurate division by 255.
+
+func (v U16x16) Inv() U16x16
+    Inv computes 255 - v for each element (inverse alpha). Useful for computing
+    the complement of an alpha value.
+
+func (v U16x16) Mul(other U16x16) U16x16
+    Mul performs element-wise multiplication. Returns a new U16x16 with v[i] *
+    other[i] for each element.
+
+func (v U16x16) MulDiv255(other U16x16) U16x16
+    MulDiv255 performs (v * other) / 255 for each element. Combines
+    multiplication and division by 255 using fast approximation. This is the
+    core operation for alpha blending: c_out = (c_src * alpha) / 255.
+
+func (v U16x16) Sub(other U16x16) U16x16
+    Sub performs element-wise subtraction. Returns a new U16x16 with v[i] -
+    other[i] for each element.
+

@@ -1,0 +1,27 @@
+Command ui_wr_c2_retained_scene is the W2 C2 combined real-window: R3+R4+R4b+R5
+集成 — retained 整场景：多 boundary + Picture + 远离脏点 + damage present。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_wr_c2_retained_scene
+
+Window: 1200x800. RUN_SECONDS>=15 (U16, §2.5: C2 关闭用 15s). GPU window required.
+
+集成场景（§3.1.2 C2 行）：
+  - R3：嵌套 boundary 链（outer→mid→inner 3 层）+ 各层静文/色块；内脏只重录 inner， outer/mid
+    skip；Spike 相外层脏 → outer 整巢重录（巢外不受影响）。
+  - R4：retained 稳态 + 5x3 静态色格阵（各自 boundary）+ 局部动画区 hotA（Align 布局驱动）。
+  - R4b：hot1（右上）+ hot2（左下）对角远离同帧变脏 → 两独立 dirty layer id， 中间大面积静态不重绘 →
+    damage_multi_frames>=1。
+  - R5：Picture 直绘 vs 回放同构图并排（8 ops），picture_op_count>=3。
+
+GateOptions = ∪(各 R 门禁)：boundary_skip>=3 + boundary_rerecord>=2（R3）、
+retained policy + damage_ratio_sum<=0.35（sum of rects 口径，R4b 先例；union bbox
+为观测） + mode 非 full（R4）、dirty_layer_id_max>=2 + damage_multi_frames>=1（R4b）、
+picture_op_count>=3（R5）、持续 tick fps>=55 + p95<=22。
+
+PhaseClock 三阶段同时影响多能力（§3.1.1）：
+  - Steady（0–2s）：R3 inner hot3 每帧变（仅 inner 重录）；hotA/hot1/hot2 每帧变； R5 直绘/回放区
+    0.5s 低频刷新（retained 下回放缓存静态走 blit skip）。
+  - Spike（2–4s）：R3 outer.Background 翻转（整巢重录）；三热点加速变色；相位横幅变色； R5 区每帧刷新（与相位节奏呼应）。
+  - Recover（4s+）：R3 仅 inner 按 0.5s 低频变（outer/mid 持续 skip）；三热点继续； R5
+    区低频——retained 稳态回稳。

@@ -1,0 +1,99 @@
+package loop // import "github.com/energye/gpui/engine/loop"
+
+Package loop is the generic runway every 2.5D play runs on.
+
+Frozen 2026-09-30 (E05): Loop, New, AddSystem, Systems, SystemCount,
+SetPacketHook, InjectPacket, PendingPackets, SetSubmit, Frame, Dt, Steps,
+Elapsed, Alpha, MaxPendingPackets. Additive changes only.
+
+One frame, always the same order: drain queued net packets, run every registered
+system in registration order once per fixed tick, then hand the blend factor to
+the submit hook. The loop writes no gameplay: no monsters, no scenes, no wins.
+Plays register systems; the loop only runs the table.
+
+Time is core.Duration integer milliseconds on a step.Fixed beat, so slow and
+fast machines agree tick by tick. Only core numbers cross the boundary; render
+types are converted by the submit hook's owner, never here.
+
+CONSTANTS
+
+const MaxPendingPackets = 1024
+    MaxPendingPackets caps queued net packets. Injects past the cap report
+    OutOfMemory and store nothing, so a dead network never grows the loop.
+
+
+TYPES
+
+type Loop struct {
+	// Has unexported fields.
+}
+    Loop is the generic runway: a fixed beat, an ordered system table,
+    a net-packet socket, and a submit hook. The zero value holds nothing; New
+    is the only way in. Not safe for concurrent use; a nil *Loop never panics:
+    Frame parks at 0,0, getters park at zero, void setters are no-ops, fallible
+    calls report InvalidArg.
+
+func New(dt core.Duration) (*Loop, error)
+    New builds a runway on a fixed tick width dt. Non-positive dt is a core
+    InvalidArg error and returns nil, never a guessed beat.
+
+func (l *Loop) AddSystem(name string, update func(dt core.Duration)) error
+    AddSystem registers one system at the end of the table. Empty names,
+    duplicate names, and nil updates are core InvalidArg errors and store
+    nothing. A nil loop reports InvalidArg.
+
+func (l *Loop) Alpha() float64
+    Alpha returns the current render blend factor. A nil loop reports 0.
+
+func (l *Loop) Dt() core.Duration
+    Dt returns the fixed tick width. A nil loop reports 0.
+
+func (l *Loop) Elapsed() core.Duration
+    Elapsed returns simulated time run so far. A nil loop reports 0.
+
+func (l *Loop) Frame(frame core.Duration) (ticks int, alpha float64)
+    Frame runs one real frame: split into fixed ticks, drain packets then run
+    every system in order per tick, then submit the blend factor. Returns the
+    tick count and the blend factor. Bad frame widths follow the fixed beat
+    (park at 0, clamp at step.MaxFrame). A nil loop returns 0, 0 and calls
+    nothing.
+
+func (l *Loop) InjectPacket(pkt []byte) error
+    InjectPacket queues one net packet for the next tick. Empty packets are
+    InvalidArg; a full queue (MaxPendingPackets) is OutOfMemory; a nil loop is
+    InvalidArg. The bytes are cloned, never aliased.
+
+func (l *Loop) PendingPackets() int
+    PendingPackets counts queued, undrained packets. A nil loop reports 0.
+
+func (l *Loop) SetPacketHook(fn func([][]byte))
+    SetPacketHook plugs the netcode drain: before every tick with queued
+    packets, the loop hands the queue over and clears it. A nil hook stores
+    packets without draining. Calling with nil clears the hook. A nil loop is a
+    no-op. The hook must not retain the slice.
+
+func (l *Loop) SetSubmit(fn func(alpha float64))
+    SetSubmit plugs the render handoff: after every Frame the loop calls it once
+    with the blend factor, even on zero-tick frames. Calling with nil clears the
+    hook. A nil loop is a no-op.
+
+func (l *Loop) Steps() uint64
+    Steps counts ticks run so far. A nil loop reports 0.
+
+func (l *Loop) SystemCount() int
+    SystemCount counts registered systems. A nil loop reports 0.
+
+func (l *Loop) Systems() []string
+    Systems returns the registration names in run order. A nil loop returns nil.
+    The result is a fresh slice.
+
+type System struct {
+	// Has unexported fields.
+}
+    System is one registered tick worker: a name plus its per-tick update.
+    The update receives the fixed tick width. Systems report nothing back;
+    they keep their own errors. A nil update never registers.
+
+func (s System) Name() string
+    Name returns the registration name.
+

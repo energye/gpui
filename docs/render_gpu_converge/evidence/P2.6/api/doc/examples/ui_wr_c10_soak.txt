@@ -1,0 +1,17 @@
+Command ui_wr_c10_soak is the C10 combined soak real window: R15+全主路径 —
+全能力组合长跑（静态+动画+滚动+浮层+图片）300s。
+
+§3 C10 thesis: 全能力长跑不泄漏不崩溃 — 在 R15 全主路径 soak 场景上叠加 图片条带（启动时一次解码，300s 全程零解码）：滚动
+churn、浮层开合、图片 纹理同帧合成，相互不拖累。结束时判无崩 + hitch_rate 合理 + CPU/RSS 稳定 + 无渐进退化（图片像素 300s
+后仍精确）。
+
+Gates (§3 C10 行 + §2.5 Soak 长跑 档 + 覆盖能力门禁并集；硬，不许放): R15 全部门禁 + img_loaded==4（4
+格图片启动时全部就位）+ 像素断言 5/5 （多第 5 项图片格色）+ Golden 静态掩码零容差（次跑起）。运行中无逐帧 读回：像素采样只读终帧 PNG
+文件，不碰 GPU backbuffer。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=300 go run ./examples/ui_wr_c10_soak
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 300 (§2.5 Soak 长跑 档).
+No RUN_SECONDS → runs the 300s closing duration. GPU window required
+(needs_gpu_window otherwise).

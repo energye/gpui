@@ -1,0 +1,19 @@
+Command ui_wr_r15_soak is the R15 single-ability soak real window: UI/raster
+所有权长跑 — 全主路径组合（静态+动画+滚动+浮层）300s 持续运行。
+
+§2 R15 thesis: 长时间运行不泄漏不崩溃 — 600 行虚拟列表持续滚动（滚动）， 3 层嵌套 boundary +
+密集静态面板（静态），每帧变色热点（动画），周期性 浮层面板开合（浮层），PhaseClock 58s 周期循环 5 轮 + 10s 稳态收尾。结束时判无崩 +
+hitch_rate 合理 + CPU/RSS 稳定 + 内容始终正确（像素探针/Golden）。
+
+Gates (§2 R15 行 + §2.5 Soak 长跑 档 + §2.2 全族；硬，不许放): present_count≥1,
+fps_interval≥55, p95≤22ms, hitch≤5/min, cpu_pct_avg≤85 且非双 0, rss_slope≤30000,
+vsync_source 必有, boundary_skip>0, bind≪item_count, scroll_rerecord>0,
+overlay 周期开合≥3 次, 像素断言 4/4, Golden 静态掩码零容差（次跑起）。运行中无逐帧读回：像素采样只读终帧 PNG 文件，不碰 GPU
+backbuffer。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=300 go run ./examples/ui_wr_r15_soak
+
+Window: 1200x800. RUN_SECONDS>=5 (U16); closing requires 300 (§2.5 Soak 长跑 档).
+No RUN_SECONDS → runs the 300s closing duration. GPU window required
+(needs_gpu_window otherwise).

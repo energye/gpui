@@ -1,0 +1,14 @@
+Command ui_wr_r1_layout is the W2 R1 real-window: 局部 NeedsLayout isolation.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=30 go run ./examples/ui_wr_r1_layout
+
+Window: 1200x800. R1 table floor is 5s (U16); close evidence uses 30s because
+the two U21 snapshot readbacks would otherwise exceed the hitch budget.
+GPU window required.
+
+R1 thesis: changing one child's layout size must dirty only its relayout
+boundary subtree — never the window root, the shell panels, or sibling boards.
+The target frame is a real engine relayout boundary; four timed height changes
+move its Align child (the amber marker), while the sibling chip, dense board,
+stripes, and persistent HOT animation stay put.

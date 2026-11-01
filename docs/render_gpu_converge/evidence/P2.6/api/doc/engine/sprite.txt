@@ -1,0 +1,386 @@
+package sprite // import "github.com/energye/gpui/engine/sprite"
+
+Package sprite freezes the CPU-side sprite ordering every 2.5D draw feeds.
+
+Frozen 2026-09-15: LayerWorld, LayerFX, LayerUI, Item, NewItem, Sort, IsSorted.
+Additive changes only.
+
+Frozen 2026-09-15: LoopOnce, LoopLoop, LoopPingPong, Clip, EventKind
+(EventNone/EventFrame/EventLoop/ EventFinished), Event, Flipbook, NewFlipbook,
+AddClip, Has, Count, OnEvent, Play, Current, IsPlaying, Update. Additive changes
+only.
+
+Frozen 2026-09-15: Sprite, NewSprite, Skippable, EffectiveOpacity, Batch,
+NewBatch, Add, Flush, Len, Skipped, Clear. Additive changes only. Same image
+submits once: Flush groups by image in first-seen order and calls emit once
+per image. Pure numbers only; the caller draws each group with the existing
+render DrawAtlas (Src.X/Y/W/H, Dst.X/Y/W/H, EffectiveOpacity field for field),
+render main path untouched.
+
+Frozen 2026-09-15: AtlasFilter (AtlasFilterDefault/Nearest/Bilinear/Bicubic),
+ParseAtlasFilter, AtlasSprite, NewAtlasSprite, Validate, Skippable, HasTint,
+PivotPoint, FeetPivot, ToRender, AtlasToRender. Additive changes only. Rotation
+is radians about the pivot; FlipX/FlipY mirror about the pivot before Rot;
+Pivot is the offset from the Dst origin in Dst units (zero is top-left,
+FeetPivot pins the feet); Tint zero struct means no tint, else straight
+multiply incl alpha; Filter zero means the historic bilinear road, per-sprite
+nearest/bilinear/bicubic each on its own. Pure numbers plus one boundary
+conversion; the caller draws the result with the existing render DrawAtlasEx
+(field for field), render main path untouched. Window intent Bad numbers are
+core InvalidArg and change nothing.
+
+Frozen 2026-09-15: DeepItem, NewDeepItem, SetDepth, DepthSort, IsDepthSorted.
+Additive changes only. Depth follows R5/engine/camera: bigger = farther, drawn
+first (far-to-near painter); ties keep the input order (stable, no flicker).
+Within the same depth, Layer/FeetY keep the 2.3 rule. Pure numbers; the caller
+feeds the ordered slice to render depth branch (DrawDepthSprites) or plain atlas
+draws. Bad depth (NaN/Inf) is a core InvalidArg error and changes nothing.
+
+Ordering (draw first = behind, draw last = front on top):
+
+    layer ascending, then feet Y ascending, stable for ties.
+
+Layer bands: world 0 (people, trees, ground), fx 1 (fire, smoke, trails), ui 2
+(buttons, tips). A bigger layer always covers a smaller one, so an effect never
+drifts over the interface no matter its Y. Custom layers are plain integers
+between or outside the bands; the rule stays the same.
+
+Feet Y is the foot bottom in world units: smaller Y stands behind and is drawn
+first, bigger Y stands in front and is drawn later. Same layer and same Y keeps
+the input order (stable), so equal heights never flicker.
+
+Only core numbers are used. This package draws nothing; the caller draws the
+returned slice in order with the existing render draws. Bad feet Y (NaN/Inf) is
+a core InvalidArg error and changes nothing.
+
+FUNCTIONS
+
+func AtlasToRender(items []AtlasSprite) ([]render.AtlasSprite, error)
+    AtlasToRender converts items to the render draws at the boundary,
+    preserving order and count (lossless): the caller draws the result with the
+    existing DrawAtlasEx, old road untouched. The input slice is never mutated;
+    the result is a fresh slice. Empty input returns nil with nil error.
+    The first bad sprite aborts with its InvalidArg error and nil result,
+    never a partial draw.
+
+func EffectiveOpacity(o float64) float64
+    EffectiveOpacity maps o to the value the existing render draw uses:
+    <=0 defaults to 1, >1 clamps to 1.
+
+func FeetPivot(dst core.Rect) core.Vec2
+    FeetPivot returns the pivot offset that pins the rotation center at the
+    feet: bottom-edge center of dst in Dst units. Use it as Pivot so a turn
+    never lifts the feet.
+
+func IsDepthSorted(items []DeepItem) bool
+    IsDepthSorted reports whether items already sit in draw order (first draws
+    first). Empty and single-item slices are sorted. Any non-finite depth/feet
+    reports false (fail closed), never true and never a panic. A nil slice has
+    no order to verify and reports false.
+
+func IsSorted(items []Item) bool
+    IsSorted reports whether items already sit in draw order (first draws
+    first). Empty and single-item slices are sorted. Any non-finite feet Y
+    reports false (fail closed), never true and never a panic.
+
+func SetDepth(s *DeepItem, depth float64) error
+    SetDepth changes the depth value. NaN/Inf returns InvalidArg and the
+    original value is untouched.
+
+func Skippable(s Sprite) bool
+    Skippable reports whether Flush skips s without drawing, matching the
+    existing render DrawAtlas skip: empty source or zero destination size.
+
+
+TYPES
+
+type AtlasFilter int
+    AtlasFilter selects per-sprite sampling: near stays crisp, far stays stable,
+    each picture on its own. Zero means the historic smooth road.
+
+const (
+	// AtlasFilterDefault is the zero value: historic bilinear road.
+	AtlasFilterDefault AtlasFilter = 0
+	// AtlasFilterNearest keeps texels sharp (near/crisp pictures).
+	AtlasFilterNearest AtlasFilter = 1
+	// AtlasFilterBilinear blends neighbours (far/stable pictures).
+	AtlasFilterBilinear AtlasFilter = 2
+	// AtlasFilterBicubic uses a 4x4 neighbourhood (highest quality).
+	AtlasFilterBicubic AtlasFilter = 3
+)
+func ParseAtlasFilter(s string) (AtlasFilter, error)
+    ParseAtlasFilter maps "", "default", "nearest", "bilinear", "bicubic" to a
+    filter. Anything else is a core InvalidArg error, never a guess.
+
+func (f AtlasFilter) String() string
+    String returns the stable log name of f.
+
+func (f AtlasFilter) ToRender() (render.InterpolationMode, error)
+    ToRender maps f to the render sampler at the boundary. Default maps to the
+    zero mode (render normalizes it to bilinear, the old road).
+
+func (f AtlasFilter) Valid() bool
+    Valid reports whether f is a settable choice.
+
+type AtlasSprite struct {
+	Image   core.AssetID
+	Src     core.Rect
+	Dst     core.Rect
+	Opacity float64
+	Rot     float64
+	FlipX   bool
+	FlipY   bool
+	Pivot   core.Vec2
+	Tint    core.Color
+	Filter  AtlasFilter
+	Tag     string
+}
+    AtlasSprite is one sub-rect of a large image with rotation, tint, flip,
+    pivot, and per-sprite filter: which atlas it comes from, the source block in
+    image pixels, the destination box in world units, the opacity, the rotation
+    about the pivot, the mirror before rotation, the pivot offset from the Dst
+    origin, the multiply tint, and the sampling. Tag is a debug key for tests
+    and logs only.
+
+func NewAtlasSprite(image core.AssetID, src, dst core.Rect, opacity, rot float64, pivot core.Vec2, tint core.Color, filter AtlasFilter, flipX, flipY bool) (AtlasSprite, error)
+    NewAtlasSprite builds an AtlasSprite. Image must be non-empty, Src/Dst
+    coordinates, Opacity, Rot, Pivot, and Tint components must be finite,
+    Filter must be a settable choice. Zero-size rects are allowed here and
+    skipped later by the render draw, mirroring the R4 skip. Tag stays empty;
+    the caller sets it for debugging.
+
+func (s AtlasSprite) HasTint() bool
+    HasTint reports whether s carries an explicit tint. The zero color means no
+    tint (white opaque at the render edge); any other value, including explicit
+    white, multiplies the texels.
+
+func (s AtlasSprite) PivotPoint() core.Vec2
+    PivotPoint returns the absolute pivot in world units: Dst origin plus the
+    pivot offset. Rotating about the feet keeps this point fixed, so a turning
+    body stays glued at the feet.
+
+func (s AtlasSprite) Skippable() bool
+    Skippable reports whether the render draw skips s without drawing, matching
+    the R4 skip: empty source or zero destination size. Negative destination
+    size is kept (mirrored draw at the render edge).
+
+func (s AtlasSprite) ToRender() (render.AtlasSprite, error)
+    ToRender converts s to the render draw at the boundary, field for field.
+    Bad sprites return a core InvalidArg error and no guess; skippable sprites
+    convert fine and are skipped later by DrawAtlasEx.
+
+func (s AtlasSprite) Validate() error
+    Validate reports whether s is drawable (finite numbers, known filter,
+    non-empty image). Zero-size rects are valid here; they are skipped by
+    Skippable and by the render draw, never an error.
+
+type Batch struct {
+	// Has unexported fields.
+}
+    Batch accumulates sprites and flushes one draw per image: same atlas submits
+    once, cutting draw calls. Pure numbers only; the caller draws each flushed
+    group with the existing render DrawAtlas in order. Not safe for concurrent
+    use.
+
+func NewBatch() *Batch
+    NewBatch builds an empty batch.
+
+func (b *Batch) Add(s Sprite) (added bool, err error)
+    Add stores s. Empty image or non-finite numbers return core InvalidArg
+    and store nothing. Zero-size sprites (see Skippable) are skipped quietly:
+    they return added=false with a nil error and are never stored, exactly like
+    the render draw skips them.
+
+func (b *Batch) Clear()
+    Clear drops every stored sprite and resets the skip count. The backing array
+    is retained so a reused Batch does not reallocate every frame; Len reports 0
+    either way.
+
+func (b *Batch) Flush(emit func(id core.AssetID, sprites []Sprite)) int
+    Flush groups stored sprites by image in first-seen order, keeps the Add
+    order inside each group, calls emit once per image, drains the batch,
+    and returns the draw call count (distinct images). Empty batches call
+    nothing and return 0. A nil emit is a quiet no-op returning 0 with the batch
+    preserved. Emit must not call back into the same Batch.
+
+func (b *Batch) FlushCount() int
+    FlushCount drains the batch and returns the draw call count (distinct
+    images) without allocating and without calling emit. It reports the same
+    count Flush would report: 0 when empty or nil, 1 on the single-image fast
+    path, distinct images otherwise. Use it for call-count gates whose contents
+    are proven by contract tests; drawing still goes through Flush.
+
+func (b *Batch) Len() int
+    Len returns the stored sprite count (skipped sprites are not stored).
+
+func (b *Batch) Skipped() int
+    Skipped returns how many zero-size sprites Add has skipped.
+
+type Clip struct {
+	Name     string
+	Frames   []int
+	FrameDur core.Duration
+	Loop     LoopMode
+}
+    Clip is one named action: idle, run, jump each own one. Frames holds the
+    image ids in play order; FrameDur is how long each frame shows; Loop selects
+    once, loop, or pingpong. Only core numbers are used; the caller draws the
+    returned frame id with the existing render draws.
+
+type DeepItem struct {
+	Name  string
+	Depth float64
+	Layer Layer
+	FeetY float64
+}
+    DeepItem is one depth-sortable sprite. Depth follows the R5/engine/camera
+    convention: bigger = farther and drawn first (far-to-near painter); Name is
+    only a debug key. Layer/FeetY keep the 2.3 rule and break ties inside the
+    same depth.
+
+func DepthSort(items []DeepItem) ([]DeepItem, error)
+    DepthSort returns the draw order for deep items: depth descending (far
+    first), then layer ascending, then feet Y ascending, stable for ties. The
+    input slice is never mutated; the result is a fresh slice. Any non-finite
+    depth/feet returns a core InvalidArg error with a nil result and leaves the
+    input untouched.
+
+func NewDeepItem(name string, depth float64, layer Layer, feetY float64) (DeepItem, error)
+    NewDeepItem builds a DeepItem. Depth and FeetY must be finite; NaN/Inf
+    returns a core InvalidArg error, never a guessed item.
+
+type Event struct {
+	Clip  string
+	Frame int
+	Index int
+	Kind  EventKind
+}
+    Event is what happened in one Update: which clip, which image id, which
+    position inside the clip, and what kind of crossing.
+
+type EventKind int
+    EventKind tells what an Update crossed: a new frame, a wrap or bounce,
+    or the end of a once clip.
+
+const (
+	// EventNone means the visible frame did not change.
+	EventNone EventKind = 0
+	// EventFrame means the frame advanced without wrapping or finishing.
+	EventFrame EventKind = 1
+	// EventLoop means a loop clip wrapped or a pingpong clip bounced.
+	EventLoop EventKind = 2
+	// EventFinished means a once clip reached its end and stopped.
+	EventFinished EventKind = 3
+)
+func (k EventKind) String() string
+    String returns the stable log name of k.
+
+type Flipbook struct {
+	// Has unexported fields.
+}
+    Flipbook plays frame numbers over time: Play picks the action, Update
+    advances by real time, OnEvent reports crossings. It draws nothing;
+    the caller draws the returned frame id.
+
+func NewFlipbook() *Flipbook
+    NewFlipbook builds an empty action library. Clips arrive via AddClip,
+    the current action via Play.
+
+func (f *Flipbook) AddClip(c Clip) error
+    AddClip stores one action. Name must be non-empty and unique, Frames must
+    hold at least one non-negative image id, FrameDur must be positive, Loop
+    must be once, loop, or pingpong. Bad clips return a core InvalidArg error
+    and store nothing; the frame list is copied so later writes by the caller
+    cannot change the library.
+
+func (f *Flipbook) Count() int
+    Count returns how many actions the library holds.
+
+func (f *Flipbook) Current() (clip string, index int, frame int, ok bool)
+    Current returns the current action, position, and image id. ok is false when
+    Play never succeeded.
+
+func (f *Flipbook) Has(name string) bool
+    Has reports whether the named action exists.
+
+func (f *Flipbook) IsPlaying() bool
+    IsPlaying reports whether time advances the current action. A finished once
+    clip reports false until Play rewinds it.
+
+func (f *Flipbook) OnEvent(h func(Event))
+    OnEvent sets the crossing callback; nil clears it. The handler runs
+    synchronously inside Update and must not call back into the same Flipbook.
+
+func (f *Flipbook) Play(name string) error
+    Play picks the named action and rewinds to its first frame. Unknown names
+    return core NotFound, empty names core InvalidArg; either way the current
+    action and position stay untouched.
+
+func (f *Flipbook) Update(dt core.Duration) (frame int, ev Event, ok bool)
+    Update moves the playhead by dt and returns the visible image id. dt at or
+    below zero advances nothing and reports EventNone. With no current action
+    it returns ok=false and emits nothing. Large dt coalesces to one event:
+    finished beats loop beats frame.
+
+type Item struct {
+	Name  string
+	Layer Layer
+	FeetY float64
+}
+    Item is one sortable sprite: which band plus the foot bottom in world units.
+    Name is only a debug key for tests and logs, never an asset id.
+
+func NewItem(name string, layer Layer, feetY float64) (Item, error)
+    NewItem builds an Item. Feet Y must be finite; NaN/Inf returns a core
+    InvalidArg error, never a guessed item. Layer accepts any integer so callers
+    can add custom bands; Name may be empty.
+
+func Sort(items []Item) ([]Item, error)
+    Sort returns the draw order for items: layer ascending, then feet Y
+    ascending, stable for ties. The input slice is never mutated; the result is
+    a fresh slice the caller draws front to back in order. Any non-finite feet
+    Y returns a core InvalidArg error with a nil result and leaves the input
+    untouched.
+
+type Layer int
+    Layer is the draw band. Bigger covers smaller: world < fx < ui. Custom bands
+    are plain integers; the ordering rule never changes.
+
+const (
+	// LayerWorld holds people, trees, ground: drawn first (behind).
+	LayerWorld Layer = 0
+	// LayerFX holds fire, smoke, trails: drawn over the world.
+	LayerFX Layer = 1
+	// LayerUI holds buttons, tips: drawn last (on top, never covered).
+	LayerUI Layer = 2
+)
+type LoopMode int
+    LoopMode selects what happens when a clip runs past its last frame.
+
+const (
+	// LoopOnce plays to the last frame, holds it, then stops.
+	LoopOnce LoopMode = 0
+	// LoopLoop wraps to the first frame and keeps playing.
+	LoopLoop LoopMode = 1
+	// LoopPingPong bounces at both ends: 0 1 2 3 2 1 0 1 ...
+	LoopPingPong LoopMode = 2
+)
+func (m LoopMode) String() string
+    String returns the stable log name of m.
+
+type Sprite struct {
+	Image   core.AssetID
+	Src     core.Rect
+	Dst     core.Rect
+	Opacity float64
+	Tag     string
+}
+    Sprite is one sub-rect of a large image: which atlas it comes from,
+    the source block in image pixels, the destination box in world units,
+    and the opacity. Tag is a debug key for tests and logs only.
+
+func NewSprite(image core.AssetID, src, dst core.Rect, opacity float64) (Sprite, error)
+    NewSprite builds a Sprite. Image must be non-empty, Src/Dst coordinates and
+    Opacity must be finite. Zero-size rects are allowed here and skipped later
+    by Add/Flush, mirroring the render skip.
+

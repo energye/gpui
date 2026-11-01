@@ -1,0 +1,2 @@
+Example: Compute Shader Demonstrates GPU parallel processing using compute
+shaders. This example doubles all values in an array using the GPU.

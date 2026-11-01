@@ -1,0 +1,13 @@
+Command gen_autohint_scripts generates autohint_scripts_gen.go from skrifa
+autohint style data.
+
+Run from the repo root:
+
+    go run ./render/text/tools/gen_autohint_scripts
+
+Skips:
+  - "no script", "Latin Subscript Fallback", "Latin Superscript Fallback" (no
+    independent data; behaviorally equivalent to Latin)
+  - "CJKV ideographs" (existing scriptCJK in autohint_scripts.go, kept as-is)
+  - Latin/Hebrew/Cyrillic/Greek/Arabic (existing vars in autohint_scripts.go;
+    referenced by the generated scriptClasses list only)

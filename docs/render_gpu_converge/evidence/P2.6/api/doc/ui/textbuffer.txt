@@ -1,0 +1,84 @@
+package textbuffer // import "github.com/energye/gpui/ui/textbuffer"
+
+snapshots for large documents. Small documents (< SmallMax) stay a plain string;
+the tree activates lazily above the threshold with hysteresis on the way down so
+edits around the boundary do not flap modes.
+
+CONSTANTS
+
+const SmallMax = 64 * 1024
+    SmallMax documents below this byte size stay a plain string.
+
+
+TYPES
+
+type Buffer struct {
+	// Has unexported fields.
+}
+    Buffer holds document text with byte-indexed edits. Offsets are plain byte
+    indexes; callers snap to rune boundaries.
+
+func New() *Buffer
+    New returns an empty buffer.
+
+func NewFromString(s string) *Buffer
+    NewFromString returns a buffer holding s.
+
+func (b *Buffer) Delete(a, c int)
+    Delete removes [a, c) (clamped, empty ranges are no-ops).
+
+func (b *Buffer) ForceString(v bool)
+    ForceString pins plain-string mode: the degradation fallback. Content is
+    preserved; only the cost model changes.
+
+func (b *Buffer) ForceTree(v bool)
+    ForceTree pins tree mode (benchmarks, large-document paths).
+
+func (b *Buffer) Insert(off int, s string)
+    Insert adds s at byte offset off (clamped).
+
+func (b *Buffer) Len() int
+    Len returns the document size in bytes.
+
+func (b *Buffer) LineAt(k int) string
+    LineAt returns the k-th line without its terminator (clamped). A trailing
+    '\r' of a CRLF pair is stripped even when the pair spans chunks.
+
+func (b *Buffer) LineCount() int
+    LineCount returns the number of '\n'-separated lines; empty holds 1 line.
+
+func (b *Buffer) Mode() string
+    Mode reports "tree" or "string" for diagnostics and degradation checks.
+
+func (b *Buffer) Restore(s Snapshot)
+    Restore replaces the buffer content with the snapshot in O(1). Degradation
+    pins survive: a restore is a content operation like Insert/Delete,
+    so it must not silently drop a production fallback request. A large string
+    snapshot with no string pin activates the tree, matching NewFromString.
+
+func (b *Buffer) Slice(a, c int) string
+    Slice returns [a, c) (clamped).
+
+func (b *Buffer) Snapshot() Snapshot
+    Snapshot captures the current document in O(1).
+
+func (b *Buffer) String() string
+    String materializes the document. Large-document hot paths should prefer
+    Slice/LineAt over full materialization.
+
+type Snapshot struct {
+	// Has unexported fields.
+}
+    Snapshot is an O(1) capture: nodes are immutable, so the root pointer (or
+    the string header) fully describes the document at capture time.
+
+func SnapshotFromString(s string) Snapshot
+    SnapshotFromString captures a plain string in O(1) (header copy; Go strings
+    are immutable).
+
+func (s Snapshot) Len() int
+    Len returns the snapshot size in bytes.
+
+func (s Snapshot) String() string
+    String materializes the snapshot content.
+

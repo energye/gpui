@@ -1,0 +1,576 @@
+package textinput // import "github.com/energye/gpui/ui/textinput"
+
+
+CONSTANTS
+
+const (
+	AffinityDownstream = 0
+	AffinityUpstream   = 1
+)
+
+FUNCTIONS
+
+func ClearDefaultPadding()
+func ClearDefaultSelectionColor()
+    ClearDefaultSelectionColor 清掉全局，回到引擎默认
+
+func DefaultPadding() float64
+func DefaultSelectionColor() (r, g, b, a float64)
+    DefaultSelectionColor 返回当前全局色（未设时即引擎默认）
+
+func SetDefaultPadding(pad float64)
+    SetDefaultPadding 设置全局内边距
+
+func SetDefaultSelectionColor(r, g, b, a float64)
+    SetDefaultSelectionColor 设置全局选中色（全局未设时回退到引擎默认）
+
+func TruncateSurrounding(text string, cursorByte int) (string, int)
+    TruncateSurrounding delegates to imeutil single source (B10 convergence).
+
+
+TYPES
+
+type BaseEditable struct {
+	// Has unexported fields.
+}
+    BaseEditable 是 F-E0a 的 ≤15 行接入基座，封装 Editor/IMERect/ContentType/DrawPreedit
+    四件套。
+
+func NewBaseEditable(ed *Editor) *BaseEditable
+    NewBaseEditable 创建基座，ed 非空。
+
+func (b *BaseEditable) ContentType() platform.ContentType
+    ContentType 返回输入法类型（可配置，默认 Normal，B13）。
+
+func (b *BaseEditable) Disabled() bool
+    Disabled 返回禁用态。
+
+func (b *BaseEditable) DrawPreedit(pc *rendering.PaintContext, text string, composing TextRange, lay *rendering.TextLayout)
+    DrawPreedit 高亮 composing 区间（TextLayout 行盒并集半透明覆盖）。
+
+func (b *BaseEditable) Editor() *Editor
+    Editor 返回编辑状态。
+
+func (b *BaseEditable) IMERect() platform.Rect
+    IMERect 返回零（嵌入方应覆盖为 caret/composing 锚点）。
+
+func (b *BaseEditable) Placeholder() string
+    Placeholder 返回占位。
+
+func (b *BaseEditable) SetContentType(p platform.ContentPurpose)
+    SetContentType 设置输入法类型（B13：替代硬编码 Normal）。
+
+func (b *BaseEditable) SetDisabled(v bool)
+    SetDisabled 设置禁用态（样式置灰，编辑仍由 Editor.readOnly 控制）。
+
+func (b *BaseEditable) SetPlaceholder(s string)
+    SetPlaceholder 设置占位 hint（空+未聚焦才显，不进缓冲）。
+
+func (b *BaseEditable) SetPurpose(p platform.ContentPurpose)
+    SetPurpose 兼容别名
+
+type Box struct {
+	*rendering.RenderBox
+	*BaseEditable
+
+	// Viewport is the retained-viewport node in viewport mode, nil in
+	// direct mode. Exported for read probes (scroll offset); scroll
+	// writes always go through the editScroll funnel.
+	Viewport *rendering.RenderViewport
+	Node     *focus.FocusNode
+
+	// Has unexported fields.
+}
+    Box is the single edit-box implementation for every text field (Flutter
+    EditableText / RenderEditable, one class): single-line vs multi-line,
+    wrap and the retained viewport are properties, not types. All scrolling
+    flows through the shared editScroll funnel; all caret stepping through
+    Editor.MoveVisual; text sync through syncBoxText. What differs per
+    mode lives in small branches (keyed by multi / useViewport), the way
+    RenderEditable branches on _isMultiline.
+
+func NewBox(ed *Editor, w, h, fontSize float64) *Box
+    NewBox creates a single-line box (= old InputBox: box A). It shares the
+    retained-viewport tree with NewBoxWithViewport: scrolling re-blits the
+    viewport texture instead of re-recording vector text per step, so pasting a
+    long line (ex B content) and arrowing through it cannot raster-storm (each
+    scroll step re-recorded + re-phased every glyph). Short-text behavior is
+    unchanged (same caret, border, colors).
+
+func NewBoxWithViewport(ed *Editor, w, h, fontSize float64) *Box
+    NewBoxWithViewport creates a single-line retained-viewport box (= old
+    ViewportInputBox: boxes B/C). Scroll re-blits the viewport texture instead
+    of shifting the text offset.
+
+func NewInputBox(ed *Editor, w, h, fontSize float64) *Box
+    NewInputBox is the single-line preset (= NewBox, kept for call sites).
+
+func NewMultiLineInputBox(ed *Editor, w, h, fontSize float64) *Box
+    NewMultiLineInputBox creates a wrapping-capable multi-line box (= old
+    MultiLineInputBox: boxes D/E/F): direct-offset tree with the multi-line
+    property set. Wrap stays off by default.
+
+func NewViewportInputBox(ed *Editor, w, h, fontSize float64) *Box
+    NewViewportInputBox is the single-line viewport preset (=
+    NewBoxWithViewport, kept for call sites).
+
+func (b *Box) BlinkTick(dt float64) bool
+    BlinkTick implements rendering.Blinkable.
+
+func (b *Box) ClearPadding()
+
+func (b *Box) ClearSelectionColor()
+
+func (b *Box) Clipboard() platform.Clipboard
+
+func (b *Box) ContentPurpose() platform.ContentPurpose
+
+func (b *Box) ContentType() platform.ContentType
+
+func (b *Box) CursorHeight() float64
+    CursorHeight returns the caret bar height setting (<=0 means row height).
+
+func (b *Box) CursorOffset() (float64, float64)
+    CursorOffset returns the caret seam offset.
+
+func (b *Box) CursorWidth() float64
+    CursorWidth returns the caret bar width.
+
+func (b *Box) Disabled() bool
+
+func (b *Box) Editor() *Editor
+    Editor returns the backing editor.
+
+func (b *Box) FocusNode() *focus.FocusNode
+    FocusNode returns the focus node for registration.
+
+func (b *Box) IMERect() platform.Rect
+
+func (b *Box) IsCaretOn() bool
+
+func (b *Box) IsFocused() bool
+
+func (b *Box) Layout(c rendering.Constraints) rendering.Size
+    Layout preserves the text/caret offsets computed by sync(). RenderBox.Layout
+    would reset children to Pad(0,0). Wrap width tracks the box width here (not
+    only in sync): a width change with no edit in between must still rewrap and
+    re-clamp scroll.
+
+func (b *Box) MoveVisual(delta int)
+    MoveVisual steps the caret visually (shared by all modes).
+
+func (b *Box) MultiLine() bool
+    MultiLine reports the multi-line property.
+
+func (b *Box) NextBlinkIn() (time.Duration, bool)
+    NextBlinkIn implements rendering.BlinkDeadliner.
+
+func (b *Box) ObscuringCharacter() rune
+    ObscuringCharacter returns the current mask character.
+
+func (b *Box) OnIME(ev input.IMEEvent)
+
+func (b *Box) OnKey(ev input.KeyEvent)
+
+func (b *Box) OnPointer(ev input.PointerEvent)
+
+func (b *Box) OnText(ev input.TextEvent)
+
+func (b *Box) Padding() float64
+
+func (b *Box) Placeholder() string
+
+func (b *Box) ScrollX() float64
+
+func (b *Box) ScrollY() float64
+
+func (b *Box) SelectionColor() (r, g, b2, a float64)
+
+func (b *Box) SetCaretOn(v bool)
+
+func (b *Box) SetClipboard(c platform.Clipboard)
+    SetClipboard sets the platform clipboard.
+
+func (b *Box) SetCursorHeight(h float64)
+    SetCursorHeight sets the caret bar height (Flutter cursorHeight); <=0
+    follows the row height.
+
+func (b *Box) SetCursorOffset(dx, dy float64)
+    SetCursorOffset shifts the caret bar from the seam (Flutter cursorOffset,
+    desktop default 0,0: bar left edge on the seam).
+
+func (b *Box) SetCursorWidth(w float64)
+    SetCursorWidth sets the caret bar width (Flutter cursorWidth).
+
+func (b *Box) SetDisabled(v bool)
+
+func (b *Box) SetFace(face text.Face)
+    SetFace sets the font face for this box.
+
+func (b *Box) SetMaxLines(n int)
+    SetMaxLines forwards to the text node in multi-line mode; single-line
+    ignores it but keeps editable_range intact (F-C5).
+
+func (b *Box) SetMultiLine(v bool)
+    SetMultiLine selects multi-line behavior (Enter inserts newline, 2D mapping,
+    vertical scroll), mirroring EditableText(maxLines: null). Password masking
+    only applies while single-line (Flutter: obscureText requires maxLines ==
+    1).
+
+func (b *Box) SetObscuringCharacter(r rune)
+    SetObscuringCharacter customizes the password mask (Flutter
+    TextField.obscuringCharacter, default '•').
+
+func (b *Box) SetOverflow(o rendering.TextOverflow)
+    SetOverflow forwards to the text node.
+
+func (b *Box) SetPadding(pad float64)
+
+func (b *Box) SetPlaceholder(s string)
+
+func (b *Box) SetSchedule(fn func())
+    SetSchedule sets the frame scheduler (PipelineApp.ScheduleFrame).
+
+func (b *Box) SetSelectionColor(r, g, b2, a float64)
+    SetSelectionColor customizes the selection ink (per-box).
+
+func (b *Box) SetTextColor(r, g, bl, a float64)
+    SetTextColor sets the text ink (per-box property).
+
+func (b *Box) SetWrap(v bool)
+    SetWrap controls auto-wrap for multi-line (Flutter softWrap).
+
+func (b *Box) SetWrapMode(m text.WrapMode)
+    SetWrapMode controls the line-break policy, default WrapWordChar.
+
+func (b *Box) Sync()
+
+func (b *Box) TextLayout() *rendering.TextLayout
+
+func (b *Box) TickCaret(dt float64)
+    TickCaret advances the caret blink phase on UI-thread dt.
+
+func (b *Box) Wrap() bool
+    Wrap reports the wrap property.
+
+func (b *Box) WrapMode() text.WrapMode
+    WrapMode reports the wrap policy.
+
+type ComposedView struct {
+	Display            string
+	CompStart, CompEnd int
+}
+
+func (v ComposedView) MapBufToView(off int) int
+
+func (v ComposedView) MapBufToViewExact(a, b int) int
+
+func (v ComposedView) MapViewToBuf(off int) int
+
+type Editor struct {
+	OnChange func()
+
+	OnAnchor func() // R4 F-D10: programmatic SetText → RefreshIMEAnchor
+
+	// Has unexported fields.
+}
+
+func New() *Editor
+
+func (e *Editor) AddCodePoint(r rune) bool
+
+func (e *Editor) AddText(text string) bool
+
+func (e *Editor) ApplyDelta(d TextEditingDelta) bool
+
+func (e *Editor) ApplyFrameworkState(text string, sel, comp TextRange, affinity int) bool
+
+func (e *Editor) ApplyIME(ev input.IMEEvent) bool
+
+func (e *Editor) ApplyText(ev input.TextEvent) bool
+
+func (e *Editor) Backspace() bool
+
+func (e *Editor) BeginBatchEdit()
+
+func (e *Editor) BeginComposing()
+
+func (e *Editor) BufferRestore(s textbuffer.Snapshot) bool
+    BufferRestore replaces the document with a snapshot. It records no undo
+    history; selection collapses into the restored text. Cost note: the Editor
+    still owns a plain string, so restoring a tree snapshot materializes once
+    (O(n)) plus a mirror rebuild — only Buffer.Snapshot and Buffer.Restore
+    themselves are O(1).
+
+func (e *Editor) BufferSnapshot() textbuffer.Snapshot
+    BufferSnapshot captures the document in O(1) for large docs (string header
+    or tree root copy). Small docs return an equivalent string snapshot.
+
+func (e *Editor) ByteOffsetAt(x float64, w func(string) float64) int
+
+func (e *Editor) CommitComposing()
+
+func (e *Editor) ComposeActive() bool
+
+func (e *Editor) ComposingEndByte() int
+
+func (e *Editor) ComposingRange() TextRange
+
+func (e *Editor) ComposingStartByte() int
+
+func (e *Editor) CompositionCursor() int
+
+func (e *Editor) CompositionText() string
+
+func (e *Editor) ConsumeEditSpan() (oldA, oldB, newA, newB int, ok bool)
+    ConsumeEditSpan取走最近变更区间并清除,供InputBox.sync传RenderText.
+
+func (e *Editor) ContentType() platform.ContentType
+
+func (e *Editor) Copy() string
+
+func (e *Editor) Cursor() int
+
+func (e *Editor) Cut() string
+
+func (e *Editor) Delete() bool
+
+func (e *Editor) DeleteBackward()
+
+func (e *Editor) DeleteForward()
+
+func (e *Editor) DeleteSelected() bool
+
+func (e *Editor) DeleteSurrounding(offset, count int) bool
+
+func (e *Editor) EditableRange() TextRange
+
+func (e *Editor) EnableDeltaModel() bool
+
+func (e *Editor) EndBatchEdit()
+
+func (e *Editor) EndComposing()
+
+func (e *Editor) Epoch() uint64
+
+func (e *Editor) GetCursorOffset() int
+
+func (e *Editor) GetText() string
+
+func (e *Editor) HistoryBytes() int
+
+func (e *Editor) Insert(s string)
+
+func (e *Editor) IsComposing() bool
+
+func (e *Editor) IsInBatch() bool
+
+func (e *Editor) IsNone() bool
+
+func (e *Editor) IsPassword() bool
+
+func (e *Editor) IsReadOnly() bool
+
+func (e *Editor) IsSingleLine() bool
+
+func (e *Editor) LenRunes() int
+
+func (e *Editor) MoveCaretRunes(n int)
+
+func (e *Editor) MoveCaretVertically(n int, lineCount func() int, penX func(int) float64) bool
+
+func (e *Editor) MoveCursorBack() bool
+
+func (e *Editor) MoveCursorByWord(forward bool) bool
+
+func (e *Editor) MoveCursorDown() bool
+
+func (e *Editor) MoveCursorForward() bool
+
+func (e *Editor) MoveCursorToBeginning() bool
+
+func (e *Editor) MoveCursorToEnd() bool
+
+func (e *Editor) MoveCursorUp() bool
+
+func (e *Editor) MoveVisual(delta int, lay *rendering.TextLayout) bool
+
+func (e *Editor) MoveVisualDown(lay *rendering.TextLayout) bool
+
+func (e *Editor) MoveVisualUp(lay *rendering.TextLayout) bool
+    MoveVisualUp / MoveVisualDown implement Flutter sticky-column caret
+    movement. caretCol is captured from the current penX on first up/down and
+    reused until a horizontal move, click, SetCaret, Home/End clears it (mirrors
+    F-A5).
+
+func (e *Editor) ObscuringCharacter() rune
+    ObscuringCharacter returns the password masking rune, default '•' (U+2022)
+    per Flutter TextField.obscuringCharacter.
+
+func (e *Editor) Paste(s string) bool
+
+func (e *Editor) Redo() bool
+    Redo reapplies the last undone edit.
+
+func (e *Editor) SelectAll()
+
+func (e *Editor) SelectLineAt(byteOff int) bool
+    SelectLineAt selects the line containing byteOff (for triple-click).
+
+func (e *Editor) SelectWordAt(byteOff int) bool
+
+func (e *Editor) SelectionRange() TextRange
+
+func (e *Editor) SetBufferFallback(v bool)
+    SetBufferFallback pins the large-document mirror to plain-string mode
+    (true) or releases it back to automatic mode (false). It makes the M3.5 flip
+    bufForceString. Applied to the active mirror immediately; both directions
+    pay one O(n) conversion on a large doc (materialize on enable, tree rebuild
+    on disable). Small docs are unaffected (mirror stays off).
+
+func (e *Editor) SetCaret(off int)
+
+func (e *Editor) SetCaretWithAffinity(off int, affinity int)
+
+func (e *Editor) SetClient(cfg TextInputConfiguration)
+
+func (e *Editor) SetComposingRange(r TextRange, cursorOffset int) bool
+
+func (e *Editor) SetConfiguration(cfg TextInputConfiguration)
+
+func (e *Editor) SetContentType(ct platform.ContentType)
+
+func (e *Editor) SetObscuringCharacter(r rune)
+    SetObscuringCharacter customizes the password mask; pass 0 to reset to
+    default '•'. Aligns Flutter TextField.obscuringCharacter (customizable,
+    default '•').
+
+func (e *Editor) SetPassword(v bool)
+
+func (e *Editor) SetReadOnly(v bool)
+
+func (e *Editor) SetSelection(r TextRange) bool
+
+func (e *Editor) SetSelectionBytes(s, en int)
+
+func (e *Editor) SetSingleLine(v bool)
+
+func (e *Editor) SetText(text string, sel, comp TextRange, affinity int) bool
+
+func (e *Editor) SetTextSimple(s string)
+
+func (e *Editor) ShouldSkipFrameworkUpdate(text string, sel, comp TextRange) bool
+
+func (e *Editor) Snapshot() (string, int)
+
+func (e *Editor) Text() string
+    --- convenience aliases for example/tests (pure, not legacy) ---
+
+func (e *Editor) TextRange() TextRange
+
+func (e *Editor) ToDelta(oldText string, oldSel, oldComp TextRange) TextEditingDelta
+    ToDelta computes delta from old state to current Editor state.
+
+func (e *Editor) Undo() bool
+    Undo reverts the last edit group. One IME composition (Begin→Update*→Commit)
+    = one step (F-C2).
+
+func (e *Editor) UpdateComposingText(text string, sel TextRange) bool
+
+func (e *Editor) View() ComposedView
+
+type FieldSnapshotProvider interface {
+	IMERect() platform.Rect
+	ContentType() platform.ContentType
+}
+
+type ImeSession struct {
+	// Has unexported fields.
+}
+
+func NewImeSession(adapter PlatformAdapter) *ImeSession
+
+func (s *ImeSession) AttachEditor(ed *Editor, field FieldSnapshotProvider)
+
+func (s *ImeSession) CaretMoved(rect platform.Rect)
+
+func (s *ImeSession) Committed(text string)
+
+func (s *ImeSession) DeleteSurrounding(before, after int)
+
+func (s *ImeSession) DetachEditor()
+
+func (s *ImeSession) IllegalTransitions() int
+
+func (s *ImeSession) PreeditChanged(e input.PreeditEvent)
+
+func (s *ImeSession) PushSurroundingIfDirty(lastPushed uint64) bool
+
+func (s *ImeSession) Session(active bool)
+
+func (s *ImeSession) SetContentType(ct platform.ContentType)
+
+func (s *ImeSession) State() SessionState
+
+type InputBox = Box
+    Old shell names are aliases of the single Box: one implementation,
+    configured by properties (multi-line, wrap, viewport).
+
+type MultiLineInputBox = Box
+    Old shell names are aliases of the single Box: one implementation,
+    configured by properties (multi-line, wrap, viewport).
+
+type PlatformAdapter interface {
+	Enable(f platform.FieldSnapshot)
+	Disable()
+	CaretMoved(rect platform.Rect)
+	SetPurpose(ct platform.ContentType)
+	PushSurrounding(text string, cursor int)
+}
+
+type SessionState int
+
+const (
+	StateIdle SessionState = iota
+	StateActive
+	StateComposing
+)
+func (s SessionState) String() string
+
+type TextEditingDelta struct {
+	OldText    string
+	DeltaText  string
+	DeltaStart int // -1 for NonTextUpdate
+	DeltaEnd   int
+	Selection  TextRange
+	Composing  TextRange
+	Affinity   int
+}
+
+func (d TextEditingDelta) IsNonTextUpdate() bool
+
+type TextInputConfiguration struct {
+	InputType        string
+	InputAction      string
+	EnableDeltaModel bool
+	AutofillHints    []string
+}
+
+type TextRange struct {
+	Base     int
+	Extent   int
+	Affinity int
+}
+
+func (r TextRange) Collapsed() bool
+
+func (r TextRange) End() int
+
+func (r TextRange) Length() int
+
+func (r TextRange) Start() int
+
+type ViewportInputBox = Box
+    Old shell names are aliases of the single Box: one implementation,
+    configured by properties (multi-line, wrap, viewport).
+

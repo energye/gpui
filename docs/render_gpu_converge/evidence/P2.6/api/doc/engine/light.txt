@@ -1,0 +1,696 @@
+package light // import "github.com/energye/gpui/engine/light"
+
+Package light freezes the CPU-side 2D light math every night scene feeds.
+
+Frozen 2026-09-15: Kind, Cookie, Light, Image, Scene and every constructor
+below. Additive changes only.
+
+What it does: point and directional lights modulate a picture after the fx
+grade. A point light falls off with distance, is shaped by an optional cookie
+(flashlight mask), and only touches the layers in its mask; a directional
+light touches its layers uniformly. The global night color always applies,
+so zero lights still show the night picture and never a black screen. Light only
+computes numbers; the caller draws the returned image with the existing render
+draws, render main path untouched (Godot PointLight2D + CanvasModulate idea,
+Go reworked).
+
+Only core numbers are used (core.Vec2, core.Color, core codes). No new
+Vec2/Color/AssetID is defined here.
+
+Math (frozen, both backends share it): point attenuation is the Hermite
+smoothstep of t = 1 - dist/range (1 at the bulb, 0 at and past the edge);
+cookie is bilinear over the light's bounding square, nil or corrupt cookie reads
+1 (missing slide falls back to bare bulb); layer miss reads 0; directional reads
+1 on a hit layer. One pixel is base*night + base*sum(factor*intensity*lightRGB),
+clamped to [0,1], alpha rides through untouched. Pure function of its inputs:
+same inputs replay bitwise identical on both backends.
+
+Errors use engine/core codes: bad constructors are InvalidArg, a pixel slice
+whose length disagrees with its size is BadData, a picture beyond MaxImagePixels
+or a scene beyond MaxLights is OutOfMemory/InvalidArg as documented. The
+per-pixel hot path (FactorAt, LitCPU/LitGPU) stays total instead: any non-finite
+input yields 0 contribution, never a panic and never a NaN leaking downstream.
+
+Frozen 2026-09-16: Occluder, Shadow, and every constructor below. Additive
+changes only.
+
+What shadows do: each occluder is a closed polygon loop; a pixel is in the lee
+when a wall edge crosses the ray strictly between the light and the pixel (point
+light) or between the pixel and the source along -Dir over Length (directional
+light, Dir is the ray travel direction). The lee multiplier is 1-Occlusion,
+so a fully shadowed pixel keeps base*night and never goes black; alpha rides
+through untouched. Wall faces stay lit on purpose (endpoint touches never
+block). Zero Length casts nothing (valid no-op); empty sets, corrupt loops,
+non-finite geometry, zero Dir, and unknown kinds read unblocked, never a panic.
+Both backends share one path (Blocked/FactorFor/Lit/Apply and their GPU
+mirrors), so CPU and GPU agree bitwise by construction; errors reuse the same
+engine/core codes (bad occluder InvalidArg/OutOfMemory, bad shadow InvalidArg,
+nil image InvalidArg, corrupt image BadData).
+
+Frozen 2026-09-16: Normal, NormalMap, NormalScene, and every constructor below.
+Additive changes only.
+
+What normal-mapped light does: a bump sheet (NormalMap, 1:1 with the lit Image)
+tilts each pixel's share of the 6.1 light. The lamp hangs Height world units
+above the plane; LightDir points from the surface toward the lamp (bulb position
+for point lights, Dir for directional lights, so 6.3 shadows extend along -Dir).
+One pixel is base*night + base*sum(factor*cosine*intensity*lightRGB) where
+factor is the frozen 6.1 geometry and cosine is NdotL (both unit inside,
+negative clamped to 0). Facing the lamp beats flat, flat beats facing away,
+the lee keeps base*night and never goes black; alpha rides through untouched.
+
+Missing tilt reads as flat (zero/degenerate normals fall back to straight-up,
+never NaN); a nil map to Apply is InvalidArg, a corrupt or mis-sized map is
+BadData, over-budget is OutOfMemory, bad height is InvalidArg, and the hot path
+(NormalFactor, LitNormalCPU/LitNormalGPU) stays total. Both backends share one
+path, so CPU and GPU agree bitwise by construction. Light only computes numbers
+after the fx grade; render main path untouched (game-engine normal-map idea,
+Go reworked).
+
+CONSTANTS
+
+const (
+	MaxLightRange      = 8192.0
+	MaxIntensity       = 8.0
+	MaxLights          = 256
+	MaxCookieDimension = 512
+	MaxImagePixels     = 16 << 20
+)
+    Budgets. Over-budget pictures report OutOfMemory; over-count scenes and
+    out-of-range scalars report InvalidArg. Never allocate then fail.
+
+const (
+	MaxOccluderVerts = 64
+	MaxOccluders     = 256
+	MaxShadowLength  = 8192.0
+)
+    Budgets for 6.3 shadows. Over-count occluders report OutOfMemory at
+    construction; over-long shadows report InvalidArg. Never allocate then fail.
+
+const (
+	// MaxShadowLights caps shadowed lights for 60 fps.
+	MaxShadowLights = 10
+	// MaxPCF13Lights caps PCF13 lights: only a few may use 13 taps.
+	MaxPCF13Lights = 2
+	// LargeLightPixelsWarn fires when one light covers this many pixels.
+	LargeLightPixelsWarn = 2048
+	// MinNightChannel keeps night auto-readable: never black screen.
+	MinNightChannel = 0.03
+	// MinLitPixels counts lit pixels for the gain gate.
+	MinLitPixels = 1000
+	// MinLitGain is the mean gain lit pixels must beat.
+	MinLitGain = 0.6
+	// DefaultSoftRadius is the tap step when callers pass 0.
+	DefaultSoftRadius = 0.5
+)
+    S63 soft shadows: PCF taps over the frozen shadow core plus billing.
+
+    What it does: SoftShadow wraps a frozen Shadow without touching its
+    geometry. Mode picks the edge softness (None is one tap, PCF5 averages 5
+    taps, PCF13 averages 13 taps, PCF5 is the default). Radius is world units
+    per tap step. Billing counts how many pixels each light covers per frame so
+    big lights pay by footprint. Over-budget lights warn, OOM always steps one
+    grade down with a log line, never silently.
+
+const DefaultSoftMode = SoftPCF5
+    DefaultSoftMode is the middle grade.
+
+const RoughWeightTol = 0.001
+    RoughWeightTol is the allowed drift of Diffuse+Specular away from 1.
+    A larger drift is BadData, never silently renormalized.
+
+
+FUNCTIONS
+
+func CheckNightFloor(night core.Color) error
+    CheckNightFloor reports InvalidArg for an invalid night or a channel below
+    MinNightChannel.
+
+func ClampNightFloor(night core.Color) core.Color
+    ClampNightFloor lifts dark nights to the readable floor. Invalid night reads
+    white (never black screen), else RGB pinned at MinNightChannel.
+
+func CoverPixels(l Light, src *Image) int
+    CoverPixels counts pixels where l contributes (FactorAt above 0). Nil or
+    corrupt src reads 0, never panics.
+
+func FlatRough() float64
+    FlatRough is the fallback roughness when the sheet is missing: middle matte,
+    never black, never a crash.
+
+func HitsLayer(mask uint32, layer Layer) bool
+    HitsLayer reports whether mask covers layer. Out-of-range layers miss.
+
+func LayersFor(layers ...Layer) uint32
+    LayersFor packs bands into a mask. Empty means lights nothing.
+
+func LitCPU(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color) core.Color
+    LitCPU lights one pixel (CPU path). Bad night reads white (never black
+    screen); bad lights contribute 0; alpha rides through.
+
+func LitGPU(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color) core.Color
+    LitGPU recomputes the same frozen pixel (GPU mirror): bitwise identical to
+    LitCPU for the same inputs.
+
+func LitNormalCPU(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color, n Normal, height float64) core.Color
+    LitNormalCPU lights one normal-mapped pixel (CPU path). Bad night reads
+    white; bad lights contribute 0; degenerate normal reads as flat.
+
+func LitNormalGPU(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color, n Normal, height float64) core.Color
+    LitNormalGPU recomputes the same frozen pixel (GPU mirror): bitwise
+    identical to LitNormalCPU for the same inputs.
+
+func LitRoughCPU(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color, n Normal, rough float64, height float64, w RoughWeights) core.Color
+    LitRoughCPU lights one rough pixel (CPU path). Bad night reads white;
+    bad lights contribute 0; degenerate normal reads as flat, bad roughness as
+    FlatRough, bad weights as 0 share.
+
+func LitRoughGPU(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color, n Normal, rough float64, height float64, w RoughWeights) core.Color
+    LitRoughGPU recomputes the same frozen pixel (GPU mirror): bitwise identical
+    to LitRoughCPU for the same inputs.
+
+func LitStats(src, lit *Image, night core.Color) (int, float64)
+    LitStats counts lit pixels and their mean gain. Gain is lit luminance minus
+    the night-only baseline; lit means gain at or above MinLitGain. Bad inputs
+    read 0, 0.
+
+func NdotL(n, l Normal) float64
+    NdotL is the diffuse cosine between surface n and incoming light l: both
+    normalized inside, negative clamped to 0, result in [0,1]. Degenerate input
+    reads through FlatNormal, never NaN.
+
+func NightOnlyPixel(base, night core.Color) core.Color
+    NightOnlyPixel is the torch-miss reference: base times floored night.
+
+func NormalFactor(l Light, p core.Vec2, layer Layer, n Normal, height float64) float64
+    NormalFactor returns the normal-mapped factor at p for layer (CPU path).
+    Never NaN, never panics.
+
+func NormalFactorGPU(l Light, p core.Vec2, layer Layer, n Normal, height float64) float64
+    NormalFactorGPU recomputes the same frozen geometry (GPU mirror): same
+    inputs give the identical factor.
+
+func OverShadowLightCount(n int) bool
+    OverShadowLightCount reports whether n lights exceed the 60 fps count.
+
+func RoughFactor(l Light, p core.Vec2, layer Layer, n Normal, rough float64, height float64, w RoughWeights) float64
+    RoughFactor returns the rough factor at p (CPU path). Never NaN.
+
+func RoughFactorGPU(l Light, p core.Vec2, layer Layer, n Normal, rough float64, height float64, w RoughWeights) float64
+    RoughFactorGPU recomputes the same frozen geometry (GPU mirror): same inputs
+    give the identical factor.
+
+func RoughSpec(n, l Normal, rough float64) float64
+    RoughSpec is the Blinn-Phong answer for one lamp: half-vector dot, shininess
+    64 at mirror sliding to 8 at matte, scaled by (1-rough) so matte kills
+    the highlight. Result in [0,1]; degenerate or non-finite input reads 0,
+    never NaN.
+
+
+TYPES
+
+type Cookie struct {
+	W, H int
+	Mask []float64
+}
+    Cookie is a flashlight slide: W*H samples in [0,1], row-major. Nil cookie
+    means bare bulb. Always copied on the way in.
+
+func NewCookie(w, h int, mask []float64) (Cookie, error)
+    NewCookie builds a Cookie copying mask. Bad sizes are InvalidArg, a length
+    mismatch is BadData, a non-finite or out-of-range sample is BadData,
+    over-dimension is OutOfMemory.
+
+func (c Cookie) At(x, y int) (float64, bool)
+    At returns the texel at (x, y), or false when out of range or corrupt.
+
+func (c Cookie) Sample(uv core.Vec2) float64
+    Sample reads uv in [0,1] with bilinear filtering and clamped edges. Invalid
+    cookie or non-finite uv reads 0 (FactorAt substitutes 1 for a missing slide;
+    direct Sample stays fail-closed).
+
+func (c Cookie) Validate() error
+    Validate reports InvalidArg for a zero value, BadData for corrupt samples,
+    OutOfMemory for over-dimension.
+
+type FrameBill struct {
+	PerLight []int
+	Total    int
+	Taps     int
+	Cost     int
+}
+    FrameBill is one frame of light billing: covered pixels per light, total
+    footprint, taps, and cost (total times taps).
+
+func (b FrameBill) WarnLarge() (bool, int)
+    WarnLarge reports the first light covering beyond LargeLightPixelsWarn.
+
+type Image struct {
+	W, H   int
+	Origin core.Vec2
+	Step   float64
+	Pix    []core.Color
+	Layers []Layer
+}
+    Image is one isolated lighting intermediate: W*H base colors plus a
+    per-pixel layer band, row-major. Origin is the world position of pixel
+    (0,0)'s center; Step is world units per pixel. Constructors copy; Apply
+    returns fresh images; Clone copies again.
+
+func NewImage(w, h int, origin core.Vec2, step float64) (*Image, error)
+    NewImage builds a W-by-H transparent image on LayerWorld. Non-positive
+    sizes or non-positive/non-finite step or non-finite origin are InvalidArg;
+    W*H beyond MaxImagePixels is OutOfMemory.
+
+func NewImageFromColors(w, h int, origin core.Vec2, step float64, pix []core.Color, layers []Layer) (*Image, error)
+    NewImageFromColors builds an image copying pix and layers. Bad sizes are
+    InvalidArg, length mismatches are BadData, over-budget is OutOfMemory,
+    a non-finite pixel is BadData.
+
+func (img *Image) ApproxEqual(o *Image, eps float64) bool
+    ApproxEqual reports whether o matches in geometry and every pixel/layer.
+    Non-positive eps means exact equality.
+
+func (img *Image) At(x, y int) (core.Color, Layer, bool)
+    At returns the pixel and its layer at (x, y), or false out of range.
+
+func (img *Image) Clone() *Image
+    Clone returns a fresh copy, or nil for a nil/corrupt image.
+
+func (img *Image) PosAt(x, y int) (core.Vec2, bool)
+    PosAt returns the world position of pixel (x, y)'s center.
+
+func (img *Image) Set(x, y int, c core.Color, layer Layer) bool
+    Set stores c and layer at (x, y). False on bad coordinates, corrupt image,
+    or non-finite c; stores nothing then.
+
+type Kind int
+    Kind names the light shape.
+
+const (
+	KindPoint Kind = iota
+	KindDirectional
+)
+func ParseKind(s string) (Kind, error)
+    ParseKind maps "point"/"directional" to a Kind. Anything else is InvalidArg
+    and returns KindPoint.
+
+func (k Kind) String() string
+    String returns the stable log name of k.
+
+type Layer int
+    Layer is the draw band a light touches. Values mirror engine/sprite bands so
+    callers pass the same numbers; the rule stays local here.
+
+const (
+	LayerWorld Layer = 0
+	LayerFX    Layer = 1
+	LayerUI    Layer = 2
+)
+type Light struct {
+	Kind      Kind
+	Pos       core.Vec2
+	Dir       core.Vec2
+	Range     float64
+	Color     core.Color
+	Intensity float64
+	Layers    uint32
+	Cookie    *Cookie
+}
+    Light is one frozen 2D light. Point uses Pos/Range/Cookie; directional uses
+    Dir and ignores Pos/Range/Cookie. Layers is a bit mask over Layer (bit l
+    covers band l). Cookie nil means bare bulb.
+
+func NewDirectionalLight(dir core.Vec2, color core.Color, intensity float64, layers uint32) (Light, error)
+    NewDirectionalLight builds a directional light. Dir must be finite and
+    non-zero, Color in [0,1], Intensity in [0,MaxIntensity]. Anything else is
+    InvalidArg. Direction is carried for 6.3 shadows; the 6.1 factor is uniform
+    over hit layers.
+
+func NewPointLight(pos core.Vec2, rng float64, color core.Color, intensity float64, layers uint32, cookie *Cookie) (Light, error)
+    NewPointLight builds a point light. Pos must be finite, Range in
+    (0,MaxLightRange], Color components in [0,1], Intensity in [0,MaxIntensity],
+    cookie nil or valid. Anything else is InvalidArg.
+
+func (l Light) FactorAt(p core.Vec2, layer Layer) float64
+    FactorAt returns the geometric factor at p for layer (CPU path): attenuation
+    times cookie, 1 for a hit directional, 0 on a miss or any bad input.
+    Never NaN, never panics.
+
+func (l Light) FactorGPU(p core.Vec2, layer Layer) float64
+    FactorGPU recomputes the same frozen geometry (GPU mirror): same inputs give
+    the identical factor, so CPU and GPU受光系数 agree by construction.
+
+func (l Light) HitsLayer(layer Layer) bool
+    HitsLayer reports whether l touches layer.
+
+func (l Light) Validate() error
+    Validate reports InvalidArg for a bad light. Point checks Pos/Range;
+    directional checks Dir; both check Color/Intensity; cookie, when set,
+    must validate.
+
+type Normal struct {
+	X, Y, Z float64
+}
+    Normal is one surface direction in light space, X right, Y down (image
+    pixels), Z out of the screen. Unit length is the norm; Normalize fixes the
+    rest. Bad values never survive: Normalize maps them to flat.
+
+func FlatNormal() Normal
+    FlatNormal is the default surface: straight at the viewer. Missing or
+    degenerate normal data falls back here, never to black.
+
+func LightDir(l Light, p core.Vec2, height float64) (Normal, bool)
+    LightDir returns the unit vector from surface point p toward light l,
+    with height world units above the plane. Point lights aim at the bulb,
+    directional lights aim at infinity along Dir (Dir points toward the light,
+    Z comes from height; 6.3 shadows extend along -Dir). False when the geometry
+    is bad (bad light, bad p, height outside (0,MaxLightRange]).
+
+func N(x, y, z float64) Normal
+    N builds a Normal from components.
+
+func (n Normal) Normalize() Normal
+    Normalize returns the unit vector. Zero, non-finite, or overflowing input
+    returns FlatNormal (missing tilt reads as flat, never NaN).
+
+type NormalMap struct {
+	W, H int
+	N    []Normal
+}
+    NormalMap is one isolated bump sheet: W*H normals, row-major, aligned 1:1
+    with the lit Image pixels. Constructors copy; At only reads.
+
+func NewNormalMap(w, h int, n []Normal) (NormalMap, error)
+    NewNormalMap builds a W-by-H map copying n. Non-positive sizes are
+    InvalidArg, W*H beyond MaxImagePixels is OutOfMemory, a length mismatch or a
+    non-finite normal is BadData.
+
+func NewNormalMapFromColors(w, h int, pix []core.Color) (NormalMap, error)
+    NewNormalMapFromColors decodes a mid-gray-up RGB sheet: flat is (0.5,0.5,1),
+    X=2R-1, Y=2G-1, Z=2B-1, alpha ignored. Same size and budget rules as
+    NewNormalMap; a non-finite pixel is BadData.
+
+func (m NormalMap) At(x, y int) (Normal, bool)
+    At returns the normal at (x, y), or false out of range or corrupt.
+    A degenerate (zero) normal is valid storage: shading reads it as flat.
+
+func (m NormalMap) Validate() error
+    Validate reports InvalidArg for a zero value, BadData for a length mismatch
+    or a non-finite normal, OutOfMemory for over-budget.
+
+type NormalScene struct {
+	Night  core.Color
+	Lights []Light
+	Height float64
+}
+    NormalScene is one frozen normal-mapped night: global night color plus
+    lights plus the lamp height above the plane. NewNormalScene copies the
+    slice; Apply lights src after the fx grade using nmap 1:1.
+
+func NewNormalScene(night core.Color, lights []Light, height float64) (NormalScene, error)
+    NewNormalScene builds a NormalScene copying lights. Bad night, bad light,
+    or height outside (0,MaxLightRange] is InvalidArg; more than MaxLights is
+    InvalidArg and builds nothing.
+
+func (s NormalScene) Apply(src *Image, nmap *NormalMap) (*Image, error)
+    Apply lights src with nmap (CPU path). Neither input is mutated. Nil src
+    is InvalidArg, corrupt src BadData, invalid scene InvalidArg, nil map
+    InvalidArg, corrupt or mis-sized map BadData.
+
+func (s NormalScene) ApplyCPU(src *Image, nmap *NormalMap) (*Image, error)
+    ApplyCPU is the explicit CPU path (same as Apply).
+
+func (s NormalScene) ApplyGPU(src *Image, nmap *NormalMap) (*Image, error)
+    ApplyGPU is the GPU mirror path: same frozen math, bitwise identical.
+
+func (s NormalScene) Lit(base core.Color, p core.Vec2, layer Layer, n Normal) core.Color
+    Lit lights one normal-mapped pixel through the scene (CPU path).
+
+func (s NormalScene) LitGPU(base core.Color, p core.Vec2, layer Layer, n Normal) core.Color
+    LitGPU recomputes the same pixel (GPU mirror): bitwise identical.
+
+func (s NormalScene) Validate() error
+    Validate reports InvalidArg for a bad night, a bad light, a bad height,
+    or too many lights.
+
+type Occluder struct {
+	Pts []core.Vec2
+}
+    Occluder is one frozen 2D shadow caster: a closed polygon loop of at least 3
+    finite vertices, row order free (clockwise or not). Always copied on the way
+    in.
+
+func NewOccluder(pts []core.Vec2) (Occluder, error)
+    NewOccluder builds an Occluder copying pts. Fewer than 3 points or a
+    non-finite vertex is InvalidArg; more than MaxOccluderVerts is OutOfMemory.
+
+func (o Occluder) Validate() error
+    Validate reports InvalidArg for fewer than 3 or non-finite vertices,
+    OutOfMemory for over-count vertices.
+
+type RoughMap struct {
+	W, H int
+	R    []float64
+}
+    RoughMap is one isolated roughness sheet: W*H samples in [0,1], row-major,
+    aligned 1:1 with the lit Image pixels. 0 reads mirror, 1 reads matte.
+    Constructors copy; At only reads.
+
+func NewRoughMap(w, h int, r []float64) (RoughMap, error)
+    NewRoughMap builds a W-by-H map copying r. Non-positive sizes, a length
+    mismatch, or a non-finite/out-of-range sample is BadData; W*H beyond
+    MaxImagePixels is OutOfMemory.
+
+func (m RoughMap) At(x, y int) (float64, bool)
+    At returns the roughness at (x, y). Out of range or corrupt reads FlatRough
+    with false, never NaN and never a panic.
+
+func (m RoughMap) Validate() error
+    Validate reports BadData for a zero value, a length mismatch, or a
+    non-finite/out-of-range sample; OutOfMemory for over-budget.
+
+type RoughScene struct {
+	Night   core.Color
+	Lights  []Light
+	Height  float64
+	Weights RoughWeights
+}
+    RoughScene is one frozen rough night: global night color plus lights plus
+    the lamp height plus the diffuse/specular split. NewRoughScene copies
+    the slice; Apply lights src after the fx grade using nmap and rmap 1:1.
+    A nil map falls back (flat normal, FlatRough), never a crash; a corrupt or
+    mis-sized map is BadData.
+
+func NewRoughScene(night core.Color, lights []Light, height float64, w RoughWeights) (RoughScene, error)
+    NewRoughScene builds a RoughScene copying lights. Bad night, bad light,
+    or height outside (0,MaxLightRange] is InvalidArg; more than MaxLights is
+    InvalidArg; bad weights is BadData. Builds nothing on error.
+
+func (s RoughScene) Apply(src *Image, nmap *NormalMap, rmap *RoughMap) (*Image, error)
+    Apply lights src with nmap and rmap (CPU path). Neither input is mutated.
+    Nil src is InvalidArg, corrupt src BadData, invalid scene InvalidArg,
+    nil maps fall back, corrupt or mis-sized maps BadData.
+
+func (s RoughScene) ApplyCPU(src *Image, nmap *NormalMap, rmap *RoughMap) (*Image, error)
+    ApplyCPU is the explicit CPU path (same as Apply).
+
+func (s RoughScene) ApplyGPU(src *Image, nmap *NormalMap, rmap *RoughMap) (*Image, error)
+    ApplyGPU is the GPU mirror path: same frozen math, bitwise identical.
+
+func (s RoughScene) Lit(base core.Color, p core.Vec2, layer Layer, n Normal, rough float64) core.Color
+    Lit lights one rough pixel through the scene (CPU path).
+
+func (s RoughScene) LitGPU(base core.Color, p core.Vec2, layer Layer, n Normal, rough float64) core.Color
+    LitGPU recomputes the same pixel (GPU mirror): bitwise identical.
+
+func (s RoughScene) Validate() error
+    Validate reports InvalidArg for a bad night, light, height, or count;
+    BadData for off-sum weights.
+
+type RoughWeights struct {
+	Diffuse  float64
+	Specular float64
+}
+    RoughWeights splits one light share into diffuse and specular. The sum must
+    stay 1 within RoughWeightTol; anything else is BadData and never silently
+    renormalized.
+
+func DefaultRoughWeights() RoughWeights
+    DefaultRoughWeights is the frozen split used by the golden pictures:
+    mostly diffuse, a visible specular lift.
+
+func NewRoughWeights(diffuse, specular float64) (RoughWeights, error)
+    NewRoughWeights builds weights. Non-finite, negative, or a sum drifting past
+    RoughWeightTol is BadData.
+
+func (w RoughWeights) Validate() error
+    Validate reports BadData for non-finite, negative, or off-sum weights.
+
+type Scene struct {
+	Night  core.Color
+	Lights []Light
+}
+    Scene is one frozen night: global night color plus lights. NewScene copies
+    the slice; Apply lights src after the fx grade.
+
+func NewScene(night core.Color, lights []Light) (Scene, error)
+    NewScene builds a Scene copying lights. Bad night or bad light is
+    InvalidArg; more than MaxLights is InvalidArg and builds nothing.
+
+func (s Scene) Apply(src *Image) (*Image, error)
+    Apply lights src (CPU path). src never mutated. Nil src is InvalidArg,
+    corrupt src BadData, invalid scene InvalidArg.
+
+func (s Scene) ApplyCPU(src *Image) (*Image, error)
+    ApplyCPU is the explicit CPU path (same as Apply).
+
+func (s Scene) ApplyGPU(src *Image) (*Image, error)
+    ApplyGPU is the GPU mirror path: same frozen math, bitwise identical.
+
+func (s Scene) Lit(base core.Color, p core.Vec2, layer Layer) core.Color
+    Lit lights one pixel through the scene (CPU path).
+
+func (s Scene) LitGPU(base core.Color, p core.Vec2, layer Layer) core.Color
+    LitGPU recomputes the same pixel (GPU mirror): bitwise identical.
+
+func (s Scene) Validate() error
+    Validate reports InvalidArg for a bad night, a bad light, or too many
+    lights.
+
+type Shadow struct {
+	Occluders []Occluder
+	Occlusion float64
+	Length    float64
+}
+    Shadow is one frozen set of casters: every occluder blocks every light the
+    same way (Godot LightOccluder2D idea, Go reworked). Occlusion in [0,1] says
+    how dark the lee side gets (0 keeps the light, 1 falls back to night only,
+    never black). Length caps how far past the wall the dark reaches; 0 casts
+    no shadow at all (valid no-op for zero-length slides). Constructors copy;
+    Apply returns fresh images.
+
+func NewShadow(occluders []Occluder, occlusion, length float64) (Shadow, error)
+    NewShadow builds a Shadow copying occluders. Occlusion outside [0,1] or a
+    non-finite/negative Length or a Length beyond MaxShadowLength is InvalidArg;
+    more than MaxOccluders is InvalidArg; a bad occluder fails the build with
+    its own code.
+
+func (s Shadow) Apply(src *Image, lights []Light, night core.Color) (*Image, error)
+    Apply lights src through lights and night dimmed by this shadow (CPU path).
+    src never mutated. Nil src is InvalidArg, corrupt src BadData, invalid
+    shadow InvalidArg.
+
+func (s Shadow) ApplyCPU(src *Image, lights []Light, night core.Color) (*Image, error)
+    ApplyCPU is the explicit CPU path (same as Apply).
+
+func (s Shadow) ApplyGPU(src *Image, lights []Light, night core.Color) (*Image, error)
+    ApplyGPU is the GPU mirror path: same frozen math, bitwise identical.
+
+func (s Shadow) Blocked(l Light, p core.Vec2) bool
+    Blocked reports whether occluders shadow p from light l (CPU path).
+
+func (s Shadow) BlockedGPU(l Light, p core.Vec2) bool
+    BlockedGPU recomputes the same frozen geometry (GPU mirror): bitwise
+    identical to Blocked for the same inputs.
+
+func (s Shadow) FactorFor(l Light, p core.Vec2) float64
+    FactorFor returns the shadow multiplier for light l at p (CPU path).
+
+func (s Shadow) FactorForGPU(l Light, p core.Vec2) float64
+    FactorForGPU recomputes the same multiplier (GPU mirror).
+
+func (s Shadow) Lit(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color) core.Color
+    Lit lights one pixel through lights, night, and this shadow (CPU path).
+
+func (s Shadow) LitGPU(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color) core.Color
+    LitGPU recomputes the same pixel (GPU mirror): bitwise identical.
+
+func (s Shadow) Validate() error
+    Validate reports InvalidArg for a bad occlusion, length, count, or occluder.
+
+type SoftMode int
+    SoftMode names the shadow edge grade.
+
+const (
+	// SoftNone is one hard tap.
+	SoftNone SoftMode = iota
+	// SoftPCF5 averages center plus 4 axial taps.
+	SoftPCF5
+	// SoftPCF13 averages center plus 12 ring taps.
+	SoftPCF13
+)
+func ParseSoftMode(s string) (SoftMode, error)
+    ParseSoftMode maps "None"/"PCF5"/"PCF13" to a SoftMode.
+
+func (m SoftMode) String() string
+    String returns the stable log name of m.
+
+func (m SoftMode) Taps() int
+    Taps returns the tap count: 1, 5, or 13. Unknown reads 1, never 0.
+
+func (m SoftMode) Validate() error
+    Validate reports InvalidArg for an unknown grade.
+
+type SoftShadow struct {
+	Shadow Shadow
+	Mode   SoftMode
+	Radius float64
+}
+    SoftShadow is a frozen shadow plus an edge grade. Shadow keeps the frozen
+    occluders, Mode picks the tap count, Radius is world units per tap step (0
+    means DefaultSoftRadius).
+
+func NewSoftShadow(sh Shadow, mode SoftMode, radius float64) (SoftShadow, error)
+    NewSoftShadow builds a SoftShadow. Bad mode or bad radius is InvalidArg,
+    bad shadow fails with its own code. Radius 0 reads as DefaultSoftRadius.
+
+func (s SoftShadow) Apply(src *Image, lights []Light, night core.Color) (*Image, FrameBill, error)
+    Apply lights src with soft taps and returns the frame bill. src never
+    mutated. Invalid soft or light count is InvalidArg, nil src InvalidArg,
+    corrupt src BadData.
+
+func (s SoftShadow) ApplyCPU(src *Image, lights []Light, night core.Color) (*Image, FrameBill, error)
+    ApplyCPU is the explicit CPU path (same as Apply).
+
+func (s SoftShadow) ApplyGPU(src *Image, lights []Light, night core.Color) (*Image, FrameBill, error)
+    ApplyGPU is the GPU mirror path: same taps, identical pixels and bill.
+
+func (s *SoftShadow) AutoDowngradeForLights(log *[]string, nLights int) bool
+    AutoDowngradeForLights downgrades when light counts exceed budget: PCF13
+    beyond MaxPCF13Lights, or any grade beyond MaxShadowLights. Returns true
+    when a step happened (always with a log line).
+
+func (s SoftShadow) Bill(src *Image, lights []Light) FrameBill
+    Bill charges the frame: per-light footprints plus total cost.
+
+func (s *SoftShadow) DowngradeOOM(log *[]string, reason string) bool
+    DowngradeOOM steps one grade down and logs the move. Nil soft or nil log
+    refuses (silent downgrade is a failure). Already-None logs the request and
+    reports no change.
+
+func (s *SoftShadow) DowngradeOnAllocFail(log *[]string, err error) bool
+    DowngradeOnAllocFail downgrades when err is OutOfMemory. Other codes and nil
+    errors never downgrade.
+
+func (s SoftShadow) OverPCF13Count(n int) bool
+    OverPCF13Count reports whether n PCF13 lights exceed the small count.
+
+func (s SoftShadow) SoftFactor(l Light, p core.Vec2) float64
+    SoftFactor returns the soft multiplier at p (CPU path).
+
+func (s SoftShadow) SoftFactorGPU(l Light, p core.Vec2) float64
+    SoftFactorGPU recomputes the same taps (GPU mirror): identical.
+
+func (s SoftShadow) SoftLit(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color) core.Color
+    SoftLit lights one pixel through soft taps (CPU path).
+
+func (s SoftShadow) SoftLitGPU(base core.Color, p core.Vec2, layer Layer, lights []Light, night core.Color) core.Color
+    SoftLitGPU recomputes the same pixel (GPU mirror): identical.
+
+func (s SoftShadow) Taps() int
+    Taps returns the tap count of the current grade.
+
+func (s SoftShadow) Validate() error
+    Validate reports InvalidArg for a bad mode, radius, or shadow.
+

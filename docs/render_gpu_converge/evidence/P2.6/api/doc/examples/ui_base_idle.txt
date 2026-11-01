@@ -1,0 +1,22 @@
+Evidence helpers for ui_base_idle (R3 · U21).
+
+Example-local, same rules as the other ui_wr_* windows: the gate snapshot is a
+GPU readback PNG (not a window screenshot), color probes are sampled in logical
+coordinates (DPR-aware), and the Golden baseline is compared bit for bit over
+the static mask (header + legend + body). The HUD band is excluded because its
+counters refresh during the run.
+
+Command ui_base_idle is the base resource matrix row 1 real-window: idle (no
+dirty, zero frames). A static content window that is opened, allowed to paint
+once (warmup), then left alone — the framework must present zero additional
+frames and burn ~0 CPU for the remainder.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=60 go run ./examples/ui_base_idle -auto-only
+    go run ./examples/ui_base_idle                 # manual: idle until close
+
+Window: 1200×800. RUN_SECONDS>=60 (long enough to prove sustained idle).
+
+Evidence: presents_after_warmup ≤ 2, cpu_pct ≤ 2% (60s steady window),
+vsync_source present, no cpu_fallback. Golden over header+legend+body (static
+content, bitwise).

@@ -1,0 +1,13 @@
+Command ui_wr_r0_fullpaint is the W0 R0 real-window: FullPaint 正确性.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_wr_r0_fullpaint -auto-only
+    go run ./examples/ui_wr_r0_fullpaint                 # manual: animate until close
+    go run ./examples/ui_wr_r0_fullpaint -manual-seconds 15
+
+Window: 1200x800. RUN_SECONDS>=5 (U16). GPU window required.
+
+Evidence (U21): logic probes, pixel probes on the GPU snapshot, and a bitwise
+golden over header + legend + body (the live HUD band is excluded). Gate mode
+freezes the phase on Steady so the snapshot is deterministic; manual mode keeps
+the Steady→Spike→Recover animation.

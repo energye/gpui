@@ -1,0 +1,1 @@
+Package main demonstrates using the Adapter Info API to query GPU capabilities.

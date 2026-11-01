@@ -1,0 +1,12 @@
+{
+ "window": "video_4k_play",
+ "dir": "examples/video/video_4k_play",
+ "variant": "default",
+ "backend": "go",
+ "args": [],
+ "run_seconds": 60,
+ "date": "2026-11-01 07:30:59",
+ "json": null,
+ "rc": 1,
+ "status": "FAIL"
+}

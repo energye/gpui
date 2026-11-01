@@ -1,0 +1,1965 @@
+# P2.6-a API 完整差异（h 段逐行对白名单用；19 个有差异的共有包全文 diff）
+# date: 2026-10-31T22:22:02+08:00  head: e67e4be7
+
+## render.txt
+--- docs/render_gpu_converge/baseline/api/doc/render.txt	2026-10-29 06:57:16.948503488 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/render.txt	2026-10-31 22:19:51.109558483 +0800
+@@ -442,6 +442,13 @@
+     mask may be nil, in which case content is drawn unmasked. A nil canvas,
+     nil draw func or non-positive extent is a no-op.
+ 
++func FairSplit(total, windows, floor int64) int64
++    FairSplit divides a per-process cap across live shared-device windows with
++    a floor: max(total/windows, floor). windows<=1 returns total unchanged
++    (single-window behavior is preserved exactly). This is the one fair-share
++    arithmetic — the image cache (entries and bytes) and the picture cache
++    (bytes) both derive through it.
++
+ func FilterPoolStats() (gets, puts, hits, misses int)
+ func FiltersRegistered() bool
+     readbackFilterSrcIntoScratch copies a filter seed RT into filterSrcScratch.
+@@ -573,6 +580,10 @@
+     publisher. Result textures are composited with DrawGPUTexture; CPU pixels
+     materialise lazily.
+ 
++func RegisterGPUPoolStatsCollector(owner any, fn GPUPoolStatsFunc)
++    RegisterGPUPoolStatsCollector adds a device holder's pool snapshot source,
++    keyed by owner identity so it can be removed again. A nil func is ignored.
++
+ func RegisterPurgeEvictable(name string, cache PurgeEvictable)
+     RegisterPurgeEvictable adds a rebuildable cache to the texture-OOM purge
+     chain. Registration is additive; packages with evictable caches call this
+@@ -748,6 +759,10 @@
+     disable texture/from-view publishers — use DisableGPUFilterGraphForTest to
+     force the pure CPU filter path.
+ 
++func UnregisterGPUPoolStatsCollector(owner any)
++    UnregisterGPUPoolStatsCollector drops a device holder's collector at
++    teardown, so a closed window never reports pools whose natives are gone.
++
+ func UnregisterPurgeEvictable(cache PurgeEvictable)
+     UnregisterPurgeEvictable removes a cache from the purge chain. Call at
+     teardown so post-close purges never touch released native resources.
+@@ -940,23 +955,21 @@
+ 
+     # Representations in this repo
+ 
+-    Several packages historically defined their own BlendMode enums. They are
+-    NOT interchangeable by raw numeric cast:
++    Historically several packages defined their own BlendMode enums. Since B3
++    (P2.4e) there is ONE shared numeric domain and ONE boundary:
+ 
+       - render.BlendMode (this type) — paint API; alias of
+         internal/image.BlendMode
++      - internal/blend.BlendMode — CPU dispatch; alias of the same
++        internal/image.BlendMode, so it needs no conversion
+       - scene.BlendMode (uint32) — scene-graph / WGSL wire encoding (CSS-like
+-        order)
+-      - internal/blend.BlendMode — CPU Porter-Duff + advanced dispatch order
+-      - surface.BlendMode — surface capability subset; values align with this
+-        type
++        order); wire values are its own and stay stable (no re-recording)
+ 
+-    Always convert explicitly:
++    The single scene→paint boundary:
+ 
+         paint := sceneMode.ToPaintBlendMode() // scene → render
+-        fn := sceneMode.ToInternalBlendMode() // scene → internal/blend
+ 
+-    Never write render.BlendMode(sceneMode) or scene.BlendMode(paintMode).
++    Never cast with render.BlendMode(sceneMode).
+ 
+ type BridgeStats struct {
+ 	Frames    uint64
+@@ -1002,6 +1015,86 @@
+ 
+     Deprecated: Use Brush types directly instead of Pattern.
+ 
++type Budget struct {
++	MaxEntries int
++	MaxBytes   int64
++	// MinEntries/MinBytes are the multi-window fair-share floors (0 =
++	// none); only meaningful where a fair share is derived.
++	MinEntries int
++	MinBytes   int64
++	TTL        time.Duration
++}
++    Budget is one declared limit set. A zero field means that dimension is
++    unbounded / not applicable for the domain; the meaning of each field is
++    documented on its BudgetDomain constant.
++
++func DefaultBudget(d BudgetDomain) Budget
++    DefaultBudget returns the declared defaults for one budget family.
++    The numbers are pinned by budget_default_test.go to the pre-P2.4b values
++    — switching a site to this table must not move a single limit (P2 zero
++    behavior); changing a limit is a deliberate P3+ decision, not a refactor
++    side effect.
++
++type BudgetDomain int
++    BudgetDomain names one GPU-side budget family. P2.4b 预算统一: every GPU-side
++    cache/pool limit is declared here once (按域分账, declaration level);
++    the individual sites read their defaults through DefaultBudget instead
++    of private constants. Runtime per-domain usage aggregation lands
++    with the P2.4c/d res/registry unification — the hal process ledger
++    (VramAdd/VramForget/VramCheck) stays the single live byte account.
++
++const (
++	// BudgetProcessGlobal is the hal process VRAM ledger domain. The table
++	// entry documents the default; the live value is always read through
++	// VramBudgetMB (GPUI_VRAM_BUDGET_MB, 0 disables the gate).
++	BudgetProcessGlobal BudgetDomain = iota
++	// BudgetImageCache is the per-session cached image-texture LRU
++	// (render/internal/gpu ImageCache). MaxEntries = textures, MaxBytes =
++	// resident texture bytes; MinEntries/MinBytes are the multi-window
++	// fair-share floors.
++	BudgetImageCache
++	// BudgetPictureCache is the per-window picture texture cache
++	// (ui/scene PictureTextureCache). Fair-share derivation: the process
++	// budget splits by live windows and pictureCacheBudgetDivisor, then
++	// converts to entries with the MinEntries floor. MaxEntries is
++	// unused (the cache auto-sizes to its frame working set).
++	BudgetPictureCache
++	// BudgetSurfacePool is the surface-sized textureSet pool (MSAA +
++	// depth/stencil + resolve trio) shared by every window session on a
++	// device. MaxBytes = resident surface bytes; the live site reads the
++	// limit through DefaultBudget when the trio moves onto res.Cache
++	// (P2.4d). (Named SurfacePool since P2.4d: the old TexturePool was a
++	// per-process Go struct, this domain is the per-device surface trio.)
++	BudgetSurfacePool
++	// BudgetStencilScratch is the size-bucketed sc==1 depth/stencil cache
++	// on each session textureSet. MaxEntries = size buckets.
++	BudgetStencilScratch
++	// BudgetClipMask is the depth-clip coverage-mask cache. MaxEntries =
++	// masks, MaxBytes = mask bytes, TTL = unused-entry lifetime.
++	BudgetClipMask
++	// BudgetBlendDualTex is the advanced-blend BGRA intermediate pool.
++	// MaxBytes = total pool bytes; MaxEntries = per-size-bucket cap.
++	BudgetBlendDualTex
++	// BudgetLayerOffscreen is the per-context layer/effect offscreen RT
++	// pool. MaxBytes = total pool bytes; MaxEntries = per-size-bucket cap.
++	BudgetLayerOffscreen
++	// BudgetFilterGraph is the GPU filter graph's RGBA8 render-target pool
++	// (ping-pong A/B + hold + published results), shared by every window on a
++	// device. MaxEntries = per-size-bucket cap; MaxBytes = total pool bytes.
++	BudgetFilterGraph
++	// BudgetGlyphColor is the color-glyph atlas. MaxEntries = atlas pages
++	// (each page is PageSize² RGBA at the construction site).
++	BudgetGlyphColor
++	// BudgetGlyphMask is the R8 glyph-mask atlas (render/text). MaxEntries
++	// = cached glyph masks; MaxBytes = MaxAtlases pages of PageSize² R8.
++	BudgetGlyphMask
++	// BudgetVideoStage is the video texture pool (routing slots) plus the
++	// single-upload staging cap. MaxEntries = pool slots; MaxBytes = one
++	// staging upload cap.
++	BudgetVideoStage
++)
++func (d BudgetDomain) String() string
++
+ type Canvas interface {
+ 	// Surface extent and clearing
+ 	Width() int
+@@ -2490,6 +2583,12 @@
+     resize/mode switch, and deliberate full redraw scenes. Steady UI frames
+     should prefer PresentFrameAuto.
+ 
++func (c *Context) PresentFramePlan(view gpucontext.TextureView, width, height uint32, plan FramePresentPlan, present func() error) (PresentOutcome, error)
++    PresentFramePlan executes a precomputed FramePresentPlan. Callers that
++    already hold a plan (the PresentTarget path clips the damage for metrics
++    before acquiring) must dispatch through here instead of re-planning, so the
++    mode and the presented rects can never come from two different decisions.
++
+ func (c *Context) Push()
+     Push saves the current state (transform, paint, clip, and mask). Push saves
+     the current state (transform, paint, clip, and mask).
+@@ -3822,6 +3921,12 @@
+     The MSDF pipeline (GPUTextAccelerator) remains the preferred path for
+     rotated, scaled, or large text where resolution-independence matters.
+ 
++type GPUPoolStatsFunc func() []PoolDomainStats
++    GPUPoolStatsFunc snapshots the pool domains of one live GPU device holder.
++    The GPU layer registers one per device holder (render never imports the
++    internal GPU package, so the bridge is a callback, like the OOM purge
++    chain).
++
+ type GPURenderContextProvider interface {
+ 	// NewGPURenderContext creates a new per-context GPU render context.
+ 	// The returned value should be stored on the render.Context and closed
+@@ -5265,6 +5370,37 @@
+ func (p Point) Sub(q Point) Point
+     Sub returns the difference of two points (vector subtraction).
+ 
++type PoolDomainStats struct {
++	Device    string `json:"device"` // device holder label (multi-window diagnostics)
++	Name      string `json:"name"`   // domain name: surface-pool, filter-graph, ...
++	Hits      uint64 `json:"hits"`
++	Misses    uint64 `json:"misses"`
++	Evictions uint64 `json:"evictions"`
++	Purged    uint64 `json:"purged"`
++	Entries   uint64 `json:"entries"`
++	Idle      uint64 `json:"idle"`
++	Bytes     uint64 `json:"bytes"`
++	PeakBytes uint64 `json:"peak_bytes"`
++	Budget    uint64 `json:"budget"`
++}
++    PoolDomainStats is one GPU pool domain's reuse snapshot (P2.4d probe). The
++    GPU layer owns its pools internally; this is the read-only shape the engine
++    publishes so a real window can assert that same-size reuse actually happens
++    (hits > 0) instead of trusting a pool that silently allocates every frame.
++
++    Entries counts checked-out plus pooled resources; Idle counts pooled
++    entries nothing is using. Bytes is the domain's estimated live footprint
++    (checked-out entries count against the budget too, so a burst cannot dodge
++    the cap).
++
++func GPUPoolStats() []PoolDomainStats
++    GPUPoolStats collects every registered device holder's pool domain
++    snapshots. Empty when no GPU device is live (CPU rendering).
++
++func (s PoolDomainStats) HitRate() float64
++    HitRate reports reuse as a fraction of acquisitions. Zero hits with zero
++    misses means the domain was never used — not that it worked perfectly.
++
+ type PresentMode int
+     PresentMode describes how PresentFrameAuto / PlanFramePresent should hit the
+     surface.
+@@ -6059,6 +6195,45 @@
+ func (p *SolidPattern) ColorAt(x, y float64) RGBA
+     ColorAt implements Pattern.
+ 
++type StandaloneDevice struct {
++	Instance hal.Instance
++	Adapter  hal.Adapter
++	Device   hal.Device
++
++	// ForceFallback reports that only the software/CPU adapter answered.
++	ForceFallback bool
++}
++    StandaloneDevice is one standalone GPU chain opened by OpenStandaloneDevice.
++    The caller owns every handle: Release/Destroy them in reverse order (Device,
++    Adapter, Instance) when done — the 资源谁建谁放 ledger counts them like any other
++    resource.
++
++func OpenStandaloneDevice(label string) (*StandaloneDevice, error)
++    OpenStandaloneDevice opens the one standalone GPU device for
++    probe/offscreen/compute use (VelloAccelerator standalone, GPUShared
++    standalone, test probes). This is the single non-present creation funnel:
++    instance creation goes through backend.go's createNativeInstance (the only
++    webgpu.CreateInstance sentence), adapter selection follows the window policy
++    (RequestAdapterWithPolicy + ResolveAdapterPolicy), and the device request
++    reuses the present chain's OOM retry.
++
++    Zero-behavior notes (P2.4a → P2.4b):
++      - Backends stay pinned to Vulkan exactly as the previous per-callsite
++        webgpu.CreateInstance(BackendsVulkan) did; GPUI_BACKEND deliberately
++        does not hijack standalone opens (pure-Go GL has no surfaceless
++        standalone — GL users must go through a window's shared device).
++      - P2.4b (D2 拍板): the descriptor is now the waterline-aware
++        DeviceDescriptorForAdapter — standalone probes/compute follow the same
++        LowVRAM policy as windows on integrated adapters or when the ledger
++        waterline trips. On discrete adapters with headroom the result is
++        identical to the previous plain DeviceDescriptor.
++      - No waitDeviceReady gate: that is a present-path heap-reclaim gate,
++        and standalone opens never had it.
++
++    On error every partially opened handle is released and nil handles are
++    returned; error texts match the previous per-callsite wrapping ("create
++    instance" / "request adapter" / "request device").
++
+ type Stroke struct {
+ 	// Width is the line width in pixels. Default: 1.0
+ 	Width float64
+@@ -6662,8 +6837,6 @@
+     VideoTexturePool holds video textures apart from the image cache.
+ 
+ func NewVideoTexturePool(device hal.Device) *VideoTexturePool
+-    NewVideoTexturePool creates an independent video pool on device. Device is
+-    borrowed, not owned; Close destroys textures, not the device.
+ 
+ func (p *VideoTexturePool) Acquire(w, h int) (*VideoSlot, error)
+     Acquire returns an exact-size idle slot or creates one. Size change creates
+
+## render/scene.txt
+--- docs/render_gpu_converge/baseline/api/doc/render/scene.txt	2026-10-29 06:57:20.818545342 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/render/scene.txt	2026-10-31 22:19:55.258626366 +0800
+@@ -152,25 +152,16 @@
+     AllBlendModes returns a slice of all supported blend modes. This is useful
+     for testing and iteration.
+ 
+-func BlendModeFromInternal(internal blend.BlendMode) BlendMode
+-    BlendModeFromInternal converts an internal blend.BlendMode to
+-    scene.BlendMode. This is the reverse mapping for cases where you need to
+-    convert from internal representation back to the scene graph representation.
+-
+ func HSLModes() []BlendMode
+     HSLModes returns a slice of HSL-based non-separable blend modes.
+ 
+-func PaintBlendModeToScene(mode render.BlendMode) BlendMode
+-    PaintBlendModeToScene converts a paint-level render.BlendMode to
+-    scene.BlendMode.
+-
+ func PorterDuffModes() []BlendMode
+     PorterDuffModes returns a slice of Porter-Duff compositing modes.
+ 
+ func (mode BlendMode) GetBlendFunc() blend.BlendFunc
+-    GetBlendFunc returns the internal blend function for this mode.
+-    This is a convenience method that combines ToInternalBlendMode with
+-    blend.GetBlendFunc.
++    GetBlendFunc returns the CPU blend function for this mode. Since B3 (P2.4e)
++    internal/blend shares the render value domain, so the single scene→render
++    boundary table feeds it directly.
+ 
+     Usage:
+ 
+@@ -189,14 +180,6 @@
+ func (mode BlendMode) String() string
+     String returns a human-readable name for the blend mode.
+ 
+-func (mode BlendMode) ToInternalBlendMode() blend.BlendMode
+-    ToInternalBlendMode converts scene.BlendMode to internal blend.BlendMode.
+-    This provides the mapping between the scene graph blend modes and the
+-    low-level pixel blending implementation.
+-
+-    The internal blend.BlendMode uses a different enumeration order, so this
+-    function provides the translation.
+-
+ func (mode BlendMode) ToPaintBlendMode() render.BlendMode
+     ToPaintBlendMode converts scene.BlendMode (wire/shader encoding) to the
+     canonical paint-level render.BlendMode used by render.Context.
+@@ -267,65 +250,6 @@
+ func (c *CircleShape) ToPath() *Path
+     ToPath converts the circle to a Path.
+ 
+-type ClipStack struct {
+-	// Has unexported fields.
+-}
+-    ClipStack manages a stack of clip regions.
+-
+-func NewClipStack() *ClipStack
+-    NewClipStack creates a new empty clip stack.
+-
+-func (s *ClipStack) CombinedBounds() Rect
+-    CombinedBounds returns the intersection of all clip bounds. Returns an empty
+-    rect if any clip is empty.
+-
+-func (s *ClipStack) Contains(x, y float32) bool
+-    Contains returns true if the point is inside all clip regions.
+-
+-func (s *ClipStack) Depth() int
+-    Depth returns the current stack depth.
+-
+-func (s *ClipStack) Intersects(r Rect) bool
+-    Intersects returns true if the rectangle intersects all clip regions.
+-
+-func (s *ClipStack) IsEmpty() bool
+-    IsEmpty returns true if there are no clips on the stack.
+-
+-func (s *ClipStack) Pop() *ClipState
+-    Pop removes and returns the top clip region.
+-
+-func (s *ClipStack) Push(clip *ClipState)
+-    Push adds a clip region to the stack.
+-
+-func (s *ClipStack) Reset()
+-    Reset clears the clip stack.
+-
+-func (s *ClipStack) Top() *ClipState
+-    Top returns the current clip region without removing it.
+-
+-type ClipState struct {
+-	// Shape is the clip shape
+-	Shape Shape
+-
+-	// Bounds is the clip bounds (for quick rejection)
+-	Bounds Rect
+-
+-	// Transform is the transform that was active when clip was pushed
+-	Transform Affine
+-}
+-    ClipState represents a clip region on the clip stack.
+-
+-func NewClipState(shape Shape, transform Affine) *ClipState
+-    NewClipState creates a new clip state.
+-
+-func (cs *ClipState) Contains(x, y float32) bool
+-    Contains returns true if the point is inside the clip region. This is a
+-    conservative test using the bounding box.
+-
+-func (cs *ClipState) Intersects(r Rect) bool
+-    Intersects returns true if the rectangle intersects the clip region. This is
+-    a conservative test using bounding boxes.
+-
+ type CompositeShape struct {
+ 	// Has unexported fields.
+ }
+@@ -1731,7 +1655,8 @@
+     Bounds returns the cumulative bounding box of all scene content.
+ 
+ func (s *Scene) ClipBounds() Rect
+-    ClipBounds returns the intersection of all active clip regions.
++    ClipBounds returns the intersection of all active clip regions. Returns the
++    infinite sentinel rect when no clip is active.
+ 
+ func (s *Scene) ClipDepth() int
+     ClipDepth returns the current clip stack depth.
+
+## render/gpu.txt
+--- docs/render_gpu_converge/baseline/api/doc/render/gpu.txt	2026-10-29 06:57:18.030515178 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/render/gpu.txt	2026-10-31 22:19:52.077574262 +0800
+@@ -17,8 +17,9 @@
+ FUNCTIONS
+ 
+ func AbandonDevice()
+-    AbandonDevice drops GPU objects on the current shared device without
+-    a replacement. Wire to webgpu.Swapchain.OnDeviceAbandon before
++    AbandonDevice drops GPU objects on the current shared device without a
++    replacement. EXPERIMENTAL (P2.4a D5, see SetDeviceProvider): production
++    wiring is not connected yet. Wire to webgpu.Swapchain.OnDeviceAbandon before
+     Destroy/Release.
+ 
+ func NoteTextureOOM()
+@@ -43,6 +44,12 @@
+     from an external provider (e.g., gogpu). This avoids creating a separate GPU
+     instance and enables efficient device sharing.
+ 
++    EXPERIMENTAL (P2.4a D5): production wiring is not connected yet — the
++    only in-repo caller is the P0.4 conformance test. The sanctioned entry
++    for embedders stays render.SetAcceleratorDeviceProvider; this wrapper and
++    AbandonDevice are convenience aliases pending the embedder integration
++    decision (PLAN §2.3-B4).
++
+     The provider should be a gpucontext.DeviceProvider. The accelerator
+     type-asserts provider.Device() to *wgpu.Device for HAL access.
+ 
+
+## render/internal/image.txt
+--- docs/render_gpu_converge/baseline/api/doc/render/internal/image.txt	2026-10-29 06:57:19.682533045 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/render/internal/image.txt	2026-10-31 22:19:54.023606089 +0800
+@@ -474,9 +474,9 @@
+ 
+ func (b *ImageBuf) MarkEphemeral()
+     MarkEphemeral sets GenerationID to 0 so the GPU image cache uploads this
+-    buffer for a single frame and releases it via ReleaseEphemeral. Use for
+-    continuous animated offscreen effect RTs republished every frame — bumping a
+-    new genID each frame would grow the long-term cache / VRAM.
++    buffer for a single frame and releases it through the cache retire outlet.
++    Use for continuous animated offscreen effect RTs republished every frame —
++    bumping a new genID each frame would grow the long-term cache / VRAM.
+ 
+ func (b *ImageBuf) MarkPixelsDirty()
+     MarkPixelsDirty keeps GenerationID stable and flags GPU cache for
+
+## render/internal/blend.txt
+--- docs/render_gpu_converge/baseline/api/doc/render/internal/blend.txt	2026-10-29 06:57:18.342518552 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/render/internal/blend.txt	2026-10-31 22:19:52.537581776 +0800
+@@ -42,6 +42,57 @@
+ This follows the WebGPU and modern graphics conventions for efficient
+ compositing.
+ 
++CONSTANTS
++
++const (
++	// Separable blend modes
++	BlendMultiply   = intImage.BlendMultiply   // Result: S * D
++	BlendScreen     = intImage.BlendScreen     // Result: 1 - (1-S)*(1-D)
++	BlendOverlay    = intImage.BlendOverlay    // HardLight with swapped layers
++	BlendDarken     = intImage.BlendDarken     // min(S, D)
++	BlendLighten    = intImage.BlendLighten    // max(S, D)
++	BlendColorDodge = intImage.BlendColorDodge // D / (1 - S)
++	BlendColorBurn  = intImage.BlendColorBurn  // 1 - (1 - D) / S
++	BlendHardLight  = intImage.BlendHardLight  // Multiply or Screen depending on source
++	BlendSoftLight  = intImage.BlendSoftLight  // Soft version of HardLight
++	BlendDifference = intImage.BlendDifference // |S - D|
++	BlendExclusion  = intImage.BlendExclusion  // S + D - 2*S*D
++
++	// Non-separable blend modes (optional)
++	BlendHue        = intImage.BlendHue        // Hue of source, saturation and luminosity of backdrop
++	BlendSaturation = intImage.BlendSaturation // Saturation of source, hue and luminosity of backdrop
++	BlendColor      = intImage.BlendColor      // Hue and saturation of source, luminosity of backdrop
++	BlendLuminosity = intImage.BlendLuminosity // Luminosity of source, hue and saturation of backdrop
++)
++    Advanced separable blend modes rebound to the shared image value domain
++    (B3/P2.4e) — names keep the historical blend-package spelling.
++
++const (
++	// Porter-Duff modes rebound to the shared image value domain (B3/P2.4e).
++	// Names keep the historical blend-package spelling so call sites and the
++	// GetBlendFunc switch read unchanged.
++	BlendClear           = intImage.BlendClear           // Result: 0 (clear destination)
++	BlendSource          = intImage.BlendCopy            // Result: S (replace with source)
++	BlendSourceOver      = intImage.BlendNormal          // Result: S + D*(1-Sa) [default]
++	BlendDestinationOver = intImage.BlendDestinationOver // Result: S*(1-Da) + D
++	BlendSourceIn        = intImage.BlendSourceIn        // Result: S*Da
++	BlendDestinationIn   = intImage.BlendDestinationIn   // Result: D*Sa
++	BlendSourceOut       = intImage.BlendSourceOut       // Result: S*(1-Da)
++	BlendDestinationOut  = intImage.BlendDestinationOut  // Result: D*(1-Sa)
++	BlendSourceAtop      = intImage.BlendSourceAtop      // Result: S*Da + D*(1-Sa)
++	BlendDestinationAtop = intImage.BlendDestinationAtop // Result: S*(1-Da) + D*Sa
++	BlendXor             = intImage.BlendXor             // Result: S*(1-Da) + D*(1-Sa)
++	BlendPlus            = intImage.BlendPlus            // Result: S + D (clamped to 255)
++	BlendModulate        = intImage.BlendModulate        // Result: S*D (multiply)
++
++	// BlendDestination is an internal/blend extension beyond the shared render
++	// value domain (keep destination only). Nothing in the scene wire produces
++	// it — scene's Destination degrades to Normal at the single scene→render
++	// boundary (blend_integration.ToPaintBlendMode). The CPU operator stays
++	// available for direct users of this package.
++	BlendDestination BlendMode = 28
++)
++
+ FUNCTIONS
+ 
+ func Blend(src, dst render.RGBA, mode Mode) render.RGBA
+@@ -251,48 +302,13 @@
+     This produces physically correct blending without dark halos or incorrect
+     color mixing.
+ 
+-type BlendMode uint8
+-    BlendMode represents a Porter-Duff compositing operation.
++type BlendMode = intImage.BlendMode
++    BlendMode is the CPU compositing mode. Since B3 (P2.4e) it is an alias of
++    internal/image.BlendMode — the same value domain as render.BlendMode — so
++    the scene→CPU path needs no numeric translation (the old private iota order
++    and its two conversion tables are gone; the single scene→render boundary is
++    scene.BlendMode.ToPaintBlendMode).
+ 
+-const (
+-	// Separable blend modes
+-	BlendMultiply   BlendMode = iota + 14 // Result: S * D
+-	BlendScreen                           // Result: 1 - (1-S)*(1-D)
+-	BlendOverlay                          // HardLight with swapped layers
+-	BlendDarken                           // min(S, D)
+-	BlendLighten                          // max(S, D)
+-	BlendColorDodge                       // D / (1 - S)
+-	BlendColorBurn                        // 1 - (1 - D) / S
+-	BlendHardLight                        // Multiply or Screen depending on source
+-	BlendSoftLight                        // Soft version of HardLight
+-	BlendDifference                       // |S - D|
+-	BlendExclusion                        // S + D - 2*S*D
+-
+-	// Non-separable blend modes (optional)
+-	BlendHue        // Hue of source, saturation and luminosity of backdrop
+-	BlendSaturation // Saturation of source, hue and luminosity of backdrop
+-	BlendColor      // Hue and saturation of source, luminosity of backdrop
+-	BlendLuminosity // Luminosity of source, hue and saturation of backdrop
+-)
+-    Advanced separable blend modes (extend BlendMode enum)
+-
+-const (
+-	// Porter-Duff modes (standard compositing operators)
+-	BlendClear           BlendMode = iota // Result: 0 (clear destination)
+-	BlendSource                           // Result: S (replace with source)
+-	BlendDestination                      // Result: D (keep destination)
+-	BlendSourceOver                       // Result: S + D*(1-Sa) [default]
+-	BlendDestinationOver                  // Result: S*(1-Da) + D
+-	BlendSourceIn                         // Result: S*Da
+-	BlendDestinationIn                    // Result: D*Sa
+-	BlendSourceOut                        // Result: S*(1-Da)
+-	BlendDestinationOut                   // Result: D*(1-Sa)
+-	BlendSourceAtop                       // Result: S*Da + D*(1-Sa)
+-	BlendDestinationAtop                  // Result: S*(1-Da) + D*Sa
+-	BlendXor                              // Result: S*(1-Da) + D*(1-Sa)
+-	BlendPlus                             // Result: S + D (clamped to 255)
+-	BlendModulate                         // Result: S*D (multiply)
+-)
+ type BlendModeLinear struct {
+ 	Mode   BlendMode
+ 	Linear bool // If true, blend in linear space; if false, blend in sRGB
+
+## render/internal/gpu.txt
+--- docs/render_gpu_converge/baseline/api/doc/render/internal/gpu.txt	2026-10-29 06:57:19.333529269 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/render/internal/gpu.txt	2026-10-31 22:19:53.600599162 +0800
+@@ -2,157 +2,61 @@
+ 
+ Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
+ 
+-Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
+-
+-Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
+-
+-Package gpu provides a Pure Go GPU-accelerated rendering backend.
+-
+-This is an internal package used by the gg library for GPU rendering.
+-It leverages WebGPU for hardware-accelerated 2D graphics rendering via the
+-gogpu/wgpu Pure Go WebGPU implementation (zero CGO), which supports Vulkan,
+-Metal, and DX12 backends depending on the platform.
+-
+-# Architecture Overview
+-
+-The gpu backend implements a vello-style GPU rendering pipeline:
+-
+-    Scene Commands -> Decoder -> HybridPipeline (Flatten -> Coarse -> Fine) -> GPU -> Composite
+-
+-Key components:
+-
+-  - Backend: Main entry point for GPU rendering
+-  - GPUSceneRenderer: Scene-to-GPU pipeline with HybridPipeline rasterization
+-  - HybridPipeline: 3-stage path rasterization (Flatten, Coarse, Fine)
+-  - MemoryManager: GPU texture memory with LRU eviction (configurable budget)
+-  - TextureAtlas: Shelf-packing for efficient GPU memory usage
+-  - PipelineCache: Pre-compiled GPU pipelines for all 29 blend modes
+-  - ShaderModules: WGSL compute shaders for tile rasterization and blending
+-
+-# HybridPipeline (vello-style)
+-
+-Scene rendering uses a 3-stage tile-based pipeline inspired by Linebender's
+-vello:
+-
+- 1. Flatten: Bezier curves are flattened to line segments using Wang's formula
+- 2. Coarse: Line segments are binned into 4x4 pixel tiles with winding info
+- 3. Fine: Each tile's coverage is computed with anti-aliased edges
+-
+-The pipeline automatically selects GPU or CPU execution per stage based
+-on workload size. This hybrid approach provides optimal performance across
+-different path complexities.
++Package gpu implements the GPU rendering backend used by the gg runtime.
+ 
+-# Blend Modes
++It sits on top of gpu/hal and talks to whichever backend was registered
++(pure-Go WebGPU, or the GLES backend). The package owns scene upload, tile-based
++rasterization, per-subsystem pipelines and GPU resource caching.
+ 
+-All 29 standard blend modes are supported via WGSL shaders:
++# Architecture
+ 
+-Standard modes:
+-  - Normal, Multiply, Screen, Overlay
+-  - Darken, Lighten, ColorDodge, ColorBurn
+-  - HardLight, SoftLight, Difference, Exclusion
++    Scene / draw elements
++      -> tilecompute: path encode, then pathtag_reduce/scan, draw_reduce/leaf,
++         clip_leaf, path_count, backdrop, coarse, path_tiling, fine (WGSL)
++      -> per-subsystem pipelines (stencil, image, glyph mask/color, MSDF text,
++         video YUV, SDF, convex, depth-clip, dual-texture blend)
++      -> composite / present
+ 
+-HSL modes:
+-  - Hue, Saturation, Color, Luminosity
++Key entry points:
+ 
+-Porter-Duff compositing:
+-  - Clear, Copy, Destination
+-  - SourceOver, DestinationOver
+-  - SourceIn, DestinationIn
+-  - SourceOut, DestinationOut
+-  - SourceAtop, DestinationAtop
+-  - Xor, Plus
++  - GPUShared: process-wide device/queue sharing across windows
++  - VelloAccelerator: compute (vello-style) scene rasterization
++  - RenderSceneAuto: scene-to-GPU rendering used by embedders
+ 
+-# Usage
++# Resource budgets
+ 
+-Create and initialize the gpu backend directly:
++GPU memory is budgeted per subsystem instead of through one global manager:
+ 
+-    b := gpu.NewBackend()
+-    if err := b.Init(); err != nil {
+-        log.Fatal(err)
+-    }
+-    defer b.Close()
++  - ImageCache: entry and byte LRU caps (SetBudgets to tune)
++  - glyph atlases: page-level LRU eviction
++  - depth-clip mask cache: count/byte budget
++  - surface trio / offscreen / filter / dual-tex pools: res.Cache domains
++    (size-keyed, byte budget, per-key cap, idle purge)
+ 
+-# Rendering Scenes
++# Legacy helpers
+ 
+-Build and render a scene:
++Backend is a minimal device holder used by the legacy command-recording and
++texture helpers (command_encoder.go, commands.go, gpu_texture.go, atlas.go).
++They are internal and kept for tests and callers that construct a device
++directly; new rendering code should use GPUShared/VelloAccelerator.
+ 
+-    builder := scene.NewSceneBuilder()
+-    builder.FillRect(0, 0, 800, 600, scene.SolidBrush(render.White))
+-    builder.FillCircle(400, 300, 100, scene.SolidBrush(render.Red))
+-    s := builder.Build()
++# Blend modes
+ 
+-    pm := render.NewPixmap(800, 600)
+-    if err := b.RenderScene(pm, s); err != nil {
+-        log.Printf("Render error: %v", err)
+-    }
++Porter-Duff modes are handled by the stencil/composite pipelines; the 15
++advanced modes (Multiply, Screen, Overlay, Hue, Saturation, Color, Luminosity,
++Darken, Lighten, ColorDodge, ColorBurn, HardLight, SoftLight, Difference,
++Exclusion) are handled by dual_tex_blend.go.
+ 
+-# Memory Management
++# Thread safety
+ 
+-The backend uses an LRU-based memory manager with configurable budget:
+-
+-    config := GPUSceneRendererConfig{
+-        Width: 1920,
+-        Height: 1080,
+-        MaxLayers: 16,
+-        MemoryBudgetMB: 256,
+-    }
+-
+-When memory budget is exceeded, least-recently-used textures are evicted.
+-
+-# Requirements
+-
+-  - Go 1.25+ (for generic features)
+-  - gogpu/wgpu module
+-  - A GPU that supports Vulkan, Metal, or DX12 (for actual GPU rendering)
+-
+-# Thread Safety
+-
+-Backend and GPUSceneRenderer are safe for concurrent use from multiple
++GPUShared and VelloAccelerator are safe for concurrent use from multiple
+ goroutines. Internal synchronization is handled via mutexes.
+ 
+-# Error Handling
+-
+-Common errors returned by this package:
+-
+-  - ErrNotInitialized: Backend must be initialized before use
+-  - ErrNoGPU: No compatible GPU found
+-  - ErrDeviceLost: GPU device was lost (requires re-initialization)
+-  - ErrNilTarget: Target pixmap is nil
+-  - ErrNilScene: Scene is nil
+-  - ErrRendererClosed: Renderer has been closed
+-  - ErrEmptyScene: Scene contains no draw commands
+-
+-# Benchmarking
+-
+-Run benchmarks to compare GPU vs Software performance:
+-
+-    go test -bench=. ./internal/gpu/...
+-
+-# Related Packages
+-
+-  - github.com/energye/gpui/render: Core 2D graphics library
+-  - github.com/energye/gpui/render/scene: Scene graph and retained mode API
+-  - github.com/energye/gpui/gpu/webgpu: Pure Go WebGPU implementation
+-
+-# References
++# Related packages
+ 
+-  - W3C WebGPU Specification: https://www.w3.org/TR/webgpu/
+-  - gogpu Organization: https://github.com/gogpu
+-  - gogpu/wgpu: https://github.com/energye/gpui/gpu/webgpu
+-
+-Package wgpu provides GPU-accelerated rendering using WebGPU.
+-
+-Package wgpu provides GPU-accelerated rendering using WebGPU.
+-
+-Package wgpu provides GPU-accelerated rendering using WebGPU.
+-
+-Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
+-
+-Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
+-
+-Package wgpu provides GPU-accelerated rendering backend using WebGPU.
+-
+-Package wgpu provides GPU-accelerated rendering using WebGPU.
++  - github.com/energye/gpui/render: core 2D graphics library
++  - github.com/energye/gpui/render/scene: scene graph
++  - github.com/energye/gpui/gpu/hal: backend-neutral GPU interfaces
+ 
+ Package gpu provides a GPU-accelerated rendering backend using gogpu/wgpu.
+ 
+@@ -165,9 +69,6 @@
+ CONSTANTS
+ 
+ const (
+-	// DefaultAtlasSize is the default atlas dimension (2048x2048).
+-	DefaultAtlasSize = 2048
+-
+ 	// MinAtlasSize is the minimum atlas dimension (256x256).
+ 	MinAtlasSize = 256
+ 
+@@ -177,57 +78,6 @@
+     Default atlas settings.
+ 
+ const (
+-	// DefaultMaxMemoryMB is the default maximum GPU memory budget (256 MB).
+-	DefaultMaxMemoryMB = 256
+-
+-	// DefaultEvictionThreshold is when eviction starts (80% of budget).
+-	DefaultEvictionThreshold = 0.8
+-
+-	// MinMemoryMB is the minimum allowed memory budget (16 MB).
+-	MinMemoryMB = 16
+-)
+-    Default memory limits.
+-
+-const (
+-	// Standard blend modes (0-11)
+-	ShaderBlendNormal     uint32 = 0
+-	ShaderBlendMultiply   uint32 = 1
+-	ShaderBlendScreen     uint32 = 2
+-	ShaderBlendOverlay    uint32 = 3
+-	ShaderBlendDarken     uint32 = 4
+-	ShaderBlendLighten    uint32 = 5
+-	ShaderBlendColorDodge uint32 = 6
+-	ShaderBlendColorBurn  uint32 = 7
+-	ShaderBlendHardLight  uint32 = 8
+-	ShaderBlendSoftLight  uint32 = 9
+-	ShaderBlendDifference uint32 = 10
+-	ShaderBlendExclusion  uint32 = 11
+-
+-	// HSL blend modes (12-15)
+-	ShaderBlendHue        uint32 = 12
+-	ShaderBlendSaturation uint32 = 13
+-	ShaderBlendColor      uint32 = 14
+-	ShaderBlendLuminosity uint32 = 15
+-
+-	// Porter-Duff modes (16-28)
+-	ShaderBlendClear           uint32 = 16
+-	ShaderBlendCopy            uint32 = 17
+-	ShaderBlendDestination     uint32 = 18
+-	ShaderBlendSourceOver      uint32 = 19
+-	ShaderBlendDestinationOver uint32 = 20
+-	ShaderBlendSourceIn        uint32 = 21
+-	ShaderBlendDestinationIn   uint32 = 22
+-	ShaderBlendSourceOut       uint32 = 23
+-	ShaderBlendDestinationOut  uint32 = 24
+-	ShaderBlendSourceAtop      uint32 = 25
+-	ShaderBlendDestinationAtop uint32 = 26
+-	ShaderBlendXor             uint32 = 27
+-	ShaderBlendPlus            uint32 = 28
+-)
+-    Blend mode constants matching scene.BlendMode values. These are used for GPU
+-    shader uniform values.
+-
+-const (
+ 	VelloTileWidth  = 16
+ 	VelloTileHeight = 16
+ 	VelloTileSize   = VelloTileWidth * VelloTileHeight
+@@ -235,29 +85,6 @@
+     TileWidth and TileHeight match Vello's tile dimensions. Using 16x16 tiles as
+     in the original Vello implementation.
+ 
+-const BackendGPU = "gpu"
+-    BackendGPU is the identifier for the GPU backend.
+-
+-const DefaultCoarseThreshold = 100
+-    DefaultCoarseThreshold is the minimum segments for GPU coarse rasterization.
+-
+-const DefaultFineThreshold = 100
+-    DefaultFineThreshold is the minimum tile entries for GPU fine rasterization.
+-
+-const DefaultFlattenThreshold = 50
+-    DefaultFlattenThreshold is the minimum path elements for GPU flattening.
+-
+-const DefaultGPUSegmentThreshold = 100
+-    DefaultGPUSegmentThreshold is the minimum number of segments to use GPU.
+-    Below this threshold, CPU is typically faster due to GPU dispatch overhead.
+-
+-const DefaultTextureUsage = types.TextureUsageCopySrc | types.TextureUsageCopyDst | types.TextureUsageTextureBinding
+-    DefaultTextureUsage is the default usage for textures created without
+-    specific flags.
+-
+-const FlattenMaxSegmentsPerCurve = 64
+-    FlattenMaxSegmentsPerCurve is the maximum segments generated per curve.
+-
+ const FlattenTolerance = 0.1
+     FlattenTolerance is the default tolerance for curve flattening.
+     Smaller values produce more accurate curves but more segments. 0.1 matches
+@@ -283,18 +110,6 @@
+ VARIABLES
+ 
+ var (
+-	// ErrAtlasFull is returned when the atlas cannot fit the requested region.
+-	ErrAtlasFull = errors.New("wgpu: texture atlas is full")
+-
+-	// ErrAtlasClosed is returned when operating on a closed atlas.
+-	ErrAtlasClosed = errors.New("wgpu: texture atlas is closed")
+-
+-	// ErrRegionOutOfBounds is returned when a region is outside atlas bounds.
+-	ErrRegionOutOfBounds = errors.New("wgpu: region is outside atlas bounds")
+-)
+-    Atlas-related errors.
+-
+-var (
+ 	// ErrBufferDestroyed is returned when operating on a destroyed buffer.
+ 	ErrBufferDestroyed = errors.New("gpu: buffer has been destroyed")
+ 
+@@ -331,76 +146,6 @@
+     Buffer errors.
+ 
+ var (
+-	// ErrEncoderNotRecording is returned when recording operations are called
+-	// on an encoder that is not in the Recording state.
+-	ErrEncoderNotRecording = errors.New("gpu: encoder not in recording state")
+-
+-	// ErrEncoderLocked is returned when operations are called on an encoder
+-	// that is locked (a pass is in progress).
+-	ErrEncoderLocked = errors.New("gpu: encoder is locked (pass in progress)")
+-
+-	// ErrEncoderFinished is returned when operations are called on an encoder
+-	// that has already been finished.
+-	ErrEncoderFinished = errors.New("gpu: encoder already finished")
+-
+-	// ErrEncoderConsumed is returned when operations are called on an encoder
+-	// that has been submitted to the queue.
+-	ErrEncoderConsumed = errors.New("gpu: encoder has been consumed")
+-
+-	// ErrNilDevice is returned when creating an encoder without a device.
+-	ErrNilDevice = errors.New("gpu: device is nil")
+-
+-	// ErrNilEncoder is returned when operations reference a nil encoder.
+-	ErrNilEncoder = errors.New("gpu: command encoder is nil")
+-
+-	// ErrNilCoreBuffer is returned when a buffer operation references nil.
+-	ErrNilCoreBuffer = errors.New("gpu: core buffer is nil")
+-
+-	// ErrCopyRangeOutOfBounds is returned when a copy operation exceeds buffer bounds.
+-	ErrCopyRangeOutOfBounds = errors.New("gpu: copy range out of bounds")
+-
+-	// ErrCopyOverlap is returned when source and destination buffers overlap.
+-	ErrCopyOverlap = errors.New("gpu: source and destination buffers overlap")
+-
+-	// ErrCopyOffsetNotAligned is returned when offset is not properly aligned.
+-	ErrCopyOffsetNotAligned = errors.New("gpu: copy offset must be 4-byte aligned")
+-
+-	// ErrCopySizeNotAligned is returned when size is not properly aligned.
+-	ErrCopySizeNotAligned = errors.New("gpu: copy size must be 4-byte aligned")
+-)
+-    Command encoder errors.
+-
+-var (
+-	// ErrComputePassEnded is returned when operations are called on an ended compute pass.
+-	ErrComputePassEnded = errors.New("gpu: compute pass has already ended")
+-
+-	// ErrComputePassNotRecording is returned when operations are called on a pass not recording.
+-	ErrComputePassNotRecording = errors.New("gpu: compute pass is not recording")
+-
+-	// ErrNilComputePipeline is returned when SetPipeline is called with nil.
+-	ErrNilComputePipeline = errors.New("gpu: compute pipeline is nil")
+-
+-	// ErrNilComputeBindGroup is returned when SetBindGroup is called with nil.
+-	ErrNilComputeBindGroup = errors.New("gpu: bind group is nil")
+-
+-	// ErrComputeBindGroupIndexOutOfRange is returned when bind group index exceeds maximum.
+-	ErrComputeBindGroupIndexOutOfRange = errors.New("gpu: bind group index exceeds maximum (3)")
+-
+-	// ErrNilDispatchBuffer is returned when DispatchIndirect is called with nil buffer.
+-	ErrNilDispatchBuffer = errors.New("gpu: dispatch indirect buffer is nil")
+-
+-	// ErrDispatchOffsetNotAligned is returned when dispatch offset is not 4-byte aligned.
+-	ErrDispatchOffsetNotAligned = errors.New("gpu: dispatch offset must be 4-byte aligned")
+-
+-	// ErrWorkgroupCountZero is returned when any workgroup dimension is zero.
+-	ErrWorkgroupCountZero = errors.New("gpu: workgroup count must be greater than zero")
+-
+-	// ErrWorkgroupCountExceedsLimit is returned when workgroup count exceeds device limits.
+-	ErrWorkgroupCountExceedsLimit = errors.New("gpu: workgroup count exceeds device limit")
+-)
+-    Compute pass errors.
+-
+-var (
+ 	// ErrNotInitialized is returned when operations are called before Init.
+ 	ErrNotInitialized = errors.New("wgpu: backend not initialized")
+ 
+@@ -425,87 +170,6 @@
+     Package errors for wgpu backend.
+ 
+ var (
+-	// ErrTextureReleased is returned when operating on a released texture.
+-	ErrTextureReleased = errors.New("wgpu: texture has been released")
+-
+-	// ErrTextureSizeMismatch is returned when pixmap size doesn't match texture.
+
+## render/internal/gpu/res.txt
+--- docs/render_gpu_converge/baseline/api/doc/render/internal/gpu/res.txt	2026-10-29 06:57:19.427530286 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/render/internal/gpu/res.txt	2026-10-31 22:19:53.737601405 +0800
+@@ -24,39 +24,75 @@
+ 	// Has unexported fields.
+ }
+     Cache is a GrResourceCache-style pool: keyed reuse, byte budget with LRU
+-    eviction, and "in-flight items are never lent out" safety. Entries returned
+-    by Acquire are strong Refs; Release returns them to the pool. Over-budget
+-    idle entries are retired (destroyed once no longer in-flight).
+-
+-func NewCache(reg *Registry, create CreateFn, budget uint64) *Cache
+-    NewCache creates a cache bound to reg. budget==0 disables byte budgeting.
++    eviction, per-key idle cap, explicit idle purge, and "in-flight items are
++    never lent out" safety. Entries returned by Acquire are strong Refs; Release
++    returns them to the pool. Over-budget idle entries are retired (destroyed
++    once no longer in-flight).
++
++    Thread contract: one cache may be shared by several window threads on the
++    same device (shared filter/dualtex domains), so every method locks. Lock
++    order is cache → registry; the registry runs idle callbacks after releasing
++    its own lock, so the callback may re-enter the cache safely.
++
++func NewCache(owner Owner, create CreateFn, opt CacheOptions) *Cache
++    NewCache creates a cache whose entries are attributed to owner, so the
++    owning session's teardown releases exactly them from the device-level
++    registry.
+ 
+ func (c *Cache) Acquire(key CacheKey) (Ref, error)
+     Acquire returns a strong Ref for the key, reusing an idle pooled entry when
+     possible. In-flight or currently-referenced entries are never lent out.
+ 
++    The create callback runs WITHOUT the cache lock: real allocators invoke
++    the OOM purge chain (PurgeAcceleratorSurfaceResources → Cache.PurgeIdle),
++    which re-enters this cache. Holding the lock across create would deadlock.
++
+ func (c *Cache) Evictions() uint64
+-    Evictions returns the number of budget-driven retirements.
++    Evictions returns the number of budget/cap-driven retirements.
+ 
+ func (c *Cache) HitRate() (hits, misses uint64)
+     HitRate returns cache hit/miss counters (diagnostics / anti-fake-green).
+ 
+ func (c *Cache) InvalidateAll()
+-    InvalidateAll clears the pool without touching native resources (device loss
+-    path). Registry entries are dropped by Registry.InvalidateAll.
++    InvalidateAll clears the pool without touching native resources (device
++    loss path). Registry entries are dropped by Registry.InvalidateAll /
++    Owner.InvalidateOwned; counters stay for post-mortem diagnostics.
+ 
+ func (c *Cache) KeyOf(id uint32) (CacheKey, bool)
+     KeyOf returns the cache key for a registry id (diagnostics).
+ 
+-func (c *Cache) OnSubmissionFinished()
+-    OnSubmissionFinished is called at submission-completion points: pending
+-    entries whose in-flight state has cleared become recombinable.
++func (c *Cache) PurgeIdle() (int, uint64)
++    PurgeIdle retires every idle pooled entry and returns how many were purged
++    and how many bytes were freed. Checked-out and in-flight entries are left
++    alone (they retire through their normal path). This is the OOM/purge outlet:
++    caches are drained before a device-wide fallback.
+ 
+ func (c *Cache) Release(ref Ref)
+-    Release returns a Ref to the pool. The registry refcount is decremented; the
+-    entry becomes recombinable once references reach zero and the resource is
+-    not in-flight. If the entry is still in-flight (submitted but not finished),
+-    it waits in the pending queue until OnSubmissionFinished.
++    Release returns a Ref to the pool. The registry refcount is decremented;
++    the entry becomes recombinable when its last ref is gone and it is not
++    in-flight — the registry idle callback repools it at that point, so an entry
++    still referenced by a submitted command buffer waits for SubmitDone.
++
++func (c *Cache) ReleaseAll()
++    ReleaseAll force-releases every entry (native Release) and clears the cache.
++    Device-teardown path (healthy device): the device-abandon flow calls this
++    so pooled natives do not outlive the device. Device loss uses InvalidateAll
++    instead (no Release).
++
++func (c *Cache) ReleaseRetire(ref Ref)
++    ReleaseRetire drops ref and destroys the entry instead of returning it
++    to the pool. Used by owners whose resources may still be referenced by a
++    directly submitted (untracked) command buffer: hand-off to a pool could
++    reissue the same native while the GPU is not done, so they keep the
++    pre-pooling "destroy on release" contract.
++
++func (c *Cache) Stats() CacheStats
++    Stats returns a per-domain snapshot. Idle counts entries that are actually
++    sitting in a key bucket AND still reusable per the registry — the exact set
++    Acquire can lend and PurgeIdle can drain. Registry-only would over-report:
++    a hold cleared by the device-loss path leaves the entry reusable in the
++    registry but never queued in the cache, so it can no longer be lent. The
++    registry check runs outside the cache lock (lock order cache → registry).
+ 
+ type CacheKey struct {
+ 	W, H    uint32
+@@ -67,9 +103,98 @@
+ }
+     CacheKey identifies a reusable GPU resource class (GrResourceCache key).
+ 
++type CacheOptions struct {
++	// Name labels the domain in Stats ("" = unnamed).
++	Name string
++	// Budget caps estimated bytes of live+pooled entries; 0 disables.
++	Budget uint64
++	// SizeFn gives real per-resource bytes (nil = defaultEntryBytes).
++	SizeFn SizeFn
++	// MaxPerKey caps idle entries kept per key; 0 = unlimited. Overflow is
++	// retired immediately, so identical-size bursts cannot grow a bucket
++	// without bound.
++	MaxPerKey int
++}
++    CacheOptions configures one cache domain.
++
++type CacheStats struct {
++	Name      string
++	Hits      uint64
++	Misses    uint64
++	Evictions uint64
++	Purged    uint64
++	Entries   uint64
++	Idle      uint64
++	Bytes     uint64
++	PeakBytes uint64
++	Budget    uint64
++}
++    CacheStats is a per-domain snapshot (diagnostics / real-window JSON pool
++    section). Entries includes checked-out and pooled; Idle is pooled-and-idle.
++
+ type CreateFn func(key CacheKey) (Native, error)
+     CreateFn fabricates a native resource for a key (device.createTexture etc).
+ 
++type GateHandle struct {
++	// Has unexported fields.
++}
++    GateHandle is one outstanding hold. Resolve / Invalidate are idempotent:
++    the first caller that removes it from the gate does the work, later
++    ones no-op, so a token pump and a teardown path can both fire without
++    double-decrementing the in-flight counters.
++
++func (h *GateHandle) Invalidate()
++    Invalidate drops the hold without decrementing the in-flight counters — the
++    device-loss path, where no fence will ever arrive and the abandon flow owns
++    native teardown.
++
++func (h *GateHandle) Resolve()
++    Resolve completes the submission: every held entry leaves the in-flight
++    state, which is what finally lets a retired entry be destroyed and an idle
++    entry be re-lent. No-op on an unknown or already-resolved handle.
++
++type InflightGate struct {
++	// Has unexported fields.
++}
++    InflightGate holds pooled resources in flight for submissions that are NOT
++    framed by a Session (the filter and dual-tex caches submit straight to the
++    queue). It is the multi-outstanding counterpart to Submission: Submission is
++    one per-session window that opens at BeginFrame and closes at SubmitDone; a
++    device-level pool may have any number of command buffers in flight at once,
++    each with its own completion token.
++
++    Lifecycle: Hold(refs) before Queue.Submit → attach the returned GateHandle
++    to the hal.CompletionToken → Resolve once the token reports Done.
++    Retired entries cannot be destroyed and idle entries cannot be re-lent while
++    a handle holds them, which is exactly the race a size flip or purge could
++    otherwise hit: the pool hands a texture to window B while window A's copy of
++    it is still running on the GPU.
++
++    Thread-safe: a device-level pool is shared by every window thread on that
++    device, so submits and completions arrive concurrently.
++
++func NewInflightGate(reg *Registry) *InflightGate
++    NewInflightGate creates a gate bound to reg.
++
++func (g *InflightGate) Hold(refs ...Ref) *GateHandle
++    Hold marks every ref in flight and returns the handle that must be resolved
++    once the GPU reports the submission finished. Nil refs and refs from another
++    registry are skipped (same tolerance as Submission.Track).
++
++    The registry is never touched while the gate lock is held: in-flight
++    transitions can fire idle callbacks that re-enter a cache, and the lock
++    order is cache → gate → registry.
++
++func (g *InflightGate) InvalidateAll()
++    InvalidateAll drops every outstanding hold (device loss).
++
++func (g *InflightGate) Pending() int
++    Pending handles returns the number of unresolved holds (diagnostics).
++
++func (g *InflightGate) ResolveAll()
++    ResolveAll settles every outstanding hold (after an explicit device drain:
++    WaitIdle proved the GPU finished, so no token needs to be waited on).
++
+ type Kind uint8
+     Kind identifies the kind of GPU resource a handle refers to.
+ 
+@@ -86,6 +211,66 @@
+     Native abstracts a native GPU resource. Release must be called exactly once,
+     at the moment the resource is guaranteed safe to destroy.
+ 
++type Owner struct {
++	// Has unexported fields.
++}
++    Owner is an owner-scoped handle over the device-level Registry.
++    All registrations made through it are attributed to its id; ReleaseOwned /
++    InvalidateOwned drop exactly those entries.
++
++func (o Owner) Bind(key SourceKey, ref Ref)
++    Bind makes ref the current active instance of a role for this owner.
++    The previous bound instance (if any) is retired.
++
++func (o Owner) Count() int
++    Count returns the number of live entries owned by this owner.
++
++func (o Owner) ID() OwnerID
++    ID returns the owner id.
++
++func (o Owner) InvalidateOwned()
++    InvalidateOwned discards every entry and role owned by this owner WITHOUT
++    calling native Release — the device-abandon flow owns native teardown.
++    Used on device loss / AutoRecover.
++
++func (o Owner) IsNil() bool
++    IsNil reports whether the handle is unbound (zero value).
++
++func (o Owner) PendingReleaseCount() int
++    PendingReleaseCount returns how many of this owner's entries are retired but
++    still waiting for their last ref / in-flight submission (diagnostics).
++
++func (o Owner) Register(res Native) Ref
++    Register adds a native resource owned by this owner and returns a strong Ref
++    (refcount = 1).
++
++func (o Owner) RegisterBorrowed(res Native) Ref
++    RegisterBorrowed tracks a view owned outside the res system (texture cache
++    slots, swapchain views) under this owner. Removal never calls the native
++    Release — the external owner owns destruction.
++
++func (o Owner) Registry() *Registry
++    Registry returns the underlying registry.
++
++func (o Owner) ReleaseOwned()
++    ReleaseOwned force-releases every native entry owned by this owner and
++    drops its role bindings. Used on session teardown while the device is still
++    healthy (the GPU must be drained first) — NOT the device-loss path (use
++    InvalidateOwned there). Borrowed entries are dropped without Release.
++
++func (o Owner) Resolve(key SourceKey) (Ref, bool)
++    Resolve returns the current active instance for a role key owned by this
++    owner, incrementing its refcount (caller must Release the returned Ref).
++
++type OwnerID uint64
++    OwnerID identifies who owns registry entries. OwnerDevice (0) is the device
++    itself — shared pipelines/caches. Every render session allocates its own id
++    so a window close can drop exactly its entries from the one device-level
++    registry (Skia GrContext: one resource cache, N surfaces).
++
++const OwnerDevice OwnerID = 0
++    OwnerDevice is the device-wide owner (shared resources).
++
+ type Ref struct {
+ 	// Has unexported fields.
+ }
+@@ -99,13 +284,14 @@
+ type Registry struct {
+ 	// Has unexported fields.
+ }
+-    Registry maps ids to resources with reference counts. Ids are monotonic and
+-    never reused (uint64 semantics with uint32, no ABA problem). Actual native
+-    destruction is deferred until refs==0 && inflight==0 && retire, mirroring
+-    Skia command-buffer refs.
+-
+-    instance was unavailable (rebuilt mid-flush / device loss). The frame gate
+-    is ResolveMiss == 0 under resize storms.
++    Registry is one device's resource state machine, shared by every window
++    session on that device (Skia GrResourceCache). Ids are monotonic and never
++    reused (no ABA problem). Actual native destruction is deferred until refs==0
++    && inflight==0 && retire, mirroring Skia command-buffer refs.
++
++    All methods are safe for concurrent use: window sessions on the same device
++    may retire resources from different raster threads. Idle callbacks fire
++    outside the lock so they can safely re-enter the registry.
+ 
+ func NewRegistry() *Registry
+     NewRegistry creates an empty registry.
+@@ -114,13 +300,12 @@
+     Acquire increments the refcount of an existing entry and returns a new Ref.
+     Returns a nil Ref if the id is unknown.
+ 
+-func (r *Registry) Bind(key SourceKey, ref Ref)
+-    Bind makes ref the current active instance of a role. The previous bound
+-    instance (if any) is retired — it will be destroyed once unused.
+-
+ func (r *Registry) Count() int
+     Count returns the number of live entries (diagnostics).
+ 
++func (r *Registry) DeviceOwner() Owner
++    DeviceOwner returns the device-wide owner handle (shared resources).
++
+ func (r *Registry) ID(ref Ref) uint32
+     ID returns the registry id carried by the Ref (diagnostics / cache keys).
+ 
+@@ -133,31 +318,31 @@
+     NativeOf returns the native resource behind a Ref (diagnostics / tests).
+     Returns nil if the id is unknown or has been released.
+ 
+-func (r *Registry) Register(res Native) Ref
+-    Register adds a native resource and returns a strong Ref (refcount = 1).
++func (r *Registry) NewOwner() Owner
++    NewOwner allocates a fresh owner id and returns its handle.
+ 
+-func (r *Registry) RegisterBorrowed(res Native) Ref
+-    RegisterBorrowed tracks a view owned outside the res system (texture
+-    cache slots, swapchain views). The entry protects the reference from ABA /
+-    use-after-free bookkeeping exactly like Register, but removal never calls
+-    the native Release — the external owner owns destruction.
++func (r *Registry) PendingReleaseCount() int
++    PendingReleaseCount returns how many live entries are retired but still
++    waiting for their last ref / in-flight submission (diagnostics).
+ 
+ func (r *Registry) Release(ref Ref)
+     Release decrements the refcount. The native resource is released only when
+     refs==0 && inflight==0 && retire (see removeIfReady).
+ 
++    The idle callback is edge-triggered: it fires only on the actual transition
++    into idle, so a repeated Release of an already-released Ref (caller contract
++    violation) cannot re-fire it — a cache entry must never be pooled twice (J1,
++    P2.4e). Note the registry counts refs, not handles (Skia GrGpuResource ref
++    semantics): releasing a Ref whose id another holder still holds steals that
++    holder's ref — release each Ref exactly once.
++
+ func (r *Registry) ReleaseAll()
+     ReleaseAll force-releases every registered native resource and clears
+-    the registry. Used on session teardown while the device is still healthy
++    the registry. Used on device teardown while the device is still healthy
+     — NOT the device-loss path (use InvalidateAll there). Safe to call with
+     outstanding Refs: native Release is idempotent at the facade layer. Borrowed
+     entries are dropped without Release (their owner destroys them).
+ 
+-func (r *Registry) Resolve(key SourceKey) (Ref, bool)
+-    Resolve returns the current active instance for a role key, incrementing its
+-    refcount (caller must Release the returned Ref). Resolution happens at flush
+-    time; the resolved instance is by construction the current one.
+-
+ func (r *Registry) ResolveStats() (hits, misses uint64)
+     The frame gate is: ResolveMiss must stay 0 under resize — a miss means a
+     command resolved to a role whose active instance was unavailable.
+@@ -166,6 +351,12 @@
+     Retire marks an entry for destruction. The native resource is released only
+     once no usage refs and no in-flight submissions remain.
+ 
++func (r *Registry) SetIdleCallback(id uint32, fn func())
++    SetIdleCallback registers fn to run whenever the entry transitions to idle
++    (refs==0 && inflight==0 and not retired). Replaces the per-cache pending
++    queue: the callback runs from Release or from the submission completion that
++    clears the in-flight count, whichever comes last.
++
+ type Role uint8
+     Role identifies a logical texture role for deferred resolution, aligned with
+     real view sources in the engine (no invented roles).
+@@ -181,6 +372,10 @@
+ 	RoleFrameScratch
+ 	// RoleLayerRT is a pooled layer offscreen render target.
+ 	RoleLayerRT
++	// RoleFilterRT tags the GPU filter graph's pooled render targets. Like
++	// RoleLayerRT here it only discriminates a res.Cache key/bucket — it is
++	// never a deferred view source.
++	RoleFilterRT
+ 	// RoleCoverResult is a per-draw stencil-cover texture.
+ 	RoleCoverResult
+ 	// RoleAtlasPage is a glyph/MSDF atlas texture page.
+@@ -189,6 +384,10 @@
+ 	// (swapchain views, shared atlases). Tracked but never released here.
+ 	RoleExternal
+ )
++type SizeFn func(key CacheKey) uint64
++    SizeFn reports the byte size of a key's resource. Caches use it for real
++    budget accounting; nil falls back to defaultEntryBytes per entry.
++
+ type SourceKey struct {
+ 	Kind  Kind
+ 	Role  Role
+
+## ui/raster.txt
+--- docs/render_gpu_converge/baseline/api/doc/ui/raster.txt	2026-10-29 06:57:26.388605779 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/ui/raster.txt	2026-10-31 22:20:01.341727054 +0800
+@@ -15,6 +15,18 @@
+     DefaultPipelineDepth is Flutter-like double buffering (in-flight slots).
+ 
+ 
++FUNCTIONS
++
++func RunGLSync(fn func() error) error
++    RunGLSync runs fn on the process GL thread (the hub) and waits for it to
++    return. Half-sync handoff for open-path work that binds shared EGL contexts
++    (C7/P2.4e): the frame path keeps its binding across Submit→Present,
++    so a contending MakeCurrent from another thread fails with EGL_BAD_ACCESS
++    0x3002 — running the open as one hub job serializes it with every frame by
++    construction. Inline fast-path when the caller already runs on the GL thread
++    (nested RunSync inside a job).
++
++
+ TYPES
+ 
+ type FrameJob struct {
+
+## ui/scheduler.txt
+--- docs/render_gpu_converge/baseline/api/doc/ui/scheduler.txt	2026-10-29 06:57:26.995612378 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/ui/scheduler.txt	2026-10-31 22:20:02.069739192 +0800
+@@ -68,7 +68,7 @@
+ type BaselineTolerance struct {
+ 	// HitchRatePerMin max allowed increase (current - baseline).
+ 	HitchRatePerMin float64
+-	// P95IntervalMs max allowed increase in frame_interval_p95_ms.
++	// P95IntervalMs max allowed increase in interval_p95_ms.
+ 	P95IntervalMs float64
+ 	// RSSSlopeKBPerMin max allowed increase in rss_slope_kb_per_min.
+ 	RSSSlopeKBPerMin float64
+@@ -112,12 +112,20 @@
+ 	// Timing (milliseconds)
+ 	LastFrameIntervalMs float64 `json:"last_frame_interval_ms"`
+ 	MaxFrameIntervalMs  float64 `json:"max_frame_interval_ms"`
+-	AvgFrameIntervalMs  float64 `json:"avg_frame_interval_ms"`
+-	P50FrameIntervalMs  float64 `json:"frame_interval_p50_ms,omitempty"`
+-	P95FrameIntervalMs  float64 `json:"frame_interval_p95_ms,omitempty"`
+-	P99FrameIntervalMs  float64 `json:"frame_interval_p99_ms,omitempty"`
+-	LastBuildMs         float64 `json:"frame_build_ms"`
+-	LastRasterMs        float64 `json:"frame_raster_ms"`
++	AvgFrameIntervalMs  float64 `json:"interval_avg_ms"`
++	P50FrameIntervalMs  float64 `json:"interval_p50_ms,omitempty"`
++	P95FrameIntervalMs  float64 `json:"interval_p95_ms,omitempty"`
++	P99FrameIntervalMs  float64 `json:"interval_p99_ms,omitempty"`
++	// FPSWall is present_count / wall seconds between the first and last
++	// interval note (A-family contract, same definition as wrgate's
++	// fps_wall: includes open/close overhead — often low). 0/omitted until
++	// both a present and an interval span exist.
++	FPSWall float64 `json:"fps_wall,omitempty"`
++	// TargetHz is the display refresh rate the pacer was seeded with
++	// (SeedDisplayRefreshHz); 0/omitted when the host never reported one.
++	TargetHz     float64 `json:"target_hz,omitempty"`
++	LastBuildMs  float64 `json:"frame_build_ms"`
++	LastRasterMs float64 `json:"frame_raster_ms"`
+ 	// F期干活计时独立：Flush(干活)与present(等显示器)分开记。
+ 	// LastFlushMs = GPU干活耗时(重录+画画)；LastPresentWaitMs = 等显示器耗时。
+ 	// 6ms口径看 LastFlushMs，不被 Fifo 等待带偏。
+
+## gpu/shader.txt
+--- docs/render_gpu_converge/baseline/api/doc/gpu/shader.txt	2026-10-29 06:57:12.886459680 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/gpu/shader.txt	2026-10-31 22:19:48.783520712 +0800
+@@ -1,46 +1,49 @@
+ package shader // import "github.com/energye/gpui/gpu/shader"
+ 
+-The package provides a simple, high-level API for shader compilation as well as
+-lower-level access to individual compilation stages.
++Package shader provides the WGSL toolchain shared by the GPU backends: parsing
++WGSL source to an AST, lowering it to IR, validating IR against capability sets,
++and code generation through the glsl and msl subpackages.
++
++CONSTANTS
++
++const (
++	// CapFloat64 enables f64 scalar type.
++	CapFloat64 = ir.CapFloat64
++
++	// CapShaderInt64 enables i64 and u64 scalar types.
++	CapShaderInt64 = ir.CapShaderInt64
++
++	// CapShaderFloat16 enables f16 scalar type.
++	CapShaderFloat16 = ir.CapShaderFloat16
++
++	// CapAll enables all capabilities.
++	CapAll = ir.CapAll
++)
++    Capability constants re-exported from ir for convenience. See
++    ir.Capabilities for full documentation.
+ 
+-Example usage (SPIR-V):
+-
+-For MSL output, use the msl package:
+-
+-For GLSL output, use the glsl package:
+ 
+ FUNCTIONS
+ 
+-func Compile(source string) ([]byte, error)
+-    Compile compiles WGSL source code to SPIR-V binary using default options.
+-
+-    This is the simplest way to compile a shader. For more control, use
+-    CompileWithOptions or the individual Parse/Lower/Generate functions.
+-
+-func CompileWithOptions(source string, opts CompileOptions) ([]byte, error)
+-    CompileWithOptions compiles WGSL source code to SPIR-V binary with custom
+-    options.
+-
+-    The compilation pipeline is:
+-     1. Parse WGSL source to AST
+-     2. Lower AST to IR (intermediate representation)
+-     3. Validate IR (if enabled)
+-     4. Generate SPIR-V binary
+-
+-func GenerateSPIRV(module *ir.Module, opts spirv.Options) ([]byte, error)
+-    GenerateSPIRV generates SPIR-V binary from IR module.
+-
+-    This is the final stage of compilation. The output is a binary blob that can
+-    be directly consumed by Vulkan or other SPIR-V consumers.
+-
+ func Lower(ast *wgsl.Module) (*ir.Module, error)
+-    Lower converts WGSL AST to IR (Intermediate Representation).
++    Lower converts WGSL AST to IR (Intermediate Representation). All
++    capabilities are enabled (permissive mode for tools and tests). For strict
++    capability validation, use LowerWithCapabilities.
+ 
+     The IR is a lower-level representation that includes type information,
+     resolved identifiers, and a simpler structure suitable for code generation.
+ 
++func LowerWithCapabilities(ast *wgsl.Module, source string, caps ir.Capabilities) (*ir.Module, error)
++    LowerWithCapabilities converts WGSL AST to IR with explicit capability
++    control. The lowerer is always permissive; capability validation is
++    performed by the validator after lowering. Types that require specific
++    capabilities (f64, i64, u64, f16) produce validation errors unless the
++    corresponding flag is set.
++
+ func LowerWithSource(ast *wgsl.Module, source string) (*ir.Module, error)
+     LowerWithSource converts WGSL AST to IR, keeping source for error messages.
++    All capabilities are enabled (permissive mode for tools and tests).
++    For strict capability validation, use LowerWithCapabilities.
+ 
+     When source is provided, errors will include line:column information and can
+     show source context using ErrorList.FormatAll().
+@@ -53,26 +56,10 @@
+     types.
+ 
+ func Validate(module *ir.Module) ([]ir.ValidationError, error)
+-    Validate validates an IR module for correctness.
+-
+-    Returns a slice of validation errors. If the slice is empty, validation
+-    passed.
+-
+-
+-TYPES
+-
+-type CompileOptions struct {
+-	// SPIRVVersion is the target SPIR-V version (default: 1.3)
+-	SPIRVVersion spirv.Version
+-
+-	// Debug enables debug info in output (OpName, OpLine, etc.)
+-	Debug bool
+-
+-	// Validate enables IR validation before code generation
+-	Validate bool
+-}
+-    CompileOptions configures shader compilation.
++    Validate validates an IR module for correctness with all capabilities
++    enabled.
+ 
+-func DefaultOptions() CompileOptions
+-    DefaultOptions returns sensible default options.
++    For capability-restricted validation, use ir.ValidateWithCapabilities
++    directly. Returns a slice of validation errors. If the slice is empty,
++    validation passed.
+ 
+
+## gpu/rwgpu.txt
+--- docs/render_gpu_converge/baseline/api/doc/gpu/rwgpu.txt	2026-10-29 06:57:10.950438845 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/gpu/rwgpu.txt	2026-10-31 22:19:46.544484548 +0800
+@@ -445,6 +445,12 @@
+ func CmdBufLive() int64
+     CmdBufLive returns outstanding CommandBuffer handles (diagnostics).
+ 
++func FutureForget(future Future)
++    FutureForget drops an unobserved work-done record without waiting. Device-
++    loss path (P2.4e J2): the callback will never fire and nothing observes this
++    future again, so without the explicit drop the record would stay in the map
++    forever. Idempotent; unknown or zero ids are no-ops.
++
+ func Init() error
+     Init initializes the wgpu library. Called automatically on first use.
+     Can be called explicitly to check for initialization errors early.
+@@ -504,9 +510,10 @@
+     exact live totals without a GPU.
+ 
+ func WaitForFuture(instance *Instance, future Future) error
+-    WaitForFuture blocks until the given callback-mode future completes.
+-    This is the same polling path used by PopErrorScopeAsync — do NOT use on the
+-    per-frame hot path (P6; use BeginFrame sync points instead).
++    WaitForFuture blocks until the given work-done record completes. It pumps
++    instance callbacks itself (wgpu-native needs ProcessEvents for callback-mode
++    futures). Do NOT use on the per-frame hot path (P6; use BeginFrame sync
++    points instead).
+ 
+ func WithForceNativeReleaseOnLost(fn func())
+     WithForceNativeReleaseOnLost runs fn with native child Release enabled even
+@@ -2280,14 +2287,15 @@
+     Handle returns the underlying handle. For advanced use only.
+ 
+ func (q *Queue) OnSubmittedWorkDone() (Future, error)
+-    OnSubmittedWorkDone registers a callback that fires once all GPU work
+-    submitted before this call has completed (Skia command-buffer refs / fence
+-    semantics, P6).
+-
+-    The returned Future must be polled (Device.Poll / WaitForFuture) for the
+-    callback to fire — this wgpu-native build uses callback-mode futures.
+-    The frame path should NOT block on the future: completion is also reachable
+-    at the existing sync points (BeginFrame vsync/drainQueue).
++    OnSubmittedWorkDone registers a completion callback for all GPU work
++    submitted before this call (Skia command-buffer refs; P6 / P2.4d).
++
++    wgpu-native v29 still fires the callback but returns a zero WGPUFuture from
++    wgpuQueueOnSubmittedWorkDone (checked against the C ABI: a C shim sees id
++    0 too). The returned Future therefore carries this module's own record id,
++    not a native future id — resolve it with FutureDone / WaitForFuture,
++    never hand it to wgpuInstanceWaitAny. Callbacks fire from Device.Poll /
++    Instance.ProcessEvents (callback mode AllowProcessEvents).
+ 
+ func (q *Queue) Release()
+     Release releases the queue resources. Nil-safe and idempotent. Skips
+@@ -2329,18 +2337,24 @@
+     QueueDescriptor configures queue creation.
+ 
+ type QueueWorkDoneStatus int
+-    QueueWorkDoneStatus mirrors WGPUQueueWorkDoneStatus.
++    QueueWorkDoneStatus mirrors WGPUQueueWorkDoneStatus (v29 layout: Success=1,
++    CallbackCancelled=2, Error=3 — the old iota 0..3 values were pre-v29 and
++    made every successful callback look like an error).
+ 
+ const (
+ 	// QueueWorkDoneSuccess indicates all submitted work completed.
+-	QueueWorkDoneSuccess QueueWorkDoneStatus = iota
+-	// QueueWorkDoneError indicates an error occurred during execution.
+-	QueueWorkDoneError
+-	// QueueWorkDoneUnknown indicates an unknown failure.
+-	QueueWorkDoneUnknown
+-	// QueueWorkDoneDeviceLost indicates the device was lost while executing.
+-	QueueWorkDoneDeviceLost
+-)
++	QueueWorkDoneSuccess QueueWorkDoneStatus = 0x00000001
++	// QueueWorkDoneCallbackCancelled indicates the callback was discarded
++	// before it could run (future dropped).
++	QueueWorkDoneCallbackCancelled QueueWorkDoneStatus = 0x00000002
++	// QueueWorkDoneError indicates a deterministic error during execution.
++	QueueWorkDoneError QueueWorkDoneStatus = 0x00000003
++)
++func FutureDone(future Future) (QueueWorkDoneStatus, bool)
++    FutureDone reports whether work-done record `future` has completed,
++    without blocking. The record is released once completion has been observed,
++    so a second observation reports completed (implicit success).
++
+ type RenderBundle struct {
+ 	// Has unexported fields.
+ }
+
+## gpu/hal.txt
+--- docs/render_gpu_converge/baseline/api/doc/gpu/hal.txt	2026-10-29 06:57:10.653435652 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/gpu/hal.txt	2026-10-31 22:19:46.256479909 +0800
+@@ -250,6 +250,11 @@
+     is preferred over RegisterBackend for backends that may fail initialization
+     (e.g., missing GPU drivers).
+ 
++func SetForceNativeReleaseOnLostHook(hook func(func()))
++    SetForceNativeReleaseOnLostHook registers the backend implementation of
++    WithForceNativeReleaseOnLost. Init-time wiring by the owning backend,
++    like the Vram ledger's env read; not goroutine-safe by design.
++
+ func SetLogger(l *slog.Logger)
+     SetLogger configures the logger for the wgpu HAL layer and all backends
+     (Vulkan, DX12, GLES, Metal, Software). By default, wgpu produces no log
+@@ -322,6 +327,11 @@
+     VramTextureBytes estimates one texture in bytes: extent × layers × samples ×
+     bytes-per-texel, with a 4/3 mip-chain factor when mipmapped.
+ 
++func WithForceNativeReleaseOnLost(fn func())
++    WithForceNativeReleaseOnLost runs fn with native child Release enabled even
++    when the parent device is sticky-lost. With no hook registered (backends
++    without skip-on-lost semantics) this is just fn().
++
+ 
+ TYPES
+ 
+@@ -830,6 +840,26 @@
+ }
+     CommandEncoderDescriptor describes a command encoder.
+ 
++type CompletionToken interface {
++	// Done reports whether the tracked work has completed. Non-blocking.
++	// Backends may pump their own callback machinery while checking.
++	Done() bool
++
++	// Wait blocks until the tracked work has completed. Shutdown / teardown
++	// only — never on the per-frame hot path.
++	Wait() error
++}
++    CompletionToken tracks one point on a queue's submission timeline.
++
++    It is the backend-neutral primitive the resource layer uses to learn when
++    work referencing a pooled or retired native resource has finished on
++    the GPU, so the resource can be recycled or destroyed without racing an
++    in-flight submission (Skia command-buffer completion refs, P2.4d).
++
++    A token returned by Queue.OnSubmittedWorkDone completes once every piece of
++    work submitted to that queue before the call has finished; later submissions
++    do not extend it.
++
+ type ComputePassDescriptor struct {
+ 	// Label is an optional debug name.
+ 	Label string
+@@ -1448,6 +1478,21 @@
+ 	// monotonically increasing counter.
+ 	LastSubmissionIndex() uint64
+ 
++	// OnSubmittedWorkDone returns a completion token for the current point on
++	// the queue's submission timeline: the token completes once all work
++	// submitted before this call has finished on the GPU.
++	//
++	// Backend divergence: webgpu-native resolves a callback-mode future
++	// (pumped by Device.FlushCallbacks / Device.Poll); gles and metal compare
++	// the captured submission index against Poll(); noop completes
++	// immediately (synchronous backend).
++	//
++	// The token is the only cross-backend way to gate native-resource
++	// destruction on GPU completion (hal fences are no-ops on wgpu-native).
++	// Callers must eventually consume every token (Done/Wait) so backends can
++	// release their completion records; tokens are not free.
++	OnSubmittedWorkDone() (CompletionToken, error)
++
+ 	// WriteBuffer writes data to a buffer immediately.
+ 	// This is a convenience method that creates a staging buffer internally.
+ 	// Returns an error if the buffer is invalid or the write fails.
+
+## gpu/webgpu.txt
+--- docs/render_gpu_converge/baseline/api/doc/gpu/webgpu.txt	2026-10-29 06:57:16.478498413 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/gpu/webgpu.txt	2026-10-31 22:19:50.544549292 +0800
+@@ -993,12 +993,11 @@
+     LastSubmissionIndex returns the most recent submission index. On the
+     wgpu-native backend, submission indices are not tracked. Returns 0.
+ 
+-func (q *Queue) OnSubmittedWorkDone() (rwgpu.Future, error)
+-    OnSubmittedWorkDone registers a callback that fires once all GPU work
+-    submitted before this call has completed. The returned rwgpu Future must
+-    be polled (Device.Poll / rwgpu.WaitForFuture) for the callback to fire;
+-    the frame path uses the existing BeginFrame vsync/drainQueue sync points
+-    instead of blocking.
++func (q *Queue) OnSubmittedWorkDone() (hal.CompletionToken, error)
++    OnSubmittedWorkDone returns a completion token for the current point on the
++    submission timeline (hal.CompletionToken). wgpu-native has callback-mode
++    futures, so the token pumps the device callbacks on Done and falls back to a
++    blocking future wait on Wait. The frame path must never block: poll Done.
+ 
+ func (q *Queue) Poll() uint64
+     Poll returns the last completed submission index. Non-blocking. On the
+
+## gpu/shader/ir.txt
+--- docs/render_gpu_converge/baseline/api/doc/gpu/shader/ir.txt	2026-10-29 06:57:15.324485959 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/gpu/shader/ir.txt	2026-10-31 22:19:49.456531621 +0800
+@@ -322,6 +322,30 @@
+ 	BuiltinPrimitives
+ 	BuiltinClipDistance
+ )
++type Capabilities uint32
++    Capabilities represents hardware/API features available to the shader.
++
++    When compiling WGSL, types like f64, i64, u64, and f16 are only valid if the
++    caller enables the corresponding capability. Without it, the lowerer rejects
++    the shader with a descriptive error.
++
++const (
++	// CapFloat64 enables f64 scalar type (Float width=8).
++	CapFloat64 Capabilities = 1 << 1
++
++	// CapShaderInt64 enables i64 and u64 scalar types (Sint/Uint width=8).
++	CapShaderInt64 Capabilities = 1 << 16
++
++	// CapShaderFloat16 enables f16 scalar type (Float width=2).
++	CapShaderFloat16 Capabilities = 1 << 26
++
++	// CapAll enables all capabilities. Used by test infrastructure
++	// and tools that need to accept any valid WGSL without restriction.
++	CapAll Capabilities = CapFloat64 | CapShaderInt64 | CapShaderFloat16
++)
++func (c Capabilities) Contains(flag Capabilities) bool
++    Contains reports whether c includes all the flags in flag.
++
+ type CollectiveOperation uint8
+     CollectiveOperation represents how subgroup results are combined.
+ 
+@@ -1704,8 +1728,18 @@
+     ValidationError represents a validation error.
+ 
+ func Validate(module *Module) ([]ValidationError, error)
+-    Validate checks the IR module for correctness. Returns validation errors if
+-    any, or nil if module is valid.
++    Validate checks the IR module for correctness. All capabilities are enabled
++    (CapAll) — backward-compatible with existing callers. For strict capability
++    validation, use ValidateWithCapabilities.
++
++func ValidateWithCapabilities(module *Module, caps Capabilities) ([]ValidationError, error)
++    ValidateWithCapabilities checks the IR module for correctness, enforcing
++    capability restrictions on scalar types.
++
++    Types that require specific capabilities (f64, i64, u64, f16) produce
++    validation errors unless the corresponding capability flag is set. This is
++    the SINGLE gate for capability validation — neither the lowerer nor the
++    backends check capabilities.
+ 
+ func (e ValidationError) Error() string
+     Error implements the error interface.
+
+## gpu/shader/wgsl.txt
+--- docs/render_gpu_converge/baseline/api/doc/gpu/shader/wgsl.txt	2026-10-29 06:57:15.966492885 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/gpu/shader/wgsl.txt	2026-10-31 22:19:49.908538954 +0800
+@@ -43,11 +43,14 @@
+ FUNCTIONS
+ 
+ func Lower(ast *Module) (*ir.Module, error)
+-    Lower converts a WGSL AST module to Naga IR.
++    Lower converts a WGSL AST module to Naga IR. All capabilities are enabled
++    (permissive mode for tools and tests).
+ 
+ func LowerWithSource(ast *Module, source string) (*ir.Module, error)
+     LowerWithSource converts a WGSL AST module to Naga IR, keeping source for
+-    error messages.
++    error messages. The lowerer is always permissive — all valid WGSL types are
++    accepted. Capability validation is performed by ir.ValidateWithCapabilities
++    after lowering.
+ 
+ 
+ TYPES
+@@ -70,8 +73,10 @@
+     LowerResult contains the result of lowering, including any warnings.
+ 
+ func LowerWithWarnings(ast *Module, source string) (*LowerResult, error)
+-    LowerWithWarnings converts a WGSL AST module to Naga IR, returning warnings
+-    alongside the module.
++    LowerWithWarnings converts a WGSL AST module to Naga IR, returning
++    warnings alongside the module. The lowerer is always permissive — all
++    valid WGSL types are accepted. Capability validation is performed by
++    ir.ValidateWithCapabilities after lowering.
+ 
+ type Module struct {
+ 	// Has unexported fields.
+
+## gpu/shader/wgsl/internal/lower.txt
+--- docs/render_gpu_converge/baseline/api/doc/gpu/shader/wgsl/internal/lower.txt	2026-10-29 06:57:16.108494418 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/gpu/shader/wgsl/internal/lower.txt	2026-10-31 22:19:50.089541893 +0800
+@@ -4,11 +4,14 @@
+ FUNCTIONS
+ 
+ func Lower(ast *parser.Module) (*ir.Module, error)
+-    Lower converts a WGSL AST module to Naga IR.
++    Lower converts a WGSL AST module to Naga IR. All capabilities are enabled
++    (permissive mode for tools and tests).
+ 
+ func LowerWithSource(ast *parser.Module, source string) (*ir.Module, error)
+     LowerWithSource converts a WGSL AST module to Naga IR, keeping source for
+-    error messages.
++    error messages. The lowerer is always permissive — all valid WGSL types are
++    accepted. Capability validation is performed by ir.ValidateWithCapabilities
++    after lowering.
+ 
+ 
+ TYPES
+@@ -21,6 +24,9 @@
+ 
+ func LowerWithWarnings(ast *parser.Module, source string) (*LowerResult, error)
+     LowerWithWarnings converts a WGSL AST module to Naga IR, returning warnings.
++    The lowerer is always permissive — all valid WGSL types are accepted.
++    Capability validation is performed by ir.ValidateWithCapabilities after
++    lowering.
+ 
+ type Lowerer struct {
+ 	// Has unexported fields.
+
+## gpu/gwgpu/gles.txt
+--- docs/render_gpu_converge/baseline/api/doc/gpu/gwgpu/gles.txt	2026-10-29 06:57:08.141408668 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/gpu/gwgpu/gles.txt	2026-10-31 22:19:45.529468216 +0800
+@@ -341,13 +341,13 @@
+ 
+ func (b *Buffer) Destroy()
+     Destroy releases the buffer. Self-locked via the owning AdapterContext:
+-    deferred-release queues (pendingTexRetire/pendingBufRetire,
+-    offscreen/stencil pools) drain without holding the GL lock, and a delete
+-    with no current context is a silent no-op on NVIDIA — ledger forgets but
+-    driver keeps the memory, so every resize leaks until OOM. Locking here makes
+-    direct Destroy safe anywhere; Device.DestroyBuffer delegates here without
+-    pre-locking (no nesting). Bind failure leaves the id AND the ledger slot in
+-    place for the next attempt (same retry contract as Sampler.Destroy).
++    deferred-release paths (res registry retire queue, offscreen/stencil pools)
++    drain without holding the GL lock, and a delete with no current context
++    is a silent no-op on NVIDIA — ledger forgets but driver keeps the memory,
++    so every resize leaks until OOM. Locking here makes direct Destroy safe
++    anywhere; Device.DestroyBuffer delegates here without pre-locking (no
++    nesting). Bind failure leaves the id AND the ledger slot in place for the
++    next attempt (same retry contract as Sampler.Destroy).
+ 
+ func (b *Buffer) Label() string
+     Label returns the buffer's debug label.
+@@ -755,7 +755,8 @@
+     Binds first like WaitForFence; on bind failure answers from cache.
+ 
+ func (d *Device) IsLost() bool
+-    IsLost returns false (GLES has no device-lost tracking yet).
++    IsLost reports the device Released/unusable (J5 campaign: Release marks lost
++    so GPUShared.ensureGPU re-creates instead of reusing the released device).
+ 
+ func (d *Device) Limits() gputypes.Limits
+     Limits returns the device's resource limits.
+@@ -1011,6 +1012,13 @@
+ func (q *Queue) LastSubmissionIndex() uint64
+     LastSubmissionIndex returns the most recent submission index.
+ 
++func (q *Queue) OnSubmittedWorkDone() (hal.CompletionToken, error)
++    OnSubmittedWorkDone captures the queue's submission index. The token is
++    complete once Poll (which reads the GL sync objects via Fence.GetLatest)
++    reaches that index. When the queue has no fence, Poll returns the submission
++    index and the token completes immediately — same contract as the queueless
++    path in Submit.
++
+ func (q *Queue) Poll() uint64
+     Poll returns the highest submission index known to be completed.
+     Polls pending GL sync objects via glGetSynciv (non-blocking, no flush).
+
+## gpu/hal/noop.txt
+--- docs/render_gpu_converge/baseline/api/doc/gpu/hal/noop.txt	2026-10-29 06:57:10.780437018 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/gpu/hal/noop.txt	2026-10-31 22:19:46.379481890 +0800
+@@ -359,6 +359,10 @@
+ func (q *Queue) LastSubmissionIndex() uint64
+     LastSubmissionIndex returns the most recent submission index.
+ 
++func (q *Queue) OnSubmittedWorkDone() (hal.CompletionToken, error)
++    OnSubmittedWorkDone returns an already-complete token: the noop backend is
++    synchronous, so submitted work is complete when Submit returns.
++
+ func (q *Queue) Poll() uint64
+     Poll returns the highest submission index known to be completed. Noop
+     backend is synchronous — all submissions are immediately complete. Backend
+
+## examples/wrgate.txt
+--- docs/render_gpu_converge/baseline/api/doc/examples/wrgate.txt	2026-10-29 06:57:06.973396138 +0800
++++ docs/render_gpu_converge/evidence/P2.6/api/doc/examples/wrgate.txt	2026-10-31 22:19:43.911442259 +0800
+@@ -18,6 +18,8 @@
+ 	"gpu_ops", "cpu_fallback_ops", "elapsed_sec",
+ 
+ 	"ruler_name", "ruler_cpu_pct", "ruler_rss_mb", "ruler_ratio_cpu", "ruler_ratio_rss",
++
++	"pool",
+ }
+     RequiredSchemaKeys are always required in emitted JSON (R12 / C0 schema
+     gate).
+@@ -32,6 +34,11 @@
+ func EvaluateGates(r Report, opt GateOptions) error
+     EvaluateGates returns a FAIL error or nil. Pure: no I/O.
+ 
++func EvaluatePoolGates(r Report, opt GateOptions) error
++    EvaluatePoolGates checks the P2.4d reuse probe: the aggregate hit/miss
++    floors, domain presence, and the per-domain "this pool actually got reused"
++    list. Returns a FAIL error or nil.
++
+ func EvaluateRetainedExtras(r Report, opt GateOptions) error
+     EvaluateRetainedExtras checks R4b dirty-id gates against AbilityExtra:
+       - MinDirtyLayerIDs: dirty_layer_id_max (peak len of dirty_layer_ids in one
+@@ -107,6 +114,26 @@
+ 	MinDamageMultiFrames int64
+ 	// MinCacheInvalidations fails when ability_extra cache_invalidations < N (R11; 0 = off).
+ 	MinCacheInvalidations int64
++	// MinPoolHits fails when the GPU pool probe reports fewer than N same-size
++	// reuses across all domains (P2.4d; 0 = off).
++	MinPoolHits int64
++	// MinPoolMisses fails when the GPU pool probe reports fewer than N
++	// allocations across all domains (P2.4d; 0 = off). A concurrent same-size
++	// workload must allocate one entry per live window (strong refs are never
++	// shared), so the miss count proves every window actually went through the
++	// shared cache instead of allocating around it.
++	MinPoolMisses int64
++	// RequirePoolDomains names domains that must be present in the probe
++	// (P2.4d). Hits may legitimately be zero when the workload holds its
++	// entries for the whole run or draws a composited layer only once, so this
++	// gate only rejects a domain that never appeared at all — use
++	// RequirePoolHitDomains when reuse must be proven.
++	RequirePoolDomains []string
++	// RequirePoolHitDomains names domains that must each report at least one
++	// reuse (P2.4d). A listed domain that is missing entirely, or present with
++	// zero hits, fails — the pool must be proven to pay off where it is used,
++	// not just somewhere.
++	RequirePoolHitDomains []string
+ }
+     GateOptions configures FAIL thresholds for a window run.
+ 
+@@ -187,6 +214,11 @@
+ 	// omitted field that looks like missing evidence.
+ 	DebugRepaintDraws int64 `json:"debug_repaint_draws"`
+ 	DebugRepaintOn    bool  `json:"debug_repaint_on"`
++	// Pool is the GPU texture-pool reuse probe (P2.4d): one entry per res.Cache
++	// domain of every live device holder. Always present — an empty list means
++	// no GPU pools were built, which the pool gate then fails instead of
++	// reading a missing key as silence.
++	Pool []render.PoolDomainStats `json:"pool"`
+ 	// 对齐线 (RENDER_BASE_RESOURCE_MATRIX §4): same-machine comparison-ruler
+ 	// fields. All five keys are always present in the JSON; pointer fields are
+ 	// nil until a ruler run actually happened, marshaling as JSON null —

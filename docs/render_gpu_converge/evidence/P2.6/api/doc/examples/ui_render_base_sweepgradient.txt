@@ -1,0 +1,14 @@
+Command ui_render_base_sweepgradient is the A-group real window for the sweep
+(conic) gradient family: NewSweepGradientBrush / SetEndAngle / SetExtend /
+ColorAt plus the ui/rendering FillSweepGradient facade (RENDER_FEATURE_COVERAGE
+§1 #9 / §3.1 item 4).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_sweepgradient -auto-only
+    go run ./examples/ui_render_base_sweepgradient   # manual: lives until window close
+    go run ./examples/ui_render_base_sweepgradient -manual-seconds 15  # manual, auto-close
+
+Evidence: 14 logical contract probes (value-level, independent sRGB math),
+22 pixel probes on the GPU snapshot (oracle = CPU ColorAt at the pixel center,
+tol 12/255, plus independent channel bands), and a bitwise golden over header +
+legend + the four cards.

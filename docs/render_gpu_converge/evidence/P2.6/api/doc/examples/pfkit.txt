@@ -1,0 +1,61 @@
+package pfkit // import "github.com/energye/gpui/examples/pfkit"
+
+Package pfkit is the shared real-window driver for platform capability
+verification (examples/ui_pf_x11, examples/ui_pf_wayland and their test twins).
+It drives the full Window / WindowController / Host surface through the unified
+L0 API only — zero platform-specific code — so the same driver runs unchanged on
+X11, Wayland, Win32 and AppKit.
+
+Layout:
+
+    OpenReal(opts, backend)        — force a specific display backend
+    Drive(ctl)                     — walk every controller capability; log all
+                                      results; tolerate ErrUnsupported (⛔)
+    Report(...)                    — PASS/FAIL summary + structured result rows
+
+The upper-layer interface test lives in pfkit_test.go: it drives a fake
+controller (StubHost + recording ctl) through the exact same Drive() sequence,
+proving the driver is deterministic without any GPU window.
+
+FUNCTIONS
+
+func OpenReal(opts platform.Options, backend platform.DisplayBackend) (*platform.Window, error)
+    OpenReal opens a real native window on the requested backend (no GPU surface
+    — this is the platform layer, pixels are owned by the renderer).
+
+func Pump(w *platform.Window, d time.Duration) []platform.Event
+    Pump drains events for d and returns what arrived. A steady-state real
+    window (no input, no state change) legitimately produces zero events
+    (Wayland consumes configure during create); strict event assertions live in
+    the native tests (x11/wayland_window_linux_test.go), Pump is observational.
+
+func Report(rows []ResultRow) bool
+    Report prints the result rows and returns false when any probe failed
+    (unsupported rows are counted as OK by design; SKIP rows are not FAIL either
+    — they report missing capability, not broken code).
+
+func ReportTo(w io.Writer, rows []ResultRow) bool
+    ReportTo is Report with an injectable writer (tests pass io.Discard;
+    gate tooling can redirect). Same PASS/SKIP/FAIL counting semantics.
+
+
+TYPES
+
+type ResultRow struct {
+	Name   string
+	OK     bool
+	Detail string
+}
+    ResultRow is one capability probe: name → outcome + observed value.
+
+func Drive(ctl platform.WindowController) []ResultRow
+    Drive walks the full controller surface once. Every probe is recorded;
+    ErrUnsupported is expected on protocol-impossible ops (Wayland
+    Position/Focus/…; Show is implemented on both Linux backends) and counts
+    as OK with a ⛔ note — the contract from ENGINE_WINDOW_API.md §2.5.4 is
+    that non-nil errors are either ErrUnsupported or a native failure; native
+    failures are FAIL.
+
+    When ctl is nil (backend capability not yet landed), a single SKIP row is
+    reported — never a fake PASS.
+

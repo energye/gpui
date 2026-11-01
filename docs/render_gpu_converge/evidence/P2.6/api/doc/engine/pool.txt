@@ -1,0 +1,99 @@
+package pool // import "github.com/energye/gpui/engine/pool"
+
+Package pool reuses core number buffers across frames: Vec2 for path points and
+vertex positions, Color for vertex colors, float64 for raw streams.
+
+Frozen 2026-09-15: Pool, NewPool, Stats, GetVec, PutVec, GetColor, PutColor,
+GetFloat, PutFloat, RetainedBytes, HitRate, ResetStats, MaxLen, MaxRetained,
+VecBytes, ColorBytes, FloatBytes. Moved from engine/step in 2026-09-30 (E03);
+step keeps only fixed/time. Additive changes only.
+
+Put transfers ownership to the pool; the caller must not use the slice after
+Put. Get returns len n with undefined contents; the caller must overwrite
+the first n elements before drawing. A nil Pool never panics: Get reports
+InvalidArg, Put and ResetStats are no-ops, Stats is zero.
+
+CONSTANTS
+
+const (
+	// MaxLen caps one Get request (elements, per kind).
+	MaxLen = 1 << 20
+	// MaxRetained caps retained slices per kind (vec, color, float each).
+	MaxRetained = 32
+	// VecBytes is the retained accounting per Vec2 element.
+	VecBytes = 16
+	// ColorBytes is the retained accounting per Color element.
+	ColorBytes = 32
+	// FloatBytes is the retained accounting per float64 element.
+	FloatBytes = 8
+)
+    Frozen pool budgets. Get beyond MaxLen is OutOfMemory, never a guess. Put
+    beyond MaxRetained or beyond MaxLen drops the buffer and keeps the retained
+    set bounded, so long runs never grow.
+
+
+TYPES
+
+type Pool struct {
+	// Has unexported fields.
+}
+    Pool reuses core number buffers across frames: Vec2 for path points and
+    vertex positions, Color for vertex colors, float64 for raw streams.
+    Put transfers ownership to the pool; the caller must not use the slice after
+    Put. Get returns len n with undefined contents; the caller must overwrite
+    the first n elements before drawing. A nil Pool never panics: Get reports
+    InvalidArg, Put and ResetStats are no-ops, Stats is zero.
+
+func NewPool() *Pool
+    NewPool builds an empty pool.
+
+func (p *Pool) GetColor(n int) ([]core.Color, error)
+    GetColor returns n Color elements for vertex colors. n < 0 is InvalidArg,
+    n > MaxLen is OutOfMemory, n == 0 is empty.
+
+func (p *Pool) GetFloat(n int) ([]float64, error)
+    GetFloat returns n float64 elements for raw coordinate streams. n < 0 is
+    InvalidArg, n > MaxLen is OutOfMemory, n == 0 is empty.
+
+func (p *Pool) GetVec(n int) ([]core.Vec2, error)
+    GetVec returns n Vec2 elements for path or vertex positions. n < 0 is
+    InvalidArg, n > MaxLen is OutOfMemory, n == 0 returns an empty slice without
+    touching the retained set.
+
+func (p *Pool) HitRate() float64
+    HitRate returns hits / gets, or 0 with no Gets.
+
+func (p *Pool) PutColor(b []core.Color)
+    PutColor returns b to the pool. Nil and zero-cap slices are no-ops.
+
+func (p *Pool) PutFloat(b []float64)
+    PutFloat returns b to the pool. Nil and zero-cap slices are no-ops.
+
+func (p *Pool) PutVec(b []core.Vec2)
+    PutVec returns b to the pool. Nil and zero-cap slices are no-ops. Oversized
+    (cap > MaxLen) or over-budget puts count but drop the buffer.
+
+func (p *Pool) ResetStats()
+    ResetStats clears Gets, Puts, Hits, Misses without dropping buffers.
+
+func (p *Pool) RetainedBytes() int64
+    RetainedBytes returns the retained backing bytes (cap * frozen width).
+
+func (p *Pool) Stats() Stats
+    Stats returns a copy of the pool counters.
+
+type Stats struct {
+	Gets          int
+	Puts          int
+	Hits          int
+	Misses        int
+	RetainedVec   int
+	RetainedColor int
+	RetainedFloat int
+	RetainedBytes int64
+}
+    Stats reports pool counters. Gets counts every Get call, Puts every kept Put
+    call (nil and zero-cap Puts are no-ops and count for neither). Hits counts
+    Gets served from the retained set, Misses the fresh makes. Retained counts
+    and RetainedBytes describe what the pool holds now.
+

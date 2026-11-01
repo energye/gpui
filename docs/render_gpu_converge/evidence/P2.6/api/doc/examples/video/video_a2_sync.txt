@@ -1,0 +1,10 @@
+Command video_a2_sync is the §12 A2 real-window: sound leads, picture follows,
+one serial moves both queues.
+
+    go run ./examples/video/video_a2_sync -auto-only
+    go run ./examples/video/video_a2_sync -manual-seconds 30
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 15). GPU window required. Left:
+the four A2 gates from the real engine (identity 1 clip, play sound-leads, seek
+5 jumps same serial, silent fallback). Right: the live picture (AV clip looping)
+proving sound-led play actually shows on screen, plus the A-V gap readout.

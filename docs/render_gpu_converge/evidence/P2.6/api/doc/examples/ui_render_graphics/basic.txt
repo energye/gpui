@@ -1,0 +1,13 @@
+Command ui_render_graphics/basic is the raster primitives window for
+render_graphics.md §1 (等级A): Point / LineSegment / Triangle.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 SNAP_PNG=/tmp/basic.png go run ./examples/ui_render_graphics/basic
+
+Six-cell canvas (3x2), each cell exercises one primitive family:
+
+    ① Point 多半径（2/4/8/14px） ② Point 点阵网格
+    ③ LineSegment 角度（0/90/30/45/60°） ④ LineSegment 线宽（1/2/4/6/8px）
+    ⑤ Triangle fill（等边/直角/倒） ⑥ Triangle stroke（细长/描边）
+
+Triangle has no dedicated API: drawn via MoveTo+LineTo+ClosePath path.

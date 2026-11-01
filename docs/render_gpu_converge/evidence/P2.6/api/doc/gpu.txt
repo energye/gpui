@@ -1,0 +1,14 @@
+package gpu // import "github.com/energye/gpui/gpu"
+
+Package gpu is the root of the GPU stack. It holds no code; the tree is:
+
+    gpu/hal      — the only abstraction layer (interfaces + noop backend)
+    gpu/types    — shared WebGPU-style types
+    gpu/context  — device bridge shared with the ecosystem
+    gpu/webgpu   — native backend facade (over gpu/rwgpu; Web via internal/browser)
+    gpu/rwgpu    — wgpu-native purego FFI bindings (package wgpu)
+    gpu/gwgpu    — self-maintained backend family (gles / metal / ffishim)
+    gpu/shader   — the WGSL→IR→GLSL/MSL translator
+
+Call direction is one-way: ui → render → gpu (hal/interfaces), never backwards;
+enforced by depcheck tests (P2.5 分层约束).

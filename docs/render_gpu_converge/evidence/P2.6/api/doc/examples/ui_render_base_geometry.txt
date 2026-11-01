@@ -1,0 +1,16 @@
+Command ui_render_base_geometry is the Geometry-axis window smoke for
+docs/ENGINE_UI_RENDER_BASE.md §2 (FC-DRAW-*) / §24.
+
+Covers P0 render via PaintContext surface:
+
+    FillRect, FillRoundRect, FillLinearGradient,
+    StrokeRect, StrokeRoundRect, StrokeLine,
+    FillCircle, StrokeCircle, PushClipRoundRect
+
+Does NOT claim Path/Arc/Oval ui APIs (still B) or P6 dirty-rect present.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_render_base_geometry
+
+Package main — Geometry axis window smoke (ENGINE_UI_RENDER_BASE §2 FC-DRAW-* /
+§24). Example-local only; not a ui/ library package.

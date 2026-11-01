@@ -1,0 +1,10 @@
+Command ui_pf_x11 is the X11 real-window full-capability verifier:
+it opens a native X11 window through the unified L0 API and drives
+every WindowController capability plus the Host event pump — the dual of
+ui/platform/x11_window_linux_test.go (which asserts through the same surface for
+CI where DISPLAY exists).
+
+    export DISPLAY=:0   # or whatever your X server is
+    go run ./examples/ui_pf_x11
+
+Output is a per-capability PASS/FAIL table on stderr (exit != 0 on FAIL).

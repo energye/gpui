@@ -1,0 +1,17 @@
+Command ui_pf_x11_device is the X11 device hot-plug true window.
+
+Unlike ui_pf_x11 (full-capability prober that exits after ~1s), this window
+stays open so a human can verify the real effect:
+
+  - SELFTEST (automatic, no human needed): maps synthetic platform device events
+    through input.FromPlatform and asserts the unified Kind/payload.
+  - MANUAL (human): plug/unplug keyboards, mice, touchscreens, pens. Every
+    DeviceAdded/Removed is logged to stderr (raw platform.Event plus unified
+    input.Event) and the window title mirrors the last change, so the effect is
+    visible without judging pixels.
+
+Usage:
+
+    go run ./examples/ui_pf_x11_device                 # selftest, then manual until close
+    go run ./examples/ui_pf_x11_device -auto-only      # selftest only (gate, JSON on stdout)
+    go run ./examples/ui_pf_x11_device -manual-seconds 30  # manual for 30s, then summary

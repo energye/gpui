@@ -49,7 +49,7 @@ for pkg in "${PKGS[@]}"; do
       echo -e "SKIP_TAGGED\t$pkg/$f" >> "$OUT/summary.tsv"
       continue
     fi
-    if go test -count=1 -timeout 20m -run "^(${tests})\$" . > "$log" 2>&1; then
+    if go test -count=1 -timeout "${PER_FILE_TIMEOUT:-20m}" -run "^(${tests})\$" . > "$log" 2>&1; then
       if grep -q "no tests to run" "$log"; then
         echo -e "SKIP_TAGGED\t$pkg/$f" >> "$OUT/summary.tsv"
       else

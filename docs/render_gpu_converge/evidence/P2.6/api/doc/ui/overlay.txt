@@ -1,0 +1,251 @@
+package overlay // import "github.com/energye/gpui/ui/overlay"
+
+Package overlay fills the F13 overlay band with insert/remove/hit-order
+mechanics (P5d). This is a framework shell — not Ant Modal skins.
+
+Rules:
+
+  - Paint order: main band first, then overlay (bottom → top entry order).
+  - Hit order: overlay top → bottom, then main.
+  - Insert/Remove dirties only overlay-related layer ids; main DirtyLayerIDs
+    must not explode solely because a portal opened.
+
+Dependency: overlay → rendering, scene (not gpu).
+
+VARIABLES
+
+var AllPlacements = []Placement{
+	Top, TopLeft, TopRight, Bottom, BottomLeft, BottomRight,
+	Left, LeftTop, LeftBottom, Right, RightTop, RightBottom,
+}
+    AllPlacements lists the twelve positions in stable order.
+
+
+FUNCTIONS
+
+func HitOutside(s *State, p rendering.Point) bool
+    HitOutside reports whether p lands outside every overlay entry (no entry
+    consumes it). Callers with outside-close semantics close their popup when
+    this returns true on pointer-down.
+
+func HitTestStack(main rendering.RenderObject, ov *State, p rendering.Point) (Band, rendering.RenderObject, *Entry)
+    HitTestStack tests overlay then main. HitTestStack is overlay-first then
+    main root. Returns band + object.
+
+
+TYPES
+
+type Band int
+    Band identifies which band a hit-test result belongs to (main root vs
+    overlay).
+
+const (
+	BandNone Band = iota
+	BandMain
+	BandOverlay
+)
+type Entry struct {
+
+	// Child is the content root (may be nil for pure barrier).
+	Child rendering.RenderObject
+
+	// X,Y,W,H logical bounds for hit testing and offset when building layers.
+	X, Y, W, H float64
+
+	// Barrier when true: any hit inside bounds is consumed even if Child misses.
+	Barrier bool
+
+	// OnRemove is invoked once when the entry is removed from State.
+	OnRemove func()
+
+	// Mark when content needs re-raster (tests / callers set after visual change).
+	NeedsPaint bool
+
+	// Has unexported fields.
+}
+    Entry is one portal/sheet/tooltip slot above the main band.
+
+    Bounds are in logical window coordinates (Y-down). If W/H are 0, Layout
+    fills them from Child size after layout.
+
+func NewBarrierEntry(x, y, w, h float64, child rendering.RenderObject) *Entry
+    NewBarrierEntry builds a full-area (or rect) pointer barrier, optional
+    child.
+
+func NewEntry(child rendering.RenderObject, x, y, w, h float64) *Entry
+    NewEntry builds a content entry at (x,y) with optional fixed size.
+
+func (e *Entry) Bounds() rendering.Rect
+    Bounds returns the axis-aligned hit rect.
+
+func (e *Entry) Contains(p rendering.Point) bool
+    Contains reports whether p (window space) is inside bounds.
+
+func (e *Entry) ID() uint64
+    ID returns the stable entry id (0 if not yet inserted).
+
+type FocusLock struct {
+	// Has unexported fields.
+}
+    FocusLock traps keyboard focus inside an overlay while it is open.
+
+    It reuses focus.Manager: Acquire remembers the previous primary and
+    moves focus to the first overlay node; Release restores the saved node.
+    Tab cycling itself stays in the manager; Contains lets callers reject focus
+    escapes without adding a second focus system.
+
+func NewFocusLock(mgr *focus.FocusManager, nodes ...*focus.FocusNode) *FocusLock
+    NewFocusLock builds a lock over the overlay-owned focus nodes.
+
+func (l *FocusLock) Acquire()
+    Acquire holds the lock and focuses the first node. No-op when mgr is nil.
+
+func (l *FocusLock) Contains(n *focus.FocusNode) bool
+    Contains reports whether n belongs to this lock.
+
+func (l *FocusLock) Held() bool
+    Held reports whether the lock is acquired.
+
+func (l *FocusLock) Release()
+    Release drops the lock and restores the pre-acquire focus.
+
+type HitResult struct {
+	// Entry is the overlay entry that claimed the hit (nil → miss overlay).
+	Entry *Entry
+	// Child is the deepest RenderObject inside the entry (may be nil for barrier-only).
+	Child rendering.RenderObject
+	// Consumed is true if the hit should not fall through to main.
+	Consumed bool
+}
+    HitResult is the outcome of overlay-first hit testing.
+
+type Placement string
+    Placement is one of the twelve Ant anchor positions.
+
+    top/bottom/left/right + corner variants. Corner names read from the anchor
+    side first (topLeft = above the anchor, hugging its left edge).
+
+const (
+	Top         Placement = "top"
+	TopLeft     Placement = "topLeft"
+	TopRight    Placement = "topRight"
+	Bottom      Placement = "bottom"
+	BottomLeft  Placement = "bottomLeft"
+	BottomRight Placement = "bottomRight"
+	Left        Placement = "left"
+	LeftTop     Placement = "leftTop"
+	LeftBottom  Placement = "leftBottom"
+	Right       Placement = "right"
+	RightTop    Placement = "rightTop"
+	RightBottom Placement = "rightBottom"
+)
+func FlipPlacement(p Placement) Placement
+    FlipPlacement returns the opposite side used on main-axis overflow.
+
+type ResolveOptions struct {
+	// Gap is the main-axis distance between anchor and overlay.
+	// <=0 selects 12 (half arrow 8 + marginXXS 4, tooltip default).
+	Gap float64
+	// ArrowWidth is the arrow box edge; <=0 selects 16 (sizePopupArrow).
+	ArrowWidth float64
+	// ArrowOffsetH/V clamp the arrow away from overlay corners.
+	// <=0 selects 12 horizontal / 8 vertical (placementArrow defaults).
+	ArrowOffsetH float64
+	ArrowOffsetV float64
+	// Flip enables edge flipping to the opposite side on main-axis overflow.
+	Flip bool
+	// Shift enables cross-axis clamping into the viewport.
+	Shift bool
+	// ViewportW/H is the window client size in logical px.
+	ViewportW, ViewportH float64
+	// ArrowPointAtCenter aims corner arrows at the anchor center
+	// (antd arrow.pointAtCenter); default pins them to the fixed offset.
+	ArrowPointAtCenter bool
+}
+    ResolveOptions tunes Resolve. Zero values select Ant defaults.
+
+type Resolved struct {
+	X, Y    float64
+	Actual  Placement
+	Flipped bool
+	// Arrow center within the overlay box (for drawing the caret).
+	ArrowX, ArrowY float64
+}
+    Resolved is the overlay origin plus arrow geometry in overlay coordinates.
+
+func Resolve(anchor rendering.Rect, ow, oh float64, want Placement, opt *ResolveOptions) Resolved
+    Resolve places an ow×oh overlay relative to anchor in window coordinates.
+
+    Steps mirror antd: ideal per-placement origin, main-axis flip on overflow,
+    cross-axis shift into the viewport, then arrow-follow clamping.
+
+type State struct {
+
+	// Generation increments on Insert/Remove (callers may ScheduleFrame).
+	Generation uint64
+
+	// OverlayDirtyIDs from the last BuildOverlayBand (test helper).
+	LastDirtyIDs []uint64
+	// Has unexported fields.
+}
+    State is the overlay stack for one window/scope.
+
+    Entries are ordered bottom → top (index 0 painted first; last hit-tested
+    first).
+
+func New() *State
+    New creates an empty overlay state.
+
+func (s *State) AttachToPacket(pkt *scene.FramePacket) bool
+    AttachToPacket sets pkt.Overlay from this state and records overlay dirty
+    ids. Main DirtyLayerIDs are left unchanged (D5: overlay open must not
+    replace main dirties); the overlay portion is additionally mirrored into
+    pkt.OverlayDirtyLayerIDs (F13) so consumers can assert band separation.
+
+    R2-3: the overlay tail is the only legal post-Seal mutation, and it runs
+    exactly once — a second attach is refused (false) instead of silently
+    duplicating overlay dirties. Callers in statement position may ignore the
+    result; tests asserting attach behavior should check it.
+
+func (s *State) BuildOverlayBand() (scene.Layer, []uint64)
+    BuildOverlayBand constructs the retained overlay layer tree (bottom → top)
+    and dirty layer ids for entries that need paint.
+
+func (s *State) Clear()
+    Clear removes all entries.
+
+func (s *State) Entries() []*Entry
+    Entries returns a copy of the stack (bottom → top).
+
+func (s *State) HitTest(p rendering.Point) HitResult
+    HitTest walks entries top → bottom. Point is window/logical coordinates.
+    Entries are skipped until their first Layout pass (laidOut gate) — a
+    just-inserted entry answers nothing this tick.
+
+func (s *State) Insert(e *Entry) *Entry
+    Insert pushes e on top of the stack. Returns e (with id assigned).
+    The entry is hit-gated until the next Layout pass (laidOut), so a same-tick
+    HitTest cannot answer from geometry that is not on screen yet (Flutter
+    _RenderDeferredLayoutBox semantics).
+
+func (s *State) Layout(viewportW, viewportH float64)
+    Layout lays out each entry child and fills zero W/H from child size. Marks
+    every entry laidOut so the next HitTest can see it (barrier-only entries too
+    — they have no child but their bounds are valid after this).
+
+func (s *State) LayoutAndPaint(pc *rendering.PaintContext, viewportW, viewportH float64)
+    LayoutAndPaint is a convenience for tests: layout then paint.
+
+func (s *State) Len() int
+    Len returns stack depth.
+
+func (s *State) Paint(pc *rendering.PaintContext)
+    Paint draws overlay entries (bottom → top) in window coordinates. Does not
+    paint the main band. Clears NeedsPaint on entries after paint when the child
+    does not report NeedsPaint.
+
+func (s *State) Remove(e *Entry) bool
+    Remove pops e from the stack (by pointer or id). Invokes OnRemove once. A
+    removed entry is dead: its id is cleared, and re-inserting the same pointer
+    is refused — reuse requires a fresh Entry.
+

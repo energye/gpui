@@ -1,0 +1,12 @@
+{
+ "window": "video_2k_play",
+ "dir": "examples/video/video_2k_play",
+ "variant": "default",
+ "backend": "native",
+ "args": [],
+ "run_seconds": 30,
+ "date": "2026-11-01 07:30:59",
+ "json": null,
+ "rc": 1,
+ "status": "FAIL"
+}

@@ -1,0 +1,29 @@
+Pixel/Golden evidence for ui_base_multiwin_cap.
+
+Same rules as the other base windows: gate snapshots are GPU readback PNGs (not
+window captures), probes are sampled in logical coordinates, and the Golden
+compare is bitwise over the content mask (metric band excluded).
+
+Command ui_base_multiwin_cap is matrix row 10: multi-window sharing ceiling.
+
+Eight 480x320 windows are opened once, all with the same spinning pinwheel.
+A controller activates 1 -> 2 -> 4 -> 8 windows in 12s phases (single process)
+and records the CPU/window curve, per-window amortized cost and the maximum
+window count that still holds 60fps.
+
+Every app has its own X11 display connection and Run loop; inactive windows
+implement scheduler.FrameWanter so they sleep with zero frames (the row-1 idle
+contract) until the controller activates them.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=75 go run ./examples/ui_base_multiwin_cap -auto-only
+    go run ./examples/ui_base_multiwin_cap -manual-seconds 100  # human watch
+
+Gate needs 75s (10s all-window prewarm + 4 x (1s settle + 12s phase)); the run
+must exceed 60s so the process RSS slope has a valid steady window.
+
+Scene for ui_base_multiwin_cap: one spinning pinwheel per window.
+
+All eight windows share the same deterministic content, so the CPU/window curve
+measures window count, not scene differences. The animation is a pure phase
+rotation: no per-frame allocation, no component state.

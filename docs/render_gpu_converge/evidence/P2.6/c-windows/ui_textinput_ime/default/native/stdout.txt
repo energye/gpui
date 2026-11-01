@@ -1,0 +1,1 @@
+{"backend":"x11","blink_ticks":0,"compose_active":false,"preedit_events":0,"selftest":false,"snapshot":"examples/ui_textinput_ime/testdata/textinput_ime.png","text":"你好ba"}

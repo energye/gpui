@@ -1,0 +1,11 @@
+Example: Recording System
+
+This example demonstrates the recording system for vector export. It creates a
+drawing, records it, and exports to multiple formats.
+
+To run with PDF/SVG export, you need the backend packages:
+
+    go get github.com/energye/gpui/render-pdf
+    go get github.com/energye/gpui/render-svg
+
+Then uncomment the relevant import lines below.

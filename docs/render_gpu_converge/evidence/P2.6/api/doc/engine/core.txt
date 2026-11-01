@@ -1,0 +1,460 @@
+package core // import "github.com/energye/gpui/engine/core"
+
+Package core freezes the shared value types every engine/* package builds on.
+
+Frozen 2026-09-14: Vec2, Rect, Mat2D (vec.go), Color (color.go), Duration,
+Step (time.go), Rand (rand.go), AssetID, Handle, Manager (asset.go), Code,
+Error (result.go), Version (version.go).
+
+Rules for everything under engine/:
+  - Reuse these types; do not redefine Vec2, Color, or AssetID elsewhere.
+  - render's types stay untouched; convert once at the render boundary in
+    engine/renderconv.
+  - Additive changes only. A breaking change bumps the data Version and keeps
+    the old call path compiling.
+
+VARIABLES
+
+var (
+	Black       = RGB(0, 0, 0)
+	White       = RGB(1, 1, 1)
+	Red         = RGB(1, 0, 0)
+	Green       = RGB(0, 1, 0)
+	Blue        = RGB(0, 0, 1)
+	Yellow      = RGB(1, 1, 0)
+	Cyan        = RGB(0, 1, 1)
+	Magenta     = RGB(1, 0, 1)
+	Transparent = RGBA(0, 0, 0, 0)
+)
+    Common colors.
+
+var SchemaVersion = Version{Major: 1, Minor: 0}
+    SchemaVersion is the core contract version every later data format (atlas
+    JSON, scene JSON, save JSON, Spine/TMX subsets) checks against. Bump Major
+    for a breaking change, Minor for an additive one.
+
+
+TYPES
+
+type AssetID string
+    AssetID names a loadable asset (texture, map, skeleton, save, ...).
+    Lowercase path style: "tex/hero", "map/level1", "bone/slime".
+
+func (id AssetID) Empty() bool
+    Empty reports whether id carries no name.
+
+func (id AssetID) String() string
+    String returns the raw id text.
+
+func (id AssetID) Validate() error
+    Validate reports InvalidArg when id is empty.
+
+type Code int
+    Code classifies a game-side failure so callers can tell a missing file from
+    corrupt data from an exhausted GPU budget.
+
+const (
+	CodeUnknown Code = iota
+	CodeNotFound
+	CodeBadData
+	CodeOutOfMemory
+	CodeUnsupported
+	CodeInvalidArg
+	CodeVersionMismatch
+)
+func CodeOf(err error) Code
+    CodeOf classifies err: the Code of a *Error (even when wrapped),
+    or CodeUnknown for nil and foreign errors.
+
+func (c Code) String() string
+    String returns the stable log name of c.
+
+type Color struct {
+	R, G, B, A float64
+}
+    Color stores straight-alpha color with float64 components in [0, 1].
+    It mirrors the render RGBA type field for field but stays a separate type
+    so game code (tints, lights, LUTs) never depends on render internals.
+    Convert once at the render boundary in engine/renderconv.
+
+func ColorFromBytes(r, g, b, a uint8) Color
+    ColorFromBytes builds a Color from 8-bit straight-alpha channels.
+
+func ParseHex(s string) (Color, error)
+    ParseHex parses "RGB", "RGBA", "RRGGBB" or "RRGGBBAA" (with or without '#').
+    Anything else returns a CodeBadData error, never a silent color.
+
+func RGB(r, g, b float64) Color
+    RGB builds an opaque color.
+
+func RGBA(r, g, b, a float64) Color
+    RGBA builds a color from straight-alpha components.
+
+func (c Color) ApproxEqual(o Color, eps float64) bool
+    ApproxEqual reports whether all four components differ by less than eps.
+
+func (c Color) Clamped() Color
+    Clamped returns c with every component pinned to [0, 1].
+
+func (c Color) Lerp(o Color, t float64) Color
+    Lerp interpolates: t=0 returns c, t=1 returns o.
+
+func (c Color) Premultiplied() Color
+    Premultiplied returns c with RGB scaled by A.
+
+func (c Color) ToBytes() (r, g, b, a uint8)
+    ToBytes returns 8-bit straight-alpha channels (clamped, rounded).
+    The render path truncates instead, so edge values may differ by 1 by design;
+    the float path through engine/renderconv carries the exact value.
+
+func (c Color) Unpremultiplied() Color
+    Unpremultiplied reverses Premultiplied. Zero alpha stays zero (no NaN).
+
+type Duration int64
+    Duration is game time stored as integer milliseconds. Integer storage
+    means a million accumulated steps still land on the exact millisecond,
+    while Seconds() gives the float seconds the render side wants.
+
+const (
+	Millisecond Duration = 1
+	Second      Duration = 1000 * Millisecond
+	Minute      Duration = 60 * Second
+	Hour        Duration = 60 * Minute
+)
+func Milliseconds(ms int64) Duration
+    Milliseconds builds a Duration from a millisecond count.
+
+func SecondsFloat(s float64) Duration
+    SecondsFloat builds a Duration from float seconds (rounded to the ms).
+
+func (d Duration) Add(o Duration) Duration
+    Add returns d+o.
+
+func (d Duration) Clamp(min, max Duration) Duration
+    Clamp pins d to [min, max]. max < min behaves as max == min.
+
+func (d Duration) Milliseconds() int64
+    Milliseconds returns the raw millisecond count.
+
+func (d Duration) Scale(f float64) Duration
+    Scale multiplies d by f (time-scale, slow-mo). Rounded to the ms.
+
+func (d Duration) Seconds() float64
+    Seconds returns d in float seconds for the render/physics boundary.
+
+func (d Duration) Sub(o Duration) Duration
+    Sub returns d-o (may be negative; callers clamp).
+
+type Error struct {
+	Code Code
+	Op   string
+	ID   string
+	Err  error
+}
+    Error is the unified game-side error: what kind, which operation, which
+    asset, and the wrapped cause when there is one.
+
+func BadData(op, id string, cause ...error) *Error
+    BadData reports corrupt or unparsable data.
+
+func InvalidArg(op, id string, cause ...error) *Error
+    InvalidArg reports an empty, zero, or otherwise illegal argument.
+
+func New(code Code, op, id string) *Error
+    New builds a Code error without a cause.
+
+func NotFound(op, id string, cause ...error) *Error
+    NotFound reports a missing file, asset, or handle.
+
+func OutOfMemory(op, id string, cause ...error) *Error
+    OutOfMemory reports an exhausted memory or VRAM budget.
+
+func Unsupported(op, id string, cause ...error) *Error
+    Unsupported reports a format or path that is reserved but not built yet
+    (unfrozen Spine/TMX subsets, P5 float pipeline, ...).
+
+func VersionMismatch(op, id string, cause ...error) *Error
+    VersionMismatch reports data whose major version cannot load here.
+
+func (e *Error) Error() string
+    Error renders `op "id": code: cause` (empty parts skipped).
+
+func (e *Error) Unwrap() error
+    Unwrap returns the wrapped cause, if any.
+
+type Handle struct {
+	// Has unexported fields.
+}
+    Handle is a reference-counted claim on an asset. Ref and Release must pair;
+    releasing past zero is reported, never silent. Handle.refs counts
+    this handle's claims; Manager.counts sums all handles for the same id.
+    Ref/Release/Acquire update both sides together.
+
+func (h *Handle) ID() AssetID
+    ID returns the asset the handle claims.
+
+func (h *Handle) Ref() bool
+    Ref adds one claim. A dead or nil handle returns false.
+
+func (h *Handle) Refs() int
+    Refs returns the live reference count of the handle's asset.
+
+func (h *Handle) Release() error
+    Release drops one claim. Pair with Ref. Releasing a nil, dead, or zero-ref
+    handle reports an error instead of going negative.
+
+type Manager struct {
+	// Has unexported fields.
+}
+    Manager owns the id->count ledger every asset pipeline shares, so textures,
+    maps, and saves never each invent their own accounting.
+
+func NewManager() *Manager
+    NewManager builds an empty ledger.
+
+func (m *Manager) Acquire(id AssetID) (*Handle, error)
+    Acquire claims id (count 1) and returns the live handle. An empty id is
+    rejected with InvalidArg.
+
+func (m *Manager) LiveCount(id AssetID) int
+    LiveCount reports the live reference count of id.
+
+func (m *Manager) Loaded(id AssetID) bool
+    Loaded reports whether id currently has live claims.
+
+type Mat2D struct {
+	A, B, C float64
+	D, E, F float64
+}
+    Mat2D is a 2D affine matrix in row-major 2x3 form:
+
+        x' = A*x + B*y + C
+        y' = D*x + E*y + F
+
+    Same layout as the render matrix but an independent type: game code composes
+    camera/parallax math here, then converts once in engine/renderconv.
+    Perspective stays out.
+
+func Identity2D() Mat2D
+    Identity2D returns the identity matrix.
+
+func Rotate2D(rad float64) Mat2D
+    Rotate2D builds a rotation matrix (rad radians, counter-clockwise).
+
+func Scale2D(x, y float64) Mat2D
+    Scale2D builds a scaling matrix.
+
+func Translate2D(x, y float64) Mat2D
+    Translate2D builds a translation matrix.
+
+func (m Mat2D) ApproxEqual(n Mat2D, eps float64) bool
+    ApproxEqual reports whether all six components differ by less than eps.
+
+func (m Mat2D) Invert() (Mat2D, bool)
+    Invert returns the inverse matrix, or false for a singular matrix. Singular
+    stays an error here; the render matrix Invert falls back to identity.
+    Exact det==0 keeps replay stable across machines.
+
+func (m Mat2D) IsIdentity() bool
+    IsIdentity reports whether m is exactly identity.
+
+func (m Mat2D) Mul(n Mat2D) Mat2D
+    Mul returns m*n (n applies first).
+
+func (m Mat2D) TransformPoint(p Vec2) Vec2
+    TransformPoint applies m to p.
+
+type Rand struct {
+	// Has unexported fields.
+}
+    Rand is a seeded deterministic generator (splitmix64). Same seed replays
+    the same sequence, so particle and gameplay tests never depend on luck.
+    Not for security use.
+
+func NewRand(seed uint64) *Rand
+    NewRand builds a generator from seed.
+
+func (r *Rand) Float64() float64
+    Float64 returns a value in [0, 1).
+
+func (r *Rand) Int63() int64
+    Int63 returns a non-negative 63-bit value.
+
+func (r *Rand) Int63n(n int64) int64
+    Int63n returns a value in [0, n). n <= 0 returns 0 (no panic). Modulo bias
+    is accepted by design: sequence is frozen for replay, not for security or
+    statistical use.
+
+func (r *Rand) RangeFloat(min, max float64) float64
+    RangeFloat returns a value in [min, max]. Reversed bounds are swapped.
+
+func (r *Rand) RangeInt(min, max int64) int64
+    RangeInt returns a value in [min, max). max <= min returns min.
+
+func (r *Rand) Seed(seed uint64)
+    Seed resets the sequence.
+
+func (r *Rand) Shuffle(n int, swap func(i, j int))
+    Shuffle permutes 0..n-1 (Fisher-Yates). n <= 0 or nil swap is a no-op.
+
+func (r *Rand) Uint64() uint64
+    Uint64 returns the next 64-bit value.
+
+type Rect struct {
+	X, Y, W, H float64
+}
+    Rect is an axis-aligned box: origin (X,Y) plus size (W,H).
+
+func NewRect(x, y, w, h float64) Rect
+    NewRect builds a Rect.
+
+func (r Rect) Area() float64
+    Area returns W*H, or 0 for an empty rect.
+
+func (r Rect) Center() Vec2
+    Center returns the center point.
+
+func (r Rect) Contains(p Vec2) bool
+    Contains reports whether p is inside: min edge inclusive, max exclusive.
+    An empty rect contains nothing.
+
+func (r Rect) ContainsRect(o Rect) bool
+    ContainsRect reports whether o lies fully inside r.
+
+func (r Rect) Inset(dx, dy float64) Rect
+    Inset shrinks (positive dx/dy) or grows (negative) the rect.
+
+func (r Rect) Intersection(o Rect) (Rect, bool)
+    Intersection returns the overlap box, or false when there is none.
+
+func (r Rect) Intersects(o Rect) bool
+    Intersects reports whether r and o overlap with positive area.
+
+func (r Rect) IsEmpty() bool
+    IsEmpty reports whether the rect has no area.
+
+func (r Rect) Offset(d Vec2) Rect
+    Offset moves the rect by d.
+
+func (r Rect) Union(o Rect) Rect
+    Union returns the smallest box holding both. Empty side is ignored.
+
+type Step struct {
+	Index uint64
+	Dt    Duration
+}
+    Step is one fixed logic tick: sequence number plus its width. The fixed
+    loop itself lives in engine/step; core only keeps the drift-free counting so
+    every consumer agrees on "which tick".
+
+func FirstStep(dt Duration) Step
+    FirstStep starts a run with the given tick width.
+
+func (s Step) Next() Step
+    Next advances the sequence number. Dt never changes mid-run, so a long run
+    cannot drift the way repeated float adds would.
+
+func (s Step) Total() Duration
+    Total returns Index*Dt: elapsed logic time before this step.
+
+type Vec2 struct {
+	X, Y float64
+}
+    Vec2 is a 2D vector in game units. It mirrors render point types field
+    for field but stays a separate type so game math never depends on render
+    internals. Convert once at the render boundary in engine/renderconv.
+
+func V2(x, y float64) Vec2
+    V2 builds a Vec2.
+
+func (v Vec2) Add(w Vec2) Vec2
+    Add returns v+w.
+
+func (v Vec2) Angle(w Vec2) float64
+    Angle returns the signed angle from v to w in radians.
+
+func (v Vec2) ApproxEqual(w Vec2, eps float64) bool
+    ApproxEqual reports whether v and w differ by less than eps per component.
+
+func (v Vec2) Atan2() float64
+    Atan2 returns the angle of v in radians.
+
+func (v Vec2) Cross(w Vec2) float64
+    Cross returns the 2D cross product (scalar).
+
+func (v Vec2) Div(s float64) Vec2
+    Div scales v by 1/s. Zero s follows IEEE-754 (no panic).
+
+func (v Vec2) Dot(w Vec2) float64
+    Dot returns the dot product.
+
+func (v Vec2) IsZero() bool
+    IsZero reports whether v is exactly the zero vector.
+
+func (v Vec2) Length() float64
+    Length returns the magnitude.
+
+func (v Vec2) LengthSq() float64
+    LengthSq returns the squared magnitude (cheaper for comparisons).
+
+func (v Vec2) Lerp(w Vec2, t float64) Vec2
+    Lerp interpolates: t=0 returns v, t=1 returns w.
+
+func (v Vec2) Mul(s float64) Vec2
+    Mul scales v by s.
+
+func (v Vec2) Neg() Vec2
+    Neg returns -v.
+
+func (v Vec2) Normalize() Vec2
+    Normalize returns the unit vector. Zero vector stays zero (no NaN).
+
+func (v Vec2) Perp() Vec2
+    Perp returns v rotated 90 degrees counter-clockwise.
+
+func (v Vec2) Rotate(rad float64) Vec2
+    Rotate returns v rotated by rad radians counter-clockwise.
+
+func (v Vec2) Sub(w Vec2) Vec2
+    Sub returns v-w.
+
+type Vec3 struct {
+	X, Y, Z float64
+}
+    Vec3 is a 3D point in game units, for true-2.5D math only (S79). It mirrors
+    Vec2's style: plain numbers, no render dependency. Convert once at the
+    render boundary in engine/renderconv.
+
+func V3(x, y, z float64) Vec3
+    V3 builds a Vec3.
+
+func (v Vec3) Add(w Vec3) Vec3
+    Add returns v+w.
+
+func (v Vec3) IsZero() bool
+    IsZero reports whether v is exactly the zero vector.
+
+func (v Vec3) Sub(w Vec3) Vec3
+    Sub returns v-w.
+
+type Version struct {
+	Major, Minor int
+}
+    Version is a major.minor data version carried by saves, maps, bones,
+    and atlases. Major bumps break loading; minor bumps stay compatible.
+
+func ParseVersion(s string) (Version, error)
+    ParseVersion parses "major.minor" (minor optional). Anything else is a
+    BadData error, never a guessed version.
+
+func (v Version) CheckCompatibility(cur Version) error
+    CheckCompatibility errors with VersionMismatch when data v cannot load under
+    engine cur.
+
+func (v Version) CompatibleWith(cur Version) bool
+    CompatibleWith reports whether v (data) loads under cur (engine): same
+    major, and data minor not newer than the engine's.
+
+func (v Version) String() string
+    String renders "major.minor".
+

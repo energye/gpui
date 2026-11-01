@@ -1,0 +1,9 @@
+Command kit_f0_interact is the F0-4 interaction real window: pressable states
+plus field control plus overlay trigger placement.
+
+RUN_SECONDS=15 go run ./examples/kit_f0_interact
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Correctness window: slope_gate=off,
+fps gate on when steady. Focus ring is asserted as logic (pointer never lights
+it, keyboard does); ring pixels arrive with the F2 Button标杆.

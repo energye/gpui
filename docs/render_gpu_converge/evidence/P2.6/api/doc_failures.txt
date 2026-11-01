@@ -1,0 +1,1 @@
+github.com/energye/gpui/ui/scene/internal/gpupixel	1	doc: no source-code package in directory /home/yanghy/app/projects/gogpu/gpui/ui/scene/internal/gpupixel

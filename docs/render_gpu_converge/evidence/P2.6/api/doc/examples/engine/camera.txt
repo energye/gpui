@@ -1,0 +1,18 @@
+Command game_camera is the S55 camera window plus the S77 listener rider.
+
+Lens follow plus limits plus smoothing plus a parallax long road, all through
+the real engine/camera package (read-only from here). One audio listener
+glues itself to the camera each frame (S77) and the window shows the live
+center/right/far mixes through it.
+
+Modes:
+
+    go run ./examples/engine/camera -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/camera -manual-seconds 30
+      manual for 30s (events logged, title shows the count), then summary.
+    go run ./examples/engine/camera
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_camera. First run writes the golden baseline into
+testdata/; later runs compare it with zero tolerance.

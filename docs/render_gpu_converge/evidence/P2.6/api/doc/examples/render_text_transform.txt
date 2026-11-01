@@ -1,0 +1,13 @@
+Package main demonstrates the CPU hybrid text transform pipeline (TEXT-002).
+
+It renders a 3x3 grid of "Hello gg!" text under different affine transforms:
+identity, translate, uniform scale, downscale, non-uniform scale, rotation,
+45-degree rotation, faux-italic shear, and combined scale+rotate.
+
+The three CPU rendering tiers are exercised automatically:
+
+    Tier 0 (bitmap fast path)   - identity, translate
+    Tier 1 (scaled bitmap)      - uniform scale (0.7, 2.0)
+    Tier 2 (glyph outlines)     - rotation, shear, non-uniform scale, combined
+
+Output: tmp/render_text_transform.png (900x700)

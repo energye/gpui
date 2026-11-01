@@ -1,0 +1,12 @@
+{
+ "window": "zz_soak_control",
+ "dir": "examples/zz_soak_control",
+ "variant": "default",
+ "backend": "go",
+ "args": [],
+ "run_seconds": 20,
+ "date": "2026-11-01 07:58:42",
+ "json": null,
+ "rc": 0,
+ "status": "PASS"
+}

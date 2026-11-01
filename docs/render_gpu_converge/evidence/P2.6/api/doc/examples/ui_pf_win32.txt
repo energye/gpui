@@ -1,0 +1,16 @@
+Command ui_pf_win32 is the Win32 real-window full-capability verifier:
+the same shared pfkit driver as ui_pf_x11 / ui_pf_wayland, on the Win32 backend.
+ENGINE_WINDOW_API.md §2.6 (layer A) requires every platform to have its own
+real-window verifier — this is Win32's.
+
+While the Win32 backend is a registered placeholder (Create returns the explicit
+"not implemented yet" error, S5), running this on Windows verifies exactly that
+promise: the open must fail clearly and without a panic — a probe that opens a
+window anyway, or crashes, is a FAIL of the honesty contract. Once S5 lands this
+same command automatically upgrades to the full-capability acceptance run (no
+example code change). On any other OS it reports SKIP (this window can only be
+verified on Windows).
+
+    go run ./examples/ui_pf_win32   # on Windows
+
+Output: per-capability PASS/FAIL/⛔ table on stderr + JSON gate on stdout.

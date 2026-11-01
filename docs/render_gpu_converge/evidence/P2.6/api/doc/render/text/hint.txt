@@ -1,0 +1,41 @@
+package hint // import "github.com/energye/gpui/render/text/hint"
+
+
+TYPES
+
+type LightPt struct {
+	X, Y int64 // 26.6 定点
+	On   bool  // on-curve（true）或 off-curve（控制点）
+}
+    LightPt 是 light 拟合后的一个轮廓点（26.6 定点，Y-up）。
+
+func LightHint(raw []byte, faceIdx int, isCFF2 bool, gid uint16, px float64) (pts []LightPt, contours []int, width float64, err error)
+    LightHint 对单个字形执行 CFF/CFF2 light 拟合（对齐 FT_LOAD_TARGET_LIGHT）。
+
+    raw ：字体的原始文件字节（可能是 TTC/OTC 容器） faceIdx ：容器内 face 索引（普通字体传 0） isCFF2 ：true 走
+    CFF2（可变字体），false 走 CFF1 gid ：字形索引 px ：ppem 字号（像素）
+
+    返回：
+      - pts：全部轮廓点（26.6 定点，Y-up），含 off-curve 控制点， pts 点序与如下 contours 分组对应，如 FT
+        outline。
+      - contours[0] 是第一个轮廓的点数，pts[:contours[0]] 为第一轮廓。
+      - width：glyph 的 advance（字体单位；无 width 参数时 = nominalWidthX 之后 的排布，与 FT
+        cff_slot_load 语义一致，可忽略）。
+
+func LightHintVar(raw []byte, faceIdx int, isCFF2 bool, gid uint16, px float64, coords []float32) (pts []LightPt, contours []int, width float64, err error)
+    LightHintVar 同 LightHint，额外支持 CFF2 变体坐标（归一化，avar 已应用）。 coords 为 nil 或空 =
+    默认实例。CFF1 忽略 coords。
+
+type VerifierGroup struct {
+	// Name 分组名，如 "cjk-multi-horizontal"。
+	Name string
+	// Desc 结构特征说明（为什么代表这一类）。
+	Desc string
+	// Chars 该组的字符。
+	Chars string
+}
+    VerifierGroup 是字集的一个分组：同一结构类型的样本集合。
+
+func VerifierSet() []VerifierGroup
+    VerifierSet 返回内置验证字集（按结构分组）。
+

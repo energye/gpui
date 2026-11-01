@@ -1,0 +1,14 @@
+Command ui_ant_verify is a dedicated AA verification window: 圆角/斜边/细边框 在 4x MSAA
+vs 1x 几何AA（fringe coverage + SDF smoothstep）下的边缘平滑度对比。
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 GPUI_MSAA=4 go run ./examples/ui_ant_verify   # 4x MSAA
+    RUN_SECONDS=5 GPUI_MSAA=1 go run ./examples/ui_ant_verify   # 1x 几何AA 对比
+
+Window: 1200x800. 用 xwd 截图后对比六宫格边缘过渡带像素：
+
+    ① 大圆 fill  ② 大圆角矩形 fill  ③ 45° 斜边（菱形+三角）
+    ④ 1px 细边框（圆+圆角矩形 stroke） ⑤ 斜 1px 细线（30/45/60°+水平）
+    ⑥ 弧线 stroke（圆弧+椭圆弧）
+
+每个图形都画在深色底上、用高对比亮色，便于扫边缘渐变宽度。

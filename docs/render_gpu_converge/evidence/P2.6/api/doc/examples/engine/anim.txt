@@ -1,0 +1,31 @@
+Command game_anim hosts the 4.x animation independent real windows.
+
+--case=sk is the 4.3 skeleton window (walk/run/jump on true art). --case=fsm
+below is the 4.4 blend state machine window (switch crisp, blend bar live).
+--case=tl further below is the 4.2 keyframe timeline window (interpolation,
+loop wraps, cue order). Each ability keeps its own case; no combo window stands
+in for a single ability.
+
+Window: 1200x800, title game_anim. Three cards WALK/RUN/JUMP paint the same
+13-bone upright person from the window-local testdata/sk_hero.json (window-owned
+art for a readable person; engine/anim keeps its own 7-bone math hero
+untouched). Bones call engine/anim read-only (Pose/Skin/IK), drawing uses only
+existing render shapes; render/ and engine/anim/ stay untouched.
+
+Flags:
+
+    go run ./examples/engine/anim --case=sk -auto-only
+      RUN_SECONDS=8 (default 8) auto gate, JSON on stdout, exit 1 on fail.
+    go run ./examples/engine/anim --case=sk -manual-seconds 30
+      resident 30s, real events logged + SetTitle, summary JSON.
+    go run ./examples/engine/anim --case=sk
+      selftest then resident until close. RUN_SECONDS also times the run.
+
+Gates (hard): present>=1 via wrgate, parity contract passes (three-pose replay
+bitwise + draw order file order, the pure-math C-both-sides: raster AA is a
+known CPU/GPU divergence owned by 9.2, 4.3 owns numbers not pixels), logic
+probes pass (joints match the engine/anim offscreen goldens, draw order file
+order, walk/run/jump switch without combine), pixel assertions pass (joint red,
+bone dark, background white, head on its transform spot), Golden zero tolerance
+(offscreen sk_golden.png plus window sk_final_base.png, second run on), pose
+switches>=3 in the auto run.

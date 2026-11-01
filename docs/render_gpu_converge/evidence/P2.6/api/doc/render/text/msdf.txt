@@ -1,0 +1,788 @@
+package msdf // import "github.com/energye/gpui/render/text/msdf"
+
+Package msdf provides Multi-channel Signed Distance Field generation for
+high-quality, scalable text rendering on GPU.
+
+MSDF (Multi-channel Signed Distance Field) is a technique that encodes glyph
+shape information into RGB texture channels. Unlike traditional SDF which uses
+a single distance value, MSDF preserves sharp corners by encoding directional
+distance information in separate channels.
+
+# How MSDF Works
+
+1. Parse glyph outline into closed contours 2. Classify edge segments (line,
+quadratic, cubic) 3. Assign colors (RGB) to edges based on corner angles 4.
+For each pixel, find minimum signed distance to each color channel 5. Encode
+distances as RGB values (0.5 = on edge)
+
+The median of RGB channels recovers the accurate signed distance for
+anti-aliased rendering. This approach maintains crisp edges even when the
+texture is scaled significantly.
+
+# Usage
+
+    config := msdf.DefaultConfig()
+    config.Size = 64 // 64x64 pixel MSDF texture
+
+    generator := msdf.NewGenerator(config)
+    result, err := generator.Generate(outline)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // result.Data contains RGB pixel data
+    // Use in GPU shader with median function
+
+# WGSL Shader Example
+
+    fn median3(v: vec3<f32>) -> f32 {
+        return max(min(v.r, v.g), min(max(v.r, v.g), v.b));
+    }
+
+# References
+
+- msdf-atlas-gen: https://github.com/Chlumsky/msdf-atlas-gen - MSDF paper:
+"Shape Decomposition for Multi-channel Distance Fields"
+
+CONSTANTS
+
+const (
+	// ColorBlack means the edge contributes to no channels.
+	ColorBlack EdgeColor = 0
+
+	// ColorRed means the edge contributes to the red channel.
+	ColorRed EdgeColor = 1 << iota
+
+	// ColorGreen means the edge contributes to the green channel.
+	ColorGreen
+
+	// ColorBlue means the edge contributes to the blue channel.
+	ColorBlue
+
+	// ColorYellow combines red and green channels.
+	ColorYellow = ColorRed | ColorGreen
+
+	// ColorCyan combines green and blue channels.
+	ColorCyan = ColorGreen | ColorBlue
+
+	// ColorMagenta combines red and blue channels.
+	ColorMagenta = ColorRed | ColorBlue
+
+	// ColorWhite means the edge contributes to all channels.
+	ColorWhite = ColorRed | ColorGreen | ColorBlue
+)
+
+VARIABLES
+
+var (
+	// ErrAllocationFailed is returned when glyph allocation in atlas fails.
+	ErrAllocationFailed = errors.New("msdf: failed to allocate glyph in atlas")
+
+	// ErrLengthMismatch is returned when keys and outlines have different lengths.
+	ErrLengthMismatch = errors.New("msdf: keys and outlines must have same length")
+)
+    Sentinel errors for msdf package.
+
+
+FUNCTIONS
+
+func AngleBetween(a, b Point) float64
+    AngleBetween returns the angle between two vectors in radians [0, pi].
+
+func AssignColors(shape *Shape, angleThreshold float64)
+    AssignColors assigns edge colors to preserve corners. This is the key MSDF
+    innovation - corners get different colors so that the median operation can
+    preserve them.
+
+func ErrorCorrection(msdf *MSDF, threshold float64)
+    ErrorCorrection applies error correction to fix artifacts. This handles
+    cases where the median produces incorrect results.
+
+func SelectBlue(color EdgeColor) bool
+    SelectBlue returns true if the color includes blue.
+
+func SelectGreen(color EdgeColor) bool
+    SelectGreen returns true if the color includes green.
+
+func SelectRed(color EdgeColor) bool
+    SelectRed returns true if the color includes red.
+
+
+TYPES
+
+type Atlas struct {
+	// Data is the RGB pixel data.
+	Data []byte
+
+	// Size is width = height of the atlas.
+	Size int
+
+	// Has unexported fields.
+}
+    Atlas represents a single MSDF texture atlas.
+
+func (a *Atlas) GlyphCount() int
+    GlyphCount returns the number of glyphs in this atlas.
+
+func (a *Atlas) IsDirty() bool
+    IsDirty returns true if the atlas has been modified since last upload.
+
+func (a *Atlas) IsFull() bool
+    IsFull returns true if no more glyphs can be added.
+
+func (a *Atlas) Utilization() float64
+    Utilization returns the percentage of atlas space used.
+
+type AtlasConfig struct {
+	// Size is the atlas texture size (width = height).
+	// Must be power of 2. Default: 1024
+	Size int
+
+	// GlyphSize is the size of each glyph cell.
+	// Default: 32
+	GlyphSize int
+
+	// Padding between glyphs to prevent bleeding.
+	// Default: 2
+	Padding int
+
+	// MaxAtlases limits the number of atlases.
+	// Default: 8
+	MaxAtlases int
+}
+    AtlasConfig holds atlas configuration.
+
+func DefaultAtlasConfig() AtlasConfig
+    DefaultAtlasConfig returns default configuration.
+
+func (c *AtlasConfig) Validate() error
+    Validate checks if the configuration is valid.
+
+type AtlasConfigError struct {
+	Field  string
+	Reason string
+}
+    AtlasConfigError represents a configuration validation error.
+
+func (e *AtlasConfigError) Error() string
+
+type AtlasFullError struct {
+	MaxAtlases int
+}
+    AtlasFullError is returned when all atlases are full.
+
+func (e *AtlasFullError) Error() string
+
+type AtlasInfo struct {
+	Index       int
+	GlyphCount  int
+	Utilization float64
+	Dirty       bool
+	MemoryBytes int
+}
+    AtlasInfo contains information about a single atlas.
+
+type AtlasManager struct {
+	// Has unexported fields.
+}
+    AtlasManager manages multiple MSDF atlases.
+
+func NewAtlasManager(config AtlasConfig) (*AtlasManager, error)
+    NewAtlasManager creates a new atlas manager.
+
+func NewAtlasManagerDefault() *AtlasManager
+    NewAtlasManagerDefault creates a new atlas manager with default
+    configuration.
+
+func (m *AtlasManager) AtlasCount() int
+    AtlasCount returns the number of atlases currently in use.
+
+func (m *AtlasManager) AtlasInfos() []AtlasInfo
+    AtlasInfos returns information about all atlases.
+
+func (m *AtlasManager) Clear()
+    Clear removes all cached glyphs and resets all atlases.
+
+func (m *AtlasManager) Compact() int
+    Compact removes all atlases that have no glyphs. This reclaims memory from
+    cleared atlases.
+
+func (m *AtlasManager) Config() AtlasConfig
+    Config returns the atlas configuration.
+
+func (m *AtlasManager) DirtyAtlases() []int
+    DirtyAtlases returns indices of atlases needing GPU upload.
+
+func (m *AtlasManager) Generator() *Generator
+    Generator returns the MSDF generator used by this manager.
+
+func (m *AtlasManager) Get(key GlyphKey, outline *text.GlyphOutline) (Region, error)
+    Get retrieves a glyph region, generating MSDF if needed. Returns the region
+    for the glyph, creating it if necessary.
+
+func (m *AtlasManager) GetAtlas(index int) *Atlas
+    GetAtlas returns atlas data for GPU upload. Returns nil if index is out of
+    range.
+
+func (m *AtlasManager) GetBatch(keys []GlyphKey, outlines []*text.GlyphOutline) ([]Region, error)
+    GetBatch retrieves multiple glyph regions efficiently. This is more
+    efficient than calling Get multiple times as it reduces lock contention and
+    can batch MSDF generation.
+
+func (m *AtlasManager) GlyphCount() int
+    GlyphCount returns the total number of cached glyphs.
+
+func (m *AtlasManager) HasGlyph(key GlyphKey) bool
+    HasGlyph returns true if the glyph is already cached.
+
+func (m *AtlasManager) Lookup(key GlyphKey) (Region, bool)
+    Lookup returns a cached glyph region without generating MSDF. ok=false when
+    the glyph is not in the atlas (caller should ExtractOutline + Get).
+
+func (m *AtlasManager) MarkAllClean()
+    MarkAllClean marks all atlases as uploaded to GPU.
+
+func (m *AtlasManager) MarkClean(index int)
+    MarkClean marks an atlas as uploaded to GPU.
+
+func (m *AtlasManager) MemoryUsage() int64
+    MemoryUsage returns the total memory used by all atlases in bytes.
+
+func (m *AtlasManager) Remove(key GlyphKey) bool
+    Remove removes a specific glyph from the cache. Note: This does not reclaim
+    space in the atlas.
+
+func (m *AtlasManager) SetGenerator(g *Generator)
+    SetGenerator sets a custom MSDF generator.
+
+func (m *AtlasManager) Stats() (hits, misses uint64, atlasCount int)
+    Stats returns cache statistics.
+
+type ConcurrentAtlasManager struct {
+	// Has unexported fields.
+}
+    ConcurrentAtlasManager wraps AtlasManager with optimized concurrent access
+    patterns. It uses sharding to reduce lock contention for high-throughput
+    scenarios.
+
+func NewConcurrentAtlasManager(config AtlasConfig, numShards int) (*ConcurrentAtlasManager, error)
+    NewConcurrentAtlasManager creates a sharded atlas manager. numShards must be
+    a power of 2.
+
+func (c *ConcurrentAtlasManager) Clear()
+    Clear clears all shards.
+
+func (c *ConcurrentAtlasManager) Get(key GlyphKey, outline *text.GlyphOutline) (Region, error)
+    Get retrieves a glyph region from the appropriate shard.
+
+func (c *ConcurrentAtlasManager) GlyphCount() int
+    GlyphCount returns the total glyph count across all shards.
+
+func (c *ConcurrentAtlasManager) HasGlyph(key GlyphKey) bool
+    HasGlyph checks if a glyph is cached in the appropriate shard.
+
+func (c *ConcurrentAtlasManager) MemoryUsage() int64
+    MemoryUsage returns total memory usage across all shards.
+
+func (c *ConcurrentAtlasManager) Stats() (hits, misses uint64, atlasCount int)
+    Stats returns combined statistics from all shards.
+
+type Config struct {
+	// Size is the output texture size (width = height).
+	// Typical values: 32, 48, 64.
+	// Default: 32
+	Size int
+
+	// Range is the distance range in pixels.
+	// This controls how far from the edge the distance field extends.
+	// Larger values = softer edges, smaller = sharper but less scalable.
+	// Default: 4.0
+	Range float64
+
+	// AngleThreshold is the minimum angle (in radians) to consider a corner sharp.
+	// Corners sharper than this get different channel colors to preserve them.
+	// Default: pi/3 (60 degrees)
+	AngleThreshold float64
+
+	// EdgeThreshold is the minimum pseudo-distance for edge detection.
+	// Used in edge coloring algorithm.
+	// Default: 1.001
+	EdgeThreshold float64
+}
+    Config holds MSDF generation parameters.
+
+func DefaultConfig() Config
+    DefaultConfig returns the default MSDF configuration. These values work well
+    for most text rendering scenarios.
+
+func (c *Config) Validate() error
+    Validate checks if the configuration is valid and returns an error if not.
+
+type ConfigError struct {
+	Field  string
+	Reason string
+}
+    ConfigError represents a configuration validation error.
+
+func (e *ConfigError) Error() string
+
+type Contour struct {
+	// Edges is the list of edges that form this contour.
+	Edges []Edge
+
+	// Winding is the winding direction of the contour.
+	// Positive = counter-clockwise (filled), Negative = clockwise (hole).
+	Winding float64
+}
+    Contour represents a closed contour of edges. A glyph typically consists of
+    one or more contours.
+
+func NewContour() *Contour
+    NewContour creates an empty contour.
+
+func (c *Contour) AddEdge(e Edge)
+    AddEdge appends an edge to the contour.
+
+func (c *Contour) Bounds() Rect
+    Bounds returns the bounding box of all edges in the contour.
+
+func (c *Contour) CalculateWinding()
+    CalculateWinding calculates and stores the winding direction. Positive = CCW
+    (outer contour), Negative = CW (inner/hole).
+
+    Curved edges are sampled before applying the shoelace formula: using only
+    endpoints makes a closed cubic circle (four quarter-arcs) collapse to zero
+    area and lose its orientation.
+
+func (c *Contour) Clone() *Contour
+    Clone creates a deep copy of the contour.
+
+func (c *Contour) IsClockwise() bool
+    IsClockwise returns true if the contour winds clockwise.
+
+type Edge struct {
+	// Type is the geometric type of this edge.
+	Type EdgeType
+
+	// Points contains the control and end points for this edge.
+	Points [4]Point
+
+	// Color determines which channels this edge affects.
+	Color EdgeColor
+}
+    Edge represents a single edge segment for distance calculation. An edge can
+    be linear, quadratic, or cubic Bezier.
+
+func NewCubicEdge(start, control1, control2, end Point) Edge
+    NewCubicEdge creates a new cubic Bezier edge.
+
+func NewLinearEdge(start, end Point) Edge
+    NewLinearEdge creates a new linear edge from start to end.
+
+func NewQuadraticEdge(start, control, end Point) Edge
+    NewQuadraticEdge creates a new quadratic Bezier edge.
+
+func (e *Edge) Bounds() Rect
+    Bounds returns the bounding box of the edge.
+
+func (e *Edge) Clone() Edge
+    Clone creates a deep copy of the edge.
+
+func (e *Edge) DirectionAt(t float64) Point
+    DirectionAt returns the tangent direction at parameter t.
+
+func (e *Edge) EndPoint() Point
+    EndPoint returns the ending point of the edge.
+
+func (e *Edge) PointAt(t float64) Point
+    PointAt evaluates the edge at parameter t in [0, 1].
+
+func (e *Edge) SignedDistance(p Point) SignedDistance
+    SignedDistance calculates the signed distance from point p to this edge.
+    Returns the closest signed distance and the parameter t at that point.
+
+func (e *Edge) StartPoint() Point
+    StartPoint returns the starting point of the edge.
+
+type EdgeColor uint8
+    EdgeColor determines which RGB channels an edge contributes to. Different
+    colors at corners preserve sharpness in MSDF.
+
+func SwitchColor(current EdgeColor, seed int) EdgeColor
+    SwitchColor returns the next color in the cycle. Used for edge coloring
+    algorithm.
+
+func (c EdgeColor) HasBlue() bool
+    HasBlue returns true if the color includes the blue channel.
+
+func (c EdgeColor) HasGreen() bool
+    HasGreen returns true if the color includes the green channel.
+
+func (c EdgeColor) HasRed() bool
+    HasRed returns true if the color includes the red channel.
+
+func (c EdgeColor) String() string
+    String returns a string representation of the edge color.
+
+type EdgeSelectorFunc func(color EdgeColor) bool
+    EdgeSelectorFunc selects edges based on color.
+
+type EdgeType int
+    EdgeType classifies edge segments by their geometric type.
+
+const (
+	// EdgeLinear is a straight line segment between two points.
+	EdgeLinear EdgeType = iota
+
+	// EdgeQuadratic is a quadratic Bezier curve (one control point).
+	EdgeQuadratic
+
+	// EdgeCubic is a cubic Bezier curve (two control points).
+	EdgeCubic
+)
+func (t EdgeType) String() string
+    String returns a string representation of the edge type.
+
+type Generator struct {
+	// Has unexported fields.
+}
+    Generator creates MSDF textures from glyph outlines.
+
+func DefaultGenerator() *Generator
+    DefaultGenerator creates a new MSDF generator with default configuration.
+
+func NewGenerator(config Config) *Generator
+    NewGenerator creates a new MSDF generator with the given configuration.
+
+func (g *Generator) Config() Config
+    Config returns the generator's configuration.
+
+func (g *Generator) Generate(outline *text.GlyphOutline) (*MSDF, error)
+    Generate creates an MSDF texture from a glyph outline. Returns nil if the
+    outline is empty.
+
+func (g *Generator) GenerateBatch(outlines []*text.GlyphOutline) ([]*MSDF, error)
+    GenerateBatch generates MSDF textures for multiple outlines. This is more
+    efficient than generating them one by one.
+
+func (g *Generator) GenerateWithMetrics(outline *text.GlyphOutline) (*MSDF, *Metrics, error)
+    GenerateWithMetrics generates an MSDF and returns metrics.
+
+func (g *Generator) SetConfig(config Config)
+    SetConfig updates the generator's configuration.
+
+type GeneratorPool struct {
+	// Has unexported fields.
+}
+    GeneratorPool manages a pool of generators for concurrent use.
+
+func NewGeneratorPool(config Config) *GeneratorPool
+    NewGeneratorPool creates a new generator pool with the given configuration.
+
+func (p *GeneratorPool) Generate(outline *text.GlyphOutline) (*MSDF, error)
+    Generate generates an MSDF using a pooled generator.
+
+func (p *GeneratorPool) Get() *Generator
+    Get retrieves a generator from the pool.
+
+func (p *GeneratorPool) Put(g *Generator)
+    Put returns a generator to the pool.
+
+type GlyphKey struct {
+	// FontID identifies the font (hash of font data or path).
+	FontID uint64
+
+	// GlyphID is the glyph index within the font.
+	GlyphID uint16
+
+	// Size is the MSDF texture size (not font size).
+	// Different MSDF sizes produce different textures.
+	Size int16
+}
+    GlyphKey uniquely identifies a glyph in the atlas.
+
+type GridAllocator struct {
+	// Has unexported fields.
+}
+    GridAllocator is a specialized allocator for uniform grid-based layouts.
+    More efficient than ShelfAllocator when all cells are exactly the same size.
+
+func NewGridAllocator(width, height, cellSize, padding int) *GridAllocator
+    NewGridAllocator creates a grid allocator for uniform cells.
+
+func (g *GridAllocator) Allocate() (x, y int, ok bool)
+    Allocate returns the position of the next available cell. Returns -1, -1,
+    false if the grid is full.
+
+func (g *GridAllocator) Allocated() int
+    Allocated returns the number of cells currently allocated.
+
+func (g *GridAllocator) Capacity() int
+    Capacity returns the maximum number of cells that can be allocated.
+
+func (g *GridAllocator) CellSize() int
+    CellSize returns the size of each cell.
+
+func (g *GridAllocator) GridDimensions() (cols, rows int)
+    GridDimensions returns the number of columns and rows.
+
+func (g *GridAllocator) IsFull() bool
+    IsFull returns true if no more cells can be allocated.
+
+func (g *GridAllocator) Remaining() int
+    Remaining returns the number of cells still available.
+
+func (g *GridAllocator) Reset()
+    Reset clears all allocations.
+
+func (g *GridAllocator) Utilization() float64
+    Utilization returns the percentage of cells used (0.0 to 1.0).
+
+type MSDF struct {
+	// Data is the RGB pixel data (3 bytes per pixel, row-major order).
+	// Red, Green, Blue channels encode directional distance.
+	// The median of RGB gives the actual signed distance.
+	Data []byte
+
+	// Width of the texture in pixels.
+	Width int
+
+	// Height of the texture in pixels.
+	Height int
+
+	// Bounds is the expanded bounding box (shape bounds + pxRange padding)
+	// in the original outline coordinate space.
+	Bounds Rect
+
+	// Scale is the scaling factor from outline coordinates to pixel coordinates.
+	Scale float64
+
+	// Translation offset from outline to texture coordinates.
+	TranslateX, TranslateY float64
+}
+    MSDF holds the generated multi-channel signed distance field.
+
+func MedianFilter(msdf *MSDF) *MSDF
+    MedianFilter applies a median filter to clean up noise. This is a
+    post-processing step that can improve quality.
+
+func (m *MSDF) GetPixel(x, y int) (r, g, b byte)
+    GetPixel returns the RGB values at (x, y).
+
+func (m *MSDF) OutlineToPixel(ox, oy float64) (px, py float64)
+    OutlineToPixel converts outline coordinates to pixel coordinates.
+
+func (m *MSDF) PixelOffset(x, y int) int
+    PixelOffset returns the byte offset for pixel (x, y).
+
+func (m *MSDF) PixelToOutline(px, py float64) (ox, oy float64)
+    PixelToOutline converts pixel coordinates to outline coordinates.
+
+func (m *MSDF) SetPixel(x, y int, r, g, b byte)
+    SetPixel sets the RGB values at (x, y).
+
+type Metrics struct {
+	// Width and Height of the texture.
+	Width, Height int
+
+	// Scale factor used.
+	Scale float64
+
+	// Bounds in outline space.
+	Bounds Rect
+
+	// NumContours is the number of contours in the source shape.
+	NumContours int
+
+	// NumEdges is the total number of edges.
+	NumEdges int
+}
+    Metrics returns statistics about the generated MSDF.
+
+type Point struct {
+	X, Y float64
+}
+    Point represents a 2D point with float64 precision. Used internally for
+    distance calculations.
+
+func (p Point) Add(q Point) Point
+    Add returns p + q.
+
+func (p Point) Angle() float64
+    Angle returns the angle of the vector in radians (-pi, pi].
+
+func (p Point) Cross(q Point) float64
+    Cross returns the 2D cross product (z-component of 3D cross).
+
+func (p Point) Dot(q Point) float64
+    Dot returns the dot product of p and q.
+
+func (p Point) Length() float64
+    Length returns the Euclidean length of the vector.
+
+func (p Point) LengthSquared() float64
+    LengthSquared returns the squared length (avoids sqrt).
+
+func (p Point) Lerp(q Point, t float64) Point
+    Lerp returns linear interpolation between p and q: p + t*(q-p).
+
+func (p Point) Mul(s float64) Point
+    Mul returns p * scalar.
+
+func (p Point) Normalized() Point
+    Normalized returns a unit vector in the same direction. Returns zero vector
+    if length is zero.
+
+func (p Point) Perpendicular() Point
+    Perpendicular returns a perpendicular vector (rotated 90 degrees CCW).
+
+func (p Point) Sub(q Point) Point
+    Sub returns p - q.
+
+type Rect struct {
+	MinX, MinY float64
+	MaxX, MaxY float64
+}
+    Rect represents a 2D rectangle.
+
+func (r Rect) Center() Point
+    Center returns the center point of the rectangle.
+
+func (r Rect) Contains(p Point) bool
+    Contains returns true if the point is inside the rectangle.
+
+func (r Rect) Expand(margin float64) Rect
+    Expand returns a rectangle expanded by the given margin on all sides.
+
+func (r Rect) Height() float64
+    Height returns the height of the rectangle.
+
+func (r Rect) IsEmpty() bool
+    IsEmpty returns true if the rectangle has zero or negative area.
+
+func (r Rect) Union(s Rect) Rect
+    Union returns the smallest rectangle containing both r and s.
+
+func (r Rect) Width() float64
+    Width returns the width of the rectangle.
+
+type Region struct {
+	// AtlasIndex indicates which atlas this glyph is in.
+	AtlasIndex int
+
+	// UV coordinates [0, 1] for texture sampling.
+	// Inset by 0.5 texels to prevent bilinear bleed from adjacent cells.
+	U0, V0, U1, V1 float32
+
+	// PlaneBounds: MSDF cell extent in outline reference coordinates.
+	// At render time: quad_pos = cursor + PlaneBound * (fontSize / refSize)
+	PlaneMinX, PlaneMinY, PlaneMaxX, PlaneMaxY float32
+
+	// Pixel coordinates in atlas.
+	X, Y, Width, Height int
+}
+    Region describes a glyph's location in the atlas.
+
+type Shape struct {
+	// Contours are the closed paths that make up the shape.
+	Contours []*Contour
+
+	// Bounds is the overall bounding box.
+	Bounds Rect
+}
+    Shape represents a complete glyph shape consisting of contours.
+
+func FromOutline(outline *text.GlyphOutline) *Shape
+    FromOutline converts a GlyphOutline to a Shape with colored edges. This is
+    the main entry point for MSDF generation.
+
+func NewShape() *Shape
+    NewShape creates an empty shape.
+
+func (s *Shape) AddContour(c *Contour)
+    AddContour appends a contour to the shape.
+
+func (s *Shape) CalculateBounds()
+    CalculateBounds computes and stores the overall bounding box.
+
+func (s *Shape) EdgeCount() int
+    EdgeCount returns the total number of edges across all contours.
+
+func (s *Shape) Validate() bool
+    Validate checks that the shape is properly closed.
+
+type ShelfAllocator struct {
+	// Has unexported fields.
+}
+    ShelfAllocator implements shelf-based rectangle packing. Simple and fast
+    algorithm suitable for uniform-sized glyphs.
+
+    The algorithm organizes rectangles in horizontal "shelves". Each shelf has
+    a fixed height (determined by the tallest item placed so far). New items are
+    placed left-to-right on the current shelf until no space remains, then a new
+    shelf is started below.
+
+func NewShelfAllocator(width, height, padding int) *ShelfAllocator
+    NewShelfAllocator creates a new allocator for the given dimensions.
+
+func (a *ShelfAllocator) Allocate(w, h int) (x, y int, ok bool)
+    Allocate finds space for a rectangle of the given size. Returns x,
+    y position and true if space was found, or -1, -1, false if not.
+
+    The algorithm: 1. Try to fit on an existing shelf with enough height 2.
+    If no shelf fits, create a new shelf 3. If no space for new shelf,
+    allocation fails
+
+func (a *ShelfAllocator) AllocateFixed(cellSize int) (x, y int, ok bool)
+    AllocateFixed allocates a fixed-size cell, optimized for uniform glyph
+    sizes. This is more efficient when all cells are the same size.
+
+func (a *ShelfAllocator) CanFit(w, h int) bool
+    CanFit returns true if an item of the given size could possibly fit. This is
+    a quick check without actually allocating.
+
+func (a *ShelfAllocator) CurrentShelfRemainingWidth() int
+    CurrentShelfRemainingWidth returns the remaining width on the current (last)
+    shelf.
+
+func (a *ShelfAllocator) RemainingHeight() int
+    RemainingHeight returns the vertical space remaining for new shelves.
+
+func (a *ShelfAllocator) Reset()
+    Reset clears all allocations, allowing the allocator to be reused.
+
+func (a *ShelfAllocator) ShelfCount() int
+    ShelfCount returns the number of shelves currently in use.
+
+func (a *ShelfAllocator) TotalArea() int
+    TotalArea returns the total area of the atlas.
+
+func (a *ShelfAllocator) UsedArea() int
+    UsedArea returns the total area used by allocations.
+
+func (a *ShelfAllocator) Utilization() float64
+    Utilization returns the percentage of atlas space used (0.0 to 1.0).
+
+type SignedDistance struct {
+	// Distance is the signed Euclidean distance.
+	// Negative = inside, Positive = outside.
+	Distance float64
+
+	// Dot is the dot product used for resolving ambiguities.
+	// Used when distances are equal.
+	Dot float64
+}
+    SignedDistance represents a signed distance with additional metadata.
+
+func Infinite() SignedDistance
+    Infinite returns a signed distance representing infinity.
+
+func NewSignedDistance(distance, dot float64) SignedDistance
+    NewSignedDistance creates a new signed distance.
+
+func (d SignedDistance) Combine(other SignedDistance) SignedDistance
+    Combine returns the closer distance of the two.
+
+func (d SignedDistance) IsCloserThan(other SignedDistance) bool
+    IsCloserThan returns true if d is closer to the edge than other.
+

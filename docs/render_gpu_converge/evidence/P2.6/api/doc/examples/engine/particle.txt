@@ -1,0 +1,37 @@
+Command game_particle is the 5.1 particle-emitter independent window.
+
+Fire cone (cone upward) plus smoke (box slow rise plus turbulence) use the real
+engine/particle Emitter Spawn/Update/AppendToBatch and draw through the sprite
+batch. Sprites carry position plus opacity only; color goes through ColorOf into
+the atlas tint.
+
+Modes:
+
+    go run ./examples/engine/particle --case=fire -auto-only
+      headless probes plus ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/particle --case=fire -manual-seconds 30
+      manual for 30s (events logged, title shows the count), then summary.
+    go run ./examples/engine/particle
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_particle. First run writes the golden baseline into
+testdata/; later runs compare it with zero tolerance.
+
+Command game_particle trail case: 5.2 GPU particle trail window.
+
+Slash pool (fast rightward shot plus gravity arc) records one Trail ring per
+particle through the real GPUPool Spawn/Update. Each center-line segment draws
+as one rotated atlas sprite (existing sprite AtlasToRender plus DrawAtlasEx,
+R4 branch, no new submit path); each joint draws one tinted square. Width
+runs wide (head) to narrow (tail), color runs bright head to fading tail,
+round joints fan the corners.
+
+Modes:
+
+    go run ./examples/engine/particle --case=trail -auto-only
+      headless probes plus ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/particle --case=trail -manual-seconds 30
+      manual for 30s (events logged, title shows the count), then summary.
+
+Window: 1200x800, title game_particle. First run writes the golden baseline into
+testdata/; later runs compare it with zero tolerance.

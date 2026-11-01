@@ -1,0 +1,24 @@
+# github.com/energye/gpui/render/internal/gpu [github.com/energye/gpui/render.test]
+render/internal/gpu/image_pipeline.go:27:5: texturedQuadShaderSource redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:27:5: other declaration of texturedQuadShaderSource
+render/internal/gpu/image_pipeline.go:30:5: texturedQuadBicubicShaderSource redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:30:5: other declaration of texturedQuadBicubicShaderSource
+render/internal/gpu/image_pipeline.go:40:7: imageVertexStride redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:40:7: other declaration of imageVertexStride
+render/internal/gpu/image_pipeline.go:50:7: imageUniformSize redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:50:7: other declaration of imageUniformSize
+render/internal/gpu/image_pipeline.go:55:7: imageUniformSlotStride redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:55:7: other declaration of imageUniformSlotStride
+render/internal/gpu/image_pipeline.go:60:6: ImageDrawCommand redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:60:6: other declaration of ImageDrawCommand
+render/internal/gpu/image_pipeline.go:139:6: TexturedQuadPipeline redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:139:6: other declaration of TexturedQuadPipeline
+render/internal/gpu/image_pipeline.go:218:6: NewTexturedQuadPipeline redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:218:6: other declaration of NewTexturedQuadPipeline
+render/internal/gpu/image_pipeline.go:861:6: imageFrameResources redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:866:6: other declaration of imageFrameResources
+render/internal/gpu/image_pipeline.go:867:6: imageDrawCall redeclared in this block
+	render/internal/gpu/glyph_mask_pipeline.go:872:6: other declaration of imageDrawCall
+render/internal/gpu/image_pipeline.go:867:6: too many errors
+FAIL	github.com/energye/gpui/render [build failed]
+FAIL

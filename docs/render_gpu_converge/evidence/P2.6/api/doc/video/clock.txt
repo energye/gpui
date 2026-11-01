@@ -1,0 +1,157 @@
+package clock // import "github.com/energye/gpui/video/clock"
+
+Package clock implements VR4 timing: a bounded frame queue plus a pause-aware
+presentation clock.
+
+Scope is narrow on purpose: the queue and clock never touch containers, decoders
+or pixels (they only move clock.Frame values), so audio can grow a second queue
+later without changing this package. All logic is pure Go with only the standard
+library.
+
+CONSTANTS
+
+const DefaultCap = 4
+    DefaultCap is the queue depth when the caller passes no capacity. Single
+    digits on purpose: the queue is a shock absorber, not storage.
+
+
+TYPES
+
+type Clock struct {
+	// Has unexported fields.
+}
+    Clock maps wall time to presentation stamps. The display asks DuePTSMS each
+    tick and shows the newest queued frame at or before it; pausing freezes the
+    mapping so the picture truly stops. Rate scales the walk: 2x advances stamps
+    twice as fast (catch-up drops the surplus), 0.5x holds each frame twice as
+    long. Time comes from an injected millisecond source, which keeps unit tests
+    deterministic (production passes the wall clock).
+
+func NewClock(now func() int64) *Clock
+    NewClock builds a clock over now (milliseconds). now must be monotonic.
+    Rate starts at 1x.
+
+func (c *Clock) DriftMs(shownPTSMS int64) int64
+    DriftMs tells how far a shown stamp lags the schedule (<= 0 means the
+    picture is on time; positive means it is overdue).
+
+func (c *Clock) DuePTSMS() int64
+    DuePTSMS is the newest stamp the display may show right now: anchor plus
+    rate-scaled elapsed.
+
+func (c *Clock) ElapsedMs() int64
+    ElapsedMs is the playable time since Start, minus paused spans.
+
+func (c *Clock) Pause()
+    Pause freezes the picture: elapsed time stops advancing until Resume.
+
+func (c *Clock) Paused() bool
+    Paused reports whether the clock is held.
+
+func (c *Clock) Rate() float64
+    Rate reports the current walk speed.
+
+func (c *Clock) Resume()
+    Resume continues after a pause; the paused span does not count.
+
+func (c *Clock) SetRate(r float64) error
+    SetRate scales stamp progress (1 = normal, 2 = double, 0.5 = half).
+    Non-positive or absurd rates are rejected so a bad caller cannot freeze or
+    slingshot the picture.
+
+func (c *Clock) Start(anchor int64)
+    Start anchors stamp postage: the frame stamped anchor shows at once,
+    later stamps follow in real time scaled by the current rate. Start keeps the
+    rate (seeks re-anchor without dropping back to 1x).
+
+type Frame struct {
+	Width  int
+	Height int
+	Pix    []byte
+	NV12   bool
+	Y      []byte
+	UV     []byte
+	PTSMs  int64
+	DurMs  int64
+	Seq    int64
+}
+    Frame is one presentable picture. RGBA shape: Pix holds packed RGBA.
+    NV12 shape (NV12 true): Y holds Width*Height luma, UV holds Width*Height/2
+    interleaved chroma, Pix is nil. PTSMs is the display stamp in milliseconds,
+    monotonic within a run (loops keep counting up); DurMs covers to the next
+    stamp.
+
+type Queue struct {
+	// Has unexported fields.
+}
+    Queue is a bounded FIFO of frames. Push blocks while full (backpressure into
+    the decoder thread, so a fast decoder never piles up memory); display-side
+    PollDue supersedes stale frames and counts them dropped. Use NewQueue;
+    the zero value is not usable.
+
+func NewQueue(cap int) *Queue
+    NewQueue builds a queue holding at most cap frames (cap <= 0 means
+    DefaultCap).
+
+func (q *Queue) Cap() int
+    Cap reports the configured depth.
+
+func (q *Queue) Clear()
+    Clear drops every queued frame (seek rewinds the line) and wakes one blocked
+    producer so the refilled tail never deadlocks. Counts stay cumulative:
+    drops here are display rewinds, not stale catch-ups. Discarded frames go to
+    the OnDrop observer (nil keeps old behaviour).
+
+func (q *Queue) Close()
+    Close stops the queue: blocked Push calls return false, and Drained reports
+    true once the remaining frames are consumed.
+
+func (q *Queue) Depth() int
+    Depth is the current fill.
+
+func (q *Queue) DepthAvg() float64
+    DepthAvg is the mean fill over sampled operations.
+
+func (q *Queue) Drain() []*Frame
+    Drain removes every queued frame and hands ownership to the caller (Close
+    path): the OnDrop observer never fires here.
+
+func (q *Queue) Drained() bool
+    Drained reports no more frames will ever come out.
+
+func (q *Queue) Dropped() int64
+    Dropped counts stale frames superseded at display.
+
+func (q *Queue) MaxDepth() int
+    MaxDepth is the deepest fill seen.
+
+func (q *Queue) PollDue(nowMs int64) (f *Frame, skipped int, ok bool)
+    PollDue returns the newest frame whose stamp is at or before nowMs, dropping
+    any earlier due frames as stale (counted). ok is false when no frame is due
+    yet. Callers show at most one frame per tick. Waiting producers are woken on
+    every drain (Signal, not Broadcast: one room means one producer proceeds).
+
+func (q *Queue) Push(f *Frame) (bool, error)
+    Push adds a frame, waiting while the queue is full. It returns false when
+    the queue is stopped (Close called), in which case the frame is not kept.
+    Nil frames are rejected with an error.
+
+func (q *Queue) Pushes() int64
+    Pushes counts accepted frames.
+
+func (q *Queue) Reset(f *Frame) (bool, error)
+    Reset atomically clears the line and queues one frame: the seek landing
+    always gets in, no Clear-then-Push window for the background to fill and
+    deadlock the caller. Never blocks; false means closed. Replaced frames go to
+    the OnDrop observer (nil keeps old behaviour).
+
+func (q *Queue) SetOnDrop(fn func(*Frame))
+    SetOnDrop installs the discard observer (nil clears it). Only the video
+    player uses it; drained frames via Drain never fire it (the caller takes
+    ownership there).
+
+func (q *Queue) TryPush(f *Frame) (bool, error)
+    TryPush adds a frame only when there is room: never blocks. It reports false
+    when full or closed (seek path uses this so the UI thread never waits for
+    the display to drain). Nil frames are rejected with an error.
+

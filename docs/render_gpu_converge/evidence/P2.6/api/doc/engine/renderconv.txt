@@ -1,0 +1,34 @@
+package renderconv // import "github.com/energye/gpui/engine/renderconv"
+
+Package renderconv holds the only core<->render conversions.
+
+Frozen 2026-09-30 (E01): Vec2ToRenderPoint, Vec2FromRenderPoint, ColorToRender,
+ColorFromRender, Mat2DToRenderMatrix, Mat2DFromRenderMatrix. Moved verbatim
+from engine/core vec.go+color.go so core keeps zero external imports. Additive
+changes only.
+
+Rules:
+  - Field-for-field copy, no rounding, no clamping, no defaults.
+  - Game code converts once here before touching render types.
+  - Numbers stay frozen: boundary round trip is lossless.
+
+FUNCTIONS
+
+func ColorFromRender(rc render.RGBA) core.Color
+    ColorFromRender converts a render.RGBA back to game units.
+
+func ColorToRender(c core.Color) render.RGBA
+    ColorToRender converts to render.RGBA at the render boundary.
+
+func Mat2DFromRenderMatrix(m render.Matrix) core.Mat2D
+    Mat2DFromRenderMatrix converts a render.Matrix back to game units.
+
+func Mat2DToRenderMatrix(m core.Mat2D) render.Matrix
+    Mat2DToRenderMatrix converts to render.Matrix at the render boundary.
+
+func Vec2FromRenderPoint(p render.Point) core.Vec2
+    Vec2FromRenderPoint converts a render.Point back to game units.
+
+func Vec2ToRenderPoint(v core.Vec2) render.Point
+    Vec2ToRenderPoint converts to render.Point at the render boundary.
+

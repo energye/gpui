@@ -1,0 +1,19 @@
+Command game_asset is the 12.3 hot-reload independent window.
+
+One watched slot plus its dependency chain, all through the real engine/asset
+ledger (Manager plus Watcher, read-only from here). The window owns its watch
+file under its own testdata and never watches repo source files: edit that one
+file and only that id swaps, bad bytes keep the last good picture, and the chain
+report names the broken link.
+
+Modes:
+
+    go run ./examples/engine/asset --case=reload -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/asset --case=reload -manual-seconds 30
+      manual for 30s (events logged, title shows the count), then summary.
+    go run ./examples/engine/asset --case=reload
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Window: 1200x800, title game_asset. First run writes the golden baseline into
+testdata/; later runs compare it with zero tolerance.

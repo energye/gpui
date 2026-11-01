@@ -1,0 +1,14 @@
+{
+ "window": "ui_ant_verify",
+ "dir": "examples/ui_ant_verify",
+ "variant": "msaa1",
+ "backend": "native",
+ "args": [
+  "-auto-only"
+ ],
+ "run_seconds": 5,
+ "date": "2026-10-31 23:36:08",
+ "rc": 0,
+ "json": null,
+ "status": "PASS"
+}

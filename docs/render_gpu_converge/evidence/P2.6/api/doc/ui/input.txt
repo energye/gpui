@@ -1,0 +1,562 @@
+package input // import "github.com/energye/gpui/ui/input"
+
+Package input defines the cross-platform normalized input event layer.
+
+Every platform backend (X11/Wayland/Win32/AppKit) produces raw-ish
+platform.Event values; input.FromPlatform converts them into a single
+platform-agnostic Event that upper layers (gestures / focus / textinput / kit)
+consume. Upper layers never see keysyms, HWNDs, or other native identifiers.
+
+The two cross-cutting goals are:
+ 1. One event vocabulary for every platform (logical keys, one pointer model
+    with ID-based multi-touch, text/IME events).
+ 2. A single conversion point (FromPlatform) where platform differences are
+    absorbed, so UI code stays untouched per-platform.
+
+CONSTANTS
+
+const PrimaryPointerID = 0
+    PrimaryPointerID is the mouse cursor pointer id. Touch slots start above it.
+
+
+TYPES
+
+type DeviceClass int
+    DeviceClass identifies a hot-plugged device family.
+
+const (
+	DeviceUnknown DeviceClass = iota
+	DeviceKeyboard
+	DeviceMouse
+	DeviceTouch
+	DevicePen
+)
+func (c DeviceClass) String() string
+
+type DeviceEvent struct {
+	Class DeviceClass
+	Name  string // OS device name, empty = unknown
+}
+    DeviceEvent describes a hot-plugged device for KindDeviceAdded /
+    KindDeviceRemoved.
+
+type DragEvent struct {
+	X, Y      float64
+	MIMETypes []string
+	Files     []string
+	Data      map[string][]byte
+}
+    DragEvent is the drag-and-drop payload for KindDragEnter / KindDragOver /
+    KindDrop (position in window logical pixels). Files lands first; Data is
+
+type Event struct {
+	Kind      Kind
+	WindowID  int
+	Modifiers Modifiers // held modifiers at event time (also KindModifiersChanged)
+
+	// KindResize: new client-area size in logical pixels (Width/Height ≥ 1).
+	Width  int
+	Height int
+	Scale  float64 // device pixel ratio; 0 = unchanged/unknown (also KindScale)
+
+	// KindKey: logical key (Keys) + printable rune when one exists.
+	Key KeyEvent
+
+	// KindPointer / KindScroll: mouse sample.
+	Pointer PointerEvent
+
+	// KindTouch: multi-touch sample.
+	Touch TouchEvent
+
+	// KindText: committed character(s).
+	Text TextEvent
+
+	// KindIME: in-progress IME session event.
+	IME IMEEvent
+
+	// KindMove: client-area top-left in screen logical pixels (Y-down).
+	MoveX, MoveY int
+
+	// KindOccluded: true = fully obscured/minimized (stop rendering).
+	Occluded bool
+	// KindHidden: true = app hid the window (stop rendering + detach).
+	Hidden bool
+	// KindFocus: keyboard focus state.
+	Focused bool
+	// KindStateChanged: derived window state.
+	State WindowState
+	// KindThemeChanged: true = dark mode.
+	Dark bool
+	// KindMonitorChanged: display set snapshot.
+	Monitor MonitorEvent
+	// KindLocaleChanged: system language/direction.
+	Locale LocaleEvent
+
+	// KindStylus: pen sample (phase in Stylus.Kind).
+	Stylus StylusEvent
+	// KindPinch / KindRotate: gesture steps.
+	Pinch  PinchEvent
+	Rotate RotateEvent
+
+	// KindDragEnter / KindDragOver / KindDrop: drag payload
+	// (stays zero for KindDragLeave).
+	Drag DragEvent
+
+	// KindDeviceAdded / KindDeviceRemoved: hot-plugged device.
+	Device DeviceEvent
+}
+    Event is the normalized cross-platform input event. Exactly one payload
+    field is meaningful per Kind; the rest are zero.
+
+    All coordinates are logical pixels, Y-down (same convention as the rest of
+    the UI engine). WindowID is assigned by the application layer for routing in
+    multi-window setups.
+
+func FromIME(ev IMEEvent, mods Modifiers) Event
+    FromIME is the normalized IME session event entry point.
+
+func FromPlatform(ev platform.Event, mods Modifiers) Event
+    FromPlatform normalizes one platform event into the cross-platform input
+    Event vocabulary. This is the single point where per-platform differences
+    (keysyms, virtual key codes, X11/GDK conventions…) are absorbed; upper
+    layers never re-parse them.
+
+    mods must reflect the current physical modifier state (held keys at event
+    time); backends that already carry modifier state should fold it in before
+    calling. Events that have no input meaning (EventNone) are dropped (returns
+    zero Event with Kind == KindNone; callers may filter on Kind).
+
+func FromStylus(ev StylusEvent, mods Modifiers) Event
+    FromStylus is the normalized pen entry point for backends that surface pen
+    tools. Keep KindStylus with phase in Stylus.Kind; sensor-less pens report
+    Pressure 1, Tilt 0 = unknown.
+
+func FromText(s string, mods Modifiers) Event
+    FromText is the normalized committed-text entry point (keyboard chars,
+    paste, or an IME commit surfaced as plain text).
+
+func FromTouch(ev TouchEvent, mods Modifiers) Event
+    FromTouch is the normalized multi-touch entry point for backends that
+    surface touch slots. Keep KindTouch with an ID ≥ 1 (0 is the mouse).
+
+type EventTarget interface {
+	PointerHandler
+	KeyHandler
+	TextHandler
+	IMEHandler
+}
+    EventTarget is the combined control event interface. A control that
+    implements the specific sub-interfaces (PointerHandler/KeyHandler/
+    TextHandler/IMEHandler) is auto-wired by the framework's InputRouter — no
+    per-control native code, no platform identifiers.
+
+type IMEEvent struct {
+	Kind  IMEKind
+	Text  string // compose pre-edit / committed text
+	Start int    // compose: caret byte offset within Text (<0 = end)
+	End   int    // delete-surrounding: +after bytes (D3: no negative magic)
+}
+    IMEEvent is a normalized IME session event.
+
+type IMEHandler interface {
+	OnIME(ev IMEEvent)
+}
+    IMEHandler is implemented by editable controls that receive in-progress
+    input-method events (compose/caret).
+
+type IMEKind int
+    IMEKind classifies an in-progress input-method session event.
+
+const (
+	// IMECompose: the pre-edit text changed (pinyin romanization, candidates
+	// still pending). Text holds the current pre-edit string.
+	IMECompose IMEKind = iota
+	// IMECommit: a composition finished; Text holds the committed string.
+	IMECommit
+	// IMECaretMove: the text-editing cursor/selection moved (from on-screen
+	// keyboards / IME UI), Start/End delimit the affected range.
+	IMECaretMove
+	// IMEDeleteSurrounding: the IME asks to remove text around the caret
+	// (zwp_text_input_v3 delete_surrounding_text). Start carries -before and
+	// End carries +after, both byte counts relative to the caret.
+	IMEDeleteSurrounding
+)
+const (
+	// IMESession reports session activation; Start=1 active / 0 inactive.
+	IMESession IMEKind = iota + 100
+)
+func (k IMEKind) String() string
+
+type Key uint32
+    Key is a cross-platform logical key identifier. Every platform backend maps
+    its native keycode/keysym/virtual-key into this table; upper layers (focus,
+    shortcuts, kit widgets) never see platform-specific key values.
+
+    The table is intentionally stable: adding keys appends, never renumbers,
+    so serialized key codes remain comparable across versions.
+
+const (
+	// KeyNone is the zero value (no key).
+	KeyNone Key = iota
+
+	// Letters A–Z (logical, independent of physical layout).
+	KeyA
+	KeyB
+	KeyC
+	KeyD
+	KeyE
+	KeyF
+	KeyG
+	KeyH
+	KeyI
+	KeyJ
+	KeyK
+	KeyL
+	KeyM
+	KeyN
+	KeyO
+	KeyP
+	KeyQ
+	KeyR
+	KeyS
+	KeyT
+	KeyU
+	KeyV
+	KeyW
+	KeyX
+	KeyY
+	KeyZ
+
+	// Digits 0–9 (top row and/or numpad logical digits).
+	Key0
+	Key1
+	Key2
+	Key3
+	Key4
+	Key5
+	Key6
+	Key7
+	Key8
+	Key9
+
+	// Function keys.
+	KeyF1
+	KeyF2
+	KeyF3
+	KeyF4
+	KeyF5
+	KeyF6
+	KeyF7
+	KeyF8
+	KeyF9
+	KeyF10
+	KeyF11
+	KeyF12
+	KeyF13
+	KeyF14
+	KeyF15
+	KeyF16
+	KeyF17
+	KeyF18
+	KeyF19
+	KeyF20
+	KeyF21
+	KeyF22
+	KeyF23
+	KeyF24
+
+	// Control / navigation keys.
+	KeyEnter
+	KeyTab
+	KeySpace
+	KeyBackspace
+	KeyDelete
+	KeyEscape
+	KeyHome
+	KeyEnd
+	KeyPageUp
+	KeyPageDown
+	KeyInsert
+	KeyPrintScreen
+	KeyCapsLock
+	KeyNumLock
+	KeyScrollLock
+	KeyPause
+	KeyMenu
+
+	// Arrow keys.
+	KeyArrowUp
+	KeyArrowDown
+	KeyArrowLeft
+	KeyArrowRight
+
+	// Modifier keys (logical; Modifiers carries the held state).
+	KeyShift
+	KeyControl
+	KeyAlt
+	KeyMeta // Win key / Cmd key / Super
+
+	// Punctuation & symbol row (logical glyph positions; physical layout
+	// differences are absorbed by the backend mapping).
+	KeyMinus
+	KeyEqual
+	KeyBracketLeft
+	KeyBracketRight
+	KeyBackslash
+	KeySemicolon
+	KeyQuote
+	KeyGrave // ` ~
+	KeyComma
+	KeyPeriod
+	KeySlash
+
+	// Keypad (logical numbers/operators; backends may remap to digits when
+	// NumLock semantics require it).
+	KeyPad0
+	KeyPad1
+	KeyPad2
+	KeyPad3
+	KeyPad4
+	KeyPad5
+	KeyPad6
+	KeyPad7
+	KeyPad8
+	KeyPad9
+	KeyPadDecimal
+	KeyPadDivide
+	KeyPadMultiply
+	KeyPadSubtract
+	KeyPadAdd
+	KeyPadEnter
+
+	// IME-related keys: composition toggles and candidate navigation.
+	KeyIMECompose
+	KeyIMECandidatePrev
+	KeyIMECandidateNext
+	KeyIMECandidateSelect
+)
+func (k Key) String() string
+
+type KeyEvent struct {
+	Key     Key       // logical key (KeyNone if only Rune is meaningful)
+	Rune    rune      // printable character produced by this key (0 if none)
+	Pressed bool      // true = press, false = release
+	Repeat  bool      // true = auto-repeat from OS
+	Mods    Modifiers // modifier state at event time (not including this key)
+}
+    KeyEvent is a keyboard press/release in logical key space.
+
+type KeyHandler interface {
+	OnKey(ev KeyEvent)
+}
+    KeyHandler is implemented by controls that receive logical key events.
+
+type Kind int
+    Kind classifies the cross-platform input event.
+
+const (
+	// KindNone is the zero value; not a real event.
+	KindNone Kind = iota
+	// KindClose is the destroyed window (external kill notification).
+	// The interceptable ask arrives as KindCloseRequested instead.
+	KindClose
+	// KindResize carries new logical size / dpr.
+	KindResize
+	// KindKey is a key press/release (logical key code).
+	KindKey
+	// KindPointer is a mouse pointer sample (ID 0 = primary mouse cursor).
+	KindPointer
+	// KindTouch is a multi-touch sample (ID = touch slot, ≥ 1).
+	KindTouch
+	// KindScroll is a wheel / trackpad scroll delta.
+	KindScroll
+	// KindText is committed text (keyboard chars, paste, or IME commit).
+	KindText
+	// KindIME is an in-progress IME session event
+	// (compose/commit/caret/delete-surrounding).
+	KindIME
+	// KindWake is a cross-thread wake-up (no input payload).
+	KindWake
+	// KindCloseRequested is the interceptable close ask (title-bar close,
+	// WM_DELETE, xdg close). The window survives unless the app closes it;
+	// KindClose below then reports the destroyed window.
+	KindCloseRequested
+	// KindMove carries the client-area top-left screen position.
+	KindMove
+	// KindScale carries an independent dpr change (reuses Scale).
+	KindScale
+	// KindOccluded reports fully-obscured/minimized state (reuses Occluded).
+	KindOccluded
+	// KindHidden reports app-driven hide/show (reuses Hidden).
+	KindHidden
+	// KindFocus reports keyboard-focus change (reuses Focused).
+	KindFocus
+	// KindStateChanged reports derived minimized/maximized/fullscreen state.
+	KindStateChanged
+	// KindThemeChanged reports dark/light switch (reuses Dark).
+	KindThemeChanged
+	// KindFramePresented reports the compositor showed a frame (no payload).
+	KindFramePresented
+	// KindResizeSync reports an X11 sync-resize frame request (no payload).
+	KindResizeSync
+	// KindMonitorChanged reports display add/remove.
+	KindMonitorChanged
+	// KindModifiersChanged reports a lone modifier-state change (reuses Modifiers).
+	KindModifiersChanged
+	// KindLocaleChanged reports system language/direction change.
+	KindLocaleChanged
+	// KindStylus is pen input; Down/Move/Up phase lives in Stylus.Kind.
+	KindStylus
+	// KindPinch reports a two-finger zoom gesture step.
+	KindPinch
+	// KindRotate reports a two-finger rotation gesture step.
+	KindRotate
+	// KindSmartMagnify reports a smart-zoom tap.
+	KindSmartMagnify
+	// KindDragEnter/KindDragOver report a drag hovering the window (reuses Drag).
+	KindDragEnter
+	KindDragOver
+	// KindDragLeave reports the drag left the window (Drag stays zero).
+	KindDragLeave
+	// KindDrop reports an external drop onto the window (reuses Drag).
+	KindDrop
+	// KindDeviceAdded/KindDeviceRemoved report hot-plug (reuses Device).
+	KindDeviceAdded
+	KindDeviceRemoved
+)
+func (k Kind) String() string
+
+type LocaleEvent struct {
+	Language string // BCP 47 tag, empty = unknown
+	RTL      bool   // true = right-to-left layout direction
+}
+    LocaleEvent is the system language/direction for KindLocaleChanged.
+
+type Modifiers struct {
+	Shift   bool
+	Control bool
+	Alt     bool
+	Meta    bool
+}
+    Modifiers is the cross-platform modifier state at event time. Every backend
+    fills the same four booleans; upper layers never map keysyms.
+
+func (m Modifiers) IsEmpty() bool
+    IsEmpty reports no modifier is held.
+
+type MonitorEvent struct {
+	Count        int     // attached display count
+	PrimaryScale float64 // primary display dpr (0 = unknown)
+}
+    MonitorEvent is the display-set snapshot for KindMonitorChanged.
+
+type Phase int
+    Phase is a gesture step phase shared by scroll, pinch and rotate. Unknown
+    covers backends that report no phase (classic wheel ticks).
+
+const (
+	PhaseUnknown Phase = iota
+	PhaseStarted
+	PhaseMoved
+	PhaseEnded
+)
+func (p Phase) String() string
+
+type PinchEvent struct {
+	ScaleDelta float64 // multiplicative factor since the last step
+	Phase      Phase
+}
+    PinchEvent is a two-finger zoom step for KindPinch.
+
+type PointerEvent struct {
+	Kind    PointerKind
+	ID      int     // 0 = mouse primary; ≥ 1 = touch slot
+	X, Y    float64 // logical px
+	Button  int     // 0 = none/move, 1/2/3 = left/middle/right (mouse)
+	Buttons int     // held-button mask for Move, W3C order (1=primary, 2=secondary, 4=auxiliary, 8=back, 16=forward); 0 = none/unknown
+	ScrollX float64 // Kind=PointerScroll
+	ScrollY float64
+	Phase   Phase // Kind=PointerScroll gesture phase (Unknown = no info)
+}
+    PointerEvent is a single pointer/touch sample in logical coordinates
+    (Y-down). Mouse = ID 0; touch slots are platform-assigned ≥ 1.
+
+type PointerHandler interface {
+	OnPointer(ev PointerEvent)
+}
+    PointerHandler is implemented by controls that receive unified pointer
+    samples (mouse + touch, ID-based). The InputRouter delivers hit-test results
+    to any RenderObject in the hit path that implements it.
+
+type PointerKind int
+    PointerKind classifies a pointer sample (mouse or touch, unified).
+
+const (
+	PointerMove PointerKind = iota
+	PointerDown
+	PointerUp
+	PointerCancel
+	PointerScroll // wheel / trackpad; deltas in ScrollX/ScrollY
+	PointerEnter  // pointer entered the window (position in X/Y when known)
+	PointerLeave  // pointer left the window (X/Y may be zero)
+)
+func (k PointerKind) String() string
+
+type PreeditEvent struct {
+	Text     string
+	Cursor   int       // caret byte offset within Text (<0 = end)
+	Segments []Segment // nil = default underline styling
+}
+    Segments carry IME attributes in display offsets.
+
+type RotateEvent struct {
+	AngleDelta float64 // degrees since the last step
+	Phase      Phase
+}
+    RotateEvent is a two-finger rotation step for KindRotate.
+
+type Segment struct {
+	Start, End int // byte offsets into the pre-edit text
+	Attr       uint8
+}
+    Segment marks a styled range within pre-edit text.
+
+type StylusEvent struct {
+	Kind         PointerKind
+	ID           int // pen tool id (0 = primary pen, extra pens ≥ 1)
+	X, Y         float64
+	Pressure     float64
+	TiltX, TiltY float64
+	Eraser       bool
+}
+    StylusEvent is a pen sample for KindStylus.
+
+type TextEvent struct {
+	Text string
+}
+    TextEvent is committed text input destined for a focused editable control:
+    printable keyboard chars, paste, and IME commits all arrive here.
+
+type TextHandler interface {
+	OnText(ev TextEvent)
+}
+    TextHandler is implemented by editable controls that receive committed text
+    (keyboard chars, paste, IME commits).
+
+type TouchEvent struct {
+	Kind     PointerKind // Move/Down/Up/Cancel (no Scroll)
+	ID       int         // touch slot
+	X, Y     float64     // logical px
+	Pressure float64     // 0–1 (0 = unknown/unsupported)
+}
+    TouchEvent is a multi-touch sample (ID ≥ 1). Semantically identical to a
+    pointer sample; separated for clarity at the touch layer.
+
+type WindowState struct {
+	Minimized  bool
+	Maximized  bool
+	Fullscreen bool
+}
+    WindowState is the derived window state for KindStateChanged
+    (minimize/maximize/fullscreen buttons all report through it).
+

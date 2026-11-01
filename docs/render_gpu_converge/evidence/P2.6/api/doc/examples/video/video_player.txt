@@ -1,0 +1,21 @@
+Command video_player is a clickable playback demo, not a gate window.
+
+    go run ./examples/video/video_player [clip.mp4]
+
+Window: 1200x800, stays open until you close it (RUN_SECONDS only caps automated
+runs). Opens one clip through the public video API, shows it as one scene rect,
+sounds it through the host speaker by default (paplay-pulse, aplay-alsa
+fallback; silent clips and speaker-less hosts just play video), and exposes
+the standard player controls: play/pause, progress scrub (drag = fast keyframe
+jumps, release = exact landing), rate 0.25x-4x, frame step, prev/next keyframe,
+relative jumps. No JSON gate, no FAIL lines: this is the usage sample, the VR/VC
+windows next door are the ones that judge.
+
+Controls:
+  - Space or P, or click 播/停: play / pause.
+  - O or click 打开: pick a file (zenity/kdialog) or drag a file in.
+  - Progress bar: press-move = SeekFast scrub, release = SeekTo exact.
+  - Left / Right: seek -/+ 1s (SeekBy). Home / End: head / tail.
+  - R: replay. . : frame step. , / . : prev/next keyframe.
+  - 1/2/3/4: rate 0.5x/1x/2x/4x (Shift+1 = 0.25x).
+  - Q or Esc: quit.

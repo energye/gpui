@@ -1,0 +1,21 @@
+Example: Instanced Rendering Demonstrates drawing many objects efficiently using
+GPU instancing. Instead of issuing separate draw calls, we draw all instances in
+one call.
+
+TYPES
+
+type InstanceData struct {
+	Offset [2]float32
+	Scale  float32
+	// Has unexported fields.
+}
+    Instance data: offset (x, y) + scale + padding Size: 16 bytes per instance
+    (must be aligned for GPU)
+
+type Vertex struct {
+	Position [2]float32
+	Color    [3]float32
+}
+    Vertex data: position (x, y) + color (r, g, b) Size: 20 bytes per vertex
+    (2*4 + 3*4)
+

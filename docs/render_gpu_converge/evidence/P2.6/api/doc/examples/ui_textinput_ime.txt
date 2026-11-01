@@ -1,0 +1,23 @@
+Command ui_textinput_ime is the IME test window (plan §6): a real GPU window
+where typed text renders live — plain keys insert immediately, and with an input
+method (IBus/fcitx) the pinyin pre-edit shows in place and commits on selection.
+
+Interactive (default):
+
+    export WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    export LD_LIBRARY_PATH=$PWD/lib
+    go run ./examples/ui_textinput_ime
+
+Click the box, then type. stderr logs every normalized text/ime/key event;
+closing the window exits and prints an exit-JSON report.
+
+Self-test (headless-friendly render proof):
+
+    GPUI_IME_DEMO_SELFTEST=1 go run ./examples/ui_textinput_ime
+
+Drives the exact normalized events a real IME produces (compose → commit → plain
+key) through InputRouter.RoutePlatform — the same normalization + routing path
+the event loop uses — then snapshots the final rendered frame (IME_SNAP_DIR,
+default /tmp/ime_textinput_ime) and exits 1 unless the buffer equals the
+expected "你好a". The snapshot PNG is the pixel evidence that committed CJK +
+ASCII text actually renders into the window.

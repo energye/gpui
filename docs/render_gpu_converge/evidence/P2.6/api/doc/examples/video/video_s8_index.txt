@@ -1,0 +1,11 @@
+Command video_s8_index is the §12 S8 real-window: streaming seek index (segment
++ binary) plays and jumps visibly.
+
+    go run ./examples/video/video_s8_index -auto-only
+    go run ./examples/video/video_s8_index -manual-seconds 30
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 15). GPU window required. Left:
+the three S8 gates from the real engine (seek 8 jumps landing equals the linear
+scan, recover 8 jumps show at once, path small buffered + long streaming).
+Right: the live picture (streaming long clip looping via SeekTo) proving indexed
+jumps actually show on screen.

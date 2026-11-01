@@ -47,10 +47,20 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无（P2.5 已完成，见 `evidence/P2.5/summary.md`）
-- 下一任务：P2.6（依赖 P2.5 ✅ + P0.4 ✅，行为零变化总验收：P1 基线全量重放；I3/I4 在此清算）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 当前进行中：无（P2.6 已完成，见 `evidence/P2.6/summary.md`；P2 全阶段行为零变化成立）
+- 下一任务：**P3.0**（依赖图 + 文档更新，PLAN §5 + RENDER_API_CATALOG）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
 - 最近完成：P2.4e 裁剪/混合枚举/呈现入口收敛（提交 `705244f5`，四子步+红修战役 13 批），见 `evidence/P2.4e/summary.md`；前一项 P2.4d 同尺寸纹理分配收敛（提交 `599149ee`），见 `evidence/P2.4d/summary.md`
 - 阻塞项：无。真窗侧既有缺陷 I1 / C7 / I2 / C3 已取入 P2.4e 载体（I1 解剖归本步、修复方向解剖后拍板）；I3 / I4 仍归 P2.6 前诊断
+
+**P2.6 开工载体（2026-10-31 开工登记，执行口径待拍板，评估见 `evidence/P2.6/assessment.md`）**
+
+- 任务：P2.6 行为零变化总验收（P1.1–P1.8 全量重放逐项对照）+ g 段清算（I3/I4/C4/T2/ui 5 既有红）；评估已盘点：基线 352 包→当前 324 包、测试 1398→~1231（差异全归 PLAN §7.7 白名单，a 段逐条对账）、**P1.4/P1.6 采集 runner 未入库（P1.6 的在 /tmp 已丢）→ c 段需先重建编排器**（解析 windows.md 逐窗清单+金图播种两遍制+双后端）；ui 5 既有红已核 P1.3 同红（app_test SIGSEGV crash marker 18/16/2）
+- 已拍板（2026-10-31）：①真窗重放显示环境=**P1.4 同款 :3 rootless Xwayland**（14 窗 x11grab 环境红维持登记）②**I3/I4 不阻塞重放**、g 段独立诊断结论回写台账③执行分批 **a→h 串行、b/c 长段后台跑、每段落证据台账记一笔**④长跑 zz_* 照基线跑足不砍
+- 能力单测：本任务为总验收型——八项重放本身即能力验证；负向对照=P1.8 三破坏重放
+- 真窗：windows.md 162 窗全量重放（native+go 两档）
+- 金图：全部仓内金图逐位 diff=0（运行期 8 张两遍制）；非确定性路径按 P0.1 容差
+- 双后端：native+go 全量（c/d 段）；metal 本机不可验沿用「待验证」
+- 证据：`evidence/P2.6/`（八段各建子目录）
 
 **P2.5 收口载体（2026-10-31 已完成，见 `evidence/P2.5/summary.md`）**
 
@@ -198,7 +208,7 @@
 | P2.4d | 同尺寸纹理分配收敛（六处 → `res/cache`） | P2.4c | ✅ | `evidence/P2.4d/` |
 | P2.4e | 裁剪 / 混合枚举 / 呈现入口收敛 | P2.4d | ✅ | `evidence/P2.4e/` |
 | P2.5 | 包组织收口：`go list` 对比、分层约束测试、索引与总账同步 | P2.4e | ✅ | `evidence/P2.5/` |
-| P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ⬜ | `evidence/P2.6/` |
+| P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ✅ | `evidence/P2.6/` |
 | P3.0 | 依赖图 + 文档更新（PLAN §5 + `RENDER_API_CATALOG.md`），再实现 | P2.6 | ⬜ | `evidence/P3.0/` |
 | P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | ⬜ | `evidence/P3.1/` |
 | P3.2 | 自定义 shader（依赖 P2.1 翻译器 + 新公开 API） | P3.0、P2.1 | ⬜ | `evidence/P3.2/` |
@@ -540,6 +550,17 @@ docs/render_gpu_converge/
 | 2026-10-31 | P2.4e | 🟡→✅ 四子步+红修战役13批收口（提交号待补）：e1 G2 老抽象拆解/J1J2、e2 B2 裁剪收敛、e3 B3 混合枚举收敛、e4 B4 呈现单计划化+I2+C3+C7 拆半；三真产品 bug（整页饥饿/上下文所有权/Tab 吞键）；门禁终态 gpu+render+ui 全绿、五目标/conformance/-race 全绿；遗留 misc_draw wgpu 执行态+SeatCapCB robustness 两专项立案（`evidence/P2.4e/summary.md`） | `evidence/P2.4e/summary.md` |
 | 2026-10-31 | P2.5 | ⬜→🟡 开工登记：影响面评估落盘（4 路只读调查+承重事实本机复核），验证载体已登记，**方向 D1–D7 待用户拍板后才动代码** | `evidence/P2.5/assessment.md`：包树目标条目零缺失零同名子包、EXTRA 17 项登记制、render 后端引用白名单 7 文件、gpu 反向 0、分层守卫仅 ui 一处、runner 无正本、apidoc 实测 rc=1、A2 旧代=frame_interval_*（target_hz 管道已在）、D2 池两组已修待收账（nil ImageCache/depcheck 缝） |
 | 2026-10-31 | P2.5 | 🟡→✅ 四子步收口（a 文档对账/b 分层守卫+hal 收敛+潜伏红/c A2+E2 指标契约/d 总账+小项）；D1–D7 按推荐拍板；附带真产品修复 ui/scene refuseChanged 损伤缺口；门禁终态见收口载体 | `evidence/P2.5/summary.md`（门禁终态表/池项收账/3 偏差/3 踩坑） |
+| 2026-10-31 | P2.6 | ⬜→🟡 开工登记：影响面评估落盘（基线对账基数/八项重放方案/算力估算），**执行口径待拍板**（真窗环境/I3I4 顺序/分批） | `evidence/P2.6/assessment.md`：352→324 包、1398→~1231 测试文件差异全归白名单；P1.4/P1.6 runner 未入库需重建编排器；ui 5 既有红已核 P1.3 同红 |
+| 2026-10-31 | P2.6-a | 零 GPU 对账完成：五目标构建绿（build/）；vet 默认+nogpu 各 56 条全为 ui/platform 线外（vet-replay.txt）；P1.5 API 重放 323 包快照+对账——删除 31 包全部落 PLAN §7.7（naga 14+shader 三后端 16+render/render）、新增 2 包（gpu、render/hdr）、共有 322 包中 19 包有导出面差异（render/scene/res/blend/scheduler/hal/shader 族等，全部对应 P2 各步登记改动，全文 diff 落 api-diff-full.txt 供 h 逐行标注）；测试计数 1397/14388→1230/10376（删减对账归 h） | `evidence/P2.6/`（build×5、vet-replay、api/、api-reconcile、api-diff-full、tools/gen_api_p26） |
+| 2026-10-31 | P2.6-c | 编排器重建完成并全量启动（v2，`tools/window_replay.py`+`start-xwayland.sh`）：轮次清单=基线 summary.tsv 的 183 个（窗,变体）对×双后端；args/RUN_SECONDS 从基线 record/stdout 重放；cwd=仓库根（修掉首轮冒烟抓到的相对 testdata 解析错）；强制 X11 路径（修掉 WAYLAND_DISPLAY 泄漏导致窗走 Wayland 的环境错）；0* 金图窗对冻结基线副本逐位 diff；rc!=0 或 fps<15 自动重试一次（retry 记录在案）。冒烟三例定性：25d_basis 双档 PASS 金图 diff=0、kit/icon 基线同红（native 现转绿）、r6/c5 需 ≥30s 已修 secs 回退；l1_blank go 首轮 0x3002 为 Xwayland GL 初始化间歇竞态（基线同环境，retry 吸收）。全量 366 轮后台运行中 | `evidence/P2.6/c-windows/`（summary.tsv + 逐轮 record/stdout/stderr） |
+
+| 2026-11-01 | P2.6-c | 🟡→✅ 全量完成+对账定案：374 轮全跑完（REPLAY DONE），与基线 374 轮同规模零缺漏；对账=**364 去重轮次、基线同红 100、嫌疑 0、转绿 20**（r1/r7/r7b/c3/c6/c11/batch_cap 双档/kit 族等，P2 性能优化见效）。5 条嫌疑全部定性为编排器环境还原不全/瞬态并复跑 PASS：multiwin（RUN_SECONDS≥75）、vram oom（GPUI_FAULT_OOM=180:1 注入）、r8_overlay/open（p95=22.19>22.00 边缘超、金图 diff=0.0000%、复跑过）、light2d/shadow/go（device-lost 瞬态，复跑 probes ok）；编排器三处修复落正本（bytes 写入/json 初值/ROUND_OVERRIDES 显式还原基线 env）。textstroke go=C1 家族 x11grab 环境红放行 | `evidence/P2.6/c-windows/`（summary-clean.tsv + 逐轮证据）、tools/window_replay.py |
+| 2026-11-01 | P2.6-b | 🟡→✅ 逐测试文件全量重放完成（P1.3 口径，323 包 1438 文件行，带 lib，zz 长跑 45m timeout）：**1165 PASS / 17 FAIL / 48 SKIP / 208 无测试**。17 FAIL 对账=15 条 P1.3 基线同红（misc_draw gpu/r8/video 三件/app SIGSEGV/G3 等）；2 条嫌疑 A/B 定性为非 P2 回归——`TestH4B3_GlesDeviceLostErrorScopeStubs`（IsLost()=true want false）与 `TestX11KeyRepeat`（桌面 autorepeat 0 事件，环境态）在 P2.5 前的 9bb2e99a 同红；基线 48 红中 33 个已转绿（P2 修复见效：nil ImageCache/共享布局/m5/T1 等）。CPU 测试占比极高、GPU 包逐文件带 lib 无假绿（H1 纪律） | `evidence/P2.6/b-tests/per-file-tests/`（summary.tsv+逐文件日志）、`b-tests/pkgs-full.txt` |
+| 2026-11-01 | P2.6-d/f | d 显存账本重放 + f 负向对照重放启动（GPU 已由 b 段释放） | `evidence/P2.6/d-vram/`、`f-negative/` |
+| 2026-11-01 | P2.6-d | ✅ 显存账本对账：ladder 峰值 373.8MB（基线 372.0 带内 +0.5%、金图 16/16 diff=0）、oom ledger_recovered=true、multiwin crash_free、batch 转绿；不触碰 0.9 水线 | `d-vram/vram-reconcile.md` |
+| 2026-11-01 | P2.6-e | ✅ 性能对账：extractor 副本对 360 重放轮重出 TSV——p95_fail=0/fps_fail=0/首帧 0/失配 0（基线 4 条 p95 超限全转绿）；逐轮 p95 零恶化、10 轮改善（backdrop/clipop/maskops）；别名退役注记=待下轮基线冻结 | `e-perf/perf-reconcile.md`、`e-perf/perf_p26.tsv` |
+| 2026-11-01 | P2.6-f | ✅ 负向三破坏全红+还原零残留：偏移 1px（coverage 0.92/0.87≠1.00）、跳绘（整块消失）、K1 注入（steady delta=2/131072 与 P2.4c 原签名逐字一致——P1.8 的上界收紧旋钮修复后无意义，改注入原洞）+§8.2 变异对（30→0 漏报/22→4 报警）；事故一次（grep 猜还原目标拷错文件）git 当场恢复复绿，教训入报告 | `f-negative/negative-final.md` |
+| 2026-11-01 | P2.6-h | ✅ 收口：八项重放终值全绿（P1.1–P1.8 逐项 ✅）；API 差异 19 包逐包归因 P2 各步（§3 表）；测试计数文件精确 -167、函数 -3916（96 口径差登记）；总判定=**P2 全阶段行为零变化成立，可进 P3**；遗留 g 段 I3/I4/C4/T2 诊断 + ui 5 既有红 + b 段 2 新立案归尾巴 | `evidence/P2.6/summary.md` |
 
 ## 8 修订记录
 

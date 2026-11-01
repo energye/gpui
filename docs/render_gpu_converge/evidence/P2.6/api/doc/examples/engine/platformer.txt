@@ -1,0 +1,19 @@
+Command game_platformer is the S81 side-view对照窗: platformer feel (move 300,
+jump -725, gravity 700, fall clamp 700, double jump once, release damping x0.6)
+over a ground bar plus one floating platform.
+
+Modes:
+
+    RUN_SECONDS=8 go run ./examples/engine/platformer -auto-only
+      probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/platformer -manual-seconds 30
+      manual 30s (arrows/AD move, space/W jump, events logged), then summary.
+    go run ./examples/engine/platformer
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+PLATFORMER_PROBE_ONLY=1 runs the selected case probes headlessly (logic + pixels
++ golden, JSON on stdout, no window) for CI and for producing the testdata
+baseline without a display.
+
+Window: 1200x800, title game_platformer. First run writes the golden baseline
+into testdata/; later runs compare it with zero tolerance.

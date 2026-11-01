@@ -1,0 +1,931 @@
+package asset // import "github.com/energye/gpui/engine/asset"
+
+Package asset freezes the CPU-side asset ledger every 2.5D play feeds
+
+Frozen 2026-09-15: Kind, ParseKind, State, Stats, Asset, Manager, NewManager,
+CurrentVersion, MaxAssets, MaxBytes, MaxAssetBytes, MaxDeps, MaxIDLen,
+HashBytes. Additive changes only.
+
+What is frozen: one opaque carrier plus one block format. KindRaw carries
+any bytes without parsing them (maps, bones, and saves ride here until
+their own capabilities freeze); KindTextureKTX2 carries a KTX2 file with
+VK_FORMAT_BC1_RGBA_UNORM_BLOCK (133) and decodes it through engine/tex so upload
+and pixel sizes are honest. The manager keeps one ledger: background Request
+plus Poll/Wait up front so play never stalls, Load/Ref/Unload counting through
+core.AssetID and core.Handle so textures, maps, and saves share one count,
+Dependencies/Dependents tracking who needs whom (a map that needs a tex knows to
+reload it), and Version plus Hash pairing each payload with its manifest line.
+Only core numbers are used; no new Vec2/Color/AssetID is defined here. The old
+render and tex paths stay untouched; tex is only read, never modified.
+
+What is reserved: every other kind name (basis, spine, tmx, atlas, png,
+...) parses far enough to name the kind, then reports core Unsupported, never a
+guessed payload.
+
+Frozen 2026-09-15: MaxWatches, MaxWatchIDLen, MaxWatchPathLen, PollInterval,
+HotState, HotStats, Watcher, NewWatcher. Additive changes only.
+
+Hot reload (12.3, file watch plus single-id swap): Watch pins one id to one
+file with the load shape Reload replays, Poll stats files and marks changed ids
+Dirty without loading, Reload re-reads through Manager.LoadFile and swaps only
+that id. Other ids keep their bytes and claims; a failed Reload keeps the last
+good snapshot readable and parks the watch at Failed with CauseOf set. Only core
+numbers are used; the manager and tex paths are only read, never modified.
+
+Frozen 2026-09-15: CurrentAtlasVersion, MaxSprites, MaxAtlasSize,
+MaxAtlasNameLen, AtlasPad, MaxAtlasJSONBytes, Input, Entry, Atlas, Pack, Parse,
+Load, Encode, Save. Additive changes only.
+
+Atlas packing (12.2, offline tool plus game pack): small pictures are shelved
+into one sheet offline, then the game loads the frozen JSON. Frozen JSON is
+version, width, height, and sprites each holding name, x, y, w, h, pivotX,
+pivotY, and nine [left, top, right, bottom]. Pack sorts by height, width,
+then name so the same set always lands on the same rects and keeps AtlasPad
+transparent pixels around every sprite. Unfrozen JSON keys (rotated, trim,
+anchor, meta, ...) name the field then report core Unsupported, never a guessed
+placement. Parsed atlases carry placements only; packed atlases also carry the
+composed RGBA8 sheet. Only core numbers are used (AssetID, Version); rects stay
+plain ints so no new Vec2 is defined here.
+
+Errors use engine/core codes: empty id/path/data is InvalidArg, a missing id or
+file is NotFound with a usable placeholder, torn KTX2 or hash-level mismatch is
+BadData, an unfrozen kind is Unsupported, a picture beyond budget or a manager
+beyond MaxAssets/MaxBytes is OutOfMemory, a payload newer than CurrentVersion
+is VersionMismatch. A nil Manager never panics: loads report InvalidArg, queries
+report zero values.
+
+CONSTANTS
+
+const (
+	// MaxAssets caps cached ids in one manager.
+	MaxAssets = 1024
+	// MaxBytes caps retained payload bytes in one manager.
+	MaxBytes = 64 << 20
+	// MaxAssetBytes caps one payload.
+	MaxAssetBytes = 8 << 20
+	// MaxDeps caps dependencies of one asset.
+	MaxDeps = 16
+	// MaxIDLen caps the id text length in bytes.
+	MaxIDLen = 128
+)
+    Frozen budgets. Beyond budget is OutOfMemory, never a guess.
+
+const (
+	// MaxSprites caps entries in one atlas.
+	MaxSprites = 1024
+	// MaxAtlasSize caps one atlas side in pixels.
+	MaxAtlasSize = 4096
+	// MaxAtlasNameLen caps one sprite name in bytes.
+	MaxAtlasNameLen = 128
+	// AtlasPad is the transparent gutter kept around every sprite.
+	AtlasPad = 1
+	// MaxAtlasJSONBytes caps one atlas JSON file.
+	MaxAtlasJSONBytes = 1 << 20
+)
+    Frozen atlas budgets. Beyond budget is OutOfMemory, never a guess.
+
+const (
+	// MinAtlasGutter floors the transparent seam.
+	MinAtlasGutter = 2
+	// MaxAtlasGutter caps the transparent seam.
+	MaxAtlasGutter = 4
+	// MinAtlasExtrude floors the edge bleed.
+	MinAtlasExtrude = 1
+	// MaxAtlasExtrude caps the edge bleed.
+	MaxAtlasExtrude = 2
+	// DefaultAtlasGutter is the S65 default seam.
+	DefaultAtlasGutter = 2
+	// DefaultAtlasExtrude is the S65 default bleed.
+	DefaultAtlasExtrude = 1
+)
+    S65 gutter and extrude budgets. Gutter is the transparent seam kept beyond
+    the bleed ring, extrude is the edge-pixel bleed into the seam.
+
+const (
+	// ToolAtlasSizeSmall is the 2048 tool sheet side.
+	ToolAtlasSizeSmall = 2048
+	// ToolAtlasSizeLarge is the 4096 tool sheet side.
+	ToolAtlasSizeLarge = 4096
+)
+    S69 tool atlas budgets. The offline tool only takes these two sheet sizes;
+    anything else is rejected with the got size in the reason so artists can fix
+    the export instead of guessing.
+
+const (
+	// MaxLargeSets caps loadable sets in one large manifest.
+	MaxLargeSets = 64
+	// MaxLargeSetMembers caps members in one large set.
+	MaxLargeSetMembers = 512
+	// MaxLargeNameLen caps one set/estimate name in bytes.
+	MaxLargeNameLen = 128
+	// MaxLargeEstimates caps budget-only estimate rows in one manifest.
+	MaxLargeEstimates = 64
+	// MaxLargeEstimateCount caps images in one estimate row.
+	MaxLargeEstimateCount = 10000
+	// MaxLargeTotalImages caps images across all estimate rows.
+	MaxLargeTotalImages = 10000
+	// MaxLargeDimension caps one estimated side in pixels.
+	MaxLargeDimension = 8192
+	// MaxLargePixels caps pixels of one estimated image.
+	MaxLargePixels = 8192 * 8192
+	// MaxLargeBroken caps kept broken-link summaries.
+	MaxLargeBroken = 1024
+)
+    S88 budgets. Beyond budget is OutOfMemory, never a guess. Tiers
+    carry strategy only; no tier pins a fixed MB number. VRAM comes from
+    width/height/format math, never from a tier table.
+
+const (
+	LargeScaleImages = 3000
+	LargeScaleSets   = 50
+)
+    LargeScaleImages and LargeScaleSets name the full-deck target the estimates
+    stand for: 3000 images across 50 sets. The manifest proves reload on a
+    few file-backed sets and proves VRAM by w/h/format math on estimate rows;
+    no 3000 real pictures are stored.
+
+const (
+	// MaxWatches caps watched ids in one Watcher.
+	MaxWatches = 1024
+	// MaxWatchIDLen caps the watch id text length in bytes.
+	MaxWatchIDLen = 128
+	// MaxWatchPathLen caps the watch path text length in bytes.
+	MaxWatchPathLen = 1024
+	// PollInterval is the fallback poll step used when the caller drives
+	// Poll without a file event. File events always win over the tick.
+	PollInterval = 50 * time.Millisecond
+)
+    Frozen hot-reload budgets. Beyond budget is OutOfMemory, never a guess.
+
+const (
+	// MaxSets caps sets in one SetReloader.
+	MaxSets = 256
+	// MaxSetNameLen caps one set name in bytes.
+	MaxSetNameLen = 128
+	// MaxSetMembers caps members in one set.
+	MaxSetMembers = 256
+	// MaxReloadLogs caps kept reload log entries.
+	MaxReloadLogs = 1024
+	// MaxBrokenReports caps kept broken-link reports.
+	MaxBrokenReports = 1024
+)
+    S70 budgets. Beyond budget is OutOfMemory, never a guess.
+
+
+VARIABLES
+
+var CurrentAtlasVersion = core.Version{Major: 1, Minor: 0}
+    CurrentAtlasVersion is the atlas JSON version Pack writes.
+
+var CurrentVersion = core.Version{Major: 1, Minor: 0}
+    CurrentVersion is the engine manifest version every Load writes. Bump Minor
+    for additive fields, Major for a breaking shape.
+
+
+FUNCTIONS
+
+func AtlasToSpriteUV(e Entry, atlasW, atlasH int, au, av float64, rotated bool) (u, v float64)
+    AtlasToSpriteUV is the inverse of SpriteToAtlasUV: atlas u,v back to
+    sprite-local u,v for the same rotated switch. Round-trips to the input
+    within float error.
+
+func EstimatePixels(w, h int, format string) (int64, error)
+    EstimatePixels returns the decoded RGBA8 bytes (w*h*4) for GPU formats,
+    0 for raw. Codes match EstimateUpload.
+
+func EstimateUpload(w, h int, format string) (int64, error)
+    EstimateUpload returns the GPU upload bytes for one w/h/format image.
+    BC1/ASTC use the tex block geometry (4x4, 8/16 bytes); rgba8 is w*h*4;
+    raw has no GPU upload. Bad sides are InvalidArg; over-area is OutOfMemory;
+    unknown formats are Unsupported.
+
+func HashBytes(data []byte) uint64
+    HashBytes returns the FNV-1a 64 hash of data.
+
+func IsSeamTransparent(a *Atlas, extrude int) bool
+    IsSeamTransparent reports whether the seam beyond the bleed ring is fully
+    transparent.
+
+func SeamTransparentMaxDiff(a *Atlas, extrude int) int
+    SeamTransparentMaxDiff returns the max channel distance from transparent
+    over seam pixels: pixels outside every entry rect grown by extrude. Zero
+    means the seam is fully transparent. Nil or parsed atlases report 0.
+
+func SpriteToAtlasUV(e Entry, atlasW, atlasH int, u, v float64, rotated bool) (au, av float64)
+    SpriteToAtlasUV maps sprite-local u,v (0..1, top-left origin) to atlas u,v.
+    Rotated selects the 90-degree clockwise store where the stored rect is
+    already w-by-h swapped. Nil-safe through Entry zero values.
+
+func ToolAtlasToSpriteUV(e Entry, atlasW, atlasH int, au, av float64, rotated bool) (float64, float64, error)
+    ToolAtlasToSpriteUV is the tool-side rotated inverse: it validates the call,
+    then reuses the S65 AtlasToSpriteUV math unchanged. Atlas u,v must sit in
+    0..1 and the entry rect must sit inside the sheet.
+
+func ValidateToolAtlasSize(w, h int) error
+    ValidateToolAtlasSize gates one tool sheet: both sides must be 2048 or 4096.
+    Anything else reports InvalidArg naming the got size.
+
+
+TYPES
+
+type Asset struct {
+	// Has unexported fields.
+}
+    Asset is one immutable snapshot. Methods on a nil asset report zero values,
+    never panic.
+
+func (a *Asset) Bytes() []byte
+    Bytes returns a copy of the payload bytes.
+
+func (a *Asset) Deps() []core.AssetID
+    Deps returns a copy of the dependencies.
+
+func (a *Asset) Equal(o *Asset) bool
+    Equal reports whether o holds bitwise the same snapshot.
+
+func (a *Asset) Hash() uint64
+    Hash returns the FNV-1a hash of the stored bytes.
+
+func (a *Asset) ID() core.AssetID
+    ID returns the asset id.
+
+func (a *Asset) Kind() Kind
+    Kind returns the carrier.
+
+func (a *Asset) PixelSize() int
+    PixelSize returns the decoded RGBA8 bytes for KTX2, else 0.
+
+func (a *Asset) Size() int
+    Size returns the stored payload bytes.
+
+func (a *Asset) State() State
+    State returns the lifecycle state.
+
+func (a *Asset) UploadSize() int
+    UploadSize returns the GPU upload bytes for KTX2, else 0.
+
+func (a *Asset) Version() core.Version
+    Version returns the stored version.
+
+type Atlas struct {
+	// Has unexported fields.
+}
+    Atlas is one packed sheet: placements plus the composed RGBA8 pixels.
+    A parsed atlas carries placements only; Pixels is nil until packed.
+
+func Load(path string) (*Atlas, error)
+    Load reads path and parses it as atlas JSON.
+
+func Pack(inputs []Input, maxW, maxH int) (*Atlas, error)
+    Pack shelves inputs into one sheet usable offline: no GPU, no window. Inputs
+    are sorted by height, width, then name so the same set always lands on the
+    same rects. The sheet keeps AtlasPad transparent pixels around every sprite.
+    Only core numbers are used.
+
+func PackToolAtlas(inputs []Input, w, h int, opts PackOptions) (*Atlas, error)
+    PackToolAtlas packs inputs under the frozen tool budget: w and h each must
+    be 2048 or 4096, then it reuses the S65 PackWithOptions seam (gutter plus
+    extrude bleed) unchanged. The sheet stays trimmed to the content; the gate
+    only pins the budget, never the output size.
+
+func PackWithOptions(inputs []Input, maxW, maxH int, opts PackOptions) (*Atlas, error)
+    PackWithOptions shelves inputs with a parameterized seam: gutter transparent
+    px stay clear beyond an extrude bleed ring that repeats edge texels. Spacing
+    between rects is gutter plus bleed on both sides, the outer border keeps
+    gutter plus one bleed, so the seam beyond the ring stays fully transparent
+    (maxDiff 0). Sort order and error codes match Pack. Only core numbers are
+    used.
+
+func Parse(data []byte) (*Atlas, error)
+    Parse reads frozen atlas JSON. Extra keys name an unfrozen field and report
+    Unsupported, never a guessed placement. Parsed atlases carry placements
+    only; Pixels stays nil.
+
+func (a *Atlas) At(x, y int) (r, g, b, al uint8, ok bool)
+    At returns the sheet pixel at (x, y). Parsed atlases report ok=false.
+
+func (a *Atlas) Count() int
+    Count returns the entry count.
+
+func (a *Atlas) Encode() ([]byte, error)
+    Encode renders the frozen JSON: version, sheet size, and per sprite name,
+    rect, pivot, and nine-slice. Pixel bytes ride the sheet image, never the
+    JSON.
+
+func (a *Atlas) Entry(i int) (Entry, bool)
+    Entry returns a copy of entry i.
+
+func (a *Atlas) Equal(o *Atlas) bool
+    Equal reports whether o holds the same version, size, entries, and sheet
+    bytes. Parsed atlases (nil pixels) only equal parsed atlases.
+
+func (a *Atlas) Find(name core.AssetID) (Entry, bool)
+    Find returns the entry with name.
+
+func (a *Atlas) Height() int
+    Height returns the sheet height in pixels.
+
+func (a *Atlas) Pixels() []byte
+    Pixels returns a copy of the composed RGBA8 sheet, or nil when parsed.
+
+func (a *Atlas) Save(path string) error
+    Save writes Encode to path for the offline tool chain.
+
+func (a *Atlas) Version() core.Version
+    Version returns the atlas version.
+
+func (a *Atlas) Width() int
+    Width returns the sheet width in pixels.
+
+type BrokenLink struct {
+	Set   string
+	ID    core.AssetID
+	Need  core.AssetID
+	Code  core.Code
+	Cause error
+}
+    BrokenLink names one broken chain: which set, which image, and which need
+    broke. Cause keeps the core error so CodeOf still classifies.
+
+func LoadLargeLinks(path string) ([]BrokenLink, error)
+    LoadLargeLinks reads the frozen broken-link report slot.
+
+func (b BrokenLink) Error() string
+    Error renders set plus image plus need, never empty.
+
+func (b BrokenLink) Unwrap() error
+    Unwrap returns the wrapped core cause for CodeOf.
+
+type BrokenSummary struct {
+	Total  int
+	BySet  map[string]int
+	ByCode map[string]int
+	Links  []BrokenLink
+}
+    BrokenSummary aggregates broken links by set and code.
+
+func SummarizeBroken(bs []BrokenLink) BrokenSummary
+    SummarizeBroken groups bs by set and code. A nil budget never panics;
+    the link list is capped at MaxLargeBroken, sorted for replay.
+
+type Budget struct {
+	// Has unexported fields.
+}
+    Budget owns one large manifest plus its live ledger: the Manager holds
+    bytes, the SetReloader holds the set table, the TierPolicy holds the
+    strategy. A nil Budget never panics.
+
+func NewBudget(m *LargeManifest, tier Tier) *Budget
+    NewBudget builds a budget over m with tier strategy. A nil manifest reports
+    InvalidArg on use; queries report zero values.
+
+func (b *Budget) CheckBudget() error
+    CheckBudget reports whether the live ledger still fits MaxBytes.
+    The estimate total never fails here; it only feeds strategy via
+    SuggestEvictions. A nil budget reports InvalidArg.
+
+func (b *Budget) EstimateSet(name string) (upload, pixels, size int64, n int, ok bool)
+    EstimateSet returns the upload/pixel/file bytes of one file-backed set by
+    w/h/format math plus carried file sizes.
+
+func (b *Budget) EstimateTotal() (upload, pixels int64, n int)
+    EstimateTotal returns the full-deck VRAM: estimate rows only, already at the
+    3000-image scale. File-backed sets prove reload; they are not added again
+    here, so the total never double-counts.
+
+func (b *Budget) Manager() *Manager
+    Manager returns the live ledger, or nil when unset.
+
+func (b *Budget) Manifest() *LargeManifest
+    Manifest returns the frozen table, or nil when unset.
+
+func (b *Budget) Policy() TierPolicy
+    Policy returns the strategy for the current tier.
+
+func (b *Budget) RegisterAll() error
+    RegisterAll pins every file-backed set into the reloader. Estimate rows
+    never register; they only feed VRAM math.
+
+func (b *Budget) ReloadSet(set string, payloads map[core.AssetID][]byte) (ReloadSetResult, error)
+    ReloadSet reloads only the named set through the reloader. Other sets keep
+    bytes. Missing payloads report NotFound carrying set plus image and join the
+    broken slot; they never wipe the last good art.
+
+func (b *Budget) Reloader() *SetReloader
+    Reloader returns the per-set reloader, or nil when unset.
+
+func (b *Budget) SetTier(t Tier)
+    SetTier switches strategy only; budgets are recomputed, never stored.
+
+func (b *Budget) SuggestEvictions() []string
+    SuggestEvictions orders file-backed sets largest-first for the current
+    strategy when the ledger needs room. Quality keeps resident (nil);
+    performance and balanced evict the largest estimate first. The order is
+    deterministic for replay.
+
+func (b *Budget) Tier() Tier
+    Tier returns the strategy tier.
+
+func (b *Budget) VerifyAll() []BrokenLink
+    VerifyAll checks every registered set and aggregates the broken chains
+    sorted for replay. Reports also join the reloader slot.
+
+type EdgeBleed struct {
+	X, Y       int
+	R, G, B, A uint8
+	Sprite     core.AssetID
+}
+    EdgeBleed names one leaked black pixel: sheet coords, its color, and the
+    sprite whose bleed ring owns it. Empty Sprite means the pixel was caught on
+    the sheet border, outside every ring.
+
+func CheckStrokeBlackLine(a *Atlas, extrude int) []EdgeBleed
+    CheckStrokeBlackLine scans for outline black lines: opaque black pixels
+    (0,0,0 with alpha, tolerance frozen at 0) inside a sprite bleed ring or on
+    the sheet border. Interior sprite pixels are the art itself and are never
+    flagged. Clean sheets report nil; every hit carries its sheet position so
+    the card can be located. Nil or parsed atlases (no pixels) report nil.
+
+type Entry struct {
+	// Has unexported fields.
+}
+    Entry is one packed sprite: its name plus its rect inside the atlas.
+    Pivot and Nine ride through unchanged from the input.
+
+func (e Entry) H() int
+    H returns the sprite height.
+
+func (e Entry) Name() core.AssetID
+    Name returns the sprite name.
+
+func (e Entry) Nine() [4]int
+    Nine returns left, top, right, bottom margins in pixels.
+
+func (e Entry) Pivot() (x, y float64)
+    Pivot returns the axis in 0..1.
+
+func (e Entry) PivotX() float64
+    PivotX returns the horizontal axis.
+
+func (e Entry) PivotY() float64
+    PivotY returns the vertical axis.
+
+func (e Entry) W() int
+    W returns the sprite width.
+
+func (e Entry) X() int
+    X returns the left pixel inside the atlas.
+
+func (e Entry) Y() int
+    Y returns the top pixel inside the atlas.
+
+type HotState int
+    HotState names the lifecycle of one watched id.
+
+const (
+	// HotEmpty means no watch for the id.
+	HotEmpty HotState = iota
+	// HotWatching means the file is watched and in sync.
+	HotWatching
+	// HotDirty means the file changed on disk and waits for Reload.
+	HotDirty
+	// HotFailed is the placeholder for a failed Reload (bad file, missing
+	// file, over budget). The last good snapshot stays readable.
+	HotFailed
+)
+func (s HotState) String() string
+    String returns the stable log name of s.
+
+type HotStats struct {
+	Watches  int
+	Reloads  int64
+	Failures int64
+	Events   int64
+}
+    HotStats reports Watcher counters. Watches is the watched id count;
+    Reloads counts successful Reload calls; Failures counts failed Reload calls;
+    Events counts file changes noticed through Poll.
+
+type Input struct {
+	ID     core.AssetID
+	W, H   int
+	Pixels []byte
+	PivotX float64
+	PivotY float64
+	Nine   [4]int
+}
+    Input is one picture fed to Pack. Pixels are RGBA8 row-major top-left,
+    len W*H*4. Pivot is 0..1. Nine holds left, top, right, bottom in pixels.
+
+type Kind int
+    Kind names the frozen payload carrier.
+
+const (
+	// KindUnknown is the zero value: no carrier recognized.
+	KindUnknown Kind = iota
+	// KindRaw is opaque bytes without interior parsing.
+	KindRaw
+	// KindTextureKTX2 is KTX2 plus BC1 decoded through engine/tex.
+	KindTextureKTX2
+)
+func ParseKind(name string) (Kind, error)
+    ParseKind looks name up by frozen name. Empty is InvalidArg; unfrozen names
+    (basis, spine, tmx, atlas, ...) are Unsupported.
+
+func (k Kind) String() string
+    String returns the stable log name of k.
+
+func (k Kind) Valid() bool
+    Valid reports whether k is a loadable carrier.
+
+type LargeEstimate struct {
+	Name   string `json:"name"`
+	Format string `json:"format"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	Count  int    `json:"count"`
+}
+    LargeEstimate is one budget-only row: count images share one w/h/format.
+    No picture is stored; VRAM is count times the per-image math.
+
+type LargeLink struct {
+	Set  string `json:"set"`
+	ID   string `json:"id"`
+	Need string `json:"need"`
+	Code string `json:"code"`
+}
+    LargeLink is one frozen broken chain in large_links.json.
+
+type LargeLinksFile struct {
+	Links []LargeLink `json:"links"`
+}
+    LargeLinksFile is the frozen broken-link report slot.
+
+type LargeManifest struct {
+	Version   string          `json:"version"`
+	Tier      string          `json:"tier"`
+	Scale     LargeScale      `json:"scale"`
+	Sets      []LargeSet      `json:"sets"`
+	Estimates []LargeEstimate `json:"estimates"`
+}
+    LargeManifest is the S88 set table plus size math: a few file-backed sets
+    prove per-set reload, estimate rows prove the 3000-image budget.
+
+func LoadLargeManifest(path string) (*LargeManifest, error)
+    LoadLargeManifest reads and validates path. Estimates prove VRAM by math;
+    only the few file-backed sets need real files at reload time.
+
+type LargeMember struct {
+	ID      string   `json:"id"`
+	Kind    string   `json:"kind"`
+	Format  string   `json:"format"`
+	File    string   `json:"file"`
+	Version string   `json:"version"`
+	Width   int      `json:"width"`
+	Height  int      `json:"height"`
+	Size    int      `json:"size"`
+	Upload  int      `json:"upload"`
+	Pixels  int      `json:"pixels"`
+	Deps    []string `json:"deps"`
+}
+    LargeMember is one file-backed image in a loadable set. Width/height/ format
+    prove the frozen size/upload/pixels by math; file proves reload.
+
+type LargeScale struct {
+	TotalImages int    `json:"total_images"`
+	TotalSets   int    `json:"total_sets"`
+	Note        string `json:"note"`
+}
+    LargeScale declares the full-deck target the estimates stand for.
+
+type LargeSet struct {
+	Name    string        `json:"name"`
+	Members []LargeMember `json:"members"`
+}
+    LargeSet pins file-backed members to one reload unit.
+
+type Manager struct {
+	// Has unexported fields.
+}
+    Manager owns one asset ledger: cached bytes plus the shared core.Manager
+    refcount ledger. A nil Manager never panics.
+
+func NewManager() *Manager
+    NewManager builds an empty ledger.
+
+func (m *Manager) Count() int
+    Count returns the Ready entry count.
+
+func (m *Manager) Dependencies(id core.AssetID) ([]core.AssetID, bool)
+    Dependencies returns a copy of what id needs. Unknown ids report false.
+
+func (m *Manager) Dependents(id core.AssetID) []core.AssetID
+    Dependents returns every Ready id that lists id, sorted for replay.
+
+func (m *Manager) Evict(id core.AssetID) error
+    Evict frees the cached bytes of id when it has no live claims. Live ids
+    report InvalidArg; unknown ids report NotFound.
+
+func (m *Manager) HashOf(id core.AssetID) (uint64, bool)
+    HashOf returns the stored hash of a Ready id.
+
+func (m *Manager) LiveCount(id core.AssetID) int
+    LiveCount returns the live reference count of id.
+
+func (m *Manager) Load(id core.AssetID, kind Kind, ver core.Version, data []byte, deps []core.AssetID) (*Asset, error)
+    Load caches data under id and acquires one claim. Empty id/data, unknown
+    kind, bad deps, and oversize payloads fail without storing; version gaps
+    fail as VersionMismatch; torn KTX2 reports the tex code. Missing ids are
+    NotFound only through LoadFile/Poll, not Load.
+
+func (m *Manager) LoadFile(id core.AssetID, path string, kind Kind, ver core.Version, deps []core.AssetID) (*Asset, error)
+    LoadFile reads path and caches it under id. Empty path is InvalidArg;
+    OS misses are NotFound with a Missing placeholder.
+
+func (m *Manager) Loaded(id core.AssetID) bool
+    Loaded reports whether id has live claims.
+
+func (m *Manager) Placeholder(id core.AssetID) *Asset
+    Placeholder returns a usable empty snapshot for id. Missing assets use it so
+    callers never branch on nil. Empty ids return nil.
+
+func (m *Manager) Poll(id core.AssetID) (State, error)
+    Poll reports the lifecycle state of id without blocking. Unknown ids are
+    StateEmpty plus NotFound; Loading and Ready report nil; Missing and Failed
+    replay the stored cause.
+
+func (m *Manager) Ready(id core.AssetID) bool
+    Ready reports whether id has cached bytes.
+
+func (m *Manager) Ref(id core.AssetID) (*Asset, error)
+    Ref adds one claim on a Ready id and returns a fresh snapshot. Missing or
+    failed ids return their placeholder plus the cause; over-budget manager
+    growth is OutOfMemory.
+
+func (m *Manager) Request(id core.AssetID, kind Kind, ver core.Version, data []byte, deps []core.AssetID) error
+    Request starts a background load of data under id. The data is copied before
+    the goroutine starts, so the caller may reuse it. Poll reports Loading until
+    the worker stores Ready or Failed. Duplicate Requests while Loading are
+    no-ops.
+
+func (m *Manager) RequestFile(id core.AssetID, path string, kind Kind, ver core.Version, deps []core.AssetID) error
+    RequestFile starts a background load of path under id.
+
+func (m *Manager) StateOf(id core.AssetID) State
+    StateOf returns the lifecycle state of id.
+
+func (m *Manager) Stats() Stats
+    Stats returns a copy of the manager counters.
+
+func (m *Manager) TotalBytes() int64
+    TotalBytes returns the retained payload bytes.
+
+func (m *Manager) Unload(id core.AssetID) error
+    Unload drops one claim on id. Unknown ids are NotFound; ids with no live
+    claims are InvalidArg and change nothing. Cached bytes stay for quick
+    reload; use Evict to free them.
+
+func (m *Manager) VersionOf(id core.AssetID) (core.Version, bool)
+    VersionOf returns the stored version of a Ready id.
+
+func (m *Manager) Wait(id core.AssetID) (*Asset, error)
+    Wait blocks until id leaves Loading, then returns its snapshot. Unknown ids
+    return a NotFound error; Failed/Missing replay the cause. The wait caps at 5
+    seconds so a stuck worker cannot hang play.
+
+type PackOptions struct {
+	Gutter  int
+	Extrude int
+}
+    PackOptions names the S65 seam switch: Gutter 2..4 transparent px, Extrude
+    1..2 bleed px. Zero means the default, so the zero value packs with gutter 2
+    extrude 1.
+
+func DefaultPackOptions() PackOptions
+    DefaultPackOptions returns gutter 2 extrude 1.
+
+func (o PackOptions) Normalized() PackOptions
+    Normalized maps zero fields to the defaults.
+
+func (o PackOptions) Validate() error
+    Validate rejects gutter outside 2..4 and extrude outside 1..2.
+
+type ReloadLog struct {
+	Set       string
+	ID        core.AssetID
+	Bytes     int
+	OK        bool
+	Code      core.Code
+	ElapsedNs int64
+}
+    ReloadLog is one per-image reload record for stuck locating.
+
+type ReloadSetResult struct {
+	Set       string
+	ElapsedNs int64
+	OK        int
+	Failed    int
+}
+    ReloadSetResult is one per-set reload record.
+
+type SetMember struct {
+	ID   core.AssetID
+	Kind Kind
+	Ver  core.Version
+	Deps []core.AssetID
+}
+    SetMember pins one image to one set with its load shape.
+
+type SetReloader struct {
+	// Has unexported fields.
+}
+    SetReloader groups ids into sets so one image edit only reloads its own set.
+    It only reads the Manager paths, never rewrites them.
+
+func NewSetReloader(mgr *Manager) *SetReloader
+    NewSetReloader builds a reloader over mgr. A nil mgr reports InvalidArg on
+    reload, queries report zero values.
+
+func (r *SetReloader) Live() bool
+    Live reports the online gate.
+
+func (r *SetReloader) Logs() []ReloadLog
+    Logs returns a copy of the reload log slot.
+
+func (r *SetReloader) Manager() *Manager
+    Manager returns the watched ledger, or nil when unset.
+
+func (r *SetReloader) Members(set string) []SetMember
+    Members lists a copy of one set sorted by id.
+
+func (r *SetReloader) RegisterSet(name string, members []SetMember) error
+    RegisterSet pins ids to name. One id lives in one set only.
+
+func (r *SetReloader) ReloadOne(set string, id core.AssetID, kind Kind, ver core.Version, data []byte, deps []core.AssetID) (*Asset, error)
+    ReloadOne reloads one image inside set. Other sets keep bytes. Missing
+    or torn payloads keep the last good readable when there is one, report a
+    BrokenLink carrying set plus image, and never panic. Live mode rejects logic
+    swaps with the reason.
+
+func (r *SetReloader) ReloadOneFile(set string, id core.AssetID, path string, kind Kind, ver core.Version, deps []core.AssetID) (*Asset, error)
+    ReloadOneFile reloads one image inside set from path. Missing files report
+    NotFound carrying set plus image and keep the last good.
+
+func (r *SetReloader) Reports() []BrokenLink
+    Reports returns a copy of the broken-link report slot.
+
+func (r *SetReloader) SetLive(live bool)
+    SetLive switches the online gate. Live true blocks logic swaps.
+
+func (r *SetReloader) SetOf(id core.AssetID) (string, bool)
+    SetOf returns the set holding id.
+
+func (r *SetReloader) Sets() []string
+    Sets lists set names sorted for replay.
+
+func (r *SetReloader) VerifyLinks(set string) []BrokenLink
+    VerifyLinks checks every member of set plus its deps. Broken chains join the
+    report slot with set, image, and the need that broke.
+
+type State int
+    State names the lifecycle of one id.
+
+const (
+	// StateEmpty means no record for the id.
+	StateEmpty State = iota
+	// StateLoading means a background Request is in flight.
+	StateLoading
+	// StateReady means payload bytes are cached.
+	StateReady
+	// StateMissing is the placeholder for a NotFound id or file.
+	StateMissing
+	// StateFailed is the placeholder for BadData/Unsupported/OutOfMemory/VersionMismatch.
+	StateFailed
+)
+func (s State) String() string
+    String returns the stable log name of s.
+
+type Stats struct {
+	Count      int
+	TotalBytes int64
+	Loads      int64
+	Unloads    int64
+	Requests   int64
+}
+    Stats reports manager counters. Count is Ready entries; TotalBytes sums
+    their payload bytes.
+
+type Tier int
+    Tier names the quality strategy. It never pins a byte cap; PolicyFor maps it
+    to keep/stream/evict behavior only.
+
+const (
+	// TierPerformance drops idle sets first, preloads nothing.
+	TierPerformance Tier = iota
+	// TierBalanced preloads the active set, streams the rest.
+	TierBalanced
+	// TierQuality keeps resident sets, fails the swap instead of evicting.
+	TierQuality
+)
+func ParseTier(name string) (Tier, error)
+    ParseTier maps the frozen tier name. Empty or unknown is InvalidArg.
+
+func (t Tier) String() string
+    String returns the stable file name of t.
+
+type TierPolicy struct {
+	Tier         Tier
+	KeepResident bool
+	PreloadAll   bool
+	EvictIdle    bool
+	StreamMips   bool
+}
+    TierPolicy is the strategy for one tier: which sets stay resident, whether
+    the active set preloads, whether idle sets evict, whether mips stream.
+    No byte cap rides here.
+
+func PolicyFor(t Tier) TierPolicy
+    PolicyFor returns the frozen strategy for t.
+
+type Watcher struct {
+	// Has unexported fields.
+}
+    Watcher watches files for one Manager and reloads only the changed id
+    through Manager.LoadFile, so a texture edit never touches maps and saves.
+    It draws nothing; the caller draws the reloaded bytes with the existing
+    render draws. Only core numbers are used; the old asset and tex paths stay
+    untouched (LoadFile is only read, never modified).
+
+    Threading: every method locks. Poll compares size plus modtime plus a
+    content hash probe only when size/modtime moved, so the hot path stays a
+    stat call. Reload re-reads the file through the manager, keeping the extra
+    claim drained so the ledger does not grow.
+
+func NewWatcher(mgr *Manager) *Watcher
+    NewWatcher builds a watcher over mgr. A nil mgr reports InvalidArg on Watch
+    and Reload, queries report zero values.
+
+func (w *Watcher) CauseOf(id core.AssetID) error
+    CauseOf replays the stored Reload failure for id, or nil when the last
+    Reload succeeded or none ran.
+
+func (w *Watcher) Count() int
+    Count returns the watched id count.
+
+func (w *Watcher) Manager() *Manager
+    Manager returns the watched asset ledger, or nil when unset.
+
+func (w *Watcher) PathOf(id core.AssetID) string
+    PathOf returns the watched path of id, or "" when unwatched.
+
+func (w *Watcher) Poll() ([]core.AssetID, error)
+    Poll stats every watched file and marks changed ids Dirty. It never loads:
+    call Reload to swap bytes. Missing files mark Dirty too, so the delete
+    shows up and Reload reports NotFound instead of silence. Nil watchers report
+    InvalidArg. It returns the newly dirty ids sorted.
+
+    Change detection is size plus modtime (one stat per file, no reads),
+    so the steady state never pays file I/O. Callers that rewrite a file faster
+    than the filesystem timestamp tick must bump the modtime (see TouchFile in
+    the test) or the change stays invisible until the next tick, exactly like
+    classic make-style watchers.
+
+func (w *Watcher) Reload(id core.AssetID) (*Asset, error)
+    Reload re-reads the watched file of id through Manager.LoadFile and
+    swaps only that id: other ids keep their bytes and claims. A Dirty id
+    that loads clean returns to Watching; a failed Reload keeps the last
+    good snapshot readable and parks the watch at Failed with CauseOf set.
+    A failed Reload never adopts the bad fingerprint, so the next Poll reports
+    the id Dirty again until the file is fixed. Clean ids reload anyway
+    (explicit refresh) and stay Watching on success. Unknown ids are NotFound.
+    Nil watchers/managers report InvalidArg.
+
+func (w *Watcher) ReloadDirty() ([]*Asset, error)
+    ReloadDirty polls once then reloads every Dirty id, returning the reloaded
+    snapshots in sorted id order. Failed ids stay Failed with CauseOf set and do
+    not stop the rest. Nil watchers report InvalidArg.
+
+func (w *Watcher) StateOf(id core.AssetID) HotState
+    StateOf returns the lifecycle state of id.
+
+func (w *Watcher) Stats() HotStats
+    Stats returns a copy of the watcher counters.
+
+func (w *Watcher) Unwatch(id core.AssetID) error
+    Unwatch drops the watch on id but keeps the manager bytes for quick
+    re-watch. Unknown ids are NotFound. Nil watchers report InvalidArg.
+
+func (w *Watcher) Watch(id core.AssetID, path string, kind Kind, ver core.Version, deps []core.AssetID) (*Asset, error)
+    Watch pins id to path with the load shape Reload replays. The current file
+    loads immediately through Manager.LoadFile, so Watch both starts watching
+    and fills the first snapshot. Empty ids/paths are InvalidArg; unknown kinds
+    are InvalidArg; bad deps are InvalidArg/OutOfMemory and store nothing.
+    Missing or torn files report the manager cause and store no watch: fix the
+    file, then Watch again.
+
+func (w *Watcher) Watched(id core.AssetID) bool
+    Watched reports whether id is watched now.
+
+func (w *Watcher) WatchedIDs() []core.AssetID
+    WatchedIDs lists watched ids sorted for replay.
+

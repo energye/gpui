@@ -1,0 +1,9 @@
+--- FAIL: TestConformanceDualBackend (0.81s)
+    conformance_test.go:113: conformance failures:
+          native clip_blend: region left_red_band: coverage=0.8713 want [1.00,1.00] ±0.0pp; region blend_band: coverage=0.8713 want [1.00,1.00] ±0.0pp; region right_blue_band: coverage=0.9681 want [1.00,1.00] ±0.0pp
+          native solid_gradient: region left_red_fill: coverage=0.9212 want [1.00,1.00] ±0.0pp
+          go clip_blend: region left_red_band: coverage=0.8713 want [1.00,1.00] ±0.0pp; region blend_band: coverage=0.8713 want [1.00,1.00] ±0.0pp; region right_blue_band: coverage=0.9681 want [1.00,1.00] ±0.0pp
+          go solid_gradient: region left_red_fill: coverage=0.9212 want [1.00,1.00] ±0.0pp
+FAIL
+FAIL	github.com/energye/gpui/render	0.826s
+FAIL

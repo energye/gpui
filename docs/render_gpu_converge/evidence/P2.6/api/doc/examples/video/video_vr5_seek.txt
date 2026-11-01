@@ -1,0 +1,11 @@
+Command video_vr5_seek is the VW2 VR5 real-window: seek to the nearest keyframe,
+decode forward to the target, recover instantly.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/video/video_vr5_seek
+
+Window: 1200x800. RUN_SECONDS>=5 (close uses 15). GPU window required. Left:
+seek gates from the real player (dual-IDR 96x96 both GOPs, B-reorder 96x96,
+480p crop: target/landing/key/forward/recover). Right: the live picture
+(dual-IDR clip, non-loop player looping via SeekTo plus two mid-run jumps;
+every jump shows at once, never black).

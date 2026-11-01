@@ -1,0 +1,7 @@
+Command ui_l1_blank is the L1 P0 gate: window + clear present via ui embedder.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    go run ./examples/ui_l1_blank
+
+Auto window backend: Wayland or X11 (auto; force via platform.Options.Backend).
+Duration: default 60s; override with RUN_SECONDS.

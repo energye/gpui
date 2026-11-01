@@ -1,0 +1,16 @@
+examples/render_basic
+examples/render_cjk_text
+examples/render_pixel_perfect
+examples/render_shapes
+examples/render_text
+examples/render_text_fallback
+examples/render_visual_basic
+examples/render_visual_cjk_text
+examples/render_visual_clipping
+examples/render_visual_gpu
+examples/render_visual_images
+examples/render_visual_scene
+examples/render_visual_scene_gpu
+examples/render_visual_shapes
+examples/render_visual_text
+examples/render_visual_text_transform

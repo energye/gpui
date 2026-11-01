@@ -1,0 +1,20 @@
+Command ui_l1_render_matrix is a multi-axis L1 render verification smoke
+(M1–M5).
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=15 go run ./examples/ui_l1_render_matrix -auto-only
+    go run ./examples/ui_l1_render_matrix                 # manual: animate until close
+    go run ./examples/ui_l1_render_matrix -manual-seconds 10
+
+Alignment claim: PARTIAL Flutter-style L1 contracts (boundaries, CompositeOnly
+stats, DirtyLayerIDs, async present, virtual list). NOT full Engine parity —
+true dirty-RECT present / Picture display lists / per-layer GPU RT are P6 and
+intentionally unclaimed.
+
+Evidence (U21): gate mode freezes the animation (phase pinned at 0.5,
+scroll pinned at y=336, ticker runs with dt=0 so repaints hold fixed content)
+and takes a full-window bitwise Golden (720x400, no HUD band in this window).
+Manual mode keeps the spinner/scroll/pulse animation.
+
+Package main scene builder for ui_l1_render_matrix (example-local only — not a
+ui/ library).

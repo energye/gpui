@@ -1,0 +1,16 @@
+Command video_retained_golden is the C4 Golden real-window: one committed
+NV12 frame through RenderVideo -> scene.TextureLayer -> retained composite,
+with colour probes and a zero-tolerance Golden.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    bash video/testdata/gen_c4_golden.sh          # fixture is committed; script documents/rechecks it
+    go run ./examples/video/video_retained_golden -auto-only
+    GPUI_ACCEPT_GOLDEN=1 go run ./examples/video/video_retained_golden -auto-only   # seed, review, commit
+    go run ./examples/video/video_retained_golden -manual-seconds 15
+
+Window: 1200x800. GPU window required. The fixture is 904x656, exactly the
+shell body at this window size, so the video draws 1:1 and the Golden does not
+depend on a sampler's scale path. The frame is frozen after one upload: retained
+replays are therefore byte-stable, which is what a committed Golden needs.
+Decode is deliberately out of scope (VR3 owns ffmpeg-anchored decode baselines);
+this window judges the C4 render path only.

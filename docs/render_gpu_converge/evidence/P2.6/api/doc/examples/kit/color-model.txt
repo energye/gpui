@@ -1,0 +1,7 @@
+Command color-model is the G5 real window: color value plus panel math.
+
+RUN_SECONDS=5 go run ./examples/kit/color-model
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Correctness window
+(RUN_SECONDS>=5): slope_gate=off, fps gate on.

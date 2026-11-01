@@ -1,0 +1,9 @@
+Command kit_f0_motion is the F0-5 motion real window: spinner true rotation
+plus wave spread/fade plus reduced-motion freeze plus the central four-gate
+self-check.
+
+RUN_SECONDS=30 go run ./examples/kit_f0_motion
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Steady window (30s): fps gate on
+(fps_interval>=55, p95<=22ms), slope_gate=off.

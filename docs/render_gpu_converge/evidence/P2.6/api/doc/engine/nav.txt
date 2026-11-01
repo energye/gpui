@@ -1,0 +1,277 @@
+package nav // import "github.com/energye/gpui/engine/nav"
+
+Package nav freezes the CPU-side grid pathfinding every 2.5D crowd feeds.
+
+Frozen 2026-10-05 (S87): Grid, NewGrid, Bake, Encode, Decode, Equal, Cell,
+Status, FindPath, CellToWorld, WorldToCell, Agent, NewAgent, DefaultSpeed,
+ArriveTol, Queue, NewQueue, DefaultPerFrame, Tuning, LoadTuning, DrainFrames.
+Additive changes only.
+
+This package only computes numbers; it draws nothing and steps nothing.
+The caller bakes one Grid, queues path requests through Queue, then moves Agents
+along the returned waypoints. Only core numbers are used; no new Vec2/Rect is
+defined here.
+
+Godot mapping (only the approach is copied, no code is moved):
+  - AStarGrid2D 8-way default feel (G27): orthogonal cost 1, diagonal cost
+    sqrt(2), octile heuristic, diagonal steps never cut wall corners (both
+    orthogonal neighbours must be walkable).
+  - NavigationAgent2D target/next_path/desired_distance/max_speed:
+    Agent holds the waypoint list, Next is the next_path cursor, ArriveTol is
+    desired_distance, Speed is max_speed.
+  - NavigationPolygon bake: Bake builds the walkable grid from the
+    caller-supplied solid predicate; Encode is the byte-identical baked artifact
+    (row-major 0/1, same input yields same bytes).
+
+Window intent: examples/engine/nav; pure grid math, offscreen golden only.
+
+CONSTANTS
+
+const (
+	DefaultSpeed = 200.0
+	ArriveTol    = 2.0
+)
+    Agent motion numbers (S87 truth): speed 200 world units/s matches the
+    navigation demo feel, arrival tolerance 2 units is desired_distance.
+
+const (
+	MaxGridW     = 1024
+	MaxGridH     = 1024
+	MaxGridCells = 1048576
+)
+    Bake limits: a 1024x1024 grid is the largest single bake (same order as the
+    tilemap large档). Past it Bake reports OutOfMemory, never a half grid.
+
+const (
+	// DefaultPerFrame is the paths computed per Update.
+	DefaultPerFrame = 8
+	// MaxPerFrame caps one Update so a tuned value cannot spike a frame.
+	MaxPerFrame = 64
+)
+    Queue amortization (S87 truth): 100 agents at 8 paths/frame drain in 13
+    frames (ceil(100/8)), so one spike frame never pays 100 A* runs. The count
+    lives in JSON (per_frame) and is tunable without code.
+
+
+FUNCTIONS
+
+func CellToWorld(c Cell, cellSize float64, origin core.Vec2) core.Vec2
+    CellToWorld maps a cell to its center in world units: origin is the top-left
+    of cell (0,0), cellSize scales one cell edge.
+
+func CellsToWorld(cells []Cell, cellSize float64, origin core.Vec2) []core.Vec2
+    CellsToWorld converts a cell chain to world waypoints (cell centers).
+
+func DrainFrames(total, perFrame int) int
+    DrainFrames predicts Update calls to finish total jobs at perFrame each:
+    ceil(total/perFrame). Bad inputs report 0.
+
+func FindPath(g Grid, start, goal Cell) ([]Cell, Status, error)
+    FindPath runs A* over g from start to goal (both inclusive in the returned
+    chain). 8-way with corner-cut forbidden: a diagonal step is allowed only
+    when both orthogonal neighbours are walkable, so paths never slip through
+    wall corners (Godot AStarGrid2D default feel).
+
+    Errors: invalid grids or out-of-bounds endpoints are InvalidArg with
+    StatusInvalid and a nil path. Solid endpoints are InvalidArg with
+    StatusStartBlocked/StatusGoalBlocked and a nil path (terminal, no retry).
+    Legal-but-disconnected endpoints return StatusNoPath with a nil error
+    (terminal, not a crash).
+
+
+TYPES
+
+type Agent struct {
+	// Has unexported fields.
+}
+    Agent walks one waypoint list at a fixed speed: Pos is the live spot, Next
+    is the next_path cursor into Waypoints, Done is the arrived terminal (within
+    ArriveTol of the final point). The caller owns grid truth via FindPath;
+    Agent only integrates motion.
+
+func NewAgent(pos core.Vec2, speed float64) (Agent, error)
+    NewAgent builds an agent at pos walking at speed units/s. Pos must
+    be finite, speed must be finite and > 0 (DefaultSpeed 200 matches the
+    navigation demo), else InvalidArg.
+
+func (a *Agent) Done() bool
+    Done reports whether the agent rests at its terminal (empty path counts as
+    done). Nil reports done.
+
+func (a *Agent) Pos() core.Vec2
+    Pos returns the live spot (zero on nil).
+
+func (a *Agent) Remaining() int
+    Remaining counts waypoints not yet reached, or 0 on nil/done.
+
+func (a *Agent) SetCells(cells []Cell, cellSize float64, origin core.Vec2) error
+    SetCells installs a cell chain as world waypoints (cell centers). Empty
+    chains park at done; bad cellSize is InvalidArg.
+
+func (a *Agent) SetWaypoints(pts []core.Vec2) error
+    SetWaypoints installs a new route: the agent restarts from its current spot
+    toward pts[0]. Empty/nil pts park the agent at done. Any non-finite point is
+    InvalidArg and keeps the old route.
+
+func (a *Agent) Speed() float64
+    Speed returns the walk speed, or 0 on nil.
+
+func (a *Agent) Step(dt float64) (bool, error)
+    Step advances toward the current waypoint by speed*dt: reaching within
+    ArriveTol (2 units) consumes the waypoint; consuming the last one parks at
+    done and reports arrived=true. dt must be finite and >= 0, else InvalidArg
+    keeps the agent still. Nil receivers report InvalidArg.
+
+func (a *Agent) Waypoints() []core.Vec2
+    Waypoints returns a fresh copy of the waypoint list.
+
+type Cell struct {
+	X, Y int
+}
+    Cell is one grid address.
+
+func WorldToCell(p core.Vec2, cellSize float64, origin core.Vec2, w, h int) (Cell, bool)
+    WorldToCell maps a world point to its owning cell. Out-of-grid points report
+    ok=false.
+
+type Grid struct {
+	// Has unexported fields.
+}
+    Grid is one baked walkable grid: W/H cell counts plus row-major solid flags
+    (true blocks). The zero Grid is invalid; build via NewGrid/Bake.
+
+func Bake(w, h int, solidAt func(x, y int) bool) (Grid, error)
+    Bake builds a grid by sampling solidAt per cell: nil predicate means all
+    walkable. Same W/H plus same predicate answers always yield the same Grid
+    and the same Encode bytes. Bad sizes follow NewGrid codes.
+
+func Decode(w, h int, raw []byte) (Grid, error)
+    Decode rebuilds a grid from Encode bytes: length must equal W*H and every
+    byte must be 0/1. Size faults are InvalidArg (too large is OutOfMemory);
+    length/value faults are BadData. Bad writes build nothing.
+
+func NewGrid(w, h int) (Grid, error)
+    NewGrid builds an empty (all walkable) grid. W/H must sit in [1,1024] with
+    W*H <= MaxGridCells, else InvalidArg (too large is OutOfMemory).
+
+func (g Grid) Encode() []byte
+    Encode renders the deterministic bake artifact: row-major 0/1 bytes (y*W+x),
+    1 means blocked. Same input always yields identical bytes; invalid grids
+    encode to nil.
+
+func (g Grid) Equal(o Grid) bool
+    Equal reports whether two grids share size and every solid flag. Invalid
+    grids never equal, even to each other.
+
+func (g Grid) H() int
+    H returns the grid height, or 0 on an invalid grid.
+
+func (g Grid) InBounds(x, y int) bool
+    InBounds reports whether (x,y) sits inside the grid.
+
+func (g *Grid) SetSolid(x, y int, solid bool) error
+    SetSolid flips one cell. Out-of-bounds or invalid grids report InvalidArg
+    and change nothing.
+
+func (g Grid) SolidAt(x, y int) (solid, ok bool)
+    SolidAt reports whether (x,y) blocks. Out-of-bounds and invalid grids report
+    blocked (fail closed) with ok=false.
+
+func (g Grid) SolidCount() int
+    SolidCount counts blocked cells, or 0 on an invalid grid.
+
+func (g Grid) Valid() bool
+    Valid reports whether g holds a usable grid.
+
+func (g Grid) W() int
+    W returns the grid width, or 0 on an invalid grid.
+
+type Queue struct {
+	// Has unexported fields.
+}
+    Queue holds pending requests plus computed terminals. The caller owns grid
+    truth and drains via Update; Queue never draws and never moves.
+
+func NewQueue() Queue
+    NewQueue builds an empty queue draining DefaultPerFrame paths/Update.
+
+func (q *Queue) Clear()
+    Clear forgets pending jobs and computed terminals; tuning and the ID ledger
+    stay so IDs never repeat in one session.
+
+func (q *Queue) Done() int
+    Done counts computed terminals, or 0 on nil.
+
+func (q *Queue) Enqueue(start, goal Cell) int
+    Enqueue appends one job and returns its ID. Start/goal validity is checked
+    at Update time against the live grid, never here, so clicks enqueue fast.
+    Nil queues report -1.
+
+func (q *Queue) Pending() int
+    Pending counts queued-but-uncomputed jobs, or 0 on nil.
+
+func (q *Queue) PerFrame() int
+    PerFrame returns the drain count (0 on nil).
+
+func (q *Queue) Results() []Result
+    Results returns a fresh copy of every computed terminal in compute order.
+
+func (q *Queue) SetPerFrame(n int) error
+    SetPerFrame tunes the drain count: 1..MaxPerFrame, else InvalidArg keeps the
+    old count.
+
+func (q *Queue) Update(g Grid) (int, error)
+    Update computes up to perFrame pending jobs against g and appends one
+    Result per job (found and no-path alike are terminals). Invalid grids are
+    InvalidArg and compute nothing; pending stays queued. Bad cells in one job
+    mark that job invalid without stopping the rest of the frame.
+
+func (q *Queue) Updates() int64
+    Updates counts Update calls, or 0 on nil.
+
+type Request struct {
+	ID          int
+	Start, Goal Cell
+}
+    Request is one queued path job: dense FIFO order, IDs rise in enqueue order.
+
+type Result struct {
+	ID     int
+	Path   []Cell
+	Status Status
+}
+    Result is one computed terminal: Path non-nil only on StatusFound.
+
+type Status int
+    Status is the terminal outcome of one path query: every click ends in
+    exactly one of these, never a hang.
+
+const (
+	// StatusInvalid means the query itself was malformed (bad grid or
+	// out-of-bounds cell).
+	StatusInvalid Status = iota
+	// StatusFound means a walkable cell chain reached the goal.
+	StatusFound
+	// StatusNoPath means both endpoints are legal but no walkable chain
+	// connects them.
+	StatusNoPath
+	// StatusStartBlocked means the start cell is solid.
+	StatusStartBlocked
+	// StatusGoalBlocked means the goal cell is solid.
+	StatusGoalBlocked
+)
+func ParseStatus(name string) (Status, bool)
+    ParseStatus maps a testdata want string to a Status.
+
+func (s Status) String() string
+    String returns the stable status name used in JSON and testdata.
+
+type Tuning struct {
+	PerFrame int `json:"per_frame"`
+}
+    Tuning is the JSON-tunable queue file shape: {"per_frame": 8}.
+
+func LoadTuning(raw []byte) (Tuning, error)
+    LoadTuning parses queue tuning: per_frame must sit in 1..MaxPerFrame.
+    Syntax faults are BadData; range faults are InvalidArg.
+

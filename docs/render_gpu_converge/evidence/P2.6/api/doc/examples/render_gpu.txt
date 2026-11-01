@@ -1,0 +1,12 @@
+Package main demonstrates GPU-accelerated 2D rendering with render.
+
+This example shows how to:
+  - Enable GPU acceleration via blank import of gg/gpu
+  - Draw shapes that automatically use the three-tier GPU pipeline: Tier 1: SDF
+    fragment shader (circles, rounded rects) Tier 2a: Convex polygon fast-path
+    (triangles, pentagons, etc.) Tier 2b: Stencil-then-cover (arbitrary paths,
+    stars, etc.)
+  - Fall back to CPU rendering transparently when GPU is unavailable
+
+The GPU backend uses WebGPU (via gogpu/wgpu) with Vulkan for
+hardware-accelerated rendering in a single unified render pass.

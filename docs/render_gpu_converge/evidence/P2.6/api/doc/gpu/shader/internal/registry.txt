@@ -1,0 +1,43 @@
+package registry // import "github.com/energye/gpui/gpu/shader/internal/registry"
+
+Package registry provides type deduplication for the naga IR. It ensures each
+unique type is registered exactly once, which is required by SPIR-V and other
+backends that need unique type declarations.
+
+TYPES
+
+type TypeRegistry struct {
+	// Has unexported fields.
+}
+    TypeRegistry ensures type deduplication for SPIR-V emission. SPIR-V requires
+    that each unique type is declared exactly once.
+
+func NewTypeRegistry() *TypeRegistry
+    NewTypeRegistry creates a new type registry for deduplication.
+
+func NewTypeRegistryWithCap(initialCap int) *TypeRegistry
+    NewTypeRegistryWithCap creates a new type registry with pre-allocated
+    capacity. Use this when the expected number of types is known to avoid slice
+    regrowth.
+
+func (r *TypeRegistry) Append(name string, inner ir.TypeInner) ir.TypeHandle
+    Append adds a type without deduplication, always creating a new entry.
+
+func (r *TypeRegistry) Count() int
+    Count returns the number of unique types registered.
+
+func (r *TypeRegistry) GetOrCreate(name string, inner ir.TypeInner) ir.TypeHandle
+    GetOrCreate returns an existing handle for the type if it exists, or creates
+    a new one if it's unique.
+
+func (r *TypeRegistry) GetTypes() []ir.Type
+    GetTypes returns all registered types.
+
+func (r *TypeRegistry) Lookup(handle ir.TypeHandle) (ir.Type, bool)
+    Lookup finds a type by its handle.
+
+func (r *TypeRegistry) SetName(handle ir.TypeHandle, name string)
+    SetName renames an existing type in the registry and updates the dedup key.
+    Used when a type alias renames an anonymous type in-place (e.g., `alias rq =
+    ray_query;` renames the anonymous RayQuery entry to "rq").
+

@@ -1,0 +1,2373 @@
+package recording // import "github.com/energye/gpui/render/recording"
+
+Package recording provides types for recording drawing operations.
+
+The recording system enables vector export (PDF, SVG) by capturing drawing
+operations as typed command structures instead of immediate rasterization.
+Commands are stored in a Recording and can be replayed to any backend.
+
+Design follows Cairo's approach of typed command structs for inspectability and
+debuggability, rather than the binary serialization format.
+
+# Architecture
+
+Commands capture all drawing operations:
+  - State commands (Save, Restore, Concat, SetClip)
+  - Drawing commands (FillPath, StrokePath, FillRect, DrawImage, DrawText)
+  - Style commands (SetFillStyle, SetStrokeStyle, SetLineWidth, etc.)
+
+Resources (paths, brushes, images) are stored in a ResourcePool and referenced
+by typed handles (PathRef, BrushRef, ImageRef) to enable deduplication and
+efficient memory usage.
+
+# Example
+
+    // Record drawing operations
+    rec := recording.NewRecorder(800, 600)
+    rec.Save()
+    rec.SetTransform(matrix)
+    rec.FillPath(pathRef, brushRef, FillRuleNonZero)
+    rec.Restore()
+    r := rec.Finish()
+
+    // Replay to a backend
+    r.Playback(pdfBackend)
+
+Package recording provides a command-based drawing recording system for render.
+
+The recording system captures drawing operations as commands that can be
+played back to different backends, enabling vector export (PDF, SVG) and other
+transformations of 2D graphics.
+
+# Architecture
+
+The system follows a Command Pattern with three main components:
+
+  - Recorder: Captures drawing operations as commands
+  - Recording: Stores commands and resources for playback
+  - Backend: Renders commands to a specific output format
+
+This design is inspired by the SkPicture and Cairo's recording surface.
+
+# Basic Usage
+
+Record drawing operations using a Recorder:
+
+    rec := recording.NewRecorder(800, 600)
+
+    // Draw using the familiar Context-like API
+    rec.SetFillRGBA(1, 0, 0, 1) // Red
+    rec.DrawRectangle(100, 100, 200, 150)
+    rec.Fill()
+
+    rec.SetStrokeRGBA(0, 0, 1, 1) // Blue
+    rec.SetLineWidth(2)
+    rec.DrawCircle(400, 300, 50)
+    rec.Stroke()
+
+    // Finish recording
+    r := rec.FinishRecording()
+
+# Playback to Backends
+
+Play back recordings to different output formats:
+
+    // PDF output (requires github.com/energye/gpui/render-pdf)
+    import _ "github.com/energye/gpui/render-pdf"
+
+    pdfBackend, _ := recording.NewBackend("pdf")
+    r.Playback(pdfBackend)
+    pdfBackend.(recording.FileBackend).SaveToFile("output.pdf")
+
+    // SVG output (requires github.com/energye/gpui/render-svg)
+    import _ "github.com/energye/gpui/render-svg"
+
+    svgBackend, _ := recording.NewBackend("svg")
+    r.Playback(svgBackend)
+    svgBackend.(recording.FileBackend).SaveToFile("output.svg")
+
+    // Raster output (built-in)
+    rasterBackend, _ := recording.NewBackend("raster")
+    r.Playback(rasterBackend)
+    rasterBackend.(recording.PixmapBackend).Pixmap() // Get pixel data
+
+# Backend Registration
+
+Backends are registered using the database/sql driver pattern. Import a backend
+package with a blank identifier to automatically register it:
+
+    import (
+        "github.com/energye/gpui/render/recording"
+        _ "github.com/energye/gpui/render-pdf" // Registers "pdf" backend
+        _ "github.com/energye/gpui/render-svg" // Registers "svg" backend
+    )
+
+The built-in "raster" backend is always available via:
+
+    import _ "github.com/energye/gpui/render/recording/backends/raster"
+
+# Resource Management
+
+The recording system uses reference-based resource pooling for efficient storage
+and playback:
+
+  - Paths are cloned and stored with PathRef references
+  - Brushes (solid colors, gradients) are stored with BrushRef references
+  - Images are stored with ImageRef references
+  - Fonts are stored with FontRef references
+
+This ensures recordings are immutable and can be safely played back multiple
+times to different backends.
+
+# Supported Operations
+
+The Recorder supports the full gg drawing API:
+
+  - Path operations: MoveTo, LineTo, QuadraticTo, CubicTo, ClosePath
+  - Shape helpers: DrawRectangle, DrawRoundedRectangle, DrawCircle, DrawEllipse,
+    DrawArc, DrawEllipticalArc
+  - Fill and stroke with solid colors and gradients, each carrying its blend
+    mode
+  - Line styles: width, cap, join, miter limit, dash patterns
+  - Transformations: Translate, Rotate, Scale, matrix operations
+  - Clipping: path-based clipping with fill rules
+  - State management: Push/Pop (Save/Restore)
+  - Text rendering (font-dependent)
+  - Image drawing
+
+# Brushes
+
+The recording system supports multiple brush types for fills and strokes:
+
+  - SolidBrush: Single solid color
+  - LinearGradientBrush: Linear color gradient
+  - RadialGradientBrush: Radial color gradient
+  - SweepGradientBrush: Angular/conic gradient
+
+Example gradient usage:
+
+    grad := recording.NewLinearGradientBrush(0, 0, 200, 200).
+        AddColorStop(0, render.RGBA{R: 1, G: 0, B: 0, A: 1}).
+        AddColorStop(1, render.RGBA{R: 0, G: 0, B: 1, A: 1})
+
+    rec.SetFillStyle(grad)
+    rec.Fill()
+
+# Custom Backends
+
+Implement the Backend interface to create custom output formats. The contract is
+38 methods — one per command the Recorder can emit; the excerpt below shows the
+shape, Backend is the authority:
+
+    type Backend interface {
+        Begin(width, height int) error
+        End() error
+        Save()
+        Restore()
+        Concat(m Matrix)
+        SetClip(path *render.Path, rule FillRule)
+        ClipRect(rect Rect)
+        FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode)
+        StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode)
+        FillRect(rect Rect, brush Brush, blend render.BlendMode)
+        DrawImage(img *render.ImageBuf, opts render.DrawImageOptions)
+        DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush)
+        DrawText(s string, x, y float64, face text.Face, brush Brush)
+        PushLayer(blend render.BlendMode, opacity float64)
+        PopLayer()
+        // ... plus the remaining image/mesh/decoration/effect/layer methods
+    }
+
+Fill and stroke commands carry the blend mode that was ambient when they were
+recorded (Skia draws store their own paint). Replay sets it for that single call
+and restores the target canvas' blend afterward, so a DestinationIn fill used by
+render.DrawShaderMask cannot leak into later text or image commands.
+
+All geometry arrives in user space under the replayed CTM; backends must not
+bake device coordinates in.
+
+Register custom backends with Register:
+
+    func init() {
+        recording.Register("myformat", func() recording.Backend {
+            return NewMyBackend()
+        })
+    }
+
+# Thread Safety
+
+Recorder is NOT safe for concurrent use. Each goroutine should use its own
+Recorder instance. However, Recording objects are immutable after Finish() and
+can be safely shared and played back from multiple goroutines.
+
+# Performance Considerations
+
+The recording system is optimized for:
+
+  - Minimal allocations during recording (pre-allocated slices)
+  - Efficient resource deduplication via pooling
+  - Fast playback with direct command dispatch
+
+For real-time rendering, prefer direct render.Context usage. Use recording when
+you need vector export or command inspection.
+
+CONSTANTS
+
+const (
+	// FillRuleNonZero uses the non-zero winding rule.
+	FillRuleNonZero = render.FillRuleNonZero
+	// FillRuleEvenOdd uses the even-odd rule.
+	FillRuleEvenOdd = render.FillRuleEvenOdd
+	// LineCapButt specifies a flat line cap.
+	LineCapButt = render.LineCapButt
+	// LineCapRound specifies a rounded line cap.
+	LineCapRound = render.LineCapRound
+	// LineCapSquare specifies a square line cap.
+	LineCapSquare = render.LineCapSquare
+	// LineJoinMiter specifies a sharp (mitered) join.
+	LineJoinMiter = render.LineJoinMiter
+	// LineJoinRound specifies a rounded join.
+	LineJoinRound = render.LineJoinRound
+	// LineJoinBevel specifies a beveled join.
+	LineJoinBevel = render.LineJoinBevel
+)
+    Fill rule / line style constants come from render.
+
+const InvalidRef = ^uint32(0)
+    InvalidRef is the sentinel value for an invalid reference. Use this to
+    indicate that a reference does not point to a valid resource.
+
+
+VARIABLES
+
+var ErrNoCanvas = errors.New("recording: CanvasBackend has no canvas")
+    ErrNoCanvas is returned by CanvasBackend.Begin when the backend was built
+    without a target canvas.
+
+
+FUNCTIONS
+
+func ApplyBrush(dc render.Canvas, brush Brush, fill bool)
+    ApplyBrush sets the dc's fill or stroke paint from a recorded brush.
+
+    A recorded pattern brush is replayed as a pattern, not as a brush: an image
+    pattern is a render.Pattern (render.Brush is sealed and has no image form),
+    and Context.SetFillPattern is what the live call went through, so the
+    rebuilt pattern lands in the same paint fields and samples the same texels.
+    When the pattern has nothing left to sample — its image was disposed
+    between recording and replay — the paint becomes fully transparent instead
+    of guessing a colour: painting nothing is the honest degradation, painting
+    black is not.
+
+func ApplyStroke(dc render.Canvas, stroke Stroke)
+    ApplyStroke copies a recorded stroke style onto the context.
+
+func Backends() []string
+    Backends returns a sorted list of registered backend names. The list is
+    sorted alphabetically for consistent output.
+
+func Count() int
+    Count returns the number of registered backends.
+
+func IsRegistered(name string) bool
+    IsRegistered checks if a backend with the given name is registered.
+
+func MaskSkips() int64
+    MaskSkips returns how many mask commands playback had to skip. A non-zero
+    value means the target could not reproduce the recording's device space (or
+    has no mask capability at all); callers that expect masks to be visible must
+    treat it as a failure.
+
+func Register(name string, factory BackendFactory)
+    Register registers a backend factory with the given name. This function is
+    typically called from init() in backend packages, following the database/sql
+    driver pattern:
+
+        func init() {
+            recording.Register("pdf", func() recording.Backend {
+                return NewPDFBackend()
+            })
+        }
+
+    Register panics if:
+      - factory is nil
+      - a backend with the same name is already registered
+
+    This ensures that duplicate registrations are caught early during program
+    initialization rather than silently overwriting backends.
+
+func ResetMaskSkips()
+    ResetMaskSkips zeroes the skip counter (tests / per-window measurement).
+
+func ToRenderBrush(b Brush) render.Brush
+    ToRenderBrush converts a recording.Brush back to a render.Brush for playback
+    onto a render.Context. Pattern brushes have no render.Brush form at all —
+    render.Brush is sealed and an image pattern is a Pattern, not a Brush — so
+    they return nil here and replay through ToRenderPattern instead. ApplyBrush
+    does that routing; a caller that goes straight to SetFillBrush would paint
+    black, which is exactly the degradation this function refuses to hide.
+
+func ToRenderPattern(b Brush) (render.Pattern, bool)
+    ToRenderPattern converts a recorded brush back to a render.Pattern for
+    playback onto a live context. It returns false for brushes that are not
+    patterns (solid, gradient), which the caller replays as brushes. A true with
+    a nil Pattern means "this was a pattern, but there is nothing to sample" —
+    the recorded image is gone — and the caller must paint nothing rather than
+    invent a colour.
+
+func TransformPoint(m Matrix, x, y float64) (float64, float64)
+    TransformPoint applies m to (x, y) and returns the transformed coordinates.
+    render.Matrix works in render.Point; this keeps the recorder's float-pair
+    call sites (and render.Context.TransformPoint's signature) readable.
+
+func Unregister(name string)
+    Unregister removes a backend from the registry. This is primarily useful
+    for testing to clean up between tests. If the backend is not registered,
+    this is a no-op.
+
+
+TYPES
+
+type ApplyBlurCommand struct {
+	Radius float64
+}
+    ApplyBlurCommand applies a blur post-effect to subsequent draws.
+
+func (ApplyBlurCommand) Type() CommandType
+    Type implements Command.
+
+type ApplyColorMatrixCommand struct {
+	Matrix [20]float32
+}
+    ApplyColorMatrixCommand applies a 4x5 colour matrix post-effect.
+
+func (ApplyColorMatrixCommand) Type() CommandType
+    Type implements Command.
+
+type ApplyDropShadowCommand struct {
+	OffsetX, OffsetY float64
+	BlurRadius       float64
+	Color            render.RGBA
+}
+    ApplyDropShadowCommand applies a drop-shadow post-effect.
+
+func (ApplyDropShadowCommand) Type() CommandType
+    Type implements Command.
+
+type ApplyGrayscaleCommand struct{}
+    ApplyGrayscaleCommand desaturates subsequent draws.
+
+func (ApplyGrayscaleCommand) Type() CommandType
+    Type implements Command.
+
+type ApplyMaskCommand struct {
+	Mask *render.Mask
+}
+    ApplyMaskCommand applies a destructive DestinationIn post-process.
+
+func (ApplyMaskCommand) Type() CommandType
+    Type implements Command.
+
+type Backend interface {
+
+	// Begin initializes the backend for rendering at the given dimensions.
+	// This must be called before any drawing operations.
+	// Returns an error if initialization fails.
+	Begin(width, height int) error
+
+	// End finalizes the rendering and prepares the output.
+	// After End is called, output methods (WriteTo, SaveToFile) can be used.
+	// Returns an error if finalization fails.
+	End() error
+
+	// Save saves the current graphics state (transform, clip) onto a stack.
+	// The state can be restored with Restore.
+	Save()
+
+	// Restore restores the graphics state from the stack.
+	// If the stack is empty, this is a no-op.
+	Restore()
+
+	// Concat multiplies the given matrix into the current transformation
+	// matrix. Transform ops in a recording are relative: the backend composes
+	// onto the CTM it already has, so a playback context pre-set with a layer
+	// offset and device scale renders the recording in the right place.
+	Concat(m Matrix)
+
+	// SetClip sets the clipping region to the given path.
+	// Only pixels inside the path (according to the fill rule) will be drawn.
+	// The clip is intersected with any existing clip.
+	SetClip(path *render.Path, rule FillRule)
+
+	// ClearClip removes any clipping region.
+	ClearClip()
+
+	// ClipRect intersects the clip region with an axis-aligned rectangle given
+	// in user space. It is the cheaper counterpart of SetClip for rects.
+	ClipRect(rect Rect)
+
+	// ClipRectOp combines the clip region with an axis-aligned rectangle in user
+	// space using op — intersect, difference or replace (C.06). ClipRect is the
+	// intersect-only special case.
+	ClipRectOp(rect Rect, op render.ClipOp)
+
+	// ClipPathOp combines the clip region with the path using op and the fill
+	// rule, the operation-complete counterpart of SetClip.
+	ClipPathOp(path *render.Path, rule FillRule, op render.ClipOp)
+
+	// ClipRoundRect intersects the clip region with a rounded rectangle in user
+	// space. Playback must take the same call the paint walk made: re-expressing
+	// it as a path changes the rasterizer's route (a CPU clip mask instead of
+	// the rounded-corner coverage the live canvas uses), which is both slower and
+	// a fidelity difference between live paint and replay.
+	ClipRoundRect(x, y, w, h, radius float64)
+
+	// FillPath fills the given path with the brush color/pattern.
+	// The rule determines how to handle self-intersecting paths. blend is the
+	// Porter-Duff mode the recording captured for this draw; backends apply it
+	// for this call only.
+	FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode)
+
+	// StrokePath strokes the given path with the brush and stroke style.
+	StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode)
+
+	// FillRect is an optimized method for filling axis-aligned rectangles.
+	// Backends may implement this more efficiently than FillPath with a rect path.
+	FillRect(rect Rect, brush Brush, blend render.BlendMode)
+
+	// StrokeRect strokes an axis-aligned rectangle kept in user space, the
+	// stroking counterpart of FillRect.
+	StrokeRect(rect Rect, brush Brush, stroke Stroke, blend render.BlendMode)
+
+	// DrawImage draws an image buffer through the recorded options. Backends
+	// receive the same render.DrawImageOptions the caller recorded (destination,
+	// source sub-rect, interpolation, opacity, blend mode), so replay reaches the
+	// rasterizer without losing fields the display list never stored.
+	DrawImage(img *render.ImageBuf, opts render.DrawImageOptions)
+
+	// DrawImageNine stretches the edges of img between the centre patch bounds
+	// to fill dst, keeping the corners at native size.
+	DrawImageNine(img *render.ImageBuf, center image.Rectangle, dst Rect)
+
+	// DrawImageQuad maps img onto an arbitrary quad.
+	DrawImageQuad(img *render.ImageBuf, corners [4]render.Point, opts render.QuadDrawOptions)
+
+	// DrawImageRounded draws img clipped to a rounded rectangle.
+	DrawImageRounded(img *render.ImageBuf, x, y, radius float64)
+
+	// DrawImageCircular draws img clipped to a circle.
+	DrawImageCircular(img *render.ImageBuf, cx, cy, radius float64)
+
+	// DrawAtlas draws a batch of sprites sampled from one image.
+	DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSprite, opts render.AtlasDrawOptions)
+
+	// DrawDepthSprites draws a sprite batch carrying per-sprite depth.
+	DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite, opts render.DepthDrawOptions)
+
+	// DrawVertices draws an immediate-mode vertex mesh. brush is the fill paint
+	// recorded with the mesh — the fallback colour when a mesh carries fewer
+	// colours than vertices.
+	DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush)
+
+	// DrawMesh draws an indexed (or triangle-list) coloured mesh. brush is the
+	// fill paint recorded with it, the fallback when the mesh carries no per
+	// vertex colours.
+	DrawMesh(mesh render.Mesh, brush Brush)
+
+	// DrawGlyphs draws a shaped-glyph run at the baseline origin. colored selects
+	// the per-glyph colour variant over the single-brush run, which uses brush.
+	DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush)
+
+	// DrawText draws text at the given position with the specified font face and brush.
+	// The position (x, y) is the baseline origin of the text.
+	DrawText(s string, x, y float64, face text.Face, brush Brush)
+
+	// SetTextDecoration sets the decoration bitset for text drawn afterwards.
+	SetTextDecoration(deco render.TextDecoration)
+
+	// SetTextMode selects the text rendering strategy for text drawn afterwards.
+	SetTextMode(mode render.TextMode)
+
+	// SetLCDLayout sets the LCD subpixel order for ClearType text.
+	SetLCDLayout(layout render.LCDLayout)
+
+	// SetAntiAlias enables or disables anti-aliasing for the geometry and clips
+	// drawn afterwards.
+	SetAntiAlias(enabled bool)
+
+	// ApplyBlur attaches a blur post-effect to subsequent draws.
+	ApplyBlur(radius float64)
+
+	// ApplyColorMatrix attaches a 4x5 colour matrix post-effect.
+	ApplyColorMatrix(matrix [20]float32)
+
+	// ApplyDropShadow attaches a drop-shadow post-effect.
+	ApplyDropShadow(offsetX, offsetY, blurRadius float64, color render.RGBA)
+
+	// ApplyGrayscale desaturates subsequent draws.
+	ApplyGrayscale()
+
+	// PushLayer opens a layer composited onto the parent with blend and opacity.
+	PushLayer(blend render.BlendMode, opacity float64)
+
+	// PushLayerIsolated opens a forced true save-layer.
+	PushLayerIsolated(opacity float64)
+
+	// PushBackdropLayer opens a layer seeded from the parent's contents.
+	PushBackdropLayer(blend render.BlendMode, opacity float64)
+
+	// PopLayer composites the innermost layer.
+	PopLayer()
+}
+    Backend is the interface that all export backends must implement. Backends
+    receive high-level drawing commands and translate them to their output
+    format (raster pixels, PDF content streams, SVG elements, etc.).
+
+    A Backend manages its own state stack for Save/Restore operations and
+    handles coordinate transformations as needed (e.g., PDF Y-flip).
+
+    Backends are created via the registry using NewBackend(name) and registered
+    via Register() in their init() functions.
+
+    # Implementation Contract
+
+    Each backend must:
+     1. Register in init() using recording.Register()
+     2. Handle all Backend methods (even if no-op for some)
+     3. Manage own state stack for Save/Restore
+     4. Translate coordinates if needed (e.g., PDF Y-flip)
+
+    # Coordinate contract
+
+    All geometry handed to a Backend — paths, rects, image destinations and
+    text positions — is in USER space. The active CTM is whatever the replayed
+    ConcatCommand stream composed on top of the matrix the backend already
+    had when playback began (Save/Restore nest it). Backends draw through
+    that matrix instead of resetting it: recordings carry no baked device
+    coordinates, so one recording replays correctly at any device scale and
+    under any layer offset.
+
+    # Example Backend Registration
+
+        func init() {
+            recording.Register("pdf", func() recording.Backend {
+                return NewPDFBackend()
+            })
+        }
+
+func MustBackend(name string) Backend
+    MustBackend creates a new backend instance by name, panicking on error.
+    This is useful when backend availability is guaranteed.
+
+    Example:
+
+        backend := recording.MustBackend("raster")
+
+func NewBackend(name string) (Backend, error)
+    NewBackend creates a new backend instance by name. The name must match a
+    previously registered backend.
+
+    Example:
+
+        import _ "github.com/energye/gpui/render-pdf" // Register PDF backend
+
+        backend, err := recording.NewBackend("pdf")
+        if err != nil {
+            // Handle error - backend not registered
+        }
+
+    Returns an error if the backend is not registered. The error message
+    includes a hint about forgotten imports.
+
+type BackendFactory func() Backend
+    BackendFactory is a function that creates a new backend instance. Factories
+    are registered via Register() and called by NewBackend().
+
+type Brush interface {
+	// Has unexported methods.
+}
+    Brush represents a fill/stroke style for recording commands. This is a
+    sealed interface - only types in this package implement it.
+
+    Unlike render.Brush which is designed for immediate-mode rendering with
+    ColorAt, recording.Brush stores the brush definition for later playback to
+    different backends (raster, PDF, SVG).
+
+func FromRenderBrush(b render.Brush) Brush
+    FromRenderBrush converts a render.Brush to a recording.Brush. This extracts
+    the brush definition for storage in a recording.
+
+func FromRenderPattern(p render.Pattern, pool *ResourcePool) Brush
+    FromRenderPattern converts a render.Pattern into a recorded brush. render's
+    own paint treats a solid pattern as an inline colour, an image pattern as
+    a data description, and anything else as a live sampler, so the recording
+    splits the same three ways. The pool is where the pattern's image gets
+    registered, so a retained packet keeps sealing it (see Recording.ImageBufs).
+
+type BrushRef uint32
+    BrushRef is a reference to a brush in the resource pool. The zero value is a
+    valid reference to the first brush (if any).
+
+func (r BrushRef) IsValid() bool
+    IsValid returns true if the reference points to a valid brush.
+
+type CanvasBackend struct {
+	// Has unexported fields.
+}
+    CanvasBackend replays a Recording onto a render.Canvas.
+
+    This is the primary playback path — the counterpart of SkPicture::playback
+    (SkCanvas*): the recording is a display list in user space, and the target
+    canvas supplies the coordinate system it lands in. Playback composes onto
+    the canvas's existing CTM and clip instead of replacing them, so a picture
+    recorded on the UI thread in layer-local logical pixels rasterizes correctly
+    under the layer offset and the device scale that the raster thread already
+    set up. Begin pushes the canvas state and End pops it (plus restores the
+    brushes, which Context.Pop does not track), so a recording cannot leak into
+    whatever the canvas paints next.
+
+    Taking the interface rather than the live context is what makes recordings
+    composable: replaying onto a *Recorder folds the commands into the
+    surrounding recording, so one display list can be reused inside another and
+    the same call works while recording and while rasterizing.
+
+    The raster image backend is a thin wrapper around this type; both share one
+    interpretation of the command stream.
+
+func NewCanvasBackend(dc render.Canvas) *CanvasBackend
+    NewCanvasBackend returns a backend that draws into dc. The canvas keeps its
+    own size, scale and clip; the recording is positioned by composing onto them
+    at playback.
+
+func (b *CanvasBackend) ApplyBlur(radius float64)
+    ApplyBlur attaches a blur post-effect.
+
+func (b *CanvasBackend) ApplyColorMatrix(matrix [20]float32)
+    ApplyColorMatrix attaches a 4x5 colour matrix post-effect.
+
+func (b *CanvasBackend) ApplyDropShadow(offsetX, offsetY, blurRadius float64, color render.RGBA)
+    ApplyDropShadow attaches a drop-shadow post-effect.
+
+func (b *CanvasBackend) ApplyGrayscale()
+    ApplyGrayscale desaturates subsequent draws.
+
+func (b *CanvasBackend) ApplyMask(mask *render.Mask)
+    ApplyMask replays a destructive DestinationIn post-process.
+
+func (b *CanvasBackend) Begin(w, h int) error
+    Begin records the state to restore at End and protects the context's CTM
+    and clip. User-space geometry composes onto whatever pixel space the target
+    defines; device-space masks are stricter and are only enabled when the
+    target extent equals the recorded extent.
+
+func (b *CanvasBackend) ClearClip()
+    ClearClip resets the clip to the full context.
+
+func (b *CanvasBackend) ClearMask()
+    ClearMask replays mask removal. It adds no mask pixels, so an unsupported
+    target or mismatched extent does not count as a visible skip.
+
+func (b *CanvasBackend) ClipPathOp(path *render.Path, rule FillRule, op render.ClipOp)
+    ClipPathOp applies the recorded path to the clip with op. The rule travels
+    as an argument because Context.ClipPathOp reads it off the paint: replay
+    sets the rule the recorder had, draws the path, then clips — the exact call
+    sequence the live path went through.
+
+func (b *CanvasBackend) ClipRect(rect Rect)
+    ClipRect intersects the clip region with a user-space rectangle.
+
+func (b *CanvasBackend) ClipRectOp(rect Rect, op render.ClipOp)
+    ClipRectOp combines the clip region with a user-space rectangle using op.
+    The live method takes the same four floats, so replay is the same call.
+
+func (b *CanvasBackend) ClipRoundRect(x, y, w, h, radius float64)
+    ClipRoundRect intersects the clip region with a rounded rectangle,
+    forwarding to the canvas's native primitive so replay rasterizes the same
+    way the live walk did.
+
+func (b *CanvasBackend) Concat(m Matrix)
+    Concat multiplies m into the current CTM, composing with the matrix the
+    context already had rather than replacing it.
+
+func (b *CanvasBackend) DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSprite, opts render.AtlasDrawOptions)
+    DrawAtlas replays a sprite batch. Context returns a degradation report that
+    only exists once rasterized, so the replay result is dropped here.
+
+func (b *CanvasBackend) DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite, opts render.DepthDrawOptions)
+    DrawDepthSprites replays a depth-tagged sprite batch.
+
+func (b *CanvasBackend) DrawGPUTexture(view render.TextureView, x, y float64, width, height int)
+    DrawGPUTexture replays a device-owned texture view. The target handles
+    the bind: a live context queues the quad, and a nested recorder folds the
+    command into the surrounding recording so the view still reaches the raster
+    thread. A canvas that cannot bind device views drops the command.
+
+func (b *CanvasBackend) DrawGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64, colored bool, brush Brush)
+    DrawGlyphs replays a shaped-glyph run.
+
+func (b *CanvasBackend) DrawImage(img *render.ImageBuf, opts render.DrawImageOptions)
+    DrawImage replays the recorded options onto the context unchanged. The image
+    arrives as the *render.ImageBuf the caller drew with, so no pixel copy and
+    no GPU texture identity loss happens per playback. Option defaults (zero
+    opacity or interpolation meaning "unspecified") are Context's business:
+    forwarding verbatim is what makes replay bit-identical to the live call.
+
+func (b *CanvasBackend) DrawImageCircular(img *render.ImageBuf, cx, cy, radius float64)
+    DrawImageCircular draws img clipped to a circle.
+
+func (b *CanvasBackend) DrawImageNine(img *render.ImageBuf, center image.Rectangle, dst Rect)
+    DrawImageNine stretches img's edges between center to fill dst.
+
+func (b *CanvasBackend) DrawImageQuad(img *render.ImageBuf, corners [4]render.Point, opts render.QuadDrawOptions)
+    DrawImageQuad maps img onto an arbitrary quad.
+
+func (b *CanvasBackend) DrawImageRounded(img *render.ImageBuf, x, y, radius float64)
+    DrawImageRounded draws img clipped to a rounded rectangle.
+
+func (b *CanvasBackend) DrawMesh(mesh render.Mesh, brush Brush)
+    DrawMesh replays an indexed or triangle-list mesh under the paint it was
+    recorded with, for the same reason as DrawVertices.
+
+func (b *CanvasBackend) DrawText(s string, x, y float64, face text.Face, brush Brush)
+    DrawText draws text at the baseline origin (x, y) in user space.
+
+func (b *CanvasBackend) DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode, brush Brush)
+    DrawVertices replays an immediate-mode mesh under the paint it was recorded
+    with, so the vertex fallback colour does not drift to whatever the previous
+    command left on the context.
+
+func (b *CanvasBackend) End() error
+    End restores the context state Begin captured. A recording that touched the
+    mask clears it before Pop so the save/restore pair also cleans up nested
+    playback; a live target then re-installs the mask Pop restored, because
+    Context.Pop restores the pointer but not the GPU plane.
+
+func (b *CanvasBackend) FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode)
+    FillPath fills the path with the brush.
+
+func (b *CanvasBackend) FillRect(rect Rect, brush Brush, blend render.BlendMode)
+    FillRect fills an axis-aligned rectangle kept in user space.
+
+func (b *CanvasBackend) InvertMask()
+    InvertMask replays an in-place mask inversion.
+
+func (b *CanvasBackend) PopLayer()
+    PopLayer composites the innermost layer.
+
+func (b *CanvasBackend) PushBackdropLayer(blend render.BlendMode, opacity float64)
+    PushBackdropLayer opens a layer seeded from the parent's contents.
+
+func (b *CanvasBackend) PushLayer(blend render.BlendMode, opacity float64)
+    PushLayer opens a composited layer.
+
+func (b *CanvasBackend) PushLayerIsolated(opacity float64)
+    PushLayerIsolated opens a forced true save-layer.
+
+func (b *CanvasBackend) PushMaskLayer(mask *render.Mask)
+    PushMaskLayer replays a masked save-layer. A nil mask is a plain layer;
+    a target that cannot carry masks still gets a plain layer so the matching
+    PopLayer stays balanced (the skip is counted).
+
+func (b *CanvasBackend) Restore()
+    Restore pops the context state.
+
+func (b *CanvasBackend) Save()
+    Save pushes the context state.
+
+func (b *CanvasBackend) SetAntiAlias(enabled bool)
+    SetAntiAlias toggles anti-aliasing for subsequent geometry and clips.
+
+func (b *CanvasBackend) SetClip(path *render.Path, rule FillRule)
+    SetClip intersects the clip region with the path, in user space under the
+    current CTM.
+
+func (b *CanvasBackend) SetLCDLayout(layout render.LCDLayout)
+    SetLCDLayout sets the LCD subpixel order for subsequent ClearType text.
+
+func (b *CanvasBackend) SetMask(mask *render.Mask)
+    SetMask replays a device-space mask installation.
+
+func (b *CanvasBackend) SetTextDecoration(deco render.TextDecoration)
+    SetTextDecoration sets the decoration bitset for text drawn afterwards.
+
+func (b *CanvasBackend) SetTextMode(mode render.TextMode)
+    SetTextMode selects the text rendering strategy for subsequent text.
+
+func (b *CanvasBackend) StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode)
+    StrokePath strokes the path with the brush and stroke style.
+
+func (b *CanvasBackend) StrokeRect(rect Rect, brush Brush, stroke Stroke, blend render.BlendMode)
+    StrokeRect strokes an axis-aligned rectangle kept in user space.
+
+type ClearClipCommand struct{}
+    ClearClipCommand clears the clipping region to the full canvas.
+
+func (ClearClipCommand) Type() CommandType
+    Type implements Command.
+
+type ClearMaskCommand struct{}
+    ClearMaskCommand removes the current mask.
+
+func (ClearMaskCommand) Type() CommandType
+    Type implements Command.
+
+type ClipPathOpCommand struct {
+	Path PathRef
+	Rule FillRule
+	Op   render.ClipOp
+}
+    ClipPathOpCommand applies the current path to the clip with the given
+    operation. The fill rule is the one recorded at clip time, matching
+    Context.ClipPathOp, which reads paint.FillRule rather than an argument.
+
+func (ClipPathOpCommand) Type() CommandType
+    Type implements Command.
+
+type ClipRectCommand struct {
+	Rect Rect
+}
+    ClipRectCommand sets an axis-aligned rectangular clip in user space.
+
+func (ClipRectCommand) Type() CommandType
+    Type implements Command.
+
+type ClipRectOpCommand struct {
+	Rect Rect
+	Op   render.ClipOp
+}
+    ClipRectOpCommand intersects, subtracts or replaces the clip with an
+    axis-aligned rectangle in user space. ClipRectCommand is the intersect-only
+    special case; this is the SkClipOp-complete counterpart (C.06).
+
+func (ClipRectOpCommand) Type() CommandType
+    Type implements Command.
+
+type ClipRoundRectCommand struct {
+	// X, Y is the top-left corner of the rectangle.
+	X, Y float64
+	// W, H is the width and height of the rectangle.
+	W, H float64
+	// Radius is the corner radius.
+	Radius float64
+}
+    ClipRoundRectCommand sets a rounded rectangle as the clipping region. The
+    rectangle is defined in user-space coordinates with a uniform corner radius.
+
+func (ClipRoundRectCommand) Type() CommandType
+    Type implements Command.
+
+type Command interface {
+	// Type returns the CommandType for this command.
+	Type() CommandType
+}
+    Command is the interface implemented by all command types. Commands
+    represent individual drawing operations that can be serialized and replayed
+    to different backends.
+
+type CommandType uint8
+    CommandType identifies the type of a command. Each command type corresponds
+    to a specific drawing operation.
+
+const (
+	// State commands
+	CmdSave          CommandType = iota // Save current state
+	CmdRestore                          // Restore previous state
+	CmdConcat                           // Concatenate a matrix onto the CTM
+	CmdSetClip                          // Set clipping region
+	CmdClearClip                        // Clear clipping region
+	CmdClipRoundRect                    // Set rounded rectangle clipping region
+
+	// Drawing commands
+	CmdFillPath   // Fill a path
+	CmdStrokePath // Stroke a path
+	CmdFillRect   // Fill a rectangle (optimized)
+	CmdStrokeRect // Stroke a rectangle
+	CmdDrawImage  // Draw an image
+	CmdDrawText   // Draw text
+	CmdStrokeText // Stroke text outlines
+
+	// Style commands
+	CmdSetFillStyle   // Set fill brush
+	CmdSetStrokeStyle // Set stroke brush
+	CmdSetLineWidth   // Set stroke line width
+	CmdSetLineCap     // Set stroke line cap
+	CmdSetLineJoin    // Set stroke line join
+	CmdSetMiterLimit  // Set miter limit
+	CmdSetDash        // Set dash pattern
+	CmdSetFillRule    // Set fill rule
+	CmdSetAntiAlias   // Set anti-aliasing mode
+
+	// Extended drawing commands (render.Canvas parity, S2a)
+	CmdClipRect          // Rectangular clip
+	CmdSetTextDecoration // Text decoration bitset for subsequent text draws
+	CmdDrawImageNine     // Nine-patch image draw
+	CmdDrawImageQuad     // Four-corner image draw
+	CmdDrawImageRounded  // Image clipped to a rounded rect
+	CmdDrawImageCircular // Image clipped to a circle
+	CmdDrawAtlas         // Batched sprite draw from one atlas
+	CmdDrawDepthSprites  // Batched sprite draw with depth ordering
+	CmdDrawVertices      // Triangle/strip/line vertex mesh
+	CmdDrawGlyphs        // Shaped-glyph run (mono or per-glyph colored)
+	CmdDrawGPUTexture    // Direct GPU texture-view quad (zero readback)
+
+	// Canvas parity, second family (S2b): clip operations, text quality state and
+	// indexed meshes.
+	CmdClipRectOp   // Rectangular clip with a SkClipOp
+	CmdClipPathOp   // Path clip with a SkClipOp
+	CmdSetTextMode  // Text rendering strategy
+	CmdSetLCDLayout // LCD subpixel order for ClearType
+	CmdDrawMesh     // Indexed or triangle-list mesh
+
+	// Layer and effect commands
+	CmdPushLayer         // Save-layer with blend/opacity
+	CmdPushLayerIsolated // Forced true save-layer
+	CmdPushBackdropLayer // Save-layer that overwrites the parent snapshot
+	CmdPopLayer          // Composite the layer just drawn
+	CmdApplyBlur         // Post-effect: blur
+	CmdApplyColorMatrix  // Post-effect: 4x5+color matrix
+	CmdApplyDropShadow   // Post-effect: drop shadow
+	CmdApplyGrayscale    // Post-effect: grayscale
+
+	// Device-space mask post-processes (render.MaskCanvas). The mask plane is
+	// in target device pixels; playback requires the same device extent.
+	CmdSetMask       // Install an alpha mask for subsequent draws
+	CmdClearMask     // Remove the current mask
+	CmdInvertMask    // Invert the current mask in place
+	CmdApplyMask     // DestinationIn post-process over the current surface
+	CmdPushMaskLayer // Masked save-layer composited at PopLayer
+)
+func (c CommandType) String() string
+    String returns the string representation of a CommandType.
+
+type ConcatCommand struct {
+	// Matrix is the relative transformation to concatenate.
+	Matrix Matrix
+}
+    ConcatCommand concatenates a matrix onto the playback CTM.
+
+    Transform ops are relative, not absolute: the matrix maps the CTM the
+    recorder had before the call to the CTM it had after. Playback therefore
+    composes onto whatever CTM the target context already carries (the layer
+    offset and device scale at raster time) instead of clobbering it — the same
+    model Skia's display lists use, and what makes one recording replayable at
+    any scale and offset.
+
+func (ConcatCommand) Type() CommandType
+    Type implements Command.
+
+type CustomPatternBrush struct {
+	Pattern render.Pattern
+}
+    CustomPatternBrush carries a Pattern implementation that is not data — a
+    caller-supplied ColorAt, in other words a closure. It has no exportable
+    description (PDF/SVG backends cannot write one either), so replay hands the
+    very same pattern to the target context.
+
+    The contract is the one every retained packet already lives under: the
+    pattern becomes read-only when it is recorded, exactly like the text.Face
+    a recording holds. A caller that keeps mutating a live pattern object while
+    the recording may replay it is racing, not painting.
+
+func NewCustomPatternBrush(p render.Pattern) CustomPatternBrush
+    NewCustomPatternBrush records an arbitrary render.Pattern by reference.
+
+type DrawAtlasCommand struct {
+	Image   ImageRef
+	Sprites []render.AtlasSprite
+	Opts    render.AtlasDrawOptions
+}
+    DrawAtlasCommand is a batch of sprites sampled from one image. DrawAtlas
+    and DrawAtlasEx share it: AtlasDrawOptions currently carries no fields,
+    and the degradation report Context returns is a raster-time fact a recording
+    cannot precompute.
+
+func (DrawAtlasCommand) Type() CommandType
+    Type implements Command.
+
+type DrawDepthSpritesCommand struct {
+	Image   ImageRef
+	Sprites []render.DepthSprite
+	Opts    render.DepthDrawOptions
+}
+    DrawDepthSpritesCommand is a sprite batch carrying per-sprite depth.
+
+func (DrawDepthSpritesCommand) Type() CommandType
+    Type implements Command.
+
+type DrawGPUTextureCommand struct {
+	View render.TextureView
+	X, Y float64
+	W, H int
+}
+    DrawGPUTextureCommand composites a live GPU texture view without readback.
+
+    Canvas deliberately has no DrawGPUTexture (the handle is device-owned), but
+    a recording can carry it: playback runs on the raster thread that owns the
+    device, and the texture is sampled directly instead of being read back and
+    re-uploaded. Backends that cannot reach the device (image/PDF/SVG export)
+    skip the command.
+
+func (DrawGPUTextureCommand) Type() CommandType
+    Type implements Command.
+
+type DrawGlyphsCommand struct {
+	Glyphs  []text.ShapedGlyph
+	Face    FontRef
+	X, Y    float64
+	Colored bool
+	Brush   BrushRef
+}
+    DrawGlyphsCommand is a shaped-glyph run. Colored selects the per-glyph
+    colour variant (Context.DrawShapedColorGlyphs) over the single-brush run,
+    whose colour comes from the recorded Brush.
+
+func (DrawGlyphsCommand) Type() CommandType
+    Type implements Command.
+
+type DrawImageCircularCommand struct {
+	Image  ImageRef
+	CX, CY float64
+	Radius float64
+}
+    DrawImageCircularCommand draws an image clipped to a circle.
+
+func (DrawImageCircularCommand) Type() CommandType
+    Type implements Command.
+
+type DrawImageCommand struct {
+	// Image references the image buffer in the resource pool.
+	Image ImageRef
+	// Opts is the recorded draw options.
+	Opts render.DrawImageOptions
+}
+    DrawImageCommand draws an image. It carries render's own option struct, so
+    replay reaches Context.DrawImageEx with the same fields the caller recorded
+    (destination, source sub-rect, interpolation, opacity, blend mode, mipmaps).
+
+func (DrawImageCommand) Type() CommandType
+    Type implements Command.
+
+type DrawImageNineCommand struct {
+	Image  ImageRef
+	Center image.Rectangle
+	Dst    Rect
+}
+    DrawImageNineCommand is a nine-patch image draw: the four corners and the
+    centre of `Center` keep their size while the edges stretch to `Dst`.
+
+func (DrawImageNineCommand) Type() CommandType
+    Type implements Command.
+
+type DrawImageQuadCommand struct {
+	Image   ImageRef
+	Corners [4]render.Point
+	Opts    render.QuadDrawOptions
+}
+    DrawImageQuadCommand maps an image onto an arbitrary quad.
+
+func (DrawImageQuadCommand) Type() CommandType
+    Type implements Command.
+
+type DrawImageRoundedCommand struct {
+	Image  ImageRef
+	X, Y   float64
+	Radius float64
+}
+    DrawImageRoundedCommand draws an image clipped to a rounded rectangle.
+
+func (DrawImageRoundedCommand) Type() CommandType
+    Type implements Command.
+
+type DrawMeshCommand struct {
+	Positions []render.Point
+	Colors    []render.RGBA
+	Indices   []uint16
+	Brush     BrushRef
+}
+    DrawMeshCommand is an indexed (or triangle-list) mesh. Brush is the fill
+    paint the mesh was recorded with, for the same reason DrawVerticesCommand
+    carries one: the vertex-colour fallback is the current paint, and a
+    replaying context would otherwise inherit whatever the previous command left
+    on it.
+
+func (DrawMeshCommand) Type() CommandType
+    Type implements Command.
+
+type DrawTextCommand struct {
+	// Text is the string to render.
+	Text string
+	// X is the horizontal position.
+	X float64
+	// Y is the vertical position (baseline).
+	Y float64
+	// FontSize is the size of the font in points.
+	FontSize float64
+	// FontFamily is the name of the font family.
+	FontFamily string
+	// Font references the recorded text.Face in the resource pool.
+	// InvalidRef means no face was set when the text was recorded.
+	Font FontRef
+	// Brush references the text color/brush in the resource pool.
+	Brush BrushRef
+}
+    DrawTextCommand draws text at a specified position.
+
+func (DrawTextCommand) Type() CommandType
+    Type implements Command.
+
+type DrawVerticesCommand struct {
+	Positions []render.Point
+	Colors    []render.RGBA
+	Mode      render.VertexMode
+	Brush     BrushRef
+}
+    DrawVerticesCommand is an immediate-mode mesh. Brush is the fill colour the
+    mesh was recorded with: Context.DrawVertices falls back to the current fill
+    paint when the colour array is short, so the recording has to carry it —
+    replay's context would otherwise inherit whatever the previous command set.
+
+func (DrawVerticesCommand) Type() CommandType
+    Type implements Command.
+
+type ExtendMode int
+    ExtendMode defines how gradients extend beyond their defined bounds.
+
+const (
+	// ExtendPad extends edge colors beyond bounds (default behavior).
+	ExtendPad ExtendMode = iota
+	// ExtendRepeat repeats the gradient pattern.
+	ExtendRepeat
+	// ExtendReflect mirrors the gradient pattern.
+	ExtendReflect
+)
+type FileBackend interface {
+	Backend
+
+	// SaveToFile saves the rendered content to a file at the given path.
+	// This should only be called after End().
+	// Returns an error if the file cannot be written.
+	SaveToFile(path string) error
+}
+    FileBackend extends Backend with the ability to save output directly to a
+    file. This is a convenience interface for backends that can optimize file
+    output.
+
+type FillPathCommand struct {
+	// Path references the path to fill in the resource pool.
+	Path PathRef
+	// Brush references the fill brush in the resource pool.
+	Brush BrushRef
+	// Rule specifies the fill rule (non-zero or even-odd).
+	Rule FillRule
+	// Blend is the Porter-Duff mode captured at draw time.
+	Blend render.BlendMode
+}
+    FillPathCommand fills a path with a brush.
+
+func (FillPathCommand) Type() CommandType
+    Type implements Command.
+
+type FillRectCommand struct {
+	// Rect is the rectangle to fill.
+	Rect Rect
+	// Brush references the fill brush in the resource pool.
+	Brush BrushRef
+	// Blend is the Porter-Duff mode captured at draw time.
+	Blend render.BlendMode
+}
+    FillRectCommand fills a rectangle with a brush. This is an optimization for
+    the common case of axis-aligned rectangles.
+
+func (FillRectCommand) Type() CommandType
+    Type implements Command.
+
+type FillRule = render.FillRule
+    FillRule aliases render.FillRule.
+
+type FontRef uint32
+    FontRef is a reference to a pooled font face. The zero value is a valid
+    reference to the first font (if any).
+
+func (r FontRef) IsValid() bool
+    IsValid returns true if the reference is valid (not InvalidRef).
+
+type GPUTextureBackend interface {
+	DrawGPUTexture(view render.TextureView, x, y float64, width, height int)
+}
+    GPUTextureBackend is the optional capability of replaying a device-owned GPU
+    texture view (DrawGPUTextureCommand). It is separate from Backend because
+    it only makes sense on targets that reach the device the view belongs to:
+    the live context and CanvasBackend do, export backends (image, PDF, SVG) do
+    not and skip the command.
+
+type GradientStop struct {
+	Offset float64     // Position in gradient, 0.0 to 1.0
+	Color  render.RGBA // Color at this position
+}
+    GradientStop defines a color stop in a gradient.
+
+type ImageRef uint32
+    ImageRef is a reference to an image in the resource pool. The zero value is
+    a valid reference to the first image (if any).
+
+func (r ImageRef) IsValid() bool
+    IsValid returns true if the reference points to a valid image.
+
+type InvertMaskCommand struct{}
+    InvertMaskCommand flips the current mask in place (no-op when none is set).
+
+func (InvertMaskCommand) Type() CommandType
+    Type implements Command.
+
+type LineCap = render.LineCap
+    LineCap aliases render.LineCap.
+
+type LineJoin = render.LineJoin
+    LineJoin aliases render.LineJoin.
+
+type LinearGradientBrush struct {
+	Start  render.Point   // Start point of the gradient
+	End    render.Point   // End point of the gradient
+	Stops  []GradientStop // Color stops defining the gradient
+	Extend ExtendMode     // How gradient extends beyond bounds
+}
+    LinearGradientBrush is a linear gradient brush. Colors transition linearly
+    from Start to End.
+
+func NewLinearGradientBrush(x0, y0, x1, y1 float64) *LinearGradientBrush
+    NewLinearGradientBrush creates a new linear gradient brush.
+
+func (g *LinearGradientBrush) AddColorStop(offset float64, color render.RGBA) *LinearGradientBrush
+    AddColorStop adds a color stop at the specified offset. Offset should be in
+    the range [0, 1]. Returns the gradient for method chaining.
+
+func (g *LinearGradientBrush) SetExtend(mode ExtendMode) *LinearGradientBrush
+    SetExtend sets the extend mode for the gradient. Returns the gradient for
+    method chaining.
+
+type MaskBackend interface {
+	SetMask(mask *render.Mask)
+	ClearMask()
+	InvertMask()
+	ApplyMask(mask *render.Mask)
+	PushMaskLayer(mask *render.Mask)
+}
+    MaskBackend is the optional capability of replaying device-space mask
+    post-processes (SetMask/ClearMask/InvertMask/ApplyMask/PushMaskLayer).
+
+    It is separate from Backend because a mask plane lives in target device
+    pixels: only a target that can reproduce the recording's device space may
+    execute it (the live context and CanvasBackend do; export backends cannot).
+    Playback skips mask commands on backends that do not implement this
+    interface and counts the skip in MaskSkips.
+
+    The mask passed to SetMask/ApplyMask/PushMaskLayer is a fresh snapshot owned
+    by the backend; implementations may retain or mutate it without affecting
+    the recording or a later playback.
+
+type Matrix = render.Matrix
+    Matrix is render.Matrix, not a parallel type. A Recorder must satisfy
+    render.Canvas with the same signatures a live *render.Context has, and a
+    playback backend hands a recorded CTM straight to a context; a second matrix
+    algebra would force conversions on both sides without adding anything.
+    The constructors below are thin forwarders kept so recording-side call sites
+    read consistently.
+
+func Identity() Matrix
+    Identity returns the identity transformation matrix.
+
+func Rotate(angle float64) Matrix
+    Rotate creates a rotation matrix (angle in radians).
+
+func Scale(sx, sy float64) Matrix
+    Scale creates a scaling matrix.
+
+func Shear(x, y float64) Matrix
+    Shear creates a shear matrix.
+
+func Translate(x, y float64) Matrix
+    Translate creates a translation matrix.
+
+type PathRef uint32
+    PathRef is a reference to a path in the resource pool. The zero value is a
+    valid reference to the first path (if any).
+
+func (r PathRef) IsValid() bool
+    IsValid returns true if the reference points to a valid path.
+
+type PatternBrush struct {
+	Image   *render.ImageBuf // source image, held by pointer as every pooled resource is
+	SrcX    int              // source region offset within the image
+	SrcY    int
+	SrcW    int // source region size (0 = full image dimension)
+	SrcH    int
+	Inverse render.Matrix // device-space -> image-space, as the pattern stores it
+	Opacity float64       // opacity multiplier (0 = default 1)
+	Clamp   bool          // out-of-range coordinates return transparent instead of tiling
+}
+    PatternBrush is an image pattern brush: one sub-rect of a pooled image,
+    tiled across the surface through a fixed sampling inverse. It is the
+    recorded form of render.NewImagePattern — the whole description, so replay
+    rebuilds a pattern that samples exactly the same texels as the live one did.
+
+    SrcW/SrcH of 0 mean "whole image dimension" and Opacity of 0 means
+    "unspecified" (both are render.ImagePattern's own conventions).
+
+func NewPatternBrush(img *render.ImageBuf) *PatternBrush
+    NewPatternBrush creates a new pattern brush tiling the whole of the image
+    from the origin.
+
+func (b *PatternBrush) SetClamp(clamp bool) *PatternBrush
+    SetClamp makes coordinates outside the source region transparent instead of
+    tiling. Returns the brush for method chaining.
+
+func (b *PatternBrush) SetInverse(m render.Matrix) *PatternBrush
+    SetInverse sets the device-space -> image-space sampling matrix, which is
+    what an image pattern actually stores (a forward transform would have to be
+    inverted at replay, and inverting twice is not bit-exact). Returns the brush
+    for method chaining.
+
+func (b *PatternBrush) SetOpacity(opacity float64) *PatternBrush
+    SetOpacity sets the opacity multiplier; 0 means unspecified (1). Returns the
+    brush for method chaining.
+
+func (b *PatternBrush) SetSourceRegion(x, y, w, h int) *PatternBrush
+    SetSourceRegion restricts the pattern to a sub-rect of the image. w/h of 0
+    mean the full image dimension. Returns the brush for method chaining.
+
+func (b *PatternBrush) Source() render.ImagePatternSource
+    Source renders the recorded brush as render's own pattern description,
+    the form replay hands to the context.
+
+type PixmapBackend interface {
+	Backend
+
+	// Pixmap returns the rendered pixmap.
+	// This should only be called after End().
+	// Returns nil if no pixmap is available.
+	Pixmap() *render.Pixmap
+}
+    PixmapBackend extends Backend with access to a rasterized pixmap. This is
+    implemented by the raster backend and allows direct pixel access.
+
+type PopLayerCommand struct{}
+    PopLayerCommand composites the innermost layer.
+
+func (PopLayerCommand) Type() CommandType
+    Type implements Command.
+
+type PushBackdropLayerCommand struct {
+	Blend   render.BlendMode
+	Opacity float64
+}
+    PushBackdropLayerCommand opens a layer that starts from the parent's
+    contents instead of a cleared surface.
+
+func (PushBackdropLayerCommand) Type() CommandType
+    Type implements Command.
+
+type PushLayerCommand struct {
+	Blend   render.BlendMode
+	Opacity float64
+}
+    PushLayerCommand opens a compositing layer; the matching pop composites it
+    onto the parent with the recorded blend mode and opacity.
+
+func (PushLayerCommand) Type() CommandType
+    Type implements Command.
+
+type PushLayerIsolatedCommand struct {
+	Opacity float64
+}
+    PushLayerIsolatedCommand opens a forced true save-layer (Flutter
+    Canvas.saveLayer semantics) so overlapping draws within the group composite
+    among themselves before blending.
+
+func (PushLayerIsolatedCommand) Type() CommandType
+    Type implements Command.
+
+type PushMaskLayerCommand struct {
+	Mask *render.Mask
+}
+    PushMaskLayerCommand opens a masked save-layer composited at PopLayer.
+
+func (PushMaskLayerCommand) Type() CommandType
+    Type implements Command.
+
+type RadialGradientBrush struct {
+	Center      render.Point   // Center of the gradient circle
+	Focus       render.Point   // Focal point (can differ from center)
+	StartRadius float64        // Inner radius where gradient begins (t=0)
+	EndRadius   float64        // Outer radius where gradient ends (t=1)
+	Stops       []GradientStop // Color stops defining the gradient
+	Extend      ExtendMode     // How gradient extends beyond bounds
+}
+    RadialGradientBrush is a radial gradient brush. Colors radiate from Focus
+    within a circle defined by Center and EndRadius.
+
+func NewRadialGradientBrush(cx, cy, startRadius, endRadius float64) *RadialGradientBrush
+    NewRadialGradientBrush creates a new radial gradient brush. The gradient
+    transitions from startRadius to endRadius around (cx, cy). Focus defaults to
+    center.
+
+func (g *RadialGradientBrush) AddColorStop(offset float64, color render.RGBA) *RadialGradientBrush
+    AddColorStop adds a color stop at the specified offset. Offset should be in
+    the range [0, 1]. Returns the gradient for method chaining.
+
+func (g *RadialGradientBrush) SetExtend(mode ExtendMode) *RadialGradientBrush
+    SetExtend sets the extend mode for the gradient. Returns the gradient for
+    method chaining.
+
+func (g *RadialGradientBrush) SetFocus(fx, fy float64) *RadialGradientBrush
+    SetFocus sets the focal point of the gradient. Returns the gradient for
+    method chaining.
+
+type Recorder struct {
+	// Has unexported fields.
+}
+    Recorder captures drawing operations as commands. It mirrors the
+    render.Context drawing API but generates commands instead of rasterizing
+    pixels. Use FinishRecording to obtain an immutable Recording that can be
+    replayed to different backends.
+
+    # Coordinate space
+
+    Geometry is stored in user space: the recorded transforms travel in the
+    command stream as relative concats (ConcatCommand) and each backend applies
+    them onto its own CTM. This matches render.Context, whose path verbs are
+    baked by the user matrix and whose device scale is folded in only at the
+    rasterization boundary (totalMatrix). A recording therefore replays crisp at
+    any device scale and survives layer offsets without being re-recorded.
+
+    Example:
+
+        rec := recording.NewRecorder(800, 600)
+        rec.SetRGB(1, 0, 0)
+        rec.DrawCircle(100, 100, 50)
+        rec.Fill()
+        recording := rec.FinishRecording()
+
+    The Recorder is not safe for concurrent use.
+
+func NewRecorder(width, height int) *Recorder
+    NewRecorder creates a new Recorder for the given dimensions. The Recorder
+    starts with default state: black fill/stroke, 1px line width, butt caps,
+    miter joins, non-zero fill rule, and identity transform.
+
+func (r *Recorder) AntiAlias() bool
+    AntiAlias returns whether anti-aliasing is enabled.
+
+func (r *Recorder) AppendPath(p *render.Path)
+    AppendPath appends the elements of p to the current path.
+
+func (r *Recorder) ApplyBlur(radius float64)
+    ApplyBlur attaches a blur post-effect to subsequent draws.
+
+func (r *Recorder) ApplyColorMatrix(matrix [20]float32)
+    ApplyColorMatrix attaches a 4x5 colour matrix post-effect.
+
+func (r *Recorder) ApplyDropShadow(offsetX, offsetY, blurRadius float64, color render.RGBA)
+    ApplyDropShadow attaches a drop-shadow post-effect.
+
+func (r *Recorder) ApplyGrayscale()
+    ApplyGrayscale desaturates subsequent draws.
+
+func (r *Recorder) ApplyMask(mask *render.Mask)
+    ApplyMask records a destructive DestinationIn post-process at the surface
+    origin.
+
+func (r *Recorder) BlendMode() render.BlendMode
+    BlendMode returns the blend mode subsequent fills and strokes will carry.
+
+func (r *Recorder) Clear()
+    Clear resets the entire canvas to transparent (zero alpha), matching
+    render.Context.Clear semantics. To fill with a specific background color,
+    use Recorder.ClearWithColor.
+
+func (r *Recorder) ClearDash()
+    ClearDash removes the dash pattern, returning to solid lines.
+
+func (r *Recorder) ClearMask()
+    ClearMask records removal of the current mask.
+
+func (r *Recorder) ClearPath()
+    ClearPath clears the current path.
+
+func (r *Recorder) ClearWithColor(c render.RGBA)
+    ClearWithColor fills the entire canvas with the specified color. This is the
+    recommended way to set a background color before drawing.
+
+func (r *Recorder) Clip()
+    Clip sets the current path as the clipping region and clears the path.
+
+func (r *Recorder) ClipPathOp(op render.ClipOp)
+    ClipPathOp applies the current path to the clip with op, then clears the
+    path — Context.ClipPathOp's behaviour, including its rule coming from the
+    current fill rule rather than from an argument.
+
+func (r *Recorder) ClipPreserve()
+    ClipPreserve sets the current path as the clipping region but keeps the
+    path.
+
+func (r *Recorder) ClipRect(x, y, w, h float64)
+    ClipRect sets a rectangular clipping region in user space.
+
+func (r *Recorder) ClipRectOp(x, y, w, h float64, op render.ClipOp)
+    ClipRectOp sets a rectangular clipping region in user space and combines it
+    with the existing clip using op (intersect / difference / replace).
+
+func (r *Recorder) ClipRoundRect(x, y, w, h, radius float64)
+    ClipRoundRect sets a rounded rectangle as the clipping region. The rectangle
+    is defined in user-space coordinates with uniform corner radius.
+
+func (r *Recorder) ClosePath()
+    ClosePath closes the current subpath.
+
+func (r *Recorder) CubicTo(c1x, c1y, c2x, c2y, x, y float64)
+    CubicTo adds a cubic Bezier curve to the current path.
+
+func (r *Recorder) DrawArc(x, y, radius, angle1, angle2 float64)
+    DrawArc draws a circular arc.
+
+func (r *Recorder) DrawAtlas(img *render.ImageBuf, sprites []render.AtlasSprite)
+    DrawAtlas draws a batch of sprites sampled from one image.
+
+func (r *Recorder) DrawAtlasEx(img *render.ImageBuf, sprites []render.AtlasSprite, opts render.AtlasDrawOptions) (render.AtlasDrawResult, error)
+    DrawAtlasEx draws a sprite batch with options. Context reports which route
+    it took (GPU batch or CPU fallback) only after rasterizing, so recording
+    returns the zero result; the draw itself is replayed faithfully.
+
+func (r *Recorder) DrawCircle(x, y, radius float64)
+    DrawCircle draws a circle.
+
+func (r *Recorder) DrawDepthSprites(img *render.ImageBuf, sprites []render.DepthSprite, opts render.DepthDrawOptions) (render.DepthDrawResult, error)
+    DrawDepthSprites draws a depth-tagged sprite batch.
+
+func (r *Recorder) DrawEllipse(x, y, rx, ry float64)
+    DrawEllipse draws an ellipse.
+
+func (r *Recorder) DrawEllipticalArc(x, y, rx, ry, angle1, angle2 float64)
+    DrawEllipticalArc draws an elliptical arc.
+
+func (r *Recorder) DrawGPUTexture(view render.TextureView, x, y float64, width, height int)
+    DrawGPUTexture records a live GPU texture view draw. The handle stays opaque
+    to the recording: playback binds it on the raster thread that owns the
+    device (Flutter TextureLayer semantics), so the texture is sampled directly
+    without a readback/upload round trip. Geometry is user-space like every
+    other command, so playback composes it under the target's CTM and clip.
+
+func (r *Recorder) DrawImage(img *render.ImageBuf, x, y float64)
+    DrawImage draws an image buffer at (x, y) in user space.
+
+func (r *Recorder) DrawImageCircular(img *render.ImageBuf, cx, cy, radius float64)
+    DrawImageCircular draws an image clipped to a circle.
+
+func (r *Recorder) DrawImageEx(img *render.ImageBuf, opts render.DrawImageOptions)
+    DrawImageEx draws an image buffer with the full option set.
+
+func (r *Recorder) DrawImageNine(img *render.ImageBuf, center image.Rectangle, dstX, dstY, dstW, dstH float64)
+    DrawImageNine stretches img's edges between center to fill the destination
+    rectangle, keeping the corners at native size.
+
+func (r *Recorder) DrawImageQuad(img *render.ImageBuf, corners [4]render.Point, opts render.QuadDrawOptions) error
+    DrawImageQuad maps img onto an arbitrary quad.
+
+func (r *Recorder) DrawImageRounded(img *render.ImageBuf, x, y, radius float64)
+    DrawImageRounded draws an image clipped to a rounded rectangle.
+
+func (r *Recorder) DrawLine(x1, y1, x2, y2 float64)
+    DrawLine draws a line between two points.
+
+func (r *Recorder) DrawMesh(mesh render.Mesh)
+    DrawMesh records an indexed (or triangle-list) mesh. The vertex arrays are
+    copied, so a caller that rebuilds its mesh buffers per frame cannot rewrite
+    an already-recorded command.
+
+func (r *Recorder) DrawMeshEx(mesh render.Mesh, opts render.VertDrawOptions) (render.VertDrawResult, error)
+    DrawMeshEx records the mesh and returns the zero result, for the reason
+    given on DrawVerticesEx.
+
+func (r *Recorder) DrawPath(p *render.Path)
+    DrawPath replays the elements of p through the current transform, replacing
+    the current path — the transform-aware counterpart of SetPath.
+
+func (r *Recorder) DrawPoint(x, y, radius float64)
+    DrawPoint draws a single point at the given coordinates.
+
+func (r *Recorder) DrawRectangle(x, y, w, h float64)
+    DrawRectangle draws a rectangle.
+
+func (r *Recorder) DrawRoundedRectangle(x, y, w, h, radius float64)
+    DrawRoundedRectangle draws a rectangle with rounded corners.
+
+func (r *Recorder) DrawShapedColorGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64)
+    DrawShapedColorGlyphs draws a glyph run using each glyph's own colour.
+
+func (r *Recorder) DrawShapedGlyphs(glyphs []text.ShapedGlyph, face text.Face, x, y float64)
+    DrawShapedGlyphs draws an already-shaped glyph run at the baseline origin.
+
+func (r *Recorder) DrawString(s string, x, y float64)
+    DrawString draws text at position (x, y) where y is the baseline.
+
+func (r *Recorder) DrawStringAnchored(s string, x, y, ax, ay float64)
+    DrawStringAnchored draws text with an anchor point. The anchor point is
+    specified by ax and ay, which are in the range [0, 1].
+
+func (r *Recorder) DrawStringWrapped(s string, x, y, ax, ay, width, lineSpacing float64, align text.Alignment)
+    DrawStringWrapped wraps text to the given width and draws it with alignment.
+    Each wrapped line is recorded as a separate DrawText command.
+
+func (r *Recorder) DrawVertices(positions []render.Point, colors []render.RGBA, mode render.VertexMode)
+    DrawVertices records an immediate-mode mesh. Context falls back to the
+    current fill paint when colors is shorter than positions, so the paint at
+    record time travels with the command.
+
+func (r *Recorder) DrawVerticesEx(positions []render.Point, colors []render.RGBA, mode render.VertexMode, opts render.VertDrawOptions) (render.VertDrawResult, error)
+    DrawVerticesEx records the same mesh as DrawVertices. Context's extra return
+    reports which route the rasterizer took, a fact that only exists once the
+    triangles are on a surface, so recording returns the zero result.
+
+func (r *Recorder) Fill() error
+    Fill fills the current path and clears it. Recording cannot fail
+    before rasterization, so the error is always nil; it exists to match
+    render.Context.Fill, which lets the same paint code target either surface.
+
+func (r *Recorder) FillBrush() render.Brush
+    FillBrush reports the recorder's current fill brush, so a playback backend
+    can save and restore ambient paint state through the render.Canvas surface.
+    A pattern brush has no render.Brush form (render.Brush is sealed), so it
+    reads back as solid black here — exactly like Context, whose paint holds one
+    brush and drops a pattern it cannot express.
+
+func (r *Recorder) FillPath(p *render.Path) error
+    FillPath replays p through the current transform, fills it and clears the
+    path.
+
+func (r *Recorder) FillPreserve() error
+    FillPreserve fills the current path without clearing it.
+
+func (r *Recorder) FillRectangle(x, y, w, h float64)
+    FillRectangle fills a rectangle without adding it to the path. This is an
+    optimized operation for the common case of axis-aligned rectangles.
+
+func (r *Recorder) FillStroke() error
+    FillStroke fills and then strokes the current path, then clears it.
+
+func (r *Recorder) FinishRecording() *Recording
+    FinishRecording returns an immutable Recording containing all recorded
+    commands. The content footprint, the can-it-paint flag and the replay facts
+    a retained compositor needs (length, image sampling) are resolved here,
+    on the recording thread (see bounds.go), so a consumer never has to measure
+    shared font faces or read live commands to size, admit or budget a surface.
+    After calling FinishRecording, the Recorder should not be used again.
+
+func (r *Recorder) Font() text.Face
+    Font returns the current font face, mirroring render.Context.Font.
+
+func (r *Recorder) GetCurrentPoint() (x, y float64, ok bool)
+    GetCurrentPoint returns the current point of the path. Returns (0, 0,
+    false) if there is no current point.
+
+func (r *Recorder) GetTransform() Matrix
+    GetTransform returns a copy of the current transformation matrix.
+
+func (r *Recorder) Height() int
+    Height returns the height of the recording canvas.
+
+func (r *Recorder) Identity()
+    Identity resets the transformation matrix to identity.
+
+func (r *Recorder) InvertMask()
+    InvertMask records an in-place inversion of the current mask.
+
+func (r *Recorder) InvertY()
+    InvertY inverts the Y axis (useful for coordinate system changes).
+
+func (r *Recorder) LineTo(x, y float64)
+    LineTo adds a line to the current path.
+
+func (r *Recorder) MeasureMultilineString(s string, lineSpacing float64) (width, height float64)
+    MeasureMultilineString measures text that may contain newlines. Returns
+    (width, height) where width is the maximum line width. If no font face is
+    set, returns (0, 0).
+
+func (r *Recorder) MeasureString(s string) (w, h float64)
+    MeasureString returns approximate dimensions of text. Note: Actual
+    measurement depends on the backend and font. Returns (0, 0) if no font is
+    set.
+
+func (r *Recorder) MoveTo(x, y float64)
+    MoveTo starts a new subpath at the given point.
+
+func (r *Recorder) NewSubPath()
+    NewSubPath starts a new subpath without closing the previous one. This is a
+    no-op as MoveTo already creates a new subpath.
+
+func (r *Recorder) Pop()
+    Pop is an alias for Restore, matching render.Context API.
+
+func (r *Recorder) PopLayer()
+    PopLayer composites the innermost layer.
+
+func (r *Recorder) Push()
+    Push is an alias for Save, matching render.Context API.
+
+func (r *Recorder) PushBackdropLayer(blend render.BlendMode, opacity float64)
+    PushBackdropLayer opens a layer seeded from the parent's contents.
+
+func (r *Recorder) PushLayer(blend render.BlendMode, opacity float64)
+    PushLayer opens a layer composited onto the parent with blend and opacity.
+
+func (r *Recorder) PushLayerIsolated(opacity float64)
+    PushLayerIsolated opens a forced true save-layer (Flutter saveLayer).
+
+func (r *Recorder) PushMaskLayer(mask *render.Mask)
+    PushMaskLayer records an isolated layer modulated by mask at PopLayer.
+
+func (r *Recorder) QuadraticTo(cx, cy, x, y float64)
+    QuadraticTo adds a quadratic Bezier curve to the current path.
+
+func (r *Recorder) ResetClip()
+    ResetClip removes all clipping regions.
+
+func (r *Recorder) Restore()
+    Restore restores the previously saved graphics state. If the state stack is
+    empty, this is a no-op.
+
+func (r *Recorder) Rotate(angle float64)
+    Rotate applies a rotation (angle in radians).
+
+func (r *Recorder) RotateAbout(angle, x, y float64)
+    RotateAbout rotates around a specific point.
+
+func (r *Recorder) Save()
+    Save saves the current graphics state to the stack. The state includes
+    transform, fill style, stroke style, and line properties.
+
+func (r *Recorder) Scale(sx, sy float64)
+    Scale applies a scaling transformation.
+
+func (r *Recorder) SetAntiAlias(enabled bool)
+    SetAntiAlias enables or disables anti-aliasing for geometry rendering. When
+    disabled, shapes are rendered with binary coverage (no gray edge pixels).
+
+func (r *Recorder) SetBlendMode(mode render.BlendMode)
+    SetBlendMode sets the blend mode recorded into subsequent fill and stroke
+    commands. Like Context.Push, Save does not stash the blend: the mode is a
+    draw-time property that each command carries, so replay is independent of
+    the target's ambient state.
+
+func (r *Recorder) SetColor(c render.RGBA)
+    SetColor sets both fill and stroke color from a color.Color.
+
+func (r *Recorder) SetDash(lengths ...float64)
+    SetDash sets the dash pattern for stroking. Pass alternating dash and gap
+    lengths. Passing no arguments clears the dash pattern (returns to solid
+    lines).
+
+func (r *Recorder) SetDashOffset(offset float64)
+    SetDashOffset sets the starting offset into the dash pattern.
+
+func (r *Recorder) SetFillBrush(brush render.Brush)
+    SetFillBrush sets the fill brush from a render.Brush.
+
+func (r *Recorder) SetFillPattern(pattern render.Pattern)
+    SetFillPattern sets the fill style from a render.Pattern. Context keeps fill
+    and stroke in one paint and treats a pattern as a first-class brush, so the
+    recording does the same: an image pattern becomes its full data description,
+    a solid pattern collapses to a colour, and anything else is carried by
+    reference (see CustomPatternBrush).
+
+func (r *Recorder) SetFillRGB(red, green, blue float64)
+    SetFillRGB sets the fill color using RGB values (0-1).
+
+func (r *Recorder) SetFillRGBA(red, green, blue, alpha float64)
+    SetFillRGBA sets the fill color using RGBA values (0-1).
+
+func (r *Recorder) SetFillRule(rule FillRule)
+    SetFillRule sets the fill rule.
+
+func (r *Recorder) SetFillStyle(brush Brush)
+    SetFillStyle sets the fill brush.
+
+func (r *Recorder) SetFont(face text.Face)
+    SetFont sets the current font face for text drawing.
+
+func (r *Recorder) SetFontFamily(family string)
+    SetFontFamily sets the current font family name.
+
+func (r *Recorder) SetFontSize(size float64)
+    SetFontSize sets the current font size in points.
+
+func (r *Recorder) SetHexColor(hex string)
+    SetHexColor sets both fill and stroke color using a hex string.
+
+func (r *Recorder) SetLCDLayout(layout render.LCDLayout)
+    SetLCDLayout sets the LCD subpixel order for ClearType text, for the same
+    reason and with the same replay semantics as SetTextMode.
+
+func (r *Recorder) SetLineCap(lc LineCap)
+    SetLineCap sets the line cap style.
+
+func (r *Recorder) SetLineJoin(join LineJoin)
+    SetLineJoin sets the line join style.
+
+func (r *Recorder) SetLineWidth(width float64)
+    SetLineWidth sets the line width for stroking.
+
+func (r *Recorder) SetMask(mask *render.Mask)
+    SetMask records a device-space alpha mask for subsequent Fill/Stroke draws.
+
+func (r *Recorder) SetMiterLimit(limit float64)
+    SetMiterLimit sets the miter limit for line joins.
+
+func (r *Recorder) SetPath(p *render.Path)
+    SetPath replaces the current path with p.
+
+func (r *Recorder) SetRGB(red, green, blue float64)
+    SetRGB sets both fill and stroke color using RGB values (0-1).
+
+func (r *Recorder) SetRGBA(red, green, blue, alpha float64)
+    SetRGBA sets both fill and stroke color using RGBA values (0-1).
+
+func (r *Recorder) SetStroke(stroke render.Stroke)
+    SetStroke sets the complete stroke style at once. It routes through the
+    individual setters rather than inventing a stroke-wide command, so recording
+    `SetStroke(s)` produces the same command stream the caller would get from
+    setting each field by hand — and the style still travels inside the draw
+    commands that follow, as it always has.
+
+func (r *Recorder) SetStrokeBrush(brush render.Brush)
+    SetStrokeBrush sets the stroke brush from a render.Brush.
+
+func (r *Recorder) SetStrokePattern(pattern render.Pattern)
+    SetStrokePattern sets the stroke style from a render.Pattern.
+
+func (r *Recorder) SetStrokeRGB(red, green, blue float64)
+    SetStrokeRGB sets the stroke color using RGB values (0-1).
+
+func (r *Recorder) SetStrokeRGBA(red, green, blue, alpha float64)
+    SetStrokeRGBA sets the stroke color using RGBA values (0-1).
+
+func (r *Recorder) SetStrokeStyle(brush Brush)
+    SetStrokeStyle sets the stroke brush.
+
+func (r *Recorder) SetTextDecoration(d render.TextDecoration)
+    SetTextDecoration sets the decoration bitset for text drawn afterwards.
+    Decoration is Context state, so the recording replays the call in stream
+    order; the recorder itself keeps no copy.
+
+func (r *Recorder) SetTextMode(mode render.TextMode)
+    SetTextMode selects the text rendering strategy for text drawn afterwards.
+    Unlike the line style, no draw command carries it, so it replays as a state
+    command in stream order — faithful to the live path, where Context.Push does
+    not save the text mode either.
+
+func (r *Recorder) SetTransform(m Matrix)
+    SetTransform replaces the current transformation matrix. Because the target
+    is absolute rather than an operation, the recorded concat is the delta that
+    carries the previous matrix into it.
+
+func (r *Recorder) Shear(x, y float64)
+    Shear applies a shear transformation.
+
+func (r *Recorder) Stroke() error
+    Stroke strokes the current path and clears it.
+
+func (r *Recorder) StrokeBrush() render.Brush
+    StrokeBrush reports the recorder's current stroke brush (see FillBrush).
+
+func (r *Recorder) StrokePath(p *render.Path) error
+    StrokePath replays p through the current transform, strokes it and clears
+    the path.
+
+func (r *Recorder) StrokePreserve() error
+    StrokePreserve strokes the current path without clearing it.
+
+func (r *Recorder) StrokeRectangle(x, y, w, h float64)
+    StrokeRectangle strokes a rectangle without adding it to the path.
+
+func (r *Recorder) StrokeString(s string, x, y float64)
+    StrokeString strokes text outlines at position (x, y) where y is the
+    baseline. The stroke width, cap, join, and dash are captured from the
+    current recorder state.
+
+func (r *Recorder) StrokeStringAnchored(s string, x, y, ax, ay float64)
+    StrokeStringAnchored strokes text outlines with an anchor point. The anchor
+    point is specified by ax and ay, which are in the range [0, 1].
+
+func (r *Recorder) Transform(m Matrix)
+    Transform multiplies the current transformation matrix by the given matrix.
+
+func (r *Recorder) TransformPoint(x, y float64) (float64, float64)
+    TransformPoint transforms a point by the current matrix.
+
+func (r *Recorder) Translate(x, y float64)
+    Translate applies a translation to the transformation matrix.
+
+func (r *Recorder) Width() int
+    Width returns the width of the recording canvas.
+
+func (r *Recorder) WordWrap(s string, w float64) []string
+    WordWrap wraps text to fit within the given width using word boundaries.
+    Uses the current font face for text measurement. If no font face is set,
+    returns the input string as a single-element slice.
+
+type Recording struct {
+	// Has unexported fields.
+}
+    Recording is an immutable container for recorded drawing commands. It can be
+    replayed to any Backend implementation.
+
+func (r *Recording) Bounds() image.Rectangle
+    Bounds returns the recording's content footprint in the recording's own
+    coordinate space — that is, where the geometry lands when playback starts
+    from the identity CTM. It is the layer-local, scale-agnostic space the
+    recorder was drawn in: the raster thread's layer offset and device scale
+    compose onto it at playback, so a consumer sizes and damages a surface by
+    scaling this rect, never by re-measuring the commands.
+
+    The rect is a superset by construction: clips are not intersected,
+    zero-alpha paint still counts as geometry, and a recording carrying a blur
+    or drop shadow reports the whole canvas, because those filters act on the
+    surface rather than on the command that follows. Empty means nothing was
+    recorded; a nil recording is empty.
+
+func (r *Recording) Commands() []Command
+    Commands returns the recorded commands.
+
+func (r *Recording) HasVisiblePaint() bool
+    HasVisiblePaint reports whether replaying this recording can put a pixel on
+    the surface. Command count is not the question: a recording of empty paths,
+    zero-alpha fills and brush-less geometry is legal but invisible, and
+    feeding one to a texture allocator would spend a surface to show nothing.
+    A nil recording paints nothing.
+
+func (r *Recording) Height() int
+    Height returns the height of the recording canvas.
+
+func (r *Recording) ImageBufs() []*render.ImageBuf
+    ImageBufs returns the image buffers the recording draws from, in pool order.
+    A retained packet must hold these for as long as it may replay them:
+    the recording stores buffers by pointer (no pixel copy), so disposing one
+    while a recording still references it leaves a disposed image at playback.
+    The result is read-only. A nil recording draws from no buffers.
+
+func (r *Recording) NeedsCPUPassScratch() bool
+    NeedsCPUPassScratch reports whether a replay can put pixels on the surface
+    through the CPU: it draws from an image buffer, and an image path without
+    a GPU resource samples on the CPU. A rasterizer recording the replay into a
+    GPU texture must swap in a CPU scratch pixmap for the pass or those pixels
+    miss the texture; a recording with no image commands is provably GPU-only
+    and can skip the swap at zero behavior change. A nil recording needs no
+    scratch.
+
+func (r *Recording) PaintOpCount() int
+    PaintOpCount returns the display-list length: the number of commands a
+    replay issues work for. State, clip and layer commands are not counted,
+    so this is what a per-frame op budget should charge a recording for.
+    A nil recording carries no work.
+
+func (r *Recording) Playback(backend Backend) error
+    Playback replays the recording to the given backend.
+
+func (r *Recording) Resources() *ResourcePool
+    Resources returns the resource pool.
+
+func (r *Recording) Width() int
+    Width returns the width of the recording canvas.
+
+type Rect struct {
+	MinX, MinY float64
+	MaxX, MaxY float64
+}
+    Rect represents an axis-aligned rectangle. Min is the top-left corner
+    (minimum coordinates). Max is the bottom-right corner (maximum coordinates).
+
+func NewRect(x, y, width, height float64) Rect
+    NewRect creates a rectangle from position and size.
+
+func NewRectFromPoints(x1, y1, x2, y2 float64) Rect
+    NewRectFromPoints creates a rectangle from two corner points. The points are
+    normalized so Min <= Max.
+
+func (r Rect) Contains(x, y float64) bool
+    Contains returns true if the point is inside the rectangle.
+
+func (r Rect) Height() float64
+    Height returns the height of the rectangle.
+
+func (r Rect) Inset(dx, dy float64) Rect
+    Inset returns a new rectangle inset by the given amounts. Positive values
+    shrink the rectangle, negative values expand it.
+
+func (r Rect) Intersect(other Rect) Rect
+    Intersect returns the intersection of r and other. Returns an empty
+    rectangle if they don't intersect.
+
+func (r Rect) IsEmpty() bool
+    IsEmpty returns true if the rectangle has zero or negative area.
+
+func (r Rect) Offset(dx, dy float64) Rect
+    Offset returns a new rectangle offset by the given amounts.
+
+func (r Rect) Union(other Rect) Rect
+    Union returns the smallest rectangle containing both r and other.
+
+func (r Rect) Width() float64
+    Width returns the width of the rectangle.
+
+func (r Rect) X() float64
+    X returns the left edge of the rectangle.
+
+func (r Rect) Y() float64
+    Y returns the top edge of the rectangle.
+
+type ResourcePool struct {
+	// Has unexported fields.
+}
+    ResourcePool stores resources referenced by recording commands. Resources
+    are stored in slices indexed by their reference types. Each Add operation
+    clones mutable resources to ensure immutability.
+
+    Images are pooled as *render.ImageBuf — the very type render.Context draws
+    from. Holding image.Image instead would force a FromStdImage copy on every
+    playback (per-pixel for exotic types), which is both slow and loses the
+    buffer's GPU texture identity (genID), so a recording would re-upload a new
+    texture each frame.
+
+    ResourcePool is not safe for concurrent use. If concurrent access is needed,
+    external synchronization must be provided.
+
+func NewResourcePool() *ResourcePool
+    NewResourcePool creates an empty resource pool with pre-allocated capacity.
+
+func (p *ResourcePool) AddBrush(brush Brush) BrushRef
+    AddBrush adds a brush to the pool and returns its reference. Brushes are
+    stored directly as they are typically immutable value types.
+
+func (p *ResourcePool) AddFont(face text.Face) FontRef
+    AddFont adds a font face to the pool and returns its reference. Font faces
+    are stored directly as they are already immutable and safe to share.
+
+func (p *ResourcePool) AddImageBuf(img *render.ImageBuf) ImageRef
+    AddImageBuf pools a render buffer and returns its reference. The buffer is
+    stored by pointer: recordings do not copy pixels, and playback draws the
+    same buffer the caller recorded (ImageBuf's own copy-on-write/ownership
+    rules apply — callers must not Dispose it while a recording still references
+    it).
+
+func (p *ResourcePool) AddPath(path *render.Path) PathRef
+    AddPath adds a path to the pool and returns its reference. The path is
+    cloned to ensure immutability of the recording.
+
+func (p *ResourcePool) BrushCount() int
+    BrushCount returns the number of brushes in the pool.
+
+func (p *ResourcePool) Clear()
+    Clear removes all resources from the pool. This does not release the
+    underlying memory; use NewResourcePool for that.
+
+func (p *ResourcePool) Clone() *ResourcePool
+    Clone creates a deep copy of the resource pool. Paths are cloned; other
+    resources are copied by reference (they are immutable).
+
+func (p *ResourcePool) FontCount() int
+    FontCount returns the number of font faces in the pool.
+
+func (p *ResourcePool) GetBrush(ref BrushRef) Brush
+    GetBrush returns the brush for the given reference. Returns nil if the
+    reference is invalid.
+
+func (p *ResourcePool) GetFont(ref FontRef) text.Face
+    GetFont returns the font face for the given reference. Returns nil if the
+    reference is invalid.
+
+func (p *ResourcePool) GetImage(ref ImageRef) *render.ImageBuf
+    GetImage returns the image for the given reference. Returns nil if the
+    reference is invalid.
+
+func (p *ResourcePool) GetPath(ref PathRef) *render.Path
+    GetPath returns the path for the given reference. Returns nil if the
+    reference is invalid.
+
+func (p *ResourcePool) ImageCount() int
+    ImageCount returns the number of images in the pool.
+
+func (p *ResourcePool) Images() []*render.ImageBuf
+    Images returns the pooled image buffers in insertion order. The result is
+    read-only: a caller that retains the buffers (a packet pinning them against
+    disposal) must not append to or reorder it.
+
+func (p *ResourcePool) PathCount() int
+    PathCount returns the number of paths in the pool.
+
+type RestoreCommand struct{}
+    RestoreCommand restores the previously saved graphics state.
+
+func (RestoreCommand) Type() CommandType
+    Type implements Command.
+
+type SaveCommand struct{}
+    SaveCommand saves the current graphics state. The state includes transform,
+    clip, fill style, stroke style, and line properties.
+
+func (SaveCommand) Type() CommandType
+    Type implements Command.
+
+type SetAntiAliasCommand struct {
+	// Enabled is true for anti-aliased rendering, false for aliased.
+	Enabled bool
+}
+    SetAntiAliasCommand enables or disables anti-aliasing for geometry
+    rendering.
+
+func (SetAntiAliasCommand) Type() CommandType
+    Type implements Command.
+
+type SetClipCommand struct {
+	// Path references the clip path in the resource pool.
+	Path PathRef
+	// Rule specifies the fill rule for determining inside/outside.
+	Rule FillRule
+}
+    SetClipCommand sets the clipping region.
+
+func (SetClipCommand) Type() CommandType
+    Type implements Command.
+
+type SetDashCommand struct {
+	// Pattern is the dash pattern (alternating dash and gap lengths).
+	// Nil or empty means solid line.
+	Pattern []float64
+	// Offset is the starting offset into the pattern.
+	Offset float64
+}
+    SetDashCommand sets the dash pattern for stroking.
+
+func (SetDashCommand) Type() CommandType
+    Type implements Command.
+
+type SetFillRuleCommand struct {
+	// Rule is the fill rule (non-zero or even-odd).
+	Rule FillRule
+}
+    SetFillRuleCommand sets the fill rule.
+
+func (SetFillRuleCommand) Type() CommandType
+    Type implements Command.
+
+type SetFillStyleCommand struct {
+	// Brush references the fill brush in the resource pool.
+	Brush BrushRef
+}
+    SetFillStyleCommand sets the fill brush.
+
+func (SetFillStyleCommand) Type() CommandType
+    Type implements Command.
+
+type SetLCDLayoutCommand struct {
+	Layout render.LCDLayout
+}
+    SetLCDLayoutCommand sets the LCD subpixel order for ClearType text.
+
+func (SetLCDLayoutCommand) Type() CommandType
+    Type implements Command.
+
+type SetLineCapCommand struct {
+	// Cap is the line cap style.
+	Cap LineCap
+}
+    SetLineCapCommand sets the stroke line cap style.
+
+func (SetLineCapCommand) Type() CommandType
+    Type implements Command.
+
+type SetLineJoinCommand struct {
+	// Join is the line join style.
+	Join LineJoin
+}
+    SetLineJoinCommand sets the stroke line join style.
+
+func (SetLineJoinCommand) Type() CommandType
+    Type implements Command.
+
+type SetLineWidthCommand struct {
+	// Width is the line width in pixels.
+	Width float64
+}
+    SetLineWidthCommand sets the stroke line width.
+
+func (SetLineWidthCommand) Type() CommandType
+    Type implements Command.
+
+type SetMaskCommand struct {
+	Mask *render.Mask
+}
+    SetMaskCommand installs a device-space alpha mask for subsequent draws.
+    A nil Mask means SetMask(nil).
+
+func (SetMaskCommand) Type() CommandType
+    Type implements Command.
+
+type SetMiterLimitCommand struct {
+	// Limit is the miter limit value.
+	Limit float64
+}
+    SetMiterLimitCommand sets the miter limit for line joins.
+
+func (SetMiterLimitCommand) Type() CommandType
+    Type implements Command.
+
+type SetStrokeStyleCommand struct {
+	// Brush references the stroke brush in the resource pool.
+	Brush BrushRef
+}
+    SetStrokeStyleCommand sets the stroke brush.
+
+func (SetStrokeStyleCommand) Type() CommandType
+    Type implements Command.
+
+type SetTextDecorationCommand struct {
+	Deco render.TextDecoration
+}
+    SetTextDecorationCommand sets the decoration bitset used by later text draws
+    recorded on this stream.
+
+func (SetTextDecorationCommand) Type() CommandType
+    Type implements Command.
+
+type SetTextModeCommand struct {
+	Mode render.TextMode
+}
+    SetTextModeCommand selects the text rendering strategy for later draws.
+    It is Context state that no draw command carries, so it replays in stream
+    order — which is also how the live path behaves, since Context.Push does not
+    save the text mode.
+
+func (SetTextModeCommand) Type() CommandType
+    Type implements Command.
+
+type SolidBrush struct {
+	Color render.RGBA
+}
+    SolidBrush is a solid color brush.
+
+func NewSolidBrush(color render.RGBA) SolidBrush
+    NewSolidBrush creates a solid color brush.
+
+type Stroke struct {
+	// Width is the line width in pixels.
+	Width float64
+	// Cap is the shape of line endpoints.
+	Cap LineCap
+	// Join is the shape of line joins.
+	Join LineJoin
+	// MiterLimit is the limit for miter joins.
+	MiterLimit float64
+	// DashPattern is the dash pattern (nil for solid line).
+	DashPattern []float64
+	// DashOffset is the starting offset into the dash pattern.
+	DashOffset float64
+}
+    Stroke defines the style for stroking paths.
+
+func DefaultStroke() Stroke
+    DefaultStroke returns a Stroke with default settings.
+
+func (s Stroke) Clone() Stroke
+    Clone creates a deep copy of the Stroke.
+
+type StrokePathCommand struct {
+	// Path references the path to stroke in the resource pool.
+	Path PathRef
+	// Brush references the stroke brush in the resource pool.
+	Brush BrushRef
+	// Stroke contains the stroke style (width, cap, join, dash).
+	Stroke Stroke
+	// Blend is the Porter-Duff mode captured at draw time.
+	Blend render.BlendMode
+}
+    StrokePathCommand strokes a path with a brush.
+
+func (StrokePathCommand) Type() CommandType
+    Type implements Command.
+
+type StrokeRectCommand struct {
+	// Rect is the rectangle to stroke.
+	Rect Rect
+	// Brush references the stroke brush in the resource pool.
+	Brush BrushRef
+	// Stroke contains the stroke style.
+	Stroke Stroke
+	// Blend is the Porter-Duff mode captured at draw time.
+	Blend render.BlendMode
+}
+    StrokeRectCommand strokes a rectangle with a brush.
+
+func (StrokeRectCommand) Type() CommandType
+    Type implements Command.
+
+type StrokeTextCommand struct {
+	// Text is the string to render.
+	Text string
+	// X is the horizontal position.
+	X float64
+	// Y is the vertical position (baseline).
+	Y float64
+	// FontSize is the size of the font in points.
+	FontSize float64
+	// FontFamily is the name of the font family.
+	FontFamily string
+	// Font references the recorded text.Face in the resource pool.
+	// InvalidRef means no face was set when the text was recorded.
+	Font FontRef
+	// Brush references the stroke color/brush in the resource pool.
+	Brush BrushRef
+	// Stroke contains the stroke style (width, cap, join, dash).
+	Stroke Stroke
+}
+    StrokeTextCommand strokes text outlines at a specified position. The stroke
+    style (width, cap, join, dash) is captured at recording time.
+
+func (StrokeTextCommand) Type() CommandType
+    Type implements Command.
+
+type SweepGradientBrush struct {
+	Center     render.Point   // Center of the sweep
+	StartAngle float64        // Start angle in radians
+	EndAngle   float64        // End angle in radians
+	Stops      []GradientStop // Color stops defining the gradient
+	Extend     ExtendMode     // How gradient extends beyond bounds
+}
+    SweepGradientBrush is an angular (conic) gradient brush. Colors sweep from
+    StartAngle to EndAngle around Center.
+
+func NewSweepGradientBrush(cx, cy, startAngle float64) *SweepGradientBrush
+    NewSweepGradientBrush creates a new sweep (conic) gradient brush. The
+    gradient sweeps a full 360 degrees by default.
+
+func (g *SweepGradientBrush) AddColorStop(offset float64, color render.RGBA) *SweepGradientBrush
+    AddColorStop adds a color stop at the specified offset. Offset should be in
+    the range [0, 1]. Returns the gradient for method chaining.
+
+func (g *SweepGradientBrush) SetEndAngle(endAngle float64) *SweepGradientBrush
+    SetEndAngle sets the end angle of the sweep. Returns the gradient for method
+    chaining.
+
+func (g *SweepGradientBrush) SetExtend(mode ExtendMode) *SweepGradientBrush
+    SetExtend sets the extend mode for the gradient. Returns the gradient for
+    method chaining.
+
+type WriterBackend interface {
+	Backend
+
+	// WriteTo writes the rendered content to the given writer.
+	// This should only be called after End().
+	// Returns the number of bytes written and any error.
+	WriteTo(w io.Writer) (int64, error)
+}
+    WriterBackend extends Backend with the ability to write output to an
+    io.Writer. This is useful for streaming output or writing to network
+    connections.
+

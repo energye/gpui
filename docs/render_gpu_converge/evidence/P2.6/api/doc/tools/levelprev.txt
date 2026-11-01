@@ -1,0 +1,107 @@
+Command levelprev previews one 2.5D level project exactly as the game sees it.
+
+Frozen 2026-09-16: Preview, OpenProject, SummarizeMap, SummarizeScene,
+VerifyCounts. Additive changes only.
+
+Usage:
+
+    go run ./tools/levelprev -project tools/levelprev/testdata/proj_small -auto-only
+    go run ./tools/levelprev -project <dir> -manual-seconds 60
+    go run ./tools/levelprev -project <dir>
+
+Project layout (both files optional, never required):
+
+    <dir>/map.tmx Tiled TMX subset frozen by engine/tilemap (orthogonal or
+                     isometric, csv layers, objectgroup). Missing means an
+                     empty map placeholder, never an error.
+    <dir>/scene.json world.SceneFile JSON version 1.0 (entities with parent
+                     links, comps, asset refs). Missing means an empty scene
+                     placeholder, never an error.
+
+What comes out: a Preview with tile/object/entity counts plus a window
+that draws every non-empty tile as a flat block, every object as a box,
+and every entity at its world position. Tiles use one color per layer kind
+(ground green, decoration olive, collision red wash, navigation blue wash,
+occlusion gray wash); objects are yellow boxes; entities are red dots. This is a
+layout preview, not a beauty render: it proves the placement matches the game,
+not the final art.
+
+Bad projects never crash: a torn map.tmx is core BadData in MapErr with the
+map side zeroed, a torn scene.json is core BadData in SceneErr with the scene
+side zeroed, and the other side still previews. The returned error carries
+the first failure so scripts can gate on it; the Preview itself stays usable.
+An empty directory (no files at all) is a clean open with placeholder notes and
+a nil error. An empty dir path is core InvalidArg, a missing directory is core
+NotFound.
+
+Parity口径 (C两边齐): the number layer matches the engine bit for bit. Preview
+counts come straight from engine getters (Layer.GIDs, Tilemap.Objects,
+SceneFile.Entities), so preview.TileCount and friends equal a direct engine
+parse of the same files with zero difference. Pixels are NOT hard-compared
+against game windows (different scenes); instead the same project painted twice
+offscreen is byte-identical. Numbers only use engine/core types; this tool
+defines no Vec2, Color, or AssetID of its own.
+
+FUNCTIONS
+
+func VerifyCounts(got Preview, m tilemap.Tilemap, hasMap bool, sf world.SceneFile, hasScene bool) error
+    VerifyCounts reports whether got carries exactly the engine numbers from a
+    fresh direct parse of the same files. Zero difference passes; anything else
+    is a plain mismatch error.
+
+
+TYPES
+
+type Preview struct {
+	Dir      string
+	HasMap   bool
+	HasScene bool
+
+	Orient     string
+	MapW       int
+	MapH       int
+	TileW      float64
+	TileH      float64
+	LayerCount int
+	TileCount  int
+	SolidCount int
+	MaskAt00   int
+	HasMask    bool
+
+	ObjectCount int
+	EntityCount int
+
+	Notes    []string
+	MapErr   string
+	SceneErr string
+
+	// Has unexported fields.
+}
+    Preview is one opened level project: engine counts plus placeholders.
+    The map and scene sides parse independently; one torn file never kills the
+    other side. Map/side absence is a note, corruption is a *core.Error string
+    in MapErr/SceneErr plus the returned error. Counts always come from engine
+    getters, so they match the game bit for bit.
+
+func OpenProject(dir string) (Preview, error)
+    OpenProject opens dir as a level project. Missing map.tmx or scene.json
+    leaves a placeholder note and a nil error; torn files set MapErr/SceneErr,
+    keep the other side, and return the first core error. Empty projects open
+    clean so the window never needs a crash path.
+
+func SummarizeMap(m tilemap.Tilemap) Preview
+    SummarizeMap folds one parsed map into preview counts using engine getters
+    only: nonzero GIDs over every layer, solid cells via IsSolidAt, and the
+    layer-0 automask at cell (0,0) as the road-edge sample. It never reads
+    files.
+
+func SummarizeScene(sf world.SceneFile) Preview
+    SummarizeScene folds one parsed scene file into preview counts using engine
+    getters only. It never reads files.
+
+func (p *Preview) Scene() (world.SceneFile, bool)
+    Scene returns the parsed scene file and whether one was usable.
+
+func (p *Preview) Tilemap() (tilemap.Tilemap, bool)
+    Tilemap returns the parsed map and whether a map file was usable.
+

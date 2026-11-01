@@ -1,0 +1,14 @@
+Command kit_f0_theme is the F0 theme-switch real window: one button row under
+three token sets (default/skinned/compact), one global switch, whole-tree
+disable and size switch.
+
+THEME=default|skinned|compact RUN_SECONDS=10 go run ./examples/kit_f0_theme
+
+Every run starts on the default set, then applies $THEME once via a single
+theme.Default.SetBase call. All three buttons re-resolve from the provider;
+no component code changes per theme (re-skinning by editing component code is a
+FAIL per F0 §5.6).
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Correctness window: slope_gate=off,
+fps gate on when steady.

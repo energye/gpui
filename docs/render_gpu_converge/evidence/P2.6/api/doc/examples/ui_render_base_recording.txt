@@ -1,0 +1,15 @@
+Command ui_render_base_recording is the B-group direct real window
+for the render/recording command recorder and raster playback backend:
+Recorder/Recording, command types, ResourcePool, Backend registry and Playback
+to the built-in raster backend.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_render_base_recording -auto-only
+    go run ./examples/ui_render_base_recording   # manual: lives until window close
+    go run ./examples/ui_render_base_recording -manual-seconds 15
+
+Evidence: logical contract probes (command coverage, resource pool, backend
+registry, immutable replay, spy backend), point/ink probes on the GPU snapshot,
+and a bitwise golden over header + legend + four cards. The cards are recorded
+once, replayed by the raster backend, then displayed as images; no example-side
+drawing substitutes for the recording path.

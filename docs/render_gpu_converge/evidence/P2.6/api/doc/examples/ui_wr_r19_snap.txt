@@ -1,0 +1,26 @@
+Evidence helpers for ui_wr_r19_snap (R19 · U21).
+
+The gate snapshot is a GPU readback PNG (not a window screenshot). Color probes
+are sampled in logical coordinates (DPR-aware); the Golden baseline is compared
+bit for bit over header + legend + body. R19's raw-vs-snapped contrast uses
+filled one-device-pixel bars: a snapped bar covers exactly one pixel column/row,
+while the same bar offset by half a device pixel splits its coverage over two
+pixels. Axis-aligned stroked hairlines are separately checked for crispness;
+the GPU backend also snaps those (see render/internal/gpu/stroke_hairline.go),
+so they are not used as blur bait.
+
+Command ui_wr_r19_snap is the W1 R19 real-window: 1px / device-pixel alignment.
+
+    export LD_LIBRARY_PATH=$PWD/lib WGPU_NATIVE_PATH=$PWD/lib/libwgpu_native.so
+    RUN_SECONDS=5 go run ./examples/ui_wr_r19_snap -auto-only
+    go run ./examples/ui_wr_r19_snap -manual-seconds 15
+
+Window: 1200x800 logical. Gate mode freezes Steady, writes a GPU readback
+snapshot and compares a zero-tolerance Golden over header + legend + body.
+Manual mode runs Steady -> Spike -> Recover and never writes the gate PNG.
+
+R19's visible contrast is a one-device-pixel filled bar: SnapCoord on the grid
+covers exactly one pixel; the same bar offset by +0.5 device px splits over two
+half-covered pixels. SnapLine hairlines are checked for crispness separately.
+The GPU backend also snaps axis-aligned 1px strokes, so stroked raw/snapped
+hairlines are not used as blur bait.

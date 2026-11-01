@@ -1,0 +1,9 @@
+Command kit_f0_content is the F0-3 content real window: single/multi/
+ellipsis/rich text plus icon row plus the picture three-state machine.
+
+RUN_SECONDS=15 go run ./examples/kit_f0_content
+
+Window: 1200x800 baseline, user-resizable. One scripted resize excursion
+restores the baseline before gates are read. Correctness window: slope_gate=off,
+fps gate on when steady, pixel probes use region density (never single-point
+glyph sampling).

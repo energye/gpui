@@ -1,0 +1,34 @@
+Command game_world is the 10.2 prefab-scene independent window.
+
+Open scene: the filed level examples/engine/world/testdata/world_open.json
+loads through the real engine/world SceneFile in one go (LoadScene+Open),
+every birth lands active, and the four filed entities land on their frozen world
+spots (slime hangs under the scaled crate). Every 2s the level reopens from disk
+(Clear+Load+Open) and a walker prefab stamps under hero, walks, then disposes:
+living returns to the filed baseline while the birth ledger only grows.
+
+Modes:
+
+    go run ./examples/engine/world --case=open -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/world --case=open -manual-seconds 30
+      manual for 30s (events logged, title shows the count), then summary.
+    go run ./examples/engine/world --case=open
+      probes, then resident until close (RUN_SECONDS sets a timed run).
+
+Large scene (S85 cull): the filed 20008-entity level from
+engine/world/testdata/large_scene.json opens through the real engine/world World
+in id order (grid roots, attached挂点 children, marker comps), then engine/world
+Cull keeps the update set (in-view plus awake pins, sleepers skip matrices,
+active-only layer/feetY sort). The camera walks the field and wraps home;
+WASD/arrows nudge, clicks pin the nearest active entity. Thick old abilities
+ride along: attach links draw like the open case, markers show spawn points,
+layers color the sort.
+
+    go run ./examples/engine/world --case=large -auto-only
+      headless probes + ~8s window (JSON on stdout, exit 1 on fail).
+    go run ./examples/engine/world --case=large -manual-seconds 60
+      manual for 60s (events logged, title shows the count), then summary.
+
+Window: 1200x800, title game_world-large. First run writes the golden baseline
+into testdata/world_large_golden.png; later runs compare it with zero tolerance.
