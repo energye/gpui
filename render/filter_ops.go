@@ -24,6 +24,10 @@ var (
 	colorMatrixApply func(src, dst *Pixmap, matrix [20]float32)
 	grayscaleApply   func(src, dst *Pixmap)
 	invertApply      func(src, dst *Pixmap)
+	erodeApply       func(src, dst *Pixmap, radius int)
+	dilateApply      func(src, dst *Pixmap, radius int)
+	offsetApply      func(src, dst *Pixmap, dx, dy int)
+	alphaThresholdApply func(src, dst *Pixmap, threshold uint8)
 	// gpuFilterGraphApply runs F.03 multi-RT GPU ping-pong (optional).
 	// src is tight RGBA8 w*h*4; returns same layout result.
 	gpuFilterGraphApply func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)

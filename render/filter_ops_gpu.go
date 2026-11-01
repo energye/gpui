@@ -441,6 +441,14 @@ const (
 	ImageFilterGrayscale
 	// ImageFilterInvert inverts RGB channels.
 	ImageFilterInvert
+	// ImageFilterErode is morphological minimum (P3.4).
+	ImageFilterErode
+	// ImageFilterDilate is morphological maximum (P3.4).
+	ImageFilterDilate
+	// ImageFilterOffset translates content by whole pixels (P3.4).
+	ImageFilterOffset
+	// ImageFilterAlphaThreshold zeroes alpha below a threshold (P3.4).
+	ImageFilterAlphaThreshold
 )
 
 // ImageFilterNode is one node in a multi-pass image filter graph (F.03).
@@ -460,6 +468,14 @@ type ImageFilterNode struct {
 
 	// ColorMatrix
 	Matrix [20]float32
+
+	// Erode/Dilate/Offset/AlphaThreshold (P3.4): MorphRadius for morphology,
+	// IntOffsetX/Y for offset, AlphaThreshold for the cutoff. The integer
+	// offset avoids float rounding at whole-pixel granularity.
+	MorphRadius    int
+	IntOffsetX     int
+	IntOffsetY     int
+	AlphaThreshold uint8
 }
 
 // ApplyImageFilterGraph runs a multi-node image filter graph with intermediate
@@ -594,6 +610,10 @@ func imageFilterGraphGPUSupported(nodes []ImageFilterNode) bool {
 		case ImageFilterBlur, ImageFilterBlurXY, ImageFilterGrayscale, ImageFilterInvert,
 			ImageFilterColorMatrix, ImageFilterDropShadow:
 			any = true
+		// P3.4 batch-1 kinds stay CPU-first until the GPU graph gains their
+		// WGSL modes; imageFilterGraphGPUSupported must not claim them.
+		case ImageFilterErode, ImageFilterDilate, ImageFilterOffset, ImageFilterAlphaThreshold:
+			return false
 		default:
 			return false
 		}
@@ -615,6 +635,14 @@ func imageFilterNodeRunnable(n ImageFilterNode) bool {
 		return grayscaleApply != nil
 	case ImageFilterInvert:
 		return invertApply != nil
+	case ImageFilterErode:
+		return n.MorphRadius > 0 && erodeApply != nil
+	case ImageFilterDilate:
+		return n.MorphRadius > 0 && dilateApply != nil
+	case ImageFilterOffset:
+		return (n.IntOffsetX != 0 || n.IntOffsetY != 0) && offsetApply != nil
+	case ImageFilterAlphaThreshold:
+		return alphaThresholdApply != nil
 	default:
 		return false
 	}
@@ -634,6 +662,14 @@ func applyImageFilterNode(n ImageFilterNode, src, dst *Pixmap) {
 		grayscaleApply(src, dst)
 	case ImageFilterInvert:
 		invertApply(src, dst)
+	case ImageFilterErode:
+		erodeApply(src, dst, n.MorphRadius)
+	case ImageFilterDilate:
+		dilateApply(src, dst, n.MorphRadius)
+	case ImageFilterOffset:
+		offsetApply(src, dst, n.IntOffsetX, n.IntOffsetY)
+	case ImageFilterAlphaThreshold:
+		alphaThresholdApply(src, dst, n.AlphaThreshold)
 	}
 }
 

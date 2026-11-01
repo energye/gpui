@@ -41,6 +41,18 @@ func init() {
 		func(src, dst *render.Pixmap) {
 			filter.NewInvertFilter().Apply(src, dst, full(src))
 		},
+		func(src, dst *render.Pixmap, radius int) {
+			filter.NewErodeFilter(radius, radius).Apply(src, dst, full(src))
+		},
+		func(src, dst *render.Pixmap, radius int) {
+			filter.NewDilateFilter(radius, radius).Apply(src, dst, full(src))
+		},
+		func(src, dst *render.Pixmap, dx, dy int) {
+			filter.NewOffsetFilter(dx, dy).Apply(src, dst, full(src))
+		},
+		func(src, dst *render.Pixmap, threshold uint8) {
+			filter.NewAlphaThresholdFilter(threshold).Apply(src, dst, full(src))
+		},
 	)
 }
 

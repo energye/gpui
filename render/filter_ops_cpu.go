@@ -35,6 +35,10 @@ func RegisterFilterOps(
 	colorMatrix func(src, dst *Pixmap, matrix [20]float32),
 	grayscale func(src, dst *Pixmap),
 	invert func(src, dst *Pixmap),
+	erode func(src, dst *Pixmap, radius int),
+	dilate func(src, dst *Pixmap, radius int),
+	offset func(src, dst *Pixmap, dx, dy int),
+	alphaThreshold func(src, dst *Pixmap, threshold uint8),
 ) {
 	blurApply = blur
 	blurXYApply = blurXY
@@ -42,6 +46,10 @@ func RegisterFilterOps(
 	colorMatrixApply = colorMatrix
 	grayscaleApply = grayscale
 	invertApply = invert
+	erodeApply = erode
+	dilateApply = dilate
+	offsetApply = offset
+	alphaThresholdApply = alphaThreshold
 }
 
 func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
@@ -293,3 +301,69 @@ func (c *Context) readbackFilterSrcIntoScratch(srcView gpucontext.TextureView, w
 }
 
 // FiltersRegistered reports whether image filter ops were registered.
+
+// ApplyErode morphologically shrinks bright regions by the radius (P3.4).
+// GPU-first via the filter graph, CPU fallback otherwise.
+func (c *Context) ApplyErode(radius int) {
+	if radius <= 0 {
+		return
+	}
+	nodes := []ImageFilterNode{{Kind: ImageFilterErode, MorphRadius: radius}}
+	if c.tryApplyFilterGraphGPU(nodes...) {
+		return
+	}
+	c.applyFilterInPlace(func(src, dst *Pixmap) {
+		if erodeApply != nil {
+			erodeApply(src, dst, radius)
+		}
+	})
+	c.markLayerFullComposite()
+}
+
+// ApplyDilate morphologically grows bright regions by the radius (P3.4).
+func (c *Context) ApplyDilate(radius int) {
+	if radius <= 0 {
+		return
+	}
+	nodes := []ImageFilterNode{{Kind: ImageFilterDilate, MorphRadius: radius}}
+	if c.tryApplyFilterGraphGPU(nodes...) {
+		return
+	}
+	c.applyFilterInPlace(func(src, dst *Pixmap) {
+		if dilateApply != nil {
+			dilateApply(src, dst, radius)
+		}
+	})
+	c.markLayerFullComposite()
+}
+
+// ApplyOffset shifts content by whole pixels (P3.4).
+func (c *Context) ApplyOffset(dx, dy int) {
+	if dx == 0 && dy == 0 {
+		return
+	}
+	nodes := []ImageFilterNode{{Kind: ImageFilterOffset, IntOffsetX: dx, IntOffsetY: dy}}
+	if c.tryApplyFilterGraphGPU(nodes...) {
+		return
+	}
+	c.applyFilterInPlace(func(src, dst *Pixmap) {
+		if offsetApply != nil {
+			offsetApply(src, dst, dx, dy)
+		}
+	})
+	c.markLayerFullComposite()
+}
+
+// ApplyAlphaThreshold zeroes pixels whose alpha is below the threshold (P3.4).
+func (c *Context) ApplyAlphaThreshold(threshold uint8) {
+	nodes := []ImageFilterNode{{Kind: ImageFilterAlphaThreshold, AlphaThreshold: threshold}}
+	if c.tryApplyFilterGraphGPU(nodes...) {
+		return
+	}
+	c.applyFilterInPlace(func(src, dst *Pixmap) {
+		if alphaThresholdApply != nil {
+			alphaThresholdApply(src, dst, threshold)
+		}
+	})
+	c.markLayerFullComposite()
+}
