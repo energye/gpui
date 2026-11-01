@@ -1,0 +1,4 @@
+API 目录缺失 1 个符号（docs/RENDER_API_CATALOG.md 未出现）：
+  mainpkg NewParagraphBuilder
+→ 请在 docs/RENDER_API_CATALOG.md 对应分类表补齐（增/改/删 API 时同步更新）。
+exit status 1

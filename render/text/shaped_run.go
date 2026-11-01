@@ -13,6 +13,10 @@ package text
 // ShapedRun is a sequence of shaped glyphs with uniform style.
 // Used by the Layout Engine for multi-line and multi-style text rendering.
 type ShapedRun struct {
+	// Style indexes the rich-text style table of the owning Paragraph
+	// (P3.3). -1 (and the zero value for standalone layouts) means no
+	// styled span: the caller's current paint colors the run.
+	Style int
 	// Glyphs is the sequence of positioned glyphs.
 	Glyphs []ShapedGlyph
 

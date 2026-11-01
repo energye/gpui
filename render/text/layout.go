@@ -76,7 +76,28 @@ type LayoutOptions struct {
 	// WordSpacing adds space at each maximal whitespace run in logical
 	// px (negative tightens).
 	WordSpacing float64
+
+	// MaxLines caps the number of laid-out lines (P3.3). 0 = unlimited.
+	// When the text needs more lines, Overflow decides the tail behavior.
+	MaxLines int
+
+	// Overflow selects truncation when MaxLines cuts the text (P3.3).
+	// Zero value = OverflowClip (hard cut, no ellipsis).
+	Overflow Overflow
 }
+
+// Overflow selects how text is truncated when MaxLines cuts it (P3.3,
+// aligned with Flutter TextOverflow).
+type Overflow uint8
+
+const (
+	// OverflowClip cuts at MaxLines with no marker.
+	OverflowClip Overflow = iota
+	// OverflowEllipsis trims the last line so a "…" glyph fits.
+	OverflowEllipsis
+	// OverflowVisible keeps overflow text rendered past the line budget.
+	OverflowVisible
+)
 
 // DefaultLayoutOptions returns sensible default layout options.
 func DefaultLayoutOptions() LayoutOptions {
@@ -212,8 +233,11 @@ func LayoutTextWithContext(ctx context.Context, text string, face Face, opts Lay
 
 			line.Y = y
 
-			// Apply horizontal alignment
-			applyAlignment(line, opts.Alignment, opts.MaxWidth)
+			// Apply horizontal alignment. Justify skips the last line of
+			// each paragraph (Skia/Flutter semantics: no stretch on the
+			// final line).
+			isLastOfPara := j == len(paraLines)-1
+			applyAlignment(line, para, opts.Alignment, opts.MaxWidth, isLastOfPara)
 
 			// Track layout bounds
 			if line.Width > layout.Width {
@@ -224,6 +248,8 @@ func LayoutTextWithContext(ctx context.Context, text string, face Face, opts Lay
 		layout.Lines = append(layout.Lines, paraLines...)
 	}
 
+	applyMaxLinesTruncation(layout, face, opts)
+
 	// Calculate total height
 	if len(layout.Lines) > 0 {
 		lastLine := &layout.Lines[len(layout.Lines)-1]
@@ -231,6 +257,59 @@ func LayoutTextWithContext(ctx context.Context, text string, face Face, opts Lay
 	}
 
 	return layout, nil
+}
+
+// applyMaxLinesTruncation caps the line count and appends an ellipsis on the
+// last kept line when Overflow is OverflowEllipsis (P3.3). Layout.Lines is
+// mutated in place: dropped lines disappear, the tail line is re-shaped with
+// a shrinking prefix plus a "…" glyph so the marker fits MaxWidth.
+func applyMaxLinesTruncation(layout *Layout, face Face, opts LayoutOptions) {
+	if opts.MaxLines <= 0 || len(layout.Lines) <= opts.MaxLines {
+		return
+	}
+	if opts.Overflow == OverflowVisible {
+		return
+	}
+	layout.Lines = layout.Lines[:opts.MaxLines]
+	if opts.Overflow != OverflowEllipsis || opts.MaxWidth <= 0 {
+		return
+	}
+	line := &layout.Lines[len(layout.Lines)-1]
+	ellGlyphs := ShapeUncached("…", face)
+	if len(ellGlyphs) == 0 {
+		return
+	}
+	ellWidth := 0.0
+	for _, g := range ellGlyphs {
+		ellWidth += g.XAdvance
+	}
+	keep := len(line.Glyphs)
+	for keep > 0 && line.Width+ellWidth > opts.MaxWidth {
+		keep--
+		line.Width -= line.Glyphs[keep].XAdvance
+	}
+	tail := make([]ShapedGlyph, 0, keep+len(ellGlyphs))
+	tail = append(tail, line.Glyphs[:keep]...)
+	x := line.Width
+	for gi := range ellGlyphs {
+		g := ellGlyphs[gi]
+		g.X = x
+		x += g.XAdvance
+		tail = append(tail, g)
+	}
+	line.Glyphs = tail
+	line.Width += ellWidth
+	// The run list no longer matches the glyph list (the marker has no
+	// styled run); flatten to one synthesized run for a consistent pair.
+	line.Runs = []ShapedRun{{
+		Glyphs:  append([]ShapedGlyph(nil), line.Glyphs...),
+		Advance: line.Width,
+		Ascent:  line.Ascent,
+		Descent: line.Descent,
+		Face:    face,
+		Size:    face.Size(),
+		Style:   -1,
+	}}
 }
 
 // LayoutTextSimple is a convenience wrapper with default options.
@@ -307,8 +386,11 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOp
 		// directions) — skipping the split handed the MultiFace to the shaper
 		// wholesale, which shaped zero glyphs and blanked the line.
 		parts := []facePart{{face: face, text: seg.Text}}
-		if mf, ok := face.(*MultiFace); ok {
-			if frs := mf.Runs(seg.Text); len(frs) > 0 {
+		// P3.3: any Face that can split itself into runs (MultiFace and the
+		// rich-text styledFace) drives the per-part segmentation; styledFace
+		// splits at style-span boundaries so each span lands in its own run.
+		if fr, ok := face.(interface{ Runs(string) []FaceRun }); ok {
+			if frs := fr.Runs(seg.Text); len(frs) > 0 {
 				parts = parts[:0]
 				start := 0
 				for _, fr := range frs {
@@ -591,7 +673,7 @@ func createLineFromGlyphs(infos []glyphInfo, runs []ShapedRun, startX float64, m
 }
 
 // applyAlignment adjusts glyph X positions based on alignment.
-func applyAlignment(line *Line, alignment Alignment, maxWidth float64) {
+func applyAlignment(line *Line, paraText string, alignment Alignment, maxWidth float64, isLastLine bool) {
 	if len(line.Glyphs) == 0 {
 		return
 	}
@@ -615,8 +697,46 @@ func applyAlignment(line *Line, alignment Alignment, maxWidth float64) {
 		}
 		offset = containerWidth - line.Width
 	case AlignJustify:
-		// Justify: distribute extra space between words
-		// For now, treat as left-aligned (future implementation)
+		// Justify: distribute the leftover width across the inter-word
+		// spaces. The last line of a paragraph is not stretched
+		// (Skia/Flutter semantics), and so are lines without spaces or
+		// without any leftover width.
+		if isLastLine || maxWidth <= 0 || line.Width >= maxWidth {
+			return
+		}
+		gapCount := 0
+		for i := range line.Glyphs {
+			if isSpaceGlyph(&line.Glyphs[i], paraText) {
+				gapCount++
+			}
+		}
+		if gapCount == 0 {
+			return
+		}
+		extra := (maxWidth - line.Width) / float64(gapCount)
+		// Advance each space glyph and shift everything after it; both
+		// glyph copies (line.Glyphs and line.Runs[].Glyphs) must move in
+		// lockstep (applyAlignment's established double-write pattern).
+		shift := 0.0
+		for i := range line.Glyphs {
+			line.Glyphs[i].X += shift
+			if isSpaceGlyph(&line.Glyphs[i], paraText) {
+				line.Glyphs[i].XAdvance += extra
+				shift += extra
+			}
+		}
+		line.Width += extra * float64(gapCount)
+		for ri := range line.Runs {
+			runShift := 0.0
+			for gi := range line.Runs[ri].Glyphs {
+				g := &line.Runs[ri].Glyphs[gi]
+				g.X += runShift
+				if isSpaceGlyph(g, paraText) {
+					g.XAdvance += extra
+					runShift += extra
+				}
+			}
+		}
 		return
 	}
 
@@ -651,4 +771,17 @@ func isCJK(r rune) bool {
 		(r >= 0x3040 && r <= 0x309F) || // Hiragana
 		(r >= 0x30A0 && r <= 0x30FF) || // Katakana
 		(r >= 0xAC00 && r <= 0xD7AF) // Hangul Syllables
+}
+
+// isSpaceGlyph reports whether the glyph's cluster points at a whitespace
+// rune of the paragraph text — the Justify gap-distribution target (P3.3).
+func isSpaceGlyph(g *ShapedGlyph, paraText string) bool {
+	if g == nil || g.Cluster < 0 {
+		return false
+	}
+	r := []rune(paraText)
+	if g.Cluster >= len(r) {
+		return false
+	}
+	return unicode.IsSpace(r[g.Cluster])
 }
