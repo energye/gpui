@@ -1022,11 +1022,17 @@ func (c *CopyTextureToBufferCommand) Execute(ctx *gl.Context, st *glExecState) {
 
 	// Read pixels from the bound FBO into a temporary CPU buffer.
 	// PACK_ALIGNMENT is 1 above, so GL packs rows tightly.
+	// Readback byte order must match the source texture's texel format order
+	// (wgpu copyTextureToBuffer parity): BGRA8Unorm reads back as BGRA bytes,
+	// RGBA8Unorm as RGBA. Reading a RGBA8 texture with gl.BGRA makes the
+	// driver swap channels and flips every consumer (filter-graph readback,
+	// mask modulation) on the GL chain.
+	_, readFormat, readType := textureFormatToGL(c.srcTexture.format)
 	tmpBuf := make([]byte, uint64(rowBytes)*uint64(height))
 	ctx.ReadPixels(
 		int32(c.srcOrigin[0]), int32(c.srcOrigin[1]),
 		width, height,
-		gl.BGRA, gl.UNSIGNED_BYTE,
+		readFormat, readType,
 		unsafe.Pointer(&tmpBuf[0]),
 	)
 

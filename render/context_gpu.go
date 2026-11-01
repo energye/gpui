@@ -547,10 +547,11 @@ func (c *Context) tryGPUOpRC(
 ) error {
 	target := c.gpuRenderTarget()
 
-	// P3.2: a Shader paint has no SDF path — route straight to the path
-	// function so FillPath's shader branch owns it.
-	if c.paint != nil && c.paint.Shader != nil {
-		fmt.Fprintf(os.Stderr, "[user_shader] tryGPUOpRC shader route\n")
+	// P3.2/P3.4: a Shader paint or a paint carrying paint-level filters
+	// (ImageFilter graph / MaskFilterRadius) has no SDF shape path — route
+	// straight to the path function so FillPath's shader/filtered branches
+	// own it instead of the shape shortcut silently dropping them.
+	if c.paint != nil && (c.paint.Shader != nil || len(c.paint.ImageFilter) > 0 || c.paint.MaskFilterRadius > 0) {
 		return pathFn(target, c.path, c.paint, totalM)
 	}
 	if c.paint != nil && os.Getenv("GPUI_DEBUG_USER_SHADER") == "1" {

@@ -2414,6 +2414,17 @@ func tessellateUser(raw *render.Path, userScale float64, useAA bool) (fan, ba, i
 
 // FillShape accumulates a filled shape for batch dispatch.
 func (rc *GPURenderContext) FillShape(target render.GPURenderTarget, shape render.DetectedShape, paint *render.Paint) error {
+	// P3.4: paint-level filters have no SDF shape path — the filtered-paint
+	// branch in FillPath owns them (content raster → MaskFilter blur →
+	// ImageFilter graph → composite). Letting the shape shortcut take a
+	// filtered paint silently drops the filter and paints a hard edge.
+	if paint != nil && (len(paint.ImageFilter) > 0 || paint.MaskFilterRadius > 0) {
+		p := detectedShapeToPath(shape)
+		if p == nil {
+			return render.ErrFallbackToCPU
+		}
+		return rc.FillPath(target, p, paint, render.Identity())
+	}
 	// L.06: prefer SDF cover-inline R8 when MaskAware texture is live.
 	if paint != nil && paint.MaskCoverage != nil {
 		if rc.tryFillMaskedSDFInline(target, shape, paint) {

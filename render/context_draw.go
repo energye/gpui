@@ -32,7 +32,12 @@ func (c *Context) Image() image.Image {
 // The RasterizerMode set via SetRasterizerMode controls algorithm selection.
 // Returns an error if the rendering operation fails.
 func (c *Context) Fill() error {
-
+	// P3.4 paint-level filters extend the affected area beyond the geometry
+	// (blur halo / filter output) — track the padded bounds so damage-based
+	// present does not clip the feather.
+	if c.paint != nil && (len(c.paint.ImageFilter) > 0 || c.paint.MaskFilterRadius > 0) {
+		c.trackDamage(filteredFillDamageBounds(c.path.Bounds(), c.paint.MaskFilterRadius))
+	}
 	c.trackDamage(c.path.Bounds())
 	err := c.doFill()
 	c.path.Clear()
@@ -311,6 +316,13 @@ func (c *Context) doFill() error {
 
 	// CPU wrote into the layer pixmap — Pop must not GPU-blit an empty RT.
 	c.noteLayerCPUDraw()
+	// P3.4: paint-level filters ride the CPU filtered-fill twin (content
+	// raster → MaskFilter blur → ImageFilter ops → mask×clip → paste), the
+	// counterpart of internal/gpu's fillPaintFilteredAsImage. Without it the
+	// CPU tier would silently paint a hard edge.
+	if c.paint != nil && (len(c.paint.ImageFilter) > 0 || c.paint.MaskFilterRadius > 0) {
+		return c.fillPaintFilteredCPU(devicePath)
+	}
 	return c.renderer.Fill(c.pixmap, devicePath, c.paint)
 }
 

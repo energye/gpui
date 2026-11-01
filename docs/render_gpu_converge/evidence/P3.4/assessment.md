@@ -71,3 +71,39 @@
 真窗 `ui_wr_p34_filters` 三卡：A 卡形态学对偶 2/2 ✅、B 卡 merge 双层 2/2 ✅（三根因修复：不透明 base 层覆盖一切（数学事实，卡改透明底）、层2 base 拷贝被层1 over 污染（pristine 层派生修复 `3ae47859` 后续）、GPU FromView 种子含前层（层跑改 CPU-only，GPU per-layer seeding 登记后续））、C 卡 Paint.MaskFilter 1/2 ✅（硬边钉绿；**羽化钉未达**——fillPaintFilteredAsImage 路由未触发：doFill 收到 radius=4 → tryGPUFillWithMode(4) ✓ → tryGPUOpRC 零进入——bake dc 的 gpuCtx 建立问题，六轮诊断现场存档 /tmp/p34_d*.log 摘要）。C 卡 CPU 模式钉 `TestPaintMaskFilterSoftensEdges` 绿。
 
 **收口状态**：4/6 探针+既有族回归绿；C 卡 GPU 路径专项诊断遗留。
+
+---
+
+## 8. C 卡专项诊断与收口（2026-11-01 第二会话，✅ 闭合）
+
+> §7 的「bake dc gpuCtx 建立链」怀疑方向**不成立**（gpuCtx 在 bake dc 内正常建立——窗口进程注册了全局加速器设备提供者 `present_construct.go:545`，`ensureGPUCtx→NewGPURenderContext` 链可用）。真正根因三条，全部单测/探针实证：
+
+### 8.1 根因一：SDF 形状捷径吃 filtered paint（真断链）
+
+- 全仓对 `paint.MaskFilterRadius`/`paint.ImageFilter` 的守卫**只有一处**：`FillPath`（gpu_render_context.go:1981）。
+- 矩形是 SDF 形状：`tryGPUOpRC → DetectShape → FillShape`（gpu_render_context.go:2416）**零滤镜守卫**，直接 `QueueShape` 画硬边、返回 nil——cpu_fb=0、gpu_ops 照计、画面硬边，与真窗观察逐项吻合。
+- 旧加速器路径 `SDFAccelerator.FillShape`（sdf_gpu.go:376）委托同一个 `rc.FillShape`——两条上下文路由同洞。
+- 批 5 summary 排障实录 2「tryGPUOpRC 绕行条件扩 ImageFilter/MaskFilter」**git 历史无落地**（context_gpu.go 无 MaskFilter 相关提交）——意图登记了、代码没写，本会话落地并修正记载。
+- 证据：HEAD worktree 放同款路由钉 → 红（no outward halo）；d6 日志 `tryGPUFillWithMode r=4` 后无路由输出 + route `card2:gpu_ops=2,cpu_fb=0`。
+
+### 8.2 根因二：CPU 模式钉空洞（假绿）
+
+- `TestPaintMaskFilterSoftensEdges` 在 `ClearWithColor(Black)`（A=1 不透明底）上断言「边缘 alpha≠0」——alpha 恒 255，**断言恒真**。
+- 探针实测 CPU 模式边缘剖面 `x=13:(0,0,0,255) → x=16:(255,255,255,255)` 纯硬边；CPU 链（SoftwareRenderer/doFill CPU 回退）对 `paint.MaskFilterRadius` **零应用点**。§7「C 卡 CPU 模式钉绿」与批 5「CPU 模式钉绿证明羽化数学与管线本身正确」的结论不成立，已修正。
+
+### 8.3 根因三：gles CopyTextureToBuffer 硬编码 gl.BGRA（go 档 C 卡蓝块）
+
+- 路由修活后 go 档 C 卡变**蓝色**（快照采样 (51,153,255)，橙 (1,0.6,0.2) 的 R/B 互换）；`GOGPU_RENDER_MODE=cpu` 组合绿 → 断点在 GPU filter 图 hook。
+- hook 字节序微探针（GL 设备，纯红 (255,0,0,255) 进 `hooks.Apply(blurXY)`）：输出 `[0 0 255 255]`——**蓝出**。
+- 根因：`gpu/gwgpu/gles/command_execute.go` CopyTextureToBuffer 的 `glReadPixels` **硬编码 `gl.BGRA`**，不看 `srcTexture.format`。filter 图 RT 是 RGBA8Unorm（filter_gpu_graph.go:621），GL 驱动按请求把内部 RGBA 转成 BGRA 字节序输出 → 翻色。sdf_render resolve 是 BGRA8Unorm → 存量链（A/B 卡、既有 GL 探针）恰好全对，这就是缺口一直没暴露的原因。
+- 修复：ReadPixels 格式按 `textureFormatToGL(srcTexture.format)` 选择（wgpu copyTextureToBuffer 契约=读回字节序与纹理格式 texel 序一致）；mask_r8_modulate（RGBA8）等同类读回一并纠正。修后 hook `[255 0 0 255]` 红进红出、既有 GL 探针全绿、go 档真窗 6/6+金图逐位 0。
+
+### 8.4 修复与验证清单
+
+见 summary.md §6（A+B+C+D+GL 五处、负向红→绿、双档真窗 6/6、逐文件零新增、五目标构建、`-race` 绿、apidoc rc=0）。修复会话顺带：`TestApplyMergeAndDisplacement` 全局滤镜注册表 save/restore（桩闭包覆写全局导致跨用例污染，真钉暴露后修复）。
+
+### 8.5 归位登记（非本步闭合）
+
+- `render/recording/backends/raster/backend_coverage_test.go:24` vet 编译级错（FillRect 签名未跟 P3.1 变更，HEAD 同错）→ 台账待办池。
+- go 档 + `GOGPU_RENDER_MODE=cpu` 组合下 A 卡 erode 探针红（native+cpu 同红；cpu 组合非真窗验收档）→ 观察项登记。
+- Stroke 级 paint 滤镜缺口、高级混合 × paint 滤镜组合 → summary §4 遗留清单。

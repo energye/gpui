@@ -47,8 +47,8 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：**P3.4 滤镜家族**（五批+真窗 4/6 完成收口中；**C 卡 GPU 路径专项诊断遗留**，assessment §7 六轮现场存档；catalog/apidoc/summary 已落盘）
-- 下一任务：P3.1 收口后按定稿主序进 P3.2 自定义 shader（依赖图 `evidence/P3.0/dependency-graph.md` §4）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 当前进行中：**P3.4 滤镜家族 ✅**（五批+真窗 6/6 双档+金图逐位 0+C 卡专项闭合：SDF 捷径吃 filtered paint / CPU 钉空洞假绿 / gles CopyTextureToBuffer 硬编码 gl.BGRA 三根因修复，assessment §8、summary §6；遗留项全部登记 summary §4）
+- 下一任务：**P3.5 路径与几何**（conic、四角独立圆角、Matrix4 透视、路径效果、布尔保曲线；依赖 P3.0 ✅，依赖图 `evidence/P3.0/dependency-graph.md`）；随后 P3.6 图片格式+GPU mipmap；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
 - 阻塞项：无
 - 阻塞项：无（尾巴专项照旧不阻塞）
 - 阻塞项：无（尾巴专项照旧不阻塞）
@@ -272,7 +272,7 @@
 | P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | ✅ | `evidence/P3.1/` |
 | P3.2 | 自定义 shader（依赖 P2.1 翻译器 + 新公开 API） | P3.0、P2.1 | ✅ | `evidence/P3.2/` |
 | P3.3 | 富文本（含 `DrawParagraph` 逐 run 样式，原半成品前移） | P3.0 | ✅ | `evidence/P3.3/` |
-| P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1（软） | 🟡（五批+真窗 4/6 完成、catalog §13 转正+apidoc rc=0+summary 落盘；**遗留：C 卡 Paint.MaskFilter GPU 路径专项诊断**（bake dc gpuCtx 建立链，assessment §7）、displacement GPU aux 上传、ApplyMask/PushMaskLayer blur 采用、真窗级负向——C 卡解后补羽化钉转 ✅） | `evidence/P3.4/` |
+| P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1（软） | ✅ 2026-11-01（五批+真窗 6/6 双档 native/go+金图逐位 0+真窗级负向红→绿+catalog §13 转正+apidoc rc=0；**C 卡专项闭合**：三根因修复——FillShape/tryGPUOpRC filtered 守卫（SDF 捷径吃 filtered paint）、CPU 羽化 fillPaintFilteredCPU 补齐+假绿钉改真钉、gles CopyTextureToBuffer 按纹理格式选 ReadPixels 格式（硬编码 gl.BGRA 翻色），assessment §8/summary §6；遗留登记：displacement GPU aux 上传、ApplyMask/PushMaskLayer blur 采用、merge GPU per-layer seeding、erode/dilate O(n) 优化、Stroke 级 paint 滤镜、高级混合×paint 滤镜组合） | `evidence/P3.4/` |
 | P3.5 | 路径与几何：conic、四角圆角、Matrix4 透视、路径效果、布尔保曲线 | P3.0 | ⬜ | `evidence/P3.5/` |
 | P3.6 | 图片格式（GIF/APNG/动图 WebP/AVIF/HEIF/EXIF）+ GPU mipmap | P3.0 | ⬜ | `evidence/P3.6/` |
 | P3.7 | 2.5D 透视相机、世界高度/精灵 z 序、自定义材质、HDR/泛光 | P3.0、P3.1、P3.2、P3.5、P3.6（软） | ⬜ | `evidence/P3.7/` |
@@ -330,6 +330,8 @@
 | J3 | P2.4d 收口审计（2026-10-31） | 疑点「`Submission.Begin` 丢未决 jobs → 错误路径 inflight 泄漏」经全调用点核查**收回**：`Begin` 生产零调用（jobs 由 `SubmitDone` 清）；`endSubmission` 5 处同步点（`render_session.go:1040/1124/2158/2235/5754`）+ `Destroy` 末尾 WaitIdle 后强制 endSubmission + 设备丢失 `sub.Invalidate()`（:849）配对闭合，无洞（证据 `evidence/P2.4e/j2-j3-enum-evidence.txt`） | 无需修复（核查闭合，登记防重查） | ✅ 2026-10-31 核查闭合 |
 | J4 | P2.4e e4 门禁（2026-10-31） | `ui/` 不在逐测试文件门禁清单（9 包口径）→ `ui/depcheck_test.go TestUIDoesNotImportGPU`（ui/rendering 两个测试文件的 gpu 测试缝无豁免，早于 P2 基线 `e00e6dbc`/`aa42736c`）与 `ui/application TestFocus_KeyWithNoPrimary` 潜伏既有红，干净树同红已验 | P2.5（门禁清单补 ui 包 + 测试缝豁免口径）✅ 2026-10-31 P2.5 闭合：`tools/per-file-tests.sh`+`.pkgs` 正本（34 包=主链 9+ui 25），输出参数化；ui 5 条既有红实核（HEAD worktree 同红：app_test SIGSEGV/x11_s6_p0/m1/m5/gpupixel，红名单登记不阻塞）；focus 已随 P2.4e Tab 修复转绿；depcheck 缝豁免 P2.4e 已落地 |
 | J5 | P2.4e e4 C7 修复后首次可达（2026-10-31） | go 档 multiwin 关窗阶段 SIGSEGV（3 轮 2 挂，dump `evidence/P2.4e/mwgoF3.stderr`）：Wayland Path B 每 surface 自有 EGL context（ownsContext），共享 Device 挂在首窗的 AdapterContext 上——首窗 `Surface.Destroy→AdapterContext.Destroy` 置空 gl 后，其余窗快照/帧路径 `CreateBuffer` 打空指针（`adapter_context_linux.go:219-223` 置空 + `resource_linux.go:430` 触发）。X11 共享路径 ownsContext=false 无此问题。属上下文所有权设计缺口，C7 开窗修复前该代码段从未可达 | ✅ 2026-10-31 闭合（`evidence/P2.4e/j5-ownership-refcount.md`）：AdapterContext 引用计数（refs/retain/release，双端同步）——Device.Open 持一笔、Surface.Destroy/Instance.Release 改 release，末笔销毁；Device.Open 的 retain 必须先于其 Lock（锁内 retain=自死锁，首轮验证抓到修正）。验证：multiwin go ×3 rc=0 hits=14/15/15 panic=0（修复前 2/3 SIGSEGV）、l1 go rc=0、multiwin native rc=0、gles 唯一 FAIL=G3 既有红、构建+交叉绿 |
+| K1 | P3.4 C 卡收口发现（2026-11-01） | `render/recording/backends/raster/backend_coverage_test.go:24` vet 编译级错：`backend.FillRect` 调用少参（want `(Rect, Brush, render.BlendMode, render.BlendSpace)`）——测试文件未跟 P3.1 的 FillRect 签名变更；HEAD `ef073f4a` 同错（worktree A/B 实证），`go vet ./render/...` 命中 | recording 域：测试改绑新签名（对齐 P3.1 BlendSpace 参数语义） | ⬜ |
+| K2 | P3.4 C 卡收口发现（2026-11-01） | 真窗 `ui_wr_p34_filters` 在 `GOGPU_RENDER_MODE=cpu` 组合下 A 卡 erode 探针红（native+cpu 与 go+cpu 同红）：CPU 滤镜链的 erode 边缘语义与 GPU 图存在差异；cpu 组合非真窗验收档（门禁按 GPU 档设计），非回归 | P3.4 后续（与 erode/dilate O(n) 优化同批）复核 CPU 链边缘语义 | ⬜ |
 
 ## 3 每个任务的开工条件与完成标准
 
@@ -637,6 +639,7 @@ docs/render_gpu_converge/
 | 2026-11-01 | P3.4 | 🟡 批 5+收口待办（下会话）：Paint.ImageFilter/MaskFilter 字段+Fill 管线 per-paint 后处理口（D3 拍板）；MaskFilter 三消费链 A8 blur 预处理（D4）；displacement GPU aux 上传；真窗 filterops 扩卡/新窗；负向对照+catalog §13 转正+台账收口 |`evidence/P3.4/assessment.md` §3 |
 | 2026-11-01 | P3.4 | 批 5 完成（`3ba0a8d3`）：Paint.ImageFilter []ImageFilterNode+Paint.MaskFilterRadius 字段（Clone 复制）+FillPath 路由 fillPaintFilteredAsImage（内容光栅→MaskFilter blurXY→ImageFilter 图→mask 复合→R8 调制→贴回，GPU hook 经 RegisteredGPUFilterGraphHooks 暴露）+SetMaskFilter 状态口+SetMask A8 平面 blur 预处理（D4 槽；ApplyMask/PushMaskLayer 采用登记后续）；值级钉 2 组绿（边缘羽化+远场不变/merge 双层落地）；P3.3/P3.4 相关钉回归绿 | `evidence/P3.4/assessment.md` §3 |
 | 2026-11-01 | P3.4 | 🟡 机械收口：catalog §13 P3.4 行转正（16 符号补齐——Kind 八常量/八 Context 口/GPUFilterGraphHooks 族）+apidoc rc=0（apidoc-p34.txt）+summary.md 落盘（五批终态/排障实录六条/C 卡遗留）；台账状态精确化（🟡 带遗留清单） | `evidence/P3.4/summary.md`、`apidoc-p34.txt` |
+| 2026-11-01 | P3.4 | ✅ **C 卡专项闭合转 ✅**：三根因修复——①SDF 捷径吃 filtered paint（全仓唯一守卫在 FillPath，FillShape/tryGPUOpRC 零守卫，§7「gpuCtx 建立链」怀疑不成立且批 5「tryGPUOpRC 绕行扩」实未落地）→ tryGPUOpRC 绕行扩展+FillShape filtered 守卫；②CPU 模式钉空洞假绿（不透明底 alpha 恒 255，CPU 侧滤镜零应用点）→ CPU 羽化 fillPaintFilteredCPU（GPU 孪生管线：光栅→blurXY→ImageFilter 节点→mask×clip→premul SO 贴回）+doFill 接线+Fill 损伤区 blur pad 外扩+假绿钉改透明底真钉；③gles CopyTextureToBuffer 硬编码 gl.BGRA（RGBA8 filter RT 读回翻色，hook 微探针红进蓝出实证）→ ReadPixels 格式按纹理格式选择。验证：GPU 路由钉负向红（HEAD worktree）→绿；真窗隔离 ：3 native 6/6+金图重播逐位 0、go 档 6/6+金图逐位 0（双后端像素一致）；真窗级负向摘 A+B 守卫红→还原绿；conformance 双后端 PASS；逐文件 render/internal-gpu/filters 315 PASS+6 既有红逐名一致、gles/webgpu/rwgpu 82 PASS+2 既有红（G3/H4B3）零新增；`-count=2 -race` 绿（顺带修 TestApplyMergeAndDisplacement 全局滤镜注册表 save/restore 污染洞）；五目标构建绿；apidoc rc=0；route 对账 A/B 卡与 HEAD 逐位一致仅 C 卡路由改变；金图重播（C 卡羽化为正确输出）。新钉 3 条（TestPaintMaskFilterSoftensEdges 重写/TestP34PaintMaskFilterGPURoute/TestP34GLOffscreenMaskFilterFill 含 hook 字节序微钉）；K1（recording vet 编译错）/K2（go+cpu A 卡观察）入池 | `evidence/P3.4/summary.md` §6、assessment §8 |
 | 2026-11-01 | P3.1 | 🟡 D1–D5 拍板（全按推荐：路线 B advanced+CPU 先行固定功能显式降级 / BlendSpace 枚举 / 默认 SRGB opt-in / 新真窗 / hdr GPU 面移出挂 HDR 专项）；实现+门禁主体完成 | 实现五层：公开 API（BlendSpace+三口+Canvas 102→104+录制四命令+Backend 契约 38→40）/GPU（dual-tex Params.linear@offset28+WGSL 线性域合成一份双后端+全链透传+降级计数）/CPU（draw.go straight 域包装+compositeAdvancedLinear 委托 u8 正本+internal→render 反向依赖修复 blend.go→color.ColorF32）/录制面/降级探针。**语义收紧两条（summary §2）**：linear 生效域=advanced 15 模式全后端统一（CPU Normal 原接真线性与 GPU 降级不一致，改双端统一降级，P3.1b 解锁）；CPU 精度口径 u8 域分级（亮/中 ±2、暗部 ±5 实测）。管线键/batch 谓词改动取消（uniform 标志零管线变体）。门禁：构建/vet/能力钉 14 条/conformance 双后端 rc=0/真窗 ui_wr_p31_linear_blend 双后端逐位（A=77 B=168 vs float ref 167.6 C=128 降级）/负向摘 WGSL linear 分支红→还原绿/apidoc rc=0（catalog §13 P3.1 行转正+§1/§0）；per-file 34 包后台跑（唯一 FAIL=TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend 与 P2.6 基线同名同红，零新增）。P3.1b 立项（sRGB 目标格式整链，HDR/广色域前置） | `evidence/P3.1/`（assessment/summary/window-gates/window-runs×5/conformance/apidoc×2/build-five-target） |
 
 ## 8 修订记录

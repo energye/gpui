@@ -188,15 +188,16 @@ func pixelAt(pm *Pixmap, x, y int) (uint8, uint8, uint8, uint8) {
 	return data[i], data[i+1], data[i+2], data[i+3]
 }
 
-// TestPaintMaskFilterSoftensEdges pins the P3.4 paint-level filter path: a
-// sharp rectangle with MaskFilterRadius gets a feathered edge (intermediate
-// alpha at the old boundary), while ImageFilter (threshold-style via nodes)
-// still composites.
+// TestPaintMaskFilterSoftensEdges pins the P3.4 paint-level filter path on
+// the CPU tier: a sharp rectangle with MaskFilterRadius gets a feathered
+// edge. The background is TRANSPARENT so the alpha channel encodes coverage
+// — an opaque background would make the "edge is feathered" assertion
+// vacuous (alpha is 255 everywhere regardless of the blur).
 func TestPaintMaskFilterSoftensEdges(t *testing.T) {
 	t.Setenv("GOGPU_RENDER_MODE", "cpu")
 	dc := NewContext(64, 64)
 	t.Cleanup(func() { _ = dc.Close() })
-	dc.ClearWithColor(Black)
+	dc.ClearWithColor(Transparent)
 	dc.SetRGB(1, 1, 1)
 	dc.paint.MaskFilterRadius = 3
 	dc.DrawRectangle(16, 16, 32, 32)
@@ -209,15 +210,18 @@ func TestPaintMaskFilterSoftensEdges(t *testing.T) {
 	if a := alphaAt2(32, 32); a < 200 {
 		t.Fatalf("interior alpha=%d, want opaque", a)
 	}
-	// Just outside the old boundary: feathered (non-zero alpha where a sharp
-	// rectangle would be 0).
-	if a := alphaAt2(16, 32); a == 0 {
-		t.Fatal("edge at x=16 is hard — MaskFilter blur did not apply")
+	// At the old boundary: feathered — neither fully covered nor empty (a
+	// sharp rectangle would be 255 here, an unfiltered draw has no ramp).
+	if a := alphaAt2(16, 32); a == 0 || a > 245 {
+		t.Fatalf("boundary alpha=%d, want a feathered intermediate value", a)
 	}
-	// Far outside: still the black background (opaque black, untouched).
-	r4, g4, b4, _ := pixelAt(pm, 4, 32)
-	if r4 != 0 || g4 != 0 || b4 != 0 {
-		t.Fatalf("far-field rgb=(%d,%d,%d), want untouched black background", r4, g4, b4)
+	// Just outside the old boundary: the blur halo must extend outward.
+	if a := alphaAt2(14, 32); a == 0 {
+		t.Fatal("no outward halo at x=14 — MaskFilter blur did not apply")
+	}
+	// Far outside the blur reach: fully transparent (nothing drawn).
+	if a := alphaAt2(4, 32); a != 0 {
+		t.Fatalf("far-field alpha=%d, want untouched transparent background", a)
 	}
 }
 
@@ -226,7 +230,16 @@ func TestPaintMaskFilterSoftensEdges(t *testing.T) {
 func TestApplyMergeAndDisplacement(t *testing.T) {
 	t.Setenv("GOGPU_RENDER_MODE", "cpu")
 	// Register a minimal offset closure in-process (render/filters would
-	// create an import cycle from this internal test).
+	// create an import cycle from this internal test). The registration is
+	// global — save the current ops and restore them so later tests (and
+	// -count>=2 reruns of this package) keep the real registry.
+	sb, sbXY, sSh := blurApply, blurXYApply, dropShadowApply
+	sCM, sGray, sInv := colorMatrixApply, grayscaleApply, invertApply
+	sEr, sDi, sOf := erodeApply, dilateApply, offsetApply
+	sAT, sLi, sTi, sDis := alphaThresholdApply, lightingApply, tileApply, displacementApply
+	t.Cleanup(func() {
+		RegisterFilterOps(sb, sbXY, sSh, sCM, sGray, sInv, sEr, sDi, sOf, sAT, sLi, sTi, sDis)
+	})
 	RegisterFilterOps(
 		nil, nil, nil, nil, nil,
 		func(src, dst *Pixmap) {

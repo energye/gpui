@@ -13,6 +13,7 @@ package gpu
 import (
 	"fmt"
 	"image"
+	"math"
 	"os"
 
 	"github.com/energye/gpui/gpu/hal"
@@ -245,6 +246,14 @@ func (rc *GPURenderContext) fillPaintFilteredAsImage(target render.GPURenderTarg
 		x1 := int(bb.Max.X) + 1
 		y1 := int(bb.Max.Y) + 1
 		bounds = image.Rect(x0, y0, x1, y1).Intersect(image.Rect(0, 0, tw, th))
+	}
+	// Skia mask-filter semantics: the blurred coverage extends beyond the
+	// geometry — expand the staging bounds by the blur pad so the outward
+	// halo is not clipped at the shape bounds.
+	if paint.MaskFilterRadius > 0 {
+		pad := int(math.Ceil(3 * paint.MaskFilterRadius))
+		bounds = image.Rect(bounds.Min.X-pad, bounds.Min.Y-pad, bounds.Max.X+pad, bounds.Max.Y+pad).
+			Intersect(image.Rect(0, 0, tw, th))
 	}
 	if bounds.Empty() {
 		return nil
