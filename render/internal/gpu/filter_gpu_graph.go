@@ -143,8 +143,8 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         let h0 = max(y1 - y0, 0.0001);
         let u = in.uv.x * p.size.x;
         let v = in.uv.y * p.size.y;
-        let tuv = vec2<f32>(x0 + (u mod w0) / w0 * (x1 - x0) / p.size.x,
-                            y0 + (v mod h0) / h0 * (y1 - y0) / p.size.y);
+        let tuv = vec2<f32>(x0 + (u % w0) / w0 * (x1 - x0) / p.size.x,
+                            y0 + (v % h0) / h0 * (y1 - y0) / p.size.y);
         return textureSampleLevel(src_tex, samp, tuv, 0.0);
     }
     if p.mode == 7u || p.mode == 8u {
