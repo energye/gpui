@@ -449,6 +449,12 @@ const (
 	ImageFilterOffset
 	// ImageFilterAlphaThreshold zeroes alpha below a threshold (P3.4).
 	ImageFilterAlphaThreshold
+	// ImageFilterLighting is point-source diffuse lighting over the source
+	// alpha height map (P3.4, Skia LightingImageFilter).
+	ImageFilterLighting
+	// ImageFilterTile repeats the source tile rect across the output (P3.4,
+	// Skia ImageFilters::Tile).
+	ImageFilterTile
 )
 
 // ImageFilterNode is one node in a multi-pass image filter graph (F.03).
@@ -476,6 +482,15 @@ type ImageFilterNode struct {
 	IntOffsetX     int
 	IntOffsetY     int
 	AlphaThreshold uint8
+
+	// Lighting (P3.4): point light position (z = height above the plane),
+	// light color, diffuse constant, surface scale for the alpha height map.
+	LightPos      [3]float32
+	LightColor    RGBA
+	LightKD       float32
+	SurfaceScale  float32
+	// Tile (P3.4): source rect (x0, y0, x1, y1) repeated across the output.
+	TileSrcRect [4]float32
 }
 
 // ApplyImageFilterGraph runs a multi-node image filter graph with intermediate
@@ -609,7 +624,8 @@ func imageFilterGraphGPUSupported(nodes []ImageFilterNode) bool {
 		switch n.Kind {
 		case ImageFilterBlur, ImageFilterBlurXY, ImageFilterGrayscale, ImageFilterInvert,
 			ImageFilterColorMatrix, ImageFilterDropShadow,
-			ImageFilterErode, ImageFilterDilate, ImageFilterOffset, ImageFilterAlphaThreshold:
+			ImageFilterErode, ImageFilterDilate, ImageFilterOffset, ImageFilterAlphaThreshold,
+			ImageFilterLighting, ImageFilterTile:
 			any = true
 		default:
 			return false
@@ -640,6 +656,10 @@ func imageFilterNodeRunnable(n ImageFilterNode) bool {
 		return (n.IntOffsetX != 0 || n.IntOffsetY != 0) && offsetApply != nil
 	case ImageFilterAlphaThreshold:
 		return alphaThresholdApply != nil
+	case ImageFilterLighting:
+		return lightingApply != nil && n.LightKD > 0
+	case ImageFilterTile:
+		return tileApply != nil && n.TileSrcRect[2] > n.TileSrcRect[0] && n.TileSrcRect[3] > n.TileSrcRect[1]
 	default:
 		return false
 	}
@@ -667,6 +687,10 @@ func applyImageFilterNode(n ImageFilterNode, src, dst *Pixmap) {
 		offsetApply(src, dst, n.IntOffsetX, n.IntOffsetY)
 	case ImageFilterAlphaThreshold:
 		alphaThresholdApply(src, dst, n.AlphaThreshold)
+	case ImageFilterLighting:
+		lightingApply(src, dst, n.LightPos, n.LightColor, n.LightKD, n.SurfaceScale)
+	case ImageFilterTile:
+		tileApply(src, dst, n.TileSrcRect)
 	}
 }
 

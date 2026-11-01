@@ -31,7 +31,7 @@ import (
 // staging buffers every ApplyBlur.
 
 const filterGPUMaxPixels = 4 * 1024 * 1024
-const filterGPUUniformSize = 128
+const filterGPUUniformSize = 192
 
 // per-pass Params live in one slab buffer. Slot stride must be a multiple
 // of WebGPU minUniformBufferOffsetAlignment (default 256); payload is 128B.
@@ -54,6 +54,11 @@ struct Params {
     offset: vec2<f32>,   // shadow offset in texels
     color: vec4<f32>,    // shadow color (straight RGBA 0-1)
     matrix: array<vec4<f32>, 5>, // 20 floats for 4x5 color matrix (CPU 0-255 space biases /255)
+    // P3.4 extension slots (128..192):
+    rect0: vec4<f32>, // lighting: light pos (x, y, z, kd)
+    rect1: vec4<f32>, // lighting: light color (r, g, b, ks)
+    rect2: vec4<f32>, // lighting: (shininess, surfaceScale, -, -) / tile srcRect x0,y0
+    rect3: vec4<f32>, // tile srcRect x1, y1 (+ spares)
 }
 
 @group(0) @binding(0) var src_tex: texture_2d<f32>;
@@ -102,6 +107,45 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
             return vec4<f32>(0.0);
         }
         return c0;
+    }
+    if p.mode == 11u {
+        // Point diffuse lighting (P3.4, Skia LightingImageFilter): the source
+        // ALPHA channel is the height map (Skia semantics); the surface
+        // normal comes from central differences scaled by surfaceScale.
+        let px = 1.0 / max(p.size, vec2<f32>(1.0, 1.0));
+        let hL = textureSampleLevel(src_tex, samp, in.uv + vec2<f32>(-px.x, 0.0), 0.0).a;
+        let hR = textureSampleLevel(src_tex, samp, in.uv + vec2<f32>(px.x, 0.0), 0.0).a;
+        let hT = textureSampleLevel(src_tex, samp, in.uv + vec2<f32>(0.0, -px.y), 0.0).a;
+        let hB = textureSampleLevel(src_tex, samp, in.uv + vec2<f32>(0.0, px.y), 0.0).a;
+        let ss = p.rect2.y;
+        let n = normalize(vec3<f32>(-(hR - hL) * ss, -(hB - hT) * ss, 1.0));
+        let lx = p.rect0.x - in.uv.x * p.size.x;
+        let ly = p.rect0.y - in.uv.y * p.size.y;
+        let lz = max(p.rect0.z, 0.001);
+        let l = normalize(vec3<f32>(lx, ly, lz));
+        let kd = max(dot(n, l), 0.0);
+        let src0 = textureSampleLevel(src_tex, samp, in.uv, 0.0);
+        let lit = p.rect1.rgb * p.rect0.w * kd;
+        // Lit color replaces RGB (straight-domain math on premul storage is
+        // alpha-safe here because the light result is scaled by src alpha at
+        // composite time); keep the source alpha.
+        let a = src0.a;
+        return vec4<f32>(lit * a, a);
+    }
+    if p.mode == 12u {
+        // Tile (P3.4, Skia ImageFilters::Tile): repeat p.rect2/rect3's
+        // src-rect region of the source across the whole output.
+        let x0 = p.rect2.z;
+        let y0 = p.rect2.w;
+        let x1 = p.rect3.x;
+        let y1 = p.rect3.y;
+        let w0 = max(x1 - x0, 0.0001);
+        let h0 = max(y1 - y0, 0.0001);
+        let u = in.uv.x * p.size.x;
+        let v = in.uv.y * p.size.y;
+        let tuv = vec2<f32>(x0 + (u mod w0) / w0 * (x1 - x0) / p.size.x,
+                            y0 + (v mod h0) / h0 * (y1 - y0) / p.size.y);
+        return textureSampleLevel(src_tex, samp, tuv, 0.0);
     }
     if p.mode == 7u || p.mode == 8u {
         // Morphology (P3.4): erode=min / dilate=max over a (2r+1)^2 box.
@@ -1064,6 +1108,12 @@ func runGPUFilterGraphEx(
 		offX, offY             float32
 		colR, colG, colB, colA float32
 		matrix                 [20]float32
+		lightX, lightY, lightZ float32
+		lightKD, lightKS       float32
+		lightR, lightG, lightB float32
+		shininess, surfScale   float32
+		tileX0, tileY0         float32
+		tileX1, tileY1         float32
 		auxView                hal.TextureView
 		dstView                hal.TextureView
 		srcView                hal.TextureView
@@ -1183,6 +1233,20 @@ func runGPUFilterGraphEx(
 		putU32 := func(o int, v uint32) {
 			*(*uint32)(unsafe.Pointer(&slotBuf[o])) = v //nolint:gosec
 		}
+		putF32(128, a.lightX)
+		putF32(132, a.lightY)
+		putF32(136, a.lightZ)
+		putF32(140, a.lightKD)
+		putF32(144, a.lightR)
+		putF32(148, a.lightG)
+		putF32(152, a.lightB)
+		putF32(156, a.lightKS)
+		putF32(160, a.shininess)
+		putF32(164, a.surfScale)
+		putF32(168, a.tileX0)
+		putF32(172, a.tileY0)
+		putF32(176, a.tileX1)
+		putF32(180, a.tileY1)
 		putF32(0, float32(w))
 		putF32(4, float32(h))
 		putF32(8, a.dirX)
@@ -1294,6 +1358,28 @@ func runGPUFilterGraphEx(
 			swap()
 		case render.ImageFilterAlphaThreshold:
 			if err := doPass(passArgs{mode: 10, colA: float32(n.AlphaThreshold) / 255.0}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+		case render.ImageFilterLighting:
+			if err := doPass(passArgs{mode: 11,
+				lightX: n.LightPos[0], lightY: n.LightPos[1], lightZ: n.LightPos[2],
+				lightKD: n.LightKD, lightKS: 0,
+				lightR: float32(n.LightColor.R), lightG: float32(n.LightColor.G), lightB: float32(n.LightColor.B),
+				surfScale: n.SurfaceScale,
+			}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+		case render.ImageFilterTile:
+			if err := doPass(passArgs{mode: 12,
+				tileX0: n.TileSrcRect[0], tileY0: n.TileSrcRect[1],
+				tileX1: n.TileSrcRect[2], tileY1: n.TileSrcRect[3],
+			}); err != nil {
 				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err

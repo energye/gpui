@@ -28,6 +28,8 @@ var (
 	dilateApply      func(src, dst *Pixmap, radius int)
 	offsetApply      func(src, dst *Pixmap, dx, dy int)
 	alphaThresholdApply func(src, dst *Pixmap, threshold uint8)
+	lightingApply    func(src, dst *Pixmap, lightPos [3]float32, color RGBA, kd, surfaceScale float32)
+	tileApply        func(src, dst *Pixmap, srcRect [4]float32)
 	// gpuFilterGraphApply runs F.03 multi-RT GPU ping-pong (optional).
 	// src is tight RGBA8 w*h*4; returns same layout result.
 	gpuFilterGraphApply func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)

@@ -53,6 +53,12 @@ func init() {
 		func(src, dst *render.Pixmap, threshold uint8) {
 			filter.NewAlphaThresholdFilter(threshold).Apply(src, dst, full(src))
 		},
+		func(src, dst *render.Pixmap, lightPos [3]float32, color render.RGBA, kd, surfaceScale float32) {
+			filter.NewPointDiffuseFilter(lightPos, color, kd, surfaceScale).Apply(src, dst, full(src))
+		},
+		func(src, dst *render.Pixmap, srcRect [4]float32) {
+			filter.NewTileFilter(srcRect).Apply(src, dst, full(src))
+		},
 	)
 }
 

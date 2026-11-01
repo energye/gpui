@@ -39,6 +39,8 @@ func RegisterFilterOps(
 	dilate func(src, dst *Pixmap, radius int),
 	offset func(src, dst *Pixmap, dx, dy int),
 	alphaThreshold func(src, dst *Pixmap, threshold uint8),
+	lighting func(src, dst *Pixmap, lightPos [3]float32, color RGBA, kd, surfaceScale float32),
+	tile func(src, dst *Pixmap, srcRect [4]float32),
 ) {
 	blurApply = blur
 	blurXYApply = blurXY
@@ -50,6 +52,8 @@ func RegisterFilterOps(
 	dilateApply = dilate
 	offsetApply = offset
 	alphaThresholdApply = alphaThreshold
+	lightingApply = lighting
+	tileApply = tile
 }
 
 func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
@@ -363,6 +367,45 @@ func (c *Context) ApplyAlphaThreshold(threshold uint8) {
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		if alphaThresholdApply != nil {
 			alphaThresholdApply(src, dst, threshold)
+		}
+	})
+	c.markLayerFullComposite()
+}
+
+// ApplyLighting lights the image with a point diffuse source over the alpha
+// height map (P3.4, Skia LightingImageFilter). GPU-first, CPU fallback.
+func (c *Context) ApplyLighting(lightPos [3]float32, color RGBA, kd, surfaceScale float32) {
+	if kd <= 0 {
+		return
+	}
+	nodes := []ImageFilterNode{{
+		Kind: ImageFilterLighting, LightPos: lightPos, LightColor: color,
+		LightKD: kd, SurfaceScale: surfaceScale,
+	}}
+	if c.tryApplyFilterGraphGPU(nodes...) {
+		return
+	}
+	c.applyFilterInPlace(func(src, dst *Pixmap) {
+		if lightingApply != nil {
+			lightingApply(src, dst, lightPos, color, kd, surfaceScale)
+		}
+	})
+	c.markLayerFullComposite()
+}
+
+// ApplyTile repeats the source tile rect across the output (P3.4, Skia
+// ImageFilters::Tile). CPU-first (batch-2 scope).
+func (c *Context) ApplyTile(srcRect [4]float32) {
+	if srcRect[2] <= srcRect[0] || srcRect[3] <= srcRect[1] {
+		return
+	}
+	nodes := []ImageFilterNode{{Kind: ImageFilterTile, TileSrcRect: srcRect}}
+	if c.tryApplyFilterGraphGPU(nodes...) {
+		return
+	}
+	c.applyFilterInPlace(func(src, dst *Pixmap) {
+		if tileApply != nil {
+			tileApply(src, dst, srcRect)
 		}
 	})
 	c.markLayerFullComposite()
