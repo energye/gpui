@@ -55,7 +55,7 @@ func TestTableColorFilterLUT(t *testing.T) {
 
 // TestComposeColorFilterOrder pins outer∘inner evaluation order.
 func TestComposeColorFilterOrder(t *testing.T) {
-	addA := NewLightingColorFilter(render.RGBA{}, render.RGBA{R: 0.1, A: 1}) // +0.1 R
+	addA := NewLightingColorFilter(render.RGBA{R: 1, G: 1, B: 1}, render.RGBA{R: 0.1, A: 1}) // +0.1 R with identity multiplier
 	halve := NewTableColorFilter(scaleHalf(), nil, nil, nil)
 	// outer(halve(inner(+0.1))): 0.5 → 0.6 → 0.3
 	p := ComposeColorFilter(halve, addA)
