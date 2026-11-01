@@ -125,6 +125,13 @@ type Paint struct {
 	// linear light — advanced modes on the GPU dual-tex path, every mode on
 	// the CPU paths; fixed-function GPU modes fall back to sRGB until P3.1b.
 	BlendSpace BlendSpace
+
+	// Shader is a user WGSL effect evaluated per pixel over the painted
+	// region (P3.2, SkRuntimeEffect/FragmentProgram slot). When set it
+	// replaces the brush as the color source; blending/clip/mask still
+	// apply. GPU-only: with no accelerator the draw is skipped (never a
+	// silent CPU fallback).
+	Shader *ShaderEffect
 }
 
 // NewPaint creates a new Paint with default values.
@@ -156,6 +163,7 @@ func (p *Paint) Clone() *Paint {
 		Antialias:      p.Antialias,
 		BlendMode:      p.BlendMode,
 		BlendSpace:     p.BlendSpace,
+		Shader:         p.Shader,
 		ClipCoverage:   p.ClipCoverage,
 		MaskCoverage:   p.MaskCoverage,
 		TransformScale: p.TransformScale,

@@ -84,6 +84,10 @@ func (s gpuRenderStrategy) String() string {
 type GPUShared struct {
 	mu sync.Mutex
 
+	// userShader holds the P3.2 user-shader pass-1 cache (per-effect
+	// pipelines + uniform buffers; bound images upload per draw).
+	userShader userShaderCache
+
 	// linearFixedFunctionFallbacks counts paints that requested linear
 	// blending (P3.1 BlendSpaceLinear) on a mode whose only GPU path is a
 	// fixed-function blend state: those draws proceed in the sRGB domain

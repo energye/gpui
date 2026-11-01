@@ -1971,6 +1971,11 @@ func (rc *GPURenderContext) noteLinearFixedFunctionFallback(paint *render.Paint)
 }
 
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint, matrix render.Matrix) error {
+	// P3.2: a user shader replaces the brush as the color source; clip, mask
+	// and AA still apply through the coverage chain.
+	if paint != nil && paint.Shader != nil {
+		return rc.fillShaderAsImage(target, path, paint)
+	}
 	// L.06: prefer cover-inline R8 (convex / stencil-then-cover) when MaskAware
 	// texture is live. Advanced paints fall back to fillMaskedAsImage.
 	if paint != nil && paint.MaskCoverage != nil {

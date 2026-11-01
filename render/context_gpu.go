@@ -11,7 +11,9 @@
 package render
 
 import (
+	"fmt"
 	"image"
+	"os"
 	"time"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
@@ -545,6 +547,16 @@ func (c *Context) tryGPUOpRC(
 ) error {
 	target := c.gpuRenderTarget()
 
+	// P3.2: a Shader paint has no SDF path — route straight to the path
+	// function so FillPath's shader branch owns it.
+	if c.paint != nil && c.paint.Shader != nil {
+		fmt.Fprintf(os.Stderr, "[user_shader] tryGPUOpRC shader route\n")
+		return pathFn(target, c.path, c.paint, totalM)
+	}
+	if c.paint != nil && os.Getenv("GPUI_DEBUG_USER_SHADER") == "1" {
+		fmt.Fprintf(os.Stderr, "[user_shader] tryGPUOpRC paint.Shader=%v brush=%T\n", c.paint.Shader, c.paint.Brush)
+	}
+
 	shape := DetectShape(c.path)
 	if accel := sdfAccelForShape(shape.Kind); accel != 0 {
 		if err := shapeFn(target, shape, c.paint); err == nil {
@@ -614,6 +626,13 @@ func (c *Context) tryGPUOp(
 // Returns (true, _) if GPU handled the fill, or (false, cpuMode) with the
 // fallback CPU mode to use.
 func (c *Context) tryGPUFillWithMode(mode RasterizerMode) (bool, RasterizerMode) {
+	// P3.2: a Shader paint is GPU-only by contract — with no accelerator the
+	// draw is skipped silently (same semantics as DrawGPUTexture; never a
+	// CPU fallback that would paint the ambient solid instead of the
+	// effect, and never counted as one).
+	if c.paint != nil && c.paint.Shader != nil && c.gpuCtxOps() == nil {
+		return true, mode
+	}
 	if mode == RasterizerSDF {
 		c.setForceSDF(true)
 		err := c.tryGPUFill()

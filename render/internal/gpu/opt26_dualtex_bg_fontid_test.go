@@ -90,7 +90,7 @@ func TestOpt26_DualTexMultiBindGroup_ReusesSlot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := dualTexWriteParams(queue, slab, 1, 0, 0, 1, 1, 1, false); err != nil {
+	if err := dualTexWriteParams(queue, slab, 1, 0, 0, 1, 1, 1, false, false); err != nil {
 		t.Fatal(err)
 	}
 	bg1, err := cache.multiBindGroup(device, cache.bgl, cache.sampler, dstView, srcView, slab, 0, 0)

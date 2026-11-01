@@ -64,3 +64,13 @@ func (c *Context) DrawShaderRect(e *ShaderEffect, x, y, w, h float64)  // UV 按
 - gles 翻译对用户 WGSL 的兼容面（lower 对自由代码的覆盖度）——真窗双后端像素对照直接暴露。
 - uniform 对齐（WGSL uniform 布局规则 vec4 对齐）——字节 API 文档锁 16 字节对齐约定+单测钉。
 - 安全：Validate 前置后，非法 WGSL 不达驱动；资源释放=effect.Close→ShaderModule.Destroy（hal 接口已备 api.go:238）。
+
+---
+
+## 8. 实现现场（2026-11-01 第一轮收口，状态 🟡）
+
+**已通**：公开 API（ShaderEffect 编译拒绝三类+uniform 双口+SetImage+Close、Paint.Shader、Context.SetShader/Shader()）；GPU 两 pass（tryGPUOpRC SDF 绕行路由→FillPath shader 分支→fillShaderAsImage：coverage 光栅 alpha+pass1 用户 WGSL 全屏渲 BGRA8 RT+读回+mask 链贴回）；CPU 模式静默跳过钉绿；真窗 ui_wr_p32_shader 双卡跑通（gpu_ops=1/卡、无 fallback）。
+
+**本轮修掉的坑（都有据）**：tryGPUOpRC SDF 捷径吃掉 Shader paint（route 0 命中实证）；FillPath 真实签名带 matrix（三参 replace 静默失败教训）；WriteMask 零值=0 不写通道（clear-only A/B 实证 RT/readback 链无辜）；TextureBindingLayout 缺 ViewDimension/SamplerBindingType（wgpu conv.rs:1681 panic 实证）；RT 格式与管线 target 不一致（Submit Validation Error 实证）。
+
+**未达（真窗像素 0/3，如实登记）**：mid 实得 (178,70,70) vs 期望 (127,63,115)；bottom (76,57,160) vs (229,76,26)——渐变在上屏但通道/方向语义有偏差。三个候选假设（按嫌疑排序）：①readTextureViewRegionRGBA 的 BGRA→RGBA swizzle 与 pass1 链组合后通道被二次调换（对照 dual_tex 的 RGBA8 RT+同一 readback——dual_tex RT 是 RGBA8 且 readback 假设 BGRA？需读 readback swizzle 源码确认它假设的源格式）；②pass1 vs 的 uv 与 RT 行序（readback buffer 顶行=NDC 顶=uv.y=0）与 QueueImageDraw 贴回 v 方向的组合方向；③fs premul 语义与 QueueImageDraw 源假设（straight vs premul）。**下一步**：读 readTextureViewRegionRGBA 的 swizzle 源码 + 用单色/单通道渐变 shader 逐通道 A/B（一次一个变量），钉死通道映射后重出金图。
