@@ -27,8 +27,8 @@ func TestLightingColorFilterMath(t *testing.T) {
 	if g < 0.49 || g > 0.51 {
 		t.Fatalf("g=%f want 0.5", g)
 	}
-	if b != 1 {
-		t.Fatalf("b=%f want clamped 1 (2*0+0)", b)
+	if b != 0 {
+		t.Fatalf("b=%f want 0 (2*0+0)", b)
 	}
 	if a != 1 {
 		t.Fatalf("a=%f want passthrough", a)
@@ -46,8 +46,8 @@ func TestTableColorFilterLUT(t *testing.T) {
 	if r < 0.49 || r > 0.51 {
 		t.Fatalf("r=%f want ~0.5 (inverted 0.5)", r)
 	}
-	if g < 0.74 || g > 0.76 {
-		t.Fatalf("g=%f want ~0.75 (unchanged)", g)
+	if g < 0.24 || g > 0.26 {
+		t.Fatalf("g=%f want ~0.25 (nil table passthrough)", g)
 	}
 	_ = b
 	_ = a
