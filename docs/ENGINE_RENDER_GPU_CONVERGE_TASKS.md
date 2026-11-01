@@ -47,10 +47,20 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无（P2.6 已完成，见 `evidence/P2.6/summary.md`；P2 全阶段行为零变化成立）
-- 下一任务：**P3.0**（依赖图 + 文档更新，PLAN §5 + RENDER_API_CATALOG）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
-- 最近完成：P2.4e 裁剪/混合枚举/呈现入口收敛（提交 `705244f5`，四子步+红修战役 13 批），见 `evidence/P2.4e/summary.md`；前一项 P2.4d 同尺寸纹理分配收敛（提交 `599149ee`），见 `evidence/P2.4d/summary.md`
-- 阻塞项：无。真窗侧既有缺陷 I1 / C7 / I2 / C3 已取入 P2.4e 载体（I1 解剖归本步、修复方向解剖后拍板）；I3 / I4 仍归 P2.6 前诊断
+- 当前进行中：无（P3.0 已完成，见 `evidence/P3.0/`；P3 缺失能力序列进入实现期）
+- 下一任务：**P3.1 色彩管理地基（含线性混合接线，前移项）**——顺序定稿 P3.1→P3.2→P3.3→P3.4→P3.5→P3.6→P3.7→P3.8（`evidence/P3.0/dependency-graph.md` §4）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 最近完成：P3.0 依赖图 + 文档更新（2026-11-01，用户拍板 D1–D4 全按推荐：依赖修订 5 条/串行主序/catalog §13/PLAN §5 现状列），见 `evidence/P3.0/dependency-graph.md`；前一项 P2.6 行为零变化总验收（P1 八项基线全量重放零回归），见 `evidence/P2.6/summary.md`
+- 阻塞项：无（尾巴 I3/I4/C4/T2 诊断、ui 5 既有红、gles DeviceLost/X11KeyRepeat 两新立案随尾巴专项，不阻塞 P3 文档与实现开工）
+
+**P3.0 收口载体（2026-11-01 已完成；开工登记见同块开工行与 `evidence/P3.0/assessment.md`）**
+
+- 任务：P3.0 依赖图 + 文档更新（PLAN §5 现状刷新 + `RENDER_API_CATALOG.md` + P3.1–P3.8 实现顺序排定）；纯文档零代码，「文档没写完不写代码」
+- 拍板（2026-11-01 用户确认）：**D1** 依赖修订 5 条全改（P3.3 解除 P3.1 / P3.4 的 P3.1 降软 / P3.7 补 P3.2 硬+P3.6 软 / P3.8 补 P3.4）；**D2** 顺序=串行主序 P3.1→…→P3.8（前移项 P3.1=第 1、P3.3=第 3，满足「不得挪回 P4」）；**D3** catalog 新增 §13「P3 计划新增公开 API（规划登记）」；**D4** PLAN §5 三表加「代码现状」列+修差异行
+- 产出：`evidence/P3.0/dependency-graph.md`（图/节点表/边修订对照/顺序/自校验清单）；PLAN §5.1/§5.2/§5.3 现状列+口径修正、§6 刷三行（线性混合 0 调用复核/COLRv1 实为 v0 误读 v1/DrawParagraph :276）、§7.4 回写 P3.0 定稿；catalog §13 八行规划登记；台账 §2 依赖列 4 行修订（P3.3/P3.4/P3.7/P3.8）+ §8 修订记录
+- 门禁：`go run ./scripts/apidoc` rc=0（留档 `apidoc-p30.txt`，catalog 加节后机器校验无冲突）；自校验 8 断言全绿（`selfcheck-p30.txt`：线性混合 0 生产调用/MaskFilter 0/conic 0/mesh gradient 0/EXIF 0/DrawRecording 0/MipLevelCount 非 1 创建点 0（首轮宽模式 18 行误报已逐行定性为 texture.go 搬运层）/apidoc rc=0）
+- 能力单测：不适用（纯文档任务，零代码变更；替代自校验如上实际跑过并落盘）
+- 真窗/金图/双后端：不适用（不开窗、无行为变更）
+- 证据：`evidence/P3.0/`（assessment.md / dependency-graph.md / apidoc-p30.txt / selfcheck-p30.txt）
 
 **P2.6 开工载体（2026-10-31 开工登记，执行口径待拍板，评估见 `evidence/P2.6/assessment.md`）**
 
@@ -209,15 +219,15 @@
 | P2.4e | 裁剪 / 混合枚举 / 呈现入口收敛 | P2.4d | ✅ | `evidence/P2.4e/` |
 | P2.5 | 包组织收口：`go list` 对比、分层约束测试、索引与总账同步 | P2.4e | ✅ | `evidence/P2.5/` |
 | P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ✅ | `evidence/P2.6/` |
-| P3.0 | 依赖图 + 文档更新（PLAN §5 + `RENDER_API_CATALOG.md`），再实现 | P2.6 | ⬜ | `evidence/P3.0/` |
+| P3.0 | 依赖图 + 文档更新（PLAN §5 + `RENDER_API_CATALOG.md`），再实现 | P2.6 | ✅ | `evidence/P3.0/` |
 | P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | ⬜ | `evidence/P3.1/` |
 | P3.2 | 自定义 shader（依赖 P2.1 翻译器 + 新公开 API） | P3.0、P2.1 | ⬜ | `evidence/P3.2/` |
-| P3.3 | 富文本（含 `DrawParagraph` 逐 run 样式，原半成品前移） | P3.0、P3.1 | ⬜ | `evidence/P3.3/` |
-| P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1 | ⬜ | `evidence/P3.4/` |
+| P3.3 | 富文本（含 `DrawParagraph` 逐 run 样式，原半成品前移） | P3.0 | ⬜ | `evidence/P3.3/` |
+| P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1（软） | ⬜ | `evidence/P3.4/` |
 | P3.5 | 路径与几何：conic、四角圆角、Matrix4 透视、路径效果、布尔保曲线 | P3.0 | ⬜ | `evidence/P3.5/` |
 | P3.6 | 图片格式（GIF/APNG/动图 WebP/AVIF/HEIF/EXIF）+ GPU mipmap | P3.0 | ⬜ | `evidence/P3.6/` |
-| P3.7 | 2.5D 透视相机、世界高度/精灵 z 序、自定义材质、HDR/泛光 | P3.0、P3.1、P3.5 | ⬜ | `evidence/P3.7/` |
-| P3.8 | SVG 完整语义、彩色字形、嵌套 Picture 引用 | P3.0、P3.3、P3.5 | ⬜ | `evidence/P3.8/` |
+| P3.7 | 2.5D 透视相机、世界高度/精灵 z 序、自定义材质、HDR/泛光 | P3.0、P3.1、P3.2、P3.5、P3.6（软） | ⬜ | `evidence/P3.7/` |
+| P3.8 | SVG 完整语义、彩色字形、嵌套 Picture 引用 | P3.0、P3.3、P3.4、P3.5 | ⬜ | `evidence/P3.8/` |
 | P4.1 | 正确性：MSAA>1 even-odd 裁剪、分数裁剪 AA、顶点网格 alpha/blend、DrawShadow | P3.4、P3.8 | ⬜ | `evidence/P4.1/` |
 | P4.2 | 一致性：GPU/CPU 模糊对齐 | P4.1、P3.4 | ⬜ | `evidence/P4.2/` |
 | P4.3 | 性能：mask 临时纹理池化、backdrop 损伤区合成、抖动路径优化 | P4.1、P3.4 | ⬜ | `evidence/P4.3/` |
@@ -561,11 +571,15 @@ docs/render_gpu_converge/
 | 2026-11-01 | P2.6-e | ✅ 性能对账：extractor 副本对 360 重放轮重出 TSV——p95_fail=0/fps_fail=0/首帧 0/失配 0（基线 4 条 p95 超限全转绿）；逐轮 p95 零恶化、10 轮改善（backdrop/clipop/maskops）；别名退役注记=待下轮基线冻结 | `e-perf/perf-reconcile.md`、`e-perf/perf_p26.tsv` |
 | 2026-11-01 | P2.6-f | ✅ 负向三破坏全红+还原零残留：偏移 1px（coverage 0.92/0.87≠1.00）、跳绘（整块消失）、K1 注入（steady delta=2/131072 与 P2.4c 原签名逐字一致——P1.8 的上界收紧旋钮修复后无意义，改注入原洞）+§8.2 变异对（30→0 漏报/22→4 报警）；事故一次（grep 猜还原目标拷错文件）git 当场恢复复绿，教训入报告 | `f-negative/negative-final.md` |
 | 2026-11-01 | P2.6-h | ✅ 收口：八项重放终值全绿（P1.1–P1.8 逐项 ✅）；API 差异 19 包逐包归因 P2 各步（§3 表）；测试计数文件精确 -167、函数 -3916（96 口径差登记）；总判定=**P2 全阶段行为零变化成立，可进 P3**；遗留 g 段 I3/I4/C4/T2 诊断 + ui 5 既有红 + b 段 2 新立案归尾巴 | `evidence/P2.6/summary.md` |
+| 2026-11-01 | P3.0 | ⬜→🟡 开工登记：影响面评估落盘（三路只读调查+本机补查，全部 file:line），**方向 D1–D4 待拍板后才写正式文档** | `evidence/P3.0/assessment.md`：PLAN §5 八项能力现状逐条实测（6 处口径需精确化 + COLRv1 口径修正）；依赖图 4 处与台账依赖列不符待拍板（P3.3 解除 P3.1 / P3.4 的 P3.1 降软 / P3.7 补 P3.2 / P3.8 补 P3.4 / P3.7 补软 P3.6）；顺序草案串行 P3.1→P3.2→P3.3→P3.4→P3.5→P3.6→P3.7→P3.8（前移项 P3.1/P3.3 位置满足硬约束）；catalog 拟新增 §13 规划登记节；apidoc 当前 rc=0 实测确认 |
+| 2026-11-01 | P3.0 | 🟡 D1–D4 用户拍板（全按推荐）：依赖修订 5 条全改 / 串行主序 / catalog 新增 §13 / PLAN §5 加现状列；产出落盘 | 依赖图正本 `evidence/P3.0/dependency-graph.md`（节点/边/修订对照/顺序/自校验清单）；PLAN §5.1/§5.2/§5.3 三表加「代码现状（2026-11-01 实测）」列+口径修正（布尔已有 Clipper 版/路径效果已有 dash+两 1D 子集/Filter 已有子面/2.5D 引擎库已有 Projector+YSort25D）、§6 半成品表刷三行（线性混合 0 调用复核/COLRv1 实为 v0 误读 v1/DrawParagraph :276 自述）、§7.4 回写 P3.0 定稿；`RENDER_API_CATALOG.md` 新增 §13「P3 计划新增公开 API（规划登记）」8 行逐项锁层与形态（实现时转正式登记+apidoc）；台账 §2 依赖列 4 行按 D1 修订（本行）；待办：apidoc rc=0 复跑留档+自校验清单跑通后收口 |
+| 2026-11-01 | P3.0 | 🟡→✅ 收口：apidoc rc=0（catalog 加节后机器校验无冲突，`apidoc-p30.txt`）+ 自校验 8 断言全绿（`selfcheck-p30.txt`，第 7 条首轮宽模式 18 行误报逐行定性为 texture.go 描述符搬运层后修正断言复绿）；P3 文档面全部就位，零代码变更；§2.1 焦点切 P3.1 | `evidence/P3.0/`（assessment / dependency-graph / apidoc-p30 / selfcheck-p30）；提交待用户确认 |
 
 ## 8 修订记录
 
 | 日期 | 修订 |
 |---|---|
+| 2026-11-01 | P3.0 依赖图定稿：§2 依赖列修订 5 条（P3.3 解除 P3.1 / P3.4 的 P3.1 降软 / P3.7 补 P3.2 硬+P3.6 软 / P3.8 补 P3.4，用户拍板 D1）；实现顺序定稿 P3.1→P3.2→P3.3→P3.4→P3.5→P3.6→P3.7→P3.8（D2 串行主序）；图与依据 `evidence/P3.0/dependency-graph.md`，PLAN §7.4 已回写 |
 | 2026-10-31 | P2.4e 收口（提交 `705244f5`）：四子步（G2 老抽象拆解/B2 裁剪/B3 混合枚举/B4 呈现单计划化）+ 红修战役 13 批（gpu/render/ui 全绿）+ 三真产品 bug 修复（整页上传饥饿/上下文所有权/Tab 空环吞键）；遗留 misc_draw wgpu 执行态 + SeatCapCB robustness 两专项立案；s6_9 门禁设计修正（绝对下限+regress-only 默认）；详见 `evidence/P2.4e/summary.md` |
 | 2026-10-31 | P2.5 收口：包树登记+PLAN §3 修订；三个 depcheck 分层守卫 + 逐文件门禁正本 34 包；gpu_shared rwgpu→hal（D2）；A2/E2 指标契约一次切 interval_* + fps_wall/target_hz；apidoc rc=0 + gpu/hal 汇总节；vet 基线 61/58→56/56；refuseChanged 损伤缺口产品修复；池 A2/A4/D2/D3/H1/J4 收账；详见 `evidence/P2.5/summary.md` |
 

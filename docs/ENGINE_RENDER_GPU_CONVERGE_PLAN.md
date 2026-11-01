@@ -136,48 +136,54 @@ render/
 
 ### 5.1 任意图形（2D 矢量）
 
-| 能力 | 归属层 | 双后端要求 | 验收 |
-|---|---|---|---|
-| 自定义 / 运行时着色器 | render（新 API） | 两后端各一条路径 | 逻辑探针 + 像素断言 + 金图 |
-| 色彩管理：HDR / 广色域 / ICC | render/hdr + gpu | 两后端交换链与混合 | HDR 真窗 + 金图 |
-| MaskFilter | render | 两后端 | 真窗 + 金图 |
-| ColorFilter 家族（blend/lighting/compose/table） | render | 两后端 | 真窗 + 金图 |
-| ImageFilter 家族（erode/dilate/lighting/offset/tile/merge/displacement/alpha-threshold） | render | 两后端 | 真窗 + 金图 |
-| conic 路径段 | render/path | 与后端无关 | 单测 + 金图 |
-| 四角独立圆角 | render/path | 与后端无关 | 单测 + 金图 |
-| 4×4 透视矩阵 | render/matrix | 与后端无关 | 单测 + 金图 |
-| mesh gradient | render | 两后端 | 真窗 + 金图 |
-| GPU mipmap 链 | render/gpu | 两后端 | 真窗 + 金图 |
-| 图片解码 GIF/APNG/动图 WebP/AVIF/HEIF/EXIF | render/internal/image | 与后端无关 | 测试数据入 testdata |
-| 路径效果 1D/2D/Sum/Compose | render/path | 与后端无关 | 单测 + 金图 |
-| 布尔运算保留曲线 | render/path | 与后端无关 | 单测 + 金图 |
-| SVG 完整语义（defs/use/渐变/clipPath/text/filter） | render/svg | 与后端无关 | 单测 + 真窗 |
+> 现状列＝P3.0 依赖图定稿实测（2026-11-01，HEAD `da9168a5`，逐条 file:line 详证 `docs/render_gpu_converge/evidence/P3.0/assessment.md` §1）。
+
+| 能力 | 归属层 | 双后端要求 | 代码现状（2026-11-01 实测） | 验收 |
+|---|---|---|---|---|
+| 自定义 / 运行时着色器 | render（新 API） | 两后端各一条路径 | 公开层零 shader API；hal `CreateShaderModule(WGSL)` 现成（`gpu/hal/api.go:235`）；内部 25 个 WGSL go:embed 直喂 hal（`render/internal/gpu/shader_helper.go:15`）；翻译器 `gpu/shader` 仅 gles/metal 后端在用 | 逻辑探针 + 像素断言 + 金图 |
+| 色彩管理：HDR / 广色域 / ICC | render/hdr + gpu | 两后端交换链与混合 | 公开层零 ColorSpace/sRGB API；主路 GPU/CPU 都在 sRGB 空间混合（`blend_gpu.go:55`、`software_blend.go:32`）；`render/hdr` FloatTarget 纯 CPU 零消费者；双后端 Float RT 格式能力已备未用（`gles/capabilities.go:800-810`）；sRGB 交换链三端缺（§4） | HDR 真窗 + 金图 |
+| MaskFilter | render | 两后端 | 零命中；现有 mask 能力服务掩码合成与字形/裁剪采样，无 Skia 式 MaskFilter 概念 | 真窗 + 金图 |
+| ColorFilter 家族（blend/lighting/compose/table） | render | 两后端 | 无 ColorFilter 抽象；ColorMatrix(4x5) 已有双链路+9 预设（`internal/filter/colormatrix.go:30-177`）；缺四族与 LUT | 真窗 + 金图 |
+| ImageFilter 家族（erode/dilate/lighting/offset/tile/merge/displacement/alpha-threshold） | render | 两后端 | 已有 blur/blurXY/dropshadow 双链路（`internal/filter/blur.go:24,42`、`shadow.go:23`）+ Context 方法族接入；缺的正是本行 8 族；Paint 无 ImageFilter 字段 | 真窗 + 金图 |
+| conic 路径段 | render/path | 与后端无关 | verb 全集无 Conic（`path_verb.go:35-44`）；Arc 入口级逼近（`path_build.go:179`） | 单测 + 金图 |
+| 四角独立圆角 | render/path | 与后端无关 | `ClipRoundRect` 单半径（`context_clip.go:86`）；`internal/clip.RRectClip` uniform（`stack.go:22-26`） | 单测 + 金图 |
+| 4×4 透视矩阵 | render/matrix | 与后端无关 | `Matrix{A..F}` 纯 2x3 仿射（`matrix.go:25`）；CPU 栅格 2D（`raster/edge_builder.go:49-56`） | 单测 + 金图 |
+| mesh gradient | render | 两后端 | 全仓零命中确认缺 | 真窗 + 金图 |
+| GPU mipmap 链 | render/gpu | 两后端 | 全部纹理 `MipLevelCount:1`（`image_cache.go:362,377` 等 15 处）；采样器 MipmapFilter 已备空转（`image_pipeline.go:950-985`）；真链只有 CPU（`internal/image/mipmap.go:25`） | 真窗 + 金图 |
+| 图片解码 GIF/APNG/动图 WebP/AVIF/HEIF/EXIF | render/internal/image | 与后端无关 | 仅 PNG/JPEG/WebP 静态（`internal/image/io.go:20-25,102-132`）；动图/EXIF 零支持 | 测试数据入 testdata |
+| 路径效果 1D/2D/Sum/Compose | render/path | 与后端无关 | dash 完整（`dash.go:18/40/69`）；`WithCorners`/`Discrete` 两个 1D 子集已有（`pathops_subpath.go:391,493`）；无 PathEffect 抽象与 2D/Sum/Compose | 单测 + 金图 |
+| 布尔运算保留曲线 | render/path | 与后端无关 | 布尔已有（Clipper 扫描线，`path_boolean.go:22-98`）但曲线 flatten 0.1px 折线输出；缺「保留曲线」版 | 单测 + 金图 |
+| SVG 完整语义（defs/use/渐变/clipPath/text/filter） | render/svg | 与后端无关 | 现支持 8 元素基础属性（`svg/parser.go:197-260`）；defs/use/渐变/clipPath/text skip（`svg/doc.go:46-49`）；render 渐变/裁剪底座已有，缺解析映射 | 单测 + 真窗 |
 
 ### 5.2 UI 组件库
 
-| 能力 | 归属层 | 验收 |
-|---|---|---|
-| render 层逐段富文本样式（颜色/装饰） | render/text | 真窗 + 金图 |
-| 两端对齐 Justify | render/text | 单测 + 金图 |
-| ellipsis / maxLines 下沉到 render | render/text | 单测 + 金图 |
-| SVG 表彩色字形 / COLRv1 完整 | render/text | 真窗 + 金图 |
-| 可复用嵌套 Picture 引用 | render/recording | 单测 + 真窗 |
+> 现状列＝P3.0 依赖图定稿实测（2026-11-01，详证 `evidence/P3.0/assessment.md` §1.3/§1.8）。
+
+| 能力 | 归属层 | 代码现状（2026-11-01 实测） | 验收 |
+|---|---|---|---|
+| render 层逐段富文本样式（颜色/装饰） | render/text | 无 Span/RunStyle/Paragraph/ParagraphStyle 类型；`ShapedRun` 是 shaping 产物（script/direction/face 切分）非样式容器；DrawParagraph 单色自述 `context_misc_draw.go:270-276` | 真窗 + 金图 |
+| 两端对齐 Justify | render/text | 常量在（`layout.go:30`）实现缺（`applyAlignment:617` 直接 return 退化左对齐） | 单测 + 金图 |
+| ellipsis / maxLines 下沉到 render | render/text | 零命中；现有只有 MaxWidth+WrapMode（`layout.go:50-79`） | 单测 + 金图 |
+| SVG 表彩色字形 / COLRv1 完整 | render/text | COLR 实际只解析 v0 表、v1 字体被当 v0 误读（`colr.go:197,219` 无 Paint/ClipList；CPAL v1 按基础色提取 `:248`）——比 §6 原登记「只取基础层」更糟；CBDT+COLRv0 生产链在（`color_font_adapter.go:18-34`→`ui/rendering/text.go:1152`）；sbix 解析器零消费者 | 真窗 + 金图 |
+| 可复用嵌套 Picture 引用 | render/recording | 无 DrawRecording/嵌套引用命令（`recording/command.go:52-124`）；`Playback` 单层（`backend_canvas.go:25`） | 单测 + 真窗 |
 
 ### 5.3 2.5D 引擎
 
-| 能力 | 归属层 | 验收 |
-|---|---|---|
-| 透视相机与投影矩阵 | render/matrix + 模块库 | 真窗三证据 |
-| 世界高度 / 精灵 z 序排序 | 2.5D 模块库 | 真窗三证据 |
-| 自定义材质 | 依赖自定义 shader | 真窗三证据 |
-| HDR / 泛光 | 依赖 render/hdr | 真窗三证据 |
-| GPU mipmap | 依赖 render/gpu | 真窗三证据 |
+> 现状列＝P3.0 依赖图定稿实测（2026-11-01，详证 `evidence/P3.0/assessment.md` §1.7）。
+
+| 能力 | 归属层 | 代码现状（2026-11-01 实测） | 验收 |
+|---|---|---|---|
+| 透视相机与投影矩阵 | render/matrix + 模块库 | 引擎层 Projector 已有（`engine/camera/project.go:22` DepthToScale/Project/ProjectQuad/Unproject）；缺 render/matrix 4×4 透视（`matrix.go:25` 仿射）与 render 层透视绘制口 | 真窗三证据 |
+| 世界高度 / 精灵 z 序排序 | 2.5D 模块库 | 引擎层 YSort25D/Sprite.DepthSort 在用（`ysort25d.go:60`）；render 层 `DepthSprite/SortDepthSprites/DrawDepthSprites` 拍平批绘已有（`depth_r5.go:43,99,132`） | 真窗三证据 |
+| 自定义材质 | 依赖自定义 shader | 等待 P3.2（依赖图定稿：P3.7 硬依赖 P3.2，台账已补记） | 真窗三证据 |
+| HDR / 泛光 | 依赖 render/hdr | 等待 P3.1 地基（线性混合 + hdr GPU 面） | 真窗三证据 |
+| GPU mipmap | 依赖 render/gpu | 由 P3.6 交付、2.5D 消费（依赖图定稿：软依赖） | 真窗三证据 |
 
 ## 6 半成品登记（先文档，后实现）
 
 | 能力 | 现状 | 位置 | 修法 | 验收 |
 |---|---|---|---|---|
-| 线性空间混合 | helper 写好未接线 | `render/internal/blend/linear.go` | 合并为带 linear 参数的单一入口并接主路 | 单测 + 金图 |
+| 线性空间混合 | helper 写好未接线（2026-11-01 复核：`GetBlendFuncLinear/BlendLinear` 全仓 0 生产调用，仅 linear_test.go；GPU/CPU 主路均在 sRGB 空间混合，`blend_gpu.go:55`、`software_blend.go:32`） | `render/internal/blend/linear.go` | 合并为带 linear 参数的单一入口并接主路 | 单测 + 金图 |
 | MSAA>1 even-odd 裁剪 | 退化跳过 | `internal/gpu/depth_clip.go:596-618` | 补 sampleCount>1 路径 | 真窗 + 金图 |
 | 非整数裁剪矩形 | 整数 scissor 无 AA | `internal/clip/stack.go:421` | 走路径裁剪或分数 scissor | 金图 |
 | 顶点网格 paint alpha/blend | 忽略，GPU 硬边 | `vertices_mesh.go:18-95`、`gpu_render_context.go:1058-1183` | 透传 blend/alpha，补 AA 或声明 | 真窗 + 金图 |
@@ -187,8 +193,8 @@ render/
 | backdrop 全表面快照 | RT→RT 全量 + 全量合成 | `m4_quadimage.go:251-301` | 裁剪到损伤区 | 预算/帧时 |
 | 抖动整图 + 回读 | 全图抖动 | `m4_dither.go:33-90` | 仅输出路径、避免回读 | 帧时 |
 | 覆盖率在 CPU | Vello compute 未接主路 | `render/gpu/gpu.go:36-56` | 作为独立性能项目重做（注入设备） | 真窗 + 帧时 |
-| COLRv1 基础层 | 只取基础层 | `text/emoji/colr.go:177,248` | 补 paint graph | 真窗 + 金图 |
-| DrawParagraph 单色 | 单 paint | `context_misc_draw.go:265-285` | 逐 run 样式 | 真窗 + 金图 |
+| COLRv1 基础层 | **口径修正（2026-11-01 复核）**：实际只解析 v0 表，v1 字体被当 v0 误读——`parseBaseGlyphs`(:197)/`parseLayers`(:219) 无 Paint/ClipList/VarIndex 解析，CPAL v1 按基础色提取(:248)；比原记「只取基础层」更糟 | `text/emoji/colr.go:177-250` | 补 paint graph | 真窗 + 金图 |
+| DrawParagraph 单色 | 单 paint（2026-11-01 复核：`:276`，`:270-272` 注释自述 per-run 颜色/样式是 render 层未有的 ParagraphBuilder concern） | `context_misc_draw.go:276` | 逐 run 样式 | 真窗 + 金图 |
 
 ## 7 任务分解、可行性与门禁（2026-10-28 修订）
 
@@ -256,6 +262,8 @@ render/
 - P3.6 图片格式（GIF/APNG/动图 WebP/AVIF/HEIF/EXIF）+ GPU mipmap。
 - P3.7 2.5D 透视相机、世界高度/精灵 z 序、自定义材质、HDR/泛光。
 - P3.8 SVG 完整语义、彩色字形、嵌套 Picture 引用。
+
+**P3.0 定稿（2026-11-01，用户拍板 D1–D4）**：依赖图正本在 `docs/render_gpu_converge/evidence/P3.0/dependency-graph.md`（现状证据 `assessment.md`）。依赖修订 5 条——P3.3 解除对 P3.1 的依赖、P3.4 对 P3.1 降为软依赖、P3.7 补硬依赖 P3.2 与软依赖 P3.6、P3.8 补硬依赖 P3.4（台账 §2 依赖列已同步）。实现顺序定稿（串行主序）：**P3.1 → P3.2 → P3.3 → P3.4 → P3.5 → P3.6 → P3.7 → P3.8**；P3.1/P3.3 前移项位置满足「不得挪回 P4」。§5 三表现状列、§6 半成品表三行已按 2026-11-01 实测刷新；P3 各项计划公开 API 的规划登记在 `RENDER_API_CATALOG.md` §13，各项实现时转正式登记。
 
 每项：逻辑探针 + 像素断言 + 金图三证据；双后端分别验；不支持的端显式标注。
 

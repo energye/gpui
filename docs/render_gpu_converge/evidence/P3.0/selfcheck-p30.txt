@@ -1,0 +1,19 @@
+# P3.0 自校验输出（2026-11-01，依赖图 §6 清单逐条）
+
+== 1. GetBlendFuncLinear/BlendLinear/BlendModeLinear 生产调用（期望 0）==
+0
+== 2. MaskFilter in render/（期望 0）==
+0
+== 3. conic verb in path.go/path_verb.go（期望 0）==
+0
+== 4. mesh gradient（期望 0）==
+0
+== 5. exif（期望 0）==
+0
+== 6. DrawRecording（期望 0）==
+0
+== 7. 非 1/0 的 MipLevelCount 创建点（期望 0；texture.go 搬运层排除）==
+0
+   （复核：创建点字面量 1 共 79 处；首轮宽模式 18 行命中全部为 texture.go 字段声明/getter/透传/0=全层哨兵，非创建点，已定性）
+== 8. apidoc（期望 rc=0）==
+rc=0

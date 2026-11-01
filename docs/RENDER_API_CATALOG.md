@@ -862,3 +862,22 @@ svg        type ViewBox struct{ ... }
 | 原生释放开关（P2.5 D2） | `WithForceNativeReleaseOnLost` + `SetForceNativeReleaseOnLostHook`（webgpu init 注册 rwgpu 实现；render 侧经此翻转 sticky-lost 下的子资源原生释放） | 🔗 软恢复路径 |
 | 错误/日志 | `ErrDeviceLost/ErrSurfaceLost/ErrBackendNotFound/...`、`Logger/SetLogger` | 🔗 |
 | 不支持声明 | `hal_assert*.go` 逐后端显式「不支持」错误（RenderBundle@gles、QuerySet@metal 等，PLAN §4 矩阵） | 🔗 |
+
+## 13. P3 计划新增公开 API（规划登记，P3.0 加节 2026-11-01）
+
+> **性质：规划，非现行 API。** 本节按 P3.0 依赖图（`docs/render_gpu_converge/evidence/P3.0/dependency-graph.md`，顺序定稿 P3.1→…→P3.8）逐项登记 P3 计划引入的公开 API 面，供实现前对账；**每项实现时把对应规划行转为正式登记（§1–§8 对应分类表 + §7 状态表）并跑 `go run ./scripts/apidoc`（必须 rc=0）**。命名与签名以各项开工时的能力定义为准（对齐 Skia/Flutter 对应物后定稿），本表只锁「能力归哪层、大概什么形态」，不锁拼写。
+>
+> 现状基线（2026-11-01 实测）见 PLAN §5 现状列；「缺口」行即本节对应项要交付的公开面。
+
+| P3 项 | 计划公开 API 面（规划） | 归属 | 对齐标准 | 缺口现状 |
+|---|---|---|---|---|
+| P3.1 色彩管理地基 | 混合工作空间开关（带 linear 参数的单一混合入口或 BlendSpace 枚举）；`render/hdr` GPU 面（`FloatTarget.TextureView()` 激活为真实 GPU 句柄）+ 色彩空间 API 雏形 | render 主包 + render/hdr | Skia `SkColorSpace`-aware blending / Flutter painting | 公开层零色彩 API；主路 sRGB 空间混合 |
+| P3.2 自定义 shader | shader 效果类型（WGSL 源 + uniform 布局描述）+ 画笔/挂载入口（Paint 挂 shader 或 EffectBrush） | render 主包（hal `CreateShaderModule` 已备） | Skia `SkRuntimeEffect` / Flutter `FragmentProgram` | 公开层零 shader API |
+| P3.3 富文本 | `ParagraphBuilder` 式逐段样式 API（TextStyle：颜色/装饰/字号字重；PushStyle/AddText）+ Paragraph 对象（layout/Justify/ellipsis/MaxLines）；`DrawParagraph` 逐 run 接线 | render/text + render 主包 | Flutter `ParagraphBuilder` / Skia `SkShaper::StyledRuns` | 无 Span/RunStyle/Paragraph 类型；Justify/ellipsis/maxLines 缺 |
+| P3.4 滤镜家族 | `ColorFilter`（blend/lighting/compose/table 四族）；`ImageFilter` 八族（offset/erode/dilate/lighting/tile/merge/displacement/alpha-threshold）；`MaskFilter`（blur 类）；Paint 级 ImageFilter/MaskFilter 字段 | render 主包 + internal/filter | Skia `SkColorFilter`/`SkImageFilter`/`SkMaskFilter` | 无 ColorFilter 抽象/MaskFilter 概念/Paint 字段；8 族 ImageFilter 缺 |
+| P3.5 路径与几何 | `Path.ConicTo`；四角独立 RRect（类型+Clip/Draw 口）；`Matrix4` 透视（或 M44 等价物）+ CPU/GPU 透视绘制口；`PathEffect` 抽象（1D/2D/Sum/Compose）；布尔保留曲线输出 | render/path、render/matrix | Skia `SkPath` conic / `SkRRect` / `SkM44` / `SkPathEffect` / `SkOpBuilder` | verb 无 Conic；RRect 单半径；Matrix 2x3；无 PathEffect 抽象；布尔 flatten |
+| P3.6 图片格式+mipmap | 解码 GIF/APNG/动图 WebP/AVIF/HEIF + EXIF 方向；动图帧接口（`ImageBuf` 动画扩展）；GPU mipmap 链（纹理 MipLevelCount>1 生成/上传，`UseMipmaps` 真语义） | render/internal/image + render/gpu | Skia `SkCodec` 族 / `GrMipMapped` | 仅 PNG/JPEG/WebP 静态；动图/EXIF 零支持；GPU mipmap 空转 |
+| P3.7 2.5D | render 层透视绘制口（相机/投影参数进绘制选项，吃 P3.5 Matrix4）；引擎层材质口接 P3.2 shader；HDR/泛光接 P3.1 | render 主包 + `engine/` 模块库 | 2.5D-IF-1.0 接口约定 + Skia 相机投影惯例 | 引擎库已有 Projector/YSort25D；render 层无透视口/材质口 |
+| P3.8 SVG/彩色字形/Picture | `render/svg` defs/use/linearGradient/radialGradient/clipPath/text/filter 解析；COLRv1 paint graph 完整解析；`recording` 嵌套引用命令（DrawRecording + Playback 递归） | render/svg + render/text + render/recording | Skia SVG/SkFont COLRv1 / `SkPicture::drawPicture` | SVG 8 元素基础子集；COLRv1 被误读为 v0；无嵌套引用命令 |
+
+> 本节登记行为纯文档，零代码变更；现行 API 状态一律不变（仍以 §1–§8/§7 为准）。
