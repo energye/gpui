@@ -424,32 +424,38 @@ func (c *Context) ApplyMerge(layers ...[]ImageFilterNode) {
 	}
 	_ = c.FlushGPU()
 	base := c.pixmap
+	// Every layer derives from the PRISTINE input (Skia Merge semantics:
+	// all srcs read the same input stream) — a layer must not see earlier
+	// layers' over results.
+	pristine := filterPixmapPool.GetForOverwrite(base.Width(), base.Height())
+	copy(pristine.Data(), base.Data())
 	for _, layer := range layers {
 		if len(layer) == 0 {
 			continue
 		}
 		layerPix := filterPixmapPool.GetForOverwrite(base.Width(), base.Height())
-		copy(layerPix.Data(), base.Data())
-		if !c.tryApplyFilterGraphGPU(layer...) {
-			// CPU fallback for this layer: run every node sequentially.
-			work := filterPixmapPool.GetForOverwrite(base.Width(), base.Height())
-			copy(work.Data(), layerPix.Data())
-			for _, n := range layer {
-				if !imageFilterNodeRunnable(n) {
-					continue
-				}
-				next := filterPixmapPool.GetForOverwrite(base.Width(), base.Height())
-				copy(next.Data(), work.Data())
-				applyImageFilterNode(n, work, next)
-				copy(work.Data(), next.Data())
-				filterPixmapPool.Put(next)
+		copy(layerPix.Data(), pristine.Data())
+		// CPU-only layer execution: the GPU graph seeds from the current
+		// GPU content (FromView), which would leak earlier layers into
+		// this layer — per-layer GPU seeding is a registered follow-up.
+		work := filterPixmapPool.GetForOverwrite(base.Width(), base.Height())
+		copy(work.Data(), layerPix.Data())
+		for _, n := range layer {
+			if !imageFilterNodeRunnable(n) {
+				continue
 			}
-			copy(layerPix.Data(), work.Data())
-			filterPixmapPool.Put(work)
+			next := filterPixmapPool.GetForOverwrite(base.Width(), base.Height())
+			copy(next.Data(), work.Data())
+			applyImageFilterNode(n, work, next)
+			copy(work.Data(), next.Data())
+			filterPixmapPool.Put(next)
 		}
+		copy(layerPix.Data(), work.Data())
+		filterPixmapPool.Put(work)
 		mergeOver(layerPix, base)
 		filterPixmapPool.Put(layerPix)
 	}
+	filterPixmapPool.Put(pristine)
 	c.markLayerFullComposite()
 }
 
@@ -478,4 +484,13 @@ func (c *Context) ApplyDisplacementMap(xSel, ySel, scale int, displacement *Imag
 		}
 	})
 	c.markLayerFullComposite()
+}
+
+// SetPaintMaskFilter sets the ambient paint's mask blur radius (P3.4 paint
+// level slot): subsequent fills soften their edges by this radius.
+func (c *Context) SetPaintMaskFilter(radius float64) {
+	if c == nil || c.paint == nil {
+		return
+	}
+	c.paint.MaskFilterRadius = radius
 }

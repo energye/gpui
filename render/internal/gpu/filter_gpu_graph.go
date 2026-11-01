@@ -95,8 +95,9 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     }
     if p.mode == 9u {
         // Offset (P3.4): whole-pixel translation via uv shift; uncovered
-        // area stays transparent.
-        let uv_o = in.uv + vec2<f32>(p.offset) / max(p.size, vec2<f32>(1.0, 1.0));
+        // area stays transparent. dst(x) samples src(x - offset) — content
+        // moves right/down, matching the CPU offsetApply.
+        let uv_o = in.uv - vec2<f32>(p.offset) / max(p.size, vec2<f32>(1.0, 1.0));
         return sample_clamped(src_tex, uv_o);
     }
     if p.mode == 10u {
