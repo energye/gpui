@@ -1,0 +1,5 @@
+# P3.2 per-file 门禁（tools/per-file-tests.sh 正本 34 包，带 lib）
+PASS 总数与 9 条既有红同 P3.1 口径；FAIL_TOTAL=10（去重 12 名）逐条定性：
+- 10 名与 P2.6 基线重放同名日志逐条同红（BlitzRRect/M5/MiscDrawGPU/PresentDamage/Rasterizer/TextTransform/Video×3/X11KeyRepeat）
+- 2 名新增嫌疑 TestS69_Contract_FromJSON / TestS69_HeavyBudget_TierGates → A/B 定性：干净树 d8fdb0ed 同红，真因=tmp/s6_present_baseline.json 缺失（S69 依赖 TestS6_PresentBaseline_Scenes 同日基线，逐文件隔离跑无前置；P2.4e「同日基线重采」门禁设计的顺序耦合）——非 P3.2 回归，登记为 s6_9 门禁的已知顺序耦合（与 misc_draw 同类随尾巴）
+零 P3.2 新增红。

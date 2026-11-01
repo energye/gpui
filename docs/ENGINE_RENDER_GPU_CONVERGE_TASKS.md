@@ -47,10 +47,10 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：**P3.2 自定义 shader**（实现主体+门禁主体全绿，收口载体见下；五目标/per-file 后台落盘后转 ✅）
+- 当前进行中：无（P3.2 已收口 ✅；下一任务 P3.3 富文本逐 run 样式）
 - 下一任务：P3.1 收口后按定稿主序进 P3.2 自定义 shader（依赖图 `evidence/P3.0/dependency-graph.md` §4）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
 - 阻塞项：无
-- 最近完成：P3.1 色彩管理地基（线性混合 opt-in，GPU dual-tex 线性域合成双后端逐位 168 vs float ref 167.6，负向红→绿，提交 `76f8723f`），见 `evidence/P3.1/summary.md`；前一项 P3.0 依赖图+文档，见 `evidence/P3.0/dependency-graph.md`
+- 最近完成：P3.2 自定义 shader（ShaderEffect+Paint.Shader 两 pass GPU 执行，真窗双后端像素逐位 Δ=5/1/4、负向红→绿，五目标绿/per-file 零新增红——S69 两名 A/B 定性为基线文件缺失的顺序耦合既有红），见 `evidence/P3.2/summary.md`；前一项 P3.1 色彩管理地基（线性混合 opt-in，GPU dual-tex 线性域合成双后端逐位 168 vs float ref 167.6，负向红→绿，提交 `76f8723f`），见 `evidence/P3.1/summary.md`；前一项 P3.0 依赖图+文档，见 `evidence/P3.0/dependency-graph.md`
 - 阻塞项：无（尾巴 I3/I4/C4/T2 诊断、ui 5 既有红、gles DeviceLost/X11KeyRepeat 两新立案随尾巴专项，不阻塞 P3 文档与实现开工）
 
 **P3.2 开工载体（2026-11-01 开工登记，方向待拍板，评估见 `evidence/P3.2/assessment.md`）**
@@ -246,7 +246,7 @@
 | P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ✅ | `evidence/P2.6/` |
 | P3.0 | 依赖图 + 文档更新（PLAN §5 + `RENDER_API_CATALOG.md`），再实现 | P2.6 | ✅ | `evidence/P3.0/` |
 | P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | ✅ | `evidence/P3.1/` |
-| P3.2 | 自定义 shader（依赖 P2.1 翻译器 + 新公开 API） | P3.0、P2.1 | 🟡（收口中：能力钉/真窗双后端逐位/负向红→绿/apidoc 全绿，五目标+per-file 后台落盘后转 ✅；录制面登记后续） | `evidence/P3.2/` |
+| P3.2 | 自定义 shader（依赖 P2.1 翻译器 + 新公开 API） | P3.0、P2.1 | ✅ | `evidence/P3.2/` |
 | P3.3 | 富文本（含 `DrawParagraph` 逐 run 样式，原半成品前移） | P3.0 | ⬜ | `evidence/P3.3/` |
 | P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1（软） | ⬜ | `evidence/P3.4/` |
 | P3.5 | 路径与几何：conic、四角圆角、Matrix4 透视、路径效果、布尔保曲线 | P3.0 | ⬜ | `evidence/P3.5/` |
@@ -604,6 +604,7 @@ docs/render_gpu_converge/
 | 2026-11-01 | P3.2 | ⬜→🟡 开工登记：影响面评估落盘（一路深查 Brush 体系/翻译链/执行骨架/CPU 回退/安全口径，全部 file:line），**方向 D1–D5 待拍板后才动代码** | `evidence/P3.2/assessment.md`：Brush ColorAt 与 brush_native.go:205 deferred 注释即本能力缺位；gles 自动翻译任意 WGSL（后端零改动）但缺 Validate；三条离屏链对比选定仿 dualTex ensure 新独立 cache；uniform slab 256B 惯例；DrawGPUTexture 式 CPU 跳过先例；API 草案 NewShaderEffect+DrawShaderRect+SetUniformBytes |
 | 2026-11-01 | P3.2 | 🟡 实现第一轮：公开 API+GPU 两 pass 主链路全通（编译拒绝/均匀双口/Paint.Shader/SDF 绕行路由/coverage+pass1+mask 链贴回/CPU 静默跳过钉绿），真窗 ui_wr_p32_shader 双卡 gpu_ops=1 无 fallback；**像素断言 0/3 未达**（上屏但通道/方向语义偏差，三候选假设登记 assessment §8），状态 🟡 如实不粉饰 | 修掉六坑全有据（SDF 捷径/四参 FillPath/WriteMask 零值/ViewDimension/RT 格式对齐/uniform 上传）；本轮五个 A/B 实证（route 0→2、clear-only、内建 fs、WriteMask 修复后上屏） | `evidence/P3.2/assessment.md` §8 |
 | 2026-11-01 | P3.2 | 🟡→（收口中）像素断言闭合：三大根因修复（pass1 uv 行序回归 dual_tex 同款、RT 改 BGRA8 对齐 readback swizzle、coverage 取光栅 alpha 通道）+ 真窗 probe/golden 改用 cardAt 动态解析（body offset=(284,60) 实测、写死 372 是卡 B 位置的坐标错误）+ 探针贴两端（6/234px）；**native 与 go 像素逐位一致 Δ=5/1/4**、金图两后端各 0%、负向坏 WGSL 拒绝红→还原绿 rc 1→0、apidoc rc=0（§13 P3.2 转正）；帧驱动补 ticker（presents 1→300）；summary/证据落盘；录制面登记后续（AddShader+SetShader 命令） | `evidence/P3.2/summary.md`、window-runs×4 |
+| 2026-11-01 | P3.2 | 🟡→✅ 收口：五目标构建全 PASS（build-five-target.txt）；per-file 34 包正本带库零新增红（10 名 P2.6 同红 + S69 两名 A/B 干净树 d8fdb0ed 同红定性=tmp/s6_present_baseline.json 缺失的顺序耦合既有红，登记 s6_9 门禁已知项）；证据全量落盘 | `evidence/P3.2/per-file-tests/`（summary.txt+702 逐文件日志）、`build-five-target.txt` |
 | 2026-11-01 | P3.1 | 🟡 D1–D5 拍板（全按推荐：路线 B advanced+CPU 先行固定功能显式降级 / BlendSpace 枚举 / 默认 SRGB opt-in / 新真窗 / hdr GPU 面移出挂 HDR 专项）；实现+门禁主体完成 | 实现五层：公开 API（BlendSpace+三口+Canvas 102→104+录制四命令+Backend 契约 38→40）/GPU（dual-tex Params.linear@offset28+WGSL 线性域合成一份双后端+全链透传+降级计数）/CPU（draw.go straight 域包装+compositeAdvancedLinear 委托 u8 正本+internal→render 反向依赖修复 blend.go→color.ColorF32）/录制面/降级探针。**语义收紧两条（summary §2）**：linear 生效域=advanced 15 模式全后端统一（CPU Normal 原接真线性与 GPU 降级不一致，改双端统一降级，P3.1b 解锁）；CPU 精度口径 u8 域分级（亮/中 ±2、暗部 ±5 实测）。管线键/batch 谓词改动取消（uniform 标志零管线变体）。门禁：构建/vet/能力钉 14 条/conformance 双后端 rc=0/真窗 ui_wr_p31_linear_blend 双后端逐位（A=77 B=168 vs float ref 167.6 C=128 降级）/负向摘 WGSL linear 分支红→还原绿/apidoc rc=0（catalog §13 P3.1 行转正+§1/§0）；per-file 34 包后台跑（唯一 FAIL=TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend 与 P2.6 基线同名同红，零新增）。P3.1b 立项（sRGB 目标格式整链，HDR/广色域前置） | `evidence/P3.1/`（assessment/summary/window-gates/window-runs×5/conformance/apidoc×2/build-five-target） |
 
 ## 8 修订记录
