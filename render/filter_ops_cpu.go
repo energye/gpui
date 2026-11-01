@@ -463,11 +463,11 @@ func (c *Context) ApplyDisplacementMap(xSel, ySel, scale int, displacement *Imag
 		return
 	}
 	nodes := []ImageFilterNode{{
-		Kind:                ImageFilterDisplacement,
-		DispXChannel:        xSel,
-		DispYChannel:        ySel,
-		DispScale:           scale,
-		DisplacementImage:   displacement,
+		Kind:              ImageFilterDisplacement,
+		DispXChannel:      xSel,
+		DispYChannel:      ySel,
+		DispScale:         scale,
+		DisplacementImage: displacement,
 	}}
 	if c.tryApplyFilterGraphGPU(nodes...) {
 		return
