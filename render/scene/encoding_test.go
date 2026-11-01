@@ -133,6 +133,42 @@ func TestEncodePathWithCurves(t *testing.T) {
 	}
 }
 
+// TestEncodePathWithConic pins the scene boundary guard: the scene tag stream
+// has no conic verb, so EncodePath must expand conics to quads exactly like
+// rendering does instead of silently dropping the segment.
+func TestEncodePathWithConic(t *testing.T) {
+	path := render.NewPath()
+	path.MoveTo(100, 0)
+	path.ConicTo(100, 100, 0, 100, math.Sqrt2/2)
+	path.Close()
+
+	got := NewEncoding()
+	got.EncodePath(path)
+
+	// The reference is the same path explicitly reduced before encoding.
+	want := NewEncoding()
+	want.EncodePath(path.ExpandConicsToQuads(0.1))
+
+	gotTags, wantTags := got.Tags(), want.Tags()
+	if len(gotTags) != len(wantTags) {
+		t.Fatalf("conic path tag count = %d, want %d (scene boundary dropped geometry)", len(gotTags), len(wantTags))
+	}
+	for i := range wantTags {
+		if gotTags[i] != wantTags[i] {
+			t.Fatalf("tag[%d] = %v, want %v", i, gotTags[i], wantTags[i])
+		}
+	}
+	gotData, wantData := got.PathData(), want.PathData()
+	if len(gotData) != len(wantData) {
+		t.Fatalf("conic path data len = %d, want %d", len(gotData), len(wantData))
+	}
+	for i := range wantData {
+		if gotData[i] != wantData[i] {
+			t.Fatalf("pathData[%d] = %v, want %v", i, gotData[i], wantData[i])
+		}
+	}
+}
+
 func TestEncodeFill(t *testing.T) {
 	enc := NewEncoding()
 

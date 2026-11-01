@@ -122,6 +122,15 @@ func (c *Context) CubicTo(c1x, c1y, c2x, c2y, x, y float64) {
 	c.path.CubicTo(cp1.X, cp1.Y, cp2.X, cp2.Y, p.X, p.Y)
 }
 
+// ConicTo adds a rational quadratic (conic) curve to the current path.
+// An affine CTM maps a conic to a conic with the same weight, so the weight
+// passes through unchanged.
+func (c *Context) ConicTo(cx, cy, x, y, w float64) {
+	cp := c.matrix.TransformPoint(Pt(cx, cy))
+	p := c.matrix.TransformPoint(Pt(x, y))
+	c.path.ConicTo(cp.X, cp.Y, p.X, p.Y, w)
+}
+
 // ClosePath closes the current subpath.
 // ClosePath closes the current subpath.
 func (c *Context) ClosePath() {
@@ -217,6 +226,8 @@ func (c *Context) DrawPath(p *Path) {
 			c.QuadraticTo(coords[0], coords[1], coords[2], coords[3])
 		case CubicTo:
 			c.CubicTo(coords[0], coords[1], coords[2], coords[3], coords[4], coords[5])
+		case ConicTo:
+			c.ConicTo(coords[0], coords[1], coords[2], coords[3], coords[4])
 		case Close:
 			c.ClosePath()
 		}
@@ -257,11 +268,17 @@ func (c *Context) NewSubPath() {
 // Path coordinates are in user-space (transformed by c.matrix only).
 // The renderer operates in device-space, so we apply deviceMatrix here.
 // At scale=1.0, returns the original path (zero copy).
+// Conics are reduced to quads here so every downstream consumer (GPU
+// pipelines, clip mask rasterizer, stroke expander) sees a conic-free path;
+// conic-free paths pass through untouched.
 func (c *Context) deviceSpacePath() *Path {
+	var p *Path
 	if c.deviceMatrix.IsIdentity() {
-		return c.path
+		p = c.path
+	} else {
+		p = c.path.Transform(c.deviceMatrix)
 	}
-	return c.path.Transform(c.deviceMatrix)
+	return p.ExpandConicsToQuads(0.1)
 }
 
 // SetPixel sets a single pixel.

@@ -137,6 +137,9 @@ func reverseSubpath(sp subpathSOA, result *Path) {
 		case CubicTo:
 			// Reverse cubic: swap control points and endpoint
 			result.CubicTo(c[2], c[3], c[0], c[1], prevPoint.X, prevPoint.Y)
+		case ConicTo:
+			// Reverse conic: keep control and weight, swap endpoint
+			result.ConicTo(c[0], c[1], prevPoint.X, prevPoint.Y, c[4])
 		}
 	}
 
@@ -156,13 +159,27 @@ func getSubpathEndpointSOA(sp subpathSOA) Point {
 	ci := 0
 	var lastPt Point
 	for _, v := range sp.verbs {
-		n := verbCoordCount(v)
-		if n >= 2 {
-			lastPt = Pt(sp.coords[ci+n-2], sp.coords[ci+n-1])
+		if pt, ok := verbEndPoint(sp.coords, ci, v); ok {
+			lastPt = pt
 		}
-		ci += n
+		ci += verbCoordCount(v)
 	}
 	return lastPt
+}
+
+// verbEndPoint returns the endpoint of the verb at coords[ci:ci+n].
+// For MoveTo/LineTo/QuadTo/CubicTo the endpoint is the last (x, y) pair; a
+// conic stores its weight as the final coordinate, so its endpoint sits one
+// slot earlier.
+func verbEndPoint(coords []float64, ci int, v PathVerb) (Point, bool) {
+	n := verbCoordCount(v)
+	if n < 2 {
+		return Point{}, false
+	}
+	if v == ConicTo {
+		return Pt(coords[ci+2], coords[ci+3]), true
+	}
+	return Pt(coords[ci+n-2], coords[ci+n-1]), true
 }
 
 // getSOAElementStartPoint returns the start point of element at index i.
@@ -177,9 +194,8 @@ func getSOAElementStartPoint(sp subpathSOA, entries []soaVerbEntry, i int) Point
 
 	// Get endpoint of previous element.
 	prev := entries[i-1]
-	n := verbCoordCount(prev.verb)
-	if n >= 2 {
-		return Pt(sp.coords[prev.off+n-2], sp.coords[prev.off+n-1])
+	if pt, ok := verbEndPoint(sp.coords, prev.off, prev.verb); ok {
+		return pt
 	}
 	return Point{}
 }
@@ -215,12 +231,30 @@ func (p *Path) Length(accuracy float64) float64 {
 			pt := Pt(coords[4], coords[5])
 			length += cubicLength(current, ctrl1, ctrl2, pt, accuracy)
 			current = pt
+		case ConicTo:
+			ctrl := Pt(coords[0], coords[1])
+			pt := Pt(coords[2], coords[3])
+			length += conicLength(current, ctrl, pt, coords[4], accuracy)
+			current = pt
 		case Close:
 			// Historical Length() does not add the closing edge (callers that need
 			// closed perimeter use TotalLength / ComputeMetrics).
 		}
 	})
 
+	return length
+}
+
+// conicLength computes the arc length of a rational quadratic by reducing it
+// to interpolating quads at the accuracy tolerance and summing their lengths.
+func conicLength(p0, p1, p2 Point, w float64, accuracy float64) float64 {
+	if w == 1 {
+		return quadLength(p0, p1, p2, accuracy)
+	}
+	length := 0.0
+	NewConicBez(p0, p1, p2, w).ToQuads(accuracy, func(q QuadBez) {
+		length += quadLength(q.P0, q.P1, q.P2, accuracy)
+	})
 	return length
 }
 

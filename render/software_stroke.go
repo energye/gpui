@@ -47,8 +47,9 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 		pathToDraw = dashPath(p, dash)
 	}
 
-	// Convert render.PathVerb to stroke.PathVerb (same layout, just cast)
-	strokeVerbs := convertVerbsToStroke(pathToDraw.Verbs())
+	// Convert render.PathVerb to stroke.PathVerb (same layout, just cast).
+	// Conics are reduced to quads below, matched to the expander tolerance:
+	// the stroke expander has no conic verb and would silently desync on one.
 
 	// Create stroke style from paint
 	// Scale line width by transform scale (path coordinates are already transformed)
@@ -77,6 +78,11 @@ func (r *SoftwareRenderer) Stroke(pixmap *Pixmap, p *Path, paint *Paint) error {
 		strokeTol = 0.1 / float64(ds)
 	}
 	expander.SetTolerance(strokeTol)
+
+	// Reduce conics to quads at the expander tolerance before casting verbs:
+	// the stroke expander has no conic verb and would silently desync on one.
+	pathToDraw = pathToDraw.ExpandConicsToQuads(strokeTol)
+	strokeVerbs := convertVerbsToStroke(pathToDraw.Verbs())
 
 	// Expand stroke to fill path (SOA: verb+coords in, verb+coords out)
 	outVerbs, outCoords := expander.Expand(strokeVerbs, pathToDraw.Coords())
@@ -230,6 +236,13 @@ func dashPath(p *Path, dash *Dash) *Path {
 			dashCubic(result, &currentX, &currentY, ctrl1, ctrl2, pt,
 				pattern, &patternIdx, &patternPos, &inDash)
 
+		case ConicTo:
+			// Flatten conic to lines for dashing (same tolerance as quad)
+			ctrl := Pt(coords[0], coords[1])
+			pt := Pt(coords[2], coords[3])
+			dashConic(result, &currentX, &currentY, ctrl, pt, coords[4],
+				pattern, &patternIdx, &patternPos, &inDash)
+
 		case Close:
 			// Close by dashing line back to start
 			if currentX != startX || currentY != startY {
@@ -339,6 +352,23 @@ func dashQuad(result *Path, currentX, currentY *float64, control, end Point,
 	var points []float64
 	points = append(points, start.X, start.Y)
 	flattenQuad(start, control, end, tolerance, func(pt Point) {
+		points = append(points, pt.X, pt.Y)
+	})
+
+	for i := 2; i < len(points); i += 2 {
+		dashLine(result, currentX, currentY, points[i], points[i+1],
+			pattern, patternIdx, patternPos, inDash)
+	}
+}
+
+// dashConic dashes a rational quadratic by flattening it to lines.
+func dashConic(result *Path, currentX, currentY *float64, control, end Point, w float64,
+	pattern []float64, patternIdx *int, patternPos *float64, inDash *bool) {
+	tolerance := 0.5 // same tolerance as quad/cubic dashing
+	start := Pt(*currentX, *currentY)
+	var points []float64
+	points = append(points, start.X, start.Y)
+	flattenConic(start, control, end, w, tolerance, func(pt Point) {
 		points = append(points, pt.X, pt.Y)
 	})
 

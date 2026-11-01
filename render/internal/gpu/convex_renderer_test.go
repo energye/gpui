@@ -754,6 +754,19 @@ func TestExtractConvexPolygonWithQuadCurve(t *testing.T) {
 	}
 }
 
+func TestExtractConvexPolygonWithConicCurve(t *testing.T) {
+	p := render.NewPath()
+	p.MoveTo(0, 0)
+	p.LineTo(100, 0)
+	p.ConicTo(100, 100, 0, 100, math.Sqrt2/2)
+	p.Close()
+
+	_, ok := extractConvexPolygon(p)
+	if ok {
+		t.Error("expected false for path with conic curves")
+	}
+}
+
 // --- Render session convex integration tests ---
 
 func TestRenderSessionConvexOnly(t *testing.T) {

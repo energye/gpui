@@ -543,6 +543,11 @@ func (e *Encoding) EncodePath(p *render.Path) {
 		return
 	}
 
+	// The scene encoding has no conic verb; reduce conics to quads at the
+	// boundary so a caller passing a render.Path with ConicTo cannot silently
+	// lose the curve (conic-free paths pass through unchanged).
+	p = p.ExpandConicsToQuads(0.1)
+
 	if p.NumVerbs() == 0 {
 		return
 	}

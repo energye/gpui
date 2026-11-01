@@ -49,6 +49,13 @@ func (b *PathBuilder) CubicTo(c1x, c1y, c2x, c2y, x, y float64) *PathBuilder {
 	return b
 }
 
+// ConicTo draws a rational quadratic (conic) curve with weight w
+// (w=1 equals a quadratic; sqrt(2)/2 traces a quarter circular arc).
+func (b *PathBuilder) ConicTo(cx, cy, x, y, w float64) *PathBuilder {
+	b.path.ConicTo(cx, cy, x, y, w)
+	return b
+}
+
 // Close closes the current subpath.
 func (b *PathBuilder) Close() *PathBuilder {
 	b.path.Close()

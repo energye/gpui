@@ -144,7 +144,7 @@ func extractConvexPolygon(path *render.Path) ([]render.Point, bool) {
 			points = append(points, render.Pt(coords[0], coords[1]))
 		case render.LineTo:
 			points = append(points, render.Pt(coords[0], coords[1]))
-		case render.QuadTo, render.CubicTo:
+		case render.QuadTo, render.CubicTo, render.ConicTo:
 			hasCurves = true
 		case render.Close:
 			closed = true

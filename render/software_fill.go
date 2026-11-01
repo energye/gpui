@@ -18,24 +18,31 @@ import (
 )
 
 // convertGGPathToCorePath converts a render.Path to raster.PathLike.
+// Conics are reduced to quadratic segments (the raster path format has no
+// conic verb); the quad interpolation tolerance matches the raster
+// EdgeBuilder's default flatten tolerance (0.1px).
 func convertGGPathToCorePath(p *Path) raster.PathLike {
 	verbs := make([]raster.PathVerb, 0, p.NumVerbs())
 	points := make([]float32, 0, len(p.Coords())*2) //nolint:mnd // preallocate for float64→float32
+	var cur Point
 
 	p.Iterate(func(verb PathVerb, coords []float64) {
 		switch verb {
 		case MoveTo:
 			verbs = append(verbs, raster.MoveTo)
 			points = append(points, float32(coords[0]), float32(coords[1]))
+			cur = Pt(coords[0], coords[1])
 		case LineTo:
 			verbs = append(verbs, raster.LineTo)
 			points = append(points, float32(coords[0]), float32(coords[1]))
+			cur = Pt(coords[0], coords[1])
 		case QuadTo:
 			verbs = append(verbs, raster.QuadTo)
 			points = append(points,
 				float32(coords[0]), float32(coords[1]),
 				float32(coords[2]), float32(coords[3]),
 			)
+			cur = Pt(coords[2], coords[3])
 		case CubicTo:
 			verbs = append(verbs, raster.CubicTo)
 			points = append(points,
@@ -43,6 +50,18 @@ func convertGGPathToCorePath(p *Path) raster.PathLike {
 				float32(coords[2]), float32(coords[3]),
 				float32(coords[4]), float32(coords[5]),
 			)
+			cur = Pt(coords[4], coords[5])
+		case ConicTo:
+			ctrl := Pt(coords[0], coords[1])
+			end := Pt(coords[2], coords[3])
+			NewConicBez(cur, ctrl, end, coords[4]).ToQuads(0.1, func(q QuadBez) {
+				verbs = append(verbs, raster.QuadTo)
+				points = append(points,
+					float32(q.P1.X), float32(q.P1.Y),
+					float32(q.P2.X), float32(q.P2.Y),
+				)
+			})
+			cur = end
 		case Close:
 			verbs = append(verbs, raster.Close)
 		}
@@ -141,6 +160,12 @@ func pathBounds(p *Path) (minX, minY, maxX, maxY float64) {
 			expandPt(coords[0], coords[1])
 			expandPt(coords[2], coords[3])
 			expandPt(coords[4], coords[5])
+		case ConicTo:
+			// A positive-weight conic stays inside its control triangle, so
+			// the control-point envelope is a conservative bound (coords[4]
+			// is the weight, not a point).
+			expandPt(coords[0], coords[1])
+			expandPt(coords[2], coords[3])
 		}
 	})
 
@@ -367,6 +392,10 @@ func applyMaskCoverage(maskFn func(x, y int) uint8, px, py int, coverage uint8) 
 // When rasterizerMode is set (via Context.SetRasterizerMode), the forced
 // algorithm is used instead of auto-selection.
 func (r *SoftwareRenderer) Fill(pixmap *Pixmap, p *Path, paint *Paint) error {
+	// Coverage fillers rasterize scene-format paths with no conic verb; reduce
+	// conics to quads up front (no-op for conic-free paths).
+	p = p.ExpandConicsToQuads(0.1)
+
 	// Non-AA path: completely separate code path.
 	// Integer scanline, binary coverage, no CoverageFiller/AnalyticFiller.
 	if !r.antiAlias {

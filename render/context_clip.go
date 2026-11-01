@@ -155,7 +155,10 @@ func (c *Context) initClipStack() {
 
 // convertPathToClipVerbs converts a render.Path to clip.PathVerb + coords slices.
 // Both PathVerb types have identical byte values, so this is a simple cast.
+// The clip package has no conic verb, so conics are reduced to quads here as a
+// boundary guard (no-op for the device-space paths callers already provide).
 func convertPathToClipVerbs(p *Path) ([]clip.PathVerb, []float64) {
+	p = p.ExpandConicsToQuads(0.1)
 	verbs := p.Verbs()
 	result := make([]clip.PathVerb, len(verbs))
 	for i, v := range verbs {

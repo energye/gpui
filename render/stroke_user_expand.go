@@ -63,6 +63,10 @@ func (c *Context) expandStrokeToPathSpace() *Path {
 		}
 	}
 
+	// The stroke expander has no conic verb; reduce conics to quads first
+	// (dashPath above already handles conics natively).
+	pathToStroke = pathToStroke.ExpandConicsToQuads(0.1)
+
 	outline := expandStrokePath(pathToStroke, width, c.paint)
 	if outline == nil || outline.NumVerbs() == 0 {
 		return nil

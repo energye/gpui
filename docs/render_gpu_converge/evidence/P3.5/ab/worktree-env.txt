@@ -1,0 +1,8 @@
+Worktree P3.5 batch1, GPU env from P1.3 baseline (WGPU_NATIVE_PATH/LD_LIBRARY_PATH):
+=== RUN   TestAAProbe_CircleDiag
+    aa_probe_quality_test.go:72: circle edge soft=618 hard=628 gpu_ops=4 cpu_fallback=0 reason="" wrote=../tmp/comp/AA_PROBE_circle_diag.png
+--- PASS: TestAAProbe_CircleDiag (0.28s)
+=== RUN   TestF14_EffectSurface_FlushGPU_PublishesGPUFilterTexture
+--- PASS: TestF14_EffectSurface_FlushGPU_PublishesGPUFilterTexture (0.01s)
+PASS
+ok  	github.com/energye/gpui/render	0.337s

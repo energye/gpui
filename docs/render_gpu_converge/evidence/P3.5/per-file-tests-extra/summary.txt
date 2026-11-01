@@ -1,0 +1,21 @@
+# P3.5 批 1 补充分包逐文件门禁（清单 per-file-extra.pkgs）
+计数：PASS=69 SKIP_TAGGED=2 FAIL=6 TOTAL=77
+
+覆盖：render/scene、render/recording、render/internal/stroke、render/internal/raster、render/internal/gpu/tilecompute、render/recording/backends/raster。
+通过项含 raster/tilecompute 金图文件（analytic_filler_golden_test.go、rasterizer_test.go）与 stroke golden，证明存量金图零变化。
+
+FAIL 6 个文件全部来自同一包 render/recording/backends/raster 的编译失败（不是测试断言失败）：
+- render/recording/backends/raster/backend_c2b_parity_test.go
+- render/recording/backends/raster/backend_context_parity_test.go
+- render/recording/backends/raster/backend_coverage_test.go
+- render/recording/backends/raster/backend_paint_test.go
+- render/recording/backends/raster/backend_test.go
+- render/recording/backends/raster/backend_transform_test.go
+
+定性：HEAD 既有 build 债（P3.1 线），不是 P3.5 回归。证据：
+- HEAD render/recording/backend.go:123 接口 FillPath 已有 5 参（含 render.BlendSpace）
+- HEAD render/recording/backends/raster/backend_test.go:116 仍按 4 参调用
+- 工作树 git diff 未改 render/recording/backend.go 与 render/recording/backends/raster/
+与 examples/ui_render_base_recording 同一类 P3.1 参数切换漏改债，按既有坏包口径排除。
+
+结论：除 HEAD 既有坏包外，补充分包全绿；金图相关可编译包全绿。

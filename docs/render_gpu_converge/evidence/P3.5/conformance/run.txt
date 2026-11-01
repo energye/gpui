@@ -1,0 +1,4 @@
+=== RUN   TestConformanceDualBackend
+--- PASS: TestConformanceDualBackend (1.07s)
+PASS
+ok  	github.com/energye/gpui/render	1.093s

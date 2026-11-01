@@ -1,0 +1,8 @@
+# P3.5 批 1 补充分包逐文件门禁清单
+# 主清单 tools/per-file-tests.pkgs 之外的变更/边界相关包。
+render/scene
+render/recording
+render/internal/stroke
+render/internal/raster
+render/internal/gpu/tilecompute
+render/recording/backends/raster

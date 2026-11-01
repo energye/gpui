@@ -26,4 +26,11 @@ const (
 	CubicTo
 	// Close closes the current subpath. Consumes 0 coords.
 	Close
+	// ConicTo draws a rational quadratic (conic) curve. Consumes 5 coords
+	// (cx, cy, x, y, w) where w is the conic weight: w <= 0 degenerates to a
+	// straight line at construction time, w == 1 equals a quadratic Bezier,
+	// and w == sqrt(2)/2 represents an exact quarter circular arc.
+	// ConicTo is appended after Close to keep the serialized values of the
+	// original five verbs stable.
+	ConicTo
 )

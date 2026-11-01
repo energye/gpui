@@ -1,0 +1,4 @@
+=== RUN   TestConvertGGPathToCorePathConic
+--- PASS: TestConvertGGPathToCorePathConic (0.00s)
+PASS
+ok  	github.com/energye/gpui/render	0.009s

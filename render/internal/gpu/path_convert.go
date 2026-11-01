@@ -37,6 +37,9 @@ func convertPathToPathDef(path *render.Path, paint *render.Paint) tilecompute.Pa
 	if path == nil || path.NumVerbs() == 0 {
 		return tilecompute.PathDef{}
 	}
+	// Vello path defs have no conic verb; reduce at this boundary so a raw
+	// conic path can never be silently treated as a polyline.
+	path = path.ExpandConicsToQuads(0.1)
 
 	var lines []tilecompute.LineSoup
 	var cubics []tilecompute.CubicBezier

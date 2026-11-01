@@ -1,0 +1,11 @@
+=== go test -race -count=2 ./render (conic + path subset) ===
+ok  	github.com/energye/gpui/render	1.911s
+render rc=0
+=== go test -race -count=2 ./render/internal/gpu (new boundary pins) ===
+ok  	github.com/energye/gpui/render/internal/gpu	1.057s
+gpu rc=0
+=== go test -race -count=2 ./render/scene ./render/recording ./render/internal/stroke ===
+ok  	github.com/energye/gpui/render/scene	4.518s
+ok  	github.com/energye/gpui/render/recording	2.152s
+ok  	github.com/energye/gpui/render/internal/stroke	1.115s
+subpackages rc=0

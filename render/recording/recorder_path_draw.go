@@ -47,6 +47,11 @@ func (r *Recorder) CubicTo(c1x, c1y, c2x, c2y, x, y float64) {
 	r.currentPath.CubicTo(c1x, c1y, c2x, c2y, x, y)
 }
 
+// ConicTo adds a rational quadratic (conic) curve to the current path.
+func (r *Recorder) ConicTo(cx, cy, x, y, w float64) {
+	r.currentPath.ConicTo(cx, cy, x, y, w)
+}
+
 // ClosePath closes the current subpath.
 func (r *Recorder) ClosePath() {
 	r.currentPath.Close()

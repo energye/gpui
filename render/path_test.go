@@ -732,7 +732,10 @@ func TestVerbCoordCount(t *testing.T) {
 		{QuadTo, 4},
 		{CubicTo, 6},
 		{Close, 0},
-		{PathVerb(99), 0},
+		{ConicTo, 5},
+		// Unknown verbs return -1: Iterate panics on them instead of silently
+		// skipping geometry (see verbCoordCount docs).
+		{PathVerb(99), -1},
 	}
 	for _, tt := range tests {
 		if got := verbCoordCount(tt.verb); got != tt.want {

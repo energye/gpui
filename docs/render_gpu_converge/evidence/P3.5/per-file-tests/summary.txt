@@ -1,0 +1,20 @@
+# P3.5 批 1 主逐文件门禁（tools/per-file-tests.sh，清单 tools/per-file-tests.pkgs，34 包）
+日期：2026-11-01　HEAD：6d861410　工作树：P3.5 批 1 未提交
+计数：PASS=686 SKIP_TAGGED=21 FAIL=9 NO_TESTS=1 TOTAL=717
+
+FAIL（全部命中 P3.3/P3.2 基线红名单，零新增）：
+- render/context_misc_draw_gpu_test.go
+- render/filter_present_coherence_test.go
+- render/rasterizer_tile_value_test.go
+- render/s6_9_heavy_budget_test.go
+- render/text_transform_gpu_test.go
+- render/video_direct_upload_test.go
+- ui/application/app_test.go
+- ui/rendering/m5_keystroke_g1_test.go
+- ui/scene/internal/gpupixel/blit_rrect_corner_test.go
+
+对照 P3.3 基线 10 个红文件：9 个逐名复现；ui/platform/x11_s6_p0_test.go 本轮 PASS（环境相关老红，未复现，不算新增）。
+comm 差集（P3.3 有、P3.5 无）：ui/platform/x11_s6_p0_test.go
+comm 差集（P3.5 有、P3.3 无）：空
+
+结论：主逐文件门禁只减不增，P3.5 批 1 零新增回归。

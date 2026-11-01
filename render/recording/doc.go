@@ -98,7 +98,7 @@
 //
 // The Recorder supports the full gg drawing API:
 //
-//   - Path operations: MoveTo, LineTo, QuadraticTo, CubicTo, ClosePath
+//   - Path operations: MoveTo, LineTo, QuadraticTo, CubicTo, ConicTo, ClosePath
 //   - Shape helpers: DrawRectangle, DrawRoundedRectangle, DrawCircle, DrawEllipse, DrawArc, DrawEllipticalArc
 //   - Fill and stroke with solid colors and gradients, each carrying its blend mode
 //   - Line styles: width, cap, join, miter limit, dash patterns

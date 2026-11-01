@@ -38,6 +38,11 @@ func (p *Path) Area() float64 {
 			pt := Pt(coords[4], coords[5])
 			area += cubicArea(current, ctrl1, ctrl2, pt)
 			current = pt
+		case ConicTo:
+			ctrl := Pt(coords[0], coords[1])
+			pt := Pt(coords[2], coords[3])
+			area += conicArea(current, ctrl, pt, coords[4])
+			current = pt
 		case Close:
 			area += lineArea(current, start)
 			current = start
@@ -56,11 +61,16 @@ func lineArea(p0, p1 Point) float64 {
 }
 
 // quadArea computes the contribution of a quadratic Bezier to the signed area.
-// Integrates x*dy using the parametric form.
-// quadArea computes the contribution of a quadratic Bezier to the signed area.
-// Integrates x*dy using the parametric form.
+// Exact Green's-theorem integral of x(t)·y'(t) over t∈[0,1]:
+//
+//	[x0(2y1+y2−3y0) + 2x1(y2−y0) + x2(3y2−2y1−y0)] / 6
+//
+// (the previous formula dropped the −3y0 / +3y2 endpoint terms and halved the
+// middle term, which numeric integration disproved; see P3.5 evidence).
 func quadArea(p0, p1, p2 Point) float64 {
-	return (p0.X*(2*p1.Y+p2.Y) + p1.X*(-p0.Y+p2.Y) + p2.X*(-2*p1.Y-p0.Y)) / 6.0
+	return (p0.X*(2*p1.Y+p2.Y-3*p0.Y) +
+		2*p1.X*(p2.Y-p0.Y) +
+		p2.X*(3*p2.Y-2*p1.Y-p0.Y)) / 6.0
 }
 
 // cubicArea computes the contribution of a cubic Bezier to the signed area.
@@ -73,6 +83,21 @@ func cubicArea(p0, p1, p2, p3 Point) float64 {
 		3*p1.X*(-2*p0.Y+p2.Y+p3.Y) +
 		3*p2.X*(-p0.Y-p1.Y+2*p3.Y) +
 		p3.X*(-p0.Y-3*p1.Y-6*p2.Y)) / 20.0
+}
+
+// conicArea computes the contribution of a rational quadratic to the signed
+// area. The closed form for the rational integrand is unwieldy, so the conic
+// is reduced to quads at a tolerance fine enough that the area error is far
+// below any consumer's needs.
+func conicArea(p0, p1, p2 Point, w float64) float64 {
+	if w == 1 {
+		return quadArea(p0, p1, p2)
+	}
+	area := 0.0
+	NewConicBez(p0, p1, p2, w).ToQuads(1e-3, func(q QuadBez) {
+		area += quadArea(q.P0, q.P1, q.P2)
+	})
+	return area
 }
 
 // Winding returns the winding number of a point relative to the path.

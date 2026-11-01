@@ -16,6 +16,7 @@ func TestSnapPathToPixelGrid(t *testing.T) {
 	path.LineTo(50.5, 30.2)
 	path.QuadraticTo(60.1, 40.9, 70.5, 50.5)
 	path.CubicTo(80.1, 60.9, 90.4, 70.6, 100.5, 80.5)
+	path.ConicTo(110.2, 90.8, 120.4, 100.6, math.Sqrt2/2)
 	path.Close()
 
 	snapped := snapPathToPixelGrid(path)
@@ -32,6 +33,7 @@ func TestSnapPathToPixelGrid(t *testing.T) {
 		51, 30, // LineTo(50.5→51, 30.2→30)
 		60, 41, 71, 51, // QuadTo(60.1→60, 40.9→41, 70.5→71, 50.5→51)
 		80, 61, 90, 71, 101, 81, // CubicTo(80.1→80, 60.9→61, 90.4→90, 70.6→71, 100.5→101, 80.5→81)
+		110, 91, 120, 101, math.Sqrt2 / 2, // ConicTo control/end snapped, weight unchanged
 		// Close has no coordinates
 	}
 

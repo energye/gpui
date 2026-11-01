@@ -343,10 +343,12 @@ func NewPathShape(path *Path) *PathShape {
 
 // NewGGPathShape creates a PathShape from a render.Path (float64 → float32 conversion).
 // Use this when working with paths from gg APIs (e.g., render.ParseSVGPath).
+// Conics are reduced to quads: the scene path format has no conic verb.
 func NewGGPathShape(ggPath *render.Path) *PathShape {
 	if ggPath == nil || ggPath.NumVerbs() == 0 {
 		return &PathShape{path: NewPath()}
 	}
+	ggPath = ggPath.ExpandConicsToQuads(0.1)
 	p := NewPath()
 	ggPath.Iterate(func(verb render.PathVerb, coords []float64) {
 		switch verb {

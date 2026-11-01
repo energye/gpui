@@ -159,6 +159,16 @@ func (p *Path) ComputeMetrics(tolerance float64) []PathMetric {
 				appendPt(fp)
 			})
 			current = pt
+		case ConicTo:
+			if !started {
+				return
+			}
+			ctrl := Pt(coords[0], coords[1])
+			pt := Pt(coords[2], coords[3])
+			flattenConic(current, ctrl, pt, coords[4], tolerance, func(fp Point) {
+				appendPt(fp)
+			})
+			current = pt
 		case Close:
 			if !started {
 				return

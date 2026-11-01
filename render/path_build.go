@@ -53,6 +53,24 @@ func (p *Path) CubicTo(c1x, c1y, c2x, c2y, x, y float64) {
 	p.current = Pt(x, y)
 }
 
+// ConicTo draws a rational quadratic (conic) curve with control point (cx, cy),
+// end point (x, y) and weight w. Following Skia semantics: w <= 0 degenerates
+// to a straight line, w == 1 is exactly a quadratic Bezier, and w == sqrt(2)/2
+// traces an exact quarter circular arc. A positive-weight conic stays inside
+// the (start, control, end) triangle, so the incremental bounds include the
+// control point just like QuadTo.
+func (p *Path) ConicTo(cx, cy, x, y, w float64) {
+	if w <= 0 {
+		p.LineTo(x, y)
+		return
+	}
+	p.verbs = append(p.verbs, ConicTo)
+	p.coords = append(p.coords, cx, cy, x, y, w)
+	p.expandBounds(cx, cy)
+	p.expandBounds(x, y)
+	p.current = Pt(x, y)
+}
+
 // Close closes the current subpath by drawing a line to the start point.
 // Close closes the current subpath by drawing a line to the start point.
 func (p *Path) Close() {
@@ -95,16 +113,6 @@ func (p *Path) Append(other *Path) {
 	p.start = other.start
 }
 
-// Iterate calls fn for each verb in the path with the corresponding coordinate slice.
-// This is the primary zero-allocation iteration API.
-//
-// The coords slice passed to fn is a sub-slice of the path's coordinate buffer:
-//   - MoveTo: coords has 2 elements (x, y)
-//   - LineTo: coords has 2 elements (x, y)
-//   - QuadTo: coords has 4 elements (cx, cy, x, y)
-//   - CubicTo: coords has 6 elements (c1x, c1y, c2x, c2y, x, y)
-//   - Close: coords has 0 elements (nil)
-//
 // Transform applies a transformation matrix to all points in the path.
 func (p *Path) Transform(m Matrix) *Path {
 	result := NewPath()
@@ -125,6 +133,11 @@ func (p *Path) Transform(m Matrix) *Path {
 			ctrl2 := m.TransformPoint(Pt(coords[2], coords[3]))
 			pt := m.TransformPoint(Pt(coords[4], coords[5]))
 			result.CubicTo(ctrl1.X, ctrl1.Y, ctrl2.X, ctrl2.Y, pt.X, pt.Y)
+		case ConicTo:
+			// An affine image of a conic is a conic with the same weight.
+			ctrl := m.TransformPoint(Pt(coords[0], coords[1]))
+			pt := m.TransformPoint(Pt(coords[2], coords[3]))
+			result.ConicTo(ctrl.X, ctrl.Y, pt.X, pt.Y, coords[4])
 		case Close:
 			result.Close()
 		}

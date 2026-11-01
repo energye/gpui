@@ -484,6 +484,11 @@ func snapPathToPixelGrid(path *render.Path) *render.Path {
 				math.Round(coords[0]), math.Round(coords[1]),
 				math.Round(coords[2]), math.Round(coords[3]),
 				math.Round(coords[4]), math.Round(coords[5]))
+		case render.ConicTo:
+			// Weight is not a coordinate and must pass through unchanged.
+			snapped.ConicTo(
+				math.Round(coords[0]), math.Round(coords[1]),
+				math.Round(coords[2]), math.Round(coords[3]), coords[4])
 		case render.Close:
 			snapped.Close()
 		}

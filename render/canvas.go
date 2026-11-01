@@ -64,6 +64,7 @@ type Canvas interface {
 	LineTo(x, y float64)
 	QuadraticTo(cx, cy, x, y float64)
 	CubicTo(c1x, c1y, c2x, c2y, x, y float64)
+	ConicTo(cx, cy, x, y, w float64)
 	ClosePath()
 	ClearPath()
 	NewSubPath()

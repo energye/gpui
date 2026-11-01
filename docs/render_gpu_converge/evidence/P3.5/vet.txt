@@ -1,0 +1,3 @@
+command: GOWORK=off go vet ./render ./render/scene ./render/recording ./render/internal/gpu ./render/internal/stroke
+rc=0
+(no output)

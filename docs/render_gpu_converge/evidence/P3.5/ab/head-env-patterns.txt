@@ -1,0 +1,8 @@
+=== RUN   TestCustomPatternFill
+--- PASS: TestCustomPatternFill (3.60s)
+=== RUN   TestCustomBrushFill
+--- PASS: TestCustomBrushFill (0.01s)
+=== RUN   TestCheckerboardFill
+--- PASS: TestCheckerboardFill (0.01s)
+PASS
+ok  	github.com/energye/gpui/render	3.806s

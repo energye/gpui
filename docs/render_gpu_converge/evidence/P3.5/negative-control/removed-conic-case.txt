@@ -1,0 +1,6 @@
+=== RUN   TestConvertGGPathToCorePathConic
+    software_coverage_test.go:657: conic converted to 2 verbs, want MoveTo+Quad(s)+Close
+--- FAIL: TestConvertGGPathToCorePathConic (0.00s)
+FAIL
+FAIL	github.com/energye/gpui/render	0.009s
+FAIL

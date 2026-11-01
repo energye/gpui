@@ -22,11 +22,10 @@ func TestPathArea_Quadratic(t *testing.T) {
 				p.Close()
 				return p
 			},
-			// For a parabolic segment: area = 2/3 * base * height
-			// base = 10, height ~= 5 (quadratic reaches midpoint of control)
-			// actual area = 2/3 * 10 * 5 = 33.33
-			wantArea:  33.33,
-			tolerance: 1.0,
+			// Exact Green's-theorem integral for this parabolic segment:
+			// ∫ x dy = -100/3, so |area| = 100/3.
+			wantArea:  100.0 / 3.0,
+			tolerance: 1e-9,
 		},
 		{
 			name: "quadratic half-circle approximation",
@@ -37,8 +36,9 @@ func TestPathArea_Quadratic(t *testing.T) {
 				p.Close()
 				return p
 			},
-			wantArea:  26.67, // 2/3 * 10 * 4
-			tolerance: 2.0,
+			// y = 16t(1-t), x = 10t → ∫ x dy = -80/3, |area| = 80/3.
+			wantArea:  80.0 / 3.0,
+			tolerance: 1e-9,
 		},
 		{
 			name: "mixed line and quadratic",
@@ -50,8 +50,12 @@ func TestPathArea_Quadratic(t *testing.T) {
 				p.Close()
 				return p
 			},
-			wantArea:  66.67, // Approximate area of the shape
-			tolerance: 10.0,
+			// Exact Green's-theorem integral: the quadratic edge is
+			// x(t)=10(1-t²), y(t)=20t-10t²; ∫ x dy over the curve is
+			// 200∫(1-t²)(1-t)dt = 250/3, and the two straight edges
+			// contribute zero, so |area| = 250/3 (not 66.67).
+			wantArea:  250.0 / 3.0,
+			tolerance: 1e-9,
 		},
 	}
 

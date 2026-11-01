@@ -48,6 +48,11 @@ func (p *Path) BoundingBox() Rect {
 			pt := Pt(coords[4], coords[5])
 			bbox = bbox.Union(cubicBBox(current, ctrl1, ctrl2, pt))
 			current = pt
+		case ConicTo:
+			ctrl := Pt(coords[0], coords[1])
+			pt := Pt(coords[2], coords[3])
+			bbox = bbox.Union(conicBBox(current, ctrl, pt, coords[4]))
+			current = pt
 		case Close:
 			// Close doesn't add new points
 		}
@@ -82,6 +87,14 @@ func quadBBox(p0, p1, p2 Point) Rect {
 func cubicBBox(p0, p1, p2, p3 Point) Rect {
 	c := NewCubicBez(p0, p1, p2, p3)
 	return c.BoundingBox()
+}
+
+// conicBBox returns the tight bounding box of a rational quadratic.
+func conicBBox(p0, p1, p2 Point, w float64) Rect {
+	if w == 1 {
+		return quadBBox(p0, p1, p2)
+	}
+	return NewConicBez(p0, p1, p2, w).BoundingBox()
 }
 
 // Flatten converts all curves to line segments with given tolerance.
@@ -138,6 +151,11 @@ func (p *Path) FlattenCallback(tolerance float64, fn func(pt Point)) {
 			pt := Pt(coords[4], coords[5])
 			flattenCubic(current, ctrl1, ctrl2, pt, tolerance, fn)
 			current = pt
+		case ConicTo:
+			ctrl := Pt(coords[0], coords[1])
+			pt := Pt(coords[2], coords[3])
+			flattenConic(current, ctrl, pt, coords[4], tolerance, fn)
+			current = pt
 		case Close:
 			if current != start {
 				fn(start)
@@ -182,6 +200,18 @@ func flattenQuadRecursive(q QuadBez, toleranceSq float64, fn func(pt Point), dep
 func flattenCubic(p0, p1, p2, p3 Point, tolerance float64, fn func(pt Point)) {
 	c := NewCubicBez(p0, p1, p2, p3)
 	flattenCubicRecursive(c, tolerance*tolerance, fn, 0)
+}
+
+// flattenConic flattens a rational quadratic: reduce to interpolating quads at
+// the tolerance, then flatten each quad (total deviation ≤ 2·tolerance).
+func flattenConic(p0, p1, p2 Point, w float64, tolerance float64, fn func(pt Point)) {
+	if w == 1 {
+		flattenQuad(p0, p1, p2, tolerance, fn)
+		return
+	}
+	NewConicBez(p0, p1, p2, w).ToQuads(tolerance/2, func(q QuadBez) {
+		flattenQuadRecursive(q, tolerance*tolerance, fn, 0)
+	})
 }
 
 // flattenCubicRecursive recursively subdivides the cubic.

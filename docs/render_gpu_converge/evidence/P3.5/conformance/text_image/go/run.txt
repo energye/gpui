@@ -1,0 +1,7 @@
+=== RUN   TestConformanceInner
+J5TRACE Open device=0xc0002704b0 ctx=0xc000093540
+    conformance_test.go:169: go/clip_blend ok=true 
+    conformance_test.go:169: go/solid_gradient ok=true 
+    conformance_test.go:169: go/text_image ok=true 
+--- PASS: TestConformanceInner (0.61s)
+PASS

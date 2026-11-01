@@ -39,6 +39,11 @@ func (p *Path) Winding(pt Point) int {
 			ep := Pt(coords[4], coords[5])
 			winding += cubicWinding(current, ctrl1, ctrl2, ep, pt)
 			current = ep
+		case ConicTo:
+			ctrl := Pt(coords[0], coords[1])
+			ep := Pt(coords[2], coords[3])
+			winding += conicWinding(current, ctrl, ep, coords[4], pt)
+			current = ep
 		case Close:
 			winding += lineWinding(current, start, pt)
 			current = start
@@ -126,6 +131,27 @@ func flattenQuadWindingRecursive(q QuadBez, pt Point, tolerance float64, winding
 	q1, q2 := q.Subdivide()
 	flattenQuadWindingRecursive(q1, pt, tolerance, winding, depth+1)
 	flattenQuadWindingRecursive(q2, pt, tolerance, winding, depth+1)
+}
+
+// conicWinding computes the winding contribution of a rational quadratic.
+// The control-point hull contains the curve, so the vertical/right early
+// exits use it before falling back to flattened winding.
+func conicWinding(p0, p1, p2 Point, w float64, pt Point) int {
+	minY := math.Min(math.Min(p0.Y, p1.Y), p2.Y)
+	maxY := math.Max(math.Max(p0.Y, p1.Y), p2.Y)
+	if pt.Y < minY || pt.Y > maxY {
+		return 0
+	}
+	maxX := math.Max(math.Max(p0.X, p1.X), p2.X)
+	if pt.X > maxX {
+		return 0
+	}
+
+	var winding int
+	NewConicBez(p0, p1, p2, w).ToQuads(0.1, func(q QuadBez) {
+		flattenQuadWindingRecursive(q, pt, 0.1, &winding, 0)
+	})
+	return winding
 }
 
 // cubicWinding computes the winding contribution of a cubic Bezier.

@@ -25,13 +25,17 @@ func (v PathVerb) String() string {
 		return "CubicTo"
 	case Close:
 		return "Close"
+	case ConicTo:
+		return "ConicTo"
 	default:
 		return "Unknown"
 	}
 }
 
-// verbCoordCount returns the number of float64 coordinates consumed by a verb.
-// verbCoordCount returns the number of float64 coordinates consumed by a verb.
+// verbCoordCount returns the number of float64 coordinates consumed by a verb,
+// or -1 for a verb value outside the known set. Iterate panics on unknown
+// verbs so a missed consumer switch surfaces loudly instead of silently
+// skipping geometry.
 func verbCoordCount(v PathVerb) int {
 	switch v {
 	case MoveTo, LineTo:
@@ -42,8 +46,10 @@ func verbCoordCount(v PathVerb) int {
 		return 6
 	case Close:
 		return 0
+	case ConicTo:
+		return 5
 	default:
-		return 0
+		return -1
 	}
 }
 
@@ -89,10 +95,17 @@ func NewPath() *Path {
 //   - QuadTo: coords has 4 elements (cx, cy, x, y)
 //   - CubicTo: coords has 6 elements (c1x, c1y, c2x, c2y, x, y)
 //   - Close: coords has 0 elements (nil)
+//   - ConicTo: coords has 5 elements (cx, cy, x, y, w)
+//
+// Iterate panics on verbs outside the known set; a silent skip here would drop
+// geometry downstream without any observable error.
 func (p *Path) Iterate(fn func(verb PathVerb, coords []float64)) {
 	ci := 0
 	for _, v := range p.verbs {
 		n := verbCoordCount(v)
+		if n < 0 {
+			panic("render: path contains unknown verb " + v.String())
+		}
 		if n > 0 {
 			fn(v, p.coords[ci:ci+n])
 		} else {
@@ -120,11 +133,11 @@ func (p *Path) NumVerbs() int {
 	return len(p.verbs)
 }
 
-// HasCurves reports whether the path contains any quadratic or cubic curves.
-// HasCurves reports whether the path contains any quadratic or cubic curves.
+// HasCurves reports whether the path contains any quadratic, cubic, or conic
+// (rational quadratic) curves.
 func (p *Path) HasCurves() bool {
 	for _, v := range p.verbs {
-		if v == QuadTo || v == CubicTo {
+		if v == QuadTo || v == CubicTo || v == ConicTo {
 			return true
 		}
 	}

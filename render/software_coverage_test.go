@@ -640,6 +640,32 @@ func TestConvertGGPathToCorePathEmpty(t *testing.T) {
 	}
 }
 
+// TestConvertGGPathToCorePathConic pins the raster boundary conversion: the
+// raster path format has no conic verb, so a conic must be expanded into quads
+// rather than silently skipped. (SoftwareRenderer.Fill also guards this at its
+// entry; this test keeps the conversion itself honest.)
+func TestConvertGGPathToCorePathConic(t *testing.T) {
+	p := NewPath()
+	p.MoveTo(60, 0)
+	p.ConicTo(60, 60, 0, 60, math.Sqrt2/2)
+	p.Close()
+
+	adapter := convertGGPathToCorePath(p)
+	// MoveTo + at least one QuadTo + Close. Dropping the conic leaves only
+	// MoveTo + Close (2 verbs, 2 points).
+	if got := len(adapter.Verbs()); got < 3 {
+		t.Fatalf("conic converted to %d verbs, want MoveTo+Quad(s)+Close", got)
+	}
+	pts := adapter.Points()
+	if len(pts) < 6 {
+		t.Fatalf("conic converted to %d point coords, want at least one quad", len(pts))
+	}
+	// The expanded chain must end at the conic endpoint (0, 60).
+	if math.Abs(float64(pts[len(pts)-2])) > 0.1 || math.Abs(float64(pts[len(pts)-1])-60) > 0.1 {
+		t.Errorf("conic endpoint = (%v,%v), want (0,60)", pts[len(pts)-2], pts[len(pts)-1])
+	}
+}
+
 // --- convertLineCap / convertLineJoin tests ---
 
 func TestConvertLineCap(t *testing.T) {

@@ -47,6 +47,27 @@ func TestConvertPathToPathDef_SingleLine(t *testing.T) {
 	}
 }
 
+// TestConvertPathToPathDefConic verifies a raw conic path is reduced to quads
+// at the Vello boundary instead of being silently treated as a polyline.
+func TestConvertPathToPathDefConic(t *testing.T) {
+	path := render.NewPath()
+	path.MoveTo(100, 0)
+	path.ConicTo(100, 100, 0, 100, math.Sqrt2/2)
+	path.Close()
+
+	pd := convertPathToPathDef(path, nil)
+	if len(pd.Lines) < 5 {
+		t.Fatalf("expected conic to flatten to multiple lines, got %d", len(pd.Lines))
+	}
+	if pd.Lines[0].P0 != [2]float32{100, 0} {
+		t.Errorf("first line start = %v, want (100,0)", pd.Lines[0].P0)
+	}
+	last := pd.Lines[len(pd.Lines)-1]
+	if last.P1 != [2]float32{100, 0} {
+		t.Errorf("last line end = %v, want closed path end (100,0)", last.P1)
+	}
+}
+
 // TestConvertPathToPathDef_Triangle verifies a closed triangle produces 3 line segments.
 func TestConvertPathToPathDef_Triangle(t *testing.T) {
 	path := render.NewPath()

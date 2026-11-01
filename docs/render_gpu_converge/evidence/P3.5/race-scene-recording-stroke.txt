@@ -1,0 +1,3 @@
+ok  	github.com/energye/gpui/render/scene	3.512s
+ok  	github.com/energye/gpui/render/recording	2.024s
+ok  	github.com/energye/gpui/render/internal/stroke	1.184s

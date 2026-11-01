@@ -6,12 +6,37 @@ import (
 	"math"
 	"testing"
 
+	"github.com/energye/gpui/render"
 	"github.com/energye/gpui/render/scene"
 )
 
 // =============================================================================
 // Tile Tests
 // =============================================================================
+
+// TestConvertGGToScenePathExpandsConic verifies the SparseStrips boundary
+// reduces a raw conic path to quadratics instead of dropping the arc.
+func TestConvertGGToScenePathExpandsConic(t *testing.T) {
+	p := render.NewPath()
+	p.MoveTo(100, 0)
+	p.ConicTo(100, 100, 0, 100, math.Sqrt2/2)
+	p.Close()
+
+	sp := convertGGToScenePath(p)
+	if sp.VerbCount() < 3 {
+		t.Fatalf("scene path verb count = %d, want >=3 (conic dropped?)", sp.VerbCount())
+	}
+	hasQuad := false
+	for _, v := range sp.Verbs() {
+		if v == scene.QuadTo {
+			hasQuad = true
+			break
+		}
+	}
+	if !hasQuad {
+		t.Fatal("scene path has no QuadTo segments; conic was not reduced")
+	}
+}
 
 func TestTileReset(t *testing.T) {
 	tile := &Tile{

@@ -73,6 +73,7 @@ func (f *SparseStripsFiller) FillCoverage(
 
 // convertGGToScenePath converts a render.Path (float64) to a scene.Path (float32).
 func convertGGToScenePath(p *render.Path) *scene.Path {
+	p = p.ExpandConicsToQuads(0.1) // scene.Path has no conic verb
 	sp := scene.NewPath()
 	p.Iterate(func(verb render.PathVerb, coords []float64) {
 		switch verb {

@@ -176,6 +176,16 @@ func pathToClipperPaths(p *Path) clipper.Paths {
 				addClipperPoint(seg, pt.X, pt.Y)
 			})
 			current = end
+		case ConicTo:
+			if len(out) == 0 {
+				return
+			}
+			end := Pt(coords[2], coords[3])
+			seg := &out[len(out)-1]
+			flattenConic(current, Pt(coords[0], coords[1]), end, coords[4], pathBooleanFlattenTolerance, func(pt Point) {
+				addClipperPoint(seg, pt.X, pt.Y)
+			})
+			current = end
 		case Close:
 			if len(out) == 0 {
 				return

@@ -80,6 +80,8 @@ func (r *Recorder) DrawPath(p *render.Path) {
 			r.QuadraticTo(coords[0], coords[1], coords[2], coords[3])
 		case render.CubicTo:
 			r.CubicTo(coords[0], coords[1], coords[2], coords[3], coords[4], coords[5])
+		case render.ConicTo:
+			r.ConicTo(coords[0], coords[1], coords[2], coords[3], coords[4])
 		case render.Close:
 			r.ClosePath()
 		}

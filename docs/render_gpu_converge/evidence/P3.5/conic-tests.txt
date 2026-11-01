@@ -1,0 +1,18 @@
+=== render/curve_conic_test.go ===
+ok  	github.com/energye/gpui/render	0.011s
+PASS render/curve_conic_test.go
+=== render/conic_pipeline_test.go ===
+ok  	github.com/energye/gpui/render	0.418s
+PASS render/conic_pipeline_test.go
+=== render/conic_gpu_parity_test.go ===
+ok  	github.com/energye/gpui/render	0.462s
+PASS render/conic_gpu_parity_test.go
+=== render/software_coverage_test.go ===
+ok  	github.com/energye/gpui/render	0.042s
+PASS render/software_coverage_test.go
+=== render/scene/encoding_test.go ===
+ok  	github.com/energye/gpui/render/scene	0.013s
+PASS render/scene/encoding_test.go
+=== render/scene/shape_test.go ===
+ok  	github.com/energye/gpui/render/scene	0.009s
+PASS render/scene/shape_test.go

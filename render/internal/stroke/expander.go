@@ -183,6 +183,11 @@ const (
 	VerbCubicTo
 	// VerbClose closes the current subpath. Consumes 0 coords.
 	VerbClose
+	// VerbConicTo is render.ConicTo (value 5). The expander cannot stroke
+	// rational quadratics natively; callers must reduce conics to quads first
+	// (render.Path.ExpandConicsToQuads). Reaching Expand with one panics
+	// instead of silently desyncing the coordinate stream.
+	VerbConicTo
 )
 
 // verbCoordCount returns the number of float64 coordinates consumed by a verb.
@@ -194,6 +199,8 @@ func verbCoordCount(v PathVerb) int {
 		return 4
 	case VerbCubicTo:
 		return 6
+	case VerbConicTo:
+		return 5
 	default:
 		return 0
 	}
@@ -299,6 +306,11 @@ func (e *StrokeExpander) Expand(verbs []PathVerb, coords []float64) ([]PathVerb,
 				e.doLine(tangent, e.startPt)
 			}
 			e.finishClosed()
+		default:
+			if v == VerbConicTo {
+				panic("stroke: conic verb reached Expand; reduce conics to quads first (render.Path.ExpandConicsToQuads)")
+			}
+			panic("stroke: unknown path verb")
 		}
 	}
 

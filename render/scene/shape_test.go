@@ -3,6 +3,8 @@ package scene
 import (
 	"math"
 	"testing"
+
+	"github.com/energye/gpui/render"
 )
 
 func TestRectShape(t *testing.T) {
@@ -176,6 +178,44 @@ func TestPathShape(t *testing.T) {
 	nilShape := NewPathShape(nil)
 	if !nilShape.Bounds().IsEmpty() {
 		t.Error("nil path shape should have empty bounds")
+	}
+}
+
+func TestGGPathShapeWithConic(t *testing.T) {
+	path := render.NewPath()
+	path.MoveTo(100, 0)
+	path.ConicTo(100, 100, 0, 100, math.Sqrt2/2)
+	path.Close()
+
+	got := NewGGPathShape(path).ToPath()
+	want := NewGGPathShape(path.ExpandConicsToQuads(0.1)).ToPath()
+	if got.VerbCount() != want.VerbCount() {
+		t.Fatalf("conic shape verb count = %d, want %d (scene boundary dropped geometry)", got.VerbCount(), want.VerbCount())
+	}
+	gotVerbs, wantVerbs := got.Verbs(), want.Verbs()
+	for i := range wantVerbs {
+		if gotVerbs[i] != wantVerbs[i] {
+			t.Fatalf("verb[%d] = %v, want %v", i, gotVerbs[i], wantVerbs[i])
+		}
+	}
+	gotPts, wantPts := got.Points(), want.Points()
+	if len(gotPts) != len(wantPts) {
+		t.Fatalf("conic shape point count = %d, want %d", len(gotPts), len(wantPts))
+	}
+	quad := false
+	for i := range wantPts {
+		if gotPts[i] != wantPts[i] {
+			t.Fatalf("point[%d] = %v, want %v", i, gotPts[i], wantPts[i])
+		}
+	}
+	for _, v := range gotVerbs {
+		if v == QuadTo {
+			quad = true
+			break
+		}
+	}
+	if !quad {
+		t.Fatal("conic shape was not reduced to quadratic segments")
 	}
 }
 
