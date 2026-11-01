@@ -29,6 +29,9 @@ var texturedQuadShaderSource string
 //go:embed shaders/textured_quad_bicubic.wgsl
 var texturedQuadBicubicShaderSource string
 
+//go:embed shaders/textured_quad_persp.wgsl
+var texturedQuadPerspShaderSource string
+
 // imageVertexStride is the byte stride per vertex in the textured quad pipeline.
 // Layout per vertex:
 //
@@ -38,6 +41,12 @@ var texturedQuadBicubicShaderSource string
 //
 // Total = 32 bytes per vertex.
 const imageVertexStride = 32
+
+// imagePerspVertexStride adds one homogeneous weight per vertex (P3.5 batch 3
+// perspective quads): position vec2 + tex_coord vec2 + tint vec4 + hom_w f32
+// = 36 bytes. Kept as its own layout/buffer so the historic 32-byte affine
+// path stays bit-identical.
+const imagePerspVertexStride = 36
 
 // imageUniformSize is the byte size of the image uniform buffer.
 // Layout:
@@ -123,6 +132,16 @@ type ImageDrawCommand struct {
 	// per-mode pipeline variants created on demand (EnsureBlendPipeline), e.g.
 	// the ApplyMask destination-in mask draw.
 	BlendMode render.BlendMode
+
+	// Perspective selects the projective quad path (P3.5 batch 3): the vertex
+	// buffer uses the 36-byte layout carrying per-corner weights, the weight
+	// rides clip-space w, and hardware interpolates UV perspective-correctly
+	// (CPU twin: render.triSampler persp branch). False keeps the historic
+	// 32-byte affine emission bit-identical. Never merges with affine quads.
+	Perspective bool
+	// Weights are the TL/TR/BR/BL homogeneous weights (> 0, validated by the
+	// render layer before queueing).
+	Weights [4]float32
 }
 
 // TexturedQuadPipeline manages GPU resources for image rendering (Tier 3).
@@ -164,6 +183,16 @@ type TexturedQuadPipeline struct {
 	// state as their linear counterparts, different fragment shader.
 	pipelineWithBicubic          hal.RenderPipeline
 	pipelineWithBicubicDepthClip hal.RenderPipeline
+
+	// Perspective quad variants (P3.5 batch 3): textured_quad_persp.wgsl with
+	// the 36-byte vertex layout carrying per-corner homogeneous weights, so
+	// clip-space w rides the vertex and hardware interpolates UV
+	// perspective-correctly. stencil + depth-clip pair, lazily built by
+	// ensurePerspectivePipelines, released by destroyPipeline. Perspective
+	// quads never merge with affine quads and carry no tint/blend/bicubic.
+	perspShader    hal.ShaderModule
+	perspStencil   hal.RenderPipeline
+	perspDepthClip hal.RenderPipeline
 
 	// Fixed-function blend variants (B.02 quad compositing): one pipeline per
 	// Porter-Duff blend mode, split into stencil-state and depth-clip versions
@@ -407,6 +436,89 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 	return nil
 }
 
+// ensurePerspectivePipelines creates the projective quad pipeline variants
+// (P3.5 batch 3): stencil + depth-clip, sharing the image pipelines' bind
+// group layout (uniform + texture + sampler + clip) but with the 36-byte
+// vertex layout carrying per-corner homogeneous weights. Lazily compiled once.
+func (p *TexturedQuadPipeline) ensurePerspectivePipelines() error {
+	if p.perspStencil != nil {
+		return nil
+	}
+	if err := p.ensurePipelineWithStencil(); err != nil {
+		return err
+	}
+	if p.perspShader == nil {
+		shader, err := p.device.CreateShaderModule(&hal.ShaderModuleDescriptor{
+			Label: "textured_quad_persp_shader",
+			WGSL:  texturedQuadPerspShaderSource,
+		})
+		if err != nil {
+			return fmt.Errorf("compile textured quad persp shader: %w", err)
+		}
+		p.perspShader = shader
+	}
+
+	premulBlend := types.BlendStatePremultiplied()
+	stencilPipe, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Label:  "textured_quad_pipeline_perspective",
+		Layout: p.pipeLayout,
+		Vertex: hal.VertexState{
+			Module:     p.perspShader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    perspVertexLayout(),
+		},
+		Fragment: &hal.FragmentState{
+			Module:     p.perspShader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					Blend:     &premulBlend,
+					WriteMask: types.ColorWriteMaskAll,
+				},
+			},
+		},
+		DepthStencil: stencilPassthroughDepthStencil(),
+		Primitive:    triangleListPrimitive(),
+		Multisample:  multisampleState(p.sampleCount),
+	})
+	if err != nil {
+		return fmt.Errorf("create textured quad perspective pipeline: %w", err)
+	}
+	p.perspStencil = stencilPipe
+
+	depthPipe, err := p.device.CreateRenderPipeline(&hal.RenderPipelineDescriptor{
+		Label:  "textured_quad_pipeline_perspective_depth_clip",
+		Layout: p.pipeLayout,
+		Vertex: hal.VertexState{
+			Module:     p.perspShader,
+			EntryPoint: shaderEntryVS,
+			Buffers:    perspVertexLayout(),
+		},
+		Fragment: &hal.FragmentState{
+			Module:     p.perspShader,
+			EntryPoint: shaderEntryFS,
+			Targets: []types.ColorTargetState{
+				{
+					Format:    types.TextureFormatBGRA8Unorm,
+					Blend:     &premulBlend,
+					WriteMask: types.ColorWriteMaskAll,
+				},
+			},
+		},
+		DepthStencil: depthClipDepthStencil(),
+		Primitive:    triangleListPrimitive(),
+		Multisample:  multisampleState(p.sampleCount),
+	})
+	if err != nil {
+		p.perspStencil.Destroy()
+		p.perspStencil = nil
+		return fmt.Errorf("create textured quad perspective depth clip pipeline: %w", err)
+	}
+	p.perspDepthClip = depthPipe
+	return nil
+}
+
 // EnsureBlendPipeline creates (once) the quad pipeline variants for a
 // fixed-function Porter-Duff blend mode (B.02): the stencil-state version and
 // its depth-clip counterpart. The session calls this before recording draw
@@ -539,6 +651,14 @@ func (p *TexturedQuadPipeline) pipelineForDraw(dc imageDrawCall, useDepthClip bo
 		if pipe := p.blendPipelineFor(dc.blendMode, useDepthClip); pipe != nil {
 			return pipe
 		}
+	}
+	if dc.perspective {
+		// Projective quads only render on the persp variant; a missing
+		// pipeline skips the draw (build path logs the ensure failure).
+		if useDepthClip {
+			return p.perspDepthClip
+		}
+		return p.perspStencil
 	}
 	if dc.yuv {
 		return p.yuvPipelineForDraw(useDepthClip, false)
@@ -775,12 +895,21 @@ func (p *TexturedQuadPipeline) RecordDraws(rp hal.RenderPassEncoder, res *imageF
 	if clipBG != nil {
 		rp.SetBindGroup(1, clipBG, nil)
 	}
-	rp.SetVertexBuffer(0, res.vertBuf, 0)
+	curBuf := res.vertBuf
+	rp.SetVertexBuffer(0, curBuf, 0)
 	var lastPipe hal.RenderPipeline
 	for _, dc := range res.drawCalls {
 		pipe := p.pipelineForDraw(dc, useDepthClip)
 		if pipe == nil {
 			continue
+		}
+		wantBuf := curBuf
+		if dc.vertBuf != nil {
+			wantBuf = dc.vertBuf
+		}
+		if wantBuf != curBuf {
+			rp.SetVertexBuffer(0, wantBuf, 0)
+			curBuf = wantBuf
 		}
 		if pipe != lastPipe {
 			clearPassBindGroups(rp)
@@ -802,6 +931,18 @@ func (p *TexturedQuadPipeline) destroyPipeline() {
 	}
 	p.destroyYUV()
 	p.destroyBlendPipelines()
+	if p.perspDepthClip != nil {
+		p.perspDepthClip.Destroy()
+		p.perspDepthClip = nil
+	}
+	if p.perspStencil != nil {
+		p.perspStencil.Destroy()
+		p.perspStencil = nil
+	}
+	if p.perspShader != nil {
+		p.perspShader.Destroy()
+		p.perspShader = nil
+	}
 	if p.pipelineWithBicubicDepthClip != nil {
 		p.pipelineWithBicubicDepthClip.Destroy()
 		p.pipelineWithBicubicDepthClip = nil
@@ -876,6 +1017,11 @@ type imageDrawCall struct {
 	bicubic     bool   // uses bicubic pipeline variant (I.03), no merge with linear
 	yuv         bool   // video plane quad: YUV pipeline variant, no merge with linear
 	blendMode   render.BlendMode
+	// perspective selects the projective quad pipeline variant (P3.5 batch 3).
+	perspective bool
+	// vertBuf overrides imageFrameResources.vertBuf when non-nil (perspective
+	// quads live in their own 36-byte-stride buffer).
+	vertBuf hal.Buffer
 }
 
 // imageDrawVertexCount returns the vertex count for a draw call.
@@ -998,6 +1144,11 @@ func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 	if a == nil || b == nil {
 		return false
 	}
+	// Perspective quads ride their own pipeline and vertex buffer; never
+	// coalesce them with affine quads (P3.5 batch 3).
+	if a.Perspective || b.Perspective {
+		return false
+	}
 	if a.GenerationID == 0 || a.GenerationID != b.GenerationID {
 		return false
 	}
@@ -1063,6 +1214,61 @@ func imageVertexLayout() []types.VertexBufferLayout {
 				{Format: types.VertexFormatFloat32x4, Offset: 16, ShaderLocation: 2}, // tint (premul)
 			},
 		},
+	}
+}
+
+// perspVertexLayout returns the 36-byte projective layout (P3.5 batch 3):
+// one extra per-corner homogeneous weight f32 at location 3.
+func perspVertexLayout() []types.VertexBufferLayout {
+	return []types.VertexBufferLayout{
+		{
+			ArrayStride: imagePerspVertexStride,
+			StepMode:    types.VertexStepModeVertex,
+			Attributes: []types.VertexAttribute{
+				{Format: types.VertexFormatFloat32x2, Offset: 0, ShaderLocation: 0},  // position
+				{Format: types.VertexFormatFloat32x2, Offset: 8, ShaderLocation: 1},  // tex_coord
+				{Format: types.VertexFormatFloat32x4, Offset: 16, ShaderLocation: 2}, // tint (premul)
+				{Format: types.VertexFormatFloat32, Offset: 32, ShaderLocation: 3},   // homogeneous weight
+			},
+		},
+	}
+}
+
+// buildPerspVerticesInto writes one projective image quad (6 verts, 36B stride)
+// into dst. dst must have length >= 6*imagePerspVertexStride.
+func buildPerspVerticesInto(dst []byte, cmd *ImageDrawCommand) {
+	const vertsPerQuad = 6
+	need := vertsPerQuad * imagePerspVertexStride
+	if len(dst) < need {
+		panic("buildPerspVerticesInto: dst too small")
+	}
+	x0, y0 := cmd.TLX, cmd.TLY
+	x1, y1 := cmd.TRX, cmd.TRY
+	x2, y2 := cmd.BRX, cmd.BRY
+	x3, y3 := cmd.BLX, cmd.BLY
+	u0, v0, u1, v1 := cmd.U0, cmd.V0, cmd.U1, cmd.V1
+	wTL, wTR, wBR, wBL := cmd.Weights[0], cmd.Weights[1], cmd.Weights[2], cmd.Weights[3]
+	// Perspective quads ride the DrawImageQuad queue entry only (no tint
+	// channel there), so the tint stays the identity white the affine twins
+	// use for zero structs.
+	const tr, tg, tb, ta = float32(1), float32(1), float32(1), float32(1)
+
+	// Same GPU twin split as buildImageVerticesInto: TL,TR,BL + TR,BR,BL,
+	// each vertex carrying its corner weight.
+	verts := [6][9]float32{
+		{x0, y0, u0, v0, tr, tg, tb, ta, wTL}, // TL
+		{x1, y1, u1, v0, tr, tg, tb, ta, wTR}, // TR
+		{x3, y3, u0, v1, tr, tg, tb, ta, wBL}, // BL
+		{x1, y1, u1, v0, tr, tg, tb, ta, wTR}, // TR
+		{x2, y2, u1, v1, tr, tg, tb, ta, wBR}, // BR
+		{x3, y3, u0, v1, tr, tg, tb, ta, wBL}, // BL
+	}
+	offset := 0
+	for _, v := range verts {
+		for k := 0; k < 9; k++ {
+			binary.LittleEndian.PutUint32(dst[offset+4*k:], math.Float32bits(v[k]))
+		}
+		offset += imagePerspVertexStride
 	}
 }
 

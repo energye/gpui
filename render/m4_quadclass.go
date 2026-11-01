@@ -39,6 +39,14 @@ type QuadDrawOptions struct {
 	Opacity float64
 	// BlendMode 混合方式，R1 只支持 Normal，其余显式报错。
 	BlendMode BlendMode
+	// Perspective 打开透视校正贴图（P3.5 批 3）：UV 按 Weights 做 1/w 有理插值，
+	// 与 Matrix4.ProjectQuad 返回的齐次权重配对（Skia 透视贴图 / GPU clip-space
+	// 真 w 同款语义）。零值保持既有仿射双三角行为逐位不变。
+	Perspective bool
+	// Weights 是四角齐次权重 w（TL、TR、BR、BL 顺序，恒 >0 有限）。
+	// 同权等价于仿射；梯形（深度不均）下决定 UV 沿边的透视落位。
+	// Perspective 为真时逐项校验，非法返回 ErrQuadBadWeights。
+	Weights [4]float64
 }
 
 // R1 哨兵错：调用方用 errors.Is 判定，不许静默画错。
@@ -53,6 +61,10 @@ var (
 	ErrQuadUnsupportedBlend = errors.New("render: unsupported quad blend mode (R1 only Normal)")
 	// ErrQuadUnsupportedInterp 不支持的采样方式。
 	ErrQuadUnsupportedInterp = errors.New("render: unsupported quad interpolation")
+	// ErrQuadBadWeights 透视权重非法（非有限或 <=0）。
+	ErrQuadBadWeights = errors.New("render: quad perspective weights must be finite and > 0")
+	// ErrQuadPerspectiveBicubic 透视模式不支持 bicubic（采样核基于仿射 UV 步距）。
+	ErrQuadPerspectiveBicubic = errors.New("render: perspective quad does not support bicubic interpolation")
 )
 
 // SetDither enables ordered dithering of soft fills after GPU resolve (P.09).

@@ -1,0 +1,16 @@
+=== worktree run 1 (2026-11-02, per-file gate 同窗) ===
+    s6_9_heavy_budget_test.go:382: S6.9 budget failures (2):
+          H04_TextRows40: P1 p50=1.04 > S6.0×1.10+floor (0.91)
+          H06_NestedClipLayerText: P3 p50=0.32 > S6.0×1.15 (0.31)
+--- FAIL: TestS69_HeavyBudget_TierGates (0.68s)
+FAIL
+FAIL	github.com/energye/gpui/render	0.704s
+FAIL
+
+=== worktree run 2 ===
+    s6_9_heavy_budget_test.go:382: S6.9 budget failures (1):
+          H04_TextRows40: P1 p50=1.20 > S6.0×1.10+floor (0.91)
+--- FAIL: TestS69_HeavyBudget_TierGates (0.70s)
+FAIL
+FAIL	github.com/energye/gpui/render	0.721s
+FAIL

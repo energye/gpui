@@ -1,0 +1,7 @@
+# P3.5 批 3 五目标构建门禁（build-gate.sh，输出 build-batch3/，HEAD 含批 3 工作树）
+# 日期 2026-11-02；口径同批 1：5 目标 ×（逐包 + -tags nogpu）全绿；raw go build ./... exit 1 仅来自三条既有坏包（ui_wr_t_stress / ui/scene/internal/gpupixel / ui_render_base_recording）
+linux/amd64 done: 2/2 green (per-package + nogpu; raw known-broken)
+linux/arm64 done: 2/2 green (per-package + nogpu; raw known-broken)
+windows/amd64 done: 2/2 green (per-package + nogpu; raw known-broken)
+darwin/amd64 done: 2/2 green (per-package + nogpu; raw known-broken)
+darwin/arm64 done: 2/2 green (per-package + nogpu; raw known-broken)

@@ -1,0 +1,8 @@
+--- FAIL: TestQuadPerspectiveGPUProbesClosedForm (0.02s)
+    matrix4_quad_persp_gpu_test.go:150: GPU probe (180,5) class = 0, want 1
+    matrix4_quad_persp_gpu_test.go:150: GPU probe (180,90) class = 0, want 1
+--- FAIL: TestQuadPerspectiveCPUGPUParity (0.01s)
+    matrix4_quad_persp_gpu_test.go:217: band-line classification flips = 3867, want <= 583 (2%)
+FAIL
+FAIL	github.com/energye/gpui/render	0.453s
+FAIL

@@ -255,6 +255,13 @@ type gpuContextOps interface {
 	QueueImageDrawBlend(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, blendMode BlendMode, nearest bool, contentDirty bool, bicubic ...bool)
+	// QueueImageDrawQuadW is QueueImageDraw plus per-corner homogeneous weights
+	// (P3.5 batch 3 perspective quads): the vertex path emits clip-space w so
+	// hardware perspective-correct interpolation matches the CPU 1/w twin.
+	// Never merges with affine quads and has no tint/blend/bicubic variants.
+	QueueImageDrawQuadW(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+		tlX, tlY, trX, trY, brX, brY, blX, blY, tlW, trW, brW, blW, opacity float32, viewportW, viewportH uint32,
+		u0, v0, u1, v1 float32, nearest bool, contentDirty bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
 	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
 	// QueueColoredMeshIndexed draws unique verts + uint16 indices.

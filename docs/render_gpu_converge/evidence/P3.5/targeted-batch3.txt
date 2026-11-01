@@ -1,0 +1,56 @@
+=== RUN   TestQuadPerspectiveWeightsValidation
+--- PASS: TestQuadPerspectiveWeightsValidation (0.01s)
+=== RUN   TestQuadPerspectiveBandPixels
+--- PASS: TestQuadPerspectiveBandPixels (0.01s)
+=== RUN   TestQuadPerspectiveEqualWeightsMatchAffine
+--- PASS: TestQuadPerspectiveEqualWeightsMatchAffine (0.01s)
+=== RUN   TestQuadPerspectiveDamageBounds
+--- PASS: TestQuadPerspectiveDamageBounds (0.01s)
+=== RUN   TestMatrix4IdentityAndLift
+--- PASS: TestMatrix4IdentityAndLift (0.00s)
+=== RUN   TestMatrix4AffineRejectsProjective
+--- PASS: TestMatrix4AffineRejectsProjective (0.00s)
+=== RUN   TestMatrix4MulMatches2x3ForAffineLifts
+--- PASS: TestMatrix4MulMatches2x3ForAffineLifts (0.00s)
+=== RUN   TestMatrix4InvertRoundTrip
+=== RUN   TestMatrix4InvertRoundTrip/affine_lift
+=== RUN   TestMatrix4InvertRoundTrip/projector
+--- PASS: TestMatrix4InvertRoundTrip (0.00s)
+    --- PASS: TestMatrix4InvertRoundTrip/affine_lift (0.00s)
+    --- PASS: TestMatrix4InvertRoundTrip/projector (0.00s)
+=== RUN   TestMatrix4InvertSingularAndNonFinite
+--- PASS: TestMatrix4InvertSingularAndNonFinite (0.00s)
+=== RUN   TestMatrix4ProjectorMatchesProjectorMath
+--- PASS: TestMatrix4ProjectorMatchesProjectorMath (0.00s)
+=== RUN   TestMatrix4ProjectorRejectsBadSetup
+--- PASS: TestMatrix4ProjectorRejectsBadSetup (0.00s)
+=== RUN   TestMatrix4ProjectPointBehindEyeRejected
+--- PASS: TestMatrix4ProjectPointBehindEyeRejected (0.00s)
+=== RUN   TestMatrix4ProjectQuadTracesProjectorContract
+--- PASS: TestMatrix4ProjectQuadTracesProjectorContract (0.00s)
+=== RUN   TestMatrix4ProjectiveEdgeRatio
+--- PASS: TestMatrix4ProjectiveEdgeRatio (0.00s)
+=== RUN   TestQuadPerspectiveGPURoutes
+--- PASS: TestQuadPerspectiveGPURoutes (0.57s)
+=== RUN   TestQuadPerspectiveGPUProbesClosedForm
+--- PASS: TestQuadPerspectiveGPUProbesClosedForm (0.02s)
+=== RUN   TestQuadPerspectiveCPUGPUParity
+--- PASS: TestQuadPerspectiveCPUGPUParity (0.04s)
+PASS
+ok  	github.com/energye/gpui/render	1.261s
+=== RUN   TestPerspVertexLayoutAndWriter
+--- PASS: TestPerspVertexLayoutAndWriter (0.00s)
+=== RUN   TestBuildPerspVerticesIntoWireFormat
+--- PASS: TestBuildPerspVerticesIntoWireFormat (0.00s)
+=== RUN   TestBuildPerspVerticesIntoPanicsOnShortDst
+--- PASS: TestBuildPerspVerticesIntoPanicsOnShortDst (0.00s)
+=== RUN   TestCanMergeImageDrawIsolatesPerspective
+--- PASS: TestCanMergeImageDrawIsolatesPerspective (0.00s)
+=== RUN   TestImageDrawCommandPerspectiveZeroValueIsAffine
+--- PASS: TestImageDrawCommandPerspectiveZeroValueIsAffine (0.00s)
+PASS
+ok  	github.com/energye/gpui/render/internal/gpu	0.138s
+=== RUN   TestRecorderDrawImageQuadPerspectivePassThrough
+--- PASS: TestRecorderDrawImageQuadPerspectivePassThrough (0.01s)
+PASS
+ok  	github.com/energye/gpui/render/recording	0.031s

@@ -25,6 +25,17 @@ func newTriSampler(p0, p1, p2 Point, uv [3][2]float64) triSampler {
 	}
 }
 
+// newTriSamplerPerspective builds the GPU-twin sampler for one triangle of a
+// projective quad: uv interpolates as (Σ bᵢ·uvᵢ/wᵢ)/(Σ bᵢ/wᵢ) with the planar
+// screen barycentrics bᵢ — exactly the perspective-correct interpolation the
+// vertex path gets for free from clip-space w (P3.5 batch 3 CPU twin).
+func newTriSamplerPerspective(p0, p1, p2 Point, uv [3][2]float64, w0, w1, w2 float64) triSampler {
+	t := newTriSampler(p0, p1, p2, uv)
+	t.persp = true
+	t.invW = [3]float64{1 / w0, 1 / w1, 1 / w2}
+	return t
+}
+
 // uv interpolates UV with barycentric weights; shared diagonal goes to tri1.
 // uv interpolates UV with barycentric weights; shared diagonal goes to tri1.
 func (t *triSampler) uv(px, py float64) (float64, float64, bool) {
@@ -39,6 +50,14 @@ func (t *triSampler) uv(px, py float64) (float64, float64, bool) {
 	const eps = -1e-9
 	if w0 < eps || w1 < eps || w2 < eps {
 		return 0, 0, false
+	}
+	if t.persp {
+		denom := w0*t.invW[0] + w1*t.invW[1] + w2*t.invW[2]
+		if math.Abs(denom) < 1e-18 {
+			return 0, 0, false
+		}
+		return (w0*t.uvs[0][0]*t.invW[0] + w1*t.uvs[1][0]*t.invW[1] + w2*t.uvs[2][0]*t.invW[2]) / denom,
+			(w0*t.uvs[0][1]*t.invW[0] + w1*t.uvs[1][1]*t.invW[1] + w2*t.uvs[2][1]*t.invW[2]) / denom, true
 	}
 	return w0*t.uvs[0][0] + w1*t.uvs[1][0] + w2*t.uvs[2][0],
 		w0*t.uvs[0][1] + w1*t.uvs[1][1] + w2*t.uvs[2][1], true

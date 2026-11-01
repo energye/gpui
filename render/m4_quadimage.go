@@ -35,6 +35,16 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 	if opts.BlendMode != BlendNormal {
 		return ErrQuadUnsupportedBlend
 	}
+	if opts.Perspective {
+		for _, w := range opts.Weights {
+			if math.IsNaN(w) || math.IsInf(w, 0) || w <= 0 {
+				return ErrQuadBadWeights
+			}
+		}
+		if interp == InterpBicubic {
+			return ErrQuadPerspectiveBicubic
+		}
+	}
 	opacity := normalizeQuadOpacity(opts.Opacity)
 	if kind := ClassifyQuad(corners); kind != QuadOK {
 		return quadKindErr(kind)
@@ -59,7 +69,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 				if c.gpuPathAvailable() {
 					c.recordCPUFallbackReason("image:DrawImageQuad")
 				}
-				c.drawImageQuadCPUSplit(img, dev, interp, opacity)
+				c.drawImageQuadCPUSplit(img, dev, interp, opacity, opts.Perspective, opts.Weights)
 				return nil
 			}
 			defer c.setGPUClipRect()()
@@ -68,6 +78,20 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 			vpH := uint32(target.Height) //nolint:gosec
 			nearest := interp == InterpNearest
 			bicubic := interp == InterpBicubic
+			if opts.Perspective {
+				rc.QueueImageDrawQuadW(target, pixelData, img.GenerationID(), imgW, imgH, img.Stride(),
+					float32(dev[0].X), float32(dev[0].Y),
+					float32(dev[1].X), float32(dev[1].Y),
+					float32(dev[2].X), float32(dev[2].Y),
+					float32(dev[3].X), float32(dev[3].Y),
+					float32(opts.Weights[0]), float32(opts.Weights[1]),
+					float32(opts.Weights[2]), float32(opts.Weights[3]),
+					float32(opacity), vpW, vpH,
+					0, 0, 1, 1,
+					nearest, false)
+				c.recordGPUOp()
+				return nil
+			}
 			rc.QueueImageDraw(target, pixelData, img.GenerationID(), imgW, imgH, img.Stride(),
 				float32(dev[0].X), float32(dev[0].Y),
 				float32(dev[1].X), float32(dev[1].Y),
@@ -83,7 +107,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 	if c.gpuPathAvailable() {
 		c.recordCPUFallbackReason("image:DrawImageQuad")
 	}
-	c.drawImageQuadCPUSplit(img, dev, interp, opacity)
+	c.drawImageQuadCPUSplit(img, dev, interp, opacity, opts.Perspective, opts.Weights)
 	return nil
 }
 
@@ -122,8 +146,9 @@ func isFinitePt(p Point) bool {
 }
 
 // drawImageQuadCPUSplit rasterizes device-space quad with GPU twin split.
-// drawImageQuadCPUSplit rasterizes device-space quad with GPU twin split.
-func (c *Context) drawImageQuadCPUSplit(img *ImageBuf, dev [4]Point, interp InterpolationMode, opacity float64) {
+// persp=true swaps both twin samplers for 1/w rational interpolation (P3.5
+// batch 3 projective quads; weights must be finite and > 0).
+func (c *Context) drawImageQuadCPUSplit(img *ImageBuf, dev [4]Point, interp InterpolationMode, opacity float64, persp bool, weights [4]float64) {
 	if c == nil || c.pixmap == nil || img == nil {
 		return
 	}
@@ -164,8 +189,16 @@ func (c *Context) drawImageQuadCPUSplit(img *ImageBuf, dev [4]Point, interp Inte
 	hasClip := c.clipStack != nil && c.clipStack.Depth() > 0
 	mask := c.mask
 	// GPU twin UVs: TL(0,0) TR(1,0) BR(1,1) BL(0,1), denominators hoisted per quad.
-	t1 := newTriSampler(dev[0], dev[1], dev[3], [3][2]float64{{0, 0}, {1, 0}, {0, 1}})
-	t2 := newTriSampler(dev[1], dev[2], dev[3], [3][2]float64{{1, 0}, {1, 1}, {0, 1}})
+	var t1, t2 triSampler
+	if persp {
+		t1 = newTriSamplerPerspective(dev[0], dev[1], dev[3], [3][2]float64{{0, 0}, {1, 0}, {0, 1}},
+			weights[0], weights[1], weights[3])
+		t2 = newTriSamplerPerspective(dev[1], dev[2], dev[3], [3][2]float64{{1, 0}, {1, 1}, {0, 1}},
+			weights[1], weights[2], weights[3])
+	} else {
+		t1 = newTriSampler(dev[0], dev[1], dev[3], [3][2]float64{{0, 0}, {1, 0}, {0, 1}})
+		t2 = newTriSampler(dev[1], dev[2], dev[3], [3][2]float64{{1, 0}, {1, 1}, {0, 1}})
+	}
 	for y := y0; y < y1; y++ {
 		py := float64(y) + 0.5
 		for x := x0; x < x1; x++ {
@@ -243,6 +276,8 @@ type triSampler struct {
 	den    float64
 	uvs    [3][2]float64
 	degen  bool
+	persp  bool
+	invW   [3]float64 // per-corner 1/w when persp (projective quad, P3.5 batch 3)
 }
 
 // PushBackdropLayer creates a layer pre-filled with a snapshot of the current

@@ -412,6 +412,11 @@ type GPURenderSession struct {
 	imageUniformScratch   []byte
 	imageDrawCallScratch  []imageDrawCall
 	imageSliceDrawScratch []imageDrawCall
+	// Perspective quads (P3.5 batch 3) pack into their own 36-byte-stride
+	// buffer so the historic affine buffer layout stays bit-identical.
+	imagePerspStaging    []byte
+	imagePerspVertBuf    hal.Buffer
+	imagePerspVertBufCap uint64
 	// skip image uniform WriteBuffer when viewport/opacity unchanged.
 	imageUniformLast []imageUniformLastKey
 	// skip image vertex WriteBuffer when packed quads match last upload.
@@ -1221,6 +1226,13 @@ func (s *GPURenderSession) maybeShrinkFrameBuffers() {
 	s.imgCalmStaging = calm
 	if due {
 		s.imageVertexStaging = nil
+		// Perspective staging/buffer rides the same calm window (P3.5 batch 3):
+		// rare path, re-created on demand.
+		s.imagePerspStaging = nil
+		if s.imagePerspVertBuf != nil {
+			s.RetireBuffer(s.imagePerspVertBuf)
+			s.imagePerspVertBuf, s.imagePerspVertBufCap = nil, 0
+		}
 	}
 	calm, due = shrinkDue(s.imageVertBufCap, s.imgLastVertNeed, texVertFloor, s.imgCalmVert)
 	s.imgCalmVert = calm
@@ -2324,6 +2336,12 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	s.imageBGNearest = nil
 	s.imageVertexStaging = nil
 	s.imageUniformScratch = nil
+	s.imagePerspStaging = nil
+	if s.imagePerspVertBuf != nil {
+		s.imagePerspVertBuf.Destroy()
+		s.imagePerspVertBuf = nil
+		s.imagePerspVertBufCap = 0
+	}
 	if s.imageUniformSlab != nil {
 		s.imageUniformSlab.Destroy()
 		s.imageUniformSlab = nil
@@ -4212,6 +4230,12 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	s.imgLastVertNeed = uint64(totalVertBytes)    //nolint:gosec // bounded
 	allVertData := s.imageVertexStaging
 	for i := range cmds {
+		if cmds[i].Perspective {
+			// Perspective quads are packed into their own 36-byte buffer below;
+			// this index space stays reserved so affine draw offsets keep the
+			// historic firstVertex = i*6 invariant.
+			continue
+		}
 		off := i * 6 * imageVertexStride
 		buildImageVerticesInto(allVertData[off:off+6*imageVertexStride], &cmds[i])
 	}
@@ -4246,6 +4270,20 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		s.imageVertLastValid = true
 	}
 
+	// Perspective quads (P3.5 batch 3): pack into the dedicated 36-byte buffer
+	// on the persp pipeline. When the variant cannot be created, the quads
+	// re-emit as affine planar quads (shape stays right, UV interpolation
+	// degrades) instead of dropping the draw — same policy as the blend
+	// variant fallback. Rare path: no sticky-hash skip, never merged.
+	perspIdx := make([]int32, len(cmds))
+	for i := range perspIdx {
+		perspIdx[i] = -1
+	}
+	perspBuf, perspErr := s.packPerspectiveQuads(cmds, allVertData, perspIdx)
+	if perspErr != nil {
+		return nil, perspErr
+	}
+
 	if cap(s.imageDrawCallScratch) < len(cmds) {
 		s.imageDrawCallScratch = make([]imageDrawCall, 0, len(cmds))
 	} else {
@@ -4259,6 +4297,8 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		nearest              bool
 		bicubic              bool
 		blendMode            render.BlendMode
+		perspective          bool
+		vertBuf              hal.Buffer // nil = affine res.vertBuf; persp slots pin the 36B buffer
 		firstVertex, vertCnt uint32
 	}
 	// Reuse imageUniformScratch as slot meta is small; pack into grow-only staging.
@@ -4289,6 +4329,25 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				slogger().Warn("image blend pipeline unavailable", "mode", cmd.BlendMode, "err", err)
 				cmd.BlendMode = render.BlendNormal
 			}
+		}
+		if cmd.Perspective {
+			pIdx := perspIdx[i]
+			if pIdx < 0 {
+				i = j // perspective quad without a packed slot (post-fallback): nothing to draw
+				continue
+			}
+			slots = append(slots, imageSlot{
+				opacity:     cmd.Opacity,
+				texView:     texView,
+				nearest:     cmd.Nearest,
+				blendMode:   cmd.BlendMode,
+				perspective: true,
+				vertBuf:     perspBuf,
+				firstVertex: uint32(pIdx * 6), //nolint:gosec
+				vertCnt:     6,               //nolint:mnd
+			})
+			i = j
+			continue
 		}
 		slots = append(slots, imageSlot{
 			opacity:     cmd.Opacity,
@@ -4421,6 +4480,8 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			vertexCount: slot.vertCnt,
 			bicubic:     slot.bicubic,
 			blendMode:   slot.blendMode,
+			perspective: slot.perspective,
+			vertBuf:     slot.vertBuf,
 		})
 	}
 
@@ -4432,6 +4493,72 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		vertBuf:   s.imageVertBuf,
 		drawCalls: drawCalls,
 	}, nil
+}
+
+// packPerspectiveQuads fills the dedicated 36-byte perspective vertex buffer
+// (P3.5 batch 3) and records each perspective command's index into it via
+// perspIdx. Commands whose perspective pipeline cannot be created re-emit as
+// affine planar quads (Perspective cleared, bytes written into allVertData at
+// the historic i*6 offset) rather than dropping the draw. Returns the
+// perspective vertex buffer, or nil when no perspective quad survives.
+func (s *GPURenderSession) packPerspectiveQuads(cmds []ImageDrawCommand, allVertData []byte, perspIdx []int32) (hal.Buffer, error) {
+	count := 0
+	for i := range cmds {
+		if cmds[i].Perspective {
+			count++
+		}
+	}
+	if count == 0 {
+		return nil, nil
+	}
+	if err := s.imagePipeline.ensurePerspectivePipelines(); err != nil {
+		slogger().Warn("perspective image pipeline unavailable, drawing affine", "err", err, "quads", count)
+		for i := range cmds {
+			if !cmds[i].Perspective {
+				continue
+			}
+			cmds[i].Perspective = false
+			off := i * 6 * imageVertexStride
+			buildImageVerticesInto(allVertData[off:off+6*imageVertexStride], &cmds[i])
+		}
+		return nil, nil
+	}
+	perspBytes := count * 6 * imagePerspVertexStride
+	if cap(s.imagePerspStaging) < perspBytes {
+		s.imagePerspStaging = make([]byte, perspBytes)
+	} else {
+		s.imagePerspStaging = s.imagePerspStaging[:perspBytes]
+	}
+	p := 0
+	for i := range cmds {
+		if !cmds[i].Perspective {
+			continue
+		}
+		off := p * 6 * imagePerspVertexStride
+		buildPerspVerticesInto(s.imagePerspStaging[off:off+6*imagePerspVertexStride], &cmds[i])
+		perspIdx[i] = int32(p)
+		p++
+	}
+	needed := uint64(perspBytes) //nolint:gosec // bounded by command count
+	if s.imagePerspVertBuf == nil || s.imagePerspVertBufCap < needed {
+		if s.imagePerspVertBuf != nil {
+			s.RetireBuffer(s.imagePerspVertBuf)
+		}
+		buf, err := s.device.CreateBuffer(&hal.BufferDescriptor{
+			Label: "image_persp_vert_buf",
+			Size:  needed,
+			Usage: types.BufferUsageVertex | types.BufferUsageCopyDst,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create image perspective vertex buffer: %w", err)
+		}
+		s.imagePerspVertBuf = buf
+		s.imagePerspVertBufCap = needed
+	}
+	if err := s.queueWriteBuffer(s.imagePerspVertBuf, 0, s.imagePerspStaging); err != nil {
+		return nil, fmt.Errorf("upload perspective image vertices: %w", err)
+	}
+	return s.imagePerspVertBuf, nil
 }
 
 // LastImageBatchStats returns the most recent image multi-quad batch stats.

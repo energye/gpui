@@ -1423,6 +1423,55 @@ func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, p
 	rc.queueImageCmd(target, cmd)
 }
 
+// QueueImageDrawQuadW is QueueImageDraw plus per-corner homogeneous weights
+// (P3.5 batch 3 perspective quads): Perspective selects the 36-byte projective
+// vertex path so clip-space w rides the vertex and hardware interpolates UV
+// perspective-correctly. Weights are validated (finite, > 0) by the render
+// layer before queueing; this entry never carries tint, blend, or bicubic.
+func (rc *GPURenderContext) QueueImageDrawQuadW(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+	tlX, tlY, trX, trY, brX, brY, blX, blY, tlW, trW, brW, blW, opacity float32, viewportW, viewportH uint32,
+	u0, v0, u1, v1 float32,
+	nearest bool,
+	contentDirty bool,
+) {
+	rc.ensureDrawOrder(drawTierImage)
+	minX := min4f(tlX, trX, brX, blX)
+	minY := min4f(tlY, trY, brY, blY)
+	maxX := max4f(tlX, trX, brX, blX)
+	maxY := max4f(tlY, trY, brY, blY)
+	cmd := ImageDrawCommand{
+		PixelData:      pixelData,
+		GenerationID:   genID,
+		ImgWidth:       imgWidth,
+		ImgHeight:      imgHeight,
+		ImgStride:      imgStride,
+		DstX:           minX,
+		DstY:           minY,
+		DstW:           maxX - minX,
+		DstH:           maxY - minY,
+		TLX:            tlX,
+		TLY:            tlY,
+		TRX:            trX,
+		TRY:            trY,
+		BRX:            brX,
+		BRY:            brY,
+		BLX:            blX,
+		BLY:            blY,
+		Opacity:        opacity,
+		ViewportWidth:  viewportW,
+		ViewportHeight: viewportH,
+		U0:             u0,
+		V0:             v0,
+		U1:             u1,
+		V1:             v1,
+		Nearest:        nearest,
+		ContentDirty:   contentDirty,
+		Perspective:    true,
+		Weights:        [4]float32{tlW, trW, brW, blW},
+	}
+	rc.queueImageCmd(target, cmd)
+}
+
 func min4f(a, b, c, d float32) float32 {
 	m := a
 	if b < m {
