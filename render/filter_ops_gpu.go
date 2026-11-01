@@ -608,12 +608,9 @@ func imageFilterGraphGPUSupported(nodes []ImageFilterNode) bool {
 		}
 		switch n.Kind {
 		case ImageFilterBlur, ImageFilterBlurXY, ImageFilterGrayscale, ImageFilterInvert,
-			ImageFilterColorMatrix, ImageFilterDropShadow:
+			ImageFilterColorMatrix, ImageFilterDropShadow,
+			ImageFilterErode, ImageFilterDilate, ImageFilterOffset, ImageFilterAlphaThreshold:
 			any = true
-		// P3.4 batch-1 kinds stay CPU-first until the GPU graph gains their
-		// WGSL modes; imageFilterGraphGPUSupported must not claim them.
-		case ImageFilterErode, ImageFilterDilate, ImageFilterOffset, ImageFilterAlphaThreshold:
-			return false
 		default:
 			return false
 		}

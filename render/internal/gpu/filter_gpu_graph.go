@@ -88,6 +88,41 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     if p.mode == 6u {
         return textureSampleLevel(src_tex, samp, in.uv, 0.0);
     }
+    if p.mode == 9u {
+        // Offset (P3.4): whole-pixel translation via uv shift; uncovered
+        // area stays transparent.
+        let uv_o = in.uv + vec2<f32>(p.offset) / max(p.size, vec2<f32>(1.0, 1.0));
+        return sample_clamped(src_tex, uv_o);
+    }
+    if p.mode == 10u {
+        // AlphaThreshold (P3.4): zero alpha below the threshold. The
+        // threshold rides p.color.a (0-1).
+        var c0 = textureSampleLevel(src_tex, samp, in.uv, 0.0);
+        if (c0.a < p.color.a) {
+            return vec4<f32>(0.0);
+        }
+        return c0;
+    }
+    if p.mode == 7u || p.mode == 8u {
+        // Morphology (P3.4): erode=min / dilate=max over a (2r+1)^2 box.
+        var best = vec4<f32>(-1.0);
+        let r = i32(p.radius);
+        let px = 1.0 / max(p.size, vec2<f32>(1.0, 1.0));
+        for (var dy = -r; dy <= r; dy++) {
+            for (var dx = -r; dx <= r; dx++) {
+                let uv_m = in.uv + vec2<f32>(f32(dx), f32(dy)) * px;
+                let c1 = sample_clamped(src_tex, uv_m);
+                if (best.r < -0.5) {
+                    best = c1;
+                } else if (p.mode == 7u) {
+                    best = min(best, c1);
+                } else {
+                    best = max(best, c1);
+                }
+            }
+        }
+        return best;
+    }
     if p.mode == 4u {
         // Shadow extract: sample source alpha at -offset, colorize.
         let uv_s = in.uv - p.offset / max(p.size, vec2<f32>(1.0, 1.0));
@@ -1231,6 +1266,34 @@ func runGPUFilterGraphEx(
 			swap()
 		case render.ImageFilterInvert:
 			if err := doPass(passArgs{mode: 2}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+		case render.ImageFilterErode:
+			if err := doPass(passArgs{mode: 7, radius: uint32(n.MorphRadius)}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+		case render.ImageFilterDilate:
+			if err := doPass(passArgs{mode: 8, radius: uint32(n.MorphRadius)}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+		case render.ImageFilterOffset:
+			if err := doPass(passArgs{mode: 9, offX: float32(n.IntOffsetX), offY: float32(n.IntOffsetY)}); err != nil {
+				discardOnErr()
+				cleanupPasses()
+				return nil, gpucontext.TextureView{}, nil, err
+			}
+			swap()
+		case render.ImageFilterAlphaThreshold:
+			if err := doPass(passArgs{mode: 10, colA: float32(n.AlphaThreshold) / 255.0}); err != nil {
 				discardOnErr()
 				cleanupPasses()
 				return nil, gpucontext.TextureView{}, nil, err
