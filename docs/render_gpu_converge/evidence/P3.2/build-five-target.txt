@@ -1,0 +1,3 @@
+linux/amd64 PASS
+linux/arm64 PASS
+windows/amd64 PASS

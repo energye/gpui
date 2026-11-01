@@ -136,6 +136,8 @@ func ensureBaked() {
 	})
 }
 
+var cardAt = [][2]float64{{8, 60}, {372, 60}}
+
 func buildScene(shell *wrkit.ShellChrome) {
 	drawBaked := func(idx int) func(*rendering.PaintContext, rendering.Size) {
 		return func(pc *rendering.PaintContext, _ rendering.Size) {
@@ -153,7 +155,6 @@ func buildScene(shell *wrkit.ShellChrome) {
 			})
 		}
 	}
-	cardAt := [][2]float64{{8, 60}, {372, 60}}
 	for i, title := range []string{
 		"A uniform 渐变（mix(c0,c1,uv.y)）",
 		"B 纹理输入（checker×tint(uv.x)）",
@@ -201,6 +202,8 @@ func main() {
 		RunFor: time.Duration(secs) * time.Second, WarmUp: true, SnapshotPath: snapPath,
 	})
 	app.SetPresentPolicy(scheduler.PresentPolicyFullPaint)
+	app.Scheduler().Tickers().Add(&fixedTick{on: func(dt float64) { app.ScheduleFrame() }})
+	app.Scheduler().SetMode(scheduler.ModePersistent)
 	if err := app.Open(); err != nil {
 		fmt.Fprintln(os.Stderr, "FAIL: open:", err)
 		os.Exit(1)
@@ -232,10 +235,14 @@ func main() {
 		want [3]byte
 		tol  float64
 	}
+	// Card absolute position: body offset + card placement (P0.2 rule 2 —
+	// probe geometry is resolved from the layout chain, never hardcoded).
+	bx, by := shell.Body.Box.Offset().X, shell.Body.Box.Offset().Y
+	cardAX, cardAY := bx+cardAt[0][0], by+cardAt[0][1]
 	probes := []probe{
-		{"p32_a_top", 372 + 170, 60 + 30, c0, 12.0 / 255},
-		{"p32_a_mid", 372 + 170, 60 + 120, [3]byte{(c0[0] + c1[0]) / 2, (c0[1] + c1[1]) / 2, (c0[2] + c1[2]) / 2}, 14.0 / 255},
-		{"p32_a_bottom", 372 + 170, 60 + 240, c1, 12.0 / 255},
+		{"p32_a_top", cardAX + 170, cardAY + 6, c0, 12.0 / 255},
+		{"p32_a_mid", cardAX + 170, cardAY + 120, [3]byte{(c0[0] + c1[0]) / 2, (c0[1] + c1[1]) / 2, (c0[2] + c1[2]) / 2}, 14.0 / 255},
+		{"p32_a_bottom", cardAX + 170, cardAY + 234, c1, 12.0 / 255},
 	}
 	pixelOK := 0
 	pixelTotal := 0
@@ -258,7 +265,7 @@ func main() {
 		pixelTotal++
 	}
 
-	goldenRects := []rect{{x: 0, y: 0, w: winW, h: 48}, {x: 8, y: 60, w: cardW, h: cardH}, {x: 372, y: 60, w: cardW, h: cardH}}
+	goldenRects := []rect{{x: 0, y: 0, w: winW, h: 48}, {x: bx + cardAt[0][0], y: by + cardAt[0][1], w: cardW, h: cardH}, {x: bx + cardAt[1][0], y: by + cardAt[1][1], w: cardW, h: cardH}}
 	goldenDiffPct, goldenTotalPx, goldenFirstRun := evaluateGolden(snapPath, goldenRects, dpr)
 
 	route := ""
@@ -311,6 +318,12 @@ func main() {
 	fmt.Fprintf(os.Stderr, "ui_wr_p32_shader: OK presents=%d pixel=%d/%d golden=%.4f%% gate=%v elapsed=%.1fs\n",
 		app.PresentCount(), pixelOK, pixelTotal, goldenDiffPct, gateMode, elapsedSec)
 }
+
+type fixedTick struct {
+	on func(dt float64)
+}
+
+func (t *fixedTick) Tick(dt float64) bool { t.on(dt); return true }
 
 func absd(a, b int) int {
 	if a > b {
