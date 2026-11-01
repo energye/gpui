@@ -1976,6 +1976,11 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 	if paint != nil && paint.Shader != nil {
 		return rc.fillShaderAsImage(target, path, paint)
 	}
+	// P3.4: paint-level filters take the filtered-paint path (content
+	// raster → MaskFilter blur → ImageFilter graph → mask composite).
+	if paint != nil && (len(paint.ImageFilter) > 0 || paint.MaskFilterRadius > 0) {
+		return rc.fillPaintFilteredAsImage(target, path, paint)
+	}
 	// L.06: prefer cover-inline R8 (convex / stencil-then-cover) when MaskAware
 	// texture is live. Advanced paints fall back to fillMaskedAsImage.
 	if paint != nil && paint.MaskCoverage != nil {

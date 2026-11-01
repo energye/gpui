@@ -187,3 +187,82 @@ func pixelAt(pm *Pixmap, x, y int) (uint8, uint8, uint8, uint8) {
 	i := (y*pm.Width() + x) * 4
 	return data[i], data[i+1], data[i+2], data[i+3]
 }
+
+// TestPaintMaskFilterSoftensEdges pins the P3.4 paint-level filter path: a
+// sharp rectangle with MaskFilterRadius gets a feathered edge (intermediate
+// alpha at the old boundary), while ImageFilter (threshold-style via nodes)
+// still composites.
+func TestPaintMaskFilterSoftensEdges(t *testing.T) {
+	t.Setenv("GOGPU_RENDER_MODE", "cpu")
+	dc := NewContext(64, 64)
+	t.Cleanup(func() { _ = dc.Close() })
+	dc.ClearWithColor(Black)
+	dc.SetRGB(1, 1, 1)
+	dc.paint.MaskFilterRadius = 3
+	dc.DrawRectangle(16, 16, 32, 32)
+	if err := dc.Fill(); err != nil {
+		t.Fatalf("fill: %v", err)
+	}
+	pm := dc.PixmapForTest()
+	alphaAt2 := func(x, y int) uint8 { return pm.Data()[(y*pm.Width()+x)*4+3] }
+	// Inside the shape: still opaque.
+	if a := alphaAt2(32, 32); a < 200 {
+		t.Fatalf("interior alpha=%d, want opaque", a)
+	}
+	// Just outside the old boundary: feathered (non-zero alpha where a sharp
+	// rectangle would be 0).
+	if a := alphaAt2(16, 32); a == 0 {
+		t.Fatal("edge at x=16 is hard — MaskFilter blur did not apply")
+	}
+	// Far outside: still the black background (opaque black, untouched).
+	r4, g4, b4, _ := pixelAt(pm, 4, 32)
+	if r4 != 0 || g4 != 0 || b4 != 0 {
+		t.Fatalf("far-field rgb=(%d,%d,%d), want untouched black background", r4, g4, b4)
+	}
+}
+
+// TestApplyMergeAndDisplacement pins the P3.4 composition entry points at the
+// Context level (CPU mode).
+func TestApplyMergeAndDisplacement(t *testing.T) {
+	t.Setenv("GOGPU_RENDER_MODE", "cpu")
+	// Register a minimal offset closure in-process (render/filters would
+	// create an import cycle from this internal test).
+	RegisterFilterOps(
+		nil, nil, nil, nil, nil,
+		func(src, dst *Pixmap) {
+			d := dst.Data()
+			for i2 := 0; i2+3 < len(d); i2 += 4 {
+				a := d[i2+3]
+				d[i2], d[i2+1], d[i2+2] = a-d[i2], a-d[i2+1], a-d[i2+2]
+			}
+		},
+		func(src, dst *Pixmap, radius int) {},
+		func(src, dst *Pixmap, radius int) {},
+		func(src, dst *Pixmap, dx, dy int) {},
+		func(src, dst *Pixmap, threshold uint8) {},
+		nil,
+		func(src, dst *Pixmap, srcRect [4]float32) {},
+		nil,
+	)
+	dc := NewContext(32, 32)
+	t.Cleanup(func() { _ = dc.Close() })
+	dc.ClearWithColor(Black)
+	dc.SetRGB(0, 1, 0)
+	dc.DrawRectangle(4, 4, 8, 8)
+	_ = dc.Fill()
+	// Merge: layer 1 shifts a copy of the content right by 12; layer 2
+	// inverts the base (green → magenta). Both land over the base.
+	dc.ApplyMerge(
+		[]ImageFilterNode{{Kind: ImageFilterOffset, IntOffsetX: 12}},
+		[]ImageFilterNode{{Kind: ImageFilterInvert}},
+	)
+	pm := dc.PixmapForTest()
+	_, sgG, _, _ := pixelAt(pm, 20, 8)    // green block moved to x=16..24
+	invR, _, invB, _ := pixelAt(pm, 4, 4) // inverted base: magenta
+	if sgG <= 150 {
+		t.Fatalf("shifted layer at (20,8) g=%d, want green present", sgG)
+	}
+	if invR <= 150 || invB <= 150 {
+		t.Fatalf("inverted layer at (4,4)=(%d,%d), want magenta present", invR, invB)
+	}
+}

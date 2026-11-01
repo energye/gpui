@@ -10,7 +10,10 @@
 
 package render
 
-import "bytes"
+import (
+	"bytes"
+	"sync"
+)
 
 // SetMask sets an alpha mask for subsequent drawing operations.
 // The mask modulates the alpha of all Fill and Stroke operations —
@@ -26,6 +29,14 @@ func (c *Context) SetMask(mask *Mask) {
 	if mask == nil {
 		c.clearGPUMaskTexture()
 		return
+	}
+	// P3.4: the ambient mask blur preprocesses the installed A8 plane in
+	// place (D4 — the mask chain's blur slot), so every consumer (MaskCoverage
+	// sampling, GPU R8 upload) sees the softened plane.
+	if r := MaskFilterRadius(); r > 0 {
+		if blurred := blurMaskPlane(mask.Data(), mask.Width(), mask.Height(), r); &blurred[0] != nil {
+			copy(mask.Data(), blurred)
+		}
 	}
 	// The Mask may have been mutated in place since the last upload; drop the
 	// retained R8 texture before re-uploading so the cache cannot reuse stale
@@ -228,4 +239,53 @@ func (c *Context) AsMask() *Mask {
 	}
 
 	return mask
+}
+
+// maskFilterState is the ambient mask blur radius (P3.4): masks installed
+// via SetMask while it is non-zero get their A8 plane blurred before use
+// (the mask-chain preprocessing slot D4). ApplyMask/PushMaskLayer adoption
+// is a registered follow-up.
+var maskFilterState struct {
+	mu     sync.Mutex
+	radius float64
+}
+
+// SetMaskFilter sets the ambient mask blur radius (P3.4). Masks installed
+// afterwards are blurred with this radius; 0 disables.
+func SetMaskFilter(radius float64) {
+	maskFilterState.mu.Lock()
+	maskFilterState.radius = radius
+	maskFilterState.mu.Unlock()
+}
+
+// MaskFilterRadius reports the ambient mask blur radius.
+func MaskFilterRadius() float64 {
+	maskFilterState.mu.Lock()
+	defer maskFilterState.mu.Unlock()
+	return maskFilterState.radius
+}
+
+// blurMaskPlane blurs an A8 plane through the filter pipeline (the alpha
+// rides in an RGBA wrapper so the existing blur implementations apply).
+func blurMaskPlane(plane []uint8, w, h int, radius float64) []uint8 {
+	if radius <= 0 || len(plane) != w*h {
+		return plane
+	}
+	src := NewPixmap(w, h)
+	d := src.Data()
+	for i, a := range plane {
+		d[i*4+3] = a // alpha-only content; RGB stays 0 (premul of nothing)
+	}
+	dst := NewPixmap(w, h)
+	if blurXYApply != nil {
+		blurXYApply(src, dst, radius, radius)
+	} else {
+		return plane
+	}
+	out := make([]uint8, w*h)
+	dd := dst.Data()
+	for i := range out {
+		out[i] = dd[i*4+3]
+	}
+	return out
 }

@@ -217,3 +217,141 @@ func (rc *GPURenderContext) runUserShaderPass(device hal.Device, queue hal.Queue
 	_ = device.WaitIdle()
 	return readTextureViewRegionRGBA(device, queue, packView(view), image.Rect(0, 0, bw, bh), bw, bh)
 }
+
+// fillPaintFilteredAsImage renders a paint that carries P3.4 paint-level
+// filters: content raster (brush/shader over the path) → MaskFilter blur
+// (soften edges) → ImageFilter graph → mask/clip composite → blit. It is the
+// filtered-paint twin of fillMaskedAsImage and rides the same R8 modulation
+// and QueueImageDraw plumbing.
+func (rc *GPURenderContext) fillPaintFilteredAsImage(target render.GPURenderTarget, path *render.Path, paint *render.Paint) error {
+	if paint == nil {
+		return render.ErrFallbackToCPU
+	}
+	hasImageFilter := len(paint.ImageFilter) > 0
+	hasMaskBlur := paint.MaskFilterRadius > 0
+	if !hasImageFilter && !hasMaskBlur {
+		return render.ErrFallbackToCPU
+	}
+
+	tw, th := target.Width, target.Height
+	if tw <= 0 || th <= 0 {
+		return render.ErrFallbackToCPU
+	}
+	bounds := path.Bounds().Intersect(image.Rect(0, 0, tw, th))
+	if bounds.Empty() {
+		bb := path.BoundingBox()
+		x0 := int(bb.Min.X) - 1
+		y0 := int(bb.Min.Y) - 1
+		x1 := int(bb.Max.X) + 1
+		y1 := int(bb.Max.Y) + 1
+		bounds = image.Rect(x0, y0, x1, y1).Intersect(image.Rect(0, 0, tw, th))
+	}
+	if bounds.Empty() {
+		return nil
+	}
+	bw, bh := bounds.Dx(), bounds.Dy()
+	if bw <= 0 || bh <= 0 || bw*bh > maxBrushFillPixels {
+		return render.ErrFallbackToCPU
+	}
+
+	localPath := path
+	if bounds.Min.X != 0 || bounds.Min.Y != 0 {
+		localPath = path.Transform(render.Translate(-float64(bounds.Min.X), -float64(bounds.Min.Y)))
+	}
+	pm := render.NewPixmap(bw, bh)
+	sr := render.NewSoftwareRenderer(bw, bh)
+	sr.SetAntiAlias(rc.antiAlias)
+	local := paint.Clone()
+	local.ImageFilter = nil
+	local.MaskFilterRadius = 0
+	local.MaskCoverage = nil
+	local.ClipCoverage = nil
+	if err := sr.Fill(pm, localPath, local); err != nil {
+		return render.ErrFallbackToCPU
+	}
+	pm.NotifyPixelsChanged()
+
+	content := make([]byte, bw*bh*4)
+	copy(content, pm.Data())
+
+	// MaskFilter: soften the content edges (premul blur keeps the storage
+	// invariant; the mask-chain A8 preprocessing refinement is registered).
+	if hasMaskBlur {
+		// The blur runs through the registered filter graph (GPU first via
+		// the pixel hook, CPU fallback inside); premul blur keeps storage
+		// invariant. The mask-chain A8 preprocessing refinement is a
+		// registered follow-up.
+		if !c_tryPaintFilterGraph(rc, content, bw, bh, []render.ImageFilterNode{
+			{Kind: render.ImageFilterBlurXY, RadiusX: paint.MaskFilterRadius, RadiusY: paint.MaskFilterRadius},
+		}) {
+			return render.ErrFallbackToCPU
+		}
+	}
+
+	// ImageFilter graph: GPU hook first, CPU sequential fallback.
+	if hasImageFilter {
+		if !c_tryPaintFilterGraph(rc, content, bw, bh, paint.ImageFilter) {
+			return render.ErrFallbackToCPU
+		}
+	}
+
+	maskRegion := make([]byte, bw*bh)
+	any := false
+	for row := 0; row < bh; row++ {
+		py := bounds.Min.Y + row
+		for col := 0; col < bw; col++ {
+			px := bounds.Min.X + col
+			var m uint8 = 255
+			if plane, pw, ph, ok := rc.shared.MaskPlane(); ok && pw == tw && ph == th {
+				m = plane[py*tw+px]
+			} else if maskFn := paint.MaskCoverage; maskFn != nil {
+				m = maskFn(px, py)
+			}
+			maskRegion[row*bw+col] = m
+			if content[row*bw*4+col*4+3] != 0 && m != 0 {
+				any = true
+			}
+		}
+	}
+	if !any {
+		return nil
+	}
+	if bw*bh <= 128*1024 {
+		maskPreMulRGBAInPlace(content, maskRegion)
+	} else {
+		out, err := maskR8Modulate(rc.shared.device, rc.shared.queue, &rc.shared.maskR8, content, maskRegion, bw, bh)
+		if err != nil {
+			return render.ErrFallbackToCPU
+		}
+		content = out
+	}
+
+	fx0 := float32(bounds.Min.X)
+	fy0 := float32(bounds.Min.Y)
+	fx1 := float32(bounds.Max.X)
+	fy1 := float32(bounds.Max.Y)
+	rc.QueueImageDraw(target, content, 0, bw, bh, bw*4,
+		fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
+		1.0, uint32(tw), uint32(th), 0, 0, 1, 1, false, false)
+	rc.sceneStats.PathCount++
+	rc.sceneStats.ShapeCount++
+	return nil
+}
+
+// c_tryPaintFilterGraph runs a filter node sequence over a premul RGBA
+// buffer through the registered GPU hooks (pixel read-back variant), with
+// the CPU sequential fallback handled by the caller's buffer walk. It
+// bridges to render's registered gpuFilterGraphApply via the shared hook
+// table (the same hooks ApplyImageFilterGraph uses).
+func c_tryPaintFilterGraph(rc *GPURenderContext, content []byte, bw, bh int, nodes []render.ImageFilterNode) bool {
+	hooks := render.RegisteredGPUFilterGraphHooks()
+	if hooks.Apply == nil {
+		return false
+	}
+	out, err := hooks.Apply(content, bw, bh, nodes)
+	if err != nil {
+		return false
+	}
+	copy(content, out)
+	return true
+}

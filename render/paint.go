@@ -132,6 +132,17 @@ type Paint struct {
 	// apply. GPU-only: with no accelerator the draw is skipped (never a
 	// silent CPU fallback).
 	Shader *ShaderEffect
+
+	// ImageFilter runs a filter graph over this paint's rendered content
+	// before it is composited (P3.4, Skia paint.imageFilter slot). The
+	// draw takes the filtered-paint path: content raster → ImageFilter →
+	// mask/clip → composite.
+	ImageFilter []ImageFilterNode
+
+	// MaskFilter blurs the paint's coverage before compositing (P3.4,
+	// Skia paint.maskFilter blur slot): the rendered content runs through
+	// a blurXY pass with this radius, softening edges. 0 = off.
+	MaskFilterRadius float64
 }
 
 // NewPaint creates a new Paint with default values.
@@ -151,22 +162,24 @@ func NewPaint() *Paint {
 // Clone creates a copy of the Paint.
 func (p *Paint) Clone() *Paint {
 	clone := &Paint{
-		solidColor:     p.solidColor,
-		isSolid:        p.isSolid,
-		Pattern:        p.Pattern,
-		Brush:          p.Brush,
-		LineWidth:      p.LineWidth,
-		LineCap:        p.LineCap,
-		LineJoin:       p.LineJoin,
-		MiterLimit:     p.MiterLimit,
-		FillRule:       p.FillRule,
-		Antialias:      p.Antialias,
-		BlendMode:      p.BlendMode,
-		BlendSpace:     p.BlendSpace,
-		Shader:         p.Shader,
-		ClipCoverage:   p.ClipCoverage,
-		MaskCoverage:   p.MaskCoverage,
-		TransformScale: p.TransformScale,
+		solidColor:       p.solidColor,
+		isSolid:          p.isSolid,
+		Pattern:          p.Pattern,
+		Brush:            p.Brush,
+		LineWidth:        p.LineWidth,
+		LineCap:          p.LineCap,
+		LineJoin:         p.LineJoin,
+		MiterLimit:       p.MiterLimit,
+		FillRule:         p.FillRule,
+		Antialias:        p.Antialias,
+		BlendMode:        p.BlendMode,
+		BlendSpace:       p.BlendSpace,
+		Shader:           p.Shader,
+		ImageFilter:      append([]ImageFilterNode(nil), p.ImageFilter...),
+		MaskFilterRadius: p.MaskFilterRadius,
+		ClipCoverage:     p.ClipCoverage,
+		MaskCoverage:     p.MaskCoverage,
+		TransformScale:   p.TransformScale,
 	}
 	if p.Stroke != nil {
 		strokeClone := p.Stroke.Clone()

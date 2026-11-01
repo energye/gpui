@@ -42,3 +42,16 @@ var (
 
 	filterPixmapPool = newPixmapPool(8)
 )
+
+// GPUFilterGraphHooks exposes the registered GPU filter-graph entry points
+// (the same hooks ApplyImageFilterGraph uses) for internal filtered-paint
+// paths (P3.4 paint-level filters). Nil members mean the graph is not
+// registered.
+type GPUFilterGraphHooks struct {
+	Apply func(src []byte, w, h int, nodes []ImageFilterNode) ([]byte, error)
+}
+
+// RegisteredGPUFilterGraphHooks returns the current hook set.
+func RegisteredGPUFilterGraphHooks() GPUFilterGraphHooks {
+	return GPUFilterGraphHooks{Apply: gpuFilterGraphApply}
+}
