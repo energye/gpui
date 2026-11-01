@@ -41,6 +41,7 @@ func RegisterFilterOps(
 	alphaThreshold func(src, dst *Pixmap, threshold uint8),
 	lighting func(src, dst *Pixmap, lightPos [3]float32, color RGBA, kd, surfaceScale float32),
 	tile func(src, dst *Pixmap, srcRect [4]float32),
+	displacement func(src, dst *Pixmap, xSel, ySel, scale int, disp *ImageBuf),
 ) {
 	blurApply = blur
 	blurXYApply = blurXY
@@ -54,6 +55,7 @@ func RegisterFilterOps(
 	alphaThresholdApply = alphaThreshold
 	lightingApply = lighting
 	tileApply = tile
+	displacementApply = displacement
 }
 
 func (c *Context) applyFilterInPlace(fn filterApplyFunc) {
@@ -406,6 +408,73 @@ func (c *Context) ApplyTile(srcRect [4]float32) {
 	c.applyFilterInPlace(func(src, dst *Pixmap) {
 		if tileApply != nil {
 			tileApply(src, dst, srcRect)
+		}
+	})
+	c.markLayerFullComposite()
+}
+
+// ApplyMerge composites N independent filter layers source-over onto the
+// current content (P3.4, SkImageFilters::Merge semantics): every layer runs
+// as its own filter graph from a copy of the base, then the layer outputs
+// stack over the base in order. N layers are supported — the composition
+// lives at the orchestration level, not in the linear ping-pong graph.
+func (c *Context) ApplyMerge(layers ...[]ImageFilterNode) {
+	if len(layers) == 0 || c.pixmap == nil {
+		return
+	}
+	_ = c.FlushGPU()
+	base := c.pixmap
+	for _, layer := range layers {
+		if len(layer) == 0 {
+			continue
+		}
+		layerPix := filterPixmapPool.GetForOverwrite(base.Width(), base.Height())
+		copy(layerPix.Data(), base.Data())
+		if !c.tryApplyFilterGraphGPU(layer...) {
+			// CPU fallback for this layer: run every node sequentially.
+			work := filterPixmapPool.GetForOverwrite(base.Width(), base.Height())
+			copy(work.Data(), layerPix.Data())
+			for _, n := range layer {
+				if !imageFilterNodeRunnable(n) {
+					continue
+				}
+				next := filterPixmapPool.GetForOverwrite(base.Width(), base.Height())
+				copy(next.Data(), work.Data())
+				applyImageFilterNode(n, work, next)
+				copy(work.Data(), next.Data())
+				filterPixmapPool.Put(next)
+			}
+			copy(layerPix.Data(), work.Data())
+			filterPixmapPool.Put(work)
+		}
+		mergeOver(layerPix, base)
+		filterPixmapPool.Put(layerPix)
+	}
+	c.markLayerFullComposite()
+}
+
+// ApplyDisplacementMap resamples the content using a displacement map: for
+// each pixel, the map's selected R/G channels (xSel/ySel, R=0) provide a
+// signed offset in [-scale/2, scale/2] pixels (Skia
+// SkImageFilters::DisplacementMap semantics, clamp-to-edge sampling).
+// GPU-first via the aux texture; CPU fallback below.
+func (c *Context) ApplyDisplacementMap(xSel, ySel, scale int, displacement *ImageBuf) {
+	if displacement == nil || scale == 0 {
+		return
+	}
+	nodes := []ImageFilterNode{{
+		Kind:                ImageFilterDisplacement,
+		DispXChannel:        xSel,
+		DispYChannel:        ySel,
+		DispScale:           scale,
+		DisplacementImage:   displacement,
+	}}
+	if c.tryApplyFilterGraphGPU(nodes...) {
+		return
+	}
+	c.applyFilterInPlace(func(src, dst *Pixmap) {
+		if displacementApply != nil {
+			displacementApply(src, dst, xSel, ySel, scale, displacement)
 		}
 	})
 	c.markLayerFullComposite()

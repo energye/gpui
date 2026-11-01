@@ -455,6 +455,11 @@ const (
 	// ImageFilterTile repeats the source tile rect across the output (P3.4,
 	// Skia ImageFilters::Tile).
 	ImageFilterTile
+	// ImageFilterDisplacement resamples the source by a displacement map's
+	// selected channels (P3.4, Skia SkImageFilters::DisplacementMap). It
+	// needs the aux texture slot for the map, so it rides the GPU graph
+	// only when a displacement image is supplied.
+	ImageFilterDisplacement
 )
 
 // ImageFilterNode is one node in a multi-pass image filter graph (F.03).
@@ -491,6 +496,13 @@ type ImageFilterNode struct {
 	SurfaceScale  float32
 	// Tile (P3.4): source rect (x0, y0, x1, y1) repeated across the output.
 	TileSrcRect [4]float32
+
+	// Displacement (P3.4): channel selectors (0=R, 1=G, 2=B, 3=A), the
+	// offset scale in pixels, and the map image.
+	DispXChannel      int
+	DispYChannel      int
+	DispScale         int
+	DisplacementImage *ImageBuf
 }
 
 // ApplyImageFilterGraph runs a multi-node image filter graph with intermediate
@@ -627,6 +639,12 @@ func imageFilterGraphGPUSupported(nodes []ImageFilterNode) bool {
 			ImageFilterErode, ImageFilterDilate, ImageFilterOffset, ImageFilterAlphaThreshold,
 			ImageFilterLighting, ImageFilterTile:
 			any = true
+		case ImageFilterDisplacement:
+			// GPU-capable only when the node carries its map; the aux slot
+			// upload happens in the graph runner.
+			if n.DisplacementImage != nil {
+				any = true
+			}
 		default:
 			return false
 		}
@@ -660,6 +678,8 @@ func imageFilterNodeRunnable(n ImageFilterNode) bool {
 		return lightingApply != nil && n.LightKD > 0
 	case ImageFilterTile:
 		return tileApply != nil && n.TileSrcRect[2] > n.TileSrcRect[0] && n.TileSrcRect[3] > n.TileSrcRect[1]
+	case ImageFilterDisplacement:
+		return displacementApply != nil && n.DisplacementImage != nil
 	default:
 		return false
 	}
@@ -691,6 +711,8 @@ func applyImageFilterNode(n ImageFilterNode, src, dst *Pixmap) {
 		lightingApply(src, dst, n.LightPos, n.LightColor, n.LightKD, n.SurfaceScale)
 	case ImageFilterTile:
 		tileApply(src, dst, n.TileSrcRect)
+	case ImageFilterDisplacement:
+		displacementApply(src, dst, n.DispXChannel, n.DispYChannel, n.DispScale, n.DisplacementImage)
 	}
 }
 
@@ -854,4 +876,34 @@ func (c *Context) ensureFilterSrcRT(w, h int) (gpucontext.TextureView, bool) {
 	c.filterSrcW, c.filterSrcH = w, h
 	c.filterSrcRelease = rel
 	return view, true
+}
+
+// ImageFilterMerge is a composition-level marker (P3.4): it does not ride the
+// linear ping-pong graph — Context.ApplyMerge runs each layer as its own
+// filter graph and composites the layer outputs source-over, which supports
+// N layers without extending the two-input graph.
+type ImageFilterMerge struct{ marker bool }
+
+// mergeOver composites src over dst (premul source-over) in place on dst.
+func mergeOver(src, dst *Pixmap) {
+	if src == nil || dst == nil || len(src.Data()) != len(dst.Data()) {
+		return
+	}
+	s, d := src.Data(), dst.Data()
+	for i := 0; i+3 < len(d); i += 4 {
+		sa := uint32(s[i+3])
+		if sa == 0 {
+			continue
+		}
+		if sa == 255 {
+			d[i], d[i+1], d[i+2], d[i+3] = s[i], s[i+1], s[i+2], 255
+			continue
+		}
+		ia := 255 - sa
+		d[i] = uint8((uint32(s[i])*sa + uint32(d[i])*ia) / 255)
+		d[i+1] = uint8((uint32(s[i+1])*sa + uint32(d[i+1])*ia) / 255)
+		d[i+2] = uint8((uint32(s[i+2])*sa + uint32(d[i+2])*ia) / 255)
+		a := uint32(s[i+3]) + uint32(d[i+3])*ia/255
+		d[i+3] = uint8(a)
+	}
 }

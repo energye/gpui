@@ -59,6 +59,9 @@ func init() {
 		func(src, dst *render.Pixmap, srcRect [4]float32) {
 			filter.NewTileFilter(srcRect).Apply(src, dst, full(src))
 		},
+		func(src, dst *render.Pixmap, xSel, ySel, scale int, disp *render.ImageBuf) {
+			filter.NewDisplacementFilter(xSel, ySel, scale, disp).Apply(src, dst, full(src))
+		},
 	)
 }
 

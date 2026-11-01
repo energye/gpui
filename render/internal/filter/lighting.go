@@ -178,3 +178,74 @@ func modF(a, b float32) float32 {
 	}
 	return m
 }
+
+// DisplacementFilter resamples the source using a displacement map
+// (SkImageFilters::DisplacementMap): each pixel's map channel value v∈[0,1]
+// offsets the sample by (v-0.5)·scale pixels on the selected axis, clamped
+// to the source edges. Unmapped pixels (map alpha 0) keep the source.
+type DisplacementFilter struct {
+	xSel, ySel, scale int
+	disp              *render.ImageBuf
+}
+
+// NewDisplacementFilter builds a displacement filter (channel 0=R, 1=G,
+// 2=B, 3=A; scale in pixels).
+func NewDisplacementFilter(xSel, ySel, scale int, disp *render.ImageBuf) *DisplacementFilter {
+	return &DisplacementFilter{xSel: xSel, ySel: ySel, scale: scale, disp: disp}
+}
+
+// ExpandBounds grows by half the scale on each axis.
+func (f *DisplacementFilter) ExpandBounds(bounds image.Rectangle) image.Rectangle {
+	return bounds.Inset(-(absI(f.scale) + 1) / 2)
+}
+
+// Apply resamples the source through the map.
+func (f *DisplacementFilter) Apply(src, dst *render.Pixmap, bounds scene.Rect) {
+	w, h := src.Width(), src.Height()
+	dw, dh := f.disp.Width(), f.disp.Height()
+	srcData, dstData := src.Data(), dst.Data()
+	dispData := f.disp.PremultipliedData()
+	for y := int(bounds.MinY); y < int(bounds.MaxY); y++ {
+		for x := int(bounds.MinX); x < int(bounds.MaxX); x++ {
+			oi := (y*w + x) * 4
+			if x >= dw || y >= dh {
+				dstData[oi], dstData[oi+1], dstData[oi+2], dstData[oi+3] =
+					srcData[oi], srcData[oi+1], srcData[oi+2], srcData[oi+3]
+				continue
+			}
+			di := (y*dw + x) * 4
+			if dispData[di+3] == 0 {
+				dstData[oi], dstData[oi+1], dstData[oi+2], dstData[oi+3] =
+					srcData[oi], srcData[oi+1], srcData[oi+2], srcData[oi+3]
+				continue
+			}
+			ch := func(sel int) float32 {
+				return float32(dispData[di+sel]) / 255.0
+			}
+			dx := (channelAt(dispData, dw, dh, x, y, f.xSel) - 0.5) * float32(f.scale)
+			dy := (channelAt(dispData, dw, dh, x, y, f.ySel) - 0.5) * float32(f.scale)
+			_ = ch
+			sx := clampInt(x+int(dx+0.5), 0, w-1)
+			sy := clampInt(y+int(dy+0.5), 0, h-1)
+			si := (sy*w + sx) * 4
+			dstData[oi], dstData[oi+1], dstData[oi+2], dstData[oi+3] =
+				srcData[si], srcData[si+1], srcData[si+2], srcData[si+3]
+		}
+	}
+}
+
+func channelAt(data []uint8, w, h, x, y, sel int) float32 {
+	if x < 0 {
+		x = 0
+	}
+	if x >= w {
+		x = w - 1
+	}
+	if y < 0 {
+		y = 0
+	}
+	if y >= h {
+		y = h - 1
+	}
+	return float32(data[(y*w+x)*4+sel]) / 255.0
+}
