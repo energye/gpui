@@ -47,7 +47,7 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：**P3.4 滤镜家族**（开工登记完成，评估见 `evidence/P3.4/assessment.md`，方向 D1–D5 待拍板后才动代码）
+- 当前进行中：**P3.4 滤镜家族**（五批+真窗 4/6 完成收口中；**C 卡 GPU 路径专项诊断遗留**，assessment §7 六轮现场存档；catalog/apidoc/summary 已落盘）
 - 下一任务：P3.1 收口后按定稿主序进 P3.2 自定义 shader（依赖图 `evidence/P3.0/dependency-graph.md` §4）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
 - 阻塞项：无
 - 阻塞项：无（尾巴专项照旧不阻塞）
@@ -272,7 +272,7 @@
 | P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | ✅ | `evidence/P3.1/` |
 | P3.2 | 自定义 shader（依赖 P2.1 翻译器 + 新公开 API） | P3.0、P2.1 | ✅ | `evidence/P3.2/` |
 | P3.3 | 富文本（含 `DrawParagraph` 逐 run 样式，原半成品前移） | P3.0 | ✅ | `evidence/P3.3/` |
-| P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1（软） | 🟡（五批推进中：批 1-5 全部提交绿——四族/lighting+tile/merge+displacement CPU/ColorFilter 四族/Paint 字段+MaskFilter+SetMaskFilter；剩真窗扩卡+负向+catalog 转正+台账收口+displacement GPU aux 上传登记） | `evidence/P3.4/` |
+| P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1（软） | 🟡（五批+真窗 4/6 完成、catalog §13 转正+apidoc rc=0+summary 落盘；**遗留：C 卡 Paint.MaskFilter GPU 路径专项诊断**（bake dc gpuCtx 建立链，assessment §7）、displacement GPU aux 上传、ApplyMask/PushMaskLayer blur 采用、真窗级负向——C 卡解后补羽化钉转 ✅） | `evidence/P3.4/` |
 | P3.5 | 路径与几何：conic、四角圆角、Matrix4 透视、路径效果、布尔保曲线 | P3.0 | ⬜ | `evidence/P3.5/` |
 | P3.6 | 图片格式（GIF/APNG/动图 WebP/AVIF/HEIF/EXIF）+ GPU mipmap | P3.0 | ⬜ | `evidence/P3.6/` |
 | P3.7 | 2.5D 透视相机、世界高度/精灵 z 序、自定义材质、HDR/泛光 | P3.0、P3.1、P3.2、P3.5、P3.6（软） | ⬜ | `evidence/P3.7/` |
@@ -636,6 +636,7 @@ docs/render_gpu_converge/
 | 2026-11-01 | P3.4 | 🟡 D1–D5 拍板（D1 全做四批/D2 merge N 层/D3 连带 Paint 字段/D4 mask 链 A8 预处理/D5 GPU 优先单输入族）；批 1-4 推进 | 批 1（`d3be922f`+`10f57f50`）：erode/dilate/offset/alpha-threshold CPU+GPU mode 7-10+Kind 四处+Context 四口+值级钉（对偶性/位移/二值）全绿；批 2（`4f3971ce`+修正）：lighting point diffuse（alpha 高度图中心差分法向，负 z 物理语义修复 clamp 翻转）+tile 周期平铺——**Params 扩 payload 128→192B**（rect0-3 四 vec4 槽）、WGSL mode 11/12（`mod`→`%` 修正 shader 编译失败实证 GPU 图整体回退）、Kind/四处/Context 口/值级钉（光照几何+周期性）；批 3（`3ae47859`）：merge Context 编排层（每层独立跑图+premul over 合成，N 层天然支持——线性 ping-pong 不承载 fork-join 的设计登记）+displacement CPU（DisplacementMap 语义±scale/2 clamp）+GPU aux 上传下批；批 4（`3403f712`+两修正）：ColorFilter 接口（render 包 straight 域）+Context.ApplyColorFilter+四族 Blend/Lighting/Table/Compose（blend 委托 internal/blend 单一真值；compose 顺序两向钉；构造错误两处钉修正）——**值级钉全绿+既有六族回归绿** | `evidence/P3.4/assessment.md` §2 批次表 |
 | 2026-11-01 | P3.4 | 🟡 批 5+收口待办（下会话）：Paint.ImageFilter/MaskFilter 字段+Fill 管线 per-paint 后处理口（D3 拍板）；MaskFilter 三消费链 A8 blur 预处理（D4）；displacement GPU aux 上传；真窗 filterops 扩卡/新窗；负向对照+catalog §13 转正+台账收口 |`evidence/P3.4/assessment.md` §3 |
 | 2026-11-01 | P3.4 | 批 5 完成（`3ba0a8d3`）：Paint.ImageFilter []ImageFilterNode+Paint.MaskFilterRadius 字段（Clone 复制）+FillPath 路由 fillPaintFilteredAsImage（内容光栅→MaskFilter blurXY→ImageFilter 图→mask 复合→R8 调制→贴回，GPU hook 经 RegisteredGPUFilterGraphHooks 暴露）+SetMaskFilter 状态口+SetMask A8 平面 blur 预处理（D4 槽；ApplyMask/PushMaskLayer 采用登记后续）；值级钉 2 组绿（边缘羽化+远场不变/merge 双层落地）；P3.3/P3.4 相关钉回归绿 | `evidence/P3.4/assessment.md` §3 |
+| 2026-11-01 | P3.4 | 🟡 机械收口：catalog §13 P3.4 行转正（16 符号补齐——Kind 八常量/八 Context 口/GPUFilterGraphHooks 族）+apidoc rc=0（apidoc-p34.txt）+summary.md 落盘（五批终态/排障实录六条/C 卡遗留）；台账状态精确化（🟡 带遗留清单） | `evidence/P3.4/summary.md`、`apidoc-p34.txt` |
 | 2026-11-01 | P3.1 | 🟡 D1–D5 拍板（全按推荐：路线 B advanced+CPU 先行固定功能显式降级 / BlendSpace 枚举 / 默认 SRGB opt-in / 新真窗 / hdr GPU 面移出挂 HDR 专项）；实现+门禁主体完成 | 实现五层：公开 API（BlendSpace+三口+Canvas 102→104+录制四命令+Backend 契约 38→40）/GPU（dual-tex Params.linear@offset28+WGSL 线性域合成一份双后端+全链透传+降级计数）/CPU（draw.go straight 域包装+compositeAdvancedLinear 委托 u8 正本+internal→render 反向依赖修复 blend.go→color.ColorF32）/录制面/降级探针。**语义收紧两条（summary §2）**：linear 生效域=advanced 15 模式全后端统一（CPU Normal 原接真线性与 GPU 降级不一致，改双端统一降级，P3.1b 解锁）；CPU 精度口径 u8 域分级（亮/中 ±2、暗部 ±5 实测）。管线键/batch 谓词改动取消（uniform 标志零管线变体）。门禁：构建/vet/能力钉 14 条/conformance 双后端 rc=0/真窗 ui_wr_p31_linear_blend 双后端逐位（A=77 B=168 vs float ref 167.6 C=128 降级）/负向摘 WGSL linear 分支红→还原绿/apidoc rc=0（catalog §13 P3.1 行转正+§1/§0）；per-file 34 包后台跑（唯一 FAIL=TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend 与 P2.6 基线同名同红，零新增）。P3.1b 立项（sRGB 目标格式整链，HDR/广色域前置） | `evidence/P3.1/`（assessment/summary/window-gates/window-runs×5/conformance/apidoc×2/build-five-target） |
 
 ## 8 修订记录
