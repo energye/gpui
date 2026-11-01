@@ -132,6 +132,88 @@ func (c *Context) ClipRoundRect(x, y, w, h, radius float64) {
 	c.bumpClipMaskGPUGen()
 }
 
+// ClipRRect intersects the current clip with a rounded rectangle that may have
+// independent radii at each corner. A uniform circular RRect under an
+// axis-aligned uniform-scale transform keeps the existing analytic SDF/scissor
+// fast path. Elliptical, nine-patch, complex, rotated, and non-uniformly scaled
+// RRects fall back to an exact device-space path clip, matching Skia's complex
+// RRect clip behavior.
+//
+// Unlike ClipRoundRect, this does not clear or otherwise touch the current path.
+func (c *Context) ClipRRect(rr RRect) {
+	if rr.IsEmpty() {
+		r := rr.Rect()
+		c.ClipRect(r.Min.X, r.Min.Y, 0, 0)
+		return
+	}
+	if rr.IsRect() {
+		r := rr.Rect()
+		c.ClipRect(r.Min.X, r.Min.Y, r.Width(), r.Height())
+		return
+	}
+
+	if c.canUseRRectClipFastPath(rr) {
+		r := rr.Rect()
+		c.ClipRoundRect(r.Min.X, r.Min.Y, r.Width(), r.Height(), rr.Radii(RRectUpperLeft).X)
+		return
+	}
+
+	// Complex geometry is clipped as a real path in device space. Keeping the
+	// exact corner arcs (rather than their bounding quad) is what makes rotated
+	// and per-corner clips match Skia.
+	userPath := NewPath()
+	userPath.RRect(rr)
+	devicePath := userPath.Transform(c.totalMatrix())
+	c.pushDevicePathClip(devicePath, c.paint.FillRule)
+}
+
+// canUseRRectClipFastPath reports whether rr can use the existing
+// ClipRoundRect SDF path without changing the visible geometry. It requires
+// circular uniform corners and an axis-aligned transform with equal x/y scale.
+func (c *Context) canUseRRectClipFastPath(rr RRect) bool {
+	switch rr.Type() {
+	case RRectSimple:
+		if !rr.IsSimpleCircular() {
+			return false
+		}
+	case RRectOval:
+		// A circle is an oval whose x and y radii are equal. A non-circular
+		// oval needs the path fallback because the SDF clip only supports
+		// circular corners.
+		if rr.Radii(RRectUpperLeft).X != rr.Radii(RRectUpperLeft).Y {
+			return false
+		}
+	default:
+		return false
+	}
+
+	tm := c.totalMatrix()
+	if tm.B != 0 || tm.C != 0 {
+		return false
+	}
+	ax, ey := math.Abs(tm.A), math.Abs(tm.E)
+	if ax == 0 || ey == 0 {
+		return false
+	}
+	return math.Abs(ax-ey) <= 1e-12*math.Max(ax, ey)
+}
+
+// pushDevicePathClip intersects the clip stack with an already transformed
+// device-space path and records it for the GPU depth-clip pipeline.
+func (c *Context) pushDevicePathClip(devicePath *Path, rule FillRule) {
+	if devicePath == nil {
+		return
+	}
+	if c.clipStack == nil {
+		c.initClipStack()
+	}
+	verbs, coords := convertPathToClipVerbs(devicePath)
+	_ = c.clipStack.PushPath(verbs, coords, c.antiAlias, clipFillRule(rule))
+	c.gpuClipPath = devicePath.Clone()
+	c.gpuClipFillRule = rule
+	c.bumpClipMaskGPUGen()
+}
+
 // ResetClip removes all clipping regions, restoring the full canvas as drawable.
 func (c *Context) ResetClip() {
 

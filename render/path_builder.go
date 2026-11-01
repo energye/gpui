@@ -92,6 +92,12 @@ func (b *PathBuilder) RoundRect(x, y, w, h, r float64) *PathBuilder {
 	return b
 }
 
+// RRect adds an RRect with independent corner radii to the path.
+func (b *PathBuilder) RRect(rr RRect) *PathBuilder {
+	b.path.RRect(rr)
+	return b
+}
+
 // Circle adds a circle to the path.
 func (b *PathBuilder) Circle(cx, cy, r float64) *PathBuilder {
 	b.path.Circle(cx, cy, r)

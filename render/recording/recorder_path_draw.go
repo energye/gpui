@@ -218,6 +218,13 @@ func (r *Recorder) DrawRoundedRectangle(x, y, w, h, radius float64) {
 	r.ClosePath()
 }
 
+// DrawRRect appends a rounded rectangle with independent corner radii to the
+// current path. It is recorded in user space, exactly like the other shape
+// helpers, so transforms stay in the command stream.
+func (r *Recorder) DrawRRect(rr render.RRect) {
+	r.currentPath.RRect(rr)
+}
+
 // DrawCircle draws a circle.
 func (r *Recorder) DrawCircle(x, y, radius float64) {
 	const k = 0.5522847498307936 // 4/3 * (sqrt(2) - 1)
@@ -402,6 +409,64 @@ func (r *Recorder) ClipRoundRect(x, y, w, h, radius float64) {
 	r.commands = append(r.commands, ClipRoundRectCommand{
 		X: x, Y: y, W: w, H: h, Radius: radius,
 	})
+}
+
+// ClipRRect intersects the current clip with a rounded rectangle whose four
+// corners may have independent radii. Uniform circular corners under an
+// axis-aligned uniform-scale transform are recorded as the existing
+// ClipRoundRect command so replay keeps the analytic fast path. All other
+// cases record an exact user-space path clip.
+func (r *Recorder) ClipRRect(rr render.RRect) {
+	if rr.IsEmpty() {
+		rect := rr.Rect()
+		r.ClipRect(rect.Min.X, rect.Min.Y, 0, 0)
+		return
+	}
+	if rr.IsRect() {
+		rect := rr.Rect()
+		r.ClipRect(rect.Min.X, rect.Min.Y, rect.Width(), rect.Height())
+		return
+	}
+
+	if r.canUseRRectClipFastPath(rr) {
+		rect := rr.Rect()
+		r.ClipRoundRect(rect.Min.X, rect.Min.Y, rect.Width(), rect.Height(), rr.Radii(render.RRectUpperLeft).X)
+		return
+	}
+
+	path := render.NewPath()
+	path.RRect(rr)
+	pathRef := r.resources.AddPath(path)
+	r.commands = append(r.commands, SetClipCommand{
+		Path: pathRef,
+		Rule: r.fillRule,
+	})
+}
+
+func (r *Recorder) canUseRRectClipFastPath(rr render.RRect) bool {
+	switch rr.Type() {
+	case render.RRectSimple:
+		if !rr.IsSimpleCircular() {
+			return false
+		}
+	case render.RRectOval:
+		radius := rr.Radii(render.RRectUpperLeft)
+		if radius.X != radius.Y {
+			return false
+		}
+	default:
+		return false
+	}
+
+	tm := r.transform
+	if tm.B != 0 || tm.C != 0 {
+		return false
+	}
+	ax, ey := math.Abs(tm.A), math.Abs(tm.E)
+	if ax == 0 || ey == 0 {
+		return false
+	}
+	return math.Abs(ax-ey) <= 1e-12*math.Max(ax, ey)
 }
 
 // --------------------------------------------------------------------------

@@ -123,6 +123,7 @@ type Canvas interface {
 	ClipRectOp(x, y, w, h float64, op ClipOp)
 	ClipPathOp(op ClipOp)
 	ClipRoundRect(x, y, w, h, radius float64)
+	ClipRRect(rr RRect)
 	ResetClip()
 
 	// Shapes
@@ -130,6 +131,7 @@ type Canvas interface {
 	DrawLine(x1, y1, x2, y2 float64)
 	DrawRectangle(x, y, w, h float64)
 	DrawRoundedRectangle(x, y, w, h, r float64)
+	DrawRRect(rr RRect)
 	DrawCircle(x, y, r float64)
 	DrawEllipse(x, y, rx, ry float64)
 	DrawArc(x, y, r, angle1, angle2 float64)

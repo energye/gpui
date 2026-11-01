@@ -1,0 +1,10 @@
+# P3.5 批 2 补充分包逐文件门禁（清单 per-file-extra.pkgs）
+日期：2026-11-01　HEAD：dd7e2635 + 批 2 工作树
+计数：PASS=70 SKIP_TAGGED=2 FAIL=6 TOTAL=78
+（批 1 基线 69/2/6=77；+1 PASS = 新增 render/recording/rrect_test.go）
+
+6 FAIL 全部为 render/recording/backends/raster 包编译失败（HEAD 既有坏包，P3.1
+`render.BlendSpace` 参数漏改债，批 1 batch1.md §7 已登记，与本批无关、不修）。
+
+通过项含 raster/tilecompute/stroke 金图文件（analytic_filler_golden_test.go、
+expander_golden_test.go、rasterizer_test.go）与 scene/recording 全族，证明存量金图零变化。

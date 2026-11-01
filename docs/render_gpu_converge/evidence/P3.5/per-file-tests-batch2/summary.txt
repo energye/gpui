@@ -1,0 +1,24 @@
+# P3.5 批 2 主逐文件门禁（tools/per-file-tests.sh，清单 tools/per-file-tests.pkgs，34 包）
+日期：2026-11-01　HEAD：dd7e2635 + 批 2 工作树
+计数：PASS=687 SKIP_TAGGED=21 FAIL=9 NO_TESTS=1 TOTAL=718
+（批 1 基线 686/21/9/1=717；+1 PASS = 新增 render/rrect_test.go）
+
+FAIL（9 条，与批 1 名单差异见下）：
+- render/context_misc_draw_gpu_test.go（基线）
+- render/filter_present_coherence_test.go（基线）
+- render/rasterizer_tile_value_test.go（基线）
+- render/text_transform_gpu_test.go（基线）
+- render/video_direct_upload_test.go（基线）
+- ui/application/app_test.go（基线）
+- ui/rendering/m1_noquadratic_test.go（本轮复现一次，见下方定性）
+- ui/rendering/m5_keystroke_g1_test.go（基线）
+- ui/scene/internal/gpupixel/blit_rrect_corner_test.go（基线）
+
+对照批 1 名单（batch1.md §6）：
+- 批 1 有、批 2 无：render/s6_9_heavy_budget_test.go（环境相关老红本轮 PASS，只减不增）
+- 批 2 有、批 1 无：ui/rendering/m1_noquadratic_test.go
+  定性：墙钟超线性比值门禁贴线抖动（TestBoxesForRange_FullLinear_M1，比值 15.34 vs 门禁 15，
+  测的是文本 BoxesForRange 布局查询复杂度，不调用任何批 2 代码）。门禁复跑后单独重跑该文件
+  三连绿（0.445/0.467/0.469s ok）。与批 1 A/B 定性同类的时序/负载敏感老红，非批 2 回归。
+
+结论：主逐文件门禁零新增回归（8 条基线逐名复现 + 1 条时序抖动复跑绿 + 1 条基线老红本轮未复现）。

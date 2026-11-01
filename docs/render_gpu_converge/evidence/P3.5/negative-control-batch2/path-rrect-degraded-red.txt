@@ -1,0 +1,7 @@
+--- FAIL: TestDrawRRectPerCornerCoverage (0.00s)
+    rrect_test.go:235: outside top-left corner = {R:1 G:0 B:0 A:1}, want white
+--- FAIL: TestClipRRectCoveragePixels (0.00s)
+    rrect_test.go:308: outside corner = {R:1 G:0 B:0 A:1}, want white
+FAIL
+FAIL	github.com/energye/gpui/render	0.014s
+FAIL

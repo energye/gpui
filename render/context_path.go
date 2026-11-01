@@ -370,6 +370,50 @@ func (c *Context) DrawRoundedRectangleXY(x, y, w, h, rx, ry float64) {
 	c.ClosePath()
 }
 
+// DrawRRect appends a rounded rectangle with independent corner radii to the
+// current path. Call Fill or Stroke afterwards. The radii are normalized by the
+// RRect constructors; in particular an RRect with the same radius on all four
+// corners produces exactly the same path as DrawRoundedRectangle / DrawRoundedRectangleXY.
+func (c *Context) DrawRRect(rr RRect) {
+	if rr.IsEmpty() {
+		return
+	}
+	if rr.IsRect() {
+		r := rr.Rect()
+		c.DrawRectangle(r.Min.X, r.Min.Y, r.Width(), r.Height())
+		return
+	}
+
+	p := NewPath()
+	p.RRect(rr)
+	c.appendUserPath(p)
+}
+
+// appendUserPath replays p through the current matrix into the current path.
+// It keeps the current path intact, unlike DrawPath, and updates the path
+// bounds so damage tracking sees the appended geometry.
+func (c *Context) appendUserPath(p *Path) {
+	if p == nil {
+		return
+	}
+	p.Iterate(func(verb PathVerb, coords []float64) {
+		switch verb {
+		case MoveTo:
+			c.MoveTo(coords[0], coords[1])
+		case LineTo:
+			c.LineTo(coords[0], coords[1])
+		case QuadTo:
+			c.QuadraticTo(coords[0], coords[1], coords[2], coords[3])
+		case CubicTo:
+			c.CubicTo(coords[0], coords[1], coords[2], coords[3], coords[4], coords[5])
+		case ConicTo:
+			c.ConicTo(coords[0], coords[1], coords[2], coords[3], coords[4])
+		case Close:
+			c.ClosePath()
+		}
+	})
+}
+
 // DrawCircle draws a circle.
 // DrawCircle draws a circle.
 func (c *Context) DrawCircle(x, y, r float64) {

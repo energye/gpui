@@ -255,6 +255,57 @@ func (p *Path) RoundedRectangle(x, y, w, h, r float64) {
 	p.Close()
 }
 
+// RRect adds a rounded rectangle with independent corner radii. The radii are
+// expected to be normalized by the RRect constructors; empty RRects are a
+// no-op and plain rectangle RRects use the exact rectangle verb sequence.
+//
+// The quarter-ellipse corners use the same cubic coefficient k as
+// DrawRoundedRectangleXY and PathBuilder.RoundRect, so an RRect with uniform
+// radii produces the same path as the existing single-radius shape APIs.
+func (p *Path) RRect(rr RRect) {
+	if rr.IsEmpty() {
+		return
+	}
+	r := rr.Rect()
+	if rr.IsRect() {
+		p.Rectangle(r.Min.X, r.Min.Y, r.Width(), r.Height())
+		return
+	}
+
+	const k = 0.5522847498307936
+	ul := rr.Radii(RRectUpperLeft)
+	ur := rr.Radii(RRectUpperRight)
+	lr := rr.Radii(RRectLowerRight)
+	ll := rr.Radii(RRectLowerLeft)
+
+	p.MoveTo(r.Min.X+ul.X, r.Min.Y)
+	p.LineTo(r.Max.X-ur.X, r.Min.Y)
+	p.CubicTo(
+		r.Max.X-ur.X+k*ur.X, r.Min.Y,
+		r.Max.X, r.Min.Y+ur.Y-k*ur.Y,
+		r.Max.X, r.Min.Y+ur.Y,
+	)
+	p.LineTo(r.Max.X, r.Max.Y-lr.Y)
+	p.CubicTo(
+		r.Max.X, r.Max.Y-lr.Y+k*lr.Y,
+		r.Max.X-lr.X+k*lr.X, r.Max.Y,
+		r.Max.X-lr.X, r.Max.Y,
+	)
+	p.LineTo(r.Min.X+ll.X, r.Max.Y)
+	p.CubicTo(
+		r.Min.X+ll.X-k*ll.X, r.Max.Y,
+		r.Min.X, r.Max.Y-ll.Y+k*ll.Y,
+		r.Min.X, r.Max.Y-ll.Y,
+	)
+	p.LineTo(r.Min.X, r.Min.Y+ul.Y)
+	p.CubicTo(
+		r.Min.X, r.Min.Y+ul.Y-k*ul.Y,
+		r.Min.X+ul.X-k*ul.X, r.Min.Y,
+		r.Min.X+ul.X, r.Min.Y,
+	)
+	p.Close()
+}
+
 // Clone creates a deep copy of the path.
 // Clone creates a deep copy of the path.
 func (p *Path) Clone() *Path {
