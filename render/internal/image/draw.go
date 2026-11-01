@@ -11,7 +11,11 @@
 // Package image provides image buffer management for gogpu/gg.
 package image
 
-import "math"
+import (
+	"math"
+
+	"github.com/energye/gpui/render/internal/color"
+)
 
 // Rect represents a rectangular region in pixel coordinates.
 type Rect struct {
@@ -184,6 +188,13 @@ type DrawParams struct {
 	// BlendMode specifies how to blend source and destination pixels.
 	BlendMode BlendMode
 
+	// BlendLinear blends in linear light (P3.1): source and destination RGB
+	// are decoded from sRGB before the blend function and the source-over
+	// composite, and re-encoded afterwards. Alpha never undergoes gamma.
+	// W3C blend functions are defined in linear space, so the same per-mode
+	// switch evaluates them there.
+	BlendLinear bool
+
 	// UseMipmaps selects a prefiltered mip level when drawing smaller than 1:1 (I.04).
 	UseMipmaps bool
 }
@@ -319,17 +330,30 @@ func DrawImage(dst, src *ImageBuf, params DrawParams) {
 			dstR, dstG, dstB, dstA := dst.GetRGBA(dstX, dstY)
 
 			// Blend and write result
-			r, g, b, a := blend(srcR, srcG, srcB, srcA, dstR, dstG, dstB, dstA, params.BlendMode)
+			r, g, b, a := blend(srcR, srcG, srcB, srcA, dstR, dstG, dstB, dstA, params.BlendMode, params.BlendLinear)
 			_ = dst.SetRGBA(dstX, dstY, r, g, b, a)
 		}
 	}
 }
 
 // blend blends source and destination colors using the specified blend mode.
-func blend(srcR, srcG, srcB, srcA, dstR, dstG, dstB, dstA uint8, mode BlendMode) (r, g, b, a byte) {
+// With linear set (P3.1) the whole RGB pipeline — blend function B(Cb,Cs) and
+// the source-over composite — runs in linear light: RGB is decoded on entry
+// and re-encoded on exit, alpha stays linear throughout.
+func blend(srcR, srcG, srcB, srcA, dstR, dstG, dstB, dstA uint8, mode BlendMode, linear bool) (r, g, b, a byte) {
 	if srcA == 0 {
 		// Fully transparent source, return destination unchanged
 		return dstR, dstG, dstB, dstA
+	}
+
+	if linear && isAdvancedBlendMode(mode) {
+		// Decode to linear-light u8 (alpha untouched) and re-run the same
+		// mode dispatch — W3C blend functions are defined in linear space.
+		return srgbEncodeRGB(blend(
+			srgbDecodeRGB(srcR), srgbDecodeRGB(srcG), srgbDecodeRGB(srcB), srcA,
+			srgbDecodeRGB(dstR), srgbDecodeRGB(dstG), srgbDecodeRGB(dstB), dstA,
+			mode, false,
+		))
 	}
 
 	if mode == BlendNormal {
@@ -385,6 +409,47 @@ func blend(srcR, srcG, srcB, srcA, dstR, dstG, dstB, dstA uint8, mode BlendMode)
 
 	// Apply alpha blending to the blended result
 	return blendNormal(blendedR, blendedG, blendedB, srcA, dstR, dstG, dstB, dstA)
+}
+
+// isAdvancedBlendMode mirrors internal/blend.IsAdvancedBlendMode (P3.1
+// scoping): linear requests on the fixed-function family degrade to the
+// sRGB domain so every backend answers with the same pixels.
+func isAdvancedBlendMode(mode BlendMode) bool {
+	switch mode {
+	case BlendMultiply, BlendScreen, BlendOverlay,
+		BlendHue, BlendSaturation, BlendColor, BlendLuminosity,
+		BlendDarken, BlendLighten, BlendColorDodge, BlendColorBurn,
+		BlendHardLight, BlendSoftLight, BlendDifference, BlendExclusion:
+		return true
+	default:
+		return false
+	}
+}
+
+// srgbDecodeRGB converts one sRGB-encoded channel to linear-light u8 (P3.1).
+// The linear domain is represented in u8 with the same 0-255 span, so the
+// per-mode switch runs unmodified; dark-end quantization is the known cost
+// (≤2/255 vs float, same order as the sRGB-domain u8 math itself).
+func srgbDecodeRGB(c uint8) uint8 {
+	v := color.SRGBToLinearFast(c) * 255.0
+	if v >= 255 {
+		return 255
+	}
+	if v < 0 {
+		return 0
+	}
+	return uint8(v + 0.5)
+}
+
+// srgbEncodeRGB converts a blended straight-alpha (r,g,b,a) tuple from
+// linear-light u8 back to sRGB-encoded u8; alpha passes through untouched.
+func srgbEncodeRGB(r, g, b, a byte) (byte, byte, byte, byte) {
+	return LinearToSRGB8(r), LinearToSRGB8(g), LinearToSRGB8(b), a
+}
+
+// LinearToSRGB8 encodes one linear-light u8 channel back to sRGB (P3.1).
+func LinearToSRGB8(l byte) byte {
+	return color.LinearToSRGBFast(float32(l) / 255.0)
 }
 
 // blendNormal performs standard alpha blending (source over destination).

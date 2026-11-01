@@ -84,6 +84,13 @@ func (s gpuRenderStrategy) String() string {
 type GPUShared struct {
 	mu sync.Mutex
 
+	// linearFixedFunctionFallbacks counts paints that requested linear
+	// blending (P3.1 BlendSpaceLinear) on a mode whose only GPU path is a
+	// fixed-function blend state: those draws proceed in the sRGB domain
+	// until the P3.1b sRGB-target format switch. Telemetry only — the
+	// drawing result is identical to an sRGB-space paint by design.
+	linearFixedFunctionFallbacks atomic.Int64
+
 	// submitMu serializes present submits (Flutter draws every view on the
 	// raster thread; Chromium funnels GPU work onto one thread). Record
 	// paths stay parallel on their own raster threads; only the submit /

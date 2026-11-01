@@ -223,60 +223,67 @@ func (b *CanvasBackend) SetClip(path *render.Path, rule FillRule) {
 // ClearClip resets the clip to the full context.
 func (b *CanvasBackend) ClearClip() { b.dc.ResetClip() }
 
-// withBlend applies blend to the target for one draw and puts the ambient mode
-// back afterwards. The recording carries the mode per command, so replay never
-// depends on, or leaks into, the target's paint state.
-func (b *CanvasBackend) withBlend(blend render.BlendMode, draw func()) {
-	prev := b.dc.BlendMode()
-	if blend != prev {
+// withBlend applies blend+space to the target for one draw and puts the
+// ambient state back afterwards. The recording carries both per command, so
+// replay never depends on, or leaks into, the target's paint state.
+func (b *CanvasBackend) withBlend(blend render.BlendMode, space render.BlendSpace, draw func()) {
+	prevMode := b.dc.BlendMode()
+	prevSpace := b.dc.BlendSpace()
+	if blend != prevMode {
 		b.dc.SetBlendMode(blend)
 	}
+	if space != prevSpace {
+		b.dc.SetBlendSpace(space)
+	}
 	draw()
-	if blend != prev {
-		b.dc.SetBlendMode(prev)
+	if blend != prevMode {
+		b.dc.SetBlendMode(prevMode)
+	}
+	if space != prevSpace {
+		b.dc.SetBlendSpace(prevSpace)
 	}
 }
 
 // FillPath fills the path with the brush.
-func (b *CanvasBackend) FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode) {
+func (b *CanvasBackend) FillPath(path *render.Path, brush Brush, rule FillRule, blend render.BlendMode, space render.BlendSpace) {
 	if path == nil {
 		return
 	}
 	ApplyBrush(b.dc, brush, true)
 	b.dc.SetFillRule(rule)
-	b.withBlend(blend, func() {
+	b.withBlend(blend, space, func() {
 		b.dc.DrawPath(path)
 		_ = b.dc.Fill()
 	})
 }
 
 // StrokePath strokes the path with the brush and stroke style.
-func (b *CanvasBackend) StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode) {
+func (b *CanvasBackend) StrokePath(path *render.Path, brush Brush, stroke Stroke, blend render.BlendMode, space render.BlendSpace) {
 	if path == nil {
 		return
 	}
 	ApplyBrush(b.dc, brush, false)
 	ApplyStroke(b.dc, stroke)
-	b.withBlend(blend, func() {
+	b.withBlend(blend, space, func() {
 		b.dc.DrawPath(path)
 		_ = b.dc.Stroke()
 	})
 }
 
 // FillRect fills an axis-aligned rectangle kept in user space.
-func (b *CanvasBackend) FillRect(rect Rect, brush Brush, blend render.BlendMode) {
+func (b *CanvasBackend) FillRect(rect Rect, brush Brush, blend render.BlendMode, space render.BlendSpace) {
 	ApplyBrush(b.dc, brush, true)
-	b.withBlend(blend, func() {
+	b.withBlend(blend, space, func() {
 		b.dc.DrawRectangle(rect.MinX, rect.MinY, rect.Width(), rect.Height())
 		_ = b.dc.Fill()
 	})
 }
 
 // StrokeRect strokes an axis-aligned rectangle kept in user space.
-func (b *CanvasBackend) StrokeRect(rect Rect, brush Brush, stroke Stroke, blend render.BlendMode) {
+func (b *CanvasBackend) StrokeRect(rect Rect, brush Brush, stroke Stroke, blend render.BlendMode, space render.BlendSpace) {
 	ApplyBrush(b.dc, brush, false)
 	ApplyStroke(b.dc, stroke)
-	b.withBlend(blend, func() {
+	b.withBlend(blend, space, func() {
 		b.dc.DrawRectangle(rect.MinX, rect.MinY, rect.Width(), rect.Height())
 		_ = b.dc.Stroke()
 	})

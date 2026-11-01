@@ -47,10 +47,22 @@
 
 ### 2.1 当前焦点
 
-- 当前进行中：无（P3.0 已完成，见 `evidence/P3.0/`；P3 缺失能力序列进入实现期）
-- 下一任务：**P3.1 色彩管理地基（含线性混合接线，前移项）**——顺序定稿 P3.1→P3.2→P3.3→P3.4→P3.5→P3.6→P3.7→P3.8（`evidence/P3.0/dependency-graph.md` §4）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
+- 当前进行中：**P3.1 色彩管理地基（线性混合接线，前移项）**（开工登记完成，评估见 `evidence/P3.1/assessment.md`，方向 D1–D5 待拍板后才动代码）
+- 下一任务：P3.1 收口后按定稿主序进 P3.2 自定义 shader（依赖图 `evidence/P3.0/dependency-graph.md` §4）；**正式基线 tag `baseline-p1` 已打在 `92ca9216`**——P2 从此点起分支，回滚锚点与 P2.6 零变化对账基准，详见 `baseline/rollback.md` §7
 - 最近完成：P3.0 依赖图 + 文档更新（2026-11-01，用户拍板 D1–D4 全按推荐：依赖修订 5 条/串行主序/catalog §13/PLAN §5 现状列），见 `evidence/P3.0/dependency-graph.md`；前一项 P2.6 行为零变化总验收（P1 八项基线全量重放零回归），见 `evidence/P2.6/summary.md`
 - 阻塞项：无（尾巴 I3/I4/C4/T2 诊断、ui 5 既有红、gles DeviceLost/X11KeyRepeat 两新立案随尾巴专项，不阻塞 P3 文档与实现开工）
+
+**P3.1 开工载体（2026-11-01 开工登记，方向待拍板，评估见 `evidence/P3.1/assessment.md`）**
+
+- 任务：P3.1 色彩管理地基（线性空间混合 opt-in 接线 + BlendSpace API 雏形）；新能力按 §4.1 先红后绿
+- 评估已盘点：GPU 混合实为两条执行路（13 固定功能=硬件 blend state 在 sRGB 编码域混、15 advanced=dual-tex shader 管线可插转换）；全链路「字节=sRGB 编码值」单一约定（~50 处管线 target 硬编码 BGRA8Unorm、swapchain 白名单只认非 Srgb、图片上传无色彩转换、读回无 gamma）；hal/types 的 Srgb 枚举与双后端映射已就绪；CPU 混合三套并存（生产在用两套：image/draw.go blend() + software_blend.go compositeAdvanced，独立公式不共享）；GetBlendFuncLinear 数学已有但两次 u8 量化往返；管线缓存键与 batch 合并谓词只看 BlendMode（linear 必须进键，正确性约束）；scene 线格式 blend 仅 Layer 级（动线格式破坏步进）；ui 层只写 BlendNormal（零改动）
+- 待拍板：D1 技术路线（推荐 B：本步 advanced 15 模式 shader linear 变体+CPU 全模式接线，固定功能 13 模式显式降级，sRGB 目标格式全局切换立项 P3.1b 紧随作 HDR/广色域前置）；D2 API 形态（推荐 BlendSpace 枚举 SRGB 默认/Linear，Paint+DrawImageOptions+Context 三口）；D3 默认 SRGB 域 opt-in（硬要求，P2.6 基线零变化）；D4 验证载体（新真窗 ui_wr_p31_linear_blend 双卡对比+金图+五组单测+负向对照摘 shader 分支）；D5 hdr GPU 面移出第一版挂 HDR 专项（catalog §13 P3.1 行同步注记）
+- 能力单测：五组先红后绿——①linear_test float 直通等价钉 ②路由单测（advanced 走 linear 变体/固定功能降级探针）③管线缓存键+batch 谓词（同 mode 异 space 不合并）④CPU 两套路径 linear 等价钉 ⑤recording 四命令携带+回放往返
+- 真窗：新增 `examples/ui_wr_p31_linear_blend`（sRGB vs linear 双卡对比：半透明渐变叠加+灰阶中间调，中间调最大差异处布像素断言；JSON 探针 linear 生效标记+降级计数；隔离 :3，native 必跑+go 档）
+- 金图：新窗新金图，容差按 P0.1 默认 0（GPU 双后端如有差异需声明依据）；默认域回归=P2.6 相关基线窗（miscdraw 混合卡等）重放一致 + conformance 双后端 0/0 不破
+- 双后端：webgpu native ✅ 必跑；gwgpu-gles go 档必跑（撞既有红如实登记）；metal darwin 交叉编译；固定功能 linear 降级双端一致标注
+- 负向对照：摘掉 dual-tex shader linear 转换分支 → 新窗 linear 卡像素断言红（或摘管线键 linear 维度 → 单测红）
+- 证据：`evidence/P3.1/`（assessment.md 已落盘；后续按 §5 证据目录约定落 summary/门禁/真窗/金图产物）
 
 **P3.0 收口载体（2026-11-01 已完成；开工登记见同块开工行与 `evidence/P3.0/assessment.md`）**
 
@@ -220,7 +232,7 @@
 | P2.5 | 包组织收口：`go list` 对比、分层约束测试、索引与总账同步 | P2.4e | ✅ | `evidence/P2.5/` |
 | P2.6 | 行为零变化总验收（P1 基线全量重放，是进入 P3 的硬闸） | P2.5、P0.4 | ✅ | `evidence/P2.6/` |
 | P3.0 | 依赖图 + 文档更新（PLAN §5 + `RENDER_API_CATALOG.md`），再实现 | P2.6 | ✅ | `evidence/P3.0/` |
-| P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | ⬜ | `evidence/P3.1/` |
+| P3.1 | 色彩管理地基（含线性混合接线，原半成品前移） | P3.0 | 🟡（收口中：代码+真窗+负向全绿，34 包逐文件后台跑完落盘后转 ✅） | `evidence/P3.1/` |
 | P3.2 | 自定义 shader（依赖 P2.1 翻译器 + 新公开 API） | P3.0、P2.1 | ⬜ | `evidence/P3.2/` |
 | P3.3 | 富文本（含 `DrawParagraph` 逐 run 样式，原半成品前移） | P3.0 | ⬜ | `evidence/P3.3/` |
 | P3.4 | MaskFilter / ColorFilter / ImageFilter 家族 | P3.0、P3.1（软） | ⬜ | `evidence/P3.4/` |
@@ -573,7 +585,9 @@ docs/render_gpu_converge/
 | 2026-11-01 | P2.6-h | ✅ 收口：八项重放终值全绿（P1.1–P1.8 逐项 ✅）；API 差异 19 包逐包归因 P2 各步（§3 表）；测试计数文件精确 -167、函数 -3916（96 口径差登记）；总判定=**P2 全阶段行为零变化成立，可进 P3**；遗留 g 段 I3/I4/C4/T2 诊断 + ui 5 既有红 + b 段 2 新立案归尾巴 | `evidence/P2.6/summary.md` |
 | 2026-11-01 | P3.0 | ⬜→🟡 开工登记：影响面评估落盘（三路只读调查+本机补查，全部 file:line），**方向 D1–D4 待拍板后才写正式文档** | `evidence/P3.0/assessment.md`：PLAN §5 八项能力现状逐条实测（6 处口径需精确化 + COLRv1 口径修正）；依赖图 4 处与台账依赖列不符待拍板（P3.3 解除 P3.1 / P3.4 的 P3.1 降软 / P3.7 补 P3.2 / P3.8 补 P3.4 / P3.7 补软 P3.6）；顺序草案串行 P3.1→P3.2→P3.3→P3.4→P3.5→P3.6→P3.7→P3.8（前移项 P3.1/P3.3 位置满足硬约束）；catalog 拟新增 §13 规划登记节；apidoc 当前 rc=0 实测确认 |
 | 2026-11-01 | P3.0 | 🟡 D1–D4 用户拍板（全按推荐）：依赖修订 5 条全改 / 串行主序 / catalog 新增 §13 / PLAN §5 加现状列；产出落盘 | 依赖图正本 `evidence/P3.0/dependency-graph.md`（节点/边/修订对照/顺序/自校验清单）；PLAN §5.1/§5.2/§5.3 三表加「代码现状（2026-11-01 实测）」列+口径修正（布尔已有 Clipper 版/路径效果已有 dash+两 1D 子集/Filter 已有子面/2.5D 引擎库已有 Projector+YSort25D）、§6 半成品表刷三行（线性混合 0 调用复核/COLRv1 实为 v0 误读 v1/DrawParagraph :276 自述）、§7.4 回写 P3.0 定稿；`RENDER_API_CATALOG.md` 新增 §13「P3 计划新增公开 API（规划登记）」8 行逐项锁层与形态（实现时转正式登记+apidoc）；台账 §2 依赖列 4 行按 D1 修订（本行）；待办：apidoc rc=0 复跑留档+自校验清单跑通后收口 |
-| 2026-11-01 | P3.0 | 🟡→✅ 收口：apidoc rc=0（catalog 加节后机器校验无冲突，`apidoc-p30.txt`）+ 自校验 8 断言全绿（`selfcheck-p30.txt`，第 7 条首轮宽模式 18 行误报逐行定性为 texture.go 描述符搬运层后修正断言复绿）；P3 文档面全部就位，零代码变更；§2.1 焦点切 P3.1 | `evidence/P3.0/`（assessment / dependency-graph / apidoc-p30 / selfcheck-p30）；提交待用户确认 |
+| 2026-11-01 | P3.0 | 🟡→✅ 收口：apidoc rc=0（catalog 加节后机器校验无冲突，`apidoc-p30.txt`）+ 自校验 8 断言全绿（`selfcheck-p30.txt`，第 7 条首轮宽模式 18 行误报逐行定性为 texture.go 描述符搬运层后修正断言复绿）；P3 文档面全部就位，零代码变更；§2.1 焦点切 P3.1 | `evidence/P3.0/`（assessment / dependency-graph / apidoc-p30 / selfcheck-p30）；提交 `ff2e9fa5` |
+| 2026-11-01 | P3.1 | ⬜→🟡 开工登记：影响面评估落盘（两路只读深查：GPU 色彩格式链路/混合路径全图，全部 file:line），**方向 D1–D5 待拍板后才动代码** | `evidence/P3.1/assessment.md`：GPU 混合两条执行路（13 固定功能硬件 blend 在 sRGB 编码域混、15 advanced dual-tex shader 可插转换）；~50 处管线 target 硬编码 Unorm、swapchain 白名单排除 Srgb、hal/types Srgb 枚举与双后端映射已就绪；CPU 混合三套并存（生产两套接线点 image/draw.go+software_blend.go）；管线键/batch 谓词正确性约束；sRGB 目标格式全局切换定性为 P3.1b 整链专项（~50 处 target+swapchain+基线重采）；能力定义/API 草案/验证方案/拍板项五条成形 |
+| 2026-11-01 | P3.1 | 🟡 D1–D5 拍板（全按推荐：路线 B advanced+CPU 先行固定功能显式降级 / BlendSpace 枚举 / 默认 SRGB opt-in / 新真窗 / hdr GPU 面移出挂 HDR 专项）；实现+门禁主体完成 | 实现五层：公开 API（BlendSpace+三口+Canvas 102→104+录制四命令+Backend 契约 38→40）/GPU（dual-tex Params.linear@offset28+WGSL 线性域合成一份双后端+全链透传+降级计数）/CPU（draw.go straight 域包装+compositeAdvancedLinear 委托 u8 正本+internal→render 反向依赖修复 blend.go→color.ColorF32）/录制面/降级探针。**语义收紧两条（summary §2）**：linear 生效域=advanced 15 模式全后端统一（CPU Normal 原接真线性与 GPU 降级不一致，改双端统一降级，P3.1b 解锁）；CPU 精度口径 u8 域分级（亮/中 ±2、暗部 ±5 实测）。管线键/batch 谓词改动取消（uniform 标志零管线变体）。门禁：构建/vet/能力钉 14 条/conformance 双后端 rc=0/真窗 ui_wr_p31_linear_blend 双后端逐位（A=77 B=168 vs float ref 167.6 C=128 降级）/负向摘 WGSL linear 分支红→还原绿/apidoc rc=0（catalog §13 P3.1 行转正+§1/§0）；per-file 34 包后台跑（唯一 FAIL=TestMiscDrawGPUPath/DrawColorEffectSurfaceAdvancedBlend 与 P2.6 基线同名同红，零新增）。P3.1b 立项（sRGB 目标格式整链，HDR/广色域前置） | `evidence/P3.1/`（assessment/summary/window-gates/window-runs×5/conformance/apidoc×2/build-five-target） |
 
 ## 8 修订记录
 

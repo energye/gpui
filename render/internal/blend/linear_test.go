@@ -6,8 +6,20 @@ import (
 	"github.com/energye/gpui/render/internal/color"
 )
 
-// TestLinearVsSRGBBlending verifies that linear blending produces different results than sRGB.
+// TestLinearVsSRGBBlending verifies the P3.1 mode-set contract: advanced
+// modes blend in linear light (different result than sRGB), while the
+// fixed-function family (SourceOver and the Porter-Duff set) degrades to the
+// sRGB domain on every backend until P3.1b. Alpha is always linear.
 func TestLinearVsSRGBBlending(t *testing.T) {
+	t.Run("fixed-function degrades to sRGB", func(t *testing.T) {
+		src := color.ColorU8{R: 255, G: 0, B: 0, A: 128}
+		dst := color.ColorU8{R: 0, G: 255, B: 0, A: 255}
+		linR, linG, linB, linA := GetBlendFuncLinear(BlendSourceOver, true)(src.R, src.G, src.B, src.A, dst.R, dst.G, dst.B, dst.A)
+		sr, sg, sb, sa := GetBlendFuncLinear(BlendSourceOver, false)(src.R, src.G, src.B, src.A, dst.R, dst.G, dst.B, dst.A)
+		if linR != sr || linG != sg || linB != sb || linA != sa {
+			t.Fatalf("SourceOver+linear must degrade to the sRGB result: linear(%d,%d,%d,%d) != sRGB(%d,%d,%d,%d)", linR, linG, linB, linA, sr, sg, sb, sa)
+		}
+	})
 	tests := []struct {
 		name string
 		src  color.ColorU8
@@ -15,19 +27,13 @@ func TestLinearVsSRGBBlending(t *testing.T) {
 		mode BlendMode
 	}{
 		{
-			name: "50% red + 50% green",
-			src:  color.ColorU8{R: 255, G: 0, B: 0, A: 128}, // 50% opaque red
-			dst:  color.ColorU8{R: 0, G: 255, B: 0, A: 255}, // opaque green
-			mode: BlendSourceOver,
-		},
-		{
-			name: "multiply dark colors",
+			name: "multiply dark colors (advanced: linear honored)",
 			src:  color.ColorU8{R: 64, G: 64, B: 64, A: 255},
 			dst:  color.ColorU8{R: 128, G: 128, B: 128, A: 255},
 			mode: BlendMultiply,
 		},
 		{
-			name: "screen bright colors",
+			name: "screen bright colors (advanced: linear honored)",
 			src:  color.ColorU8{R: 200, G: 150, B: 100, A: 255},
 			dst:  color.ColorU8{R: 150, G: 200, B: 180, A: 255},
 			mode: BlendScreen,
@@ -67,37 +73,30 @@ func TestLinearVsSRGBBlending(t *testing.T) {
 	}
 }
 
-// TestLinearBlendingAccuracy tests that linear blending produces physically correct results.
-// For example, 50% red + 50% green should produce a proper yellow, not dark brown.
+// TestLinearBlendingAccuracy tests that linear blending produces physically
+// correct results for an advanced mode: linear multiply of midtones lands
+// brighter than the sRGB-domain multiply because decode lifts midtones.
 func TestLinearBlendingAccuracy(t *testing.T) {
-	// 50% opaque red over opaque green
-	src := color.ColorU8{R: 255, G: 0, B: 0, A: 128} // 50% red
-	dst := color.ColorU8{R: 0, G: 255, B: 0, A: 255} // opaque green
+	src := color.ColorU8{R: 64, G: 64, B: 64, A: 255}
+	dst := color.ColorU8{R: 128, G: 128, B: 128, A: 255}
 
-	linearFunc := GetBlendFuncLinear(BlendSourceOver, true)
+	linearFunc := GetBlendFuncLinear(BlendMultiply, true)
 	r, g, b, a := linearFunc(src.R, src.G, src.B, src.A, dst.R, dst.G, dst.B, dst.A)
 
-	// In linear space, 50% red + 50% green should produce yellow with equal R and G
-	// The result won't be exactly equal due to premultiplied alpha compositing,
-	// but R and G should be closer than in sRGB blending
+	// Linear multiply of two neutral grays stays neutral and non-zero.
 	t.Logf("Linear blend result: R=%d, G=%d, B=%d, A=%d", r, g, b, a)
-
-	// Basic sanity checks
 	if r == 0 {
 		t.Error("Expected non-zero red component")
 	}
-	if g == 0 {
-		t.Error("Expected non-zero green component")
-	}
-	if b != 0 {
-		t.Error("Expected zero blue component")
+	if r != g || g != b {
+		t.Errorf("Linear multiply of equal grays must stay neutral: got (%d,%d,%d)", r, g, b)
 	}
 	if a == 0 {
 		t.Error("Expected non-zero alpha")
 	}
 
-	// Compare with sRGB blending
-	srgbFunc := GetBlendFuncLinear(BlendSourceOver, false)
+	// Compare with sRGB-domain blending of the same mode
+	srgbFunc := GetBlendFuncLinear(BlendMultiply, false)
 	srgbR, srgbG, srgbB, srgbA := srgbFunc(src.R, src.G, src.B, src.A, dst.R, dst.G, dst.B, dst.A)
 	t.Logf("sRGB blend result:   R=%d, G=%d, B=%d, A=%d", srgbR, srgbG, srgbB, srgbA)
 
@@ -307,4 +306,101 @@ func TestLinearBlendingEdgeCases(t *testing.T) {
 			t.Logf("Result: R=%d, G=%d, B=%d, A=%d", r, g, b, a)
 		})
 	}
+}
+
+// TestLinearPrecisionEnvelope pins the P3.1 CPU precision envelope: the u8
+// premul wrapper stays within ±2/255 of a float linear reference in bright
+// and mid tones, and within ±5/255 in the dark end (one linear u8 step is
+// worth several sRGB codes there — measured, see the limit ladder below).
+// GPU dual-tex is the float-precision route.
+func TestLinearPrecisionEnvelope(t *testing.T) {
+	decode := func(c float64) float64 {
+		if c <= 0.04045 {
+			return c / 12.92
+		}
+		return pow2p4((c + 0.055) / 1.055)
+	}
+	encode := func(c float64) float64 {
+		if c <= 0.0031308 {
+			return c * 12.92
+		}
+		return 1.055*powInv2p4(c) - 0.055 // sRGB encode is the 1/2.4 power
+	}
+	blendChannel := func(mode BlendMode, cb, cs float64) float64 {
+		switch mode {
+		case BlendMultiply:
+			return cb * cs
+		case BlendScreen:
+			return cb + cs - cb*cs
+		case BlendDifference:
+			d := cb - cs
+			if d < 0 {
+				return -d
+			}
+			return d
+		default:
+			return cb * cs
+		}
+	}
+	for _, mode := range []BlendMode{BlendMultiply, BlendScreen, BlendDifference} {
+		for _, sc := range []float64{0.0, 0.25, 0.5, 0.75, 1.0} {
+			for _, dc := range []float64{0.0, 0.25, 0.5, 0.75, 1.0} {
+				// float linear reference on straight colors, full coverage
+				want := encode(blendChannel(mode, decode(dc), decode(sc)))
+				gotR, _, _, _ := GetBlendFuncLinear(mode, true)(
+					uint8(sc*255+0.5), uint8(sc*255+0.5), uint8(sc*255+0.5), 255,
+					uint8(dc*255+0.5), uint8(dc*255+0.5), uint8(dc*255+0.5), 255)
+				diff := float64(gotR)/255.0 - want
+				if diff < 0 {
+					diff = -diff
+				}
+				// Envelope: bright/mid tones ±2/255; dark linear results
+				// (<0.1, i.e. sRGB <~0.35) tolerate ±5/255 because one linear
+				// u8 step is worth several sRGB codes down there. Measured,
+				// not assumed: multiply 0.25×0.25 lands at 4.5/255.
+				limit := 2.0 / 255.0
+				if want < 0.1 {
+					limit = 5.0 / 255.0
+				}
+				if diff > limit {
+					t.Fatalf("mode %d s=%.2f d=%.2f: u8 linear got %.4f, float ref %.4f (diff %.4f > %.4f)", mode, sc, dc, float64(gotR)/255.0, want, diff, limit)
+				}
+			}
+		}
+	}
+}
+
+func pow2p4(x float64) float64 {
+	return exp2p4(2.4 * ln2p4(x))
+}
+
+func powInv2p4(x float64) float64 {
+	return exp2p4(ln2p4(x) / 2.4)
+}
+
+// fixed-point helpers keep the reference independent of math package rounding
+func ln2p4(x float64) float64 {
+	if x <= 0 {
+		return -1000
+	}
+	// natural log via 40 Newton steps on e^y = x
+	y := 0.0
+	for i := 0; i < 40; i++ {
+		ey := expApprox(y)
+		y += (x - ey) / ey
+	}
+	return y
+}
+
+func exp2p4(x float64) float64 {
+	return expApprox(x)
+}
+
+func expApprox(x float64) float64 {
+	sum, term := 1.0, 1.0
+	for i := 1; i < 30; i++ {
+		term *= x / float64(i)
+		sum += term
+	}
+	return sum
 }

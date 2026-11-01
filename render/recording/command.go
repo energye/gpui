@@ -305,6 +305,8 @@ type FillPathCommand struct {
 	Rule FillRule
 	// Blend is the Porter-Duff mode captured at draw time.
 	Blend render.BlendMode
+	// BlendSpace is the color domain of the blend captured at draw time (P3.1).
+	BlendSpace render.BlendSpace
 }
 
 // Type implements Command.
@@ -320,6 +322,8 @@ type StrokePathCommand struct {
 	Stroke Stroke
 	// Blend is the Porter-Duff mode captured at draw time.
 	Blend render.BlendMode
+	// BlendSpace is the color domain of the blend captured at draw time (P3.1).
+	BlendSpace render.BlendSpace
 }
 
 // Type implements Command.
@@ -334,6 +338,8 @@ type FillRectCommand struct {
 	Brush BrushRef
 	// Blend is the Porter-Duff mode captured at draw time.
 	Blend render.BlendMode
+	// BlendSpace is the color domain of the blend captured at draw time (P3.1).
+	BlendSpace render.BlendSpace
 }
 
 // Type implements Command.
@@ -349,6 +355,8 @@ type StrokeRectCommand struct {
 	Stroke Stroke
 	// Blend is the Porter-Duff mode captured at draw time.
 	Blend render.BlendMode
+	// BlendSpace is the color domain of the blend captured at draw time (P3.1).
+	BlendSpace render.BlendSpace
 }
 
 // Type implements Command.

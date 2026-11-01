@@ -28,11 +28,12 @@ func (stubBackend) ClipRoundRect(_, _, _, _, _ float64) {}
 func (stubBackend) ClipRectOp(_ Rect, _ render.ClipOp)  {}
 func (stubBackend) ClipPathOp(_ *render.Path, _ FillRule, _ render.ClipOp) {
 }
-func (stubBackend) FillPath(_ *render.Path, _ Brush, _ FillRule, _ render.BlendMode) {
+func (stubBackend) FillPath(_ *render.Path, _ Brush, _ FillRule, _ render.BlendMode, _ render.BlendSpace) {
 }
-func (stubBackend) StrokePath(_ *render.Path, _ Brush, _ Stroke, _ render.BlendMode) {}
-func (stubBackend) FillRect(_ Rect, _ Brush, _ render.BlendMode)                     {}
-func (stubBackend) StrokeRect(_ Rect, _ Brush, _ Stroke, _ render.BlendMode)         {}
+func (stubBackend) StrokePath(_ *render.Path, _ Brush, _ Stroke, _ render.BlendMode, _ render.BlendSpace) {
+}
+func (stubBackend) FillRect(_ Rect, _ Brush, _ render.BlendMode, _ render.BlendSpace)             {}
+func (stubBackend) StrokeRect(_ Rect, _ Brush, _ Stroke, _ render.BlendMode, _ render.BlendSpace) {}
 func (stubBackend) DrawImage(_ *render.ImageBuf, _ render.DrawImageOptions) {
 }
 func (stubBackend) DrawImageNine(_ *render.ImageBuf, _ image.Rectangle, _ Rect) {}

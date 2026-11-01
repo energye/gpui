@@ -450,7 +450,7 @@ func (r *SoftwareRenderer) Fill(pixmap *Pixmap, p *Path, paint *Paint) error {
 		clipFn := paint.ClipCoverage
 		maskFn := paint.MaskCoverage
 		r.analyticFiller.Fill(r.edgeBuilder, coreFillRule, func(y int, runs *raster.AlphaRuns) {
-			r.blendAlphaRunsFromCoreRuns(pixmap, y, runs, color, clipFn, maskFn, paint.BlendMode)
+			r.blendAlphaRunsFromCoreRuns(pixmap, y, runs, color, clipFn, maskFn, paint.BlendMode, paint.BlendSpace.linear())
 		})
 	} else {
 		// Pattern/gradient path: per-pixel color sampling
@@ -707,7 +707,7 @@ func solidColorFromPaint(paint *Paint) (RGBA, bool) {
 // Uses source-over compositing for proper alpha blending.
 // When clipFn is non-nil, each pixel's alpha is multiplied by the clip coverage.
 // When maskFn is non-nil, each pixel's alpha is multiplied by the mask coverage.
-func (r *SoftwareRenderer) blendAlphaRunsFromCoreRuns(pixmap *Pixmap, y int, runs *raster.AlphaRuns, color RGBA, clipFn func(x, y float64) byte, maskFn func(x, y int) uint8, blendMode BlendMode) {
+func (r *SoftwareRenderer) blendAlphaRunsFromCoreRuns(pixmap *Pixmap, y int, runs *raster.AlphaRuns, color RGBA, clipFn func(x, y float64) byte, maskFn func(x, y int) uint8, blendMode BlendMode, linear bool) {
 	if y < 0 || y >= pixmap.Height() {
 		return
 	}
@@ -742,17 +742,20 @@ func (r *SoftwareRenderer) blendAlphaRunsFromCoreRuns(pixmap *Pixmap, y int, run
 		}
 
 		if useAdvanced {
-			compositeAdvanced(pixmap, x, y, color, alpha, blendMode)
+			compositeAdvanced(pixmap, x, y, color, alpha, blendMode, linear)
 			continue
 		}
 
-		// Full coverage - just set the pixel
+		// Full coverage - just set the pixel (opaque source, no blend happens;
+		// the sRGB-encoded bytes pass through untouched even in linear space).
 		if alpha == 255 && color.A == 1.0 {
 			pixmap.SetPixel(x, y, color)
 			continue
 		}
 
-		// Partial coverage - premultiplied source-over compositing
+		// Partial coverage - premultiplied source-over compositing. A linear
+		// request on Normal degrades to this sRGB domain (P3.1 scoping: the
+		// linear effective set is the advanced modes on every backend).
 		srcAlpha := color.A * float64(alpha) / 255.0
 		invSrcAlpha := 1.0 - srcAlpha
 
@@ -810,11 +813,12 @@ func (r *SoftwareRenderer) blendAlphaRunsFromCoreRunsPaint(pixmap *Pixmap, y int
 		color := paint.ColorAt(fx, fy)
 
 		if paint.BlendMode != BlendNormal {
-			compositeAdvanced(pixmap, x, y, color, alpha, paint.BlendMode)
+			compositeAdvanced(pixmap, x, y, color, alpha, paint.BlendMode, paint.BlendSpace.linear())
 			continue
 		}
 
 		if alpha == 255 && color.A == 1.0 {
+			// Opaque source, no blend happens; bytes pass through untouched.
 			pixmap.SetPixel(x, y, color)
 			continue
 		}

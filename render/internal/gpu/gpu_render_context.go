@@ -1956,6 +1956,20 @@ func (rc *GPURenderContext) DrawShapedColorGlyphs(target render.GPURenderTarget,
 // unknown). Similarity matrices unbake geometry to user space and cache it
 // transform-independently, with matrix applied in the vertex shader.
 // Otherwise the path is used baked with identity.
+// noteLinearFixedFunctionFallback records a paint that requested linear
+// blending (P3.1) on a mode with only a fixed-function GPU path: the draw
+// proceeds in the sRGB domain by design until the P3.1b sRGB-target switch.
+// The mode tables are re-checked here so the counter stays honest regardless
+// of call site — advanced modes own the dual-tex linear path and never count.
+func (rc *GPURenderContext) noteLinearFixedFunctionFallback(paint *render.Paint) {
+	if paint == nil || paint.BlendSpace != render.BlendSpaceLinear {
+		return
+	}
+	if paintSupportsGPUFixedBlend(paint) && !paintSupportsGPUAdvancedBlend(paint) {
+		rc.shared.linearFixedFunctionFallbacks.Add(1)
+	}
+}
+
 func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render.Path, paint *render.Paint, matrix render.Matrix) error {
 	// L.06: prefer cover-inline R8 (convex / stencil-then-cover) when MaskAware
 	// texture is live. Advanced paints fall back to fillMaskedAsImage.
@@ -1983,6 +1997,9 @@ func (rc *GPURenderContext) FillPath(target render.GPURenderTarget, path *render
 			return rc.fillAdvancedBlendAsImage(target, path, paint)
 		}
 		// P0-2: native GPU gradient / image-pattern fill (no large-area ColorAt).
+		// Reaching here without the advanced gate means a fixed-function
+		// (SourceOver) domain: linear requests degrade until P3.1b.
+		rc.noteLinearFixedFunctionFallback(paint)
 		if err := rc.fillBrushNative(target, path, paint); err == nil {
 			return nil
 		}
@@ -2156,6 +2173,10 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		if !paintSupportsGPUFixedBlend(paint) && !paintSupportsGPUAdvancedBlend(paint) {
 			return render.ErrFallbackToCPU
 		}
+		// Solid stroke with a fixed-function mode: linear requests degrade to
+		// the sRGB domain until the P3.1b sRGB-target switch (advanced strokes
+		// already went through the dual-tex linear path via FillPath).
+		rc.noteLinearFixedFunctionFallback(paint)
 	} else {
 		// Non-solid: SourceOver bootstrap/native or advanced dual-tex only.
 		if !paintUsesSourceOver(paint) && !paintSupportsGPUAdvancedBlend(paint) {

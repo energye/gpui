@@ -11,7 +11,7 @@
 // Package blend provides color blending operations.
 package blend
 
-import "github.com/energye/gpui/render"
+import "github.com/energye/gpui/render/internal/color"
 
 // Mode represents a blending mode.
 type Mode int
@@ -30,7 +30,7 @@ const (
 )
 
 // Blend blends two colors using the specified mode.
-func Blend(src, dst render.RGBA, mode Mode) render.RGBA {
+func Blend(src, dst color.ColorF32, mode Mode) color.ColorF32 {
 	switch mode {
 	case ModeSourceOver:
 		return sourceOver(src, dst)
@@ -48,21 +48,21 @@ func Blend(src, dst render.RGBA, mode Mode) render.RGBA {
 }
 
 // sourceOver blends source over destination using alpha compositing.
-func sourceOver(src, dst render.RGBA) render.RGBA {
+func sourceOver(src, dst color.ColorF32) color.ColorF32 {
 	srcA := src.A
 	dstA := dst.A
 	invSrcA := 1.0 - srcA
 
 	outA := srcA + dstA*invSrcA
 	if outA == 0 {
-		return render.RGBA{R: 0, G: 0, B: 0, A: 0}
+		return color.ColorF32{R: 0, G: 0, B: 0, A: 0}
 	}
 
 	outR := (src.R*srcA + dst.R*dstA*invSrcA) / outA
 	outG := (src.G*srcA + dst.G*dstA*invSrcA) / outA
 	outB := (src.B*srcA + dst.B*dstA*invSrcA) / outA
 
-	return render.RGBA{
+	return color.ColorF32{
 		R: outR,
 		G: outG,
 		B: outB,
@@ -71,8 +71,8 @@ func sourceOver(src, dst render.RGBA) render.RGBA {
 }
 
 // destinationIn keeps destination where source is opaque.
-func destinationIn(src, dst render.RGBA) render.RGBA {
-	return render.RGBA{
+func destinationIn(src, dst color.ColorF32) color.ColorF32 {
+	return color.ColorF32{
 		R: dst.R,
 		G: dst.G,
 		B: dst.B,
@@ -81,8 +81,8 @@ func destinationIn(src, dst render.RGBA) render.RGBA {
 }
 
 // destinationOut keeps destination where source is transparent.
-func destinationOut(src, dst render.RGBA) render.RGBA {
-	return render.RGBA{
+func destinationOut(src, dst color.ColorF32) color.ColorF32 {
+	return color.ColorF32{
 		R: dst.R,
 		G: dst.G,
 		B: dst.B,

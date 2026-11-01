@@ -40,6 +40,23 @@ func (c *Context) BlendMode() BlendMode {
 	return c.paint.BlendMode
 }
 
+// SetBlendSpace selects the color domain used by subsequent fills and strokes
+// (P3.1). The default BlendSpaceSRGB keeps the historical output;
+// BlendSpaceLinear blends in linear light. See BlendSpace for per-path
+// coverage (advanced modes on GPU dual-tex, every mode on CPU, fixed-function
+// GPU modes fall back to sRGB until the P3.1b format switch).
+func (c *Context) SetBlendSpace(space BlendSpace) {
+	c.paint.BlendSpace = space
+}
+
+// BlendSpace reports the blend space used by subsequent fills and strokes.
+func (c *Context) BlendSpace() BlendSpace {
+	if c == nil || c.paint == nil {
+		return BlendSpaceSRGB
+	}
+	return c.paint.BlendSpace
+}
+
 // compositeLayer composites a layer onto a parent pixmap using the layer's
 // blend mode and opacity.
 //

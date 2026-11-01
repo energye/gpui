@@ -164,4 +164,9 @@ type DrawImageOptions struct {
 	// BlendMode specifies how to blend source and destination pixels.
 	// Default is BlendNormal.
 	BlendMode BlendMode
+
+	// BlendSpace selects the color domain of the blend (P3.1). Default
+	// BlendSpaceSRGB keeps the historical output. See Paint.BlendSpace for
+	// per-path coverage.
+	BlendSpace BlendSpace
 }

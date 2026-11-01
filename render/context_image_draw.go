@@ -148,12 +148,13 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 			dh := int(math.Abs(br.Y-tl.Y) + 0.5)
 			if dw > 0 && dh > 0 {
 				intImage.DrawImage(dstImg, img, intImage.DrawParams{
-					SrcRect:    srcRect,
-					DstRect:    intImage.Rect{X: dx, Y: dy, Width: dw, Height: dh},
-					Interp:     opts.Interpolation,
-					Opacity:    opts.Opacity,
-					BlendMode:  opts.BlendMode,
-					UseMipmaps: opts.UseMipmaps,
+					SrcRect:     srcRect,
+					DstRect:     intImage.Rect{X: dx, Y: dy, Width: dw, Height: dh},
+					Interp:      opts.Interpolation,
+					Opacity:     opts.Opacity,
+					BlendMode:   opts.BlendMode,
+					BlendLinear: opts.BlendSpace.linear(),
+					UseMipmaps:  opts.UseMipmaps,
 				})
 				c.recordCPUFallbackReason("image:bicubic")
 				return
@@ -199,6 +200,7 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 	// Porter-Duff modes included). Previously the option was dropped here, so
 	// e.g. DestinationIn image draws composited as SourceOver.
 	c.SetBlendMode(opts.BlendMode)
+	c.SetBlendSpace(opts.BlendSpace)
 
 	// Set image pattern as fill source.
 	c.SetFillPattern(pattern)

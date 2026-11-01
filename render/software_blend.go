@@ -12,6 +12,8 @@ package render
 
 import (
 	"math"
+
+	intBlend "github.com/energye/gpui/render/internal/blend"
 )
 
 // blendAppliesAtZeroSrc reports Porter-Duff modes whose result differs from the
@@ -29,9 +31,13 @@ func blendAppliesAtZeroSrc(mode BlendMode) bool {
 	}
 }
 
-func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mode BlendMode) {
+func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mode BlendMode, linear bool) {
 	srcA := color.A * float64(coverage) / 255.0
 	if srcA <= 0 && !blendAppliesAtZeroSrc(mode) {
+		return
+	}
+	if linear {
+		compositeAdvancedLinear(pixmap, x, y, color, coverage, mode, srcA)
 		return
 	}
 	dst := pixmap.GetPixel(x, y)
@@ -221,6 +227,35 @@ func overlayChannelU8(src, dst uint8) uint8 {
 		return uint8((2 * int(src) * int(dst)) / 255)
 	}
 	return uint8(255 - (2*(255-int(src))*(255-int(dst)))/255)
+}
+
+// compositeAdvancedLinear blends in linear light via the shared u8 premul
+// blend core (intBlend.GetBlendFuncLinear — the same math the straight image
+// path adapts to). P3.1 precision envelope: CPU linear blending runs in the
+// u8 domain end to end, ±2/255 against a float reference; the GPU dual-tex
+// path is the float-precision route. Alpha never undergoes gamma.
+func compositeAdvancedLinear(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mode BlendMode, srcA float64) {
+	// Straight sRGB source → premul u8 (linear decode happens inside the core).
+	pu8 := func(v float64) uint8 {
+		if v <= 0 {
+			return 0
+		}
+		if v >= 1 {
+			return 255
+		}
+		return uint8(v*255.0 + 0.5)
+	}
+	sr := pu8(color.R * srcA)
+	sg := pu8(color.G * srcA)
+	sb := pu8(color.B * srcA)
+	sa := pu8(srcA)
+	// Premul sRGB destination → u8 (decode/encode also inside the core).
+	dr, dg, db, da := pixmap.getPremul(x, y)
+	rr, rg, rb, ra := intBlend.GetBlendFuncLinear(mode, true)(
+		sr, sg, sb, sa,
+		pu8(dr), pu8(dg), pu8(db), pu8(da),
+	)
+	pixmap.setPremul(x, y, float64(rr)/255.0, float64(rg)/255.0, float64(rb)/255.0, float64(ra)/255.0)
 }
 
 // blendAlphaRunsFromCoreRunsPaint is like blendAlphaRunsFromCoreRuns but samples

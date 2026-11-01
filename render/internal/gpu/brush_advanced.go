@@ -163,9 +163,9 @@ func (rc *GPURenderContext) fillAdvancedBlendTiled(target render.GPURenderTarget
 				continue
 			}
 
-			outTex, outView, err := dualTexAdvancedBlendNoReadback(device, queue, cache, dstRegion, srcRegion, tbw, tbh, paint.BlendMode)
+			outTex, outView, err := dualTexAdvancedBlendNoReadback(device, queue, cache, dstRegion, srcRegion, tbw, tbh, paint.BlendMode, paint.BlendSpace == render.BlendSpaceLinear)
 			if err != nil {
-				pixelData, err2 := dualTexAdvancedBlend(device, queue, cache, dstRegion, srcRegion, tbw, tbh, paint.BlendMode)
+				pixelData, err2 := dualTexAdvancedBlend(device, queue, cache, dstRegion, srcRegion, tbw, tbh, paint.BlendMode, paint.BlendSpace == render.BlendSpaceLinear)
 				if err2 != nil {
 					return render.ErrFallbackToCPU
 				}

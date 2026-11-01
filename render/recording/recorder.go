@@ -61,6 +61,7 @@ type Recorder struct {
 	fillRule    FillRule
 	antiAlias   bool
 	blendMode   render.BlendMode
+	blendSpace  render.BlendSpace
 	transform   Matrix
 
 	// Current font
@@ -110,6 +111,7 @@ func NewRecorder(width, height int) *Recorder {
 		fillRule:    FillRuleNonZero,
 		antiAlias:   true,
 		blendMode:   render.BlendNormal,
+		blendSpace:  render.BlendSpaceSRGB,
 		transform:   Identity(),
 		pathBasis:   Identity(),
 		stateStack:  make([]recorderState, 0, 8),
@@ -268,17 +270,17 @@ func (r *Recording) Playback(backend Backend) error {
 		case FillPathCommand:
 			path := r.resources.GetPath(c.Path)
 			brush := r.resources.GetBrush(c.Brush)
-			backend.FillPath(path, brush, c.Rule, c.Blend)
+			backend.FillPath(path, brush, c.Rule, c.Blend, c.BlendSpace)
 		case StrokePathCommand:
 			path := r.resources.GetPath(c.Path)
 			brush := r.resources.GetBrush(c.Brush)
-			backend.StrokePath(path, brush, c.Stroke, c.Blend)
+			backend.StrokePath(path, brush, c.Stroke, c.Blend, c.BlendSpace)
 		case FillRectCommand:
 			brush := r.resources.GetBrush(c.Brush)
-			backend.FillRect(c.Rect, brush, c.Blend)
+			backend.FillRect(c.Rect, brush, c.Blend, c.BlendSpace)
 		case StrokeRectCommand:
 			brush := r.resources.GetBrush(c.Brush)
-			backend.StrokeRect(c.Rect, brush, c.Stroke, c.Blend)
+			backend.StrokeRect(c.Rect, brush, c.Stroke, c.Blend, c.BlendSpace)
 		case DrawImageCommand:
 			backend.DrawImage(r.resources.GetImage(c.Image), c.Opts)
 		case DrawImageNineCommand:
@@ -376,7 +378,7 @@ func (r *Recording) Playback(backend Backend) error {
 			// glyphs where the live walk drew hollow outlines.
 			if face != nil {
 				if path := render.TextOutlinePath(face, c.Text, c.X, c.Y); path != nil {
-					backend.StrokePath(path, brush, c.Stroke, render.BlendNormal)
+					backend.StrokePath(path, brush, c.Stroke, render.BlendNormal, render.BlendSpaceSRGB)
 					continue
 				}
 			}

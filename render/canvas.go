@@ -101,6 +101,11 @@ type Canvas interface {
 	// ambient blend back after a replay that changes it.
 	SetBlendMode(mode BlendMode)
 	BlendMode() BlendMode
+	// SetBlendSpace selects the color domain of the blend (P3.1): the default
+	// BlendSpaceSRGB keeps the historical output, BlendSpaceLinear blends in
+	// linear light. BlendSpace reports it for display-list replay.
+	SetBlendSpace(space BlendSpace)
+	BlendSpace() BlendSpace
 
 	// Draw
 	Fill() error

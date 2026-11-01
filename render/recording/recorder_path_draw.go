@@ -79,10 +79,11 @@ func (r *Recorder) Fill() error {
 	brushRef := r.resources.AddBrush(r.fillBrush)
 
 	r.commands = append(r.commands, FillPathCommand{
-		Path:  pathRef,
-		Brush: brushRef,
-		Rule:  r.fillRule,
-		Blend: r.blendMode,
+		Path:       pathRef,
+		Brush:      brushRef,
+		Rule:       r.fillRule,
+		Blend:      r.blendMode,
+		BlendSpace: r.blendSpace,
 	})
 
 	r.currentPath = render.NewPath()
@@ -105,10 +106,11 @@ func (r *Recorder) recordFill(clear bool) error {
 	brushRef := r.resources.AddBrush(r.fillBrush)
 
 	r.commands = append(r.commands, FillPathCommand{
-		Path:  pathRef,
-		Brush: brushRef,
-		Rule:  r.fillRule,
-		Blend: r.blendMode,
+		Path:       pathRef,
+		Brush:      brushRef,
+		Rule:       r.fillRule,
+		Blend:      r.blendMode,
+		BlendSpace: r.blendSpace,
 	})
 	if clear {
 		r.currentPath = render.NewPath()
@@ -146,10 +148,11 @@ func (r *Recorder) recordStroke(clear bool) error {
 	}
 
 	r.commands = append(r.commands, StrokePathCommand{
-		Path:   pathRef,
-		Brush:  brushRef,
-		Stroke: stroke,
-		Blend:  r.blendMode,
+		Path:       pathRef,
+		Brush:      brushRef,
+		Stroke:     stroke,
+		Blend:      r.blendMode,
+		BlendSpace: r.blendSpace,
 	})
 	if clear {
 		r.currentPath = render.NewPath()
@@ -321,9 +324,10 @@ func (r *Recorder) FillRectangle(x, y, w, h float64) {
 	brushRef := r.resources.AddBrush(r.fillBrush)
 
 	r.commands = append(r.commands, FillRectCommand{
-		Rect:  rect,
-		Brush: brushRef,
-		Blend: r.blendMode,
+		Rect:       rect,
+		Brush:      brushRef,
+		Blend:      r.blendMode,
+		BlendSpace: r.blendSpace,
 	})
 }
 
@@ -342,10 +346,11 @@ func (r *Recorder) StrokeRectangle(x, y, w, h float64) {
 	}
 
 	r.commands = append(r.commands, StrokeRectCommand{
-		Rect:   rect,
-		Brush:  brushRef,
-		Stroke: stroke,
-		Blend:  r.blendMode,
+		Rect:       rect,
+		Brush:      brushRef,
+		Stroke:     stroke,
+		Blend:      r.blendMode,
+		BlendSpace: r.blendSpace,
 	})
 }
 

@@ -46,7 +46,10 @@ struct Params {
     uv_min: vec2<f32>,
     uv_max: vec2<f32>,
     opacity: f32,
-    _pad1: f32,
+    // non-zero => blend in linear light (P3.1): decode cb/cs from sRGB before
+    // B(Cb,Cs) and the W3C composite, re-encode co afterwards. Alpha never
+    // undergoes gamma.
+    linear: u32,
     _pad2: f32,
     _pad3: f32,
 }
@@ -215,7 +218,22 @@ fn blend_fn(mode: u32, cb: vec3<f32>, cs: vec3<f32>) -> vec3<f32> {
     );
 }
 
-// W3C Compositing: backdrop b, source s; advanced color B(Cb,Cs)
+fn srgb_to_linear(c: f32) -> f32 {
+    if (c <= 0.04045) {
+        return c / 12.92;
+    }
+    return pow((c + 0.055) / 1.055, 2.4);
+}
+fn linear_to_srgb(c: f32) -> f32 {
+    if (c <= 0.0031308) {
+        return c * 12.92;
+    }
+    return 1.055 * pow(c, 1.0 / 2.4) - 0.055;
+}
+
+// W3C Compositing: backdrop b, source s; advanced color B(Cb,Cs).
+// With params.linear set (P3.1) the whole RGB pipeline — B(Cb,Cs) and the
+// composite co — runs in linear light; alpha stays linear throughout.
 @fragment
 fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let suv = mix(params.uv_min, params.uv_max, in.uv);
@@ -229,8 +247,17 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
     let s = unpremul(sp);
     let ab = d.a;
     let as_ = s.a;
-    let bcol = blend_fn(params.mode, d.rgb, s.rgb);
-    let co = (1.0 - ab) * s.rgb + (1.0 - as_) * d.rgb + ab * as_ * bcol;
+    var cb = d.rgb;
+    var cs = s.rgb;
+    if (params.linear != 0u) {
+        cb = vec3<f32>(srgb_to_linear(cb.r), srgb_to_linear(cb.g), srgb_to_linear(cb.b));
+        cs = vec3<f32>(srgb_to_linear(cs.r), srgb_to_linear(cs.g), srgb_to_linear(cs.b));
+    }
+    let bcol = blend_fn(params.mode, cb, cs);
+    var co = (1.0 - ab) * cs + (1.0 - as_) * cb + ab * as_ * bcol;
+    if (params.linear != 0u) {
+        co = vec3<f32>(linear_to_srgb(co.r), linear_to_srgb(co.g), linear_to_srgb(co.b));
+    }
     let ao = as_ + ab * (1.0 - as_);
     let op = params.opacity;
     return vec4<f32>(co * ao * op, ao * op);
@@ -612,6 +639,7 @@ func dualTexAdvancedBlend(
 	dstRGBA, srcRGBA []byte,
 	bw, bh int,
 	mode render.BlendMode,
+	linear bool,
 ) ([]byte, error) {
 	if device == nil || queue == nil || cache == nil {
 		return nil, fmt.Errorf("dual-tex blend: nil device/queue/cache")
@@ -662,7 +690,7 @@ func dualTexAdvancedBlend(
 	default:
 		modeU = 1
 	}
-	if err := dualTexWriteParams(queue, cache.uniform, modeU, 0, 0, 1, 1, 1, false); err != nil {
+	if err := dualTexWriteParams(queue, cache.uniform, modeU, 0, 0, 1, 1, 1, false, linear); err != nil {
 		return nil, fmt.Errorf("dual-tex uniform write: %w", err)
 	}
 
@@ -965,20 +993,21 @@ var dualTexParamsPool = sync.Pool{
 
 // dualTexWriteParams writes blend mode + UV sample rect into the dual-tex uniform.
 // uv_min/uv_max are in 0-1 texture space; full texture uses (0,0)-(1,1).
-func dualTexWriteParams(queue hal.Queue, uniform hal.Buffer, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool) error {
+// linear selects linear-light compositing (P3.1).
+func dualTexWriteParams(queue hal.Queue, uniform hal.Buffer, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool, linear bool) error {
 	if queue == nil || uniform == nil {
 		return fmt.Errorf("dual-tex params: nil queue/uniform")
 	}
 	p := dualTexParamsPool.Get().(*[]byte)
 	data := (*p)[:dualTexUniformPayloadSize]
-	packDualTexParams(data, modeU, u0, v0, u1, v1, opacity, dstTight)
+	packDualTexParams(data, modeU, u0, v0, u1, v1, opacity, dstTight, linear)
 	err := queue.WriteBuffer(uniform, 0, data)
 	dualTexParamsPool.Put(p)
 	return err
 }
 
 // packDualTexParams writes the 48-byte dual-tex Params payload into dst.
-func packDualTexParams(dst []byte, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool) {
+func packDualTexParams(dst []byte, modeU uint32, u0, v0, u1, v1, opacity float32, dstTight bool, linear bool) {
 	if len(dst) < dualTexUniformPayloadSize {
 		return
 	}
@@ -998,6 +1027,9 @@ func packDualTexParams(dst []byte, modeU uint32, u0, v0, u1, v1, opacity float32
 	binary.LittleEndian.PutUint32(dst[16:20], math.Float32bits(u1))
 	binary.LittleEndian.PutUint32(dst[20:24], math.Float32bits(v1))
 	binary.LittleEndian.PutUint32(dst[24:28], math.Float32bits(opacity))
+	if linear {
+		binary.LittleEndian.PutUint32(dst[28:32], 1)
+	}
 }
 
 func dualTexAdvancedBlendNoReadback(
@@ -1007,6 +1039,7 @@ func dualTexAdvancedBlendNoReadback(
 	dstRGBA, srcRGBA []byte,
 	bw, bh int,
 	mode render.BlendMode,
+	linear bool,
 ) (hal.Texture, hal.TextureView, error) {
 	if device == nil || queue == nil || cache == nil {
 		return nil, nil, fmt.Errorf("dual-tex: nil device/queue/cache")
@@ -1022,7 +1055,7 @@ func dualTexAdvancedBlendNoReadback(
 		return nil, nil, err
 	}
 	modeU := dualTexModeU(mode)
-	if err := dualTexWriteParams(queue, cache.uniform, modeU, 0, 0, 1, 1, 1, false); err != nil {
+	if err := dualTexWriteParams(queue, cache.uniform, modeU, 0, 0, 1, 1, 1, false, linear); err != nil {
 		return nil, nil, err
 	}
 
@@ -1534,7 +1567,7 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 		u1 := float32(bounds.Max.X) / float32(dstW)
 		v1 := float32(bounds.Max.Y) / float32(dstH)
 		modeU := dualTexModeU(op.mode)
-		packDualTexParams(paramsScratch[offset:offset+dualTexUniformPayloadSize], modeU, u0, v0, u1, v1, 1, false)
+		packDualTexParams(paramsScratch[offset:offset+dualTexUniformPayloadSize], modeU, u0, v0, u1, v1, 1, false, false) // layer-level linear deferred past P3.1
 		prepared = append(prepared, preparedOp{
 			op: op, bounds: bounds, outTex: outTex, outView: outView, outRef: outRef, slot: slot, offset: offset,
 		})
@@ -1695,7 +1728,7 @@ func dualTexAdvancedBlendViewsRegionSized(
 	// paths; keep top-left origin matching CopyTextureToTexture previous behavior
 	// (bounds in pixel space, UV y down). textureSample uses top-left 0,0.
 	modeU := dualTexModeU(mode)
-	if err := dualTexWriteParams(queue, cache.uniform, modeU, u0, v0, u1, v1, 1, false); err != nil {
+	if err := dualTexWriteParams(queue, cache.uniform, modeU, u0, v0, u1, v1, 1, false, false); err != nil { // layer-level linear deferred past P3.1
 		drop()
 		return nil, nil, res.Ref{}, err
 	}

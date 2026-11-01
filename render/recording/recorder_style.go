@@ -239,3 +239,15 @@ func (r *Recorder) SetBlendMode(mode render.BlendMode) {
 func (r *Recorder) BlendMode() render.BlendMode {
 	return r.blendMode
 }
+
+// SetBlendSpace sets the color domain recorded into subsequent fill and stroke
+// commands (P3.1). Like BlendMode it is a draw-time property each command
+// carries, so replay is independent of the target's ambient state.
+func (r *Recorder) SetBlendSpace(space render.BlendSpace) {
+	r.blendSpace = space
+}
+
+// BlendSpace returns the blend space subsequent fills and strokes will carry.
+func (r *Recorder) BlendSpace() render.BlendSpace {
+	return r.blendSpace
+}

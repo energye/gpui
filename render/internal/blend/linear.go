@@ -27,16 +27,37 @@ type BlendModeLinear struct {
 	Linear bool // If true, blend in linear space; if false, blend in sRGB
 }
 
+// IsAdvancedBlendMode reports whether the mode has a shader-based (dual-tex)
+// execution path on every backend. P3.1 scoping: linear-light blending is
+// honored for exactly these 15 modes across CPU and GPU alike; the
+// fixed-function family (SourceOver and the Porter-Duff set) degrades to
+// sRGB-domain blending everywhere until the P3.1b sRGB-target format switch
+// unlocks linear fixed-function blending on all backends at once.
+func IsAdvancedBlendMode(mode BlendMode) bool {
+	switch mode {
+	case BlendMultiply, BlendScreen, BlendOverlay,
+		BlendHue, BlendSaturation, BlendColor, BlendLuminosity,
+		BlendDarken, BlendLighten, BlendColorDodge, BlendColorBurn,
+		BlendHardLight, BlendSoftLight, BlendDifference, BlendExclusion:
+		return true
+	default:
+		return false
+	}
+}
+
 // GetBlendFuncLinear returns a blend function that optionally operates in linear space.
 // If linear is true, the function will:
 //  1. Convert src/dst RGB from sRGB to linear (alpha stays linear)
 //  2. Perform blending in linear space
 //  3. Convert result RGB from linear to sRGB (alpha stays linear)
 //
-// This produces physically correct blending without dark halos or incorrect color mixing.
+// This produces physically correct blending without dark halos or incorrect
+// color mixing. Non-advanced modes ignore linear for now (P3.1 scoping —
+// see IsAdvancedBlendMode) so every backend answers a linear request with
+// the same pixels.
 func GetBlendFuncLinear(mode BlendMode, linear bool) BlendFunc {
-	if !linear {
-		// Standard sRGB blending
+	if !linear || !IsAdvancedBlendMode(mode) {
+		// Standard sRGB blending (and the P3.1 fixed-function degradation).
 		return GetBlendFunc(mode)
 	}
 

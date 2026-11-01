@@ -119,6 +119,12 @@ type Paint struct {
 	// for fill/stroke. Default BlendNormal (SourceOver). Non-normal modes
 	// fixed-function modes use GPU blend state; advanced modes use dual-tex (P0-3).
 	BlendMode BlendMode
+
+	// BlendSpace selects the color domain of the blend (P3.1). Default
+	// BlendSpaceSRGB keeps the historical output; BlendSpaceLinear blends in
+	// linear light — advanced modes on the GPU dual-tex path, every mode on
+	// the CPU paths; fixed-function GPU modes fall back to sRGB until P3.1b.
+	BlendSpace BlendSpace
 }
 
 // NewPaint creates a new Paint with default values.
@@ -149,6 +155,7 @@ func (p *Paint) Clone() *Paint {
 		FillRule:       p.FillRule,
 		Antialias:      p.Antialias,
 		BlendMode:      p.BlendMode,
+		BlendSpace:     p.BlendSpace,
 		ClipCoverage:   p.ClipCoverage,
 		MaskCoverage:   p.MaskCoverage,
 		TransformScale: p.TransformScale,
