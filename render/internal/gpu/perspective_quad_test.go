@@ -17,7 +17,7 @@ func perspCmd() *ImageDrawCommand {
 		ImgWidth:     20,
 		ImgHeight:    1,
 		Opacity:      1,
-		TLX: 0.5, TLY: 0.5,
+		TLX:          0.5, TLY: 0.5,
 		TRX: 240.5, TRY: 0.5,
 		BRX: 240.5, BRY: 120.5,
 		BLX: 0.5, BLY: 120.5,
@@ -123,4 +123,64 @@ func TestImageDrawCommandPerspectiveZeroValueIsAffine(t *testing.T) {
 	buf := make([]byte, 6*imageVertexStride)
 	cmd.BlendMode = render.BlendNormal
 	buildImageVerticesInto(buf, &cmd)
+}
+
+// TestSliceImageResourcesGroupsByCommandIndex pins the clip-group contract:
+// a draw call belongs to the group whose COMMAND range it covers. Perspective
+// calls pack into their own 36-byte buffer, so their firstVertex counts
+// perspective quads only — slicing by firstVertex handed every projective draw
+// to the previous group and the last one lost its group entirely (the plate was
+// then over-painted by geometry queued later in the frame).
+func TestSliceImageResourcesGroupsByCommandIndex(t *testing.T) {
+	combined := &imageFrameResources{
+		drawCalls: []imageDrawCall{
+			{firstVertex: 0, vertexCount: 6, cmdStart: 0, cmdCount: 1},
+			{firstVertex: 0, vertexCount: 6, perspective: true, cmdStart: 1, cmdCount: 1},
+			{firstVertex: 6, vertexCount: 6, perspective: true, cmdStart: 2, cmdCount: 1},
+			{firstVertex: 12, vertexCount: 6, perspective: true, cmdStart: 3, cmdCount: 1},
+		},
+	}
+	s := &GPURenderSession{}
+	cases := []struct {
+		start, count int
+		wantFirstV   []uint32
+	}{
+		{0, 1, []uint32{0}},
+		{1, 1, []uint32{0}}, // the projective call of command 1, not command 2's
+		{2, 1, []uint32{6}},
+		{3, 1, []uint32{12}},
+		{0, 2, []uint32{0, 0}},
+		{1, 3, []uint32{0, 6, 12}},
+		{2, 2, []uint32{6, 12}},
+	}
+	for _, c := range cases {
+		res := s.sliceImageResources(combined, c.start, c.count)
+		got := []uint32{}
+		if res != nil {
+			for _, dc := range append([]imageDrawCall(nil), res.drawCalls...) {
+				got = append(got, dc.firstVertex)
+			}
+		}
+		if len(got) != len(c.wantFirstV) {
+			t.Fatalf("group [%d,%d) = %v, want %v", c.start, c.start+c.count, got, c.wantFirstV)
+		}
+		for i := range got {
+			if got[i] != c.wantFirstV[i] {
+				t.Fatalf("group [%d,%d) = %v, want %v", c.start, c.start+c.count, got, c.wantFirstV)
+			}
+		}
+	}
+
+	// A merged affine slot covers several commands and must only join a group
+	// that contains the whole span.
+	merged := &imageFrameResources{
+		drawCalls: []imageDrawCall{{firstVertex: 0, vertexCount: 12, cmdStart: 0, cmdCount: 2}},
+	}
+	if res := s.sliceImageResources(merged, 1, 1); res != nil {
+		t.Fatalf("group [1,2) took a slot covering commands [0,2): %+v", res.drawCalls)
+	}
+	if res := s.sliceImageResources(merged, 0, 2); res == nil || len(res.drawCalls) != 1 {
+		t.Fatalf("group [0,2) lost the merged slot: %+v", res)
+	}
+
 }

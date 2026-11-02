@@ -584,6 +584,12 @@ func clipPathCoverageMask(clipPath *render.Path, fillRule render.FillRule, w, h 
 	// than a bounds-checked byte loop over 640x658 pixels.
 	x0, x1 := max(0, offX), min(w, offX+mw)
 	y0, y1 := max(0, offY), min(h, offY+mh)
+	if x0 >= x1 || y0 >= y1 {
+		// The clip bbox misses this surface (entirely left/right/above/below,
+		// which offX > w used to turn into an out-of-range slice): no coverage
+		// anywhere is the correct mask, and the depth test rejects all content.
+		return mask
+	}
 	for y := y0; y < y1; y++ {
 		srcRow := (y - offY) * stride
 		dstRow := y * w

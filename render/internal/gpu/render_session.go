@@ -4300,6 +4300,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		perspective          bool
 		vertBuf              hal.Buffer // nil = affine res.vertBuf; persp slots pin the 36B buffer
 		firstVertex, vertCnt uint32
+		cmdStart, cmdCount   uint32 // span in the image command list (group slicing)
 	}
 	// Reuse imageUniformScratch as slot meta is small; pack into grow-only staging.
 	slots := make([]imageSlot, 0, len(cmds))
@@ -4344,7 +4345,9 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				perspective: true,
 				vertBuf:     perspBuf,
 				firstVertex: uint32(pIdx * 6), //nolint:gosec
-				vertCnt:     6,               //nolint:mnd
+				vertCnt:     6,                //nolint:mnd
+				cmdStart:    uint32(i),        //nolint:gosec
+				cmdCount:    uint32(j - i),    //nolint:gosec
 			})
 			i = j
 			continue
@@ -4357,6 +4360,8 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			blendMode:   cmd.BlendMode,
 			firstVertex: uint32(i * 6),       //nolint:gosec
 			vertCnt:     uint32((j - i) * 6), //nolint:gosec
+			cmdStart:    uint32(i),           //nolint:gosec
+			cmdCount:    uint32(j - i),       //nolint:gosec
 		})
 		i = j
 	}
@@ -4482,6 +4487,8 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			blendMode:   slot.blendMode,
 			perspective: slot.perspective,
 			vertBuf:     slot.vertBuf,
+			cmdStart:    slot.cmdStart,
+			cmdCount:    slot.cmdCount,
 		})
 	}
 
@@ -5135,6 +5142,7 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 		uvView               hal.TextureView
 		isYUV                bool
 		firstVertex, vertCnt uint32
+		cmdStart, cmdCount   uint32 // span in the GPU-texture command list (group slicing)
 	}
 	slots := make([]gpuTexSlot, 0, len(cmds))
 	for i := 0; i < len(cmds); {
@@ -5165,6 +5173,8 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			texView:     texView,
 			firstVertex: uint32(i * 6),       //nolint:gosec
 			vertCnt:     uint32((j - i) * 6), //nolint:gosec
+			cmdStart:    uint32(i),           //nolint:gosec
+			cmdCount:    uint32(j - i),       //nolint:gosec
 		}
 		if cmd.IsYUV {
 			uvView, ok := s.ResolveCommandView(&cmd.UVView)
@@ -5299,6 +5309,8 @@ func (s *GPURenderSession) buildGPUTextureResources(cmds []GPUTextureDrawCommand
 			firstVertex: slot.firstVertex,
 			vertexCount: slot.vertCnt,
 			yuv:         isYUV,
+			cmdStart:    slot.cmdStart,
+			cmdCount:    slot.cmdCount,
 		})
 	}
 	s.gpuTexDrawCallScratch = drawCalls
@@ -5323,12 +5335,10 @@ func (s *GPURenderSession) sliceImageResources(
 	if cmdCount == 0 || combined == nil || len(combined.drawCalls) == 0 {
 		return nil
 	}
-	firstVert := uint32(cmdStart * 6)            //nolint:gosec // bounded
-	endVert := uint32((cmdStart + cmdCount) * 6) //nolint:gosec // bounded
+	end := uint32(cmdStart + cmdCount) //nolint:gosec // bounded
 	start := len(s.imageSliceDrawScratch)
 	for _, dc := range combined.drawCalls {
-		vc := imageDrawVertexCount(dc)
-		if dc.firstVertex >= firstVert && dc.firstVertex+vc <= endVert {
+		if dc.cmdStart >= uint32(cmdStart) && dc.cmdStart+dc.cmdCount <= end { //nolint:gosec
 			s.imageSliceDrawScratch = append(s.imageSliceDrawScratch, dc)
 		}
 	}

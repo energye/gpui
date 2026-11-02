@@ -49,13 +49,15 @@ func TestS41_ImageDrawVertexCount(t *testing.T) {
 	}
 }
 
-func TestS41_SliceImageResourcesByVertexRange(t *testing.T) {
-	// Simulate 6 quads: batches of 3 + 2 + 1 (firstVertex 0/18/30)
+func TestS41_SliceImageResourcesByCommandRange(t *testing.T) {
+	// Simulate 6 quads: batches of 3 + 2 + 1 (firstVertex 0/18/30). Selection
+	// follows the command span, which for merged affine slots is the same
+	// range firstVertex encodes (i*6).
 	combined := &imageFrameResources{
 		drawCalls: []imageDrawCall{
-			{firstVertex: 0, vertexCount: 18},  // cmds 0..2
-			{firstVertex: 18, vertexCount: 12}, // cmds 3..4
-			{firstVertex: 30, vertexCount: 6},  // cmd 5
+			{firstVertex: 0, vertexCount: 18, cmdStart: 0, cmdCount: 3},  // cmds 0..2
+			{firstVertex: 18, vertexCount: 12, cmdStart: 3, cmdCount: 2}, // cmds 3..4
+			{firstVertex: 30, vertexCount: 6, cmdStart: 5, cmdCount: 1},  // cmd 5
 		},
 	}
 	s := &GPURenderSession{}

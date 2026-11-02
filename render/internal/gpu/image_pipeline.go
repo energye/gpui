@@ -1022,6 +1022,14 @@ type imageDrawCall struct {
 	// vertBuf overrides imageFrameResources.vertBuf when non-nil (perspective
 	// quads live in their own 36-byte-stride buffer).
 	vertBuf hal.Buffer
+	// cmdStart/cmdCount are this call's span in the frame's image COMMAND list.
+	// Clip-group slicing selects draws by command index: firstVertex is an
+	// index into the affine vertex buffer (i*6, so the two coincide), but a
+	// projective quad packs into its own 36-byte buffer and its firstVertex
+	// counts perspective quads only. Grouping by firstVertex therefore hands
+	// every projective draw to the previous group, and the one that loses its
+	// group gets over-painted by geometry queued after it.
+	cmdStart, cmdCount uint32
 }
 
 // imageDrawVertexCount returns the vertex count for a draw call.

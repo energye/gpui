@@ -278,31 +278,46 @@ func (p *Path) RRect(rr RRect) {
 	lr := rr.Radii(RRectLowerRight)
 	ll := rr.Radii(RRectLowerLeft)
 
+	// Skia's SkPath::addRRect only curves the rounded corners: a square corner
+	// stays a plain join. Emitting a zero-length cubic there instead would leave
+	// degenerate edges in the rasteriser's edge table, which lost the coverage of
+	// a neighbouring real arc (P3.5 真窗 ui_wr_p35_rrect4 pinned it: with only the
+	// lower-left radius set, that corner filled square while Area() said rounded).
+	rounded := func(rad Point) bool { return rad.X > 0 && rad.Y > 0 }
+
 	p.MoveTo(r.Min.X+ul.X, r.Min.Y)
 	p.LineTo(r.Max.X-ur.X, r.Min.Y)
-	p.CubicTo(
-		r.Max.X-ur.X+k*ur.X, r.Min.Y,
-		r.Max.X, r.Min.Y+ur.Y-k*ur.Y,
-		r.Max.X, r.Min.Y+ur.Y,
-	)
+	if rounded(ur) {
+		p.CubicTo(
+			r.Max.X-ur.X+k*ur.X, r.Min.Y,
+			r.Max.X, r.Min.Y+ur.Y-k*ur.Y,
+			r.Max.X, r.Min.Y+ur.Y,
+		)
+	}
 	p.LineTo(r.Max.X, r.Max.Y-lr.Y)
-	p.CubicTo(
-		r.Max.X, r.Max.Y-lr.Y+k*lr.Y,
-		r.Max.X-lr.X+k*lr.X, r.Max.Y,
-		r.Max.X-lr.X, r.Max.Y,
-	)
+	if rounded(lr) {
+		p.CubicTo(
+			r.Max.X, r.Max.Y-lr.Y+k*lr.Y,
+			r.Max.X-lr.X+k*lr.X, r.Max.Y,
+			r.Max.X-lr.X, r.Max.Y,
+		)
+	}
 	p.LineTo(r.Min.X+ll.X, r.Max.Y)
-	p.CubicTo(
-		r.Min.X+ll.X-k*ll.X, r.Max.Y,
-		r.Min.X, r.Max.Y-ll.Y+k*ll.Y,
-		r.Min.X, r.Max.Y-ll.Y,
-	)
+	if rounded(ll) {
+		p.CubicTo(
+			r.Min.X+ll.X-k*ll.X, r.Max.Y,
+			r.Min.X, r.Max.Y-ll.Y+k*ll.Y,
+			r.Min.X, r.Max.Y-ll.Y,
+		)
+	}
 	p.LineTo(r.Min.X, r.Min.Y+ul.Y)
-	p.CubicTo(
-		r.Min.X, r.Min.Y+ul.Y-k*ul.Y,
-		r.Min.X+ul.X-k*ul.X, r.Min.Y,
-		r.Min.X+ul.X, r.Min.Y,
-	)
+	if rounded(ul) {
+		p.CubicTo(
+			r.Min.X, r.Min.Y+ul.Y-k*ul.Y,
+			r.Min.X+ul.X-k*ul.X, r.Min.Y,
+			r.Min.X+ul.X, r.Min.Y,
+		)
+	}
 	p.Close()
 }
 

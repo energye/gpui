@@ -896,3 +896,62 @@ func TestDepthClip_ProductionPath_NoManualEnsure(t *testing.T) {
 		t.Errorf("production depth clip FAILED: only %d px painted inside clip square", insidePainted)
 	}
 }
+
+// TestClipPathCoverageMaskOffSurfaceBBox pins the bounds guard: a clip whose
+// bbox lies wholly outside the surface must yield an all-zero mask of exactly
+// w*h instead of panicking on an out-of-range slice (offX > w used to blow up
+// the row copy — found by the P3.5 rrect4 real window's nested clip).
+func TestClipPathCoverageMaskOffSurfaceBBox(t *testing.T) {
+	const w, h = 64, 40
+	boxes := [][4]float64{
+		{w + 4, 4, w + 24, 24}, // right of the surface
+		{-30, 4, -10, 24},      // left of it
+		{4, h + 6, 24, h + 26}, // below
+		{4, -26, 24, -6},       // above
+	}
+	for _, bx := range boxes {
+		p := render.NewPath()
+		p.Rectangle(bx[0], bx[1], bx[2]-bx[0], bx[3]-bx[1])
+		mask := clipPathCoverageMask(p, render.FillRuleNonZero, w, h)
+		if mask == nil {
+			t.Fatalf("bbox %v: mask nil, want zero coverage", bx)
+		}
+		if len(mask) != w*h {
+			t.Fatalf("bbox %v: mask len %d, want %d", bx, len(mask), w*h)
+		}
+		for i, v := range mask {
+			if v != 0 {
+				t.Fatalf("bbox %v: mask[%d]=%d, want 0 (clip misses the surface)", bx, i, v)
+			}
+		}
+	}
+	// A clip that only grazes the surface corner must not panic either, and
+	// must still report coverage where it actually overlaps.
+	grazing := render.NewPath()
+	grazing.Rectangle(float64(w-2), float64(h-2), 22, 22)
+	gm := clipPathCoverageMask(grazing, render.FillRuleNonZero, w, h)
+	if gm == nil || len(gm) != w*h {
+		t.Fatalf("grazing clip: mask %v len want %d", gm != nil, w*h)
+	}
+	if gm[(h-1)*w+(w-1)] == 0 {
+		t.Fatal("grazing clip lost the overlap it does have")
+	}
+
+	// Control: an on-surface clip still carries coverage, so the guard above is
+	// not silently returning zeros for everything.
+	in := render.NewPath()
+	in.Rectangle(8, 8, 24, 24)
+	inner := clipPathCoverageMask(in, render.FillRuleNonZero, w, h)
+	if inner == nil {
+		t.Fatal("on-surface clip produced no mask")
+	}
+	full := 0
+	for _, v := range inner {
+		if v == 255 {
+			full++
+		}
+	}
+	if full < 200 {
+		t.Fatalf("on-surface clip coverage suspiciously low: %d full-coverage px", full)
+	}
+}

@@ -318,3 +318,77 @@ func TestClipRRectCoveragePixels(t *testing.T) {
 		t.Fatalf("AA band = %+v, want partial red coverage", c)
 	}
 }
+
+// TestRRectSquareCornersEmitNoDegenerateCubics pins the emitter shape: only
+// rounded corners get a cubic; a square corner stays a plain join (Skia
+// addRRect). Zero-length cubics used to poison the raster edge table.
+func TestRRectSquareCornersEmitNoDegenerateCubics(t *testing.T) {
+	rc := Rect{Min: Point{X: 30, Y: 20}, Max: Point{X: 190, Y: 130}}
+	for ci := 0; ci < 4; ci++ {
+		radii := [4]Point{}
+		radii[ci] = Point{X: 40, Y: 40}
+		p := NewPath()
+		p.RRect(NewRRectRadii(rc, radii))
+		nCubic, degenerate := 0, 0
+		var cur Point
+		p.Iterate(func(v PathVerb, c []float64) {
+			switch v {
+			case MoveTo, LineTo:
+				cur = Point{X: c[0], Y: c[1]}
+			case CubicTo:
+				nCubic++
+				end := Point{X: c[4], Y: c[5]}
+				if end.Sub(cur).Length() < 1e-12 {
+					degenerate++
+				}
+				cur = end
+			}
+		})
+		if nCubic != 1 || degenerate != 0 {
+			t.Fatalf("corner %d: cubics=%d degenerate=%d, want 1/0", ci, nCubic, degenerate)
+		}
+	}
+	// All four rounded keeps the historical ten-verb shape.
+	all := [4]Point{{X: 40, Y: 40}, {X: 40, Y: 40}, {X: 40, Y: 40}, {X: 40, Y: 40}}
+	p := NewPath()
+	p.RRect(NewRRectRadii(rc, all))
+	if p.NumVerbs() != 10 {
+		t.Fatalf("fully rounded RRect verbs=%d, want 10", p.NumVerbs())
+	}
+}
+
+// TestRRectSingleCornerRadiiRasterizeRounded is the pixel-level regression: with
+// only one corner rounded, that corner must come out clear and the three square
+// corners inked — in both render modes, since the degenerate-cubic edge bug made
+// the raster drop the arc entirely.
+func TestRRectSingleCornerRadiiRasterizeRounded(t *testing.T) {
+	x, y, w, h, r := 30.0, 20.0, 160.0, 110.0, 40.0
+	corners := [4][2]int{{34, 24}, {186, 24}, {186, 126}, {34, 126}} // 4px inside each corner
+	for mode, env := range map[string]string{"cpu": "cpu", "gpu": ""} {
+		t.Setenv("GOGPU_RENDER_MODE", env)
+		for ci := 0; ci < 4; ci++ {
+			radii := [4]Point{}
+			radii[ci] = Point{X: r, Y: r}
+			p := NewPath()
+			p.RRect(NewRRectRadii(
+				Rect{Min: Point{X: x, Y: y}, Max: Point{X: x + w, Y: y + h}}, radii))
+			dc := NewContext(194, 134)
+			dc.Clear()
+			dc.SetRGB(1, 0, 0)
+			dc.DrawPath(p)
+			if err := dc.Fill(); err != nil {
+				t.Fatalf("%s corner %d: fill: %v", mode, ci, err)
+			}
+			im := dc.Image()
+			for k := 0; k < 4; k++ {
+				rr, _, _, _ := im.At(corners[k][0], corners[k][1]).RGBA()
+				inked := uint8(rr>>8) > 120
+				want := k != ci // rounded corner must stay clear
+				if inked != want {
+					t.Errorf("%s corner %d: probe %d inked=%v want %v", mode, ci, k, inked, want)
+				}
+			}
+			_ = dc.Close()
+		}
+	}
+}
