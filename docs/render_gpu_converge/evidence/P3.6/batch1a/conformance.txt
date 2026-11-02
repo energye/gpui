@@ -1,0 +1,2 @@
+# conformance dual-backend 2026-11-02T14:29:14+08:00 HEAD=b37c21ed
+ok  	github.com/energye/gpui/render	1.232s

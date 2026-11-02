@@ -104,27 +104,49 @@ func (c *Context) pixmapToImageBuf(pm *Pixmap) *ImageBuf {
 	return img
 }
 
-// LoadImage loads an image from a file and returns an ImageBuf.
-// Supported formats: PNG, JPEG, WebP.
-// LoadImage loads an image from a file and returns an ImageBuf.
-// Supported formats: PNG, JPEG, WebP.
+// LoadImage loads an image from a file and returns an ImageBuf. The container
+// is identified from the file's leading bytes, not its extension. Recorded EXIF
+// orientation is applied, so the raster matches the intended view.
 func LoadImage(path string) (*ImageBuf, error) {
 	return intImage.LoadImage(path)
 }
 
-// LoadWebP loads a WebP image from the given file path.
+// LoadImageWithOptions loads an image from a file with explicit decode options.
+func LoadImageWithOptions(path string, opts DecodeOptions) (*ImageBuf, error) {
+	return intImage.LoadImageWithOptions(path, opts)
+}
+
 // LoadWebP loads a WebP image from the given file path.
 func LoadWebP(path string) (*ImageBuf, error) {
 	return intImage.LoadWebP(path)
 }
 
-// NewImageBuf creates a new image buffer with the given dimensions and format.
+// LoadImageFromBytes decodes encoded bytes into an ImageBuf, identifying the
+// container from the leading bytes.
+func LoadImageFromBytes(data []byte, opts DecodeOptions) (*ImageBuf, error) {
+	return intImage.LoadImageFromBytes(data, opts)
+}
+
+// ImageOrientationOfBytes reports the EXIF orientation recorded in encoded
+// bytes without decoding any pixels. Formats with no orientation concept, or
+// files with no EXIF block, report OrientationUnspecified.
+func ImageOrientationOfBytes(data []byte) (ImageOrientation, error) {
+	return intImage.ImageOrientationOfBytes(data)
+}
+
+// ImageEncodingOfBytes names the container detected in encoded bytes, so
+// callers can branch on format without decoding. Decoders are wired for PNG,
+// JPEG and WebP; ImageEncoding reports what the bytes are regardless of
+// whether they can be decoded.
+func ImageEncodingOfBytes(data []byte) ImageEncoding {
+	return intImage.SniffEncoding(data)
+}
+
 // NewImageBuf creates a new image buffer with the given dimensions and format.
 func NewImageBuf(width, height int, format ImageFormat) (*ImageBuf, error) {
 	return intImage.NewImageBuf(width, height, format)
 }
 
-// ImageBufFromImage creates an ImageBuf from a standard image.Image.
 // ImageBufFromImage creates an ImageBuf from a standard image.Image.
 func ImageBufFromImage(img image.Image) *ImageBuf {
 	return intImage.FromStdImage(img)

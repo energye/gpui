@@ -129,7 +129,7 @@ render/
 | AccelerationStructure | ✅ | ❌、`:19` | ✅ `hal_assert.go:42` | GL 显式标不支持 |
 | 损伤呈现 | ❌ 忽略（`surface.go:390-392`） | EGL/X11 ✅；WGL ❌（`queue.go:217-218`） | — | 标「仅 X11」 |
 | sRGB 交换链 | ❌ 优先非 sRGB（`swapchain_configure.go:153-159`） | 未见 | 未见 | 三端都按 gamma 混合，列入缺口 |
-| mipmap 链 | ❌ `MipLevelCount:1`（`gpu_texture.go:254,270`） | ❌ | ❌ | 三端都缺，列入缺口 |
+| mipmap 链 | ❌ 全后端纹理单级（实测非测试代码 `MipLevelCount: 1` **84 处 / 28 文件**；创建透传在 `gpu/rwgpu/texture.go:264-268,288-297`，原文引用的 `gpu_texture.go` 文件名不存在）；**生成侧 webgpu 绑定面零入口**（无 `GenerateMipmap` 符号，仅采样器 mip 档 + `wgpuTextureGetMipLevelCount`），gles `glGenerateMipmap` 已加载零调用 | ❌ 同左（gles `device_linux.go:284-294,314-325` 已真支持多级纹理，只缺产链） | 逻辑已备 `gpu/gwgpu/metal/device.go:236-241`，darwin 交叉本机不可验 | P3.6 缺口，路线拍板 D3=CPU 统一产链 + hal 逐层上传（`evidence/P3.6/assessment.md` §5） |
 | 自定义 shader | ❌ 无 API | ❌ | ❌ | 三端都缺，列入缺口 |
 
 ## 5 缺失能力登记（先文档，后实现）
@@ -148,9 +148,9 @@ render/
 | conic 路径段 | render/path | 与后端无关 | verb 全集无 Conic（`path_verb.go:35-44`）；Arc 入口级逼近（`path_build.go:179`） | 单测 + 金图 |
 | 四角独立圆角 | render/path | 与后端无关 | `ClipRoundRect` 单半径（`context_clip.go:86`）；`internal/clip.RRectClip` uniform（`stack.go:22-26`） | 单测 + 金图 |
 | 4×4 透视矩阵 | render/matrix | 与后端无关 | `Matrix{A..F}` 纯 2x3 仿射（`matrix.go:25`）；CPU 栅格 2D（`raster/edge_builder.go:49-56`） | 单测 + 金图 |
-| mesh gradient | render | 两后端 | 全仓零命中确认缺 | 真窗 + 金图 |
-| GPU mipmap 链 | render/gpu | 两后端 | 全部纹理 `MipLevelCount:1`（`image_cache.go:362,377` 等 15 处）；采样器 MipmapFilter 已备空转（`image_pipeline.go:950-985`）；真链只有 CPU（`internal/image/mipmap.go:25`） | 真窗 + 金图 |
-| 图片解码 GIF/APNG/动图 WebP/AVIF/HEIF/EXIF | render/internal/image | 与后端无关 | 仅 PNG/JPEG/WebP 静态（`internal/image/io.go:20-25,102-132`）；动图/EXIF 零支持 | 测试数据入 testdata |
+| mesh gradient（**2026-11-02 拍板 D2：单列 P3.9，不并入 P3.6**） | render | 两后端 | 全仓零命中确认缺（实测严格搜仅命中 7 处文档；既有 `render.Mesh` `render/vertices_atlas.go:475-486` 是逐顶点色三角形 Gouraud，不是 Skia 2×2/3×3 patch，不算已有实现） | 真窗 + 金图 |
+| GPU mipmap 链 | render/gpu | 两后端 | **2026-11-02 开工复核修正**（原登记「`image_cache.go:362,377` 等 15 处」低计，实测 84 处/28 文件，其中**该开多级的只有 `image_cache.go:362,377` 一处**，余为 MSAA/depth/mask/SDF/字形图集应保持单级）；**接口面其实已齐**——hal `descriptor.go:199-224` 有 `MipLevelCount`、blit `command.go:73-296` 带 `MipLevel`、采样器契约 `image_pipeline.go:1110-1143/1408-1436` 已能把 `MipmapLinear→MipmapFilterModeLinear`、WGSL 绑定形 `image_pipeline.go:846-860` 已可 mipmap；缺的是生产者：`SetPerImageFilter`（`:1096`）**全仓零生产调用者**、公开 `DrawImageOptions.UseMipmaps`（`render/context_image.go:160-162`）在 GPU 路被整段忽略（`context_image_gpu.go:47-133` 不读）——公开 API 正在承诺不存在的能力；真链只有 CPU（`internal/image/mipmap.go:25-96`，且唯一消费者 `draw.go:235-258` 从不 `Release`）；原登记行号 `image_pipeline.go:950-985` 已漂到 `destroyPipeline` | 真窗 + 金图 |
+| 图片解码 GIF/APNG/动图 WebP/AVIF/HEIF/EXIF（**2026-11-02 拍板 D1：AVIF/HEIF 剔除本项，改登记为远期专项**） | render/internal/image | 与后端无关 | 仅 PNG/JPEG/WebP 静态（实测行号 `internal/image/io.go:25,72-138`，原登记 `20-25,102-132` 已漂）；`ImageBuf` **无任何帧/时长/重复/dispose-blend 字段**（`buf.go:53-82`），动图/EXIF 零支持；**仓里有两套并行解码注册表**（render 侧 `io.go` + `ui/io/decode.go:62-133,651-687`），加格式必先收敛单一真源（D5）；**动图 WebP 纯 Go 可行**（`x/image` 已导出 `vp8`/`vp8l`/`riff` 公开包，静态解码器 `webp/decode.go:76-99,146` 本就这么调，动图只多一层 `ANIM/ANMF` 容器） | 测试数据入 testdata |
 | 路径效果 1D/2D/Sum/Compose | render/path | 与后端无关 | dash 完整（`dash.go:18/40/69`）；`WithCorners`/`Discrete` 两个 1D 子集已有（`pathops_subpath.go:391,493`）；无 PathEffect 抽象与 2D/Sum/Compose | 单测 + 金图 |
 | 布尔运算保留曲线 | render/path | 与后端无关 | 布尔已有（Clipper 扫描线，`path_boolean.go:22-98`）但曲线 flatten 0.1px 折线输出；缺「保留曲线」版 | 单测 + 金图 |
 | SVG 完整语义（defs/use/渐变/clipPath/text/filter） | render/svg | 与后端无关 | 现支持 8 元素基础属性（`svg/parser.go:197-260`）；defs/use/渐变/clipPath/text skip（`svg/doc.go:46-49`）；render 渐变/裁剪底座已有，缺解析映射 | 单测 + 真窗 |
@@ -259,9 +259,10 @@ render/
 - P3.3 富文本（含 `DrawParagraph` 逐 run 样式——原属半成品，**前移**，否则 UI 组件库缺基础）。
 - P3.4 MaskFilter / ColorFilter / ImageFilter 家族。
 - P3.5 路径与几何：conic、四角圆角、Matrix4 透视、路径效果、布尔保曲线。
-- P3.6 图片格式（GIF/APNG/动图 WebP/AVIF/HEIF/EXIF）+ GPU mipmap。
+- P3.6 图片格式（GIF/APNG/动图 WebP/EXIF 方向）+ GPU mipmap。**2026-11-02 开工拍板修订范围**：AVIF/HEIF 剔除本项（Flutter 本树未编进、Go 生态无可用 AV1 熵解码器，登记为远期专项，容器解析+能力探测为副产品）；mesh gradient 不并入本项（见 P3.9）。
 - P3.7 2.5D 透视相机、世界高度/精灵 z 序、自定义材质、HDR/泛光。
 - P3.8 SVG 完整语义、彩色字形、嵌套 Picture 引用。
+- **P3.9（2026-11-02 拍板 D2 新增）** mesh gradient：Skia 口径 2×2/3×3 patch（角角色 + bicubic/coons 风格），与 P3.6 零技术交集，从 §5.1 单列成本项；建议排在 P3.8 之后，依赖 P3.0。
 
 **P3.0 定稿（2026-11-01，用户拍板 D1–D4）**：依赖图正本在 `docs/render_gpu_converge/evidence/P3.0/dependency-graph.md`（现状证据 `assessment.md`）。依赖修订 5 条——P3.3 解除对 P3.1 的依赖、P3.4 对 P3.1 降为软依赖、P3.7 补硬依赖 P3.2 与软依赖 P3.6、P3.8 补硬依赖 P3.4（台账 §2 依赖列已同步）。实现顺序定稿（串行主序）：**P3.1 → P3.2 → P3.3 → P3.4 → P3.5 → P3.6 → P3.7 → P3.8**；P3.1/P3.3 前移项位置满足「不得挪回 P4」。§5 三表现状列、§6 半成品表三行已按 2026-11-01 实测刷新；P3 各项计划公开 API 的规划登记在 `RENDER_API_CATALOG.md` §13，各项实现时转正式登记。
 

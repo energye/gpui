@@ -1,0 +1,7 @@
+# race -count=2 2026-11-02T14:29:18+08:00
+--- ./render/internal/image ---
+ok  	github.com/energye/gpui/render/internal/image	2.806s
+--- ./render/recording ---
+ok  	github.com/energye/gpui/render/recording	1.857s
+--- ./render (image tests only, whole-package run has the registered native abort) ---
+ok  	github.com/energye/gpui/render	2.025s

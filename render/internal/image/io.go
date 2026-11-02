@@ -11,6 +11,7 @@
 package image
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -20,97 +21,149 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"golang.org/x/image/webp" // also registers WebP decoder for image.Decode
 )
 
 // I/O errors.
 var (
-	// ErrUnsupportedFormat is returned when the image format is not supported.
+	// ErrUnsupportedFormat is returned when no registered decoder claims the
+	// bytes — either the container is unknown, or it is recognised
+	// (AVIF/HEIF) but has no pixel decoder wired in this build.
 	ErrUnsupportedFormat = errors.New("image: unsupported format")
 
 	// ErrEmptyData is returned when image data is empty.
 	ErrEmptyData = errors.New("image: empty data")
 )
 
+// DecodeOptions controls decode-time normalisation. The zero value is the
+// default behaviour, which is how the image is meant to be viewed: any recorded
+// EXIF orientation is applied to the raster.
+type DecodeOptions struct {
+	// PreserveOrientation returns the stored raster exactly as encoded. The
+	// recorded orientation remains queryable through
+	// ImageOrientationOfBytes and ImageOrientationOfStream.
+	PreserveOrientation bool
+}
+
+// bufioHeaderSize covers the bounded header walk that finds EXIF orientation,
+// so one peek serves both format detection and the orientation probe.
+const bufioHeaderSize = maxHeaderScan
+
 // LoadPNG loads a PNG image from the given file path.
 func LoadPNG(path string) (*ImageBuf, error) {
-	f, err := os.Open(filepath.Clean(path))
-	if err != nil {
-		return nil, fmt.Errorf("image: open file: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-
-	return DecodePNG(f)
+	return loadFile(path, DecodeOptions{}, EncodingPNG)
 }
 
 // LoadJPEG loads a JPEG image from the given file path.
 func LoadJPEG(path string) (*ImageBuf, error) {
-	f, err := os.Open(filepath.Clean(path))
-	if err != nil {
-		return nil, fmt.Errorf("image: open file: %w", err)
-	}
-	defer func() { _ = f.Close() }()
-
-	return DecodeJPEG(f)
+	return loadFile(path, DecodeOptions{}, EncodingJPEG)
 }
 
 // LoadWebP loads a WebP image from the given file path.
 func LoadWebP(path string) (*ImageBuf, error) {
+	return loadFile(path, DecodeOptions{}, EncodingWebP)
+}
+
+// LoadImage loads an image from the given file path, identifying the container
+// from its leading bytes. The extension is not consulted, so a mislabelled file
+// still decodes to what it actually contains. Recorded EXIF orientation is
+// applied by default, matching how the reference frameworks present images.
+func LoadImage(path string) (*ImageBuf, error) {
+	return LoadImageWithOptions(path, DecodeOptions{})
+}
+
+// LoadImageWithOptions loads an image from a file path with explicit options.
+func LoadImageWithOptions(path string, opts DecodeOptions) (*ImageBuf, error) {
+	return loadFile(path, opts, EncodingUnknown)
+}
+
+// LoadImageFromBytes loads an image from encoded bytes, identifying the
+// container from the leading bytes.
+func LoadImageFromBytes(data []byte, opts DecodeOptions) (*ImageBuf, error) {
+	if len(data) == 0 {
+		return nil, ErrEmptyData
+	}
+	return Decode(bytes.NewReader(data), opts)
+}
+
+// Decode decodes an image from the given reader, identifying the container from
+// the leading bytes. Only a bounded header window is inspected before decoding.
+func Decode(r io.Reader, opts DecodeOptions) (*ImageBuf, error) {
+	if r == nil {
+		return nil, ErrEmptyData
+	}
+	br, ok := r.(*bufio.Reader)
+	if !ok {
+		br = bufio.NewReaderSize(r, bufioHeaderSize)
+	}
+	// The window is peeked, not consumed: the decoders below still see the
+	// whole stream, and orientation has to be read before the header is eaten.
+	window := peekWindow(br, bufioHeaderSize)
+	format := SniffEncoding(window)
+	if format == EncodingUnknown {
+		return nil, fmt.Errorf("%w: unrecognised container", ErrUnsupportedFormat)
+	}
+	if err := format.ErrDecodable(); err != nil {
+		return nil, err
+	}
+	var ori ImageOrientation
+	if !opts.PreserveOrientation {
+		ori, _ = ImageOrientationOfBytes(window)
+	}
+	img, err := decodeByFormat(br, format)
+	if err != nil {
+		return nil, err
+	}
+	return FromStdImage(orientImage(img, ori)), nil
+}
+
+// loadFile opens a path and decodes it. wantFormat, when not EncodingUnknown,
+// pins the container so a format-specific loader fails loudly instead of
+// silently falling back to another decoder.
+func loadFile(path string, opts DecodeOptions, wantFormat Encoding) (*ImageBuf, error) {
 	f, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return nil, fmt.Errorf("image: open file: %w", err)
 	}
 	defer func() { _ = f.Close() }()
 
-	return DecodeWebP(f)
+	br := bufio.NewReaderSize(f, bufioHeaderSize)
+	if wantFormat != EncodingUnknown && SniffEncoding(peekWindow(br, 12)) != wantFormat {
+		return nil, fmt.Errorf("image: %s: asked for %s, content is %s", path, wantFormat,
+			SniffEncoding(peekWindow(br, 12)))
+	}
+	return Decode(br, opts)
 }
 
-// LoadImage loads an image from the given file path, auto-detecting the format.
-// Supported formats: PNG, JPEG, WebP.
-func LoadImage(path string) (*ImageBuf, error) {
-	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".png":
-		return LoadPNG(path)
-	case ".jpg", ".jpeg":
-		return LoadJPEG(path)
-	case ".webp":
-		return LoadWebP(path)
-	default:
-		// Try to detect from content
-		f, err := os.Open(filepath.Clean(path))
+// decodeByFormat dispatches to the decoder registered for a sniffed container.
+func decodeByFormat(r io.Reader, format Encoding) (image.Image, error) {
+	switch format {
+	case EncodingPNG:
+		img, err := png.Decode(r)
 		if err != nil {
-			return nil, fmt.Errorf("image: open file: %w", err)
+			return nil, fmt.Errorf("image: decode PNG: %w", err)
 		}
-		defer func() { _ = f.Close() }()
-
-		return Decode(f)
+		return img, nil
+	case EncodingJPEG:
+		img, err := jpeg.Decode(r)
+		if err != nil {
+			return nil, fmt.Errorf("image: decode JPEG: %w", err)
+		}
+		return img, nil
+	case EncodingWebP:
+		img, err := webp.Decode(r)
+		if err != nil {
+			return nil, fmt.Errorf("image: decode WebP: %w", err)
+		}
+		return img, nil
+	default:
+		return nil, fmt.Errorf("%w: %s has no decoder wired in", ErrUnsupportedFormat, format)
 	}
 }
 
-// LoadImageFromBytes loads an image from a byte slice, auto-detecting the format.
-func LoadImageFromBytes(data []byte) (*ImageBuf, error) {
-	if len(data) == 0 {
-		return nil, ErrEmptyData
-	}
-	return Decode(bytes.NewReader(data))
-}
-
-// Decode decodes an image from the given reader, auto-detecting the format.
-func Decode(r io.Reader) (*ImageBuf, error) {
-	img, format, err := image.Decode(r)
-	if err != nil {
-		return nil, fmt.Errorf("image: decode: %w", err)
-	}
-
-	_ = format // format string available if needed
-
-	return FromStdImage(img), nil
-}
-
-// DecodePNG decodes a PNG image from the given reader.
+// DecodePNG decodes a PNG image from the given reader, leaving any recorded
+// orientation unapplied.
 func DecodePNG(r io.Reader) (*ImageBuf, error) {
 	img, err := png.Decode(r)
 	if err != nil {
@@ -119,7 +172,8 @@ func DecodePNG(r io.Reader) (*ImageBuf, error) {
 	return FromStdImage(img), nil
 }
 
-// DecodeJPEG decodes a JPEG image from the given reader.
+// DecodeJPEG decodes a JPEG image from the given reader, leaving any recorded
+// orientation unapplied.
 func DecodeJPEG(r io.Reader) (*ImageBuf, error) {
 	img, err := jpeg.Decode(r)
 	if err != nil {
@@ -128,7 +182,8 @@ func DecodeJPEG(r io.Reader) (*ImageBuf, error) {
 	return FromStdImage(img), nil
 }
 
-// DecodeWebP decodes a WebP image from the given reader.
+// DecodeWebP decodes a WebP image from the given reader, leaving any recorded
+// orientation unapplied.
 func DecodeWebP(r io.Reader) (*ImageBuf, error) {
 	img, err := webp.Decode(r)
 	if err != nil {

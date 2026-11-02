@@ -10,7 +10,9 @@
 ```
 P3.0（本图）──┬→ P3.1 色彩管理地基（线性混合接线）【前移项；HDR/滤镜/2.5D 共同地基】
               ├→ P3.5 路径与几何（conic/四角RRect/Matrix4/PathEffect/布尔保曲线）
-              └→ P3.6 图片格式（GIF/APNG/动图WebP/AVIF/HEIF/EXIF）+ GPU mipmap
+              └→ P3.6 图片格式（GIF/APNG/动图WebP/EXIF）+ GPU mipmap
+                 【2026-11-02 修订：AVIF/HEIF 剔除本项；mesh gradient 单列 P3.9】
+              └→ P3.9 mesh gradient（2026-11-02 新增，原混记在 P3.6 范围内）
 
 P3.1 ──┬→ P3.4 滤镜家族（软：色彩空间感知滤镜可选受益）
        └→ P3.7 2.5D（HDR/泛光子项）
@@ -31,7 +33,8 @@ P3.6 ──→ P3.7（软：GPU mipmap 消费关系）             ← 本次新
 | P3.3 富文本 | §5.2 逐段样式/Justify/ellipsis/maxLines；§6 DrawParagraph 逐 run | 无 Span/RunStyle/Paragraph 类型；Justify 有常量无实现（`layout.go:30,617`）；ellipsis/maxLines 零命中；DrawParagraph 单色自述 `context_misc_draw.go:270-276` | P3.0 |
 | P3.4 滤镜家族 | §5.1 MaskFilter/ColorFilter 四族/ImageFilter 八族 | 已有 blur/colormatrix(4x5+9 预设)/dropshadow 双链路；缺 8 族 ImageFilter+ColorFilter 四族+MaskFilter 概念+Paint 级字段 | P3.0；P3.1（软） |
 | P3.5 路径与几何 | §5.1 conic/四角RRect/Matrix4/路径效果/布尔保曲线 | verb 无 Conic；RRect 单半径；Matrix 2x3 仿射；dash+两个 1D 子集已有；布尔 Clipper 版已有但曲线 flatten | P3.0 |
-| P3.6 图片格式+mipmap | §5.1 六种格式+EXIF+mesh gradient；GPU mipmap 链 | 解码仅 PNG/JPEG/WebP 静态；动图/EXIF/mesh gradient 零命中；全部纹理 `MipLevelCount:1`，采样器 MipmapFilter 已备空转 | P3.0 |
+| P3.6 图片格式+mipmap | §5.1 格式解码（GIF/APNG/动图 WebP/EXIF）+ GPU mipmap 链【2026-11-02 修订：AVIF/HEIF 剔除、mesh gradient 移出改记 P3.9】 | 解码仅 PNG/JPEG/WebP 静态；动图/EXIF 零命中；纹理单级实测 84 处/28 文件（该开多级的只有 `image_cache.go:362,377`），采样器与公开 `UseMipmaps` 均空转（详证 `evidence/P3.6/assessment.md` §1） | P3.0 |
+| P3.9 mesh gradient（2026-11-02 新增，拍板 D2） | §5.1 mesh gradient 行 | 全仓零命中（严格搜仅 7 处文档命中）；`render.Mesh` 是逐顶点色三角形，非 Skia patch，不算已有实现 | P3.0 |
 | P3.7 2.5D | §5.3 五行 | 引擎库已有 Projector/YSort25D/Shadow25D（`engine/camera/`）；缺 render/matrix 4×4 与透视绘制口；材质/HDR/泛光/mipmap 均等上游 | P3.0、P3.1、P3.2、P3.5、P3.6（软） |
 | P3.8 SVG/彩色字形/Picture | §5.1 SVG 完整语义；§5.2 COLRv1 完整/嵌套 Picture | SVG 现支持 8 元素基础属性，defs/use/渐变/clipPath/text/filter 全 skip；COLR 实际只解析 v0 表（v1 被误读）；recording 无嵌套引用命令 | P3.0、P3.3、P3.4、P3.5 |
 
@@ -44,6 +47,14 @@ P3.6 ──→ P3.7（软：GPU mipmap 消费关系）             ← 本次新
 | 3 | P3.7 依赖 P3.0、P3.1、P3.5 | **P3.0、P3.1、P3.2、P3.5、P3.6（软）** | 自定义材质依赖自定义 shader（PLAN §5.3 明写，原漏记）；GPU mipmap 由 P3.6 交付、2.5D 消费 |
 | 4 | P3.8 依赖 P3.0、P3.3、P3.5 | **P3.0、P3.3、P3.4、P3.5** | SVG 完整语义含 `<filter>`（PLAN §5.1 明列，原漏记） |
 | 5 | （P3.2 依赖不变） | P3.0、P2.1（✅） | 维持；hal 口现成，主工作量在 render 新 API 面 |
+
+### 3b. 2026-11-02 修订（P3.6 开工拍板 D1/D2，PLAN §7.4 与台账 §2.2 已同步）
+
+| # | 原记 | 修订后 | 依据 |
+|---|---|---|---|
+| 6 | P3.6 范围含 AVIF/HEIF | **P3.6 剔除 AVIF/HEIF**，登记为远期专项（容器解析 + 能力探测 + 哨兵错作副产品） | 参考框架 Flutter 本树未编进该两格式（`flutter/engine/lib/ui/painting/image_generator_registry.cc:30-42` 注册表无 HEIF/AVIF 项，`SkHeif/aom/dav1d` 全树零命中）；Go 生态无可用 AV1 熵解码器（`evidence/P3.6/assessment.md` §2A、§7） |
+| 7 | P3.6 节点范围含 mesh gradient（本文件 §2 原记） | **mesh gradient 单列 P3.9**，依赖 P3.0，排在 P3.8 之后 | 与图片解码/mipmap 零技术交集；并入会把两批变 5–6 批（新 patch 类型 + 新 WGSL 管线 + 第 15 份 `rrect_clip_coverage` 内联副本 + CPU 孪生 + recording 命令 + 独立真窗），违背「每批独立提交点」节奏（`evidence/P3.6/assessment.md` §1.11、§5 D2） |
+| 8 | P3.6 现状「全部纹理 `MipLevelCount:1` 等 15 处、采样器已备空转」 | 实测 **84 处 / 28 文件**，其中该开多级的只有 `render/internal/gpu/image_cache.go:362,377`；空转真双因=`SetPerImageFilter` 零生产调用者 + 公开 `UseMipmaps` 在 GPU 路被忽略 | `evidence/P3.6/assessment.md` §1.6、§3.2（含可复现 grep 命令） |
 
 ## 4. 实现顺序（D2 拍板：推荐主序，串行）
 
@@ -61,6 +72,7 @@ P3.1 → P3.2 → P3.3 → P3.4 → P3.5 → P3.6 → P3.7 → P3.8
 | 6 | P3.6 | 同上，最独立；mipmap 供 P3.7 消费 |
 | 7 | P3.7 | 消费方最多（P3.1+P3.2+P3.5+P3.6） |
 | 8 | P3.8 | 消费 P3.3+P3.4+P3.5，且 SVG `<filter>` 需要滤镜家族齐 |
+| 9 | P3.9 | 2026-11-02 拍板 D2 新增；只依赖 P3.0，不与任何项互为前置，排在主线之后不打断 P3.6/P3.7 节奏 |
 
 并行说明：台账 §2「P3.2–P3.8 在 P3.0（及各自前置）完成后可分批并行」的技术可行性保留；拍板采用串行（GPU 真窗隔离 :3 串行排期是瓶颈，每项独立分支+全门禁）。前移项位置核对：P3.1=第 1、P3.3=第 3，均满足「不得挪回 P4」。
 

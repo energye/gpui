@@ -225,7 +225,7 @@ func TestLoadImageFromBytes(t *testing.T) {
 	}
 
 	// Load from bytes
-	loaded, err := LoadImageFromBytes(buf.Bytes())
+	loaded, err := LoadImageFromBytes(buf.Bytes(), DecodeOptions{})
 	if err != nil {
 		t.Fatalf("LoadImageFromBytes failed: %v", err)
 	}
@@ -237,12 +237,12 @@ func TestLoadImageFromBytes(t *testing.T) {
 }
 
 func TestLoadImageFromBytes_Empty(t *testing.T) {
-	_, err := LoadImageFromBytes(nil)
+	_, err := LoadImageFromBytes(nil, DecodeOptions{})
 	if !errors.Is(err, ErrEmptyData) {
-		t.Errorf("LoadImageFromBytes(nil) = %v, want ErrEmptyData", err)
+		t.Errorf("LoadImageFromBytes(nil, DecodeOptions{}) = %v, want ErrEmptyData", err)
 	}
 
-	_, err = LoadImageFromBytes([]byte{})
+	_, err = LoadImageFromBytes([]byte{}, DecodeOptions{})
 	if !errors.Is(err, ErrEmptyData) {
 		t.Errorf("LoadImageFromBytes([]) = %v, want ErrEmptyData", err)
 	}
@@ -262,7 +262,7 @@ func TestEncodeToBytes(t *testing.T) {
 	}
 
 	// Verify it's valid PNG by decoding
-	_, err = LoadImageFromBytes(data)
+	_, err = LoadImageFromBytes(data, DecodeOptions{})
 	if err != nil {
 		t.Errorf("EncodeToBytes produced invalid PNG: %v", err)
 	}
@@ -390,7 +390,7 @@ func TestLoadJPEG_NotFound(t *testing.T) {
 }
 
 func TestDecode_InvalidData(t *testing.T) {
-	_, err := Decode(bytes.NewReader([]byte("not an image")))
+	_, err := Decode(bytes.NewReader([]byte("not an image")), DecodeOptions{})
 	if err == nil {
 		t.Error("Decode should fail for invalid data")
 	}
@@ -466,7 +466,7 @@ func TestLoadImage_WebP(t *testing.T) {
 func TestWebPViaAutoDetect(t *testing.T) {
 	data := readTestWebP(t)
 
-	loaded, err := LoadImageFromBytes(data)
+	loaded, err := LoadImageFromBytes(data, DecodeOptions{})
 	if err != nil {
 		t.Fatalf("LoadImageFromBytes(WebP) failed: %v", err)
 	}
