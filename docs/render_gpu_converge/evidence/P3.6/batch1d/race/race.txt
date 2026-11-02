@@ -1,0 +1,15 @@
+# race -count=2 本批触及四包 2026-11-03T00:07:06+08:00
+--- ./ui/scheduler ---
+ok  	github.com/energye/gpui/ui/scheduler	3.408s
+--- ./ui/rendering ---
+FAIL
+FAIL	github.com/energye/gpui/ui/rendering	63.840s
+FAIL
+--- ./ui/textinput ---
+FAIL
+FAIL	github.com/energye/gpui/ui/textinput	22.770s
+FAIL
+--- ./ui/embedder ---
+FAIL
+FAIL	github.com/energye/gpui/ui/embedder	1.149s
+FAIL

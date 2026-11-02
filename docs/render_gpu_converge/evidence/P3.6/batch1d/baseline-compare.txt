@@ -1,0 +1,13 @@
+### 主 sweep（34 包）
+  per-file-tests/summary.tsv                                       734 条 PASS=704 SKIP_TAGGED=21 SKIP_PKG=0 NO_TESTS=1 FAIL=8
+  per-file-tests/summary.tsv                                       735 条 PASS=704 SKIP_TAGGED=21 SKIP_PKG=0 NO_TESTS=1 FAIL=9
+  --- FAIL 名单差异（< 只在基线 / > 只在本次）---
+3a4
+> render/s6_9_heavy_budget_test.go
+
+### 补充 sweep（分包）
+  per-file-tests-extra/summary.tsv                                 80 条 PASS=72 SKIP_TAGGED=2 SKIP_PKG=0 NO_TESTS=0 FAIL=6
+  per-file-tests-extra/summary.tsv                                 80 条 PASS=72 SKIP_TAGGED=2 SKIP_PKG=0 NO_TESTS=0 FAIL=6
+  --- FAIL 名单差异（< 只在基线 / > 只在本次）---
+  （FAIL 名单逐条相同）
+

@@ -1,0 +1,20 @@
+# P3.6 batch 1d build gate: darwin/arm64
+# env: CGO_ENABLED=0 GOOS=darwin GOARCH=arm64
+# date: 2026-11-03T00:09:12+08:00
+# head: b0c18b7b
+# dirty: 22 paths (P3.6 批 1d working tree, uncommitted)
+
+## 1. go build ./... (raw)
+# github.com/energye/gpui/examples/ui_render_base_recording
+examples/ui_render_base_recording/scene.go:470:32: cannot use spy (variable of type *recordingSpyBackend) as recording.Backend value in argument to rlay.contract.Playback: *recordingSpyBackend does not implement recording.Backend (wrong type for method FillPath)
+		have FillPath(*render.Path, recording.Brush, recording.FillRule, render.BlendMode)
+		want FillPath(*render.Path, recording.Brush, recording.FillRule, render.BlendMode, render.BlendSpace)
+# exit: 1 (expected 1: known-broken pkgs excluded below, pre-existing)
+
+## 2. go build <all buildable except known-broken>
+# pkgs: 328
+# exit: 0
+
+## 3. go build -tags nogpu <all buildable except known-broken>
+# pkgs: 324
+# exit: 0
