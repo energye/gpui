@@ -185,9 +185,10 @@ func (a *AnimatedImage) Canvas() (int, int) {
 }
 
 // Image returns the reused buffer holding the most recently decoded frame.
-// The pointer stays the same across DecodeFrame calls on purpose: the GPU
-// texture cache keys on the buffer's generation id, so a stable buffer plus
-// MarkPixelsDirty rewires one texture per animation instead of one per frame.
+// The pointer stays the same across DecodeFrame calls on purpose: every frame
+// rewrite retires the buffer's generation id and hands out a new one, so caches
+// keyed on the id re-upload and reclaim the previous texture instead of keeping
+// one entry per frame.
 func (a *AnimatedImage) Image() *ImageBuf {
 	if a == nil {
 		return nil
@@ -364,9 +365,10 @@ func blendOver(sr, sg, sb, sa, dr, dg, db, da uint8) (uint8, uint8, uint8, uint8
 	return chanOut(sr, dr), chanOut(sg, dg), chanOut(sb, db), uint8(oa*255 + 0.5)
 }
 
-// publish copies the working canvas into the reused ImageBuf and marks it
-// dirty so the GPU path rewrites the same texture instead of allocating one.
+// publish copies the working canvas into the reused ImageBuf and retires its
+// generation id: the id is the content version, so every consumer cache is told
+// the pixels moved and re-uploads (the GPU reclaims the previous texture).
 func (a *AnimatedImage) publish() {
 	copy(a.cur.Data(), a.canvas)
-	a.cur.MarkPixelsDirty()
+	a.cur.NotifyPixelsChanged()
 }

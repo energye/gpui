@@ -1,0 +1,5 @@
+# targeted 2026-11-02T19:33:36+08:00
+ok  	github.com/energye/gpui/render	0.458s
+ok  	github.com/energye/gpui/render/internal/image	0.029s
+--- gpu 定向（换代际/退役逐出/合并谓词）---
+ok  	github.com/energye/gpui/render/internal/gpu	0.593s

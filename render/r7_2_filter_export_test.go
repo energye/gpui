@@ -64,8 +64,8 @@ func TestR72_ApplyBlur_GPUFilterTextureNoExportPrefer(t *testing.T) {
 	if iw != 64 || ih != 48 {
 		t.Fatalf("export size %dx%d", iw, ih)
 	}
-	if !img.IsGPUDirty() {
-		t.Fatal("export should mark GPU dirty")
+	if img.GenerationID() == 0 {
+		t.Fatal("export must hand out a content generation the GPU can key on")
 	}
 }
 
@@ -92,11 +92,10 @@ func TestR72_ExportImageBuf_AfterGPUFilter_NoPendingSucceeds(t *testing.T) {
 		t.Fatal("export failed")
 	}
 	gen := img.GenerationID()
-	_ = img.TakeGPUDirty()
 	if !dc.ExportImageBuf(&img) {
 		t.Fatal("second export failed")
 	}
-	if img.GenerationID() != gen {
-		t.Fatalf("gen changed on second export")
+	if img.GenerationID() == gen {
+		t.Fatalf("generation did not advance on second export")
 	}
 }

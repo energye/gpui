@@ -17,7 +17,6 @@ package image
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 )
 
 // Common errors for image operations.
@@ -46,9 +45,6 @@ var (
 //
 // Thread safety: ImageBuf is safe for concurrent read access. Write operations
 // (Set*, Clear, InvalidatePremulCache) require external synchronization.
-// nextImageBufGenID is a process-global monotonic counter for ImageBuf identity.
-var nextImageBufGenID atomic.Uint64
-
 // ImageBuf is a memory-efficient image buffer with support for multiple pixel formats.
 type ImageBuf struct {
 	// mu guards every field Dispose mutates (disposed/data/dims/genID/
@@ -64,12 +60,9 @@ type ImageBuf struct {
 	height int
 	stride int
 	format Format
-	genID  uint64 // Unique generation ID for GPU texture cache keying
-
-	// gpuDirty: pixels changed but genID kept (ExportImageBuf reuse / effect RT).
-	// ImageCache re-uploads into the existing GPU texture instead of allocating a
-	// new cache entry (prevents VRAM growth on continuous offscreen export).
-	gpuDirty bool
+	genID  uint64 // Content generation: identifies the pixels, not the buffer
+	// watch: generation-change listeners; nil until someone registers.
+	watch *GenWatch
 
 	// disposed: true after Dispose(); buffer must not be drawn or re-filled as live.
 	// Idempotent Dispose is required for UI image ownership (FImg-DISPOSE).
@@ -102,12 +95,19 @@ func (b *ImageBuf) Dispose() {
 	b.width = 0
 	b.height = 0
 	b.stride = 0
+	old := b.genID
 	b.genID = 0
-	b.gpuDirty = false
+	w := b.watch
+	b.watch = nil
 	b.premulMu.Lock()
 	b.premulReady = false
 	b.premulData = nil
 	b.premulMu.Unlock()
+	b.mu.Unlock()
+	// Listeners run without the lock: a cache holding a texture for this buffer
+	// is told the ID is gone, so nothing waits on LRU to reclaim it.
+	w.Fire(old)
+	b.mu.Lock()
 }
 
 // Disposed reports whether Dispose has been called (or b is nil).
@@ -135,7 +135,7 @@ func NewImageBuf(width, height int, format Format) (*ImageBuf, error) {
 
 	return &ImageBuf{
 		data:   data,
-		genID:  nextImageBufGenID.Add(1),
+		genID:  NextContentGenID(),
 		width:  width,
 		height: height,
 		stride: stride,
@@ -162,7 +162,7 @@ func NewImageBufWithStride(width, height int, format Format, stride int) (*Image
 
 	return &ImageBuf{
 		data:   data,
-		genID:  nextImageBufGenID.Add(1),
+		genID:  NextContentGenID(),
 		width:  width,
 		height: height,
 		stride: stride,
@@ -193,7 +193,7 @@ func FromRaw(data []byte, width, height int, format Format, stride int) (*ImageB
 
 	return &ImageBuf{
 		data:   data[:requiredSize],
-		genID:  nextImageBufGenID.Add(1),
+		genID:  NextContentGenID(),
 		width:  width,
 		height: height,
 		stride: stride,
@@ -210,7 +210,7 @@ func (b *ImageBuf) Clone() *ImageBuf {
 
 	return &ImageBuf{
 		data:   newData,
-		genID:  nextImageBufGenID.Add(1),
+		genID:  NextContentGenID(),
 		width:  b.width,
 		height: b.height,
 		stride: b.stride,
@@ -268,63 +268,65 @@ func (b *ImageBuf) GenerationID() uint64 {
 
 // NotifyPixelsChanged assigns a new generation ID and invalidates the premul
 // cache. Call after mutating pixel data in place (e.g. offscreen effect RT
-// republish).
+// republish, animation frame advance).
+//
+// The ID is the content version: caches keyed by it hold the previous pixels and
+// are told, through AddGenIDWatcher, that the ID they stored is retired.
 func (b *ImageBuf) NotifyPixelsChanged() {
 	if b == nil {
 		return
 	}
-	b.genID = nextImageBufGenID.Add(1)
+	b.mu.Lock()
+	old := b.genID
+	b.genID = NextContentGenID()
+	w := b.watch
+	b.mu.Unlock()
 	b.InvalidatePremulCache()
+	w.Fire(old)
+}
+
+// AddGenIDWatcher registers fn to run with the retired generation ID whenever
+// these pixels get a new one (and once when the buffer is disposed). The
+// returned closure drops the registration; calling it twice is safe.
+//
+// Listeners run on the notifying goroutine with no buffer lock held. A GPU cache
+// must not mutate itself from here if the notification can arrive off its render
+// thread — it records the retired ID and drains it on the render path instead
+// (see gpu.ImageCache.noteRetiredGen).
+func (b *ImageBuf) AddGenIDWatcher(fn func(oldGenID uint64)) (remove func()) {
+	if b == nil {
+		return func() {}
+	}
+	b.mu.Lock()
+	if b.watch == nil {
+		b.watch = &GenWatch{}
+	}
+	w := b.watch
+	b.mu.Unlock()
+	return w.Add(fn)
 }
 
 // MarkEphemeral sets GenerationID to 0 so the GPU image cache uploads this
-// buffer for a single frame and releases it through the cache retire outlet.
-// Use for continuous animated offscreen effect RTs republished every frame —
-// bumping a new genID each frame would grow the long-term cache / VRAM.
+// buffer for a single frame and releases it through the cache retire outlet,
+// without ever inserting a long-term entry. Use for content that is drawn once
+// and thrown away (per-frame particle sprites), not as an animation strategy:
+// a buffer that is redrawn across frames wants a stable ID and NotifyPixelsChanged
+// when its pixels move.
+//
+// Any previous generation is retired and broadcast first, so a cache that had
+// already uploaded this buffer under a real ID drops that texture now rather
+// than waiting for LRU.
 func (b *ImageBuf) MarkEphemeral() {
 	if b == nil {
 		return
 	}
-	b.genID = 0
-	b.gpuDirty = false
-	b.InvalidatePremulCache()
-}
-
-// MarkPixelsDirty keeps GenerationID stable and flags GPU cache for in-place
-// reupload. Use for continuous effect RTs that rewrite the same ImageBuf
-// (ExportImageBuf reuse) — avoids ImageCache entry explosion from NotifyPixelsChanged.
-func (b *ImageBuf) MarkPixelsDirty() {
-	if b == nil {
-		return
-	}
-	if b.genID == 0 {
-		b.genID = nextImageBufGenID.Add(1)
-	}
-	b.gpuDirty = true
-	b.InvalidatePremulCache()
-}
-
-// TakeGPUDirty returns whether GPU texture content is stale and clears the flag.
-// Called by the GPU DrawImage path when queuing an upload.
-func (b *ImageBuf) TakeGPUDirty() bool {
-	if b == nil {
-		return false
-	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	d := b.gpuDirty
-	b.gpuDirty = false
-	return d
-}
-
-// IsGPUDirty reports whether MarkPixelsDirty is pending (tests/diagnostics).
-func (b *ImageBuf) IsGPUDirty() bool {
-	if b == nil {
-		return false
-	}
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	return b.gpuDirty
+	old := b.genID
+	b.genID = 0
+	w := b.watch
+	b.mu.Unlock()
+	b.InvalidatePremulCache()
+	w.Fire(old)
 }
 
 // Format returns the pixel format.
@@ -650,7 +652,7 @@ func (b *ImageBuf) SubImage(x, y, width, height int) *ImageBuf {
 
 	return &ImageBuf{
 		data:   b.data[offset:endOffset],
-		genID:  nextImageBufGenID.Add(1),
+		genID:  NextContentGenID(),
 		width:  width,
 		height: height,
 		stride: b.stride, // Keep original stride for proper row access

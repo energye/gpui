@@ -1,0 +1,11 @@
+# race -count=2 2026-11-02T19:33:51+08:00
+--- ./render/internal/image ---
+ok  	github.com/energye/gpui/render/internal/image	2.851s
+--- ./render/recording ---
+ok  	github.com/energye/gpui/render/recording	1.781s
+--- ./ui/io ---
+ok  	github.com/energye/gpui/ui/io	4.138s
+--- ./render/internal/gpu (换代际逐出) ---
+ok  	github.com/energye/gpui/render/internal/gpu	2.262s
+--- ./render (P3.6 动图/导出钉；整包=既有 native abort 已登记) ---
+ok  	github.com/energye/gpui/render	2.150s

@@ -1,0 +1,350 @@
+//go:build !nogpu
+
+package gpu
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/energye/gpui/gpu/hal"
+	"github.com/energye/gpui/gpu/types"
+	"github.com/energye/gpui/render"
+	intImage "github.com/energye/gpui/render/internal/image"
+)
+
+func p36cRoot(t *testing.T) string {
+	wd, _ := os.Getwd()
+	for p := wd; ; p = filepath.Dir(p) {
+		if st, err := os.Stat(filepath.Join(p, "go.mod")); err == nil && !st.IsDir() {
+			return p
+		}
+		if filepath.Dir(p) == p {
+			t.Fatalf("no go.mod from %s", wd)
+		}
+	}
+}
+
+func p36cHash(b []byte) string {
+	s := sha256.Sum256(b)
+	return hex.EncodeToString(s[:6])
+}
+
+func p36cCmd(img *intImage.ImageBuf) *ImageDrawCommand {
+	gen := img.GenerationID()
+	w, h := img.Width(), img.Height()
+	return &ImageDrawCommand{
+		PixelData:    img.PremultipliedData(),
+		GenerationID: gen,
+		Src:          img,
+		SrcGen:       gen,
+		ImgWidth:     w,
+		ImgHeight:    h,
+		ImgStride:    w * 4,
+	}
+}
+
+func p36cStats(ic *ImageCache) string {
+	st := ic.Stats()
+	return fmt.Sprintf("entries=%d uploads=%d hits=%d usedBytes=%d creates=%d retired=%d watched=%d",
+		st.Entries, st.Uploads, st.Hits, st.UsedBytes, st.Creates, st.RetiredGens, st.Watched)
+}
+
+// 主探针：连播 N 帧，两个消费者各自是否真重传、条目/显存是否平、纹理分配次数。
+func TestP36C_Probe(t *testing.T) {
+	dir := filepath.Join(p36cRoot(t), "render", "testdata", "imgfmt")
+	device, queue, cleanup := createNativeTestDevice(t)
+	defer cleanup()
+
+	for _, name := range []string{"gif_restore_prev.gif", "apng_plays3.png", "webp_anim_lossy.webp"} {
+		anim, err := intImage.LoadAnimatedImage(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		n := anim.FrameCount()
+		img := anim.Image()
+		cw, ch := anim.Canvas()
+		t.Logf("=== %s frames=%d canvas=%dx%d ===", name, n, cw, ch)
+
+		var hashes, seeds []string
+		seenGen := map[uint64]bool{}
+		dupGen := 0
+		var retiredSeen int
+		remove := img.AddGenIDWatcher(func(uint64) { retiredSeen++ })
+		for i := 0; i < n; i++ {
+			if err := anim.DecodeFrame(i); err != nil {
+				t.Fatal(err)
+			}
+			g := img.GenerationID()
+			if seenGen[g] {
+				dupGen++
+			}
+			seenGen[g] = true
+			hashes = append(hashes, p36cHash(img.PremultipliedData()))
+			seeds = append(seeds, fmt.Sprintf("%d", patternFieldSeed(render.NewImagePattern(img, 0, 0, img.Width(), img.Height()))))
+		}
+		remove()
+		t.Logf("逐帧图号 uniq=%d/%d 重复=%d；通知次数=%d", len(seenGen), n, dupGen, retiredSeen)
+		t.Logf("逐帧像素 sha uniq=%d/%d", len(uniq(append([]string(nil), hashes...))), n)
+		t.Logf("逐帧 fieldSeed uniq=%d/%d %v", len(uniq(append([]string(nil), seeds...))), n, seeds)
+
+		cacheA := NewImageCache(device, queue)
+		cacheB := NewImageCache(device, queue)
+		vram0, cnt0 := hal.VramLiveBytes(), hal.VramLiveCount()
+		var maxEntriesA, maxUsedA int64
+		var createsA uint64
+		for i := 0; i < n; i++ {
+			if err := anim.DecodeFrame(i); err != nil {
+				t.Fatal(err)
+			}
+			// 两个 session（两扇窗 / 窗口+离屏 target）各自排队各自的命令
+			if _, err := cacheA.GetOrUpload(p36cCmd(img)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := cacheB.GetOrUpload(p36cCmd(img)); err != nil {
+				t.Fatal(err)
+			}
+			sa := cacheA.Stats()
+			if int64(sa.Entries) > maxEntriesA {
+				maxEntriesA = int64(sa.Entries)
+			}
+			if sa.UsedBytes > maxUsedA {
+				maxUsedA = sa.UsedBytes
+			}
+			createsA = sa.Creates
+		}
+		t.Logf("A(n=%d): %s", n, p36cStats(cacheA))
+		t.Logf("B(n=%d): %s   <== 旧行为：B 的 uploads 停在 1", n, p36cStats(cacheB))
+		t.Logf("峰值 entries=%d usedBytes=%d；本帧循环内新建纹理=%d", maxEntriesA, maxUsedA, createsA)
+		vram1, cnt1 := hal.VramLiveBytes(), hal.VramLiveCount()
+		cacheA.Destroy()
+		cacheB.Destroy()
+		t.Logf("vram: 起始 %d B/%d 条 → 连播后 %d B/%d 条 → 双 Destroy 后 %d B/%d 条",
+			vram0, cnt0, vram1, cnt1, hal.VramLiveBytes(), hal.VramLiveCount())
+
+		// 同 commit 内「画→换帧→再画」：两个不同图号必须分家
+		before := p36cCmd(img)
+		if err := anim.DecodeFrame(0); err != nil {
+			t.Fatal(err)
+		}
+		after := p36cCmd(img)
+		t.Logf("canMergeImageDraw(前一帧, 后一帧) = %v（换代际后必须 false，洞 C 闭合）", canMergeImageDraw(before, after))
+	}
+}
+
+// 键空间：单一分配器后两族像素源不得同号。
+func TestP36C_ProbeKeySpace(t *testing.T) {
+	const n = 200
+	bufIDs := map[uint64]bool{}
+	for i := 0; i < n; i++ {
+		b, err := intImage.NewImageBuf(8, 8, intImage.FormatRGBAPremul)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bufIDs[b.GenerationID()] = true
+		b.Dispose()
+	}
+	pmIDs := map[uint64]bool{}
+	for i := 0; i < n; i++ {
+		pmIDs[render.NewPixmap(8, 8).GenerationID()] = true
+	}
+	inter := 0
+	for k := range pmIDs {
+		if bufIDs[k] {
+			inter++
+		}
+	}
+	t.Logf("ImageBuf uniq=%d，Pixmap uniq=%d，交集=%d（必须 0）", len(bufIDs), len(pmIDs), inter)
+}
+
+func uniq(s []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, v := range s {
+		if !seen[v] {
+			seen[v] = true
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// 分配churn 定量：换代际逐帧重传 vs 命中，以及纯 CreateTexture+Destroy 的成本。
+func TestP36C_ProbeChurn(t *testing.T) {
+	device, queue, cleanup := createNativeTestDevice(t)
+	defer cleanup()
+	const side, iters = 512, 200
+
+	ic := NewImageCache(device, queue)
+	img, err := intImage.NewImageBuf(side, side, intImage.FormatRGBAPremul)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer img.Dispose()
+	img.Fill(30, 60, 90, 255)
+
+	cmd := func() *ImageDrawCommand {
+		gen := img.GenerationID()
+		return &ImageDrawCommand{PixelData: img.PremultipliedData(), GenerationID: gen, Src: img, SrcGen: gen,
+			ImgWidth: side, ImgHeight: side, ImgStride: side * 4}
+	}
+	// 预热
+	if _, err := ic.GetOrUpload(cmd()); err != nil {
+		t.Fatal(err)
+	}
+
+	t0 := time.Now()
+	for i := 0; i < iters; i++ {
+		if _, err := ic.GetOrUpload(cmd()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hitDur := time.Since(t0)
+	stHit := ic.Stats()
+
+	t1 := time.Now()
+	for i := 0; i < iters; i++ {
+		img.Fill(byte(i), 60, 90, 255)
+		img.NotifyPixelsChanged()
+		if _, err := ic.GetOrUpload(cmd()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	churnDur := time.Since(t1)
+	stChurn := ic.Stats()
+
+	// 纯创建+销毁（不含上传）的成本
+	t2 := time.Now()
+	for i := 0; i < iters; i++ {
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
+			Label: "churn", Size: hal.Extent3D{Width: side, Height: side, DepthOrArrayLayers: 1},
+			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
+			Format: types.TextureFormatRGBA8Unorm,
+			Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		v, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
+			Label: "churn", Format: types.TextureFormatRGBA8Unorm, Dimension: types.TextureViewDimension2D,
+			Aspect: types.TextureAspectAll, MipLevelCount: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		v.Destroy()
+		tex.Destroy()
+	}
+	allocDur := time.Since(t2)
+
+	t.Logf("%dx%d ×%d 帧：命中 %.2fms（%.1fµs/帧，uploads=%d creates=%d entries=%d）",
+		side, side, iters, float64(hitDur.Microseconds())/1000, float64(hitDur.Microseconds())/float64(iters), stHit.Uploads, stHit.Creates, stHit.Entries)
+	t.Logf("%dx%d ×%d 帧：换代际重传 %.2fms（%.1fµs/帧，uploads=%d creates=%d entries=%d usedBytes=%d）",
+		side, side, iters, float64(churnDur.Microseconds())/1000, float64(churnDur.Microseconds())/float64(iters), stChurn.Uploads, stChurn.Creates, stChurn.Entries, stChurn.UsedBytes)
+	t.Logf("纯 CreateTexture+View+Destroy：%.2fms（%.1fµs/次）", float64(allocDur.Microseconds())/1000, float64(allocDur.Microseconds())/float64(iters))
+	t.Logf("每帧额外成本 = 换代际 %.1fµs - 命中 %.1fµs = %.1fµs（其中纯分配 %.1fµs）",
+		float64(churnDur.Microseconds())/float64(iters), float64(hitDur.Microseconds())/float64(iters),
+		float64(churnDur.Microseconds()-hitDur.Microseconds())/float64(iters), float64(allocDur.Microseconds())/float64(iters))
+	ic.Destroy()
+}
+
+// 拆解 18ms：同一张纹理反复 WriteTexture（旧 rewriteImage 的形态）对比
+// 新建+写+立即销毁（standalone 缓存无 retire 钩子时的形态）。
+func TestP36C_ProbeUploadSplit(t *testing.T) {
+	device, queue, cleanup := createNativeTestDevice(t)
+	defer cleanup()
+	const side, iters = 512, 200
+	data := make([]byte, side*side*4)
+	layout := &hal.ImageDataLayout{BytesPerRow: side * 4, RowsPerImage: side}
+	ext := &hal.Extent3D{Width: side, Height: side, DepthOrArrayLayers: 1}
+
+	mk := func() (hal.Texture, hal.TextureView) {
+		tex, err := device.CreateTexture(&hal.TextureDescriptor{
+			Label: "split", Size: hal.Extent3D{Width: side, Height: side, DepthOrArrayLayers: 1},
+			MipLevelCount: 1, SampleCount: 1, Dimension: types.TextureDimension2D,
+			Format: types.TextureFormatRGBA8Unorm,
+			Usage:  types.TextureUsageTextureBinding | types.TextureUsageCopyDst,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		v, err := device.CreateTextureView(tex, &hal.TextureViewDescriptor{
+			Label: "split", Format: types.TextureFormatRGBA8Unorm, Dimension: types.TextureViewDimension2D,
+			Aspect: types.TextureAspectAll, MipLevelCount: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tex, v
+	}
+
+	tex, view := mk()
+	t0 := time.Now()
+	for i := 0; i < iters; i++ {
+		if err := queue.WriteTexture(&hal.ImageCopyTexture{Texture: tex, MipLevel: 0}, data, layout, ext); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeOnly := time.Since(t0)
+	view.Destroy()
+	tex.Destroy()
+
+	t1 := time.Now()
+	for i := 0; i < iters; i++ {
+		tx, vw := mk()
+		if err := queue.WriteTexture(&hal.ImageCopyTexture{Texture: tx, MipLevel: 0}, data, layout, ext); err != nil {
+			t.Fatal(err)
+		}
+		vw.Destroy()
+		tx.Destroy()
+	}
+	createWriteDestroy := time.Since(t1)
+
+	t2 := time.Now()
+	for i := 0; i < iters; i++ {
+		tx, vw := mk()
+		vw.Destroy()
+		tx.Destroy()
+	}
+	createDestroyOnly := time.Since(t2)
+
+	f := func(d time.Duration) float64 { return float64(d.Microseconds()) / float64(iters) }
+	t.Logf("%dx%d ×%d：只写不建不销 = %.1fµs/帧", side, side, iters, f(writeOnly))
+	t.Logf("%dx%d ×%d：建+写+销 = %.1fµs/帧", side, side, iters, f(createWriteDestroy))
+	t.Logf("%dx%d ×%d：只建不写就销 = %.1fµs/帧", side, side, iters, f(createDestroyOnly))
+	t.Logf("=> 建+销 的净增 = %.1fµs/帧；上传本身 = %.1fµs/帧", f(createWriteDestroy)-f(writeOnly), f(writeOnly))
+}
+
+// 归因 18ms：Fill+Notify+PremultipliedData 的 CPU 成本（不碰显卡）。
+func TestP36C_ProbeCPUPremul(t *testing.T) {
+	const side, iters = 512, 200
+	img, err := intImage.NewImageBuf(side, side, intImage.FormatRGBAPremul)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer img.Dispose()
+	t0 := time.Now()
+	for i := 0; i < iters; i++ {
+		img.Fill(byte(i), 60, 90, 255)
+		img.NotifyPixelsChanged()
+		_ = img.PremultipliedData()
+	}
+	all := time.Since(t0)
+	t1 := time.Now()
+	for i := 0; i < iters; i++ {
+		img.Fill(byte(i), 60, 90, 255)
+	}
+	fillOnly := time.Since(t1)
+	t2 := time.Now()
+	for i := 0; i < iters; i++ {
+		_ = img.PremultipliedData()
+	}
+	cachedPremul := time.Since(t2)
+	f := func(d time.Duration) float64 { return float64(d.Microseconds()) / float64(iters) }
+	t.Logf("%dx%d：Fill+Notify+Premul %.1fµs/帧；只 Fill %.1fµs；premul 已缓存时读 %.1fµs", side, side, f(all), f(fillOnly), f(cachedPremul))
+	t.Logf("=> 逐帧 premul 重算净成本 %.1fµs/帧（占 18.6ms 的 %.0f%%）", f(all)-f(fillOnly)-f(cachedPremul), 100*(f(all)-f(fillOnly)-f(cachedPremul))/18633.7)
+}

@@ -66,7 +66,7 @@ func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
 	// and refresh pixmap in the same pass (avoid Flush+materialize+copy triple).
 	if c.pixmapFilterStale && !c.filterGPUView.IsNil() && c.filterGPUW == w && c.filterGPUH == h {
 		if c.materializeFilterGPUTo(out, c.pixmap.Data()) {
-			(*dst).MarkPixelsDirty()
+			(*dst).NotifyPixelsChanged()
 			return true
 		}
 	} else {
@@ -78,12 +78,11 @@ func (c *Context) ExportImageBuf(dst **ImageBuf) bool {
 		n = len(src)
 	}
 	copy(out[:n], src[:n])
-	// Reused ImageBuf: keep GenerationID and mark GPU dirty for in-place
-	// reupload (continuous effect RT). Fresh buffers already have a gen from
-	// NewImageBuf; MarkPixelsDirty still sets dirty so first Draw uploads.
-	// NotifyPixelsChanged would allocate a new cache entry every export and
-	// grow VRAM under particle/glow long soak.
-	(*dst).MarkPixelsDirty()
+	// Reused ImageBuf: the pixels moved, so the content generation moves.
+	// Caches keyed on the retired ID are told (AddGenIDWatcher) and reclaim the
+	// stale texture on the render path, so a particle/glow long soak does not
+	// accumulate one live texture per export.
+	(*dst).NotifyPixelsChanged()
 	return true
 }
 

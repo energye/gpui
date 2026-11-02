@@ -1,0 +1,17 @@
+//go:build !nogpu
+
+package render
+
+import "testing"
+
+// TestP36C_ProbePoolIdentity 量池化复用的 Pixmap 是否带着上一层的图号被下一层领走。
+func TestP36C_ProbePoolIdentity(t *testing.T) {
+	pool := newPixmapPool(8)
+	pm := pool.GetForOverwrite(64, 64)
+	id1 := pm.GenerationID()
+	pm.SetPixelPremul(0, 0, 200, 30, 40, 255) // 不走会换号的 API
+	pool.Put(pm)
+	got := pool.Get(64, 64)
+	id2 := got.GenerationID()
+	t.Logf("领回同一个对象=%v  图号 %d -> %d  同号=%v（Clear/池复用是否换号）", got == pm, id1, id2, id1 == id2)
+}

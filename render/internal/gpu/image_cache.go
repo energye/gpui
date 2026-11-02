@@ -41,25 +41,41 @@ type imageCacheEntry struct {
 	height  int
 	bytes   int64
 	gen     uint64 // LRU generation counter
+
+	// srcGen is the content generation these pixels came from (never the
+	// derived key), and unwatch drops the source watcher registered for it.
+	// Together they let a rewritten buffer reclaim exactly its own textures.
+	srcGen  uint64
+	unwatch func()
 }
 
 // ImageCache manages GPU textures for image patterns. Images are uploaded
-// on first use and reused on subsequent frames. The cache is keyed by
-// Pixmap.GenerationID() — a monotonic counter that guarantees unique identity
-// even when Go's GC reuses memory addresses (ADR-014).
+// on first use and reused on subsequent frames. The cache is keyed by the
+// content generation ID (ADR-014) — one process-global allocator (see
+// image.NextContentGenID) hands out those IDs, so a Pixmap and an ImageBuf can
+// never be handed the same number.
+//
+// The ID identifies the *pixels*, not the buffer: rewriting a buffer in place
+// retires its ID and hands out a new one. Because a retired ID is never looked
+// up again, the texture cached under it would otherwise sit in the budget as a
+// zombie until LRU got to it, so every entry registers a watcher on its source
+// and the source tells the cache when its ID is retired (Skia does the same with
+// SkPixelRef::addGenIDChangeListener / notifyAddedToCache).
 //
 // This follows the enterprise pattern:
 //   - Skia: GrResourceCache keyed by SkPixelRef::getGenerationID()
 //   - Vello: image_cache keyed by peniko::Blob::id() (AtomicU64)
 //   - femtovg: SlotMap with generational index
 //
-// The cache is NOT thread-safe — accessed only from the render path
-// which is serialized per GPURenderContext.
+// The cache is NOT thread-safe — entries, LRU and budgets are touched only from
+// the render path, which is serialized per GPURenderContext. Generation
+// notifications can arrive from another thread, so the watcher only appends the
+// retired ID to a mutex-guarded set; the render path drains it (drainRetired).
 type ImageCache struct {
 	device hal.Device
 	queue  hal.Queue
 
-	entries     map[uint64]*imageCacheEntry // keyed by Pixmap.GenerationID()
+	entries     map[uint64]*imageCacheEntry // keyed by content generation (ImageBuf/Pixmap)
 	budget      int
 	budgetBytes int64
 	// explicitBudgets marks SetBudgets overrides: explicit per-cache tuning
@@ -76,6 +92,10 @@ type ImageCache struct {
 	lastUploadBytes  int64
 	evictions        uint64
 	ephemeralUploads uint64
+	// creates counts native texture allocations this cache performed. An
+	// animation that recycles instead of allocating keeps creates flat after
+	// the first frame; a rising count is texture churn.
+	creates uint64
 
 	// gen==0 textures live for one frame then must be released; entries retired
 	// by eviction / size-replace during encode also outlive their map slot until
@@ -84,6 +104,14 @@ type ImageCache struct {
 	// point through the res registry); without a hook the pair is destroyed
 	// immediately (tests / standalone caches).
 	retire func(tex hal.Texture, view hal.TextureView)
+
+	// retired holds content IDs whose textures must go, set by watchers on any
+	// thread and drained by the render path. bySrc indexes entries per source ID
+	// (several entries can share one source: derived keys and tile grids).
+	retiredMu   sync.Mutex
+	retired     map[uint64]struct{}
+	bySrc       map[uint64]map[uint64]struct{}
+	retiredGens uint64
 
 	// destroyed latches session teardown; a destroyed cache purges to zero
 	// without touching native resources (multiwindow 1.3 purge chain).
@@ -123,6 +151,8 @@ func NewImageCache(device hal.Device, queue hal.Queue) *ImageCache {
 		device:      device,
 		queue:       queue,
 		entries:     make(map[uint64]*imageCacheEntry),
+		retired:     make(map[uint64]struct{}),
+		bySrc:       make(map[uint64]map[uint64]struct{}),
 		budget:      defaultImageCacheBudget,
 		budgetBytes: defaultImageCacheBudgetBytes,
 	}
@@ -217,11 +247,14 @@ func (c *ImageCache) effBudgetBytesFor(w int) int64 {
 
 // GetOrUpload returns the cached GPU texture view for the given image data,
 // uploading it if not already cached. The cache key is ImageDrawCommand.GenerationID
-// (from Pixmap.GenerationID()), not a pointer.
+// — the content generation handed out by image.NextContentGenID, never a pointer
+// and never a per-type counter, so two different pixel sources cannot share a key.
 func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error) {
 	if len(cmd.PixelData) == 0 {
 		return nil, fmt.Errorf("empty pixel data")
 	}
+
+	c.drainRetired()
 
 	key := cmd.GenerationID
 	if key == 0 {
@@ -239,13 +272,6 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 	if entry, ok := c.entries[key]; ok {
 		// Size mismatch with same gen should not happen; re-upload defensively.
 		if entry.width == cmd.ImgWidth && entry.height == cmd.ImgHeight {
-			if cmd.ContentDirty {
-				// Stable GenerationID with rewritten pixels (ExportImageBuf reuse).
-				if err := c.rewriteImage(entry, cmd); err != nil {
-					return nil, err
-				}
-				c.uploads++
-			}
 			c.gen++
 			entry.gen = c.gen
 			c.hits++
@@ -268,56 +294,98 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 	entry.gen = c.gen
 	c.entries[key] = entry
 	c.usedBytes += entry.bytes
+	c.trackSource(key, entry, cmd)
 
 	return entry.view, nil
 }
 
-// rewriteImage uploads new pixels into an existing cache entry texture (in-place).
-// Used when ImageBuf.MarkPixelsDirty kept GenerationID stable across ExportImageBuf.
-func (c *ImageCache) rewriteImage(entry *imageCacheEntry, cmd *ImageDrawCommand) error {
-	if entry == nil || entry.texture == nil {
-		return fmt.Errorf("rewriteImage: nil entry")
+// trackSource records which content generation an entry holds and watches the
+// source for its retirement. A command whose pixels are already behind the
+// source's current generation is retired at once: it drew this frame but nothing
+// will ever ask for that ID again.
+func (c *ImageCache) trackSource(key uint64, entry *imageCacheEntry, cmd *ImageDrawCommand) {
+	if c == nil || entry == nil || cmd.Src == nil {
+		return
 	}
-	w, h := cmd.ImgWidth, cmd.ImgHeight
-	bytesPerRow := uint32(w * 4) //nolint:gosec
-	stride := cmd.ImgStride
-	if stride == 0 {
-		stride = w * 4
+	entry.srcGen = cmd.SrcGen
+	if entry.srcGen == 0 {
+		return
 	}
-	need := w * h * 4
-	var pixelData []byte
-	var staging *[]byte
-	if stride == w*4 {
-		pixelData = cmd.PixelData[:need]
-	} else {
-		staging = acquireImageStaging(need)
-		pixelData = *staging
-		for row := 0; row < h; row++ {
-			srcOff := row * stride
-			dstOff := row * w * 4
-			copy(pixelData[dstOff:dstOff+w*4], cmd.PixelData[srcOff:srcOff+w*4])
-		}
+	entry.unwatch = cmd.Src.AddGenIDWatcher(c.noteRetiredGen)
+	if src := cmd.Src.GenerationID(); src != entry.srcGen {
+		c.noteRetiredGen(entry.srcGen)
 	}
-	if err := c.queue.WriteTexture(
-		&hal.ImageCopyTexture{Texture: entry.texture, MipLevel: 0},
-		pixelData,
-		&hal.ImageDataLayout{
-			Offset: 0, BytesPerRow: bytesPerRow, RowsPerImage: uint32(h), //nolint:gosec
-		},
-		&hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec
-	); err != nil {
-		if staging != nil {
-			releaseImageStaging(staging)
-		}
-		return fmt.Errorf("rewrite image pixels: %w", err)
-	}
-	if staging != nil {
-		releaseImageStaging(staging)
-	}
-	c.lastUploadBytes = int64(need)
-	c.uploadBytes += uint64(need) //nolint:gosec
-	return nil
+	c.noteWatched(entry.srcGen, key)
 }
+
+// untrackSource drops the watcher and the per-source index before an entry goes
+// away, so a retired ID cannot leave a stale registration behind.
+func (c *ImageCache) untrackSource(key uint64, entry *imageCacheEntry) {
+	if entry == nil {
+		return
+	}
+	if entry.unwatch != nil {
+		entry.unwatch()
+		entry.unwatch = nil
+	}
+	if entry.srcGen == 0 {
+		return
+	}
+	if bucket := c.bySrc[entry.srcGen]; bucket != nil {
+		delete(bucket, key)
+		if len(bucket) == 0 {
+			delete(c.bySrc, entry.srcGen)
+		}
+	}
+	entry.srcGen = 0
+}
+
+// noteRetiredGen runs on the notifying thread: it only records the retired
+// content ID. The cache itself is render-thread-owned (see type ImageCache).
+func (c *ImageCache) noteRetiredGen(oldGenID uint64) {
+	if c == nil || oldGenID == 0 {
+		return
+	}
+	c.retiredMu.Lock()
+	if _, ok := c.retired[oldGenID]; !ok {
+		c.retired[oldGenID] = struct{}{}
+		c.retiredGens++
+	}
+	c.retiredMu.Unlock()
+}
+
+func (c *ImageCache) noteWatched(srcGen, key uint64) {
+	bucket := c.bySrc[srcGen]
+	if bucket == nil {
+		bucket = make(map[uint64]struct{}, 1)
+		c.bySrc[srcGen] = bucket
+	}
+	bucket[key] = struct{}{}
+}
+
+// drainRetired reclaims every texture whose content generation was retired since
+// the last drain. Called on the render path at the head of an upload.
+func (c *ImageCache) drainRetired() {
+	c.retiredMu.Lock()
+	if len(c.retired) == 0 {
+		c.retiredMu.Unlock()
+		return
+	}
+	gens := make([]uint64, 0, len(c.retired))
+	for g := range c.retired {
+		delete(c.retired, g)
+		gens = append(gens, g)
+	}
+	c.retiredMu.Unlock()
+	for _, g := range gens {
+		for key := range c.bySrc[g] {
+			if entry, ok := c.entries[key]; ok {
+				c.removeEntry(key, entry)
+			}
+		}
+	}
+}
+
 
 // Destroy releases all cached GPU textures and views.
 func (c *ImageCache) Destroy() {
@@ -327,9 +395,14 @@ func (c *ImageCache) Destroy() {
 	render.UnregisterPurgeEvictable(c)
 	c.destroyed.Store(true)
 	for key, entry := range c.entries {
+		c.untrackSource(key, entry)
 		c.retireEntry(entry)
 		delete(c.entries, key)
 	}
+	c.bySrc = make(map[uint64]map[uint64]struct{})
+	c.retiredMu.Lock()
+	c.retired = make(map[uint64]struct{})
+	c.retiredMu.Unlock()
 	c.usedBytes = 0
 }
 
@@ -355,6 +428,7 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 	if w == 0 || h == 0 {
 		return nil, fmt.Errorf("empty image (%dx%d)", w, h)
 	}
+	c.creates++
 
 	tex, err := c.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "image_cache_tex",
@@ -440,6 +514,7 @@ func (c *ImageCache) removeEntry(key uint64, entry *imageCacheEntry) {
 	if entry == nil {
 		return
 	}
+	c.untrackSource(key, entry)
 	// Hand the native pair to the retire outlet: this frame's already-encoded
 	// commands may still reference the view, so release waits for the
 	// submission-completion sync point.
@@ -496,6 +571,13 @@ type ImageCacheStats struct {
 	LastUploadBytes  int64
 	Evictions        uint64
 	EphemeralUploads uint64
+	// RetiredGens counts content generations reported as retired; Watched counts
+	// sources still being watched. Together they show that an animation reclaims
+	// its own textures instead of leaking IDs.
+	RetiredGens uint64
+	Watched     int
+	// Creates is the number of native textures this cache allocated.
+	Creates uint64
 }
 
 // Stats returns cache statistics.
@@ -516,6 +598,9 @@ func (c *ImageCache) Stats() ImageCacheStats {
 		LastUploadBytes:  c.lastUploadBytes,
 		Evictions:        c.evictions,
 		EphemeralUploads: c.ephemeralUploads,
+		Creates:          c.creates,
+		RetiredGens:      c.retiredGens,
+		Watched:          len(c.bySrc),
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/render"
+	intImage "github.com/energye/gpui/render/internal/image"
 	"github.com/energye/gpui/render/internal/gpu/res"
 	"github.com/energye/gpui/render/internal/stroke"
 	"github.com/energye/gpui/render/text"
@@ -1339,30 +1340,36 @@ func (rc *GPURenderContext) QueueText(target render.GPURenderTarget, batch TextB
 // device pixels. Parameters are kept primitive to avoid import cycles.
 // tintRGBA is the straight R4 tint (R,G,B,A); zero struct = identity white
 // (premultiplied on the CPU side into TintR/G/B/A so blending stays premul).
-func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+// srcGenOf reports the content generation the queued pixels came from.
+func srcGenOf(src intImage.GenWatched, fallback uint64) uint64 {
+	if src == nil {
+		return fallback
+	}
+	return src.GenerationID()
+}
+
+func (rc *GPURenderContext) QueueImageDraw(target render.GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
 	nearest bool,
-	contentDirty bool,
 	bicubic ...bool,
 ) {
-	rc.QueueImageDrawBlend(target, pixelData, genID, imgWidth, imgHeight, imgStride,
+	rc.QueueImageDrawBlend(target, pixelData, genID, src, imgWidth, imgHeight, imgStride,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity, viewportW, viewportH,
-		u0, v0, u1, v1, 0, 0, 0, 0, render.BlendNormal, nearest, contentDirty, bicubic...)
+		u0, v0, u1, v1, 0, 0, 0, 0, render.BlendNormal, nearest, bicubic...)
 }
 
 // QueueImageDrawTint is QueueImageDraw plus per-quad tint.
-func (rc *GPURenderContext) QueueImageDrawTint(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+func (rc *GPURenderContext) QueueImageDrawTint(target render.GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
 	tintR, tintG, tintB, tintA float32,
 	nearest bool,
-	contentDirty bool,
 	bicubic ...bool,
 ) {
-	rc.QueueImageDrawBlend(target, pixelData, genID, imgWidth, imgHeight, imgStride,
+	rc.QueueImageDrawBlend(target, pixelData, genID, src, imgWidth, imgHeight, imgStride,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity, viewportW, viewportH,
-		u0, v0, u1, v1, tintR, tintG, tintB, tintA, render.BlendNormal, nearest, contentDirty, bicubic...)
+		u0, v0, u1, v1, tintR, tintG, tintB, tintA, render.BlendNormal, nearest, bicubic...)
 }
 
 // QueueImageDrawBlend is QueueImageDrawTint plus a fixed-function Porter-Duff
@@ -1372,13 +1379,12 @@ func (rc *GPURenderContext) QueueImageDrawTint(target render.GPURenderTarget, pi
 // not fixed-function and must stay on the CPU path; callers gate with
 // render.IsAdvancedBlendMode. Blend + yuv/bicubic has no pipeline variant and
 // renders as a plain linear quad.
-func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
 	tintR, tintG, tintB, tintA float32,
 	blendMode render.BlendMode,
 	nearest bool,
-	contentDirty bool,
 	bicubic ...bool,
 ) {
 	rc.ensureDrawOrder(drawTierImage)
@@ -1389,6 +1395,8 @@ func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, p
 	cmd := ImageDrawCommand{
 		PixelData:      pixelData,
 		GenerationID:   genID,
+		Src:            src,
+		SrcGen:         srcGenOf(src, genID),
 		ImgWidth:       imgWidth,
 		ImgHeight:      imgHeight,
 		ImgStride:      imgStride,
@@ -1417,7 +1425,6 @@ func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, p
 		V1:             v1,
 		Nearest:        nearest,
 		Bicubic:        len(bicubic) > 0 && bicubic[0],
-		ContentDirty:   contentDirty,
 		BlendMode:      blendMode,
 	}
 	rc.queueImageCmd(target, cmd)
@@ -1428,11 +1435,10 @@ func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, p
 // vertex path so clip-space w rides the vertex and hardware interpolates UV
 // perspective-correctly. Weights are validated (finite, > 0) by the render
 // layer before queueing; this entry never carries tint, blend, or bicubic.
-func (rc *GPURenderContext) QueueImageDrawQuadW(target render.GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+func (rc *GPURenderContext) QueueImageDrawQuadW(target render.GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, tlW, trW, brW, blW, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
 	nearest bool,
-	contentDirty bool,
 ) {
 	rc.ensureDrawOrder(drawTierImage)
 	minX := min4f(tlX, trX, brX, blX)
@@ -1442,6 +1448,8 @@ func (rc *GPURenderContext) QueueImageDrawQuadW(target render.GPURenderTarget, p
 	cmd := ImageDrawCommand{
 		PixelData:      pixelData,
 		GenerationID:   genID,
+		Src:            src,
+		SrcGen:         srcGenOf(src, genID),
 		ImgWidth:       imgWidth,
 		ImgHeight:      imgHeight,
 		ImgStride:      imgStride,
@@ -1465,7 +1473,6 @@ func (rc *GPURenderContext) QueueImageDrawQuadW(target render.GPURenderTarget, p
 		U1:             u1,
 		V1:             v1,
 		Nearest:        nearest,
-		ContentDirty:   contentDirty,
 		Perspective:    true,
 		Weights:        [4]float32{tlW, trW, brW, blW},
 	}

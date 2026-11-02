@@ -183,7 +183,7 @@ func TestV3_VideoCrossDeviceRealWindow(t *testing.T) {
 	}
 	defer img.Dispose()
 	copy(img.Data(), pix)
-	img.MarkPixelsDirty()
+	img.NotifyPixelsChanged()
 	if !dc.DrawVideoFrame(img, opts) {
 		t.Fatal("DrawVideoFrame fallback returned false")
 	}

@@ -108,24 +108,22 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 			c.recordCPUFallbackReason("image:blend")
 			return false
 		}
-		contentDirty := img.TakeGPUDirty()
-		rc.QueueImageDrawBlend(target, pixelData, img.GenerationID(), imgW, imgH, img.Stride(),
+		rc.QueueImageDrawBlend(target, pixelData, img.GenerationID(), img, imgW, imgH, img.Stride(),
 			float32(tl.X), float32(tl.Y),
 			float32(tr.X), float32(tr.Y),
 			float32(br.X), float32(br.Y),
 			float32(bl.X), float32(bl.Y),
 			float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1,
-			0, 0, 0, 0, opts.BlendMode, nearest, contentDirty)
+			0, 0, 0, 0, opts.BlendMode, nearest)
 		c.recordGPUOp()
 		return true
 	}
-	contentDirty := img.TakeGPUDirty()
-	rc.QueueImageDraw(target, pixelData, img.GenerationID(), imgW, imgH, img.Stride(),
+	rc.QueueImageDraw(target, pixelData, img.GenerationID(), img, imgW, imgH, img.Stride(),
 		float32(tl.X), float32(tl.Y),
 		float32(tr.X), float32(tr.Y),
 		float32(br.X), float32(br.Y),
 		float32(bl.X), float32(bl.Y),
-		float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1, nearest, contentDirty, bicubic)
+		float32(opts.Opacity), vpW, vpH, u0, v0, u1, v1, nearest, bicubic)
 	c.recordGPUOp()
 	return true
 }

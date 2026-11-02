@@ -175,7 +175,7 @@ func (b *VideoBridge) showImpl(seq uint64, useSeq bool, c *Context, w, h int, pi
 		return false, false
 	}
 	copy(dst[:need], pix[:need])
-	b.fallback.MarkPixelsDirty()
+	b.fallback.NotifyPixelsChanged()
 	b.fallbacks++
 	if useSeq {
 		b.hasFbSeq, b.fbSeq = true, seq
@@ -289,7 +289,7 @@ func (b *VideoBridge) drawCurrentAt(c *Context, opts VideoDrawOptions, view int)
 			return false, false
 		}
 		nv12ToRGBA(dst[:need], b.pshadowY, b.pshadowU, w, h)
-		b.fallback.MarkPixelsDirty()
+		b.fallback.NotifyPixelsChanged()
 		b.fallbacks++
 		c.RecordVideoFallback("direct-fallback-planes")
 		return false, c.DrawVideoFrame(b.fallback, opts)
@@ -318,7 +318,7 @@ func (b *VideoBridge) drawCurrentAt(c *Context, opts VideoDrawOptions, view int)
 		return false, false
 	}
 	copy(dst[:need], pix[:need])
-	b.fallback.MarkPixelsDirty()
+	b.fallback.NotifyPixelsChanged()
 	b.fallbacks++
 	c.RecordVideoFallback("direct-fallback")
 	return false, c.DrawVideoFrame(b.fallback, opts)

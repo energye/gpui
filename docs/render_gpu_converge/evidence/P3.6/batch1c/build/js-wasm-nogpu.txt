@@ -1,0 +1,2 @@
+# github.com/ebitengine/purego
+../purego/struct_other.go:21:46: undefined: syscallArgs

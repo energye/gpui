@@ -1,0 +1,23 @@
+# 负向对照 2026-11-02T19:25:49+08:00
+--- N1 摘掉缓存的监听注册 ---
+--- FAIL: TestImageCache_RetiredGenerationReclaimsEntry (0.55s)
+    image_cache_generation_test.go:62: entries after 8 frame rewrites = 9, want 1 (retirement is not reclaiming)
+--- FAIL: TestImageCache_TwoConsumersBothReupload (0.44s)
+    image_cache_generation_test.go:119: entries A=6 B=6, want 1/1
+--- FAIL: TestImageCache_DerivedKeyReleasesWithSource (0.43s)
+    image_cache_generation_test.go:229: 派生键未随源号退役：entries=2, want 1
+--- N1 还原后 ---
+ok  	github.com/energye/gpui/render/internal/gpu	0.635s
+--- N2 Pixmap 用回自己的独立计数器 ---
+--- FAIL: TestImageCache_KeySpaceDisjointAcrossSources (0.00s)
+    image_cache_generation_test.go:147: ImageBuf 与 Pixmap 图号交集=200，want 0（撞号会让一个来源画出另一个来源的纹理）
+FAIL
+--- N2 还原后 ---
+ok  	github.com/energye/gpui/render/internal/gpu	0.013s
+--- N3 动图 publish 不回写号 ---
+--- FAIL: TestAnimatedFrameAdvanceKeepsOneBuffer (0.00s)
+    image_anim_p36_test.go:306: frame 0: retired ids reported = 0, want 1 (caches would never learn the pixels moved)
+FAIL
+FAIL	github.com/energye/gpui/render	0.024s
+--- N3 还原后 ---
+ok  	github.com/energye/gpui/render	0.010s

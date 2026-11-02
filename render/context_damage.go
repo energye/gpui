@@ -15,6 +15,7 @@ import (
 	"math"
 
 	gpucontext "github.com/energye/gpui/gpu/context"
+	intImage "github.com/energye/gpui/render/internal/image"
 )
 
 // FrameDamage returns the list of damage rectangles from draw operations
@@ -238,30 +239,30 @@ type gpuContextOps interface {
 	DrawText(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
 	DrawGlyphMaskText(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
 	DrawGlyphMaskTextAliased(target GPURenderTarget, face any, s string, x, y float64, color RGBA, matrix Matrix, deviceScale float64) error
-	QueueImageDraw(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+	QueueImageDraw(target GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
-		u0, v0, u1, v1 float32, nearest bool, contentDirty bool, bicubic ...bool)
+		u0, v0, u1, v1 float32, nearest bool, bicubic ...bool)
 	// QueueImageDrawTint is QueueImageDraw plus per-quad straight tint
 	// . Implemented by
 	// internal/gpu; callers that cannot assert it must keep CPU fallback.
-	QueueImageDrawTint(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+	QueueImageDrawTint(target GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
-		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, nearest bool, contentDirty bool, bicubic ...bool)
+		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, nearest bool, bicubic ...bool)
 	// QueueImageDrawBlend is QueueImageDrawTint plus a fixed-function Porter-Duff
 	// blend mode (B.02): the quad composites with the mode's blend factors
 	// instead of premultiplied SourceOver (DestinationIn mask draws and other
 	// destination-dependent compositing). Advanced (destination-sampling) modes
 	// have no fixed-function variant and must stay on the CPU path.
-	QueueImageDrawBlend(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+	QueueImageDrawBlend(target GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, opacity float32, viewportW, viewportH uint32,
-		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, blendMode BlendMode, nearest bool, contentDirty bool, bicubic ...bool)
+		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, blendMode BlendMode, nearest bool, bicubic ...bool)
 	// QueueImageDrawQuadW is QueueImageDraw plus per-corner homogeneous weights
 	// (P3.5 batch 3 perspective quads): the vertex path emits clip-space w so
 	// hardware perspective-correct interpolation matches the CPU 1/w twin.
 	// Never merges with affine quads and has no tint/blend/bicubic variants.
-	QueueImageDrawQuadW(target GPURenderTarget, pixelData []byte, genID uint64, imgWidth, imgHeight, imgStride int,
+	QueueImageDrawQuadW(target GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, tlW, trW, brW, blW, opacity float32, viewportW, viewportH uint32,
-		u0, v0, u1, v1 float32, nearest bool, contentDirty bool)
+		u0, v0, u1, v1 float32, nearest bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
 	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
 	// QueueColoredMeshIndexed draws unique verts + uint16 indices.

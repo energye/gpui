@@ -199,7 +199,7 @@ func newTestImageBuf(t *testing.T, w, h int) *render.ImageBuf {
 	for i := 0; i < len(data); i += 4 {
 		data[i], data[i+1], data[i+2], data[i+3] = 0x40, 0x80, 0xc0, 0xff
 	}
-	img.MarkPixelsDirty()
+	img.NotifyPixelsChanged()
 	t.Cleanup(img.Dispose)
 	return img
 }

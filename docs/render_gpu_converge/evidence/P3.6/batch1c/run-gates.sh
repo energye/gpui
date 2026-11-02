@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -u
+export LC_ALL=C
+R=/home/yanghy/app/projects/gogpu/gpui
+E=$R/docs/render_gpu_converge/evidence/P3.6/batch1c
+export LD_LIBRARY_PATH=$R/lib WGPU_NATIVE_PATH=$R/lib/libwgpu_native.so CGO_ENABLED=1
+cd "$R" || exit 1
+{ echo "# apidoc $(date -Iseconds) HEAD=$(git rev-parse --short HEAD)"; go run ./scripts/apidoc 2>&1 | tail -3; echo "rc=$?"; } > "$E/apidoc.txt" 2>&1
+echo "apidoc done" >> "$E/progress.log"
+{ echo "# vet 触及包 $(date -Iseconds)"
+  for pkg in ./render ./render/internal/image ./render/internal/gpu ./render/recording ./ui/io; do echo "--- $pkg ---"; go vet "$pkg" 2>&1 | tail -4; done; } > "$E/vet.txt" 2>&1
+echo "vet done" >> "$E/progress.log"
+{ echo "# targeted $(date -Iseconds)"
+  go test -count=1 -timeout 900s -run "TestAnimated|TestDisposal|TestSingleFrame|TestUIIO|TestLoadAnimated|TestImageEncoding|TestLoadImage|TestPreserve|TestStatic|TestExportImageBuf|TestImageBuf|TestR72_Export|TestImageCache_|TestImageGeneration|TestImagePipeline_DifferentGeneration" ./render ./render/internal/image 2>&1 | tail -6
+  echo "--- gpu 定向（换代际/退役逐出/合并谓词）---"
+  go test -count=1 -timeout 900s -run "TestImageCache_|TestImageGeneration|TestImagePipeline_DifferentGeneration" ./render/internal/gpu 2>&1 | tail -4; } > "$E/targeted.txt" 2>&1
+echo "targeted rc=$?" >> "$E/progress.log"
+{ echo "# conformance $(date -Iseconds)"; go test -count=1 -run TestConformanceDualBackend -timeout 900s ./render 2>&1 | tail -4; } > "$E/conformance.txt" 2>&1
+echo "conformance rc=$?" >> "$E/progress.log"
+{ echo "# race -count=2 $(date -Iseconds)"
+  for pkg in ./render/internal/image ./render/recording ./ui/io; do echo "--- $pkg ---"; go test -race -count=2 -timeout 1200s "$pkg" 2>&1 | tail -3; done
+  echo "--- ./render/internal/gpu (换代际逐出) ---"
+  go test -race -count=2 -timeout 1200s -run "TestImageCache_|TestImageGeneration|TestImagePipeline_DifferentGeneration" ./render/internal/gpu 2>&1 | tail -3
+  echo "--- ./render (P3.6 动图/导出钉；整包=既有 native abort 已登记) ---"
+  go test -race -count=2 -timeout 900s -run "TestAnimated|TestExportImageBuf|TestImageBuf|TestR72_Export|TestLoadAnimated" ./render 2>&1 | tail -3; } > "$E/race/race.txt" 2>&1
+echo "race rc=$?" >> "$E/progress.log"
+bash "$E/build-gate.sh" > "$E/build-gate.log" 2>&1
+echo "build rc=$?" >> "$E/progress.log"
+bash tools/per-file-tests.sh tools/per-file-tests.pkgs "$E/per-file-tests" > "$E/per-file-tests-run.log" 2>&1
+echo "per-file rc=$?" >> "$E/progress.log"
+bash tools/per-file-tests.sh "$R/docs/render_gpu_converge/evidence/P3.5/per-file-extra.pkgs" "$E/per-file-tests-extra" > "$E/per-file-tests-extra-run.log" 2>&1
+echo "perfile-extra rc=$?" >> "$E/progress.log"
+echo "B1CDONE" >> "$E/progress.log"

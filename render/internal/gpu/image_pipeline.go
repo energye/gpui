@@ -21,6 +21,7 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/render"
+	intImage "github.com/energye/gpui/render/internal/image"
 )
 
 //go:embed shaders/textured_quad.wgsl
@@ -69,7 +70,17 @@ const imageUniformSlotStride = 256
 type ImageDrawCommand struct {
 	// Image pixel data (premultiplied RGBA, row-major).
 	PixelData    []byte
-	GenerationID uint64 // Pixmap.GenerationID() — GPU cache key (ADR-014)
+	GenerationID uint64 // content generation — the GPU cache key (ADR-014)
+	// Src is the pixel source behind GenerationID when there is one. The cache
+	// watches it, so a buffer that rewrites its pixels gets its stale texture
+	// reclaimed on the render path instead of waiting for LRU. nil for
+	// synthesized payloads (gradient ramps, shader fills, ephemeral uploads).
+	Src intImage.GenWatched
+	// SrcGen is the source's generation ID at the moment the pixels were read
+	// into PixelData (queue time). It is what the cache records: the command's
+	// own GenerationID may be a derived key (brush fill namespaces, tile grids),
+	// and the watcher reports the source's retired ID, not the derived one.
+	SrcGen uint64
 	ImgWidth     int
 	ImgHeight    int
 	ImgStride    int
@@ -121,10 +132,6 @@ type ImageDrawCommand struct {
 	// 0 means 1 (historic default, off): old callers that never touch this
 	// field render bit-identically. Set via SetPerImageFilter (new branch).
 	FilterAniso uint16
-
-	// ContentDirty: GenerationID is stable but pixel bytes changed (ExportImageBuf
-	// reuse). ImageCache re-uploads into the existing GPU texture in place.
-	ContentDirty bool
 
 	// BlendMode is the fixed-function compositing operator for this quad (B.02).
 	// Zero value BlendNormal keeps the historic premultiplied SourceOver quad

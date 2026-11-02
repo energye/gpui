@@ -276,13 +276,17 @@ func TestDisposalVariantsActuallyDiffer(t *testing.T) {
 	}
 }
 
-// TestAnimatedFrameAdvanceKeepsOneBuffer pins the mechanism that stops a frame
-// from becoming a new GPU texture: the same *ImageBuf and the same generation
-// id across the whole playback, with the dirty flag set every frame.
+// TestAnimatedFrameAdvanceKeepsOneBuffer pins the P3.6 batch 1c contract: one
+// reused *ImageBuf across playback, and a NEW content generation per frame, with
+// every retired generation reported to watchers so each consumer cache reclaims
+// its own stale texture (Skia SkPixelRef::notifyPixelsChanged semantics).
 func TestAnimatedFrameAdvanceKeepsOneBuffer(t *testing.T) {
 	a := openAnim(t, "apng_keep.png")
 	first := a.Image()
-	gen := first.GenerationID()
+	seen := map[uint64]bool{}
+	var retired []uint64
+	remove := first.AddGenIDWatcher(func(old uint64) { retired = append(retired, old) })
+	defer remove()
 	for i := 0; i < a.FrameCount(); i++ {
 		if err := a.DecodeFrame(i); err != nil {
 			t.Fatalf("frame %d: %v", i, err)
@@ -290,12 +294,20 @@ func TestAnimatedFrameAdvanceKeepsOneBuffer(t *testing.T) {
 		if got := a.Image(); got != first {
 			t.Fatalf("frame %d: Image() returned a different buffer", i)
 		}
-		if got := a.Image().GenerationID(); got != gen {
-			t.Errorf("frame %d: GenerationID = %d, want %d (per-frame ids would add a texture per frame)", i, got, gen)
+		gen := a.Image().GenerationID()
+		if gen == 0 {
+			t.Fatalf("frame %d: zero generation id", i)
 		}
-		if !a.Image().IsGPUDirty() {
-			t.Errorf("frame %d: buffer not marked dirty, the GPU would keep showing the previous frame", i)
+		if seen[gen] {
+			t.Fatalf("frame %d: generation id %d repeats (a repeated id would serve a stale texture)", i, gen)
 		}
+		seen[gen] = true
+		if want := uint64(i); uint64(len(retired)) != want+1 {
+			t.Fatalf("frame %d: retired ids reported = %d, want %d (caches would never learn the pixels moved)", i, len(retired), want+1)
+		}
+	}
+	if len(seen) != a.FrameCount() {
+		t.Fatalf("distinct generations = %d, want frame count %d", len(seen), a.FrameCount())
 	}
 	// 乱序回到更早的帧必须重放而不是画出半旧画布。
 	if err := a.DecodeFrame(0); err != nil {

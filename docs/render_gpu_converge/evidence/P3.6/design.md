@@ -25,6 +25,7 @@
 - 验收钉：两边支持表逐项相同（同一列表断言），杜绝「一边能开 GIF 一边不能」。
 
 ### 1.4 动图载体：`*AnimatedImage`，不动 `ImageBuf`（D5）
+> **2026-11-02 批 1c 拍板 D7=(B) 修订本节机制口径**：「不动 `ImageBuf` 结构、复用同一缓冲」保留，但**代际恒定 + `MarkPixelsDirty` 原地重写这条路推翻**，改成 Skia 口径——像素变了就换图号，缓存靠**图号变更监听器精确逐出** + **尺寸分桶空闲池**回收复用；「连播 N 帧条目与显存不增长」目标不降级，手段改变。评估实测（含顺带抓出的 `Pixmap`/`ImageBuf` 键空间完全重叠第四洞）见 `batch1c-assessment.md`，机制与钉见 `batch1c-design.md`。本节下方 `MarkPixelsDirty`/「必须钉 N 帧推进后 imageCache 条目数不变」的**手段描述**按 `batch1c-design.md` §2 执行。
 - 理由（硬约束）：`ImageBuf` 的代际即 GPU 纹理缓存键（`image_cache.go:221-253` + 批合并谓词 `image_pipeline.go:1160`），给 `ImageBuf` 加帧字段会污染全部图片缓存路径；且帧推进若每帧 `NotifyPixelsChanged`（`buf.go:272`）会**每帧新建纹理条目**、显存单调增长。
 - 正解：`*AnimatedImage` 持容器元数据 + **复用同一 `ImageBuf`**，逐帧 `DecodeFrame` 写入后 `MarkPixelsDirty()`（`buf.go:296` 原地重写、保留 genID）。批 1 必须钉「N 帧推进后 imageCache 条目数不变」。
 - 分层与上游一致：`AnimatedImage` ↔ Flutter `Codec`/`MultiFrameCodec`（解码器侧对象），单帧 `ImageBuf` ↔ `ui.Image`。
@@ -69,9 +70,10 @@ type MipmapMode int        // MipmapNone / MipmapNearest / MipmapLinear
   - 组 4 缓存不涨：动图连播 N 帧后 `imageCache` 条目数与显存记账不增长（钉 assessment §1.2 的硬约束）。
   - 组 5 注册表收敛：render 与 ui/io 支持表逐项相同 + 动图经 ui/io 异步池路径同样可解。
   - 组 6 mipmap：层数公式（含非 2 的幂、1×N 退化）、CPU 链与 `image_cache` 上传字节逐层一致、幂等位（重复用不重产）、`MipmapMode` 三档采样结果单调（缩样方差不增）、4/3 预算对账（render 自计 vs hal 真账相等）。
-- **真窗两扇**（AGENTS「每主能力独立真窗，禁组合窗」，按 §4.2 模板登记）：
-  - `examples/ui_wr_p36_imgfmt`：EXIF 八档方向对拍卡、GIF/APNG/动图 WebP 帧序列与 dispose/blend 合成卡、嗅探优先于扩展名卡。逻辑探针 + 语义像素探针 + 金图（门禁 `-auto-only`，帧相位冻结确定化）。
-  - `examples/ui_wr_p36_mipmap`：同一图按 `None/Nearest/Linear` 三档缩样并排（摩尔/混叠可见差）、CPU/GPU 双档同源、帧推进期间显存与条目数对账卡。
+- **真窗三扇**（AGENTS「每主能力独立真窗，禁组合窗」，按 §4.2 模板登记；**2026-11-02 批 1c 拍板 D9 由两扇改三扇**）：
+  - `examples/ui_wr_p36_imgfmt`：EXIF 八档方向对拍卡、GIF/APNG/动图 WebP 帧序列与 dispose/blend 合成卡、嗅探优先于扩展名卡。
+  - `examples/ui_wr_p36_animplay`（**D9 新增，批 1c 播放与消费链的独立真窗**）：连播期间 `imageCache` 条目数/`usedBytes`/`hal.VramLiveBytes`/`VramLiveCount` 四路对账卡、空闲池命中（`CreateTexture` 次数）卡、同一动图两消费者（窗口 + 离屏 target）不冻结对拍卡、图案填充采样场逐帧跟手卡。原 §3 把「帧推进期间显存与条目数对账卡」错放在 mipmap 窗，现改归本窗（帧推进与 mipmap 无技术交集）。
+  - `examples/ui_wr_p36_mipmap`：同一图按 `None/Nearest/Linear` 三档缩样并排（摩尔/混叠可见差）、CPU/GPU 双档同源。
 - **金图**：新窗新金图，容差按 P0.1 默认 0；**存量金图零变化**为批 1 验收项；批 2 若改变既有图片缩放像素，必须逐窗 A/B 归因并显式声明（不允许靠调大容差蒙）。
 - **双后端**：批 1 CPU 链双后端同源必跑；批 2 三档 × {native webgpu, gles} 像素对拍 + `TestConformanceDualBackend`；metal darwin 交叉过编译，本机不可验按标记写明。
 - **负向对照（每批一路，红→还原绿）**：批 1=摘 fdAT→IDAT 改写 / 摘 EXIF Orient / 摘 `RestorePrevious` 保留逻辑；批 2=摘逐层上传（只传 level0 却把采样器设成 Linear）/ 摘采样器 mip 接线（证明公开档真驱动）/ 摘 4/3 预算（证明显存账被断言覆盖）。
@@ -81,8 +83,10 @@ type MipmapMode int        // MipmapNone / MipmapNearest / MipmapLinear
 ## 4 批次与提交点（每批独立提交，提交前与用户确认，不推送除非另行确认）
 - **批 1a 解码半边·格式与方向 ✅ 已交付（2026-11-02）**：容器嗅探（`Encoding`/`SniffEncoding`，扩展名降为提示）+ EXIF 方向（`ImageOrientation` 9 档，解码期应用、返回尺寸已交换宽高，含 PNG `eXIf`/WebP `EXIF`）+ `DecodeOptions{PreserveOrientation}` 两扇门 + AVIF/HEIF 品牌识别与具名 `ErrUnsupportedFormat`（原死码激活）+ testdata 样本与 Pillow `exif_transpose` 参照网格。证据 `evidence/P3.6/batch1a.md`、`batch1-containers-probe.md`。
 - **批 1b 解码半边·动图三容器**（原批 1 剩余）：GIF（stdlib `image/gif`：透明=调色板 alpha=0 项 `reader.go:396-408`、`LoopCount` 0/-1/N 映射 `:577-582`、帧 `Bounds()` 即 `DisposalRect`）+ APNG（fcTL 26 字节、**dispose/blend 单字节**、fdAT→IDAT 复用单帧解码、`den==0→100` 采上游口径）+ 动图 WebP（ANMF **16 字节头无补白**、**X/Y 单位 2 像素**、W/H 为像素减一、VP8/VP8L 子 chunk 原样喂 `x/image`）+ `*AnimatedImage`/`FrameInfo` 公开面（复用同一 `ImageBuf` + `MarkPixelsDirty`，硬钉连播不涨缓存条目）+ 组 1–5 单测 + `ui/io` 注册表改委托（D5 另一半）。字段依据 `batch1-containers-probe.md`。
+- **批 1c 播放与消费链（图号=内容版本）✅ 已交付（2026-11-02）**：D7=(B) 落地——单一图号分配器（修 `Pixmap`/`ImageBuf` 键空间重叠第四洞）+ 原地改写换号 + 图号变更监听精确逐出 + 尺寸分桶空闲池 + `MarkPixelsDirty`/`TakeGPUDirty`/`ContentDirty`/`rewriteImage` 通道退役（`AnimatedImage`、`ExportImageBuf`、`video_bridge` 三用户全量切换）+ 钉 P1–P10。方案与实测 `batch1c-design.md`、评估 `batch1c-assessment.md`。
+- **批 1d 生产接线（D8 拆出）**：`ui/rendering.RenderImage` 动图入口 + `ui/kit` 控制动词，节奏走 `ui/scheduler.Ticker`（引擎不持节奏）；交付前动图按「已验证待接线」记，不得标生产。
 - **批 2 mipmap 半边**：1.5（`MipmapMode` 全量切换 + 采样器生产接线打通 `SetPerImageFilter` 零调用者问题 + `image_cache.go:362,377` 多级 + 逐层上传 + 幂等 + 4/3 预算 + 组 6 单测 + 旧钉同步：`r1_residual_gpu_test.go:106-145` 反向钉改语义、`quad_cpu_test.go:303-379` 容差重声明、`internal/image/draw.go:235-258` 的 `Release` 泄漏副修）。
-- **批 3 真窗两扇** + 文档收口（catalog §13 → 正式登记、台账状态、evidence 汇总）。
+- **批 3 真窗三扇** + 文档收口（catalog §13 → 正式登记、台账状态、evidence 汇总）。
 
 ## 5 显式不做与登记（不留口头）
 - AVIF/HEIF 像素解码（D1，远期专项，条件=有可用 AV1 通路）。

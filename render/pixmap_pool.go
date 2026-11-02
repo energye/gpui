@@ -101,6 +101,10 @@ func (p *pixmapPool) get(w, h int, clear bool) *Pixmap {
 		if clear {
 			pm.Clear(Transparent)
 		}
+		// A recycled surface is new content: retire the ID the previous
+		// occupant drew under, or a cache keyed on it keeps painting that
+		// occupant's texture for a different layer of the same size.
+		pm.NotifyPixelsChanged()
 		return pm
 	}
 	p.misses++

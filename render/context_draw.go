@@ -193,7 +193,7 @@ func (c *Context) tryGPUWritePixels(dstX, dstY, width, height int, pixels []byte
 	vpH := uint32(target.Height) //nolint:gosec
 	fx, fy := float32(dstX), float32(dstY)
 	fw, fh := float32(width), float32(height)
-	rc.QueueImageDraw(target, tight, c.pixmap.GenerationID(), width, height, width*4,
+	rc.QueueImageDraw(target, tight, c.pixmap.GenerationID(), c.pixmap, width, height, width*4,
 		fx, fy,
 		fx+fw, fy,
 		fx+fw, fy+fh,

@@ -18,17 +18,17 @@ import (
 	"image/png"
 	"io"
 	"os"
-	"sync/atomic"
+	"sync"
+
+	intImage "github.com/energye/gpui/render/internal/image"
 )
 
 // Compile-time interface checks.
 var (
-	_ image.Image = (*Pixmap)(nil)
-	_ draw.Image  = (*Pixmap)(nil)
+	_ image.Image  = (*Pixmap)(nil)
+	_ draw.Image   = (*Pixmap)(nil)
+	_ intImage.GenWatched = (*Pixmap)(nil)
 )
-
-// nextPixmapGenID is a process-global monotonic counter for Pixmap identity.
-var nextPixmapGenID atomic.Uint64
 
 // Pixmap represents a rectangular pixel buffer.
 // It implements both image.Image (read-only) and draw.Image (read-write)
@@ -38,7 +38,14 @@ type Pixmap struct {
 	width  int
 	height int
 	data   []uint8 // Premultiplied RGBA format, 4 bytes per pixel
-	genID  uint64  // Unique generation ID for GPU texture cache keying
+
+	// genMu guards the content generation and its listener list. The ID is the
+	// content version: readers on the raster thread must not see a torn value
+	// while the UI thread retires it.
+	genMu sync.Mutex
+	genID uint64
+	// watch: generation-change listeners; nil until someone registers.
+	watch *intImage.GenWatch
 }
 
 // NewPixmap creates a new pixmap with the given dimensions.
@@ -47,7 +54,7 @@ func NewPixmap(width, height int) *Pixmap {
 		width:  width,
 		height: height,
 		data:   make([]uint8, width*height*4),
-		genID:  nextPixmapGenID.Add(1),
+		genID:  intImage.NextContentGenID(),
 	}
 }
 
@@ -88,7 +95,7 @@ func NewPixmapFromBuffer(buf []uint8, width, height int) *Pixmap {
 		width:  width,
 		height: height,
 		data:   buf[:need],
-		genID:  nextPixmapGenID.Add(1),
+		genID:  intImage.NextContentGenID(),
 	}
 }
 
@@ -96,7 +103,25 @@ func NewPixmapFromBuffer(buf []uint8, width, height int) *Pixmap {
 // Used by GPU texture cache to avoid stale texture reuse (ADR-014).
 // The ID changes when NotifyPixelsChanged() is called.
 func (p *Pixmap) GenerationID() uint64 {
+	p.genMu.Lock()
+	defer p.genMu.Unlock()
 	return p.genID
+}
+
+// AddGenIDWatcher registers fn to run with the retired generation ID whenever
+// these pixels get a new one. The returned closure drops the registration;
+// calling it twice is safe. See ImageBuf.AddGenIDWatcher for the contract.
+func (p *Pixmap) AddGenIDWatcher(fn func(oldGenID uint64)) (remove func()) {
+	if p == nil {
+		return func() {}
+	}
+	p.genMu.Lock()
+	if p.watch == nil {
+		p.watch = &intImage.GenWatch{}
+	}
+	w := p.watch
+	p.genMu.Unlock()
+	return w.Add(fn)
 }
 
 // NotifyPixelsChanged assigns a new generation ID, invalidating any cached
@@ -104,7 +129,15 @@ func (p *Pixmap) GenerationID() uint64 {
 // Individual SetPixel/Clear calls do NOT auto-notify — call explicitly after
 // batch mutations.
 func (p *Pixmap) NotifyPixelsChanged() {
-	p.genID = nextPixmapGenID.Add(1)
+	if p == nil {
+		return
+	}
+	p.genMu.Lock()
+	old := p.genID
+	p.genID = intImage.NextContentGenID()
+	w := p.watch
+	p.genMu.Unlock()
+	w.Fire(old)
 }
 
 // Width returns the width of the pixmap.
@@ -186,7 +219,7 @@ func (p *Pixmap) FillRect(r image.Rectangle, pr, pg, pb, pa uint8) {
 		copy(p.data[dst:dst+rowBytes], src)
 	}
 
-	p.genID = nextPixmapGenID.Add(1)
+	p.NotifyPixelsChanged()
 }
 
 // GetPixel returns the color of a single pixel as straight (non-premultiplied) RGBA.
