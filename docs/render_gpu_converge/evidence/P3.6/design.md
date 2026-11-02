@@ -92,6 +92,7 @@ type MipmapMode int        // MipmapNone / MipmapNearest / MipmapLinear
 - iCCP/gAMA/白点等 ICC 色彩管理（P3.1b 线，P3.6 只碰方向不碰色域）。
 - 动图播放节奏与 timer（Flutter 同放 framework；引擎只交付帧与元数据，节奏归 2.5D/组件线消费）。
 - 压缩纹理的 mip（上游明确强制单级豁免 `image_decoder_impeller.cc:637`，我方暂无该格式路径）。
+- 动图 WebP 的 ALPH/blend/dispose/loop 语义 = **批 1b 交成熟纯 Go 库 `SeriousBug/webp-go-pure` 承担**（容器规范复核判出我方手写三处语义反了，库输出与参照帧零字节差），本包不再自研该算法；APNG 容器解析同理交 `kettek/apng`。见 `evidence/P3.6/batch1b.md` §1–§2。
 
 ## 6 风险（按可能性排序）
 1. **动图语义面大**（blend×disposal×required-frame×循环×畸形 delay）：靠组 1–2 的逐值与逐像素对拍压住，缺一项就是假绿。

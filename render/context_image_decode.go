@@ -11,6 +11,9 @@
 package render
 
 import (
+	"image"
+	"io"
+
 	intImage "github.com/energye/gpui/render/internal/image"
 )
 
@@ -65,3 +68,55 @@ var (
 	// ErrEmptyData reports empty image input.
 	ErrEmptyData = intImage.ErrEmptyData
 )
+
+// AnimatedImage decodes a multi-frame container (GIF, APNG, animated WebP) and
+// composites frames onto one reused ImageBuf, so advancing a frame rewrites the
+// same GPU texture instead of allocating one per frame.
+type AnimatedImage = intImage.AnimatedImage
+
+// FrameInfo is one frame's playback and compositing metadata.
+type FrameInfo = intImage.FrameInfo
+
+// FrameBlend says how a frame's pixels meet the canvas underneath.
+type FrameBlend = intImage.FrameBlend
+
+// FrameDisposal says what happens to a frame's rectangle once it is off screen.
+type FrameDisposal = intImage.FrameDisposal
+
+const (
+	FrameBlendSrc     = intImage.FrameBlendSrc
+	FrameBlendSrcOver = intImage.FrameBlendSrcOver
+
+	FrameDisposalKeep            = intImage.FrameDisposalKeep
+	FrameDisposalRestoreBGColor  = intImage.FrameDisposalRestoreBGColor
+	FrameDisposalRestorePrevious = intImage.FrameDisposalRestorePrevious
+
+	// NoRequiredFrame means a frame can be decoded without any earlier frame.
+	NoRequiredFrame = intImage.NoRequiredFrame
+)
+
+// LoadAnimatedImage opens a multi-frame container from a path.
+func LoadAnimatedImage(path string) (*AnimatedImage, error) {
+	return intImage.LoadAnimatedImage(path)
+}
+
+// LoadAnimatedImageFromBytes opens a multi-frame container from encoded bytes.
+func LoadAnimatedImageFromBytes(data []byte, opts DecodeOptions) (*AnimatedImage, error) {
+	return intImage.LoadAnimatedImageFromBytes(data, opts)
+}
+
+// DecodeImage decodes from a stream, identifying the container from its leading
+// bytes. It is the streaming twin of LoadImageFromBytes and the single door the
+// UI layer's async decode pool goes through.
+func DecodeImage(r io.Reader, opts DecodeOptions) (*ImageBuf, error) {
+	return intImage.Decode(r, opts)
+}
+
+// DecodeImageConfig reports the encoded image's stored-raster dimensions without
+// decoding pixels, so callers can route or size buffers before paying for the
+// raster. It does not apply orientation: when ImageOrientationOfBytes returns
+// an orientation whose SwapsWidthHeight is true, the displayed size transposes
+// the reported one.
+func DecodeImageConfig(r io.Reader) (image.Config, error) {
+	return intImage.DecodeConfig(r)
+}

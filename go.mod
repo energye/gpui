@@ -15,6 +15,11 @@ require github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 
 require github.com/ctessum/go.clipper v0.1.2
 
+require (
+	github.com/SeriousBug/webp-go-pure v1.2.0 // indirect
+	github.com/kettek/apng v0.0.0-20250827064933-2bb5f5fcf253 // indirect
+)
+
 replace github.com/ebitengine/purego => ../purego
 
 replace github.com/go-text/typesetting => ./third_party/go-text/typesetting

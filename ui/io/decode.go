@@ -26,8 +26,6 @@ import (
 	"context"
 	"errors"
 	"image"
-	"image/jpeg"
-	"image/png"
 	"io"
 	"os"
 	"path/filepath"
@@ -37,7 +35,6 @@ import (
 	"sync/atomic"
 
 	"github.com/energye/gpui/render"
-	"golang.org/x/image/webp"
 )
 
 // LargeImagePixels routes pictures above this pixel count to the single
@@ -116,9 +113,24 @@ func formatForExt(path string) string {
 	}
 }
 
-// sniffFormat runs Config of every registered decoder over data and
-// returns the first that recognizes it (sorted order, deterministic).
+// sniffFormat names the container from the bytes themselves (magic numbers via
+// render, the single source), then reports its dimensions without decoding.
+// Polling every registered decoder's Config used to work only because each entry
+// had its own codec; with the entries delegating, any name would accept any
+// recognized container, so the name must come from the content.
 func sniffFormat(data []byte) (string, image.Config, bool) {
+	// 主路：引擎按魔数认容器。注册表项现在都委托 render，任何一项都能解任何
+	// 一个受支持容器，所以名字必须由内容决定，不能靠轮询顺序。
+	if enc := render.ImageEncodingOfBytes(data); enc.IsDecodable() {
+		name := enc.String()
+		if d, ok := lookupDecoder(name); ok {
+			if cfg, err := d.Config(bytes.NewReader(data)); err == nil && cfg.Width > 0 && cfg.Height > 0 {
+				return name, cfg, true
+			}
+		}
+	}
+	// 兜底路：轮询注册表，保住「RegisterDecoder 可插入自定义格式」的既有契约
+	// （ui/io 的 T4 测试就靠它注册桩格式来测单飞/取消/大图为路由）。
 	for _, name := range SupportedDecoders() {
 		d, ok := lookupDecoder(name)
 		if !ok {
@@ -649,40 +661,19 @@ func resultOfDims(name string, img *render.ImageBuf, w, h int) Result {
 }
 
 func init() {
-	RegisterDecoder("png", Decoder{
-		Decode: func(r io.Reader) (*render.ImageBuf, error) {
-			img, err := png.Decode(r)
-			if err != nil {
-				return nil, err
-			}
-			return render.ImageBufFromImage(img), nil
-		},
-		Config: func(r io.Reader) (image.Config, error) {
-			return png.DecodeConfig(r)
-		},
-	})
-	RegisterDecoder("jpeg", Decoder{
-		Decode: func(r io.Reader) (*render.ImageBuf, error) {
-			img, err := jpeg.Decode(r)
-			if err != nil {
-				return nil, err
-			}
-			return render.ImageBufFromImage(img), nil
-		},
-		Config: func(r io.Reader) (image.Config, error) {
-			return jpeg.DecodeConfig(r)
-		},
-	})
-	RegisterDecoder("webp", Decoder{
-		Decode: func(r io.Reader) (*render.ImageBuf, error) {
-			img, err := webp.Decode(r)
-			if err != nil {
-				return nil, err
-			}
-			return render.ImageBufFromImage(img), nil
-		},
-		Config: func(r io.Reader) (image.Config, error) {
-			return webp.DecodeConfig(r)
-		},
-	})
+	// P3.6 batch 1b (decision D5): pixel decoding and header parsing both go
+	// through render's single source of truth, so this package's format table can
+	// not drift from the engine's. The names stay here because they are this
+	// pool's routing keys (extension hints, Result.Format), not a second
+	// implementation of any codec.
+	for _, name := range []string{"png", "jpeg", "gif", "webp"} {
+		RegisterDecoder(name, Decoder{
+			Decode: func(r io.Reader) (*render.ImageBuf, error) {
+				return render.DecodeImage(r, render.DecodeOptions{})
+			},
+			Config: func(r io.Reader) (image.Config, error) {
+				return render.DecodeImageConfig(r)
+			},
+		})
+	}
 }

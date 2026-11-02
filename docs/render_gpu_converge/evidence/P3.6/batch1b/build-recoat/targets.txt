@@ -1,0 +1,10 @@
+linux/amd64      default rc=0
+linux/amd64      nogpu  rc=0
+linux/arm64      default rc=0
+linux/arm64      nogpu  rc=0
+windows/amd64    default rc=0
+windows/amd64    nogpu  rc=0
+darwin/amd64     default rc=0
+darwin/amd64     nogpu  rc=0
+darwin/arm64     default rc=0
+darwin/arm64     nogpu  rc=0

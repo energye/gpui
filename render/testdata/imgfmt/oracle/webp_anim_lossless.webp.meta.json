@@ -1,0 +1,32 @@
+{
+ "file": "webp_anim_lossless.webp",
+ "size": [
+  40,
+  30
+ ],
+ "n_frames": 2,
+ "frames": [
+  {
+   "index": 0,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "loop": 0,
+    "duration": 120
+   }
+  },
+  {
+   "index": 1,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "loop": 0,
+    "duration": 120
+   }
+  }
+ ]
+}

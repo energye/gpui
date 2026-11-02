@@ -1,0 +1,46 @@
+{
+ "file": "gif_once.gif",
+ "size": [
+  40,
+  30
+ ],
+ "n_frames": 2,
+ "frames": [
+  {
+   "index": 0,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "version": [
+     71,
+     73,
+     70,
+     56,
+     57,
+     97
+    ],
+    "duration": 150
+   }
+  },
+  {
+   "index": 1,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "version": [
+     71,
+     73,
+     70,
+     56,
+     57,
+     97
+    ],
+    "duration": 250
+   }
+  }
+ ]
+}

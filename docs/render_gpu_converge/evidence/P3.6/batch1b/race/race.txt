@@ -1,0 +1,11 @@
+# race -count=2 2026-11-02T17:00:25+08:00
+--- ./render/internal/image ---
+ok  	github.com/energye/gpui/render/internal/image	2.833s
+--- ./ui/io ---
+FAIL
+FAIL	github.com/energye/gpui/ui/io	0.831s
+FAIL
+--- ./render/recording ---
+ok  	github.com/energye/gpui/render/recording	1.803s
+--- ./render (P3.6 测试；整包=批 4 已登记既有 native abort) ---
+ok  	github.com/energye/gpui/render	2.353s

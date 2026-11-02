@@ -1,0 +1,43 @@
+{
+ "file": "webp_anim_lossy.webp",
+ "size": [
+  40,
+  30
+ ],
+ "n_frames": 3,
+ "frames": [
+  {
+   "index": 0,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "loop": 2,
+    "duration": 100
+   }
+  },
+  {
+   "index": 1,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "loop": 2,
+    "duration": 0
+   }
+  },
+  {
+   "index": 2,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "loop": 2,
+    "duration": 250
+   }
+  }
+ ]
+}

@@ -13,9 +13,11 @@ package image
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"image"
+	"image/gif"
 	"image/jpeg"
 	"image/png"
 	"io"
@@ -111,7 +113,7 @@ func Decode(r io.Reader, opts DecodeOptions) (*ImageBuf, error) {
 	if !opts.PreserveOrientation {
 		ori, _ = ImageOrientationOfBytes(window)
 	}
-	img, err := decodeByFormat(br, format)
+	img, err := decodeByFormat(br, format, window)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +139,10 @@ func loadFile(path string, opts DecodeOptions, wantFormat Encoding) (*ImageBuf, 
 }
 
 // decodeByFormat dispatches to the decoder registered for a sniffed container.
-func decodeByFormat(r io.Reader, format Encoding) (image.Image, error) {
+// window is the already-peeked header (it costs nothing: peek does not consume),
+// needed to tell an animated WebP apart from a still one before the stream is
+// handed to a decoder that would choke on ANMF chunks.
+func decodeByFormat(r io.Reader, format Encoding, window []byte) (image.Image, error) {
 	switch format {
 	case EncodingPNG:
 		img, err := png.Decode(r)
@@ -151,7 +156,37 @@ func decodeByFormat(r io.Reader, format Encoding) (image.Image, error) {
 			return nil, fmt.Errorf("image: decode JPEG: %w", err)
 		}
 		return img, nil
+	case EncodingGIF:
+		// Static door for a GIF: the first frame, which is what a single-frame
+		// consumer expects as the poster. Animation goes through
+		// LoadAnimatedImageFromBytes.
+		g, err := gif.DecodeAll(r)
+		if err != nil {
+			return nil, fmt.Errorf("image: decode GIF: %w", err)
+		}
+		if len(g.Image) == 0 {
+			return nil, fmt.Errorf("%w: GIF has no frames", ErrUnsupportedFormat)
+		}
+		return g.Image[0], nil
 	case EncodingWebP:
+		if webPAnimated(window) {
+			// The frame table must be walked before frame 0 can be drawn, so
+			// the stream is buffered here; animated WebP files carry the whole
+			// frame list in one RIFF blob anyway.
+			data, err := io.ReadAll(r)
+			if err != nil {
+				return nil, fmt.Errorf("image: read animated WebP: %w", err)
+			}
+			a, err := openWebPAnim(data)
+			if err != nil {
+				return nil, err
+			}
+			defer a.Dispose()
+			if err := a.DecodeFrame(0); err != nil {
+				return nil, err
+			}
+			return a.Image().ToStdImage(), nil
+		}
 		img, err := webp.Decode(r)
 		if err != nil {
 			return nil, fmt.Errorf("image: decode WebP: %w", err)
@@ -160,6 +195,27 @@ func decodeByFormat(r io.Reader, format Encoding) (image.Image, error) {
 	default:
 		return nil, fmt.Errorf("%w: %s has no decoder wired in", ErrUnsupportedFormat, format)
 	}
+}
+
+// webPAnimated reports whether the VP8X chunk in the header window sets the
+// animation bit. A missing or unparsed VP8X is treated as "not animated".
+func webPAnimated(window []byte) bool {
+	if len(window) < 12 || !bytes.HasPrefix(window, []byte("RIFF")) || !bytes.Equal(window[8:12], []byte("WEBP")) {
+		return false
+	}
+	i := 12
+	for i+8 <= len(window) {
+		fcc := string(window[i : i+4])
+		size := int(binary.LittleEndian.Uint32(window[i+4 : i+8]))
+		if size < 0 || i+8+size > len(window) {
+			return false
+		}
+		if fcc == "VP8X" {
+			return size >= 1 && window[i+8]&0x02 != 0
+		}
+		i += 8 + size + (size & 1)
+	}
+	return false
 }
 
 // DecodePNG decodes a PNG image from the given reader, leaving any recorded

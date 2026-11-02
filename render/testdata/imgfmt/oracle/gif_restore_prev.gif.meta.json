@@ -1,0 +1,65 @@
+{
+ "file": "gif_restore_prev.gif",
+ "size": [
+  40,
+  30
+ ],
+ "n_frames": 3,
+ "frames": [
+  {
+   "index": 0,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "version": [
+     71,
+     73,
+     70,
+     56,
+     57,
+     97
+    ],
+    "duration": 100,
+    "loop": 1
+   }
+  },
+  {
+   "index": 1,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "version": [
+     71,
+     73,
+     70,
+     56,
+     57,
+     97
+    ],
+    "duration": 200
+   }
+  },
+  {
+   "index": 2,
+   "size": [
+    40,
+    30
+   ],
+   "info": {
+    "version": [
+     71,
+     73,
+     70,
+     56,
+     57,
+     97
+    ],
+    "duration": 300
+   }
+  }
+ ]
+}

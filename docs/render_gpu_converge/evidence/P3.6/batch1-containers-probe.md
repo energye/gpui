@@ -30,7 +30,7 @@
 | `acTL` = `num_frames(4) num_plays(4)`；**num_plays 0 = 无限** | `acTL num_frames=3 num_plays=0` / `num_frames=2 num_plays=3` | 探针 |
 | 帧会**自动收缩成子矩形** | 我提交的是三张全画布 RGBA，Pillow 写出 `fcTL w=34 h=10 x=6 y=6` 等变化包围盒 → 子矩形路径天然覆盖（不需手工造） | 探针（与 GIF 侧同样的 bbox 收缩） |
 | **fdAT→IDAT 改写**（照上游 APNG 生成器的做法） | `fdAT` 数据 = `sequence_number(4)` + 与 IDAT 同形的 zlib 流；解析时剥掉前 4 字节序号即可复用单帧 PNG 解码（`flutter/engine/lib/ui/painting/image_generator_apng.cc:499-500,576-580` 同构） | 探针 `fdAT seq=2 dataLen=46` |
-| **`delay_den==0` 的口径分歧** | 上游把分母 0 当 100（`image_generator_apng.cc:476-480`）；本机 Pillow 把自己的 den=0 文件读成 1200ms（放大 12 倍）。我方**采上游口径**（=100），并在单测里把这个分歧显式钉住，避免后来者以为两边一致 | 样本 `apng_delden0.png`（fcTL num=120 den=0） |
+| **`delay_den==0` 的兜底口径**（无分歧，先前记成「Pillow 放大 12 倍」是我算错了） | 上游把分母 0 当 100（`image_generator_apng.cc:476-480`）：样本 num=120 den=0 → 120/100 s = 1200 ms。本机 Pillow 读同一文件也报 **1200.0 ms**，与上游一致。我方按同一口径实现，并在单测里钉住 1200ms（正常样本 120/1000=120ms 作对照，防止把兜底值当默认值） | 样本 `apng_delden0.png` 与 `oracle/apng_delden0.png.meta.json` |
 
 ## 3 GIF（stdlib `image/gif` 能力面实测）
 
@@ -48,7 +48,7 @@
 |---|---|---|---|---|---|---|
 | GIF | `Delay×10ms` | `0→-1`、`-1→0`、`N→N`（-1=无限） | GIF 无 blend 概念 → 非透明像素恒 `Src`，透明像素保留底图 | `1→Keep`、`2→RestoreBGColor`、`3→RestorePrevious`、`0→Keep` | 恒「无需前帧」（GIF 帧自足，透明只是不覆盖） | `Image[i].Bounds()` |
 | APNG | `num/den×1000ms`，`den==0` 按 100 | `num_plays 0→-1`、`N→N-1`（total plays 与 extra repeats 的差） | `blend 0→Src`、`1→SrcOver` | `0→Keep`、`1→RestoreBGColor`、`2→RestorePrevious` | 恒「无需前帧」（`blend=SrcOver` 时底图来自上一帧画布，由 `RequiredFrame=上一帧` 表达） | `fcTL (x,y,w,h)` |
-| WebP | `dur ms`（0 允许） | `loop_count 0→-1`、`N→N` | `flags bit2 0→Src`、`1→SrcOver` | `flags bit1 0→Keep`、`1→RestoreBGColor`（WebP 只有两档，无 RestorePrevious） | 恒「无需前帧」（关键帧序列） | `(X×2, Y×2, W, H)`（**X/Y 单位 2 像素**） |
+| WebP | `dur ms`（0 允许；规范明写 0 的解释由实现决定，浏览器/工具常像 GIF 一样设下限——本包按原值交付，节奏策略留给消费者） | `loop_count 0→-1`、`N→N-1`（规范：非零即 Loop Count-1 次重复，与 APNG 同边、与 GIF 不同） | `flags bit2 **0→SrcOver**、**1→Src**`（规范：0=用 alpha 合成、1=不合成直接覆盖；**原稿记反，批 1b 已按原文订正**） | `flags bit1 0→Keep`、`1→RestoreBGColor`（**填 ANIM 背景色**，不是透明；WebP 只有两档，无 RestorePrevious） | 恒「无需前帧」（关键帧序列） | `(X×2, Y×2, W, H)`（规范原文：`2 * Frame X`；W/H 为像素减一） |
 
 上游 `RepetitionCount` 口径：负=无限、非负=**额外**重复次数（`flutter/engine/lib/ui/painting/image_generator.cc:118-121`）；APNG 的 `num_plays` 是**总播放次数**，所以映射成 `N-1` 必须在单测里单独钉（GIF/WebP 是额外次数，APNG 是总次数——三者不同，最容易搞错的一处）。
 
