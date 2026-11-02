@@ -20,6 +20,7 @@ import (
 	"github.com/energye/gpui/ui/input"
 	"github.com/energye/gpui/ui/platform"
 	"github.com/energye/gpui/ui/rendering"
+	"github.com/energye/gpui/ui/scheduler"
 )
 
 // defaultCursorWidth is the caret bar width (Flutter RenderEditable
@@ -288,7 +289,7 @@ func (b *Box) onFocusChange(on bool) {
 		return
 	}
 	b.focused = on
-	syncBlinkRegistration(b.RenderBox, on, b)
+	syncTickerRegistration(b.RenderBox, on, b)
 	b.MarkNeedsPaint()
 	b.sync()
 }
@@ -412,7 +413,7 @@ func (b *Box) SetDisabled(v bool) {
 		b.Node.Enabled = !v
 		if v && b.focused {
 			b.focused = false
-			syncBlinkRegistration(b.RenderBox, false, b)
+			syncTickerRegistration(b.RenderBox, false, b)
 			b.caretOn = false
 			b.layoutCaret()
 			if b.Node.HasFocus() {
@@ -607,22 +608,25 @@ func (b *Box) TickCaret(dt float64) {
 	}
 }
 
-// BlinkTick implements rendering.Blinkable.
-func (b *Box) BlinkTick(dt float64) bool {
+// Tick 实现 scheduler.Ticker：按 dt 推进光标闪烁相位。
+// 返回值是「还要不要继续驱动」——聚焦期间为 true（是否翻转由 TickCaret 自己
+// 标脏，帧由脏态来，不由 ticker 活着来）；失焦或盒子销毁就返回 false，由注册
+// 表自动摘除。
+func (b *Box) Tick(dt float64) bool {
 	if b == nil {
 		return false
 	}
-	before := b.caretOn
 	b.TickCaret(dt)
-	return b.caretOn != before
+	return b.focused
 }
 
-// NextBlinkIn implements rendering.BlinkDeadliner.
-func (b *Box) NextBlinkIn() (time.Duration, bool) {
+// NextWake 实现 scheduler.DeadlineWanter：报出当前闪烁相位还剩多久到头，让
+// 事件循环睡到点再醒，而不是占住帧节拍。失焦或稳态报不出截止（false）。
+func (b *Box) NextWake() (time.Duration, bool) {
 	if b == nil || !b.focused {
 		return 0, false
 	}
-	return nextBlinkIn(b.blinkElapsed)
+	return blinkNextWake(b.blinkElapsed)
 }
 
 // SetFace sets the font face for this box.
@@ -1775,11 +1779,17 @@ func (b *Box) OnIME(ev input.IMEEvent) {
 	}
 }
 
-// syncBlinkRegistration syncs framework-owned blink registration with focus
-// transitions: focused boxes receive dt from the embedder blink pump (which
-// frames only on toggles via dirtiness); unfocused boxes cost nothing.
-func syncBlinkRegistration(box *rendering.RenderBox, focused bool, bl rendering.Blinkable) {
-	if box == nil || bl == nil {
+// syncTickerRegistration 按焦点状态同步框架侧闪烁驱动：注册进本棵树的 ticker
+// 注册表（box 所在渲染树的 PipelineOwner），不再由外部手动喂 dt。
+//
+// box: 承载注册入口的渲染节点，用来取 Owner；nil 或尚未挂树时什么都不做。
+// focused: 焦点状态。true 注册，false 注销（未注册的注销是幂等空操作）。
+// t: 闪烁驱动的实现者（本包的 *Box），在 box 挂树之前就要定好。
+//
+// 调用时机：只在焦点事件里调（SetFocused 路径与失焦清理路径），不在 Paint 里。
+// 注意：表从空转非空时，嵌道层回调才把泵挂上帧调度器，所以没人闪烁时不花钱。
+func syncTickerRegistration(box *rendering.RenderBox, focused bool, t scheduler.Ticker) {
+	if box == nil || t == nil {
 		return
 	}
 	o := box.Owner()
@@ -1787,9 +1797,9 @@ func syncBlinkRegistration(box *rendering.RenderBox, focused bool, bl rendering.
 		return
 	}
 	if focused {
-		o.NoteBlinkable(bl)
+		o.AddTicker(t)
 	} else {
-		o.DropBlinkable(bl)
+		o.RemoveTicker(t)
 	}
 }
 
@@ -1816,8 +1826,12 @@ func stepBlink(caretOn bool, elapsed, dt float64) (bool, float64, bool) {
 	return !caretOn, elapsed, true
 }
 
-// nextBlinkIn reports how long until the current blink phase ends.
-func nextBlinkIn(elapsed float64) (time.Duration, bool) {
+// blinkNextWake 报出当前闪烁相位还剩多久结束。
+//
+// elapsed: 本相位已经走过的秒数。
+// 返回: 距相位翻转的时长；相位已超支（elapsed ≥ 半周期）时返回 0, true，
+// 意思是「立刻该再来一次」。调用方（Box.NextWake）负责处理未聚焦的无截止态。
+func blinkNextWake(elapsed float64) (time.Duration, bool) {
 	d := blinkHalfPeriod - elapsed
 	if d < 0 {
 		d = 0

@@ -256,7 +256,7 @@ func main() {
 			frozen = true
 			for _, b := range []*textinput.Box{boxSticky, boxLong, boxThird} {
 				if o := b.Owner(); o != nil {
-					o.DropBlinkable(b)
+					o.RemoveTicker(b)
 				}
 				b.SetCaretOn(true)
 			}

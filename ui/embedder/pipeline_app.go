@@ -706,14 +706,12 @@ func newPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 		}
 		app.input = opts.Input
 	}
-	// Framework-owned blink pump: widgets with blink state (caret blink)
-	// self-register with the pipe on focus transitions; the pump advances
-	// them on the UI thread. It never requests frames itself (no
-	// FrameWanter): toggles dirty their widgets and frames follow
-	// dirtiness. Registered only while blinkers exist, so a tree without
-	// any costs nothing.
-	pump := &blinkPump{pipe: app.pipe}
-	app.pipe.SetBlinkTickerCtl(func(active bool) {
+	// 框架侧的时间轴泵：有按 dt 推进显示态的部件（光标闪烁、动图逐帧）在自己
+	// 的状态变化时注册进渲染树的注册表，本泵负责在 UI 线程把它们推进一把。
+	// 它自己不索要帧：翻转/换帧由部件标脏，帧跟着脏态来，不跟着 ticker 活着来。
+	// 只有注册表从空转非空时才把泵挂上帧调度器，所以一棵没有参与者的树不花钱。
+	pump := &tickPump{pipe: app.pipe}
+	app.pipe.SetTickerCtl(func(active bool) {
 		if active {
 			app.sched.Tickers().Add(pump)
 		}
@@ -721,22 +719,26 @@ func newPipelineApp(host platform.Host, root rendering.RenderObject, opts Pipeli
 	return app
 }
 
-// blinkPump drives PipelineOwner blinkables with engine dt. Self-removes
-// when the set empties. Not a FrameWanter: toggles dirty their widgets and
-// the demand gate turns that into frames.
-type blinkPump struct {
+// tickPump 是渲染树与帧调度器之间的桥：把窗口给它的 dt 转交给本棵树的参与者。
+// 注册表空时 Tick 返回 false，由调度器自动摘掉自己，等下一次注册再挂回来。
+type tickPump struct {
+	// pipe: 被驱动的渲染树。构造时绑定，一生不换树。
 	pipe *rendering.PipelineOwner
+	// last: 上一次被 tick 的墙上时刻，用来算真实间隔。零值表示还没走过。
 	last time.Time
 }
 
-func (p *blinkPump) Tick(dt float64) bool {
+// Tick 推进本棵树全部在册参与者，返回「泵还要不要留着」。
+//
+// dt: 帧调度器给出的本帧步长（秒），这里只用它兜底首帧。
+// 返回: 注册表里是否还有参与者；false 时调度器把泵摘掉，表重新有人注册再挂回。
+//
+// 注意：喂给参与者的不是 dt 而是真实墙上间隔。事件循环按截止点睡醒后，醒来
+// 的间隔就是闪烁半周期本身，若用调度器钳过的 dt 会把 500ms 的相位网格越钳越慢。
+func (p *tickPump) Tick(dt float64) bool {
 	if p == nil || p.pipe == nil {
 		return false
 	}
-	// Real elapsed time, not the clamped frame dt: a deadline-slept loop
-	// wakes with the true interval, and blink parity needs all of it (the
-	// scheduler clamp exists to keep animations from jumping after stalls,
-	// which does not apply to a 500ms toggle grid).
 	now := time.Now()
 	real := dt
 	if !p.last.IsZero() {
@@ -746,24 +748,26 @@ func (p *blinkPump) Tick(dt float64) bool {
 		}
 	}
 	p.last = now
-	p.pipe.TickBlink(real)
-	return p.pipe.BlinkActive()
+	p.pipe.TickAllTickers(real)
+	return p.pipe.HasTickers()
 }
 
-// NextWake implements scheduler.DeadlineWanter: sleep until the next caret
-// toggle instead of holding the pacing cadence. No blinkers (or none with
-// a deadline) reports none, and the loop waits on events.
-func (p *blinkPump) NextWake() (time.Duration, bool) {
+// NextWake 实现 scheduler.DeadlineWanter：报出本棵树最早的下一次可见变化，
+// 让事件循环睡到点再醒，而不是占住帧节拍。
+//
+// 返回: 最早截止时长与是否有截止；没有参与者、或没人报得出截止时返回 false，
+// 循环转而等事件。事件总能打断这次等待，早醒只是重算状态，不额外派活。
+func (p *tickPump) NextWake() (time.Duration, bool) {
 	if p == nil || p.pipe == nil {
 		return 0, false
 	}
-	return p.pipe.NextBlinkWake()
+	return p.pipe.NextTickerWake()
 }
 
-// WantsFrame opts the pump out of per-tick frames: it only advances blink
-// phase. Without this, the pump itself (registered while any caret blinks)
-// would hold frame demand true and the idle loop would never sleep.
-func (p *blinkPump) WantsFrame() bool { return false }
+// WantsFrame 实现 scheduler.FrameWanter：泵只推进时间轴状态，不要每 tick 一帧。
+// 少了这个声明，泵自己（只要有光标在闪就挂着）会把「要帧」一直保持为真，
+// 空闲循环就永远睡不下。
+func (p *tickPump) WantsFrame() bool { return false }
 
 // SetInputRouter attaches (or replaces) the unified input router after
 // construction. The router's hit-test is bound to this app's HitTestPointer.

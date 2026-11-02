@@ -13,6 +13,8 @@ package rendering
 import (
 	"sync"
 	"time"
+
+	"github.com/energye/gpui/ui/scheduler"
 )
 
 // PipelineOwner flushes layout and paint for a root RenderObject (Flutter subset).
@@ -32,154 +34,112 @@ type PipelineOwner struct {
 	// nodes on this tree. Shared across presents so skip is observable.
 	boundaryCache *BoundaryCache
 
-	// blinkers are widgets with framework-owned blink state (caret blink)
-	// that need dt while focused. Widgets self-report on focus transitions;
-	// the embedder pumps them via TickBlink on the UI thread. blinkCtl (when
-	// set by the embedder) registers/unregisters the pump ticker as the set
-	// transitions between empty and non-empty, so a tree with no blinkers
-	// costs nothing.
-	blinkers map[Blinkable]struct{}
-	blinkCtl func(active bool)
+	// tickers 是本棵树的「按 dt 推进显示态」参与者注册表。契约与实现都直接用
+	// ui/scheduler 那一份（不再自建同形状接口）：参与者的 Tick(dt) 返回 false
+	// 即由注册表自动摘除。光标闪烁、动图逐帧都注册到这里，嵌道层的泵把它接进
+	// 所属窗口的帧调度器；表空时这条链路一分钱不花。
+	tickers *scheduler.TickerRegistry
+	// tickerCtl 由嵌道层装入：注册表在空与非空之间翻转时通知它，按需挂/卸泵
+	// ticker（没有参与者就不占帧调度器的一位）。
+	tickerCtl func(active bool)
 }
 
-// Blinkable is a widget whose blink phase advances on UI-thread dt.
-// BlinkTick reports whether the visible state toggled (the caller dirties
-// via the widget's own MarkNeedsPaint; frames come from dirtiness, never
-// from ticker aliveness).
-type Blinkable interface {
-	BlinkTick(dt float64) bool
-}
-
-// BlinkDeadliner is an optional deadline expression for Blinkables: how
-// long until the next visible toggle (the event loop's sleep deadline).
-// ok=false means no deadline (unfocused or steady state).
-type BlinkDeadliner interface {
-	NextBlinkIn() (time.Duration, bool)
-}
-
-// SetBlinkTickerCtl installs the embedder callback that (de)registers the
-// blink pump ticker. Nil clears it (unit-built owners).
-func (o *PipelineOwner) SetBlinkTickerCtl(fn func(active bool)) {
+// SetTickerCtl 安装嵌道层的泵挂卸回调。传 nil 表示不挂（单测自建 owner 的形态）。
+func (o *PipelineOwner) SetTickerCtl(fn func(active bool)) {
 	if o == nil {
 		return
 	}
 	o.mu.Lock()
-	o.blinkCtl = fn
+	o.tickerCtl = fn
 	o.mu.Unlock()
 }
 
-// NoteBlinkable registers b for blink dt (idempotent). Notifies the
-// embedder when the set becomes non-empty.
-func (o *PipelineOwner) NoteBlinkable(b Blinkable) {
-	if o == nil || b == nil {
+// tickerRegistryLocked 惰性建表：调用方须持有 o.mu（零值 owner 也要可用）。
+func (o *PipelineOwner) tickerRegistryLocked() *scheduler.TickerRegistry {
+	if o.tickers == nil {
+		o.tickers = &scheduler.TickerRegistry{}
+	}
+	return o.tickers
+}
+
+// AddTicker 把参与者注册进本棵树（幂等）。表由空转非空时通知 tickerCtl 把泵挂上。
+func (o *PipelineOwner) AddTicker(t scheduler.Ticker) {
+	if o == nil || t == nil {
 		return
 	}
 	var ctl func(active bool)
 	var notify bool
 	o.mu.Lock()
-	if o.blinkers == nil {
-		o.blinkers = make(map[Blinkable]struct{})
-	}
-	if _, ok := o.blinkers[b]; !ok {
-		notify = len(o.blinkers) == 0
-		o.blinkers[b] = struct{}{}
-		ctl = o.blinkCtl
-	}
+	reg := o.tickerRegistryLocked()
+	wasEmpty := !reg.HasActive()
+	reg.Add(t)
+	notify = wasEmpty && reg.HasActive()
+	ctl = o.tickerCtl
 	o.mu.Unlock()
 	if notify && ctl != nil {
 		ctl(true)
 	}
 }
 
-// DropBlinkable removes b from blink dt (idempotent). Notifies the
-// embedder when the set becomes empty.
-func (o *PipelineOwner) DropBlinkable(b Blinkable) {
-	if o == nil || b == nil {
+// RemoveTicker 注销参与者（幂等）。表转为空时通知 tickerCtl 把泵摘掉。
+// 参与者也可以在自己的 Tick 里返回 false 让注册表摘掉自己，两条路等价。
+func (o *PipelineOwner) RemoveTicker(t scheduler.Ticker) {
+	if o == nil || t == nil {
 		return
 	}
 	var ctl func(active bool)
 	var notify bool
 	o.mu.Lock()
-	if _, ok := o.blinkers[b]; ok {
-		delete(o.blinkers, b)
-		notify = len(o.blinkers) == 0
-		ctl = o.blinkCtl
+	if o.tickers != nil {
+		wasActive := o.tickers.HasActive()
+		o.tickers.Remove(t)
+		notify = wasActive && !o.tickers.HasActive()
 	}
+	ctl = o.tickerCtl
 	o.mu.Unlock()
 	if notify && ctl != nil {
 		ctl(false)
 	}
 }
 
-// BlinkActive reports whether any blinkable is registered.
-func (o *PipelineOwner) BlinkActive() bool {
+// HasTickers 报告本棵树是否还有参与者需要按 dt 推进。
+func (o *PipelineOwner) HasTickers() bool {
 	if o == nil {
 		return false
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return len(o.blinkers) > 0
+	return o.tickers != nil && o.tickers.HasActive()
 }
 
-// NextBlinkWake reports the minimum time until any registered blinkable's
-// next visible toggle. False when none is registered or none reports one;
-// the loop then waits on events instead of holding a pacing cadence.
-func (o *PipelineOwner) NextBlinkWake() (time.Duration, bool) {
+// NextTickerWake 当场问一遍在册参与者，返回最早的下一次可见变化截止点。
+// false 表示没人报出截止点（没注册，或处于稳定态），事件循环转而等事件。
+func (o *PipelineOwner) NextTickerWake() (time.Duration, bool) {
 	if o == nil {
 		return 0, false
 	}
 	o.mu.Lock()
-	list := make([]Blinkable, 0, len(o.blinkers))
-	for b := range o.blinkers {
-		if b != nil {
-			list = append(list, b)
-		}
-	}
+	reg := o.tickers
 	o.mu.Unlock()
-	var min time.Duration
-	found := false
-	for _, b := range list {
-		dl, ok := b.(BlinkDeadliner)
-		if !ok {
-			continue
-		}
-		d, ok := dl.NextBlinkIn()
-		if !ok {
-			continue
-		}
-		if !found || d < min {
-			min, found = d, true
-		}
+	if reg == nil {
+		return 0, false
 	}
-	return min, found
+	return reg.PollNextWake()
 }
 
-// TickBlink advances every registered blinkable on the UI thread and
-// reports whether any toggled. Callbacks run without the owner lock held
-// (widgets dirty themselves, which re-enters the owner).
-func (o *PipelineOwner) TickBlink(dt float64) bool {
+// TickAllTickers 在 UI 线程推进全部在册参与者；返回 false 的由注册表自动摘除。
+// 参与者的回调在持有 owner 锁之外执行（回调里标脏会再进 owner，持锁回调必死锁）。
+func (o *PipelineOwner) TickAllTickers(dt float64) {
 	if o == nil {
-		return false
+		return
 	}
 	o.mu.Lock()
-	if len(o.blinkers) == 0 {
-		o.mu.Unlock()
-		return false
-	}
-	list := make([]Blinkable, 0, len(o.blinkers))
-	for b := range o.blinkers {
-		if b != nil {
-			list = append(list, b)
-		}
-	}
+	reg := o.tickers
 	o.mu.Unlock()
-	toggled := false
-	for _, b := range list {
-		if b.BlinkTick(dt) {
-			toggled = true
-		}
+	if reg == nil {
+		return
 	}
-	return toggled
+	reg.TickAll(dt)
 }
 
 // NewPipelineOwner creates an owner with optional root.

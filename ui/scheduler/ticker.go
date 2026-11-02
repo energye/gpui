@@ -208,3 +208,35 @@ func (r *TickerRegistry) NextWake() (time.Duration, bool) {
 	}
 	return time.Duration(r.wakeInNanos.Load()), true
 }
+
+// PollNextWake 当场问一遍在册的 DeadlineWanter，返回最早的那个截止点，
+// 不依赖上一次 TickAll 的缓存。与 MayWantFrames 相对 FrameWanted 是同一对
+// 「即时查 / 上次 tick 快照」的关系。
+//
+// 存在的理由是一次真实缺陷：新注册者在被第一次 tick 之前，NextWake() 报不出
+// 截止点；若事件循环正因空闲而睡住，就没人来 tick 它，只能等下一次外部输入
+// 才醒。注册即生效的路径（光标获得焦点、动图开播）必须能立刻拿到截止点。
+func (r *TickerRegistry) PollNextWake() (time.Duration, bool) {
+	if r == nil {
+		return 0, false
+	}
+	r.mu.Lock()
+	list := append([]Ticker(nil), r.tickers...)
+	r.mu.Unlock()
+	var min time.Duration
+	found := false
+	for _, t := range list {
+		dw, ok := t.(DeadlineWanter)
+		if !ok {
+			continue
+		}
+		d, ok := dw.NextWake()
+		if !ok {
+			continue
+		}
+		if !found || d < min {
+			min, found = d, true
+		}
+	}
+	return min, found
+}

@@ -446,7 +446,7 @@ func main() {
 			}
 			for _, b := range []*textinput.InputBox{boxLong, box10, box16, boxDis, multiBox} {
 				if o := b.Owner(); o != nil {
-					o.DropBlinkable(b)
+					o.RemoveTicker(b)
 				}
 				b.SetCaretOn(true)
 			}

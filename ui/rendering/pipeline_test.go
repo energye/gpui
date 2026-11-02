@@ -39,69 +39,71 @@ func TestRenderBox_LayoutPaintHit(t *testing.T) {
 	}
 }
 
-// fakeBlinker is a controllable rendering.Blinkable for registry tests.
-type fakeBlinker struct {
+// fakeTicker 是可控的 scheduler.Ticker 实现，供注册表测试用。
+// alive 就是 Tick 的返回值（契约：false = 这一 tick 之后自动摘注册）。
+type fakeTicker struct {
 	calls   int
-	toggled bool
+	alive   bool
 	wake    time.Duration
 	hasWake bool
 }
 
-func (f *fakeBlinker) BlinkTick(dt float64) bool {
+func (f *fakeTicker) Tick(dt float64) bool {
 	f.calls++
 	_ = dt
-	return f.toggled
+	return f.alive
 }
 
-func (f *fakeBlinker) NextBlinkIn() (time.Duration, bool) { return f.wake, f.hasWake }
+func (f *fakeTicker) NextWake() (time.Duration, bool) { return f.wake, f.hasWake }
 
-// Blinkables self-report: register/drop transitions notify the embedder
-// exactly on empty<->non-empty edges, and TickBlink fans dt out on the
-// calling thread reporting the OR of toggles.
-func TestOwner_BlinkRegistry(t *testing.T) {
+// 参与者自注册：注册表在空/非空翻转的那一刻才通知嵌道层回调；
+// TickAllTickers 在调用线程把 dt 扇给每个参与者，返回 false 的由注册表摘掉。
+func TestOwner_TickerRegistry(t *testing.T) {
 	root := rendering.NewRenderBox()
 	owner := rendering.NewPipelineOwner(root)
 	var ctlCalls []bool
-	owner.SetBlinkTickerCtl(func(active bool) { ctlCalls = append(ctlCalls, active) })
-	if owner.BlinkActive() {
-		t.Fatal("fresh owner must have no blinkers")
+	owner.SetTickerCtl(func(active bool) { ctlCalls = append(ctlCalls, active) })
+	if owner.HasTickers() {
+		t.Fatal("fresh owner must have no tickers")
 	}
-	a, b := &fakeBlinker{}, &fakeBlinker{}
-	owner.NoteBlinkable(a)
-	owner.NoteBlinkable(a) // idempotent: no second edge
-	owner.NoteBlinkable(b)
-	if !owner.BlinkActive() {
-		t.Fatal("expected blinkers registered")
+	a, b := &fakeTicker{alive: true}, &fakeTicker{alive: true}
+	owner.AddTicker(a)
+	owner.AddTicker(a) // 幂等：不该再翻一次边沿
+	owner.AddTicker(b)
+	if !owner.HasTickers() {
+		t.Fatal("expected tickers registered")
 	}
 	if len(ctlCalls) != 1 || !ctlCalls[0] {
 		t.Fatalf("ctl calls=%v want single [true]", ctlCalls)
 	}
-	a.toggled, b.toggled = true, false
-	if !owner.TickBlink(0.016) {
-		t.Fatal("TickBlink must OR toggle reports")
-	}
+	owner.TickAllTickers(0.016)
 	if a.calls != 1 || b.calls != 1 {
 		t.Fatalf("calls a=%d b=%d want 1/1", a.calls, b.calls)
 	}
-	a.toggled = false
-	if owner.TickBlink(0.016) {
-		t.Fatal("no toggles must report false")
+	// 契约核心：返回 false 的参与者自动摘除，活着的那个留在表里。
+	a.alive = false
+	owner.TickAllTickers(0.016)
+	if a.calls != 2 {
+		t.Fatalf("a calls=%d want 2", a.calls)
 	}
-	owner.DropBlinkable(a)
-	if !owner.BlinkActive() {
-		t.Fatal("b still registered")
+	owner.TickAllTickers(0.016)
+	if a.calls != 2 {
+		t.Fatalf("dropped ticker must not be ticked again: a calls=%d", a.calls)
+	}
+	if !owner.HasTickers() {
+		t.Fatal("b must still be registered")
 	}
 	if len(ctlCalls) != 1 {
-		t.Fatalf("ctl calls=%v want no edge until empty", ctlCalls)
+		t.Fatalf("ctl calls=%v want no edge while b remains", ctlCalls)
 	}
-	owner.DropBlinkable(b)
-	if owner.BlinkActive() {
-		t.Fatal("expected empty after drops")
+	owner.RemoveTicker(b)
+	if owner.HasTickers() {
+		t.Fatal("expected empty after remove")
 	}
 	if len(ctlCalls) != 2 || ctlCalls[1] {
 		t.Fatalf("ctl calls=%v want [true false]", ctlCalls)
 	}
-	owner.DropBlinkable(b) // idempotent
+	owner.RemoveTicker(b) // 幂等
 	if len(ctlCalls) != 2 {
 		t.Fatalf("ctl calls=%v want no duplicate edge", ctlCalls)
 	}
@@ -259,27 +261,34 @@ func TestHitTest_MatchesPaintOffset(t *testing.T) {
 	}
 }
 
-// NextBlinkWake is the minimum reported deadline; empty or deadline-less
-// sets report none so the loop waits on events.
-func TestOwner_NextBlinkWake(t *testing.T) {
+// NextTickerWake 取全部在册参与者里最早的那个截止点；没人报（表空、或都不带
+// 截止）就报 false，让事件循环转去等事件。
+//
+// 这里同时钉住一条容易丢的性质：注册完立刻就能报出截止，不需要先被 tick 一次。
+// 光标获得焦点、动图开播都发生在两次 tick 之间；若截止点只能来自上一次 tick 的
+// 快照，空闲循环会一直睡到下一次外部输入，闪烁与动画就停在那一帧。
+func TestOwner_NextTickerWake(t *testing.T) {
 	root := rendering.NewRenderBox()
 	owner := rendering.NewPipelineOwner(root)
-	if _, ok := owner.NextBlinkWake(); ok {
+	if _, ok := owner.NextTickerWake(); ok {
 		t.Fatal("empty set must report no deadline")
 	}
-	a := &fakeBlinker{wake: 500 * time.Millisecond, hasWake: true}
-	b := &fakeBlinker{wake: 200 * time.Millisecond, hasWake: true}
-	c := &fakeBlinker{}
-	owner.NoteBlinkable(a)
-	owner.NoteBlinkable(b)
-	owner.NoteBlinkable(c)
-	if d, ok := owner.NextBlinkWake(); !ok || d != 200*time.Millisecond {
-		t.Fatalf("NextBlinkWake=%v,%v want 200ms,true", d, ok)
+	a := &fakeTicker{alive: true, wake: 500 * time.Millisecond, hasWake: true}
+	b := &fakeTicker{alive: true, wake: 200 * time.Millisecond, hasWake: true}
+	c := &fakeTicker{alive: true}
+	owner.AddTicker(a)
+	owner.AddTicker(b)
+	owner.AddTicker(c)
+	if a.calls != 0 {
+		t.Fatalf("registration must not tick: calls=%d", a.calls)
 	}
-	owner.DropBlinkable(a)
-	owner.DropBlinkable(b)
-	owner.DropBlinkable(c)
-	if _, ok := owner.NextBlinkWake(); ok {
+	if d, ok := owner.NextTickerWake(); !ok || d != 200*time.Millisecond {
+		t.Fatalf("NextTickerWake=%v,%v want 200ms,true (before any tick)", d, ok)
+	}
+	owner.RemoveTicker(a)
+	owner.RemoveTicker(b)
+	owner.RemoveTicker(c)
+	if _, ok := owner.NextTickerWake(); ok {
 		t.Fatal("emptied set must report no deadline")
 	}
 }
