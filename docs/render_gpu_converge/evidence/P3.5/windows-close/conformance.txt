@@ -1,0 +1,5 @@
+# conformance 双后端 2026-11-02T11:12:13+08:00（TestConformanceDualBackend 单条用例内部对拍 CPU/GPU 两腿）
+=== RUN   TestConformanceDualBackend
+--- PASS: TestConformanceDualBackend (0.78s)
+PASS
+ok  	github.com/energye/gpui/render	0.790s

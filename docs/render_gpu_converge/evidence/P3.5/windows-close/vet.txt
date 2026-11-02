@@ -1,0 +1,7 @@
+# vet 2026-11-02T11:10:58+08:00
+./render rc=0 0 lines
+./render/internal/gpu rc=0 0 lines
+./examples/ui_wr_p35_conic rc=0 0 lines
+./examples/ui_wr_p35_rrect4 rc=0 0 lines
+./examples/ui_wr_p35_persp rc=0 0 lines
+./examples/ui_wr_p35_patheffect rc=0 0 lines

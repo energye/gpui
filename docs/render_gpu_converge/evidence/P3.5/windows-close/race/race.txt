@@ -1,0 +1,10 @@
+# -race -count=2 真窗收口 2026-11-02T11:14:10+08:00
+--- ./render ---
+fs     0x0
+gs     0x0
+FAIL	github.com/energye/gpui/render	10.318s
+FAIL
+--- ./render/internal/gpu ---
+ok  	github.com/energye/gpui/render/internal/gpu	61.590s
+--- ./render/recording ---
+ok  	github.com/energye/gpui/render/recording	1.806s

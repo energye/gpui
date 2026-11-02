@@ -1,0 +1,12 @@
+# -race ./render 整包崩溃 HEAD A/B 2026-11-02T11:45:34+08:00
+## 本树（含真窗收口四处修复）
+thread '<unnamed>' (669343) panicked at src/conv.rs:519:22:
+invalid bind group layout for pipeline layout descriptor
+thread caused non-unwinding panic. aborting.
+FAIL	github.com/energye/gpui/render	10.300s
+## clean HEAD b93da030 worktree 同命令
+thread '<unnamed>' (670139) panicked at src/conv.rs:519:22:
+invalid bind group layout for pipeline layout descriptor
+thread caused non-unwinding panic. aborting.
+FAIL	github.com/energye/gpui/render	10.216s
+结论：同一处 wgpu-native 管线布局断言崩溃，HEAD 复现 → 批 4 已登记的整包单进程既有红（台账「顺带发现」条，归 GPU 资源生命周期线），非本批引入；本仓门禁口径为逐测试文件分进程，主逐文件 render 包内该文件 PASS。

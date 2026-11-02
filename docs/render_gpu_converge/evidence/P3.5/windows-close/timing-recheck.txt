@@ -1,0 +1,15 @@
+# s6_9 / m1 时序门复跑（逐文件门禁轮内红名归因）2026-11-02T11:42:28+08:00
+round1: ok  	github.com/energye/gpui/render	0.742s
+round2: FAIL	github.com/energye/gpui/render	0.794s
+round2: FAIL
+round3: FAIL	github.com/energye/gpui/render	0.775s
+round3: FAIL
+ok  	github.com/energye/gpui/ui/rendering	0.010s
+    s6_9_heavy_budget_test.go:361: P01_SolidPresent tier=floor s6.0=0.42 s6.9=0.35 ratio=0.838 abs=16.7 rel=0.8 eff=16.7 gpu=1 PASS
+    s6_9_heavy_budget_test.go:361: U01_StaticShell tier=P0_main s6.0=0.23 s6.9=0.21 ratio=0.903 abs=16.7 rel=0.6 eff=16.7 gpu=3 PASS
+    s6_9_heavy_budget_test.go:361: U02_ListScrollMorph tier=P0_main s6.0=0.37 s6.9=0.29 ratio=0.791 abs=16.7 rel=0.7 eff=16.7 gpu=9 PASS
+    s6_9_heavy_budget_test.go:361: U03_FormFieldDamage tier=P0_main s6.0=0.23 s6.9=0.19 ratio=0.817 abs=16.7 rel=0.6 eff=16.7 gpu=3 PASS
+    s6_9_heavy_budget_test.go:361: U04_ModalStatic tier=P0_main s6.0=0.18 s6.9=0.17 ratio=0.936 abs=16.7 rel=0.5 eff=16.7 gpu=6 PASS
+    s6_9_heavy_budget_test.go:361: B15like_MultiDamage tier=P0_main s6.0=0.24 s6.9=0.17 ratio=0.735 abs=16.7 rel=0.6 eff=16.7 gpu=4 PASS
+    s6_9_heavy_budget_test.go:361: H01_FullRedrawShell tier=P1_density s6.0=0.59 s6.9=0.41 ratio=0.695 abs=33.4 rel=1.0 eff=1.0 gpu=19 PASS
+    s6_9_heavy_budget_test.go:361: H04_TextRows40 tier=P1_density s6.0=0.56 s6.9=1.03 ratio=1.858 abs=16.7 rel=0.9 eff=0.9 gpu=41 FAIL
