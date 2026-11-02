@@ -16,6 +16,7 @@ import (
 	"sync"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/render"
 )
 
 // Kind names one axis filter. Nearest keeps texels sharp, Linear smooths.
@@ -55,30 +56,26 @@ func ParseKind(s string) Kind {
 	}
 }
 
-// MipMode names the between-level select. Nearest picks one level
-// (stable, the historic default), Linear blends two (smoother far view).
-type MipMode int
+// MipMode is the repo-wide sampling switch, aliased to render.MipmapMode so
+// one enum governs the CPU path, the GPU sampler and this module
+// (P3.6 batch 2, D11: render holds the truth, tex does not keep a second copy).
+//
+// Layer note, deliberately kept: render's zero value means "single-level
+// texture, no mip", while a tex Filter's zero Mip still normalizes to
+// MipNearest (historic default). `Filter.Normalized` owns that mapping, so
+// tex behaviour is unchanged; "no mip" stays un-settable through tex
+// (validMip rejects it, as it rejected the old unknown value).
+type MipMode = render.MipmapMode
 
 const (
 	// MipUnknown is the zero value: Normalized maps it to MipNearest.
-	MipUnknown MipMode = iota
+	// It is render.MipmapNone — unset in tex means "not chosen", not "no mip".
+	MipUnknown MipMode = render.MipmapNone
 	// MipNearest selects the closest level only.
-	MipNearest
+	MipNearest MipMode = render.MipmapNearest
 	// MipLinear blends adjacent levels (trilinear).
-	MipLinear
+	MipLinear MipMode = render.MipmapLinear
 )
-
-// String returns the stable log name of m.
-func (m MipMode) String() string {
-	switch m {
-	case MipNearest:
-		return "nearest"
-	case MipLinear:
-		return "linear"
-	default:
-		return "unknown"
-	}
-}
 
 // ParseMipMode maps "nearest"/"linear" to a MipMode, else MipUnknown.
 func ParseMipMode(s string) MipMode {

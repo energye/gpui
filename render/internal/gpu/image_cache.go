@@ -20,6 +20,7 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/render"
+	intImage "github.com/energye/gpui/render/internal/image"
 )
 
 // Budget limits come from the single declaration table (P2.4b 预算统一,
@@ -34,6 +35,17 @@ var (
 )
 
 // imageCacheEntry holds a GPU texture and view for a cached image.
+// imageCacheKey is one cached texture's identity: the content generation whose
+// pixels it holds, and how many mip levels it was created with. Level count is
+// part of the key because a texture's mip chain is fixed at creation
+// (TextureDescriptor.MipLevelCount) — the same picture drawn once with
+// MipmapNone and once with MipmapLinear needs two entries, and neither may
+// silently serve the other (P3.6 batch 2, D13).
+type imageCacheKey struct {
+	gen    uint64
+	levels uint32
+}
+
 type imageCacheEntry struct {
 	texture hal.Texture
 	view    hal.TextureView
@@ -41,6 +53,7 @@ type imageCacheEntry struct {
 	height  int
 	bytes   int64
 	gen     uint64 // LRU generation counter
+	levels  uint32 // created mip level count (1 = single level)
 
 	// srcGen is the content generation these pixels came from (never the
 	// derived key), and unwatch drops the source watcher registered for it.
@@ -75,7 +88,7 @@ type ImageCache struct {
 	device hal.Device
 	queue  hal.Queue
 
-	entries     map[uint64]*imageCacheEntry // keyed by content generation (ImageBuf/Pixmap)
+	entries     map[imageCacheKey]*imageCacheEntry // keyed by (content generation, level count)
 	budget      int
 	budgetBytes int64
 	// explicitBudgets marks SetBudgets overrides: explicit per-cache tuning
@@ -108,10 +121,11 @@ type ImageCache struct {
 	// retired holds content IDs whose textures must go, set by watchers on any
 	// thread and drained by the render path. bySrc indexes entries per source ID
 	// (several entries can share one source: derived keys and tile grids).
-	retiredMu   sync.Mutex
-	retired     map[uint64]struct{}
-	bySrc       map[uint64]map[uint64]struct{}
-	retiredGens uint64
+	retiredMu       sync.Mutex
+	retired         map[uint64]struct{}
+	bySrc           map[uint64]map[imageCacheKey]struct{}
+	retiredGens     uint64
+	mipLevelUploads uint64
 
 	// destroyed latches session teardown; a destroyed cache purges to zero
 	// without touching native resources (multiwindow 1.3 purge chain).
@@ -150,9 +164,9 @@ func NewImageCache(device hal.Device, queue hal.Queue) *ImageCache {
 	c := &ImageCache{
 		device:      device,
 		queue:       queue,
-		entries:     make(map[uint64]*imageCacheEntry),
+		entries:     make(map[imageCacheKey]*imageCacheEntry),
 		retired:     make(map[uint64]struct{}),
-		bySrc:       make(map[uint64]map[uint64]struct{}),
+		bySrc:       make(map[uint64]map[imageCacheKey]struct{}),
 		budget:      defaultImageCacheBudget,
 		budgetBytes: defaultImageCacheBudgetBytes,
 	}
@@ -256,10 +270,17 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 
 	c.drainRetired()
 
-	key := cmd.GenerationID
-	if key == 0 {
+	// Decide the level count first: it is part of the key, and the chain is
+	// resolved once here so the upload and the budget agree on it.
+	levels, chain, release := c.resolveLevels(cmd)
+	if release != nil {
+		defer release()
+	}
+	key := imageCacheKey{gen: cmd.GenerationID, levels: levels}
+
+	if key.gen == 0 {
 		// No generation ID — upload without long-term caching (temporary data).
-		entry, err := c.uploadImage(cmd)
+		entry, err := c.uploadImage(cmd, levels, chain)
 		if err != nil {
 			return nil, err
 		}
@@ -282,9 +303,9 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 	}
 
 	c.misses++
-	c.evictIfNeeded(int64(cmd.ImgWidth)*int64(cmd.ImgHeight)*4 + 1)
+	c.evictIfNeeded(c.texelsFor(cmd.ImgWidth, cmd.ImgHeight, levels)*4 + 1)
 
-	entry, err := c.uploadImage(cmd)
+	entry, err := c.uploadImage(cmd, levels, chain)
 	if err != nil {
 		return nil, err
 	}
@@ -299,11 +320,79 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 	return entry.view, nil
 }
 
+// mipEntryCount counts live multi-level entries.
+func (c *ImageCache) mipEntryCount() int {
+	n := 0
+	for _, e := range c.entries {
+		if e.levels > 1 {
+			n++
+		}
+	}
+	return n
+}
+
+// texelsFor is the texture's whole mip area; one formula shared with the hal
+// ledger (hal.MipChainTexels) so the render-side budget and the VRAM account
+// charge the same bytes (D12).
+func (c *ImageCache) texelsFor(w, h int, levels uint32) int64 {
+	return int64(hal.MipChainTexels(uint32(w), uint32(h), levels)) //nolint:gosec // areas fit int64
+}
+
+// resolveLevels reports how many mip levels this draw needs and hands back the
+// chain to upload from (release it when done).
+//
+// MipmapNone needs one level and no chain — that is the historic path and stays
+// byte-identical. A mip mode needs the CPU chain; when there is no watchable
+// source or the chain cannot be built, the draw degrades to one level rather
+// than creating a multi-level texture whose deeper levels would be read as
+// garbage by a mip-selecting sampler.
+func (c *ImageCache) resolveLevels(cmd *ImageDrawCommand) (levels uint32, chain *intImage.MipmapChain, release func()) {
+	levels = 1
+	if !cmd.Mip.UsesChain() || cmd.Src == nil {
+		return levels, nil, nil
+	}
+	want := hal.MipLevelCount(uint32(cmd.ImgWidth), uint32(cmd.ImgHeight))
+	if want <= 1 {
+		return levels, nil, nil
+	}
+	// The chain is built from an ImageBuf. A Pixmap-backed draw (the context's
+	// own surface used as an image) keeps one level for now rather than
+	// converting on every upload — registered as a follow-up in the batch
+	// evidence, not silently dropped.
+	buf, isBuf := cmd.Src.(*intImage.ImageBuf)
+	if !isBuf {
+		return levels, nil, nil
+	}
+	chain, release, ok := intImage.MipChainFor(buf)
+	if !ok || chain == nil {
+		return levels, nil, nil
+	}
+	have := uint32(chain.NumLevels()) //nolint:gosec // level counts are tiny
+	if have < want {
+		want = have
+	}
+	// A chain with a hole (pool exhaustion during generation) cannot back a
+	// multi-level texture: deeper levels would sample uninitialised memory.
+	for i := uint32(1); i < want; i++ {
+		if chain.Level(int(i)) == nil {
+			want = i
+			break
+		}
+	}
+	if want < 2 {
+		if release != nil {
+			release()
+		}
+		return 1, nil, nil
+	}
+	return want, chain, release
+}
+
 // trackSource records which content generation an entry holds and watches the
 // source for its retirement. A command whose pixels are already behind the
 // source's current generation is retired at once: it drew this frame but nothing
 // will ever ask for that ID again.
-func (c *ImageCache) trackSource(key uint64, entry *imageCacheEntry, cmd *ImageDrawCommand) {
+func (c *ImageCache) trackSource(key imageCacheKey, entry *imageCacheEntry, cmd *ImageDrawCommand) {
 	if c == nil || entry == nil || cmd.Src == nil {
 		return
 	}
@@ -320,7 +409,7 @@ func (c *ImageCache) trackSource(key uint64, entry *imageCacheEntry, cmd *ImageD
 
 // untrackSource drops the watcher and the per-source index before an entry goes
 // away, so a retired ID cannot leave a stale registration behind.
-func (c *ImageCache) untrackSource(key uint64, entry *imageCacheEntry) {
+func (c *ImageCache) untrackSource(key imageCacheKey, entry *imageCacheEntry) {
 	if entry == nil {
 		return
 	}
@@ -354,10 +443,10 @@ func (c *ImageCache) noteRetiredGen(oldGenID uint64) {
 	c.retiredMu.Unlock()
 }
 
-func (c *ImageCache) noteWatched(srcGen, key uint64) {
+func (c *ImageCache) noteWatched(srcGen uint64, key imageCacheKey) {
 	bucket := c.bySrc[srcGen]
 	if bucket == nil {
-		bucket = make(map[uint64]struct{}, 1)
+		bucket = make(map[imageCacheKey]struct{}, 1)
 		c.bySrc[srcGen] = bucket
 	}
 	bucket[key] = struct{}{}
@@ -386,7 +475,6 @@ func (c *ImageCache) drainRetired() {
 	}
 }
 
-
 // Destroy releases all cached GPU textures and views.
 func (c *ImageCache) Destroy() {
 	if c == nil {
@@ -399,7 +487,7 @@ func (c *ImageCache) Destroy() {
 		c.retireEntry(entry)
 		delete(c.entries, key)
 	}
-	c.bySrc = make(map[uint64]map[uint64]struct{})
+	c.bySrc = make(map[uint64]map[imageCacheKey]struct{})
 	c.retiredMu.Lock()
 	c.retired = make(map[uint64]struct{})
 	c.retiredMu.Unlock()
@@ -422,7 +510,7 @@ func (c *ImageCache) PurgeEvictable() (freed int64) {
 }
 
 // uploadImage creates a GPU texture and uploads pixel data from an ImageDrawCommand.
-func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error) {
+func (c *ImageCache) uploadImage(cmd *ImageDrawCommand, levels uint32, chain *intImage.MipmapChain) (*imageCacheEntry, error) {
 	w := cmd.ImgWidth
 	h := cmd.ImgHeight
 	if w == 0 || h == 0 {
@@ -433,7 +521,7 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 	tex, err := c.device.CreateTexture(&hal.TextureDescriptor{
 		Label:         "image_cache_tex",
 		Size:          hal.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1}, //nolint:gosec // image dimensions fit uint32
-		MipLevelCount: 1,
+		MipLevelCount: levels,
 		SampleCount:   1,
 		Dimension:     types.TextureDimension2D,
 		Format:        types.TextureFormatRGBA8Unorm,
@@ -448,7 +536,7 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 		Format:        types.TextureFormatRGBA8Unorm,
 		Dimension:     types.TextureViewDimension2D,
 		Aspect:        types.TextureAspectAll,
-		MipLevelCount: 1,
+		MipLevelCount: levels,
 	})
 	if err != nil {
 		tex.Destroy()
@@ -497,7 +585,58 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 		releaseImageStaging(staging)
 	}
 
-	nbytes := int64(need)
+	// Deeper levels come from the same cached chain the CPU fallback samples, so
+	// both ends filter identically (D3: one chain, bit-comparable across
+	// backends). resolveLevels already proved every level exists.
+	total := int64(need)
+	for i := uint32(1); i < levels; i++ {
+		lw, lh := hal.MipLevelSize(uint32(w), uint32(h), i)
+		lvl := chain.Level(int(i))
+		if lvl == nil {
+			view.Destroy()
+			tex.Destroy()
+			return nil, fmt.Errorf("mip level %d missing for %dx%d", i, w, h)
+		}
+		lsrc := lvl.PremultipliedData()
+		lstride := lvl.Stride()
+		lneed := int(lw) * int(lh) * 4
+		if len(lsrc) < lstride*int(lh) || lneed <= 0 {
+			view.Destroy()
+			tex.Destroy()
+			return nil, fmt.Errorf("mip level %d data too small (%d for %d)", i, len(lsrc), lstride*int(lh))
+		}
+		ldata := lsrc
+		var lstaging *[]byte
+		if lstride != int(lw)*4 {
+			lstaging = acquireImageStaging(lneed)
+			ldata = *lstaging
+			for row := 0; row < int(lh); row++ {
+				copy(ldata[row*int(lw)*4:(row+1)*int(lw)*4], lsrc[row*lstride:row*lstride+int(lw)*4])
+			}
+		}
+		err := c.queue.WriteTexture(
+			&hal.ImageCopyTexture{Texture: tex, MipLevel: i},
+			ldata,
+			&hal.ImageDataLayout{Offset: 0, BytesPerRow: uint32(lw) * 4, RowsPerImage: lh},
+			&hal.Extent3D{Width: lw, Height: lh, DepthOrArrayLayers: 1},
+		)
+		if lstaging != nil {
+			releaseImageStaging(lstaging)
+		}
+		if err != nil {
+			view.Destroy()
+			tex.Destroy()
+			return nil, fmt.Errorf("upload mip level %d: %w", i, err)
+		}
+		total += int64(lneed)
+		c.mipLevelUploads++
+	}
+
+	// Entry bytes are the whole mip area, matching what the hal ledger charges for
+	// this texture (D12) — before this the cache counted level 0 only while the
+	// ledger already charged the chain, so the 128-entry/64-MiB gate judged
+	// capacity on numbers nobody had spent.
+	nbytes := total
 	c.lastUploadBytes = nbytes
 	c.uploadBytes += uint64(nbytes) //nolint:gosec // non-negative
 
@@ -506,11 +645,12 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand) (*imageCacheEntry, error
 		view:    view,
 		width:   w,
 		height:  h,
+		levels:  levels,
 		bytes:   nbytes,
 	}, nil
 }
 
-func (c *ImageCache) removeEntry(key uint64, entry *imageCacheEntry) {
+func (c *ImageCache) removeEntry(key imageCacheKey, entry *imageCacheEntry) {
 	if entry == nil {
 		return
 	}
@@ -539,7 +679,7 @@ func (c *ImageCache) evictIfNeeded(needBytes int64) {
 
 // evictOldest removes the least recently used cache entry.
 func (c *ImageCache) evictOldest() {
-	var oldestKey uint64
+	var oldestKey imageCacheKey
 	oldestGen := ^uint64(0)
 	found := false
 	for key, entry := range c.entries {
@@ -578,6 +718,12 @@ type ImageCacheStats struct {
 	Watched     int
 	// Creates is the number of native textures this cache allocated.
 	Creates uint64
+	// MipEntries counts live entries created with more than one level, and
+	// MipLevelUploads the deeper-level uploads they cost. Both are the visible
+	// proof that a mip mode actually built and filled a chain — without them a
+	// "mipmap supported" claim is unfalsifiable.
+	MipEntries      int
+	MipLevelUploads uint64
 }
 
 // Stats returns cache statistics.
@@ -599,6 +745,8 @@ func (c *ImageCache) Stats() ImageCacheStats {
 		Evictions:        c.evictions,
 		EphemeralUploads: c.ephemeralUploads,
 		Creates:          c.creates,
+		MipEntries:       c.mipEntryCount(),
+		MipLevelUploads:  c.mipLevelUploads,
 		RetiredGens:      c.retiredGens,
 		Watched:          len(c.bySrc),
 	}

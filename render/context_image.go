@@ -21,6 +21,20 @@ import (
 // pixel formats and lazy premultiplication.
 type ImageBuf = intImage.ImageBuf
 
+// MipmapMode selects how a minified image samples its mip chain (P3.6 batch 2).
+// The truth lives in the image package so the CPU fallback and the GPU sampler
+// share one enum; engine/tex aliases this same type.
+type MipmapMode = intImage.MipmapMode
+
+const (
+	// MipmapNone: single-level texture, level 0 only — the historic behaviour.
+	MipmapNone = intImage.MipmapNone
+	// MipmapNearest: closest level, no blending between levels.
+	MipmapNearest = intImage.MipmapNearest
+	// MipmapLinear: blend adjacent levels.
+	MipmapLinear = intImage.MipmapLinear
+)
+
 // InterpolationMode defines how texture sampling is performed when drawing images.
 type InterpolationMode = intImage.InterpolationMode
 
@@ -157,9 +171,12 @@ type DrawImageOptions struct {
 	// Default is 1.0.
 	Opacity float64
 
-	// UseMipmaps enables mipmap sampling when the image is drawn smaller than
-	// its native size (I.04). Currently applied on the CPU image path.
-	UseMipmaps bool
+	// Mipmap selects the mip behaviour when the image is drawn smaller than its
+	// native size (I.04, P3.6 batch 2). Zero value MipmapNone keeps the historic
+	// single-level path bit-identical on both the CPU fallback and the GPU.
+	// Replaces the old `UseMipmaps bool`, which the GPU path ignored entirely
+	// while the public API advertised it.
+	Mipmap MipmapMode
 
 	// BlendMode specifies how to blend source and destination pixels.
 	// Default is BlendNormal.

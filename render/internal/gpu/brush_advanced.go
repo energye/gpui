@@ -178,7 +178,7 @@ func (rc *GPURenderContext) fillAdvancedBlendTiled(target render.GPURenderTarget
 				fy0 := float32(tb.Min.Y)
 				fx1 := float32(tb.Max.X)
 				fy1 := float32(tb.Max.Y)
-				rc.QueueImageDraw(target, pixelData, genBase+tileIdx, srcPM, tbw, tbh, tbw*4,
+				rc.QueueImageDraw(target, pixelData, genBase+tileIdx, srcPM, render.MipmapNone, tbw, tbh, tbw*4,
 					fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 					1.0, vpW, vpH, 0, 0, 1, 1, false, false)
 			} else {

@@ -1,0 +1,7 @@
+ 128x128  建链=   0.219ms 命中=  0.000ms 首次单级上传=  3.719ms 首次全链上传=  0.177ms 后续帧(含建链+上传)=  0.312ms/帧 条目字节=87380 深层上传=147
+ 256x256  建链=   0.778ms 命中=  0.000ms 首次单级上传=  0.345ms 首次全链上传=  0.476ms 后续帧(含建链+上传)=  0.857ms/帧 条目字节=349524 深层上传=168
+ 512x512  建链=   1.632ms 命中=  0.000ms 首次单级上传=  0.811ms 首次全链上传=  0.979ms 后续帧(含建链+上传)=  2.949ms/帧 条目字节=1398100 深层上传=189
+1024x1024 建链=   6.172ms 命中=  0.000ms 首次单级上传=  2.909ms 首次全链上传=  3.854ms 后续帧(含建链+上传)= 11.085ms/帧 条目字节=5592404 深层上传=210
+链缓存收尾统计：{Entries:0 Bytes:0 Dead:4 Builds:84 Hits:8 Evicts:0 Waits:0 Races:0 MaxEntries:64 MaxBytes:33554432}
+flush 后：{Entries:0 Bytes:0 Dead:4 Builds:84 Hits:8 Evicts:0 Waits:0 Races:0 MaxEntries:64 MaxBytes:33554432}
+ok  	github.com/energye/gpui/render/internal/gpu	2.688s

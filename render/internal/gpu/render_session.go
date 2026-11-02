@@ -407,7 +407,7 @@ type GPURenderSession struct {
 	imageBindGroups []hal.BindGroup
 	// Stable-key reuse: recreate bind groups only when texture/sampler changes.
 	imageBGViews          []hal.TextureView
-	imageBGNearest        []bool
+	imageBGSampler        []ImageSamplerKey
 	imageVertexStaging    []byte
 	imageUniformScratch   []byte
 	imageDrawCallScratch  []imageDrawCall
@@ -2333,7 +2333,7 @@ func (s *GPURenderSession) destroyPersistentBuffers() { //nolint:gocyclo,cyclop,
 	}
 	s.imageBindGroups = nil
 	s.imageBGViews = nil
-	s.imageBGNearest = nil
+	s.imageBGSampler = nil
 	s.imageVertexStaging = nil
 	s.imageUniformScratch = nil
 	s.imagePerspStaging = nil
@@ -4295,6 +4295,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		opacity              float32
 		texView              hal.TextureView
 		nearest              bool
+		sampler              ImageSamplerKey // effective per-picture sampling (P3.6 batch 2)
 		bicubic              bool
 		blendMode            render.BlendMode
 		perspective          bool
@@ -4341,6 +4342,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				opacity:     cmd.Opacity,
 				texView:     texView,
 				nearest:     cmd.Nearest,
+				sampler:     cmd.FilterKey(),
 				blendMode:   cmd.BlendMode,
 				perspective: true,
 				vertBuf:     perspBuf,
@@ -4356,6 +4358,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			opacity:     cmd.Opacity,
 			texView:     texView,
 			nearest:     cmd.Nearest || cmd.Bicubic, // bicubic taps use the nearest sampler
+			sampler:     cmd.FilterKey(),
 			bicubic:     cmd.Bicubic,
 			blendMode:   cmd.BlendMode,
 			firstVertex: uint32(i * 6),       //nolint:gosec
@@ -4454,10 +4457,13 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		for len(s.imageBindGroups) <= poolIdx {
 			s.imageBindGroups = append(s.imageBindGroups, nil)
 			s.imageBGViews = append(s.imageBGViews, nil)
-			s.imageBGNearest = append(s.imageBGNearest, false)
+			s.imageBGSampler = append(s.imageBGSampler, ImageSamplerKey{})
 		}
 		bg := s.imageBindGroups[poolIdx]
-		if bg == nil || s.imageBGViews[poolIdx] != slot.texView || s.imageBGNearest[poolIdx] != slot.nearest {
+		// A bind group is (texture view, sampler); the key now carries the mip mode
+		// too, so a mip-mapped picture never reuses a group bound to the historic
+		// nearest-level sampler (or vice versa).
+		if bg == nil || s.imageBGViews[poolIdx] != slot.texView || s.imageBGSampler[poolIdx] != slot.sampler {
 			if bg != nil {
 				s.pendingBindGroupRelease = append(s.pendingBindGroupRelease, bg)
 			}
@@ -4469,7 +4475,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				Entries: []hal.BindGroupEntry{
 					{Binding: 0, Buffer: s.imageUniformSlab, Offset: off, Size: imageUniformSize},
 					{Binding: 1, TextureView: slot.texView},
-					{Binding: 2, Sampler: s.imagePipeline.SamplerFor(slot.nearest)},
+					{Binding: 2, Sampler: s.imagePipeline.SamplerForFilter(slot.sampler)},
 				},
 			})
 			if err != nil {
@@ -4477,7 +4483,7 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 			}
 			s.imageBindGroups[poolIdx] = bg
 			s.imageBGViews[poolIdx] = slot.texView
-			s.imageBGNearest[poolIdx] = slot.nearest
+			s.imageBGSampler[poolIdx] = slot.sampler
 		}
 		drawCalls = append(drawCalls, imageDrawCall{
 			bindGroup:   bg,

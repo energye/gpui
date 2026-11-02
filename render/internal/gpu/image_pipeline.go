@@ -80,10 +80,10 @@ type ImageDrawCommand struct {
 	// into PixelData (queue time). It is what the cache records: the command's
 	// own GenerationID may be a derived key (brush fill namespaces, tile grids),
 	// and the watcher reports the source's retired ID, not the derived one.
-	SrcGen uint64
-	ImgWidth     int
-	ImgHeight    int
-	ImgStride    int
+	SrcGen    uint64
+	ImgWidth  int
+	ImgHeight int
+	ImgStride int
 
 	// Destination axis-aligned bounds in device pixels.
 	// For rotated/skewed images this is the AABB of the transformed quad.
@@ -122,11 +122,10 @@ type ImageDrawCommand struct {
 	// Mutually exclusive with Nearest: Bicubic wins when both are set.
 	Bicubic bool
 
-	// FilterMipmapLinear selects the between-level blend (trilinear) for
-	// this picture. False (zero) keeps
-	// the historic nearest-level select: old callers that never touch this
-	// field render bit-identically.
-	FilterMipmapLinear bool
+	// Mip is this picture's between-level select (P3.6 batch 2). The zero value
+	// MipmapNone keeps the historic single-level texture and nearest-level
+	// sampling, so callers that never touch it render bit-identically.
+	Mip render.MipmapMode
 
 	// FilterAniso caps anisotropic filtering for this picture, 1..16.
 	// 0 means 1 (historic default, off): old callers that never touch this
@@ -1058,10 +1057,13 @@ const (
 // It is the merge and cache key: two pictures share a bind group and a
 // sampler exactly when their keys are equal.
 type ImageSamplerKey struct {
-	Nearest      bool
-	Bicubic      bool
-	MipmapLinear bool
-	Aniso        uint16 // normalized 1..16
+	Nearest bool
+	Bicubic bool
+	// Mip is the between-level select; MipmapNone and MipmapNearest both sample
+	// with a nearest-level filter, and only MipmapNone builds no chain (the
+	// texture is single-level, so the filter has nothing above level 0 to blend).
+	Mip   render.MipmapMode
+	Aniso uint16 // normalized 1..16
 }
 
 // NormalizeImageFilterAniso pins a to [1, 16]; 0 means the historic
@@ -1080,11 +1082,11 @@ func NormalizeImageFilterAniso(a uint16) uint16 {
 // that will actually be used. Nearest and bicubic pictures sample with
 // the nearest sampler (bicubic taps are manual), so their mipmap/aniso
 // switches are masked: such pictures always merge with each other.
-func EffectiveImageSamplerKey(nearest, bicubic, mipmapLinear bool, aniso uint16) ImageSamplerKey {
+func EffectiveImageSamplerKey(nearest, bicubic bool, mip render.MipmapMode, aniso uint16) ImageSamplerKey {
 	if bicubic || nearest {
 		return ImageSamplerKey{Nearest: nearest, Bicubic: bicubic}
 	}
-	return ImageSamplerKey{MipmapLinear: mipmapLinear, Aniso: NormalizeImageFilterAniso(aniso)}
+	return ImageSamplerKey{Mip: mip, Aniso: NormalizeImageFilterAniso(aniso)}
 }
 
 // FilterKey returns cmd's effective sampling key. Nil-safe: a nil command
@@ -1093,18 +1095,18 @@ func (c *ImageDrawCommand) FilterKey() ImageSamplerKey {
 	if c == nil {
 		return ImageSamplerKey{}
 	}
-	return EffectiveImageSamplerKey(c.Nearest, c.Bicubic, c.FilterMipmapLinear, c.FilterAniso)
+	return EffectiveImageSamplerKey(c.Nearest, c.Bicubic, c.Mip, c.FilterAniso)
 }
 
 // SetPerImageFilter records this picture's R3 sampling switch (new
 // branch): mipmapLinear selects the between-level blend, maxAniso caps
 // anisotropy (clamped to [1, 16], 0 means 1). The old Nearest/Bicubic
 // fields stay untouched. Nil-safe no-op.
-func (c *ImageDrawCommand) SetPerImageFilter(mipmapLinear bool, maxAniso uint16) {
+func (c *ImageDrawCommand) SetPerImageFilter(mip render.MipmapMode, maxAniso uint16) {
 	if c == nil {
 		return
 	}
-	c.FilterMipmapLinear = mipmapLinear
+	c.Mip = mip
 	c.FilterAniso = NormalizeImageFilterAniso(maxAniso)
 }
 
@@ -1124,12 +1126,17 @@ func SamplerDescriptorForImageFilter(key ImageSamplerKey) hal.SamplerDescriptor 
 			MagFilter:    types.FilterModeNearest,
 			MinFilter:    types.FilterModeNearest,
 			MipmapFilter: types.MipmapFilterModeNearest,
-			Anisotropy:   imageFilterAnisoMin,
+			// Explicit LOD range: mip modes must be able to address the whole
+			// chain on every backend (0 would mean "unclamped" by convention,
+			// spelled out here so the descriptor is self-describing).
+			LodMinClamp: 0,
+			LodMaxClamp: 32,
+			Anisotropy:  imageFilterAnisoMin,
 		}
 	}
 	mip := types.MipmapFilterModeNearest
 	label := "image_sampler_r3_linear"
-	if key.MipmapLinear {
+	if key.Mip == render.MipmapLinear {
 		mip = types.MipmapFilterModeLinear
 		label = "image_sampler_r3_mipmap_linear"
 	}
@@ -1145,6 +1152,8 @@ func SamplerDescriptorForImageFilter(key ImageSamplerKey) hal.SamplerDescriptor 
 		MagFilter:    types.FilterModeLinear,
 		MinFilter:    types.FilterModeLinear,
 		MipmapFilter: mip,
+		LodMinClamp:  0,
+		LodMaxClamp:  32,
 		Anisotropy:   aniso,
 	}
 }
@@ -1423,7 +1432,7 @@ func (p *TexturedQuadPipeline) SamplerForFilter(key ImageSamplerKey) hal.Sampler
 		}
 		return p.sampler
 	}
-	if !key.MipmapLinear && key.Aniso <= imageFilterAnisoMin {
+	if key.Mip != render.MipmapLinear && key.Aniso <= imageFilterAnisoMin {
 		return p.sampler
 	}
 	if p.device == nil {

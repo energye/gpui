@@ -89,6 +89,9 @@ type AtlasSprite struct {
 	Tint RGBA
 	// Filter selects per-sprite sampling; zero means Bilinear.
 	Filter InterpolationMode
+	// Mipmap selects per-sprite minification sampling (P3.6 batch 2); the zero
+	// value MipmapNone keeps the historic single-level path bit-identical.
+	Mipmap MipmapMode
 }
 
 // R4 哨兵错与降级标记：调用方用 errors.Is 判定，不许静默画错。

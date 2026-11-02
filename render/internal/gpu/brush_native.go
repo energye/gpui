@@ -470,7 +470,7 @@ func (rc *GPURenderContext) fillLinearGradientSpanNative(
 	fy1 := float32(ry + rh)
 	if horizontal {
 		// n x 1 ramp stretched over rect.
-		rc.QueueImageDrawBlend(target, ramp, genID, nil, n, 1, n*4,
+		rc.QueueImageDrawBlend(target, ramp, genID, nil, render.MipmapNone, n, 1, n*4,
 			fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 			1, vpW, vpH,
 			0, 0, 1, 1,
@@ -478,7 +478,7 @@ func (rc *GPURenderContext) fillLinearGradientSpanNative(
 			false, false)
 	} else {
 		// 1 x n ramp.
-		rc.QueueImageDrawBlend(target, ramp, genID, nil, 1, n, 4,
+		rc.QueueImageDrawBlend(target, ramp, genID, nil, render.MipmapNone, 1, n, 4,
 			fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 			1, vpW, vpH,
 			0, 0, 1, 1,
@@ -707,7 +707,7 @@ func (rc *GPURenderContext) fillColorAtFieldNative(
 	fy0 := float32(ry)
 	fx1 := float32(rx + rw)
 	fy1 := float32(ry + rh)
-	rc.QueueImageDraw(target, data, genID, nil, nw, nh, nw*4,
+	rc.QueueImageDraw(target, data, genID, nil, render.MipmapNone, nw, nh, nw*4,
 		fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 		1, vpW, vpH,
 		0, 0, 1, 1,
@@ -916,7 +916,7 @@ func (rc *GPURenderContext) fillImagePatternNative(
 			v0 := float32((cy0 - y0) / tileDH)
 			u1 := float32((cx1 - x0) / tileDW)
 			v1 := float32((cy1 - y0) / tileDH)
-			rc.QueueImageDraw(target, tile, genID, img, srcW, srcH, srcW*4,
+			rc.QueueImageDraw(target, tile, genID, img, render.MipmapNone, srcW, srcH, srcW*4,
 				float32(cx0), float32(cy0), float32(cx1), float32(cy0),
 				float32(cx1), float32(cy1), float32(cx0), float32(cy1),
 				op, vpW, vpH,
@@ -943,7 +943,7 @@ func (rc *GPURenderContext) queuePatternQuad(
 	v0 := float32(tl.Y / imgH)
 	u1 := float32(br.X / imgW)
 	v1 := float32(br.Y / imgH)
-	rc.QueueImageDraw(target, tile, genID, src, srcW, srcH, srcW*4,
+	rc.QueueImageDraw(target, tile, genID, src, render.MipmapNone, srcW, srcH, srcW*4,
 		float32(tlX), float32(tlY), float32(trX), float32(trY),
 		float32(brX), float32(brY), float32(blX), float32(blY),
 		op, vpW, vpH,

@@ -1,0 +1,29 @@
+# 负向对照 2026-11-02T21:33:11+08:00
+
+[N1] 已改坏 render/internal/gpu/image_cache.go
+  改坏后 TestImageCache_MipLevelsAndExactBytes: FAIL（期望 FAIL）
+  改坏后 TestImageCache_MipModeSplitsEntries: FAIL（期望 FAIL）
+  改坏后 TestR1_ImageMipmapUsesGPU: FAIL（期望 FAIL）
+  改坏后 TestR1_MipLevelBlendSelect: FAIL（期望 FAIL）
+  还原后 TestImageCache_MipLevelsAndExactBytes: PASS（期望 PASS）
+  还原后 TestImageCache_MipModeSplitsEntries: PASS（期望 PASS）
+  还原后 TestR1_ImageMipmapUsesGPU: PASS（期望 PASS）
+  还原后 TestR1_MipLevelBlendSelect: PASS（期望 PASS）
+  → 判定：红→绿成立
+
+[N2] 已改坏 render/internal/gpu/image_cache.go
+  改坏后 TestImageCache_MipLevelsAndExactBytes: FAIL（期望 FAIL）
+  改坏后 TestR1_ImageMipmapUsesGPU: FAIL（期望 FAIL）
+  还原后 TestImageCache_MipLevelsAndExactBytes: PASS（期望 PASS）
+  还原后 TestR1_ImageMipmapUsesGPU: PASS（期望 PASS）
+  → 判定：红→绿成立
+
+[N3] 已改坏 render/internal/gpu/render_session.go
+  改坏后 TestR1_MipLevelBlendSelect: FAIL（期望 FAIL）
+  还原后 TestR1_MipLevelBlendSelect: PASS（期望 PASS）
+  → 判定：红→绿成立
+
+[N4] 已改坏 gpu/hal/vram_ledger.go
+  改坏后 TestImageCache_MipLevelsAndExactBytes: FAIL（期望 FAIL）
+  还原后 TestImageCache_MipLevelsAndExactBytes: PASS（期望 PASS）
+  → 判定：红→绿成立

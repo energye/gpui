@@ -76,18 +76,21 @@ func vramBytesPerTexel(f types.TextureFormat) uint64 {
 	}
 }
 
-// VramTextureBytes estimates one texture in bytes: extent × layers ×
-// samples × bytes-per-texel, with a 4/3 mip-chain factor when mipmapped.
+// VramTextureBytes reports one texture's bytes: the exact mip-chain area (not a
+// 4/3 upper bound) × layers × samples × bytes-per-texel (P3.6 batch 2, D12).
+//
+// The old estimate charged level 0 × 4/3 whenever mips > 1, which over-counts
+// non-square and non-power-of-two chains (a 70x8 texture's whole chain is 1.02×
+// its level 0, not 1.33×) while the render-side cache counted level 0 only — so
+// the two accounts disagreed in opposite directions and the image-cache budget
+// judged capacity on numbers the ledger did not charge. Both sides now sum the
+// same levels through MipChainTexels.
 func VramTextureBytes(size types.Extent3D, layers, mips, samples uint32, f types.TextureFormat) uint64 {
-	w, h := uint64(size.Width), uint64(size.Height)
-	if w == 0 || h == 0 {
+	texels := MipChainTexels(size.Width, size.Height, mips)
+	if texels == 0 {
 		return 0
 	}
-	n := w * h * uint64(layers) * uint64(samples) * vramBytesPerTexel(f)
-	if mips > 1 {
-		n = n * 4 / 3
-	}
-	return n
+	return texels * uint64(layers) * uint64(samples) * uint64(vramBytesPerTexel(f))
 }
 
 // Fixed estimates for objects without extents. Samplers are tiny driver

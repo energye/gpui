@@ -126,8 +126,7 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 		dstHeight = float64(srcH)
 	}
 
-	// I.04 R1: Prefer GPU textured quads. UseMipmaps uses GPU bilinear (approx
-	// vs true mip chain). Bicubic uses a GPU 4x4 convolution variant
+	// I.04 R1: Prefer GPU textured quads. Bicubic uses a GPU 4x4 convolution variant
 	// (textured_quad_bicubic.wgsl, Catmull-Rom kernel matching the CPU path);
 	// GPU failure falls back to the CPU bicubic samplers below.
 	if c.tryGPUDrawImage(img, opts, srcX, srcY, srcW, srcH, dstWidth, dstHeight) {
@@ -154,7 +153,7 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 					Opacity:     opts.Opacity,
 					BlendMode:   opts.BlendMode,
 					BlendLinear: opts.BlendSpace.linear(),
-					UseMipmaps:  opts.UseMipmaps,
+					Mipmap:      opts.Mipmap,
 				})
 				c.recordCPUFallbackReason("image:bicubic")
 				return

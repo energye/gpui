@@ -66,7 +66,7 @@ func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
 			v0 := float32(sp.SrcY) / float32(imgH)
 			u1 := float32(sp.SrcX+sp.SrcW) / float32(imgW)
 			v1 := float32(sp.SrcY+sp.SrcH) / float32(imgH)
-			rc.QueueImageDraw(target, pixelData, genID, img, imgW, imgH, stride,
+			rc.QueueImageDraw(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
 				float32(tl.X), float32(tl.Y),
 				float32(tr.X), float32(tr.Y),
 				float32(br.X), float32(br.Y),
@@ -279,7 +279,7 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 				// CPU does srcRGB = tex*tr*srcA with srcA = baseA*ta*op,
 				// so the vertex tint must carry tr*ta (not straight tr).
 				tintR, tintG, tintB = tintR*tintA, tintG*tintA, tintB*tintA
-				c.gpuCtxOps().QueueImageDrawTint(target, pixelData, genID, img, imgW, imgH, stride,
+				c.gpuCtxOps().QueueImageDrawTint(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
 					float32(tl.X), float32(tl.Y),
 					float32(trPt.X), float32(trPt.Y),
 					float32(br.X), float32(br.Y),
@@ -288,12 +288,12 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 					float32(tintR), float32(tintG), float32(tintB), float32(tintA),
 					nearest, false, bicubic)
 			} else {
-				c.gpuCtxOps().QueueImageDraw(target, pixelData, genID, img, imgW, imgH, stride,
+				c.gpuCtxOps().QueueImageDraw(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
 					float32(tl.X), float32(tl.Y),
 					float32(trPt.X), float32(trPt.Y),
 					float32(br.X), float32(br.Y),
 					float32(bl.X), float32(bl.Y),
-					float32(op), vpW, vpH, u0, v0, u1, v1, nearest, false, bicubic)
+					float32(op), vpW, vpH, u0, v0, u1, v1, nearest, bicubic)
 			}
 			queued++
 		}

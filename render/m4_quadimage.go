@@ -79,7 +79,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 			nearest := interp == InterpNearest
 			bicubic := interp == InterpBicubic
 			if opts.Perspective {
-				rc.QueueImageDrawQuadW(target, pixelData, img.GenerationID(), img, imgW, imgH, img.Stride(),
+				rc.QueueImageDrawQuadW(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 					float32(dev[0].X), float32(dev[0].Y),
 					float32(dev[1].X), float32(dev[1].Y),
 					float32(dev[2].X), float32(dev[2].Y),
@@ -92,7 +92,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 				c.recordGPUOp()
 				return nil
 			}
-			rc.QueueImageDraw(target, pixelData, img.GenerationID(), img, imgW, imgH, img.Stride(),
+			rc.QueueImageDraw(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 				float32(dev[0].X), float32(dev[0].Y),
 				float32(dev[1].X), float32(dev[1].Y),
 				float32(dev[2].X), float32(dev[2].Y),

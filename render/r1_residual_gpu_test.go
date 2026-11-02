@@ -3,6 +3,7 @@
 package render_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/energye/gpui/render"
@@ -103,47 +104,151 @@ func TestR1_BackdropSeedGPU(t *testing.T) {
 	}
 }
 
+// TestR1_ImageMipmapUsesGPU 是 P3.6 批 2 把「反向钉」改正向钉的那一条。
+//
+// 旧版本只断言「这口被忽略也算走 GPU」，等于把假语义当契约。现在断言档位真
+// 驱动多级采样：8× 缩小时 `MipmapNone` 保留双线性抽样（读到的是个别噪声纹素，
+// 离中性远），`MipmapLinear` 必须先预滤波（贴近中性灰），两档结果必须不同。
+//
+// 像素一律走 ExportImageBuf 从显存读回——headless Context 的 Image() 返回的是
+// CPU 面，用它判 GPU 行为本身就是错的（我第一次就这么错过，两档「相同」是
+// 读取路径的假象，不是 GPU 的）。
 func TestR1_ImageMipmapUsesGPU(t *testing.T) {
 	requireNativeGPU(t)
-	const w, h = 64, 64
-	dc := render.NewContext(w, h)
-	defer dc.Close()
-	dc.ResetRenderPathStats()
-	dc.ClearWithColor(render.White)
+	const side, dst = 64, 8
 
-	img, err := render.NewImageBuf(32, 32, render.FormatRGBA8)
+	noise := r1NoiseImage(t, side)
+
+	gpuMeanDev := func(mode render.MipmapMode) float64 {
+		dc := render.NewContext(side, side)
+		defer dc.Close()
+		dc.SetEffectSurface(true)
+		dc.ResetRenderPathStats()
+		dc.ClearWithColor(render.White)
+		dc.DrawImageEx(noise, render.DrawImageOptions{
+			X: 24, Y: 24, DstWidth: dst, DstHeight: dst,
+			Interpolation: render.InterpBilinear,
+			Mipmap:        mode,
+			Opacity:       1,
+			BlendMode:     render.BlendNormal,
+		})
+		if err := dc.FlushGPU(); err != nil {
+			t.Fatalf("FlushGPU(mode=%v): %v", mode, err)
+		}
+		st := dc.RenderPathStats()
+		if st.GPUOps == 0 {
+			t.Fatalf("mode=%v 未走 GPU（last=%s）", mode, st.LastCPUFallbackReason)
+		}
+		if st.CPUFallbackOps != 0 {
+			t.Fatalf("mode=%v 掉回 CPU：cpu_fb=%d last=%s（mip 档不得强制 CPU）", mode, st.CPUFallbackOps, st.LastCPUFallbackReason)
+		}
+		var img *render.ImageBuf
+		if !dc.ExportImageBuf(&img) || img == nil {
+			t.Fatalf("mode=%v 显存读回失败", mode)
+		}
+		defer img.Dispose()
+		data := img.Data()
+		stride := img.Stride()
+		var sum float64
+		for y := 24; y < 24+dst; y++ {
+			for x := 24; x < 24+dst; x++ {
+				off := y*stride + x*4
+				sum += math.Abs(float64((int(data[off])+int(data[off+1])+int(data[off+2]))/3) - 127.5)
+			}
+		}
+		return sum / float64(dst*dst)
+	}
+
+	noneDev := gpuMeanDev(render.MipmapNone)
+	linDev := gpuMeanDev(render.MipmapLinear)
+	t.Logf("显存读回离中性均值：None=%.1f Linear=%.1f", noneDev, linDev)
+	if noneDev == linDev {
+		t.Fatalf("两档像素完全相同：Mipmap 档位没有驱动多级采样")
+	}
+	if linDev >= noneDev {
+		t.Fatalf("MipmapLinear(%.1f) 未比 MipmapNone(%.1f) 更贴近预滤波均值", linDev, noneDev)
+	}
+}
+
+// TestR1_MipLevelBlendSelect 钉三档互相可辨：缩小到 2.67× 时 LOD 落在两级之间，
+// `MipmapNearest` 只取一级、`MipmapLinear` 混两级，两者像素必不同；`MipmapNone`
+// 又与二者都不同（只吃 level0）。少了这条，"采样器的级间选择"就是没人守的开关
+// ——负向对照 N3（摘掉按档绑采样器）当时照样全绿，就是这么暴露出来的。
+func TestR1_MipLevelBlendSelect(t *testing.T) {
+	requireNativeGPU(t)
+	const side, dst = 64, 24 // LOD ≈ log2(64/24) = 1.415，非整数级
+	src := r1NoiseImage(t, side)
+	defer src.Dispose()
+
+	sums := map[render.MipmapMode][]uint8{}
+	for _, mode := range []render.MipmapMode{render.MipmapNone, render.MipmapNearest, render.MipmapLinear} {
+		dc := render.NewContext(side, side)
+		dc.SetEffectSurface(true)
+		dc.ClearWithColor(render.White)
+		dc.DrawImageEx(src, render.DrawImageOptions{
+			X: 20, Y: 20, DstWidth: dst, DstHeight: dst,
+			Interpolation: render.InterpBilinear, Mipmap: mode, Opacity: 1,
+		})
+		if err := dc.FlushGPU(); err != nil {
+			t.Fatalf("mode=%v: %v", mode, err)
+		}
+		var img *render.ImageBuf
+		if !dc.ExportImageBuf(&img) || img == nil {
+			t.Fatalf("mode=%v 读回失败", mode)
+		}
+		pix := make([]uint8, 0, dst*dst)
+		d, st := img.Data(), img.Stride()
+		for y := 20; y < 20+dst; y++ {
+			for x := 20; x < 20+dst; x++ {
+				pix = append(pix, d[y*st+x*4])
+			}
+		}
+		img.Dispose()
+		dc.Close()
+		sums[mode] = pix
+	}
+	diff := func(a, b render.MipmapMode) int {
+		n := 0
+		for i := range sums[a] {
+			if sums[a][i] != sums[b][i] {
+				n++
+			}
+		}
+		return n
+	}
+	dNL, dNNe, dNn := diff(render.MipmapNone, render.MipmapLinear), diff(render.MipmapNone, render.MipmapNearest), diff(render.MipmapNearest, render.MipmapLinear)
+	t.Logf("差异像素数（共 %d）：None↔Linear=%d None↔Nearest=%d Nearest↔Linear=%d", dst*dst, dNL, dNNe, dNn)
+	if dNL == 0 {
+		t.Fatalf("None 与 Linear 逐位相同：多级采样没生效")
+	}
+	if dNn == 0 {
+		t.Fatalf("Nearest 与 Linear 逐位相同：级间选择（mipmap_filter）没被消费，档位是个空开关")
+	}
+}
+
+// r1NoiseImage 造一张确定性的黑白噪声图（LCG 固定种子，非标准数据集，只是
+// 用来把「缩小抽样相位」的混叠暴露出来：mipmap 的存在意义就是这个）。
+func r1NoiseImage(t *testing.T, side int) *render.ImageBuf {
+	t.Helper()
+	img, err := render.NewImageBuf(side, side, render.FormatRGBA8)
 	if err != nil {
 		t.Fatalf("NewImageBuf: %v", err)
 	}
-	// Fill red via raw data if available.
 	data := img.Data()
+	state := uint32(0x1234ABCD)
 	for i := 0; i+3 < len(data); i += 4 {
-		data[i+0] = 255
-		data[i+1] = 0
-		data[i+2] = 0
-		data[i+3] = 255
+		state = state*1664525 + 1013904223
+		v := byte(0)
+		if state&(1<<7) != 0 {
+			v = 255
+		}
+		data[i+0], data[i+1], data[i+2], data[i+3] = v, v, v, 255
 	}
 	img.NotifyPixelsChanged()
-
-	dc.DrawImageEx(img, render.DrawImageOptions{
-		X: 8, Y: 8, DstWidth: 16, DstHeight: 16,
-		Interpolation: render.InterpBilinear,
-		UseMipmaps:    true,
-		Opacity:       1,
-		BlendMode:     render.BlendNormal,
-	})
-	if err := dc.FlushGPU(); err != nil {
-		t.Fatalf("FlushGPU: %v", err)
-	}
-	st := dc.RenderPathStats()
-	t.Logf("R1 mipmap %s", st.LogLine())
-	if st.GPUOps == 0 {
-		t.Fatalf("UseMipmaps should use GPU bilinear path")
-	}
-	if st.CPUFallbackOps != 0 {
-		t.Fatalf("cpu_fb=%d last=%s (mipmap must not force CPU)", st.CPUFallbackOps, st.LastCPUFallbackReason)
-	}
+	t.Cleanup(img.Dispose)
+	return img
 }
+
 
 func TestR2_GradientStrokeGPU(t *testing.T) {
 	requireNativeGPU(t)

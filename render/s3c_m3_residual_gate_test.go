@@ -281,7 +281,7 @@ func TestS3c_M3_ImageBicubicAndMipmap(t *testing.T) {
 	dc.DrawImageEx(big, render.DrawImageOptions{
 		X: 32, Y: 0, DstWidth: 16, DstHeight: 16,
 		Interpolation: render.InterpBilinear,
-		UseMipmaps:    true,
+		Mipmap:        render.MipmapLinear,
 		Opacity:       1,
 	})
 	r, g, b, a := s3cSample(dc, 40, 8)

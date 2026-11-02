@@ -1,0 +1,3 @@
+# apidoc 2026-11-02T21:38:43+08:00 HEAD=a1567cc9
+OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg/gpu/hdr 全部公开符号
+rc=0

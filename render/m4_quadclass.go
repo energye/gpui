@@ -43,6 +43,9 @@ type QuadDrawOptions struct {
 	// 与 Matrix4.ProjectQuad 返回的齐次权重配对（Skia 透视贴图 / GPU clip-space
 	// 真 w 同款语义）。零值保持既有仿射双三角行为逐位不变。
 	Perspective bool
+	// Mipmap 是缩样档位（P3.6 批 2，与 DrawImageOptions.Mipmap 同语义）：
+	// 零值 MipmapNone 保持既有单级路径逐位不变。
+	Mipmap MipmapMode
 	// Weights 是四角齐次权重 w（TL、TR、BR、BL 顺序，恒 >0 有限）。
 	// 同权等价于仿射；梯形（深度不均）下决定 UV 沿边的透视落位。
 	// Perspective 为真时逐项校验，非法返回 ErrQuadBadWeights。

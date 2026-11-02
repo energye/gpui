@@ -108,7 +108,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 			c.recordCPUFallbackReason("image:blend")
 			return false
 		}
-		rc.QueueImageDrawBlend(target, pixelData, img.GenerationID(), img, imgW, imgH, img.Stride(),
+		rc.QueueImageDrawBlend(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 			float32(tl.X), float32(tl.Y),
 			float32(tr.X), float32(tr.Y),
 			float32(br.X), float32(br.Y),
@@ -118,7 +118,7 @@ func (c *Context) tryGPUDrawImage(img *ImageBuf, opts DrawImageOptions, srcX, sr
 		c.recordGPUOp()
 		return true
 	}
-	rc.QueueImageDraw(target, pixelData, img.GenerationID(), img, imgW, imgH, img.Stride(),
+	rc.QueueImageDraw(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 		float32(tl.X), float32(tl.Y),
 		float32(tr.X), float32(tr.Y),
 		float32(br.X), float32(br.Y),

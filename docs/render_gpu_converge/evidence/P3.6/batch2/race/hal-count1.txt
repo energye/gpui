@@ -1,0 +1,7 @@
+# gpu/hal 专用档补跑 2026-11-02T22:29:38+08:00  判据：-race -count=1（该包测试非 -count=2 安全，根因与干净树 A/B 见 ../race-attribution.md）
+--- PASS: TestSurfaceTargetRequireKind (0.00s)
+--- PASS: TestRecordIndirectCountMax_IgnoresCountBuffer (0.00s)
+--- PASS: TestRecordIndirectCountMax_ZeroCountIsNoOp (0.00s)
+--- PASS: TestRecordIndirectCountMax_ForwardsMaxDrawCount (0.00s)
+PASS
+ok  	github.com/energye/gpui/gpu/hal	1.031s

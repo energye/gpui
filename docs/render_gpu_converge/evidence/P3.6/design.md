@@ -33,7 +33,7 @@
 ### 1.5 GPU mipmap 语义（D3/D4/D6）
 - **采样档与生成解耦，且「生成 ≠ 消费」**：`MipmapMode` 决定消费；产链只在「该图这次要用 mip」时发生。上游同样把解码内部一律钉 `kNone`（`image_decoder_skia.cc:59`、`image_decoder_impeller.cc:246`）。
 - `MipmapMode{None,Nearest,Linear}` 三档，语义逐一对齐 `impeller/core/formats.h:602-615 MipFilter{kBase,kNearest,kLinear}`：`None`→采样器 `MipmapFilterModeNearest` + 纹理单级（只吃 level0）；`Nearest`→`MipmapNearest`；`Linear`→`MipmapLinear`。与 `InterpolationMode{Nearest,Bilinear,Bicubic}`（filter 档/质量档）**正交**，不折成 Flutter 的四值档（D4 选 (A) 而非 (C)）。
-- 层数：`NumLevels = min(floor(log2 w), floor(log2 h)) + 1`（`impeller/geometry/size.h:137-143`），非 2 的幂按 floor，**写明尺寸不整除时的截断口径**。
+- 层数：~~`min(floor(log2 w), floor(log2 h)) + 1`~~ **2026-11-02 批 2 开工实测纠正为 max**：`NumLevels = 1 + floor(log2(max(w,h)))`（`engine/tex/mipmap.go:214-226` 与 `render/internal/image/mipmap.go:42-43` 两处既有实现同为 max，逐级 `max(1, prev/2)` 收敛到 1×1；Impeller 实际口径也是 max，本行旧写法与上游和仓内实现均不符——`impeller/geometry/size.h:137-143`），非 2 的幂按 floor，**写明尺寸不整除时的截断口径**。
 - 生成：CPU 盒式链复用 `render/internal/image/mipmap.go:25-96`，滤波空间维持 sRGB（与 P3.1b 一起谈，本批不偷跑混合空间）；上传走 hal 已有的逐层口（`gpu/hal/command.go:73-296`，`ImageCopyTexture.MipLevel`）。
 - 幂等：纹理记 `mipmapGenerated` 位（对齐 `impeller/core/texture.cc:71-73`），同一 `ImageBuf` 重上传不重复产链。
 - 预算：`image_cache.go:392,426-428` 的 `need`/`usedBytes` 改按逐层求和（等价 4/3，精确式对齐 `impeller/core/texture_descriptor.h:63-75`），与 hal 侧 `vram_ledger.go:81-91` 已乘 4/3 的账对齐。
@@ -85,7 +85,7 @@ type MipmapMode int        // MipmapNone / MipmapNearest / MipmapLinear
 - **批 1b 解码半边·动图三容器**（原批 1 剩余）：GIF（stdlib `image/gif`：透明=调色板 alpha=0 项 `reader.go:396-408`、`LoopCount` 0/-1/N 映射 `:577-582`、帧 `Bounds()` 即 `DisposalRect`）+ APNG（fcTL 26 字节、**dispose/blend 单字节**、fdAT→IDAT 复用单帧解码、`den==0→100` 采上游口径）+ 动图 WebP（ANMF **16 字节头无补白**、**X/Y 单位 2 像素**、W/H 为像素减一、VP8/VP8L 子 chunk 原样喂 `x/image`）+ `*AnimatedImage`/`FrameInfo` 公开面（复用同一 `ImageBuf` + `MarkPixelsDirty`，硬钉连播不涨缓存条目）+ 组 1–5 单测 + `ui/io` 注册表改委托（D5 另一半）。字段依据 `batch1-containers-probe.md`。
 - **批 1c 播放与消费链（图号=内容版本）✅ 已交付（2026-11-02）**：D7=(B) 落地——单一图号分配器（修 `Pixmap`/`ImageBuf` 键空间重叠第四洞）+ 原地改写换号 + 图号变更监听精确逐出 + 尺寸分桶空闲池 + `MarkPixelsDirty`/`TakeGPUDirty`/`ContentDirty`/`rewriteImage` 通道退役（`AnimatedImage`、`ExportImageBuf`、`video_bridge` 三用户全量切换）+ 钉 P1–P10。方案与实测 `batch1c-design.md`、评估 `batch1c-assessment.md`。
 - **批 1d 生产接线（D8 拆出）**：`ui/rendering.RenderImage` 动图入口 + `ui/kit` 控制动词，节奏走 `ui/scheduler.Ticker`（引擎不持节奏）；交付前动图按「已验证待接线」记，不得标生产。
-- **批 2 mipmap 半边**：1.5（`MipmapMode` 全量切换 + 采样器生产接线打通 `SetPerImageFilter` 零调用者问题 + `image_cache.go:362,377` 多级 + 逐层上传 + 幂等 + 4/3 预算 + 组 6 单测 + 旧钉同步：`r1_residual_gpu_test.go:106-145` 反向钉改语义、`quad_cpu_test.go:303-379` 容差重声明、`internal/image/draw.go:235-258` 的 `Release` 泄漏副修）。
+- **批 2 mipmap 半边 ✅ 已交付（2026-11-02，未提交；评估/方案/交付三件齐 `batch2-assessment.md`/`batch2-design.md`/`batch2.md`）**：1.5（`MipmapMode` 全量切换 + 采样器生产接线打通 `SetPerImageFilter` 零调用者问题 + `image_cache.go:362,377` 多级 + 逐层上传 + 幂等 + 4/3 预算 + 组 6 单测 + 旧钉同步：`r1_residual_gpu_test.go:106-145` 反向钉改语义、`quad_cpu_test.go:303-379` 容差重声明、`internal/image/draw.go:235-258` 的 `Release` 泄漏副修）。
 - **批 3 真窗三扇** + 文档收口（catalog §13 → 正式登记、台账状态、evidence 汇总）。
 
 ## 5 显式不做与登记（不留口头）

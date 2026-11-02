@@ -278,7 +278,10 @@ type SamplerDescriptor struct {
 	// LodMinClamp is the minimum LOD clamp.
 	LodMinClamp float32
 
-	// LodMaxClamp is the maximum LOD clamp.
+	// LodMaxClamp is the maximum LOD clamp. Zero means "no upper clamp"
+	// (backends substitute their default, currently 32) — every backend must
+	// treat 0 the same way, or an identical descriptor samples different levels
+	// on different backends (P3.6 batch 2).
 	LodMaxClamp float32
 
 	// Compare is the comparison function for depth textures.

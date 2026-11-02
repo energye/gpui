@@ -1,0 +1,2 @@
+# conformance 2026-11-02T21:39:29+08:00
+ok  	github.com/energye/gpui/render	0.802s

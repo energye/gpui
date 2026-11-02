@@ -15,7 +15,7 @@ import (
 // immediately.
 
 func TestImageCache_RetireHookDefersRelease(t *testing.T) {
-	c := &ImageCache{entries: make(map[uint64]*imageCacheEntry)}
+	c := &ImageCache{entries: make(map[imageCacheKey]*imageCacheEntry)}
 	var gotTex hal.Texture
 	var gotView hal.TextureView
 	calls := 0
@@ -26,10 +26,10 @@ func TestImageCache_RetireHookDefersRelease(t *testing.T) {
 	tex := &testTexture{}
 	view := &testTextureView{}
 	entry := &imageCacheEntry{texture: tex, view: view, bytes: 64, gen: 1}
-	c.entries[7] = entry
+	c.entries[imageCacheKey{gen: 7, levels: 1}] = entry
 	c.usedBytes = 64
 
-	c.removeEntry(7, entry) // evict / size-replace route
+	c.removeEntry(imageCacheKey{gen: 7, levels: 1}, entry) // evict / size-replace route
 	if calls != 1 || gotTex != hal.Texture(tex) || gotView != hal.TextureView(view) {
 		t.Fatalf("hook calls=%d want 1 with the entry pair", calls)
 	}
@@ -42,7 +42,7 @@ func TestImageCache_RetireHookDefersRelease(t *testing.T) {
 }
 
 func TestImageCache_NoHookDestroysImmediately(t *testing.T) {
-	c := &ImageCache{entries: make(map[uint64]*imageCacheEntry)}
+	c := &ImageCache{entries: make(map[imageCacheKey]*imageCacheEntry)}
 	tex := &testTexture{}
 	view := &testTextureView{}
 	entry := &imageCacheEntry{texture: tex, view: view, bytes: 64, gen: 1}
@@ -53,7 +53,7 @@ func TestImageCache_NoHookDestroysImmediately(t *testing.T) {
 	}
 
 	// Destroy path: every live entry goes through the same outlet.
-	c.entries[9] = &imageCacheEntry{texture: &testTexture{}, view: &testTextureView{}, bytes: 64, gen: 2}
+	c.entries[imageCacheKey{gen: 9, levels: 1}] = &imageCacheEntry{texture: &testTexture{}, view: &testTextureView{}, bytes: 64, gen: 2}
 	c.Destroy()
 	if len(c.entries) != 0 {
 		t.Fatalf("Destroy must clear entries, got %d", len(c.entries))

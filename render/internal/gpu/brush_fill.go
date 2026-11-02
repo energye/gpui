@@ -146,7 +146,7 @@ func (rc *GPURenderContext) fillBrushCoverageColorAt(target render.GPURenderTarg
 	genID := pm.GenerationID() ^ 0xC0A7_C01A_0000_0001
 
 	rc.markBrushGPUStar()
-	rc.QueueImageDrawBlend(target, pixelData, genID, pm, bw, bh, bw*4,
+	rc.QueueImageDrawBlend(target, pixelData, genID, pm, render.MipmapNone, bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
@@ -352,7 +352,7 @@ func (rc *GPURenderContext) fillColorAtFieldMaskedGPU(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDrawBlend(target, pixelData, genID, nil, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, pixelData, genID, nil, render.MipmapNone, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
@@ -785,7 +785,7 @@ func (rc *GPURenderContext) fillLinearGradientFieldMasked(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDrawBlend(target, pixelData, genID, nil, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, pixelData, genID, nil, render.MipmapNone, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
@@ -1131,7 +1131,7 @@ func (rc *GPURenderContext) fillRadialGradientFieldMasked(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDrawBlend(target, out, genID, nil, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, out, genID, nil, render.MipmapNone, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
@@ -1492,7 +1492,7 @@ func (rc *GPURenderContext) fillSweepGradientFieldMasked(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDrawBlend(target, out, genID, nil, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, out, genID, nil, render.MipmapNone, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
@@ -1793,7 +1793,7 @@ func (rc *GPURenderContext) fillImagePatternFieldMasked(
 	x1 := float32(bounds.Max.X)
 	y1 := float32(bounds.Max.Y)
 	rc.markBrushGPUStar()
-	rc.QueueImageDrawBlend(target, out, genID, nil, nw, nh, nw*4,
+	rc.QueueImageDrawBlend(target, out, genID, nil, render.MipmapNone, nw, nh, nw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
@@ -1894,7 +1894,7 @@ func (rc *GPURenderContext) fillBrushAsImage(target render.GPURenderTarget, path
 	vpH := uint32(th) //nolint:gosec
 
 	rc.markBrushGPUStar()
-	rc.QueueImageDrawBlend(target, pixelData, pm.GenerationID(), pm, bw, bh, bw*4,
+	rc.QueueImageDrawBlend(target, pixelData, pm.GenerationID(), pm, render.MipmapNone, bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,
@@ -2133,7 +2133,7 @@ func (rc *GPURenderContext) fillMaskedAsImage(target render.GPURenderTarget, pat
 	vpH := uint32(th) //nolint:gosec
 
 	rc.markBrushGPUStar()
-	rc.QueueImageDrawBlend(target, pixelData, pm.GenerationID(), pm, bw, bh, bw*4,
+	rc.QueueImageDrawBlend(target, pixelData, pm.GenerationID(), pm, render.MipmapNone, bw, bh, bw*4,
 		x0, y0, x1, y0, x1, y1, x0, y1,
 		1.0, vpW, vpH,
 		0, 0, 1, 1,

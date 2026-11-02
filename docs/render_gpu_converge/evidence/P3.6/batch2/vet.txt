@@ -1,0 +1,9 @@
+# vet 触及包 2026-11-02T21:38:46+08:00
+--- ./render ---
+--- ./render/internal/image ---
+--- ./render/internal/gpu ---
+--- ./render/recording ---
+--- ./ui/io ---
+--- ./gpu/hal ---
+--- ./gpu/rwgpu ---
+--- ./engine/tex ---

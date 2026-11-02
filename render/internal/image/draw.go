@@ -195,8 +195,9 @@ type DrawParams struct {
 	// switch evaluates them there.
 	BlendLinear bool
 
-	// UseMipmaps selects a prefiltered mip level when drawing smaller than 1:1 (I.04).
-	UseMipmaps bool
+	// Mipmap selects a prefiltered mip level when drawing smaller than 1:1
+	// (I.04, P3.6 batch 2). MipmapNone (zero) keeps the historic sampling.
+	Mipmap MipmapMode
 }
 
 // DrawImage draws the source image onto the destination image using the specified parameters.
@@ -232,7 +233,7 @@ func DrawImage(dst, src *ImageBuf, params DrawParams) {
 	}
 
 	// Optional mipmap level selection when downscaling.
-	if params.UseMipmaps && srcRect.Width > 0 && srcRect.Height > 0 {
+	if params.Mipmap.UsesChain() && srcRect.Width > 0 && srcRect.Height > 0 {
 		scaleX := float64(params.DstRect.Width) / float64(srcRect.Width)
 		scaleY := float64(params.DstRect.Height) / float64(srcRect.Height)
 		scale := scaleX
@@ -240,7 +241,16 @@ func DrawImage(dst, src *ImageBuf, params DrawParams) {
 			scale = scaleY
 		}
 		if scale > 0 && scale < 0.99 {
-			if chain := GenerateMipmaps(src); chain != nil {
+			// One chain per content generation, shared by the CPU fallback and
+			// the GPU upload (P3.6 batch 2). The old code rebuilt it on every
+			// draw and never released it, so each minified draw paid ~1.7ms for
+			// a 512x512 image and leaked the levels into GC while starving the
+			// buffer pool.
+			chain, release, chainOK := MipChainFor(src)
+			if chainOK {
+				defer release()
+			}
+			if chain != nil {
 				if lvl := chain.LevelForScale(scale); lvl != nil && lvl != src {
 					// Map srcRect into the mip level coordinate space.
 					sw0, sh0 := src.Bounds()

@@ -11,7 +11,46 @@
 // Package image provides image buffer management for gogpu/gg.
 package image
 
-import "math"
+import (
+	"math"
+
+	"github.com/energye/gpui/gpu/hal"
+)
+
+// MipmapMode is the single truth for how a minified image samples its mip
+// chain. It lives here because both the CPU image path and the GPU sampler
+// wiring consume it; render re-exports it and engine/tex aliases render's
+// export, so the repo keeps one enum (P3.6 batch 2, D11).
+//
+// MipmapNone is the zero value on purpose: leaving a field unset keeps
+// today's behaviour bit-identical (single-level texture, level 0 only), so no
+// caller silently starts paying chain-generation cost.
+type MipmapMode int
+
+const (
+	// MipmapNone draws from a single-level texture: no chain is built and the
+	// sampler never selects above level 0.
+	MipmapNone MipmapMode = iota
+	// MipmapNearest selects the closest level, no blending between levels.
+	MipmapNearest
+	// MipmapLinear blends adjacent levels (trilinear with a linear minifier).
+	MipmapLinear
+)
+
+// String returns the stable log name of m.
+func (m MipmapMode) String() string {
+	switch m {
+	case MipmapNearest:
+		return "nearest"
+	case MipmapLinear:
+		return "linear"
+	default:
+		return "none"
+	}
+}
+
+// UsesChain reports whether this mode needs a prefilled mip chain at all.
+func (m MipmapMode) UsesChain() bool { return m != MipmapNone }
 
 // MipmapChain holds pre-computed downscaled versions of an image.
 //
@@ -38,9 +77,9 @@ func GenerateMipmaps(src *ImageBuf) *MipmapChain {
 		return nil
 	}
 
-	// Calculate number of levels
-	maxDim := max(src.Width(), src.Height())
-	numLevels := 1 + int(math.Floor(math.Log2(float64(maxDim))))
+	// Level count comes from hal, so the CPU chain, the texture creation and the
+	// VRAM ledger sum the same levels (P3.6 batch 2).
+	numLevels := int(hal.MipLevelCount(uint32(src.Width()), uint32(src.Height())))
 
 	chain := &MipmapChain{
 		levels: make([]*ImageBuf, numLevels),
@@ -57,43 +96,8 @@ func GenerateMipmaps(src *ImageBuf) *MipmapChain {
 	return chain
 }
 
-// downsample creates a half-size version of src using box filter.
-// Returns a new ImageBuf from the pool.
-func downsample(src *ImageBuf) *ImageBuf {
-	srcW, srcH := src.Bounds()
-	dstW := max(1, srcW/2)
-	dstH := max(1, srcH/2)
-
-	// Get buffer from pool for efficiency
-	dst := GetFromDefault(dstW, dstH, src.Format())
-	if dst == nil {
-		return nil
-	}
-
-	// Box filter: average 2x2 pixels into 1
-	for dy := 0; dy < dstH; dy++ {
-		for dx := 0; dx < dstW; dx++ {
-			sx := dx * 2
-			sy := dy * 2
-
-			// Sample 2x2 region (handle odd dimensions)
-			r0, g0, b0, a0 := src.GetRGBA(sx, sy)
-			r1, g1, b1, a1 := src.GetRGBA(min(sx+1, srcW-1), sy)
-			r2, g2, b2, a2 := src.GetRGBA(sx, min(sy+1, srcH-1))
-			r3, g3, b3, a3 := src.GetRGBA(min(sx+1, srcW-1), min(sy+1, srcH-1))
-
-			// Average the 4 pixels
-			r := (uint16(r0) + uint16(r1) + uint16(r2) + uint16(r3)) / 4
-			g := (uint16(g0) + uint16(g1) + uint16(g2) + uint16(g3)) / 4
-			b := (uint16(b0) + uint16(b1) + uint16(b2) + uint16(b3)) / 4
-			a := (uint16(a0) + uint16(a1) + uint16(a2) + uint16(a3)) / 4
-
-			_ = dst.SetRGBA(dx, dy, byte(r), byte(g), byte(b), byte(a))
-		}
-	}
-
-	return dst
-}
+// downsample lives in mipmap_downsample.go (row-wise, byte-identical to the
+// original per-pixel GetRGBA/SetRGBA version — see TestDownsampleByteIdentical).
 
 // Level returns the mipmap at the specified level.
 // Level 0 is the original image. Returns nil if level is out of range.

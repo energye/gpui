@@ -57,6 +57,11 @@ type samplerDescriptorWire struct {
 	_pad          [2]byte                //nolint:unused // padding to align to 4 bytes
 }
 
+// defaultLodMaxClamp is the repo-wide stand-in for "unclamped": gles already
+// treats a zero LodMaxClamp as 32 (see gpu/gwgpu/gles/sampler.go), and
+// rwgpu's own linear/nearest helpers use 32 as well.
+const defaultLodMaxClamp = 32.0
+
 // CreateSampler creates a sampler with the specified descriptor.
 func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 	if err := prepareDeviceCall("CreateSampler", d); err != nil {
@@ -72,6 +77,15 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 		anisotropy = 1
 	}
 
+	// LodMaxClamp 0 means "no upper clamp" — the same rule gpu/gwgpu/gles
+	// applies. Passing 0 through to wgpu-native clamps sampling to level 0, so
+	// a mipmapped texture silently samples only its full-resolution level and
+	// the two backends disagree on identical descriptors (P3.6 batch 2).
+	lodMax := desc.LodMaxClamp
+	if lodMax == 0 {
+		lodMax = defaultLodMaxClamp
+	}
+
 	wire := samplerDescriptorWire{
 		Label:         stringToStringView(desc.Label),
 		AddressModeU:  desc.AddressModeU,
@@ -81,7 +95,7 @@ func (d *Device) CreateSampler(desc *SamplerDescriptor) (*Sampler, error) {
 		MinFilter:     desc.MinFilter,
 		MipmapFilter:  desc.MipmapFilter,
 		LodMinClamp:   desc.LodMinClamp,
-		LodMaxClamp:   desc.LodMaxClamp,
+		LodMaxClamp:   lodMax,
 		Compare:       desc.Compare,
 		MaxAnisotropy: anisotropy,
 	}

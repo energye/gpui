@@ -128,7 +128,7 @@ func (rc *GPURenderContext) fillShaderAsImage(target render.GPURenderTarget, pat
 	fy0 := float32(bounds.Min.Y)
 	fx1 := float32(bounds.Max.X)
 	fy1 := float32(bounds.Max.Y)
-	rc.QueueImageDraw(target, pixelData, 0, nil, bw, bh, bw*4,
+	rc.QueueImageDraw(target, pixelData, 0, nil, render.MipmapNone, bw, bh, bw*4,
 		fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 		1.0, uint32(tw), uint32(th), 0, 0, 1, 1, false, false)
 	rc.sceneStats.PathCount++
@@ -339,7 +339,7 @@ func (rc *GPURenderContext) fillPaintFilteredAsImage(target render.GPURenderTarg
 	fy0 := float32(bounds.Min.Y)
 	fx1 := float32(bounds.Max.X)
 	fy1 := float32(bounds.Max.Y)
-	rc.QueueImageDraw(target, content, 0, nil, bw, bh, bw*4,
+	rc.QueueImageDraw(target, content, 0, nil, render.MipmapNone, bw, bh, bw*4,
 		fx0, fy0, fx1, fy0, fx1, fy1, fx0, fy1,
 		1.0, uint32(tw), uint32(th), 0, 0, 1, 1, false, false)
 	rc.sceneStats.PathCount++
