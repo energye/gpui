@@ -1,4 +1,4 @@
-# P3.6 批 2：GPU mipmap（2026-11-02，进行中，未提交）
+# P3.6 批 2：GPU mipmap（2026-11-02 交付，已提交 `e0684738` 未推送）
 
 拍板：D11 render 出真源 / D12 两侧按级精确求和 / D13 条目键带级数 / D14 采样器三处全切 / D15 CPU 兜底统一到一份链 / D16 旧门不动、另开 mip 专测。评估 `batch2-assessment.md`，方案 `batch2-design.md`。
 
