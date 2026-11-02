@@ -209,22 +209,42 @@ func runLogicProbes() (probes, failed []string) {
 				boolInside(frame, 5.5, 5.5), boolInside(frame, 13.5, 13.5), boolInside(frame, 20.5, 20.5)))
 	}
 
-	// 8. Curves are flattened to a polygonal output (documented scope limit),
-	// and the flattened boundary stays inside the analytic tolerance.
+	// 8. Curve inputs survive the operation (P3.5 批 5): the arcs come back as
+	// cubic verbs sitting on the authored circle, not as 0.1px chord chains.
 	{
 		circle := render.NewPath()
 		circle.Circle(0, 0, 20)
 		res := circle.Op(boolRect(-25, -10, 50, 20), render.PathOpIntersect)
-		maxR := 0.0
+		maxR, worstArc := 0.0, 0.0
+		nCurve := 0
+		var cur render.Point
+		res.Iterate(func(verb render.PathVerb, c []float64) {
+			switch verb {
+			case render.MoveTo, render.LineTo:
+				cur = render.Pt(c[0], c[1])
+			case render.CubicTo:
+				nCurve++
+				cb := render.NewCubicBez(cur, render.Pt(c[0], c[1]), render.Pt(c[2], c[3]), render.Pt(c[4], c[5]))
+				for k := 0; k <= 16; k++ {
+					p := cb.Eval(float64(k) / 16)
+					if e := math.Abs(math.Hypot(p.X, p.Y) - 20); e > worstArc {
+						worstArc = e
+					}
+				}
+				cur = cb.P3
+			default:
+			}
+		})
 		for _, c := range boolContours(res) {
 			for _, pt := range c {
 				maxR = math.Max(maxR, math.Hypot(pt.X, pt.Y))
 			}
 		}
-		ok := !res.HasCurves() && res.NumVerbs() > 10 && maxR <= 20.2 &&
-			boolInside(res, 0, 0) && !boolInside(res, 0, 15)
-		add("pathbool_curves_flattened", ok,
-			fmt.Sprintf("verbs=%d curves=%v max_radius=%.3f", res.NumVerbs(), res.HasCurves(), maxR))
+		ok := res.HasCurves() && nCurve >= 2 && worstArc <= 0.01 && maxR <= 20.02 &&
+			res.NumVerbs() <= 12 && boolInside(res, 0, 0) && !boolInside(res, 0, 15)
+		add("pathbool_curves_preserved", ok,
+			fmt.Sprintf("verbs=%d curve_verbs=%d arc_off=%.6g max_radius=%.3f curves=%v",
+				res.NumVerbs(), nCurve, worstArc, maxR, res.HasCurves()))
 	}
 
 	// 9. Empty operand identities: empty ∪ rect = rect; rect − rect = empty.

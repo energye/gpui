@@ -1,0 +1,4 @@
+# 批 5 定向（count=1）2026-11-02T07:29:30+08:00
+65
+ok  	github.com/energye/gpui/render	0.620s
+--- 明细 FAIL（应为空）

@@ -1,0 +1,5 @@
+# go vet 批 5 触及包 2026-11-02T07:30:47+08:00
+vet render rc=0
+vet internal/gpu rc=0
+vet recording rc=0
+vet pathbool example rc=0

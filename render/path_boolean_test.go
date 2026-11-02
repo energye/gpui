@@ -352,7 +352,11 @@ func TestPathBooleanFillRuleInvariance(t *testing.T) {
 	}
 }
 
-func TestPathBooleanCurvesFlattened(t *testing.T) {
+// TestPathBooleanCurveInputsBoundaryAccuracy: circle/rect mixes stay on the
+// analytic boundaries. Since batch 5 the arcs come back as authored cubics, so
+// the boundary check runs against the curve-accurate geometry (the polygonal
+// chord error the test used to tolerate is gone).
+func TestPathBooleanCurveInputsBoundaryAccuracy(t *testing.T) {
 	circle := render.NewPath()
 	circle.Circle(0, 0, 20)
 	clip := boolRect(0, -25, 25, 50) // x>=0 半平面矩形
@@ -379,7 +383,7 @@ func TestPathBooleanCurvesFlattened(t *testing.T) {
 		}
 	}
 
-	if n := res.NumVerbs(); n > 200 {
+	if n := res.NumVerbs(); n > 16 { // 8 verbs: 4 authored arcs + rect edges (P3.5 批 5 前是 ~60 段折线)
 		t.Errorf("circle∪rect should stay compact, got %d verbs", n)
 	}
 }

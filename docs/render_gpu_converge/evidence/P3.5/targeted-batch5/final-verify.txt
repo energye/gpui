@@ -1,0 +1,8 @@
+# 批 5 定向终验 2026-11-02T08:17:12+08:00
+66
+ok  	github.com/energye/gpui/render	0.617s
+--- race
+ok  	github.com/energye/gpui/render	2.057s
+--- apidoc
+OK: docs/RENDER_API_CATALOG.md 覆盖 render 主包 + scene/recording/svg/gpu/hdr 全部公开符号
+apidoc rc=0

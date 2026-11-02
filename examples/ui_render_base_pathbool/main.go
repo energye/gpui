@@ -70,7 +70,7 @@ var probeKeys = []string{
 	"pathbool_xor_lobes",
 	"pathbool_far_no_2048",
 	"pathbool_fill_rule_agreement",
-	"pathbool_curves_flattened",
+	"pathbool_curves_preserved",
 	"pathbool_empty_identity",
 	"pathbool_bowtie_lobes",
 }
