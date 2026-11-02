@@ -43,3 +43,24 @@
   逐条登记（本批新增：ui/rendering 性能四测；沿用批 2 口径不混入本批回归）。
 - 门禁脚本与产物：`batch1d/run-gates.sh`、`build-gate.sh`、`compare-baseline.sh`；输出全部落 `batch1d/`
   （apidoc/vet/targeted/conformance/race/build/per-file-tests{,-extra}/baseline-compare.txt）。
+
+## 4 步骤 3–6 门禁归因补记（2026-11-03 第二轮全套，触及面扩 render/ui-kit）
+
+门禁大盘：apidoc rc=0（catalog 已同步 `AnimatedImage.Disposed`）；vet 六包（render/scheduler/
+rendering/kit/textinput/embedder）干净；定向三组绿（泵契约钉 + 动图承接面钉 + 组件六钉）；
+conformance 双后端 ok；五目标×{默认,nogpu} 10/10；主逐文件 **737 条 = 705 PASS/21 SKIP/10 FAIL/
+1 NO_TESTS**（比批 2 基线 734 多 3 条记录 = 本批三个新测试文件：`boundary_cache_contentgen_test.go`、
+`image_anim_test.go`、`anim_image_state_test.go`）；补充逐文件 80 条与基线 FAIL 名单逐条相同。
+
+- **race `-count=2`**：`ui/scheduler`、`ui/kit`、`ui/rendering`（动图承接面定向）绿。`ui/textinput`
+  全包红 = `TestEditorBufferMirror_M35`：**干净 `f13a992b` worktree 全包 `-race` 同红、定向单跑
+  两树皆绿（当前树双跑 19.97s/19.66s PASS）** ⇒ 全包 `-race` 口径下的存量包级时序债（与
+  `TestBoxesForRange_FullLinear_M1` 包级耦合同类），非本批引入（本批未触 ui/textinput）。
+  `ui/embedder` 门禁期红、无干扰复跑绿（1.6s）⇒ 波动。`render` 定向红 = `TestS69_Contract_FromJSON`：
+  本轮 sweep 实测换成 `U05_KitchenSinkStress`（7.69 > 预算 7.10）超标落盘（上轮是 H06、本轮 H06
+  PASS 0.24）——stress 场景在预算边缘的**场景间漂移波动**，与 §2 同一根因（S6.9 专项存量边缘态），
+  HEAD A/B 已证同超标，非本批。
+- **主 sweep 新增红**（相对批 2 基线名单 +2）：`render/s6_9_heavy_budget_test.go`（见上）；
+  `ui/rendering/shaping_runs_test.go` —— 无干扰复跑 **PASS**（2.311s）⇒ sweep 期测量波动，非本批。
+- **金图**：`examples/kit/anim-image` 三连 0.0000%（401920px）；其余窗构造性零变化（本批绘制路径
+  变化仅 RenderImage 动图承接面——无生产消费者改动既有画面）。

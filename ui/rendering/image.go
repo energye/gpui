@@ -41,14 +41,24 @@ type RenderImage struct {
 	ownsImg bool
 	// Placeholder color while loading.
 	PR, PG, PB float64
+	// anim 是本节点接管的动图解码器（nil = 静态图模式）。解码器的 Dispose 归本节点；
+	// 当前帧缓冲只共享显示（buf 属于解码器，本节点不得单独释放）。
+	anim *render.AnimatedImage
+	// animPending 是 Paint 期要推进到的目标帧；-1 表示没有待推进帧。
+	animPending int
+	// animApplied 是已解码显示的帧号；装上时置 0，首个 Paint 期推进第 0 帧。
+	animApplied int
+	// animPaused 是外部暂停标志，只表达意图：节奏归组件层，Paint 仍会画出 pending 帧。
+	animPaused bool
 }
 
 // NewRenderImage creates an image node with logical size.
 func NewRenderImage(w, h float64) *RenderImage {
 	im := &RenderImage{
 		Width: w, Height: h,
-		State: ImageIdle,
-		PR:    0.2, PG: 0.2, PB: 0.25,
+		State:       ImageIdle,
+		PR:          0.2, PG: 0.2, PB: 0.25,
+		animPending: -1,
 	}
 	im.Init(im)
 	return im
@@ -72,6 +82,8 @@ func (im *RenderImage) SetImage(img *render.ImageBuf) {
 	if im == nil {
 		return
 	}
+	// 动图让位：显式装静态缓冲即退出动图模式（持有解码器连带释放）。
+	im.releaseAnimated()
 	if img != nil && img.Disposed() {
 		// Reject already-freed buffers; treat as error without adopting.
 		im.releaseOwnedExcept(img)
@@ -106,6 +118,8 @@ func (im *RenderImage) SetImageShared(img *render.ImageBuf) {
 	if im == nil {
 		return
 	}
+	// 动图让位：显式装静态缓冲即退出动图模式（持有解码器连带释放）。
+	im.releaseAnimated()
 	if img != nil && img.Disposed() {
 		im.releaseOwnedExcept(img)
 		im.Img = nil
@@ -136,6 +150,7 @@ func (im *RenderImage) Clear() {
 	if im == nil {
 		return
 	}
+	im.releaseAnimated()
 	im.releaseOwned()
 	im.State = ImageIdle
 	im.MarkNeedsPaint()
@@ -146,6 +161,7 @@ func (im *RenderImage) SetError() {
 	if im == nil {
 		return
 	}
+	im.releaseAnimated()
 	im.releaseOwned()
 	im.State = ImageError
 	im.MarkNeedsPaint()
@@ -197,6 +213,16 @@ func (im *RenderImage) Paint(pc *PaintContext) {
 	}
 	pc.NotePaintVisit()
 	sz := im.size
+	// D19：待推进帧只在 Paint 期内解码——写像素与光栅线程读像素天然错开（先例
+	// video_bridge/anim.go 同一形状）；DecodeFrame 的 publish 会 NotifyPixelsChanged
+	// 换代际，图号=内容版本的消费链（批 1c）自动重传并逐出旧纹理。
+	// 解码失败保留旧帧画面并停止本次推进（推进失败不等于图像坏，状态不转 Error）。
+	if im.animPending >= 0 && im.anim != nil && !im.anim.Disposed() {
+		if err := im.anim.DecodeFrame(im.animPending); err == nil {
+			im.animApplied = im.animPending
+		}
+		im.animPending = -1
+	}
 	switch im.State {
 	case ImageReady:
 		if im.Img != nil && !im.Img.Disposed() {

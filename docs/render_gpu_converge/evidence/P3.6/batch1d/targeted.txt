@@ -1,7 +1,9 @@
-# targeted 泵契约钉 + D18 钉 2026-11-03T00:06:53+08:00
---- ui/rendering（注册表契约 + NextTickerWake + D18 原地换帧重放）---
-ok  	github.com/energye/gpui/ui/rendering	0.022s
+# targeted 泵契约钉 + 动图钉 2026-11-03T01:52:21+08:00
+--- ui/rendering（注册表契约 + NextTickerWake + D18 原地换帧重放 + 动图承接面）---
+ok  	github.com/energye/gpui/ui/rendering	0.029s
+--- ui/kit（动图组件状态机六钉）---
+ok  	github.com/energye/gpui/ui/kit	0.017s
 --- ui/textinput（光标注册存续/大步长奇偶/相位截止）---
-ok  	github.com/energye/gpui/ui/textinput	0.013s
+ok  	github.com/energye/gpui/ui/textinput	0.012s
 --- ui/scheduler（ticker 契约全家，含 PollNextWake）---
-ok  	github.com/energye/gpui/ui/scheduler	1.151s
+ok  	github.com/energye/gpui/ui/scheduler	1.126s

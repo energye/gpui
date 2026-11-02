@@ -1,15 +1,19 @@
-# race -count=2 本批触及四包 2026-11-03T00:07:06+08:00
+# race -count=2 本批触及包（render 定向：整包 native abort 已登记，见 batch1c）2026-11-03T01:52:37+08:00
 --- ./ui/scheduler ---
-ok  	github.com/energye/gpui/ui/scheduler	3.408s
---- ./ui/rendering ---
-FAIL
-FAIL	github.com/energye/gpui/ui/rendering	63.840s
-FAIL
+ok  	github.com/energye/gpui/ui/scheduler	3.355s
+--- ./ui/kit ---
+ok  	github.com/energye/gpui/ui/kit	1.275s
 --- ./ui/textinput ---
 FAIL
-FAIL	github.com/energye/gpui/ui/textinput	22.770s
+FAIL	github.com/energye/gpui/ui/textinput	23.374s
 FAIL
 --- ./ui/embedder ---
 FAIL
-FAIL	github.com/energye/gpui/ui/embedder	1.149s
+FAIL	github.com/energye/gpui/ui/embedder	1.233s
+FAIL
+--- ./ui/rendering（动图承接面定向；全包性能四测 -race 红已归因 gate-attribution.md §1）---
+ok  	github.com/energye/gpui/ui/rendering	1.409s
+--- ./render（动图/导出/解码定向）---
+FAIL
+FAIL	github.com/energye/gpui/render	0.790s
 FAIL

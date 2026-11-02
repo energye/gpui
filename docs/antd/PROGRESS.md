@@ -124,6 +124,7 @@
 | G3 漫游打洞 | `ui/kit/tour_mask_*.go` + `examples/kit/tour-mask/`（Tour 接入待 F4） | ✅已签字 | 本次提交 | 洞跟目标+gap6/r2+面板520/z1001+受控current+mask关仍绘洞+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看（占位结构已确认，最终像素待F4） |
 | G4 日期引擎 | `ui/kit/date_engine_*.go` + `examples/kit/date-engine/`（DatePicker/Calendar 接入待 F3/F5） | ✅已签字 | 本次提交 | 闰年周起始全对+多格式首个展示+佛历+disabled矩阵+Range排序+多选+预设函数+受控面板+可换实现；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看 |
 | G5 颜色模型 | `ui/kit/color_model_*.go` + `examples/kit/color-model/`（ColorPicker 接入待 F3） | ✅已签字 | 本次提交 | HSB来回±1+受控对象精度+拖中回调松手提交+渐变stops排序+三开关+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看（占位结构已确认，最终像素待F3） |
+| G8 动图 | `ui/kit/anim_image_*.go` + `examples/kit/anim-image/`（Image/Carousel 接入待后续） | ✅已签字 | 本次提交 | `BuildAnimatedImage` 装配（解码器所有权交 `RenderImage`，Paint 期推进 D19）；状态机 Tick 返回「是否继续驱动」（播完/暂停/未挂树/减弱动效自停自摘）+ NextWake 睡眠截止；循环按容器真值不改写；真窗三卡三循环档（keep 无限/prev 2 轮/once 单播），auto-only 5s：逻辑 keep 推进+once 自停末帧、像素暖色 3/3、金图三连 0.0000%（401920px 冻结帧位）、fps 57.6 p95 18.6 正常关闭；人工常驻窗键盘控制（空格/s/x）待人工二合一 |
 | G6 上传语义 | `ui/kit/upload_*.go` + `examples/kit/upload/`（Upload 接入待 F3） | ✅已签字 | 本次提交 | uid补齐+LIST_IGNORE+beforeUpload三返回+受控忽略+maxCount替换截断+默认Tick渐进+业务三回调+宿主三件+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看 |
 | G7 二维码编码库 | `ui/kit/qrcode_*.go` + `examples/kit/qrcode/`（QRCode 接入待 F5） | ✅已签字 | 本次提交 | skip2纯Go后端可换+白边剥离绘制层加+boost自动抬升+M升H实数+四态cover+刷新一次+静态吃主题；真窗第二跑3/3+Golden 0+resize回1200x800+人工已看 |
 

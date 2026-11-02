@@ -123,6 +123,14 @@ PipelineOwner.AddTicker / RemoveTicker / HasTickers / NextTickerWake / TickAllTi
 5. `examples/kit/anim-image` 真窗（控制动词 + 自检 + 金图）；
 6. 文档收口（catalog 若触及 render 公开面、`ENGINE_UI_WIDGET_RENDER.md` §10、kit 侧账、台账状态与修订行）+ 全套门禁 + 提交前确认。
 
+## 6.1 步骤 3–6 执行结果（2026-11-03，未提交）
+
+- **RenderImage 承接面**（`ui/rendering/image_anim.go`）：与 §2 一致，落地差异——`AdvanceFrame() bool` 是请求式（置 pending 并标脏，返回「有下一帧可推」，真正的解码固定在 Paint 期，D19）；`AnimatedFrameIndex()` 语义为「已解码显示帧」（Paint 期推进后才更新）；`SetImage/SetImageShared/Clear/SetError` 四处加动图让位互斥（显式装静态缓冲即退出动图模式并释放解码器）；已释放解码器拒收转 Error（对齐 SetImage 的 disposed 拒收）。`render.AnimatedImage` +1 方法 `Disposed`（消费者拒收判别，对齐 `ImageBuf.Disposed`；apidoc rc=0、catalog 已同步）。
+- **参照对齐**：Flutter `multi_frame_codec.cc:59-145 GetNextFrameImage`（required_frame 回填/disposal 擦矩形/lastRequiredFrame_ 存储）——仓内 `anim.go` 的 `stepTo/applyDisposal/needSave` 逐形状对应；Skia `SkPixelRef`（getGenerationID/notifyPixelsChanged/addGenIDChangeListener）——本地参照仓 skia 目录为空壳（只有 BUILD.gn），按上游 include/core/SkPixelRef.h 核对语义，仓内批 1c 实现同构。
+- **kit 组件**（`anim_image_{props,state,widget}.go`）：与 §3 一致，契约按步骤 1 的合一结果——`Tick` 返回「是否继续驱动」（§3 原稿写「返回是否改变了可见状态」，契约合一后此句作废）；组件**自持时间轴 idx**：推进是请求式，用节点已显示帧判定时长会在「连续 tick 而 paint 未跟上」的间隙卡死时间轴（第一版真 bug，kit 钉 `TickAdvancesByFrameDuration` 抓住后修正）；播完自停除 Tick 返回 false（registry 自动摘）外再显式注销一次（直接调用 Tick 不经过注册表循环的路径也干净）。
+- **真窗** `examples/kit/anim-image`：三卡三循环档（keep 无限/prev restore-previous 2 轮/once 单播），只用控制动词（键盘 空格/s/x + 标题状态）。-auto-only 5s 三跑：逻辑（keep 推进至帧 2、once 播完自停末帧 1）、像素（区域暖色计数 10848≥150）、金图三连 0.0000%（401920px，冻结帧位=全体 Pause+Seek(0)）、fps 57.6/p95 18.6ms/hitch 0/gpu_ops 7179/fallback 0、正常关闭。过程修正两处自检脚本缺陷（每 tick 重调 Play 把播完卡复活；单点探针落在素材帧底色），非组件缺陷、如实登记。
+- **登记不做（新增）**：真窗「不可见（被裁剪掉）即停」只钉了未挂树/零尺寸两态，祖先裁剪感知需要树支持，归后续；常驻人工窗的自动门禁不生效（无快照），以人工观察为准。
+
 ## 7 登记不做
 
 - mip 档位的生产接线（`engine/tex.Filter.SamplerParams` → 绘制口）属 2.5D 支柱，归 P3.7；

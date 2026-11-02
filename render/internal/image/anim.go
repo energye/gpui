@@ -207,6 +207,12 @@ func (a *AnimatedImage) Dispose() {
 	a.needSave = nil
 }
 
+// Disposed reports whether Dispose has run; a disposed decoder refuses frames
+// and must not be re-adopted by consumers (RenderImage parity with ImageBuf).
+func (a *AnimatedImage) Disposed() bool {
+	return a != nil && a.disposed
+}
+
 // DecodeFrame composites frame i onto the canvas and publishes it through
 // Image(). Frames before i are replayed when needed; the current frame is a
 // no-op so a redraw loop can call it every tick.

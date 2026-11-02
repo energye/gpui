@@ -476,6 +476,7 @@ PASS	ui/input/keys_test.go
 PASS	ui/io/decode_r3_test.go
 PASS	ui/io/decode_t4_test.go
 PASS	ui/io/decode_test.go
+PASS	ui/kit/anim_image_state_test.go
 PASS	ui/kit/color_model_convert_test.go
 PASS	ui/kit/color_model_props_test.go
 PASS	ui/kit/color_model_render_test.go
@@ -596,6 +597,7 @@ PASS	ui/rendering/filter_draw_test.go
 PASS	ui/rendering/filter_ro_test.go
 PASS	ui/rendering/font_multiface_test.go
 PASS	ui/rendering/hit_debug_test.go
+PASS	ui/rendering/image_anim_test.go
 PASS	ui/rendering/image_dispose_test.go
 PASS	ui/rendering/image_draw_test.go
 PASS	ui/rendering/image_setimage_paintonly_test.go
@@ -638,7 +640,7 @@ PASS	ui/rendering/render_matrix_test.go
 PASS	ui/rendering/row_reuse_test.go
 PASS	ui/rendering/save_layer_test.go
 PASS	ui/rendering/scroll_physics_test.go
-PASS	ui/rendering/shaping_runs_test.go
+FAIL	ui/rendering/shaping_runs_test.go
 PASS	ui/rendering/snap_test.go
 PASS	ui/rendering/spacing_test.go
 PASS	ui/rendering/spinner_test.go

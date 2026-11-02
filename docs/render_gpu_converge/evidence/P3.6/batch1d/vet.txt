@@ -1,5 +1,7 @@
-# vet 触及包 2026-11-03T00:06:45+08:00
+# vet 触及包 2026-11-03T01:51:45+08:00
+--- ./render ---
 --- ./ui/scheduler ---
 --- ./ui/rendering ---
+--- ./ui/kit ---
 --- ./ui/textinput ---
 --- ./ui/embedder ---
