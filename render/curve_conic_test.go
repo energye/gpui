@@ -261,9 +261,13 @@ func TestPathIterateUnknownVerbPanics(t *testing.T) {
 }
 
 func TestQuadAreaExactAgainstNumericIntegral(t *testing.T) {
-	// Regression pin: the old quadArea formula dropped the −3y0/+3y2 endpoint
-	// terms and halved the middle term (numeric integration disproved it —
-	// found by the conic quarter-disk area check, P3.5 批 1).
+	// Regression pin: quadArea must equal the numeric ½∫(x·dy − y·dx) Green
+	// contribution — the same convention lineArea and cubicArea use. History:
+	// 批 1 pinned the closed form against ∫x·dy (the old formula had also
+	// dropped the −3y0/+3y2 endpoint terms), which agreed only because both
+	// sides then used ∫x·dy. The conic-window sector check (P3.5 真窗 1) exposed
+	// that mixing ∫x·dy curve edges with shoelace line edges inflates a mixed
+	// path by ½[x·y] per curve run, so the pin moved to the symmetric form.
 	cases := [][3]Point{
 		{Pt(0, 0), Pt(1, 0.5), Pt(0, 1)},
 		{Pt(0, 0), Pt(2, 1), Pt(0, 3)},
@@ -274,10 +278,11 @@ func TestQuadAreaExactAgainstNumericIntegral(t *testing.T) {
 		q := NewQuadBez(c[0], c[1], c[2])
 		var num float64
 		const n = 20000
-		for j := 0; j < n; j++ {
-			ta := (float64(j) + 0.5) / n
-			tb := (float64(j) + 1) / n
-			num += q.Eval(ta).X * (q.Eval(tb).Y - q.Eval(float64(j)/n).Y)
+		prev := q.Eval(0)
+		for j := 1; j <= n; j++ {
+			cur := q.Eval(float64(j) / n)
+			num += 0.5 * (prev.X*cur.Y - cur.X*prev.Y)
+			prev = cur
 		}
 		if math.Abs(num-quadArea(c[0], c[1], c[2])) > math.Abs(num)*1e-3+1e-6 {
 			t.Errorf("quad case %d: formula %v vs numeric %v", i, quadArea(c[0], c[1], c[2]), num)

@@ -60,17 +60,22 @@ func lineArea(p0, p1 Point) float64 {
 	return 0.5 * (p0.X*p1.Y - p1.X*p0.Y)
 }
 
-// quadArea computes the contribution of a quadratic Bezier to the signed area.
-// Exact Green's-theorem integral of x(t)·y'(t) over t∈[0,1]:
+// quadArea is the signed Green contribution ½∫(x·dy − y·dx) of a quadratic
+// segment — the same convention lineArea and cubicArea use, so a path that
+// mixes straight edges with curves sums correctly. The closed-form ∫x·dy term
 //
 //	[x0(2y1+y2−3y0) + 2x1(y2−y0) + x2(3y2−2y1−y0)] / 6
 //
-// (the previous formula dropped the −3y0 / +3y2 endpoint terms and halved the
-// middle term, which numeric integration disproved; see P3.5 evidence).
+// (batch 1 pinned that closed form against numeric integration) becomes the
+// symmetric form only after subtracting ½[x·y] between the endpoints. The two
+// agree over a loop built purely of curve segments — the term telescopes away —
+// but not over mixed paths, which is how a conic sector came out inflated by
+// exactly that amount (P3.5 conic window, logic probe).
 func quadArea(p0, p1, p2 Point) float64 {
-	return (p0.X*(2*p1.Y+p2.Y-3*p0.Y) +
+	integral := (p0.X*(2*p1.Y+p2.Y-3*p0.Y) +
 		2*p1.X*(p2.Y-p0.Y) +
 		p2.X*(3*p2.Y-2*p1.Y-p0.Y)) / 6.0
+	return integral - 0.5*(p2.X*p2.Y-p0.X*p0.Y)
 }
 
 // cubicArea computes the contribution of a cubic Bezier to the signed area.

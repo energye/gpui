@@ -19,6 +19,93 @@ import (
 
 const pathBoolProbeTol = 0.1
 
+// TestBooleanResultAreaMatchesDenseReference pins the mixed line+curve result
+// areas absolutely (not just through the identities): each boolean output's
+// Area() must equal the same verbs sampled into a pure-line path. A convention
+// mismatch between edge types showed up here as a per-curve-run ½[x·y] offset.
+func TestBooleanResultAreaMatchesDenseReference(t *testing.T) {
+	circle := render.NewPath()
+	circle.Circle(0, 0, 20)
+	blob := render.NewPath()
+	blob.MoveTo(10, 10)
+	blob.CubicTo(60, -20, 90, 70, 30, 90)
+	blob.QuadraticTo(-10, 80, 5, 40)
+	blob.Close()
+	tilted := boolRect(5, -12, 44, 30)
+	ops := []render.PathBooleanOp{render.PathOpUnion, render.PathOpIntersect,
+		render.PathOpDifference, render.PathOpXor}
+	for _, a := range []*render.Path{circle, blob} {
+		for _, op := range ops {
+			res := a.Op(tilted, op)
+			if res.NumVerbs() == 0 {
+				continue
+			}
+			ref := denseAreaReference(res, 4000)
+			if ref == nil {
+				t.Fatal("no dense reference")
+			}
+			scale := math.Max(1, math.Abs(ref.Area()))
+			if rel := math.Abs(res.Area()-ref.Area()) / scale; rel > 1e-3 {
+				t.Errorf("op=%d |A|=%v: Area()=%v dense=%v rel=%.2e", op, a.Area(), res.Area(), ref.Area(), rel)
+			}
+		}
+	}
+}
+
+// denseAreaReference turns curve verbs into line segments of the same geometry.
+func denseAreaReference(p *render.Path, per int) *render.Path {
+	out := render.NewPath()
+	var cur, start render.Point
+	open := false
+	p.Iterate(func(v render.PathVerb, c []float64) {
+		switch v {
+		case render.MoveTo:
+			cur = render.Pt(c[0], c[1])
+			start = cur
+			if open {
+				out.Close()
+			}
+			out.MoveTo(cur.X, cur.Y)
+			open = true
+		case render.LineTo:
+			cur = render.Pt(c[0], c[1])
+			out.LineTo(cur.X, cur.Y)
+		case render.QuadTo:
+			q := render.NewQuadBez(cur, render.Pt(c[0], c[1]), render.Pt(c[2], c[3]))
+			for i := 1; i <= per; i++ {
+				e := q.Eval(float64(i) / float64(per))
+				out.LineTo(e.X, e.Y)
+			}
+			cur = q.P2
+		case render.CubicTo:
+			cb := render.NewCubicBez(cur, render.Pt(c[0], c[1]), render.Pt(c[2], c[3]), render.Pt(c[4], c[5]))
+			for i := 1; i <= per; i++ {
+				e := cb.Eval(float64(i) / float64(per))
+				out.LineTo(e.X, e.Y)
+			}
+			cur = cb.P3
+		case render.ConicTo:
+			con := render.NewConicBez(cur, render.Pt(c[0], c[1]), render.Pt(c[2], c[3]), c[4])
+			for i := 1; i <= per; i++ {
+				e := con.Eval(float64(i) / float64(per))
+				out.LineTo(e.X, e.Y)
+			}
+			cur = con.P2
+		case render.Close:
+			if cur != start {
+				out.LineTo(start.X, start.Y)
+			}
+			out.Close()
+			cur = start
+			open = false
+		}
+	})
+	if open {
+		out.Close()
+	}
+	return out
+}
+
 // TestBooleanLargeRadiusArcChainsStayOnCurve: a big circle flattens to many
 // samples, some of them collinear on Clipper's integer grid (Clipper drops those
 // from the solution). A broken chain degrades to a chord — never to a wrong
@@ -359,13 +446,13 @@ func TestBooleanAreaReconciliation(t *testing.T) {
 		if scale <= 0 {
 			scale = 1
 		}
-		if e := math.Abs(u+i-a-b) / scale; e > 2e-3 {
+		if e := math.Abs(u+i-a-b) / scale; e > 5e-4 {
 			t.Errorf("%s: union+intersect identity off by %v (a=%v b=%v u=%v i=%v)", tc.name, e, a, b, u, i)
 		}
-		if e := math.Abs(dif-(a-i)) / scale; e > 2e-3 {
+		if e := math.Abs(dif-(a-i)) / scale; e > 5e-4 {
 			t.Errorf("%s: difference identity off by %v (a=%v i=%v d=%v)", tc.name, e, a, i, dif)
 		}
-		if e := math.Abs(xor-(a+b-2*i)) / scale; e > 2e-3 {
+		if e := math.Abs(xor-(a+b-2*i)) / scale; e > 5e-4 {
 			t.Errorf("%s: xor identity off by %v (a=%v b=%v i=%v x=%v)", tc.name, e, a, b, i, xor)
 		}
 	}

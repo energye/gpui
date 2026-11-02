@@ -1,0 +1,7 @@
+# 面积口径修复定向 + race 2026-11-02T08:57:12+08:00
+136
+ok  	github.com/energye/gpui/render	1.201s
+ok  	github.com/energye/gpui/render	10.191s
+ok  	github.com/energye/gpui/render	0.810s
+ok  	github.com/energye/gpui/render/internal/gpu	20.281s
+ok  	github.com/energye/gpui/render/recording	0.062s
