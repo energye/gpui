@@ -537,3 +537,37 @@ func (a *SDFAccelerator) RenderSessionStats() *RenderSessionStats {
 	stats := a.defaultCtx.session.Stats()
 	return &stats
 }
+
+// HasDefaultImageCache reports whether the default session currently has a
+// readable image cache (D20 stats forwarding gate; no guessing when absent).
+func (a *SDFAccelerator) HasDefaultImageCache() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a != nil && a.defaultCtx != nil && a.defaultCtx.session != nil && a.defaultCtx.session.imageCache != nil
+}
+
+// ImageCacheStatsFromLive returns image cache stats from any live context's
+// session (present targets build their own contexts; the accelerator default
+// context is only one of them). False when no live session has a cache yet.
+func (a *SDFAccelerator) ImageCacheStatsFromLive() (ImageCacheStats, bool) {
+	if a == nil || a.shared == nil {
+		return ImageCacheStats{}, false
+	}
+	a.mu.Lock()
+	shared := a.shared
+	a.mu.Unlock()
+	shared.mu.Lock()
+	ctxs := make([]*GPURenderContext, 0, len(shared.liveCtxs))
+	for rc := range shared.liveCtxs {
+		ctxs = append(ctxs, rc)
+	}
+	shared.mu.Unlock()
+	// D20 diagnostic read: Stats() is thread-safe (atomic counters + statsMu).
+	for _, rc := range ctxs {
+		if rc == nil || rc.session == nil || rc.session.imageCache == nil {
+			continue
+		}
+		return rc.session.imageCache.Stats(), true
+	}
+	return ImageCacheStats{}, false
+}

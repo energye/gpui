@@ -1,0 +1,8 @@
+# targeted 2026-11-03T07:08:17+08:00
+--- render（D20 转发口 + 图像缓存）---
+ok  	github.com/energye/gpui/render	0.042s
+--- ui/rendering + ui/kit + ui/scheduler + ui/textinput（契约钉）---
+ok  	github.com/energye/gpui/ui/rendering	0.041s
+ok  	github.com/energye/gpui/ui/kit	0.021s
+ok  	github.com/energye/gpui/ui/scheduler	0.021s [no tests to run]
+ok  	github.com/energye/gpui/ui/textinput	0.020s

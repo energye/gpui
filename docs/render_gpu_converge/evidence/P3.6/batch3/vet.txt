@@ -1,0 +1,6 @@
+# vet 触及包 2026-11-03T07:07:42+08:00
+--- ./render ---
+--- ./ui/rendering ---
+--- ./ui/embedder ---
+--- ./ui/scheduler ---
+--- ./ui/kit ---

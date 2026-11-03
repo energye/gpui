@@ -1,0 +1,13 @@
+# three windows x two backends 2026-11-03T08:09:02+08:00
+--- native ui_wr_p36_imgfmt ---
+p36 imgfmt: OK presents=299 scripted=15/15 golden=0.0000%
+--- native ui_wr_p36_animplay ---
+p36 animplay: OK presents=299 scripted=12/12 golden=0.0000% keep_frame=2 uploads=21
+--- native ui_wr_p36_mipmap ---
+p36 mipmap: OK presents=298 scripted=8/8 golden=0.0000%
+--- go ui_wr_p36_imgfmt ---
+p36 imgfmt: OK presents=296 scripted=15/15 golden=0.0000%
+--- go ui_wr_p36_animplay ---
+p36 animplay: OK presents=298 scripted=12/12 golden=0.0000% keep_frame=2 uploads=21
+--- go ui_wr_p36_mipmap ---
+p36 mipmap: OK presents=295 scripted=8/8 golden=0.0000%

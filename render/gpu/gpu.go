@@ -46,6 +46,30 @@ func init() {
 	if err := render.RegisterAccelerator(accel); err != nil {
 		render.Logger().Warn("GPU accelerator not available", "err", err)
 	}
+	// D20 stats forwarding: image cache diagnostics for real windows (batch 3
+	// animplay gate). The collector dereferences the default session lazily so
+	// registration stays safe before/after device (re)creation.
+	render.RegisterImageCacheStatsCollector(func() (render.ImageCacheStats, bool) {
+		// 窗口绘制建各自的渲染上下文（present target 不走 accelerator 默认上下文），
+		// 所以读「任一活跃会话」的 imageCache； HasDefaultImageCache 只覆盖默认会话。
+		st, ok := accel.ImageCacheStatsFromLive()
+		if !ok {
+			return render.ImageCacheStats{}, false
+		}
+		return render.ImageCacheStats{
+			Entries:         st.Entries,
+			UsedBytes:       st.UsedBytes,
+			Creates:         st.Creates,
+			Hits:            st.Hits,
+			Misses:          st.Misses,
+			Uploads:         st.Uploads,
+			Evictions:       st.Evictions,
+			RetiredGens:     st.RetiredGens,
+			Watched:         st.Watched,
+			MipEntries:      st.MipEntries,
+			MipLevelUploads: st.MipLevelUploads,
+		}, true
+	})
 
 	// Coverage filler: AdaptiveFiller auto-selects between SparseStrips (4x4
 	// tiles, SIMD-optimized) and TileCompute (16x16 tiles) based on path

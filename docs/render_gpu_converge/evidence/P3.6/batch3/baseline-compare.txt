@@ -1,0 +1,19 @@
+### 主 sweep（34 包）
+  per-file-tests/summary.tsv                                       737 条 PASS=705 SKIP_TAGGED=21 SKIP_PKG=0 NO_TESTS=1 FAIL=10
+  per-file-tests/summary.tsv                                       738 条 PASS=706 SKIP_TAGGED=21 SKIP_PKG=0 NO_TESTS=1 FAIL=10
+  --- FAIL 名单差异（< 只在基线 / > 只在本次）---
+4d3
+< render/s6_9_heavy_budget_test.go
+7a7
+> ui/rendering/m1_noquadratic_test.go
+9d8
+< ui/rendering/shaping_runs_test.go
+10a10
+> ui/scheduler/pacing_test.go
+
+### 补充 sweep（分包）
+  per-file-tests-extra/summary.tsv                                 80 条 PASS=72 SKIP_TAGGED=2 SKIP_PKG=0 NO_TESTS=0 FAIL=6
+  per-file-tests-extra/summary.tsv                                 80 条 PASS=72 SKIP_TAGGED=2 SKIP_PKG=0 NO_TESTS=0 FAIL=6
+  --- FAIL 名单差异（< 只在基线 / > 只在本次）---
+  （FAIL 名单逐条相同）
+

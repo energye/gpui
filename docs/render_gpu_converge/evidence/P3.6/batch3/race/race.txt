@@ -1,0 +1,19 @@
+# race 2026-11-03T07:08:34+08:00
+--- render/internal/gpu（imageCache 诊断原子化：缓存全测）---
+ok  	github.com/energye/gpui/render/internal/gpu	68.625s
+--- render（D20 转发口 + 动图/解码定向）---
+FAIL
+FAIL	github.com/energye/gpui/render	0.768s
+FAIL
+--- ./ui/scheduler ---
+FAIL
+FAIL	github.com/energye/gpui/ui/scheduler	2.042s
+FAIL
+--- ./ui/kit ---
+ok  	github.com/energye/gpui/ui/kit	1.290s
+--- ./ui/rendering（定向；全包性能四测 -race 红已归因 gate-attribution §1/§4）---
+ok  	github.com/energye/gpui/ui/rendering	1.275s
+--- ./ui/textinput ./ui/embedder（全包；EditorBufferMirror 全包 -race 债已归因 §4）---
+FAIL
+FAIL	github.com/energye/gpui/ui/embedder	2.299s
+FAIL
