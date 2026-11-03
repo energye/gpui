@@ -1,0 +1,7 @@
+=== RUN   TestP37ProbePerspectiveBatchCost
+    p37_probe_persp_batch_test.go:71: PROBE mode=affine N=1000 → draw call/slot=1  合批进多 quad 槽的 quad=1000  单槽最大 quad=1000  uniform slab=0.2KB  vertex slab(32B)=187.5KB / persp(36B)=210.9KB
+    p37_probe_persp_batch_test.go:71: PROBE mode=tint   N=1000 → draw call/slot=1  合批进多 quad 槽的 quad=1000  单槽最大 quad=1000  uniform slab=0.2KB  vertex slab(32B)=187.5KB / persp(36B)=210.9KB
+    p37_probe_persp_batch_test.go:71: PROBE mode=persp  N=1000 → draw call/slot=1000  合批进多 quad 槽的 quad=0  单槽最大 quad=1  uniform slab=250.0KB  vertex slab(32B)=187.5KB / persp(36B)=210.9KB
+--- PASS: TestP37ProbePerspectiveBatchCost (0.00s)
+PASS
+ok  	github.com/energye/gpui/render/internal/gpu	0.011s

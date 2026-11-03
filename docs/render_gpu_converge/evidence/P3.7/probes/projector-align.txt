@@ -1,0 +1,19 @@
+=== RUN   TestP37ProbeProjectorAlignment
+    p37_probe_projector_align_test.go:79: PROBE cells=294 maxRelDrift=1.819e-09 at cfg{100 300 200 40 -10} d=-99.999999 w={40 -10}: engine=(300,200 scale=1.0000000025247572e+08) m4=(300.00000045474735,199.9999990905053 scale=1.0000000025247572e+08)
+    p37_probe_projector_align_test.go:80: PROBE ok-分叉=17 其他差异=17
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{100 300 200 40 -10} d=0 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{100 300 200 40 -10} d=1e-09 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{100 300 200 40 -10} d=0.5 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{100 300 200 40 -10} d=37.5 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{100 300 200 40 -10} d=999 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{100 300 200 40 -10} d=1e+06 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{100 300 200 40 -10} d=1e+18 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{2048 960 540 -12345.678 9876.5} d=0 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{2048 960 540 -12345.678 9876.5} d=1e-09 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{2048 960 540 -12345.678 9876.5} d=0.5 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{2048 960 540 -12345.678 9876.5} d=37.5 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:86: PROBE diff: cfg{2048 960 540 -12345.678 9876.5} d=999 w={1e+307 0}: engine ok=true, matrix4 ok=false
+    p37_probe_projector_align_test.go:83: PROBE ... 其余 5 条省略
+--- PASS: TestP37ProbeProjectorAlignment (0.00s)
+PASS
+ok  	github.com/energye/gpui/engine/renderconv	0.008s
