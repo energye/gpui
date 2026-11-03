@@ -1,0 +1,26 @@
+# review-fix windows x two backends 2026-11-03T12:22:57+08:00 HEAD=18ccc406
+--- native ui_wr_p33_richtext ---
+FAIL: golden diff 2.6131% want 0 over 322800 px
+--- native ui_wr_p34_filters ---
+ui_wr_p34_filters: OK presents=300 pixel=6/6 golden=0.0000% gate=true elapsed=5.3s
+--- native ui_wr_p36_animplay ---
+p36 animplay: OK presents=299 scripted=12/12 golden=0.0000% keep_frame=2 uploads=21
+--- native ui_wr_p31_linear_blend ---
+ui_wr_p31_linear_blend: OK presents=299 pixel=3/3 golden=0.0000% resize=0 mode=gate elapsed=5.3s
+--- go ui_wr_p33_richtext ---
+FAIL: golden diff 2.6131% want 0 over 322800 px
+--- go ui_wr_p34_filters ---
+ui_wr_p34_filters: OK presents=301 pixel=6/6 golden=0.0000% gate=true elapsed=5.3s
+--- go ui_wr_p36_animplay ---
+p36 animplay: OK presents=296 scripted=12/12 golden=0.0000% keep_frame=2 uploads=21
+--- go ui_wr_p31_linear_blend ---
+ui_wr_p31_linear_blend: OK presents=300 pixel=3/3 golden=0.0000% resize=0 mode=gate elapsed=5.3s
+# done 2026-11-03T12:23:49+08:00
+--- regold ui_wr_p33_richtext (用户拍板 2026-11-03：旧金图焊在断行吞字缺陷上，重采) ---
+证据（worktree 18ccc406 A/B dump）：
+  OLD B line0 "justified ... of every l" / line1 "ine except..."（吞字跨词界）
+  OLD C line0 "the quick ... again and a" / line1 "gain until..."（吞字）
+  NEW B line0 "justified ... of every " / line1 "line except the very last one here"（完整词界，w=412=MaxWidth）
+  NEW C line0 "the quick ... again and " / line1 "again until it wraps many times"（完整词界）
+旧金图备份 p33_golden_before.png；删除 goldens/p33_final.png → native 首跑写回（first_run=true, pixel 5/5）
+  → 复跑 native: OK golden=0.0000% gate=true；go: OK golden=0.0000% gate=true（双后端对同一新金图逐位一致）

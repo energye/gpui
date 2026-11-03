@@ -374,25 +374,19 @@ func markBreakOpportunitiesEnhanced(infos []glyphInfo, text string, mode WrapMod
 			continue
 		}
 
-		// Get the cluster index (byte offset in original text)
-		clusterIdx := infos[i].glyph.Cluster
-
-		// Find the rune index for this cluster
-		runeIdx := findRuneIndexForCluster(wrapInfo, clusterIdx)
+		// Clusters are paragraph-local rune indices after the shaper
+		// (P0-3), so they address w.runes directly.
+		runeIdx := infos[i].glyph.Cluster
+		if runeIdx < 0 {
+			runeIdx = 0
+		}
+		if runeIdx > len(wrapInfo.runes) {
+			runeIdx = len(wrapInfo.runes)
+		}
 
 		// Check if break is allowed before this rune
 		infos[i].isBreak = wrapInfo.canBreakAt(runeIdx)
 	}
-}
-
-// findRuneIndexForCluster finds the rune index corresponding to a byte offset.
-func findRuneIndexForCluster(w *wrapTextInfo, byteOffset int) int {
-	for i := 0; i < len(w.byteOffsets)-1; i++ {
-		if w.byteOffsets[i] <= byteOffset && byteOffset < w.byteOffsets[i+1] {
-			return i
-		}
-	}
-	return len(w.runes)
 }
 
 // WrapResult represents a wrapped line of text.

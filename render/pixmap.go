@@ -25,8 +25,8 @@ import (
 
 // Compile-time interface checks.
 var (
-	_ image.Image  = (*Pixmap)(nil)
-	_ draw.Image   = (*Pixmap)(nil)
+	_ image.Image         = (*Pixmap)(nil)
+	_ draw.Image          = (*Pixmap)(nil)
 	_ intImage.GenWatched = (*Pixmap)(nil)
 )
 

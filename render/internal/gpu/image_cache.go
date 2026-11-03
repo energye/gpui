@@ -94,19 +94,26 @@ type ImageCache struct {
 	// explicitBudgets marks SetBudgets overrides: explicit per-cache tuning
 	// wins over the multi-window fair share below.
 	explicitBudgets bool
-	// statsMu protects the usedBytes/entries diagnostic snapshot read (D20
-	// forwarding reads from other threads); the write side stays on the raster
-	// thread, so the cache's single-thread operation contract is unchanged.
-	statsMu   sync.Mutex
-	usedBytes int64
-	gen       uint64 // global LRU generation counter
+	// statsMu protects the usedBytes diagnostic snapshot (D20 forwarding reads
+	// from other threads); the write side stays on the raster thread, so the
+	// cache's single-thread operation contract is unchanged. Map-derived
+	// diagnostics (entryCount/mipCount/watched) are atomic mirrors maintained
+	// at the single insert/delete sites, keeping Stats lock-free against the
+	// maps — Stats touching entries/bySrc while the raster thread mutates was
+	// a data race (P3.6 delivery review, P0-2).
+	statsMu    sync.Mutex
+	usedBytes  int64
+	gen        atomic.Uint64 // global LRU generation counter
+	entryCount atomic.Int64  // mirror of len(entries)
+	mipCount   atomic.Int64  // mirror of entries with levels > 1
+	watched    atomic.Int64  // mirror of len(bySrc)
 
 	// Stats
 	hits             atomic.Uint64
 	misses           atomic.Uint64
 	uploads          atomic.Uint64
 	uploadBytes      atomic.Uint64
-	lastUploadBytes  int64
+	lastUploadBytes  atomic.Int64
 	evictions        atomic.Uint64
 	ephemeralUploads atomic.Uint64
 	// creates counts native texture allocations this cache performed. An
@@ -297,8 +304,7 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 	if entry, ok := c.entries[key]; ok {
 		// Size mismatch with same gen should not happen; re-upload defensively.
 		if entry.width == cmd.ImgWidth && entry.height == cmd.ImgHeight {
-			c.gen++
-			entry.gen = c.gen
+			entry.gen = c.gen.Add(1)
 			c.hits.Add(1)
 			return entry.view, nil
 		}
@@ -315,26 +321,18 @@ func (c *ImageCache) GetOrUpload(cmd *ImageDrawCommand) (hal.TextureView, error)
 	}
 	c.uploads.Add(1)
 
-	c.gen++
-	entry.gen = c.gen
+	entry.gen = c.gen.Add(1)
 	c.entries[key] = entry
+	c.entryCount.Add(1)
+	if entry.levels > 1 {
+		c.mipCount.Add(1)
+	}
 	c.statsMu.Lock()
 	c.usedBytes += entry.bytes
 	c.statsMu.Unlock()
 	c.trackSource(key, entry, cmd)
 
 	return entry.view, nil
-}
-
-// mipEntryCount counts live multi-level entries.
-func (c *ImageCache) mipEntryCount() int {
-	n := 0
-	for _, e := range c.entries {
-		if e.levels > 1 {
-			n++
-		}
-	}
-	return n
 }
 
 // texelsFor is the texture's whole mip area; one formula shared with the hal
@@ -430,6 +428,7 @@ func (c *ImageCache) untrackSource(key imageCacheKey, entry *imageCacheEntry) {
 		delete(bucket, key)
 		if len(bucket) == 0 {
 			delete(c.bySrc, entry.srcGen)
+			c.watched.Add(-1)
 		}
 	}
 	entry.srcGen = 0
@@ -454,6 +453,7 @@ func (c *ImageCache) noteWatched(srcGen uint64, key imageCacheKey) {
 	if bucket == nil {
 		bucket = make(map[imageCacheKey]struct{}, 1)
 		c.bySrc[srcGen] = bucket
+		c.watched.Add(1)
 	}
 	bucket[key] = struct{}{}
 }
@@ -494,6 +494,9 @@ func (c *ImageCache) Destroy() {
 		delete(c.entries, key)
 	}
 	c.bySrc = make(map[uint64]map[imageCacheKey]struct{})
+	c.entryCount.Store(0)
+	c.mipCount.Store(0)
+	c.watched.Store(0)
 	c.retiredMu.Lock()
 	c.retired = make(map[uint64]struct{})
 	c.retiredMu.Unlock()
@@ -645,7 +648,7 @@ func (c *ImageCache) uploadImage(cmd *ImageDrawCommand, levels uint32, chain *in
 	// ledger already charged the chain, so the 128-entry/64-MiB gate judged
 	// capacity on numbers nobody had spent.
 	nbytes := total
-	c.lastUploadBytes = nbytes
+	c.lastUploadBytes.Store(nbytes)
 	c.uploadBytes.Add(uint64(nbytes)) //nolint:gosec // non-negative
 
 	return &imageCacheEntry{
@@ -674,6 +677,10 @@ func (c *ImageCache) removeEntry(key imageCacheKey, entry *imageCacheEntry) {
 	}
 	c.statsMu.Unlock()
 	delete(c.entries, key)
+	c.entryCount.Add(-1)
+	if entry.levels > 1 {
+		c.mipCount.Add(-1)
+	}
 	c.evictions.Add(1)
 }
 
@@ -741,42 +748,31 @@ func (c *ImageCache) Stats() ImageCacheStats {
 	if c == nil {
 		return ImageCacheStats{}
 	}
-	// 诊断快照读可来自任意线程（D20 转发口）：计数器原子读，entries/usedBytes
-	// 由 statsMu 保护；写侧仍局限在光栅线程，单线程契约不变。
+	// 诊断快照读可来自任意线程（D20 转发口）：计数器与派生镜像（entryCount/
+	// mipCount/watched）全部原子读，usedBytes 由 statsMu 保护；entries/bySrc
+	// 两个 map 本身只有光栅线程能碰。写侧仍局限在光栅线程，单线程契约不变。
 	c.statsMu.Lock()
-	entries := len(c.entries)
 	used := c.usedBytes
 	c.statsMu.Unlock()
 	return ImageCacheStats{
-		Entries:          entries,
+		Entries:          int(c.entryCount.Load()),
 		Budget:           c.budget,
 		BudgetBytes:      c.budgetBytes,
 		UsedBytes:        used,
-		Generations:      c.gen,
+		Generations:      c.gen.Load(),
 		Hits:             c.hits.Load(),
 		Misses:           c.misses.Load(),
 		Uploads:          c.uploads.Load(),
 		UploadBytes:      c.uploadBytes.Load(),
-		LastUploadBytes:  c.lastUploadBytes,
+		LastUploadBytes:  c.lastUploadBytes.Load(),
 		Evictions:        c.evictions.Load(),
 		EphemeralUploads: c.ephemeralUploads.Load(),
 		Creates:          c.creates.Load(),
-		MipEntries:       c.mipEntryCount(),
+		MipEntries:       int(c.mipCount.Load()),
 		MipLevelUploads:  c.mipLevelUploads.Load(),
 		RetiredGens:      c.retiredGens.Load(),
-		Watched:          c.watchedCount(),
+		Watched:          int(c.watched.Load()),
 	}
-}
-
-// watchedCount snapshots the watched-source count under retiredMu (the same
-// lock the watch/unwatch paths hold; D20 readers may run on other threads).
-func (c *ImageCache) watchedCount() int {
-	if c == nil {
-		return 0
-	}
-	c.retiredMu.Lock()
-	defer c.retiredMu.Unlock()
-	return len(c.bySrc)
 }
 
 // ResetStats clears hit/miss/upload counters (entries retained).
@@ -788,7 +784,7 @@ func (c *ImageCache) ResetStats() {
 	c.misses.Store(0)
 	c.uploads.Store(0)
 	c.uploadBytes.Store(0)
-	c.lastUploadBytes = 0
+	c.lastUploadBytes.Store(0)
 	c.evictions.Store(0)
 	c.ephemeralUploads.Store(0)
 }

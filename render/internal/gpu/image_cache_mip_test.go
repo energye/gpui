@@ -207,8 +207,8 @@ func TestSamplerDescriptorForImageFilter_Mip(t *testing.T) {
 func TestImageCache_MipBudgetCapacity(t *testing.T) {
 	b := render.DefaultBudget(render.BudgetImageCache)
 	type row struct {
-		name  string
-		w, h  int
+		name string
+		w, h int
 	}
 	rows := []row{{"缩略图", 256, 256}, {"大图标", 512, 512}, {"长条", 70, 8}, {"宽图", 1024, 256}}
 	for _, r := range rows {

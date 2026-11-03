@@ -24,8 +24,8 @@ import (
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
 	"github.com/energye/gpui/render"
-	intImage "github.com/energye/gpui/render/internal/image"
 	"github.com/energye/gpui/render/internal/gpu/res"
+	intImage "github.com/energye/gpui/render/internal/image"
 	"github.com/energye/gpui/render/internal/stroke"
 	"github.com/energye/gpui/render/text"
 )

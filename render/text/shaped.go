@@ -17,8 +17,11 @@ type ShapedGlyph struct {
 	// GID is the glyph index in the font.
 	GID GlyphID
 
-	// Cluster is the source character index in the original text.
-	// Used for hit testing and cursor positioning.
+	// Cluster is the source character index — always a RUNE (code point)
+	// index, never a byte offset. Shapers emit it relative to the string
+	// they shape; LayoutText rebases it to the whole text (paragraph-local
+	// inside wrapping/justification, whole-text once published). Used for
+	// hit testing, cursor positioning, and rich-text run→style lookup.
 	Cluster int
 
 	// IsCJK indicates that this glyph belongs to a CJK script (Han, Hiragana,

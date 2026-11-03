@@ -490,10 +490,10 @@ type ImageFilterNode struct {
 
 	// Lighting (P3.4): point light position (z = height above the plane),
 	// light color, diffuse constant, surface scale for the alpha height map.
-	LightPos      [3]float32
-	LightColor    RGBA
-	LightKD       float32
-	SurfaceScale  float32
+	LightPos     [3]float32
+	LightColor   RGBA
+	LightKD      float32
+	SurfaceScale float32
 	// Tile (P3.4): source rect (x0, y0, x1, y1) repeated across the output.
 	TileSrcRect [4]float32
 
@@ -877,12 +877,6 @@ func (c *Context) ensureFilterSrcRT(w, h int) (gpucontext.TextureView, bool) {
 	c.filterSrcRelease = rel
 	return view, true
 }
-
-// ImageFilterMerge is a composition-level marker (P3.4): it does not ride the
-// linear ping-pong graph — Context.ApplyMerge runs each layer as its own
-// filter graph and composites the layer outputs source-over, which supports
-// N layers without extending the two-input graph.
-type ImageFilterMerge struct{ marker bool }
 
 // mergeOver composites src over dst (premul source-over) in place on dst.
 func mergeOver(src, dst *Pixmap) {

@@ -14,6 +14,7 @@ import (
 	"context"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Alignment specifies text horizontal alignment within the layout width.
@@ -199,6 +200,12 @@ func LayoutTextWithContext(ctx context.Context, text string, face Face, opts Lay
 	}
 
 	var y float64
+	// Global rune offset of the current paragraph within the (newline-
+	// normalized) text. Clusters escape shapeSegments paragraph-local;
+	// LayoutText publishes them in whole-text space so consumers that
+	// index the full string (Paragraph.StyleForRun) read them directly
+	// (P0-3: cluster ≡ rune offset).
+	var paraRuneBase int
 
 	for i, para := range paragraphs {
 		// Check for cancellation periodically (every 8 paragraphs)
@@ -245,6 +252,20 @@ func LayoutTextWithContext(ctx context.Context, text string, face Face, opts Lay
 			}
 		}
 
+		if paraRuneBase != 0 {
+			for j := range paraLines {
+				for k := range paraLines[j].Glyphs {
+					paraLines[j].Glyphs[k].Cluster += paraRuneBase
+				}
+				for ri := range paraLines[j].Runs {
+					for k := range paraLines[j].Runs[ri].Glyphs {
+						paraLines[j].Runs[ri].Glyphs[k].Cluster += paraRuneBase
+					}
+				}
+			}
+		}
+		paraRuneBase += utf8.RuneCountInString(para) + 1 // + the consumed \n
+
 		layout.Lines = append(layout.Lines, paraLines...)
 	}
 
@@ -263,6 +284,9 @@ func LayoutTextWithContext(ctx context.Context, text string, face Face, opts Lay
 // last kept line when Overflow is OverflowEllipsis (P3.3). Layout.Lines is
 // mutated in place: dropped lines disappear, the tail line is re-shaped with
 // a shrinking prefix plus a "…" glyph so the marker fits MaxWidth.
+// The tail keeps its per-run structure (Flutter semantics): prefix slices of
+// the original runs plus one marker run carrying the cover run's style and
+// a shapable face (P1-5).
 func applyMaxLinesTruncation(layout *Layout, face Face, opts LayoutOptions) {
 	if opts.MaxLines <= 0 || len(layout.Lines) <= opts.MaxLines {
 		return
@@ -275,7 +299,8 @@ func applyMaxLinesTruncation(layout *Layout, face Face, opts LayoutOptions) {
 		return
 	}
 	line := &layout.Lines[len(layout.Lines)-1]
-	ellGlyphs := ShapeUncached("…", face)
+	ellFace := ellipsisFace(line, face)
+	ellGlyphs := ShapeUncached("…", ellFace)
 	if len(ellGlyphs) == 0 {
 		return
 	}
@@ -288,28 +313,106 @@ func applyMaxLinesTruncation(layout *Layout, face Face, opts LayoutOptions) {
 		keep--
 		line.Width -= line.Glyphs[keep].XAdvance
 	}
-	tail := make([]ShapedGlyph, 0, keep+len(ellGlyphs))
-	tail = append(tail, line.Glyphs[:keep]...)
+	// The marker takes a whole-text rune cluster that keeps the tail
+	// monotone: the first dropped glyph's position, or one past the kept
+	// prefix when nothing was dropped. Left at the shaper's 0 it would
+	// alias paragraph rune 0 (P0-3).
+	ellCluster := 0
+	if keep < len(line.Glyphs) {
+		ellCluster = line.Glyphs[keep].Cluster
+	} else if len(line.Glyphs) > 0 {
+		ellCluster = line.Glyphs[len(line.Glyphs)-1].Cluster + 1
+	}
+	newRuns := make([]ShapedRun, 0, len(line.Runs)+1)
+	taken := 0
+	for ri := range line.Runs {
+		if taken >= keep {
+			break
+		}
+		src := &line.Runs[ri]
+		n := keep - taken
+		if n > len(src.Glyphs) {
+			n = len(src.Glyphs)
+		}
+		gs := make([]ShapedGlyph, n)
+		copy(gs, src.Glyphs[:n])
+		run := *src
+		run.Glyphs = gs
+		run.Advance = runGlyphAdvance(gs)
+		newRuns = append(newRuns, run)
+		taken += n
+	}
 	x := line.Width
+	ell := make([]ShapedGlyph, 0, len(ellGlyphs))
 	for gi := range ellGlyphs {
 		g := ellGlyphs[gi]
 		g.X = x
+		g.Cluster = ellCluster
 		x += g.XAdvance
-		tail = append(tail, g)
+		ell = append(ell, g)
 	}
-	line.Glyphs = tail
-	line.Width += ellWidth
-	// The run list no longer matches the glyph list (the marker has no
-	// styled run); flatten to one synthesized run for a consistent pair.
-	line.Runs = []ShapedRun{{
-		Glyphs:  append([]ShapedGlyph(nil), line.Glyphs...),
-		Advance: line.Width,
-		Ascent:  line.Ascent,
-		Descent: line.Descent,
-		Face:    face,
-		Size:    face.Size(),
-		Style:   -1,
-	}}
+	markerRun := ShapedRun{
+		Glyphs:  ell,
+		Advance: ellWidth,
+		Face:    ellFace,
+		Size:    ellFace.Size(),
+	}
+	if cover := runCoveringGlyph(line.Runs, keep); cover != nil {
+		markerRun.Ascent = cover.Ascent
+		markerRun.Descent = cover.Descent
+		markerRun.Direction = cover.Direction
+		markerRun.Style = cover.Style
+	}
+	newRuns = append(newRuns, markerRun)
+	glyphs := make([]ShapedGlyph, 0, len(line.Glyphs))
+	for ri := range newRuns {
+		glyphs = append(glyphs, newRuns[ri].Glyphs...)
+	}
+	line.Glyphs = glyphs
+	line.Runs = newRuns
+	line.Width = x
+}
+
+// ellipsisFace picks a shapable face for the marker: the paragraph face when
+// it shapes directly, else the last run face with a real font source
+// (MultiFace/styledFace return Source()==nil and would drop the marker —
+// P1-5).
+func ellipsisFace(line *Line, fallback Face) Face {
+	if fallback != nil && fallback.Source() != nil {
+		return fallback
+	}
+	for ri := len(line.Runs) - 1; ri >= 0; ri-- {
+		if f := line.Runs[ri].Face; f != nil && f.Source() != nil {
+			return f
+		}
+	}
+	return fallback
+}
+
+func runGlyphAdvance(gs []ShapedGlyph) float64 {
+	if len(gs) == 0 {
+		return 0
+	}
+	first, last := gs[0], gs[len(gs)-1]
+	return last.X - first.X + last.XAdvance
+}
+
+// runCoveringGlyph returns the run holding the flattened glyph index idx
+// (clamping to the last non-empty run), or nil when there are none.
+func runCoveringGlyph(runs []ShapedRun, idx int) *ShapedRun {
+	var last *ShapedRun
+	acc := 0
+	for ri := range runs {
+		if len(runs[ri].Glyphs) == 0 {
+			continue
+		}
+		last = &runs[ri]
+		if idx < acc+len(runs[ri].Glyphs) {
+			return &runs[ri]
+		}
+		acc += len(runs[ri].Glyphs)
+	}
+	return last
 }
 
 // LayoutTextSimple is a convenience wrapper with default options.
@@ -369,6 +472,11 @@ func layoutParagraph(para string, face Face, opts LayoutOptions, metrics Metrics
 func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOptions) []ShapedRun {
 	runs := make([]ShapedRun, 0, len(segments))
 	var xOffset float64
+	// Paragraph-local rune base of the current segment. Segments tile the
+	// paragraph in logical order, so the accumulated rune counts of the
+	// preceding segments give the base for the cluster rebase below
+	// (P0-3: clusters are rune indices, never byte offsets).
+	segRuneStart := 0
 
 	for si, seg := range segments {
 		// Inter-segment letter gap: every non-first shaped segment starts
@@ -389,7 +497,24 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOp
 		// P3.3: any Face that can split itself into runs (MultiFace and the
 		// rich-text styledFace) drives the per-part segmentation; styledFace
 		// splits at style-span boundaries so each span lands in its own run.
-		if fr, ok := face.(interface{ Runs(string) []FaceRun }); ok {
+		// RunsAt carries the segment's paragraph-local rune base so a
+		// segment-restricted face can align its own boundaries to the whole
+		// paragraph (P0-3); plain Runs gets the segment as-is.
+		if fr, ok := face.(interface {
+			RunsAt(string, int) []FaceRun
+		}); ok {
+			if frs := fr.RunsAt(seg.Text, segRuneStart); len(frs) > 0 {
+				parts = parts[:0]
+				start := 0
+				for _, fr := range frs {
+					if fr.Face == nil || fr.Text == "" {
+						continue
+					}
+					parts = append(parts, facePart{face: fr.Face, text: fr.Text, start: start})
+					start += utf8.RuneCountInString(fr.Text)
+				}
+			}
+		} else if fr, ok := face.(interface{ Runs(string) []FaceRun }); ok {
 			if frs := fr.Runs(seg.Text); len(frs) > 0 {
 				parts = parts[:0]
 				start := 0
@@ -398,7 +523,7 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOp
 						continue
 					}
 					parts = append(parts, facePart{face: fr.Face, text: fr.Text, start: start})
-					start += len(fr.Text)
+					start += utf8.RuneCountInString(fr.Text)
 				}
 			}
 		}
@@ -437,8 +562,9 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOp
 			// Adjust glyph positions by xOffset
 			for i := range glyphs {
 				glyphs[i].X += xOffset
-				// Adjust cluster indices to be relative to paragraph start
-				glyphs[i].Cluster += seg.Start + part.start
+				// Adjust cluster indices to be relative to the paragraph start
+				// — rune space end to end (P0-3).
+				glyphs[i].Cluster += segRuneStart + part.start
 			}
 
 			// Calculate run advance
@@ -457,12 +583,16 @@ func shapeSegments(segments []Segment, face Face, metrics Metrics, opts LayoutOp
 
 			xOffset += advance
 		}
+
+		segRuneStart += utf8.RuneCountInString(seg.Text)
 	}
 
 	return runs
 }
 
 // facePart is one contiguous run of text that resolves to a single face.
+// start is the part's rune offset within the segment (same space the
+// shaper's local clusters live in; P0-3).
 type facePart struct {
 	face  Face
 	text  string
@@ -582,8 +712,11 @@ func wrapLinesWithMode(runs []ShapedRun, text string, maxWidth float64, mode Wra
 func calculateBreakPosition(currentPos, lineStart, lastBreak int, mode WrapMode) (int, bool) {
 	switch {
 	case lastBreak > lineStart:
-		// Break at last break opportunity
-		return lastBreak + 1, true
+		// Break before the last opportunity glyph (isBreak marks
+		// break-BEFORE its cluster; taking lastBreak+1 pulled the first
+		// glyph of the next chunk onto this line and let lines overshoot
+		// MaxWidth).
+		return lastBreak, true
 	case mode == WrapWordChar || mode == WrapChar:
 		// Fall back to character break
 		return currentPos, true

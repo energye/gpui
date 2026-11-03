@@ -113,6 +113,36 @@ func TestRenderImage_AnimatedOwnership(t *testing.T) {
 	}
 }
 
+// 静态 owned 缓冲被动图覆盖时必须先释放（交付后审查 P0-1 钉）：
+// SetImage 装的 owned buf → SetAnimatedImage → 旧 buf 必须 Disposed，不许泄漏。
+func TestRenderImage_AnimatedReplacesOwnedStatic(t *testing.T) {
+	im := rendering.NewRenderImage(40, 30)
+	static, err := render.NewImageBuf(40, 30, render.FormatRGBA8)
+	if err != nil {
+		t.Fatalf("NewImageBuf: %v", err)
+	}
+	im.SetImage(static)
+	if !im.OwnsImage() {
+		t.Fatal("precondition: SetImage must adopt the buffer")
+	}
+	a := loadAnim(t, "gif_once.gif")
+	im.SetAnimatedImage(a)
+	if !static.Disposed() {
+		t.Fatalf("switching static owned -> animated must dispose the old buffer (leak): disposed=%v", static.Disposed())
+	}
+	if im.OwnsImage() {
+		t.Fatal("the animated frame buffer must not be owned by the node")
+	}
+	// 换装动图后动图路径语义不受牵连：解码器接管、Clear 连带释放。
+	if !im.Animated() || im.State != rendering.ImageReady {
+		t.Fatalf("after switch: animated=%v state=%v want true/Ready", im.Animated(), im.State)
+	}
+	im.Clear()
+	if a.Disposed() != true || im.Animated() {
+		t.Fatalf("Clear after animated switch must release the decoder: disposed=%v animated=%v", a.Disposed(), im.Animated())
+	}
+}
+
 func TestRenderImage_AnimatedAdvancePaint(t *testing.T) {
 	const W, H = 80, 80
 	a := loadAnim(t, "gif_once.gif")

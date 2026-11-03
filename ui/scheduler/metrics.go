@@ -66,9 +66,9 @@ type FrameMetrics struct {
 	FPSWall float64 `json:"fps_wall,omitempty"`
 	// TargetHz is the display refresh rate the pacer was seeded with
 	// (SeedDisplayRefreshHz); 0/omitted when the host never reported one.
-	TargetHz float64 `json:"target_hz,omitempty"`
-	LastBuildMs         float64 `json:"frame_build_ms"`
-	LastRasterMs        float64 `json:"frame_raster_ms"`
+	TargetHz     float64 `json:"target_hz,omitempty"`
+	LastBuildMs  float64 `json:"frame_build_ms"`
+	LastRasterMs float64 `json:"frame_raster_ms"`
 	// F期干活计时独立：Flush(干活)与present(等显示器)分开记。
 	// LastFlushMs = GPU干活耗时(重录+画画)；LastPresentWaitMs = 等显示器耗时。
 	// 6ms口径看 LastFlushMs，不被 Fifo 等待带偏。

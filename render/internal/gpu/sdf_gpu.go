@@ -538,14 +538,6 @@ func (a *SDFAccelerator) RenderSessionStats() *RenderSessionStats {
 	return &stats
 }
 
-// HasDefaultImageCache reports whether the default session currently has a
-// readable image cache (D20 stats forwarding gate; no guessing when absent).
-func (a *SDFAccelerator) HasDefaultImageCache() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a != nil && a.defaultCtx != nil && a.defaultCtx.session != nil && a.defaultCtx.session.imageCache != nil
-}
-
 // ImageCacheStatsFromLive returns image cache stats from any live context's
 // session (present targets build their own contexts; the accelerator default
 // context is only one of them). False when no live session has a cache yet.

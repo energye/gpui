@@ -51,7 +51,7 @@ func init() {
 	// registration stays safe before/after device (re)creation.
 	render.RegisterImageCacheStatsCollector(func() (render.ImageCacheStats, bool) {
 		// 窗口绘制建各自的渲染上下文（present target 不走 accelerator 默认上下文），
-		// 所以读「任一活跃会话」的 imageCache； HasDefaultImageCache 只覆盖默认会话。
+		// 所以读「任一活跃会话」的 imageCache，默认会话单独覆盖不作真源。
 		st, ok := accel.ImageCacheStatsFromLive()
 		if !ok {
 			return render.ImageCacheStats{}, false

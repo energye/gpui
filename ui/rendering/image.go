@@ -56,8 +56,8 @@ type RenderImage struct {
 func NewRenderImage(w, h float64) *RenderImage {
 	im := &RenderImage{
 		Width: w, Height: h,
-		State:       ImageIdle,
-		PR:          0.2, PG: 0.2, PB: 0.25,
+		State: ImageIdle,
+		PR:    0.2, PG: 0.2, PB: 0.25,
 		animPending: -1,
 	}
 	im.Init(im)

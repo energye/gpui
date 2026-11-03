@@ -249,7 +249,6 @@ func r1NoiseImage(t *testing.T, side int) *render.ImageBuf {
 	return img
 }
 
-
 func TestR2_GradientStrokeGPU(t *testing.T) {
 	requireNativeGPU(t)
 	dc := render.NewContext(128, 64)

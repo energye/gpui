@@ -22,15 +22,15 @@ import (
 // /tmp/gen_cull.py on 2026-10-05 (naive grid math, no engine code).
 
 type cullLayout struct {
-	Cols          int       `json:"cols"`
-	Rows          int       `json:"rows"`
-	Spacing       float64   `json:"spacing"`
-	Origin        [2]float64 `json:"origin"`
-	AttachEvery   int       `json:"attach_every"`
-	AttachOffset  [2]float64 `json:"attach_offset"`
-	Extent        float64   `json:"extent"`
-	Layers        string    `json:"layers"`
-	Count         int       `json:"count"`
+	Cols         int        `json:"cols"`
+	Rows         int        `json:"rows"`
+	Spacing      float64    `json:"spacing"`
+	Origin       [2]float64 `json:"origin"`
+	AttachEvery  int        `json:"attach_every"`
+	AttachOffset [2]float64 `json:"attach_offset"`
+	Extent       float64    `json:"extent"`
+	Layers       string     `json:"layers"`
+	Count        int        `json:"count"`
 }
 
 type cullMarker struct {
@@ -45,9 +45,9 @@ type cullAttached struct {
 }
 
 type cullSceneFile struct {
-	Layout   cullLayout    `json:"layout"`
-	Markers  []cullMarker  `json:"markers"`
-	Pins     []int         `json:"pins"`
+	Layout   cullLayout     `json:"layout"`
+	Markers  []cullMarker   `json:"markers"`
+	Pins     []int          `json:"pins"`
 	Attached []cullAttached `json:"attached"`
 }
 
@@ -813,7 +813,7 @@ func TestCullEdgesNoCrash(t *testing.T) {
 	cc, _ = NewCull(core.NewRect(0, 0, 10000, 10000))
 	for i := 0; i < 30; i++ {
 		fid, _ := full.Spawn(NoEntity)
-		_ = full.SetTransform(fid, Transform{Pos: core.V2(float64(i * 10), 0), Scale: core.V2(1, 1)})
+		_ = full.SetTransform(fid, Transform{Pos: core.V2(float64(i*10), 0), Scale: core.V2(1, 1)})
 		_ = cc.Track(fid, 0, 0, 4, 4)
 	}
 	if err := cc.SetMaxActive(10); err != nil {

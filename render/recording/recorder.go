@@ -61,12 +61,12 @@ type Recorder struct {
 	// pathEffect rides draws recorded after it was set (P3.5 batch 4).
 	// Effects are immutable pure objects (render.PathEffect contract), so
 	// state save/restore and command capture share one reference.
-	pathEffect  render.PathEffect
-	fillRule    FillRule
-	antiAlias   bool
-	blendMode   render.BlendMode
-	blendSpace  render.BlendSpace
-	transform   Matrix
+	pathEffect render.PathEffect
+	fillRule   FillRule
+	antiAlias  bool
+	blendMode  render.BlendMode
+	blendSpace render.BlendSpace
+	transform  Matrix
 
 	// Current font
 	fontFace   text.Face

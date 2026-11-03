@@ -53,12 +53,19 @@ func TestParagraphBuilderSpanSemantics(t *testing.T) {
 	if got, _ := p.StyleForRun(0); got.Color.A != 0 {
 		t.Fatalf("span 0 color = %+v, want unspecified (base)", got.Color)
 	}
-	if got, _ := p.StyleForRun(5); got.Color.G != 1 && got.Color.R != 1 {
-		t.Fatalf("span 1 color = %+v, want bright green", got.Color)
+	// 收紧断言（审查 P2-14：旧状 `G!=1 && R!=1` 逻辑与、且 c=14 落 span2，
+	// PopStyle 恢复路径零断言）。本用例文本命名与颜色故意交叉，按颜色真值断：
+	// span0 base 无色；span1 红域 R=1；span2 绿域 G=1；span3 PopStyle 出绿域
+	// 回到外层红域。
+	if got, _ := p.StyleForRun(5); got.Color.R != 1 || got.Color.G != 0 || got.Color.B != 0 {
+		t.Fatalf("span 1 color = %+v, want pure red (R=1, G=B=0)", got.Color)
 	}
-	// PopStyle restored the enclosing green scope for the 4th span.
-	if got, _ := p.StyleForRun(14); got.Color.G != 1 || got.Color.R != 0 || got.Color.B != 0 {
-		t.Fatalf("span 3 color = %+v, want restored green", got.Color)
+	if got, _ := p.StyleForRun(11); got.Color.G != 1 || got.Color.R != 0 || got.Color.B != 0 {
+		t.Fatalf("span 2 color = %+v, want pure green (G=1, R=B=0)", got.Color)
+	}
+	// PopStyle restored the enclosing RED scope for the 4th span (c=17 ∈ [15,26)).
+	if got, _ := p.StyleForRun(17); got.Color.R != 1 || got.Color.G != 0 || got.Color.B != 0 {
+		t.Fatalf("span 3 color = %+v, want restored red (R=1, G=B=0)", got.Color)
 	}
 	// Runs carry the span index.
 	runs := 0
@@ -136,12 +143,21 @@ func TestMaxLinesEllipsis(t *testing.T) {
 	if last.Width > 180+0.01 {
 		t.Fatalf("tail width %.2f exceeds MaxWidth", last.Width)
 	}
+	// 实断言（交付后审查 P1-5/14：旧状这里是 `_ = lastGlyph` 空转）：
+	// 末位 glyph 必须是省略号标记，GID 对齐直测基准，cluster 单调且在段内。
+	ell := text.ShapeUncached("…", face)
+	if len(ell) == 0 {
+		t.Skip("base face has no U+2026")
+	}
 	lastGlyph := last.Glyphs[len(last.Glyphs)-1]
-	if lastGlyph.Cluster > 60 {
-		// The ellipsis has no real cluster in the source text; shaper assigns
-		// the next index — treat a huge cluster as the marker signal only
-		// alongside the width check above.
-		_ = lastGlyph
+	if lastGlyph.GID != ell[0].GID {
+		t.Fatalf("tail glyph GID=%d, want ellipsis GID=%d（省略号缺席或错位）", lastGlyph.GID, ell[0].GID)
+	}
+	if prev := last.Glyphs[len(last.Glyphs)-2]; lastGlyph.Cluster <= prev.Cluster {
+		t.Fatalf("ellipsis cluster=%d must follow the kept prefix cluster=%d", lastGlyph.Cluster, prev.Cluster)
+	}
+	if rc := len([]rune("word one two three four five six seven eight nine ten")); lastGlyph.Cluster >= rc {
+		t.Fatalf("ellipsis cluster=%d out of paragraph rune range %d", lastGlyph.Cluster, rc)
 	}
 	if lay.Height <= 0 {
 		t.Fatal("layout height must stay positive after truncation")

@@ -185,11 +185,11 @@ func (p *Paragraph) StyleCount() int {
 	return len(p.styles)
 }
 
-// styledFace adapts a MultiFace to a styled paragraph: it splits text at
+// styledFace adapts a base face to a styled paragraph: it splits text at
 // span boundaries and resolves each span's face through WithWeight, so the
 // layout's existing face-fallback segmentation sees one face per styled
-// span. It deliberately re-implements Runs (span-split first, then
-// MultiFace.Runs per slice) instead of embedding, because MultiFace.Runs
+// span. It deliberately re-implements the run split (span-split first, then
+// base runs per slice) instead of embedding, because MultiFace.Runs
 // caches by (face, text) and two paragraphs sharing a base face must not
 // collide.
 type styledFace struct {
@@ -198,43 +198,56 @@ type styledFace struct {
 	spans     []styledSpan
 }
 
-// Runs splits text at styled-span boundaries first, then defers each slice
-// to the wrapped MultiFace (its script/bidi segmentation still applies
-// within a slice). Weight-0 spans keep the base resolution.
-func (f *styledFace) Runs(para string) []text.FaceRun {
+// RunsAt splits the segment at styled-span boundaries using its paragraph-
+// local rune base (spans[].runeRuns are global cumulative counts, so an
+// unbased segment-local interpretation cut the wrong slices whenever the
+// paragraph segmented into more than one piece — P0-3), then defers each
+// slice to the wrapped face. Weight-0 slices keep the base face resolved
+// per slice (the MultiFace fallback chain, when present, stays intact);
+// weighted slices resolve through the family.
+func (f *styledFace) RunsAt(para string, runeBase int) []text.FaceRun {
 	if len(f.spans) == 0 {
 		return f.baseRuns(para)
 	}
-	var out []text.FaceRun
-	pos := 0  // rune offset of the current slice start
-	span := 0 // current span index
+	if runeBase < 0 {
+		runeBase = 0
+	}
 	r := []rune(para)
-	for pos < len(r) {
-		end := len(r)
-		weight := text.FontWeight(0)
-		if span < len(f.spans) {
-			end = f.spans[span].runeRuns
-			weight = f.spans[span].style.Weight
+	var out []text.FaceRun
+	local := 0
+	for local < len(r) {
+		global := runeBase + local
+		last := len(f.spans) - 1
+		weight := f.spans[last].style.Weight
+		endGlobal := runeBase + len(r)
+		for _, sp := range f.spans {
+			if global < sp.runeRuns {
+				weight = sp.style.Weight
+				endGlobal = sp.runeRuns
+				break
+			}
 		}
+		end := endGlobal - runeBase
 		if end > len(r) {
 			end = len(r)
 		}
-		if pos >= end {
-			span++
-			continue
+		if end <= local {
+			end = local + 1
 		}
-		slice := string(r[pos:end])
-		parts, face := f.baseRuns(slice), f.Face
+		slice := string(r[local:end])
+		parts := f.baseRuns(slice)
+		var weightFace text.Face
 		if weight != 0 && f.family != nil {
-			if w := f.family.Face(20.0, text.WithWeight(weight)); w != nil {
-				face = w
-			}
+			weightFace = f.family.Face(f.Face.Size(), text.WithWeight(weight))
 		}
 		for _, pr := range parts {
+			face := pr.Face
+			if weightFace != nil {
+				face = weightFace
+			}
 			out = append(out, text.FaceRun{Face: face, Text: pr.Text, X: pr.X})
 		}
-		pos = end
-		span++
+		local = end
 	}
 	return out
 }
@@ -250,14 +263,18 @@ func (c *Context) DrawParagraphStyled(p *Paragraph, x, y float64) {
 	if c == nil || p == nil || p.Layout == nil {
 		return
 	}
-	// Snapshot the ambient paint (color + decoration) for restore.
+	// Snapshot the ambient paint (color + brush/pattern + decoration) for
+	// restore — per-run SetRGBA clears Brush and Pattern, both must come
+	// back (P1-6).
 	prevColor := c.paint.solidColor
 	prevBrush := c.paint.Brush
+	prevPattern := c.paint.Pattern
 	prevIsSolid := c.paint.isSolid
 	prevDecoration := c.TextDecoration()
 	restore := func() {
 		c.paint.solidColor = prevColor
 		c.paint.Brush = prevBrush
+		c.paint.Pattern = prevPattern
 		c.paint.isSolid = prevIsSolid
 		c.SetTextDecoration(prevDecoration)
 	}

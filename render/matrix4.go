@@ -156,14 +156,14 @@ func ProjectorMatrix4(focal float64, center, camera Point) (Matrix4, bool) {
 		return Matrix4Identity(), false
 	}
 	var r Matrix4
-	r.m[0] = focal                    // X <- f*x
-	r.m[2] = center.X                 // X <- cx*d
-	r.m[3] = focal*(center.X-camera.X) // X <- f*center - f*camera (const)
-	r.m[5] = focal                    // Y <- f*y
-	r.m[6] = center.Y                 // Y <- cy*d
-	r.m[7] = focal*(center.Y-camera.Y)
-	r.m[10] = 1 // Z <- d (pass depth through the third coordinate)
-	r.m[14] = 1 // W <- d
+	r.m[0] = focal                         // X <- f*x
+	r.m[2] = center.X                      // X <- cx*d
+	r.m[3] = focal * (center.X - camera.X) // X <- f*center - f*camera (const)
+	r.m[5] = focal                         // Y <- f*y
+	r.m[6] = center.Y                      // Y <- cy*d
+	r.m[7] = focal * (center.Y - camera.Y)
+	r.m[10] = 1     // Z <- d (pass depth through the third coordinate)
+	r.m[14] = 1     // W <- d
 	r.m[15] = focal // W <- d + focal
 	for _, v := range r.m {
 		if math.IsNaN(v) || math.IsInf(v, 0) {

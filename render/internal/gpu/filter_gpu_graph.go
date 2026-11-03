@@ -122,7 +122,13 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         let n = normalize(vec3<f32>(-(hR - hL) * ss, -(hB - hT) * ss, 1.0));
         let lx = p.rect0.x - in.uv.x * p.size.x;
         let ly = p.rect0.y - in.uv.y * p.size.y;
-        let lz = max(p.rect0.z, 0.001);
+        let lz0 = p.rect0.z;
+        var lz = lz0;
+        if (lz0 >= 0.0 && lz0 < 0.001) {
+            // Zero-division guard only; negative z stays (light below the
+            // plane → kd≤0), matching the CPU reference (P1-9).
+            lz = 0.001;
+        }
         let l = normalize(vec3<f32>(lx, ly, lz));
         let kd = max(dot(n, l), 0.0);
         let src0 = textureSampleLevel(src_tex, samp, in.uv, 0.0);
@@ -144,8 +150,11 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         let h0 = max(y1 - y0, 0.0001);
         let u = in.uv.x * p.size.x;
         let v = in.uv.y * p.size.y;
-        let tuv = vec2<f32>(x0 + (u % w0) / w0 * (x1 - x0) / p.size.x,
-                            y0 + (v % h0) / h0 * (y1 - y0) / p.size.y);
+        // Pixel-space origin plus the wrapped offset, normalized once —
+        // x0 must not be added to the normalized uv (ClampToEdge smear,
+        // P1-8; CPU reference lighting.go TileFilter.Apply does x0+mod).
+        let tuv = vec2<f32>((x0 + (u % w0)) / p.size.x,
+                            (y0 + (v % h0)) / p.size.y);
         return textureSampleLevel(src_tex, samp, tuv, 0.0);
     }
     if p.mode == 7u || p.mode == 8u {
@@ -227,17 +236,18 @@ fn fs_main(in: VSOut) -> @location(0) vec4<f32> {
         return vec4<f32>(rr * aa, gg * aa, bb * aa, aa);
     }
     // Separable Gaussian blur (sigma in offset.x; radius = half-kernel).
-    // Matches CPU CachedGaussianKernel: half = ceil(3*sigma), weight = exp(-x^2/(2s^2)).
+    // Matches CPU CachedGaussianKernel exactly: half = ceil(3*sigma),
+    // weight = exp(-x^2/(2s^2)). The loop bound is the uniform radius —
+    // dynamic like Impeller's blur kernel, no static clamp (a fixed ±24
+    // window truncated large-sigma kernels and forked from the CPU
+    // reference, P1-7).
     let texel = p.direction / max(p.size, vec2<f32>(1.0, 1.0));
     let rad = i32(p.radius);
     let sigma = max(p.offset.x, 0.01);
     let two_sigma_sq = 2.0 * sigma * sigma;
     var acc = vec4<f32>(0.0);
     var wsum = 0.0;
-    for (var i = -24; i <= 24; i = i + 1) {
-        if i < -rad || i > rad {
-            continue;
-        }
+    for (var i = -rad; i <= rad; i = i + 1) {
         let fi = f32(i);
         let w = exp(-(fi * fi) / two_sigma_sq);
         let uv = in.uv + texel * fi;
@@ -1388,7 +1398,7 @@ func runGPUFilterGraphEx(
 			swap()
 		case render.ImageFilterBlur:
 			sigma := math.Max(0.01, n.Radius)
-			r := uint32(math.Max(1, math.Min(24, math.Ceil(sigma*3))))
+			r := uint32(math.Max(1, math.Ceil(sigma*3)))
 			if err := doPass(passArgs{mode: 0, radius: r, dirX: 1, dirY: 0, offX: float32(sigma)}); err != nil {
 				discardOnErr()
 				cleanupPasses()
@@ -1405,14 +1415,14 @@ func runGPUFilterGraphEx(
 			sx := math.Max(0, n.RadiusX)
 			sy := math.Max(0, n.RadiusY)
 			if sx > 0 {
-				rx := uint32(math.Max(1, math.Min(24, math.Ceil(sx*3))))
+				rx := uint32(math.Max(1, math.Ceil(sx*3)))
 				if err := doPass(passArgs{mode: 0, radius: rx, dirX: 1, dirY: 0, offX: float32(sx)}); err != nil {
 					return nil, gpucontext.TextureView{}, nil, err
 				}
 				swap()
 			}
 			if sy > 0 {
-				ry := uint32(math.Max(1, math.Min(24, math.Ceil(sy*3))))
+				ry := uint32(math.Max(1, math.Ceil(sy*3)))
 				if err := doPass(passArgs{mode: 0, radius: ry, dirX: 0, dirY: 1, offX: float32(sy)}); err != nil {
 					return nil, gpucontext.TextureView{}, nil, err
 				}
@@ -1447,7 +1457,7 @@ func runGPUFilterGraphEx(
 			swap()
 			if n.ShadowBlur > 0 {
 				sigma := math.Max(0.01, n.ShadowBlur)
-				r := uint32(math.Max(1, math.Min(24, math.Ceil(sigma*3))))
+				r := uint32(math.Max(1, math.Ceil(sigma*3)))
 				if err := doPass(passArgs{mode: 0, radius: r, dirX: 1, dirY: 0, offX: float32(sigma)}); err != nil {
 					return nil, gpucontext.TextureView{}, nil, err
 				}

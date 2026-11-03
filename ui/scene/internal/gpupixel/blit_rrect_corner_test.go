@@ -36,9 +36,9 @@ func TestCompositeFramePacketTextured_BlitzRRectCornerPixels(t *testing.T) {
 		pl := b.AddPicture(dirty)
 		pl.SetCacheKey(9101)
 		pl.SetRecording(gpuiFillRect(50, 50, 0, 0, 50, 50, 77/255., 204/255., 115/255., 1)) // green overfill
-		b.Pop() // clip
-		b.Pop() // inner offset
-		b.Pop() // outer offset
+		b.Pop()                                                                             // clip
+		b.Pop()                                                                             // inner offset
+		b.Pop()                                                                             // outer offset
 		return b.BuildPacket(1, 1, W, H)
 	}
 	// The steady frame has to be built clean: re-presenting the dirty packet is

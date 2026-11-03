@@ -15,8 +15,8 @@ package gpu
 import (
 	"math"
 
-	intImage "github.com/energye/gpui/render/internal/image"
 	"github.com/energye/gpui/render"
+	intImage "github.com/energye/gpui/render/internal/image"
 )
 
 // gradientEdgeSamples densifies convex outlines so multi-stop gradients

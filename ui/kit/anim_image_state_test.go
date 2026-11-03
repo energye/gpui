@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/energye/gpui/render"
-	
+
 	"github.com/energye/gpui/ui/rendering"
 )
 

@@ -55,6 +55,8 @@ func (im *RenderImage) SetAnimatedImage(a *render.AnimatedImage) {
 		return
 	}
 	im.anim = a
+	// 静态 owned 缓冲让位：覆盖 Img 前必须先释放本节点持有的 owned buf，否则泄漏。
+	im.releaseOwnedExcept(nil)
 	// 共享显示当前帧：buf 的生命周期跟解码器走，本节点不拥有它。
 	im.Img = a.Image()
 	im.ownsImg = false
@@ -147,16 +149,14 @@ func (im *RenderImage) releaseAnimated() {
 }
 
 // releaseAnimatedExcept 释放持有的解码器（keep 除外），并摘掉共享显示的帧缓冲。
-// 解码器释放会连带其当前帧 buf，所以 Img 一并置空；静态图路径的 ownsImg 语义不受
-// 影响（anim 模式下 ownsImg 恒为 false）。
+// 解码器释放会连带其当前帧 buf，所以 Img 一并置空；没有动图可摘时不得触碰 Img/
+// ownsImg——静态 owned 缓冲的释放归 releaseOwnedExcept，这里清了就是孤儿泄漏。
 func (im *RenderImage) releaseAnimatedExcept(keep *render.AnimatedImage) {
 	if im == nil {
 		return
 	}
 	if im.anim != nil && im.anim != keep {
 		im.anim.Dispose()
-	}
-	if im.anim != keep {
 		im.anim = nil
 		im.animPending = -1
 		im.Img = nil

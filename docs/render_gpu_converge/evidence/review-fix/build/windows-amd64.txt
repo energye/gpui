@@ -1,0 +1,16 @@
+# review-fix build gate: windows/amd64
+# env: CGO_ENABLED=0 GOOS=windows GOARCH=amd64
+# date: 2026-11-03T10:53:03+08:00
+# head: 18ccc406
+# dirty: 42 paths (review-fix working tree, uncommitted)
+
+## 1. go build ./... (raw)
+# exit: 0 (expected 1: ui/scene/internal/gpupixel pre-existing break)
+
+## 2. go build <all buildable except known-broken>
+# pkgs: 341
+# exit: 0
+
+## 3. go build -tags nogpu <all buildable except known-broken>
+# pkgs: 337
+# exit: 0

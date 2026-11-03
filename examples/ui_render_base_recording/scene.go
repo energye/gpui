@@ -504,16 +504,16 @@ func (s *recordingSpyBackend) SetClip(_ *render.Path, _ recording.FillRule) {
 	s.hit("SetClip")
 }
 func (s *recordingSpyBackend) ClearClip() { s.hit("ClearClip") }
-func (s *recordingSpyBackend) FillPath(_ *render.Path, _ recording.Brush, _ recording.FillRule, _ render.BlendMode) {
+func (s *recordingSpyBackend) FillPath(_ *render.Path, _ recording.Brush, _ recording.FillRule, _ render.BlendMode, _ render.BlendSpace) {
 	s.hit("FillPath")
 }
-func (s *recordingSpyBackend) StrokePath(_ *render.Path, _ recording.Brush, _ recording.Stroke, _ render.BlendMode) {
+func (s *recordingSpyBackend) StrokePath(_ *render.Path, _ recording.Brush, _ recording.Stroke, _ render.BlendMode, _ render.BlendSpace) {
 	s.hit("StrokePath")
 }
-func (s *recordingSpyBackend) FillRect(_ recording.Rect, _ recording.Brush, _ render.BlendMode) {
+func (s *recordingSpyBackend) FillRect(_ recording.Rect, _ recording.Brush, _ render.BlendMode, _ render.BlendSpace) {
 	s.hit("FillRect")
 }
-func (s *recordingSpyBackend) StrokeRect(_ recording.Rect, _ recording.Brush, _ recording.Stroke, _ render.BlendMode) {
+func (s *recordingSpyBackend) StrokeRect(_ recording.Rect, _ recording.Brush, _ recording.Stroke, _ render.BlendMode, _ render.BlendSpace) {
 	s.hit("StrokeRect")
 }
 func (s *recordingSpyBackend) DrawImage(_ *render.ImageBuf, _ render.DrawImageOptions) {

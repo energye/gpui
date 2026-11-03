@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/energye/gpui/render"
-	"github.com/energye/gpui/render/recording"
 	_ "github.com/energye/gpui/render/filters"
 	_ "github.com/energye/gpui/render/gpu"
+	"github.com/energye/gpui/render/recording"
 	"github.com/energye/gpui/ui/scene"
 )
 
@@ -61,9 +61,9 @@ func TestCompositeFramePacketTextured_ClipReplayPixels(t *testing.T) {
 		pl := b.AddPicture(dirty)
 		pl.SetCacheKey(9001)
 		pl.SetRecording(gpuiFillRect(50, 50, 0, 0, 50, 50, 77/255., 204/255., 115/255., 1)) // green
-		b.Pop() // clip
-		b.Pop() // inner offset
-		b.Pop() // outer offset
+		b.Pop()                                                                             // clip
+		b.Pop()                                                                             // inner offset
+		b.Pop()                                                                             // outer offset
 		return b.BuildPacket(1, 1, W, H)
 	}
 	// Frame 2 must be built clean: a packet that still names the layer in its
