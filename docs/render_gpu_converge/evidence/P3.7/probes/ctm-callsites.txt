@@ -1,0 +1,40 @@
+render/clip_op.go:40:	tm := c.totalMatrix()
+render/context_image_gpu.go:76:	ctm := c.totalMatrix()
+render/context_image_gpu.go:141:	ctm := c.totalMatrix()
+render/context_image_gpu.go:312:	ctm := c.totalMatrix()
+render/context_image_gpu.go:394:	ctm := c.totalMatrix()
+render/context_clip.go:98:	tm := c.totalMatrix()
+render/context_clip.go:180:	devicePath := userPath.Transform(c.totalMatrix())
+render/context_clip.go:195:	tm := c.totalMatrix()
+render/context_clip.go:281:	tm := c.totalMatrix()
+render/text_gpu.go:77:	matrix, ds := c.totalMatrix(), c.DeviceScale()
+render/text_gpu.go:146:		if rc.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+render/text_gpu.go:167:	if ta.DrawText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+render/text_gpu.go:208:		if rc.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+render/text_gpu.go:226:	if gma.DrawGlyphMaskText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+render/text_gpu.go:268:			if ata.DrawGlyphMaskTransformText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale(), devicePath) == nil {
+render/text_gpu.go:280:		if ata.DrawGlyphMaskTransformText(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale(), devicePath) == nil {
+render/text_gpu.go:304:		if rc.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+render/text_gpu.go:323:	if ata.DrawGlyphMaskTextAliased(target, c.face, s, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+render/context_gpu.go:503:		return c.tryGPUOpRC(rc.FillShape, rc.FillPath, c.totalMatrix())
+render/context_gpu.go:526:		return c.tryGPUOpRC(rc.StrokeShape, rc.StrokePath, c.totalMatrix())
+render/brush_device_space.go:228:	m := c.totalMatrix()
+render/context_misc_draw.go:153:	inv := c.totalMatrix().Invert()
+render/context_misc_draw.go:218:	tm := c.totalMatrix()
+render/context_path.go:66:	ctm := c.totalMatrix()
+render/text_dispatch.go:172:			if sta.DrawShapedGlyphMaskText(target, face, glyphs, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+render/text_dispatch.go:182:			if sta.DrawShapedGlyphMaskText(target, face, glyphs, x, y, col, c.totalMatrix(), c.DeviceScale()) == nil {
+render/text_dispatch.go:216:	if submitted, rcHasColor := c.submitColorGlyphs(target, face, glyphs, x, y, col, c.totalMatrix(), c.DeviceScale()); submitted {
+render/text_dispatch.go:233:	m := c.totalMatrix()
+render/text_dispatch.go:371:	p := c.totalMatrix().TransformPoint(Pt(x, y))
+render/text_dispatch.go:402:	p := c.totalMatrix().TransformPoint(Pt(x, y))
+render/text_dispatch.go:439:	p := c.totalMatrix().TransformPoint(Pt(x, y))
+render/vertices_atlas.go:46:		ctm := c.totalMatrix()
+render/vertices_atlas.go:263:		ctm := c.totalMatrix()
+render/vertices_atlas.go:339:	ctm := c.totalMatrix()
+render/context_transform.go:174:func (c *Context) totalMatrix() Matrix {
+render/context_image_draw.go:141:			ctm := c.totalMatrix()
+render/m4_quadimage.go:52:	ctm := c.totalMatrix()
+render/vertices_mesh.go:31:	ctm := c.totalMatrix()
+render/vertices_mesh.go:439:	inv := c.totalMatrix().Invert()
+render/vertices_mesh.go:475:			ctm := c.totalMatrix()

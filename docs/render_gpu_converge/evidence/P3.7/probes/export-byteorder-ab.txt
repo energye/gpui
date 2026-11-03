@@ -1,0 +1,8 @@
+=== RUN   TestP37ProbeExportByteOrderA_B
+    p37_probe_byteorder_test.go:39: P37 A/B effectSurface=false 导出格式=RGBAPremul stride=64 | 白底=[255 255 255 255] 红矩形=[255 0 0 255] 蓝图上=[0 0 255 255]
+    p37_probe_byteorder_test.go:43: P37 A/B effectSurface=false GPUOps=2 CPUFallbackOps=0 last=""
+    p37_probe_byteorder_test.go:39: P37 A/B effectSurface=true  导出格式=RGBAPremul stride=64 | 白底=[255 255 255 255] 红矩形=[0 0 255 255] 蓝图上=[255 0 0 255]
+    p37_probe_byteorder_test.go:43: P37 A/B effectSurface=true  GPUOps=2 CPUFallbackOps=0 last=""
+--- PASS: TestP37ProbeExportByteOrderA_B (0.27s)
+PASS
+ok  	github.com/energye/gpui/render	0.316s
