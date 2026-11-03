@@ -259,10 +259,12 @@ type gpuContextOps interface {
 	// QueueImageDrawQuadW is QueueImageDraw plus per-corner homogeneous weights
 	// (P3.5 batch 3 perspective quads): the vertex path emits clip-space w so
 	// hardware perspective-correct interpolation matches the CPU 1/w twin.
-	// Never merges with affine quads and has no tint/blend/bicubic variants.
+	// Never merges with affine quads and has no blend/bicubic variants.
+	// P3.7 batch 1b added the per-vertex premul tint channel (the 36-byte
+	// layout and the WGSL @location(2) input already carried it).
 	QueueImageDrawQuadW(target GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip intImage.MipmapMode, imgWidth, imgHeight, imgStride int,
 		tlX, tlY, trX, trY, brX, brY, blX, blY, tlW, trW, brW, blW, opacity float32, viewportW, viewportH uint32,
-		u0, v0, u1, v1 float32, nearest bool)
+		u0, v0, u1, v1 float32, tintR, tintG, tintB, tintA float32, nearest bool)
 	// QueueColoredMesh draws triangle list/fan with optional per-vertex colors (V.01).
 	QueueColoredMesh(target GPURenderTarget, positions []Point, colors []RGBA, triangleList bool)
 	// QueueColoredMeshIndexed draws unique verts + uint16 indices.

@@ -46,6 +46,9 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 		}
 	}
 	opacity := normalizeQuadOpacity(opts.Opacity)
+	if !quadTintFinite(opts.Tint) {
+		return ErrQuadBadTint
+	}
 	if kind := ClassifyQuad(corners); kind != QuadOK {
 		return quadKindErr(kind)
 	}
@@ -69,7 +72,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 				if c.gpuPathAvailable() {
 					c.recordCPUFallbackReason("image:DrawImageQuad")
 				}
-				c.drawImageQuadCPUSplit(img, dev, interp, opacity, opts.Perspective, opts.Weights)
+				c.drawImageQuadCPUSplit(img, dev, interp, opacity, opts.Perspective, opts.Weights, opts.Tint)
 				return nil
 			}
 			defer c.setGPUClipRect()()
@@ -78,6 +81,9 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 			vpH := uint32(target.Height) //nolint:gosec
 			nearest := interp == InterpNearest
 			bicubic := interp == InterpBicubic
+			tr, tg, tb, ta := atlasTintFactors(opts.Tint)
+			// 与图集腿同一式：顶点染色按 premul（tr*ta）下发，合成链才与 CPU 一致。
+			ptR, ptG, ptB := tr*ta, tg*ta, tb*ta
 			if opts.Perspective {
 				rc.QueueImageDrawQuadW(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 					float32(dev[0].X), float32(dev[0].Y),
@@ -88,18 +94,32 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 					float32(opts.Weights[2]), float32(opts.Weights[3]),
 					float32(opacity), vpW, vpH,
 					0, 0, 1, 1,
+					float32(ptR), float32(ptG), float32(ptB), float32(ta),
 					nearest)
 				c.recordGPUOp()
 				return nil
 			}
-			rc.QueueImageDraw(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
+			if atlasTintIsIdentity(opts.Tint) {
+				rc.QueueImageDraw(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
+					float32(dev[0].X), float32(dev[0].Y),
+					float32(dev[1].X), float32(dev[1].Y),
+					float32(dev[2].X), float32(dev[2].Y),
+					float32(dev[3].X), float32(dev[3].Y),
+					float32(opacity), vpW, vpH,
+					0, 0, 1, 1,
+					nearest, bicubic)
+				c.recordGPUOp()
+				return nil
+			}
+			rc.QueueImageDrawTint(target, pixelData, img.GenerationID(), img, opts.Mipmap, imgW, imgH, img.Stride(),
 				float32(dev[0].X), float32(dev[0].Y),
 				float32(dev[1].X), float32(dev[1].Y),
 				float32(dev[2].X), float32(dev[2].Y),
 				float32(dev[3].X), float32(dev[3].Y),
 				float32(opacity), vpW, vpH,
 				0, 0, 1, 1,
-				nearest, false, bicubic)
+				float32(ptR), float32(ptG), float32(ptB), float32(ta),
+				nearest, bicubic)
 			c.recordGPUOp()
 			return nil
 		}
@@ -107,7 +127,7 @@ func (c *Context) DrawImageQuad(img *ImageBuf, corners [4]Point, opts QuadDrawOp
 	if c.gpuPathAvailable() {
 		c.recordCPUFallbackReason("image:DrawImageQuad")
 	}
-	c.drawImageQuadCPUSplit(img, dev, interp, opacity, opts.Perspective, opts.Weights)
+	c.drawImageQuadCPUSplit(img, dev, interp, opacity, opts.Perspective, opts.Weights, opts.Tint)
 	return nil
 }
 
@@ -148,7 +168,7 @@ func isFinitePt(p Point) bool {
 // drawImageQuadCPUSplit rasterizes device-space quad with GPU twin split.
 // persp=true swaps both twin samplers for 1/w rational interpolation (P3.5
 // batch 3 projective quads; weights must be finite and > 0).
-func (c *Context) drawImageQuadCPUSplit(img *ImageBuf, dev [4]Point, interp InterpolationMode, opacity float64, persp bool, weights [4]float64) {
+func (c *Context) drawImageQuadCPUSplit(img *ImageBuf, dev [4]Point, interp InterpolationMode, opacity float64, persp bool, weights [4]float64, tint RGBA) {
 	if c == nil || c.pixmap == nil || img == nil {
 		return
 	}
@@ -188,6 +208,9 @@ func (c *Context) drawImageQuadCPUSplit(img *ImageBuf, dev [4]Point, interp Inte
 	premulSrc := img.Format().IsPremultiplied()
 	hasClip := c.clipStack != nil && c.clipStack.Depth() > 0
 	mask := c.mask
+	// 染色与图集 CPU 腿逐因子一致（straight tr/tg/tb × ta），GPU 侧下发的
+	// 是同一因子的 premul 形式（tr*ta 存进顶点）。
+	tr, tg, tb, ta := atlasTintFactors(tint)
 	// GPU twin UVs: TL(0,0) TR(1,0) BR(1,1) BL(0,1), denominators hoisted per quad.
 	var t1, t2 triSampler
 	if persp {
@@ -237,16 +260,16 @@ func (c *Context) drawImageQuadCPUSplit(img *ImageBuf, dev [4]Point, interp Inte
 			}
 			var srcR, srcG, srcB, srcA float64
 			if premulSrc {
-				srcA = float64(sa) / 255.0 * k
-				srcR = float64(sr) / 255.0 * k
-				srcG = float64(sg) / 255.0 * k
-				srcB = float64(sb) / 255.0 * k
+				srcA = float64(sa) / 255.0 * ta * k
+				srcR = float64(sr) / 255.0 * tr * ta * k
+				srcG = float64(sg) / 255.0 * tg * ta * k
+				srcB = float64(sb) / 255.0 * tb * ta * k
 			} else {
 				baseA := float64(sa) / 255.0
-				srcA = baseA * k
-				srcR = float64(sr) / 255.0 * srcA
-				srcG = float64(sg) / 255.0 * srcA
-				srcB = float64(sb) / 255.0 * srcA
+				srcA = baseA * ta * k
+				srcR = float64(sr) / 255.0 * tr * srcA
+				srcG = float64(sg) / 255.0 * tg * srcA
+				srcB = float64(sb) / 255.0 * tb * srcA
 			}
 			if srcA <= 0 {
 				continue

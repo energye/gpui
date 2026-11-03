@@ -1,0 +1,29 @@
+# 批 1b 真窗复验汇总（2026-11-03，修复态树 = tint + bicubic 修正齐）
+
+窗：examples/ui_wr_p35_persp（P3.5 交付的四扇透视真窗之一，DrawImageQuad 的直接消费者形态）
+跑法：RUN_SECONDS=6 go run ./examples/ui_wr_p35_persp -auto-only，GPUI_BACKEND=native|go 各两轮
+安全：一轮一窗、RunFor 到期 → app.Close() → win.Close() 正常关闭（无 WM_DELETE 场景=自管关闭路径），
+每轮前后 pgrep -c Xwayland = 1 全程存活；本机 Wayland + XWayland :0，无 Xorg。
+完整 JSON 略（*.log 不入库，按批 1a 先例只入本汇总；两轮×双后端 OK 行逐轮在列）。
+
+| 轮 | 后端 | logic | pixel | 金图（对既有金图，seeded=false） | presents | fps_wall | p95 |
+|---|---|---|---|---|---|---|---|
+| 1 | native | 9/9 | 17/17 | 0.0000% / 763584 px | 350 | 55.6 | 19.4ms |
+| 1 | go | 9/9 | 17/17 | 0.0000% / 763584 px | 351 | 54.0 | 19.2ms |
+| 2 | native | 9/9 | 17/17 | 0.0000% / 763584 px | 357 | — | — |
+| 2 | go | 9/9 | 17/17 | 0.0000% / 763584 px | 353 | — | — |
+
+gpu_ops：native 50053/349 帧、go 50196/350 帧 ≈ 143.4/帧，与上一会话 51340/358 帧 ≈ 143.4/帧
+完全一致——差异纯帧数抖动，非行为变化。cpu_fallback_ops=0、gpu_fallbacks=0 两端相同。
+
+## 交接预判「金图需重采」实测收回（重要）
+
+上会话拍板前提是「bicubic 修复会改变 ui_wr_p35_persp 第 413 行那格 affine+bicubic 控制卡的
+画面 → 金图重采」。本会话实测两连×双后端对既有金图逐位 0.0000%，预判不成立，依据：
+
+- 该窗可见 quad 全部走 InterpNearest（blitPlate:536 写死），bicubic 不出现在任何可见绘制；
+- 第 413 行的 affine+bicubic 是 L9 逻辑探针里的离屏一笔（render.NewContext(offW,offH)），
+  只断言错误码（nil == 合法），画面既不上屏也不进金图比对；
+- 逻辑探针 9/9 逐条同值（含 L6 offscreen CPU plate 45840 differing channels 逐字相同）。
+
+⇒ A/B 差异图为空集（逐位零差异），金图不重采、不重录；「两连 verify」按原口径跑完即上表四轮。

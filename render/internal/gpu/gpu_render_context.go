@@ -1442,6 +1442,7 @@ func (rc *GPURenderContext) QueueImageDrawBlend(target render.GPURenderTarget, p
 func (rc *GPURenderContext) QueueImageDrawQuadW(target render.GPURenderTarget, pixelData []byte, genID uint64, src intImage.GenWatched, mip render.MipmapMode, imgWidth, imgHeight, imgStride int,
 	tlX, tlY, trX, trY, brX, brY, blX, blY, tlW, trW, brW, blW, opacity float32, viewportW, viewportH uint32,
 	u0, v0, u1, v1 float32,
+	tintR, tintG, tintB, tintA float32,
 	nearest bool,
 ) {
 	rc.ensureDrawOrder(drawTierImage)
@@ -1480,6 +1481,10 @@ func (rc *GPURenderContext) QueueImageDrawQuadW(target render.GPURenderTarget, p
 		Nearest:        nearest,
 		Perspective:    true,
 		Weights:        [4]float32{tlW, trW, brW, blW},
+		TintR:          tintR,
+		TintG:          tintG,
+		TintB:          tintB,
+		TintA:          tintA,
 	}
 	rc.queueImageCmd(target, cmd)
 }

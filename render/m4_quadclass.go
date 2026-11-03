@@ -50,6 +50,10 @@ type QuadDrawOptions struct {
 	// 同权等价于仿射；梯形（深度不均）下决定 UV 沿边的透视落位。
 	// Perspective 为真时逐项校验，非法返回 ErrQuadBadWeights。
 	Weights [4]float64
+	// Tint 逐顶点染色，与 AtlasSprite.Tint 同口径：零结构体=白不透明=不染色
+	// （存量逐位不变），分量乘源纹理素（straight 语义，CPU 与 GPU 同一式）。
+	// P3.7 批 1b：透视腿此前写死白，2.5D「按深度投影 + 被灯光染色」两件事互斥。
+	Tint RGBA
 }
 
 // R1 哨兵错：调用方用 errors.Is 判定，不许静默画错。
@@ -68,7 +72,19 @@ var (
 	ErrQuadBadWeights = errors.New("render: quad perspective weights must be finite and > 0")
 	// ErrQuadPerspectiveBicubic 透视模式不支持 bicubic（采样核基于仿射 UV 步距）。
 	ErrQuadPerspectiveBicubic = errors.New("render: perspective quad does not support bicubic interpolation")
+	// ErrQuadBadTint 染色分量非有限（NaN/Inf）。零结构体是合法的「不染色」。
+	ErrQuadBadTint = errors.New("render: quad tint components must be finite")
 )
+
+// quadTintFinite 报告染色四分量全有限。零结构体（白不透明）合法。
+func quadTintFinite(t RGBA) bool {
+	for _, v := range [4]float64{t.R, t.G, t.B, t.A} {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return false
+		}
+	}
+	return true
+}
 
 // SetDither enables ordered dithering of soft fills after GPU resolve (P.09).
 // When enabled, subsequent Image()/FlushGPU results for this context receive a

@@ -1280,10 +1280,15 @@ func buildPerspVerticesInto(dst []byte, cmd *ImageDrawCommand) {
 	x3, y3 := cmd.BLX, cmd.BLY
 	u0, v0, u1, v1 := cmd.U0, cmd.V0, cmd.U1, cmd.V1
 	wTL, wTR, wBR, wBL := cmd.Weights[0], cmd.Weights[1], cmd.Weights[2], cmd.Weights[3]
-	// Perspective quads ride the DrawImageQuad queue entry only (no tint
-	// channel there), so the tint stays the identity white the affine twins
-	// use for zero structs.
-	const tr, tg, tb, ta = float32(1), float32(1), float32(1), float32(1)
+	// Per-corner tint, same convention as buildImageVerticesInto (premultiplied
+	// straight; zero struct = identity white). The 36-byte layout and
+	// textured_quad_persp.wgsl @location(2) always had this channel — P3.5
+	// batch 3 pinned it white because the projective queue entry had no tint
+	// argument; P3.7 batch 1b opens it so 2.5D can tint depth-projected sprites.
+	tr, tg, tb, ta := cmd.TintR, cmd.TintG, cmd.TintB, cmd.TintA
+	if tr == 0 && tg == 0 && tb == 0 && ta == 0 {
+		tr, tg, tb, ta = 1, 1, 1, 1
+	}
 
 	// Same GPU twin split as buildImageVerticesInto: TL,TR,BL + TR,BR,BL,
 	// each vertex carrying its corner weight.

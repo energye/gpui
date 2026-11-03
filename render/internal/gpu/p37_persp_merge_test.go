@@ -3,10 +3,14 @@
 package gpu
 
 import (
+	"encoding/binary"
+	"math"
 	"testing"
 
 	intImage "github.com/energye/gpui/render/internal/image"
 )
+
+func p37F32(b []byte) float32 { return math.Float32frombits(binary.LittleEndian.Uint32(b)) }
 
 // P3.7 批 1a 钉：透视 quad 之间必须合批。
 //
@@ -206,5 +210,42 @@ func TestP37PerspRunEndGuardsPackingGap(t *testing.T) {
 	gapCmds := []ImageDrawCommand{cmds[0], degraded, cmds[2]}
 	if got := perspRunEnd(gapCmds, []int32{0, -1, 1}, 0, 3); got != 1 {
 		t.Fatalf("非透视成员应在其前断开，got %d", got)
+	}
+}
+
+// 批 1b 顶点级钉：透视打包必须把命令的 premul tint 写进 36B 布局的 @location(2)
+// 槽（offset 16..27），零结构体退回 identity 白（与仿射孪生体同式）。
+func TestP37PerspVerticesCarryTint(t *testing.T) {
+	img, err := intImage.NewImageBuf(16, 16, intImage.FormatRGBAPremul)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer img.Dispose()
+
+	cmd := p37PerspCmd(img, 0, [4]float32{100, 110, 120, 130})
+	cmd.TintR, cmd.TintG, cmd.TintB, cmd.TintA = 0.5, 0.25, 0.75, 1
+	buf := make([]byte, 6*imagePerspVertexStride)
+	buildPerspVerticesInto(buf, cmd)
+	for v := 0; v < 6; v++ {
+		off := v*imagePerspVertexStride + 16
+		got := [4]float32{
+			p37F32(buf[off : off+4]), p37F32(buf[off+4 : off+8]),
+			p37F32(buf[off+8 : off+12]), p37F32(buf[off+12 : off+16]),
+		}
+		want := [4]float32{0.5, 0.25, 0.75, 1}
+		if got != want {
+			t.Fatalf("vert[%d] tint=%v want %v（透视腿染色通道没接上）", v, got, want)
+		}
+	}
+
+	// 零结构体 = identity 白，且权重/几何不受影响。
+	plain := p37PerspCmd(img, 0, [4]float32{100, 110, 120, 130})
+	buildPerspVerticesInto(buf, plain)
+	off := 16
+	if got := p37F32(buf[off : off+4]); got != 1 {
+		t.Fatalf("零结构体 tint.R=%v want 1（存量画面被改变）", got)
+	}
+	if got := p37F32(buf[32:36]); got != 100 {
+		t.Fatalf("第一角权重=%v want 100", got)
 	}
 }

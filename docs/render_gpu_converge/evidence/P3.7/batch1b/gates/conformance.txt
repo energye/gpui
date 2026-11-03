@@ -1,0 +1,7 @@
+=== RUN   TestConformanceDualBackend
+--- PASS: TestConformanceDualBackend (1.31s)
+=== RUN   TestConformanceInner
+    conformance_test.go:126: inner harness; driven by TestConformanceDualBackend
+--- SKIP: TestConformanceInner (0.00s)
+PASS
+ok  	github.com/energye/gpui/render	1.323s

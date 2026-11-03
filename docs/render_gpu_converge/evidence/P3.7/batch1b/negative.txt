@@ -1,0 +1,41 @@
+=== N1 透视打包写死白 ===
+--- FAIL: TestP37PerspVerticesCarryTint (0.00s)
+    p37_persp_merge_test.go:237: vert[0] tint=[1 1 1 1] want [0.5 0.25 0.75 1]（透视腿染色通道没接上）
+--- FAIL: TestP37QuadTintPerspCPUGPUParity (0.33s)
+    p37_quad_tint_test.go:103: 透视染色 GPU/CPU 分叉 tint={0.5 0.25 0.75 1}：最大通道差 127 @[30 30]
+    p37_quad_tint_test.go:103: 透视染色 GPU/CPU 分叉 tint={1 0 0 1}：最大通道差 255 @[200 30]
+    p37_quad_tint_test.go:103: 透视染色 GPU/CPU 分叉 tint={0.25 0.25 0.25 1}：最大通道差 191 @[30 30]
+=== N2 CPU 腿摘 tint ===
+--- FAIL: TestP37QuadTintPerspCPUGPUParity (0.34s)
+    p37_quad_tint_test.go:103: 透视染色 GPU/CPU 分叉 tint={0.5 0.25 0.75 1}：最大通道差 127 @[30 30]
+    p37_quad_tint_test.go:103: 透视染色 GPU/CPU 分叉 tint={1 0 0 1}：最大通道差 255 @[200 30]
+    p37_quad_tint_test.go:103: 透视染色 GPU/CPU 分叉 tint={0.25 0.25 0.25 1}：最大通道差 191 @[30 30]
+=== N3 仿射腿退回无 tint 队列口 ===
+--- FAIL: TestP37QuadTintAffineCPUGPUParity (0.30s)
+    p37_quad_tint_test.go:117: 仿射染色 GPU/CPU 分叉 tint={0.5 0.25 0.75 1}：最大通道差 127 @[30 30]
+    p37_quad_tint_test.go:117: 仿射染色 GPU/CPU 分叉 tint={0.8 0.8 0.8 0.5}：最大通道差 127 @[30 30]
+--- FAIL: TestP37QuadTintActuallyDarkens (0.03s)
+=== N4 摘非有限 tint 校验 ===
+--- FAIL: TestP37QuadTintRejectsNonFinite (0.27s)
+    p37_quad_tint_test.go:186: 非有限 tint={NaN 0 0 1} 未被拒绝
+FAIL
+ok  	github.com/energye/gpui/render	0.477s
+ok  	github.com/energye/gpui/render/internal/gpu	0.471s
+
+=== N5 quad 恒等分支尾参还原（nearest, false, bicubic）===
+--- FAIL: TestP37QuadBicubicActuallyEngages (0.29s)
+    p37_quad_bicubic_test.go:112: bicubic 与 bilinear 逐像素相同：4×4 核没接上（variadic 尾参被 false 吞掉的形态）
+--- FAIL: TestP37QuadTintDoesNotChangeSampling (0.02s)
+    p37_quad_bicubic_test.go:235: 显式白染色与零结构体在 bicubic 下画面不同（changed=11020 max=22）：两分支采样档不一致
+（TestP37AtlasTintBicubicEngages 绿：图集腿未还原，隔离正确）
+=== N6 quad 染色分支尾参还原（QueueImageDrawTint 传 nearest, false, bicubic）===
+--- FAIL: TestP37QuadTintDoesNotChangeSampling (0.02s)
+    p37_quad_bicubic_test.go:235: 显式白染色与零结构体在 bicubic 下画面不同（changed=11020 max=22）：两分支采样档不一致
+    p37_quad_bicubic_test.go:241: 带染色的 bicubic 与 bilinear 相同：tint 分支的采样核没接上
+（另两钉绿：隔离正确）
+=== N7 图集染色分支尾参还原（vertices_atlas.go:289 传 nearest, false, bicubic）===
+--- FAIL: TestP37AtlasTintBicubicEngages (0.01s)
+    p37_quad_bicubic_test.go:212: 图集腿 bicubic 与 bilinear 逐像素相同：染色分支的 bicubic 尾参被吞
+（另两钉绿：隔离正确）
+=== 还原后复跑（N5/N6/N7 全部还原为修复态）===
+ok  github.com/energye/gpui/render 0.598s（TestP37Quad* + TestP37Atlas* 八枚全绿）
