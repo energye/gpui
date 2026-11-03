@@ -28,6 +28,7 @@ func cpuCompositeAdvancedLayer(
 	srcRGBA []byte, srcW, srcH int,
 	mode render.BlendMode, opacity float64,
 	damage image.Rectangle,
+	linear bool,
 ) error {
 	if parentData == nil || srcRGBA == nil || parentW <= 0 || parentH <= 0 || srcW <= 0 || srcH <= 0 {
 		return nil
@@ -75,9 +76,10 @@ func cpuCompositeAdvancedLayer(
 		DstRect: intImage.Rect{
 			X: r.Min.X, Y: r.Min.Y, Width: r.Dx(), Height: r.Dy(),
 		},
-		Interp:    intImage.InterpNearest,
-		Opacity:   opacity,
-		BlendMode: intImage.BlendMode(mode),
+		Interp:      intImage.InterpNearest,
+		Opacity:     opacity,
+		BlendMode:   intImage.BlendMode(mode),
+		BlendLinear: linear && render.IsAdvancedBlendMode(mode),
 	}
 	intImage.DrawImage(dstImg, srcImg, params)
 	return nil

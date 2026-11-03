@@ -20,11 +20,12 @@ import (
 )
 
 // P3.2 user shader pass 1: evaluate a user WGSL fragment over the painted
-// bounds into a premul RGBA offscreen RT (later composited by the coverage /
-// R8-mask chain). The engine owns the vertex stage (fullscreen triangle with
-// uv); the user module supplies `fn fs_main(@location(0) uv: vec2<f32>) ->
-// vec4<f32>` (premultiplied output) plus, optionally, a @group(0) uniform
-// block and one texture+sampler pair at bindings (1)/(2).
+// bounds into a premul RGBA offscreen RT (un-premultiplied into the straight
+// data the image-draw composite chain expects, then carried through the
+// coverage / R8-mask chain). The engine owns the vertex stage (fullscreen
+// triangle with uv); the user module supplies `fn fs_main(@location(0) uv:
+// vec2<f32>) -> vec4<f32>` (premultiplied output) plus, optionally, a
+// @group(0) uniform block and one texture+sampler pair at bindings (1)/(2).
 
 const userShaderVS = `
 struct VSOut {
@@ -51,6 +52,11 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> VSOut {
 }
 `
 
+// shaderUniformMinBindingSize lays out binding(0) at the contract's full
+// uniform budget (the engine's 256B slot stride), independent of the live
+// uniform length.
+const shaderUniformMinBindingSize = uint64(render.ShaderUniformBudget)
+
 type userShaderCache struct {
 	mu          sync.Mutex
 	initialized bool
@@ -59,16 +65,23 @@ type userShaderCache struct {
 	// entry's pipeline record below.
 	vsModule hal.ShaderModule
 	entries  map[*render.ShaderEffect]*userShaderPipeline
+	// black 1x1 texture+sampler stands in for an unbound declared image slot
+	// (placeholder-binding pattern, as in Skia/Impeller and Dawn's default
+	// bindings): the bind group always matches the layout derived from the
+	// shader module, whatever SetImage state the draw happens to have.
+	blackTex  hal.Texture
+	blackView hal.TextureView
+	blackSamp hal.Sampler
 }
 
 type userShaderPipeline struct {
-	module     hal.ShaderModule
-	uniform    hal.Buffer
-	uniformLen int
-	bgl        hal.BindGroupLayout
-	layout     hal.PipelineLayout
-	pipeline   hal.RenderPipeline
-	hasTex     bool
+	module      hal.ShaderModule
+	uniform     hal.Buffer
+	uniformSize int // full buffer size bound at binding(0) (layout-derived)
+	bgl         hal.BindGroupLayout
+	layout      hal.PipelineLayout
+	pipeline    hal.RenderPipeline
+	hasTex      bool
 }
 
 func (c *userShaderCache) ensureLocked(device hal.Device) error {
@@ -94,12 +107,68 @@ func (c *userShaderCache) destroyLocked() {
 		c.vsModule.Destroy()
 		c.vsModule = nil
 	}
+	if c.blackView != nil {
+		c.blackView.Destroy()
+		c.blackView = nil
+	}
+	if c.blackTex != nil {
+		c.blackTex.Destroy()
+		c.blackTex = nil
+	}
+	if c.blackSamp != nil {
+		c.blackSamp.Destroy()
+		c.blackSamp = nil
+	}
 	for _, p := range c.entries {
 		p.destroy()
 	}
 	c.entries = nil
 	c.initialized = false
 	c.device = nil
+}
+
+// ensureBlackBindings lazily creates the 1x1 black texture + filtering sampler
+// backing the placeholder image slot (cache mutex held).
+func (c *userShaderCache) ensureBlackBindings(device hal.Device, queue hal.Queue) error {
+	if c.blackTex != nil && c.blackSamp != nil {
+		return nil
+	}
+	view := c.blackView
+	tex := c.blackTex
+	if tex == nil {
+		var err error
+		tex, view, err = dualTexCreateTex(device, queue, "user_shader_black", 1, 1,
+			[]byte{0, 0, 0, 255}, types.TextureUsageTextureBinding|types.TextureUsageCopyDst)
+		if err != nil {
+			return fmt.Errorf("user shader: black texture: %w", err)
+		}
+	}
+	samp := c.blackSamp
+	if samp == nil {
+		var err error
+		samp, err = device.CreateSampler(&hal.SamplerDescriptor{
+			MagFilter: types.FilterModeLinear, MinFilter: types.FilterModeLinear,
+		})
+		if err != nil {
+			tex.Destroy()
+			view.Destroy()
+			return fmt.Errorf("user shader: black sampler: %w", err)
+		}
+	}
+	c.blackTex, c.blackView, c.blackSamp = tex, view, samp
+	return nil
+}
+
+// evictEffect drops the pipeline cache of one closed effect (L2-P0-1:
+// render.ShaderEffect.Close must not leave the fs module, uniform buffer,
+// bind group layout, pipeline layout, or pipeline on the device ledger).
+func (c *userShaderCache) evictEffect(effect *render.ShaderEffect) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if p, ok := c.entries[effect]; ok {
+		delete(c.entries, effect)
+		p.destroy()
+	}
 }
 
 func (p *userShaderPipeline) destroy() {
@@ -120,13 +189,16 @@ func (p *userShaderPipeline) destroy() {
 	}
 }
 
-// ensureEffect builds (or reuses) the pipeline for one effect. The uniform
-// buffer is re-uploaded whenever its contents change; the bound image, if
-// any, is uploaded once per distinct image.
+// ensureEffect builds (or reuses) the pipeline for one effect. The bind
+// layout comes from the effect's declared shader interface (module-derived,
+// immutable); uniform contents and the bound image are re-uploaded per pass.
 func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue hal.Queue, effect *render.ShaderEffect) (*userShaderPipeline, error) {
 	c := &rc.shared.userShader
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if effect == nil || effect.Closed() {
+		return nil, fmt.Errorf("user shader: effect closed or nil")
+	}
 	if err := c.ensureLocked(device); err != nil {
 		return nil, err
 	}
@@ -135,14 +207,18 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 	}
 
 	uniforms := effect.Uniforms()
-	hasTex := effect.Image() != nil
+	// L2-P1-3: the bind layout is derived from the shader module's declared
+	// bindings, never from first-draw runtime state. The uniform slot is laid
+	// out at the full 256B budget (contract cap), and the texture+sampler
+	// pair exists iff the module declares it — so later SetImage/SetImage(nil)
+	// or uniform-size changes can never outdate the cached layout.
+	hasTex := effect.ShaderBinding().UsesImage
 
-	// Bind group layout: uniform always; texture+sampler when bound.
 	entries := []types.BindGroupLayoutEntry{
 		{
 			Binding:    0,
 			Visibility: types.ShaderStageFragment,
-			Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: uint64(maxInt(len(uniforms), 16))},
+			Buffer:     &types.BufferBindingLayout{Type: types.BufferBindingTypeUniform, MinBindingSize: shaderUniformMinBindingSize},
 		},
 	}
 	if hasTex {
@@ -205,7 +281,7 @@ func (rc *GPURenderContext) ensureUserShaderPipeline(device hal.Device, queue ha
 		bgl.Destroy()
 		return nil, fmt.Errorf("user shader: pipeline: %w", err)
 	}
-	p := &userShaderPipeline{module: fs, uniform: ubuf, uniformLen: len(uniforms), bgl: bgl, layout: layout, pipeline: pipe, hasTex: hasTex}
+	p := &userShaderPipeline{module: fs, uniform: ubuf, uniformSize: layoutSize, bgl: bgl, layout: layout, pipeline: pipe, hasTex: hasTex}
 	c.entries[effect] = p
 	return p, nil
 }

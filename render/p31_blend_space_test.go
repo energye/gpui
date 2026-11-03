@@ -95,12 +95,42 @@ func TestSoftwareFillLinearModeSet(t *testing.T) {
 		return data[(8*pm.Width()+8)*4]
 	}
 
+	// fillAlpha: opaque white ground + 25%-alpha black fill — the
+	// discriminative pair from this file's header (sRGB 191 vs linear 225).
+	// Opaque sources are identical in both domains, so they cannot pin the
+	// degradation itself (深审 D7 / L1-P1-4).
+	fillAlpha := func(t *testing.T, mode BlendMode, space BlendSpace) uint8 {
+		t.Helper()
+		dc := NewContext(16, 16)
+		t.Cleanup(func() { _ = dc.Close() })
+		dc.ClearWithColor(RGBA{R: 1, G: 1, B: 1, A: 1})
+		dc.SetRGBA(0, 0, 0, 0.25)
+		dc.SetBlendMode(mode)
+		dc.SetBlendSpace(space)
+		dc.DrawRectangle(0, 0, 16, 16)
+		if err := dc.Fill(); err != nil {
+			t.Fatalf("fill: %v", err)
+		}
+		pm := dc.PixmapForTest()
+		data := pm.Data()
+		return data[(8*pm.Width()+8)*4]
+	}
+
 	// Opaque 0.5-gray over 0.8-gray: plain coverage in either domain.
 	if got := fill(t, BlendNormal, BlendSpaceLinear); absDiffF(int(got), 128) > 1 {
 		t.Fatalf("Normal+linear must degrade to the sRGB-domain result, got R=%d want 128", got)
 	}
 	if got := fill(t, BlendNormal, BlendSpaceSRGB); absDiffF(int(got), 128) > 1 {
 		t.Fatalf("Normal+sRGB default changed, got R=%d want 128", got)
+	}
+	// 深审 D7 / L1-P1-4：上面 opaque 对任何实现都同值（无判别力）。半透明
+	// 判别对钉住「降级」本身：25% 黑 over 白在 sRGB 域=191，若真按线性
+	// 执行=225——只有正确的降级实现才落在 191。
+	if got := fillAlpha(t, BlendNormal, BlendSpaceLinear); absDiffF(int(got), 191) > 2 {
+		t.Fatalf("Normal+linear degraded result R=%d, want sRGB-domain 191±2（225=误按线性执行，128 类 opaque 断言测不出）", got)
+	}
+	if got := fillAlpha(t, BlendNormal, BlendSpaceSRGB); absDiffF(int(got), 191) > 2 {
+		t.Fatalf("Normal+sRGB changed, got R=%d want 191±2", got)
 	}
 	if got := fill(t, BlendDifference, BlendSpaceSRGB); absDiffF(int(got), 76) > 2 {
 		t.Fatalf("Difference sRGB-domain got R=%d want 76±2", got)
@@ -157,4 +187,31 @@ func absDiffF(a, b int) int {
 		return a - b
 	}
 	return b - a
+}
+
+// TestDrawPaintLinearModeSet pins 深审 L1-P1-1（D4）：DrawPaint 的
+// advanced+Linear 必须与 DrawRectangle+Fill 走同一条线性域合成——旧状
+// fillClipWithPaint 改走 PushLayer( BlendMode ) 而 layer 合成链没有色彩空间
+// 维度，承诺的 linear 域在该路由上静默退回 sRGB（76 而非 168）。
+func TestDrawPaintLinearModeSet(t *testing.T) {
+	t.Setenv("GOGPU_RENDER_MODE", "cpu")
+	painted := func(mode BlendMode, space BlendSpace) uint8 {
+		t.Helper()
+		dc := NewContext(16, 16)
+		t.Cleanup(func() { _ = dc.Close() })
+		dc.ClearWithColor(RGBA{R: 0.8, G: 0.8, B: 0.8, A: 1})
+		dc.SetRGB(0.5, 0.5, 0.5)
+		dc.SetBlendMode(mode)
+		dc.SetBlendSpace(space)
+		dc.DrawPaint()
+		pm := dc.PixmapForTest()
+		data := pm.Data()
+		return data[(8*pm.Width()+8)*4]
+	}
+	if got := painted(BlendDifference, BlendSpaceSRGB); absDiffF(int(got), 76) > 2 {
+		t.Fatalf("DrawPaint Difference sRGB got R=%d want 76±2（默认域回归）", got)
+	}
+	if got := painted(BlendDifference, BlendSpaceLinear); absDiffF(int(got), 168) > 3 {
+		t.Fatalf("DrawPaint Difference linear got R=%d want 168±3（layer 路由丢 BlendSpace=sRGB 76）", got)
+	}
 }

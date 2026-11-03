@@ -303,7 +303,7 @@ func (c *Context) PushBackdropLayer(blendMode BlendMode, opacity float64) {
 	backdropBounds, backdropBounded := c.clipDeviceBounds()
 
 	parent := c.pixmap
-	c.pushLayerSurface(blendMode, opacity, false, false)
+	c.pushLayerSurface(blendMode, c.BlendSpace(), opacity, false, false)
 	if !parentView.IsNil() && !c.gpuRenderTarget().View.IsNil() {
 		// RT→RT snapshot. Skipping the pixmap seed leaves the new RT on its
 		// first-pass clear, so this full-surface copy fully defines the layer.

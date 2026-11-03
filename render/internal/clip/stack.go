@@ -22,6 +22,26 @@ import (
 type RRectClip struct {
 	Rect   Rect
 	Radius float64
+	// RadiusY != 0 marks an elliptical-corner clip (radius X / radius Y);
+	// Angle is the corner-to-edge rotation in radians (device space). Both
+	// extend the analytic leg to geometries the axis-aligned GPU SDF cannot
+	// represent, so a rotated entry is treated as mask-grade by the routing
+	// predicates (L3-A3: rotated clips used to fall to a supersampled path
+	// mask whose coverage diverged from the SDF ramp across the fast-path
+	// guard — 17..69/255 measured at small radii).
+	RadiusY float64
+	Angle   float64
+}
+
+// rotated reports whether this entry needs the inverse-rotation sample leg
+// (and therefore mask-grade routing on the GPU).
+func (rr *RRectClip) rotated() bool { return rr.Angle != 0 }
+
+// analyticOnly reports whether the GPU axis-aligned circular SDF shader can
+// represent this entry. Rotated or elliptical-corner entries are CPU-analytic
+// only and route through the path/mask pipeline on the GPU side.
+func (rr *RRectClip) analyticOnly() bool {
+	return rr.Angle != 0 || (rr.RadiusY > 0 && rr.RadiusY != rr.Radius)
 }
 
 // ClipStack manages hierarchical clip regions with push/pop operations.
@@ -101,6 +121,75 @@ func (cs *ClipStack) PushRRect(r Rect, radius float64) {
 
 	// Update current bounds.
 	cs.bounds = newBounds
+}
+
+// PushRRectOriented pushes an oriented rounded-rectangle clip (possibly
+// rotated, possibly elliptical corners) evaluated analytically on the CPU.
+// Bounds are the axis-aligned device bounds of the oriented shape.
+func (cs *ClipStack) PushRRectOriented(r Rect, radiusX, radiusY, angle float64) {
+	maxRadius := math.Min(r.W, r.H) / 2
+	if radiusX > maxRadius {
+		radiusX = maxRadius
+	}
+	if radiusY > maxRadius {
+		radiusY = maxRadius
+	}
+	if radiusX <= 0 && radiusY <= 0 {
+		cs.PushRect(r)
+		return
+	}
+	if radiusY < 0 {
+		radiusY = 0
+	}
+	rr := &RRectClip{Rect: r, Radius: radiusX, RadiusY: radiusY, Angle: angle}
+	// Pixel-center sampling needs a one-pixel margin on the bounds: the exact
+	// AABB of a scaled shape can end on a pixel boundary, and the bounds
+	// short-circuit would zero out a coverage ramp that the axis-aligned SDF
+	// fast path (whose floor/ceil bounds are wider) still renders.
+	b := orientedRRectBounds(rr)
+	b = Rect{X: b.X - 1, Y: b.Y - 1, W: b.W + 2, H: b.H + 2} //nolint:mnd // AA pixel-center margin
+	newBounds := cs.bounds.Intersect(b)
+	cs.entries = append(cs.entries, clipEntry{
+		prevBounds: cs.bounds,
+		rrect:      rr,
+	})
+	cs.bounds = newBounds
+}
+
+// orientedRRectBounds returns the AABB of an oriented rrect's four corners.
+func orientedRRectBounds(rr *RRectClip) Rect {
+	if rr.Angle == 0 {
+		return rr.Rect
+	}
+	cx := rr.Rect.X + rr.Rect.W/2
+	cy := rr.Rect.Y + rr.Rect.H/2
+	cos, sin := math.Cos(rr.Angle), math.Sin(rr.Angle)
+	minX, minY := math.Inf(1), math.Inf(1)
+	maxX, maxY := math.Inf(-1), math.Inf(-1)
+	for i := 0; i < 4; i++ {
+		lx, ly := rr.Rect.X, rr.Rect.Y
+		if i&1 != 0 {
+			lx = rr.Rect.X + rr.Rect.W
+		}
+		if i&2 != 0 {
+			ly = rr.Rect.Y + rr.Rect.H
+		}
+		dx, dy := lx-cx, ly-cy
+		px, py := cx+dx*cos-dy*sin, cy+dx*sin+dy*cos
+		if px < minX {
+			minX = px
+		}
+		if px > maxX {
+			maxX = px
+		}
+		if py < minY {
+			minY = py
+		}
+		if py > maxY {
+			maxY = py
+		}
+	}
+	return Rect{X: minX, Y: minY, W: maxX - minX, H: maxY - minY}
 }
 
 // PushPath pushes a path-based clip region onto the stack.
@@ -241,12 +330,45 @@ func (cs *ClipStack) Coverage(x, y float64) byte {
 
 // rrectSDF computes the signed distance from point (px, py) to the rounded
 // rectangle defined by rr. Negative values are inside, positive outside.
-// Uses the same formula as render.sdfRRect (Inigo Quilez box SDF).
+// Uses the same formula as render.sdfRRect (Inigo Quilez box SDF), extended
+// with the oriented leg: the sample is rotated into local space, and
+// elliptical corners take the half-axis corner-arc formula (exact for
+// circles, ≤0.02px approximation for ellipses).
 func rrectSDF(px, py float64, rr *RRectClip) float64 {
 	cx := rr.Rect.X + rr.Rect.W/2
 	cy := rr.Rect.Y + rr.Rect.H/2
+	if rr.Angle != 0 {
+		dx, dy := px-cx, py-cy
+		cos, sin := math.Cos(rr.Angle), math.Sin(rr.Angle)
+		px = cx + dx*cos+dy*sin
+		py = cy - dx*sin+dy*cos
+	}
 	halfW := rr.Rect.W / 2
 	halfH := rr.Rect.H / 2
+	if rr.RadiusY > 0 && rr.RadiusY != rr.Radius {
+		// Elliptical corners (non-uniform transform of a circular RRect):
+		// straight parts use the per-axis inset, the corner region uses a
+		// Newton-projected distance to the corner ellipse, signed by the
+		// classical box-SDF convention (subtract the corner-inset magnitude;
+		// equals −r for the circular case, making this leg bit-identical to
+		// the analytic fast path when the axes agree).
+		rx, ry := rr.Radius, rr.RadiusY
+		ax := math.Abs(px-cx) - halfW + rx
+		ay := math.Abs(py-cy) - halfH + ry
+		if ax <= 0 || ay <= 0 {
+			return math.Min(math.Max(ax, ay), 0)
+		}
+		// Corner region: unsigned Newton distance, signed by the ellipse
+		// implicit F = (ax/rx)² + (ay/ry)² − 1 (F<0 inside the arc). For
+		// equal axes this reproduces the box-SDF sign exactly, so the
+		// near-uniform cases stay bit-identical to the fast path.
+		fsign := (ax*ax)/(rx*rx) + (ay*ay)/(ry*ry) - 1
+		d := ellipseCornerDist(ax, ay, rx, ry)
+		if fsign >= 0 {
+			return d
+		}
+		return -d
+	}
 	r := rr.Radius
 
 	dx := math.Abs(px-cx) - halfW + r
@@ -256,6 +378,45 @@ func rrectSDF(px, py float64, rr *RRectClip) float64 {
 	inside := math.Min(math.Max(dx, dy), 0)
 
 	return outside + inside - r
+}
+
+// ellipseCornerDist is the distance from (x, y) (both > 0, i.e. the corner
+// region) to the quarter-ellipse with semi-axes (a, b): Newton projection on
+// f(t) = a²cos²t + b²sin²t − a·x·cos t − b·y·sin t (stationary of |p(t)−(x,y)|²),
+// 3 iterations from a start on the monotone side of the root (Inigo Quilez
+// exact-ellipse-SDF form). Axis-aligned inputs degrade to the axis distance.
+func ellipseCornerDist(x, y, a, b float64) float64 {
+	if x <= 0 {
+		return math.Abs(y - b)
+	}
+	if y <= 0 {
+		return math.Abs(x - a)
+	}
+	t := math.Pi / 2
+	if h := a*x - x*x; h > 0 {
+		if g := a*a - h; g > 0 { // a(y−b) ≤ 0 here: this start sits above t*
+			t = math.Atan2(b*(a-y), math.Sqrt(g))
+		}
+	} else if h := b*y - y*y; h > 0 {
+		if g := b*b - h; g > 0 {
+			t = math.Atan2(math.Sqrt(g), a*(b-y))
+		}
+	}
+	for i := 0; i < 3; i++ {
+		ct, st := math.Cos(t), math.Sin(t)
+		f := a*ct*(a*ct-x) + b*st*(b*st-y)
+		fp := 2*st*ct*(b*b-a*a) + a*x*st - b*y*ct
+		if math.Abs(fp) < 1e-12 {
+			break
+		}
+		nt := t - f/fp
+		if !(nt > 0 && nt < math.Pi/2) {
+			break
+		}
+		t = nt
+	}
+	qx, qy := a*math.Cos(t), b*math.Sin(t)
+	return math.Hypot(x-qx, y-qy)
 }
 
 // rrectCoverage computes anti-aliased coverage (0-255) for a point against
@@ -277,10 +438,13 @@ func rrectCoverage(px, py float64, rr *RRectClip) byte {
 }
 
 // HasMaskClip reports whether the clip stack contains any mask-based clip
-// entries (path/mask clips requiring per-pixel coverage).
+// entries (path/mask clips requiring per-pixel coverage). Oriented rrect
+// entries (angle != 0) count as mask-grade: the CPU resolves them
+// analytically, but the GPU analytic SDF shader cannot represent rotation,
+// so scene-level clipping must ride the path/mask pipeline.
 func (cs *ClipStack) HasMaskClip() bool {
 	for i := range cs.entries {
-		if cs.entries[i].mask != nil {
+		if cs.entries[i].mask != nil || (cs.entries[i].rrect != nil && cs.entries[i].rrect.analyticOnly()) {
 			return true
 		}
 	}
@@ -309,6 +473,9 @@ func (cs *ClipStack) IsRRectOnly() bool {
 		if cs.entries[i].mask != nil {
 			return false
 		}
+		if r := cs.entries[i].rrect; r != nil && r.analyticOnly() {
+			return false
+		}
 	}
 	return true
 }
@@ -318,11 +485,18 @@ func (cs *ClipStack) IsRRectOnly() bool {
 // When multiple RRect clips are nested, only the innermost is returned —
 // the scissor rect already handles the outer bounds intersection.
 func (cs *ClipStack) RRectBounds() (Rect, float64, bool) {
-	// Scan from top of stack to find the most recent RRect.
+	// Scan from top of stack to find the most recent GPU-representable RRect.
+	for i := range cs.entries {
+		if cs.entries[i].mask != nil {
+			return Rect{}, 0, false // a mask entry shadows everything under it
+		}
+	}
 	for i := len(cs.entries) - 1; i >= 0; i-- {
-		if cs.entries[i].rrect != nil {
-			rr := cs.entries[i].rrect
-			return rr.Rect, rr.Radius, true
+		if r := cs.entries[i].rrect; r != nil {
+			if r.analyticOnly() {
+				return Rect{}, 0, false // innermost is not SDF-representable
+			}
+			return r.Rect, r.Radius, true
 		}
 	}
 	return Rect{}, 0, false

@@ -15,8 +15,10 @@ package gpu
 import (
 	_ "embed"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
+	"os"
 
 	"github.com/energye/gpui/gpu/hal"
 	"github.com/energye/gpui/gpu/types"
@@ -447,6 +449,9 @@ func (p *TexturedQuadPipeline) ensureBicubicPipelines() error {
 // group layout (uniform + texture + sampler + clip) but with the 36-byte
 // vertex layout carrying per-corner homogeneous weights. Lazily compiled once.
 func (p *TexturedQuadPipeline) ensurePerspectivePipelines() error {
+	if os.Getenv("GPUI_TEST_PERSP_PIPELINE_FAIL") == "1" {
+		return errors.New("test seam: perspective pipelines unavailable")
+	}
 	if p.perspStencil != nil {
 		return nil
 	}

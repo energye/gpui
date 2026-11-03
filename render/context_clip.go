@@ -152,9 +152,23 @@ func (c *Context) ClipRRect(rr RRect) {
 		return
 	}
 
+	// SDF fast path: axis-aligned with uniform scale (bit-identical to the
+	// historic analytic leg; near-uniform epsilon tilts land here too, which
+	// is exactly what keeps guard crossings continuous).
 	if c.canUseRRectClipFastPath(rr) {
 		r := rr.Rect()
 		c.ClipRoundRect(r.Min.X, r.Min.Y, r.Width(), r.Height(), rr.Radii(RRectUpperLeft).X)
+		return
+	}
+
+	// L3-A3: simple (uniform-radii) RRects under rotation (similarity) keep
+	// analytic coverage — an oriented rrect clip entry with the same smoothstep
+	// ramp as the SDF fast path, so rotating an rrect no longer jumps to the
+	// supersampled path raster (measured 17–69/255 divergence at small radii).
+	// Axis-aligned non-uniform scale does NOT enter this leg: the fast path's
+	// semantics are "device AABB, original circular radius", and expanding the
+	// radius with the axis ratio would shift the corner arc by a pixel.
+	if ok := c.tryOrientedRRectClip(rr); ok {
 		return
 	}
 
@@ -165,6 +179,83 @@ func (c *Context) ClipRRect(rr RRect) {
 	userPath.RRect(rr)
 	devicePath := userPath.Transform(c.totalMatrix())
 	c.pushDevicePathClip(devicePath, c.paint.FillRule)
+}
+
+// tryOrientedRRectClip pushes the analytic oriented-rrect leg (see ClipRRect).
+// Covers simple RRects whose device transform is (a) rotation + uniform scale
+// (similarity, circular corners only) or (b) axis-aligned scale (per-axis
+// radii — the exact deformed shape, whose supersampled-raster twin it replaces
+// bit-for-bit; L3-A3/F). Uniform axis-aligned never reaches here: the SDF fast
+// path took it and keeps its historic pixels. Nine-patch/complex/per-corner
+// elliptic cases stay on the exact path raster.
+func (c *Context) tryOrientedRRectClip(rr RRect) bool {
+	if rr.Type() != RRectSimple {
+		return false
+	}
+	tm := c.totalMatrix()
+	rx := rr.Radii(RRectUpperLeft).X
+	ry := rr.Radii(RRectUpperLeft).Y
+	if rx <= 0 && ry <= 0 {
+		return false
+	}
+	ax, ey := math.Abs(tm.A), math.Abs(tm.E)
+	axisAligned := tm.B == 0 && tm.C == 0
+	if ax == 0 || ey == 0 {
+		return false
+	}
+	l1 := math.Hypot(tm.A, tm.D)
+	l2 := math.Hypot(tm.B, tm.E)
+	similarity := math.Abs(l1-l2) <= 1e-12*math.Max(l1, l2) && math.Abs(tm.A*tm.B+tm.D*tm.E) <= 1e-12*l1*l2
+	if axisAligned {
+		if math.Abs(ax-ey) <= 1e-12*math.Max(ax, ey) {
+			return false // uniform axis-aligned → the SDF fast path (historic pixels)
+		}
+	} else {
+		if !similarity || l1 == 0 {
+			return false
+		}
+		if rx != ry {
+			return false // elliptic corners do not survive rotation analytically → path raster
+		}
+	}
+	if c.clipStack == nil {
+		c.initClipStack()
+	}
+	r := rr.Rect()
+	var devRect clip.Rect
+	var srx, sry, angle float64
+	if axisAligned {
+		p1 := tm.TransformPoint(r.Min)
+		p2 := tm.TransformPoint(r.Max)
+		devRect = clip.Rect{X: math.Min(p1.X, p2.X), Y: math.Min(p1.Y, p2.Y),
+			W: math.Abs(p2.X - p1.X), H: math.Abs(p2.Y - p1.Y)}
+		srx, sry = rx*ax, ry*ey
+		if srx <= 0 {
+			srx = sry
+		}
+		if sry <= 0 {
+			sry = srx
+		}
+	} else {
+		s := l1
+		cent := tm.TransformPoint(Pt((r.Min.X+r.Max.X)/2, (r.Min.Y+r.Max.Y)/2))
+		w, h := r.Width()*s, r.Height()*s
+		devRect = clip.Rect{X: cent.X - w/2, Y: cent.Y - h/2, W: w, H: h}
+		srx = rx * s
+		if srx <= 0 {
+			srx = ry * s
+		}
+		angle = math.Atan2(tm.D, tm.A)
+	}
+	c.clipStack.PushRRectOriented(devRect, srx, sry, angle)
+	c.bumpClipMaskGPUGen()
+	// GPU keeps the exact path record (depth-clip pipeline / mask resolve);
+	// only the CPU-side clip entry switched to the analytic leg.
+	userPath := NewPath()
+	userPath.RRect(rr)
+	c.gpuClipPath = userPath.Transform(tm)
+	c.gpuClipFillRule = c.paint.FillRule
+	return true
 }
 
 // canUseRRectClipFastPath reports whether rr can use the existing

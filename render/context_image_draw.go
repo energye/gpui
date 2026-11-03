@@ -191,25 +191,28 @@ func (c *Context) DrawImageEx(img *ImageBuf, opts DrawImageOptions) {
 		clamp:   true, // Don't tile — clamp to image bounds
 	}
 
-	// Save current state (paint, path, transform).
+	// Save current state (paint, path, transform). Push/Pop covers path and
+	// transform; paint must be frozen explicitly (深审 D6 / L1-P1-3): the
+	// one-shot BlendMode/BlendSpace/image-pattern used to leak to the caller.
 	c.Push()
+	c.withPaintFrozen(func() {
+		// Honor the requested compositing operator: SetFillPattern + Fill applies
+		// c.blendMode through the software/GPU brush paths (B.02 fixed-function
+		// Porter-Duff modes included). Previously the option was dropped here, so
+		// e.g. DestinationIn image draws composited as SourceOver.
+		c.SetBlendMode(opts.BlendMode)
+		c.SetBlendSpace(opts.BlendSpace)
 
-	// Honor the requested compositing operator: SetFillPattern + Fill applies
-	// c.blendMode through the software/GPU brush paths (B.02 fixed-function
-	// Porter-Duff modes included). Previously the option was dropped here, so
-	// e.g. DestinationIn image draws composited as SourceOver.
-	c.SetBlendMode(opts.BlendMode)
-	c.SetBlendSpace(opts.BlendSpace)
+		// Set image pattern as fill source.
+		c.SetFillPattern(pattern)
 
-	// Set image pattern as fill source.
-	c.SetFillPattern(pattern)
+		// Draw rectangle at destination using the current transform.
+		// DrawRectangle applies the transform, which is what we want.
+		c.DrawRectangle(opts.X, opts.Y, dstWidth, dstHeight)
 
-	// Draw rectangle at destination using the current transform.
-	// DrawRectangle applies the transform, which is what we want.
-	c.DrawRectangle(opts.X, opts.Y, dstWidth, dstHeight)
-
-	// Fill the rectangle — the Fill() pipeline handles clipping automatically.
-	_ = c.Fill()
+		// Fill the rectangle — the Fill() pipeline handles clipping automatically.
+		_ = c.Fill()
+	})
 
 	c.Pop()
 }

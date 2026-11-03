@@ -1,8 +1,8 @@
 # review-fix build gate: windows/amd64
 # env: CGO_ENABLED=0 GOOS=windows GOARCH=amd64
-# date: 2026-11-03T10:53:03+08:00
-# head: 18ccc406
-# dirty: 42 paths (review-fix working tree, uncommitted)
+# date: 2026-11-03T17:55:00+08:00
+# head: 17574a71
+# dirty: 54 paths (review-fix working tree, uncommitted)
 
 ## 1. go build ./... (raw)
 # exit: 0 (expected 1: ui/scene/internal/gpupixel pre-existing break)

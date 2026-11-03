@@ -79,9 +79,13 @@ func TestShaderPaintCPUSkips(t *testing.T) {
 	t.Setenv("GOGPU_RENDER_MODE", "cpu")
 	dc := NewContext(32, 32)
 	t.Cleanup(func() { _ = dc.Close() })
-	dc.ClearWithColor(Black)
+	// 判别性设计（深审 L2-P0-2：旧状黑底+默认黑 paint，「漏画实心」与「跳过」
+	// 像素等价=假绿）：白底、环境色红、shader 源色绿。跳过必须留白；画环境
+	// 红=违背；画绿=CPU 竟能执行 shader（也应红）。
+	dc.ClearWithColor(White)
+	dc.SetRGB(1, 0, 0)
 	effect, err := NewShaderEffect(`
-@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0, 0.0, 0.0, 1.0); }
+@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 1.0, 0.0, 1.0); }
 `)
 	if err != nil {
 		t.Fatalf("compile: %v", err)
@@ -93,11 +97,9 @@ func TestShaderPaintCPUSkips(t *testing.T) {
 		t.Fatalf("fill: %v", err)
 	}
 	pm := dc.PixmapForTest()
-	data := pm.Data()
-	for i := 0; i < len(data); i += 4 {
-		if data[i] != 0 || data[i+1] != 0 || data[i+2] != 0 {
-			t.Fatalf("shader paint leaked at %d: (%d,%d,%d,%d) — CPU mode must skip", i, data[i], data[i+1], data[i+2], data[i+3])
-		}
+	r, g, b, _ := pixelAt(pm, 15, 15)
+	if r != 255 || g != 255 || b != 255 {
+		t.Fatalf("rect pixel (%d,%d,%d), want white 255,255,255 — CPU mode must SKIP a Shader paint, not paint the ambient solid", r, g, b)
 	}
 	if st := dc.RenderPathStats(); st.CPUFallbackOps != 0 {
 		t.Fatalf("cpu_fallback_ops=%d — GPU-only skip must not count as fallback", st.CPUFallbackOps)

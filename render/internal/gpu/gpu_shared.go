@@ -244,6 +244,9 @@ func NewGPUShared() *GPUShared {
 	// Same lifetime for the reuse probe: a real window asserts hits > 0 on the
 	// domains it exercised instead of trusting that pooling happened.
 	render.RegisterGPUPoolStatsCollector(s, s.poolStats)
+	// ShaderEffect.Close evicts this holder's per-effect pipeline caches
+	// (L2-P0-1); keyed by the pool label so GPUShared.Close unregisters it.
+	render.RegisterShaderEffectEvictor(s.poolLabel, s.userShader.evictEffect)
 	return s
 }
 
@@ -640,6 +643,7 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 	s.texturedStencilLinear.release()
 	s.texturedStencilPattern.release()
 	s.filterGPU.release()
+	s.userShader.destroyLocked()
 	s.clearMaskLocked()
 	s.destroyPipelinesLocked()
 
@@ -669,6 +673,7 @@ func (s *GPUShared) abandonDeviceOwnedLocked(releaseOwnedDevice bool) {
 func (s *GPUShared) Close() {
 	render.UnregisterPurgeEvictable(s)
 	render.UnregisterGPUPoolStatsCollector(s)
+	render.UnregisterShaderEffectEvictor(s.poolLabel)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

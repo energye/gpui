@@ -258,6 +258,11 @@ func (a *VelloAccelerator) StrokePath(target render.GPURenderTarget, path *rende
 	}
 
 	// Convert gg verbs to stroke verbs and expand to filled outline.
+	// The expander only consumes conic-free paths (L3-A1 same-shape guard:
+	// callers that skipped the device-space reduction would panic here).
+	if path.HasConics() {
+		path = path.ExpandConicsToQuads(0.1)
+	}
 	strokeVerbs := convertPathVerbsToStroke(path.Verbs())
 	style := stroke.Stroke{
 		Width:      paint.EffectiveLineWidth(),

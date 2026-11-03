@@ -24,3 +24,24 @@ ui_wr_p31_linear_blend: OK presents=300 pixel=3/3 golden=0.0000% resize=0 mode=g
   NEW C line0 "the quick ... again and " / line1 "again until it wraps many times"（完整词界）
 旧金图备份 p33_golden_before.png；删除 goldens/p33_final.png → native 首跑写回（first_run=true, pixel 5/5）
   → 复跑 native: OK golden=0.0000% gate=true；go: OK golden=0.0000% gate=true（双后端对同一新金图逐位一致）
+
+[D7 p31 金图重采 2026-11-03]
+- 原因: C 卡按计划从「不透明 0.5 灰」改为「25% 半透明黑 over 卡片底色」，使降级契约可判别（正确 sRGB=153，误走线性域=179，间隔 26/255 > 探针容差 1/255）
+- 流程: 旧金图备份 p31_golden_before.png → 删 goldens/p31_final.png+ref → native 首轮回写(first_run=true, probes 3/3) → native 二轮 golden=0.0000% → go 后端 golden=0.0000%
+- native: OK presents=297 pixel=3/3 golden=0.0000% gpu_ops=23247 cpu_fallback_ops=0 (DISPLAY=:0, GPUI_BACKEND=native)
+- go:     OK presents=300 pixel=3/3 golden=0.0000% (DISPLAY=:0, GPUI_BACKEND=go)
+- 探针: a_srgb_difference 0.3020 want 0.2980 tol 0.0078 PASS; b_linear_difference 0.6588 want 0.6573 tol 0.0118 PASS; c_normal_linear_degrades 0.6000 want 0.6000 tol 0.0039 PASS
+- 新金图快照: p31_golden_after.png / p31_snapshot_after.png
+
+[D8/D9 p32 复核 2026-11-03]
+- p32 native: OK presents=298 pixel=3/3 golden=0.0000% gpu_ops=19373 cpu_fb=0（D8 布局派生+占位、D9 去预乘腿后）
+- p32 go:     OK presents=290 pixel=3/3 golden=0.0000%
+- p32 native(D9后): OK presents=300 pixel=3/3 golden=0.0000%；p32 go(D9后): OK presents=300 pixel=3/3 golden=0.0000%
+- p31 native: OK presents=299 pixel=3/3 golden=0.0000%
+
+[D12 真窗轮 2026-11-03]
+- p35_rrect4 native: OK logic=6/6 pixel 全过 golden=0.0000%（解析腿扩面后角像素零变动）
+- p35_rrect4 go: FAIL→登记 golden=0.0038%（29px 1-LSB）——A/B 对 HEAD(17574a71) worktree 基线
+  差异像素集合逐点相同（29=29 同集合），非 D 批引入，存量 gles 角点量化分叉待单开
+- p31 go: OK pixel=3/3 golden=0.0000%；p33 go: OK pixel=5/5 golden=0.0000%（clip 栈谓词改动零牵连）
+- p35_persp（D11）: native/go 双后端 logic 9/9 pixel 17/17 golden=0.0000%

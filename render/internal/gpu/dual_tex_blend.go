@@ -1360,6 +1360,10 @@ type dualTexViewBlendOp struct {
 	bounds  image.Rectangle
 	mode    render.BlendMode
 	opacity float32
+	// linear composites this layer blend in linear light (深审 D4 / L1-P1-1:
+	// the layer route used to hardcode false, silently reverting a Linear
+	// DrawPaint/advanced layer to the sRGB domain).
+	linear bool
 }
 
 type dualTexViewBlendOut struct {
@@ -1567,7 +1571,7 @@ func dualTexAdvancedBlendViewsMultiIntoEncoder(
 		u1 := float32(bounds.Max.X) / float32(dstW)
 		v1 := float32(bounds.Max.Y) / float32(dstH)
 		modeU := dualTexModeU(op.mode)
-		packDualTexParams(paramsScratch[offset:offset+dualTexUniformPayloadSize], modeU, u0, v0, u1, v1, 1, false, false) // layer-level linear deferred past P3.1
+		packDualTexParams(paramsScratch[offset:offset+dualTexUniformPayloadSize], modeU, u0, v0, u1, v1, 1, false, op.linear)
 		prepared = append(prepared, preparedOp{
 			op: op, bounds: bounds, outTex: outTex, outView: outView, outRef: outRef, slot: slot, offset: offset,
 		})
@@ -1680,6 +1684,7 @@ func dualTexAdvancedBlendViewsRegionSized(
 	bounds image.Rectangle,
 	mode render.BlendMode,
 	dstW, dstH int,
+	linear bool,
 ) (hal.Texture, hal.TextureView, res.Ref, error) {
 	if device == nil || queue == nil || cache == nil || dstView == nil || srcView == nil {
 		return nil, nil, res.Ref{}, fmt.Errorf("dual-tex views: nil args")
@@ -1728,7 +1733,7 @@ func dualTexAdvancedBlendViewsRegionSized(
 	// paths; keep top-left origin matching CopyTextureToTexture previous behavior
 	// (bounds in pixel space, UV y down). textureSample uses top-left 0,0.
 	modeU := dualTexModeU(mode)
-	if err := dualTexWriteParams(queue, cache.uniform, modeU, u0, v0, u1, v1, 1, false, false); err != nil { // layer-level linear deferred past P3.1
+	if err := dualTexWriteParams(queue, cache.uniform, modeU, u0, v0, u1, v1, 1, false, linear); err != nil {
 		drop()
 		return nil, nil, res.Ref{}, err
 	}

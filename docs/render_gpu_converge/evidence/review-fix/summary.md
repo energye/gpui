@@ -173,3 +173,69 @@
 - K6：WGSL 动态循环核 GL 后端复验（本批 native 已验；真窗 p34 双后端过，GL 档复跑在册）。
 - 深审欠账：P3.1/P3.2、P3.5 逐文件深审本轮配额未做（定向钉全绿 + 机械检查通过）——已回填台账 §2.2 待办池 **L1–L3**（各行写明未审范围与深审须覆盖的面，取用按 §4.2 载体登记）。
 
+
+---
+
+# 追加：D 批（L1–L3 深审产出的 12 条修复，2026-11-03）
+
+深审三报告（L1=P3.1、L2=P3.2、L3=P3.5，`deep-audit-l1l3/`）去重出 13 条 → 并 D5/D12 后
+按用户拍板「P0×3 + P1×10 一批修、允许重采、逐条停报」执行 D1–D12。逐条纪律：复现红→标准方案→钉绿→负向对照；
+证据逐条落 `deep-audit-l1l3/D8|D9|D10|D12-*.md`，过程登记 `findings-register.md`。
+
+- **D1（L2-P0-1）shader 泄漏+Close 空操作**：`ShaderEffect.Close` 幂等 + `Closed()` 判别口 +
+  `Register/UnregisterShaderEffectEvictor` 广播驱逐（RegisterPurgeEvictable 同族）；
+  `userShaderCache.evictEffect`、`gpu_shared` 注册/反注册/abandon 补漏。钉：`p32_shader_leak_test.go`
+  （6 轮句柄/字节零涨、closed 不回灌）。
+- **D2（L2-P0-2）shader 失败=画实心色+假绿**：CPU 落点 shader 绘制改静默跳过（doFill 尾判）；
+  `fillShaderAsImage` 补 lazy ensureGPU（进程首 GPU op=shader 接住）；管线建前拒 closed/nil。
+  钉：`TestP32ShaderLazyFirstGPUOp`、`TestShaderPaintCPUSkips` 收紧。
+- **D3（L3-A1）PathEffect 原型 conic GPU 描边 panic**：vello 加速路 `HasConics→ExpandConicsToQuads(0.1)`
+  前置降换（与 CPU 两腿同防线）；effect 输出 conic 同降。钉：`p35_conic_effect_test.go`。
+- **D4（L1-P1-1）DrawPaint/layer 路由 Linear 静默回退**：`Layer.blendSpace` 全链贯通
+  （pushLayerSurface→compositeLayer/queueLayerAdvancedGPU→QueueAdvancedLayerComposite→dual-tex/CPU resolve），
+  `BlendLinear` 按 `linear()&&IsAdvancedBlendMode` 门控。钉：`TestP31DrawPaintLinearGPUDomain`（CPU 档由 D5 钉守）。
+- **D5（L1-P1-2）CPU 固定功能 Linear 换算式分叉**：`software_blend` 固定模式 Linear 一律降级 sRGB 域
+  （对齐「降级契约」）；`p31_fixed_linear_test.go` 12 固定模式逐个钉降级值。
+- **D6（L1-P1-3∪L2-P3-9）状态泄漏**：`withPaintFrozen` 值拷贝冻结（DrawImageEx CPU 腿/ShaderMask），
+  Push/Pop 环境态不再被绘制动词改写；ShaderMask 补 BlendSpace 存取还原、ambient shader 不再劫持遮罩矩形。
+  钉：`d6_state_leak_test.go` 三测。
+- **D7（L1-P1-4）降级契约断言无判别力**：单测补判别对（Advanced 模式组）；真窗 C 卡改 25% 半透明黑
+  （正确降级 153 vs 误线性 179）；p31 金图按拍板重采，双后端 0.0000%。
+- **D8（L2-P1-3）pipeline 缓存首绘毒化**：BGL 从「首绘实时值」改**模块声明派生**（`ShaderInterface/ShaderBinding()`），
+  uniform 布局=契约预算 256、bind 绑满 buffer，声明未绑走缓存级 1×1 黑占位（Dawn default-bindings 同法）；
+  负向对照 A–D 逐腿归因（如实登记：布局腿与绑满腿须成对）。钉：`p32_pipeline_cache_test.go` 4 条。
+- **D9（L2-P1-4）shader 输出 alpha 语义**：标定矩阵证实合成链按 straight 解释 pixelData——
+  拍板（两轮，含实测翻案回报）：契约=premul 输出（Flutter 官方）+ 引擎 pass1 后 `premulToStraightRGBA`
+  去预乘喂 straight 链；文档三处统一。钉：`p32_shader_premul_test.go`（A<1 行为+CPU 跳过）。
+  **新洞登记**：兄弟路 `fillMaskedAsImage` 同样 premul→straight 双乘（GPU 半透明填充实测 (255,127,127)，
+  CPU 正确）——归 L2-P2-7/P3-7 同族待单开。
+- **D10（L2-P1-5）入口校验只到语法**：`validateShaderContract` 复用同趟 Lower 产物——fs_main 必须存在且
+  vec4<f32> 返回、槽位表 0/1/2 固定（契约外直拒）、sampler 缺配对纹理直拒、uniform 预算 256 用
+  `ir.TypeSize` 真测、全类型池扫 f64；对齐 Flutter `FragmentProgram.forShader` 编译期拒绝。
+  钉：`p32_shader_validate_test.go` 8 条（含正例护栏）；负向对照 A/D 各红。
+- **D11（L3-A2）透视降级残顶点**：`buildImageResources` 重排——降级决定（`degradePerspectiveCmds`）
+  移到指纹+上传之前，`packPerspectiveQuads` 只管幸存透视束；白盒指纹一致性与最终字节对账。
+  测试缝 `GPUI_TEST_PERSP_PIPELINE_FAIL`（仅测试注入）。钉：`d11_persp_degrade_test.go`；p35_persp 双后端 0.0000%。
+- **D12（L3-A3）ClipRRect 双路不等价**：方向经两拍（B→F）：解析腿从「仅旋转」扩到「轴对齐非等比=
+  椭圆真形、旋转等比=角度解析」，快路守卫维持严格均匀容差（存量像素逐位钉 F2）；
+  `RRectClip.RadiusY/Angle` + `ellipseCornerDist`（牛顿投影+隐函数定号）+ bounds 像素中心余量 +
+  谓词 mask 级路由 + 条目哈希补全。钉：`p35_cliprrect_paths_test.go` F1/F2/F3；负向摘腿旋转跳回 66/255。
+  **存量登记**：p35_rrect4 go 后端金图 0.0038%（29px 1-LSB）与 HEAD 基线差异集合逐点相同=非本批引入；
+  栅格 cubic 近似残差 ≤67/255（解析=真几何）。
+- **存量 SIGABRT 对账**：D8 修后整包仍在 `TestContextFrameDamage_MultipleFillsSeparateRects` 同签名崩
+  → 与 user shader 非同族，改登记为独立存量（vello accelerator 管线家族）待单开。
+
+## D 批门禁（2026-11-03 实测，跑完补数）
+
+- apidoc：`go run ./scripts/apidoc` rc=0（6 新符号入 catalog P3.2 行：Closed/注册对/ShaderInterface/ShaderBinding/ShaderUniformBudget）。
+- build/vet：`go build ./...`、`go vet ./render/...`（含 internal/clip、internal/gpu）rc=0。
+- 五目标：`build/` 5/5 全绿（D 批态重跑 2026-11-03 18:30，各 raw+分包+nogpu 三段 exit 0；`build/*.txt` 已刷新）。
+- race：`-race ./render/internal/gpu/` 全包 **ok**（100.6s，最终代码态，0 DATA RACE）；
+  `-race -run Shader|Blend|Layer|Clip|D12|DeviceScale ./render/` 定向两组 **ok**（49.3s/9.0s）。
+- per-file：正本 34 包全量重扫（最终代码态 2026-11-03，`per-file-tests-dbatch/`）**750 = 719 PASS / 21 SKIP_TAGGED / 9 FAIL / 1 NO_TESTS**；
+  对基线 741=711/21/8/1：新增 9 条 PASS 全为本批新钉（在册全绿），FAIL 名单差异仅
+  `ui/rendering/m1_noquadratic_test.go` 一枚——**单跑复核为性能比例门禁抖动**（同码 `-count=3` 得
+  15.7/8.8/10.6，阈值 15；D 批未触及 ui/rendering 与 BoxesForRange 任何路径），非新增逻辑红，
+  登记 `findings-register.md`；`render/internal/gpu/` 整包 ok（20.2s、40.9s 两次）。
+- 真窗：p31 双后端 0.0000%（重采后）、p32 双后端 0.0000%、p33 go 0.0000%、p35_rrect4 native 0.0000%
+  （go 0.0038% 存量登记）、p35_persp 双后端 0.0000%——明细 `windows/window-runs.txt`。

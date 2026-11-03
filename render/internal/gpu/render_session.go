@@ -4229,6 +4229,22 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 	s.imgLastStagingNeed = uint64(totalVertBytes) //nolint:gosec // bounded
 	s.imgLastVertNeed = uint64(totalVertBytes)    //nolint:gosec // bounded
 	allVertData := s.imageVertexStaging
+
+	// Perspective quads (P3.5 batch 3): decide pipeline availability BEFORE
+	// packing/upload (L3-A2: the degraded affine bytes used to be written
+	// after the fingerprint+upload, leaving stale vertices in the GPU buffer
+	// — first frame zeros, later frames last-frame residue). When the variant
+	// cannot be created the quads re-emit as affine planar quads (shape stays
+	// right, UV interpolation degrades) instead of dropping the draw — same
+	// policy as the blend variant fallback.
+	perspIdx := make([]int32, len(cmds))
+	for i := range perspIdx {
+		perspIdx[i] = -1
+	}
+	if err := s.degradePerspectiveCmds(cmds, perspIdx); err != nil {
+		return nil, err
+	}
+
 	for i := range cmds {
 		if cmds[i].Perspective {
 			// Perspective quads are packed into their own 36-byte buffer below;
@@ -4270,18 +4286,11 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		s.imageVertLastValid = true
 	}
 
-	// Perspective quads (P3.5 batch 3): pack into the dedicated 36-byte buffer
-	// on the persp pipeline. When the variant cannot be created, the quads
-	// re-emit as affine planar quads (shape stays right, UV interpolation
-	// degrades) instead of dropping the draw — same policy as the blend
-	// variant fallback. Rare path: no sticky-hash skip, never merged.
-	perspIdx := make([]int32, len(cmds))
-	for i := range perspIdx {
-		perspIdx[i] = -1
-	}
-	perspBuf, perspErr := s.packPerspectiveQuads(cmds, allVertData, perspIdx)
-	if perspErr != nil {
-		return nil, perspErr
+	// Surviving perspective quads pack into the dedicated 36-byte buffer on
+	// the persp pipeline. Rare path: no sticky-hash skip, never merged.
+	perspBuf, err := s.packPerspectiveQuads(cmds, perspIdx)
+	if err != nil {
+		return nil, err
 	}
 
 	if cap(s.imageDrawCallScratch) < len(cmds) {
@@ -4514,7 +4523,12 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 // affine planar quads (Perspective cleared, bytes written into allVertData at
 // the historic i*6 offset) rather than dropping the draw. Returns the
 // perspective vertex buffer, or nil when no perspective quad survives.
-func (s *GPURenderSession) packPerspectiveQuads(cmds []ImageDrawCommand, allVertData []byte, perspIdx []int32) (hal.Buffer, error) {
+// degradePerspectiveCmds resolves the perspective leg BEFORE any vertex
+// upload: when the persp pipeline variant cannot be created, each persp
+// command is downgraded in place (Perspective cleared) so the regular affine
+// packing writes its bytes into the normal buffer. perspIdx entries for
+// downgraded commands stay -1 and the draw slot is filled by the affine pass.
+func (s *GPURenderSession) degradePerspectiveCmds(cmds []ImageDrawCommand, perspIdx []int32) error {
 	count := 0
 	for i := range cmds {
 		if cmds[i].Perspective {
@@ -4522,18 +4536,27 @@ func (s *GPURenderSession) packPerspectiveQuads(cmds []ImageDrawCommand, allVert
 		}
 	}
 	if count == 0 {
-		return nil, nil
+		return nil
 	}
 	if err := s.imagePipeline.ensurePerspectivePipelines(); err != nil {
 		slogger().Warn("perspective image pipeline unavailable, drawing affine", "err", err, "quads", count)
 		for i := range cmds {
-			if !cmds[i].Perspective {
-				continue
+			if cmds[i].Perspective {
+				cmds[i].Perspective = false
 			}
-			cmds[i].Perspective = false
-			off := i * 6 * imageVertexStride
-			buildImageVerticesInto(allVertData[off:off+6*imageVertexStride], &cmds[i])
 		}
+	}
+	return nil
+}
+
+func (s *GPURenderSession) packPerspectiveQuads(cmds []ImageDrawCommand, perspIdx []int32) (hal.Buffer, error) {
+	count := 0
+	for i := range cmds {
+		if cmds[i].Perspective {
+			count++
+		}
+	}
+	if count == 0 {
 		return nil, nil
 	}
 	perspBytes := count * 6 * imagePerspVertexStride

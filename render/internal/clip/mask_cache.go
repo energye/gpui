@@ -100,6 +100,8 @@ func (cs *ClipStack) Signature() uint64 {
 			h.Write([]byte{2})
 			writeRect(h, entry.rrect.Rect)
 			writeU64(h, math.Float64bits(entry.rrect.Radius))
+			writeU64(h, math.Float64bits(entry.rrect.RadiusY))
+			writeU64(h, math.Float64bits(entry.rrect.Angle))
 		case entry.mask != nil:
 			h.Write([]byte{3})
 			writeU64(h, entry.maskKey)

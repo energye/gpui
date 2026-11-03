@@ -39,9 +39,12 @@ var (
 	// encode → 167.6 — the linear-light Difference result (float reference;
 	// the GPU dual-tex path is float end to end).
 	wantLinear = 167.6
-	// wantDegraded: an opaque Normal fill covers with the source bytes in
-	// either domain — 128 pins the P3.1 fixed-function degradation contract.
-	wantDegraded = 128.0
+	// wantDegraded: 25%-alpha black over the 0.8-gray card — sRGB domain
+	// 0.8*0.75=0.60 → 153. Executing linear by mistake would give 179
+	// (decode 0.8 → 0.6038×0.75 → encode). Opaque sources are identical in
+	// both domains and cannot pin the degradation itself (深审 D7 /
+	// L1-P1-4), so the card carries a translucent discriminating pair now.
+	wantDegraded = 153.0
 
 	tolSRGB     = 2.0 / 255
 	tolLinear   = 3.0 / 255
@@ -114,10 +117,12 @@ func drawCardB(dc *render.Context) {
 }
 
 // drawCardC: a linear request on Normal — the fixed-function family degrades
-// to the sRGB domain on every backend (P3.1 contract; P3.1b unlocks).
+// to the sRGB domain on every backend (P3.1 contract; P3.1b unlocks). The
+// fill is 25%-alpha black so the probe can actually tell the two domains
+// apart (153 sRGB vs 179 mis-linear).
 func drawCardC(dc *render.Context) {
 	fillCardBase(dc)
-	dc.SetRGB(fgGray, fgGray, fgGray)
+	dc.SetRGBA(0, 0, 0, 0.25)
 	dc.SetBlendMode(render.BlendNormal)
 	dc.SetBlendSpace(render.BlendSpaceLinear)
 	dc.DrawRectangle(16, 24, cardW-32, cardH-40)

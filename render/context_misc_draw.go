@@ -79,7 +79,9 @@ func (c *Context) fillClipWithPaint(p *Paint) {
 	// draw; isolate it in a layer and composite that layer with the requested
 	// mode (the renderer's dual-tex advanced path handles it on GPU).
 	if IsAdvancedBlendMode(p.BlendMode) {
-		c.PushLayer(p.BlendMode, 1.0)
+		// The layer inherits the paint's composite space (深审 D4): dropping
+		// it here is how DrawPaint lost Linear on this route.
+		c.pushLayerSurface(p.BlendMode, p.BlendSpace, 1.0, true, false)
 		q := p.Clone()
 		q.BlendMode = BlendNormal
 		c.fillClipWithPaintDirect(q)

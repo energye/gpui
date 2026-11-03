@@ -116,6 +116,10 @@ func (c *Context) compositeLayer(layer *Layer, parent *Pixmap) {
 		Interp:    intImage.InterpNearest, // No scaling, so nearest is fine
 		Opacity:   layer.opacity,
 		BlendMode: layer.blendMode,
+		// 深审 D4 / L1-P1-1: an advanced blend with a Linear layer composites
+		// in linear light, matching the direct-fill contract (fixed-function
+		// modes keep the documented sRGB degradation).
+		BlendLinear: layer.blendSpace.linear() && IsAdvancedBlendMode(layer.blendMode),
 	}
 
 	intImage.DrawImage(dstImg, srcImg, params)
@@ -343,7 +347,7 @@ func (c *Context) queueLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 	type advancedLayerQueuer interface {
 		QueueAdvancedLayerComposite(srcView gpucontext.TextureView, srcW, srcH int,
 			damage image.Rectangle, mode BlendMode, opacity float64,
-			dstView gpucontext.TextureView, release func())
+			dstView gpucontext.TextureView, release func(), linear bool)
 	}
 	var q advancedLayerQueuer
 	if raw := c.GPURenderContext(); raw != nil {
@@ -373,8 +377,12 @@ func (c *Context) queueLayerAdvancedGPU(layer *Layer, parent *Pixmap) bool {
 			break
 		}
 	}
+	// 深审 D4 / L1-P1-1: the layer carries its composite space to the GPU
+	// flush leg too — advanced + Linear must blend in linear light here as
+	// on the direct-fill and CPU legs.
 	q.QueueAdvancedLayerComposite(layer.gpuView, layer.gpuW, layer.gpuH,
-		damage, layer.blendMode, layer.opacity, dstView, release)
+		damage, layer.blendMode, layer.opacity, dstView, release,
+		layer.blendSpace.linear() && IsAdvancedBlendMode(layer.blendMode))
 	return true
 }
 

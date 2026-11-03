@@ -36,7 +36,12 @@ func compositeAdvanced(pixmap *Pixmap, x, y int, color RGBA, coverage uint8, mod
 	if srcA <= 0 && !blendAppliesAtZeroSrc(mode) {
 		return
 	}
-	if linear {
+	// P3.1 D1 contract: Linear takes the linear-light path for the ADVANCED
+	// family only; the Porter-Duff fixed-function modes below keep executing
+	// their coverage-aware formulas (explicit sRGB degradation, matching the
+	// GPU fixed-function leg — 深审 L1-P1-2: this branch used to hijack all
+	// modes into a second Porter-Duff implementation that ignored coverage).
+	if linear && IsAdvancedBlendMode(mode) {
 		compositeAdvancedLinear(pixmap, x, y, color, coverage, mode, srcA)
 		return
 	}

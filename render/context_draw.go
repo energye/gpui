@@ -316,6 +316,14 @@ func (c *Context) doFill() error {
 
 	// CPU wrote into the layer pixmap — Pop must not GPU-blit an empty RT.
 	c.noteLayerCPUDraw()
+	// P3.2 contract (L2-P0-2): the CPU rasterizer does not understand Shader
+	// paints — a draw that reaches the CPU landing is SKIPPED, never painted
+	// as the ambient solid. GPU-execution failures were already counted by
+	// tryGPUFillWithMode; CPU-only operation stays a silent skip per the
+	// documented GPU-only semantics.
+	if c.paint != nil && c.paint.Shader != nil {
+		return nil
+	}
 	// P3.4: paint-level filters ride the CPU filtered-fill twin (content
 	// raster → MaskFilter blur → ImageFilter ops → mask×clip → paste), the
 	// counterpart of internal/gpu's fillPaintFilteredAsImage. Without it the

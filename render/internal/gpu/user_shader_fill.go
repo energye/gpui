@@ -31,6 +31,17 @@ func (rc *GPURenderContext) fillShaderAsImage(target render.GPURenderTarget, pat
 	if effect == nil {
 		return nil
 	}
+	// Lazy device init, same shape as the sibling GPU paths (L2-P0-2: a
+	// shader paint as the process's first GPU op used to find device==nil,
+	// fall to CPU, and paint the ambient solid).
+	if !rc.shared.gpuReady {
+		rc.shared.mu.Lock()
+		err := rc.shared.ensureGPU()
+		rc.shared.mu.Unlock()
+		if err != nil || !rc.shared.gpuReady {
+			return render.ErrFallbackToCPU
+		}
+	}
 	rc.shared.mu.Lock()
 	device := rc.shared.device
 	queue := rc.shared.queue
@@ -60,12 +71,19 @@ func (rc *GPURenderContext) fillShaderAsImage(target render.GPURenderTarget, pat
 		return render.ErrFallbackToCPU
 	}
 
-	// Pass 1: run the user shader over the bounds.
+	// Pass 1: run the user shader over the bounds. The effect returns
+	// premultiplied color (ShaderEffect contract: the engine premultiplies a
+	// straight result, so users may emit either; the chain below is fed
+	// straight). Un-premultiply here because the image-draw composite leg
+	// multiplies uploaded alpha into RGB at draw time (L2-P1-4 calibration:
+	// premul-fed data gets alpha squared — (0.5,0,0,0.5) landed as (0.25,0,0)
+	// contribution, read back as washed gray).
 	srcRegion, err := rc.runUserShaderPass(device, queue, effect, bw, bh)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "[user_shader] pass1 err:", err)
 		return render.ErrFallbackToCPU
 	}
+	premulToStraightRGBA(srcRegion)
 
 	// Coverage: rasterize the path opaque; the alpha channel is the AA
 	// coverage the mask chain multiplies with (same basis as
@@ -136,6 +154,21 @@ func (rc *GPURenderContext) fillShaderAsImage(target render.GPURenderTarget, pat
 	return nil
 }
 
+// premulToStraightRGBA converts premultiplied bytes to straight in place
+// (c = c*255/a, round-half-up; a==0 leaves rgb untouched, they are masked
+// out downstream anyway).
+func premulToStraightRGBA(data []byte) {
+	for i := 0; i+3 < len(data); i += 4 {
+		a := uint16(data[i+3])
+		if a == 0 || a == 255 {
+			continue
+		}
+		data[i] = uint8((uint16(data[i])*255 + a/2) / a)
+		data[i+1] = uint8((uint16(data[i+1])*255 + a/2) / a)
+		data[i+2] = uint8((uint16(data[i+2])*255 + a/2) / a)
+	}
+}
+
 // runUserShaderPass renders the effect into a scratch BGRA8 RT and maps it
 // back as premul RGBA bytes (the readback helper swizzles BGRA→RGBA, matching
 // every other offscreen chain). Per-call scratch texture; pooling into
@@ -160,23 +193,38 @@ func (rc *GPURenderContext) runUserShaderPass(device hal.Device, queue hal.Queue
 		}
 	}
 
-	entries := []hal.BindGroupEntry{{Binding: 0, Buffer: pipe.uniform, Offset: 0, Size: uint64(maxInt(len(uniforms), 16))}}
-	var imgTex hal.Texture
-	var imgView hal.TextureView
-	if img := effect.Image(); img != nil {
-		data := img.PremultipliedData()
-		imgTex, imgView, err = dualTexCreateTex(device, queue, "user_shader_img", img.Width(), img.Height(), data,
-			types.TextureUsageTextureBinding|types.TextureUsageCopyDst)
-		if err != nil {
-			return nil, err
+	// Bind entries mirror the layout exactly (L2-P1-3): the uniform slot is
+	// bound at the layout's full size, and a declared image slot falls back
+	// to the cached 1x1 black placeholder when no image is bound.
+	entries := []hal.BindGroupEntry{{Binding: 0, Buffer: pipe.uniform, Offset: 0, Size: uint64(pipe.uniformSize)}}
+	if pipe.hasTex {
+		var imgView hal.TextureView
+		var samp hal.Sampler
+		if img := effect.Image(); img != nil {
+			data := img.PremultipliedData()
+			imgTex, view, terr := dualTexCreateTex(device, queue, "user_shader_img", img.Width(), img.Height(), data,
+				types.TextureUsageTextureBinding|types.TextureUsageCopyDst)
+			if terr != nil {
+				return nil, terr
+			}
+			defer imgTex.Destroy()
+			defer view.Destroy()
+			s, serr := device.CreateSampler(&hal.SamplerDescriptor{MagFilter: types.FilterModeLinear, MinFilter: types.FilterModeLinear})
+			if serr != nil {
+				return nil, serr
+			}
+			defer s.Destroy()
+			imgView, samp = view, s
+		} else {
+			c := &rc.shared.userShader
+			c.mu.Lock()
+			berr := c.ensureBlackBindings(device, queue)
+			imgView, samp = c.blackView, c.blackSamp
+			c.mu.Unlock()
+			if berr != nil {
+				return nil, berr
+			}
 		}
-		defer imgTex.Destroy()
-		defer imgView.Destroy()
-		samp, serr := device.CreateSampler(&hal.SamplerDescriptor{MagFilter: types.FilterModeLinear, MinFilter: types.FilterModeLinear})
-		if serr != nil {
-			return nil, serr
-		}
-		defer samp.Destroy()
 		entries = append(entries,
 			hal.BindGroupEntry{Binding: 1, TextureView: imgView},
 			hal.BindGroupEntry{Binding: 2, Sampler: samp},

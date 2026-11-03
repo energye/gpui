@@ -127,7 +127,8 @@ type Paint struct {
 	BlendSpace BlendSpace
 
 	// Shader is a user WGSL effect evaluated per pixel over the painted
-	// region (P3.2, SkRuntimeEffect/FragmentProgram slot). When set it
+	// region (P3.2, SkRuntimeEffect/FragmentProgram slot). The effect returns
+	// premultiplied-alpha color (see ShaderEffect contract). When set it
 	// replaces the brush as the color source; blending/clip/mask still
 	// apply. GPU-only: with no accelerator the draw is skipped (never a
 	// silent CPU fallback).

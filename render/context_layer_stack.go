@@ -77,7 +77,7 @@ func (c *Context) ResetLayerPoolStats() {
 //	dc.PopLayer() // Composite circle onto canvas with multiply blend at 50% opacity
 func (c *Context) PushLayer(blendMode BlendMode, opacity float64) {
 
-	c.pushLayerSurface(blendMode, opacity, true, false)
+	c.pushLayerSurface(blendMode, c.BlendSpace(), opacity, true, false)
 }
 
 // PushLayerIsolated is like PushLayer(BlendNormal, opacity) but always allocates
@@ -89,7 +89,7 @@ func (c *Context) PushLayer(blendMode BlendMode, opacity float64) {
 // Use for overlapping draws within a group; prefer PushLayer(Normal) for cheap
 // non-overlapping opacity cards.
 func (c *Context) PushLayerIsolated(opacity float64) {
-	c.pushLayerSurface(BlendNormal, opacity, true, true)
+	c.pushLayerSurface(BlendNormal, c.BlendSpace(), opacity, true, true)
 }
 
 // pushLayerSurface is the shared PushLayer implementation.
@@ -98,7 +98,8 @@ func (c *Context) PushLayerIsolated(opacity float64) {
 // pushLayerSurface is the shared PushLayer implementation.
 // clear=true for normal layers; false when the caller will fully overwrite (backdrop).
 // forceIsolated skips the F1 opacity-group fast path (true saveLayer).
-func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear, forceIsolated bool) {
+// space is the composite color space for this layer (深审 D4).
+func (c *Context) pushLayerSurface(blendMode BlendMode, space BlendSpace, opacity float64, clear, forceIsolated bool) {
 	// Clamp opacity to valid range
 	if opacity < 0 {
 		opacity = 0
@@ -119,8 +120,9 @@ func (c *Context) pushLayerSurface(blendMode BlendMode, opacity float64, clear, 
 
 	// Create layer shell.
 	layer := &Layer{
-		blendMode: blendMode,
-		opacity:   opacity,
+		blendMode:  blendMode,
+		blendSpace: space,
+		opacity:    opacity,
 	}
 
 	// F1 Normal/Copy opacity-group: skip isolation RT and multiply paint alpha

@@ -23,7 +23,11 @@ import (
 type Layer struct {
 	pixmap    *Pixmap
 	blendMode BlendMode
-	opacity   float64
+	// blendSpace is the composite color space captured at push (深审 D4 /
+	// L1-P1-1): an advanced-blend layer must honor it on both composite
+	// legs, or a Linear request silently reverts to the sRGB domain.
+	blendSpace BlendSpace
+	opacity    float64
 	mask      *Mask // optional alpha mask, applied on PopLayer (nil = no mask)
 	// damage is the union of draw bounds on this layer in pixmap pixel space.
 	// PopLayer composites only this rect (plus AA pad) instead of the full

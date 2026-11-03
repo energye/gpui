@@ -203,6 +203,9 @@ type pendingAdvancedLayer struct {
 	damage  image.Rectangle
 	mode    render.BlendMode
 	opacity float64
+	// linear: composite this pop in linear light (深审 D4; the layer route
+	// used to be hardcoded sRGB on both blend legs).
+	linear bool
 	// dstView is the parent surface the layer must blend into. Zero means the
 	// base/present surface; a non-zero view is an enclosing layer RT (nested
 	// advanced saveLayer). Resolve only pops whose destination is the target
@@ -2324,6 +2327,12 @@ func (rc *GPURenderContext) StrokePath(target render.GPURenderTarget, path *rend
 		if pathToStroke == nil || pathToStroke.NumVerbs() == 0 {
 			return nil
 		}
+		// Stamp prototypes of Path1D/Path2D effects can carry conics (the
+		// effect output inherits them from the prototype); the stroke
+		// expander only consumes quads — reduce exactly like the CPU legs do
+		// (L3-A1: this leg used to panic). Conic-free paths pass through
+		// without a copy.
+		pathToStroke = pathToStroke.ExpandConicsToQuads(0.1)
 	} else if paint.IsDashed() {
 		dash := paint.EffectiveDash()
 		if dash != nil && dash.IsDashed() {
@@ -3260,6 +3269,7 @@ func (rc *GPURenderContext) QueueAdvancedLayerComposite(
 	srcView gpucontext.TextureView, srcW, srcH int,
 	damage image.Rectangle, mode render.BlendMode, opacity float64,
 	dstView gpucontext.TextureView, release func(),
+	linear bool,
 ) {
 	if rc == nil || srcView.IsNil() {
 		if release != nil {
@@ -3274,6 +3284,7 @@ func (rc *GPURenderContext) QueueAdvancedLayerComposite(
 		damage:  damage,
 		mode:    mode,
 		opacity: opacity,
+		linear:  linear,
 		dstView: dstView,
 		release: release,
 	})
@@ -3416,7 +3427,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 				}
 				continue
 			}
-			if err := cpuCompositeAdvancedLayer(target.Data, target.Width, target.Height, rgba, pl.srcW, pl.srcH, pl.mode, pl.opacity, pl.damage); err != nil && firstErr == nil {
+			if err := cpuCompositeAdvancedLayer(target.Data, target.Width, target.Height, rgba, pl.srcW, pl.srcH, pl.mode, pl.opacity, pl.damage, pl.linear); err != nil && firstErr == nil {
 				firstErr = err
 			}
 		}
@@ -3528,6 +3539,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 				bounds:  bounds,
 				mode:    pl.mode,
 				opacity: op,
+				linear:  pl.linear,
 			})
 			if pl.release != nil {
 				holds = append(holds, pl.release)
@@ -3572,7 +3584,7 @@ func (rc *GPURenderContext) resolvePendingAdvancedLayersEnc(target render.GPURen
 				for i := range viewOps {
 					op := viewOps[i]
 					outTex, outView, outRef, oerr := dualTexAdvancedBlendViewsRegionSized(
-						device, queue, cache, dstView, op.srcView, op.bounds, op.mode, tw, th)
+						device, queue, cache, dstView, op.srcView, op.bounds, op.mode, tw, th, op.linear)
 					if oerr != nil {
 						err = oerr
 						continue
