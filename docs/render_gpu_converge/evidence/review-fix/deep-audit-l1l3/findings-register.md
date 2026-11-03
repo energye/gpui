@@ -8,10 +8,11 @@
 - **D8 修完回照（2026-11-03）**：整包仍在 `TestContextFrameDamage_MultipleFillsSeparateRects` 崩同一签名
   （conv.rs:519），D8（user shader 管线）未消解 → **与 D8 非同族**，改登记为独立存量问题
   （vello accelerator 管线家族），待单开专项；per-file 口径 `render/path_bounds_test.go` 继续 PASS。
-- **D9 标定新洞（登记，非 D9 修复面）**：`fillMaskedAsImage` 兄弟路同样把 **premul** 栅格喂进
-  按 straight 解释的合成链——实测 GPU 不透明蒙半层 `SetRGBA(1,0,0,0.5)` 画矩形得
-  **(255,127,127,255)**（alpha 平方；正确 premul 合成 ≈(128,255,255,~128)），CPU 档直画正确 → GPU/CPU 分叉。归 L2-P2-7（混合丢失）/P3-7
-  （路由）同族，待单开条目修；shader 链已由 D9 用 `premulToStraightRGBA` 自洽。
+- **D9 标定新洞（已收回，2026-11-03 M1 核查）**：曾登记 `fillMaskedAsImage` 兄弟路 premul→straight
+  双乘、"GPU/CPU 分叉、正确应 (128,255,255)"——**四链标定实测推翻**：solid/gradient/mask-cov100/layer
+  GPU 与 CPU 逐位一致（(255,153,153)/(226,229,15x)/(255,215,215)/(255,153,153)），合成链按 straight
+  解释 pixelData 是端到端一致的设计口径；原结论把 Pixmap premul 存储约定误套到 fill 源数据，且
+  coverage=128≈√0.5 处两式简并失去判别力。等值标定钉已入 `render/m1_colorspace_audit_test.go`。
 - **D12 登记两笔（2026-11-03）**：
   1. **存量：ui_wr_p35_rrect4 go 后端金图 0.0038%（29px 1-LSB，卡片区角点）**——D 批树与
      HEAD(17574a71) 基线差异像素集合逐点相同（同集合 29px），非 D 批引入；归 gles 角点覆盖

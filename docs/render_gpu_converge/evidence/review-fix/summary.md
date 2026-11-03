@@ -207,8 +207,8 @@
 - **D9（L2-P1-4）shader 输出 alpha 语义**：标定矩阵证实合成链按 straight 解释 pixelData——
   拍板（两轮，含实测翻案回报）：契约=premul 输出（Flutter 官方）+ 引擎 pass1 后 `premulToStraightRGBA`
   去预乘喂 straight 链；文档三处统一。钉：`p32_shader_premul_test.go`（A<1 行为+CPU 跳过）。
-  **新洞登记**：兄弟路 `fillMaskedAsImage` 同样 premul→straight 双乘（GPU 半透明填充实测 (255,127,127)，
-  CPU 正确）——归 L2-P2-7/P3-7 同族待单开。
+  ~~新洞登记：兄弟路 fillMaskedAsImage 双乘~~（**M1 核查日收回**：四链 GPU/CPU 逐位等值标定证明
+  合成链 straight 口径端到端一致，原结论系推算错误；标定钉 `m1_colorspace_audit_test.go` 长期锁定）。
 - **D10（L2-P1-5）入口校验只到语法**：`validateShaderContract` 复用同趟 Lower 产物——fs_main 必须存在且
   vec4<f32> 返回、槽位表 0/1/2 固定（契约外直拒）、sampler 缺配对纹理直拒、uniform 预算 256 用
   `ir.TypeSize` 真测、全类型池扫 f64；对齐 Flutter `FragmentProgram.forShader` 编译期拒绝。
