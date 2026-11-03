@@ -1,0 +1,3 @@
+    p37_tmp_measure_test.go:57: MEASURE P3.7-1a affine N=1000 → draw call=1 单槽最大 quad=1000 uniform slab=0.2KB
+    p37_tmp_measure_test.go:57: MEASURE P3.7-1a perspective N=1000 → draw call=1 单槽最大 quad=1000 uniform slab=0.2KB
+ok  	github.com/energye/gpui/render/internal/gpu	0.010s

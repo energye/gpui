@@ -4347,6 +4347,9 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				i = j // perspective quad without a packed slot (post-fallback): nothing to draw
 				continue
 			}
+			// P3.7 batch 1a: merged projective neighbours share one Draw, so the
+			// span must be contiguous in the packed 36-byte buffer.
+			j = perspRunEnd(cmds, perspIdx, i, j)
 			slots = append(slots, imageSlot{
 				opacity:     cmd.Opacity,
 				texView:     texView,
@@ -4355,10 +4358,10 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 				blendMode:   cmd.BlendMode,
 				perspective: true,
 				vertBuf:     perspBuf,
-				firstVertex: uint32(pIdx * 6), //nolint:gosec
-				vertCnt:     6,                //nolint:mnd
-				cmdStart:    uint32(i),        //nolint:gosec
-				cmdCount:    uint32(j - i),    //nolint:gosec
+				firstVertex: uint32(pIdx * 6),    //nolint:gosec
+				vertCnt:     uint32((j - i) * 6), //nolint:gosec
+				cmdStart:    uint32(i),           //nolint:gosec
+				cmdCount:    uint32(j - i),       //nolint:gosec
 			})
 			i = j
 			continue
@@ -4515,6 +4518,21 @@ func (s *GPURenderSession) buildImageResources(cmds []ImageDrawCommand, w, h uin
 		vertBuf:   s.imageVertBuf,
 		drawCalls: drawCalls,
 	}, nil
+}
+
+// perspRunEnd trims a coalescing run [i,j) of projective commands to the
+// longest prefix whose packed slots are contiguous in the 36-byte perspective
+// buffer (P3.7 batch 1a). packPerspectiveQuads assigns pIdx in command order,
+// but a command that lost its perspective pipeline is re-emitted as affine and
+// keeps pIdx -1: drawing across that gap would read a neighbour's vertices.
+func perspRunEnd(cmds []ImageDrawCommand, perspIdx []int32, i, j int) int {
+	for k := i + 1; k < j; k++ {
+		if k >= len(perspIdx) || perspIdx[k] < 0 || !cmds[k].Perspective ||
+			int(perspIdx[k]) != int(perspIdx[k-1])+1 {
+			return k
+		}
+	}
+	return j
 }
 
 // packPerspectiveQuads fills the dedicated 36-byte perspective vertex buffer

@@ -97,6 +97,12 @@ func TestBuildPerspVerticesIntoPanicsOnShortDst(t *testing.T) {
 	buildPerspVerticesInto(make([]byte, 6*imagePerspVertexStride-1), perspCmd())
 }
 
+// TestCanMergeImageDrawIsolatesPerspective pins the perspective coalescing
+// contract. P3.5 batch 3 shipped "one draw per projective quad"; P3.7 batch 1a
+// changed it to "projectives coalesce with each other, never with affine" —
+// corners and weights are per-vertex data (like tint), so a depth-projected
+// sprite batch must not cost one bind group + one 256B uniform slot per sprite
+// (measured baseline: N=1000 → 1000 draws / 250KB slab per frame).
 func TestCanMergeImageDrawIsolatesPerspective(t *testing.T) {
 	affine := ImageDrawCommand{GenerationID: 7, ImgWidth: 20, ImgHeight: 1, Opacity: 1}
 	persp := *perspCmd()
@@ -104,8 +110,20 @@ func TestCanMergeImageDrawIsolatesPerspective(t *testing.T) {
 		t.Fatal("perspective quad merged with an affine quad")
 	}
 	other := persp
-	if canMergeImageDraw(&persp, &other) {
-		t.Fatal("perspective quads must never merge (one draw each)")
+	if !canMergeImageDraw(&persp, &other) {
+		t.Fatal("同图同采样的两张透视 quad 必须合批（2.5D 精灵批绘的成本前提）")
+	}
+	// Weights ride the vertex, so differing weights must not split the batch.
+	reweighted := persp
+	reweighted.Weights = [4]float32{100, 200, 300, 400}
+	if !canMergeImageDraw(&persp, &reweighted) {
+		t.Fatal("仅权重不同就分家：权重是逐顶点数据，不进合批键")
+	}
+	// Per-slot uniforms are shared by the batch, so opacity stays a key.
+	faded := persp
+	faded.Opacity = 0.5
+	if canMergeImageDraw(&persp, &faded) {
+		t.Fatal("透明度不同的透视 quad 合进了同一绑定组")
 	}
 	// Affine behavior unchanged: same-key pairs still merge.
 	two := affine

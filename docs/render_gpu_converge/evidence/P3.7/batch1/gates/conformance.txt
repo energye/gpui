@@ -1,0 +1,3 @@
+--- PASS: TestConformanceDualBackend (0.86s)
+--- SKIP: TestConformanceInner (0.00s)
+ok  	github.com/energye/gpui/render	0.874s

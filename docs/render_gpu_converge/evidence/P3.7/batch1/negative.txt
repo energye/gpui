@@ -1,0 +1,20 @@
+=== N1：谓词还原成「透视一律不合」 ===
+--- FAIL: TestP37PerspectiveMergePredicate (0.00s)
+    p37_persp_merge_test.go:43: 同图同采样同透明度的两张透视 quad 不合批：2.5D 精灵批绘会退化成逐张提交
+--- FAIL: TestP37PerspectiveBatchBuildsOneDraw (4.55s)
+    p37_persp_merge_test.go:96: 四张透视 quad 合批后 draw call=4，want 1
+--- FAIL: TestP37PerspectiveRunSplitsAtSealAndAffine (0.21s)
+=== N2：放行合批但 vertCnt 仍写死 6 ===
+--- FAIL: TestP37PerspectiveBatchBuildsOneDraw (0.23s)
+--- FAIL: TestP37PerspectiveRunSplitsAtSealAndAffine (0.21s)
+    p37_persp_merge_test.go:145: 封段后跨度=6/6，want 6/12
+=== N3b：perspRunEnd 守卫掏空 ===
+--- FAIL: TestP37PerspRunEndGuardsPackingGap (0.00s)
+    p37_persp_merge_test.go:199: pIdx 跳号应在空洞前断开，got 3
+=== 还原后复跑 ===
+ok  	github.com/energye/gpui/render/internal/gpu	0.453s
+=== N3：摘掉调用点的 perspRunEnd 守卫（j = perspRunEnd(...) 去掉）===
+ok  	github.com/energye/gpui/render/internal/gpu	0.455s
+# 如实登记：当前不可观测。谓词已保证段内全为透视、packPerspectiveQuads 按命令序连续打包，
+# 生产路径造不出 pIdx 空洞，故摘调用点判不出红。该守卫属防御性（P3.5 收口第④洞同族），
+# 其**本体**由 N3b 判红证明有判别力；不为凑绿把 N3 写成"红"。

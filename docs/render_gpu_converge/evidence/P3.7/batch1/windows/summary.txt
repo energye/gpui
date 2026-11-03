@@ -1,0 +1,6 @@
+ui_wr_p35_persp: OK presents=359 logic=9/9 pixel=17/17 golden=0.0000% seeded=false gate=true elapsed=6.3s
+ui_wr_p35_persp: OK presents=359 logic=9/9 pixel=17/17 golden=0.0000% seeded=false gate=true elapsed=6.3s
+--- native ---
+"fps_wall":57.08802629488613 "interval_p95_ms":18.771758 "hitch_count":0 "gpu_ops":51340 "cpu_fallback_ops":0 "gpu_backend":"integrated" "time_to_first_present_ms":118.32814499999999 "pixel_golden_diff_pct":0 "pixel_golden_total_px":763584 
+--- go ---
+"fps_wall":56.86098390041476 "interval_p95_ms":19.039515 "hitch_count":0 "gpu_ops":51340 "cpu_fallback_ops":0 "gpu_backend":"integrated" "time_to_first_present_ms":125.91709300000001 "pixel_golden_diff_pct":0 "pixel_golden_total_px":763584 

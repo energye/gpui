@@ -1173,9 +1173,12 @@ func canMergeImageDraw(a, b *ImageDrawCommand) bool {
 	if a == nil || b == nil {
 		return false
 	}
-	// Perspective quads ride their own pipeline and vertex buffer; never
-	// coalesce them with affine quads (P3.5 batch 3).
-	if a.Perspective || b.Perspective {
+	// Perspective quads ride their own pipeline and 36-byte vertex buffer, so
+	// they never coalesce with affine quads — but projective neighbours DO
+	// coalesce with each other (P3.7 batch 1a): corners and weights are
+	// per-vertex data exactly like tint, so 1000 depth-projected sprites stay
+	// one Draw instead of 1000 bind groups and 1000 uniform slots.
+	if a.Perspective != b.Perspective {
 		return false
 	}
 	if a.GenerationID == 0 || a.GenerationID != b.GenerationID {
