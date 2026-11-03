@@ -14,6 +14,8 @@ import (
 	"math"
 
 	"github.com/energye/gpui/engine/core"
+	"github.com/energye/gpui/engine/renderconv"
+	"github.com/energye/gpui/render"
 )
 
 // Projector maps world positions plus depth to screen positions.
@@ -105,6 +107,32 @@ func (p Projector) ProjectQuad(corners [4]core.Vec2, depths [4]float64) (screens
 		scales[i] = sc
 	}
 	return screens, scales, true
+}
+
+// ProjectSpriteQuad projects a world-space rect at per-corner depths into
+// render-facing corners + homogeneous weights for the render projective leg
+// (P3.7 batch 1c: AtlasSprite.Perspective/Corners/Weights or DrawImageQuad).
+// 这是 ProjectQuad 的第一个真消费者：world rect 的四角按 TL/TR/BR/BL 逐角
+// 投影，权重 = focal+depth（render 透视腿按 1/w 有理插值的齐次 w）；
+// 单深度调用传四份同值 = 等权 ⇒ 仿射等价的「按深度缩放」矩形。
+// Corners 是目标画布的用户空间角点（identity CTM 下直通；render 会再套 CTM，
+// 与 Dst 字段同责任）。任一角 behind-eye 或非有限 ⇒ 整体 ok=false，不画半个。
+func (p Projector) ProjectSpriteQuad(worldRect core.Rect, depths [4]float64) (corners [4]render.Point, weights [4]float64, ok bool) {
+	world := [4]core.Vec2{
+		core.V2(worldRect.X, worldRect.Y),
+		core.V2(worldRect.X+worldRect.W, worldRect.Y),
+		core.V2(worldRect.X+worldRect.W, worldRect.Y+worldRect.H),
+		core.V2(worldRect.X, worldRect.Y+worldRect.H),
+	}
+	screens, _, okQ := p.ProjectQuad(world, depths)
+	if !okQ {
+		return [4]render.Point{}, [4]float64{}, false
+	}
+	for i := 0; i < 4; i++ {
+		corners[i] = renderconv.Vec2ToRenderPoint(screens[i])
+		weights[i] = p.focal + depths[i]
+	}
+	return corners, weights, true
 }
 
 // Unproject inverts Project: screen plus depth back to world.

@@ -752,3 +752,54 @@ func TestAtlasOffscreenGolden(t *testing.T) {
 	}
 	t.Logf("atlas-offscreen: env DISPLAY=%s canvas=%dx%d GOGPU_RENDER_MODE=cpu debug-build (release window run with P2)", os.Getenv("DISPLAY"), w, h)
 }
+
+// P3.7 批 1c：ToRender 透视承载逐字段透传；Validate 对透视坏数据早拒。
+func TestAtlasSpritePerspectiveToRender(t *testing.T) {
+	sp := AtlasSprite{
+		Image: core.AssetID("atlas"), Src: core.Rect{W: 32, H: 32}, Dst: core.Rect{X: 10, Y: 10, W: 40, H: 30},
+		Opacity:     1,
+		Perspective: true,
+		Corners:     [4]core.Vec2{core.V2(1, 2), core.V2(3, 4), core.V2(5, 6), core.V2(7, 8)},
+		Weights:     [4]float64{160, 160, 100, 100},
+	}
+	if err := sp.Validate(); err != nil {
+		t.Fatalf("合法透视精灵被拒：%v", err)
+	}
+	rs, err := sp.ToRender()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rs.Perspective {
+		t.Fatal("Perspective 未透传")
+	}
+	for i := range sp.Corners {
+		want := renderconv.Vec2ToRenderPoint(sp.Corners[i])
+		if rs.Corners[i] != want {
+			t.Fatalf("角 %d 透传 (%.2f,%.2f) ≠ want (%.2f,%.2f)", i, rs.Corners[i].X, rs.Corners[i].Y, want.X, want.Y)
+		}
+	}
+	if rs.Weights != sp.Weights {
+		t.Fatalf("权重透传不一致：%v want %v", rs.Weights, sp.Weights)
+	}
+
+	// 非透视时新字段是惰性的（塞垃圾照常转换，render 侧零值=老路）。
+	inert := sp
+	inert.Perspective = false
+	inert.Corners = [4]core.Vec2{core.V2(math.NaN(), 0), {}, {}, {}}
+	inert.Weights = [4]float64{-1, 0, 0, 0}
+	if _, err := inert.ToRender(); err != nil {
+		t.Fatalf("非透视精灵被新字段误拒：%v", err)
+	}
+
+	// 透视坏数据早拒：坏角与坏权重。
+	badCorner := sp
+	badCorner.Corners[2] = core.V2(math.Inf(1), 0)
+	if err := badCorner.Validate(); err == nil {
+		t.Fatal("Inf 角未被拒绝")
+	}
+	badWeight := sp
+	badWeight.Weights[1] = 0
+	if err := badWeight.Validate(); err == nil {
+		t.Fatal("零权重未被拒绝")
+	}
+}

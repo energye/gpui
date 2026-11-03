@@ -92,6 +92,16 @@ type AtlasSprite struct {
 	// Mipmap selects per-sprite minification sampling (P3.6 batch 2); the zero
 	// value MipmapNone keeps the historic single-level path bit-identical.
 	Mipmap MipmapMode
+	// Perspective draws the sprite through the projective leg (P3.7 batch 1c):
+	// Corners/Weights replace Dst/Rot/Flip/Pivot entirely (no half-affine-half-
+	// perspective mix). Zero value keeps the historic affine road bit-identical.
+	// 与 QuadDrawOptions 同词汇同序（TL/TR/BR/BL）：Corners 是用户空间角点
+	// （CTM 照常应用，引擎投影出口产出的屏幕角在 identity CTM 下直通）；
+	// Weights 是四角齐次 w（= focal+depth，恒有限 >0）。透视+bicubic 组合
+	// 返回 ErrQuadPerspectiveBicubic；非法四角/权重按 ErrAtlasQuad* 哨兵拒绝。
+	Perspective bool
+	Corners     [4]Point
+	Weights     [4]float64
 }
 
 // R4 哨兵错与降级标记：调用方用 errors.Is 判定，不许静默画错。
@@ -100,6 +110,12 @@ var (
 	ErrAtlasNonFinite = errors.New("render: non-finite atlas sprite")
 	// ErrAtlasUnsupportedFilter 不支持的单图过滤。
 	ErrAtlasUnsupportedFilter = errors.New("render: unsupported atlas filter (R4 only Nearest/Bilinear/Bicubic)")
+	// ErrAtlasQuadDegenerate 透视精灵四角退化（零面积，P3.7 批 1c）。
+	ErrAtlasQuadDegenerate = errors.New("render: degenerate perspective atlas sprite (zero area)")
+	// ErrAtlasQuadBowTie 透视精灵四角自交（P3.7 批 1c）。
+	ErrAtlasQuadBowTie = errors.New("render: self-intersecting perspective atlas sprite")
+	// ErrAtlasQuadBadWeights 透视精灵权重非法（非有限或 <=0，P3.7 批 1c）。
+	ErrAtlasQuadBadWeights = errors.New("render: perspective atlas sprite weights must be finite and > 0")
 )
 
 // AtlasCPUFallbackReason 是图集 CPU 回退的降级标记（与 RenderPathStats 对齐）。

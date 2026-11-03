@@ -249,3 +249,72 @@ func TestP37PerspVerticesCarryTint(t *testing.T) {
 		t.Fatalf("第一角权重=%v want 100", got)
 	}
 }
+
+// p37AtlasPerspCmd 造一条「图集透视精灵」形态的命令（P3.7 批 1c）：
+// 透视 + 子矩形 UV + tint，与 DrawAtlasEx 经 QueueImageDrawQuadW 下发的字节面一致。
+func p37AtlasPerspCmd(img *intImage.ImageBuf, x float32, u0, v0, u1, v1 float32) *ImageDrawCommand {
+	cmd := p37PerspCmd(img, x, [4]float32{100, 110, 120, 130})
+	cmd.U0, cmd.V0, cmd.U1, cmd.V1 = u0, v0, u1, v1
+	cmd.TintR, cmd.TintG, cmd.TintB, cmd.TintA = 0.25, 0.5, 0.75, 1
+	return cmd
+}
+
+// TestP37AtlasPerspMerges 钉批 1c：图集透视精灵（子矩形 UV + tint）与 quad 透视贴图
+// 同图混排必须同槽合批——1a 谓词不看 UV 与 tint（都是逐顶点数据），图集批量精灵
+// 的透视腿不能退化成逐张提交。
+func TestP37AtlasPerspMerges(t *testing.T) {
+	img, err := intImage.NewImageBuf(16, 16, intImage.FormatRGBAPremul)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer img.Dispose()
+
+	// 谓词级：图集透视命令与 quad 透视命令（UV 0..1）同图必合。
+	atlasCmd := p37AtlasPerspCmd(img, 0, 0.25, 0.5, 0.5, 1)
+	quadCmd := p37PerspCmd(img, 16, [4]float32{100, 110, 120, 130})
+	if !canMergeImageDraw(atlasCmd, quadCmd) {
+		t.Fatal("图集透视精灵与 quad 透视贴图同图不合批：UV/tint 不该进合批键")
+	}
+
+	// 真会话：3 张图集透视精灵（子矩形 UV 各异）→ 1 次 Draw，跨度=18 顶点。
+	device, queue, cleanup := createNativeTestDevice(t)
+	defer cleanup()
+	s := NewGPURenderSession(device, queue, 1)
+	defer s.Destroy()
+	cmds := []ImageDrawCommand{
+		*p37AtlasPerspCmd(img, 0, 0.0, 0.0, 0.5, 0.5),
+		*p37AtlasPerspCmd(img, 16, 0.5, 0.0, 1.0, 0.5),
+		*p37AtlasPerspCmd(img, 32, 0.0, 0.5, 0.5, 1.0),
+	}
+	res, err := s.buildImageResources(cmds, 64, 64, []bool{false, false, false})
+	if err != nil {
+		t.Fatalf("buildImageResources: %v", err)
+	}
+	if res == nil || len(res.drawCalls) != 1 {
+		got := 0
+		if res != nil {
+			got = len(res.drawCalls)
+		}
+		t.Fatalf("三张图集透视精灵合批后 draw call=%d，want 1", got)
+	}
+	dc := res.drawCalls[0]
+	if !dc.perspective || dc.vertexCount != uint32(3*6) || dc.firstVertex != 0 {
+		t.Fatalf("合并槽形态 perspective=%v firstVertex=%d vertCnt=%d，want true/0/18", dc.perspective, dc.firstVertex, dc.vertexCount)
+	}
+	if draws, quads := s.LastImageBatchStats(); draws != 1 || quads != 3 {
+		t.Fatalf("LastImageBatchStats=(%d,%d)，want (1,3)", draws, quads)
+	}
+
+	// 顶点级：子矩形 UV 必须逐角进 36B 透视缓冲（批 1b 的 tint 槽同位验证）。
+	buf := make([]byte, 6*imagePerspVertexStride)
+	buildPerspVerticesInto(buf, atlasCmd)
+	if got := p37F32(buf[8:12]); got != 0.25 {
+		t.Fatalf("图集透视顶点 TL.u=%v want 0.25（子矩形 UV 没进透视槽）", got)
+	}
+	if got := p37F32(buf[12:16]); got != 0.5 {
+		t.Fatalf("图集透视顶点 TL.v=%v want 0.5", got)
+	}
+	if got := p37F32(buf[8+imagePerspVertexStride : 12+imagePerspVertexStride]); got != 0.5 {
+		t.Fatalf("图集透视顶点 TR.u=%v want 0.5", got)
+	}
+}

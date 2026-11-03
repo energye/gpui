@@ -72,12 +72,19 @@ func depthFinite(d float64) bool {
 }
 
 // NewDepthSprite 建一个深度精灵，Depth 非有限或内嵌精灵非有限返回哨兵错。
+// 透视精灵（Sprite.Perspective）同时校验四角/权重/采样组合（P3.7 批 1c）。
 func NewDepthSprite(name string, sp AtlasSprite, depth float64) (DepthSprite, error) {
 	if !depthFinite(depth) || !isFiniteAtlasSprite(sp) {
 		return DepthSprite{}, ErrDepthNonFinite
 	}
-	if _, err := normalizeAtlasFilter(sp.Filter); err != nil {
+	filt, err := normalizeAtlasFilter(sp.Filter)
+	if err != nil {
 		return DepthSprite{}, err
+	}
+	if sp.Perspective {
+		if err := atlasPerspValidate(sp, filt); err != nil {
+			return DepthSprite{}, err
+		}
 	}
 	return DepthSprite{Sprite: sp, Depth: depth, Name: name}, nil
 }

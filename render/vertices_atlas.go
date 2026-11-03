@@ -20,6 +20,10 @@ import (
 // DrawAtlas draws multiple sub-rects from a single image.
 // GPU path issues one QueueImageDraw per sprite from the shared ImageBuf.
 // CPU path falls back to DrawImageEx per sprite.
+//
+// 老口只读老字段（vertices.go 惯例）：Perspective/Corners/Weights 不被本口读取，
+// 带 Perspective 的精灵经本口会按 Dst 仿射画——透视精灵必须走 DrawAtlasEx
+// （该口按 ErrAtlasQuad* 哨兵校验四角/权重并走透视腿）。
 func (c *Context) DrawAtlas(img *ImageBuf, sprites []AtlasSprite) {
 	if c == nil || img == nil || len(sprites) == 0 {
 		return
@@ -165,9 +169,38 @@ func isFiniteAtlasSprite(sp AtlasSprite) bool {
 }
 
 // atlasDrawable 报告精灵是否可画（与老 DrawAtlas 跳过规则一致）。
-// atlasDrawable 报告精灵是否可画（与老 DrawAtlas 跳过规则一致）。
+// 透视精灵不读 Dst（四角承载几何），可画性只看源块。
 func atlasDrawable(sp AtlasSprite) bool {
+	if sp.Perspective {
+		return sp.SrcW > 0 && sp.SrcH > 0
+	}
 	return sp.SrcW > 0 && sp.SrcH > 0 && sp.DstW != 0 && sp.DstH != 0
+}
+
+// atlasPerspValidate 校验透视图集精灵的全部组合约束（P3.7 批 1c）。
+// 权重非法 → ErrAtlasQuadBadWeights（先于四角，与 DrawImageQuad 校验序一致）；
+// 非有限四角 → ErrAtlasNonFinite；自交 → ErrAtlasQuadBowTie；退化 → ErrAtlasQuadDegenerate；
+// 透视+bicubic 组合 → ErrQuadPerspectiveBicubic（与 quad 口同一语义同一哨兵）。
+// 仅 Perspective=true 时调用；false 时新字段被忽略、不参与校验（零值=老路）。
+func atlasPerspValidate(sp AtlasSprite, filt InterpolationMode) error {
+	for _, w := range sp.Weights {
+		if math.IsNaN(w) || math.IsInf(w, 0) || w <= 0 {
+			return ErrAtlasQuadBadWeights
+		}
+	}
+	if filt == InterpBicubic {
+		return ErrQuadPerspectiveBicubic
+	}
+	if quadHasNonFinite(sp.Corners) {
+		return ErrAtlasNonFinite
+	}
+	if quadBowTie(sp.Corners) {
+		return ErrAtlasQuadBowTie
+	}
+	if quadAreaSum(sp.Corners) < 1e-9 {
+		return ErrAtlasQuadDegenerate
+	}
+	return nil
 }
 
 // atlasSpriteCorners 算出设备四角（TL/TR/BR/BL），先绕轴心翻转再旋转。
@@ -224,8 +257,14 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 		if !isFiniteAtlasSprite(sprites[i]) {
 			return AtlasDrawResult{}, ErrAtlasNonFinite
 		}
-		if _, err := normalizeAtlasFilter(sprites[i].Filter); err != nil {
+		filt, err := normalizeAtlasFilter(sprites[i].Filter)
+		if err != nil {
 			return AtlasDrawResult{}, err
+		}
+		if sprites[i].Perspective {
+			if err := atlasPerspValidate(sprites[i], filt); err != nil {
+				return AtlasDrawResult{}, err
+			}
 		}
 	}
 	drawIdx := make([]int, 0, len(sprites))
@@ -266,33 +305,59 @@ func (c *Context) DrawAtlasEx(img *ImageBuf, sprites []AtlasSprite, _ AtlasDrawO
 			sp := sprites[i]
 			filt, _ := normalizeAtlasFilter(sp.Filter)
 			op := normalizeAtlasOpacity(sp.Opacity)
-			tl, trPt, br, bl := atlasSpriteCorners(sp, ctm)
+			// 透视精灵四角用户空间经 CTM 进设备空间（与 DrawImageQuad 同语义）；
+			// 仿射精灵沿用 atlasSpriteCorners 拆法逐位不变。
+			var dev [4]Point
+			if sp.Perspective {
+				for k := 0; k < 4; k++ {
+					dev[k] = ctm.TransformPoint(sp.Corners[k])
+				}
+				if quadHasNonFinite(dev) || quadAreaSum(dev) < 1e-9 {
+					return AtlasDrawResult{}, ErrAtlasQuadDegenerate
+				}
+			} else {
+				tl, trPt, br, bl := atlasSpriteCorners(sp, ctm)
+				dev = [4]Point{tl, trPt, br, bl}
+			}
 			u0 := float32(sp.SrcX) / float32(imgW)
 			v0 := float32(sp.SrcY) / float32(imgH)
 			u1 := float32(sp.SrcX+sp.SrcW) / float32(imgW)
 			v1 := float32(sp.SrcY+sp.SrcH) / float32(imgH)
 			nearest := filt == InterpNearest
 			bicubic := filt == InterpBicubic
-			if tintIface {
-				tintR, tintG, tintB, tintA := atlasTintFactors(sp.Tint)
-				// Premultiply on the CPU side (texel premul * tint premul):
-				// CPU does srcRGB = tex*tr*srcA with srcA = baseA*ta*op,
-				// so the vertex tint must carry tr*ta (not straight tr).
-				tintR, tintG, tintB = tintR*tintA, tintG*tintA, tintB*tintA
+			tintR, tintG, tintB, tintA := atlasTintFactors(sp.Tint)
+			// Premultiply on the CPU side (texel premul * tint premul):
+			// CPU does srcRGB = tex*tr*srcA with srcA = baseA*ta*op,
+			// so the vertex tint must carry tr*ta (not straight tr).
+			tintR, tintG, tintB = tintR*tintA, tintG*tintA, tintB*tintA
+			if sp.Perspective {
+				// 透视腿走 36B 透视槽（批 1a 合批谓词自动覆盖图集透视精灵；
+				// 批 1b 扩的 tint 形参在这里同式下发）。bicubic 已在校验拒绝。
+				c.gpuCtxOps().QueueImageDrawQuadW(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
+					float32(dev[0].X), float32(dev[0].Y),
+					float32(dev[1].X), float32(dev[1].Y),
+					float32(dev[2].X), float32(dev[2].Y),
+					float32(dev[3].X), float32(dev[3].Y),
+					float32(sp.Weights[0]), float32(sp.Weights[1]),
+					float32(sp.Weights[2]), float32(sp.Weights[3]),
+					float32(op), vpW, vpH, u0, v0, u1, v1,
+					float32(tintR), float32(tintG), float32(tintB), float32(tintA),
+					nearest)
+			} else if tintIface {
 				c.gpuCtxOps().QueueImageDrawTint(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
-					float32(tl.X), float32(tl.Y),
-					float32(trPt.X), float32(trPt.Y),
-					float32(br.X), float32(br.Y),
-					float32(bl.X), float32(bl.Y),
+					float32(dev[0].X), float32(dev[0].Y),
+					float32(dev[1].X), float32(dev[1].Y),
+					float32(dev[2].X), float32(dev[2].Y),
+					float32(dev[3].X), float32(dev[3].Y),
 					float32(op), vpW, vpH, u0, v0, u1, v1,
 					float32(tintR), float32(tintG), float32(tintB), float32(tintA),
 					nearest, bicubic)
 			} else {
 				c.gpuCtxOps().QueueImageDraw(target, pixelData, genID, img, sp.Mipmap, imgW, imgH, stride,
-					float32(tl.X), float32(tl.Y),
-					float32(trPt.X), float32(trPt.Y),
-					float32(br.X), float32(br.Y),
-					float32(bl.X), float32(bl.Y),
+					float32(dev[0].X), float32(dev[0].Y),
+					float32(dev[1].X), float32(dev[1].Y),
+					float32(dev[2].X), float32(dev[2].Y),
+					float32(dev[3].X), float32(dev[3].Y),
 					float32(op), vpW, vpH, u0, v0, u1, v1, nearest, bicubic)
 			}
 			queued++
@@ -346,16 +411,35 @@ func (c *Context) drawAtlasExCPU(img *ImageBuf, sprites []AtlasSprite, drawIdx [
 			continue
 		}
 		tr, tg, tb, ta := atlasTintFactors(sp.Tint)
-		tl, trPt, br, bl := atlasSpriteCorners(sp, ctm)
-		dev := [4]Point{tl, trPt, br, bl}
+		// 透视精灵四角用户空间经 CTM 进设备空间（与 GPU 腿同拆法）；
+		// 仿射精灵沿用 atlasSpriteCorners 拆法逐位不变。
+		var dev [4]Point
+		if sp.Perspective {
+			for k := 0; k < 4; k++ {
+				dev[k] = ctm.TransformPoint(sp.Corners[k])
+			}
+		} else {
+			tl, trPt, br, bl := atlasSpriteCorners(sp, ctm)
+			dev = [4]Point{tl, trPt, br, bl}
+		}
 		minX, minY, maxX, maxY := quadBounds(dev)
 		c.trackDamage(image.Rect(int(math.Floor(minX)), int(math.Floor(minY)), int(math.Ceil(maxX))+1, int(math.Ceil(maxY))+1))
 		u0 := sp.SrcX / float64(imgW)
 		v0 := sp.SrcY / float64(imgH)
 		u1 := (sp.SrcX + sp.SrcW) / float64(imgW)
 		v1 := (sp.SrcY + sp.SrcH) / float64(imgH)
-		t1 := newTriSampler(dev[0], dev[1], dev[3], [3][2]float64{{u0, v0}, {u1, v0}, {u0, v1}})
-		t2 := newTriSampler(dev[1], dev[2], dev[3], [3][2]float64{{u1, v0}, {u1, v1}, {u0, v1}})
+		// GPU twin UVs: TL(u0,v0) TR(u1,v0) BR(u1,v1) BL(u0,v1)；透视腿 1/w
+		// 有理插值（与 DrawImageQuad CPU 腿同款 newTriSamplerPerspective）。
+		var t1, t2 triSampler
+		if sp.Perspective {
+			t1 = newTriSamplerPerspective(dev[0], dev[1], dev[3], [3][2]float64{{u0, v0}, {u1, v0}, {u0, v1}},
+				sp.Weights[0], sp.Weights[1], sp.Weights[3])
+			t2 = newTriSamplerPerspective(dev[1], dev[2], dev[3], [3][2]float64{{u1, v0}, {u1, v1}, {u0, v1}},
+				sp.Weights[1], sp.Weights[2], sp.Weights[3])
+		} else {
+			t1 = newTriSampler(dev[0], dev[1], dev[3], [3][2]float64{{u0, v0}, {u1, v0}, {u0, v1}})
+			t2 = newTriSampler(dev[1], dev[2], dev[3], [3][2]float64{{u1, v0}, {u1, v1}, {u0, v1}})
+		}
 		x0 := int(math.Floor(minX))
 		y0 := int(math.Floor(minY))
 		x1 := int(math.Ceil(maxX))

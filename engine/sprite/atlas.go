@@ -95,6 +95,13 @@ func (f AtlasFilter) ToRender() (render.InterpolationMode, error) {
 // the rotation about the pivot, the mirror before rotation, the pivot
 // offset from the Dst origin, the multiply tint, and the sampling.
 // Tag is a debug key for tests and logs only.
+//
+// Perspective (P3.7 batch 1c) switches the sprite to the projective leg:
+// Corners carry the projected screen corners (TL/TR/BR/BL, user space of
+// the target canvas — the camera exit fills them) and Weights the per-corner
+// homogeneous w (= focal+depth); Dst/Rot/Flip/Pivot are then ignored, no
+// half-affine-half-perspective mix. Zero value keeps the affine road.
+// 同 Godot Sprite3D 的职责划分：投影由引擎算好，render 只收顶点级数据。
 type AtlasSprite struct {
 	Image   core.AssetID
 	Src     core.Rect
@@ -107,6 +114,10 @@ type AtlasSprite struct {
 	Tint    core.Color
 	Filter  AtlasFilter
 	Tag     string
+
+	Perspective bool
+	Corners     [4]core.Vec2
+	Weights     [4]float64
 }
 
 func finiteAtlasFloat(x float64) bool { return !math.IsNaN(x) && !math.IsInf(x, 0) }
@@ -184,6 +195,18 @@ func (s AtlasSprite) Validate() error {
 	if !s.Filter.Valid() {
 		return core.InvalidArg(op, "filter")
 	}
+	if s.Perspective {
+		for i := range s.Corners {
+			if !finiteAtlasFloat(s.Corners[i].X) || !finiteAtlasFloat(s.Corners[i].Y) {
+				return core.InvalidArg(op, "corners")
+			}
+		}
+		for _, w := range s.Weights {
+			if !finiteAtlasFloat(w) || w <= 0 {
+				return core.InvalidArg(op, "weights")
+			}
+		}
+	}
 	return nil
 }
 
@@ -222,14 +245,22 @@ func (s AtlasSprite) ToRender() (render.AtlasSprite, error) {
 	if err != nil {
 		return render.AtlasSprite{}, err
 	}
-	return render.AtlasSprite{
+	out := render.AtlasSprite{
 		SrcX: s.Src.X, SrcY: s.Src.Y, SrcW: s.Src.W, SrcH: s.Src.H,
 		DstX: s.Dst.X, DstY: s.Dst.Y, DstW: s.Dst.W, DstH: s.Dst.H,
 		Opacity: s.Opacity, Rot: s.Rot, FlipX: s.FlipX, FlipY: s.FlipY,
 		PivotX: s.Pivot.X, PivotY: s.Pivot.Y,
 		Tint:   renderconv.ColorToRender(s.Tint),
 		Filter: filt,
-	}, nil
+	}
+	if s.Perspective {
+		out.Perspective = true
+		for i := range s.Corners {
+			out.Corners[i] = renderconv.Vec2ToRenderPoint(s.Corners[i])
+		}
+		out.Weights = s.Weights
+	}
+	return out, nil
 }
 
 // AtlasToRender converts items to the render draws at the boundary,

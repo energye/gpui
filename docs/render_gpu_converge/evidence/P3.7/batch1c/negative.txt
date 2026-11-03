@@ -1,0 +1,29 @@
+# P3.7 批 1c 负向对照（2026-11-04，逐条实测：红了再还原，还原后复跑全绿）
+
+=== N1 摘 GPU 图集透视腿（分支禁用 → 仿射队列口 QueueImageDrawTint）===
+--- FAIL: TestP37AtlasPerspTrapezoidUV
+    p37_atlas_persp_test.go:210: 图集透视与仿射 quad 逐格相同：1/w 有理插值没接上（weights 被忽略退仿射的形态）
+=== N2 摘 CPU 透视采样器（persp 分支退 newTriSampler）===
+--- FAIL: TestP37AtlasPerspCPUGPUParity
+    p37_atlas_persp_test.go:167: 图集透视 GPU/CPU 分叉 128 > 1（显式声明容差）
+=== N3 GPU 下发等权（QueueImageDrawQuadW 权重改填 1,1,1,1）===
+--- FAIL: TestP37AtlasPerspCPUGPUParity
+    p37_atlas_persp_test.go:167: 图集透视 GPU/CPU 分叉 129 > 1（显式声明容差）
+--- FAIL: TestP37AtlasPerspTrapezoidUV
+    p37_atlas_persp_test.go:210: 图集透视与仿射 quad 逐格相同：1/w 有理插值没接上（weights 被忽略退仿射的形态）
+=== N4 摘权重校验（atlasPerspValidate 权重检查掏空）===
+--- FAIL: TestP37AtlasPerspSentinels/权重负
+--- FAIL: TestP37AtlasPerspSentinels/权重_NaN
+--- FAIL: TestP37AtlasPerspSentinels（NewDepthSprite 坏权重）
+    p37_atlas_persp_test.go:342/356: got <nil> want ErrAtlasQuadBadWeights
+=== 全部还原后复跑 ===
+ok  github.com/energye/gpui/render（TestP37AtlasPersp* + TestP37DepthSpritesCarryPersp + TestP37ImageMixedOrderDraws 八枚全绿）
+
+=== 附：既有洞修复负向（RecordDraws 顶点缓冲切回）===
+洞：透视绘制切到 36B 缓冲后，仿射绘制（vertBuf=nil）不切回 32B 缓冲，firstVertex
+落透视缓冲越界 ⇒ 整 pass 编码失效，[透视,仿射] 序两笔全丢（quad 路与图集路同病；
+HEAD 2d0c284b worktree A/B 同红 = 既有洞非本批引入；1a 单测只到 buildImageResources
+层未覆盖编码段，p35 窗全透视、stage_chase 全仿射故未暴露）。
+修复钉：TestP37ImageMixedOrderDraws（透视/仿射 × quad/图集 四序全上屏）——修复前该钉
+在「透视在前」两序红（调试变体矩阵实测：透视,仿射 → 梯形=(255,255,255) 精灵=(255)；
+仿射,透视 → 全部正常），修复后四序绿。

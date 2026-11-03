@@ -914,7 +914,12 @@ func (p *TexturedQuadPipeline) RecordDraws(rp hal.RenderPassEncoder, res *imageF
 		if pipe == nil {
 			continue
 		}
-		wantBuf := curBuf
+		// Affine calls carry vertBuf=nil and MUST switch back to res.vertBuf:
+		// a persp draw before them leaves curBuf on the 36B projective buffer,
+		// and firstVertex is an affine-buffer index there — the draw reads the
+		// wrong (overrun) range and the whole render pass encode fails, losing
+		// every draw in the pass (P3.7 batch 1c mixed-order pin).
+		wantBuf := res.vertBuf
 		if dc.vertBuf != nil {
 			wantBuf = dc.vertBuf
 		}

@@ -1,0 +1,19 @@
+# 批 1c 真窗复验汇总（2026-11-04，批 1c 修复态树）
+
+窗 1：examples/engine/sprite（DrawAtlasEx + DrawDepthSprites 直接消费者窗）
+跑法：RUN 默认 8s，-auto-only，GPUI_BACKEND=native|go 各一轮；一轮一窗、窗自管关闭路径、
+每轮前后 pgrep -c Xwayland = 1 全程存活（Wayland + XWayland :0，无 Xorg）。
+native：parity=0.0000% mean=0.0000 gpu_ops=5 batch=1 sorted=1 probes=1
+        golden=0.0000% (sprite_last.png, 56000px, first=false) ok=true；cpu_fallback_ops=0
+go    ：parity=0.0000% mean=0.0000 gpu_ops=5 batch=1 sorted=1 probes=1
+        golden=0.0000% (56000px) ok=true；cpu_fallback_ops=0
+⇒ 存量金图逐位零变化实测成立（批 1c 零值=老路被像素证据钉住）。
+
+窗 2：examples/engine/camera（示例绕路搬走窗：两处丢弃 scale 写死尺寸改为按 scale 缩放）
+native：probes ok=true follow=true(29/0.743) limit/seam/par/dead/dual/audio/bus/pix 全 true，
+        golden=true (wrote=false, changed=0) —— 比对既有金图零差异
+go    ：probes 同上全 true，golden=true (wrote=false, changed=0)
+⇒ scale 捡回后画面逐位不变（scale≡1@depth0 解析恒等被双后端实证）；
+  「示例层丢弃 scale 写死尺寸」的绕路就此搬走。
+
+完整 JSON 略（*.log 不入库，照批 1a/1b 先例只入本汇总）。

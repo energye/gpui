@@ -1,0 +1,16 @@
+# P3.7 batch 1c build gate: linux/arm64
+# env: CGO_ENABLED=0 GOOS=linux GOARCH=arm64
+# date: 2026-11-04T06:09:51+08:00
+# head: 07e67f11
+# dirty: 22 paths (P3.7 批 1b working tree, uncommitted)
+
+## 1. go build ./... (raw)
+# exit: 0 (expected 1: known-broken pkgs excluded below, pre-existing)
+
+## 2. go build <all buildable except known-broken>
+# pkgs: 334
+# exit: 0
+
+## 3. go build -tags nogpu <all buildable except known-broken>
+# pkgs: 330
+# exit: 0

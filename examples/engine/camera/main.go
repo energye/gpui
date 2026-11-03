@@ -921,12 +921,14 @@ func main() {
 			if !ok {
 				continue
 			}
-			sp, _, ok := proj.Project(sh, 0)
+			// P3.7 批 1c：不再丢弃 Project 返回的 scale（示例层绕路搬走）——
+			// 尺寸随深度缩放；depth=0 时 scale≡1，画面与旧写死尺寸逐位一致。
+			sp, scale, ok := proj.Project(sh, 0)
 			if !ok {
 				continue
 			}
 			pc.DC.SetRGBA(farR, farG, farB, 1)
-			pc.DC.DrawRectangle(ax+sp.X-40, ay+sp.Y-30, 80, 60)
+			pc.DC.DrawRectangle(ax+sp.X-40*scale, ay+sp.Y-30*scale, 80*scale, 60*scale)
 			_ = pc.DC.Fill()
 		}
 		bandCols := [][3]float64{{farR, farG, farB}, {nearR, nearG, nearB}}
@@ -937,16 +939,17 @@ func main() {
 				if !ok {
 					continue
 				}
-				sp, _, ok := proj.Project(sh, 0)
+				// P3.7 批 1c：捡回 scale（同上，绕路搬走）；depth=0 ⇒ 画面逐位不变。
+				sp, scale, ok := proj.Project(sh, 0)
 				if !ok {
 					continue
 				}
-				px, py := ax+sp.X-30, ay+sp.Y-14
+				px, py := ax+sp.X-30*scale, ay+sp.Y-14*scale
 				if px < ax-60 || px > ax+rw+60 || py < ay-40 || py > ay+rh+40 {
 					continue
 				}
 				pc.DC.SetRGBA(bandCols[bi][0], bandCols[bi][1], bandCols[bi][2], 1)
-				pc.DC.DrawRectangle(px, py, 60, 28)
+				pc.DC.DrawRectangle(px, py, 60*scale, 28*scale)
 				_ = pc.DC.Fill()
 			}
 		}

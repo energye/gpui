@@ -206,9 +206,9 @@
 |------|------|------|------|
 | `DrawVertices(pos,cols,mode)` / `VertexMode` | 顶点数组绘制（三角扇/条带/列表） | 顶点数组 | 🔌 无生产消费者（仅测试 + 直调真窗 `ui_render_base_verticesmesh`，2026-10-20 原子验证） |
 | `DrawMesh(mesh)` / `Mesh` | 网格绘制（膨胀路径转三角形） | 网格绘制 | 🔌 无生产消费者（仅测试 `p1_capability_matrix_closers_test` + 直调真窗 `ui_render_base_verticesmesh`，2026-10-20 原子验证） |
-| `DrawAtlas(img,sprites)` / `AtlasSprite` | 单纹理图集批量精灵绘制 | 图集绘制 | 🔗 |
+| `DrawAtlas(img,sprites)` / `AtlasSprite` | 单纹理图集批量精灵绘制；`AtlasSprite{Src,Dst,Opacity,Rot,Flip,Pivot,Tint,Filter,Mipmap,`**`Perspective,Corners,Weights`**`}`——**P3.7 批 1c 扩透视承载**：`Perspective=true` 时四角 `Corners`（用户空间，CTM 照常应用，与 `QuadDrawOptions` 同词汇同序 TL/TR/BR/BL）+ 齐次权重 `Weights`（= focal+depth）承载几何、`Dst/Rot/Flip/Pivot` 被忽略（避免半仿射半透视混合解释），GPU 走 36B 透视槽与 quad 透视贴图同槽合批（1a 谓词自动覆盖）、CPU 走 `newTriSamplerPerspective` 1/w 有理插值；零值=false=历史仿射路逐位不变（新字段被忽略，塞垃圾值不影响画面）。校验哨兵：`ErrAtlasQuadDegenerate`（零面积）/`ErrAtlasQuadBowTie`（自交）/`ErrAtlasQuadBadWeights`（权重非有限或 ≤0）为批 1c 新增；四角非有限复用 `ErrAtlasNonFinite`；透视+bicubic 组合复用 `ErrQuadPerspectiveBicubic`（同一语义不造第二份枚举）。对齐 Godot Sprite3D 职责划分：投影由引擎（`engine/camera.Projector.ProjectSpriteQuad`）算好喂入，render 只收顶点级数据 | 图集绘制 | 🔗 |
 | `DrawRegularPolygon(n,x,y,r,rot)` | 正多边形形状追加到路径 | 正多边形 | 🔗 |
-| `DrawVerticesEx/DrawMeshEx/DrawAtlasEx/DrawDepthSprites`（vertices_mesh.go/vertices_atlas.go） | 带回退原因的顶点/网格/图集/深度精灵绘制（返回 CPU 回退原因） | 顶点绘制扩展 | 🔌 无生产消费者（仅测试 + 直调真窗 `ui_render_base_verticesmesh`；Ex→冻结路径自调用属内部路径，非生产接线） |
+| `DrawVerticesEx/DrawMeshEx/DrawAtlasEx/DrawDepthSprites`（vertices_mesh.go/vertices_atlas.go） | 带回退原因的顶点/网格/图集/深度精灵绘制（返回 CPU 回退原因）；`DrawAtlasEx` 批 1c 起承接图集透视腿（校验四角/权重/组合后走 `QueueImageDrawQuadW`，`DrawDepthSprites` 经拍平透传同批生效，`NewDepthSprite` 早拒绝） | 顶点绘制扩展 | 🔌 无生产消费者（仅测试 + 直调真窗 `ui_render_base_verticesmesh`；Ex→冻结路径自调用属内部路径，非生产接线） |
 | `VertDrawOptions/VertDrawResult/VertCPUFallbackReason` + var `ErrVertsBadIndex/ErrVertsNonFinite` | 顶点绘制选项/结果/回退原因 + 非法索引/非有限坐标错误 | 顶点绘制参数 | 🔗 |
 | `AtlasDrawOptions/AtlasDrawResult/AtlasCPUFallbackReason` + var `ErrAtlasNonFinite/ErrAtlasUnsupportedFilter` | 图集绘制选项/结果/回退原因 + 非有限矩形/不支持过滤错误 | 图集绘制参数 | 🔗 |
 | `DepthSprite` + `NewDepthSprite` + `DepthDrawOptions/DepthDrawResult/DepthCPUFallbackReason` + var `ErrDepthNonFinite` | 深度排序精灵及绘制选项/结果/回退原因 | 深度精灵 | 🔗 |

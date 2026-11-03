@@ -365,3 +365,70 @@ func TestProjectOffscreenGolden(t *testing.T) {
 		}
 	}
 }
+
+// P3.7 批 1c：ProjectSpriteQuad 是 ProjectQuad 的第一个真消费者——
+// 出口角点必须逐点等于逐角 Project，权重 = focal+depth；单深度形态 =
+// DepthToScale 缩放矩形（「按深度缩放精灵」的标准形态首次可用）；behind-eye
+// 整体拒绝。
+func TestProjectSpriteQuadExit(t *testing.T) {
+	p, err := NewProjector(100, core.V2(160, 110), core.V2(60, 45))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rect := core.Rect{X: 0, Y: 0, W: 120, H: 90}
+	depths := [4]float64{60, 60, 0, 0} // 顶远底近
+
+	corners, weights, ok := p.ProjectSpriteQuad(rect, depths)
+	if !ok {
+		t.Fatal("可投影输入被拒绝")
+	}
+	// 逐角等于 Project（同一投影公式，出口不另造第二套数学）。
+	world := [4]core.Vec2{
+		core.V2(rect.X, rect.Y),
+		core.V2(rect.X+rect.W, rect.Y),
+		core.V2(rect.X+rect.W, rect.Y+rect.H),
+		core.V2(rect.X, rect.Y+rect.H),
+	}
+	for i := range world {
+		screen, _, ok := p.Project(world[i], depths[i])
+		if !ok {
+			t.Fatalf("角 %d Project 失败", i)
+		}
+		if math.Abs(corners[i].X-screen.X) > epsProject || math.Abs(corners[i].Y-screen.Y) > epsProject {
+			t.Fatalf("角 %d 出口 (%.4f,%.4f) ≠ Project (%.4f,%.4f)", i, corners[i].X, corners[i].Y, screen.X, screen.Y)
+		}
+		if math.Abs(weights[i]-(100+depths[i])) > epsProject {
+			t.Fatalf("角 %d 权重 %.4f ≠ focal+depth %.4f", i, weights[i], 100+depths[i])
+		}
+	}
+
+	// 单深度 = 等权仿射等价矩形：角点 = center+(world-camera)*scale，scale=DepthToScale。
+	sp := [4]float64{30, 30, 30, 30}
+	sc, sw, sok := p.ProjectSpriteQuad(rect, sp)
+	if !sok {
+		t.Fatal("单深度输入被拒绝")
+	}
+	scale, okScale := p.DepthToScale(30)
+	if !okScale {
+		t.Fatal("DepthToScale 失败")
+	}
+	for i := range world {
+		wantX := 160 + (world[i].X-60)*scale
+		wantY := 110 + (world[i].Y-45)*scale
+		if math.Abs(sc[i].X-wantX) > epsProject || math.Abs(sc[i].Y-wantY) > epsProject {
+			t.Fatalf("单深度角 %d (%.4f,%.4f) ≠ scale 缩放 (%.4f,%.4f)", i, sc[i].X, sc[i].Y, wantX, wantY)
+		}
+		if math.Abs(sw[i]-130) > epsProject {
+			t.Fatalf("单深度权重 %.4f ≠ 130", sw[i])
+		}
+	}
+
+	// behind-eye 整体拒绝（任一角失败 ⇒ 全失败，不画半个）。
+	if _, _, ok := p.ProjectSpriteQuad(rect, [4]float64{-200, 0, 0, 0}); ok {
+		t.Fatal("behind-eye 角未被整体拒绝")
+	}
+	// 非有限深度整体拒绝。
+	if _, _, ok := p.ProjectSpriteQuad(rect, [4]float64{math.NaN(), 0, 0, 0}); ok {
+		t.Fatal("NaN 深度未被整体拒绝")
+	}
+}
