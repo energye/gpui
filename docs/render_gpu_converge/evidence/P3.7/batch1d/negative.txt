@@ -88,3 +88,23 @@
   --- FAIL: TestP37ProjectionZeroValueNeverActive (0.00s)
   红钉 1 / 绿钉 17
   还原 OK
+
+=== 追加反证 N11–N14（旁路钉与门卫是否真在承载行为，终态基线：30 枚钉）===
+=== N11 摘文字族 fail-closed 守卫（九入口同摘） [text_entry.go] ===
+      p37_projection_internal_test.go:60: 文字跳过未被计数（E 组表态没有观测面）
+  --- FAIL: TestP37ProjectionCounters (0.28s)
+      p37_projection_chain_test.go:424: 文字跳过不可见（E 组表态缺对外观测面）
+  --- FAIL: TestP37ProjectionStatsCensus (0.02s)
+      p37_projection_stances_test.go:533: StrokeStringAnchored：投影下 0 像素 + 计数 +1；恒等对照 723 像素
+  --- FAIL: TestP37ProjectionAllTextEntriesFailClosed (0.09s)
+      p37_projection_stances_test.go:594: StrokeStringAnchored：投影下 0 像素 + TextSkips +1（不记路径映射）；恒等对照 1080 像素
+  --- FAIL: TestP37ProjectionStrokeTextFailClosed (0.01s)
+      p37_projection_test.go:554: 投影下文字被绘制（fail-closed 失效）@(42,44)
+  --- FAIL: TestP37ProjectionTextSkipped (0.01s)
+  红钉 5 / 绿钉 25
+  还原 OK
+
+=== 如实登记的第二次「不断言防护」===
+N12b 摘「均匀缩放 RRect 快路门」：红钉 0 / 绿钉 30 ⇒ 该门在当前配置下不承载画面
+  （定向门由 N12 证明承载：旋转子例红；均匀门保留为防御性护栏，不当作修复记账）。
+  第一次是 N6（眼后 CPU 显式拒绝）。两处的共同点：不拿「加了守卫」冒充「修了洞」。

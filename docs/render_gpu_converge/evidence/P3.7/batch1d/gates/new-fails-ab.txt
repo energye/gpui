@@ -20,3 +20,8 @@ sweep 原文（本树，负载下测量）：H02 p50=7.73(门限 7.71) / H03 5.2
 ⇒ **同一贴线族在干净 HEAD 上同样红**，飘的场景与幅度（±3%、0.02~0.09ms）与本树一致 ⇒ 定性为计时漂移/环境敏感族，
    非批 1d 引入的性能回归（本批对 H02 图层混合栈、U05 厨房水槽只加了 `projectionActive` 一次字段判断，恒等路零数学）。
    台账先例在案：批 1b 已记 `s6_9_heavy_budget` 为「在册墙钟贴线漂移族」，批 1c 记 m1_paint 同族互换先例。
+
+=== 逐文件 sweep 终态复跑（描字守卫 + 12 枚旁路钉之后）===
+759 = 730 PASS / 21 SKIP_TAGGED / 7 FAIL / 1 NO_TESTS（基线 755=724/21/9/1）
++4 全为本批新测试文件且全 PASS：p37_projection_test / _chain_test / _stances_test / _internal_test
+FAIL 名单是基线九枚的子集（本批零新增红；m1_paint 与 m5_keystroke_g1 本轮也回绿）

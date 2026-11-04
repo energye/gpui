@@ -315,6 +315,13 @@ func (c *Context) DrawStringWrapped(s string, x, y, ax, ay, width, lineSpacing f
 // Enterprise pattern: matches HTML5 Canvas strokeText(), Cairo show_text() + stroke(),
 // Skia SkPaint::kStroke_Style + drawTextBlob.
 func (c *Context) StrokeString(s string, x, y float64) {
+	// P3.7 批 1d（E 组同口径）：投影层非恒等 ⇒ 描字 fail-closed 不画 + 具名计数。
+	// 实测：同一字形轮廓 Fill 在投影下正常（2052 像素），而描边展平后与
+	// 「闭环空腔靠反向绕行」相互抵消 ⇒ 画空（只记一次路径映射）——与其让内容
+	// 静默消失，不如显式不画并计数；描字接投影映射（保序展平）登记为后续专项。
+	if c.projTextBlocked() {
+		return
+	}
 	if c.face == nil {
 		return
 	}
@@ -359,6 +366,13 @@ func (c *Context) StrokeString(s string, x, y float64) {
 // The stroke width, cap, join, and dash come from the current paint state.
 // Always uses vector outlines regardless of TextMode.
 func (c *Context) StrokeStringAnchored(s string, x, y, ax, ay float64) {
+	// P3.7 批 1d（E 组同口径）：投影层非恒等 ⇒ 描字 fail-closed 不画 + 具名计数。
+	// 实测：同一字形轮廓 Fill 在投影下正常（2052 像素），而描边展平后与
+	// 「闭环空腔靠反向绕行」相互抵消 ⇒ 画空（只记一次路径映射）——与其让内容
+	// 静默消失，不如显式不画并计数；描字接投影映射（保序展平）登记为后续专项。
+	if c.projTextBlocked() {
+		return
+	}
 	if c.face == nil {
 		return
 	}

@@ -275,3 +275,10 @@
 --- PASS: TestR1_MipLevelBlendSelect (0.03s)
 PASS
 ok  	github.com/energye/gpui/render	1.357s
+
+# 附（2026-11-04 终态）：`go test ./render` 不加过滤整包会**中断**于在册 M4 洞——
+#   thread panicked at src/conv.rs:519:22: invalid bind group layout for pipeline layout descriptor
+#   panic in a function that cannot unwind @ wgpuDeviceCreatePipelineLayout
+# 与批 1a/1b/1c 记录同签名（`-v` 下零 `--- FAIL` 行 = 进程被 panic 打断，不是测试红），
+# 故门禁按 AGENTS 口径走逐文件 sweep（本批 759=730/21/7/1，FAIL ⊂ 基线九枚）。
+# 同轮 `go test ./render/internal/gpu` 不加过滤整包 rc=0 ok 30.0s（该包本轮未触发）。

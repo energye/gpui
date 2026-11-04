@@ -19,3 +19,9 @@ go    ：probes 全 true（converge=29 err=0.743 travel=555 moves=30 holds=436�
 ⇒ 相机链与批绘透视腿在双后端下与既有金图零差异。
 
 结论：**「恒等投影 ⇒ 存量逐位不变」的构造性护栏得到三窗双后端像素实证**（三窗各自覆盖 quad/图集/相机三链）。
+
+=== 终态复跑（批 1d 追加旁路钉与描字守卫之后，2026-11-04）===
+六轮 rc 全 0，每轮前后 pgrep -c Xwayland = 1；三窗存量金图依旧逐位零变化：
+  ui_wr_p35_persp native/go：logic=9/9 pixel=17/17 golden=0.0000% cpu_fallback_ops=0
+  engine/sprite   native/go：parity_changed_pct=0 golden=0.0000% cpu_fallback_ops=0
+  engine/camera   native/go：golden changed=0 probes 全 true cpu_fallback_ops=0
